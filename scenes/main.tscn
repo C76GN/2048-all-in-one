@@ -1,11 +1,10 @@
-[gd_scene load_steps=2 format=3 uid="uid://28ale2iku1n4"]
+[gd_scene load_steps=3 format=3 uid="uid://28ale2iku1n4"]
 
 [ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/main.gd" id="1_o5qli"]
+[ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="2_0wfyh"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_o5qli")
-
-[node name="BoardContainer" type="Node2D" parent="."]
 
 [node name="ProgressBar" type="ProgressBar" parent="."]
 offset_left = 40.0
@@ -20,3 +19,8 @@ offset_right = 290.0
 offset_bottom = 63.0
 text = "Spawning monster in..."
 vertical_alignment = 1
+
+[node name="GameBoard" type="Node2D" parent="."]
+script = ExtResource("2_0wfyh")
+
+[node name="BoardContainer" type="Node2D" parent="GameBoard"]
