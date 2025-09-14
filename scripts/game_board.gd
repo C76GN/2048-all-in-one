@@ -3,7 +3,7 @@
 # 该脚本负责管理整个游戏棋盘的核心逻辑。
 # 它处理包括棋盘的初始化、方块的生成、移动、合并、战斗以及胜负条件的判断。
 # 通过信号与主场景(Main.gd)进行通信，实现了逻辑与表现的分离。
-extends Node2D
+extends Control
 
 # --- 信号定义 ---
 
@@ -34,6 +34,7 @@ var grid = []
 # --- 节点引用 ---
 
 # 棋盘容器，所有方块的父节点，方便统一管理和定位。
+# 注意：这里的$BoardContainer路径是相对于当前脚本所在的GameBoard节点，所以无需修改。
 @onready var board_container: Node2D = $BoardContainer
 
 
@@ -43,8 +44,10 @@ func _ready() -> void:
 	_initialize_grid()
 	# 绘制棋盘的背景单元格。
 	_draw_board()
-	# 将整个棋盘居中显示。
-	_center_board()
+	# 计算棋盘的总像素尺寸
+	var board_side_length = GRID_SIZE * CELL_SIZE + (GRID_SIZE - 1) * SPACING
+	# 设置当前Control节点的最小尺寸
+	self.custom_minimum_size = Vector2(board_side_length, board_side_length)
 	
 	# 游戏开始时生成两个初始玩家方块。
 	spawn_tile()
@@ -94,8 +97,11 @@ func handle_move(direction: Vector2i) -> void:
 func spawn_tile() -> void:
 	var empty_cells = _get_empty_cells()
 	if empty_cells.is_empty(): return
+	# 使用随机数生成器选择一个随机空位。
+	var rng = RandomNumberGenerator.new()
+	rng.randomize()
+	var spawn_pos: Vector2i = empty_cells[rng.randi_range(0, empty_cells.size() - 1)]
 	
-	var spawn_pos: Vector2i = empty_cells.pick_random()
 	var new_tile = TileScene.instantiate()
 	
 	board_container.add_child(new_tile)
@@ -137,7 +143,7 @@ func get_max_player_value() -> int:
 ## 初始化网格，创建一个填满 'null' 的二维数组。
 func _initialize_grid():
 	grid.resize(GRID_SIZE)
-	for x in GRID_SIZE:
+	for x in range(GRID_SIZE):
 		grid[x] = []
 		grid[x].resize(GRID_SIZE)
 		grid[x].fill(null)
@@ -152,19 +158,12 @@ func _draw_board():
 			cell_bg.color = Color("8f8f8f")
 			board_container.add_child(cell_bg)
 
-## 计算并设置棋盘的位置，使其在游戏窗口中居中。
-func _center_board():
-	var viewport_size = get_viewport_rect().size
-	var board_total_size = (GRID_SIZE * CELL_SIZE) + (GRID_SIZE - 1) * SPACING
-	var top_left_position = (viewport_size - Vector2(board_total_size, board_total_size)) / 2.0
-	self.position = top_left_position
-
 ## 遍历整个网格，返回所有空格子坐标的数组。
 ## @return: 一个包含所有空单元格 Vector2i 坐标的数组。
 func _get_empty_cells() -> Array:
 	var empty_cells = []
-	for x in GRID_SIZE:
-		for y in GRID_SIZE:
+	for x in range(GRID_SIZE):
+		for y in range(GRID_SIZE):
 			if grid[x][y] == null:
 				empty_cells.append(Vector2i(x, y))
 	return empty_cells
@@ -264,7 +263,7 @@ func _process_line(line: Array) -> Array:
 	var has_moved = false
 	if result_line.size() != line.size(): has_moved = true
 	else:
-		for idx in result_line.size():
+		for idx in range(result_line.size()): # <-- 修正循环
 			if (result_line[idx] == null and line[idx] != null) or \
 			   (result_line[idx] != null and line[idx] == null) or \
 			   (result_line[idx] != null and line[idx] != null and result_line[idx].get_instance_id() != line[idx].get_instance_id()):
@@ -289,8 +288,8 @@ func _grid_to_pixel(grid_pos: Vector2i) -> Vector2:
 ## 检查游戏是否结束（胜利或失败）。
 func _check_game_over() -> void:
 	# 检查胜利条件：是否存在一个数值达到4096的玩家方块。
-	for x in GRID_SIZE:
-		for y in GRID_SIZE:
+	for x in range(GRID_SIZE):
+		for y in range(GRID_SIZE):
 			var tile = grid[x][y]
 			if tile != null and tile.type == tile.TileType.PLAYER and tile.value >= 4096:
 				game_won.emit()
@@ -299,19 +298,18 @@ func _check_game_over() -> void:
 	# 如果棋盘已满，则检查失败条件。
 	if _get_empty_cells().is_empty():
 		# 遍历棋盘，检查是否存在任何可能的移动（相邻方块可合并或战斗）。
-		for x in GRID_SIZE:
-			for y in GRID_SIZE:
+		for x in range(GRID_SIZE):
+			for y in range(GRID_SIZE):
 				var current_tile = grid[x][y]
 				# 检查右侧相邻方块。
 				if x + 1 < GRID_SIZE:
 					var right_tile = grid[x+1][y]
-					# 如果类型不同（可战斗）或数值相同（可合并），说明还能移动，游戏未失败。
-					if current_tile.type != right_tile.type or current_tile.value == right_tile.value:
+					if right_tile != null and (current_tile.type != right_tile.type or current_tile.value == right_tile.value):
 						return
 				# 检查下方相邻方块。
 				if y + 1 < GRID_SIZE:
 					var down_tile = grid[x][y+1]
-					if current_tile.type != down_tile.type or current_tile.value == down_tile.value:
+					if down_tile != null and (current_tile.type != down_tile.type or current_tile.value == down_tile.value):
 						return
 						
 		# 如果遍历完所有方块都没有找到可移动的组合，则游戏失败。

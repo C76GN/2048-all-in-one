@@ -3,12 +3,12 @@
 # 该脚本定义了棋盘上单个方块的行为和外观。
 # 每个方块节点都挂载此脚本，负责管理自身的数值、类型（玩家或怪物），
 # 并根据这些属性更新其背景颜色和显示的文本。
-extends Control
+extends Node2D
 
 # --- 枚举定义 ---
 
 # 定义方块的两种基本类型，用于区分逻辑和视觉表现。
-enum TileType { PLAYER, MONSTER }
+enum TileType {PLAYER, MONSTER}
 
 # --- 常量定义 ---
 
