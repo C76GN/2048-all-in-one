@@ -14,3 +14,8 @@ export_credentials.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+# Repomix files
+repomix-output.txt
+repomix.config.json
+.repomixignore
