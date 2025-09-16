@@ -21,13 +21,17 @@ const TIME_BONUS_DECAY_FACTOR: float = 5.0
 
 # 使用唯一名称(%)获取节点引用
 @onready var game_board = %GameBoard
-@onready var progress_bar: ProgressBar = %ProgressBar
-@onready var timer_label: Label = %Label
+@onready var monster_timer_label: Label = %MonsterTimerLabel
+@onready var move_count_label: Label = %MoveCountLabel
+@onready var killed_count_label: Label = %KilledCountLabel
+@onready var time_bonus_label: Label = %TimeBonusLabel
+@onready var monster_spawn_label: Label = %MonsterSpawnLabel
 
 # --- 状态变量 ---
 
 # 记录玩家的总移动次数，用于计算时间奖励。
 var move_count: int = 0
+var monsters_killed: int = 0
 # 怪物生成计时器对象。
 var monster_spawn_timer: Timer
 
@@ -39,17 +43,18 @@ func _ready() -> void:
 	game_board.move_made.connect(_on_game_board_move_made)
 	game_board.game_won.connect(_on_game_won)
 	game_board.game_lost.connect(_on_game_lost)
+	game_board.monster_killed.connect(_on_monster_killed)
 	
 	# 初始化并启动怪物生成计时器。
 	_setup_monster_timer()
+	# 游戏开始时，初始化一次所有UI显示
+	_update_stats_display()
 
 # Godot生命周期函数：每帧调用。
 func _process(_delta: float) -> void:
 	# 此处负责实时更新UI元素，以反映计时器的当前状态。
 	if monster_spawn_timer != null and monster_spawn_timer.time_left > 0:
-		progress_bar.max_value = monster_spawn_timer.wait_time
-		progress_bar.value = monster_spawn_timer.time_left
-		timer_label.text = "Spawning monster in: %.1f s" % monster_spawn_timer.time_left
+		monster_timer_label.text = "怪物将在: %.1f s后出现" % monster_spawn_timer.time_left
 
 # Godot输入处理函数：当有未被处理的输入事件时调用。
 func _unhandled_input(event: InputEvent) -> void:
@@ -141,15 +146,63 @@ func _on_game_board_move_made() -> void:
 	var time_to_add = MIN_TIME_BONUS + TIME_BONUS_DECAY_FACTOR / move_count
 	# 在计时器剩余时间的基础上增加奖励时间，并重新启动。
 	monster_spawn_timer.start(monster_spawn_timer.time_left + time_to_add)
+	# 移动成功后，刷新整个UI面板
+	_update_stats_display()
 
 ## 当 GameBoard 发出 `game_won` 信号时被调用。
 func _on_game_won() -> void:
-	timer_label.text = "YOU WIN!"
+	monster_timer_label.text = "你赢了!"
 	# 暂停整个游戏的场景树。
 	get_tree().paused = true
 
 ## 当 GameBoard 发出 `game_lost` 信号时被调用。
 func _on_game_lost() -> void:
-	timer_label.text = "GAME OVER!"
+	monster_timer_label.text = "游戏结束!"
 	# 暂停整个游戏的场景树。
 	get_tree().paused = true
+
+func _on_monster_killed() -> void:
+	monsters_killed += 1
+
+# --- UI 更新 ---
+
+## 统一更新左侧所有数据标签的显示内容。
+func _update_stats_display() -> void:
+	# 1. 更新移动次数
+	move_count_label.text = "移动次数: %d" % move_count
+	
+	# 2. 更新消灭怪物数量
+	killed_count_label.text = "消灭怪物: %d" % monsters_killed
+	
+	# 3. 更新下一次移动奖励时间
+	# (为了避免除以0，当 move_count 为0时，我们按第一次来计算)
+	var next_move_bonus = MIN_TIME_BONUS
+	if move_count > 0:
+		next_move_bonus += TIME_BONUS_DECAY_FACTOR / move_count
+	time_bonus_label.text = "下次移动奖励: +%.2f s" % next_move_bonus
+	
+	# 4. 更新怪物生成概率
+	var spawn_info_text = "怪物生成概率:\n"
+	var max_player_value = game_board.get_max_player_value()
+	if max_player_value <= 0:
+		spawn_info_text += "  - 2: 100%"
+	else:
+		var k = int(log(max_player_value) / log(2))
+		if k < 1: k = 1
+		
+		var weights = []
+		var possible_values = []
+		var total_weight = 0
+		for i in range(1, k + 1):
+			var value = pow(2, i)
+			var weight = k - i + 1
+			possible_values.append(value)
+			weights.append(weight)
+			total_weight += weight
+		
+		if total_weight > 0:
+			for i in range(weights.size()):
+				var percentage = (float(weights[i]) / total_weight) * 100
+				spawn_info_text += "  - %d: %.1f%%\n" % [possible_values[i], percentage]
+
+	monster_spawn_label.text = spawn_info_text

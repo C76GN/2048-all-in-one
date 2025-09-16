@@ -24,41 +24,52 @@ theme_override_constants/margin_top = 40
 theme_override_constants/margin_right = 40
 theme_override_constants/margin_bottom = 40
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
+[node name="MainLayoutContainer" type="HBoxContainer" parent="MarginContainer"]
 layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="TopUI" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
-layout_mode = 2
-size_flags_horizontal = 0
-theme_override_constants/separation = 10
-
-[node name="Spacer" type="Control" parent="MarginContainer/VBoxContainer/TopUI"]
+[node name="LeftPanel" type="VBoxContainer" parent="MarginContainer/MainLayoutContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ProgressBar" type="ProgressBar" parent="MarginContainer/VBoxContainer/TopUI"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(300, 0)
+[node name="TitleLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
 layout_mode = 2
-size_flags_vertical = 4
-step = 0.1
-value = 50.0
+text = "游戏状态"
 
-[node name="Label" type="Label" parent="MarginContainer/VBoxContainer/TopUI"]
+[node name="MoveCountLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="MonsterSpawnLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="TimeBonusLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="KilledCountLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="MonsterTimerLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Spawning monster in..."
 vertical_alignment = 1
 
-[node name="BoardHolder" type="CenterContainer" parent="MarginContainer/VBoxContainer"]
+[node name="BoardHolder" type="CenterContainer" parent="MarginContainer/MainLayoutContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 6
 
-[node name="GameBoard" type="Control" parent="MarginContainer/VBoxContainer/BoardHolder"]
+[node name="GameBoard" type="Control" parent="MarginContainer/MainLayoutContainer/BoardHolder"]
 unique_name_in_owner = true
 layout_mode = 2
 script = ExtResource("2_0wfyh")
 
-[node name="BoardContainer" type="Node2D" parent="MarginContainer/VBoxContainer/BoardHolder/GameBoard"]
+[node name="BoardContainer" type="Node2D" parent="MarginContainer/MainLayoutContainer/BoardHolder/GameBoard"]
+
+[node name="RightPanel" type="Control" parent="MarginContainer/MainLayoutContainer"]
+layout_mode = 2
+size_flags_horizontal = 3

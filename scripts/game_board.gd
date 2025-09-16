@@ -13,6 +13,8 @@ signal move_made
 signal game_won
 # 当游戏无法再进行下去时发出（棋盘已满且无任何可移动项）。
 signal game_lost
+# 当一个怪物被消灭时发出（无论是战斗胜利还是同归于尽）。
+signal monster_killed
 
 # --- 常量与预加载资源 ---
 
@@ -240,6 +242,7 @@ func _process_line(line: Array) -> Array:
 					player_tile.setup(int(player_tile.value / monster_tile.value), player_tile.type)
 					merged_line.append(player_tile)
 					monster_tile.queue_free()
+					monster_killed.emit()
 				# 怪物数值大，战斗失败，数值相除。
 				elif player_tile.value < monster_tile.value:
 					monster_tile.setup(int(monster_tile.value / player_tile.value), monster_tile.type)
@@ -249,6 +252,7 @@ func _process_line(line: Array) -> Array:
 				else:
 					player_tile.queue_free()
 					monster_tile.queue_free()
+					monster_killed.emit()
 				i += 2; continue
 				
 		# 如果没有发生合并或战斗，则直接将当前方块加入结果。
