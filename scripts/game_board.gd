@@ -36,9 +36,7 @@ var grid = []
 # --- 节点引用 ---
 
 # 棋盘容器，所有方块的父节点，方便统一管理和定位。
-# 注意：这里的$BoardContainer路径是相对于当前脚本所在的GameBoard节点，所以无需修改。
 @onready var board_container: Node2D = $BoardContainer
-
 
 # Godot生命周期函数：当节点进入场景树时调用。
 func _ready() -> void:

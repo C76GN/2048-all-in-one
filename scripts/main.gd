@@ -175,10 +175,9 @@ func _update_stats_display() -> void:
 	killed_count_label.text = "消灭怪物: %d" % monsters_killed
 	
 	# 3. 更新下一次移动奖励时间
-	# (为了避免除以0，当 move_count 为0时，我们按第一次来计算)
-	var next_move_bonus = MIN_TIME_BONUS
-	if move_count > 0:
-		next_move_bonus += TIME_BONUS_DECAY_FACTOR / move_count
+	# “下次移动”的计数应该是当前的移动次数加一
+	var next_move_count = move_count + 1
+	var next_move_bonus = MIN_TIME_BONUS + TIME_BONUS_DECAY_FACTOR / next_move_count
 	time_bonus_label.text = "下次移动奖励: +%.2f s" % next_move_bonus
 	
 	# 4. 更新怪物生成概率

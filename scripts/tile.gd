@@ -14,16 +14,16 @@ enum TileType {PLAYER, MONSTER}
 
 # 字典：存储玩家方块不同数值对应的背景颜色。
 const PLAYER_COLOR_MAP = {
-	2: Color("eee4da"), 4: Color("ede0c8"), 8: Color("f2b179"), 16: Color("f59563"),
-	32: Color("f67c5f"), 64: Color("f65e3b"), 128: Color("edcf72"), 256: Color("edcc61"),
-	512: Color("edc850"), 1024: Color("edc53f"), 2048: Color("edc22e"), 4096: Color("3c3a32")
+	2: Color("a7e5db"), 4: Color("80d8c9"), 8: Color("59cbb7"), 16: Color("33bfa5"),
+	32: Color("29a68e"), 64: Color("218c78"), 128: Color("1c7b69"), 256: Color("166758"),
+	512: Color("115448"), 1024: Color("0d4239"), 2048: Color("09312b"), 4096: Color("06211d")
 }
 
 # 字典：存储怪物方块不同数值对应的背景颜色。
 const MONSTER_COLOR_MAP = {
-	2: Color("eabfff"), 4: Color("d6a4ff"), 8: Color("c18aff"), 16: Color("ac70ff"),
-	32: Color("9757ff"), 64: Color("823eff"), 128: Color("6d24ff"), 256: Color("580aff"),
-	512: Color("4300d1"), 1024: Color("3700ab"), 2048: Color("2b0085"), 4096: Color("1f0060")
+	2: Color("f9baba"), 4: Color("f79494"), 8: Color("f26b6b"), 16: Color("ef4e4e"),
+	32: Color("e83a3a"), 64: Color("d92b2b"), 128: Color("c91d1d"), 256: Color("b51313"),
+	512: Color("a30a0a"), 1024: Color("8f0303"), 2048: Color("7d0000"), 4096: Color("680000")
 }
 
 # --- 节点引用 ---
@@ -69,13 +69,9 @@ func setup(new_value: int, new_type: TileType) -> void:
 		background.color = Color.BLACK
 	
 	# 步骤 5: 根据类型和数值优化文本颜色，以确保可读性。
-	if type == TileType.PLAYER:
-		# 对于数值较小的玩家方块，使用深色字体。
-		if value <= 4:
-			value_label.add_theme_color_override("font_color", Color("776e65"))
-		# 对于数值较大的玩家方块，使用浅色字体。
-		else:
-			value_label.add_theme_color_override("font_color", Color("f9f6f2"))
-	# 对于所有怪物方块，统一使用高对比度的白色字体。
+	# 对于数值较小的方块，使用深色字体。
+	if value <= 4:
+		value_label.add_theme_color_override("font_color", Color("776e65"))
+	# 对于数值较大的方块，使用浅色字体。
 	else:
-		value_label.add_theme_color_override("font_color", Color("ffffff"))
+		value_label.add_theme_color_override("font_color", Color("f9f6f2"))
