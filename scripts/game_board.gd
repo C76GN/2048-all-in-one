@@ -5,17 +5,10 @@
 # 通过信号与主场景(Main.gd)进行通信，实现了逻辑与表现的分离。
 extends Control
 
-# 定义棋盘的状态
-enum State {READY, ANIMATING}
-# 存储当前状态
-var current_state = State.READY
-
 # --- 信号定义 ---
 
 # 当一次有效的移动（合并或战斗）成功执行后发出。
 signal move_made
-# 当玩家达到胜利条件时发出。
-signal game_won
 # 当游戏无法再进行下去时发出（棋盘已满且无任何可移动项）。
 signal game_lost
 # 当一个怪物被消灭时发出（无论是战斗胜利还是同归于尽）。
@@ -58,16 +51,12 @@ func _ready() -> void:
 	spawn_tile()
 	spawn_tile()
 
-
 # --- 公共接口 ---
 # 这些函数由外部节点（如 Main.gd）调用，以控制游戏流程。
 
 ## 根据给定的方向向量处理玩家的移动输入。
 ## @param direction: 一个 Vector2i，如 Vector2i.UP，代表移动方向。
 func handle_move(direction: Vector2i) -> void:
-	# 如果正在播放动画，则忽略任何新的输入
-	if current_state != State.READY:
-		return
 	var moved = false
 	# 为了简化处理，将所有方向的移动都转换为向“左”移动的逻辑。
 	var grid_copy_for_move = _get_rotated_grid(direction)
@@ -86,25 +75,12 @@ func handle_move(direction: Vector2i) -> void:
 	
 	# 如果发生了有效移动，则更新棋盘状态。
 	if moved:
-		# 锁住输入，开始播放动画
-		current_state = State.ANIMATING
-		# 将处理后的网格旋转回原始方向。
+		# 立即更新数据模型
 		grid = _unrotate_grid(new_grid_after_move, direction)
-		var move_tweens = _update_board_visuals()
-		
-		if not move_tweens.is_empty():
-			# 等待动画播放完毕。
-			await move_tweens[0].finished
-			
+		# 立即启动所有视觉动画，这会中断任何正在进行的旧动画
+		_update_board_visuals()
 		spawn_tile()
-		# 发出信号，通知主场景移动已完成。
 		move_made.emit()
-		# 检查游戏是否结束。
-		_check_game_over()
-		# 所有操作都已完成，解锁准备接受下一次输入
-		current_state = State.READY
-	else:
-		# 即使没有移动，也需要检查游戏是否因为无法移动而结束。
 		_check_game_over()
 
 ## 在一个随机的空位上生成一个新的玩家方块（数值为2）。
@@ -115,9 +91,7 @@ func spawn_tile() -> void:
 	var rng = RandomNumberGenerator.new()
 	rng.randomize()
 	var spawn_pos: Vector2i = empty_cells[rng.randi_range(0, empty_cells.size() - 1)]
-	
 	var new_tile = TileScene.instantiate()
-	
 	board_container.add_child(new_tile)
 	grid[spawn_pos.x][spawn_pos.y] = new_tile
 	# 先初始化，但不设置位置，动画会处理
@@ -131,7 +105,7 @@ func spawn_tile() -> void:
 func spawn_monster(monster_value: int) -> void:
 	var empty_cells = _get_empty_cells()
 	if empty_cells.is_empty(): return
-
+	
 	var spawn_pos: Vector2i = empty_cells.pick_random()
 	var new_monster = TileScene.instantiate()
 	
@@ -165,12 +139,12 @@ func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) ->
 	if not (grid_pos.x >= 0 and grid_pos.x < GRID_SIZE and grid_pos.y >= 0 and grid_pos.y < GRID_SIZE):
 		print("Error: Spawn position is out of bounds.")
 		return
-
+		
 	# 如果该位置已有方块，先将其移除
 	if grid[grid_pos.x][grid_pos.y] != null:
 		grid[grid_pos.x][grid_pos.y].queue_free()
 		grid[grid_pos.x][grid_pos.y] = null
-
+		
 	var new_tile = TileScene.instantiate()
 	board_container.add_child(new_tile)
 	grid[grid_pos.x][grid_pos.y] = new_tile
@@ -262,7 +236,7 @@ func _process_line(line: Array) -> Array:
 		var current_tile = slid_line[i]
 		# 检查是否存在下一个方块用于比较。
 		if i + 1 < slid_line.size():
-			var next_tile = slid_line[i+1]
+			var next_tile = slid_line[i + 1]
 			
 			# 情况A: 两个方块类型相同（玩家 vs 玩家 或 怪物 vs 怪物）。
 			if current_tile.type == next_tile.type:
@@ -317,8 +291,7 @@ func _process_line(line: Array) -> Array:
 	return [result_line, has_moved]
 
 ## 根据 `grid` 数组中的数据，更新场景中所有方块节点的实际位置。
-func _update_board_visuals() -> Array[Tween]:
-	var active_tweens: Array[Tween] = []
+func _update_board_visuals() -> void:
 	for x in GRID_SIZE:
 		for y in GRID_SIZE:
 			if grid[x][y] != null:
@@ -326,9 +299,7 @@ func _update_board_visuals() -> Array[Tween]:
 				var new_pixel_pos = _grid_to_pixel_center(Vector2i(x, y))
 				# 如果方块不在目标位置，就为它创建一个移动动画
 				if tile.position != new_pixel_pos:
-					var move_tween = tile.animate_move(new_pixel_pos)
-					active_tweens.append(move_tween)
-	return active_tweens
+					tile.animate_move(new_pixel_pos)
 
 ## 将网格坐标转换为屏幕像素坐标（返回格子左上角）。
 func _grid_to_pixel_top_left(grid_pos: Vector2i) -> Vector2:
@@ -350,12 +321,12 @@ func _check_game_over() -> void:
 				var current_tile = grid[x][y]
 				# 检查右侧相邻方块。
 				if x + 1 < GRID_SIZE:
-					var right_tile = grid[x+1][y]
+					var right_tile = grid[x + 1][y]
 					if right_tile != null and (current_tile.type != right_tile.type or current_tile.value == right_tile.value):
 						return
 				# 检查下方相邻方块。
 				if y + 1 < GRID_SIZE:
-					var down_tile = grid[x][y+1]
+					var down_tile = grid[x][y + 1]
 					if down_tile != null and (current_tile.type != down_tile.type or current_tile.value == down_tile.value):
 						return
 		# 如果遍历完所有方块都没有找到可移动的组合，则游戏失败。

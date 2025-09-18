@@ -88,6 +88,7 @@ func _initialize_test_tools() -> void:
 		spawn_button.pressed.connect(_on_spawn_button_pressed)
 		# 动态填充数值下拉列表
 		var current_power_of_two = 2
+		
 		while current_power_of_two <= 65536:
 			value_option_button.add_item(str(current_power_of_two))
 			current_power_of_two *= 2
@@ -142,7 +143,6 @@ func _calculate_monster_value() -> int:
 	var total_weight = 0
 	for w in weights:
 		total_weight += w
-	
 	if total_weight == 0: return 2
 
 	# 执行加权随机选择。
@@ -185,24 +185,21 @@ func _on_monster_killed() -> void:
 
 ## 统一更新左侧所有数据标签的显示内容。
 func _update_stats_display() -> void:
-	# 1. 更新移动次数
+	# 更新移动次数
 	move_count_label.text = "移动次数: %d" % move_count
-	
-	# 2. 更新消灭怪物数量
+	# 更新消灭怪物数量
 	killed_count_label.text = "消灭怪物: %d" % monsters_killed
-	
-	# 3. 更新下一次移动奖励时间
+	# 更新下一次移动奖励时间
 	# “下次移动”的计数应该是当前的移动次数加一
 	var next_move_count = move_count + 1
 	var next_move_bonus = MIN_TIME_BONUS + TIME_BONUS_DECAY_FACTOR / next_move_count
 	time_bonus_label.text = "下次移动奖励: +%.2f s" % next_move_bonus
-	
-	# 4. 更新怪物生成概率
+	# 更新怪物生成概率
 	var spawn_info_text = "怪物生成概率:\n"
 	var spawn_pool = _get_monster_spawn_pool()
 	var possible_values = spawn_pool["values"]
 	var weights = spawn_pool["weights"]
-
+	
 	var total_weight = 0
 	for w in weights:
 		total_weight += w
@@ -213,7 +210,7 @@ func _update_stats_display() -> void:
 			spawn_info_text += "  - %d: %.1f%%\n" % [possible_values[i], percentage]
 	else:
 		spawn_info_text += "  - 2: 100%"
-
+		
 	monster_spawn_label.text = spawn_info_text
 
 ## [注释优化] 辅助函数，根据当前玩家最大方块值，计算出所有可能的怪物数值及其权重。

@@ -48,7 +48,6 @@ var value: int = 0
 # 方块当前的类型，默认为玩家方块。
 var type: TileType = TileType.PLAYER
 
-
 # --- 公共接口 ---
 
 ## 初始化或更新方块的状态和外观。
@@ -56,23 +55,29 @@ var type: TileType = TileType.PLAYER
 ## @param new_value: 方块的新数值。
 ## @param new_type: 方块的新类型 (PLAYER 或 MONSTER)。
 func setup(new_value: int, new_type: TileType) -> void:
+	var old_value = self.value
 	self.value = new_value
 	self.type = new_type
 	_update_visuals()
+	
+	# 如果方块的数值变大了（意味着它刚刚合并了别的方块），就播放合并动画
+	if new_value > old_value and old_value != 0:
+		animate_merge()
 
 # --- 视觉更新辅助函数 ---
 # 将所有更新外观的代码（颜色、文本）集中到这里，方便复用。
 func _update_visuals() -> void:
-	# 步骤 1: 更新显示的文本。
+	# 更新显示的文本。
 	value_label.text = str(int(value))
-	
-	# 步骤 2: 根据方块类型选择对应的颜色映射表。
+	# 根据方块类型选择对应的颜色映射表。
 	var current_color_map = PLAYER_COLOR_MAP
+	
 	if type == TileType.MONSTER:
 		current_color_map = MONSTER_COLOR_MAP
 	
-	# 步骤 3: 设置背景颜色。
+	# 设置背景颜色。
 	var color_key = value
+	
 	# 如果数值超过了我们定义的最大值，就统一使用最大值的颜色。
 	if color_key > 65536:
 		color_key = 65536
@@ -84,7 +89,7 @@ func _update_visuals() -> void:
 	else:
 		background.color = current_color_map[65536]
 	
-	# 步骤 4: 优化文本颜色可读性。
+	# 优化文本颜色可读性。
 	# 对于数值较小的方块，使用深色字体。
 	if value <= 4:
 		value_label.add_theme_color_override("font_color", Color("776e65"))
@@ -92,11 +97,10 @@ func _update_visuals() -> void:
 	else:
 		value_label.add_theme_color_override("font_color", Color("f9f6f2"))
 	
-	# 步骤5：动态字体大小计算逻辑
+	# 动态字体大小计算逻辑
 	# 始终以 BASE_FONT_SIZE 作为计算的起点
 	var new_font_size = BASE_FONT_SIZE 
 	var available_width = background.size.x - (HORIZONTAL_PADDING * 2)
-	
 	var font = value_label.get_theme_font("font")
 	# 使用基础字号来测量文本宽度
 	var text_width = font.get_string_size(value_label.text, HORIZONTAL_ALIGNMENT_CENTER, -1, BASE_FONT_SIZE).x
@@ -114,19 +118,24 @@ func _update_visuals() -> void:
 # 常规生成动画（从小旋转放大）
 func animate_spawn():
 	scale = Vector2.ZERO
-	rotation_degrees = -90
-	
+	rotation_degrees = -360
 	var tween = create_tween()
 	tween.set_parallel(true)
 	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	
-	tween.tween_property(self, "scale", Vector2.ONE, 0.25)
-	tween.tween_property(self, "rotation_degrees", 0, 0.25)
-
+	tween.tween_property(self, "scale", Vector2.ONE, 0.1)
+	tween.tween_property(self, "rotation_degrees", 0, 0.1)
 
 # 移动动画
 func animate_move(new_position: Vector2):
 	var tween = create_tween()
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tween.tween_property(self, "position", new_position, 0.15)
+	tween.tween_property(self, "position", new_position, 0.1)
 	return tween
+
+# 合并时的脉冲动画
+func animate_merge():
+	var tween = create_tween()
+	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# 链式调用：先放大，完成后再缩小回正常大小
+	tween.tween_property(self, "scale", Vector2.ONE * 0.5, 0.1)
+	tween.tween_property(self, "scale", Vector2.ONE, 0.1)

@@ -20,3 +20,6 @@ mono_crash.*.json
 repomix-output.txt
 repomix.config.json
 .repomixignore
+
+# VsCode
+.vscode/
