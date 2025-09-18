@@ -40,6 +40,7 @@ var move_count: int = 0
 var monsters_killed: int = 0
 # 怪物生成计时器对象。
 var monster_spawn_timer: Timer
+var is_game_over: bool = false
 
 # Godot生命周期函数：当节点进入场景树时调用。
 func _ready() -> void:
@@ -177,9 +178,12 @@ func _on_game_board_move_made() -> void:
 
 ## 当 GameBoard 发出 `game_lost` 信号时被调用。
 func _on_game_lost() -> void:
+	# 进入“游戏结束”状态
+	is_game_over = true
+	# 停止所有游戏内动态
+	monster_spawn_timer.stop() # 停止怪物计时器
+	# 更新UI
 	monster_timer_label.text = "游戏结束!"
-	# 暂停整个游戏的场景树。
-	get_tree().paused = true
 
 func _on_monster_killed() -> void:
 	monsters_killed += 1
@@ -216,7 +220,7 @@ func _update_stats_display() -> void:
 		
 	monster_spawn_label.text = spawn_info_text
 
-## [注释优化] 辅助函数，根据当前玩家最大方块值，计算出所有可能的怪物数值及其权重。
+## 辅助函数，根据当前玩家最大方块值，计算出所有可能的怪物数值及其权重。
 ## 玩家分数越高，高数值怪物的权重也越高。
 ## @return: 返回一个包含 "values" (Array[int]) 和 "weights" (Array[int]) 的字典。
 func _get_monster_spawn_pool() -> Dictionary:
