@@ -96,32 +96,24 @@ func _on_monster_timer_timeout() -> void:
 	# 重置并重启计时器
 	monster_spawn_timer.start(INITIAL_SPAWN_INTERVAL)
 
-## 根据当前玩家方块的最大值，计算新生成怪物的数值。
-## 采用加权随机算法，玩家越强，可能出现的怪物也越强，但低级怪物依然占多数。
+## 使用加权随机算法，从怪物生成池中选择一个最终的怪物数值。
 ## @return: 返回一个2的幂次方整数，作为怪物的数值。
 func _calculate_monster_value() -> int:
-	# 通过调用 GameBoard 的公共接口获取数据，实现良好封装。
-	var max_player_value = game_board.get_max_player_value()
-	if max_player_value <= 0: return 2
-	
-	# 计算最大玩家数值是2的多少次幂（k）。
-	var k = int(log(max_player_value) / log(2))
-	if k < 1: k = 1
-	
-	# 生成可能的怪物数值列表和对应的权重列表。
-	var weights = []
-	var possible_values = []
-	for i in range(1, k + 1):
-		possible_values.append(pow(2, i))
-		weights.append(k - i + 1)
-		
-	# 执行加权随机选择。
+	# 调用辅助函数获取可能的数值和对应的权重。
+	var spawn_pool = _get_monster_spawn_pool()
+	var possible_values = spawn_pool["values"]
+	var weights = spawn_pool["weights"]
+
+	if possible_values.is_empty(): return 2
+
+	# 计算总权重。
 	var total_weight = 0
 	for w in weights:
 		total_weight += w
 	
-	if total_weight == 0: return 2 # 避免除零错误
-	
+	if total_weight == 0: return 2
+
+	# 执行加权随机选择。
 	var rng = RandomNumberGenerator.new()
 	rng.randomize()
 	var random_pick = rng.randi_range(1, total_weight)
@@ -182,26 +174,40 @@ func _update_stats_display() -> void:
 	
 	# 4. 更新怪物生成概率
 	var spawn_info_text = "怪物生成概率:\n"
-	var max_player_value = game_board.get_max_player_value()
-	if max_player_value <= 0:
-		spawn_info_text += "  - 2: 100%"
+	var spawn_pool = _get_monster_spawn_pool()
+	var possible_values = spawn_pool["values"]
+	var weights = spawn_pool["weights"]
+
+	var total_weight = 0
+	for w in weights:
+		total_weight += w
+
+	if total_weight > 0:
+		for i in range(weights.size()):
+			var percentage = (float(weights[i]) / total_weight) * 100
+			spawn_info_text += "  - %d: %.1f%%\n" % [possible_values[i], percentage]
 	else:
-		var k = int(log(max_player_value) / log(2))
-		if k < 1: k = 1
-		
-		var weights = []
-		var possible_values = []
-		var total_weight = 0
-		for i in range(1, k + 1):
-			var value = pow(2, i)
-			var weight = k - i + 1
-			possible_values.append(value)
-			weights.append(weight)
-			total_weight += weight
-		
-		if total_weight > 0:
-			for i in range(weights.size()):
-				var percentage = (float(weights[i]) / total_weight) * 100
-				spawn_info_text += "  - %d: %.1f%%\n" % [possible_values[i], percentage]
+		spawn_info_text += "  - 2: 100%"
 
 	monster_spawn_label.text = spawn_info_text
+
+## [注释优化] 辅助函数，根据当前玩家最大方块值，计算出所有可能的怪物数值及其权重。
+## 玩家分数越高，高数值怪物的权重也越高。
+## @return: 返回一个包含 "values" (Array[int]) 和 "weights" (Array[int]) 的字典。
+func _get_monster_spawn_pool() -> Dictionary:
+	var max_player_value = game_board.get_max_player_value()
+	if max_player_value <= 0:
+		return {"values": [2], "weights": [1]}
+
+	# 计算最大玩家数值是2的多少次幂（k）。
+	var k = int(log(max_player_value) / log(2))
+	if k < 1: k = 1
+	
+	# 生成可能的怪物数值列表和对应的权重列表。
+	var weights = []
+	var possible_values = []
+	for i in range(1, k + 1):
+		possible_values.append(pow(2, i))
+		weights.append(k - i + 1) # 数值越小，权重越高
+	
+	return {"values": possible_values, "weights": weights}

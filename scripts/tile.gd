@@ -14,9 +14,9 @@ enum TileType {PLAYER, MONSTER}
 
 # 字典：存储玩家方块不同数值对应的背景颜色。
 const PLAYER_COLOR_MAP = {
-	2: Color("a7e5db"), 4: Color("80d8c9"), 8: Color("59cbb7"), 16: Color("33bfa5"),
-	32: Color("29a68e"), 64: Color("218c78"), 128: Color("1c7b69"), 256: Color("166758"),
-	512: Color("115448"), 1024: Color("0d4239"), 2048: Color("09312b"), 4096: Color("06211d")
+	2: Color("cce5ff"), 4: Color("99ccff"), 8: Color("66b2ff"), 16: Color("3399ff"),
+	32: Color("007fff"), 64: Color("0066cc"), 128: Color("0052a3"), 256: Color("003d7a"),
+	512: Color("002952"), 1024: Color("001429"), 2048: Color("000a14"), 4096: Color("00050a")
 }
 
 # 字典：存储怪物方块不同数值对应的背景颜色。
@@ -48,19 +48,22 @@ var type: TileType = TileType.PLAYER
 ## @param new_value: 方块的新数值。
 ## @param new_type: 方块的新类型 (PLAYER 或 MONSTER)。
 func setup(new_value: int, new_type: TileType) -> void:
-	# 步骤 1: 更新内部状态变量。
 	self.value = new_value
 	self.type = new_type
+	_update_visuals()
+
+# --- 视觉更新辅助函数 ---
+# 将所有更新外观的代码（颜色、文本）集中到这里，方便复用。
+func _update_visuals() -> void:
+	# 步骤 1: 更新显示的文本。
+	value_label.text = str(int(value))
 	
-	# 步骤 2: 更新显示的文本。
-	value_label.text = str(value)
-	
-	# 步骤 3: 根据方块类型选择对应的颜色映射表。
+	# 步骤 2: 根据方块类型选择对应的颜色映射表。
 	var current_color_map = PLAYER_COLOR_MAP
 	if type == TileType.MONSTER:
 		current_color_map = MONSTER_COLOR_MAP
 	
-	# 步骤 4: 设置背景颜色。
+	# 步骤 3: 设置背景颜色。
 	# 如果当前数值在颜色映射表中存在，则使用预设颜色。
 	if current_color_map.has(value):
 		background.color = current_color_map[value]
@@ -68,10 +71,33 @@ func setup(new_value: int, new_type: TileType) -> void:
 	else:
 		background.color = Color.BLACK
 	
-	# 步骤 5: 根据类型和数值优化文本颜色，以确保可读性。
+	# 步骤 4: 优化文本颜色可读性。
 	# 对于数值较小的方块，使用深色字体。
 	if value <= 4:
 		value_label.add_theme_color_override("font_color", Color("776e65"))
 	# 对于数值较大的方块，使用浅色字体。
 	else:
 		value_label.add_theme_color_override("font_color", Color("f9f6f2"))
+
+
+# -------------------- 动画函数 --------------------
+
+# 常规生成动画（从小旋转放大）
+func animate_spawn():
+	scale = Vector2.ZERO
+	rotation_degrees = -90
+	
+	var tween = create_tween()
+	tween.set_parallel(true)
+	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	
+	tween.tween_property(self, "scale", Vector2.ONE, 0.25)
+	tween.tween_property(self, "rotation_degrees", 0, 0.25)
+
+
+# 移动动画
+func animate_move(new_position: Vector2):
+	var tween = create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(self, "position", new_position, 0.15)
+	return tween

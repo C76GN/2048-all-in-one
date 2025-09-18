@@ -5,6 +5,11 @@
 # 通过信号与主场景(Main.gd)进行通信，实现了逻辑与表现的分离。
 extends Control
 
+# 定义棋盘的状态
+enum State {READY, ANIMATING}
+# 存储当前状态
+var current_state = State.READY
+
 # --- 信号定义 ---
 
 # 当一次有效的移动（合并或战斗）成功执行后发出。
@@ -60,6 +65,9 @@ func _ready() -> void:
 ## 根据给定的方向向量处理玩家的移动输入。
 ## @param direction: 一个 Vector2i，如 Vector2i.UP，代表移动方向。
 func handle_move(direction: Vector2i) -> void:
+	# 如果正在播放动画，则忽略任何新的输入
+	if current_state != State.READY:
+		return
 	var moved = false
 	# 为了简化处理，将所有方向的移动都转换为向“左”移动的逻辑。
 	var grid_copy_for_move = _get_rotated_grid(direction)
@@ -78,17 +86,23 @@ func handle_move(direction: Vector2i) -> void:
 	
 	# 如果发生了有效移动，则更新棋盘状态。
 	if moved:
+		# 锁住输入，开始播放动画
+		current_state = State.ANIMATING
 		# 将处理后的网格旋转回原始方向。
 		grid = _unrotate_grid(new_grid_after_move, direction)
-		# 根据新的网格数据更新所有方块的视觉位置。
-		_update_board_visuals()
-		# 等待一个短暂的视觉延迟，然后生成新的方块。
-		await get_tree().create_timer(0.1).timeout
+		var move_tweens = _update_board_visuals()
+		
+		if not move_tweens.is_empty():
+			# 等待动画播放完毕。
+			await move_tweens[0].finished
+			
 		spawn_tile()
 		# 发出信号，通知主场景移动已完成。
 		move_made.emit()
 		# 检查游戏是否结束。
 		_check_game_over()
+		# 所有操作都已完成，解锁准备接受下一次输入
+		current_state = State.READY
 	else:
 		# 即使没有移动，也需要检查游戏是否因为无法移动而结束。
 		_check_game_over()
@@ -106,8 +120,11 @@ func spawn_tile() -> void:
 	
 	board_container.add_child(new_tile)
 	grid[spawn_pos.x][spawn_pos.y] = new_tile
-	new_tile.position = _grid_to_pixel(spawn_pos)
+	# 先初始化，但不设置位置，动画会处理
 	new_tile.setup(2, new_tile.TileType.PLAYER)
+	new_tile.position = _grid_to_pixel_center(spawn_pos)
+	# 调用生成动画
+	new_tile.animate_spawn()
 
 ## 在一个随机的空位上生成一个指定数值的怪物方块。
 ## @param monster_value: 要生成的怪物方块的数值。
@@ -120,8 +137,11 @@ func spawn_monster(monster_value: int) -> void:
 	
 	board_container.add_child(new_monster)
 	grid[spawn_pos.x][spawn_pos.y] = new_monster
-	new_monster.position = _grid_to_pixel(spawn_pos)
+	
+	# 设置方块的数值和位置
 	new_monster.setup(monster_value, new_monster.TileType.MONSTER)
+	new_monster.position = _grid_to_pixel_center(spawn_pos)
+	new_monster.animate_spawn()
 	
 ## 获取当前棋盘上数值最大的玩家方块的值。
 ## 这是一个封装良好的公共接口，避免外部直接访问内部 grid 数据。
@@ -154,7 +174,8 @@ func _draw_board():
 		for y in GRID_SIZE:
 			var cell_bg = ColorRect.new()
 			cell_bg.size = Vector2(CELL_SIZE, CELL_SIZE)
-			cell_bg.position = _grid_to_pixel(Vector2i(x, y))
+			# 使用返回左上角坐标的函数
+			cell_bg.position = _grid_to_pixel_top_left(Vector2i(x, y))
 			cell_bg.color = Color("8f8f8f")
 			board_container.add_child(cell_bg)
 
@@ -274,18 +295,28 @@ func _process_line(line: Array) -> Array:
 	return [result_line, has_moved]
 
 ## 根据 `grid` 数组中的数据，更新场景中所有方块节点的实际位置。
-func _update_board_visuals():
+func _update_board_visuals() -> Array[Tween]:
+	var active_tweens: Array[Tween] = []
 	for x in GRID_SIZE:
 		for y in GRID_SIZE:
 			if grid[x][y] != null:
 				var tile = grid[x][y]
-				tile.position = _grid_to_pixel(Vector2i(x, y))
+				var new_pixel_pos = _grid_to_pixel_center(Vector2i(x, y))
+				# 如果方块不在目标位置，就为它创建一个移动动画
+				if tile.position != new_pixel_pos:
+					var move_tween = tile.animate_move(new_pixel_pos)
+					active_tweens.append(move_tween)
+	return active_tweens
 
-## 将网格坐标（如 [0, 1]）转换为屏幕像素坐标。
-## @param grid_pos: 网格坐标 Vector2i。
-## @return: 对应的像素坐标 Vector2。
-func _grid_to_pixel(grid_pos: Vector2i) -> Vector2:
+## 将网格坐标转换为屏幕像素坐标（返回格子左上角）。
+func _grid_to_pixel_top_left(grid_pos: Vector2i) -> Vector2:
 	return Vector2(grid_pos.x * (CELL_SIZE + SPACING), grid_pos.y * (CELL_SIZE + SPACING))
+
+## 将网格坐标转换为屏幕像素坐标（返回格子中心点）。
+func _grid_to_pixel_center(grid_pos: Vector2i) -> Vector2:
+	var top_left_pos = _grid_to_pixel_top_left(grid_pos)
+	var center_pos = top_left_pos + Vector2(CELL_SIZE / 2.0, CELL_SIZE / 2.0)
+	return center_pos
 
 ## 检查游戏是否结束（胜利或失败）。
 func _check_game_over() -> void:
