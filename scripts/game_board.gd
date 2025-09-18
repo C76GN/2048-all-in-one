@@ -156,6 +156,28 @@ func get_max_player_value() -> int:
 				max_val = tile.value
 	return max_val
 
+## 测试功能：在指定位置生成一个方块。
+## @param grid_pos: 要生成方块的网格坐标 (Vector2i)。
+## @param value: 方块的数值。
+## @param type: 方块的类型 (Tile.TileType.PLAYER 或 Tile.TileType.MONSTER)。
+func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) -> void:
+	# 检查坐标是否在棋盘范围内
+	if not (grid_pos.x >= 0 and grid_pos.x < GRID_SIZE and grid_pos.y >= 0 and grid_pos.y < GRID_SIZE):
+		print("Error: Spawn position is out of bounds.")
+		return
+
+	# 如果该位置已有方块，先将其移除
+	if grid[grid_pos.x][grid_pos.y] != null:
+		grid[grid_pos.x][grid_pos.y].queue_free()
+		grid[grid_pos.x][grid_pos.y] = null
+
+	var new_tile = TileScene.instantiate()
+	board_container.add_child(new_tile)
+	grid[grid_pos.x][grid_pos.y] = new_tile
+	
+	new_tile.setup(value, type)
+	new_tile.position = _grid_to_pixel_center(grid_pos)
+	new_tile.animate_spawn()
 
 # --- 内部核心逻辑 ---
 # 这些函数是棋盘功能的具体实现，由公共接口或其他内部函数调用。

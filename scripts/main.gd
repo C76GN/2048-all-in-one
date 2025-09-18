@@ -26,6 +26,12 @@ const TIME_BONUS_DECAY_FACTOR: float = 5.0
 @onready var killed_count_label: Label = %KilledCountLabel
 @onready var time_bonus_label: Label = %TimeBonusLabel
 @onready var monster_spawn_label: Label = %MonsterSpawnLabel
+@onready var test_panel: VBoxContainer = $MarginContainer/MainLayoutContainer/RightPanel/TestPanel
+@onready var pos_x_spinbox: SpinBox = %PosXSpinBox
+@onready var pos_y_spinbox: SpinBox = %PosYSpinBox
+@onready var value_option_button: OptionButton = %ValueOptionButton
+@onready var type_option_button: OptionButton = %TypeOptionButton
+@onready var spawn_button: Button = %SpawnButton
 
 # --- 状态变量 ---
 
@@ -35,11 +41,9 @@ var monsters_killed: int = 0
 # 怪物生成计时器对象。
 var monster_spawn_timer: Timer
 
-
 # Godot生命周期函数：当节点进入场景树时调用。
 func _ready() -> void:
 	# 建立与 GameBoard 信号的连接
-
 	game_board.move_made.connect(_on_game_board_move_made)
 	game_board.game_won.connect(_on_game_won)
 	game_board.game_lost.connect(_on_game_lost)
@@ -47,6 +51,8 @@ func _ready() -> void:
 	
 	# 初始化并启动怪物生成计时器。
 	_setup_monster_timer()
+	# 根据环境显示测试工具
+	_initialize_test_tools() 
 	# 游戏开始时，初始化一次所有UI显示
 	_update_stats_display()
 
@@ -75,6 +81,33 @@ func _unhandled_input(event: InputEvent) -> void:
 		# Main.gd 不关心移动的具体逻辑，只负责分派指令。
 		game_board.handle_move(direction)
 
+# 初始化测试工具的函数
+func _initialize_test_tools() -> void:
+	# 只有在Godot编辑器环境中运行时，才显示测试面板并连接信号
+	if OS.has_feature("editor"):
+		test_panel.visible = true
+		spawn_button.pressed.connect(_on_spawn_button_pressed)
+		# 动态填充数值下拉列表
+		var current_power_of_two = 2
+		while current_power_of_two <= 65536:
+			value_option_button.add_item(str(current_power_of_two))
+			current_power_of_two *= 2
+	else:
+		# 在导出后的游戏中，隐藏测试面板
+		test_panel.visible = false
+
+# 当“生成方块”按钮被点击时调用的函数
+func _on_spawn_button_pressed() -> void:
+	# 从UI控件获取所有输入值
+	var pos = Vector2i(int(pos_x_spinbox.value), int(pos_y_spinbox.value))
+	# 从下拉列表中获取选中的文本，并转换为整数
+	var value_text = value_option_button.get_item_text(value_option_button.selected)
+	var value = int(value_text)
+	var type_index = type_option_button.selected
+	var type = Tile.TileType.PLAYER if type_index == 0 else Tile.TileType.MONSTER
+	
+	# 调用 game_board 的新函数来生成方块
+	game_board.spawn_specific_tile(pos, value, type)
 
 # --- 怪物生成逻辑 ---
 
@@ -125,7 +158,6 @@ func _calculate_monster_value() -> int:
 			return possible_values[i]
 			
 	return 2 # 作为保底返回值。
-
 
 # --- 信号处理函数 ---
 # 这些函数响应来自 GameBoard 的信号。
@@ -198,7 +230,6 @@ func _get_monster_spawn_pool() -> Dictionary:
 	var max_player_value = game_board.get_max_player_value()
 	if max_player_value <= 0:
 		return {"values": [2], "weights": [1]}
-
 	# 计算最大玩家数值是2的多少次幂（k）。
 	var k = int(log(max_player_value) / log(2))
 	if k < 1: k = 1

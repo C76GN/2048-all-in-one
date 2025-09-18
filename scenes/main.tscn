@@ -32,27 +32,32 @@ theme_override_constants/separation = 20
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="TitleLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 3
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel/VBoxContainer"]
 layout_mode = 2
 text = "游戏状态"
 
-[node name="MoveCountLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+[node name="MoveCountLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="MonsterSpawnLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+[node name="MonsterSpawnLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="TimeBonusLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+[node name="TimeBonusLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="KilledCountLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+[node name="KilledCountLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="MonsterTimerLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+[node name="MonsterTimerLabel" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Spawning monster in..."
@@ -73,3 +78,76 @@ script = ExtResource("2_0wfyh")
 [node name="RightPanel" type="Control" parent="MarginContainer/MainLayoutContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="TestPanel" type="VBoxContainer" parent="MarginContainer/MainLayoutContainer/RightPanel"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -80.5
+offset_right = 80.5
+offset_bottom = 198.0
+grow_horizontal = 2
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel"]
+layout_mode = 2
+text = "测试工具 (仅编辑器内)"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel"]
+layout_mode = 2
+
+[node name="PosXSpinLabel" type="Label" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel/HBoxContainer"]
+layout_mode = 2
+text = "X坐标："
+
+[node name="PosXSpinBox" type="SpinBox" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+max_value = 3.0
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel"]
+layout_mode = 2
+
+[node name="PosYSpinLabel" type="Label" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel/HBoxContainer2"]
+layout_mode = 2
+text = "Y坐标："
+
+[node name="PosYSpinBox" type="SpinBox" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel/HBoxContainer2"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 2.0
+value = 2.0
+allow_greater = true
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel"]
+layout_mode = 2
+
+[node name="ValueOptionLabel" type="Label" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel/HBoxContainer3"]
+layout_mode = 2
+text = "数值："
+
+[node name="ValueOptionButton" type="OptionButton" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel/HBoxContainer3"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBoxContainer4" type="HBoxContainer" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel"]
+layout_mode = 2
+
+[node name="TypeOptionLabel" type="Label" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel/HBoxContainer4"]
+layout_mode = 2
+text = "类型："
+
+[node name="TypeOptionButton" type="OptionButton" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel/HBoxContainer4"]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 0
+item_count = 2
+popup/item_0/text = "PLAYER"
+popup/item_0/id = 0
+popup/item_1/text = "MONSTER"
+popup/item_1/id = 1
+
+[node name="SpawnButton" type="Button" parent="MarginContainer/MainLayoutContainer/RightPanel/TestPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "生成方块"
