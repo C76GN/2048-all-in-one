@@ -45,7 +45,6 @@ var monster_spawn_timer: Timer
 func _ready() -> void:
 	# 建立与 GameBoard 信号的连接
 	game_board.move_made.connect(_on_game_board_move_made)
-	game_board.game_won.connect(_on_game_won)
 	game_board.game_lost.connect(_on_game_lost)
 	game_board.monster_killed.connect(_on_monster_killed)
 	
@@ -172,12 +171,6 @@ func _on_game_board_move_made() -> void:
 	monster_spawn_timer.start(monster_spawn_timer.time_left + time_to_add)
 	# 移动成功后，刷新整个UI面板
 	_update_stats_display()
-
-## 当 GameBoard 发出 `game_won` 信号时被调用。
-func _on_game_won() -> void:
-	monster_timer_label.text = "你赢了!"
-	# 暂停整个游戏的场景树。
-	get_tree().paused = true
 
 ## 当 GameBoard 发出 `game_lost` 信号时被调用。
 func _on_game_lost() -> void:

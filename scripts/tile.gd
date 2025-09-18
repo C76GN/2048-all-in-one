@@ -15,17 +15,24 @@ enum TileType {PLAYER, MONSTER}
 
 # 字典：存储玩家方块不同数值对应的背景颜色。
 const PLAYER_COLOR_MAP = {
-	2: Color("cce5ff"), 4: Color("99ccff"), 8: Color("66b2ff"), 16: Color("3399ff"),
-	32: Color("007fff"), 64: Color("0066cc"), 128: Color("0052a3"), 256: Color("003d7a"),
-	512: Color("002952"), 1024: Color("001429"), 2048: Color("000a14"), 4096: Color("00050a")
+	2: Color("f0f4f8"), 4: Color("d9e2ec"), 8: Color("bcc8d6"), 16: Color("9fb0c4"),
+	32: Color("8298b0"), 64: Color("66809b"), 128: Color("4d6a87"), 256: Color("335372"),
+	512: Color("193d5c"), 1024: Color("002747"), 2048: Color("002747"), 4096: Color("002747"),
+	8192: Color("002747"), 16384: Color("002747"), 32768: Color("002747"), 65536: Color("002747")
 }
 
 # 字典：存储怪物方块不同数值对应的背景颜色。
 const MONSTER_COLOR_MAP = {
-	2: Color("f9baba"), 4: Color("f79494"), 8: Color("f26b6b"), 16: Color("ef4e4e"),
-	32: Color("e83a3a"), 64: Color("d92b2b"), 128: Color("c91d1d"), 256: Color("b51313"),
-	512: Color("a30a0a"), 1024: Color("8f0303"), 2048: Color("7d0000"), 4096: Color("680000")
+	2: Color("f9e0e0"), 4: Color("f2baba"), 8: Color("eb9494"), 16: Color("e36d6d"),
+	32: Color("db4646"), 64: Color("d22020"), 128: Color("c21313"), 256: Color("b00a0a"),
+	512: Color("9e0505"), 1024: Color("8c0202"), 2048: Color("7d0000"), 4096: Color("7d0000"),
+	8192: Color("7d0000"), 16384: Color("7d0000"), 32768: Color("7d0000"), 65536: Color("7d0000")
 }
+
+# 定义方块内容的内边距（padding），即文本距离背景边缘的距离。
+const HORIZONTAL_PADDING: float = 10.0
+# 定义一个基础的、理想的字体大小作为计算起点。
+const BASE_FONT_SIZE: int = 48
 
 # --- 节点引用 ---
 
@@ -65,12 +72,17 @@ func _update_visuals() -> void:
 		current_color_map = MONSTER_COLOR_MAP
 	
 	# 步骤 3: 设置背景颜色。
+	var color_key = value
+	# 如果数值超过了我们定义的最大值，就统一使用最大值的颜色。
+	if color_key > 65536:
+		color_key = 65536
+	
 	# 如果当前数值在颜色映射表中存在，则使用预设颜色。
-	if current_color_map.has(value):
-		background.color = current_color_map[value]
-	# 否则，使用默认的黑色作为后备，以应对未定义的超大数值。
+	if current_color_map.has(color_key):
+		background.color = current_color_map[color_key]
+	# 否则，使用映射表中存在的最高数值的颜色作为后备。
 	else:
-		background.color = Color.BLACK
+		background.color = current_color_map[65536]
 	
 	# 步骤 4: 优化文本颜色可读性。
 	# 对于数值较小的方块，使用深色字体。
@@ -79,7 +91,23 @@ func _update_visuals() -> void:
 	# 对于数值较大的方块，使用浅色字体。
 	else:
 		value_label.add_theme_color_override("font_color", Color("f9f6f2"))
-
+	
+	# 步骤5：动态字体大小计算逻辑
+	# 始终以 BASE_FONT_SIZE 作为计算的起点
+	var new_font_size = BASE_FONT_SIZE 
+	var available_width = background.size.x - (HORIZONTAL_PADDING * 2)
+	
+	var font = value_label.get_theme_font("font")
+	# 使用基础字号来测量文本宽度
+	var text_width = font.get_string_size(value_label.text, HORIZONTAL_ALIGNMENT_CENTER, -1, BASE_FONT_SIZE).x
+	
+	# 如果基于基础字号的文本宽度超出了可用空间，则按比例缩小字体
+	if text_width > available_width:
+		var scale_factor = available_width / text_width
+		new_font_size = floor(BASE_FONT_SIZE * scale_factor)
+	
+	# 无论如何，总是在最后应用最终计算出的字体大小。
+	value_label.add_theme_font_size_override("font_size", new_font_size)
 
 # -------------------- 动画函数 --------------------
 

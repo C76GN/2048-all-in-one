@@ -340,17 +340,9 @@ func _grid_to_pixel_center(grid_pos: Vector2i) -> Vector2:
 	var center_pos = top_left_pos + Vector2(CELL_SIZE / 2.0, CELL_SIZE / 2.0)
 	return center_pos
 
-## 检查游戏是否结束（胜利或失败）。
+## 检查游戏是否结束
 func _check_game_over() -> void:
-	# 检查胜利条件：是否存在一个数值达到4096的玩家方块。
-	for x in range(GRID_SIZE):
-		for y in range(GRID_SIZE):
-			var tile = grid[x][y]
-			if tile != null and tile.type == tile.TileType.PLAYER and tile.value >= 4096:
-				game_won.emit()
-				return
-				
-	# 如果棋盘已满，则检查失败条件。
+	# 如果棋盘已满，检查失败条件。
 	if _get_empty_cells().is_empty():
 		# 遍历棋盘，检查是否存在任何可能的移动（相邻方块可合并或战斗）。
 		for x in range(GRID_SIZE):
@@ -366,6 +358,5 @@ func _check_game_over() -> void:
 					var down_tile = grid[x][y+1]
 					if down_tile != null and (current_tile.type != down_tile.type or current_tile.value == down_tile.value):
 						return
-						
 		# 如果遍历完所有方块都没有找到可移动的组合，则游戏失败。
 		game_lost.emit()
