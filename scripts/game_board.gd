@@ -25,6 +25,8 @@ const GRID_SIZE: int = 4
 const CELL_SIZE: int = 100
 # 单元格之间的间距。
 const SPACING: int = 15
+# 棋盘背景的内边距
+const BOARD_PADDING: int = 15
 
 # --- 核心数据 ---
 
@@ -40,12 +42,17 @@ var grid = []
 func _ready() -> void:
 	# 初始化网格数据结构。
 	_initialize_grid()
-	# 绘制棋盘的背景单元格。
+	
+	# 计算棋盘内容区域（所有格子+间距）的总像素尺寸
+	var grid_area_side_length = GRID_SIZE * CELL_SIZE + (GRID_SIZE - 1) * SPACING
+	# 计算包含内边距的棋盘背景总尺寸
+	var board_background_side_length = grid_area_side_length + BOARD_PADDING * 2
+	# 设置当前Control节点的最小尺寸，以容纳背景和内边距
+	self.custom_minimum_size = Vector2(board_background_side_length, board_background_side_length)
+	# 将方块和格子背景的容器向内偏移，留出边距
+	board_container.position = Vector2(BOARD_PADDING, BOARD_PADDING)
+	# 绘制棋盘的背景单元格
 	_draw_board()
-	# 计算棋盘的总像素尺寸
-	var board_side_length = GRID_SIZE * CELL_SIZE + (GRID_SIZE - 1) * SPACING
-	# 设置当前Control节点的最小尺寸
-	self.custom_minimum_size = Vector2(board_side_length, board_side_length)
 	
 	# 游戏开始时生成两个初始玩家方块。
 	spawn_tile()
@@ -77,16 +84,27 @@ func handle_move(direction: Vector2i) -> void:
 	if moved:
 		# 立即更新数据模型
 		grid = _unrotate_grid(new_grid_after_move, direction)
-		# 立即启动所有视觉动画，这会中断任何正在进行的旧动画
-		_update_board_visuals()
-		spawn_tile()
+		# 立即启动所有视觉动画，并获取这些动画的引用
+		var move_tweens = _update_board_visuals()
+		# 如果有动画正在播放，就等待它们全部完成
+		if not move_tweens.is_empty():
+			for tween in move_tweens:
+				await tween.finished
+		# 生成新方块，并获取它的生成动画
+		var spawn_tween = spawn_tile()
+		# 如果确实生成了新方块（和它的动画），就等待它完成
+		if spawn_tween != null:
+			await spawn_tween.finished
+			
+		# 在所有动画都结束后，再执行后续逻辑
 		move_made.emit()
 		_check_game_over()
 
 ## 在一个随机的空位上生成一个新的玩家方块（数值为2）。
-func spawn_tile() -> void:
+func spawn_tile() -> Tween:
 	var empty_cells = _get_empty_cells()
-	if empty_cells.is_empty(): return
+	if empty_cells.is_empty():
+		return null
 	# 使用随机数生成器选择一个随机空位。
 	var rng = RandomNumberGenerator.new()
 	rng.randomize()
@@ -97,25 +115,46 @@ func spawn_tile() -> void:
 	# 先初始化，但不设置位置，动画会处理
 	new_tile.setup(2, new_tile.TileType.PLAYER)
 	new_tile.position = _grid_to_pixel_center(spawn_pos)
-	# 调用生成动画
-	new_tile.animate_spawn()
+	# 调用生成动画，并将其返回
+	return new_tile.animate_spawn()
 
 ## 在一个随机的空位上生成一个指定数值的怪物方块。
+## 如果棋盘已满，则执行特殊逻辑。
 ## @param monster_value: 要生成的怪物方块的数值。
 func spawn_monster(monster_value: int) -> void:
 	var empty_cells = _get_empty_cells()
-	if empty_cells.is_empty(): return
 	
-	var spawn_pos: Vector2i = empty_cells.pick_random()
-	var new_monster = TileScene.instantiate()
-	
-	board_container.add_child(new_monster)
-	grid[spawn_pos.x][spawn_pos.y] = new_monster
-	
-	# 设置方块的数值和位置
-	new_monster.setup(monster_value, new_monster.TileType.MONSTER)
-	new_monster.position = _grid_to_pixel_center(spawn_pos)
-	new_monster.animate_spawn()
+	# 情况1：棋盘有空位
+	if not empty_cells.is_empty():
+		var spawn_pos: Vector2i = empty_cells.pick_random()
+		var new_monster = TileScene.instantiate()
+		
+		board_container.add_child(new_monster)
+		grid[spawn_pos.x][spawn_pos.y] = new_monster
+		
+		new_monster.setup(monster_value, new_monster.TileType.MONSTER)
+		new_monster.position = _grid_to_pixel_center(spawn_pos)
+		new_monster.animate_spawn()
+		
+	# 情况2：棋盘已满
+	else:
+		var player_tiles = _get_all_player_tiles()
+		
+		# 子情况A：棋盘上有玩家方块，随机将一个转变为怪物
+		if not player_tiles.is_empty():
+			var tile_to_transform = player_tiles.pick_random()
+			# 使用 setup 函数改变其类型和数值
+			tile_to_transform.setup(monster_value, tile_to_transform.TileType.MONSTER)
+			# 播放转变动画
+			tile_to_transform.animate_transform()
+			
+		# 子情况B：棋盘上全是怪物方块，随机将一个数值翻倍
+		else:
+			var monster_tiles = _get_all_monster_tiles()
+			if not monster_tiles.is_empty():
+				var tile_to_empower = monster_tiles.pick_random()
+				# setup 函数在数值变大时会自动调用合并动画。
+				tile_to_empower.setup(tile_to_empower.value * 2, tile_to_empower.TileType.MONSTER)
 	
 ## 获取当前棋盘上数值最大的玩家方块的值。
 ## 这是一个封装良好的公共接口，避免外部直接访问内部 grid 数据。
@@ -156,6 +195,26 @@ func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) ->
 # --- 内部核心逻辑 ---
 # 这些函数是棋盘功能的具体实现，由公共接口或其他内部函数调用。
 
+## 遍历网格，返回所有玩家方块节点的数组。
+func _get_all_player_tiles() -> Array:
+	var player_tiles = []
+	for x in GRID_SIZE:
+		for y in GRID_SIZE:
+			var tile = grid[x][y]
+			if tile != null and tile.type == tile.TileType.PLAYER:
+				player_tiles.append(tile)
+	return player_tiles
+
+## 遍历网格，返回所有怪物方块节点的数组。
+func _get_all_monster_tiles() -> Array:
+	var monster_tiles = []
+	for x in GRID_SIZE:
+		for y in GRID_SIZE:
+			var tile = grid[x][y]
+			if tile != null and tile.type == tile.TileType.MONSTER:
+				monster_tiles.append(tile)
+	return monster_tiles
+
 ## 初始化网格，创建一个填满 'null' 的二维数组。
 func _initialize_grid():
 	grid.resize(GRID_SIZE)
@@ -168,11 +227,18 @@ func _initialize_grid():
 func _draw_board():
 	for x in GRID_SIZE:
 		for y in GRID_SIZE:
-			var cell_bg = ColorRect.new()
+			var cell_bg = Panel.new()
+			var stylebox = StyleBoxFlat.new()
+			stylebox.bg_color = Color("3c3c3c")
+			stylebox.corner_radius_top_left = 8
+			stylebox.corner_radius_top_right = 8
+			stylebox.corner_radius_bottom_right = 8
+			stylebox.corner_radius_bottom_left = 8
+			cell_bg.add_theme_stylebox_override("panel", stylebox)
+
 			cell_bg.size = Vector2(CELL_SIZE, CELL_SIZE)
 			# 使用返回左上角坐标的函数
 			cell_bg.position = _grid_to_pixel_top_left(Vector2i(x, y))
-			cell_bg.color = Color("8f8f8f")
 			board_container.add_child(cell_bg)
 
 ## 遍历整个网格，返回所有空格子坐标的数组。
@@ -291,7 +357,8 @@ func _process_line(line: Array) -> Array:
 	return [result_line, has_moved]
 
 ## 根据 `grid` 数组中的数据，更新场景中所有方块节点的实际位置。
-func _update_board_visuals() -> void:
+func _update_board_visuals() -> Array:
+	var active_tweens = []
 	for x in GRID_SIZE:
 		for y in GRID_SIZE:
 			if grid[x][y] != null:
@@ -299,7 +366,9 @@ func _update_board_visuals() -> void:
 				var new_pixel_pos = _grid_to_pixel_center(Vector2i(x, y))
 				# 如果方块不在目标位置，就为它创建一个移动动画
 				if tile.position != new_pixel_pos:
-					tile.animate_move(new_pixel_pos)
+					var move_tween = tile.animate_move(new_pixel_pos)
+					active_tweens.append(move_tween)
+	return active_tweens
 
 ## 将网格坐标转换为屏幕像素坐标（返回格子左上角）。
 func _grid_to_pixel_top_left(grid_pos: Vector2i) -> Vector2:

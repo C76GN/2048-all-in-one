@@ -1,7 +1,14 @@
-[gd_scene load_steps=3 format=3 uid="uid://28ale2iku1n4"]
+[gd_scene load_steps=4 format=3 uid="uid://28ale2iku1n4"]
 
 [ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/main.gd" id="1_o5qli"]
 [ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="2_0wfyh"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
+bg_color = Color(0.2827017, 0.2827017, 0.2827017, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -29,6 +36,7 @@ layout_mode = 2
 theme_override_constants/separation = 20
 
 [node name="LeftPanel" type="VBoxContainer" parent="MarginContainer/MainLayoutContainer"]
+custom_minimum_size = Vector2(350, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -72,6 +80,15 @@ size_flags_vertical = 6
 unique_name_in_owner = true
 layout_mode = 2
 script = ExtResource("2_0wfyh")
+
+[node name="BoardBackground" type="Panel" parent="MarginContainer/MainLayoutContainer/BoardHolder/GameBoard"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_0wfyh")
 
 [node name="BoardContainer" type="Node2D" parent="MarginContainer/MainLayoutContainer/BoardHolder/GameBoard"]
 

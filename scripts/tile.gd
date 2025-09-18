@@ -37,7 +37,7 @@ const BASE_FONT_SIZE: int = 48
 # --- 节点引用 ---
 
 # 对背景颜色矩形（ColorRect）节点的引用。
-@onready var background: ColorRect = $Background
+@onready var background: Panel = $Background
 # 对显示数值的标签（Label）节点的引用。
 @onready var value_label: Label = $ValueLabel
 
@@ -47,6 +47,10 @@ const BASE_FONT_SIZE: int = 48
 var value: int = 0
 # 方块当前的类型，默认为玩家方块。
 var type: TileType = TileType.PLAYER
+
+func _ready() -> void:
+	# 复制主题样式，确保每个方块实例的颜色可以被独立修改，
+	background.add_theme_stylebox_override("panel", background.get_theme_stylebox("panel").duplicate())
 
 # --- 公共接口 ---
 
@@ -84,10 +88,10 @@ func _update_visuals() -> void:
 	
 	# 如果当前数值在颜色映射表中存在，则使用预设颜色。
 	if current_color_map.has(color_key):
-		background.color = current_color_map[color_key]
-	# 否则，使用映射表中存在的最高数值的颜色作为后备。
+		(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = current_color_map[color_key]
+	# 否则，则使用为65536定义的颜色作为后备颜色。
 	else:
-		background.color = current_color_map[65536]
+		(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = current_color_map[65536]
 	
 	# 优化文本颜色可读性。
 	# 对于数值较小的方块，使用深色字体。
@@ -99,7 +103,7 @@ func _update_visuals() -> void:
 	
 	# 动态字体大小计算逻辑
 	# 始终以 BASE_FONT_SIZE 作为计算的起点
-	var new_font_size = BASE_FONT_SIZE 
+	var new_font_size = BASE_FONT_SIZE
 	var available_width = background.size.x - (HORIZONTAL_PADDING * 2)
 	var font = value_label.get_theme_font("font")
 	# 使用基础字号来测量文本宽度
@@ -124,6 +128,7 @@ func animate_spawn():
 	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "scale", Vector2.ONE, 0.1)
 	tween.tween_property(self, "rotation_degrees", 0, 0.1)
+	return tween
 
 # 移动动画
 func animate_move(new_position: Vector2):
@@ -139,3 +144,15 @@ func animate_merge():
 	# 链式调用：先放大，完成后再缩小回正常大小
 	tween.tween_property(self, "scale", Vector2.ONE * 0.5, 0.1)
 	tween.tween_property(self, "scale", Vector2.ONE, 0.1)
+
+# 方块被强制转变时的动画
+func animate_transform():
+	var tween = create_tween()
+	# 使用一个有弹性的过渡效果
+	tween.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	# 链式调用，制作一个快速左右晃动的效果
+	tween.tween_property(self, "rotation_degrees", -15, 0.02)
+	tween.tween_property(self, "rotation_degrees", 15, 0.02)
+	tween.tween_property(self, "rotation_degrees", -10, 0.02)
+	tween.tween_property(self, "rotation_degrees", 10, 0.02)
+	tween.tween_property(self, "rotation_degrees", 0, 0.02)

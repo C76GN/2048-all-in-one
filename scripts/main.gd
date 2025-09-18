@@ -108,6 +108,7 @@ func _on_spawn_button_pressed() -> void:
 	
 	# 调用 game_board 的新函数来生成方块
 	game_board.spawn_specific_tile(pos, value, type)
+	_update_stats_display()
 
 # --- 怪物生成逻辑 ---
 
@@ -126,6 +127,8 @@ func _on_monster_timer_timeout() -> void:
 	var monster_value = _calculate_monster_value()
 	# 指示 GameBoard 在棋盘上生成这个怪物。
 	game_board.spawn_monster(monster_value)
+	# 在怪物生成/转换后，立即更新UI显示
+	_update_stats_display()
 	# 重置并重启计时器
 	monster_spawn_timer.start(INITIAL_SPAWN_INTERVAL)
 
