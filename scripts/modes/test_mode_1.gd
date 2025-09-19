@@ -1,11 +1,10 @@
 # scripts/modes/test_mode_1.gd
 
-# 该脚本是“测试模式1”的游戏控制器。
-# 它负责处理该模式下的特定游戏逻辑，包括：
-# 1. 监听和处理玩家的输入。
-# 2. 管理怪物生成计时器和相关的UI显示。
-# 3. 接收来自 GameBoard 的信号，并据此更新游戏状态（如增加时间、处理胜负）。
-# 4. 控制游戏的暂停与恢复。
+## TestMode1: "测试模式1"的游戏逻辑控制器。
+##
+## 该脚本作为此模式的主场景脚本，负责协调游戏的所有核心部分。它监听玩家输入，
+## 管理本模式特有的怪物生成计时器和时间奖励机制，并作为 `GameBoard` (模型) 
+## 与 `HUD` (视图) 之间的桥梁，处理游戏状态的更新和UI的显示。
 class_name TestMode1
 extends Control
 
@@ -13,51 +12,54 @@ extends Control
 
 # 怪物生成的初始倒计时长（秒）。
 const INITIAL_SPAWN_INTERVAL: float = 10.0
-# 每次移动后奖励的最小时间（秒）。
+# 每次有效移动后奖励的最小时间（秒）。
 const MIN_TIME_BONUS: float = 0.5
-# 时间奖励衰减因子。移动次数越多，每次奖励的时间会变少。
+# 时间奖励衰减因子。移动次数越多，每次奖励的时间会越少。
 const TIME_BONUS_DECAY_FACTOR: float = 5.0
 
 # --- 节点引用 ---
 
-# 使用唯一名称(%)获取节点引用
-@onready var game_board = %GameBoard
+## 对场景中核心节点的引用（使用唯一名称%）。
+@onready var game_board: Control = %GameBoard
 @onready var test_panel: VBoxContainer = %TestPanel
-@onready var hud = %HUD
+@onready var hud: VBoxContainer = %HUD
 
 # --- 状态变量 ---
 
-# 记录玩家的总移动次数，用于计算时间奖励。
+# 记录玩家的总移动次数，用于计算时间奖励的衰减。
 var move_count: int = 0
+# 记录被消灭的怪物总数。
 var monsters_killed: int = 0
-# 怪物生成计时器对象。
+# 管理怪物生成倒计时的 Timer 节点实例。
 var monster_spawn_timer: Timer
+# 标记游戏是否已结束，用于停止输入和计时器等。
 var is_game_over: bool = false
 
-# Godot生命周期函数：当节点进入场景树时调用。
+## Godot生命周期函数：当节点进入场景树时调用，用于初始化。
 func _ready() -> void:
-	# 建立与 GameBoard 信号的连接
+	# 步骤1: 连接来自核心组件的信号。
 	game_board.move_made.connect(_on_game_board_move_made)
 	game_board.game_lost.connect(_on_game_lost)
 	game_board.monster_killed.connect(_on_monster_killed)
 	
-	# 初始化并启动怪物生成计时器。
+	# 步骤2: 初始化并启动游戏核心机制。
 	_setup_monster_timer()
-	# 根据环境显示测试工具
 	_initialize_test_tools() 
-	# 游戏开始时，初始化一次所有UI显示
+	
+	# 步骤3: 在游戏开始时，初始化一次所有UI显示。
 	_update_stats_display()
 
-# Godot生命周期函数：每帧调用。
+## Godot生命周期函数：每帧调用。
+## 在此处专门处理需要高频更新的UI元素。
 func _process(_delta: float) -> void:
-	# 只更新需要高频刷新的计时器
+	# 为提高性能，仅在游戏未结束且计时器运行时，才更新HUD上的倒计时显示。
 	if monster_spawn_timer != null and monster_spawn_timer.time_left > 0 and not is_game_over:
 		hud.update_timer(monster_spawn_timer.time_left)
 
-# Godot输入处理函数：当有未被处理的输入事件时调用。
+## Godot输入处理函数：捕获未被UI消耗的输入事件。
 func _unhandled_input(event: InputEvent) -> void:
-	# 如果游戏已暂停（例如胜利或失败后），则忽略所有输入。
-	if get_tree().paused:
+	# 游戏结束时，忽略所有输入。
+	if get_tree().paused or is_game_over:
 		return
 
 	# 将 "move_*" 输入动作映射为方向向量。
@@ -67,20 +69,20 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("move_left"): direction = Vector2i.LEFT
 	elif event.is_action_pressed("move_right"): direction = Vector2i.RIGHT
 	
-	# 如果捕获到了有效的移动方向...
+	# 如果捕获到了有效的移动方向，则委托 GameBoard 处理。
+	# TestMode1 本身不关心移动的具体逻辑，只负责分派指令。
 	if direction != Vector2i.ZERO:
-		# ...则通知 GameBoard 节点去处理这个移动。
-		# TestMode1.gd 不关心移动的具体逻辑，只负责分派指令。
 		game_board.handle_move(direction)
 
-# 初始化测试工具的函数
+## 初始化测试工具。
+## 该工具仅在Godot编辑器环境中可见并启用。
 func _initialize_test_tools() -> void:
-	# 只有在Godot编辑器环境中运行时，才显示测试面板并连接信号
+	# `OS.has_feature("editor")` 是判断当前是否在编辑器中运行的标准方法。
 	if OS.has_feature("editor"):
 		test_panel.visible = true
 		test_panel.spawn_requested.connect(_on_test_panel_spawn_requested)
 	else:
-		# 在导出后的游戏中，隐藏测试面板
+		# 在导出的游戏中，自动隐藏测试面板。
 		test_panel.visible = false
 
 # --- 怪物生成逻辑 ---
@@ -89,33 +91,30 @@ func _initialize_test_tools() -> void:
 func _setup_monster_timer() -> void:
 	monster_spawn_timer = Timer.new()
 	monster_spawn_timer.wait_time = INITIAL_SPAWN_INTERVAL
-	# 当计时器时间到，连接到 _on_monster_timer_timeout 方法。
 	monster_spawn_timer.timeout.connect(_on_monster_timer_timeout)
 	add_child(monster_spawn_timer)
 	monster_spawn_timer.start()
 
-## 计时器倒计时结束时调用的函数。
+## 怪物生成计时器倒计时结束时调用的函数。
 func _on_monster_timer_timeout() -> void:
-	# 计算新生成怪物的数值。
 	var monster_value = _calculate_monster_value()
-	# 指示 GameBoard 在棋盘上生成这个怪物。
 	game_board.spawn_monster(monster_value)
-	# 在怪物生成/转换后，立即更新UI显示
 	_update_stats_display()
-	# 重置并重启计时器
+	# 重置并重启计时器，开始新一轮倒计时。
 	monster_spawn_timer.start(INITIAL_SPAWN_INTERVAL)
 
 ## 使用加权随机算法，从怪物生成池中选择一个最终的怪物数值。
-## @return: 返回一个2的幂次方整数，作为怪物的数值。
+##
+## @return: 返回一个2的幂次方整数，作为新生成怪物的数值。
 func _calculate_monster_value() -> int:
-	# 调用辅助函数获取可能的数值和对应的权重。
+	# 获取基于当前游戏状态的怪物数值池和权重。
 	var spawn_pool = _get_monster_spawn_pool()
 	var possible_values = spawn_pool["values"]
 	var weights = spawn_pool["weights"]
 
 	if possible_values.is_empty(): return 2
 
-	# 计算总权重。
+	# 计算总权重，用于随机数范围。
 	var total_weight = 0
 	for w in weights:
 		total_weight += w
@@ -132,51 +131,50 @@ func _calculate_monster_value() -> int:
 		if random_pick <= cumulative_weight:
 			return possible_values[i]
 			
-	return 2 # 作为保底返回值。
+	return 2 # 作为保底返回值，防止意外情况。
 
 # --- 信号处理函数 ---
-# 这些函数响应来自 GameBoard 的信号。
 
 ## 当 GameBoard 发出 `move_made` 信号时被调用。
+## 负责处理移动成功后的逻辑：增加时间奖励并更新UI。
 func _on_game_board_move_made() -> void:
-	# 玩家每成功移动一步，就获得时间奖励。
 	move_count += 1
-	# 奖励的时间会随着移动次数的增加而衰减，增加游戏挑战性。
+	# 奖励的时间会随着移动次数的增加而衰减，以增加游戏挑战性。
 	var time_to_add = MIN_TIME_BONUS + TIME_BONUS_DECAY_FACTOR / move_count
-	# 在计时器剩余时间的基础上增加奖励时间，并重新启动。
+	# 在计时器剩余时间的基础上增加奖励时间，并以此为新时长重启计时器。
 	monster_spawn_timer.start(monster_spawn_timer.time_left + time_to_add)
-	# 移动成功后，刷新整个UI面板
+	# 移动成功后，刷新整个UI面板。
 	_update_stats_display()
 
 ## 当 GameBoard 发出 `game_lost` 信号时被调用。
+## 负责处理游戏失败状态。
 func _on_game_lost() -> void:
-	# 进入“游戏结束”状态
 	is_game_over = true
-	# 停止所有游戏内动态
 	monster_spawn_timer.stop() # 停止怪物计时器
-	# 更新UI
-	hud.show_game_over()
+	hud.show_game_over()       # 更新UI显示游戏结束
 
+## 当 GameBoard 发出 `monster_killed` 信号时被调用。
 func _on_monster_killed() -> void:
 	monsters_killed += 1
 	_update_stats_display()
 
-# 当 TestPanel 发出 spawn_requested 信号时，此函数被调用
+## 当 TestPanel 发出 `spawn_requested` 信号时被调用。
 func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_index: int) -> void:
-	# 将接收到的 type_index 转换为实际的 TileType 枚举
+	# 将从UI接收到的整数索引转换为实际的 TileType 枚举。
 	var type = Tile.TileType.PLAYER if type_index == 0 else Tile.TileType.MONSTER
 	
-	# 调用 game_board 的函数来生成方块
+	# 委托 GameBoard 在指定位置生成方块。
 	game_board.spawn_specific_tile(grid_pos, value, type)
 	
-	# 更新统计信息
+	# 操作完成后更新统计信息。
 	_update_stats_display()
 
 # --- UI 更新 ---
 
-## 负责收集数据，交给 HUD 组件去显示
+## 统一更新UI显示。
+## 将所有当前的游戏状态数据打包，并调用 HUD 的方法来更新显示。
 func _update_stats_display() -> void:
-	# 准备一个数据字典
+	# 准备一个包含所有需要显示的数据的字典。
 	var stats = {
 		"move_count": move_count,
 		"monsters_killed": monsters_killed,
@@ -184,10 +182,10 @@ func _update_stats_display() -> void:
 		"time_bonus_decay": TIME_BONUS_DECAY_FACTOR,
 		"min_time_bonus": MIN_TIME_BONUS
 	}
-	# 调用 HUD 的方法，将数据传递过去
+	# 将数据字典传递给 HUD 进行显示。
 	hud.update_stats(stats)
 
-## 辅助函数，只负责生成怪物信息的文本
+## [辅助函数] 生成用于显示的怪物生成概率文本。
 func _get_monster_spawn_info_text() -> String:
 	var spawn_info_text = "怪物生成概率:\n"
 	var spawn_pool = _get_monster_spawn_pool()
@@ -207,14 +205,16 @@ func _get_monster_spawn_info_text() -> String:
 	
 	return spawn_info_text
 
-## 辅助函数，根据当前玩家最大方块值，计算出所有可能的怪物数值及其权重。
-## 玩家分数越高，高数值怪物的权重也越高。
+## [辅助函数] 根据当前玩家最大方块值，计算出所有可能的怪物数值及其权重。
+## 逻辑：玩家分数越高，高数值怪物的出现权重也越高。
+##
 ## @return: 返回一个包含 "values" (Array[int]) 和 "weights" (Array[int]) 的字典。
 func _get_monster_spawn_pool() -> Dictionary:
 	var max_player_value = game_board.get_max_player_value()
 	if max_player_value <= 0:
 		return {"values": [2], "weights": [1]}
-	# 计算最大玩家数值是2的多少次幂（k）。
+		
+	# 计算最大玩家数值是2的多少次幂（k），作为难度因子。
 	var k = int(log(max_player_value) / log(2))
 	if k < 1: k = 1
 	
@@ -223,6 +223,7 @@ func _get_monster_spawn_pool() -> Dictionary:
 	var possible_values = []
 	for i in range(1, k + 1):
 		possible_values.append(pow(2, i))
-		weights.append(k - i + 1) # 数值越小，权重越高
+		# 权重与数值成反比：数值越小，权重越高。
+		weights.append(k - i + 1)
 	
 	return {"values": possible_values, "weights": weights}

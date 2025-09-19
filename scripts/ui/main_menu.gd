@@ -1,35 +1,41 @@
 # scripts/ui/main_menu.gd
 
-## MainMenu: 主菜单界面的脚本，处理按钮交互和场景切换。
+## MainMenu: 主菜单界面的UI控制器。
+##
+## 该脚本负责处理主菜单场景中的所有用户交互，
+## 例如响应按钮点击事件，并委托 GlobalGameManager 进行场景切换或退出游戏。
 extends Control
 
-## MainMenu: 主菜单界面的脚本，处理按钮交互和场景切换。
-
 # --- 节点引用 ---
+
+## 对场景中各个按钮节点的引用（使用唯一名称%）。
 @onready var start_game_button: Button = %StartGameButton
 @onready var settings_button: Button = %SettingsButton
 @onready var quit_button: Button = %QuitButton
 
+
+## Godot生命周期函数：当节点及其子节点进入场景树时调用。
 func _ready() -> void:
-	# 连接按钮的 pressed 信号到相应的处理函数
+	# 在此连接所有按钮的 `pressed` 信号到对应的处理函数，
+	# 这是处理UI交互的标准做法。
 	start_game_button.pressed.connect(_on_start_game_button_pressed)
 	settings_button.pressed.connect(_on_settings_button_pressed)
 	quit_button.pressed.connect(_on_quit_button_pressed)
 
 # --- 信号处理函数 ---
+# 以下函数在对应的按钮被按下时由信号触发。
 
-## 当“开始游戏”按钮被按下时调用。
+## 响应“开始游戏”按钮的点击事件。
 func _on_start_game_button_pressed() -> void:
-	# 通过全局游戏管理器切换到模式选择场景
+	# 委托全局管理器切换到模式选择场景。
 	GlobalGameManager.goto_scene("res://scenes/mode_selection.tscn")
 
-## 当“设置”按钮被按下时调用（占位功能）。
+## 响应“设置”按钮的点击事件（占位功能）。
 func _on_settings_button_pressed() -> void:
 	print("设置按钮被按下 (功能待开发)")
-	# TODO: 未来在这里实现设置界面切换逻辑
-	pass # 占位，表示该函数目前无实际操作
+	# TODO: 未来在此处实现切换到设置界面的逻辑。
 
-## 当“退出”按钮被按下时调用。
+## 响应“退出”按钮的点击事件。
 func _on_quit_button_pressed() -> void:
-	# 通过全局游戏管理器退出游戏
+	# 委托全局管理器安全地退出游戏。
 	GlobalGameManager.quit_game()
