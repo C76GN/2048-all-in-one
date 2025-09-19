@@ -145,7 +145,7 @@ func animate_spawn() -> Tween:
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_move(new_position: Vector2) -> Tween:
 	var tween = create_tween()
-	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(self, "position", new_position, 0.1)
 	return tween
 
