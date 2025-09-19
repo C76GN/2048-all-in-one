@@ -21,17 +21,8 @@ const TIME_BONUS_DECAY_FACTOR: float = 5.0
 
 # 使用唯一名称(%)获取节点引用
 @onready var game_board = %GameBoard
-@onready var monster_timer_label: Label = %MonsterTimerLabel
-@onready var move_count_label: Label = %MoveCountLabel
-@onready var killed_count_label: Label = %KilledCountLabel
-@onready var time_bonus_label: Label = %TimeBonusLabel
-@onready var monster_spawn_label: Label = %MonsterSpawnLabel
-@onready var test_panel: VBoxContainer = $MarginContainer/MainLayoutContainer/RightPanel/TestPanel
-@onready var pos_x_spinbox: SpinBox = %PosXSpinBox
-@onready var pos_y_spinbox: SpinBox = %PosYSpinBox
-@onready var value_option_button: OptionButton = %ValueOptionButton
-@onready var type_option_button: OptionButton = %TypeOptionButton
-@onready var spawn_button: Button = %SpawnButton
+@onready var test_panel: VBoxContainer = %TestPanel
+@onready var hud = %HUD
 
 # --- 状态变量 ---
 
@@ -58,9 +49,9 @@ func _ready() -> void:
 
 # Godot生命周期函数：每帧调用。
 func _process(_delta: float) -> void:
-	# 此处负责实时更新UI元素，以反映计时器的当前状态。
-	if monster_spawn_timer != null and monster_spawn_timer.time_left > 0:
-		monster_timer_label.text = "怪物将在: %.1f s后出现" % monster_spawn_timer.time_left
+	# 只更新需要高频刷新的计时器
+	if monster_spawn_timer != null and monster_spawn_timer.time_left > 0 and not is_game_over:
+		hud.update_timer(monster_spawn_timer.time_left)
 
 # Godot输入处理函数：当有未被处理的输入事件时调用。
 func _unhandled_input(event: InputEvent) -> void:
@@ -86,30 +77,10 @@ func _initialize_test_tools() -> void:
 	# 只有在Godot编辑器环境中运行时，才显示测试面板并连接信号
 	if OS.has_feature("editor"):
 		test_panel.visible = true
-		spawn_button.pressed.connect(_on_spawn_button_pressed)
-		# 动态填充数值下拉列表
-		var current_power_of_two = 2
-		
-		while current_power_of_two <= 65536:
-			value_option_button.add_item(str(current_power_of_two))
-			current_power_of_two *= 2
+		test_panel.spawn_requested.connect(_on_test_panel_spawn_requested)
 	else:
 		# 在导出后的游戏中，隐藏测试面板
 		test_panel.visible = false
-
-# 当“生成方块”按钮被点击时调用的函数
-func _on_spawn_button_pressed() -> void:
-	# 从UI控件获取所有输入值
-	var pos = Vector2i(int(pos_x_spinbox.value), int(pos_y_spinbox.value))
-	# 从下拉列表中获取选中的文本，并转换为整数
-	var value_text = value_option_button.get_item_text(value_option_button.selected)
-	var value = int(value_text)
-	var type_index = type_option_button.selected
-	var type = Tile.TileType.PLAYER if type_index == 0 else Tile.TileType.MONSTER
-	
-	# 调用 game_board 的新函数来生成方块
-	game_board.spawn_specific_tile(pos, value, type)
-	_update_stats_display()
 
 # --- 怪物生成逻辑 ---
 
@@ -183,25 +154,40 @@ func _on_game_lost() -> void:
 	# 停止所有游戏内动态
 	monster_spawn_timer.stop() # 停止怪物计时器
 	# 更新UI
-	monster_timer_label.text = "游戏结束!"
+	hud.show_game_over()
 
 func _on_monster_killed() -> void:
 	monsters_killed += 1
+	_update_stats_display()
+
+# 当 TestPanel 发出 spawn_requested 信号时，此函数被调用
+func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_index: int) -> void:
+	# 将接收到的 type_index 转换为实际的 TileType 枚举
+	var type = Tile.TileType.PLAYER if type_index == 0 else Tile.TileType.MONSTER
+	
+	# 调用 game_board 的函数来生成方块
+	game_board.spawn_specific_tile(grid_pos, value, type)
+	
+	# 更新统计信息
+	_update_stats_display()
 
 # --- UI 更新 ---
 
-## 统一更新左侧所有数据标签的显示内容。
+## 负责收集数据，交给 HUD 组件去显示
 func _update_stats_display() -> void:
-	# 更新移动次数
-	move_count_label.text = "移动次数: %d" % move_count
-	# 更新消灭怪物数量
-	killed_count_label.text = "消灭怪物: %d" % monsters_killed
-	# 更新下一次移动奖励时间
-	# “下次移动”的计数应该是当前的移动次数加一
-	var next_move_count = move_count + 1
-	var next_move_bonus = MIN_TIME_BONUS + TIME_BONUS_DECAY_FACTOR / next_move_count
-	time_bonus_label.text = "下次移动奖励: +%.2f s" % next_move_bonus
-	# 更新怪物生成概率
+	# 准备一个数据字典
+	var stats = {
+		"move_count": move_count,
+		"monsters_killed": monsters_killed,
+		"monster_spawn_info": _get_monster_spawn_info_text(),
+		"time_bonus_decay": TIME_BONUS_DECAY_FACTOR,
+		"min_time_bonus": MIN_TIME_BONUS
+	}
+	# 2. 调用 HUD 的方法，将数据传递过去
+	hud.update_stats(stats)
+
+## 辅助函数，只负责生成怪物信息的文本
+func _get_monster_spawn_info_text() -> String:
 	var spawn_info_text = "怪物生成概率:\n"
 	var spawn_pool = _get_monster_spawn_pool()
 	var possible_values = spawn_pool["values"]
@@ -217,8 +203,8 @@ func _update_stats_display() -> void:
 			spawn_info_text += "  - %d: %.1f%%\n" % [possible_values[i], percentage]
 	else:
 		spawn_info_text += "  - 2: 100%"
-		
-	monster_spawn_label.text = spawn_info_text
+	
+	return spawn_info_text
 
 ## 辅助函数，根据当前玩家最大方块值，计算出所有可能的怪物数值及其权重。
 ## 玩家分数越高，高数值怪物的权重也越高。

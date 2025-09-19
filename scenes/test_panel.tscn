@@ -1,0 +1,76 @@
+[gd_scene load_steps=2 format=3 uid="uid://cpibgxbfm2p0r"]
+
+[ext_resource type="Script" uid="uid://hlyugctwci4r" path="res://scripts/ui/test_panel.gd" id="1_ml6b3"]
+
+[node name="TestPanel" type="VBoxContainer"]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -80.5
+offset_right = 80.5
+offset_bottom = 198.0
+grow_horizontal = 2
+script = ExtResource("1_ml6b3")
+
+[node name="TitleLabel" type="Label" parent="."]
+layout_mode = 2
+text = "测试工具 (仅编辑器内)"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="PosXSpinLabel" type="Label" parent="HBoxContainer"]
+layout_mode = 2
+text = "X坐标："
+
+[node name="PosXSpinBox" type="SpinBox" parent="HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+max_value = 3.0
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="PosYSpinLabel" type="Label" parent="HBoxContainer2"]
+layout_mode = 2
+text = "Y坐标："
+
+[node name="PosYSpinBox" type="SpinBox" parent="HBoxContainer2"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 2.0
+value = 2.0
+allow_greater = true
+
+[node name="HBoxContainer3" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="ValueOptionLabel" type="Label" parent="HBoxContainer3"]
+layout_mode = 2
+text = "数值："
+
+[node name="ValueOptionButton" type="OptionButton" parent="HBoxContainer3"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HBoxContainer4" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="TypeOptionLabel" type="Label" parent="HBoxContainer4"]
+layout_mode = 2
+text = "类型："
+
+[node name="TypeOptionButton" type="OptionButton" parent="HBoxContainer4"]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 0
+item_count = 2
+popup/item_0/text = "PLAYER"
+popup/item_0/id = 0
+popup/item_1/text = "MONSTER"
+popup/item_1/id = 1
+
+[node name="SpawnButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+text = "生成方块"
