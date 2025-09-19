@@ -11,9 +11,13 @@ config_version=5
 [application]
 
 config/name="2048div2"
-run/main_scene="uid://28ale2iku1n4"
+run/main_scene="uid://d3caufbu1axub"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+GlobalGameManager="*res://global/game_manager.gd"
 
 [display]
 

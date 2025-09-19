@@ -2,7 +2,7 @@
 
 # 该脚本负责管理整个游戏棋盘的核心逻辑。
 # 它处理包括棋盘的初始化、方块的生成、移动、合并、战斗以及胜负条件的判断。
-# 通过信号与主场景(Main.gd)进行通信，实现了逻辑与表现的分离。
+# 通过信号与游戏场景进行通信，实现了逻辑与表现的分离。
 extends Control
 
 # --- 信号定义 ---
@@ -59,7 +59,7 @@ func _ready() -> void:
 	spawn_tile()
 
 # --- 公共接口 ---
-# 这些函数由外部节点（如 Main.gd）调用，以控制游戏流程。
+# 这些函数由外部节点（如游戏模式主脚本）调用，以控制游戏流程。
 
 ## 根据给定的方向向量处理玩家的移动输入。
 ## @param direction: 一个 Vector2i，如 Vector2i.UP，代表移动方向。
@@ -348,7 +348,7 @@ func _process_line(line: Array) -> Array:
 	var has_moved = false
 	if result_line.size() != line.size(): has_moved = true
 	else:
-		for idx in range(result_line.size()): # <-- 修正循环
+		for idx in range(result_line.size()):
 			if (result_line[idx] == null and line[idx] != null) or \
 			   (result_line[idx] != null and line[idx] == null) or \
 			   (result_line[idx] != null and line[idx] != null and result_line[idx].get_instance_id() != line[idx].get_instance_id()):

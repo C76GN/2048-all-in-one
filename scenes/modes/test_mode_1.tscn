@@ -1,9 +1,9 @@
 [gd_scene load_steps=6 format=3 uid="uid://28ale2iku1n4"]
 
-[ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/main.gd" id="1_o5qli"]
-[ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="2_0wfyh"]
-[ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/HUD.tscn" id="2_sugp2"]
-[ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/test_panel.tscn" id="4_jyhfs"]
+[ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/modes/test_mode_1.gd" id="1_37a38"]
+[ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/hud.tscn" id="2_hwicy"]
+[ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="3_winr3"]
+[ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/test_panel.tscn" id="4_8gwm2"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
 bg_color = Color(0.2827017, 0.2827017, 0.2827017, 1)
@@ -19,7 +19,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_o5qli")
+script = ExtResource("1_37a38")
 
 [node name="MarginContainer" type="MarginContainer" parent="."]
 layout_mode = 1
@@ -42,7 +42,7 @@ custom_minimum_size = Vector2(350, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="HUD" parent="MarginContainer/MainLayoutContainer/LeftPanel" instance=ExtResource("2_sugp2")]
+[node name="HUD" parent="MarginContainer/MainLayoutContainer/LeftPanel" instance=ExtResource("2_hwicy")]
 unique_name_in_owner = true
 layout_mode = 2
 
@@ -54,7 +54,7 @@ size_flags_vertical = 6
 [node name="GameBoard" type="Control" parent="MarginContainer/MainLayoutContainer/BoardHolder"]
 unique_name_in_owner = true
 layout_mode = 2
-script = ExtResource("2_0wfyh")
+script = ExtResource("3_winr3")
 
 [node name="BoardBackground" type="Panel" parent="MarginContainer/MainLayoutContainer/BoardHolder/GameBoard"]
 layout_mode = 1
@@ -71,7 +71,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_0wfyh")
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="TestPanel" parent="MarginContainer/MainLayoutContainer/RightPanel" instance=ExtResource("4_jyhfs")]
+[node name="TestPanel" parent="MarginContainer/MainLayoutContainer/RightPanel" instance=ExtResource("4_8gwm2")]
 unique_name_in_owner = true
 layout_mode = 1
 offset_bottom = 190.0

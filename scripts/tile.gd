@@ -36,7 +36,7 @@ const BASE_FONT_SIZE: int = 48
 
 # --- 节点引用 ---
 
-# 对背景颜色矩形（ColorRect）节点的引用。
+# 对背景面板（Panel）节点的引用。
 @onready var background: Panel = $Background
 # 对显示数值的标签（Label）节点的引用。
 @onready var value_label: Label = $ValueLabel

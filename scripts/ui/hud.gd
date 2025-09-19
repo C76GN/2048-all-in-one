@@ -10,7 +10,6 @@ extends VBoxContainer
 @onready var killed_count_label: Label = $KilledCountLabel
 @onready var monster_timer_label: Label = $MonsterTimerLabel
 
-
 # --- 公共接口 ---
 
 ## 一个统一的更新函数，从外部接收所有需要显示的数据。

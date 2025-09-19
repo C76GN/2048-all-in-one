@@ -1,11 +1,12 @@
-# scripts/main.gd
+# scripts/modes/test_mode_1.gd
 
-# 该脚本是游戏的主控制器（或称为“协调者”）。
-# 它负责处理全局的游戏逻辑，包括：
+# 该脚本是“测试模式1”的游戏控制器。
+# 它负责处理该模式下的特定游戏逻辑，包括：
 # 1. 监听和处理玩家的输入。
 # 2. 管理怪物生成计时器和相关的UI显示。
 # 3. 接收来自 GameBoard 的信号，并据此更新游戏状态（如增加时间、处理胜负）。
 # 4. 控制游戏的暂停与恢复。
+class_name TestMode1
 extends Control
 
 # --- 常量配置 ---
@@ -69,7 +70,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	# 如果捕获到了有效的移动方向...
 	if direction != Vector2i.ZERO:
 		# ...则通知 GameBoard 节点去处理这个移动。
-		# Main.gd 不关心移动的具体逻辑，只负责分派指令。
+		# TestMode1.gd 不关心移动的具体逻辑，只负责分派指令。
 		game_board.handle_move(direction)
 
 # 初始化测试工具的函数
@@ -183,7 +184,7 @@ func _update_stats_display() -> void:
 		"time_bonus_decay": TIME_BONUS_DECAY_FACTOR,
 		"min_time_bonus": MIN_TIME_BONUS
 	}
-	# 2. 调用 HUD 的方法，将数据传递过去
+	# 调用 HUD 的方法，将数据传递过去
 	hud.update_stats(stats)
 
 ## 辅助函数，只负责生成怪物信息的文本
