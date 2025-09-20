@@ -3,8 +3,8 @@
 ## TestMode1: "测试模式1"的游戏逻辑控制器。
 ##
 ## 该脚本作为此模式的主场景脚本，负责协调游戏的所有核心部分。它监听玩家输入，
-## 管理本模式特有的怪物生成计时器和时间奖励机制，并作为 `GameBoard` (模型) 
-## 与 `HUD` (视图) 之间的桥梁，处理游戏状态的更新和UI的显示。
+## 管理游戏的核心流程（如暂停、重启），处理本模式特有的怪物生成和时间奖励机制，
+## 并作为 `GameBoard` (模型) 与 `HUD`、`PauseMenu` 等UI视图 (视图) 之间的桥梁。
 class_name TestMode1
 extends Control
 
@@ -23,6 +23,8 @@ const TIME_BONUS_DECAY_FACTOR: float = 5.0
 @onready var game_board: Control = %GameBoard
 @onready var test_panel: VBoxContainer = %TestPanel
 @onready var hud: VBoxContainer = %HUD
+@onready var pause_menu = $PauseMenu
+@onready var game_over_menu = $GameOverMenu
 
 # --- 状态变量 ---
 
@@ -41,10 +43,15 @@ func _ready() -> void:
 	game_board.move_made.connect(_on_game_board_move_made)
 	game_board.game_lost.connect(_on_game_lost)
 	game_board.monster_killed.connect(_on_monster_killed)
+	pause_menu.resume_game.connect(_on_resume_game)
+	pause_menu.restart_game.connect(_on_restart_game)
+	pause_menu.return_to_main_menu.connect(_on_return_to_main_menu)
+	game_over_menu.restart_game.connect(_on_restart_game)
+	game_over_menu.return_to_main_menu.connect(_on_return_to_main_menu)
 	
 	# 步骤2: 初始化并启动游戏核心机制。
 	_setup_monster_timer()
-	_initialize_test_tools() 
+	_initialize_test_tools()
 	
 	# 步骤3: 在游戏开始时，初始化一次所有UI显示。
 	_update_stats_display()
@@ -57,8 +64,16 @@ func _process(_delta: float) -> void:
 		hud.update_timer(monster_spawn_timer.time_left)
 
 ## Godot输入处理函数：捕获未被UI消耗的输入事件。
+## 优先处理暂停输入，在游戏运行时处理玩家的移动输入。
 func _unhandled_input(event: InputEvent) -> void:
-	# 游戏结束时，忽略所有输入。
+	# 处理暂停输入
+	if event.is_action_pressed("ui_pause") and not is_game_over:
+		_toggle_pause_menu()
+		# 标记事件已处理，防止移动输入在同一帧触发
+		get_viewport().set_input_as_handled()
+		return
+	
+	# 游戏结束或暂停时，忽略所有游戏输入。
 	if get_tree().paused or is_game_over:
 		return
 
@@ -73,6 +88,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	# TestMode1 本身不关心移动的具体逻辑，只负责分派指令。
 	if direction != Vector2i.ZERO:
 		game_board.handle_move(direction)
+
+# --- 暂停菜单逻辑 ---
+
+## 切换游戏的暂停状态和暂停菜单的可见性。
+func _toggle_pause_menu() -> void:
+	# 切换游戏树的暂停状态
+	get_tree().paused = not get_tree().paused
+	# 切换暂停菜单的可见性
+	pause_menu.toggle()
 
 ## 初始化测试工具。
 ## 该工具仅在Godot编辑器环境中可见并启用。
@@ -147,11 +171,12 @@ func _on_game_board_move_made() -> void:
 	_update_stats_display()
 
 ## 当 GameBoard 发出 `game_lost` 信号时被调用。
-## 负责处理游戏失败状态。
+## 负责处理游戏失败状态，停止计时器并显示游戏结束菜单。
 func _on_game_lost() -> void:
 	is_game_over = true
 	monster_spawn_timer.stop() # 停止怪物计时器
-	hud.show_game_over()       # 更新UI显示游戏结束
+	# 显示游戏结束菜单
+	game_over_menu.open()
 
 ## 当 GameBoard 发出 `monster_killed` 信号时被调用。
 func _on_monster_killed() -> void:
@@ -168,6 +193,26 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_index: 
 	
 	# 操作完成后更新统计信息。
 	_update_stats_display()
+
+# --- 菜单信号处理 ---
+
+## 响应 PauseMenu 发出的 `resume_game` 信号。
+func _on_resume_game() -> void:
+	# 调用切换函数来取消暂停和隐藏菜单
+	_toggle_pause_menu()
+
+## 响应 PauseMenu 或 GameOverMenu 发出的 `restart_game` 信号。
+func _on_restart_game() -> void:
+	# 在切换场景前，务必取消暂停状态
+	get_tree().paused = false
+	# 重新加载当前场景以实现重启
+	get_tree().reload_current_scene()
+
+## 响应 PauseMenu 或 GameOverMenu 发出的 `return_to_main_menu` 信号。
+func _on_return_to_main_menu() -> void:
+	# 同样，在切换场景前取消暂停
+	get_tree().paused = false
+	GlobalGameManager.goto_scene("res://scenes/main_menu.tscn")
 
 # --- UI 更新 ---
 

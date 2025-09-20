@@ -1,9 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://28ale2iku1n4"]
+[gd_scene load_steps=8 format=3 uid="uid://28ale2iku1n4"]
 
 [ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/modes/test_mode_1.gd" id="1_37a38"]
 [ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/hud.tscn" id="2_hwicy"]
 [ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="3_winr3"]
 [ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/test_panel.tscn" id="4_8gwm2"]
+[ext_resource type="PackedScene" uid="uid://7ypwtymhkpm6" path="res://scenes/ui/game_over_menu.tscn" id="5_winr3"]
+[ext_resource type="PackedScene" uid="uid://bsourh8co1vbn" path="res://scenes/ui/pause_menu.tscn" id="6_8gwm2"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
 bg_color = Color(0.2827017, 0.2827017, 0.2827017, 1)
@@ -75,3 +77,10 @@ size_flags_horizontal = 3
 unique_name_in_owner = true
 layout_mode = 1
 offset_bottom = 190.0
+
+[node name="GameOverMenu" parent="." instance=ExtResource("5_winr3")]
+layout_mode = 1
+
+[node name="PauseMenu" parent="." instance=ExtResource("6_8gwm2")]
+process_mode = 3
+layout_mode = 1

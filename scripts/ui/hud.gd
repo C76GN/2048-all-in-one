@@ -46,9 +46,3 @@ func update_stats(stats: Dictionary) -> void:
 ## @param time_left: 计时器剩余的秒数。
 func update_timer(time_left: float) -> void:
 	monster_timer_label.text = "怪物将在: %.1f s后出现" % time_left
-
-## 显示游戏结束的最终信息。
-##
-## 这会覆盖计时器标签，向玩家明确传达游戏已结束的状态。
-func show_game_over() -> void:
-	monster_timer_label.text = "游戏结束!"
