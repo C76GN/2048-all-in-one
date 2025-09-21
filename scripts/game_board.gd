@@ -33,33 +33,25 @@ const BOARD_PADDING: int = 15
 
 # 二维数组，用于存储棋盘上所有方块节点的引用。'null'代表空格。
 var grid = []
+# 防止在窗口大小改变时重复初始化棋盘。
+var is_initialized: bool = false
 
 # --- 节点引用 ---
 
+# 棋盘背景，用于整体缩放和定位。
+@onready var board_background: Panel = $BoardBackground
 # 棋盘容器，所有方块节点的父节点，方便统一管理和定位。
 @onready var board_container: Node2D = $BoardContainer
 
 ## Godot生命周期函数：当节点进入场景树时调用。
 func _ready() -> void:
-	# 初始化网格数据结构，创建一个空的二维数组。
+	# 初始化网格数据结构。
 	_initialize_grid()
 	
-	# --- 动态计算并设置棋盘尺寸 ---
-	# 计算棋盘内容区域（所有格子+间距）的总边长。
-	var grid_area_side_length = GRID_SIZE * CELL_SIZE + (GRID_SIZE - 1) * SPACING
-	# 计算包含内边距的棋盘背景总边长。
-	var board_background_side_length = grid_area_side_length + BOARD_PADDING * 2
-	# 设置当前Control节点的最小尺寸，使其能完全容纳棋盘背景。
-	self.custom_minimum_size = Vector2(board_background_side_length, board_background_side_length)
-	# 将方块容器向内偏移，为棋盘背景留出边距。
-	board_container.position = Vector2(BOARD_PADDING, BOARD_PADDING)
-	
-	# 绘制棋盘的静态背景单元格。
-	_draw_board()
-	
-	# 游戏开始时，在棋盘上生成两个初始的玩家方块。
-	spawn_tile()
-	spawn_tile()
+	# 连接 resized 信号，当本控件尺寸变化时更新内部布局。
+	resized.connect(_update_board_layout)
+	# 推迟一帧调用，以确保父容器已经完成了初始布局，赋予了本控件正确的尺寸。
+	call_deferred("_update_board_layout")
 
 # --- 公共接口 ---
 # 这些函数由外部节点（如游戏模式主脚本）调用，以控制游戏流程。
@@ -199,7 +191,40 @@ func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) ->
 	new_tile.animate_spawn()
 
 # --- 内部核心逻辑 ---
-# 这些函数是棋盘功能的具体实现，由公共接口或其他内部函数调用。
+
+## 当GameBoard控件尺寸改变时，重新计算所有内部元素的位置和缩放。
+func _update_board_layout() -> void:
+	# 计算棋盘内容的逻辑尺寸（无缩放时的理想尺寸）。
+	var grid_area_side = GRID_SIZE * CELL_SIZE + (GRID_SIZE - 1) * SPACING
+	var logical_board_side = grid_area_side + BOARD_PADDING * 2
+	
+	# 获取当前控件的可用尺寸。
+	var current_size = self.size
+	if current_size.x == 0 or current_size.y == 0:
+		return # 尺寸尚未确定，避免除以零。
+
+	# 计算缩放比例，确保棋盘能等比缩放并完整显示。
+	var scale_ratio = min(current_size.x / logical_board_side, current_size.y / logical_board_side)
+	
+	# 计算缩放后的尺寸和居中所需的偏移量。
+	var scaled_size = Vector2(logical_board_side, logical_board_side) * scale_ratio
+	var offset = (current_size - scaled_size) / 2.0
+
+	# 应用变换到背景Panel。
+	board_background.position = offset
+	board_background.size = scaled_size # 直接设置缩放后的尺寸
+
+	# 应用变换到方块容器Node2D。
+	board_container.position = offset + Vector2(BOARD_PADDING, BOARD_PADDING) * scale_ratio
+	board_container.scale = Vector2(scale_ratio, scale_ratio)
+
+	# 如果是第一次布局，则绘制背景格子并生成初始方块。
+	if not is_initialized:
+		_draw_board_cells()
+		spawn_tile()
+		spawn_tile()
+		is_initialized = true
+
 
 ## 遍历网格，返回所有玩家方块节点的数组。
 ##
@@ -234,7 +259,7 @@ func _initialize_grid():
 		grid[x].fill(null)
 
 ## 绘制棋盘的灰色背景单元格，作为视觉基础。
-func _draw_board():
+func _draw_board_cells():
 	for x in GRID_SIZE:
 		for y in GRID_SIZE:
 			var cell_bg = Panel.new()
@@ -247,8 +272,8 @@ func _draw_board():
 			cell_bg.add_theme_stylebox_override("panel", stylebox)
 
 			cell_bg.size = Vector2(CELL_SIZE, CELL_SIZE)
-			# 使用 _grid_to_pixel_top_left 计算每个背景格子的左上角坐标。
-			cell_bg.position = _grid_to_pixel_top_left(Vector2i(x, y))
+			# 计算每个背景格子在board_container内的局部坐标。
+			cell_bg.position = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
 			board_container.add_child(cell_bg)
 
 ## 遍历整个网格，返回所有空格子坐标的数组。
@@ -274,10 +299,10 @@ func _get_rotated_grid(direction: Vector2i) -> Array:
 		var line = []
 		for j in GRID_SIZE:
 			match direction:
-				Vector2i.LEFT:  line.append(grid[j][i])
+				Vector2i.LEFT: line.append(grid[j][i])
 				Vector2i.RIGHT: line.append(grid[GRID_SIZE - 1 - j][i])
-				Vector2i.UP:    line.append(grid[i][j])
-				Vector2i.DOWN:  line.append(grid[i][GRID_SIZE - 1 - j])
+				Vector2i.UP: line.append(grid[i][j])
+				Vector2i.DOWN: line.append(grid[i][GRID_SIZE - 1 - j])
 		rotated_grid[i] = line
 	return rotated_grid
 
@@ -294,10 +319,10 @@ func _unrotate_grid(rotated_grid: Array, direction: Vector2i) -> Array:
 	for i in GRID_SIZE:
 		for j in GRID_SIZE:
 			match direction:
-				Vector2i.LEFT:  new_grid[j][i] = rotated_grid[i][j]
+				Vector2i.LEFT: new_grid[j][i] = rotated_grid[i][j]
 				Vector2i.RIGHT: new_grid[GRID_SIZE - 1 - j][i] = rotated_grid[i][j]
-				Vector2i.UP:    new_grid[i][j] = rotated_grid[i][j]
-				Vector2i.DOWN:  new_grid[i][GRID_SIZE - 1 - j] = rotated_grid[i][j]
+				Vector2i.UP: new_grid[i][j] = rotated_grid[i][j]
+				Vector2i.DOWN: new_grid[i][GRID_SIZE - 1 - j] = rotated_grid[i][j]
 	return new_grid
 
 ## 处理单行（或列）的移动、合并与战斗逻辑。这是整个游戏的核心算法。
@@ -326,7 +351,7 @@ func _process_line(line: Array) -> Array:
 					next_tile.setup(current_tile.value * 2, current_tile.type)
 					merged_line.append(next_tile)
 					current_tile.queue_free() # 销毁被合并的方块。
-					i += 2; continue          # 跳过两个已处理的方块。
+					i += 2; continue # 跳过两个已处理的方块。
 			
 			# 情况B: 两个方块类型不同（玩家 vs 怪物），触发战斗。
 			else:
@@ -388,19 +413,12 @@ func _update_board_visuals() -> Array:
 					active_tweens.append(move_tween)
 	return active_tweens
 
-## 将网格坐标转换为屏幕像素坐标（返回格子左上角）。
+## 将网格坐标转换为 board_container 内的局部像素坐标（返回格子中心点）。
 ##
 ## @param grid_pos: 网格坐标 (Vector2i)。
-## @return: 对应的屏幕左上角像素坐标 (Vector2)。
-func _grid_to_pixel_top_left(grid_pos: Vector2i) -> Vector2:
-	return Vector2(grid_pos.x * (CELL_SIZE + SPACING), grid_pos.y * (CELL_SIZE + SPACING))
-
-## 将网格坐标转换为屏幕像素坐标（返回格子中心点）。
-##
-## @param grid_pos: 网格坐标 (Vector2i)。
-## @return: 对应的屏幕中心点像素坐标 (Vector2)。
+## @return: 对应的局部中心点像素坐标 (Vector2)。
 func _grid_to_pixel_center(grid_pos: Vector2i) -> Vector2:
-	var top_left_pos = _grid_to_pixel_top_left(grid_pos)
+	var top_left_pos = Vector2(grid_pos.x * (CELL_SIZE + SPACING), grid_pos.y * (CELL_SIZE + SPACING))
 	return top_left_pos + Vector2(CELL_SIZE / 2.0, CELL_SIZE / 2.0)
 
 ## 检查游戏是否结束。

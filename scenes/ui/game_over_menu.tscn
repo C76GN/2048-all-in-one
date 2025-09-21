@@ -20,7 +20,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.5882353)
+color = Color(0.15, 0.15, 0.15, 0.8)
 
 [node name="CenterContainer" type="CenterContainer" parent="CanvasLayer"]
 anchors_preset = 15
@@ -34,13 +34,16 @@ layout_mode = 2
 theme_override_constants/separation = 20
 
 [node name="RestartButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
 text = "重来"
 
 [node name="SettingsButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
 text = "设置 (待实现)"
 
 [node name="MainMenuButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
 text = "返回主界面"

@@ -3,7 +3,12 @@
 [ext_resource type="Script" uid="uid://c3xlbn570oc40" path="res://scripts/ui/hud.gd" id="1_qpvh6"]
 
 [node name="VBoxContainer" type="VBoxContainer"]
-size_flags_horizontal = 4
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
 script = ExtResource("1_qpvh6")
 

@@ -32,6 +32,7 @@ func _ready() -> void:
 	restart_button.pressed.connect(_on_restart_button_pressed)
 	main_menu_button.pressed.connect(_on_main_menu_button_pressed)
 	
+	restart_confirm_dialog.set_flag(Window.FLAG_POPUP_WM_HINT, true)
 	# 连接确认对话框的信号
 	restart_confirm_dialog.confirmed.connect(_on_restart_confirm_dialog_confirmed)
 
