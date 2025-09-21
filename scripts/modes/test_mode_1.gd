@@ -48,6 +48,7 @@ func _ready() -> void:
 	pause_menu.return_to_main_menu.connect(_on_return_to_main_menu)
 	game_over_menu.restart_game.connect(_on_restart_game)
 	game_over_menu.return_to_main_menu.connect(_on_return_to_main_menu)
+	game_board.board_resized.connect(_on_board_resized)
 	
 	# 步骤2: 初始化并启动游戏核心机制。
 	_setup_monster_timer()
@@ -105,6 +106,8 @@ func _initialize_test_tools() -> void:
 	if OS.has_feature("editor"):
 		test_panel.visible = true
 		test_panel.spawn_requested.connect(_on_test_panel_spawn_requested)
+		test_panel.reset_and_resize_requested.connect(_on_reset_and_resize_requested)
+		test_panel.live_expand_requested.connect(_on_live_expand_requested)
 	else:
 		# 在导出的游戏中，自动隐藏测试面板。
 		test_panel.visible = false
@@ -194,6 +197,27 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_index: 
 	# 操作完成后更新统计信息。
 	_update_stats_display()
 
+## 当TestPanel请求重置并调整大小时调用。
+func _on_reset_and_resize_requested(new_size: int) -> void:
+	# 这是一个完整的游戏重置
+	is_game_over = false
+	move_count = 0
+	monsters_killed = 0
+	
+	# 调用GameBoard的重置函数
+	game_board.reset_and_resize(new_size)
+	
+	# 重启计时器和UI
+	monster_spawn_timer.start(INITIAL_SPAWN_INTERVAL)
+	_update_stats_display()
+	game_over_menu.close()
+
+## 当TestPanel请求在游戏中扩建时调用。
+func _on_live_expand_requested(new_size: int) -> void:
+	# 仅在游戏未结束且未暂停时允许扩建
+	if not is_game_over and not get_tree().paused:
+		game_board.live_expand(new_size)
+
 # --- 菜单信号处理 ---
 
 ## 响应 PauseMenu 发出的 `resume_game` 信号。
@@ -213,6 +237,14 @@ func _on_return_to_main_menu() -> void:
 	# 同样，在切换场景前取消暂停
 	get_tree().paused = false
 	GlobalGameManager.goto_scene("res://scenes/main_menu.tscn")
+
+# --- 棋盘信号处理 ---
+
+## 当 GameBoard 发出 `board_resized` 信号时被调用。
+func _on_board_resized(new_size: int) -> void:
+	# 将尺寸变化通知给测试面板，让它更新UI
+	if OS.has_feature("editor") and test_panel:
+		test_panel.update_coordinate_limits(new_size)
 
 # --- UI 更新 ---
 

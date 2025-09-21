@@ -14,14 +14,14 @@ signal move_made
 signal game_lost
 ## 当一个怪物被消灭时（无论是战斗胜利还是同归于尽）发出。
 signal monster_killed
+## 当棋盘完成重置或扩建后发出，传递新的尺寸。
+signal board_resized(new_grid_size)
 
 # --- 常量与预加载资源 ---
 
 # 预加载方块场景，用于在运行时动态实例化。
 const TileScene = preload("res://scenes/tile.tscn")
 
-# 棋盘的尺寸（4x4）。
-const GRID_SIZE: int = 4
 # 每个单元格的像素尺寸。
 const CELL_SIZE: int = 100
 # 单元格之间的间距。
@@ -31,6 +31,8 @@ const BOARD_PADDING: int = 15
 
 # --- 核心数据 ---
 
+# 棋盘的尺寸
+var grid_size: int = 4
 # 二维数组，用于存储棋盘上所有方块节点的引用。'null'代表空格。
 var grid = []
 # 防止在窗口大小改变时重复初始化棋盘。
@@ -43,18 +45,16 @@ var is_initialized: bool = false
 # 棋盘容器，所有方块节点的父节点，方便统一管理和定位。
 @onready var board_container: Node2D = $BoardContainer
 
+# --- Godot 生命周期函数 ---
+
 ## Godot生命周期函数：当节点进入场景树时调用。
 func _ready() -> void:
-	# 初始化网格数据结构。
-	_initialize_grid()
-	
 	# 连接 resized 信号，当本控件尺寸变化时更新内部布局。
 	resized.connect(_update_board_layout)
 	# 推迟一帧调用，以确保父容器已经完成了初始布局，赋予了本控件正确的尺寸。
-	call_deferred("_update_board_layout")
+	call_deferred("_initialize_board")
 
 # --- 公共接口 ---
-# 这些函数由外部节点（如游戏模式主脚本）调用，以控制游戏流程。
 
 ## 根据给定的方向向量处理一次完整的移动操作。
 ##
@@ -66,7 +66,7 @@ func handle_move(direction: Vector2i) -> void:
 	var new_grid_after_move = []
 
 	# 逐行处理旋转后的虚拟网格。
-	for row_index in GRID_SIZE:
+	for row_index in grid_size:
 		var current_row = grid_copy_for_move[row_index]
 		var result = _process_line(current_row)
 		var processed_row = result[0]
@@ -152,14 +152,18 @@ func spawn_monster(monster_value: int) -> void:
 			if not monster_tiles.is_empty():
 				var tile_to_empower = monster_tiles.pick_random()
 				tile_to_empower.setup(tile_to_empower.value * 2, tile_to_empower.TileType.MONSTER)
-	
+
 ## 获取当前棋盘上数值最大的玩家方块的值。
 ##
 ## @return: 返回最大的玩家方块数值；如果没有玩家方块，则返回0。
 func get_max_player_value() -> int:
+	# 安全检查：如果棋盘尚未完全初始化，则直接返回0，避免访问无效数据。
+	if not is_initialized:
+		return 0
+
 	var max_val = 0
-	for x in GRID_SIZE:
-		for y in GRID_SIZE:
+	for x in grid_size:
+		for y in grid_size:
 			var tile = grid[x][y]
 			# 确保方块存在、是玩家类型，并且其值大于当前记录的最大值。
 			if tile != null and tile.type == tile.TileType.PLAYER and tile.value > max_val:
@@ -173,7 +177,7 @@ func get_max_player_value() -> int:
 ## @param type: 方块的类型 (Tile.TileType.PLAYER 或 Tile.TileType.MONSTER)。
 func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) -> void:
 	# 检查坐标是否在棋盘有效范围内。
-	if not (grid_pos.x >= 0 and grid_pos.x < GRID_SIZE and grid_pos.y >= 0 and grid_pos.y < GRID_SIZE):
+	if not (grid_pos.x >= 0 and grid_pos.x < grid_size and grid_pos.y >= 0 and grid_pos.y < grid_size):
 		push_error("Spawn position is out of bounds.")
 		return
 		
@@ -190,140 +194,75 @@ func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) ->
 	new_tile.position = _grid_to_pixel_center(grid_pos)
 	new_tile.animate_spawn()
 
-# --- 内部核心逻辑 ---
-
-## 当GameBoard控件尺寸改变时，重新计算所有内部元素的位置和缩放。
-func _update_board_layout() -> void:
-	# 计算棋盘内容的逻辑尺寸（无缩放时的理想尺寸）。
-	var grid_area_side = GRID_SIZE * CELL_SIZE + (GRID_SIZE - 1) * SPACING
-	var logical_board_side = grid_area_side + BOARD_PADDING * 2
+## 重置整个棋盘并应用新的尺寸。
+##
+## @param new_size: 新的棋盘边长。
+func reset_and_resize(new_size: int) -> void:
+	# 清理旧的方块和背景单元格
+	for child in board_container.get_children():
+		child.queue_free()
 	
-	# 获取当前控件的可用尺寸。
-	var current_size = self.size
-	if current_size.x == 0 or current_size.y == 0:
-		return # 尺寸尚未确定，避免除以零。
-
-	# 计算缩放比例，确保棋盘能等比缩放并完整显示。
-	var scale_ratio = min(current_size.x / logical_board_side, current_size.y / logical_board_side)
+	grid.clear()
+	is_initialized = false
+	grid_size = new_size
 	
-	# 计算缩放后的尺寸和居中所需的偏移量。
-	var scaled_size = Vector2(logical_board_side, logical_board_side) * scale_ratio
-	var offset = (current_size - scaled_size) / 2.0
+	# 重新开始初始化流程
+	_initialize_board()
+	board_resized.emit(grid_size)
 
-	# 应用变换到背景Panel。
-	board_background.position = offset
-	board_background.size = scaled_size # 直接设置缩放后的尺寸
+## 在游戏进行中扩建棋盘（只能变大）。
+##
+## @param new_size: 新的棋盘边长，必须大于当前尺寸。
+func live_expand(new_size: int) -> void:
+	if new_size <= grid_size:
+		push_warning("Live expand only supports increasing the grid size.")
+		return
+	
+	var old_size = grid_size
+	
+	# 步骤1: 更新数据结构
+	grid_size = new_size
+	# 扩展现有的列
+	for x in range(old_size):
+		grid[x].resize(grid_size)
+		grid[x].slice(old_size, grid_size - 1).fill(null)
+	# 添加新的行
+	grid.resize(grid_size)
+	for x in range(old_size, grid_size):
+		grid[x] = []
+		grid[x].resize(grid_size)
+		grid[x].fill(null)
+	
+	# 步骤2: 执行动画
+	_animate_expansion(old_size, new_size)
+	board_resized.emit(grid_size)
 
-	# 应用变换到方块容器Node2D。
-	board_container.position = offset + Vector2(BOARD_PADDING, BOARD_PADDING) * scale_ratio
-	board_container.scale = Vector2(scale_ratio, scale_ratio)
+# --- 初始化与布局 ---
 
-	# 如果是第一次布局，则绘制背景格子并生成初始方块。
+## 首次初始化棋盘或在重置后重新初始化。
+func _initialize_board() -> void:
+	_initialize_grid()
+	_update_board_layout()
+	# 确保在第一次布局完成后才生成方块
 	if not is_initialized:
 		_draw_board_cells()
 		spawn_tile()
 		spawn_tile()
 		is_initialized = true
 
+## 当GameBoard控件尺寸改变时，重新计算所有内部元素的位置和缩放。
+func _update_board_layout() -> void:
+	var layout_params = _calculate_layout_params(grid_size)
+	if layout_params.is_empty():
+		return
 
-## 遍历网格，返回所有玩家方块节点的数组。
-##
-## @return: 一个包含场景中所有玩家方块 (Tile) 节点的数组。
-func _get_all_player_tiles() -> Array:
-	var player_tiles = []
-	for x in GRID_SIZE:
-		for y in GRID_SIZE:
-			var tile = grid[x][y]
-			if tile != null and tile.type == tile.TileType.PLAYER:
-				player_tiles.append(tile)
-	return player_tiles
+	# 应用变换到背景Panel和方块容器Node2D。
+	board_background.position = layout_params.offset
+	board_background.size = layout_params.scaled_size
+	board_container.position = layout_params.offset + Vector2(BOARD_PADDING, BOARD_PADDING) * layout_params.scale_ratio
+	board_container.scale = Vector2(layout_params.scale_ratio, layout_params.scale_ratio)
 
-## 遍历网格，返回所有怪物方块节点的数组。
-##
-## @return: 一个包含场景中所有怪物方块 (Tile) 节点的数组。
-func _get_all_monster_tiles() -> Array:
-	var monster_tiles = []
-	for x in GRID_SIZE:
-		for y in GRID_SIZE:
-			var tile = grid[x][y]
-			if tile != null and tile.type == tile.TileType.MONSTER:
-				monster_tiles.append(tile)
-	return monster_tiles
-
-## 初始化核心数据 `grid`，创建一个填满 'null' 的二维数组。
-func _initialize_grid():
-	grid.resize(GRID_SIZE)
-	for x in range(GRID_SIZE):
-		grid[x] = []
-		grid[x].resize(GRID_SIZE)
-		grid[x].fill(null)
-
-## 绘制棋盘的灰色背景单元格，作为视觉基础。
-func _draw_board_cells():
-	for x in GRID_SIZE:
-		for y in GRID_SIZE:
-			var cell_bg = Panel.new()
-			var stylebox = StyleBoxFlat.new()
-			stylebox.bg_color = Color("3c3c3c")
-			stylebox.corner_radius_top_left = 8
-			stylebox.corner_radius_top_right = 8
-			stylebox.corner_radius_bottom_right = 8
-			stylebox.corner_radius_bottom_left = 8
-			cell_bg.add_theme_stylebox_override("panel", stylebox)
-
-			cell_bg.size = Vector2(CELL_SIZE, CELL_SIZE)
-			# 计算每个背景格子在board_container内的局部坐标。
-			cell_bg.position = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
-			board_container.add_child(cell_bg)
-
-## 遍历整个网格，返回所有空格子坐标的数组。
-##
-## @return: 一个包含所有空单元格 Vector2i 坐标的数组。
-func _get_empty_cells() -> Array:
-	var empty_cells = []
-	for x in range(GRID_SIZE):
-		for y in range(GRID_SIZE):
-			if grid[x][y] == null:
-				empty_cells.append(Vector2i(x, y))
-	return empty_cells
-
-## 根据移动方向，返回一个旋转后的虚拟网格。
-## 这个技巧可以将所有方向的移动逻辑（上、下、右）统一为向左移动。
-##
-## @param direction: 移动方向向量。
-## @return: 一个新的二维数组，代表旋转后的网格。
-func _get_rotated_grid(direction: Vector2i) -> Array:
-	var rotated_grid = []
-	rotated_grid.resize(GRID_SIZE)
-	for i in GRID_SIZE:
-		var line = []
-		for j in GRID_SIZE:
-			match direction:
-				Vector2i.LEFT: line.append(grid[j][i])
-				Vector2i.RIGHT: line.append(grid[GRID_SIZE - 1 - j][i])
-				Vector2i.UP: line.append(grid[i][j])
-				Vector2i.DOWN: line.append(grid[i][GRID_SIZE - 1 - j])
-		rotated_grid[i] = line
-	return rotated_grid
-
-## 将一个被旋转过的网格数据恢复到其原始的对应位置。
-##
-## @param rotated_grid: 经过 `_get_rotated_grid` 处理后的网格。
-## @param direction: 原始的移动方向。
-## @return: 恢复了正确方向的新网格数据。
-func _unrotate_grid(rotated_grid: Array, direction: Vector2i) -> Array:
-	var new_grid = []
-	new_grid.resize(GRID_SIZE)
-	for i in GRID_SIZE: new_grid[i] = []; new_grid[i].resize(GRID_SIZE)
-	
-	for i in GRID_SIZE:
-		for j in GRID_SIZE:
-			match direction:
-				Vector2i.LEFT: new_grid[j][i] = rotated_grid[i][j]
-				Vector2i.RIGHT: new_grid[GRID_SIZE - 1 - j][i] = rotated_grid[i][j]
-				Vector2i.UP: new_grid[i][j] = rotated_grid[i][j]
-				Vector2i.DOWN: new_grid[i][GRID_SIZE - 1 - j] = rotated_grid[i][j]
-	return new_grid
+# --- 内部核心逻辑 ---
 
 ## 处理单行（或列）的移动、合并与战斗逻辑。这是整个游戏的核心算法。
 ##
@@ -382,7 +321,7 @@ func _process_line(line: Array) -> Array:
 		
 	# 步骤3: 用 'null' 填充行末的空格，使其恢复标准长度。
 	var result_line = merged_line.duplicate()
-	while result_line.size() < GRID_SIZE: result_line.append(null)
+	while result_line.size() < grid_size: result_line.append(null)
 	
 	# 步骤4: 比较处理后的行与原始行，判断是否发生了实质性移动。
 	var has_moved = false
@@ -397,13 +336,44 @@ func _process_line(line: Array) -> Array:
 				
 	return [result_line, has_moved]
 
+## 检查游戏是否结束。
+## 仅在棋盘已满时触发检查，判断是否还有任何可能的移动。
+func _check_game_over() -> void:
+	# 如果棋盘仍有空位，游戏不可能结束。
+	if not _get_empty_cells().is_empty():
+		return
+
+	# 遍历棋盘，检查是否存在任何可能的移动（相邻方块可合并或战斗）。
+	for x in range(grid_size):
+		for y in range(grid_size):
+			var current_tile = grid[x][y]
+			if current_tile == null: continue
+			
+			# 检查右侧相邻方块。
+			if x + 1 < grid_size:
+				var right_tile = grid[x + 1][y]
+				# 如果类型不同（可战斗）或类型相同且数值相等（可合并），则存在移动可能。
+				if right_tile != null and (current_tile.type != right_tile.type or current_tile.value == right_tile.value):
+					return # 找到一个可能移动，提前退出。
+					
+			# 检查下方相邻方块。
+			if y + 1 < grid_size:
+				var down_tile = grid[x][y + 1]
+				if down_tile != null and (current_tile.type != down_tile.type or current_tile.value == down_tile.value):
+					return # 找到一个可能移动，提前退出。
+					
+	# 如果遍历完所有方块都没有找到可移动的组合，则游戏失败。
+	game_lost.emit()
+
+# --- 视觉与动画 ---
+
 ## 根据 `grid` 数组中的数据，更新场景中所有方块节点的实际位置。
 ##
 ## @return: 返回一个包含所有活动移动动画 (Tween) 的数组。
 func _update_board_visuals() -> Array:
 	var active_tweens = []
-	for x in GRID_SIZE:
-		for y in GRID_SIZE:
+	for x in grid_size:
+		for y in grid_size:
 			if grid[x][y] != null:
 				var tile = grid[x][y]
 				var new_pixel_pos = _grid_to_pixel_center(Vector2i(x, y))
@@ -413,6 +383,178 @@ func _update_board_visuals() -> Array:
 					active_tweens.append(move_tween)
 	return active_tweens
 
+## 绘制棋盘的灰色背景单元格，作为视觉基础。
+func _draw_board_cells():
+	# 先清除旧的单元格背景
+	for child in board_container.get_children():
+		if child is Panel:
+			child.queue_free()
+			
+	for x in grid_size:
+		for y in grid_size:
+			var cell_bg = Panel.new()
+			var stylebox = StyleBoxFlat.new()
+			stylebox.bg_color = Color("3c3c3c")
+			stylebox.corner_radius_top_left = 8
+			stylebox.corner_radius_top_right = 8
+			stylebox.corner_radius_bottom_right = 8
+			stylebox.corner_radius_bottom_left = 8
+			cell_bg.add_theme_stylebox_override("panel", stylebox)
+			
+			cell_bg.size = Vector2(CELL_SIZE, CELL_SIZE)
+			cell_bg.position = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
+			board_container.add_child(cell_bg)
+			# 将背景格子置于底层
+			board_container.move_child(cell_bg, 0)
+
+## 执行棋盘扩建动画。
+func _animate_expansion(old_size: int, new_size: int) -> void:
+	# 步骤 1: 计算最终的布局参数
+	var final_layout = _calculate_layout_params(new_size)
+	if final_layout.is_empty(): return # 如果布局无效则提前退出
+
+	# 步骤 2: 创建并行动画，让所有容器的属性一步到位地过渡到最终状态
+	var main_tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
+	
+	# 动画 2a: 背景面板平滑地移动到新位置并调整大小
+	main_tween.tween_property(board_background, "position", final_layout.offset, 0.3)
+	main_tween.tween_property(board_background, "size", final_layout.scaled_size, 0.3)
+	
+	# 动画 2b: 方块容器也直接平滑地移动到新位置并缩放到最终比例
+	var final_container_pos = final_layout.offset + Vector2(BOARD_PADDING, BOARD_PADDING) * final_layout.scale_ratio
+	main_tween.tween_property(board_container, "position", final_container_pos, 0.3)
+	main_tween.tween_property(board_container, "scale", Vector2(final_layout.scale_ratio, final_layout.scale_ratio), 0.3)
+	
+	# 等待主过渡动画完成
+	await main_tween.finished
+	
+	# 步骤 3: 清理旧的背景格子
+	for child in board_container.get_children():
+		if child is Panel:
+			child.queue_free()
+
+	# 步骤 4: 创建并行动画，重新绘制所有背景格子，并为新格子添加出现动画
+	var new_cells_tween = create_tween().set_parallel(true)
+	for x in new_size:
+		for y in new_size:
+			var cell_bg = Panel.new()
+			var stylebox = StyleBoxFlat.new()
+			stylebox.bg_color = Color("3c3c3c")
+			stylebox.corner_radius_top_left = 8
+			stylebox.corner_radius_top_right = 8
+			stylebox.corner_radius_bottom_right = 8
+			stylebox.corner_radius_bottom_left = 8
+			cell_bg.add_theme_stylebox_override("panel", stylebox)
+			
+			var final_size = Vector2(CELL_SIZE, CELL_SIZE)
+			var final_pos = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
+
+			board_container.add_child(cell_bg)
+			board_container.move_child(cell_bg, 0) # 确保在最底层
+
+			# 为新增加的格子创建“从中心扩大”的出现动画
+			if x >= old_size or y >= old_size:
+				var center_pos = final_pos + final_size / 2.0
+				cell_bg.size = Vector2.ZERO
+				cell_bg.position = center_pos
+				
+				# 同时动画化 size 和 position，实现平滑的从中心放大效果
+				new_cells_tween.tween_property(cell_bg, "size", final_size, 0.2).set_delay(0.05 * (x + y))
+				new_cells_tween.tween_property(cell_bg, "position", final_pos, 0.2).set_delay(0.05 * (x + y))
+			# 对于原有的格子，直接设置最终状态，确保它们正确显示
+			else:
+				cell_bg.size = final_size
+				cell_bg.position = final_pos
+
+	# 等待新格子出现动画完成
+	await new_cells_tween.finished
+	
+	# 步骤 5: 最后，调用一次视觉更新，确保所有数字方块都精确地在其网格位置上
+	_update_board_visuals()
+
+# --- 辅助函数 ---
+
+## 初始化核心数据 `grid`，创建一个填满 'null' 的二维数组。
+func _initialize_grid():
+	grid.resize(grid_size)
+	for x in range(grid_size):
+		grid[x] = []
+		grid[x].resize(grid_size)
+		grid[x].fill(null)
+
+## 遍历网格，返回所有玩家方块节点的数组。
+##
+## @return: 一个包含场景中所有玩家方块 (Tile) 节点的数组。
+func _get_all_player_tiles() -> Array:
+	var player_tiles = []
+	for x in grid_size:
+		for y in grid_size:
+			var tile = grid[x][y]
+			if tile != null and tile.type == tile.TileType.PLAYER:
+				player_tiles.append(tile)
+	return player_tiles
+
+## 遍历网格，返回所有怪物方块节点的数组。
+##
+## @return: 一个包含场景中所有怪物方块 (Tile) 节点的数组。
+func _get_all_monster_tiles() -> Array:
+	var monster_tiles = []
+	for x in grid_size:
+		for y in grid_size:
+			var tile = grid[x][y]
+			if tile != null and tile.type == tile.TileType.MONSTER:
+				monster_tiles.append(tile)
+	return monster_tiles
+
+## 遍历整个网格，返回所有空格子坐标的数组。
+##
+## @return: 一个包含所有空单元格 Vector2i 坐标的数组。
+func _get_empty_cells() -> Array:
+	var empty_cells = []
+	for x in range(grid_size):
+		for y in range(grid_size):
+			if grid[x][y] == null:
+				empty_cells.append(Vector2i(x, y))
+	return empty_cells
+
+## 根据移动方向，返回一个旋转后的虚拟网格。
+## 这个技巧可以将所有方向的移动逻辑（上、下、右）统一为向左移动。
+##
+## @param direction: 移动方向向量。
+## @return: 一个新的二维数组，代表旋转后的网格。
+func _get_rotated_grid(direction: Vector2i) -> Array:
+	var rotated_grid = []
+	rotated_grid.resize(grid_size)
+	for i in grid_size:
+		var line = []
+		for j in grid_size:
+			match direction:
+				Vector2i.LEFT: line.append(grid[j][i])
+				Vector2i.RIGHT: line.append(grid[grid_size - 1 - j][i])
+				Vector2i.UP: line.append(grid[i][j])
+				Vector2i.DOWN: line.append(grid[i][grid_size - 1 - j])
+		rotated_grid[i] = line
+	return rotated_grid
+
+## 将一个被旋转过的网格数据恢复到其原始的对应位置。
+##
+## @param rotated_grid: 经过 `_get_rotated_grid` 处理后的网格。
+## @param direction: 原始的移动方向。
+## @return: 恢复了正确方向的新网格数据。
+func _unrotate_grid(rotated_grid: Array, direction: Vector2i) -> Array:
+	var new_grid = []
+	new_grid.resize(grid_size)
+	for i in grid_size: new_grid[i] = []; new_grid[i].resize(grid_size)
+	
+	for i in grid_size:
+		for j in grid_size:
+			match direction:
+				Vector2i.LEFT: new_grid[j][i] = rotated_grid[i][j]
+				Vector2i.RIGHT: new_grid[grid_size - 1 - j][i] = rotated_grid[i][j]
+				Vector2i.UP: new_grid[i][j] = rotated_grid[i][j]
+				Vector2i.DOWN: new_grid[i][grid_size - 1 - j] = rotated_grid[i][j]
+	return new_grid
+
 ## 将网格坐标转换为 board_container 内的局部像素坐标（返回格子中心点）。
 ##
 ## @param grid_pos: 网格坐标 (Vector2i)。
@@ -421,30 +563,24 @@ func _grid_to_pixel_center(grid_pos: Vector2i) -> Vector2:
 	var top_left_pos = Vector2(grid_pos.x * (CELL_SIZE + SPACING), grid_pos.y * (CELL_SIZE + SPACING))
 	return top_left_pos + Vector2(CELL_SIZE / 2.0, CELL_SIZE / 2.0)
 
-## 检查游戏是否结束。
-## 仅在棋盘已满时触发检查，判断是否还有任何可能的移动。
-func _check_game_over() -> void:
-	# 如果棋盘仍有空位，游戏不可能结束。
-	if not _get_empty_cells().is_empty():
-		return
+## [辅助函数] 抽离出布局计算逻辑，方便复用。
+##
+## @param p_size: 用于计算的棋盘边长。
+## @return: 一个包含 scale_ratio, scaled_size, offset 的字典。
+func _calculate_layout_params(p_size: int) -> Dictionary:
+	var grid_area_side = p_size * CELL_SIZE + (p_size - 1) * SPACING
+	var logical_board_side = grid_area_side + BOARD_PADDING * 2
+	
+	var current_size = self.size
+	if current_size.x == 0 or current_size.y == 0:
+		return {}
 
-	# 遍历棋盘，检查是否存在任何可能的移动（相邻方块可合并或战斗）。
-	for x in range(GRID_SIZE):
-		for y in range(GRID_SIZE):
-			var current_tile = grid[x][y]
-			
-			# 检查右侧相邻方块。
-			if x + 1 < GRID_SIZE:
-				var right_tile = grid[x + 1][y]
-				# 如果类型不同（可战斗）或类型相同且数值相等（可合并），则存在移动可能。
-				if right_tile != null and (current_tile.type != right_tile.type or current_tile.value == right_tile.value):
-					return # 找到一个可能移动，提前退出。
-					
-			# 检查下方相邻方块。
-			if y + 1 < GRID_SIZE:
-				var down_tile = grid[x][y + 1]
-				if down_tile != null and (current_tile.type != down_tile.type or current_tile.value == down_tile.value):
-					return # 找到一个可能移动，提前退出。
-					
-	# 如果遍历完所有方块都没有找到可移动的组合，则游戏失败。
-	game_lost.emit()
+	var scale_ratio = min(current_size.x / logical_board_side, current_size.y / logical_board_side)
+	var scaled_size = Vector2(logical_board_side, logical_board_side) * scale_ratio
+	var offset = (current_size - scaled_size) / 2.0
+
+	return {
+		"scale_ratio": scale_ratio,
+		"scaled_size": scaled_size,
+		"offset": offset
+	}
