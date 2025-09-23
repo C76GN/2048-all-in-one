@@ -21,28 +21,24 @@ extends VBoxContainer
 ##
 ## 从外部接收一个包含所有需要显示数据的字典，并更新UI。
 ## 使用字典作为参数可以方便未来扩展，而无需改变函数签名。
-## @param stats: 包含游戏统计数据的字典。
 func update_stats(stats: Dictionary) -> void:
-	# 直接从字典中获取并显示移动次数和消灭怪物数。
 	move_count_label.text = "移动次数: %d" % stats.get("move_count", 0)
 	killed_count_label.text = "消灭怪物: %d" % stats.get("monsters_killed", 0)
 	
-	# --- 计算并显示下一次移动的时间奖励 ---
-	# 这个计算在HUD脚本中完成，因为它只与显示格式相关。
-	var next_move_count = stats.get("move_count", 0) + 1
-	var time_bonus_decay = stats.get("time_bonus_decay", 5.0)
-	var min_time_bonus = stats.get("min_time_bonus", 0.5)
-	# 根据公式计算下一次移动将获得的奖励时间。
-	var next_move_bonus = min_time_bonus + time_bonus_decay / next_move_count
-	time_bonus_label.text = "下次移动奖励: +%.2f s" % next_move_bonus
+	var next_move_bonus = stats.get("next_move_bonus", 0.0)
+	if next_move_bonus > 0.0:
+		time_bonus_label.text = "下次移动奖励: +%.2f s" % next_move_bonus
+	else:
+		time_bonus_label.text = "" # 如果没有奖励，则不显示
 	
-	# 显示格式化后的怪物生成概率信息。
-	monster_spawn_label.text = stats.get("monster_spawn_info", "怪物生成概率:\n  - 2: 100%")
+	monster_spawn_label.text = stats.get("monster_spawn_info", "")
 
 ## 单独更新怪物生成倒计时。
 ##
 ## 之所以独立成一个函数，是因为计时器需要每帧高频更新，
 ## 而其他统计数据仅在移动后更新一次即可，这样可以提高效率。
-## @param time_left: 计时器剩余的秒数。
 func update_timer(time_left: float) -> void:
-	monster_timer_label.text = "怪物将在: %.1f s后出现" % time_left
+	if time_left > 0.0:
+		monster_timer_label.text = "怪物将在: %.1f s后出现" % time_left
+	else:
+		monster_timer_label.text = ""

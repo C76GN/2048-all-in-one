@@ -1,11 +1,11 @@
 [gd_scene load_steps=8 format=3 uid="uid://28ale2iku1n4"]
 
-[ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/modes/test_mode_1.gd" id="1_37a38"]
-[ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/hud.tscn" id="2_hwicy"]
-[ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="3_winr3"]
-[ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/test_panel.tscn" id="4_8gwm2"]
-[ext_resource type="PackedScene" uid="uid://7ypwtymhkpm6" path="res://scenes/ui/game_over_menu.tscn" id="5_winr3"]
-[ext_resource type="PackedScene" uid="uid://bsourh8co1vbn" path="res://scenes/ui/pause_menu.tscn" id="6_8gwm2"]
+[ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/modes/game_play.gd" id="1_ymdu8"]
+[ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/HUD.tscn" id="2_3qprp"]
+[ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="3_njofg"]
+[ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/test_panel.tscn" id="4_uiuk4"]
+[ext_resource type="PackedScene" uid="uid://7ypwtymhkpm6" path="res://scenes/ui/game_over_menu.tscn" id="5_7ohk3"]
+[ext_resource type="PackedScene" uid="uid://bsourh8co1vbn" path="res://scenes/ui/pause_menu.tscn" id="6_e7f05"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
 bg_color = Color(0.2827017, 0.2827017, 0.2827017, 1)
@@ -21,7 +21,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_37a38")
+script = ExtResource("1_ymdu8")
 
 [node name="MarginContainer" type="MarginContainer" parent="."]
 layout_mode = 1
@@ -44,7 +44,7 @@ custom_minimum_size = Vector2(350, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="HUD" parent="MarginContainer/MainLayoutContainer/LeftPanel" instance=ExtResource("2_hwicy")]
+[node name="HUD" parent="MarginContainer/MainLayoutContainer/LeftPanel" instance=ExtResource("2_3qprp")]
 unique_name_in_owner = true
 layout_mode = 2
 
@@ -52,7 +52,7 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-script = ExtResource("3_winr3")
+script = ExtResource("3_njofg")
 
 [node name="BoardBackground" type="Panel" parent="MarginContainer/MainLayoutContainer/GameBoard"]
 layout_mode = 1
@@ -65,7 +65,7 @@ custom_minimum_size = Vector2(350, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="TestPanel" parent="MarginContainer/MainLayoutContainer/RightPanel" instance=ExtResource("4_8gwm2")]
+[node name="TestPanel" parent="MarginContainer/MainLayoutContainer/RightPanel" instance=ExtResource("4_uiuk4")]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 1
@@ -76,9 +76,9 @@ offset_right = 0.0
 offset_bottom = 190.0
 grow_horizontal = 0
 
-[node name="GameOverMenu" parent="." instance=ExtResource("5_winr3")]
+[node name="GameOverMenu" parent="." instance=ExtResource("5_7ohk3")]
 layout_mode = 1
 
-[node name="PauseMenu" parent="." instance=ExtResource("6_8gwm2")]
+[node name="PauseMenu" parent="." instance=ExtResource("6_e7f05")]
 process_mode = 3
 layout_mode = 1

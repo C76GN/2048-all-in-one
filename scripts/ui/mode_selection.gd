@@ -27,8 +27,10 @@ func _ready() -> void:
 
 ## 响应“测试模式1”按钮的点击事件。
 func _on_test_mode_1_button_pressed() -> void:
-	# 委托全局管理器切换到第一个测试模式的游戏场景。
-	GlobalGameManager.goto_scene("res://scenes/modes/test_mode_1.tscn")
+	# 设置要加载的模式配置文件路径
+	GlobalGameManager.selected_mode_config_path = "res://scenes/modes/test_mode1_config.tres"
+	# 委托全局管理器切换到通用的游戏场景。
+	GlobalGameManager.goto_scene("res://scenes/modes/game_play.tscn")
 
 ## 响应“测试模式2”按钮的点击事件（占位功能）。
 func _on_test_mode_2_button_pressed() -> void:
