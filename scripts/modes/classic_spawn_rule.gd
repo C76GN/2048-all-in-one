@@ -1,6 +1,6 @@
 # scripts/modes/classic_spawn_rule.gd
 
-## ClassicSpawnRule: 实现了完整的经典2048生成规则。
+## ClassicSpawnRule: 实现了经典的2048生成规则。
 ##
 ## 规则包括：
 ## 1. 在游戏开始时，负责在棋盘上生成两个初始方块。
@@ -9,17 +9,20 @@ class_name ClassicSpawnRule
 extends SpawnRule
 
 var game_board: Control # 对GameBoard节点的引用
+var move_count: int = 0 # 经典模式也需要追踪移动次数
 
-## 初始化此规则，并负责棋盘的初始状态。
-## GamePlay 会在 _ready 阶段调用此函数。
+## 初始化此规则。
 func setup(board: Control) -> void:
 	self.game_board = board
-	# 游戏开始时，生成两个初始方块。
+
+## 负责棋盘的初始状态。
+func initialize_board() -> void:
 	_request_spawn()
 	_request_spawn()
 
 ## 当玩家执行一次有效移动时被调用。
 func on_move_made() -> void:
+	move_count += 1
 	_request_spawn()
 
 ## [内部函数] 请求生成一个新的方块。

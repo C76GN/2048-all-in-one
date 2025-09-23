@@ -18,6 +18,6 @@ metadata/_custom_type_script = "uid://dg4uoygc0uq8m"
 script = ExtResource("1_3lm28")
 mode_name = "测试模式 1"
 interaction_rule = SubResource("Resource_gqx4x")
-spawn_rule_scripts = Array[Script]([ExtResource("4_gqx4x"), ExtResource("5_umllg")])
+spawn_rule_scripts = Array[Script]([ExtResource("5_umllg"), ExtResource("4_gqx4x")])
 game_over_rule = SubResource("Resource_umllg")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

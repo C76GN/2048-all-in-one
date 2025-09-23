@@ -17,13 +17,6 @@ var game_board: Control # 对GameBoard节点的引用，用于查询棋盘状态
 
 # --- 公共接口 ---
 
-## 初始化棋盘的初始状态。
-##
-## 在“测试模式1”开始时，此规则负责在棋盘上放置两个初始的玩家方块。
-func initialize_board() -> void:
-	game_board.spawn_tile({"value": 2, "type": Tile.TileType.PLAYER})
-	game_board.spawn_tile({"value": 2, "type": Tile.TileType.PLAYER})
-
 ## 设置此规则所需的外部依赖并启动计时器。
 ## @param board: 从GamePlay传入的GameBoard节点实例。
 func setup(board: Control) -> void:

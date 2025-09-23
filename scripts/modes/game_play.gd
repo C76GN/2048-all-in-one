@@ -60,18 +60,16 @@ func _ready() -> void:
 	# 步骤4: 集中连接所有必要的信号。
 	_connect_signals()
 	
-	# 步骤5: 由指定的生成规则负责初始化棋盘状态。
-	var board_initialized = false
-	for rule in spawn_rules:
-		if rule.has_method("initialize_board"):
-			rule.initialize_board()
-			board_initialized = true
-			break # 通常只有一个规则负责初始化
-	
-	# 如果没有任何规则负责初始化，则提供一个默认的开始状态。
-	if not board_initialized:
-		game_board.spawn_tile({"value": 2, "type": Tile.TileType.PLAYER})
-		game_board.spawn_tile({"value": 2, "type": Tile.TileType.PLAYER})
+	# 步骤5: 由第一个生成规则负责初始化棋盘状态。
+	if not spawn_rules.is_empty():
+		var initializer_rule = spawn_rules[0]
+		if initializer_rule.has_method("initialize_board"):
+			initializer_rule.initialize_board()
+		else:
+			# 如果第一个规则没有初始化方法，则提供一个默认的开始状态。
+			push_warning("警告: 第一个SpawnRule没有initialize_board方法，使用默认初始化。")
+			game_board.spawn_tile({"value": 2, "type": Tile.TileType.PLAYER})
+			game_board.spawn_tile({"value": 2, "type": Tile.TileType.PLAYER})
 
 	# 步骤6: 初始化UI和仅在编辑器中使用的测试工具。
 	_initialize_test_tools()
