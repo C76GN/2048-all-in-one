@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://behkac7sg4loi"]
 
-[ext_resource type="Script" path="res://scripts/ui/mode_selection.gd" id="1_jv0sf"]
+[ext_resource type="Script" uid="uid://dv3rjr57hmwij" path="res://scripts/ui/mode_selection.gd" id="1_jv0sf"]
 
 [node name="ModeSelection" type="Control"]
 layout_mode = 3
@@ -45,6 +45,14 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_font_sizes/font_size = 24
 text = "测试1"
+
+[node name="ClassicModeButton" type="Button" parent="VBoxContainer/GridContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 24
+text = "经典模式"
 
 [node name="TestMode2Button" type="Button" parent="VBoxContainer/GridContainer"]
 unique_name_in_owner = true

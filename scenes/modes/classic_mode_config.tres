@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="GameModeConfig" load_steps=7 format=3 uid="uid://dso7a1vuipkqt"]
+
+[ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="1_orxgk"]
+[ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="1_qecbo"]
+[ext_resource type="Script" uid="uid://bdsn1pa4fjc01" path="res://scripts/modes/classic_interaction_rule.gd" id="2_ckg85"]
+[ext_resource type="Script" uid="uid://b3e60oet02aex" path="res://scripts/modes/classic_spawn_rule.gd" id="4_myupn"]
+
+[sub_resource type="Resource" id="Resource_wp4bw"]
+script = ExtResource("1_orxgk")
+metadata/_custom_type_script = "uid://cd58tqmib7wsk"
+
+[sub_resource type="Resource" id="Resource_jk0ep"]
+script = ExtResource("2_ckg85")
+metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
+
+[resource]
+script = ExtResource("1_qecbo")
+mode_name = "经典模式"
+interaction_rule = SubResource("Resource_jk0ep")
+spawn_rule_scripts = Array[Script]([ExtResource("4_myupn")])
+game_over_rule = SubResource("Resource_wp4bw")
+metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

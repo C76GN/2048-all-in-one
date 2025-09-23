@@ -11,6 +11,7 @@ extends Control
 ## 对场景中各个按钮节点的引用（使用唯一名称%）。
 @onready var test_mode_1_button: Button = %TestMode1Button
 @onready var test_mode_2_button: Button = %TestMode2Button
+@onready var classic_mode_button: Button = %ClassicModeButton
 @onready var back_button: Button = %BackButton
 
 
@@ -20,6 +21,7 @@ func _ready() -> void:
 	# 以响应用户的点击操作。
 	test_mode_1_button.pressed.connect(_on_test_mode_1_button_pressed)
 	test_mode_2_button.pressed.connect(_on_test_mode_2_button_pressed)
+	classic_mode_button.pressed.connect(_on_classic_mode_button_pressed)
 	back_button.pressed.connect(_on_back_button_pressed)
 
 # --- 信号处理函数 ---
@@ -36,6 +38,13 @@ func _on_test_mode_1_button_pressed() -> void:
 func _on_test_mode_2_button_pressed() -> void:
 	print("测试模式2按钮被按下 (功能待开发)")
 	# TODO: 未来在此处实现其他2048变种模式的切换逻辑。
+
+## 响应“经典模式”按钮的点击事件。
+func _on_classic_mode_button_pressed() -> void:
+	# 设置要加载的模式配置文件路径
+	GlobalGameManager.selected_mode_config_path = "res://scenes/modes/classic_mode_config.tres"
+	# 委托全局管理器切换到通用的游戏场景。
+	GlobalGameManager.goto_scene("res://scenes/modes/game_play.tscn")
 
 ## 响应“返回”按钮的点击事件。
 func _on_back_button_pressed() -> void:
