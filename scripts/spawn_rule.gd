@@ -57,3 +57,9 @@ func get_required_nodes() -> Dictionary:
 ## 在游戏结束时被调用，用于清理（如停止计时器）。
 func teardown() -> void:
 	pass
+
+## 获取用于在HUD上显示的动态数据。
+## 子类可以重写此方法，返回一个字典，供HUD展示。
+## 例如: {"timer_label": "怪物将在: 5.2s 后出现"}
+func get_display_data() -> Dictionary:
+	return {}

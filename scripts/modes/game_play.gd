@@ -26,8 +26,9 @@ var is_game_over: bool = false
 ## Godot生命周期函数：在节点进入场景树时被调用，负责整个游戏场景的初始化。
 func _ready() -> void:
 	# 步骤1: 从 GlobalGameManager 加载所选的游戏模式配置。
-	if "selected_mode_config_path" in GlobalGameManager and GlobalGameManager.selected_mode_config_path != "":
-		mode_config = load(GlobalGameManager.selected_mode_config_path)
+	var config_path = GlobalGameManager.get_selected_mode_config_path()
+	if config_path != "":
+		mode_config = load(config_path)
 		assert(is_instance_valid(mode_config), "GameModeConfig未能加载！")
 	else:
 		push_error("错误: 无法加载游戏模式配置。")
@@ -72,11 +73,9 @@ func _ready() -> void:
 
 ## Godot生命周期函数：每帧调用。用于处理需要高频更新的逻辑，例如UI倒计时。
 func _process(_delta: float) -> void:
+	# 每帧更新UI，因为有些规则（如计时器）是实时变化的。
 	if not is_game_over:
-		# 从所有规则中找到计时器规则并更新HUD。
-		for rule in all_spawn_rules:
-			if rule is TimedMonsterSpawnRule:
-				hud.update_timer(rule.get_time_left())
+		_update_stats_display()
 
 ## 处理全局未捕获的输入事件，主要用于玩家移动和打开暂停菜单。
 func _unhandled_input(event: InputEvent) -> void:
@@ -121,13 +120,9 @@ func _connect_signals() -> void:
 func _on_game_board_move_made() -> void:
 	move_count += 1
 	
-	# 通过管理器分发“玩家移动”事件，让相关规则按优先级执行。
+	# 通过管理器分发“玩家移动”事件，让所有相关规则按优先级执行。
+	# 时间奖励逻辑现在也由RuleManager通过ON_MOVE事件统一处理。
 	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED)
-	
-	# 特殊处理：手动调用那些需要响应移动，但不是通过触发器工作的逻辑（如计时器奖励）。
-	for rule in all_spawn_rules:
-		if rule.has_method("on_move_made"):
-			rule.on_move_made()
 			
 	_update_stats_display()
 
@@ -155,29 +150,18 @@ func _on_board_resized(new_size: int):
 
 ## [内部函数] 聚合所有规则和状态的数据，并更新HUD显示。
 func _update_stats_display() -> void:
-	var spawn_info_text = ""
-	var next_move_bonus = 0.0
-	
-	# 从所有规则中聚合需要显示的数据
-	for rule in all_spawn_rules:
-		if rule is TimedMonsterSpawnRule:
-			var pool = rule.get_monster_spawn_pool()
-			spawn_info_text += "怪物生成概率:\n"
-			var total_weight = 0
-			for w in pool["weights"]: total_weight += w
-			if total_weight > 0:
-				for i in range(pool["weights"].size()):
-					var p = (float(pool["weights"][i]) / total_weight) * 100
-					spawn_info_text += "  - %d: %.1f%%\n" % [pool["values"][i], p]
-			next_move_bonus = rule.get_next_move_bonus()
-	
-	var stats = {
-		"move_count": move_count, # 直接使用 GamePlay 的 move_count
-		"monsters_killed": monsters_killed,
-		"monster_spawn_info": spawn_info_text,
-		"next_move_bonus": next_move_bonus
+	var display_data = {
+		"move_count": move_count,
+		"monsters_killed": monsters_killed
 	}
-	hud.update_stats(stats)
+	
+	# 从所有规则中聚合需要显示的动态数据
+	for rule in all_spawn_rules:
+		var rule_data = rule.get_display_data()
+		if not rule_data.is_empty():
+			display_data.merge(rule_data)
+	
+	hud.update_display(display_data)
 
 ## [内部函数] 切换暂停菜单的可见性及游戏的暂停状态。
 func _toggle_pause_menu():
@@ -217,4 +201,6 @@ func _on_resume_game(): _toggle_pause_menu()
 ## 响应“重新开始”事件。
 func _on_restart_game(): get_tree().paused = false; get_tree().reload_current_scene()
 ## 响应“返回主菜单”事件。
-func _on_return_to_main_menu(): get_tree().paused = false; GlobalGameManager.goto_scene("res://scenes/main_menu.tscn")
+func _on_return_to_main_menu(): 
+	get_tree().paused = false
+	GlobalGameManager.return_to_main_menu()

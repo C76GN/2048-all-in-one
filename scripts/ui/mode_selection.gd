@@ -6,8 +6,10 @@
 ## 如选择一个游戏模式或返回主菜单。它通过调用 GlobalGameManager 来执行场景切换。
 extends Control
 
-# --- 节点引用 ---
+# --- 导出变量 ---
+@export var game_play_scene: PackedScene
 
+# --- 节点引用 ---
 ## 对场景中各个按钮节点的引用（使用唯一名称%）。
 @onready var test_mode_1_button: Button = %TestMode1Button
 @onready var test_mode_2_button: Button = %TestMode2Button
@@ -31,10 +33,7 @@ func _ready() -> void:
 
 ## 响应“测试模式1”按钮的点击事件。
 func _on_test_mode_1_button_pressed() -> void:
-	# 设置要加载的模式配置文件路径
-	GlobalGameManager.selected_mode_config_path = "res://scenes/modes/test_mode1_config.tres"
-	# 委托全局管理器切换到通用的游戏场景。
-	GlobalGameManager.goto_scene("res://scenes/modes/game_play.tscn")
+	GlobalGameManager.select_mode_and_start("res://resources/modes/test_mode1_config.tres", game_play_scene)
 
 ## 响应“测试模式2”按钮的点击事件（占位功能）。
 func _on_test_mode_2_button_pressed() -> void:
@@ -43,19 +42,12 @@ func _on_test_mode_2_button_pressed() -> void:
 
 ## 响应“经典模式”按钮的点击事件。
 func _on_classic_mode_button_pressed() -> void:
-	# 设置要加载的模式配置文件路径
-	GlobalGameManager.selected_mode_config_path = "res://scenes/modes/classic_mode_config.tres"
-	# 委托全局管理器切换到通用的游戏场景。
-	GlobalGameManager.goto_scene("res://scenes/modes/game_play.tscn")
+	GlobalGameManager.select_mode_and_start("res://resources/modes/classic_mode_config.tres", game_play_scene)
 
 ## 响应“斐波那契模式”按钮的点击事件。
 func _on_fibonacci_mode_button_pressed() -> void:
-	# 设置要加载的模式配置文件路径
-	GlobalGameManager.selected_mode_config_path = "res://scenes/modes/fibonacci_mode_config.tres"
-	# 委托全局管理器切换到通用的游戏场景。
-	GlobalGameManager.goto_scene("res://scenes/modes/game_play.tscn")
+	GlobalGameManager.select_mode_and_start("res://resources/modes/fibonacci_mode_config.tres", game_play_scene)
 
 ## 响应“返回”按钮的点击事件。
 func _on_back_button_pressed() -> void:
-	# 委托全局管理器返回主菜单场景。
-	GlobalGameManager.goto_scene("res://scenes/main_menu.tscn")
+	GlobalGameManager.return_to_main_menu()

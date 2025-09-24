@@ -5,40 +5,62 @@
 ## 作为一个自动加载的全局节点 (Singleton)，它在整个游戏生命周期中持续存在，
 ## 主要用于提供场景切换、安全退出游戏以及跨场景传递数据（如所选的游戏模式配置）等核心服务。
 extends Node
-var selected_mode_config_path: String
+
+# 主菜单是应用的固定入口，将其路径作为常量是合理的。
+const MAIN_MENU_SCENE_PATH = "res://scenes/main_menu.tscn"
+
+# 将模式配置路径设为私有，通过函数访问，更安全。
+var _selected_mode_config_path: String
+
 
 # --- 公共接口 ---
 
-## 切换到指定的场景。
-##
-## 此函数会安全地释放当前场景，然后加载并显示新场景。
+## 选择一个游戏模式并切换到游戏场景。
+func select_mode_and_start(config_path: String, game_scene: PackedScene):
+	if not config_path.begins_with("res://") or not config_path.ends_with(".tres"):
+		push_error("错误: 模式配置文件路径必须是有效的资源路径: " + config_path)
+		return
+	
+	if game_scene == null:
+		push_error("错误: 游戏场景 (game_scene) 未提供。")
+		return
+
+	_selected_mode_config_path = config_path
+	goto_scene_packed(game_scene)
+
+## 获取当前选择的模式配置路径。
+func get_selected_mode_config_path() -> String:
+	return _selected_mode_config_path
+
+## 统一的返回主菜单功能，打破场景间的循环依赖。
+func return_to_main_menu():
+	goto_scene(MAIN_MENU_SCENE_PATH)
+
+## 使用 PackedScene 资源进行场景切换，更安全。
+func goto_scene_packed(scene: PackedScene):
+	if get_tree().current_scene:
+		get_tree().current_scene.queue_free()
+		get_tree().current_scene = null
+
+	var new_scene_instance = scene.instantiate()
+	get_tree().root.add_child(new_scene_instance)
+	get_tree().current_scene = new_scene_instance
+	print("已切换到场景: ", scene.resource_path)
+
+## 切换到指定的场景路径。
 func goto_scene(path: String) -> void:
-	# 验证输入路径的有效性。
 	if not path.begins_with("res://") or not path.ends_with(".tscn"):
 		push_error("错误: 场景路径必须是绝对的场景资源路径，例如 'res://scenes/my_scene.tscn'")
 		return
 	
-	# 安全地释放当前场景以避免内存泄漏。
-	if get_tree().current_scene:
-		get_tree().current_scene.queue_free()
-		get_tree().current_scene = null
-	
-	# 加载并实例化新场景。
 	var next_scene_packed = load(path)
 	if next_scene_packed == null:
 		push_error("错误: 无法加载场景资源: " + path)
 		return
 		
-	var new_scene_instance = next_scene_packed.instantiate()
-	
-	# 将新场景添加到场景树并设为当前活动场景。
-	get_tree().root.add_child(new_scene_instance)
-	get_tree().current_scene = new_scene_instance
-	
-	print("已切换到场景: ", path)
+	goto_scene_packed(next_scene_packed)
 
 ## 安全地退出整个游戏应用。
 func quit_game() -> void:
 	print("正在退出游戏...")
-	# 调用 get_tree().quit() 是Godot中关闭游戏程序的标准方法。
 	get_tree().quit()

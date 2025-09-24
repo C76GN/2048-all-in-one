@@ -46,6 +46,7 @@ func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
 
 
 ## [内部辅助函数] 检查两个数是否是斐波那契数列中的连续项。
+## 使用纯整数迭代法，避免浮点数精度问题，保证结果的绝对准确性。
 func _are_consecutive_fibonacci(a: int, b: int) -> bool:
 	# 确保 a < b
 	if a > b:
@@ -54,16 +55,24 @@ func _are_consecutive_fibonacci(a: int, b: int) -> bool:
 		b = temp
 	
 	# 0 不是此模式下的有效值
-	if a == 0 or b == 0:
+	if a <= 0 or b <= 0:
 		return false
-		
-	# 1,1 的情况由外部处理，这里处理 1,2 及之后的情况
-	if a == 1 and b == 2:
+	
+	# 处理斐波那契数列的起始特殊情况
+	if a == 1 and (b == 1 or b == 2):
 		return true
-		
-	# 通过黄金分割比的属性来判断
-	# 对于一个斐波那契数 F(n)，它的下一个数 F(n+1) 约等于 F(n) * PHI
-	return round(float(a) * PHI) == float(b)
+
+	# 从 (1, 2) 开始迭代，检查 a, b 是否是序列中的连续项
+	var prev = 1
+	var curr = 2
+	while curr <= b:
+		if prev == a and curr == b:
+			return true
+		var next_fib = prev + curr
+		prev = curr
+		curr = next_fib
+	
+	return false
 
 ## 对于斐波那契模式，通过迭代查找其在序列中的索引。
 func get_level_by_value(value: int) -> int:

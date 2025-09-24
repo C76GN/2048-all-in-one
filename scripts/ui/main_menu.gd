@@ -6,8 +6,10 @@
 ## 例如响应按钮点击事件，并委托 GlobalGameManager 进行场景切换或退出游戏。
 extends Control
 
-# --- 节点引用 ---
+# --- 导出变量 ---
+@export var mode_selection_scene: PackedScene
 
+# --- 节点引用 ---
 ## 对场景中各个按钮节点的引用（使用唯一名称%）。
 @onready var start_game_button: Button = %StartGameButton
 @onready var settings_button: Button = %SettingsButton
@@ -27,8 +29,10 @@ func _ready() -> void:
 
 ## 响应“开始游戏”按钮的点击事件。
 func _on_start_game_button_pressed() -> void:
-	# 委托全局管理器切换到模式选择场景。
-	GlobalGameManager.goto_scene("res://scenes/mode_selection.tscn")
+	if mode_selection_scene:
+		GlobalGameManager.goto_scene_packed(mode_selection_scene)
+	else:
+		push_error("Mode Selection Scene not set in MainMenu script.")
 
 ## 响应“设置”按钮的点击事件（占位功能）。
 func _on_settings_button_pressed() -> void:

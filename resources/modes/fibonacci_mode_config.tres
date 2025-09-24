@@ -1,12 +1,12 @@
 [gd_resource type="Resource" script_class="GameModeConfig" load_steps=10 format=3 uid="uid://djrsravpjyj8"]
 
-[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://scenes/themes/red_theme.tres" id="1_4014i"]
+[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_theme.tres" id="1_4014i"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="1_dtg25"]
 [ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="1_i6mjw"]
 [ext_resource type="Script" uid="uid://cjyusdv36u0s6" path="res://scripts/modes/fibonacci_interaction_rule.gd" id="1_naqou"]
 [ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/spawn_rule.gd" id="2_6xepx"]
-[ext_resource type="Resource" uid="uid://d2gxks83gv2v2" path="res://scenes/modes/fibonacci_spawn_rule_init.tres" id="4_dtg25"]
-[ext_resource type="Resource" uid="uid://42cxoxfotqxu" path="res://scenes/modes/fibonacci_spawn_rule_on_move.tres" id="5_4014i"]
+[ext_resource type="Resource" uid="uid://d2gxks83gv2v2" path="res://resources/modes/fibonacci_spawn_rule_init.tres" id="4_dtg25"]
+[ext_resource type="Resource" uid="uid://42cxoxfotqxu" path="res://resources/modes/fibonacci_spawn_rule_on_move.tres" id="5_4014i"]
 
 [sub_resource type="Resource" id="Resource_4014i"]
 script = ExtResource("1_dtg25")

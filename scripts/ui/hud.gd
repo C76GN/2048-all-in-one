@@ -17,28 +17,13 @@ extends VBoxContainer
 
 # --- 公共接口 ---
 
-## 统一更新所有静态游戏统计信息。
-##
+## 统一更新所有UI显示。
 ## 从外部接收一个包含所有需要显示数据的字典，并更新UI。
-## 使用字典作为参数可以方便未来扩展，而无需改变函数签名。
-func update_stats(stats: Dictionary) -> void:
-	move_count_label.text = "移动次数: %d" % stats.get("move_count", 0)
-	killed_count_label.text = "消灭怪物: %d" % stats.get("monsters_killed", 0)
+func update_display(display_data: Dictionary) -> void:
+	move_count_label.text = "移动次数: %d" % display_data.get("move_count", 0)
+	killed_count_label.text = "消灭怪物: %d" % display_data.get("monsters_killed", 0)
 	
-	var next_move_bonus = stats.get("next_move_bonus", 0.0)
-	if next_move_bonus > 0.0:
-		time_bonus_label.text = "下次移动奖励: +%.2f s" % next_move_bonus
-	else:
-		time_bonus_label.text = "" # 如果没有奖励，则不显示
-	
-	monster_spawn_label.text = stats.get("monster_spawn_info", "")
-
-## 单独更新怪物生成倒计时。
-##
-## 之所以独立成一个函数，是因为计时器需要每帧高频更新，
-## 而其他统计数据仅在移动后更新一次即可，这样可以提高效率。
-func update_timer(time_left: float) -> void:
-	if time_left > 0.0:
-		monster_timer_label.text = "怪物将在: %.1f s后出现" % time_left
-	else:
-		monster_timer_label.text = ""
+	# 从规则中获取的动态数据
+	monster_timer_label.text = display_data.get("timer_label", "")
+	time_bonus_label.text = display_data.get("bonus_label", "")
+	monster_spawn_label.text = display_data.get("spawn_info_label", "")
