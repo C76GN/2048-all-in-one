@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="TileColorScheme" load_steps=2 format=3 uid="uid://bajwfeoyco3xn"]
+
+[ext_resource type="Script" uid="uid://dwmd115dhs0pl" path="res://global/tile_color_scheme.gd" id="1_ffntb"]
+
+[resource]
+script = ExtResource("1_ffntb")
+colors = Array[Color]([Color(0.98039216, 0.92156863, 0.84313726, 1), Color(1, 0.87058824, 0.6784314, 1), Color(0.95686275, 0.6431373, 0.3764706, 1), Color(1, 0.54901963, 0, 1), Color(0.8235294, 0.4117647, 0.11764706, 1), Color(0.9137255, 0.5882353, 0.47843137, 1), Color(0.8039216, 0.36078432, 0.36078432, 1), Color(0.69803923, 0.13333334, 0.13333334, 1), Color(0.54509807, 0, 0, 1), Color(0.54509807, 0, 0, 1), Color(0.54509807, 0, 0, 1), Color(0.54509807, 0, 0, 1), Color(0.54509807, 0, 0, 1), Color(0.54509807, 0, 0, 1), Color(0.54509807, 0, 0, 1), Color(0.54509807, 0, 0, 1)])
+metadata/_custom_type_script = "uid://dwmd115dhs0pl"

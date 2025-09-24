@@ -8,28 +8,15 @@
 class_name Tile
 extends Node2D
 
+@export var light_font_color: Color = Color("f9f6f2")
+@export var dark_font_color: Color = Color("776e65")
+
 # --- 枚举定义 ---
 
 # 定义方块的两种基本类型，用于区分游戏逻辑和视觉表现。
 enum TileType {PLAYER, MONSTER}
 
 # --- 常量定义 ---
-
-# 字典：存储玩家方块不同数值对应的背景颜色。
-const PLAYER_COLOR_MAP = {
-	2: Color("f0f4f8"), 4: Color("d9e2ec"), 8: Color("bcc8d6"), 16: Color("9fb0c4"),
-	32: Color("8298b0"), 64: Color("66809b"), 128: Color("4d6a87"), 256: Color("335372"),
-	512: Color("193d5c"), 1024: Color("002747"), 2048: Color("002747"), 4096: Color("002747"),
-	8192: Color("002747"), 16384: Color("002747"), 32768: Color("002747"), 65536: Color("002747")
-}
-
-# 字典：存储怪物方块不同数值对应的背景颜色。
-const MONSTER_COLOR_MAP = {
-	2: Color("f9e0e0"), 4: Color("f2baba"), 8: Color("eb9494"), 16: Color("e36d6d"),
-	32: Color("db4646"), 64: Color("d22020"), 128: Color("c21313"), 256: Color("b00a0a"),
-	512: Color("9e0505"), 1024: Color("8c0202"), 2048: Color("7d0000"), 4096: Color("7d0000"),
-	8192: Color("7d0000"), 16384: Color("7d0000"), 32768: Color("7d0000"), 65536: Color("7d0000")
-}
 
 # 方块内文本的水平内边距，用于动态字体大小计算。
 const HORIZONTAL_PADDING: float = 10.0
@@ -49,7 +36,9 @@ const BASE_FONT_SIZE: int = 48
 var value: int = 0
 # 方块当前的类型。
 var type: TileType = TileType.PLAYER
-
+var interaction_rule: InteractionRule
+var player_scheme: TileColorScheme
+var monster_scheme: TileColorScheme
 
 ## Godot生命周期函数：当节点进入场景树时调用。
 func _ready() -> void:
@@ -65,13 +54,15 @@ func _ready() -> void:
 ## 当方块数值变大时，会自动触发合并动画。
 ## @param new_value: 方块的新数值。
 ## @param new_type: 方块的新类型 (PLAYER 或 MONSTER)。
-func setup(new_value: int, new_type: TileType) -> void:
+func setup(new_value: int, new_type: TileType, p_rule: InteractionRule, p_player_scheme: TileColorScheme, p_monster_scheme: TileColorScheme) -> void:
 	var old_value = self.value
 	self.value = new_value
 	self.type = new_type
+	self.interaction_rule = p_rule
+	self.player_scheme = p_player_scheme
+	self.monster_scheme = p_monster_scheme
 	_update_visuals()
 	
-	# 如果方块的数值变大了（意味着它刚刚合并或被增强），则播放合并动画。
 	if new_value > old_value and old_value != 0:
 		animate_merge()
 
@@ -83,29 +74,30 @@ func _update_visuals() -> void:
 	# 步骤1: 更新显示的文本。
 	value_label.text = str(int(value))
 	
-	# 步骤2: 根据方块类型选择对应的颜色映射表。
-	var current_color_map = PLAYER_COLOR_MAP
+	# 步骤2: 根据方块类型选择颜色主题。
+	var current_scheme = player_scheme
 	if type == TileType.MONSTER:
-		current_color_map = MONSTER_COLOR_MAP
+		current_scheme = monster_scheme
+	
+	var bg_color = Color.BLACK # 默认背景色
 	
 	# 步骤3: 设置背景颜色。
-	var color_key = value
-	# 如果数值超过了颜色映射表定义的最大值，则统一使用最大值的颜色。
-	if color_key > 65536:
-		color_key = 65536
-	# 从映射表中获取并应用颜色，如果找不到则使用最大值的颜色作为后备。
-	if current_color_map.has(color_key):
-		(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = current_color_map[color_key]
-	else:
-		(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = current_color_map[65536]
+	if is_instance_valid(interaction_rule) and is_instance_valid(current_scheme) and not current_scheme.colors.is_empty():
+		var level = interaction_rule.get_level_by_value(value)
+		
+		# 如果等级超出颜色数组范围，使用最后一个颜色。
+		if level >= current_scheme.colors.size():
+			level = current_scheme.colors.size() - 1
+		
+		bg_color = current_scheme.colors[level]
+		(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = bg_color
 	
-	# 步骤4: 根据数值大小调整字体颜色以保证可读性。
-	if value <= 4:
-		# 数值较小时使用深色字体。
-		value_label.add_theme_color_override("font_color", Color("776e65"))
+	# 步骤4: 根据背景色的亮度动态设置字体颜色。
+	# get_luminance() 返回 0 (黑) 到 1 (白) 之间的亮度值。
+	if bg_color.get_luminance() > 0.5:
+		value_label.add_theme_color_override("font_color", dark_font_color)
 	else:
-		# 数值较大时使用浅色字体。
-		value_label.add_theme_color_override("font_color", Color("f9f6f2"))
+		value_label.add_theme_color_override("font_color", light_font_color)
 	
 	# 步骤5: 动态计算并设置字体大小，防止文本溢出。
 	_update_font_size()

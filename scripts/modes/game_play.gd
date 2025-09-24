@@ -40,7 +40,7 @@ func _ready() -> void:
 	
 	interaction_rule = mode_config.interaction_rule.duplicate()
 	var game_over_rule = mode_config.game_over_rule.duplicate()
-	game_board.set_rules(interaction_rule, game_over_rule)
+	game_board.set_rules(interaction_rule, game_over_rule, mode_config.color_scheme, mode_config.monster_color_scheme)
 	
 	# 步骤3: 初始化所有在配置中定义的生成规则。
 	for rule_resource in mode_config.spawn_rules:

@@ -12,6 +12,7 @@ extends Control
 @onready var test_mode_1_button: Button = %TestMode1Button
 @onready var test_mode_2_button: Button = %TestMode2Button
 @onready var classic_mode_button: Button = %ClassicModeButton
+@onready var fibonacci_mode_button: Button = %FibonacciModeButton
 @onready var back_button: Button = %BackButton
 
 
@@ -22,6 +23,7 @@ func _ready() -> void:
 	test_mode_1_button.pressed.connect(_on_test_mode_1_button_pressed)
 	test_mode_2_button.pressed.connect(_on_test_mode_2_button_pressed)
 	classic_mode_button.pressed.connect(_on_classic_mode_button_pressed)
+	fibonacci_mode_button.pressed.connect(_on_fibonacci_mode_button_pressed)
 	back_button.pressed.connect(_on_back_button_pressed)
 
 # --- 信号处理函数 ---
@@ -43,6 +45,13 @@ func _on_test_mode_2_button_pressed() -> void:
 func _on_classic_mode_button_pressed() -> void:
 	# 设置要加载的模式配置文件路径
 	GlobalGameManager.selected_mode_config_path = "res://scenes/modes/classic_mode_config.tres"
+	# 委托全局管理器切换到通用的游戏场景。
+	GlobalGameManager.goto_scene("res://scenes/modes/game_play.tscn")
+
+## 响应“斐波那契模式”按钮的点击事件。
+func _on_fibonacci_mode_button_pressed() -> void:
+	# 设置要加载的模式配置文件路径
+	GlobalGameManager.selected_mode_config_path = "res://scenes/modes/fibonacci_mode_config.tres"
 	# 委托全局管理器切换到通用的游戏场景。
 	GlobalGameManager.goto_scene("res://scenes/modes/game_play.tscn")
 

@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="FibonacciSpawnRule" load_steps=2 format=3 uid="uid://d2gxks83gv2v2"]
+
+[ext_resource type="Script" uid="uid://byw1xfby61af1" path="res://scripts/modes/fibonacci_spawn_rule.gd" id="1_xvu88"]
+
+[resource]
+script = ExtResource("1_xvu88")
+trigger = 0
+priority = 100
+metadata/_custom_type_script = "uid://byw1xfby61af1"
