@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="GameModeConfig" load_steps=11 format=3 uid="uid://djrsravpjyj8"]
 
-[ext_resource type="Resource" path="res://resources/themes/bule_to_green_theme.tres" id="1_5rl6l"]
+[ext_resource type="Resource" uid="uid://n8l73wke5rgq" path="res://resources/themes/bule_to_green_theme.tres" id="1_5rl6l"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="1_dtg25"]
 [ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="1_i6mjw"]
 [ext_resource type="Script" uid="uid://cjyusdv36u0s6" path="res://scripts/modes/fibonacci_interaction_rule.gd" id="1_naqou"]

@@ -2,51 +2,51 @@
 
 ## ModeSelection: 模式选择界面的UI控制器。
 ##
-## 该脚本负责处理用户在模式选择界面的交互，
-## 如选择一个游戏模式或返回主菜单。它通过调用 GlobalGameManager 来执行场景切换。
+## 该脚本负责动态加载所有可用的游戏模式，为每个模式创建一个
+## ModeCard 实例，并处理卡片的选择事件。
 extends Control
 
 # --- 导出变量 ---
 @export var game_play_scene: PackedScene
+## 在编辑器中配置所有可玩模式的资源文件路径。
+@export var mode_configs: Array[Resource] = []
+
+# --- 预加载资源 ---
+const ModeCardScene = preload("res://scenes/ui/mode_card.tscn")
 
 # --- 节点引用 ---
-## 对场景中各个按钮节点的引用（使用唯一名称%）。
-@onready var test_mode_1_button: Button = %TestMode1Button
-@onready var test_mode_2_button: Button = %TestMode2Button
-@onready var classic_mode_button: Button = %ClassicModeButton
-@onready var fibonacci_mode_button: Button = %FibonacciModeButton
+@onready var mode_list_container: VBoxContainer = %ModeListContainer
 @onready var back_button: Button = %BackButton
 
 
 ## Godot生命周期函数：当节点及其子节点进入场景树时调用。
 func _ready() -> void:
-	# 在此连接所有按钮的 `pressed` 信号到对应的处理函数，
-	# 以响应用户的点击操作。
-	test_mode_1_button.pressed.connect(_on_test_mode_1_button_pressed)
-	test_mode_2_button.pressed.connect(_on_test_mode_2_button_pressed)
-	classic_mode_button.pressed.connect(_on_classic_mode_button_pressed)
-	fibonacci_mode_button.pressed.connect(_on_fibonacci_mode_button_pressed)
+	_populate_mode_list()
 	back_button.pressed.connect(_on_back_button_pressed)
 
+# --- 内部辅助函数 ---
+
+## 动态生成模式卡片列表。
+func _populate_mode_list() -> void:
+	# 清空容器，以防万一
+	for child in mode_list_container.get_children():
+		child.queue_free()
+
+	# 遍历配置好的模式列表
+	for mode_config_resource in mode_configs:
+		if not is_instance_valid(mode_config_resource):
+			continue
+			
+		var card: ModeCard = ModeCardScene.instantiate()
+		mode_list_container.add_child(card)
+		card.setup(mode_config_resource.resource_path)
+		card.mode_selected.connect(_on_mode_selected)
+
 # --- 信号处理函数 ---
-# 以下函数在对应的按钮被按下时由信号触发。
 
-## 响应“测试模式1”按钮的点击事件。
-func _on_test_mode_1_button_pressed() -> void:
-	GlobalGameManager.select_mode_and_start("res://resources/modes/test_mode1_config.tres", game_play_scene)
-
-## 响应“测试模式2”按钮的点击事件（占位功能）。
-func _on_test_mode_2_button_pressed() -> void:
-	print("测试模式2按钮被按下 (功能待开发)")
-	# TODO: 未来在此处实现其他2048变种模式的切换逻辑。
-
-## 响应“经典模式”按钮的点击事件。
-func _on_classic_mode_button_pressed() -> void:
-	GlobalGameManager.select_mode_and_start("res://resources/modes/classic_mode_config.tres", game_play_scene)
-
-## 响应“斐波那契模式”按钮的点击事件。
-func _on_fibonacci_mode_button_pressed() -> void:
-	GlobalGameManager.select_mode_and_start("res://resources/modes/fibonacci_mode_config.tres", game_play_scene)
+## 响应任一模式卡片的点击事件。
+func _on_mode_selected(config_path: String) -> void:
+	GlobalGameManager.select_mode_and_start(config_path, game_play_scene)
 
 ## 响应“返回”按钮的点击事件。
 func _on_back_button_pressed() -> void:

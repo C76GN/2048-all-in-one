@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="GameModeConfig" load_steps=11 format=3 uid="uid://dso7a1vuipkqt"]
 
-[ext_resource type="Resource" path="res://resources/themes/classic_theme.tres" id="1_dvc3p"]
+[ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://resources/themes/classic_theme.tres" id="1_dvc3p"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="2_dvc3p"]
 [ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_theme.tres" id="2_xkyvo"]
 [ext_resource type="Script" uid="uid://bdsn1pa4fjc01" path="res://scripts/modes/classic_interaction_rule.gd" id="3_xkyvo"]

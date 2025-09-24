@@ -150,12 +150,13 @@ func _on_board_resized(new_size: int):
 
 ## [内部函数] 聚合所有规则和状态的数据，并更新HUD显示。
 func _update_stats_display() -> void:
+	# 格式化基础的游戏状态数据
 	var display_data = {
-		"move_count": move_count,
-		"monsters_killed": monsters_killed
+		"move_count": "移动次数: %d" % move_count,
+		"monsters_killed": "消灭怪物: %d" % monsters_killed
 	}
 	
-	# 从所有规则中聚合需要显示的动态数据
+	# 从所有规则中聚合需要显示的动态数据（规则应返回已格式化的字符串）
 	for rule in all_spawn_rules:
 		var rule_data = rule.get_display_data()
 		if not rule_data.is_empty():

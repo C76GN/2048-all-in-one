@@ -1,7 +1,10 @@
-[gd_scene load_steps=3 format=3 uid="uid://behkac7sg4loi"]
+[gd_scene load_steps=6 format=3 uid="uid://behkac7sg4loi"]
 
 [ext_resource type="Script" uid="uid://dv3rjr57hmwij" path="res://scripts/ui/mode_selection.gd" id="1_jv0sf"]
 [ext_resource type="PackedScene" uid="uid://28ale2iku1n4" path="res://scenes/modes/game_play.tscn" id="2_0hetu"]
+[ext_resource type="Resource" uid="uid://dso7a1vuipkqt" path="res://resources/modes/classic_mode_config.tres" id="3_t5a4b"]
+[ext_resource type="Resource" uid="uid://djrsravpjyj8" path="res://resources/modes/fibonacci_mode_config.tres" id="4_t4d1t"]
+[ext_resource type="Resource" uid="uid://dwjqj7f52y8in" path="res://resources/modes/test_mode1_config.tres" id="5_ws4rq"]
 
 [node name="ModeSelection" type="Control"]
 layout_mode = 3
@@ -12,6 +15,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_jv0sf")
 game_play_scene = ExtResource("2_0hetu")
+mode_configs = Array[Resource]([ExtResource("3_t5a4b"), ExtResource("4_t4d1t"), ExtResource("5_ws4rq")])
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -35,42 +39,11 @@ theme_override_font_sizes/font_size = 48
 text = "模式选择"
 horizontal_alignment = 1
 
-[node name="GridContainer" type="GridContainer" parent="VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-columns = 2
-
-[node name="TestMode1Button" type="Button" parent="VBoxContainer/GridContainer"]
+[node name="ModeListContainer" type="VBoxContainer" parent="VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
 size_flags_vertical = 3
-theme_override_font_sizes/font_size = 24
-text = "测试1"
-
-[node name="ClassicModeButton" type="Button" parent="VBoxContainer/GridContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_font_sizes/font_size = 24
-text = "经典模式"
-
-[node name="FibonacciModeButton" type="Button" parent="VBoxContainer/GridContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_font_sizes/font_size = 24
-text = "斐波那契模式"
-
-[node name="TestMode2Button" type="Button" parent="VBoxContainer/GridContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_font_sizes/font_size = 24
-text = "测试2"
+theme_override_constants/separation = 10
 
 [node name="Spacer" type="Control" parent="VBoxContainer"]
 custom_minimum_size = Vector2(0, 20)
