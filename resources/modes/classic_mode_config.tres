@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="GameModeConfig" load_steps=11 format=3 uid="uid://dso7a1vuipkqt"]
+[gd_resource type="Resource" script_class="GameModeConfig" load_steps=12 format=3 uid="uid://dso7a1vuipkqt"]
 
-[ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://resources/themes/classic_theme.tres" id="1_dvc3p"]
+[ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/default_board_theme.tres" id="1_xkyvo"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="2_dvc3p"]
-[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_theme.tres" id="2_xkyvo"]
+[ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://resources/themes/classic_tile_theme.tres" id="2_y7c41"]
+[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_tile_theme.tres" id="3_8xxsn"]
 [ext_resource type="Script" uid="uid://bdsn1pa4fjc01" path="res://scripts/modes/classic_interaction_rule.gd" id="3_xkyvo"]
 [ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="4_y7c41"]
 [ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/spawn_rule.gd" id="5_8xxsn"]
@@ -22,9 +23,10 @@ script = ExtResource("4_y7c41")
 mode_name = "经典模式"
 interaction_rule = SubResource("Resource_jk0ep")
 color_schemes = {
-0: ExtResource("1_dvc3p"),
-1: ExtResource("2_xkyvo")
+0: ExtResource("2_y7c41"),
+1: ExtResource("3_8xxsn")
 }
 spawn_rules = Array[ExtResource("5_8xxsn")]([ExtResource("6_bx8w2"), ExtResource("7_e8guu")])
 game_over_rule = SubResource("Resource_wp4bw")
+board_theme = ExtResource("1_xkyvo")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

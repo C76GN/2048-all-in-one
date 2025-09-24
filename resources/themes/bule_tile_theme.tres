@@ -1,0 +1,68 @@
+[gd_resource type="Resource" script_class="TileColorScheme" load_steps=15 format=3 uid="uid://s3kbyu2ihxcq"]
+
+[ext_resource type="Script" uid="uid://dwmd115dhs0pl" path="res://global/tile_color_scheme.gd" id="1_tnspm"]
+[ext_resource type="Script" uid="uid://b7dkhehece8ke" path="res://global/tile_level_style.gd" id="2_074j6"]
+
+[sub_resource type="Resource" id="Resource_tnspm"]
+script = ExtResource("2_074j6")
+background_color = Color(0.9411765, 0.95686275, 0.972549, 1)
+font_color = Color(0.2, 0.30588236, 0.40784314, 1)
+
+[sub_resource type="Resource" id="Resource_074j6"]
+script = ExtResource("2_074j6")
+background_color = Color(0.8509804, 0.8862745, 0.9254902, 1)
+font_color = Color(0.2, 0.30588236, 0.40784314, 1)
+
+[sub_resource type="Resource" id="Resource_v4ep2"]
+script = ExtResource("2_074j6")
+background_color = Color(0.7372549, 0.8, 0.8627451, 1)
+font_color = Color(0.2, 0.30588236, 0.40784314, 1)
+
+[sub_resource type="Resource" id="Resource_3qiga"]
+script = ExtResource("2_074j6")
+background_color = Color(0.62352943, 0.7019608, 0.78431374, 1)
+font_color = Color(0.9411765, 0.95686275, 0.972549, 1)
+
+[sub_resource type="Resource" id="Resource_mbbmg"]
+script = ExtResource("2_074j6")
+background_color = Color(0.50980395, 0.6039216, 0.69411767, 1)
+font_color = Color(0.9411765, 0.95686275, 0.972549, 1)
+
+[sub_resource type="Resource" id="Resource_4wcrm"]
+script = ExtResource("2_074j6")
+background_color = Color(0.38431373, 0.49019608, 0.59607846, 1)
+font_color = Color(0.9411765, 0.95686275, 0.972549, 1)
+
+[sub_resource type="Resource" id="Resource_mr0ad"]
+script = ExtResource("2_074j6")
+background_color = Color(0.28235295, 0.39607844, 0.5058824, 1)
+font_color = Color(0.9411765, 0.95686275, 0.972549, 1)
+
+[sub_resource type="Resource" id="Resource_g3nur"]
+script = ExtResource("2_074j6")
+background_color = Color(0.2, 0.30588236, 0.40784314, 1)
+font_color = Color(0.9411765, 0.95686275, 0.972549, 1)
+
+[sub_resource type="Resource" id="Resource_5dj8d"]
+script = ExtResource("2_074j6")
+background_color = Color(0.0627451, 0.16470589, 0.2627451, 1)
+font_color = Color(0.9411765, 0.95686275, 0.972549, 1)
+
+[sub_resource type="Resource" id="Resource_f73dq"]
+script = ExtResource("2_074j6")
+background_color = Color(0.003921569, 0.08627451, 0.15294118, 1)
+font_color = Color(0.9411765, 0.95686275, 0.972549, 1)
+
+[sub_resource type="Resource" id="Resource_kx4gk"]
+script = ExtResource("2_074j6")
+background_color = Color(0.003921569, 0.08627451, 0.15294118, 1)
+font_color = Color(0.9411765, 0.95686275, 0.972549, 1)
+
+[sub_resource type="Resource" id="Resource_ooby1"]
+script = ExtResource("2_074j6")
+background_color = Color(0.003921569, 0.08627451, 0.15294118, 1)
+font_color = Color(0.9411765, 0.95686275, 0.972549, 1)
+
+[resource]
+script = ExtResource("1_tnspm")
+styles = Array[ExtResource("2_074j6")]([SubResource("Resource_tnspm"), SubResource("Resource_074j6"), SubResource("Resource_v4ep2"), SubResource("Resource_3qiga"), SubResource("Resource_mbbmg"), SubResource("Resource_4wcrm"), SubResource("Resource_mr0ad"), SubResource("Resource_g3nur"), SubResource("Resource_5dj8d"), SubResource("Resource_f73dq"), SubResource("Resource_kx4gk"), SubResource("Resource_ooby1")])

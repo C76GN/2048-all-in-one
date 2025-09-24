@@ -20,3 +20,6 @@ extends Resource
 
 ## 游戏如何结束的规则。
 @export var game_over_rule: GameOverRule
+
+## 棋盘和背景的视觉主题。
+@export var board_theme: BoardTheme

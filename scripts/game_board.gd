@@ -45,6 +45,8 @@ var interaction_rule: InteractionRule
 var game_over_rule: GameOverRule
 # 外部注入的配色方案字典。
 var color_schemes: Dictionary
+# 外部注入的棋盘与背景主题。
+var board_theme: BoardTheme
 
 # --- 节点引用 ---
 
@@ -64,12 +66,13 @@ func _ready() -> void:
 
 # --- 公共接口 ---
 
-## 设置当前棋盘使用的规则集。
+## 设置当前棋盘使用的规则集和主题。
 ## 这是外部（如GamePlay.gd）将具体玩法注入棋盘的入口。
-func set_rules(p_interaction_rule: InteractionRule, p_game_over_rule: GameOverRule, p_color_schemes: Dictionary) -> void:
+func set_rules(p_interaction_rule: InteractionRule, p_game_over_rule: GameOverRule, p_color_schemes: Dictionary, p_board_theme: BoardTheme) -> void:
 	self.interaction_rule = p_interaction_rule
 	self.game_over_rule = p_game_over_rule
 	self.color_schemes = p_color_schemes
+	self.board_theme = p_board_theme
 
 ## 根据给定的方向向量处理一次完整的移动操作。
 func handle_move(direction: Vector2i) -> void:
@@ -208,6 +211,10 @@ func _initialize_board() -> void:
 func _update_board_layout() -> void:
 	var layout_params = _calculate_layout_params(grid_size)
 	if layout_params.is_empty(): return
+	if is_instance_valid(board_theme):
+		var panel_style: StyleBoxFlat = board_background.get_theme_stylebox("panel").duplicate()
+		panel_style.bg_color = board_theme.board_panel_color
+		board_background.add_theme_stylebox_override("panel", panel_style)
 	board_background.position = layout_params.offset
 	board_background.size = layout_params.scaled_size
 	board_container.position = layout_params.offset + Vector2(BOARD_PADDING, BOARD_PADDING) * layout_params.scale_ratio
@@ -280,11 +287,15 @@ func _draw_board_cells():
 	for child in board_container.get_children():
 		if child is Panel: child.queue_free()
 			
+	var cell_color = Color("3c3c3c") # 默认后备颜色
+	if is_instance_valid(board_theme):
+		cell_color = board_theme.empty_cell_color
+			
 	for x in grid_size:
 		for y in grid_size:
 			var cell_bg = Panel.new()
 			var stylebox = StyleBoxFlat.new()
-			stylebox.bg_color = Color("3c3c3c")
+			stylebox.bg_color = cell_color
 			stylebox.set_corner_radius_all(8)
 			cell_bg.add_theme_stylebox_override("panel", stylebox)
 			cell_bg.size = Vector2(CELL_SIZE, CELL_SIZE)

@@ -12,6 +12,7 @@ extends Control
 @onready var hud: VBoxContainer = %HUD
 @onready var pause_menu = $PauseMenu
 @onready var game_over_menu = $GameOverMenu
+@onready var background_color_rect: ColorRect = %ColorRect
 
 # --- 状态变量 ---
 var mode_config: GameModeConfig
@@ -41,7 +42,13 @@ func _ready() -> void:
 	
 	interaction_rule = mode_config.interaction_rule.duplicate()
 	var game_over_rule = mode_config.game_over_rule.duplicate()
-	game_board.set_rules(interaction_rule, game_over_rule, mode_config.color_schemes)
+	# 应用棋盘主题
+	if is_instance_valid(mode_config.board_theme):
+		background_color_rect.color = mode_config.board_theme.game_background_color
+		game_board.set_rules(interaction_rule, game_over_rule, mode_config.color_schemes, mode_config.board_theme)
+	else:
+		push_warning("当前游戏模式没有配置BoardTheme，将使用默认颜色。")
+		game_board.set_rules(interaction_rule, game_over_rule, mode_config.color_schemes, null)
 	
 	# 步骤3: 初始化所有在配置中定义的生成规则。
 	for rule_resource in mode_config.spawn_rules:
@@ -202,6 +209,6 @@ func _on_resume_game(): _toggle_pause_menu()
 ## 响应“重新开始”事件。
 func _on_restart_game(): get_tree().paused = false; get_tree().reload_current_scene()
 ## 响应“返回主菜单”事件。
-func _on_return_to_main_menu(): 
+func _on_return_to_main_menu():
 	get_tree().paused = false
 	GlobalGameManager.return_to_main_menu()

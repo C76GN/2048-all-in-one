@@ -8,9 +8,6 @@
 class_name Tile
 extends Node2D
 
-@export var light_font_color: Color = Color("f9f6f2")
-@export var dark_font_color: Color = Color("776e65")
-
 # --- 枚举定义 ---
 
 # 定义方块的两种基本类型，用于区分游戏逻辑和视觉表现。
@@ -74,27 +71,24 @@ func _update_visuals() -> void:
 	value_label.text = str(int(value))
 	
 	# 步骤2: 根据方块类型从字典中动态查询颜色主题。
-	var current_scheme = color_schemes.get(type)
+	var current_scheme: TileColorScheme = color_schemes.get(type)
 	
-	var bg_color = Color.BLACK # 默认背景色
+	if not is_instance_valid(current_scheme) or not is_instance_valid(interaction_rule) or current_scheme.styles.is_empty():
+		return
+
+	# 步骤3: 获取当前数值等级对应的样式。
+	var level = interaction_rule.get_level_by_value(value)
+	# 如果等级超出样式数组范围，使用最后一个样式。
+	if level >= current_scheme.styles.size():
+		level = current_scheme.styles.size() - 1
 	
-	# 步骤3: 设置背景颜色。
-	if is_instance_valid(interaction_rule) and is_instance_valid(current_scheme) and not current_scheme.colors.is_empty():
-		var level = interaction_rule.get_level_by_value(value)
+	var current_style: TileLevelStyle = current_scheme.styles[level]
+	if not is_instance_valid(current_style):
+		return
 		
-		# 如果等级超出颜色数组范围，使用最后一个颜色。
-		if level >= current_scheme.colors.size():
-			level = current_scheme.colors.size() - 1
-		
-		bg_color = current_scheme.colors[level]
-		(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = bg_color
-	
-	# 步骤4: 根据背景色的亮度动态设置字体颜色。
-	# get_luminance() 返回 0 (黑) 到 1 (白) 之间的亮度值。
-	if bg_color.get_luminance() > 0.7:
-		value_label.add_theme_color_override("font_color", dark_font_color)
-	else:
-		value_label.add_theme_color_override("font_color", light_font_color)
+	# 步骤4: 应用背景颜色和字体颜色。
+	(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = current_style.background_color
+	value_label.add_theme_color_override("font_color", current_style.font_color)
 	
 	# 步骤5: 动态计算并设置字体大小，防止文本溢出。
 	_update_font_size()
