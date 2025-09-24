@@ -11,7 +11,7 @@ extends Resource
 
 ## 处理两个方块之间的交互。
 ## 具体的规则需要重写此方法。
-func process_interaction(_tile_a: Tile, _tile_b: Tile, _p_rule: InteractionRule, _p_player_scheme: TileColorScheme, _p_monster_scheme: TileColorScheme) -> Dictionary:
+func process_interaction(_tile_a: Tile, _tile_b: Tile, _p_rule: InteractionRule) -> Dictionary:
 	return {} # 默认不交互不交互
 
 ## 当一个怪物在交互中被消灭时发出。

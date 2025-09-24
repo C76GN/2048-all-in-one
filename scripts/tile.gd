@@ -37,8 +37,8 @@ var value: int = 0
 # 方块当前的类型。
 var type: TileType = TileType.PLAYER
 var interaction_rule: InteractionRule
-var player_scheme: TileColorScheme
-var monster_scheme: TileColorScheme
+# 存储所有配色方案的字典
+var color_schemes: Dictionary
 
 ## Godot生命周期函数：当节点进入场景树时调用。
 func _ready() -> void:
@@ -54,13 +54,12 @@ func _ready() -> void:
 ## 当方块数值变大时，会自动触发合并动画。
 ## @param new_value: 方块的新数值。
 ## @param new_type: 方块的新类型 (PLAYER 或 MONSTER)。
-func setup(new_value: int, new_type: TileType, p_rule: InteractionRule, p_player_scheme: TileColorScheme, p_monster_scheme: TileColorScheme) -> void:
+func setup(new_value: int, new_type: TileType, p_rule: InteractionRule, p_color_schemes: Dictionary) -> void:
 	var old_value = self.value
 	self.value = new_value
 	self.type = new_type
 	self.interaction_rule = p_rule
-	self.player_scheme = p_player_scheme
-	self.monster_scheme = p_monster_scheme
+	self.color_schemes = p_color_schemes
 	_update_visuals()
 	
 	if new_value > old_value and old_value != 0:
@@ -74,10 +73,8 @@ func _update_visuals() -> void:
 	# 步骤1: 更新显示的文本。
 	value_label.text = str(int(value))
 	
-	# 步骤2: 根据方块类型选择颜色主题。
-	var current_scheme = player_scheme
-	if type == TileType.MONSTER:
-		current_scheme = monster_scheme
+	# 步骤2: 根据方块类型从字典中动态查询颜色主题。
+	var current_scheme = color_schemes.get(type)
 	
 	var bg_color = Color.BLACK # 默认背景色
 	
@@ -94,7 +91,7 @@ func _update_visuals() -> void:
 	
 	# 步骤4: 根据背景色的亮度动态设置字体颜色。
 	# get_luminance() 返回 0 (黑) 到 1 (白) 之间的亮度值。
-	if bg_color.get_luminance() > 0.5:
+	if bg_color.get_luminance() > 0.7:
 		value_label.add_theme_color_override("font_color", dark_font_color)
 	else:
 		value_label.add_theme_color_override("font_color", light_font_color)

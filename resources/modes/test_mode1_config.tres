@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="1_jli1c"]
 [ext_resource type="Resource" uid="uid://s3kbyu2ihxcq" path="res://resources/themes/bule_theme.tres" id="1_mffcc"]
 [ext_resource type="Script" uid="uid://dg4uoygc0uq8m" path="res://scripts/modes/battle_interaction_rule.gd" id="2_jli1c"]
-[ext_resource type="Resource" uid="uid://c60nsnxocwsye" path="res://resources/themes/monster_theme.tres" id="4_fd50j"]
+[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_theme.tres" id="4_fd50j"]
 [ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/spawn_rule.gd" id="4_qel32"]
 [ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://resources/modes/classic_spawn_rule_init.tres" id="5_uvooi"]
 [ext_resource type="Resource" uid="uid://cu7diq7sysqcf" path="res://resources/modes/classic_spawn_rule_on_move.tres" id="6_mffcc"]
@@ -23,8 +23,10 @@ metadata/_custom_type_script = "uid://dg4uoygc0uq8m"
 script = ExtResource("1_3lm28")
 mode_name = "测试模式 1"
 interaction_rule = SubResource("Resource_gqx4x")
-color_scheme = ExtResource("1_mffcc")
-monster_color_scheme = ExtResource("4_fd50j")
+color_schemes = {
+0: ExtResource("1_mffcc"),
+1: ExtResource("4_fd50j")
+}
 spawn_rules = Array[ExtResource("4_qel32")]([ExtResource("5_uvooi"), ExtResource("6_mffcc"), ExtResource("7_fd50j"), ExtResource("8_uvooi")])
 game_over_rule = SubResource("Resource_umllg")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

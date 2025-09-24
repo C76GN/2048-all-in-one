@@ -43,8 +43,8 @@ var is_initialized: bool = false
 var interaction_rule: InteractionRule
 # 外部注入的游戏结束判断规则。
 var game_over_rule: GameOverRule
-var color_scheme: TileColorScheme
-var monster_color_scheme: TileColorScheme
+# 外部注入的配色方案字典。
+var color_schemes: Dictionary
 
 # --- 节点引用 ---
 
@@ -66,11 +66,10 @@ func _ready() -> void:
 
 ## 设置当前棋盘使用的规则集。
 ## 这是外部（如GamePlay.gd）将具体玩法注入棋盘的入口。
-func set_rules(p_interaction_rule: InteractionRule, p_game_over_rule: GameOverRule, p_color_scheme: TileColorScheme, p_monster_color_scheme: TileColorScheme) -> void:
+func set_rules(p_interaction_rule: InteractionRule, p_game_over_rule: GameOverRule, p_color_schemes: Dictionary) -> void:
 	self.interaction_rule = p_interaction_rule
 	self.game_over_rule = p_game_over_rule
-	self.color_scheme = p_color_scheme
-	self.monster_color_scheme = p_monster_color_scheme
+	self.color_schemes = p_color_schemes
 
 ## 根据给定的方向向量处理一次完整的移动操作。
 func handle_move(direction: Vector2i) -> void:
@@ -120,14 +119,14 @@ func spawn_tile(spawn_data: Dictionary) -> Tween:
 		# 子情况A：棋盘上仍有玩家方块，随机将一个转变为怪物。
 		if not player_tiles.is_empty():
 			var tile_to_transform = player_tiles.pick_random()
-			tile_to_transform.setup(value, type, interaction_rule, color_scheme, monster_color_scheme)
+			tile_to_transform.setup(value, type, interaction_rule, color_schemes)
 			tile_to_transform.animate_transform()
 		# 子情况B：棋盘上全是怪物方块，随机将一个数值翻倍以示“增强”。
 		else:
 			var monster_tiles = _get_all_monster_tiles()
 			if not monster_tiles.is_empty():
 				var tile_to_empower = monster_tiles.pick_random()
-				tile_to_empower.setup(tile_to_empower.value * 2, type, interaction_rule, color_scheme, monster_color_scheme)
+				tile_to_empower.setup(tile_to_empower.value * 2, type, interaction_rule, color_schemes)
 		return null
 		
 	return null
@@ -230,7 +229,7 @@ func _process_line(line: Array) -> Array:
 			var next_tile = slid_line[i + 1]
 			
 			# 将具体的交互逻辑委托给注入的规则对象。
-			var result = interaction_rule.process_interaction(current_tile, next_tile, interaction_rule, color_scheme, monster_color_scheme)
+			var result = interaction_rule.process_interaction(current_tile, next_tile, interaction_rule)
 			if not result.is_empty():
 				var merged = result.get("merged_tile")
 				if merged != null:
@@ -344,7 +343,7 @@ func _spawn_at(grid_pos: Vector2i, value: int, type: Tile.TileType) -> Tween:
 	board_container.add_child(new_tile)
 	grid[grid_pos.x][grid_pos.y] = new_tile
 	
-	new_tile.setup(value, type, interaction_rule, color_scheme, monster_color_scheme)
+	new_tile.setup(value, type, interaction_rule, color_schemes)
 	new_tile.position = _grid_to_pixel_center(grid_pos)
 	return new_tile.animate_spawn()
 

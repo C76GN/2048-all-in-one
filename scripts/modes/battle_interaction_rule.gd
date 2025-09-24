@@ -9,11 +9,11 @@ extends InteractionRule
 ## 处理两个方块之间的交互。
 ##
 ## @return: 返回一个字典，描述交互结果，例如 {"merged_tile": Tile, "consumed_tile": Tile}
-func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule, p_player_scheme: TileColorScheme, p_monster_scheme: TileColorScheme) -> Dictionary:
+func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) -> Dictionary:
 	# 情况A: 两个方块类型相同
 	if tile_a.type == tile_b.type:
 		if tile_a.value == tile_b.value:
-			tile_b.setup(tile_a.value * 2, tile_a.type, p_rule, p_player_scheme, p_monster_scheme)
+			tile_b.setup(tile_a.value * 2, tile_a.type, p_rule, tile_a.color_schemes)
 			tile_a.queue_free()
 			return {"merged_tile": tile_b, "consumed_tile": tile_a}
 	
@@ -23,15 +23,19 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule, p_
 		var monster_tile = tile_a if tile_a.type == Tile.TileType.MONSTER else tile_b
 		
 		if player_tile.value > monster_tile.value:
-			player_tile.setup(int(player_tile.value / monster_tile.value), player_tile.type, p_rule, p_player_scheme, p_monster_scheme)
+			player_tile.setup(int(player_tile.value / monster_tile.value), player_tile.type, p_rule, player_tile.color_schemes)
+			player_tile.animate_transform()
 			monster_tile.queue_free()
 			monster_killed.emit()
 			return {"merged_tile": player_tile, "consumed_tile": monster_tile}
 		elif player_tile.value < monster_tile.value:
-			monster_tile.setup(int(monster_tile.value / player_tile.value), monster_tile.type, p_rule, p_player_scheme, p_monster_scheme)
+			monster_tile.setup(int(monster_tile.value / player_tile.value), monster_tile.type, p_rule, monster_tile.color_schemes)
+			monster_tile.animate_transform()
 			player_tile.queue_free()
 			return {"merged_tile": monster_tile, "consumed_tile": player_tile}
 		else: # 同归于尽
+			player_tile.animate_transform()
+			monster_tile.animate_transform()
 			player_tile.queue_free()
 			monster_tile.queue_free()
 			monster_killed.emit()
@@ -59,3 +63,10 @@ func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
 		
 	# 如果不满足以上任何条件，则这两个方块无法交互。
 	return false
+
+## 对于战斗模式，等级基于2的对数计算。
+func get_level_by_value(value: int) -> int:
+	if value <= 0:
+		return 0
+	var level = int(log(value) / log(2)) - 1
+	return max(0, level)

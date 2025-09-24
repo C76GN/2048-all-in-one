@@ -1,26 +1,30 @@
-[gd_resource type="Resource" script_class="GameModeConfig" load_steps=10 format=3 uid="uid://dso7a1vuipkqt"]
+[gd_resource type="Resource" script_class="GameModeConfig" load_steps=11 format=3 uid="uid://dso7a1vuipkqt"]
 
-[ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="1_orxgk"]
-[ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="1_qecbo"]
-[ext_resource type="Resource" uid="uid://s3kbyu2ihxcq" path="res://resources/themes/bule_theme.tres" id="1_wp4bw"]
-[ext_resource type="Script" uid="uid://bdsn1pa4fjc01" path="res://scripts/modes/classic_interaction_rule.gd" id="2_ckg85"]
-[ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/spawn_rule.gd" id="4_myupn"]
-[ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://resources/modes/classic_spawn_rule_init.tres" id="5_wp4bw"]
-[ext_resource type="Resource" uid="uid://cu7diq7sysqcf" path="res://resources/modes/classic_spawn_rule_on_move.tres" id="6_jk0ep"]
+[ext_resource type="Resource" path="res://resources/themes/classic_theme.tres" id="1_dvc3p"]
+[ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="2_dvc3p"]
+[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_theme.tres" id="2_xkyvo"]
+[ext_resource type="Script" uid="uid://bdsn1pa4fjc01" path="res://scripts/modes/classic_interaction_rule.gd" id="3_xkyvo"]
+[ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="4_y7c41"]
+[ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/spawn_rule.gd" id="5_8xxsn"]
+[ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://resources/modes/classic_spawn_rule_init.tres" id="6_bx8w2"]
+[ext_resource type="Resource" uid="uid://cu7diq7sysqcf" path="res://resources/modes/classic_spawn_rule_on_move.tres" id="7_e8guu"]
 
 [sub_resource type="Resource" id="Resource_wp4bw"]
-script = ExtResource("1_orxgk")
+script = ExtResource("2_dvc3p")
 metadata/_custom_type_script = "uid://cd58tqmib7wsk"
 
 [sub_resource type="Resource" id="Resource_jk0ep"]
-script = ExtResource("2_ckg85")
+script = ExtResource("3_xkyvo")
 metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 
 [resource]
-script = ExtResource("1_qecbo")
+script = ExtResource("4_y7c41")
 mode_name = "经典模式"
 interaction_rule = SubResource("Resource_jk0ep")
-color_scheme = ExtResource("1_wp4bw")
-spawn_rules = Array[ExtResource("4_myupn")]([ExtResource("5_wp4bw"), ExtResource("6_jk0ep")])
+color_schemes = {
+0: ExtResource("1_dvc3p"),
+1: ExtResource("2_xkyvo")
+}
+spawn_rules = Array[ExtResource("5_8xxsn")]([ExtResource("6_bx8w2"), ExtResource("7_e8guu")])
 game_over_rule = SubResource("Resource_wp4bw")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

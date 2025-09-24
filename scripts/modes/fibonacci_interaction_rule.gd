@@ -14,10 +14,10 @@ extends InteractionRule
 const PHI = 1.618034
 
 ## 处理两个方块之间的合并交互。
-func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule, p_player_scheme: TileColorScheme, p_monster_scheme: TileColorScheme) -> Dictionary:
+func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) -> Dictionary:
 	if can_interact(tile_a, tile_b):
 		# 将 tile_b 的数值更新为两者之和，并销毁 tile_a。
-		tile_b.setup(tile_a.value + tile_b.value, tile_a.type, p_rule, p_player_scheme, p_monster_scheme)
+		tile_b.setup(tile_a.value + tile_b.value, tile_a.type, p_rule, tile_a.color_schemes)
 		tile_a.queue_free()
 		# 返回结果，表明 tile_b 是合并后的方块，tile_a 是被消耗的方块。
 		return {"merged_tile": tile_b, "consumed_tile": tile_a}
