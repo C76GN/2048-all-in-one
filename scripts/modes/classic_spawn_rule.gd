@@ -10,6 +10,7 @@ extends SpawnRule
 
 ## 可配置：生成2的概率（其余为4）。
 @export var probability_of_2: float = 0.9
+@export var consumes_event_on_success: bool = true
 
 ## 执行生成逻辑。
 func execute(_payload: Dictionary = {}) -> bool:
@@ -29,4 +30,4 @@ func execute(_payload: Dictionary = {}) -> bool:
 	spawn_tile_requested.emit(spawn_data)
 	
 	# 成功请求了生成，认为事件已被消费。
-	return true
+	return consumes_event_on_success
