@@ -12,8 +12,8 @@ extends Resource
 ## 方块如何交互（合并、战斗等）的规则。
 @export var interaction_rule: InteractionRule
 
-## 指向“如何生成新方块”规则的脚本文件列表。
-@export var spawn_rule_scripts: Array[Script]
+## 包含此模式所有“生成规则”资源的数组。
+@export var spawn_rules: Array[SpawnRule]
 
 ## 游戏如何结束的规则。
 @export var game_over_rule: GameOverRule

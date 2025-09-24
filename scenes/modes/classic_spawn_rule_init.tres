@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="ClassicSpawnRule" load_steps=2 format=3 uid="uid://dbb0u5q2klk3u"]
+
+[ext_resource type="Script" uid="uid://b3e60oet02aex" path="res://scripts/modes/classic_spawn_rule.gd" id="1_y4yxh"]
+
+[resource]
+script = ExtResource("1_y4yxh")
+trigger = 0
+priority = 100
+metadata/_custom_type_script = "uid://rtyr5upmnau6"

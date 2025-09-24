@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="TimedMonsterSpawnRule" load_steps=2 format=3 uid="uid://qr2xgc1hsent"]
+
+[ext_resource type="Script" uid="uid://bim2iaojt5tbw" path="res://scripts/modes/timed_monster_spawn_rule.gd" id="1_clcax"]
+
+[resource]
+script = ExtResource("1_clcax")
+trigger = 3
+metadata/_custom_type_script = "uid://rtyr5upmnau6"

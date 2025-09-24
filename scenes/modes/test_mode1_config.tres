@@ -1,10 +1,12 @@
-[gd_resource type="Resource" script_class="GameModeConfig" load_steps=8 format=3 uid="uid://dwjqj7f52y8in"]
+[gd_resource type="Resource" script_class="GameModeConfig" load_steps=10 format=3 uid="uid://dwjqj7f52y8in"]
 
 [ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="1_3lm28"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="1_jli1c"]
 [ext_resource type="Script" uid="uid://dg4uoygc0uq8m" path="res://scripts/modes/battle_interaction_rule.gd" id="2_jli1c"]
-[ext_resource type="Script" uid="uid://bim2iaojt5tbw" path="res://scripts/modes/timed_monster_spawn_rule.gd" id="4_gqx4x"]
-[ext_resource type="Script" uid="uid://b3e60oet02aex" path="res://scripts/modes/classic_spawn_rule.gd" id="5_umllg"]
+[ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/spawn_rule.gd" id="4_qel32"]
+[ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://scenes/modes/classic_spawn_rule_init.tres" id="5_uvooi"]
+[ext_resource type="Resource" uid="uid://cu7diq7sysqcf" path="res://scenes/modes/classic_spawn_rule_on_move.tres" id="6_mffcc"]
+[ext_resource type="Resource" uid="uid://qr2xgc1hsent" path="res://scenes/modes/timed_monster_spawn_rule.tres" id="7_fd50j"]
 
 [sub_resource type="Resource" id="Resource_umllg"]
 script = ExtResource("1_jli1c")
@@ -18,6 +20,6 @@ metadata/_custom_type_script = "uid://dg4uoygc0uq8m"
 script = ExtResource("1_3lm28")
 mode_name = "测试模式 1"
 interaction_rule = SubResource("Resource_gqx4x")
-spawn_rule_scripts = Array[Script]([ExtResource("5_umllg"), ExtResource("4_gqx4x")])
+spawn_rules = Array[ExtResource("4_qel32")]([ExtResource("5_uvooi"), ExtResource("6_mffcc"), ExtResource("7_fd50j")])
 game_over_rule = SubResource("Resource_umllg")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

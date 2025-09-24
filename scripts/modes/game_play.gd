@@ -2,9 +2,7 @@
 
 ## GamePlay: 通用的游戏逻辑控制器。
 ##
-## 作为主游戏场景的脚本，它不包含任何具体的游戏规则。
-## 它负责加载一个 GameModeConfig 资源，并根据该配置来设置 GameBoard 和其他组件。
-## 它充当了规则模型（Rules）、棋盘模型（GameBoard）和UI视图（HUD）之间的协调者。
+## 负责加载 GameModeConfig，设置 RuleManager，并协调核心组件之间的通信。
 class_name GamePlay
 extends Control
 
@@ -16,70 +14,69 @@ extends Control
 @onready var game_over_menu = $GameOverMenu
 
 # --- 状态变量 ---
-var mode_config: GameModeConfig # 当前加载的游戏模式配置资源。
-var interaction_rule: InteractionRule # 当前模式下，方块交互的具体规则实例。
-var spawn_rules: Array[SpawnRule] = [] # 管理所有方块生成规则的数组，允许一个模式同时拥有多种生成逻辑。
-var monsters_killed: int = 0 # 记录已消灭的怪物数量。
-var is_game_over: bool = false # 标记游戏是否已结束。
+var mode_config: GameModeConfig
+var interaction_rule: InteractionRule
+var rule_manager: RuleManager # 规则管理器实例
+var all_spawn_rules: Array[SpawnRule] = [] # 持有所有规则实例的引用
+
+var move_count: int = 0
+var monsters_killed: int = 0
+var is_game_over: bool = false
 
 ## Godot生命周期函数：在节点进入场景树时被调用，负责整个游戏场景的初始化。
 func _ready() -> void:
 	# 步骤1: 从 GlobalGameManager 加载所选的游戏模式配置。
 	if "selected_mode_config_path" in GlobalGameManager and GlobalGameManager.selected_mode_config_path != "":
-		var config_path = GlobalGameManager.selected_mode_config_path
-		mode_config = load(config_path)
-		assert(is_instance_valid(mode_config), "GameModeConfig未能加载！路径: " + config_path)
+		mode_config = load(GlobalGameManager.selected_mode_config_path)
+		assert(is_instance_valid(mode_config), "GameModeConfig未能加载！")
 	else:
-		push_error("错误: 没有找到 selected_mode_config_path。无法加载游戏模式。")
+		push_error("错误: 无法加载游戏模式配置。")
 		get_tree().quit()
 		return
 		
-	# 步骤2: 根据配置实例化所有规则（交互、游戏结束、生成）。
-	assert(is_instance_valid(mode_config.interaction_rule), "InteractionRule未在配置文件中设置！")
+	# 步骤2: 实例化规则管理器和核心交互/结束规则。
+	rule_manager = RuleManager.new()
+	add_child(rule_manager)
+	
 	interaction_rule = mode_config.interaction_rule.duplicate()
 	var game_over_rule = mode_config.game_over_rule.duplicate()
-	
-	if mode_config.spawn_rule_scripts.is_empty():
-		push_warning("警告: GameModeConfig 中没有提供任何 Spawn Rule 脚本。")
-	else:
-		for rule_script in mode_config.spawn_rule_scripts:
-			if rule_script and rule_script is Script:
-				var new_rule: SpawnRule = rule_script.new()
-				spawn_rules.append(new_rule) # 添加到管理列表
-				add_child(new_rule)          # 将规则节点添加到场景树
-				if new_rule.has_method("setup"):
-					new_rule.setup(game_board)
-			else:
-				push_error("错误: spawn_rule_scripts 数组中包含无效项。")
-				get_tree().quit()
-				return
-		
-	# 步骤3: 将实例化好的规则注入 GameBoard。
 	game_board.set_rules(interaction_rule, game_over_rule)
+	
+	# 步骤3: 初始化所有在配置中定义的生成规则。
+	for rule_resource in mode_config.spawn_rules:
+		var rule_instance: SpawnRule = rule_resource.duplicate()
+		all_spawn_rules.append(rule_instance)
+		
+		# 检查规则是否需要额外的节点（如Timer），并为它创建。
+		var required_nodes = rule_instance.get_required_nodes()
+		var created_nodes = {}
+		if not required_nodes.is_empty():
+			for node_key in required_nodes:
+				if required_nodes[node_key] == "Timer":
+					var new_timer = Timer.new()
+					add_child(new_timer) # 将Timer添加到场景树以使其运行
+					created_nodes[node_key] = new_timer
+		
+		# 将所有依赖项（棋盘、创建的节点）注入规则实例。
+		rule_instance.setup(game_board, created_nodes)
 
-	# 步骤4: 集中连接所有必要的信号。
+	# 步骤4: 注册所有规则到管理器并连接所有信号。
+	rule_manager.register_rules(all_spawn_rules)
 	_connect_signals()
 	
-	# 步骤5: 由第一个生成规则负责初始化棋盘状态。
-	if not spawn_rules.is_empty():
-		var initializer_rule = spawn_rules[0]
-		if initializer_rule.has_method("initialize_board"):
-			initializer_rule.initialize_board()
-		else:
-			# 如果第一个规则没有初始化方法，则提供一个默认的开始状态。
-			push_warning("警告: 第一个SpawnRule没有initialize_board方法，使用默认初始化。")
-			game_board.spawn_tile({"value": 2, "type": Tile.TileType.PLAYER})
-			game_board.spawn_tile({"value": 2, "type": Tile.TileType.PLAYER})
+	# 步骤5: 通过管理器触发棋盘初始化事件。
+	rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD)
 
-	# 步骤6: 初始化UI和仅在编辑器中使用的测试工具。
 	_initialize_test_tools()
 	_update_stats_display()
 
 ## Godot生命周期函数：每帧调用。用于处理需要高频更新的逻辑，例如UI倒计时。
 func _process(_delta: float) -> void:
-	for rule in spawn_rules:
-		if rule is TimedMonsterSpawnRule and not is_game_over:
-			hud.update_timer(rule.get_time_left())
+	if not is_game_over:
+		# 从所有规则中找到计时器规则并更新HUD。
+		for rule in all_spawn_rules:
+			if rule is TimedMonsterSpawnRule:
+				hud.update_timer(rule.get_time_left())
 
 ## 处理全局未捕获的输入事件，主要用于玩家移动和打开暂停菜单。
 func _unhandled_input(event: InputEvent) -> void:
@@ -114,42 +111,44 @@ func _connect_signals() -> void:
 	game_over_menu.return_to_main_menu.connect(_on_return_to_main_menu)
 	
 	# 连接来自规则的信号
-	if interaction_rule:
+	rule_manager.spawn_tile_requested.connect(game_board.spawn_tile)
+	if is_instance_valid(interaction_rule):
 		interaction_rule.monster_killed.connect(_on_monster_killed)
-	for rule in spawn_rules:
-		rule.spawn_tile_requested.connect(_on_spawn_tile_requested)
 
 # --- 信号处理函数 ---
 
-## 当 GameBoard 发出 move_made 信号时调用。将此事件广播给所有生成规则。
+## 当 GameBoard 发出 move_made 信号时调用。
 func _on_game_board_move_made() -> void:
-	for rule in spawn_rules:
+	move_count += 1
+	
+	# 通过管理器分发“玩家移动”事件，让相关规则按优先级执行。
+	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED)
+	
+	# 特殊处理：手动调用那些需要响应移动，但不是通过触发器工作的逻辑（如计时器奖励）。
+	for rule in all_spawn_rules:
 		if rule.has_method("on_move_made"):
 			rule.on_move_made()
+			
 	_update_stats_display()
 
-## 当任意 SpawnRule 请求生成方块时调用。
-func _on_spawn_tile_requested(spawn_data: Dictionary) -> void:
-	game_board.spawn_tile(spawn_data)
-	_update_stats_display()
-
-## 当 GameBoard 发出 game_lost 信号时调用。处理游戏失败逻辑。
+## 当 GameBoard 发出 game_lost 信号时调用。
 func _on_game_lost() -> void:
 	is_game_over = true
-	# 通知所有规则游戏结束，以便它们停止内部逻辑（如计时器）。
-	for rule in spawn_rules:
-		if rule.has_method("stop_timer"):
-			rule.stop_timer()
+	# 通知所有规则进行清理（如停止计时器）。
+	for rule in all_spawn_rules:
+		rule.teardown()
 	game_over_menu.open()
 
 ## 当 InteractionRule 报告有怪物被消灭时调用。
 func _on_monster_killed() -> void:
 	monsters_killed += 1
+	# 分发“怪物被消灭”事件，未来可以用于实现“消灭怪物后生成宝箱”等规则。
+	rule_manager.dispatch_event(RuleManager.Events.MONSTER_KILLED)
 	_update_stats_display()
 
 ## 当棋盘大小改变时，更新测试面板的坐标限制。
 func _on_board_resized(new_size: int):
-	if OS.has_feature("editor") and test_panel:
+	if OS.has_feature("editor") and is_instance_valid(test_panel):
 		test_panel.update_coordinate_limits(new_size)
 
 # --- UI 更新 & 菜单逻辑 ---
@@ -158,12 +157,9 @@ func _on_board_resized(new_size: int):
 func _update_stats_display() -> void:
 	var spawn_info_text = ""
 	var next_move_bonus = 0.0
-	var total_move_count = 0
 	
 	# 从所有规则中聚合需要显示的数据
-	for rule in spawn_rules:
-		if "move_count" in rule:
-			total_move_count += rule.get("move_count")
+	for rule in all_spawn_rules:
 		if rule is TimedMonsterSpawnRule:
 			var pool = rule.get_monster_spawn_pool()
 			spawn_info_text += "怪物生成概率:\n"
@@ -174,9 +170,9 @@ func _update_stats_display() -> void:
 					var p = (float(pool["weights"][i]) / total_weight) * 100
 					spawn_info_text += "  - %d: %.1f%%\n" % [pool["values"][i], p]
 			next_move_bonus = rule.get_next_move_bonus()
-		
+	
 	var stats = {
-		"move_count": total_move_count,
+		"move_count": move_count, # 直接使用 GamePlay 的 move_count
 		"monsters_killed": monsters_killed,
 		"monster_spawn_info": spawn_info_text,
 		"next_move_bonus": next_move_bonus
@@ -200,14 +196,17 @@ func _initialize_test_tools():
 
 ## 响应来自测试面板的重置棋盘请求。
 func _on_reset_and_resize_requested(new_size: int):
-	# 在重新初始化前，安全地清理所有旧的规则实例，防止内存泄漏。
-	for rule in spawn_rules:
-		if is_instance_valid(rule):
-			rule.queue_free()
-	spawn_rules.clear() # 清空数组引用
+	# 在重新初始化前，安全地清理所有旧的规则实例和管理器。
+	for rule in all_spawn_rules:
+		rule.teardown()
+	all_spawn_rules.clear()
 	
+	if is_instance_valid(rule_manager):
+		rule_manager.queue_free()
+
 	is_game_over = false
 	monsters_killed = 0
+	move_count = 0
 	game_board.reset_and_resize(new_size)
 	
 	# 重置后，重新执行完整的初始化流程。
