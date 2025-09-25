@@ -33,13 +33,13 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 			monster_tile.animate_transform()
 			player_tile.queue_free()
 			return {"merged_tile": monster_tile, "consumed_tile": player_tile}
-		else: # 同归于尽
-			player_tile.animate_transform()
-			monster_tile.animate_transform()
-			player_tile.queue_free()
-			monster_tile.queue_free()
-			monster_killed.emit()
-			return {"merged_tile": null, "consumed_tile": [player_tile, monster_tile]}
+		else: 
+			tile_b.setup(1, tile_b.type, p_rule, tile_b.color_schemes)
+			tile_b.animate_transform()
+			tile_a.queue_free()
+			if tile_a.type == Tile.TileType.MONSTER:
+				monster_killed.emit()
+			return {"merged_tile": tile_b, "consumed_tile": tile_a}
 
 	return {} # 没有发生交互
 
@@ -68,5 +68,5 @@ func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
 func get_level_by_value(value: int) -> int:
 	if value <= 0:
 		return 0
-	var level = int(log(value) / log(2)) - 1
+	var level = int(log(value) / log(2))
 	return max(0, level)

@@ -43,6 +43,7 @@ func _ready() -> void:
 
 ## 动态填充“数值”下拉列表的选项。
 func _populate_value_options() -> void:
+	value_option_button.add_item("1")
 	var current_power_of_two = 2
 	while current_power_of_two <= 65536:
 		value_option_button.add_item(str(current_power_of_two))
