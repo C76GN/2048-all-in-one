@@ -15,11 +15,12 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 	if tile_a.type == Tile.TileType.PLAYER and tile_b.type == Tile.TileType.PLAYER:
 		# 只有当数值相同时才合并。
 		if tile_a.value == tile_b.value:
+			var new_value = tile_a.value * 2
 			# 将 tile_b 的数值翻倍，并销毁 tile_a。
-			tile_b.setup(tile_a.value * 2, tile_a.type, p_rule, tile_a.color_schemes)
+			tile_b.setup(new_value, tile_a.type, p_rule, tile_a.color_schemes)
 			tile_a.queue_free()
-			# 返回结果，表明 tile_b 是合并后的方块，tile_a 是被消耗的方块。
-			return {"merged_tile": tile_b, "consumed_tile": tile_a}
+			# 返回结果，表明 tile_b 是合并后的方块，tile_a 是被消耗的方块，并带上分数。
+			return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": new_value}
 	
 	# 如果不满足上述条件，则不发生任何交互。
 	return {}

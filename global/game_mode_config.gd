@@ -9,6 +9,8 @@ extends Resource
 
 @export var mode_name: String = "未命名模式"
 
+@export_multiline var mode_description: String = ""
+
 ## 方块如何交互（合并、战斗等）的规则。
 @export var interaction_rule: InteractionRule
 

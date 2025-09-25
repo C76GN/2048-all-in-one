@@ -23,6 +23,7 @@ var all_spawn_rules: Array[SpawnRule] = [] # 持有所有规则实例的引用
 var move_count: int = 0
 var monsters_killed: int = 0
 var is_game_over: bool = false
+var score: int = 0
 
 ## Godot生命周期函数：在节点进入场景树时被调用，负责整个游戏场景的初始化。
 func _ready() -> void:
@@ -108,6 +109,7 @@ func _connect_signals() -> void:
 	game_board.move_made.connect(_on_game_board_move_made)
 	game_board.game_lost.connect(_on_game_lost)
 	game_board.board_resized.connect(_on_board_resized)
+	game_board.score_updated.connect(_on_score_updated)
 	
 	# 连接来自UI菜单的信号
 	pause_menu.resume_game.connect(_on_resume_game)
@@ -153,21 +155,50 @@ func _on_board_resized(new_size: int):
 	if OS.has_feature("editor") and is_instance_valid(test_panel):
 		test_panel.update_coordinate_limits(new_size)
 
+## 当 GameBoard 发出 score_updated 信号时调用。
+func _on_score_updated(amount: int) -> void:
+	score += amount
+	_update_stats_display() # 分数变化后立即更新显示
+
 # --- UI 更新 & 菜单逻辑 ---
 
 ## [内部函数] 聚合所有规则和状态的数据，并更新HUD显示。
 func _update_stats_display() -> void:
-	# 格式化基础的游戏状态数据
-	var display_data = {
-		"move_count": "移动次数: %d" % move_count,
-		"monsters_killed": "消灭怪物: %d" % monsters_killed
-	}
+	var display_data = {}
 	
-	# 从所有规则中聚合需要显示的动态数据（规则应返回已格式化的字符串）
+	# --- 核心游戏信息 ---
+	display_data["score"] = "分数: %d" % score
+	display_data["highest_tile"] = "最大方块: %d" % game_board.get_max_player_value()
+	display_data["move_count"] = "移动次数: %d" % move_count
+
+	# --- 模式特定信息 ---
+	# 只有在战斗模式下才显示消灭怪物数
+	if interaction_rule is BattleInteractionRule:
+		display_data["monsters_killed"] = "消灭怪物: %d" % monsters_killed
+	
+	# 斐波那契模式下，显示合成序列
+	if interaction_rule is FibonacciInteractionRule:
+		var max_value = game_board.get_max_player_value()
+		if max_value > 0:
+			var sequence = interaction_rule.get_fibonacci_sequence_up_to(max_value)
+			var sequence_str = " ".join(sequence.map(func(v): return str(v)))
+			display_data["fibonacci_sequence"] = "合成序列: %s" % sequence_str
+		else:
+			display_data["fibonacci_sequence"] = "合成序列: "
+
+	# --- 规则动态信息 ---
+	# 从所有规则中聚合需要显示的动态数据（如计时器）
 	for rule in all_spawn_rules:
 		var rule_data = rule.get_display_data()
 		if not rule_data.is_empty():
 			display_data.merge(rule_data)
+	
+	# --- 静态帮助信息 ---
+	display_data["separator"] = "--------------------" # 分隔符
+	if not mode_config.mode_description.is_empty():
+		display_data["description"] = mode_config.mode_description
+		
+	display_data["controls"] = "操作: W/A/S/D 或 方向键\n暂停: Esc"
 	
 	hud.update_display(display_data)
 
@@ -199,6 +230,7 @@ func _on_reset_and_resize_requested(new_size: int):
 	is_game_over = false
 	monsters_killed = 0
 	move_count = 0
+	score = 0
 	game_board.reset_and_resize(new_size)
 	
 	# 重置后，重新执行完整的初始化流程。

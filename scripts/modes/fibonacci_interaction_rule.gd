@@ -16,11 +16,12 @@ const PHI = 1.618034
 ## 处理两个方块之间的合并交互。
 func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) -> Dictionary:
 	if can_interact(tile_a, tile_b):
+		var new_value = tile_a.value + tile_b.value
 		# 将 tile_b 的数值更新为两者之和，并销毁 tile_a。
-		tile_b.setup(tile_a.value + tile_b.value, tile_a.type, p_rule, tile_a.color_schemes)
+		tile_b.setup(new_value, tile_a.type, p_rule, tile_a.color_schemes)
 		tile_a.queue_free()
-		# 返回结果，表明 tile_b 是合并后的方块，tile_a 是被消耗的方块。
-		return {"merged_tile": tile_b, "consumed_tile": tile_a}
+		# 返回结果，表明 tile_b 是合并后的方块，tile_a 是被消耗的方块，并带上分数。
+		return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": new_value}
 	
 	# 如果不满足条件，则不发生任何交互。
 	return {}
@@ -94,3 +95,35 @@ func get_level_by_value(value: int) -> int:
 			
 	# 如果不是一个标准的斐波那契数，返回一个高级别的颜色
 	return 15
+
+## [公共辅助函数] 根据给定的最大值，生成一个从1开始的斐波那契数列。
+## 例如，如果 max_value 是 8，它会返回 [1, 2, 3, 5, 8]。
+## @param max_value: 生成序列的上限值。
+## @return: 一个包含斐波那契数的整数数组。
+func get_fibonacci_sequence_up_to(max_value: int) -> Array[int]:
+	if max_value < 1:
+		return []
+		
+	var sequence: Array[int] = [1]
+	if max_value == 1:
+		return sequence
+		
+	var a = 1
+	var b = 2
+	
+	# 特殊处理数字2
+	if b <= max_value:
+		sequence.append(b)
+	else:
+		return sequence
+
+	while true:
+		var next_fib = a + b
+		if next_fib <= max_value:
+			sequence.append(next_fib)
+			a = b
+			b = next_fib
+		else:
+			break
+			
+	return sequence

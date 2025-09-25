@@ -15,6 +15,8 @@ signal move_made
 signal game_lost
 ## 当棋盘完成重置或扩建后发出，传递新的尺寸。
 signal board_resized(new_grid_size)
+## 当一次合并产生分数时发出。
+signal score_updated(amount)
 
 # --- 常量与预加载资源 ---
 
@@ -198,6 +200,17 @@ func get_empty_cells() -> Array:
 				empty_cells.append(Vector2i(x, y))
 	return empty_cells
 
+## 遍历整个网格，返回所有玩家方块数值的数组。
+func get_all_player_tile_values() -> Array[int]:
+	var values: Array[int] = []
+	for x in range(grid_size):
+		for y in range(grid_size):
+			var tile = grid[x][y]
+			if tile != null and tile.type == Tile.TileType.PLAYER:
+				values.append(tile.value)
+	values.sort()
+	return values
+
 # --- 初始化与布局 ---
 
 func _initialize_board() -> void:
@@ -241,6 +254,11 @@ func _process_line(line: Array) -> Array:
 				var merged = result.get("merged_tile")
 				if merged != null:
 					merged_line.append(merged)
+				
+				# 如果交互结果包含分数，则发出信号
+				if result.has("score"):
+					score_updated.emit(result["score"])
+					
 				i += 2
 				continue
 		
