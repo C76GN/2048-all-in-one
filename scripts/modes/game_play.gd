@@ -106,21 +106,39 @@ func _unhandled_input(event: InputEvent) -> void:
 ## [内部函数] 集中管理所有节点和规则的信号连接。
 func _connect_signals() -> void:
 	# 连接来自核心组件的信号
-	game_board.move_made.connect(_on_game_board_move_made)
-	game_board.game_lost.connect(_on_game_lost)
-	game_board.board_resized.connect(_on_board_resized)
-	game_board.score_updated.connect(_on_score_updated)
+	if not game_board.move_made.is_connected(_on_game_board_move_made):
+		game_board.move_made.connect(_on_game_board_move_made)
+	
+	if not game_board.game_lost.is_connected(_on_game_lost):
+		game_board.game_lost.connect(_on_game_lost)
+		
+	if not game_board.board_resized.is_connected(_on_board_resized):
+		game_board.board_resized.connect(_on_board_resized)
+		
+	if not game_board.score_updated.is_connected(_on_score_updated):
+		game_board.score_updated.connect(_on_score_updated)
 	
 	# 连接来自UI菜单的信号
-	pause_menu.resume_game.connect(_on_resume_game)
-	pause_menu.restart_game.connect(_on_restart_game)
-	pause_menu.return_to_main_menu.connect(_on_return_to_main_menu)
-	game_over_menu.restart_game.connect(_on_restart_game)
-	game_over_menu.return_to_main_menu.connect(_on_return_to_main_menu)
+	if not pause_menu.resume_game.is_connected(_on_resume_game):
+		pause_menu.resume_game.connect(_on_resume_game)
+		
+	if not pause_menu.restart_game.is_connected(_on_restart_game):
+		pause_menu.restart_game.connect(_on_restart_game)
+		
+	if not pause_menu.return_to_main_menu.is_connected(_on_return_to_main_menu):
+		pause_menu.return_to_main_menu.connect(_on_return_to_main_menu)
+		
+	if not game_over_menu.restart_game.is_connected(_on_restart_game):
+		game_over_menu.restart_game.connect(_on_restart_game)
+		
+	if not game_over_menu.return_to_main_menu.is_connected(_on_return_to_main_menu):
+		game_over_menu.return_to_main_menu.connect(_on_return_to_main_menu)
 	
 	# 连接来自规则的信号
-	rule_manager.spawn_tile_requested.connect(game_board.spawn_tile)
-	if is_instance_valid(interaction_rule):
+	if is_instance_valid(rule_manager) and not rule_manager.spawn_tile_requested.is_connected(game_board.spawn_tile):
+		rule_manager.spawn_tile_requested.connect(game_board.spawn_tile)
+		
+	if is_instance_valid(interaction_rule) and not interaction_rule.monster_killed.is_connected(_on_monster_killed):
 		interaction_rule.monster_killed.connect(_on_monster_killed)
 
 # --- 信号处理函数 ---
@@ -211,9 +229,14 @@ func _toggle_pause_menu():
 func _initialize_test_tools():
 	if OS.has_feature("editor"):
 		test_panel.visible = true
-		test_panel.spawn_requested.connect(game_board.spawn_specific_tile)
-		test_panel.reset_and_resize_requested.connect(_on_reset_and_resize_requested)
-		test_panel.live_expand_requested.connect(game_board.live_expand)
+		if not test_panel.spawn_requested.is_connected(game_board.spawn_specific_tile):
+			test_panel.spawn_requested.connect(game_board.spawn_specific_tile)
+			
+		if not test_panel.reset_and_resize_requested.is_connected(_on_reset_and_resize_requested):
+			test_panel.reset_and_resize_requested.connect(_on_reset_and_resize_requested)
+			
+		if not test_panel.live_expand_requested.is_connected(game_board.live_expand):
+			test_panel.live_expand_requested.connect(game_board.live_expand)
 	else:
 		test_panel.visible = false
 

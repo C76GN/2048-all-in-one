@@ -1,0 +1,58 @@
+[gd_resource type="Resource" script_class="TileColorScheme" load_steps=13 format=3 uid="uid://s3kbyu2ihxcq"]
+
+[ext_resource type="Script" uid="uid://dwmd115dhs0pl" path="res://global/tile_color_scheme.gd" id="1_y5l2w"]
+[ext_resource type="Script" uid="uid://b7dkhehece8ke" path="res://global/tile_level_style.gd" id="2_5t5s8"]
+
+[sub_resource type="Resource" id="Resource_y5l2w"]
+script = ExtResource("2_5t5s8")
+background_color = Color(0.8901961, 0.9490196, 0.99215686, 1)
+font_color = Color(0.050980393, 0.2784314, 0.6313726, 1)
+
+[sub_resource type="Resource" id="Resource_5t5s8"]
+script = ExtResource("2_5t5s8")
+background_color = Color(0.73333335, 0.87058824, 0.9843137, 1)
+font_color = Color(0.050980393, 0.2784314, 0.6313726, 1)
+
+[sub_resource type="Resource" id="Resource_g0yvn"]
+script = ExtResource("2_5t5s8")
+background_color = Color(0.5647059, 0.7921569, 0.9764706, 1)
+font_color = Color(0.050980393, 0.2784314, 0.6313726, 1)
+
+[sub_resource type="Resource" id="Resource_j2yau"]
+script = ExtResource("2_5t5s8")
+background_color = Color(0.39215687, 0.70980394, 0.9647059, 1)
+font_color = Color(1, 1, 1, 1)
+
+[sub_resource type="Resource" id="Resource_s5ie8"]
+script = ExtResource("2_5t5s8")
+background_color = Color(0.25882354, 0.64705884, 0.9607843, 1)
+font_color = Color(1, 1, 1, 1)
+
+[sub_resource type="Resource" id="Resource_75gh3"]
+script = ExtResource("2_5t5s8")
+background_color = Color(0.12941177, 0.5882353, 0.9529412, 1)
+font_color = Color(1, 1, 1, 1)
+
+[sub_resource type="Resource" id="Resource_3fnlm"]
+script = ExtResource("2_5t5s8")
+background_color = Color(0.11764706, 0.53333336, 0.8980392, 1)
+font_color = Color(1, 1, 1, 1)
+
+[sub_resource type="Resource" id="Resource_44nhr"]
+script = ExtResource("2_5t5s8")
+background_color = Color(0.09803922, 0.4627451, 0.8235294, 1)
+font_color = Color(1, 1, 1, 1)
+
+[sub_resource type="Resource" id="Resource_c2gnw"]
+script = ExtResource("2_5t5s8")
+background_color = Color(0.08235294, 0.39607844, 0.7529412, 1)
+font_color = Color(1, 1, 1, 1)
+
+[sub_resource type="Resource" id="Resource_4sgnd"]
+script = ExtResource("2_5t5s8")
+background_color = Color(0.050980393, 0.2784314, 0.6313726, 1)
+font_color = Color(1, 1, 1, 1)
+
+[resource]
+script = ExtResource("1_y5l2w")
+styles = Array[ExtResource("2_5t5s8")]([SubResource("Resource_y5l2w"), SubResource("Resource_5t5s8"), SubResource("Resource_g0yvn"), SubResource("Resource_j2yau"), SubResource("Resource_s5ie8"), SubResource("Resource_75gh3"), SubResource("Resource_3fnlm"), SubResource("Resource_44nhr"), SubResource("Resource_c2gnw"), SubResource("Resource_4sgnd")])

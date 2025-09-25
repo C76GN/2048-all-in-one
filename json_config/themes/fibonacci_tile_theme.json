@@ -1,0 +1,16 @@
+{
+	"type": "TileColorScheme",
+	"name": "fibonacci_tile_theme",
+	"styles": [
+		{ "bg": "#FFFDE7", "font": "#795548" }, 
+		{ "bg": "#FFF9C4", "font": "#5D4037" }, 
+		{ "bg": "#FFF59D", "font": "#4E342E" }, 
+		{ "bg": "#FFEE58", "font": "#1B5E20" }, 
+		{ "bg": "#FBC02D", "font": "#1B5E20" }, 
+		{ "bg": "#F9A825", "font": "#1B5E20" }, 
+		{ "bg": "#F57F17", "font": "#FFFFFF" }, 
+		{ "bg": "#CDDC39", "font": "#263238" }, 
+		{ "bg": "#9E9D24", "font": "#FFFFFF" }, 
+		{ "bg": "#827717", "font": "#FFFFFF" }
+	]
+}

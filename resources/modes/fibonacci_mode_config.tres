@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="1_i6mjw"]
 [ext_resource type="Script" uid="uid://cjyusdv36u0s6" path="res://scripts/modes/fibonacci_interaction_rule.gd" id="1_naqou"]
 [ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/spawn_rule.gd" id="2_6xepx"]
-[ext_resource type="Resource" uid="uid://n8l73wke5rgq" path="res://resources/themes/bule_to_green_tile_theme.tres" id="2_s7tht"]
+[ext_resource type="Resource" uid="uid://n8l73wke5rgq" path="res://resources/themes/fibonacci_tile_theme.tres" id="2_s7tht"]
 [ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_tile_theme.tres" id="3_56jyg"]
 [ext_resource type="Resource" uid="uid://d2gxks83gv2v2" path="res://resources/modes/fibonacci_spawn_rule_init.tres" id="4_dtg25"]
 [ext_resource type="Resource" uid="uid://42cxoxfotqxu" path="res://resources/modes/fibonacci_spawn_rule_on_move.tres" id="5_4014i"]

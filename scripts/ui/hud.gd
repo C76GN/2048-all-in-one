@@ -42,6 +42,7 @@ func update_display(display_data: Dictionary) -> void:
 		# 如果这个key的标签还未被创建...
 		if not _stat_labels.has(key):
 			label_node = Label.new() # 创建一个新的Label
+			label_node.autowrap_mode = TextServer.AUTOWRAP_WORD
 			stats_container.add_child(label_node) # 将其添加到容器中
 			_stat_labels[key] = label_node # 缓存起来以便复用
 		else:

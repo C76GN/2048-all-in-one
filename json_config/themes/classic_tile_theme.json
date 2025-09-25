@@ -8,11 +8,10 @@
 		{ "bg": "#F59563", "font": "#F9F6F2" },
 		{ "bg": "#F67C5F", "font": "#F9F6F2" },
 		{ "bg": "#F65E3B", "font": "#F9F6F2" },
-		{ "bg": "#EDCF72", "font": "#F9F6F2" },
-		{ "bg": "#EDCC61", "font": "#F9F6F2" },
-		{ "bg": "#EDC850", "font": "#F9F6F2" },
-		{ "bg": "#EDC53F", "font": "#F9F6F2" },
-		{ "bg": "#EDC22E", "font": "#F9F6F2" },
-		{ "bg": "#3C3A32", "font": "#F9F6F2" }
+		{ "bg": "#EDCF72", "font": "#776E65" },
+		{ "bg": "#EDCC61", "font": "#776E65" },
+		{ "bg": "#EDC850", "font": "#776E65" },
+		{ "bg": "#EDC53F", "font": "#776E65" },
+		{ "bg": "#EDC22E", "font": "#776E65" }
 	]
 }

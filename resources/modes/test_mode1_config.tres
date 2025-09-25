@@ -3,7 +3,7 @@
 [ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/default_board_theme.tres" id="1_0vy1t"]
 [ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="1_3lm28"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="1_jli1c"]
-[ext_resource type="Resource" uid="uid://s3kbyu2ihxcq" path="res://resources/themes/bule_tile_theme.tres" id="2_20f8l"]
+[ext_resource type="Resource" uid="uid://s3kbyu2ihxcq" path="res://resources/themes/blue_tile_theme.tres" id="2_20f8l"]
 [ext_resource type="Script" uid="uid://dg4uoygc0uq8m" path="res://scripts/modes/battle_interaction_rule.gd" id="2_jli1c"]
 [ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_tile_theme.tres" id="3_vda7w"]
 [ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/spawn_rule.gd" id="4_qel32"]

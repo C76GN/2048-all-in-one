@@ -1,0 +1,16 @@
+{
+	"type": "TileColorScheme",
+	"name": "blue_tile_theme",
+	"styles": [
+		{ "bg": "#E3F2FD", "font": "#0D47A1" },
+		{ "bg": "#BBDEFB", "font": "#0D47A1" },
+		{ "bg": "#90CAF9", "font": "#0D47A1" },
+		{ "bg": "#64B5F6", "font": "#FFFFFF" },
+		{ "bg": "#42A5F5", "font": "#FFFFFF" },
+		{ "bg": "#2196F3", "font": "#FFFFFF" },
+		{ "bg": "#1E88E5", "font": "#FFFFFF" },
+		{ "bg": "#1976D2", "font": "#FFFFFF" },
+		{ "bg": "#1565C0", "font": "#FFFFFF" },
+		{ "bg": "#0D47A1", "font": "#FFFFFF" }
+	]
+}
