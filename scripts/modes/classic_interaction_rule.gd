@@ -42,3 +42,16 @@ func get_level_by_value(value: int) -> int:
 		return 0
 	var level = int(log(value) / log(2)) - 1
 	return max(0, level)
+
+## 获取此规则下所有可生成的方块“类型”。
+func get_spawnable_types() -> Dictionary:
+	return {Tile.TileType.PLAYER: "玩家"}
+
+## 根据指定的类型ID，获取所有可生成的方块“数值”。
+func get_spawnable_values(_type_id: int) -> Array[int]:
+	var values: Array[int] = []
+	var current_power_of_two = 2
+	while current_power_of_two <= 8192:
+		values.append(current_power_of_two)
+		current_power_of_two *= 2
+	return values

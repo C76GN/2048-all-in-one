@@ -162,3 +162,31 @@ func get_display_data() -> Dictionary:
 		fib_data.append(item)
 			
 	return {"fibonacci_sequence": fib_data}
+
+## 获取此规则下所有可生成的方块“类型”。
+func get_spawnable_types() -> Dictionary:
+	return {Tile.TileType.PLAYER: "斐波那契数"}
+
+## 根据指定的类型ID，获取所有可生成的方块“数值”。
+func get_spawnable_values(_type_id: int) -> Array[int]:
+	var sequence: Array[int] = [1]
+	if 1 > 10000: return sequence
+	
+	sequence.append(1)
+	var a = 1
+	var b = 2
+	sequence.append(b)
+
+	while b < 10000:
+		var next_fib = a + b
+		if next_fib > 10000: break
+		sequence.append(next_fib)
+		a = b
+		b = next_fib
+		
+	var unique_sequence: Array[int] = []
+	for item in sequence:
+		if not unique_sequence.has(item):
+			unique_sequence.append(item)
+	unique_sequence.sort()
+	return unique_sequence

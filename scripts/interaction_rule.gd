@@ -43,3 +43,15 @@ func get_color_scheme_index(_value: int) -> int:
 ## 子类可以重写此方法，返回一个字典，供HUD展示。
 func get_display_data() -> Dictionary:
 	return {}
+
+## 获取此规则下所有可生成的方块“类型”。
+## @return: 一个字典，键是类型ID(int)，值是类型的可读名称(String)。
+##          例如: {0: "Player", 1: "Monster"}
+func get_spawnable_types() -> Dictionary:
+	return {} # 默认返回空字典，子类必须重写。
+
+## 根据指定的类型ID，获取所有可生成的方块“数值”。
+## @param _type_id: 类型的ID。
+## @return: 一个包含所有合法数值(int)的数组。
+func get_spawnable_values(_type_id: int) -> Array[int]:
+	return [] # 默认返回空数组，子类必须重写。

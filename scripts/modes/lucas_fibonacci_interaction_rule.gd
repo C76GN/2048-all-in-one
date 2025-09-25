@@ -173,3 +173,22 @@ func get_display_data() -> Dictionary:
 		"luc_sequence_display": luc_data,
 		"synthesis_tip_display": synthesis_tip
 	}
+
+## 获取此规则下所有可生成的方块“类型”。
+func get_spawnable_types() -> Dictionary:
+	# 在这个模式中，用 0 代表斐波那契，1 代表卢卡斯，这与 get_color_scheme_index 的逻辑一致
+	return {
+		0: "斐波那契数",
+		1: "卢卡斯数"
+	}
+
+## 根据指定的类型ID，获取所有可生成的方块“数值”。
+func get_spawnable_values(type_id: int) -> Array[int]:
+	match type_id:
+		0: # 斐波那契数
+			return _fib_sequence
+		1: # 卢卡斯数
+			var luc_display = _luc_sequence.duplicate()
+			luc_display.sort()
+			return luc_display
+	return []

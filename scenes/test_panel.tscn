@@ -61,12 +61,6 @@ text = "类型："
 [node name="TypeOptionButton" type="OptionButton" parent="HBoxContainer4"]
 unique_name_in_owner = true
 layout_mode = 2
-selected = 0
-item_count = 2
-popup/item_0/text = "PLAYER"
-popup/item_0/id = 0
-popup/item_1/text = "MONSTER"
-popup/item_1/id = 1
 
 [node name="SpawnButton" type="Button" parent="."]
 unique_name_in_owner = true

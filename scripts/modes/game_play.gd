@@ -218,22 +218,6 @@ func _update_stats_display() -> void:
 	
 	hud.update_display(display_data)
 
-	# --- 规则动态信息 ---
-	# 从所有规则中聚合需要显示的动态数据（如计时器）
-	for rule in all_spawn_rules:
-		var rule_data = rule.get_display_data()
-		if not rule_data.is_empty():
-			display_data.merge(rule_data)
-	
-	# --- 静态帮助信息 ---
-	display_data["separator"] = "--------------------" # 分隔符
-	if not mode_config.mode_description.is_empty():
-		display_data["description"] = mode_config.mode_description
-		
-	display_data["controls"] = "操作: W/A/S/D 或 方向键\n暂停: Esc"
-	
-	hud.update_display(display_data)
-
 ## [内部函数] 切换暂停菜单的可见性及游戏的暂停状态。
 func _toggle_pause_menu():
 	get_tree().paused = not get_tree().paused
@@ -241,18 +225,47 @@ func _toggle_pause_menu():
 
 ## [内部函数] 初始化仅在编辑器中可见的测试工具面板。
 func _initialize_test_tools():
-	if OS.has_feature("editor"):
-		test_panel.visible = true
-		if not test_panel.spawn_requested.is_connected(game_board.spawn_specific_tile):
-			test_panel.spawn_requested.connect(game_board.spawn_specific_tile)
-			
-		if not test_panel.reset_and_resize_requested.is_connected(_on_reset_and_resize_requested):
-			test_panel.reset_and_resize_requested.connect(_on_reset_and_resize_requested)
-			
-		if not test_panel.live_expand_requested.is_connected(game_board.live_expand):
-			test_panel.live_expand_requested.connect(game_board.live_expand)
-	else:
+	if not OS.has_feature("editor"):
 		test_panel.visible = false
+		return
+		
+	test_panel.visible = true
+	
+	# 1. 连接TestPanel发出的请求信号
+	if not test_panel.spawn_requested.is_connected(_on_test_panel_spawn_requested):
+		test_panel.spawn_requested.connect(_on_test_panel_spawn_requested)
+	
+	if not test_panel.values_requested_for_type.is_connected(_on_test_panel_values_requested):
+		test_panel.values_requested_for_type.connect(_on_test_panel_values_requested)
+		
+	if not test_panel.reset_and_resize_requested.is_connected(_on_reset_and_resize_requested):
+		test_panel.reset_and_resize_requested.connect(_on_reset_and_resize_requested)
+		
+	if not test_panel.live_expand_requested.is_connected(game_board.live_expand):
+		test_panel.live_expand_requested.connect(game_board.live_expand)
+	
+	# 2. 使用当前模式的规则来配置TestPanel
+	var spawnable_types = interaction_rule.get_spawnable_types()
+	test_panel.setup_panel(spawnable_types)
+
+## 响应来自测试面板的生成方块请求。
+func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int) -> void:
+	var tile_type_enum: Tile.TileType
+	
+	# 核心转换逻辑：将来自TestPanel的通用type_id转换为引擎可识别的Tile.TileType枚举。
+	# 对于卢卡斯-斐波那契模式，所有“类型”实际上都是PLAYER类型。
+	if interaction_rule is LucasFibonacciInteractionRule:
+		tile_type_enum = Tile.TileType.PLAYER
+	else:
+		# 对于其他模式，我们假设 type_id 直接对应 Tile.TileType 枚举值 (0=PLAYER, 1=MONSTER)
+		tile_type_enum = type_id as Tile.TileType
+		
+	game_board.spawn_specific_tile(grid_pos, value, tile_type_enum)
+
+## 响应来自测试面板的、为特定类型请求数值列表的请求。
+func _on_test_panel_values_requested(type_id: int) -> void:
+	var values = interaction_rule.get_spawnable_values(type_id)
+	test_panel.update_value_options(values)
 
 ## 响应来自测试面板的重置棋盘请求。
 func _on_reset_and_resize_requested(new_size: int):
