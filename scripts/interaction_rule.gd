@@ -9,6 +9,11 @@ extends Resource
 
 # --- 信号定义 ---
 
+## 在游戏开始时被调用，用于设置此规则所需的依赖（如GameBoard）。
+## 子类可以重写此方法来存储对棋盘或其他节点的引用。
+func setup(_game_board: Control) -> void:
+	pass # 默认实现为空，需要引用的子类可以重写它。
+
 ## 处理两个方块之间的交互。
 ## 具体的规则需要重写此方法。
 func process_interaction(_tile_a: Tile, _tile_b: Tile, _p_rule: InteractionRule) -> Dictionary:
