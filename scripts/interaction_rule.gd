@@ -28,3 +28,13 @@ func can_interact(_tile_a: Tile, _tile_b: Tile) -> bool:
 ## 子类需要重写此方法。
 func get_level_by_value(_value: int) -> int:
 	return 0
+
+## 根据方块的数值，返回其应使用的配色方案索引。
+## 默认返回0。子类可以重写此方法以支持多配色方案。
+func get_color_scheme_index(_value: int) -> int:
+	return 0
+
+## 获取用于在HUD上显示的动态数据。
+## 子类可以重写此方法，返回一个字典，供HUD展示。
+func get_display_data() -> Dictionary:
+	return {}

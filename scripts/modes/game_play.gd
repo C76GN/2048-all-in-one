@@ -42,6 +42,7 @@ func _ready() -> void:
 	add_child(rule_manager)
 	
 	interaction_rule = mode_config.interaction_rule.duplicate()
+	interaction_rule.setup(game_board)
 	var game_over_rule = mode_config.game_over_rule.duplicate()
 	# 应用棋盘主题
 	if is_instance_valid(mode_config.board_theme):
@@ -195,15 +196,27 @@ func _update_stats_display() -> void:
 	if interaction_rule is BattleInteractionRule:
 		display_data["monsters_killed"] = "消灭怪物: %d" % monsters_killed
 	
-	# 斐波那契模式下，显示合成序列
-	if interaction_rule is FibonacciInteractionRule:
-		var max_value = game_board.get_max_player_value()
-		if max_value > 0:
-			var sequence = interaction_rule.get_fibonacci_sequence_up_to(max_value)
-			var sequence_str = " ".join(sequence.map(func(v): return str(v)))
-			display_data["fibonacci_sequence"] = "合成序列: %s" % sequence_str
-		else:
-			display_data["fibonacci_sequence"] = "合成序列: "
+	# --- 从交互规则获取动态信息 (例如数列) ---
+	if is_instance_valid(interaction_rule):
+		var interaction_data = interaction_rule.get_display_data()
+		if not interaction_data.is_empty():
+			display_data.merge(interaction_data)
+
+	# --- 规则动态信息 ---
+	# 从所有规则中聚合需要显示的动态数据（如计时器）
+	for rule in all_spawn_rules:
+		var rule_data = rule.get_display_data()
+		if not rule_data.is_empty():
+			display_data.merge(rule_data)
+	
+	# --- 静态帮助信息 ---
+	display_data["separator"] = "--------------------" # 分隔符
+	if not mode_config.mode_description.is_empty():
+		display_data["description"] = mode_config.mode_description
+		
+	display_data["controls"] = "操作: W/A/S/D 或 方向键\n暂停: Esc"
+	
+	hud.update_display(display_data)
 
 	# --- 规则动态信息 ---
 	# 从所有规则中聚合需要显示的动态数据（如计时器）

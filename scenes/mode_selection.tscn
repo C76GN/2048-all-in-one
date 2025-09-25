@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://behkac7sg4loi"]
+[gd_scene load_steps=7 format=3 uid="uid://behkac7sg4loi"]
 
 [ext_resource type="Script" uid="uid://dv3rjr57hmwij" path="res://scripts/ui/mode_selection.gd" id="1_jv0sf"]
 [ext_resource type="PackedScene" uid="uid://28ale2iku1n4" path="res://scenes/modes/game_play.tscn" id="2_0hetu"]
 [ext_resource type="Resource" uid="uid://dso7a1vuipkqt" path="res://resources/modes/classic_mode_config.tres" id="3_t5a4b"]
 [ext_resource type="Resource" uid="uid://djrsravpjyj8" path="res://resources/modes/fibonacci_mode_config.tres" id="4_t4d1t"]
 [ext_resource type="Resource" uid="uid://dwjqj7f52y8in" path="res://resources/modes/test_mode1_config.tres" id="5_ws4rq"]
+[ext_resource type="Resource" uid="uid://dlv621h6njs6m" path="res://resources/modes/lucas_fibonacci_mode_config.tres" id="6_t4d1t"]
 
 [node name="ModeSelection" type="Control"]
 layout_mode = 3
@@ -15,7 +16,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_jv0sf")
 game_play_scene = ExtResource("2_0hetu")
-mode_configs = Array[Resource]([ExtResource("3_t5a4b"), ExtResource("4_t4d1t"), ExtResource("5_ws4rq")])
+mode_configs = Array[Resource]([ExtResource("3_t5a4b"), ExtResource("4_t4d1t"), ExtResource("5_ws4rq"), ExtResource("6_t4d1t")])
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1

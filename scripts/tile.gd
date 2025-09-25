@@ -70,10 +70,19 @@ func _update_visuals() -> void:
 	# 步骤1: 更新显示的文本。
 	value_label.text = str(int(value))
 	
-	# 步骤2: 根据方块类型从字典中动态查询颜色主题。
-	var current_scheme: TileColorScheme = color_schemes.get(type)
+	if not is_instance_valid(interaction_rule):
+		return
+		
+	# 步骤2: 根据方块类型或数值，动态查询颜色主题。
+	# 明确指定 scheme_index 为 int 类型，以解决类型转换警告。
+	var scheme_index: int = type 
+	if type == TileType.PLAYER:
+		# 对于玩家方块，查询交互规则来决定使用哪个配色方案
+		scheme_index = interaction_rule.get_color_scheme_index(value)
+		
+	var current_scheme: TileColorScheme = color_schemes.get(scheme_index)
 	
-	if not is_instance_valid(current_scheme) or not is_instance_valid(interaction_rule) or current_scheme.styles.is_empty():
+	if not is_instance_valid(current_scheme) or current_scheme.styles.is_empty():
 		return
 
 	# 步骤3: 获取当前数值等级对应的样式。

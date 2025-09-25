@@ -4,6 +4,7 @@
 
 [resource]
 script = ExtResource("1_xvu88")
+consumes_event_on_success = false
 trigger = 0
 priority = 100
 metadata/_custom_type_script = "uid://byw1xfby61af1"

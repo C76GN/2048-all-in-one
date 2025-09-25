@@ -14,20 +14,29 @@ extends SpawnRule
 
 ## 执行生成逻辑。
 func execute(_payload: Dictionary = {}) -> bool:
-	# 检查棋盘是否已满，如果满了则无法生成，事件未被消费。
+	# 检查棋盘是否已满，如果满了则无法生成。
 	if game_board.get_empty_cells().is_empty():
 		return false
 
-	# 经典规则：按概率生成2或4。
-	var value = 2 if randf() < probability_of_2 else 4
+	var spawn_count = 1
+	# 特殊逻辑：如果是初始化事件，则生成两个方块。
+	if trigger == TriggerType.ON_INITIALIZE:
+		spawn_count = 2
+
+	# 确保要生成的方块数量不超过棋盘上的空格数量。
+	spawn_count = min(spawn_count, game_board.get_empty_cells().size())
+
+	for i in range(spawn_count):
+		# 经典规则：按概率生成2或4。
+		var value = 2 if randf() < probability_of_2 else 4
+		
+		var spawn_data = {
+			"value": value,
+			"type": Tile.TileType.PLAYER,
+			"is_priority": false
+		}
+		
+		spawn_tile_requested.emit(spawn_data)
 	
-	var spawn_data = {
-		"value": value,
-		"type": Tile.TileType.PLAYER,
-		"is_priority": false
-	}
-	
-	spawn_tile_requested.emit(spawn_data)
-	
-	# 成功请求了生成，认为事件已被消费。
+	# 成功请求了生成，根据配置决定是否消费事件。
 	return consumes_event_on_success
