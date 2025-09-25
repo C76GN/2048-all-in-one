@@ -225,7 +225,7 @@ func _toggle_pause_menu():
 
 ## [内部函数] 初始化仅在编辑器中可见的测试工具面板。
 func _initialize_test_tools():
-	if not OS.has_feature("editor"):
+	if not OS.has_feature("with_test_panel") and not OS.has_feature("editor"):
 		test_panel.visible = false
 		return
 		
