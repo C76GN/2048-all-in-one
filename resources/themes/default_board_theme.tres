@@ -6,4 +6,4 @@
 script = ExtResource("1_d4myl")
 game_background_color = Color(0.29803923, 0.29803923, 0.29803923, 1)
 board_panel_color = Color(0.27450982, 0.27450982, 0.27450982, 1)
-empty_cell_color = Color(0.39215687, 0.39215687, 0.39215687, 1)
+empty_cell_color = Color(0.23529412, 0.23529412, 0.23529412, 1)

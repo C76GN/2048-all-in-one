@@ -71,6 +71,7 @@ func _ready() -> void:
 
 	# 步骤4: 注册所有规则到管理器并连接所有信号。
 	rule_manager.register_rules(all_spawn_rules)
+	game_board.initialize_board()
 	_connect_signals()
 	
 	# 步骤5: 通过管理器触发棋盘初始化事件。
@@ -254,7 +255,7 @@ func _on_reset_and_resize_requested(new_size: int):
 	monsters_killed = 0
 	move_count = 0
 	score = 0
-	game_board.reset_and_resize(new_size)
+	game_board.reset_and_resize(new_size, mode_config.board_theme)
 	
 	# 重置后，重新执行完整的初始化流程。
 	_ready()

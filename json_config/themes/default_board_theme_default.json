@@ -3,5 +3,5 @@
 	"name": "default_board_theme",
 	"game_background": "#4c4c4c",
 	"board_panel": "#464646",
-	"empty_cell": "#646464"
+	"empty_cell": "#3c3c3c"
 }

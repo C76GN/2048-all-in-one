@@ -63,8 +63,6 @@ var board_theme: BoardTheme
 func _ready() -> void:
 	# 连接 resized 信号，当本控件尺寸变化时更新内部布局。
 	resized.connect(_update_board_layout)
-	# 推迟一帧调用，以确保父容器已经完成了初始布局，赋予了本控件正确的尺寸。
-	_initialize_board()
 
 # --- 公共接口 ---
 
@@ -75,6 +73,14 @@ func set_rules(p_interaction_rule: InteractionRule, p_game_over_rule: GameOverRu
 	self.game_over_rule = p_game_over_rule
 	self.color_schemes = p_color_schemes
 	self.board_theme = p_board_theme
+
+## 公共的初始化函数，由 GamePlay 在设置完规则后调用。
+func initialize_board() -> void:
+	_initialize_grid()
+	_update_board_layout()
+	if not is_initialized:
+		_draw_board_cells()
+		is_initialized = true
 
 ## 根据给定的方向向量处理一次完整的移动操作。
 func handle_move(direction: Vector2i) -> void:
@@ -160,7 +166,8 @@ func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) ->
 	_spawn_at(grid_pos, value, type)
 
 ## 重置整个棋盘并应用新的尺寸。
-func reset_and_resize(new_size: int) -> void:
+func reset_and_resize(new_size: int, p_board_theme: BoardTheme) -> void:
+	self.board_theme = p_board_theme
 	for child in board_container.get_children():
 		child.queue_free()
 	
@@ -168,7 +175,7 @@ func reset_and_resize(new_size: int) -> void:
 	is_initialized = false
 	grid_size = new_size
 	
-	_initialize_board()
+	initialize_board()
 	board_resized.emit(grid_size)
 
 ## 在游戏进行中扩建棋盘（只能变大）。
@@ -212,13 +219,6 @@ func get_all_player_tile_values() -> Array[int]:
 	return values
 
 # --- 初始化与布局 ---
-
-func _initialize_board() -> void:
-	_initialize_grid()
-	_update_board_layout()
-	if not is_initialized:
-		_draw_board_cells()
-		is_initialized = true
 
 ## 当GameBoard控件尺寸改变时，重新计算并应用所有内部元素的变换。
 func _update_board_layout() -> void:
@@ -338,11 +338,16 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 		if child is Panel: child.queue_free()
 
 	var new_cells_tween = create_tween().set_parallel(true)
+	
+	var cell_color = Color("3c3c3c") # 默认后备颜色
+	if is_instance_valid(board_theme):
+		cell_color = board_theme.empty_cell_color
+		
 	for x in new_size:
 		for y in new_size:
 			var cell_bg = Panel.new()
 			var stylebox = StyleBoxFlat.new()
-			stylebox.bg_color = Color("3c3c3c")
+			stylebox.bg_color = cell_color
 			stylebox.set_corner_radius_all(8)
 			cell_bg.add_theme_stylebox_override("panel", stylebox)
 			
