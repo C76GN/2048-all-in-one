@@ -4,9 +4,9 @@
 [ext_resource type="Resource" uid="uid://n8l73wke5rgq" path="res://resources/themes/fibonacci_tile_theme.tres" id="1_osb3v"]
 [ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/default_board_theme.tres" id="1_qvxyt"]
 [ext_resource type="Resource" uid="uid://dnkb8q4knxdqq" path="res://resources/themes/lucas_tile_theme.tres" id="2_i4534"]
-[ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/spawn_rule.gd" id="2_snxym"]
-[ext_resource type="Script" uid="uid://bi0d681ctpalu" path="res://scripts/modes/lucas_fibonacci_interaction_rule.gd" id="3_kv8th"]
-[ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/modes/standard_game_over_rule.gd" id="4_u40v4"]
+[ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/rules/base/spawn_rule.gd" id="2_snxym"]
+[ext_resource type="Script" uid="uid://bi0d681ctpalu" path="res://scripts/rules/interaction/lucas_fibonacci_interaction_rule.gd" id="3_kv8th"]
+[ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/rules/game_over/standard_game_over_rule.gd" id="4_u40v4"]
 [ext_resource type="Resource" uid="uid://d2gxks83gv2v2" path="res://resources/modes/fibonacci_spawn_rule_init.tres" id="8_waqm1"]
 [ext_resource type="Resource" uid="uid://42cxoxfotqxu" path="res://resources/modes/fibonacci_spawn_rule_on_move.tres" id="9_u40v4"]
 

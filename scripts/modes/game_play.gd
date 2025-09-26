@@ -191,14 +191,15 @@ func _update_stats_display() -> void:
 	display_data["highest_tile"] = "最大方块: %d" % game_board.get_max_player_value()
 	display_data["move_count"] = "移动次数: %d" % move_count
 
-	# --- 模式特定信息 ---
-	# 只有在战斗模式下才显示消灭怪物数
-	if interaction_rule is BattleInteractionRule:
-		display_data["monsters_killed"] = "消灭怪物: %d" % monsters_killed
-	
-	# --- 从交互规则获取动态信息 (例如数列) ---
+	# --- 模式特定信息 (通过上下文传递给规则) ---
 	if is_instance_valid(interaction_rule):
-		var interaction_data = interaction_rule.get_display_data()
+		# 创建一个上下文，将游戏状态传递给规则
+		var context = {
+			"monsters_killed": monsters_killed,
+			"score": score,
+			"move_count": move_count
+		}
+		var interaction_data = interaction_rule.get_display_data(context)
 		if not interaction_data.is_empty():
 			display_data.merge(interaction_data)
 
@@ -250,16 +251,8 @@ func _initialize_test_tools():
 
 ## 响应来自测试面板的生成方块请求。
 func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int) -> void:
-	var tile_type_enum: Tile.TileType
-	
-	# 核心转换逻辑：将来自TestPanel的通用type_id转换为引擎可识别的Tile.TileType枚举。
-	# 对于卢卡斯-斐波那契模式，所有“类型”实际上都是PLAYER类型。
-	if interaction_rule is LucasFibonacciInteractionRule:
-		tile_type_enum = Tile.TileType.PLAYER
-	else:
-		# 对于其他模式，我们假设 type_id 直接对应 Tile.TileType 枚举值 (0=PLAYER, 1=MONSTER)
-		tile_type_enum = type_id as Tile.TileType
-		
+	# 将类型ID到TileType枚举的转换委托给当前的交互规则
+	var tile_type_enum = interaction_rule.get_tile_type_from_id(type_id)
 	game_board.spawn_specific_tile(grid_pos, value, tile_type_enum)
 
 ## 响应来自测试面板的、为特定类型请求数值列表的请求。

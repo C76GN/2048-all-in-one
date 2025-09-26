@@ -136,7 +136,7 @@ func get_fibonacci_sequence_up_to(max_value: int) -> Array[int]:
 	return sequence
 
 ## 获取用于在HUD上显示的动态数据。
-func get_display_data() -> Dictionary:
+func get_display_data(_context: Dictionary = {}) -> Dictionary:
 	if not is_instance_valid(game_board): return {}
 	
 	var max_value = game_board.get_max_player_value()

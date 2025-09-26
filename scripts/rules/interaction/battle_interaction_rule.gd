@@ -87,3 +87,12 @@ func get_spawnable_values(_type_id: int) -> Array[int]:
 		values.append(current_power_of_two)
 		current_power_of_two *= 2
 	return values
+
+## 获取用于在HUD上显示的动态数据。
+## @param context: 包含当前游戏状态的字典。
+## @return: 一个包含战斗模式特定显示信息的字典。
+func get_display_data(context: Dictionary = {}) -> Dictionary:
+	var data = {}
+	if context.has("monsters_killed"):
+		data["monsters_killed"] = "消灭怪物: %d" % context["monsters_killed"]
+	return data

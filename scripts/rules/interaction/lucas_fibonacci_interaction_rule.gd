@@ -119,7 +119,7 @@ func get_color_scheme_index(value: int) -> int:
 	return 0
 
 ## 获取用于在HUD上显示的动态数据。
-func get_display_data() -> Dictionary:
+func get_display_data(_context: Dictionary = {}) -> Dictionary:
 	if not is_instance_valid(game_board): return {}
 
 	# 1. 获取棋盘上的最大值，并设定一个动态的显示上限
@@ -192,3 +192,8 @@ func get_spawnable_values(type_id: int) -> Array[int]:
 			luc_display.sort()
 			return luc_display
 	return []
+
+## 重写基类方法，将所有来自测试面板的类型ID都转换为PLAYER类型。
+## 在这个模式中，无论是斐波那契数(id=0)还是卢卡斯数(id=1)，它们都属于PLAYER方块。
+func get_tile_type_from_id(_type_id: int) -> Tile.TileType:
+	return Tile.TileType.PLAYER

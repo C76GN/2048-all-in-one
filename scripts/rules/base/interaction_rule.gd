@@ -41,7 +41,7 @@ func get_color_scheme_index(_value: int) -> int:
 
 ## 获取用于在HUD上显示的动态数据。
 ## 子类可以重写此方法，返回一个字典，供HUD展示。
-func get_display_data() -> Dictionary:
+func get_display_data(_context: Dictionary = {}) -> Dictionary:
 	return {}
 
 ## 获取此规则下所有可生成的方块“类型”。
@@ -55,3 +55,12 @@ func get_spawnable_types() -> Dictionary:
 ## @return: 一个包含所有合法数值(int)的数组。
 func get_spawnable_values(_type_id: int) -> Array[int]:
 	return [] # 默认返回空数组，子类必须重写。
+
+## 根据从UI（如TestPanel）接收的类型ID，返回对应的 Tile.TileType 枚举。
+## 这将类型转换的逻辑封装在规则内部，避免了GamePlay中的类型检查。
+## @param type_id: 来自UI的类型标识符。
+## @return: Tile.TileType 枚举值。
+func get_tile_type_from_id(type_id: int) -> Tile.TileType:
+	# 默认实现：假设 type_id 直接对应枚举值 (0=PLAYER, 1=MONSTER)。
+	# 对于需要特殊处理的规则（如卢卡斯-斐波那契），需要重写此方法。
+	return type_id as Tile.TileType
