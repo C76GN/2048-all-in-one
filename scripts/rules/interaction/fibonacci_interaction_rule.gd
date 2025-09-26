@@ -10,15 +10,8 @@
 class_name FibonacciInteractionRule
 extends InteractionRule
 
-# 对GameBoard的引用，由GamePlay在运行时注入。
-var game_board: Control
-
 # 使用黄金分割比来快速检查两个数是否是斐波那契数列中的连续项。
 const PHI = 1.618034
-
-## 在游戏开始时被调用，用于设置此规则所需的依赖（如GameBoard）。
-func setup(p_game_board: Control) -> void:
-	self.game_board = p_game_board
 
 ## 处理两个方块之间的合并交互。
 func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) -> Dictionary:
@@ -136,14 +129,14 @@ func get_fibonacci_sequence_up_to(max_value: int) -> Array[int]:
 	return sequence
 
 ## 获取用于在HUD上显示的动态数据。
-func get_display_data(_context: Dictionary = {}) -> Dictionary:
-	if not is_instance_valid(game_board): return {}
+func get_display_data(context: Dictionary = {}) -> Dictionary:
+	var max_value = context.get("max_player_value", 0)
+	var all_player_values = context.get("all_player_values", [])
 	
-	var max_value = game_board.get_max_player_value()
 	var max_display_value = 5 + max_value * 2 
 	
 	var player_tiles_set = {}
-	for v in game_board.get_all_player_tile_values():
+	for v in all_player_values:
 		player_tiles_set[v] = true
 		
 	var sequence: Array[int] = [1, 2]

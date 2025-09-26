@@ -13,6 +13,7 @@ extends Control
 @onready var pause_menu = $PauseMenu
 @onready var game_over_menu = $GameOverMenu
 @onready var background_color_rect: ColorRect = %ColorRect
+@onready var input_controller = $InputController
 
 # --- 状态变量 ---
 var mode_config: GameModeConfig
@@ -87,26 +88,15 @@ func _process(_delta: float) -> void:
 	if not is_game_over:
 		_update_stats_display()
 
-## 处理全局未捕获的输入事件，主要用于玩家移动和打开暂停菜单。
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_pause") and not is_game_over:
-		_toggle_pause_menu()
-		get_viewport().set_input_as_handled()
-		return
-	
-	if get_tree().paused or is_game_over: return
-
-	var direction = Vector2i.ZERO
-	if event.is_action_pressed("move_up"): direction = Vector2i.UP
-	elif event.is_action_pressed("move_down"): direction = Vector2i.DOWN
-	elif event.is_action_pressed("move_left"): direction = Vector2i.LEFT
-	elif event.is_action_pressed("move_right"): direction = Vector2i.RIGHT
-	
-	if direction != Vector2i.ZERO:
-		game_board.handle_move(direction)
-
 ## [内部函数] 集中管理所有节点和规则的信号连接。
 func _connect_signals() -> void:
+	# 连接来自输入控制器的信号
+	if is_instance_valid(input_controller):
+		if not input_controller.move_intent_triggered.is_connected(_on_move_intent):
+			input_controller.move_intent_triggered.connect(_on_move_intent)
+		if not input_controller.pause_toggled.is_connected(_toggle_pause_menu):
+			input_controller.pause_toggled.connect(_toggle_pause_menu)
+
 	# 连接来自核心组件的信号
 	if not game_board.move_made.is_connected(_on_game_board_move_made):
 		game_board.move_made.connect(_on_game_board_move_made)
@@ -144,6 +134,11 @@ func _connect_signals() -> void:
 		interaction_rule.monster_killed.connect(_on_monster_killed)
 
 # --- 信号处理函数 ---
+
+## 当 InputController 发出移动意图时调用。
+func _on_move_intent(direction: Vector2i) -> void:
+	if is_game_over: return
+	game_board.handle_move(direction)
 
 ## 当 GameBoard 发出 move_made 信号时调用。
 func _on_game_board_move_made() -> void:
@@ -193,11 +188,13 @@ func _update_stats_display() -> void:
 
 	# --- 模式特定信息 (通过上下文传递给规则) ---
 	if is_instance_valid(interaction_rule):
-		# 创建一个上下文，将游戏状态传递给规则
+		# 创建一个上下文，将游戏状态传递给规则，避免规则直接依赖棋盘
 		var context = {
 			"monsters_killed": monsters_killed,
 			"score": score,
-			"move_count": move_count
+			"move_count": move_count,
+			"all_player_values": game_board.get_all_player_tile_values(),
+			"max_player_value": game_board.get_max_player_value()
 		}
 		var interaction_data = interaction_rule.get_display_data(context)
 		if not interaction_data.is_empty():
@@ -221,6 +218,8 @@ func _update_stats_display() -> void:
 
 ## [内部函数] 切换暂停菜单的可见性及游戏的暂停状态。
 func _toggle_pause_menu():
+	# 仅当游戏未结束时才能暂停
+	if is_game_over: return
 	get_tree().paused = not get_tree().paused
 	pause_menu.toggle()
 

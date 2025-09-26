@@ -10,9 +10,6 @@
 class_name LucasFibonacciInteractionRule
 extends InteractionRule
 
-# 对GameBoard的引用，由GamePlay在运行时注入。
-var game_board: Control
-
 # 预先计算并缓存数列，以提高性能。
 var _fib_sequence: Array[int] = []
 var _luc_sequence: Array[int] = []
@@ -24,10 +21,6 @@ const MAX_SEQUENCE_VALUE = 65536 # 限制数列生成的大小
 
 func _init():
 	_generate_sequences()
-
-## 在游戏开始时被调用，用于设置此规则所需的依赖（如GameBoard）。
-func setup(p_game_board: Control) -> void:
-	self.game_board = p_game_board
 
 ## [内部辅助函数] 生成并缓存斐波那契和卢卡斯数列。
 func _generate_sequences():
@@ -119,16 +112,15 @@ func get_color_scheme_index(value: int) -> int:
 	return 0
 
 ## 获取用于在HUD上显示的动态数据。
-func get_display_data(_context: Dictionary = {}) -> Dictionary:
-	if not is_instance_valid(game_board): return {}
-
+func get_display_data(context: Dictionary = {}) -> Dictionary:
 	# 1. 获取棋盘上的最大值，并设定一个动态的显示上限
-	var max_player_value = game_board.get_max_player_value()
+	var max_player_value = context.get("max_player_value", 0)
 	var max_display_value = 5 + max_player_value * 2
 
 	# 2. 获取棋盘上所有玩家方块的数值，并存入一个集合以便快速查找
 	var player_tiles_set = {}
-	for v in game_board.get_all_player_tile_values():
+	var all_player_values = context.get("all_player_values", [])
+	for v in all_player_values:
 		player_tiles_set[v] = true
 	
 	# 3. 找出所有潜在的可合成关系
