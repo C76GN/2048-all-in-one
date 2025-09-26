@@ -25,11 +25,15 @@ var move_count: int = 0
 var monsters_killed: int = 0
 var is_game_over: bool = false
 var score: int = 0
+var current_grid_size: int = 4
 
 ## Godot生命周期函数：在节点进入场景树时被调用，负责整个游戏场景的初始化。
 func _ready() -> void:
-	# 步骤1: 从 GlobalGameManager 加载所选的游戏模式配置。
+	# 步骤1: 从 GlobalGameManager 加载所选的游戏模式配置和棋盘大小。
 	var config_path = GlobalGameManager.get_selected_mode_config_path()
+	# 从 GlobalGameManager 获取棋盘大小
+	current_grid_size = GlobalGameManager.get_selected_grid_size()
+	
 	if config_path != "":
 		mode_config = load(config_path)
 		assert(is_instance_valid(mode_config), "GameModeConfig未能加载！")
@@ -37,6 +41,9 @@ func _ready() -> void:
 		push_error("错误: 无法加载游戏模式配置。")
 		get_tree().quit()
 		return
+		
+	# 在初始化GameBoard前，设置其 grid_size 属性
+	game_board.grid_size = current_grid_size
 		
 	# 步骤2: 实例化规则管理器和核心交互/结束规则。
 	rule_manager = RuleManager.new()
@@ -156,6 +163,11 @@ func _on_game_lost() -> void:
 	# 通知所有规则进行清理（如停止计时器）。
 	for rule in all_spawn_rules:
 		rule.teardown()
+	
+	# 保存分数
+	var mode_id = mode_config.resource_path.get_file().get_basename()
+	SaveManager.set_high_score(mode_id, current_grid_size, score)
+	
 	game_over_menu.open()
 
 ## 当 InteractionRule 报告有怪物被消灭时调用。

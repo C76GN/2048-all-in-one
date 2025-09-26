@@ -18,40 +18,80 @@ script = ExtResource("1_jv0sf")
 game_play_scene = ExtResource("2_0hetu")
 mode_configs = Array[Resource]([ExtResource("3_t5a4b"), ExtResource("4_t4d1t"), ExtResource("6_t4d1t"), ExtResource("5_ws4rq")])
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="CenterContainer" type="CenterContainer" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -150.0
-offset_top = -200.0
-offset_right = 150.0
-offset_bottom = 200.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 20
-alignment = 1
 
-[node name="Title" type="Label" parent="VBoxContainer"]
+[node name="MainLayout" type="HBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+theme_override_constants/separation = 40
+
+[node name="LeftPanel" type="VBoxContainer" parent="CenterContainer/MainLayout"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CenterContainer/MainLayout/LeftPanel"]
+custom_minimum_size = Vector2(20, 0)
+layout_mode = 2
+text = "请从中间选择一个游戏模式"
+autowrap_mode = 2
+
+[node name="CenterPanel" type="VBoxContainer" parent="CenterContainer/MainLayout"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+
+[node name="Title" type="Label" parent="CenterContainer/MainLayout/CenterPanel"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 48
 text = "模式选择"
 horizontal_alignment = 1
 
-[node name="ModeListContainer" type="VBoxContainer" parent="VBoxContainer"]
+[node name="ModeListContainer" type="VBoxContainer" parent="CenterContainer/MainLayout/CenterPanel"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 10
 
-[node name="Spacer" type="Control" parent="VBoxContainer"]
+[node name="Spacer" type="Control" parent="CenterContainer/MainLayout/CenterPanel"]
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 
-[node name="BackButton" type="Button" parent="VBoxContainer"]
+[node name="BackButton" type="Button" parent="CenterContainer/MainLayout/CenterPanel"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "返回"
+
+[node name="RightPanelContainer" type="VBoxContainer" parent="CenterContainer/MainLayout"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CenterContainer/MainLayout/RightPanelContainer"]
+layout_mode = 2
+
+[node name="HSeparator" type="HSeparator" parent="CenterContainer/MainLayout/RightPanelContainer"]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="CenterContainer/MainLayout/RightPanelContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CenterContainer/MainLayout/RightPanelContainer/HBoxContainer"]
+layout_mode = 2
+text = "棋盘大小："
+
+[node name="SpinBox" type="SpinBox" parent="CenterContainer/MainLayout/RightPanelContainer/HBoxContainer"]
+layout_mode = 2
+
+[node name="Spacer" type="Control" parent="CenterContainer/MainLayout/RightPanelContainer"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="StartGameButton" type="Button" parent="CenterContainer/MainLayout/RightPanelContainer"]
+layout_mode = 2
+disabled = true
+text = "开始游戏"

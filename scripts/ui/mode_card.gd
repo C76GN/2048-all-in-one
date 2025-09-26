@@ -21,7 +21,7 @@ var _config_path: String
 ## Godot生命周期函数：当节点进入场景树时调用。
 func _ready() -> void:
 	# 连接自身的 pressed 信号到处理函数。
-	pressed.connect(_on_pressed)
+	pressed.connect(func(): mode_selected.emit(_config_path))
 
 # --- 公共接口 ---
 

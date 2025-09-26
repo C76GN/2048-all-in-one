@@ -11,12 +11,14 @@ const MAIN_MENU_SCENE_PATH = "res://scenes/main_menu.tscn"
 
 # 将模式配置路径设为私有，通过函数访问，更安全。
 var _selected_mode_config_path: String
+# 用于存储玩家选择的棋盘大小。
+var _selected_grid_size: int = 4
 
 
 # --- 公共接口 ---
 
-## 选择一个游戏模式并切换到游戏场景。
-func select_mode_and_start(config_path: String, game_scene: PackedScene):
+## 选择一个游戏模式并切换到游戏场景，传递棋盘大小。
+func select_mode_and_start(config_path: String, game_scene: PackedScene, grid_size: int):
 	if not config_path.begins_with("res://") or not config_path.ends_with(".tres"):
 		push_error("错误: 模式配置文件路径必须是有效的资源路径: " + config_path)
 		return
@@ -26,11 +28,16 @@ func select_mode_and_start(config_path: String, game_scene: PackedScene):
 		return
 
 	_selected_mode_config_path = config_path
+	_selected_grid_size = grid_size
 	goto_scene_packed(game_scene)
 
 ## 获取当前选择的模式配置路径。
 func get_selected_mode_config_path() -> String:
 	return _selected_mode_config_path
+
+## 获取当前选择的棋盘大小。
+func get_selected_grid_size() -> int:
+	return _selected_grid_size
 
 ## 统一的返回主菜单功能，打破场景间的循环依赖。
 func return_to_main_menu():

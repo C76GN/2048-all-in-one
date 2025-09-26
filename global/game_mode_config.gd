@@ -25,3 +25,11 @@ extends Resource
 
 ## 棋盘和背景的视觉主题。
 @export var board_theme: BoardTheme
+
+@export_group("Grid Size Configuration")
+## 模式默认的棋盘大小。
+@export var default_grid_size: int = 4
+## 此模式支持的最小棋盘大小。
+@export var min_grid_size: int = 3
+## 此模式支持的最大棋盘大小。
+@export var max_grid_size: int = 8
