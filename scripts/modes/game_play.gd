@@ -26,13 +26,21 @@ var monsters_killed: int = 0
 var is_game_over: bool = false
 var score: int = 0
 var current_grid_size: int = 4
+var initial_high_score: int = 0
 
-## Godot生命周期函数：在节点进入场景树时被调用，负责整个游戏场景的初始化。
+## Godot生命周期函数：在节点进入场景树时被调用。
 func _ready() -> void:
+	_initialize_game()
+
+## [内部函数] 负责整个游戏场景的初始化或重置。
+## @param new_grid_size: 如果提供（大于-1），则使用此尺寸，否则从GlobalGameManager获取。
+func _initialize_game(new_grid_size: int = -1) -> void:
 	# 步骤1: 从 GlobalGameManager 加载所选的游戏模式配置和棋盘大小。
 	var config_path = GlobalGameManager.get_selected_mode_config_path()
-	# 从 GlobalGameManager 获取棋盘大小
-	current_grid_size = GlobalGameManager.get_selected_grid_size()
+	if new_grid_size > -1:
+		current_grid_size = new_grid_size
+	else:
+		current_grid_size = GlobalGameManager.get_selected_grid_size()
 	
 	if config_path != "":
 		mode_config = load(config_path)
@@ -41,6 +49,10 @@ func _ready() -> void:
 		push_error("错误: 无法加载游戏模式配置。")
 		get_tree().quit()
 		return
+	
+	# 在游戏开始时，获取并存储一次最高分。
+	var mode_id = mode_config.resource_path.get_file().get_basename()
+	initial_high_score = SaveManager.get_high_score(mode_id, current_grid_size)
 		
 	# 在初始化GameBoard前，设置其 grid_size 属性
 	game_board.grid_size = current_grid_size
@@ -72,7 +84,7 @@ func _ready() -> void:
 			for node_key in required_nodes:
 				if required_nodes[node_key] == "Timer":
 					var new_timer = Timer.new()
-					add_child(new_timer) # 将Timer添加到场景树以使其运行
+					add_child(new_timer)
 					created_nodes[node_key] = new_timer
 		
 		# 将所有依赖项（棋盘、创建的节点）注入规则实例。
@@ -87,15 +99,15 @@ func _ready() -> void:
 	rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD)
 
 	_initialize_test_tools()
-	_update_stats_display()
+	_update_and_publish_hud_data()
 
 ## Godot生命周期函数：每帧调用。用于处理需要高频更新的逻辑，例如UI倒计时。
 func _process(_delta: float) -> void:
 	# 每帧更新UI，因为有些规则（如计时器）是实时变化的。
 	if not is_game_over:
-		_update_stats_display()
+		_update_and_publish_hud_data()
 
-## [内部函数] 集中管理所有节点和规则的信号连接。
+## [内部函数] 集中管理所有信号连接。
 func _connect_signals() -> void:
 	# 连接来自输入控制器的信号
 	if is_instance_valid(input_controller):
@@ -103,42 +115,33 @@ func _connect_signals() -> void:
 			input_controller.move_intent_triggered.connect(_on_move_intent)
 		if not input_controller.pause_toggled.is_connected(_toggle_pause_menu):
 			input_controller.pause_toggled.connect(_toggle_pause_menu)
-
-	# 连接来自核心组件的信号
-	if not game_board.move_made.is_connected(_on_game_board_move_made):
-		game_board.move_made.connect(_on_game_board_move_made)
-	
-	if not game_board.game_lost.is_connected(_on_game_lost):
-		game_board.game_lost.connect(_on_game_lost)
-		
-	if not game_board.board_resized.is_connected(_on_board_resized):
-		game_board.board_resized.connect(_on_board_resized)
-		
-	if not game_board.score_updated.is_connected(_on_score_updated):
-		game_board.score_updated.connect(_on_score_updated)
-	
-	# 连接来自UI菜单的信号
+			
 	if not pause_menu.resume_game.is_connected(_on_resume_game):
 		pause_menu.resume_game.connect(_on_resume_game)
-		
 	if not pause_menu.restart_game.is_connected(_on_restart_game):
 		pause_menu.restart_game.connect(_on_restart_game)
-		
 	if not pause_menu.return_to_main_menu.is_connected(_on_return_to_main_menu):
 		pause_menu.return_to_main_menu.connect(_on_return_to_main_menu)
 		
 	if not game_over_menu.restart_game.is_connected(_on_restart_game):
 		game_over_menu.restart_game.connect(_on_restart_game)
-		
 	if not game_over_menu.return_to_main_menu.is_connected(_on_return_to_main_menu):
 		game_over_menu.return_to_main_menu.connect(_on_return_to_main_menu)
-	
-	# 连接来自规则的信号
+
+	# --- 连接来自规则和EventBus的信号 ---
 	if is_instance_valid(rule_manager) and not rule_manager.spawn_tile_requested.is_connected(game_board.spawn_tile):
 		rule_manager.spawn_tile_requested.connect(game_board.spawn_tile)
-		
-	if is_instance_valid(interaction_rule) and not interaction_rule.monster_killed.is_connected(_on_monster_killed):
-		interaction_rule.monster_killed.connect(_on_monster_killed)
+
+	if not EventBus.move_made.is_connected(_on_move_made):
+		EventBus.move_made.connect(_on_move_made)
+	if not EventBus.game_lost.is_connected(_on_game_lost):
+		EventBus.game_lost.connect(_on_game_lost)
+	if not EventBus.score_updated.is_connected(_on_score_updated):
+		EventBus.score_updated.connect(_on_score_updated)
+	if not EventBus.monster_killed.is_connected(_on_monster_killed):
+		EventBus.monster_killed.connect(_on_monster_killed)
+	if not EventBus.board_resized.is_connected(_on_board_resized):
+		EventBus.board_resized.connect(_on_board_resized)
 
 # --- 信号处理函数 ---
 
@@ -147,20 +150,15 @@ func _on_move_intent(direction: Vector2i) -> void:
 	if is_game_over: return
 	game_board.handle_move(direction)
 
-## 当 GameBoard 发出 move_made 信号时调用。
-func _on_game_board_move_made() -> void:
+func _on_move_made() -> void:
 	move_count += 1
-	
-	# 通过管理器分发“玩家移动”事件，让所有相关规则按优先级执行。
-	# 时间奖励逻辑现在也由RuleManager通过ON_MOVE事件统一处理。
 	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED)
-			
-	_update_stats_display()
+	_update_and_publish_hud_data()
 
 ## 当 GameBoard 发出 game_lost 信号时调用。
 func _on_game_lost() -> void:
 	is_game_over = true
-	# 通知所有规则进行清理（如停止计时器）。
+	# 通知所有规则进行清理
 	for rule in all_spawn_rules:
 		rule.teardown()
 	
@@ -173,44 +171,50 @@ func _on_game_lost() -> void:
 ## 当 InteractionRule 报告有怪物被消灭时调用。
 func _on_monster_killed() -> void:
 	monsters_killed += 1
-	# 分发“怪物被消灭”事件，未来可以用于实现“消灭怪物后生成宝箱”等规则。
 	rule_manager.dispatch_event(RuleManager.Events.MONSTER_KILLED)
-	_update_stats_display()
+	_update_and_publish_hud_data()
+
+func _on_score_updated(amount: int) -> void:
+	score += amount
+	_update_and_publish_hud_data()
 
 ## 当棋盘大小改变时，更新测试面板的坐标限制。
 func _on_board_resized(new_size: int):
 	if OS.has_feature("editor") and is_instance_valid(test_panel):
 		test_panel.update_coordinate_limits(new_size)
 
-## 当 GameBoard 发出 score_updated 信号时调用。
-func _on_score_updated(amount: int) -> void:
-	score += amount
-	_update_stats_display() # 分数变化后立即更新显示
-
 # --- UI 更新 & 菜单逻辑 ---
 
-## [内部函数] 聚合所有规则和状态的数据，并更新HUD显示。
-func _update_stats_display() -> void:
+## [内部函数] 聚合所有数据，格式化，并通过EventBus发布给HUD。
+func _update_and_publish_hud_data() -> void:
 	var display_data = {}
 	
 	# --- 核心游戏信息 ---
 	display_data["score"] = "分数: %d" % score
+	
+	# 使用 initial_high_score 进行实时比较和显示
+	if score > initial_high_score:
+		display_data["high_score"] = "最高分: %d [color=yellow](新纪录!)[/color]" % score
+	else:
+		display_data["high_score"] = "最高分: %d" % initial_high_score
+		
 	display_data["highest_tile"] = "最大方块: %d" % game_board.get_max_player_value()
 	display_data["move_count"] = "移动次数: %d" % move_count
 
-	# --- 模式特定信息 (通过上下文传递给规则) ---
+	# --- 规则动态信息 ---
+	var player_values = game_board.get_all_player_tile_values()
+	var player_values_set = {}
+	for v in player_values: player_values_set[v] = true
+	
+	var rule_context = {
+		"monsters_killed": monsters_killed, "score": score, "move_count": move_count,
+		"all_player_values": player_values, "max_player_value": game_board.get_max_player_value(),
+		"player_values_set": player_values_set
+	}
+	
 	if is_instance_valid(interaction_rule):
-		# 创建一个上下文，将游戏状态传递给规则，避免规则直接依赖棋盘
-		var context = {
-			"monsters_killed": monsters_killed,
-			"score": score,
-			"move_count": move_count,
-			"all_player_values": game_board.get_all_player_tile_values(),
-			"max_player_value": game_board.get_max_player_value()
-		}
-		var interaction_data = interaction_rule.get_display_data(context)
-		if not interaction_data.is_empty():
-			display_data.merge(interaction_data)
+		var interaction_data = interaction_rule.get_hud_context_data(rule_context)
+		_format_interaction_data(display_data, interaction_data)
 
 	# --- 规则动态信息 ---
 	# 从所有规则中聚合需要显示的动态数据（如计时器）
@@ -220,22 +224,66 @@ func _update_stats_display() -> void:
 			display_data.merge(rule_data)
 	
 	# --- 静态帮助信息 ---
-	display_data["separator"] = "--------------------" # 分隔符
+	display_data["separator"] = "--------------------"
 	if not mode_config.mode_description.is_empty():
 		display_data["description"] = mode_config.mode_description
-		
 	display_data["controls"] = "操作: W/A/S/D 或 方向键\n暂停: Esc"
 	
-	hud.update_display(display_data)
+	EventBus.hud_update_requested.emit(display_data)
 
-## [内部函数] 切换暂停菜单的可见性及游戏的暂停状态。
+## [内部辅助] 将来自规则的原始数据格式化为HUD所需的数据结构。
+func _format_interaction_data(p_display_data: Dictionary, p_raw_data: Dictionary):
+	# 战斗模式
+	if p_raw_data.has("monsters_killed"):
+		p_display_data["monsters_killed"] = "消灭怪物: %d" % p_raw_data["monsters_killed"]
+	
+	# 斐波那契模式
+	if p_raw_data.has("fib_sequence"):
+		var fib_data_for_ui = [{"text": "合成序列:", "color": Color.WHITE}]
+		var player_set = p_raw_data["player_values_set"]
+		for num in p_raw_data["fib_sequence"]:
+			var item = {"text": str(num), "color": Color.GRAY}
+			if player_set.has(num): item["color"] = Color.WHITE
+			fib_data_for_ui.append(item)
+		p_display_data["fibonacci_sequence"] = fib_data_for_ui
+		
+	# 卢卡斯-斐波那契模式
+	if p_raw_data.has("luc_sequence"):
+		var player_set = p_raw_data["player_values_set"]
+		var synthesis_data = p_raw_data.get("synthesis_data", {})
+		var highlight_fib_components = {}
+		var highlight_lucas_set = {}
+		
+		if not synthesis_data.is_empty():
+			highlight_fib_components[synthesis_data["f_minus_1"]] = true
+			highlight_fib_components[synthesis_data["f_plus_1"]] = true
+			highlight_lucas_set[synthesis_data["l_n"]] = true
+			p_display_data["synthesis_tip_display"] = "合成提示: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color]" % [synthesis_data["f_minus_1"], synthesis_data["f_plus_1"], synthesis_data["l_n"]]
+			
+		var fib_data_for_ui = [{"text": "斐波那契:", "color": Color.WHITE}]
+		for num in p_raw_data["fib_sequence"]:
+			if num > p_raw_data["max_display_value"]: break
+			var item = {"text": str(num), "color": Color.GRAY}
+			if highlight_fib_components.has(num): item["color"] = Color.CYAN
+			elif player_set.has(num): item["color"] = Color.WHITE
+			fib_data_for_ui.append(item)
+		p_display_data["fib_sequence_display"] = fib_data_for_ui
+		
+		var luc_data_for_ui = [{"text": "卢卡斯:", "color": Color.WHITE}]
+		for num in p_raw_data["luc_sequence"]:
+			if num > p_raw_data["max_display_value"]: break
+			var item = {"text": str(num), "color": Color.GRAY}
+			if highlight_lucas_set.has(num): item["color"] = Color.YELLOW
+			elif player_set.has(num): item["color"] = Color.WHITE
+			luc_data_for_ui.append(item)
+		p_display_data["luc_sequence_display"] = luc_data_for_ui
+
 func _toggle_pause_menu():
-	# 仅当游戏未结束时才能暂停
 	if is_game_over: return
 	get_tree().paused = not get_tree().paused
 	pause_menu.toggle()
 
-## [内部函数] 初始化仅在编辑器中可见的测试工具面板。
+## [内部函数] 初始化测试工具。
 func _initialize_test_tools():
 	if not OS.has_feature("with_test_panel") and not OS.has_feature("editor"):
 		test_panel.visible = false
@@ -259,6 +307,7 @@ func _initialize_test_tools():
 	# 2. 使用当前模式的规则来配置TestPanel
 	var spawnable_types = interaction_rule.get_spawnable_types()
 	test_panel.setup_panel(spawnable_types)
+	test_panel.update_coordinate_limits(current_grid_size)
 
 ## 响应来自测试面板的生成方块请求。
 func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int) -> void:
@@ -281,14 +330,13 @@ func _on_reset_and_resize_requested(new_size: int):
 	if is_instance_valid(rule_manager):
 		rule_manager.queue_free()
 
-	is_game_over = false
-	monsters_killed = 0
-	move_count = 0
-	score = 0
+	is_game_over = false; monsters_killed = 0; move_count = 0; score = 0
+	
+	# 先清理棋盘，但不在这里设置尺寸，交由 _initialize_game 统一处理
 	game_board.reset_and_resize(new_size, mode_config.board_theme)
 	
-	# 重置后，重新执行完整的初始化流程。
-	_ready()
+	# MODIFIED: 将 new_size 传递给初始化函数
+	_initialize_game(new_size)
 
 ## 响应“继续游戏”事件。
 func _on_resume_game(): _toggle_pause_menu()

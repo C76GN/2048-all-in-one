@@ -26,7 +26,7 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 			player_tile.setup(int(player_tile.value / monster_tile.value), player_tile.type, p_rule, player_tile.color_schemes)
 			player_tile.animate_transform()
 			monster_tile.queue_free()
-			monster_killed.emit()
+			EventBus.monster_killed.emit()
 			return {"merged_tile": player_tile, "consumed_tile": monster_tile}
 		elif player_tile.value < monster_tile.value:
 			monster_tile.setup(int(monster_tile.value / player_tile.value), monster_tile.type, p_rule, monster_tile.color_schemes)
@@ -38,7 +38,7 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 			tile_b.animate_transform()
 			tile_a.queue_free()
 			if tile_a.type == Tile.TileType.MONSTER:
-				monster_killed.emit()
+				EventBus.monster_killed.emit()
 			return {"merged_tile": tile_b, "consumed_tile": tile_a}
 
 	return {} # 没有发生交互
@@ -88,11 +88,12 @@ func get_spawnable_values(_type_id: int) -> Array[int]:
 		current_power_of_two *= 2
 	return values
 
-## 获取用于在HUD上显示的动态数据。
+## 获取用于在HUD上显示的原始上下文数据。
 ## @param context: 包含当前游戏状态的字典。
-## @return: 一个包含战斗模式特定显示信息的字典。
-func get_display_data(context: Dictionary = {}) -> Dictionary:
+## @return: 一个包含战斗模式特定原始信息的字典。
+func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 	var data = {}
 	if context.has("monsters_killed"):
-		data["monsters_killed"] = "消灭怪物: %d" % context["monsters_killed"]
+		# 只返回原始数据，让上层去格式化
+		data["monsters_killed"] = context["monsters_killed"]
 	return data

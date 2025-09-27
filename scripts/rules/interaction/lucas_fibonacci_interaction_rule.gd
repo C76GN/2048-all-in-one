@@ -111,59 +111,35 @@ func get_color_scheme_index(value: int) -> int:
 	
 	return 0
 
-## 获取用于在HUD上显示的动态数据。
-func get_display_data(context: Dictionary = {}) -> Dictionary:
-	# 1. 获取棋盘上的最大值，并设定一个动态的显示上限
+## 获取用于在HUD上显示的原始上下文数据。
+func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 	var max_player_value = context.get("max_player_value", 0)
 	var max_display_value = 5 + max_player_value * 2
+	var player_tiles_set = context.get("player_values_set", {})
 
-	# 2. 获取棋盘上所有玩家方块的数值，并存入一个集合以便快速查找
-	var player_tiles_set = {}
-	var all_player_values = context.get("all_player_values", [])
-	for v in all_player_values:
-		player_tiles_set[v] = true
+	var synthesis_data = {}
 	
-	# 3. 找出所有潜在的可合成关系
-	var highlight_lucas_set = {} # 存储可合成的卢卡斯数 (产物)
-	var highlight_fib_components = {} # 存储用于合成的斐波那契数 (原料)
-	var synthesis_tip = "" # 用于生成 "合成提示" 字符串
-
 	for i in range(1, _fib_sequence.size() - 1):
 		var f_n_minus_1 = _fib_sequence[i - 1]
 		var f_n_plus_1 = _fib_sequence[i + 1]
-		# 如果玩家同时拥有 F(n-1) 和 F(n+1)
 		if player_tiles_set.has(f_n_minus_1) and player_tiles_set.has(f_n_plus_1):
 			var l_n = f_n_minus_1 + f_n_plus_1
-			highlight_lucas_set[l_n] = true
-			highlight_fib_components[f_n_minus_1] = true
-			highlight_fib_components[f_n_plus_1] = true
-			# 合成提示使用BBCode，因为它由一个单独的RichTextLabel显示
-			synthesis_tip = "合成提示: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color]" % [f_n_minus_1, f_n_plus_1, l_n]
+			synthesis_data = {
+				"f_minus_1": f_n_minus_1,
+				"f_plus_1": f_n_plus_1,
+				"l_n": l_n
+			}
+			break # 只显示一个合成提示
 
-	# 4. 构建斐波那契数列的数据数组
-	var fib_data = [{"text": "斐波那契:", "color": Color.WHITE}]
-	for num in _fib_sequence:
-		if num > max_display_value: break
-		var item = {"text": str(num), "color": Color.GRAY}
-		if highlight_fib_components.has(num): item["color"] = Color.CYAN
-		elif player_tiles_set.has(num): item["color"] = Color.WHITE
-		fib_data.append(item)
-
-	# 5. 构建卢卡斯数列的数据数组
-	var luc_data = [{"text": "卢卡斯:", "color": Color.WHITE}]
 	var temp_luc_sequence = _luc_sequence.slice(1)
 	temp_luc_sequence.sort()
-	for num in temp_luc_sequence:
-		if num > max_display_value: break
-		var item = {"text": str(num), "color": Color.GRAY}
-		if highlight_lucas_set.has(num): item["color"] = Color.YELLOW
-		elif player_tiles_set.has(num): item["color"] = Color.WHITE
-		luc_data.append(item)
 		
 	return {
-		"fib_sequence_display": fib_data,
-		"luc_sequence_display": luc_data,
-		"synthesis_tip_display": synthesis_tip
+		"fib_sequence": _fib_sequence,
+		"luc_sequence": temp_luc_sequence,
+		"max_display_value": max_display_value,
+		"player_values_set": player_tiles_set,
+		"synthesis_data": synthesis_data,
 	}
 
 ## 获取此规则下所有可生成的方块“类型”。

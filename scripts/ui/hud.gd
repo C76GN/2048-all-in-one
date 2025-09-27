@@ -19,6 +19,10 @@ const FlowLabelListScene = preload("res://scenes/ui/flow_label_list.tscn")
 # 结构: { "data_key": ControlNode }
 var _stat_labels: Dictionary = {}
 
+## Godot生命周期函数：当节点进入场景树时调用。
+func _ready() -> void:
+	# 订阅事件总线上的HUD更新请求。
+	EventBus.hud_update_requested.connect(update_display)
 
 # --- 公共接口 ---
 

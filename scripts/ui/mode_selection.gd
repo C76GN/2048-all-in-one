@@ -21,13 +21,22 @@ const ModeCardScene = preload("res://scenes/ui/mode_card.tscn")
 @onready var right_panel_container: VBoxContainer = $CenterContainer/MainLayout/RightPanelContainer
 @onready var start_game_button: Button = $CenterContainer/MainLayout/RightPanelContainer/StartGameButton
 @onready var grid_size_spinbox: SpinBox = $CenterContainer/MainLayout/RightPanelContainer/HBoxContainer/SpinBox
+@onready var _info_default_label: Label = $CenterContainer/MainLayout/LeftPanel/Label
 
 # --- 内部状态 ---
 var _selected_mode_config: GameModeConfig = null
 var _current_grid_size: int = 4
 
+# --- 用于左侧面板的持久化UI元素 ---
+var _info_name_label: Label
+var _info_separator: HSeparator
+var _info_desc_label: Label
+var _info_score_label: Label
+
+
 ## Godot生命周期函数：当节点及其子节点进入场景树时调用。
 func _ready() -> void:
+	_create_persistent_info_panel()
 	_populate_mode_list()
 	_reset_panels_to_default()
 	back_button.pressed.connect(GlobalGameManager.return_to_main_menu)
@@ -40,6 +49,28 @@ func _ready() -> void:
 
 
 # --- 内部核心函数 ---
+
+## 在启动时创建一次左侧面板的所有UI元素（除了已存在的默认标签）。
+func _create_persistent_info_panel() -> void:
+	# 模式名称标签
+	_info_name_label = Label.new()
+	_info_name_label.add_theme_font_size_override("font_size", 24)
+	left_panel_container.add_child(_info_name_label)
+	
+	# 分隔符
+	_info_separator = HSeparator.new()
+	left_panel_container.add_child(_info_separator)
+	
+	# 模式描述标签
+	_info_desc_label = Label.new()
+	_info_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_info_desc_label.size_flags_horizontal = Control.SIZE_FILL
+	left_panel_container.add_child(_info_desc_label)
+	
+	# 最高分标签
+	_info_score_label = Label.new()
+	left_panel_container.add_child(_info_score_label)
+	
 
 ## 动态生成模式卡片列表。
 func _populate_mode_list() -> void:
@@ -59,15 +90,14 @@ func _populate_mode_list() -> void:
 
 ## 重置左右面板到未选择模式时的默认状态。
 func _reset_panels_to_default() -> void:
-	for child in left_panel_container.get_children():
-		child.queue_free()
-	
-	var default_label = Label.new()
-	default_label.text = "请从中间选择一个游戏模式，查看详细信息并进行配置。"
-	default_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	default_label.size_flags_horizontal = Control.SIZE_FILL
-	left_panel_container.add_child(default_label)
+	# 显示默认提示，隐藏详细信息
+	_info_default_label.visible = true
+	_info_name_label.visible = false
+	_info_separator.visible = false
+	_info_desc_label.visible = false
+	_info_score_label.visible = false
 
+	# 隐藏右侧配置面板
 	for child in right_panel_container.get_children():
 		child.visible = false
 	start_game_button.disabled = true
@@ -78,7 +108,17 @@ func _update_ui_for_selection() -> void:
 		_reset_panels_to_default()
 		return
 	
+	# 隐藏默认提示，显示详细信息
+	_info_default_label.visible = false
+	_info_name_label.visible = true
+	_info_separator.visible = true
+	_info_desc_label.visible = true
+	_info_score_label.visible = true
+	
+	# 更新左侧面板内容（只更新文本，不重建节点）
 	_populate_left_panel()
+	
+	# 更新右侧面板内容
 	_populate_right_panel()
 	
 	for child in right_panel_container.get_children():
@@ -87,30 +127,9 @@ func _update_ui_for_selection() -> void:
 
 ## 根据当前选中的模式和配置，填充左侧信息面板。
 func _populate_left_panel() -> void:
-	for child in left_panel_container.get_children():
-		child.queue_free()
-	
-	# 模式名称
-	var name_label = Label.new()
-	name_label.text = _selected_mode_config.mode_name
-	name_label.add_theme_font_size_override("font_size", 24)
-	left_panel_container.add_child(name_label)
-	
-	# 分隔符
-	left_panel_container.add_child(HSeparator.new())
-	
-	# 模式描述
-	var desc_label = Label.new()
-	desc_label.text = _selected_mode_config.mode_description
-	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	desc_label.size_flags_horizontal = Control.SIZE_FILL
-	left_panel_container.add_child(desc_label)
-	
-	# 最高分 (现在只创建标签，内容由 _update_high_score_label 更新)
-	var score_label = Label.new()
-	score_label.name = "HighScoreLabel" # 给它一个名字方便查找
-	left_panel_container.add_child(score_label)
-	
+	# 只更新已存在标签的文本
+	_info_name_label.text = _selected_mode_config.mode_name
+	_info_desc_label.text = _selected_mode_config.mode_description
 	_update_high_score_label()
 
 
@@ -124,24 +143,30 @@ func _populate_right_panel() -> void:
 
 ## 单独更新最高分标签的文本，现在会调用 SaveManager。
 func _update_high_score_label() -> void:
-	var score_label = left_panel_container.find_child("HighScoreLabel", true, false)
-	if is_instance_valid(score_label):
+	if is_instance_valid(_info_score_label):
 		var mode_id = _selected_mode_config.resource_path.get_file().get_basename()
+		# 即使没有记录，SaveManager.get_high_score 也会返回
 		var high_score = SaveManager.get_high_score(mode_id, _current_grid_size)
-		score_label.text = "\n在 %dx%d 尺寸下的最高分：%d" % [_current_grid_size, _current_grid_size, high_score]
+		_info_score_label.text = "\n在 %dx%d 尺寸下的最高分：%d" % [_current_grid_size, _current_grid_size, high_score]
 
 
 # --- 信号处理函数 ---
 
 ## 响应任一模式卡片的点击事件。
 func _on_mode_card_selected(config_path: String) -> void:
+	# 如果点击的是当前已选中的模式，则不执行任何操作，防止闪烁
+	if is_instance_valid(_selected_mode_config) and _selected_mode_config.resource_path == config_path:
+		return
+
 	_selected_mode_config = load(config_path)
 	_update_ui_for_selection()
 
 ## 响应棋盘大小SpinBox的值改变事件。
 func _on_grid_size_changed(new_value: float) -> void:
 	_current_grid_size = int(new_value)
-	_update_high_score_label()
+	# 确保在改变尺寸时，如果已有模式被选中，则立即更新最高分显示
+	if is_instance_valid(_selected_mode_config):
+		_update_high_score_label()
 
 ## 响应“开始游戏”按钮的点击事件。
 func _on_start_game_button_pressed() -> void:

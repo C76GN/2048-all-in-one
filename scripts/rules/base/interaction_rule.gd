@@ -19,10 +19,6 @@ func setup(_game_board: Control) -> void:
 func process_interaction(_tile_a: Tile, _tile_b: Tile, _p_rule: InteractionRule) -> Dictionary:
 	return {} # 默认不交互不交互
 
-## 当一个怪物在交互中被消灭时发出。
-@warning_ignore("unused_signal")
-signal monster_killed
-
 # 判断两个方块是否可以发生交互，但不实际执行。
 # 具体的规则需要重写此方法。
 func can_interact(_tile_a: Tile, _tile_b: Tile) -> bool:
@@ -39,9 +35,9 @@ func get_level_by_value(_value: int) -> int:
 func get_color_scheme_index(_value: int) -> int:
 	return 0
 
-## 获取用于在HUD上显示的动态数据。
-## 子类可以重写此方法，返回一个字典，供HUD展示。
-func get_display_data(_context: Dictionary = {}) -> Dictionary:
+## 获取此规则相关的、用于HUD显示的原始上下文数据。
+## 子类可以重写此方法，返回一个字典，供上层逻辑（如GamePlay）格式化后展示。
+func get_hud_context_data(_context: Dictionary = {}) -> Dictionary:
 	return {}
 
 ## 获取此规则下所有可生成的方块“类型”。

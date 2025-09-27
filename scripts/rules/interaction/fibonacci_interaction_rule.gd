@@ -128,33 +128,24 @@ func get_fibonacci_sequence_up_to(max_value: int) -> Array[int]:
 			
 	return sequence
 
-## 获取用于在HUD上显示的动态数据。
-func get_display_data(context: Dictionary = {}) -> Dictionary:
+## 获取用于在HUD上显示的原始上下文数据。
+func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 	var max_value = context.get("max_player_value", 0)
-	var all_player_values = context.get("all_player_values", [])
 	
-	var max_display_value = 5 + max_value * 2 
+	var max_display_value = 5 + max_value * 2
 	
-	var player_tiles_set = {}
-	for v in all_player_values:
-		player_tiles_set[v] = true
-		
-	var sequence: Array[int] = [1, 2]
 	# 动态生成序列直到达到上限
+	var sequence: Array[int] = [1, 2]
 	while true:
 		var next_fib = sequence[-1] + sequence[-2]
 		if next_fib > max_display_value: break
 		sequence.append(next_fib)
 	
-	# 构建斐波那契数列的数据数组
-	var fib_data = [{"text": "合成序列:", "color": Color.WHITE}]
-	for num in sequence:
-		var item = {"text": str(num), "color": Color.GRAY}
-		if player_tiles_set.has(num):
-			item["color"] = Color.WHITE
-		fib_data.append(item)
-			
-	return {"fibonacci_sequence": fib_data}
+	# 只返回原始数据
+	return {
+		"fib_sequence": sequence,
+		"player_values_set": context.get("player_values_set", {})
+	}
 
 ## 获取此规则下所有可生成的方块“类型”。
 func get_spawnable_types() -> Dictionary:

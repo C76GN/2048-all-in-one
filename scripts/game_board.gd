@@ -4,19 +4,8 @@
 ##
 ## 该脚本处理棋盘的初始化、方块的生成、移动和交互。它被设计为一个通用的“执行者”，
 ## 自身不包含任何具体的游戏规则（如如何合并、如何算输），而是通过外部注入的规则对象来执行逻辑。
-## 通过信号与游戏主场景进行通信，实现了逻辑与表现的分离。
+## 通过全局事件总线（EventBus）发布游戏事件，实现了逻辑与表现的分离。
 extends Control
-
-# --- 信号定义 ---
-
-## 当一次有效的移动成功执行后发出。
-signal move_made
-## 当游戏根据规则无法再进行下去时发出。
-signal game_lost
-## 当棋盘完成重置或扩建后发出，传递新的尺寸。
-signal board_resized(new_grid_size)
-## 当一次合并产生分数时发出。
-signal score_updated(amount)
 
 # --- 常量与预加载资源 ---
 
@@ -108,7 +97,7 @@ func handle_move(direction: Vector2i) -> void:
 			for tween in move_tweens:
 				await tween.finished
 		
-		move_made.emit()
+		EventBus.move_made.emit()
 		_check_game_over()
 
 ## 生成一个指定信息的方块。
@@ -175,8 +164,7 @@ func reset_and_resize(new_size: int, p_board_theme: BoardTheme) -> void:
 	is_initialized = false
 	grid_size = new_size
 	
-	initialize_board()
-	board_resized.emit(grid_size)
+	EventBus.board_resized.emit(grid_size)
 
 ## 在游戏进行中扩建棋盘（只能变大）。
 func live_expand(new_size: int) -> void:
@@ -196,7 +184,7 @@ func live_expand(new_size: int) -> void:
 		grid[x].fill(null)
 	
 	_animate_expansion(old_size, new_size)
-	board_resized.emit(grid_size)
+	EventBus.board_resized.emit(grid_size)
 
 ## 遍历整个网格，返回所有空格子坐标的数组。
 func get_empty_cells() -> Array:
@@ -257,7 +245,7 @@ func _process_line(line: Array) -> Array:
 				
 				# 如果交互结果包含分数，则发出信号
 				if result.has("score"):
-					score_updated.emit(result["score"])
+					EventBus.score_updated.emit(result["score"])
 					
 				i += 2
 				continue
@@ -283,7 +271,7 @@ func _process_line(line: Array) -> Array:
 func _check_game_over() -> void:
 	# 将判断逻辑委托给注入的规则对象。
 	if game_over_rule.is_game_over(self, interaction_rule):
-		game_lost.emit()
+		EventBus.game_lost.emit()
 
 # --- 视觉与动画 ---
 
