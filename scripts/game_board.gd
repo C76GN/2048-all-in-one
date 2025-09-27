@@ -101,7 +101,6 @@ func handle_move(direction: Vector2i) -> void:
 		_check_game_over()
 
 ## 生成一个指定信息的方块。
-## 这是一个通用的生成函数，取代了旧的 spawn_tile 和 spawn_monster。
 func spawn_tile(spawn_data: Dictionary) -> Tween:
 	var value = spawn_data.get("value", 2)
 	var type = spawn_data.get("type", Tile.TileType.PLAYER)
@@ -111,21 +110,21 @@ func spawn_tile(spawn_data: Dictionary) -> Tween:
 	
 	# 情况1：棋盘有空位，正常生成。
 	if not empty_cells.is_empty():
-		var spawn_pos: Vector2i = empty_cells.pick_random()
+		var spawn_pos: Vector2i = empty_cells[GlobalGameManager.get_rng().randi_range(0, empty_cells.size() - 1)]
 		return _spawn_at(spawn_pos, value, type)
 	# 情况2：棋盘已满，但生成请求是优先的（如怪物），则执行转化逻辑。
 	elif is_priority:
 		var player_tiles = _get_all_player_tiles()
 		# 子情况A：棋盘上仍有玩家方块，随机将一个转变为怪物。
 		if not player_tiles.is_empty():
-			var tile_to_transform = player_tiles.pick_random()
+			var tile_to_transform = player_tiles[GlobalGameManager.get_rng().randi_range(0, player_tiles.size() - 1)]
 			tile_to_transform.setup(value, type, interaction_rule, color_schemes)
 			tile_to_transform.animate_transform()
 		# 子情况B：棋盘上全是怪物方块，随机将一个数值翻倍以示“增强”。
 		else:
 			var monster_tiles = _get_all_monster_tiles()
 			if not monster_tiles.is_empty():
-				var tile_to_empower = monster_tiles.pick_random()
+				var tile_to_empower = monster_tiles[GlobalGameManager.get_rng().randi_range(0, monster_tiles.size() - 1)]
 				tile_to_empower.setup(tile_to_empower.value * 2, type, interaction_rule, color_schemes)
 		return null
 		

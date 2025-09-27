@@ -36,12 +36,10 @@ extends SpawnRule
 # 当前的动态概率值。
 var _current_probability: float = 0.0
 
-
 ## 初始化此规则，设置初始概率。
 func setup(p_game_board: Control, _required_nodes: Dictionary = {}) -> void:
 	super.setup(p_game_board)
 	_current_probability = base_probability
-
 
 ## RuleManager调用此函数来执行概率生成逻辑。
 func execute(_payload: Dictionary = {}) -> bool:
@@ -49,7 +47,7 @@ func execute(_payload: Dictionary = {}) -> bool:
 	if game_board.get_empty_cells().is_empty():
 		return false
 		
-	var rng_value = randf()
+	var rng_value = GlobalGameManager.get_rng().randf()
 	
 	# 检查随机数是否小于当前概率
 	if rng_value < _current_probability:

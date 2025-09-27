@@ -131,8 +131,7 @@ func _calculate_monster_value() -> int:
 	for w in weights: total_weight += w
 	if total_weight == 0: return 2
 
-	var rng = RandomNumberGenerator.new()
-	rng.randomize()
+	var rng = GlobalGameManager.get_rng()
 	var random_pick = rng.randi_range(1, total_weight)
 	
 	var cumulative_weight = 0

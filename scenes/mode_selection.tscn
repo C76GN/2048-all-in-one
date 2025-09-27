@@ -86,6 +86,27 @@ text = "棋盘大小："
 
 [node name="SpinBox" type="SpinBox" parent="CenterContainer/MainLayout/RightPanelContainer/HBoxContainer"]
 layout_mode = 2
+rounded = true
+
+[node name="HBoxContainer2" type="HBoxContainer" parent="CenterContainer/MainLayout/RightPanelContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2"]
+layout_mode = 2
+text = "游戏种子："
+
+[node name="SeedLineEdit" type="LineEdit" parent="CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+placeholder_text = "留空则随机"
+select_all_on_focus = true
+caret_blink = true
+
+[node name="RefreshSeedButton" type="Button" parent="CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2"]
+layout_mode = 2
+tooltip_text = "点击以生成新的随机种子"
+text = "🎲"
+flat = true
 
 [node name="Spacer" type="Control" parent="CenterContainer/MainLayout/RightPanelContainer"]
 custom_minimum_size = Vector2(0, 20)

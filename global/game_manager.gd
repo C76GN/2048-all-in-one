@@ -9,16 +9,33 @@ extends Node
 # 主菜单是应用的固定入口，将其路径作为常量是合理的。
 const MAIN_MENU_SCENE_PATH = "res://scenes/main_menu.tscn"
 
-# 将模式配置路径设为私有，通过函数访问，更安全。
+# --- 核心游戏状态 ---
 var _selected_mode_config_path: String
-# 用于存储玩家选择的棋盘大小。
 var _selected_grid_size: int = 4
+
+# --- 随机性管理 ---
+# 全局唯一的随机数生成器实例
+var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+# 当前游戏正在使用的种子
+var _current_seed: int = 0
 
 
 # --- 公共接口 ---
 
-## 选择一个游戏模式并切换到游戏场景，传递棋盘大小。
-func select_mode_and_start(config_path: String, game_scene: PackedScene, grid_size: int):
+## 初始化或重置随机数生成器。
+## @param p_seed: 用于初始化RNG的种子。如果为0，则使用随机种子。
+func initialize_rng(p_seed: int = 0) -> void:
+	if p_seed == 0:
+		_rng.randomize()
+		_current_seed = _rng.seed
+	else:
+		_current_seed = p_seed
+		_rng.seed = _current_seed
+	print("RNG 已使用种子初始化: ", _current_seed)
+
+
+## 选择一个游戏模式并切换到游戏场景，传递棋盘大小和种子。
+func select_mode_and_start(config_path: String, game_scene: PackedScene, grid_size: int, p_seed: int):
 	if not config_path.begins_with("res://") or not config_path.ends_with(".tres"):
 		push_error("错误: 模式配置文件路径必须是有效的资源路径: " + config_path)
 		return
@@ -29,6 +46,10 @@ func select_mode_and_start(config_path: String, game_scene: PackedScene, grid_si
 
 	_selected_mode_config_path = config_path
 	_selected_grid_size = grid_size
+	
+	# 在开始新游戏前，使用指定的种子初始化RNG
+	initialize_rng(p_seed)
+	
 	goto_scene_packed(game_scene)
 
 ## 获取当前选择的模式配置路径。
@@ -38,6 +59,14 @@ func get_selected_mode_config_path() -> String:
 ## 获取当前选择的棋盘大小。
 func get_selected_grid_size() -> int:
 	return _selected_grid_size
+	
+## 获取当前游戏的种子。
+func get_current_seed() -> int:
+	return _current_seed
+
+## 获取全局唯一的随机数生成器实例。
+func get_rng() -> RandomNumberGenerator:
+	return _rng
 
 ## 统一的返回主菜单功能，打破场景间的循环依赖。
 func return_to_main_menu():

@@ -21,6 +21,8 @@ const ModeCardScene = preload("res://scenes/ui/mode_card.tscn")
 @onready var right_panel_container: VBoxContainer = $CenterContainer/MainLayout/RightPanelContainer
 @onready var start_game_button: Button = $CenterContainer/MainLayout/RightPanelContainer/StartGameButton
 @onready var grid_size_spinbox: SpinBox = $CenterContainer/MainLayout/RightPanelContainer/HBoxContainer/SpinBox
+@onready var seed_line_edit: LineEdit = $CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2/SeedLineEdit
+@onready var refresh_seed_button: Button = $CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2/RefreshSeedButton
 @onready var _info_default_label: Label = $CenterContainer/MainLayout/LeftPanel/Label
 
 # --- 内部状态 ---
@@ -46,7 +48,10 @@ func _ready() -> void:
 	
 	# 连接“开始游戏”按钮的信号
 	start_game_button.pressed.connect(_on_start_game_button_pressed)
-
+	# 连接刷新按钮的 pressed 信号到新的处理函数
+	refresh_seed_button.pressed.connect(_generate_and_display_new_seed)
+	# 首次进入界面时，调用一次以生成初始种子
+	_generate_and_display_new_seed()
 
 # --- 内部核心函数 ---
 
@@ -174,9 +179,30 @@ func _on_start_game_button_pressed() -> void:
 		push_error("无法开始游戏：没有选中的模式。")
 		return
 	
+	var seed_text = seed_line_edit.text
+	var seed_value = 0
+	if seed_text.is_empty():
+		# 如果输入为空，则使用当前时间生成一个随机种子
+		seed_value = Time.get_unix_time_from_system()
+	else:
+		# 确保输入的是有效的数字
+		if seed_text.is_valid_int():
+			seed_value = int(seed_text)
+		else:
+			# 如果输入的不是有效整数，则使用其哈希值作为种子
+			seed_value = seed_text.hash()
+
 	# 调用 GlobalGameManager，并传递所有需要的配置
 	GlobalGameManager.select_mode_and_start(
 		_selected_mode_config.resource_path,
 		game_play_scene,
-		_current_grid_size
+		_current_grid_size,
+		seed_value
 	)
+
+## 生成一个新的随机种子并将其显示在输入框中。
+func _generate_and_display_new_seed() -> void:
+	var rng = RandomNumberGenerator.new()
+	rng.randomize() # 确保每次生成的随机数都不同
+	# 使用 randi() 生成一个完整的32位整数作为种子
+	seed_line_edit.text = str(rng.randi())

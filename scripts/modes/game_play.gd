@@ -35,8 +35,10 @@ func _ready() -> void:
 ## [内部函数] 负责整个游戏场景的初始化或重置。
 ## @param new_grid_size: 如果提供（大于-1），则使用此尺寸，否则从GlobalGameManager获取。
 func _initialize_game(new_grid_size: int = -1) -> void:
+	GlobalGameManager.initialize_rng(GlobalGameManager.get_current_seed())
 	# 步骤1: 从 GlobalGameManager 加载所选的游戏模式配置和棋盘大小。
 	var config_path = GlobalGameManager.get_selected_mode_config_path()
+	
 	if new_grid_size > -1:
 		current_grid_size = new_grid_size
 	else:
@@ -228,6 +230,8 @@ func _update_and_publish_hud_data() -> void:
 	if not mode_config.mode_description.is_empty():
 		display_data["description"] = mode_config.mode_description
 	display_data["controls"] = "操作: W/A/S/D 或 方向键\n暂停: Esc"
+	# 添加当前游戏种子信息
+	display_data["seed_info"] = "游戏种子: %d" % GlobalGameManager.get_current_seed()
 	
 	EventBus.hud_update_requested.emit(display_data)
 
