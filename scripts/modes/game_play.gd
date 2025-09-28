@@ -242,7 +242,7 @@ func _format_interaction_data(p_display_data: Dictionary, p_raw_data: Dictionary
 		p_display_data["monsters_killed"] = "消灭怪物: %d" % p_raw_data["monsters_killed"]
 	
 	# 斐波那契模式
-	if p_raw_data.has("fib_sequence"):
+	if p_raw_data.has("fib_sequence") and not p_raw_data.has("luc_sequence"):
 		var fib_data_for_ui = [{"text": "合成序列:", "color": Color.WHITE}]
 		var player_set = p_raw_data["player_values_set"]
 		for num in p_raw_data["fib_sequence"]:
