@@ -88,12 +88,12 @@ func get_spawnable_values(_type_id: int) -> Array[int]:
 		current_power_of_two *= 2
 	return values
 
-## 获取用于在HUD上显示的原始上下文数据。
+## 获取用于在HUD上显示的格式化好的上下文数据。
 ## @param context: 包含当前游戏状态的字典。
-## @return: 一个包含战斗模式特定原始信息的字典。
+## @return: 一个包含战斗模式特定显示信息的字典。
 func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 	var data = {}
 	if context.has("monsters_killed"):
-		# 只返回原始数据，让上层去格式化
-		data["monsters_killed"] = context["monsters_killed"]
+		# 直接返回格式化好的字符串
+		data["monsters_killed_display"] = "消灭怪物: %d" % context["monsters_killed"]
 	return data

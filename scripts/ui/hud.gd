@@ -29,9 +29,6 @@ func _ready() -> void:
 ## 统一更新所有UI显示。
 ## 从外部接收一个包含所有需要显示数据的字典，并动态更新UI。
 func update_display(display_data: Dictionary) -> void:
-	# 定义哪些key需要使用FlowLabelList组件来显示
-	var flow_label_keys = ["fibonacci_sequence", "fib_sequence_display", "luc_sequence_display"]
-	
 	# 步骤1: 遍历当前所有缓存的UI节点，如果其key不在新的数据中，则隐藏它。
 	for key in _stat_labels:
 		if not display_data.has(key):
@@ -42,23 +39,34 @@ func update_display(display_data: Dictionary) -> void:
 		var data_to_display = display_data[key]
 		
 		# 如果数据为空，则确保对应的UI节点是隐藏的。
-		if data_to_display == null or (data_to_display is String and data_to_display.is_empty()):
+		if data_to_display == null or \
+		  (data_to_display is String and data_to_display.is_empty()) or \
+		  (data_to_display is Array and data_to_display.is_empty()):
 			if _stat_labels.has(key):
 				_stat_labels[key].visible = false
 			continue
 
 		var ui_node: Control
 		
-		if not _stat_labels.has(key):
-			# 如果是数字序列，实例化 FlowLabelList。
-			if key in flow_label_keys:
+		# 检查是否已存在对应UI节点，如果不存在或类型不匹配，则创建新的。
+		var needs_recreation = false
+		if _stat_labels.has(key):
+			var existing_node = _stat_labels[key]
+			if (data_to_display is Array and not existing_node is FlowLabelList) or \
+			   (not data_to_display is Array and existing_node is FlowLabelList):
+				existing_node.queue_free()
+				needs_recreation = true
+		else:
+			needs_recreation = true
+
+		if needs_recreation:
+			# 如果数据是Array，实例化FlowLabelList；否则，使用RichTextLabel。
+			if data_to_display is Array:
 				ui_node = FlowLabelListScene.instantiate()
-			# 其他的，如分数、合成提示等，使用 RichTextLabel 以支持BBCode。
 			else:
 				var new_label = RichTextLabel.new()
 				new_label.bbcode_enabled = true
 				new_label.fit_content = true
-				# 对于普通文本，允许其在单词边界自动换行。
 				new_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 				ui_node = new_label
 				
@@ -69,10 +77,8 @@ func update_display(display_data: Dictionary) -> void:
 
 		# 步骤3: 根据节点类型，使用不同的方式更新内容。
 		if ui_node is FlowLabelList:
-			# 如果是FlowLabelList，调用它的update_data函数来更新。
 			ui_node.update_data(data_to_display)
 		elif ui_node is RichTextLabel:
-			# 如果是RichTextLabel，直接设置text属性。
 			ui_node.text = str(data_to_display)
 		
 		ui_node.visible = true

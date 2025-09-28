@@ -128,23 +128,30 @@ func get_fibonacci_sequence_up_to(max_value: int) -> Array[int]:
 			
 	return sequence
 
-## 获取用于在HUD上显示的原始上下文数据。
+## 获取用于在HUD上显示的格式化好的上下文数据。
 func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 	var max_value = context.get("max_player_value", 0)
-	
-	var max_display_value = 5 + max_value * 2
+	var player_values_set = context.get("player_values_set", {})
 	
 	# 动态生成序列直到达到上限
+	var max_display_value = 5 + max_value * 2
 	var sequence: Array[int] = [1, 2]
 	while true:
 		var next_fib = sequence[-1] + sequence[-2]
 		if next_fib > max_display_value: break
 		sequence.append(next_fib)
 	
-	# 只返回原始数据
+	# 在规则内部直接构建HUD所需的Array[Dictionary]结构
+	var fib_data_for_ui = [{"text": "合成序列:", "color": Color.WHITE}]
+	for num in sequence:
+		var item = {"text": str(num), "color": Color.GRAY}
+		if player_values_set.has(num):
+			item["color"] = Color.WHITE
+		fib_data_for_ui.append(item)
+		
+	# 返回一个键值对，键名清晰，值为FlowLabelList可以直接使用的数据
 	return {
-		"fib_sequence": sequence,
-		"player_values_set": context.get("player_values_set", {})
+		"fibonacci_sequence_display": fib_data_for_ui
 	}
 
 ## 获取此规则下所有可生成的方块“类型”。

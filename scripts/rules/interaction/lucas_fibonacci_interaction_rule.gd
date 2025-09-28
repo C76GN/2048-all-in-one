@@ -111,36 +111,58 @@ func get_color_scheme_index(value: int) -> int:
 	
 	return 0
 
-## 获取用于在HUD上显示的原始上下文数据。
+## 获取用于在HUD上显示的格式化好的上下文数据。
 func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 	var max_player_value = context.get("max_player_value", 0)
 	var max_display_value = 5 + max_player_value * 2
 	var player_tiles_set = context.get("player_values_set", {})
-
-	var synthesis_data = {}
 	
+	var display_data = {}
+
+	# 查找可合成的提示
+	var synthesis_data = {}
 	for i in range(1, _fib_sequence.size() - 1):
 		var f_n_minus_1 = _fib_sequence[i - 1]
 		var f_n_plus_1 = _fib_sequence[i + 1]
 		if player_tiles_set.has(f_n_minus_1) and player_tiles_set.has(f_n_plus_1):
 			var l_n = f_n_minus_1 + f_n_plus_1
 			synthesis_data = {
-				"f_minus_1": f_n_minus_1,
-				"f_plus_1": f_n_plus_1,
-				"l_n": l_n
+				"f_minus_1": f_n_minus_1, "f_plus_1": f_n_plus_1, "l_n": l_n
 			}
-			break # 只显示一个合成提示
+			break
 
-	var temp_luc_sequence = _luc_sequence.slice(1)
-	temp_luc_sequence.sort()
+	# 格式化合成提示字符串
+	var highlight_fib_components = {}
+	var highlight_lucas_set = {}
+	if not synthesis_data.is_empty():
+		highlight_fib_components[synthesis_data["f_minus_1"]] = true
+		highlight_fib_components[synthesis_data["f_plus_1"]] = true
+		highlight_lucas_set[synthesis_data["l_n"]] = true
+		display_data["synthesis_tip_display"] = "合成提示: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color]" % [synthesis_data["f_minus_1"], synthesis_data["f_plus_1"], synthesis_data["l_n"]]
+
+	# 格式化斐波那契序列
+	var fib_data_for_ui = [{"text": "斐波那契:", "color": Color.WHITE}]
+	for num in _fib_sequence:
+		if num > max_display_value: break
+		var item = {"text": str(num), "color": Color.GRAY}
+		if highlight_fib_components.has(num): item["color"] = Color.CYAN
+		elif player_tiles_set.has(num): item["color"] = Color.WHITE
+		fib_data_for_ui.append(item)
+	display_data["fib_sequence_display"] = fib_data_for_ui
+	
+	# 格式化卢卡斯序列
+	var luc_display_sequence = _luc_sequence.slice(1)
+	luc_display_sequence.sort()
+	var luc_data_for_ui = [{"text": "卢卡斯:", "color": Color.WHITE}]
+	for num in luc_display_sequence:
+		if num > max_display_value: break
+		var item = {"text": str(num), "color": Color.GRAY}
+		if highlight_lucas_set.has(num): item["color"] = Color.YELLOW
+		elif player_tiles_set.has(num): item["color"] = Color.WHITE
+		luc_data_for_ui.append(item)
+	display_data["luc_sequence_display"] = luc_data_for_ui
 		
-	return {
-		"fib_sequence": _fib_sequence,
-		"luc_sequence": temp_luc_sequence,
-		"max_display_value": max_display_value,
-		"player_values_set": player_tiles_set,
-		"synthesis_data": synthesis_data,
-	}
+	return display_data
 
 ## 获取此规则下所有可生成的方块“类型”。
 func get_spawnable_types() -> Dictionary:

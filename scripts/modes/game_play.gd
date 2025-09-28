@@ -187,23 +187,21 @@ func _on_board_resized(new_size: int):
 
 # --- UI 更新 & 菜单逻辑 ---
 
-## [内部函数] 聚合所有数据，格式化，并通过EventBus发布给HUD。
+## [内部函数] 聚合所有数据并通过EventBus发布给HUD。
 func _update_and_publish_hud_data() -> void:
 	var display_data = {}
 	
-	# --- 核心游戏信息 ---
+	# --- 1. 核心游戏信息 (由GamePlay自己管理) ---
 	display_data["score"] = "分数: %d" % score
-	
-	# 使用 initial_high_score 进行实时比较和显示
 	if score > initial_high_score:
 		display_data["high_score"] = "最高分: %d [color=yellow](新纪录!)[/color]" % score
 	else:
 		display_data["high_score"] = "最高分: %d" % initial_high_score
-		
 	display_data["highest_tile"] = "最大方块: %d" % game_board.get_max_player_value()
 	display_data["move_count"] = "移动次数: %d" % move_count
 
-	# --- 规则动态信息 ---
+	# --- 2. 动态规则信息 (向规则请求格式化好的数据) ---
+	# 创建一个包含原始数据的上下文，供规则查询使用
 	var player_values = game_board.get_all_player_tile_values()
 	var player_values_set = {}
 	for v in player_values: player_values_set[v] = true
@@ -214,73 +212,26 @@ func _update_and_publish_hud_data() -> void:
 		"player_values_set": player_values_set
 	}
 	
+	# 从交互规则获取其显示数据
 	if is_instance_valid(interaction_rule):
 		var interaction_data = interaction_rule.get_hud_context_data(rule_context)
-		_format_interaction_data(display_data, interaction_data)
+		display_data.merge(interaction_data)
 
-	# --- 规则动态信息 ---
-	# 从所有规则中聚合需要显示的动态数据（如计时器）
+	# 从所有生成规则获取它们的显示数据 (如计时器)
 	for rule in all_spawn_rules:
 		var rule_data = rule.get_display_data()
 		if not rule_data.is_empty():
 			display_data.merge(rule_data)
 	
-	# --- 静态帮助信息 ---
+	# --- 3. 静态帮助信息 ---
 	display_data["separator"] = "--------------------"
 	if not mode_config.mode_description.is_empty():
 		display_data["description"] = mode_config.mode_description
 	display_data["controls"] = "操作: W/A/S/D 或 方向键\n暂停: Esc"
-	# 添加当前游戏种子信息
 	display_data["seed_info"] = "游戏种子: %d" % GlobalGameManager.get_current_seed()
 	
+	# --- 4. 发布最终数据 ---
 	EventBus.hud_update_requested.emit(display_data)
-
-## [内部辅助] 将来自规则的原始数据格式化为HUD所需的数据结构。
-func _format_interaction_data(p_display_data: Dictionary, p_raw_data: Dictionary):
-	# 战斗模式
-	if p_raw_data.has("monsters_killed"):
-		p_display_data["monsters_killed"] = "消灭怪物: %d" % p_raw_data["monsters_killed"]
-	
-	# 斐波那契模式
-	if p_raw_data.has("fib_sequence") and not p_raw_data.has("luc_sequence"):
-		var fib_data_for_ui = [{"text": "合成序列:", "color": Color.WHITE}]
-		var player_set = p_raw_data["player_values_set"]
-		for num in p_raw_data["fib_sequence"]:
-			var item = {"text": str(num), "color": Color.GRAY}
-			if player_set.has(num): item["color"] = Color.WHITE
-			fib_data_for_ui.append(item)
-		p_display_data["fibonacci_sequence"] = fib_data_for_ui
-		
-	# 卢卡斯-斐波那契模式
-	if p_raw_data.has("luc_sequence"):
-		var player_set = p_raw_data["player_values_set"]
-		var synthesis_data = p_raw_data.get("synthesis_data", {})
-		var highlight_fib_components = {}
-		var highlight_lucas_set = {}
-		
-		if not synthesis_data.is_empty():
-			highlight_fib_components[synthesis_data["f_minus_1"]] = true
-			highlight_fib_components[synthesis_data["f_plus_1"]] = true
-			highlight_lucas_set[synthesis_data["l_n"]] = true
-			p_display_data["synthesis_tip_display"] = "合成提示: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color]" % [synthesis_data["f_minus_1"], synthesis_data["f_plus_1"], synthesis_data["l_n"]]
-			
-		var fib_data_for_ui = [{"text": "斐波那契:", "color": Color.WHITE}]
-		for num in p_raw_data["fib_sequence"]:
-			if num > p_raw_data["max_display_value"]: break
-			var item = {"text": str(num), "color": Color.GRAY}
-			if highlight_fib_components.has(num): item["color"] = Color.CYAN
-			elif player_set.has(num): item["color"] = Color.WHITE
-			fib_data_for_ui.append(item)
-		p_display_data["fib_sequence_display"] = fib_data_for_ui
-		
-		var luc_data_for_ui = [{"text": "卢卡斯:", "color": Color.WHITE}]
-		for num in p_raw_data["luc_sequence"]:
-			if num > p_raw_data["max_display_value"]: break
-			var item = {"text": str(num), "color": Color.GRAY}
-			if highlight_lucas_set.has(num): item["color"] = Color.YELLOW
-			elif player_set.has(num): item["color"] = Color.WHITE
-			luc_data_for_ui.append(item)
-		p_display_data["luc_sequence_display"] = luc_data_for_ui
 
 func _toggle_pause_menu():
 	if is_game_over: return
