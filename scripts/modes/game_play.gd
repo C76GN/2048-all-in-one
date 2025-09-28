@@ -14,6 +14,7 @@ extends Control
 @onready var game_over_menu = $GameOverMenu
 @onready var background_color_rect: ColorRect = %ColorRect
 @onready var input_controller = $InputController
+@onready var board_animator: BoardAnimator = $BoardAnimator
 
 # --- 状态变量 ---
 var mode_config: GameModeConfig
@@ -144,6 +145,10 @@ func _connect_signals() -> void:
 		EventBus.monster_killed.connect(_on_monster_killed)
 	if not EventBus.board_resized.is_connected(_on_board_resized):
 		EventBus.board_resized.connect(_on_board_resized)
+	if is_instance_valid(game_board) and is_instance_valid(board_animator):
+		# 将 GameBoard 的动画请求连接到 BoardAnimator 的播放函数
+		if not game_board.play_animations_requested.is_connected(board_animator.play_animation_sequence):
+			game_board.play_animations_requested.connect(board_animator.play_animation_sequence)
 
 # --- 信号处理函数 ---
 

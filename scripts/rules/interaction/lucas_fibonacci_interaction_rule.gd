@@ -84,7 +84,6 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 	if can_interact(tile_a, tile_b):
 		var new_value = tile_a.value + tile_b.value
 		tile_b.setup(new_value, tile_a.type, p_rule, tile_a.color_schemes)
-		tile_a.queue_free()
 		return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": new_value}
 	
 	return {}

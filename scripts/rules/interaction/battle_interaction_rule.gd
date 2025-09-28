@@ -14,7 +14,6 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 	if tile_a.type == tile_b.type:
 		if tile_a.value == tile_b.value:
 			tile_b.setup(tile_a.value * 2, tile_a.type, p_rule, tile_a.color_schemes)
-			tile_a.queue_free()
 			return {"merged_tile": tile_b, "consumed_tile": tile_a}
 	
 	# 情况B: 两个方块类型不同（战斗）
@@ -36,7 +35,6 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 		else: 
 			tile_b.setup(1, tile_b.type, p_rule, tile_b.color_schemes)
 			tile_b.animate_transform()
-			tile_a.queue_free()
 			if tile_a.type == Tile.TileType.MONSTER:
 				EventBus.monster_killed.emit()
 			return {"merged_tile": tile_b, "consumed_tile": tile_a}

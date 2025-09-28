@@ -24,3 +24,6 @@ repomix.config.json
 # VsCode
 .vscode/
 .env
+
+unstaged_changes.diff.txt
+unstaged_changes.diff

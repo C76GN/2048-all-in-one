@@ -19,6 +19,8 @@ const SPACING: int = 15
 # 棋盘背景的内边距。
 const BOARD_PADDING: int = 15
 
+signal play_animations_requested(instructions: Array)
+
 # --- 核心数据 ---
 
 # 棋盘的尺寸
@@ -74,34 +76,76 @@ func initialize_board() -> void:
 ## 根据给定的方向向量处理一次完整的移动操作。
 func handle_move(direction: Vector2i) -> void:
 	var moved = false
-	# 为了简化算法，将所有方向的移动都转换为向“左”移动的逻辑。
-	var grid_copy_for_move = _get_rotated_grid(direction)
-	var new_grid_after_move = []
+	var instructions: Array[Dictionary] = []
+	var new_grid: Array = []
+	new_grid.resize(grid_size)
+	for i in range(grid_size):
+		new_grid[i] = []; new_grid[i].resize(grid_size)
+		new_grid[i].fill(null)
 
-	# 逐行处理旋转后的虚拟网格。
-	for row_index in grid_size:
-		var current_row = grid_copy_for_move[row_index]
-		var result = _process_line(current_row)
-		var processed_row = result[0]
-		var has_moved_in_row = result[1]
-		new_grid_after_move.append(processed_row)
-		if has_moved_in_row:
+	# 逐行/逐列处理
+	for i in range(grid_size):
+		var line: Array[Tile] = []
+		for j in range(grid_size):
+			var coords = _get_coords_for_line(i, j, direction)
+			line.append(grid[coords.x][coords.y])
+		
+		var result = _process_line(line)
+		var new_line: Array[Tile] = result.line
+		var merges: Array[Dictionary] = result.merges
+		
+		if result.moved:
 			moved = true
-	
-	# 仅在发生了有效移动时，才更新棋盘状态。
+		
+		# 处理合并动画指令
+		for merge_info in merges:
+			var consumed: Tile = merge_info.consumed_tile
+			var merged: Tile = merge_info.merged_tile
+			
+			# 找到合并后方块在新行中的位置
+			var final_line_pos = new_line.find(merged)
+			var final_coords = _get_coords_for_line(i, final_line_pos, direction)
+			
+			instructions.append({
+				"type": "MERGE",
+				"consumed_tile": consumed,
+				"merged_tile": merged,
+				"to_pos": _grid_to_pixel_center(final_coords)
+			})
+
+		# 处理滑动动画指令
+		var tiles_in_new_line: Dictionary = {}
+		for tile in new_line:
+			if tile: tiles_in_new_line[tile.get_instance_id()] = true
+		
+		for j in range(grid_size):
+			var original_tile = line[j]
+			if original_tile and not tiles_in_new_line.has(original_tile.get_instance_id()):
+				continue
+			
+			var final_line_pos = new_line.find(original_tile)
+			if original_tile and final_line_pos != -1 and final_line_pos != j:
+				var final_coords = _get_coords_for_line(i, final_line_pos, direction)
+				instructions.append({
+					"type": "MOVE",
+					"tile": original_tile,
+					"to_pos": _grid_to_pixel_center(final_coords)
+				})
+
+		# 将处理完的行放回新的网格中
+		for j in range(grid_size):
+			var coords = _get_coords_for_line(i, j, direction)
+			new_grid[coords.x][coords.y] = new_line[j]
 	if moved:
-		grid = _unrotate_grid(new_grid_after_move, direction)
-		
-		var move_tweens = _update_board_visuals()
-		if not move_tweens.is_empty():
-			for tween in move_tweens:
-				await tween.finished
-		
+		grid = new_grid
 		EventBus.move_made.emit()
+		play_animations_requested.emit(instructions)
+		
+		# 逻辑层立即检查游戏是否结束
 		_check_game_over()
 
 ## 生成一个指定信息的方块。
-func spawn_tile(spawn_data: Dictionary) -> Tween:
+func spawn_tile(spawn_data: Dictionary) -> void:
 	var value = spawn_data.get("value", 2)
 	var type = spawn_data.get("type", Tile.TileType.PLAYER)
 	var is_priority = spawn_data.get("is_priority", false)
@@ -111,7 +155,12 @@ func spawn_tile(spawn_data: Dictionary) -> Tween:
 	# 情况1：棋盘有空位，正常生成。
 	if not empty_cells.is_empty():
 		var spawn_pos: Vector2i = empty_cells[GlobalGameManager.get_rng().randi_range(0, empty_cells.size() - 1)]
-		return _spawn_at(spawn_pos, value, type)
+		var new_tile = _spawn_at(spawn_pos, value, type)
+		
+		# 创建SPAWN指令并请求播放
+		var instruction = [{"type": "SPAWN", "tile": new_tile}]
+		play_animations_requested.emit(instruction)
+		
 	# 情况2：棋盘已满，但生成请求是优先的（如怪物），则执行转化逻辑。
 	elif is_priority:
 		var player_tiles = _get_all_player_tiles()
@@ -126,9 +175,6 @@ func spawn_tile(spawn_data: Dictionary) -> Tween:
 			if not monster_tiles.is_empty():
 				var tile_to_empower = monster_tiles[GlobalGameManager.get_rng().randi_range(0, monster_tiles.size() - 1)]
 				tile_to_empower.setup(tile_to_empower.value * 2, type, interaction_rule, color_schemes)
-		return null
-		
-	return null
 
 ## 获取当前棋盘上数值最大的玩家方块的值。
 func get_max_player_value() -> int:
@@ -223,26 +269,27 @@ func _update_board_layout() -> void:
 # --- 内部核心逻辑 ---
 
 ## 处理单行的移动与交互，现在委托给 interaction_rule。
-func _process_line(line: Array) -> Array:
-	var slid_line = []
+func _process_line(line: Array[Tile]) -> Dictionary:
+	var slid_line: Array[Tile] = []
 	for tile in line:
 		if tile != null: slid_line.append(tile)
 	
-	var merged_line = []
+	var merged_line: Array[Tile] = []
+	var merge_results: Array[Dictionary] = []
 	var i = 0
 	while i < slid_line.size():
 		var current_tile = slid_line[i]
 		if i + 1 < slid_line.size():
 			var next_tile = slid_line[i + 1]
 			
-			# 将具体的交互逻辑委托给注入的规则对象。
 			var result = interaction_rule.process_interaction(current_tile, next_tile, interaction_rule)
 			if not result.is_empty():
 				var merged = result.get("merged_tile")
 				if merged != null:
 					merged_line.append(merged)
 				
-				# 如果交互结果包含分数，则发出信号
+				merge_results.append(result)
+				
 				if result.has("score"):
 					EventBus.score_updated.emit(result["score"])
 					
@@ -252,7 +299,8 @@ func _process_line(line: Array) -> Array:
 		merged_line.append(current_tile)
 		i += 1
 		
-	var result_line = merged_line.duplicate()
+	var result_line: Array[Tile] = []
+	result_line.append_array(merged_line)
 	while result_line.size() < grid_size: result_line.append(null)
 	
 	var has_moved = false
@@ -264,7 +312,7 @@ func _process_line(line: Array) -> Array:
 			   (result_line[idx] != null and line[idx] != null and result_line[idx].get_instance_id() != line[idx].get_instance_id()):
 				has_moved = true; break
 				
-	return [result_line, has_moved]
+	return {"line": result_line, "moved": has_moved, "merges": merge_results}
 
 ## 检查游戏是否结束，现在委托给 game_over_rule。
 func _check_game_over() -> void:
@@ -273,19 +321,6 @@ func _check_game_over() -> void:
 		EventBus.game_lost.emit()
 
 # --- 视觉与动画 ---
-
-## 根据 `grid` 数据更新所有方块的视觉位置，并为移动的方块创建动画。
-func _update_board_visuals() -> Array:
-	var active_tweens = []
-	for x in grid_size:
-		for y in grid_size:
-			if grid[x][y] != null:
-				var tile = grid[x][y]
-				var new_pixel_pos = _grid_to_pixel_center(Vector2i(x, y))
-				if tile.position != new_pixel_pos:
-					var move_tween = tile.animate_move(new_pixel_pos)
-					active_tweens.append(move_tween)
-	return active_tweens
 
 ## 绘制棋盘的静态背景单元格。
 func _draw_board_cells():
@@ -354,19 +389,23 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 				cell_bg.size = final_size
 				cell_bg.position = final_pos
 	await new_cells_tween.finished
-	_update_board_visuals()
 
 # --- 辅助函数 ---
 
 ## 在指定位置生成一个方块的内部实现。
-func _spawn_at(grid_pos: Vector2i, value: int, type: Tile.TileType) -> Tween:
-	var new_tile = TileScene.instantiate()
+func _spawn_at(grid_pos: Vector2i, value: int, type: Tile.TileType) -> Tile:
+	var new_tile: Tile = TileScene.instantiate()
 	board_container.add_child(new_tile)
 	grid[grid_pos.x][grid_pos.y] = new_tile
 	
 	new_tile.setup(value, type, interaction_rule, color_schemes)
 	new_tile.position = _grid_to_pixel_center(grid_pos)
-	return new_tile.animate_spawn()
+	
+	# 动画将由BoardAnimator触发，这里只设置初始状态
+	new_tile.scale = Vector2.ZERO
+	new_tile.rotation_degrees = -360
+	
+	return new_tile # 返回实例供外部生成指令
 
 ## 初始化核心数据 `grid`，创建一个填满 null 的二维数组。
 func _initialize_grid():
@@ -396,36 +435,6 @@ func _get_all_monster_tiles() -> Array:
 				monster_tiles.append(tile)
 	return monster_tiles
 
-## 根据方向旋转网格，用以统一处理所有方向的移动逻辑。
-func _get_rotated_grid(direction: Vector2i) -> Array:
-	var rotated_grid = []
-	rotated_grid.resize(grid_size)
-	for i in grid_size:
-		var line = []
-		for j in grid_size:
-			match direction:
-				Vector2i.LEFT: line.append(grid[j][i])
-				Vector2i.RIGHT: line.append(grid[grid_size - 1 - j][i])
-				Vector2i.UP: line.append(grid[i][j])
-				Vector2i.DOWN: line.append(grid[i][grid_size - 1 - j])
-		rotated_grid[i] = line
-	return rotated_grid
-
-## 将旋转后的网格数据恢复到原始方向。
-func _unrotate_grid(rotated_grid: Array, direction: Vector2i) -> Array:
-	var new_grid = []
-	new_grid.resize(grid_size)
-	for i in grid_size: new_grid[i] = []; new_grid[i].resize(grid_size)
-	
-	for i in grid_size:
-		for j in grid_size:
-			match direction:
-				Vector2i.LEFT: new_grid[j][i] = rotated_grid[i][j]
-				Vector2i.RIGHT: new_grid[grid_size - 1 - j][i] = rotated_grid[i][j]
-				Vector2i.UP: new_grid[i][j] = rotated_grid[i][j]
-				Vector2i.DOWN: new_grid[i][grid_size - 1 - j] = rotated_grid[i][j]
-	return new_grid
-
 ## 将网格坐标转换为棋盘容器内的局部像素中心点坐标。
 func _grid_to_pixel_center(grid_pos: Vector2i) -> Vector2:
 	var top_left_pos = Vector2(grid_pos.x * (CELL_SIZE + SPACING), grid_pos.y * (CELL_SIZE + SPACING))
@@ -444,3 +453,13 @@ func _calculate_layout_params(p_size: int) -> Dictionary:
 	var offset = (current_size - scaled_size) / 2.0
 
 	return {"scale_ratio": scale_ratio, "scaled_size": scaled_size, "offset": offset}
+
+## 坐标转换辅助函数
+## 根据方向，将“行索引”和“行内索引”转换为全局的grid坐标
+func _get_coords_for_line(line_index: int, cell_index: int, direction: Vector2i) -> Vector2i:
+	match direction:
+		Vector2i.LEFT: return Vector2i(cell_index, line_index)
+		Vector2i.RIGHT: return Vector2i(grid_size - 1 - cell_index, line_index)
+		Vector2i.UP: return Vector2i(line_index, cell_index)
+		Vector2i.DOWN: return Vector2i(line_index, grid_size - 1 - cell_index)
+	return Vector2i.ZERO
