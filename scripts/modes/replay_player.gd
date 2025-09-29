@@ -24,8 +24,7 @@ var game_state_history: Array[Dictionary] = []
 var current_step: int = -1 # -1 代表初始状态
 
 func _ready() -> void:
-	# 在开始播放前，必须验证 GlobalGameManager 中是否存在一个有效的 ReplayData 实例，
-	# 以防止因数据缺失导致的崩溃。
+	# 在开始播放前，必须验证 GlobalGameManager 中是否存在一个有效的 ReplayData 实例，以防止因数据缺失导致的崩溃。
 	if not is_instance_valid(GlobalGameManager.current_replay_data):
 		push_error("无法播放回放：没有提供有效的ReplayData。")
 		GlobalGameManager.return_to_main_menu() # 安全地返回
@@ -36,7 +35,11 @@ func _ready() -> void:
 	# 连接UI信号
 	prev_step_button.pressed.connect(func(): _go_to_step(current_step - 1))
 	next_step_button.pressed.connect(func(): _go_to_step(current_step + 1))
-	back_button.pressed.connect(func(): GlobalGameManager.goto_scene("res://scenes/replay_list.tscn"))
+	back_button.pressed.connect(func():
+		# 在切换场景前，清除全局管理器中的引用，释放资源。
+		GlobalGameManager.current_replay_data = null
+		GlobalGameManager.goto_scene("res://scenes/replay_list.tscn")
+	)
 
 	_initialize_replay()
 
@@ -144,7 +147,7 @@ func _create_snapshot_buttons() -> void:
 		# 的第0个元素是初始状态，因此第 `index` 个动作之后的状态对应于历史记录中的第 `index + 1` 个元素。
 		var step = index + 1
 		button = Button.new()
-		button.text = "跳转到快照 (第 %d 步)" % index
+		button.text = "跳转到快照 (第 %d 步)" % (index+1)
 		button.pressed.connect(func(): _go_to_step(step))
 		snapshots_container.add_child(button)
 
@@ -153,7 +156,7 @@ func _update_hud() -> void:
 	# 这是一个为回放模式简化的HUD更新，只显示最关键的信息。
 	var display_data = {}
 	display_data["step_info"] = "步骤: %d / %d" % [current_step, replay_data.actions.size()]
-	
+	display_data["seed_info"] = "种子: %d" % replay_data.initial_seed
 	# 当播放到最后一步时，显示最终分数。
 	if current_step == replay_data.actions.size():
 		display_data["final_score"] = "最终分数: %d" % replay_data.final_score

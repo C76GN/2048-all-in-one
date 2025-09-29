@@ -51,9 +51,10 @@ func load_replays() -> Array[ReplayData]:
 			
 			if is_instance_valid(loaded_resource) and loaded_resource is ReplayData:
 				# 对加载的资源调用 duplicate() 来创建一个唯一的实例。
-				# 这可以防止因Godot的资源缓存机制导致的不同回放项共享数据的问题，
-				# 同时保留了原始资源路径以供删除功能使用。
+				# 这可以防止因Godot的资源缓存机制导致的不同回放项共享数据的问题。
 				var unique_replay_instance: ReplayData = loaded_resource.duplicate()
+				# 将文件路径存储在 ReplayData 实例的专用变量中。
+				unique_replay_instance.file_path = file_path
 				replays.append(unique_replay_instance)
 			else:
 				push_error("加载回放资源失败或类型不匹配: %s" % file_path)
@@ -65,14 +66,14 @@ func load_replays() -> Array[ReplayData]:
 	replays.sort_custom(func(a, b): return a.timestamp > b.timestamp)
 	return replays
 
-## 根据其资源路径删除一个回放文件。
-func delete_replay(replay_resource_path: String) -> void:
-	if not FileAccess.file_exists(replay_resource_path):
-		push_error("删除回放失败: 文件不存在 - %s" % replay_resource_path)
+## 根据其文件路径删除一个回放文件。
+func delete_replay(replay_file_path: String) -> void:
+	if not FileAccess.file_exists(replay_file_path):
+		push_error("删除回放失败: 文件不存在 - %s" % replay_file_path)
 		return
 
-	var error = DirAccess.remove_absolute(replay_resource_path)
+	var error = DirAccess.remove_absolute(replay_file_path)
 	if error != OK:
-		push_error("删除回放文件时出错: %s (错误码: %d)" % [replay_resource_path, error])
+		push_error("删除回放文件时出错: %s (错误码: %d)" % [replay_file_path, error])
 	else:
-		print("已删除回放文件: %s" % replay_resource_path)
+		print("已删除回放文件: %s" % replay_file_path)

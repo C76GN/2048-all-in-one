@@ -27,7 +27,6 @@ func setup(p_replay_data: ReplayData) -> void:
 
 	# 为了确保UI的健壮性，即使关联的模式配置文件丢失，
 	# 此列表项也应能正常显示其他有效信息（如时间和分数）。
-	# 我们首先为模式名称设置一个默认的后备文本。
 	mode_name_label.text = "（未知模式）"
 
 	# 尝试加载模式配置以获取更具体的模式名称。
@@ -44,11 +43,12 @@ func setup(p_replay_data: ReplayData) -> void:
 	if _replay_data.timestamp > 0:
 		datetime = Time.get_datetime_string_from_unix_time(_replay_data.timestamp)
 
-	var info_str = "时间: %s | 分数: %d | 尺寸: %dx%d" % [
+	var info_str = "时间: %s | 分数: %d | 尺寸: %dx%d\n种子: %s" % [
 		datetime,
 		_replay_data.final_score,
 		_replay_data.grid_size,
-		_replay_data.grid_size
+		_replay_data.grid_size,
+		_replay_data.initial_seed
 	]
 	info_label.text = info_str
 

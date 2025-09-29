@@ -21,3 +21,5 @@ extends Resource
 @export var actions: Array[Vector2i] = []
 ## 快照数组。存储的是 `actions` 数组的索引，标记了玩家在哪一步创建了快照。
 @export var snapshot_indices: Array[int] = []
+
+var file_path: String = ""
