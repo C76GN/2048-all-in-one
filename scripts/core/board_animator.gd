@@ -80,7 +80,8 @@ func _retarget_animation(tile: Node2D, new_target_pos: Vector2) -> void:
 
 	# 创建一个新的 Tween，从方块的 *当前* 视觉位置开始
 	var new_tween = create_tween()
-	new_tween.tween_property(tile, "position", new_target_pos, 0.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# new_tween.tween_property(tile, "position", new_target_pos, 0.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	new_tween.tween_property(tile, "position", new_target_pos, 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	
 	# 记录这个新的 Tween
 	_active_tweens[instance_id] = new_tween

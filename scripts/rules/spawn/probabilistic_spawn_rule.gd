@@ -47,7 +47,7 @@ func execute(_payload: Dictionary = {}) -> bool:
 	if game_board.get_empty_cells().is_empty():
 		return false
 		
-	var rng_value = GlobalGameManager.get_rng().randf()
+	var rng_value = RNGManager.get_rng().randf()
 	
 	# 检查随机数是否小于当前概率
 	if rng_value < _current_probability:

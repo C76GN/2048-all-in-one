@@ -154,7 +154,7 @@ func spawn_tile(spawn_data: Dictionary) -> void:
 	
 	# 情况1：棋盘有空位，正常生成。
 	if not empty_cells.is_empty():
-		var spawn_pos: Vector2i = empty_cells[GlobalGameManager.get_rng().randi_range(0, empty_cells.size() - 1)]
+		var spawn_pos: Vector2i = empty_cells[RNGManager.get_rng().randi_range(0, empty_cells.size() - 1)]
 		var new_tile = _spawn_at(spawn_pos, value, type)
 		
 		# 创建SPAWN指令并请求播放
@@ -166,14 +166,14 @@ func spawn_tile(spawn_data: Dictionary) -> void:
 		var player_tiles = _get_all_player_tiles()
 		# 子情况A：棋盘上仍有玩家方块，随机将一个转变为怪物。
 		if not player_tiles.is_empty():
-			var tile_to_transform = player_tiles[GlobalGameManager.get_rng().randi_range(0, player_tiles.size() - 1)]
+			var tile_to_transform = player_tiles[RNGManager.get_rng().randi_range(0, player_tiles.size() - 1)]
 			tile_to_transform.setup(value, type, interaction_rule, color_schemes)
 			tile_to_transform.animate_transform()
 		# 子情况B：棋盘上全是怪物方块，随机将一个数值翻倍以示“增强”。
 		else:
 			var monster_tiles = _get_all_monster_tiles()
 			if not monster_tiles.is_empty():
-				var tile_to_empower = monster_tiles[GlobalGameManager.get_rng().randi_range(0, monster_tiles.size() - 1)]
+				var tile_to_empower = monster_tiles[RNGManager.get_rng().randi_range(0, monster_tiles.size() - 1)]
 				tile_to_empower.setup(tile_to_empower.value * 2, type, interaction_rule, color_schemes)
 
 ## 获取当前棋盘上数值最大的玩家方块的值。

@@ -28,7 +28,7 @@ func execute(_payload: Dictionary = {}) -> bool:
 
 	for i in range(spawn_count):
 		# 经典规则：按概率生成2或4。
-		var value = 2 if GlobalGameManager.get_rng().randf() < probability_of_2 else 4
+		var value = 2 if RNGManager.get_rng().randf() < probability_of_2 else 4
 		
 		var spawn_data = {
 			"value": value,
