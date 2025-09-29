@@ -463,3 +463,45 @@ func _get_coords_for_line(line_index: int, cell_index: int, direction: Vector2i)
 		Vector2i.UP: return Vector2i(line_index, cell_index)
 		Vector2i.DOWN: return Vector2i(line_index, grid_size - 1 - cell_index)
 	return Vector2i.ZERO
+
+# --- 状态保存与恢复 ---
+
+## 获取当前棋盘所有方块状态的可序列化快照。
+## @return: 一个字典，包含grid_size和所有方块的数据。
+func get_state_snapshot() -> Dictionary:
+	var tiles_data: Array[Dictionary] = []
+	for x in range(grid_size):
+		for y in range(grid_size):
+			var tile = grid[x][y]
+			if tile != null:
+				tiles_data.append({
+					"pos": Vector2i(x, y),
+					"value": tile.value,
+					"type": tile.type
+				})
+	return {
+		"grid_size": grid_size,
+		"tiles": tiles_data
+	}
+
+## 从一个快照数据中完全恢复棋盘状态。
+func restore_from_snapshot(snapshot: Dictionary) -> void:
+	# 步骤1: 清理当前所有方块。
+	for child in board_container.get_children():
+		if child is Tile:
+			child.queue_free()
+
+	# 步骤2: 重置grid并根据快照数据重新创建方块。
+	_initialize_grid() # 确保grid数组结构正确
+	
+	var tiles_data = snapshot.get("tiles", [])
+	for tile_data in tiles_data:
+		var pos: Vector2i = tile_data["pos"]
+		var value: int = tile_data["value"]
+		var type: Tile.TileType = tile_data["type"]
+		
+		var new_tile: Tile = _spawn_at(pos, value, type)
+		
+		# 恢复时，方块直接出现，不播放生成动画。
+		new_tile.scale = Vector2.ONE
+		new_tile.rotation_degrees = 0

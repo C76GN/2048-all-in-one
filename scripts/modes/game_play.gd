@@ -3,7 +3,8 @@
 ## GamePlay: 通用的游戏逻辑控制器。
 ##
 ## 负责加载 GameModeConfig，设置 RuleManager，并协调核心组件之间的通信。
-## 现在使用一个状态机 (FSM) 来管理其核心生命周期 (Ready, Playing, Paused, Game Over)。
+## 它使用状态机管理游戏生命周期，并作为撤回(Undo)、快照(Snapshot)和
+## 游戏回放(Replay)功能的总协调者。
 class_name GamePlay
 extends Control
 
@@ -11,10 +12,10 @@ extends Control
 
 ## 定义了 GamePlay 的核心状态。
 enum State {
-	READY,      # 游戏已初始化，等待开始
-	PLAYING,    # 游戏正在进行中
-	PAUSED,     # 游戏已暂停
-	GAME_OVER   # 游戏已结束
+	READY, # 游戏已初始化，等待开始
+	PLAYING, # 游戏正在进行中
+	PAUSED, # 游戏已暂停
+	GAME_OVER # 游戏已结束
 }
 
 # --- 节点引用 ---
@@ -27,18 +28,22 @@ enum State {
 @onready var input_controller = $InputController
 @onready var board_animator: BoardAnimator = $BoardAnimator
 @onready var state_machine: StateMachine = $StateMachine
+@onready var undo_button: Button = %UndoButton
+@onready var snapshot_button: Button = %SnapshotButton
 
 # --- 状态变量 ---
 var mode_config: GameModeConfig
 var interaction_rule: InteractionRule
-var rule_manager: RuleManager # 规则管理器实例
-var all_spawn_rules: Array[SpawnRule] = [] # 持有所有规则实例的引用
-
+var rule_manager: RuleManager
+var all_spawn_rules: Array[SpawnRule] = []
 var move_count: int = 0
 var monsters_killed: int = 0
 var score: int = 0
 var current_grid_size: int = 4
 var initial_high_score: int = 0
+var _current_replay_data: ReplayData
+var _game_state_history: Array[Dictionary] = []
+var _last_move_direction: Vector2i = Vector2i.ZERO
 
 ## Godot生命周期函数：在节点进入场景树时被调用。
 func _ready() -> void:
@@ -60,6 +65,11 @@ func _enter_state(new_state, _message: Dictionary = {}) -> void:
 			# 保存分数
 			var mode_id = mode_config.resource_path.get_file().get_basename()
 			SaveManager.set_high_score(mode_id, current_grid_size, score)
+			
+			# 保存回放
+			if _current_replay_data.actions.size() > 0:
+				_current_replay_data.final_score = score
+				ReplayManager.save_replay(_current_replay_data)
 			
 			game_over_menu.open()
 
@@ -83,7 +93,14 @@ func _process_state(_delta: float, current_state) -> void:
 ## @param new_grid_size: 如果提供（大于-1），则使用此尺寸，否则从GlobalGameManager获取。
 func _initialize_game(new_grid_size: int = -1) -> void:
 	state_machine.set_state(State.READY)
-	RNGManager.initialize_rng(RNGManager.get_current_seed())
+	
+	_current_replay_data = ReplayData.new()
+	_game_state_history.clear()
+	
+	# Time.get_unix_time_from_system() 返回 float，需要显式转换为 int 以匹配种子类型。
+	var initial_seed = RNGManager.get_current_seed() if new_grid_size == -1 else int(Time.get_unix_time_from_system())
+	RNGManager.initialize_rng(initial_seed)
+	
 	# 步骤1: 从 GlobalGameManager 加载所选的游戏模式配置和棋盘大小。
 	var config_path = GlobalGameManager.get_selected_mode_config_path()
 	
@@ -99,7 +116,13 @@ func _initialize_game(new_grid_size: int = -1) -> void:
 		push_error("错误: 无法加载游戏模式配置。")
 		get_tree().quit()
 		return
-	
+
+	# 填充回放元数据
+	_current_replay_data.timestamp = int(Time.get_unix_time_from_system())
+	_current_replay_data.mode_config_path = mode_config.resource_path
+	_current_replay_data.initial_seed = initial_seed
+	_current_replay_data.grid_size = current_grid_size
+		
 	# 在游戏开始时，获取并存储一次最高分。
 	var mode_id = mode_config.resource_path.get_file().get_basename()
 	initial_high_score = SaveManager.get_high_score(mode_id, current_grid_size)
@@ -150,6 +173,9 @@ func _initialize_game(new_grid_size: int = -1) -> void:
 
 	_initialize_test_tools()
 	_update_and_publish_hud_data()
+
+	# 保存初始状态用于撤回
+	_save_current_state()
 	
 	# 初始化完成，进入 PLAYING 状态
 	state_machine.set_state(State.PLAYING)
@@ -174,6 +200,11 @@ func _connect_signals() -> void:
 		game_over_menu.restart_game.connect(_on_restart_game)
 	if not game_over_menu.return_to_main_menu.is_connected(_on_return_to_main_menu):
 		game_over_menu.return_to_main_menu.connect(_on_return_to_main_menu)
+	
+	if is_instance_valid(undo_button) and not undo_button.pressed.is_connected(_on_undo_button_pressed):
+		undo_button.pressed.connect(_on_undo_button_pressed)
+	if is_instance_valid(snapshot_button) and not snapshot_button.pressed.is_connected(_on_snapshot_button_pressed):
+		snapshot_button.pressed.connect(_on_snapshot_button_pressed)
 
 	# --- 连接来自规则和EventBus的信号 ---
 	if is_instance_valid(rule_manager) and not rule_manager.spawn_tile_requested.is_connected(game_board.spawn_tile):
@@ -199,10 +230,14 @@ func _connect_signals() -> void:
 ## 当 InputController 发出移动意图时调用。
 func _on_move_intent(direction: Vector2i) -> void:
 	if state_machine.current_state_name != State.PLAYING: return
+	_last_move_direction = direction
+	_save_current_state()
 	game_board.handle_move(direction)
 
 func _on_move_made() -> void:
 	move_count += 1
+	# 记录有效移动到回放数据中
+	_current_replay_data.actions.append(_last_move_direction)
 	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED)
 	_update_and_publish_hud_data()
 
@@ -353,3 +388,51 @@ func _on_restart_game():
 func _on_return_to_main_menu():
 	get_tree().paused = false
 	GlobalGameManager.return_to_main_menu()
+
+# --- 状态管理与UI交互 ---
+
+## 保存当前游戏的完整状态，用于撤回。
+func _save_current_state() -> void:
+	var state = {
+		"board_snapshot": game_board.get_state_snapshot(),
+		"rng_state": RNGManager.get_state(),
+		"score": score,
+		"move_count": move_count,
+		"monsters_killed": monsters_killed,
+	}
+	_game_state_history.push_back(state)
+	
+## 响应“撤回”按钮的点击事件。
+func _on_undo_button_pressed() -> void:
+	if state_machine.current_state_name != State.PLAYING: return
+	
+	# 历史记录中至少要有2个状态（初始状态+上一步状态）才能撤回
+	if _game_state_history.size() > 1:
+		_game_state_history.pop_back() # 移除当前状态
+		var last_state = _game_state_history.back() # 获取上一步的状态
+		
+		# 恢复状态
+		score = last_state["score"]
+		move_count = last_state["move_count"]
+		monsters_killed = last_state["monsters_killed"]
+		RNGManager.set_state(last_state["rng_state"])
+		game_board.restore_from_snapshot(last_state["board_snapshot"])
+		
+		# 刷新UI
+		_update_and_publish_hud_data()
+	else:
+		print("无法撤回：没有更多历史记录。")
+
+
+## 响应“快照”按钮的点击事件。
+func _on_snapshot_button_pressed() -> void:
+	if state_machine.current_state_name != State.PLAYING: return
+	
+	# 将当前操作数作为快照点存入
+	var current_action_index = _current_replay_data.actions.size()
+	
+	# 防止重复添加同一个点的快照
+	if not _current_replay_data.snapshot_indices.has(current_action_index):
+		_current_replay_data.snapshot_indices.append(current_action_index)
+		_current_replay_data.snapshot_indices.sort()
+		print("已在第 %d 步创建快照。" % current_action_index)

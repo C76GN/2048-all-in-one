@@ -64,7 +64,6 @@ func update_data(data: Array):
 	# 步骤3: 在内容更新后，立即重新计算布局。
 	_recalculate_layout()
 
-
 # --- 内部辅助函数 ---
 
 ## 重新计算并应用所有可见标签的位置，实现流式布局和自动换行。

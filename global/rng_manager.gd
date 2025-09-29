@@ -34,3 +34,11 @@ func get_current_seed() -> int:
 ## 获取全局唯一的随机数生成器实例。
 func get_rng() -> RandomNumberGenerator:
 	return _rng
+
+## 获取RNG的当前内部状态，用于保存。
+func get_state() -> int:
+	return _rng.state
+
+## 从一个状态值恢复RNG，用于加载/撤回。
+func set_state(p_state: int) -> void:
+	_rng.state = p_state

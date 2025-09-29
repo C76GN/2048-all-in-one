@@ -12,6 +12,7 @@ const MAIN_MENU_SCENE_PATH = "res://scenes/main_menu.tscn"
 # --- 核心游戏状态 ---
 var _selected_mode_config_path: String
 var _selected_grid_size: int = 4
+var current_replay_data: ReplayData
 
 # --- 公共接口 ---
 

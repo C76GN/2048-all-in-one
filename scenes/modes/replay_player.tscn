@@ -1,0 +1,117 @@
+[gd_scene load_steps=7 format=3 uid="uid://lon1gfvpdm0c"]
+
+[ext_resource type="Script" uid="uid://g1p0bgx3o0n7" path="res://scripts/modes/replay_player.gd" id="1_15wvd"]
+[ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/hud.tscn" id="2_xi7f7"]
+[ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="3_1k247"]
+[ext_resource type="Script" uid="uid://cbt4kf4pchvjg" path="res://scripts/core/board_animator.gd" id="8_fnpk5"]
+[ext_resource type="Script" uid="uid://celas3tm78ajv" path="res://scripts/core/state_machine.gd" id="9_ep8hm"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
+bg_color = Color(0.2827017, 0.2827017, 0.2827017, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_15wvd")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 40
+
+[node name="MainLayoutContainer" type="HBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="LeftPanel" type="VBoxContainer" parent="MarginContainer/MainLayoutContainer"]
+custom_minimum_size = Vector2(350, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HUD" parent="MarginContainer/MainLayoutContainer/LeftPanel" instance=ExtResource("2_xi7f7")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="GameBoard" type="Control" parent="MarginContainer/MainLayoutContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("3_1k247")
+
+[node name="BoardBackground" type="Panel" parent="MarginContainer/MainLayoutContainer/GameBoard"]
+layout_mode = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_0wfyh")
+
+[node name="BoardContainer" type="Node2D" parent="MarginContainer/MainLayoutContainer/GameBoard"]
+
+[node name="RightPanel" type="VBoxContainer" parent="MarginContainer/MainLayoutContainer"]
+custom_minimum_size = Vector2(350, 0)
+layout_mode = 2
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/MainLayoutContainer/RightPanel"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="MarginContainer/MainLayoutContainer/RightPanel"]
+layout_mode = 2
+text = "回放控制"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/MainLayoutContainer/RightPanel"]
+layout_mode = 2
+
+[node name="PrevStepButton" type="Button" parent="MarginContainer/MainLayoutContainer/RightPanel/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "< 上一步"
+
+[node name="NextStepButton" type="Button" parent="MarginContainer/MainLayoutContainer/RightPanel/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "下一步 >"
+
+[node name="Label2" type="Label" parent="MarginContainer/MainLayoutContainer/RightPanel"]
+layout_mode = 2
+text = "快照跳转"
+
+[node name="SnapshotsContainer" type="VBoxContainer" parent="MarginContainer/MainLayoutContainer/RightPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HSeparator2" type="HSeparator" parent="MarginContainer/MainLayoutContainer/RightPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BackButton" type="Button" parent="MarginContainer/MainLayoutContainer/RightPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "返回列表"
+
+[node name="BoardAnimator" type="Node" parent="."]
+script = ExtResource("8_fnpk5")
+
+[node name="StateMachine" type="Node" parent="."]
+script = ExtResource("9_ep8hm")
