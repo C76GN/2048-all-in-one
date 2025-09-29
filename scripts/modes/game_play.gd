@@ -3,8 +3,19 @@
 ## GamePlay: 通用的游戏逻辑控制器。
 ##
 ## 负责加载 GameModeConfig，设置 RuleManager，并协调核心组件之间的通信。
+## 现在使用一个状态机 (FSM) 来管理其核心生命周期 (Ready, Playing, Paused, Game Over)。
 class_name GamePlay
 extends Control
+
+# --- 枚举定义 ---
+
+## 定义了 GamePlay 的核心状态。
+enum State {
+	READY,      # 游戏已初始化，等待开始
+	PLAYING,    # 游戏正在进行中
+	PAUSED,     # 游戏已暂停
+	GAME_OVER   # 游戏已结束
+}
 
 # --- 节点引用 ---
 @onready var game_board: Control = %GameBoard
@@ -15,6 +26,7 @@ extends Control
 @onready var background_color_rect: ColorRect = %ColorRect
 @onready var input_controller = $InputController
 @onready var board_animator: BoardAnimator = $BoardAnimator
+@onready var state_machine: StateMachine = $StateMachine
 
 # --- 状态变量 ---
 var mode_config: GameModeConfig
@@ -24,7 +36,6 @@ var all_spawn_rules: Array[SpawnRule] = [] # 持有所有规则实例的引用
 
 var move_count: int = 0
 var monsters_killed: int = 0
-var is_game_over: bool = false
 var score: int = 0
 var current_grid_size: int = 4
 var initial_high_score: int = 0
@@ -33,9 +44,45 @@ var initial_high_score: int = 0
 func _ready() -> void:
 	_initialize_game()
 
+## [FSM] 状态机进入一个新状态时被调用。
+func _enter_state(new_state, _message: Dictionary = {}) -> void:
+	match new_state:
+		State.PLAYING:
+			get_tree().paused = false
+		State.PAUSED:
+			get_tree().paused = true
+			pause_menu.toggle()
+		State.GAME_OVER:
+			# 通知所有规则进行清理
+			for rule in all_spawn_rules:
+				rule.teardown()
+			
+			# 保存分数
+			var mode_id = mode_config.resource_path.get_file().get_basename()
+			SaveManager.set_high_score(mode_id, current_grid_size, score)
+			
+			game_over_menu.open()
+
+## [FSM] 状态机退出当前状态时被调用。
+func _exit_state(old_state) -> void:
+	match old_state:
+		State.PAUSED:
+			# 确保在退出暂停状态时，即使不是通过菜单按钮，菜单也能正确关闭。
+			if pause_menu.visible:
+				pause_menu.toggle()
+			get_tree().paused = false
+
+## [FSM] 状态机在当前状态下每帧被调用。
+func _process_state(_delta: float, current_state) -> void:
+	match current_state:
+		State.PLAYING:
+			# 每帧更新UI，因为有些规则（如计时器）是实时变化的。
+			_update_and_publish_hud_data()
+
 ## [内部函数] 负责整个游戏场景的初始化或重置。
 ## @param new_grid_size: 如果提供（大于-1），则使用此尺寸，否则从GlobalGameManager获取。
 func _initialize_game(new_grid_size: int = -1) -> void:
+	state_machine.set_state(State.READY)
 	RNGManager.initialize_rng(RNGManager.get_current_seed())
 	# 步骤1: 从 GlobalGameManager 加载所选的游戏模式配置和棋盘大小。
 	var config_path = GlobalGameManager.get_selected_mode_config_path()
@@ -103,12 +150,9 @@ func _initialize_game(new_grid_size: int = -1) -> void:
 
 	_initialize_test_tools()
 	_update_and_publish_hud_data()
-
-## Godot生命周期函数：每帧调用。用于处理需要高频更新的逻辑，例如UI倒计时。
-func _process(_delta: float) -> void:
-	# 每帧更新UI，因为有些规则（如计时器）是实时变化的。
-	if not is_game_over:
-		_update_and_publish_hud_data()
+	
+	# 初始化完成，进入 PLAYING 状态
+	state_machine.set_state(State.PLAYING)
 
 ## [内部函数] 集中管理所有信号连接。
 func _connect_signals() -> void:
@@ -154,7 +198,7 @@ func _connect_signals() -> void:
 
 ## 当 InputController 发出移动意图时调用。
 func _on_move_intent(direction: Vector2i) -> void:
-	if is_game_over: return
+	if state_machine.current_state_name != State.PLAYING: return
 	game_board.handle_move(direction)
 
 func _on_move_made() -> void:
@@ -162,18 +206,9 @@ func _on_move_made() -> void:
 	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED)
 	_update_and_publish_hud_data()
 
-## 当 GameBoard 发出 game_lost 信号时调用。
+## 当 EventBus 发出 game_lost 信号时调用。
 func _on_game_lost() -> void:
-	is_game_over = true
-	# 通知所有规则进行清理
-	for rule in all_spawn_rules:
-		rule.teardown()
-	
-	# 保存分数
-	var mode_id = mode_config.resource_path.get_file().get_basename()
-	SaveManager.set_high_score(mode_id, current_grid_size, score)
-	
-	game_over_menu.open()
+	state_machine.set_state(State.GAME_OVER)
 
 ## 当 InteractionRule 报告有怪物被消灭时调用。
 func _on_monster_killed() -> void:
@@ -239,9 +274,12 @@ func _update_and_publish_hud_data() -> void:
 	EventBus.hud_update_requested.emit(display_data)
 
 func _toggle_pause_menu():
-	if is_game_over: return
-	get_tree().paused = not get_tree().paused
-	pause_menu.toggle()
+	if state_machine.current_state_name == State.GAME_OVER: return
+	
+	if state_machine.current_state_name == State.PLAYING:
+		state_machine.set_state(State.PAUSED)
+	elif state_machine.current_state_name == State.PAUSED:
+		state_machine.set_state(State.PLAYING)
 
 ## [内部函数] 初始化测试工具。
 func _initialize_test_tools():
@@ -290,18 +328,27 @@ func _on_reset_and_resize_requested(new_size: int):
 	if is_instance_valid(rule_manager):
 		rule_manager.queue_free()
 
-	is_game_over = false; monsters_killed = 0; move_count = 0; score = 0
+	monsters_killed = 0
+	move_count = 0
+	score = 0
 	
 	# 先清理棋盘，但不在这里设置尺寸，交由 _initialize_game 统一处理
 	game_board.reset_and_resize(new_size, mode_config.board_theme)
 	
-	# MODIFIED: 将 new_size 传递给初始化函数
+	# MODIFIED: 将 new_size 传递给初始化函数并转换到PLAYING状态
 	_initialize_game(new_size)
 
 ## 响应“继续游戏”事件。
-func _on_resume_game(): _toggle_pause_menu()
+func _on_resume_game():
+	if state_machine.current_state_name == State.PAUSED:
+		state_machine.set_state(State.PLAYING)
+
 ## 响应“重新开始”事件。
-func _on_restart_game(): get_tree().paused = false; get_tree().reload_current_scene()
+func _on_restart_game():
+	# 确保在重新加载场景前游戏不是暂停状态，以避免潜在问题。
+	get_tree().paused = false
+	get_tree().reload_current_scene()
+
 ## 响应“返回主菜单”事件。
 func _on_return_to_main_menu():
 	get_tree().paused = false

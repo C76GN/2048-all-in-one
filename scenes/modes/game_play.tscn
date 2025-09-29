@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://28ale2iku1n4"]
+[gd_scene load_steps=11 format=3 uid="uid://28ale2iku1n4"]
 
 [ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/modes/game_play.gd" id="1_ymdu8"]
 [ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/hud.tscn" id="2_3qprp"]
@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://bsourh8co1vbn" path="res://scenes/ui/pause_menu.tscn" id="6_e7f05"]
 [ext_resource type="Script" uid="uid://cx02txnu55y6f" path="res://scripts/core/input_controller.gd" id="7_3qprp"]
 [ext_resource type="Script" uid="uid://cbt4kf4pchvjg" path="res://scripts/core/board_animator.gd" id="8_njofg"]
+[ext_resource type="Script" uid="uid://celas3tm78ajv" path="res://scripts/core/state_machine.gd" id="9_uiuk4"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
 bg_color = Color(0.2827017, 0.2827017, 0.2827017, 1)
@@ -99,3 +100,6 @@ script = ExtResource("7_3qprp")
 
 [node name="BoardAnimator" type="Node" parent="."]
 script = ExtResource("8_njofg")
+
+[node name="StateMachine" type="Node" parent="."]
+script = ExtResource("9_uiuk4")
