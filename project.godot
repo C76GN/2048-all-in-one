@@ -22,6 +22,7 @@ SaveManager="*res://global/save_manager.gd"
 EventBus="*res://global/event_bus.gd"
 RNGManager="*res://global/rng_manager.gd"
 ReplayManager="*res://global/replay_manager.gd"
+BookmarkManager="*res://global/bookmark_manager.gd"
 
 [display]
 

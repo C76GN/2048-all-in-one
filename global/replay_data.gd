@@ -19,7 +19,5 @@ extends Resource
 @export var final_score: int = 0
 ## 玩家的每一步有效操作。存储为Vector2i以代表方向。
 @export var actions: Array[Vector2i] = []
-## 快照数组。存储的是 `actions` 数组的索引，标记了玩家在哪一步创建了快照。
-@export var snapshot_indices: Array[int] = []
 
 var file_path: String = ""

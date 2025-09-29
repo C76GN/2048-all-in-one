@@ -9,20 +9,22 @@ extends Control
 # --- 导出变量 ---
 @export var mode_selection_scene: PackedScene
 @export var replay_list_scene: PackedScene
+@export var bookmark_list_scene: PackedScene
 
 # --- 节点引用 ---
 ## 对场景中各个按钮节点的引用（使用唯一名称%）。
 @onready var start_game_button: Button = %StartGameButton
+@onready var load_bookmark_button: Button = %LoadBookmarkButton
 @onready var replays_button: Button = %ReplaysButton
 @onready var settings_button: Button = %SettingsButton
 @onready var quit_button: Button = %QuitButton
-
 
 ## Godot生命周期函数：当节点及其子节点进入场景树时调用。
 func _ready() -> void:
 	# 在此连接所有按钮的 `pressed` 信号到对应的处理函数，
 	# 这是处理UI交互的标准做法。
 	start_game_button.pressed.connect(_on_start_game_button_pressed)
+	load_bookmark_button.pressed.connect(_on_load_bookmark_button_pressed)
 	replays_button.pressed.connect(_on_replays_button_pressed)
 	settings_button.pressed.connect(_on_settings_button_pressed)
 	quit_button.pressed.connect(_on_quit_button_pressed)
@@ -37,6 +39,20 @@ func _on_start_game_button_pressed() -> void:
 	else:
 		push_error("Mode Selection Scene not set in MainMenu script.")
 
+## 响应“读取书签”按钮的点击事件。
+func _on_load_bookmark_button_pressed() -> void:
+	if bookmark_list_scene:
+		GlobalGameManager.goto_scene_packed(bookmark_list_scene)
+	else:
+		push_error("Bookmark List Scene not set in MainMenu script.")
+
+## 响应“回放列表”按钮的点击事件。
+func _on_replays_button_pressed() -> void:
+	if replay_list_scene:
+		GlobalGameManager.goto_scene_packed(replay_list_scene)
+	else:
+		push_error("Replay List Scene not set in MainMenu script.")
+
 ## 响应“设置”按钮的点击事件（占位功能）。
 func _on_settings_button_pressed() -> void:
 	print("设置按钮被按下 (功能待开发)")
@@ -46,10 +62,3 @@ func _on_settings_button_pressed() -> void:
 func _on_quit_button_pressed() -> void:
 	# 委托全局管理器安全地退出游戏。
 	GlobalGameManager.quit_game()
-
-## 响应“回放列表”按钮的点击事件。
-func _on_replays_button_pressed() -> void:
-	if replay_list_scene:
-		GlobalGameManager.goto_scene_packed(replay_list_scene)
-	else:
-		push_error("Replay List Scene not set in MainMenu script.")

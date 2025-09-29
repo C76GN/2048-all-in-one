@@ -73,7 +73,7 @@ text = "撤回 (Undo)"
 [node name="SnapshotButton" type="Button" parent="MarginContainer/MainLayoutContainer/LeftPanel/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "创建快照"
+text = "保存书签（存档）"
 
 [node name="GameBoard" type="Control" parent="MarginContainer/MainLayoutContainer"]
 unique_name_in_owner = true

@@ -94,35 +94,47 @@ func _process_state(_delta: float, current_state) -> void:
 func _initialize_game(new_grid_size: int = -1) -> void:
 	state_machine.set_state(State.READY)
 	
+	var bookmark_to_load: BookmarkData = GlobalGameManager.selected_bookmark_data
+	# 加载后立即清除，防止下次正常开始游戏时被误用
+	GlobalGameManager.selected_bookmark_data = null
+	
 	_current_replay_data = ReplayData.new()
 	_game_state_history.clear()
-	
-	# Time.get_unix_time_from_system() 返回 float，需要显式转换为 int 以匹配种子类型。
-	var initial_seed = RNGManager.get_current_seed() if new_grid_size == -1 else int(Time.get_unix_time_from_system())
-	RNGManager.initialize_rng(initial_seed)
-	
-	# 步骤1: 从 GlobalGameManager 加载所选的游戏模式配置和棋盘大小。
-	var config_path = GlobalGameManager.get_selected_mode_config_path()
-	
-	if new_grid_size > -1:
-		current_grid_size = new_grid_size
-	else:
-		current_grid_size = GlobalGameManager.get_selected_grid_size()
-	
-	if config_path != "":
-		mode_config = load(config_path)
-		assert(is_instance_valid(mode_config), "GameModeConfig未能加载！")
-	else:
-		push_error("错误: 无法加载游戏模式配置。")
-		get_tree().quit()
-		return
 
-	# 填充回放元数据
+	# 如果是从书签加载，则使用书签中的数据；否则，开始新游戏。
+	if is_instance_valid(bookmark_to_load):
+		# --- 从书签加载 ---
+		mode_config = load(bookmark_to_load.mode_config_path)
+		current_grid_size = bookmark_to_load.board_snapshot.get("grid_size")
+		RNGManager.initialize_rng(bookmark_to_load.initial_seed)
+		RNGManager.set_state(bookmark_to_load.rng_state)
+		score = bookmark_to_load.score
+		move_count = bookmark_to_load.move_count
+		monsters_killed = bookmark_to_load.monsters_killed
+	else:
+		# --- 开始新游戏 ---
+		var initial_seed = RNGManager.get_current_seed() if new_grid_size == -1 else int(Time.get_unix_time_from_system())
+		RNGManager.initialize_rng(initial_seed)
+		var config_path = GlobalGameManager.get_selected_mode_config_path()
+		if new_grid_size > -1:
+			current_grid_size = new_grid_size
+		else:
+			current_grid_size = GlobalGameManager.get_selected_grid_size()
+		
+		if config_path != "":
+			mode_config = load(config_path)
+			assert(is_instance_valid(mode_config), "GameModeConfig未能加载！")
+		else:
+			push_error("错误: 无法加载游戏模式配置。")
+			get_tree().quit()
+			return
+
+	# 填充回放元数据 (对新游戏和加载的游戏都适用)
 	_current_replay_data.timestamp = int(Time.get_unix_time_from_system())
 	_current_replay_data.mode_config_path = mode_config.resource_path
-	_current_replay_data.initial_seed = initial_seed
+	_current_replay_data.initial_seed = RNGManager.get_current_seed() # 使用当前RNG的种子
 	_current_replay_data.grid_size = current_grid_size
-		
+
 	# 在游戏开始时，获取并存储一次最高分。
 	var mode_id = mode_config.resource_path.get_file().get_basename()
 	initial_high_score = SaveManager.get_high_score(mode_id, current_grid_size)
@@ -168,15 +180,19 @@ func _initialize_game(new_grid_size: int = -1) -> void:
 	game_board.initialize_board()
 	_connect_signals()
 	
-	# 步骤5: 通过管理器触发棋盘初始化事件。
-	rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD)
+	# 步骤5: 如果是新游戏，则通过管理器触发棋盘初始化事件；
+#       如果是从书签加载，则直接恢复棋盘状态。
+	if is_instance_valid(bookmark_to_load):
+		game_board.restore_from_snapshot(bookmark_to_load.board_snapshot)
+	else:
+		rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD)
 
 	_initialize_test_tools()
 	_update_and_publish_hud_data()
 
 	# 保存初始状态用于撤回
 	_save_current_state()
-	
+
 	# 初始化完成，进入 PLAYING 状态
 	state_machine.set_state(State.PLAYING)
 
@@ -423,16 +439,23 @@ func _on_undo_button_pressed() -> void:
 	else:
 		print("无法撤回：没有更多历史记录。")
 
-
-## 响应“快照”按钮的点击事件。
+## 响应“书签”按钮的点击事件。
 func _on_snapshot_button_pressed() -> void:
 	if state_machine.current_state_name != State.PLAYING: return
 	
-	# 将当前操作数作为快照点存入
-	var current_action_index = _current_replay_data.actions.size()
+	# 1. 创建一个新的 BookmarkData 实例并填充当前游戏状态。
+	var new_bookmark = BookmarkData.new()
+	new_bookmark.timestamp = int(Time.get_unix_time_from_system())
+	new_bookmark.mode_config_path = mode_config.resource_path
+	new_bookmark.initial_seed = RNGManager.get_current_seed()
+	new_bookmark.score = score
+	new_bookmark.move_count = move_count
+	new_bookmark.monsters_killed = monsters_killed
+	new_bookmark.rng_state = RNGManager.get_state()
+	new_bookmark.board_snapshot = game_board.get_state_snapshot()
 	
-	# 防止重复添加同一个点的快照
-	if not _current_replay_data.snapshot_indices.has(current_action_index):
-		_current_replay_data.snapshot_indices.append(current_action_index)
-		_current_replay_data.snapshot_indices.sort()
-		print("已在第 %d 步创建快照。" % current_action_index)
+	# 2. 调用 BookmarkManager 来保存它。
+	BookmarkManager.save_bookmark(new_bookmark)
+	
+	# 可以在HUD上显示一个短暂的提示，告知玩家保存成功。
+	print("书签已创建！")

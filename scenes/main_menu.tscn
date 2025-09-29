@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://d3caufbu1axub"]
+[gd_scene load_steps=5 format=3 uid="uid://d3caufbu1axub"]
 
 [ext_resource type="Script" uid="uid://hybxd0keci4i" path="res://scripts/ui/main_menu.gd" id="1_l6cm7"]
 [ext_resource type="PackedScene" uid="uid://behkac7sg4loi" path="res://scenes/mode_selection.tscn" id="2_ekxnf"]
 [ext_resource type="PackedScene" uid="uid://bsb0gb7p8fsbj" path="res://scenes/replay_list.tscn" id="3_bqqt6"]
+[ext_resource type="PackedScene" uid="uid://dcaem677upv0a" path="res://scenes/bookmark_list.tscn" id="4_wu84c"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -14,6 +15,7 @@ grow_vertical = 2
 script = ExtResource("1_l6cm7")
 mode_selection_scene = ExtResource("2_ekxnf")
 replay_list_scene = ExtResource("3_bqqt6")
+bookmark_list_scene = ExtResource("4_wu84c")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -44,6 +46,13 @@ layout_mode = 2
 size_flags_vertical = 3
 theme_override_font_sizes/font_size = 24
 text = "开始游戏"
+
+[node name="LoadBookmarkButton" type="Button" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/font_size = 24
+text = "读取书签（存档）"
 
 [node name="ReplaysButton" type="Button" parent="VBoxContainer"]
 unique_name_in_owner = true

@@ -13,6 +13,7 @@ const MAIN_MENU_SCENE_PATH = "res://scenes/main_menu.tscn"
 var _selected_mode_config_path: String
 var _selected_grid_size: int = 4
 var current_replay_data: ReplayData
+var selected_bookmark_data: BookmarkData = null
 
 # --- 公共接口 ---
 
@@ -74,3 +75,22 @@ func goto_scene(path: String) -> void:
 func quit_game() -> void:
 	print("正在退出游戏...")
 	get_tree().quit()
+
+## 选择一个书签并切换到游戏场景
+func load_game_from_bookmark(p_bookmark_data: BookmarkData, game_scene: PackedScene) -> void:
+	if not is_instance_valid(p_bookmark_data):
+		push_error("错误: 提供的书签数据无效。")
+		return
+	
+	if game_scene == null:
+		push_error("错误: 游戏场景 (game_scene) 未提供。")
+		return
+
+	# 将书签数据暂存，以便GamePlay场景加载时可以获取
+	selected_bookmark_data = p_bookmark_data
+	
+	# 清除模式和大小选择，因为书签中已包含这些信息
+	_selected_mode_config_path = ""
+	_selected_grid_size = 0
+	
+	goto_scene_packed(game_scene)

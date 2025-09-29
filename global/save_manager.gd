@@ -15,12 +15,10 @@ const SAVE_FILE_PATH = "user://scores.dat"
 # 例如: { "classic": { "4x4": 15200, "5x5": 32000 } }
 var _scores_data: Dictionary = {}
 
-
 ## Godot生命周期函数：当单例节点进入场景树时调用。
 func _ready() -> void:
 	# 游戏启动时，自动加载已有的分数记录。
 	load_scores()
-
 
 # --- 公共数据接口 ---
 
@@ -35,7 +33,6 @@ func get_high_score(mode_id: String, grid_size: int) -> int:
 		return _scores_data[mode_id][grid_size_str]
 	
 	return 0
-
 
 ## 设置或更新一个模式在特定棋盘大小下的最高分。
 ## 只有当新分数高于旧分数时才会更新。
@@ -58,7 +55,6 @@ func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
 		# 更新分数后，立即保存到文件。
 		save_scores()
 
-
 # --- 文件读写逻辑 ---
 
 ## 将当前的分数数据保存到本地文件。
@@ -76,7 +72,6 @@ func save_scores() -> void:
 	file.store_string(json_string)
 	file.close()
 	print("分数已成功保存到: %s" % SAVE_FILE_PATH)
-
 
 ## 从本地文件加载分数数据。
 func load_scores() -> void:

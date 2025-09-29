@@ -14,7 +14,6 @@ extends Control
 @onready var board_animator: BoardAnimator = $BoardAnimator
 @onready var prev_step_button: Button = $MarginContainer/MainLayoutContainer/RightPanel/HBoxContainer/PrevStepButton
 @onready var next_step_button: Button = $MarginContainer/MainLayoutContainer/RightPanel/HBoxContainer/NextStepButton
-@onready var snapshots_container: VBoxContainer = $MarginContainer/MainLayoutContainer/RightPanel/SnapshotsContainer
 @onready var back_button: Button = $MarginContainer/MainLayoutContainer/RightPanel/BackButton
 
 # --- 状态变量 ---
@@ -67,10 +66,7 @@ func _initialize_replay() -> void:
 
 	# 步骤3: 跳转到初始状态 (第0步)
 	_go_to_step(0, true)
-	
-	# 步骤4: 创建快照按钮
-	_create_snapshot_buttons()
-	
+
 ## 通过在内存中完整地模拟一次游戏过程，来构建一个包含每一步棋盘状态的数组。
 ## 这是实现任意步骤跳转的核心。
 func _build_state_history() -> void:
@@ -130,26 +126,6 @@ func _go_to_step(step_index: int, _is_initial: bool = false) -> void:
 	_update_hud()
 	prev_step_button.disabled = (current_step == 0)
 	next_step_button.disabled = (current_step == game_state_history.size() - 1)
-
-## 创建快照跳转按钮。
-func _create_snapshot_buttons() -> void:
-	for child in snapshots_container.get_children():
-		child.queue_free()
-
-	# 第0步总是可以作为一个快照点，代表游戏开局。
-	var button = Button.new()
-	button.text = "跳转到开局"
-	button.pressed.connect(func(): _go_to_step(0))
-	snapshots_container.add_child(button)
-
-	for index in replay_data.snapshot_indices:
-		# 注意：`snapshot_indices` 存储的是 `actions` 数组的索引。由于 `game_state_history`
-		# 的第0个元素是初始状态，因此第 `index` 个动作之后的状态对应于历史记录中的第 `index + 1` 个元素。
-		var step = index + 1
-		button = Button.new()
-		button.text = "跳转到快照 (第 %d 步)" % (index+1)
-		button.pressed.connect(func(): _go_to_step(step))
-		snapshots_container.add_child(button)
 
 ## 更新HUD显示。
 func _update_hud() -> void:
