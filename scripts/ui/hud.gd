@@ -35,7 +35,12 @@ func update_display(display_data: Dictionary) -> void:
 			_stat_labels[key].visible = false
 
 	# 步骤2: 遍历传入的新数据，更新或创建对应的UI节点。
-	for key in display_data:
+	var keys_in_order = display_data.keys()
+	if display_data.has("status_message"):
+		keys_in_order.erase("status_message")
+		keys_in_order.insert(0, "status_message")
+
+	for key in keys_in_order:
 		var data_to_display = display_data[key]
 		
 		# 如果数据为空，则确保对应的UI节点是隐藏的。
@@ -74,6 +79,10 @@ func update_display(display_data: Dictionary) -> void:
 			_stat_labels[key] = ui_node
 		else:
 			ui_node = _stat_labels[key]
+		
+		if key == "status_message":
+			stats_container.move_child(ui_node, 0)
+
 
 		# 步骤3: 根据节点类型，使用不同的方式更新内容。
 		if ui_node is FlowLabelList:

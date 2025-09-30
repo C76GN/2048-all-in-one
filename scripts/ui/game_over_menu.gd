@@ -14,20 +14,7 @@ signal return_to_main_menu
 
 @onready var restart_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/RestartButton
 @onready var main_menu_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/MainMenuButton
-@onready var canvas_layer: CanvasLayer = $CanvasLayer
-
 
 func _ready() -> void:
-	close() # 默认关闭菜单
 	restart_button.pressed.connect(func(): restart_game.emit())
 	main_menu_button.pressed.connect(func(): return_to_main_menu.emit())
-
-# --- 公共接口 ---
-
-## 打开菜单。
-func open() -> void:
-	canvas_layer.show()
-
-## 关闭菜单。
-func close() -> void:
-	canvas_layer.hide()

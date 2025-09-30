@@ -23,6 +23,8 @@ extends Resource
 @export var rng_state: int = 0
 ## 完整的棋盘状态快照。
 @export var board_snapshot: Dictionary = {}
+## 保存完整的撤回历史记录
+@export var game_state_history: Array[Dictionary] = []
 
 ## (非导出) 用于删除操作的内部文件路径变量。
 var file_path: String = ""
