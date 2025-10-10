@@ -197,7 +197,11 @@ func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) ->
 		grid[grid_pos.x][grid_pos.y].queue_free()
 		grid[grid_pos.x][grid_pos.y] = null
 		
-	_spawn_at(grid_pos, value, type)
+	var new_tile = _spawn_at(grid_pos, value, type)
+	
+	# 为测试工具生成的方块请求播放生成动画，使其可见。
+	var instruction = [{"type": "SPAWN", "tile": new_tile}]
+	play_animations_requested.emit(instruction)
 
 ## 重置整个棋盘并应用新的尺寸。
 func reset_and_resize(new_size: int, p_board_theme: BoardTheme) -> void:

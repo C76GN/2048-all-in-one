@@ -48,6 +48,7 @@ var _last_move_direction: Vector2i = Vector2i.ZERO
 var _loaded_bookmark_data: BookmarkData = null
 var _last_saved_bookmark_state: Dictionary = {}
 var _hud_status_message: String = ""
+var _is_game_state_tainted_by_test_tools: bool = false
 
 ## Godot生命周期函数：在节点进入场景树时被调用。
 func _ready() -> void:
@@ -68,9 +69,12 @@ func _enter_state(new_state, _message: Dictionary = {}) -> void:
 			SaveManager.set_high_score(mode_id, current_grid_size, score)
 			
 			# 保存回放
-			if _current_replay_data.actions.size() > 0:
-				_current_replay_data.final_score = score
-				ReplayManager.save_replay(_current_replay_data)
+			if not _is_game_state_tainted_by_test_tools:
+				if _current_replay_data.actions.size() > 0:
+					_current_replay_data.final_score = score
+					ReplayManager.save_replay(_current_replay_data)
+			else:
+				print("警告: 游戏状态已被测试工具修改，回放将不会被保存。")
 			
 			ui_manager.show_game_over_menu()
 
@@ -89,6 +93,7 @@ func _process_state(_delta: float, current_state) -> void:
 ## @param new_grid_size: 如果提供（大于-1），则使用此尺寸，否则从GlobalGameManager获取。
 func _initialize_game(new_grid_size: int = -1) -> void:
 	state_machine.set_state(State.READY)
+	_is_game_state_tainted_by_test_tools = false
 	
 	_loaded_bookmark_data = GlobalGameManager.selected_bookmark_data
 	# 加载后立即清除全局变量，防止下次正常开始游戏时被误用
@@ -341,6 +346,9 @@ func _update_and_publish_hud_data() -> void:
 	display_data["controls"] = "操作: W/A/S/D 或 方向键\n暂停: Esc"
 	display_data["seed_info"] = "游戏种子: %d" % RNGManager.get_current_seed()
 	
+	if _is_game_state_tainted_by_test_tools:
+		display_data["taint_warning"] = "[color=orange]警告: 调试工具已使用，回放将被禁用。[/color]"
+		
 	if not _hud_status_message.is_empty():
 		display_data["status_message"] = _hud_status_message
 
@@ -377,7 +385,10 @@ func _initialize_test_tools():
 		test_panel.reset_and_resize_requested.connect(_on_reset_and_resize_requested)
 		
 	if not test_panel.live_expand_requested.is_connected(game_board.live_expand):
-		test_panel.live_expand_requested.connect(game_board.live_expand)
+		test_panel.live_expand_requested.connect(func(new_size):
+			_is_game_state_tainted_by_test_tools = true
+			game_board.live_expand(new_size)
+		)
 	
 	# 2. 使用当前模式的规则来配置TestPanel
 	var spawnable_types = interaction_rule.get_spawnable_types()
@@ -386,6 +397,7 @@ func _initialize_test_tools():
 
 ## 响应来自测试面板的生成方块请求。
 func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int) -> void:
+	_is_game_state_tainted_by_test_tools = true
 	# 将类型ID到TileType枚举的转换委托给当前的交互规则
 	var tile_type_enum = interaction_rule.get_tile_type_from_id(type_id)
 	game_board.spawn_specific_tile(grid_pos, value, tile_type_enum)
@@ -397,6 +409,7 @@ func _on_test_panel_values_requested(type_id: int) -> void:
 
 ## 响应来自测试面板的重置棋盘请求。
 func _on_reset_and_resize_requested(new_size: int):
+	_is_game_state_tainted_by_test_tools = true
 	# 在重新初始化前，安全地清理所有旧的规则实例和管理器。
 	for rule in all_spawn_rules:
 		rule.teardown()
@@ -471,6 +484,9 @@ func _on_undo_button_pressed() -> void:
 
 func _on_snapshot_button_pressed() -> void:
 	if state_machine.current_state_name != State.PLAYING or get_tree().paused: return
+	
+	if _is_game_state_tainted_by_test_tools:
+		_show_hud_message("[color=orange]警告: 正在保存一个被调试工具修改过的状态！[/color]", 4.0)
 	
 	# 为了进行比较，创建一个包含历史的临时状态字典
 	var current_state_for_comparison = _get_full_game_state()
