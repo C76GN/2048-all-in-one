@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3 uid="uid://do7mpfe0ww0dc"]
+
+[ext_resource type="Script" uid="uid://bo2hhex28tn1b" path="res://scripts/ui/restart_confirm_dialog.gd" id="1_mlksj"]
+
+[node name="RestartConfirmDialog" type="ConfirmationDialog"]
+title = "确认重新开始"
+ok_button_text = "从书签位置重启"
+dialog_text = "请选择如何重新开始游戏："
+cancel_button_text = "作为新游戏重启"
+script = ExtResource("1_mlksj")

@@ -17,6 +17,8 @@ enum State {
 	GAME_OVER # 游戏已结束
 }
 
+const RestartConfirmDialogScene = preload("res://scenes/ui/restart_confirm_dialog.tscn")
+
 # --- 节点引用 ---
 @onready var game_board: Control = %GameBoard
 @onready var test_panel: VBoxContainer = %TestPanel
@@ -29,7 +31,6 @@ enum State {
 @onready var snapshot_button: Button = %SnapshotButton
 @onready var ui_manager: UIManager = $UIManager
 @onready var _hud_message_timer: Timer = $HUDMessageTimer
-var _restart_confirm_dialog: ConfirmationDialog
 
 # --- 状态变量 ---
 var mode_config: GameModeConfig
@@ -47,7 +48,6 @@ var _last_move_direction: Vector2i = Vector2i.ZERO
 var _loaded_bookmark_data: BookmarkData = null
 var _last_saved_bookmark_state: Dictionary = {}
 var _hud_status_message: String = ""
-var _user_pressed_cancel_button_for_restart: bool = false
 
 ## Godot生命周期函数：在节点进入场景树时被调用。
 func _ready() -> void:
@@ -97,41 +97,56 @@ func _initialize_game(new_grid_size: int = -1) -> void:
 	_current_replay_data = ReplayData.new()
 	_game_state_history.clear()
 
-	# 如果是从书签加载，则使用书签中的数据；否则，开始新游戏。
+	# 根据是否存在书签数据，选择不同的初始化路径
 	if is_instance_valid(_loaded_bookmark_data):
-		# --- 从书签加载 ---
-		mode_config = load(_loaded_bookmark_data.mode_config_path)
-		current_grid_size = _loaded_bookmark_data.board_snapshot.get("grid_size")
-		RNGManager.initialize_rng(_loaded_bookmark_data.initial_seed)
-		RNGManager.set_state(_loaded_bookmark_data.rng_state)
-		score = _loaded_bookmark_data.score
-		move_count = _loaded_bookmark_data.move_count
-		monsters_killed = _loaded_bookmark_data.monsters_killed
-		
-		if "game_state_history" in _loaded_bookmark_data and not _loaded_bookmark_data.game_state_history.is_empty():
-			_game_state_history = _loaded_bookmark_data.game_state_history.duplicate(true) as Array[Dictionary]
-
-
+		if not _setup_game_from_bookmark():
+			return # 如果书签加载失败，则中止
 	else:
-		# --- 开始新游戏 ---
-		var initial_seed = RNGManager.get_current_seed() if new_grid_size == -1 else int(Time.get_unix_time_from_system())
-		RNGManager.initialize_rng(initial_seed)
-		var config_path = GlobalGameManager.get_selected_mode_config_path()
-		if new_grid_size > -1:
-			current_grid_size = new_grid_size
-		else:
-			current_grid_size = GlobalGameManager.get_selected_grid_size()
-		
-		if config_path != "":
-			mode_config = load(config_path)
-			assert(is_instance_valid(mode_config), "GameModeConfig未能加载！")
-		else:
-			push_error("错误: 无法加载游戏模式配置。")
-			# 确保在退出前取消暂停
-			get_tree().paused = false
-			GlobalGameManager.return_to_main_menu()
-			return
+		if not _setup_new_game(new_grid_size):
+			return # 如果新游戏设置失败，则中止
 
+	# 执行两种路径共用的最终初始化步骤
+	_finalize_initialization()
+
+## [内部函数] 从一个有效的书签数据中设置游戏状态。
+func _setup_game_from_bookmark() -> bool:
+	mode_config = load(_loaded_bookmark_data.mode_config_path)
+	current_grid_size = _loaded_bookmark_data.board_snapshot.get("grid_size")
+	RNGManager.initialize_rng(_loaded_bookmark_data.initial_seed)
+	RNGManager.set_state(_loaded_bookmark_data.rng_state)
+	score = _loaded_bookmark_data.score
+	move_count = _loaded_bookmark_data.move_count
+	monsters_killed = _loaded_bookmark_data.monsters_killed
+	
+	if "game_state_history" in _loaded_bookmark_data and not _loaded_bookmark_data.game_state_history.is_empty():
+		_game_state_history = _loaded_bookmark_data.game_state_history.duplicate(true) as Array[Dictionary]
+
+	return true
+
+## [内部函数] 根据全局设置或传入参数来配置一个新游戏。
+func _setup_new_game(new_grid_size: int = -1) -> bool:
+	var initial_seed = RNGManager.get_current_seed() if new_grid_size == -1 else int(Time.get_unix_time_from_system())
+	RNGManager.initialize_rng(initial_seed)
+	var config_path = GlobalGameManager.get_selected_mode_config_path()
+	if new_grid_size > -1:
+		current_grid_size = new_grid_size
+	else:
+		current_grid_size = GlobalGameManager.get_selected_grid_size()
+	
+	if config_path != "":
+		mode_config = load(config_path)
+		assert(is_instance_valid(mode_config), "GameModeConfig未能加载！")
+	else:
+		push_error("错误: 无法加载游戏模式配置。")
+		# 确保在退出前取消暂停
+		get_tree().paused = false
+		GlobalGameManager.return_to_main_menu()
+		return false
+	
+	return true
+
+## [内部函数] 在设置好游戏模式和状态后，完成所有节点的实例化和连接。
+func _finalize_initialization() -> void:
 	# 填充回放元数据 (对新游戏和加载的游戏都适用)
 	_current_replay_data.timestamp = int(Time.get_unix_time_from_system())
 	_current_replay_data.mode_config_path = mode_config.resource_path
@@ -501,53 +516,37 @@ func _on_hud_message_timer_timeout() -> void:
 
 ## 显示重启确认对话框的逻辑
 func _show_restart_confirmation() -> void:
-	if not is_instance_valid(_restart_confirm_dialog):
-		_restart_confirm_dialog = ConfirmationDialog.new()
-		_restart_confirm_dialog.title = "确认重新开始"
-		_restart_confirm_dialog.dialog_text = "请选择如何重新开始游戏："
-		_restart_confirm_dialog.ok_button_text = "从书签位置重启"
-		var cancel_btn = _restart_confirm_dialog.get_cancel_button() # 获取取消按钮
-		if cancel_btn: # 检查按钮是否存在
-			cancel_btn.text = "作为新游戏重启"
-		ui_manager._canvas_layer.add_child(_restart_confirm_dialog)
-
-		# 连接“确认”按钮 -> 从书签重启
-		_restart_confirm_dialog.confirmed.connect(_on_restart_confirmed_from_bookmark)
-
-		# 连接“取消”按钮 -> 设置标志并隐藏对话框
-		if cancel_btn:
-			cancel_btn.pressed.connect(_on_cancel_button_pressed_for_restart)
-
-		# 连接可见性变化信号 -> 判断何时隐藏以及如何响应
-		_restart_confirm_dialog.visibility_changed.connect(_on_restart_dialog_visibility_changed)
-
-	# 重置标志
-	_user_pressed_cancel_button_for_restart = false
+	# 实例化专用的对话框场景
+	var dialog: RestartConfirmDialog = RestartConfirmDialogScene.instantiate()
+	
+	# 1. 连接“从书签重启”的清晰信号
+	dialog.restart_from_bookmark.connect(_on_restart_from_bookmark_confirmed)
+	
+	# 2. 连接“作为新游戏重启”的清晰信号
+	dialog.restart_as_new_game.connect(_on_restart_as_new_game_confirmed)
+	
+	# 3. 连接“被取消”的清晰信号
+	dialog.dismissed.connect(func():
+		# 如果对话框被取消，我们只需要重新显示暂停菜单即可
+		if get_tree().paused and state_machine.current_state_name != State.GAME_OVER:
+			ui_manager.show_pause_menu()
+	)
+	
+	# 当对话框从场景树中退出时（无论如何关闭），都确保它被正确释放
+	dialog.tree_exited.connect(dialog.queue_free)
+	
 	ui_manager.close_current_ui() # 关闭暂停菜单
-	_restart_confirm_dialog.popup_centered()
+	ui_manager._canvas_layer.add_child(dialog)
+	dialog.popup_centered()
 
-## 处理确认（从书签重启）的函数
-func _on_restart_confirmed_from_bookmark() -> void:
-	# 清理对话框
-	if is_instance_valid(_restart_confirm_dialog):
-		_restart_confirm_dialog.queue_free()
-	_restart_from_bookmark()
-
-func _on_cancel_button_pressed_for_restart() -> void:
-	_user_pressed_cancel_button_for_restart = true
-	if is_instance_valid(_restart_confirm_dialog):
-		_restart_confirm_dialog.hide()
-
-## 从书签重启游戏的函数
-func _restart_from_bookmark() -> void:
+## 响应对话框发出的“从书签重启”信号。
+func _on_restart_from_bookmark_confirmed() -> void:
 	get_tree().paused = false
 	GlobalGameManager.selected_bookmark_data = _loaded_bookmark_data
 	get_tree().reload_current_scene()
 
-## 将当前模式作为新游戏重启的函数
-func _restart_as_new_game() -> void:
-	if is_instance_valid(_restart_confirm_dialog):
-		_restart_confirm_dialog.queue_free()
+## 响应对话框发出的“作为新游戏重启”信号。
+func _on_restart_as_new_game_confirmed() -> void:
 	get_tree().paused = false
 	var new_seed = int(Time.get_unix_time_from_system())
 	
@@ -559,29 +558,3 @@ func _restart_as_new_game() -> void:
 		_loaded_bookmark_data.board_snapshot.get("grid_size", 4),
 		new_seed
 	)
-
-## 处理对话框隐藏的函数
-func _on_restart_dialog_hidden() -> void:
-	# 检查 GamePlay 的标志：如果用户按了“取消”按钮，则执行新游戏重启
-	if _user_pressed_cancel_button_for_restart:
-		# 清理对话框
-		if is_instance_valid(_restart_confirm_dialog):
-			_restart_confirm_dialog.queue_free()
-		_restart_as_new_game()
-	else:
-		if get_tree().paused and state_machine.current_state_name != State.GAME_OVER:
-			ui_manager.show_pause_menu()
-
-# 处理对话框可见性变化
-func _on_restart_dialog_visibility_changed() -> void:
-	if not _restart_confirm_dialog.visible:
-		if _user_pressed_cancel_button_for_restart:
-			# 用户点击了“作为新游戏重启”按钮
-			if is_instance_valid(_restart_confirm_dialog):
-				_restart_confirm_dialog.queue_free()
-			_restart_as_new_game()
-		else:
-			# 用户点击了“X”按钮或按了 Esc 键
-			# 返回暂停菜单
-			if get_tree().paused and state_machine.current_state_name != State.GAME_OVER:
-				ui_manager.show_pause_menu()
