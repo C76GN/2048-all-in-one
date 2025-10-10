@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="ProgressiveSpawnRule" load_steps=2 format=3 uid="uid://iys6hto11ixt"]
+
+[ext_resource type="Script" uid="uid://blmpobi7dgeot" path="res://scripts/rules/spawn/progressive_spawn_rule.gd" id="1_758x1"]
+
+[resource]
+script = ExtResource("1_758x1")
+consumes_event_on_success = false
+trigger = 0
+priority = 100
+metadata/_custom_type_script = "uid://blmpobi7dgeot"
