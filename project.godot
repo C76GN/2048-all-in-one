@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="2048div2"
+config/name="2048-all-in-one"
 run/main_scene="uid://d3caufbu1axub"
 config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
