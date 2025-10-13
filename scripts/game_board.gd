@@ -83,6 +83,9 @@ func handle_move(direction: Vector2i) -> void:
 		new_grid[i] = []; new_grid[i].resize(grid_size)
 		new_grid[i].fill(null)
 
+	# 追踪发生了移动的行/列的索引
+	var moved_lines_indices: Array[int] = []
+
 	# 逐行/逐列处理
 	for i in range(grid_size):
 		var line: Array[Tile] = []
@@ -94,8 +97,11 @@ func handle_move(direction: Vector2i) -> void:
 		var new_line: Array[Tile] = result.line
 		var merges: Array[Dictionary] = result.merges
 		
+		# 检查这一行/列是否发生了移动
 		if result.moved:
 			moved = true
+			if not i in moved_lines_indices:
+				moved_lines_indices.append(i)
 		
 		# 处理合并动画指令
 		for merge_info in merges:
@@ -136,9 +142,15 @@ func handle_move(direction: Vector2i) -> void:
 		for j in range(grid_size):
 			var coords = _get_coords_for_line(i, j, direction)
 			new_grid[coords.x][coords.y] = new_line[j]
+			
 	if moved:
+		var move_data = {
+			"direction": direction,
+			"moved_lines": moved_lines_indices
+		}
+		
 		grid = new_grid
-		EventBus.move_made.emit()
+		EventBus.move_made.emit(move_data)
 		play_animations_requested.emit(instructions)
 		
 		# 逻辑层立即检查游戏是否结束
@@ -150,31 +162,38 @@ func spawn_tile(spawn_data: Dictionary) -> void:
 	var type = spawn_data.get("type", Tile.TileType.PLAYER)
 	var is_priority = spawn_data.get("is_priority", false)
 	
-	var empty_cells = get_empty_cells()
+	# 检查是否提供了指定的生成位置
+	var spawn_pos: Vector2i
+	var has_specific_pos = spawn_data.has("position")
 	
-	# 情况1：棋盘有空位，正常生成。
-	if not empty_cells.is_empty():
-		var spawn_pos: Vector2i = empty_cells[RNGManager.get_rng().randi_range(0, empty_cells.size() - 1)]
-		var new_tile = _spawn_at(spawn_pos, value, type)
-		
-		# 创建SPAWN指令并请求播放
-		var instruction = [{"type": "SPAWN", "tile": new_tile}]
-		play_animations_requested.emit(instruction)
-		
-	# 情况2：棋盘已满，但生成请求是优先的（如怪物），则执行转化逻辑。
-	elif is_priority:
-		var player_tiles = _get_all_player_tiles()
-		# 子情况A：棋盘上仍有玩家方块，随机将一个转变为怪物。
-		if not player_tiles.is_empty():
-			var tile_to_transform = player_tiles[RNGManager.get_rng().randi_range(0, player_tiles.size() - 1)]
-			tile_to_transform.setup(value, type, interaction_rule, color_schemes)
-			tile_to_transform.animate_transform()
-		# 子情况B：棋盘上全是怪物方块，随机将一个数值翻倍以示“增强”。
+	if has_specific_pos:
+		spawn_pos = spawn_data["position"]
+		# 安全检查，确保指定位置是空的
+		if grid[spawn_pos.x][spawn_pos.y] != null:
+			push_error("生成失败：尝试在非空位置 %s 生成方块。" % str(spawn_pos))
+			return
+	else:
+		var empty_cells = get_empty_cells()
+		if not empty_cells.is_empty():
+			spawn_pos = empty_cells[RNGManager.get_rng().randi_range(0, empty_cells.size() - 1)]
 		else:
-			var monster_tiles = _get_all_monster_tiles()
-			if not monster_tiles.is_empty():
-				var tile_to_empower = monster_tiles[RNGManager.get_rng().randi_range(0, monster_tiles.size() - 1)]
-				tile_to_empower.setup(tile_to_empower.value * 2, type, interaction_rule, color_schemes)
+			# 棋盘已满
+			if is_priority:
+				var player_tiles = _get_all_player_tiles()
+				if not player_tiles.is_empty():
+					var tile_to_transform = player_tiles[RNGManager.get_rng().randi_range(0, player_tiles.size() - 1)]
+					tile_to_transform.setup(value, type, interaction_rule, color_schemes)
+					tile_to_transform.animate_transform()
+				else:
+					var monster_tiles = _get_all_monster_tiles()
+					if not monster_tiles.is_empty():
+						var tile_to_empower = monster_tiles[RNGManager.get_rng().randi_range(0, monster_tiles.size() - 1)]
+						tile_to_empower.setup(tile_to_empower.value * 2, type, interaction_rule, color_schemes)
+			return # 棋盘已满且非优先，直接返回
+			
+	var new_tile = _spawn_at(spawn_pos, value, type)
+	var instruction = [{"type": "SPAWN", "tile": new_tile}]
+	play_animations_requested.emit(instruction)
 
 ## 获取当前棋盘上数值最大的玩家方块的值。
 func get_max_player_value() -> int:
@@ -395,6 +414,12 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 	await new_cells_tween.finished
 
 # --- 辅助函数 ---
+
+## 将棋盘容器内的局部像素坐标转换为网格坐标。
+func _pixel_to_grid(pixel_pos: Vector2) -> Vector2i:
+	var x = round(pixel_pos.x / (CELL_SIZE + SPACING))
+	var y = round(pixel_pos.y / (CELL_SIZE + SPACING))
+	return Vector2i(int(x), int(y))
 
 ## 在指定位置生成一个方块的内部实现。
 func _spawn_at(grid_pos: Vector2i, value: int, type: Tile.TileType) -> Tile:

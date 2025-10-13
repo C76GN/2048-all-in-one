@@ -12,8 +12,9 @@ extends Node
 signal score_updated(amount: int)
 
 ## 在一次有效的移动（至少有一个方块移动或合并）完成后发出。
+## @param move_data: 一个包含移动方向和受影响行/列信息的字典。
 @warning_ignore("unused_signal")
-signal move_made
+signal move_made(move_data: Dictionary)
 
 ## 当有怪物在交互中被消灭时发出。
 @warning_ignore("unused_signal")

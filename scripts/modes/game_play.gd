@@ -275,11 +275,11 @@ func _on_move_intent(direction: Vector2i) -> void:
 	_save_current_state()
 	game_board.handle_move(direction)
 
-func _on_move_made() -> void:
+func _on_move_made(move_data: Dictionary) -> void:
 	move_count += 1
 	# 记录有效移动到回放数据中
 	_current_replay_data.actions.append(_last_move_direction)
-	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED)
+	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED, move_data)
 	_update_and_publish_hud_data()
 
 ## 当 EventBus 发出 game_lost 信号时调用。
