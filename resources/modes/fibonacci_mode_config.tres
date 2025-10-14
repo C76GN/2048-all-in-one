@@ -22,8 +22,8 @@ metadata/_custom_type_script = "uid://cjyusdv36u0s6"
 script = ExtResource("1_i6mjw")
 mode_name = "斐波那契模式"
 mode_description = "玩法说明:
-- 两个 '1' 可以合并成 '2'。
-- 两个在斐波那契数列中相邻的数字可以合并成它们的和 (例如 2+3=5)。"
+两个 '1' 可以合并成 '2'。
+两个在斐波那契数列中相邻的数字可以合并成它们的和 (例如 2+3=5)。"
 interaction_rule = SubResource("Resource_n5c15")
 color_schemes = {
 0: ExtResource("2_s7tht"),

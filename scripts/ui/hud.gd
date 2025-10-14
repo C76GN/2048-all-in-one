@@ -72,7 +72,7 @@ func update_display(display_data: Dictionary) -> void:
 				var new_label = RichTextLabel.new()
 				new_label.bbcode_enabled = true
 				new_label.fit_content = true
-				new_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+				new_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				ui_node = new_label
 				
 			stats_container.add_child(ui_node)
@@ -82,7 +82,6 @@ func update_display(display_data: Dictionary) -> void:
 		
 		if key == "status_message":
 			stats_container.move_child(ui_node, 0)
-
 
 		# 步骤3: 根据节点类型，使用不同的方式更新内容。
 		if ui_node is FlowLabelList:

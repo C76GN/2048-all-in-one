@@ -22,9 +22,9 @@ metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 script = ExtResource("1_o4y40")
 mode_name = "渐进模式"
 mode_description = "玩法说明:
-- 初始只生成2和4。
-- 合成2048后，解锁生成8。
-- 合成4096后，解锁生成16，以此类推。"
+初始只生成2和4。
+合成2048后，解锁生成8。
+合成4096后，解锁生成16，以此类推。"
 interaction_rule = SubResource("Resource_cubgt")
 color_schemes = {
 0: ExtResource("2_vrvml"),

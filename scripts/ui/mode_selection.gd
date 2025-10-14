@@ -68,7 +68,7 @@ func _create_persistent_info_panel() -> void:
 	
 	# 模式描述标签
 	_info_desc_label = Label.new()
-	_info_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_info_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_info_desc_label.size_flags_horizontal = Control.SIZE_FILL
 	left_panel_container.add_child(_info_desc_label)
 	
@@ -137,7 +137,6 @@ func _populate_left_panel() -> void:
 	_info_desc_label.text = _selected_mode_config.mode_description
 	_update_high_score_label()
 
-
 ## 根据当前选中的模式，填充右侧配置面板。
 func _populate_right_panel() -> void:
 	# 设置SpinBox的范围和默认值
@@ -153,7 +152,6 @@ func _update_high_score_label() -> void:
 		# 即使没有记录，SaveManager.get_high_score 也会返回
 		var high_score = SaveManager.get_high_score(mode_id, _current_grid_size)
 		_info_score_label.text = "\n在 %dx%d 尺寸下的最高分：%d" % [_current_grid_size, _current_grid_size, high_score]
-
 
 # --- 信号处理函数 ---
 

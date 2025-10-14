@@ -22,7 +22,7 @@ metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 script = ExtResource("4_y7c41")
 mode_name = "经典模式"
 mode_description = "玩法说明:
-- 移动方块，让两个相同数值的方块碰撞以合并成一个两倍数值的方块。"
+移动方块，让两个相同数值的方块碰撞以合并成一个两倍数值的方块。"
 interaction_rule = SubResource("Resource_jk0ep")
 color_schemes = {
 0: ExtResource("2_y7c41"),

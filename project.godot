@@ -34,6 +34,10 @@ window/stretch/mode="canvas_items"
 
 enabled=PackedStringArray("res://addons/theme_importer/plugin.cfg")
 
+[gui]
+
+theme/custom_font="uid://cvosdaiqn3n5s"
+
 [input]
 
 move_up={

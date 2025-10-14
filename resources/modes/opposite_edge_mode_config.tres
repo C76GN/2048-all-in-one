@@ -22,8 +22,8 @@ metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 script = ExtResource("5_y7c41")
 mode_name = "对边生成模式"
 mode_description = "玩法说明:
-- 经典2048合并规则。
-- 新方块会生成在您滑动方向的对向边缘，且仅限于那些因滑动而发生位移的行/列。"
+经典2048合并规则。
+新方块会生成在您滑动方向的对向边缘，且仅限于那些因滑动而发生位移的行/列。"
 interaction_rule = SubResource("Resource_jk0ep")
 color_schemes = {
 0: ExtResource("2_y7c41"),

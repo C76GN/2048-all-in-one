@@ -22,8 +22,8 @@ metadata/_custom_type_script = "uid://bi0d681ctpalu"
 script = ExtResource("1_bibj5")
 mode_name = "卢卡斯-斐波那契模式"
 mode_description = "玩法说明:
-- 斐波那契数与卢卡斯数可以分别合并。
-- 特殊规则: F(n-1) + F(n+1) = L(n)。"
+斐波那契数与卢卡斯数可以分别合并。
+特殊规则: F(n-1) + F(n+1) = L(n)。"
 interaction_rule = SubResource("Resource_qvxyt")
 color_schemes = {
 0: ExtResource("1_osb3v"),
