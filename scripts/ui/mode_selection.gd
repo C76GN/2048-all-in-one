@@ -24,10 +24,18 @@ const ModeCardScene = preload("res://scenes/ui/mode_card.tscn")
 @onready var seed_line_edit: LineEdit = $CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2/SeedLineEdit
 @onready var refresh_seed_button: Button = $CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2/RefreshSeedButton
 @onready var _info_default_label: Label = $CenterContainer/MainLayout/LeftPanel/Label
+@onready var prev_page_button: Button = %PrevPageButton
+@onready var next_page_button: Button = %NextPageButton
+@onready var pagination_container: HBoxContainer = prev_page_button.get_parent()
+
 
 # --- 内部状态 ---
 var _selected_mode_config: GameModeConfig = null
 var _current_grid_size: int = 4
+var _items_per_page: int = 5
+var _current_page: int = 0
+var _total_pages: int = 0
+
 
 # --- 用于左侧面板的持久化UI元素 ---
 var _info_name_label: Label
@@ -52,6 +60,10 @@ func _ready() -> void:
 	refresh_seed_button.pressed.connect(_generate_and_display_new_seed)
 	# 首次进入界面时，调用一次以生成初始种子
 	_generate_and_display_new_seed()
+	
+	# 连接新添加的分页按钮信号
+	prev_page_button.pressed.connect(_on_prev_page_pressed)
+	next_page_button.pressed.connect(_on_next_page_pressed)
 
 # --- 内部核心函数 ---
 
@@ -79,12 +91,30 @@ func _create_persistent_info_panel() -> void:
 
 ## 动态生成模式卡片列表。
 func _populate_mode_list() -> void:
-	# 清空容器，以防万一
+	# 清空容器，为新一页的卡片做准备
 	for child in mode_list_container.get_children():
 		child.queue_free()
 
-	# 遍历配置好的模式列表
-	for mode_config_resource in mode_configs:
+	# 1. 计算总页数
+	if mode_configs.is_empty():
+		_total_pages = 0
+	else:
+		_total_pages = int(ceil(float(mode_configs.size()) / _items_per_page))
+	
+	_update_pagination_buttons_visibility()
+	if _total_pages == 0:
+		return
+
+	# 2. 计算当前页需要显示的模式在总列表中的起止索引
+	var start_index = _current_page * _items_per_page
+	var end_index = start_index + _items_per_page
+	# .slice() 方法会自动处理越界，所以不需要手动 clamp end_index
+
+	# 3. 获取当前页的模式配置
+	var modes_for_this_page = mode_configs.slice(start_index, end_index)
+
+	# 4. 遍历当前页的配置并创建卡片
+	for mode_config_resource in modes_for_this_page:
 		if not is_instance_valid(mode_config_resource):
 			continue
 			
@@ -92,6 +122,11 @@ func _populate_mode_list() -> void:
 		mode_list_container.add_child(card)
 		card.setup(mode_config_resource.resource_path)
 		card.mode_selected.connect(_on_mode_card_selected)
+		
+	# 切换页面后，重置选择状态
+	_selected_mode_config = null
+	_reset_panels_to_default()
+
 
 ## 重置左右面板到未选择模式时的默认状态。
 func _reset_panels_to_default() -> void:
@@ -153,6 +188,10 @@ func _update_high_score_label() -> void:
 		var high_score = SaveManager.get_high_score(mode_id, _current_grid_size)
 		_info_score_label.text = "\n在 %dx%d 尺寸下的最高分：%d" % [_current_grid_size, _current_grid_size, high_score]
 
+## 如果只有一页或没有内容，则隐藏分页按钮。
+func _update_pagination_buttons_visibility() -> void:
+	pagination_container.visible = _total_pages > 1
+
 # --- 信号处理函数 ---
 
 ## 响应任一模式卡片的点击事件。
@@ -204,3 +243,25 @@ func _generate_and_display_new_seed() -> void:
 	rng.randomize() # 确保每次生成的随机数都不同
 	# 使用 randi() 生成一个完整的32位整数作为种子
 	seed_line_edit.text = str(rng.randi())
+
+## 响应“上一页”按钮的点击事件。
+func _on_prev_page_pressed() -> void:
+	if _total_pages <= 1: return
+
+	_current_page -= 1
+	# 循环逻辑：如果当前页小于第一页（0），则跳到最后一页。
+	if _current_page < 0:
+		_current_page = _total_pages - 1
+	
+	_populate_mode_list()
+
+## 响应“下一页”按钮的点击事件。
+func _on_next_page_pressed() -> void:
+	if _total_pages <= 1: return
+
+	_current_page += 1
+	# 循环逻辑：如果当前页超出了最后一页的索引，则回到第一页。
+	if _current_page >= _total_pages:
+		_current_page = 0
+
+	_populate_mode_list()
