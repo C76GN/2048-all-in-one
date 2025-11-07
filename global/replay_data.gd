@@ -7,17 +7,29 @@
 class_name ReplayData
 extends Resource
 
+# --- 导出变量 ---
+
 ## 回放保存时的Unix时间戳，可用作唯一标识符。
 @export var timestamp: int = 0
+
 ## 该局游戏使用的模式配置资源路径。
 @export var mode_config_path: String = ""
+
 ## 游戏开始时的初始RNG种子。
 @export var initial_seed: int = 0
+
 ## 棋盘尺寸。
 @export var grid_size: int = 4
+
 ## 最终得分。
 @export var final_score: int = 0
+
 ## 玩家的每一步有效操作。存储为Vector2i以代表方向。
 @export var actions: Array[Vector2i] = []
 
+
+# --- 公共变量 ---
+
+## 此回放资源在文件系统中的完整路径。
+## @remark 主要由 ReplayManager 在加载和删除时内部使用。
 var file_path: String = ""

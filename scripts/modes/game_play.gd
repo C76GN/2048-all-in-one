@@ -49,6 +49,7 @@ var _loaded_bookmark_data: BookmarkData = null
 var _last_saved_bookmark_state: Dictionary = {}
 var _hud_status_message: String = ""
 var _is_game_state_tainted_by_test_tools: bool = false
+var _initial_seed_of_session: int = 0
 
 ## Godot生命周期函数：在节点进入场景树时被调用。
 func _ready() -> void:
@@ -130,8 +131,10 @@ func _setup_game_from_bookmark() -> bool:
 
 ## [内部函数] 根据全局设置或传入参数来配置一个新游戏。
 func _setup_new_game(new_grid_size: int = -1) -> bool:
-	var initial_seed = RNGManager.get_current_seed() if new_grid_size == -1 else int(Time.get_unix_time_from_system())
-	RNGManager.initialize_rng(initial_seed)
+	if new_grid_size > -1:
+		var new_seed = int(Time.get_unix_time_from_system())
+		RNGManager.initialize_rng(new_seed)
+
 	var config_path = GlobalGameManager.get_selected_mode_config_path()
 	if new_grid_size > -1:
 		current_grid_size = new_grid_size
@@ -152,10 +155,13 @@ func _setup_new_game(new_grid_size: int = -1) -> bool:
 
 ## [内部函数] 在设置好游戏模式和状态后，完成所有节点的实例化和连接。
 func _finalize_initialization() -> void:
+	# 捕获并存储本局游戏的初始种子
+	_initial_seed_of_session = RNGManager.get_current_seed()
+	
 	# 填充回放元数据 (对新游戏和加载的游戏都适用)
 	_current_replay_data.timestamp = int(Time.get_unix_time_from_system())
 	_current_replay_data.mode_config_path = mode_config.resource_path
-	_current_replay_data.initial_seed = RNGManager.get_current_seed() # 使用当前RNG的种子
+	_current_replay_data.initial_seed = _initial_seed_of_session # 使用存储的种子
 	_current_replay_data.grid_size = current_grid_size
 
 	# 在游戏开始时，获取并存储一次最高分。
@@ -204,7 +210,7 @@ func _finalize_initialization() -> void:
 	_connect_signals()
 	
 	# 步骤5: 如果是新游戏，则通过管理器触发棋盘初始化事件；
-#       如果是从书签加载，则直接恢复棋盘状态。
+	# 如果是从书签加载，则直接恢复棋盘状态。
 	if is_instance_valid(_loaded_bookmark_data):
 		game_board.restore_from_snapshot(_loaded_bookmark_data.board_snapshot)
 		# 恢复后，将当前状态设为最后保存状态，防止一进来就重复保存
@@ -410,22 +416,14 @@ func _on_test_panel_values_requested(type_id: int) -> void:
 ## 响应来自测试面板的重置棋盘请求。
 func _on_reset_and_resize_requested(new_size: int):
 	_is_game_state_tainted_by_test_tools = true
-	# 在重新初始化前，安全地清理所有旧的规则实例和管理器。
-	for rule in all_spawn_rules:
-		rule.teardown()
-	all_spawn_rules.clear()
 	
-	if is_instance_valid(rule_manager):
-		rule_manager.queue_free()
-
-	monsters_killed = 0
-	move_count = 0
-	score = 0
-	
-	# 先清理棋盘，但不在这里设置尺寸，交由 _initialize_game 统一处理
-	game_board.reset_and_resize(new_size, mode_config.board_theme)
-	
-	_initialize_game(new_size)
+	var current_scene_resource: PackedScene = load(get_tree().current_scene.scene_file_path)
+	GlobalGameManager.select_mode_and_start(
+		mode_config.resource_path,
+		current_scene_resource,
+		new_size,
+		_initial_seed_of_session
+	)
 
 ## 响应“继续游戏”事件。
 func _on_resume_game():
@@ -436,9 +434,15 @@ func _on_restart_game(_from_bookmark: bool):
 	if is_instance_valid(_loaded_bookmark_data):
 		_show_restart_confirmation()
 	else:
-		# 对于非书签启动的游戏，直接重启
-		get_tree().paused = false # 确保在重载前取消暂停
-		get_tree().reload_current_scene()
+		get_tree().paused = false
+		var current_scene_resource: PackedScene = load(get_tree().current_scene.scene_file_path)
+		GlobalGameManager.select_mode_and_start(
+			mode_config.resource_path,
+			current_scene_resource,
+			current_grid_size,
+			_initial_seed_of_session
+		)
+
 
 ## 响应“返回主菜单”事件。
 func _on_return_to_main_menu():

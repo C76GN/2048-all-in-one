@@ -1,4 +1,5 @@
 # addons/theme_importer/theme_importer.gd
+@tool
 
 ## ThemeImporter: 一个用于从JSON文件生成主题资源的编辑器工具。
 ##
@@ -7,7 +8,6 @@
 ## .json 文件，并在 `resources/themes` 目录中创建或更新对应的
 ## .tres 资源文件。
 ## 这使得主题创建过程自动化，并保持了视觉样式的数据驱动性。
-@tool
 extends EditorPlugin
 
 const SOURCE_DIR = "res://json_config/themes/"

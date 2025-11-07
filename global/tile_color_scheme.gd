@@ -7,5 +7,7 @@
 class_name TileColorScheme
 extends Resource
 
+# --- 导出变量 ---
+
 ## 样式数组，索引 0 对应最低阶的方块。
 @export var styles: Array[TileLevelStyle] = []

@@ -25,11 +25,11 @@ mode_description = "玩法说明:
 经典2048合并规则。
 新方块会生成在您滑动方向的对向边缘，且仅限于那些因滑动而发生位移的行/列。"
 interaction_rule = SubResource("Resource_jk0ep")
+spawn_rules = Array[ExtResource("6_abcde")]([ExtResource("7_fghij"), ExtResource("8_klmno")])
+game_over_rule = SubResource("Resource_wp4bw")
 color_schemes = {
 0: ExtResource("2_y7c41"),
 1: ExtResource("3_o1sg1")
 }
-spawn_rules = Array[ExtResource("6_abcde")]([ExtResource("7_fghij"), ExtResource("8_klmno")])
-game_over_rule = SubResource("Resource_wp4bw")
 board_theme = ExtResource("1_xkyvo")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

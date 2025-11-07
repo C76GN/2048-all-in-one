@@ -24,11 +24,11 @@ mode_name = "经典模式"
 mode_description = "玩法说明:
 移动方块，让两个相同数值的方块碰撞以合并成一个两倍数值的方块。"
 interaction_rule = SubResource("Resource_jk0ep")
+spawn_rules = Array[ExtResource("5_8xxsn")]([ExtResource("6_bx8w2"), ExtResource("7_e8guu")])
+game_over_rule = SubResource("Resource_wp4bw")
 color_schemes = {
 0: ExtResource("2_y7c41"),
 1: ExtResource("3_8xxsn")
 }
-spawn_rules = Array[ExtResource("5_8xxsn")]([ExtResource("6_bx8w2"), ExtResource("7_e8guu")])
-game_over_rule = SubResource("Resource_wp4bw")
 board_theme = ExtResource("1_xkyvo")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

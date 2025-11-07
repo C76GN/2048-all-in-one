@@ -6,6 +6,8 @@
 ## 而其他系统可以监听这些信号，从而实现通信，而无需直接引用彼此。
 extends Node
 
+# --- 信号 ---
+
 ## 在分数更新时发出。
 ## @param amount: 新增的分数。
 @warning_ignore("unused_signal")

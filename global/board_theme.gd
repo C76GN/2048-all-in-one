@@ -6,6 +6,8 @@
 class_name BoardTheme
 extends Resource
 
+# --- 导出变量 ---
+
 ## 整个游戏画面的主背景颜色。
 @export var game_background_color: Color = Color.BLACK
 

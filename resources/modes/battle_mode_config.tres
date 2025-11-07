@@ -25,11 +25,11 @@ mode_description = "玩法说明:
 经典战斗规则，玩家与怪物可以互相攻击。
 每次移动后，有较小概率生成怪物，否则生成玩家方块。怪物出现的概率会随着失败次数动态增长。"
 interaction_rule = SubResource("Resource_8wciv")
+spawn_rules = Array[ExtResource("2_rv56s")]([ExtResource("7_pe76g"), ExtResource("8_0r4sw")])
+game_over_rule = SubResource("Resource_8rw1r")
 color_schemes = {
 0: ExtResource("2_06hy0"),
 1: ExtResource("3_06hy0")
 }
-spawn_rules = Array[ExtResource("2_rv56s")]([ExtResource("7_pe76g"), ExtResource("8_0r4sw")])
-game_over_rule = SubResource("Resource_8rw1r")
 board_theme = ExtResource("1_ex1hm")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

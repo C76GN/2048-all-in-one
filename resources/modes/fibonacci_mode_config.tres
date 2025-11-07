@@ -25,11 +25,11 @@ mode_description = "玩法说明:
 两个 '1' 可以合并成 '2'。
 两个在斐波那契数列中相邻的数字可以合并成它们的和 (例如 2+3=5)。"
 interaction_rule = SubResource("Resource_n5c15")
+spawn_rules = Array[ExtResource("2_6xepx")]([ExtResource("4_dtg25"), ExtResource("5_4014i")])
+game_over_rule = SubResource("Resource_4014i")
 color_schemes = {
 0: ExtResource("2_s7tht"),
 1: ExtResource("3_56jyg")
 }
-spawn_rules = Array[ExtResource("2_6xepx")]([ExtResource("4_dtg25"), ExtResource("5_4014i")])
-game_over_rule = SubResource("Resource_4014i")
 board_theme = ExtResource("1_6vbk8")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

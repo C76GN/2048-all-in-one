@@ -26,11 +26,11 @@ mode_description = "玩法说明:
 合成2048后，解锁生成8。
 合成4096后，解锁生成16，以此类推。"
 interaction_rule = SubResource("Resource_cubgt")
+spawn_rules = Array[ExtResource("2_xvfhn")]([ExtResource("8_4ustv"), ExtResource("9_8lhxm")])
+game_over_rule = SubResource("Resource_1kej1")
 color_schemes = {
 0: ExtResource("2_vrvml"),
 1: ExtResource("3_xk0rl")
 }
-spawn_rules = Array[ExtResource("2_xvfhn")]([ExtResource("8_4ustv"), ExtResource("9_8lhxm")])
-game_over_rule = SubResource("Resource_1kej1")
 board_theme = ExtResource("1_wpcmn")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

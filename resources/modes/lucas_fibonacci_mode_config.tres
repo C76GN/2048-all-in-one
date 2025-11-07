@@ -25,11 +25,11 @@ mode_description = "玩法说明:
 斐波那契数与卢卡斯数可以分别合并。
 特殊规则: F(n-1) + F(n+1) = L(n)。"
 interaction_rule = SubResource("Resource_qvxyt")
+spawn_rules = Array[ExtResource("2_snxym")]([ExtResource("8_waqm1"), ExtResource("9_u40v4")])
+game_over_rule = SubResource("Resource_1417i")
 color_schemes = {
 0: ExtResource("1_osb3v"),
 1: ExtResource("2_i4534")
 }
-spawn_rules = Array[ExtResource("2_snxym")]([ExtResource("8_waqm1"), ExtResource("9_u40v4")])
-game_over_rule = SubResource("Resource_1417i")
 board_theme = ExtResource("1_qvxyt")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

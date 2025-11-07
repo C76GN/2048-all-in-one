@@ -6,6 +6,8 @@
 class_name TileLevelStyle
 extends Resource
 
+# --- 导出变量 ---
+
 ## 方块的背景颜色。
 @export var background_color: Color = Color.WHITE
 

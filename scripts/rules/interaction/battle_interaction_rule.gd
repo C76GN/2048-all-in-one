@@ -1,6 +1,6 @@
 # scripts/modes/battle_interaction_rule.gd
 
-## BattleInteractionRule: "测试模式1"中使用的具体交互规则。
+## BattleInteractionRule: "战斗模式"中使用的具体交互规则。
 ##
 ## 实现了玩家方块合并、怪物方块合并以及玩家与怪物之间的战斗逻辑。
 class_name BattleInteractionRule
