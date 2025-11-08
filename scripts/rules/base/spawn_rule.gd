@@ -63,3 +63,13 @@ func teardown() -> void:
 ## 例如: {"timer_label": "怪物将在: 5.2s 后出现"}
 func get_display_data() -> Dictionary:
 	return {}
+
+## 获取规则当前的内部状态，用于保存。
+## @return: 一个包含规则状态的可序列化变量 (如字典或基础类型)。
+func get_state() -> Variant:
+	return null # 默认无状态
+
+## 从一个状态值恢复规则的内部状态。
+## @param state: 从历史记录中加载的状态值。
+func set_state(_state: Variant) -> void:
+	pass # 默认无状态，无需恢复

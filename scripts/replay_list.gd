@@ -7,7 +7,6 @@
 extends Control
 
 const ReplayListItemScene = preload("res://scenes/ui/replay_list_item.tscn")
-const ReplayPlayerScene = preload("res://scenes/modes/replay_player.tscn")
 
 @onready var replay_items_container: VBoxContainer = %ReplayItemsContainer
 @onready var back_button: Button = %BackButton
@@ -23,7 +22,7 @@ func _populate_replay_list() -> void:
 		child.queue_free()
 
 	var replays = ReplayManager.load_replays()
-	
+
 	print("ReplayList: 加载到 %d 个回放记录。" % replays.size())
 
 	if replays.is_empty():
@@ -37,23 +36,23 @@ func _populate_replay_list() -> void:
 
 	for replay_data in replays:
 		print("ReplayList: 正在创建回放项: ", replay_data.timestamp)
-		
+
 		var item: ReplayListItem = ReplayListItemScene.instantiate()
-		
+
 		# 必须先将节点添加到场景树中，这样它的内部节点引用(_onready)才能被正确初始化，
 		# 之后才能安全地调用 setup() 函数来配置其内容。
 		replay_items_container.add_child(item)
 		item.setup(replay_data)
-		
+
 		item.replay_selected.connect(_on_replay_selected)
 		item.replay_deleted.connect(_on_replay_deleted)
 
 ## 当一个回放被选中时调用。
 func _on_replay_selected(replay_data: ReplayData) -> void:
 	print("选择了回放: ", replay_data.file_path)
-	# 将选择的回放数据传递给全局管理器，然后切换到回放播放场景。
+	# 将选择的回放数据传递给全局管理器，然后切换到统一的游戏场景。
 	GlobalGameManager.current_replay_data = replay_data
-	GlobalGameManager.goto_scene_packed(ReplayPlayerScene)
+	GlobalGameManager.goto_scene("res://scenes/modes/game_play.tscn")
 
 ## 当一个回放被请求删除时调用。
 func _on_replay_deleted(replay_data: ReplayData) -> void:

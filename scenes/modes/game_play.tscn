@@ -1,10 +1,9 @@
-[gd_scene load_steps=10 format=3 uid="uid://28ale2iku1n4"]
+[gd_scene load_steps=9 format=3 uid="uid://28ale2iku1n4"]
 
 [ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/modes/game_play.gd" id="1_ymdu8"]
 [ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/hud.tscn" id="2_3qprp"]
 [ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="3_njofg"]
 [ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/test_panel.tscn" id="4_uiuk4"]
-[ext_resource type="Script" uid="uid://cx02txnu55y6f" path="res://scripts/core/input_controller.gd" id="7_3qprp"]
 [ext_resource type="Script" uid="uid://cbt4kf4pchvjg" path="res://scripts/core/board_animator.gd" id="8_njofg"]
 [ext_resource type="Script" uid="uid://fbcjtexb0lou" path="res://scripts/core/ui_manager.gd" id="8_uiuk4"]
 [ext_resource type="Script" uid="uid://celas3tm78ajv" path="res://scripts/core/state_machine.gd" id="9_uiuk4"]
@@ -74,6 +73,33 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "保存书签（存档）"
 
+[node name="ReplayControlsContainer" type="VBoxContainer" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Label" type="Label" parent="MarginContainer/MainLayoutContainer/LeftPanel/ReplayControlsContainer"]
+layout_mode = 2
+text = "回放控制"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/MainLayoutContainer/LeftPanel/ReplayControlsContainer"]
+layout_mode = 2
+
+[node name="ReplayPrevStepButton" type="Button" parent="MarginContainer/MainLayoutContainer/LeftPanel/ReplayControlsContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "< 上一步"
+
+[node name="ReplayNextStepButton" type="Button" parent="MarginContainer/MainLayoutContainer/LeftPanel/ReplayControlsContainer/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "下一步 >"
+
+[node name="ReplayBackButton" type="Button" parent="MarginContainer/MainLayoutContainer/LeftPanel/ReplayControlsContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "返回列表"
+
 [node name="GameBoard" type="Control" parent="MarginContainer/MainLayoutContainer"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -101,9 +127,6 @@ offset_left = -161.0
 offset_right = 0.0
 offset_bottom = 190.0
 grow_horizontal = 0
-
-[node name="InputController" type="Node" parent="."]
-script = ExtResource("7_3qprp")
 
 [node name="BoardAnimator" type="Node" parent="."]
 script = ExtResource("8_njofg")

@@ -37,9 +37,9 @@ func execute(_payload: Dictionary = {}) -> bool:
 	# 如果棋盘已满，则无法生成任何方块。
 	if game_board.get_empty_cells().is_empty():
 		return false
-		
+
 	var rng = RNGManager.get_rng()
-	
+
 	# --- 决定生成怪物还是玩家 ---
 	if rng.randf() < _current_probability:
 		# --- 成功: 生成怪物 ---
@@ -50,14 +50,14 @@ func execute(_payload: Dictionary = {}) -> bool:
 			"is_priority": true # 怪物生成是优先的，即使棋盘满了也会尝试转换玩家方块
 		}
 		spawn_tile_requested.emit(spawn_data)
-		
+
 		# 重置概率
 		_current_probability = base_probability
-		
+
 	else:
 		# --- 失败: 生成玩家 ---
 		_current_probability = min(_current_probability + increase_on_failure, max_probability)
-		
+
 		var value = 2 if rng.randf() < probability_of_2 else 4
 		var spawn_data = {
 			"value": value,
@@ -74,7 +74,7 @@ func execute(_payload: Dictionary = {}) -> bool:
 func get_display_data() -> Dictionary:
 	var data = {}
 	data["monster_chance_label"] = "下次移动出现怪物概率: %.1f%%" % (_current_probability * 100)
-	
+
 	var pool = get_monster_spawn_pool()
 	var spawn_info_text = "可能出现的怪物:\n"
 	var total_weight = 0
@@ -84,8 +84,17 @@ func get_display_data() -> Dictionary:
 			var p = (float(pool["weights"][i]) / total_weight) * 100
 			spawn_info_text += "  - %d (概率: %.1f%%)\n" % [pool["values"][i], p]
 	data["spawn_info_label"] = spawn_info_text
-	
+
 	return data
+
+## 获取规则当前的内部状态。
+func get_state() -> Variant:
+	return {"current_probability": _current_probability}
+
+## 从一个状态值恢复规则的内部状态。
+func set_state(state: Variant) -> void:
+	if state is Dictionary and state.has("current_probability"):
+		_current_probability = state["current_probability"]
 
 # --- 内部逻辑 ---
 
@@ -96,16 +105,16 @@ func get_monster_spawn_pool() -> Dictionary:
 	var max_player_value = game_board.get_max_player_value()
 	if max_player_value <= 0:
 		return {"values": [2], "weights": [1]}
-		
+
 	var k = int(log(max_player_value) / log(2))
 	if k < 1: k = 1
-	
+
 	var weights = []
 	var possible_values = []
 	for i in range(1, k + 1):
 		possible_values.append(pow(2, i))
 		weights.append(k - i + 1)
-	
+
 	return {"values": possible_values, "weights": weights}
 
 ## 根据动态生成的怪物池，计算本次要生成的怪物数值。
@@ -122,11 +131,11 @@ func _calculate_monster_value() -> int:
 
 	var rng = RNGManager.get_rng()
 	var random_pick = rng.randi_range(1, total_weight)
-	
+
 	var cumulative_weight = 0
 	for i in range(weights.size()):
 		cumulative_weight += weights[i]
 		if random_pick <= cumulative_weight:
 			return possible_values[i]
-	
+
 	return 2 # 作为后备

@@ -81,7 +81,7 @@ func initialize_board() -> void:
 		is_initialized = true
 
 ## 根据给定的方向向量处理一次完整的移动操作。
-func handle_move(direction: Vector2i) -> void:
+func handle_move(direction: Vector2i) -> bool:
 	var moved = false
 	var instructions: Array[Dictionary] = []
 	var new_grid: Array = []
@@ -162,6 +162,8 @@ func handle_move(direction: Vector2i) -> void:
 
 		# 逻辑层立即检查游戏是否结束
 		_check_game_over()
+
+	return moved
 
 ## 生成一个指定信息的方块。
 func spawn_tile(spawn_data: Dictionary) -> void:
