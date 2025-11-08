@@ -36,6 +36,7 @@ const ReplayInputSourceScript = preload("res://scripts/core/replay_input_source.
 @onready var replay_prev_step_button: Button = %ReplayPrevStepButton
 @onready var replay_next_step_button: Button = %ReplayNextStepButton
 @onready var replay_back_button: Button = %ReplayBackButton
+@onready var _history_manager: GameHistoryManager = $GameHistoryManager
 
 
 # --- 状态变量 ---
@@ -48,7 +49,6 @@ var monsters_killed: int = 0
 var score: int = 0
 var current_grid_size: int = 4
 var initial_high_score: int = 0
-var _game_state_history: Array[Dictionary] = []
 var _loaded_bookmark_data: BookmarkData = null
 var _last_saved_bookmark_state: Dictionary = {}
 var _hud_status_message: String = ""
@@ -90,9 +90,8 @@ func _enter_state(new_state, _message: Dictionary = {}) -> void:
 				replay_data_to_save.initial_seed = _initial_seed_of_session
 				replay_data_to_save.grid_size = current_grid_size
 
-				# 从历史记录中提取动作序列
-				for i in range(1, _game_state_history.size()):
-					replay_data_to_save.actions.append(_game_state_history[i]["action"])
+				# 从历史管理器中提取动作序列
+				replay_data_to_save.actions = _history_manager.get_action_sequence()
 
 				if not _is_game_state_tainted_by_test_tools:
 					if replay_data_to_save.actions.size() > 0:
@@ -105,7 +104,7 @@ func _enter_state(new_state, _message: Dictionary = {}) -> void:
 			if _is_replay_mode:
 				replay_next_step_button.disabled = true
 			else:
-				ui_manager.show_game_over_menu()
+				ui_manager.show_ui(UIManager.UIType.GAME_OVER)
 
 ## [FSM] 状态机退出当前状态时被调用。
 func _exit_state(_old_state) -> void:
@@ -132,7 +131,7 @@ func _initialize_game(new_grid_size: int = -1) -> void:
 
 	_is_replay_mode = is_instance_valid(replay_data)
 
-	_game_state_history.clear()
+	_history_manager.clear()
 
 	# 根据是否存在书签数据，选择不同的初始化路径
 	if is_instance_valid(_loaded_bookmark_data):
@@ -159,7 +158,7 @@ func _setup_game_from_bookmark() -> bool:
 	monsters_killed = _loaded_bookmark_data.monsters_killed
 
 	if "game_state_history" in _loaded_bookmark_data and not _loaded_bookmark_data.game_state_history.is_empty():
-		_game_state_history = _loaded_bookmark_data.game_state_history.duplicate(true) as Array[Dictionary]
+		_history_manager.load_history(_loaded_bookmark_data.game_state_history.duplicate(true) as Array[Dictionary])
 
 	_input_source = PlayerInputSourceScript.new()
 	return true
@@ -397,7 +396,7 @@ func _update_and_publish_hud_data() -> void:
 	if _is_replay_mode and _input_source is ReplayInputSource:
 		var total_steps = _input_source.get_total_steps()
 		# 当前步数应该基于历史记录的长度
-		var current_step_display = _game_state_history.size() - 1
+		var current_step_display = _history_manager.get_history_size() - 1
 		display_data["step_info"] = "步骤: %d / %d" % [current_step_display, total_steps]
 
 
@@ -462,7 +461,7 @@ func _on_pause_toggled():
 		ui_manager.close_current_ui()
 	else:
 		# 如果游戏正在进行，则显示暂停菜单
-		ui_manager.show_pause_menu()
+		ui_manager.show_ui(UIManager.UIType.PAUSE)
 
 ## [内部函数] 初始化测试工具。
 func _initialize_test_tools():
@@ -552,7 +551,7 @@ func _on_return_to_main_menu():
 func _save_current_state(action: Variant) -> void:
 	var state = _get_full_game_state()
 	state["action"] = action # 将导致此状态的动作也存下来
-	_game_state_history.push_back(state)
+	_history_manager.save_state(state)
 
 func _get_full_game_state() -> Dictionary:
 	var rules_states: Array = []
@@ -575,22 +574,20 @@ func _on_undo_button_pressed() -> void:
 	# 回放模式不能使用这个按钮撤回
 	if _is_replay_mode: return
 
-	if _game_state_history.size() > 1:
-		# 恢复到上一个状态，即历史记录中的倒数第二个元素
-		_restore_from_history(_game_state_history.size() - 2)
+	# 步骤1: 先检查是否可以撤回。
+	if _history_manager.can_undo():
+		# 步骤2: 如果可以，则执行撤回并获取上一个状态。
+		var previous_state = _history_manager.undo()
+		# 步骤3: 应用恢复的状态。
+		_restore_state(previous_state)
 	else:
+		# 如果不能撤回，则显示提示信息。
 		_show_hud_message("[color=yellow]无法撤回: 已在最初状态。[/color]", 3.0)
 
-func _restore_from_history(history_index: int) -> void:
-	if history_index < 0 or history_index >= _game_state_history.size():
-		return
-
+## 从一个状态字典中恢复完整的游戏状态。
+func _restore_state(state_to_restore: Dictionary) -> void:
 	if state_machine.current_state_name == State.GAME_OVER:
 		state_machine.set_state(State.PLAYING)
-
-	# 移除目标索引之后的所有状态
-	_game_state_history = _game_state_history.slice(0, history_index + 1)
-	var state_to_restore = _game_state_history.back()
 
 	# 恢复状态
 	score = state_to_restore["score"]
@@ -617,7 +614,7 @@ func _on_snapshot_button_pressed() -> void:
 
 	# 为了进行比较，创建一个包含历史的临时状态字典
 	var current_state_for_comparison = _get_full_game_state()
-	current_state_for_comparison["game_state_history"] = _game_state_history
+	current_state_for_comparison["game_state_history"] = _history_manager.get_history()
 
 	if JSON.stringify(current_state_for_comparison) == JSON.stringify(_last_saved_bookmark_state):
 		_show_hud_message("[color=yellow]游戏状态未变，无需重复保存。[/color]", 3.0)
@@ -630,7 +627,7 @@ func _on_snapshot_button_pressed() -> void:
 	new_bookmark.initial_seed = RNGManager.get_current_seed()
 
 	# 从最新的原子状态中获取数据
-	var latest_atomic_state = _game_state_history.back()
+	var latest_atomic_state = _history_manager.get_history().back()
 	new_bookmark.score = latest_atomic_state["score"]
 	new_bookmark.move_count = latest_atomic_state["move_count"]
 	new_bookmark.monsters_killed = latest_atomic_state["monsters_killed"]
@@ -638,7 +635,7 @@ func _on_snapshot_button_pressed() -> void:
 	new_bookmark.board_snapshot = latest_atomic_state["board_snapshot"]
 
 	# 保存完整的、扁平化的历史记录
-	new_bookmark.game_state_history = _game_state_history.duplicate(true)
+	new_bookmark.game_state_history = _history_manager.get_history().duplicate(true)
 
 	BookmarkManager.save_bookmark(new_bookmark)
 
@@ -672,7 +669,7 @@ func _show_restart_confirmation() -> void:
 	dialog.dismissed.connect(func():
 		# 如果对话框被取消，我们只需要重新显示暂停菜单即可
 		if get_tree().paused and state_machine.current_state_name != State.GAME_OVER:
-			ui_manager.show_pause_menu()
+			ui_manager.show_ui(UIManager.UIType.PAUSE)
 	)
 
 	# 当对话框从场景树中退出时（无论如何关闭），都确保它被正确释放
@@ -707,8 +704,10 @@ func _on_restart_as_new_game_confirmed() -> void:
 func _on_replay_prev_step_pressed():
 	if not _is_replay_mode: return
 	# 回退一步就是恢复到倒数第二个历史状态
-	if _game_state_history.size() > 1:
-		_restore_from_history(_game_state_history.size() - 2)
+	if _history_manager.get_history_size() > 1:
+		var previous_state = _history_manager.undo()
+		if previous_state != null:
+			_restore_state(previous_state)
 		_update_replay_buttons_state()
 
 func _on_replay_next_step_pressed():
@@ -716,7 +715,7 @@ func _on_replay_next_step_pressed():
 	if _input_source is ReplayInputSource:
 		# 计算下一步的索引。历史记录的长度-1 就是下一步的动作索引。
 		# 例如，初始状态时 history.size() = 1，下一步是动作[0]。
-		var next_step_index = _game_state_history.size() - 1
+		var next_step_index = _history_manager.get_history_size() - 1
 
 		# 确保不会越界
 		if next_step_index < _input_source.get_total_steps():
@@ -725,17 +724,17 @@ func _on_replay_next_step_pressed():
 		# 按钮状态的更新会自动在 _on_move_made 中触发
 
 func _on_replay_back_pressed():
-	GlobalGameManager.goto_scene("res://scenes/replay_list.tscn")
+	GlobalGameManager.return_to_main_menu()
 
 
 func _update_replay_buttons_state():
 	if not _is_replay_mode or not _input_source is ReplayInputSource: return
 
 	# 更新“上一步”按钮的状态
-	replay_prev_step_button.disabled = _game_state_history.size() <= 1
+	replay_prev_step_button.disabled = _history_manager.get_history_size() <= 1
 
 	# 检查回放是否已到达最后一步
-	var is_at_end = _game_state_history.size() >= (_input_source.get_total_steps() + 1)
+	var is_at_end = _history_manager.get_history_size() >= (_input_source.get_total_steps() + 1)
 
 	# 更新“下一步”按钮的状态
 	replay_next_step_button.disabled = is_at_end

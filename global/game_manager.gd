@@ -6,10 +6,10 @@
 ## 主要用于提供场景切换、安全退出游戏以及跨场景传递数据（如所选的游戏模式配置）等核心服务。
 extends Node
 
-# --- 常量 ---
+# --- 导出变量 ---
 
-## 主菜单是应用的固定入口，将其路径作为常量是合理的。
-const MAIN_MENU_SCENE_PATH = "res://scenes/main_menu.tscn"
+## 在编辑器中设置主菜单场景资源。
+@export var main_menu_scene: PackedScene
 
 
 # --- 公共变量 ---
@@ -66,7 +66,11 @@ func get_selected_grid_size() -> int:
 
 ## 返回到主菜单。
 func return_to_main_menu() -> void:
-	goto_scene(MAIN_MENU_SCENE_PATH)
+	if not is_instance_valid(main_menu_scene):
+		push_error("GlobalGameManager: 主菜单场景未配置！")
+		return
+
+	goto_scene_packed(main_menu_scene)
 
 
 ## 切换到指定的场景资源。

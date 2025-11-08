@@ -1,11 +1,14 @@
-[gd_scene load_steps=9 format=3 uid="uid://28ale2iku1n4"]
+[gd_scene load_steps=12 format=3 uid="uid://28ale2iku1n4"]
 
 [ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/modes/game_play.gd" id="1_ymdu8"]
 [ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/hud.tscn" id="2_3qprp"]
 [ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="3_njofg"]
 [ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/test_panel.tscn" id="4_uiuk4"]
+[ext_resource type="Script" uid="uid://b0wqb277l6af8" path="res://scripts/core/game_history_manager.gd" id="8_7ohk3"]
+[ext_resource type="PackedScene" uid="uid://bsourh8co1vbn" path="res://scenes/ui/pause_menu.tscn" id="8_e7f05"]
 [ext_resource type="Script" uid="uid://cbt4kf4pchvjg" path="res://scripts/core/board_animator.gd" id="8_njofg"]
 [ext_resource type="Script" uid="uid://fbcjtexb0lou" path="res://scripts/core/ui_manager.gd" id="8_uiuk4"]
+[ext_resource type="PackedScene" uid="uid://7ypwtymhkpm6" path="res://scenes/ui/game_over_menu.tscn" id="9_7ohk3"]
 [ext_resource type="Script" uid="uid://celas3tm78ajv" path="res://scripts/core/state_machine.gd" id="9_uiuk4"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
@@ -140,3 +143,10 @@ one_shot = true
 
 [node name="UIManager" type="Node" parent="."]
 script = ExtResource("8_uiuk4")
+ui_scenes = {
+0: ExtResource("8_e7f05"),
+1: ExtResource("9_7ohk3")
+}
+
+[node name="GameHistoryManager" type="Node" parent="."]
+script = ExtResource("8_7ohk3")
