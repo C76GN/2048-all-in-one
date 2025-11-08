@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameModeConfig" load_steps=12 format=3 uid="uid://bnt3ah04gd5v2"]
+[gd_resource type="Resource" script_class="GameModeConfig" load_steps=13 format=3 uid="uid://bnt3ah04gd5v2"]
 
 [ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/default_board_theme.tres" id="1_ex1hm"]
 [ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="1_vuygr"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/rules/game_over/standard_game_over_rule.gd" id="3_2ldk4"]
 [ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_tile_theme.tres" id="3_06hy0"]
 [ext_resource type="Script" uid="uid://dg4uoygc0uq8m" path="res://scripts/rules/interaction/battle_interaction_rule.gd" id="4_deic8"]
+[ext_resource type="Resource" uid="uid://c6s7jklm8wan2" path="res://resources/rules/movement/classic_movement_rule.tres" id="6_2ldk4"]
 [ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://resources/modes/classic_spawn_rule_init.tres" id="7_pe76g"]
 [ext_resource type="Resource" uid="uid://t1sr0qod56au" path="res://resources/rules/probabilistic_battle_spawn_rule_on_move.tres" id="8_0r4sw"]
 
@@ -25,6 +26,7 @@ mode_description = "玩法说明:
 经典战斗规则，玩家与怪物可以互相攻击。
 每次移动后，有较小概率生成怪物，否则生成玩家方块。怪物出现的概率会随着失败次数动态增长。"
 interaction_rule = SubResource("Resource_8wciv")
+movement_rule = ExtResource("6_2ldk4")
 spawn_rules = Array[ExtResource("2_rv56s")]([ExtResource("7_pe76g"), ExtResource("8_0r4sw")])
 game_over_rule = SubResource("Resource_8rw1r")
 color_schemes = {

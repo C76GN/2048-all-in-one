@@ -21,6 +21,9 @@ extends Resource
 ## 方块如何交互（合并、战斗等）的规则。
 @export var interaction_rule: InteractionRule
 
+## 方块如何移动（经典滑动、步进等）的规则。
+@export var movement_rule: MovementRule
+
 ## 包含此模式所有“生成规则”资源的数组。
 @export var spawn_rules: Array[SpawnRule]
 

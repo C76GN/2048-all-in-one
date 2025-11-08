@@ -31,7 +31,7 @@ func save_replay(replay_data: ReplayData) -> void:
 
 	var file_path = REPLAY_DIR.path_join("replay_%d.tres" % replay_data.timestamp)
 	var error = ResourceSaver.save(replay_data, file_path)
-	
+
 	if error != OK:
 		push_error("保存回放文件失败: %s (错误码: %d)" % [file_path, error])
 	else:
@@ -43,28 +43,28 @@ func save_replay(replay_data: ReplayData) -> void:
 func load_replays() -> Array[ReplayData]:
 	var replays: Array[ReplayData] = []
 	var dir = DirAccess.open(REPLAY_DIR)
-	
+
 	if not dir:
 		push_error("无法打开回放目录: %s" % REPLAY_DIR)
 		return replays
 
 	dir.list_dir_begin()
 	var file_name = dir.get_next()
-	
+
 	while file_name != "":
 		if not dir.current_is_dir() and file_name.ends_with(".tres"):
 			var file_path = REPLAY_DIR.path_join(file_name)
 			var loaded_resource: Resource = ResourceLoader.load(file_path, "ReplayData", ResourceLoader.CACHE_MODE_IGNORE)
-			
+
 			if is_instance_valid(loaded_resource) and loaded_resource is ReplayData:
 				var unique_replay_instance: ReplayData = loaded_resource.duplicate()
 				unique_replay_instance.file_path = file_path
 				replays.append(unique_replay_instance)
 			else:
 				push_error("加载回放资源失败或类型不匹配: %s" % file_path)
-		
+
 		file_name = dir.get_next()
-	
+
 	dir.list_dir_end()
 	replays.sort_custom(func(a, b): return a.timestamp > b.timestamp)
 	return replays
@@ -76,9 +76,9 @@ func delete_replay(replay_file_path: String) -> void:
 	if not FileAccess.file_exists(replay_file_path):
 		push_error("删除回放失败: 文件不存在 - %s" % replay_file_path)
 		return
-	
+
 	var error = DirAccess.remove_absolute(replay_file_path)
-	
+
 	if error != OK:
 		push_error("删除回放文件时出错: %s (错误码: %d)" % [replay_file_path, error])
 	else:

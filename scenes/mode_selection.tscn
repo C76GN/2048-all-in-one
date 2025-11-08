@@ -6,7 +6,7 @@
 [ext_resource type="Resource" uid="uid://djrsravpjyj8" path="res://resources/modes/fibonacci_mode_config.tres" id="4_t4d1t"]
 [ext_resource type="Resource" uid="uid://dlv621h6njs6m" path="res://resources/modes/lucas_fibonacci_mode_config.tres" id="6_t4d1t"]
 [ext_resource type="Resource" uid="uid://da3ioky106k1i" path="res://resources/modes/progressive_mode_config.tres" id="6_ws4rq"]
-[ext_resource type="Resource" uid="uid://dklmno2p3q4r5" path="res://resources/modes/opposite_edge_mode_config.tres" id="7_kj7h5"]
+[ext_resource type="Resource" uid="uid://dklmno2p3q4r5" path="res://resources/modes/step_by_step_mode_config.tres" id="7_kj7h5"]
 [ext_resource type="Resource" uid="uid://bnt3ah04gd5v2" path="res://resources/modes/battle_mode_config.tres" id="8_kj7h5"]
 
 [node name="ModeSelection" type="Control"]

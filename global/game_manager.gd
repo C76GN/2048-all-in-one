@@ -41,7 +41,7 @@ func select_mode_and_start(config_path: String, game_scene: PackedScene, grid_si
 	if not config_path.begins_with("res://") or not config_path.ends_with(".tres"):
 		push_error("错误: 模式配置文件路径必须是有效的资源路径: " + config_path)
 		return
-	
+
 	if game_scene == null:
 		push_error("错误: 游戏场景 (game_scene) 未提供。")
 		return
@@ -88,13 +88,13 @@ func goto_scene(path: String) -> void:
 	if not path.begins_with("res://") or not path.ends_with(".tscn"):
 		push_error("错误: 场景路径必须是绝对的场景资源路径，例如 'res://scenes/my_scene.tscn'")
 		return
-	
+
 	var next_scene_packed = load(path)
-	
+
 	if next_scene_packed == null:
 		push_error("错误: 无法加载场景资源: " + path)
 		return
-	
+
 	goto_scene_packed(next_scene_packed)
 
 
@@ -111,13 +111,13 @@ func load_game_from_bookmark(p_bookmark_data: BookmarkData, game_scene: PackedSc
 	if not is_instance_valid(p_bookmark_data):
 		push_error("错误: 提供的书签数据无效。")
 		return
-	
+
 	if game_scene == null:
 		push_error("错误: 游戏场景 (game_scene) 未提供。")
 		return
-	
+
 	selected_bookmark_data = p_bookmark_data
 	_selected_mode_config_path = ""
 	_selected_grid_size = 0
-	
+
 	goto_scene_packed(game_scene)

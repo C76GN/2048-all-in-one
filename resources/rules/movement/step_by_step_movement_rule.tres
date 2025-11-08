@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="StepByStepMovementRule" load_steps=2 format=3 uid="uid://c6s7jklm8wan3"]
+
+[ext_resource type="Script" path="res://scripts/rules/movement/step_by_step_movement_rule.gd" id="1_abcde"]
+
+[resource]
+script = ExtResource("1_abcde")

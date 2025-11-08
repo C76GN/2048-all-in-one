@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameModeConfig" load_steps=12 format=3 uid="uid://djrsravpjyj8"]
+[gd_resource type="Resource" script_class="GameModeConfig" load_steps=13 format=3 uid="uid://djrsravpjyj8"]
 
 [ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/default_board_theme.tres" id="1_6vbk8"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/rules/game_over/standard_game_over_rule.gd" id="1_dtg25"]
@@ -9,6 +9,7 @@
 [ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_tile_theme.tres" id="3_56jyg"]
 [ext_resource type="Resource" uid="uid://d2gxks83gv2v2" path="res://resources/modes/fibonacci_spawn_rule_init.tres" id="4_dtg25"]
 [ext_resource type="Resource" uid="uid://42cxoxfotqxu" path="res://resources/modes/fibonacci_spawn_rule_on_move.tres" id="5_4014i"]
+[ext_resource type="Resource" uid="uid://c6s7jklm8wan2" path="res://resources/rules/movement/classic_movement_rule.tres" id="6_s7tht"]
 
 [sub_resource type="Resource" id="Resource_4014i"]
 script = ExtResource("1_dtg25")
@@ -25,6 +26,7 @@ mode_description = "玩法说明:
 两个 '1' 可以合并成 '2'。
 两个在斐波那契数列中相邻的数字可以合并成它们的和 (例如 2+3=5)。"
 interaction_rule = SubResource("Resource_n5c15")
+movement_rule = ExtResource("6_s7tht")
 spawn_rules = Array[ExtResource("2_6xepx")]([ExtResource("4_dtg25"), ExtResource("5_4014i")])
 game_over_rule = SubResource("Resource_4014i")
 color_schemes = {

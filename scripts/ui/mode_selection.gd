@@ -50,17 +50,17 @@ func _ready() -> void:
 	_populate_mode_list()
 	_reset_panels_to_default()
 	back_button.pressed.connect(GlobalGameManager.return_to_main_menu)
-	
+
 	# 连接SpinBox的信号，实现配置联动
 	grid_size_spinbox.value_changed.connect(_on_grid_size_changed)
-	
+
 	# 连接“开始游戏”按钮的信号
 	start_game_button.pressed.connect(_on_start_game_button_pressed)
 	# 连接刷新按钮的 pressed 信号到新的处理函数
 	refresh_seed_button.pressed.connect(_generate_and_display_new_seed)
 	# 首次进入界面时，调用一次以生成初始种子
 	_generate_and_display_new_seed()
-	
+
 	# 连接新添加的分页按钮信号
 	prev_page_button.pressed.connect(_on_prev_page_pressed)
 	next_page_button.pressed.connect(_on_next_page_pressed)
@@ -73,21 +73,21 @@ func _create_persistent_info_panel() -> void:
 	_info_name_label = Label.new()
 	_info_name_label.add_theme_font_size_override("font_size", 24)
 	left_panel_container.add_child(_info_name_label)
-	
+
 	# 分隔符
 	_info_separator = HSeparator.new()
 	left_panel_container.add_child(_info_separator)
-	
+
 	# 模式描述标签
 	_info_desc_label = Label.new()
 	_info_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_info_desc_label.size_flags_horizontal = Control.SIZE_FILL
 	left_panel_container.add_child(_info_desc_label)
-	
+
 	# 最高分标签
 	_info_score_label = Label.new()
 	left_panel_container.add_child(_info_score_label)
-	
+
 
 ## 动态生成模式卡片列表。
 func _populate_mode_list() -> void:
@@ -100,7 +100,7 @@ func _populate_mode_list() -> void:
 		_total_pages = 0
 	else:
 		_total_pages = int(ceil(float(mode_configs.size()) / _items_per_page))
-	
+
 	_update_pagination_buttons_visibility()
 	if _total_pages == 0:
 		return
@@ -117,12 +117,12 @@ func _populate_mode_list() -> void:
 	for mode_config_resource in modes_for_this_page:
 		if not is_instance_valid(mode_config_resource):
 			continue
-			
+
 		var card: ModeCard = ModeCardScene.instantiate()
 		mode_list_container.add_child(card)
 		card.setup(mode_config_resource.resource_path)
 		card.mode_selected.connect(_on_mode_card_selected)
-		
+
 	# 切换页面后，重置选择状态
 	_selected_mode_config = null
 	_reset_panels_to_default()
@@ -147,20 +147,20 @@ func _update_ui_for_selection() -> void:
 	if not is_instance_valid(_selected_mode_config):
 		_reset_panels_to_default()
 		return
-	
+
 	# 隐藏默认提示，显示详细信息
 	_info_default_label.visible = false
 	_info_name_label.visible = true
 	_info_separator.visible = true
 	_info_desc_label.visible = true
 	_info_score_label.visible = true
-	
+
 	# 更新左侧面板内容（只更新文本，不重建节点）
 	_populate_left_panel()
-	
+
 	# 更新右侧面板内容
 	_populate_right_panel()
-	
+
 	for child in right_panel_container.get_children():
 		child.visible = true
 	start_game_button.disabled = false
@@ -215,7 +215,7 @@ func _on_start_game_button_pressed() -> void:
 	if not is_instance_valid(_selected_mode_config):
 		push_error("无法开始游戏：没有选中的模式。")
 		return
-	
+
 	var seed_text = seed_line_edit.text
 	var seed_value = 0
 	if seed_text.is_empty():
@@ -252,7 +252,7 @@ func _on_prev_page_pressed() -> void:
 	# 循环逻辑：如果当前页小于第一页（0），则跳到最后一页。
 	if _current_page < 0:
 		_current_page = _total_pages - 1
-	
+
 	_populate_mode_list()
 
 ## 响应“下一页”按钮的点击事件。

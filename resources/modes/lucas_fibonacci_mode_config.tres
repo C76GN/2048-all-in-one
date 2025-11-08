@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameModeConfig" load_steps=12 format=3 uid="uid://dlv621h6njs6m"]
+[gd_resource type="Resource" script_class="GameModeConfig" load_steps=13 format=3 uid="uid://dlv621h6njs6m"]
 
 [ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="1_bibj5"]
 [ext_resource type="Resource" uid="uid://n8l73wke5rgq" path="res://resources/themes/fibonacci_tile_theme.tres" id="1_osb3v"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/rules/base/spawn_rule.gd" id="2_snxym"]
 [ext_resource type="Script" uid="uid://bi0d681ctpalu" path="res://scripts/rules/interaction/lucas_fibonacci_interaction_rule.gd" id="3_kv8th"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/rules/game_over/standard_game_over_rule.gd" id="4_u40v4"]
+[ext_resource type="Resource" uid="uid://c6s7jklm8wan2" path="res://resources/rules/movement/classic_movement_rule.tres" id="6_waqm1"]
 [ext_resource type="Resource" uid="uid://d2gxks83gv2v2" path="res://resources/modes/fibonacci_spawn_rule_init.tres" id="8_waqm1"]
 [ext_resource type="Resource" uid="uid://42cxoxfotqxu" path="res://resources/modes/fibonacci_spawn_rule_on_move.tres" id="9_u40v4"]
 
@@ -25,6 +26,7 @@ mode_description = "玩法说明:
 斐波那契数与卢卡斯数可以分别合并。
 特殊规则: F(n-1) + F(n+1) = L(n)。"
 interaction_rule = SubResource("Resource_qvxyt")
+movement_rule = ExtResource("6_waqm1")
 spawn_rules = Array[ExtResource("2_snxym")]([ExtResource("8_waqm1"), ExtResource("9_u40v4")])
 game_over_rule = SubResource("Resource_1417i")
 color_schemes = {

@@ -64,11 +64,11 @@ func _enter_state(new_state, _message: Dictionary = {}) -> void:
 			# 通知所有规则进行清理
 			for rule in all_spawn_rules:
 				rule.teardown()
-			
+
 			# 保存分数
 			var mode_id = mode_config.resource_path.get_file().get_basename()
 			SaveManager.set_high_score(mode_id, current_grid_size, score)
-			
+
 			# 保存回放
 			if not _is_game_state_tainted_by_test_tools:
 				if _current_replay_data.actions.size() > 0:
@@ -76,7 +76,7 @@ func _enter_state(new_state, _message: Dictionary = {}) -> void:
 					ReplayManager.save_replay(_current_replay_data)
 			else:
 				print("警告: 游戏状态已被测试工具修改，回放将不会被保存。")
-			
+
 			ui_manager.show_game_over_menu()
 
 ## [FSM] 状态机退出当前状态时被调用。
@@ -95,11 +95,11 @@ func _process_state(_delta: float, current_state) -> void:
 func _initialize_game(new_grid_size: int = -1) -> void:
 	state_machine.set_state(State.READY)
 	_is_game_state_tainted_by_test_tools = false
-	
+
 	_loaded_bookmark_data = GlobalGameManager.selected_bookmark_data
 	# 加载后立即清除全局变量，防止下次正常开始游戏时被误用
 	GlobalGameManager.selected_bookmark_data = null
-	
+
 	_current_replay_data = ReplayData.new()
 	_game_state_history.clear()
 
@@ -123,7 +123,7 @@ func _setup_game_from_bookmark() -> bool:
 	score = _loaded_bookmark_data.score
 	move_count = _loaded_bookmark_data.move_count
 	monsters_killed = _loaded_bookmark_data.monsters_killed
-	
+
 	if "game_state_history" in _loaded_bookmark_data and not _loaded_bookmark_data.game_state_history.is_empty():
 		_game_state_history = _loaded_bookmark_data.game_state_history.duplicate(true) as Array[Dictionary]
 
@@ -140,7 +140,7 @@ func _setup_new_game(new_grid_size: int = -1) -> bool:
 		current_grid_size = new_grid_size
 	else:
 		current_grid_size = GlobalGameManager.get_selected_grid_size()
-	
+
 	if config_path != "":
 		mode_config = load(config_path)
 		assert(is_instance_valid(mode_config), "GameModeConfig未能加载！")
@@ -150,14 +150,14 @@ func _setup_new_game(new_grid_size: int = -1) -> bool:
 		get_tree().paused = false
 		GlobalGameManager.return_to_main_menu()
 		return false
-	
+
 	return true
 
 ## [内部函数] 在设置好游戏模式和状态后，完成所有节点的实例化和连接。
 func _finalize_initialization() -> void:
 	# 捕获并存储本局游戏的初始种子
 	_initial_seed_of_session = RNGManager.get_current_seed()
-	
+
 	# 填充回放元数据 (对新游戏和加载的游戏都适用)
 	_current_replay_data.timestamp = int(Time.get_unix_time_from_system())
 	_current_replay_data.mode_config_path = mode_config.resource_path
@@ -167,30 +167,31 @@ func _finalize_initialization() -> void:
 	# 在游戏开始时，获取并存储一次最高分。
 	var mode_id = mode_config.resource_path.get_file().get_basename()
 	initial_high_score = SaveManager.get_high_score(mode_id, current_grid_size)
-		
+
 	# 在初始化GameBoard前，设置其 grid_size 属性
 	game_board.grid_size = current_grid_size
-		
+
 	# 步骤2: 实例化规则管理器和核心交互/结束规则。
 	rule_manager = RuleManager.new()
 	add_child(rule_manager)
-	
+
 	interaction_rule = mode_config.interaction_rule.duplicate()
 	interaction_rule.setup(game_board)
+	var movement_rule = mode_config.movement_rule.duplicate()
 	var game_over_rule = mode_config.game_over_rule.duplicate()
 	# 应用棋盘主题
 	if is_instance_valid(mode_config.board_theme):
 		background_color_rect.color = mode_config.board_theme.game_background_color
-		game_board.set_rules(interaction_rule, game_over_rule, mode_config.color_schemes, mode_config.board_theme)
+		game_board.set_rules(interaction_rule, movement_rule, game_over_rule, mode_config.color_schemes, mode_config.board_theme)
 	else:
 		push_warning("当前游戏模式没有配置BoardTheme，将使用默认颜色。")
 		game_board.set_rules(interaction_rule, game_over_rule, mode_config.color_schemes, null)
-	
+
 	# 步骤3: 初始化所有在配置中定义的生成规则。
 	for rule_resource in mode_config.spawn_rules:
 		var rule_instance: SpawnRule = rule_resource.duplicate()
 		all_spawn_rules.append(rule_instance)
-		
+
 		# 检查规则是否需要额外的节点（如Timer），并为它创建。
 		var required_nodes = rule_instance.get_required_nodes()
 		var created_nodes = {}
@@ -200,7 +201,7 @@ func _finalize_initialization() -> void:
 					var new_timer = Timer.new()
 					add_child(new_timer)
 					created_nodes[node_key] = new_timer
-		
+
 		# 将所有依赖项（棋盘、创建的节点）注入规则实例。
 		rule_instance.setup(game_board, created_nodes)
 
@@ -208,7 +209,7 @@ func _finalize_initialization() -> void:
 	rule_manager.register_rules(all_spawn_rules)
 	game_board.initialize_board()
 	_connect_signals()
-	
+
 	# 步骤5: 如果是新游戏，则通过管理器触发棋盘初始化事件；
 	# 如果是从书签加载，则直接恢复棋盘状态。
 	if is_instance_valid(_loaded_bookmark_data):
@@ -236,7 +237,7 @@ func _connect_signals() -> void:
 			input_controller.move_intent_triggered.connect(_on_move_intent)
 		if not input_controller.pause_toggled.is_connected(_on_pause_toggled):
 			input_controller.pause_toggled.connect(_on_pause_toggled)
-			
+
 	# 连接来自UIManager的信号
 	if not ui_manager.resume_requested.is_connected(_on_resume_game):
 		ui_manager.resume_requested.connect(_on_resume_game)
@@ -244,12 +245,12 @@ func _connect_signals() -> void:
 		ui_manager.restart_requested.connect(_on_restart_game)
 	if not ui_manager.main_menu_requested.is_connected(_on_return_to_main_menu):
 		ui_manager.main_menu_requested.connect(_on_return_to_main_menu)
-	
+
 	if is_instance_valid(undo_button) and not undo_button.pressed.is_connected(_on_undo_button_pressed):
 		undo_button.pressed.connect(_on_undo_button_pressed)
 	if is_instance_valid(snapshot_button) and not snapshot_button.pressed.is_connected(_on_snapshot_button_pressed):
 		snapshot_button.pressed.connect(_on_snapshot_button_pressed)
-	
+
 	if not _hud_message_timer.timeout.is_connected(_on_hud_message_timer_timeout):
 		_hud_message_timer.timeout.connect(_on_hud_message_timer_timeout)
 
@@ -312,7 +313,7 @@ func _on_board_resized(new_size: int):
 ## [内部函数] 聚合所有数据并通过EventBus发布给HUD。
 func _update_and_publish_hud_data() -> void:
 	var display_data = {}
-	
+
 	# --- 1. 核心游戏信息 (由GamePlay自己管理) ---
 	display_data["score"] = "分数: %d" % score
 	if score > initial_high_score:
@@ -327,13 +328,13 @@ func _update_and_publish_hud_data() -> void:
 	var player_values = game_board.get_all_player_tile_values()
 	var player_values_set = {}
 	for v in player_values: player_values_set[v] = true
-	
+
 	var rule_context = {
 		"monsters_killed": monsters_killed, "score": score, "move_count": move_count,
 		"all_player_values": player_values, "max_player_value": game_board.get_max_player_value(),
 		"player_values_set": player_values_set
 	}
-	
+
 	# 从交互规则获取其显示数据
 	if is_instance_valid(interaction_rule):
 		var interaction_data = interaction_rule.get_hud_context_data(rule_context)
@@ -344,17 +345,17 @@ func _update_and_publish_hud_data() -> void:
 		var rule_data = rule.get_display_data()
 		if not rule_data.is_empty():
 			display_data.merge(rule_data)
-	
+
 	# --- 3. 静态帮助信息 ---
 	display_data["separator"] = "--------------------"
 	if not mode_config.mode_description.is_empty():
 		display_data["description"] = mode_config.mode_description
 	display_data["controls"] = "操作: W/A/S/D 或 方向键\n暂停: Esc"
 	display_data["seed_info"] = "游戏种子: %d" % RNGManager.get_current_seed()
-	
+
 	if _is_game_state_tainted_by_test_tools:
 		display_data["taint_warning"] = "[color=orange]警告: 调试工具已使用，回放将被禁用。[/color]"
-		
+
 	if not _hud_status_message.is_empty():
 		display_data["status_message"] = _hud_status_message
 
@@ -363,7 +364,7 @@ func _update_and_publish_hud_data() -> void:
 
 func _on_pause_toggled():
 	if state_machine.current_state_name == State.GAME_OVER: return
-	
+
 	if get_tree().paused:
 		# 如果游戏已暂停，则恢复
 		ui_manager.close_current_ui()
@@ -377,25 +378,25 @@ func _initialize_test_tools():
 	if not OS.has_feature("with_test_panel") and not OS.has_feature("editor"):
 		test_panel.visible = false
 		return
-		
+
 	test_panel.visible = true
-	
+
 	# 1. 连接TestPanel发出的请求信号
 	if not test_panel.spawn_requested.is_connected(_on_test_panel_spawn_requested):
 		test_panel.spawn_requested.connect(_on_test_panel_spawn_requested)
-	
+
 	if not test_panel.values_requested_for_type.is_connected(_on_test_panel_values_requested):
 		test_panel.values_requested_for_type.connect(_on_test_panel_values_requested)
-		
+
 	if not test_panel.reset_and_resize_requested.is_connected(_on_reset_and_resize_requested):
 		test_panel.reset_and_resize_requested.connect(_on_reset_and_resize_requested)
-		
+
 	if not test_panel.live_expand_requested.is_connected(game_board.live_expand):
 		test_panel.live_expand_requested.connect(func(new_size):
 			_is_game_state_tainted_by_test_tools = true
 			game_board.live_expand(new_size)
 		)
-	
+
 	# 2. 使用当前模式的规则来配置TestPanel
 	var spawnable_types = interaction_rule.get_spawnable_types()
 	test_panel.setup_panel(spawnable_types)
@@ -416,7 +417,7 @@ func _on_test_panel_values_requested(type_id: int) -> void:
 ## 响应来自测试面板的重置棋盘请求。
 func _on_reset_and_resize_requested(new_size: int):
 	_is_game_state_tainted_by_test_tools = true
-	
+
 	var current_scene_resource: PackedScene = load(get_tree().current_scene.scene_file_path)
 	GlobalGameManager.select_mode_and_start(
 		mode_config.resource_path,
@@ -469,29 +470,29 @@ func _get_full_game_state() -> Dictionary:
 ## 响应“撤回”按钮的点击事件。
 func _on_undo_button_pressed() -> void:
 	if state_machine.current_state_name != State.PLAYING or get_tree().paused: return
-	
+
 	if _game_state_history.size() > 1:
 		# 1. 移除当前状态
 		_game_state_history.pop_back()
 		# 2. 获取并恢复到上一个状态
 		var last_state = _game_state_history.back()
-		
+
 		score = last_state["score"]
 		move_count = last_state["move_count"]
 		monsters_killed = last_state["monsters_killed"]
 		RNGManager.set_state(last_state["rng_state"])
 		game_board.restore_from_snapshot(last_state["board_snapshot"])
-		
+
 		_update_and_publish_hud_data()
 	else:
 		_show_hud_message("[color=yellow]无法撤回: 已在最初状态。[/color]", 3.0)
 
 func _on_snapshot_button_pressed() -> void:
 	if state_machine.current_state_name != State.PLAYING or get_tree().paused: return
-	
+
 	if _is_game_state_tainted_by_test_tools:
 		_show_hud_message("[color=orange]警告: 正在保存一个被调试工具修改过的状态！[/color]", 4.0)
-	
+
 	# 为了进行比较，创建一个包含历史的临时状态字典
 	var current_state_for_comparison = _get_full_game_state()
 	current_state_for_comparison["game_state_history"] = _game_state_history
@@ -499,13 +500,13 @@ func _on_snapshot_button_pressed() -> void:
 	if JSON.stringify(current_state_for_comparison) == JSON.stringify(_last_saved_bookmark_state):
 		_show_hud_message("[color=yellow]游戏状态未变，无需重复保存。[/color]", 3.0)
 		return
-	
+
 	# 创建新的书签实例
 	var new_bookmark = BookmarkData.new()
 	new_bookmark.timestamp = int(Time.get_unix_time_from_system())
 	new_bookmark.mode_config_path = mode_config.resource_path
 	new_bookmark.initial_seed = RNGManager.get_current_seed()
-	
+
 	# 从最新的原子状态中获取数据
 	var latest_atomic_state = _game_state_history.back()
 	new_bookmark.score = latest_atomic_state["score"]
@@ -513,12 +514,12 @@ func _on_snapshot_button_pressed() -> void:
 	new_bookmark.monsters_killed = latest_atomic_state["monsters_killed"]
 	new_bookmark.rng_state = latest_atomic_state["rng_state"]
 	new_bookmark.board_snapshot = latest_atomic_state["board_snapshot"]
-	
+
 	# 保存完整的、扁平化的历史记录
 	new_bookmark.game_state_history = _game_state_history.duplicate(true)
-	
+
 	BookmarkManager.save_bookmark(new_bookmark)
-	
+
 	# 更新最后保存的状态以用于比较
 	_last_saved_bookmark_state = current_state_for_comparison
 	_show_hud_message("[color=green]书签已保存！[/color]", 3.0)
@@ -538,23 +539,23 @@ func _on_hud_message_timer_timeout() -> void:
 func _show_restart_confirmation() -> void:
 	# 实例化专用的对话框场景
 	var dialog: RestartConfirmDialog = RestartConfirmDialogScene.instantiate()
-	
+
 	# 1. 连接“从书签重启”的清晰信号
 	dialog.restart_from_bookmark.connect(_on_restart_from_bookmark_confirmed)
-	
+
 	# 2. 连接“作为新游戏重启”的清晰信号
 	dialog.restart_as_new_game.connect(_on_restart_as_new_game_confirmed)
-	
+
 	# 3. 连接“被取消”的清晰信号
 	dialog.dismissed.connect(func():
 		# 如果对话框被取消，我们只需要重新显示暂停菜单即可
 		if get_tree().paused and state_machine.current_state_name != State.GAME_OVER:
 			ui_manager.show_pause_menu()
 	)
-	
+
 	# 当对话框从场景树中退出时（无论如何关闭），都确保它被正确释放
 	dialog.tree_exited.connect(dialog.queue_free)
-	
+
 	ui_manager.close_current_ui() # 关闭暂停菜单
 	ui_manager._canvas_layer.add_child(dialog)
 	dialog.popup_centered()
@@ -569,9 +570,9 @@ func _on_restart_from_bookmark_confirmed() -> void:
 func _on_restart_as_new_game_confirmed() -> void:
 	get_tree().paused = false
 	var new_seed = int(Time.get_unix_time_from_system())
-	
+
 	var current_scene_resource: PackedScene = load(get_tree().current_scene.scene_file_path)
-	
+
 	GlobalGameManager.select_mode_and_start(
 		_loaded_bookmark_data.mode_config_path,
 		current_scene_resource,

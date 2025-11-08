@@ -30,7 +30,7 @@ func _ready() -> void:
 		return
 
 	replay_data = GlobalGameManager.current_replay_data
-	
+
 	# 连接UI信号
 	prev_step_button.pressed.connect(func(): _go_to_step(current_step - 1))
 	next_step_button.pressed.connect(func(): _go_to_step(current_step + 1))
@@ -47,20 +47,21 @@ func _initialize_replay() -> void:
 	# 步骤1: 加载模式配置以获取完整的游戏规则和主题。
 	var mode_config: GameModeConfig = load(replay_data.mode_config_path)
 	interaction_rule = mode_config.interaction_rule.duplicate()
-	
+
 	# 即使在回放中，GameBoard也需要所有规则的有效实例（特别是`game_over_rule`）
 	# 来确保其内部逻辑的完整性。
+	var movement_rule = mode_config.movement_rule.duplicate()
 	var game_over_rule = mode_config.game_over_rule.duplicate()
-	
+
 	game_board.grid_size = replay_data.grid_size
-	
+
 	background_color_rect.color = mode_config.board_theme.game_background_color
-	
-	game_board.set_rules(interaction_rule, game_over_rule, mode_config.color_schemes, mode_config.board_theme)
-	
+
+	game_board.set_rules(interaction_rule, movement_rule, game_over_rule, mode_config.color_schemes, mode_config.board_theme)
+
 	game_board.initialize_board()
 	game_board.play_animations_requested.connect(board_animator.play_animation_sequence)
-	
+
 	# 步骤2: 重建整个游戏过程的状态历史
 	_build_state_history()
 
@@ -72,7 +73,7 @@ func _initialize_replay() -> void:
 func _build_state_history() -> void:
 	# 设置到初始状态
 	RNGManager.initialize_rng(replay_data.initial_seed)
-	
+
 	# 创建一个临时的规则管理器，用于在内存中模拟游戏逻辑，而不影响场景本身。
 	var temp_rule_manager = RuleManager.new()
 	var spawn_rules: Array[SpawnRule] = []
@@ -87,7 +88,7 @@ func _build_state_history() -> void:
 	# 捕获临时规则管理器发出的生成信号，以便我们可以手动将方块应用到棋盘上。
 	var spawn_queue = []
 	temp_rule_manager.spawn_tile_requested.connect(func(data): spawn_queue.append(data))
-	
+
 	# --- 初始状态 ---
 	# 触发棋盘初始化事件，并应用生成的方块。
 	temp_rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD)
@@ -95,20 +96,20 @@ func _build_state_history() -> void:
 	spawn_queue.clear()
 	# 将初始状态存入历史记录。
 	game_state_history.append(game_board.get_state_snapshot())
-	
+
 	# --- 模拟每一步 ---
 	for action in replay_data.actions:
 		# 模拟一次移动。
 		game_board.handle_move(action)
-		
+
 		# 模拟移动后触发的方块生成事件。
 		temp_rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED)
 		for data in spawn_queue: game_board.spawn_tile(data)
 		spawn_queue.clear()
-		
+
 		# 将这一步之后的状态存入历史记录。
 		game_state_history.append(game_board.get_state_snapshot())
-		
+
 	# 模拟完成后，清理临时管理器。
 	temp_rule_manager.queue_free()
 
@@ -116,9 +117,9 @@ func _build_state_history() -> void:
 func _go_to_step(step_index: int, _is_initial: bool = false) -> void:
 	if step_index < 0 or step_index >= game_state_history.size():
 		return
-		
+
 	current_step = step_index
-	
+
 	# 从历史记录中恢复棋盘状态。
 	game_board.restore_from_snapshot(game_state_history[current_step])
 

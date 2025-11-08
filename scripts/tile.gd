@@ -58,7 +58,7 @@ func setup(new_value: int, new_type: TileType, p_rule: InteractionRule, p_color_
 	self.interaction_rule = p_rule
 	self.color_schemes = p_color_schemes
 	_update_visuals()
-	
+
 	if new_value > old_value and old_value != 0:
 		animate_merge()
 
@@ -69,19 +69,19 @@ func setup(new_value: int, new_type: TileType, p_rule: InteractionRule, p_color_
 func _update_visuals() -> void:
 	# 步骤1: 更新显示的文本。
 	value_label.text = str(int(value))
-	
+
 	if not is_instance_valid(interaction_rule):
 		return
-		
+
 	# 步骤2: 根据方块类型或数值，动态查询颜色主题。
 	# 明确指定 scheme_index 为 int 类型，以解决类型转换警告。
-	var scheme_index: int = type 
+	var scheme_index: int = type
 	if type == TileType.PLAYER:
 		# 对于玩家方块，查询交互规则来决定使用哪个配色方案
 		scheme_index = interaction_rule.get_color_scheme_index(value)
-		
+
 	var current_scheme: TileColorScheme = color_schemes.get(scheme_index)
-	
+
 	if not is_instance_valid(current_scheme) or current_scheme.styles.is_empty():
 		return
 
@@ -90,15 +90,15 @@ func _update_visuals() -> void:
 	# 如果等级超出样式数组范围，使用最后一个样式。
 	if level >= current_scheme.styles.size():
 		level = current_scheme.styles.size() - 1
-	
+
 	var current_style: TileLevelStyle = current_scheme.styles[level]
 	if not is_instance_valid(current_style):
 		return
-		
+
 	# 步骤4: 应用背景颜色和字体颜色。
 	(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = current_style.background_color
 	value_label.add_theme_color_override("font_color", current_style.font_color)
-	
+
 	# 步骤5: 动态计算并设置字体大小，防止文本溢出。
 	_update_font_size()
 
@@ -109,12 +109,12 @@ func _update_font_size() -> void:
 	var font = value_label.get_theme_font("font")
 	# 使用基础字号来测量当前文本的渲染宽度。
 	var text_width = font.get_string_size(value_label.text, HORIZONTAL_ALIGNMENT_CENTER, -1, BASE_FONT_SIZE).x
-	
+
 	# 如果文本宽度超出了可用空间，则按比例缩小字体。
 	if text_width > available_width:
 		var scale_factor = available_width / text_width
 		new_font_size = floor(BASE_FONT_SIZE * scale_factor)
-	
+
 	# 应用最终计算出的字体大小。
 	value_label.add_theme_font_size_override("font_size", new_font_size)
 

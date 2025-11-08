@@ -34,6 +34,8 @@ var is_initialized: bool = false
 
 # 外部注入的方块交互规则。
 var interaction_rule: InteractionRule
+# 外部注入的方块移动规则。
+var movement_rule: MovementRule
 # 外部注入的游戏结束判断规则。
 var game_over_rule: GameOverRule
 # 外部注入的配色方案字典。
@@ -59,11 +61,16 @@ func _ready() -> void:
 
 ## 设置当前棋盘使用的规则集和主题。
 ## 这是外部（如GamePlay.gd）将具体玩法注入棋盘的入口。
-func set_rules(p_interaction_rule: InteractionRule, p_game_over_rule: GameOverRule, p_color_schemes: Dictionary, p_board_theme: BoardTheme) -> void:
+func set_rules(p_interaction_rule: InteractionRule, p_movement_rule: MovementRule, p_game_over_rule: GameOverRule, p_color_schemes: Dictionary, p_board_theme: BoardTheme) -> void:
 	self.interaction_rule = p_interaction_rule
+	self.movement_rule = p_movement_rule
 	self.game_over_rule = p_game_over_rule
 	self.color_schemes = p_color_schemes
 	self.board_theme = p_board_theme
+
+	# 将交互规则注入到移动规则中，因为移动时需要判断合并
+	if is_instance_valid(self.movement_rule):
+		self.movement_rule.setup(self.interaction_rule)
 
 ## 公共的初始化函数，由 GamePlay 在设置完规则后调用。
 func initialize_board() -> void:
@@ -92,26 +99,26 @@ func handle_move(direction: Vector2i) -> void:
 		for j in range(grid_size):
 			var coords = _get_coords_for_line(i, j, direction)
 			line.append(grid[coords.x][coords.y])
-		
-		var result = _process_line(line)
+
+		var result = movement_rule.process_line(line)
 		var new_line: Array[Tile] = result.line
 		var merges: Array[Dictionary] = result.merges
-		
+
 		# 检查这一行/列是否发生了移动
 		if result.moved:
 			moved = true
 			if not i in moved_lines_indices:
 				moved_lines_indices.append(i)
-		
+
 		# 处理合并动画指令
 		for merge_info in merges:
 			var consumed: Tile = merge_info.consumed_tile
 			var merged: Tile = merge_info.merged_tile
-			
+
 			# 找到合并后方块在新行中的位置
 			var final_line_pos = new_line.find(merged)
 			var final_coords = _get_coords_for_line(i, final_line_pos, direction)
-			
+
 			instructions.append({
 				"type": "MERGE",
 				"consumed_tile": consumed,
@@ -123,12 +130,12 @@ func handle_move(direction: Vector2i) -> void:
 		var tiles_in_new_line: Dictionary = {}
 		for tile in new_line:
 			if tile: tiles_in_new_line[tile.get_instance_id()] = true
-		
+
 		for j in range(grid_size):
 			var original_tile = line[j]
 			if original_tile and not tiles_in_new_line.has(original_tile.get_instance_id()):
 				continue
-			
+
 			var final_line_pos = new_line.find(original_tile)
 			if original_tile and final_line_pos != -1 and final_line_pos != j:
 				var final_coords = _get_coords_for_line(i, final_line_pos, direction)
@@ -142,17 +149,17 @@ func handle_move(direction: Vector2i) -> void:
 		for j in range(grid_size):
 			var coords = _get_coords_for_line(i, j, direction)
 			new_grid[coords.x][coords.y] = new_line[j]
-			
+
 	if moved:
 		var move_data = {
 			"direction": direction,
 			"moved_lines": moved_lines_indices
 		}
-		
+
 		grid = new_grid
 		EventBus.move_made.emit(move_data)
 		play_animations_requested.emit(instructions)
-		
+
 		# 逻辑层立即检查游戏是否结束
 		_check_game_over()
 
@@ -161,11 +168,11 @@ func spawn_tile(spawn_data: Dictionary) -> void:
 	var value = spawn_data.get("value", 2)
 	var type = spawn_data.get("type", Tile.TileType.PLAYER)
 	var is_priority = spawn_data.get("is_priority", false)
-	
+
 	# 检查是否提供了指定的生成位置
 	var spawn_pos: Vector2i
 	var has_specific_pos = spawn_data.has("position")
-	
+
 	if has_specific_pos:
 		spawn_pos = spawn_data["position"]
 		# 安全检查，确保指定位置是空的
@@ -190,7 +197,7 @@ func spawn_tile(spawn_data: Dictionary) -> void:
 						var tile_to_empower = monster_tiles[RNGManager.get_rng().randi_range(0, monster_tiles.size() - 1)]
 						tile_to_empower.setup(tile_to_empower.value * 2, type, interaction_rule, color_schemes)
 			return # 棋盘已满且非优先，直接返回
-			
+
 	var new_tile = _spawn_at(spawn_pos, value, type)
 	var instruction = [{"type": "SPAWN", "tile": new_tile}]
 	play_animations_requested.emit(instruction)
@@ -211,13 +218,13 @@ func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) ->
 	if not (grid_pos.x >= 0 and grid_pos.x < grid_size and grid_pos.y >= 0 and grid_pos.y < grid_size):
 		push_error("Spawn position is out of bounds.")
 		return
-		
+
 	if grid[grid_pos.x][grid_pos.y] != null:
 		grid[grid_pos.x][grid_pos.y].queue_free()
 		grid[grid_pos.x][grid_pos.y] = null
-		
+
 	var new_tile = _spawn_at(grid_pos, value, type)
-	
+
 	# 为测试工具生成的方块请求播放生成动画，使其可见。
 	var instruction = [{"type": "SPAWN", "tile": new_tile}]
 	play_animations_requested.emit(instruction)
@@ -227,11 +234,11 @@ func reset_and_resize(new_size: int, p_board_theme: BoardTheme) -> void:
 	self.board_theme = p_board_theme
 	for child in board_container.get_children():
 		child.queue_free()
-	
+
 	grid.clear()
 	is_initialized = false
 	grid_size = new_size
-	
+
 	EventBus.board_resized.emit(grid_size)
 
 ## 在游戏进行中扩建棋盘（只能变大）。
@@ -239,7 +246,7 @@ func live_expand(new_size: int) -> void:
 	if new_size <= grid_size:
 		push_warning("Live expand only supports increasing the grid size.")
 		return
-	
+
 	var old_size = grid_size
 	grid_size = new_size
 	for x in range(old_size):
@@ -250,7 +257,7 @@ func live_expand(new_size: int) -> void:
 		grid[x] = []
 		grid[x].resize(grid_size)
 		grid[x].fill(null)
-	
+
 	_animate_expansion(old_size, new_size)
 	EventBus.board_resized.emit(grid_size)
 
@@ -291,52 +298,6 @@ func _update_board_layout() -> void:
 
 # --- 内部核心逻辑 ---
 
-## 处理单行的移动与交互，现在委托给 interaction_rule。
-func _process_line(line: Array[Tile]) -> Dictionary:
-	var slid_line: Array[Tile] = []
-	for tile in line:
-		if tile != null: slid_line.append(tile)
-	
-	var merged_line: Array[Tile] = []
-	var merge_results: Array[Dictionary] = []
-	var i = 0
-	while i < slid_line.size():
-		var current_tile = slid_line[i]
-		if i + 1 < slid_line.size():
-			var next_tile = slid_line[i + 1]
-			
-			var result = interaction_rule.process_interaction(current_tile, next_tile, interaction_rule)
-			if not result.is_empty():
-				var merged = result.get("merged_tile")
-				if merged != null:
-					merged_line.append(merged)
-				
-				merge_results.append(result)
-				
-				if result.has("score"):
-					EventBus.score_updated.emit(result["score"])
-					
-				i += 2
-				continue
-		
-		merged_line.append(current_tile)
-		i += 1
-		
-	var result_line: Array[Tile] = []
-	result_line.append_array(merged_line)
-	while result_line.size() < grid_size: result_line.append(null)
-	
-	var has_moved = false
-	if result_line.size() != line.size(): has_moved = true
-	else:
-		for idx in range(result_line.size()):
-			if (result_line[idx] == null and line[idx] != null) or \
-			   (result_line[idx] != null and line[idx] == null) or \
-			   (result_line[idx] != null and line[idx] != null and result_line[idx].get_instance_id() != line[idx].get_instance_id()):
-				has_moved = true; break
-				
-	return {"line": result_line, "moved": has_moved, "merges": merge_results}
-
 ## 检查游戏是否结束，现在委托给 game_over_rule。
 func _check_game_over() -> void:
 	# 将判断逻辑委托给注入的规则对象。
@@ -349,11 +310,11 @@ func _check_game_over() -> void:
 func _draw_board_cells():
 	for child in board_container.get_children():
 		if child is Panel: child.queue_free()
-			
+
 	var cell_color = Color("3c3c3c") # 默认后备颜色
 	if is_instance_valid(board_theme):
 		cell_color = board_theme.empty_cell_color
-			
+
 	for x in grid_size:
 		for y in grid_size:
 			var cell_bg = Panel.new()
@@ -378,16 +339,16 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 	main_tween.tween_property(board_container, "position", final_container_pos, 0.3)
 	main_tween.tween_property(board_container, "scale", Vector2(final_layout.scale_ratio, final_layout.scale_ratio), 0.3)
 	await main_tween.finished
-	
+
 	for child in board_container.get_children():
 		if child is Panel: child.queue_free()
 
 	var new_cells_tween = create_tween().set_parallel(true)
-	
+
 	var cell_color = Color("3c3c3c") # 默认后备颜色
 	if is_instance_valid(board_theme):
 		cell_color = board_theme.empty_cell_color
-		
+
 	for x in new_size:
 		for y in new_size:
 			var cell_bg = Panel.new()
@@ -395,7 +356,7 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 			stylebox.bg_color = cell_color
 			stylebox.set_corner_radius_all(8)
 			cell_bg.add_theme_stylebox_override("panel", stylebox)
-			
+
 			var final_size = Vector2(CELL_SIZE, CELL_SIZE)
 			var final_pos = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
 
@@ -426,14 +387,14 @@ func _spawn_at(grid_pos: Vector2i, value: int, type: Tile.TileType) -> Tile:
 	var new_tile: Tile = TileScene.instantiate()
 	board_container.add_child(new_tile)
 	grid[grid_pos.x][grid_pos.y] = new_tile
-	
+
 	new_tile.setup(value, type, interaction_rule, color_schemes)
 	new_tile.position = _grid_to_pixel_center(grid_pos)
-	
+
 	# 动画将由BoardAnimator触发，这里只设置初始状态
 	new_tile.scale = Vector2.ZERO
 	new_tile.rotation_degrees = -360
-	
+
 	return new_tile # 返回实例供外部生成指令
 
 ## 初始化核心数据 `grid`，创建一个填满 null 的二维数组。
@@ -473,7 +434,7 @@ func _grid_to_pixel_center(grid_pos: Vector2i) -> Vector2:
 func _calculate_layout_params(p_size: int) -> Dictionary:
 	var grid_area_side = p_size * CELL_SIZE + (p_size - 1) * SPACING
 	var logical_board_side = grid_area_side + BOARD_PADDING * 2
-	
+
 	var current_size = self.size
 	if current_size.x == 0 or current_size.y == 0: return {}
 
@@ -522,15 +483,15 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 
 	# 步骤2: 重置grid并根据快照数据重新创建方块。
 	_initialize_grid() # 确保grid数组结构正确
-	
+
 	var tiles_data = snapshot.get("tiles", [])
 	for tile_data in tiles_data:
 		var pos: Vector2i = tile_data["pos"]
 		var value: int = tile_data["value"]
 		var type: Tile.TileType = tile_data["type"]
-		
+
 		var new_tile: Tile = _spawn_at(pos, value, type)
-		
+
 		# 恢复时，方块直接出现，不播放生成动画。
 		new_tile.scale = Vector2.ONE
 		new_tile.rotation_degrees = 0
