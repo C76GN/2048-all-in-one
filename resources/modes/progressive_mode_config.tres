@@ -1,15 +1,15 @@
 [gd_resource type="Resource" script_class="GameModeConfig" load_steps=13 format=3 uid="uid://da3ioky106k1i"]
 
-[ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="1_o4y40"]
-[ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/default_board_theme.tres" id="1_wpcmn"]
-[ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://resources/themes/classic_tile_theme.tres" id="2_vrvml"]
+[ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://scripts/global/game_mode_config.gd" id="1_o4y40"]
+[ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/board/default_board_theme.tres" id="1_wpcmn"]
+[ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://resources/themes/tile_schemes/classic_tile_theme.tres" id="2_vrvml"]
 [ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/rules/base/spawn_rule.gd" id="2_xvfhn"]
-[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_tile_theme.tres" id="3_xk0rl"]
+[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/tile_schemes/red_tile_theme.tres" id="3_xk0rl"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/rules/game_over/standard_game_over_rule.gd" id="4_1n815"]
 [ext_resource type="Script" uid="uid://bdsn1pa4fjc01" path="res://scripts/rules/interaction/classic_interaction_rule.gd" id="5_31pnh"]
 [ext_resource type="Resource" uid="uid://c6s7jklm8wan2" path="res://resources/rules/movement/classic_movement_rule.tres" id="6_vrvml"]
-[ext_resource type="Resource" uid="uid://iys6hto11ixt" path="res://resources/modes/progressive_spawn_rule_init.tres" id="8_4ustv"]
-[ext_resource type="Resource" uid="uid://nod11pulyd7i" path="res://resources/modes/progressive_spawn_rule_on_move.tres" id="9_8lhxm"]
+[ext_resource type="Resource" uid="uid://iys6hto11ixt" path="res://resources/rules/spawn/progressive_spawn_rule_init.tres" id="8_4ustv"]
+[ext_resource type="Resource" uid="uid://nod11pulyd7i" path="res://resources/rules/spawn/progressive_spawn_rule_on_move.tres" id="9_8lhxm"]
 
 [sub_resource type="Resource" id="Resource_1kej1"]
 script = ExtResource("4_1n815")

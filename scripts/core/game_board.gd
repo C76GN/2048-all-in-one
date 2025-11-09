@@ -10,7 +10,7 @@ extends Control
 # --- 常量与预加载资源 ---
 
 # 预加载方块场景，用于在运行时动态实例化。
-const TileScene = preload("res://scenes/tile.tscn")
+const TileScene = preload("res://scenes/conponents/tile.tscn")
 
 # 每个单元格的像素尺寸。
 const CELL_SIZE: int = 100

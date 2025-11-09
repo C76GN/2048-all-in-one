@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dcaem677upv0a"]
 
-[ext_resource type="Script" uid="uid://3xuw4ii6b5te" path="res://scripts/bookmark_list.gd" id="1_5rahh"]
+[ext_resource type="Script" uid="uid://3xuw4ii6b5te" path="res://scripts/menus/bookmark_list.gd" id="1_5rahh"]
 
 [node name="BookmarkList" type="Control"]
 layout_mode = 3

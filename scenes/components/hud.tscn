@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://cjq41cf2jqg1h"]
 
-[ext_resource type="Script" uid="uid://c3xlbn570oc40" path="res://scripts/ui/hud.gd" id="1_ahhtf"]
+[ext_resource type="Script" uid="uid://c3xlbn570oc40" path="res://scripts/ui/hud.gd" id="1_y7dsf"]
 
 [node name="VBoxContainer" type="VBoxContainer"]
 anchors_preset = 15
@@ -10,7 +10,7 @@ grow_horizontal = 2
 grow_vertical = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-script = ExtResource("1_ahhtf")
+script = ExtResource("1_y7dsf")
 
 [node name="TitleLabel" type="Label" parent="."]
 layout_mode = 2

@@ -16,7 +16,6 @@ extends Resource
 ## 在模式选择界面和游戏HUD中显示的玩法说明。
 @export_multiline var mode_description: String = ""
 
-
 @export_group("规则配置")
 ## 方块如何交互（合并、战斗等）的规则。
 @export var interaction_rule: InteractionRule
@@ -30,14 +29,12 @@ extends Resource
 ## 游戏如何结束的规则。
 @export var game_over_rule: GameOverRule
 
-
 @export_group("视觉主题")
 ## 一个字典，用于存储不同方块类型（Tile.TileType）对应的配色方案。
 @export var color_schemes: Dictionary = {}
 
 ## 棋盘和背景的视觉主题。
 @export var board_theme: BoardTheme
-
 
 @export_group("棋盘配置")
 ## 模式默认的棋盘大小。

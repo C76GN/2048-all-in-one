@@ -42,7 +42,7 @@ func update_display(display_data: Dictionary) -> void:
 
 	for key in keys_in_order:
 		var data_to_display = display_data[key]
-		
+
 		# 如果数据为空，则确保对应的UI节点是隐藏的。
 		if data_to_display == null or \
 		  (data_to_display is String and data_to_display.is_empty()) or \
@@ -52,7 +52,7 @@ func update_display(display_data: Dictionary) -> void:
 			continue
 
 		var ui_node: Control
-		
+
 		# 检查是否已存在对应UI节点，如果不存在或类型不匹配，则创建新的。
 		var needs_recreation = false
 		if _stat_labels.has(key):
@@ -74,12 +74,12 @@ func update_display(display_data: Dictionary) -> void:
 				new_label.fit_content = true
 				new_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				ui_node = new_label
-				
+
 			stats_container.add_child(ui_node)
 			_stat_labels[key] = ui_node
 		else:
 			ui_node = _stat_labels[key]
-		
+
 		if key == "status_message":
 			stats_container.move_child(ui_node, 0)
 
@@ -88,5 +88,5 @@ func update_display(display_data: Dictionary) -> void:
 			ui_node.update_data(data_to_display)
 		elif ui_node is RichTextLabel:
 			ui_node.text = str(data_to_display)
-		
+
 		ui_node.visible = true

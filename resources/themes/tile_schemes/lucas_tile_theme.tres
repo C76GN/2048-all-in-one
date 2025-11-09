@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="TileColorScheme" load_steps=13 format=3 uid="uid://dnkb8q4knxdqq"]
 
-[ext_resource type="Script" uid="uid://dwmd115dhs0pl" path="res://global/tile_color_scheme.gd" id="1_kkn1i"]
-[ext_resource type="Script" uid="uid://b7dkhehece8ke" path="res://global/tile_level_style.gd" id="2_i87hp"]
+[ext_resource type="Script" uid="uid://dwmd115dhs0pl" path="res://scripts/global/tile_color_scheme.gd" id="1_kkn1i"]
+[ext_resource type="Script" uid="uid://b7dkhehece8ke" path="res://scripts/global/tile_level_style.gd" id="2_i87hp"]
 
 [sub_resource type="Resource" id="Resource_kkn1i"]
 script = ExtResource("2_i87hp")

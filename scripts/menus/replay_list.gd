@@ -52,7 +52,7 @@ func _on_replay_selected(replay_data: ReplayData) -> void:
 	print("选择了回放: ", replay_data.file_path)
 	# 将选择的回放数据传递给全局管理器，然后切换到统一的游戏场景。
 	GlobalGameManager.current_replay_data = replay_data
-	GlobalGameManager.goto_scene("res://scenes/modes/game_play.tscn")
+	GlobalGameManager.goto_scene("res://scenes/game/game_play.tscn")
 
 ## 当一个回放被请求删除时调用。
 func _on_replay_deleted(replay_data: ReplayData) -> void:

@@ -1,15 +1,15 @@
 [gd_resource type="Resource" script_class="GameModeConfig" load_steps=13 format=3 uid="uid://dklmno2p3q4r5"]
 
-[ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/default_board_theme.tres" id="1_tqikr"]
-[ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://resources/themes/classic_tile_theme.tres" id="2_6nssk"]
-[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/red_tile_theme.tres" id="3_vxfvk"]
+[ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/board/default_board_theme.tres" id="1_tqikr"]
+[ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://resources/themes/tile_schemes/classic_tile_theme.tres" id="2_6nssk"]
+[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/tile_schemes/red_tile_theme.tres" id="3_vxfvk"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/rules/game_over/standard_game_over_rule.gd" id="4_sbgjs"]
 [ext_resource type="Script" uid="uid://bdsn1pa4fjc01" path="res://scripts/rules/interaction/classic_interaction_rule.gd" id="5_ymrh6"]
 [ext_resource type="Resource" uid="uid://c6s7jklm8wan3" path="res://resources/rules/movement/step_by_step_movement_rule.tres" id="6_6tj6m"]
-[ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://global/game_mode_config.gd" id="7_4vg7y"]
+[ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://scripts/global/game_mode_config.gd" id="7_4vg7y"]
 [ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/rules/base/spawn_rule.gd" id="8_vva0u"]
-[ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://resources/modes/classic_spawn_rule_init.tres" id="9_rkpth"]
-[ext_resource type="Resource" uid="uid://c6s7jklm8wan1" path="res://resources/rules/opposite_edge_spawn_rule_on_move.tres" id="10_8531m"]
+[ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://resources/rules/spawn/classic_spawn_rule_init.tres" id="9_rkpth"]
+[ext_resource type="Resource" uid="uid://c6s7jklm8wan1" path="res://resources/rules/spawn/opposite_edge_spawn_rule_on_move.tres" id="10_8531m"]
 
 [sub_resource type="Resource" id="Resource_wp4bw"]
 script = ExtResource("4_sbgjs")

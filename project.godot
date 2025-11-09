@@ -17,12 +17,12 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-GlobalGameManager="*res://global_scenes/global_game_manager.tscn"
-SaveManager="*res://global/save_manager.gd"
-EventBus="*res://global/event_bus.gd"
-RNGManager="*res://global/rng_manager.gd"
-ReplayManager="*res://global/replay_manager.gd"
-BookmarkManager="*res://global/bookmark_manager.gd"
+GlobalGameManager="*res://scenes/global/global_game_manager.tscn"
+SaveManager="*res://scripts/global/save_manager.gd"
+EventBus="*res://scripts/global/event_bus.gd"
+RNGManager="*res://scripts/global/rng_manager.gd"
+ReplayManager="*res://scripts/global/replay_manager.gd"
+BookmarkManager="*res://scripts/global/bookmark_manager.gd"
 
 [display]
 

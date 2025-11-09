@@ -1,15 +1,15 @@
 [gd_scene load_steps=12 format=3 uid="uid://28ale2iku1n4"]
 
-[ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/modes/game_play.gd" id="1_ymdu8"]
-[ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/hud.tscn" id="2_3qprp"]
-[ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/game_board.gd" id="3_njofg"]
-[ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/test_panel.tscn" id="4_uiuk4"]
-[ext_resource type="Script" uid="uid://b0wqb277l6af8" path="res://scripts/core/game_history_manager.gd" id="8_7ohk3"]
-[ext_resource type="PackedScene" uid="uid://bsourh8co1vbn" path="res://scenes/ui/pause_menu.tscn" id="8_e7f05"]
-[ext_resource type="Script" uid="uid://cbt4kf4pchvjg" path="res://scripts/core/board_animator.gd" id="8_njofg"]
-[ext_resource type="Script" uid="uid://fbcjtexb0lou" path="res://scripts/core/ui_manager.gd" id="8_uiuk4"]
-[ext_resource type="PackedScene" uid="uid://7ypwtymhkpm6" path="res://scenes/ui/game_over_menu.tscn" id="9_7ohk3"]
-[ext_resource type="Script" uid="uid://celas3tm78ajv" path="res://scripts/core/state_machine.gd" id="9_uiuk4"]
+[ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/game/game_play.gd" id="1_pem41"]
+[ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/components/hud.tscn" id="2_51egx"]
+[ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/core/game_board.gd" id="3_o1mqs"]
+[ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/ui/test_panel.tscn" id="4_mtjfu"]
+[ext_resource type="Script" uid="uid://cbt4kf4pchvjg" path="res://scripts/core/board_animator.gd" id="5_nt2vj"]
+[ext_resource type="Script" uid="uid://celas3tm78ajv" path="res://scripts/core/state_machine.gd" id="6_v0u15"]
+[ext_resource type="Script" uid="uid://fbcjtexb0lou" path="res://scripts/core/ui_manager.gd" id="7_qqwta"]
+[ext_resource type="PackedScene" uid="uid://bsourh8co1vbn" path="res://scenes/ui/pause_menu.tscn" id="8_55iw1"]
+[ext_resource type="PackedScene" uid="uid://7ypwtymhkpm6" path="res://scenes/ui/game_over_menu.tscn" id="9_8kddu"]
+[ext_resource type="Script" uid="uid://b0wqb277l6af8" path="res://scripts/core/game_history_manager.gd" id="10_4rk7d"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
 bg_color = Color(0.2827017, 0.2827017, 0.2827017, 1)
@@ -25,7 +25,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_ymdu8")
+script = ExtResource("1_pem41")
 
 [node name="ColorRect" type="ColorRect" parent="."]
 unique_name_in_owner = true
@@ -57,7 +57,7 @@ custom_minimum_size = Vector2(350, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="HUD" parent="MarginContainer/MainLayoutContainer/LeftPanel" instance=ExtResource("2_3qprp")]
+[node name="HUD" parent="MarginContainer/MainLayoutContainer/LeftPanel" instance=ExtResource("2_51egx")]
 unique_name_in_owner = true
 layout_mode = 2
 
@@ -107,7 +107,7 @@ text = "返回列表"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-script = ExtResource("3_njofg")
+script = ExtResource("3_o1mqs")
 
 [node name="BoardBackground" type="Panel" parent="MarginContainer/MainLayoutContainer/GameBoard"]
 layout_mode = 1
@@ -120,7 +120,7 @@ custom_minimum_size = Vector2(350, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="TestPanel" parent="MarginContainer/MainLayoutContainer/RightPanel" instance=ExtResource("4_uiuk4")]
+[node name="TestPanel" parent="MarginContainer/MainLayoutContainer/RightPanel" instance=ExtResource("4_mtjfu")]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 1
@@ -132,21 +132,21 @@ offset_bottom = 190.0
 grow_horizontal = 0
 
 [node name="BoardAnimator" type="Node" parent="."]
-script = ExtResource("8_njofg")
+script = ExtResource("5_nt2vj")
 
 [node name="StateMachine" type="Node" parent="."]
-script = ExtResource("9_uiuk4")
+script = ExtResource("6_v0u15")
 
 [node name="HUDMessageTimer" type="Timer" parent="."]
 unique_name_in_owner = true
 one_shot = true
 
 [node name="UIManager" type="Node" parent="."]
-script = ExtResource("8_uiuk4")
+script = ExtResource("7_qqwta")
 ui_scenes = {
-0: ExtResource("8_e7f05"),
-1: ExtResource("9_7ohk3")
+0: ExtResource("8_55iw1"),
+1: ExtResource("9_8kddu")
 }
 
 [node name="GameHistoryManager" type="Node" parent="."]
-script = ExtResource("8_7ohk3")
+script = ExtResource("10_4rk7d")

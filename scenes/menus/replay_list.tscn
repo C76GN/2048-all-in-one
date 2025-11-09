@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://bsb0gb7p8fsbj"]
 
-[ext_resource type="Script" uid="uid://cuo7wbgu6ycmi" path="res://scripts/replay_list.gd" id="1_rdxly"]
+[ext_resource type="Script" uid="uid://cuo7wbgu6ycmi" path="res://scripts/menus/replay_list.gd" id="1_rdxly"]
 
 [node name="ReplayList" type="Control"]
 layout_mode = 3

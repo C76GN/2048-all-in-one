@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="BoardTheme" load_steps=2 format=3 uid="uid://q5lokbubm1hs"]
 
-[ext_resource type="Script" uid="uid://d1sg4uu1qo2li" path="res://global/board_theme.gd" id="1_d4myl"]
+[ext_resource type="Script" uid="uid://d1sg4uu1qo2li" path="res://scripts/global/board_theme.gd" id="1_d4myl"]
 
 [resource]
 script = ExtResource("1_d4myl")

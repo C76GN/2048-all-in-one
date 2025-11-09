@@ -8,7 +8,7 @@ extends Control
 
 const BookmarkListItemScene = preload("res://scenes/ui/bookmark_list_item.tscn")
 # 注意：加载书签后，仍然是进入游戏主场景
-const GamePlayScene = preload("res://scenes/modes/game_play.tscn")
+const GamePlayScene = preload("res://scenes/game/game_play.tscn")
 
 @onready var items_container: VBoxContainer = %ReplayItemsContainer
 @onready var back_button: Button = %BackButton
@@ -23,7 +23,7 @@ func _populate_bookmark_list() -> void:
 		child.queue_free()
 
 	var bookmarks = BookmarkManager.load_bookmarks()
-	
+
 	if bookmarks.is_empty():
 		var label = Label.new()
 		label.text = "没有找到任何书签记录。"
@@ -36,7 +36,7 @@ func _populate_bookmark_list() -> void:
 		var item: BookmarkListItem = BookmarkListItemScene.instantiate()
 		items_container.add_child(item)
 		item.setup(bookmark_data)
-		
+
 		item.bookmark_selected.connect(_on_bookmark_selected)
 		item.bookmark_deleted.connect(_on_bookmark_deleted)
 
