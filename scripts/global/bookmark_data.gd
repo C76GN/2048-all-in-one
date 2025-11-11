@@ -1,4 +1,4 @@
-# global/bookmark_data.gd
+# scripts/global/bookmark_data.gd
 
 ## BookmarkData: 定义了单个游戏书签所需全部信息的自定义资源。
 ##
@@ -6,6 +6,7 @@
 ## 棋盘布局、分数等。它是一个完整的游戏状态快照。
 class_name BookmarkData
 extends Resource
+
 
 # --- 导出变量 ---
 

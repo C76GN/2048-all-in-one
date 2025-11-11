@@ -1,10 +1,11 @@
-# global/bookmark_manager.gd
+# scripts/global/bookmark_manager.gd
 
 ## BookmarkManager: 负责处理游戏书签（状态存档）持久化的全局单例。
 ##
 ## 管理所有书签文件的保存、加载和删除。它在用户数据目录中
 ## 创建一个专用的 `bookmarks` 文件夹来存放所有状态记录。
 extends Node
+
 
 # --- 常量 ---
 

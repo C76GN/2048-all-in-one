@@ -8,9 +8,10 @@
 class_name BoardAnimator
 extends Node
 
+
 # --- 私有变量 ---
 
-## 一个字典，用于存储正在播放的动画。
+## 一个字典，用于存储正在播放的动画，键是方块的实例ID，值是Tween对象。
 var _active_tweens: Dictionary = {}
 
 
@@ -48,7 +49,9 @@ func play_animation_sequence(instructions: Array) -> void:
 					tiles_to_consume.append(consumed)
 
 				tile = merged
-				tile.animate_merge()
+
+				if is_instance_valid(tile):
+					tile.animate_merge()
 
 			_:
 				continue
@@ -70,9 +73,10 @@ func play_animation_sequence(instructions: Array) -> void:
 # --- 私有/辅助方法 ---
 
 ## 核心的重定向函数，为一个方块创建或更新其移动动画。
+## 如果一个方块已有一个移动动画在播放，此函数会平滑地中止旧动画并开始新动画。
 ## @param tile: 要执行动画的方块节点。
 ## @param new_target_pos: 新的目标位置。
-func _retarget_animation(tile: Node2D, new_target_pos: Vector2) -> void:
+func _retarget_animation(tile: Tile, new_target_pos: Vector2) -> void:
 	var instance_id: int = tile.get_instance_id()
 
 	if _active_tweens.has(instance_id):
@@ -85,7 +89,8 @@ func _retarget_animation(tile: Node2D, new_target_pos: Vector2) -> void:
 	new_tween.tween_property(tile, "position", new_target_pos, 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_active_tweens[instance_id] = new_tween
 
-	new_tween.finished.connect(func():
-		if _active_tweens.has(instance_id) and _active_tweens[instance_id] == new_tween:
-			_active_tweens.erase(instance_id)
+	new_tween.finished.connect(
+		func():
+			if _active_tweens.has(instance_id) and _active_tweens[instance_id] == new_tween:
+				_active_tweens.erase(instance_id)
 	)

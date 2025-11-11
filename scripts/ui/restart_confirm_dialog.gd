@@ -8,39 +8,51 @@
 class_name RestartConfirmDialog
 extends ConfirmationDialog
 
+
+# --- 信号 ---
+
 ## 当用户选择“从书签位置重启”时发出。
 signal restart_from_bookmark
+
 ## 当用户选择“作为新游戏重启”时发出。
 signal restart_as_new_game
 
 ## 当对话框被用户以“取消”的方式关闭时（如按Esc或点击窗口关闭按钮）发出。
 signal dismissed
 
-func _ready() -> void:
-	
-	# 1. 获取OK按钮（“从书签重启”），连接其 pressed 信号。
-	get_ok_button().pressed.connect(func(): 
-		restart_from_bookmark.emit()
-		hide() 
-	)
-	
-	# 2. 获取Cancel按钮（“作为新游戏重启”），连接其 pressed 信号。
-	get_cancel_button().pressed.connect(func(): 
-		restart_as_new_game.emit()
-		hide()
-	)
-	
-	# 3. 连接窗口的关闭请求（点击'X'按钮），将其视为“取消”操作。
-	close_requested.connect(func(): 
-		dismissed.emit()
-	)
-	
-	# 4. 捕获 visibility_changed 信号来处理 Esc 键。
-	visibility_changed.connect(_on_visibility_changed)
 
-## 当对话框的可见性改变时调用。用它来捕获 Esc 键的按下。
-func _on_visibility_changed() -> void:
+# --- Godot 生命周期方法 ---
+
+func _ready() -> void:
+	# 连接内置按钮和事件到具名处理函数
+	confirmed.connect(_on_confirmed)
+	canceled.connect(_on_canceled)
+	close_requested.connect(_on_close_requested)
+
+
+# --- 私有/辅助方法 ---
+
+## 检查对话框是否因非按钮操作（如按Esc）而关闭。
+func _check_for_dismissal() -> void:
+	# 如果对话框变得不可见，且不是通过点击OK或Cancel按钮触发的，
+	# 那么就认为是用户“取消”了操作。
 	if not visible and is_inside_tree():
-		# 检查OK和Cancel按钮是否都没有被按下。
 		if not get_ok_button().is_pressed() and not get_cancel_button().is_pressed():
 			dismissed.emit()
+
+
+# --- 信号处理函数 ---
+
+## 当OK按钮（“从书签位置重启”）被按下时调用。
+func _on_confirmed() -> void:
+	restart_from_bookmark.emit()
+
+
+## 当Cancel按钮（“作为新游戏重启”）被按下时调用。
+func _on_canceled() -> void:
+	restart_as_new_game.emit()
+
+
+## 当用户点击窗口的关闭按钮('X')时调用。
+func _on_close_requested() -> void:
+	dismissed.emit()

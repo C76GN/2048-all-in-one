@@ -1,4 +1,4 @@
-# global/replay_data.gd
+# scripts/global/replay_data.gd
 
 ## ReplayData: 定义了单个游戏回放所需全部信息的自定义资源。
 ##
@@ -6,6 +6,7 @@
 ## 玩家的完整操作序列，以及用于导航的快照标记。
 class_name ReplayData
 extends Resource
+
 
 # --- 导出变量 ---
 

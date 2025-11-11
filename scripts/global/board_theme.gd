@@ -1,10 +1,11 @@
-# global/board_theme.gd
+# scripts/global/board_theme.gd
 
 ## BoardTheme: 定义了游戏棋盘和背景的颜色主题。
 ##
 ## 这个资源将所有非方块的全局颜色配置集中管理，方便实现整体的视觉风格切换。
 class_name BoardTheme
 extends Resource
+
 
 # --- 导出变量 ---
 

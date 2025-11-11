@@ -7,16 +7,22 @@
 class_name BaseInputSource
 extends Node
 
+
+# --- 信号 ---
+
 ## 当一个动作被触发时发出。
 ## @param action: 代表具体动作的数据，通常是一个 Vector2i (用于移动)。
 @warning_ignore("unused_signal")
 signal action_triggered(action: Variant)
 
+
+# --- 公共方法 ---
+
 ## 启动输入源，使其开始监听或处理输入。
 func start() -> void:
-	pass # 子类需要重写此方法。
+	pass
 
 
 ## 停止输入源。
 func stop() -> void:
-	pass # 子类需要重写此方法。
+	pass

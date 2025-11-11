@@ -1,4 +1,4 @@
-# global/rng_manager.gd
+# scripts/global/rng_manager.gd
 
 ## RNGManager: 负责管理全局随机数生成器 (RNG) 的单例脚本。
 ##
@@ -6,6 +6,7 @@
 ## 它允许游戏在启动时使用特定种子进行初始化，这对于复现问题或
 ## 创建可重复的挑战至关重要。
 extends Node
+
 
 # --- 私有变量 ---
 

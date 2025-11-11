@@ -1,4 +1,4 @@
-# global/tile_color_scheme.gd
+# scripts/global/tile_color_scheme.gd
 
 ## TileColorScheme: 定义了一套方块的颜色主题。
 ##
@@ -6,6 +6,7 @@
 ## 每个样式都包含了背景色和字体色。
 class_name TileColorScheme
 extends Resource
+
 
 # --- 导出变量 ---
 

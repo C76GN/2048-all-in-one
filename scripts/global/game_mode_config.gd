@@ -1,4 +1,4 @@
-# global/game_mode_config.gd
+# scripts/global/game_mode_config.gd
 
 ## GameModeConfig: 一个用于定义完整游戏模式的自定义资源。
 ##
@@ -6,6 +6,7 @@
 ## 形成一个完整的玩法。
 class_name GameModeConfig
 extends Resource
+
 
 # --- 导出变量 ---
 

@@ -10,41 +10,53 @@
 class_name ProbabilisticBattleSpawnRule
 extends SpawnRule
 
+
+# --- 导出变量 ---
+
 @export_group("概率配置")
 ## 生成怪物的基础概率（0.0 到 1.0 之间）。
-@export_range(0.0, 1.0) var base_probability: float = 0.05 # 默认初始概率为5%
+@export_range(0.0, 1.0) var base_probability: float = 0.05
 ## 每次生成怪物失败后，概率增加的量。
-@export_range(0.0, 1.0) var increase_on_failure: float = 0.02 # 每次失败增加2%
+@export_range(0.0, 1.0) var increase_on_failure: float = 0.02
 ## 怪物生成概率可以达到的最大值。
-@export_range(0.0, 1.0) var max_probability: float = 0.5 # 默认上限为50%
+@export_range(0.0, 1.0) var max_probability: float = 0.5
 
 @export_group("玩家方块配置")
 ## 生成数值为2的玩家方块的概率（其余为4）。
 @export_range(0.0, 1.0) var probability_of_2: float = 0.9
 
-# --- 内部状态 ---
 
-# 当前的动态怪物生成概率值。
+# --- 私有变量 ---
+
+## 当前的动态怪物生成概率值。
 var _current_probability: float = 0.0
 
+
+# --- 公共方法 ---
+
 ## 初始化此规则，设置初始概率。
+## @param p_game_board: 对当前GameBoard节点的引用。
+## @param _required_nodes: 一个字典，包含规则声明需要的已创建节点。
 func setup(p_game_board: Control, _required_nodes: Dictionary = {}) -> void:
 	super.setup(p_game_board)
 	_current_probability = base_probability
 
+
 ## RuleManager调用此函数来执行概率生成逻辑。
+## @param _payload: 一个字典，可能包含来自事件的额外数据。
+## @return: 返回 'true' 表示事件被“消费”，应中断处理链。否则返回 'false'。
 func execute(_payload: Dictionary = {}) -> bool:
 	# 如果棋盘已满，则无法生成任何方块。
 	if game_board.get_empty_cells().is_empty():
 		return false
 
-	var rng = RNGManager.get_rng()
+	var rng := RNGManager.get_rng()
 
-	# --- 决定生成怪物还是玩家 ---
+	# 决定生成怪物还是玩家
 	if rng.randf() < _current_probability:
-		# --- 成功: 生成怪物 ---
-		var monster_value = _calculate_monster_value()
-		var spawn_data = {
+		# 成功: 生成怪物
+		var monster_value: int = _calculate_monster_value()
+		var spawn_data := {
 			"value": monster_value,
 			"type": Tile.TileType.MONSTER,
 			"is_priority": true # 怪物生成是优先的，即使棋盘满了也会尝试转换玩家方块
@@ -55,11 +67,11 @@ func execute(_payload: Dictionary = {}) -> bool:
 		_current_probability = base_probability
 
 	else:
-		# --- 失败: 生成玩家 ---
+		# 失败: 生成玩家
 		_current_probability = min(_current_probability + increase_on_failure, max_probability)
 
-		var value = 2 if rng.randf() < probability_of_2 else 4
-		var spawn_data = {
+		var value: int = 2 if rng.randf() < probability_of_2 else 4
+		var spawn_data := {
 			"value": value,
 			"type": Tile.TileType.PLAYER,
 			"is_priority": false
@@ -70,72 +82,84 @@ func execute(_payload: Dictionary = {}) -> bool:
 	# 阻止其他“移动后生成”规则执行。
 	return true
 
+
 ## 获取用于在HUD上显示的动态数据。
+## @return: 一个包含显示信息的字典。
 func get_display_data() -> Dictionary:
-	var data = {}
+	var data: Dictionary = {}
 	data["monster_chance_label"] = "下次移动出现怪物概率: %.1f%%" % (_current_probability * 100)
 
-	var pool = get_monster_spawn_pool()
-	var spawn_info_text = "可能出现的怪物:\n"
-	var total_weight = 0
+	var pool: Dictionary = get_monster_spawn_pool()
+	var spawn_info_text: String = "可能出现的怪物:\n"
+	var total_weight: int = 0
 	for w in pool["weights"]: total_weight += w
 	if total_weight > 0:
 		for i in range(pool["weights"].size()):
-			var p = (float(pool["weights"][i]) / total_weight) * 100
+			var p: float = (float(pool["weights"][i]) / total_weight) * 100
 			spawn_info_text += "  - %d (概率: %.1f%%)\n" % [pool["values"][i], p]
 	data["spawn_info_label"] = spawn_info_text
 
 	return data
 
-## 获取规则当前的内部状态。
+
+## 获取规则当前的内部状态，用于保存。
+## @return: 一个包含规则状态的可序列化变量 (如字典或基础类型)。
 func get_state() -> Variant:
 	return {"current_probability": _current_probability}
 
+
 ## 从一个状态值恢复规则的内部状态。
+## @param state: 从历史记录中加载的状态值。
 func set_state(state: Variant) -> void:
 	if state is Dictionary and state.has("current_probability"):
 		_current_probability = state["current_probability"]
 
-# --- 内部逻辑 ---
 
 ## 动态计算并获取当前的怪物生成池。
+## @return: 一个包含 "values" 和 "weights" 数组的字典。
 func get_monster_spawn_pool() -> Dictionary:
-	if not is_instance_valid(game_board): return {"values": [2], "weights": [1]}
+	if not is_instance_valid(game_board):
+		return {"values": [2], "weights": [1]}
 
-	var max_player_value = game_board.get_max_player_value()
+	var max_player_value: int = game_board.get_max_player_value()
 	if max_player_value <= 0:
 		return {"values": [2], "weights": [1]}
 
-	var k = int(log(max_player_value) / log(2))
+	var k: int = int(log(max_player_value) / log(2))
 	if k < 1: k = 1
 
-	var weights = []
-	var possible_values = []
+	var weights: Array[int] = []
+	var possible_values: Array[int] = []
 	for i in range(1, k + 1):
-		possible_values.append(pow(2, i))
+		possible_values.append(int(pow(2, i)))
 		weights.append(k - i + 1)
 
 	return {"values": possible_values, "weights": weights}
 
+
+# --- 私有/辅助方法 ---
+
 ## 根据动态生成的怪物池，计算本次要生成的怪物数值。
+## @return: 计算出的怪物数值。
 func _calculate_monster_value() -> int:
-	var spawn_pool = get_monster_spawn_pool()
-	var possible_values = spawn_pool["values"]
-	var weights = spawn_pool["weights"]
+	var spawn_pool: Dictionary = get_monster_spawn_pool()
+	var possible_values: Array[int] = spawn_pool["values"]
+	var weights: Array[int] = spawn_pool["weights"]
 
 	if possible_values.is_empty(): return 2
 
-	var total_weight = 0
+	var total_weight: int = 0
 	for w in weights: total_weight += w
 	if total_weight == 0: return 2
 
-	var rng = RNGManager.get_rng()
-	var random_pick = rng.randi_range(1, total_weight)
+	var rng := RNGManager.get_rng()
+	var random_pick: int = rng.randi_range(1, total_weight)
 
-	var cumulative_weight = 0
+	var cumulative_weight: int = 0
 	for i in range(weights.size()):
 		cumulative_weight += weights[i]
 		if random_pick <= cumulative_weight:
 			return possible_values[i]
 
-	return 2 # 作为后备
+	# 作为后备
+	return 2

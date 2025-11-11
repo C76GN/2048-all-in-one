@@ -1,10 +1,11 @@
-# global/event_bus.gd
+# scripts/global/event_bus.gd
 
 ## EventBus: 一个全局事件总线单例。
 ##
 ## 用于解耦游戏中的各个系统。系统可以向总线发射信号，
 ## 而其他系统可以监听这些信号，从而实现通信，而无需直接引用彼此。
 extends Node
+
 
 # --- 信号 ---
 

@@ -7,6 +7,7 @@
 class_name GameHistoryManager
 extends Node
 
+
 # --- 私有变量 ---
 
 ## 存储完整游戏状态快照的数组。数组中的每个元素都是一个字典。
@@ -32,10 +33,7 @@ func save_state(state: Dictionary) -> void:
 ## @remark 调用此函数前，应先使用 can_undo() 检查操作是否有效。
 ## @return: 返回恢复后应应用的游戏状态字典。
 func undo() -> Dictionary:
-	# 假定调用者已经通过 can_undo() 确认了操作的有效性。
-	# 移除当前状态。
 	_history.pop_back()
-	# 返回撤回后的新当前状态（即之前的状态）。
 	return _history.back()
 
 
@@ -46,6 +44,7 @@ func can_undo() -> bool:
 
 
 ## 加载一个完整的历史记录数组。
+##
 ## 这在从书签（存档）恢复游戏时使用。
 ## @param history_array: 从 BookmarkData 加载的历史记录。
 func load_history(history_array: Array[Dictionary]) -> void:
@@ -53,6 +52,7 @@ func load_history(history_array: Array[Dictionary]) -> void:
 
 
 ## 获取当前完整的历史记录数组。
+##
 ## 这在创建书签（存档）时使用。
 ## @return: 包含所有历史状态的数组。
 func get_history() -> Array[Dictionary]:
@@ -60,6 +60,7 @@ func get_history() -> Array[Dictionary]:
 
 
 ## 获取当前历史记录的长度。
+## @return: 历史记录中的状态数量。
 func get_history_size() -> int:
 	return _history.size()
 
@@ -68,7 +69,6 @@ func get_history_size() -> int:
 ## @return: 一个包含所有玩家输入动作 (Vector2i) 的数组。
 func get_action_sequence() -> Array[Vector2i]:
 	var actions: Array[Vector2i] = []
-	# 从索引1开始，因为索引0是初始状态，没有关联的动作。
 	for i in range(1, _history.size()):
 		actions.append(_history[i]["action"])
 	return actions

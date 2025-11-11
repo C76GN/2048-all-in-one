@@ -6,7 +6,8 @@
 ## 它通过信号与主游戏场景通信，以执行继续、重启等操作。
 extends Control
 
-# --- 信号定义 ---
+
+# --- 信号 ---
 
 ## 当玩家请求继续游戏时发出。
 signal resume_game
@@ -15,18 +16,36 @@ signal restart_game
 ## 当玩家请求返回主菜单时发出。
 signal return_to_main_menu
 
-# --- 节点引用 ---
 
-@onready var continue_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/ContinueButton
-@onready var restart_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/RestartButton
-@onready var main_menu_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/MainMenuButton
-@onready var restart_confirm_dialog: ConfirmationDialog = $CanvasLayer/RestartConfirmDialog
+# --- @onready 变量 (节点引用) ---
+
+@onready var _continue_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/ContinueButton
+@onready var _restart_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/RestartButton
+@onready var _main_menu_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/MainMenuButton
+
+
+# --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	# 将处理模式设置为“暂停时处理”，以确保菜单在游戏暂停时仍可交互。
 	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 
-	# 连接按钮信号
-	continue_button.pressed.connect(func(): resume_game.emit())
-	restart_button.pressed.connect(func(): restart_game.emit())
-	main_menu_button.pressed.connect(func(): return_to_main_menu.emit())
+	_continue_button.pressed.connect(_on_continue_button_pressed)
+	_restart_button.pressed.connect(_on_restart_button_pressed)
+	_main_menu_button.pressed.connect(_on_main_menu_button_pressed)
+
+
+# --- 信号处理函数 ---
+
+## 响应“继续游戏”按钮的点击事件。
+func _on_continue_button_pressed() -> void:
+	resume_game.emit()
+
+
+## 响应“重新开始”按钮的点击事件。
+func _on_restart_button_pressed() -> void:
+	restart_game.emit()
+
+
+## 响应“返回主界面”按钮的点击事件。
+func _on_main_menu_button_pressed() -> void:
+	return_to_main_menu.emit()

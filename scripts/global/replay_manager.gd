@@ -1,4 +1,4 @@
-# global/replay_manager.gd
+# scripts/global/replay_manager.gd
 
 ## ReplayManager: 负责处理游戏回放数据持久化的全局单例。
 ##
@@ -6,10 +6,11 @@
 ## 创建一个专用的 `replays` 文件夹来存放所有回放记录。
 extends Node
 
+
 # --- 常量 ---
 
 ## 回放文件存储目录。
-const REPLAY_DIR = "user://replays/"
+const REPLAY_DIR: String = "user://replays/"
 
 
 # --- Godot 生命周期方法 ---
@@ -29,8 +30,8 @@ func save_replay(replay_data: ReplayData) -> void:
 		push_error("保存回放失败: 无效的ReplayData对象。")
 		return
 
-	var file_path = REPLAY_DIR.path_join("replay_%d.tres" % replay_data.timestamp)
-	var error = ResourceSaver.save(replay_data, file_path)
+	var file_path: String = REPLAY_DIR.path_join("replay_%d.tres" % replay_data.timestamp)
+	var error: Error = ResourceSaver.save(replay_data, file_path)
 
 	if error != OK:
 		push_error("保存回放文件失败: %s (错误码: %d)" % [file_path, error])
@@ -42,18 +43,18 @@ func save_replay(replay_data: ReplayData) -> void:
 ## @return: 一个包含所有ReplayData资源的数组。
 func load_replays() -> Array[ReplayData]:
 	var replays: Array[ReplayData] = []
-	var dir = DirAccess.open(REPLAY_DIR)
+	var dir: DirAccess = DirAccess.open(REPLAY_DIR)
 
 	if not dir:
 		push_error("无法打开回放目录: %s" % REPLAY_DIR)
 		return replays
 
 	dir.list_dir_begin()
-	var file_name = dir.get_next()
+	var file_name: String = dir.get_next()
 
 	while file_name != "":
 		if not dir.current_is_dir() and file_name.ends_with(".tres"):
-			var file_path = REPLAY_DIR.path_join(file_name)
+			var file_path: String = REPLAY_DIR.path_join(file_name)
 			var loaded_resource: Resource = ResourceLoader.load(file_path, "ReplayData", ResourceLoader.CACHE_MODE_IGNORE)
 
 			if is_instance_valid(loaded_resource) and loaded_resource is ReplayData:
@@ -66,7 +67,7 @@ func load_replays() -> Array[ReplayData]:
 		file_name = dir.get_next()
 
 	dir.list_dir_end()
-	replays.sort_custom(func(a, b): return a.timestamp > b.timestamp)
+	replays.sort_custom(func(a: ReplayData, b: ReplayData): return a.timestamp > b.timestamp)
 	return replays
 
 
@@ -77,7 +78,7 @@ func delete_replay(replay_file_path: String) -> void:
 		push_error("删除回放失败: 文件不存在 - %s" % replay_file_path)
 		return
 
-	var error = DirAccess.remove_absolute(replay_file_path)
+	var error: Error = DirAccess.remove_absolute(replay_file_path)
 
 	if error != OK:
 		push_error("删除回放文件时出错: %s (错误码: %d)" % [replay_file_path, error])

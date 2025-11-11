@@ -1,4 +1,4 @@
-# global/save_manager.gd
+# scripts/global/save_manager.gd
 
 ## SaveManager: 负责处理游戏数据持久化的全局单例。
 ##
@@ -6,6 +6,7 @@
 ## 保存到本地文件和从本地文件加载的功能。它处理了文件不存在
 ## 的情况，并为游戏逻辑提供了简单的数据读写接口。
 extends Node
+
 
 # --- 常量 ---
 

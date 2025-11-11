@@ -7,6 +7,7 @@
 export.cfg
 export_credentials.cfg
 *.tmp
+*.depren
 
 # Imported translations (automatically generated from CSV files)
 *.translation

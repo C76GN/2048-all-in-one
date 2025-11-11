@@ -1,10 +1,11 @@
-# global/game_manager.gd
+# scripts/global/game_manager.gd
 
 ## GlobalGameManager: 负责处理全局游戏状态与核心流程控制的单例脚本。
 ##
 ## 作为一个自动加载的全局节点 (Singleton)，它在整个游戏生命周期中持续存在，
 ## 主要用于提供场景切换、安全退出游戏以及跨场景传递数据（如所选的游戏模式配置）等核心服务。
 extends Node
+
 
 # --- 导出变量 ---
 
@@ -53,13 +54,13 @@ func select_mode_and_start(config_path: String, game_scene: PackedScene, grid_si
 
 
 ## 获取当前选择的模式配置路径。
-## @return 选中的模式配置资源路径。
+## @return: 选中的模式配置资源路径。
 func get_selected_mode_config_path() -> String:
 	return _selected_mode_config_path
 
 
 ## 获取当前选择的棋盘大小。
-## @return 选中的棋盘尺寸。
+## @return: 选中的棋盘尺寸。
 func get_selected_grid_size() -> int:
 	return _selected_grid_size
 
@@ -80,7 +81,7 @@ func goto_scene_packed(scene: PackedScene) -> void:
 		get_tree().current_scene.queue_free()
 		get_tree().current_scene = null
 
-	var new_scene_instance = scene.instantiate()
+	var new_scene_instance: Node = scene.instantiate()
 	get_tree().root.add_child(new_scene_instance)
 	get_tree().current_scene = new_scene_instance
 	print("已切换到场景: ", scene.resource_path)
@@ -93,7 +94,7 @@ func goto_scene(path: String) -> void:
 		push_error("错误: 场景路径必须是绝对的场景资源路径，例如 'res://scenes/my_scene.tscn'")
 		return
 
-	var next_scene_packed = load(path)
+	var next_scene_packed: PackedScene = load(path)
 
 	if next_scene_packed == null:
 		push_error("错误: 无法加载场景资源: " + path)

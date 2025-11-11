@@ -13,16 +13,25 @@
 class_name ProgressiveSpawnRule
 extends SpawnRule
 
+
+# --- 导出变量 ---
+
+@export_group("规则配置")
 ## 如果为true，成功执行后将阻止其他低优先级规则运行。
 @export var consumes_event_on_success: bool = true
 
+
+# --- 公共方法 ---
+
 ## 执行生成逻辑。
+## @param _payload: 一个字典，可能包含来自事件的额外数据。
+## @return: 返回 'true' 表示事件被“消费”，应中断处理链。否则返回 'false'。
 func execute(_payload: Dictionary = {}) -> bool:
 	# 检查棋盘是否已满，如果满了则无法生成。
 	if game_board.get_empty_cells().is_empty():
 		return false
 
-	var spawn_count = 1
+	var spawn_count: int = 1
 	# 特殊逻辑：如果是初始化事件，则生成两个方块。
 	if trigger == TriggerType.ON_INITIALIZE:
 		spawn_count = 2
@@ -31,36 +40,41 @@ func execute(_payload: Dictionary = {}) -> bool:
 	spawn_count = min(spawn_count, game_board.get_empty_cells().size())
 
 	for i in range(spawn_count):
-		var spawn_pool = _get_current_spawn_pool()
-		var value = spawn_pool[RNGManager.get_rng().randi_range(0, spawn_pool.size() - 1)]
-		
-		var spawn_data = {
+		var spawn_pool: Array[int] = _get_current_spawn_pool()
+		var value: int = spawn_pool[RNGManager.get_rng().randi_range(0, spawn_pool.size() - 1)]
+
+		var spawn_data: Dictionary = {
 			"value": value,
 			"type": Tile.TileType.PLAYER,
 			"is_priority": false
 		}
-		
+
 		spawn_tile_requested.emit(spawn_data)
-	
+
 	# 成功请求了生成，根据配置决定是否消费事件。
 	return consumes_event_on_success
 
-## [内部函数] 根据当前棋盘上的最大方块值确定生成池。
+
+# --- 私有/辅助方法 ---
+
+## 根据当前棋盘上的最大方块值确定生成池。
+## @return: 一个包含当前所有可生成数值的数组。
 func _get_current_spawn_pool() -> Array[int]:
-	var max_value = game_board.get_max_player_value()
-	var spawn_pool: Array[int] = [2, 4] # 基础生成池
-	
+	var max_value: int = game_board.get_max_player_value()
+	# 基础生成池
+	var spawn_pool: Array[int] = [2, 4]
+
 	if max_value < 2048:
 		return spawn_pool
 
 	# 计算最大值是2的多少次方，例如 2048 -> 11, 4096 -> 12
-	var power = int(log(max_value) / log(2))
-	
+	var power: int = int(log(max_value) / log(2))
+
 	# 从 2^11 (2048) 开始，每增加一次幂，就在生成池中增加一个新方块。
 	# k 从 3 开始，因为池中已有 2^1 和 2^2。
 	# power - 11 是解锁等级，0级(2048)解锁8, 1级(4096)解锁16。
 	# 所以解锁的方块幂次是 k = 3 到 (power - 11) + 3。
 	for k in range(3, (power - 11) + 4):
 		spawn_pool.append(int(pow(2, k)))
-		
+
 	return spawn_pool

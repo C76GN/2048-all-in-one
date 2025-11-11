@@ -8,6 +8,7 @@
 class_name RuleManager
 extends Node
 
+
 # --- 信号 ---
 
 ## 当任何规则请求生成方块时，将此信号转发给 GamePlay。
@@ -43,7 +44,6 @@ func register_rules(p_rules: Array[SpawnRule]) -> void:
 
 	for rule in _rules:
 		var current_rule: SpawnRule = rule
-
 		if not current_rule.spawn_tile_requested.is_connected(self.spawn_tile_requested.emit):
 			current_rule.spawn_tile_requested.connect(self.spawn_tile_requested.emit)
 
@@ -57,7 +57,7 @@ func dispatch_event(event: Events, payload: Dictionary = {}) -> void:
 	if relevant_rules.is_empty():
 		return
 
-	relevant_rules.sort_custom(func(a, b): return a.priority > b.priority)
+	relevant_rules.sort_custom(func(a: SpawnRule, b: SpawnRule) -> bool: return a.priority > b.priority)
 
 	for rule in relevant_rules:
 		var current_rule: SpawnRule = rule
@@ -82,11 +82,9 @@ func _get_relevant_rules(event: Events) -> Array[SpawnRule]:
 			Events.INITIALIZE_BOARD:
 				if current_rule.trigger == SpawnRule.TriggerType.ON_INITIALIZE:
 					matched_rules.append(current_rule)
-
 			Events.PLAYER_MOVED:
 				if current_rule.trigger in [SpawnRule.TriggerType.ON_MOVE, SpawnRule.TriggerType.ON_MOVE_PROBABILITY]:
 					matched_rules.append(current_rule)
-
 			Events.MONSTER_KILLED:
 				if current_rule.trigger == SpawnRule.TriggerType.ON_KILL:
 					matched_rules.append(current_rule)
