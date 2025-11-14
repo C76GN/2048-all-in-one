@@ -24,9 +24,6 @@ enum State {
 
 # --- 常量 ---
 
-## 重启确认对话框的场景资源。
-const RESTART_CONFIRM_DIALOG_SCENE: PackedScene = preload("res://scenes/ui/restart_confirm_dialog.tscn")
-
 ## 玩家输入源的脚本资源。
 const PLAYER_INPUT_SOURCE_SCRIPT: Script = preload("res://scripts/core/player_input_source.gd")
 
@@ -516,21 +513,6 @@ func _show_hud_message(message: String, duration: float) -> void:
 	_hud_message_timer.start(duration)
 
 
-## 显示重启确认对话框，让用户选择重启方式。
-func _show_restart_confirmation() -> void:
-	var dialog: RestartConfirmDialog = RESTART_CONFIRM_DIALOG_SCENE.instantiate()
-	dialog.restart_from_bookmark.connect(_on_restart_from_bookmark_confirmed)
-	dialog.restart_as_new_game.connect(_on_restart_as_new_game_confirmed)
-	dialog.dismissed.connect(func():
-		if get_tree().paused and state_machine.get_current_state() != State.GAME_OVER:
-			ui_manager.show_ui(UIManager.UIType.PAUSE)
-	)
-	dialog.tree_exited.connect(dialog.queue_free)
-	ui_manager.close_current_ui()
-	ui_manager._canvas_layer.add_child(dialog)
-	dialog.popup_centered()
-
-
 ## 根据当前的回放进度，更新回放控制按钮（上一步/下一步）的可用状态。
 func _update_replay_buttons_state() -> void:
 	if not _is_replay_mode or not _input_source is ReplayInputSource: return
@@ -600,7 +582,10 @@ func _on_resume_game() -> void:
 
 func _on_restart_game(_from_bookmark: bool) -> void:
 	if is_instance_valid(_loaded_bookmark_data):
-		_show_restart_confirmation()
+		get_tree().paused = false
+		GlobalGameManager.selected_bookmark_data = _loaded_bookmark_data
+		get_tree().reload_current_scene()
+
 	else:
 		get_tree().paused = false
 		var current_scene_resource: PackedScene = load(get_tree().current_scene.scene_file_path)
@@ -663,24 +648,6 @@ func _on_snapshot_button_pressed() -> void:
 func _on_hud_message_timer_timeout() -> void:
 	_hud_status_message = ""
 	_update_and_publish_hud_data()
-
-
-func _on_restart_from_bookmark_confirmed() -> void:
-	get_tree().paused = false
-	GlobalGameManager.selected_bookmark_data = _loaded_bookmark_data
-	get_tree().reload_current_scene()
-
-
-func _on_restart_as_new_game_confirmed() -> void:
-	get_tree().paused = false
-	var new_seed: int = int(Time.get_unix_time_from_system())
-	var current_scene_resource: PackedScene = load(get_tree().current_scene.scene_file_path)
-	GlobalGameManager.select_mode_and_start(
-		_loaded_bookmark_data.mode_config_path,
-		current_scene_resource,
-		_loaded_bookmark_data.board_snapshot.get("grid_size", 4),
-		new_seed
-	)
 
 
 func _on_replay_prev_step_pressed() -> void:
