@@ -79,7 +79,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 focus_neighbor_left = NodePath("../PrevPageButton")
-focus_neighbor_right = NodePath("../PrevPageButton")
+focus_neighbor_right = NodePath("../../../RightPanelContainer/StartGameButton")
 focus_neighbor_bottom = NodePath("../../BackButton")
 text = "下一页"
 
@@ -150,5 +150,6 @@ layout_mode = 2
 [node name="StartGameButton" type="Button" parent="CenterContainer/MainLayout/RightPanelContainer"]
 layout_mode = 2
 focus_neighbor_left = NodePath("../../CenterPanel/ModeListContainer")
+focus_neighbor_bottom = NodePath("../HBoxContainer/GridSizeOptionButton")
 disabled = true
 text = "开始游戏"
