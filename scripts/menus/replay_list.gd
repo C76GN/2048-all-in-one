@@ -27,6 +27,12 @@ func _ready() -> void:
 	_populate_replay_list()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		_on_back_button_pressed()
+		get_viewport().set_input_as_handled()
+
+
 # --- 私有/辅助方法 ---
 
 ## 从 ReplayManager 加载数据并填充列表。
@@ -51,6 +57,11 @@ func _populate_replay_list() -> void:
 
 		item.replay_selected.connect(_on_replay_selected)
 		item.replay_deleted.connect(_on_replay_deleted)
+
+		if _replay_items_container.get_child_count() > 0:
+			var first_item: Control = _replay_items_container.get_child(0)
+			if first_item is ReplayListItem:
+				first_item.grab_focus()
 
 
 # --- 信号处理函数 ---

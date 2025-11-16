@@ -33,6 +33,8 @@ func _ready() -> void:
 	_settings_button.pressed.connect(_on_settings_button_pressed)
 	_quit_button.pressed.connect(_on_quit_button_pressed)
 
+	_start_game_button.grab_focus()
+
 
 # --- 信号处理函数 ---
 

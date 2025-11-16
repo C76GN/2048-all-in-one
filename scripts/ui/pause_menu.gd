@@ -33,6 +33,8 @@ func _ready() -> void:
 	_restart_button.pressed.connect(_on_restart_button_pressed)
 	_main_menu_button.pressed.connect(_on_main_menu_button_pressed)
 
+	_continue_button.grab_focus()
+
 
 # --- 信号处理函数 ---
 

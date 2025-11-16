@@ -1,2 +1,2 @@
-# 2048div2
+# 2048-all-in-one
 A strange 2048 game

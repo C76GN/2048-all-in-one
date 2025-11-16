@@ -30,6 +30,12 @@ func _ready() -> void:
 	_populate_list()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		_on_back_button_pressed()
+		get_viewport().set_input_as_handled()
+
+
 # --- 私有/辅助方法 ---
 
 ## 从 BookmarkManager 加载数据并填充列表。
@@ -54,6 +60,11 @@ func _populate_list() -> void:
 
 		item.bookmark_selected.connect(_on_bookmark_selected)
 		item.bookmark_deleted.connect(_on_bookmark_deleted)
+
+		if _items_container.get_child_count() > 0:
+			var first_item: Control = _items_container.get_child(0)
+			if first_item is BookmarkListItem:
+				first_item.grab_focus()
 
 
 # --- 信号处理函数 ---

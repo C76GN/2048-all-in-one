@@ -61,21 +61,6 @@ size_flags_horizontal = 3
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
-layout_mode = 2
-theme_override_constants/separation = 20
-alignment = 1
-
-[node name="UndoButton" type="Button" parent="MarginContainer/MainLayoutContainer/LeftPanel/HBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "撤回 (Undo)"
-
-[node name="SnapshotButton" type="Button" parent="MarginContainer/MainLayoutContainer/LeftPanel/HBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "保存书签（存档）"
-
 [node name="ReplayControlsContainer" type="VBoxContainer" parent="MarginContainer/MainLayoutContainer/LeftPanel"]
 unique_name_in_owner = true
 visible = false

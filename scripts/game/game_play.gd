@@ -93,8 +93,6 @@ var _is_replay_mode: bool = false
 @onready var background_color_rect: ColorRect = %ColorRect
 @onready var board_animator: BoardAnimator = $BoardAnimator
 @onready var state_machine: StateMachine = $StateMachine
-@onready var undo_button: Button = %UndoButton
-@onready var snapshot_button: Button = %SnapshotButton
 @onready var ui_manager: UIManager = $UIManager
 @onready var _hud_message_timer: Timer = %HUDMessageTimer
 @onready var replay_controls_container: VBoxContainer = %ReplayControlsContainer
@@ -110,10 +108,20 @@ func _ready() -> void:
 	_initialize_game()
 
 
-func _unhandled_key_input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_pause"):
 		_on_pause_toggled()
 		get_viewport().set_input_as_handled()
+
+	# 添加对撤回和保存书签快捷键的处理
+	if state_machine.get_current_state() == State.PLAYING:
+		if event.is_action_pressed("undo"):
+			_on_undo_button_pressed()
+			get_viewport().set_input_as_handled()
+
+		if event.is_action_pressed("save_bookmark"):
+			_on_snapshot_button_pressed()
+			get_viewport().set_input_as_handled()
 
 
 # --- FSM 状态处理 ---
@@ -330,12 +338,6 @@ func _connect_signals() -> void:
 		ui_manager.restart_requested.connect(_on_restart_game)
 	if not ui_manager.main_menu_requested.is_connected(_on_return_to_main_menu):
 		ui_manager.main_menu_requested.connect(_on_return_to_main_menu)
-
-	if is_instance_valid(undo_button) and not undo_button.pressed.is_connected(_on_undo_button_pressed):
-		undo_button.pressed.connect(_on_undo_button_pressed)
-	if is_instance_valid(snapshot_button) and not snapshot_button.pressed.is_connected(_on_snapshot_button_pressed):
-		snapshot_button.pressed.connect(_on_snapshot_button_pressed)
-
 	if is_instance_valid(replay_prev_step_button) and not replay_prev_step_button.pressed.is_connected(_on_replay_prev_step_pressed):
 		replay_prev_step_button.pressed.connect(_on_replay_prev_step_pressed)
 	if is_instance_valid(replay_next_step_button) and not replay_next_step_button.pressed.is_connected(_on_replay_next_step_pressed):
@@ -367,9 +369,6 @@ func _connect_signals() -> void:
 
 ## 根据当前是普通模式还是回放模式，配置UI元素的可见性。
 func _configure_ui_for_mode() -> void:
-	var is_interactive_mode: bool = not _is_replay_mode
-	undo_button.visible = is_interactive_mode
-	snapshot_button.visible = is_interactive_mode
 	replay_controls_container.visible = _is_replay_mode
 
 	test_panel.visible = false if _is_replay_mode else OS.has_feature("editor")
@@ -420,7 +419,9 @@ func _update_and_publish_hud_data() -> void:
 		display_data["description"] = mode_config.mode_description
 
 	if not _is_replay_mode:
-		display_data["controls"] = "操作: W/A/S/D 或 方向键\n暂停: Esc"
+		display_data["controls_title"] = "操作"
+		display_data["controls_move"] = "移动: W/A/S/D 或 方向键"
+		display_data["controls_actions"] = "撤回: Z | 保存: B | 暂停: Esc"
 
 	display_data["seed_info"] = "游戏种子: %d" % RNGManager.get_current_seed()
 

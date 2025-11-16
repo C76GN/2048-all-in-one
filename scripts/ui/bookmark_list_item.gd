@@ -3,13 +3,14 @@
 ## BookmarkListItem: 在书签列表中代表单个书签记录的UI组件。
 ##
 ## 负责显示书签的概要信息，并在用户点击加载或请求删除时发出信号。
+## 支持键盘和手柄通过焦点和 "ui_accept" 动作进行交互。
 class_name BookmarkListItem
 extends PanelContainer
 
 
 # --- 信号 ---
 
-## 当一个书签被选中（点击）时发出。
+## 当一个书签被选中（点击或按键确认）时发出。
 ## @param bookmark_data: 被选中的书签的数据资源。
 signal bookmark_selected(bookmark_data: BookmarkData)
 
@@ -22,6 +23,10 @@ signal bookmark_deleted(bookmark_data: BookmarkData)
 
 ## 存储此列表项关联的书签数据。
 var _bookmark_data: BookmarkData
+## 用于存储原始的StyleBox，以便在失去焦点时恢复。
+var _original_stylebox: StyleBox
+## 用于在获得焦点时显示高亮效果的StyleBox。
+var _focused_stylebox: StyleBox
 
 
 # --- @onready 变量 (节点引用) ---
@@ -34,7 +39,20 @@ var _bookmark_data: BookmarkData
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	_original_stylebox = get_theme_stylebox("panel")
+	if _original_stylebox is StyleBoxFlat:
+		_focused_stylebox = _original_stylebox.duplicate()
+		(_focused_stylebox as StyleBoxFlat).border_width_top = 2
+		(_focused_stylebox as StyleBoxFlat).border_width_right = 2
+		(_focused_stylebox as StyleBoxFlat).border_width_bottom = 2
+		(_focused_stylebox as StyleBoxFlat).border_width_left = 2
+		(_focused_stylebox as StyleBoxFlat).border_color = get_theme_color("accent_color", "Theme")
+	else:
+		_focused_stylebox = _original_stylebox
+
 	gui_input.connect(_on_gui_input)
+	focus_entered.connect(_on_focus_entered)
+	focus_exited.connect(_on_focus_exited)
 	_delete_button.pressed.connect(_on_delete_button_pressed)
 
 
@@ -77,7 +95,21 @@ func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
 		bookmark_selected.emit(_bookmark_data)
 
+	if event.is_action_pressed("ui_accept"):
+		bookmark_selected.emit(_bookmark_data)
+		get_viewport().set_input_as_handled()
+
 
 ## 响应“删除”按钮的点击事件。
 func _on_delete_button_pressed() -> void:
 	bookmark_deleted.emit(_bookmark_data)
+
+
+## 当控件获得焦点时，应用高亮样式。
+func _on_focus_entered() -> void:
+	add_theme_stylebox_override("panel", _focused_stylebox)
+
+
+## 当控件失去焦点时，恢复原始样式。
+func _on_focus_exited() -> void:
+	add_theme_stylebox_override("panel", _original_stylebox)

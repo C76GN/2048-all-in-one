@@ -36,32 +36,34 @@ theme_override_constants/separation = 20
 [node name="ContinueButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
+focus_neighbor_top = NodePath("../MainMenuButton")
+focus_neighbor_bottom = NodePath("../RestartButton")
 text = "继续游戏"
 
 [node name="RestartButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
+focus_neighbor_top = NodePath("../ContinueButton")
+focus_neighbor_bottom = NodePath("../SaveButton")
 text = "重新开始"
 
 [node name="SaveButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
+focus_neighbor_top = NodePath("../RestartButton")
+focus_neighbor_bottom = NodePath("../SettingsButton")
 text = "保存游戏 (待实现)"
 
 [node name="SettingsButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
+focus_neighbor_top = NodePath("../SaveButton")
+focus_next = NodePath("../MainMenuButton")
 text = "设置 (待实现)"
 
 [node name="MainMenuButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
+focus_neighbor_top = NodePath("../SettingsButton")
+focus_neighbor_bottom = NodePath("../ContinueButton")
 text = "返回主界面"
-
-[node name="RestartConfirmDialog" type="ConfirmationDialog" parent="CanvasLayer"]
-title = "确认"
-unresizable = true
-borderless = true
-ok_button_text = "确定"
-dialog_text = "此操作将丢失当前游戏进度，确定要重新开始吗"
-cancel_button_text = "取消"

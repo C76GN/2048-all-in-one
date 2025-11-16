@@ -5,6 +5,7 @@
 [node name="ReplayListItem" type="PanelContainer"]
 offset_right = 40.0
 offset_bottom = 40.0
+focus_mode = 2
 script = ExtResource("1_3x61c")
 
 [node name="MarginContainer" type="MarginContainer" parent="."]

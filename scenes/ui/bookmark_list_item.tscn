@@ -3,8 +3,9 @@
 [ext_resource type="Script" uid="uid://kyyfmk6itxgt" path="res://scripts/ui/bookmark_list_item.gd" id="1_e3x5i"]
 
 [node name="BookmarkListItem" type="PanelContainer"]
-offset_right = 40.0
-offset_bottom = 40.0
+offset_right = 69.0
+offset_bottom = 48.0
+focus_mode = 2
 script = ExtResource("1_e3x5i")
 
 [node name="MarginContainer" type="MarginContainer" parent="."]

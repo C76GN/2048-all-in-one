@@ -44,6 +44,8 @@ vertical_alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+focus_neighbor_top = NodePath("../QuitButton")
+focus_neighbor_bottom = NodePath("../LoadBookmarkButton")
 theme_override_font_sizes/font_size = 24
 text = "开始游戏"
 
@@ -51,6 +53,8 @@ text = "开始游戏"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+focus_neighbor_top = NodePath("../StartGameButton")
+focus_neighbor_bottom = NodePath("../ReplaysButton")
 theme_override_font_sizes/font_size = 24
 text = "读取书签（存档）"
 
@@ -58,6 +62,8 @@ text = "读取书签（存档）"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+focus_neighbor_top = NodePath("../LoadBookmarkButton")
+focus_neighbor_bottom = NodePath("../SettingsButton")
 theme_override_font_sizes/font_size = 24
 text = "回放列表"
 
@@ -65,6 +71,8 @@ text = "回放列表"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+focus_neighbor_top = NodePath("../ReplaysButton")
+focus_neighbor_bottom = NodePath("../QuitButton")
 theme_override_font_sizes/font_size = 24
 text = "设置"
 
@@ -72,5 +80,7 @@ text = "设置"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+focus_neighbor_top = NodePath("../SettingsButton")
+focus_neighbor_bottom = NodePath("../StartGameButton")
 theme_override_font_sizes/font_size = 24
 text = "退出"

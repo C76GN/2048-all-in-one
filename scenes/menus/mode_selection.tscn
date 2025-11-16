@@ -39,7 +39,6 @@ layout_mode = 2
 [node name="Label" type="Label" parent="CenterContainer/MainLayout/LeftPanel"]
 custom_minimum_size = Vector2(20, 0)
 layout_mode = 2
-text = "请从中间选择一个游戏模式"
 autowrap_mode = 2
 
 [node name="CenterPanel" type="VBoxContainer" parent="CenterContainer/MainLayout"]
@@ -70,17 +69,24 @@ alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+focus_neighbor_left = NodePath("../NextPageButton")
+focus_neighbor_right = NodePath("../NextPageButton")
+focus_neighbor_bottom = NodePath("../../BackButton")
 text = "上一页"
 
 [node name="NextPageButton" type="Button" parent="CenterContainer/MainLayout/CenterPanel/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+focus_neighbor_left = NodePath("../PrevPageButton")
+focus_neighbor_right = NodePath("../PrevPageButton")
+focus_neighbor_bottom = NodePath("../../BackButton")
 text = "下一页"
 
 [node name="BackButton" type="Button" parent="CenterContainer/MainLayout/CenterPanel"]
 unique_name_in_owner = true
 layout_mode = 2
+focus_neighbor_top = NodePath("../HBoxContainer/PrevPageButton")
 theme_override_font_sizes/font_size = 24
 text = "返回"
 
@@ -90,6 +96,7 @@ layout_mode = 2
 
 [node name="Label" type="Label" parent="CenterContainer/MainLayout/RightPanelContainer"]
 layout_mode = 2
+theme_override_font_sizes/font_size = 24
 
 [node name="HSeparator" type="HSeparator" parent="CenterContainer/MainLayout/RightPanelContainer"]
 layout_mode = 2
@@ -101,9 +108,12 @@ layout_mode = 2
 layout_mode = 2
 text = "棋盘大小："
 
-[node name="SpinBox" type="SpinBox" parent="CenterContainer/MainLayout/RightPanelContainer/HBoxContainer"]
+[node name="GridSizeOptionButton" type="OptionButton" parent="CenterContainer/MainLayout/RightPanelContainer/HBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
-rounded = true
+focus_neighbor_left = NodePath("../../../CenterPanel/ModeListContainer")
+focus_neighbor_top = NodePath("../../StartGameButton")
+focus_neighbor_bottom = NodePath("../../HBoxContainer2/SeedLineEdit")
 
 [node name="HBoxContainer2" type="HBoxContainer" parent="CenterContainer/MainLayout/RightPanelContainer"]
 layout_mode = 2
@@ -115,6 +125,10 @@ text = "游戏种子："
 [node name="SeedLineEdit" type="LineEdit" parent="CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2"]
 custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
+focus_neighbor_left = NodePath("../../../CenterPanel/ModeListContainer")
+focus_neighbor_top = NodePath("../../HBoxContainer/GridSizeOptionButton")
+focus_neighbor_right = NodePath("../RefreshSeedButton")
+focus_neighbor_bottom = NodePath("../../StartGameButton")
 placeholder_text = "留空则随机"
 select_all_on_focus = true
 caret_blink = true
@@ -122,6 +136,10 @@ caret_blink = true
 [node name="RefreshSeedButton" type="Button" parent="CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2"]
 layout_mode = 2
 tooltip_text = "点击以生成新的随机种子"
+focus_neighbor_left = NodePath("../SeedLineEdit")
+focus_neighbor_top = NodePath("../../HBoxContainer/GridSizeOptionButton")
+focus_neighbor_right = NodePath("../SeedLineEdit")
+focus_neighbor_bottom = NodePath("../../StartGameButton")
 text = "🎲"
 flat = true
 
@@ -131,5 +149,6 @@ layout_mode = 2
 
 [node name="StartGameButton" type="Button" parent="CenterContainer/MainLayout/RightPanelContainer"]
 layout_mode = 2
+focus_neighbor_left = NodePath("../../CenterPanel/ModeListContainer")
 disabled = true
 text = "开始游戏"
