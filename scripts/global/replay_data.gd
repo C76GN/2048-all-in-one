@@ -28,6 +28,9 @@ extends Resource
 ## 玩家的每一步有效操作。存储为Vector2i以代表方向。
 @export var actions: Array[Vector2i] = []
 
+## 游戏结束时的棋盘状态快照，用于在列表中预览。
+@export var final_board_snapshot: Dictionary = {}
+
 
 # --- 公共变量 ---
 

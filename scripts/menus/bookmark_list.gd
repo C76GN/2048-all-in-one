@@ -7,7 +7,6 @@
 class_name BookmarkList
 extends Control
 
-
 # --- 常量 ---
 
 ## 单个书签列表项的场景资源。
@@ -17,16 +16,30 @@ const BOOKMARK_LIST_ITEM_SCENE: PackedScene = preload("res://scenes/ui/bookmark_
 const GAME_PLAY_SCENE: PackedScene = preload("res://scenes/game/game_play.tscn")
 
 
+# --- 私有变量 ---
+
+## 当前选中的书签数据。
+var _selected_bookmark: BookmarkData = null
+
+
 # --- @onready 变量 (节点引用) ---
 
 @onready var _items_container: VBoxContainer = %ReplayItemsContainer
+@onready var _board_preview: BoardPreview = find_child("BoardPreview", true, false)
+@onready var _detail_info_label: RichTextLabel = find_child("DetailInfoLabel", true, false)
+@onready var _load_button: Button = %LoadButton
+@onready var _delete_button: Button = %DeleteButton
 @onready var _back_button: Button = %BackButton
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	_load_button.pressed.connect(_on_load_button_pressed)
+	_delete_button.pressed.connect(_on_delete_button_pressed)
 	_back_button.pressed.connect(_on_back_button_pressed)
+
+	_update_action_buttons()
 	_populate_list()
 
 
@@ -43,6 +56,8 @@ func _populate_list() -> void:
 	for child in _items_container.get_children():
 		child.queue_free()
 
+	await get_tree().process_frame
+
 	var bookmarks: Array[BookmarkData] = BookmarkManager.load_bookmarks()
 
 	if bookmarks.is_empty():
@@ -51,36 +66,138 @@ func _populate_list() -> void:
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.custom_minimum_size.y = 50
 		_items_container.add_child(label)
+		_clear_preview()
+		_update_focus_neighbors(null)
 		return
 
+	var items: Array[BookmarkListItem] = []
 	for bookmark_data in bookmarks:
 		var item := BOOKMARK_LIST_ITEM_SCENE.instantiate() as BookmarkListItem
 		_items_container.add_child(item)
 		item.setup(bookmark_data)
+		items.append(item)
+		item.bookmark_selected.connect(_on_item_confirmed)
+		item.item_focused.connect(_on_item_focused)
 
-		item.bookmark_selected.connect(_on_bookmark_selected)
-		item.bookmark_deleted.connect(_on_bookmark_deleted)
+	# 设置循环导航
+	if items.size() > 1:
+		var first_item: Control = items[0]
+		var last_item: Control = items[-1]
+		first_item.focus_neighbor_top = last_item.get_path()
+		last_item.focus_neighbor_bottom = first_item.get_path()
 
-		if _items_container.get_child_count() > 0:
-			var first_item: Control = _items_container.get_child(0)
-			if first_item is BookmarkListItem:
-				first_item.grab_focus()
+	if not items.is_empty():
+		items[0].grab_focus()
+		_set_selected_item(items[0].get_data())
+
+
+## 统一选中逻辑：更新数据、预览、按钮状态、列表项视觉和导航路径。
+## @param bookmark_data: 选中的书签数据。
+func _set_selected_item(bookmark_data: BookmarkData) -> void:
+	_selected_bookmark = bookmark_data
+	_update_preview(bookmark_data)
+	_update_action_buttons()
+
+	var target_node: Control = null
+	for child in _items_container.get_children():
+		if child is BookmarkListItem:
+			var is_target: bool = (child.get_data() == bookmark_data)
+			child.set_selected(is_target)
+			if is_target:
+				target_node = child
+
+	_update_focus_neighbors(target_node)
+
+
+## 动态更新右侧按钮的“左邻居”，实现焦点记忆恢复。
+## @param target_node: 当前选中的列表项节点，用作导航目标。
+func _update_focus_neighbors(target_node: Control) -> void:
+	var target_path: NodePath = NodePath("")
+
+	if is_instance_valid(target_node):
+		target_path = target_node.get_path()
+	elif _items_container.get_child_count() > 0:
+		var first = _items_container.get_child(0)
+		if first is Control: target_path = first.get_path()
+
+	_load_button.focus_neighbor_left = target_path
+	_delete_button.focus_neighbor_left = target_path
+	_back_button.focus_neighbor_left = target_path
+
+
+## 更新左侧预览区域。
+## @param bookmark: 要显示预览的书签数据。
+func _update_preview(bookmark: BookmarkData) -> void:
+	if not is_instance_valid(bookmark):
+		_clear_preview()
+		return
+
+	var mode_config := load(bookmark.mode_config_path) as GameModeConfig
+	if not is_instance_valid(mode_config):
+		_detail_info_label.text = "错误: 无法加载模式配置"
+		return
+
+	var datetime: String = Time.get_datetime_string_from_unix_time(bookmark.timestamp)
+	var grid_size: int = bookmark.board_snapshot.get("grid_size", 0)
+
+	var details: String = ""
+	details += "[b]模式:[/b] %s\n" % mode_config.mode_name
+	details += "[b]时间:[/b] %s\n" % datetime.replace("T", " ")
+	details += "[b]分数:[/b] %d\n" % bookmark.score
+	details += "[b]步数:[/b] %d\n" % bookmark.move_count
+	details += "[b]杀怪:[/b] %d\n" % bookmark.monsters_killed
+	details += "[b]棋盘:[/b] %dx%d\n" % [grid_size, grid_size]
+	details += "[b]种子:[/b] %d" % bookmark.initial_seed
+
+	_detail_info_label.text = details
+
+	if is_instance_valid(_board_preview):
+		_board_preview.show_snapshot(bookmark.board_snapshot, mode_config)
+
+
+## 清空预览区域。
+func _clear_preview() -> void:
+	_detail_info_label.text = "请选择一个存档..."
+	if is_instance_valid(_board_preview):
+		_board_preview.show_message("请选择一个存档")
+	_selected_bookmark = null
+	_update_action_buttons()
+
+
+## 更新右侧按钮状态。
+func _update_action_buttons() -> void:
+	var has_selection: bool = _selected_bookmark != null
+	_load_button.disabled = not has_selection
+	_delete_button.disabled = not has_selection
 
 
 # --- 信号处理函数 ---
 
-## 当一个书签列表项被选中时调用。
-func _on_bookmark_selected(bookmark_data: BookmarkData) -> void:
-	GlobalGameManager.load_game_from_bookmark(bookmark_data, GAME_PLAY_SCENE)
+## 当列表项获得焦点时调用
+func _on_item_focused(bookmark_data: BookmarkData) -> void:
+	if _selected_bookmark != bookmark_data:
+		_set_selected_item(bookmark_data)
 
 
-## 当一个书签列表项被请求删除时调用。
-func _on_bookmark_deleted(bookmark_data: BookmarkData) -> void:
-	BookmarkManager.delete_bookmark(bookmark_data.file_path)
-	await get_tree().process_frame
-	_populate_list()
+## 当列表项被“确认”（点击或回车）时调用。
+func _on_item_confirmed(bookmark_data: BookmarkData) -> void:
+	_set_selected_item(bookmark_data)
 
 
-## 响应“返回主菜单”按钮的点击事件。
+## 响应“读取存档”按钮。
+func _on_load_button_pressed() -> void:
+	if _selected_bookmark:
+		GlobalGameManager.load_game_from_bookmark(_selected_bookmark, GAME_PLAY_SCENE)
+
+
+## 响应“删除存档”按钮。
+func _on_delete_button_pressed() -> void:
+	if _selected_bookmark:
+		BookmarkManager.delete_bookmark(_selected_bookmark.file_path)
+		_selected_bookmark = null
+		await _populate_list()
+
+
+## 响应“返回”按钮。
 func _on_back_button_pressed() -> void:
 	GlobalGameManager.return_to_main_menu()

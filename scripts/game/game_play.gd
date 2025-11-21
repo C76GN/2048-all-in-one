@@ -90,7 +90,8 @@ var _is_replay_mode: bool = false
 @onready var game_board: Control = %GameBoard
 @onready var test_panel: VBoxContainer = %TestPanel
 @onready var hud: VBoxContainer = %HUD
-@onready var background_color_rect: ColorRect = %ColorRect
+@onready var background_color_rect: ColorRect = %Background
+@onready var _page_title: Label = %PageTitle
 @onready var board_animator: BoardAnimator = $BoardAnimator
 @onready var state_machine: StateMachine = $StateMachine
 @onready var ui_manager: UIManager = $UIManager
@@ -105,6 +106,8 @@ var _is_replay_mode: bool = false
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	if _page_title:
+		_page_title.visible = false
 	_initialize_game()
 
 
@@ -151,6 +154,7 @@ func _enter_state(new_state: State, _message: Dictionary = {}) -> void:
 				replay_data_to_save.initial_seed = _initial_seed_of_session
 				replay_data_to_save.grid_size = current_grid_size
 				replay_data_to_save.actions = _history_manager.get_action_sequence()
+				replay_data_to_save.final_board_snapshot = game_board.get_state_snapshot()
 
 				if not _is_game_state_tainted_by_test_tools:
 					if not replay_data_to_save.actions.is_empty():

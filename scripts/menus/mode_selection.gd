@@ -1,5 +1,4 @@
 # scripts/menus/mode_selection.gd
-@tool
 
 ## ModeSelection: 模式选择界面的UI控制器。
 ##
@@ -7,7 +6,6 @@
 ## ModeCard 实例，并处理选择、配置与启动游戏的完整流程。
 class_name ModeSelection
 extends Control
-
 
 # --- 常量 ---
 
@@ -56,15 +54,15 @@ var _info_score_label: Label
 
 # --- @onready 变量 (节点引用) ---
 
+@onready var _left_panel_container: VBoxContainer = %LeftColumn
+@onready var _right_panel_container: VBoxContainer = %RightColumn
+@onready var _page_title: Label = %PageTitle
 @onready var _mode_list_container: VBoxContainer = %ModeListContainer
 @onready var _back_button: Button = %BackButton
-@onready var _left_panel_container: VBoxContainer = $CenterContainer/MainLayout/LeftPanel
-@onready var _right_panel_container: VBoxContainer = $CenterContainer/MainLayout/RightPanelContainer
-@onready var _start_game_button: Button = $CenterContainer/MainLayout/RightPanelContainer/StartGameButton
+@onready var _start_game_button: Button = %StartGameButton
 @onready var _grid_size_option_button: OptionButton = %GridSizeOptionButton
-@onready var _seed_line_edit: LineEdit = $CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2/SeedLineEdit
-@onready var _refresh_seed_button: Button = $CenterContainer/MainLayout/RightPanelContainer/HBoxContainer2/RefreshSeedButton
-@onready var _info_default_label: Label = $CenterContainer/MainLayout/LeftPanel/Label
+@onready var _seed_line_edit: LineEdit = %SeedLineEdit
+@onready var _refresh_seed_button: Button = %RefreshSeedButton
 @onready var _prev_page_button: Button = %PrevPageButton
 @onready var _next_page_button: Button = %NextPageButton
 @onready var _pagination_container: HBoxContainer = _prev_page_button.get_parent()
@@ -73,6 +71,9 @@ var _info_score_label: Label
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	if _page_title:
+		_page_title.text = "模式选择"
+
 	_create_persistent_info_panel()
 	_update_pagination_buttons_visibility()
 
@@ -138,8 +139,7 @@ func _update_list_and_focus(is_initial_load: bool = false) -> void:
 		if is_initial_load:
 			first_card.grab_focus()
 	else:
-		_info_default_label.visible = true
-		_right_panel_container.visible = false
+		_show_default_info()
 
 
 ## 将焦点设置到上一次被选中的卡片上。
@@ -154,6 +154,9 @@ func _focus_last_selected_card() -> void:
 
 ## 创建并初始化左侧信息面板的UI控件。
 func _create_persistent_info_panel() -> void:
+	for child in _left_panel_container.get_children():
+		child.queue_free()
+
 	_info_name_label = Label.new()
 	_info_name_label.add_theme_font_size_override("font_size", 24)
 	_left_panel_container.add_child(_info_name_label)
@@ -216,15 +219,9 @@ func _set_selected_mode_by_path(config_path: String) -> void:
 ## 当一个模式被选中时，更新整个UI的显示内容。
 func _update_ui_for_selection() -> void:
 	if not is_instance_valid(_selected_mode_config):
-		_info_default_label.visible = true
-		_info_name_label.visible = false
-		_info_separator.visible = false
-		_info_desc_label.visible = false
-		_info_score_label.visible = false
-		_right_panel_container.visible = false
+		_show_default_info()
 		return
 
-	_info_default_label.visible = false
 	_info_name_label.visible = true
 	_info_separator.visible = true
 	_info_desc_label.visible = true
@@ -233,6 +230,15 @@ func _update_ui_for_selection() -> void:
 
 	_populate_left_panel()
 	_populate_right_panel()
+
+
+## 显示默认的空状态信息
+func _show_default_info() -> void:
+	_info_name_label.visible = false
+	_info_separator.visible = false
+	_info_desc_label.visible = false
+	_info_score_label.visible = false
+	_right_panel_container.visible = false
 
 
 ## 填充左侧信息面板（名称、描述、分数）。
@@ -306,10 +312,10 @@ func _change_page(direction: int) -> void:
 	if _total_pages <= 1:
 		return
 
-	if direction == -1: # 上一页
+	if direction == -1:
 		_current_page = (_current_page - 1 + _total_pages) % _total_pages
 		_prev_page_button.grab_focus()
-	else: # 下一页
+	else:
 		_current_page = (_current_page + 1) % _total_pages
 		_next_page_button.grab_focus()
 

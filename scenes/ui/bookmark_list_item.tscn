@@ -30,9 +30,3 @@ layout_mode = 2
 [node name="InfoLabel" type="Label" parent="MarginContainer/HBoxContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-
-[node name="DeleteButton" type="Button" parent="MarginContainer/HBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "删除"
-flat = true

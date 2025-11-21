@@ -2,71 +2,56 @@
 
 ## BookmarkListItem: 在书签列表中代表单个书签记录的UI组件。
 ##
-## 负责显示书签的概要信息，并在用户点击加载或请求删除时发出信号。
+## 负责显示书签的概要信息。
 ## 支持键盘和手柄通过焦点和 "ui_accept" 动作进行交互。
 class_name BookmarkListItem
 extends PanelContainer
 
-
 # --- 信号 ---
 
-## 当一个书签被选中（点击或按键确认）时发出。
+## 当一个书签被确认选中（点击或按键确认）时发出。
 ## @param bookmark_data: 被选中的书签的数据资源。
 signal bookmark_selected(bookmark_data: BookmarkData)
 
-## 当删除按钮被点击时发出。
-## @param bookmark_data: 请求删除的书签的数据资源。
-signal bookmark_deleted(bookmark_data: BookmarkData)
-
+## 当此列表项获得焦点时发出，用于实时预览。
+## @param bookmark_data: 当前获得焦点的书签数据资源。
+signal item_focused(bookmark_data: BookmarkData)
 
 # --- 私有变量 ---
 
-## 存储此列表项关联的书签数据。
 var _bookmark_data: BookmarkData
-## 用于存储原始的StyleBox，以便在失去焦点时恢复。
 var _original_stylebox: StyleBox
-## 用于在获得焦点时显示高亮效果的StyleBox。
 var _focused_stylebox: StyleBox
-
+var _selected_stylebox: StyleBox
+var _is_selected: bool = false
 
 # --- @onready 变量 (节点引用) ---
 
 @onready var _mode_name_label: Label = %ModeNameLabel
 @onready var _info_label: Label = %InfoLabel
-@onready var _delete_button: Button = %DeleteButton
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	_original_stylebox = get_theme_stylebox("panel")
-	if _original_stylebox is StyleBoxFlat:
-		_focused_stylebox = _original_stylebox.duplicate()
-		(_focused_stylebox as StyleBoxFlat).border_width_top = 2
-		(_focused_stylebox as StyleBoxFlat).border_width_right = 2
-		(_focused_stylebox as StyleBoxFlat).border_width_bottom = 2
-		(_focused_stylebox as StyleBoxFlat).border_width_left = 2
-		(_focused_stylebox as StyleBoxFlat).border_color = get_theme_color("accent_color", "Theme")
-	else:
-		_focused_stylebox = _original_stylebox
+	_setup_styles()
 
 	gui_input.connect(_on_gui_input)
 	focus_entered.connect(_on_focus_entered)
 	focus_exited.connect(_on_focus_exited)
-	_delete_button.pressed.connect(_on_delete_button_pressed)
 
 
 # --- 公共方法 ---
 
 ## 使用 BookmarkData 资源来配置此列表项的显示内容。
-## @param p_bookmark_data: 用于填充UI的书签数据资源。
-func setup(p_bookmark_data: BookmarkData) -> void:
-	_bookmark_data = p_bookmark_data
+## @param new_bookmark_data: 用于填充UI的书签数据资源。
+func setup(new_bookmark_data: BookmarkData) -> void:
+	_bookmark_data = new_bookmark_data
 
 	_mode_name_label.text = "（未知模式）"
 
 	if not _bookmark_data.mode_config_path.is_empty():
-		var mode_config: GameModeConfig = load(_bookmark_data.mode_config_path)
+		var mode_config := load(_bookmark_data.mode_config_path) as GameModeConfig
 		if is_instance_valid(mode_config):
 			_mode_name_label.text = mode_config.mode_name
 		else:
@@ -87,10 +72,70 @@ func setup(p_bookmark_data: BookmarkData) -> void:
 	_info_label.text = info_str
 
 
+## 设置列表项的“已选择”状态，并更新视觉样式。
+## @param is_selected: true 表示设为选中，false 表示取消选中。
+func set_selected(is_selected: bool) -> void:
+	_is_selected = is_selected
+	_update_style()
+
+
+## 获取关联的数据。
+## @return: 关联的 BookmarkData 资源。
+func get_data() -> BookmarkData:
+	return _bookmark_data
+
+
+# --- 私有/辅助方法 ---
+
+func _setup_styles() -> void:
+	_original_stylebox = get_theme_stylebox("panel")
+
+	var base_style: StyleBoxFlat
+	if _original_stylebox is StyleBoxFlat:
+		base_style = _original_stylebox.duplicate()
+	else:
+		base_style = StyleBoxFlat.new()
+		base_style.bg_color = Color(0.2, 0.2, 0.2, 1)
+		base_style.set_corner_radius_all(4)
+
+	_focused_stylebox = base_style.duplicate()
+	_focused_stylebox.border_width_top = 4
+	_focused_stylebox.border_width_right = 4
+	_focused_stylebox.border_width_bottom = 4
+	_focused_stylebox.border_width_left = 4
+	_focused_stylebox.bg_color = base_style.bg_color.lightened(0.1)
+
+	var accent_color: Color
+	if has_theme_color("accent_color", "Theme"):
+		accent_color = get_theme_color("accent_color", "Theme")
+	else:
+		accent_color = Color(0.4, 0.7, 1.0)
+
+	_focused_stylebox.border_color = accent_color
+
+	_selected_stylebox = base_style.duplicate()
+	_selected_stylebox.border_width_top = 2
+	_selected_stylebox.border_width_right = 2
+	_selected_stylebox.border_width_bottom = 2
+	_selected_stylebox.border_width_left = 2
+	_selected_stylebox.bg_color = base_style.bg_color
+
+	var dimmed_color := accent_color
+	dimmed_color.a = 0.5
+	_selected_stylebox.border_color = dimmed_color
+
+
+func _update_style() -> void:
+	if has_focus():
+		add_theme_stylebox_override("panel", _focused_stylebox)
+	elif _is_selected:
+		add_theme_stylebox_override("panel", _selected_stylebox)
+	else:
+		add_theme_stylebox_override("panel", _original_stylebox)
+
+
 # --- 信号处理函数 ---
 
-## 响应整个控件的GUI输入事件，以处理选中操作。
-## @param event: 输入事件对象。
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
 		bookmark_selected.emit(_bookmark_data)
@@ -100,16 +145,10 @@ func _on_gui_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## 响应“删除”按钮的点击事件。
-func _on_delete_button_pressed() -> void:
-	bookmark_deleted.emit(_bookmark_data)
-
-
-## 当控件获得焦点时，应用高亮样式。
 func _on_focus_entered() -> void:
-	add_theme_stylebox_override("panel", _focused_stylebox)
+	item_focused.emit(_bookmark_data)
+	_update_style()
 
 
-## 当控件失去焦点时，恢复原始样式。
 func _on_focus_exited() -> void:
-	add_theme_stylebox_override("panel", _original_stylebox)
+	_update_style()

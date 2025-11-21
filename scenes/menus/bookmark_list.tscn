@@ -1,57 +1,101 @@
-[gd_scene load_steps=2 format=3 uid="uid://dcaem677upv0a"]
+[gd_scene load_steps=5 format=3 uid="uid://dcaem677upv0a"]
 
-[ext_resource type="Script" uid="uid://3xuw4ii6b5te" path="res://scripts/menus/bookmark_list.gd" id="1_5rahh"]
+[ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://scenes/ui/layouts/base_three_column_layout.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://3xuw4ii6b5te" path="res://scripts/menus/bookmark_list.gd" id="2_script"]
+[ext_resource type="Script" uid="uid://d3udmbuw4bj40" path="res://scripts/ui/board_preview.gd" id="3_preview"]
 
-[node name="BookmarkList" type="Control"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-script = ExtResource("1_5rahh")
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_preview_bg"]
+bg_color = Color(0.2, 0.2, 0.2, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
-[node name="CenterContainer" type="CenterContainer" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="BookmarkList" instance=ExtResource("1_base")]
+script = ExtResource("2_script")
 
-[node name="PanelContainer" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(800, 600)
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0"]
 layout_mode = 2
-metadata/_edit_use_anchors_ = true
-
-[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/PanelContainer"]
-layout_mode = 2
-
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer"]
-layout_mode = 2
-
-[node name="Title" type="Label" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
-layout_mode = 2
-text = "书签（存档）列表"
+theme_override_font_sizes/font_size = 24
+text = "存档预览"
 horizontal_alignment = 1
 
-[node name="HSeparator" type="HSeparator" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+[node name="PreviewContainer" type="PanelContainer" parent="MarginContainer/ColumnsContainer/LeftColumn" index="1"]
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_preview_bg")
+
+[node name="CenterContainer" type="CenterContainer" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer" index="0"]
 layout_mode = 2
 
-[node name="ScrollContainer" type="ScrollContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+[node name="BoardPreview" type="Control" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer/CenterContainer" index="0"]
+layout_mode = 2
+script = ExtResource("3_preview")
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/LeftColumn" index="2"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="DetailInfoLabel" type="RichTextLabel" parent="MarginContainer/ColumnsContainer/LeftColumn" index="3"]
 layout_mode = 2
 size_flags_vertical = 3
-follow_focus = true
+bbcode_enabled = true
+text = "请选择一个存档以查看详情..."
+fit_content = true
 
-[node name="ReplayItemsContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer/ScrollContainer"]
+[node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
+text = "读取存档"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0"]
+custom_minimum_size = Vector2(550, 500)
+layout_mode = 2
+follow_focus = true
+horizontal_scroll_mode = 0
+
+[node name="ReplayItemsContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/ScrollContainer" index="0"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 10
 
-[node name="HSeparator2" type="HSeparator" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="0"]
 layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "操作"
 
-[node name="BackButton" type="Button" parent="CenterContainer/PanelContainer/MarginContainer/VBoxContainer"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/RightColumn" index="1"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LoadButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="2"]
 unique_name_in_owner = true
 layout_mode = 2
+focus_neighbor_top = NodePath("../BackButton")
+focus_neighbor_bottom = NodePath("../DeleteButton")
+theme_override_font_sizes/font_size = 20
+disabled = true
+text = "读取存档"
+
+[node name="DeleteButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="3"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_neighbor_top = NodePath("../LoadButton")
+focus_neighbor_bottom = NodePath("../BackButton")
+theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
+theme_override_font_sizes/font_size = 20
+disabled = true
+text = "删除存档"
+
+[node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="4"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="BackButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="5"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_neighbor_top = NodePath("../DeleteButton")
+focus_neighbor_bottom = NodePath("../LoadButton")
+theme_override_font_sizes/font_size = 20
 text = "返回主菜单"
