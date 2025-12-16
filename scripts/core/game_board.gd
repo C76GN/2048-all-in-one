@@ -1,10 +1,9 @@
 # scripts/core/game_board.gd
 
-## GameBoard: 负责管理整个游戏棋盘的核心逻辑。
+## GameBoard: 负责游戏棋盘的视觉呈现和输入转发。
 ##
-## 该脚本处理棋盘的初始化、方块的生成、移动和交互。它被设计为一个通用的“执行者”，
-## 自身不包含任何具体的游戏规则（如如何合并、如何算输），而是通过外部注入的规则对象来执行逻辑。
-## 通过全局事件总线（EventBus）发布游戏事件，实现了逻辑与表现的分离。
+## 它持有 GridModel (逻辑核心)，并根据 Model 的信号更新 Tile 节点的位置和状态。
+## 它是 Model 的 View。
 class_name GameBoard
 extends Control
 
@@ -33,35 +32,23 @@ const BOARD_PADDING: int = 15
 
 # --- 公共变量 ---
 
-## 棋盘的尺寸（例如 4x4 中的 4）。
-var grid_size: int = 4
-
-## 存储棋盘上所有方块节点的二维数组引用。'null'代表空格。
-var grid: Array = []
-
-
-# --- 私有变量 ---
-
-## 防止在窗口大小改变时重复初始化棋盘。
-var _is_initialized: bool = false
-
-
-# --- 规则引用 ---
-
-## 外部注入的方块交互规则。
-var interaction_rule: InteractionRule
-
-## 外部注入的方块移动规则。
-var movement_rule: MovementRule
-
-## 外部注入的游戏结束判断规则。
-var game_over_rule: GameOverRule
+## 逻辑模型引用。
+var model: GridModel
 
 ## 外部注入的配色方案字典。
 var color_schemes: Dictionary
 
 ## 外部注入的棋盘与背景主题。
 var board_theme: BoardTheme
+
+## 外部注入的游戏结束判断规则。
+var game_over_rule: GameOverRule
+
+
+# --- 私有变量 ---
+
+## 防止在窗口大小改变时重复初始化棋盘。
+var _is_initialized: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -78,153 +65,67 @@ func _ready() -> void:
 
 # --- 公共方法 ---
 
-## 设置当前棋盘使用的规则集和主题。
-##
-## 这是外部（如GamePlay.gd）将具体玩法注入棋盘的入口。
-## @param p_interaction_rule: 方块交互规则。
-## @param p_movement_rule: 方块移动规则。
+## 设置并初始化棋盘。
+## @param grid_size: 棋盘尺寸。
+## @param interaction_rule: 交互规则实例。
+## @param movement_rule: 移动规则实例。
 ## @param p_game_over_rule: 游戏结束规则。
 ## @param p_color_schemes: 配色方案字典。
 ## @param p_board_theme: 棋盘主题。
-func set_rules(p_interaction_rule: InteractionRule, p_movement_rule: MovementRule, p_game_over_rule: GameOverRule, p_color_schemes: Dictionary, p_board_theme: BoardTheme) -> void:
-	self.interaction_rule = p_interaction_rule
-	self.movement_rule = p_movement_rule
-	self.game_over_rule = p_game_over_rule
+func setup(grid_size: int, interaction_rule: InteractionRule, movement_rule: MovementRule, p_game_over_rule: GameOverRule, p_color_schemes: Dictionary, p_board_theme: BoardTheme) -> void:
 	self.color_schemes = p_color_schemes
 	self.board_theme = p_board_theme
+	self.game_over_rule = p_game_over_rule
 
-	if is_instance_valid(self.movement_rule):
-		self.movement_rule.setup(self.interaction_rule)
+	model = GridModel.new()
+	model.initialize(grid_size, interaction_rule, movement_rule)
 
+	model.board_changed.connect(_on_model_board_changed)
+	model.tile_spawned.connect(_on_model_tile_spawned)
+	model.score_updated.connect(_on_model_score_updated)
 
-## 初始化棋盘。
-##
-## 由 GamePlay 在设置完规则后调用。
-func initialize_board() -> void:
-	_initialize_grid()
 	_update_board_layout()
-
-	if not _is_initialized:
-		_draw_board_cells()
-		_is_initialized = true
+	_draw_board_cells()
+	_is_initialized = true
 
 
-## 根据给定的方向向量处理一次完整的移动操作。
-## @param direction: 移动方向的向量 (例如 Vector2i.UP)。
-## @return: 如果有任何方块发生移动或合并，则返回 true。
+## 处理移动请求（转发给模型）。
+## @param direction: 移动方向向量。
+## @return: 如果发生了有效移动，返回 true。
 func handle_move(direction: Vector2i) -> bool:
-	var moved: bool = false
-	var instructions: Array[Dictionary] = []
-	var new_grid: Array = []
-	new_grid.resize(grid_size)
-
-	for i in range(grid_size):
-		new_grid[i] = []
-		new_grid[i].resize(grid_size)
-		new_grid[i].fill(null)
-
-	var moved_lines_indices: Array[int] = []
-
-	for i in range(grid_size):
-		var line: Array[Tile] = []
-
-		for j in range(grid_size):
-			var coords: Vector2i = _get_coords_for_line(i, j, direction)
-			line.append(grid[coords.x][coords.y])
-
-		var result: Dictionary = movement_rule.process_line(line)
-		var new_line: Array[Tile] = result.line
-		var merges: Array[Dictionary] = result.merges
-
-		if result.moved:
-			moved = true
-			if not i in moved_lines_indices:
-				moved_lines_indices.append(i)
-
-		for merge_info in merges:
-			var consumed: Tile = merge_info.consumed_tile
-			var merged: Tile = merge_info.merged_tile
-			var final_line_pos: int = new_line.find(merged)
-			var final_coords: Vector2i = _get_coords_for_line(i, final_line_pos, direction)
-			instructions.append({
-				"type": "MERGE",
-				"consumed_tile": consumed,
-				"merged_tile": merged,
-				"to_pos": _grid_to_pixel_center(final_coords)
-			})
-
-		var tiles_in_new_line: Dictionary = {}
-		for tile in new_line:
-			if tile: tiles_in_new_line[tile.get_instance_id()] = true
-
-		for j in range(grid_size):
-			var original_tile: Tile = line[j]
-
-			if original_tile and not tiles_in_new_line.has(original_tile.get_instance_id()):
-				continue
-
-			var final_line_pos: int = new_line.find(original_tile)
-
-			if original_tile and final_line_pos != -1 and final_line_pos != j:
-				var final_coords: Vector2i = _get_coords_for_line(i, final_line_pos, direction)
-
-				instructions.append({
-					"type": "MOVE",
-					"tile": original_tile,
-					"to_pos": _grid_to_pixel_center(final_coords)
-				})
-
-		for j in range(grid_size):
-			var coords: Vector2i = _get_coords_for_line(i, j, direction)
-			new_grid[coords.x][coords.y] = new_line[j]
-
+	var moved: bool = model.move(direction)
 	if moved:
 		var move_data: Dictionary = {
 			"direction": direction,
-			"moved_lines": moved_lines_indices
+			"moved_lines": []
 		}
-
-		grid = new_grid
 		EventBus.move_made.emit(move_data)
-		play_animations_requested.emit(instructions)
 		_check_game_over()
-
 	return moved
 
 
-## 根据提供的spawn_data字典生成一个方块。
+## 根据 spawn_data 生成方块（由 RuleManager 调用）。
 ## @param spawn_data: 包含生成信息的字典。
 func spawn_tile(spawn_data: Dictionary) -> void:
 	var value: int = spawn_data.get("value", 2)
 	var type: Tile.TileType = spawn_data.get("type", Tile.TileType.PLAYER)
 	var is_priority: bool = spawn_data.get("is_priority", false)
 	var spawn_pos: Vector2i
-	var has_specific_pos: bool = spawn_data.has("position")
 
-	if has_specific_pos:
+	if spawn_data.has("position"):
 		spawn_pos = spawn_data["position"]
-		if grid[spawn_pos.x][spawn_pos.y] != null:
-			push_error("生成失败：尝试在非空位置 %s 生成方块。" % str(spawn_pos))
-			return
 	else:
-		var empty_cells: Array[Vector2i] = get_empty_cells()
+		var empty_cells: Array[Vector2i] = model.get_empty_cells()
 		if not empty_cells.is_empty():
 			spawn_pos = empty_cells[RNGManager.get_rng().randi_range(0, empty_cells.size() - 1)]
 		else:
 			if is_priority:
-				var player_tiles: Array[Tile] = _get_all_player_tiles()
-				if not player_tiles.is_empty():
-					var tile_to_transform: Tile = player_tiles[RNGManager.get_rng().randi_range(0, player_tiles.size() - 1)]
-					tile_to_transform.setup(value, type, interaction_rule, color_schemes)
-					tile_to_transform.animate_transform()
-				else:
-					var monster_tiles: Array[Tile] = _get_all_monster_tiles()
-					if not monster_tiles.is_empty():
-						var tile_to_empower: Tile = monster_tiles[RNGManager.get_rng().randi_range(0, monster_tiles.size() - 1)]
-						tile_to_empower.setup(tile_to_empower.value * 2, type, interaction_rule, color_schemes)
+				_handle_priority_spawn(value, type)
 			return
 
-	var new_tile: Tile = _spawn_at(spawn_pos, value, type)
+	var new_tile: Tile = _create_visual_tile(value, type)
+	model.place_tile(new_tile, spawn_pos)
+	new_tile.position = _grid_to_pixel_center(spawn_pos)
 	var instruction: Array = [{"type": "SPAWN", "tile": new_tile}]
 	play_animations_requested.emit(instruction)
 
@@ -232,15 +133,9 @@ func spawn_tile(spawn_data: Dictionary) -> void:
 ## 获取当前棋盘上数值最大的玩家方块的值。
 ## @return: 最大的玩家方块数值。
 func get_max_player_value() -> int:
-	if not _is_initialized:
+	if not model:
 		return 0
-	var max_val: int = 0
-	for x in grid_size:
-		for y in grid_size:
-			var tile: Tile = grid[x][y]
-			if tile and tile.type == tile.TileType.PLAYER and tile.value > max_val:
-				max_val = tile.value
-	return max_val
+	return model.get_max_player_value()
 
 
 ## 在指定网格位置生成一个特定方块，主要用于测试。
@@ -248,119 +143,125 @@ func get_max_player_value() -> int:
 ## @param value: 生成方块的数值。
 ## @param type: 生成方块的类型。
 func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) -> void:
-	if not (grid_pos.x >= 0 and grid_pos.x < grid_size and grid_pos.y >= 0 and grid_pos.y < grid_size):
+	if not model:
+		return
+	if not (grid_pos.x >= 0 and grid_pos.x < model.grid_size and grid_pos.y >= 0 and grid_pos.y < model.grid_size):
 		push_error("Spawn position is out of bounds.")
 		return
 
-	if grid[grid_pos.x][grid_pos.y] != null:
-		grid[grid_pos.x][grid_pos.y].queue_free()
-		grid[grid_pos.x][grid_pos.y] = null
+	if model.grid[grid_pos.x][grid_pos.y] != null:
+		model.grid[grid_pos.x][grid_pos.y].queue_free()
+		model.grid[grid_pos.x][grid_pos.y] = null
 
-	var new_tile: Tile = _spawn_at(grid_pos, value, type)
+	var new_tile: Tile = _create_visual_tile(value, type)
+	model.place_tile(new_tile, grid_pos)
+	new_tile.position = _grid_to_pixel_center(grid_pos)
 	var instruction: Array = [{"type": "SPAWN", "tile": new_tile}]
 	play_animations_requested.emit(instruction)
 
 
-## 在游戏进行中扩建棋盘（只能变大）。
-## @param new_size: 扩建后的新尺寸。
+## 游戏中扩建棋盘。
+## @param new_size: 新的棋盘尺寸。
 func live_expand(new_size: int) -> void:
-	if new_size <= grid_size:
-		push_warning("Live expand only supports increasing the grid size.")
+	if not model:
 		return
-
-	var old_size: int = grid_size
-	grid_size = new_size
-
-	for x in range(old_size):
-		grid[x].resize(grid_size)
-		grid[x].slice(old_size, grid_size - 1).fill(null)
-
-	grid.resize(grid_size)
-
-	for x in range(old_size, grid_size):
-		grid[x] = []
-		grid[x].resize(grid_size)
-		grid[x].fill(null)
-
+	var old_size: int = model.grid_size
+	model.expand_grid(new_size)
 	_animate_expansion(old_size, new_size)
-	EventBus.board_resized.emit(grid_size)
+	EventBus.board_resized.emit(new_size)
 
 
 ## 遍历整个网格，返回所有空格子坐标的数组。
 ## @return: 一个包含所有空单元格 Vector2i 坐标的数组。
 func get_empty_cells() -> Array[Vector2i]:
-	var empty_cells: Array[Vector2i] = []
-	for x in range(grid_size):
-		for y in range(grid_size):
-			if grid[x][y] == null:
-				empty_cells.append(Vector2i(x, y))
-	return empty_cells
+	if not model:
+		return []
+	return model.get_empty_cells()
 
 
 ## 遍历整个网格，返回所有玩家方块数值的数组。
 ## @return: 一个已排序的、包含所有玩家方块数值的数组。
 func get_all_player_tile_values() -> Array[int]:
-	var values: Array[int] = []
-	for x in range(grid_size):
-		for y in range(grid_size):
-			var tile: Tile = grid[x][y]
-			if tile and tile.type == Tile.TileType.PLAYER:
-				values.append(tile.value)
-	values.sort()
-	return values
+	if not model:
+		return []
+	return model.get_all_player_tile_values()
 
 
 ## 获取当前棋盘所有方块状态的可序列化快照。
 ## @return: 一个字典，包含grid_size和所有方块的数据。
 func get_state_snapshot() -> Dictionary:
-	var tiles_data: Array[Dictionary] = []
-	for x in range(grid_size):
-		for y in range(grid_size):
-			var tile: Tile = grid[x][y]
-			if tile != null:
-				tiles_data.append({
-					"pos": Vector2i(x, y),
-					"value": tile.value,
-					"type": tile.type
-				})
-	return {
-		"grid_size": grid_size,
-		"tiles": tiles_data,
-	}
+	if not model:
+		return {"grid_size": 4, "tiles": []}
+	return model.get_snapshot()
 
 
-## 从一个快照数据中完全恢复棋盘状态。
+## 从快照恢复。
 ## @param snapshot: 包含棋盘状态的字典。
 func restore_from_snapshot(snapshot: Dictionary) -> void:
 	for child in board_container.get_children():
 		if child is Tile:
 			child.queue_free()
 
-	_initialize_grid()
+	if not model:
+		return
+
+	var grid_size: int = snapshot.get("grid_size", 4)
+	var interaction_rule: InteractionRule = model.interaction_rule
+	var movement_rule: MovementRule = model.movement_rule
+	model.initialize(grid_size, interaction_rule, movement_rule)
+
 	var tiles_data: Array = snapshot.get("tiles", [])
 	for tile_data in tiles_data:
 		var pos: Vector2i = tile_data["pos"]
 		var value: int = tile_data["value"]
 		var type: Tile.TileType = tile_data["type"]
-		var new_tile: Tile = _spawn_at(pos, value, type)
+
+		var new_tile: Tile = _create_visual_tile(value, type)
+		new_tile.position = _grid_to_pixel_center(pos)
 		new_tile.scale = Vector2.ONE
 		new_tile.rotation_degrees = 0
+
+		model.place_tile(new_tile, pos)
 
 
 # --- 私有/辅助方法 ---
 
-## 初始化核心数据 `grid`，创建一个填满 null 的二维数组。
-func _initialize_grid() -> void:
-	grid.resize(grid_size)
-	for x in range(grid_size):
-		grid[x] = []
-		grid[x].resize(grid_size)
-		grid[x].fill(null)
+func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
+	var new_tile := TileScene.instantiate() as Tile
+	board_container.add_child(new_tile)
+	new_tile.setup(value, type, model.interaction_rule, color_schemes)
+	return new_tile
+
+
+func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
+	var player_tiles: Array[Tile] = []
+	for x in model.grid_size:
+		for y in model.grid_size:
+			var tile = model.grid[x][y]
+			if tile and tile.get("type") == 0:
+				player_tiles.append(tile)
+
+	if not player_tiles.is_empty():
+		var tile_to_transform: Tile = player_tiles[RNGManager.get_rng().randi_range(0, player_tiles.size() - 1)]
+		tile_to_transform.setup(value, type, model._interaction_rule, color_schemes)
+		tile_to_transform.animate_transform()
+	else:
+		var monster_tiles: Array[Tile] = []
+		for x in model.grid_size:
+			for y in model.grid_size:
+				var tile = model.grid[x][y]
+				if tile and tile.get("type") == 1:
+					monster_tiles.append(tile)
+		if not monster_tiles.is_empty():
+			var tile_to_empower: Tile = monster_tiles[RNGManager.get_rng().randi_range(0, monster_tiles.size() - 1)]
+			tile_to_empower.setup(tile_to_empower.value * 2, type, model._interaction_rule, color_schemes)
 
 
 ## 更新棋盘的整体布局以适应其容器大小。
 func _update_board_layout() -> void:
-	var layout_params: Dictionary = _calculate_layout_params(grid_size)
+	if not model:
+		return
+	var layout_params: Dictionary = _calculate_layout_params(model.grid_size)
 	if layout_params.is_empty():
 		return
 
@@ -377,6 +278,8 @@ func _update_board_layout() -> void:
 
 ## 绘制棋盘的静态背景单元格。
 func _draw_board_cells() -> void:
+	if not model:
+		return
 	for child in board_container.get_children():
 		if child is Panel:
 			child.queue_free()
@@ -385,8 +288,8 @@ func _draw_board_cells() -> void:
 	if is_instance_valid(board_theme):
 		cell_color = board_theme.empty_cell_color
 
-	for x in grid_size:
-		for y in grid_size:
+	for x in model.grid_size:
+		for y in model.grid_size:
 			var cell_bg := Panel.new()
 			var stylebox := StyleBoxFlat.new()
 			stylebox.bg_color = cell_color
@@ -400,7 +303,9 @@ func _draw_board_cells() -> void:
 
 ## 检查游戏是否结束，委托给 game_over_rule。
 func _check_game_over() -> void:
-	if game_over_rule.is_game_over(self, interaction_rule):
+	if not model or not game_over_rule:
+		return
+	if game_over_rule.is_game_over(model, model.interaction_rule):
 		EventBus.game_lost.emit()
 
 
@@ -448,41 +353,6 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 	await new_cells_tween.finished
 
 
-## 在指定位置生成一个方块的内部实现。
-## @return: 新创建的 Tile 实例。
-func _spawn_at(grid_pos: Vector2i, value: int, type: Tile.TileType) -> Tile:
-	var new_tile := TileScene.instantiate() as Tile
-	board_container.add_child(new_tile)
-	grid[grid_pos.x][grid_pos.y] = new_tile
-	new_tile.setup(value, type, interaction_rule, color_schemes)
-	new_tile.position = _grid_to_pixel_center(grid_pos)
-	new_tile.scale = Vector2.ZERO
-	new_tile.rotation_degrees = -360
-	return new_tile
-
-
-## 遍历网格，返回所有玩家方块节点的数组。
-## @return: 一个包含所有 Tile 节点的数组，这些节点的类型是 PLAYER。
-func _get_all_player_tiles() -> Array[Tile]:
-	var player_tiles: Array[Tile] = []
-	for x in grid_size:
-		for y in grid_size:
-			var tile: Tile = grid[x][y]
-			if tile and tile.type == tile.TileType.PLAYER:
-				player_tiles.append(tile)
-	return player_tiles
-
-
-## 遍历网格，返回所有怪物方块节点的数组。
-## @return: 一个包含所有 Tile 节点的数组，这些节点的类型是 MONSTER。
-func _get_all_monster_tiles() -> Array[Tile]:
-	var monster_tiles: Array[Tile] = []
-	for x in grid_size:
-		for y in grid_size:
-			var tile: Tile = grid[x][y]
-			if tile and tile.type == tile.TileType.MONSTER:
-				monster_tiles.append(tile)
-	return monster_tiles
 
 
 ## 将网格坐标转换为棋盘容器内的局部像素中心点坐标。
@@ -510,15 +380,22 @@ func _calculate_layout_params(p_size: int) -> Dictionary:
 	}
 
 
-## 根据方向，将“行索引”和“行内索引”转换为全局的grid坐标。
-## @return: 转换后的全局网格坐标 (Vector2i)。
-func _get_coords_for_line(line_index: int, cell_index: int, direction: Vector2i) -> Vector2i:
-	match direction:
-		Vector2i.LEFT: return Vector2i(cell_index, line_index)
-		Vector2i.RIGHT: return Vector2i(grid_size - 1 - cell_index, line_index)
-		Vector2i.UP: return Vector2i(line_index, cell_index)
-		Vector2i.DOWN: return Vector2i(line_index, grid_size - 1 - cell_index)
-	return Vector2i.ZERO
+# --- 信号响应 ---
+
+func _on_model_board_changed(instructions: Array) -> void:
+	for instr in instructions:
+		if instr.has("to_grid_pos"):
+			instr["to_pos"] = _grid_to_pixel_center(instr["to_grid_pos"])
+
+	play_animations_requested.emit(instructions)
+
+
+func _on_model_tile_spawned(_tile: Node) -> void:
+	pass
+
+
+func _on_model_score_updated(amount: int) -> void:
+	EventBus.score_updated.emit(amount)
 
 
 # --- 信号处理函数 ---

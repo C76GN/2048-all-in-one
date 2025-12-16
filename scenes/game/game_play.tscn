@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3 uid="uid://28ale2iku1n4"]
+[gd_scene load_steps=16 format=3 uid="uid://28ale2iku1n4"]
 
 [ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://scenes/ui/layouts/base_three_column_layout.tscn" id="1_base"]
 [ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/game/game_play.gd" id="2_script"]
@@ -11,6 +11,9 @@
 [ext_resource type="PackedScene" uid="uid://bsourh8co1vbn" path="res://scenes/ui/pause_menu.tscn" id="9_pause"]
 [ext_resource type="PackedScene" uid="uid://7ypwtymhkpm6" path="res://scenes/ui/game_over_menu.tscn" id="10_game_over"]
 [ext_resource type="Script" uid="uid://b0wqb277l6af8" path="res://scripts/core/game_history_manager.gd" id="11_history"]
+[ext_resource type="Script" path="res://scripts/states/state_ready.gd" id="12_state_ready"]
+[ext_resource type="Script" path="res://scripts/states/state_playing.gd" id="13_state_playing"]
+[ext_resource type="Script" path="res://scripts/states/state_game_over.gd" id="14_state_game_over"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
 bg_color = Color(0.282702, 0.282702, 0.282702, 1)
@@ -83,6 +86,15 @@ script = ExtResource("6_animator")
 
 [node name="StateMachine" type="Node" parent="." index="3"]
 script = ExtResource("7_fsm")
+
+[node name="Ready" type="Node" parent="StateMachine" index="0"]
+script = ExtResource("12_state_ready")
+
+[node name="Playing" type="Node" parent="StateMachine" index="1"]
+script = ExtResource("13_state_playing")
+
+[node name="GameOver" type="Node" parent="StateMachine" index="2"]
+script = ExtResource("14_state_game_over")
 
 [node name="HUDMessageTimer" type="Timer" parent="." index="4"]
 unique_name_in_owner = true

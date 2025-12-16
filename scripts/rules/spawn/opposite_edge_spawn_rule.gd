@@ -23,42 +23,45 @@ extends SpawnRule
 # --- 公共方法 ---
 
 ## 执行生成逻辑。
-## @param payload: 一个字典，包含来自事件的额外数据（如移动方向）。
-## @return: 返回 'true' 表示事件被“消费”，应中断处理链。否则返回 'false'。
-func execute(payload: Dictionary = {}) -> bool:
-	var direction: Vector2i = payload.get("direction", Vector2i.ZERO)
-	var moved_lines: Array = payload.get("moved_lines", [])
+## @param context: 包含 'grid_model' 和 'move_data' 的上下文。
+## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
+func execute(context: Dictionary = {}) -> bool:
+	var grid_model: GridModel = context.get("grid_model")
+	if not grid_model: return false
+
+	var move_data: Dictionary = context.get("move_data", {})
+	var direction: Vector2i = move_data.get("direction", Vector2i.ZERO)
+	var moved_lines: Array = move_data.get("moved_lines", [])
 
 	if direction == Vector2i.ZERO or moved_lines.is_empty():
 		return false
 
 	var valid_spawn_points: Array[Vector2i] = []
-	var grid_size: int = game_board.grid_size
+	var grid_size: int = grid_model.grid_size
 
-	# 根据移动方向确定目标边缘和遍历方式
 	match direction:
-		Vector2i.UP: # 向上滑动，在最下面一行生成
+		Vector2i.UP:
 			var target_y: int = grid_size - 1
-			for x in moved_lines: # moved_lines 包含的是列索引
-				if game_board.grid[x][target_y] == null:
+			for x in moved_lines:
+				if grid_model.grid[x][target_y] == null:
 					valid_spawn_points.append(Vector2i(x, target_y))
 
-		Vector2i.DOWN: # 向下滑动，在最上面一行生成
+		Vector2i.DOWN:
 			var target_y: int = 0
-			for x in moved_lines: # moved_lines 包含的是列索引
-				if game_board.grid[x][target_y] == null:
+			for x in moved_lines:
+				if grid_model.grid[x][target_y] == null:
 					valid_spawn_points.append(Vector2i(x, target_y))
 
-		Vector2i.LEFT: # 向左滑动，在最右边一列生成
+		Vector2i.LEFT:
 			var target_x: int = grid_size - 1
-			for y in moved_lines: # moved_lines 包含的是行索引
-				if game_board.grid[target_x][y] == null:
+			for y in moved_lines:
+				if grid_model.grid[target_x][y] == null:
 					valid_spawn_points.append(Vector2i(target_x, y))
 
-		Vector2i.RIGHT: # 向右滑动，在最左边一列生成
+		Vector2i.RIGHT:
 			var target_x: int = 0
-			for y in moved_lines: # moved_lines 包含的是行索引
-				if game_board.grid[target_x][y] == null:
+			for y in moved_lines:
+				if grid_model.grid[target_x][y] == null:
 					valid_spawn_points.append(Vector2i(target_x, y))
 
 	# 如果找到了有效的生成点

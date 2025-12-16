@@ -24,23 +24,23 @@ extends SpawnRule
 # --- 公共方法 ---
 
 ## 执行生成逻辑。
-## @param _payload: 一个字典，可能包含来自事件的额外数据。
-## @return: 返回 'true' 表示事件被“消费”，应中断处理链。否则返回 'false'。
-func execute(_payload: Dictionary = {}) -> bool:
-	# 检查棋盘是否已满，如果满了则无法生成。
-	if game_board.get_empty_cells().is_empty():
+## @param context: 包含 'grid_model' 的上下文。
+## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
+func execute(context: Dictionary = {}) -> bool:
+	var grid_model: GridModel = context.get("grid_model")
+	if not grid_model: return false
+
+	if grid_model.get_empty_cells().is_empty():
 		return false
 
 	var spawn_count: int = 1
-	# 特殊逻辑：如果是初始化事件，则生成两个方块。
 	if trigger == TriggerType.ON_INITIALIZE:
 		spawn_count = 2
 
-	# 确保要生成的方块数量不超过棋盘上的空格数量。
-	spawn_count = min(spawn_count, game_board.get_empty_cells().size())
+	spawn_count = min(spawn_count, grid_model.get_empty_cells().size())
 
 	for i in range(spawn_count):
-		var spawn_pool: Array[int] = _get_current_spawn_pool()
+		var spawn_pool: Array[int] = _get_current_spawn_pool(grid_model)
 		var value: int = spawn_pool[RNGManager.get_rng().randi_range(0, spawn_pool.size() - 1)]
 
 		var spawn_data: Dictionary = {
@@ -51,16 +51,16 @@ func execute(_payload: Dictionary = {}) -> bool:
 
 		spawn_tile_requested.emit(spawn_data)
 
-	# 成功请求了生成，根据配置决定是否消费事件。
 	return consumes_event_on_success
 
 
 # --- 私有/辅助方法 ---
 
 ## 根据当前棋盘上的最大方块值确定生成池。
+## @param grid_model: 网格模型引用。
 ## @return: 一个包含当前所有可生成数值的数组。
-func _get_current_spawn_pool() -> Array[int]:
-	var max_value: int = game_board.get_max_player_value()
+func _get_current_spawn_pool(grid_model: GridModel) -> Array[int]:
+	var max_value: int = grid_model.get_max_player_value()
 	# 基础生成池
 	var spawn_pool: Array[int] = [2, 4]
 

@@ -19,20 +19,20 @@ extends SpawnRule
 # --- 公共方法 ---
 
 ## 执行生成逻辑。
-## @param _payload: 一个字典，可能包含来自事件的额外数据。
-## @return: 返回 'true' 表示事件被“消费”，应中断处理链。否则返回 'false'。
-func execute(_payload: Dictionary = {}) -> bool:
-	# 检查棋盘是否已满，如果满了则无法生成。
-	if game_board.get_empty_cells().is_empty():
+## @param context: 包含 'grid_model' 的上下文。
+## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
+func execute(context: Dictionary = {}) -> bool:
+	var grid_model: GridModel = context.get("grid_model")
+	if not grid_model: return false
+
+	if grid_model.get_empty_cells().is_empty():
 		return false
 
 	var spawn_count: int = 1
-	# 特殊逻辑：如果是初始化事件，则生成两个方块。
 	if trigger == TriggerType.ON_INITIALIZE:
 		spawn_count = 2
 
-	# 确保要生成的方块数量不超过棋盘上的空格数量。
-	spawn_count = min(spawn_count, game_board.get_empty_cells().size())
+	spawn_count = min(spawn_count, grid_model.get_empty_cells().size())
 
 	for i in range(spawn_count):
 		var spawn_data: Dictionary = {

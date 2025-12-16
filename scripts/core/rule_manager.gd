@@ -43,15 +43,14 @@ func register_rules(p_rules: Array[SpawnRule]) -> void:
 	_rules = p_rules
 
 	for rule in _rules:
-		var current_rule: SpawnRule = rule
-		if not current_rule.spawn_tile_requested.is_connected(self.spawn_tile_requested.emit):
-			current_rule.spawn_tile_requested.connect(self.spawn_tile_requested.emit)
+		if not rule.spawn_tile_requested.is_connected(_on_rule_spawn_requested):
+			rule.spawn_tile_requested.connect(_on_rule_spawn_requested)
 
 
 ## 分发一个游戏事件，触发相应规则。
 ## @param event: 要分发的 Events 枚举成员。
-## @param payload: 一个可选的字典，用于向规则传递附加上下文数据。
-func dispatch_event(event: Events, payload: Dictionary = {}) -> void:
+## @param context: 一个可选的字典，用于向规则传递附加上下文数据（必须包含 'grid_model'）。
+func dispatch_event(event: Events, context: Dictionary = {}) -> void:
 	var relevant_rules: Array[SpawnRule] = _get_relevant_rules(event)
 
 	if relevant_rules.is_empty():
@@ -60,14 +59,15 @@ func dispatch_event(event: Events, payload: Dictionary = {}) -> void:
 	relevant_rules.sort_custom(func(a: SpawnRule, b: SpawnRule) -> bool: return a.priority > b.priority)
 
 	for rule in relevant_rules:
-		var current_rule: SpawnRule = rule
-		var was_consumed: bool = current_rule.execute(payload)
-
+		var was_consumed: bool = rule.execute(context)
 		if was_consumed:
 			break
 
 
 # --- 私有/辅助方法 ---
+
+func _on_rule_spawn_requested(spawn_data: Dictionary) -> void:
+	spawn_tile_requested.emit(spawn_data)
 
 ## 根据事件类型筛选出所有监听该事件的规则。
 ## @param event: 要筛选的 Events 枚举成员。

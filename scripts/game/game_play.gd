@@ -60,6 +60,18 @@ var current_grid_size: int = 4
 ## 进入游戏时的最高分记录。
 var initial_high_score: int = 0
 
+## 本次游戏会话的初始种子。
+var initial_seed_of_session: int = 0
+
+## 标记游戏状态是否已被测试工具修改。
+var is_game_state_tainted_by_test_tools: bool = false
+
+## 当前使用的控制器。
+var current_controller: GameController
+
+## 当前使用的输入源实例。
+var input_source: BaseInputSource
+
 
 # --- 私有变量 ---
 
@@ -72,14 +84,6 @@ var _last_saved_bookmark_state: Dictionary = {}
 ## 在HUD上显示的临时状态消息。
 var _hud_status_message: String = ""
 
-## 标记游戏状态是否已被测试工具修改。
-var _is_game_state_tainted_by_test_tools: bool = false
-
-## 本次游戏会话的初始种子。
-var _initial_seed_of_session: int = 0
-
-## 当前使用的输入源实例 (玩家或回放)。
-var _input_source: BaseInputSource
 
 ## 标记当前是否为回放模式。
 var _is_replay_mode: bool = false
@@ -100,7 +104,7 @@ var _is_replay_mode: bool = false
 @onready var replay_prev_step_button: Button = %ReplayPrevStepButton
 @onready var replay_next_step_button: Button = %ReplayNextStepButton
 @onready var replay_back_button: Button = %ReplayBackButton
-@onready var _history_manager: GameHistoryManager = $GameHistoryManager
+@onready var history_manager: GameHistoryManager = $GameHistoryManager
 
 
 # --- Godot 生命周期方法 ---
@@ -117,7 +121,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 	# 添加对撤回和保存书签快捷键的处理
-	if state_machine.get_current_state() == State.PLAYING:
+	if state_machine.get_current_state() == "Playing":
 		if event.is_action_pressed("undo"):
 			_on_undo_button_pressed()
 			get_viewport().set_input_as_handled()
@@ -127,61 +131,20 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
-# --- FSM 状态处理 ---
+# --- 公共方法 (供 Controller 调用) ---
 
-## [FSM] 状态机进入当前状态时被调用。
-## @param new_state: 新状态。
-## @param _message: 状态进入时的附加信息。
-func _enter_state(new_state: State, _message: Dictionary = {}) -> void:
-	match new_state:
-		State.PLAYING:
-			if is_instance_valid(_input_source):
-				_input_source.start()
-		State.GAME_OVER:
-			if is_instance_valid(_input_source):
-				_input_source.stop()
-
-			for rule in all_spawn_rules:
-				rule.teardown()
-
-			if not _is_replay_mode:
-				var mode_id: String = mode_config.resource_path.get_file().get_basename()
-				SaveManager.set_high_score(mode_id, current_grid_size, score)
-
-				var replay_data_to_save := ReplayData.new()
-				replay_data_to_save.timestamp = int(Time.get_unix_time_from_system())
-				replay_data_to_save.mode_config_path = mode_config.resource_path
-				replay_data_to_save.initial_seed = _initial_seed_of_session
-				replay_data_to_save.grid_size = current_grid_size
-				replay_data_to_save.actions = _history_manager.get_action_sequence()
-				replay_data_to_save.final_board_snapshot = game_board.get_state_snapshot()
-
-				if not _is_game_state_tainted_by_test_tools:
-					if not replay_data_to_save.actions.is_empty():
-						replay_data_to_save.final_score = score
-						ReplayManager.save_replay(replay_data_to_save)
-				else:
-					print("警告: 游戏状态已被测试工具修改，回放将不会被保存。")
-
-			if _is_replay_mode:
-				replay_next_step_button.disabled = true
-			else:
-				ui_manager.show_ui(UIManager.UIType.GAME_OVER)
+func save_current_state(action: Variant) -> void:
+	var state = _get_full_game_state()
+	state["action"] = action
+	history_manager.save_state(state)
 
 
-## [FSM] 状态机退出当前状态时被调用。
-## @param _old_state: 退出的旧状态。
-func _exit_state(_old_state: State) -> void:
-	pass
+func update_and_publish_hud_data() -> void:
+	_update_and_publish_hud_data()
 
 
-## [FSM] 状态机在当前状态下每帧被调用。
-## @param _delta: 帧间隔时间。
-## @param current_state: 当前状态。
-func _process_state(_delta: float, current_state: State) -> void:
-	match current_state:
-		State.PLAYING:
-			_update_and_publish_hud_data()
+func update_replay_buttons_state() -> void:
+	_update_replay_buttons_state()
 
 
 # --- 私有/辅助方法 ---
@@ -189,8 +152,8 @@ func _process_state(_delta: float, current_state: State) -> void:
 ## 负责整个游戏场景的初始化或重置。
 ## @param new_grid_size: 如果提供，则使用此尺寸开始新游戏，否则使用全局设置。
 func _initialize_game(new_grid_size: int = -1) -> void:
-	state_machine.set_state(State.READY)
-	_is_game_state_tainted_by_test_tools = false
+	is_game_state_tainted_by_test_tools = false
+	history_manager.clear()
 
 	var replay_data: ReplayData = GlobalGameManager.current_replay_data
 	_loaded_bookmark_data = GlobalGameManager.selected_bookmark_data
@@ -198,16 +161,21 @@ func _initialize_game(new_grid_size: int = -1) -> void:
 	GlobalGameManager.selected_bookmark_data = null
 
 	_is_replay_mode = is_instance_valid(replay_data)
-	_history_manager.clear()
 
 	if is_instance_valid(_loaded_bookmark_data):
 		if not _setup_game_from_bookmark(): return
+		current_controller = StandardGameController.new()
 	elif _is_replay_mode:
 		if not _setup_replay_game(replay_data): return
+		current_controller = ReplayGameController.new()
 	else:
 		if not _setup_new_game(new_grid_size): return
+		current_controller = StandardGameController.new()
 
+	current_controller.setup(self)
 	_finalize_initialization()
+
+	state_machine.change_state("Playing")
 
 
 ## 从一个有效的书签数据中设置游戏状态。
@@ -222,9 +190,9 @@ func _setup_game_from_bookmark() -> bool:
 	monsters_killed = _loaded_bookmark_data.monsters_killed
 
 	if "game_state_history" in _loaded_bookmark_data and not _loaded_bookmark_data.game_state_history.is_empty():
-		_history_manager.load_history(_loaded_bookmark_data.game_state_history.duplicate(true) as Array[Dictionary])
+		history_manager.load_history(_loaded_bookmark_data.game_state_history.duplicate(true) as Array[Dictionary])
 
-	_input_source = PLAYER_INPUT_SOURCE_SCRIPT.new()
+	input_source = PLAYER_INPUT_SOURCE_SCRIPT.new()
 	return true
 
 
@@ -251,7 +219,7 @@ func _setup_new_game(new_grid_size: int = -1) -> bool:
 		GlobalGameManager.return_to_main_menu()
 		return false
 
-	_input_source = PLAYER_INPUT_SOURCE_SCRIPT.new()
+	input_source = PLAYER_INPUT_SOURCE_SCRIPT.new()
 	return true
 
 
@@ -265,36 +233,33 @@ func _setup_replay_game(replay_data: ReplayData) -> bool:
 
 	var replay_input_source := REPLAY_INPUT_SOURCE_SCRIPT.new() as ReplayInputSource
 	replay_input_source.initialize(replay_data)
-	_input_source = replay_input_source
+	input_source = replay_input_source
 	return true
 
 
 ## 在设置好游戏模式和状态后，完成所有节点的实例化和连接。
 func _finalize_initialization() -> void:
-	_initial_seed_of_session = RNGManager.get_current_seed()
-	add_child(_input_source)
+	initial_seed_of_session = RNGManager.get_current_seed()
+	add_child(input_source)
 
 	_configure_ui_for_mode()
 
 	var mode_id: String = mode_config.resource_path.get_file().get_basename()
 	initial_high_score = SaveManager.get_high_score(mode_id, current_grid_size)
 
-	game_board.grid_size = current_grid_size
-
 	rule_manager = RuleManager.new()
 	add_child(rule_manager)
 
 	interaction_rule = mode_config.interaction_rule.duplicate() as InteractionRule
-	interaction_rule.setup(game_board)
 	var movement_rule: MovementRule = mode_config.movement_rule.duplicate() as MovementRule
 	var game_over_rule: GameOverRule = mode_config.game_over_rule.duplicate() as GameOverRule
 
 	if is_instance_valid(mode_config.board_theme):
 		background_color_rect.color = mode_config.board_theme.game_background_color
-		game_board.set_rules(interaction_rule, movement_rule, game_over_rule, mode_config.color_schemes, mode_config.board_theme)
+		game_board.setup(current_grid_size, interaction_rule, movement_rule, game_over_rule, mode_config.color_schemes, mode_config.board_theme)
 	else:
 		push_warning("当前游戏模式没有配置BoardTheme，将使用默认颜色。")
-		game_board.set_rules(interaction_rule, movement_rule, game_over_rule, mode_config.color_schemes, null)
+		game_board.setup(current_grid_size, interaction_rule, movement_rule, game_over_rule, mode_config.color_schemes, null)
 
 	all_spawn_rules.clear()
 	for rule_resource in mode_config.spawn_rules:
@@ -310,31 +275,29 @@ func _finalize_initialization() -> void:
 					add_child(new_timer)
 					created_nodes[node_key] = new_timer
 
-		rule_instance.setup(game_board, created_nodes)
+		rule_instance.setup(created_nodes)
 
 	rule_manager.register_rules(all_spawn_rules)
-	game_board.initialize_board()
 	_connect_signals()
 
 	if is_instance_valid(_loaded_bookmark_data):
 		game_board.restore_from_snapshot(_loaded_bookmark_data.board_snapshot)
 		_last_saved_bookmark_state = _get_full_game_state()
 	else:
-		rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD)
+		var context = { "grid_model": game_board.model }
+		rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD, context)
 
 	_initialize_test_tools()
-	_update_and_publish_hud_data()
+	update_and_publish_hud_data()
 
 	if not is_instance_valid(_loaded_bookmark_data):
-		_save_current_state(null)
-
-	state_machine.set_state(State.PLAYING)
+		save_current_state(null)
 
 
 ## 集中管理所有信号连接。
 func _connect_signals() -> void:
-	if is_instance_valid(_input_source) and not _input_source.action_triggered.is_connected(_on_input_source_action_triggered):
-		_input_source.action_triggered.connect(_on_input_source_action_triggered)
+	if is_instance_valid(input_source) and not input_source.action_triggered.is_connected(_on_input_source_action_triggered):
+		input_source.action_triggered.connect(_on_input_source_action_triggered)
 
 	if not ui_manager.resume_requested.is_connected(_on_resume_game):
 		ui_manager.resume_requested.connect(_on_resume_game)
@@ -384,9 +347,9 @@ func _configure_ui_for_mode() -> void:
 func _update_and_publish_hud_data() -> void:
 	var display_data: Dictionary = {}
 
-	if _is_replay_mode and _input_source is ReplayInputSource:
-		var total_steps: int = _input_source.get_total_steps()
-		var current_step_display: int = _history_manager.get_history_size() - 1
+	if _is_replay_mode and input_source is ReplayInputSource:
+		var total_steps: int = input_source.get_total_steps()
+		var current_step_display: int = history_manager.get_history_size() - 1
 		display_data["step_info"] = "步骤: %d / %d" % [current_step_display, total_steps]
 
 	display_data["score"] = "分数: %d" % score
@@ -413,8 +376,9 @@ func _update_and_publish_hud_data() -> void:
 		var interaction_data: Dictionary = interaction_rule.get_hud_context_data(rule_context)
 		display_data.merge(interaction_data)
 
+	var grid_model_context = { "grid_model": game_board.model }
 	for rule in all_spawn_rules:
-		var rule_data: Dictionary = rule.get_display_data()
+		var rule_data: Dictionary = rule.get_display_data(grid_model_context)
 		if not rule_data.is_empty():
 			display_data.merge(rule_data)
 
@@ -429,7 +393,7 @@ func _update_and_publish_hud_data() -> void:
 
 	display_data["seed_info"] = "游戏种子: %d" % RNGManager.get_current_seed()
 
-	if _is_game_state_tainted_by_test_tools:
+	if is_game_state_tainted_by_test_tools:
 		display_data["taint_warning"] = "[color=orange]警告: 调试工具已使用，回放将被禁用。[/color]"
 
 	if not _hud_status_message.is_empty():
@@ -454,7 +418,7 @@ func _initialize_test_tools() -> void:
 		test_panel.reset_and_resize_requested.connect(_on_reset_and_resize_requested)
 	if not test_panel.live_expand_requested.is_connected(game_board.live_expand):
 		test_panel.live_expand_requested.connect(func(new_size: int):
-			_is_game_state_tainted_by_test_tools = true
+			is_game_state_tainted_by_test_tools = true
 			game_board.live_expand(new_size)
 		)
 
@@ -465,10 +429,6 @@ func _initialize_test_tools() -> void:
 
 ## 保存当前游戏的完整状态，用于撤回。
 ## @param action: 导致此状态的玩家动作 (例如 Vector2i.UP)。
-func _save_current_state(action: Variant) -> void:
-	var state: Dictionary = _get_full_game_state()
-	state["action"] = action
-	_history_manager.save_state(state)
 
 
 ## 获取当前游戏的完整状态快照。
@@ -491,8 +451,8 @@ func _get_full_game_state() -> Dictionary:
 ## 从一个状态字典中恢复完整的游戏状态。
 ## @param state_to_restore: 包含完整游戏状态的字典。
 func _restore_state(state_to_restore: Dictionary) -> void:
-	if state_machine.get_current_state() == State.GAME_OVER:
-		state_machine.set_state(State.PLAYING)
+	if state_machine.get_current_state() == "GameOver":
+		state_machine.change_state("Playing")
 
 	score = state_to_restore["score"]
 	move_count = state_to_restore["move_count"]
@@ -520,50 +480,49 @@ func _show_hud_message(message: String, duration: float) -> void:
 
 ## 根据当前的回放进度，更新回放控制按钮（上一步/下一步）的可用状态。
 func _update_replay_buttons_state() -> void:
-	if not _is_replay_mode or not _input_source is ReplayInputSource: return
+	if not _is_replay_mode or not input_source is ReplayInputSource: return
 
-	replay_prev_step_button.disabled = _history_manager.get_history_size() <= 1
+	replay_prev_step_button.disabled = history_manager.get_history_size() <= 1
 
-	var is_at_end: bool = _history_manager.get_history_size() >= (_input_source.get_total_steps() + 1)
+	var is_at_end: bool = history_manager.get_history_size() >= (input_source.get_total_steps() + 1)
 	replay_next_step_button.disabled = is_at_end
 
-	if is_at_end and state_machine.get_current_state() != State.GAME_OVER:
-		state_machine.set_state(State.GAME_OVER)
+	if is_at_end and state_machine.get_current_state() != "GameOver":
+		state_machine.change_state("GameOver")
 
 
 # --- 信号处理函数 ---
 
 func _on_input_source_action_triggered(action: Variant) -> void:
-	if state_machine.get_current_state() != State.PLAYING:
+	if state_machine.get_current_state() != "Playing":
 		return
-
-	var move_was_valid: bool = game_board.handle_move(action)
-	if move_was_valid:
-		_save_current_state(action)
-		_update_and_publish_hud_data()
+	current_controller.handle_action(action)
 
 
 func _on_move_made(move_data: Dictionary) -> void:
 	move_count += 1
-	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED, move_data)
-	_update_and_publish_hud_data()
-	_update_replay_buttons_state()
+	var context = { "grid_model": game_board.model, "move_data": move_data }
+	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED, context)
+	update_and_publish_hud_data()
+	update_replay_buttons_state()
 
 
 func _on_game_lost() -> void:
 	await get_tree().process_frame
-	state_machine.set_state(State.GAME_OVER)
+	state_machine.change_state("GameOver")
+	current_controller.on_game_over()
 
 
 func _on_monster_killed() -> void:
 	monsters_killed += 1
-	rule_manager.dispatch_event(RuleManager.Events.MONSTER_KILLED)
-	_update_and_publish_hud_data()
+	var context = { "grid_model": game_board.model }
+	rule_manager.dispatch_event(RuleManager.Events.MONSTER_KILLED, context)
+	update_and_publish_hud_data()
 
 
 func _on_score_updated(amount: int) -> void:
 	score += amount
-	_update_and_publish_hud_data()
+	update_and_publish_hud_data()
 
 
 func _on_board_resized(new_size: int) -> void:
@@ -572,7 +531,7 @@ func _on_board_resized(new_size: int) -> void:
 
 
 func _on_pause_toggled() -> void:
-	if state_machine.get_current_state() == State.GAME_OVER or _is_replay_mode:
+	if state_machine.get_current_state() == "GameOver" or _is_replay_mode:
 		return
 
 	if get_tree().paused:
@@ -582,7 +541,7 @@ func _on_pause_toggled() -> void:
 
 
 func _on_resume_game() -> void:
-	state_machine.set_state(State.PLAYING)
+	state_machine.change_state("Playing")
 
 
 func _on_restart_game(_from_bookmark: bool) -> void:
@@ -598,7 +557,7 @@ func _on_restart_game(_from_bookmark: bool) -> void:
 			mode_config.resource_path,
 			current_scene_resource,
 			current_grid_size,
-			_initial_seed_of_session
+			initial_seed_of_session
 		)
 
 
@@ -608,25 +567,25 @@ func _on_return_to_main_menu() -> void:
 
 
 func _on_undo_button_pressed() -> void:
-	if state_machine.get_current_state() != State.PLAYING or get_tree().paused or _is_replay_mode:
+	if state_machine.get_current_state() != "Playing" or get_tree().paused or _is_replay_mode:
 		return
 
-	if _history_manager.can_undo():
-		var previous_state: Dictionary = _history_manager.undo()
+	if history_manager.can_undo():
+		var previous_state: Dictionary = history_manager.undo()
 		_restore_state(previous_state)
 	else:
 		_show_hud_message("[color=yellow]无法撤回: 已在最初状态。[/color]", 3.0)
 
 
 func _on_snapshot_button_pressed() -> void:
-	if state_machine.get_current_state() != State.PLAYING or get_tree().paused:
+	if state_machine.get_current_state() != "Playing" or get_tree().paused:
 		return
 
-	if _is_game_state_tainted_by_test_tools:
+	if is_game_state_tainted_by_test_tools:
 		_show_hud_message("[color=orange]警告: 正在保存一个被调试工具修改过的状态！[/color]", 4.0)
 
 	var current_state_for_comparison: Dictionary = _get_full_game_state()
-	current_state_for_comparison["game_state_history"] = _history_manager.get_history()
+	current_state_for_comparison["game_state_history"] = history_manager.get_history()
 
 	if JSON.stringify(current_state_for_comparison) == JSON.stringify(_last_saved_bookmark_state):
 		_show_hud_message("[color=yellow]游戏状态未变，无需重复保存。[/color]", 3.0)
@@ -637,13 +596,13 @@ func _on_snapshot_button_pressed() -> void:
 	new_bookmark.mode_config_path = mode_config.resource_path
 	new_bookmark.initial_seed = RNGManager.get_current_seed()
 
-	var latest_atomic_state: Dictionary = _history_manager.get_history().back()
+	var latest_atomic_state: Dictionary = history_manager.get_history().back()
 	new_bookmark.score = latest_atomic_state["score"]
 	new_bookmark.move_count = latest_atomic_state["move_count"]
 	new_bookmark.monsters_killed = latest_atomic_state["monsters_killed"]
 	new_bookmark.rng_state = latest_atomic_state["rng_state"]
 	new_bookmark.board_snapshot = latest_atomic_state["board_snapshot"]
-	new_bookmark.game_state_history = _history_manager.get_history().duplicate(true)
+	new_bookmark.game_state_history = history_manager.get_history().duplicate(true)
 
 	BookmarkManager.save_bookmark(new_bookmark)
 	_last_saved_bookmark_state = current_state_for_comparison
@@ -657,8 +616,8 @@ func _on_hud_message_timer_timeout() -> void:
 
 func _on_replay_prev_step_pressed() -> void:
 	if not _is_replay_mode: return
-	if _history_manager.get_history_size() > 1:
-		var previous_state: Dictionary = _history_manager.undo()
+	if history_manager.get_history_size() > 1:
+		var previous_state: Dictionary = history_manager.undo()
 		if previous_state != null:
 			_restore_state(previous_state)
 		_update_replay_buttons_state()
@@ -666,10 +625,10 @@ func _on_replay_prev_step_pressed() -> void:
 
 func _on_replay_next_step_pressed() -> void:
 	if not _is_replay_mode: return
-	if _input_source is ReplayInputSource:
-		var next_step_index: int = _history_manager.get_history_size() - 1
-		if next_step_index < _input_source.get_total_steps():
-			_input_source.play_step(next_step_index)
+	if input_source is ReplayInputSource:
+		var next_step_index: int = history_manager.get_history_size() - 1
+		if next_step_index < input_source.get_total_steps():
+			input_source.play_step(next_step_index)
 
 
 func _on_replay_back_pressed() -> void:
@@ -677,7 +636,7 @@ func _on_replay_back_pressed() -> void:
 
 
 func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int) -> void:
-	_is_game_state_tainted_by_test_tools = true
+	is_game_state_tainted_by_test_tools = true
 	var tile_type_enum: Tile.TileType = interaction_rule.get_tile_type_from_id(type_id)
 	game_board.spawn_specific_tile(grid_pos, value, tile_type_enum)
 
@@ -688,11 +647,11 @@ func _on_test_panel_values_requested(type_id: int) -> void:
 
 
 func _on_reset_and_resize_requested(new_size: int) -> void:
-	_is_game_state_tainted_by_test_tools = true
+	is_game_state_tainted_by_test_tools = true
 	var current_scene_resource: PackedScene = load(get_tree().current_scene.scene_file_path)
 	GlobalGameManager.select_mode_and_start(
 		mode_config.resource_path,
 		current_scene_resource,
 		new_size,
-		_initial_seed_of_session
+		initial_seed_of_session
 	)

@@ -35,19 +35,19 @@ var _current_probability: float = 0.0
 # --- 公共方法 ---
 
 ## 初始化此规则，设置初始概率。
-## @param p_game_board: 对当前GameBoard节点的引用。
 ## @param _required_nodes: 一个字典，包含规则声明需要的已创建节点。
-func setup(p_game_board: Control, _required_nodes: Dictionary = {}) -> void:
-	super.setup(p_game_board)
+func setup(_required_nodes: Dictionary = {}) -> void:
 	_current_probability = base_probability
 
 
 ## RuleManager调用此函数来执行概率生成逻辑。
-## @param _payload: 一个字典，可能包含来自事件的额外数据。
-## @return: 返回 'true' 表示事件被“消费”，应中断处理链。否则返回 'false'。
-func execute(_payload: Dictionary = {}) -> bool:
-	# 如果棋盘已满，则无法生成任何方块。
-	if game_board.get_empty_cells().is_empty():
+## @param context: 包含 'grid_model' 的上下文。
+## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
+func execute(context: Dictionary = {}) -> bool:
+	var grid_model: GridModel = context.get("grid_model")
+	if not grid_model: return false
+
+	if grid_model.get_empty_cells().is_empty():
 		return false
 
 	var rng := RNGManager.get_rng()
@@ -55,11 +55,11 @@ func execute(_payload: Dictionary = {}) -> bool:
 	# 决定生成怪物还是玩家
 	if rng.randf() < _current_probability:
 		# 成功: 生成怪物
-		var monster_value: int = _calculate_monster_value()
+		var monster_value: int = _calculate_monster_value(grid_model)
 		var spawn_data := {
 			"value": monster_value,
 			"type": Tile.TileType.MONSTER,
-			"is_priority": true # 怪物生成是优先的，即使棋盘满了也会尝试转换玩家方块
+			"is_priority": true
 		}
 		spawn_tile_requested.emit(spawn_data)
 
@@ -84,12 +84,14 @@ func execute(_payload: Dictionary = {}) -> bool:
 
 
 ## 获取用于在HUD上显示的动态数据。
+## @param context: 可选的上下文字典，包含 'grid_model'。
 ## @return: 一个包含显示信息的字典。
-func get_display_data() -> Dictionary:
+func get_display_data(context: Dictionary = {}) -> Dictionary:
 	var data: Dictionary = {}
 	data["monster_chance_label"] = "下次移动出现怪物概率: %.1f%%" % (_current_probability * 100)
 
-	var pool: Dictionary = get_monster_spawn_pool()
+	var grid_model: GridModel = context.get("grid_model")
+	var pool: Dictionary = get_monster_spawn_pool(grid_model)
 	var spawn_info_text: String = "可能出现的怪物:\n"
 	var total_weight: int = 0
 	for w in pool["weights"]: total_weight += w
@@ -116,12 +118,13 @@ func set_state(state: Variant) -> void:
 
 
 ## 动态计算并获取当前的怪物生成池。
+## @param grid_model: 网格模型引用。
 ## @return: 一个包含 "values" 和 "weights" 数组的字典。
-func get_monster_spawn_pool() -> Dictionary:
-	if not is_instance_valid(game_board):
+func get_monster_spawn_pool(grid_model: GridModel = null) -> Dictionary:
+	if not grid_model:
 		return {"values": [2], "weights": [1]}
 
-	var max_player_value: int = game_board.get_max_player_value()
+	var max_player_value: int = grid_model.get_max_player_value()
 	if max_player_value <= 0:
 		return {"values": [2], "weights": [1]}
 
@@ -140,9 +143,10 @@ func get_monster_spawn_pool() -> Dictionary:
 # --- 私有/辅助方法 ---
 
 ## 根据动态生成的怪物池，计算本次要生成的怪物数值。
+## @param grid_model: 网格模型引用。
 ## @return: 计算出的怪物数值。
-func _calculate_monster_value() -> int:
-	var spawn_pool: Dictionary = get_monster_spawn_pool()
+func _calculate_monster_value(grid_model: GridModel) -> int:
+	var spawn_pool: Dictionary = get_monster_spawn_pool(grid_model)
 	var possible_values: Array[int] = spawn_pool["values"]
 	var weights: Array[int] = spawn_pool["weights"]
 
