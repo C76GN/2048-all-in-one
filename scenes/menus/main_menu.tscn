@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://d3caufbu1axub"]
+[gd_scene load_steps=6 format=3 uid="uid://d3caufbu1axub"]
 
 [ext_resource type="Script" uid="uid://hybxd0keci4i" path="res://scripts/menus/main_menu.gd" id="1_l6cm7"]
 [ext_resource type="PackedScene" uid="uid://behkac7sg4loi" path="res://scenes/menus/mode_selection.tscn" id="2_ekxnf"]
 [ext_resource type="PackedScene" uid="uid://bsb0gb7p8fsbj" path="res://scenes/menus/replay_list.tscn" id="3_bqqt6"]
 [ext_resource type="PackedScene" uid="uid://dcaem677upv0a" path="res://scenes/menus/bookmark_list.tscn" id="4_wu84c"]
+[ext_resource type="PackedScene" uid="uid://c8j6k4m2n5qax" path="res://scenes/menus/settings_menu.tscn" id="5_stset"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -16,6 +17,7 @@ script = ExtResource("1_l6cm7")
 mode_selection_scene = ExtResource("2_ekxnf")
 replay_list_scene = ExtResource("3_bqqt6")
 bookmark_list_scene = ExtResource("4_wu84c")
+settings_scene = ExtResource("5_stset")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1

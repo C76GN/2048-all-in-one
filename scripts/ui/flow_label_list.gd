@@ -1,11 +1,6 @@
 # scripts/ui/flow_label_list.gd
 
 ## FlowLabelList: 一个可自动换行的标签列表容器。
-##
-## 该组件负责接收一个包含文本和颜色信息的数据数组，并动态地创建
-## 或复用 Label 节点来显示它们。它会自动处理换行逻辑，以确保
-## 文本流在容器边界内能像普通段落一样正确折行，同时避免了因
-## 内容更新导致的布局抖动问题。
 class_name FlowLabelList
 extends Control
 
@@ -19,6 +14,9 @@ extends Control
 @export var vertical_spacing: int = 4
 ## 标签的基础字体大小。
 @export var base_font_size: int = 16
+
+## 用于生成标签的场景文件。
+@export var label_scene: PackedScene = preload("res://scenes/components/flow_item_label.tscn")
 
 
 # --- 私有变量 ---
@@ -47,7 +45,12 @@ func update_data(data: Array) -> void:
 
 	# 确保标签池中有足够数量的Label节点
 	while _label_pool.size() < data.size():
-		var new_label := Label.new()
+		var new_label: Label
+		if is_instance_valid(label_scene):
+			new_label = label_scene.instantiate() as Label
+		else:
+			new_label = Label.new() # 后备方案
+
 		new_label.add_theme_font_size_override("font_size", base_font_size)
 		add_child(new_label)
 		_label_pool.append(new_label)

@@ -21,10 +21,8 @@ metadata/_custom_type_script = "uid://dg4uoygc0uq8m"
 
 [resource]
 script = ExtResource("1_vuygr")
-mode_name = "战斗模式"
-mode_description = "玩法说明:
-经典战斗规则，玩家与怪物可以互相攻击。
-每次移动后，有较小概率生成怪物，否则生成玩家方块。怪物出现的概率会随着失败次数动态增长。"
+mode_name = "MODE_BATTLE_NAME"
+mode_description = "MODE_BATTLE_DESC"
 interaction_rule = SubResource("Resource_8wciv")
 movement_rule = ExtResource("6_2ldk4")
 spawn_rules = Array[ExtResource("2_rv56s")]([ExtResource("7_pe76g"), ExtResource("8_0r4sw")])

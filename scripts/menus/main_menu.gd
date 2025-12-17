@@ -13,6 +13,7 @@ extends Control
 @export var mode_selection_scene: PackedScene
 @export var replay_list_scene: PackedScene
 @export var bookmark_list_scene: PackedScene
+@export var settings_scene: PackedScene # 新增：设置场景引用
 
 
 # --- @onready 变量 (节点引用) ---
@@ -34,6 +35,12 @@ func _ready() -> void:
 	_quit_button.pressed.connect(_on_quit_button_pressed)
 
 	_start_game_button.grab_focus()
+	_update_ui_text()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		_update_ui_text()
 
 
 # --- 信号处理函数 ---
@@ -62,11 +69,30 @@ func _on_replays_button_pressed() -> void:
 		push_error("MainMenu: 回放列表场景 (replay_list_scene) 未设置。")
 
 
-## 响应“设置”按钮的点击事件（占位功能）。
+## 响应“设置”按钮的点击事件。
 func _on_settings_button_pressed() -> void:
-	print("设置按钮被按下 (功能待开发)")
+	if is_instance_valid(settings_scene):
+		GlobalGameManager.goto_scene_packed(settings_scene)
+	else:
+		push_error("MainMenu: 设置场景 (settings_scene) 未设置。")
 
 
 ## 响应“退出”按钮的点击事件。
 func _on_quit_button_pressed() -> void:
 	GlobalGameManager.quit_game()
+
+
+# --- 私有/辅助方法 ---
+
+## 更新所有UI元素的文本，用于初始化和语言切换。
+func _update_ui_text() -> void:
+	if is_instance_valid(_start_game_button):
+		_start_game_button.text = tr("BTN_START_GAME")
+	if is_instance_valid(_load_bookmark_button):
+		_load_bookmark_button.text = tr("BTN_LOAD_BOOKMARK")
+	if is_instance_valid(_replays_button):
+		_replays_button.text = tr("BTN_REPLAY_LIST")
+	if is_instance_valid(_settings_button):
+		_settings_button.text = tr("SETTINGS_TITLE")
+	if is_instance_valid(_quit_button):
+		_quit_button.text = tr("BTN_QUIT")

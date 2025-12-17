@@ -21,11 +21,8 @@ metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 
 [resource]
 script = ExtResource("1_o4y40")
-mode_name = "渐进模式"
-mode_description = "玩法说明:
-初始只生成2和4。
-合成2048后，解锁生成8。
-合成4096后，解锁生成16，以此类推。"
+mode_name = "MODE_PROGRESSIVE_NAME"
+mode_description = "MODE_PROGRESSIVE_DESC"
 interaction_rule = SubResource("Resource_cubgt")
 movement_rule = ExtResource("6_vrvml")
 spawn_rules = Array[ExtResource("2_xvfhn")]([ExtResource("8_4ustv"), ExtResource("9_8lhxm")])

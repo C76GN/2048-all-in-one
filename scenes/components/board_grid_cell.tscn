@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://d3y8lq5x104n"]
+
+[node name="BoardGridCell" type="Panel"]
+offset_right = 100.0
+offset_bottom = 100.0
+mouse_filter = 2

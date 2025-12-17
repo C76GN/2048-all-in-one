@@ -1,0 +1,118 @@
+keys,zh,en
+UNKNOWN_MODE,（未知模式）,(Unknown Mode)
+CONFIG_MISSING,（模式配置丢失）,(Config Missing)
+TIME_PARSE_ERROR,无法解析时间,Invalid Time
+NO_PREVIEW_DATA,暂无预览数据,No Preview Data
+BOOKMARK_INFO_FORMAT,"%s | 分数: %d | 尺寸: %dx%d","%s | Score: %d | Size: %dx%d"
+REPLAY_INFO_FORMAT,"%s | 分数: %d | 尺寸: %dx%d","%s | Score: %d | Size: %dx%d"
+SCORE_LABEL,分数: %d,Score: %d
+NEW_HIGH_SCORE_FORMAT,最高分: %d [color=yellow](新纪录!)[/color],High Score: %d [color=yellow](New!)[/color]
+HIGH_SCORE_LABEL,最高分: %d,High Score: %d
+HIGHEST_TILE_LABEL,最大方块: %d,Max Tile: %d
+MOVE_COUNT_LABEL,移动次数: %d,Moves: %d
+STEP_INFO_FORMAT,步骤: %d / %d,Step: %d / %d
+CONTROLS_TITLE,操作,Controls
+CONTROLS_MOVE_HINT,移动: W/A/S/D 或 方向键,Move: W/A/S/D or Arrows
+CONTROLS_ACTION_HINT,撤回: Z | 保存: B | 暂停: Esc,Undo: Z | Save: B | Pause: Esc
+SEED_INFO_LABEL,游戏种子: %d,Seed: %d
+DEBUG_TAINT_WARNING,[color=orange]警告: 调试工具已使用，回放将被禁用。[/color],[color=orange]Warning: Debug tools used. Replay disabled.[/color]
+UNDO_FAIL_MSG,[color=yellow]无法撤回: 已在最初状态。[/color],[color=yellow]Undo failed: At initial state.[/color]
+SNAPSHOT_TAINT_WARN,[color=orange]警告: 正在保存一个被调试工具修改过的状态！[/color],[color=orange]Warning: Saving a tainted state![/color]
+SNAPSHOT_NO_CHANGE,[color=yellow]游戏状态未变，无需重复保存。[/color],[color=yellow]State unchanged. Save skipped.[/color]
+SNAPSHOT_SAVED_SUCCESS,[color=green]书签已保存！[/color],[color=green]Bookmark Saved![/color]
+SIZE_LABEL,尺寸,Size
+SETTINGS_TITLE,设置,Settings
+LANGUAGE_LABEL,语言,Language
+LANG_EN,English,English
+LANG_ZH,简体中文,Chinese
+BACK_BUTTON,返回,Back
+UI_BACK,返回,Back
+UI_PREV_PAGE,上一页,Prev
+UI_NEXT_PAGE,下一页,Next
+UI_UNKNOWN,未知,Unknown
+UI_ERROR,错误,Error
+UI_LOADING,加载中...,Loading...
+MSG_NO_BOOKMARKS,没有找到任何书签记录。,No bookmarks found.
+MSG_NO_REPLAYS,没有找到任何回放记录。,No replays found.
+MSG_SELECT_SAVE,请选择一个存档...,Select a save file...
+MSG_SELECT_REPLAY,请选择一个回放...,Select a replay...
+MSG_NO_PREVIEW_REPLAY,(此回放无预览数据),(No preview data available)
+ERR_LOAD_CONFIG,错误: 无法加载模式配置,Error: Failed to load mode config
+ERR_NO_MODE_SELECTED,无法开始游戏：没有选中的模式。,Cannot start: No mode selected.
+TITLE_MODE_SELECTION,模式选择,Mode Selection
+LABEL_MODE_CONFIG,模式配置,Configuration
+LABEL_GRID_SIZE,棋盘大小：,Grid Size:
+LABEL_GAME_SEED,游戏种子：,Game Seed:
+HINT_SEED_PLACEHOLDER,留空则随机,Empty for random
+BTN_START_GAME,开始游戏,Start Game
+BTN_LOAD_BOOKMARK,读取书签（存档）,Load Bookmark
+BTN_REFRESH_SEED,点击以生成新的随机种子,Generate new seed
+DESC_SELECT_MODE_PREFIX,选择 ,Select 
+INFO_HIGH_SCORE_AT_SIZE,在 %dx%d 尺寸下的最高分：%d,High Score at %dx%d: %d
+BTN_QUIT,退出,Quit
+MODE_CLASSIC_NAME,经典模式,Classic Mode
+MODE_CLASSIC_DESC,"玩法说明:
+移动方块，让两个相同数值的方块碰撞以合并成一个两倍数值的方块。","How to play:
+Move tiles. Merge two tiles with the same number to get a tile with double the value."
+MODE_FIBONACCI_NAME,斐波那契模式,Fibonacci Mode
+MODE_FIBONACCI_DESC,"玩法说明:
+两个 '1' 可以合并成 '2'。
+两个在斐波那契数列中相邻的数字可以合并成它们的和 (例如 2+3=5)。","How to play:
+Two '1's merge into '2'.
+Adjacent numbers in the Fibonacci sequence merge into their sum (e.g., 2+3=5)."
+MODE_LUCAS_NAME,卢卡斯-斐波那契模式,Lucas-Fibonacci Mode
+MODE_LUCAS_DESC,"玩法说明:
+斐波那契数与卢卡斯数可以分别合并。
+特殊规则: F(n-1) + F(n+1) = L(n)。","How to play:
+Fibonacci and Lucas numbers merge separately.
+Special Rule: F(n-1) + F(n+1) = L(n)."
+MODE_PROGRESSIVE_NAME,渐进模式,Progressive Mode
+MODE_PROGRESSIVE_DESC,"玩法说明:
+初始只生成2和4。
+合成2048后，解锁生成8。
+合成4096后，解锁生成16，以此类推。","How to play:
+Starts with 2 and 4.
+Merging 2048 unlocks 8.
+Merging 4096 unlocks 16, and so on."
+MODE_STEP_NAME,步进对边模式,Step-by-Step Mode
+MODE_STEP_DESC,"玩法说明:
+移动规则: 每次滑动，所有方块只移动一格。
+生成规则: 新方块会生成在您滑动方向的对向边缘。","How to play:
+Movement: Tiles move only one step per slide.
+Spawn: New tiles appear on the edge opposite to your slide direction."
+MODE_BATTLE_NAME,战斗模式,Battle Mode
+MODE_BATTLE_DESC,"玩法说明:
+经典战斗规则，玩家与怪物可以互相攻击。
+每次移动后，有较小概率生成怪物，否则生成玩家方块。怪物出现的概率会随着失败次数动态增长。","How to play:
+Player and Monster tiles can attack each other.
+Monsters spawn with a low chance after moves. The chance increases after each failed spawn."
+TITLE_GAME_OVER,游戏结束,Game Over
+TITLE_PAUSE,暂停,Paused
+BTN_RESUME,继续游戏,Resume
+BTN_RESTART,重新开始,Restart
+BTN_SAVE_GAME,保存游戏 (待实现),Save Game (WIP)
+BTN_SETTINGS,设置 (待实现),Settings (WIP)
+BTN_MAIN_MENU,返回主界面,Main Menu
+BTN_REPLAY_AGAIN,重来,Play Again
+BTN_REPLAY_LIST,回放列表,Replay List
+RULE_PLAYER,玩家,Player
+RULE_MONSTER,怪物,Monster
+BATTLE_KILLED_DISPLAY,消灭怪物: %d,Killed: %d
+BATTLE_MONSTER_CHANCE,下次移动出现怪物概率: %.1f%%,Monster Spawn Chance: %.1f%%
+BATTLE_SPAWN_INFO,可能出现的怪物:\n,Possible Monsters:\n
+RULE_FIBONACCI,斐波那契数,Fibonacci Number
+RULE_LUCAS,卢卡斯数,Lucas Number
+TIP_SYNTHESIS_FORMAT,合成提示: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color],Hint: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color]
+LABEL_FIB_SEQ,斐波那契:,Fibonacci:
+LABEL_LUC_SEQ,卢卡斯:,Lucas:
+LABEL_SYNTH_SEQ,合成序列:,Sequence:
+DEBUG_TITLE,测试工具 (仅编辑器内),Debug Tools (Editor Only)
+DEBUG_POS_X,X坐标：,Pos X:
+DEBUG_POS_Y,Y坐标：,Pos Y:
+DEBUG_VALUE,数值：,Value:
+DEBUG_TYPE,类型：,Type:
+DEBUG_SPAWN,生成方块,Spawn Tile
+DEBUG_BOARD_CTRL,棋盘控制,Board Control
+DEBUG_BOARD_SIZE,棋盘大小：,Board Size:
+DEBUG_RESET_RESIZE,重置并调整大小,Reset & Resize
+DEBUG_LIVE_EXPAND,游戏中扩建棋盘,Live Expand

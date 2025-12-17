@@ -10,6 +10,8 @@ extends Control
 # --- 常量 ---
 
 const TILE_SCENE: PackedScene = preload("res://scenes/components/tile.tscn")
+## 用于生成预览背景格子的场景。
+const GRID_CELL_SCENE: PackedScene = preload("res://scenes/components/board_grid_cell.tscn")
 
 ## 预览区域的最大显示尺寸（像素）。
 const MAX_PREVIEW_SIZE: float = 300.0
@@ -58,15 +60,13 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 	_message_label.visible = false
 
 	if snapshot.is_empty() or not is_instance_valid(mode_config):
-		show_message("暂无预览数据")
+		show_message(tr("NO_PREVIEW_DATA")) # 本地化
 		return
 
 	var grid_size: int = snapshot.get("grid_size", 4)
 	var tiles_data: Array = snapshot.get("tiles", [])
 
 	# 动态计算尺寸
-	# 公式: grid_size * cell + (grid_size + 1) * spacing = MAX_PREVIEW_SIZE
-	# spacing = cell * SPACING_RATIO
 	var raw_cell_size: float = MAX_PREVIEW_SIZE / (grid_size + (grid_size + 1) * SPACING_RATIO)
 	var cell_size: float = floor(raw_cell_size)
 	var spacing: float = floor(cell_size * SPACING_RATIO)
@@ -82,17 +82,25 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 	_background_panel.size = Vector2(MAX_PREVIEW_SIZE, MAX_PREVIEW_SIZE)
 	_background_panel.position = Vector2.ZERO
 
+	# 绘制背景格子
 	for x in grid_size:
 		for y in grid_size:
-			var cell_bg := Panel.new()
-			var cell_style := StyleBoxFlat.new()
-			cell_style.bg_color = mode_config.board_theme.empty_cell_color
-			cell_style.set_corner_radius_all(max(2, cell_size * 0.1))
-			cell_bg.add_theme_stylebox_override("panel", cell_style)
-			cell_bg.size = Vector2.ONE * cell_size
-			cell_bg.position = _get_cell_position(x, y, cell_size, spacing, offset_start)
-			_board_container.add_child(cell_bg)
+			var cell_instance: Control = GRID_CELL_SCENE.instantiate()
+			_board_container.add_child(cell_instance)
 
+			cell_instance.size = Vector2.ONE * cell_size
+			cell_instance.position = _get_cell_position(x, y, cell_size, spacing, offset_start)
+
+			# 兼容现有的主题颜色配置
+			if cell_instance is Panel:
+				var cell_style: StyleBox = cell_instance.get_theme_stylebox("panel").duplicate()
+				if cell_style is StyleBoxFlat:
+					cell_style.bg_color = mode_config.board_theme.empty_cell_color
+					# 预览图稍微缩小圆角
+					cell_style.set_corner_radius_all(max(2, cell_size * 0.1))
+					cell_instance.add_theme_stylebox_override("panel", cell_style)
+
+	# 绘制方块
 	for tile_data in tiles_data:
 		var pos: Vector2i = tile_data["pos"]
 		var value: int = tile_data["value"]

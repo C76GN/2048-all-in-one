@@ -72,7 +72,10 @@ var _info_score_label: Label
 
 func _ready() -> void:
 	if _page_title:
-		_page_title.text = "模式选择"
+		_page_title.text = tr("TITLE_MODE_SELECTION")
+
+	if _seed_line_edit:
+		_seed_line_edit.placeholder_text = tr("HINT_SEED_PLACEHOLDER")
 
 	_create_persistent_info_panel()
 	_update_pagination_buttons_visibility()
@@ -86,7 +89,18 @@ func _ready() -> void:
 	_grid_size_option_button.get_popup().id_focused.connect(_on_grid_size_focused)
 
 	_generate_and_display_new_seed()
+	_update_ui_text()
 	_update_list_and_focus(true)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		_update_ui_text()
+		if is_instance_valid(_mode_list_container):
+			for card in _mode_list_container.get_children():
+				if card is ModeCard:
+					card.update_text()
+		_update_ui_for_selection()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -208,10 +222,11 @@ func _set_selected_mode_by_path(config_path: String) -> void:
 
 	_selected_mode_config = load(config_path)
 
-	for card_node in _mode_list_container.get_children():
-		if card_node is ModeCard:
-			var card: ModeCard = card_node
-			card.set_selected(card.get_config_path() == config_path)
+	if is_instance_valid(_mode_list_container):
+		for card_node in _mode_list_container.get_children():
+			if card_node is ModeCard:
+				var card: ModeCard = card_node
+				card.set_selected(card.get_config_path() == config_path)
 
 	_update_ui_for_selection()
 
@@ -222,10 +237,16 @@ func _update_ui_for_selection() -> void:
 		_show_default_info()
 		return
 
+	if not is_instance_valid(_info_name_label) or not is_instance_valid(_right_panel_container):
+		return
+
 	_info_name_label.visible = true
-	_info_separator.visible = true
-	_info_desc_label.visible = true
-	_info_score_label.visible = true
+	if is_instance_valid(_info_separator):
+		_info_separator.visible = true
+	if is_instance_valid(_info_desc_label):
+		_info_desc_label.visible = true
+	if is_instance_valid(_info_score_label):
+		_info_score_label.visible = true
 	_right_panel_container.visible = true
 
 	_populate_left_panel()
@@ -234,22 +255,49 @@ func _update_ui_for_selection() -> void:
 
 ## 显示默认的空状态信息
 func _show_default_info() -> void:
+	if not is_instance_valid(_info_name_label) or not is_instance_valid(_right_panel_container):
+		return
 	_info_name_label.visible = false
-	_info_separator.visible = false
-	_info_desc_label.visible = false
-	_info_score_label.visible = false
+	if is_instance_valid(_info_separator):
+		_info_separator.visible = false
+	if is_instance_valid(_info_desc_label):
+		_info_desc_label.visible = false
+	if is_instance_valid(_info_score_label):
+		_info_score_label.visible = false
 	_right_panel_container.visible = false
+
+
+## 更新静态UI元素的文本。
+func _update_ui_text() -> void:
+	if is_instance_valid(_page_title):
+		_page_title.text = tr("TITLE_MODE_SELECTION")
+	if is_instance_valid(_seed_line_edit):
+		_seed_line_edit.placeholder_text = tr("HINT_SEED_PLACEHOLDER")
+	if is_instance_valid(_prev_page_button):
+		_prev_page_button.text = tr("UI_PREV_PAGE")
+	if is_instance_valid(_next_page_button):
+		_next_page_button.text = tr("UI_NEXT_PAGE")
+	if is_instance_valid(_back_button):
+		_back_button.text = tr("UI_BACK")
+	if is_instance_valid(_start_game_button):
+		_start_game_button.text = tr("BTN_START_GAME")
 
 
 ## 填充左侧信息面板（名称、描述、分数）。
 func _populate_left_panel() -> void:
-	_info_name_label.text = _selected_mode_config.mode_name
-	_info_desc_label.text = _selected_mode_config.mode_description
+	if not is_instance_valid(_selected_mode_config) or not is_instance_valid(_info_name_label):
+		return
+	_info_name_label.text = tr(_selected_mode_config.mode_name)
+	if is_instance_valid(_info_desc_label):
+		_info_desc_label.text = tr(_selected_mode_config.mode_description)
 	_update_high_score_label()
 
 
 ## 填充右侧配置面板（棋盘尺寸、开始按钮）。
 func _populate_right_panel() -> void:
+	if not is_instance_valid(_selected_mode_config) or not is_instance_valid(_grid_size_option_button) or not is_instance_valid(_start_game_button):
+		return
+
 	_grid_size_option_button.clear()
 	var default_size_index: int = -1
 
@@ -269,12 +317,12 @@ func _populate_right_panel() -> void:
 
 ## 更新左侧信息面板中的最高分标签。
 func _update_high_score_label() -> void:
-	if not is_instance_valid(_selected_mode_config):
+	if not is_instance_valid(_selected_mode_config) or not is_instance_valid(_info_score_label):
 		return
 
 	var mode_id: String = _selected_mode_config.resource_path.get_file().get_basename()
 	var high_score: int = SaveManager.get_high_score(mode_id, _current_grid_size)
-	_info_score_label.text = "\n在 %dx%d 尺寸下的最高分：%d" % [_current_grid_size, _current_grid_size, high_score]
+	_info_score_label.text = "\n" + tr("INFO_HIGH_SCORE_AT_SIZE") % [_current_grid_size, _current_grid_size, high_score]
 
 
 ## 根据模式总数更新翻页按钮的可见性。
@@ -339,7 +387,7 @@ func _on_grid_size_selected(index: int) -> void:
 
 func _on_start_game_button_pressed() -> void:
 	if not is_instance_valid(_selected_mode_config):
-		push_error("无法开始游戏：没有选中的模式。")
+		push_error(tr("ERR_NO_MODE_SELECTED"))
 		return
 
 	var seed_text: String = _seed_line_edit.text

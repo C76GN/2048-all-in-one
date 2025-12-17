@@ -45,14 +45,19 @@ func _ready() -> void:
 ## @param config_path: 指向 GameModeConfig 资源文件的路径。
 func setup(config_path: String) -> void:
 	_config_path = config_path
+	update_text()
+
+
+## 更新卡片文本（用于初始化或语言切换）。
+func update_text() -> void:
 	var mode_config := load(_config_path) as GameModeConfig
 
 	if is_instance_valid(mode_config):
-		_title_label.text = mode_config.mode_name
-		_description_label.text = "选择 " + mode_config.mode_name
+		_title_label.text = tr(mode_config.mode_name)
+		_description_label.text = tr("DESC_SELECT_MODE_PREFIX") + tr(mode_config.mode_name)
 	else:
-		_title_label.text = "错误"
-		_description_label.text = "无法加载模式"
+		_title_label.text = tr("UI_ERROR")
+		_description_label.text = tr("ERR_LOAD_CONFIG")
 
 
 ## 获取此卡片关联的配置路径。

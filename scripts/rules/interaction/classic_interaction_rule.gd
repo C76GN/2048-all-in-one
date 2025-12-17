@@ -68,7 +68,7 @@ func get_level_by_value(value: int) -> int:
 ##
 ## @return: 一个字典，键是类型ID(int)，值是类型的可读名称(String)。
 func get_spawnable_types() -> Dictionary:
-	return {Tile.TileType.PLAYER: "玩家"}
+	return {Tile.TileType.PLAYER: tr("RULE_PLAYER")}
 
 
 ## 根据指定的类型ID，获取所有可生成的方块“数值”。

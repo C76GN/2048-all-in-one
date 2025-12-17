@@ -108,8 +108,8 @@ func get_level_by_value(value: int) -> int:
 ## @return: 一个字典，键是类型ID(int)，值是类型的可读名称(String)。
 func get_spawnable_types() -> Dictionary:
 	return {
-		Tile.TileType.PLAYER: "玩家",
-		Tile.TileType.MONSTER: "怪物"
+		Tile.TileType.PLAYER: tr("RULE_PLAYER"),
+		Tile.TileType.MONSTER: tr("RULE_MONSTER")
 	}
 
 
@@ -134,6 +134,5 @@ func get_spawnable_values(_type_id: int) -> Array[int]:
 func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 	var data: Dictionary = {}
 	if context.has("monsters_killed"):
-		# 直接返回格式化好的字符串
-		data["monsters_killed_display"] = "消灭怪物: %d" % context["monsters_killed"]
+		data["monsters_killed_display"] = tr("BATTLE_KILLED_DISPLAY") % context["monsters_killed"]
 	return data

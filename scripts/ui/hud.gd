@@ -95,6 +95,10 @@ func update_display(display_data: Dictionary) -> void:
 		if ui_node is FlowLabelList:
 			(ui_node as FlowLabelList).update_data(data_to_display)
 		elif ui_node is RichTextLabel:
+			# 尝试对字符串进行基础的本地化处理
+			# 注意：由于 display_data 中的字符串可能已经是格式化后的（例如 "Score: 100"），
+			# 最好的做法是在生成 data 的源头（例如 game_play.gd 或 规则类）就使用 tr()。
+			# 这里只是作为最后的显示层，直接显示即可。
 			(ui_node as RichTextLabel).text = str(data_to_display)
 
 		ui_node.visible = true

@@ -88,11 +88,11 @@ func execute(context: Dictionary = {}) -> bool:
 ## @return: 一个包含显示信息的字典。
 func get_display_data(context: Dictionary = {}) -> Dictionary:
 	var data: Dictionary = {}
-	data["monster_chance_label"] = "下次移动出现怪物概率: %.1f%%" % (_current_probability * 100)
+	data["monster_chance_label"] = tr("BATTLE_MONSTER_CHANCE") % (_current_probability * 100)
 
 	var grid_model: GridModel = context.get("grid_model")
 	var pool: Dictionary = get_monster_spawn_pool(grid_model)
-	var spawn_info_text: String = "可能出现的怪物:\n"
+	var spawn_info_text: String = tr("BATTLE_SPAWN_INFO")
 	var total_weight: int = 0
 	for w in pool["weights"]: total_weight += w
 	if total_weight > 0:

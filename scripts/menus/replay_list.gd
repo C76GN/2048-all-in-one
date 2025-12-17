@@ -62,7 +62,7 @@ func _populate_replay_list() -> void:
 
 	if replays.is_empty():
 		var label := Label.new()
-		label.text = "没有找到任何回放记录。"
+		label.text = tr("MSG_NO_REPLAYS")
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.custom_minimum_size.y = 50
 		_items_container.add_child(label)
@@ -132,7 +132,7 @@ func _update_preview(replay: ReplayData) -> void:
 
 	var mode_config := load(replay.mode_config_path) as GameModeConfig
 	if not is_instance_valid(mode_config):
-		_detail_info_label.text = "错误: 无法加载模式配置"
+		_detail_info_label.text = tr("ERR_LOAD_CONFIG")
 		return
 
 	var datetime: String = Time.get_datetime_string_from_unix_time(replay.timestamp)
@@ -152,14 +152,14 @@ func _update_preview(replay: ReplayData) -> void:
 		if "final_board_snapshot" in replay and not replay.final_board_snapshot.is_empty():
 			_board_preview.show_snapshot(replay.final_board_snapshot, mode_config)
 		else:
-			_board_preview.show_message("(此回放无预览数据)")
+			_board_preview.show_message(tr("MSG_NO_PREVIEW_REPLAY"))
 
 
 ## 清空预览区域。
 func _clear_preview() -> void:
-	_detail_info_label.text = "请选择一个回放..."
+	_detail_info_label.text = tr("MSG_SELECT_REPLAY")
 	if is_instance_valid(_board_preview):
-		_board_preview.show_message("请选择一个回放")
+		_board_preview.show_message(tr("MSG_SELECT_REPLAY").replace("...", ""))
 	_selected_replay = null
 	_update_action_buttons()
 

@@ -21,10 +21,8 @@ metadata/_custom_type_script = "uid://cjyusdv36u0s6"
 
 [resource]
 script = ExtResource("1_i6mjw")
-mode_name = "斐波那契模式"
-mode_description = "玩法说明:
-两个 '1' 可以合并成 '2'。
-两个在斐波那契数列中相邻的数字可以合并成它们的和 (例如 2+3=5)。"
+mode_name = "MODE_FIBONACCI_NAME"
+mode_description = "MODE_FIBONACCI_DESC"
 interaction_rule = SubResource("Resource_n5c15")
 movement_rule = ExtResource("6_s7tht")
 spawn_rules = Array[ExtResource("2_6xepx")]([ExtResource("4_dtg25"), ExtResource("5_4014i")])

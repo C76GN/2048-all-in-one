@@ -115,6 +115,11 @@ func _ready() -> void:
 	_initialize_game()
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		_update_and_publish_hud_data()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_pause"):
 		_on_pause_toggled()
@@ -345,22 +350,25 @@ func _configure_ui_for_mode() -> void:
 
 ## 聚合所有需要显示的数据，并通过全局事件总线发布给HUD。
 func _update_and_publish_hud_data() -> void:
+	if not is_instance_valid(game_board):
+		return
+
 	var display_data: Dictionary = {}
 
-	if _is_replay_mode and input_source is ReplayInputSource:
+	if _is_replay_mode and is_instance_valid(input_source) and input_source is ReplayInputSource:
 		var total_steps: int = input_source.get_total_steps()
 		var current_step_display: int = history_manager.get_history_size() - 1
-		display_data["step_info"] = "步骤: %d / %d" % [current_step_display, total_steps]
+		display_data["step_info"] = tr("STEP_INFO_FORMAT") % [current_step_display, total_steps]
 
-	display_data["score"] = "分数: %d" % score
+	display_data["score"] = tr("SCORE_LABEL") % score
 	if not _is_replay_mode:
 		if score > initial_high_score:
-			display_data["high_score"] = "最高分: %d [color=yellow](新纪录!)[/color]" % score
+			display_data["high_score"] = tr("NEW_HIGH_SCORE_FORMAT") % score
 		else:
-			display_data["high_score"] = "最高分: %d" % initial_high_score
+			display_data["high_score"] = tr("HIGH_SCORE_LABEL") % initial_high_score
 
-	display_data["highest_tile"] = "最大方块: %d" % game_board.get_max_player_value()
-	display_data["move_count"] = "移动次数: %d" % move_count
+	display_data["highest_tile"] = tr("HIGHEST_TILE_LABEL") % game_board.get_max_player_value()
+	display_data["move_count"] = tr("MOVE_COUNT_LABEL") % move_count
 
 	var player_values: Array = game_board.get_all_player_tile_values()
 	var player_values_set: Dictionary = {}
@@ -383,18 +391,18 @@ func _update_and_publish_hud_data() -> void:
 			display_data.merge(rule_data)
 
 	display_data["separator"] = "--------------------"
-	if not mode_config.mode_description.is_empty():
-		display_data["description"] = mode_config.mode_description
+	if is_instance_valid(mode_config) and not mode_config.mode_description.is_empty():
+		display_data["description"] = tr(mode_config.mode_description)
 
 	if not _is_replay_mode:
-		display_data["controls_title"] = "操作"
-		display_data["controls_move"] = "移动: W/A/S/D 或 方向键"
-		display_data["controls_actions"] = "撤回: Z | 保存: B | 暂停: Esc"
+		display_data["controls_title"] = tr("CONTROLS_TITLE")
+		display_data["controls_move"] = tr("CONTROLS_MOVE_HINT")
+		display_data["controls_actions"] = tr("CONTROLS_ACTION_HINT")
 
-	display_data["seed_info"] = "游戏种子: %d" % RNGManager.get_current_seed()
+	display_data["seed_info"] = tr("SEED_INFO_LABEL") % RNGManager.get_current_seed()
 
 	if is_game_state_tainted_by_test_tools:
-		display_data["taint_warning"] = "[color=orange]警告: 调试工具已使用，回放将被禁用。[/color]"
+		display_data["taint_warning"] = tr("DEBUG_TAINT_WARNING")
 
 	if not _hud_status_message.is_empty():
 		display_data["status_message"] = _hud_status_message
@@ -574,7 +582,7 @@ func _on_undo_button_pressed() -> void:
 		var previous_state: Dictionary = history_manager.undo()
 		_restore_state(previous_state)
 	else:
-		_show_hud_message("[color=yellow]无法撤回: 已在最初状态。[/color]", 3.0)
+		_show_hud_message(tr("UNDO_FAIL_MSG"), 3.0)
 
 
 func _on_snapshot_button_pressed() -> void:
@@ -582,13 +590,13 @@ func _on_snapshot_button_pressed() -> void:
 		return
 
 	if is_game_state_tainted_by_test_tools:
-		_show_hud_message("[color=orange]警告: 正在保存一个被调试工具修改过的状态！[/color]", 4.0)
+		_show_hud_message(tr("SNAPSHOT_TAINT_WARN"), 4.0)
 
 	var current_state_for_comparison: Dictionary = _get_full_game_state()
 	current_state_for_comparison["game_state_history"] = history_manager.get_history()
 
 	if JSON.stringify(current_state_for_comparison) == JSON.stringify(_last_saved_bookmark_state):
-		_show_hud_message("[color=yellow]游戏状态未变，无需重复保存。[/color]", 3.0)
+		_show_hud_message(tr("SNAPSHOT_NO_CHANGE"), 3.0)
 		return
 
 	var new_bookmark := BookmarkData.new()
@@ -606,7 +614,7 @@ func _on_snapshot_button_pressed() -> void:
 
 	BookmarkManager.save_bookmark(new_bookmark)
 	_last_saved_bookmark_state = current_state_for_comparison
-	_show_hud_message("[color=green]书签已保存！[/color]", 3.0)
+	_show_hud_message(tr("SNAPSHOT_SAVED_SUCCESS"), 3.0)
 
 
 func _on_hud_message_timer_timeout() -> void:

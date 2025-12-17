@@ -21,9 +21,8 @@ metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 
 [resource]
 script = ExtResource("4_y7c41")
-mode_name = "经典模式"
-mode_description = "玩法说明:
-移动方块，让两个相同数值的方块碰撞以合并成一个两倍数值的方块。"
+mode_name = "MODE_CLASSIC_NAME"
+mode_description = "MODE_CLASSIC_DESC"
 interaction_rule = SubResource("Resource_jk0ep")
 movement_rule = ExtResource("6_y7c41")
 spawn_rules = Array[ExtResource("5_8xxsn")]([ExtResource("6_bx8w2"), ExtResource("7_e8guu")])

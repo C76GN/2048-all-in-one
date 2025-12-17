@@ -10,30 +10,34 @@ extends Node
 
 # --- 常量 ---
 
-## 存档文件的路径，保存在用户数据目录中。
+## 分数存档文件的路径。
 const SAVE_FILE_PATH: String = "user://scores.dat"
+## 设置存档文件的路径。
+const SETTINGS_FILE_PATH: String = "user://settings.dat"
 
 
 # --- 私有变量 ---
 
 ## 内部存储所有分数数据的字典。
-## 结构: { "mode_id": { "grid_size_str": score } }
-## 例如: { "classic": { "4x4": 15200, "5x5": 32000 } }
 var _scores_data: Dictionary = {}
+
+## 内部存储设置数据的字典。
+var _settings_data: Dictionary = {
+"locale": "zh" # 默认语言
+}
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
 	_load_scores()
+	_load_settings()
+	_apply_settings()
 
 
 # --- 公共方法 ---
 
 ## 根据模式ID和棋盘大小，获取最高分。
-## @param mode_id: 模式的唯一标识符（例如 "classic", "fibonacci"）。
-## @param grid_size: 棋盘的尺寸 (例如 4, 5, 6)。
-## @return: 返回对应的最高分，如果没有记录则返回 0。
 func get_high_score(mode_id: String, grid_size: int) -> int:
 	var grid_size_str: String = "%dx%d" % [grid_size, grid_size]
 
@@ -44,10 +48,6 @@ func get_high_score(mode_id: String, grid_size: int) -> int:
 
 
 ## 设置或更新一个模式在特定棋盘大小下的最高分。
-## 只有当新分数高于旧分数时才会更新。
-## @param mode_id: 模式的唯一标识符。
-## @param grid_size: 棋盘的尺寸。
-## @param score: 本次游戏获得的分数。
 func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
 	var current_high_score: int = get_high_score(mode_id, grid_size)
 
@@ -62,42 +62,75 @@ func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
 		_save_scores()
 
 
+## 设置并保存语言环境。
+## @param locale: 语言代码 (例如 "zh", "en")。
+func set_language(locale: String) -> void:
+	_settings_data["locale"] = locale
+	_save_settings()
+	_apply_settings()
+
+
+## 获取当前保存的语言设置。
+func get_language() -> String:
+	return _settings_data.get("locale", "zh")
+
+
 # --- 私有/辅助方法 ---
 
-## 将当前的分数数据保存到本地文件。
 func _save_scores() -> void:
-	var file: FileAccess = FileAccess.open(SAVE_FILE_PATH, FileAccess.WRITE)
+	_save_data(SAVE_FILE_PATH, _scores_data)
 
+
+func _save_settings() -> void:
+	_save_data(SETTINGS_FILE_PATH, _settings_data)
+
+
+func _load_scores() -> void:
+	var data = _load_data(SAVE_FILE_PATH)
+	if data != null:
+		_scores_data = data
+
+
+func _load_settings() -> void:
+	var data = _load_data(SETTINGS_FILE_PATH)
+	if data != null:
+		# 合并加载的数据，确保新添加的设置项有默认值
+		_settings_data.merge(data, true)
+
+
+func _apply_settings() -> void:
+	var locale: String = _settings_data.get("locale", "zh")
+	TranslationServer.set_locale(locale)
+	print("已应用语言设置: ", locale)
+
+
+## 通用的保存数据辅助函数。
+func _save_data(path: String, data: Dictionary) -> void:
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
-		push_error("保存分数失败！无法打开文件: %s" % SAVE_FILE_PATH)
+		push_error("无法保存文件: %s" % path)
 		return
-
-	var json_string: String = JSON.stringify(_scores_data, "\t")
+	var json_string: String = JSON.stringify(data, "\t")
 	file.store_string(json_string)
 	file.close()
-	print("分数已成功保存到: %s" % SAVE_FILE_PATH)
 
 
-## 从本地文件加载分数数据。
-func _load_scores() -> void:
-	if not FileAccess.file_exists(SAVE_FILE_PATH):
-		print("存档文件不存在，将使用空的计分板。")
-		return
+## 通用的加载数据辅助函数。
+func _load_data(path: String) -> Variant:
+	if not FileAccess.file_exists(path):
+		return null
 
-	var file: FileAccess = FileAccess.open(SAVE_FILE_PATH, FileAccess.READ)
-
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		push_error("加载分数失败！无法打开文件: %s" % SAVE_FILE_PATH)
-		return
+		push_error("无法加载文件: %s" % path)
+		return null
 
 	var content: String = file.get_as_text()
 	file.close()
 	var parse_result: Variant = JSON.parse_string(content)
 
 	if parse_result == null:
-		push_error("加载分数失败！JSON格式错误。")
-		_scores_data = {}
-		return
+		push_error("JSON解析失败: %s" % path)
+		return null
 
-	_scores_data = parse_result
-	print("分数已从 %s 成功加载。" % SAVE_FILE_PATH)
+	return parse_result

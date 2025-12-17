@@ -62,7 +62,7 @@ func _populate_list() -> void:
 
 	if bookmarks.is_empty():
 		var label := Label.new()
-		label.text = "没有找到任何书签记录。"
+		label.text = tr("MSG_NO_BOOKMARKS")
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.custom_minimum_size.y = 50
 		_items_container.add_child(label)
@@ -134,7 +134,7 @@ func _update_preview(bookmark: BookmarkData) -> void:
 
 	var mode_config := load(bookmark.mode_config_path) as GameModeConfig
 	if not is_instance_valid(mode_config):
-		_detail_info_label.text = "错误: 无法加载模式配置"
+		_detail_info_label.text = tr("ERR_LOAD_CONFIG")
 		return
 
 	var datetime: String = Time.get_datetime_string_from_unix_time(bookmark.timestamp)
@@ -157,9 +157,9 @@ func _update_preview(bookmark: BookmarkData) -> void:
 
 ## 清空预览区域。
 func _clear_preview() -> void:
-	_detail_info_label.text = "请选择一个存档..."
+	_detail_info_label.text = tr("MSG_SELECT_SAVE")
 	if is_instance_valid(_board_preview):
-		_board_preview.show_message("请选择一个存档")
+		_board_preview.show_message(tr("MSG_SELECT_SAVE").replace("...", ""))
 	_selected_bookmark = null
 	_update_action_buttons()
 

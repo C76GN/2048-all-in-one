@@ -27,7 +27,13 @@ func _ready() -> void:
 	_restart_button.pressed.connect(_on_restart_button_pressed)
 	_main_menu_button.pressed.connect(_on_main_menu_button_pressed)
 
+	_update_ui_text()
 	_restart_button.grab_focus()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		_update_ui_text()
 
 
 # --- 信号处理函数 ---
@@ -40,3 +46,12 @@ func _on_restart_button_pressed() -> void:
 ## 响应“返回主界面”按钮的点击事件。
 func _on_main_menu_button_pressed() -> void:
 	return_to_main_menu.emit()
+
+
+# --- 私有/辅助方法 ---
+
+func _update_ui_text() -> void:
+	if is_instance_valid(_restart_button):
+		_restart_button.text = tr("BTN_REPLAY_AGAIN")
+	if is_instance_valid(_main_menu_button):
+		_main_menu_button.text = tr("BTN_MAIN_MENU")

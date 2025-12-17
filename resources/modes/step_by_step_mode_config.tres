@@ -21,10 +21,8 @@ metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 
 [resource]
 script = ExtResource("7_4vg7y")
-mode_name = "步进对边模式"
-mode_description = "玩法说明:
-移动规则: 每次滑动，所有方块只移动一格。
-生成规则: 新方块会生成在您滑动方向的对向边缘。"
+mode_name = "MODE_STEP_NAME"
+mode_description = "MODE_STEP_DESC"
 interaction_rule = SubResource("Resource_jk0ep")
 movement_rule = ExtResource("6_6tj6m")
 spawn_rules = Array[ExtResource("8_vva0u")]([ExtResource("9_rkpth"), ExtResource("10_8531m")])

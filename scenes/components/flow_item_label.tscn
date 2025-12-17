@@ -1,0 +1,10 @@
+[gd_scene load_steps=0 format=3 uid="uid://b8yak2m1q3w5"]
+
+[node name="FlowItemLabel" type="Label"]
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.5)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+text = "123"
+vertical_alignment = 1

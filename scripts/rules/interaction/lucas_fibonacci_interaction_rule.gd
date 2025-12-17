@@ -152,11 +152,10 @@ func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 		highlight_fib_components[synthesis_data["f_minus_1"]] = true
 		highlight_fib_components[synthesis_data["f_plus_1"]] = true
 		highlight_lucas_set[synthesis_data["l_n"]] = true
-		var tip_format: String = "合成提示: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color]"
-		display_data["synthesis_tip_display"] = tip_format % [synthesis_data["f_minus_1"], synthesis_data["f_plus_1"], synthesis_data["l_n"]]
+		display_data["synthesis_tip_display"] = tr("TIP_SYNTHESIS_FORMAT") % [synthesis_data["f_minus_1"], synthesis_data["f_plus_1"], synthesis_data["l_n"]]
 
 	# 格式化斐波那契序列
-	var fib_data_for_ui: Array[Dictionary] = [{"text": "斐波那契:", "color": Color.WHITE}]
+	var fib_data_for_ui: Array[Dictionary] = [{"text": tr("LABEL_FIB_SEQ"), "color": Color.WHITE}]
 	for num in _fib_sequence:
 		if num > max_display_value: break
 		var item: Dictionary = {"text": str(num), "color": Color.GRAY}
@@ -168,7 +167,7 @@ func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 	# 格式化卢卡斯序列
 	var luc_display_sequence: Array[int] = _luc_sequence.slice(1)
 	luc_display_sequence.sort()
-	var luc_data_for_ui: Array[Dictionary] = [{"text": "卢卡斯:", "color": Color.WHITE}]
+	var luc_data_for_ui: Array[Dictionary] = [{"text": tr("LABEL_LUC_SEQ"), "color": Color.WHITE}]
 	for num in luc_display_sequence:
 		if num > max_display_value: break
 		var item: Dictionary = {"text": str(num), "color": Color.GRAY}
@@ -186,8 +185,8 @@ func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 func get_spawnable_types() -> Dictionary:
 	# 用 0 代表斐波那契，1 代表卢卡斯，这与 get_color_scheme_index 的逻辑一致
 	return {
-		0: "斐波那契数",
-		1: "卢卡斯数"
+		0: tr("RULE_FIBONACCI"),
+		1: tr("RULE_LUCAS")
 	}
 
 

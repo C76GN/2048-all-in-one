@@ -1,0 +1,50 @@
+[gd_scene load_steps=3 format=3 uid="uid://c8j6k4m2n5qax"]
+
+[ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://scenes/ui/layouts/base_three_column_layout.tscn" id="1_base"]
+[ext_resource type="Script" path="res://scripts/menus/settings_menu.gd" id="2_script"]
+
+[node name="SettingsMenu" instance=ExtResource("1_base")]
+script = ExtResource("2_script")
+
+[node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
+text = "设置"
+
+[node name="CenterContentVBox" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0"]
+custom_minimum_size = Vector2(400, 0)
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="LanguageContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="0"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/LanguageContainer" index="0"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "语言"
+vertical_alignment = 1
+
+[node name="LanguageOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/LanguageContainer" index="1"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_neighbor_bottom = NodePath("../../../../../RightColumn/BackButton")
+
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="0"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "操作"
+
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/RightColumn" index="1"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BackButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="2"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_neighbor_left = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/LanguageContainer/LanguageOptionButton")
+focus_neighbor_top = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/LanguageContainer/LanguageOptionButton")
+theme_override_font_sizes/font_size = 20
+text = "返回主菜单"

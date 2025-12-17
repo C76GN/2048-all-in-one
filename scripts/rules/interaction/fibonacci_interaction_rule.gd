@@ -96,7 +96,7 @@ func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 		sequence.append(next_fib)
 
 	# 在规则内部直接构建HUD所需的Array[Dictionary]结构
-	var fib_data_for_ui: Array[Dictionary] = [{"text": "合成序列:", "color": Color.WHITE}]
+	var fib_data_for_ui: Array[Dictionary] = [{"text": tr("LABEL_SYNTH_SEQ"), "color": Color.WHITE}]
 	for num in sequence:
 		var item: Dictionary = {"text": str(num), "color": Color.GRAY}
 		if player_values_set.has(num):
@@ -113,7 +113,7 @@ func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 ##
 ## @return: 一个字典，键是类型ID(int)，值是类型的可读名称(String)。
 func get_spawnable_types() -> Dictionary:
-	return {Tile.TileType.PLAYER: "斐波那契数"}
+	return {Tile.TileType.PLAYER: tr("RULE_FIBONACCI")}
 
 
 ## 根据指定的类型ID，获取所有可生成的方块“数值”。

@@ -30,6 +30,12 @@ const SPACING: int = 15
 const BOARD_PADDING: int = 15
 
 
+# --- 导出变量 ---
+
+## 用于生成棋盘背景格子的场景文件。
+@export var grid_cell_scene: PackedScene = preload("res://scenes/components/board_grid_cell.tscn")
+
+
 # --- 公共变量 ---
 
 ## 逻辑模型引用。
@@ -280,25 +286,40 @@ func _update_board_layout() -> void:
 func _draw_board_cells() -> void:
 	if not model:
 		return
+
+	# 清除旧的格子
 	for child in board_container.get_children():
-		if child is Panel:
+		# 注意：Tile 也是 Node2D 的子节点，所以这里需要区分
+		# 由于 Tile 是 Node2D 类型 (继承自 scenes/components/tile.tscn)，
+		# 而我们的格子场景是 Control (Panel)。
+		if child is Control and not child is Tile:
 			child.queue_free()
 
-	var cell_color := Color("3c3c3c")
-	if is_instance_valid(board_theme):
-		cell_color = board_theme.empty_cell_color
+	# 确保有一个有效的格子场景
+	if not is_instance_valid(grid_cell_scene):
+		push_error("GameBoard: 未配置 grid_cell_scene！")
+		return
 
 	for x in model.grid_size:
 		for y in model.grid_size:
-			var cell_bg := Panel.new()
-			var stylebox := StyleBoxFlat.new()
-			stylebox.bg_color = cell_color
-			stylebox.set_corner_radius_all(8)
-			cell_bg.add_theme_stylebox_override("panel", stylebox)
-			cell_bg.size = Vector2.ONE * CELL_SIZE
-			cell_bg.position = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
-			board_container.add_child(cell_bg)
-			board_container.move_child(cell_bg, 0)
+			var cell_instance: Control = grid_cell_scene.instantiate()
+			board_container.add_child(cell_instance)
+
+			# 设置格子的大小和位置
+			cell_instance.size = Vector2.ONE * CELL_SIZE
+			cell_instance.position = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
+
+			# 如果定义了 BoardTheme，尝试应用颜色
+			# 注意：使用场景后，建议优先使用场景内的主题配置，
+			# 这里保留颜色覆盖是为了兼容现有的 JSON 主题系统。
+			if is_instance_valid(board_theme) and cell_instance is Panel:
+				var stylebox: StyleBox = cell_instance.get_theme_stylebox("panel").duplicate()
+				if stylebox is StyleBoxFlat:
+					stylebox.bg_color = board_theme.empty_cell_color
+					cell_instance.add_theme_stylebox_override("panel", stylebox)
+
+			# 确保背景格子在最底层
+			board_container.move_child(cell_instance, 0)
 
 
 ## 检查游戏是否结束，委托给 game_over_rule。
@@ -321,38 +342,41 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 	main_tween.tween_property(board_container, "scale", Vector2.ONE * final_layout.scale_ratio, 0.3)
 	await main_tween.finished
 
+	# 清理旧格子 (非 Tile 节点)
 	for child in board_container.get_children():
-		if child is Panel: child.queue_free()
+		if child is Control and not child is Tile:
+			child.queue_free()
 
 	var new_cells_tween := create_tween().set_parallel(true)
-	var cell_color := Color("3c3c3c")
-	if is_instance_valid(board_theme):
-		cell_color = board_theme.empty_cell_color
+
+	if not is_instance_valid(grid_cell_scene): return
 
 	for x in new_size:
 		for y in new_size:
-			var cell_bg := Panel.new()
-			var stylebox := StyleBoxFlat.new()
-			stylebox.bg_color = cell_color
-			stylebox.set_corner_radius_all(8)
-			cell_bg.add_theme_stylebox_override("panel", stylebox)
+			var cell_instance: Control = grid_cell_scene.instantiate()
+			board_container.add_child(cell_instance)
+			board_container.move_child(cell_instance, 0) # 保持在底部
+
 			var final_size := Vector2.ONE * CELL_SIZE
 			var final_pos := Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
-			board_container.add_child(cell_bg)
-			board_container.move_child(cell_bg, 0)
+
+			if is_instance_valid(board_theme) and cell_instance is Panel:
+				var stylebox: StyleBox = cell_instance.get_theme_stylebox("panel").duplicate()
+				if stylebox is StyleBoxFlat:
+					stylebox.bg_color = board_theme.empty_cell_color
+					cell_instance.add_theme_stylebox_override("panel", stylebox)
 
 			if x >= old_size or y >= old_size:
 				var center_pos: Vector2 = final_pos + final_size / 2.0
-				cell_bg.size = Vector2.ZERO
-				cell_bg.position = center_pos
-				new_cells_tween.tween_property(cell_bg, "size", final_size, 0.2).set_delay(0.05 * (x + y))
-				new_cells_tween.tween_property(cell_bg, "position", final_pos, 0.2).set_delay(0.05 * (x + y))
+				cell_instance.size = Vector2.ZERO
+				cell_instance.position = center_pos
+				new_cells_tween.tween_property(cell_instance, "size", final_size, 0.2).set_delay(0.05 * (x + y))
+				new_cells_tween.tween_property(cell_instance, "position", final_pos, 0.2).set_delay(0.05 * (x + y))
 			else:
-				cell_bg.size = final_size
-				cell_bg.position = final_pos
+				cell_instance.size = final_size
+				cell_instance.position = final_pos
+
 	await new_cells_tween.finished
-
-
 
 
 ## 将网格坐标转换为棋盘容器内的局部像素中心点坐标。
