@@ -67,13 +67,17 @@ var _info_score_label: Label
 @onready var _next_page_button: Button = %NextPageButton
 @onready var _pagination_container: HBoxContainer = _prev_page_button.get_parent()
 
+## 右侧配置面板标题标签。
+@onready var _config_header_label: Label = _right_panel_container.get_node("Label")
+## 棋盘大小选项标签。
+@onready var _grid_size_label: Label = _grid_size_option_button.get_parent().get_node("Label")
+## 游戏种子输入标签。
+@onready var _seed_label: Label = _seed_line_edit.get_parent().get_node("Label")
+
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	if _page_title:
-		_page_title.text = tr("TITLE_MODE_SELECTION")
-
 	if _seed_line_edit:
 		_seed_line_edit.placeholder_text = tr("HINT_SEED_PLACEHOLDER")
 
@@ -281,6 +285,12 @@ func _update_ui_text() -> void:
 		_back_button.text = tr("UI_BACK")
 	if is_instance_valid(_start_game_button):
 		_start_game_button.text = tr("BTN_START_GAME")
+	if is_instance_valid(_config_header_label):
+		_config_header_label.text = tr("LABEL_MODE_CONFIG")
+	if is_instance_valid(_grid_size_label):
+		_grid_size_label.text = tr("LABEL_GRID_SIZE")
+	if is_instance_valid(_seed_label):
+		_seed_label.text = tr("LABEL_GAME_SEED")
 
 
 ## 填充左侧信息面板（名称、描述、分数）。

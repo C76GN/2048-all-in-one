@@ -13,6 +13,11 @@ extends Control
 @onready var _language_option: OptionButton = %LanguageOptionButton
 @onready var _back_button: Button = %BackButton
 
+## 语言选项标签。
+@onready var _language_label: Label = _language_option.get_parent().get_node("Label")
+## 操作面板标题标签。
+@onready var _controls_header_label: Label = _back_button.get_parent().get_node("Label")
+
 
 # --- Godot 生命周期方法 ---
 
@@ -73,3 +78,7 @@ func _update_ui_text() -> void:
 		_page_title.text = tr("SETTINGS_TITLE")
 	if is_instance_valid(_back_button):
 		_back_button.text = tr("BACK_BUTTON")
+	if is_instance_valid(_language_label):
+		_language_label.text = tr("LANGUAGE_LABEL")
+	if is_instance_valid(_controls_header_label):
+		_controls_header_label.text = tr("CONTROLS_TITLE")

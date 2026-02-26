@@ -50,8 +50,7 @@ func setup(new_bookmark_data: BookmarkData) -> void:
 	if not _bookmark_data.mode_config_path.is_empty():
 		var mode_config := load(_bookmark_data.mode_config_path) as GameModeConfig
 		if is_instance_valid(mode_config):
-			# 注意：mode_name 这里假设是翻译键或直接文本，建议后续在 ModeConfig 中使用翻译键
-			_mode_name_label.text = mode_config.mode_name
+			_mode_name_label.text = tr(mode_config.mode_name)
 		else:
 			_mode_name_label.text = tr("CONFIG_MISSING")
 
@@ -61,15 +60,14 @@ func setup(new_bookmark_data: BookmarkData) -> void:
 
 	var grid_size: int = _bookmark_data.board_snapshot.get("grid_size", 0)
 
-	# 使用格式化字符串进行本地化
-	var info_format: String = tr("BOOKMARK_INFO_FORMAT") # 需在翻译文件中定义: "%s | 分数: %d | 尺寸: %dx%d"
-	# 如果还没有翻译文件，暂时使用默认格式
-	if info_format == "BOOKMARK_INFO_FORMAT":
-		info_format = "%s | " + tr("SCORE_LABEL") + ": %d | " + tr("SIZE_LABEL") + ": %dx%d"
-
+	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
+	var size_label: String = tr("SIZE_LABEL")
+	var info_format: String = tr("BOOKMARK_INFO_FORMAT")
 	_info_label.text = info_format % [
 		datetime,
+		score_label,
 		_bookmark_data.score,
+		size_label,
 		grid_size,
 		grid_size
 	]

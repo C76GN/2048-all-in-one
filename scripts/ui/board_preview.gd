@@ -56,7 +56,7 @@ func _ready() -> void:
 ## @param snapshot: 包含 "grid_size" 和 "tiles" 的字典。
 ## @param mode_config: 游戏模式配置，用于获取配色和规则。
 func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
-	_clear_preview()
+	_clear_preview_internal()
 	_message_label.visible = false
 
 	if snapshot.is_empty() or not is_instance_valid(mode_config):
@@ -118,11 +118,11 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 		tile.setup(value, type, mode_config.interaction_rule, mode_config.color_schemes)
 
 
-## 在预览区域中心显示一条文本消息（如“无数据”）。
+## 在预览区域中心显示一条文本消息（如"无数据"）。
 ## 会自动清除当前的棋盘显示。
 ## @param text: 要显示的文本。
 func show_message(text: String) -> void:
-	_clear_preview()
+	_clear_preview_internal()
 
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.15, 0.15, 0.15, 1)
@@ -134,9 +134,20 @@ func show_message(text: String) -> void:
 	_message_label.visible = true
 
 
+## 完全清空预览区域，隐藏所有文字和背景。
+## 使父容器的背景可以显示出来。
+func clear() -> void:
+	_clear_preview_internal()
+	_message_label.visible = false
+	
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color.TRANSPARENT
+	_background_panel.add_theme_stylebox_override("panel", style)
+
+
 # --- 私有/辅助方法 ---
 
-func _clear_preview() -> void:
+func _clear_preview_internal() -> void:
 	for child in _board_container.get_children():
 		child.queue_free()
 

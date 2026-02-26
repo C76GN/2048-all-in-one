@@ -44,22 +44,15 @@ text = "继续游戏"
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
 focus_neighbor_top = NodePath("../ContinueButton")
-focus_neighbor_bottom = NodePath("../SaveButton")
-text = "重新开始"
-
-[node name="SaveButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
-custom_minimum_size = Vector2(250, 60)
-layout_mode = 2
-focus_neighbor_top = NodePath("../RestartButton")
 focus_neighbor_bottom = NodePath("../SettingsButton")
-text = "保存游戏 (待实现)"
+text = "重新开始"
 
 [node name="SettingsButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
-focus_neighbor_top = NodePath("../SaveButton")
+focus_neighbor_top = NodePath("../RestartButton")
 focus_next = NodePath("../MainMenuButton")
-text = "设置 (待实现)"
+text = "设置"
 
 [node name="MainMenuButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 60)

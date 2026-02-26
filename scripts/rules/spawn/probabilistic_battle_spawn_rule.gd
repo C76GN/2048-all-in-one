@@ -98,7 +98,7 @@ func get_display_data(context: Dictionary = {}) -> Dictionary:
 	if total_weight > 0:
 		for i in range(pool["weights"].size()):
 			var p: float = (float(pool["weights"][i]) / total_weight) * 100
-			spawn_info_text += "  - %d (概率: %.1f%%)\n" % [pool["values"][i], p]
+			spawn_info_text += tr("FORMAT_BATTLE_PROBABILITY") % [pool["values"][i], p]
 	data["spawn_info_label"] = spawn_info_text
 
 	return data

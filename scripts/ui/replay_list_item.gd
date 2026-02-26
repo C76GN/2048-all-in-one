@@ -49,7 +49,7 @@ func setup(new_replay_data: ReplayData) -> void:
 	if not _replay_data.mode_config_path.is_empty():
 		var mode_config := load(_replay_data.mode_config_path) as GameModeConfig
 		if is_instance_valid(mode_config):
-			_mode_name_label.text = mode_config.mode_name
+			_mode_name_label.text = tr(mode_config.mode_name)
 		else:
 			_mode_name_label.text = tr("CONFIG_MISSING")
 
@@ -57,14 +57,14 @@ func setup(new_replay_data: ReplayData) -> void:
 	if _replay_data.timestamp > 0:
 		datetime = Time.get_datetime_string_from_unix_time(_replay_data.timestamp).replace("T", " ")
 
-	# 使用格式化字符串进行本地化
+	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
+	var size_label: String = tr("SIZE_LABEL")
 	var info_format: String = tr("REPLAY_INFO_FORMAT")
-	if info_format == "REPLAY_INFO_FORMAT":
-		info_format = "%s | " + tr("SCORE_LABEL") + ": %d | " + tr("SIZE_LABEL") + ": %dx%d"
-
 	_info_label.text = info_format % [
 		datetime,
+		score_label,
 		_replay_data.final_score,
+		size_label,
 		_replay_data.grid_size,
 		_replay_data.grid_size
 	]

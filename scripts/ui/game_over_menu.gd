@@ -18,6 +18,7 @@ signal return_to_main_menu
 # --- @onready 变量 (节点引用) ---
 
 @onready var _restart_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/RestartButton
+@onready var _settings_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/SettingsButton
 @onready var _main_menu_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/MainMenuButton
 
 
@@ -53,5 +54,7 @@ func _on_main_menu_button_pressed() -> void:
 func _update_ui_text() -> void:
 	if is_instance_valid(_restart_button):
 		_restart_button.text = tr("BTN_REPLAY_AGAIN")
+	if is_instance_valid(_settings_button):
+		_settings_button.text = tr("BTN_SETTINGS")
 	if is_instance_valid(_main_menu_button):
 		_main_menu_button.text = tr("BTN_MAIN_MENU")

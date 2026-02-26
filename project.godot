@@ -12,11 +12,15 @@ config_version=5
 
 general/updates_per_second=100
 
+[animation]
+
+compatibility/default_parent_skeleton_in_mesh_instance_3d=true
+
 [application]
 
 config/name="2048-all-in-one"
 run/main_scene="uid://d3caufbu1axub"
-config/features=PackedStringArray("4.5", "Forward Plus")
+config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]

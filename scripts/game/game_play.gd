@@ -113,11 +113,13 @@ func _ready() -> void:
 	if _page_title:
 		_page_title.visible = false
 	_initialize_game()
+	_update_static_ui_text()
 
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
 		_update_and_publish_hud_data()
+		_update_static_ui_text()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -153,6 +155,20 @@ func update_replay_buttons_state() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _update_static_ui_text() -> void:
+	if is_instance_valid(replay_prev_step_button):
+		replay_prev_step_button.text = tr("BTN_REPLAY_PREV")
+	if is_instance_valid(replay_next_step_button):
+		replay_next_step_button.text = tr("BTN_REPLAY_NEXT")
+	if is_instance_valid(replay_back_button):
+		replay_back_button.text = tr("BTN_REPLAY_BACK")
+	
+	if is_instance_valid(replay_controls_container):
+		var label = replay_controls_container.get_node_or_null("Label")
+		if label:
+			label.text = tr("LABEL_REPLAY_CONTROLS")
+
 
 ## 负责整个游戏场景的初始化或重置。
 ## @param new_grid_size: 如果提供，则使用此尺寸开始新游戏，否则使用全局设置。

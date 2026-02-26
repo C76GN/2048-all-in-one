@@ -21,6 +21,7 @@ signal return_to_main_menu
 
 @onready var _continue_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/ContinueButton
 @onready var _restart_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/RestartButton
+@onready var _settings_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/SettingsButton
 @onready var _main_menu_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/MainMenuButton
 
 
@@ -66,5 +67,7 @@ func _update_ui_text() -> void:
 		_continue_button.text = tr("BTN_RESUME")
 	if is_instance_valid(_restart_button):
 		_restart_button.text = tr("BTN_RESTART")
+	if is_instance_valid(_settings_button):
+		_settings_button.text = tr("BTN_SETTINGS")
 	if is_instance_valid(_main_menu_button):
 		_main_menu_button.text = tr("BTN_MAIN_MENU")

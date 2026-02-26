@@ -30,6 +30,7 @@ var _selected_bookmark: BookmarkData = null
 @onready var _load_button: Button = %LoadButton
 @onready var _delete_button: Button = %DeleteButton
 @onready var _back_button: Button = %BackButton
+@onready var _page_title: Label = %PageTitle
 
 
 # --- Godot 生命周期方法 ---
@@ -39,8 +40,14 @@ func _ready() -> void:
 	_delete_button.pressed.connect(_on_delete_button_pressed)
 	_back_button.pressed.connect(_on_back_button_pressed)
 
+	_update_ui_text()
 	_update_action_buttons()
 	_populate_list()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		_update_ui_text()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -141,13 +148,13 @@ func _update_preview(bookmark: BookmarkData) -> void:
 	var grid_size: int = bookmark.board_snapshot.get("grid_size", 0)
 
 	var details: String = ""
-	details += "[b]模式:[/b] %s\n" % mode_config.mode_name
-	details += "[b]时间:[/b] %s\n" % datetime.replace("T", " ")
-	details += "[b]分数:[/b] %d\n" % bookmark.score
-	details += "[b]步数:[/b] %d\n" % bookmark.move_count
-	details += "[b]杀怪:[/b] %d\n" % bookmark.monsters_killed
-	details += "[b]棋盘:[/b] %dx%d\n" % [grid_size, grid_size]
-	details += "[b]种子:[/b] %d" % bookmark.initial_seed
+	details += "[b]%s[/b] %s\n" % [tr("LABEL_MODE"), tr(mode_config.mode_name)]
+	details += "[b]%s[/b] %s\n" % [tr("LABEL_TIME"), datetime.replace("T", " ")]
+	details += "[b]%s[/b] %d\n" % [tr("LABEL_SCORE"), bookmark.score]
+	details += "[b]%s[/b] %d\n" % [tr("LABEL_MOVES"), bookmark.move_count]
+	details += "[b]%s[/b] %d\n" % [tr("LABEL_KILLED"), bookmark.monsters_killed]
+	details += "[b]%s[/b] %dx%d\n" % [tr("LABEL_BOARD"), grid_size, grid_size]
+	details += "[b]%s[/b] %d" % [tr("LABEL_SEED"), bookmark.initial_seed]
 
 	_detail_info_label.text = details
 
@@ -159,7 +166,7 @@ func _update_preview(bookmark: BookmarkData) -> void:
 func _clear_preview() -> void:
 	_detail_info_label.text = tr("MSG_SELECT_SAVE")
 	if is_instance_valid(_board_preview):
-		_board_preview.show_message(tr("MSG_SELECT_SAVE").replace("...", ""))
+		_board_preview.clear()
 	_selected_bookmark = null
 	_update_action_buttons()
 
@@ -169,6 +176,31 @@ func _update_action_buttons() -> void:
 	var has_selection: bool = _selected_bookmark != null
 	_load_button.disabled = not has_selection
 	_delete_button.disabled = not has_selection
+
+
+## 更新所有UI元素的文本，用于初始化和语言切换。
+func _update_ui_text() -> void:
+	if is_instance_valid(_page_title):
+		_page_title.text = tr("TITLE_LOAD_SAVE")
+	
+	var left_column = get_node_or_null("MarginContainer/ColumnsContainer/LeftColumn")
+	if left_column and left_column.get_child_count() > 0:
+		var preview_label = left_column.get_child(0) as Label
+		if preview_label:
+			preview_label.text = tr("TITLE_SAVE_PREVIEW")
+	
+	if is_instance_valid(_load_button):
+		_load_button.text = tr("BTN_LOAD_SAVE")
+	if is_instance_valid(_delete_button):
+		_delete_button.text = tr("BTN_DELETE_SAVE")
+	if is_instance_valid(_back_button):
+		_back_button.text = tr("BTN_RETURN_MAIN")
+	
+	var right_column = get_node_or_null("MarginContainer/ColumnsContainer/RightColumn")
+	if right_column and right_column.get_child_count() > 0:
+		var operations_label = right_column.get_child(0) as Label
+		if operations_label:
+			operations_label.text = tr("CONTROLS_TITLE")
 
 
 # --- 信号处理函数 ---

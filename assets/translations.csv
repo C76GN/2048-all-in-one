@@ -3,8 +3,8 @@ UNKNOWN_MODE,（未知模式）,(Unknown Mode)
 CONFIG_MISSING,（模式配置丢失）,(Config Missing)
 TIME_PARSE_ERROR,无法解析时间,Invalid Time
 NO_PREVIEW_DATA,暂无预览数据,No Preview Data
-BOOKMARK_INFO_FORMAT,"%s | 分数: %d | 尺寸: %dx%d","%s | Score: %d | Size: %dx%d"
-REPLAY_INFO_FORMAT,"%s | 分数: %d | 尺寸: %dx%d","%s | Score: %d | Size: %dx%d"
+BOOKMARK_INFO_FORMAT,"%s | %s %d | %s %dx%d","%s | %s %d | %s %dx%d"
+REPLAY_INFO_FORMAT,"%s | %s %d | %s %dx%d","%s | %s %d | %s %dx%d"
 SCORE_LABEL,分数: %d,Score: %d
 NEW_HIGH_SCORE_FORMAT,最高分: %d [color=yellow](新纪录!)[/color],High Score: %d [color=yellow](New!)[/color]
 HIGH_SCORE_LABEL,最高分: %d,High Score: %d
@@ -90,8 +90,7 @@ TITLE_GAME_OVER,游戏结束,Game Over
 TITLE_PAUSE,暂停,Paused
 BTN_RESUME,继续游戏,Resume
 BTN_RESTART,重新开始,Restart
-BTN_SAVE_GAME,保存游戏 (待实现),Save Game (WIP)
-BTN_SETTINGS,设置 (待实现),Settings (WIP)
+BTN_SETTINGS,设置,Settings
 BTN_MAIN_MENU,返回主界面,Main Menu
 BTN_REPLAY_AGAIN,重来,Play Again
 BTN_REPLAY_LIST,回放列表,Replay List
@@ -116,3 +115,29 @@ DEBUG_BOARD_CTRL,棋盘控制,Board Control
 DEBUG_BOARD_SIZE,棋盘大小：,Board Size:
 DEBUG_RESET_RESIZE,重置并调整大小,Reset & Resize
 DEBUG_LIVE_EXPAND,游戏中扩建棋盘,Live Expand
+LABEL_MODE,模式:,Mode:
+LABEL_TIME,时间:,Time:
+LABEL_SCORE,分数:,Score:
+LABEL_MOVES,步数:,Moves:
+LABEL_KILLED,杀怪:,Killed:
+LABEL_BOARD,棋盘:,Board:
+LABEL_SEED,种子:,Seed:
+LABEL_FINAL_SCORE,最终分数:,Final Score:
+LABEL_TOTAL_MOVES,总步数:,Total Moves:
+TITLE_LOAD_SAVE,读取存档,Load Save
+TITLE_REPLAY_LIST,回放列表,Replay List
+TITLE_SAVE_PREVIEW,存档预览,Save Preview
+TITLE_REPLAY_PREVIEW,回放预览,Replay Preview
+BTN_LOAD_SAVE,读取存档,Load Save
+BTN_DELETE_SAVE,删除存档,Delete Save
+BTN_DELETE_REPLAY,删除回放,Delete Replay
+BTN_PLAY_REPLAY,播放回放,Play Replay
+BTN_RETURN_MAIN,返回主菜单,Return to Main Menu
+TITLE_GAME_STATUS,游戏状态,Game Status
+BTN_REPLAY_PREV,< 上一步,< Prev
+BTN_REPLAY_NEXT,下一步 >,Next >
+BTN_REPLAY_BACK,返回列表,Back to List
+LABEL_REPLAY_CONTROLS,回放控制,Replay Controls
+FORMAT_BATTLE_PROBABILITY,"  - %d (概率: %.1f%%)
+","  - %d (Chance: %.1f%%)
+"
