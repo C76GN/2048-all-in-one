@@ -69,8 +69,10 @@ var _info_score_label: Label
 
 ## 右侧配置面板标题标签。
 @onready var _config_header_label: Label = _right_panel_container.get_node("Label")
+
 ## 棋盘大小选项标签。
 @onready var _grid_size_label: Label = _grid_size_option_button.get_parent().get_node("Label")
+
 ## 游戏种子输入标签。
 @onready var _seed_label: Label = _seed_line_edit.get_parent().get_node("Label")
 

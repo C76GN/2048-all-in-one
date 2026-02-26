@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameModeConfig" load_steps=13 format=3 uid="uid://dklmno2p3q4r5"]
+[gd_resource type="Resource" script_class="GameModeConfig" format=3 uid="uid://dklmno2p3q4r5"]
 
 [ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/board/default_board_theme.tres" id="1_tqikr"]
 [ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://resources/themes/tile_schemes/classic_tile_theme.tres" id="2_6nssk"]

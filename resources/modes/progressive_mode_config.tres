@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameModeConfig" load_steps=13 format=3 uid="uid://da3ioky106k1i"]
+[gd_resource type="Resource" script_class="GameModeConfig" format=3 uid="uid://da3ioky106k1i"]
 
 [ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://scripts/global/game_mode_config.gd" id="1_o4y40"]
 [ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/board/default_board_theme.tres" id="1_wpcmn"]

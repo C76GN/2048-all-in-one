@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="TileColorScheme" load_steps=14 format=3 uid="uid://dbppel7der23n"]
+[gd_resource type="Resource" script_class="TileColorScheme" format=3 uid="uid://dbppel7der23n"]
 
 [ext_resource type="Script" uid="uid://dwmd115dhs0pl" path="res://scripts/global/tile_color_scheme.gd" id="1_wiyha"]
 [ext_resource type="Script" uid="uid://b7dkhehece8ke" path="res://scripts/global/tile_level_style.gd" id="2_v8o4n"]

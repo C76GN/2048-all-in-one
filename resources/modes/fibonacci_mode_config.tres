@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameModeConfig" load_steps=13 format=3 uid="uid://djrsravpjyj8"]
+[gd_resource type="Resource" script_class="GameModeConfig" format=3 uid="uid://djrsravpjyj8"]
 
 [ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://resources/themes/board/default_board_theme.tres" id="1_6vbk8"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://scripts/rules/game_over/standard_game_over_rule.gd" id="1_dtg25"]

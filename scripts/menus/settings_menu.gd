@@ -15,6 +15,7 @@ extends Control
 
 ## 语言选项标签。
 @onready var _language_label: Label = _language_option.get_parent().get_node("Label")
+
 ## 操作面板标题标签。
 @onready var _controls_header_label: Label = _back_button.get_parent().get_node("Label")
 
@@ -58,6 +59,17 @@ func _setup_language_options() -> void:
 		_language_option.select(0)
 
 
+func _update_ui_text() -> void:
+	if is_instance_valid(_page_title):
+		_page_title.text = tr("SETTINGS_TITLE")
+	if is_instance_valid(_back_button):
+		_back_button.text = tr("BACK_BUTTON")
+	if is_instance_valid(_language_label):
+		_language_label.text = tr("LANGUAGE_LABEL")
+	if is_instance_valid(_controls_header_label):
+		_controls_header_label.text = tr("CONTROLS_TITLE")
+
+
 # --- 信号处理函数 ---
 
 func _on_language_selected(index: int) -> void:
@@ -71,14 +83,3 @@ func _on_language_selected(index: int) -> void:
 
 func _on_back_button_pressed() -> void:
 	GlobalGameManager.return_to_main_menu()
-
-
-func _update_ui_text() -> void:
-	if is_instance_valid(_page_title):
-		_page_title.text = tr("SETTINGS_TITLE")
-	if is_instance_valid(_back_button):
-		_back_button.text = tr("BACK_BUTTON")
-	if is_instance_valid(_language_label):
-		_language_label.text = tr("LANGUAGE_LABEL")
-	if is_instance_valid(_controls_header_label):
-		_controls_header_label.text = tr("CONTROLS_TITLE")

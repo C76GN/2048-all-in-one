@@ -16,10 +16,13 @@ extends SpawnRule
 @export_group("概率配置")
 ## 生成怪物的基础概率（0.0 到 1.0 之间）。
 @export_range(0.0, 1.0) var base_probability: float = 0.05
+
 ## 每次生成怪物失败后，概率增加的量。
 @export_range(0.0, 1.0) var increase_on_failure: float = 0.02
+
 ## 怪物生成概率可以达到的最大值。
 @export_range(0.0, 1.0) var max_probability: float = 0.5
+
 
 @export_group("玩家方块配置")
 ## 生成数值为2的玩家方块的概率（其余为4）。

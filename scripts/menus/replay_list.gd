@@ -2,144 +2,68 @@
 
 ## ReplayList: 显示所有已保存回放的菜单界面。
 ##
-## 负责从 ReplayManager 加载回放数据，动态创建 ReplayListItem
-## 实例，并处理选择回放、删除回放以及返回主菜单的逻辑。
+## 继承自 BaseListMenu，专门负责回放视频的加载、播放与管理。
 class_name ReplayList
-extends Control
+extends BaseListMenu
+
 
 # --- 常量 ---
-
-## 单个回放列表项的场景资源。
-const REPLAY_LIST_ITEM_SCENE: PackedScene = preload("res://scenes/ui/replay_list_item.tscn")
 
 ## 游戏场景路径。
 const GAME_SCENE_PATH: String = "res://scenes/game/game_play.tscn"
 
 
-# --- 私有变量 ---
-
-## 当前选中的回放数据。
-var _selected_replay: ReplayData = null
-
-
-# --- @onready 变量 (节点引用) ---
-
-@onready var _items_container: VBoxContainer = %ReplayItemsContainer
-@onready var _board_preview: BoardPreview = find_child("BoardPreview", true, false)
-@onready var _detail_info_label: RichTextLabel = find_child("DetailInfoLabel", true, false)
-@onready var _play_button: Button = %PlayButton
-@onready var _delete_button: Button = %DeleteButton
-@onready var _back_button: Button = %BackButton
-@onready var _page_title: Label = %PageTitle
-
-
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	_play_button.pressed.connect(_on_play_button_pressed)
-	_delete_button.pressed.connect(_on_delete_button_pressed)
-	_back_button.pressed.connect(_on_back_button_pressed)
-
+	# 初始化工厂资源和节点引用
+	_item_scene = preload("res://scenes/ui/replay_list_item.tscn")
+	_primary_button = %PlayButton
+	_delete_button = %DeleteButton
+	
+	# 连接基类基础信号
+	_setup_base_signals()
+	
+	# 初始化 UI
 	_update_ui_text()
 	_update_action_buttons()
-	_populate_replay_list()
+	_populate_list()
+	
+	# 确保父类连接了 back_button
+	super._ready()
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_TRANSLATION_CHANGED:
-		_update_ui_text()
+# --- 虚方法覆写 ---
 
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		_on_back_button_pressed()
-		get_viewport().set_input_as_handled()
-
-
-# --- 私有/辅助方法 ---
-
-## 从 ReplayManager 加载数据并填充列表。
-func _populate_replay_list() -> void:
-	for child in _items_container.get_children():
-		child.queue_free()
-
-	await get_tree().process_frame
-
+func _get_data_list() -> Array:
 	var replays: Array[ReplayData] = ReplayManager.load_replays()
+	# 显式转换为普通 Array 以适配基类
+	var result: Array = []
+	for r in replays: result.append(r)
+	return result
 
-	if replays.is_empty():
-		var label := Label.new()
-		label.text = tr("MSG_NO_REPLAYS")
-		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		label.custom_minimum_size.y = 50
-		_items_container.add_child(label)
-		_clear_preview()
-		_update_focus_neighbors(null)
-		return
 
-	var items: Array[ReplayListItem] = []
-	for replay_data in replays:
-		var item := REPLAY_LIST_ITEM_SCENE.instantiate() as ReplayListItem
-		_items_container.add_child(item)
-		item.setup(replay_data)
-		items.append(item)
+func _setup_item(item: Control, data: Resource) -> void:
+	if item is ReplayListItem and data is ReplayData:
+		item.setup(data)
 
+
+func _connect_item_signals(item: Control, _data: Resource) -> void:
+	if item.has_signal("replay_selected"):
 		item.replay_selected.connect(_on_item_confirmed)
+	if item.has_signal("item_focused"):
 		item.item_focused.connect(_on_item_focused)
 
-	if items.size() > 1:
-		var first_item: Control = items[0]
-		var last_item: Control = items[-1]
-		first_item.focus_neighbor_top = last_item.get_path()
-		last_item.focus_neighbor_bottom = first_item.get_path()
 
-	if not items.is_empty():
-		items[0].grab_focus()
-		_set_selected_item(items[0].get_data())
-
-
-## 统一选中逻辑。
-func _set_selected_item(replay_data: ReplayData) -> void:
-	_selected_replay = replay_data
-	_update_preview(replay_data)
-	_update_action_buttons()
-
-	var target_node: Control = null
-	for child in _items_container.get_children():
-		if child is ReplayListItem:
-			var is_target: bool = (child.get_data() == replay_data)
-			child.set_selected(is_target)
-			if is_target:
-				target_node = child
-
-	_update_focus_neighbors(target_node)
-
-
-## 动态更新右侧按钮的导航目标，以修复焦点路径。
-## 确保从右侧按钮向左移动时，能回到当前选中的列表项。
-func _update_focus_neighbors(target_node: Control) -> void:
-	var target_path: NodePath = NodePath("")
-
-	if is_instance_valid(target_node):
-		target_path = target_node.get_path()
-	elif _items_container.get_child_count() > 0:
-		var first = _items_container.get_child(0)
-		if first is Control: target_path = first.get_path()
-
-	_play_button.focus_neighbor_left = target_path
-	_delete_button.focus_neighbor_left = target_path
-	_back_button.focus_neighbor_left = target_path
-
-
-## 更新左侧预览区域。
-func _update_preview(replay: ReplayData) -> void:
+func _update_preview(data: Resource) -> void:
+	var replay = data as ReplayData
 	if not is_instance_valid(replay):
 		_clear_preview()
 		return
 
 	var mode_config := load(replay.mode_config_path) as GameModeConfig
 	if not is_instance_valid(mode_config):
-		_detail_info_label.text = tr("ERR_LOAD_CONFIG")
+		DetailInfoLabel.text = tr("ERR_LOAD_CONFIG")
 		return
 
 	var datetime: String = Time.get_datetime_string_from_unix_time(replay.timestamp)
@@ -153,35 +77,18 @@ func _update_preview(replay: ReplayData) -> void:
 	details += "[b]%s[/b] %dx%d\n" % [tr("LABEL_BOARD"), grid_size, grid_size]
 	details += "[b]%s[/b] %d" % [tr("LABEL_SEED"), replay.initial_seed]
 
-	_detail_info_label.text = details
+	DetailInfoLabel.text = details
 
-	if is_instance_valid(_board_preview):
+	if is_instance_valid(BoardPreviewNode):
 		if "final_board_snapshot" in replay and not replay.final_board_snapshot.is_empty():
-			_board_preview.show_snapshot(replay.final_board_snapshot, mode_config)
+			BoardPreviewNode.show_snapshot(replay.final_board_snapshot, mode_config)
 		else:
-			_board_preview.show_message(tr("MSG_NO_PREVIEW_REPLAY"))
+			BoardPreviewNode.show_message(tr("MSG_NO_PREVIEW_REPLAY"))
 
 
-## 清空预览区域。
-func _clear_preview() -> void:
-	_detail_info_label.text = tr("MSG_SELECT_REPLAY")
-	if is_instance_valid(_board_preview):
-		_board_preview.clear()
-	_selected_replay = null
-	_update_action_buttons()
-
-
-## 更新右侧按钮状态。
-func _update_action_buttons() -> void:
-	var has_selection: bool = _selected_replay != null
-	_play_button.disabled = not has_selection
-	_delete_button.disabled = not has_selection
-
-
-## 更新所有UI元素的文本，用于初始化和语言切换。
 func _update_ui_text() -> void:
-	if is_instance_valid(_page_title):
-		_page_title.text = tr("TITLE_REPLAY_LIST")
+	if is_instance_valid(PageTitle):
+		PageTitle.text = tr("TITLE_REPLAY_LIST")
 	
 	var left_column = get_node_or_null("MarginContainer/ColumnsContainer/LeftColumn")
 	if left_column and left_column.get_child_count() > 0:
@@ -189,12 +96,12 @@ func _update_ui_text() -> void:
 		if preview_label:
 			preview_label.text = tr("TITLE_REPLAY_PREVIEW")
 	
-	if is_instance_valid(_play_button):
-		_play_button.text = tr("BTN_PLAY_REPLAY")
+	if is_instance_valid(_primary_button):
+		_primary_button.text = tr("BTN_PLAY_REPLAY")
 	if is_instance_valid(_delete_button):
 		_delete_button.text = tr("BTN_DELETE_REPLAY")
-	if is_instance_valid(_back_button):
-		_back_button.text = tr("BTN_RETURN_MAIN")
+	if is_instance_valid(BackButton):
+		BackButton.text = tr("BTN_RETURN_MAIN")
 	
 	var right_column = get_node_or_null("MarginContainer/ColumnsContainer/RightColumn")
 	if right_column and right_column.get_child_count() > 0:
@@ -203,32 +110,20 @@ func _update_ui_text() -> void:
 			operations_label.text = tr("CONTROLS_TITLE")
 
 
-# --- 信号处理函数 ---
-
-func _on_item_focused(replay_data: ReplayData) -> void:
-	if _selected_replay != replay_data:
-		_set_selected_item(replay_data)
+func _do_delete_logic(data: Resource) -> void:
+	var replay = data as ReplayData
+	ReplayManager.delete_replay(replay.file_path)
 
 
-func _on_item_confirmed(replay_data: ReplayData) -> void:
-	_set_selected_item(replay_data)
+func _on_primary_action_triggered(data: Resource) -> void:
+	var replay = data as ReplayData
+	GlobalGameManager.current_replay_data = replay
+	GlobalGameManager.goto_scene(GAME_SCENE_PATH)
 
 
-## 响应“播放回放”按钮。
-func _on_play_button_pressed() -> void:
-	if _selected_replay:
-		GlobalGameManager.current_replay_data = _selected_replay
-		GlobalGameManager.goto_scene(GAME_SCENE_PATH)
+func _get_empty_message() -> String:
+	return tr("MSG_NO_REPLAYS")
 
 
-## 响应“删除回放”按钮。
-func _on_delete_button_pressed() -> void:
-	if _selected_replay:
-		ReplayManager.delete_replay(_selected_replay.file_path)
-		_selected_replay = null
-		await _populate_replay_list()
-
-
-## 响应“返回”按钮。
-func _on_back_button_pressed() -> void:
-	GlobalGameManager.return_to_main_menu()
+func _get_select_hint_message() -> String:
+	return tr("MSG_SELECT_REPLAY")

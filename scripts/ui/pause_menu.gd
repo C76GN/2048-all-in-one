@@ -11,10 +11,13 @@ extends Control
 
 ## 当玩家请求继续游戏时发出。
 signal resume_game
+
 ## 当玩家确认要重新开始游戏时发出。
 signal restart_game
+
 ## 当玩家请求返回主菜单时发出。
 signal return_to_main_menu
+
 
 
 # --- @onready 变量 (节点引用) ---

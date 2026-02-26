@@ -107,6 +107,8 @@ func update_display(display_data: Dictionary) -> void:
 		ui_node.visible = true
 
 
+# --- 私有/辅助方法 ---
+
 func _update_ui_text() -> void:
 	if is_instance_valid(_title_label):
 		_title_label.text = tr("TITLE_GAME_STATUS")

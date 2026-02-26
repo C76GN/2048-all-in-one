@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameModeConfig" load_steps=13 format=3 uid="uid://dlv621h6njs6m"]
+[gd_resource type="Resource" script_class="GameModeConfig" format=3 uid="uid://dlv621h6njs6m"]
 
 [ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://scripts/global/game_mode_config.gd" id="1_bibj5"]
 [ext_resource type="Resource" uid="uid://n8l73wke5rgq" path="res://resources/themes/tile_schemes/fibonacci_tile_theme.tres" id="1_osb3v"]
