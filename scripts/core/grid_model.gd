@@ -97,14 +97,14 @@ func move(direction: Vector2i) -> bool:
 			var final_coords: Vector2i = _get_coords_for_line(i, final_line_pos, direction)
 
 			instructions.append({
-				"type": "MERGE",
-				"consumed_tile": consumed,
-				"merged_tile": merged,
-				"to_grid_pos": final_coords
+				&"type": &"MERGE",
+				&"consumed_tile": consumed,
+				&"merged_tile": merged,
+				&"to_grid_pos": final_coords
 			})
 
-			if merge_info.has("score"):
-				score_updated.emit(merge_info["score"])
+			if merge_info.has(&"score"):
+				score_updated.emit(merge_info[&"score"])
 
 		var tiles_in_new_line: Dictionary = {}
 		for tile in new_line:
@@ -119,9 +119,9 @@ func move(direction: Vector2i) -> bool:
 			if original_tile and final_line_pos != -1 and final_line_pos != j:
 				var final_coords: Vector2i = _get_coords_for_line(i, final_line_pos, direction)
 				instructions.append({
-					"type": "MOVE",
-					"tile": original_tile,
-					"to_grid_pos": final_coords
+					&"type": &"MOVE",
+					&"tile": original_tile,
+					&"to_grid_pos": final_coords
 				})
 
 		for j in range(grid_size):
@@ -210,13 +210,13 @@ func get_snapshot() -> Dictionary:
 			var tile = grid[x][y]
 			if tile != null:
 				tiles_data.append({
-					"pos": Vector2i(x, y),
-					"value": tile.value,
-					"type": tile.type
+					&"pos": Vector2i(x, y),
+					&"value": tile.value,
+					&"type": tile.type
 				})
 	return {
-		"grid_size": grid_size,
-		"tiles": tiles_data,
+		&"grid_size": grid_size,
+		&"tiles": tiles_data,
 	}
 
 

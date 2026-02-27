@@ -10,28 +10,19 @@ extends Node
 
 # --- 常量 ---
 
-## 分数存档文件的路径。
-const SAVE_FILE_PATH: String = "user://scores.dat"
-## 设置存档文件的路径。
-const SETTINGS_FILE_PATH: String = "user://settings.dat"
+## 存档文件的路径。
+const SAVE_PATH: String = "user://game_save.tres"
 
 
 # --- 私有变量 ---
 
-## 内部存储所有分数数据的字典。
-var _scores_data: Dictionary = {}
-
-## 内部存储设置数据的字典。
-var _settings_data: Dictionary = {
-"locale": "zh" # 默认语言
-}
+var _save_data: GameSaveResource
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	_load_scores()
-	_load_settings()
+	_load_game_data()
 	_apply_settings()
 
 
@@ -40,9 +31,10 @@ func _ready() -> void:
 ## 根据模式ID和棋盘大小，获取最高分。
 func get_high_score(mode_id: String, grid_size: int) -> int:
 	var grid_size_str: String = "%dx%d" % [grid_size, grid_size]
+	var scores: Dictionary = _save_data.scores
 
-	if _scores_data.has(mode_id) and _scores_data[mode_id].has(grid_size_str):
-		return _scores_data[mode_id][grid_size_str]
+	if scores.has(mode_id) and scores[mode_id].has(grid_size_str):
+		return scores[mode_id][grid_size_str]
 
 	return 0
 
@@ -54,83 +46,46 @@ func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
 	if score > current_high_score:
 		var grid_size_str: String = "%dx%d" % [grid_size, grid_size]
 
-		if not _scores_data.has(mode_id):
-			_scores_data[mode_id] = {}
+		if not _save_data.scores.has(mode_id):
+			_save_data.scores[mode_id] = {}
 
-		_scores_data[mode_id][grid_size_str] = score
+		_save_data.scores[mode_id][grid_size_str] = score
 		print("新纪录诞生! 模式: %s, 尺寸: %s, 分数: %d" % [mode_id, grid_size_str, score])
-		_save_scores()
+		_save_game_data()
 
 
 ## 设置并保存语言环境。
 ## @param locale: 语言代码 (例如 "zh", "en")。
 func set_language(locale: String) -> void:
-	_settings_data["locale"] = locale
-	_save_settings()
+	_save_data.settings[&"locale"] = locale
+	_save_game_data()
 	_apply_settings()
 
 
 ## 获取当前保存的语言设置。
 func get_language() -> String:
-	return _settings_data.get("locale", "zh")
+	return _save_data.settings.get(&"locale", "zh")
 
 
 # --- 私有/辅助方法 ---
 
-func _save_scores() -> void:
-	_save_data(SAVE_FILE_PATH, _scores_data)
+func _save_game_data() -> void:
+	var error: Error = ResourceSaver.save(_save_data, SAVE_PATH)
+	if error != OK:
+		push_error("SaveManager: 无法保存存档文件: %d" % error)
 
 
-func _save_settings() -> void:
-	_save_data(SETTINGS_FILE_PATH, _settings_data)
+func _load_game_data() -> void:
+	if ResourceLoader.exists(SAVE_PATH):
+		_save_data = ResourceLoader.load(SAVE_PATH) as GameSaveResource
 
+	if not is_instance_valid(_save_data):
+		_save_data = GameSaveResource.new()
 
-func _load_scores() -> void:
-	var data = _load_data(SAVE_FILE_PATH)
-	if data != null:
-		_scores_data = data
-
-
-func _load_settings() -> void:
-	var data = _load_data(SETTINGS_FILE_PATH)
-	if data != null:
-		# 合并加载的数据，确保新添加的设置项有默认值
-		_settings_data.merge(data, true)
+	_save_data.ensure_defaults()
 
 
 func _apply_settings() -> void:
-	var locale: String = _settings_data.get("locale", "zh")
+	var locale: String = get_language()
 	TranslationServer.set_locale(locale)
 	print("已应用语言设置: ", locale)
-
-
-## 通用的保存数据辅助函数。
-func _save_data(path: String, data: Dictionary) -> void:
-	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		push_error("无法保存文件: %s" % path)
-		return
-	var json_string: String = JSON.stringify(data, "\t")
-	file.store_string(json_string)
-	file.close()
-
-
-## 通用的加载数据辅助函数。
-func _load_data(path: String) -> Variant:
-	if not FileAccess.file_exists(path):
-		return null
-
-	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		push_error("无法加载文件: %s" % path)
-		return null
-
-	var content: String = file.get_as_text()
-	file.close()
-	var parse_result: Variant = JSON.parse_string(content)
-
-	if parse_result == null:
-		push_error("JSON解析失败: %s" % path)
-		return null
-
-	return parse_result

@@ -51,9 +51,9 @@ func update_display(display_data: Dictionary) -> void:
 
 	# 步骤2: 遍历传入的新数据，更新或创建对应的UI节点。
 	var keys_in_order: Array = display_data.keys()
-	if display_data.has("status_message"):
-		keys_in_order.erase("status_message")
-		keys_in_order.insert(0, "status_message")
+	if display_data.has(&"status_message"):
+		keys_in_order.erase(&"status_message")
+		keys_in_order.insert(0, &"status_message")
 
 	for key in keys_in_order:
 		var data_to_display: Variant = display_data[key]
@@ -95,7 +95,7 @@ func update_display(display_data: Dictionary) -> void:
 		else:
 			ui_node = _stat_labels[key]
 
-		if key == "status_message":
+		if key == &"status_message":
 			_stats_container.move_child(ui_node, 0)
 
 		# 步骤3: 根据节点类型，使用不同的方式更新内容。

@@ -102,8 +102,8 @@ func handle_move(direction: Vector2i) -> bool:
 	var moved: bool = model.move(direction)
 	if moved:
 		var move_data: Dictionary = {
-			"direction": direction,
-			"moved_lines": []
+			&"direction": direction,
+			&"moved_lines": []
 		}
 		EventBus.move_made.emit(move_data)
 		_check_game_over()
@@ -132,7 +132,7 @@ func spawn_tile(spawn_data: Dictionary) -> void:
 	var new_tile: Tile = _create_visual_tile(value, type)
 	model.place_tile(new_tile, spawn_pos)
 	new_tile.position = _grid_to_pixel_center(spawn_pos)
-	var instruction: Array = [{"type": "SPAWN", "tile": new_tile}]
+	var instruction: Array = [ {&"type": &"SPAWN", &"tile": new_tile}]
 	play_animations_requested.emit(instruction)
 
 
@@ -162,7 +162,7 @@ func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) ->
 	var new_tile: Tile = _create_visual_tile(value, type)
 	model.place_tile(new_tile, grid_pos)
 	new_tile.position = _grid_to_pixel_center(grid_pos)
-	var instruction: Array = [{"type": "SPAWN", "tile": new_tile}]
+	var instruction: Array = [ {&"type": &"SPAWN", &"tile": new_tile}]
 	play_animations_requested.emit(instruction)
 
 
@@ -211,16 +211,16 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 	if not model:
 		return
 
-	var grid_size: int = snapshot.get("grid_size", 4)
+	var grid_size: int = snapshot.get(&"grid_size", 4)
 	var interaction_rule: InteractionRule = model.interaction_rule
 	var movement_rule: MovementRule = model.movement_rule
 	model.initialize(grid_size, interaction_rule, movement_rule)
 
-	var tiles_data: Array = snapshot.get("tiles", [])
+	var tiles_data: Array = snapshot.get(&"tiles", [])
 	for tile_data in tiles_data:
-		var pos: Vector2i = tile_data["pos"]
-		var value: int = tile_data["value"]
-		var type: Tile.TileType = tile_data["type"]
+		var pos: Vector2i = tile_data[&"pos"]
+		var value: int = tile_data[&"value"]
+		var type: Tile.TileType = tile_data[&"type"]
 
 		var new_tile: Tile = _create_visual_tile(value, type)
 		new_tile.position = _grid_to_pixel_center(pos)
@@ -408,8 +408,8 @@ func _calculate_layout_params(p_size: int) -> Dictionary:
 
 func _on_model_board_changed(instructions: Array) -> void:
 	for instr in instructions:
-		if instr.has("to_grid_pos"):
-			instr["to_pos"] = _grid_to_pixel_center(instr["to_grid_pos"])
+		if instr.has(&"to_grid_pos"):
+			instr[&"to_pos"] = _grid_to_pixel_center(instr[&"to_grid_pos"])
 
 	play_animations_requested.emit(instructions)
 

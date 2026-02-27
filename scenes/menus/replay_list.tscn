@@ -1,8 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://bsb0gb7p8fsbj"]
+[gd_scene format=3 uid="uid://bsb0gb7p8fsbj"]
 
 [ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://scenes/ui/layouts/base_three_column_layout.tscn" id="1_base"]
 [ext_resource type="Script" uid="uid://cuo7wbgu6ycmi" path="res://scripts/menus/replay_list.gd" id="2_script"]
 [ext_resource type="Script" uid="uid://d3udmbuw4bj40" path="res://scripts/ui/board_preview.gd" id="3_preview"]
+[ext_resource type="PackedScene" uid="uid://28ale2iku1n4" path="res://scenes/game/game_play.tscn" id="3_rpj4o"]
+[ext_resource type="PackedScene" uid="uid://dpea6wwlgpa1p" path="res://scenes/ui/replay_list_item.tscn" id="4_d2d40"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_preview_bg"]
 bg_color = Color(0.2, 0.2, 0.2, 1)
@@ -11,33 +13,35 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[node name="ReplayList" instance=ExtResource("1_base")]
+[node name="ReplayList" unique_id=1670585559 instance=ExtResource("1_base")]
 script = ExtResource("2_script")
+game_scene = ExtResource("3_rpj4o")
+item_scene = ExtResource("4_d2d40")
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0"]
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0" unique_id=2054139606]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "回放预览"
 horizontal_alignment = 1
 
-[node name="PreviewContainer" type="PanelContainer" parent="MarginContainer/ColumnsContainer/LeftColumn" index="1"]
+[node name="PreviewContainer" type="PanelContainer" parent="MarginContainer/ColumnsContainer/LeftColumn" index="1" unique_id=1031328243]
 custom_minimum_size = Vector2(0, 300)
 layout_mode = 2
 size_flags_vertical = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_preview_bg")
 
-[node name="CenterContainer" type="CenterContainer" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer" index="0"]
+[node name="CenterContainer" type="CenterContainer" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer" index="0" unique_id=1583595694]
 layout_mode = 2
 
-[node name="BoardPreview" type="Control" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer/CenterContainer" index="0"]
+[node name="BoardPreview" type="Control" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer/CenterContainer" index="0" unique_id=1891961887]
 layout_mode = 2
 script = ExtResource("3_preview")
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/LeftColumn" index="2"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/LeftColumn" index="2" unique_id=45804508]
 layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="DetailInfoLabel" type="RichTextLabel" parent="MarginContainer/ColumnsContainer/LeftColumn" index="3"]
+[node name="DetailInfoLabel" type="RichTextLabel" parent="MarginContainer/ColumnsContainer/LeftColumn" index="3" unique_id=1501115283]
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
@@ -47,29 +51,29 @@ fit_content = true
 [node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
 text = "回放列表"
 
-[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0"]
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0" unique_id=1718768631]
 custom_minimum_size = Vector2(550, 500)
 layout_mode = 2
 follow_focus = true
 horizontal_scroll_mode = 0
 
-[node name="ReplayItemsContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/ScrollContainer" index="0"]
+[node name="ReplayItemsContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/ScrollContainer" index="0" unique_id=390394718]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 10
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="0"]
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="0" unique_id=697784924]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "操作"
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/RightColumn" index="1"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/RightColumn" index="1" unique_id=790575178]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="PlayButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="2"]
+[node name="PlayButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="2" unique_id=862153950]
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../BackButton")
@@ -78,7 +82,7 @@ theme_override_font_sizes/font_size = 20
 disabled = true
 text = "播放回放"
 
-[node name="DeleteButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="3"]
+[node name="DeleteButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="3" unique_id=1824353598]
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../PlayButton")
@@ -88,11 +92,11 @@ theme_override_font_sizes/font_size = 20
 disabled = true
 text = "删除回放"
 
-[node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="4"]
+[node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="4" unique_id=383110954]
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 
-[node name="BackButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="5"]
+[node name="BackButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="5" unique_id=612154343]
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../DeleteButton")

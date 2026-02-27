@@ -59,6 +59,7 @@ func dispatch_event(event: Events, context: Dictionary = {}) -> void:
 	relevant_rules.sort_custom(func(a: SpawnRule, b: SpawnRule) -> bool: return a.priority > b.priority)
 
 	for rule in relevant_rules:
+		# 确保传入正确的上下文键
 		var was_consumed: bool = rule.execute(context)
 		if was_consumed:
 			break

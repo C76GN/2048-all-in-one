@@ -142,7 +142,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func save_current_state(action: Variant) -> void:
 	var state = _get_full_game_state()
-	state["action"] = action
+	state[&"action"] = action
 	history_manager.save_state(state)
 
 
@@ -193,7 +193,7 @@ func _initialize_game(new_grid_size: int = -1) -> void:
 		if not _setup_new_game(new_grid_size): return
 		current_controller = StandardGameController.new()
 
-	current_controller.setup(self)
+	current_controller.setup(self )
 	_finalize_initialization()
 
 	state_machine.change_state("Playing")
@@ -305,7 +305,7 @@ func _finalize_initialization() -> void:
 		game_board.restore_from_snapshot(_loaded_bookmark_data.board_snapshot)
 		_last_saved_bookmark_state = _get_full_game_state()
 	else:
-		var context = { "grid_model": game_board.model }
+		var context = {"grid_model": game_board.model}
 		rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD, context)
 
 	_initialize_test_tools()
@@ -374,17 +374,17 @@ func _update_and_publish_hud_data() -> void:
 	if _is_replay_mode and is_instance_valid(input_source) and input_source is ReplayInputSource:
 		var total_steps: int = input_source.get_total_steps()
 		var current_step_display: int = history_manager.get_history_size() - 1
-		display_data["step_info"] = tr("STEP_INFO_FORMAT") % [current_step_display, total_steps]
+		display_data[&"step_info"] = tr("STEP_INFO_FORMAT") % [current_step_display, total_steps]
 
-	display_data["score"] = tr("SCORE_LABEL") % score
+	display_data[&"score"] = tr("SCORE_LABEL") % score
 	if not _is_replay_mode:
 		if score > initial_high_score:
-			display_data["high_score"] = tr("NEW_HIGH_SCORE_FORMAT") % score
+			display_data[&"high_score"] = tr("NEW_HIGH_SCORE_FORMAT") % score
 		else:
-			display_data["high_score"] = tr("HIGH_SCORE_LABEL") % initial_high_score
+			display_data[&"high_score"] = tr("HIGH_SCORE_LABEL") % initial_high_score
 
-	display_data["highest_tile"] = tr("HIGHEST_TILE_LABEL") % game_board.get_max_player_value()
-	display_data["move_count"] = tr("MOVE_COUNT_LABEL") % move_count
+	display_data[&"highest_tile"] = tr("HIGHEST_TILE_LABEL") % game_board.get_max_player_value()
+	display_data[&"move_count"] = tr("MOVE_COUNT_LABEL") % move_count
 
 	var player_values: Array = game_board.get_all_player_tile_values()
 	var player_values_set: Dictionary = {}
@@ -400,28 +400,28 @@ func _update_and_publish_hud_data() -> void:
 		var interaction_data: Dictionary = interaction_rule.get_hud_context_data(rule_context)
 		display_data.merge(interaction_data)
 
-	var grid_model_context = { "grid_model": game_board.model }
+	var grid_model_context = {"grid_model": game_board.model}
 	for rule in all_spawn_rules:
 		var rule_data: Dictionary = rule.get_display_data(grid_model_context)
 		if not rule_data.is_empty():
 			display_data.merge(rule_data)
 
-	display_data["separator"] = "--------------------"
+	display_data[&"separator"] = "--------------------"
 	if is_instance_valid(mode_config) and not mode_config.mode_description.is_empty():
-		display_data["description"] = tr(mode_config.mode_description)
+		display_data[&"description"] = tr(mode_config.mode_description)
 
 	if not _is_replay_mode:
-		display_data["controls_title"] = tr("CONTROLS_TITLE")
-		display_data["controls_move"] = tr("CONTROLS_MOVE_HINT")
-		display_data["controls_actions"] = tr("CONTROLS_ACTION_HINT")
+		display_data[&"controls_title"] = tr("CONTROLS_TITLE")
+		display_data[&"controls_move"] = tr("CONTROLS_MOVE_HINT")
+		display_data[&"controls_actions"] = tr("CONTROLS_ACTION_HINT")
 
-	display_data["seed_info"] = tr("SEED_INFO_LABEL") % RNGManager.get_current_seed()
+	display_data[&"seed_info"] = tr("SEED_INFO_LABEL") % RNGManager.get_current_seed()
 
 	if is_game_state_tainted_by_test_tools:
-		display_data["taint_warning"] = tr("DEBUG_TAINT_WARNING")
+		display_data[&"taint_warning"] = tr("DEBUG_TAINT_WARNING")
 
 	if not _hud_status_message.is_empty():
-		display_data["status_message"] = _hud_status_message
+		display_data[&"status_message"] = _hud_status_message
 
 	EventBus.hud_update_requested.emit(display_data)
 
@@ -463,12 +463,12 @@ func _get_full_game_state() -> Dictionary:
 		rules_states.append(rule.get_state())
 
 	return {
-		"board_snapshot": game_board.get_state_snapshot(),
-		"rng_state": RNGManager.get_state(),
-		"score": score,
-		"move_count": move_count,
-		"monsters_killed": monsters_killed,
-		"rules_states": rules_states
+		&"board_snapshot": game_board.get_state_snapshot(),
+		&"rng_state": RNGManager.get_state(),
+		&"score": score,
+		&"move_count": move_count,
+		&"monsters_killed": monsters_killed,
+		&"rules_states": rules_states
 	}
 
 
@@ -478,14 +478,14 @@ func _restore_state(state_to_restore: Dictionary) -> void:
 	if state_machine.get_current_state() == "GameOver":
 		state_machine.change_state("Playing")
 
-	score = state_to_restore["score"]
-	move_count = state_to_restore["move_count"]
-	monsters_killed = state_to_restore["monsters_killed"]
-	RNGManager.set_state(state_to_restore["rng_state"])
-	game_board.restore_from_snapshot(state_to_restore["board_snapshot"])
+	score = state_to_restore[&"score"]
+	move_count = state_to_restore[&"move_count"]
+	monsters_killed = state_to_restore[&"monsters_killed"]
+	RNGManager.set_state(state_to_restore[&"rng_state"])
+	game_board.restore_from_snapshot(state_to_restore[&"board_snapshot"])
 
-	if state_to_restore.has("rules_states"):
-		var rules_states: Array = state_to_restore["rules_states"]
+	if state_to_restore.has(&"rules_states"):
+		var rules_states: Array = state_to_restore[&"rules_states"]
 		for i in range(min(all_spawn_rules.size(), rules_states.size())):
 			all_spawn_rules[i].set_state(rules_states[i])
 
@@ -525,7 +525,7 @@ func _on_input_source_action_triggered(action: Variant) -> void:
 
 func _on_move_made(move_data: Dictionary) -> void:
 	move_count += 1
-	var context = { "grid_model": game_board.model, "move_data": move_data }
+	var context = {"grid_model": game_board.model, "move_data": move_data}
 	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED, context)
 	update_and_publish_hud_data()
 	update_replay_buttons_state()
@@ -539,7 +539,7 @@ func _on_game_lost() -> void:
 
 func _on_monster_killed() -> void:
 	monsters_killed += 1
-	var context = { "grid_model": game_board.model }
+	var context = {"grid_model": game_board.model}
 	rule_manager.dispatch_event(RuleManager.Events.MONSTER_KILLED, context)
 	update_and_publish_hud_data()
 

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ClassicSpawnRule" load_steps=2 format=3 uid="uid://cu7diq7sysqcf"]
+[gd_resource type="Resource" script_class="ClassicSpawnRule" format=3 uid="uid://cu7diq7sysqcf"]
 
 [ext_resource type="Script" uid="uid://b3e60oet02aex" path="res://scripts/rules/spawn/classic_spawn_rule.gd" id="1_yoh4d"]
 

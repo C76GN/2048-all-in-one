@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ProbabilisticBattleSpawnRule" load_steps=2 format=3 uid="uid://t1sr0qod56au"]
+[gd_resource type="Resource" script_class="ProbabilisticBattleSpawnRule" format=3 uid="uid://t1sr0qod56au"]
 
 [ext_resource type="Script" uid="uid://bbsc8cax1618a" path="res://scripts/rules/spawn/probabilistic_battle_spawn_rule.gd" id="1_1sahg"]
 

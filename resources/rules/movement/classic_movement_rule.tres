@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ClassicMovementRule" load_steps=2 format=3 uid="uid://c6s7jklm8wan2"]
+[gd_resource type="Resource" script_class="ClassicMovementRule" format=3 uid="uid://c6s7jklm8wan2"]
 
 [ext_resource type="Script" uid="uid://cvim7yd0fce0x" path="res://scripts/rules/movement/classic_movement_rule.gd" id="1_abcde"]
 

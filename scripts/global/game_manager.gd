@@ -88,8 +88,10 @@ func goto_scene_packed(scene: PackedScene) -> void:
 
 
 ## 切换到指定的场景路径。
+## [已弃用] 请优先使用 goto_scene_packed(scene: PackedScene)。
 ## @param path: 待切换的场景路径。
 func goto_scene(path: String) -> void:
+	push_warning("GlobalGameManager: 不建议使用字符串路径切换场景，请改用 goto_scene_packed(%s)。" % path)
 	if not path.begins_with("res://") or not path.ends_with(".tscn"):
 		push_error("错误: 场景路径必须是绝对的场景资源路径，例如 'res://scenes/my_scene.tscn'")
 		return

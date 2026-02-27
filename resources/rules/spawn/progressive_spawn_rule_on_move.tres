@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ProgressiveSpawnRule" load_steps=2 format=3 uid="uid://nod11pulyd7i"]
+[gd_resource type="Resource" script_class="ProgressiveSpawnRule" format=3 uid="uid://nod11pulyd7i"]
 
 [ext_resource type="Script" uid="uid://blmpobi7dgeot" path="res://scripts/rules/spawn/progressive_spawn_rule.gd" id="1_5w6je"]
 

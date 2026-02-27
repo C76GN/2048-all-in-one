@@ -7,17 +7,24 @@ class_name BookmarkList
 extends BaseListMenu
 
 
-# --- 常量 ---
+# --- 导出变量 ---
 
-## 加载书签后要进入的游戏场景。
-const GAME_PLAY_SCENE: PackedScene = preload("res://scenes/game/game_play.tscn")
+## 游戏场景资源。
+@export var game_scene: PackedScene
+
+## 列表项场景资源。
+@export var item_scene: PackedScene
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	# 防御性检查
+	assert(game_scene != null, "BookmarkList: 游戏场景 (game_scene) 未在编辑器中设置。")
+	assert(item_scene != null, "BookmarkList: 列表项场景 (item_scene) 未在编辑器中设置。")
+
 	# 初始化工厂资源和节点引用
-	_item_scene = preload("res://scenes/ui/bookmark_list_item.tscn")
+	_item_scene = item_scene
 	_primary_button = %LoadButton
 	_delete_button = %DeleteButton
 	
@@ -115,7 +122,7 @@ func _do_delete_logic(data: Resource) -> void:
 
 func _on_primary_action_triggered(data: Resource) -> void:
 	var bookmark = data as BookmarkData
-	GlobalGameManager.load_game_from_bookmark(bookmark, GAME_PLAY_SCENE)
+	GlobalGameManager.load_game_from_bookmark(bookmark, game_scene)
 
 
 func _get_empty_message() -> String:

@@ -25,8 +25,8 @@ func play_animation_sequence(instructions: Array) -> void:
 	for instruction in instructions:
 		var current_instruction: Dictionary = instruction
 
-		if current_instruction.type == "SPAWN":
-			var tile: Tile = current_instruction.tile
+		if current_instruction[&"type"] == &"SPAWN":
+			var tile: Tile = current_instruction[&"tile"]
 			tile.animate_spawn()
 
 	for instruction in instructions:
@@ -34,15 +34,15 @@ func play_animation_sequence(instructions: Array) -> void:
 		var tile: Tile
 		var target_pos: Vector2
 
-		match current_instruction.type:
-			"MOVE":
-				tile = current_instruction.tile
-				target_pos = current_instruction.to_pos
+		match current_instruction[&"type"]:
+			&"MOVE":
+				tile = current_instruction[&"tile"]
+				target_pos = current_instruction[&"to_pos"]
 
-			"MERGE":
-				var consumed: Tile = current_instruction.consumed_tile
-				var merged: Tile = current_instruction.merged_tile
-				target_pos = current_instruction.to_pos
+			&"MERGE":
+				var consumed: Tile = current_instruction[&"consumed_tile"]
+				var merged: Tile = current_instruction[&"merged_tile"]
+				target_pos = current_instruction[&"to_pos"]
 
 				if is_instance_valid(consumed):
 					_retarget_animation(consumed, target_pos)

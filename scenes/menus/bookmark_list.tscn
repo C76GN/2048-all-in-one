@@ -1,8 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://dcaem677upv0a"]
+[gd_scene format=3 uid="uid://dcaem677upv0a"]
 
 [ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://scenes/ui/layouts/base_three_column_layout.tscn" id="1_base"]
 [ext_resource type="Script" uid="uid://3xuw4ii6b5te" path="res://scripts/menus/bookmark_list.gd" id="2_script"]
+[ext_resource type="PackedScene" uid="uid://28ale2iku1n4" path="res://scenes/game/game_play.tscn" id="3_0g1rg"]
 [ext_resource type="Script" uid="uid://d3udmbuw4bj40" path="res://scripts/ui/board_preview.gd" id="3_preview"]
+[ext_resource type="PackedScene" uid="uid://ug4imooux68t" path="res://scenes/ui/bookmark_list_item.tscn" id="4_op0v2"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_preview_bg"]
 bg_color = Color(0.2, 0.2, 0.2, 1)
@@ -11,33 +13,35 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[node name="BookmarkList" instance=ExtResource("1_base")]
+[node name="BookmarkList" unique_id=1500451424 instance=ExtResource("1_base")]
 script = ExtResource("2_script")
+game_scene = ExtResource("3_0g1rg")
+item_scene = ExtResource("4_op0v2")
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0"]
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0" unique_id=1016797638]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "存档预览"
 horizontal_alignment = 1
 
-[node name="PreviewContainer" type="PanelContainer" parent="MarginContainer/ColumnsContainer/LeftColumn" index="1"]
+[node name="PreviewContainer" type="PanelContainer" parent="MarginContainer/ColumnsContainer/LeftColumn" index="1" unique_id=1465179921]
 custom_minimum_size = Vector2(0, 300)
 layout_mode = 2
 size_flags_vertical = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_preview_bg")
 
-[node name="CenterContainer" type="CenterContainer" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer" index="0"]
+[node name="CenterContainer" type="CenterContainer" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer" index="0" unique_id=1532122799]
 layout_mode = 2
 
-[node name="BoardPreview" type="Control" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer/CenterContainer" index="0"]
+[node name="BoardPreview" type="Control" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer/CenterContainer" index="0" unique_id=285547552]
 layout_mode = 2
 script = ExtResource("3_preview")
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/LeftColumn" index="2"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/LeftColumn" index="2" unique_id=1925670601]
 layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="DetailInfoLabel" type="RichTextLabel" parent="MarginContainer/ColumnsContainer/LeftColumn" index="3"]
+[node name="DetailInfoLabel" type="RichTextLabel" parent="MarginContainer/ColumnsContainer/LeftColumn" index="3" unique_id=346500178]
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
@@ -47,29 +51,29 @@ fit_content = true
 [node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
 text = "读取存档"
 
-[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0"]
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0" unique_id=667171776]
 custom_minimum_size = Vector2(550, 500)
 layout_mode = 2
 follow_focus = true
 horizontal_scroll_mode = 0
 
-[node name="ReplayItemsContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/ScrollContainer" index="0"]
+[node name="ReplayItemsContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/ScrollContainer" index="0" unique_id=2000056779]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 10
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="0"]
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="0" unique_id=877799478]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "操作"
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/RightColumn" index="1"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/RightColumn" index="1" unique_id=2143870666]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="LoadButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="2"]
+[node name="LoadButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="2" unique_id=1536874276]
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../BackButton")
@@ -78,7 +82,7 @@ theme_override_font_sizes/font_size = 20
 disabled = true
 text = "读取存档"
 
-[node name="DeleteButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="3"]
+[node name="DeleteButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="3" unique_id=276992591]
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../LoadButton")
@@ -88,11 +92,11 @@ theme_override_font_sizes/font_size = 20
 disabled = true
 text = "删除存档"
 
-[node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="4"]
+[node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="4" unique_id=8718484]
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 
-[node name="BackButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="5"]
+[node name="BackButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="5" unique_id=747636571]
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_top = NodePath("../DeleteButton")
