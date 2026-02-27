@@ -25,7 +25,7 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 		# 将 tile_b 的数值更新为两者之和
 		tile_b.setup(new_value, tile_a.type, p_rule, tile_a.color_schemes)
 		# 返回结果，表明 tile_b 是合并后的方块，tile_a 是被消耗的方块，并带上分数。
-		return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": new_value}
+		return {&"merged_tile": tile_b, &"consumed_tile": tile_a, &"score": new_value}
 
 	return {}
 
@@ -42,12 +42,8 @@ func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
 	if tile_a.type != Tile.TileType.PLAYER or tile_b.type != Tile.TileType.PLAYER:
 		return false
 
-	# 规则1: 两个 1 可以合并。
-	if tile_a.value == 1 and tile_b.value == 1:
-		return true
-
-	# 规则2: 两个在斐波那契数列中相邻的数可以合并。
-	if _are_consecutive_fibonacci(tile_a.value, tile_b.value):
+	# 规则: 两个在斐波那契数列中相邻的数（包括 1+1）可以合并。
+	if SequenceMath.are_consecutive_fibonacci(tile_a.value, tile_b.value):
 		return true
 
 	return false
@@ -58,24 +54,7 @@ func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
 ## @param value: 方块的数值。
 ## @return: 对应的等级索引。
 func get_level_by_value(value: int) -> int:
-	if value <= 1:
-		return 0
-	if value == 2:
-		return 1
-
-	var a: int = 1
-	var b: int = 2
-	var level: int = 1
-	while b < value:
-		var temp: int = a + b
-		a = b
-		b = temp
-		level += 1
-		if b == value:
-			return level
-
-	# 如果不是一个标准的斐波那契数，返回一个高级别的颜色
-	return 15
+	return SequenceMath.get_fibonacci_level(value)
 
 
 ## 获取用于在HUD上显示的格式化好的上下文数据。
@@ -83,29 +62,30 @@ func get_level_by_value(value: int) -> int:
 ## @param context: 包含当前游戏状态的字典。
 ## @return: 一个包含HUD显示信息的字典。
 func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
-	var max_value: int = context.get("max_player_value", 0)
-	var player_values_set: Dictionary = context.get("player_values_set", {})
+	var max_value: int = context.get(&"max_player_value", 0)
+	var player_values_set: Dictionary = context.get(&"player_values_set", {})
 
 	# 动态生成序列直到达到上限
 	var max_display_value: int = 5 + max_value * 2
-	var sequence: Array[int] = [1, 2]
-	while true:
-		var next_fib: int = sequence[-1] + sequence[-2]
-		if next_fib > max_display_value:
+	var full_sequence := SequenceMath.generate_fibonacci()
+	var display_sequence: Array[int] = []
+	
+	for num in full_sequence:
+		display_sequence.append(num)
+		if num > max_display_value:
 			break
-		sequence.append(next_fib)
 
 	# 在规则内部直接构建HUD所需的Array[Dictionary]结构
-	var fib_data_for_ui: Array[Dictionary] = [{"text": tr("LABEL_SYNTH_SEQ"), "color": Color.WHITE}]
-	for num in sequence:
-		var item: Dictionary = {"text": str(num), "color": Color.GRAY}
+	var fib_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_SYNTH_SEQ"), &"color": Color.WHITE}]
+	for num in display_sequence:
+		var item: Dictionary = {&"text": str(num), &"color": Color.GRAY}
 		if player_values_set.has(num):
-			item["color"] = Color.WHITE
+			item[&"color"] = Color.WHITE
 		fib_data_for_ui.append(item)
 
 	# 返回一个键值对，键名清晰，值为FlowLabelList可以直接使用的数据
 	return {
-		"fibonacci_sequence_display": fib_data_for_ui
+		&"fibonacci_sequence_display": fib_data_for_ui
 	}
 
 
@@ -121,61 +101,22 @@ func get_spawnable_types() -> Dictionary:
 ## @param _type_id: 类型的ID。
 ## @return: 一个包含所有合法数值(int)的数组。
 func get_spawnable_values(_type_id: int) -> Array[int]:
-	var sequence: Array[int] = [1]
-	if 1 > 10000:
-		return sequence
-
-	sequence.append(1)
-	var a: int = 1
-	var b: int = 2
-	sequence.append(b)
-
-	while b < 10000:
-		var next_fib: int = a + b
-		if next_fib > 10000:
-			break
-		sequence.append(next_fib)
-		a = b
-		b = next_fib
-
-	var unique_sequence: Array[int] = []
-	for item in sequence:
-		if not unique_sequence.has(item):
-			unique_sequence.append(item)
-	unique_sequence.sort()
-	return unique_sequence
-
-
-# --- 私有/辅助方法 ---
-
-## [内部辅助函数] 检查两个数是否是斐波那契数列中的连续项。
-##
-## 使用纯整数迭代法，避免浮点数精度问题，保证结果的绝对准确性。
-## @param a: 第一个整数。
-## @param b: 第二个整数。
-## @return: 如果是连续斐波那契数则返回 true。
-func _are_consecutive_fibonacci(a: int, b: int) -> bool:
-	# 确保 a < b
-	if a > b:
-		var temp: int = a
-		a = b
-		b = temp
-
-	if a <= 0 or b <= 0:
-		return false
-
-	# 处理斐波那契数列的起始特殊情况
-	if a == 1 and (b == 1 or b == 2):
-		return true
-
-	# 从 (1, 2) 开始迭代，检查 a, b 是否是序列中的连续项
-	var prev: int = 1
-	var curr: int = 2
-	while curr <= b:
-		if prev == a and curr == b:
-			return true
-		var next_fib: int = prev + curr
-		prev = curr
-		curr = next_fib
-
-	return false
+	# 获取标准序列并微调以适配生成逻辑（包含两个1的处理，如果需要的话，但通常 1 就够了）
+	var sequence := SequenceMath.generate_fibonacci()
+	# 确保包含起始值 1
+	if not sequence.has(1):
+		sequence.push_front(1)
+	
+	# 过滤掉过大的值用于初始生成
+	var result: Array[int] = []
+	for val in sequence:
+		if val < 10000:
+			result.append(val)
+	
+	# 确保唯一并排序
+	var unique_result: Array[int] = []
+	for item in result:
+		if not unique_result.has(item):
+			unique_result.append(item)
+	unique_result.sort()
+	return unique_result
