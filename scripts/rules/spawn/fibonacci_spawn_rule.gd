@@ -19,29 +19,27 @@ extends SpawnRule
 # --- 公共方法 ---
 
 ## 执行生成逻辑。
-## @param context: 包含 'grid_model' 的上下文。
+## @param context: 包含 grid_model 的上下文。
 ## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
-func execute(context: Dictionary = {}) -> bool:
-	var grid_model: GridModel = context.get("grid_model")
-	if not grid_model: return false
+func execute(context: RuleContext) -> bool:
+	if not is_instance_valid(context) or not is_instance_valid(context.grid_model):
+		return false
 
-	if grid_model.get_empty_cells().is_empty():
+	if context.grid_model.get_empty_cells().is_empty():
 		return false
 
 	var spawn_count: int = 1
 	if trigger == TriggerType.ON_INITIALIZE:
 		spawn_count = 2
 
-	spawn_count = min(spawn_count, grid_model.get_empty_cells().size())
+	spawn_count = min(spawn_count, context.grid_model.get_empty_cells().size())
 
 	for i in range(spawn_count):
-		var spawn_data: Dictionary = {
-			"value": 1,
-			"type": Tile.TileType.PLAYER,
-			"is_priority": false
-		}
+		var spawn_data := SpawnData.new()
+		spawn_data.value = 1
+		spawn_data.type = Tile.TileType.PLAYER
+		spawn_data.is_priority = false
 
 		spawn_tile_requested.emit(spawn_data)
 
-	# 根据配置决定是否消费事件。
 	return consumes_event_on_success

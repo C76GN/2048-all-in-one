@@ -84,7 +84,6 @@ var _last_saved_bookmark_state: Dictionary = {}
 ## 在HUD上显示的临时状态消息。
 var _hud_status_message: String = ""
 
-
 ## 标记当前是否为回放模式。
 var _is_replay_mode: bool = false
 
@@ -127,7 +126,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_pause_toggled()
 		get_viewport().set_input_as_handled()
 
-	# 添加对撤回和保存书签快捷键的处理
 	if state_machine.get_current_state() == "Playing":
 		if event.is_action_pressed("undo"):
 			_on_undo_button_pressed()
@@ -141,7 +139,7 @@ func _unhandled_input(event: InputEvent) -> void:
 # --- 公共方法 (供 Controller 调用) ---
 
 func save_current_state(action: Variant) -> void:
-	var state = _get_full_game_state()
+	var state: Dictionary = _get_full_game_state()
 	state[&"action"] = action
 	history_manager.save_state(state)
 
@@ -163,10 +161,10 @@ func _update_static_ui_text() -> void:
 		replay_next_step_button.text = tr("BTN_REPLAY_NEXT")
 	if is_instance_valid(replay_back_button):
 		replay_back_button.text = tr("BTN_REPLAY_BACK")
-	
+
 	if is_instance_valid(replay_controls_container):
-		var label = replay_controls_container.get_node_or_null("Label")
-		if label:
+		var label: Label = replay_controls_container.get_node_or_null("Label") as Label
+		if is_instance_valid(label):
 			label.text = tr("LABEL_REPLAY_CONTROLS")
 
 
@@ -203,6 +201,10 @@ func _initialize_game(new_grid_size: int = -1) -> void:
 ## @return: 如果设置成功返回 true，否则返回 false。
 func _setup_game_from_bookmark() -> bool:
 	mode_config = load(_loaded_bookmark_data.mode_config_path)
+	if not is_instance_valid(mode_config):
+		push_error("GamePlay: 无法从书签加载 GameModeConfig。")
+		return false
+
 	current_grid_size = _loaded_bookmark_data.board_snapshot.get("grid_size")
 	RNGManager.initialize_rng(_loaded_bookmark_data.initial_seed)
 	RNGManager.set_state(_loaded_bookmark_data.rng_state)
@@ -233,9 +235,18 @@ func _setup_new_game(new_grid_size: int = -1) -> bool:
 
 	if not config_path.is_empty():
 		mode_config = load(config_path)
-		assert(is_instance_valid(mode_config), "GameModeConfig未能加载！")
+		if not is_instance_valid(mode_config):
+			push_error("GamePlay: GameModeConfig 资源加载失败！路径: %s" % config_path)
+			GlobalGameManager.return_to_main_menu()
+			return false
 	else:
-		push_error("错误: 无法加载游戏模式配置。")
+		push_error("GamePlay: 无法获取游戏模式配置路径。")
+		get_tree().paused = false
+		GlobalGameManager.return_to_main_menu()
+		return false
+
+	if not mode_config.validate():
+		push_error("GamePlay: GameModeConfig 校验失败，中断游戏初始化。")
 		get_tree().paused = false
 		GlobalGameManager.return_to_main_menu()
 		return false
@@ -248,6 +259,10 @@ func _setup_new_game(new_grid_size: int = -1) -> bool:
 ## @param replay_data: 用于回放的游戏数据。
 ## @return: 如果设置成功返回 true，否则返回 false。
 func _setup_replay_game(replay_data: ReplayData) -> bool:
+	if not is_instance_valid(replay_data):
+		push_error("GamePlay: 传入了无效的 ReplayData。")
+		return false
+
 	mode_config = load(replay_data.mode_config_path)
 	current_grid_size = replay_data.grid_size
 	RNGManager.initialize_rng(replay_data.initial_seed)
@@ -305,8 +320,9 @@ func _finalize_initialization() -> void:
 		game_board.restore_from_snapshot(_loaded_bookmark_data.board_snapshot)
 		_last_saved_bookmark_state = _get_full_game_state()
 	else:
-		var context = {"grid_model": game_board.model}
-		rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD, context)
+		var board_context := RuleContext.new()
+		board_context.grid_model = game_board.model
+		rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD, board_context)
 
 	_initialize_test_tools()
 	update_and_publish_hud_data()
@@ -369,61 +385,59 @@ func _update_and_publish_hud_data() -> void:
 	if not is_instance_valid(game_board):
 		return
 
-	var display_data: Dictionary = {}
+	var hud_data := HUDDisplayData.new()
 
 	if _is_replay_mode and is_instance_valid(input_source) and input_source is ReplayInputSource:
 		var total_steps: int = input_source.get_total_steps()
 		var current_step_display: int = history_manager.get_history_size() - 1
-		display_data[&"step_info"] = tr("STEP_INFO_FORMAT") % [current_step_display, total_steps]
+		hud_data.step_info = tr("STEP_INFO_FORMAT") % [current_step_display, total_steps]
 
-	display_data[&"score"] = tr("SCORE_LABEL") % score
+	hud_data.score = tr("SCORE_LABEL") % score
 	if not _is_replay_mode:
 		if score > initial_high_score:
-			display_data[&"high_score"] = tr("NEW_HIGH_SCORE_FORMAT") % score
+			hud_data.high_score = tr("NEW_HIGH_SCORE_FORMAT") % score
 		else:
-			display_data[&"high_score"] = tr("HIGH_SCORE_LABEL") % initial_high_score
+			hud_data.high_score = tr("HIGH_SCORE_LABEL") % initial_high_score
 
-	display_data[&"highest_tile"] = tr("HIGHEST_TILE_LABEL") % game_board.get_max_player_value()
-	display_data[&"move_count"] = tr("MOVE_COUNT_LABEL") % move_count
+	var max_player_value: int = game_board.get_max_player_value()
+	hud_data.highest_tile = tr("HIGHEST_TILE_LABEL") % max_player_value
+	hud_data.move_count = tr("MOVE_COUNT_LABEL") % move_count
 
-	var player_values: Array = game_board.get_all_player_tile_values()
+	var player_values: Array[int] = game_board.get_all_player_tile_values()
 	var player_values_set: Dictionary = {}
-	for v in player_values: player_values_set[v] = true
+	for v in player_values:
+		player_values_set[v] = true
 
-	var rule_context: Dictionary = {
-		"monsters_killed": monsters_killed, "score": score, "move_count": move_count,
-		"all_player_values": player_values, "max_player_value": game_board.get_max_player_value(),
-		"player_values_set": player_values_set
-	}
+	hud_data.stat_max_player_value = max_player_value
+	hud_data.stat_player_values_set = player_values_set
+	hud_data.stat_monsters_killed = monsters_killed
 
 	if is_instance_valid(interaction_rule):
-		var interaction_data: Dictionary = interaction_rule.get_hud_context_data(rule_context)
-		display_data.merge(interaction_data)
+		interaction_rule.get_hud_context_data(hud_data, hud_data)
 
-	var grid_model_context = {"grid_model": game_board.model}
+	var rule_context := RuleContext.new()
+	rule_context.grid_model = game_board.model
 	for rule in all_spawn_rules:
-		var rule_data: Dictionary = rule.get_display_data(grid_model_context)
-		if not rule_data.is_empty():
-			display_data.merge(rule_data)
+		rule.get_display_data(rule_context, hud_data)
 
-	display_data[&"separator"] = "--------------------"
+	hud_data.separator = "--------------------"
 	if is_instance_valid(mode_config) and not mode_config.mode_description.is_empty():
-		display_data[&"description"] = tr(mode_config.mode_description)
+		hud_data.description = tr(mode_config.mode_description)
 
 	if not _is_replay_mode:
-		display_data[&"controls_title"] = tr("CONTROLS_TITLE")
-		display_data[&"controls_move"] = tr("CONTROLS_MOVE_HINT")
-		display_data[&"controls_actions"] = tr("CONTROLS_ACTION_HINT")
+		hud_data.controls_title = tr("CONTROLS_TITLE")
+		hud_data.controls_move = tr("CONTROLS_MOVE_HINT")
+		hud_data.controls_actions = tr("CONTROLS_ACTION_HINT")
 
-	display_data[&"seed_info"] = tr("SEED_INFO_LABEL") % RNGManager.get_current_seed()
+	hud_data.seed_info = tr("SEED_INFO_LABEL") % RNGManager.get_current_seed()
 
 	if is_game_state_tainted_by_test_tools:
-		display_data[&"taint_warning"] = tr("DEBUG_TAINT_WARNING")
+		hud_data.taint_warning = tr("DEBUG_TAINT_WARNING")
 
 	if not _hud_status_message.is_empty():
-		display_data[&"status_message"] = _hud_status_message
+		hud_data.status_message = _hud_status_message
 
-	EventBus.hud_update_requested.emit(display_data)
+	EventBus.hud_update_requested.emit(hud_data)
 
 
 ## 初始化测试工具（仅在编辑器中运行时）。
@@ -449,10 +463,6 @@ func _initialize_test_tools() -> void:
 	var spawnable_types: Dictionary = interaction_rule.get_spawnable_types()
 	test_panel.setup_panel(spawnable_types)
 	test_panel.update_coordinate_limits(current_grid_size)
-
-
-## 保存当前游戏的完整状态，用于撤回。
-## @param action: 导致此状态的玩家动作 (例如 Vector2i.UP)。
 
 
 ## 获取当前游戏的完整状态快照。
@@ -523,9 +533,16 @@ func _on_input_source_action_triggered(action: Variant) -> void:
 	current_controller.handle_action(action)
 
 
-func _on_move_made(move_data: Dictionary) -> void:
+func _on_move_made(move_data: MoveData) -> void:
+	if not is_instance_valid(move_data):
+		return
+
 	move_count += 1
-	var context = {"grid_model": game_board.model, "move_data": move_data}
+
+	var context := RuleContext.new()
+	context.grid_model = game_board.model
+	context.move_data = move_data
+
 	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED, context)
 	update_and_publish_hud_data()
 	update_replay_buttons_state()
@@ -539,7 +556,10 @@ func _on_game_lost() -> void:
 
 func _on_monster_killed() -> void:
 	monsters_killed += 1
-	var context = {"grid_model": game_board.model}
+
+	var context := RuleContext.new()
+	context.grid_model = game_board.model
+
 	rule_manager.dispatch_event(RuleManager.Events.MONSTER_KILLED, context)
 	update_and_publish_hud_data()
 

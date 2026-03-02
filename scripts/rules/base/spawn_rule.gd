@@ -11,8 +11,9 @@ extends Resource
 # --- 信号 ---
 
 ## 当此规则决定要生成一个新方块时发出。
+## @param spawn_data: 包含生成方块所需信息的强类型数据对象。
 @warning_ignore("unused_signal")
-signal spawn_tile_requested(spawn_data: Dictionary)
+signal spawn_tile_requested(spawn_data: SpawnData)
 
 
 # --- 枚举 ---
@@ -51,9 +52,9 @@ func setup(_required_nodes: Dictionary = {}) -> void:
 
 ## RuleManager调用此函数来执行规则的核心逻辑。
 ##
-## @param context: 包含游戏上下文的字典，必须包含 'grid_model'。
+## @param _context: 包含游戏上下文的强类型数据对象，必须包含有效的 grid_model。
 ## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
-func execute(_context: Dictionary = {}) -> bool:
+func execute(_context: RuleContext) -> bool:
 	return false
 
 
@@ -71,12 +72,11 @@ func teardown() -> void:
 
 ## 获取用于在HUD上显示的动态数据。
 ##
-## 子类可以重写此方法，返回一个字典，供HUD展示。
-## 例如: {"timer_label": "怪物将在: 5.2s 后出现"}
-## @param _context: 上下文数据，通常包含 grid_model。
-## @return: 一个包含显示信息的字典。
-func get_display_data(_context: Dictionary = {}) -> Dictionary: # <--- 修改这里，添加参数
-	return {}
+## 子类可以重写此方法，将数据直接写入传入的 hud_data 对象，供HUD展示。
+## @param _context: 上下文数据，包含 grid_model。
+## @param _hud_data: 要写入显示数据的 HUDDisplayData 对象。
+func get_display_data(_context: RuleContext, _hud_data: HUDDisplayData) -> void:
+	pass
 
 
 ## 获取规则当前的内部状态，用于保存。

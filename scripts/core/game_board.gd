@@ -99,27 +99,27 @@ func setup(grid_size: int, interaction_rule: InteractionRule, movement_rule: Mov
 ## @param direction: 移动方向向量。
 ## @return: 如果发生了有效移动，返回 true。
 func handle_move(direction: Vector2i) -> bool:
-	var moved: bool = model.move(direction)
-	if moved:
-		var move_data: Dictionary = {
-			&"direction": direction,
-			&"moved_lines": []
-		}
+	var move_data: MoveData = model.move(direction)
+	if move_data != null:
 		EventBus.move_made.emit(move_data)
 		_check_game_over()
-	return moved
+		return true
+	return false
 
 
 ## 根据 spawn_data 生成方块（由 RuleManager 调用）。
-## @param spawn_data: 包含生成信息的字典。
-func spawn_tile(spawn_data: Dictionary) -> void:
-	var value: int = spawn_data.get("value", 2)
-	var type: Tile.TileType = spawn_data.get("type", Tile.TileType.PLAYER)
-	var is_priority: bool = spawn_data.get("is_priority", false)
+## @param spawn_data: 包含生成信息的强类型数据对象。
+func spawn_tile(spawn_data: SpawnData) -> void:
+	if not is_instance_valid(spawn_data):
+		return
+
+	var value: int = spawn_data.value
+	var type: Tile.TileType = spawn_data.type
+	var is_priority: bool = spawn_data.is_priority
 	var spawn_pos: Vector2i
 
-	if spawn_data.has("position"):
-		spawn_pos = spawn_data["position"]
+	if spawn_data.position.x >= 0:
+		spawn_pos = spawn_data.position
 	else:
 		var empty_cells: Array[Vector2i] = model.get_empty_cells()
 		if not empty_cells.is_empty():
@@ -243,24 +243,24 @@ func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
 	var player_tiles: Array[Tile] = []
 	for x in model.grid_size:
 		for y in model.grid_size:
-			var tile = model.grid[x][y]
-			if tile and tile.get("type") == 0:
+			var tile := model.grid[x][y] as Tile
+			if is_instance_valid(tile) and tile.type == Tile.TileType.PLAYER:
 				player_tiles.append(tile)
 
 	if not player_tiles.is_empty():
 		var tile_to_transform: Tile = player_tiles[RNGManager.get_rng().randi_range(0, player_tiles.size() - 1)]
-		tile_to_transform.setup(value, type, model._interaction_rule, color_schemes)
+		tile_to_transform.setup(value, type, model.interaction_rule, color_schemes)
 		tile_to_transform.animate_transform()
 	else:
 		var monster_tiles: Array[Tile] = []
 		for x in model.grid_size:
 			for y in model.grid_size:
-				var tile = model.grid[x][y]
-				if tile and tile.get("type") == 1:
+				var tile := model.grid[x][y] as Tile
+				if is_instance_valid(tile) and tile.type == Tile.TileType.MONSTER:
 					monster_tiles.append(tile)
 		if not monster_tiles.is_empty():
 			var tile_to_empower: Tile = monster_tiles[RNGManager.get_rng().randi_range(0, monster_tiles.size() - 1)]
-			tile_to_empower.setup(tile_to_empower.value * 2, type, model._interaction_rule, color_schemes)
+			tile_to_empower.setup(tile_to_empower.value * 2, type, model.interaction_rule, color_schemes)
 
 
 ## 更新棋盘的整体布局以适应其容器大小。

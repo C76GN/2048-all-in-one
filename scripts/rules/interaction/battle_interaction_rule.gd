@@ -16,25 +16,20 @@ extends InteractionRule
 ## @param p_rule: 对当前交互规则实例的引用。
 ## @return: 一个描述交互结果的字典。
 func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) -> Dictionary:
-	# 情况A: 两个方块类型相同，进行合并。
 	if tile_a.type == tile_b.type:
 		if tile_a.value == tile_b.value:
 			var new_value: int = tile_a.value * 2
 			tile_b.setup(new_value, tile_a.type, p_rule, tile_a.color_schemes)
 
-			# 仅当玩家方块合并时，获得新方块数值的分数。
 			if tile_a.type == Tile.TileType.PLAYER:
 				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": new_value}
 
-			# 怪物方块合并不得分。
 			return {"merged_tile": tile_b, "consumed_tile": tile_a}
 
-	# 情况B: 两个方块类型不同，进行战斗。
 	else:
 		var player_tile: Tile = tile_a if tile_a.type == Tile.TileType.PLAYER else tile_b
 		var monster_tile: Tile = tile_a if tile_a.type == Tile.TileType.MONSTER else tile_b
 
-		# 玩家胜利
 		if player_tile.value > monster_tile.value:
 			@warning_ignore("integer_division")
 			var new_player_value: int = int(player_tile.value / monster_tile.value)
@@ -44,16 +39,14 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 			EventBus.monster_killed.emit()
 			return {"merged_tile": player_tile, "consumed_tile": monster_tile, "score": new_player_value}
 
-		# 玩家失败
 		elif player_tile.value < monster_tile.value:
 			@warning_ignore("integer_division")
 			var new_monster_value: int = int(monster_tile.value / player_tile.value)
 			monster_tile.setup(new_monster_value, monster_tile.type, p_rule, monster_tile.color_schemes)
 			monster_tile.animate_transform()
 			player_tile.queue_free()
-			return {"merged_tile": monster_tile, "consumed_tile": player_tile, "score": -new_monster_value}
+			return {"merged_tile": monster_tile, "consumed_tile": player_tile, "score": - new_monster_value}
 
-		# 双方数值相同，同归于尽
 		else:
 			var destination_tile_was_player: bool = (tile_b.type == Tile.TileType.PLAYER)
 
@@ -63,11 +56,10 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 			if tile_a.type == Tile.TileType.MONSTER:
 				EventBus.monster_killed.emit()
 
-			# 根据幸存方块的最终归属决定得分或扣分。
 			if destination_tile_was_player:
 				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": 1}
 			else:
-				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": -1}
+				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": - 1}
 
 	return {}
 
@@ -82,9 +74,6 @@ func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
 	if not is_instance_valid(tile_a) or not is_instance_valid(tile_b):
 		return false
 
-	# 规则:
-	# 1. 如果方块类型不同 (PLAYER vs MONSTER)，总能发生战斗。
-	# 2. 如果方块类型相同，只有当它们的数值相等时才能合并。
 	if tile_a.type != tile_b.type or tile_a.value == tile_b.value:
 		return true
 
@@ -98,12 +87,11 @@ func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
 func get_level_by_value(value: int) -> int:
 	if value <= 0:
 		return 0
-	# 等级基于2的对数计算
 	var level: int = int(log(value) / log(2))
 	return max(0, level)
 
 
-## 获取此规则下所有可生成的方块“类型”。
+## 获取此规则下所有可生成的方块"类型"。
 ##
 ## @return: 一个字典，键是类型ID(int)，值是类型的可读名称(String)。
 func get_spawnable_types() -> Dictionary:
@@ -113,12 +101,11 @@ func get_spawnable_types() -> Dictionary:
 	}
 
 
-## 根据指定的类型ID，获取所有可生成的方块“数值”。
+## 根据指定的类型ID，获取所有可生成的方块"数值"。
 ##
 ## @param _type_id: 类型的ID。
 ## @return: 一个包含所有合法数值(int)的数组。
 func get_spawnable_values(_type_id: int) -> Array[int]:
-	# 在这个模式中，玩家和怪物都遵循2的幂次方规则。
 	var values: Array[int] = []
 	var current_power_of_two: int = 2
 	while current_power_of_two <= 8192:
@@ -127,12 +114,10 @@ func get_spawnable_values(_type_id: int) -> Array[int]:
 	return values
 
 
-## 获取此规则相关的、用于HUD显示的原始上下文数据。
+## 将战斗模式相关的HUD显示数据写入传入的 hud_data 对象。
 ##
-## @param context: 包含当前游戏状态的字典。
-## @return: 一个包含战斗模式特定显示信息的字典。
-func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
-	var data: Dictionary = {}
-	if context.has("monsters_killed"):
-		data["monsters_killed_display"] = tr("BATTLE_KILLED_DISPLAY") % context["monsters_killed"]
-	return data
+## @param context: 包含当前游戏统计信息的 HUDDisplayData 对象（由GamePlay填充）。
+## @param hud_data: 要写入显示数据的 HUDDisplayData 对象。
+func get_hud_context_data(context: HUDDisplayData, hud_data: HUDDisplayData) -> void:
+	if context.stat_monsters_killed >= 0:
+		hud_data.monsters_killed_display = tr("BATTLE_KILLED_DISPLAY") % context.stat_monsters_killed

@@ -60,9 +60,9 @@ func initialize(size: int, p_interaction_rule: InteractionRule, p_movement_rule:
 
 ## 处理移动逻辑。
 ## @param direction: 移动方向向量。
-## @return: 如果发生了有效移动，返回 true。
-func move(direction: Vector2i) -> bool:
-	var moved: bool = false
+## @return: 如果发生了有效移动，返回包含方向和受影响行/列的 MoveData；否则返回 null。
+func move(direction: Vector2i) -> MoveData:
+	var result_move_data: MoveData = null
 	var instructions: Array[Dictionary] = []
 	var new_grid: Array = []
 	new_grid.resize(grid_size)
@@ -86,7 +86,6 @@ func move(direction: Vector2i) -> bool:
 		var merges: Array[Dictionary] = result.merges
 
 		if result.moved:
-			moved = true
 			if not i in moved_lines_indices:
 				moved_lines_indices.append(i)
 
@@ -128,12 +127,15 @@ func move(direction: Vector2i) -> bool:
 			var coords: Vector2i = _get_coords_for_line(i, j, direction)
 			new_grid[coords.x][coords.y] = new_line[j]
 
-	if moved:
+	if not moved_lines_indices.is_empty():
 		grid = new_grid
 		board_changed.emit(instructions)
-		return true
 
-	return false
+		result_move_data = MoveData.new()
+		result_move_data.direction = direction
+		result_move_data.moved_lines = moved_lines_indices
+
+	return result_move_data
 
 
 ## 获取所有空格子的坐标。
@@ -162,8 +164,10 @@ func get_max_player_value() -> int:
 	var max_val: int = 0
 	for x in grid_size:
 		for y in grid_size:
-			var tile = grid[x][y]
-			if tile and tile.get("type") == 0 and tile.get("value") > max_val:
+			var tile := grid[x][y] as Tile
+			if not is_instance_valid(tile):
+				continue
+			if tile.type == Tile.TileType.PLAYER and tile.value > max_val:
 				max_val = tile.value
 	return max_val
 
@@ -174,8 +178,10 @@ func get_all_player_tile_values() -> Array[int]:
 	var values: Array[int] = []
 	for x in range(grid_size):
 		for y in range(grid_size):
-			var tile = grid[x][y]
-			if tile and tile.get("type") == 0:
+			var tile := grid[x][y] as Tile
+			if not is_instance_valid(tile):
+				continue
+			if tile.type == Tile.TileType.PLAYER:
 				values.append(tile.value)
 	values.sort()
 	return values

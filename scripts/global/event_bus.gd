@@ -15,9 +15,9 @@ extends Node
 signal score_updated(amount: int)
 
 ## 在一次有效的移动（至少有一个方块移动或合并）完成后发出。
-## @param move_data: 一个包含移动方向和受影响行/列信息的字典。
+## @param move_data: 包含移动方向和受影响行/列信息的强类型数据对象。
 @warning_ignore("unused_signal")
-signal move_made(move_data: Dictionary)
+signal move_made(move_data: MoveData)
 
 ## 当有怪物在交互中被消灭时发出。
 @warning_ignore("unused_signal")
@@ -28,9 +28,9 @@ signal monster_killed
 signal game_lost
 
 ## 当需要更新HUD显示时发出。
-## @param display_data: 一个包含所有要在HUD上显示的信息的字典。
+## @param display_data: 包含所有要在HUD上显示信息的强类型数据对象。
 @warning_ignore("unused_signal")
-signal hud_update_requested(display_data: Dictionary)
+signal hud_update_requested(display_data: HUDDisplayData)
 
 ## 当棋盘尺寸发生改变时发出（重置或扩建后）。
 ## @param new_grid_size: 棋盘的新尺寸。

@@ -44,67 +44,57 @@ func setup(_required_nodes: Dictionary = {}) -> void:
 
 
 ## RuleManager调用此函数来执行概率生成逻辑。
-## @param context: 包含 'grid_model' 的上下文。
+## @param context: 包含 grid_model 的上下文。
 ## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
-func execute(context: Dictionary = {}) -> bool:
-	var grid_model: GridModel = context.get("grid_model")
-	if not grid_model: return false
+func execute(context: RuleContext) -> bool:
+	if not is_instance_valid(context) or not is_instance_valid(context.grid_model):
+		return false
 
-	if grid_model.get_empty_cells().is_empty():
+	if context.grid_model.get_empty_cells().is_empty():
 		return false
 
 	var rng := RNGManager.get_rng()
 
-	# 决定生成怪物还是玩家
 	if rng.randf() < _current_probability:
-		# 成功: 生成怪物
-		var monster_value: int = _calculate_monster_value(grid_model)
-		var spawn_data := {
-			"value": monster_value,
-			"type": Tile.TileType.MONSTER,
-			"is_priority": true
-		}
+		var monster_value: int = _calculate_monster_value(context.grid_model)
+		var spawn_data := SpawnData.new()
+		spawn_data.value = monster_value
+		spawn_data.type = Tile.TileType.MONSTER
+		spawn_data.is_priority = true
 		spawn_tile_requested.emit(spawn_data)
 
-		# 重置概率
 		_current_probability = base_probability
 
 	else:
-		# 失败: 生成玩家
 		_current_probability = min(_current_probability + increase_on_failure, max_probability)
 
 		var value: int = 2 if rng.randf() < probability_of_2 else 4
-		var spawn_data := {
-			"value": value,
-			"type": Tile.TileType.PLAYER,
-			"is_priority": false
-		}
+		var spawn_data := SpawnData.new()
+		spawn_data.value = value
+		spawn_data.type = Tile.TileType.PLAYER
+		spawn_data.is_priority = false
 		spawn_tile_requested.emit(spawn_data)
 
-	# 此规则总是会生成一个方块（除非棋盘已满），所以它应该消费事件，
-	# 阻止其他“移动后生成”规则执行。
 	return true
 
 
-## 获取用于在HUD上显示的动态数据。
-## @param context: 可选的上下文字典，包含 'grid_model'。
-## @return: 一个包含显示信息的字典。
-func get_display_data(context: Dictionary = {}) -> Dictionary:
-	var data: Dictionary = {}
-	data["monster_chance_label"] = tr("BATTLE_MONSTER_CHANCE") % (_current_probability * 100)
+## 将HUD显示数据写入传入的 hud_data 对象。
+## @param context: 包含 grid_model 的上下文。
+## @param hud_data: 要写入显示数据的 HUDDisplayData 对象。
+func get_display_data(context: RuleContext, hud_data: HUDDisplayData) -> void:
+	hud_data.monster_chance_label = tr("BATTLE_MONSTER_CHANCE") % (_current_probability * 100)
 
-	var grid_model: GridModel = context.get("grid_model")
+	var grid_model: GridModel = context.grid_model if is_instance_valid(context) else null
 	var pool: Dictionary = get_monster_spawn_pool(grid_model)
 	var spawn_info_text: String = tr("BATTLE_SPAWN_INFO")
 	var total_weight: int = 0
-	for w in pool["weights"]: total_weight += w
+	for w in pool["weights"]:
+		total_weight += w
 	if total_weight > 0:
 		for i in range(pool["weights"].size()):
 			var p: float = (float(pool["weights"][i]) / total_weight) * 100
 			spawn_info_text += tr("FORMAT_BATTLE_PROBABILITY") % [pool["values"][i], p]
-	data["spawn_info_label"] = spawn_info_text
-
-	return data
+	hud_data.spawn_info_label = spawn_info_text
 
 
 ## 获取规则当前的内部状态，用于保存。
@@ -124,7 +114,7 @@ func set_state(state: Variant) -> void:
 ## @param grid_model: 网格模型引用。
 ## @return: 一个包含 "values" 和 "weights" 数组的字典。
 func get_monster_spawn_pool(grid_model: GridModel = null) -> Dictionary:
-	if not grid_model:
+	if not is_instance_valid(grid_model):
 		return {"values": [2], "weights": [1]}
 
 	var max_player_value: int = grid_model.get_max_player_value()
@@ -132,7 +122,8 @@ func get_monster_spawn_pool(grid_model: GridModel = null) -> Dictionary:
 		return {"values": [2], "weights": [1]}
 
 	var k: int = int(log(max_player_value) / log(2))
-	if k < 1: k = 1
+	if k < 1:
+		k = 1
 
 	var weights: Array[int] = []
 	var possible_values: Array[int] = []
@@ -153,11 +144,14 @@ func _calculate_monster_value(grid_model: GridModel) -> int:
 	var possible_values: Array[int] = spawn_pool["values"]
 	var weights: Array[int] = spawn_pool["weights"]
 
-	if possible_values.is_empty(): return 2
+	if possible_values.is_empty():
+		return 2
 
 	var total_weight: int = 0
-	for w in weights: total_weight += w
-	if total_weight == 0: return 2
+	for w in weights:
+		total_weight += w
+	if total_weight == 0:
+		return 2
 
 	var rng := RNGManager.get_rng()
 	var random_pick: int = rng.randi_range(1, total_weight)
@@ -168,5 +162,4 @@ func _calculate_monster_value(grid_model: GridModel) -> int:
 		if random_pick <= cumulative_weight:
 			return possible_values[i]
 
-	# 作为后备
 	return 2

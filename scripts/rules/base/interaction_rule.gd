@@ -56,16 +56,16 @@ func get_color_scheme_index(_value: int) -> int:
 	return 0
 
 
-## 获取此规则相关的、用于HUD显示的原始上下文数据。
+## 将此规则相关的HUD显示数据写入传入的 HUDDisplayData 对象。
 ##
-## 子类可以重写此方法，返回一个字典，供上层逻辑（如GamePlay）格式化后展示。
-## @param _context: 包含当前游戏状态的字典。
-## @return: 一个包含HUD显示信息的字典。
-func get_hud_context_data(_context: Dictionary = {}) -> Dictionary:
-	return {}
+## 子类可以重写此方法，将需要展示的数据直接写入 hud_data 的对应字段。
+## @param _context: 包含当前游戏状态信息的 HUDDisplayData 上下文（由GamePlay填充）。
+## @param _hud_data: 要写入显示数据的 HUDDisplayData 对象。
+func get_hud_context_data(_context: HUDDisplayData, _hud_data: HUDDisplayData) -> void:
+	pass
 
 
-## 获取此规则下所有可生成的方块“类型”。
+## 获取此规则下所有可生成的方块"类型"。
 ##
 ## @return: 一个字典，键是类型ID(int)，值是类型的可读名称(String)。
 ##          例如: {0: "Player", 1: "Monster"}
@@ -73,7 +73,7 @@ func get_spawnable_types() -> Dictionary:
 	return {}
 
 
-## 根据指定的类型ID，获取所有可生成的方块“数值”。
+## 根据指定的类型ID，获取所有可生成的方块"数值"。
 ##
 ## @param _type_id: 类型的ID。
 ## @return: 一个包含所有合法数值(int)的数组。

@@ -4,7 +4,7 @@
 ##
 ## 该节点负责接收游戏中的核心事件（如玩家移动），并根据已注册规则的
 ## 触发器（Trigger）和优先级（Priority），按正确的顺序执行它们。
-## 它还支持“事件消费”机制，允许高优先级的规则阻止低优先级规则的执行。
+## 它还支持"事件消费"机制，允许高优先级的规则阻止低优先级规则的执行。
 class_name RuleManager
 extends Node
 
@@ -12,8 +12,8 @@ extends Node
 # --- 信号 ---
 
 ## 当任何规则请求生成方块时，将此信号转发给 GamePlay。
-## @param spawn_data: 包含生成方块所需信息的字典。
-signal spawn_tile_requested(spawn_data: Dictionary)
+## @param spawn_data: 包含生成方块所需信息的强类型数据对象。
+signal spawn_tile_requested(spawn_data: SpawnData)
 
 
 # --- 枚举 ---
@@ -48,9 +48,18 @@ func register_rules(p_rules: Array[SpawnRule]) -> void:
 
 
 ## 分发一个游戏事件，触发相应规则。
+##
 ## @param event: 要分发的 Events 枚举成员。
-## @param context: 一个可选的字典，用于向规则传递附加上下文数据（必须包含 'grid_model'）。
-func dispatch_event(event: Events, context: Dictionary = {}) -> void:
+## @param context: 包含游戏上下文的强类型数据对象。
+func dispatch_event(event: Events, context: RuleContext) -> void:
+	if not is_instance_valid(context):
+		push_error("RuleManager.dispatch_event: 传入了无效的 RuleContext，跳过事件分发。")
+		return
+
+	if not is_instance_valid(context.grid_model):
+		push_error("RuleManager.dispatch_event: RuleContext.grid_model 无效，跳过事件分发。")
+		return
+
 	var relevant_rules: Array[SpawnRule] = _get_relevant_rules(event)
 
 	if relevant_rules.is_empty():
@@ -59,7 +68,6 @@ func dispatch_event(event: Events, context: Dictionary = {}) -> void:
 	relevant_rules.sort_custom(func(a: SpawnRule, b: SpawnRule) -> bool: return a.priority > b.priority)
 
 	for rule in relevant_rules:
-		# 确保传入正确的上下文键
 		var was_consumed: bool = rule.execute(context)
 		if was_consumed:
 			break
@@ -67,8 +75,9 @@ func dispatch_event(event: Events, context: Dictionary = {}) -> void:
 
 # --- 私有/辅助方法 ---
 
-func _on_rule_spawn_requested(spawn_data: Dictionary) -> void:
+func _on_rule_spawn_requested(spawn_data: SpawnData) -> void:
 	spawn_tile_requested.emit(spawn_data)
+
 
 ## 根据事件类型筛选出所有监听该事件的规则。
 ## @param event: 要筛选的 Events 枚举成员。

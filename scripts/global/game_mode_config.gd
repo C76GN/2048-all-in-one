@@ -24,7 +24,7 @@ extends Resource
 ## 方块如何移动（经典滑动、步进等）的规则。
 @export var movement_rule: MovementRule
 
-## 包含此模式所有“生成规则”资源的数组。
+## 包含此模式所有"生成规则"资源的数组。
 @export var spawn_rules: Array[SpawnRule]
 
 ## 游戏如何结束的规则。
@@ -46,3 +46,28 @@ extends Resource
 
 ## 此模式支持的最大棋盘大小。
 @export var max_grid_size: int = 8
+
+
+# --- 公共方法 ---
+
+## 校验本配置是否完整有效，在游戏启动前调用。
+##
+## @return: 如果所有关键规则均已配置则返回 true，否则 push_error 并返回 false。
+func validate() -> bool:
+	if not is_instance_valid(interaction_rule):
+		push_error("GameModeConfig[%s]: interaction_rule 未配置！" % mode_name)
+		return false
+
+	if not is_instance_valid(movement_rule):
+		push_error("GameModeConfig[%s]: movement_rule 未配置！" % mode_name)
+		return false
+
+	if spawn_rules.is_empty():
+		push_error("GameModeConfig[%s]: spawn_rules 为空，游戏将无法生成方块！" % mode_name)
+		return false
+
+	if not is_instance_valid(game_over_rule):
+		push_error("GameModeConfig[%s]: game_over_rule 未配置！" % mode_name)
+		return false
+
+	return true

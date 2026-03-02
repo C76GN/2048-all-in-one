@@ -37,15 +37,12 @@ func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
 	var v1 := tile_a.value
 	var v2 := tile_b.value
 
-	# 规则1 & 2: 斐波那契内部合并（含 1+1=2）
 	if SequenceMath.are_consecutive_fibonacci(v1, v2):
 		return true
 
-	# 规则3: 卢卡斯数列内部合并
 	if SequenceMath.are_consecutive_lucas(v1, v2, _luc_sequence):
 		return true
 
-	# 规则4: 混合规则 Ln = Fn-1 + Fn+1 (即 Fn-1 和 Fn+1 相邻一个数)
 	var idx1_fib := _fib_sequence.find(v1)
 	var idx2_fib := _fib_sequence.find(v2)
 	if idx1_fib != -1 and idx2_fib != -1 and abs(idx1_fib - idx2_fib) == 2:
@@ -84,16 +81,17 @@ func get_color_scheme_index(value: int) -> int:
 	return 0
 
 
-## 获取用于在HUD上显示的格式化好的上下文数据。
-func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
-	var max_player_value: int = context.get(&"max_player_value", 0)
+## 将卢卡斯斯波那契模式相关的HUD显示数据写入传入的 hud_data 对象。
+##
+## @param context: 包含当前游戏统计信息的 HUDDisplayData 对象（由GamePlay填充）。
+## @param hud_data: 要写入显示数据的 HUDDisplayData 对象。
+func get_hud_context_data(context: HUDDisplayData, hud_data: HUDDisplayData) -> void:
+	var max_player_value: int = context.stat_max_player_value
 	var max_display_value: int = 5 + max_player_value * 2
-	var player_tiles_set: Dictionary = context.get(&"player_values_set", {})
+	var player_tiles_set: Dictionary = context.stat_player_values_set
 
-	var display_data: Dictionary = {}
 	var synthesis_data: Dictionary = {}
 
-	# 查找可合成的提示
 	for i in range(1, _fib_sequence.size() - 1):
 		var f_n_minus_1 := _fib_sequence[i - 1]
 		var f_n_plus_1 := _fib_sequence[i + 1]
@@ -109,34 +107,36 @@ func get_hud_context_data(context: Dictionary = {}) -> Dictionary:
 		highlight_fib_components[synthesis_data[&"f_minus_1"]] = true
 		highlight_fib_components[synthesis_data[&"f_plus_1"]] = true
 		highlight_lucas_set[synthesis_data[&"l_n"]] = true
-		display_data[&"synthesis_tip_display"] = tr("TIP_SYNTHESIS_FORMAT") % [synthesis_data[&"f_minus_1"], synthesis_data[&"f_plus_1"], synthesis_data[&"l_n"]]
+		hud_data.synthesis_tip_display = tr("TIP_SYNTHESIS_FORMAT") % [synthesis_data[&"f_minus_1"], synthesis_data[&"f_plus_1"], synthesis_data[&"l_n"]]
 
-	# 格式化斐波那契序列
 	var fib_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_FIB_SEQ"), &"color": Color.WHITE}]
 	for num in _fib_sequence:
-		if num > max_display_value: break
+		if num > max_display_value:
+			break
 		var item: Dictionary = {&"text": str(num), &"color": Color.GRAY}
-		if highlight_fib_components.has(num): item[&"color"] = Color.CYAN
-		elif player_tiles_set.has(num): item[&"color"] = Color.WHITE
+		if highlight_fib_components.has(num):
+			item[&"color"] = Color.CYAN
+		elif player_tiles_set.has(num):
+			item[&"color"] = Color.WHITE
 		fib_data_for_ui.append(item)
-	display_data[&"fib_sequence_display"] = fib_data_for_ui
+	hud_data.fib_sequence_display = fib_data_for_ui
 
-	# 格式化卢卡斯序列
 	var luc_display_sequence := _luc_sequence.slice(1)
 	luc_display_sequence.sort()
 	var luc_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_LUC_SEQ"), &"color": Color.WHITE}]
 	for num in luc_display_sequence:
-		if num > max_display_value: break
+		if num > max_display_value:
+			break
 		var item: Dictionary = {&"text": str(num), &"color": Color.GRAY}
-		if highlight_lucas_set.has(num): item[&"color"] = Color.YELLOW
-		elif player_tiles_set.has(num): item[&"color"] = Color.WHITE
+		if highlight_lucas_set.has(num):
+			item[&"color"] = Color.YELLOW
+		elif player_tiles_set.has(num):
+			item[&"color"] = Color.WHITE
 		luc_data_for_ui.append(item)
-	display_data[&"luc_sequence_display"] = luc_data_for_ui
-
-	return display_data
+	hud_data.luc_sequence_display = luc_data_for_ui
 
 
-## 获取此规则下所有可生成的方块“类型”。
+## 获取此规则下所有可生成的方块"类型"。
 func get_spawnable_types() -> Dictionary:
 	return {
 		0: tr("RULE_FIBONACCI"),
@@ -144,7 +144,7 @@ func get_spawnable_types() -> Dictionary:
 	}
 
 
-## 根据指定的类型ID，获取所有可生成的方块“数值”。
+## 根据指定的类型ID，获取所有可生成的方块"数值"。
 func get_spawnable_values(type_id: int) -> Array[int]:
 	match type_id:
 		0: return _fib_sequence
@@ -167,5 +167,7 @@ func _generate_sequences() -> void:
 	_fib_sequence = SequenceMath.generate_fibonacci()
 	_luc_sequence = SequenceMath.generate_lucas()
 
-	for num in _fib_sequence: _fib_set[num] = true
-	for num in _luc_sequence: _luc_set[num] = true
+	for num in _fib_sequence:
+		_fib_set[num] = true
+	for num in _luc_sequence:
+		_luc_set[num] = true
