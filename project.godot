@@ -31,6 +31,7 @@ EventBus="*res://scripts/global/event_bus.gd"
 RNGManager="*res://scripts/global/rng_manager.gd"
 ReplayManager="*res://scripts/global/replay_manager.gd"
 BookmarkManager="*res://scripts/global/bookmark_manager.gd"
+Gf="*uid://dftf1eh06apl0"
 
 [display]
 
@@ -40,7 +41,7 @@ window/stretch/mode="canvas_items"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/theme_importer/plugin.cfg")
+enabled=PackedStringArray("res://addons/gf/plugin.cfg", "res://addons/theme_importer/plugin.cfg")
 
 [gui]
 
