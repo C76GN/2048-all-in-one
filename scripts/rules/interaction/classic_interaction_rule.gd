@@ -16,13 +16,15 @@ extends InteractionRule
 ##
 ## @param tile_a: 参与交互的第一个方块。
 ## @param tile_b: 参与交互的第二个方块（通常是移动的目标方块）。
-## @param p_rule: 对当前交互规则实例的引用。
+## @param _p_rule: 对当前交互规则实例的引用。
 ## @return: 一个描述交互结果的字典。
-func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) -> Dictionary:
+func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: InteractionRule) -> Dictionary:
 	if tile_a.type == Tile.TileType.PLAYER and tile_b.type == Tile.TileType.PLAYER:
 		if tile_a.value == tile_b.value:
 			var new_value: int = tile_a.value * 2
-			tile_b.setup(new_value, tile_a.type, p_rule, tile_a.color_schemes)
+			tile_b.value = new_value # Update value of logical data
+			tile_b.type = tile_a.type
+			# For visuals we don't have color_schemes on TileData anymore, GameBoard will handle visuals
 			return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": new_value}
 
 	return {}
@@ -33,8 +35,8 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 ## @param tile_a: 第一个方块。
 ## @param tile_b: 第二个方块。
 ## @return: 如果可以交互则返回 true。
-func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
-	if not is_instance_valid(tile_a) or not is_instance_valid(tile_b):
+func can_interact(tile_a: GameTileData, tile_b: GameTileData) -> bool:
+	if tile_a == null or tile_b == null:
 		return false
 
 	if (tile_a.type == Tile.TileType.PLAYER

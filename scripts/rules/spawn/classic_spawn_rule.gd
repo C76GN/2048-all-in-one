@@ -12,8 +12,10 @@ extends SpawnRule
 # --- 导出变量 ---
 
 @export_group("规则配置")
+
 ## 生成数值为2的玩家方块的概率（其余为4）。
 @export var probability_of_2: float = 0.9
+
 ## 如果为true，成功执行后将阻止其他低优先级规则运行。
 @export var consumes_event_on_success: bool = true
 
@@ -37,13 +39,15 @@ func execute(context: RuleContext) -> bool:
 	spawn_count = min(spawn_count, context.grid_model.get_empty_cells().size())
 
 	for i in range(spawn_count):
-		var value: int = 2 if RNGManager.get_rng().randf() < probability_of_2 else 4
+		var seed_util := Gf.get_architecture().get_utility(GFSeedUtility) as GFSeedUtility
+		var rng := seed_util.get_branched_rng("classic_spawn_rule")
+		var value: int = 2 if rng.randf() < probability_of_2 else 4
 
 		var spawn_data := SpawnData.new()
 		spawn_data.value = value
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
-		spawn_tile_requested.emit(spawn_data)
+		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
 
 	return consumes_event_on_success

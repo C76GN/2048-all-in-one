@@ -1,0 +1,17 @@
+# scripts/states/gf_state_playing.gd
+
+## GFStatePlaying: 游戏进行中状态。
+##
+## 激活输入源，允许玩家操作。纯代码实现。
+class_name GFStatePlaying
+extends GFState
+
+
+# --- 重写方法 ---
+
+func enter(_msg: Dictionary = {}) -> void:
+	Gf.send_simple_event(&"game_state_changed", &"Playing")
+
+
+func exit() -> void:
+	pass

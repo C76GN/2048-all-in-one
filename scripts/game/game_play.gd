@@ -3,89 +3,48 @@
 ## GamePlay: 通用的游戏逻辑控制器。
 ##
 ## 负责加载 GameModeConfig，设置 RuleManager，并协调核心组件之间的通信。
-## 它使用状态机管理游戏生命周期，并作为撤回(Undo)、快照(Snapshot)和
-## 游戏回放(Replay)功能的总协调者。
+## 它作为撤回(Undo)、快照(Snapshot)和游戏回放(Replay)功能的总协调者。
 class_name GamePlay
-extends Control
-
-
-# --- 枚举 ---
-
-## 定义了 GamePlay 的核心状态。
-enum State {
-	## 游戏已初始化，等待开始
-	READY,
-	## 游戏正在进行中
-	PLAYING,
-	## 游戏已结束
-	GAME_OVER,
-}
+extends GFController
 
 
 # --- 常量 ---
 
-## 玩家输入源的脚本资源。
-const PLAYER_INPUT_SOURCE_SCRIPT: Script = preload("res://scripts/core/player_input_source.gd")
+const BOARD_ANIMATION_ACTION_SCRIPT: Script = preload("res://scripts/actions/board_animation_action.gd")
 
-## 回放输入源的脚本资源。
-const REPLAY_INPUT_SOURCE_SCRIPT: Script = preload("res://scripts/core/replay_input_source.gd")
+## 暂停菜单场景路径。
+const PAUSE_MENU_SCENE: String = "res://scenes/ui/pause_menu.tscn"
+
+## 游戏结束菜单场景路径。
+const GAME_OVER_MENU_SCENE: String = "res://scenes/ui/game_over_menu.tscn"
 
 
 # --- 公共变量 ---
 
-## 当前加载的游戏模式配置。
-var mode_config: GameModeConfig
-
-## 当前生效的交互规则。
-var interaction_rule: InteractionRule
-
-## 当前生效的规则管理器。
-var rule_manager: RuleManager
-
-## 当前模式下所有生成规则的实例数组。
-var all_spawn_rules: Array[SpawnRule] = []
-
-## 当前游戏的移动次数。
-var move_count: int = 0
-
-## 当前游戏消灭的怪物数量。
-var monsters_killed: int = 0
-
-## 当前游戏的分数。
-var score: int = 0
-
-## 当前棋盘的尺寸。
-var current_grid_size: int = 4
-
-## 进入游戏时的最高分记录。
-var initial_high_score: int = 0
-
-## 本次游戏会话的初始种子。
-var initial_seed_of_session: int = 0
-
 ## 标记游戏状态是否已被测试工具修改。
 var is_game_state_tainted_by_test_tools: bool = false
-
-## 当前使用的控制器。
-var current_controller: GameController
-
-## 当前使用的输入源实例。
-var input_source: BaseInputSource
 
 
 # --- 私有变量 ---
 
-## 从书签加载时的数据。
+## 当从书签加载时的数据。
 var _loaded_bookmark_data: BookmarkData = null
 
-## 上次保存书签时的完整游戏状态，用于防止重复保存。
-var _last_saved_bookmark_state: Dictionary = {}
+var _game_status_model: GameStatusModel
+var _current_game_model: CurrentGameModel
 
-## 在HUD上显示的临时状态消息。
-var _hud_status_message: String = ""
+## 命令历史工具，用于支持游戏中的撤销（Undo）等功能
+var _command_history: GFCommandHistoryUtility
 
-## 标记当前是否为回放模式。
-var _is_replay_mode: bool = false
+var _action_queue: GFActionQueueSystem
+var _game_flow_system: GameFlowSystem
+var _seed_utility: GFSeedUtility
+var _replay_system: ReplaySystem
+var _test_utility: TestToolUtility
+var _log: GFLogUtility
+
+## 标记是否已完成清理，避免 _exit_tree 重复执行。
+var _is_cleaned_up: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -95,61 +54,53 @@ var _is_replay_mode: bool = false
 @onready var hud: VBoxContainer = %HUD
 @onready var background_color_rect: ColorRect = %Background
 @onready var _page_title: Label = %PageTitle
-@onready var board_animator: BoardAnimator = $BoardAnimator
-@onready var state_machine: StateMachine = $StateMachine
-@onready var ui_manager: UIManager = $UIManager
 @onready var _hud_message_timer: Timer = %HUDMessageTimer
 @onready var replay_controls_container: VBoxContainer = %ReplayControlsContainer
 @onready var replay_prev_step_button: Button = %ReplayPrevStepButton
 @onready var replay_next_step_button: Button = %ReplayNextStepButton
 @onready var replay_back_button: Button = %ReplayBackButton
-@onready var history_manager: GameHistoryManager = $GameHistoryManager
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	_game_status_model = get_model(GameStatusModel) as GameStatusModel
+	_current_game_model = get_model(CurrentGameModel) as CurrentGameModel
+	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
+	_seed_utility = get_utility(GFSeedUtility) as GFSeedUtility
+	_replay_system = get_system(ReplaySystem) as ReplaySystem
+	_test_utility = get_utility(TestToolUtility) as TestToolUtility
+	_log = get_utility(GFLogUtility) as GFLogUtility
+	
 	if _page_title:
 		_page_title.visible = false
-	_initialize_game()
+		
+	if is_instance_valid(_game_status_model):
+		_game_status_model.move_count.value_changed.connect(func(_old, _new): _update_replay_ui())
+		
+	Gf.listen(GameReadyData, _on_game_ready_data_received)
+	Gf.listen_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	Gf.send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
 	_update_static_ui_text()
+	
+	var console := get_utility(GFConsoleUtility) as GFConsoleUtility
+	if console:
+		console.register_command("toggle_test_panel", _cmd_toggle_test_panel, "Toggle developer test panel.")
 
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
-		_update_and_publish_hud_data()
 		_update_static_ui_text()
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_pause"):
-		_on_pause_toggled()
-		get_viewport().set_input_as_handled()
-
-	if state_machine.get_current_state() == "Playing":
-		if event.is_action_pressed("undo"):
-			_on_undo_button_pressed()
-			get_viewport().set_input_as_handled()
-
-		if event.is_action_pressed("save_bookmark"):
-			_on_snapshot_button_pressed()
-			get_viewport().set_input_as_handled()
+func _exit_tree() -> void:
+	_cleanup_listeners()
 
 
-# --- 公共方法 (供 Controller 调用) ---
-
-func save_current_state(action: Variant) -> void:
-	var state: Dictionary = _get_full_game_state()
-	state[&"action"] = action
-	history_manager.save_state(state)
-
-
-func update_and_publish_hud_data() -> void:
-	_update_and_publish_hud_data()
-
+# --- 公共方法 ---
 
 func update_replay_buttons_state() -> void:
-	_update_replay_buttons_state()
+	_update_replay_ui()
 
 
 # --- 私有/辅助方法 ---
@@ -168,534 +119,194 @@ func _update_static_ui_text() -> void:
 			label.text = tr("LABEL_REPLAY_CONTROLS")
 
 
-## 负责整个游戏场景的初始化或重置。
-## @param new_grid_size: 如果提供，则使用此尺寸开始新游戏，否则使用全局设置。
-func _initialize_game(new_grid_size: int = -1) -> void:
-	is_game_state_tainted_by_test_tools = false
-	history_manager.clear()
-
-	var replay_data: ReplayData = GlobalGameManager.current_replay_data
-	_loaded_bookmark_data = GlobalGameManager.selected_bookmark_data
-	GlobalGameManager.current_replay_data = null
-	GlobalGameManager.selected_bookmark_data = null
-
-	_is_replay_mode = is_instance_valid(replay_data)
-
-	if is_instance_valid(_loaded_bookmark_data):
-		if not _setup_game_from_bookmark(): return
-		current_controller = StandardGameController.new()
-	elif _is_replay_mode:
-		if not _setup_replay_game(replay_data): return
-		current_controller = ReplayGameController.new()
-	else:
-		if not _setup_new_game(new_grid_size): return
-		current_controller = StandardGameController.new()
-
-	current_controller.setup(self )
-	_finalize_initialization()
-
-	state_machine.change_state("Playing")
-
-
-## 从一个有效的书签数据中设置游戏状态。
-## @return: 如果设置成功返回 true，否则返回 false。
-func _setup_game_from_bookmark() -> bool:
-	mode_config = load(_loaded_bookmark_data.mode_config_path)
-	if not is_instance_valid(mode_config):
-		push_error("GamePlay: 无法从书签加载 GameModeConfig。")
-		return false
-
-	current_grid_size = _loaded_bookmark_data.board_snapshot.get("grid_size")
-	RNGManager.initialize_rng(_loaded_bookmark_data.initial_seed)
-	RNGManager.set_state(_loaded_bookmark_data.rng_state)
-	score = _loaded_bookmark_data.score
-	move_count = _loaded_bookmark_data.move_count
-	monsters_killed = _loaded_bookmark_data.monsters_killed
-
-	if "game_state_history" in _loaded_bookmark_data and not _loaded_bookmark_data.game_state_history.is_empty():
-		history_manager.load_history(_loaded_bookmark_data.game_state_history.duplicate(true) as Array[Dictionary])
-
-	input_source = PLAYER_INPUT_SOURCE_SCRIPT.new()
-	return true
-
-
-## 根据全局设置或传入参数来配置一个新游戏。
-## @param new_grid_size: 用于开始新游戏的棋盘尺寸。
-## @return: 如果设置成功返回 true，否则返回 false。
-func _setup_new_game(new_grid_size: int = -1) -> bool:
-	if new_grid_size > -1:
-		var new_seed: int = int(Time.get_unix_time_from_system())
-		RNGManager.initialize_rng(new_seed)
-
-	var config_path: String = GlobalGameManager.get_selected_mode_config_path()
-	if new_grid_size > -1:
-		current_grid_size = new_grid_size
-	else:
-		current_grid_size = GlobalGameManager.get_selected_grid_size()
-
-	if not config_path.is_empty():
-		mode_config = load(config_path)
-		if not is_instance_valid(mode_config):
-			push_error("GamePlay: GameModeConfig 资源加载失败！路径: %s" % config_path)
-			GlobalGameManager.return_to_main_menu()
-			return false
-	else:
-		push_error("GamePlay: 无法获取游戏模式配置路径。")
-		get_tree().paused = false
-		GlobalGameManager.return_to_main_menu()
-		return false
-
-	if not mode_config.validate():
-		push_error("GamePlay: GameModeConfig 校验失败，中断游戏初始化。")
-		get_tree().paused = false
-		GlobalGameManager.return_to_main_menu()
-		return false
-
-	input_source = PLAYER_INPUT_SOURCE_SCRIPT.new()
-	return true
-
-
-## 配置一个回放游戏。
-## @param replay_data: 用于回放的游戏数据。
-## @return: 如果设置成功返回 true，否则返回 false。
-func _setup_replay_game(replay_data: ReplayData) -> bool:
-	if not is_instance_valid(replay_data):
-		push_error("GamePlay: 传入了无效的 ReplayData。")
-		return false
-
-	mode_config = load(replay_data.mode_config_path)
-	current_grid_size = replay_data.grid_size
-	RNGManager.initialize_rng(replay_data.initial_seed)
-
-	var replay_input_source := REPLAY_INPUT_SOURCE_SCRIPT.new() as ReplayInputSource
-	replay_input_source.initialize(replay_data)
-	input_source = replay_input_source
-	return true
-
-
-## 在设置好游戏模式和状态后，完成所有节点的实例化和连接。
-func _finalize_initialization() -> void:
-	initial_seed_of_session = RNGManager.get_current_seed()
-	add_child(input_source)
-
-	_configure_ui_for_mode()
-
-	var mode_id: String = mode_config.resource_path.get_file().get_basename()
-	initial_high_score = SaveManager.get_high_score(mode_id, current_grid_size)
-
-	rule_manager = RuleManager.new()
-	add_child(rule_manager)
-
-	interaction_rule = mode_config.interaction_rule.duplicate() as InteractionRule
-	var movement_rule: MovementRule = mode_config.movement_rule.duplicate() as MovementRule
-	var game_over_rule: GameOverRule = mode_config.game_over_rule.duplicate() as GameOverRule
-
-	if is_instance_valid(mode_config.board_theme):
-		background_color_rect.color = mode_config.board_theme.game_background_color
-		game_board.setup(current_grid_size, interaction_rule, movement_rule, game_over_rule, mode_config.color_schemes, mode_config.board_theme)
-	else:
-		push_warning("当前游戏模式没有配置BoardTheme，将使用默认颜色。")
-		game_board.setup(current_grid_size, interaction_rule, movement_rule, game_over_rule, mode_config.color_schemes, null)
-
-	all_spawn_rules.clear()
-	for rule_resource in mode_config.spawn_rules:
-		var rule_instance: SpawnRule = rule_resource.duplicate() as SpawnRule
-		all_spawn_rules.append(rule_instance)
-
-		var required_nodes: Dictionary = rule_instance.get_required_nodes()
-		var created_nodes: Dictionary = {}
-		if not required_nodes.is_empty():
-			for node_key in required_nodes:
-				if required_nodes[node_key] == "Timer":
-					var new_timer := Timer.new()
-					add_child(new_timer)
-					created_nodes[node_key] = new_timer
-
-		rule_instance.setup(created_nodes)
-
-	rule_manager.register_rules(all_spawn_rules)
-	_connect_signals()
-
-	if is_instance_valid(_loaded_bookmark_data):
-		game_board.restore_from_snapshot(_loaded_bookmark_data.board_snapshot)
-		_last_saved_bookmark_state = _get_full_game_state()
-	else:
-		var board_context := RuleContext.new()
-		board_context.grid_model = game_board.model
-		rule_manager.dispatch_event(RuleManager.Events.INITIALIZE_BOARD, board_context)
-
-	_initialize_test_tools()
-	update_and_publish_hud_data()
-
-	if not is_instance_valid(_loaded_bookmark_data):
-		save_current_state(null)
+func _cleanup_listeners() -> void:
+	if _is_cleaned_up:
+		return
+	_is_cleaned_up = true
+	
+	var console := get_utility(GFConsoleUtility) as GFConsoleUtility
+	if console:
+		console.unregister_command("toggle_test_panel")
+	
+	# 清理所有 GF 事件监听，防止旧场景实例在场景重载后仍接收事件
+	Gf.unlisten(GameReadyData, _on_game_ready_data_received)
+	Gf.unlisten_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	Gf.unlisten_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	Gf.unlisten_simple(EventNames.BOARD_RESIZED, _on_board_resized)
+	Gf.unlisten_simple(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
+	Gf.unlisten_simple(EventNames.SHOW_HUD_MESSAGE, _on_show_hud_message_event)
+	Gf.unlisten_simple(EventNames.SPAWN_TILE_REQUESTED, game_board.spawn_tile)
+	
+	if _log:
+		_log.info("GamePlay", "_cleanup_listeners: cleaned up all GF listeners and signal connections")
 
 
 ## 集中管理所有信号连接。
 func _connect_signals() -> void:
-	if is_instance_valid(input_source) and not input_source.action_triggered.is_connected(_on_input_source_action_triggered):
-		input_source.action_triggered.connect(_on_input_source_action_triggered)
-
-	if not ui_manager.resume_requested.is_connected(_on_resume_game):
-		ui_manager.resume_requested.connect(_on_resume_game)
-	if not ui_manager.restart_requested.is_connected(_on_restart_game):
-		ui_manager.restart_requested.connect(_on_restart_game)
-	if not ui_manager.main_menu_requested.is_connected(_on_return_to_main_menu):
-		ui_manager.main_menu_requested.connect(_on_return_to_main_menu)
-	if is_instance_valid(replay_prev_step_button) and not replay_prev_step_button.pressed.is_connected(_on_replay_prev_step_pressed):
-		replay_prev_step_button.pressed.connect(_on_replay_prev_step_pressed)
-	if is_instance_valid(replay_next_step_button) and not replay_next_step_button.pressed.is_connected(_on_replay_next_step_pressed):
-		replay_next_step_button.pressed.connect(_on_replay_next_step_pressed)
+	if is_instance_valid(replay_prev_step_button) and not replay_prev_step_button.pressed.is_connected(_replay_system.step_backward):
+		replay_prev_step_button.pressed.connect(_replay_system.step_backward)
+	if is_instance_valid(replay_next_step_button) and not replay_next_step_button.pressed.is_connected(_replay_system.step_forward):
+		replay_next_step_button.pressed.connect(_replay_system.step_forward)
 	if is_instance_valid(replay_back_button) and not replay_back_button.pressed.is_connected(_on_replay_back_pressed):
 		replay_back_button.pressed.connect(_on_replay_back_pressed)
 
 	if not _hud_message_timer.timeout.is_connected(_on_hud_message_timer_timeout):
 		_hud_message_timer.timeout.connect(_on_hud_message_timer_timeout)
 
-	if is_instance_valid(rule_manager) and not rule_manager.spawn_tile_requested.is_connected(game_board.spawn_tile):
-		rule_manager.spawn_tile_requested.connect(game_board.spawn_tile)
+	Gf.listen_simple(EventNames.SPAWN_TILE_REQUESTED, game_board.spawn_tile)
 
-	if not EventBus.move_made.is_connected(_on_move_made):
-		EventBus.move_made.connect(_on_move_made)
-	if not EventBus.game_lost.is_connected(_on_game_lost):
-		EventBus.game_lost.connect(_on_game_lost)
-	if not EventBus.score_updated.is_connected(_on_score_updated):
-		EventBus.score_updated.connect(_on_score_updated)
-	if not EventBus.monster_killed.is_connected(_on_monster_killed):
-		EventBus.monster_killed.connect(_on_monster_killed)
-	if not EventBus.board_resized.is_connected(_on_board_resized):
-		EventBus.board_resized.connect(_on_board_resized)
+	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	Gf.listen_simple(EventNames.BOARD_RESIZED, _on_board_resized)
+	Gf.listen_simple(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
+	Gf.listen_simple(EventNames.SHOW_HUD_MESSAGE, _on_show_hud_message_event)
 
-	if is_instance_valid(game_board) and is_instance_valid(board_animator):
-		if not game_board.play_animations_requested.is_connected(board_animator.play_animation_sequence):
-			game_board.play_animations_requested.connect(board_animator.play_animation_sequence)
+	if is_instance_valid(game_board) and is_instance_valid(_action_queue):
+		if not game_board.play_animations_requested.is_connected(_on_play_animations_requested):
+			game_board.play_animations_requested.connect(_on_play_animations_requested)
 
 
 ## 根据当前是普通模式还是回放模式，配置UI元素的可见性。
 func _configure_ui_for_mode() -> void:
-	replay_controls_container.visible = _is_replay_mode
+	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
+	replay_controls_container.visible = is_replay
 
-	test_panel.visible = false if _is_replay_mode else OS.has_feature("editor")
+	test_panel.visible = false if is_replay else OS.has_feature("editor")
 
-	_update_replay_buttons_state()
+	_update_replay_ui()
 
 
-## 聚合所有需要显示的数据，并通过全局事件总线发布给HUD。
-func _update_and_publish_hud_data() -> void:
-	if not is_instance_valid(game_board):
+## 聚合所有需要显示的数据，并更新到 Model。
+func _update_replay_ui() -> void:
+	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
+	if not is_replay or not is_instance_valid(_replay_system):
 		return
-
-	var hud_data := HUDDisplayData.new()
-
-	if _is_replay_mode and is_instance_valid(input_source) and input_source is ReplayInputSource:
-		var total_steps: int = input_source.get_total_steps()
-		var current_step_display: int = history_manager.get_history_size() - 1
-		hud_data.step_info = tr("STEP_INFO_FORMAT") % [current_step_display, total_steps]
-
-	hud_data.score = tr("SCORE_LABEL") % score
-	if not _is_replay_mode:
-		if score > initial_high_score:
-			hud_data.high_score = tr("NEW_HIGH_SCORE_FORMAT") % score
-		else:
-			hud_data.high_score = tr("HIGH_SCORE_LABEL") % initial_high_score
-
-	var max_player_value: int = game_board.get_max_player_value()
-	hud_data.highest_tile = tr("HIGHEST_TILE_LABEL") % max_player_value
-	hud_data.move_count = tr("MOVE_COUNT_LABEL") % move_count
-
-	var player_values: Array[int] = game_board.get_all_player_tile_values()
-	var player_values_set: Dictionary = {}
-	for v in player_values:
-		player_values_set[v] = true
-
-	hud_data.stat_max_player_value = max_player_value
-	hud_data.stat_player_values_set = player_values_set
-	hud_data.stat_monsters_killed = monsters_killed
-
-	if is_instance_valid(interaction_rule):
-		interaction_rule.get_hud_context_data(hud_data, hud_data)
-
-	var rule_context := RuleContext.new()
-	rule_context.grid_model = game_board.model
-	for rule in all_spawn_rules:
-		rule.get_display_data(rule_context, hud_data)
-
-	hud_data.separator = "--------------------"
-	if is_instance_valid(mode_config) and not mode_config.mode_description.is_empty():
-		hud_data.description = tr(mode_config.mode_description)
-
-	if not _is_replay_mode:
-		hud_data.controls_title = tr("CONTROLS_TITLE")
-		hud_data.controls_move = tr("CONTROLS_MOVE_HINT")
-		hud_data.controls_actions = tr("CONTROLS_ACTION_HINT")
-
-	hud_data.seed_info = tr("SEED_INFO_LABEL") % RNGManager.get_current_seed()
-
-	if is_game_state_tainted_by_test_tools:
-		hud_data.taint_warning = tr("DEBUG_TAINT_WARNING")
-
-	if not _hud_status_message.is_empty():
-		hud_data.status_message = _hud_status_message
-
-	EventBus.hud_update_requested.emit(hud_data)
-
-
-## 初始化测试工具（仅在编辑器中运行时）。
-func _initialize_test_tools() -> void:
-	if not OS.has_feature("editor") or _is_replay_mode:
-		test_panel.visible = false
-		return
-
-	test_panel.visible = true
-
-	if not test_panel.spawn_requested.is_connected(_on_test_panel_spawn_requested):
-		test_panel.spawn_requested.connect(_on_test_panel_spawn_requested)
-	if not test_panel.values_requested_for_type.is_connected(_on_test_panel_values_requested):
-		test_panel.values_requested_for_type.connect(_on_test_panel_values_requested)
-	if not test_panel.reset_and_resize_requested.is_connected(_on_reset_and_resize_requested):
-		test_panel.reset_and_resize_requested.connect(_on_reset_and_resize_requested)
-	if not test_panel.live_expand_requested.is_connected(game_board.live_expand):
-		test_panel.live_expand_requested.connect(func(new_size: int):
-			is_game_state_tainted_by_test_tools = true
-			game_board.live_expand(new_size)
-		)
-
-	var spawnable_types: Dictionary = interaction_rule.get_spawnable_types()
-	test_panel.setup_panel(spawnable_types)
-	test_panel.update_coordinate_limits(current_grid_size)
-
-
-## 获取当前游戏的完整状态快照。
-## @return: 一个包含游戏所有可序列化状态的字典。
-func _get_full_game_state() -> Dictionary:
-	var rules_states: Array = []
-	for rule in all_spawn_rules:
-		rules_states.append(rule.get_state())
-
-	return {
-		&"board_snapshot": game_board.get_state_snapshot(),
-		&"rng_state": RNGManager.get_state(),
-		&"score": score,
-		&"move_count": move_count,
-		&"monsters_killed": monsters_killed,
-		&"rules_states": rules_states
-	}
-
-
-## 从一个状态字典中恢复完整的游戏状态。
-## @param state_to_restore: 包含完整游戏状态的字典。
-func _restore_state(state_to_restore: Dictionary) -> void:
-	if state_machine.get_current_state() == "GameOver":
-		state_machine.change_state("Playing")
-
-	score = state_to_restore[&"score"]
-	move_count = state_to_restore[&"move_count"]
-	monsters_killed = state_to_restore[&"monsters_killed"]
-	RNGManager.set_state(state_to_restore[&"rng_state"])
-	game_board.restore_from_snapshot(state_to_restore[&"board_snapshot"])
-
-	if state_to_restore.has(&"rules_states"):
-		var rules_states: Array = state_to_restore[&"rules_states"]
-		for i in range(min(all_spawn_rules.size(), rules_states.size())):
-			all_spawn_rules[i].set_state(rules_states[i])
-
-	_update_and_publish_hud_data()
-	_update_replay_buttons_state()
+		
+	replay_prev_step_button.disabled = (_replay_system.get_current_step() <= 0)
+	replay_next_step_button.disabled = (_replay_system.get_current_step() >= _replay_system.get_total_steps())
 
 
 ## 在HUD上显示一条临时消息。
 ## @param message: 要显示的消息文本（支持BBCode）。
 ## @param duration: 消息显示的持续时间（秒）。
 func _show_hud_message(message: String, duration: float) -> void:
-	_hud_status_message = message
-	_update_and_publish_hud_data()
+	if is_instance_valid(_game_status_model):
+		_game_status_model.status_message.set_value(message)
 	_hud_message_timer.start(duration)
 
 
-## 根据当前的回放进度，更新回放控制按钮（上一步/下一步）的可用状态。
-func _update_replay_buttons_state() -> void:
-	if not _is_replay_mode or not input_source is ReplayInputSource: return
-
-	replay_prev_step_button.disabled = history_manager.get_history_size() <= 1
-
-	var is_at_end: bool = history_manager.get_history_size() >= (input_source.get_total_steps() + 1)
-	replay_next_step_button.disabled = is_at_end
-
-	if is_at_end and state_machine.get_current_state() != "GameOver":
-		state_machine.change_state("GameOver")
+func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
+	if is_instance_valid(test_panel) and not _current_game_model.is_replay_mode.get_value():
+		test_panel.visible = not test_panel.visible
+		var console := get_utility(GFConsoleUtility) as GFConsoleUtility
+		if console and test_panel.visible:
+			console.execute_command("clear")
+			_show_hud_message("Test panel toggled.", 2.0)
 
 
 # --- 信号处理函数 ---
 
-func _on_input_source_action_triggered(action: Variant) -> void:
-	if state_machine.get_current_state() != "Playing":
-		return
-	current_controller.handle_action(action)
+func _on_scene_will_change(_payload: Variant = null) -> void:
+	_cleanup_listeners()
 
 
-func _on_move_made(move_data: MoveData) -> void:
-	if not is_instance_valid(move_data):
-		return
+func _on_game_ready_data_received(data: GameReadyData) -> void:
+	is_game_state_tainted_by_test_tools = false
+	
+	if not _command_history:
+		_command_history = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+		
+	if not _action_queue:
+		_action_queue = get_system(GFActionQueueSystem) as GFActionQueueSystem
+		if not _action_queue:
+			_action_queue = GFActionQueueSystem.new()
+			
+	_loaded_bookmark_data = data.loaded_bookmark_data
+	
+	if _current_game_model.is_replay_mode.get_value():
+		_replay_system.activate_replay_mode(data.replay_data_resource)
+	
+	_configure_ui_for_mode()
+	
+	var mode_config := _current_game_model.mode_config.get_value() as GameModeConfig
+	var grid_size := _current_game_model.current_grid_size.get_value() as int
+	
+	if is_instance_valid(mode_config.board_theme):
+		background_color_rect.color = mode_config.board_theme.game_background_color
+		game_board.setup(grid_size, data.interaction_rule, data.movement_rule, data.game_over_rule, mode_config.color_schemes, mode_config.board_theme)
+	else:
+		game_board.setup(grid_size, data.interaction_rule, data.movement_rule, data.game_over_rule, mode_config.color_schemes, null)
 
-	move_count += 1
+	_connect_signals()
 
-	var context := RuleContext.new()
-	context.grid_model = game_board.model
-	context.move_data = move_data
+	if is_instance_valid(_loaded_bookmark_data):
+		game_board.restore_from_snapshot(_loaded_bookmark_data.board_snapshot)
+	else:
+		if is_instance_valid(_game_flow_system):
+			if _log:
+				_log.info("GamePlay", "Triggering initial rules...")
+			_game_flow_system.trigger_initial_rules()
 
-	rule_manager.dispatch_event(RuleManager.Events.PLAYER_MOVED, context)
-	update_and_publish_hud_data()
-	update_replay_buttons_state()
-
-
-func _on_game_lost() -> void:
-	await get_tree().process_frame
-	state_machine.change_state("GameOver")
-	current_controller.on_game_over()
-
-
-func _on_monster_killed() -> void:
-	monsters_killed += 1
-
-	var context := RuleContext.new()
-	context.grid_model = game_board.model
-
-	rule_manager.dispatch_event(RuleManager.Events.MONSTER_KILLED, context)
-	update_and_publish_hud_data()
-
-
-func _on_score_updated(amount: int) -> void:
-	score += amount
-	update_and_publish_hud_data()
+	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
+	if not is_replay:
+		var grid_model := get_model(GridModel) as GridModel
+		_test_utility.setup_test_tools(test_panel, game_board)
+		_test_utility.initialize_panel(grid_model.interaction_rule, _current_game_model.current_grid_size.get_value())
+	
+	if not is_instance_valid(_loaded_bookmark_data) and _command_history:
+		var init_cmd := MoveCommand.new(Vector2i.ZERO)
+		var arch := Gf.get_architecture()
+		init_cmd.set_snapshot({
+			&"grid_snapshot": (arch.get_model(GridModel) as GridModel).get_snapshot(),
+			&"score": _game_status_model.score.get_value(),
+			&"move_count": _game_status_model.move_count.get_value()
+		})
+		_command_history.record(init_cmd)
 
 
 func _on_board_resized(new_size: int) -> void:
-	if OS.has_feature("editor") and is_instance_valid(test_panel):
-		test_panel.update_coordinate_limits(new_size)
+	if is_instance_valid(_test_utility):
+		_test_utility.update_limits(new_size)
 
 
-func _on_pause_toggled() -> void:
-	if state_machine.get_current_state() == "GameOver" or _is_replay_mode:
-		return
-
-	if get_tree().paused:
-		ui_manager.close_current_ui()
+func _on_toggle_pause_ui(_payload: Variant = null) -> void:
+	var tree := get_tree()
+	if tree.paused:
+		# 恢复游戏：弹出暂停菜单
+		var ui_util := get_utility(GFUIUtility) as GFUIUtility
+		if ui_util:
+			ui_util.pop_panel()
+		tree.paused = false
 	else:
-		ui_manager.show_ui(UIManager.UIType.PAUSE)
+		# 暂停游戏：弹出暂停菜单
+		tree.paused = true
+		var ui_util := get_utility(GFUIUtility) as GFUIUtility
+		if ui_util:
+			ui_util.push_panel(PAUSE_MENU_SCENE)
 
 
-func _on_resume_game() -> void:
-	state_machine.change_state("Playing")
-
-
-func _on_restart_game(_from_bookmark: bool) -> void:
-	if is_instance_valid(_loaded_bookmark_data):
-		get_tree().paused = false
-		GlobalGameManager.selected_bookmark_data = _loaded_bookmark_data
-		get_tree().reload_current_scene()
-
-	else:
-		get_tree().paused = false
-		var current_scene_resource: PackedScene = load(get_tree().current_scene.scene_file_path)
-		GlobalGameManager.select_mode_and_start(
-			mode_config.resource_path,
-			current_scene_resource,
-			current_grid_size,
-			initial_seed_of_session
-		)
-
-
-func _on_return_to_main_menu() -> void:
-	get_tree().paused = false
-	GlobalGameManager.return_to_main_menu()
-
-
-func _on_undo_button_pressed() -> void:
-	if state_machine.get_current_state() != "Playing" or get_tree().paused or _is_replay_mode:
-		return
-
-	if history_manager.can_undo():
-		var previous_state: Dictionary = history_manager.undo()
-		_restore_state(previous_state)
-	else:
-		_show_hud_message(tr("UNDO_FAIL_MSG"), 3.0)
-
-
-func _on_snapshot_button_pressed() -> void:
-	if state_machine.get_current_state() != "Playing" or get_tree().paused:
-		return
-
-	if is_game_state_tainted_by_test_tools:
-		_show_hud_message(tr("SNAPSHOT_TAINT_WARN"), 4.0)
-
-	var current_state_for_comparison: Dictionary = _get_full_game_state()
-	current_state_for_comparison["game_state_history"] = history_manager.get_history()
-
-	if JSON.stringify(current_state_for_comparison) == JSON.stringify(_last_saved_bookmark_state):
-		_show_hud_message(tr("SNAPSHOT_NO_CHANGE"), 3.0)
-		return
-
-	var new_bookmark := BookmarkData.new()
-	new_bookmark.timestamp = int(Time.get_unix_time_from_system())
-	new_bookmark.mode_config_path = mode_config.resource_path
-	new_bookmark.initial_seed = RNGManager.get_current_seed()
-
-	var latest_atomic_state: Dictionary = history_manager.get_history().back()
-	new_bookmark.score = latest_atomic_state["score"]
-	new_bookmark.move_count = latest_atomic_state["move_count"]
-	new_bookmark.monsters_killed = latest_atomic_state["monsters_killed"]
-	new_bookmark.rng_state = latest_atomic_state["rng_state"]
-	new_bookmark.board_snapshot = latest_atomic_state["board_snapshot"]
-	new_bookmark.game_state_history = history_manager.get_history().duplicate(true)
-
-	BookmarkManager.save_bookmark(new_bookmark)
-	_last_saved_bookmark_state = current_state_for_comparison
-	_show_hud_message(tr("SNAPSHOT_SAVED_SUCCESS"), 3.0)
-
-
-func _on_hud_message_timer_timeout() -> void:
-	_hud_status_message = ""
-	_update_and_publish_hud_data()
-
-
-func _on_replay_prev_step_pressed() -> void:
-	if not _is_replay_mode: return
-	if history_manager.get_history_size() > 1:
-		var previous_state: Dictionary = history_manager.undo()
-		if previous_state != null:
-			_restore_state(previous_state)
-		_update_replay_buttons_state()
-
-
-func _on_replay_next_step_pressed() -> void:
-	if not _is_replay_mode: return
-	if input_source is ReplayInputSource:
-		var next_step_index: int = history_manager.get_history_size() - 1
-		if next_step_index < input_source.get_total_steps():
-			input_source.play_step(next_step_index)
+func _on_show_hud_message_event(args: Array) -> void:
+	if args.size() >= 2:
+		_show_hud_message(args[0], args[1])
 
 
 func _on_replay_back_pressed() -> void:
-	GlobalGameManager.return_to_main_menu()
+	Gf.send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
 
 
-func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int) -> void:
-	is_game_state_tainted_by_test_tools = true
-	var tile_type_enum: Tile.TileType = interaction_rule.get_tile_type_from_id(type_id)
-	game_board.spawn_specific_tile(grid_pos, value, tile_type_enum)
+func _on_hud_message_timer_timeout() -> void:
+	if is_instance_valid(_game_status_model):
+		_game_status_model.status_message.set_value("")
 
 
-func _on_test_panel_values_requested(type_id: int) -> void:
-	var values: Array[int] = interaction_rule.get_spawnable_values(type_id)
-	test_panel.update_value_options(values)
+func _on_play_animations_requested(instructions: Array) -> void:
+	if _action_queue and is_instance_valid(game_board):
+		var action := BOARD_ANIMATION_ACTION_SCRIPT.new(instructions, game_board) as GFVisualAction
+		_action_queue.enqueue(action)
 
 
-func _on_reset_and_resize_requested(new_size: int) -> void:
-	is_game_state_tainted_by_test_tools = true
-	var current_scene_resource: PackedScene = load(get_tree().current_scene.scene_file_path)
-	GlobalGameManager.select_mode_and_start(
-		mode_config.resource_path,
-		current_scene_resource,
-		new_size,
-		initial_seed_of_session
-	)
+func _on_game_state_changed(new_state: StringName) -> void:
+	if new_state == EventNames.STATE_GAME_OVER:
+		# 使用 GFUIUtility 弹出游戏结束菜单
+		var ui_util := get_utility(GFUIUtility) as GFUIUtility
+		if ui_util:
+			ui_util.push_panel(GAME_OVER_MENU_SCENE)

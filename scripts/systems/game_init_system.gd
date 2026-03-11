@@ -1,0 +1,130 @@
+# scripts/systems/game_init_system.gd
+
+## GameInitSystem: 负责提取原 GamePlay.gd 中的装配逻辑。
+class_name GameInitSystem
+extends GFSystem
+
+var _seed_utility: GFSeedUtility
+var _rule_manager: RuleManager
+var _game_flow_system: GameFlowSystem
+var _command_history: GFCommandHistoryUtility
+var _log: GFLogUtility
+
+func init() -> void:
+	_seed_utility = get_utility(GFSeedUtility) as GFSeedUtility
+	_command_history = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	_log = get_utility(GFLogUtility) as GFLogUtility
+	
+func ready() -> void:
+	_rule_manager = get_system(RuleManager) as RuleManager
+	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
+	
+	# 监听来自路由或 UI 的初始化请求事件
+	Gf.listen_simple(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
+
+func _on_request_initialization(_payload: Variant = null) -> void:
+	var app_config := get_model(AppConfigModel) as AppConfigModel
+	if not app_config:
+		return
+		
+	var replay_data: ReplayData = app_config.current_replay_data.get_value()
+	var loaded_bookmark_data: BookmarkData = app_config.selected_bookmark_data.get_value()
+	
+	app_config.current_replay_data.set_value(null)
+	app_config.selected_bookmark_data.set_value(null)
+
+	if _command_history:
+		_command_history.clear()
+
+	var game_ready_data := GameReadyData.new()
+	game_ready_data.is_replay_mode = is_instance_valid(replay_data)
+	game_ready_data.loaded_bookmark_data = loaded_bookmark_data
+	game_ready_data.replay_data_resource = replay_data
+	
+	var config_path: String = app_config.selected_mode_config_path.get_value()
+	var grid_size := 4
+	var init_seed := 0
+	
+	if game_ready_data.is_replay_mode:
+		config_path = replay_data.mode_config_path
+		grid_size = replay_data.grid_size
+		init_seed = replay_data.initial_seed
+	elif is_instance_valid(loaded_bookmark_data):
+		config_path = loaded_bookmark_data.mode_config_path
+		grid_size = loaded_bookmark_data.board_snapshot.get("grid_size")
+		init_seed = loaded_bookmark_data.initial_seed
+	else:
+		grid_size = app_config.selected_grid_size.get_value()
+		var config_seed: int = app_config.selected_seed.get_value()
+		if _log: _log.info("GameInitSystem", "Normal mode: config_seed=%d" % config_seed)
+		if config_seed != 0:
+			init_seed = config_seed
+		else:
+			init_seed = int(Time.get_unix_time_from_system())
+		if _log: _log.info("GameInitSystem", "Final init_seed=%d" % init_seed)
+
+	game_ready_data.current_grid_size = grid_size
+	game_ready_data.initial_seed = init_seed
+
+	var mode_config := load(config_path) as GameModeConfig
+	if not is_instance_valid(mode_config):
+		if _log: _log.error("GameInitSystem", "GameModeConfig 加载失败！")
+		return
+		
+	game_ready_data.mode_config = mode_config
+	game_ready_data.interaction_rule = mode_config.interaction_rule.duplicate() as InteractionRule
+	game_ready_data.movement_rule = mode_config.movement_rule.duplicate() as MovementRule
+	game_ready_data.game_over_rule = mode_config.game_over_rule.duplicate() as GameOverRule
+	
+	if _log: _log.info("GameInitSystem", "Calling set_global_seed(%d)" % init_seed)
+	_seed_utility.set_global_seed(init_seed)
+	
+	var save_system := get_system(SaveSystem) as SaveSystem
+	var mode_id: String = mode_config.resource_path.get_file().get_basename()
+	var high_score: int = save_system.get_high_score(mode_id, grid_size) if save_system else 0
+
+	var game_status_model := get_model(GameStatusModel) as GameStatusModel
+	if is_instance_valid(loaded_bookmark_data):
+		_seed_utility.set_state(loaded_bookmark_data.rng_state)
+		if game_status_model:
+			game_status_model.score.set_value(loaded_bookmark_data.score)
+			game_status_model.move_count.set_value(loaded_bookmark_data.move_count)
+			game_status_model.monsters_killed.set_value(loaded_bookmark_data.monsters_killed)
+			# 恢复存档时也要初始化最高分
+			game_status_model.high_score.set_value(high_score)
+
+		if "game_state_history" in loaded_bookmark_data and not loaded_bookmark_data.game_state_history.is_empty():
+			if _command_history:
+				_command_history.deserialize_history(loaded_bookmark_data.game_state_history, Callable(MoveCommand, "deserialize"))
+	else:
+		if game_status_model:
+			game_status_model.score.set_value(0)
+			game_status_model.move_count.set_value(0)
+			game_status_model.monsters_killed.set_value(0)
+			game_status_model.highest_tile.set_value(0)
+			game_status_model.status_message.set_value("")
+			game_status_model.extra_stats.set_value({})
+			
+			# 初始化最高分显示
+			game_status_model.high_score.set_value(high_score)
+
+	game_ready_data.initial_high_score = high_score
+
+	if _game_flow_system:
+		_game_flow_system.setup(_rule_manager, game_ready_data.game_over_rule)
+		
+	for rule_resource in mode_config.spawn_rules:
+		var rule_instance: SpawnRule = rule_resource.duplicate() as SpawnRule
+		game_ready_data.all_spawn_rules.append(rule_instance)
+		
+	_rule_manager.register_rules(game_ready_data.all_spawn_rules)
+	
+	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
+	if current_game_model:
+		current_game_model.mode_config.set_value(mode_config)
+		current_game_model.current_grid_size.set_value(grid_size)
+		current_game_model.initial_seed.set_value(init_seed)
+		current_game_model.initial_high_score.set_value(game_ready_data.initial_high_score)
+		current_game_model.is_replay_mode.set_value(game_ready_data.is_replay_mode)
+
+	Gf.send_event(game_ready_data)

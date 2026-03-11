@@ -2,9 +2,9 @@
 
 ## MoveData: 用于描述一次玩家移动结果的强类型数据对象。
 ##
-## 替代原有在 EventBus.move_made 信号和 SpawnRule.execute 上下文中传递的裸 Dictionary。
+## 用于在移动和生成上下文之间传递的强类型数据模型。
 class_name MoveData
-extends RefCounted
+extends GFPayload
 
 
 # --- 公共变量 ---

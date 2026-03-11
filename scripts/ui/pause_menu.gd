@@ -3,29 +3,16 @@
 ## PauseMenu: 游戏内暂停菜单的UI控制器。
 ##
 ## 负责处理暂停菜单的显示/隐藏，以及响应各个按钮的点击事件。
-## 它通过信号与主游戏场景通信，以执行继续、重启等操作。
-extends Control
-
-
-# --- 信号 ---
-
-## 当玩家请求继续游戏时发出。
-signal resume_game
-
-## 当玩家确认要重新开始游戏时发出。
-signal restart_game
-
-## 当玩家请求返回主菜单时发出。
-signal return_to_main_menu
-
+## 它通过 GF 事件系统通知系统层执行继续、重启等操作。
+extends GFUIController
 
 
 # --- @onready 变量 (节点引用) ---
 
-@onready var _continue_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/ContinueButton
-@onready var _restart_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/RestartButton
-@onready var _settings_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/SettingsButton
-@onready var _main_menu_button: Button = $CanvasLayer/CenterContainer/VBoxContainer/MainMenuButton
+@onready var _continue_button: Button = $CenterContainer/VBoxContainer/ContinueButton
+@onready var _restart_button: Button = $CenterContainer/VBoxContainer/RestartButton
+@onready var _settings_button: Button = $CenterContainer/VBoxContainer/SettingsButton
+@onready var _main_menu_button: Button = $CenterContainer/VBoxContainer/MainMenuButton
 
 
 # --- Godot 生命周期方法 ---
@@ -41,26 +28,21 @@ func _ready() -> void:
 	_continue_button.grab_focus()
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_TRANSLATION_CHANGED:
-		_update_ui_text()
-
-
 # --- 信号处理函数 ---
 
-## 响应“继续游戏”按钮的点击事件。
+## 响应"继续游戏"按钮的点击事件。
 func _on_continue_button_pressed() -> void:
-	resume_game.emit()
+	Gf.send_simple_event(EventNames.RESUME_GAME_REQUESTED)
 
 
-## 响应“重新开始”按钮的点击事件。
+## 响应"重新开始"按钮的点击事件。
 func _on_restart_button_pressed() -> void:
-	restart_game.emit()
+	Gf.send_simple_event(EventNames.RESTART_GAME_REQUESTED)
 
 
-## 响应“返回主界面”按钮的点击事件。
+## 响应"返回主界面"按钮的点击事件。
 func _on_main_menu_button_pressed() -> void:
-	return_to_main_menu.emit()
+	Gf.send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
 
 
 # --- 私有/辅助方法 ---

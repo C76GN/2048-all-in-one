@@ -24,7 +24,7 @@ func setup(_game_board: Control) -> void:
 ## @param _tile_b: 参与交互的第二个方块（通常是移动的目标方块）。
 ## @param _p_rule: 对当前交互规则实例的引用，用于更新新方块的状态。
 ## @return: 一个描述交互结果的字典，可能包含 "merged_tile" 和 "consumed_tile"。
-func process_interaction(_tile_a: Tile, _tile_b: Tile, _p_rule: InteractionRule) -> Dictionary:
+func process_interaction(_tile_a: GameTileData, _tile_b: GameTileData, _p_rule: InteractionRule) -> Dictionary:
 	return {}
 
 
@@ -34,7 +34,7 @@ func process_interaction(_tile_a: Tile, _tile_b: Tile, _p_rule: InteractionRule)
 ## @param _tile_a: 第一个方块。
 ## @param _tile_b: 第二个方块。
 ## @return: 如果可以交互则返回 true。
-func can_interact(_tile_a: Tile, _tile_b: Tile) -> bool:
+func can_interact(_tile_a: GameTileData, _tile_b: GameTileData) -> bool:
 	return false
 
 
@@ -56,12 +56,11 @@ func get_color_scheme_index(_value: int) -> int:
 	return 0
 
 
-## 将此规则相关的HUD显示数据写入传入的 HUDDisplayData 对象。
+## 将此规则相关的统计数据写入传入的 stats 字典。
 ##
-## 子类可以重写此方法，将需要展示的数据直接写入 hud_data 的对应字段。
-## @param _context: 包含当前游戏状态信息的 HUDDisplayData 上下文（由GamePlay填充）。
-## @param _hud_data: 要写入显示数据的 HUDDisplayData 对象。
-func get_hud_context_data(_context: HUDDisplayData, _hud_data: HUDDisplayData) -> void:
+## @param _context: 包含当前游戏状态信息的字典（如 {max_player_value: int, monsters_killed: int}）。
+## @param _stats: 要写入显示数据的字典。
+func get_hud_stats(_context: Dictionary, _stats: Dictionary) -> void:
 	pass
 
 

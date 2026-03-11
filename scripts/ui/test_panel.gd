@@ -6,28 +6,7 @@
 ## 而是通过外部数据来动态填充选项。它允许开发者在运行时手动生成
 ## 符合当前游戏模式规则的方块，或调整棋盘大小。
 class_name TestPanel
-extends VBoxContainer
-
-
-# --- 信号 ---
-
-## 当用户点击“生成方块”按钮时发出。
-## @param grid_pos: 方块在棋盘上的目标网格坐标。
-## @param value: 要生成的方块的数值。
-## @param type_id: 方块类型的ID，与TypeOptionButton中被选中项的ID对应。
-signal spawn_requested(grid_pos: Vector2i, value: int, type_id: int)
-
-## 当用户在类型下拉菜单中选择了新的一项时发出。
-## @param type_id: 被选中的类型的ID。
-signal values_requested_for_type(type_id: int)
-
-## 当用户请求重置棋盘并使用新尺寸时发出。
-## @param new_size: 棋盘的新尺寸。
-signal reset_and_resize_requested(new_size: int)
-
-## 当用户请求在游戏过程中扩建棋盘时发出。
-## @param new_size: 棋盘扩建后的新尺寸。
-signal live_expand_requested(new_size: int)
+extends GFController
 
 
 # --- @onready 变量 (节点引用) ---
@@ -111,20 +90,20 @@ func _on_spawn_button_pressed() -> void:
 	var value := int(value_text)
 	var type_id: int = _type_option_button.get_item_id(_type_option_button.selected)
 
-	# 发出信号
-	spawn_requested.emit(pos, value, type_id)
+	# 发送 GF 事件替代信号
+	send_simple_event(EventNames.TEST_SPAWN_REQUESTED, [pos, value, type_id])
 
 
 ## 响应“重置并调整大小”按钮的点击事件。
 func _on_reset_resize_button_pressed() -> void:
 	var new_size := int(_grid_size_spinbox.value)
-	reset_and_resize_requested.emit(new_size)
+	send_simple_event(EventNames.TEST_RESET_RESIZE_REQUESTED, new_size)
 
 
 ## 响应“游戏中扩建棋盘”按钮的点击事件。
 func _on_live_expand_button_pressed() -> void:
 	var new_size := int(_grid_size_spinbox.value)
-	live_expand_requested.emit(new_size)
+	send_simple_event(EventNames.TEST_LIVE_EXPAND_REQUESTED, new_size)
 
 
 ## 当类型下拉菜单中的选项被改变时调用。
@@ -134,4 +113,4 @@ func _on_type_selected(index: int) -> void:
 		return
 
 	var type_id: int = _type_option_button.get_item_id(index)
-	values_requested_for_type.emit(type_id)
+	send_simple_event(EventNames.TEST_VALUES_REQUESTED, type_id)

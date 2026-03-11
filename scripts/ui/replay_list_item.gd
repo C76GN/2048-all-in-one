@@ -7,6 +7,7 @@
 class_name ReplayListItem
 extends BaseListMenuItem
 
+
 # --- 信号 ---
 
 ## 当一个回放列表项被确认选中时发出。

@@ -1,19 +1,11 @@
-[gd_scene load_steps=16 format=3 uid="uid://28ale2iku1n4"]
+[gd_scene load_steps=7 format=3 uid="uid://28ale2iku1n4"]
 
 [ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://scenes/ui/layouts/base_three_column_layout.tscn" id="1_base"]
 [ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/game/game_play.gd" id="2_script"]
 [ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/ui/hud.tscn" id="3_hud"]
 [ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/core/game_board.gd" id="4_board"]
 [ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/ui/test_panel.tscn" id="5_test_panel"]
-[ext_resource type="Script" uid="uid://cbt4kf4pchvjg" path="res://scripts/core/board_animator.gd" id="6_animator"]
-[ext_resource type="Script" uid="uid://celas3tm78ajv" path="res://scripts/core/state_machine.gd" id="7_fsm"]
-[ext_resource type="Script" uid="uid://fbcjtexb0lou" path="res://scripts/core/ui_manager.gd" id="8_ui_mgr"]
-[ext_resource type="PackedScene" uid="uid://bsourh8co1vbn" path="res://scenes/ui/pause_menu.tscn" id="9_pause"]
-[ext_resource type="PackedScene" uid="uid://7ypwtymhkpm6" path="res://scenes/ui/game_over_menu.tscn" id="10_game_over"]
-[ext_resource type="Script" uid="uid://b0wqb277l6af8" path="res://scripts/core/game_history_manager.gd" id="11_history"]
-[ext_resource type="Script" path="res://scripts/states/state_ready.gd" id="12_state_ready"]
-[ext_resource type="Script" path="res://scripts/states/state_playing.gd" id="13_state_playing"]
-[ext_resource type="Script" path="res://scripts/states/state_game_over.gd" id="14_state_game_over"]
+
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
 bg_color = Color(0.282702, 0.282702, 0.282702, 1)
@@ -81,31 +73,8 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="BoardAnimator" type="Node" parent="." index="2"]
-script = ExtResource("6_animator")
-
-[node name="StateMachine" type="Node" parent="." index="3"]
-script = ExtResource("7_fsm")
-
-[node name="Ready" type="Node" parent="StateMachine" index="0"]
-script = ExtResource("12_state_ready")
-
-[node name="Playing" type="Node" parent="StateMachine" index="1"]
-script = ExtResource("13_state_playing")
-
-[node name="GameOver" type="Node" parent="StateMachine" index="2"]
-script = ExtResource("14_state_game_over")
-
-[node name="HUDMessageTimer" type="Timer" parent="." index="4"]
+[node name="HUDMessageTimer" type="Timer" parent="." index="1"]
 unique_name_in_owner = true
 one_shot = true
 
-[node name="UIManager" type="Node" parent="." index="5"]
-script = ExtResource("8_ui_mgr")
-ui_scenes = {
-0: ExtResource("9_pause"),
-1: ExtResource("10_game_over")
-}
 
-[node name="GameHistoryManager" type="Node" parent="." index="6"]
-script = ExtResource("11_history")

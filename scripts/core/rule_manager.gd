@@ -6,33 +6,29 @@
 ## 触发器（Trigger）和优先级（Priority），按正确的顺序执行它们。
 ## 它还支持"事件消费"机制，允许高优先级的规则阻止低优先级规则的执行。
 class_name RuleManager
-extends Node
+extends GFSystem
 
 
-# --- 信号 ---
-
-## 当任何规则请求生成方块时，将此信号转发给 GamePlay。
-## @param spawn_data: 包含生成方块所需信息的强类型数据对象。
-signal spawn_tile_requested(spawn_data: SpawnData)
-
-
-# --- 枚举 ---
-
-## 定义了可以触发规则执行的核心游戏事件。
-enum Events {
-	## 棋盘初始化事件
-	INITIALIZE_BOARD,
-	## 玩家成功移动后
-	PLAYER_MOVED,
-	## 怪物被消灭后
-	MONSTER_KILLED,
-}
+# --- 属性 ---
+var _grid_model: GridModel
 
 
 # --- 私有变量 ---
 
 ## 存储所有已注册的规则实例。
 var _rules: Array[SpawnRule] = []
+
+
+# --- 重写方法 ---
+
+func init() -> void:
+	_grid_model = get_model(GridModel) as GridModel
+
+
+func ready() -> void:
+	Gf.listen(MoveData, _on_move_made)
+	Gf.listen_simple(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
+	Gf.listen_simple(EventNames.MONSTER_KILLED, _on_monster_killed)
 
 
 # --- 公共方法 ---
@@ -43,60 +39,48 @@ func register_rules(p_rules: Array[SpawnRule]) -> void:
 	_rules = p_rules
 
 	for rule in _rules:
-		if not rule.spawn_tile_requested.is_connected(_on_rule_spawn_requested):
-			rule.spawn_tile_requested.connect(_on_rule_spawn_requested)
+		rule.setup() # 执行内部状态初始化
 
 
-## 分发一个游戏事件，触发相应规则。
-##
-## @param event: 要分发的 Events 枚举成员。
-## @param context: 包含游戏上下文的强类型数据对象。
-func dispatch_event(event: Events, context: RuleContext) -> void:
-	if not is_instance_valid(context):
-		push_error("RuleManager.dispatch_event: 传入了无效的 RuleContext，跳过事件分发。")
-		return
+## 获取所有的生成规则，用于序列化。
+func get_all_spawn_rules() -> Array[SpawnRule]:
+	return _rules
 
-	if not is_instance_valid(context.grid_model):
-		push_error("RuleManager.dispatch_event: RuleContext.grid_model 无效，跳过事件分发。")
-		return
 
-	var relevant_rules: Array[SpawnRule] = _get_relevant_rules(event)
-
-	if relevant_rules.is_empty():
-		return
-
-	relevant_rules.sort_custom(func(a: SpawnRule, b: SpawnRule) -> bool: return a.priority > b.priority)
-
-	for rule in relevant_rules:
-		var was_consumed: bool = rule.execute(context)
-		if was_consumed:
-			break
+## 清除所有规则。
+func clear_rules() -> void:
+	for rule in _rules:
+		rule.teardown()
+	_rules.clear()
 
 
 # --- 私有/辅助方法 ---
 
-func _on_rule_spawn_requested(spawn_data: SpawnData) -> void:
-	spawn_tile_requested.emit(spawn_data)
+func _on_request_board_init(_payload: Variant = null) -> void:
+	_execute_rules(SpawnRule.TriggerType.ON_INITIALIZE)
 
 
-## 根据事件类型筛选出所有监听该事件的规则。
-## @param event: 要筛选的 Events 枚举成员。
-## @return: 一个包含所有匹配规则实例的数组。
-func _get_relevant_rules(event: Events) -> Array[SpawnRule]:
-	var matched_rules: Array[SpawnRule] = []
+func _on_move_made(move_data: MoveData) -> void:
+	_execute_rules(SpawnRule.TriggerType.ON_MOVE, move_data)
+	# 对概率移动规则的特殊处理（目前合并在 _execute_rules 逻辑中）
+	
+	Gf.send_simple_event(EventNames.TURN_FINISHED)
 
-	for rule in _rules:
-		var current_rule: SpawnRule = rule
 
-		match event:
-			Events.INITIALIZE_BOARD:
-				if current_rule.trigger == SpawnRule.TriggerType.ON_INITIALIZE:
-					matched_rules.append(current_rule)
-			Events.PLAYER_MOVED:
-				if current_rule.trigger in [SpawnRule.TriggerType.ON_MOVE, SpawnRule.TriggerType.ON_MOVE_PROBABILITY]:
-					matched_rules.append(current_rule)
-			Events.MONSTER_KILLED:
-				if current_rule.trigger == SpawnRule.TriggerType.ON_KILL:
-					matched_rules.append(current_rule)
+func _on_monster_killed(_payload: Variant = null) -> void:
+	_execute_rules(SpawnRule.TriggerType.ON_KILL)
 
-	return matched_rules
+
+func _execute_rules(trigger_type: SpawnRule.TriggerType, move_data: MoveData = null) -> void:
+	var context := RuleContext.new()
+	context.grid_model = _grid_model
+	context.move_data = move_data
+	
+	# 按优先级降序排序执行
+	var active_rules := _rules.filter(func(r: SpawnRule): return r.trigger == trigger_type or (trigger_type == SpawnRule.TriggerType.ON_MOVE and r.trigger == SpawnRule.TriggerType.ON_MOVE_PROBABILITY))
+	active_rules.sort_custom(func(a, b): return a.priority > b.priority)
+	
+	for rule in active_rules:
+		var is_consumed: bool = rule.execute(context)
+		if is_consumed:
+			break

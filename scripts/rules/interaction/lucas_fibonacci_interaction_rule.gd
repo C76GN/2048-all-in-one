@@ -28,8 +28,8 @@ func _init() -> void:
 # --- 公共方法 ---
 
 ## 判断两个方块是否具备可交互性。
-func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
-	if not is_instance_valid(tile_a) or not is_instance_valid(tile_b):
+func can_interact(tile_a: GameTileData, tile_b: GameTileData) -> bool:
+	if tile_a == null or tile_b == null:
 		return false
 	if tile_a.type != Tile.TileType.PLAYER or tile_b.type != Tile.TileType.PLAYER:
 		return false
@@ -52,10 +52,10 @@ func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
 
 
 ## 处理两个方块之间的合并交互。
-func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) -> Dictionary:
+func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: InteractionRule) -> Dictionary:
 	if can_interact(tile_a, tile_b):
 		var new_value := tile_a.value + tile_b.value
-		tile_b.setup(new_value, tile_a.type, p_rule, tile_a.color_schemes)
+		tile_b.value = new_value
 		return {&"merged_tile": tile_b, &"consumed_tile": tile_a, &"score": new_value}
 
 	return {}
@@ -81,14 +81,14 @@ func get_color_scheme_index(value: int) -> int:
 	return 0
 
 
-## 将卢卡斯斯波那契模式相关的HUD显示数据写入传入的 hud_data 对象。
+## 将卢卡斯斯波那契模式相关的HUD显示数据写入传入的 stats 字典。
 ##
-## @param context: 包含当前游戏统计信息的 HUDDisplayData 对象（由GamePlay填充）。
-## @param hud_data: 要写入显示数据的 HUDDisplayData 对象。
-func get_hud_context_data(context: HUDDisplayData, hud_data: HUDDisplayData) -> void:
-	var max_player_value: int = context.stat_max_player_value
+## @param context: 包含当前游戏统计信息的 Dictionary 对象。
+## @param stats: 要写入显示数据的 Dictionary 对象。
+func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
+	var max_player_value: int = context.get(&"max_player_value", 0)
 	var max_display_value: int = 5 + max_player_value * 2
-	var player_tiles_set: Dictionary = context.stat_player_values_set
+	var player_tiles_set: Dictionary = context.get(&"player_values_set", {})
 
 	var synthesis_data: Dictionary = {}
 
@@ -107,7 +107,7 @@ func get_hud_context_data(context: HUDDisplayData, hud_data: HUDDisplayData) -> 
 		highlight_fib_components[synthesis_data[&"f_minus_1"]] = true
 		highlight_fib_components[synthesis_data[&"f_plus_1"]] = true
 		highlight_lucas_set[synthesis_data[&"l_n"]] = true
-		hud_data.synthesis_tip_display = tr("TIP_SYNTHESIS_FORMAT") % [synthesis_data[&"f_minus_1"], synthesis_data[&"f_plus_1"], synthesis_data[&"l_n"]]
+		stats[&"synthesis_tip_display"] = tr("TIP_SYNTHESIS_FORMAT") % [synthesis_data[&"f_minus_1"], synthesis_data[&"f_plus_1"], synthesis_data[&"l_n"]]
 
 	var fib_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_FIB_SEQ"), &"color": Color.WHITE}]
 	for num in _fib_sequence:
@@ -119,7 +119,7 @@ func get_hud_context_data(context: HUDDisplayData, hud_data: HUDDisplayData) -> 
 		elif player_tiles_set.has(num):
 			item[&"color"] = Color.WHITE
 		fib_data_for_ui.append(item)
-	hud_data.fib_sequence_display = fib_data_for_ui
+	stats[&"fibonacci_sequence_display"] = fib_data_for_ui
 
 	var luc_display_sequence := _luc_sequence.slice(1)
 	luc_display_sequence.sort()
@@ -133,7 +133,7 @@ func get_hud_context_data(context: HUDDisplayData, hud_data: HUDDisplayData) -> 
 		elif player_tiles_set.has(num):
 			item[&"color"] = Color.WHITE
 		luc_data_for_ui.append(item)
-	hud_data.luc_sequence_display = luc_data_for_ui
+	stats[&"lucas_sequence_display"] = luc_data_for_ui
 
 
 ## 获取此规则下所有可生成的方块"类型"。

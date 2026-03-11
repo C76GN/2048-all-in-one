@@ -17,12 +17,12 @@ extends InteractionRule
 ##
 ## @param tile_a: 参与交互的第一个方块。
 ## @param tile_b: 参与交互的第二个方块（通常是移动的目标方块）。
-## @param p_rule: 对当前交互规则实例的引用。
+## @param _p_rule: 对当前交互规则实例的引用。
 ## @return: 一个描述交互结果的字典。
-func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) -> Dictionary:
+func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: InteractionRule) -> Dictionary:
 	if can_interact(tile_a, tile_b):
 		var new_value: int = tile_a.value + tile_b.value
-		tile_b.setup(new_value, tile_a.type, p_rule, tile_a.color_schemes)
+		tile_b.value = new_value
 		return {&"merged_tile": tile_b, &"consumed_tile": tile_a, &"score": new_value}
 
 	return {}
@@ -33,8 +33,8 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 ## @param tile_a: 第一个方块。
 ## @param tile_b: 第二个方块。
 ## @return: 如果可以交互则返回 true。
-func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
-	if not is_instance_valid(tile_a) or not is_instance_valid(tile_b):
+func can_interact(tile_a: GameTileData, tile_b: GameTileData) -> bool:
+	if tile_a == null or tile_b == null:
 		return false
 
 	if tile_a.type != Tile.TileType.PLAYER or tile_b.type != Tile.TileType.PLAYER:
@@ -54,13 +54,13 @@ func get_level_by_value(value: int) -> int:
 	return SequenceMath.get_fibonacci_level(value)
 
 
-## 将斐波那契模式相关的HUD显示数据写入传入的 hud_data 对象。
+## 将斐波那契模式相关的HUD显示数据写入传入的 stats 字典。
 ##
-## @param context: 包含当前游戏统计信息的 HUDDisplayData 对象（由GamePlay填充）。
-## @param hud_data: 要写入显示数据的 HUDDisplayData 对象。
-func get_hud_context_data(context: HUDDisplayData, hud_data: HUDDisplayData) -> void:
-	var max_value: int = context.stat_max_player_value
-	var player_values_set: Dictionary = context.stat_player_values_set
+## @param context: 包含当前游戏统计信息的 Dictionary 对象。
+## @param stats: 要写入显示数据的 Dictionary 对象。
+func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
+	var max_value: int = context.get(&"max_player_value", 0)
+	var player_values_set: Dictionary = context.get(&"player_values_set", {})
 
 	var max_display_value: int = 5 + max_value * 2
 	var full_sequence := SequenceMath.generate_fibonacci()
@@ -78,7 +78,7 @@ func get_hud_context_data(context: HUDDisplayData, hud_data: HUDDisplayData) -> 
 			item[&"color"] = Color.WHITE
 		fib_data_for_ui.append(item)
 
-	hud_data.fibonacci_sequence_display = fib_data_for_ui
+	stats[&"fibonacci_sequence_display"] = fib_data_for_ui
 
 
 ## 获取此规则下所有可生成的方块"类型"。

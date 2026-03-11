@@ -2,11 +2,11 @@
 
 ## HUDDisplayData: 用于向 HUD 传递完整显示数据的强类型数据对象。
 ##
-## 替代原有在 EventBus.hud_update_requested 和 GamePlay._update_and_publish_hud_data
+## 用于向 HUD 传递更新状态的强类型数据模型。
 ## 中使用的裸 Dictionary。
 ## 通过 to_display_dict() 方法可将自身转换为字典，供 HUD 内部的动态渲染逻辑使用。
 class_name HUDDisplayData
-extends RefCounted
+extends GFPayload
 
 
 # --- 公共变量 ---
@@ -14,17 +14,11 @@ extends RefCounted
 ## 回放专用：步骤进度信息（如 "步骤 3 / 10"）。
 var step_info: String = ""
 
-## 当前分数显示文本。
-var score: String = ""
-
 ## 最高分显示文本。
 var high_score: String = ""
 
 ## 当前最大方块数值显示文本。
 var highest_tile: String = ""
-
-## 移动次数显示文本。
-var move_count: String = ""
 
 ## 分隔线文本。
 var separator: String = ""
@@ -95,10 +89,8 @@ func to_display_dict() -> Dictionary:
 	var result: Dictionary = {}
 
 	_put_string(result, &"step_info", step_info)
-	_put_string(result, &"score", score)
 	_put_string(result, &"high_score", high_score)
 	_put_string(result, &"highest_tile", highest_tile)
-	_put_string(result, &"move_count", move_count)
 	_put_string(result, &"separator", separator)
 	_put_string(result, &"description", description)
 	_put_string(result, &"controls_title", controls_title)

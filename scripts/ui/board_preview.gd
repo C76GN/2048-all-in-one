@@ -109,13 +109,14 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 		var tile := TILE_SCENE.instantiate() as Tile
 		_board_container.add_child(tile)
 
+		var colors := _get_tile_colors(value, type, mode_config)
+		tile.setup(value, colors.bg, colors.font)
+
 		var scale_factor: float = cell_size / 100.0
 		tile.scale = Vector2.ONE * scale_factor
 
 		var cell_top_left: Vector2 = _get_cell_position(pos.x, pos.y, cell_size, spacing, offset_start)
 		tile.position = cell_top_left + Vector2.ONE * (cell_size / 2.0)
-
-		tile.setup(value, type, mode_config.interaction_rule, mode_config.color_schemes)
 
 
 ## 在预览区域中心显示一条文本消息（如"无数据"）。
@@ -157,3 +158,27 @@ func _get_cell_position(x: int, y: int, cell_size: float, spacing: float, offset
 		offset + spacing + x * (cell_size + spacing),
 		offset + spacing + y * (cell_size + spacing)
 	)
+
+
+func _get_tile_colors(value: int, type: int, mode_config: GameModeConfig) -> Dictionary:
+	var bg_color := Color.WHITE
+	var font_color := Color.BLACK
+	
+	if not mode_config or not mode_config.interaction_rule:
+		return {"bg": bg_color, "font": font_color}
+		
+	var scheme_index: int = type
+	if type == Tile.TileType.PLAYER:
+		scheme_index = mode_config.interaction_rule.get_color_scheme_index(value)
+		
+	var current_scheme: TileColorScheme = mode_config.color_schemes.get(scheme_index)
+	if is_instance_valid(current_scheme) and not current_scheme.styles.is_empty():
+		var level: int = mode_config.interaction_rule.get_level_by_value(value)
+		if level >= current_scheme.styles.size():
+			level = current_scheme.styles.size() - 1
+		var current_style: TileLevelStyle = current_scheme.styles[level]
+		if is_instance_valid(current_style):
+			bg_color = current_style.background_color
+			font_color = current_style.font_color
+			
+	return {"bg": bg_color, "font": font_color}

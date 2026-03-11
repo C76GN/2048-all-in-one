@@ -3,7 +3,6 @@
 [ext_resource type="Script" uid="uid://m2t7mhhkobfx" path="res://scripts/ui/game_over_menu.gd" id="1_7nx0y"]
 
 [node name="GameOverMenu" type="Control"]
-visible = false
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -12,9 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_7nx0y")
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
-
-[node name="ColorRect" type="ColorRect" parent="CanvasLayer"]
+[node name="ColorRect" type="ColorRect" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -22,32 +19,32 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.15, 0.15, 0.15, 0.8)
 
-[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer"]
+[node name="CenterContainer" type="CenterContainer" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/CenterContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
 layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="RestartButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
+[node name="RestartButton" type="Button" parent="CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
 focus_neighbor_top = NodePath("../MainMenuButton")
 focus_neighbor_bottom = NodePath("../SettingsButton")
 text = "重来"
 
-[node name="SettingsButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
+[node name="SettingsButton" type="Button" parent="CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
 focus_neighbor_top = NodePath("../RestartButton")
 focus_neighbor_bottom = NodePath("../MainMenuButton")
 text = "设置"
 
-[node name="MainMenuButton" type="Button" parent="CanvasLayer/CenterContainer/VBoxContainer"]
+[node name="MainMenuButton" type="Button" parent="CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(250, 60)
 layout_mode = 2
 focus_neighbor_top = NodePath("../SettingsButton")

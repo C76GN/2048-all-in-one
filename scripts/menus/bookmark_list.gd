@@ -23,7 +23,7 @@ func _ready() -> void:
 	assert(game_scene != null, "BookmarkList: 游戏场景 (game_scene) 未在编辑器中设置。")
 	assert(item_scene != null, "BookmarkList: 列表项场景 (item_scene) 未在编辑器中设置。")
 
-	# 初始化工厂资源和节点引用
+	# 初始化工厂资源 and 节点引用
 	_item_scene = item_scene
 	_primary_button = %LoadButton
 	_delete_button = %DeleteButton
@@ -43,10 +43,12 @@ func _ready() -> void:
 # --- 虚方法覆写 ---
 
 func _get_data_list() -> Array:
-	var bookmarks: Array[BookmarkData] = BookmarkManager.load_bookmarks()
+	var bookmark_system := get_system(BookmarkSystem) as BookmarkSystem
+	var bookmarks: Array[BookmarkData] = bookmark_system.load_bookmarks() if bookmark_system else []
 	# 显式转换为普通 Array 以适配基类
 	var result: Array = []
-	for b in bookmarks: result.append(b)
+	for b in bookmarks:
+		result.append(b)
 	return result
 
 
@@ -57,9 +59,11 @@ func _setup_item(item: Control, data: Resource) -> void:
 
 func _connect_item_signals(item: Control, _data: Resource) -> void:
 	if item.has_signal("bookmark_selected"):
-		item.bookmark_selected.connect(_on_item_confirmed)
+		if not item.bookmark_selected.is_connected(_on_item_confirmed):
+			item.bookmark_selected.connect(_on_item_confirmed)
 	if item.has_signal("item_focused"):
-		item.item_focused.connect(_on_item_focused)
+		if not item.item_focused.is_connected(_on_item_focused):
+			item.item_focused.connect(_on_item_focused)
 
 
 func _update_preview(data: Resource) -> void:
@@ -70,7 +74,7 @@ func _update_preview(data: Resource) -> void:
 
 	var mode_config := load(bookmark.mode_config_path) as GameModeConfig
 	if not is_instance_valid(mode_config):
-		DetailInfoLabel.text = tr("ERR_LOAD_CONFIG")
+		detail_info_label.text = tr("ERR_LOAD_CONFIG")
 		return
 
 	var datetime: String = Time.get_datetime_string_from_unix_time(bookmark.timestamp)
@@ -85,15 +89,15 @@ func _update_preview(data: Resource) -> void:
 	details += "[b]%s[/b] %dx%d\n" % [tr("LABEL_BOARD"), grid_size, grid_size]
 	details += "[b]%s[/b] %d" % [tr("LABEL_SEED"), bookmark.initial_seed]
 
-	DetailInfoLabel.text = details
+	detail_info_label.text = details
 
-	if is_instance_valid(BoardPreviewNode):
-		BoardPreviewNode.show_snapshot(bookmark.board_snapshot, mode_config)
+	if is_instance_valid(board_preview_node):
+		board_preview_node.show_snapshot(bookmark.board_snapshot, mode_config)
 
 
 func _update_ui_text() -> void:
-	if is_instance_valid(PageTitle):
-		PageTitle.text = tr("TITLE_LOAD_SAVE")
+	if is_instance_valid(page_title):
+		page_title.text = tr("TITLE_LOAD_SAVE")
 	
 	var left_column = get_node_or_null("MarginContainer/ColumnsContainer/LeftColumn")
 	if left_column and left_column.get_child_count() > 0:
@@ -105,8 +109,8 @@ func _update_ui_text() -> void:
 		_primary_button.text = tr("BTN_LOAD_SAVE")
 	if is_instance_valid(_delete_button):
 		_delete_button.text = tr("BTN_DELETE_SAVE")
-	if is_instance_valid(BackButton):
-		BackButton.text = tr("BTN_RETURN_MAIN")
+	if is_instance_valid(back_button):
+		back_button.text = tr("BTN_RETURN_MAIN")
 	
 	var right_column = get_node_or_null("MarginContainer/ColumnsContainer/RightColumn")
 	if right_column and right_column.get_child_count() > 0:
@@ -117,12 +121,22 @@ func _update_ui_text() -> void:
 
 func _do_delete_logic(data: Resource) -> void:
 	var bookmark = data as BookmarkData
-	BookmarkManager.delete_bookmark(bookmark.file_path)
+	var bookmark_system := get_system(BookmarkSystem) as BookmarkSystem
+	if bookmark_system:
+		bookmark_system.delete_bookmark(bookmark.file_path)
 
 
 func _on_primary_action_triggered(data: Resource) -> void:
 	var bookmark = data as BookmarkData
-	GlobalGameManager.load_game_from_bookmark(bookmark, game_scene)
+	var app_config := get_model(AppConfigModel) as AppConfigModel
+	if app_config:
+		app_config.selected_bookmark_data.set_value(bookmark)
+		app_config.selected_mode_config_path.set_value("")
+		app_config.selected_grid_size.set_value(0)
+		
+	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	if router:
+		router.goto_scene_packed(game_scene)
 
 
 func _get_empty_message() -> String:

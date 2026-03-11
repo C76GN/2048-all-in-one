@@ -7,6 +7,7 @@
 class_name BookmarkListItem
 extends BaseListMenuItem
 
+
 # --- 信号 ---
 
 ## 当一个书签被确认选中时发出。

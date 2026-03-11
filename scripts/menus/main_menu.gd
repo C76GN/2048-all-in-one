@@ -3,9 +3,9 @@
 ## MainMenu: 主菜单界面的UI控制器。
 ##
 ## 该脚本负责处理主菜单场景中的所有用户交互，
-## 例如响应按钮点击事件，并委托 GlobalGameManager 进行场景切换或退出游戏。
+## 例如响应按钮点击事件，并通过事件系统派发请求以进行场景切换或退出游戏。
 class_name MainMenu
-extends Control
+extends GFUIController
 
 
 # --- 导出变量 ---
@@ -38,17 +38,13 @@ func _ready() -> void:
 	_update_ui_text()
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_TRANSLATION_CHANGED:
-		_update_ui_text()
-
-
 # --- 信号处理函数 ---
 
 ## 响应“开始游戏”按钮的点击事件。
 func _on_start_game_button_pressed() -> void:
 	if is_instance_valid(mode_selection_scene):
-		GlobalGameManager.goto_scene_packed(mode_selection_scene)
+		var router := get_system(SceneRouterSystem) as SceneRouterSystem
+		if router: router.goto_scene_packed(mode_selection_scene)
 	else:
 		push_error("MainMenu: 模式选择场景 (mode_selection_scene) 未设置。")
 
@@ -56,7 +52,8 @@ func _on_start_game_button_pressed() -> void:
 ## 响应“读取书签”按钮的点击事件。
 func _on_load_bookmark_button_pressed() -> void:
 	if is_instance_valid(bookmark_list_scene):
-		GlobalGameManager.goto_scene_packed(bookmark_list_scene)
+		var router := get_system(SceneRouterSystem) as SceneRouterSystem
+		if router: router.goto_scene_packed(bookmark_list_scene)
 	else:
 		push_error("MainMenu: 书签列表场景 (bookmark_list_scene) 未设置。")
 
@@ -64,7 +61,8 @@ func _on_load_bookmark_button_pressed() -> void:
 ## 响应“回放列表”按钮的点击事件。
 func _on_replays_button_pressed() -> void:
 	if is_instance_valid(replay_list_scene):
-		GlobalGameManager.goto_scene_packed(replay_list_scene)
+		var router := get_system(SceneRouterSystem) as SceneRouterSystem
+		if router: router.goto_scene_packed(replay_list_scene)
 	else:
 		push_error("MainMenu: 回放列表场景 (replay_list_scene) 未设置。")
 
@@ -72,14 +70,16 @@ func _on_replays_button_pressed() -> void:
 ## 响应“设置”按钮的点击事件。
 func _on_settings_button_pressed() -> void:
 	if is_instance_valid(settings_scene):
-		GlobalGameManager.goto_scene_packed(settings_scene)
+		var router := get_system(SceneRouterSystem) as SceneRouterSystem
+		if router: router.goto_scene_packed(settings_scene)
 	else:
 		push_error("MainMenu: 设置场景 (settings_scene) 未设置。")
 
 
 ## 响应“退出”按钮的点击事件。
 func _on_quit_button_pressed() -> void:
-	GlobalGameManager.quit_game()
+	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	if router: router.quit_game()
 
 
 # --- 私有/辅助方法 ---

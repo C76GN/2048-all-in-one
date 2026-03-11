@@ -8,6 +8,7 @@
 class_name ModeCard
 extends Button
 
+
 # --- 信号 ---
 
 ## 当此卡片获得UI焦点时发出。

@@ -5,7 +5,7 @@
 ## 该脚本负责动态加载所有可用的游戏模式，为每个模式创建一个
 ## ModeCard 实例，并处理选择、配置与启动游戏的完整流程。
 class_name ModeSelection
-extends Control
+extends GFUIController
 
 # --- 常量 ---
 
@@ -97,16 +97,6 @@ func _ready() -> void:
 	_generate_and_display_new_seed()
 	_update_ui_text()
 	_update_list_and_focus(true)
-
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_TRANSLATION_CHANGED:
-		_update_ui_text()
-		if is_instance_valid(_mode_list_container):
-			for card in _mode_list_container.get_children():
-				if card is ModeCard:
-					card.update_text()
-		_update_ui_for_selection()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -293,6 +283,12 @@ func _update_ui_text() -> void:
 		_grid_size_label.text = tr("LABEL_GRID_SIZE")
 	if is_instance_valid(_seed_label):
 		_seed_label.text = tr("LABEL_GAME_SEED")
+	
+	if is_instance_valid(_mode_list_container):
+		for card in _mode_list_container.get_children():
+			if card is ModeCard:
+				card.update_text()
+	_update_ui_for_selection()
 
 
 ## 填充左侧信息面板（名称、描述、分数）。
@@ -333,7 +329,8 @@ func _update_high_score_label() -> void:
 		return
 
 	var mode_id: String = _selected_mode_config.resource_path.get_file().get_basename()
-	var high_score: int = SaveManager.get_high_score(mode_id, _current_grid_size)
+	var save_system := get_system(SaveSystem) as SaveSystem
+	var high_score: int = save_system.get_high_score(mode_id, _current_grid_size) if save_system else 0
 	_info_score_label.text = "\n" + tr("INFO_HIGH_SCORE_AT_SIZE") % [_current_grid_size, _current_grid_size, high_score]
 
 
@@ -385,7 +382,9 @@ func _change_page(direction: int) -> void:
 # --- 信号处理函数 ---
 
 func _on_back_button_pressed() -> void:
-	GlobalGameManager.return_to_main_menu()
+	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	if router:
+		router.return_to_main_menu()
 
 
 func _on_grid_size_focused(index: int) -> void:
@@ -413,12 +412,19 @@ func _on_start_game_button_pressed() -> void:
 		else:
 			seed_value = seed_text.hash()
 
-	GlobalGameManager.select_mode_and_start(
-		_selected_mode_config.resource_path,
-		game_play_scene,
-		_current_grid_size,
-		seed_value
-	)
+	var app_config := get_model(AppConfigModel) as AppConfigModel
+	if app_config:
+		app_config.selected_mode_config_path.set_value(_selected_mode_config.resource_path)
+		app_config.selected_grid_size.set_value(_current_grid_size)
+		app_config.selected_seed.set_value(seed_value)
+		
+	var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
+	if seed_util:
+		seed_util.set_global_seed(seed_value)
+		
+	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	if router:
+		router.goto_scene_packed(game_play_scene)
 
 
 func _on_refresh_seed_button_pressed() -> void:

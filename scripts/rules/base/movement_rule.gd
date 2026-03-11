@@ -26,7 +26,7 @@ func setup(p_interaction_rule: InteractionRule) -> void:
 ## 处理单行/列的移动与交互。
 ##
 ## 这是所有移动规则的核心，子类必须重写此方法以实现具体的移动逻辑。
-## @param line: 一个包含Tile节点或null的一维数组，代表棋盘的一行或一列。
+## @param line: 一个包含GameTileData数据对象或null的一维数组，代表棋盘的一行或一列。
 ## @return: 一个字典，包含 {"line": Array, "moved": bool, "merges": Array}。
-func process_line(line: Array[Tile]) -> Dictionary:
+func process_line(line: Array[GameTileData]) -> Dictionary:
 	return {"line": line, "moved": false, "merges": []}

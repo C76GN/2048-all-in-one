@@ -4,7 +4,7 @@
 ##
 ## 负责处理语言切换等设置选项。
 class_name SettingsMenu
-extends Control
+extends GFUIController
 
 
 # --- @onready 变量 (节点引用) ---
@@ -31,11 +31,6 @@ func _ready() -> void:
 	_language_option.grab_focus()
 
 
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_TRANSLATION_CHANGED:
-		_update_ui_text()
-
-
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		_on_back_button_pressed()
@@ -51,7 +46,8 @@ func _setup_language_options() -> void:
 	_language_option.add_item(tr("LANG_EN"), 1)
 	_language_option.set_item_metadata(1, "en")
 
-	var current_locale: String = SaveManager.get_language()
+	var save_system := get_system(SaveSystem) as SaveSystem
+	var current_locale: String = save_system.get_language() if save_system else "zh"
 	# 简单匹配前两个字符 (例如 zh_CN -> zh)
 	if current_locale.begins_with("en"):
 		_language_option.select(1)
@@ -74,7 +70,9 @@ func _update_ui_text() -> void:
 
 func _on_language_selected(index: int) -> void:
 	var locale: String = _language_option.get_item_metadata(index)
-	SaveManager.set_language(locale)
+	var save_system := get_system(SaveSystem) as SaveSystem
+	if save_system:
+		save_system.set_language(locale)
 	var current_idx = _language_option.selected
 	_setup_language_options()
 	_language_option.select(current_idx)
@@ -82,4 +80,6 @@ func _on_language_selected(index: int) -> void:
 
 
 func _on_back_button_pressed() -> void:
-	GlobalGameManager.return_to_main_menu()
+	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	if router:
+		router.return_to_main_menu()

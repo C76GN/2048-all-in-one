@@ -22,17 +22,17 @@ func is_game_over(grid_model: GridModel, interaction_rule: InteractionRule) -> b
 
 	for x in range(grid_model.grid_size):
 		for y in range(grid_model.grid_size):
-			var current_tile: Tile = grid_model.grid[x][y]
-			if not is_instance_valid(current_tile):
+			var current_tile: GameTileData = grid_model.grid[x][y]
+			if current_tile == null:
 				continue
 
 			if x + 1 < grid_model.grid_size:
-				var right_tile: Tile = grid_model.grid[x + 1][y]
+				var right_tile: GameTileData = grid_model.grid[x + 1][y]
 				if interaction_rule.can_interact(current_tile, right_tile):
 					return false
 
 			if y + 1 < grid_model.grid_size:
-				var down_tile: Tile = grid_model.grid[x][y + 1]
+				var down_tile: GameTileData = grid_model.grid[x][y + 1]
 				if interaction_rule.can_interact(current_tile, down_tile):
 					return false
 

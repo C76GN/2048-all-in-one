@@ -37,11 +37,17 @@ var value: int = 0
 ## 方块当前的类型。
 var type: TileType = TileType.PLAYER
 
-## 对当前生效的交互规则的引用。
-var interaction_rule: InteractionRule
-
-## 存储所有可用配色方案的字典。
+## 存储所有可用配色方案的字典。 (已废弃，由 Controller 计算颜色)
 var color_schemes: Dictionary
+
+
+# --- 私有变量 ---
+
+## 追踪当前正在执行的移动 Tween，并在重定向时打断。
+var _active_move_tween: Tween
+
+## 追踪当前正在执行的缩放 Tween（如合并时）。
+var _active_scale_tween: Tween
 
 
 # --- @onready 变量 (节点引用) ---
@@ -63,16 +69,16 @@ func _ready() -> void:
 ## 这是该节点的唯一公共接口，用于设置其所有核心属性。
 ## 当方块数值变大时，会自动触发合并动画。
 ## @param new_value: 方块的新数值。
-## @param new_type: 方块的新类型 (PLAYER 或 MONSTER)。
-## @param p_rule: 当前生效的交互规则。
-## @param p_color_schemes: 当前可用的所有配色方案。
-func setup(new_value: int, new_type: TileType, p_rule: InteractionRule, p_color_schemes: Dictionary) -> void:
+## @param bg_color: 背景颜色。
+## @param font_color: 字体颜色。
+func setup(new_value: int, bg_color: Color, font_color: Color) -> void:
 	var old_value: int = self.value
 	self.value = new_value
-	self.type = new_type
-	self.interaction_rule = p_rule
-	self.color_schemes = p_color_schemes
-	_update_visuals()
+	
+	value_label.text = str(int(value))
+	(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = bg_color
+	value_label.add_theme_color_override("font_color", font_color)
+	_update_font_size()
 
 	if new_value > old_value and old_value != 0:
 		animate_merge()
@@ -86,8 +92,8 @@ func animate_spawn() -> Tween:
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.tween_property(self, "scale", Vector2.ONE, 0.1)
-	tween.tween_property(self, "rotation_degrees", 0, 0.1)
+	tween.tween_property(self , "scale", Vector2.ONE, 0.1)
+	tween.tween_property(self , "rotation_degrees", 0, 0.1)
 	return tween
 
 
@@ -95,64 +101,43 @@ func animate_spawn() -> Tween:
 ## @param new_position: 移动的目标位置。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_move(new_position: Vector2) -> Tween:
-	var tween: Tween = create_tween()
-	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.tween_property(self, "position", new_position, 0.1)
-	return tween
+	if position.is_equal_approx(new_position):
+		return null
+
+	if _active_move_tween and _active_move_tween.is_valid():
+		_active_move_tween.kill()
+
+	_active_move_tween = create_tween()
+	_active_move_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_active_move_tween.tween_property(self , "position", new_position, 0.1)
+	return _active_move_tween
 
 
 ## 播放方块合并或增强时的脉冲动画（放大后复原）。
 func animate_merge() -> void:
-	var tween: Tween = create_tween()
-	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.tween_property(self, "scale", Vector2.ONE * 1.2, 0.1)
-	tween.tween_property(self, "scale", Vector2.ONE, 0.1)
+	if _active_scale_tween and _active_scale_tween.is_valid():
+		_active_scale_tween.kill()
+
+	_active_scale_tween = create_tween()
+	_active_scale_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_active_scale_tween.tween_property(self , "scale", Vector2.ONE * 1.2, 0.1)
+	_active_scale_tween.tween_property(self , "scale", Vector2.ONE, 0.1)
 
 
 ## 播放方块被强制转变类型时的“抖动”动画。
 func animate_transform() -> void:
 	var tween: Tween = create_tween()
 	tween.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
-	tween.tween_property(self, "rotation_degrees", -15, 0.05)
-	tween.tween_property(self, "rotation_degrees", 15, 0.05)
-	tween.tween_property(self, "rotation_degrees", -10, 0.05)
-	tween.tween_property(self, "rotation_degrees", 10, 0.05)
-	tween.tween_property(self, "rotation_degrees", 0, 0.05)
+	tween.tween_property(self , "rotation_degrees", -15, 0.05)
+	tween.tween_property(self , "rotation_degrees", 15, 0.05)
+	tween.tween_property(self , "rotation_degrees", -10, 0.05)
+	tween.tween_property(self , "rotation_degrees", 10, 0.05)
+	tween.tween_property(self , "rotation_degrees", 0, 0.05)
 
 
 # --- 私有/辅助方法 ---
 
-## 根据当前状态更新方块的所有视觉表现。
-## 包括背景颜色、文本内容、字体颜色和动态字体大小。
-func _update_visuals() -> void:
-	value_label.text = str(int(value))
-
-	if not is_instance_valid(interaction_rule):
-		return
-
-	var scheme_index: int = type
-
-	if type == TileType.PLAYER:
-		scheme_index = interaction_rule.get_color_scheme_index(value)
-
-	var current_scheme: TileColorScheme = color_schemes.get(scheme_index)
-
-	if not is_instance_valid(current_scheme) or current_scheme.styles.is_empty():
-		return
-
-	var level: int = interaction_rule.get_level_by_value(value)
-
-	if level >= current_scheme.styles.size():
-		level = current_scheme.styles.size() - 1
-
-	var current_style: TileLevelStyle = current_scheme.styles[level]
-
-	if not is_instance_valid(current_style):
-		return
-
-	(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = current_style.background_color
-	value_label.add_theme_color_override("font_color", current_style.font_color)
-	_update_font_size()
+# _update_visuals 已整合进 setup 中
 
 
 ## 动态计算并应用最佳字体大小。

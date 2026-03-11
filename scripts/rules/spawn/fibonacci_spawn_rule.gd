@@ -12,6 +12,7 @@ extends SpawnRule
 # --- 导出变量 ---
 
 @export_group("规则配置")
+
 ## 如果为true，成功执行后将阻止其他低优先级规则运行。
 @export var consumes_event_on_success: bool = true
 
@@ -40,6 +41,6 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
-		spawn_tile_requested.emit(spawn_data)
+		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
 
 	return consumes_event_on_success

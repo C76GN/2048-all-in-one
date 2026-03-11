@@ -13,13 +13,14 @@ extends InteractionRule
 ##
 ## @param tile_a: 参与交互的第一个方块。
 ## @param tile_b: 参与交互的第二个方块（通常是移动的目标方块）。
-## @param p_rule: 对当前交互规则实例的引用。
+## @param _p_rule: 对当前交互规则实例的引用。
 ## @return: 一个描述交互结果的字典。
-func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) -> Dictionary:
+func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: InteractionRule) -> Dictionary:
 	if tile_a.type == tile_b.type:
 		if tile_a.value == tile_b.value:
 			var new_value: int = tile_a.value * 2
-			tile_b.setup(new_value, tile_a.type, p_rule, tile_a.color_schemes)
+			tile_b.value = new_value
+			tile_b.type = tile_a.type
 
 			if tile_a.type == Tile.TileType.PLAYER:
 				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": new_value}
@@ -27,39 +28,35 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 			return {"merged_tile": tile_b, "consumed_tile": tile_a}
 
 	else:
-		var player_tile: Tile = tile_a if tile_a.type == Tile.TileType.PLAYER else tile_b
-		var monster_tile: Tile = tile_a if tile_a.type == Tile.TileType.MONSTER else tile_b
+		var player_tile: GameTileData = tile_a if tile_a.type == Tile.TileType.PLAYER else tile_b
+		var monster_tile: GameTileData = tile_a if tile_a.type == Tile.TileType.MONSTER else tile_b
 
 		if player_tile.value > monster_tile.value:
 			@warning_ignore("integer_division")
 			var new_player_value: int = int(player_tile.value / monster_tile.value)
-			player_tile.setup(new_player_value, player_tile.type, p_rule, player_tile.color_schemes)
-			player_tile.animate_transform()
-			monster_tile.queue_free()
-			EventBus.monster_killed.emit()
-			return {"merged_tile": player_tile, "consumed_tile": monster_tile, "score": new_player_value}
+			player_tile.value = new_player_value
+			# Note: animate_transform() and queue_free() are visual/Node operations.
+			# We return the instruction, and GameBoard will perform the visual effects.
+			Gf.send_simple_event(EventNames.MONSTER_KILLED)
+			return {"merged_tile": player_tile, "consumed_tile": monster_tile, "score": new_player_value, "transform": true}
 
 		elif player_tile.value < monster_tile.value:
 			@warning_ignore("integer_division")
 			var new_monster_value: int = int(monster_tile.value / player_tile.value)
-			monster_tile.setup(new_monster_value, monster_tile.type, p_rule, monster_tile.color_schemes)
-			monster_tile.animate_transform()
-			player_tile.queue_free()
-			return {"merged_tile": monster_tile, "consumed_tile": player_tile, "score": - new_monster_value}
+			monster_tile.value = new_monster_value
+			return {"merged_tile": monster_tile, "consumed_tile": player_tile, "score": - new_monster_value, "transform": true}
 
 		else:
-			var destination_tile_was_player: bool = (tile_b.type == Tile.TileType.PLAYER)
-
-			tile_b.setup(1, tile_b.type, p_rule, tile_b.color_schemes)
-			tile_b.animate_transform()
-
+			var destination_was_player: bool = (tile_b.type == Tile.TileType.PLAYER)
+			tile_b.value = 1
+			
 			if tile_a.type == Tile.TileType.MONSTER:
-				EventBus.monster_killed.emit()
+				Gf.send_simple_event(EventNames.MONSTER_KILLED)
 
-			if destination_tile_was_player:
-				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": 1}
+			if destination_was_player:
+				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": 1, "transform": true}
 			else:
-				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": - 1}
+				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": - 1, "transform": true}
 
 	return {}
 
@@ -70,8 +67,8 @@ func process_interaction(tile_a: Tile, tile_b: Tile, p_rule: InteractionRule) ->
 ## @param tile_a: 第一个方块。
 ## @param tile_b: 第二个方块。
 ## @return: 如果两个方块可以发生交互，则返回 true；否则返回 false。
-func can_interact(tile_a: Tile, tile_b: Tile) -> bool:
-	if not is_instance_valid(tile_a) or not is_instance_valid(tile_b):
+func can_interact(tile_a: GameTileData, tile_b: GameTileData) -> bool:
+	if tile_a == null or tile_b == null:
 		return false
 
 	if tile_a.type != tile_b.type or tile_a.value == tile_b.value:
@@ -114,10 +111,11 @@ func get_spawnable_values(_type_id: int) -> Array[int]:
 	return values
 
 
-## 将战斗模式相关的HUD显示数据写入传入的 hud_data 对象。
+## 将战斗模式相关的HUD显示数据写入传入的 stats 对象。
 ##
-## @param context: 包含当前游戏统计信息的 HUDDisplayData 对象（由GamePlay填充）。
-## @param hud_data: 要写入显示数据的 HUDDisplayData 对象。
-func get_hud_context_data(context: HUDDisplayData, hud_data: HUDDisplayData) -> void:
-	if context.stat_monsters_killed >= 0:
-		hud_data.monsters_killed_display = tr("BATTLE_KILLED_DISPLAY") % context.stat_monsters_killed
+## @param context: 包含当前游戏统计信息的 Dictionary 对象。
+## @param stats: 要写入显示数据的 Dictionary 对象。
+func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
+	var monsters_killed: int = context.get(&"monsters_killed", 0)
+	if monsters_killed >= 0:
+		stats[&"monsters_killed_display"] = tr("BATTLE_KILLED_DISPLAY") % monsters_killed

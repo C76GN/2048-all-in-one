@@ -14,6 +14,7 @@ extends SpawnRule
 # --- 导出变量 ---
 
 @export_group("概率配置")
+
 ## 生成怪物的基础概率（0.0 到 1.0 之间）。
 @export_range(0.0, 1.0) var base_probability: float = 0.05
 
@@ -25,6 +26,7 @@ extends SpawnRule
 
 
 @export_group("玩家方块配置")
+
 ## 生成数值为2的玩家方块的概率（其余为4）。
 @export_range(0.0, 1.0) var probability_of_2: float = 0.9
 
@@ -38,8 +40,7 @@ var _current_probability: float = 0.0
 # --- 公共方法 ---
 
 ## 初始化此规则，设置初始概率。
-## @param _required_nodes: 一个字典，包含规则声明需要的已创建节点。
-func setup(_required_nodes: Dictionary = {}) -> void:
+func setup() -> void:
 	_current_probability = base_probability
 
 
@@ -53,7 +54,8 @@ func execute(context: RuleContext) -> bool:
 	if context.grid_model.get_empty_cells().is_empty():
 		return false
 
-	var rng := RNGManager.get_rng()
+	var seed_util := Gf.get_architecture().get_utility(GFSeedUtility) as GFSeedUtility
+	var rng: RandomNumberGenerator = seed_util.get_branched_rng("probabilistic_battle_spawn_rule")
 
 	if rng.randf() < _current_probability:
 		var monster_value: int = _calculate_monster_value(context.grid_model)
@@ -61,7 +63,7 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.value = monster_value
 		spawn_data.type = Tile.TileType.MONSTER
 		spawn_data.is_priority = true
-		spawn_tile_requested.emit(spawn_data)
+		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
 
 		_current_probability = base_probability
 
@@ -73,7 +75,7 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.value = value
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
-		spawn_tile_requested.emit(spawn_data)
+		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
 
 	return true
 
@@ -81,8 +83,8 @@ func execute(context: RuleContext) -> bool:
 ## 将HUD显示数据写入传入的 hud_data 对象。
 ## @param context: 包含 grid_model 的上下文。
 ## @param hud_data: 要写入显示数据的 HUDDisplayData 对象。
-func get_display_data(context: RuleContext, hud_data: HUDDisplayData) -> void:
-	hud_data.monster_chance_label = tr("BATTLE_MONSTER_CHANCE") % (_current_probability * 100)
+func get_hud_stats(context: RuleContext, stats: Dictionary) -> void:
+	stats[&"monster_chance_label"] = tr("BATTLE_MONSTER_CHANCE") % (_current_probability * 100)
 
 	var grid_model: GridModel = context.grid_model if is_instance_valid(context) else null
 	var pool: Dictionary = get_monster_spawn_pool(grid_model)
@@ -94,7 +96,7 @@ func get_display_data(context: RuleContext, hud_data: HUDDisplayData) -> void:
 		for i in range(pool["weights"].size()):
 			var p: float = (float(pool["weights"][i]) / total_weight) * 100
 			spawn_info_text += tr("FORMAT_BATTLE_PROBABILITY") % [pool["values"][i], p]
-	hud_data.spawn_info_label = spawn_info_text
+	stats[&"spawn_info_label"] = spawn_info_text
 
 
 ## 获取规则当前的内部状态，用于保存。
@@ -153,7 +155,8 @@ func _calculate_monster_value(grid_model: GridModel) -> int:
 	if total_weight == 0:
 		return 2
 
-	var rng := RNGManager.get_rng()
+	var seed_util := Gf.get_architecture().get_utility(GFSeedUtility) as GFSeedUtility
+	var rng: RandomNumberGenerator = seed_util.get_branched_rng("probabilistic_battle_spawn_rule")
 	var random_pick: int = rng.randi_range(1, total_weight)
 
 	var cumulative_weight: int = 0

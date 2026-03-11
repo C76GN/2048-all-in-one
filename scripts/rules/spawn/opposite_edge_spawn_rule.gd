@@ -14,8 +14,10 @@ extends SpawnRule
 # --- 导出变量 ---
 
 @export_group("规则配置")
+
 ## 生成数值为2的玩家方块的概率（其余为4）。
 @export var probability_of_2: float = 0.9
+
 ## 如果生成成功，是否"消费"事件，阻止后续低优先级的移动规则执行。
 @export var consumes_event_on_success: bool = true
 
@@ -67,10 +69,13 @@ func execute(context: RuleContext) -> bool:
 					valid_spawn_points.append(Vector2i(target_x, y))
 
 	if not valid_spawn_points.is_empty():
-		var random_index: int = RNGManager.get_rng().randi_range(0, valid_spawn_points.size() - 1)
+		var seed_util := Gf.get_architecture().get_utility(GFSeedUtility) as GFSeedUtility
+		var rng: RandomNumberGenerator = seed_util.get_branched_rng("opposite_edge_spawn_rule")
+		
+		var random_index: int = rng.randi_range(0, valid_spawn_points.size() - 1)
 		var spawn_pos: Vector2i = valid_spawn_points[random_index]
 
-		var value: int = 2 if RNGManager.get_rng().randf() < probability_of_2 else 4
+		var value: int = 2 if rng.randf() < probability_of_2 else 4
 
 		var spawn_data := SpawnData.new()
 		spawn_data.position = spawn_pos
@@ -78,7 +83,7 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
-		spawn_tile_requested.emit(spawn_data)
+		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
 
 		return consumes_event_on_success
 

@@ -5,7 +5,7 @@
 ## 封装了加载数据列表、实例化列表项、焦点导航、预览更新以及通用按钮处理的核心逻辑。
 ## 子类需继承此类并实现特定的数据加载和预览格式化方法。
 class_name BaseListMenu
-extends Control
+extends GFUIController
 
 
 # --- 私有变量 ---
@@ -25,18 +25,18 @@ var _delete_button: Button
 
 # --- @onready 变量 (节点引用) ---
 
-@onready var ItemsContainer: VBoxContainer = %ReplayItemsContainer
-@onready var BoardPreviewNode: BoardPreview = find_child("BoardPreview", true, false)
-@onready var DetailInfoLabel: RichTextLabel = find_child("DetailInfoLabel", true, false)
-@onready var BackButton: Button = %BackButton
-@onready var PageTitle: Label = %PageTitle
+@onready var items_container: VBoxContainer = %ReplayItemsContainer
+@onready var board_preview_node: BoardPreview = find_child("BoardPreview", true, false)
+@onready var detail_info_label: RichTextLabel = find_child("DetailInfoLabel", true, false)
+@onready var back_button: Button = %BackButton
+@onready var page_title: Label = %PageTitle
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	if is_instance_valid(BackButton):
-		BackButton.pressed.connect(_on_back_button_pressed)
+	if is_instance_valid(back_button):
+		back_button.pressed.connect(_on_back_button_pressed)
 
 
 func _notification(what: int) -> void:
@@ -66,8 +66,16 @@ func _populate_list() -> void:
 		push_error("错误: _item_scene 未在子类中初始化。")
 		return
 
-	for child in ItemsContainer.get_children():
-		child.queue_free()
+	var pool := get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
+
+	for child in items_container.get_children():
+		if child is Label:
+			child.queue_free()
+		elif pool:
+			pool.release(child, _item_scene)
+			child.visible = false
+		else:
+			child.queue_free()
 
 	# 等待一帧确保 queue_free 完成
 	await get_tree().process_frame
@@ -80,8 +88,14 @@ func _populate_list() -> void:
 
 	var items: Array[Control] = []
 	for data in data_list:
-		var item = _item_scene.instantiate() as Control
-		ItemsContainer.add_child(item)
+		var item: Control
+		if pool:
+			item = pool.acquire(_item_scene, items_container) as Control
+			item.visible = true
+			items_container.move_child(item, -1)
+		else:
+			item = _item_scene.instantiate() as Control
+			items_container.add_child(item)
 		
 		# 调用子类提供的设置逻辑
 		_setup_item(item, data)
@@ -106,7 +120,7 @@ func _handle_empty_list() -> void:
 	label.text = _get_empty_message()
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.custom_minimum_size.y = 50
-	ItemsContainer.add_child(label)
+	items_container.add_child(label)
 	_clear_preview()
 	_update_focus_neighbors(null)
 
@@ -118,7 +132,7 @@ func _set_selected_item(data: Resource) -> void:
 	_update_action_buttons()
 
 	var target_node: Control = null
-	for child in ItemsContainer.get_children():
+	for child in items_container.get_children():
 		if child.has_method("get_data") and child.get_data() == data:
 			child.set_selected(true)
 			target_node = child
@@ -134,16 +148,17 @@ func _update_focus_neighbors(target_node: Control) -> void:
 
 	if is_instance_valid(target_node):
 		target_path = target_node.get_path()
-	elif ItemsContainer.get_child_count() > 0:
-		var first = ItemsContainer.get_child(0)
-		if first is Control: target_path = first.get_path()
+	elif items_container.get_child_count() > 0:
+		var first = items_container.get_child(0)
+		if first is Control:
+			target_path = first.get_path()
 
 	if is_instance_valid(_primary_button):
 		_primary_button.focus_neighbor_left = target_path
 	if is_instance_valid(_delete_button):
 		_delete_button.focus_neighbor_left = target_path
-	if is_instance_valid(BackButton):
-		BackButton.focus_neighbor_left = target_path
+	if is_instance_valid(back_button):
+		back_button.focus_neighbor_left = target_path
 
 
 ## 更新按钮可用状态。
@@ -157,9 +172,9 @@ func _update_action_buttons() -> void:
 
 ## 清空预览区域。
 func _clear_preview() -> void:
-	DetailInfoLabel.text = _get_select_hint_message()
-	if is_instance_valid(BoardPreviewNode):
-		BoardPreviewNode.clear()
+	detail_info_label.text = _get_select_hint_message()
+	if is_instance_valid(board_preview_node):
+		board_preview_node.clear()
 	_selected_resource = null
 	_update_action_buttons()
 
@@ -188,12 +203,14 @@ func _on_delete_button_pressed() -> void:
 
 
 func _on_back_button_pressed() -> void:
-	GlobalGameManager.return_to_main_menu()
+	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	if router:
+		router.return_to_main_menu()
 
 
 # --- 虚方法 (需子类覆写) ---
 
-## 返回数据列表。
+## 获取数据列表。
 func _get_data_list() -> Array:
 	return []
 
@@ -208,7 +225,7 @@ func _connect_item_signals(_item: Control, _data: Resource) -> void:
 	pass
 
 
-## 更新预览面板详情。
+## 更新预览。
 func _update_preview(_data: Resource) -> void:
 	pass
 

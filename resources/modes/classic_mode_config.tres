@@ -5,11 +5,11 @@
 [ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://resources/themes/tile_schemes/classic_tile_theme.tres" id="2_y7c41"]
 [ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://resources/themes/tile_schemes/red_tile_theme.tres" id="3_8xxsn"]
 [ext_resource type="Script" uid="uid://bdsn1pa4fjc01" path="res://scripts/rules/interaction/classic_interaction_rule.gd" id="3_xkyvo"]
-[ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://scripts/global/game_mode_config.gd" id="4_y7c41"]
+[ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://scripts/data/game_mode_config.gd" id="4_y7c41"]
 [ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://scripts/rules/base/spawn_rule.gd" id="5_8xxsn"]
-[ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://resources/rules/spawn/classic_spawn_rule_init.tres" id="6_bx8w2"]
 [ext_resource type="Resource" uid="uid://c6s7jklm8wan2" path="res://resources/rules/movement/classic_movement_rule.tres" id="6_y7c41"]
-[ext_resource type="Resource" uid="uid://cu7diq7sysqcf" path="res://resources/rules/spawn/classic_spawn_rule_on_move.tres" id="7_e8guu"]
+[ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://resources/rules/spawn/classic_spawn_rule_init.tres" id="7_classic_init"]
+[ext_resource type="Resource" uid="uid://cu7diq7sysqcf" path="res://resources/rules/spawn/classic_spawn_rule_on_move.tres" id="8_classic_move"]
 
 [sub_resource type="Resource" id="Resource_wp4bw"]
 script = ExtResource("2_dvc3p")
@@ -25,7 +25,7 @@ mode_name = "MODE_CLASSIC_NAME"
 mode_description = "MODE_CLASSIC_DESC"
 interaction_rule = SubResource("Resource_jk0ep")
 movement_rule = ExtResource("6_y7c41")
-spawn_rules = Array[ExtResource("5_8xxsn")]([ExtResource("6_bx8w2"), ExtResource("7_e8guu")])
+spawn_rules = Array[ExtResource("5_8xxsn")]([ExtResource("7_classic_init"), ExtResource("8_classic_move")])
 game_over_rule = SubResource("Resource_wp4bw")
 color_schemes = {
 0: ExtResource("2_y7c41"),
