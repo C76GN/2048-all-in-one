@@ -2,7 +2,7 @@
 
 ## GamePlay: 通用的游戏逻辑控制器。
 ##
-## 负责加载 GameModeConfig，设置 RuleManager，并协调核心组件之间的通信。
+## 负责加载 GameModeConfig，设置 RuleSystem，并协调核心组件之间的通信。
 ## 它作为撤回(Undo)、快照(Snapshot)和游戏回放(Replay)功能的总协调者。
 class_name GamePlay
 extends GFController
@@ -135,7 +135,6 @@ func _cleanup_listeners() -> void:
 	Gf.unlisten_simple(EventNames.BOARD_RESIZED, _on_board_resized)
 	Gf.unlisten_simple(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
 	Gf.unlisten_simple(EventNames.SHOW_HUD_MESSAGE, _on_show_hud_message_event)
-	Gf.unlisten_simple(EventNames.SPAWN_TILE_REQUESTED, game_board.spawn_tile)
 	
 	if _log:
 		_log.info("GamePlay", "_cleanup_listeners: cleaned up all GF listeners and signal connections")
@@ -152,8 +151,6 @@ func _connect_signals() -> void:
 
 	if not _hud_message_timer.timeout.is_connected(_on_hud_message_timer_timeout):
 		_hud_message_timer.timeout.connect(_on_hud_message_timer_timeout)
-
-	Gf.listen_simple(EventNames.SPAWN_TILE_REQUESTED, game_board.spawn_tile)
 
 	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 	Gf.listen_simple(EventNames.BOARD_RESIZED, _on_board_resized)
@@ -219,6 +216,9 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 		_action_queue = get_system(GFActionQueueSystem) as GFActionQueueSystem
 		if not _action_queue:
 			_action_queue = GFActionQueueSystem.new()
+	
+	if _action_queue:
+		_action_queue.clear_queue()
 			
 	_loaded_bookmark_data = data.loaded_bookmark_data
 	

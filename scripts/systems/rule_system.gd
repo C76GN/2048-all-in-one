@@ -1,11 +1,11 @@
-# scripts/core/rule_manager.gd
+# scripts/systems/rule_system.gd
 
-## RuleManager: 游戏规则的智能事件总线和调度器。
+## RuleSystem: 游戏规则的智能事件总线和调度器。
 ##
 ## 该节点负责接收游戏中的核心事件（如玩家移动），并根据已注册规则的
 ## 触发器（Trigger）和优先级（Priority），按正确的顺序执行它们。
 ## 它还支持"事件消费"机制，允许高优先级的规则阻止低优先级规则的执行。
-class_name RuleManager
+class_name RuleSystem
 extends GFSystem
 
 

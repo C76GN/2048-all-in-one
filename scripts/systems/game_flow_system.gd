@@ -2,7 +2,7 @@
 
 ## GameFlowSystem: 负责管理游戏整体流程和规则触发的核心系统。
 ##
-## 该系统监听来自其他系统或控制器的事件，并调用 RuleManager 执行对应的规则，
+## 该系统监听来自其他系统或控制器的事件，并调用 RuleSystem 执行对应的规则，
 ## 例如判断游戏结束、触发方块生成等。
 class_name GameFlowSystem
 extends GFSystem
@@ -10,7 +10,7 @@ extends GFSystem
 # --- 缓存引用 ---
 var _grid_model: GridModel
 var _game_status_model: GameStatusModel
-var _rule_manager: RuleManager
+var _rule_system: RuleSystem
 var _game_over_rule: GameOverRule
 
 # --- 私有变量 ---
@@ -67,8 +67,8 @@ func tick(delta: float) -> void:
 # --- 公共方法 ---
 
 ## 注入当前游戏的规则环境。
-func setup(rule_manager: RuleManager, game_over_rule: GameOverRule) -> void:
-	_rule_manager = rule_manager
+func setup(rule_system: RuleSystem, game_over_rule: GameOverRule) -> void:
+	_rule_system = rule_system
 	_game_over_rule = game_over_rule
 
 

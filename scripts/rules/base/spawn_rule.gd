@@ -41,7 +41,7 @@ func setup() -> void:
 	pass
 
 
-## RuleManager调用此函数来执行规则的核心逻辑。
+## RuleSystem调用此函数来执行规则的核心逻辑。
 ##
 ## @param _context: 包含游戏上下文的强类型数据对象，必须包含有效的 grid_model。
 ## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
@@ -51,7 +51,7 @@ func execute(_context: RuleContext) -> bool:
 	# 并在回调中设为 true，GF 也会停止后续回调。
 	# 但由于这里的 Execute 是由上面的包装函数调用的，
 	# 且 SpawnRule 本身作为 Resource 并不是事件载体，
-	# 所以我们通过返回 bool 来控制 RuleManager 的内部逻辑（如果还需要它的话）。
+	# 所以我们通过返回 bool 来控制 RuleSystem 的内部逻辑（如果还需要它的话）。
 	return false
 
 

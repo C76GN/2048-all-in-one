@@ -13,7 +13,7 @@ func enter(_msg: Dictionary = {}) -> void:
 	# 清理所有规则，防止在 GameOver 状态下继续触发规则
 	var arch := Gf.get_architecture()
 	if arch:
-		var rule_manager := arch.get_system(RuleManager) as RuleManager
+		var rule_manager := arch.get_system(RuleSystem) as RuleSystem
 		if rule_manager:
 			rule_manager.clear_rules()
 

@@ -124,44 +124,7 @@ func setup(p_grid_size: int, p_interaction_rule: InteractionRule, p_movement_rul
 	_is_initialized = true
 
 
-## 根据 spawn_data 生成方块（由 RuleManager 调用）。
-## @param spawn_data: 包含生成信息的强类型数据对象。
-func spawn_tile(spawn_data: SpawnData) -> void:
-	if not is_instance_valid(spawn_data):
-		return
 
-	if _log:
-		_log.info("GameBoard", "spawn_tile called for value: %d at %s" % [spawn_data.value, spawn_data.position])
-
-	var value: int = spawn_data.value
-	var type: Tile.TileType = spawn_data.type
-	var is_priority: bool = spawn_data.is_priority
-	var spawn_pos: Vector2i
-
-	if spawn_data.position.x >= 0:
-		spawn_pos = spawn_data.position
-	else:
-		var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
-		var empty_cells: Array[Vector2i] = model.get_empty_cells()
-		if not empty_cells.is_empty():
-			spawn_pos = empty_cells[seed_util.get_branched_rng("game_board_spawn").randi_range(0, empty_cells.size() - 1)]
-		else:
-			if is_priority:
-				_handle_priority_spawn(value, type)
-			return
-
-	var new_tile: Tile = _create_visual_tile(value, type)
-	var tile_data := GameTileData.new(value, type)
-	_visual_map[tile_data] = new_tile
-	model.place_tile(tile_data, spawn_pos)
-	
-	if _log:
-		_log.info("GameBoard", "Spawned tile value=%d at %s, _visual_map.size=%d, empty_cells_after=%d" % [value, spawn_pos, _visual_map.size(), model.get_empty_cells().size()])
-	
-	new_tile.position = _grid_to_pixel_center(spawn_pos)
-	new_tile.scale = Vector2.ZERO
-	var instruction: Array = [ {&"type": &"SPAWN", &"tile": new_tile}]
-	play_animations_requested.emit(instruction)
 
 
 ## 获取当前棋盘上数值最大的玩家方块的值。
@@ -172,40 +135,7 @@ func get_max_player_value() -> int:
 	return model.get_max_player_value()
 
 
-## 在指定网格位置生成一个特定方块，主要用于测试。
-## @param grid_pos: 生成位置的网格坐标。
-## @param value: 生成方块的数值。
-## @param type: 生成方块的类型。
-func spawn_specific_tile(grid_pos: Vector2i, value: int, type: Tile.TileType) -> void:
-	if not model:
-		return
-	if not (grid_pos.x >= 0 and grid_pos.x < model.grid_size and grid_pos.y >= 0 and grid_pos.y < model.grid_size):
-		if _log:
-			_log.error("GameBoard", "Spawn position is out of bounds.")
-		return
 
-	if model.grid[grid_pos.x][grid_pos.y] != null:
-		var old_data: GameTileData = model.grid[grid_pos.x][grid_pos.y]
-		if _visual_map.has(old_data):
-			var tile_node := _visual_map[old_data] as Tile
-			var pool := get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
-			if pool:
-				pool.release(tile_node, TileScene)
-				tile_node.visible = false
-			else:
-				tile_node.queue_free()
-			_visual_map.erase(old_data)
-		model.grid[grid_pos.x][grid_pos.y] = null
-
-	var new_tile: Tile = _create_visual_tile(value, type)
-	var tile_data := GameTileData.new(value, type)
-	_visual_map[tile_data] = new_tile
-	model.place_tile(tile_data, grid_pos)
-	
-	new_tile.position = _grid_to_pixel_center(grid_pos)
-	new_tile.scale = Vector2.ZERO
-	var instruction: Array = [ {&"type": &"SPAWN", &"tile": new_tile}]
-	play_animations_requested.emit(instruction)
 
 
 ## 游戏中扩建棋盘。
@@ -214,7 +144,6 @@ func live_expand(new_size: int) -> void:
 	if not model:
 		return
 	var old_size: int = model.grid_size
-	model.expand_grid(new_size)
 	_animate_expansion(old_size, new_size)
 	Gf.send_simple_event(EventNames.BOARD_RESIZED, new_size)
 
@@ -334,42 +263,7 @@ func _get_tile_colors(value: int, type: Tile.TileType) -> Dictionary:
 	return {"bg": bg_color, "font": font_color}
 
 
-func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
-	var player_data_list: Array[GameTileData] = []
-	for x in model.grid_size:
-		for y in model.grid_size:
-			var data := model.grid[x][y] as GameTileData
-			if data != null and data.type == Tile.TileType.PLAYER:
-				player_data_list.append(data)
 
-	if not player_data_list.is_empty():
-		var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
-		var data_to_transform: GameTileData = player_data_list[seed_util.get_branched_rng("game_board_priority_player").randi_range(0, player_data_list.size() - 1)]
-		data_to_transform.value = value
-		data_to_transform.type = type
-		
-		var tile_node: Tile = _visual_map.get(data_to_transform)
-		if is_instance_valid(tile_node):
-			var colors := _get_tile_colors(value, type)
-			tile_node.setup(value, colors.bg, colors.font)
-			tile_node.animate_transform()
-	else:
-		var monster_data_list: Array[GameTileData] = []
-		for x in model.grid_size:
-			for y in model.grid_size:
-				var data := model.grid[x][y] as GameTileData
-				if data != null and data.type == Tile.TileType.MONSTER:
-					monster_data_list.append(data)
-					
-		if not monster_data_list.is_empty():
-			var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
-			var data_to_empower: GameTileData = monster_data_list[seed_util.get_branched_rng("game_board_priority_monster").randi_range(0, monster_data_list.size() - 1)]
-			data_to_empower.value *= 2
-			
-			var tile_node: Tile = _visual_map.get(data_to_empower)
-			if is_instance_valid(tile_node):
-				var colors := _get_tile_colors(data_to_empower.value, data_to_empower.type)
-				tile_node.setup(data_to_empower.value, colors.bg, colors.font)
 
 
 ## 更新棋盘的整体布局以适应其容器大小。
@@ -538,9 +432,11 @@ func _on_board_animation_requested(instructions: Array) -> void:
 			&"MOVE":
 				var data: GameTileData = instr[&"tile_data"]
 				var tile_node: Tile = _visual_map.get(data)
-				visual_instr[&"tile"] = tile_node
-				if not is_instance_valid(tile_node):
+				if is_instance_valid(tile_node):
+					visual_instr[&"tile"] = tile_node
+				else:
 					if _log: _log.warn("GameBoard", "WARNING: MOVE instruction has no valid tile node! data=%s" % str(data))
+					continue
 			&"MERGE":
 				var consumed_data: GameTileData = instr[&"consumed_data"]
 				var merged_data: GameTileData = instr[&"merged_data"]
@@ -550,8 +446,10 @@ func _on_board_animation_requested(instructions: Array) -> void:
 				
 				if not is_instance_valid(consumed_node):
 					if _log: _log.warn("GameBoard", "WARNING: MERGE consumed_node is invalid! consumed_data=%s" % str(consumed_data))
+					continue
 				if not is_instance_valid(merged_node):
 					if _log: _log.warn("GameBoard", "WARNING: MERGE merged_node is invalid! merged_data=%s" % str(merged_data))
+					continue
 				
 				visual_instr[&"consumed_tile"] = consumed_node
 				visual_instr[&"merged_tile"] = merged_node
@@ -570,8 +468,13 @@ func _on_board_animation_requested(instructions: Array) -> void:
 				if consumed_data != null:
 					_visual_map.erase(consumed_data)
 			&"SPAWN":
-				# SPAWN 指令通常在 GameBoard 内部生成，已经带了 tile 节点
-				pass
+				var data: GameTileData = instr[&"tile_data"]
+				var new_tile: Tile = _create_visual_tile(data.value, data.type)
+				_visual_map[data] = new_tile
+				new_tile.position = _grid_to_pixel_center(instr[&"to_grid_pos"])
+				new_tile.scale = Vector2.ZERO
+				
+				visual_instr[&"tile"] = new_tile
 		
 		# 计算像素坐标
 		if visual_instr.has(&"to_grid_pos"):

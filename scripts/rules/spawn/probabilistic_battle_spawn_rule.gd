@@ -44,7 +44,7 @@ func setup() -> void:
 	_current_probability = base_probability
 
 
-## RuleManager调用此函数来执行概率生成逻辑。
+## RuleSystem调用此函数来执行概率生成逻辑。
 ## @param context: 包含 grid_model 的上下文。
 ## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
 func execute(context: RuleContext) -> bool:
@@ -63,7 +63,7 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.value = monster_value
 		spawn_data.type = Tile.TileType.MONSTER
 		spawn_data.is_priority = true
-		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
+		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, [spawn_data])
 
 		_current_probability = base_probability
 
@@ -75,7 +75,7 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.value = value
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
-		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
+		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, [spawn_data])
 
 	return true
 

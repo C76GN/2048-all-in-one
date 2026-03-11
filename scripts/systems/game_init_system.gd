@@ -5,7 +5,7 @@ class_name GameInitSystem
 extends GFSystem
 
 var _seed_utility: GFSeedUtility
-var _rule_manager: RuleManager
+var _rule_system: RuleSystem
 var _game_flow_system: GameFlowSystem
 var _command_history: GFCommandHistoryUtility
 var _log: GFLogUtility
@@ -16,7 +16,7 @@ func init() -> void:
 	_log = get_utility(GFLogUtility) as GFLogUtility
 	
 func ready() -> void:
-	_rule_manager = get_system(RuleManager) as RuleManager
+	_rule_system = get_system(RuleSystem) as RuleSystem
 	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
 	
 	# 监听来自路由或 UI 的初始化请求事件
@@ -111,13 +111,13 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	game_ready_data.initial_high_score = high_score
 
 	if _game_flow_system:
-		_game_flow_system.setup(_rule_manager, game_ready_data.game_over_rule)
+		_game_flow_system.setup(_rule_system, game_ready_data.game_over_rule)
 		
 	for rule_resource in mode_config.spawn_rules:
 		var rule_instance: SpawnRule = rule_resource.duplicate() as SpawnRule
 		game_ready_data.all_spawn_rules.append(rule_instance)
 		
-	_rule_manager.register_rules(game_ready_data.all_spawn_rules)
+	_rule_system.register_rules(game_ready_data.all_spawn_rules)
 	
 	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
 	if current_game_model:

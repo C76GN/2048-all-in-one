@@ -6,7 +6,7 @@ extends GFUtility
 ## 提取完整快照。
 func get_full_game_state(grid_size: int) -> Dictionary:
 	var arch := Gf.get_architecture()
-	var rule_sys := arch.get_system(RuleManager) as RuleManager
+	var rule_sys := arch.get_system(RuleSystem) as RuleSystem
 	var status := arch.get_model(GameStatusModel) as GameStatusModel
 	var grid := arch.get_model(GridModel) as GridModel
 	var seed_util := arch.get_utility(GFSeedUtility) as GFSeedUtility
@@ -31,7 +31,7 @@ func get_full_game_state(grid_size: int) -> Dictionary:
 ## @remark 注意，这不会自动更新UI和动画。
 func restore_state(state_to_restore: Dictionary) -> void:
 	var arch := Gf.get_architecture()
-	var rule_sys := arch.get_system(RuleManager) as RuleManager
+	var rule_sys := arch.get_system(RuleSystem) as RuleSystem
 	var status := arch.get_model(GameStatusModel) as GameStatusModel
 	var seed_util := arch.get_utility(GFSeedUtility) as GFSeedUtility
 	
@@ -45,6 +45,6 @@ func restore_state(state_to_restore: Dictionary) -> void:
 		
 	if rule_sys and state_to_restore.has(&"rules_states"):
 		var rules_states: Array = state_to_restore[&"rules_states"]
-		var all_rules := rule_sys.get_all_spawn_rules()
+		var all_rules: Array[SpawnRule] = rule_sys.get_all_spawn_rules()
 		for i in range(min(all_rules.size(), rules_states.size())):
 			all_rules[i].set_state(rules_states[i])

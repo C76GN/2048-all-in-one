@@ -28,7 +28,7 @@ const RETURN_TO_MAIN_MENU_REQUESTED: StringName = &"return_to_main_menu_requeste
 ## 请求启动游戏初始化流程（GameInitSystem 监听）。
 const REQUEST_GAME_INITIALIZATION: StringName = &"request_game_initialization"
 
-## 请求棋盘层面的初始化（RuleManager 监听）。
+## 请求棋盘层面的初始化（RuleSystem 监听）。
 const REQUEST_BOARD_INITIALIZATION: StringName = &"request_board_initialization"
 
 

@@ -56,7 +56,31 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int
 	var interaction_rule = _game_board.model.interaction_rule if _game_board and _game_board.model else null
 	if interaction_rule:
 		var tile_type_enum: Tile.TileType = interaction_rule.get_tile_type_from_id(type_id)
-		_game_board.spawn_specific_tile(grid_pos, value, tile_type_enum)
+		
+		if _game_board and _game_board.model:
+			# Get old data and clean it up if it exists
+			var old_data = _game_board.model.grid[grid_pos.x][grid_pos.y]
+			if old_data != null:
+				if _game_board._visual_map.has(old_data):
+					var tile_node := _game_board._visual_map[old_data] as Tile
+					var pool := Gf.get_architecture().get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
+					if pool:
+						pool.release(tile_node, _game_board.TileScene)
+						tile_node.visible = false
+					else:
+						tile_node.queue_free()
+					_game_board._visual_map.erase(old_data)
+				_game_board.model.grid[grid_pos.x][grid_pos.y] = null
+			
+			var tile_data := GameTileData.new(value, tile_type_enum)
+			_game_board.model.place_tile(tile_data, grid_pos)
+			
+			var instruction: Array = [ {
+				&"type": &"SPAWN",
+				&"tile_data": tile_data,
+				&"to_grid_pos": grid_pos
+			}]
+			Gf.send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
 
 
 func _on_test_panel_values_requested(type_id: int) -> void:
@@ -82,8 +106,10 @@ func _on_reset_and_resize_requested_event(new_size: int) -> void:
 
 func _on_live_expand_requested_event(new_size: int) -> void:
 	Gf.send_simple_event(EventNames.GAME_STATE_TAINTED)
-	if _game_board:
+	if _game_board and _game_board.model:
+		_game_board.model.expand_grid(new_size)
 		_game_board.live_expand(new_size)
+		# live_expand internally sends BOARD_RESIZED now
 
 
 func _on_reset_and_resize_requested(new_size: int) -> void:

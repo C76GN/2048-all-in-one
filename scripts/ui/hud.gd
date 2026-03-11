@@ -137,7 +137,7 @@ func _refresh_all() -> void:
 	# 加入规则特定的动态数据 (替换原本 GamePlay 中的逻辑)
 	var arch := Gf.get_architecture()
 	var grid_model := arch.get_model(GridModel) as GridModel
-	var rule_manager := arch.get_system(RuleManager) as RuleManager
+	var rule_manager := arch.get_system(RuleSystem) as RuleSystem
 	
 	if is_instance_valid(grid_model):
 		var rule_context := RuleContext.new()

@@ -11,7 +11,7 @@ extends GFVisualAction
 # --- 私有变量 ---
 
 var _instructions: Array
-var _game_board: Node # Node context to create tweens
+var _game_board: Node
 
 
 # --- Godot 生命周期方法 ---
@@ -27,7 +27,6 @@ func execute() -> Variant:
 	if not is_instance_valid(_game_board) or _instructions.is_empty():
 		return null
 
-	# 1. Start Moves & Merges
 	for instruction in _instructions:
 		var tile: Tile
 		var target_pos: Vector2
@@ -35,6 +34,7 @@ func execute() -> Variant:
 		match instruction[&"type"]:
 			&"MOVE":
 				tile = instruction[&"tile"]
+				
 				target_pos = instruction[&"to_pos"]
 				if is_instance_valid(tile):
 					tile.animate_move(target_pos)
