@@ -58,7 +58,6 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int
 		var tile_type_enum: Tile.TileType = interaction_rule.get_tile_type_from_id(type_id)
 		
 		if _game_board and _game_board.model:
-			# Get old data and clean it up if it exists
 			var old_data = _game_board.model.grid[grid_pos.x][grid_pos.y]
 			if old_data != null:
 				if _game_board._visual_map.has(old_data):
@@ -109,7 +108,6 @@ func _on_live_expand_requested_event(new_size: int) -> void:
 	if _game_board and _game_board.model:
 		_game_board.model.expand_grid(new_size)
 		_game_board.live_expand(new_size)
-		# live_expand internally sends BOARD_RESIZED now
 
 
 func _on_reset_and_resize_requested(new_size: int) -> void:
