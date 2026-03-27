@@ -63,7 +63,7 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.value = monster_value
 		spawn_data.type = Tile.TileType.MONSTER
 		spawn_data.is_priority = true
-		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, [spawn_data])
+		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
 
 		_current_probability = base_probability
 
@@ -75,7 +75,7 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.value = value
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
-		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, [spawn_data])
+		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
 
 	return true
 

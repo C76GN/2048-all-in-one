@@ -14,6 +14,10 @@ func ready() -> void:
 	Gf.listen(GameReadyData, _on_game_ready)
 	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 
+func dispose() -> void:
+	Gf.unlisten(GameReadyData, _on_game_ready)
+	Gf.unlisten_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+
 func _on_game_ready(data: GameReadyData) -> void:
 	_is_active = not data.is_replay_mode
 

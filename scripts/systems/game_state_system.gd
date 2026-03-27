@@ -1,7 +1,7 @@
-# scripts/utilities/game_state_utility.gd
+# scripts/systems/game_state_system.gd
 
-class_name GameStateUtility
-extends GFUtility
+class_name GameStateSystem
+extends GFSystem
 
 ## 提取完整快照。
 func get_full_game_state(grid_size: int) -> Dictionary:

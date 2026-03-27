@@ -78,11 +78,18 @@ func handle_move(direction: Vector2i) -> MoveData:
 			var final_line_pos: int = new_line.find(merged)
 			var final_coords: Vector2i = _get_coords_for_line(i, final_line_pos, direction, grid_size)
 
+			var orig_consumed_idx: int = line.find(consumed)
+			var orig_merged_idx: int = line.find(merged)
+			var from_coords_consumed: Vector2i = _get_coords_for_line(i, orig_consumed_idx, direction, grid_size)
+			var from_coords_merged: Vector2i = _get_coords_for_line(i, orig_merged_idx, direction, grid_size)
+
 			var instruction: Dictionary = {
 				&"type": &"MERGE",
 				&"consumed_data": consumed,
 				&"merged_data": merged,
-				&"to_grid_pos": final_coords
+				&"to_grid_pos": final_coords,
+				&"from_grid_pos_consumed": from_coords_consumed,
+				&"from_grid_pos_merged": from_coords_merged
 			}
 			
 			if merge_info.has(&"transform"):
@@ -105,9 +112,11 @@ func handle_move(direction: Vector2i) -> MoveData:
 			var final_line_pos: int = new_line.find(original_data)
 			if final_line_pos != -1 and final_line_pos != j:
 				var final_coords: Vector2i = _get_coords_for_line(i, final_line_pos, direction, grid_size)
+				var from_coords: Vector2i = _get_coords_for_line(i, j, direction, grid_size)
 				instructions.append({
 					&"type": &"MOVE",
 					&"tile_data": original_data,
+					&"from_grid_pos": from_coords,
 					&"to_grid_pos": final_coords
 				})
 

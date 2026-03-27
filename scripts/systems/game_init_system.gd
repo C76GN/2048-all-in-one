@@ -22,6 +22,9 @@ func ready() -> void:
 	# 监听来自路由或 UI 的初始化请求事件
 	Gf.listen_simple(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
 
+func dispose() -> void:
+	Gf.unlisten_simple(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
+
 func _on_request_initialization(_payload: Variant = null) -> void:
 	var app_config := get_model(AppConfigModel) as AppConfigModel
 	if not app_config:

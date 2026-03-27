@@ -91,7 +91,7 @@ func _on_spawn_button_pressed() -> void:
 	var type_id: int = _type_option_button.get_item_id(_type_option_button.selected)
 
 	# 发送 GF 事件替代信号
-	send_simple_event(EventNames.TEST_SPAWN_REQUESTED, [pos, value, type_id])
+	send_event(TestSpawnPayload.new(pos, value, type_id))
 
 
 ## 响应“重置并调整大小”按钮的点击事件。

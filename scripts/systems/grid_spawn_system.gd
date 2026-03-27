@@ -27,13 +27,7 @@ func dispose() -> void:
 
 # --- 事件处理 ---
 
-func _on_spawn_tile_requested(spawn_data_payload: Array) -> void:
-	var spawn_data: SpawnData
-	if spawn_data_payload.size() > 0 and spawn_data_payload[0] is SpawnData:
-		spawn_data = spawn_data_payload[0]
-	else:
-		return
-
+func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 	if not is_instance_valid(spawn_data):
 		return
 

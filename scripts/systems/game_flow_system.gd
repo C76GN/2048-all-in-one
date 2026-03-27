@@ -59,6 +59,22 @@ func ready() -> void:
 	Gf.listen_simple(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
 
 
+func dispose() -> void:
+	Gf.unlisten(MoveData, _on_move_made)
+	Gf.unlisten_simple(EventNames.TURN_FINISHED, _on_turn_finished)
+	Gf.unlisten_simple(EventNames.MONSTER_KILLED, _on_monster_killed)
+	Gf.unlisten_simple(EventNames.SCORE_UPDATED, _on_score_updated)
+	Gf.unlisten(GameReadyData, _on_game_ready)
+	Gf.unlisten_simple(EventNames.UNDO_REQUESTED, _on_undo_requested)
+	Gf.unlisten_simple(EventNames.SAVE_BOOKMARK_REQUESTED, _on_save_bookmark_requested)
+	Gf.unlisten_simple(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
+	Gf.unlisten_simple(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
+	
+	Gf.unlisten_simple(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
+	Gf.unlisten_simple(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
+	Gf.unlisten_simple(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
+
+
 func tick(delta: float) -> void:
 	if is_instance_valid(_fsm):
 		_fsm.update(delta)
@@ -179,7 +195,7 @@ func _on_game_ready(data: GameReadyData) -> void:
 		_last_saved_bookmark_state = _get_full_game_state()
 
 func _get_full_game_state() -> Dictionary:
-	var utility := get_utility(GameStateUtility) as GameStateUtility
+	var utility := get_system(GameStateSystem) as GameStateSystem
 	if utility:
 		return utility.get_full_game_state(_current_grid_size)
 	return {}
@@ -194,14 +210,14 @@ func _on_undo_requested(_payload: Variant = null) -> void:
 	if _command_history and _command_history.can_undo():
 		_command_history.undo_last()
 	else:
-		Gf.send_simple_event(EventNames.SHOW_HUD_MESSAGE, [tr("UNDO_FAIL_MSG"), 3.0])
+		Gf.send_event(HudMessagePayload.new(tr("UNDO_FAIL_MSG"), 3.0))
 
 func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	if _fsm.current_state_name != EventNames.STATE_PLAYING:
 		return
 		
 	if _is_game_state_tainted:
-		Gf.send_simple_event(EventNames.SHOW_HUD_MESSAGE, [tr("SNAPSHOT_TAINT_WARN"), 4.0])
+		Gf.send_event(HudMessagePayload.new(tr("SNAPSHOT_TAINT_WARN"), 4.0))
 
 	var current_state_for_comparison: Dictionary = _get_full_game_state()
 	var _command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
@@ -209,7 +225,7 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 		current_state_for_comparison["game_state_history"] = _command_history.serialize_history()
 
 	if JSON.stringify(current_state_for_comparison) == JSON.stringify(_last_saved_bookmark_state):
-		Gf.send_simple_event(EventNames.SHOW_HUD_MESSAGE, [tr("SNAPSHOT_NO_CHANGE"), 3.0])
+		Gf.send_event(HudMessagePayload.new(tr("SNAPSHOT_NO_CHANGE"), 3.0))
 		return
 
 	var new_bookmark := BookmarkData.new()
@@ -233,7 +249,7 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	if bookmark_system:
 		bookmark_system.save_bookmark(new_bookmark)
 	_last_saved_bookmark_state = current_state_for_comparison
-	Gf.send_simple_event(EventNames.SHOW_HUD_MESSAGE, [tr("SNAPSHOT_SAVED_SUCCESS"), 3.0])
+	Gf.send_event(HudMessagePayload.new(tr("SNAPSHOT_SAVED_SUCCESS"), 3.0))
 	
 func _on_ui_pause_requested(_payload: Variant = null) -> void:
 	if _fsm.current_state_name == EventNames.STATE_GAME_OVER or _is_replay_mode:

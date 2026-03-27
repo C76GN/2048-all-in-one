@@ -85,8 +85,11 @@ const SPAWN_TILE_REQUESTED: StringName = &"spawn_tile_requested"
 
 # --- 棋盘 ---
 
-## 请求播放棋盘动画。payload: Array[Dictionary]
+## 棋盘请求播放一段动画序列。payload: instructions: Array[Dictionary]
 const BOARD_ANIMATION_REQUESTED: StringName = &"board_animation_requested"
+
+## 棋盘请求播放撤回的逆向平滑动画。payload: [snapshot: Dictionary, reverse_target_map: Dictionary]
+const BOARD_UNDO_ANIMATION_REQUESTED: StringName = &"board_undo_animation_requested"
 
 ## 请求全量刷新棋盘（如撤回操作）。payload: Dictionary (grid_snapshot)
 const BOARD_REFRESH_REQUESTED: StringName = &"board_refresh_requested"

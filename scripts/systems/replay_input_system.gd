@@ -17,6 +17,12 @@ func ready() -> void:
 	Gf.listen_simple(EventNames.REPLAY_NEXT_STEP, _on_next_step)
 	Gf.listen_simple(EventNames.REPLAY_PREV_STEP, _on_prev_step)
 
+func dispose() -> void:
+	Gf.unlisten(GameReadyData, _on_game_ready)
+	Gf.unlisten_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	Gf.unlisten_simple(EventNames.REPLAY_NEXT_STEP, _on_next_step)
+	Gf.unlisten_simple(EventNames.REPLAY_PREV_STEP, _on_prev_step)
+
 func _on_game_ready(data: GameReadyData) -> void:
 	_is_active = data.is_replay_mode
 	if _is_active:

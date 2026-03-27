@@ -30,7 +30,7 @@ func _ready() -> void:
 	history_util.max_history_size = 0
 	arch.register_utility(GFCommandHistoryUtility, history_util)
 	
-	arch.register_utility(GameStateUtility, GameStateUtility.new())
+	arch.register_utility(GFTimeUtility, GFTimeUtility.new())
 	arch.register_utility(TestToolUtility, TestToolUtility.new())
 
 	arch.register_utility(GFLogUtility, GFLogUtility.new())
@@ -45,6 +45,7 @@ func _ready() -> void:
 	arch.register_model(CurrentGameModel, CurrentGameModel.new())
 	
 	# --- 注册 System ---
+	arch.register_system(GameStateSystem, GameStateSystem.new())
 	arch.register_system(SceneRouterSystem, SceneRouterSystem.new())
 	arch.register_system(SaveSystem, SaveSystem.new())
 	arch.register_system(BookmarkSystem, BookmarkSystem.new())

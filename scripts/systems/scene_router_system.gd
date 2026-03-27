@@ -25,6 +25,11 @@ func ready() -> void:
 	Gf.listen_simple(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, _on_return_to_main_menu_requested)
 
 
+func dispose() -> void:
+	Gf.unlisten_simple(EventNames.SCENE_CHANGE_REQUESTED, _on_scene_change_requested)
+	Gf.unlisten_simple(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, _on_return_to_main_menu_requested)
+
+
 # --- 公共方法 ---
 
 ## 切换到指定的场景资源。

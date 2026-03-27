@@ -8,11 +8,7 @@ class_name GameBoard
 extends GFController
 
 
-# --- 信号 ---
 
-## 当需要播放一组动画时发出。
-## @param instructions: 一个包含动画指令字典的数组。
-signal play_animations_requested(instructions: Array)
 
 
 # --- 常量 ---
@@ -57,6 +53,7 @@ var _visual_map: Dictionary = {}
 var _is_initialized: bool = false
 
 var _log: GFLogUtility
+var pool: GFObjectPoolUtility
 
 ## 标记是否已完成清理。
 var _is_cleaned_up: bool = false
@@ -73,6 +70,7 @@ var _is_cleaned_up: bool = false
 func _ready() -> void:
 	model = get_model(GridModel) as GridModel
 	_log = get_utility(GFLogUtility) as GFLogUtility
+	pool = get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
 	
 	var parent_control := get_parent() as Control
 	if is_instance_valid(parent_control):
@@ -80,6 +78,7 @@ func _ready() -> void:
 	
 	# --- 注册 GF 事件监听 ---
 	Gf.listen_simple(EventNames.BOARD_ANIMATION_REQUESTED, _on_board_animation_requested)
+	Gf.listen_simple(EventNames.BOARD_UNDO_ANIMATION_REQUESTED, _on_board_undo_animation_requested)
 	Gf.listen_simple(EventNames.BOARD_REFRESH_REQUESTED, _on_board_refresh_requested)
 	Gf.listen_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
 
@@ -100,7 +99,6 @@ func _exit_tree() -> void:
 func setup(p_grid_size: int, p_interaction_rule: InteractionRule, p_movement_rule: MovementRule, _p_game_over_rule: GameOverRule, p_color_schemes: Dictionary, p_board_theme: BoardTheme) -> void:
 	# 清理上一局遗留的方块节点和映射，防止幽灵方块
 	var old_tile_count: int = 0
-	var pool := get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
 	for child in board_container.get_children():
 		if child is Tile:
 			old_tile_count += 1
@@ -121,7 +119,29 @@ func setup(p_grid_size: int, p_interaction_rule: InteractionRule, p_movement_rul
 
 	call_deferred(&"_update_board_layout")
 	_draw_board_cells()
+	
+	if pool:
+		pool.prewarm(TileScene, board_container, model.grid_size * model.grid_size)
+		for child in board_container.get_children():
+			if child is Tile:
+				child.visible = false
+		
 	_is_initialized = true
+
+
+## 清理所有视觉方块节点并重置映射表，通常在撤回动画启动前调用。
+func clear_visual_tiles() -> void:
+	for child in board_container.get_children():
+		if child is Tile:
+			child.visible = false
+			if pool:
+				pool.release(child, TileScene)
+			else:
+				child.queue_free()
+	
+	_visual_map.clear()
+	if _log:
+		_log.info("GameBoard", "clear_visual_tiles: Visual tiles released and map cleared.")
 
 
 
@@ -175,7 +195,6 @@ func get_state_snapshot() -> Dictionary:
 ## 从快照恢复。
 ## @param snapshot: 包含棋盘状态的字典。
 func restore_from_snapshot(snapshot: Dictionary) -> void:
-	var pool := get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
 	for child in board_container.get_children():
 		if child is Tile:
 			if pool:
@@ -218,14 +237,15 @@ func _cleanup_listeners() -> void:
 		return
 	_is_cleaned_up = true
 	Gf.unlisten_simple(EventNames.BOARD_ANIMATION_REQUESTED, _on_board_animation_requested)
+	Gf.unlisten_simple(EventNames.BOARD_UNDO_ANIMATION_REQUESTED, _on_board_undo_animation_requested)
 	Gf.unlisten_simple(EventNames.BOARD_REFRESH_REQUESTED, _on_board_refresh_requested)
 	Gf.unlisten_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	Gf.unlisten_simple(&"test_live_expand_requested", _on_test_live_expand_requested)
 	if _log:
 		_log.info("GameBoard", "_cleanup_listeners: cleaned up GF listeners")
 
 
 func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
-	var pool := get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
 	var new_tile: Tile
 	if pool:
 		new_tile = pool.acquire(TileScene, board_container) as Tile
@@ -399,25 +419,22 @@ func _calculate_layout_params(p_size: int) -> Dictionary:
 	}
 
 
-# --- 信号响应 ---
-
-func _on_model_board_changed(instructions: Array) -> void:
-	for instr in instructions:
-		if instr.has(&"to_grid_pos"):
-			instr[&"to_pos"] = _grid_to_pixel_center(instr[&"to_grid_pos"])
-
-	play_animations_requested.emit(instructions)
-
-
-func _on_model_tile_spawned(_tile: Node) -> void:
-	pass
-
-
-func _on_model_score_updated(amount: int) -> void:
-	Gf.send_simple_event(EventNames.SCORE_UPDATED, amount)
-
-
 # --- 信号处理函数 ---
+
+## 接收撤回动画请求，播放平滑动画。
+func _on_board_undo_animation_requested(payload: Array) -> void:
+	if payload.size() < 2: return
+	var snapshot: Dictionary = payload[0]
+	var reverse_map: Dictionary = payload[1]
+	
+	if _log: _log.info("GameBoard", "_on_board_undo_animation_requested: starting reverse animation.")
+	
+	var undo_action := BoardUndoAnimationAction.new(snapshot, reverse_map, self)
+	var action_sys := Gf.get_architecture().get_system(GFActionQueueSystem) as GFActionQueueSystem
+	if action_sys:
+		action_sys.enqueue(undo_action)
+	else:
+		undo_action.execute()
 
 ## 接收到逻辑层的动画请求，将其包装为 Action 推入动画队列。
 func _on_board_animation_requested(instructions: Array) -> void:
@@ -494,6 +511,11 @@ func _on_board_animation_requested(instructions: Array) -> void:
 ## 接收到全量刷新请求（如撤回操作），直接重置棋盘视觉状态。
 func _on_board_refresh_requested(grid_snapshot: Dictionary) -> void:
 	restore_from_snapshot(grid_snapshot)
+
+
+## 接收到活体扩建测试请求。
+func _on_test_live_expand_requested(new_size: int) -> void:
+	live_expand(new_size)
 
 
 ## 当场景即将改变时调用，确保释放旧场景前断开监听

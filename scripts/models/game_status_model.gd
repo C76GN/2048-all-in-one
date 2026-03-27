@@ -29,15 +29,3 @@ var status_message: BindableProperty = BindableProperty.new("")
 var extra_stats: BindableProperty = BindableProperty.new({})
 
 
-# --- Godot 生命周期方法 ---
-
-func init() -> void:
-	super.init()
-
-
-func async_init() -> void:
-	super.async_init()
-
-
-func ready() -> void:
-	super.ready()

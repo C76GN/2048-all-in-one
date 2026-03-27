@@ -134,7 +134,7 @@ func _cleanup_listeners() -> void:
 	Gf.unlisten_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 	Gf.unlisten_simple(EventNames.BOARD_RESIZED, _on_board_resized)
 	Gf.unlisten_simple(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
-	Gf.unlisten_simple(EventNames.SHOW_HUD_MESSAGE, _on_show_hud_message_event)
+	Gf.unlisten(HudMessagePayload, _on_show_hud_message_event)
 	
 	if _log:
 		_log.info("GamePlay", "_cleanup_listeners: cleaned up all GF listeners and signal connections")
@@ -155,11 +155,10 @@ func _connect_signals() -> void:
 	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 	Gf.listen_simple(EventNames.BOARD_RESIZED, _on_board_resized)
 	Gf.listen_simple(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
-	Gf.listen_simple(EventNames.SHOW_HUD_MESSAGE, _on_show_hud_message_event)
+	Gf.listen(HudMessagePayload, _on_show_hud_message_event)
 
-	if is_instance_valid(game_board) and is_instance_valid(_action_queue):
-		if not game_board.play_animations_requested.is_connected(_on_play_animations_requested):
-			game_board.play_animations_requested.connect(_on_play_animations_requested)
+	if not _hud_message_timer.timeout.is_connected(_on_hud_message_timer_timeout):
+		_hud_message_timer.timeout.connect(_on_hud_message_timer_timeout)
 
 
 ## 根据当前是普通模式还是回放模式，配置UI元素的可见性。
@@ -197,7 +196,7 @@ func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
 		var console := get_utility(GFConsoleUtility) as GFConsoleUtility
 		if console and test_panel.visible:
 			console.execute_command("clear")
-			_show_hud_message("Test panel toggled.", 2.0)
+			Gf.send_event(HudMessagePayload.new("Test panel toggled.", 2.0))
 
 
 # --- 信号处理函数 ---
@@ -284,9 +283,9 @@ func _on_toggle_pause_ui(_payload: Variant = null) -> void:
 			ui_util.push_panel(PAUSE_MENU_SCENE)
 
 
-func _on_show_hud_message_event(args: Array) -> void:
-	if args.size() >= 2:
-		_show_hud_message(args[0], args[1])
+func _on_show_hud_message_event(payload: HudMessagePayload) -> void:
+	if is_instance_valid(payload):
+		_show_hud_message(payload.message, payload.duration)
 
 
 func _on_replay_back_pressed() -> void:
@@ -298,10 +297,7 @@ func _on_hud_message_timer_timeout() -> void:
 		_game_status_model.status_message.set_value("")
 
 
-func _on_play_animations_requested(instructions: Array) -> void:
-	if _action_queue and is_instance_valid(game_board):
-		var action := BOARD_ANIMATION_ACTION_SCRIPT.new(instructions, game_board) as GFVisualAction
-		_action_queue.enqueue(action)
+
 
 
 func _on_game_state_changed(new_state: StringName) -> void:

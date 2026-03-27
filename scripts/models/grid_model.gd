@@ -22,20 +22,6 @@ var interaction_rule: InteractionRule
 var movement_rule: MovementRule
 
 
-# --- Godot 生命周期方法 ---
-
-func init() -> void:
-	super.init()
-
-
-func async_init() -> void:
-	super.async_init()
-
-
-func ready() -> void:
-	super.ready()
-
-
 # --- 公共方法 ---
 
 ## 初始化或重置数据
@@ -148,3 +134,13 @@ func get_all_player_tile_values() -> Array[int]:
 				values.append(tile.value)
 	values.sort()
 	return values
+
+
+## GFModel 序列化协议：将模型状态导出为字典。
+func to_dict() -> Dictionary:
+	return get_snapshot()
+
+
+## GFModel 序列化协议：从字典恢复模型状态。
+func from_dict(data: Dictionary) -> void:
+	restore_from_snapshot(data)

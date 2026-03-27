@@ -19,6 +19,8 @@ const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://scenes/ui/flow_label_l
 ## 结构: { "data_key": ControlNode }
 var _stat_labels: Dictionary = {}
 
+var _is_dirty: bool = false
+
 
 # --- @onready 变量 (节点引用) ---
 
@@ -49,16 +51,16 @@ func _ready() -> void:
 		status_message_label = status_msg_node
 	
 	if is_instance_valid(_game_status_model):
-		# 1. 核心属性绑定
-		_game_status_model.score.value_changed.connect(_on_score_changed)
-		_game_status_model.move_count.value_changed.connect(_on_move_count_changed)
-		_game_status_model.high_score.value_changed.connect(_on_high_score_changed)
-		_game_status_model.highest_tile.value_changed.connect(_on_highest_tile_changed)
-		_game_status_model.monsters_killed.value_changed.connect(_on_monsters_killed_changed)
-		_game_status_model.status_message.value_changed.connect(_on_status_message_changed)
+			# 1. 核心属性绑定
+		_game_status_model.score.bind_to(self, _on_score_changed)
+		_game_status_model.move_count.bind_to(self, _on_move_count_changed)
+		_game_status_model.high_score.bind_to(self, _on_high_score_changed)
+		_game_status_model.highest_tile.bind_to(self, _on_highest_tile_changed)
+		_game_status_model.monsters_killed.bind_to(self, _on_monsters_killed_changed)
+		_game_status_model.status_message.bind_to(self, _on_status_message_changed)
 		
 		# 2. 额外统计数据（如果外部系统有推送）
-		_game_status_model.extra_stats.value_changed.connect(_on_extra_stats_changed)
+		_game_status_model.extra_stats.bind_to(self, _on_extra_stats_changed)
 		
 		# 初始同步
 		_refresh_all()
@@ -79,11 +81,11 @@ func _notification(what: int) -> void:
 # --- 公共方法 ---
 
 func _on_high_score_changed(_old: int, _new_value: int) -> void:
-	_refresh_all()
+	_mark_dirty()
 
 
 func _on_highest_tile_changed(_old: int, _new_value: int) -> void:
-	_refresh_all()
+	_mark_dirty()
 
 
 func _on_status_message_changed(_old: String, new_value: String) -> void:
@@ -91,7 +93,7 @@ func _on_status_message_changed(_old: String, new_value: String) -> void:
 		status_message_label.text = new_value
 		status_message_label.visible = not new_value.is_empty()
 	else:
-		_refresh_all()
+		_mark_dirty()
 
 
 ## 全局刷新 UI 显示。
@@ -181,14 +183,14 @@ func _refresh_all() -> void:
 
 
 func _on_monsters_killed_changed(_old: int, _new: int) -> void:
-	_refresh_all()
+	_mark_dirty()
 
 
 ## 响应式更新动态统计数据。
 ## @param _old: 旧数据字典。
 ## @param dict: 新数据字典。结构: { "key": "Display String" 或 Array[Dict] }
 func _on_extra_stats_changed(_old: Dictionary, _dict: Dictionary) -> void:
-	_refresh_all()
+	_mark_dirty()
 
 
 func _update_dynamic_list(dict: Dictionary) -> void:
@@ -248,7 +250,7 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 # --- 私有/辅助方法 ---
 
 func _on_hud_update_requested(_p: Variant = null) -> void:
-	_refresh_all()
+	_mark_dirty()
 
 
 func _update_ui_text() -> void:
@@ -257,8 +259,18 @@ func _update_ui_text() -> void:
 
 
 func _on_score_changed(_old_value: int, _new_value: int) -> void:
-	_refresh_all()
+	_mark_dirty()
 
 
 func _on_move_count_changed(_old_value: int, _new_value: int) -> void:
-	_refresh_all()
+	_mark_dirty()
+
+func _mark_dirty() -> void:
+	if not _is_dirty:
+		_is_dirty = true
+		call_deferred("_deferred_refresh")
+
+func _deferred_refresh() -> void:
+	if _is_dirty:
+		_is_dirty = false
+		_refresh_all()

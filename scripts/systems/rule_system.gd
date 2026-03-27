@@ -31,6 +31,12 @@ func ready() -> void:
 	Gf.listen_simple(EventNames.MONSTER_KILLED, _on_monster_killed)
 
 
+func dispose() -> void:
+	Gf.unlisten(MoveData, _on_move_made)
+	Gf.unlisten_simple(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
+	Gf.unlisten_simple(EventNames.MONSTER_KILLED, _on_monster_killed)
+
+
 # --- 公共方法 ---
 
 ## 注册一个规则列表到管理器中。
