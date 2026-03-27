@@ -261,3 +261,4 @@ class _GFConsoleGUI extends CanvasLayer:
 		if _ignored_tags.is_empty():
 			return false
 		return _ignored_tags.has(tag)
+
