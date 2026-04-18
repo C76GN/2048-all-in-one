@@ -78,17 +78,14 @@ func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
 	if not player_data_list.is_empty():
 		var data_to_transform: GameTileData = player_data_list[_seed_utility.get_branched_rng("game_board_priority_player").randi_range(0, player_data_list.size() - 1)]
 		
-		var consumed_data: GameTileData = GameTileData.new(data_to_transform.value, data_to_transform.type)
-		
 		# 数据更新
 		data_to_transform.value = value
 		data_to_transform.type = type
 		
 		var instruction: Array = [ {
-			&"type": &"MERGE",
-			&"consumed_data": consumed_data,
-			&"merged_data": data_to_transform,
-			&"transform": true
+			&"type": &"TRANSFORM",
+			&"tile_data": data_to_transform,
+			&"do_transform": true,
 		}]
 		Gf.send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
 	else:
@@ -101,14 +98,13 @@ func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
 					
 		if not monster_data_list.is_empty():
 			var data_to_empower: GameTileData = monster_data_list[_seed_utility.get_branched_rng("game_board_priority_monster").randi_range(0, monster_data_list.size() - 1)]
-			var consumed_data: GameTileData = GameTileData.new(data_to_empower.value, data_to_empower.type)
 			
 			data_to_empower.value *= 2
 			
 			var instruction: Array = [ {
-				&"type": &"MERGE",
-				&"consumed_data": consumed_data,
-				&"merged_data": data_to_empower,
-				&"transform": false
+				&"type": &"TRANSFORM",
+				&"tile_data": data_to_empower,
+				&"do_merge": true,
+				&"do_transform": false,
 			}]
 			Gf.send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)

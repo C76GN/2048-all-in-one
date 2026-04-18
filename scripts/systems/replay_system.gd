@@ -46,7 +46,7 @@ func async_init() -> void:
 ## 将一个ReplayData资源保存到文件中。
 ## @param replay_data: 要保存的ReplayData资源。
 func save_replay(replay_data: ReplayData) -> void:
-	var file_path := REPLAY_DIR.path_join("replay_%d.tres" % replay_data.timestamp)
+	var file_path := REPLAY_DIR.path_join("replay_%d_%d.tres" % [replay_data.timestamp, Time.get_ticks_msec()])
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
 	if storage:
 		storage.save_resource(file_path, replay_data)

@@ -97,6 +97,9 @@ const BOARD_REFRESH_REQUESTED: StringName = &"board_refresh_requested"
 ## 棋盘大小发生变化。payload: int (新大小)
 const BOARD_RESIZED: StringName = &"board_resized"
 
+## 请求棋盘在游戏中动态扩建。payload: int (新大小)
+const BOARD_LIVE_EXPAND_REQUESTED: StringName = &"board_live_expand_requested"
+
 
 # --- 回放 ---
 

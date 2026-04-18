@@ -8,6 +8,7 @@ extends GFUndoableCommand
 
 var _direction: Vector2i
 var _reverse_target_map: Dictionary = {}
+var _is_baseline: bool = false
 
 func _init(direction: Vector2i) -> void:
 	_direction = direction
@@ -15,6 +16,14 @@ func _init(direction: Vector2i) -> void:
 
 func get_direction() -> Vector2i:
 	return _direction
+
+
+func mark_as_baseline() -> void:
+	_is_baseline = true
+
+
+func is_baseline() -> bool:
+	return _is_baseline
 
 
 func execute() -> Variant:
@@ -90,11 +99,13 @@ func serialize() -> Dictionary:
 		&"direction_x": _direction.x,
 		&"direction_y": _direction.y,
 		&"snapshot": get_snapshot(),
-		&"reverse_map": _reverse_target_map
+		&"reverse_map": _reverse_target_map,
+		&"is_baseline": _is_baseline,
 	}
 
 static func deserialize(data: Dictionary) -> MoveCommand:
 	var cmd := MoveCommand.new(Vector2i(data.get("direction_x", 0), data.get("direction_y", 0)))
 	cmd.set_snapshot(data.get("snapshot"))
 	cmd._reverse_target_map = data.get("reverse_map", {})
+	cmd._is_baseline = data.get("is_baseline", false)
 	return cmd

@@ -34,6 +34,9 @@ extends Resource
 ## 完整的棋盘状态快照。
 @export var board_snapshot: Dictionary = {}
 
+## 保存生成规则的内部状态。
+@export var rules_states: Array = []
+
 ## 保存完整的撤回历史记录。
 @export var game_state_history: Array[Dictionary] = []
 

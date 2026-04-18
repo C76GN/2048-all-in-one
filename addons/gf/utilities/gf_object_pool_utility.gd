@@ -146,6 +146,16 @@ func prewarm(scene: PackedScene, parent: Node, count: int) -> void:
 		_available_pools[scene].push_back(node)
 
 
+## 确保指定场景至少有 count 个可用节点，已有可用节点会被复用。
+## @param scene: 要预热的 PackedScene 资源。
+## @param parent: 预热节点将加入此父节点。
+## @param count: 目标可用节点数量。
+func ensure_capacity(scene: PackedScene, parent: Node, count: int) -> void:
+	var missing_count: int = count - get_available_count(scene)
+	if missing_count > 0:
+		prewarm(scene, parent, missing_count)
+
+
 ## 获取指定场景当前池中可用（未使用）的节点数量。
 ## @param scene: 要查询的 PackedScene 资源。
 ## @return 池中可用节点数量。

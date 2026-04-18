@@ -121,6 +121,11 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		game_ready_data.all_spawn_rules.append(rule_instance)
 		
 	_rule_system.register_rules(game_ready_data.all_spawn_rules)
+
+	if is_instance_valid(loaded_bookmark_data) and not loaded_bookmark_data.rules_states.is_empty():
+		var rules_states: Array = loaded_bookmark_data.rules_states
+		for i in range(min(game_ready_data.all_spawn_rules.size(), rules_states.size())):
+			game_ready_data.all_spawn_rules[i].set_state(rules_states[i])
 	
 	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
 	if current_game_model:

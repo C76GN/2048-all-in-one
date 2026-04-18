@@ -49,7 +49,7 @@ var _is_cleaned_up: bool = false
 
 # --- @onready 变量 (节点引用) ---
 
-@onready var game_board: Control = %GameBoard
+@onready var game_board: GameBoard = %GameBoard
 @onready var test_panel: VBoxContainer = %TestPanel
 @onready var hud: VBoxContainer = %HUD
 @onready var background_color_rect: ColorRect = %Background
@@ -76,7 +76,8 @@ func _ready() -> void:
 		_page_title.visible = false
 		
 	if is_instance_valid(_game_status_model):
-		_game_status_model.move_count.value_changed.connect(func(_old, _new): _update_replay_ui())
+		if not _game_status_model.move_count.value_changed.is_connected(_on_move_count_changed):
+			_game_status_model.move_count.value_changed.connect(_on_move_count_changed)
 		
 	Gf.listen(GameReadyData, _on_game_ready_data_received)
 	Gf.listen_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
@@ -135,6 +136,10 @@ func _cleanup_listeners() -> void:
 	Gf.unlisten_simple(EventNames.BOARD_RESIZED, _on_board_resized)
 	Gf.unlisten_simple(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
 	Gf.unlisten(HudMessagePayload, _on_show_hud_message_event)
+
+	if is_instance_valid(_game_status_model):
+		if _game_status_model.move_count.value_changed.is_connected(_on_move_count_changed):
+			_game_status_model.move_count.value_changed.disconnect(_on_move_count_changed)
 	
 	if _log:
 		_log.info("GamePlay", "_cleanup_listeners: cleaned up all GF listeners and signal connections")
@@ -148,9 +153,6 @@ func _connect_signals() -> void:
 		replay_next_step_button.pressed.connect(_replay_system.step_forward)
 	if is_instance_valid(replay_back_button) and not replay_back_button.pressed.is_connected(_on_replay_back_pressed):
 		replay_back_button.pressed.connect(_on_replay_back_pressed)
-
-	if not _hud_message_timer.timeout.is_connected(_on_hud_message_timer_timeout):
-		_hud_message_timer.timeout.connect(_on_hud_message_timer_timeout)
 
 	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 	Gf.listen_simple(EventNames.BOARD_RESIZED, _on_board_resized)
@@ -239,6 +241,9 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 
 	if is_instance_valid(_loaded_bookmark_data):
 		game_board.restore_from_snapshot(_loaded_bookmark_data.board_snapshot)
+		if is_instance_valid(_game_flow_system):
+			_game_flow_system.enter_playing_state()
+			_game_flow_system.sync_bookmark_baseline_state()
 	else:
 		if is_instance_valid(_game_flow_system):
 			if _log:
@@ -253,11 +258,14 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 	
 	if not is_instance_valid(_loaded_bookmark_data) and _command_history:
 		var init_cmd := MoveCommand.new(Vector2i.ZERO)
+		init_cmd.mark_as_baseline()
+		var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
 		var arch := Gf.get_architecture()
 		init_cmd.set_snapshot({
 			&"grid_snapshot": (arch.get_model(GridModel) as GridModel).get_snapshot(),
 			&"score": _game_status_model.score.get_value(),
-			&"move_count": _game_status_model.move_count.get_value()
+			&"move_count": _game_status_model.move_count.get_value(),
+			&"rng_state": seed_util.get_state() if seed_util else 0,
 		})
 		_command_history.record(init_cmd)
 
@@ -265,6 +273,10 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 func _on_board_resized(new_size: int) -> void:
 	if is_instance_valid(_test_utility):
 		_test_utility.update_limits(new_size)
+
+
+func _on_move_count_changed(_old_value: int, _new_value: int) -> void:
+	_update_replay_ui()
 
 
 func _on_toggle_pause_ui(_payload: Variant = null) -> void:

@@ -30,7 +30,7 @@ func async_init() -> void:
 ## 将一个BookmarkData资源保存到文件中。
 ## @param bookmark_data: 要保存的BookmarkData资源。
 func save_bookmark(bookmark_data: BookmarkData) -> void:
-	var file_path := BOOKMARK_DIR.path_join("bookmark_%d.tres" % bookmark_data.timestamp)
+	var file_path := BOOKMARK_DIR.path_join("bookmark_%d_%d.tres" % [bookmark_data.timestamp, Time.get_ticks_msec()])
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
 	if storage:
 		storage.save_resource(file_path, bookmark_data)

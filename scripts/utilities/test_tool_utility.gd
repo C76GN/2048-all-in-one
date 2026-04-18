@@ -10,7 +10,7 @@ extends GFUtility
 # --- 私有变量 ---
 
 var _test_panel: Control
-var _game_board: Control
+var _game_board: GameBoard
 
 
 # --- 公共方法 ---
@@ -18,7 +18,7 @@ var _game_board: Control
 ## 设置测试工具。
 ## @param panel: 测试面板节点引用。
 ## @param board: 游戏棋盘节点引用。
-func setup_test_tools(panel: Control, board: Control) -> void:
+func setup_test_tools(panel: Control, board: GameBoard) -> void:
 	_test_panel = panel
 	_game_board = board
 	
@@ -114,12 +114,54 @@ func _on_live_expand_requested_event(new_size: int) -> void:
 	var arch := Gf.get_architecture()
 	var grid_model := arch.get_model(GridModel) as GridModel
 	
-	if grid_model:
-		grid_model.expand_grid(new_size)
-		# 这里我们不再直接调用 _game_board.live_expand()
-		# 而是发送一个事件让 GameBoard 自己去处理
-		Gf.send_simple_event(&"test_live_expand_requested", new_size)
+	if grid_model and new_size > grid_model.grid_size:
+		Gf.send_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, new_size)
 
 
 func _on_reset_and_resize_requested(new_size: int) -> void:
-	Gf.send_simple_event(EventNames.RESET_AND_RESIZE_WITH_PARAMS, [new_size])
+	Gf.send_simple_event(EventNames.GAME_STATE_TAINTED)
+
+	var arch := Gf.get_architecture()
+	var grid_model := arch.get_model(GridModel) as GridModel
+	var current_game_model := arch.get_model(CurrentGameModel) as CurrentGameModel
+	var status_model := arch.get_model(GameStatusModel) as GameStatusModel
+	var command_history := arch.get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var seed_util := arch.get_utility(GFSeedUtility) as GFSeedUtility
+	var game_board: GameBoard = _game_board
+
+	if not grid_model or not current_game_model or not is_instance_valid(game_board):
+		return
+
+	var mode_config := current_game_model.mode_config.get_value() as GameModeConfig
+	if not is_instance_valid(mode_config):
+		return
+
+	current_game_model.current_grid_size.set_value(new_size)
+	game_board.setup(new_size, grid_model.interaction_rule, grid_model.movement_rule, null, mode_config.color_schemes, mode_config.board_theme)
+
+	if is_instance_valid(status_model):
+		status_model.score.set_value(0)
+		status_model.move_count.set_value(0)
+		status_model.monsters_killed.set_value(0)
+		status_model.highest_tile.set_value(0)
+		status_model.status_message.set_value("")
+		status_model.extra_stats.set_value({})
+
+	if command_history:
+		command_history.clear()
+
+	Gf.send_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION)
+
+	if command_history:
+		var init_cmd := MoveCommand.new(Vector2i.ZERO)
+		init_cmd.mark_as_baseline()
+		init_cmd.set_snapshot({
+			&"grid_snapshot": grid_model.get_snapshot(),
+			&"score": status_model.score.get_value() if status_model else 0,
+			&"move_count": status_model.move_count.get_value() if status_model else 0,
+			&"rng_state": seed_util.get_state() if seed_util else 0,
+		})
+		command_history.record(init_cmd)
+
+	Gf.send_simple_event(EventNames.BOARD_RESIZED, new_size)
+	Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)

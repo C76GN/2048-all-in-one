@@ -49,6 +49,9 @@ var _active_move_tween: Tween
 ## 追踪当前正在执行的缩放 Tween（如合并时）。
 var _active_scale_tween: Tween
 
+## 追踪当前正在执行的旋转 Tween。
+var _active_rotation_tween: Tween
+
 
 # --- @onready 变量 (节点引用) ---
 
@@ -67,12 +70,10 @@ func _ready() -> void:
 ## 初始化或更新方块的状态和外观。
 ##
 ## 这是该节点的唯一公共接口，用于设置其所有核心属性。
-## 当方块数值变大时，会自动触发合并动画。
 ## @param new_value: 方块的新数值。
 ## @param bg_color: 背景颜色。
 ## @param font_color: 字体颜色。
 func setup(new_value: int, bg_color: Color, font_color: Color) -> void:
-	var old_value: int = self.value
 	self.value = new_value
 	
 	value_label.text = str(int(value))
@@ -80,21 +81,37 @@ func setup(new_value: int, bg_color: Color, font_color: Color) -> void:
 	value_label.add_theme_color_override("font_color", font_color)
 	_update_font_size()
 
-	if new_value > old_value and old_value != 0:
-		animate_merge()
+
+## 停止当前动画并恢复基础变换状态，供对象池复用前调用。
+func reset_animation_state() -> void:
+	if _active_move_tween and _active_move_tween.is_valid():
+		_active_move_tween.kill()
+	if _active_scale_tween and _active_scale_tween.is_valid():
+		_active_scale_tween.kill()
+	if _active_rotation_tween and _active_rotation_tween.is_valid():
+		_active_rotation_tween.kill()
+
+	_active_move_tween = null
+	_active_scale_tween = null
+	_active_rotation_tween = null
+	scale = Vector2.ONE
+	rotation_degrees = 0
 
 
 ## 播放方块生成时的动画（从小到大旋转出现）。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_spawn() -> Tween:
+	if _active_rotation_tween and _active_rotation_tween.is_valid():
+		_active_rotation_tween.kill()
+
 	scale = Vector2.ZERO
 	rotation_degrees = -360
-	var tween: Tween = create_tween()
-	tween.set_parallel(true)
-	tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.tween_property(self , "scale", Vector2.ONE, 0.1)
-	tween.tween_property(self , "rotation_degrees", 0, 0.1)
-	return tween
+	_active_rotation_tween = create_tween()
+	_active_rotation_tween.set_parallel(true)
+	_active_rotation_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_active_rotation_tween.tween_property(self , "scale", Vector2.ONE, 0.1)
+	_active_rotation_tween.tween_property(self , "rotation_degrees", 0, 0.1)
+	return _active_rotation_tween
 
 
 ## 播放方块在棋盘上移动时的动画。
@@ -114,7 +131,8 @@ func animate_move(new_position: Vector2) -> Tween:
 
 
 ## 播放方块合并或增强时的脉冲动画（放大后复原）。
-func animate_merge() -> void:
+## @return: 返回控制该动画的 Tween 对象。
+func animate_merge() -> Tween:
 	if _active_scale_tween and _active_scale_tween.is_valid():
 		_active_scale_tween.kill()
 
@@ -122,17 +140,23 @@ func animate_merge() -> void:
 	_active_scale_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_active_scale_tween.tween_property(self , "scale", Vector2.ONE * 1.2, 0.1)
 	_active_scale_tween.tween_property(self , "scale", Vector2.ONE, 0.1)
+	return _active_scale_tween
 
 
 ## 播放方块被强制转变类型时的“抖动”动画。
-func animate_transform() -> void:
-	var tween: Tween = create_tween()
-	tween.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
-	tween.tween_property(self , "rotation_degrees", -15, 0.05)
-	tween.tween_property(self , "rotation_degrees", 15, 0.05)
-	tween.tween_property(self , "rotation_degrees", -10, 0.05)
-	tween.tween_property(self , "rotation_degrees", 10, 0.05)
-	tween.tween_property(self , "rotation_degrees", 0, 0.05)
+## @return: 返回控制该动画的 Tween 对象。
+func animate_transform() -> Tween:
+	if _active_rotation_tween and _active_rotation_tween.is_valid():
+		_active_rotation_tween.kill()
+
+	_active_rotation_tween = create_tween()
+	_active_rotation_tween.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	_active_rotation_tween.tween_property(self , "rotation_degrees", -15, 0.05)
+	_active_rotation_tween.tween_property(self , "rotation_degrees", 15, 0.05)
+	_active_rotation_tween.tween_property(self , "rotation_degrees", -10, 0.05)
+	_active_rotation_tween.tween_property(self , "rotation_degrees", 10, 0.05)
+	_active_rotation_tween.tween_property(self , "rotation_degrees", 0, 0.05)
+	return _active_rotation_tween
 
 
 # --- 私有/辅助方法 ---

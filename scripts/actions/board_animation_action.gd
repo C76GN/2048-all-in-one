@@ -2,10 +2,15 @@
 
 ## BoardAnimationAction: 封装棋盘上方块合并、移动、生成的表现动作。
 ##
-## 该动作将一帧内所有方块动画组合在一起执行。由于使用了 Tween，它会在
-## 所有动画结束后完成，通知 GFActionQueueSystem 继续下一个动作。
+## 棋盘动画是非阻塞表现层：execute() 只启动 Tween 并立即返回，不等待动画完成。
 class_name BoardAnimationAction
 extends GFVisualAction
+
+
+# --- 常量 ---
+
+## 用于防止旧 Tween 回调释放已被复用的 Tile。
+const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 
 
 # --- 私有变量 ---
@@ -47,28 +52,13 @@ func execute() -> Variant:
 
 				if is_instance_valid(consumed):
 					# 确保被消耗的方块平滑移动到目标点后再消失
-					var c_t: Tween = consumed.animate_move(target_pos)
-					if c_t and c_t.is_valid():
-						c_t.finished.connect(func():
-							if is_instance_valid(consumed):
-								var pool
-								if _game_board.has_method("get_utility"):
-									pool = _game_board.get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
-								if pool and _game_board.get("TileScene") != null:
-									pool.release(consumed, _game_board.TileScene)
-									consumed.visible = false
-								else:
-									consumed.queue_free()
-						)
+					var release_token := RefCounted.new()
+					consumed.set_meta(RELEASE_TOKEN_META, release_token)
+					var consumed_tween: Tween = consumed.animate_move(target_pos)
+					if consumed_tween and consumed_tween.is_valid():
+						consumed_tween.finished.connect(func(): _release_consumed_tile(consumed, release_token))
 					else:
-						var pool
-						if _game_board.has_method("get_utility"):
-							pool = _game_board.get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
-						if pool and _game_board.get("TileScene") != null:
-							pool.release(consumed, _game_board.TileScene)
-							consumed.visible = false
-						else:
-							consumed.queue_free()
+						_release_consumed_tile(consumed, release_token)
 
 				if is_instance_valid(merged):
 					# merged 方块可能在同一帧收到了 MOVE 指令（已在上面处理）
@@ -87,7 +77,35 @@ func execute() -> Variant:
 				if is_instance_valid(spawn_tile):
 					spawn_tile.animate_spawn()
 
+			&"TRANSFORM":
+				tile = instruction[&"tile"]
+				var transform_data: Dictionary = instruction.get(&"target_setup_data", {})
+				if is_instance_valid(tile) and not transform_data.is_empty():
+					tile.setup(transform_data[&"value"], transform_data[&"bg"], transform_data[&"font"])
+					if transform_data.get(&"do_merge", false):
+						tile.animate_merge()
+					if transform_data.get(&"do_transform", false):
+						tile.animate_transform()
+
 			_:
 				continue
 
 	return null
+
+
+func _release_consumed_tile(consumed: Tile, release_token: RefCounted) -> void:
+	if not is_instance_valid(consumed):
+		return
+	if consumed.get_meta(RELEASE_TOKEN_META, "") != release_token:
+		return
+
+	consumed.set_meta(RELEASE_TOKEN_META, 0)
+	consumed.reset_animation_state()
+	var pool: GFObjectPoolUtility
+	if _game_board.has_method("get_utility"):
+		pool = _game_board.get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
+	if pool and _game_board.get("TileScene") != null:
+		pool.release(consumed, _game_board.TileScene)
+		consumed.visible = false
+	else:
+		consumed.queue_free()

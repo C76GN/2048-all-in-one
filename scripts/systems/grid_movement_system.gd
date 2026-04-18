@@ -66,6 +66,7 @@ func handle_move(direction: Vector2i) -> MoveData:
 		var result: Dictionary = movement_rule.process_line(line)
 		var new_line: Array[GameTileData] = result.line
 		var merges: Array[Dictionary] = result.merges
+		var merged_tile_ids: Dictionary = {}
 
 		if result.moved:
 			if not i in moved_lines_indices:
@@ -75,6 +76,7 @@ func handle_move(direction: Vector2i) -> MoveData:
 		for merge_info in merges:
 			var consumed: GameTileData = merge_info.consumed_tile
 			var merged: GameTileData = merge_info.merged_tile
+			merged_tile_ids[merged.get_instance_id()] = true
 			var final_line_pos: int = new_line.find(merged)
 			var final_coords: Vector2i = _get_coords_for_line(i, final_line_pos, direction, grid_size)
 
@@ -107,6 +109,8 @@ func handle_move(direction: Vector2i) -> MoveData:
 		for j in range(grid_size):
 			var original_data: GameTileData = line[j]
 			if original_data == null or not original_data.get_instance_id() in tiles_in_new_line_ids:
+				continue
+			if merged_tile_ids.has(original_data.get_instance_id()):
 				continue
 
 			var final_line_pos: int = new_line.find(original_data)

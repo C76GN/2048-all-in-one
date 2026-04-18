@@ -20,6 +20,7 @@ var _mode_config_path: String = ""
 var _current_grid_size: int = 4
 var _initial_seed_of_session: int = 0
 var _last_saved_bookmark_state: Dictionary = {}
+var _player_actions: Array[Vector2i] = []
 
 ## 核心状态机。
 var _fsm: GFStateMachine
@@ -88,10 +89,20 @@ func setup(rule_system: RuleSystem, game_over_rule: GameOverRule) -> void:
 	_game_over_rule = game_over_rule
 
 
-## 触发初始棋盘规则。
-func trigger_initial_rules() -> void:
+## 将当前完整状态标记为已保存的书签基线。
+func sync_bookmark_baseline_state() -> void:
+	_last_saved_bookmark_state = _get_bookmark_comparison_state()
+
+
+## 进入可操作的游戏状态，不触发棋盘初始化。
+func enter_playing_state() -> void:
 	_fsm.start(EventNames.STATE_READY)
 	_fsm.change_state(EventNames.STATE_PLAYING)
+
+
+## 触发初始棋盘规则。
+func trigger_initial_rules() -> void:
+	enter_playing_state()
 	Gf.send_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION)
 
 
@@ -101,6 +112,7 @@ func check_game_over() -> void:
 		return
 	if _grid_model.interaction_rule != null:
 		if _game_over_rule.is_game_over(_grid_model, _grid_model.interaction_rule):
+			Gf.send_simple_event(EventNames.BOARD_REFRESH_REQUESTED, _grid_model.get_snapshot())
 			Gf.send_simple_event(EventNames.GAME_LOST)
 			_fsm.change_state(EventNames.STATE_GAME_OVER)
 			_handle_game_over()
@@ -120,14 +132,7 @@ func _handle_game_over() -> void:
 	replay_data.initial_seed = _initial_seed_of_session
 	replay_data.grid_size = _current_grid_size
 	
-	var actions: Array[Vector2i] = []
-	var _command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-	if _command_history:
-		for cmd in _command_history.get_undo_history():
-			if cmd is MoveCommand:
-				actions.append(cmd.get_direction())
-				
-	replay_data.actions = actions
+	replay_data.actions = _player_actions.duplicate()
 	replay_data.final_board_snapshot = _grid_model.get_snapshot()
 	replay_data.final_score = _game_status_model.score.get_value()
 	
@@ -190,9 +195,10 @@ func _on_game_ready(data: GameReadyData) -> void:
 		_mode_config_path = data.mode_config.resource_path
 	_current_grid_size = data.current_grid_size
 	_initial_seed_of_session = data.initial_seed
+	_player_actions.clear()
 	_last_saved_bookmark_state = {}
 	if is_instance_valid(data.loaded_bookmark_data):
-		_last_saved_bookmark_state = _get_full_game_state()
+		_rebuild_player_actions_from_history()
 
 func _get_full_game_state() -> Dictionary:
 	var utility := get_system(GameStateSystem) as GameStateSystem
@@ -200,17 +206,57 @@ func _get_full_game_state() -> Dictionary:
 		return utility.get_full_game_state(_current_grid_size)
 	return {}
 
+
+func _get_bookmark_comparison_state() -> Dictionary:
+	var state := _get_full_game_state()
+	var command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	if command_history:
+		state[&"game_state_history"] = command_history.serialize_history()
+	return state
+
+
+func _rebuild_player_actions_from_history() -> void:
+	var command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	if not command_history:
+		return
+
+	for cmd in command_history.get_undo_history():
+		if cmd is MoveCommand:
+			var move_cmd := cmd as MoveCommand
+			if move_cmd.is_baseline():
+				continue
+			var direction: Vector2i = move_cmd.get_direction()
+			if direction != Vector2i.ZERO:
+				_player_actions.append(direction)
+
+
 func _on_game_state_tainted(_payload: Variant = null) -> void:
 	_is_game_state_tainted = true
+
 
 func _on_undo_requested(_payload: Variant = null) -> void:
 	if _fsm.current_state_name != EventNames.STATE_PLAYING or _is_replay_mode:
 		return
 	var _command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-	if _command_history and _command_history.can_undo():
-		_command_history.undo_last()
+	if _command_history and _can_undo_player_move(_command_history):
+		if _command_history.undo_last() and not _player_actions.is_empty():
+			_player_actions.pop_back()
 	else:
 		Gf.send_event(HudMessagePayload.new(tr("UNDO_FAIL_MSG"), 3.0))
+
+
+func _can_undo_player_move(command_history: GFCommandHistoryUtility) -> bool:
+	var history := command_history.get_undo_history()
+	if history.is_empty():
+		return false
+
+	var last_cmd: GFUndoableCommand = history.back() as GFUndoableCommand
+	if last_cmd is MoveCommand:
+		var move_cmd := last_cmd as MoveCommand
+		return not move_cmd.is_baseline() and move_cmd.get_direction() != Vector2i.ZERO
+
+	return true
+
 
 func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	if _fsm.current_state_name != EventNames.STATE_PLAYING:
@@ -219,10 +265,7 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	if _is_game_state_tainted:
 		Gf.send_event(HudMessagePayload.new(tr("SNAPSHOT_TAINT_WARN"), 4.0))
 
-	var current_state_for_comparison: Dictionary = _get_full_game_state()
-	var _command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-	if _command_history:
-		current_state_for_comparison["game_state_history"] = _command_history.serialize_history()
+	var current_state_for_comparison: Dictionary = _get_bookmark_comparison_state()
 
 	if JSON.stringify(current_state_for_comparison) == JSON.stringify(_last_saved_bookmark_state):
 		Gf.send_event(HudMessagePayload.new(tr("SNAPSHOT_NO_CHANGE"), 3.0))
@@ -241,7 +284,9 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	new_bookmark.monsters_killed = current_state_for_comparison.get(&"monsters_killed", 0)
 	new_bookmark.rng_state = current_state_for_comparison.get(&"rng_state", 0)
 	new_bookmark.board_snapshot = current_state_for_comparison.get(&"board_snapshot", {})
+	new_bookmark.rules_states = current_state_for_comparison.get(&"rules_states", [])
 	
+	var _command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	if _command_history:
 		new_bookmark.game_state_history = _command_history.serialize_history()
 
@@ -286,6 +331,8 @@ func _on_return_to_main_menu_from_game(_payload: Variant = null) -> void:
 
 func _on_move_made(move_data: MoveData) -> void:
 	if is_instance_valid(move_data):
+		if not _is_replay_mode and move_data.direction != Vector2i.ZERO:
+			_player_actions.append(move_data.direction)
 		_game_status_model.move_count.set_value(_game_status_model.move_count.get_value() + 1)
 		
 		# 更新最高方块值

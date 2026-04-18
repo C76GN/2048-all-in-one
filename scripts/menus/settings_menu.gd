@@ -7,6 +7,12 @@ class_name SettingsMenu
 extends GFUIController
 
 
+# --- 公共变量 ---
+
+## 返回按钮是否切回主菜单；作为弹层打开时应设为 false。
+var return_to_main_menu_on_back: bool = true
+
+
 # --- @onready 变量 (节点引用) ---
 
 @onready var _page_title: Label = %PageTitle
@@ -80,6 +86,12 @@ func _on_language_selected(index: int) -> void:
 
 
 func _on_back_button_pressed() -> void:
+	if not return_to_main_menu_on_back:
+		var ui_util := get_utility(GFUIUtility) as GFUIUtility
+		if ui_util:
+			ui_util.pop_panel()
+		return
+
 	var router := get_system(SceneRouterSystem) as SceneRouterSystem
 	if router:
 		router.return_to_main_menu()
