@@ -17,7 +17,7 @@ func enter(_msg: Dictionary = {}) -> void:
 		if rule_manager:
 			rule_manager.clear_rules()
 
-	Gf.send_simple_event(&"game_state_changed", &"GameOver")
+	Gf.send_simple_event(EventNames.GAME_STATE_CHANGED, EventNames.STATE_GAME_OVER)
 
 
 func exit() -> void:

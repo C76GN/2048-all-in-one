@@ -10,7 +10,7 @@ extends GFState
 # --- 重写方法 ---
 
 func enter(_msg: Dictionary = {}) -> void:
-	Gf.send_simple_event(&"game_state_changed", &"Playing")
+	Gf.send_simple_event(EventNames.GAME_STATE_CHANGED, EventNames.STATE_PLAYING)
 
 
 func exit() -> void:

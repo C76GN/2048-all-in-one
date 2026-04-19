@@ -61,6 +61,9 @@ var pool: GFObjectPoolUtility
 ## 标记是否已完成清理。
 var _is_cleaned_up: bool = false
 
+## 棋盘扩展动画版本号，用于丢弃旧 Tween 的延迟回调。
+var _expansion_token: int = 0
+
 
 # --- @onready 变量 (节点引用) ---
 
@@ -138,6 +141,11 @@ func clear_visual_tiles() -> void:
 	_visual_map.clear()
 	if _log:
 		_log.info("GameBoard", "clear_visual_tiles: Visual tiles released and map cleared.")
+
+
+## 供棋盘动画 Action 归还已离场的视觉方块，避免 Action 直接依赖对象池实现细节。
+func release_visual_tile(tile: Tile) -> void:
+	_release_visual_tile(tile)
 
 
 
@@ -374,6 +382,8 @@ func _draw_board_cells() -> void:
 
 ## 执行棋盘从旧尺寸到新尺寸的扩建动画。
 func _animate_expansion(old_size: int, new_size: int) -> void:
+	_expansion_token += 1
+	var expansion_token: int = _expansion_token
 	var final_layout: Dictionary = _calculate_layout_params(new_size)
 	if final_layout.is_empty(): return
 	var main_tween := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
@@ -382,16 +392,21 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 	var final_container_pos: Vector2 = final_layout.offset + Vector2(BOARD_PADDING, BOARD_PADDING) * final_layout.scale_ratio
 	main_tween.tween_property(board_container, "position", final_container_pos, 0.3)
 	main_tween.tween_property(board_container, "scale", Vector2.ONE * final_layout.scale_ratio, 0.3)
-	await main_tween.finished
+	main_tween.finished.connect(func(): _draw_expanded_cells(old_size, new_size, expansion_token), CONNECT_ONE_SHOT)
+
+
+func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) -> void:
+	if expansion_token != _expansion_token:
+		return
 
 	# 清理旧格子 (非 Tile 节点)
 	for child in board_container.get_children():
 		if child is Control and not child is Tile:
 			child.queue_free()
 
-	var new_cells_tween := create_tween().set_parallel(true)
-
 	if not is_instance_valid(grid_cell_scene): return
+
+	var new_cells_tween := create_tween().set_parallel(true)
 
 	for x in new_size:
 		for y in new_size:
@@ -417,8 +432,6 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 			else:
 				cell_instance.size = final_size
 				cell_instance.position = final_pos
-
-	await new_cells_tween.finished
 
 
 ## 将网格坐标转换为棋盘容器内的局部像素中心点坐标。

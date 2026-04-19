@@ -100,12 +100,8 @@ func _release_consumed_tile(consumed: Tile, release_token: RefCounted) -> void:
 		return
 
 	consumed.set_meta(RELEASE_TOKEN_META, 0)
-	consumed.reset_animation_state()
-	var pool: GFObjectPoolUtility
-	if _game_board.has_method("get_utility"):
-		pool = _game_board.get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
-	if pool and _game_board.get("TileScene") != null:
-		pool.release(consumed, _game_board.TileScene)
-		consumed.visible = false
+	if _game_board.has_method(&"release_visual_tile"):
+		_game_board.release_visual_tile(consumed)
 	else:
+		consumed.reset_animation_state()
 		consumed.queue_free()

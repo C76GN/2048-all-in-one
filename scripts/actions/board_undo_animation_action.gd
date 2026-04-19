@@ -3,7 +3,7 @@
 ## BoardUndoAnimationAction: 封装棋盘撤回时的反向过渡动画。
 ##
 ## 根据前置滑动记录的反向映射表，将棋盘上的方块反向“退回”到原先的位置，
-## 动画结束后调用全量重绘同步准确的视觉节点。
+## execute() 会立即恢复准确的视觉节点并启动非阻塞位移动画，不等待 Tween 完成。
 class_name BoardUndoAnimationAction
 extends GFVisualAction
 
