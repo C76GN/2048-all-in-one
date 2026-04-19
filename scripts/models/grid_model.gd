@@ -47,7 +47,7 @@ func get_snapshot() -> Dictionary:
 				tiles_list.append({
 					&"pos": Vector2i(x, y),
 					&"value": a_tile.value,
-					&"type": a_tile.type
+					&"type": a_tile.type,
 				})
 	return {
 		&"grid_size": grid_size,
@@ -60,7 +60,7 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 	if not snapshot.has(&"tiles"):
 		return
 		
-	grid_size = snapshot.get(&"grid_size", grid_size)
+	grid_size = snapshot.get(&"grid_size", snapshot.get("grid_size", grid_size))
 	grid.clear()
 	grid.resize(grid_size)
 	for x in range(grid_size):
@@ -68,11 +68,11 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 		grid[x].resize(grid_size)
 		grid[x].fill(null)
 		
-	var tiles_data: Array = snapshot.tiles
+	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
 	for tile_info in tiles_data:
-		var pos: Vector2i = tile_info[&"pos"]
-		var value: int = tile_info[&"value"]
-		var type: Tile.TileType = tile_info[&"type"]
+		var pos: Vector2i = tile_info.get(&"pos", tile_info.get("pos", Vector2i.ZERO))
+		var value: int = tile_info.get(&"value", tile_info.get("value", 0))
+		var type: Tile.TileType = tile_info.get(&"type", tile_info.get("type", Tile.TileType.PLAYER))
 		grid[pos.x][pos.y] = GameTileData.new(value, type)
 
 

@@ -1,18 +1,11 @@
 # scripts/ui/base/gf_ui_controller.gd
 
-class_name GFUIController
-extends Control
-
 ## GFUIController: UI 控制器的基类，为 UI 提供框架能力的接口。
 ##
-## 继承自 Control，平移了 GFController 的懒加载获取与事件转发能力，
+## 继承自 Control，平移了 GFController 的架构访问与事件转发能力，
 ## 并自动处理本地化翻译更新的模板逻辑。
-
-
-# --- 私有变量 ---
-
-## 懒加载缓存字典。
-var _cache: Dictionary = {}
+class_name GFUIController
+extends Control
 
 
 # --- Godot 生命周期方法 ---
@@ -22,27 +15,21 @@ func _notification(what: int) -> void:
 		_update_ui_text()
 
 
-# --- 获取方法 (懒加载缓存) ---
+# --- 获取方法 ---
 
 ## 通过类型获取 Model 实例。
 func get_model(model_type: Script) -> Object:
-	if not _cache.has(model_type):
-		_cache[model_type] = Gf.get_architecture().get_model(model_type)
-	return _cache[model_type]
+	return Gf.get_architecture().get_model(model_type)
 
 
 ## 通过类型获取 System 实例。
 func get_system(system_type: Script) -> Object:
-	if not _cache.has(system_type):
-		_cache[system_type] = Gf.get_architecture().get_system(system_type)
-	return _cache[system_type]
+	return Gf.get_architecture().get_system(system_type)
 
 
 ## 通过类型获取 Utility 实例。
 func get_utility(utility_type: Script) -> Object:
-	if not _cache.has(utility_type):
-		_cache[utility_type] = Gf.get_architecture().get_utility(utility_type)
-	return _cache[utility_type]
+	return Gf.get_architecture().get_utility(utility_type)
 
 
 # --- 命令与查询 ---

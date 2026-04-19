@@ -12,10 +12,10 @@ var _grid_model: GridModel
 var _log: GFLogUtility
 
 
-# --- 重写方法 ---
+# --- Godot 生命周期方法 ---
 
 ## 从架构获取必要的层级引用。
-func init() -> void:
+func ready() -> void:
 	_grid_model = get_model(GridModel) as GridModel
 	_log = get_utility(GFLogUtility) as GFLogUtility
 
@@ -26,15 +26,17 @@ func init() -> void:
 ## @param direction: 移动的方向向量 (Vector2i.UP, DOWN, LEFT, RIGHT)
 ## @return: 如果发生了有效移动，返回包含方向和受影响行/列的 MoveData；否则返回 null。
 func handle_move(direction: Vector2i) -> MoveData:
-	if not _grid_model:
-		if _log: _log.error("GridMovementSystem", "GridModel reference is missing.")
+	if not is_instance_valid(_grid_model):
+		if is_instance_valid(_log):
+			_log.error("GridMovementSystem", "GridModel reference is missing.")
 		return null
 		
 	var interaction_rule = _grid_model.interaction_rule
 	var movement_rule = _grid_model.movement_rule
 	
 	if not interaction_rule or not movement_rule:
-		if _log: _log.error("GridMovementSystem", "GridModel is missing rules.")
+		if is_instance_valid(_log):
+			_log.error("GridMovementSystem", "GridModel is missing rules.")
 		return null
 		
 	var grid_size = _grid_model.grid_size

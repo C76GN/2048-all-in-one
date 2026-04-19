@@ -259,14 +259,9 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 	if not is_instance_valid(_loaded_bookmark_data) and _command_history:
 		var init_cmd := MoveCommand.new(Vector2i.ZERO)
 		init_cmd.mark_as_baseline()
-		var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
-		var arch := Gf.get_architecture()
-		init_cmd.set_snapshot({
-			&"grid_snapshot": (arch.get_model(GridModel) as GridModel).get_snapshot(),
-			&"score": _game_status_model.score.get_value(),
-			&"move_count": _game_status_model.move_count.get_value(),
-			&"rng_state": seed_util.get_state() if seed_util else 0,
-		})
+		var game_state_system := get_system(GameStateSystem) as GameStateSystem
+		if is_instance_valid(game_state_system):
+			init_cmd.set_snapshot(game_state_system.get_full_game_state(grid_size))
 		_command_history.record(init_cmd)
 
 

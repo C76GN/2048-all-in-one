@@ -28,6 +28,15 @@ extends Resource
 ## 书签保存时消灭的怪物数。
 @export var monsters_killed: int = 0
 
+## 书签保存时的最高玩家方块。
+@export var highest_tile: int = 0
+
+## 书签保存时的状态提示文本。
+@export var status_message: String = ""
+
+## 书签保存时的扩展统计数据。
+@export var extra_stats: Dictionary = {}
+
 ## RNG生成器的内部状态，用于精确恢复。
 @export var rng_state: int = 0
 

@@ -21,6 +21,7 @@ func _init(snapshot: Dictionary, reverse_target_map: Dictionary, game_board: Nod
 	_snapshot = snapshot
 	_reverse_target_map = reverse_target_map
 	_game_board = game_board
+	as_fire_and_forget()
 
 
 # --- 公共方法 ---

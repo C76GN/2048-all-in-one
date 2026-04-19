@@ -16,9 +16,6 @@ const BOOKMARK_DIR: String = "user://bookmarks/"
 
 # --- Godot 生命周期方法 ---
 
-func init() -> void:
-	pass
-
 func async_init() -> void:
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
 	if storage:

@@ -8,9 +8,6 @@ var _is_playing: bool = false
 var _is_active: bool = false
 var _replay_data: ReplayData = null
 
-func init() -> void:
-	pass
-
 func ready() -> void:
 	Gf.listen(GameReadyData, _on_game_ready)
 	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)

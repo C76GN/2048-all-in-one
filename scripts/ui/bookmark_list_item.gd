@@ -55,7 +55,10 @@ func _update_display() -> void:
 	if bookmark_data.timestamp > 0:
 		datetime = Time.get_datetime_string_from_unix_time(bookmark_data.timestamp).replace("T", " ")
 
-	var grid_size: int = bookmark_data.board_snapshot.get("grid_size", 0)
+	var grid_size: int = bookmark_data.board_snapshot.get(
+		&"grid_size",
+		bookmark_data.board_snapshot.get("grid_size", 0)
+	)
 
 	var score_label := tr("SCORE_LABEL").replace(": %d", "").strip_edges()
 	var size_label := tr("SIZE_LABEL")

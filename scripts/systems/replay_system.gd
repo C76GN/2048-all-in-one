@@ -32,13 +32,14 @@ var _command_history: GFCommandHistoryUtility
 
 # --- Godot 生命周期方法 ---
 
-func init() -> void:
-	_command_history = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-
 func async_init() -> void:
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
 	if storage:
 		DirAccess.make_dir_recursive_absolute(REPLAY_DIR)
+
+
+func ready() -> void:
+	_command_history = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 
 
 # --- 公共方法 ---

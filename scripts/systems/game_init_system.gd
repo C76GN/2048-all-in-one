@@ -4,18 +4,22 @@
 class_name GameInitSystem
 extends GFSystem
 
+
+# --- 私有变量 ---
+
 var _seed_utility: GFSeedUtility
 var _rule_system: RuleSystem
 var _game_flow_system: GameFlowSystem
 var _command_history: GFCommandHistoryUtility
 var _log: GFLogUtility
 
-func init() -> void:
+
+# --- Godot 生命周期方法 ---
+
+func ready() -> void:
 	_seed_utility = get_utility(GFSeedUtility) as GFSeedUtility
 	_command_history = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	_log = get_utility(GFLogUtility) as GFLogUtility
-	
-func ready() -> void:
 	_rule_system = get_system(RuleSystem) as RuleSystem
 	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
 	
@@ -24,6 +28,9 @@ func ready() -> void:
 
 func dispose() -> void:
 	Gf.unlisten_simple(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
+
+
+# --- 信号处理函数 ---
 
 func _on_request_initialization(_payload: Variant = null) -> void:
 	var app_config := get_model(AppConfigModel) as AppConfigModel
@@ -54,7 +61,10 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		init_seed = replay_data.initial_seed
 	elif is_instance_valid(loaded_bookmark_data):
 		config_path = loaded_bookmark_data.mode_config_path
-		grid_size = loaded_bookmark_data.board_snapshot.get("grid_size")
+		grid_size = loaded_bookmark_data.board_snapshot.get(
+			&"grid_size",
+			loaded_bookmark_data.board_snapshot.get("grid_size", 4)
+		)
 		init_seed = loaded_bookmark_data.initial_seed
 	else:
 		grid_size = app_config.selected_grid_size.get_value()
@@ -80,7 +90,8 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	game_ready_data.game_over_rule = mode_config.game_over_rule.duplicate() as GameOverRule
 	
 	if _log: _log.info("GameInitSystem", "Calling set_global_seed(%d)" % init_seed)
-	_seed_utility.set_global_seed(init_seed)
+	if is_instance_valid(_seed_utility):
+		_seed_utility.set_global_seed(init_seed)
 	
 	var save_system := get_system(SaveSystem) as SaveSystem
 	var mode_id: String = mode_config.resource_path.get_file().get_basename()
@@ -88,11 +99,15 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 
 	var game_status_model := get_model(GameStatusModel) as GameStatusModel
 	if is_instance_valid(loaded_bookmark_data):
-		_seed_utility.set_state(loaded_bookmark_data.rng_state)
+		if is_instance_valid(_seed_utility):
+			_seed_utility.set_state(loaded_bookmark_data.rng_state)
 		if game_status_model:
 			game_status_model.score.set_value(loaded_bookmark_data.score)
 			game_status_model.move_count.set_value(loaded_bookmark_data.move_count)
 			game_status_model.monsters_killed.set_value(loaded_bookmark_data.monsters_killed)
+			game_status_model.highest_tile.set_value(loaded_bookmark_data.highest_tile)
+			game_status_model.status_message.set_value(loaded_bookmark_data.status_message)
+			game_status_model.extra_stats.set_value(loaded_bookmark_data.extra_stats.duplicate(true))
 			# 恢复存档时也要初始化最高分
 			game_status_model.high_score.set_value(high_score)
 

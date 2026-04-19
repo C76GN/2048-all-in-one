@@ -16,10 +16,9 @@ var _log: GFLogUtility
 
 # --- Godot 生命周期方法 ---
 
-func init() -> void:
+func ready() -> void:
 	_log = get_utility(GFLogUtility) as GFLogUtility
 
-func ready() -> void:
 	# 可选：监听全局事件 `scene_change_requested` 以解耦调用
 	Gf.listen_simple(EventNames.SCENE_CHANGE_REQUESTED, _on_scene_change_requested)
 	Gf.listen_simple(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, _on_return_to_main_menu_requested)

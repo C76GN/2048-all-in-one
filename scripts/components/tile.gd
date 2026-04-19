@@ -96,6 +96,17 @@ func reset_animation_state() -> void:
 	_active_rotation_tween = null
 	scale = Vector2.ONE
 	rotation_degrees = 0
+	modulate = Color.WHITE
+
+
+## GFObjectPoolUtility 取出节点时调用，确保复用节点没有残留 Tween。
+func on_gf_pool_acquire() -> void:
+	reset_animation_state()
+
+
+## GFObjectPoolUtility 归还节点时调用，确保节点进入池前已停止动画。
+func on_gf_pool_release() -> void:
+	reset_animation_state()
 
 
 ## 播放方块生成时的动画（从小到大旋转出现）。
@@ -109,8 +120,8 @@ func animate_spawn() -> Tween:
 	_active_rotation_tween = create_tween()
 	_active_rotation_tween.set_parallel(true)
 	_active_rotation_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_active_rotation_tween.tween_property(self , "scale", Vector2.ONE, 0.1)
-	_active_rotation_tween.tween_property(self , "rotation_degrees", 0, 0.1)
+	_active_rotation_tween.tween_property(self, "scale", Vector2.ONE, 0.1)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", 0, 0.1)
 	return _active_rotation_tween
 
 
@@ -126,7 +137,7 @@ func animate_move(new_position: Vector2) -> Tween:
 
 	_active_move_tween = create_tween()
 	_active_move_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_active_move_tween.tween_property(self , "position", new_position, 0.1)
+	_active_move_tween.tween_property(self, "position", new_position, 0.1)
 	return _active_move_tween
 
 
@@ -138,8 +149,21 @@ func animate_merge() -> Tween:
 
 	_active_scale_tween = create_tween()
 	_active_scale_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_active_scale_tween.tween_property(self , "scale", Vector2.ONE * 1.2, 0.1)
-	_active_scale_tween.tween_property(self , "scale", Vector2.ONE, 0.1)
+	_active_scale_tween.tween_property(self, "scale", Vector2.ONE * 1.2, 0.1)
+	_active_scale_tween.tween_property(self, "scale", Vector2.ONE, 0.1)
+	return _active_scale_tween
+
+
+## 播放方块离场时的缩小淡出动画。
+## @return: 返回控制该动画的 Tween 对象。
+func animate_despawn() -> Tween:
+	reset_animation_state()
+
+	_active_scale_tween = create_tween()
+	_active_scale_tween.set_parallel(true)
+	_active_scale_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	_active_scale_tween.tween_property(self, "scale", Vector2.ZERO, 0.12)
+	_active_scale_tween.tween_property(self, "modulate:a", 0.0, 0.12)
 	return _active_scale_tween
 
 
@@ -151,11 +175,11 @@ func animate_transform() -> Tween:
 
 	_active_rotation_tween = create_tween()
 	_active_rotation_tween.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
-	_active_rotation_tween.tween_property(self , "rotation_degrees", -15, 0.05)
-	_active_rotation_tween.tween_property(self , "rotation_degrees", 15, 0.05)
-	_active_rotation_tween.tween_property(self , "rotation_degrees", -10, 0.05)
-	_active_rotation_tween.tween_property(self , "rotation_degrees", 10, 0.05)
-	_active_rotation_tween.tween_property(self , "rotation_degrees", 0, 0.05)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", -15, 0.05)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", 15, 0.05)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", -10, 0.05)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", 10, 0.05)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", 0, 0.05)
 	return _active_rotation_tween
 
 

@@ -63,8 +63,8 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 		show_message(tr("NO_PREVIEW_DATA")) # 本地化
 		return
 
-	var grid_size: int = snapshot.get("grid_size", 4)
-	var tiles_data: Array = snapshot.get("tiles", [])
+	var grid_size: int = snapshot.get(&"grid_size", snapshot.get("grid_size", 4))
+	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
 
 	# 动态计算尺寸
 	var raw_cell_size: float = MAX_PREVIEW_SIZE / (grid_size + (grid_size + 1) * SPACING_RATIO)
@@ -102,9 +102,9 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 
 	# 绘制方块
 	for tile_data in tiles_data:
-		var pos: Vector2i = tile_data["pos"]
-		var value: int = tile_data["value"]
-		var type: int = tile_data["type"]
+		var pos: Vector2i = tile_data.get(&"pos", tile_data.get("pos", Vector2i.ZERO))
+		var value: int = tile_data.get(&"value", tile_data.get("value", 0))
+		var type: int = tile_data.get(&"type", tile_data.get("type", Tile.TileType.PLAYER))
 
 		var tile := TILE_SCENE.instantiate() as Tile
 		_board_container.add_child(tile)

@@ -6,14 +6,22 @@
 class_name SaveSystem
 extends GFSystem
 
+
+# --- 常量 ---
+
 const SAVE_FILE_NAME: String = "game_save.tres"
+
+
+# --- 私有变量 ---
 
 var _storage: GFStorageUtility
 var _save_data: GameSaveResource
 var _log: GFLogUtility
 
 
-func init() -> void:
+# --- Godot 生命周期方法 ---
+
+func ready() -> void:
 	_storage = get_utility(GFStorageUtility) as GFStorageUtility
 	_log = get_utility(GFLogUtility) as GFLogUtility
 	_load_game_data()

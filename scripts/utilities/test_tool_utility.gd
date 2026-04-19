@@ -126,7 +126,6 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	var current_game_model := arch.get_model(CurrentGameModel) as CurrentGameModel
 	var status_model := arch.get_model(GameStatusModel) as GameStatusModel
 	var command_history := arch.get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-	var seed_util := arch.get_utility(GFSeedUtility) as GFSeedUtility
 	var game_board: GameBoard = _game_board
 
 	if not grid_model or not current_game_model or not is_instance_valid(game_board):
@@ -155,12 +154,9 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	if command_history:
 		var init_cmd := MoveCommand.new(Vector2i.ZERO)
 		init_cmd.mark_as_baseline()
-		init_cmd.set_snapshot({
-			&"grid_snapshot": grid_model.get_snapshot(),
-			&"score": status_model.score.get_value() if status_model else 0,
-			&"move_count": status_model.move_count.get_value() if status_model else 0,
-			&"rng_state": seed_util.get_state() if seed_util else 0,
-		})
+		var game_state_system := arch.get_system(GameStateSystem) as GameStateSystem
+		if is_instance_valid(game_state_system):
+			init_cmd.set_snapshot(game_state_system.get_full_game_state(new_size))
 		command_history.record(init_cmd)
 
 	Gf.send_simple_event(EventNames.BOARD_RESIZED, new_size)

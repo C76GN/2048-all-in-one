@@ -78,7 +78,10 @@ func _update_preview(data: Resource) -> void:
 		return
 
 	var datetime: String = Time.get_datetime_string_from_unix_time(bookmark.timestamp)
-	var grid_size: int = bookmark.board_snapshot.get("grid_size", 0)
+	var grid_size: int = bookmark.board_snapshot.get(
+		&"grid_size",
+		bookmark.board_snapshot.get("grid_size", 0)
+	)
 
 	var details: String = ""
 	details += "[b]%s[/b] %s\n" % [tr("LABEL_MODE"), tr(mode_config.mode_name)]

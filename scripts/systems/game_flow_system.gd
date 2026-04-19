@@ -28,15 +28,11 @@ var _fsm: GFStateMachine
 var _log: GFLogUtility
 
 
-# --- 重写方法 ---
+# --- Godot 生命周期方法 ---
 
-## 从架构获取必要的层级引用。
+## 初始化内部状态机。
 func init() -> void:
-	_grid_model = get_model(GridModel) as GridModel
-	_game_status_model = get_model(GameStatusModel) as GameStatusModel
-	_log = get_utility(GFLogUtility) as GFLogUtility
-	
-	_fsm = GFStateMachine.new(self )
+	_fsm = GFStateMachine.new(self)
 	_fsm.add_state(EventNames.STATE_READY, GFStateReady.new())
 	_fsm.add_state(EventNames.STATE_PLAYING, GFStatePlaying.new())
 	_fsm.add_state(EventNames.STATE_GAME_OVER, GFStateGameOver.new())
@@ -44,6 +40,10 @@ func init() -> void:
 
 ## 处理初始化，绑定事件。
 func ready() -> void:
+	_grid_model = get_model(GridModel) as GridModel
+	_game_status_model = get_model(GameStatusModel) as GameStatusModel
+	_log = get_utility(GFLogUtility) as GFLogUtility
+
 	Gf.listen(MoveData, _on_move_made)
 	Gf.listen_simple(EventNames.TURN_FINISHED, _on_turn_finished)
 	Gf.listen_simple(EventNames.MONSTER_KILLED, _on_monster_killed)
@@ -276,12 +276,16 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	new_bookmark.mode_config_path = _mode_config_path
 	
 	var seed_utility := get_utility(GFSeedUtility) as GFSeedUtility
-	new_bookmark.initial_seed = seed_utility.get_global_seed()
-	new_bookmark.rng_state = seed_utility.get_state()
+	if is_instance_valid(seed_utility):
+		new_bookmark.initial_seed = seed_utility.get_global_seed()
 
 	new_bookmark.score = current_state_for_comparison.get(&"score", 0)
 	new_bookmark.move_count = current_state_for_comparison.get(&"move_count", 0)
 	new_bookmark.monsters_killed = current_state_for_comparison.get(&"monsters_killed", 0)
+	new_bookmark.highest_tile = current_state_for_comparison.get(&"highest_tile", 0)
+	new_bookmark.status_message = current_state_for_comparison.get(&"status_message", "")
+	var extra_stats: Dictionary = current_state_for_comparison.get(&"extra_stats", {})
+	new_bookmark.extra_stats = extra_stats.duplicate(true)
 	new_bookmark.rng_state = current_state_for_comparison.get(&"rng_state", 0)
 	new_bookmark.board_snapshot = current_state_for_comparison.get(&"board_snapshot", {})
 	new_bookmark.rules_states = current_state_for_comparison.get(&"rules_states", [])

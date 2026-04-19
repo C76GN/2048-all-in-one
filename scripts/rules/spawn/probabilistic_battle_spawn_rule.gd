@@ -4,7 +4,7 @@
 ##
 ## 规则行为:
 ## 1. 监听移动事件 (ON_MOVE)。
-## 2. 每次移动后，有较低概率生成一个怪物方块。如果生成失败，则生成一个常规的玩家方块。
+## 2. 每次移动后，有较低概率生成一个怪物方块；失败时交给后续规则生成玩家方块。
 ## 3. 怪物生成概率是动态的：如果失败，则增加下一次的成功概率，直到达到上限；如果成功，则重置为基础概率。
 ## 4. 生成的怪物数值会根据当前棋盘上玩家方块的最大值动态调整，变得更具挑战性。
 class_name ProbabilisticBattleSpawnRule
@@ -23,12 +23,6 @@ extends SpawnRule
 
 ## 怪物生成概率可以达到的最大值。
 @export_range(0.0, 1.0) var max_probability: float = 0.5
-
-
-@export_group("玩家方块配置")
-
-## 生成数值为2的玩家方块的概率（其余为4）。
-@export_range(0.0, 1.0) var probability_of_2: float = 0.9
 
 
 # --- 私有变量 ---
@@ -67,17 +61,10 @@ func execute(context: RuleContext) -> bool:
 
 		_current_probability = base_probability
 
-	else:
-		_current_probability = min(_current_probability + increase_on_failure, max_probability)
+		return true
 
-		var value: int = 2 if rng.randf() < probability_of_2 else 4
-		var spawn_data := SpawnData.new()
-		spawn_data.value = value
-		spawn_data.type = Tile.TileType.PLAYER
-		spawn_data.is_priority = false
-		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
-
-	return true
+	_current_probability = min(_current_probability + increase_on_failure, max_probability)
+	return false
 
 
 ## 将HUD显示数据写入传入的 hud_data 对象。

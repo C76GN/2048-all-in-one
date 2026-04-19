@@ -24,6 +24,7 @@ var _game_board: Node
 func _init(instructions: Array, game_board: Node) -> void:
 	_instructions = instructions
 	_game_board = game_board
+	as_fire_and_forget()
 
 
 # --- 公共方法 ---

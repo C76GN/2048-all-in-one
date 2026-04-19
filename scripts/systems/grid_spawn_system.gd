@@ -12,14 +12,12 @@ var _grid_model: GridModel
 var _seed_utility: GFSeedUtility
 var _log: GFLogUtility
 
-# --- 重写方法 ---
+# --- Godot 生命周期方法 ---
 
-func init() -> void:
+func ready() -> void:
 	_grid_model = get_model(GridModel) as GridModel
 	_seed_utility = get_utility(GFSeedUtility) as GFSeedUtility
 	_log = get_utility(GFLogUtility) as GFLogUtility
-
-func ready() -> void:
 	Gf.listen_simple(EventNames.SPAWN_TILE_REQUESTED, _on_spawn_tile_requested)
 
 func dispose() -> void:
@@ -29,6 +27,9 @@ func dispose() -> void:
 
 func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 	if not is_instance_valid(spawn_data):
+		return
+
+	if not is_instance_valid(_grid_model) or not is_instance_valid(_seed_utility):
 		return
 
 	if _log:

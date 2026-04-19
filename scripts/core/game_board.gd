@@ -123,8 +123,13 @@ func setup(p_grid_size: int, p_interaction_rule: InteractionRule, p_movement_rul
 	call_deferred(&"_update_board_layout")
 	_draw_board_cells()
 	
-	if pool:
-		pool.ensure_capacity(TileScene, board_container, model.grid_size * model.grid_size)
+	if is_instance_valid(pool):
+		var required_tile_count: int = model.grid_size * model.grid_size
+		var available_tile_count: int = pool.get_available_count(TileScene)
+		var missing_tile_count: int = max(required_tile_count - available_tile_count, 0)
+		if missing_tile_count > 0:
+			pool.prewarm(TileScene, board_container, missing_tile_count)
+
 		for child in board_container.get_children():
 			if child is Tile:
 				child.visible = false
@@ -216,25 +221,37 @@ func restore_from_snapshot_with_reverse_animation(snapshot: Dictionary, reverse_
 # --- 私有/辅助方法 ---
 
 func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary) -> void:
+	var current_tiles: Array[Tile] = []
 	for child in board_container.get_children():
 		if child is Tile:
-			_release_visual_tile(child as Tile)
+			current_tiles.append(child as Tile)
+
+	if reverse_target_map.is_empty():
+		for tile in current_tiles:
+			_release_visual_tile(tile)
+	else:
+		var reverse_start_tiles := _build_reverse_start_tiles_map(snapshot, reverse_target_map)
+		for tile in current_tiles:
+			if _should_animate_undo_despawn(tile, reverse_start_tiles):
+				_animate_release_visual_tile(tile)
+			else:
+				_release_visual_tile(tile)
 
 	_visual_map.clear()
 
 	if not model:
 		return
 
-	var grid_size: int = snapshot.get(&"grid_size", 4)
+	var grid_size: int = snapshot.get(&"grid_size", snapshot.get("grid_size", 4))
 	var interaction_rule: InteractionRule = model.interaction_rule
 	var movement_rule: MovementRule = model.movement_rule
 	model.initialize(grid_size, interaction_rule, movement_rule)
 
-	var tiles_data: Array = snapshot.get(&"tiles", [])
+	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
 	for tile_data_snapshot in tiles_data:
-		var pos: Vector2i = tile_data_snapshot[&"pos"]
-		var value: int = tile_data_snapshot[&"value"]
-		var type: Tile.TileType = tile_data_snapshot[&"type"]
+		var pos: Vector2i = tile_data_snapshot.get(&"pos", tile_data_snapshot.get("pos", Vector2i.ZERO))
+		var value: int = tile_data_snapshot.get(&"value", tile_data_snapshot.get("value", 0))
+		var type: Tile.TileType = tile_data_snapshot.get(&"type", tile_data_snapshot.get("type", Tile.TileType.PLAYER))
 
 		var new_tile: Tile = _create_visual_tile(value, type)
 		var tile_data := GameTileData.new(value, type)
@@ -292,6 +309,71 @@ func _release_visual_tile(tile: Tile) -> void:
 		tile.visible = false
 	else:
 		tile.queue_free()
+
+
+func _animate_release_visual_tile(tile: Tile) -> void:
+	if not is_instance_valid(tile):
+		return
+
+	var release_token := RefCounted.new()
+	tile.set_meta(RELEASE_TOKEN_META, release_token)
+	tile.move_to_front()
+
+	var despawn_tween: Tween = tile.animate_despawn()
+	if is_instance_valid(despawn_tween) and despawn_tween.is_valid():
+		despawn_tween.finished.connect(func(): _release_visual_tile_if_valid(tile, release_token))
+	else:
+		_release_visual_tile_if_valid(tile, release_token)
+
+
+func _release_visual_tile_if_valid(tile: Tile, release_token: RefCounted) -> void:
+	if not is_instance_valid(tile):
+		return
+	if tile.get_meta(RELEASE_TOKEN_META, null) != release_token:
+		return
+
+	_release_visual_tile(tile)
+
+
+func _build_reverse_start_tiles_map(snapshot: Dictionary, reverse_target_map: Dictionary) -> Dictionary:
+	var reverse_start_tiles: Dictionary = {}
+	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
+
+	for tile_data_snapshot in tiles_data:
+		var pos: Vector2i = tile_data_snapshot.get(&"pos", tile_data_snapshot.get("pos", Vector2i.ZERO))
+		var value: int = tile_data_snapshot.get(&"value", tile_data_snapshot.get("value", 0))
+		var type: Tile.TileType = tile_data_snapshot.get(&"type", tile_data_snapshot.get("type", Tile.TileType.PLAYER))
+		var pos_key := "%d,%d" % [pos.x, pos.y]
+		var start_grid_pos: Vector2i = reverse_target_map.get(pos_key, pos)
+		var start_key := "%d,%d" % [start_grid_pos.x, start_grid_pos.y]
+
+		if not reverse_start_tiles.has(start_key):
+			reverse_start_tiles[start_key] = []
+
+		reverse_start_tiles[start_key].append({
+			&"value": value,
+			&"type": type,
+		})
+
+	return reverse_start_tiles
+
+
+func _should_animate_undo_despawn(tile: Tile, reverse_start_tiles: Dictionary) -> bool:
+	if not is_instance_valid(tile):
+		return false
+
+	var current_grid_pos: Vector2i = _pixel_center_to_grid(tile.position)
+	var current_key := "%d,%d" % [current_grid_pos.x, current_grid_pos.y]
+	var candidates: Array = reverse_start_tiles.get(current_key, [])
+
+	if candidates.size() != 1:
+		return true
+
+	var candidate: Dictionary = candidates[0]
+	return (
+		candidate.get(&"value", 0) != tile.value
+		or candidate.get(&"type", Tile.TileType.PLAYER) != tile.type
+	)
 
 
 func _get_tile_colors(value: int, type: Tile.TileType) -> Dictionary:
@@ -441,6 +523,14 @@ func _grid_to_pixel_center(grid_pos: Vector2i) -> Vector2:
 	return top_left_pos + Vector2.ONE * (CELL_SIZE / 2.0)
 
 
+func _pixel_center_to_grid(pixel_pos: Vector2) -> Vector2i:
+	var step: float = CELL_SIZE + SPACING
+	return Vector2i(
+		roundi((pixel_pos.x - CELL_SIZE / 2.0) / step),
+		roundi((pixel_pos.y - CELL_SIZE / 2.0) / step)
+	)
+
+
 ## 根据棋盘尺寸和可用空间，计算缩放、尺寸和偏移等布局参数。
 ## @return: 一个包含布局参数的字典。
 func _calculate_layout_params(p_size: int) -> Dictionary:
@@ -564,7 +654,7 @@ func _on_board_animation_requested(instructions: Array) -> void:
 		return
 			
 	# 2. 实例化视觉动作
-	var action := BoardAnimationAction.new(visual_instructions, self ) as GFVisualAction
+	var action := BoardAnimationAction.new(visual_instructions, self) as GFVisualAction
 	
 	# 3. 推入 GFActionQueueSystem 执行
 	var queue_sys := get_system(GFActionQueueSystem) as GFActionQueueSystem

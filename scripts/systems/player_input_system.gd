@@ -7,9 +7,6 @@ extends GFSystem
 var _is_playing: bool = false
 var _is_active: bool = false
 
-func init() -> void:
-	pass
-
 func ready() -> void:
 	Gf.listen(GameReadyData, _on_game_ready)
 	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
