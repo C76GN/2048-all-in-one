@@ -30,11 +30,3 @@ var selected_seed: BindableProperty = BindableProperty.new(0)
 
 func init() -> void:
 	pass
-
-
-# --- 公共方法 ---
-
-## 清除所有的临时导航数据（回放、书签）。
-func clear_navigation_data() -> void:
-	current_replay_data.set_value(null)
-	selected_bookmark_data.set_value(null)

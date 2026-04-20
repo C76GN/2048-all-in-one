@@ -2,18 +2,11 @@
 
 [ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://scenes/ui/layouts/base_three_column_layout.tscn" id="1_base"]
 [ext_resource type="Script" uid="uid://dv3rjr57hmwij" path="res://scripts/menus/mode_selection.gd" id="2_script"]
-[ext_resource type="PackedScene" uid="uid://28ale2iku1n4" path="res://scenes/game/game_play.tscn" id="3_gameplay"]
-[ext_resource type="Resource" uid="uid://dso7a1vuipkqt" path="res://resources/modes/classic_mode_config.tres" id="4_classic"]
-[ext_resource type="Resource" uid="uid://djrsravpjyj8" path="res://resources/modes/fibonacci_mode_config.tres" id="5_fib"]
-[ext_resource type="Resource" uid="uid://dlv621h6njs6m" path="res://resources/modes/lucas_fibonacci_mode_config.tres" id="6_lucas"]
-[ext_resource type="Resource" uid="uid://da3ioky106k1i" path="res://resources/modes/progressive_mode_config.tres" id="7_prog"]
-[ext_resource type="Resource" uid="uid://dklmno2p3q4r5" path="res://resources/modes/step_by_step_mode_config.tres" id="8_step"]
-[ext_resource type="Resource" uid="uid://bnt3ah04gd5v2" path="res://resources/modes/battle_mode_config.tres" id="9_battle"]
 
 [node name="ModeSelection" unique_id=1133187568 instance=ExtResource("1_base")]
 script = ExtResource("2_script")
-game_play_scene = ExtResource("3_gameplay")
-mode_configs = Array[Resource]([ExtResource("4_classic"), ExtResource("5_fib"), ExtResource("6_lucas"), ExtResource("7_prog"), ExtResource("8_step"), ExtResource("9_battle")])
+game_play_scene_path = "res://scenes/game/game_play.tscn"
+mode_config_paths = Array[String](["res://resources/modes/classic_mode_config.tres", "res://resources/modes/fibonacci_mode_config.tres", "res://resources/modes/lucas_fibonacci_mode_config.tres", "res://resources/modes/progressive_mode_config.tres", "res://resources/modes/step_by_step_mode_config.tres", "res://resources/modes/battle_mode_config.tres"])
 
 [node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
 text = "模式选择"

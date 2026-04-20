@@ -67,9 +67,9 @@ func execute(context: RuleContext) -> bool:
 	return false
 
 
-## 将HUD显示数据写入传入的 hud_data 对象。
+## 将 HUD 显示数据写入传入的 stats 字典。
 ## @param context: 包含 grid_model 的上下文。
-## @param hud_data: 要写入显示数据的 HUDDisplayData 对象。
+## @param stats: 要写入显示数据的字典。
 func get_hud_stats(context: RuleContext, stats: Dictionary) -> void:
 	stats[&"monster_chance_label"] = tr("BATTLE_MONSTER_CHANCE") % (_current_probability * 100)
 

@@ -10,8 +10,6 @@ extends GFController
 
 # --- 常量 ---
 
-const BOARD_ANIMATION_ACTION_SCRIPT: Script = preload("res://scripts/actions/board_animation_action.gd")
-
 ## 暂停菜单场景路径。
 const PAUSE_MENU_SCENE: String = "res://scenes/ui/pause_menu.tscn"
 
@@ -22,7 +20,6 @@ const GAME_OVER_MENU_SCENE: String = "res://scenes/ui/game_over_menu.tscn"
 # --- 公共变量 ---
 
 ## 标记游戏状态是否已被测试工具修改。
-var is_game_state_tainted_by_test_tools: bool = false
 
 
 # --- 私有变量 ---
@@ -38,7 +35,6 @@ var _command_history: GFCommandHistoryUtility
 
 var _action_queue: GFActionQueueSystem
 var _game_flow_system: GameFlowSystem
-var _seed_utility: GFSeedUtility
 var _replay_system: ReplaySystem
 var _test_utility: TestToolUtility
 var _log: GFLogUtility
@@ -51,7 +47,6 @@ var _is_cleaned_up: bool = false
 
 @onready var game_board: GameBoard = %GameBoard
 @onready var test_panel: VBoxContainer = %TestPanel
-@onready var hud: VBoxContainer = %HUD
 @onready var background_color_rect: ColorRect = %Background
 @onready var _page_title: Label = %PageTitle
 @onready var _hud_message_timer: Timer = %HUDMessageTimer
@@ -67,7 +62,6 @@ func _ready() -> void:
 	_game_status_model = get_model(GameStatusModel) as GameStatusModel
 	_current_game_model = get_model(CurrentGameModel) as CurrentGameModel
 	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
-	_seed_utility = get_utility(GFSeedUtility) as GFSeedUtility
 	_replay_system = get_system(ReplaySystem) as ReplaySystem
 	_test_utility = get_utility(TestToolUtility) as TestToolUtility
 	_log = get_utility(GFLogUtility) as GFLogUtility
@@ -85,7 +79,7 @@ func _ready() -> void:
 	_update_static_ui_text()
 	
 	var console := get_utility(GFConsoleUtility) as GFConsoleUtility
-	if console:
+	if Boot.are_dev_tools_enabled() and console:
 		console.register_command("toggle_test_panel", _cmd_toggle_test_panel, "Toggle developer test panel.")
 
 
@@ -99,10 +93,6 @@ func _exit_tree() -> void:
 
 
 # --- 公共方法 ---
-
-func update_replay_buttons_state() -> void:
-	_update_replay_ui()
-
 
 # --- 私有/辅助方法 ---
 
@@ -168,7 +158,7 @@ func _configure_ui_for_mode() -> void:
 	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
 	replay_controls_container.visible = is_replay
 
-	test_panel.visible = false if is_replay else OS.has_feature("editor")
+	test_panel.visible = not is_replay and Boot.are_dev_tools_enabled() and OS.has_feature("editor")
 
 	_update_replay_ui()
 
@@ -193,6 +183,9 @@ func _show_hud_message(message: String, duration: float) -> void:
 
 
 func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
+	if not Boot.are_dev_tools_enabled():
+		return
+
 	if is_instance_valid(test_panel) and not _current_game_model.is_replay_mode.get_value():
 		test_panel.visible = not test_panel.visible
 		var console := get_utility(GFConsoleUtility) as GFConsoleUtility
@@ -208,15 +201,11 @@ func _on_scene_will_change(_payload: Variant = null) -> void:
 
 
 func _on_game_ready_data_received(data: GameReadyData) -> void:
-	is_game_state_tainted_by_test_tools = false
-	
 	if not _command_history:
 		_command_history = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 		
 	if not _action_queue:
 		_action_queue = get_system(GFActionQueueSystem) as GFActionQueueSystem
-		if not _action_queue:
-			_action_queue = GFActionQueueSystem.new()
 	
 	if _action_queue:
 		_action_queue.clear_queue()
@@ -251,10 +240,11 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 			_game_flow_system.trigger_initial_rules()
 
 	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
-	if not is_replay:
+	if not is_replay and Boot.are_dev_tools_enabled() and is_instance_valid(_test_utility):
 		var grid_model := get_model(GridModel) as GridModel
-		_test_utility.setup_test_tools(test_panel, game_board)
-		_test_utility.initialize_panel(grid_model.interaction_rule, _current_game_model.current_grid_size.get_value())
+		if is_instance_valid(grid_model):
+			_test_utility.setup_test_tools(test_panel, game_board)
+			_test_utility.initialize_panel(grid_model.interaction_rule, _current_game_model.current_grid_size.get_value())
 	
 	if not is_instance_valid(_loaded_bookmark_data) and _command_history:
 		var init_cmd := MoveCommand.new(Vector2i.ZERO)

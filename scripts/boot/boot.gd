@@ -19,6 +19,10 @@ extends Node
 
 # --- Godot 生命周期方法 ---
 
+static func are_dev_tools_enabled() -> bool:
+	return OS.has_feature("editor") or OS.is_debug_build()
+
+
 func _ready() -> void:
 	var arch := GFArchitecture.new()
 	
@@ -31,12 +35,13 @@ func _ready() -> void:
 	arch.register_utility(GFCommandHistoryUtility, history_util)
 	
 	arch.register_utility(GFTimeUtility, GFTimeUtility.new())
-	arch.register_utility(TestToolUtility, TestToolUtility.new())
-
 	arch.register_utility(GFLogUtility, GFLogUtility.new())
-	arch.register_utility(GFConsoleUtility, GFConsoleUtility.new())
 	arch.register_utility(GFUIUtility, GFUIUtility.new())
 	arch.register_utility(GFObjectPoolUtility, GFObjectPoolUtility.new())
+
+	if are_dev_tools_enabled():
+		arch.register_utility(TestToolUtility, TestToolUtility.new())
+		arch.register_utility(GFConsoleUtility, GFConsoleUtility.new())
 	
 	# --- 注册 Model ---
 	arch.register_model(AppConfigModel, AppConfigModel.new())

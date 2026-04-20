@@ -38,11 +38,13 @@ func _on_next_step(_payload: Variant = null) -> void:
 	if step_index < _replay_data.actions.size():
 		var direction: Vector2i = _replay_data.actions[step_index]
 		var cmd := MoveCommand.new(direction)
-		Gf.send_command(cmd)
-		
+		var result: Variant = Gf.send_command(cmd)
+		if result == null:
+			return
+
 		if history:
 			history.record(cmd)
-		
+
 		Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
 
 func _on_prev_step(_payload: Variant = null) -> void:

@@ -75,9 +75,26 @@ func dispose() -> void:
 	Gf.unlisten_simple(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
 	Gf.unlisten_simple(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
 
+	if _fsm != null:
+		_fsm.dispose()
+		_fsm = null
+
+	_grid_model = null
+	_game_status_model = null
+	_rule_system = null
+	_game_over_rule = null
+	_log = null
+	_player_actions.clear()
+	_last_saved_bookmark_state = {}
+	_mode_config_path = ""
+	_is_replay_mode = false
+	_is_game_state_tainted = false
+	_current_grid_size = 4
+	_initial_seed_of_session = 0
+
 
 func tick(delta: float) -> void:
-	if is_instance_valid(_fsm):
+	if _fsm != null:
 		_fsm.update(delta)
 
 
@@ -96,6 +113,9 @@ func sync_bookmark_baseline_state() -> void:
 
 ## 进入可操作的游戏状态，不触发棋盘初始化。
 func enter_playing_state() -> void:
+	if _fsm == null:
+		return
+
 	_fsm.start(EventNames.STATE_READY)
 	_fsm.change_state(EventNames.STATE_PLAYING)
 
@@ -142,7 +162,7 @@ func _handle_game_over() -> void:
 			replay_system.save_replay(replay_data)
 
 
-func restart_game(from_bookmark: bool) -> void:
+func restart_game() -> void:
 	var router := get_system(SceneRouterSystem) as SceneRouterSystem
 	if not router:
 		return
@@ -155,35 +175,31 @@ func restart_game(from_bookmark: bool) -> void:
 	if not tree:
 		return
 
-	if from_bookmark:
-		var app_config := get_model(AppConfigModel) as AppConfigModel
-		if app_config:
-			pass
-		
-		tree.paused = false
-		tree.reload_current_scene()
+	tree.paused = false
+	var mode_config := current_game_model.mode_config.get_value() as GameModeConfig
+	if not is_instance_valid(mode_config):
+		return
+	var grid_size := current_game_model.current_grid_size.get_value() as int
+	var initial_seed := current_game_model.initial_seed.get_value() as int
+	if _log:
+		_log.info("GameFlowSystem", "restart_game: initial_seed=%d, grid_size=%d" % [initial_seed, grid_size])
 
-	else:
-		tree.paused = false
-		var mode_config := current_game_model.mode_config.get_value() as GameModeConfig
-		var grid_size := current_game_model.current_grid_size.get_value() as int
-		var initial_seed := current_game_model.initial_seed.get_value() as int
-		if _log: _log.info("GameFlowSystem", "restart_game: initial_seed=%d, grid_size=%d" % [initial_seed, grid_size])
-		
-		var app_config := get_model(AppConfigModel) as AppConfigModel
-		if app_config:
-			app_config.selected_mode_config_path.set_value(mode_config.resource_path)
-			app_config.selected_grid_size.set_value(grid_size)
-			app_config.selected_seed.set_value(initial_seed)
-			if _log: _log.info("GameFlowSystem", "Set app_config.selected_seed=%d" % initial_seed)
-			
-		var seed_utility := get_utility(GFSeedUtility) as GFSeedUtility
-		if seed_utility:
-			if _log: _log.info("GameFlowSystem", "Pre-setting global seed to %d" % initial_seed)
-			seed_utility.set_global_seed(initial_seed)
-			
-		var current_scene_resource: PackedScene = load(tree.current_scene.scene_file_path)
-		router.goto_scene_packed(current_scene_resource)
+	var app_config := get_model(AppConfigModel) as AppConfigModel
+	if app_config:
+		app_config.selected_mode_config_path.set_value(mode_config.resource_path)
+		app_config.selected_grid_size.set_value(grid_size)
+		app_config.selected_seed.set_value(initial_seed)
+		if _log:
+			_log.info("GameFlowSystem", "Set app_config.selected_seed=%d" % initial_seed)
+
+	var seed_utility := get_utility(GFSeedUtility) as GFSeedUtility
+	if seed_utility:
+		if _log:
+			_log.info("GameFlowSystem", "Pre-setting global seed to %d" % initial_seed)
+		seed_utility.set_global_seed(initial_seed)
+
+	if is_instance_valid(tree.current_scene) and not tree.current_scene.scene_file_path.is_empty():
+		router.goto_scene(tree.current_scene.scene_file_path)
 
 
 # --- 私有事件处理 ---
@@ -319,7 +335,7 @@ func _on_restart_game_requested(_payload: Variant = null) -> void:
 	var ui_util := get_utility(GFUIUtility) as GFUIUtility
 	if ui_util:
 		ui_util.clear_all()
-	restart_game(false)
+	restart_game()
 
 
 func _on_return_to_main_menu_from_game(_payload: Variant = null) -> void:

@@ -1,19 +1,26 @@
 # scripts/menus/main_menu.gd
 
-## MainMenu: 主菜单界面的UI控制器。
+## MainMenu: 主菜单界面的 UI 控制器。
 ##
-## 该脚本负责处理主菜单场景中的所有用户交互，
-## 例如响应按钮点击事件，并通过事件系统派发请求以进行场景切换或退出游戏。
+## 负责处理主菜单中的所有用户交互，
+## 并通过 SceneRouterSystem 执行场景切换或退出游戏。
 class_name MainMenu
 extends GFUIController
 
 
 # --- 导出变量 ---
 
-@export var mode_selection_scene: PackedScene
-@export var replay_list_scene: PackedScene
-@export var bookmark_list_scene: PackedScene
-@export var settings_scene: PackedScene # 新增：设置场景引用
+## 模式选择场景路径。
+@export_file("*.tscn") var mode_selection_scene_path: String = ""
+
+## 回放列表场景路径。
+@export_file("*.tscn") var replay_list_scene_path: String = ""
+
+## 书签列表场景路径。
+@export_file("*.tscn") var bookmark_list_scene_path: String = ""
+
+## 设置场景路径。
+@export_file("*.tscn") var settings_scene_path: String = ""
 
 
 # --- @onready 变量 (节点引用) ---
@@ -40,51 +47,40 @@ func _ready() -> void:
 
 # --- 信号处理函数 ---
 
-## 响应“开始游戏”按钮的点击事件。
 func _on_start_game_button_pressed() -> void:
-	if is_instance_valid(mode_selection_scene):
-		var router := get_system(SceneRouterSystem) as SceneRouterSystem
-		if router: router.goto_scene_packed(mode_selection_scene)
-	else:
-		push_error("MainMenu: 模式选择场景 (mode_selection_scene) 未设置。")
+	_goto_scene(mode_selection_scene_path, "mode_selection_scene_path")
 
 
-## 响应“读取书签”按钮的点击事件。
 func _on_load_bookmark_button_pressed() -> void:
-	if is_instance_valid(bookmark_list_scene):
-		var router := get_system(SceneRouterSystem) as SceneRouterSystem
-		if router: router.goto_scene_packed(bookmark_list_scene)
-	else:
-		push_error("MainMenu: 书签列表场景 (bookmark_list_scene) 未设置。")
+	_goto_scene(bookmark_list_scene_path, "bookmark_list_scene_path")
 
 
-## 响应“回放列表”按钮的点击事件。
 func _on_replays_button_pressed() -> void:
-	if is_instance_valid(replay_list_scene):
-		var router := get_system(SceneRouterSystem) as SceneRouterSystem
-		if router: router.goto_scene_packed(replay_list_scene)
-	else:
-		push_error("MainMenu: 回放列表场景 (replay_list_scene) 未设置。")
+	_goto_scene(replay_list_scene_path, "replay_list_scene_path")
 
 
-## 响应“设置”按钮的点击事件。
 func _on_settings_button_pressed() -> void:
-	if is_instance_valid(settings_scene):
-		var router := get_system(SceneRouterSystem) as SceneRouterSystem
-		if router: router.goto_scene_packed(settings_scene)
-	else:
-		push_error("MainMenu: 设置场景 (settings_scene) 未设置。")
+	_goto_scene(settings_scene_path, "settings_scene_path")
 
 
-## 响应“退出”按钮的点击事件。
 func _on_quit_button_pressed() -> void:
 	var router := get_system(SceneRouterSystem) as SceneRouterSystem
-	if router: router.quit_game()
+	if router:
+		router.quit_game()
 
 
 # --- 私有/辅助方法 ---
 
-## 更新所有UI元素的文本，用于初始化和语言切换。
+func _goto_scene(scene_path: String, property_name: String) -> void:
+	if scene_path.is_empty():
+		push_error("MainMenu: 场景路径 %s 未设置。" % property_name)
+		return
+
+	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	if router:
+		router.goto_scene(scene_path)
+
+
 func _update_ui_text() -> void:
 	if is_instance_valid(_start_game_button):
 		_start_game_button.text = tr("BTN_START_GAME")

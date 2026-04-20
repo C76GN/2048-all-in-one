@@ -2,7 +2,7 @@
 
 ## MoveCommand: 封装玩家滑动操作的具体命令，用于执行和撤销。
 ##
-## 该命令保存移动前网格状态和分数的快照，在撤销时恢复游戏状态。
+## 该命令保存移动前的完整游戏快照，并在撤销时恢复游戏状态。
 class_name MoveCommand
 extends GFUndoableCommand
 
@@ -38,25 +38,21 @@ func execute() -> Variant:
 	var arch := Gf.get_architecture()
 	var grid_model := arch.get_model(GridModel) as GridModel
 	var game_state_system := arch.get_system(GameStateSystem) as GameStateSystem
-	
-	if not is_instance_valid(grid_model):
+
+	if not is_instance_valid(grid_model) or not is_instance_valid(game_state_system):
+		push_error("MoveCommand: GridModel 或 GameStateSystem 不可用。")
 		return null
-		
-	var snapshot: Dictionary = {}
-	if is_instance_valid(game_state_system):
-		snapshot = game_state_system.get_full_game_state(grid_model.grid_size)
-	else:
-		snapshot = _create_legacy_snapshot()
-	set_snapshot(snapshot)
-	
+
+	set_snapshot(game_state_system.get_full_game_state(grid_model.grid_size))
+
 	_reverse_target_map.clear()
 	Gf.listen_simple(EventNames.BOARD_ANIMATION_REQUESTED, _on_animation_requested)
-	
+
 	var move_sys := arch.get_system(GridMovementSystem) as GridMovementSystem
 	var result: Variant = null
 	if is_instance_valid(move_sys):
 		result = move_sys.handle_move(_direction)
-		
+
 	Gf.unlisten_simple(EventNames.BOARD_ANIMATION_REQUESTED, _on_animation_requested)
 	return result
 
@@ -72,11 +68,11 @@ func undo() -> Variant:
 
 	var arch := Gf.get_architecture()
 	var game_state_system := arch.get_system(GameStateSystem) as GameStateSystem
+	if not is_instance_valid(game_state_system):
+		push_error("MoveCommand: GameStateSystem 不可用，无法撤销。")
+		return null
 
-	if is_instance_valid(game_state_system):
-		game_state_system.restore_state(snapshot)
-	else:
-		_restore_legacy_snapshot(snapshot)
+	game_state_system.restore_state(snapshot)
 
 	var board_snapshot: Dictionary = snapshot.get(
 		&"board_snapshot",
@@ -112,60 +108,6 @@ static func deserialize(data: Dictionary) -> MoveCommand:
 	return cmd
 
 
-# --- 私有/辅助方法 ---
-
-func _create_legacy_snapshot() -> Dictionary:
-	var arch := Gf.get_architecture()
-	var grid_model := arch.get_model(GridModel) as GridModel
-	var status_model := arch.get_model(GameStatusModel) as GameStatusModel
-	var seed_util := arch.get_utility(GFSeedUtility) as GFSeedUtility
-
-	if not is_instance_valid(grid_model) or not is_instance_valid(status_model):
-		return {}
-
-	return {
-		&"board_snapshot": grid_model.get_snapshot(),
-		&"grid_snapshot": grid_model.get_snapshot(),
-		&"score": status_model.score.get_value(),
-		&"move_count": status_model.move_count.get_value(),
-		&"highest_tile": status_model.highest_tile.get_value(),
-		&"monsters_killed": status_model.monsters_killed.get_value(),
-		&"status_message": status_model.status_message.get_value(),
-		&"extra_stats": status_model.extra_stats.get_value().duplicate(true),
-		&"rng_state": seed_util.get_state() if is_instance_valid(seed_util) else 0,
-	}
-
-
-func _restore_legacy_snapshot(snapshot: Dictionary) -> void:
-	var arch := Gf.get_architecture()
-	var grid_model := arch.get_model(GridModel) as GridModel
-	var status_model := arch.get_model(GameStatusModel) as GameStatusModel
-	var seed_util := arch.get_utility(GFSeedUtility) as GFSeedUtility
-
-	if is_instance_valid(grid_model):
-		var board_snapshot: Dictionary = snapshot.get(
-			&"board_snapshot",
-			snapshot.get(&"grid_snapshot", {})
-		)
-		if not board_snapshot.is_empty():
-			grid_model.restore_from_snapshot(board_snapshot)
-
-	if is_instance_valid(status_model):
-		status_model.score.set_value(snapshot.get(&"score", 0))
-		status_model.move_count.set_value(snapshot.get(&"move_count", 0))
-		var highest_tile := 0
-		if is_instance_valid(grid_model):
-			highest_tile = grid_model.get_max_player_value()
-		status_model.highest_tile.set_value(snapshot.get(&"highest_tile", highest_tile))
-		status_model.monsters_killed.set_value(snapshot.get(&"monsters_killed", 0))
-		status_model.status_message.set_value(snapshot.get(&"status_message", ""))
-		var extra_stats: Dictionary = snapshot.get(&"extra_stats", {})
-		status_model.extra_stats.set_value(extra_stats.duplicate(true))
-
-	if is_instance_valid(seed_util) and snapshot.has(&"rng_state"):
-		seed_util.set_state(snapshot[&"rng_state"])
-
-
 # --- 信号处理函数 ---
 
 func _on_animation_requested(instructions: Array) -> void:
@@ -175,8 +117,8 @@ func _on_animation_requested(instructions: Array) -> void:
 			var key := "%d,%d" % [from_pos.x, from_pos.y]
 			_reverse_target_map[key] = instr[&"to_grid_pos"]
 		elif instr[&"type"] == &"MERGE":
-			var from_c: Vector2i = instr[&"from_grid_pos_consumed"]
-			var from_m: Vector2i = instr[&"from_grid_pos_merged"]
+			var from_consumed: Vector2i = instr[&"from_grid_pos_consumed"]
+			var from_merged: Vector2i = instr[&"from_grid_pos_merged"]
 			var to_pos: Vector2i = instr[&"to_grid_pos"]
-			_reverse_target_map["%d,%d" % [from_c.x, from_c.y]] = to_pos
-			_reverse_target_map["%d,%d" % [from_m.x, from_m.y]] = to_pos
+			_reverse_target_map["%d,%d" % [from_consumed.x, from_consumed.y]] = to_pos
+			_reverse_target_map["%d,%d" % [from_merged.x, from_merged.y]] = to_pos
