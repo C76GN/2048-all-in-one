@@ -16,6 +16,106 @@
 
 ---
 
+## [1.6.3] - 2026-04-21
+
+**版本概述**：聚焦一批运行时一致性与边界稳定性修复，补齐时间控制定时器、异步命令历史、音频异步竞态、状态机热替换、战斗索引清理，以及对象池错误归还等高频运行路径的安全性。
+
+### 🔧 机制更改 (Changed)
+- **框架级定时器正式接入时间控制**：`GFTimerUtility` 改为由框架 `tick()` 推进的纯代码定时器，不再依赖 `SceneTree.create_timer()`；现在会遵循 `GFTimeUtility` 的 `time_scale` 与 `is_paused`。
+- **命令历史快照补全 redo 栈**：`GFArchitecture.get_global_snapshot()` 现在会保存 `GFCommandHistoryUtility` 的完整历史，而不仅是 undo 栈；恢复时也会兼容旧版仅含数组的历史快照。
+- **动作队列等待保护统一化**：`GFActionQueueSystem` 将所有需要等待的 `Signal` 统一走对象有效性守卫路径，非 `Node` 发射源失效时也会自动结束等待，避免卡死队列。
+
+### 🐞 Bug 修复 (Fixed)
+- **异步切场失败未清理瞬态实例**：`GFSceneUtility` 在异步加载失败时现在同样会执行 `cleanup_transients()`，避免 loading 流程中注册的临时 `System/Model` 残留。
+- **异步命令过早写入撤销栈**：`GFCommandHistoryUtility.execute_command()` 现在会在异步命令真正完成后再记录到 undo 栈，避免“尚未落地就可撤销”的历史错位。
+- **BGM 迟到回调覆盖新请求**：`GFAudioUtility` 为 BGM 异步加载增加请求序号守卫，旧请求完成时不再回写并覆盖最新播放结果。
+- **活跃状态热替换悬挂**：`GFStateMachine.add_state()` 在替换当前激活状态时会先退出旧状态，再让新状态接管当前引用，避免 `_current_state` 指向已释放对象。
+- **战斗实体索引残留**：`GFCombatSystem` 修复未注册实体的活跃索引移除错误，并在 `tick()` 中同步清理已释放实体的主索引与活跃索引。
+- **无架构时战斗事件发送崩溃**：`GFCombatSystem` 现在只会在存在有效架构时分发战斗事件，未初始化框架时不再因事件总线缺失直接报错。
+- **对象池误归还污染其他池**：`GFObjectPoolUtility.release()` 现在会基于节点记录的原始 `PackedScene` 回收到正确对象池，并对错误传入的 `scene` 发出警告。
+
+### 📢 API 变动说明 (API Changes)
+- 新增 `GFCommandHistoryUtility.serialize_full_history() -> Dictionary`
+- 新增 `GFCommandHistoryUtility.deserialize_full_history(data: Dictionary, command_builder: Callable) -> void`
+- `GFArchitecture.restore_global_snapshot()` 现在兼容两种命令历史格式：
+  1. 旧版 `Array`
+  2. 新版 `{ "undo": Array, "redo": Array }`
+
+### 📌 升级指南 (Migration Guide)
+1. 如果上层曾直接依赖 `GFArchitecture.get_global_snapshot()["command_history"]` 为数组，请更新为同时兼容 `Dictionary` 与旧版 `Array`。
+2. 如项目中存在手动向 `GFObjectPoolUtility.release()` 传错 `scene` 的调用，当前版本会发出 warning；建议尽快改正调用点，而不是长期依赖回退修正。
+3. 如需让延时逻辑受全局暂停和时间缩放控制，请优先使用已注册到架构中的 `GFTimerUtility`，而不是自行 `create_timer()`。
+
+### 📍 核心受影响文件 (Affected Files)
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/extensions/action_queue/gf_action_queue_system.gd`
+- `addons/gf/extensions/combat/gf_combat_system.gd`
+- `addons/gf/extensions/state_machine/gf_state_machine.gd`
+- `addons/gf/utilities/gf_audio_utility.gd`
+- `addons/gf/utilities/gf_command_history_utility.gd`
+- `addons/gf/utilities/gf_object_pool_utility.gd`
+- `addons/gf/utilities/gf_scene_utility.gd`
+- `addons/gf/utilities/gf_timer_utility.gd`
+- `tests/gf_core/test_gf_action_queue.gd`
+- `tests/gf_core/test_gf_audio_utility.gd`
+- `tests/gf_core/test_gf_command_history_utility.gd`
+- `tests/gf_core/test_gf_combat_extension.gd`
+- `tests/gf_core/test_gf_model_serialization.gd`
+- `tests/gf_core/test_gf_object_pool_utility.gd`
+- `tests/gf_core/test_gf_scene_utility.gd`
+- `tests/gf_core/test_gf_state_machine.gd`
+- `tests/gf_core/test_gf_timer_utility.gd`
+
+## [1.6.2] - 2026-04-21
+
+**版本概述**：收敛一批运行时稳定性与一致性问题，重点修复场景异步切换失败回退、战斗索敌形状缺口、UI 异步生命周期竞态，以及 Utility 在动态注销时的悬挂监听。
+### 🔧 机制更改 (Changed)
+- **场景异步切换失败回退**：`GFSceneUtility.load_scene_async()` 现在先发起目标场景加载请求，再决定是否切到 `loading scene`；只有在可恢复上一场景时才会进入过渡场景，并在加载成功后统一复位内部状态。
+- **技能施法中心语义收敛**：`GFSkill.execute()` 的 `cast_center` 改为可选参数；未传值时回退到施法者位置，显式传入 `Vector2.ZERO` 时会被视为合法世界坐标，不再被误判为“未传中心点”。
+- **索敌规则补齐形状参数**：`GFSkillTargetingRule` 新增 `rectangle_size`、`forward_direction` 与 `sector_angle_degrees`，将矩形/扇形索敌从“枚举已暴露、实现未落地”的状态收敛为可直接配置的正式能力。
+- **UI 异步回调生命周期保护**：`GFUIUtility` 新增活跃态守卫，异步加载完成时会先确认 Utility 与目标 `CanvasLayer` 仍然有效，再决定是否实例化并入栈面板。
+- **脚本头部规范收敛**：移除 `# path/to/file.gd` 形式的文件路径注释要求，统一以文件级 `##` 文档注释承担脚本头部说明，减少重复维护与纯样板差异。
+### 🐞 Bug 修复 (Fixed)
+- **loading scene 卡死恢复**：修复 `GFSceneUtility` 在目标资源不是 `PackedScene`、异步加载失败或切场景失败时可能把玩家留在 loading scene 的问题。
+- **矩形/扇形索敌缺失**：修复 `GFSkillTargetingUtility` 对 `RECTANGLE` / `SECTOR` 仅做标签过滤、未做空间裁剪的问题。
+- **手动指向技能默认中心错误**：修复手动目标校验直接使用 `Vector2.ZERO`，导致未传施法中心时不会回退到施法者位置的问题。
+- **SimpleEvent 悬挂监听**：`GFQuestUtility.dispose()` 现在会反注册已绑定的 simple event；`GFConsoleUtility.dispose()` 也会主动断开 `GFLogUtility.log_emitted` 连接，避免动态注销后的悬挂回调。
+- **存档槽位假阳性**：`GFStorageUtility.save_slot()` 现改为先写核心数据，再写 metadata；若新槽位 metadata 写入失败，会回滚已写入的数据文件，避免 `has_slot()` 误判。
+- **资源异步失败不回调**：`GFAssetUtility` 现在在请求发起失败、资源无效或异步加载失败时也会回调监听者，并传入 `null` 资源，便于上层统一兜底。
+- **命令历史接口补全**：补齐 `GFCommandHistoryUtility.execute_command()`，与现有文档示例和命令历史职责保持一致。
+### 📢 API 变动说明 (API Changes)
+- `GFSkill.execute(manual_target: Object = null, cast_center: Variant = null) -> void`
+- `GFSkillTargetingRule.rectangle_size: Vector2`
+- `GFSkillTargetingRule.forward_direction: Vector2`
+- `GFSkillTargetingRule.sector_angle_degrees: float`
+- `GFCommandHistoryUtility.execute_command(cmd: GFUndoableCommand) -> Variant`
+### 📌 升级指南 (Migration Guide)
+1. 之前通过 `Vector2.ZERO` 代表“未传施法中心”的调用方，需要改为直接省略第二个参数，或显式传入 `null`。
+2. 需要矩形/扇形索敌的技能资源，现在应补充填写 `rectangle_size`、`forward_direction`、`sector_angle_degrees`，避免继续只依赖 `radius` 的旧配置。
+3. 若上层逻辑依赖 `GFAssetUtility` 在失败时“静默不回调”，现在需要兼容 `null` 资源回调分支。
+### 📍 核心受影响文件 (Affected Files)
+- `CODING_STYLE.md`
+- `addons/gf/extensions/combat/gf_skill.gd`
+- `addons/gf/extensions/combat/gf_skill_targeting_rule.gd`
+- `addons/gf/extensions/combat/gf_skill_targeting_utility.gd`
+- `addons/gf/utilities/gf_scene_utility.gd`
+- `addons/gf/utilities/gf_ui_utility.gd`
+- `addons/gf/utilities/gf_storage_utility.gd`
+- `addons/gf/utilities/gf_asset_utility.gd`
+- `addons/gf/utilities/gf_quest_utility.gd`
+- `addons/gf/utilities/gf_console_utility.gd`
+- `addons/gf/utilities/gf_command_history_utility.gd`
+- `tests/gf_core/test_gf_scene_utility.gd`
+- `tests/gf_core/test_gf_combat_targeting.gd`
+- `tests/gf_core/test_gf_ui_utility.gd`
+- `tests/gf_core/test_gf_storage_utility.gd`
+- `tests/gf_core/test_gf_quest_utility.gd`
+- `tests/gf_core/test_gf_console_utility.gd`
+- `tests/gf_core/test_gf_asset_utility.gd`
+- `tests/gf_core/test_gf_command_history_utility.gd`
+
+---
+
 ## [1.6.1] - 2026-04-21
 
 **版本概述**：修复纯代码状态机的 RefCounted 引用环风险，明确 context 的生命周期守卫语义，并补充状态机关键生命周期测试。
