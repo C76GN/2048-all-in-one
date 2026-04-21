@@ -68,7 +68,7 @@ func execute() -> Variant:
 					merged.animate_move(target_pos)
 					
 					if not target_data.is_empty():
-						merged.setup(target_data[&"value"], target_data[&"bg"], target_data[&"font"])
+						merged.setup(target_data[&"value"], target_data.get(&"type", merged.type), target_data[&"bg"], target_data[&"font"])
 						merged.animate_merge()
 						if target_data.get(&"do_transform", false):
 							merged.animate_transform()
@@ -82,7 +82,7 @@ func execute() -> Variant:
 				tile = instruction[&"tile"]
 				var transform_data: Dictionary = instruction.get(&"target_setup_data", {})
 				if is_instance_valid(tile) and not transform_data.is_empty():
-					tile.setup(transform_data[&"value"], transform_data[&"bg"], transform_data[&"font"])
+					tile.setup(transform_data[&"value"], transform_data.get(&"type", tile.type), transform_data[&"bg"], transform_data[&"font"])
 					if transform_data.get(&"do_merge", false):
 						tile.animate_merge()
 					if transform_data.get(&"do_transform", false):

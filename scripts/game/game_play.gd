@@ -158,7 +158,7 @@ func _configure_ui_for_mode() -> void:
 	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
 	replay_controls_container.visible = is_replay
 
-	test_panel.visible = not is_replay and Boot.are_dev_tools_enabled() and OS.has_feature("editor")
+	test_panel.visible = not is_replay and Boot.are_dev_tools_enabled()
 
 	_update_replay_ui()
 

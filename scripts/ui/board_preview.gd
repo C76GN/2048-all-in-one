@@ -104,13 +104,13 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 	for tile_data in tiles_data:
 		var pos: Vector2i = tile_data.get(&"pos", tile_data.get("pos", Vector2i.ZERO))
 		var value: int = tile_data.get(&"value", tile_data.get("value", 0))
-		var type: int = tile_data.get(&"type", tile_data.get("type", Tile.TileType.PLAYER))
+		var type: Tile.TileType = tile_data.get(&"type", tile_data.get("type", Tile.TileType.PLAYER))
 
 		var tile := TILE_SCENE.instantiate() as Tile
 		_board_container.add_child(tile)
 
 		var colors := _get_tile_colors(value, type, mode_config)
-		tile.setup(value, colors.bg, colors.font)
+		tile.setup(value, type, colors.bg, colors.font)
 
 		var scale_factor: float = cell_size / 100.0
 		tile.scale = Vector2.ONE * scale_factor
@@ -160,7 +160,7 @@ func _get_cell_position(x: int, y: int, cell_size: float, spacing: float, offset
 	)
 
 
-func _get_tile_colors(value: int, type: int, mode_config: GameModeConfig) -> Dictionary:
+func _get_tile_colors(value: int, type: Tile.TileType, mode_config: GameModeConfig) -> Dictionary:
 	var bg_color := Color.WHITE
 	var font_color := Color.BLACK
 	

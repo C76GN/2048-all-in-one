@@ -11,22 +11,36 @@ var _replay_data: ReplayData = null
 func ready() -> void:
 	Gf.listen(GameReadyData, _on_game_ready)
 	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	Gf.listen_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
 	Gf.listen_simple(EventNames.REPLAY_NEXT_STEP, _on_next_step)
 	Gf.listen_simple(EventNames.REPLAY_PREV_STEP, _on_prev_step)
+
 
 func dispose() -> void:
 	Gf.unlisten(GameReadyData, _on_game_ready)
 	Gf.unlisten_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	Gf.unlisten_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
 	Gf.unlisten_simple(EventNames.REPLAY_NEXT_STEP, _on_next_step)
 	Gf.unlisten_simple(EventNames.REPLAY_PREV_STEP, _on_prev_step)
+
 
 func _on_game_ready(data: GameReadyData) -> void:
 	_is_active = data.is_replay_mode
 	if _is_active:
 		_replay_data = data.replay_data_resource
+	else:
+		_replay_data = null
+
 
 func _on_game_state_changed(state: Variant) -> void:
 	_is_playing = (state == EventNames.STATE_PLAYING)
+
+
+func _on_scene_will_change(_payload: Variant = null) -> void:
+	_is_active = false
+	_is_playing = false
+	_replay_data = null
+
 
 func _on_next_step(_payload: Variant = null) -> void:
 	if not _is_active or not _is_playing or not is_instance_valid(_replay_data):

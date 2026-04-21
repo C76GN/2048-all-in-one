@@ -142,7 +142,7 @@ func _handle_game_over() -> void:
 		return
 		
 	var save_system := get_system(SaveSystem) as SaveSystem
-	if save_system:
+	if save_system and not _is_game_state_tainted:
 		var mode_id: String = _mode_config_path.get_file().get_basename()
 		save_system.set_high_score(mode_id, _current_grid_size, _game_status_model.score.get_value())
 	

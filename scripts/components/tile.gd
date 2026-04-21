@@ -71,10 +71,12 @@ func _ready() -> void:
 ##
 ## 这是该节点的唯一公共接口，用于设置其所有核心属性。
 ## @param new_value: 方块的新数值。
+## @param new_type: 方块的新类型。
 ## @param bg_color: 背景颜色。
 ## @param font_color: 字体颜色。
-func setup(new_value: int, bg_color: Color, font_color: Color) -> void:
+func setup(new_value: int, new_type: TileType, bg_color: Color, font_color: Color) -> void:
 	self.value = new_value
+	self.type = new_type
 	
 	value_label.text = str(int(value))
 	(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = bg_color

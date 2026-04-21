@@ -10,16 +10,27 @@ var _is_active: bool = false
 func ready() -> void:
 	Gf.listen(GameReadyData, _on_game_ready)
 	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	Gf.listen_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+
 
 func dispose() -> void:
 	Gf.unlisten(GameReadyData, _on_game_ready)
 	Gf.unlisten_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	Gf.unlisten_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+
 
 func _on_game_ready(data: GameReadyData) -> void:
 	_is_active = not data.is_replay_mode
 
+
 func _on_game_state_changed(state: StringName) -> void:
 	_is_playing = (state == EventNames.STATE_PLAYING)
+
+
+func _on_scene_will_change(_payload: Variant = null) -> void:
+	_is_active = false
+	_is_playing = false
+
 
 func tick(_delta: float) -> void:
 	if not _is_active:

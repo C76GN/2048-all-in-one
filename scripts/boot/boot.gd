@@ -20,7 +20,7 @@ extends Node
 # --- Godot 生命周期方法 ---
 
 static func are_dev_tools_enabled() -> bool:
-	return OS.has_feature("editor") or OS.is_debug_build()
+	return OS.has_feature("editor") or OS.is_debug_build() or OS.has_feature("with_test_panel")
 
 
 func _ready() -> void:

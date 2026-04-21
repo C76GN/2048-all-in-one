@@ -294,7 +294,7 @@ func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
 	new_tile.reset_animation_state()
 	new_tile.set_meta(RELEASE_TOKEN_META, 0)
 	var colors := _get_tile_colors(value, type)
-	new_tile.setup(value, colors.bg, colors.font)
+	new_tile.setup(value, type, colors.bg, colors.font)
 	return new_tile
 
 
@@ -607,6 +607,7 @@ func _on_board_animation_requested(instructions: Array) -> void:
 					var merge_colors := _get_tile_colors(merged_data.value, merged_data.type)
 					visual_instr[&"target_setup_data"] = {
 						&"value": merged_data.value,
+						&"type": merged_data.type,
 						&"bg": merge_colors.bg,
 						&"font": merge_colors.font,
 						&"do_transform": instr.has(&"transform")
@@ -634,6 +635,7 @@ func _on_board_animation_requested(instructions: Array) -> void:
 				visual_instr[&"tile"] = transform_tile_node
 				visual_instr[&"target_setup_data"] = {
 					&"value": transform_data.value,
+					&"type": transform_data.type,
 					&"bg": transform_colors.bg,
 					&"font": transform_colors.font,
 					&"do_merge": instr.get(&"do_merge", false),
