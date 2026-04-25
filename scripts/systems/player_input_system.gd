@@ -32,6 +32,16 @@ func _on_scene_will_change(_payload: Variant = null) -> void:
 	_is_playing = false
 
 
+func _execute_move_command(direction: Vector2i) -> void:
+	var cmd := MoveCommand.new(direction)
+	var history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var result: Variant = await history.execute_command(cmd) if history else Gf.send_command(cmd)
+	if result == null:
+		return
+
+	Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+
+
 func tick(_delta: float) -> void:
 	if not _is_active:
 		return
@@ -57,10 +67,4 @@ func tick(_delta: float) -> void:
 	elif Input.is_action_just_pressed("move_right"): direction = Vector2i.RIGHT
 	
 	if direction != Vector2i.ZERO:
-		var cmd := MoveCommand.new(direction)
-		var result = Gf.send_command(cmd)
-		if result != null:
-			var history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-			if history:
-				history.record(cmd)
-			Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+		_execute_move_command(direction)

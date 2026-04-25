@@ -13,6 +13,8 @@ extends BaseListMenuItem
 ## 当一个回放列表项被确认选中时发出。
 signal replay_selected(replay_data: ReplayData)
 
+const GAME_MODE_CONFIG_CACHE = preload("res://scripts/utilities/game_mode_config_cache.gd")
+
 
 # --- @onready 变量 (节点引用) ---
 
@@ -44,7 +46,7 @@ func _update_display() -> void:
 	_mode_name_label.text = tr("UNKNOWN_MODE")
 
 	if not replay_data.mode_config_path.is_empty():
-		var mode_config := load(replay_data.mode_config_path) as GameModeConfig
+		var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE.get_config(replay_data.mode_config_path)
 		if is_instance_valid(mode_config):
 			_mode_name_label.text = tr(mode_config.mode_name)
 		else:

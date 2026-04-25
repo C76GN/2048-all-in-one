@@ -5,6 +5,11 @@ class_name GameInitSystem
 extends GFSystem
 
 
+# --- 常量 ---
+
+const GAME_MODE_CONFIG_CACHE = preload("res://scripts/utilities/game_mode_config_cache.gd")
+
+
 # --- 私有变量 ---
 
 var _seed_utility: GFSeedUtility
@@ -28,6 +33,19 @@ func ready() -> void:
 
 func dispose() -> void:
 	Gf.unlisten_simple(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
+
+
+# --- 私有/辅助方法 ---
+
+func _restore_bookmark_command_history(bookmark_data: BookmarkData) -> void:
+	if not is_instance_valid(_command_history) or not is_instance_valid(bookmark_data):
+		return
+
+	var history_data: Variant = bookmark_data.game_state_history
+	if history_data is Dictionary and not history_data.is_empty():
+		_command_history.deserialize_full_history(history_data, Callable(MoveCommand, "deserialize"))
+	elif history_data is Array and not history_data.is_empty():
+		_command_history.deserialize_history(history_data, Callable(MoveCommand, "deserialize"))
 
 
 # --- 信号处理函数 ---
@@ -81,7 +99,7 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	game_ready_data.current_grid_size = grid_size
 	game_ready_data.initial_seed = init_seed
 
-	var mode_config := load(config_path) as GameModeConfig
+	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE.get_config(config_path)
 	if not is_instance_valid(mode_config):
 		if _log:
 			_log.error("GameInitSystem", "GameModeConfig load failed: %s" % config_path)
@@ -118,9 +136,7 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 			game_status_model.extra_stats.set_value(loaded_bookmark_data.extra_stats.duplicate(true))
 			game_status_model.high_score.set_value(high_score)
 
-		if "game_state_history" in loaded_bookmark_data and not loaded_bookmark_data.game_state_history.is_empty():
-			if _command_history:
-				_command_history.deserialize_history(loaded_bookmark_data.game_state_history, Callable(MoveCommand, "deserialize"))
+		_restore_bookmark_command_history(loaded_bookmark_data)
 	else:
 		if game_status_model:
 			game_status_model.score.set_value(0)

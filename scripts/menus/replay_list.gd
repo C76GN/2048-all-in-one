@@ -7,6 +7,11 @@ class_name ReplayList
 extends BaseListMenu
 
 
+# --- 常量 ---
+
+const GAME_MODE_CONFIG_CACHE = preload("res://scripts/utilities/game_mode_config_cache.gd")
+
+
 # --- 导出变量 ---
 
 ## 游戏主场景路径。
@@ -67,9 +72,11 @@ func _update_preview(data: Resource) -> void:
 		_clear_preview()
 		return
 
-	var mode_config := load(replay.mode_config_path) as GameModeConfig
+	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE.get_config(replay.mode_config_path)
 	if not is_instance_valid(mode_config):
 		detail_info_label.text = tr("ERR_LOAD_CONFIG")
+		if is_instance_valid(board_preview_node):
+			board_preview_node.show_message(tr("ERR_LOAD_CONFIG"))
 		return
 
 	var datetime: String = Time.get_datetime_string_from_unix_time(replay.timestamp)

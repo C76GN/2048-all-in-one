@@ -47,7 +47,7 @@ extends Resource
 @export var rules_states: Array = []
 
 ## 保存完整的撤回历史记录。
-@export var game_state_history: Array[Dictionary] = []
+@export var game_state_history: Variant = {}
 
 
 # --- 公共变量 ---

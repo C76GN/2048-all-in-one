@@ -130,6 +130,9 @@ func _cleanup_listeners() -> void:
 	if is_instance_valid(_game_status_model):
 		if _game_status_model.move_count.value_changed.is_connected(_on_move_count_changed):
 			_game_status_model.move_count.value_changed.disconnect(_on_move_count_changed)
+
+	if is_instance_valid(_test_utility):
+		_test_utility.clear_context()
 	
 	if _log:
 		_log.info("GamePlay", "_cleanup_listeners: cleaned up all GF listeners and signal connections")

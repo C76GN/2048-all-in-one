@@ -14,6 +14,8 @@ extends BaseListMenuItem
 ## 兼容旧版信号名。
 signal bookmark_selected(bookmark_data: BookmarkData)
 
+const GAME_MODE_CONFIG_CACHE = preload("res://scripts/utilities/game_mode_config_cache.gd")
+
 
 # --- @onready 变量 (节点引用) ---
 
@@ -45,7 +47,7 @@ func _update_display() -> void:
 	_mode_name_label.text = tr("UNKNOWN_MODE")
 
 	if not bookmark_data.mode_config_path.is_empty():
-		var mode_config := load(bookmark_data.mode_config_path) as GameModeConfig
+		var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE.get_config(bookmark_data.mode_config_path)
 		if is_instance_valid(mode_config):
 			_mode_name_label.text = tr(mode_config.mode_name)
 		else:

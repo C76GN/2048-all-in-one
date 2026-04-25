@@ -42,6 +42,16 @@ func _on_scene_will_change(_payload: Variant = null) -> void:
 	_replay_data = null
 
 
+func _execute_replay_step(direction: Vector2i) -> void:
+	var history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var cmd := MoveCommand.new(direction)
+	var result: Variant = await history.execute_command(cmd) if history else Gf.send_command(cmd)
+	if result == null:
+		return
+
+	Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+
+
 func _on_next_step(_payload: Variant = null) -> void:
 	if not _is_active or not _is_playing or not is_instance_valid(_replay_data):
 		return
@@ -51,15 +61,7 @@ func _on_next_step(_payload: Variant = null) -> void:
 	
 	if step_index < _replay_data.actions.size():
 		var direction: Vector2i = _replay_data.actions[step_index]
-		var cmd := MoveCommand.new(direction)
-		var result: Variant = Gf.send_command(cmd)
-		if result == null:
-			return
-
-		if history:
-			history.record(cmd)
-
-		Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+		_execute_replay_step(direction)
 
 func _on_prev_step(_payload: Variant = null) -> void:
 	if not _is_active or not _is_playing:

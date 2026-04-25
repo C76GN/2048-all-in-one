@@ -53,6 +53,7 @@ func ready() -> void:
 	Gf.listen_simple(EventNames.SAVE_BOOKMARK_REQUESTED, _on_save_bookmark_requested)
 	Gf.listen_simple(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
 	Gf.listen_simple(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
+	Gf.listen_simple(EventNames.BOARD_RESIZED, _on_board_resized)
 	
 	# --- UI 菜单请求事件监听 ---
 	Gf.listen_simple(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
@@ -70,6 +71,7 @@ func dispose() -> void:
 	Gf.unlisten_simple(EventNames.SAVE_BOOKMARK_REQUESTED, _on_save_bookmark_requested)
 	Gf.unlisten_simple(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
 	Gf.unlisten_simple(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
+	Gf.unlisten_simple(EventNames.BOARD_RESIZED, _on_board_resized)
 	
 	Gf.unlisten_simple(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
 	Gf.unlisten_simple(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
@@ -140,17 +142,18 @@ func check_game_over() -> void:
 func _handle_game_over() -> void:
 	if _is_replay_mode:
 		return
-		
+
+	var current_grid_size := _get_current_grid_size()
 	var save_system := get_system(SaveSystem) as SaveSystem
 	if save_system and not _is_game_state_tainted:
 		var mode_id: String = _mode_config_path.get_file().get_basename()
-		save_system.set_high_score(mode_id, _current_grid_size, _game_status_model.score.get_value())
+		save_system.set_high_score(mode_id, current_grid_size, _game_status_model.score.get_value())
 	
 	var replay_data := ReplayData.new()
 	replay_data.timestamp = int(Time.get_unix_time_from_system())
 	replay_data.mode_config_path = _mode_config_path
 	replay_data.initial_seed = _initial_seed_of_session
-	replay_data.grid_size = _current_grid_size
+	replay_data.grid_size = current_grid_size
 	
 	replay_data.actions = _player_actions.duplicate()
 	replay_data.final_board_snapshot = _grid_model.get_snapshot()
@@ -216,10 +219,24 @@ func _on_game_ready(data: GameReadyData) -> void:
 	if is_instance_valid(data.loaded_bookmark_data):
 		_rebuild_player_actions_from_history()
 
+
+func _get_current_grid_size() -> int:
+	if is_instance_valid(_grid_model) and _grid_model.grid_size > 0:
+		return _grid_model.grid_size
+
+	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
+	if is_instance_valid(current_game_model):
+		var grid_size: int = current_game_model.current_grid_size.get_value()
+		if grid_size > 0:
+			return grid_size
+
+	return _current_grid_size
+
+
 func _get_full_game_state() -> Dictionary:
 	var utility := get_system(GameStateSystem) as GameStateSystem
 	if utility:
-		return utility.get_full_game_state(_current_grid_size)
+		return utility.get_full_game_state(_get_current_grid_size())
 	return {}
 
 
@@ -227,7 +244,7 @@ func _get_bookmark_comparison_state() -> Dictionary:
 	var state := _get_full_game_state()
 	var command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	if command_history:
-		state[&"game_state_history"] = command_history.serialize_history()
+		state[&"game_state_history"] = command_history.serialize_full_history()
 	return state
 
 
@@ -248,6 +265,17 @@ func _rebuild_player_actions_from_history() -> void:
 
 func _on_game_state_tainted(_payload: Variant = null) -> void:
 	_is_game_state_tainted = true
+
+
+func _on_board_resized(new_size: int) -> void:
+	if new_size <= 0:
+		return
+
+	_current_grid_size = new_size
+
+	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
+	if is_instance_valid(current_game_model):
+		current_game_model.current_grid_size.set_value(new_size)
 
 
 func _on_undo_requested(_payload: Variant = null) -> void:
@@ -308,7 +336,7 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	
 	var _command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	if _command_history:
-		new_bookmark.game_state_history = _command_history.serialize_history()
+		new_bookmark.game_state_history = _command_history.serialize_full_history()
 
 	var bookmark_system := get_system(BookmarkSystem) as BookmarkSystem
 	if bookmark_system:

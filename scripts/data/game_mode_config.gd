@@ -66,8 +66,32 @@ func validate() -> bool:
 		push_error("GameModeConfig[%s]: spawn_rules 为空，游戏将无法生成方块！" % mode_name)
 		return false
 
+	for i in range(spawn_rules.size()):
+		if not is_instance_valid(spawn_rules[i]):
+			push_error("GameModeConfig[%s]: spawn_rules[%d] 未配置！" % [mode_name, i])
+			return false
+
 	if not is_instance_valid(game_over_rule):
 		push_error("GameModeConfig[%s]: game_over_rule 未配置！" % mode_name)
+		return false
+
+	if not is_instance_valid(board_theme):
+		push_error("GameModeConfig[%s]: board_theme 未配置！" % mode_name)
+		return false
+
+	if min_grid_size <= 0:
+		push_error("GameModeConfig[%s]: min_grid_size 必须大于 0！" % mode_name)
+		return false
+
+	if min_grid_size > max_grid_size:
+		push_error("GameModeConfig[%s]: min_grid_size 不能大于 max_grid_size！" % mode_name)
+		return false
+
+	if default_grid_size < min_grid_size or default_grid_size > max_grid_size:
+		push_error(
+			"GameModeConfig[%s]: default_grid_size 必须位于 [%d, %d] 范围内！"
+			% [mode_name, min_grid_size, max_grid_size]
+		)
 		return false
 
 	return true

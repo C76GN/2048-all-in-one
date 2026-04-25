@@ -11,6 +11,7 @@ extends GFUIController
 
 ## 单个模式卡片 UI 场景。
 const MODE_CARD_SCENE: PackedScene = preload("res://scenes/ui/mode_card.tscn")
+const GAME_MODE_CONFIG_CACHE = preload("res://scripts/utilities/game_mode_config_cache.gd")
 
 
 # --- 导出变量 ---
@@ -199,7 +200,7 @@ func _set_selected_mode_by_path(config_path: String) -> void:
 	if is_instance_valid(_selected_mode_config) and _selected_mode_config.resource_path == config_path:
 		return
 
-	var loaded_config := load(config_path) as GameModeConfig
+	var loaded_config: GameModeConfig = GAME_MODE_CONFIG_CACHE.get_config(config_path)
 	if not is_instance_valid(loaded_config):
 		_selected_mode_config = null
 		_show_default_info()
@@ -248,6 +249,8 @@ func _show_default_info() -> void:
 	if is_instance_valid(_info_score_label):
 		_info_score_label.visible = false
 	_right_panel_container.visible = false
+	if is_instance_valid(_start_game_button):
+		_start_game_button.disabled = true
 
 
 func _update_ui_text() -> void:

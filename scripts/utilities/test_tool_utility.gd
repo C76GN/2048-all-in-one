@@ -11,6 +11,20 @@ extends GFUtility
 
 var _test_panel: Control
 var _game_board: GameBoard
+var _is_listening: bool = false
+
+
+# --- Godot 生命周期方法 ---
+
+func dispose() -> void:
+	if _is_listening:
+		Gf.unlisten(TestSpawnPayload, _on_test_panel_spawn_requested_event)
+		Gf.unlisten_simple(EventNames.TEST_VALUES_REQUESTED, _on_test_panel_values_requested_event)
+		Gf.unlisten_simple(EventNames.TEST_RESET_RESIZE_REQUESTED, _on_reset_and_resize_requested_event)
+		Gf.unlisten_simple(EventNames.TEST_LIVE_EXPAND_REQUESTED, _on_live_expand_requested_event)
+		_is_listening = false
+
+	clear_context()
 
 
 # --- 公共方法 ---
@@ -22,20 +36,24 @@ func setup_test_tools(panel: Control, board: GameBoard) -> void:
 	_test_panel = panel
 	_game_board = board
 	
-	if not _test_panel or not _game_board:
+	if not is_instance_valid(_test_panel) or not is_instance_valid(_game_board):
+		clear_context()
 		return
 
-	Gf.listen(TestSpawnPayload, _on_test_panel_spawn_requested_event)
-	Gf.listen_simple(EventNames.TEST_VALUES_REQUESTED, _on_test_panel_values_requested_event)
-	Gf.listen_simple(EventNames.TEST_RESET_RESIZE_REQUESTED, _on_reset_and_resize_requested_event)
-	Gf.listen_simple(EventNames.TEST_LIVE_EXPAND_REQUESTED, _on_live_expand_requested_event)
+	_register_listeners()
+
+
+## 清理当前场景相关的测试面板与棋盘引用。
+func clear_context() -> void:
+	_test_panel = null
+	_game_board = null
 
 
 ## 初始化面板数据。
 ## @param interaction_rule: 当前的交互规则，用于获取可生成类型。
 ## @param grid_size: 当前棋盘尺寸。
 func initialize_panel(interaction_rule: InteractionRule, grid_size: int) -> void:
-	if not _test_panel or not interaction_rule:
+	if not is_instance_valid(_test_panel) or not is_instance_valid(interaction_rule):
 		return
 		
 	var spawnable_types: Dictionary = interaction_rule.get_spawnable_types()
@@ -45,8 +63,21 @@ func initialize_panel(interaction_rule: InteractionRule, grid_size: int) -> void
 
 ## 更新坐标限制。
 func update_limits(new_size: int) -> void:
-	if _test_panel:
+	if is_instance_valid(_test_panel):
 		_test_panel.update_coordinate_limits(new_size)
+
+
+# --- 私有/辅助方法 ---
+
+func _register_listeners() -> void:
+	if _is_listening:
+		return
+
+	Gf.listen(TestSpawnPayload, _on_test_panel_spawn_requested_event)
+	Gf.listen_simple(EventNames.TEST_VALUES_REQUESTED, _on_test_panel_values_requested_event)
+	Gf.listen_simple(EventNames.TEST_RESET_RESIZE_REQUESTED, _on_reset_and_resize_requested_event)
+	Gf.listen_simple(EventNames.TEST_LIVE_EXPAND_REQUESTED, _on_live_expand_requested_event)
+	_is_listening = true
 
 
 # --- 信号处理 ---
@@ -90,7 +121,8 @@ func _on_test_panel_values_requested(type_id: int) -> void:
 	
 	if interaction_rule:
 		var values: Array[int] = interaction_rule.get_spawnable_values(type_id)
-		_test_panel.update_value_options(values)
+		if is_instance_valid(_test_panel):
+			_test_panel.update_value_options(values)
 
 
 # --- 事件处理代理 ---
