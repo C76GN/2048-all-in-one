@@ -9,10 +9,21 @@ extends GFUtility
 # --- 公共变量 ---
 
 ## LRU 缓存最大容量；设为 `0` 时表示禁用缓存。
-var max_cache_size: int = 64
+var max_cache_size: int:
+	get:
+		return _max_cache_size
+	set(value):
+		_max_cache_size = maxi(value, 0)
+		if _max_cache_size == 0:
+			clear_cache()
+			return
+
+		_evict_lru()
 
 
 # --- 私有变量 ---
+
+var _max_cache_size: int = 64
 
 ## 正在加载中的请求：`path -> Array[Callable]`。
 var _pending: Dictionary = {}
@@ -143,31 +154,30 @@ func _poll_pending() -> void:
 	if _pending.is_empty():
 		return
 
-	var completed_paths: Array[String] = []
+	var pending_paths: Array = _pending.keys()
+	for path: String in pending_paths:
+		if not _pending.has(path):
+			continue
 
-	for path in _pending:
 		var callbacks := (_pending[path] as Array).duplicate()
 		var status := _get_threaded_status(path)
 
 		match status:
 			ResourceLoader.THREAD_LOAD_LOADED:
 				var resource := _take_threaded_resource(path)
-				completed_paths.append(path)
+				_pending.erase(path)
 				put_cache(path, resource)
 				_dispatch_callbacks(callbacks, resource)
 
 			ResourceLoader.THREAD_LOAD_FAILED:
 				push_error("[GFAssetUtility] 异步加载失败：%s" % path)
-				completed_paths.append(path)
+				_pending.erase(path)
 				_dispatch_callbacks(callbacks, null)
 
 			ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
 				push_error("[GFAssetUtility] 无效资源：%s" % path)
-				completed_paths.append(path)
+				_pending.erase(path)
 				_dispatch_callbacks(callbacks, null)
-
-	for path in completed_paths:
-		_pending.erase(path)
 
 
 func _dispatch_callbacks(callbacks: Array, resource: Resource) -> void:

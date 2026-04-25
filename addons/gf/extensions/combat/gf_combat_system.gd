@@ -75,9 +75,12 @@ func unregister_entity(p_entity: Object) -> void:
 ## @param p_entity: 实体对象。
 ## @param p_buff: Buff 实例。
 func add_buff(p_entity: Object, p_buff: GFBuff) -> void:
-	if not _entities.has(p_entity):
+	if p_buff == null or not _entities.has(p_entity):
 		return
-		
+
+	if p_buff.owner == null:
+		p_buff.owner = p_entity
+
 	var data: Dictionary = _entities[p_entity]
 	var buffs: Array = data["buffs"]
 	
@@ -99,9 +102,12 @@ func add_buff(p_entity: Object, p_buff: GFBuff) -> void:
 ## @param p_entity: 实体对象。
 ## @param p_skill: 技能实例。
 func add_skill(p_entity: Object, p_skill: GFSkill) -> void:
-	if not _entities.has(p_entity):
+	if p_skill == null or not _entities.has(p_entity):
 		return
-		
+
+	if p_skill.owner == null:
+		p_skill.owner = p_entity
+
 	var data: Dictionary = _entities[p_entity]
 	var skills: Array = data["skills"]
 	

@@ -31,6 +31,9 @@ enum CompletionMode {
 ## 动作完成模式。默认保持旧行为：返回 Signal 则等待，返回 null 则继续。
 var completion_mode: CompletionMode = CompletionMode.AUTO
 
+## 等待 Signal 的超时时间（秒）。小于等于 0 时表示不启用超时。
+var signal_timeout_seconds: float = 30.0
+
 
 # --- 公共方法 ---
 
@@ -52,6 +55,13 @@ func as_wait_for_signal() -> GFVisualAction:
 	return self
 
 
+## 设置等待 Signal 的超时时间，并返回自身以便链式调用。
+## @param seconds: 超时时间；小于等于 0 时表示不启用超时。
+func with_signal_timeout(seconds: float) -> GFVisualAction:
+	signal_timeout_seconds = maxf(seconds, 0.0)
+	return self
+
+
 ## 根据当前完成模式判断队列是否应该等待 execute() 的返回值。
 ## @param result: execute() 返回值。
 ## @return 应等待返回 true。
@@ -59,3 +69,65 @@ func should_wait_for_result(result: Variant) -> bool:
 	if completion_mode == CompletionMode.FIRE_AND_FORGET:
 		return false
 	return result is Signal
+
+
+## 安全等待 execute() 返回的 Signal。
+## 当发射源失效或 Node 提前退出树时，会自动结束等待，避免队列永久卡死。
+## @param result: execute() 返回值。
+func await_result_safely(result: Variant) -> void:
+	if not should_wait_for_result(result):
+		return
+
+	await _await_signal_safely(result as Signal)
+
+
+# --- 私有/辅助方法 ---
+
+func _await_signal_safely(result_signal: Signal) -> void:
+	if result_signal.is_null():
+		return
+
+	var target_obj: Object = result_signal.get_object()
+	if not is_instance_valid(target_obj):
+		return
+
+	var completed := [false]
+	var on_resume := func(_arg1 = null, _arg2 = null, _arg3 = null, _arg4 = null) -> void:
+		completed[0] = true
+
+	result_signal.connect(on_resume, CONNECT_ONE_SHOT)
+
+	var tree_exit_signal := Signal()
+	if target_obj is Node:
+		var node := target_obj as Node
+		if not node.is_inside_tree() and result_signal != node.tree_exited:
+			_disconnect_signal_if_connected(result_signal, on_resume)
+			return
+		if result_signal != node.tree_exited:
+			node.tree_exited.connect(on_resume, CONNECT_ONE_SHOT)
+			tree_exit_signal = node.tree_exited
+
+	var timeout_msec := int(signal_timeout_seconds * 1000.0)
+	var start_msec := Time.get_ticks_msec()
+
+	while not completed[0]:
+		if not is_instance_valid(target_obj):
+			break
+		if target_obj is Node and not (target_obj as Node).is_inside_tree():
+			break
+		if timeout_msec > 0 and Time.get_ticks_msec() - start_msec >= timeout_msec:
+			push_warning("[GFVisualAction] 等待 Signal 超时，队列将继续执行后续动作。")
+			break
+		await Engine.get_main_loop().process_frame
+
+	_disconnect_signal_if_connected(result_signal, on_resume)
+	_disconnect_signal_if_connected(tree_exit_signal, on_resume)
+
+
+func _disconnect_signal_if_connected(target_signal: Signal, callback: Callable) -> void:
+	if target_signal.is_null():
+		return
+	if not is_instance_valid(target_signal.get_object()):
+		return
+	if target_signal.is_connected(callback):
+		target_signal.disconnect(callback)
