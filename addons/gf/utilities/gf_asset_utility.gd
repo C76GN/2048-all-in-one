@@ -25,28 +25,32 @@ var max_cache_size: int:
 
 var _max_cache_size: int = 64
 
-## 正在加载中的请求：`path -> Array[Callable]`。
+## 正在加载中的请求：`path -> { type_hint: String, callbacks: Array[Callable] }`。
 var _pending: Dictionary = {}
 
 ## 资源缓存：`path -> Resource`。
 var _cache: Dictionary = {}
 
-## LRU 访问顺序，尾部表示最近使用。
-var _cache_order: Array[String] = []
+## LRU 访问序号，数值越大表示越新。
+var _cache_access_order: Dictionary = {}
+var _cache_access_serial: int = 0
 
 
 # --- Godot 生命周期方法 ---
 
 func init() -> void:
+	ignore_pause = true
 	_pending = {}
 	_cache.clear()
-	_cache_order.clear()
+	_cache_access_order.clear()
+	_cache_access_serial = 0
 
 
 func dispose() -> void:
 	_pending.clear()
 	_cache.clear()
-	_cache_order.clear()
+	_cache_access_order.clear()
+	_cache_access_serial = 0
 
 
 # --- 公共方法 ---
@@ -62,11 +66,23 @@ func load_async(path: String, on_loaded: Callable, type_hint: String = "") -> vo
 
 	var cached: Resource = get_cached(path)
 	if cached != null:
+		if not _is_resource_compatible(cached, type_hint):
+			push_warning("[GFAssetUtility] 缓存资源类型与请求 type_hint 不匹配：%s (%s)" % [path, type_hint])
+			on_loaded.call(null)
+			return
+
 		on_loaded.call(cached)
 		return
 
 	if _pending.has(path):
-		var callbacks := _pending[path] as Array
+		var pending_request := _pending[path] as Dictionary
+		var pending_type_hint := String(pending_request.get("type_hint", ""))
+		if pending_type_hint != type_hint:
+			push_warning("[GFAssetUtility] 已存在相同路径但 type_hint 不同的加载请求，已拒绝新请求：%s (%s -> %s)" % [path, pending_type_hint, type_hint])
+			on_loaded.call(null)
+			return
+
+		var callbacks := pending_request.get("callbacks", []) as Array
 		if not callbacks.has(on_loaded):
 			callbacks.append(on_loaded)
 		return
@@ -77,7 +93,10 @@ func load_async(path: String, on_loaded: Callable, type_hint: String = "") -> vo
 		on_loaded.call(null)
 		return
 
-	_pending[path] = [on_loaded]
+	_pending[path] = {
+		"type_hint": type_hint,
+		"callbacks": [on_loaded],
+	}
 
 
 ## 驱动异步加载轮询。
@@ -99,9 +118,16 @@ func get_cached(path: String) -> Resource:
 
 ## 检查指定路径是否正在加载中。
 ## @param path: 资源路径。
+## @param type_hint: 可选资源类型提示；为空时只检查路径。
 ## @return 正在加载时返回 `true`。
-func is_loading(path: String) -> bool:
-	return _pending.has(path)
+func is_loading(path: String, type_hint: String = "") -> bool:
+	if not _pending.has(path):
+		return false
+	if type_hint.is_empty():
+		return true
+
+	var pending_request := _pending[path] as Dictionary
+	return String(pending_request.get("type_hint", "")) == type_hint
 
 
 ## 检查指定路径是否已缓存。
@@ -113,8 +139,13 @@ func is_cached(path: String) -> bool:
 
 ## 取消指定路径的异步加载请求。
 ## @param path: 资源路径。
-func cancel(path: String) -> void:
-	_pending.erase(path)
+## @param type_hint: 可选资源类型提示；为空时取消该路径的当前请求。
+func cancel(path: String, type_hint: String = "") -> void:
+	if not type_hint.is_empty() and is_loading(path, type_hint):
+		_pending.erase(path)
+		return
+	if type_hint.is_empty():
+		_pending.erase(path)
 
 
 ## 手动写入缓存。
@@ -133,13 +164,14 @@ func put_cache(path: String, resource: Resource) -> void:
 ## @param path: 资源路径。
 func remove_cache(path: String) -> void:
 	_cache.erase(path)
-	_cache_order.erase(path)
+	_cache_access_order.erase(path)
 
 
 ## 清空全部缓存。
 func clear_cache() -> void:
 	_cache.clear()
-	_cache_order.clear()
+	_cache_access_order.clear()
+	_cache_access_serial = 0
 
 
 ## 获取当前缓存数量。
@@ -159,14 +191,16 @@ func _poll_pending() -> void:
 		if not _pending.has(path):
 			continue
 
-		var callbacks := (_pending[path] as Array).duplicate()
+		var pending_request := _pending[path] as Dictionary
+		var callbacks := (pending_request.get("callbacks", []) as Array).duplicate()
 		var status := _get_threaded_status(path)
 
 		match status:
 			ResourceLoader.THREAD_LOAD_LOADED:
 				var resource := _take_threaded_resource(path)
 				_pending.erase(path)
-				put_cache(path, resource)
+				if resource != null:
+					put_cache(path, resource)
 				_dispatch_callbacks(callbacks, resource)
 
 			ResourceLoader.THREAD_LOAD_FAILED:
@@ -186,16 +220,37 @@ func _dispatch_callbacks(callbacks: Array, resource: Resource) -> void:
 			callback.call(resource)
 
 
+func _is_resource_compatible(resource: Resource, type_hint: String) -> bool:
+	return type_hint.is_empty() or resource.is_class(type_hint)
+
+
 func _touch_cache(path: String) -> void:
-	_cache_order.erase(path)
-	_cache_order.append(path)
+	_cache_access_serial += 1
+	_cache_access_order[path] = _cache_access_serial
 
 
 func _evict_lru() -> void:
-	while _cache_order.size() > max_cache_size and max_cache_size > 0:
-		var oldest_path: String = _cache_order[0]
-		_cache_order.remove_at(0)
+	while _cache.size() > max_cache_size and max_cache_size > 0:
+		var oldest_path := _get_oldest_cached_path()
+		if not _cache.has(oldest_path):
+			return
+
 		_cache.erase(oldest_path)
+		_cache_access_order.erase(oldest_path)
+
+
+func _get_oldest_cached_path() -> String:
+	var oldest_path := ""
+	var oldest_access := 0
+	var has_oldest := false
+	for path: String in _cache:
+		var access := int(_cache_access_order.get(path, 0))
+		if not has_oldest or access < oldest_access:
+			oldest_path = path
+			oldest_access = access
+			has_oldest = true
+
+	return oldest_path
 
 
 func _request_threaded(path: String, type_hint: String) -> Error:

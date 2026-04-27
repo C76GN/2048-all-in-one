@@ -57,7 +57,10 @@ func on_remove() -> void:
 
 ## 当 Buff 层数增加时触发（通常用于刷新持续时间）。
 func on_refresh(p_new_duration: float) -> void:
+	duration = p_new_duration
 	time_left = p_new_duration
+	if max_stacks > 1:
+		stacks = mini(stacks + 1, max_stacks)
 
 
 ## 周期性触发逻辑。
@@ -99,7 +102,7 @@ func _apply_effects() -> void:
 			if mod == null:
 				continue
 
-			var attr := owner.get_attribute(mod.source_tag) as GFAttribute
+			var attr := owner.get_attribute(_get_modifier_attribute_id(mod)) as GFAttribute
 			if attr != null:
 				attr.add_modifier(mod)
 
@@ -122,6 +125,13 @@ func _remove_effects() -> void:
 			if mod == null:
 				continue
 
-			var attr := owner.get_attribute(mod.source_tag) as GFAttribute
+			var attr := owner.get_attribute(_get_modifier_attribute_id(mod)) as GFAttribute
 			if attr != null:
 				attr.remove_modifier(mod)
+
+
+func _get_modifier_attribute_id(modifier: GFModifier) -> StringName:
+	if modifier.attribute_id != &"":
+		return modifier.attribute_id
+
+	return modifier.source_id

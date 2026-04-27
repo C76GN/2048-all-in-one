@@ -53,6 +53,10 @@ var _is_showing_loading_scene: bool = false
 
 # --- Godot 生命周期方法 ---
 
+func init() -> void:
+	ignore_pause = true
+
+
 func tick(_delta: float) -> void:
 	if not _is_loading or _target_path.is_empty():
 		return
@@ -140,10 +144,7 @@ func cleanup_transients() -> void:
 	if _transient_scripts.is_empty():
 		return
 
-	if not Gf.has_method("has_architecture") or not Gf.has_architecture():
-		return
-
-	var arch: Object = Gf.get_architecture()
+	var arch: Object = _get_architecture_or_null()
 	if arch == null:
 		return
 
@@ -184,10 +185,7 @@ func _do_change_scene_sync(path: String) -> Error:
 ## 设置全局暂停状态；若未注册 `GFTimeUtility` 则静默跳过。
 ## @param p_paused: 目标暂停状态。
 func _set_paused(p_paused: bool) -> void:
-	if not Gf.has_architecture():
-		return
-
-	var arch := Gf.get_architecture()
+	var arch := _get_architecture_or_null()
 	if arch == null:
 		return
 
@@ -197,10 +195,7 @@ func _set_paused(p_paused: bool) -> void:
 
 
 func _get_paused() -> bool:
-	if not Gf.has_architecture():
-		return false
-
-	var arch := Gf.get_architecture()
+	var arch := _get_architecture_or_null()
 	if arch == null:
 		return false
 

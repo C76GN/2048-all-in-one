@@ -35,12 +35,23 @@ var completion_mode: CompletionMode = CompletionMode.AUTO
 var signal_timeout_seconds: float = 30.0
 
 
+# --- 私有变量 ---
+
+var _architecture_ref: WeakRef = null
+
+
 # --- 公共方法 ---
 
 ## 执行此视觉动作。子类必须重写此方法。
 ## @return 瞬时动作返回 null；需要等待的动作返回一个 Signal 供 await。
 func execute() -> Variant:
 	return null
+
+
+## 注入当前动作执行所在的架构实例。
+## @param architecture: 当前架构。
+func inject_dependencies(architecture: GFArchitecture) -> void:
+	_architecture_ref = weakref(architecture) if architecture != null else null
 
 
 ## 将动作标记为显式 fire-and-forget，并返回自身以便链式调用。
@@ -53,6 +64,11 @@ func as_fire_and_forget() -> GFVisualAction:
 func as_wait_for_signal() -> GFVisualAction:
 	completion_mode = CompletionMode.WAIT_FOR_SIGNAL
 	return self
+
+
+## 请求取消动作。基础实现不做处理，复合动作可重写以停止内部等待。
+func cancel() -> void:
+	pass
 
 
 ## 设置等待 Signal 的超时时间，并返回自身以便链式调用。
@@ -74,16 +90,17 @@ func should_wait_for_result(result: Variant) -> bool:
 ## 安全等待 execute() 返回的 Signal。
 ## 当发射源失效或 Node 提前退出树时，会自动结束等待，避免队列永久卡死。
 ## @param result: execute() 返回值。
-func await_result_safely(result: Variant) -> void:
+## @param should_continue: 可选取消检查回调；返回 false 时立即停止等待。
+func await_result_safely(result: Variant, should_continue: Callable = Callable()) -> void:
 	if not should_wait_for_result(result):
 		return
 
-	await _await_signal_safely(result as Signal)
+	await _await_signal_safely(result as Signal, should_continue)
 
 
 # --- 私有/辅助方法 ---
 
-func _await_signal_safely(result_signal: Signal) -> void:
+func _await_signal_safely(result_signal: Signal, should_continue: Callable = Callable()) -> void:
 	if result_signal.is_null():
 		return
 
@@ -111,6 +128,8 @@ func _await_signal_safely(result_signal: Signal) -> void:
 	var start_msec := Time.get_ticks_msec()
 
 	while not completed[0]:
+		if should_continue.is_valid() and not bool(should_continue.call()):
+			break
 		if not is_instance_valid(target_obj):
 			break
 		if target_obj is Node and not (target_obj as Node).is_inside_tree():
@@ -131,3 +150,13 @@ func _disconnect_signal_if_connected(target_signal: Signal, callback: Callable) 
 		return
 	if target_signal.is_connected(callback):
 		target_signal.disconnect(callback)
+
+
+func _get_architecture_or_null() -> GFArchitecture:
+	if _architecture_ref != null:
+		var architecture := _architecture_ref.get_ref() as GFArchitecture
+		if architecture != null:
+			return architecture
+	if Gf.has_architecture():
+		return Gf.get_architecture()
+	return null

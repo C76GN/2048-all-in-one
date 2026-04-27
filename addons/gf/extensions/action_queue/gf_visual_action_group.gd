@@ -60,6 +60,14 @@ func execute() -> Variant:
 	return _run_sequence(current_serial)
 
 
+## 请求取消当前动作组执行。
+func cancel() -> void:
+	_execution_serial += 1
+	for action: GFVisualAction in actions:
+		if is_instance_valid(action):
+			action.cancel()
+
+
 # --- 私有方法 ---
 
 func _run_parallel(current_serial: int) -> Variant:
@@ -81,6 +89,7 @@ func _do_parallel_async(current_serial: int) -> void:
 		if not is_instance_valid(action):
 			continue
 
+		_inject_action_dependencies(action)
 		var result: Variant = action.execute()
 		if action.should_wait_for_result(result):
 			pending_state["count"] = int(pending_state["count"]) + 1
@@ -98,9 +107,10 @@ func _do_sequence_async(current_serial: int) -> void:
 		if not is_instance_valid(action):
 			continue
 
+		_inject_action_dependencies(action)
 		var result: Variant = action.execute()
 		if action.should_wait_for_result(result):
-			await action.await_result_safely(result)
+			await action.await_result_safely(result, _is_execution_serial_current.bind(current_serial))
 
 		if current_serial != _execution_serial:
 			return
@@ -117,7 +127,7 @@ func _wait_parallel_action(
 	if current_serial != _execution_serial or not is_instance_valid(action):
 		return
 
-	await action.await_result_safely(result)
+	await action.await_result_safely(result, _is_execution_serial_current.bind(current_serial))
 
 	if current_serial != _execution_serial:
 		return
@@ -125,3 +135,12 @@ func _wait_parallel_action(
 	pending_state["count"] = int(pending_state["count"]) - 1
 	if int(pending_state["count"]) <= 0:
 		_parallel_completed.emit()
+
+
+func _inject_action_dependencies(action: GFVisualAction) -> void:
+	if action.has_method("inject_dependencies"):
+		action.inject_dependencies(_get_architecture_or_null())
+
+
+func _is_execution_serial_current(serial: int) -> bool:
+	return serial == _execution_serial

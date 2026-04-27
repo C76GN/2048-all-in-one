@@ -5,29 +5,101 @@ extends EditorPlugin
 ## GF Framework 编辑器插件。
 ## 在启用/禁用插件时自动注册/注销 Gf AutoLoad 单例，并提供代码生成工具。
 
+# --- 常量 ---
+
+const AUTOLOAD_NAME: String = "Gf"
+const AUTOLOAD_PATH: String = "res://addons/gf/core/gf.gd"
+const INSTALLERS_SETTING: String = "gf/project/installers"
+const INSTALLERS_DEFAULT := []
+const ACCESS_OUTPUT_SETTING: String = "gf/codegen/access_output_path"
+const ACCESS_OUTPUT_DEFAULT: String = "res://gf/generated/gf_access.gd"
+const GF_ACCESS_GENERATOR_BASE = preload("res://addons/gf/editor/gf_access_generator.gd")
+const GF_CAPABILITY_INSPECTOR_PLUGIN_BASE = preload("res://addons/gf/editor/gf_capability_inspector_plugin.gd")
+
+
+# --- 私有变量 ---
+
 var _file_dialog: FileDialog
 var _current_template_type: String = ""
+var _capability_inspector_plugin: EditorInspectorPlugin
 
+
+# --- Godot 生命周期方法 ---
 
 func _enter_tree() -> void:
-	add_autoload_singleton("Gf", "res://addons/gf/core/gf.gd")
-	
+	_ensure_autoload()
+	_ensure_installers_setting()
+	_ensure_codegen_settings()
+	_setup_inspector_tools()
 	_setup_generator_tools()
 
 
 func _exit_tree() -> void:
-	remove_autoload_singleton("Gf")
-	
+	_remove_autoload()
+	_cleanup_inspector_tools()
 	_cleanup_generator_tools()
 
 
 # --- 编辑器工具 ---
+
+func _ensure_autoload() -> void:
+	if not ProjectSettings.has_setting("autoload/%s" % AUTOLOAD_NAME):
+		add_autoload_singleton(AUTOLOAD_NAME, AUTOLOAD_PATH)
+
+
+func _remove_autoload() -> void:
+	if ProjectSettings.has_setting("autoload/%s" % AUTOLOAD_NAME):
+		remove_autoload_singleton(AUTOLOAD_NAME)
+
+
+func _ensure_installers_setting() -> void:
+	var should_save: bool = false
+
+	if not ProjectSettings.has_setting(INSTALLERS_SETTING):
+		ProjectSettings.set_setting(INSTALLERS_SETTING, INSTALLERS_DEFAULT)
+		ProjectSettings.set_initial_value(INSTALLERS_SETTING, INSTALLERS_DEFAULT)
+		should_save = true
+
+	ProjectSettings.add_property_info({
+		"name": INSTALLERS_SETTING,
+		"type": TYPE_ARRAY,
+		"hint": PROPERTY_HINT_TYPE_STRING,
+		"hint_string": "%d/%d:*.gd" % [TYPE_STRING, PROPERTY_HINT_FILE],
+	})
+	ProjectSettings.set_as_basic(INSTALLERS_SETTING, true)
+
+	if should_save:
+		ProjectSettings.save()
+
+
+func _ensure_codegen_settings() -> void:
+	var should_save: bool = false
+
+	if not ProjectSettings.has_setting(ACCESS_OUTPUT_SETTING):
+		ProjectSettings.set_setting(ACCESS_OUTPUT_SETTING, ACCESS_OUTPUT_DEFAULT)
+		ProjectSettings.set_initial_value(ACCESS_OUTPUT_SETTING, ACCESS_OUTPUT_DEFAULT)
+		should_save = true
+
+	ProjectSettings.add_property_info({
+		"name": ACCESS_OUTPUT_SETTING,
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_FILE,
+		"hint_string": "*.gd",
+	})
+	ProjectSettings.set_as_basic(ACCESS_OUTPUT_SETTING, true)
+
+	if should_save:
+		ProjectSettings.save()
+
 
 func _setup_generator_tools() -> void:
 	add_tool_menu_item("GF/生成 System", _show_dialog.bind("System"))
 	add_tool_menu_item("GF/生成 Model", _show_dialog.bind("Model"))
 	add_tool_menu_item("GF/生成 Utility", _show_dialog.bind("Utility"))
 	add_tool_menu_item("GF/生成 Command", _show_dialog.bind("Command"))
+	add_tool_menu_item("GF/生成 Capability", _show_dialog.bind("Capability"))
+	add_tool_menu_item("GF/生成 NodeCapability", _show_dialog.bind("NodeCapability"))
+	add_tool_menu_item("GF/生成强类型访问器", _generate_accessors)
 	
 	_file_dialog = FileDialog.new()
 	_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
@@ -39,11 +111,25 @@ func _setup_generator_tools() -> void:
 	base_control.add_child(_file_dialog)
 
 
+func _setup_inspector_tools() -> void:
+	_capability_inspector_plugin = GF_CAPABILITY_INSPECTOR_PLUGIN_BASE.new()
+	add_inspector_plugin(_capability_inspector_plugin)
+
+
+func _cleanup_inspector_tools() -> void:
+	if _capability_inspector_plugin != null:
+		remove_inspector_plugin(_capability_inspector_plugin)
+		_capability_inspector_plugin = null
+
+
 func _cleanup_generator_tools() -> void:
 	remove_tool_menu_item("GF/生成 System")
 	remove_tool_menu_item("GF/生成 Model")
 	remove_tool_menu_item("GF/生成 Utility")
 	remove_tool_menu_item("GF/生成 Command")
+	remove_tool_menu_item("GF/生成 Capability")
+	remove_tool_menu_item("GF/生成 NodeCapability")
+	remove_tool_menu_item("GF/生成强类型访问器")
 	
 	if is_instance_valid(_file_dialog):
 		_file_dialog.queue_free()
@@ -75,13 +161,21 @@ func _on_file_selected(path: String) -> void:
 		push_error("[GF Framework] 文件生成失败: ", path)
 
 
+func _generate_accessors() -> void:
+	var output_path := String(ProjectSettings.get_setting(ACCESS_OUTPUT_SETTING, ACCESS_OUTPUT_DEFAULT))
+	var generator: Variant = GF_ACCESS_GENERATOR_BASE.new()
+	var error: Error = generator.generate(output_path)
+	if error == OK:
+		print("[GF Framework] 成功生成强类型访问器: ", output_path)
+	else:
+		push_error("[GF Framework] 强类型访问器生成失败: %s" % error_string(error))
+
+
 func _get_template(type: String) -> String:
-	var base_template := """# {FileName}
+	var base_template := """## {ClassName}: TODO。
 class_name {ClassName}
 extends {BaseClass}
 
-
-## {ClassName}: 
 
 # --- 信号 ---
 
@@ -156,6 +250,44 @@ func execute() -> Variant:
 
 
 # --- 私有辅助方法 ---
+
+"""
+	elif type == "Capability" or type == "NodeCapability":
+		return base_template + """# --- 公共变量 ---
+
+
+# --- 私有变量 ---
+
+
+# --- @onready 变量 (节点引用) ---
+
+
+# --- 公共方法 ---
+
+func get_required_capabilities() -> Array[Script]:
+	return [] as Array[Script]
+
+
+func get_dependency_removal_policy() -> int:
+	return super.get_dependency_removal_policy()
+
+
+func on_gf_capability_added(target: Object) -> void:
+	super.on_gf_capability_added(target)
+
+
+func on_gf_capability_removed(target: Object) -> void:
+	super.on_gf_capability_removed(target)
+
+
+func on_gf_capability_active_changed(_target: Object, _active: bool) -> void:
+	pass
+
+
+# --- 私有辅助方法 ---
+
+
+# --- 信号处理函数 ---
 
 """
 	elif type == "System":

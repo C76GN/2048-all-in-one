@@ -38,6 +38,9 @@ var _current_state: GFState = null
 ## 用于守卫框架依赖访问的上下文对象弱引用。
 ## 使用弱引用避免 RefCounted 环状引用。
 var _context_ref: WeakRef = null
+var _transition_serial: int = 0
+var _is_exiting_current_state: bool = false
+var _queued_exit_transition: Dictionary = {}
 
 
 # --- 公共方法 ---
@@ -95,16 +98,34 @@ func change_state(state_name: StringName, msg: Dictionary = {}) -> void:
 		push_warning("[GFStateMachine] 切换失败，未找到状态：%s" % state_name)
 		return
 
+	if _is_exiting_current_state:
+		_transition_serial += 1
+		_queued_exit_transition = {
+			"state_name": state_name,
+			"msg": msg,
+		}
+		return
+
+	_transition_serial += 1
+	var current_serial := _transition_serial
 	var from_name := current_state_name
 
 	if _current_state != null:
+		_is_exiting_current_state = true
 		_current_state.exit()
+		_is_exiting_current_state = false
+		if not _queued_exit_transition.is_empty():
+			state_name = _queued_exit_transition["state_name"]
+			msg = _queued_exit_transition["msg"]
+			_queued_exit_transition.clear()
+			current_serial = _transition_serial
 
 	_current_state = _states[state_name]
 	current_state_name = state_name
 	_current_state.enter(msg)
 
-	state_changed.emit(from_name, state_name)
+	if current_serial == _transition_serial and current_state_name == state_name:
+		state_changed.emit(from_name, state_name)
 
 
 ## 驱动当前状态的 update() 逻辑，应在宿主的 _process() 中调用。
@@ -120,6 +141,7 @@ func stop() -> void:
 		_current_state.exit()
 		_current_state = null
 		current_state_name = &""
+	_queued_exit_transition.clear()
 
 
 ## 释放状态机持有的所有引用，避免 RefCounted 环状引用。
@@ -174,12 +196,28 @@ func _get_context() -> Object:
 
 
 func _get_available_architecture(dependency_name: String) -> GFArchitecture:
-	if _context_ref != null and not is_instance_valid(_get_context()):
+	var context := _get_context()
+	if _context_ref != null and not is_instance_valid(context):
 		push_error("[GFStateMachine] 上下文无效，无法获取 %s。" % dependency_name)
 		return null
+
+	if context != null:
+		var context_architecture := _get_context_architecture(context)
+		if context_architecture != null:
+			return context_architecture
 
 	if not Gf.has_architecture():
 		push_error("[GFStateMachine] 架构尚未初始化，无法获取 %s。" % dependency_name)
 		return null
 
 	return Gf.get_architecture()
+
+
+func _get_context_architecture(context: Object) -> GFArchitecture:
+	if context.has_method("get_architecture_or_null"):
+		return context.call("get_architecture_or_null") as GFArchitecture
+	if context.has_method("_get_architecture_or_null"):
+		return context.call("_get_architecture_or_null") as GFArchitecture
+	if context.has_method("get_architecture"):
+		return context.call("get_architecture") as GFArchitecture
+	return null

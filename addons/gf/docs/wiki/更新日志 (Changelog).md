@@ -16,6 +16,578 @@
 
 ---
 
+## [1.13.0] - 2026-04-27
+
+**版本概述**：强化能力组件的运行时正确性、编辑器体验与强类型访问，同时补充轻量交互流程、动态属性包、递归注入和日志过滤能力。
+
+### 🚀 新增特性 (Added)
+- **能力容器类型匹配**：Node 能力会根据 receiver 与能力节点类型创建 `Node` / `Node2D` / `Node3D` / `Control` 容器，保留空间变换与 UI 继承语义。
+- **能力依赖移除策略**：`GFCapabilityUtility.DependencyRemovalPolicy` 支持保留依赖或清理仅由主能力自动补齐且未显式添加的依赖。
+- **能力递归注入**：场景能力挂载时会递归向子节点注入当前架构。
+- **能力强类型访问器**：`GFAccessGenerator` 现在会为 `GFCapability` / `GFNodeCapability` 生成 `get/add/has/remove/if_has` helper。
+- **能力编辑器模板**：编辑器菜单新增 `GF/生成 Capability` 与 `GF/生成 NodeCapability`。
+- **能力 Inspector 属性编辑**：目标节点 Inspector 的 `GF Capabilities` 区域可直接显示并编辑能力导出属性。
+- **动态属性包能力**：新增 `GFPropertyBagCapability`，提供少量运行时键值的轻量存取能力。
+- **交互流程入口**：新增 `GFInteractions` 与 `GFInteractionFlow`，用于创建链式交互上下文并把上下文传入命令或事件。
+- **显式注入 API**：`GFArchitecture`、`Gf` 与 `GFNodeContext` 新增 `inject_object()` 与 `inject_node_tree()`。
+- **日志过滤与延迟消息**：`GFLogUtility` 新增 `min_level` 与 `debug_lazy()` / `info_lazy()` / `warn_lazy()` / `error_lazy()` / `fatal_lazy()`。
+
+### 🔄 机制更改 (Changed)
+- **编辑器类型扫描复用**：新增 `GFEditorTypeIndex`，供编辑器工具复用脚本与能力场景查询逻辑。
+- **能力场景挂载更稳健**：能力容器仍复用 `GFCapabilityContainer` 行为脚本，旧场景中的普通容器保持兼容。
+- **访问器生成范围扩大**：生成的 `GFAccess` 包含能力操作入口，减少 `GFCapabilityUtility` 手写样板。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFCapability.get_dependency_removal_policy() -> int`。
+- 新增 `GFNodeCapability.get_dependency_removal_policy() -> int`。
+- 新增 `GFCapabilityUtility.DependencyRemovalPolicy`。
+- 新增 `GFCapabilityUtility.add_required_capability(receiver: Object, capability_type: Script, provider: Variant = null) -> Object`。
+- 新增 `GFArchitecture.inject_object(instance: Object) -> void`。
+- 新增 `GFArchitecture.inject_node_tree(node: Node) -> void`。
+- 新增 `Gf.inject_object(instance: Object) -> void`。
+- 新增 `Gf.inject_node_tree(node: Node) -> void`。
+- 新增 `GFNodeContext.inject_object(instance: Object) -> void`。
+- 新增 `GFNodeContext.inject_node_tree(node: Node) -> void`。
+- 新增 `GFPropertyBagCapability`。
+- 新增 `GFInteractions`。
+- 新增 `GFInteractionFlow`。
+- 新增 `GFLogUtility.min_level: int`。
+- 新增 `GFLogUtility.debug_lazy()` / `info_lazy()` / `warn_lazy()` / `error_lazy()` / `fatal_lazy()`。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧能力组件无需迁移；默认依赖移除策略仍是保留依赖。
+2. 如果希望移除主能力时同步清理自动补齐依赖，请重写 `get_dependency_removal_policy()` 并返回 `REMOVE_AUTO_DEPENDENCIES`。
+3. 如果项目使用 `Node2D`、`Node3D` 或 `Control` 能力，建议回归检查场景层级；新容器会保留对应类型继承，通常无需业务代码调整。
+4. 需要高频日志时，建议设置 `min_level` 并使用 lazy 日志方法，避免被过滤日志仍构造复杂字符串。
+5. 重新运行 `GF/生成强类型访问器` 后，可直接使用生成的能力 helper。
+
+### 📁 核心受影响文件 (Affected Files)
+- `README.md`
+- `addons/gf/core/gf.gd`
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/core/gf_node_context.gd`
+- `addons/gf/editor/gf_access_generator.gd`
+- `addons/gf/editor/gf_capability_inspector_plugin.gd`
+- `addons/gf/editor/gf_editor_type_index.gd`
+- `addons/gf/extensions/capability/gf_capability.gd`
+- `addons/gf/extensions/capability/gf_capability_utility.gd`
+- `addons/gf/extensions/capability/gf_node_capability.gd`
+- `addons/gf/extensions/capability/gf_property_bag_capability.gd`
+- `addons/gf/extensions/interaction/gf_interaction_flow.gd`
+- `addons/gf/extensions/interaction/gf_interactions.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/plugin.gd`
+- `addons/gf/utilities/gf_log_utility.gd`
+- `addons/gf/docs/wiki/08. 实用工具箱 (Utility Toolkit).md`
+- `addons/gf/docs/wiki/12. 能力组件 (Capabilities).md`
+- `tests/gf_core/test_gf_access_generator.gd`
+- `tests/gf_core/test_gf_capability_utility.gd`
+- `tests/gf_core/test_gf_log_utility.gd`
+
+---
+
+## [1.12.0] - 2026-04-27
+
+**版本概述**：聚焦框架边界稳定性与异步生命周期一致性，修复事件派发、NodeContext、能力挂载、动作取消、对象池预热和战斗 Buff 刷新中的边缘问题，并补充对应回归测试。
+
+### 🚀 新增特性 (Added)
+- **BindableProperty 直觉属性访问**：`BindableProperty` 新增 `value` 属性，读写语义与 `get_value()` / `set_value()` 保持一致。
+- **对象池容量控制**：`GFObjectPoolUtility` 新增 `max_available_per_scene`，可限制每个 `PackedScene` 在池内保留的可用节点数量。
+
+### 🔄 机制更改 (Changed)
+- **项目 Installer 异步装配**：`Gf.init()` / `set_architecture()` 现在会等待项目 Installer 的 `install()` 与 `install_bindings()` 完成后再启动架构生命周期。
+- **Scoped 上下文初始化顺序**：子 `GFNodeContext` 初始化前会等待父级架构 ready，避免子模块早于父架构进入 ready。
+- **资源与场景加载轮询语义**：`GFAssetUtility` 与 `GFSceneUtility` 默认设置 `ignore_pause = true`，明确资源轮询不应被全局暂停语义阻断。
+- **确定性分支随机种子**：`GFSeedUtility.get_branched_rng()` 改用稳定 FNV-1a 派生种子，避免依赖 Godot 内置 `hash()`。
+- **Buff 刷新语义补强**：重复 Buff 刷新会同步新的 `duration` / `time_left`，并在 `max_stacks > 1` 时增加层数但不超过上限。
+
+### 🐛 Bug 修复 (Fixed)
+- **事件 owner 派发期注销边界**：`TypeEventSystem.unregister_owner()` 在事件派发中不再直接修改 listener 数组，而是登记 pending remove，避免复杂嵌套派发下顺序不稳定。
+- **Controller 悬挂监听**：`GFController._exit_tree()` 会主动注销 owner-bound 事件监听，减少临时 UI 节点销毁后的延迟清理。
+- **能力场景实例泄漏**：`GFCapabilityUtility.add_scene_capability()` 在注册失败或被重复能力忽略时会释放新实例；`PackedScene` provider 依赖失败时也会释放已创建能力。
+- **动作组取消不完整**：`GFVisualActionGroup.cancel()` 会递归取消子动作；内置 Tween 动作会 kill 当前 Tween。
+- **对象池异步预热生命周期**：`GFObjectPoolUtility.prewarm_async()` 在 Utility dispose 后会停止后续批次，避免清空池后继续实例化。
+- **Quest 深层 payload 防护**：`GFQuestUtility` 对 `payload.amount` 设置嵌套深度上限，并在派发任务列表前复制数组，避免回调中修改监听任务影响当前迭代。
+- **Combat 集合迭代防护**：`GFCombatSystem` 处理 Buff 与 Skill 时迭代副本，避免 `on_tick()` 或 `skill.update()` 间接修改集合造成遍历风险。
+- **状态机 exit 嵌套切换**：`GFStateMachine` 在 `exit()` 中再次请求切换时会合并到当前切换，避免旧状态重复 exit 或外层目标覆盖最终状态。
+- **存档槽位假阳性**：`GFStorageUtility.has_slot()` 现在要求数据文件和元数据文件同时存在。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `BindableProperty.value: Variant`。
+- 新增 `GFObjectPoolUtility.max_available_per_scene: int`，默认为 `0` 表示不限制。
+- `Gf.init()` / `Gf.set_architecture()` 会等待异步 Installer 钩子，旧调用方式保持不变。
+- `GFStorageUtility.has_slot()` 判断更严格；孤立 metadata 文件不再被视为有效槽位。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧的 `get_value()` / `set_value()` 调用无需迁移；新项目可直接使用 `prop.value`。
+2. 如果项目依赖 `has_slot()` 只检查 metadata 的旧行为，请改为显式调用 `load_slot_meta()`，或补齐对应的数据文件。
+3. 如果自定义 `GFVisualAction` 持有 Tween、AnimationPlayer 或外部异步句柄，建议重写 `cancel()` 同步停止底层表现。
+4. 如果对象池存在波峰后长期占用大量节点，可设置 `max_available_per_scene` 控制保留容量。
+
+### 📁 核心受影响文件 (Affected Files)
+- `addons/gf/base/gf_controller.gd`
+- `addons/gf/core/bindable_property.gd`
+- `addons/gf/core/gf.gd`
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/core/gf_node_context.gd`
+- `addons/gf/core/type_event_system.gd`
+- `addons/gf/extensions/action_queue/gf_flash_action.gd`
+- `addons/gf/extensions/action_queue/gf_move_tween_action.gd`
+- `addons/gf/extensions/action_queue/gf_visual_action_group.gd`
+- `addons/gf/extensions/capability/gf_capability_utility.gd`
+- `addons/gf/extensions/combat/gf_buff.gd`
+- `addons/gf/extensions/combat/gf_combat_system.gd`
+- `addons/gf/extensions/state_machine/gf_state_machine.gd`
+- `addons/gf/utilities/gf_asset_utility.gd`
+- `addons/gf/utilities/gf_object_pool_utility.gd`
+- `addons/gf/utilities/gf_quest_utility.gd`
+- `addons/gf/utilities/gf_scene_utility.gd`
+- `addons/gf/utilities/gf_seed_utility.gd`
+- `addons/gf/utilities/gf_storage_utility.gd`
+- `addons/gf/plugin.cfg`
+- `tests/gf_core/test_bindable_property.gd`
+- `tests/gf_core/test_gf_action_queue.gd`
+- `tests/gf_core/test_gf_capability_utility.gd`
+- `tests/gf_core/test_gf_combat_extension.gd`
+- `tests/gf_core/test_gf_object_pool_utility.gd`
+- `tests/gf_core/test_gf_quest_utility.gd`
+- `tests/gf_core/test_gf_singleton.gd`
+- `tests/gf_core/test_gf_state_machine.gd`
+- `tests/gf_core/test_gf_storage_utility.gd`
+- `tests/gf_core/test_type_event_system.gd`
+
+---
+
+## [1.11.0] - 2026-04-27
+
+**版本概述**：强化 Capability 的编辑器接入、运行时启停和查询能力，并补充轻量交互上下文与 SFX 并发上限控制，让局部对象组合更适合中大型项目使用。
+
+### 🚀 新增特性 (Added)
+- **节点能力基类**：新增 `GFNodeCapability`，适合需要碰撞、输入、动画或子节点引用的场景能力。
+- **能力 Inspector**：启用插件后，选中普通 `Node` 可在 Inspector 中添加、启停、编辑和移除 `GFNodeCapability` 能力脚本或能力场景。
+- **能力启停 API**：`GFCapabilityUtility` 新增 `set_capability_active()`、`is_capability_active()` 和 `capability_active_changed` 信号。
+- **能力反向索引**：新增 `get_receivers_with()` 与 `get_capabilities()`，支持按能力类型查询 receiver 和能力实例。
+- **能力分组查询**：新增 receiver 分组 API，支持 `add_receiver_to_group()`、`get_receivers_in_group_with()` 等轻量索引能力。
+- **交互上下文**：新增 `GFInteractionContext`，用于在命令、事件或能力方法之间传递 sender、target、payload 和分组名。
+- **SFX 并发控制**：`GFAudioUtility` 新增 `max_sfx_players` 与 `SFXOverflowPolicy`，支持跳过新请求或停止最早 SFX。
+
+### 🔄 机制更改 (Changed)
+- **Node 能力停用语义**：通过 `GFCapabilityUtility.set_capability_active()` 停用 Node 能力时，会临时禁用能力节点树的 `process_mode`，重新启用时恢复原状态。
+- **能力挂载自动索引**：能力注册、移除和失效清理会同步维护反向索引，查询路径会自动清理已释放 receiver。
+- **插件编辑器工具扩展**：`addons/gf/plugin.gd` 会注册 GF Capability Inspector，并在插件禁用时清理对应 Inspector 插件。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFNodeCapability`。
+- 新增 `GFInteractionContext`。
+- 新增 `GFCapability.active: bool`。
+- 新增 `GFCapability.on_gf_capability_active_changed(receiver: Object, active: bool) -> void`。
+- 新增 `GFCapabilityUtility.capability_active_changed(receiver, capability_type, capability, active)`。
+- 新增 `GFCapabilityUtility.set_capability_active(receiver: Object, capability_type: Script, active: bool) -> void`。
+- 新增 `GFCapabilityUtility.is_capability_active(receiver: Object, capability_type: Script) -> bool`。
+- 新增 `GFCapabilityUtility.get_receivers_with(capability_type: Script, include_subclasses: bool = true) -> Array[Object]`。
+- 新增 `GFCapabilityUtility.get_capabilities(capability_type: Script, include_subclasses: bool = true) -> Array[Object]`。
+- 新增 `GFCapabilityUtility.add_receiver_to_group(receiver: Object, group_name: StringName) -> void`。
+- 新增 `GFCapabilityUtility.remove_receiver_from_group(receiver: Object, group_name: StringName) -> void`。
+- 新增 `GFCapabilityUtility.get_receiver_groups(receiver: Object) -> Array[StringName]`。
+- 新增 `GFCapabilityUtility.get_receivers_in_group(group_name: StringName) -> Array[Object]`。
+- 新增 `GFCapabilityUtility.get_receivers_in_group_with(group_name: StringName, capability_type: Script, include_subclasses: bool = true) -> Array[Object]`。
+- 新增 `GFCapabilityUtility.clear_receiver_groups(receiver: Object) -> void`。
+- 新增 `GFAudioUtility.SFXOverflowPolicy`、`max_sfx_players` 与 `sfx_overflow_policy`。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧的 `GFCapability` 用法保持兼容；需要编辑器添加和场景节点能力时，推荐新建脚本继承 `GFNodeCapability`。
+2. 需要临时关闭能力时，优先调用 `set_capability_active()`，不要只手动改 `active` 字段。
+3. 需要范围索敌、交互候选或 UI 选择列表时，可以用 `get_receivers_with()` 和分组查询替代业务层手写索引。
+4. 如果项目有大量短促 SFX，建议设置 `max_sfx_players`，并按听感选择 `SKIP_NEW` 或 `STOP_OLDEST`。
+
+### 📁 核心受影响文件 (Affected Files)
+- `README.md`
+- `addons/gf/editor/gf_capability_inspector_plugin.gd`
+- `addons/gf/extensions/capability/gf_capability.gd`
+- `addons/gf/extensions/capability/gf_capability_utility.gd`
+- `addons/gf/extensions/capability/gf_node_capability.gd`
+- `addons/gf/extensions/interaction/gf_interaction_context.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/plugin.gd`
+- `addons/gf/utilities/gf_audio_utility.gd`
+- `addons/gf/docs/wiki/08. 实用工具箱 (Utility Toolkit).md`
+- `addons/gf/docs/wiki/12. 能力组件 (Capabilities).md`
+- `tests/gf_core/test_gf_audio_utility.gd`
+- `tests/gf_core/test_gf_capability_utility.gd`
+
+---
+
+## [1.10.0] - 2026-04-27
+
+**版本概述**：新增 GF 原生 Capability 扩展和强类型访问器生成器，让对象局部能力组合与 IDE 补全更加稳定，同时保持核心架构显式分层、可选接入与 scoped 架构兼容。
+
+### 🚀 新增特性 (Added)
+- **对象能力组件系统**：新增 `GFCapability`、`GFCapabilityUtility` 与 `GFCapabilityContainer`，支持为任意 `Object` / `Node` 挂载、查询、移除能力组件。
+- **显式能力依赖**：能力可实现 `get_required_capabilities() -> Array[Script]` 声明依赖，挂载时自动补齐并检测循环依赖。
+- **Node 能力容器**：Node 能力会自动挂入 receiver 下的 `GFCapabilityContainer`；场景中的容器子节点也可自动注册为父节点能力。
+- **能力生命周期 Hook**：能力可实现 `on_gf_capability_added(receiver)`、`on_gf_capability_removed(receiver)` 与 `inject_dependencies(architecture)`。
+- **强类型访问器生成器**：新增 `GFAccessGenerator`，编辑器菜单 `GF/生成强类型访问器` 会生成 `GFAccess` helper。
+- **访问器输出设置**：新增项目设置 `gf/codegen/access_output_path`，默认输出到 `res://gf/generated/gf_access.gd`。
+- **工厂存在性查询**：`GFArchitecture` 与 `Gf` 新增 `has_factory(script_cls)`，用于无副作用地判断短生命周期对象工厂是否存在。
+
+### 🔄 机制更改 (Changed)
+- **能力组合收敛为扩展层**：能力组合进入 `extensions/capability`，不改变 `GFArchitecture` 的 Model/System/Utility 注册语义。
+- **Command / Query 生成创建策略**：生成的 `GFAccess.create_*()` 会优先走架构工厂；没有工厂时回退到脚本 `new()` 并注入当前架构。
+- **插件菜单扩展**：`addons/gf/plugin.gd` 新增强类型访问器生成菜单，并确保 codegen 项目设置存在。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFCapability`。
+- 新增 `GFCapabilityUtility.has_capability(receiver, capability_type) -> bool`。
+- 新增 `GFCapabilityUtility.get_capability(receiver, capability_type) -> Object`。
+- 新增 `GFCapabilityUtility.add_capability(receiver, capability_type, provider = null) -> Object`。
+- 新增 `GFCapabilityUtility.add_capability_instance(receiver, capability, as_type = null) -> Object`。
+- 新增 `GFCapabilityUtility.add_scene_capability(receiver, scene, as_type = null) -> Object`。
+- 新增 `GFCapabilityUtility.remove_capability(receiver, capability_type) -> void`。
+- 新增 `GFCapabilityUtility.clear_capabilities(receiver) -> void`。
+- 新增 `GFCapabilityContainer`。
+- 新增 `GFAccessGenerator.generate(output_path = DEFAULT_OUTPUT_PATH) -> Error`。
+- 新增 `GFArchitecture.has_factory(script_cls: Script) -> bool`。
+- 新增 `Gf.has_factory(script_cls: Script) -> bool`。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目无需迁移；Capability 是可选扩展，只有注册 `GFCapabilityUtility` 后才启用。
+2. 需要复用对象局部行为时，优先将能力实现为 `GFCapability` 或带 Hook 的 Node，而不是继续扩大实体脚本。
+3. 大型项目可在提交前运行 `GF/生成强类型访问器`，把生成的 `GFAccess` 一并提交，提升调用点补全质量。
+4. 如果 Command / Query 必须通过自定义工厂创建，请继续在架构中注册工厂；生成访问器会优先使用该工厂。
+
+### 📁 核心受影响文件 (Affected Files)
+- `README.md`
+- `addons/gf/core/gf.gd`
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/editor/gf_access_generator.gd`
+- `addons/gf/extensions/capability/gf_capability.gd`
+- `addons/gf/extensions/capability/gf_capability_container.gd`
+- `addons/gf/extensions/capability/gf_capability_utility.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/plugin.gd`
+- `addons/gf/docs/wiki/12. 能力组件 (Capabilities).md`
+- `addons/gf/docs/wiki/Home.md`
+- `addons/gf/docs/wiki/_Sidebar.md`
+- `tests/gf_core/test_gf_access_generator.gd`
+- `tests/gf_core/test_gf_capability_utility.gd`
+- `tests/gf_core/test_gf_singleton.gd`
+
+---
+
+## [1.9.3] - 2026-04-27
+
+**版本概述**：聚焦生命周期边界、异步取消与资源类型一致性，修复动态注册、队列等待、战斗清理、命令历史和数值格式化中的边缘问题，并补充对应回归测试。
+
+### 🚀 新增特性 (Added)
+- **动作队列当前动作取消**：`GFVisualAction` 新增 `cancel()`，`GFVisualActionGroup` 会通过执行序号停止内部等待。
+- **命令历史异步超时**：`GFCommandHistoryUtility` 新增 `async_timeout_seconds`，避免异步命令 Signal 丢失后永久锁住历史操作。
+- **音频总线常量与回退**：`GFAudioUtility` 新增 `BGM_BUS_NAME` / `SFX_BUS_NAME` 常量，缺少对应总线时自动回退 `Master` 并提示。
+
+### 🔄 机制更改 (Changed)
+- **Tick 只驱动 ready 模块**：`GFArchitecture.tick()` / `physics_tick()` 现在只驱动生命周期已到阶段三的模块，避免动态注册慢初始化对象提前参与帧循环。
+- **失效 alias 不再遮蔽回退**：本地 alias 指向未注册目标时，查询会继续走 assignable 查询与父架构回退。
+- **资源 pending 保留 type_hint**：`GFAssetUtility` 的 pending 请求会记录 `type_hint`；同一路径不同类型提示的并发请求会被拒绝并回调 `null`。
+- **NodeContext 等待改用生命周期信号**：`GFNodeContext.wait_until_ready()` 不再逐帧轮询，而是等待架构初始化完成信号。
+- **任务 float 进度四舍五入**：`GFQuestUtility` 对 float 或字典中的 float `amount` 使用四舍五入，避免静默截断。
+
+### 🐛 Bug 修复 (Fixed)
+- **UI 入栈失败后下层面板不可见**：修复 `GFUIUtility` 的 `config_callback` 销毁新面板时，旧栈顶未恢复显示的问题。
+- **动作队列清空仍卡在当前等待**：`GFActionQueueSystem.clear_queue(true)` 现在会取消当前等待并丢弃后续动作。
+- **战斗系统释放未清理效果**：`GFCombatSystem.dispose()` 会移除存活实体上的 Buff 效果、断开技能信号并清空索引；已释放实体清理不再触发 typed Object 错误。
+- **命令历史缺少架构注入与取消**：历史执行、撤销、重做和反序列化恢复的命令会注入当前架构；dispose 会取消等待中的异步操作。
+- **科学计数法尾数进位错误**：`GFBigNumber.to_scientific_string()` 在尾数舍入到 10 时会正确进位指数。
+- **定点数大位移除法错误缩放**：`GFFixedDecimal.divide()` 对超过整数缩放安全上限的正位移使用浮点兜底并钳制溢出，不再把缩放位数截断成错误结果。
+- **定点数转大数重复加载脚本**：`GFFixedDecimal.to_big_number()` 改为预加载脚本引用。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFVisualAction.cancel() -> void`。
+- 新增 `GFCommandHistoryUtility.async_timeout_seconds: float`。
+- 新增 `GFAudioUtility.BGM_BUS_NAME` 与 `GFAudioUtility.SFX_BUS_NAME`。
+- `GFActionQueueSystem.clear_queue(stop_current: bool = false)` 新增可选参数，旧调用保持兼容。
+- `GFAssetUtility.is_loading(path: String, type_hint: String = "")` 新增可选参数，旧调用保持兼容。
+- `GFAssetUtility.cancel(path: String, type_hint: String = "")` 新增可选参数，旧调用保持兼容。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧的 `clear_queue()`、`is_loading(path)` 与 `cancel(path)` 调用无需改动；需要终止当前等待动作时改用 `clear_queue(true)`。
+2. 如果项目没有配置 `BGM` / `SFX` 音频总线，`GFAudioUtility` 会回退到 `Master`；正式项目建议在 Audio Bus Layout 中补齐对应总线。
+3. 如果同一路径需要以不同 `type_hint` 加载，请等待前一个请求结束后再发起新请求，或统一调用方的类型提示。
+
+### 📁 核心受影响文件 (Affected Files)
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/core/gf_node_context.gd`
+- `addons/gf/extensions/action_queue/gf_action_queue_system.gd`
+- `addons/gf/extensions/action_queue/gf_visual_action.gd`
+- `addons/gf/extensions/action_queue/gf_visual_action_group.gd`
+- `addons/gf/extensions/combat/gf_combat_system.gd`
+- `addons/gf/extensions/state_machine/gf_state_machine.gd`
+- `addons/gf/foundation/numeric/gf_big_number.gd`
+- `addons/gf/foundation/numeric/gf_fixed_decimal.gd`
+- `addons/gf/utilities/gf_asset_utility.gd`
+- `addons/gf/utilities/gf_audio_utility.gd`
+- `addons/gf/utilities/gf_command_history_utility.gd`
+- `addons/gf/utilities/gf_quest_utility.gd`
+- `addons/gf/utilities/gf_ui_utility.gd`
+- `addons/gf/plugin.cfg`
+- `tests/gf_core/test_gf_action_queue.gd`
+- `tests/gf_core/test_gf_asset_utility.gd`
+- `tests/gf_core/test_gf_big_number.gd`
+- `tests/gf_core/test_gf_combat_extension.gd`
+- `tests/gf_core/test_gf_command_history_utility.gd`
+- `tests/gf_core/test_gf_fixed_decimal.gd`
+- `tests/gf_core/test_gf_quest_utility.gd`
+- `tests/gf_core/test_gf_singleton.gd`
+- `tests/gf_core/test_gf_state_machine.gd`
+- `tests/gf_core/test_gf_ui_utility.gd`
+
+---
+
+## [1.9.2] - 2026-04-27
+
+**版本概述**：聚焦 Scoped 架构隔离、运行时空值防御与高频路径性能，修复局部上下文被全局 `Gf` 绕过的依赖解析问题，并补强对象池、动作队列、日志、资源缓存与定点数边界稳定性。
+
+### 🚀 新增特性 (Added)
+- **Controller 安全架构查询**：新增 `GFController.get_architecture_or_null()`，用于需要静默判断上下文架构是否可用的控制器场景。
+- **对象池分批预热**：新增 `GFObjectPoolUtility.prewarm_async(scene, parent, count, batch_size = 32)`，可把大量节点预热拆分到多帧执行。
+- **动作与技能架构注入**：`GFVisualAction` 与 `GFSkill` 新增 `inject_dependencies(architecture)`，允许动作队列与战斗系统把 scoped 架构传递给短生命周期对象。
+- **日志 flush 策略配置**：`GFLogUtility` 新增 `flush_interval_msec` 与 `flush_immediately`，可在性能与日志落盘可靠性之间按项目需求选择。
+
+### 🔄 机制更改 (Changed)
+- **Scoped 依赖解析收敛**：`GFSceneUtility`、`GFUIUtility`、`GFAudioUtility`、`GFLevelUtility`、`GFQuestUtility`、`GFConsoleUtility`、`GFCombatSystem` 与 `GFStateMachine` 现在优先使用注入或上下文架构，只有缺少上下文时才回退全局 `Gf`。
+- **Tick 缓存遍历更严格**：`GFArchitecture.tick()` / `physics_tick()` 会跳过同一帧中已注销的模块，避免旧缓存继续驱动已移除对象。
+- **动作队列消费优化**：`GFActionQueueSystem` 使用队头索引消费队列，避免顺序消费时频繁 `pop_front()` 搬移数组。
+- **网格 BFS 队列优化**：`GFGridMath` 的泛洪、BFS 寻路与连线搜索改用队头索引遍历。
+- **资源缓存 LRU 优化**：`GFAssetUtility` 的 LRU 记录改为访问序号，减少每次访问时的数组擦除成本。
+- **日志写入优化**：普通日志不再每条强制 flush；错误与致命日志仍会立即 flush，销毁时统一 flush。
+
+### 🐛 Bug 修复 (Fixed)
+- **技能自定义施放检查被跳过**：修复 owner 没有 TagComponent 且无必需标签时，`GFSkill.can_execute()` 直接返回 true 而不调用 `_custom_can_execute()` 的问题。
+- **对象池预热空场景崩溃**：`GFObjectPoolUtility.prewarm()` 现在会校验 `PackedScene` 与预热数量，避免 `scene.instantiate()` 空引用。
+- **注册别名空实例崩溃**：`register_*_instance_as()` 现在会在 alias 注册前校验实例与脚本，避免无效实例继续访问 `get_script()`。
+- **命令、查询与事件空输入崩溃**：`GFArchitecture.send_command()`、`send_query()`、`send_event()` 与 `TypeEventSystem.send()` 增加空输入保护。
+- **SFX 异步销毁后播放**：`GFAudioUtility.play_sfx()` 现在会在异步加载回调中校验生命周期序号，Utility 销毁后不会继续播放。
+- **定点数边界溢出**：`GFFixedDecimal` 的加法、乘法、字符串解析与除法舍入改为整数边界判断，避免 int64 边界附近因 float 精度或 `remainder * 2` 溢出产生错误结果。
+- **零目标任务状态不一致**：`GFQuestUtility.start_quest()` 对 `target_count <= 0` 的任务会立即标记完成，并发出进度与完成信号。
+- **日志保留数量负值越界**：`GFLogUtility.max_log_files` 会钳制到至少 1，避免负数配置导致旧日志清理越界。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFController.get_architecture_or_null() -> GFArchitecture`。
+- 新增 `GFObjectPoolUtility.prewarm_async(scene: PackedScene, parent: Node, count: int, batch_size: int = 32) -> void`。
+- 新增 `GFVisualAction.inject_dependencies(architecture: GFArchitecture) -> void`。
+- 新增 `GFSkill.inject_dependencies(architecture: GFArchitecture) -> void`。
+- 新增 `GFLogUtility.flush_interval_msec: int`。
+- 新增 `GFLogUtility.flush_immediately: bool`。
+- `GFQuestUtility.start_quest()` 对 `target_count <= 0` 的行为从“等待事件后才完成”调整为“启动即完成”。
+
+### 📘 升级指南 (Migration Guide)
+1. 使用 `GFNodeContext.SCOPED` 的项目无需改动调用方式；原先错误落到全局架构的 Utility / System 现在会优先使用局部架构。
+2. 如果自定义 `GFVisualAction` 或 `GFSkill` 需要解析架构依赖，可以实现或继承 `inject_dependencies()`，并由 `GFActionQueueSystem` / `GFCombatSystem` 自动注入。
+3. 大批量对象池预热建议从 `prewarm()` 迁移到 `await prewarm_async(..., batch_size)`，避免单帧实例化尖峰。
+4. 如项目依赖每条普通日志立刻落盘，可设置 `GFLogUtility.flush_immediately = true` 或 `flush_interval_msec = 0`。
+5. 如果旧任务配置中使用 `target_count <= 0` 表示“永不完成”，需要改为正数目标或在业务层禁用该任务。
+
+### 📁 核心受影响文件 (Affected Files)
+- `addons/gf/base/gf_command.gd`
+- `addons/gf/base/gf_controller.gd`
+- `addons/gf/base/gf_model.gd`
+- `addons/gf/base/gf_query.gd`
+- `addons/gf/base/gf_system.gd`
+- `addons/gf/base/gf_utility.gd`
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/core/type_event_system.gd`
+- `addons/gf/extensions/action_queue/gf_action_queue_system.gd`
+- `addons/gf/extensions/action_queue/gf_audio_action.gd`
+- `addons/gf/extensions/action_queue/gf_visual_action.gd`
+- `addons/gf/extensions/action_queue/gf_visual_action_group.gd`
+- `addons/gf/extensions/combat/gf_combat_system.gd`
+- `addons/gf/extensions/combat/gf_skill.gd`
+- `addons/gf/extensions/state_machine/gf_state_machine.gd`
+- `addons/gf/foundation/math/gf_grid_math.gd`
+- `addons/gf/foundation/numeric/gf_fixed_decimal.gd`
+- `addons/gf/utilities/gf_asset_utility.gd`
+- `addons/gf/utilities/gf_audio_utility.gd`
+- `addons/gf/utilities/gf_command_history_utility.gd`
+- `addons/gf/utilities/gf_console_utility.gd`
+- `addons/gf/utilities/gf_debug_overlay_utility.gd`
+- `addons/gf/utilities/gf_level_utility.gd`
+- `addons/gf/utilities/gf_log_utility.gd`
+- `addons/gf/utilities/gf_object_pool_utility.gd`
+- `addons/gf/utilities/gf_quest_utility.gd`
+- `addons/gf/utilities/gf_scene_utility.gd`
+- `addons/gf/utilities/gf_ui_utility.gd`
+- `tests/gf_core/test_gf_action_queue.gd`
+- `tests/gf_core/test_gf_audio_utility.gd`
+- `tests/gf_core/test_gf_combat_extension.gd`
+- `tests/gf_core/test_gf_fixed_decimal.gd`
+- `tests/gf_core/test_gf_log_utility.gd`
+- `tests/gf_core/test_gf_object_pool_utility.gd`
+- `tests/gf_core/test_gf_quest_utility.gd`
+- `tests/gf_core/test_gf_scene_utility.gd`
+- `tests/gf_core/test_gf_singleton.gd`
+- `tests/gf_core/test_gf_state_machine.gd`
+
+---
+
+## [1.9.1] - 2026-04-27
+
+**版本概述**：在 `1.9.0` 的 Installer、NodeContext 与父级架构回退基础上，继续吸收依赖注入容器的声明式绑定、生命周期策略和监听拥有者清理能力，补齐大型项目装配可读性、动态模块事件清理以及局部上下文下短生命周期对象注入语义。
+
+### 🚀 新增特性 (Added)
+- **声明式绑定装配器**：新增 `GFBinder`、`GFBindBuilder`、`GFBinding` 与 `GFBindingLifetimes`，支持 `bind_model()` / `bind_system()` / `bind_utility()` / `bind_factory()` 链式声明绑定来源、别名与生命周期。
+- **Installer 绑定入口**：`GFInstaller` 新增 `install_bindings(binder: Variant)`，项目安装器可以同时保留旧的 `install(architecture)` 与新的声明式装配写法。
+- **NodeContext 绑定入口**：`GFNodeContext` 新增 `install_bindings(binder: Variant)`，局部 scoped 架构可以用同一套装配语义注册场景专属模块和工厂。
+- **拥有者绑定事件监听**：新增 `register_event_owned()` / `register_simple_event_owned()` / `unregister_owner_events()` 以及 `Gf.listen_owned()` / `Gf.listen_simple_owned()` / `Gf.unlisten_owner()`，支持按监听拥有者批量清理。
+- **Utility 事件便捷方法**：`GFUtility` 补齐 `register_event()` / `register_simple_event()` 等事件辅助方法，与 `GFSystem`、`GFController` 保持一致。
+- **上下文就绪等待**：新增 `GFNodeContext.wait_until_ready()` 与 `GFController.wait_for_context_ready()`，用于在 scoped 架构异步初始化完成后再安全访问局部依赖。
+- **工厂实例绑定**：新增 `register_factory_instance()` / `replace_factory_instance()`，可把已有实例作为 `create_instance()` 的单例返回来源。
+
+### 🔄 机制更改 (Changed)
+- **工厂注册改为绑定对象承载**：短生命周期对象工厂现在统一由 `GFBinding` 管理 provider、lifetime 与自动注入策略。
+- **工厂生命周期可配置**：`register_factory()` / `replace_factory()` 新增可选 `lifetime` 参数，默认保持 transient 行为；singleton 工厂会缓存首次解析出的实例。
+- **父级 transient 工厂注入请求方架构**：子架构回退到父级 transient 工厂时，新对象会注入发起解析的子架构；singleton 工厂仍注入拥有该绑定的架构。
+- **模块事件注册默认 owner-bound**：`GFSystem`、`GFUtility`、`GFController` 的基类事件注册方法现在默认以自身为 owner，模块注销时自动清理对应监听。
+- **注册边界校验更严格**：底层 `register_model/system/utility()` 现在会校验实例基类、脚本存在性以及注册脚本与实例脚本的继承关系，避免把错误类型塞进错误注册槽位。
+
+### 🐛 Bug 修复 (Fixed)
+- **动态注销后的事件监听残留**：注销 `System` / `Utility` 时会自动移除该实例拥有的类型事件与简单事件监听，避免临时模块释放后继续接收事件。
+- **事件派发中的 owner 清理一致性**：派发过程中调用 owner 批量注销时，会同步处理 pending add/remove，避免同一轮或下一轮派发误触发已清理监听。
+- **文档回调签名漂移**：修正 BindableProperty 示例中 `value_changed` 回调参数与实际 `(old_value, new_value)` 语义不一致的问题。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFArchitecture.create_binder() -> Variant` 与 `Gf.create_binder() -> Variant`。
+- 新增 `GFInstaller.install_bindings(binder: Variant) -> void`。
+- 新增 `GFNodeContext.install_bindings(binder: Variant) -> void`。
+- 新增 `GFNodeContext.wait_until_ready() -> GFArchitecture`。
+- 新增 `GFController.wait_for_context_ready() -> GFArchitecture`。
+- 新增 `GFArchitecture.register_event_owned()` / `register_simple_event_owned()` / `unregister_owner_events()`。
+- 新增 `Gf.listen_owned()` / `listen_simple_owned()` / `unlisten_owner()`。
+- 新增 `GFArchitecture.register_factory_instance()` / `replace_factory_instance()`。
+- 新增 `Gf.register_factory_instance()` / `replace_factory_instance()`。
+- `GFArchitecture.register_factory(script_cls, factory, lifetime = GFBindingLifetimes.Lifetime.TRANSIENT)` 新增可选 `lifetime` 参数，旧调用保持兼容。
+- `GFArchitecture.replace_factory(script_cls, factory, lifetime = GFBindingLifetimes.Lifetime.TRANSIENT)` 新增可选 `lifetime` 参数，旧调用保持兼容。
+- `Gf.register_factory()` / `Gf.replace_factory()` 同步新增可选 `lifetime` 参数，旧调用保持兼容。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧的 `install(architecture)`、`register_*()`、`Gf.listen()` / `Gf.listen_simple()` 仍可继续使用，无需一次性迁移。
+2. 新项目或注册项较多的项目，建议优先把模块、alias 和工厂写入 `install_bindings()`，让装配关系集中可读。
+3. `GFSystem`、`GFUtility`、`GFController` 内部注册事件时，优先使用基类 `register_event()` / `register_simple_event()`；普通对象优先使用 `Gf.listen_owned()` 并在退出时调用 `Gf.unlisten_owner()`。
+4. 需要短生命周期 Command / Query 访问依赖时，优先通过 `create_instance()` 创建；局部场景下它会拿到正确的 scoped 架构注入。
+5. 如果旧代码直接调用底层 `register_utility(SomeBase, wrong_instance)` 这类不匹配注册，新版本会报错并拒绝注册，请改为正确基类或显式 alias。
+
+### 📁 核心受影响文件 (Affected Files)
+- `README.md`
+- `addons/gf/base/gf_controller.gd`
+- `addons/gf/base/gf_system.gd`
+- `addons/gf/base/gf_utility.gd`
+- `addons/gf/core/gf.gd`
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/core/gf_bind_builder.gd`
+- `addons/gf/core/gf_binder.gd`
+- `addons/gf/core/gf_binding.gd`
+- `addons/gf/core/gf_binding_lifetimes.gd`
+- `addons/gf/core/gf_installer.gd`
+- `addons/gf/core/gf_node_context.gd`
+- `addons/gf/core/type_event_system.gd`
+- `addons/gf/docs/wiki/01. 架构概览 (Architecture).md`
+- `addons/gf/docs/wiki/02. 生命周期与初始化 (Lifecycle).md`
+- `addons/gf/docs/wiki/04. 事件系统 (Event System).md`
+- `addons/gf/docs/wiki/06. 命令与查询 (Commands & Queries).md`
+- `addons/gf/docs/wiki/更新日志 (Changelog).md`
+- `addons/gf/utilities/gf_quest_utility.gd`
+- `tests/gf_core/test_gf_singleton.gd`
+- `tests/gf_core/test_type_event_system.gd`
+
+---
+
+## [1.9.0] - 2026-04-27
+
+**版本概述**：吸收依赖注入容器的装配经验，补强项目启动安装器、场景级局部上下文、父级架构回退与注册边界提示，同时修复事件系统遍历中先注册再注销的 pending 合并边缘问题。
+
+### 🚀 新增特性 (Added)
+- **项目级 Installer**：新增 `GFInstaller`，可在 `Project Settings > gf/project/installers` 中登记安装器脚本，由 `Gf.init()` / `Gf.set_architecture()` 在生命周期初始化前自动执行。
+- **场景级 NodeContext**：新增 `GFNodeContext`，支持 `SCOPED` 与 `INHERITED` 两种模式；Scoped 架构会自动初始化、驱动 tick，并在节点退出树时释放局部模块。
+- **父级架构回退**：`GFArchitecture` 新增父级架构引用，本地未找到依赖时可回退到父级架构查询，便于关卡、房间、调试面板等局部模块复用全局服务。
+- **模块注入 Hook**：注册模块时，如果实例实现了 `inject_dependencies(architecture)`，框架会自动注入当前架构引用。
+- **显式替换接口**：新增 `replace_model()` / `replace_system()` / `replace_utility()`，用于明确替换已注册模块并释放旧实例。
+- **短生命周期对象工厂**：新增 `register_factory()` / `create_instance()`，用于创建 Command、Query、技能执行载体等无需进入生命周期的临时对象，并自动注入当前架构。
+
+### 🔄 机制更改 (Changed)
+- **重复注册显式提示**：重复调用 `register_model/system/utility()` 时不再静默忽略，而是输出 warning，并提示使用 replace 接口。
+- **插件设置补齐**：编辑器插件现在会创建 `gf/project/installers` 项目设置，并在添加/移除 `Gf` AutoLoad 前检查 ProjectSettings 状态。
+- **事件 pending 合并收敛**：类型事件与简单事件在遍历中先注册再注销同一回调时，会移除对应 pending add，避免下一次派发误触发。
+- **上下文优先的基类访问**：`GFController` 会沿父节点查找最近的 `GFNodeContext`；注册到架构的 `GFModel`、`GFSystem`、`GFUtility` 以及经架构执行/创建的 `GFCommand`、`GFQuery` 会优先使用注入架构解析依赖。
+
+### 🐛 Bug 修复 (Fixed)
+- **事件回调残留**：修复同一轮事件派发中 `register -> unregister` 同一个回调后，该回调仍可能在 flush 后残留的问题。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFInstaller.install(architecture: GFArchitecture) -> void`。
+- 新增 `GFNodeContext`、`GFNodeContext.ScopeMode`、`GFNodeContext.context_ready`。
+- 新增 `GFArchitecture.get_parent_architecture()` / `set_parent_architecture()`。
+- 新增 `GFArchitecture.replace_model()` / `replace_system()` / `replace_utility()`。
+- 新增 `GFArchitecture.register_factory()` / `replace_factory()` / `unregister_factory()` / `create_instance()`。
+- 新增 `Gf.replace_model()` / `replace_system()` / `replace_utility()`。
+- 新增 `Gf.unregister_model()` / `unregister_system()` / `unregister_utility()`。
+- 新增 `Gf.register_factory()` / `replace_factory()` / `unregister_factory()` / `create_instance()`。
+- `GFController.get_model()` / `get_system()` / `get_utility()` 现在优先使用最近的 `GFNodeContext`。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目无需强制迁移；手写 boot 注册流程保持可用。
+2. 若项目启动注册项越来越多，建议创建一个或多个 `GFInstaller`，并把路径加入 `gf/project/installers`。
+3. 若存在关卡专属 System/Utility，建议用 `GFNodeContext.SCOPED` 承载，避免手动维护瞬态清理列表。
+4. 若旧代码依赖重复注册静默忽略，当前版本会多一条 warning；如确实需要替换，请改用 `replace_*()`。
+5. 如果某个 `GFController` 被放在 `GFNodeContext` 子树下，它现在会优先访问局部架构；若需要访问全局架构，请显式使用 `Gf.get_architecture()`。
+
+### 📁 核心受影响文件 (Affected Files)
+- `README.md`
+- `addons/gf/base/gf_command.gd`
+- `addons/gf/base/gf_controller.gd`
+- `addons/gf/base/gf_model.gd`
+- `addons/gf/base/gf_query.gd`
+- `addons/gf/base/gf_system.gd`
+- `addons/gf/base/gf_utility.gd`
+- `addons/gf/core/gf.gd`
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/core/gf_installer.gd`
+- `addons/gf/core/gf_node_context.gd`
+- `addons/gf/core/type_event_system.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/plugin.gd`
+- `addons/gf/docs/wiki/01. 架构概览 (Architecture).md`
+- `addons/gf/docs/wiki/02. 生命周期与初始化 (Lifecycle).md`
+- `tests/gf_core/test_gf_singleton.gd`
+- `tests/gf_core/test_type_event_system.gd`
+
+---
+
+## [1.8.0] - 2026-04-26
+
+**版本概述**：补齐小型游戏高频基础能力，收敛战斗修饰器语义、关卡流程、网格算法与常用表现动作，并同步修正文档和生成模板中的接口漂移。
+
+### 🚀 新增特性 (Added)
+- **网格算法基础件**：新增 `GFGridMath`，提供索引转换、邻居枚举、泛洪、BFS 寻路与两折连线判断。
+- **关卡流程工具**：新增 `GFLevelUtility`，统一处理关卡开始、重开、胜利、失败信号，并可在重开时清理命令历史与表现队列。
+- **常用表现动作**：新增 `GFMoveTweenAction`、`GFFlashAction` 与 `GFAudioAction`，覆盖移动、闪色、音效三类常见队列动作。
+
+### 🔄 机制更改 (Changed)
+- **生命周期推进顺序统一**：同一阶段内改为 `Model -> Utility -> System`，与文档和启动约定保持一致。
+- **战斗修饰器语义收敛**：`GFModifier` 新增 `attribute_id` 与 `source_id`，明确区分“作用到哪个属性”和“来自哪个来源”。
+- **Seed 分支 RNG 不污染主流**：`GFSeedUtility.get_branched_rng()` 改为基于主 RNG 状态与分支计数派生，不再推进主随机流。
+
+### 🐛 Bug 修复 (Fixed)
+- **Buff 属性挂载歧义**：修复 Buff 应用修饰器时把来源标识误当属性名的问题，并保留旧 `source_tag` 写法作为兼容回退。
+- **文档与生成模板漂移**：修复命令返回值、状态机入口参数、撤销接口、数据绑定代码块、Controller 缓存说明等过期示例。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFModifier.attribute_id: StringName`。
+- 新增 `GFModifier.source_id: StringName`。
+- `GFModifier.create_base_add/create_percent_add/create_final_add()` 的第二参数现在表示 `attribute_id`，第三参数表示 `source_id`。
+- `GFModifier.source_tag` 暂保留为兼容别名，会映射到 `source_id`。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目如果用 `GFModifier.create_percent_add(0.2, &"STR")` 表示作用属性，无需修改。
+2. 如果旧项目把第二参数当“来源”使用，请改为 `GFModifier.create_percent_add(0.2, &"ATK", &"SourceId")`，或显式设置 `source_id`。
+3. 如果需要按来源批量移除修饰器，请使用 `remove_modifiers_by_source(source_id)` 并确保修饰器来源写入 `source_id`。
+
 ## [1.7.1] - 2026-04-25
 
 **版本概述**：聚焦 1.7.0 引入 Foundation 后暴露出的数值边界，以及核心生命周期、命令历史和动作队列在异步场景下的稳定性，补齐若干会导致假完成、栈乱序或队列悬挂的防御。

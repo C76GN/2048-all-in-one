@@ -76,6 +76,14 @@ func start_quest(quest_id: StringName, target_event: StringName, target_count: i
 	data.target_count = target_count
 	_quests[quest_id] = data
 
+	quest_started.emit(quest_id)
+
+	if target_count <= 0:
+		data.is_completed = true
+		quest_progressed.emit(quest_id, data.current_count, data.target_count)
+		quest_completed.emit(quest_id)
+		return
+
 	if not _event_to_quests.has(target_event):
 		_event_to_quests[target_event] = [] as Array[StringName]
 		_register_event_handler(target_event)
@@ -83,8 +91,6 @@ func start_quest(quest_id: StringName, target_event: StringName, target_count: i
 	var list: Array = _event_to_quests[target_event]
 	if not list.has(quest_id):
 		list.append(quest_id)
-
-	quest_started.emit(quest_id)
 
 
 ## 手动触发一次任务事件。
@@ -129,13 +135,9 @@ func _on_quest_event_triggered(payload: Variant, event_id: StringName) -> void:
 	if not _event_to_quests.has(event_id):
 		return
 
-	var amount: int = 1
-	if payload is Dictionary and payload.has("amount"):
-		amount = int(payload["amount"])
-	elif payload is int or payload is float:
-		amount = int(payload)
+	var amount := _payload_to_amount(payload)
 
-	var list: Array = _event_to_quests[event_id]
+	var list: Array = (_event_to_quests[event_id] as Array).duplicate()
 	for quest_id: StringName in list:
 		var q := _quests.get(quest_id) as QuestData
 		if q == null or q.is_completed:
@@ -158,7 +160,10 @@ func _register_event_handler(event_id: StringName) -> void:
 
 	var event_handler: Callable = Callable(self, "_on_quest_event_triggered").bind(event_id)
 	_event_handlers[event_id] = event_handler
-	arch.register_simple_event(event_id, event_handler)
+	if arch.has_method("register_simple_event_owned"):
+		arch.register_simple_event_owned(self, event_id, event_handler)
+	else:
+		arch.register_simple_event(event_id, event_handler)
 
 
 func _unregister_all_event_handlers() -> void:
@@ -172,7 +177,22 @@ func _unregister_all_event_handlers() -> void:
 
 
 func _get_arch() -> Object:
-	if Gf.has_method("has_architecture") and Gf.has_architecture():
-		return Gf.get_architecture()
+	return _get_architecture_or_null()
 
-	return null
+
+func _payload_to_amount(payload: Variant) -> int:
+	var current_payload := payload
+	var depth: int = 0
+	while current_payload is Dictionary and current_payload.has("amount"):
+		depth += 1
+		if depth > 16:
+			push_error("[GFQuestUtility] payload.amount 嵌套过深，已回退为默认进度 1。")
+			return 1
+		current_payload = current_payload["amount"]
+
+	if current_payload is int:
+		return current_payload
+	if current_payload is float:
+		return roundi(current_payload)
+
+	return 1

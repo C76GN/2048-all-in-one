@@ -205,14 +205,17 @@ func _add_panel_instance(panel: Node, layer: Layer, config_callback: Callable) -
 		return false
 
 	var stack: Array = _panel_stacks[layer]
+	var hidden_panel: CanvasItem = null
 	if _auto_hide_under and not stack.is_empty():
 		var old_top: Node = stack.back()
 		if is_instance_valid(old_top) and old_top is CanvasItem:
-			old_top.visible = false
+			hidden_panel = old_top as CanvasItem
+			hidden_panel.visible = false
 
 	if config_callback.is_valid():
 		config_callback.call(panel)
 		if not is_instance_valid(panel):
+			_restore_hidden_panel(hidden_panel)
 			push_warning("[GFUIUtility] config_callback 销毁了面板实例，本次入栈已取消。")
 			return false
 
@@ -221,11 +224,13 @@ func _add_panel_instance(panel: Node, layer: Layer, config_callback: Callable) -
 	return true
 
 
-func _get_asset_util() -> GFAssetUtility:
-	if not Gf.has_architecture():
-		return null
+func _restore_hidden_panel(panel: CanvasItem) -> void:
+	if is_instance_valid(panel):
+		panel.visible = true
 
-	var arch: Object = Gf.get_architecture()
+
+func _get_asset_util() -> GFAssetUtility:
+	var arch: Object = _get_architecture_or_null()
 	if arch != null and arch.has_method("get_utility"):
 		var util: Object = arch.get_utility(GFAssetUtility)
 		if util != null:
