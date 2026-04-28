@@ -39,7 +39,7 @@ enabled=PackedStringArray("res://addons/gf/plugin.cfg")
 
 [gf]
 
-project/installers=PackedStringArray("res://scripts/boot/game_architecture_installer.gd")
+project/installers=PackedStringArray("uid://dlby16xly4hri")
 
 [gui]
 
