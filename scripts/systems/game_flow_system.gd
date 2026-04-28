@@ -113,6 +113,14 @@ func sync_bookmark_baseline_state() -> void:
 	_last_saved_bookmark_state = _get_bookmark_comparison_state()
 
 
+## Synchronizes the status model's highest tile with the board state.
+func sync_highest_tile_from_grid() -> void:
+	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_status_model):
+		return
+
+	_game_status_model.highest_tile.set_value(_grid_model.get_max_player_value())
+
+
 ## 进入可操作的游戏状态，不触发棋盘初始化。
 func enter_playing_state() -> void:
 	if _fsm == null:
@@ -126,6 +134,7 @@ func enter_playing_state() -> void:
 func trigger_initial_rules() -> void:
 	enter_playing_state()
 	send_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION)
+	sync_highest_tile_from_grid()
 
 
 ## 检查游戏是否结束。
@@ -136,6 +145,10 @@ func check_game_over() -> void:
 		if _game_over_rule.is_game_over(_grid_model, _grid_model.interaction_rule):
 			send_simple_event(EventNames.BOARD_REFRESH_REQUESTED, _grid_model.get_snapshot())
 			send_simple_event(EventNames.GAME_LOST)
+			if _is_replay_mode:
+				return
+			if _fsm == null:
+				return
 			_fsm.change_state(EventNames.STATE_GAME_OVER)
 			_handle_game_over()
 
@@ -241,6 +254,8 @@ func _get_full_game_state() -> Dictionary:
 
 
 func _get_bookmark_comparison_state() -> Dictionary:
+	sync_highest_tile_from_grid()
+
 	var state := _get_full_game_state()
 	var command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	if command_history:
@@ -384,10 +399,7 @@ func _on_move_made(move_data: MoveData) -> void:
 		if not _is_replay_mode and move_data.direction != Vector2i.ZERO:
 			_player_actions.append(move_data.direction)
 		_game_status_model.move_count.set_value(_game_status_model.move_count.get_value() + 1)
-		
-		# 更新最高方块值
-		var max_val: int = _grid_model.get_max_player_value()
-		_game_status_model.highest_tile.set_value(max_val)
+		sync_highest_tile_from_grid()
 
 
 func _on_monster_killed(_payload: Variant = null) -> void:
@@ -395,6 +407,7 @@ func _on_monster_killed(_payload: Variant = null) -> void:
 
 
 func _on_turn_finished(_payload: Variant = null) -> void:
+	sync_highest_tile_from_grid()
 	check_game_over()
 
 func _on_score_updated(amount: int) -> void:

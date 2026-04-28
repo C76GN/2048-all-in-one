@@ -36,6 +36,7 @@ var _command_history: GFCommandHistoryUtility
 var _action_queue: GFActionQueueSystem
 var _game_flow_system: GameFlowSystem
 var _replay_system: ReplaySystem
+var _signal_utility: GFSignalUtility
 var _test_utility: TestToolUtility
 var _log: GFLogUtility
 
@@ -63,6 +64,7 @@ func _ready() -> void:
 	_current_game_model = get_model(CurrentGameModel) as CurrentGameModel
 	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
 	_replay_system = get_system(ReplaySystem) as ReplaySystem
+	_signal_utility = get_utility(GFSignalUtility) as GFSignalUtility
 	_test_utility = get_utility(TestToolUtility) as TestToolUtility
 	_log = get_utility(GFLogUtility) as GFLogUtility
 	
@@ -70,8 +72,7 @@ func _ready() -> void:
 		_page_title.visible = false
 		
 	if is_instance_valid(_game_status_model):
-		if not _game_status_model.move_count.value_changed.is_connected(_on_move_count_changed):
-			_game_status_model.move_count.value_changed.connect(_on_move_count_changed)
+		_connect_native_signal(_game_status_model.move_count.value_changed, _on_move_count_changed)
 		
 	register_event(GameReadyData, _on_game_ready_data_received)
 	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
@@ -120,8 +121,7 @@ func _cleanup_listeners() -> void:
 	if console:
 		console.unregister_command("toggle_test_panel")
 	
-	if is_instance_valid(_action_queue):
-		_action_queue.clear_queue(true)
+	_clear_action_queues()
 
 	# 清理所有 GF 事件监听，防止旧场景实例在场景重载后仍接收事件
 	unregister_event(GameReadyData, _on_game_ready_data_received)
@@ -131,9 +131,10 @@ func _cleanup_listeners() -> void:
 	unregister_simple_event(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
 	unregister_event(HudMessagePayload, _on_show_hud_message_event)
 
-	if is_instance_valid(_game_status_model):
-		if _game_status_model.move_count.value_changed.is_connected(_on_move_count_changed):
-			_game_status_model.move_count.value_changed.disconnect(_on_move_count_changed)
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
+	else:
+		_disconnect_native_signals()
 
 	if is_instance_valid(_test_utility):
 		_test_utility.clear_context()
@@ -142,22 +143,60 @@ func _cleanup_listeners() -> void:
 		_log.info("GamePlay", "_cleanup_listeners: cleaned up all GF listeners and signal connections")
 
 
+func _clear_action_queues() -> void:
+	if not is_instance_valid(_action_queue):
+		_action_queue = get_system(GFActionQueueSystem) as GFActionQueueSystem
+
+	if is_instance_valid(_action_queue):
+		_action_queue.clear_queue(true)
+		_action_queue.clear_all_named_queues(true)
+
+
+func _connect_native_signal(source_signal: Signal, callback: Callable) -> void:
+	if is_instance_valid(_signal_utility):
+		_signal_utility.connect_signal(source_signal, callback, self)
+		return
+
+	if not source_signal.is_connected(callback):
+		source_signal.connect(callback)
+
+
+func _disconnect_native_signals() -> void:
+	if is_instance_valid(_game_status_model):
+		_disconnect_native_signal(_game_status_model.move_count.value_changed, _on_move_count_changed)
+	if is_instance_valid(replay_prev_step_button) and is_instance_valid(_replay_system):
+		_disconnect_native_signal(replay_prev_step_button.pressed, _replay_system.step_backward)
+	if is_instance_valid(replay_next_step_button) and is_instance_valid(_replay_system):
+		_disconnect_native_signal(replay_next_step_button.pressed, _replay_system.step_forward)
+	if is_instance_valid(replay_back_button):
+		_disconnect_native_signal(replay_back_button.pressed, _on_replay_back_pressed)
+	if is_instance_valid(_hud_message_timer):
+		_disconnect_native_signal(_hud_message_timer.timeout, _on_hud_message_timer_timeout)
+
+
+func _disconnect_native_signal(source_signal: Signal, callback: Callable) -> void:
+	if source_signal.is_null() or not is_instance_valid(source_signal.get_object()):
+		return
+	if source_signal.is_connected(callback):
+		source_signal.disconnect(callback)
+
+
 ## 集中管理所有信号连接。
 func _connect_signals() -> void:
-	if is_instance_valid(replay_prev_step_button) and not replay_prev_step_button.pressed.is_connected(_replay_system.step_backward):
-		replay_prev_step_button.pressed.connect(_replay_system.step_backward)
-	if is_instance_valid(replay_next_step_button) and not replay_next_step_button.pressed.is_connected(_replay_system.step_forward):
-		replay_next_step_button.pressed.connect(_replay_system.step_forward)
-	if is_instance_valid(replay_back_button) and not replay_back_button.pressed.is_connected(_on_replay_back_pressed):
-		replay_back_button.pressed.connect(_on_replay_back_pressed)
+	if is_instance_valid(_replay_system):
+		if is_instance_valid(replay_prev_step_button):
+			_connect_native_signal(replay_prev_step_button.pressed, _replay_system.step_backward)
+		if is_instance_valid(replay_next_step_button):
+			_connect_native_signal(replay_next_step_button.pressed, _replay_system.step_forward)
+	if is_instance_valid(replay_back_button):
+		_connect_native_signal(replay_back_button.pressed, _on_replay_back_pressed)
 
 	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 	register_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
 	register_simple_event(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
 	register_event(HudMessagePayload, _on_show_hud_message_event)
 
-	if not _hud_message_timer.timeout.is_connected(_on_hud_message_timer_timeout):
-		_hud_message_timer.timeout.connect(_on_hud_message_timer_timeout)
+	_connect_native_signal(_hud_message_timer.timeout, _on_hud_message_timer_timeout)
 
 
 ## 根据当前是普通模式还是回放模式，配置UI元素的可见性。
@@ -214,13 +253,14 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 	if not _action_queue:
 		_action_queue = get_system(GFActionQueueSystem) as GFActionQueueSystem
 	
-	if _action_queue:
-		_action_queue.clear_queue(true)
+	_clear_action_queues()
 			
 	_loaded_bookmark_data = data.loaded_bookmark_data
 	
-	if _current_game_model.is_replay_mode.get_value():
+	if _current_game_model.is_replay_mode.get_value() and is_instance_valid(_replay_system):
 		_replay_system.activate_replay_mode(data.replay_data_resource)
+	elif is_instance_valid(_replay_system):
+		_replay_system.deactivate_replay_mode()
 	
 	_configure_ui_for_mode()
 	
@@ -302,6 +342,9 @@ func _on_hud_message_timer_timeout() -> void:
 
 
 func _on_game_state_changed(new_state: StringName) -> void:
+	if is_instance_valid(_current_game_model) and _current_game_model.is_replay_mode.get_value():
+		return
+
 	if new_state == EventNames.STATE_GAME_OVER:
 		# 使用 GFUIUtility 弹出游戏结束菜单
 		var ui_util := get_utility(GFUIUtility) as GFUIUtility

@@ -16,10 +16,13 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 	var grid := get_model(GridModel) as GridModel
 	var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
 	var grid_size: int = grid_size_override
+	var highest_tile := 0
 	var extra_stats: Dictionary = {}
 
 	if grid_size <= 0 and is_instance_valid(grid):
 		grid_size = grid.grid_size
+	if is_instance_valid(grid):
+		highest_tile = grid.get_max_player_value()
 
 	if is_instance_valid(status):
 		extra_stats = status.extra_stats.get_value().duplicate(true)
@@ -40,7 +43,7 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 		&"rng_full_state": seed_util.get_full_state() if is_instance_valid(seed_util) else {},
 		&"score": status.score.get_value() if is_instance_valid(status) else 0,
 		&"move_count": status.move_count.get_value() if is_instance_valid(status) else 0,
-		&"highest_tile": status.highest_tile.get_value() if is_instance_valid(status) else 0,
+		&"highest_tile": highest_tile,
 		&"monsters_killed": status.monsters_killed.get_value() if is_instance_valid(status) else 0,
 		&"status_message": status.status_message.get_value() if is_instance_valid(status) else "",
 		&"extra_stats": extra_stats,
@@ -71,10 +74,10 @@ func restore_state(state_to_restore: Dictionary) -> void:
 		status.score.set_value(state_to_restore.get(&"score", 0))
 		status.move_count.set_value(state_to_restore.get(&"move_count", 0))
 		status.monsters_killed.set_value(state_to_restore.get(&"monsters_killed", 0))
-		var highest_tile := 0
+		var highest_tile: int = state_to_restore.get(&"highest_tile", 0)
 		if is_instance_valid(grid):
 			highest_tile = grid.get_max_player_value()
-		status.highest_tile.set_value(state_to_restore.get(&"highest_tile", highest_tile))
+		status.highest_tile.set_value(highest_tile)
 		status.status_message.set_value(state_to_restore.get(&"status_message", ""))
 		var extra_stats: Dictionary = state_to_restore.get(&"extra_stats", {})
 		status.extra_stats.set_value(extra_stats.duplicate(true))

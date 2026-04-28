@@ -134,6 +134,7 @@ func _on_primary_action_triggered(data: Resource) -> void:
 	var replay = data as ReplayData
 	var app_config := get_model(AppConfigModel) as AppConfigModel
 	if app_config:
+		app_config.selected_bookmark_data.set_value(null)
 		app_config.current_replay_data.set_value(replay)
 
 	var router := get_system(SceneRouterSystem) as SceneRouterSystem

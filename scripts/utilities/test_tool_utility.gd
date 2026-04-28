@@ -111,6 +111,7 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int
 		
 		# 通知视图层全量刷新 (比单点刷新更安全，且测试工具不需要关心视图层怎么画)
 		send_simple_event(EventNames.BOARD_REFRESH_REQUESTED, grid_model.get_snapshot())
+		_sync_highest_tile_from_grid()
 
 
 func _on_test_panel_values_requested(type_id: int) -> void:
@@ -178,6 +179,7 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 		command_history.clear()
 
 	send_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION)
+	_sync_highest_tile_from_grid()
 
 	if command_history:
 		var init_cmd := MoveCommand.new(Vector2i.ZERO)
@@ -189,3 +191,15 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 
 	send_simple_event(EventNames.BOARD_RESIZED, new_size)
 	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+
+
+func _sync_highest_tile_from_grid() -> void:
+	var game_flow_system := get_system(GameFlowSystem) as GameFlowSystem
+	if is_instance_valid(game_flow_system):
+		game_flow_system.sync_highest_tile_from_grid()
+		return
+
+	var grid_model := get_model(GridModel) as GridModel
+	var status_model := get_model(GameStatusModel) as GameStatusModel
+	if is_instance_valid(grid_model) and is_instance_valid(status_model):
+		status_model.highest_tile.set_value(grid_model.get_max_player_value())

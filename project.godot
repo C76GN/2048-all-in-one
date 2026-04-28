@@ -37,6 +37,10 @@ window/stretch/mode="canvas_items"
 
 enabled=PackedStringArray("res://addons/gf/plugin.cfg")
 
+[gf]
+
+project/installers=PackedStringArray("res://scripts/boot/game_architecture_installer.gd")
+
 [gui]
 
 theme/custom_font="uid://cvosdaiqn3n5s"

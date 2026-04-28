@@ -16,6 +16,7 @@ var _seed_utility: GFSeedUtility
 var _rule_system: RuleSystem
 var _game_flow_system: GameFlowSystem
 var _command_history: GFCommandHistoryUtility
+var _level_utility: GFLevelUtility
 var _log: GFLogUtility
 
 
@@ -24,6 +25,7 @@ var _log: GFLogUtility
 func ready() -> void:
 	_seed_utility = get_utility(GFSeedUtility) as GFSeedUtility
 	_command_history = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	_level_utility = get_utility(GFLevelUtility) as GFLevelUtility
 	_log = get_utility(GFLogUtility) as GFLogUtility
 	_rule_system = get_system(RuleSystem) as RuleSystem
 	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
@@ -58,10 +60,17 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	var replay_data: ReplayData = app_config.current_replay_data.get_value()
 	var loaded_bookmark_data: BookmarkData = app_config.selected_bookmark_data.get_value()
 
+	if is_instance_valid(replay_data):
+		loaded_bookmark_data = null
+	elif is_instance_valid(loaded_bookmark_data):
+		replay_data = null
+
 	app_config.current_replay_data.set_value(null)
 	app_config.selected_bookmark_data.set_value(null)
 
-	if _command_history:
+	if is_instance_valid(_level_utility):
+		_level_utility.clear_level_runtime()
+	elif _command_history:
 		_command_history.clear()
 
 	var game_ready_data := GameReadyData.new()

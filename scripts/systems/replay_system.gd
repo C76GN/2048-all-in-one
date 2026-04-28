@@ -98,6 +98,14 @@ func activate_replay_mode(data: ReplayData) -> void:
 	_emit_progress()
 
 
+## Clears active replay data.
+func deactivate_replay_mode() -> void:
+	_current_replay = null
+	_is_replay_active = false
+	playback_status_changed.emit(false)
+	_emit_progress()
+
+
 ## 回放下一步。
 func step_forward() -> void:
 	if not _is_replay_active or _current_replay == null:
