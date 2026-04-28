@@ -18,10 +18,10 @@ var _is_listening: bool = false
 
 func dispose() -> void:
 	if _is_listening:
-		Gf.unlisten(TestSpawnPayload, _on_test_panel_spawn_requested_event)
-		Gf.unlisten_simple(EventNames.TEST_VALUES_REQUESTED, _on_test_panel_values_requested_event)
-		Gf.unlisten_simple(EventNames.TEST_RESET_RESIZE_REQUESTED, _on_reset_and_resize_requested_event)
-		Gf.unlisten_simple(EventNames.TEST_LIVE_EXPAND_REQUESTED, _on_live_expand_requested_event)
+		unregister_event(TestSpawnPayload, _on_test_panel_spawn_requested_event)
+		unregister_simple_event(EventNames.TEST_VALUES_REQUESTED, _on_test_panel_values_requested_event)
+		unregister_simple_event(EventNames.TEST_RESET_RESIZE_REQUESTED, _on_reset_and_resize_requested_event)
+		unregister_simple_event(EventNames.TEST_LIVE_EXPAND_REQUESTED, _on_live_expand_requested_event)
 		_is_listening = false
 
 	clear_context()
@@ -73,20 +73,19 @@ func _register_listeners() -> void:
 	if _is_listening:
 		return
 
-	Gf.listen(TestSpawnPayload, _on_test_panel_spawn_requested_event)
-	Gf.listen_simple(EventNames.TEST_VALUES_REQUESTED, _on_test_panel_values_requested_event)
-	Gf.listen_simple(EventNames.TEST_RESET_RESIZE_REQUESTED, _on_reset_and_resize_requested_event)
-	Gf.listen_simple(EventNames.TEST_LIVE_EXPAND_REQUESTED, _on_live_expand_requested_event)
+	register_event(TestSpawnPayload, _on_test_panel_spawn_requested_event)
+	register_simple_event(EventNames.TEST_VALUES_REQUESTED, _on_test_panel_values_requested_event)
+	register_simple_event(EventNames.TEST_RESET_RESIZE_REQUESTED, _on_reset_and_resize_requested_event)
+	register_simple_event(EventNames.TEST_LIVE_EXPAND_REQUESTED, _on_live_expand_requested_event)
 	_is_listening = true
 
 
 # --- 信号处理 ---
 
 func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int) -> void:
-	Gf.send_simple_event(EventNames.GAME_STATE_TAINTED)
+	send_simple_event(EventNames.GAME_STATE_TAINTED)
 	
-	var arch := Gf.get_architecture()
-	var grid_model := arch.get_model(GridModel) as GridModel
+	var grid_model := get_model(GridModel) as GridModel
 	
 	if not grid_model:
 		return
@@ -111,12 +110,11 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int
 		grid_model.place_tile(tile_data, grid_pos)
 		
 		# 通知视图层全量刷新 (比单点刷新更安全，且测试工具不需要关心视图层怎么画)
-		Gf.send_simple_event(EventNames.BOARD_REFRESH_REQUESTED, grid_model.get_snapshot())
+		send_simple_event(EventNames.BOARD_REFRESH_REQUESTED, grid_model.get_snapshot())
 
 
 func _on_test_panel_values_requested(type_id: int) -> void:
-	var arch := Gf.get_architecture()
-	var grid_model := arch.get_model(GridModel) as GridModel
+	var grid_model := get_model(GridModel) as GridModel
 	var interaction_rule = grid_model.interaction_rule if grid_model else null
 	
 	if interaction_rule:
@@ -141,23 +139,21 @@ func _on_reset_and_resize_requested_event(new_size: int) -> void:
 
 
 func _on_live_expand_requested_event(new_size: int) -> void:
-	Gf.send_simple_event(EventNames.GAME_STATE_TAINTED)
+	send_simple_event(EventNames.GAME_STATE_TAINTED)
 	
-	var arch := Gf.get_architecture()
-	var grid_model := arch.get_model(GridModel) as GridModel
+	var grid_model := get_model(GridModel) as GridModel
 	
 	if grid_model and new_size > grid_model.grid_size:
-		Gf.send_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, new_size)
+		send_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, new_size)
 
 
 func _on_reset_and_resize_requested(new_size: int) -> void:
-	Gf.send_simple_event(EventNames.GAME_STATE_TAINTED)
+	send_simple_event(EventNames.GAME_STATE_TAINTED)
 
-	var arch := Gf.get_architecture()
-	var grid_model := arch.get_model(GridModel) as GridModel
-	var current_game_model := arch.get_model(CurrentGameModel) as CurrentGameModel
-	var status_model := arch.get_model(GameStatusModel) as GameStatusModel
-	var command_history := arch.get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var grid_model := get_model(GridModel) as GridModel
+	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
+	var status_model := get_model(GameStatusModel) as GameStatusModel
+	var command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	var game_board: GameBoard = _game_board
 
 	if not grid_model or not current_game_model or not is_instance_valid(game_board):
@@ -181,15 +177,15 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	if command_history:
 		command_history.clear()
 
-	Gf.send_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION)
+	send_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION)
 
 	if command_history:
 		var init_cmd := MoveCommand.new(Vector2i.ZERO)
 		init_cmd.mark_as_baseline()
-		var game_state_system := arch.get_system(GameStateSystem) as GameStateSystem
+		var game_state_system := get_system(GameStateSystem) as GameStateSystem
 		if is_instance_valid(game_state_system):
 			init_cmd.set_snapshot(game_state_system.get_full_game_state(new_size))
 		command_history.record(init_cmd)
 
-	Gf.send_simple_event(EventNames.BOARD_RESIZED, new_size)
-	Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+	send_simple_event(EventNames.BOARD_RESIZED, new_size)
+	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)

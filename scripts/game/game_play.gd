@@ -73,9 +73,9 @@ func _ready() -> void:
 		if not _game_status_model.move_count.value_changed.is_connected(_on_move_count_changed):
 			_game_status_model.move_count.value_changed.connect(_on_move_count_changed)
 		
-	Gf.listen(GameReadyData, _on_game_ready_data_received)
-	Gf.listen_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	Gf.send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
+	register_event(GameReadyData, _on_game_ready_data_received)
+	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
 	_update_static_ui_text()
 	
 	var console := get_utility(GFConsoleUtility) as GFConsoleUtility
@@ -90,6 +90,7 @@ func _notification(what: int) -> void:
 
 func _exit_tree() -> void:
 	_cleanup_listeners()
+	super._exit_tree()
 
 
 # --- 公共方法 ---
@@ -119,13 +120,16 @@ func _cleanup_listeners() -> void:
 	if console:
 		console.unregister_command("toggle_test_panel")
 	
+	if is_instance_valid(_action_queue):
+		_action_queue.clear_queue(true)
+
 	# 清理所有 GF 事件监听，防止旧场景实例在场景重载后仍接收事件
-	Gf.unlisten(GameReadyData, _on_game_ready_data_received)
-	Gf.unlisten_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	Gf.unlisten_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	Gf.unlisten_simple(EventNames.BOARD_RESIZED, _on_board_resized)
-	Gf.unlisten_simple(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
-	Gf.unlisten(HudMessagePayload, _on_show_hud_message_event)
+	unregister_event(GameReadyData, _on_game_ready_data_received)
+	unregister_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	unregister_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	unregister_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
+	unregister_simple_event(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
+	unregister_event(HudMessagePayload, _on_show_hud_message_event)
 
 	if is_instance_valid(_game_status_model):
 		if _game_status_model.move_count.value_changed.is_connected(_on_move_count_changed):
@@ -147,10 +151,10 @@ func _connect_signals() -> void:
 	if is_instance_valid(replay_back_button) and not replay_back_button.pressed.is_connected(_on_replay_back_pressed):
 		replay_back_button.pressed.connect(_on_replay_back_pressed)
 
-	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	Gf.listen_simple(EventNames.BOARD_RESIZED, _on_board_resized)
-	Gf.listen_simple(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
-	Gf.listen(HudMessagePayload, _on_show_hud_message_event)
+	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	register_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
+	register_simple_event(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
+	register_event(HudMessagePayload, _on_show_hud_message_event)
 
 	if not _hud_message_timer.timeout.is_connected(_on_hud_message_timer_timeout):
 		_hud_message_timer.timeout.connect(_on_hud_message_timer_timeout)
@@ -194,7 +198,7 @@ func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
 		var console := get_utility(GFConsoleUtility) as GFConsoleUtility
 		if console and test_panel.visible:
 			console.execute_command("clear")
-			Gf.send_event(HudMessagePayload.new("Test panel toggled.", 2.0))
+			send_event(HudMessagePayload.new("Test panel toggled.", 2.0))
 
 
 # --- 信号处理函数 ---
@@ -211,7 +215,7 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 		_action_queue = get_system(GFActionQueueSystem) as GFActionQueueSystem
 	
 	if _action_queue:
-		_action_queue.clear_queue()
+		_action_queue.clear_queue(true)
 			
 	_loaded_bookmark_data = data.loaded_bookmark_data
 	
@@ -289,15 +293,12 @@ func _on_show_hud_message_event(payload: HudMessagePayload) -> void:
 
 
 func _on_replay_back_pressed() -> void:
-	Gf.send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
+	send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
 
 
 func _on_hud_message_timer_timeout() -> void:
 	if is_instance_valid(_game_status_model):
 		_game_status_model.status_message.set_value("")
-
-
-
 
 
 func _on_game_state_changed(new_state: StringName) -> void:

@@ -105,7 +105,7 @@ func step_forward() -> void:
 		
 	var step_index: int = get_current_step()
 	if step_index < _current_replay.actions.size():
-		Gf.send_simple_event(EventNames.REPLAY_NEXT_STEP)
+		send_simple_event(EventNames.REPLAY_NEXT_STEP)
 		# 进度更新通常由 ReplayInputSystem 处理后的事件触发，或者在这里手动触发
 		call_deferred("_emit_progress")
 
@@ -115,7 +115,7 @@ func step_backward() -> void:
 	if not _is_replay_active:
 		return
 	
-	Gf.send_simple_event(EventNames.REPLAY_PREV_STEP)
+	send_simple_event(EventNames.REPLAY_PREV_STEP)
 	call_deferred("_emit_progress")
 
 

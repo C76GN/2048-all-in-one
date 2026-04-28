@@ -8,15 +8,15 @@ var _is_playing: bool = false
 var _is_active: bool = false
 
 func ready() -> void:
-	Gf.listen(GameReadyData, _on_game_ready)
-	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	Gf.listen_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	register_event(GameReadyData, _on_game_ready)
+	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
 
 
 func dispose() -> void:
-	Gf.unlisten(GameReadyData, _on_game_ready)
-	Gf.unlisten_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	Gf.unlisten_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	unregister_event(GameReadyData, _on_game_ready)
+	unregister_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	unregister_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
 
 
 func _on_game_ready(data: GameReadyData) -> void:
@@ -39,7 +39,7 @@ func _execute_move_command(direction: Vector2i) -> void:
 	if result == null:
 		return
 
-	Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
 
 
 func tick(_delta: float) -> void:
@@ -47,17 +47,17 @@ func tick(_delta: float) -> void:
 		return
 		
 	if Input.is_action_just_pressed("ui_cancel") or Input.is_action_just_pressed("ui_pause"):
-		Gf.send_simple_event(EventNames.UI_PAUSE_REQUESTED)
+		send_simple_event(EventNames.UI_PAUSE_REQUESTED)
 		
 	if not _is_playing:
 		return
 		
 	if Input.is_action_just_pressed("undo"):
-		Gf.send_simple_event(EventNames.UNDO_REQUESTED)
+		send_simple_event(EventNames.UNDO_REQUESTED)
 		return
 		
 	if Input.is_action_just_pressed("save_bookmark"):
-		Gf.send_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED)
+		send_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED)
 		return
 		
 	var direction := Vector2i.ZERO

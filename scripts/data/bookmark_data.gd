@@ -40,6 +40,9 @@ extends Resource
 ## RNG生成器的内部状态，用于精确恢复。
 @export var rng_state: int = 0
 
+## 完整 RNG 状态，包含分支随机流计数。
+@export var rng_full_state: Dictionary = {}
+
 ## 完整的棋盘状态快照。
 @export var board_snapshot: Dictionary = {}
 

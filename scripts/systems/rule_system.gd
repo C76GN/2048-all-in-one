@@ -21,15 +21,15 @@ var _rules: Array[SpawnRule] = []
 
 func ready() -> void:
 	_grid_model = get_model(GridModel) as GridModel
-	Gf.listen(MoveData, _on_move_made)
-	Gf.listen_simple(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
-	Gf.listen_simple(EventNames.MONSTER_KILLED, _on_monster_killed)
+	register_event(MoveData, _on_move_made)
+	register_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
+	register_simple_event(EventNames.MONSTER_KILLED, _on_monster_killed)
 
 
 func dispose() -> void:
-	Gf.unlisten(MoveData, _on_move_made)
-	Gf.unlisten_simple(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
-	Gf.unlisten_simple(EventNames.MONSTER_KILLED, _on_monster_killed)
+	unregister_event(MoveData, _on_move_made)
+	unregister_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
+	unregister_simple_event(EventNames.MONSTER_KILLED, _on_monster_killed)
 	clear_rules()
 
 
@@ -67,7 +67,7 @@ func _on_request_board_init(_payload: Variant = null) -> void:
 func _on_move_made(move_data: MoveData) -> void:
 	_execute_rules(SpawnRule.TriggerType.ON_MOVE, move_data)
 	
-	Gf.send_simple_event(EventNames.TURN_FINISHED)
+	send_simple_event(EventNames.TURN_FINISHED)
 
 
 func _on_monster_killed(_payload: Variant = null) -> void:

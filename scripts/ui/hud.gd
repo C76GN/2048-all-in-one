@@ -65,12 +65,13 @@ func _ready() -> void:
 		# 初始同步
 		_refresh_all()
 		
-	Gf.listen_simple(EventNames.HUD_UPDATE_REQUESTED, _on_hud_update_requested)
+	register_simple_event(EventNames.HUD_UPDATE_REQUESTED, _on_hud_update_requested)
 	_update_ui_text()
 
 
 func _exit_tree() -> void:
-	Gf.unlisten_simple(EventNames.HUD_UPDATE_REQUESTED, _on_hud_update_requested)
+	unregister_simple_event(EventNames.HUD_UPDATE_REQUESTED, _on_hud_update_requested)
+	super._exit_tree()
 
 
 func _notification(what: int) -> void:
@@ -137,9 +138,8 @@ func _refresh_all() -> void:
 			local_dict[&"status_message"] = "[color=yellow]" + msg + "[/color]"
 
 	# 加入规则特定的动态数据 (替换原本 GamePlay 中的逻辑)
-	var arch := Gf.get_architecture()
-	var grid_model := arch.get_model(GridModel) as GridModel
-	var rule_manager := arch.get_system(RuleSystem) as RuleSystem
+	var grid_model := get_model(GridModel) as GridModel
+	var rule_manager := get_system(RuleSystem) as RuleSystem
 	
 	if is_instance_valid(grid_model):
 		var rule_context := RuleContext.new()
@@ -170,7 +170,7 @@ func _refresh_all() -> void:
 				local_dict.merge(rule_stats)
 
 	# 种子信息
-	var seed_util := arch.get_utility(GFSeedUtility) as GFSeedUtility
+	var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
 	if is_instance_valid(seed_util):
 		local_dict[&"seed_info"] = tr("SEED_INFO_LABEL") % seed_util.get_global_seed()
 

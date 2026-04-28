@@ -8,6 +8,11 @@ class_name GFUIController
 extends Control
 
 
+# --- 常量 ---
+
+const GFNodeContextBase = preload("res://addons/gf/core/gf_node_context.gd")
+
+
 # --- Godot 生命周期方法 ---
 
 func _notification(what: int) -> void:
@@ -15,40 +20,123 @@ func _notification(what: int) -> void:
 		_update_ui_text()
 
 
+func _exit_tree() -> void:
+	var architecture := get_architecture_or_null()
+	if architecture != null:
+		architecture.unregister_owner_events(self)
+
+
 # --- 获取方法 ---
+
+## 获取当前 UI 所属架构；未初始化时返回 null。
+func get_architecture_or_null() -> GFArchitecture:
+	var context := _find_nearest_context()
+	if context != null:
+		var context_architecture := context.get_architecture()
+		if context_architecture != null:
+			return context_architecture
+
+	if Gf.has_architecture():
+		return Gf.get_architecture()
+	return null
+
 
 ## 通过类型获取 Model 实例。
 func get_model(model_type: Script) -> Object:
-	return Gf.get_architecture().get_model(model_type)
+	var architecture := get_architecture_or_null()
+	if architecture == null:
+		return null
+	return architecture.get_model(model_type)
 
 
 ## 通过类型获取 System 实例。
 func get_system(system_type: Script) -> Object:
-	return Gf.get_architecture().get_system(system_type)
+	var architecture := get_architecture_or_null()
+	if architecture == null:
+		return null
+	return architecture.get_system(system_type)
 
 
 ## 通过类型获取 Utility 实例。
 func get_utility(utility_type: Script) -> Object:
-	return Gf.get_architecture().get_utility(utility_type)
+	var architecture := get_architecture_or_null()
+	if architecture == null:
+		return null
+	return architecture.get_utility(utility_type)
 
 
 # --- 命令与查询 ---
 
 ## 向架构发送命令。
 func send_command(command: Object) -> Variant:
-	return Gf.get_architecture().send_command(command)
+	var architecture := get_architecture_or_null()
+	if architecture == null:
+		return null
+	return architecture.send_command(command)
 
 
 ## 执行查询并返回结果。
 func send_query(query: Object) -> Variant:
-	return Gf.get_architecture().send_query(query)
+	var architecture := get_architecture_or_null()
+	if architecture == null:
+		return null
+	return architecture.send_query(query)
 
 
 # --- 事件系统 ---
 
+## 注册类型事件监听器。
+func register_event(event_type: Script, callback: Callable, priority: int = 0) -> void:
+	var architecture := get_architecture_or_null()
+	if architecture != null:
+		architecture.register_event_owned(self, event_type, callback, priority)
+
+
+## 注销类型事件监听器。
+func unregister_event(event_type: Script, callback: Callable) -> void:
+	var architecture := get_architecture_or_null()
+	if architecture != null:
+		architecture.unregister_event(event_type, callback)
+
+
+## 发送类型事件。
+func send_event(event_instance: Object) -> void:
+	var architecture := get_architecture_or_null()
+	if architecture != null:
+		architecture.send_event(event_instance)
+
+
+## 注册轻量级 StringName 事件监听器。
+func register_simple_event(event_id: StringName, callback: Callable) -> void:
+	var architecture := get_architecture_or_null()
+	if architecture != null:
+		architecture.register_simple_event_owned(self, event_id, callback)
+
+
+## 注销轻量级 StringName 事件监听器。
+func unregister_simple_event(event_id: StringName, callback: Callable) -> void:
+	var architecture := get_architecture_or_null()
+	if architecture != null:
+		architecture.unregister_simple_event(event_id, callback)
+
+
 ## 发送轻量级 StringName 事件。
 func send_simple_event(event_id: StringName, payload: Variant = null) -> void:
-	Gf.get_architecture().send_simple_event(event_id, payload)
+	var architecture := get_architecture_or_null()
+	if architecture != null:
+		architecture.send_simple_event(event_id, payload)
+
+
+# --- 私有/辅助方法 ---
+
+func _find_nearest_context() -> GFNodeContextBase:
+	var current_node: Node = self
+	while current_node != null:
+		if current_node is GFNodeContextBase:
+			return current_node as GFNodeContextBase
+		current_node = current_node.get_parent()
+
+	return null
 
 
 # --- 虚方法 (需子类覆写) ---

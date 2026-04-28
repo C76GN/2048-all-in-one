@@ -9,19 +9,19 @@ var _is_active: bool = false
 var _replay_data: ReplayData = null
 
 func ready() -> void:
-	Gf.listen(GameReadyData, _on_game_ready)
-	Gf.listen_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	Gf.listen_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	Gf.listen_simple(EventNames.REPLAY_NEXT_STEP, _on_next_step)
-	Gf.listen_simple(EventNames.REPLAY_PREV_STEP, _on_prev_step)
+	register_event(GameReadyData, _on_game_ready)
+	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	register_simple_event(EventNames.REPLAY_NEXT_STEP, _on_next_step)
+	register_simple_event(EventNames.REPLAY_PREV_STEP, _on_prev_step)
 
 
 func dispose() -> void:
-	Gf.unlisten(GameReadyData, _on_game_ready)
-	Gf.unlisten_simple(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	Gf.unlisten_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	Gf.unlisten_simple(EventNames.REPLAY_NEXT_STEP, _on_next_step)
-	Gf.unlisten_simple(EventNames.REPLAY_PREV_STEP, _on_prev_step)
+	unregister_event(GameReadyData, _on_game_ready)
+	unregister_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
+	unregister_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	unregister_simple_event(EventNames.REPLAY_NEXT_STEP, _on_next_step)
+	unregister_simple_event(EventNames.REPLAY_PREV_STEP, _on_prev_step)
 
 
 func _on_game_ready(data: GameReadyData) -> void:
@@ -49,7 +49,7 @@ func _execute_replay_step(direction: Vector2i) -> void:
 	if result == null:
 		return
 
-	Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
 
 
 func _on_next_step(_payload: Variant = null) -> void:
@@ -70,4 +70,4 @@ func _on_prev_step(_payload: Variant = null) -> void:
 	var history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	if history and history.undo_count > 1:
 		history.undo_last()
-		Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+		send_simple_event(EventNames.HUD_UPDATE_REQUESTED)

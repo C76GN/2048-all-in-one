@@ -18,10 +18,10 @@ func ready() -> void:
 	_grid_model = get_model(GridModel) as GridModel
 	_seed_utility = get_utility(GFSeedUtility) as GFSeedUtility
 	_log = get_utility(GFLogUtility) as GFLogUtility
-	Gf.listen_simple(EventNames.SPAWN_TILE_REQUESTED, _on_spawn_tile_requested)
+	register_simple_event(EventNames.SPAWN_TILE_REQUESTED, _on_spawn_tile_requested)
 
 func dispose() -> void:
-	Gf.unlisten_simple(EventNames.SPAWN_TILE_REQUESTED, _on_spawn_tile_requested)
+	unregister_simple_event(EventNames.SPAWN_TILE_REQUESTED, _on_spawn_tile_requested)
 
 # --- 事件处理 ---
 
@@ -40,9 +40,18 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 	var is_priority: bool = spawn_data.is_priority
 	var spawn_pos: Vector2i
 
-	# 1. 决定生成位置
-	if spawn_data.position.x >= 0:
+	if not _is_auto_position(spawn_data.position):
 		spawn_pos = spawn_data.position
+		if not _is_cell_in_bounds(spawn_pos):
+			if _log:
+				_log.warn("GridSpawnSystem", "忽略越界生成请求: %s" % spawn_pos)
+			return
+		if not _is_cell_empty(spawn_pos):
+			if is_priority:
+				_handle_priority_spawn(value, type)
+			elif _log:
+				_log.warn("GridSpawnSystem", "忽略被占用的生成位置: %s" % spawn_pos)
+			return
 	else:
 		var empty_cells: Array[Vector2i] = _grid_model.get_empty_cells()
 		if not empty_cells.is_empty():
@@ -65,7 +74,24 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 		&"tile_data": tile_data,
 		&"to_grid_pos": spawn_pos
 	}]
-	Gf.send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
+	send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
+
+
+func _is_auto_position(position: Vector2i) -> bool:
+	return position.x < 0 or position.y < 0
+
+
+func _is_cell_in_bounds(position: Vector2i) -> bool:
+	return (
+		position.x >= 0
+		and position.y >= 0
+		and position.x < _grid_model.grid_size
+		and position.y < _grid_model.grid_size
+	)
+
+
+func _is_cell_empty(position: Vector2i) -> bool:
+	return _grid_model.grid[position.x][position.y] == null
 
 
 func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
@@ -88,7 +114,7 @@ func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
 			&"tile_data": data_to_transform,
 			&"do_transform": true,
 		}]
-		Gf.send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
+		send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
 	else:
 		var monster_data_list: Array[GameTileData] = []
 		for x in _grid_model.grid_size:
@@ -108,4 +134,4 @@ func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
 				&"do_merge": true,
 				&"do_transform": false,
 			}]
-			Gf.send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
+			send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)

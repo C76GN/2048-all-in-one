@@ -44,38 +44,38 @@ func ready() -> void:
 	_game_status_model = get_model(GameStatusModel) as GameStatusModel
 	_log = get_utility(GFLogUtility) as GFLogUtility
 
-	Gf.listen(MoveData, _on_move_made)
-	Gf.listen_simple(EventNames.TURN_FINISHED, _on_turn_finished)
-	Gf.listen_simple(EventNames.MONSTER_KILLED, _on_monster_killed)
-	Gf.listen_simple(EventNames.SCORE_UPDATED, _on_score_updated)
-	Gf.listen(GameReadyData, _on_game_ready)
-	Gf.listen_simple(EventNames.UNDO_REQUESTED, _on_undo_requested)
-	Gf.listen_simple(EventNames.SAVE_BOOKMARK_REQUESTED, _on_save_bookmark_requested)
-	Gf.listen_simple(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
-	Gf.listen_simple(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
-	Gf.listen_simple(EventNames.BOARD_RESIZED, _on_board_resized)
+	register_event(MoveData, _on_move_made)
+	register_simple_event(EventNames.TURN_FINISHED, _on_turn_finished)
+	register_simple_event(EventNames.MONSTER_KILLED, _on_monster_killed)
+	register_simple_event(EventNames.SCORE_UPDATED, _on_score_updated)
+	register_event(GameReadyData, _on_game_ready)
+	register_simple_event(EventNames.UNDO_REQUESTED, _on_undo_requested)
+	register_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED, _on_save_bookmark_requested)
+	register_simple_event(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
+	register_simple_event(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
+	register_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
 	
 	# --- UI 菜单请求事件监听 ---
-	Gf.listen_simple(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
-	Gf.listen_simple(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
-	Gf.listen_simple(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
+	register_simple_event(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
+	register_simple_event(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
+	register_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
 
 
 func dispose() -> void:
-	Gf.unlisten(MoveData, _on_move_made)
-	Gf.unlisten_simple(EventNames.TURN_FINISHED, _on_turn_finished)
-	Gf.unlisten_simple(EventNames.MONSTER_KILLED, _on_monster_killed)
-	Gf.unlisten_simple(EventNames.SCORE_UPDATED, _on_score_updated)
-	Gf.unlisten(GameReadyData, _on_game_ready)
-	Gf.unlisten_simple(EventNames.UNDO_REQUESTED, _on_undo_requested)
-	Gf.unlisten_simple(EventNames.SAVE_BOOKMARK_REQUESTED, _on_save_bookmark_requested)
-	Gf.unlisten_simple(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
-	Gf.unlisten_simple(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
-	Gf.unlisten_simple(EventNames.BOARD_RESIZED, _on_board_resized)
+	unregister_event(MoveData, _on_move_made)
+	unregister_simple_event(EventNames.TURN_FINISHED, _on_turn_finished)
+	unregister_simple_event(EventNames.MONSTER_KILLED, _on_monster_killed)
+	unregister_simple_event(EventNames.SCORE_UPDATED, _on_score_updated)
+	unregister_event(GameReadyData, _on_game_ready)
+	unregister_simple_event(EventNames.UNDO_REQUESTED, _on_undo_requested)
+	unregister_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED, _on_save_bookmark_requested)
+	unregister_simple_event(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
+	unregister_simple_event(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
+	unregister_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
 	
-	Gf.unlisten_simple(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
-	Gf.unlisten_simple(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
-	Gf.unlisten_simple(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
+	unregister_simple_event(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
+	unregister_simple_event(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
+	unregister_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
 
 	if _fsm != null:
 		_fsm.dispose()
@@ -125,7 +125,7 @@ func enter_playing_state() -> void:
 ## 触发初始棋盘规则。
 func trigger_initial_rules() -> void:
 	enter_playing_state()
-	Gf.send_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION)
+	send_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION)
 
 
 ## 检查游戏是否结束。
@@ -134,8 +134,8 @@ func check_game_over() -> void:
 		return
 	if _grid_model.interaction_rule != null:
 		if _game_over_rule.is_game_over(_grid_model, _grid_model.interaction_rule):
-			Gf.send_simple_event(EventNames.BOARD_REFRESH_REQUESTED, _grid_model.get_snapshot())
-			Gf.send_simple_event(EventNames.GAME_LOST)
+			send_simple_event(EventNames.BOARD_REFRESH_REQUESTED, _grid_model.get_snapshot())
+			send_simple_event(EventNames.GAME_LOST)
 			_fsm.change_state(EventNames.STATE_GAME_OVER)
 			_handle_game_over()
 
@@ -286,7 +286,7 @@ func _on_undo_requested(_payload: Variant = null) -> void:
 		if _command_history.undo_last() and not _player_actions.is_empty():
 			_player_actions.pop_back()
 	else:
-		Gf.send_event(HudMessagePayload.new(tr("UNDO_FAIL_MSG"), 3.0))
+		send_event(HudMessagePayload.new(tr("UNDO_FAIL_MSG"), 3.0))
 
 
 func _can_undo_player_move(command_history: GFCommandHistoryUtility) -> bool:
@@ -307,12 +307,13 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 		return
 		
 	if _is_game_state_tainted:
-		Gf.send_event(HudMessagePayload.new(tr("SNAPSHOT_TAINT_WARN"), 4.0))
+		send_event(HudMessagePayload.new(tr("SNAPSHOT_TAINT_WARN"), 4.0))
+		return
 
 	var current_state_for_comparison: Dictionary = _get_bookmark_comparison_state()
 
 	if JSON.stringify(current_state_for_comparison) == JSON.stringify(_last_saved_bookmark_state):
-		Gf.send_event(HudMessagePayload.new(tr("SNAPSHOT_NO_CHANGE"), 3.0))
+		send_event(HudMessagePayload.new(tr("SNAPSHOT_NO_CHANGE"), 3.0))
 		return
 
 	var new_bookmark := BookmarkData.new()
@@ -331,6 +332,7 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	var extra_stats: Dictionary = current_state_for_comparison.get(&"extra_stats", {})
 	new_bookmark.extra_stats = extra_stats.duplicate(true)
 	new_bookmark.rng_state = current_state_for_comparison.get(&"rng_state", 0)
+	new_bookmark.rng_full_state = current_state_for_comparison.get(&"rng_full_state", {})
 	new_bookmark.board_snapshot = current_state_for_comparison.get(&"board_snapshot", {})
 	new_bookmark.rules_states = current_state_for_comparison.get(&"rules_states", [])
 	
@@ -342,12 +344,12 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	if bookmark_system:
 		bookmark_system.save_bookmark(new_bookmark)
 	_last_saved_bookmark_state = current_state_for_comparison
-	Gf.send_event(HudMessagePayload.new(tr("SNAPSHOT_SAVED_SUCCESS"), 3.0))
+	send_event(HudMessagePayload.new(tr("SNAPSHOT_SAVED_SUCCESS"), 3.0))
 	
 func _on_ui_pause_requested(_payload: Variant = null) -> void:
 	if _fsm.current_state_name == EventNames.STATE_GAME_OVER or _is_replay_mode:
 		return
-	Gf.send_simple_event(EventNames.TOGGLE_PAUSE_UI)
+	send_simple_event(EventNames.TOGGLE_PAUSE_UI)
 
 
 func _on_resume_game_requested(_payload: Variant = null) -> void:

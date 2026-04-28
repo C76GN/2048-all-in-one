@@ -35,9 +35,8 @@ func is_baseline() -> bool:
 
 
 func execute() -> Variant:
-	var arch := Gf.get_architecture()
-	var grid_model := arch.get_model(GridModel) as GridModel
-	var game_state_system := arch.get_system(GameStateSystem) as GameStateSystem
+	var grid_model := get_model(GridModel) as GridModel
+	var game_state_system := get_system(GameStateSystem) as GameStateSystem
 
 	if not is_instance_valid(grid_model) or not is_instance_valid(game_state_system):
 		push_error("MoveCommand: GridModel 或 GameStateSystem 不可用。")
@@ -46,14 +45,17 @@ func execute() -> Variant:
 	set_snapshot(game_state_system.get_full_game_state(grid_model.grid_size))
 
 	_reverse_target_map.clear()
-	Gf.listen_simple(EventNames.BOARD_ANIMATION_REQUESTED, _on_animation_requested)
+	var architecture := _get_architecture_or_null()
+	if architecture != null:
+		architecture.register_simple_event_owned(self, EventNames.BOARD_ANIMATION_REQUESTED, _on_animation_requested)
 
-	var move_sys := arch.get_system(GridMovementSystem) as GridMovementSystem
+	var move_sys := get_system(GridMovementSystem) as GridMovementSystem
 	var result: Variant = null
 	if is_instance_valid(move_sys):
 		result = move_sys.handle_move(_direction)
 
-	Gf.unlisten_simple(EventNames.BOARD_ANIMATION_REQUESTED, _on_animation_requested)
+	if architecture != null:
+		architecture.unregister_owner_events(self)
 	return result
 
 
@@ -66,8 +68,7 @@ func undo() -> Variant:
 	if snapshot.is_empty():
 		return null
 
-	var arch := Gf.get_architecture()
-	var game_state_system := arch.get_system(GameStateSystem) as GameStateSystem
+	var game_state_system := get_system(GameStateSystem) as GameStateSystem
 	if not is_instance_valid(game_state_system):
 		push_error("MoveCommand: GameStateSystem 不可用，无法撤销。")
 		return null
@@ -78,12 +79,16 @@ func undo() -> Variant:
 		&"board_snapshot",
 		snapshot.get(&"grid_snapshot", {})
 	)
-	Gf.send_simple_event(
+	send_simple_event(
 		EventNames.BOARD_UNDO_ANIMATION_REQUESTED,
 		[board_snapshot, _reverse_target_map]
 	)
-	Gf.send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
 	return null
+
+
+func should_record(execute_result: Variant) -> bool:
+	return execute_result is MoveData
 
 
 func serialize() -> Dictionary:

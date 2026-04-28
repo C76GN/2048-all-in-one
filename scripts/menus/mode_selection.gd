@@ -304,9 +304,10 @@ func _populate_right_panel() -> void:
 	for grid_size in range(_selected_mode_config.min_grid_size, _selected_mode_config.max_grid_size + 1):
 		var text: String = "%dx%d" % [grid_size, grid_size]
 		_grid_size_option_button.add_item(text)
-		_grid_size_option_button.set_item_metadata(-1, grid_size)
+		var item_index: int = _grid_size_option_button.item_count - 1
+		_grid_size_option_button.set_item_metadata(item_index, grid_size)
 		if grid_size == _selected_mode_config.default_grid_size:
-			default_size_index = _grid_size_option_button.item_count - 1
+			default_size_index = item_index
 
 	if default_size_index != -1:
 		_grid_size_option_button.select(default_size_index)

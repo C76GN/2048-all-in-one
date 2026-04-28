@@ -46,6 +46,9 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 					# 更新逻辑位置
 					if merged_tile == target_tile:
 						new_line[i] = null
+					elif merged_tile == current_tile:
+						new_line[i - 1] = current_tile
+						new_line[i] = null
 
 					merge_results.append(result)
 

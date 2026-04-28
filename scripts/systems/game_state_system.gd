@@ -11,11 +11,10 @@ extends GFSystem
 ## @param grid_size_override: 外部指定的棋盘尺寸；小于等于 0 时使用 GridModel 当前尺寸。
 ## @return: 可用于撤销、书签比较和恢复的完整状态字典。
 func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
-	var arch := Gf.get_architecture()
-	var rule_sys := arch.get_system(RuleSystem) as RuleSystem
-	var status := arch.get_model(GameStatusModel) as GameStatusModel
-	var grid := arch.get_model(GridModel) as GridModel
-	var seed_util := arch.get_utility(GFSeedUtility) as GFSeedUtility
+	var rule_sys := get_system(RuleSystem) as RuleSystem
+	var status := get_model(GameStatusModel) as GameStatusModel
+	var grid := get_model(GridModel) as GridModel
+	var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
 	var grid_size: int = grid_size_override
 	var extra_stats: Dictionary = {}
 
@@ -38,6 +37,7 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 		&"grid_size": grid_size,
 		&"board_snapshot": grid.get_snapshot() if is_instance_valid(grid) else {},
 		&"rng_state": seed_util.get_state() if is_instance_valid(seed_util) else 0,
+		&"rng_full_state": seed_util.get_full_state() if is_instance_valid(seed_util) else {},
 		&"score": status.score.get_value() if is_instance_valid(status) else 0,
 		&"move_count": status.move_count.get_value() if is_instance_valid(status) else 0,
 		&"highest_tile": status.highest_tile.get_value() if is_instance_valid(status) else 0,
@@ -54,11 +54,10 @@ func restore_state(state_to_restore: Dictionary) -> void:
 	if state_to_restore.is_empty():
 		return
 
-	var arch := Gf.get_architecture()
-	var rule_sys := arch.get_system(RuleSystem) as RuleSystem
-	var status := arch.get_model(GameStatusModel) as GameStatusModel
-	var grid := arch.get_model(GridModel) as GridModel
-	var seed_util := arch.get_utility(GFSeedUtility) as GFSeedUtility
+	var rule_sys := get_system(RuleSystem) as RuleSystem
+	var status := get_model(GameStatusModel) as GameStatusModel
+	var grid := get_model(GridModel) as GridModel
+	var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
 
 	if is_instance_valid(grid):
 		var board_snapshot: Dictionary = state_to_restore.get(
@@ -80,8 +79,12 @@ func restore_state(state_to_restore: Dictionary) -> void:
 		var extra_stats: Dictionary = state_to_restore.get(&"extra_stats", {})
 		status.extra_stats.set_value(extra_stats.duplicate(true))
 
-	if is_instance_valid(seed_util) and state_to_restore.has(&"rng_state"):
-		seed_util.set_state(state_to_restore[&"rng_state"])
+	if is_instance_valid(seed_util):
+		var rng_full_state: Dictionary = state_to_restore.get(&"rng_full_state", {})
+		if not rng_full_state.is_empty():
+			seed_util.set_full_state(rng_full_state)
+		elif state_to_restore.has(&"rng_state"):
+			seed_util.set_state(state_to_restore[&"rng_state"])
 
 	if is_instance_valid(rule_sys) and state_to_restore.has(&"rules_states"):
 		var rules_states: Array = state_to_restore[&"rules_states"]

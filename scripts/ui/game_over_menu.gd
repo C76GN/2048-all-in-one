@@ -35,12 +35,12 @@ func _ready() -> void:
 
 ## 响应"重来"按钮的点击事件。
 func _on_restart_button_pressed() -> void:
-	Gf.send_simple_event(EventNames.RESTART_GAME_REQUESTED)
+	send_simple_event(EventNames.RESTART_GAME_REQUESTED)
 
 
 ## 响应"返回主界面"按钮的点击事件。
 func _on_main_menu_button_pressed() -> void:
-	Gf.send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
+	send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
 
 
 func _on_settings_button_pressed() -> void:

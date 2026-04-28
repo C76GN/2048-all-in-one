@@ -37,7 +37,9 @@ func _ready() -> void:
 	arch.register_utility(GFTimeUtility, GFTimeUtility.new())
 	arch.register_utility(GFLogUtility, GFLogUtility.new())
 	arch.register_utility(GFUIUtility, GFUIUtility.new())
-	arch.register_utility(GFObjectPoolUtility, GFObjectPoolUtility.new())
+	var object_pool := GFObjectPoolUtility.new()
+	object_pool.max_available_per_scene = 128
+	arch.register_utility(GFObjectPoolUtility, object_pool)
 
 	if are_dev_tools_enabled():
 		arch.register_utility(TestToolUtility, TestToolUtility.new())

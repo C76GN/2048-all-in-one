@@ -85,6 +85,14 @@ func start(initial_state_name: StringName, msg: Dictionary = {}) -> void:
 		push_warning("[GFStateMachine] 启动失败，未找到状态：%s" % initial_state_name)
 		return
 
+	_transition_serial += 1
+	_queued_exit_transition.clear()
+	if _current_state != null:
+		_is_exiting_current_state = true
+		_current_state.exit()
+		_is_exiting_current_state = false
+		_queued_exit_transition.clear()
+
 	_current_state = _states[initial_state_name]
 	current_state_name = initial_state_name
 	_current_state.enter(msg)
@@ -185,6 +193,23 @@ func get_utility(utility_type: Script) -> Object:
 	if architecture == null:
 		return null
 	return architecture.get_utility(utility_type)
+
+
+## 代理发送类型事件。
+## @param event_instance: 要分发的事件实例。
+func send_event(event_instance: Object) -> void:
+	var architecture := _get_available_architecture("Event")
+	if architecture != null:
+		architecture.send_event(event_instance)
+
+
+## 代理发送轻量级 StringName 事件。
+## @param event_id: StringName 事件标识符。
+## @param payload: 可选的事件附加数据。
+func send_simple_event(event_id: StringName, payload: Variant = null) -> void:
+	var architecture := _get_available_architecture("Event")
+	if architecture != null:
+		architecture.send_simple_event(event_id, payload)
 
 
 # --- 私有/辅助方法 ---

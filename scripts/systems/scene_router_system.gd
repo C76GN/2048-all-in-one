@@ -20,13 +20,13 @@ func ready() -> void:
 	_log = get_utility(GFLogUtility) as GFLogUtility
 
 	# 可选：监听全局事件 `scene_change_requested` 以解耦调用
-	Gf.listen_simple(EventNames.SCENE_CHANGE_REQUESTED, _on_scene_change_requested)
-	Gf.listen_simple(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, _on_return_to_main_menu_requested)
+	register_simple_event(EventNames.SCENE_CHANGE_REQUESTED, _on_scene_change_requested)
+	register_simple_event(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, _on_return_to_main_menu_requested)
 
 
 func dispose() -> void:
-	Gf.unlisten_simple(EventNames.SCENE_CHANGE_REQUESTED, _on_scene_change_requested)
-	Gf.unlisten_simple(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, _on_return_to_main_menu_requested)
+	unregister_simple_event(EventNames.SCENE_CHANGE_REQUESTED, _on_scene_change_requested)
+	unregister_simple_event(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, _on_return_to_main_menu_requested)
 
 
 # --- 公共方法 ---
@@ -45,7 +45,7 @@ func goto_scene_packed(scene: PackedScene) -> void:
 	if tree.current_scene:
 		# 在释放旧场景之前，发送同步清理事件，
 		# 让当前场景的节点立即断开所有 GF 事件监听
-		Gf.send_simple_event(EventNames.SCENE_WILL_CHANGE)
+		send_simple_event(EventNames.SCENE_WILL_CHANGE)
 		tree.current_scene.queue_free()
 		tree.current_scene = null
 

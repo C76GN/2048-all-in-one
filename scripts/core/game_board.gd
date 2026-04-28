@@ -83,15 +83,16 @@ func _ready() -> void:
 		parent_control.resized.connect(_on_resized)
 	
 	# --- 注册 GF 事件监听 ---
-	Gf.listen_simple(EventNames.BOARD_ANIMATION_REQUESTED, _on_board_animation_requested)
-	Gf.listen_simple(EventNames.BOARD_UNDO_ANIMATION_REQUESTED, _on_board_undo_animation_requested)
-	Gf.listen_simple(EventNames.BOARD_REFRESH_REQUESTED, _on_board_refresh_requested)
-	Gf.listen_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	Gf.listen_simple(EventNames.BOARD_LIVE_EXPAND_REQUESTED, _on_board_live_expand_requested)
+	register_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, _on_board_animation_requested)
+	register_simple_event(EventNames.BOARD_UNDO_ANIMATION_REQUESTED, _on_board_undo_animation_requested)
+	register_simple_event(EventNames.BOARD_REFRESH_REQUESTED, _on_board_refresh_requested)
+	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	register_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, _on_board_live_expand_requested)
 
 
 func _exit_tree() -> void:
 	_cleanup_listeners()
+	super._exit_tree()
 
 
 # --- 公共方法 ---
@@ -178,7 +179,7 @@ func live_expand(new_size: int) -> void:
 
 	model.expand_grid(new_size)
 	_animate_expansion(old_size, new_size)
-	Gf.send_simple_event(EventNames.BOARD_RESIZED, new_size)
+	send_simple_event(EventNames.BOARD_RESIZED, new_size)
 
 
 ## 遍历整个网格，返回所有空格子坐标的数组。
@@ -273,11 +274,11 @@ func _cleanup_listeners() -> void:
 	if _is_cleaned_up:
 		return
 	_is_cleaned_up = true
-	Gf.unlisten_simple(EventNames.BOARD_ANIMATION_REQUESTED, _on_board_animation_requested)
-	Gf.unlisten_simple(EventNames.BOARD_UNDO_ANIMATION_REQUESTED, _on_board_undo_animation_requested)
-	Gf.unlisten_simple(EventNames.BOARD_REFRESH_REQUESTED, _on_board_refresh_requested)
-	Gf.unlisten_simple(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	Gf.unlisten_simple(EventNames.BOARD_LIVE_EXPAND_REQUESTED, _on_board_live_expand_requested)
+	unregister_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, _on_board_animation_requested)
+	unregister_simple_event(EventNames.BOARD_UNDO_ANIMATION_REQUESTED, _on_board_undo_animation_requested)
+	unregister_simple_event(EventNames.BOARD_REFRESH_REQUESTED, _on_board_refresh_requested)
+	unregister_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	unregister_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, _on_board_live_expand_requested)
 	if _log:
 		_log.info("GameBoard", "_cleanup_listeners: cleaned up GF listeners")
 
@@ -560,7 +561,7 @@ func _on_board_undo_animation_requested(payload: Array) -> void:
 	if _log: _log.info("GameBoard", "_on_board_undo_animation_requested: starting reverse animation.")
 	
 	var undo_action := BoardUndoAnimationAction.new(snapshot, reverse_map, self)
-	var action_sys := Gf.get_architecture().get_system(GFActionQueueSystem) as GFActionQueueSystem
+	var action_sys := get_system(GFActionQueueSystem) as GFActionQueueSystem
 	if action_sys:
 		action_sys.enqueue(undo_action)
 	else:

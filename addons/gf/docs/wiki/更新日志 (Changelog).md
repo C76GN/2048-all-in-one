@@ -16,6 +16,247 @@
 
 ---
 
+## [1.14.3] - 2026-04-28
+
+**版本概述**：补齐命令历史、随机状态快照、状态机事件代理与关卡运行时清理的边界能力，提升回放确定性和重开关卡时的队列收敛。
+
+### 🚀 新增特性 (Added)
+- **撤销命令条件记录**：`GFUndoableCommand` 新增 `should_record(execute_result)`，允许命令执行后根据结果决定是否写入撤销历史。
+- **随机完整状态快照**：`GFSeedUtility` 新增 `get_full_state()` / `set_full_state()`，可同时保存主种子、主 RNG 状态与分支计数。
+- **状态机事件代理**：`GFStateMachine` 与 `GFState` 新增 `send_event()` / `send_simple_event()`，状态逻辑可直接通过所属架构派发事件。
+
+### 🔄 机制更改 (Changed)
+- **Controller 静默代理访问**：`GFController` 的依赖、命令、查询和事件便捷方法在缺少架构时直接返回或跳过，不再触发全局架构错误。
+- **关卡运行时清理更彻底**：`GFLevelUtility.clear_level_runtime()` 会调用 `GFActionQueueSystem.clear_queue(true)` 与 `clear_all_named_queues(true)`，同步取消默认队列和命名队列中等待的表现动作。
+
+### 🐛 Bug 修复 (Fixed)
+- **随机分支回放漂移**：修复仅保存 `GFSeedUtility.get_state()` 时无法恢复分支 RNG 调用计数，导致后续子随机序列不一致的问题。
+- **重开关卡队列悬挂**：修复关卡重开只清空待执行动作、不取消当前等待动作时可能卡住默认队列或命名表现队列的问题。
+- **无架构 Controller 噪声错误**：修复 Controller 便捷代理在架构尚未初始化时仍触发 `Gf.get_architecture()` 错误的问题。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFUndoableCommand.should_record(execute_result: Variant) -> bool`。
+- 新增 `GFSeedUtility.get_full_state() -> Dictionary`。
+- 新增 `GFSeedUtility.set_full_state(state: Variant) -> void`。
+- 新增 `GFStateMachine.send_event(event_instance: Object) -> void`。
+- 新增 `GFStateMachine.send_simple_event(event_id: StringName, payload: Variant = null) -> void`。
+- 新增 `GFState.send_event(event_instance: Object) -> void`。
+- 新增 `GFState.send_simple_event(event_id: StringName, payload: Variant = null) -> void`。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧命令无需迁移；需要“执行但不进撤销栈”的命令可重写 `should_record()` 并返回 `false`。
+2. 回放、存档或战斗快照若依赖分支随机流，建议从 `get_state()` 迁移到 `get_full_state()`；`set_full_state()` 仍兼容旧版整数状态。
+3. 状态机状态内部需要派发事件时，可直接调用 `send_event()` / `send_simple_event()`，无需额外持有 `GFArchitecture`。
+
+### 📁 核心受影响文件 (Affected Files)
+- `ASSET_LIBRARY.md`
+- `addons/gf/base/gf_controller.gd`
+- `addons/gf/extensions/command/gf_undoable_command.gd`
+- `addons/gf/extensions/state_machine/gf_state.gd`
+- `addons/gf/extensions/state_machine/gf_state_machine.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/utilities/gf_command_history_utility.gd`
+- `addons/gf/utilities/gf_level_utility.gd`
+- `addons/gf/utilities/gf_seed_utility.gd`
+- `tests/gf_core/test_gf_command_history_utility.gd`
+- `tests/gf_core/test_gf_level_utility.gd`
+- `tests/gf_core/test_gf_seed_utility.gd`
+- `tests/gf_core/test_gf_singleton.gd`
+- `tests/gf_core/test_gf_state_machine.gd`
+
+---
+
+## [1.14.2] - 2026-04-28
+
+**版本概述**：聚焦文档与当前实现对齐、运行时边界行为收紧和测试覆盖补强，修复输入计时、数据绑定与原生 Signal 工具中的细小边缘问题，并补充多组刁钻边界测试。
+
+### 🔄 机制更改 (Changed)
+- **Utility Tick 文档语义对齐**：文档与源码注释统一说明 `GFArchitecture` 会调度 `GFSystem`，以及实现了 `tick()` / `physics_tick()` 的 `GFUtility`。
+- **注册示例异步一致性**：生命周期、战斗扩展等文档中的 `register_*()` 示例补充 `await`，避免动态注册时误以为三阶段生命周期已立即完成。
+- **命令执行语义澄清**：命令文档明确 `Gf.send_command()` 会先注入当前 `GFArchitecture` 再执行，直接 `execute()` 只适合完全不依赖框架访问的命令。
+- **工具箱示例修正**：`GFTimerUtility` 示例改为“逻辑时间”表述；`GFUIUtility` 示例区分同步加载场景 `push_panel()` 与已实例化节点 `push_panel_instance()`。
+- **生命周期文档旧 API 清理**：异步加载示例改用当前 `GFAssetUtility.load_async()`；简单事件监听示例改用 `Gf.listen_simple()`。
+- **表现动作示例修正**：`GFVisualAction` 示例改为在目标节点上调用 `target_card.create_tween()`。
+
+### 🐛 Bug 修复 (Fixed)
+- **输入工具负 delta 防护**：`GFInputUtility.tick()` 忽略小于等于 0 的 delta，避免输入缓冲和土狼时间被负 delta 反向延长。
+- **BindableProperty 多节点同回调绑定**：同一个 callable 绑定到多个 Node 时，任一节点退出不会提前断开其它节点仍在使用的 `value_changed` 连接。
+- **Signal 无效连接追踪**：`GFSignalUtility.connect_signal()` 在底层连接启动失败后会从追踪表移除该连接，避免无效连接残留到 owner 清理流程中。
+- **测试脚本警告清理**：修正 `test_gf_signal_utility.gd` 中未使用局部变量导致的 `UNUSED_VARIABLE` 警告。
+
+### ✅ 测试补强 (Tests)
+- **数据绑定边界**：覆盖同一 callable 绑定多个节点并随节点退出逐步解绑的行为。
+- **Signal 工具边界**：覆盖无效 callback 不进入追踪表，以及断开连接后 pending delayed callback 不再触发。
+- **输入与计时边界**：覆盖非正数缓冲时长、负 delta、0 秒定时器立即执行、无效定时器 callback、同帧多定时器执行顺序和 `dispose()` 清理。
+- **工厂生命周期边界**：覆盖 singleton 工厂错误类型不缓存、释放缓存重建，以及父级 singleton 工厂保持所属架构注入。
+- **Foundation 边界**：补充大数解析/除零/负数非整数幂、网格非法输入与阻塞寻路、紧凑格式化进位、负数小数分组、进度曲线 string override、非法指数倍率、负离线时长与零仓储上限等测试。
+
+### 🔌 API 变动说明 (API Changes)
+- 无公开 API 签名变更。
+- `GFInputUtility.tick(delta)` 对 `delta <= 0.0` 的行为收紧为不推进计时器。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目无需迁移公开接口；如果有测试或调试脚本依赖负 delta 延长输入窗口，需要改为显式刷新缓冲/土狼时间。
+2. 文档示例中的注册流程请按 `await register_*()` 书写，尤其是在架构已初始化后的动态注册场景。
+3. 直接调用 `Command.execute()` 前请确认命令不依赖框架注入；需要访问 Model/System/Utility 时继续使用 `Gf.send_command()` 或架构工厂创建实例。
+
+### 📁 核心受影响文件 (Affected Files)
+- `addons/gf/core/bindable_property.gd`
+- `addons/gf/core/gf.gd`
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/docs/wiki/01. 架构概览 (Architecture).md`
+- `addons/gf/docs/wiki/02. 生命周期与初始化 (Lifecycle).md`
+- `addons/gf/docs/wiki/03. 更新机制 (Update Loop).md`
+- `addons/gf/docs/wiki/06. 命令与查询 (Commands & Queries).md`
+- `addons/gf/docs/wiki/07. 高级扩展 (Advanced Extensions).md`
+- `addons/gf/docs/wiki/08. 实用工具箱 (Utility Toolkit).md`
+- `addons/gf/docs/wiki/10. 战斗扩展 (Combat Extension).md`
+- `addons/gf/utilities/gf_input_utility.gd`
+- `addons/gf/utilities/gf_signal_utility.gd`
+- `tests/gf_core/test_bindable_property.gd`
+- `tests/gf_core/test_gf_big_number.gd`
+- `tests/gf_core/test_gf_grid_math.gd`
+- `tests/gf_core/test_gf_input_utility.gd`
+- `tests/gf_core/test_gf_number_formatter.gd`
+- `tests/gf_core/test_gf_progression_math.gd`
+- `tests/gf_core/test_gf_signal_utility.gd`
+- `tests/gf_core/test_gf_singleton.gd`
+- `tests/gf_core/test_gf_timer_utility.gd`
+
+---
+
+## [1.14.1] - 2026-04-28
+
+**版本概述**：聚焦框架边界正确性、异步初始化一致性和高频路径性能，修复定点数长精度解析、项目 Installer 并发、能力依赖失败回滚、状态机重入和 Signal 空参数等边缘问题。
+
+### 🚀 新增特性 (Added)
+- **Model 自定义存档键**：`GFModel.get_save_key()` 可为运行时脚本或需要重命名兼容的 Model 提供稳定快照键。
+- **项目 Installer 状态信号**：`GFArchitecture.project_installers_finished` 可唤醒并发 `Gf.init()` 等待方。
+- **DebugOverlay 刷新间隔**：`GFDebugOverlayUtility.refresh_interval_seconds` 与 `set_refresh_interval()` 支持降低可见时的反射刷新频率。
+- **编辑器类型索引缓存**：`GFEditorTypeIndex.clear_cache()` 支持清理脚本与场景根脚本缓存。
+
+### 🔄 机制更改 (Changed)
+- **定点数除法精度**：`GFFixedDecimal` 大位移除法改为整数/十进制字符串路径，避免 float 精度损失。
+- **表现动作超时语义**：`GFVisualAction.with_signal_timeout()` 新增可选参数 `respect_time_scale`，默认让 Signal 超时跟随 `GFTimeUtility` 暂停与时间缩放。
+- **战斗系统迭代优化**：`GFCombatSystem` 处理 Buff 与技能 CD 时不再每帧复制数组。
+- **DebugOverlay 性能优化**：悬浮面板只在刷新间隔到期时重新反射 Model 数据。
+- **编辑器扫描复用**：`GFEditorTypeIndex` 复用已加载脚本和场景根脚本结果，减少重复同步加载。
+
+### 🐛 Bug 修复 (Fixed)
+- **Singleton 工厂缓存**：`GFBinding` 会丢弃已释放或排队释放的缓存实例，且不会缓存失败创建结果。
+- **工厂类型校验**：工厂返回对象必须继承或等于绑定脚本类型，避免错误实例进入缓存。
+- **项目 Installer 并发**：并发 `Gf.init()` 会等待正在运行的项目 Installer 完成，不再跳过未完成装配。
+- **NodeContext 异步生命周期**：`GFNodeContext` 在等待父架构、安装模块和初始化后会重新确认节点与架构仍有效。
+- **Signal trailing null**：`GFSignalConnection` 会根据声明参数数量保留显式发出的尾部 `null`。
+- **能力依赖回滚**：能力依赖链创建失败时，会撤销本轮自动创建且未被其他能力持有的依赖。
+- **节点状态重入**：`GFNodeStateGroup` 支持状态退出期间请求新切换，旧状态不会重复退出，最终目标以退出期请求为准。
+- **纯代码状态机重启**：`GFStateMachine.start()` 在已有当前状态时会先退出旧状态。
+- **长小数字符串解析**：`GFFixedDecimal.from_string()` 会先按目标精度解析和舍入，不再先钳制来源小数位。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFModel.get_save_key() -> StringName`。
+- 新增 `GFArchitecture.project_installers_finished`。
+- 新增 `GFArchitecture.is_project_installers_running() -> bool`。
+- 新增 `GFArchitecture.begin_project_installers() -> bool`。
+- 新增 `GFArchitecture.finish_project_installers() -> void`。
+- 新增 `GFBinding.clear_cached_instance() -> void`。
+- 新增 `GFDebugOverlayUtility.refresh_interval_seconds: float`。
+- 新增 `GFDebugOverlayUtility.set_refresh_interval(seconds: float) -> void`。
+- 新增 `GFEditorTypeIndex.clear_cache() -> void`。
+- `GFVisualAction.with_signal_timeout(seconds: float, respect_time_scale: bool = true) -> GFVisualAction` 新增可选参数，旧调用保持兼容。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧 `with_signal_timeout(seconds)` 调用无需迁移；如果希望超时继续使用真实时间，请改为 `with_signal_timeout(seconds, false)`。
+2. 使用运行时脚本 Model 或需要跨版本重命名存档键时，重写 `get_save_key()` 返回稳定 `StringName`。
+3. 如果项目依赖 DebugOverlay 每帧刷新，可将 `refresh_interval_seconds` 设置为 `0.0`。
+4. 工厂 provider 现在会校验返回对象脚本类型；如果之前返回了不匹配对象，需要修正 provider 或注册键。
+
+### 📁 核心受影响文件 (Affected Files)
+- `addons/gf/base/gf_model.gd`
+- `addons/gf/core/gf.gd`
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/core/gf_binding.gd`
+- `addons/gf/core/gf_node_context.gd`
+- `addons/gf/editor/gf_editor_type_index.gd`
+- `addons/gf/extensions/action_queue/gf_visual_action.gd`
+- `addons/gf/extensions/capability/gf_capability_utility.gd`
+- `addons/gf/extensions/combat/gf_combat_system.gd`
+- `addons/gf/extensions/state_machine/gf_node_state_group.gd`
+- `addons/gf/extensions/state_machine/gf_state_machine.gd`
+- `addons/gf/foundation/numeric/gf_fixed_decimal.gd`
+- `addons/gf/utilities/gf_debug_overlay_utility.gd`
+- `addons/gf/utilities/gf_signal_connection.gd`
+- `addons/gf/utilities/gf_storage_utility.gd`
+- `tests/gf_core/test_gf_action_queue.gd`
+- `tests/gf_core/test_gf_capability_utility.gd`
+- `tests/gf_core/test_gf_fixed_decimal.gd`
+- `tests/gf_core/test_gf_model_serialization.gd`
+- `tests/gf_core/test_gf_node_state_machine.gd`
+- `tests/gf_core/test_gf_signal_utility.gd`
+- `tests/gf_core/test_gf_singleton.gd`
+- `tests/gf_core/test_gf_state_machine.gd`
+
+---
+
+## [1.14.0] - 2026-04-28
+
+**版本概述**：补强原生 Signal 连接、表现动作队列分流和场景树状态机能力，让 GF 在 UI、动画、角色控制器和临时表现流场景中具备更完整的框架级支持。
+
+### 🚀 新增特性 (Added)
+- **原生 Signal 工具**：新增 `GFSignalUtility` 与 `GFSignalConnection`，支持 owner 归属清理、安全断开、默认参数、`filter()` / `map()` / `delay()` / `debounce()` / `once()` 链式处理。
+- **命名动作队列**：`GFActionQueueSystem` 新增命名队列 API，可为战斗、对白、教程、临时 UI 等表现流创建互不阻塞的独立队列。
+- **节点绑定队列**：命名队列可绑定到节点生命周期，绑定节点释放后会取消当前动作并清空队列。
+- **跳过当前动作**：`GFActionQueueSystem.skip_current_action()` 可取消当前动作并继续消费后续队列。
+- **场景树状态机**：新增 `GFNodeStateMachine`、`GFNodeStateGroup` 与 `GFNodeState`，适合依赖动画、输入、碰撞或子节点引用的状态逻辑。
+- **节点状态模板**：编辑器菜单新增 `工具 > GF > 生成 NodeState` 与 `工具 > GF > 生成 NodeStateMachine`。
+
+### 🔄 机制更改 (Changed)
+- **表现队列分流**：默认队列保持兼容；命名队列作为可选分流能力，不改变已有 `enqueue()` / `push_front()` 行为。
+- **状态机职责分层**：纯代码 `GFStateMachine` 保持轻量逻辑状态职责；节点式状态机作为可选扩展承载场景树状态。
+- **节点状态自动重载**：节点式状态机与状态组会监听子节点加入，在 `ready` 后动态补充状态时自动重新加载。
+- **编辑器菜单收束**：GF 模板和代码生成入口集中到单个 `工具 > GF` 子菜单，减少对 Godot 工具菜单公共空间的占用。
+
+### 🐛 Bug 修复 (Fixed)
+- **节点状态机内部组生命周期**：内部状态组改为状态机的内部子节点，并在重新加载与退出树时显式清理，避免测试和运行期出现 orphan 节点。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFSignalUtility`。
+- 新增 `GFSignalConnection`。
+- 新增 `GFActionQueueSystem.get_named_queue(queue_name: StringName) -> GFActionQueueSystem`。
+- 新增 `GFActionQueueSystem.get_linked_queue(queue_name: StringName, linked_node: Node) -> GFActionQueueSystem`。
+- 新增 `GFActionQueueSystem.bind_to_node(linked_node: Node) -> void`。
+- 新增 `GFActionQueueSystem.enqueue_to()` / `enqueue_fire_and_forget_to()` / `enqueue_parallel_to()`。
+- 新增 `GFActionQueueSystem.push_front_to()`。
+- 新增 `GFActionQueueSystem.clear_named_queue()` / `clear_all_named_queues()`。
+- 新增 `GFActionQueueSystem.skip_current_action() -> void`。
+- 新增 `GFNodeStateMachine`。
+- 新增 `GFNodeStateGroup`。
+- 新增 `GFNodeState`。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧动作队列调用无需迁移；需要多条表现流互不阻塞时，再改用命名队列 API。
+2. 业务事件仍推荐使用 `TypeEventSystem`；Godot 节点信号、UI 信号和动画完成信号推荐使用 `GFSignalUtility`。
+3. 纯逻辑状态继续使用 `GFStateMachine`；依赖场景树节点引用的状态可改用 `GFNodeStateMachine`。
+4. 使用编辑器模板生成新节点状态后，只需继承 `_initialize()`、`_enter()`、`_exit()` 等 Hook 编写业务逻辑。
+
+### 📁 核心受影响文件 (Affected Files)
+- `README.md`
+- `addons/gf/extensions/action_queue/gf_action_queue_system.gd`
+- `addons/gf/extensions/state_machine/gf_node_state.gd`
+- `addons/gf/extensions/state_machine/gf_node_state_group.gd`
+- `addons/gf/extensions/state_machine/gf_node_state_machine.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/plugin.gd`
+- `addons/gf/utilities/gf_signal_connection.gd`
+- `addons/gf/utilities/gf_signal_utility.gd`
+- `addons/gf/docs/wiki/07. 高级扩展 (Advanced Extensions).md`
+- `addons/gf/docs/wiki/08. 实用工具箱 (Utility Toolkit).md`
+- `tests/gf_core/test_gf_action_queue.gd`
+- `tests/gf_core/test_gf_node_state_machine.gd`
+- `tests/gf_core/test_gf_signal_utility.gd`
+
+---
+
 ## [1.13.0] - 2026-04-27
 
 **版本概述**：强化能力组件的运行时正确性、编辑器体验与强类型访问，同时补充轻量交互流程、动态属性包、递归注入和日志过滤能力。

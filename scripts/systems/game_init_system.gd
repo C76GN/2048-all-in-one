@@ -28,11 +28,11 @@ func ready() -> void:
 	_rule_system = get_system(RuleSystem) as RuleSystem
 	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
 
-	Gf.listen_simple(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
+	register_simple_event(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
 
 
 func dispose() -> void:
-	Gf.unlisten_simple(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
+	unregister_simple_event(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
 
 
 # --- 私有/辅助方法 ---
@@ -126,7 +126,10 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	var game_status_model := get_model(GameStatusModel) as GameStatusModel
 	if is_instance_valid(loaded_bookmark_data):
 		if is_instance_valid(_seed_utility):
-			_seed_utility.set_state(loaded_bookmark_data.rng_state)
+			if not loaded_bookmark_data.rng_full_state.is_empty():
+				_seed_utility.set_full_state(loaded_bookmark_data.rng_full_state)
+			else:
+				_seed_utility.set_state(loaded_bookmark_data.rng_state)
 		if game_status_model:
 			game_status_model.score.set_value(loaded_bookmark_data.score)
 			game_status_model.move_count.set_value(loaded_bookmark_data.move_count)
@@ -171,4 +174,4 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		current_game_model.initial_high_score.set_value(game_ready_data.initial_high_score)
 		current_game_model.is_replay_mode.set_value(game_ready_data.is_replay_mode)
 
-	Gf.send_event(game_ready_data)
+	send_event(game_ready_data)
