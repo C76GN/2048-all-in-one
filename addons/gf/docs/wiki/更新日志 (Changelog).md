@@ -16,6 +16,341 @@
 
 ---
 
+## [1.17.0] - 2026-04-29
+
+**版本概述**：新增资源化输入映射扩展，增强移动端虚拟输入与编辑器缩略图生成能力，让项目可以用更抽象、可切换、可重绑的方式处理输入，同时保持 GF 核心不绑定具体玩法规则。
+
+### 🚀 新增特性 (Added)
+- **资源化输入动作与上下文**：新增 `GFInputAction`、`GFInputBinding`、`GFInputMapping`、`GFInputContext`，用于描述抽象动作、输入绑定和可启停上下文。
+- **运行时输入映射 Utility**：新增 `GFInputMappingUtility`，支持上下文优先级、同输入阻断、动作值查询、一次性触发消费、运行时重绑定和可重绑条目枚举。
+- **输入重映射配置**：新增 `GFInputRemapConfig`，只保存覆盖过的绑定，默认输入仍由上下文资源提供。
+- **输入检测与格式化**：新增 `GFInputDetector` 和 `GFInputFormatter`，便于项目层实现改键界面和绑定文本展示。
+- **触屏按钮节点**：新增 `GFTouchButton`，支持触屏/鼠标按下、InputMap 动作映射和可选虚拟手柄按钮事件。
+- **MeshLibrary 预览生成**：`GFThumbnailRenderer` 新增 MeshLibrary 批量预览生成和纹理输出方法。
+
+### 🔄 机制更改 (Changed)
+- **触屏摇杆增强**：`GFTouchJoystick` 新增固定/相对定位模式、交互半径、可选虚拟手柄轴事件和更稳健的屏幕到画布坐标转换。
+- **缩略图相机优化**：`GFThumbnailRenderer` 改为正交相机包围盒取景，并在批量写入 MeshLibrary 预览时阻断中间信号，完成后只发出一次变更。
+- **资产版本推进**：插件版本与资产库维护元数据更新到 `1.17.0`。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFInputAction`。
+- 新增 `GFInputBinding`。
+- 新增 `GFInputMapping`。
+- 新增 `GFInputContext`。
+- 新增 `GFInputRemapConfig`。
+- 新增 `GFInputFormatter`。
+- 新增 `GFInputDetector`。
+- 新增 `GFInputMappingUtility`。
+- 新增 `GFTouchButton`。
+- `GFTouchJoystick` 新增 `PositionMode`、`position_mode`、`interaction_radius`、`draw_interaction_zone`、`emit_joypad_motion`、`joypad_device_id`、`joy_axis_x`、`joy_axis_y`。
+- `GFThumbnailRenderer` 新增 `render_node3d_texture()`、`render_mesh_texture()`、`render_mesh_library_previews()`。
+- 无破坏性 API 变更；旧的输入缓冲、设备映射和触屏摇杆用法保持可用。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目无需修改现有 `GFInputUtility`、`GFInputDeviceUtility` 或 `GFTouchJoystick` 调用。
+2. 需要运行时改键或多输入上下文时，注册 `GFInputMappingUtility`，并用 `GFInputAction` / `GFInputContext` 资源描述项目输入。
+3. 移动端项目如需相对摇杆，可把 `GFTouchJoystick.position_mode` 设置为 `RELATIVE`，并按需要开启虚拟手柄事件桥接。
+4. 自定义编辑器工具如需批量生成 `MeshLibrary` 预览，可复用 `GFThumbnailRenderer.render_mesh_library_previews()`。
+
+### 📁 核心受影响文件 (Affected Files)
+- `ASSET_LIBRARY.md`
+- `README.md`
+- `addons/gf/README.md`
+- `addons/gf/docs/wiki/08. 实用工具箱 (Utility Toolkit).md`
+- `addons/gf/docs/wiki/更新日志 (Changelog).md`
+- `addons/gf/editor/gf_thumbnail_renderer.gd`
+- `addons/gf/input/gf_input_action.gd`
+- `addons/gf/input/gf_input_binding.gd`
+- `addons/gf/input/gf_input_context.gd`
+- `addons/gf/input/gf_input_detector.gd`
+- `addons/gf/input/gf_input_formatter.gd`
+- `addons/gf/input/gf_input_mapping.gd`
+- `addons/gf/input/gf_input_remap_config.gd`
+- `addons/gf/input/gf_touch_button.gd`
+- `addons/gf/input/gf_touch_joystick.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/utilities/gf_input_mapping_utility.gd`
+- `tests/gf_core/test_gf_input_mapping_utility.gd`
+
+## [1.16.0] - 2026-04-29
+
+**版本概述**：围绕节点状态机、运行时控制台和远程数据缓存做通用化增强，提升框架在复杂节点流程、高频调试日志和轻量远程配置场景下的可复用性与稳定性。
+
+### 🚀 新增特性 (Added)
+- **节点状态机配置资源**：新增 `GFNodeStateMachineConfig`，可复用内部状态组初始状态、初始参数、历史容量与最大栈深度。
+- **节点状态机状态栈**：`GFNodeStateGroup` 与 `GFNodeStateMachine` 新增 `push_state()` / `pop_state()`，支持覆盖式子状态；`GFNodeState` 新增 `pause()`、`resume()` 及 `_pause()`、`_resume()` 扩展点。
+- **节点状态查询能力**：新增当前状态名、状态历史、栈深度和 `is_in_state()` 查询 API，便于 UI、调试工具和流程控制读取状态。
+- **状态宿主访问**：`GFNodeState` 新增 `get_machine()`、`get_group()`、`get_host()` 与 `host` 只读属性，状态脚本可安全访问状态机所在宿主节点。
+- **节点状态机 Inspector 辅助**：新增 Inspector 插件，从直接子 `GFNodeState` 中选择内部状态组初始状态，并接入主编辑器插件。
+- **通用远程缓存工具**：新增 `GFRemoteCacheUtility`，支持文本/JSON HTTP 请求、本地 TTL 缓存、失败时陈旧缓存回退、缓存清理和统一结果回调。
+
+### 🔄 机制更改 (Changed)
+- **运行时控制台输出优化**：`GFConsoleUtility` 改为批量刷新输出，并通过 `max_output_lines` 限制 RichTextLabel 保留行数，避免高频日志无限增长。
+- **NodeState 模板增强**：编辑器生成的 `NodeState` 模板补充 `_pause()` 与 `_resume()` 扩展点，贴合新的栈式状态语义。
+- **资产版本推进**：插件版本与资产库维护元数据更新到 `1.16.0`。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFNodeStateMachine.config: GFNodeStateMachineConfig`。
+- 新增 `GFNodeStateMachine.push_state(path: StringName, args: Dictionary = {}) -> void`。
+- 新增 `GFNodeStateMachine.push_group_state(group_name: StringName, state_name: StringName, args: Dictionary = {}) -> void`。
+- 新增 `GFNodeStateMachine.pop_state(group_name: StringName = GFNodeStateMachine.INTERNAL_GROUP_NAME, args: Dictionary = {}) -> bool`。
+- 新增 `GFNodeStateMachine.get_current_state_name(group_name: StringName = GFNodeStateMachine.INTERNAL_GROUP_NAME) -> StringName`。
+- 新增 `GFNodeStateMachine.get_state_history(group_name: StringName = GFNodeStateMachine.INTERNAL_GROUP_NAME) -> Array[StringName]`。
+- 新增 `GFNodeStateMachine.get_stack_depth(group_name: StringName = GFNodeStateMachine.INTERNAL_GROUP_NAME) -> int`。
+- 新增 `GFNodeStateMachine.is_in_state(path: StringName) -> bool`。
+- 新增 `GFNodeStateMachine.restart_group(group_name: StringName = GFNodeStateMachine.INTERNAL_GROUP_NAME, args: Dictionary = {}) -> void`。
+- 新增 `GFNodeStateGroup.push_state(next_state_name: StringName, args: Dictionary = {}) -> void`。
+- 新增 `GFNodeStateGroup.pop_state(args: Dictionary = {}) -> bool`。
+- 新增 `GFNodeStateGroup.get_current_state_name() -> StringName`。
+- 新增 `GFNodeStateGroup.get_state_history() -> Array[StringName]`。
+- 新增 `GFNodeStateGroup.get_stack_depth() -> int`。
+- 新增 `GFNodeStateGroup.is_in_state(query_state_name: StringName) -> bool`。
+- 新增 `GFNodeStateGroup.restart(args: Dictionary = {}) -> void`。
+- 新增 `GFNodeState.get_machine() -> Object`。
+- 新增 `GFNodeState.get_group() -> Object`。
+- 新增 `GFNodeState.get_host() -> Node`。
+- 新增 `GFNodeState.pause(next_state: StringName = &"", args: Dictionary = {}) -> void`。
+- 新增 `GFNodeState.resume(previous_state: StringName = &"", args: Dictionary = {}) -> void`。
+- 新增 `GFNodeState._pause(_next_state: StringName = &"", _args: Dictionary = {}) -> void`。
+- 新增 `GFNodeState._resume(_previous_state: StringName = &"", _args: Dictionary = {}) -> void`。
+- 新增 `GFConsoleUtility.max_output_lines: int`。
+- 新增 `GFRemoteCacheUtility` 及其 `fetch_text()`、`fetch_json()`、`has_valid_cache()`、`get_cached_text()`、`remove_cache()`、`clear_cache()`。
+- 无破坏性 API 变更；旧项目继续使用原有状态机切换、控制台命令和日志接口即可。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目无需修改现有 `transition_to()`、`GFConsoleUtility.register_command()` 或资源加载代码。
+2. 需要覆盖式状态时，在状态脚本中按需实现 `_pause()` / `_resume()`；无需覆盖时默认空实现即可。
+3. 需要统一状态机初始参数或栈深度时，可创建 `GFNodeStateMachineConfig` 资源并赋给 `GFNodeStateMachine.config`；未设置时仍使用节点上的旧导出项。
+4. 高频日志项目可调整 `GFConsoleUtility.max_output_lines`，默认保留 1000 行。
+5. 需要轻量远程配置或公告时，注册 `GFRemoteCacheUtility` 并优先通过统一结果字典处理缓存命中、陈旧缓存和网络失败。
+
+### 📁 核心受影响文件 (Affected Files)
+- `ASSET_LIBRARY.md`
+- `README.md`
+- `addons/gf/README.md`
+- `addons/gf/docs/wiki/07. 高级扩展 (Advanced Extensions).md`
+- `addons/gf/docs/wiki/08. 实用工具箱 (Utility Toolkit).md`
+- `addons/gf/docs/wiki/更新日志 (Changelog).md`
+- `addons/gf/editor/gf_node_state_machine_inspector_plugin.gd`
+- `addons/gf/extensions/state_machine/gf_node_state.gd`
+- `addons/gf/extensions/state_machine/gf_node_state_group.gd`
+- `addons/gf/extensions/state_machine/gf_node_state_machine.gd`
+- `addons/gf/extensions/state_machine/gf_node_state_machine_config.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/plugin.gd`
+- `addons/gf/utilities/gf_console_utility.gd`
+- `addons/gf/utilities/gf_remote_cache_utility.gd`
+- `tests/gf_core/test_gf_console_utility.gd`
+- `tests/gf_core/test_gf_node_state_machine.gd`
+- `tests/gf_core/test_gf_remote_cache_utility.gd`
+
+## [1.15.2] - 2026-04-29
+
+**版本概述**：修复资产库首次安装到新项目时，Godot 在 Gf AutoLoad 注册前扫描框架脚本导致的大量解析报错，并收敛编辑器插件的启动依赖加载顺序。
+
+### 🚀 新增特性 (Added)
+- **AutoLoad 运行时解析器**：新增 `GFAutoload`，通过场景树根节点运行时解析 `Gf` AutoLoad，供框架内部在不直接引用全局 `Gf` 标识符的情况下访问全局架构。
+
+### 🔄 机制更改 (Changed)
+- **框架内部全局架构访问收敛**：`GFCommand`、`GFModel`、`GFSystem`、`GFUtility`、`GFController`、`GFNodeContext`、能力、交互、序列、状态机和视觉动作等内部入口统一改用 `GFAutoload.get_architecture_or_null()`，避免首次导入时依赖尚未注册的 AutoLoad 全局名。
+- **编辑器插件延迟加载工具脚本**：`plugin.gd` 不再在脚本编译阶段预加载访问器生成器和能力 Inspector，而是在 `_enter_tree()` 注册 AutoLoad 后按需加载，降低插件启用时的自举依赖。
+- **生成访问器全局架构解析同步**：`GFAccessGenerator` 生成的 `architecture_or_null()` 改为使用 `GFAutoload`，与框架内部访问路径保持一致。
+- **安装与资产库说明补齐**：README 明确说明复制 `addons/gf` 后 Godot 不会自动启用插件，用户需要在插件面板手动启用；`ASSET_LIBRARY.md` 补齐资产库表单字段和版本推进检查项。
+
+### 🐛 Bug 修复 (Fixed)
+- **资产库首次安装解析报错**：修复新项目通过 Godot 资产库下载安装并启用 GF 插件时，因 `Gf` AutoLoad 尚未注册而出现 `Identifier "Gf" not declared in the current scope`，并连锁触发 `Could not resolve class "GFUtility"`、`GFCommand`、`GFSystem` 等大量报错的问题。
+- **插件自举失败**：修复编辑器插件在 AutoLoad 注册前因顶层 `preload()` 间接编译运行时脚本而可能无法进入 `_enter_tree()` 的问题。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFAutoload.get_singleton_or_null() -> Node`。
+- 新增 `GFAutoload.has_architecture() -> bool`。
+- 新增 `GFAutoload.get_architecture_or_null() -> GFArchitecture`。
+- 新增 `GFAutoload.get_architecture() -> GFArchitecture`。
+- 无破坏性 API 变更；原有 `Gf.*` 用户调用方式保持不变。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目无需修改代码，继续使用 `Gf.register_*()`、`Gf.init()`、`Gf.get_*()` 即可。
+2. 资产库新安装项目更新到 1.15.2 后，首次安装/启用插件不再需要通过重启编辑器来清掉首次扫描报错。
+3. 如果项目中已生成 `res://gf/generated/gf_access.gd`，建议重新执行一次 `GF > 生成强类型访问器`，让生成文件切换到新的 `GFAutoload` 解析路径。
+
+### 📁 核心受影响文件 (Affected Files)
+- `addons/gf/base/gf_command.gd`
+- `addons/gf/base/gf_controller.gd`
+- `addons/gf/base/gf_model.gd`
+- `addons/gf/base/gf_query.gd`
+- `addons/gf/base/gf_system.gd`
+- `addons/gf/base/gf_utility.gd`
+- `addons/gf/README.md`
+- `ASSET_LIBRARY.md`
+- `README.md`
+- `addons/gf/core/gf_autoload.gd`
+- `addons/gf/core/gf_node_context.gd`
+- `addons/gf/docs/wiki/更新日志 (Changelog).md`
+- `addons/gf/editor/gf_access_generator.gd`
+- `addons/gf/extensions/action_queue/gf_visual_action.gd`
+- `addons/gf/extensions/capability/*`
+- `addons/gf/extensions/combat/gf_skill.gd`
+- `addons/gf/extensions/interaction/*`
+- `addons/gf/extensions/sequence/*`
+- `addons/gf/extensions/state_machine/gf_state_machine.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/plugin.gd`
+
+## [1.15.1] - 2026-04-29
+
+**版本概述**：聚焦 1.15.0 新增模块的运行时边界收敛，修复存档事务、场景失败回退、异步等待取消、事件清空重入、对象池父节点生命周期和 UI 栈外部释放等稳定性问题，并补充真实时间输入与能力索引清理能力。
+
+### 🔄 机制更改 (Changed)
+- **存档事务恢复增强**：`GFStorageUtility` 为多文件提交增加事务标记，槽位 data/meta 覆盖过程中若崩溃或中断，会按组回滚或提交，避免出现新旧文件混配。
+- **对象池安全根节点**：`GFObjectPoolUtility.release()` 会把回收节点迁移到内部对象池根节点，避免原父节点释放时连带销毁已回收节点。
+- **输入计时真实时间化**：`GFInputUtility` 默认设置 `ignore_time_scale = true`，输入缓冲与土狼时间不再被全局 time_scale 拉长或缩短，但仍尊重全局暂停。
+- **能力索引定期清理**：`GFCapabilityUtility` 增加运行时失效 receiver 清理，并提供 `prune_invalid_receivers()` 供高 churn 场景主动调用。
+
+### 🐛 Bug 修复 (Fixed)
+- **场景失败误清理瞬态模块**：`GFSceneUtility` 在目标场景加载失败时不再清理 transient Model/System，避免恢复旧场景后依赖被误注销。
+- **战斗 tick 注销重入**：`GFCombatSystem.tick()` 在遍历活跃实体时会跳过已被前序回调注销的实体，避免访问已删除字典键。
+- **Tween 等待目标释放**：`GFVisualAction` 支持额外的等待守卫节点，`GFMoveTweenAction` 与 `GFFlashAction` 在目标节点退出树时会立即结束等待。
+- **资源加载取消语义**：`GFAssetUtility.cancel()` 不再丢失底层 threaded request 状态；取消会清空旧回调，后续同路径重试会复用进行中的请求并正常缓存结果。
+- **事件系统 clear 重入**：`TypeEventSystem.clear()` 在事件派发中调用时不再重置派发深度，避免深度计数变负和 pending 队列损坏。
+- **UI 栈外部释放**：`GFUIUtility` 会监听面板退出树并清理栈记录，顶层面板被外部 `queue_free()` 后会恢复下层面板可见性。
+- **回合流程停止后续执行**：`GFTurnFlowSystem.stop()` 会取消等待中的阶段或行动恢复，防止 stop 后继续 `exit()`、`action_resolved` 或推进上下文。
+- **分析配置非法值防护**：`GFAnalyticsConfig` 会钳制 `batch_size`、`max_queue_size` 与 `flush_interval_seconds`，避免运行时代码写入非法值导致队列异常。
+- **技能与 Buff 失效 owner 防护**：`GFSkill` 与 `GFBuff` 会跳过已释放 owner，避免独立对象延迟调用时访问无效实例。
+- **编辑器缩略图清理**：`GFThumbnailRenderer` 清空渲染根节点时立即移除旧实例，避免下一次渲染混入上一张缩略图的残留节点。
+- **文档注释格式清理**：移除若干脚本注释中的多余 `##` 后缀与代码内修改记录式注释，使源码继续贴合 `CODING_STYLE.md`。
+
+### 🚀 新增特性 (Added)
+- **模块时间缩放旁路**：`GFSystem` 与 `GFUtility` 新增 `ignore_time_scale`，用于让指定模块在未暂停时接收原始 delta。
+- **序列等待安全网**：`GFCommandSequence` 新增 Signal 安全等待、取消检查和 `with_signal_timeout()`，避免步骤 Signal 永不触发时永久卡住。
+
+### ✅ 测试补强 (Tests)
+- 补充存档多文件事务回滚、场景失败 transient 保留、Analytics 非法配置、战斗注销重入、资源加载取消重试、事件 clear 重入、UI 外部释放、回合流程 stop、命令序列取消/超时、Tween 目标释放、对象池安全根、能力索引清理与输入真实时间测试。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFSystem.ignore_time_scale: bool`。
+- 新增 `GFUtility.ignore_time_scale: bool`。
+- 新增 `GFCapabilityUtility.prune_invalid_receivers() -> void`。
+- 新增 `GFVisualAction.get_wait_guard_node() -> Node`，供自定义动作返回与等待 Signal 关联的生命周期守卫节点。
+- 新增 `GFCommandSequence.signal_timeout_seconds: float`。
+- 新增 `GFCommandSequence.signal_timeout_respects_time_scale: bool`。
+- 新增 `GFCommandSequence.with_signal_timeout(seconds: float, respect_time_scale: bool = true) -> GFCommandSequence`。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目无需修改现有调用；本次新增 API 均为兼容增强。
+2. 如果自定义 `GFVisualAction` 返回的是 Tween、AnimationPlayer 以外的非 Node Signal，建议重写 `get_wait_guard_node()` 返回拥有该表现生命周期的节点。
+3. 如果某个 System/Utility 需要在慢动作中仍按真实时间推进，可设置 `ignore_time_scale = true`；若暂停时也要继续推进，再同时设置 `ignore_pause = true`。
+4. 如果项目依赖 `GFInputUtility` 跟随 time_scale 缩放，需要在自定义派生类或注册后显式设置 `ignore_time_scale = false`。
+
+### 📁 核心受影响文件 (Affected Files)
+- `addons/gf/base/gf_system.gd`
+- `addons/gf/base/gf_utility.gd`
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/core/type_event_system.gd`
+- `addons/gf/docs/wiki/更新日志 (Changelog).md`
+- `addons/gf/editor/gf_thumbnail_renderer.gd`
+- `addons/gf/extensions/action_queue/gf_flash_action.gd`
+- `addons/gf/extensions/action_queue/gf_move_tween_action.gd`
+- `addons/gf/extensions/action_queue/gf_visual_action.gd`
+- `addons/gf/extensions/capability/gf_capability_utility.gd`
+- `addons/gf/extensions/combat/gf_buff.gd`
+- `addons/gf/extensions/combat/gf_combat_system.gd`
+- `addons/gf/extensions/combat/gf_skill.gd`
+- `addons/gf/extensions/sequence/gf_command_sequence.gd`
+- `addons/gf/extensions/turn_based/gf_turn_flow_system.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/utilities/gf_analytics_config.gd`
+- `addons/gf/utilities/gf_analytics_utility.gd`
+- `addons/gf/utilities/gf_asset_utility.gd`
+- `addons/gf/utilities/gf_command_history_utility.gd`
+- `addons/gf/utilities/gf_input_utility.gd`
+- `addons/gf/utilities/gf_object_pool_utility.gd`
+- `addons/gf/utilities/gf_scene_utility.gd`
+- `addons/gf/utilities/gf_storage_utility.gd`
+- `addons/gf/utilities/gf_timer_utility.gd`
+- `addons/gf/utilities/gf_ui_utility.gd`
+- `tests/gf_core/*`
+
+## [1.15.0] - 2026-04-29
+
+**版本概述**：新增一组抽象、可配置、可复用的基础能力与扩展模块，覆盖资源化公式、顺序指令、回合流程、音频资源集合、输入设备映射、分析事件、通用领域模型和编辑器缩略图渲染，同时补齐存档槽位枚举与音频资源配置接入。
+
+### 🚀 新增特性 (Added)
+- **资源化公式基础层**：新增 `GFFormula`、`GFFormulaParameter`、`GFFormulaSet`，用于承载可替换计算策略、运行时参数与公式集合。
+- **通用指令序列**：新增 `GFCommandSequence`、`GFSequenceContext`、`GFSequenceStep`、`GFWaitSequenceStep`，支持步骤顺序执行、Signal 等待、取消与架构注入。
+- **通用回合流程**：新增 `GFTurnFlowSystem`、`GFTurnContext`、`GFTurnAction`、`GFTurnPhase`，提供阶段推进、行动入队与优先级解析。
+- **通用领域模型**：新增 `GFInventoryModel`、`GFTrait`、`GFTraitSet`、`GFEquipmentSlot`、`GFEquipmentSet`，提供库存、特征合并与槽位挂载的抽象数据结构。
+- **资源化音频配置**：新增 `GFAudioClip`、`GFAudioBank`，支持把音频路径、Stream、总线、音量和音高保存为可复用资源配置。
+- **输入设备与触屏控制**：新增 `GFInputDeviceAssignment`、`GFInputDeviceUtility`、`GFTouchJoystick`，支持本地设备席位映射和通用触屏方向输入。
+- **分析事件工具**：新增 `GFAnalyticsConfig`、`GFAnalyticsUtility`，支持事件队列、上下文采集、批量 flush、失败重排、本地 dry-run 与可选 HTTP 上报。
+- **编辑器缩略图渲染辅助**：新增 `GFThumbnailRenderer`，可在编辑器工具中复用 SubViewport 渲染 Node3D 或 Mesh 缩略图。
+
+### 🔄 机制更改 (Changed)
+- **音频工具资源化接入**：`GFAudioUtility` 新增 `play_bgm_clip()`、`play_sfx_clip()`、`play_bgm_from_bank()`、`play_sfx_from_bank()`、`stop_bgm()`，原有路径播放接口保持兼容。
+- **音频动作扩展**：`GFAudioAction` 支持直接播放 `GFAudioClip` 或 `GFAudioBank` 中的片段，仍保持 fire-and-forget 默认完成模式。
+- **存档槽位列表**：`GFStorageUtility` 新增 `list_slots()`，可按槽位 ID 升序枚举有效槽位的 metadata 与修改时间。
+
+### 🐛 Bug 修复 (Fixed)
+- **Godot 4.6 保留词兼容**：`GFTraitSet` 内部变量避免使用 `trait` 作为标识符，保证 Godot 4.6 解析稳定。
+- **Signal 等待类型明确化**：通用指令序列与回合流程在等待返回值时显式转换为 `Signal`，与框架现有异步等待写法保持一致。
+- **触屏平台检测收敛**：输入设备工具不再依赖不稳定的触屏检测 API，移动平台触控映射由平台名判断。
+- **Signal 防抖同帧稳定性**：`GFSignalConnection.debounce()` 在静默期结束后额外让出一帧并复核序列号，避免低帧率或全量测试负载下同帧后续触发无法取消旧回调。
+
+### ✅ 测试补强 (Tests)
+- 新增公式、指令序列、回合流程、输入设备、分析事件和通用领域模型测试。
+- 补充音频资源配置、音频集合动作、存档槽位枚举测试。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFAudioUtility.play_bgm_clip(clip: GFAudioClip) -> void`。
+- 新增 `GFAudioUtility.play_sfx_clip(clip: GFAudioClip) -> void`。
+- 新增 `GFAudioUtility.play_bgm_from_bank(bank: GFAudioBank, clip_id: StringName) -> void`。
+- 新增 `GFAudioUtility.play_sfx_from_bank(bank: GFAudioBank, clip_id: StringName) -> void`。
+- 新增 `GFAudioUtility.stop_bgm() -> void`。
+- 新增 `GFStorageUtility.list_slots() -> Array[Dictionary]`。
+- `GFAudioAction._init()` 新增可选参数 `p_clip: GFAudioClip = null`，旧的路径参数保持兼容。
+- 其余新增类均为新增 API，不破坏旧项目调用。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目无需迁移；原有路径式音频、存档、动作队列、战斗扩展和基础层 API 均保持兼容。
+2. 需要集中管理音频配置时，可逐步把路径字符串迁移到 `GFAudioClip` / `GFAudioBank`，再通过 `GFAudioUtility` 或 `GFAudioAction` 播放。
+3. 需要存档列表 UI 时，可用 `GFStorageUtility.list_slots()` 替代手写目录扫描。
+4. 需要可替换数值计算、顺序流程或回合流程时，优先继承新增抽象类，并把具体规则保留在项目层。
+
+### 📁 核心受影响文件 (Affected Files)
+- `ASSET_LIBRARY.md`
+- `README.md`
+- `addons/gf/README.md`
+- `addons/gf/docs/wiki/07. 高级扩展 (Advanced Extensions).md`
+- `addons/gf/docs/wiki/08. 实用工具箱 (Utility Toolkit).md`
+- `addons/gf/docs/wiki/11. 基础层 (Foundation Layer).md`
+- `addons/gf/docs/wiki/更新日志 (Changelog).md`
+- `addons/gf/extensions/action_queue/gf_audio_action.gd`
+- `addons/gf/extensions/domain/*`
+- `addons/gf/extensions/sequence/*`
+- `addons/gf/extensions/turn_based/*`
+- `addons/gf/foundation/formula/*`
+- `addons/gf/input/gf_touch_joystick.gd`
+- `addons/gf/plugin.cfg`
+- `addons/gf/utilities/gf_analytics_config.gd`
+- `addons/gf/utilities/gf_analytics_utility.gd`
+- `addons/gf/utilities/gf_audio_bank.gd`
+- `addons/gf/utilities/gf_audio_clip.gd`
+- `addons/gf/utilities/gf_audio_utility.gd`
+- `addons/gf/utilities/gf_input_device_assignment.gd`
+- `addons/gf/utilities/gf_input_device_utility.gd`
+- `addons/gf/utilities/gf_storage_utility.gd`
+- `tests/gf_core/test_gf_analytics_utility.gd`
+- `tests/gf_core/test_gf_audio_utility.gd`
+- `tests/gf_core/test_gf_command_sequence.gd`
+- `tests/gf_core/test_gf_domain_extensions.gd`
+- `tests/gf_core/test_gf_formula.gd`
+- `tests/gf_core/test_gf_input_device_utility.gd`
+- `tests/gf_core/test_gf_storage_utility.gd`
+- `tests/gf_core/test_gf_turn_flow_system.gd`
+- `tests/gf_core/test_gf_visual_actions.gd`
+
+---
+
 ## [1.14.4] - 2026-04-29
 
 **版本概述**：修复能力 Inspector 在 Godot 4.6 项目中触发的编辑器插件兼容性错误，避免跨项目启用 GF 插件时出现 typed array 参数不匹配和 `PopupMenu` API 不存在的报错。
@@ -32,6 +367,7 @@
 2. 若 Godot 编辑器已打开，更新后建议重启编辑器或重新禁用/启用 `GF Framework` 插件以刷新 Inspector 插件实例。
 
 ### 📁 核心受影响文件 (Affected Files)
+- `ASSET_LIBRARY.md`
 - `addons/gf/docs/wiki/更新日志 (Changelog).md`
 - `addons/gf/editor/gf_capability_inspector_plugin.gd`
 - `addons/gf/plugin.cfg`
