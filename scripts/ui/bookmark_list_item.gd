@@ -1,5 +1,3 @@
-# scripts/ui/bookmark_list_item.gd
-
 ## BookmarkListItem: 在书签列表中代表单个书签记录的UI组件。
 ##
 ## 负责显示书签的概要信息。

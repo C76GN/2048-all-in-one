@@ -1,5 +1,3 @@
-# scripts/rules/base/interaction_rule.gd
-
 ## InteractionRule: 方块交互规则的基类蓝图。
 ##
 ## 所有具体的交互逻辑（如合并、战斗）都应继承此类。它定义了所有交互规则

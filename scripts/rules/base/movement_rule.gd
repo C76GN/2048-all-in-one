@@ -1,5 +1,3 @@
-# scripts/rules/base/movement_rule.gd
-
 ## MovementRule: 方块移动规则的基类蓝图。
 ##
 ## 所有具体的移动逻辑（如经典滑动、步进式移动）都应继承此类。

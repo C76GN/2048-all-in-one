@@ -1,5 +1,3 @@
-# scripts/ui/flow_label_list.gd
-
 ## FlowLabelList: 一个可自动换行的标签列表容器。
 class_name FlowLabelList
 extends Control

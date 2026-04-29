@@ -1,5 +1,3 @@
-# scripts/utilities/test_tool_utility.gd
-
 ## TestToolUtility: 负责管理编辑器环境下的测试面板与调试逻辑。
 ##
 ## 封装了测试面板的初始化、信号连接以及 Tile 强制生成代理。

@@ -1,5 +1,3 @@
-# scripts/events/test_spawn_payload.gd
-
 ## TestSpawnPayload: 在测试模式下从测试面板请求生成一个特定的方块。
 class_name TestSpawnPayload
 extends GFPayload

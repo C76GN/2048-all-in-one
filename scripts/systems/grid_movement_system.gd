@@ -1,5 +1,3 @@
-# scripts/systems/grid_movement_system.gd
-
 ## GridMovementSystem: 负责处理网格移动、合并逻辑的核心系统。
 ##
 ## 该系统监听来自输入层或控制器的移动命令/事件，并执行滑动和合并算法。
@@ -54,6 +52,8 @@ func handle_move(direction: Vector2i) -> MoveData:
 		new_grid[i].fill(null)
 
 	var moved_lines_indices: Array[int] = []
+	var score_delta: int = 0
+	var monster_kill_count: int = 0
 
 	# 算法核心：按行/列处理
 	for i in range(grid_size):
@@ -101,7 +101,10 @@ func handle_move(direction: Vector2i) -> MoveData:
 
 			instructions.append(instruction)
 
-			# 注意：分数由 MovementRule.process_line() 内部发送 score_updated 事件
+			if merge_info.has("score"):
+				score_delta += int(merge_info.get("score", 0))
+			if merge_info.has("monster_killed"):
+				monster_kill_count += int(merge_info.get("monster_killed", 0))
 
 		# 记录移动指令 (用于动画)
 		var tiles_in_new_line_ids: Array = []
@@ -135,9 +138,11 @@ func handle_move(direction: Vector2i) -> MoveData:
 	if not moved_lines_indices.is_empty():
 		# 1. 更新 Model 数据
 		_grid_model.grid = new_grid
-		
-		# 注意：分数更新由 MovementRule.process_line() 内部直接发送
-		# score_updated 事件处理，无需在此重复触发。
+
+		if score_delta != 0:
+			send_simple_event(EventNames.SCORE_UPDATED, score_delta)
+		if monster_kill_count > 0:
+			send_simple_event(EventNames.MONSTER_KILLED, monster_kill_count)
 			
 		# 2. 发送动画请求事件 (简单事件)
 		send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instructions)

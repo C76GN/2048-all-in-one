@@ -1,5 +1,3 @@
-# scripts/menus/settings_menu.gd
-
 ## SettingsMenu: 游戏设置界面的UI控制器。
 ##
 ## 负责处理语言切换等设置选项。

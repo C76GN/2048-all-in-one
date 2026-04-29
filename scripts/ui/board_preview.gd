@@ -1,5 +1,3 @@
-# scripts/ui/board_preview.gd
-
 ## BoardPreview: 用于在UI中静态展示棋盘状态的组件。
 ##
 ## 它接收一个棋盘快照（Snapshot）和交互规则，渲染出一个缩小版的棋盘。
@@ -103,6 +101,9 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 	# 绘制方块
 	for tile_data in tiles_data:
 		var pos: Vector2i = tile_data.get(&"pos", tile_data.get("pos", Vector2i.ZERO))
+		if not _is_grid_pos_in_bounds(pos, grid_size):
+			continue
+
 		var value: int = tile_data.get(&"value", tile_data.get("value", 0))
 		var type: Tile.TileType = tile_data.get(&"type", tile_data.get("type", Tile.TileType.PLAYER))
 
@@ -157,6 +158,16 @@ func _get_cell_position(x: int, y: int, cell_size: float, spacing: float, offset
 	return Vector2(
 		offset + spacing + x * (cell_size + spacing),
 		offset + spacing + y * (cell_size + spacing)
+	)
+
+
+func _is_grid_pos_in_bounds(grid_pos: Vector2i, grid_size: int) -> bool:
+	return (
+		grid_size > 0
+		and grid_pos.x >= 0
+		and grid_pos.x < grid_size
+		and grid_pos.y >= 0
+		and grid_pos.y < grid_size
 	)
 
 

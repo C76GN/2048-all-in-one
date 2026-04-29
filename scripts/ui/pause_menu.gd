@@ -1,5 +1,3 @@
-# scripts/ui/pause_menu.gd
-
 ## PauseMenu: 游戏内暂停菜单的UI控制器。
 ##
 ## 负责处理暂停菜单的显示/隐藏，以及响应各个按钮的点击事件。

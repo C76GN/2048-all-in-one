@@ -1,5 +1,3 @@
-# scripts/menus/base_list_menu.gd
-
 ## BaseListMenu: 列表类菜单的历史基类。
 ##
 ## 封装了加载数据列表、实例化列表项、焦点导航、预览更新以及通用按钮处理的核心逻辑。

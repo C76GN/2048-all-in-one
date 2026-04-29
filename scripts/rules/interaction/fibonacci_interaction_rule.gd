@@ -1,5 +1,3 @@
-# scripts/rules/interaction/fibonacci_interaction_rule.gd
-
 ## FibonacciInteractionRule: 斐波那契数列的2048方块交互规则。
 ##
 ## 规则定义：

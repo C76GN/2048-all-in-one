@@ -1,5 +1,3 @@
-# scripts/systems/grid_spawn_system.gd
-
 ## GridSpawnSystem: 负责处理方块生成的系统。
 ##
 ## 该系统监听 `EventNames.SPAWN_TILE_REQUESTED` 事件，处理方块生成的逻辑（如网格空余判定、位置打乱），

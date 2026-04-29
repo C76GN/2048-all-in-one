@@ -1,5 +1,3 @@
-# scripts/rules/spawn/opposite_edge_spawn_rule.gd
-
 ## OppositeEdgeSpawnRule: 实现"对边生成"规则。
 ##
 ## 规则行为:
@@ -69,8 +67,7 @@ func execute(context: RuleContext) -> bool:
 					valid_spawn_points.append(Vector2i(target_x, y))
 
 	if not valid_spawn_points.is_empty():
-		var seed_util := Gf.get_architecture().get_utility(GFSeedUtility) as GFSeedUtility
-		var rng: RandomNumberGenerator = seed_util.get_branched_rng("opposite_edge_spawn_rule")
+		var rng: RandomNumberGenerator = context.get_rng("opposite_edge_spawn_rule")
 		
 		var random_index: int = rng.randi_range(0, valid_spawn_points.size() - 1)
 		var spawn_pos: Vector2i = valid_spawn_points[random_index]
@@ -83,7 +80,7 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
-		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
+		context.request_spawn(spawn_data)
 
 		return consumes_event_on_success
 

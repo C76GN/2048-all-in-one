@@ -1,5 +1,3 @@
-# scripts/states/gf_state_playing.gd
-
 ## GFStatePlaying: 游戏进行中状态。
 ##
 ## 激活输入源，允许玩家操作。纯代码实现。

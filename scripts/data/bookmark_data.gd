@@ -1,5 +1,3 @@
-# scripts/global/bookmark_data.gd
-
 ## BookmarkData: 定义了单个游戏书签所需全部信息的自定义资源。
 ##
 ## 该资源封装了恢复一局游戏到特定时间点所需的一切：模式、RNG状态、

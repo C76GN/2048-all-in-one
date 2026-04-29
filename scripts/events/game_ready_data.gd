@@ -1,5 +1,3 @@
-# scripts/events/game_ready_data.gd
-
 ## GameReadyData: 游戏初始化完成时发出的事件数据载体。
 ##
 ## 该数据包含了所有 GamePlay 视窗需要配置表现层的核心规则、参数与模型状态。

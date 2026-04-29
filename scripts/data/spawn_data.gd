@@ -1,5 +1,3 @@
-# scripts/data/spawn_data.gd
-
 ## SpawnData: 用于描述一次方块生成请求的强类型数据对象。
 ##
 ## 替代原有的裸 Dictionary 在 SpawnRule、RuleSystem 和 GameBoard 之间传递。

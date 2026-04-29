@@ -1,5 +1,3 @@
-# scripts/models/grid_model.gd
-
 ## GridModel: 负责游戏棋盘的逻辑状态管理。
 ##
 ## 维护方块的二维网格数据，提供快照、恢复、初始化以及基础的网格查询能力。
@@ -59,8 +57,11 @@ func get_snapshot() -> Dictionary:
 func restore_from_snapshot(snapshot: Dictionary) -> void:
 	if not snapshot.has(&"tiles"):
 		return
-		
+
 	grid_size = snapshot.get(&"grid_size", snapshot.get("grid_size", grid_size))
+	if grid_size <= 0:
+		return
+
 	grid.clear()
 	grid.resize(grid_size)
 	for x in range(grid_size):
@@ -71,6 +72,9 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
 	for tile_info in tiles_data:
 		var pos: Vector2i = tile_info.get(&"pos", tile_info.get("pos", Vector2i.ZERO))
+		if not _is_cell_in_bounds(pos):
+			continue
+
 		var value: int = tile_info.get(&"value", tile_info.get("value", 0))
 		var type: Tile.TileType = tile_info.get(&"type", tile_info.get("type", Tile.TileType.PLAYER))
 		grid[pos.x][pos.y] = GameTileData.new(value, type)
@@ -78,7 +82,7 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 
 ## 将指定的方块数据结构放入网格
 func place_tile(tile: GameTileData, grid_pos: Vector2i) -> void:
-	if grid_pos.x >= 0 and grid_pos.x < grid_size and grid_pos.y >= 0 and grid_pos.y < grid_size:
+	if _is_cell_in_bounds(grid_pos):
 		grid[grid_pos.x][grid_pos.y] = tile
 
 
@@ -144,3 +148,14 @@ func to_dict() -> Dictionary:
 ## GFModel 序列化协议：从字典恢复模型状态。
 func from_dict(data: Dictionary) -> void:
 	restore_from_snapshot(data)
+
+
+# --- 私有/辅助方法 ---
+
+func _is_cell_in_bounds(grid_pos: Vector2i) -> bool:
+	return (
+		grid_pos.x >= 0
+		and grid_pos.x < grid_size
+		and grid_pos.y >= 0
+		and grid_pos.y < grid_size
+	)

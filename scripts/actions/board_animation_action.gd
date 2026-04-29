@@ -1,5 +1,3 @@
-# scripts/actions/board_animation_action.gd
-
 ## BoardAnimationAction: 封装棋盘上方块合并、移动、生成的表现动作。
 ##
 ## 棋盘动画是非阻塞表现层：execute() 只启动 Tween 并立即返回，不等待动画完成。

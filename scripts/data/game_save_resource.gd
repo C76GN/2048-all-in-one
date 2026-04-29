@@ -1,5 +1,3 @@
-# scripts/global/game_save_resource.gd
-
 ## GameSaveResource: 用于存储游戏存档数据（分数和设置）的资源类。
 class_name GameSaveResource
 extends Resource

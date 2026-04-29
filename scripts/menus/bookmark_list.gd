@@ -1,5 +1,3 @@
-# scripts/menus/bookmark_list.gd
-
 ## BookmarkList: 显示所有已保存书签的菜单界面。
 ##
 ## 继承自 BaseListMenu，专门负责书签的管理与展示。

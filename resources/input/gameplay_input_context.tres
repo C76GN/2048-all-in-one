@@ -1,0 +1,240 @@
+[gd_resource type="Resource" script_class="GFInputContext" format=3]
+
+[ext_resource type="Script" path="res://addons/gf/input/gf_input_context.gd" id="1_context"]
+[ext_resource type="Script" path="res://addons/gf/input/gf_input_action.gd" id="2_action"]
+[ext_resource type="Script" path="res://addons/gf/input/gf_input_binding.gd" id="3_binding"]
+[ext_resource type="Script" path="res://addons/gf/input/gf_input_mapping.gd" id="4_mapping"]
+
+[sub_resource type="Resource" id="Action_pause"]
+script = ExtResource("2_action")
+action_id = &"pause"
+display_name = "Pause"
+display_category = "Gameplay"
+
+[sub_resource type="InputEventKey" id="Key_pause_escape"]
+keycode = 4194305
+
+[sub_resource type="Resource" id="Binding_pause_escape"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_pause_escape")
+display_name = "Esc"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_pause_start"]
+device = -1
+button_index = 6
+
+[sub_resource type="Resource" id="Binding_pause_start"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_pause_start")
+display_name = "Start"
+
+[sub_resource type="Resource" id="Mapping_pause"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_pause")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_pause_escape"), SubResource("Binding_pause_start")])
+
+[sub_resource type="Resource" id="Action_undo"]
+script = ExtResource("2_action")
+action_id = &"undo"
+display_name = "Undo"
+display_category = "Gameplay"
+
+[sub_resource type="InputEventKey" id="Key_undo_z"]
+physical_keycode = 90
+
+[sub_resource type="Resource" id="Binding_undo_z"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_undo_z")
+display_name = "Z"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_undo_y"]
+device = -1
+button_index = 3
+
+[sub_resource type="Resource" id="Binding_undo_y"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_undo_y")
+display_name = "Y"
+
+[sub_resource type="Resource" id="Mapping_undo"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_undo")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_undo_z"), SubResource("Binding_undo_y")])
+
+[sub_resource type="Resource" id="Action_save_bookmark"]
+script = ExtResource("2_action")
+action_id = &"save_bookmark"
+display_name = "Save Bookmark"
+display_category = "Gameplay"
+
+[sub_resource type="InputEventKey" id="Key_save_bookmark_b"]
+physical_keycode = 66
+
+[sub_resource type="Resource" id="Binding_save_bookmark_b"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_save_bookmark_b")
+display_name = "B"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_save_bookmark_x"]
+device = -1
+button_index = 2
+
+[sub_resource type="Resource" id="Binding_save_bookmark_x"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_save_bookmark_x")
+display_name = "X"
+
+[sub_resource type="Resource" id="Mapping_save_bookmark"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_save_bookmark")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_save_bookmark_b"), SubResource("Binding_save_bookmark_x")])
+
+[sub_resource type="Resource" id="Action_move_up"]
+script = ExtResource("2_action")
+action_id = &"move_up"
+display_name = "Move Up"
+display_category = "Gameplay"
+
+[sub_resource type="InputEventKey" id="Key_move_up_w"]
+physical_keycode = 87
+
+[sub_resource type="Resource" id="Binding_move_up_w"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_move_up_w")
+display_name = "W"
+
+[sub_resource type="InputEventKey" id="Key_move_up_arrow"]
+keycode = 4194320
+
+[sub_resource type="Resource" id="Binding_move_up_arrow"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_move_up_arrow")
+display_name = "Up"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_move_up"]
+device = -1
+button_index = 11
+
+[sub_resource type="Resource" id="Binding_move_up_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_move_up")
+display_name = "D-pad Up"
+
+[sub_resource type="Resource" id="Mapping_move_up"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_move_up")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_move_up_w"), SubResource("Binding_move_up_arrow"), SubResource("Binding_move_up_joy")])
+
+[sub_resource type="Resource" id="Action_move_down"]
+script = ExtResource("2_action")
+action_id = &"move_down"
+display_name = "Move Down"
+display_category = "Gameplay"
+
+[sub_resource type="InputEventKey" id="Key_move_down_s"]
+physical_keycode = 83
+
+[sub_resource type="Resource" id="Binding_move_down_s"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_move_down_s")
+display_name = "S"
+
+[sub_resource type="InputEventKey" id="Key_move_down_arrow"]
+keycode = 4194322
+
+[sub_resource type="Resource" id="Binding_move_down_arrow"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_move_down_arrow")
+display_name = "Down"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_move_down"]
+device = -1
+button_index = 12
+
+[sub_resource type="Resource" id="Binding_move_down_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_move_down")
+display_name = "D-pad Down"
+
+[sub_resource type="Resource" id="Mapping_move_down"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_move_down")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_move_down_s"), SubResource("Binding_move_down_arrow"), SubResource("Binding_move_down_joy")])
+
+[sub_resource type="Resource" id="Action_move_left"]
+script = ExtResource("2_action")
+action_id = &"move_left"
+display_name = "Move Left"
+display_category = "Gameplay"
+
+[sub_resource type="InputEventKey" id="Key_move_left_a"]
+physical_keycode = 65
+
+[sub_resource type="Resource" id="Binding_move_left_a"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_move_left_a")
+display_name = "A"
+
+[sub_resource type="InputEventKey" id="Key_move_left_arrow"]
+keycode = 4194319
+
+[sub_resource type="Resource" id="Binding_move_left_arrow"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_move_left_arrow")
+display_name = "Left"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_move_left"]
+device = -1
+button_index = 13
+
+[sub_resource type="Resource" id="Binding_move_left_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_move_left")
+display_name = "D-pad Left"
+
+[sub_resource type="Resource" id="Mapping_move_left"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_move_left")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_move_left_a"), SubResource("Binding_move_left_arrow"), SubResource("Binding_move_left_joy")])
+
+[sub_resource type="Resource" id="Action_move_right"]
+script = ExtResource("2_action")
+action_id = &"move_right"
+display_name = "Move Right"
+display_category = "Gameplay"
+
+[sub_resource type="InputEventKey" id="Key_move_right_d"]
+physical_keycode = 68
+
+[sub_resource type="Resource" id="Binding_move_right_d"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_move_right_d")
+display_name = "D"
+
+[sub_resource type="InputEventKey" id="Key_move_right_arrow"]
+keycode = 4194321
+
+[sub_resource type="Resource" id="Binding_move_right_arrow"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_move_right_arrow")
+display_name = "Right"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_move_right"]
+device = -1
+button_index = 14
+
+[sub_resource type="Resource" id="Binding_move_right_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_move_right")
+display_name = "D-pad Right"
+
+[sub_resource type="Resource" id="Mapping_move_right"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_move_right")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_move_right_d"), SubResource("Binding_move_right_arrow"), SubResource("Binding_move_right_joy")])
+
+[resource]
+script = ExtResource("1_context")
+context_id = &"gameplay"
+display_name = "Gameplay"
+mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_pause"), SubResource("Mapping_undo"), SubResource("Mapping_save_bookmark"), SubResource("Mapping_move_up"), SubResource("Mapping_move_down"), SubResource("Mapping_move_left"), SubResource("Mapping_move_right")])

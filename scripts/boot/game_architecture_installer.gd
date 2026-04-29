@@ -16,6 +16,7 @@ func install(architecture: GFArchitecture) -> void:
 func _register_utilities(architecture: GFArchitecture) -> void:
 	architecture.register_utility(GFStorageUtility, GFStorageUtility.new())
 	architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
+	architecture.register_utility(GFAssetUtility, GFAssetUtility.new())
 
 	var history_util := GFCommandHistoryUtility.new()
 	history_util.max_history_size = 0
@@ -23,9 +24,11 @@ func _register_utilities(architecture: GFArchitecture) -> void:
 
 	architecture.register_utility(GFTimeUtility, GFTimeUtility.new())
 	architecture.register_utility(GFLogUtility, GFLogUtility.new())
+	architecture.register_utility(GFSceneUtility, GFSceneUtility.new())
 	architecture.register_utility(GFUIUtility, GFUIUtility.new())
 	architecture.register_utility(GFLevelUtility, GFLevelUtility.new())
 	architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
+	architecture.register_utility(GFInputMappingUtility, GFInputMappingUtility.new())
 
 	var object_pool := GFObjectPoolUtility.new()
 	object_pool.max_available_per_scene = 128

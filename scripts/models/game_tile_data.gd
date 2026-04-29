@@ -1,5 +1,3 @@
-# scripts/models/game_tile_data.gd
-
 ## GameTileData: 方块数据模型，纯数据，不依赖 Node。
 class_name GameTileData
 extends RefCounted

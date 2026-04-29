@@ -1,5 +1,3 @@
-# scripts/systems/replay_system.gd
-
 ## ReplaySystem: 负责处理游戏回放数据持久化的核心系统。
 ##
 ## 取代了原本的 ReplayManager 全局单例。

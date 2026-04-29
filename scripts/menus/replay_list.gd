@@ -1,5 +1,3 @@
-# scripts/menus/replay_list.gd
-
 ## ReplayList: 显示所有已保存回放的菜单界面。
 ##
 ## 继承自 BaseListMenu，专门负责回放的加载、播放与管理。

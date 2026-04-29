@@ -1,5 +1,3 @@
-# scripts/rules/movement/step_by_step_movement_rule.gd
-
 ## StepByStepMovementRule: 实现了“步进式”的移动和合并逻辑。
 ##
 ## 在此规则下，每次移动指令只会让每个方块移动一格或进行一次合并。
@@ -59,8 +57,5 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 						merged_in_this_turn[consumed_tile.get_instance_id()] = true
 
 					moved_in_this_line = true
-
-					if result.has("score"):
-						Gf.send_simple_event(EventNames.SCORE_UPDATED, result["score"])
 
 	return {"line": new_line, "moved": moved_in_this_line, "merges": merge_results}

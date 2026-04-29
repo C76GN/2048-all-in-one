@@ -1,10 +1,7 @@
-# scripts/systems/rule_system.gd
-
-## RuleSystem: 游戏规则的智能事件总线和调度器。
+## RuleSystem: 游戏规则的事件总线和调度器。
 ##
-## 该节点负责接收游戏中的核心事件（如玩家移动），并根据已注册规则的
-## 触发器（Trigger）和优先级（Priority），按正确的顺序执行它们。
-## 它还支持"事件消费"机制，允许高优先级的规则阻止低优先级规则的执行。
+## 接收核心游戏事件，并按触发器与优先级执行注册的生成规则。规则只描述业务结果，
+## 事件派发由本系统统一完成，避免规则资源直接依赖全局架构。
 class_name RuleSystem
 extends GFSystem
 
@@ -12,8 +9,9 @@ extends GFSystem
 # --- 私有变量 ---
 
 var _grid_model: GridModel
+var _seed_utility: GFSeedUtility
 
-## 存储所有已注册的规则实例。
+## 存储所有已注册的生成规则实例。
 var _rules: Array[SpawnRule] = []
 
 
@@ -21,6 +19,8 @@ var _rules: Array[SpawnRule] = []
 
 func ready() -> void:
 	_grid_model = get_model(GridModel) as GridModel
+	_seed_utility = get_utility(GFSeedUtility) as GFSeedUtility
+
 	register_event(MoveData, _on_move_made)
 	register_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
 	register_simple_event(EventNames.MONSTER_KILLED, _on_monster_killed)
@@ -30,13 +30,16 @@ func dispose() -> void:
 	unregister_event(MoveData, _on_move_made)
 	unregister_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
 	unregister_simple_event(EventNames.MONSTER_KILLED, _on_monster_killed)
+
 	clear_rules()
+	_grid_model = null
+	_seed_utility = null
 
 
 # --- 公共方法 ---
 
 ## 注册一个规则列表到管理器中。
-## @param p_rules: 一个包含所有 SpawnRule 实例的数组。
+## @param p_rules: 包含所有 SpawnRule 实例的数组。
 func register_rules(p_rules: Array[SpawnRule]) -> void:
 	var next_rules := p_rules.duplicate()
 	clear_rules()
@@ -60,36 +63,36 @@ func clear_rules() -> void:
 
 # --- 私有/辅助方法 ---
 
-func _on_request_board_init(_payload: Variant = null) -> void:
-	_execute_rules(SpawnRule.TriggerType.ON_INITIALIZE)
-
-
-func _on_move_made(move_data: MoveData) -> void:
-	_execute_rules(SpawnRule.TriggerType.ON_MOVE, move_data)
-	
-	send_simple_event(EventNames.TURN_FINISHED)
-
-
-func _on_monster_killed(_payload: Variant = null) -> void:
-	_execute_rules(SpawnRule.TriggerType.ON_KILL)
-
-
 func _execute_rules(trigger_type: SpawnRule.TriggerType, move_data: MoveData = null) -> void:
 	var context := RuleContext.new()
 	context.grid_model = _grid_model
 	context.move_data = move_data
-	
-	# 按优先级降序排序执行
+	context.seed_utility = _seed_utility
+
 	var active_rules: Array[SpawnRule] = []
 	for rule in _rules:
 		if _should_execute_rule(rule, trigger_type):
 			active_rules.append(rule)
-	active_rules.sort_custom(func(a, b): return a.priority > b.priority)
-	
+	active_rules.sort_custom(func(a: SpawnRule, b: SpawnRule) -> bool: return a.priority > b.priority)
+
 	for rule in active_rules:
 		var is_consumed: bool = rule.execute(context)
+		_dispatch_context_outputs(context)
 		if is_consumed:
 			break
+
+
+func _dispatch_context_outputs(context: RuleContext) -> void:
+	for spawn_data in context.spawn_requests:
+		send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
+
+	if context.score_delta != 0:
+		send_simple_event(EventNames.SCORE_UPDATED, context.score_delta)
+
+	if context.monsters_killed > 0:
+		send_simple_event(EventNames.MONSTER_KILLED, context.monsters_killed)
+
+	context.clear_runtime_outputs()
 
 
 func _should_execute_rule(rule: SpawnRule, trigger_type: SpawnRule.TriggerType) -> bool:
@@ -100,3 +103,18 @@ func _should_execute_rule(rule: SpawnRule, trigger_type: SpawnRule.TriggerType) 
 		trigger_type == SpawnRule.TriggerType.ON_MOVE
 		and rule.trigger == SpawnRule.TriggerType.ON_MOVE_PROBABILITY
 	)
+
+
+# --- 信号处理函数 ---
+
+func _on_request_board_init(_payload: Variant = null) -> void:
+	_execute_rules(SpawnRule.TriggerType.ON_INITIALIZE)
+
+
+func _on_move_made(move_data: MoveData) -> void:
+	_execute_rules(SpawnRule.TriggerType.ON_MOVE, move_data)
+	send_simple_event(EventNames.TURN_FINISHED)
+
+
+func _on_monster_killed(_payload: Variant = null) -> void:
+	_execute_rules(SpawnRule.TriggerType.ON_KILL)

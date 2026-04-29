@@ -1,5 +1,3 @@
-# scripts/ui/base/gf_ui_controller.gd
-
 ## GFUIController: UI 控制器的基类，为 UI 提供框架能力的接口。
 ##
 ## 继承自 Control，平移了 GFController 的架构访问与事件转发能力，
@@ -36,9 +34,7 @@ func get_architecture_or_null() -> GFArchitecture:
 		if context_architecture != null:
 			return context_architecture
 
-	if Gf.has_architecture():
-		return Gf.get_architecture()
-	return null
+	return GFAutoload.get_architecture_or_null()
 
 
 ## 通过类型获取 Model 实例。

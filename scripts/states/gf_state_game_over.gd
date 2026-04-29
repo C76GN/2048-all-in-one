@@ -1,5 +1,3 @@
-# scripts/states/gf_state_game_over.gd
-
 ## GFStateGameOver: 游戏结束状态。
 ##
 ## 停止输入，触发结算逻辑。纯代码实现。

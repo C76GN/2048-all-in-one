@@ -1,5 +1,3 @@
-# scripts/rules/spawn/fibonacci_spawn_rule.gd
-
 ## FibonacciSpawnRule: 为斐波那契模式生成方块。
 ##
 ## 规则：
@@ -41,6 +39,6 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
-		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
+		context.request_spawn(spawn_data)
 
 	return consumes_event_on_success

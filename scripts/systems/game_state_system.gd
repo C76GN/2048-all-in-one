@@ -1,5 +1,3 @@
-# scripts/systems/game_state_system.gd
-
 ## GameStateSystem: 负责采集与恢复一局游戏的完整逻辑状态。
 class_name GameStateSystem
 extends GFSystem
@@ -45,7 +43,7 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 		&"move_count": status.move_count.get_value() if is_instance_valid(status) else 0,
 		&"highest_tile": highest_tile,
 		&"monsters_killed": status.monsters_killed.get_value() if is_instance_valid(status) else 0,
-		&"status_message": status.status_message.get_value() if is_instance_valid(status) else "",
+		&"status_message": "",
 		&"extra_stats": extra_stats,
 		&"rules_states": rules_states,
 	}
@@ -78,7 +76,7 @@ func restore_state(state_to_restore: Dictionary) -> void:
 		if is_instance_valid(grid):
 			highest_tile = grid.get_max_player_value()
 		status.highest_tile.set_value(highest_tile)
-		status.status_message.set_value(state_to_restore.get(&"status_message", ""))
+		status.status_message.set_value("")
 		var extra_stats: Dictionary = state_to_restore.get(&"extra_stats", {})
 		status.extra_stats.set_value(extra_stats.duplicate(true))
 

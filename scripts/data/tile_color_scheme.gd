@@ -1,5 +1,3 @@
-# scripts/global/tile_color_scheme.gd
-
 ## TileColorScheme: 定义了一套方块的颜色主题。
 ##
 ## 它包含一个样式数组，代表了方块数值从小到大的视觉表现梯度。

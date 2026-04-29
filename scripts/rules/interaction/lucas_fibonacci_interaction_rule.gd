@@ -1,5 +1,3 @@
-# scripts/rules/interaction/lucas_fibonacci_interaction_rule.gd
-
 ## LucasFibonacciInteractionRule: 斐波那契与卢卡斯数列结合的交互规则。
 ##
 ## 规则定义:

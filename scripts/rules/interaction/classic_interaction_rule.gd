@@ -1,5 +1,3 @@
-# scripts/rules/interaction/classic_interaction_rule.gd
-
 ## ClassicInteractionRule: 经典的2048方块交互规则。
 ##
 ## 规则定义：

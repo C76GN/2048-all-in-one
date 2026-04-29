@@ -1,5 +1,3 @@
-# scripts/systems/replay_input_system.gd
-
 ## ReplayInputSystem: 负责处理回放模式下的播放逻辑，并发射命令。
 class_name ReplayInputSystem
 extends GFSystem
@@ -44,8 +42,10 @@ func _on_scene_will_change(_payload: Variant = null) -> void:
 
 func _execute_replay_step(direction: Vector2i) -> void:
 	var history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-	var cmd := MoveCommand.new(direction)
-	var result: Variant = await history.execute_command(cmd) if history else Gf.send_command(cmd)
+	if not is_instance_valid(history):
+		return
+
+	var result: Variant = await history.execute_command(MoveCommand.new(direction))
 	if result == null:
 		return
 
@@ -69,5 +69,5 @@ func _on_prev_step(_payload: Variant = null) -> void:
 		
 	var history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	if history and history.undo_count > 1:
-		history.undo_last()
-		send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+		if await history.undo_last_async():
+			send_simple_event(EventNames.HUD_UPDATE_REQUESTED)

@@ -1,5 +1,3 @@
-# scripts/ui/replay_list_item.gd
-
 ## ReplayListItem: 在回放列表中代表单个回放记录的UI组件。
 ##
 ## 负责显示回放的概要信息。

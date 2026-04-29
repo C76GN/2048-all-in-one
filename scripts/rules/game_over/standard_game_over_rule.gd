@@ -1,5 +1,3 @@
-# scripts/rules/game_over/standard_game_over_rule.gd
-
 ## StandardGameOverRule: 标准的2048游戏失败判断规则。
 ##
 ## 当棋盘已满，且没有任何相邻的方块可以进行交互时，游戏失败。

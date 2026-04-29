@@ -1,5 +1,3 @@
-# scripts/menus/main_menu.gd
-
 ## MainMenu: 主菜单界面的 UI 控制器。
 ##
 ## 负责处理主菜单中的所有用户交互，

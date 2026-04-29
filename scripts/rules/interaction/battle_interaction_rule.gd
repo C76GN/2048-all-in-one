@@ -1,5 +1,3 @@
-# scripts/rules/interaction/battle_interaction_rule.gd
-
 ## BattleInteractionRule: "战斗模式"中使用的具体交互规则。
 ##
 ## 实现了玩家方块合并、怪物方块合并以及玩家与怪物之间的战斗逻辑。
@@ -37,8 +35,13 @@ func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: In
 			player_tile.value = new_player_value
 			# Note: animate_transform() and queue_free() are visual/Node operations.
 			# We return the instruction, and GameBoard will perform the visual effects.
-			Gf.send_simple_event(EventNames.MONSTER_KILLED)
-			return {"merged_tile": player_tile, "consumed_tile": monster_tile, "score": new_player_value, "transform": true}
+			return {
+				"merged_tile": player_tile,
+				"consumed_tile": monster_tile,
+				"score": new_player_value,
+				"monster_killed": 1,
+				"transform": true,
+			}
 
 		elif player_tile.value < monster_tile.value:
 			@warning_ignore("integer_division")
@@ -50,13 +53,26 @@ func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: In
 			var destination_was_player: bool = (tile_b.type == Tile.TileType.PLAYER)
 			tile_b.value = 1
 			
-			if tile_a.type == Tile.TileType.MONSTER:
-				Gf.send_simple_event(EventNames.MONSTER_KILLED)
-
 			if destination_was_player:
-				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": 1, "transform": true}
-			else:
-				return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": - 1, "transform": true}
+				var player_win_result := {
+					"merged_tile": tile_b,
+					"consumed_tile": tile_a,
+					"score": 1,
+					"transform": true,
+				}
+				if tile_a.type == Tile.TileType.MONSTER:
+					player_win_result["monster_killed"] = 1
+				return player_win_result
+
+			var monster_win_result := {
+				"merged_tile": tile_b,
+				"consumed_tile": tile_a,
+				"score": - 1,
+				"transform": true,
+			}
+			if tile_a.type == Tile.TileType.MONSTER:
+				monster_win_result["monster_killed"] = 1
+			return monster_win_result
 
 	return {}
 

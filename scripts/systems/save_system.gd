@@ -1,5 +1,3 @@
-# scripts/systems/save_system.gd
-
 ## SaveSystem: 负责处理游戏数据持久化的系统。
 ##
 ## 负责管理游戏存档状态，通过 GFStorageUtility 实现对 GameSaveResource 的存取。

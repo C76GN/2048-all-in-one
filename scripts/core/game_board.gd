@@ -1,5 +1,3 @@
-# scripts/core/game_board.gd
-
 ## GameBoard: 负责游戏棋盘的视觉呈现和输入转发。
 ##
 ## 它持有 GridModel (逻辑核心)，并根据 Model 的信号更新 Tile 节点的位置和状态。
@@ -251,6 +249,9 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
 	for tile_data_snapshot in tiles_data:
 		var pos: Vector2i = tile_data_snapshot.get(&"pos", tile_data_snapshot.get("pos", Vector2i.ZERO))
+		if not _is_grid_pos_in_bounds(pos, grid_size):
+			continue
+
 		var value: int = tile_data_snapshot.get(&"value", tile_data_snapshot.get("value", 0))
 		var type: Tile.TileType = tile_data_snapshot.get(&"type", tile_data_snapshot.get("type", Tile.TileType.PLAYER))
 
@@ -342,6 +343,9 @@ func _build_reverse_start_tiles_map(snapshot: Dictionary, reverse_target_map: Di
 
 	for tile_data_snapshot in tiles_data:
 		var pos: Vector2i = tile_data_snapshot.get(&"pos", tile_data_snapshot.get("pos", Vector2i.ZERO))
+		if not _is_grid_pos_in_bounds(pos, model.grid_size if model else 0):
+			continue
+
 		var value: int = tile_data_snapshot.get(&"value", tile_data_snapshot.get("value", 0))
 		var type: Tile.TileType = tile_data_snapshot.get(&"type", tile_data_snapshot.get("type", Tile.TileType.PLAYER))
 		var pos_key := "%d,%d" % [pos.x, pos.y]
@@ -529,6 +533,16 @@ func _pixel_center_to_grid(pixel_pos: Vector2) -> Vector2i:
 	return Vector2i(
 		roundi((pixel_pos.x - CELL_SIZE / 2.0) / step),
 		roundi((pixel_pos.y - CELL_SIZE / 2.0) / step)
+	)
+
+
+func _is_grid_pos_in_bounds(grid_pos: Vector2i, grid_size: int) -> bool:
+	return (
+		grid_size > 0
+		and grid_pos.x >= 0
+		and grid_pos.x < grid_size
+		and grid_pos.y >= 0
+		and grid_pos.y < grid_size
 	)
 
 

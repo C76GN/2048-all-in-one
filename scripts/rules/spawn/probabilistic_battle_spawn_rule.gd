@@ -1,5 +1,3 @@
-# scripts/rules/spawn/probabilistic_battle_spawn_rule.gd
-
 ## ProbabilisticBattleSpawnRule: 实现了玩家或怪物二选一的概率生成规则。
 ##
 ## 规则行为:
@@ -48,16 +46,15 @@ func execute(context: RuleContext) -> bool:
 	if context.grid_model.get_empty_cells().is_empty():
 		return false
 
-	var seed_util := Gf.get_architecture().get_utility(GFSeedUtility) as GFSeedUtility
-	var rng: RandomNumberGenerator = seed_util.get_branched_rng("probabilistic_battle_spawn_rule")
+	var rng: RandomNumberGenerator = context.get_rng("probabilistic_battle_spawn_rule")
 
 	if rng.randf() < _current_probability:
-		var monster_value: int = _calculate_monster_value(context.grid_model)
+		var monster_value: int = _calculate_monster_value(context.grid_model, context)
 		var spawn_data := SpawnData.new()
 		spawn_data.value = monster_value
 		spawn_data.type = Tile.TileType.MONSTER
 		spawn_data.is_priority = true
-		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
+		context.request_spawn(spawn_data)
 
 		_current_probability = base_probability
 
@@ -128,7 +125,7 @@ func get_monster_spawn_pool(grid_model: GridModel = null) -> Dictionary:
 ## 根据动态生成的怪物池，计算本次要生成的怪物数值。
 ## @param grid_model: 网格模型引用。
 ## @return: 计算出的怪物数值。
-func _calculate_monster_value(grid_model: GridModel) -> int:
+func _calculate_monster_value(grid_model: GridModel, context: RuleContext = null) -> int:
 	var spawn_pool: Dictionary = get_monster_spawn_pool(grid_model)
 	var possible_values: Array[int] = spawn_pool["values"]
 	var weights: Array[int] = spawn_pool["weights"]
@@ -142,8 +139,9 @@ func _calculate_monster_value(grid_model: GridModel) -> int:
 	if total_weight == 0:
 		return 2
 
-	var seed_util := Gf.get_architecture().get_utility(GFSeedUtility) as GFSeedUtility
-	var rng: RandomNumberGenerator = seed_util.get_branched_rng("probabilistic_battle_spawn_rule")
+	var rng := RandomNumberGenerator.new()
+	if is_instance_valid(context):
+		rng = context.get_rng("probabilistic_battle_spawn_rule")
 	var random_pick: int = rng.randi_range(1, total_weight)
 
 	var cumulative_weight: int = 0

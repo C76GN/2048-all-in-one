@@ -1,5 +1,3 @@
-# scripts/ui/base_list_menu_item.gd
-
 ## BaseListMenuItem: 列表项组件的抽象基类。
 ##
 ## 封装了列表项的通焦点、点击以及选中高亮的通用逻辑。
@@ -44,6 +42,8 @@ func _ready() -> void:
 ## @param new_data: 关联的数据资源。
 func setup_item(new_data: Resource) -> void:
 	_item_data = new_data
+	button_pressed = false
+	set_selected(false)
 	_update_display()
 
 
@@ -59,6 +59,19 @@ func set_selected(is_selected: bool) -> void:
 ## @return: 关联的 Resource 资源。
 func get_data() -> Resource:
 	return _item_data
+
+
+## GFObjectPoolUtility 取出列表项时调用，确保复用节点没有残留选中态。
+func on_gf_pool_acquire() -> void:
+	button_pressed = false
+	set_selected(false)
+
+
+## GFObjectPoolUtility 归还列表项时调用，清理资源引用和视觉状态。
+func on_gf_pool_release() -> void:
+	_item_data = null
+	button_pressed = false
+	set_selected(false)
 
 
 # --- 虚方法 (由子类重写) ---

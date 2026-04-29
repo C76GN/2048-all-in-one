@@ -3,6 +3,11 @@ class_name Boot
 extends Node
 
 
+# --- Constants ---
+
+const MAIN_MENU_SCENE: PackedScene = preload("res://scenes/menus/main_menu.tscn")
+
+
 # --- Public Methods ---
 
 static func are_dev_tools_enabled() -> bool:
@@ -16,4 +21,4 @@ func _ready() -> void:
 
 	var router := Gf.get_system(SceneRouterSystem) as SceneRouterSystem
 	if router:
-		router.goto_scene("res://scenes/menus/main_menu.tscn")
+		router.call_deferred("goto_scene_packed", MAIN_MENU_SCENE)

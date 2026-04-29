@@ -1,5 +1,3 @@
-# scripts/systems/scene_router_system.gd
-
 ## SceneRouterSystem: 负责全局的场景切换与路由控制。
 ##
 ## 负责管理并执行全局的场景跳转(goto_scene_packed)功能。
@@ -12,12 +10,17 @@ extends GFSystem
 ## 缓存当前主菜单场景的路径，用于快速返回。
 var _main_menu_scene_path: String = "res://scenes/menus/main_menu.tscn"
 var _log: GFLogUtility
+var _scene_utility: GFSceneUtility
 
 
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
 	_log = get_utility(GFLogUtility) as GFLogUtility
+	_scene_utility = get_utility(GFSceneUtility) as GFSceneUtility
+	if is_instance_valid(_scene_utility):
+		_scene_utility.scene_load_completed.connect(_on_scene_load_completed)
+		_scene_utility.scene_load_failed.connect(_on_scene_load_failed)
 
 	# 可选：监听全局事件 `scene_change_requested` 以解耦调用
 	register_simple_event(EventNames.SCENE_CHANGE_REQUESTED, _on_scene_change_requested)
@@ -27,6 +30,12 @@ func ready() -> void:
 func dispose() -> void:
 	unregister_simple_event(EventNames.SCENE_CHANGE_REQUESTED, _on_scene_change_requested)
 	unregister_simple_event(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, _on_return_to_main_menu_requested)
+	if is_instance_valid(_scene_utility):
+		if _scene_utility.scene_load_completed.is_connected(_on_scene_load_completed):
+			_scene_utility.scene_load_completed.disconnect(_on_scene_load_completed)
+		if _scene_utility.scene_load_failed.is_connected(_on_scene_load_failed):
+			_scene_utility.scene_load_failed.disconnect(_on_scene_load_failed)
+	_scene_utility = null
 
 
 # --- 公共方法 ---
@@ -37,21 +46,18 @@ func goto_scene_packed(scene: PackedScene) -> void:
 	if scene == null:
 		if _log: _log.error("SceneRouterSystem", "错误: 传入的场景资源为空。")
 		return
-		
+
 	var tree := Engine.get_main_loop() as SceneTree
 	if not tree:
 		return
-		
-	if tree.current_scene:
-		# 在释放旧场景之前，发送同步清理事件，
-		# 让当前场景的节点立即断开所有 GF 事件监听
-		send_simple_event(EventNames.SCENE_WILL_CHANGE)
-		tree.current_scene.queue_free()
-		tree.current_scene = null
 
-	var new_scene_instance: Node = scene.instantiate()
-	tree.root.add_child.call_deferred(new_scene_instance)
-	tree.set.call_deferred("current_scene", new_scene_instance)
+	if tree.current_scene:
+		send_simple_event(EventNames.SCENE_WILL_CHANGE)
+
+	var error := tree.change_scene_to_packed(scene)
+	if error != OK:
+		if _log: _log.error("SceneRouterSystem", "切换到场景失败，错误码: %d" % error)
+		return
 	if _log: _log.info("SceneRouterSystem", "已请求切换到场景: %s" % scene.resource_path)
 
 
@@ -61,12 +67,16 @@ func goto_scene(path: String) -> void:
 	if not path.begins_with("res://") or not path.ends_with(".tscn"):
 		if _log: _log.error("SceneRouterSystem", "错误: 场景路径必须是绝对的场景资源路径，例如 'res://scenes/my_scene.tscn'")
 		return
-		
+
+	if is_instance_valid(_scene_utility):
+		_scene_utility.load_scene_async(path)
+		return
+
 	var next_scene_packed := ResourceLoader.load(path) as PackedScene
 	if next_scene_packed == null:
 		if _log: _log.error("SceneRouterSystem", "错误: 无法加载场景资源: %s" % path)
 		return
-		
+
 	goto_scene_packed(next_scene_packed)
 
 
@@ -91,3 +101,14 @@ func _on_scene_change_requested(scene: PackedScene) -> void:
 
 func _on_return_to_main_menu_requested(_payload: Variant = null) -> void:
 	return_to_main_menu()
+
+
+func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
+	send_simple_event(EventNames.SCENE_WILL_CHANGE)
+	if _log:
+		_log.info("SceneRouterSystem", "已完成异步场景加载: %s" % path)
+
+
+func _on_scene_load_failed(path: String) -> void:
+	if _log:
+		_log.error("SceneRouterSystem", "异步场景加载失败: %s" % path)

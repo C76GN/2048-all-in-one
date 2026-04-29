@@ -1,5 +1,3 @@
-# scripts/game/game_play.gd
-
 ## GamePlay: 通用的游戏逻辑控制器。
 ##
 ## 负责加载 GameModeConfig，设置 RuleSystem，并协调核心组件之间的通信。

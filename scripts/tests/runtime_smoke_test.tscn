@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://scripts/tests/runtime_smoke_test.gd" id="1_runtime"]
-
-[node name="RuntimeSmokeTest" type="Node"]
-script = ExtResource("1_runtime")

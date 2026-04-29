@@ -1,5 +1,3 @@
-# scripts/systems/game_init_system.gd
-
 ## GameInitSystem: 负责提取原 GamePlay.gd 中的装配逻辑。
 class_name GameInitSystem
 extends GFSystem
@@ -151,13 +149,7 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		_restore_bookmark_command_history(loaded_bookmark_data)
 	else:
 		if game_status_model:
-			game_status_model.score.set_value(0)
-			game_status_model.move_count.set_value(0)
-			game_status_model.monsters_killed.set_value(0)
-			game_status_model.highest_tile.set_value(0)
-			game_status_model.status_message.set_value("")
-			game_status_model.extra_stats.set_value({})
-			game_status_model.high_score.set_value(high_score)
+			game_status_model.reset_for_new_game(high_score)
 
 	game_ready_data.initial_high_score = high_score
 

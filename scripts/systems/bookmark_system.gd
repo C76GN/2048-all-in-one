@@ -1,5 +1,3 @@
-# scripts/systems/bookmark_system.gd
-
 ## BookmarkSystem: 负责处理游戏书签（状态存档）持久化的核心系统。
 ##
 ## 负责管理并持久化游戏书签记录。

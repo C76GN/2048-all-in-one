@@ -1,5 +1,3 @@
-# scripts/rules/movement/classic_movement_rule.gd
-
 ## ClassicMovementRule: 实现了经典的“滑动到底”移动和合并逻辑。
 ##
 ## 这是2048标准玩法的移动规则。所有方块会沿着指定方向移动，
@@ -35,9 +33,6 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 					merged_line.append(merged)
 
 				merge_results.append(result)
-
-				if result.has("score"):
-					Gf.send_simple_event(EventNames.SCORE_UPDATED, result["score"])
 
 				i += 2
 				continue

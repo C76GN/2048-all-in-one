@@ -1,5 +1,3 @@
-# scripts/actions/board_undo_animation_action.gd
-
 ## BoardUndoAnimationAction: 封装棋盘撤回时的反向过渡动画。
 ##
 ## 根据前置滑动记录的反向映射表，将棋盘上的方块反向“退回”到原先的位置，

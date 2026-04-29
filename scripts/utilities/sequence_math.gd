@@ -1,5 +1,3 @@
-# scripts/utilities/sequence_math.gd
-
 ## SequenceMath: 数学序列工具类。
 ##
 ## 提供斐波那契（Fibonacci）和卢卡斯（Lucas）数列的生成、验证以及连续性检查等静态方法。

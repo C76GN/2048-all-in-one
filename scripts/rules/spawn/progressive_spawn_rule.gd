@@ -1,5 +1,3 @@
-# scripts/rules/spawn/progressive_spawn_rule.gd
-
 ## ProgressiveSpawnRule: 渐进模式的方块生成规则。
 ##
 ## 规则行为:
@@ -42,8 +40,7 @@ func execute(context: RuleContext) -> bool:
 
 	for i in range(spawn_count):
 		var spawn_pool: Array[int] = _get_current_spawn_pool(context.grid_model)
-		var seed_util := Gf.get_architecture().get_utility(GFSeedUtility) as GFSeedUtility
-		var rng := seed_util.get_branched_rng("progressive_spawn_rule")
+		var rng := context.get_rng("progressive_spawn_rule")
 		var value: int = spawn_pool[rng.randi_range(0, spawn_pool.size() - 1)]
 
 		var spawn_data := SpawnData.new()
@@ -51,7 +48,7 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
-		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
+		context.request_spawn(spawn_data)
 
 	return consumes_event_on_success
 

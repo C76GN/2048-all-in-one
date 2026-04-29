@@ -1,5 +1,3 @@
-# scripts/models/current_game_model.gd
-
 ## CurrentGameModel: 存储当前游戏会话的状态数据。
 ##
 ## 用于解耦 GamePlay.gd 中持有的业务无关变量。

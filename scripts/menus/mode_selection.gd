@@ -1,5 +1,3 @@
-# scripts/menus/mode_selection.gd
-
 ## ModeSelection: 模式选择界面的 UI 控制器。
 ##
 ## 负责动态展示可用模式、更新选中态、配置棋盘参数并启动游戏。

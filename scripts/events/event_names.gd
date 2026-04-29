@@ -1,5 +1,3 @@
-# scripts/events/event_names.gd
-
 ## EventNames: 集中管理所有 GF 简单事件的名称常量。
 ##
 ## 使用方式：EventNames.SCENE_WILL_CHANGE

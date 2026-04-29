@@ -1,5 +1,3 @@
-# scripts/ui/game_over_menu.gd
-
 ## GameOverMenu: 游戏结束菜单的UI控制器。
 ##
 ## 在游戏失败后显示，提供重来或返回主菜单的选项。

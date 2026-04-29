@@ -1,5 +1,3 @@
-# scripts/ui/hud.gd
-
 ## HUD: 游戏界面的平视显示器（Heads-Up Display）。
 ##
 ## 该脚本负责接收来自游戏控制器的数据，并将其格式化后显示在对应的UI标签上。

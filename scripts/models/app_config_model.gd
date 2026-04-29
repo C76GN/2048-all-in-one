@@ -1,5 +1,3 @@
-# scripts/models/app_config_model.gd
-
 ## AppConfigModel: 负责保存整个应用程序的全局配置状态。
 ##
 ## 负责管理应用级别的全局配置与游戏启动状态，

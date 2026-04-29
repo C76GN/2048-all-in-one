@@ -1,5 +1,3 @@
-# scripts/systems/game_flow_system.gd
-
 ## GameFlowSystem: 负责管理游戏整体流程和规则触发的核心系统。
 ##
 ## 该系统监听来自其他系统或控制器的事件，并调用 RuleSystem 执行对应的规则，
@@ -118,7 +116,7 @@ func sync_highest_tile_from_grid() -> void:
 	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_status_model):
 		return
 
-	_game_status_model.highest_tile.set_value(_grid_model.get_max_player_value())
+	_game_status_model.sync_highest_tile_from_grid(_grid_model)
 
 
 ## 进入可操作的游戏状态，不触发棋盘初始化。
@@ -296,9 +294,14 @@ func _on_board_resized(new_size: int) -> void:
 func _on_undo_requested(_payload: Variant = null) -> void:
 	if _fsm.current_state_name != EventNames.STATE_PLAYING or _is_replay_mode:
 		return
-	var _command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-	if _command_history and _can_undo_player_move(_command_history):
-		if _command_history.undo_last() and not _player_actions.is_empty():
+
+	var command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	if not is_instance_valid(command_history) or not _can_undo_player_move(command_history):
+		send_event(HudMessagePayload.new(tr("UNDO_FAIL_MSG"), 3.0))
+		return
+
+	if await command_history.undo_last_async():
+		if not _player_actions.is_empty():
 			_player_actions.pop_back()
 	else:
 		send_event(HudMessagePayload.new(tr("UNDO_FAIL_MSG"), 3.0))
@@ -398,12 +401,16 @@ func _on_move_made(move_data: MoveData) -> void:
 	if is_instance_valid(move_data):
 		if not _is_replay_mode and move_data.direction != Vector2i.ZERO:
 			_player_actions.append(move_data.direction)
-		_game_status_model.move_count.set_value(_game_status_model.move_count.get_value() + 1)
+		_game_status_model.increment_move_count()
 		sync_highest_tile_from_grid()
 
 
-func _on_monster_killed(_payload: Variant = null) -> void:
-	_game_status_model.monsters_killed.set_value(_game_status_model.monsters_killed.get_value() + 1)
+func _on_monster_killed(payload: Variant = null) -> void:
+	var kill_count := 1
+	if payload is int:
+		kill_count = max(int(payload), 0)
+
+	_game_status_model.increment_monsters_killed(kill_count)
 
 
 func _on_turn_finished(_payload: Variant = null) -> void:
@@ -411,9 +418,4 @@ func _on_turn_finished(_payload: Variant = null) -> void:
 	check_game_over()
 
 func _on_score_updated(amount: int) -> void:
-	var new_score: int = _game_status_model.score.get_value() + amount
-	_game_status_model.score.set_value(new_score)
-	
-	# 实时更新局内显示最高分
-	if new_score > _game_status_model.high_score.get_value():
-		_game_status_model.high_score.set_value(new_score)
+	_game_status_model.add_score(amount)

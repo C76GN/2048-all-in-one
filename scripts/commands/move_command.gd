@@ -1,5 +1,3 @@
-# scripts/commands/move_command.gd
-
 ## MoveCommand: 封装玩家滑动操作的具体命令，用于执行和撤销。
 ##
 ## 该命令保存移动前的完整游戏快照，并在撤销时恢复游戏状态。

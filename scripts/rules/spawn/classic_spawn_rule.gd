@@ -1,5 +1,3 @@
-# scripts/rules/spawn/classic_spawn_rule.gd
-
 ## ClassicSpawnRule: 实现了经典的2048生成规则。
 ##
 ## 规则包括：
@@ -39,8 +37,7 @@ func execute(context: RuleContext) -> bool:
 	spawn_count = min(spawn_count, context.grid_model.get_empty_cells().size())
 
 	for i in range(spawn_count):
-		var seed_util := Gf.get_architecture().get_utility(GFSeedUtility) as GFSeedUtility
-		var rng := seed_util.get_branched_rng("classic_spawn_rule")
+		var rng := context.get_rng("classic_spawn_rule")
 		var value: int = 2 if rng.randf() < probability_of_2 else 4
 
 		var spawn_data := SpawnData.new()
@@ -48,6 +45,6 @@ func execute(context: RuleContext) -> bool:
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
-		Gf.send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
+		context.request_spawn(spawn_data)
 
 	return consumes_event_on_success

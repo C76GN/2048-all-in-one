@@ -1,5 +1,3 @@
-# scripts/rules/base/spawn_rule.gd
-
 ## SpawnRule: 方块生成规则的基类蓝图（基于Resource）。
 ##
 ## 所有具体的生成逻辑都应继承此类。它被设计为一个资源，
