@@ -16,6 +16,280 @@
 
 ---
 
+## [1.20.2] - 2026-04-30
+
+**版本概述**：补齐 `GFQuery` 的 Utility 依赖访问能力，让 Query 与 Command、Model、System、Utility 的基类访问 API 保持一致。
+
+### 🚀 新增特性 (Added)
+- **Query Utility 访问**：`GFQuery` 新增 `get_utility(utility_type: Script) -> Object`，查询对象可在架构注入后读取注册的 Utility。
+
+### 🔌 API 变动说明 (API Changes)
+- `GFQuery` 新增 `get_utility(utility_type: Script) -> Object`。
+
+### 📘 升级指南 (Migration Guide)
+1. 需要在 Query 内读取 Utility 时，可通过 `Gf.send_query()` 或 `create_instance()` 创建或执行 Query，以获得正确架构注入。
+2. Query 仍应保持只读语义，避免在 `execute()` 内通过 Utility 触发状态写入或副作用。
+
+### 📁 核心受影响文件 (Affected Files)
+- `ASSET_LIBRARY.md`
+- `addons/gf/plugin.cfg`
+- `addons/gf/base/gf_query.gd`
+- `addons/gf/docs/wiki/更新日志 (Changelog).md`
+- `tests/gf_core/test_gf_singleton.gd`
+
+## [1.20.1] - 2026-04-30
+
+**版本概述**：补齐 `GFController` 的通用宿主节点绑定能力，统一 Controller 访问被控制场景节点的推荐方式，避免项目层把 Godot 编辑器 `owner` 误当作运行时宿主引用。
+
+### 🚀 新增特性 (Added)
+- **Controller 宿主绑定**：`GFController` 新增 `host_node_path`、`host`、`get_host()`、`has_host()` 与 `get_host_as()`，为 UI、输入、动画和物理桥接控制器提供统一的宿主节点访问方式。
+
+### 🔄 机制更改 (Changed)
+- **Controller 宿主引用语义统一**：文档示例从直接依赖 Godot `owner` 收敛到 `GFController.get_host()` / `host_node_path`，避免把编辑器场景所有权误用为运行时控制目标。
+
+### 🔌 API 变动说明 (API Changes)
+- `GFController` 新增 `host_node_path`、`host`、`get_host()`、`has_host()` 与 `get_host_as()`。
+
+### 📘 升级指南 (Migration Guide)
+1. 如果旧 Controller 使用 `owner as SomeNode` 作为运行时宿主引用，建议改为默认父节点宿主 `get_host_as(SomeNode) as SomeNode`。
+2. 如果 Controller 不在宿主直接子级，请在 Inspector 或代码中配置 `host_node_path` 指向宿主节点。
+3. 角色、载具、敌人等物理节点仍应继承 `CharacterBody2D` / `RigidBody2D` 等 Godot 原生类型；`GFController` 作为子节点负责接入 GF 架构与场景节点。
+
+### 📁 核心受影响文件 (Affected Files)
+- `ASSET_LIBRARY.md`
+- `addons/gf/plugin.cfg`
+- `addons/gf/base/gf_controller.gd`
+- `addons/gf/docs/wiki/01. 架构概览 (Architecture).md`
+- `addons/gf/docs/wiki/02. 生命周期与初始化 (Lifecycle).md`
+- `addons/gf/docs/wiki/09. 最佳实践 (Best Practices).md`
+- `addons/gf/docs/wiki/更新日志 (Changelog).md`
+- `tests/gf_core/test_gf_singleton.gd`
+
+## [1.20.0] - 2026-04-30
+
+**版本概述**：面向框架核心运行时做稳健性与诊断能力增强，补齐异步命令、场景切换、事件派发、节点上下文、对象池、节点状态机启动时机、UI 栈和存储路径等通用边界处理，同时保持所有新增能力为可配置、可继承或可组合的抽象接口。
+
+### 🚀 新增特性 (Added)
+- **可赋值类型事件监听**：`TypeEventSystem`、`GFArchitecture`、`Gf` 与 `GFSystem/GFUtility/GFController` 新增 assignable 事件注册接口，可监听基类并接收子类事件实例。
+- **运行时诊断快照**：`TypeEventSystem.get_debug_stats()`、`GFArchitecture.get_event_debug_stats()`、`GFArchitecture.get_debug_lifecycle_state()` 与 `GFObjectPoolUtility.get_debug_snapshot()` 提供监听、生命周期、tick 缓存、工厂绑定和对象池状态统计。
+- **节点上下文失败通知**：`GFNodeContext` 新增 `context_failed` 信号与 `context_wait_timeout_seconds`，避免等待父级架构或 scoped 架构初始化时无限挂起。
+- **BindableProperty 精细解绑**：新增 `unbind(node, callable)` 与 `force_emit()`，支持单个节点绑定移除和当前值强制广播。
+- **对象池配置与查询**：`GFObjectPoolUtility` 新增 `manage_descendant_active_state`、`prune_invalid_on_each_operation`、`get_active_count()`、`get_active_nodes()` 与 `prune_invalid_nodes()`。
+- **控制台交互能力**：`GFConsoleUtility` 新增命令名查询、前缀建议、输入历史上下切换和 Tab 自动补全。
+- **存储路径控制**：`GFStorageUtility` 新增 `allow_absolute_paths` 与 `create_directories_for_nested_paths`，支持拒绝绝对路径并自动创建嵌套目录。
+- **节点状态机启动模式**：`GFNodeStateMachine` 新增 `StartMode`、`start_mode`、`start()` 与 `start_group()`，可选择保持 ready 自动启动、等待宿主 ready 后启动或完全手动启动。
+- **状态组手动启动**：`GFNodeStateGroup` 新增 `auto_start` 与 `start()`，支持只加载状态节点但暂不进入 `initial_state`。
+
+### 🔄 机制更改 (Changed)
+- **场景异步加载前置校验**：`GFSceneUtility.load_scene_async()` 在切换 loading scene、暂停时间或发起线程加载前先校验目标路径与资源扩展类型，失败时只发出失败信号，不改变当前场景状态。
+- **资源异步加载回调隔离**：`GFAssetUtility` 允许同一路径的空 `type_hint` 与强 `type_hint` 请求合并，但每个回调按自身类型要求接收资源或 `null`。
+- **状态机清理语义收紧**：节点状态机清空状态组时会断开旧 group 信号；状态组清空 states 时会退出当前状态与暂停栈状态。
+- **节点状态机加载与启动解耦**：节点状态机现在可只加载状态结构而不立即进入初始状态，避免状态 `_enter()` 早于宿主节点 `_ready()` 时访问未完成初始化的宿主字段。
+- **UI 栈防重复入栈**：`GFUIUtility` 会清理失效栈项并拒绝同一面板实例重复加入多个 UI 栈，同时支持安全接管外部父节点下的面板。
+- **对象池生命周期边界**：对象池销毁后会拒绝新的 acquire、release 与 prewarm 请求，避免 dispose 后继续复用失效池状态。
+- **插件 AutoLoad 保护**：编辑器插件只移除指向 GF Framework 自身的 `Gf` AutoLoad，不再覆盖或删除项目已有的同名 AutoLoad。
+
+### 🐛 Bug 修复 (Fixed)
+- **异步命令历史栈错位**：`GFCommandHistoryUtility.undo_last()` 与 `redo()` 发现异步命令时会拒绝同步 API 并恢复原栈，提示使用 async 版本。
+- **场景加载失败副作用**：错误目标资源不再先进入 loading 状态或清理瞬态模块，避免当前场景被无效路径破坏。
+- **状态机信号泄漏**：`GFNodeStateMachine.clear_state_groups()` 断开 group 信号，旧 group 后续事件不再转发到状态机。
+- **状态组清空漏退出**：`GFNodeStateGroup.clear_states(false)` 会退出当前状态与暂停栈状态，避免状态 process mode 和业务状态滞留。
+- **存储嵌套路径写入失败**：保存普通 JSON、事务 JSON 与 Resource 前会按需创建父目录。
+- **绝对路径误写入**：当 `allow_absolute_paths` 为 `false` 时，绝对路径会降级到存档目录 basename，并输出诊断错误。
+- **异步资源加载 type_hint 误判**：同一路径 pending 请求不再因空类型提示和强类型提示组合而错误拒绝或错误分发。
+
+### 🔌 API 变动说明 (API Changes)
+- `TypeEventSystem` 新增 `register_assignable()`、`unregister_assignable()`、`get_debug_stats()`。
+- `GFArchitecture` 新增 `register_assignable_event()`、`register_assignable_event_owned()`、`unregister_assignable_event()`、`get_event_debug_stats()`、`get_debug_lifecycle_state()`。
+- `Gf` 新增 `listen_assignable()`、`listen_assignable_owned()`、`unlisten_assignable()`。
+- `GFSystem`、`GFUtility`、`GFController` 新增 `register_assignable_event()` 与 `unregister_assignable_event()`。
+- `GFNodeContext` 新增 `context_failed` 与 `context_wait_timeout_seconds`。
+- `BindableProperty` 新增 `unbind()` 与 `force_emit()`。
+- `GFObjectPoolUtility` 新增对象池诊断、active 查询、失效节点清理和子节点状态管理开关。
+- `GFStorageUtility` 新增绝对路径和嵌套目录创建开关。
+- `GFNodeStateMachine` 新增 `StartMode` 枚举、`start_mode` 导出项、`start()` 与 `start_group()`。
+- `GFNodeStateGroup` 新增 `auto_start` 导出项与 `start()`；`initialize()` 增加可选参数 `start_initial_state`，旧调用保持兼容。
+- 同步 `GFCommandHistoryUtility.undo_last()` / `redo()` 对异步命令的行为更严格；异步命令应使用 `await undo_last_async()` / `await redo_async()`。
+
+### 📘 升级指南 (Migration Guide)
+1. 如果项目的 Command `execute()` 或 `undo()` 返回 `Signal`，请把同步 `undo_last()` / `redo()` 调用迁移到 `await undo_last_async()` / `await redo_async()`。
+2. 如果旧项目依赖无效场景路径先切到 loading scene 再失败，请调整为监听 `scene_load_failed`；新版本会在任何状态变更前失败返回。
+3. 如果项目已有同名 `Gf` AutoLoad 且不是 GF Framework，插件不会覆盖或删除它；需要使用框架 facade 时请手动处理 AutoLoad 命名冲突。
+4. 如果对象池只希望管理根节点状态，可将 `manage_descendant_active_state` 设为 `false`；如果希望批量操作后手动清理失效引用，可将 `prune_invalid_on_each_operation` 设为 `false` 并调用 `prune_invalid_nodes()`。
+5. 如果存档文件名来自用户输入，建议保持 `allow_absolute_paths = false`，避免用户输入绕过存档目录。
+6. 需要监听事件继承层级时，使用 assignable 事件接口；原 `register_event()` / `listen()` 仍保持精确脚本匹配语义。
+7. 如果 `GFNodeState` 的 `_enter()` 依赖宿主节点 `_ready()` 中初始化的字段，请在 Inspector 或宿主 `_enter_tree()` 阶段把状态机 `start_mode` 设置为 `AFTER_HOST_READY`；需要完全由宿主控制时设置为 `MANUAL` 并在宿主 `_ready()` 末尾调用 `state_machine.start()`。
+
+### 📁 核心受影响文件 (Affected Files)
+- `ASSET_LIBRARY.md`
+- `addons/gf/docs/wiki/07. 高级扩展 (Advanced Extensions).md`
+- `addons/gf/plugin.cfg`
+- `addons/gf/plugin.gd`
+- `addons/gf/core/type_event_system.gd`
+- `addons/gf/core/gf_architecture.gd`
+- `addons/gf/core/gf.gd`
+- `addons/gf/core/bindable_property.gd`
+- `addons/gf/core/gf_node_context.gd`
+- `addons/gf/base/gf_system.gd`
+- `addons/gf/base/gf_utility.gd`
+- `addons/gf/base/gf_controller.gd`
+- `addons/gf/extensions/state_machine/gf_node_state_group.gd`
+- `addons/gf/extensions/state_machine/gf_node_state_machine.gd`
+- `addons/gf/utilities/gf_asset_utility.gd`
+- `addons/gf/utilities/gf_command_history_utility.gd`
+- `addons/gf/utilities/gf_console_utility.gd`
+- `addons/gf/utilities/gf_object_pool_utility.gd`
+- `addons/gf/utilities/gf_scene_utility.gd`
+- `addons/gf/utilities/gf_storage_utility.gd`
+- `addons/gf/utilities/gf_ui_utility.gd`
+- `tests/gf_core/test_type_event_system.gd`
+- `tests/gf_core/test_gf_singleton.gd`
+- `tests/gf_core/test_gf_node_state_machine.gd`
+
+## [1.19.0] - 2026-04-30
+
+**版本概述**：增强本地持久化与运行时分析工具的通用能力，新增可配置存档 Codec、完整性校验、版本迁移、编辑器存档查看器和可插拔分析传输接口，让项目在不绑定具体业务结构的前提下获得更稳健的数据读写与事件上报基础。
+
+### 🚀 新增特性 (Added)
+- **通用存档 Codec**：新增 `GFStorageCodec`，支持稳定排序 JSON、Godot Variant 二进制、可选 Deflate 压缩、SHA-256 完整性校验、轻量 XOR 混淆和 `_meta` 元信息。
+- **存档版本迁移入口**：`GFStorageUtility` 新增 `save_version`、`default_values_for_new_keys` 与 `migrate_data()`，项目可继承并按自身 schema 实现版本升级逻辑。
+- **结构化读取结果**：`GFStorageUtility` 新增 `load_data_result()` 与 `last_load_result`，可在读取后获取 `ok`、`metadata`、`integrity_valid` 与 `error` 等诊断信息。
+- **存档诊断信号**：`GFStorageUtility` 新增 `data_integrity_failed` 与 `data_migrated` 信号，便于项目层展示损坏存档提示、迁移日志或遥测记录。
+- **编辑器存档查看器**：新增 `GF Save Viewer` Dock，可在编辑器中按格式、压缩、校验和混淆参数读取本地存档并查看 JSON 结构。
+- **分析工具可插拔传输**：`GFAnalyticsUtility` 新增 `payload_builder`、`transport_callback` 与 `response_parser`，支持项目接入任意后端、SDK、离线上报或测试替身。
+- **稳定匿名 client id**：`GFAnalyticsConfig` 新增 `persist_client_id`、`client_id_storage_path` 与 `flush_on_shutdown`，`GFAnalyticsUtility` 可跨会话复用匿名客户端标识，并在关闭通知时尝试 flush 剩余事件。
+
+### 🔄 机制更改 (Changed)
+- **存档写入管线抽象化**：`GFStorageUtility` 的纯数据、槽位数据和元数据写入现在统一走 `GFStorageCodec`，保留原有事务提交和 `user://` 路径管理能力。
+- **旧存档兼容**：默认配置仍保持原有 JSON + XOR/Base64 读取方式，并在解码失败时尝试回退读取明文 JSON，降低旧项目升级成本。
+- **分析事件标识增强**：`GFAnalyticsUtility` 生成 UUID 风格的 `client_id` 与 `session_id`，事件 payload 默认保留通用 `events` 批量结构。
+- **关闭监听挂载更稳健**：分析工具的关闭监听节点使用延迟挂载与生命周期序列守卫，避免启动或销毁阶段产生场景树挂载时序问题。
+
+### 🐛 Bug 修复 (Fixed)
+- **解码类型防护**：`GFStorageUtility` 与 `GF Save Viewer` 在解码结果不是字典时会返回诊断错误，不再触发无效类型转换。
+- **Codec 边界处理**：`GFStorageCodec` 正确区分空字典载荷与空 bytes，并修复仅启用 checksum 时的校验基准不一致问题。
+- **Checksum 元信息边界**：`GFStorageUtility` 只启用 checksum 时不再额外写入 `version` 与 `timestamp`，`include_storage_metadata` 的语义更清晰。
+- **编辑器启动兼容**：`GF Save Viewer` 改为由 `plugin.gd` 使用原生控件构建，并将 `GFStorageCodec` 标记为 `@tool`，避免首次打开项目时因自定义 Dock 脚本实例化触发无效脚本挂载错误。
+- **存档查看器布局收敛**：`GF Save Viewer` 移除过大的硬最小尺寸并收紧按钮/标签宽度，避免 Dock 面板挤压编辑器其他内容。
+- **能力容器挂脚本保护**：编辑器与运行时 Capability 容器在动态挂载 `GFCapabilityContainer` 脚本前会验证脚本资源和基类匹配，避免 Godot 底层输出无上下文的 `Cannot set object script`。
+- **分析关闭 flush 完整性**：`GFAnalyticsUtility.shutdown()` 在 dry-run 或同步 transport 路径下会连续 flush 剩余批次，不再只处理第一批。
+- **分析关闭监听清理**：`GFAnalyticsUtility.dispose()` 会立即移除并释放关闭监听节点，避免测试和热重载阶段留下 orphan。
+- **测试脚本解析兼容**：核心测试中的架构对象改为显式 `GFArchitecture` 类型，避免 Godot 4.6 编辑器加载测试脚本时出现 `Cannot infer the type` 解析错误。
+- **完整性失败降级为可处理诊断**：严格校验失败会通过 `data_integrity_failed` 与 warning 暴露，不再把用户存档损坏直接提升为脚本错误。
+- **日志清理边界**：`GFLogUtility` 只清理自身生成的 `gf_log_*.log` 文件，避免误删 Godot 或项目层放在同目录下的其他日志。
+- **测试环境清理**：分析工具测试会清理默认 client id 文件，避免持久化状态污染后续测试。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFStorageCodec`。
+- `GFStorageUtility` 新增 `codec`、`file_format`、`use_compression`、`use_integrity_checksum`、`strict_integrity`、`include_storage_metadata`、`save_version`、`default_values_for_new_keys`、`last_load_result`。
+- `GFStorageUtility` 新增 `load_data_result()` 与可重写 `migrate_data()`。
+- `GFStorageUtility` 新增 `data_integrity_failed` 与 `data_migrated` 信号。
+- `GFAnalyticsConfig` 新增 `persist_client_id`、`client_id_storage_path` 与 `flush_on_shutdown`。
+- `GFAnalyticsUtility` 新增 `payload_builder`、`transport_callback`、`response_parser` 与 `shutdown()`。
+- 无破坏性 API 变更；旧存档保存、读取、槽位、Resource 存取和 analytics dry-run 调用保持可用。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目可直接升级；默认 `GFStorageUtility` 仍使用 JSON 格式与原有混淆密钥，现有 `save_data()`、`load_data()`、`save_slot()`、`load_slot()` 调用无需修改。
+2. 需要存档损坏检测时，开启 `use_integrity_checksum`，并按项目体验监听 `data_integrity_failed`。
+3. 需要 schema 版本升级时，设置 `save_version`，使用 `default_values_for_new_keys` 补齐简单新字段；复杂迁移可继承 `GFStorageUtility` 并重写 `migrate_data()`。
+4. 需要节省空间或处理大存档时，可开启 `use_compression`；需要非文本载荷时，可把 `file_format` 设置为 `GFStorageCodec.Format.BINARY`。
+5. 需要接入真实分析后端时，优先使用 `transport_callback` 或 `payload_builder` 适配项目已有 SDK；只有直接 HTTP JSON 上报时才需要配置 `endpoint_url`。
+6. 如果项目已有自己的用户标识体系，可继续调用 `identify()` 写入业务侧匿名 ID；若不希望框架落盘匿名 ID，可将 `persist_client_id` 设为 `false`。
+
+### 📁 核心受影响文件 (Affected Files)
+- `ASSET_LIBRARY.md`
+- `README.md`
+- `addons/gf/README.md`
+- `addons/gf/docs/wiki/08. 实用工具箱 (Utility Toolkit).md`
+- `addons/gf/docs/wiki/更新日志 (Changelog).md`
+- `addons/gf/plugin.cfg`
+- `addons/gf/plugin.gd`
+- `addons/gf/editor/gf_capability_inspector_plugin.gd`
+- `addons/gf/extensions/capability/gf_capability_utility.gd`
+- `addons/gf/utilities/gf_storage_codec.gd`
+- `addons/gf/utilities/gf_storage_utility.gd`
+- `addons/gf/utilities/gf_analytics_config.gd`
+- `addons/gf/utilities/gf_analytics_utility.gd`
+- `addons/gf/utilities/gf_log_utility.gd`
+- `tests/gf_core/test_gf_storage_codec.gd`
+- `tests/gf_core/test_gf_storage_utility.gd`
+- `tests/gf_core/test_gf_analytics_utility.gd`
+- `tests/gf_core/test_gf_log_utility.gd`
+
+## [1.18.0] - 2026-04-30
+
+**版本概述**：融合通用设置、玩家输入、关卡进度与网格占用等横向能力，补齐设置页、多人输入、本地关卡目录和格子运行时状态的抽象基础，同时保持框架不绑定具体玩法业务。
+
+### 🚀 新增特性 (Added)
+- **通用设置系统**：新增 `GFSettingDefinition` 与 `GFSettingsUtility`，支持设置定义、类型钳制、默认值、持久化过滤、结构化值序列化和 `GFStorageUtility` 集成。
+- **显示/语言/音频设置应用器**：新增 `GFDisplaySettingsUtility`，可把抽象设置应用到窗口模式、窗口尺寸、VSync、语言和音频总线音量；未注册设置工具时也可作为运行时应用器使用。
+- **控件值适配与表单绑定**：新增 `GFControlValueAdapter` 与 `GFFormBinder`，统一读写常见 `Control` 值，便于项目层搭建设置页、编辑器面板和表单工具。
+- **关卡目录与进度模型**：新增 `GFLevelEntry`、`GFLevelCatalog`、`GFLevelProgressModel`，提供资源化关卡列表、顺序导航、完成记录、结果字典和声明式解锁。
+- **网格占用结构**：新增 `GFGridOccupancy`，提供格子占用、预约、确认、释放、容量限制和失效对象清理。
+- **玩家级输入查询**：`GFInputMappingUtility` 新增玩家动作值、玩家动作向量、玩家活跃状态、玩家 just-started 与消费接口。
+
+### 🔄 机制更改 (Changed)
+- **输入设备路由增强**：`GFInputDeviceUtility` 支持根据输入事件解析玩家、未登记手柄自动分配、最近活跃玩家追踪、玩家级死区覆盖和设备显示名。
+- **输入映射按设备聚合**：`GFInputMappingUtility` 的全局动作状态会按输入来源聚合，避免多个手柄共享同一绑定时互相覆盖；本地多人项目可直接使用玩家级查询接口。
+- **关卡工具扩展**：`GFLevelUtility` 在 `GFConfigProvider` 缺失记录时可回退到 `GFLevelCatalog`，并可在完成当前关卡时更新 `GFLevelProgressModel` 与解锁后续关卡。
+- **设置定义更稳健**：`GFSettingDefinition` 对数组和字典默认值使用深拷贝，避免运行时修改污染共享定义。
+
+### 🐛 Bug 修复 (Fixed)
+- **控件适配继承顺序**：`GFControlValueAdapter` 优先处理 `OptionButton` 与 `ColorPickerButton`，避免它们被 `BaseButton` 分支错误识别。
+- **网格预约清理**：`GFGridOccupancy` 会同步清理对象释放后留下的预约记录，避免旧预约阻塞后续占用。
+
+### 🔌 API 变动说明 (API Changes)
+- 新增 `GFSettingDefinition`。
+- 新增 `GFSettingsUtility`。
+- 新增 `GFDisplaySettingsUtility`。
+- 新增 `GFControlValueAdapter`。
+- 新增 `GFFormBinder`。
+- 新增 `GFLevelEntry`。
+- 新增 `GFLevelCatalog`。
+- 新增 `GFLevelProgressModel`。
+- 新增 `GFGridOccupancy`。
+- `GFInputBinding.get_contribution()` 新增可选参数 `deadzone_override`，默认值保持旧行为。
+- `GFInputDeviceUtility` 新增 `active_player_changed`、`auto_assign_joypads_on_input`、`auto_assign_axis_threshold`、`active_player_index`、`remove_assignment()`、`get_player_for_device()`、`get_player_for_event()`、`handle_input_event()`、`assign_device_to_next_player()`、`set_active_player()`、`set_player_deadzone()`、`get_player_deadzone()`、`get_device_name()`。
+- `GFInputMappingUtility` 新增玩家级动作信号与 `get_action_value_for_player()`、`get_action_vector_for_player()`、`is_action_active_for_player()`、`was_action_just_started_for_player()`、`consume_action_for_player()`、`clear_player_input_state()`。
+- `GFLevelUtility` 新增 `catalog`、`set_catalog()`、`get_catalog()`、`get_level_entry()`、`get_catalog_levels()`、`complete_current_level()`、`start_next_level()`、`unlock_level()`、`is_level_unlocked()`。
+- 无破坏性 API 变更；旧输入、关卡和存档调用保持可用。
+
+### 📘 升级指南 (Migration Guide)
+1. 旧项目无需修改现有 `GFInputUtility`、`GFInputDeviceUtility`、`GFInputMappingUtility` 或 `GFLevelUtility` 调用。
+2. 需要统一设置页时，注册 `GFSettingsUtility`；需要直接应用窗口、语言或音频设置时，再注册 `GFDisplaySettingsUtility`。
+3. 本地多人项目可继续使用全局输入查询，但建议将角色控制改为 `*_for_player()` 系列接口，并让 `GFInputDeviceUtility` 管理设备席位。
+4. 关卡项目如果已有导表，可继续使用 `GFConfigProvider`；若更适合资源化列表，可补充 `GFLevelCatalog` 并按需注册 `GFLevelProgressModel`。
+5. 格子玩法如需运行时占用/预约，可在项目自己的 `System` 中持有 `GFGridOccupancy`，路径搜索和胜负规则仍由项目层实现。
+
+### 📁 核心受影响文件 (Affected Files)
+- `ASSET_LIBRARY.md`
+- `README.md`
+- `addons/gf/README.md`
+- `addons/gf/docs/wiki/08. 实用工具箱 (Utility Toolkit).md`
+- `addons/gf/docs/wiki/11. 基础层 (Foundation Layer).md`
+- `addons/gf/docs/wiki/更新日志 (Changelog).md`
+- `addons/gf/plugin.cfg`
+- `addons/gf/input/gf_input_binding.gd`
+- `addons/gf/utilities/gf_input_device_utility.gd`
+- `addons/gf/utilities/gf_input_mapping_utility.gd`
+- `addons/gf/utilities/gf_level_utility.gd`
+- `addons/gf/utilities/gf_setting_definition.gd`
+- `addons/gf/utilities/gf_settings_utility.gd`
+- `addons/gf/utilities/gf_display_settings_utility.gd`
+- `addons/gf/utilities/gf_control_value_adapter.gd`
+- `addons/gf/utilities/gf_form_binder.gd`
+- `addons/gf/utilities/gf_level_entry.gd`
+- `addons/gf/utilities/gf_level_catalog.gd`
+- `addons/gf/extensions/domain/gf_level_progress_model.gd`
+- `addons/gf/foundation/math/gf_grid_occupancy.gd`
+- `tests/gf_core/test_gf_settings_utility.gd`
+- `tests/gf_core/test_gf_display_settings_utility.gd`
+- `tests/gf_core/test_gf_form_binder.gd`
+- `tests/gf_core/test_gf_grid_occupancy.gd`
+- `tests/gf_core/test_gf_input_device_utility.gd`
+- `tests/gf_core/test_gf_input_mapping_utility.gd`
+- `tests/gf_core/test_gf_level_utility.gd`
+
 ## [1.17.1] - 2026-04-29
 
 **版本概述**：修复资源化输入映射在项目启动阶段的内部 Router 挂载时序问题，避免框架初始化发生在场景树子节点 setup 流程中时输入路由节点添加失败。

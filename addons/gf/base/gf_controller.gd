@@ -1,16 +1,30 @@
-class_name GFController
-extends Node
-
-
 ## GFController: 连接 UI/输入与架构的控制器基类。
 ##
 ## 提供访问架构的便捷代理。这里不缓存 Model/System/Utility 引用，
 ## 以避免架构切换或模块注销后保留过期对象。
+class_name GFController
+extends Node
 
 
 # --- 常量 ---
 
 const GFNodeContextBase = preload("res://addons/gf/core/gf_node_context.gd")
+
+
+# --- 导出变量 ---
+
+## Controller 控制的宿主节点路径。默认指向父节点。
+##
+## 当 Controller 不是宿主节点的直接子节点时，可在 Inspector 中改为目标节点路径。
+@export var host_node_path: NodePath = NodePath("..")
+
+
+# --- 公共变量 ---
+
+## Controller 控制的宿主节点。
+var host: Node:
+	get:
+		return get_host()
 
 
 # --- Godot 生命周期方法 ---
@@ -51,6 +65,38 @@ func wait_for_context_ready() -> GFArchitecture:
 			return architecture
 
 	return get_architecture()
+
+
+## 获取当前 Controller 控制的宿主节点。
+##
+## 默认返回父节点。若宿主不是父节点，可通过 host_node_path 指定。
+## @return 当前宿主节点；路径为空或目标不存在时返回 null。
+func get_host() -> Node:
+	if host_node_path.is_empty():
+		return null
+	return get_node_or_null(host_node_path)
+
+
+## 判断当前 Controller 是否能解析到有效宿主节点。
+## @return 能解析到宿主节点时返回 true。
+func has_host() -> bool:
+	return get_host() != null
+
+
+## 获取指定类型的宿主节点。
+##
+## 可传入项目脚本类型或 Godot 原生类型。
+## @param host_type: 宿主节点类型。
+## @return 匹配类型的宿主节点；未找到或类型不匹配时返回 null。
+func get_host_as(host_type: Variant) -> Node:
+	var current_host := get_host()
+	if current_host == null:
+		return null
+	if host_type == null:
+		return current_host
+	if is_instance_of(current_host, host_type):
+		return current_host
+	return null
 
 
 ## 通过类型获取 Model 实例。
@@ -124,6 +170,25 @@ func unregister_event(event_type: Script, callback: Callable) -> void:
 	var architecture := _get_architecture_or_null()
 	if architecture != null:
 		architecture.unregister_event(event_type, callback)
+
+
+## 注册可赋值类型事件监听器。
+## @param base_event_type: 要监听的基类脚本类型。
+## @param callback: 回调函数。
+## @param priority: 回调优先级，数值越大越先执行，默认为 0。
+func register_assignable_event(base_event_type: Script, callback: Callable, priority: int = 0) -> void:
+	var architecture := _get_architecture_or_null()
+	if architecture != null:
+		architecture.register_assignable_event_owned(self, base_event_type, callback, priority)
+
+
+## 注销可赋值类型事件监听器。
+## @param base_event_type: 注册时使用的基类脚本类型。
+## @param callback: 要移除的回调函数。
+func unregister_assignable_event(base_event_type: Script, callback: Callable) -> void:
+	var architecture := _get_architecture_or_null()
+	if architecture != null:
+		architecture.unregister_assignable_event(base_event_type, callback)
 
 
 ## 通过事件系统发送类型事件。

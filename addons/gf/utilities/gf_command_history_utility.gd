@@ -111,7 +111,12 @@ func undo_last() -> bool:
 
 	var cmd: GFUndoableCommand = _undo_stack.pop_back()
 	_inject_command_dependencies(cmd)
-	cmd.undo()
+	var result: Variant = cmd.undo()
+	if result is Signal:
+		push_warning("[GFCommandHistoryUtility] undo_last() 不支持异步命令，请使用 await undo_last_async()。")
+		_undo_stack.push_back(cmd)
+		return false
+
 	_redo_stack.push_back(cmd)
 	return true
 
@@ -148,7 +153,12 @@ func redo() -> bool:
 
 	var cmd: GFUndoableCommand = _redo_stack.pop_back()
 	_inject_command_dependencies(cmd)
-	cmd.execute()
+	var result: Variant = cmd.execute()
+	if result is Signal:
+		push_warning("[GFCommandHistoryUtility] redo() 不支持异步命令，请使用 await redo_async()。")
+		_redo_stack.push_back(cmd)
+		return false
+
 	_undo_stack.push_back(cmd)
 	return true
 
@@ -292,7 +302,7 @@ func _serialize_stack(stack: Array[GFUndoableCommand]) -> Array[Dictionary]:
 		if cmd.has_method("serialize"):
 			arr.append(cmd.serialize())
 		else:
-			arr.append({"snapshot": cmd.get_snapshot()})
+			arr.append({ "snapshot": cmd.get_snapshot() })
 
 	return arr
 
