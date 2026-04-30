@@ -2,7 +2,7 @@
 ##
 ## 负责动态展示可用模式、更新选中态、配置棋盘参数并启动游戏。
 class_name ModeSelection
-extends GFUIController
+extends "res://scripts/ui/base/game_ui_controller.gd"
 
 
 # --- 常量 ---
@@ -147,7 +147,7 @@ func _sanitize_mode_config_paths() -> void:
 		if ResourceLoader.exists(config_path):
 			valid_paths.append(config_path)
 		else:
-			push_warning("ModeSelection: Missing mode config resource: %s" % config_path)
+			push_warning("[ModeSelection] 缺少模式配置资源: %s" % config_path)
 
 	mode_config_paths = valid_paths
 
@@ -382,10 +382,10 @@ func _on_grid_size_selected(index: int) -> void:
 
 func _on_start_game_button_pressed() -> void:
 	if not is_instance_valid(_selected_mode_config):
-		push_error(tr("ERR_NO_MODE_SELECTED"))
+		push_error("[ModeSelection] %s" % tr("ERR_NO_MODE_SELECTED"))
 		return
 	if game_play_scene_path.is_empty():
-		push_error("ModeSelection: game_play_scene_path is not configured.")
+		push_error("[ModeSelection] game_play_scene_path 未配置。")
 		return
 
 	var seed_text: String = _seed_line_edit.text

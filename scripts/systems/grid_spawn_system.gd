@@ -5,7 +5,14 @@
 class_name GridSpawnSystem
 extends GFSystem
 
+
+# --- 常量 ---
+
+const _LOG_TAG: String = "GridSpawnSystem"
+
+
 # --- 私有变量 ---
+
 var _grid_model: GridModel
 var _seed_utility: GFSeedUtility
 var _log: GFLogUtility
@@ -18,8 +25,13 @@ func ready() -> void:
 	_log = get_utility(GFLogUtility) as GFLogUtility
 	register_simple_event(EventNames.SPAWN_TILE_REQUESTED, _on_spawn_tile_requested)
 
+
 func dispose() -> void:
 	unregister_simple_event(EventNames.SPAWN_TILE_REQUESTED, _on_spawn_tile_requested)
+	_grid_model = null
+	_seed_utility = null
+	_log = null
+
 
 # --- 事件处理 ---
 
@@ -31,7 +43,7 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 		return
 
 	if _log:
-		_log.info("GridSpawnSystem", "spawn_tile called for value: %d at %s" % [spawn_data.value, spawn_data.position])
+		_log.debug(_LOG_TAG, "收到生成请求: value=%d, type=%d, position=%s" % [spawn_data.value, spawn_data.type, spawn_data.position])
 
 	var value: int = spawn_data.value
 	var type: Tile.TileType = spawn_data.type
@@ -42,13 +54,13 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 		spawn_pos = spawn_data.position
 		if not _is_cell_in_bounds(spawn_pos):
 			if _log:
-				_log.warn("GridSpawnSystem", "忽略越界生成请求: %s" % spawn_pos)
+				_log.warn(_LOG_TAG, "忽略越界生成请求: %s" % spawn_pos)
 			return
 		if not _is_cell_empty(spawn_pos):
 			if is_priority:
 				_handle_priority_spawn(value, type)
 			elif _log:
-				_log.warn("GridSpawnSystem", "忽略被占用的生成位置: %s" % spawn_pos)
+				_log.warn(_LOG_TAG, "忽略被占用的生成位置: %s" % spawn_pos)
 			return
 	else:
 		var empty_cells: Array[Vector2i] = _grid_model.get_empty_cells()
@@ -64,7 +76,7 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 	_grid_model.place_tile(tile_data, spawn_pos)
 	
 	if _log:
-		_log.info("GridSpawnSystem", "Spawned tile value=%d at %s, empty_cells_after=%d" % [value, spawn_pos, _grid_model.get_empty_cells().size()])
+		_log.debug(_LOG_TAG, "已生成方块: value=%d, type=%d, position=%s, empty_cells=%d" % [value, type, spawn_pos, _grid_model.get_empty_cells().size()])
 	
 	# 3. 发送视觉指令
 	var instruction: Array = [ {

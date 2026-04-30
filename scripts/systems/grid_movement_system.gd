@@ -5,7 +5,14 @@
 class_name GridMovementSystem
 extends GFSystem
 
-# --- 缓存引用 ---
+
+# --- 常量 ---
+
+const _LOG_TAG: String = "GridMovementSystem"
+
+
+# --- 私有变量 ---
+
 var _grid_model: GridModel
 var _log: GFLogUtility
 
@@ -18,6 +25,11 @@ func ready() -> void:
 	_log = get_utility(GFLogUtility) as GFLogUtility
 
 
+func dispose() -> void:
+	_grid_model = null
+	_log = null
+
+
 # --- 核心逻辑 ---
 
 ## 处理玩家的滑动输入。
@@ -26,19 +38,19 @@ func ready() -> void:
 func handle_move(direction: Vector2i) -> MoveData:
 	if not is_instance_valid(_grid_model):
 		if is_instance_valid(_log):
-			_log.error("GridMovementSystem", "GridModel reference is missing.")
+			_log.error(_LOG_TAG, "GridModel 引用不可用。")
 		return null
 		
-	var interaction_rule = _grid_model.interaction_rule
-	var movement_rule = _grid_model.movement_rule
+	var interaction_rule: InteractionRule = _grid_model.interaction_rule
+	var movement_rule: MovementRule = _grid_model.movement_rule
 	
 	if not interaction_rule or not movement_rule:
 		if is_instance_valid(_log):
-			_log.error("GridMovementSystem", "GridModel is missing rules.")
+			_log.error(_LOG_TAG, "GridModel 缺少交互规则或移动规则。")
 		return null
 		
-	var grid_size = _grid_model.grid_size
-	var grid = _grid_model.grid
+	var grid_size: int = _grid_model.grid_size
+	var grid: Array = _grid_model.grid
 	
 	movement_rule.setup(interaction_rule)
 
@@ -93,7 +105,7 @@ func handle_move(direction: Vector2i) -> MoveData:
 				&"merged_data": merged,
 				&"to_grid_pos": final_coords,
 				&"from_grid_pos_consumed": from_coords_consumed,
-				&"from_grid_pos_merged": from_coords_merged
+				&"from_grid_pos_merged": from_coords_merged,
 			}
 			
 			if merge_info.has(&"transform"):
@@ -109,7 +121,8 @@ func handle_move(direction: Vector2i) -> MoveData:
 		# 记录移动指令 (用于动画)
 		var tiles_in_new_line_ids: Array = []
 		for tile_data in new_line:
-			if tile_data: tiles_in_new_line_ids.append(tile_data.get_instance_id())
+			if tile_data:
+				tiles_in_new_line_ids.append(tile_data.get_instance_id())
 
 		for j in range(grid_size):
 			var original_data: GameTileData = line[j]
@@ -126,7 +139,7 @@ func handle_move(direction: Vector2i) -> MoveData:
 					&"type": &"MOVE",
 					&"tile_data": original_data,
 					&"from_grid_pos": from_coords,
-					&"to_grid_pos": final_coords
+					&"to_grid_pos": final_coords,
 				})
 
 		# 更新临时网格数据

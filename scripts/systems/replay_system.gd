@@ -10,6 +10,7 @@ extends GFSystem
 
 ## 回放文件存储目录。
 const REPLAY_DIR: String = "user://replays/"
+const _REPLAY_CONTINUE_DATA_SCRIPT = preload("res://scripts/events/replay_continue_data.gd")
 
 
 # --- 信号 ---
@@ -56,7 +57,8 @@ func save_replay(replay_data: ReplayData) -> void:
 func load_replays() -> Array[ReplayData]:
 	var replays: Array[ReplayData] = []
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
-	if not storage: return replays
+	if not storage:
+		return replays
 	
 	var dir := DirAccess.open(REPLAY_DIR)
 	if dir:
@@ -120,14 +122,41 @@ func step_forward() -> void:
 func step_backward() -> void:
 	if not _is_replay_active:
 		return
+
+	if get_current_step() <= 0:
+		_emit_progress()
+		return
 	
 	send_simple_event(EventNames.REPLAY_PREV_STEP)
 	call_deferred("_emit_progress")
 
 
+## 从当前回放步数恢复成普通对局继续游玩。
+func continue_from_current_step() -> void:
+	if not can_continue_from_current_step():
+		return
+
+	var current_step := get_current_step()
+	var actions_prefix := _get_actions_prefix(current_step)
+	var payload := _REPLAY_CONTINUE_DATA_SCRIPT.new(
+		_current_replay,
+		current_step,
+		get_total_steps(),
+		actions_prefix
+	)
+
+	if is_instance_valid(_command_history):
+		_command_history.clear_redo()
+
+	send_simple_event(EventNames.REPLAY_CONTINUE_REQUESTED, payload)
+	deactivate_replay_mode()
+
+
 ## 获取当前步数。
 func get_current_step() -> int:
-	return _command_history.undo_count - 1 if is_instance_valid(_command_history) else 0
+	if not is_instance_valid(_command_history):
+		return 0
+	return maxi(_command_history.undo_count - 1, 0)
 
 
 ## 获取总步数。
@@ -140,5 +169,24 @@ func is_replay_active() -> bool:
 	return _is_replay_active
 
 
+## 当前回放位置是否可以恢复为可游玩的普通对局。
+func can_continue_from_current_step() -> bool:
+	if not _is_replay_active or not is_instance_valid(_current_replay):
+		return false
+	return get_total_steps() > 0 and get_current_step() < get_total_steps()
+
+
 func _emit_progress() -> void:
 	playback_progress_changed.emit(get_current_step(), get_total_steps())
+
+
+func _get_actions_prefix(step_count: int) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	if not is_instance_valid(_current_replay):
+		return result
+
+	var safe_count := clampi(step_count, 0, _current_replay.actions.size())
+	for i in range(safe_count):
+		result.append(_current_replay.actions[i])
+
+	return result

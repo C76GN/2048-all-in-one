@@ -3,11 +3,16 @@ class_name GameArchitectureInstaller
 extends GFInstaller
 
 
+# --- Constants ---
+
+const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
+
+
 # --- Public Methods ---
 
 func install(architecture: GFArchitecture) -> void:
-	_register_utilities(architecture)
 	_register_models(architecture)
+	_register_utilities(architecture)
 	_register_systems(architecture)
 
 
@@ -23,7 +28,15 @@ func _register_utilities(architecture: GFArchitecture) -> void:
 	architecture.register_utility(GFCommandHistoryUtility, history_util)
 
 	architecture.register_utility(GFTimeUtility, GFTimeUtility.new())
-	architecture.register_utility(GFLogUtility, GFLogUtility.new())
+
+	var log_utility := GFLogUtility.new()
+	log_utility.min_level = (
+		GFLogUtility.LogLevel.DEBUG
+		if _is_verbose_logging_enabled()
+		else GFLogUtility.LogLevel.INFO
+	)
+	architecture.register_utility(GFLogUtility, log_utility)
+
 	architecture.register_utility(GFSceneUtility, GFSceneUtility.new())
 	architecture.register_utility(GFUIUtility, GFUIUtility.new())
 	architecture.register_utility(GFLevelUtility, GFLevelUtility.new())
@@ -64,3 +77,7 @@ func _register_systems(architecture: GFArchitecture) -> void:
 
 func _are_dev_tools_enabled() -> bool:
 	return OS.has_feature("editor") or OS.is_debug_build() or OS.has_feature("with_test_panel")
+
+
+func _is_verbose_logging_enabled() -> bool:
+	return OS.has_feature(_VERBOSE_LOGGING_FEATURE)

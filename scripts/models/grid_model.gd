@@ -55,7 +55,7 @@ func get_snapshot() -> Dictionary:
 
 ## 从快照还原数据
 func restore_from_snapshot(snapshot: Dictionary) -> void:
-	if not snapshot.has(&"tiles"):
+	if not snapshot.has(&"tiles") and not snapshot.has("tiles"):
 		return
 
 	grid_size = snapshot.get(&"grid_size", snapshot.get("grid_size", grid_size))

@@ -32,12 +32,14 @@ func ready() -> void:
 	register_event(GameReadyData, _on_game_ready)
 	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
 
 
 func dispose() -> void:
 	unregister_event(GameReadyData, _on_game_ready)
 	unregister_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 	unregister_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	unregister_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
 
 	if is_instance_valid(_input_mapping):
 		_input_mapping.disable_context(GAMEPLAY_INPUT_CONTEXT)
@@ -110,5 +112,12 @@ func _on_game_state_changed(state: StringName) -> void:
 func _on_scene_will_change(_payload: Variant = null) -> void:
 	_is_active = false
 	_is_playing = false
+	if is_instance_valid(_input_mapping):
+		_input_mapping.clear_input_state()
+
+
+func _on_replay_continued_as_game(_payload: Variant = null) -> void:
+	_is_active = true
+	_is_playing = true
 	if is_instance_valid(_input_mapping):
 		_input_mapping.clear_input_state()

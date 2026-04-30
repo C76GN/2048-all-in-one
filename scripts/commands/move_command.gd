@@ -5,6 +5,11 @@ class_name MoveCommand
 extends GFUndoableCommand
 
 
+# --- 常量 ---
+
+const _LOG_TAG: String = "MoveCommand"
+
+
 # --- 私有变量 ---
 
 var _direction: Vector2i
@@ -37,7 +42,7 @@ func execute() -> Variant:
 	var game_state_system := get_system(GameStateSystem) as GameStateSystem
 
 	if not is_instance_valid(grid_model) or not is_instance_valid(game_state_system):
-		push_error("MoveCommand: GridModel 或 GameStateSystem 不可用。")
+		_log_error("GridModel 或 GameStateSystem 不可用。")
 		return null
 
 	set_snapshot(game_state_system.get_full_game_state(grid_model.grid_size))
@@ -68,7 +73,7 @@ func undo() -> Variant:
 
 	var game_state_system := get_system(GameStateSystem) as GameStateSystem
 	if not is_instance_valid(game_state_system):
-		push_error("MoveCommand: GameStateSystem 不可用，无法撤销。")
+		_log_error("GameStateSystem 不可用，无法撤销。")
 		return null
 
 	game_state_system.restore_state(snapshot)
@@ -109,6 +114,17 @@ static func deserialize(data: Dictionary) -> MoveCommand:
 	cmd._reverse_target_map = data.get(&"reverse_map", data.get("reverse_map", {}))
 	cmd._is_baseline = data.get(&"is_baseline", data.get("is_baseline", false))
 	return cmd
+
+
+# --- 私有/辅助方法 ---
+
+func _log_error(message: String) -> void:
+	var log_utility := get_utility(GFLogUtility) as GFLogUtility
+	if is_instance_valid(log_utility):
+		log_utility.error(_LOG_TAG, message)
+		return
+
+	push_error("[%s] %s" % [_LOG_TAG, message])
 
 
 # --- 信号处理函数 ---

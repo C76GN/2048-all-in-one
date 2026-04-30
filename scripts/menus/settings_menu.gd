@@ -2,7 +2,7 @@
 ##
 ## 负责处理语言切换等设置选项。
 class_name SettingsMenu
-extends GFUIController
+extends "res://scripts/ui/base/game_ui_controller.gd"
 
 
 # --- 公共变量 ---

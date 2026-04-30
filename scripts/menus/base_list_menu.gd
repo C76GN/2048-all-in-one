@@ -3,7 +3,7 @@
 ## 封装了加载数据列表、实例化列表项、焦点导航、预览更新以及通用按钮处理的核心逻辑。
 ## 子类需继承此类并实现特定的数据加载和预览格式化方法。
 class_name BaseListMenu
-extends GFUIController
+extends "res://scripts/ui/base/game_ui_controller.gd"
 
 
 # --- 私有变量 ---
@@ -61,7 +61,7 @@ func _setup_base_signals() -> void:
 ## 重新填充列表内容。
 func _populate_list() -> void:
 	if not _item_scene:
-		push_error("错误: _item_scene 未在子类中初始化。")
+		push_error("[BaseListMenu] _item_scene 未在子类中初始化。")
 		return
 
 	var pool := get_utility(GFObjectPoolUtility) as GFObjectPoolUtility

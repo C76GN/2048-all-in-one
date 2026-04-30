@@ -22,7 +22,6 @@ extends GFController
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	# 连接UI控件的信号到处理函数。
 	_spawn_button.pressed.connect(_on_spawn_button_pressed)
 	_reset_resize_button.pressed.connect(_on_reset_resize_button_pressed)
 	_live_expand_button.pressed.connect(_on_live_expand_button_pressed)
@@ -74,21 +73,18 @@ func update_coordinate_limits(new_grid_size: int) -> void:
 
 ## 响应“生成方块”按钮的点击事件。
 func _on_spawn_button_pressed() -> void:
-	# 检查数值和类型下拉框是否有有效选项
 	if _value_option_button.item_count == 0:
-		push_warning("TestPanel: 没有可选的生成数值。")
+		push_warning("[TestPanel] 没有可选的生成数值。")
 		return
 	if _type_option_button.item_count == 0:
-		push_warning("TestPanel: 没有可选的生成类型。")
+		push_warning("[TestPanel] 没有可选的生成类型。")
 		return
 
-	# 收集用户输入
 	var pos := Vector2i(int(_pos_x_spinbox.value), int(_pos_y_spinbox.value))
 	var value_text: String = _value_option_button.get_item_text(_value_option_button.selected)
 	var value := int(value_text)
 	var type_id: int = _type_option_button.get_item_id(_type_option_button.selected)
 
-	# 发送 GF 事件替代信号
 	send_event(TestSpawnPayload.new(pos, value, type_id))
 
 

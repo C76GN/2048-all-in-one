@@ -34,8 +34,10 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 		# 如果目标位置有方块，则尝试合并
 		else:
 			# 确保两个方块都未参与本轮的合并
-			if not merged_in_this_turn.has(current_tile.get_instance_id()) and \
-			not merged_in_this_turn.has(target_tile.get_instance_id()):
+			if (
+				not merged_in_this_turn.has(current_tile.get_instance_id())
+				and not merged_in_this_turn.has(target_tile.get_instance_id())
+			):
 				var result: Dictionary = interaction_rule.process_interaction(current_tile, target_tile, interaction_rule)
 				if not result.is_empty():
 					var merged_tile: GameTileData = result.get("merged_tile")

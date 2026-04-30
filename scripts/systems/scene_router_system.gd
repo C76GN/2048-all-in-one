@@ -5,6 +5,12 @@
 class_name SceneRouterSystem
 extends GFSystem
 
+
+# --- 常量 ---
+
+const _LOG_TAG: String = "SceneRouterSystem"
+
+
 # --- 私有变量 ---
 
 ## 缓存当前主菜单场景的路径，用于快速返回。
@@ -36,6 +42,7 @@ func dispose() -> void:
 		if _scene_utility.scene_load_failed.is_connected(_on_scene_load_failed):
 			_scene_utility.scene_load_failed.disconnect(_on_scene_load_failed)
 	_scene_utility = null
+	_log = null
 
 
 # --- 公共方法 ---
@@ -44,7 +51,8 @@ func dispose() -> void:
 ## @param scene: 待切换的场景资源 (PackedScene)。
 func goto_scene_packed(scene: PackedScene) -> void:
 	if scene == null:
-		if _log: _log.error("SceneRouterSystem", "错误: 传入的场景资源为空。")
+		if _log:
+			_log.error(_LOG_TAG, "传入的场景资源为空。")
 		return
 
 	var tree := Engine.get_main_loop() as SceneTree
@@ -56,16 +64,19 @@ func goto_scene_packed(scene: PackedScene) -> void:
 
 	var error := tree.change_scene_to_packed(scene)
 	if error != OK:
-		if _log: _log.error("SceneRouterSystem", "切换到场景失败，错误码: %d" % error)
+		if _log:
+			_log.error(_LOG_TAG, "切换到场景失败，错误码: %d" % error)
 		return
-	if _log: _log.info("SceneRouterSystem", "已请求切换到场景: %s" % scene.resource_path)
+	if _log:
+		_log.debug(_LOG_TAG, "已请求切换到场景: %s" % scene.resource_path)
 
 
 ## 切换到指定的场景路径。如果可能，请优先使用 goto_scene_packed。
 ## @param path: 待切换的场景资源路径。
 func goto_scene(path: String) -> void:
 	if not path.begins_with("res://") or not path.ends_with(".tscn"):
-		if _log: _log.error("SceneRouterSystem", "错误: 场景路径必须是绝对的场景资源路径，例如 'res://scenes/my_scene.tscn'")
+		if _log:
+			_log.error(_LOG_TAG, "场景路径必须是绝对的 .tscn 资源路径: %s" % path)
 		return
 
 	if is_instance_valid(_scene_utility):
@@ -74,7 +85,8 @@ func goto_scene(path: String) -> void:
 
 	var next_scene_packed := ResourceLoader.load(path) as PackedScene
 	if next_scene_packed == null:
-		if _log: _log.error("SceneRouterSystem", "错误: 无法加载场景资源: %s" % path)
+		if _log:
+			_log.error(_LOG_TAG, "无法加载场景资源: %s" % path)
 		return
 
 	goto_scene_packed(next_scene_packed)
@@ -87,7 +99,8 @@ func return_to_main_menu() -> void:
 
 ## 安全地退出整个游戏。
 func quit_game() -> void:
-	if _log: _log.info("SceneRouterSystem", "正在退出游戏...")
+	if _log:
+		_log.info(_LOG_TAG, "正在退出游戏。")
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree:
 		tree.quit()
@@ -106,9 +119,9 @@ func _on_return_to_main_menu_requested(_payload: Variant = null) -> void:
 func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
 	send_simple_event(EventNames.SCENE_WILL_CHANGE)
 	if _log:
-		_log.info("SceneRouterSystem", "已完成异步场景加载: %s" % path)
+		_log.debug(_LOG_TAG, "已完成异步场景加载: %s" % path)
 
 
 func _on_scene_load_failed(path: String) -> void:
 	if _log:
-		_log.error("SceneRouterSystem", "异步场景加载失败: %s" % path)
+		_log.error(_LOG_TAG, "异步场景加载失败: %s" % path)

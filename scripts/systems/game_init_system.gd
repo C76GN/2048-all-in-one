@@ -5,6 +5,7 @@ extends GFSystem
 
 # --- 常量 ---
 
+const _LOG_TAG: String = "GameInitSystem"
 const GAME_MODE_CONFIG_CACHE = preload("res://scripts/utilities/game_mode_config_cache.gd")
 
 
@@ -15,6 +16,7 @@ var _rule_system: RuleSystem
 var _game_flow_system: GameFlowSystem
 var _command_history: GFCommandHistoryUtility
 var _level_utility: GFLevelUtility
+var _grid_model: GridModel
 var _log: GFLogUtility
 
 
@@ -27,12 +29,20 @@ func ready() -> void:
 	_log = get_utility(GFLogUtility) as GFLogUtility
 	_rule_system = get_system(RuleSystem) as RuleSystem
 	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
+	_grid_model = get_model(GridModel) as GridModel
 
 	register_simple_event(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
 
 
 func dispose() -> void:
 	unregister_simple_event(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
+	_seed_utility = null
+	_rule_system = null
+	_game_flow_system = null
+	_command_history = null
+	_level_utility = null
+	_grid_model = null
+	_log = null
 
 
 # --- 私有/辅助方法 ---
@@ -95,13 +105,13 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		grid_size = app_config.selected_grid_size.get_value()
 		var config_seed: int = app_config.selected_seed.get_value()
 		if _log:
-			_log.info("GameInitSystem", "Normal mode: config_seed=%d" % config_seed)
+			_log.debug(_LOG_TAG, "普通模式配置种子: %d" % config_seed)
 		if config_seed != 0:
 			init_seed = config_seed
 		else:
 			init_seed = int(Time.get_unix_time_from_system())
 		if _log:
-			_log.info("GameInitSystem", "Final init_seed=%d" % init_seed)
+			_log.debug(_LOG_TAG, "本局初始种子: %d" % init_seed)
 
 	game_ready_data.current_grid_size = grid_size
 	game_ready_data.initial_seed = init_seed
@@ -109,11 +119,11 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE.get_config(config_path)
 	if not is_instance_valid(mode_config):
 		if _log:
-			_log.error("GameInitSystem", "GameModeConfig load failed: %s" % config_path)
+			_log.error(_LOG_TAG, "GameModeConfig 加载失败: %s" % config_path)
 		return
 	if not mode_config.validate():
 		if _log:
-			_log.error("GameInitSystem", "GameModeConfig validation failed: %s" % config_path)
+			_log.error(_LOG_TAG, "GameModeConfig 校验失败: %s" % config_path)
 		return
 
 	game_ready_data.mode_config = mode_config
@@ -121,8 +131,13 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	game_ready_data.movement_rule = mode_config.movement_rule.duplicate() as MovementRule
 	game_ready_data.game_over_rule = mode_config.game_over_rule.duplicate() as GameOverRule
 
+	if is_instance_valid(_grid_model):
+		_grid_model.initialize(grid_size, game_ready_data.interaction_rule, game_ready_data.movement_rule)
+		if is_instance_valid(loaded_bookmark_data):
+			_grid_model.restore_from_snapshot(loaded_bookmark_data.board_snapshot)
+
 	if _log:
-		_log.info("GameInitSystem", "Calling set_global_seed(%d)" % init_seed)
+		_log.debug(_LOG_TAG, "设置全局随机种子: %d" % init_seed)
 	if is_instance_valid(_seed_utility):
 		_seed_utility.set_global_seed(init_seed)
 

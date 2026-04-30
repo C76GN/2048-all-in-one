@@ -7,6 +7,7 @@ extends GFSystem
 
 # --- 常量 ---
 
+const _LOG_TAG: String = "SaveSystem"
 const SAVE_FILE_NAME: String = "game_save.tres"
 
 
@@ -23,6 +24,12 @@ func ready() -> void:
 	_storage = get_utility(GFStorageUtility) as GFStorageUtility
 	_log = get_utility(GFLogUtility) as GFLogUtility
 	_load_game_data()
+
+
+func dispose() -> void:
+	_storage = null
+	_save_data = null
+	_log = null
 
 
 # --- 公共方法 ---
@@ -55,7 +62,8 @@ func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
 			_save_data.scores[mode_id] = {}
 
 		_save_data.scores[mode_id][grid_size_str] = score
-		if _log: _log.info("SaveSystem", "新纪录诞生! 模式: %s, 尺寸: %s, 分数: %d" % [mode_id, grid_size_str, score])
+		if _log:
+			_log.info(_LOG_TAG, "新纪录: mode=%s, grid=%s, score=%d" % [mode_id, grid_size_str, score])
 		_save_game_data()
 
 
@@ -68,7 +76,8 @@ func set_language(locale: String) -> void:
 	_save_game_data()
 	
 	TranslationServer.set_locale(locale)
-	if _log: _log.info("SaveSystem", "已应用语言设置: %s" % locale)
+	if _log:
+		_log.info(_LOG_TAG, "已应用语言设置: %s" % locale)
 
 
 ## 获取当前保存的语言设置。

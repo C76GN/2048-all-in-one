@@ -3,7 +3,7 @@
 ## 负责处理主菜单中的所有用户交互，
 ## 并通过 SceneRouterSystem 执行场景切换或退出游戏。
 class_name MainMenu
-extends GFUIController
+extends "res://scripts/ui/base/game_ui_controller.gd"
 
 
 # --- 导出变量 ---
@@ -71,7 +71,7 @@ func _on_quit_button_pressed() -> void:
 
 func _goto_scene(scene_path: String, property_name: String) -> void:
 	if scene_path.is_empty():
-		push_error("MainMenu: 场景路径 %s 未设置。" % property_name)
+		push_error("[MainMenu] 场景路径 %s 未设置。" % property_name)
 		return
 
 	var router := get_system(SceneRouterSystem) as SceneRouterSystem

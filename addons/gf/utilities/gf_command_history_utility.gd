@@ -292,7 +292,7 @@ func _serialize_stack(stack: Array[GFUndoableCommand]) -> Array[Dictionary]:
 		if cmd.has_method("serialize"):
 			arr.append(cmd.serialize())
 		else:
-			arr.append({ "snapshot": cmd.get_snapshot() })
+			arr.append({"snapshot": cmd.get_snapshot()})
 
 	return arr
 

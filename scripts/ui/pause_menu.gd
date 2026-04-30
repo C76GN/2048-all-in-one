@@ -2,7 +2,7 @@
 ##
 ## 负责处理暂停菜单的显示/隐藏，以及响应各个按钮的点击事件。
 ## 它通过 GF 事件系统通知系统层执行继续、重启等操作。
-extends GFUIController
+extends "res://scripts/ui/base/game_ui_controller.gd"
 
 
 # --- 常量 ---

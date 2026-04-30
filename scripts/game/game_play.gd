@@ -14,10 +14,7 @@ const PAUSE_MENU_SCENE: String = "res://scenes/ui/pause_menu.tscn"
 ## 游戏结束菜单场景路径。
 const GAME_OVER_MENU_SCENE: String = "res://scenes/ui/game_over_menu.tscn"
 
-
-# --- 公共变量 ---
-
-## 标记游戏状态是否已被测试工具修改。
+const _LOG_TAG: String = "GamePlay"
 
 
 # --- 私有变量 ---
@@ -50,8 +47,10 @@ var _is_cleaned_up: bool = false
 @onready var _page_title: Label = %PageTitle
 @onready var _hud_message_timer: Timer = %HUDMessageTimer
 @onready var replay_controls_container: VBoxContainer = %ReplayControlsContainer
+@onready var replay_progress_label: Label = %ReplayProgressLabel
 @onready var replay_prev_step_button: Button = %ReplayPrevStepButton
 @onready var replay_next_step_button: Button = %ReplayNextStepButton
+@onready var replay_continue_button: Button = %ReplayContinueButton
 @onready var replay_back_button: Button = %ReplayBackButton
 
 
@@ -101,6 +100,8 @@ func _update_static_ui_text() -> void:
 		replay_prev_step_button.text = tr("BTN_REPLAY_PREV")
 	if is_instance_valid(replay_next_step_button):
 		replay_next_step_button.text = tr("BTN_REPLAY_NEXT")
+	if is_instance_valid(replay_continue_button):
+		replay_continue_button.text = tr("BTN_REPLAY_CONTINUE")
 	if is_instance_valid(replay_back_button):
 		replay_back_button.text = tr("BTN_REPLAY_BACK")
 
@@ -127,6 +128,7 @@ func _cleanup_listeners() -> void:
 	unregister_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 	unregister_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
 	unregister_simple_event(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
+	unregister_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
 	unregister_event(HudMessagePayload, _on_show_hud_message_event)
 
 	if is_instance_valid(_signal_utility):
@@ -138,7 +140,7 @@ func _cleanup_listeners() -> void:
 		_test_utility.clear_context()
 	
 	if _log:
-		_log.info("GamePlay", "_cleanup_listeners: cleaned up all GF listeners and signal connections")
+		_log.debug(_LOG_TAG, "已清理 GF 事件监听和原生信号连接。")
 
 
 func _clear_action_queues() -> void:
@@ -166,8 +168,13 @@ func _disconnect_native_signals() -> void:
 		_disconnect_native_signal(replay_prev_step_button.pressed, _replay_system.step_backward)
 	if is_instance_valid(replay_next_step_button) and is_instance_valid(_replay_system):
 		_disconnect_native_signal(replay_next_step_button.pressed, _replay_system.step_forward)
+	if is_instance_valid(replay_continue_button) and is_instance_valid(_replay_system):
+		_disconnect_native_signal(replay_continue_button.pressed, _replay_system.continue_from_current_step)
 	if is_instance_valid(replay_back_button):
 		_disconnect_native_signal(replay_back_button.pressed, _on_replay_back_pressed)
+	if is_instance_valid(_replay_system):
+		_disconnect_native_signal(_replay_system.playback_progress_changed, _on_replay_progress_changed)
+		_disconnect_native_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
 	if is_instance_valid(_hud_message_timer):
 		_disconnect_native_signal(_hud_message_timer.timeout, _on_hud_message_timer_timeout)
 
@@ -186,12 +193,17 @@ func _connect_signals() -> void:
 			_connect_native_signal(replay_prev_step_button.pressed, _replay_system.step_backward)
 		if is_instance_valid(replay_next_step_button):
 			_connect_native_signal(replay_next_step_button.pressed, _replay_system.step_forward)
+		if is_instance_valid(replay_continue_button):
+			_connect_native_signal(replay_continue_button.pressed, _replay_system.continue_from_current_step)
+		_connect_native_signal(_replay_system.playback_progress_changed, _on_replay_progress_changed)
+		_connect_native_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
 	if is_instance_valid(replay_back_button):
 		_connect_native_signal(replay_back_button.pressed, _on_replay_back_pressed)
 
 	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 	register_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
 	register_simple_event(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
+	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
 	register_event(HudMessagePayload, _on_show_hud_message_event)
 
 	_connect_native_signal(_hud_message_timer.timeout, _on_hud_message_timer_timeout)
@@ -199,6 +211,9 @@ func _connect_signals() -> void:
 
 ## 根据当前是普通模式还是回放模式，配置UI元素的可见性。
 func _configure_ui_for_mode() -> void:
+	if not is_instance_valid(_current_game_model):
+		return
+
 	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
 	replay_controls_container.visible = is_replay
 
@@ -209,12 +224,24 @@ func _configure_ui_for_mode() -> void:
 
 ## 聚合所有需要显示的数据，并更新到 Model。
 func _update_replay_ui() -> void:
-	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
-	if not is_replay or not is_instance_valid(_replay_system):
+	if not is_instance_valid(_current_game_model):
 		return
-		
-	replay_prev_step_button.disabled = (_replay_system.get_current_step() <= 0)
-	replay_next_step_button.disabled = (_replay_system.get_current_step() >= _replay_system.get_total_steps())
+
+	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
+	if not is_instance_valid(_replay_system):
+		return
+
+	var current_step := _replay_system.get_current_step()
+	var total_steps := _replay_system.get_total_steps()
+	if is_instance_valid(replay_progress_label):
+		replay_progress_label.text = tr("LABEL_REPLAY_PROGRESS") % [current_step, total_steps]
+
+	if is_instance_valid(replay_prev_step_button):
+		replay_prev_step_button.disabled = not is_replay or current_step <= 0
+	if is_instance_valid(replay_next_step_button):
+		replay_next_step_button.disabled = not is_replay or current_step >= total_steps
+	if is_instance_valid(replay_continue_button):
+		replay_continue_button.disabled = not is_replay or not _replay_system.can_continue_from_current_step()
 
 
 ## 在HUD上显示一条临时消息。
@@ -236,6 +263,24 @@ func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
 		if console and test_panel.visible:
 			console.execute_command("clear")
 			send_event(HudMessagePayload.new("Test panel toggled.", 2.0))
+
+
+func _setup_test_tools_for_current_board() -> void:
+	if (
+		not Boot.are_dev_tools_enabled()
+		or not is_instance_valid(_test_utility)
+		or not is_instance_valid(_current_game_model)
+		or _current_game_model.is_replay_mode.get_value()
+	):
+		return
+
+	var grid_model := get_model(GridModel) as GridModel
+	if is_instance_valid(grid_model):
+		_test_utility.setup_test_tools(test_panel, game_board)
+		_test_utility.initialize_panel(
+			grid_model.interaction_rule,
+			_current_game_model.current_grid_size.get_value()
+		)
 
 
 # --- 信号处理函数 ---
@@ -263,13 +308,11 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 	_configure_ui_for_mode()
 	
 	var mode_config := _current_game_model.mode_config.get_value() as GameModeConfig
-	var grid_size := _current_game_model.current_grid_size.get_value() as int
-	
 	if is_instance_valid(mode_config.board_theme):
 		background_color_rect.color = mode_config.board_theme.game_background_color
-		game_board.setup(grid_size, data.interaction_rule, data.movement_rule, data.game_over_rule, mode_config.color_schemes, mode_config.board_theme)
+		game_board.setup(mode_config.color_schemes, mode_config.board_theme)
 	else:
-		game_board.setup(grid_size, data.interaction_rule, data.movement_rule, data.game_over_rule, mode_config.color_schemes, null)
+		game_board.setup(mode_config.color_schemes, null)
 
 	_connect_signals()
 
@@ -281,22 +324,19 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 	else:
 		if is_instance_valid(_game_flow_system):
 			if _log:
-				_log.info("GamePlay", "Triggering initial rules...")
+				_log.debug(_LOG_TAG, "触发初始棋盘规则。")
 			_game_flow_system.trigger_initial_rules()
 
 	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
-	if not is_replay and Boot.are_dev_tools_enabled() and is_instance_valid(_test_utility):
-		var grid_model := get_model(GridModel) as GridModel
-		if is_instance_valid(grid_model):
-			_test_utility.setup_test_tools(test_panel, game_board)
-			_test_utility.initialize_panel(grid_model.interaction_rule, _current_game_model.current_grid_size.get_value())
+	if not is_replay:
+		_setup_test_tools_for_current_board()
 	
 	if not is_instance_valid(_loaded_bookmark_data) and _command_history:
 		var init_cmd := MoveCommand.new(Vector2i.ZERO)
 		init_cmd.mark_as_baseline()
 		var game_state_system := get_system(GameStateSystem) as GameStateSystem
 		if is_instance_valid(game_state_system):
-			init_cmd.set_snapshot(game_state_system.get_full_game_state(grid_size))
+			init_cmd.set_snapshot(game_state_system.get_full_game_state(data.current_grid_size))
 		_command_history.record(init_cmd)
 
 
@@ -332,6 +372,19 @@ func _on_show_hud_message_event(payload: HudMessagePayload) -> void:
 
 func _on_replay_back_pressed() -> void:
 	send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
+
+
+func _on_replay_progress_changed(_current_step: int, _total_steps: int) -> void:
+	_update_replay_ui()
+
+
+func _on_replay_status_changed(_is_active: bool) -> void:
+	_configure_ui_for_mode()
+
+
+func _on_replay_continued_as_game(_payload: Variant = null) -> void:
+	_setup_test_tools_for_current_board()
+	_configure_ui_for_mode()
 
 
 func _on_hud_message_timer_timeout() -> void:

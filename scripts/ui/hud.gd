@@ -8,7 +8,9 @@ extends GFController
 
 # --- 常量 ---
 
+## 动态流程标签列表场景。
 const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://scenes/ui/flow_label_list.tscn")
+const _GET_HUD_STATS_QUERY_SCRIPT = preload("res://scripts/queries/get_hud_stats_query.gd")
 
 
 # --- 私有变量 ---
@@ -18,6 +20,7 @@ const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://scenes/ui/flow_label_l
 var _stat_labels: Dictionary = {}
 
 var _is_dirty: bool = false
+var _game_status_model: GameStatusModel
 
 
 # --- @onready 变量 (节点引用) ---
@@ -25,15 +28,9 @@ var _is_dirty: bool = false
 @onready var _stats_container: VBoxContainer = $StatsContainer
 @onready var _title_label: Label = $TitleLabel
 
-# 这些标签现在是可选的，如果场景中不存在，将通过动态系统显示
-var score_value_label: Label
-var move_count_value_label: Label
-var status_message_label: RichTextLabel
-
-
-# --- 私有变量 ---
-
-var _game_status_model: GameStatusModel
+var _score_value_label: Label
+var _move_count_value_label: Label
+var _status_message_label: RichTextLabel
 
 
 # --- Godot 生命周期方法 ---
@@ -41,26 +38,21 @@ var _game_status_model: GameStatusModel
 func _ready() -> void:
 	_game_status_model = get_model(GameStatusModel) as GameStatusModel
 	
-	# 尝试获取可选节点
-	score_value_label = get_node_or_null("%ScoreValueLabel") as Label
-	move_count_value_label = get_node_or_null("%MoveCountValueLabel") as Label
+	_score_value_label = get_node_or_null("%ScoreValueLabel") as Label
+	_move_count_value_label = get_node_or_null("%MoveCountValueLabel") as Label
 	var status_msg_node = get_node_or_null("%StatusMessageLabel")
 	if status_msg_node is RichTextLabel:
-		status_message_label = status_msg_node
+		_status_message_label = status_msg_node
 	
 	if is_instance_valid(_game_status_model):
-			# 1. 核心属性绑定
 		_game_status_model.score.bind_to(self, _on_score_changed)
 		_game_status_model.move_count.bind_to(self, _on_move_count_changed)
 		_game_status_model.high_score.bind_to(self, _on_high_score_changed)
 		_game_status_model.highest_tile.bind_to(self, _on_highest_tile_changed)
 		_game_status_model.monsters_killed.bind_to(self, _on_monsters_killed_changed)
 		_game_status_model.status_message.bind_to(self, _on_status_message_changed)
-		
-		# 2. 额外统计数据（如果外部系统有推送）
 		_game_status_model.extra_stats.bind_to(self, _on_extra_stats_changed)
 		
-		# 初始同步
 		_refresh_all()
 		
 	register_simple_event(EventNames.HUD_UPDATE_REQUESTED, _on_hud_update_requested)
@@ -88,9 +80,9 @@ func _on_highest_tile_changed(_old: int, _new_value: int) -> void:
 
 
 func _on_status_message_changed(_old: String, new_value: String) -> void:
-	if is_instance_valid(status_message_label):
-		status_message_label.text = new_value
-		status_message_label.visible = not new_value.is_empty()
+	if is_instance_valid(_status_message_label):
+		_status_message_label.text = new_value
+		_status_message_label.visible = not new_value.is_empty()
 	else:
 		_mark_dirty()
 
@@ -101,82 +93,51 @@ func _refresh_all() -> void:
 		return
 
 	# 1. 更新显式标签
-	if is_instance_valid(score_value_label):
-		score_value_label.text = str(_game_status_model.score.get_value())
+	if is_instance_valid(_score_value_label):
+		_score_value_label.text = str(_game_status_model.score.get_value())
 	
-	if is_instance_valid(move_count_value_label):
-		move_count_value_label.text = str(_game_status_model.move_count.get_value())
+	if is_instance_valid(_move_count_value_label):
+		_move_count_value_label.text = str(_game_status_model.move_count.get_value())
 	
-	if is_instance_valid(status_message_label):
+	if is_instance_valid(_status_message_label):
 		var msg: String = _game_status_model.status_message.get_value()
-		status_message_label.text = msg
-		status_message_label.visible = not msg.is_empty()
+		_status_message_label.text = msg
+		_status_message_label.visible = not msg.is_empty()
 
-	# 2. 组装动态统计字典 (local_dict)
 	var local_dict: Dictionary = {}
 	
-	# 加入基本属性
-	if not is_instance_valid(score_value_label):
+	if not is_instance_valid(_score_value_label):
 		var score_text := tr("LABEL_SCORE")
-		if score_text == "LABEL_SCORE" or not ":" in score_text: score_text = tr("SCORE_LABEL")
-		local_dict[&"score"] = (score_text % _game_status_model.score.get_value()) if ("%" in score_text) else (score_text + " [b]" + str(_game_status_model.score.get_value()) + "[/b]")
+		if score_text == "LABEL_SCORE" or not ":" in score_text:
+			score_text = tr("SCORE_LABEL")
+		local_dict[&"score"] = (
+			score_text % _game_status_model.score.get_value()
+			if "%" in score_text
+			else score_text + " [b]" + str(_game_status_model.score.get_value()) + "[/b]"
+		)
 	
-	if not is_instance_valid(move_count_value_label):
+	if not is_instance_valid(_move_count_value_label):
 		var move_text := tr("LABEL_MOVES")
-		if move_text == "LABEL_MOVES" or not ":" in move_text: move_text = tr("MOVE_COUNT_LABEL")
-		local_dict[&"move_count"] = (move_text % _game_status_model.move_count.get_value()) if ("%" in move_text) else (move_text + " [b]" + str(_game_status_model.move_count.get_value()) + "[/b]")
+		if move_text == "LABEL_MOVES" or not ":" in move_text:
+			move_text = tr("MOVE_COUNT_LABEL")
+		local_dict[&"move_count"] = (
+			move_text % _game_status_model.move_count.get_value()
+			if "%" in move_text
+			else move_text + " [b]" + str(_game_status_model.move_count.get_value()) + "[/b]"
+		)
 
 	local_dict[&"high_score"] = tr("HIGH_SCORE_LABEL") % _game_status_model.high_score.get_value()
 	local_dict[&"highest_tile"] = tr("HIGHEST_TILE_LABEL") % _game_status_model.highest_tile.get_value()
 	
-	# 如果没有专用标签，将消息放入列表
-	if not is_instance_valid(status_message_label):
+	if not is_instance_valid(_status_message_label):
 		var msg: String = _game_status_model.status_message.get_value()
 		if not msg.is_empty():
 			local_dict[&"status_message"] = "[color=yellow]" + msg + "[/color]"
 
-	# 加入规则特定的动态数据 (替换原本 GamePlay 中的逻辑)
-	var grid_model := get_model(GridModel) as GridModel
-	var rule_manager := get_system(RuleSystem) as RuleSystem
-	
-	if is_instance_valid(grid_model):
-		var rule_context := RuleContext.new()
-		rule_context.grid_model = grid_model
-		var interaction_rule := grid_model.interaction_rule
-		
-		if is_instance_valid(interaction_rule):
-			var rule_stats: Dictionary = {}
-			var context_dict: Dictionary = {
-				&"max_player_value": _game_status_model.highest_tile.get_value(),
-				&"monsters_killed": _game_status_model.monsters_killed.get_value()
-			}
-			# 这里为了保持兼容，还是需要提供 player_values_set
-			# 注意：由于这是 UI 层，这里进行遍历可能性能略低，但 HUD 刷新频率低，通常无碍。
-			var player_values: Array[int] = grid_model.get_all_player_tile_values()
-			var player_values_set: Dictionary = {}
-			for v in player_values:
-				player_values_set[v] = true
-			context_dict[&"player_values_set"] = player_values_set
-			
-			interaction_rule.get_hud_stats(context_dict, rule_stats)
-			local_dict.merge(rule_stats)
+	var query_result: Variant = send_query(_GET_HUD_STATS_QUERY_SCRIPT.new())
+	if query_result is Dictionary:
+		local_dict.merge(query_result)
 
-		if is_instance_valid(rule_manager):
-			for rule in rule_manager.get_all_spawn_rules():
-				var rule_stats: Dictionary = {}
-				rule.get_hud_stats(rule_context, rule_stats)
-				local_dict.merge(rule_stats)
-
-	# 种子信息
-	var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
-	if is_instance_valid(seed_util):
-		local_dict[&"seed_info"] = tr("SEED_INFO_LABEL") % seed_util.get_global_seed()
-
-	# 加入外部推入的 extra_stats
-	var external_extra: Dictionary = _game_status_model.extra_stats.get_value()
-	local_dict.merge(external_extra)
-
-	# 3. 更新动态 UI 节点
 	_update_dynamic_list(local_dict)
 
 
@@ -203,9 +164,11 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 	for key in keys_in_order:
 		var data_to_display: Variant = dict[key]
 
-		if data_to_display == null or \
-		  (data_to_display is String and data_to_display.is_empty()) or \
-		  (data_to_display is Array and data_to_display.is_empty()):
+		if (
+			data_to_display == null
+			or (data_to_display is String and data_to_display.is_empty())
+			or (data_to_display is Array and data_to_display.is_empty())
+		):
 			if _stat_labels.has(key):
 				_stat_labels[key].visible = false
 			continue
@@ -215,8 +178,10 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 		
 		if _stat_labels.has(key):
 			var existing_node: Control = _stat_labels[key]
-			if (data_to_display is Array and not existing_node is FlowLabelList) or \
-			   (not data_to_display is Array and existing_node is FlowLabelList):
+			if (
+				(data_to_display is Array and not existing_node is FlowLabelList)
+				or (not data_to_display is Array and existing_node is FlowLabelList)
+			):
 				existing_node.queue_free()
 				needs_recreation = true
 		else:

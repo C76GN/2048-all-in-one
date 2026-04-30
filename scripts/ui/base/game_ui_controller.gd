@@ -1,13 +1,14 @@
-## GFUIController: UI 控制器的基类，为 UI 提供框架能力的接口。
+## GameUIController: 游戏 UI 控制器基类，为 Control 节点提供 GF 架构访问能力。
 ##
-## 继承自 Control，平移了 GFController 的架构访问与事件转发能力，
-## 并自动处理本地化翻译更新的模板逻辑。
-class_name GFUIController
+## 适用于菜单、弹窗等 Control 派生节点。它为 UI 层提供与 GFController 一致的
+## Model/System/Utility、Command/Query 与事件接口，并在退出场景树时自动清理事件监听。
+class_name GameUIController
 extends Control
 
 
 # --- 常量 ---
 
+## GFNodeContext 脚本类型，用于避免循环依赖。
 const GFNodeContextBase = preload("res://addons/gf/core/gf_node_context.gd")
 
 
@@ -135,7 +136,7 @@ func _find_nearest_context() -> GFNodeContextBase:
 	return null
 
 
-# --- 虚方法 (需子类覆写) ---
+# --- 虚方法 ---
 
 ## 更新 UI 文本，子类应在此实现本地化逻辑。
 func _update_ui_text() -> void:

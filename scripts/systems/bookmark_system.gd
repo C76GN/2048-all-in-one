@@ -36,7 +36,8 @@ func save_bookmark(bookmark_data: BookmarkData) -> void:
 func load_bookmarks() -> Array[BookmarkData]:
 	var bookmarks: Array[BookmarkData] = []
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
-	if not storage: return bookmarks
+	if not storage:
+		return bookmarks
 	
 	var dir := DirAccess.open(BOOKMARK_DIR)
 	if dir:

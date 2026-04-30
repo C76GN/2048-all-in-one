@@ -5,13 +5,22 @@
 class_name GameFlowSystem
 extends GFSystem
 
-# --- 缓存引用 ---
+
+# --- 常量 ---
+
+const _LOG_TAG: String = "GameFlowSystem"
+const _GAME_READY_STATE_SCRIPT = preload("res://scripts/states/game_ready_state.gd")
+const _GAME_PLAYING_STATE_SCRIPT = preload("res://scripts/states/game_playing_state.gd")
+const _GAME_OVER_STATE_SCRIPT = preload("res://scripts/states/game_over_state.gd")
+const _REPLAY_CONTINUE_DATA_SCRIPT = preload("res://scripts/events/replay_continue_data.gd")
+
+
+# --- 私有变量 ---
+
 var _grid_model: GridModel
 var _game_status_model: GameStatusModel
 var _rule_system: RuleSystem
 var _game_over_rule: GameOverRule
-
-# --- 私有变量 ---
 var _is_replay_mode: bool = false
 var _is_game_state_tainted: bool = false
 var _mode_config_path: String = ""
@@ -31,9 +40,9 @@ var _log: GFLogUtility
 ## 初始化内部状态机。
 func init() -> void:
 	_fsm = GFStateMachine.new(self)
-	_fsm.add_state(EventNames.STATE_READY, GFStateReady.new())
-	_fsm.add_state(EventNames.STATE_PLAYING, GFStatePlaying.new())
-	_fsm.add_state(EventNames.STATE_GAME_OVER, GFStateGameOver.new())
+	_fsm.add_state(EventNames.STATE_READY, _GAME_READY_STATE_SCRIPT.new())
+	_fsm.add_state(EventNames.STATE_PLAYING, _GAME_PLAYING_STATE_SCRIPT.new())
+	_fsm.add_state(EventNames.STATE_GAME_OVER, _GAME_OVER_STATE_SCRIPT.new())
 
 
 ## 处理初始化，绑定事件。
@@ -52,13 +61,13 @@ func ready() -> void:
 	register_simple_event(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
 	register_simple_event(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
 	register_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
-	
-	# --- UI 菜单请求事件监听 ---
 	register_simple_event(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
 	register_simple_event(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
 	register_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
+	register_simple_event(EventNames.REPLAY_CONTINUE_REQUESTED, _on_replay_continue_requested)
 
 
+## 释放事件监听、状态机和运行时缓存。
 func dispose() -> void:
 	unregister_event(MoveData, _on_move_made)
 	unregister_simple_event(EventNames.TURN_FINISHED, _on_turn_finished)
@@ -70,10 +79,10 @@ func dispose() -> void:
 	unregister_simple_event(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
 	unregister_simple_event(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
 	unregister_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
-	
 	unregister_simple_event(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
 	unregister_simple_event(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
 	unregister_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
+	unregister_simple_event(EventNames.REPLAY_CONTINUE_REQUESTED, _on_replay_continue_requested)
 
 	if _fsm != null:
 		_fsm.dispose()
@@ -93,6 +102,7 @@ func dispose() -> void:
 	_initial_seed_of_session = 0
 
 
+## 更新游戏流程状态机。
 func tick(delta: float) -> void:
 	if _fsm != null:
 		_fsm.update(delta)
@@ -150,16 +160,20 @@ func check_game_over() -> void:
 			_fsm.change_state(EventNames.STATE_GAME_OVER)
 			_handle_game_over()
 
+
 func _handle_game_over() -> void:
 	if _is_replay_mode:
 		return
 
 	var current_grid_size := _get_current_grid_size()
 	var save_system := get_system(SaveSystem) as SaveSystem
-	if save_system and not _is_game_state_tainted:
+	if is_instance_valid(save_system) and is_instance_valid(_game_status_model) and not _is_game_state_tainted:
 		var mode_id: String = _mode_config_path.get_file().get_basename()
 		save_system.set_high_score(mode_id, current_grid_size, _game_status_model.score.get_value())
 	
+	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_status_model):
+		return
+
 	var replay_data := ReplayData.new()
 	replay_data.timestamp = int(Time.get_unix_time_from_system())
 	replay_data.mode_config_path = _mode_config_path
@@ -176,6 +190,7 @@ func _handle_game_over() -> void:
 			replay_system.save_replay(replay_data)
 
 
+## 使用当前模式、尺寸和初始种子重新开始本局。
 func restart_game() -> void:
 	var router := get_system(SceneRouterSystem) as SceneRouterSystem
 	if not router:
@@ -196,7 +211,7 @@ func restart_game() -> void:
 	var grid_size := current_game_model.current_grid_size.get_value() as int
 	var initial_seed := current_game_model.initial_seed.get_value() as int
 	if _log:
-		_log.info("GameFlowSystem", "restart_game: initial_seed=%d, grid_size=%d" % [initial_seed, grid_size])
+		_log.debug(_LOG_TAG, "重新开始本局: initial_seed=%d, grid_size=%d" % [initial_seed, grid_size])
 
 	var app_config := get_model(AppConfigModel) as AppConfigModel
 	if app_config:
@@ -204,12 +219,12 @@ func restart_game() -> void:
 		app_config.selected_grid_size.set_value(grid_size)
 		app_config.selected_seed.set_value(initial_seed)
 		if _log:
-			_log.info("GameFlowSystem", "Set app_config.selected_seed=%d" % initial_seed)
+			_log.debug(_LOG_TAG, "已写回 AppConfigModel.selected_seed=%d" % initial_seed)
 
 	var seed_utility := get_utility(GFSeedUtility) as GFSeedUtility
 	if seed_utility:
 		if _log:
-			_log.info("GameFlowSystem", "Pre-setting global seed to %d" % initial_seed)
+			_log.debug(_LOG_TAG, "预设全局随机种子: %d" % initial_seed)
 		seed_utility.set_global_seed(initial_seed)
 
 	if is_instance_valid(tree.current_scene) and not tree.current_scene.scene_file_path.is_empty():
@@ -259,6 +274,14 @@ func _get_bookmark_comparison_state() -> Dictionary:
 	if command_history:
 		state[&"game_state_history"] = command_history.serialize_full_history()
 	return state
+
+
+func _are_game_states_equal(left: Dictionary, right: Dictionary) -> bool:
+	var game_state_system := get_system(GameStateSystem) as GameStateSystem
+	if not is_instance_valid(game_state_system):
+		return left == right
+
+	return game_state_system.are_states_equal(left, right)
 
 
 func _rebuild_player_actions_from_history() -> void:
@@ -330,7 +353,7 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 
 	var current_state_for_comparison: Dictionary = _get_bookmark_comparison_state()
 
-	if JSON.stringify(current_state_for_comparison) == JSON.stringify(_last_saved_bookmark_state):
+	if _are_game_states_equal(current_state_for_comparison, _last_saved_bookmark_state):
 		send_event(HudMessagePayload.new(tr("SNAPSHOT_NO_CHANGE"), 3.0))
 		return
 
@@ -361,7 +384,7 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	var bookmark_system := get_system(BookmarkSystem) as BookmarkSystem
 	if bookmark_system:
 		bookmark_system.save_bookmark(new_bookmark)
-	_last_saved_bookmark_state = current_state_for_comparison
+	_last_saved_bookmark_state = current_state_for_comparison.duplicate(true)
 	send_event(HudMessagePayload.new(tr("SNAPSHOT_SAVED_SUCCESS"), 3.0))
 	
 func _on_ui_pause_requested(_payload: Variant = null) -> void:
@@ -397,11 +420,39 @@ func _on_return_to_main_menu_from_game(_payload: Variant = null) -> void:
 	if router:
 		router.return_to_main_menu()
 
+
+func _on_replay_continue_requested(payload: Variant = null) -> void:
+	if not _is_replay_mode:
+		return
+
+	var continued_actions: Array[Vector2i] = []
+	if payload != null and payload is Object and payload.get_script() == _REPLAY_CONTINUE_DATA_SCRIPT:
+		var actions: Variant = payload.get(&"actions")
+		if actions is Array:
+			for action in actions:
+				if action is Vector2i:
+					continued_actions.append(action)
+
+	_player_actions = continued_actions
+	_is_replay_mode = false
+	_is_game_state_tainted = false
+	_last_saved_bookmark_state = {}
+
+	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
+	if is_instance_valid(current_game_model):
+		current_game_model.is_replay_mode.set_value(false)
+
+	sync_highest_tile_from_grid()
+	send_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, payload)
+	send_event(HudMessagePayload.new(tr("REPLAY_CONTINUE_SUCCESS"), 3.0))
+
+
 func _on_move_made(move_data: MoveData) -> void:
 	if is_instance_valid(move_data):
 		if not _is_replay_mode and move_data.direction != Vector2i.ZERO:
 			_player_actions.append(move_data.direction)
-		_game_status_model.increment_move_count()
+		if is_instance_valid(_game_status_model):
+			_game_status_model.increment_move_count()
 		sync_highest_tile_from_grid()
 
 
@@ -410,7 +461,8 @@ func _on_monster_killed(payload: Variant = null) -> void:
 	if payload is int:
 		kill_count = max(int(payload), 0)
 
-	_game_status_model.increment_monsters_killed(kill_count)
+	if is_instance_valid(_game_status_model):
+		_game_status_model.increment_monsters_killed(kill_count)
 
 
 func _on_turn_finished(_payload: Variant = null) -> void:
@@ -418,4 +470,5 @@ func _on_turn_finished(_payload: Variant = null) -> void:
 	check_game_over()
 
 func _on_score_updated(amount: int) -> void:
-	_game_status_model.add_score(amount)
+	if is_instance_valid(_game_status_model):
+		_game_status_model.add_score(amount)

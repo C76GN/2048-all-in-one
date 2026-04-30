@@ -14,6 +14,7 @@ var _is_listening: bool = false
 
 # --- Godot 生命周期方法 ---
 
+## 释放测试工具持有的场景引用与事件监听。
 func dispose() -> void:
 	if _is_listening:
 		unregister_event(TestSpawnPayload, _on_test_panel_spawn_requested_event)
@@ -153,6 +154,7 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
 	var status_model := get_model(GameStatusModel) as GameStatusModel
 	var command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var rule_system := get_system(RuleSystem) as RuleSystem
 	var game_board: GameBoard = _game_board
 
 	if not grid_model or not current_game_model or not is_instance_valid(game_board):
@@ -162,8 +164,15 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	if not is_instance_valid(mode_config):
 		return
 
+	grid_model.initialize(new_size, grid_model.interaction_rule, grid_model.movement_rule)
+	if is_instance_valid(rule_system):
+		var spawn_rules: Array[SpawnRule] = []
+		for rule_resource in mode_config.spawn_rules:
+			spawn_rules.append(rule_resource.duplicate() as SpawnRule)
+		rule_system.register_rules(spawn_rules)
+
 	current_game_model.current_grid_size.set_value(new_size)
-	game_board.setup(new_size, grid_model.interaction_rule, grid_model.movement_rule, null, mode_config.color_schemes, mode_config.board_theme)
+	game_board.setup(mode_config.color_schemes, mode_config.board_theme)
 
 	if is_instance_valid(status_model):
 		status_model.score.set_value(0)

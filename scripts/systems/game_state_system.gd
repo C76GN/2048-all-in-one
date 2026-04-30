@@ -49,6 +49,11 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 	}
 
 
+## 对比两个完整游戏状态是否等价。
+func are_states_equal(left: Dictionary, right: Dictionary) -> bool:
+	return _normalize_variant(left) == _normalize_variant(right)
+
+
 ## 根据快照恢复模型和系统的状态。
 ## @remark 该方法只恢复逻辑状态，表现层刷新由调用方决定。
 func restore_state(state_to_restore: Dictionary) -> void:
@@ -87,8 +92,57 @@ func restore_state(state_to_restore: Dictionary) -> void:
 		elif state_to_restore.has(&"rng_state"):
 			seed_util.set_state(state_to_restore[&"rng_state"])
 
-	if is_instance_valid(rule_sys) and state_to_restore.has(&"rules_states"):
-		var rules_states: Array = state_to_restore[&"rules_states"]
+	if (
+		is_instance_valid(rule_sys)
+		and (state_to_restore.has(&"rules_states") or state_to_restore.has("rules_states"))
+	):
+		var rules_states: Array = state_to_restore.get(&"rules_states", state_to_restore.get("rules_states", []))
 		var all_rules: Array[SpawnRule] = rule_sys.get_all_spawn_rules()
 		for i in range(min(all_rules.size(), rules_states.size())):
 			all_rules[i].set_state(rules_states[i])
+
+
+# --- 私有/辅助方法 ---
+
+func _normalize_variant(value: Variant) -> Variant:
+	match typeof(value):
+		TYPE_DICTIONARY:
+			return _normalize_dictionary(value)
+		TYPE_ARRAY:
+			return _normalize_array(value)
+		TYPE_STRING_NAME:
+			return [&"StringName", String(value)]
+		TYPE_VECTOR2:
+			return [&"Vector2", value.x, value.y]
+		TYPE_VECTOR2I:
+			return [&"Vector2i", value.x, value.y]
+		_:
+			return value
+
+
+func _normalize_dictionary(dictionary: Dictionary) -> Array:
+	var keys: Array = dictionary.keys()
+	keys.sort_custom(func(a: Variant, b: Variant) -> bool:
+		return _variant_sort_key(a) < _variant_sort_key(b)
+	)
+
+	var normalized: Array = []
+	for key in keys:
+		normalized.append([
+			_normalize_variant(key),
+			_normalize_variant(dictionary[key]),
+		])
+
+	return normalized
+
+
+func _normalize_array(array: Array) -> Array:
+	var normalized: Array = []
+	for item in array:
+		normalized.append(_normalize_variant(item))
+
+	return normalized
+
+
+func _variant_sort_key(value: Variant) -> String:
+	return "%d:%s" % [typeof(value), str(value)]

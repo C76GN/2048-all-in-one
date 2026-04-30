@@ -20,6 +20,7 @@ UNDO_FAIL_MSG,[color=yellow]无法撤回: 已在最初状态。[/color],[color=y
 SNAPSHOT_TAINT_WARN,[color=orange]警告: 正在保存一个被调试工具修改过的状态！[/color],[color=orange]Warning: Saving a tainted state![/color]
 SNAPSHOT_NO_CHANGE,[color=yellow]游戏状态未变，无需重复保存。[/color],[color=yellow]State unchanged. Save skipped.[/color]
 SNAPSHOT_SAVED_SUCCESS,[color=green]书签已保存！[/color],[color=green]Bookmark Saved![/color]
+REPLAY_CONTINUE_SUCCESS,[color=green]已从当前回放进度继续游戏。[/color],[color=green]Continued from the current replay step.[/color]
 SIZE_LABEL,尺寸,Size
 SETTINGS_TITLE,设置,Settings
 LANGUAGE_LABEL,语言,Language
@@ -138,8 +139,10 @@ BTN_RETURN_MAIN,返回主菜单,Return to Main Menu
 TITLE_GAME_STATUS,游戏状态,Game Status
 BTN_REPLAY_PREV,< 上一步,< Prev
 BTN_REPLAY_NEXT,下一步 >,Next >
+BTN_REPLAY_CONTINUE,从此继续,Continue Here
 BTN_REPLAY_BACK,返回列表,Back to List
 LABEL_REPLAY_CONTROLS,回放控制,Replay Controls
+LABEL_REPLAY_PROGRESS,回放进度: %d / %d,Replay Step: %d / %d
 FORMAT_BATTLE_PROBABILITY,"  - %d (概率: %.1f%%)
 ","  - %d (Chance: %.1f%%)
 "

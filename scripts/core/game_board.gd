@@ -26,6 +26,8 @@ const BOARD_PADDING: int = 15
 ## 用于让旧动画回调识别节点是否已被复用。
 const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 
+const _LOG_TAG: String = "GameBoard"
+
 
 # --- 导出变量 ---
 
@@ -54,7 +56,7 @@ var _visual_map: Dictionary = {}
 var _is_initialized: bool = false
 
 var _log: GFLogUtility
-var pool: GFObjectPoolUtility
+var _pool: GFObjectPoolUtility
 
 ## 标记是否已完成清理。
 var _is_cleaned_up: bool = false
@@ -74,7 +76,7 @@ var _expansion_token: int = 0
 func _ready() -> void:
 	model = get_model(GridModel) as GridModel
 	_log = get_utility(GFLogUtility) as GFLogUtility
-	pool = get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
+	_pool = get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
 	
 	var parent_control := get_parent() as Control
 	if is_instance_valid(parent_control):
@@ -95,14 +97,13 @@ func _exit_tree() -> void:
 
 # --- 公共方法 ---
 
-## 设置并初始化棋盘。
-## @param p_grid_size: 棋盘尺寸。
-## @param p_interaction_rule: 交互规则实例。
-## @param p_movement_rule: 移动规则实例。
-## @param p_game_over_rule: 游戏结束规则。
+## 设置并同步棋盘视觉。
 ## @param p_color_schemes: 配色方案字典。
 ## @param p_board_theme: 棋盘主题。
-func setup(p_grid_size: int, p_interaction_rule: InteractionRule, p_movement_rule: MovementRule, _p_game_over_rule: GameOverRule, p_color_schemes: Dictionary, p_board_theme: BoardTheme) -> void:
+func setup(
+	p_color_schemes: Dictionary,
+	p_board_theme: BoardTheme
+) -> void:
 	# 清理上一局遗留的方块节点和映射，防止幽灵方块
 	var old_tile_count: int = 0
 	for child in board_container.get_children():
@@ -111,23 +112,26 @@ func setup(p_grid_size: int, p_interaction_rule: InteractionRule, p_movement_rul
 			_release_visual_tile(child as Tile)
 	
 	if _log:
-		_log.info("GameBoard", "setup() - Cleaned %d old tiles, _visual_map had %d entries" % [old_tile_count, _visual_map.size()])
+		_log.debug(
+			_LOG_TAG,
+			"初始化棋盘前已回收旧方块: tiles=%d, visual_map=%d" % [old_tile_count, _visual_map.size()]
+		)
 	
 	_visual_map.clear()
 	self.color_schemes = p_color_schemes
 	self.board_theme = p_board_theme
 
-	model.initialize(p_grid_size, p_interaction_rule, p_movement_rule)
-
+	# GridModel 的逻辑初始化由 GameInitSystem 完成，GameBoard 只同步视觉。
 	call_deferred(&"_update_board_layout")
 	_draw_board_cells()
 	
-	if is_instance_valid(pool):
-		var required_tile_count: int = model.grid_size * model.grid_size
-		var available_tile_count: int = pool.get_available_count(TileScene)
+	if is_instance_valid(_pool):
+		var grid_size: int = model.grid_size if is_instance_valid(model) else 0
+		var required_tile_count: int = grid_size * grid_size
+		var available_tile_count: int = _pool.get_available_count(TileScene)
 		var missing_tile_count: int = max(required_tile_count - available_tile_count, 0)
 		if missing_tile_count > 0:
-			pool.prewarm(TileScene, board_container, missing_tile_count)
+			_pool.prewarm(TileScene, board_container, missing_tile_count)
 
 		for child in board_container.get_children():
 			if child is Tile:
@@ -144,15 +148,12 @@ func clear_visual_tiles() -> void:
 	
 	_visual_map.clear()
 	if _log:
-		_log.info("GameBoard", "clear_visual_tiles: Visual tiles released and map cleared.")
+		_log.debug(_LOG_TAG, "已回收所有视觉方块并清空映射。")
 
 
 ## 供棋盘动画 Action 归还已离场的视觉方块，避免 Action 直接依赖对象池实现细节。
 func release_visual_tile(tile: Tile) -> void:
 	_release_visual_tile(tile)
-
-
-
 
 
 ## 获取当前棋盘上数值最大的玩家方块的值。
@@ -161,9 +162,6 @@ func get_max_player_value() -> int:
 	if not model:
 		return 0
 	return model.get_max_player_value()
-
-
-
 
 
 ## 游戏中扩建棋盘。
@@ -242,10 +240,6 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 		return
 
 	var grid_size: int = snapshot.get(&"grid_size", snapshot.get("grid_size", 4))
-	var interaction_rule: InteractionRule = model.interaction_rule
-	var movement_rule: MovementRule = model.movement_rule
-	model.initialize(grid_size, interaction_rule, movement_rule)
-
 	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
 	for tile_data_snapshot in tiles_data:
 		var pos: Vector2i = tile_data_snapshot.get(&"pos", tile_data_snapshot.get("pos", Vector2i.ZERO))
@@ -254,9 +248,11 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 
 		var value: int = tile_data_snapshot.get(&"value", tile_data_snapshot.get("value", 0))
 		var type: Tile.TileType = tile_data_snapshot.get(&"type", tile_data_snapshot.get("type", Tile.TileType.PLAYER))
+		var tile_data: GameTileData = _get_model_tile_data(pos)
+		if tile_data == null:
+			tile_data = GameTileData.new(value, type)
 
-		var new_tile: Tile = _create_visual_tile(value, type)
-		var tile_data := GameTileData.new(value, type)
+		var new_tile: Tile = _create_visual_tile(tile_data.value, tile_data.type)
 		_visual_map[tile_data] = new_tile
 		
 		var key := "%d,%d" % [pos.x, pos.y]
@@ -264,8 +260,6 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 		new_tile.position = _grid_to_pixel_center(start_grid_pos)
 		new_tile.scale = Vector2.ONE
 		new_tile.rotation_degrees = 0
-
-		model.place_tile(tile_data, pos)
 
 		if start_grid_pos != pos:
 			new_tile.animate_move(_grid_to_pixel_center(pos))
@@ -281,13 +275,13 @@ func _cleanup_listeners() -> void:
 	unregister_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
 	unregister_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, _on_board_live_expand_requested)
 	if _log:
-		_log.info("GameBoard", "_cleanup_listeners: cleaned up GF listeners")
+		_log.debug(_LOG_TAG, "已清理 GF 事件监听。")
 
 
 func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
 	var new_tile: Tile
-	if pool:
-		new_tile = pool.acquire(TileScene, board_container) as Tile
+	if _pool:
+		new_tile = _pool.acquire(TileScene, board_container) as Tile
 		new_tile.visible = true
 	else:
 		new_tile = TileScene.instantiate() as Tile
@@ -306,8 +300,8 @@ func _release_visual_tile(tile: Tile) -> void:
 
 	tile.reset_animation_state()
 	tile.set_meta(RELEASE_TOKEN_META, 0)
-	if pool:
-		pool.release(tile, TileScene)
+	if _pool:
+		_pool.release(tile, TileScene)
 		tile.visible = false
 	else:
 		tile.queue_free()
@@ -340,10 +334,11 @@ func _release_visual_tile_if_valid(tile: Tile, release_token: RefCounted) -> voi
 func _build_reverse_start_tiles_map(snapshot: Dictionary, reverse_target_map: Dictionary) -> Dictionary:
 	var reverse_start_tiles: Dictionary = {}
 	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
+	var snapshot_grid_size: int = snapshot.get(&"grid_size", snapshot.get("grid_size", model.grid_size if model else 0))
 
 	for tile_data_snapshot in tiles_data:
 		var pos: Vector2i = tile_data_snapshot.get(&"pos", tile_data_snapshot.get("pos", Vector2i.ZERO))
-		if not _is_grid_pos_in_bounds(pos, model.grid_size if model else 0):
+		if not _is_grid_pos_in_bounds(pos, snapshot_grid_size):
 			continue
 
 		var value: int = tile_data_snapshot.get(&"value", tile_data_snapshot.get("value", 0))
@@ -381,6 +376,21 @@ func _should_animate_undo_despawn(tile: Tile, reverse_start_tiles: Dictionary) -
 	)
 
 
+func _get_model_tile_data(grid_pos: Vector2i) -> GameTileData:
+	if not is_instance_valid(model):
+		return null
+	if not _is_grid_pos_in_bounds(grid_pos, model.grid_size):
+		return null
+	if grid_pos.x >= model.grid.size():
+		return null
+
+	var column: Array = model.grid[grid_pos.x]
+	if grid_pos.y >= column.size():
+		return null
+
+	return column[grid_pos.y] as GameTileData
+
+
 func _get_tile_colors(value: int, type: Tile.TileType) -> Dictionary:
 	var bg_color := Color.WHITE
 	var font_color := Color.BLACK
@@ -403,9 +413,6 @@ func _get_tile_colors(value: int, type: Tile.TileType) -> Dictionary:
 			font_color = current_style.font_color
 			
 	return {"bg": bg_color, "font": font_color}
-
-
-
 
 
 ## 更新棋盘的整体布局以适应其容器大小。
@@ -442,7 +449,8 @@ func _draw_board_cells() -> void:
 
 	# 确保有一个有效的格子场景
 	if not is_instance_valid(grid_cell_scene):
-		if _log: _log.error("GameBoard", "未配置 grid_cell_scene！")
+		if _log:
+			_log.error(_LOG_TAG, "未配置 grid_cell_scene。")
 		return
 
 	for x in model.grid_size:
@@ -472,7 +480,8 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 	_expansion_token += 1
 	var expansion_token: int = _expansion_token
 	var final_layout: Dictionary = _calculate_layout_params(new_size)
-	if final_layout.is_empty(): return
+	if final_layout.is_empty():
+		return
 	var main_tween := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
 	main_tween.tween_property(board_background, "position", final_layout.offset, 0.3)
 	main_tween.tween_property(board_background, "size", final_layout.scaled_size, 0.3)
@@ -491,7 +500,8 @@ func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) ->
 		if child is Control and not child is Tile:
 			child.queue_free()
 
-	if not is_instance_valid(grid_cell_scene): return
+	if not is_instance_valid(grid_cell_scene):
+		return
 
 	var new_cells_tween := create_tween().set_parallel(true)
 
@@ -568,11 +578,13 @@ func _calculate_layout_params(p_size: int) -> Dictionary:
 
 ## 接收撤回动画请求，播放平滑动画。
 func _on_board_undo_animation_requested(payload: Array) -> void:
-	if payload.size() < 2: return
+	if payload.size() < 2:
+		return
 	var snapshot: Dictionary = payload[0]
 	var reverse_map: Dictionary = payload[1]
 	
-	if _log: _log.info("GameBoard", "_on_board_undo_animation_requested: starting reverse animation.")
+	if _log:
+		_log.debug(_LOG_TAG, "收到撤回动画请求。")
 	
 	var undo_action := BoardUndoAnimationAction.new(snapshot, reverse_map, self)
 	var action_sys := get_system(GFActionQueueSystem) as GFActionQueueSystem
@@ -585,7 +597,8 @@ func _on_board_undo_animation_requested(payload: Array) -> void:
 func _on_board_animation_requested(instructions: Array) -> void:
 	var visual_instructions: Array = []
 	var needs_visual_resync: bool = false
-	if _log: _log.info("GameBoard", "_on_board_animation_requested: %d instructions, _visual_map.size=%d" % [instructions.size(), _visual_map.size()])
+	if _log:
+		_log.debug(_LOG_TAG, "收到棋盘动画请求: instructions=%d, visual_map=%d" % [instructions.size(), _visual_map.size()])
 	
 	for instr in instructions:
 		var visual_instr: Dictionary = instr.duplicate()
@@ -664,7 +677,8 @@ func _on_board_animation_requested(instructions: Array) -> void:
 		visual_instructions.append(visual_instr)
 
 	if needs_visual_resync and model:
-		if _log: _log.debug("GameBoard", "Visual map missed an animation target; resyncing from model snapshot.")
+		if _log:
+			_log.debug(_LOG_TAG, "视觉映射缺失动画目标，使用模型快照重同步。")
 		call_deferred(&"restore_from_snapshot", model.get_snapshot())
 
 	if visual_instructions.is_empty():

@@ -52,9 +52,11 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 		has_moved = true
 	else:
 		for idx in range(result_line.size()):
-			if (result_line[idx] == null and line[idx] != null) or \
-			(result_line[idx] != null and line[idx] == null) or \
-			(result_line[idx] != null and line[idx] != null and result_line[idx] != line[idx]):
+			if (
+				(result_line[idx] == null and line[idx] != null)
+				or (result_line[idx] != null and line[idx] == null)
+				or (result_line[idx] != null and line[idx] != null and result_line[idx] != line[idx])
+			):
 				has_moved = true
 				break
 

@@ -104,6 +104,12 @@ const REPLAY_NEXT_STEP: StringName = &"replay_next_step"
 ## 请求回放后退一步。
 const REPLAY_PREV_STEP: StringName = &"replay_prev_step"
 
+## 请求从当前回放步数恢复为普通对局继续游玩。
+const REPLAY_CONTINUE_REQUESTED: StringName = &"replay_continue_requested"
+
+## 当前回放已切换为可继续游玩的普通对局。
+const REPLAY_CONTINUED_AS_GAME: StringName = &"replay_continued_as_game"
+
 
 # --- HUD ---
 
