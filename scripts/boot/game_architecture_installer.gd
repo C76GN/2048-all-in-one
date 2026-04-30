@@ -6,6 +6,9 @@ extends GFInstaller
 # --- Constants ---
 
 const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
+const _COMMAND_HISTORY_LIMIT: int = 1024
+const _AUDIO_BUS_MASTER: String = "Master"
+const _GAME_SETTINGS_UTILITY_SCRIPT = preload("res://scripts/utilities/game_settings_utility.gd")
 
 
 # --- Public Methods ---
@@ -19,12 +22,33 @@ func install(architecture: GFArchitecture) -> void:
 # --- Private Methods ---
 
 func _register_utilities(architecture: GFArchitecture) -> void:
-	architecture.register_utility(GFStorageUtility, GFStorageUtility.new())
+	var storage := GFStorageUtility.new()
+	storage.allow_absolute_paths = false
+	storage.create_directories_for_nested_paths = true
+	storage.include_storage_metadata = true
+	storage.use_integrity_checksum = true
+	storage.save_version = 1
+	architecture.register_utility(GFStorageUtility, storage)
+
+	var settings := _GAME_SETTINGS_UTILITY_SCRIPT.new() as GFSettingsUtility
+	settings.register_setting(
+		GFDisplaySettingsUtility.LOCALE_KEY,
+		"zh",
+		GFSettingDefinition.ValueType.STRING
+	)
+	settings.register_setting(
+		StringName("audio/%s/volume" % _AUDIO_BUS_MASTER),
+		1.0,
+		GFSettingDefinition.ValueType.FLOAT
+	)
+	architecture.register_utility(GFSettingsUtility, settings)
+	architecture.register_utility(GFDisplaySettingsUtility, GFDisplaySettingsUtility.new())
+
 	architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
 	architecture.register_utility(GFAssetUtility, GFAssetUtility.new())
 
 	var history_util := GFCommandHistoryUtility.new()
-	history_util.max_history_size = 0
+	history_util.max_history_size = _COMMAND_HISTORY_LIMIT
 	architecture.register_utility(GFCommandHistoryUtility, history_util)
 
 	architecture.register_utility(GFTimeUtility, GFTimeUtility.new())

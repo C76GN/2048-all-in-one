@@ -1,6 +1,6 @@
-## SaveSystem: 负责处理游戏数据持久化的系统。
+## SaveSystem: 负责处理游戏最高分数据持久化的系统。
 ##
-## 负责管理游戏存档状态，通过 GFStorageUtility 实现对 GameSaveResource 的存取。
+## 最高分使用 GFStorageUtility 的字典存储管线，设置交给 GFSettingsUtility 管理。
 class_name SaveSystem
 extends GFSystem
 
@@ -8,13 +8,15 @@ extends GFSystem
 # --- 常量 ---
 
 const _LOG_TAG: String = "SaveSystem"
-const SAVE_FILE_NAME: String = "game_save.tres"
+const SAVE_FILE_NAME: String = "game_save.sav"
+const _KEY_SCORES: String = "scores"
 
 
 # --- 私有变量 ---
 
 var _storage: GFStorageUtility
-var _save_data: GameSaveResource
+var _save_data: Dictionary = {}
+var _is_game_data_loaded: bool = false
 var _log: GFLogUtility
 
 
@@ -28,7 +30,8 @@ func ready() -> void:
 
 func dispose() -> void:
 	_storage = null
-	_save_data = null
+	_save_data.clear()
+	_is_game_data_loaded = false
 	_log = null
 
 
@@ -36,72 +39,105 @@ func dispose() -> void:
 
 ## 根据模式ID和棋盘大小，获取最高分。
 func get_high_score(mode_id: String, grid_size: int) -> int:
-	if not _save_data:
-		_load_game_data()
+	_ensure_game_data_loaded()
 	
 	var grid_size_str: String = "%dx%d" % [grid_size, grid_size]
-	var scores: Dictionary = _save_data.scores
+	var scores := _get_scores()
 
-	if scores.has(mode_id) and scores[mode_id].has(grid_size_str):
-		return scores[mode_id][grid_size_str]
+	var mode_scores_value: Variant = scores.get(mode_id, {})
+	if mode_scores_value is Dictionary:
+		var mode_scores: Dictionary = mode_scores_value
+		if mode_scores.has(grid_size_str):
+			return int(mode_scores[grid_size_str])
 
 	return 0
 
 
 ## 设置或更新一个模式在特定棋盘大小下的最高分。
 func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
-	if not _save_data:
-		_load_game_data()
+	_ensure_game_data_loaded()
 	
 	var current_high_score: int = get_high_score(mode_id, grid_size)
+	if score <= current_high_score:
+		return
 
-	if score > current_high_score:
-		var grid_size_str: String = "%dx%d" % [grid_size, grid_size]
+	var grid_size_str: String = "%dx%d" % [grid_size, grid_size]
+	var scores := _get_scores()
+	var mode_scores := _get_mode_scores(scores, mode_id)
 
-		if not _save_data.scores.has(mode_id):
-			_save_data.scores[mode_id] = {}
-
-		_save_data.scores[mode_id][grid_size_str] = score
-		if _log:
-			_log.info(_LOG_TAG, "新纪录: mode=%s, grid=%s, score=%d" % [mode_id, grid_size_str, score])
-		_save_game_data()
+	mode_scores[grid_size_str] = score
+	scores[mode_id] = mode_scores
+	if _log:
+		_log.info(_LOG_TAG, "新纪录: mode=%s, grid=%s, score=%d" % [mode_id, grid_size_str, score])
+	_save_game_data()
 
 
 ## 设置并保存语言环境。
 func set_language(locale: String) -> void:
-	if not _save_data:
-		_load_game_data()
-	
-	_save_data.settings[&"locale"] = locale
-	_save_game_data()
-	
-	TranslationServer.set_locale(locale)
+	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	if is_instance_valid(display_settings):
+		display_settings.set_locale(locale)
+	else:
+		TranslationServer.set_locale(locale)
+
 	if _log:
 		_log.info(_LOG_TAG, "已应用语言设置: %s" % locale)
 
 
 ## 获取当前保存的语言设置。
 func get_language() -> String:
-	if not _save_data:
-		_load_game_data()
-	
-	return _save_data.settings.get(&"locale", "zh")
+	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	if is_instance_valid(display_settings):
+		return display_settings.get_locale()
+
+	var settings := get_utility(GFSettingsUtility) as GFSettingsUtility
+	if is_instance_valid(settings):
+		return String(settings.get_value(GFDisplaySettingsUtility.LOCALE_KEY, "zh"))
+
+	return "zh"
 
 
 # --- 私有方法 ---
 
 func _save_game_data() -> void:
-	if _storage and is_instance_valid(_save_data):
-		_storage.save_resource(SAVE_FILE_NAME, _save_data)
+	if not is_instance_valid(_storage):
+		return
+
+	var error := _storage.save_data(SAVE_FILE_NAME, _save_data)
+	if error != OK and is_instance_valid(_log):
+		_log.error(_LOG_TAG, "保存最高分失败，错误码: %d" % error)
 
 
 func _load_game_data() -> void:
-	if _storage:
-		_save_data = _storage.load_resource(SAVE_FILE_NAME, "GameSaveResource") as GameSaveResource
+	_save_data = {}
+	if is_instance_valid(_storage):
+		_save_data = _storage.load_data(SAVE_FILE_NAME)
 
-	if not is_instance_valid(_save_data):
-		_save_data = GameSaveResource.new()
+	_save_data.erase(GFStorageCodec.META_KEY)
+	_ensure_game_data_defaults()
+	_is_game_data_loaded = true
 
-	if _save_data:
-		_save_data.ensure_defaults()
-		TranslationServer.set_locale(get_language())
+
+func _ensure_game_data_loaded() -> void:
+	if _is_game_data_loaded:
+		return
+
+	_load_game_data()
+
+
+func _ensure_game_data_defaults() -> void:
+	if not _save_data.has(_KEY_SCORES) or not (_save_data[_KEY_SCORES] is Dictionary):
+		_save_data[_KEY_SCORES] = {}
+
+
+func _get_scores() -> Dictionary:
+	_ensure_game_data_defaults()
+	return _save_data[_KEY_SCORES]
+
+
+func _get_mode_scores(scores: Dictionary, mode_id: String) -> Dictionary:
+	var mode_scores_value: Variant = scores.get(mode_id, {})
+	if mode_scores_value is Dictionary:
+		return mode_scores_value
+
+	return {}

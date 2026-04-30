@@ -9,7 +9,7 @@ extends GFSystem
 # --- 常量 ---
 
 ## 回放文件存储目录。
-const REPLAY_DIR: String = "user://replays/"
+const REPLAY_DIR_NAME: String = "replays"
 const _REPLAY_CONTINUE_DATA_SCRIPT = preload("res://scripts/events/replay_continue_data.gd")
 
 
@@ -34,7 +34,7 @@ var _command_history: GFCommandHistoryUtility
 func async_init() -> void:
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
 	if storage:
-		DirAccess.make_dir_recursive_absolute(REPLAY_DIR)
+		DirAccess.make_dir_recursive_absolute(_get_storage_dir_path(storage, REPLAY_DIR_NAME))
 
 
 func ready() -> void:
@@ -46,7 +46,9 @@ func ready() -> void:
 ## 将一个ReplayData资源保存到文件中。
 ## @param replay_data: 要保存的ReplayData资源。
 func save_replay(replay_data: ReplayData) -> void:
-	var file_path := REPLAY_DIR.path_join("replay_%d_%d.tres" % [replay_data.timestamp, Time.get_ticks_msec()])
+	var file_path := REPLAY_DIR_NAME.path_join(
+		"replay_%d_%d.tres" % [replay_data.timestamp, Time.get_ticks_msec()]
+	)
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
 	if storage:
 		storage.save_resource(file_path, replay_data)
@@ -60,13 +62,13 @@ func load_replays() -> Array[ReplayData]:
 	if not storage:
 		return replays
 	
-	var dir := DirAccess.open(REPLAY_DIR)
+	var dir := DirAccess.open(_get_storage_dir_path(storage, REPLAY_DIR_NAME))
 	if dir:
 		dir.list_dir_begin()
 		var file_name = dir.get_next()
 		while file_name != "":
 			if not dir.current_is_dir() and file_name.ends_with(".tres"):
-				var path := REPLAY_DIR.path_join(file_name)
+				var path := REPLAY_DIR_NAME.path_join(file_name)
 				var res = storage.load_resource(path, "ReplayData")
 				if res is ReplayData:
 					res.file_path = path
@@ -85,9 +87,11 @@ func load_replays() -> Array[ReplayData]:
 func delete_replay(replay_file_path: String) -> void:
 	if replay_file_path.is_empty():
 		return
-		
-	if FileAccess.file_exists(replay_file_path):
-		DirAccess.remove_absolute(replay_file_path)
+
+	var storage := get_utility(GFStorageUtility) as GFStorageUtility
+	var absolute_path := _get_storage_file_path(storage, REPLAY_DIR_NAME, replay_file_path)
+	if FileAccess.file_exists(absolute_path):
+		DirAccess.remove_absolute(absolute_path)
 
 
 ## 激活回放模式。
@@ -174,6 +178,24 @@ func can_continue_from_current_step() -> bool:
 	if not _is_replay_active or not is_instance_valid(_current_replay):
 		return false
 	return get_total_steps() > 0 and get_current_step() < get_total_steps()
+
+
+func _get_storage_dir_path(storage: GFStorageUtility, directory_name: String) -> String:
+	return _get_storage_base_path(storage).path_join(directory_name)
+
+
+func _get_storage_file_path(
+	storage: GFStorageUtility,
+	directory_name: String,
+	file_path: String
+) -> String:
+	return _get_storage_dir_path(storage, directory_name).path_join(file_path.get_file())
+
+
+func _get_storage_base_path(storage: GFStorageUtility) -> String:
+	if is_instance_valid(storage) and not storage.save_dir_name.is_empty():
+		return "user://".path_join(storage.save_dir_name)
+	return "user://"
 
 
 func _emit_progress() -> void:

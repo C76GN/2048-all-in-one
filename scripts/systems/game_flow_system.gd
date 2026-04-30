@@ -165,11 +165,7 @@ func _handle_game_over() -> void:
 	if _is_replay_mode:
 		return
 
-	var current_grid_size := _get_current_grid_size()
-	var save_system := get_system(SaveSystem) as SaveSystem
-	if is_instance_valid(save_system) and is_instance_valid(_game_status_model) and not _is_game_state_tainted:
-		var mode_id: String = _mode_config_path.get_file().get_basename()
-		save_system.set_high_score(mode_id, current_grid_size, _game_status_model.score.get_value())
+	_persist_current_high_score()
 	
 	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_status_model):
 		return
@@ -178,6 +174,7 @@ func _handle_game_over() -> void:
 	replay_data.timestamp = int(Time.get_unix_time_from_system())
 	replay_data.mode_config_path = _mode_config_path
 	replay_data.initial_seed = _initial_seed_of_session
+	var current_grid_size := _get_current_grid_size()
 	replay_data.grid_size = current_grid_size
 	
 	replay_data.actions = _player_actions.duplicate()
@@ -274,6 +271,22 @@ func _get_bookmark_comparison_state() -> Dictionary:
 	if command_history:
 		state[&"game_state_history"] = command_history.serialize_full_history()
 	return state
+
+
+func _persist_current_high_score() -> void:
+	if _is_replay_mode or _is_game_state_tainted:
+		return
+	if _mode_config_path.is_empty() or not is_instance_valid(_game_status_model):
+		return
+
+	var save_system := get_system(SaveSystem) as SaveSystem
+	if not is_instance_valid(save_system):
+		return
+
+	var mode_id: String = _mode_config_path.get_file().get_basename()
+	var current_grid_size := _get_current_grid_size()
+	var best_score: int = _game_status_model.high_score.get_value()
+	save_system.set_high_score(mode_id, current_grid_size, best_score)
 
 
 func _are_game_states_equal(left: Dictionary, right: Dictionary) -> bool:
@@ -472,3 +485,4 @@ func _on_turn_finished(_payload: Variant = null) -> void:
 func _on_score_updated(amount: int) -> void:
 	if is_instance_valid(_game_status_model):
 		_game_status_model.add_score(amount)
+		_persist_current_high_score()

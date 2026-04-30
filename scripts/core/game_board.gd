@@ -78,7 +78,7 @@ func _ready() -> void:
 	_log = get_utility(GFLogUtility) as GFLogUtility
 	_pool = get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
 	
-	var parent_control := get_parent() as Control
+	var parent_control := get_host_as(Control) as Control
 	if is_instance_valid(parent_control):
 		parent_control.resized.connect(_on_resized)
 	

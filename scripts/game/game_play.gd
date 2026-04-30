@@ -48,10 +48,8 @@ var _is_cleaned_up: bool = false
 @onready var _hud_message_timer: Timer = %HUDMessageTimer
 @onready var replay_controls_container: VBoxContainer = %ReplayControlsContainer
 @onready var replay_progress_label: Label = %ReplayProgressLabel
-@onready var replay_prev_step_button: Button = %ReplayPrevStepButton
-@onready var replay_next_step_button: Button = %ReplayNextStepButton
-@onready var replay_continue_button: Button = %ReplayContinueButton
-@onready var replay_back_button: Button = %ReplayBackButton
+@onready var replay_step_hint_label: Label = %ReplayStepHintLabel
+@onready var replay_action_hint_label: Label = %ReplayActionHintLabel
 
 
 # --- Godot 生命周期方法 ---
@@ -96,19 +94,14 @@ func _exit_tree() -> void:
 # --- 私有/辅助方法 ---
 
 func _update_static_ui_text() -> void:
-	if is_instance_valid(replay_prev_step_button):
-		replay_prev_step_button.text = tr("BTN_REPLAY_PREV")
-	if is_instance_valid(replay_next_step_button):
-		replay_next_step_button.text = tr("BTN_REPLAY_NEXT")
-	if is_instance_valid(replay_continue_button):
-		replay_continue_button.text = tr("BTN_REPLAY_CONTINUE")
-	if is_instance_valid(replay_back_button):
-		replay_back_button.text = tr("BTN_REPLAY_BACK")
-
 	if is_instance_valid(replay_controls_container):
 		var label: Label = replay_controls_container.get_node_or_null("Label") as Label
 		if is_instance_valid(label):
 			label.text = tr("LABEL_REPLAY_CONTROLS")
+	if is_instance_valid(replay_step_hint_label):
+		replay_step_hint_label.text = tr("REPLAY_KEYS_STEP_HINT")
+	if is_instance_valid(replay_action_hint_label):
+		replay_action_hint_label.text = tr("REPLAY_KEYS_ACTION_HINT")
 
 
 func _cleanup_listeners() -> void:
@@ -164,14 +157,6 @@ func _connect_native_signal(source_signal: Signal, callback: Callable) -> void:
 func _disconnect_native_signals() -> void:
 	if is_instance_valid(_game_status_model):
 		_disconnect_native_signal(_game_status_model.move_count.value_changed, _on_move_count_changed)
-	if is_instance_valid(replay_prev_step_button) and is_instance_valid(_replay_system):
-		_disconnect_native_signal(replay_prev_step_button.pressed, _replay_system.step_backward)
-	if is_instance_valid(replay_next_step_button) and is_instance_valid(_replay_system):
-		_disconnect_native_signal(replay_next_step_button.pressed, _replay_system.step_forward)
-	if is_instance_valid(replay_continue_button) and is_instance_valid(_replay_system):
-		_disconnect_native_signal(replay_continue_button.pressed, _replay_system.continue_from_current_step)
-	if is_instance_valid(replay_back_button):
-		_disconnect_native_signal(replay_back_button.pressed, _on_replay_back_pressed)
 	if is_instance_valid(_replay_system):
 		_disconnect_native_signal(_replay_system.playback_progress_changed, _on_replay_progress_changed)
 		_disconnect_native_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
@@ -189,16 +174,8 @@ func _disconnect_native_signal(source_signal: Signal, callback: Callable) -> voi
 ## 集中管理所有信号连接。
 func _connect_signals() -> void:
 	if is_instance_valid(_replay_system):
-		if is_instance_valid(replay_prev_step_button):
-			_connect_native_signal(replay_prev_step_button.pressed, _replay_system.step_backward)
-		if is_instance_valid(replay_next_step_button):
-			_connect_native_signal(replay_next_step_button.pressed, _replay_system.step_forward)
-		if is_instance_valid(replay_continue_button):
-			_connect_native_signal(replay_continue_button.pressed, _replay_system.continue_from_current_step)
 		_connect_native_signal(_replay_system.playback_progress_changed, _on_replay_progress_changed)
 		_connect_native_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
-	if is_instance_valid(replay_back_button):
-		_connect_native_signal(replay_back_button.pressed, _on_replay_back_pressed)
 
 	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
 	register_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
@@ -227,7 +204,6 @@ func _update_replay_ui() -> void:
 	if not is_instance_valid(_current_game_model):
 		return
 
-	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
 	if not is_instance_valid(_replay_system):
 		return
 
@@ -235,13 +211,6 @@ func _update_replay_ui() -> void:
 	var total_steps := _replay_system.get_total_steps()
 	if is_instance_valid(replay_progress_label):
 		replay_progress_label.text = tr("LABEL_REPLAY_PROGRESS") % [current_step, total_steps]
-
-	if is_instance_valid(replay_prev_step_button):
-		replay_prev_step_button.disabled = not is_replay or current_step <= 0
-	if is_instance_valid(replay_next_step_button):
-		replay_next_step_button.disabled = not is_replay or current_step >= total_steps
-	if is_instance_valid(replay_continue_button):
-		replay_continue_button.disabled = not is_replay or not _replay_system.can_continue_from_current_step()
 
 
 ## 在HUD上显示一条临时消息。
@@ -368,10 +337,6 @@ func _on_toggle_pause_ui(_payload: Variant = null) -> void:
 func _on_show_hud_message_event(payload: HudMessagePayload) -> void:
 	if is_instance_valid(payload):
 		_show_hud_message(payload.message, payload.duration)
-
-
-func _on_replay_back_pressed() -> void:
-	send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
 
 
 func _on_replay_progress_changed(_current_step: int, _total_steps: int) -> void:

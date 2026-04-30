@@ -1,0 +1,197 @@
+[gd_resource type="Resource" script_class="GFInputContext" format=3]
+
+[ext_resource type="Script" path="res://addons/gf/input/gf_input_context.gd" id="1_context"]
+[ext_resource type="Script" path="res://addons/gf/input/gf_input_action.gd" id="2_action"]
+[ext_resource type="Script" path="res://addons/gf/input/gf_input_binding.gd" id="3_binding"]
+[ext_resource type="Script" path="res://addons/gf/input/gf_input_mapping.gd" id="4_mapping"]
+
+[sub_resource type="Resource" id="Action_replay_prev_step"]
+script = ExtResource("2_action")
+action_id = &"replay_prev_step"
+display_name = "Replay Previous Step"
+display_category = "Replay"
+
+[sub_resource type="InputEventKey" id="Key_replay_prev_a"]
+physical_keycode = 65
+
+[sub_resource type="Resource" id="Binding_replay_prev_a"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_prev_a")
+display_name = "A"
+
+[sub_resource type="InputEventKey" id="Key_replay_prev_left"]
+keycode = 4194319
+
+[sub_resource type="Resource" id="Binding_replay_prev_left"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_prev_left")
+display_name = "Left"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_replay_prev_dpad"]
+device = -1
+button_index = 13
+
+[sub_resource type="Resource" id="Binding_replay_prev_dpad"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_replay_prev_dpad")
+display_name = "D-pad Left"
+
+[sub_resource type="InputEventJoypadMotion" id="Joy_replay_prev_axis"]
+device = -1
+axis = 0
+axis_value = -1.0
+
+[sub_resource type="Resource" id="Binding_replay_prev_axis"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_replay_prev_axis")
+value_target = 3
+deadzone = 0.5
+display_name = "Left Stick Left"
+
+[sub_resource type="Resource" id="Mapping_replay_prev_step"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_replay_prev_step")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_prev_a"), SubResource("Binding_replay_prev_left"), SubResource("Binding_replay_prev_dpad"), SubResource("Binding_replay_prev_axis")])
+
+[sub_resource type="Resource" id="Action_replay_next_step"]
+script = ExtResource("2_action")
+action_id = &"replay_next_step"
+display_name = "Replay Next Step"
+display_category = "Replay"
+
+[sub_resource type="InputEventKey" id="Key_replay_next_d"]
+physical_keycode = 68
+
+[sub_resource type="Resource" id="Binding_replay_next_d"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_next_d")
+display_name = "D"
+
+[sub_resource type="InputEventKey" id="Key_replay_next_right"]
+keycode = 4194321
+
+[sub_resource type="Resource" id="Binding_replay_next_right"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_next_right")
+display_name = "Right"
+
+[sub_resource type="InputEventKey" id="Key_replay_next_space"]
+keycode = 32
+
+[sub_resource type="Resource" id="Binding_replay_next_space"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_next_space")
+display_name = "Space"
+
+[sub_resource type="InputEventKey" id="Key_replay_next_enter"]
+keycode = 4194309
+
+[sub_resource type="Resource" id="Binding_replay_next_enter"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_next_enter")
+display_name = "Enter"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_replay_next_dpad"]
+device = -1
+button_index = 14
+
+[sub_resource type="Resource" id="Binding_replay_next_dpad"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_replay_next_dpad")
+display_name = "D-pad Right"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_replay_next_a"]
+device = -1
+button_index = 0
+
+[sub_resource type="Resource" id="Binding_replay_next_a"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_replay_next_a")
+display_name = "A Button"
+
+[sub_resource type="InputEventJoypadMotion" id="Joy_replay_next_axis"]
+device = -1
+axis = 0
+axis_value = 1.0
+
+[sub_resource type="Resource" id="Binding_replay_next_axis"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_replay_next_axis")
+value_target = 2
+deadzone = 0.5
+display_name = "Left Stick Right"
+
+[sub_resource type="Resource" id="Mapping_replay_next_step"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_replay_next_step")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_next_d"), SubResource("Binding_replay_next_right"), SubResource("Binding_replay_next_space"), SubResource("Binding_replay_next_enter"), SubResource("Binding_replay_next_dpad"), SubResource("Binding_replay_next_a"), SubResource("Binding_replay_next_axis")])
+
+[sub_resource type="Resource" id="Action_replay_continue"]
+script = ExtResource("2_action")
+action_id = &"replay_continue"
+display_name = "Continue From Replay"
+display_category = "Replay"
+
+[sub_resource type="InputEventKey" id="Key_replay_continue_c"]
+physical_keycode = 67
+
+[sub_resource type="Resource" id="Binding_replay_continue_c"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_continue_c")
+display_name = "C"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_replay_continue_y"]
+device = -1
+button_index = 3
+
+[sub_resource type="Resource" id="Binding_replay_continue_y"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_replay_continue_y")
+display_name = "Y"
+
+[sub_resource type="Resource" id="Mapping_replay_continue"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_replay_continue")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_continue_c"), SubResource("Binding_replay_continue_y")])
+
+[sub_resource type="Resource" id="Action_replay_back"]
+script = ExtResource("2_action")
+action_id = &"replay_back"
+display_name = "Back From Replay"
+display_category = "Replay"
+
+[sub_resource type="InputEventKey" id="Key_replay_back_escape"]
+keycode = 4194305
+
+[sub_resource type="Resource" id="Binding_replay_back_escape"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_back_escape")
+display_name = "Esc"
+
+[sub_resource type="InputEventKey" id="Key_replay_back_b"]
+physical_keycode = 66
+
+[sub_resource type="Resource" id="Binding_replay_back_b"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_back_b")
+display_name = "B"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_replay_back_b"]
+device = -1
+button_index = 1
+
+[sub_resource type="Resource" id="Binding_replay_back_joy_b"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_replay_back_b")
+display_name = "B Button"
+
+[sub_resource type="Resource" id="Mapping_replay_back"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_replay_back")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_back_escape"), SubResource("Binding_replay_back_b"), SubResource("Binding_replay_back_joy_b")])
+
+[resource]
+script = ExtResource("1_context")
+context_id = &"replay"
+display_name = "Replay"
+mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_replay_prev_step"), SubResource("Mapping_replay_next_step"), SubResource("Mapping_replay_continue"), SubResource("Mapping_replay_back")])

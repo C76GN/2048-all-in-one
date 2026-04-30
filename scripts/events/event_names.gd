@@ -17,6 +17,9 @@ const SCENE_CHANGE_REQUESTED: StringName = &"scene_change_requested"
 ## 请求返回主菜单。
 const RETURN_TO_MAIN_MENU_REQUESTED: StringName = &"return_to_main_menu_requested"
 
+## 场景切换失败，payload 为失败的场景路径。
+const SCENE_CHANGE_FAILED: StringName = &"scene_change_failed"
+
 
 # --- 游戏初始化 ---
 

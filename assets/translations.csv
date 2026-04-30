@@ -24,6 +24,15 @@ REPLAY_CONTINUE_SUCCESS,[color=green]已从当前回放进度继续游戏。[/co
 SIZE_LABEL,尺寸,Size
 SETTINGS_TITLE,设置,Settings
 LANGUAGE_LABEL,语言,Language
+WINDOW_MODE_LABEL,窗口模式,Window
+WINDOW_MODE_WINDOWED,窗口,Windowed
+WINDOW_MODE_FULLSCREEN,全屏,Fullscreen
+WINDOW_MODE_EXCLUSIVE_FULLSCREEN,独占全屏,Exclusive Fullscreen
+VSYNC_LABEL,垂直同步,VSync
+VSYNC_DISABLED,关闭,Off
+VSYNC_ENABLED,开启,On
+VSYNC_ADAPTIVE,自适应,Adaptive
+MASTER_VOLUME_LABEL,主音量,Master Volume
 LANG_EN,English,English
 LANG_ZH,简体中文,Chinese
 BACK_BUTTON,返回,Back
@@ -137,12 +146,10 @@ BTN_DELETE_REPLAY,删除回放,Delete Replay
 BTN_PLAY_REPLAY,播放回放,Play Replay
 BTN_RETURN_MAIN,返回主菜单,Return to Main Menu
 TITLE_GAME_STATUS,游戏状态,Game Status
-BTN_REPLAY_PREV,< 上一步,< Prev
-BTN_REPLAY_NEXT,下一步 >,Next >
-BTN_REPLAY_CONTINUE,从此继续,Continue Here
-BTN_REPLAY_BACK,返回列表,Back to List
 LABEL_REPLAY_CONTROLS,回放控制,Replay Controls
 LABEL_REPLAY_PROGRESS,回放进度: %d / %d,Replay Step: %d / %d
+REPLAY_KEYS_STEP_HINT,上一步: A / ←    下一步: D / → / Space / Enter,Prev: A / ←    Next: D / → / Space / Enter
+REPLAY_KEYS_ACTION_HINT,从此继续: C    返回列表: Esc / B,Continue: C    Back: Esc / B
 FORMAT_BATTLE_PROBABILITY,"  - %d (概率: %.1f%%)
 ","  - %d (Chance: %.1f%%)
 "

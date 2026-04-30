@@ -39,28 +39,17 @@ layout_mode = 2
 text = "0 / 0"
 horizontal_alignment = 1
 
-[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer" index="2"]
-layout_mode = 2
-
-[node name="ReplayPrevStepButton" type="Button" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer/HBoxContainer" index="0"]
+[node name="ReplayStepHintLabel" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer" index="2"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "< 上一步"
+text = "上一步: A / ← | 下一步: D / → / Space"
+autowrap_mode = 3
 
-[node name="ReplayNextStepButton" type="Button" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer/HBoxContainer" index="1"]
+[node name="ReplayActionHintLabel" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer" index="3"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "下一步 >"
-
-[node name="ReplayContinueButton" type="Button" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer" index="3"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "从此继续"
-
-[node name="ReplayBackButton" type="Button" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer" index="4"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "返回列表"
+text = "继续: C | 返回: Esc / B"
+autowrap_mode = 3
 
 [node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
 visible = false
@@ -87,4 +76,3 @@ layout_mode = 2
 [node name="HUDMessageTimer" type="Timer" parent="." index="1"]
 unique_name_in_owner = true
 one_shot = true
-

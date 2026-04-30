@@ -50,13 +50,15 @@ func dispose() -> void:
 ## 切换到指定的场景资源。
 ## @param scene: 待切换的场景资源 (PackedScene)。
 func goto_scene_packed(scene: PackedScene) -> void:
-	if scene == null:
+	if not _is_scene_resource_ready(scene):
 		if _log:
-			_log.error(_LOG_TAG, "传入的场景资源为空。")
+			_log.error(_LOG_TAG, "传入的场景资源为空或不可实例化。")
+		send_simple_event(EventNames.SCENE_CHANGE_FAILED, _get_scene_resource_path(scene))
 		return
 
 	var tree := Engine.get_main_loop() as SceneTree
 	if not tree:
+		send_simple_event(EventNames.SCENE_CHANGE_FAILED, scene.resource_path)
 		return
 
 	if tree.current_scene:
@@ -66,6 +68,7 @@ func goto_scene_packed(scene: PackedScene) -> void:
 	if error != OK:
 		if _log:
 			_log.error(_LOG_TAG, "切换到场景失败，错误码: %d" % error)
+		send_simple_event(EventNames.SCENE_CHANGE_FAILED, scene.resource_path)
 		return
 	if _log:
 		_log.debug(_LOG_TAG, "已请求切换到场景: %s" % scene.resource_path)
@@ -77,6 +80,13 @@ func goto_scene(path: String) -> void:
 	if not path.begins_with("res://") or not path.ends_with(".tscn"):
 		if _log:
 			_log.error(_LOG_TAG, "场景路径必须是绝对的 .tscn 资源路径: %s" % path)
+		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
+		return
+
+	if not ResourceLoader.exists(path, "PackedScene"):
+		if _log:
+			_log.error(_LOG_TAG, "场景资源不存在或不是 PackedScene: %s" % path)
+		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 		return
 
 	if is_instance_valid(_scene_utility):
@@ -87,6 +97,7 @@ func goto_scene(path: String) -> void:
 	if next_scene_packed == null:
 		if _log:
 			_log.error(_LOG_TAG, "无法加载场景资源: %s" % path)
+		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 		return
 
 	goto_scene_packed(next_scene_packed)
@@ -104,6 +115,16 @@ func quit_game() -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	if tree:
 		tree.quit()
+
+
+# --- 私有/辅助方法 ---
+
+func _is_scene_resource_ready(scene: PackedScene) -> bool:
+	return scene != null and scene.can_instantiate()
+
+
+func _get_scene_resource_path(scene: PackedScene) -> String:
+	return scene.resource_path if scene != null else ""
 
 
 # --- 信号处理函数 ---
@@ -125,3 +146,4 @@ func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
 func _on_scene_load_failed(path: String) -> void:
 	if _log:
 		_log.error(_LOG_TAG, "异步场景加载失败: %s" % path)
+	send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)

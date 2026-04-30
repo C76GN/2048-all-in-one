@@ -5,17 +5,37 @@ class_name TestToolUtility
 extends GFUtility
 
 
+# --- 常量 ---
+
+const _CMD_GF_DEBUG: String = "gf_debug"
+const _LOG_TAG: String = "TestToolUtility"
+
+
 # --- 私有变量 ---
 
 var _test_panel: Control
 var _game_board: GameBoard
 var _is_listening: bool = false
+var _is_debug_command_registered: bool = false
 
 
 # --- Godot 生命周期方法 ---
 
+func ready() -> void:
+	var console := get_utility(GFConsoleUtility) as GFConsoleUtility
+	if is_instance_valid(console):
+		console.register_command(_CMD_GF_DEBUG, _cmd_gf_debug, "Print GF runtime debug snapshot.")
+		_is_debug_command_registered = true
+
+
 ## 释放测试工具持有的场景引用与事件监听。
 func dispose() -> void:
+	if _is_debug_command_registered:
+		var console := get_utility(GFConsoleUtility) as GFConsoleUtility
+		if is_instance_valid(console):
+			console.unregister_command(_CMD_GF_DEBUG)
+		_is_debug_command_registered = false
+
 	if _is_listening:
 		unregister_event(TestSpawnPayload, _on_test_panel_spawn_requested_event)
 		unregister_simple_event(EventNames.TEST_VALUES_REQUESTED, _on_test_panel_values_requested_event)
@@ -88,6 +108,8 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int
 	
 	if not grid_model:
 		return
+	if not _is_grid_pos_in_bounds(grid_model, grid_pos):
+		return
 		
 	var interaction_rule = grid_model.interaction_rule
 	if interaction_rule:
@@ -149,6 +171,8 @@ func _on_live_expand_requested_event(new_size: int) -> void:
 
 func _on_reset_and_resize_requested(new_size: int) -> void:
 	send_simple_event(EventNames.GAME_STATE_TAINTED)
+	if new_size <= 0:
+		return
 
 	var grid_model := get_model(GridModel) as GridModel
 	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
@@ -200,6 +224,22 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
 
 
+func _cmd_gf_debug(_args: PackedStringArray) -> void:
+	var architecture := _get_architecture_or_null()
+	var snapshot: Dictionary = {}
+	if architecture != null:
+		snapshot[&"lifecycle"] = architecture.get_debug_lifecycle_state()
+		snapshot[&"events"] = architecture.get_event_debug_stats()
+
+	var object_pool := get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
+	if is_instance_valid(object_pool):
+		snapshot[&"object_pool"] = object_pool.get_debug_snapshot()
+
+	var log_utility := get_utility(GFLogUtility) as GFLogUtility
+	if is_instance_valid(log_utility):
+		log_utility.info(_LOG_TAG, JSON.stringify(snapshot, "\t"))
+
+
 func _sync_highest_tile_from_grid() -> void:
 	var game_flow_system := get_system(GameFlowSystem) as GameFlowSystem
 	if is_instance_valid(game_flow_system):
@@ -210,3 +250,13 @@ func _sync_highest_tile_from_grid() -> void:
 	var status_model := get_model(GameStatusModel) as GameStatusModel
 	if is_instance_valid(grid_model) and is_instance_valid(status_model):
 		status_model.highest_tile.set_value(grid_model.get_max_player_value())
+
+
+func _is_grid_pos_in_bounds(grid_model: GridModel, grid_pos: Vector2i) -> bool:
+	return (
+		is_instance_valid(grid_model)
+		and grid_pos.x >= 0
+		and grid_pos.x < grid_model.grid_size
+		and grid_pos.y >= 0
+		and grid_pos.y < grid_model.grid_size
+	)
