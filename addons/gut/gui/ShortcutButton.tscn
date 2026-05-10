@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://sfb1fw8j6ufu"]
+[gd_scene load_steps=2 format=3 uid="uid://sfb1fw8j6ufu"]
 
 [ext_resource type="Script" uid="uid://k6hvvpekp0xw" path="res://addons/gut/gui/ShortcutButton.gd" id="1"]
 

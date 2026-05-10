@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://0yunjxtaa8iw"]
+[gd_scene load_steps=3 format=3 uid="uid://0yunjxtaa8iw"]
 
 [ext_resource type="Script" uid="uid://c4gmgdl1xwflw" path="res://addons/gut/gui/RunAtCursor.gd" id="1"]
 [ext_resource type="Texture2D" uid="uid://6wra5rxmfsrl" path="res://addons/gut/gui/arrow.png" id="3"]
