@@ -16,12 +16,15 @@ signal state_group_removed(group: Node)
 ## 任意状态组切换状态后发出。
 signal state_changed(group: Node, old_state: Node, new_state: Node)
 
+## 任意状态组中的状态处理状态事件后发出。
+signal state_event_handled(group: Node, event_id: StringName, handler_state: Node, payload: Variant)
+
 
 # --- 枚举 ---
 
 ## 节点状态机初始状态启动时机。
 enum StartMode {
-	## 状态机 ready 时启动，保持旧版本默认行为。
+	## 状态机 ready 时启动，适合需要旧版启动顺序的项目。
 	ON_READY,
 	## 等待宿主节点 ready 后启动。
 	AFTER_HOST_READY,
@@ -53,7 +56,10 @@ const GFNodeStateMachineConfigBase = preload("res://addons/gf/extensions/state_m
 @export var reload_on_ready: bool = true
 
 ## 初始状态启动模式。
-@export var start_mode: StartMode = StartMode.ON_READY
+@export var start_mode: StartMode = StartMode.AFTER_HOST_READY
+
+## 运行时重新从子节点加载时，是否尽量恢复各状态组的当前状态。
+@export var preserve_current_state_on_reload: bool = true
 
 
 # --- 私有变量 ---
@@ -61,9 +67,11 @@ const GFNodeStateMachineConfigBase = preload("res://addons/gf/extensions/state_m
 var _groups: Dictionary = {}
 var _internal_group: Node = null
 var _group_state_changed_callables: Dictionary = {}
+var _group_state_event_handled_callables: Dictionary = {}
 var _is_ready: bool = false
 var _reload_queued: bool = false
 var _is_reloading: bool = false
+var _preserve_reload_state_active: bool = false
 var _lifecycle_serial: int = 0
 
 
@@ -95,6 +103,8 @@ func _exit_tree() -> void:
 # --- 公共方法 ---
 
 ## 通过路径切换状态。path 可为 "State" 或 "Group/State"。
+## @param path: 资源路径或状态路径。
+## @param args: 状态切换时传递的可选参数。
 func transition_to(path: StringName, args: Dictionary = {}) -> void:
 	var text := String(path)
 	var parts := text.split("/", false)
@@ -107,6 +117,9 @@ func transition_to(path: StringName, args: Dictionary = {}) -> void:
 
 
 ## 切换指定状态组到指定状态。
+## @param group_name: 能力组或状态组名称。
+## @param state_name: 目标状态名称。
+## @param args: 状态切换时传递的可选参数。
 func transition_group_to(group_name: StringName, state_name: StringName, args: Dictionary = {}) -> void:
 	var group := get_state_group(group_name)
 	if group == null:
@@ -116,6 +129,8 @@ func transition_group_to(group_name: StringName, state_name: StringName, args: D
 
 
 ## 暂停当前内部状态并叠加进入一个子状态。path 可为 "State" 或 "Group/State"。
+## @param path: 资源路径或状态路径。
+## @param args: 状态切换时传递的可选参数。
 func push_state(path: StringName, args: Dictionary = {}) -> void:
 	var text := String(path)
 	var parts := text.split("/", false)
@@ -128,6 +143,9 @@ func push_state(path: StringName, args: Dictionary = {}) -> void:
 
 
 ## 暂停指定状态组当前状态并叠加进入一个子状态。
+## @param group_name: 能力组或状态组名称。
+## @param state_name: 目标状态名称。
+## @param args: 状态切换时传递的可选参数。
 func push_group_state(group_name: StringName, state_name: StringName, args: Dictionary = {}) -> void:
 	var group := get_state_group(group_name)
 	if group == null:
@@ -140,6 +158,8 @@ func push_group_state(group_name: StringName, state_name: StringName, args: Dict
 
 
 ## 弹出指定状态组的栈式子状态。
+## @param group_name: 能力组或状态组名称。
+## @param args: 状态切换时传递的可选参数。
 func pop_state(group_name: StringName = INTERNAL_GROUP_NAME, args: Dictionary = {}) -> bool:
 	var group := get_state_group(group_name)
 	if group == null:
@@ -177,6 +197,7 @@ func start_group(group_name: StringName = INTERNAL_GROUP_NAME, args: Dictionary 
 
 
 ## 添加状态组。
+## @param group: 所属状态组。
 func add_state_group(group: Node) -> void:
 	if not _is_node_state_group(group):
 		return
@@ -198,6 +219,7 @@ func add_state_group(group: Node) -> void:
 
 
 ## 移除状态组。
+## @param group: 所属状态组。
 func remove_state_group(group: Node) -> bool:
 	if not _is_node_state_group(group):
 		return false
@@ -214,6 +236,7 @@ func remove_state_group(group: Node) -> bool:
 
 
 ## 获取状态组。
+## @param group_name: 能力组或状态组名称。
 func get_state_group(group_name: StringName) -> Node:
 	return _groups.get(group_name) as Node
 
@@ -227,6 +250,7 @@ func get_current_state() -> Node:
 
 
 ## 获取指定状态组当前状态名。
+## @param group_name: 能力组或状态组名称。
 func get_current_state_name(group_name: StringName = INTERNAL_GROUP_NAME) -> StringName:
 	var group := get_state_group(group_name)
 	if group == null or not group.has_method("get_current_state_name"):
@@ -235,6 +259,7 @@ func get_current_state_name(group_name: StringName = INTERNAL_GROUP_NAME) -> Str
 
 
 ## 获取指定状态组状态历史。
+## @param group_name: 能力组或状态组名称。
 func get_state_history(group_name: StringName = INTERNAL_GROUP_NAME) -> Array[StringName]:
 	var result: Array[StringName] = []
 	var group := get_state_group(group_name)
@@ -248,6 +273,7 @@ func get_state_history(group_name: StringName = INTERNAL_GROUP_NAME) -> Array[St
 
 
 ## 获取指定状态组暂停栈深度。
+## @param group_name: 能力组或状态组名称。
 func get_stack_depth(group_name: StringName = INTERNAL_GROUP_NAME) -> int:
 	var group := get_state_group(group_name)
 	if group == null or not group.has_method("get_stack_depth"):
@@ -256,6 +282,7 @@ func get_stack_depth(group_name: StringName = INTERNAL_GROUP_NAME) -> int:
 
 
 ## 判断 path 指向的状态是否为当前状态或暂停栈中的状态。
+## @param path: 资源路径或状态路径。
 func is_in_state(path: StringName) -> bool:
 	var text := String(path)
 	var parts := text.split("/", false)
@@ -268,6 +295,8 @@ func is_in_state(path: StringName) -> bool:
 
 
 ## 重启指定状态组当前状态。
+## @param group_name: 能力组或状态组名称。
+## @param args: 状态切换时传递的可选参数。
 func restart_group(group_name: StringName = INTERNAL_GROUP_NAME, args: Dictionary = {}) -> void:
 	var group := get_state_group(group_name)
 	if group == null:
@@ -279,8 +308,49 @@ func restart_group(group_name: StringName = INTERNAL_GROUP_NAME, args: Dictionar
 	group.call("restart", args)
 
 
+## 派发状态事件。group_name 为空时会按已注册状态组顺序广播到所有组。
+## @param event_id: 状态事件标识。
+## @param payload: 状态事件载荷。
+## @param group_name: 可选目标状态组名；为空表示所有状态组。
+## @return 有状态处理该事件时返回 true。
+func dispatch_state_event(event_id: StringName, payload: Variant = null, group_name: StringName = &"") -> bool:
+	if group_name != &"":
+		var group := get_state_group(group_name)
+		if group == null or not group.has_method("dispatch_state_event"):
+			return false
+		return bool(group.call("dispatch_state_event", event_id, payload))
+
+	for group: Node in _groups.values():
+		if group.has_method("dispatch_state_event") and bool(group.call("dispatch_state_event", event_id, payload)):
+			return true
+	return false
+
+
+## 获取节点状态机调试快照。
+## @return 包含所有状态组当前状态、历史、栈深度和黑板副本的字典。
+func get_state_snapshot() -> Dictionary:
+	var groups: Dictionary = {}
+	for group_key: Variant in _groups.keys():
+		var group := _groups[group_key] as Node
+		if group == null:
+			continue
+		if group.has_method("get_state_snapshot"):
+			groups[group_key] = group.call("get_state_snapshot")
+		else:
+			groups[group_key] = {
+				"current_state": group.call("get_current_state_name") if group.has_method("get_current_state_name") else &"",
+			}
+	return {
+		"groups": groups,
+		"internal_group": INTERNAL_GROUP_NAME,
+	}
+
+
 ## 从子节点重新加载状态和状态组。
 func reload_from_children() -> void:
+	var should_preserve_state := preserve_current_state_on_reload and not _groups.is_empty()
+	var state_snapshot := _capture_state_snapshot() if should_preserve_state else {}
+	_preserve_reload_state_active = should_preserve_state
 	_is_reloading = true
 	clear_state_groups()
 	_internal_group = GFNodeStateGroupBase.new()
@@ -308,9 +378,13 @@ func reload_from_children() -> void:
 		_free_internal_group(_internal_group)
 		_internal_group = null
 	_is_reloading = false
+	_preserve_reload_state_active = false
+	if should_preserve_state:
+		_restore_state_snapshot(state_snapshot)
 
 
 ## 清空所有状态组。
+## @param free_groups: 清理状态组时是否释放节点。
 func clear_state_groups(free_groups: bool = false) -> void:
 	var old_internal_group := _internal_group
 	var groups: Array[Node] = []
@@ -322,6 +396,7 @@ func clear_state_groups(free_groups: bool = false) -> void:
 		_disconnect_state_group_signals(group, changed_callable)
 	_groups.clear()
 	_group_state_changed_callables.clear()
+	_group_state_event_handled_callables.clear()
 	for group: Node in groups:
 		state_group_removed.emit(group)
 		if group == _internal_group:
@@ -382,6 +457,13 @@ func _connect_state_group_signals(group: Node, changed_callable: Callable) -> vo
 		changed_signal.connect(changed_callable)
 	if not transition_signal.is_connected(transition_group_to):
 		transition_signal.connect(transition_group_to)
+	if group.get("state_event_handled") is Signal:
+		var key := group.call("get_group_name") as StringName
+		var handled_signal: Signal = group.get("state_event_handled")
+		var handled_callable := _on_group_state_event_handled.bind(group)
+		_group_state_event_handled_callables[key] = handled_callable
+		if not handled_signal.is_connected(handled_callable):
+			handled_signal.connect(handled_callable)
 
 
 func _disconnect_state_group_signals(group: Node, changed_callable: Callable) -> void:
@@ -391,6 +473,13 @@ func _disconnect_state_group_signals(group: Node, changed_callable: Callable) ->
 		changed_signal.disconnect(changed_callable)
 	if transition_signal.is_connected(transition_group_to):
 		transition_signal.disconnect(transition_group_to)
+	if group.get("state_event_handled") is Signal:
+		var key := group.call("get_group_name") as StringName
+		var handled_signal: Signal = group.get("state_event_handled")
+		var handled_callable: Callable = _group_state_event_handled_callables.get(key, Callable())
+		if handled_signal.is_connected(handled_callable):
+			handled_signal.disconnect(handled_callable)
+		_group_state_event_handled_callables.erase(key)
 
 
 func _start_group_node(group: Node, args: Dictionary) -> void:
@@ -405,6 +494,8 @@ func _start_group_node(group: Node, args: Dictionary) -> void:
 
 
 func _should_start_group_on_initialize() -> bool:
+	if _preserve_reload_state_active:
+		return false
 	match start_mode:
 		StartMode.ON_READY:
 			return true
@@ -444,6 +535,15 @@ func _on_group_current_state_changed(
 	group: Node
 ) -> void:
 	state_changed.emit(group, old_state, new_state)
+
+
+func _on_group_state_event_handled(
+	event_id: StringName,
+	handler_state: Node,
+	payload: Variant,
+	group: Node
+) -> void:
+	state_event_handled.emit(group, event_id, handler_state, payload)
 
 
 func _queue_reload_from_children() -> void:
@@ -503,3 +603,32 @@ func _reload_from_children_deferred() -> void:
 
 func _on_child_entered_tree(_child: Node) -> void:
 	_queue_reload_from_children()
+
+
+func _capture_state_snapshot() -> Dictionary:
+	var result: Dictionary = {}
+	for group_key: Variant in _groups.keys():
+		var group := _groups[group_key] as Node
+		if group == null or not group.has_method("get_current_state_name"):
+			continue
+		var current_state_name := group.call("get_current_state_name") as StringName
+		if current_state_name == &"":
+			continue
+		result[group_key] = {
+			"current_state": current_state_name,
+		}
+	return result
+
+
+func _restore_state_snapshot(snapshot: Dictionary) -> void:
+	for group_key: Variant in _groups.keys():
+		var group := _groups[group_key] as Node
+		if group == null:
+			continue
+
+		var group_snapshot := snapshot.get(group_key, {}) as Dictionary
+		var current_state_name := StringName(group_snapshot.get("current_state", &"")) if group_snapshot != null else &""
+		if current_state_name != &"" and group.has_method("get_state") and group.call("get_state", current_state_name) != null:
+			group.call("transition_to", current_state_name, {})
+		elif _should_start_group_on_initialize():
+			_start_group_node(group, {})

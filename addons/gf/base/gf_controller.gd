@@ -27,12 +27,19 @@ var host: Node:
 		return get_host()
 
 
+# --- 私有变量 ---
+
+var _event_architectures: Array[GFArchitecture] = []
+
+
 # --- Godot 生命周期方法 ---
 
 func _exit_tree() -> void:
-	var architecture := _get_architecture_or_null()
-	if architecture != null:
-		architecture.unregister_owner_events(self)
+	_remember_event_architecture(_get_architecture_or_null())
+	for architecture: GFArchitecture in _event_architectures:
+		if architecture != null and is_instance_valid(architecture):
+			architecture.unregister_owner_events(self)
+	_event_architectures.clear()
 
 
 # --- 获取方法 ---
@@ -60,9 +67,7 @@ func get_architecture_or_null() -> GFArchitecture:
 func wait_for_context_ready() -> GFArchitecture:
 	var context := _find_nearest_context()
 	if context != null:
-		var architecture := await context.wait_until_ready()
-		if architecture != null:
-			return architecture
+		return await context.wait_until_ready()
 
 	return get_architecture()
 
@@ -129,6 +134,36 @@ func get_utility(utility_type: Script) -> Object:
 	return architecture.get_utility(utility_type)
 
 
+## 仅从当前 Controller 所属架构获取 Model，不回退父级架构。
+## @param model_type: 模型的脚本类型。
+## @return 当前架构中的模型实例。
+func get_local_model(model_type: Script) -> Object:
+	var architecture := _get_architecture_or_null()
+	if architecture == null:
+		return null
+	return architecture.get_local_model(model_type)
+
+
+## 仅从当前 Controller 所属架构获取 System，不回退父级架构。
+## @param system_type: 系统的脚本类型。
+## @return 当前架构中的系统实例。
+func get_local_system(system_type: Script) -> Object:
+	var architecture := _get_architecture_or_null()
+	if architecture == null:
+		return null
+	return architecture.get_local_system(system_type)
+
+
+## 仅从当前 Controller 所属架构获取 Utility，不回退父级架构。
+## @param utility_type: 工具的脚本类型。
+## @return 当前架构中的工具实例。
+func get_local_utility(utility_type: Script) -> Object:
+	var architecture := _get_architecture_or_null()
+	if architecture == null:
+		return null
+	return architecture.get_local_utility(utility_type)
+
+
 # --- 命令与查询 ---
 
 ## 向架构发送命令。支持 await：'await send_command(MyCommand.new())'。
@@ -161,15 +196,17 @@ func register_event(event_type: Script, callback: Callable, priority: int = 0) -
 	var architecture := _get_architecture_or_null()
 	if architecture != null:
 		architecture.register_event_owned(self, event_type, callback, priority)
+		_remember_event_architecture(architecture)
 
 
 ## 注销类型事件监听器。
 ## @param event_type: 要注销的脚本类型。
 ## @param callback: 要移除的回调函数。
 func unregister_event(event_type: Script, callback: Callable) -> void:
-	var architecture := _get_architecture_or_null()
-	if architecture != null:
-		architecture.unregister_event(event_type, callback)
+	if not _unregister_event_from_tracked_architectures(event_type, callback):
+		var architecture := _get_architecture_or_null()
+		if architecture != null:
+			architecture.unregister_event(event_type, callback)
 
 
 ## 注册可赋值类型事件监听器。
@@ -180,15 +217,17 @@ func register_assignable_event(base_event_type: Script, callback: Callable, prio
 	var architecture := _get_architecture_or_null()
 	if architecture != null:
 		architecture.register_assignable_event_owned(self, base_event_type, callback, priority)
+		_remember_event_architecture(architecture)
 
 
 ## 注销可赋值类型事件监听器。
 ## @param base_event_type: 注册时使用的基类脚本类型。
 ## @param callback: 要移除的回调函数。
 func unregister_assignable_event(base_event_type: Script, callback: Callable) -> void:
-	var architecture := _get_architecture_or_null()
-	if architecture != null:
-		architecture.unregister_assignable_event(base_event_type, callback)
+	if not _unregister_assignable_event_from_tracked_architectures(base_event_type, callback):
+		var architecture := _get_architecture_or_null()
+		if architecture != null:
+			architecture.unregister_assignable_event(base_event_type, callback)
 
 
 ## 通过事件系统发送类型事件。
@@ -206,15 +245,17 @@ func register_simple_event(event_id: StringName, callback: Callable) -> void:
 	var architecture := _get_architecture_or_null()
 	if architecture != null:
 		architecture.register_simple_event_owned(self, event_id, callback)
+		_remember_event_architecture(architecture)
 
 
 ## 注销轻量级 StringName 事件监听器。
 ## @param event_id: StringName 事件标识符。
 ## @param callback: 要移除的回调函数。
 func unregister_simple_event(event_id: StringName, callback: Callable) -> void:
-	var architecture := _get_architecture_or_null()
-	if architecture != null:
-		architecture.unregister_simple_event(event_id, callback)
+	if not _unregister_simple_event_from_tracked_architectures(event_id, callback):
+		var architecture := _get_architecture_or_null()
+		if architecture != null:
+			architecture.unregister_simple_event(event_id, callback)
 
 
 ## 发送轻量级 StringName 事件，避免高频 new() 带来的 GC 压力。
@@ -236,6 +277,43 @@ func _get_architecture_or_null() -> GFArchitecture:
 			return context_architecture
 
 	return GFAutoload.get_architecture_or_null()
+
+
+func _remember_event_architecture(architecture: GFArchitecture) -> void:
+	if architecture == null or not is_instance_valid(architecture):
+		return
+	if not _event_architectures.has(architecture):
+		_event_architectures.append(architecture)
+
+
+func _unregister_event_from_tracked_architectures(event_type: Script, callback: Callable) -> bool:
+	var handled := false
+	for architecture: GFArchitecture in _event_architectures:
+		if architecture != null and is_instance_valid(architecture):
+			architecture.unregister_event(event_type, callback)
+			handled = true
+	return handled
+
+
+func _unregister_assignable_event_from_tracked_architectures(
+	base_event_type: Script,
+	callback: Callable
+) -> bool:
+	var handled := false
+	for architecture: GFArchitecture in _event_architectures:
+		if architecture != null and is_instance_valid(architecture):
+			architecture.unregister_assignable_event(base_event_type, callback)
+			handled = true
+	return handled
+
+
+func _unregister_simple_event_from_tracked_architectures(event_id: StringName, callback: Callable) -> bool:
+	var handled := false
+	for architecture: GFArchitecture in _event_architectures:
+		if architecture != null and is_instance_valid(architecture):
+			architecture.unregister_simple_event(event_id, callback)
+			handled = true
+	return handled
 
 
 func _find_nearest_context() -> GFNodeContextBase:

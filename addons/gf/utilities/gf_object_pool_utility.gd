@@ -96,7 +96,7 @@ func dispose() -> void:
 
 ## 从池中获取一个节点实例。若池为空则自动实例化并加入父节点。
 ## @param scene: 要实例化的 PackedScene 资源。
-## @param parent: 新实例化的节点将被加入此父节点（释放节点不会改变父节点）。
+## @param parent: 借出的节点将加入或移动到此父节点；释放时会移动到内部池根节点。
 ## @return 可直接使用的节点实例。
 func acquire(scene: PackedScene, parent: Node) -> Node:
 	if _is_disposed:
@@ -231,6 +231,56 @@ func prewarm_async(scene: PackedScene, parent: Node, count: int, batch_size: int
 			return
 		_prewarm_node(scene, parent)
 		if scene_tree != null and (i + 1) % batch_size == 0:
+			await scene_tree.process_frame
+			if current_serial != _lifecycle_serial:
+				return
+			if parent != null and not is_instance_valid(parent):
+				return
+
+
+## 按单帧时间预算预热对象池，适合复杂度差异较大的 PackedScene。
+## @param scene: 要预热的 PackedScene 资源。
+## @param parent: 预热节点将加入此父节点。
+## @param count: 预热的数量。
+## @param msec_budget_per_frame: 每帧实例化预算毫秒数；小于等于 0 时退化为同步预热。
+func prewarm_async_budget(
+	scene: PackedScene,
+	parent: Node,
+	count: int,
+	msec_budget_per_frame: float = 8.0
+) -> void:
+	if _is_disposed:
+		push_warning("[GFObjectPoolUtility] 对象池已销毁，忽略 prewarm_async_budget。")
+		return
+	if not _ensure_scene_pool(scene):
+		return
+	if count <= 0:
+		return
+	if msec_budget_per_frame <= 0.0:
+		prewarm(scene, parent, count)
+		return
+
+	var current_serial := _lifecycle_serial
+	var create_count := _get_limited_prewarm_count(scene, count)
+	var created_count := 0
+	var scene_tree := Engine.get_main_loop() as SceneTree
+	while created_count < create_count:
+		var frame_start_usec := Time.get_ticks_usec()
+		var created_this_frame := 0
+		while created_count < create_count:
+			if current_serial != _lifecycle_serial:
+				return
+			if parent != null and not is_instance_valid(parent):
+				return
+			_prewarm_node(scene, parent)
+			created_count += 1
+			created_this_frame += 1
+
+			var elapsed_msec := float(Time.get_ticks_usec() - frame_start_usec) / 1000.0
+			if created_this_frame > 0 and elapsed_msec >= msec_budget_per_frame:
+				break
+
+		if created_count < create_count and scene_tree != null:
 			await scene_tree.process_frame
 			if current_serial != _lifecycle_serial:
 				return

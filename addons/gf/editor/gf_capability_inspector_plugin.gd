@@ -11,10 +11,13 @@ const META_CAPABILITY_ACTIVE: StringName = &"_gf_capability_active"
 const META_ORIGINAL_PROCESS_MODE: StringName = &"_gf_capability_original_process_mode"
 const GF_CAPABILITY_CONTAINER_BASE := preload("res://addons/gf/extensions/capability/gf_capability_container.gd")
 const GF_NODE_CAPABILITY_BASE := preload("res://addons/gf/extensions/capability/gf_node_capability.gd")
+const GF_NODE_2D_CAPABILITY_BASE := preload("res://addons/gf/extensions/capability/gf_node_2d_capability.gd")
+const GF_NODE_3D_CAPABILITY_BASE := preload("res://addons/gf/extensions/capability/gf_node_3d_capability.gd")
+const GF_CONTROL_CAPABILITY_BASE := preload("res://addons/gf/extensions/capability/gf_control_capability.gd")
 const GF_EDITOR_TYPE_INDEX_BASE := preload("res://addons/gf/editor/gf_editor_type_index.gd")
 
 
-# --- 公共方法 ---
+# --- Godot 回调方法 ---
 
 func _can_handle(object: Object) -> bool:
 	return object is Node and not object is GF_CAPABILITY_CONTAINER_BASE
@@ -28,7 +31,6 @@ func _parse_begin(object: Object) -> void:
 	var root := VBoxContainer.new()
 	root.name = "GFCapabilityInspector"
 	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	add_custom_control(root)
 
 	var header := HBoxContainer.new()
 	root.add_child(header)
@@ -50,10 +52,15 @@ func _parse_begin(object: Object) -> void:
 		empty_label.text = "未挂载节点能力"
 		empty_label.modulate = Color(0.65, 0.65, 0.65)
 		root.add_child(empty_label)
+		add_custom_control(root)
 		return
 
 	for capability: Node in capabilities:
+		if not is_instance_valid(capability):
+			continue
 		root.add_child(_create_capability_row(target, capability))
+
+	add_custom_control(root)
 
 
 # --- 私有/辅助方法 ---
@@ -81,33 +88,47 @@ func _collect_node_capability_candidates() -> Array[Dictionary]:
 	var candidates: Array[Dictionary] = []
 	var used_paths: Dictionary = {}
 	var type_index: Variant = GF_EDITOR_TYPE_INDEX_BASE.new()
-	var excluded_scripts: Array[Script] = [GF_NODE_CAPABILITY_BASE]
+	var base_scripts := _get_node_capability_base_scripts()
+	var excluded_scripts := base_scripts.duplicate()
 
-	for record: Dictionary in type_index.collect_scripts_extending(GF_NODE_CAPABILITY_BASE, excluded_scripts):
-		var class_name_value := String(record["class_name"])
-		var path := String(record["path"])
+	for base_script: Script in base_scripts:
+		for record: Dictionary in type_index.collect_scripts_extending(base_script, excluded_scripts):
+			var class_name_value := String(record["class_name"])
+			var path := String(record["path"])
+			if used_paths.has(path):
+				continue
 
-		used_paths[path] = true
-		candidates.append({
-			"kind": "script",
-			"label": class_name_value,
-			"path": path,
-			"default_name": class_name_value,
-		})
+			used_paths[path] = true
+			candidates.append({
+				"kind": "script",
+				"label": class_name_value,
+				"path": path,
+				"default_name": class_name_value,
+			})
 
-	for scene_record: Dictionary in type_index.collect_scene_roots_extending(GF_NODE_CAPABILITY_BASE, used_paths):
-		var display_name := String(scene_record["display_name"])
-		candidates.append({
-			"kind": "scene",
-			"label": "%s 场景" % display_name,
-			"path": String(scene_record["path"]),
-			"default_name": display_name,
-		})
+	for base_script: Script in base_scripts:
+		for scene_record: Dictionary in type_index.collect_scene_roots_extending(base_script, used_paths):
+			var display_name := String(scene_record["display_name"])
+			candidates.append({
+				"kind": "scene",
+				"label": "%s 场景" % display_name,
+				"path": String(scene_record["path"]),
+				"default_name": display_name,
+			})
 
 	candidates.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
 		return String(left["label"]) < String(right["label"])
 	)
 	return candidates
+
+
+func _get_node_capability_base_scripts() -> Array[Script]:
+	return [
+		GF_NODE_CAPABILITY_BASE,
+		GF_NODE_2D_CAPABILITY_BASE,
+		GF_NODE_3D_CAPABILITY_BASE,
+		GF_CONTROL_CAPABILITY_BASE,
+	] as Array[Script]
 
 
 func _create_capability_row(target: Node, capability: Node) -> Control:
@@ -168,7 +189,18 @@ func _create_capability_properties(capability: Node) -> Control:
 			false
 		)
 		if editor_property != null:
-			properties.add_child(editor_property)
+			var row := HBoxContainer.new()
+			row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+			var label := Label.new()
+			label.text = _get_property_display_name(property_name)
+			label.tooltip_text = property_name
+			label.custom_minimum_size = Vector2(128, 0)
+			row.add_child(label)
+
+			editor_property.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(editor_property)
+			properties.add_child(row)
 
 	return properties
 
@@ -177,6 +209,8 @@ func _is_editable_capability_property(property_info: Dictionary) -> bool:
 	var usage := int(property_info.get("usage", 0))
 	if (usage & PROPERTY_USAGE_EDITOR) == 0:
 		return false
+	if (usage & PROPERTY_USAGE_SCRIPT_VARIABLE) == 0:
+		return false
 
 	var property_name := String(property_info.get("name", ""))
 	return (
@@ -184,6 +218,12 @@ func _is_editable_capability_property(property_info: Dictionary) -> bool:
 		and property_name != "script"
 		and property_name != "active"
 	)
+
+
+func _get_property_display_name(property_name: String) -> String:
+	if property_name.is_empty():
+		return ""
+	return property_name.capitalize()
 
 
 func _get_capability_display_name(capability: Node) -> String:
@@ -211,7 +251,7 @@ func _get_or_create_capability_container(target: Node, capability: Node) -> Node
 	var container := _create_capability_container_node(target, capability)
 	container.set_meta(META_CAPABILITY_CONTAINER, true)
 	_try_attach_capability_container_script(container)
-	target.add_child(container, true, Node.INTERNAL_MODE_BACK)
+	target.add_child(container, true)
 	_set_owner_recursive(container, EditorInterface.get_edited_scene_root())
 	return container
 
@@ -277,7 +317,7 @@ func _is_capability_container(node: Node) -> bool:
 func _get_capability_nodes(target: Node) -> Array[Node]:
 	var result: Array[Node] = []
 	for container: Node in _get_capability_containers(target):
-		for child in container.get_children():
+		for child in container.get_children(true):
 			var node := child as Node
 			if node != null and node.get_script() != null:
 				result.append(node)
@@ -315,8 +355,9 @@ func _add_capability_node(target: Node, candidate: Dictionary) -> void:
 
 	var container := _get_or_create_capability_container(target, node)
 	node.name = _make_unique_child_name(container, String(candidate["default_name"]))
-	container.add_child(node, true, Node.INTERNAL_MODE_BACK)
+	container.add_child(node, true)
 	_set_owner_recursive(node, EditorInterface.get_edited_scene_root())
+	_select_editor_node(node)
 	EditorInterface.inspect_object(node)
 
 
@@ -327,8 +368,9 @@ func _remove_capability_node(target: Node, capability: Node) -> void:
 	var container := capability.get_parent()
 	capability.queue_free()
 	if is_instance_valid(target):
+		_select_editor_node(target)
 		EditorInterface.inspect_object(target)
-	if is_instance_valid(container) and container.get_child_count() <= 1:
+	if is_instance_valid(container) and container.get_child_count(true) <= 1:
 		container.queue_free()
 
 
@@ -343,12 +385,24 @@ func _make_unique_child_name(parent: Node, base_name: String) -> String:
 	return "%s%d" % [clean_name, index]
 
 
+func _select_editor_node(node: Node) -> void:
+	if not is_instance_valid(node):
+		return
+
+	var selection := EditorInterface.get_selection()
+	if selection == null:
+		return
+
+	selection.clear()
+	selection.add_node(node)
+
+
 func _set_owner_recursive(node: Node, owner: Node) -> void:
 	if owner == null:
 		return
 
 	node.owner = owner
-	for child: Node in node.get_children():
+	for child: Node in node.get_children(true):
 		_set_owner_recursive(child, owner)
 
 
@@ -381,15 +435,6 @@ func _set_node_active_state(node: Node, active: bool) -> void:
 		node.process_mode = node.get_meta(META_ORIGINAL_PROCESS_MODE)
 	else:
 		node.process_mode = Node.PROCESS_MODE_DISABLED
-
-
-func _script_extends_or_equals(candidate: Script, expected: Script) -> bool:
-	var current := candidate
-	while current != null:
-		if current == expected:
-			return true
-		current = current.get_base_script()
-	return false
 
 
 # --- 信号处理函数 ---

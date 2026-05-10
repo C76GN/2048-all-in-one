@@ -1,12 +1,10 @@
-class_name GFModifier
-extends RefCounted
-
-
 ## GFModifier: 属性修饰器数据类。
 ##
 ## 定义了如何修改一个通用属性（如加值、乘值）。
 ## `attribute_id` 表示目标属性，`source_id` 表示来源，避免把“改谁”和“从哪来”混在一起。
 ## 通常由 Buff、装备或被动技能产生。
+class_name GFModifier
+extends RefCounted
 
 
 # --- 枚举 ---
@@ -33,13 +31,6 @@ var attribute_id: StringName = &""
 ## 来源标识，例如 Buff ID、装备 ID 或被动技能 ID，用于查找和移除。
 var source_id: StringName = &""
 
-## 兼容旧字段名。新代码请使用 source_id。
-var source_tag: StringName:
-	get:
-		return source_id
-	set(p_source_tag):
-		source_id = p_source_tag
-
 
 # --- Godot 生命周期方法 ---
 
@@ -58,6 +49,9 @@ func _init(
 # --- 公共方法 ---
 
 ## 静态工厂方法：创建基础加值修饰器。
+## @param p_value: 修饰器数值。
+## @param p_attribute_id: 修饰器作用的属性标识。
+## @param p_source_id: 修饰器来源标识。
 static func create_base_add(
 	p_value: float,
 	p_attribute_id: StringName = &"",
@@ -67,6 +61,9 @@ static func create_base_add(
 
 
 ## 静态工厂方法：创建百分比加值修饰器。
+## @param p_value: 修饰器数值。
+## @param p_attribute_id: 修饰器作用的属性标识。
+## @param p_source_id: 修饰器来源标识。
 static func create_percent_add(
 	p_value: float,
 	p_attribute_id: StringName = &"",
@@ -76,6 +73,9 @@ static func create_percent_add(
 
 
 ## 静态工厂方法：创建最终加值修饰器。
+## @param p_value: 修饰器数值。
+## @param p_attribute_id: 修饰器作用的属性标识。
+## @param p_source_id: 修饰器来源标识。
 static func create_final_add(
 	p_value: float,
 	p_attribute_id: StringName = &"",

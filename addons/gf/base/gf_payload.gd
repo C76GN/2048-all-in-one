@@ -1,4 +1,4 @@
-## GFPayload: 强类型数据载体的抽象基类。
+﻿## GFPayload: 强类型数据载体的抽象基类。
 ##
 ## 继承自 RefCounted，用作事件传递、命令参数、系统间查询返回值的
 ## 标准化强类型数据包，替代容易在大型项目中引发类型错误和 null 访问的裸 Dictionary。
@@ -18,7 +18,7 @@ extends RefCounted
 
 ## 事件消费标记。高优先级回调可将此标记设为 true，
 ## 阻止后续低优先级回调继续接收该事件。
-## 仅在 TypeEventSystem 的类型事件轨道中生效。
+## 仅在 GFTypeEventSystem 的类型事件轨道中生效。
 var is_consumed: bool = false
 
 
@@ -33,7 +33,7 @@ func to_dict() -> Dictionary:
 
 ## 从字典反序列化并填充此载体的字段。
 ## 子类应重写此方法以恢复所有相关字段。
-## @param data: 包含字段数据的字典（通常来自 to_dict() 的结果）。
+## @param _data: 包含字段数据的字典（通常来自 to_dict() 的结果）。
 func from_dict(_data: Dictionary) -> void:
 	pass
 

@@ -25,6 +25,7 @@ const _CAPABILITY_UTILITY_PATH: String = "res://addons/gf/extensions/capability/
 
 var _registered_children: Dictionary = {}
 var _is_registering_children: bool = false
+var _register_children_deferred_queued: bool = false
 
 
 # --- Godot 生命周期方法 ---
@@ -34,14 +35,17 @@ func _enter_tree() -> void:
 		child_order_changed.connect(_on_child_order_changed)
 
 	if auto_register_children:
-		call_deferred("_register_children")
+		_register_children(false)
+		_queue_register_children()
 
 
 func _exit_tree() -> void:
+	_unregister_registered_children()
 	if child_order_changed.is_connected(_on_child_order_changed):
 		child_order_changed.disconnect(_on_child_order_changed)
 	_registered_children.clear()
 	_is_registering_children = false
+	_register_children_deferred_queued = false
 
 
 # --- 公共方法 ---
@@ -60,10 +64,27 @@ func register_children_now() -> void:
 
 func _on_child_order_changed() -> void:
 	if watch_child_changes and is_inside_tree():
-		call_deferred("_register_children")
+		_register_children(false)
+		_queue_register_children()
 
 
-func _register_children() -> void:
+func _queue_register_children() -> void:
+	if _register_children_deferred_queued:
+		return
+
+	_register_children_deferred_queued = true
+	call_deferred("_register_children_deferred")
+
+
+func _register_children_deferred() -> void:
+	_register_children_deferred_queued = false
+	if not is_inside_tree():
+		return
+
+	_register_children(true)
+
+
+func _register_children(warn_if_missing_utility: bool = true) -> void:
 	if _is_registering_children:
 		return
 
@@ -73,7 +94,8 @@ func _register_children() -> void:
 
 	var capability_utility := _get_capability_utility()
 	if capability_utility == null:
-		push_warning("[GFCapabilityContainer] 当前架构未注册 GFCapabilityUtility，无法注册子节点能力。")
+		if warn_if_missing_utility:
+			push_warning("[GFCapabilityContainer] 当前架构未注册 GFCapabilityUtility，无法注册子节点能力。")
 		return
 
 	_is_registering_children = true
@@ -89,6 +111,30 @@ func _register_children() -> void:
 		if capability == child:
 			_registered_children[child.get_instance_id()] = child_script
 	_is_registering_children = false
+
+
+func _unregister_registered_children() -> void:
+	if _registered_children.is_empty():
+		return
+
+	var receiver := get_receiver()
+	if not is_instance_valid(receiver):
+		return
+
+	var capability_utility := _get_capability_utility()
+	if capability_utility == null:
+		return
+
+	for child: Node in get_children():
+		var child_id := child.get_instance_id()
+		if not _registered_children.has(child_id):
+			continue
+
+		var child_script := _registered_children[child_id] as Script
+		if child_script == null:
+			continue
+		if capability_utility.get_capability(receiver, child_script) == child:
+			capability_utility.remove_capability(receiver, child_script)
 
 
 func _get_capability_utility() -> Object:

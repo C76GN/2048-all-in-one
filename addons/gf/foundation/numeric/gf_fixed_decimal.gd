@@ -29,6 +29,7 @@ enum RoundingMode {
 const MAX_DECIMAL_PLACES: int = 18
 
 const _BIG_NUMBER_SCRIPT: Script = preload("res://addons/gf/foundation/numeric/gf_big_number.gd")
+const _DECIMAL_STRING_UTILITY: Script = preload("res://addons/gf/foundation/formatting/gf_decimal_string_utility.gd")
 const _MAX_INT_VALUE: int = 9_223_372_036_854_775_807
 const _MAX_INT_DIGITS: String = "9223372036854775807"
 
@@ -122,7 +123,7 @@ static func from_string(
 		integer_part = trimmed.substr(0, decimal_index)
 		fractional_part = trimmed.substr(decimal_index + 1)
 
-	if not _is_valid_decimal_parts(integer_part, fractional_part, decimal_index != -1):
+	if not _DECIMAL_STRING_UTILITY.is_valid_decimal_parts(integer_part, fractional_part, decimal_index != -1):
 		push_error("[GFFixedDecimal] 无法解析数字字符串：%s" % value)
 		return GFFixedDecimal.new(0, places)
 
@@ -521,7 +522,7 @@ static func _divide_decimal_strings(numerator_digits: String, denominator_digits
 			"remainder": "0",
 		}
 
-	var quotient := ""
+	var quotient_parts := PackedStringArray()
 	var remainder := "0"
 	for i in range(numerator_text.length()):
 		remainder = _normalize_decimal_string(remainder + numerator_text.substr(i, 1))
@@ -532,10 +533,10 @@ static func _divide_decimal_strings(numerator_digits: String, denominator_digits
 				quotient_digit = candidate
 				remainder = _subtract_decimal_strings(remainder, product)
 				break
-		quotient += str(quotient_digit)
+		quotient_parts.append(str(quotient_digit))
 
 	return {
-		"quotient": _normalize_decimal_string(quotient),
+		"quotient": _normalize_decimal_string("".join(quotient_parts)),
 		"remainder": _normalize_decimal_string(remainder),
 	}
 
@@ -564,7 +565,7 @@ static func _compare_decimal_strings(left: String, right: String) -> int:
 static func _subtract_decimal_strings(left: String, right: String) -> String:
 	var left_text := _normalize_decimal_string(left)
 	var right_text := _normalize_decimal_string(right)
-	var result := ""
+	var result_parts := PackedStringArray()
 	var borrow := 0
 	var left_index := left_text.length() - 1
 	var right_index := right_text.length() - 1
@@ -578,10 +579,11 @@ static func _subtract_decimal_strings(left: String, right: String) -> String:
 			borrow = 1
 		else:
 			borrow = 0
-		result = str(left_digit - right_digit) + result
+		result_parts.append(str(left_digit - right_digit))
 		left_index -= 1
 		right_index -= 1
-	return _normalize_decimal_string(result)
+	result_parts.reverse()
+	return _normalize_decimal_string("".join(result_parts))
 
 
 static func _multiply_decimal_string_by_digit(text: String, digit: int) -> String:
@@ -591,16 +593,17 @@ static func _multiply_decimal_string_by_digit(text: String, digit: int) -> Strin
 		return _normalize_decimal_string(text)
 
 	var normalized_text := _normalize_decimal_string(text)
-	var result := ""
+	var result_parts := PackedStringArray()
 	var carry := 0
 	for i in range(normalized_text.length() - 1, -1, -1):
 		var product := normalized_text.substr(i, 1).to_int() * digit + carry
-		result = str(product % 10) + result
+		result_parts.append(str(product % 10))
 		carry = int(product / 10)
 	while carry > 0:
-		result = str(carry % 10) + result
+		result_parts.append(str(carry % 10))
 		carry = int(carry / 10)
-	return _normalize_decimal_string(result)
+	result_parts.reverse()
+	return _normalize_decimal_string("".join(result_parts))
 
 
 static func _add_one_decimal_string(text: String) -> String:
@@ -672,22 +675,6 @@ static func _normalize_decimal_places(value: int) -> int:
 		push_error("[GFFixedDecimal] decimal_places 超出上限 %d，已自动钳制。" % MAX_DECIMAL_PLACES)
 		return MAX_DECIMAL_PLACES
 	return value
-
-
-static func _is_valid_decimal_parts(integer_part: String, fractional_part: String, has_decimal_point: bool) -> bool:
-	if has_decimal_point and integer_part.find(".") != -1:
-		return false
-	if integer_part.is_empty() and fractional_part.is_empty():
-		return false
-	return _contains_only_digits(integer_part) and _contains_only_digits(fractional_part)
-
-
-static func _contains_only_digits(text: String) -> bool:
-	for i in range(text.length()):
-		var character := text.substr(i, 1)
-		if character < "0" or character > "9":
-			return false
-	return true
 
 
 static func _parse_signed_digits(digits: String, sign: int) -> int:

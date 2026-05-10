@@ -1,13 +1,14 @@
 ## GFNodeCapability: 可直接作为场景节点使用的能力组件基类。
 ##
-## 适合承载需要碰撞、输入、动画或子节点引用的局部能力。
+## 适合承载通用节点逻辑、输入、动画或子节点引用的局部能力。
+## 需要 2D/3D/UI 空间继承时，优先使用 GFNode2DCapability、GFNode3DCapability 或 GFControlCapability。
 class_name GFNodeCapability
 extends Node
 
 
 # --- 常量 ---
 
-const _CAPABILITY_UTILITY_SCRIPT: Script = preload("res://addons/gf/extensions/capability/gf_capability_utility.gd")
+const _CAPABILITY_SUPPORT_SCRIPT: Script = preload("res://addons/gf/extensions/capability/gf_node_capability_support.gd")
 
 
 # --- 公共变量 ---
@@ -29,7 +30,7 @@ var _architecture_ref: WeakRef = null
 ## 注入当前能力所属架构。
 ## @param architecture: 当前架构实例。
 func inject_dependencies(architecture: GFArchitecture) -> void:
-	_architecture_ref = weakref(architecture) if architecture != null else null
+	_architecture_ref = _CAPABILITY_SUPPORT_SCRIPT.make_architecture_ref(architecture)
 
 
 ## 返回当前能力依赖的其他能力类型。
@@ -40,7 +41,7 @@ func get_required_capabilities() -> Array[Script]:
 
 ## 返回移除当前能力时对自动补齐依赖能力的处理策略。
 func get_dependency_removal_policy() -> int:
-	return GFCapabilityUtility.DependencyRemovalPolicy.KEEP_DEPENDENCIES
+	return GFCapabilityUtility.DependencyRemovalPolicy.REMOVE_AUTO_DEPENDENCIES
 
 
 ## 能力挂载到对象后调用。
@@ -63,46 +64,30 @@ func on_gf_capability_active_changed(_target: Object, _active: bool) -> void:
 
 
 ## 通过当前架构获取 Model。
+## @param model_type: 要获取的 Model 脚本类型。
 func get_model(model_type: Script) -> Object:
-	var architecture := _get_architecture_or_null()
-	if architecture == null:
-		return null
-	return architecture.get_model(model_type)
+	return _CAPABILITY_SUPPORT_SCRIPT.get_model(_architecture_ref, model_type)
 
 
 ## 通过当前架构获取 System。
+## @param system_type: 目标类型。
 func get_system(system_type: Script) -> Object:
-	var architecture := _get_architecture_or_null()
-	if architecture == null:
-		return null
-	return architecture.get_system(system_type)
+	return _CAPABILITY_SUPPORT_SCRIPT.get_system(_architecture_ref, system_type)
 
 
 ## 通过当前架构获取 Utility。
+## @param utility_type: 要获取的 Utility 脚本类型。
 func get_utility(utility_type: Script) -> Object:
-	var architecture := _get_architecture_or_null()
-	if architecture == null:
-		return null
-	return architecture.get_utility(utility_type)
+	return _CAPABILITY_SUPPORT_SCRIPT.get_utility(_architecture_ref, utility_type)
 
 
 ## 获取当前 receiver 上的其他能力。
+## @param capability_type: 要查询、添加或移除的能力脚本类型。
 func get_capability(capability_type: Script) -> Object:
-	if receiver == null:
-		return null
-
-	var capability_utility := get_utility(_CAPABILITY_UTILITY_SCRIPT)
-	if capability_utility == null:
-		return null
-
-	return capability_utility.get_capability(receiver, capability_type)
+	return _CAPABILITY_SUPPORT_SCRIPT.get_capability(receiver, _architecture_ref, capability_type)
 
 
 # --- 私有/辅助方法 ---
 
 func _get_architecture_or_null() -> GFArchitecture:
-	if _architecture_ref != null:
-		var architecture := _architecture_ref.get_ref() as GFArchitecture
-		if architecture != null:
-			return architecture
-	return GFAutoload.get_architecture_or_null()
+	return _CAPABILITY_SUPPORT_SCRIPT.get_architecture_or_null(_architecture_ref)

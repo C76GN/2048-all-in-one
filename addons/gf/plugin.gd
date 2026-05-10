@@ -14,9 +14,14 @@ enum GFMenuId {
 	GENERATE_COMMAND,
 	GENERATE_CAPABILITY,
 	GENERATE_NODE_CAPABILITY,
+	GENERATE_NODE_2D_CAPABILITY,
+	GENERATE_NODE_3D_CAPABILITY,
+	GENERATE_CONTROL_CAPABILITY,
 	GENERATE_NODE_STATE,
 	GENERATE_NODE_STATE_MACHINE,
 	GENERATE_ACCESSORS,
+	GENERATE_PROJECT_ACCESSORS,
+	VALIDATE_SAVE_GRAPH,
 }
 
 
@@ -26,16 +31,33 @@ const AUTOLOAD_NAME: String = "Gf"
 const AUTOLOAD_PATH: String = "res://addons/gf/core/gf.gd"
 const INSTALLERS_SETTING: String = "gf/project/installers"
 const INSTALLERS_DEFAULT := []
+const FAIL_ON_INSTALLER_ERROR_SETTING: String = "gf/project/fail_on_installer_error"
+const FAIL_ON_INSTALLER_ERROR_DEFAULT: bool = true
+const INSTALLER_TIMEOUT_SETTING: String = "gf/project/installer_timeout_seconds"
+const INSTALLER_TIMEOUT_DEFAULT: float = 0.0
 const ACCESS_OUTPUT_SETTING: String = "gf/codegen/access_output_path"
 const ACCESS_OUTPUT_DEFAULT: String = "res://gf/generated/gf_access.gd"
+const PROJECT_ACCESS_OUTPUT_SETTING: String = "gf/codegen/project_access_output_path"
+const PROJECT_ACCESS_OUTPUT_DEFAULT: String = "res://gf/generated/gf_project_access.gd"
 const ACCESS_GENERATOR_SCRIPT_PATH: String = "res://addons/gf/editor/gf_access_generator.gd"
 const CAPABILITY_INSPECTOR_PLUGIN_SCRIPT_PATH: String = "res://addons/gf/editor/gf_capability_inspector_plugin.gd"
 const NODE_STATE_MACHINE_INSPECTOR_PLUGIN_SCRIPT_PATH: String = "res://addons/gf/editor/gf_node_state_machine_inspector_plugin.gd"
+const FLOW_GRAPH_INSPECTOR_PLUGIN_SCRIPT_PATH: String = "res://addons/gf/editor/gf_flow_graph_inspector_plugin.gd"
+const PATTERN_2D_INSPECTOR_PLUGIN_SCRIPT_PATH: String = "res://addons/gf/editor/gf_pattern_2d_inspector_plugin.gd"
+const BUILD_INFO_EXPORT_PLUGIN_SCRIPT_PATH: String = "res://addons/gf/editor/gf_build_info_export_plugin.gd"
+const SAVE_GRAPH_UTILITY_SCRIPT_PATH: String = "res://addons/gf/extensions/save/gf_save_graph_utility.gd"
+const SAVE_SCOPE_SCRIPT_PATH: String = "res://addons/gf/extensions/save/gf_save_scope.gd"
 const SAVE_VIEWER_CODEC_SCRIPT_PATH: String = "res://addons/gf/utilities/gf_storage_codec.gd"
+const _SCRIPT_TYPE_UTILITY: Script = preload("res://addons/gf/foundation/reflection/gf_script_type_utility.gd")
 const SAVE_VIEWER_FORMAT_JSON: int = 0
 const SAVE_VIEWER_FORMAT_BINARY: int = 1
 const SAVE_VIEWER_LABEL_WIDTH: float = 72.0
-const SAVE_VIEWER_OUTPUT_MIN_HEIGHT: float = 96.0
+const SAVE_VIEWER_OUTPUT_MIN_HEIGHT: float = 40.0
+const DIAGNOSTIC_DIALOG_MIN_SIZE: Vector2 = Vector2(720.0, 460.0)
+const BUILD_INFO_EXPORT_ENABLED_SETTING: String = "gf/build/export/write_git_metadata"
+const BUILD_INFO_EXPORT_RESTORE_SETTING: String = "gf/build/export/restore_previous_settings"
+const BUILD_INFO_EXPORT_SAVE_SETTING: String = "gf/build/export/save_project_settings"
+const BUILD_INFO_EXPORT_METADATA_SETTING: String = "gf/build/export/metadata"
 
 
 # --- 私有变量 ---
@@ -44,7 +66,11 @@ var _file_dialog: FileDialog
 var _current_template_type: String = ""
 var _capability_inspector_plugin: EditorInspectorPlugin
 var _node_state_machine_inspector_plugin: EditorInspectorPlugin
+var _flow_graph_inspector_plugin: EditorInspectorPlugin
+var _pattern_2d_inspector_plugin: EditorInspectorPlugin
+var _build_info_export_plugin: EditorExportPlugin
 var _save_viewer_dock: Control
+var _save_viewer_bottom_button: Button
 var _save_viewer_path_edit: LineEdit
 var _save_viewer_format_option: OptionButton
 var _save_viewer_obfuscation_key_spin: SpinBox
@@ -54,6 +80,8 @@ var _save_viewer_strict_check: CheckBox
 var _save_viewer_status_label: Label
 var _save_viewer_output: TextEdit
 var _save_viewer_file_dialog: FileDialog
+var _diagnostic_dialog: AcceptDialog
+var _diagnostic_output: TextEdit
 var _gf_menu: PopupMenu
 var _plugin_active: bool = false
 
@@ -65,7 +93,9 @@ func _enter_tree() -> void:
 	_ensure_autoload()
 	_ensure_installers_setting()
 	_ensure_codegen_settings()
+	_ensure_build_info_export_settings()
 	_setup_inspector_tools()
+	_setup_build_info_export_plugin()
 	call_deferred("_setup_save_viewer_dock")
 	_setup_generator_tools()
 
@@ -73,12 +103,14 @@ func _enter_tree() -> void:
 func _exit_tree() -> void:
 	_plugin_active = false
 	_remove_autoload()
+	_cleanup_diagnostic_dialog()
 	_cleanup_save_viewer_dock()
+	_cleanup_build_info_export_plugin()
 	_cleanup_inspector_tools()
 	_cleanup_generator_tools()
 
 
-# --- 编辑器工具 ---
+# --- 私有/编辑器工具 ---
 
 func _ensure_autoload() -> void:
 	if not ProjectSettings.has_setting("autoload/%s" % AUTOLOAD_NAME):
@@ -112,6 +144,14 @@ func _ensure_installers_setting() -> void:
 		ProjectSettings.set_setting(INSTALLERS_SETTING, INSTALLERS_DEFAULT)
 		ProjectSettings.set_initial_value(INSTALLERS_SETTING, INSTALLERS_DEFAULT)
 		should_save = true
+	if not ProjectSettings.has_setting(FAIL_ON_INSTALLER_ERROR_SETTING):
+		ProjectSettings.set_setting(FAIL_ON_INSTALLER_ERROR_SETTING, FAIL_ON_INSTALLER_ERROR_DEFAULT)
+		ProjectSettings.set_initial_value(FAIL_ON_INSTALLER_ERROR_SETTING, FAIL_ON_INSTALLER_ERROR_DEFAULT)
+		should_save = true
+	if not ProjectSettings.has_setting(INSTALLER_TIMEOUT_SETTING):
+		ProjectSettings.set_setting(INSTALLER_TIMEOUT_SETTING, INSTALLER_TIMEOUT_DEFAULT)
+		ProjectSettings.set_initial_value(INSTALLER_TIMEOUT_SETTING, INSTALLER_TIMEOUT_DEFAULT)
+		should_save = true
 
 	ProjectSettings.add_property_info({
 		"name": INSTALLERS_SETTING,
@@ -120,6 +160,18 @@ func _ensure_installers_setting() -> void:
 		"hint_string": "%d/%d:*.gd" % [TYPE_STRING, PROPERTY_HINT_FILE],
 	})
 	ProjectSettings.set_as_basic(INSTALLERS_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": FAIL_ON_INSTALLER_ERROR_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(FAIL_ON_INSTALLER_ERROR_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": INSTALLER_TIMEOUT_SETTING,
+		"type": TYPE_FLOAT,
+		"hint": PROPERTY_HINT_RANGE,
+		"hint_string": "0,600,0.1,or_greater",
+	})
+	ProjectSettings.set_as_basic(INSTALLER_TIMEOUT_SETTING, true)
 
 	if should_save:
 		ProjectSettings.save()
@@ -133,6 +185,11 @@ func _ensure_codegen_settings() -> void:
 		ProjectSettings.set_initial_value(ACCESS_OUTPUT_SETTING, ACCESS_OUTPUT_DEFAULT)
 		should_save = true
 
+	if not ProjectSettings.has_setting(PROJECT_ACCESS_OUTPUT_SETTING):
+		ProjectSettings.set_setting(PROJECT_ACCESS_OUTPUT_SETTING, PROJECT_ACCESS_OUTPUT_DEFAULT)
+		ProjectSettings.set_initial_value(PROJECT_ACCESS_OUTPUT_SETTING, PROJECT_ACCESS_OUTPUT_DEFAULT)
+		should_save = true
+
 	ProjectSettings.add_property_info({
 		"name": ACCESS_OUTPUT_SETTING,
 		"type": TYPE_STRING,
@@ -140,6 +197,61 @@ func _ensure_codegen_settings() -> void:
 		"hint_string": "*.gd",
 	})
 	ProjectSettings.set_as_basic(ACCESS_OUTPUT_SETTING, true)
+
+	ProjectSettings.add_property_info({
+		"name": PROJECT_ACCESS_OUTPUT_SETTING,
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_FILE,
+		"hint_string": "*.gd",
+	})
+	ProjectSettings.set_as_basic(PROJECT_ACCESS_OUTPUT_SETTING, true)
+
+	if should_save:
+		ProjectSettings.save()
+
+
+func _ensure_build_info_export_settings() -> void:
+	var should_save: bool = false
+
+	if not ProjectSettings.has_setting(BUILD_INFO_EXPORT_ENABLED_SETTING):
+		ProjectSettings.set_setting(BUILD_INFO_EXPORT_ENABLED_SETTING, false)
+		ProjectSettings.set_initial_value(BUILD_INFO_EXPORT_ENABLED_SETTING, false)
+		should_save = true
+
+	if not ProjectSettings.has_setting(BUILD_INFO_EXPORT_RESTORE_SETTING):
+		ProjectSettings.set_setting(BUILD_INFO_EXPORT_RESTORE_SETTING, true)
+		ProjectSettings.set_initial_value(BUILD_INFO_EXPORT_RESTORE_SETTING, true)
+		should_save = true
+
+	if not ProjectSettings.has_setting(BUILD_INFO_EXPORT_SAVE_SETTING):
+		ProjectSettings.set_setting(BUILD_INFO_EXPORT_SAVE_SETTING, false)
+		ProjectSettings.set_initial_value(BUILD_INFO_EXPORT_SAVE_SETTING, false)
+		should_save = true
+
+	if not ProjectSettings.has_setting(BUILD_INFO_EXPORT_METADATA_SETTING):
+		ProjectSettings.set_setting(BUILD_INFO_EXPORT_METADATA_SETTING, {})
+		ProjectSettings.set_initial_value(BUILD_INFO_EXPORT_METADATA_SETTING, {})
+		should_save = true
+
+	ProjectSettings.add_property_info({
+		"name": BUILD_INFO_EXPORT_ENABLED_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(BUILD_INFO_EXPORT_ENABLED_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": BUILD_INFO_EXPORT_RESTORE_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(BUILD_INFO_EXPORT_RESTORE_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": BUILD_INFO_EXPORT_SAVE_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(BUILD_INFO_EXPORT_SAVE_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": BUILD_INFO_EXPORT_METADATA_SETTING,
+		"type": TYPE_DICTIONARY,
+	})
 
 	if should_save:
 		ProjectSettings.save()
@@ -176,13 +288,41 @@ func _setup_inspector_tools() -> void:
 	if _node_state_machine_inspector_plugin != null:
 		add_inspector_plugin(_node_state_machine_inspector_plugin)
 
+	_flow_graph_inspector_plugin = _load_inspector_plugin(
+		FLOW_GRAPH_INSPECTOR_PLUGIN_SCRIPT_PATH,
+		"流程图 Inspector"
+	)
+	if _flow_graph_inspector_plugin != null:
+		add_inspector_plugin(_flow_graph_inspector_plugin)
+
+	_pattern_2d_inspector_plugin = _load_inspector_plugin(
+		PATTERN_2D_INSPECTOR_PLUGIN_SCRIPT_PATH,
+		"Pattern2D Inspector"
+	)
+	if _pattern_2d_inspector_plugin != null:
+		add_inspector_plugin(_pattern_2d_inspector_plugin)
+
+
+func _setup_build_info_export_plugin() -> void:
+	var export_script := load(BUILD_INFO_EXPORT_PLUGIN_SCRIPT_PATH) as Script
+	if export_script == null or not export_script.can_instantiate():
+		push_error("[GF Framework] 构建信息导出插件脚本加载失败。")
+		return
+
+	_build_info_export_plugin = export_script.new() as EditorExportPlugin
+	if _build_info_export_plugin == null:
+		push_error("[GF Framework] 构建信息导出插件实例化失败。")
+		return
+
+	add_export_plugin(_build_info_export_plugin)
+
 
 func _setup_save_viewer_dock() -> void:
 	if not _plugin_active or is_instance_valid(_save_viewer_dock):
 		return
 
 	_save_viewer_dock = _create_save_viewer_dock()
-	add_control_to_dock(DOCK_SLOT_RIGHT_BL, _save_viewer_dock)
+	_save_viewer_bottom_button = add_control_to_bottom_panel(_save_viewer_dock, "GF Save Viewer")
 
 
 func _load_inspector_plugin(script_path: String, label: String) -> EditorInspectorPlugin:
@@ -206,13 +346,26 @@ func _cleanup_inspector_tools() -> void:
 	if _node_state_machine_inspector_plugin != null:
 		remove_inspector_plugin(_node_state_machine_inspector_plugin)
 		_node_state_machine_inspector_plugin = null
+	if _flow_graph_inspector_plugin != null:
+		remove_inspector_plugin(_flow_graph_inspector_plugin)
+		_flow_graph_inspector_plugin = null
+	if _pattern_2d_inspector_plugin != null:
+		remove_inspector_plugin(_pattern_2d_inspector_plugin)
+		_pattern_2d_inspector_plugin = null
+
+
+func _cleanup_build_info_export_plugin() -> void:
+	if _build_info_export_plugin != null:
+		remove_export_plugin(_build_info_export_plugin)
+		_build_info_export_plugin = null
 
 
 func _cleanup_save_viewer_dock() -> void:
 	if is_instance_valid(_save_viewer_dock):
-		remove_control_from_docks(_save_viewer_dock)
+		remove_control_from_bottom_panel(_save_viewer_dock)
 		_save_viewer_dock.queue_free()
 	_save_viewer_dock = null
+	_save_viewer_bottom_button = null
 	_save_viewer_path_edit = null
 	_save_viewer_format_option = null
 	_save_viewer_obfuscation_key_spin = null
@@ -222,6 +375,13 @@ func _cleanup_save_viewer_dock() -> void:
 	_save_viewer_status_label = null
 	_save_viewer_output = null
 	_save_viewer_file_dialog = null
+
+
+func _cleanup_diagnostic_dialog() -> void:
+	if is_instance_valid(_diagnostic_dialog):
+		_diagnostic_dialog.queue_free()
+	_diagnostic_dialog = null
+	_diagnostic_output = null
 
 
 func _cleanup_generator_tools() -> void:
@@ -242,6 +402,10 @@ func _show_dialog(type: String) -> void:
 
 
 func _on_file_selected(path: String) -> void:
+	if FileAccess.file_exists(path):
+		push_error("[GF Framework] 文件已存在，已取消生成: %s" % path)
+		return
+
 	var file_name := path.get_file().get_basename()
 	var class_name_str := file_name.to_pascal_case()
 			
@@ -277,6 +441,28 @@ func _generate_accessors() -> void:
 		print("[GF Framework] 成功生成强类型访问器: ", output_path)
 	else:
 		push_error("[GF Framework] 强类型访问器生成失败: %s" % error_string(error))
+
+
+func _generate_project_accessors() -> void:
+	var output_path := String(ProjectSettings.get_setting(
+		PROJECT_ACCESS_OUTPUT_SETTING,
+		PROJECT_ACCESS_OUTPUT_DEFAULT
+	))
+	var generator_script := load(ACCESS_GENERATOR_SCRIPT_PATH) as Script
+	if generator_script == null or not generator_script.can_instantiate():
+		push_error("[GF Framework] 项目常量访问器生成器加载失败。")
+		return
+
+	var generator: Variant = generator_script.new()
+	if generator == null or not generator.has_method("generate_project_access"):
+		push_error("[GF Framework] 项目常量访问器生成器实例化失败。")
+		return
+
+	var error: Error = generator.generate_project_access(output_path)
+	if error == OK:
+		print("[GF Framework] 成功生成项目常量访问器: ", output_path)
+	else:
+		push_error("[GF Framework] 项目常量访问器生成失败: %s" % error_string(error))
 
 
 func _create_save_viewer_dock() -> Control:
@@ -464,6 +650,81 @@ func _set_save_viewer_status(message: String, is_error: bool) -> void:
 		push_warning("[GF Save Viewer] " + message)
 
 
+func _validate_current_scene_save_graph() -> void:
+	var scene_root := EditorInterface.get_edited_scene_root()
+	if scene_root == null:
+		_show_diagnostic_dialog("GF SaveGraph Health", "当前没有正在编辑的场景。")
+		return
+
+	var scope_script := load(SAVE_SCOPE_SCRIPT_PATH) as Script
+	var utility_script := load(SAVE_GRAPH_UTILITY_SCRIPT_PATH) as Script
+	if scope_script == null or utility_script == null or not utility_script.can_instantiate():
+		_show_diagnostic_dialog("GF SaveGraph Health", "GF SaveGraph 诊断脚本不可用。")
+		return
+
+	var scopes: Array[Node] = []
+	_collect_save_scopes(scene_root, scope_script, scopes)
+	if scopes.is_empty():
+		_show_diagnostic_dialog("GF SaveGraph Health", "当前场景未找到 GFSaveScope。")
+		return
+
+	var utility: Variant = utility_script.new()
+	var lines := PackedStringArray()
+	lines.append("Scene: %s" % scene_root.scene_file_path)
+	lines.append("Scope count: %d" % scopes.size())
+	lines.append("")
+	for scope: Node in scopes:
+		var report: Dictionary = utility.inspect_scope(scope)
+		lines.append("[%s] %s" % [String(scope.get_path()), String(report.get("summary", ""))])
+		lines.append("Next: %s" % String(report.get("next_action", "")))
+		for issue_variant: Variant in report.get("issues", []):
+			var issue := issue_variant as Dictionary
+			if issue == null:
+				continue
+			lines.append("- %s %s %s: %s" % [
+				String(issue.get("severity", "")),
+				String(issue.get("kind", "")),
+				String(issue.get("path", "")),
+				String(issue.get("message", "")),
+			])
+		lines.append("")
+
+	_show_diagnostic_dialog("GF SaveGraph Health", "\n".join(lines))
+
+
+func _collect_save_scopes(node: Node, scope_script: Script, result: Array[Node]) -> void:
+	var node_script := node.get_script() as Script
+	if node_script == scope_script or _SCRIPT_TYPE_UTILITY.script_extends_or_equals(node_script, scope_script):
+		result.append(node)
+
+	for child: Node in node.get_children():
+		_collect_save_scopes(child, scope_script, result)
+
+
+func _show_diagnostic_dialog(title: String, text: String) -> void:
+	if not is_instance_valid(_diagnostic_dialog):
+		_diagnostic_dialog = AcceptDialog.new()
+		var dialog_min_size := Vector2i(
+			int(DIAGNOSTIC_DIALOG_MIN_SIZE.x),
+			int(DIAGNOSTIC_DIALOG_MIN_SIZE.y)
+		)
+		_diagnostic_dialog.min_size = dialog_min_size
+		_diagnostic_output = TextEdit.new()
+		_diagnostic_output.editable = false
+		_diagnostic_output.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_diagnostic_output.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_diagnostic_dialog.add_child(_diagnostic_output)
+		EditorInterface.get_base_control().add_child(_diagnostic_dialog)
+
+	_diagnostic_dialog.title = title
+	if is_instance_valid(_diagnostic_output):
+		_diagnostic_output.text = text
+	_diagnostic_dialog.popup_centered(Vector2i(
+		int(DIAGNOSTIC_DIALOG_MIN_SIZE.x),
+		int(DIAGNOSTIC_DIALOG_MIN_SIZE.y)
+	))
+
+
 func _populate_gf_menu() -> void:
 	_gf_menu.add_separator("核心模块")
 	_gf_menu.add_item("生成 System", GFMenuId.GENERATE_SYSTEM)
@@ -474,11 +735,18 @@ func _populate_gf_menu() -> void:
 	_gf_menu.add_separator("扩展模板")
 	_gf_menu.add_item("生成 Capability", GFMenuId.GENERATE_CAPABILITY)
 	_gf_menu.add_item("生成 NodeCapability", GFMenuId.GENERATE_NODE_CAPABILITY)
+	_gf_menu.add_item("生成 Node2DCapability", GFMenuId.GENERATE_NODE_2D_CAPABILITY)
+	_gf_menu.add_item("生成 Node3DCapability", GFMenuId.GENERATE_NODE_3D_CAPABILITY)
+	_gf_menu.add_item("生成 ControlCapability", GFMenuId.GENERATE_CONTROL_CAPABILITY)
 	_gf_menu.add_item("生成 NodeState", GFMenuId.GENERATE_NODE_STATE)
 	_gf_menu.add_item("生成 NodeStateMachine", GFMenuId.GENERATE_NODE_STATE_MACHINE)
 
 	_gf_menu.add_separator("代码生成")
 	_gf_menu.add_item("生成强类型访问器", GFMenuId.GENERATE_ACCESSORS)
+	_gf_menu.add_item("生成项目常量访问器", GFMenuId.GENERATE_PROJECT_ACCESSORS)
+
+	_gf_menu.add_separator("诊断")
+	_gf_menu.add_item("校验当前场景 SaveGraph", GFMenuId.VALIDATE_SAVE_GRAPH)
 
 
 func _on_gf_menu_id_pressed(id: int) -> void:
@@ -495,12 +763,22 @@ func _on_gf_menu_id_pressed(id: int) -> void:
 			_show_dialog("Capability")
 		GFMenuId.GENERATE_NODE_CAPABILITY:
 			_show_dialog("NodeCapability")
+		GFMenuId.GENERATE_NODE_2D_CAPABILITY:
+			_show_dialog("Node2DCapability")
+		GFMenuId.GENERATE_NODE_3D_CAPABILITY:
+			_show_dialog("Node3DCapability")
+		GFMenuId.GENERATE_CONTROL_CAPABILITY:
+			_show_dialog("ControlCapability")
 		GFMenuId.GENERATE_NODE_STATE:
 			_show_dialog("NodeState")
 		GFMenuId.GENERATE_NODE_STATE_MACHINE:
 			_show_dialog("NodeStateMachine")
 		GFMenuId.GENERATE_ACCESSORS:
 			_generate_accessors()
+		GFMenuId.GENERATE_PROJECT_ACCESSORS:
+			_generate_project_accessors()
+		GFMenuId.VALIDATE_SAVE_GRAPH:
+			_validate_current_scene_save_graph()
 
 
 func _get_template(type: String) -> String:
@@ -584,7 +862,13 @@ func execute() -> Variant:
 # --- 私有辅助方法 ---
 
 """
-	elif type == "Capability" or type == "NodeCapability":
+	elif (
+		type == "Capability"
+		or type == "NodeCapability"
+		or type == "Node2DCapability"
+		or type == "Node3DCapability"
+		or type == "ControlCapability"
+	):
 		return base_template + """# --- 公共变量 ---
 
 
@@ -604,14 +888,21 @@ func get_dependency_removal_policy() -> int:
 	return super.get_dependency_removal_policy()
 
 
+## 处理能力添加通知。
+## @param target: 交互目标对象。
 func on_gf_capability_added(target: Object) -> void:
 	super.on_gf_capability_added(target)
 
 
+## 处理能力移除通知。
+## @param target: 交互目标对象。
 func on_gf_capability_removed(target: Object) -> void:
 	super.on_gf_capability_removed(target)
 
 
+## 处理能力激活状态变化通知。
+## @param _target: 能力目标对象，默认回调不直接使用。
+## @param _active: 能力激活状态，默认回调不直接使用。
 func on_gf_capability_active_changed(_target: Object, _active: bool) -> void:
 	pass
 
@@ -633,6 +924,9 @@ func on_gf_capability_active_changed(_target: Object, _active: bool) -> void:
 
 
 # --- 公共方法 ---
+
+
+# --- 虚方法（由子类重写） ---
 
 func _initialize() -> void:
 	pass
@@ -693,6 +987,12 @@ func _ready() -> void:
 
 func _get_base_class(type: String) -> String:
 	match type:
+		"Node2DCapability":
+			return "GFNode2DCapability"
+		"Node3DCapability":
+			return "GFNode3DCapability"
+		"ControlCapability":
+			return "GFControlCapability"
 		"NodeState":
 			return "GFNodeState"
 		"NodeStateMachine":

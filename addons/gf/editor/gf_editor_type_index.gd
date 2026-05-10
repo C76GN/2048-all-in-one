@@ -7,6 +7,11 @@ class_name GFEditorTypeIndex
 extends RefCounted
 
 
+# --- 常量 ---
+
+const _SCRIPT_TYPE_UTILITY: Script = preload("res://addons/gf/foundation/reflection/gf_script_type_utility.gd")
+
+
 # --- 私有变量 ---
 
 var _script_cache: Dictionary = {}
@@ -16,6 +21,8 @@ var _scene_root_script_cache: Dictionary = {}
 # --- 公共方法 ---
 
 ## 收集继承指定脚本基类的全局脚本类。
+## @param base_script: 要匹配的基类脚本。
+## @param excluded_scripts: 收集类型时需要排除的脚本列表。
 func collect_scripts_extending(base_script: Script, excluded_scripts: Array[Script] = []) -> Array[Dictionary]:
 	var records: Array[Dictionary] = []
 	if base_script == null:
@@ -31,7 +38,7 @@ func collect_scripts_extending(base_script: Script, excluded_scripts: Array[Scri
 		var script := _load_script(path)
 		if script == null or excluded_scripts.has(script):
 			continue
-		if not _script_extends_or_equals(script, base_script):
+		if not _SCRIPT_TYPE_UTILITY.script_extends_or_equals(script, base_script):
 			continue
 
 		used_paths[path] = true
@@ -48,7 +55,14 @@ func collect_scripts_extending(base_script: Script, excluded_scripts: Array[Scri
 
 
 ## 收集根脚本继承指定基类的场景。
-func collect_scene_roots_extending(base_script: Script, used_paths: Dictionary = {}) -> Array[Dictionary]:
+## @param base_script: 要匹配的基类脚本。
+## @param used_paths: 已使用的资源路径集合。
+## @param root_paths: 可选扫描根路径；为空时扫描整个资源树。
+func collect_scene_roots_extending(
+	base_script: Script,
+	used_paths: Dictionary = {},
+	root_paths: PackedStringArray = PackedStringArray()
+) -> Array[Dictionary]:
 	var records: Array[Dictionary] = []
 	if base_script == null or not Engine.is_editor_hint():
 		return records
@@ -74,9 +88,11 @@ func collect_scene_roots_extending(base_script: Script, used_paths: Dictionary =
 			var path := _join_resource_path(current_dir.get_path(), current_dir.get_file(i))
 			if used_paths.has(path):
 				continue
+			if not _path_matches_roots(path, root_paths):
+				continue
 
 			var script := get_scene_root_script(path)
-			if script == null or not _script_extends_or_equals(script, base_script):
+			if script == null or not _SCRIPT_TYPE_UTILITY.script_extends_or_equals(script, base_script):
 				continue
 
 			used_paths[path] = true
@@ -93,6 +109,7 @@ func collect_scene_roots_extending(base_script: Script, used_paths: Dictionary =
 
 
 ## 获取 PackedScene 根节点脚本。
+## @param path: 资源路径或状态路径。
 func get_scene_root_script(path: String) -> Script:
 	if _scene_root_script_cache.has(path):
 		return _scene_root_script_cache[path] as Script
@@ -144,10 +161,14 @@ func _join_resource_path(dir_path: String, file_name: String) -> String:
 	return "%s/%s" % [dir_path, file_name]
 
 
-func _script_extends_or_equals(candidate: Script, expected: Script) -> bool:
-	var current: Script = candidate
-	while current != null:
-		if current == expected:
+func _path_matches_roots(path: String, root_paths: PackedStringArray) -> bool:
+	if root_paths.is_empty():
+		return true
+
+	for root_path: String in root_paths:
+		var normalized_root := root_path
+		if not normalized_root.ends_with("/"):
+			normalized_root += "/"
+		if path == root_path or path.begins_with(normalized_root):
 			return true
-		current = current.get_base_script()
 	return false

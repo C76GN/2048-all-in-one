@@ -39,6 +39,12 @@ enum ScopeMode {
 ## 是否由该节点驱动 Scoped 架构的 tick 与 physics_tick。
 @export var process_scoped_ticks: bool = true
 
+## Scoped 架构是否启用严格依赖查询。开启后本地未注册的依赖不会回退父级架构。
+@export var strict_dependency_lookup: bool = false
+
+## Scoped 架构中单个模块 async_init() 的最长等待时间。小于等于 0 时继承架构默认行为。
+@export var module_async_init_timeout_seconds: float = 0.0
+
 ## 等待父级架构或当前上下文 ready 的超时时间。小于等于 0 时禁用超时。
 @export var context_wait_timeout_seconds: float = 30.0
 
@@ -56,6 +62,7 @@ var architecture: GFArchitecture:
 var _architecture: GFArchitecture = null
 var _owns_architecture: bool = false
 var _is_context_ready: bool = false
+var _is_context_installing: bool = false
 
 
 # --- Godot 生命周期方法 ---
@@ -63,18 +70,24 @@ var _is_context_ready: bool = false
 func _enter_tree() -> void:
 	_setup_architecture()
 	if _owns_architecture:
+		_is_context_installing = true
 		var context_architecture := _architecture
 		var parent_ready := await _wait_for_parent_architecture_ready(context_architecture)
 		if not parent_ready:
+			_is_context_installing = false
 			return
 		if not _is_owned_architecture_current(context_architecture):
+			_is_context_installing = false
 			return
 		await install(context_architecture)
 		if not _is_owned_architecture_current(context_architecture):
+			_is_context_installing = false
 			return
 		await install_bindings(context_architecture.create_binder())
 		if not _is_owned_architecture_current(context_architecture):
+			_is_context_installing = false
 			return
+		_is_context_installing = false
 		if auto_init:
 			await _initialize_owned_architecture(context_architecture)
 	elif _architecture == null:
@@ -97,18 +110,19 @@ func _exit_tree() -> void:
 	_architecture = null
 	_owns_architecture = false
 	_is_context_ready = false
+	_is_context_installing = false
 
 
 # --- 公共方法 ---
 
 ## 安装当前上下文的局部模块。仅在 SCOPED 模式下调用。
-## @param architecture_instance: 当前上下文创建的局部架构。
+## @param _architecture_instance: 当前上下文创建的局部架构。
 func install(_architecture_instance: GFArchitecture) -> void:
 	pass
 
 
 ## 使用声明式装配器安装当前上下文的局部模块。仅在 SCOPED 模式下调用。
-## @param binder: 当前上下文创建的局部架构装配器。
+## @param _binder: 当前上下文创建的局部架构装配器。
 func install_bindings(_binder: Variant) -> void:
 	pass
 
@@ -125,6 +139,38 @@ func is_context_ready() -> bool:
 	return _is_context_ready
 
 
+## 手动初始化当前 Scoped 上下文。适合 auto_init 为 false 时，在 install()/install_bindings() 完成后统一触发初始化与 context_ready/context_failed 信号。
+## @return 初始化完成的架构；上下文失效或初始化失败时返回 null。
+func initialize_context() -> GFArchitecture:
+	if _architecture == null:
+		return null
+	if not _owns_architecture:
+		return await wait_until_ready()
+	if _is_context_ready:
+		return _architecture
+
+	var context_architecture := _architecture
+	while _is_context_installing:
+		if not is_inside_tree():
+			return null
+		await get_tree().process_frame
+		if _architecture != context_architecture:
+			return null
+
+	if not _is_owned_architecture_current(context_architecture):
+		return null
+	var parent_ready := await _wait_for_parent_architecture_ready(context_architecture)
+	if not parent_ready:
+		return null
+	if not _is_owned_architecture_current(context_architecture):
+		return null
+
+	await _initialize_owned_architecture(context_architecture)
+	if _is_owned_architecture_current(context_architecture) and context_architecture.is_inited():
+		return context_architecture
+	return null
+
+
 ## 等待上下文架构完成初始化并返回该架构。
 ## @return 当前上下文架构；上下文失效时返回 null。
 func wait_until_ready() -> GFArchitecture:
@@ -133,6 +179,9 @@ func wait_until_ready() -> GFArchitecture:
 		if not is_inside_tree():
 			return null
 		var waiting_architecture := _architecture
+		if waiting_architecture.has_initialization_failed():
+			_fail_context(_get_architecture_failure_reason(waiting_architecture, "上下文架构初始化失败。"))
+			return null
 		var timeout_reason := _get_wait_timeout_reason(start_msec, "等待上下文初始化超时。")
 		if not timeout_reason.is_empty():
 			_fail_context(timeout_reason)
@@ -173,13 +222,42 @@ func get_utility(utility_type: Script) -> Object:
 	return _architecture.get_utility(utility_type)
 
 
+## 仅从当前上下文架构获取 Model，不回退父级架构。
+## @param model_type: 模型脚本类型。
+## @return 当前上下文架构中的模型实例。
+func get_local_model(model_type: Script) -> Object:
+	if _architecture == null:
+		return null
+	return _architecture.get_local_model(model_type)
+
+
+## 仅从当前上下文架构获取 System，不回退父级架构。
+## @param system_type: 系统脚本类型。
+## @return 当前上下文架构中的系统实例。
+func get_local_system(system_type: Script) -> Object:
+	if _architecture == null:
+		return null
+	return _architecture.get_local_system(system_type)
+
+
+## 仅从当前上下文架构获取 Utility，不回退父级架构。
+## @param utility_type: 工具脚本类型。
+## @return 当前上下文架构中的工具实例。
+func get_local_utility(utility_type: Script) -> Object:
+	if _architecture == null:
+		return null
+	return _architecture.get_local_utility(utility_type)
+
+
 ## 向任意对象注入当前上下文架构依赖。
+## @param instance: 要注册、替换或注入的实例。
 func inject_object(instance: Object) -> void:
 	if _architecture != null:
 		_architecture.inject_object(instance)
 
 
 ## 递归向节点树中实现注入 Hook 的节点注入当前上下文架构。
+## @param node: 目标节点。
 func inject_node_tree(node: Node) -> void:
 	if _architecture != null:
 		_architecture.inject_node_tree(node)
@@ -198,6 +276,9 @@ func _setup_architecture() -> void:
 
 		ScopeMode.SCOPED:
 			_architecture = GFArchitecture.new(parent_architecture)
+			_architecture.strict_dependency_lookup = strict_dependency_lookup
+			if module_async_init_timeout_seconds > 0.0:
+				_architecture.module_async_init_timeout_seconds = module_async_init_timeout_seconds
 			_owns_architecture = true
 			_is_context_ready = false
 
@@ -213,6 +294,8 @@ func _initialize_owned_architecture(architecture_instance: GFArchitecture = null
 	if _is_owned_architecture_current(initializing_architecture) and initializing_architecture.is_inited():
 		_is_context_ready = true
 		context_ready.emit(initializing_architecture)
+	elif _is_owned_architecture_current(initializing_architecture) and initializing_architecture.has_initialization_failed():
+		_fail_context(_get_architecture_failure_reason(initializing_architecture, "上下文架构初始化失败。"))
 
 
 func _wait_for_parent_architecture_ready(architecture_instance: GFArchitecture = null) -> bool:
@@ -226,6 +309,9 @@ func _wait_for_parent_architecture_ready(architecture_instance: GFArchitecture =
 	var start_msec := Time.get_ticks_msec()
 	while parent_architecture != null and not parent_architecture.is_inited():
 		if not _is_owned_architecture_current(scoped_architecture):
+			return false
+		if parent_architecture.has_initialization_failed():
+			_fail_context(_get_architecture_failure_reason(parent_architecture, "父级架构初始化失败。"))
 			return false
 		var timeout_reason := _get_wait_timeout_reason(start_msec, "等待父级架构初始化超时。")
 		if not timeout_reason.is_empty():
@@ -273,6 +359,12 @@ func _fail_context(reason: String) -> void:
 		return
 	push_warning("[GFNodeContext] %s" % reason)
 	context_failed.emit(reason)
+
+
+func _get_architecture_failure_reason(architecture_instance: GFArchitecture, fallback_reason: String) -> String:
+	if architecture_instance != null and not architecture_instance.last_initialization_error.is_empty():
+		return architecture_instance.last_initialization_error
+	return fallback_reason
 
 
 func _is_owned_architecture_current(architecture_instance: GFArchitecture) -> bool:

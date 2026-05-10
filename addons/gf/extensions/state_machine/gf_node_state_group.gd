@@ -16,8 +16,14 @@ signal state_removed(state: Node)
 ## 当前状态切换后发出。
 signal current_state_changed(old_state: Node, new_state: Node)
 
+## 状态切换被守卫阻止后发出。
+signal transition_blocked(from_state: Node, to_state_name: StringName, args: Dictionary, reason: String)
+
 ## 子状态请求跨组切换时发出。
 signal requested_transition(group_name: StringName, state_name: StringName, args: Dictionary)
+
+## 当前状态或暂停栈状态处理状态事件后发出。
+signal state_event_handled(event_id: StringName, handler_state: Node, payload: Variant)
 
 
 # --- 导出变量 ---
@@ -42,6 +48,9 @@ signal requested_transition(group_name: StringName, state_name: StringName, args
 
 ## push_state 可叠加的最大栈深度。
 @export_range(1, 64, 1) var max_stack_depth: int = 8
+
+## 状态组共享黑板。框架不解释其中字段。
+@export var blackboard: Dictionary = {}
 
 
 # --- 私有变量 ---
@@ -104,6 +113,8 @@ func get_group_name() -> StringName:
 
 
 ## 切换到指定状态。
+## @param next_state_name: 要切换到的目标状态名称。
+## @param args: 状态切换时传递的可选参数。
 func transition_to(next_state_name: StringName, args: Dictionary = {}) -> void:
 	if not _states.has(next_state_name):
 		_warn_missing_state(next_state_name)
@@ -124,6 +135,8 @@ func transition_to(next_state_name: StringName, args: Dictionary = {}) -> void:
 	var previous_name: StringName = &""
 	if previous_state != null:
 		previous_name = previous_state.call("get_state_name")
+	if not _can_transition(previous_state, next_state, next_state_name, previous_name, args):
+		return
 	if previous_state != null:
 		_is_exiting_current_state = true
 		previous_state.call("exit", next_state_name, args)
@@ -138,6 +151,10 @@ func transition_to(next_state_name: StringName, args: Dictionary = {}) -> void:
 				_warn_missing_state(next_state_name)
 				return
 			next_state = _states[next_state_name] as Node
+			if not _can_enter_state(next_state, previous_name, args):
+				_current_state = null
+				_emit_transition_blocked(previous_state, next_state_name, args, "enter_guard")
+				return
 
 	if not _state_stack.is_empty():
 		_clear_stack(next_state_name, args)
@@ -150,6 +167,8 @@ func transition_to(next_state_name: StringName, args: Dictionary = {}) -> void:
 
 
 ## 暂停当前状态并叠加进入一个子状态。
+## @param next_state_name: 要切换到的目标状态名称。
+## @param args: 状态切换时传递的可选参数。
 func push_state(next_state_name: StringName, args: Dictionary = {}) -> void:
 	if not _states.has(next_state_name):
 		_warn_missing_state(next_state_name)
@@ -178,6 +197,8 @@ func push_state(next_state_name: StringName, args: Dictionary = {}) -> void:
 		return
 
 	var previous_name := previous_state.call("get_state_name") as StringName
+	if not _can_transition(previous_state, next_state, next_state_name, previous_name, args):
+		return
 	previous_state.call("pause", next_state_name, args)
 	_state_stack.append(previous_state)
 	_current_state = next_state
@@ -187,6 +208,7 @@ func push_state(next_state_name: StringName, args: Dictionary = {}) -> void:
 
 
 ## 退出当前子状态并恢复上一层状态。
+## @param args: 状态切换时传递的可选参数。
 func pop_state(args: Dictionary = {}) -> bool:
 	if _state_stack.is_empty():
 		return false
@@ -208,6 +230,9 @@ func pop_state(args: Dictionary = {}) -> bool:
 
 	var previous_name := previous_state.call("get_state_name") as StringName
 	var restore_name := restore_state.call("get_state_name") as StringName
+	if not _can_transition(previous_state, restore_state, restore_name, previous_name, args):
+		_state_stack.append(restore_state)
+		return false
 
 	_transition_serial += 1
 	_is_exiting_current_state = true
@@ -232,6 +257,7 @@ func pop_state(args: Dictionary = {}) -> bool:
 
 
 ## 添加状态节点。
+## @param state: 状态节点。
 func add_state(state: Node) -> void:
 	if not _is_node_state(state):
 		return
@@ -251,6 +277,7 @@ func add_state(state: Node) -> void:
 
 
 ## 移除状态节点。
+## @param state: 状态节点。
 func remove_state(state: Node) -> bool:
 	if not _is_node_state(state):
 		return false
@@ -271,6 +298,7 @@ func remove_state(state: Node) -> bool:
 
 
 ## 获取状态。
+## @param query_state_name: 目标名称。
 func get_state(query_state_name: StringName) -> Node:
 	return _states.get(query_state_name) as Node
 
@@ -300,7 +328,27 @@ func get_stack_depth() -> int:
 	return _state_stack.size()
 
 
+## 获取状态组共享黑板。
+## @return 黑板字典。
+func get_blackboard() -> Dictionary:
+	return blackboard
+
+
+## 从当前状态开始向暂停栈上抛状态事件。
+## @param event_id: 状态事件标识。
+## @param payload: 状态事件载荷。
+## @return 有状态处理该事件时返回 true。
+func dispatch_state_event(event_id: StringName, payload: Variant = null) -> bool:
+	var candidates := _get_event_dispatch_candidates()
+	for state: Node in candidates:
+		if state.has_method("handle_state_event") and bool(state.call("handle_state_event", event_id, payload)):
+			state_event_handled.emit(event_id, state, payload)
+			return true
+	return false
+
+
 ## 判断指定状态是否为当前状态或暂停栈中的状态。
+## @param query_state_name: 目标名称。
 func is_in_state(query_state_name: StringName) -> bool:
 	if get_current_state_name() == query_state_name:
 		return true
@@ -313,6 +361,7 @@ func is_in_state(query_state_name: StringName) -> bool:
 
 
 ## 重启当前状态；若当前没有状态，则尝试进入初始状态。
+## @param args: 状态切换时传递的可选参数。
 func restart(args: Dictionary = {}) -> void:
 	if _current_state == null:
 		start(args)
@@ -338,7 +387,21 @@ func get_states() -> Array[Node]:
 	return result
 
 
+## 获取状态组调试快照。
+## @return 包含当前状态、暂停栈、历史、注册状态和黑板副本的字典。
+func get_state_snapshot() -> Dictionary:
+	return {
+		"group_name": get_group_name(),
+		"current_state": get_current_state_name(),
+		"stack": _get_stack_state_names(),
+		"history": get_state_history(),
+		"states": _get_registered_state_names(),
+		"blackboard": blackboard.duplicate(true),
+	}
+
+
 ## 清空状态。
+## @param free_states: 为 true 时同时释放已移除的状态节点。
 func clear_states(free_states: bool = false) -> void:
 	var states := get_states()
 	_exit_active_states_for_clear()
@@ -371,6 +434,32 @@ func _get_machine() -> Object:
 	if _machine_ref == null:
 		return null
 	return _machine_ref.get_ref()
+
+
+func _get_event_dispatch_candidates() -> Array[Node]:
+	var result: Array[Node] = []
+	if _current_state != null:
+		result.append(_current_state)
+	for index in range(_state_stack.size() - 1, -1, -1):
+		var state := _state_stack[index] as Node
+		if state != null and is_instance_valid(state):
+			result.append(state)
+	return result
+
+
+func _get_stack_state_names() -> Array[StringName]:
+	var result: Array[StringName] = []
+	for state: Node in _state_stack:
+		if state != null and state.has_method("get_state_name"):
+			result.append(state.call("get_state_name") as StringName)
+	return result
+
+
+func _get_registered_state_names() -> Array[StringName]:
+	var result: Array[StringName] = []
+	for state_name: StringName in _states.keys():
+		result.append(state_name)
+	return result
 
 
 func _setup_existing_states() -> void:
@@ -410,6 +499,38 @@ func _is_node_state(node: Node) -> bool:
 
 func _warn_missing_state(state_name: StringName) -> void:
 	push_warning("[GFNodeStateGroup] 切换失败，未找到状态：%s" % state_name)
+
+
+func _can_transition(
+	previous_state: Node,
+	next_state: Node,
+	next_state_name: StringName,
+	previous_state_name: StringName,
+	args: Dictionary
+) -> bool:
+	if not _can_exit_state(previous_state, next_state_name, args):
+		_emit_transition_blocked(previous_state, next_state_name, args, "exit_guard")
+		return false
+	if not _can_enter_state(next_state, previous_state_name, args):
+		_emit_transition_blocked(previous_state, next_state_name, args, "enter_guard")
+		return false
+	return true
+
+
+func _can_exit_state(state: Node, next_state_name: StringName, args: Dictionary) -> bool:
+	if state == null or not state.has_method("can_exit"):
+		return true
+	return bool(state.call("can_exit", next_state_name, args))
+
+
+func _can_enter_state(state: Node, previous_state_name: StringName, args: Dictionary) -> bool:
+	if state == null or not state.has_method("can_enter"):
+		return true
+	return bool(state.call("can_enter", previous_state_name, args))
+
+
+func _emit_transition_blocked(from_state: Node, to_state_name: StringName, args: Dictionary, reason: String) -> void:
+	transition_blocked.emit(from_state, to_state_name, args.duplicate(true), reason)
 
 
 func _push_history(state_name: StringName) -> void:

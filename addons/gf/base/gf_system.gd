@@ -10,6 +10,11 @@
 class_name GFSystem
 
 
+# --- 常量 ---
+
+const _DEPENDENCY_SCOPE_SUPPORT: Script = preload("res://addons/gf/base/gf_dependency_scope_support.gd")
+
+
 # --- 公共变量 ---
 
 ## 是否忽略全局暂停。为 true 时，即使 GFTimeUtility.is_paused 为 true，
@@ -21,10 +26,22 @@ var ignore_pause: bool = false
 ## 该 System 的 tick / physics_tick 会接收到原始 delta。
 var ignore_time_scale: bool = false
 
+## 生命周期优先级。数值越大越早执行 init/async_init/ready，dispose 时越晚释放。
+## 默认 0 表示同优先级下按注册顺序执行；只有存在明确依赖顺序时才建议设置。
+var lifecycle_priority: int = 0
+
+## 每帧 tick 优先级。数值越大越早执行 tick()。
+## 默认 0 表示同优先级下按注册顺序执行。
+var tick_priority: int = 0
+
+## 物理帧 tick 优先级。数值越大越早执行 physics_tick()。
+## 默认 0 表示同优先级下按注册顺序执行。
+var physics_tick_priority: int = 0
+
 
 # --- 私有变量 ---
 
-var _architecture_ref: WeakRef = null
+var _dependency_scope: Dictionary = _DEPENDENCY_SCOPE_SUPPORT._make_scope()
 
 
 # --- Godot 生命周期方法 ---
@@ -42,7 +59,7 @@ func async_init() -> void:
 	pass
 
 
-## 第二阶段初始化。子类可以重写此方法。
+## 第三阶段初始化。子类可以重写此方法。
 ## 约束：此时所有模块已完成 'init'，可安全跨模块获取依赖。
 func ready() -> void:
 	pass
@@ -55,14 +72,14 @@ func dispose() -> void:
 
 ## 每帧更新回调。子类可以重写此方法以实现帧逻辑。
 ## 由架构在 _process 中统一驱动，无需 System 继承 Node。
-## @param delta: 距上一帧的时间（秒）。
+## @param _delta: 距上一帧的时间（秒）。
 func tick(_delta: float) -> void:
 	pass
 
 
 ## 物理帧更新回调。子类可以重写此方法以实现物理帧逻辑。
 ## 由架构在 _physics_process 中统一驱动，无需 System 继承 Node。
-## @param delta: 距上一物理帧的时间（秒）。
+## @param _delta: 距上一物理帧的时间（秒）。
 func physics_tick(_delta: float) -> void:
 	pass
 
@@ -72,7 +89,7 @@ func physics_tick(_delta: float) -> void:
 ## 注入当前模块所属的架构实例。由 GFArchitecture 在注册模块时自动调用。
 ## @param architecture: 当前注册该模块的架构。
 func inject_dependencies(architecture: GFArchitecture) -> void:
-	_architecture_ref = weakref(architecture) if architecture != null else null
+	_gf_set_dependency_scope(architecture)
 
 
 ## 通过类型获取 Model 实例。
@@ -182,6 +199,10 @@ func send_simple_event(event_id: StringName, payload: Variant = null) -> void:
 
 # --- 私有/辅助方法 ---
 
+func _gf_set_dependency_scope(architecture: GFArchitecture) -> void:
+	_DEPENDENCY_SCOPE_SUPPORT._bind_scope(_dependency_scope, architecture)
+
+
 func _get_architecture() -> GFArchitecture:
 	var architecture := _get_architecture_or_null()
 	if architecture != null:
@@ -189,9 +210,9 @@ func _get_architecture() -> GFArchitecture:
 	return GFAutoload.get_architecture()
 
 
+func _release_dependency_scope() -> void:
+	_DEPENDENCY_SCOPE_SUPPORT._release_scope(_dependency_scope)
+
+
 func _get_architecture_or_null() -> GFArchitecture:
-	if _architecture_ref != null:
-		var architecture := _architecture_ref.get_ref() as GFArchitecture
-		if architecture != null:
-			return architecture
-	return GFAutoload.get_architecture_or_null()
+	return _DEPENDENCY_SCOPE_SUPPORT._get_architecture_or_null(_dependency_scope, "GFSystem") as GFArchitecture

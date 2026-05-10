@@ -11,10 +11,28 @@ extends Node
 signal requested_transition(group_name: StringName, state_name: StringName, args: Dictionary)
 
 
+# --- 常量 ---
+
+const _PHASE_ENTER: StringName = &"enter"
+const _PHASE_EXIT: StringName = &"exit"
+
+
 # --- 导出变量 ---
 
 ## 状态注册名。为空时使用节点名称。
 @export var state_name: StringName = &""
+
+@export_group("Resource Hooks")
+## 进入状态前需要全部通过的条件资源。
+@export var enter_conditions: Array[Resource] = []
+
+## 离开状态前需要全部通过的条件资源。
+@export var exit_conditions: Array[Resource] = []
+
+## 进入、退出、暂停、恢复和事件处理时调用的可复用行为资源。
+@export var behaviors: Array[Resource] = []
+
+@export_group("")
 
 
 # --- 公共变量 ---
@@ -42,6 +60,8 @@ func _ready() -> void:
 # --- 公共方法 ---
 
 ## 由状态组调用，注入状态机与状态组引用。
+## @param machine: 关联的节点状态机。
+## @param group: 所属状态组。
 func setup(machine: Object, group: Object) -> void:
 	_machine_ref = weakref(machine) if machine != null else null
 	_group_ref = weakref(group) if group != null else null
@@ -82,30 +102,44 @@ func get_state_name() -> StringName:
 
 
 ## 进入状态。
+## @param previous_state: 上一个状态名称。
+## @param args: 状态切换时传递的可选参数。
 func enter(previous_state: StringName = &"", args: Dictionary = {}) -> void:
 	_set_state_enabled(true)
 	_enter(previous_state, args)
+	_run_behaviors_enter(previous_state, args)
 
 
 ## 离开状态。
+## @param next_state: 下一个状态名称。
+## @param args: 状态切换时传递的可选参数。
 func exit(next_state: StringName = &"", args: Dictionary = {}) -> void:
 	_exit(next_state, args)
+	_run_behaviors_exit(next_state, args)
 	_set_state_enabled(false)
 
 
 ## 进入栈式子状态时暂停当前状态。
+## @param next_state: 下一个状态名称。
+## @param args: 状态切换时传递的可选参数。
 func pause(next_state: StringName = &"", args: Dictionary = {}) -> void:
 	_pause(next_state, args)
+	_run_behaviors_pause(next_state, args)
 	_set_state_enabled(false)
 
 
 ## 弹出栈式子状态后恢复当前状态。
+## @param previous_state: 上一个状态名称。
+## @param args: 状态切换时传递的可选参数。
 func resume(previous_state: StringName = &"", args: Dictionary = {}) -> void:
 	_set_state_enabled(true)
 	_resume(previous_state, args)
+	_run_behaviors_resume(previous_state, args)
 
 
 ## 请求切换状态。path 可为 "State" 或 "Group/State"。
+## @param path: 资源路径或状态路径。
+## @param args: 状态切换时传递的可选参数。
 func transition_to(path: StringName, args: Dictionary = {}) -> void:
 	var text := String(path)
 	var parts := text.split("/", false)
@@ -124,11 +158,63 @@ func transition_to(path: StringName, args: Dictionary = {}) -> void:
 ## 状态初始化 Hook。状态加入状态组时调用一次。
 func initialize() -> void:
 	_initialize()
+	_run_behaviors_initialize()
 
+
+## 判断是否允许进入状态。
+## @param previous_state: 来源状态名。
+## @param args: 切换参数。
+## @return 允许进入返回 true。
+func can_enter(previous_state: StringName = &"", args: Dictionary = {}) -> bool:
+	if not _can_enter(previous_state, args):
+		return false
+	return _evaluate_conditions(enter_conditions, _PHASE_ENTER, previous_state, args)
+
+
+## 判断是否允许离开状态。
+## @param next_state: 目标状态名。
+## @param args: 切换参数。
+## @return 允许离开返回 true。
+func can_exit(next_state: StringName = &"", args: Dictionary = {}) -> bool:
+	if not _can_exit(next_state, args):
+		return false
+	return _evaluate_conditions(exit_conditions, _PHASE_EXIT, next_state, args)
+
+
+## 获取状态组共享黑板。
+## @return 黑板字典；没有状态组时返回空字典。
+func get_blackboard() -> Dictionary:
+	var group := get_group()
+	if group != null and group.has_method("get_blackboard"):
+		return group.call("get_blackboard") as Dictionary
+	return {}
+
+
+## 处理状态事件。返回 false 时事件会继续交给同组的暂停栈状态。
+## @param event_id: 状态事件标识。
+## @param payload: 状态事件载荷。
+## @return 已处理返回 true。
+func handle_state_event(event_id: StringName, payload: Variant = null) -> bool:
+	if _handle_state_event(event_id, payload):
+		return true
+	return _run_behaviors_handle_state_event(event_id, payload)
+
+
+# --- 虚方法（由子类重写） ---
 
 ## 状态初始化扩展点。
 func _initialize() -> void:
 	pass
+
+
+## 状态进入守卫扩展点。
+func _can_enter(_previous_state: StringName = &"", _args: Dictionary = {}) -> bool:
+	return true
+
+
+## 状态退出守卫扩展点。
+func _can_exit(_next_state: StringName = &"", _args: Dictionary = {}) -> bool:
+	return true
 
 
 ## 状态进入扩展点。
@@ -151,7 +237,61 @@ func _resume(_previous_state: StringName = &"", _args: Dictionary = {}) -> void:
 	pass
 
 
+## 状态事件处理扩展点。
+func _handle_state_event(_event_id: StringName, _payload: Variant = null) -> bool:
+	return false
+
+
 # --- 私有/辅助方法 ---
+
+func _evaluate_conditions(
+	conditions: Array[Resource],
+	phase: StringName,
+	peer_state: StringName,
+	args: Dictionary
+) -> bool:
+	for condition: Resource in conditions:
+		if condition != null and condition.has_method("evaluate") and not condition.call("evaluate", self, phase, peer_state, args):
+			return false
+	return true
+
+
+func _run_behaviors_initialize() -> void:
+	for behavior: Resource in behaviors:
+		if behavior != null and behavior.has_method("initialize"):
+			behavior.call("initialize", self)
+
+
+func _run_behaviors_enter(previous_state: StringName, args: Dictionary) -> void:
+	for behavior: Resource in behaviors:
+		if behavior != null and behavior.has_method("enter"):
+			behavior.call("enter", self, previous_state, args)
+
+
+func _run_behaviors_exit(next_state: StringName, args: Dictionary) -> void:
+	for behavior: Resource in behaviors:
+		if behavior != null and behavior.has_method("exit"):
+			behavior.call("exit", self, next_state, args)
+
+
+func _run_behaviors_pause(next_state: StringName, args: Dictionary) -> void:
+	for behavior: Resource in behaviors:
+		if behavior != null and behavior.has_method("pause"):
+			behavior.call("pause", self, next_state, args)
+
+
+func _run_behaviors_resume(previous_state: StringName, args: Dictionary) -> void:
+	for behavior: Resource in behaviors:
+		if behavior != null and behavior.has_method("resume"):
+			behavior.call("resume", self, previous_state, args)
+
+
+func _run_behaviors_handle_state_event(event_id: StringName, payload: Variant) -> bool:
+	for behavior: Resource in behaviors:
+		if behavior != null and behavior.has_method("handle_state_event") and bool(behavior.call("handle_state_event", self, event_id, payload)):
+			return true
+	return false
+
 
 func _set_state_enabled(enabled: bool) -> void:
 	if enabled:

@@ -20,6 +20,11 @@ func dispose() -> void:
 # --- 公共方法 ---
 
 ## 安全连接一个 Signal，并返回可继续链式配置的连接对象。
+## @param source_signal: 要连接或断开的 Godot 信号。
+## @param callback: 操作完成或事件触发时执行的回调。
+## @param owner: 监听或连接的拥有者。
+## @param default_args: 回调调用时追加的默认参数。
+## @param connect_flags: Godot 信号连接标记。
 func connect_signal(
 	source_signal: Signal,
 	callback: Callable,
@@ -27,26 +32,15 @@ func connect_signal(
 	default_args: Array = [],
 	connect_flags: int = 0
 ) -> GFSignalConnection:
-	var existing := _find_connection(source_signal, callback, owner)
-	if existing != null:
-		return existing
-
-	var connection := GFSignalConnection.new(
-		source_signal,
-		callback,
-		owner,
-		default_args,
-		connect_flags,
-		self
-	)
-	_connections.append(connection)
-	connection.start()
-	if not connection.is_active():
-		_connections.erase(connection)
-	return connection
+	return _connect_signal(source_signal, callback, owner, default_args, connect_flags, false)
 
 
 ## 创建一次性 Signal 连接。
+## @param source_signal: 要连接或断开的 Godot 信号。
+## @param callback: 操作完成或事件触发时执行的回调。
+## @param owner: 监听或连接的拥有者。
+## @param default_args: 回调调用时追加的默认参数。
+## @param connect_flags: Godot 信号连接标记。
 func connect_once(
 	source_signal: Signal,
 	callback: Callable,
@@ -54,10 +48,43 @@ func connect_once(
 	default_args: Array = [],
 	connect_flags: int = 0
 ) -> GFSignalConnection:
-	return connect_signal(source_signal, callback, owner, default_args, connect_flags).once()
+	return _connect_signal(source_signal, callback, owner, default_args, connect_flags, true)
+
+
+## 批量连接多个 Signal 到同一个回调。
+## @param source_signals: 要连接的一组 Godot 信号。
+## @param callback: 操作完成或事件触发时执行的回调。
+## @param owner: 监听或连接的拥有者。
+## @param default_args: 回调调用时追加的默认参数。
+## @param connect_flags: Godot 信号连接标记。
+## @return 成功创建或复用的连接列表。
+func connect_any(
+	source_signals: Array,
+	callback: Callable,
+	owner: Object = null,
+	default_args: Array = [],
+	connect_flags: int = 0
+) -> Array[GFSignalConnection]:
+	var result: Array[GFSignalConnection] = []
+	for source_signal_variant: Variant in source_signals:
+		if not source_signal_variant is Signal:
+			continue
+		var connection := connect_signal(
+			source_signal_variant as Signal,
+			callback,
+			owner,
+			default_args,
+			connect_flags
+		)
+		if connection != null and connection.is_active():
+			result.append(connection)
+	return result
 
 
 ## 断开指定 Signal 与回调的连接。
+## @param source_signal: 要连接或断开的 Godot 信号。
+## @param callback: 操作完成或事件触发时执行的回调。
+## @param owner: 监听或连接的拥有者。
 func disconnect_signal(source_signal: Signal, callback: Callable, owner: Object = null) -> void:
 	for i: int in range(_connections.size() - 1, -1, -1):
 		var connection := _connections[i]
@@ -70,6 +97,7 @@ func disconnect_signal(source_signal: Signal, callback: Callable, owner: Object 
 
 
 ## 断开某个 owner 拥有的全部连接。
+## @param owner: 监听或连接的拥有者。
 func disconnect_owner(owner: Object) -> void:
 	if owner == null:
 		return
@@ -80,6 +108,17 @@ func disconnect_owner(owner: Object) -> void:
 			if connection != null:
 				connection.disconnect_signal()
 			_connections.remove_at(i)
+
+
+## 断开一组由 connect_signal/connect_any 返回的连接。
+## @param connections: 连接对象列表。
+func disconnect_connections(connections: Array) -> void:
+	for connection_variant: Variant in connections:
+		var connection := connection_variant as GFSignalConnection
+		if connection == null:
+			continue
+		connection.disconnect_signal()
+		_connections.erase(connection)
 
 
 ## 断开所有连接。
@@ -106,10 +145,46 @@ func get_connection_count() -> int:
 
 # --- 私有/辅助方法 ---
 
-func _find_connection(source_signal: Signal, callback: Callable, owner: Object) -> GFSignalConnection:
+func _connect_signal(
+	source_signal: Signal,
+	callback: Callable,
+	owner: Object,
+	default_args: Array,
+	connect_flags: int,
+	once: bool
+) -> GFSignalConnection:
+	var existing := _find_connection(source_signal, callback, owner, default_args, connect_flags, once)
+	if existing != null:
+		return existing
+
+	var connection := GFSignalConnection.new(
+		source_signal,
+		callback,
+		owner,
+		default_args,
+		connect_flags,
+		self
+	)
+	if once:
+		connection.once()
+	_connections.append(connection)
+	connection.start()
+	if not connection.is_active():
+		_connections.erase(connection)
+	return connection
+
+
+func _find_connection(
+	source_signal: Signal,
+	callback: Callable,
+	owner: Object,
+	default_args: Array,
+	connect_flags: int,
+	once: bool
+) -> GFSignalConnection:
 	prune_invalid_connections()
 	for connection: GFSignalConnection in _connections:
-		if _connection_matches(connection, source_signal, callback, owner):
+		if connection._matches_configuration(source_signal, callback, owner, default_args, connect_flags, once):
 			return connection
 	return null
 

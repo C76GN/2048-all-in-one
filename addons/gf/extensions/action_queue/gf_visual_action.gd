@@ -26,9 +26,14 @@ enum CompletionMode {
 }
 
 
+# --- 常量 ---
+
+const _GF_ASYNC_WAIT_SUPPORT: Script = preload("res://addons/gf/extensions/common/gf_async_wait_support.gd")
+
+
 # --- 公共变量 ---
 
-## 动作完成模式。默认保持旧行为：返回 Signal 则等待，返回 null 则继续。
+## 动作完成模式。默认自动等待 Signal，返回 null 则继续。
 var completion_mode: CompletionMode = CompletionMode.AUTO
 
 ## 等待 Signal 的超时时间（秒）。小于等于 0 时表示不启用超时。
@@ -51,6 +56,19 @@ func execute() -> Variant:
 	return null
 
 
+## 判断动作在入队消费时是否仍然有效。
+## 子类可根据目标节点、战斗目标或运行时状态决定是否跳过。
+## @return 有效返回 true。
+func is_valid() -> bool:
+	return true
+
+
+## 判断动作是否可以执行。默认委托 is_valid()，便于子类覆盖更明确的语义。
+## @return 可以执行返回 true。
+func can_execute() -> bool:
+	return is_valid()
+
+
 ## 注入当前动作执行所在的架构实例。
 ## @param architecture: 当前架构。
 func inject_dependencies(architecture: GFArchitecture) -> void:
@@ -69,9 +87,24 @@ func as_wait_for_signal() -> GFVisualAction:
 	return self
 
 
-## 请求取消动作。基础实现不做处理，复合动作可重写以停止内部等待。
+## 请求取消动作。基础实现不做处理；持有 Tween、Timer、信号连接或外部任务的自定义动作应重写。
 func cancel() -> void:
 	pass
+
+
+## 请求暂停动作。基础实现不做处理；可暂停动作应重写。
+func pause() -> void:
+	pass
+
+
+## 请求恢复动作。基础实现不做处理；可暂停动作应重写。
+func resume() -> void:
+	pass
+
+
+## 请求立即完成动作。基础实现委托 cancel()；需要区分取消和完成的动作应重写。
+func finish() -> void:
+	cancel()
 
 
 ## 返回用于保护 Signal 等待生命周期的节点。
@@ -130,7 +163,7 @@ func _await_signal_safely(result_signal: Signal, should_continue: Callable = Cal
 	if target_obj is Node:
 		var node := target_obj as Node
 		if not node.is_inside_tree() and result_signal != node.tree_exited:
-			_disconnect_signal_if_connected(result_signal, on_resume)
+			_GF_ASYNC_WAIT_SUPPORT.disconnect_signal_if_connected(result_signal, on_resume)
 			return
 		if result_signal != node.tree_exited:
 			node.tree_exited.connect(on_resume, CONNECT_ONE_SHOT)
@@ -139,8 +172,8 @@ func _await_signal_safely(result_signal: Signal, should_continue: Callable = Cal
 	var guard_node := get_wait_guard_node()
 	if is_instance_valid(guard_node) and result_signal != guard_node.tree_exited and tree_exit_signal != guard_node.tree_exited:
 		if not guard_node.is_inside_tree():
-			_disconnect_signal_if_connected(result_signal, on_resume)
-			_disconnect_signal_if_connected(tree_exit_signal, on_resume)
+			_GF_ASYNC_WAIT_SUPPORT.disconnect_signal_if_connected(result_signal, on_resume)
+			_GF_ASYNC_WAIT_SUPPORT.disconnect_signal_if_connected(tree_exit_signal, on_resume)
 			return
 		guard_node.tree_exited.connect(on_resume, CONNECT_ONE_SHOT)
 		guard_exit_signal = guard_node.tree_exited
@@ -168,22 +201,18 @@ func _await_signal_safely(result_signal: Signal, should_continue: Callable = Cal
 			break
 		await Engine.get_main_loop().process_frame
 
-	_disconnect_signal_if_connected(result_signal, on_resume)
-	_disconnect_signal_if_connected(tree_exit_signal, on_resume)
-	_disconnect_signal_if_connected(guard_exit_signal, on_resume)
+	_GF_ASYNC_WAIT_SUPPORT.disconnect_signal_if_connected(result_signal, on_resume)
+	_GF_ASYNC_WAIT_SUPPORT.disconnect_signal_if_connected(tree_exit_signal, on_resume)
+	_GF_ASYNC_WAIT_SUPPORT.disconnect_signal_if_connected(guard_exit_signal, on_resume)
 
 
 func _get_timeout_elapsed_msec(previous_msec: int, current_msec: int) -> float:
-	var elapsed_msec := float(current_msec - previous_msec)
-	if not signal_timeout_respects_time_scale:
-		return elapsed_msec
-
-	var time_utility := _get_time_utility()
-	if time_utility == null:
-		return elapsed_msec
-	if time_utility.is_paused:
-		return 0.0
-	return elapsed_msec * time_utility.time_scale
+	return _GF_ASYNC_WAIT_SUPPORT.get_timeout_elapsed_msec(
+		previous_msec,
+		current_msec,
+		_get_time_utility(),
+		signal_timeout_respects_time_scale
+	)
 
 
 func _get_time_utility() -> GFTimeUtility:
@@ -191,15 +220,6 @@ func _get_time_utility() -> GFTimeUtility:
 	if architecture == null:
 		return null
 	return architecture.get_utility(GFTimeUtility) as GFTimeUtility
-
-
-func _disconnect_signal_if_connected(target_signal: Signal, callback: Callable) -> void:
-	if target_signal.is_null():
-		return
-	if not is_instance_valid(target_signal.get_object()):
-		return
-	if target_signal.is_connected(callback):
-		target_signal.disconnect(callback)
 
 
 func _get_architecture_or_null() -> GFArchitecture:
