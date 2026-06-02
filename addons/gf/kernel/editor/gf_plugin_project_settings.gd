@@ -1,0 +1,237 @@
+@tool
+
+# GF 插件 ProjectSettings 注册辅助。
+extends RefCounted
+
+
+# --- 常量 ---
+
+const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
+
+## 项目启动 Installer 列表设置。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const INSTALLERS_SETTING: String = "gf/project/installers"
+
+## 项目启动 Installer 列表默认值。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const INSTALLERS_DEFAULT: Array[String] = []
+
+## Installer 错误是否中断初始化设置。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const FAIL_ON_INSTALLER_ERROR_SETTING: String = "gf/project/fail_on_installer_error"
+
+## Installer 错误中断初始化默认值。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const FAIL_ON_INSTALLER_ERROR_DEFAULT: bool = true
+
+## Installer 超时设置。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const INSTALLER_TIMEOUT_SETTING: String = "gf/project/installer_timeout_seconds"
+
+## Installer 超时默认值。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const INSTALLER_TIMEOUT_DEFAULT: float = 0.0
+
+## GF 访问器输出路径设置。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const ACCESS_OUTPUT_SETTING: String = "gf/codegen/access_output_path"
+
+## GF 访问器输出路径默认值。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const ACCESS_OUTPUT_DEFAULT: String = "res://gf/generated/gf_access.gd"
+
+## 项目访问器输出路径设置。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const PROJECT_ACCESS_OUTPUT_SETTING: String = "gf/codegen/project_access_output_path"
+
+## 项目访问器输出路径默认值。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const PROJECT_ACCESS_OUTPUT_DEFAULT: String = "res://gf/generated/gf_project_access.gd"
+
+## 构建信息导出开关设置。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const BUILD_INFO_EXPORT_ENABLED_SETTING: String = "gf/build/export/write_git_metadata"
+
+## 构建信息导出后是否恢复设置。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const BUILD_INFO_EXPORT_RESTORE_SETTING: String = "gf/build/export/restore_previous_settings"
+
+## 构建信息导出后是否保存项目设置。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const BUILD_INFO_EXPORT_SAVE_SETTING: String = "gf/build/export/save_project_settings"
+
+## 构建信息导出元数据设置。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const BUILD_INFO_EXPORT_METADATA_SETTING: String = "gf/build/export/metadata"
+
+## 扩展启用设置脚本。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const GFExtensionSettingsBase = preload("res://addons/gf/kernel/extension/gf_extension_settings.gd")
+
+
+# --- 公共方法 ---
+
+## 确保所有 GF ProjectSettings 存在并注册显示信息。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+static func ensure_all() -> void:
+	var should_save: bool = false
+	if _ensure_default(INSTALLERS_SETTING, INSTALLERS_DEFAULT):
+		should_save = true
+	if _ensure_default(FAIL_ON_INSTALLER_ERROR_SETTING, FAIL_ON_INSTALLER_ERROR_DEFAULT):
+		should_save = true
+	if _ensure_default(INSTALLER_TIMEOUT_SETTING, INSTALLER_TIMEOUT_DEFAULT):
+		should_save = true
+	if _ensure_default(ACCESS_OUTPUT_SETTING, ACCESS_OUTPUT_DEFAULT):
+		should_save = true
+	if _ensure_default(PROJECT_ACCESS_OUTPUT_SETTING, PROJECT_ACCESS_OUTPUT_DEFAULT):
+		should_save = true
+	if _ensure_default(BUILD_INFO_EXPORT_ENABLED_SETTING, false):
+		should_save = true
+	if _ensure_default(BUILD_INFO_EXPORT_RESTORE_SETTING, true):
+		should_save = true
+	if _ensure_default(BUILD_INFO_EXPORT_SAVE_SETTING, false):
+		should_save = true
+	if _ensure_default(BUILD_INFO_EXPORT_METADATA_SETTING, {}):
+		should_save = true
+	if GFExtensionSettingsBase.ensure_defaults():
+		should_save = true
+
+	_register_property_info()
+	GFExtensionSettingsBase.register_property_info()
+	if should_save:
+		var _save_result_150: Variant = ProjectSettings.save()
+
+
+## 获取 GF 访问器输出路径。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+## [br]
+## @return GF 访问器输出路径。
+static func get_access_output_path() -> String:
+	return _GF_VARIANT_ACCESS_SCRIPT.to_text(ProjectSettings.get_setting(ACCESS_OUTPUT_SETTING, ACCESS_OUTPUT_DEFAULT))
+
+
+## 获取项目访问器输出路径。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+## [br]
+## @return 项目访问器输出路径。
+static func get_project_access_output_path() -> String:
+	return _GF_VARIANT_ACCESS_SCRIPT.to_text(ProjectSettings.get_setting(PROJECT_ACCESS_OUTPUT_SETTING, PROJECT_ACCESS_OUTPUT_DEFAULT))
+
+
+# --- 私有/辅助方法 ---
+
+static func _ensure_default(setting_name: String, default_value: Variant) -> bool:
+	if ProjectSettings.has_setting(setting_name):
+		return false
+	ProjectSettings.set_setting(setting_name, default_value)
+	ProjectSettings.set_initial_value(setting_name, default_value)
+	return true
+
+
+static func _register_property_info() -> void:
+	ProjectSettings.add_property_info({
+		"name": INSTALLERS_SETTING,
+		"type": TYPE_ARRAY,
+		"hint": PROPERTY_HINT_TYPE_STRING,
+		"hint_string": "%d/%d:*.gd" % [TYPE_STRING, PROPERTY_HINT_FILE],
+	})
+	ProjectSettings.set_as_basic(INSTALLERS_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": FAIL_ON_INSTALLER_ERROR_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(FAIL_ON_INSTALLER_ERROR_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": INSTALLER_TIMEOUT_SETTING,
+		"type": TYPE_FLOAT,
+		"hint": PROPERTY_HINT_RANGE,
+		"hint_string": "0,600,0.1,or_greater",
+	})
+	ProjectSettings.set_as_basic(INSTALLER_TIMEOUT_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": ACCESS_OUTPUT_SETTING,
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_FILE,
+		"hint_string": "*.gd",
+	})
+	ProjectSettings.set_as_basic(ACCESS_OUTPUT_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": PROJECT_ACCESS_OUTPUT_SETTING,
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_FILE,
+		"hint_string": "*.gd",
+	})
+	ProjectSettings.set_as_basic(PROJECT_ACCESS_OUTPUT_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": BUILD_INFO_EXPORT_ENABLED_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(BUILD_INFO_EXPORT_ENABLED_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": BUILD_INFO_EXPORT_RESTORE_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(BUILD_INFO_EXPORT_RESTORE_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": BUILD_INFO_EXPORT_SAVE_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(BUILD_INFO_EXPORT_SAVE_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": BUILD_INFO_EXPORT_METADATA_SETTING,
+		"type": TYPE_DICTIONARY,
+	})

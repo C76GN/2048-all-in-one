@@ -1,0 +1,1690 @@
+## GFDiagnosticsUtility: 运行时诊断聚合工具。
+##
+## 提供架构生命周期、事件系统、性能、日志和外部贡献诊断的统一快照。
+## 诊断命令、监控项和快照分区通过 Callable 注册，框架只负责调度和包装结果，不解释项目业务数据。
+## [br]
+## @api public
+## [br]
+## @category runtime_service
+## [br]
+## @since 3.17.0
+class_name GFDiagnosticsUtility
+extends GFUtility
+
+
+# --- 信号 ---
+
+## 采集快照后发出。
+## [br]
+## @api public
+## [br]
+## @param snapshot: 刚采集到的诊断快照。
+## [br]
+## @schema snapshot: Dictionary，包含 collect_snapshot() 返回的顶层诊断分区。
+signal snapshot_collected(snapshot: Dictionary)
+
+## 执行诊断命令后发出。
+## [br]
+## @api public
+## [br]
+## @param command_name: 已执行的诊断命令名。
+## [br]
+## @param result: 命令执行结果。
+## [br]
+## @schema result: Dictionary，包含 ok、value、error、metadata 等字段。
+signal diagnostic_command_executed(command_name: StringName, result: Dictionary)
+
+## 采样诊断监控项后发出。
+## [br]
+## @api public
+## [br]
+## @param monitor_id: 监控项标识。
+## [br]
+## @param sample: 采样结果。
+## [br]
+## @schema sample: Dictionary，包含 id、label、group、value、valid、error、metadata 和 sampled_at_unix。
+signal monitor_sampled(monitor_id: StringName, sample: Dictionary)
+
+
+# --- 枚举 ---
+
+## 诊断命令风险等级。
+## [br]
+## @api public
+enum CommandTier {
+	## 只读取状态。
+	OBSERVE,
+	## 修改调试输入或临时过滤条件。
+	INPUT,
+	## 控制运行时行为。
+	CONTROL,
+	## 可能破坏状态、存档或远端连接。
+	DANGER,
+}
+
+
+# --- 公共变量 ---
+
+## 是否采集 Godot Performance 监视器。
+## [br]
+## @api public
+var include_performance_monitors: bool = true
+
+## 快照中默认包含的最近日志数量。
+## [br]
+## @api public
+var default_recent_log_count: int = 20
+
+## 当前允许执行的最高命令等级。
+## [br]
+## @api public
+var max_command_tier: CommandTier = CommandTier.OBSERVE
+
+## 是否要求命令参数提供 auth_token 或 _auth_token。
+## [br]
+## @api public
+var require_auth_token: bool = false
+
+## 诊断命令认证 token。为空时无法通过认证。
+## [br]
+## @api public
+var auth_token: String = ""
+
+## 是否允许执行 DANGER 等级命令。即使 max_command_tier 足够，也需要显式开启。
+## [br]
+## @api public
+var allow_danger_commands: bool = false
+
+## 是否把诊断命令结果转换为 JSON 兼容 Variant。
+## [br]
+## @api public
+var encode_command_results_for_json: bool = false
+
+## 场景树快照默认递归深度。
+## [br]
+## @api public
+var default_scene_tree_max_depth: int = 4
+
+## 场景树快照默认最多采集节点数。
+## [br]
+## @api public
+var default_scene_tree_max_nodes: int = 128
+
+
+# --- 私有变量 ---
+
+var _commands: Dictionary = {}
+var _disabled_commands: Dictionary = {}
+var _monitors: Dictionary = {}
+var _monitor_presets: Dictionary = {}
+var _snapshot_section_providers: Dictionary = {}
+var _tool_snapshot_providers: Dictionary = {}
+var _monitor_order_counter: int = 0
+var _console_utility: GFConsoleUtility = null
+var _console_command_registered: bool = false
+
+
+# --- GF 生命周期方法 ---
+
+## 初始化内置诊断命令和监控项。
+## [br]
+## @api public
+func init() -> void:
+	_register_builtin_monitors()
+	register_command(&"diagnostics.snapshot", Callable(self, "_command_collect_snapshot"), "采集 GF 诊断快照。", CommandTier.OBSERVE)
+	register_command(&"diagnostics.performance", Callable(self, "_command_collect_performance"), "采集性能监视器快照。", CommandTier.OBSERVE)
+	register_command(&"diagnostics.logs", Callable(self, "_command_collect_logs"), "读取最近日志缓存。", CommandTier.OBSERVE)
+	register_command(&"diagnostics.monitors", Callable(self, "_command_collect_monitors"), "采集已注册诊断监控项。", CommandTier.OBSERVE)
+	register_command(&"diagnostics.tools", Callable(self, "_command_collect_tools"), "采集已注册 GF 工具快照。", CommandTier.OBSERVE)
+	register_command(&"diagnostics.scene", Callable(self, "_command_collect_scene"), "采集只读场景树快照。", CommandTier.OBSERVE)
+	register_command(&"diagnostics.signals", Callable(self, "_command_collect_signals"), "采集只读信号连接图快照。", CommandTier.OBSERVE)
+
+
+## 绑定控制台诊断命令。
+## [br]
+## @api public
+func ready() -> void:
+	_bind_console_command()
+
+
+## 释放诊断注册表并解绑控制台命令。
+## [br]
+## @api public
+func dispose() -> void:
+	if _console_utility != null and _console_command_registered:
+		_console_utility.unregister_command("diagnostics")
+	_console_utility = null
+	_console_command_registered = false
+	_commands.clear()
+	_disabled_commands.clear()
+	_monitors.clear()
+	_monitor_presets.clear()
+	_snapshot_section_providers.clear()
+	_tool_snapshot_providers.clear()
+	_monitor_order_counter = 0
+
+
+# --- 公共方法 ---
+
+## 注册诊断命令。
+## [br]
+## @api public
+## [br]
+## @param command_name: 命令名。
+## [br]
+## @param callback: 回调，签名建议为 func(args: Dictionary) -> Variant。
+## [br]
+## @param description: 描述文本。
+## [br]
+## @param tier: 命令风险等级。
+## [br]
+## @param options: 可选元数据，支持 parameters、metadata、enabled。
+## [br]
+## @schema options: Dictionary，支持 parameters、metadata 和 enabled。
+func register_command(
+	command_name: StringName,
+	callback: Callable,
+	description: String = "",
+	tier: CommandTier = CommandTier.OBSERVE,
+	options: Dictionary = {}
+) -> void:
+	if command_name == &"" or not callback.is_valid():
+		return
+	_commands[command_name] = {
+		"callback": callback,
+		"description": description,
+		"tier": tier,
+		"parameters": _normalize_parameter_schema(GFVariantData.get_option_value(options, "parameters", [])),
+		"metadata": GFVariantData.get_option_dictionary(options, "metadata"),
+	}
+	if options.has("enabled"):
+		var _enabled_updated: bool = set_command_enabled(
+			command_name,
+			GFVariantData.get_option_bool(options, "enabled", true)
+		)
+
+
+## 注销诊断命令。
+## [br]
+## @api public
+## [br]
+## @param command_name: 命令名。
+func unregister_command(command_name: StringName) -> void:
+	var _command_erased: bool = _commands.erase(command_name)
+	var _disabled_erased: bool = _disabled_commands.erase(command_name)
+
+
+## 检查诊断命令是否存在。
+## [br]
+## @api public
+## [br]
+## @param command_name: 命令名。
+## [br]
+## @return 存在返回 true。
+func has_command(command_name: StringName) -> bool:
+	return _commands.has(command_name)
+
+
+## 设置诊断命令参数 schema。
+## [br]
+## @api public
+## [br]
+## @param command_name: 命令名。
+## [br]
+## @param parameters: 参数 schema，可为数组或按参数名索引的字典。
+## [br]
+## @return 设置成功返回 true。
+## [br]
+## @schema parameters: Variant，支持 Array[Dictionary] 或 Dictionary 形式的参数 schema。
+func set_command_parameter_schema(command_name: StringName, parameters: Variant) -> bool:
+	if not _commands.has(command_name):
+		return false
+	var entry: Dictionary = _get_dictionary_entry(_commands, command_name)
+	entry["parameters"] = _normalize_parameter_schema(parameters)
+	_commands[command_name] = entry
+	return true
+
+
+## 设置诊断命令是否启用。
+## [br]
+## @api public
+## [br]
+## @param command_name: 命令名。
+## [br]
+## @param enabled: 是否启用。
+## [br]
+## @return 命令存在时返回 true。
+func set_command_enabled(command_name: StringName, enabled: bool) -> bool:
+	if not _commands.has(command_name):
+		return false
+	if enabled:
+		var _disabled_erased: bool = _disabled_commands.erase(command_name)
+	else:
+		_disabled_commands[command_name] = true
+	return true
+
+
+## 批量设置命令是否启用。
+## [br]
+## @api public
+## [br]
+## @param enabled: 是否启用。
+## [br]
+## @param command_names: 指定命令；为空时作用于全部已注册命令。
+## [br]
+## @return 实际处理的命令数量。
+func set_all_commands_enabled(
+	enabled: bool,
+	command_names: PackedStringArray = PackedStringArray()
+) -> int:
+	var selected_names: PackedStringArray = command_names.duplicate()
+	if selected_names.is_empty():
+		for command_name: StringName in _commands.keys():
+			var _name_appended: bool = selected_names.append(String(command_name))
+
+	var count: int = 0
+	for name_text: String in selected_names:
+		if set_command_enabled(StringName(name_text), enabled):
+			count += 1
+	return count
+
+
+## 检查命令是否启用。
+## [br]
+## @api public
+## [br]
+## @param command_name: 命令名。
+## [br]
+## @return 命令存在且启用时返回 true。
+func is_command_enabled(command_name: StringName) -> bool:
+	return _commands.has(command_name) and not _disabled_commands.has(command_name)
+
+
+## 获取诊断命令描述。
+## [br]
+## @api public
+## [br]
+## @return 命令名到描述的字典。
+## [br]
+## @schema return: Dictionary[StringName, String]，以命令名为键。
+func get_command_descriptions() -> Dictionary:
+	var result: Dictionary = {}
+	for command_name: StringName in _commands.keys():
+		var entry: Dictionary = _get_dictionary_entry(_commands, command_name)
+		result[command_name] = GFVariantData.get_option_string(entry, "description")
+	return result
+
+
+## 获取诊断命令目录。
+## [br]
+## @api public
+## [br]
+## @return 命令名到命令元数据的字典。
+## [br]
+## @schema return: Dictionary[StringName, Dictionary]，每个值包含 description、tier、tier_name、enabled、parameters 和 metadata。
+func get_command_catalog() -> Dictionary:
+	var result: Dictionary = {}
+	for command_name: StringName in _commands.keys():
+		var entry: Dictionary = _get_dictionary_entry(_commands, command_name)
+		var tier: int = GFVariantData.get_option_int(entry, "tier", CommandTier.OBSERVE)
+		result[command_name] = {
+			"description": GFVariantData.get_option_string(entry, "description"),
+			"tier": tier,
+			"tier_name": _get_tier_name(tier),
+			"enabled": is_command_enabled(command_name),
+			"parameters": GFVariantData.get_option_array(entry, "parameters"),
+			"metadata": GFVariantData.get_option_dictionary(entry, "metadata"),
+		}
+	return result
+
+
+## 注册诊断监控项。
+## [br]
+## @api public
+## [br]
+## @param monitor_id: 监控项唯一标识。
+## [br]
+## @param provider: 无参数采样回调。
+## [br]
+## @param options: 可选元数据，支持 label、group、visible、metadata、min_interval_seconds。
+## [br]
+## @return 注册成功返回 true。
+## [br]
+## @schema options: Dictionary，支持 label、group、visible、metadata 和 min_interval_seconds。
+func register_monitor(monitor_id: StringName, provider: Callable, options: Dictionary = {}) -> bool:
+	if monitor_id == &"" or not provider.is_valid():
+		return false
+
+	var entry: Dictionary = {
+		"provider": provider,
+		"label": GFVariantData.get_option_string(options, "label", String(monitor_id)),
+		"group": GFVariantData.get_option_string(options, "group", "Runtime"),
+		"visible": GFVariantData.get_option_bool(options, "visible", true),
+		"metadata": GFVariantData.get_option_dictionary(options, "metadata"),
+		"min_interval_seconds": maxf(GFVariantData.get_option_float(options, "min_interval_seconds", 0.0), 0.0),
+		"order": _monitor_order_counter,
+		"last_sample_time": -INF,
+		"last_sample": {},
+	}
+	_monitor_order_counter += 1
+	_monitors[monitor_id] = entry
+	return true
+
+
+## 注销诊断监控项。
+## [br]
+## @api public
+## [br]
+## @param monitor_id: 监控项唯一标识。
+func unregister_monitor(monitor_id: StringName) -> void:
+	var _monitor_erased: bool = _monitors.erase(monitor_id)
+	for preset_id: StringName in _monitor_presets.keys():
+		var preset: Dictionary = _get_dictionary_entry(_monitor_presets, preset_id)
+		var ids: PackedStringArray = GFVariantData.get_option_packed_string_array(preset, "monitor_ids")
+		var monitor_index: int = ids.find(String(monitor_id))
+		if monitor_index >= 0:
+			ids.remove_at(monitor_index)
+			preset["monitor_ids"] = ids
+			_monitor_presets[preset_id] = preset
+
+
+## 检查诊断监控项是否存在。
+## [br]
+## @api public
+## [br]
+## @param monitor_id: 监控项唯一标识。
+## [br]
+## @return 存在返回 true。
+func has_monitor(monitor_id: StringName) -> bool:
+	return _monitors.has(monitor_id)
+
+
+## 获取诊断监控项目录。
+## [br]
+## @api public
+## [br]
+## @return 监控项元数据字典。
+## [br]
+## @schema return: Dictionary[StringName, Dictionary]，每个值包含 label、group、visible、metadata 和 min_interval_seconds。
+func get_monitor_catalog() -> Dictionary:
+	var result: Dictionary = {}
+	for monitor_id: StringName in _monitors.keys():
+		var entry: Dictionary = _get_dictionary_entry(_monitors, monitor_id)
+		result[monitor_id] = {
+			"label": GFVariantData.get_option_string(entry, "label", String(monitor_id)),
+			"group": GFVariantData.get_option_string(entry, "group", "Runtime"),
+			"visible": GFVariantData.get_option_bool(entry, "visible", true),
+			"metadata": GFVariantData.get_option_dictionary(entry, "metadata"),
+			"min_interval_seconds": GFVariantData.get_option_float(entry, "min_interval_seconds", 0.0),
+		}
+	return result
+
+
+## 注册诊断监控预设。
+## [br]
+## @api public
+## [br]
+## @param preset_id: 预设唯一标识。
+## [br]
+## @param monitor_ids: 预设包含的监控项标识。
+## [br]
+## @param options: 可选元数据，支持 label、metadata。
+## [br]
+## @return 注册成功返回 true。
+## [br]
+## @schema options: Dictionary，支持 label 和 metadata。
+func register_monitor_preset(
+	preset_id: StringName,
+	monitor_ids: PackedStringArray,
+	options: Dictionary = {}
+) -> bool:
+	if preset_id == &"":
+		return false
+
+	_monitor_presets[preset_id] = {
+		"monitor_ids": monitor_ids.duplicate(),
+		"label": GFVariantData.get_option_string(options, "label", String(preset_id)),
+		"metadata": GFVariantData.get_option_dictionary(options, "metadata"),
+	}
+	return true
+
+
+## 将一个监控项追加到已有预设；预设不存在时会创建。
+## [br]
+## @api public
+## [br]
+## @param preset_id: 预设唯一标识。
+## [br]
+## @param monitor_id: 监控项唯一标识。
+## [br]
+## @return 追加成功返回 true。
+func add_monitor_to_preset(preset_id: StringName, monitor_id: StringName) -> bool:
+	if preset_id == &"" or monitor_id == &"":
+		return false
+	if not _monitor_presets.has(preset_id):
+		return register_monitor_preset(preset_id, PackedStringArray([String(monitor_id)]))
+
+	var preset: Dictionary = _get_dictionary_entry(_monitor_presets, preset_id)
+	var ids: PackedStringArray = GFVariantData.get_option_packed_string_array(preset, "monitor_ids")
+	if not ids.has(String(monitor_id)):
+		var _monitor_appended: bool = ids.append(String(monitor_id))
+		preset["monitor_ids"] = ids
+		_monitor_presets[preset_id] = preset
+	return true
+
+
+## 注销诊断监控预设。
+## [br]
+## @api public
+## [br]
+## @param preset_id: 预设唯一标识。
+func unregister_monitor_preset(preset_id: StringName) -> void:
+	var _preset_erased: bool = _monitor_presets.erase(preset_id)
+
+
+## 检查诊断监控预设是否存在。
+## [br]
+## @api public
+## [br]
+## @param preset_id: 预设唯一标识。
+## [br]
+## @return 存在返回 true。
+func has_monitor_preset(preset_id: StringName) -> bool:
+	return _monitor_presets.has(preset_id)
+
+
+## 获取诊断监控预设列表。
+## [br]
+## @api public
+## [br]
+## @return 预设标识列表。
+func get_monitor_preset_ids() -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	for preset_id: StringName in _monitor_presets.keys():
+		var _preset_appended: bool = result.append(String(preset_id))
+	result.sort()
+	return result
+
+
+## 注册快照分区 provider。用于扩展或项目把自己的诊断数据贡献到 collect_snapshot() 顶层字段。
+## [br]
+## @api public
+## [br]
+## @param section_id: 快照顶层字段名。
+## [br]
+## @param provider: 无参数采样回调，建议返回 Dictionary。
+## [br]
+## @return 注册成功返回 true。
+func register_snapshot_section_provider(section_id: StringName, provider: Callable) -> bool:
+	if section_id == &"" or not provider.is_valid():
+		return false
+	_snapshot_section_providers[section_id] = provider
+	return true
+
+
+## 注销快照分区 provider。
+## [br]
+## @api public
+## [br]
+## @param section_id: 快照顶层字段名。
+func unregister_snapshot_section_provider(section_id: StringName) -> void:
+	var _provider_erased: bool = _snapshot_section_providers.erase(section_id)
+
+
+## 检查快照分区 provider 是否存在。
+## [br]
+## @api public
+## [br]
+## @param section_id: 快照顶层字段名。
+## [br]
+## @return 存在返回 true。
+func has_snapshot_section_provider(section_id: StringName) -> bool:
+	return _snapshot_section_providers.has(section_id)
+
+
+## 注册工具快照 provider。用于扩展或项目把 get_debug_snapshot() 风格数据贡献到 tools 字段。
+## [br]
+## @api public
+## [br]
+## @param tool_id: tools 内部字段名。
+## [br]
+## @param provider: 无参数采样回调，建议返回 Dictionary。
+## [br]
+## @return 注册成功返回 true。
+func register_tool_snapshot_provider(tool_id: StringName, provider: Callable) -> bool:
+	if tool_id == &"" or not provider.is_valid():
+		return false
+	_tool_snapshot_providers[tool_id] = provider
+	return true
+
+
+## 注销工具快照 provider。
+## [br]
+## @api public
+## [br]
+## @param tool_id: tools 内部字段名。
+func unregister_tool_snapshot_provider(tool_id: StringName) -> void:
+	var _provider_erased: bool = _tool_snapshot_providers.erase(tool_id)
+
+
+## 检查工具快照 provider 是否存在。
+## [br]
+## @api public
+## [br]
+## @param tool_id: tools 内部字段名。
+## [br]
+## @return 存在返回 true。
+func has_tool_snapshot_provider(tool_id: StringName) -> bool:
+	return _tool_snapshot_providers.has(tool_id)
+
+
+## 采集诊断监控快照。
+## [br]
+## @api public
+## [br]
+## @param monitor_ids: 指定监控项；为空时采集全部可见监控项。
+## [br]
+## @param include_hidden: 为 true 时包含 visible=false 的监控项。
+## [br]
+## @return 监控快照字典。
+## [br]
+## @schema return: Dictionary，包含 timestamp_unix、monitor_count 和 monitors。
+func collect_monitor_snapshot(
+	monitor_ids: PackedStringArray = PackedStringArray(),
+	include_hidden: bool = false
+) -> Dictionary:
+	var selected_ids: PackedStringArray = monitor_ids.duplicate()
+	if selected_ids.is_empty():
+		for monitor_id: StringName in _monitors.keys():
+			var _monitor_appended: bool = selected_ids.append(String(monitor_id))
+
+	selected_ids.sort()
+	var monitors: Dictionary = {}
+	for id_text: String in selected_ids:
+		var monitor_id: StringName = StringName(id_text)
+		if not _monitors.has(monitor_id):
+			continue
+
+		var entry: Dictionary = _get_dictionary_entry(_monitors, monitor_id)
+		if not include_hidden and not GFVariantData.get_option_bool(entry, "visible", true):
+			continue
+		monitors[monitor_id] = _sample_monitor(monitor_id, entry)
+
+	return {
+		"timestamp_unix": Time.get_unix_time_from_system(),
+		"monitor_count": monitors.size(),
+		"monitors": monitors,
+	}
+
+
+## 按预设采集诊断监控快照。
+## [br]
+## @api public
+## [br]
+## @param preset_id: 预设唯一标识。
+## [br]
+## @param include_hidden: 为 true 时包含 visible=false 的监控项。
+## [br]
+## @return 监控快照字典。
+## [br]
+## @schema return: Dictionary，包含 collect_monitor_snapshot() 字段以及 preset_id、preset_label、preset_metadata。
+func collect_monitor_preset(preset_id: StringName, include_hidden: bool = false) -> Dictionary:
+	if not _monitor_presets.has(preset_id):
+		return collect_monitor_snapshot(PackedStringArray(), include_hidden)
+
+	var preset: Dictionary = _get_dictionary_entry(_monitor_presets, preset_id)
+	var ids: PackedStringArray = GFVariantData.get_option_packed_string_array(preset, "monitor_ids")
+	var snapshot: Dictionary = collect_monitor_snapshot(ids, include_hidden)
+	snapshot["preset_id"] = preset_id
+	snapshot["preset_label"] = GFVariantData.get_option_string(preset, "label", String(preset_id))
+	snapshot["preset_metadata"] = GFVariantData.get_option_dictionary(preset, "metadata")
+	return snapshot
+
+
+## 导出诊断监控快照。
+## [br]
+## @api public
+## [br]
+## @param snapshot: collect_monitor_snapshot() 或 collect_monitor_preset() 返回值。
+## [br]
+## @param format: 导出格式，支持 json、text、csv。
+## [br]
+## @return 导出文本。
+## [br]
+## @schema snapshot: Dictionary，collect_monitor_snapshot() 或 collect_monitor_preset() 返回结构。
+func export_monitor_snapshot(snapshot: Dictionary, format: StringName = &"json") -> String:
+	match format:
+		&"text":
+			return _export_monitor_snapshot_as_text(snapshot)
+		&"csv":
+			return _export_monitor_snapshot_as_csv(snapshot)
+		_:
+			return JSON.stringify(snapshot, "\t")
+
+
+## 设置诊断认证 token。
+## [br]
+## @api public
+## [br]
+## @param token: token 文本。
+## [br]
+## @param required: 是否立即启用 token 校验。
+func set_auth_token(token: String, required: bool = true) -> void:
+	auth_token = token
+	require_auth_token = required
+
+
+## 执行诊断命令。
+## [br]
+## @api public
+## [br]
+## @param command_name: 命令名。
+## [br]
+## @param args: 命令参数。
+## [br]
+## @return 统一结果字典。
+## [br]
+## @schema args: Dictionary，命令参数；可包含 auth_token 以及该命令 parameter_schema 定义的字段。
+## [br]
+## @schema return: Dictionary，包含 ok、value、error、metadata。
+func execute_command(command_name: StringName, args: Dictionary = {}) -> Dictionary:
+	if not _commands.has(command_name):
+		var missing_result: Dictionary = _make_command_result(false, null, "Missing diagnostic command: %s" % String(command_name))
+		diagnostic_command_executed.emit(command_name, missing_result)
+		return missing_result
+
+	var entry: Dictionary = _get_dictionary_entry(_commands, command_name)
+	if _disabled_commands.has(command_name):
+		var disabled_result: Dictionary = _make_command_result(false, null, "Diagnostic command is disabled: %s" % String(command_name))
+		diagnostic_command_executed.emit(command_name, disabled_result)
+		return disabled_result
+
+	var tier: int = GFVariantData.get_option_int(entry, "tier", CommandTier.OBSERVE)
+	if not _is_tier_allowed(tier):
+		var tier_result: Dictionary = _make_command_result(false, null, "Diagnostic command tier is not allowed: %s" % _get_tier_name(tier), {
+			"tier": tier,
+			"tier_name": _get_tier_name(tier),
+		})
+		diagnostic_command_executed.emit(command_name, tier_result)
+		return tier_result
+	if not _is_auth_allowed(args):
+		var auth_result: Dictionary = _make_command_result(false, null, "Diagnostic command authentication failed.", {
+			"tier": tier,
+			"tier_name": _get_tier_name(tier),
+		})
+		diagnostic_command_executed.emit(command_name, auth_result)
+		return auth_result
+
+	var prepared_args: Dictionary = _prepare_command_args(args, entry)
+	var validation_report: GFValidationReport = _validate_command_args(entry, prepared_args, args)
+	if not validation_report.is_ok():
+		var validation_result: Dictionary = _make_command_result(false, null, validation_report.make_summary(String(command_name)), {
+			"tier": tier,
+			"tier_name": _get_tier_name(tier),
+			"validation": validation_report.to_dict(),
+		})
+		diagnostic_command_executed.emit(command_name, validation_result)
+		return validation_result
+
+	var callback: Callable = _get_callable_value(GFVariantData.get_option_value(entry, "callback", Callable()))
+	if not callback.is_valid():
+		var invalid_result: Dictionary = _make_command_result(false, null, "Diagnostic command callback is invalid: %s" % String(command_name))
+		diagnostic_command_executed.emit(command_name, invalid_result)
+		return invalid_result
+
+	var value: Variant = callback.call(prepared_args)
+	var result: Dictionary = _make_command_result(true, value, "", {
+		"tier": tier,
+		"tier_name": _get_tier_name(tier),
+	})
+	if encode_command_results_for_json:
+		result = command_result_to_json_compatible(result)
+	diagnostic_command_executed.emit(command_name, result)
+	return result
+
+
+## 执行诊断命令并返回 JSON 兼容结果。
+## [br]
+## @api public
+## [br]
+## @param command_name: 命令名。
+## [br]
+## @param args: 命令参数。
+## [br]
+## @return JSON 兼容结果字典。
+## [br]
+## @schema args: Dictionary，命令参数；可包含 auth_token 以及该命令 parameter_schema 定义的字段。
+## [br]
+## @schema return: Dictionary，包含 JSON 兼容的 ok、value、error、metadata。
+func execute_command_json_safe(command_name: StringName, args: Dictionary = {}) -> Dictionary:
+	return command_result_to_json_compatible(execute_command(command_name, args))
+
+
+## 将命令结果转换为 JSON 兼容字典。
+## [br]
+## @api public
+## [br]
+## @param result: execute_command() 返回的结果。
+## [br]
+## @param options: 传给 GFVariantJsonCodec.variant_to_json_compatible() 的选项。
+## [br]
+## @return JSON 兼容结果字典。
+## [br]
+## @schema result: Dictionary，execute_command() 返回结构。
+## [br]
+## @schema options: Dictionary，传给 GFVariantJsonCodec.variant_to_json_compatible() 的编码选项。
+## [br]
+## @schema return: Dictionary，JSON 兼容命令结果。
+func command_result_to_json_compatible(result: Dictionary, options: Dictionary = {}) -> Dictionary:
+	return GFVariantData.to_dictionary(GFVariantJsonCodec.variant_to_json_compatible(result, options))
+
+
+## 采集运行时诊断快照。
+## [br]
+## @api public
+## [br]
+## @param options: 可选参数，支持 recent_log_count、include_recent_logs、include_scene_tree、scene_tree_options、include_signal_graph、signal_graph_options。
+## [br]
+## @return 快照字典。
+## [br]
+## @schema options: Dictionary，支持 recent_log_count、include_recent_logs、include_scene_tree、scene_tree_options、include_signal_graph、signal_graph_options、include_monitors、monitor_preset、monitor_ids、include_hidden_monitors。
+## [br]
+## @schema return: Dictionary，包含 timestamp_unix、engine、build、architecture、event_system、performance、logs、network、tools，可选 scene_tree、signal_graph、monitors 和注册分区。
+func collect_snapshot(options: Dictionary = {}) -> Dictionary:
+	var snapshot: Dictionary = {
+		"timestamp_unix": Time.get_unix_time_from_system(),
+		"engine": Engine.get_version_info(),
+		"build": GFBuildInfo.collect().to_dict(),
+		"architecture": {},
+		"event_system": {},
+		"performance": {},
+		"logs": {},
+		"network": {},
+		"tools": {},
+	}
+
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	if architecture != null:
+		snapshot["architecture"] = architecture.get_debug_lifecycle_state()
+		snapshot["event_system"] = architecture.get_event_debug_stats()
+
+	if include_performance_monitors:
+		snapshot["performance"] = collect_performance_snapshot()
+
+	var build_info_utility: GFBuildInfoUtility = _get_build_info_utility()
+	if build_info_utility != null:
+		snapshot["build"] = build_info_utility.get_build_info_dict()
+
+	snapshot["logs"] = collect_log_snapshot(
+		GFVariantData.get_option_int(options, "recent_log_count", default_recent_log_count),
+		GFVariantData.get_option_bool(options, "include_recent_logs", true)
+	)
+
+	if GFVariantData.get_option_bool(options, "include_scene_tree", false):
+		var scene_options: Dictionary = GFVariantData.get_option_dictionary(options, "scene_tree_options")
+		snapshot["scene_tree"] = collect_scene_tree_snapshot(null, scene_options)
+
+	if GFVariantData.get_option_bool(options, "include_signal_graph", false):
+		var signal_options: Dictionary = GFVariantData.get_option_dictionary(options, "signal_graph_options")
+		snapshot["signal_graph"] = collect_signal_graph_snapshot(null, signal_options)
+
+	snapshot["tools"] = _collect_tool_debug_snapshots()
+	_collect_registered_snapshot_sections(snapshot)
+
+	if GFVariantData.get_option_bool(options, "include_monitors", true):
+		var preset_id: StringName = GFVariantData.get_option_string_name(options, "monitor_preset", &"")
+		if preset_id != &"":
+			snapshot["monitors"] = collect_monitor_preset(
+				preset_id,
+				GFVariantData.get_option_bool(options, "include_hidden_monitors", false)
+			)
+		else:
+			var monitor_ids: PackedStringArray = GFVariantData.get_option_packed_string_array(options, "monitor_ids")
+			snapshot["monitors"] = collect_monitor_snapshot(
+				monitor_ids,
+				GFVariantData.get_option_bool(options, "include_hidden_monitors", false)
+			)
+
+	snapshot_collected.emit(snapshot)
+	return snapshot
+
+
+## 采集性能监视器快照。
+## [br]
+## @return 性能数据字典。
+## [br]
+## @api public
+## [br]
+## @schema return: Dictionary，包含 fps、process_time、physics_process_time、static_memory、object_count、node_count、resource_count。
+func collect_performance_snapshot() -> Dictionary:
+	return {
+		"fps": Performance.get_monitor(Performance.TIME_FPS),
+		"process_time": Performance.get_monitor(Performance.TIME_PROCESS),
+		"physics_process_time": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS),
+		"static_memory": Performance.get_monitor(Performance.MEMORY_STATIC),
+		"object_count": Performance.get_monitor(Performance.OBJECT_COUNT),
+		"node_count": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+		"resource_count": Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT),
+	}
+
+
+## 采集日志缓存快照。
+## [br]
+## @api public
+## [br]
+## @param recent_log_count: 最近日志数量。
+## [br]
+## @param include_recent_logs: 是否包含日志条目。
+## [br]
+## @return 日志数据字典。
+## [br]
+## @schema return: Dictionary，包含 available、memory_count、dropped_count、recent。
+func collect_log_snapshot(recent_log_count: int = 20, include_recent_logs: bool = true) -> Dictionary:
+	var log_utility: GFLogUtility = _get_log_utility()
+	if log_utility == null:
+		return {
+			"available": false,
+			"memory_count": 0,
+			"dropped_count": 0,
+			"recent": [],
+		}
+
+	return {
+		"available": true,
+		"memory_count": log_utility.get_memory_entry_count(),
+		"dropped_count": log_utility.get_dropped_memory_entry_count(),
+		"recent": log_utility.get_recent_entries(recent_log_count) if include_recent_logs else [],
+	}
+
+
+## 采集只读场景树快照。
+## [br]
+## @api public
+## [br]
+## @param root: 可选根节点；为空时优先使用当前场景，再回退到 Viewport root。
+## [br]
+## @param options: 可选参数，支持 max_depth、max_nodes、include_groups、include_owner_path、include_script_path、include_internal。
+## [br]
+## @return 场景树快照字典。
+## [br]
+## @schema options: Dictionary，支持 max_depth、max_nodes、include_groups、include_owner_path、include_script_path、include_internal、root_path、prefer_current_scene。
+## [br]
+## @schema return: Dictionary，包含 available、node_count、truncated、root_path、root。
+func collect_scene_tree_snapshot(root: Node = null, options: Dictionary = {}) -> Dictionary:
+	var target_root: Node = root if root != null else _resolve_scene_tree_root(options)
+	var max_depth: int = maxi(GFVariantData.get_option_int(options, "max_depth", default_scene_tree_max_depth), 0)
+	var max_nodes: int = maxi(GFVariantData.get_option_int(options, "max_nodes", default_scene_tree_max_nodes), 1)
+	var normalized_options: Dictionary = {
+		"max_depth": max_depth,
+		"max_nodes": max_nodes,
+		"include_groups": GFVariantData.get_option_bool(options, "include_groups", false),
+		"include_owner_path": GFVariantData.get_option_bool(options, "include_owner_path", true),
+		"include_script_path": GFVariantData.get_option_bool(options, "include_script_path", true),
+		"include_internal": GFVariantData.get_option_bool(options, "include_internal", false),
+	}
+
+	if target_root == null:
+		return {
+			"available": false,
+			"node_count": 0,
+			"truncated": false,
+			"root_path": "",
+			"root": {},
+		}
+
+	var counters: Dictionary = {
+		"count": 0,
+		"truncated": false,
+	}
+	var root_snapshot: Dictionary = _collect_scene_tree_node(target_root, 0, normalized_options, counters)
+	return {
+		"available": true,
+		"node_count": GFVariantData.get_option_int(counters, "count", 0),
+		"truncated": GFVariantData.get_option_bool(counters, "truncated", false),
+		"root_path": _get_node_path_or_empty(target_root),
+		"root": root_snapshot,
+	}
+
+
+## 采集只读信号连接图快照。
+## [br]
+## @api public
+## [br]
+## @param root: 可选根节点；为空时优先使用当前场景，再回退到 Viewport root。
+## [br]
+## @param options: 可选参数，支持 include_internal、persistent_only、include_empty_signals、include_external_targets、include_index。
+## [br]
+## @return 信号图快照字典。
+## [br]
+## @schema options: Dictionary，支持 include_internal、persistent_only、include_empty_signals、include_external_targets、include_index、root_path、prefer_current_scene。
+## [br]
+## @schema return: Dictionary，包含 ok、root_path、node_count、signal_count、connection_count、nodes、signals、connections，可选 index。
+func collect_signal_graph_snapshot(root: Node = null, options: Dictionary = {}) -> Dictionary:
+	var target_root: Node = root if root != null else _resolve_scene_tree_root(options)
+	if target_root == null:
+		return {
+			"ok": false,
+			"root_path": "",
+			"node_count": 0,
+			"signal_count": 0,
+			"connection_count": 0,
+			"nodes": [],
+			"signals": [],
+			"connections": [],
+			"message": "Signal graph root is unavailable.",
+		}
+
+	var graph: Dictionary = GFSceneSignalAudit.build_signal_graph(target_root, options)
+	if GFVariantData.get_option_bool(options, "include_index", false):
+		graph["index"] = GFSceneSignalAudit.index_signal_graph(graph)
+	return graph
+
+
+# --- 私有/辅助方法 ---
+
+func _get_build_info_utility() -> GFBuildInfoUtility:
+	var utility: Variant = get_utility(GFBuildInfoUtility)
+	if utility is GFBuildInfoUtility:
+		var build_info_utility: GFBuildInfoUtility = utility
+		return build_info_utility
+	return null
+
+
+func _get_log_utility() -> GFLogUtility:
+	var utility: Variant = get_utility(GFLogUtility)
+	if utility is GFLogUtility:
+		var log_utility: GFLogUtility = utility
+		return log_utility
+	return null
+
+
+func _get_console_utility() -> GFConsoleUtility:
+	var utility: Variant = get_utility(GFConsoleUtility)
+	if utility is GFConsoleUtility:
+		var console_utility: GFConsoleUtility = utility
+		return console_utility
+	return null
+
+
+func _get_main_scene_tree() -> SceneTree:
+	var main_loop: MainLoop = Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var tree: SceneTree = main_loop
+		return tree
+	return null
+
+
+func _get_dictionary_entry(source: Dictionary, key: Variant) -> Dictionary:
+	if not source.has(key):
+		return {}
+	var value: Variant = source[key]
+	if not (value is Dictionary):
+		return {}
+	var entry: Dictionary = value
+	return entry
+
+
+func _get_callable_value(value: Variant) -> Callable:
+	if value is Callable:
+		var callable: Callable = value
+		return callable
+	return Callable()
+
+
+func _get_script_value(value: Variant) -> Script:
+	if value is Script:
+		var script: Script = value
+		return script
+	return null
+
+
+func _is_float_convertible(value: Variant) -> bool:
+	return value is int or value is float or value is bool
+
+
+func _number_to_float(value: Variant) -> float:
+	if value is float:
+		var float_value: float = value
+		return float_value
+	if value is int:
+		var int_value: int = value
+		return float(int_value)
+	if value is bool:
+		var bool_value: bool = value
+		return float(bool_value)
+	return 0.0
+
+
+func _bind_console_command() -> void:
+	_console_utility = _get_console_utility()
+	if _console_utility == null:
+		return
+	if _console_utility.get_command_names().has("diagnostics"):
+		return
+
+	_console_utility.register_command("diagnostics", Callable(self, "_on_console_diagnostics_command"), "输出 GF 诊断摘要。")
+	_console_command_registered = true
+
+
+func _make_command_result(ok: bool, value: Variant, error: String, metadata: Dictionary = {}) -> Dictionary:
+	var result: Dictionary = {
+		"ok": ok,
+		"value": value,
+		"error": error,
+		"metadata": metadata.duplicate(true),
+	}
+	return result
+
+
+func _command_collect_snapshot(args: Dictionary) -> Dictionary:
+	return collect_snapshot(args)
+
+
+func _command_collect_performance(_args: Dictionary) -> Dictionary:
+	return collect_performance_snapshot()
+
+
+func _command_collect_logs(args: Dictionary) -> Dictionary:
+	return collect_log_snapshot(
+		GFVariantData.get_option_int(args, "recent_log_count", default_recent_log_count),
+		GFVariantData.get_option_bool(args, "include_recent_logs", true)
+	)
+
+
+func _command_collect_monitors(args: Dictionary) -> Dictionary:
+	var preset_id: StringName = GFVariantData.get_option_string_name(args, "preset_id", &"")
+	if preset_id != &"":
+		return collect_monitor_preset(preset_id, GFVariantData.get_option_bool(args, "include_hidden", false))
+
+	var monitor_ids: PackedStringArray = GFVariantData.get_option_packed_string_array(args, "monitor_ids")
+	return collect_monitor_snapshot(
+		monitor_ids,
+		GFVariantData.get_option_bool(args, "include_hidden", false)
+	)
+
+
+func _command_collect_tools(_args: Dictionary) -> Dictionary:
+	return _collect_tool_debug_snapshots()
+
+
+func _command_collect_scene(args: Dictionary) -> Dictionary:
+	return collect_scene_tree_snapshot(null, args)
+
+
+func _command_collect_signals(args: Dictionary) -> Dictionary:
+	return collect_signal_graph_snapshot(null, args)
+
+
+func _collect_scene_tree_node(node: Node, depth: int, options: Dictionary, counters: Dictionary) -> Dictionary:
+	counters["count"] = GFVariantData.get_option_int(counters, "count", 0) + 1
+	var include_internal: bool = GFVariantData.get_option_bool(options, "include_internal", false)
+	var child_count: int = node.get_child_count(include_internal)
+	var info: Dictionary = {
+		"name": node.name,
+		"type": node.get_class(),
+		"path": _get_node_path_or_empty(node),
+		"depth": depth,
+		"child_count": child_count,
+		"children": [],
+	}
+
+	if GFVariantData.get_option_bool(options, "include_owner_path", true):
+		info["owner_path"] = _get_node_path_or_empty(node.owner)
+	if GFVariantData.get_option_bool(options, "include_script_path", true):
+		info["script_path"] = _get_node_script_path(node)
+	if GFVariantData.get_option_bool(options, "include_groups", false):
+		info["groups"] = _get_node_group_names(node)
+
+	if depth >= GFVariantData.get_option_int(options, "max_depth", default_scene_tree_max_depth):
+		if child_count > 0:
+			info["depth_limit_reached"] = true
+			counters["truncated"] = true
+		return info
+
+	var children: Array[Dictionary] = []
+	for child_index: int in range(child_count):
+		if GFVariantData.get_option_int(counters, "count", 0) >= GFVariantData.get_option_int(options, "max_nodes", default_scene_tree_max_nodes):
+			info["children_truncated"] = true
+			counters["truncated"] = true
+			break
+
+		var child: Node = node.get_child(child_index, include_internal)
+		children.append(_collect_scene_tree_node(child, depth + 1, options, counters))
+	info["children"] = children
+	return info
+
+
+func _resolve_scene_tree_root(options: Dictionary) -> Node:
+	var root_path: NodePath = NodePath(GFVariantData.get_option_string(options, "root_path"))
+	var tree: SceneTree = _get_main_scene_tree()
+	if tree == null:
+		return null
+
+	if not root_path.is_empty():
+		var explicit_root: Node = tree.root.get_node_or_null(root_path)
+		if explicit_root != null:
+			return explicit_root
+		if tree.current_scene != null:
+			explicit_root = tree.current_scene.get_node_or_null(root_path)
+			if explicit_root != null:
+				return explicit_root
+
+	return tree.current_scene if tree.current_scene != null else tree.root
+
+
+func _get_node_path_or_empty(node: Node) -> String:
+	if node == null:
+		return ""
+	if node.is_inside_tree():
+		return str(node.get_path())
+	return String(node.name)
+
+
+func _get_node_script_path(node: Node) -> String:
+	var script: Script = _get_script_value(node.get_script())
+	if script == null:
+		return ""
+	return script.resource_path
+
+
+func _get_node_group_names(node: Node) -> PackedStringArray:
+	var groups: PackedStringArray = PackedStringArray()
+	for group: StringName in node.get_groups():
+		var _group_appended: bool = groups.append(String(group))
+	groups.sort()
+	return groups
+
+
+func _register_builtin_monitors() -> void:
+	_register_builtin_monitor(&"performance.fps", &"_monitor_performance_fps", "FPS", "Performance")
+	_register_builtin_monitor(&"performance.process_time", &"_monitor_performance_process_time", "Process Time", "Performance")
+	_register_builtin_monitor(&"performance.physics_process_time", &"_monitor_performance_physics_time", "Physics Time", "Performance")
+	_register_builtin_monitor(&"performance.static_memory", &"_monitor_performance_static_memory", "Static Memory", "Performance", 0.25)
+	_register_builtin_monitor(&"performance.node_count", &"_monitor_performance_node_count", "Nodes", "Performance", 0.25)
+	_register_builtin_monitor(&"architecture.models", &"_monitor_architecture_model_count", "Models", "Architecture", 0.25)
+	_register_builtin_monitor(&"architecture.systems", &"_monitor_architecture_system_count", "Systems", "Architecture", 0.25)
+	_register_builtin_monitor(&"architecture.utilities", &"_monitor_architecture_utility_count", "Utilities", "Architecture", 0.25)
+	_register_builtin_monitor(&"event_system.stats", &"_monitor_event_system_stats", "Event Stats", "Architecture", 0.25)
+	_register_builtin_monitor(&"tools.asset", &"_monitor_tool_asset_snapshot", "Asset Utility", "Tools", 0.25)
+	_register_builtin_monitor(&"tools.timer", &"_monitor_tool_timer_snapshot", "Timer Utility", "Tools", 0.25)
+	_register_builtin_monitor(&"tools.download", &"_monitor_tool_download_snapshot", "Download Utility", "Tools", 0.25)
+
+	_register_builtin_monitor_preset(&"minimal", PackedStringArray([
+		"performance.fps",
+		"performance.process_time",
+		"performance.physics_process_time",
+	]), "Minimal")
+	_register_builtin_monitor_preset(&"performance", PackedStringArray([
+		"performance.fps",
+		"performance.process_time",
+		"performance.physics_process_time",
+		"performance.static_memory",
+		"performance.node_count",
+	]), "Performance")
+	_register_builtin_monitor_preset(&"architecture", PackedStringArray([
+		"architecture.models",
+		"architecture.systems",
+		"architecture.utilities",
+		"event_system.stats",
+	]), "Architecture")
+	_register_builtin_monitor_preset(&"tools", PackedStringArray([
+		"tools.asset",
+		"tools.timer",
+		"tools.download",
+	]), "Tools")
+	_register_builtin_monitor_preset(&"overlay", PackedStringArray([
+		"performance.fps",
+		"architecture.models",
+		"architecture.systems",
+		"architecture.utilities",
+	]), "Overlay")
+
+
+func _register_builtin_monitor(
+	monitor_id: StringName,
+	method_name: StringName,
+	label: String,
+	group: String,
+	min_interval_seconds: float = 0.0
+) -> void:
+	var options: Dictionary = {
+		"label": label,
+		"group": group,
+	}
+	if min_interval_seconds > 0.0:
+		options["min_interval_seconds"] = min_interval_seconds
+
+	if not register_monitor(monitor_id, Callable(self, method_name), options):
+		push_warning("Failed to register built-in diagnostic monitor: %s" % String(monitor_id))
+
+
+func _register_builtin_monitor_preset(preset_id: StringName, monitor_ids: PackedStringArray, label: String) -> void:
+	if not register_monitor_preset(preset_id, monitor_ids, { "label": label }):
+		push_warning("Failed to register built-in diagnostic monitor preset: %s" % String(preset_id))
+
+
+func _sample_monitor(monitor_id: StringName, entry: Dictionary) -> Dictionary:
+	var now_seconds: float = Time.get_ticks_msec() / 1000.0
+	var min_interval_seconds: float = GFVariantData.get_option_float(entry, "min_interval_seconds", 0.0)
+	var last_sample: Dictionary = GFVariantData.get_option_dictionary(entry, "last_sample")
+	if (
+		min_interval_seconds > 0.0
+		and not last_sample.is_empty()
+		and now_seconds - GFVariantData.get_option_float(entry, "last_sample_time", -INF) < min_interval_seconds
+	):
+		return last_sample.duplicate(true)
+
+	var provider: Callable = _get_callable_value(GFVariantData.get_option_value(entry, "provider", Callable()))
+	var sample: Dictionary = {
+		"id": monitor_id,
+		"label": GFVariantData.get_option_string(entry, "label", String(monitor_id)),
+		"group": GFVariantData.get_option_string(entry, "group", "Runtime"),
+		"value": null,
+		"valid": false,
+		"error": "",
+		"metadata": GFVariantData.get_option_dictionary(entry, "metadata"),
+		"sampled_at_unix": Time.get_unix_time_from_system(),
+	}
+	if not provider.is_valid():
+		sample["error"] = "Monitor provider is invalid."
+	else:
+		sample["value"] = provider.call()
+		sample["valid"] = true
+
+	entry["last_sample_time"] = now_seconds
+	entry["last_sample"] = sample.duplicate(true)
+	monitor_sampled.emit(monitor_id, sample)
+	return sample
+
+
+func _monitor_performance_fps() -> float:
+	return Performance.get_monitor(Performance.TIME_FPS)
+
+
+func _monitor_performance_process_time() -> float:
+	return Performance.get_monitor(Performance.TIME_PROCESS)
+
+
+func _monitor_performance_physics_time() -> float:
+	return Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)
+
+
+func _monitor_performance_static_memory() -> float:
+	return Performance.get_monitor(Performance.MEMORY_STATIC)
+
+
+func _monitor_performance_node_count() -> float:
+	return Performance.get_monitor(Performance.OBJECT_NODE_COUNT)
+
+
+func _monitor_architecture_model_count() -> int:
+	return _get_architecture_debug_section_count("models")
+
+
+func _monitor_architecture_system_count() -> int:
+	return _get_architecture_debug_section_count("systems")
+
+
+func _monitor_architecture_utility_count() -> int:
+	return _get_architecture_debug_section_count("utilities")
+
+
+func _monitor_event_system_stats() -> Dictionary:
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	if architecture == null:
+		return {}
+	return architecture.get_event_debug_stats()
+
+
+func _monitor_tool_asset_snapshot() -> Dictionary:
+	return _get_instance_debug_snapshot(get_utility(GFAssetUtility))
+
+
+func _monitor_tool_timer_snapshot() -> Dictionary:
+	return _get_instance_debug_snapshot(get_utility(GFTimerUtility))
+
+
+func _monitor_tool_download_snapshot() -> Dictionary:
+	return _get_instance_debug_snapshot(get_utility(GFDownloadUtility))
+
+
+func _collect_tool_debug_snapshots() -> Dictionary:
+	var result: Dictionary = {}
+	_add_tool_debug_snapshot(result, &"build_info", get_utility(GFBuildInfoUtility))
+	_add_tool_debug_snapshot(result, &"asset", get_utility(GFAssetUtility))
+	_add_tool_debug_snapshot(result, &"timer", get_utility(GFTimerUtility))
+	_add_tool_debug_snapshot(result, &"remote_cache", get_utility(GFRemoteCacheUtility))
+	_add_tool_debug_snapshot(result, &"download", get_utility(GFDownloadUtility))
+	_add_tool_debug_snapshot(result, &"object_pool", get_utility(GFObjectPoolUtility))
+	_add_registered_tool_debug_snapshots(result)
+	return result
+
+
+func _add_tool_debug_snapshot(result: Dictionary, key: StringName, instance: Object) -> void:
+	var snapshot: Dictionary = _get_instance_debug_snapshot(instance)
+	if not snapshot.is_empty():
+		result[key] = snapshot
+
+
+func _add_registered_tool_debug_snapshots(result: Dictionary) -> void:
+	for tool_id: StringName in _tool_snapshot_providers.keys():
+		var provider: Callable = _get_callable_value(_tool_snapshot_providers[tool_id])
+		var snapshot: Dictionary = _call_dictionary_provider(provider)
+		if not snapshot.is_empty():
+			result[tool_id] = snapshot
+
+
+func _collect_registered_snapshot_sections(snapshot: Dictionary) -> void:
+	for section_id: StringName in _snapshot_section_providers.keys():
+		var provider: Callable = _get_callable_value(_snapshot_section_providers[section_id])
+		var section: Dictionary = _call_dictionary_provider(provider)
+		if not section.is_empty():
+			snapshot[section_id] = section
+
+
+func _get_instance_debug_snapshot(instance: Object) -> Dictionary:
+	if instance == null or not instance.has_method("get_debug_snapshot"):
+		return {}
+	var value: Variant = instance.call("get_debug_snapshot")
+	return GFVariantData.to_dictionary(value)
+
+
+func _call_dictionary_provider(provider: Callable) -> Dictionary:
+	if not provider.is_valid():
+		return {}
+	var value: Variant = provider.call()
+	return GFVariantData.to_dictionary(value)
+
+
+func _get_architecture_debug_section_count(section_name: String) -> int:
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	if architecture == null:
+		return 0
+
+	var state: Dictionary = architecture.get_debug_lifecycle_state()
+	var section: Dictionary = GFVariantData.get_option_dictionary(state, section_name)
+	return section.size()
+
+
+func _export_monitor_snapshot_as_text(snapshot: Dictionary) -> String:
+	var lines: PackedStringArray = PackedStringArray()
+	var monitors: Dictionary = GFVariantData.get_option_dictionary(snapshot, "monitors")
+	if monitors.is_empty():
+		return ""
+
+	var ids: PackedStringArray = PackedStringArray()
+	for monitor_id: Variant in monitors.keys():
+		var _id_appended: bool = ids.append(str(monitor_id))
+	ids.sort()
+	for id_text: String in ids:
+		var sample: Dictionary = GFVariantData.get_option_dictionary(monitors, id_text)
+		if sample.is_empty():
+			continue
+		var _line_appended: bool = lines.append("%s [%s]: %s" % [
+			GFVariantData.get_option_string(sample, "label", id_text),
+			GFVariantData.get_option_string(sample, "group", "Runtime"),
+			str(GFVariantData.get_option_value(sample, "value", null)),
+		])
+	return "\n".join(lines)
+
+
+func _export_monitor_snapshot_as_csv(snapshot: Dictionary) -> String:
+	var lines: PackedStringArray = PackedStringArray(["id,label,group,value,valid,error"])
+	var monitors: Dictionary = GFVariantData.get_option_dictionary(snapshot, "monitors")
+	if monitors.is_empty():
+		return "\n".join(lines)
+
+	var ids: PackedStringArray = PackedStringArray()
+	for monitor_id: Variant in monitors.keys():
+		var _id_appended: bool = ids.append(str(monitor_id))
+	ids.sort()
+	for id_text: String in ids:
+		var sample: Dictionary = GFVariantData.get_option_dictionary(monitors, id_text)
+		if sample.is_empty():
+			continue
+		var _line_appended: bool = lines.append(",".join(PackedStringArray([
+			_escape_csv(id_text),
+			_escape_csv(GFVariantData.get_option_string(sample, "label", id_text)),
+			_escape_csv(GFVariantData.get_option_string(sample, "group", "Runtime")),
+			_escape_csv(str(GFVariantData.get_option_value(sample, "value", null))),
+			_escape_csv(str(GFVariantData.get_option_bool(sample, "valid", false))),
+			_escape_csv(GFVariantData.get_option_string(sample, "error")),
+		])))
+	return "\n".join(lines)
+
+
+func _escape_csv(value: String) -> String:
+	var escaped: String = value.replace("\"", "\"\"")
+	if escaped.contains(",") or escaped.contains("\n") or escaped.contains("\""):
+		return "\"%s\"" % escaped
+	return escaped
+
+
+func _on_console_diagnostics_command(_args: PackedStringArray) -> void:
+	var snapshot: Dictionary = collect_snapshot({
+		"include_recent_logs": false,
+	})
+	var summary: String = _make_console_summary(snapshot)
+	var log_utility: GFLogUtility = _get_log_utility()
+	if log_utility != null:
+		log_utility.info("Diagnostics", summary)
+	else:
+		print(summary)
+
+
+func _make_console_summary(snapshot: Dictionary) -> String:
+	var architecture: Dictionary = GFVariantData.get_option_dictionary(snapshot, "architecture")
+	var models: Dictionary = GFVariantData.get_option_dictionary(architecture, "models")
+	var systems: Dictionary = GFVariantData.get_option_dictionary(architecture, "systems")
+	var utilities: Dictionary = GFVariantData.get_option_dictionary(architecture, "utilities")
+	var performance: Dictionary = GFVariantData.get_option_dictionary(snapshot, "performance")
+	var fps: float = GFVariantData.get_option_float(performance, "fps", 0.0)
+	return "GF diagnostics: models=%d systems=%d utilities=%d fps=%.1f" % [
+		models.size(),
+		systems.size(),
+		utilities.size(),
+		fps,
+	]
+
+
+func _is_tier_allowed(tier: int) -> bool:
+	if tier > int(max_command_tier):
+		return false
+	if tier == CommandTier.DANGER and not allow_danger_commands:
+		return false
+	return true
+
+
+func _is_auth_allowed(args: Dictionary) -> bool:
+	if not require_auth_token:
+		return true
+	if auth_token.is_empty():
+		return false
+
+	var provided: String = GFVariantData.get_option_string(
+		args,
+		"auth_token",
+		GFVariantData.get_option_string(args, "_auth_token")
+	)
+	return provided == auth_token
+
+
+func _normalize_parameter_schema(parameters: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if parameters is Dictionary:
+		var parameter_map: Dictionary = parameters
+		for key: Variant in parameter_map.keys():
+			var definition: Dictionary = {}
+			var raw_definition: Variant = parameter_map[key]
+			if raw_definition is Dictionary:
+				var raw_definition_dictionary: Dictionary = raw_definition
+				definition = raw_definition_dictionary.duplicate(true)
+			definition["name"] = str(key)
+			result.append(_normalize_parameter_definition(definition))
+	elif parameters is Array:
+		var parameter_array: Array = parameters
+		for item: Variant in parameter_array:
+			if item is Dictionary:
+				var item_definition: Dictionary = item
+				result.append(_normalize_parameter_definition(item_definition.duplicate(true)))
+	return result
+
+
+func _normalize_parameter_definition(definition: Dictionary) -> Dictionary:
+	var parameter_name: String = GFVariantData.get_option_string(definition, "name")
+	if parameter_name.is_empty():
+		return {}
+	return {
+		"name": parameter_name,
+		"type": GFVariantData.get_option_string(definition, "type", "any").to_lower(),
+		"required": GFVariantData.get_option_bool(definition, "required", false),
+		"allow_null": GFVariantData.get_option_bool(definition, "allow_null", false),
+		"default": GFVariantData.duplicate_variant(GFVariantData.get_option_value(definition, "default", null)),
+		"has_default": definition.has("default"),
+		"allowed_values": GFVariantData.duplicate_variant(GFVariantData.get_option_value(definition, "allowed_values", [])),
+		"min": GFVariantData.get_option_value(definition, "min", null),
+		"max": GFVariantData.get_option_value(definition, "max", null),
+		"metadata": GFVariantData.get_option_dictionary(definition, "metadata"),
+	}
+
+
+func _prepare_command_args(args: Dictionary, entry: Dictionary) -> Dictionary:
+	var prepared: Dictionary = args.duplicate(true)
+	var parameters: Array = GFVariantData.get_option_array(entry, "parameters")
+	for parameter_variant: Variant in parameters:
+		if not (parameter_variant is Dictionary):
+			continue
+		var parameter: Dictionary = parameter_variant
+		var parameter_name: String = GFVariantData.get_option_string(parameter, "name")
+		if not prepared.has(parameter_name) and GFVariantData.get_option_bool(parameter, "has_default", false):
+			prepared[parameter_name] = GFVariantData.duplicate_variant(GFVariantData.get_option_value(parameter, "default", null))
+	return prepared
+
+
+func _validate_command_args(entry: Dictionary, prepared_args: Dictionary, original_args: Dictionary) -> GFValidationReport:
+	var report: GFValidationReport = GFValidationReport.new("Diagnostic command arguments")
+	var parameters: Array = GFVariantData.get_option_array(entry, "parameters")
+
+	for parameter_variant: Variant in parameters:
+		if not (parameter_variant is Dictionary):
+			continue
+		var parameter: Dictionary = parameter_variant
+		if parameter.is_empty():
+			continue
+		_validate_command_parameter(report, parameter, prepared_args, original_args)
+	return report
+
+
+func _validate_command_parameter(
+	report: GFValidationReport,
+	parameter: Dictionary,
+	prepared_args: Dictionary,
+	original_args: Dictionary
+) -> void:
+	var parameter_name: String = GFVariantData.get_option_string(parameter, "name")
+	if parameter_name.is_empty():
+		return
+	if (
+		GFVariantData.get_option_bool(parameter, "required", false)
+		and not original_args.has(parameter_name)
+		and not GFVariantData.get_option_bool(parameter, "has_default", false)
+	):
+		var _missing_issue: RefCounted = report.add_error(&"missing_parameter", "Missing required diagnostic command parameter.", parameter_name)
+		return
+	if not prepared_args.has(parameter_name):
+		return
+
+	var value: Variant = prepared_args[parameter_name]
+	if value == null:
+		if not GFVariantData.get_option_bool(parameter, "allow_null", false):
+			var _null_issue: RefCounted = report.add_error(&"null_parameter", "Diagnostic command parameter does not allow null.", parameter_name)
+		return
+
+	var type_name: String = GFVariantData.get_option_string(parameter, "type", "any").to_lower()
+	if not _does_value_match_parameter_type(value, type_name):
+		var _type_issue: RefCounted = report.add_error(&"parameter_type_mismatch", "Diagnostic command parameter has the wrong type.", parameter_name, "", {
+			"expected_type": type_name,
+			"actual_type": type_string(typeof(value)),
+		})
+		return
+
+	_validate_allowed_values(report, parameter, parameter_name, value)
+	_validate_numeric_range(report, parameter, parameter_name, value)
+
+
+func _validate_allowed_values(
+	report: GFValidationReport,
+	parameter: Dictionary,
+	name: String,
+	value: Variant
+) -> void:
+	var allowed_values: Array = GFVariantData.get_option_array(parameter, "allowed_values")
+	if allowed_values.is_empty():
+		return
+	for allowed: Variant in allowed_values:
+		if value == allowed:
+			return
+	var _value_issue: RefCounted = report.add_error(&"parameter_value_not_allowed", "Diagnostic command parameter value is not allowed.", name)
+
+
+func _validate_numeric_range(
+	report: GFValidationReport,
+	parameter: Dictionary,
+	name: String,
+	value: Variant
+) -> void:
+	if not (value is int or value is float):
+		return
+	var value_float: float = _number_to_float(value)
+	var min_value: Variant = GFVariantData.get_option_value(parameter, "min", null)
+	if _is_float_convertible(min_value) and value_float < _number_to_float(min_value):
+		var _min_issue: RefCounted = report.add_error(&"parameter_below_minimum", "Diagnostic command parameter is below minimum.", name)
+	var max_value: Variant = GFVariantData.get_option_value(parameter, "max", null)
+	if _is_float_convertible(max_value) and value_float > _number_to_float(max_value):
+		var _max_issue: RefCounted = report.add_error(&"parameter_above_maximum", "Diagnostic command parameter is above maximum.", name)
+
+
+func _does_value_match_parameter_type(value: Variant, type_name: String) -> bool:
+	match type_name:
+		"", "any", "variant":
+			return true
+		"bool", "boolean":
+			return value is bool
+		"int", "integer":
+			return value is int
+		"float", "number":
+			return value is float or value is int
+		"string":
+			return value is String
+		"string_name", "stringname":
+			return value is StringName
+		"node_path", "nodepath":
+			return value is NodePath
+		"dictionary", "dict":
+			return value is Dictionary
+		"array":
+			return value is Array
+		"packed_string_array":
+			return value is PackedStringArray
+		"vector2":
+			return value is Vector2
+		"vector3":
+			return value is Vector3
+		"color":
+			return value is Color
+		"object":
+			return value is Object
+		_:
+			return true
+
+
+func _get_tier_name(tier: int) -> String:
+	match tier:
+		CommandTier.INPUT:
+			return "input"
+		CommandTier.CONTROL:
+			return "control"
+		CommandTier.DANGER:
+			return "danger"
+		_:
+			return "observe"

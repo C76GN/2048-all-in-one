@@ -1,0 +1,787 @@
+## GFExtensionSettings: GF 扩展启用状态与 ProjectSettings 桥接。
+##
+## 负责读取启用扩展 ID、解析扩展依赖、收集启用扩展 Installer，以及提供导出排除开关。
+## [br]
+## @api public
+## [br]
+## @category runtime_service
+## [br]
+## @since 3.17.0
+## [br]
+## @layer kernel/extension
+class_name GFExtensionSettings
+extends RefCounted
+
+
+# --- 常量 ---
+
+const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
+
+## 扩展 manifest 发现服务脚本。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/extension
+const GFExtensionCatalogBase = preload("res://addons/gf/kernel/extension/gf_extension_catalog.gd")
+
+## 项目设置：启用的 GF 扩展 ID 列表。
+## [br]
+## @api public
+const ENABLED_EXTENSIONS_SETTING: String = "gf/extensions/enabled"
+
+## 项目设置：是否自动执行启用扩展 manifest 中声明的 installer_paths。
+## [br]
+## @api public
+const AUTO_INSTALL_ENABLED_INSTALLERS_SETTING: String = "gf/extensions/auto_install_enabled_installers"
+
+## 项目设置：导出时是否跳过禁用扩展目录。
+## [br]
+## @api public
+const EXPORT_EXCLUDE_DISABLED_SETTING: String = "gf/extensions/export_exclude_disabled"
+
+## 项目设置：导出审计发现项目仍引用禁用扩展时是否报告为错误。
+## [br]
+## @api public
+const EXPORT_FAIL_ON_DISABLED_REFERENCES_SETTING: String = "gf/extensions/export_fail_on_disabled_references"
+
+## 默认自动执行启用扩展 Installer。
+## [br]
+## @api public
+const AUTO_INSTALL_ENABLED_INSTALLERS_DEFAULT: bool = true
+
+## 默认导出时排除禁用扩展。
+## [br]
+## @api public
+const EXPORT_EXCLUDE_DISABLED_DEFAULT: bool = true
+
+## 默认把禁用扩展引用作为导出错误，避免导出产物缺少被引用的扩展文件。
+## [br]
+## @api public
+const EXPORT_FAIL_ON_DISABLED_REFERENCES_DEFAULT: bool = true
+
+## 内置依赖 ID。这些不是可启停扩展 manifest，但允许被扩展声明为基础依赖。
+## [br]
+## @api public
+const BUILT_IN_EXTENSION_IDS: Array[String] = [
+	"gf.kernel",
+	"gf.standard",
+]
+
+
+# --- 私有变量 ---
+
+static var _all_manifests_cache: Array[GFExtensionManifest] = []
+static var _has_all_manifests_cache: bool = false
+
+
+# --- 公共方法 ---
+
+## 确保扩展相关 ProjectSettings 存在。
+## [br]
+## @api public
+## [br]
+## @return 写入了默认值时返回 true。
+static func ensure_defaults() -> bool:
+	var should_save: bool = false
+	if _ensure_default(ENABLED_EXTENSIONS_SETTING, get_default_enabled_extension_ids()):
+		should_save = true
+	if _ensure_default(AUTO_INSTALL_ENABLED_INSTALLERS_SETTING, AUTO_INSTALL_ENABLED_INSTALLERS_DEFAULT):
+		should_save = true
+	if _ensure_default(EXPORT_EXCLUDE_DISABLED_SETTING, EXPORT_EXCLUDE_DISABLED_DEFAULT):
+		should_save = true
+	if _ensure_default(
+		EXPORT_FAIL_ON_DISABLED_REFERENCES_SETTING,
+		EXPORT_FAIL_ON_DISABLED_REFERENCES_DEFAULT
+	):
+		should_save = true
+	return should_save
+
+
+## 注册扩展相关 ProjectSettings 显示信息。
+## [br]
+## @api public
+static func register_property_info() -> void:
+	ProjectSettings.add_property_info({
+		"name": ENABLED_EXTENSIONS_SETTING,
+		"type": TYPE_ARRAY,
+		"hint": PROPERTY_HINT_TYPE_STRING,
+		"hint_string": "%d:" % TYPE_STRING,
+	})
+	ProjectSettings.set_as_basic(ENABLED_EXTENSIONS_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": AUTO_INSTALL_ENABLED_INSTALLERS_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(AUTO_INSTALL_ENABLED_INSTALLERS_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": EXPORT_EXCLUDE_DISABLED_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(EXPORT_EXCLUDE_DISABLED_SETTING, true)
+	ProjectSettings.add_property_info({
+		"name": EXPORT_FAIL_ON_DISABLED_REFERENCES_SETTING,
+		"type": TYPE_BOOL,
+	})
+	ProjectSettings.set_as_basic(EXPORT_FAIL_ON_DISABLED_REFERENCES_SETTING, true)
+
+
+## 获取默认启用的扩展 ID。
+## [br]
+## @api public
+## [br]
+## @return 默认启用扩展 ID 列表。
+static func get_default_enabled_extension_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for manifest: GFExtensionManifest in get_all_manifests():
+		if manifest.enabled_by_default:
+			ids.append(manifest.id)
+	return _sorted_unique(ids)
+
+
+## 获取用户配置的启用扩展 ID。
+## [br]
+## @api public
+## [br]
+## @return 启用扩展 ID 列表。
+static func get_enabled_extension_ids() -> Array[String]:
+	var raw_value: Variant = ProjectSettings.get_setting(
+		ENABLED_EXTENSIONS_SETTING,
+		get_default_enabled_extension_ids()
+	)
+	return _sorted_unique(_GF_VARIANT_ACCESS_SCRIPT.to_string_array(raw_value))
+
+
+## 保存启用扩展 ID，可选自动补齐依赖。
+## [br]
+## @api public
+## [br]
+## @param extension_ids: 要启用的扩展 ID 列表。
+## [br]
+## @param include_dependencies: 是否自动包含依赖扩展。
+static func set_enabled_extension_ids(extension_ids: Array[String], include_dependencies: bool = true) -> void:
+	var ids: Array[String] = _sorted_unique(extension_ids)
+	if include_dependencies:
+		ids = resolve_extension_dependencies(ids)
+	ProjectSettings.set_setting(ENABLED_EXTENSIONS_SETTING, ids)
+
+
+## 判断是否自动运行启用扩展 Installer。
+## [br]
+## @api public
+## [br]
+## @return 自动运行时返回 true。
+static func should_auto_install_enabled_installers() -> bool:
+	return _GF_VARIANT_ACCESS_SCRIPT.to_bool(ProjectSettings.get_setting(
+		AUTO_INSTALL_ENABLED_INSTALLERS_SETTING,
+		AUTO_INSTALL_ENABLED_INSTALLERS_DEFAULT
+	))
+
+
+## 设置是否自动运行启用扩展 Installer。
+## [br]
+## @api public
+## [br]
+## @param enabled: 是否自动运行。
+static func set_auto_install_enabled_installers(enabled: bool) -> void:
+	ProjectSettings.set_setting(AUTO_INSTALL_ENABLED_INSTALLERS_SETTING, enabled)
+
+
+## 判断导出时是否排除禁用扩展目录。
+## [br]
+## @api public
+## [br]
+## @return 排除禁用扩展时返回 true。
+static func should_export_exclude_disabled_extensions() -> bool:
+	return _GF_VARIANT_ACCESS_SCRIPT.to_bool(ProjectSettings.get_setting(
+		EXPORT_EXCLUDE_DISABLED_SETTING,
+		EXPORT_EXCLUDE_DISABLED_DEFAULT
+	))
+
+
+## 设置导出时是否排除禁用扩展目录。
+## [br]
+## @api public
+## [br]
+## @param enabled: 是否排除禁用扩展。
+static func set_export_exclude_disabled_extensions(enabled: bool) -> void:
+	ProjectSettings.set_setting(EXPORT_EXCLUDE_DISABLED_SETTING, enabled)
+
+
+## 判断导出审计发现禁用扩展引用时是否报告为错误。
+## [br]
+## @api public
+## [br]
+## @return 报告为错误时返回 true。
+static func should_fail_export_on_disabled_extension_references() -> bool:
+	return _GF_VARIANT_ACCESS_SCRIPT.to_bool(ProjectSettings.get_setting(
+		EXPORT_FAIL_ON_DISABLED_REFERENCES_SETTING,
+		EXPORT_FAIL_ON_DISABLED_REFERENCES_DEFAULT
+	))
+
+
+## 设置导出审计发现禁用扩展引用时是否报告为错误。
+## [br]
+## @api public
+## [br]
+## @param enabled: 是否报告为错误。
+static func set_fail_export_on_disabled_extension_references(enabled: bool) -> void:
+	ProjectSettings.set_setting(EXPORT_FAIL_ON_DISABLED_REFERENCES_SETTING, enabled)
+
+
+## 获取所有 manifest。
+## [br]
+## @api public
+## [br]
+## @return manifest 列表。
+static func get_all_manifests() -> Array[GFExtensionManifest]:
+	if not _has_all_manifests_cache:
+		_all_manifests_cache = GFExtensionCatalogBase.load_all_manifests()
+		_has_all_manifests_cache = true
+	return _all_manifests_cache.duplicate()
+
+
+## 清空 manifest 发现缓存。编辑器或工具在扩展目录发生变化后可主动调用。
+## [br]
+## @api public
+static func clear_manifest_cache() -> void:
+	_all_manifests_cache.clear()
+	_has_all_manifests_cache = false
+
+
+## 按 ID 获取 manifest。
+## [br]
+## @api public
+## [br]
+## @param extension_id: 扩展 ID。
+## [br]
+## @return 找到时返回 manifest，否则返回 null。
+static func get_manifest_by_id(extension_id: String) -> GFExtensionManifest:
+	var normalized_id: String = extension_id.strip_edges()
+	if normalized_id.is_empty():
+		return null
+
+	for manifest: GFExtensionManifest in get_all_manifests():
+		if manifest.id == normalized_id:
+			return manifest
+	return null
+
+
+## 判断扩展 manifest 是否存在。
+## [br]
+## @api public
+## [br]
+## @param extension_id: 扩展 ID。
+## [br]
+## @return 存在 manifest 时返回 true。
+static func has_extension(extension_id: String) -> bool:
+	return get_manifest_by_id(extension_id) != null
+
+
+## 获取扩展内资源路径。
+## [br]
+## @api public
+## [br]
+## @param extension_id: 扩展 ID。
+## [br]
+## @param relative_path: 相对扩展根目录的资源路径；传入 `res://` 或 `user://` 时会原样返回。
+## [br]
+## @return 扩展资源路径；扩展不存在时返回空字符串。
+static func get_extension_resource_path(
+	extension_id: String,
+	relative_path: String = ""
+) -> String:
+	var manifest: GFExtensionManifest = get_manifest_by_id(extension_id)
+	if manifest == null or manifest.root_path.is_empty():
+		return ""
+
+	var normalized_path: String = relative_path.strip_edges()
+	if normalized_path.is_empty():
+		return manifest.root_path
+	if normalized_path.begins_with("res://") or normalized_path.begins_with("user://"):
+		return normalized_path
+	return manifest.root_path.path_join(normalized_path.trim_prefix("/"))
+
+
+## 判断扩展当前是否启用。
+## [br]
+## @api public
+## [br]
+## @param extension_id: 扩展 ID。
+## [br]
+## @param include_dependencies: 是否把依赖补齐后的启用结果纳入判断。
+## [br]
+## @return 扩展存在且启用时返回 true。
+static func is_extension_enabled(
+	extension_id: String,
+	include_dependencies: bool = true
+) -> bool:
+	var normalized_id: String = extension_id.strip_edges()
+	if normalized_id.is_empty():
+		return false
+
+	var manifests: Array[GFExtensionManifest] = get_all_manifests()
+	if not _build_manifest_map(manifests).has(normalized_id):
+		return false
+
+	var enabled_ids: Array[String] = get_enabled_extension_ids()
+	if include_dependencies:
+		enabled_ids = resolve_extension_dependencies(enabled_ids, manifests)
+	return enabled_ids.has(normalized_id)
+
+
+## 加载启用扩展内的脚本资源。
+## [br]
+## @api public
+## [br]
+## @param extension_id: 扩展 ID。
+## [br]
+## @param relative_path: 相对扩展根目录的脚本路径；传入 `res://` 或 `user://` 时会原样解析。
+## [br]
+## @param include_dependencies: 是否把依赖补齐后的启用结果纳入判断。
+## [br]
+## @return 扩展存在、已启用且脚本可加载时返回 Script，否则返回 null。
+static func load_enabled_extension_script(
+	extension_id: String,
+	relative_path: String,
+	include_dependencies: bool = true
+) -> Script:
+	if not is_extension_enabled(extension_id, include_dependencies):
+		return null
+
+	var script_path: String = get_extension_resource_path(extension_id, relative_path)
+	if script_path.is_empty() or not ResourceLoader.exists(script_path):
+		return null
+	var resource: Resource = load(script_path)
+	if resource is Script:
+		return resource
+	return null
+
+
+## 获取启用扩展的 manifest。
+## [br]
+## @api public
+## [br]
+## @return 启用 manifest 列表。
+static func get_enabled_manifests() -> Array[GFExtensionManifest]:
+	var manifests: Array[GFExtensionManifest] = get_all_manifests()
+	var enabled_ids: Array[String] = resolve_extension_dependencies(get_enabled_extension_ids(), manifests)
+	var manifest_by_id: Dictionary = _build_manifest_map(manifests)
+	var result: Array[GFExtensionManifest] = []
+	for extension_id: String in enabled_ids:
+		var manifest: GFExtensionManifest = _get_manifest_from_map_or_null(manifest_by_id, extension_id)
+		if manifest != null:
+			result.append(manifest)
+	return result
+
+
+## 获取禁用扩展的 manifest。
+## [br]
+## @api public
+## [br]
+## @return 禁用 manifest 列表。
+static func get_disabled_manifests() -> Array[GFExtensionManifest]:
+	var manifests: Array[GFExtensionManifest] = get_all_manifests()
+	var enabled_ids: Array[String] = resolve_extension_dependencies(get_enabled_extension_ids(), manifests)
+	var result: Array[GFExtensionManifest] = []
+	for manifest: GFExtensionManifest in manifests:
+		if not enabled_ids.has(manifest.id):
+			result.append(manifest)
+	return result
+
+
+## 获取启用扩展声明的 Installer 路径。
+## [br]
+## @api public
+## [br]
+## @return Installer 路径列表。
+static func get_enabled_installer_paths() -> Array[String]:
+	if not should_auto_install_enabled_installers():
+		return []
+
+	return _collect_enabled_manifest_paths("installer_paths")
+
+
+## 获取启用扩展声明的编辑器菜单动作路径。
+## [br]
+## @api public
+## [br]
+## @return 编辑器菜单动作脚本路径列表。
+static func get_enabled_editor_action_paths() -> Array[String]:
+	return _collect_enabled_manifest_paths("editor_action_paths")
+
+
+## 获取启用扩展声明的编辑器工作区页面路径。
+## [br]
+## @api public
+## [br]
+## @return 编辑器工作区页面脚本路径列表。
+static func get_enabled_editor_dock_paths() -> Array[String]:
+	return _collect_enabled_manifest_paths("editor_dock_paths")
+
+
+## 获取启用扩展声明的 Inspector 扩展路径。
+## [br]
+## @api public
+## [br]
+## @return EditorInspectorPlugin 脚本路径列表。
+static func get_enabled_editor_inspector_paths() -> Array[String]:
+	return _collect_enabled_manifest_paths("editor_inspector_paths")
+
+
+## 获取启用扩展声明的导入插件路径。
+## [br]
+## @api public
+## [br]
+## @return EditorImportPlugin 脚本路径列表。
+static func get_enabled_import_plugin_paths() -> Array[String]:
+	return _collect_enabled_manifest_paths("import_plugin_paths")
+
+
+## 获取启用扩展声明的导出插件路径。
+## [br]
+## @api public
+## [br]
+## @return EditorExportPlugin 脚本路径列表。
+static func get_enabled_export_plugin_paths() -> Array[String]:
+	return _collect_enabled_manifest_paths("export_plugin_paths")
+
+
+## 获取启用扩展声明的 glTF 文档扩展路径。
+## [br]
+## @api public
+## [br]
+## @return GLTFDocumentExtension 脚本路径列表。
+static func get_enabled_gltf_document_extension_paths() -> Array[String]:
+	return _collect_enabled_manifest_paths("gltf_document_extension_paths")
+
+
+## 获取启用扩展声明的访问器生成扩展路径。
+## [br]
+## @api public
+## [br]
+## @return GFAccessGenerator 扩展脚本路径列表。
+static func get_enabled_access_generator_extension_paths() -> Array[String]:
+	return _collect_enabled_manifest_paths("access_generator_extension_paths")
+
+
+## 根据 manifest 依赖关系补齐启用扩展。
+## [br]
+## @api public
+## [br]
+## @param extension_ids: 原始启用扩展 ID。
+## [br]
+## @param manifests: 可选 manifest 列表。
+## [br]
+## @return 补齐依赖后的扩展 ID。
+static func resolve_extension_dependencies(
+	extension_ids: Array[String],
+	manifests: Array[GFExtensionManifest] = []
+) -> Array[String]:
+	var source_manifests: Array[GFExtensionManifest] = manifests
+	if source_manifests.is_empty():
+		source_manifests = get_all_manifests()
+
+	var manifest_by_id: Dictionary = _build_manifest_map(source_manifests)
+	var requested_ids: Array[String] = _sorted_unique(extension_ids)
+	var resolved: Dictionary = {}
+	var resolved_order: Array[String] = []
+	var visiting: Dictionary = {}
+	var cycles: Array[PackedStringArray] = []
+	for extension_id: String in requested_ids:
+		_resolve_extension_dependency(
+			extension_id,
+			manifest_by_id,
+			resolved,
+			resolved_order,
+			visiting,
+			[],
+			cycles
+		)
+
+	var ordered: Array[String] = []
+	if cycles.is_empty():
+		ordered.append_array(resolved_order)
+		return ordered
+
+	for manifest: GFExtensionManifest in source_manifests:
+		if resolved.has(manifest.id):
+			ordered.append(manifest.id)
+	return ordered
+
+
+## 获取 manifest 依赖图诊断。
+## [br]
+## @api public
+## [br]
+## @param manifests: 可选 manifest 列表；为空时扫描所有 GF 内置扩展。
+## [br]
+## @return 包含重复 ID、无效 manifest、缺失依赖和循环依赖的诊断字典。
+## [br]
+## @schema return: Dictionary containing ok, extension_count, issue_count, duplicate_ids, invalid_manifests, missing_dependencies, and dependency_cycles.
+static func get_manifest_graph_report(manifests: Array[GFExtensionManifest] = []) -> Dictionary:
+	var source_manifests: Array[GFExtensionManifest] = manifests
+	if source_manifests.is_empty():
+		source_manifests = get_all_manifests()
+
+	var manifest_by_id: Dictionary = {}
+	var seen_ids: Dictionary = {}
+	var duplicate_ids: PackedStringArray = PackedStringArray()
+	var invalid_manifests: Array[Dictionary] = []
+	var missing_dependencies: Array[Dictionary] = []
+	var dependency_cycles: Array[PackedStringArray] = []
+
+	for manifest: GFExtensionManifest in source_manifests:
+		if manifest == null:
+			continue
+
+		var errors: Array[String] = manifest.get_validation_errors()
+		if not errors.is_empty():
+			invalid_manifests.append({
+				"extension_id": manifest.id,
+				"source_path": manifest.source_path,
+				"errors": errors,
+			})
+
+		if manifest.id.strip_edges().is_empty():
+			continue
+		if seen_ids.has(manifest.id):
+			if not duplicate_ids.has(manifest.id):
+				var _append_result_549: Variant = duplicate_ids.append(manifest.id)
+			continue
+
+		seen_ids[manifest.id] = true
+		manifest_by_id[manifest.id] = manifest
+
+	for manifest: GFExtensionManifest in source_manifests:
+		if manifest == null:
+			continue
+		for dependency_id: String in manifest.dependencies:
+			if _is_builtin_extension_id(dependency_id):
+				continue
+			if not manifest_by_id.has(dependency_id):
+				missing_dependencies.append({
+					"extension_id": manifest.id,
+					"dependency_id": dependency_id,
+				})
+
+	var resolved: Dictionary = {}
+	var resolved_order: Array[String] = []
+	var visiting: Dictionary = {}
+	for extension_id: String in manifest_by_id.keys():
+		_resolve_extension_dependency(
+			extension_id,
+			manifest_by_id,
+			resolved,
+			resolved_order,
+			visiting,
+			[],
+			dependency_cycles,
+			false
+		)
+
+	var issue_count: int = (
+		duplicate_ids.size()
+		+ invalid_manifests.size()
+		+ missing_dependencies.size()
+		+ dependency_cycles.size()
+	)
+	return {
+		"ok": issue_count == 0,
+		"extension_count": manifest_by_id.size(),
+		"issue_count": issue_count,
+		"duplicate_ids": duplicate_ids,
+		"invalid_manifests": invalid_manifests,
+		"missing_dependencies": missing_dependencies,
+		"dependency_cycles": dependency_cycles,
+	}
+
+
+## 获取启用状态诊断。
+## [br]
+## @api public
+## [br]
+## @return 诊断字典。
+## [br]
+## @schema return: Dictionary containing configured_ids, resolved_ids, unknown_enabled_ids, graph status, and extension counts.
+static func get_extension_selection_report() -> Dictionary:
+	var manifests: Array[GFExtensionManifest] = get_all_manifests()
+	var configured_ids: Array[String] = get_enabled_extension_ids()
+	var resolved_ids: Array[String] = resolve_extension_dependencies(configured_ids, manifests)
+	var graph_report: Dictionary = get_manifest_graph_report(manifests)
+	var unknown_enabled_ids: Array[String] = _get_unknown_enabled_ids(configured_ids, _build_manifest_map(manifests))
+	var graph_ok: bool = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(graph_report, "ok", true)
+
+	return {
+		"configured_ids": configured_ids,
+		"resolved_ids": resolved_ids,
+		"unknown_enabled_ids": unknown_enabled_ids,
+		"missing_dependencies": _GF_VARIANT_ACCESS_SCRIPT.get_option_array(graph_report, "missing_dependencies", []),
+		"dependency_cycles": _GF_VARIANT_ACCESS_SCRIPT.get_option_array(graph_report, "dependency_cycles", []),
+		"duplicate_ids": _GF_VARIANT_ACCESS_SCRIPT.get_option_packed_string_array(graph_report, "duplicate_ids", PackedStringArray()),
+		"invalid_manifests": _GF_VARIANT_ACCESS_SCRIPT.get_option_array(graph_report, "invalid_manifests", []),
+		"graph_ok": graph_ok,
+		"ok": graph_ok and unknown_enabled_ids.is_empty(),
+		"enabled_count": resolved_ids.size(),
+		"extension_count": manifests.size(),
+	}
+
+
+# --- 框架内部方法 ---
+
+## 用给定 manifest 列表替换发现缓存，供编辑器流程或维护测试在完成外部扫描后复用同一套选择逻辑。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/extension
+## [br]
+## @param manifests: 要写入缓存的 manifest 列表。
+static func set_cached_manifests(manifests: Array[GFExtensionManifest]) -> void:
+	_all_manifests_cache.clear()
+	_all_manifests_cache.append_array(manifests)
+	_has_all_manifests_cache = true
+
+
+# --- 私有/辅助方法 ---
+
+static func _ensure_default(setting_name: String, default_value: Variant) -> bool:
+	if ProjectSettings.has_setting(setting_name):
+		return false
+	ProjectSettings.set_setting(setting_name, default_value)
+	ProjectSettings.set_initial_value(setting_name, default_value)
+	return true
+
+
+static func _sorted_unique(values: Array[String]) -> Array[String]:
+	var result: Array[String] = []
+	for value: String in values:
+		var id: String = value.strip_edges()
+		if id.is_empty() or result.has(id):
+			continue
+		result.append(id)
+	result.sort()
+	return result
+
+
+static func _build_manifest_map(manifests: Array[GFExtensionManifest]) -> Dictionary:
+	var result: Dictionary = {}
+	for manifest: GFExtensionManifest in manifests:
+		if manifest == null or manifest.id.strip_edges().is_empty() or result.has(manifest.id):
+			continue
+		result[manifest.id] = manifest
+	return result
+
+
+static func _get_manifest_from_map_or_null(
+	manifest_by_id: Dictionary,
+	extension_id: String
+) -> GFExtensionManifest:
+	var raw_manifest: Variant = _GF_VARIANT_ACCESS_SCRIPT.get_option_value(manifest_by_id, extension_id)
+	if raw_manifest is GFExtensionManifest:
+		return raw_manifest
+	return null
+
+
+static func _collect_enabled_manifest_paths(property_name: String) -> Array[String]:
+	var paths: Array[String] = []
+	for manifest: GFExtensionManifest in get_enabled_manifests():
+		var raw_paths: Variant = _get_manifest_property(manifest, property_name)
+		for path_value: String in _GF_VARIANT_ACCESS_SCRIPT.to_string_array(raw_paths):
+			var path: String = path_value.strip_edges()
+			if path.is_empty() or paths.has(path):
+				continue
+			paths.append(path)
+	return paths
+
+
+static func _get_manifest_property(manifest: GFExtensionManifest, property_name: String) -> Variant:
+	if manifest == null or not property_name in manifest:
+		return null
+	return manifest.get_indexed(NodePath(property_name))
+
+
+static func _get_unknown_enabled_ids(extension_ids: Array[String], manifest_by_id: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	for extension_id: String in extension_ids:
+		var normalized_id: String = extension_id.strip_edges()
+		if _is_builtin_extension_id(normalized_id):
+			continue
+		if not manifest_by_id.has(normalized_id) and not result.has(normalized_id):
+			result.append(normalized_id)
+	result.sort()
+	return result
+
+
+static func _resolve_extension_dependency(
+	extension_id: String,
+	manifest_by_id: Dictionary,
+	resolved: Dictionary,
+	resolved_order: Array[String],
+	visiting: Dictionary,
+	stack: Array[String],
+	cycles: Array[PackedStringArray],
+	emit_warning: bool = true
+) -> void:
+	var normalized_id: String = extension_id.strip_edges()
+	if normalized_id.is_empty() or resolved.has(normalized_id):
+		return
+	if visiting.has(normalized_id):
+		_append_dependency_cycle(cycles, stack, normalized_id)
+		if emit_warning:
+			push_warning("[GFExtensionSettings] 检测到扩展依赖循环：%s" % " -> ".join(cycles[cycles.size() - 1]))
+		return
+	if not manifest_by_id.has(normalized_id):
+		return
+
+	var manifest: GFExtensionManifest = _get_manifest_from_map_or_null(manifest_by_id, normalized_id)
+	if manifest == null:
+		return
+
+	visiting[normalized_id] = true
+	var next_stack: Array[String] = stack.duplicate()
+	next_stack.append(normalized_id)
+	for dependency_id: String in manifest.dependencies:
+		var normalized_dependency_id: String = dependency_id.strip_edges()
+		if manifest_by_id.has(normalized_dependency_id):
+			_resolve_extension_dependency(
+				normalized_dependency_id,
+				manifest_by_id,
+				resolved,
+				resolved_order,
+				visiting,
+				next_stack,
+				cycles,
+				emit_warning
+			)
+	var _erase_result_755: Variant = visiting.erase(normalized_id)
+	resolved[normalized_id] = true
+	if not resolved_order.has(normalized_id):
+		resolved_order.append(normalized_id)
+
+
+static func _append_dependency_cycle(
+	cycles: Array[PackedStringArray],
+	stack: Array[String],
+	extension_id: String
+) -> void:
+	var start_index: int = stack.find(extension_id)
+	var cycle: PackedStringArray = PackedStringArray()
+	if start_index == -1:
+		var _append_result_769: Variant = cycle.append(extension_id)
+	else:
+		for index: int in range(start_index, stack.size()):
+			var _append_result_772: Variant = cycle.append(stack[index])
+	var _append_result_773: Variant = cycle.append(extension_id)
+
+	var cycle_key: String = _make_cycle_key(cycle)
+	for existing_cycle: PackedStringArray in cycles:
+		if _make_cycle_key(existing_cycle) == cycle_key:
+			return
+	cycles.append(cycle)
+
+
+static func _make_cycle_key(cycle: PackedStringArray) -> String:
+	return " -> ".join(cycle)
+
+
+static func _is_builtin_extension_id(extension_id: String) -> bool:
+	return BUILT_IN_EXTENSION_IDS.has(extension_id)

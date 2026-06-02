@@ -1,53 +1,29 @@
-# GF Framework
+# GF Framework Addon
 
-GF Framework is a lightweight game architecture framework for Godot 4. It separates data, logic, presentation, runtime services, and pure algorithm utilities so projects can keep predictable lifecycles and clear dependency boundaries as they grow.
+[Project README](../../README.md) | [简体中文](../../README.zh.md) | [Read the Docs](https://gf-framework.readthedocs.io/)
 
-## Installation
-
-Copy `addons/gf` into your Godot project, then enable `GF Framework` from `Project > Project Settings > Plugins`.
-
-Godot does not automatically enable editor plugins after files are copied into `addons`. This is expected behavior. Enable `GF Framework` manually so the plugin can register project settings, editor tools, and the `Gf` AutoLoad.
-
-When the plugin is enabled, it registers the `Gf` AutoLoad automatically:
+This directory is the distributable Godot addon for GF Framework. Copy `addons/gf` into a Godot 4 project, enable `GF Framework` from `Project > Project Settings > Plugins`, and the plugin will register:
 
 ```text
-Gf -> res://addons/gf/core/gf.gd
+Gf -> res://addons/gf/kernel/core/gf.gd
 ```
 
-## Quick Start
+The plugin also opens the standalone `GF Workspace`. Its `GF Extensions` page is used for inspecting extension manifests, enabling or disabling extensions, auto-running enabled extension installers, excluding disabled extensions during export, and reporting disabled-extension references when strict export checks are enabled.
 
-```gdscript
-extends Node
+## Layout
 
+- `kernel`: runtime kernel, base contracts, architecture container, binding, events, commands, queries, factories, AutoLoad entry, extension infrastructure, and core editor integration.
+- `standard`: stable standard library, including foundation, input, utilities, state machines, command history, sequence helpers, and common support primitives.
+- `extensions`: optional atomic GF extensions shipped with the framework.
 
-func _ready() -> void:
-	Gf.register_model(PlayerModel.new())
-	Gf.register_utility(GFStorageUtility.new())
-	Gf.register_system(BattleSystem.new())
+Bundled GF extensions are atomic: they depend only on the GF kernel/standard surface and do not declare, probe, or load other bundled extensions. Project code or standalone Godot plugins outside `addons/gf` own cross-extension composition. Unused extensions may be disabled, excluded from export, or removed after project references are gone.
 
-	await Gf.init()
+## 中文说明
 
-	var player_model := Gf.get_model(PlayerModel) as PlayerModel
-	var battle_system := Gf.get_system(BattleSystem) as BattleSystem
-	battle_system.start_encounter(player_model)
-```
+本目录是 GF Framework 的 Godot 插件分发目录。将 `addons/gf` 复制到 Godot 4 项目后，在 `Project > Project Settings > Plugins` 启用 `GF Framework`，插件会自动注册 `Gf` AutoLoad，并默认打开独立的 `GF Workspace`；其中的 `GF Extensions` 页面用于查看、启用、禁用和导出管理 GF 扩展。
 
-## Main Features
-
-- Lifecycle-managed `GFModel`, `GFSystem`, `GFController`, and `GFUtility` modules.
-- Project installers and declarative binding helpers for assembling game modules.
-- Typed events, string events, bindable properties, computed properties, reactive effects, commands, queries, and factories.
-- Foundation helpers for big numbers, fixed decimals, resourceized formulas, number formatting, rich text formatting, grid math, reusable 2D grid patterns, pathfinding, flow fields, tile map snapshots, tile neighbor rules, 3D spatial hashing, steering math, and progression curves.
-- Runtime utilities for versioned storage, storage file management, codecs, storage backend synchronization, snapshot history, save slot workflows, save graph composition, save pipelines, pipeline traces, save diagnostics, settings, display/audio application, assets with handles/groups, remote text/JSON caching, scenes with preload caching, transition params and history, build info snapshots with optional export metadata, debug draw command buffering, 3D surface material lookup, time, timers, job workers, input buffering, resourceized input mapping with modifiers/triggers, 3D values, formatter providers, generic joypad text, conflict reports, direction input history, player-scoped input device assignment, touch controls, audio banks, audio emitter handles with owner-bound release, audio bank mounters, ambient channels, optional spatial audio source following, analytics transports, UI, SubViewport layouts, logging, governed diagnostics, notification queues, quests, object pools, and native signal connections.
-- Extensions for pure-code hierarchical and node-based state machines, parent/child state paths, event bubbling, state guards, resourceized node-state conditions/behaviors, blackboards, runtime snapshots, action queues with common action factories, resourceized tween configs and shake feedback actions, command sequence failure policies, capability inspection reports, interaction sender/receiver nodes, combat hit context bridge nodes, slot inventory models, resourceized flow graphs with port metadata, connections, validation and editor view models, pluggable network backends with optional ENet transport, reconnect backoff policies, network session/channel metadata, generic 3D gravity fields, node-state configuration, state history, and stack-style child states.
-- Editor tools for generating typed GF/config accessors and project constants, inspecting save payloads, optional build metadata export, common GF script templates, node-state initial-state selection, reusable Pattern2D grid editing, and Node3D/Mesh/MeshLibrary thumbnail rendering.
-
-## Chinese Summary
-
-GF Framework 是一个面向 Godot 4 的轻量级游戏架构框架，核心目标是把数据、逻辑、表现、运行时服务和纯算法基础件拆开管理，让项目在规模变大后仍然保持清晰的生命周期和依赖边界。
-
-复制 `addons/gf` 后，Godot 不会自动启用插件。请在 `Project > Project Settings > Plugins` 中手动启用 `GF Framework`，插件启用后会自动注册 `Gf` AutoLoad 与编辑器工具。
+完整项目说明请看仓库根目录的 [`README.md`](../../README.md) 和 [`README.zh.md`](../../README.zh.md)，正式文档请看 [Read the Docs](https://gf-framework.readthedocs.io/)。
 
 ## License
 
-Apache License 2.0. See `LICENSE.md`.
+Apache License 2.0. See [`../../LICENSE.md`](../../LICENSE.md).
