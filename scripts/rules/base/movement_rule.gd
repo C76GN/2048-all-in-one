@@ -8,7 +8,7 @@ extends Resource
 
 # --- 公共变量 ---
 
-## 对当前交互规则的引用，由GameBoard在运行时注入。
+## 对当前交互规则的引用，由棋盘移动流程在运行时注入。
 var interaction_rule: InteractionRule
 
 

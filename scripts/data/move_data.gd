@@ -12,3 +12,8 @@ var direction: Vector2i = Vector2i.ZERO
 
 ## 在本次移动中发生位移的行或列的索引列表。
 var moved_lines: Array[int] = []
+
+## 本次移动产生的撤回反向位置映射。
+##
+## key 为移动前坐标字符串，value 为撤回前坐标。MoveCommand 用它播放撤回动画。
+var reverse_target_map: Dictionary = {}

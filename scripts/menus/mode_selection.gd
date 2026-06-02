@@ -9,7 +9,7 @@ extends "res://scripts/ui/base/game_ui_controller.gd"
 
 ## 单个模式卡片 UI 场景。
 const MODE_CARD_SCENE: PackedScene = preload("res://scenes/ui/mode_card.tscn")
-const GAME_MODE_CONFIG_CACHE = preload("res://scripts/utilities/game_mode_config_cache.gd")
+const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
 
 
 # --- 导出变量 ---
@@ -198,7 +198,7 @@ func _set_selected_mode_by_path(config_path: String) -> void:
 	if is_instance_valid(_selected_mode_config) and _selected_mode_config.resource_path == config_path:
 		return
 
-	var loaded_config: GameModeConfig = GAME_MODE_CONFIG_CACHE.get_config(config_path)
+	var loaded_config: GameModeConfig = GAME_MODE_CONFIG_CACHE_UTILITY.get_config(config_path)
 	if not is_instance_valid(loaded_config):
 		_selected_mode_config = null
 		_show_default_info()

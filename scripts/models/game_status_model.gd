@@ -6,30 +6,31 @@ extends GFModel
 # --- 公共变量 ---
 
 ## 当前分数
-var score: BindableProperty = BindableProperty.new(0)
+var score: GFBindableProperty = GFBindableProperty.new(0)
 
 ## 最高分
-var high_score: BindableProperty = BindableProperty.new(0)
+var high_score: GFBindableProperty = GFBindableProperty.new(0)
 
 ## 最大方块值
-var highest_tile: BindableProperty = BindableProperty.new(0)
+var highest_tile: GFBindableProperty = GFBindableProperty.new(0)
 
 ## 游戏中的移动总步数。
-var move_count: BindableProperty = BindableProperty.new(0)
+var move_count: GFBindableProperty = GFBindableProperty.new(0)
 
 ## 游戏中击杀的怪物数量。
-var monsters_killed: BindableProperty = BindableProperty.new(0)
+var monsters_killed: GFBindableProperty = GFBindableProperty.new(0)
 
 ## 顶端状态消息
-var status_message: BindableProperty = BindableProperty.new("")
+var status_message: GFBindableProperty = GFBindableProperty.new("")
 
 ## 规则特定的额外统计数据 (Dictionary 或 Array)
-var extra_stats: BindableProperty = BindableProperty.new({})
+var extra_stats: GFBindableProperty = GFBindableProperty.new({})
 
 
 # --- 公共方法 ---
 
 ## 重置一局游戏的运行时统计，并保留传入的历史最高分。
+## @param saved_high_score: 当前模式和棋盘尺寸下已保存的最高分。
 func reset_for_new_game(saved_high_score: int = 0) -> void:
 	score.set_value(0)
 	move_count.set_value(0)
@@ -41,6 +42,7 @@ func reset_for_new_game(saved_high_score: int = 0) -> void:
 
 
 ## 应用分数变化，并同步局内最高分显示。
+## @param amount: 本次增加的分数。
 func add_score(amount: int) -> void:
 	var new_score: int = score.get_value() + amount
 	score.set_value(new_score)
@@ -49,16 +51,19 @@ func add_score(amount: int) -> void:
 
 
 ## 增加有效移动步数。
+## @param amount: 要增加的步数。
 func increment_move_count(amount: int = 1) -> void:
 	move_count.set_value(move_count.get_value() + max(amount, 0))
 
 
 ## 增加击杀怪物数量。
+## @param amount: 要增加的击杀数量。
 func increment_monsters_killed(amount: int = 1) -> void:
 	monsters_killed.set_value(monsters_killed.get_value() + max(amount, 0))
 
 
 ## 从棋盘模型同步最高玩家方块。
+## @param grid_model: 当前棋盘模型。
 func sync_highest_tile_from_grid(grid_model: GridModel) -> void:
 	if not is_instance_valid(grid_model):
 		return

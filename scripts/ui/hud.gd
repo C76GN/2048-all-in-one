@@ -1,7 +1,7 @@
-## HUD: 游戏界面的平视显示器（Heads-Up Display）。
+## HUD: 游戏界面的状态显示器。
 ##
 ## 该脚本负责接收来自游戏控制器的数据，并将其格式化后显示在对应的UI标签上。
-## 它会根据传入数据的键（key）动态创建或复用标签，实现对不同游戏模式的自适应。
+## 它会根据传入数据的键动态创建或复用标签，实现对不同游戏模式的自适应。
 class_name HUD
 extends GFController
 
@@ -21,16 +21,15 @@ var _stat_labels: Dictionary = {}
 
 var _is_dirty: bool = false
 var _game_status_model: GameStatusModel
+var _score_value_label: Label
+var _move_count_value_label: Label
+var _status_message_label: RichTextLabel
 
 
 # --- @onready 变量 (节点引用) ---
 
 @onready var _stats_container: VBoxContainer = $StatsContainer
 @onready var _title_label: Label = $TitleLabel
-
-var _score_value_label: Label
-var _move_count_value_label: Label
-var _status_message_label: RichTextLabel
 
 
 # --- Godot 生命周期方法 ---
@@ -69,23 +68,7 @@ func _notification(what: int) -> void:
 		_update_ui_text()
 
 
-# --- 公共方法 ---
-
-func _on_high_score_changed(_old: int, _new_value: int) -> void:
-	_mark_dirty()
-
-
-func _on_highest_tile_changed(_old: int, _new_value: int) -> void:
-	_mark_dirty()
-
-
-func _on_status_message_changed(_old: String, new_value: String) -> void:
-	if is_instance_valid(_status_message_label):
-		_status_message_label.text = new_value
-		_status_message_label.visible = not new_value.is_empty()
-	else:
-		_mark_dirty()
-
+# --- 私有/辅助方法 ---
 
 ## 全局刷新 UI 显示。
 func _refresh_all() -> void:
@@ -139,17 +122,6 @@ func _refresh_all() -> void:
 		local_dict.merge(query_result)
 
 	_update_dynamic_list(local_dict)
-
-
-func _on_monsters_killed_changed(_old: int, _new: int) -> void:
-	_mark_dirty()
-
-
-## 响应式更新动态统计数据。
-## @param _old: 旧数据字典。
-## @param dict: 新数据字典。结构: { "key": "Display String" 或 Array[Dict] }
-func _on_extra_stats_changed(_old: Dictionary, _dict: Dictionary) -> void:
-	_mark_dirty()
 
 
 func _update_dynamic_list(dict: Dictionary) -> void:
@@ -210,15 +182,27 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 		ui_node.visible = true
 
 
-# --- 私有/辅助方法 ---
-
-func _on_hud_update_requested(_p: Variant = null) -> void:
-	_mark_dirty()
-
-
 func _update_ui_text() -> void:
 	if is_instance_valid(_title_label):
 		_title_label.text = tr("TITLE_GAME_STATUS")
+
+
+func _mark_dirty() -> void:
+	if not _is_dirty:
+		_is_dirty = true
+		call_deferred("_deferred_refresh")
+
+
+func _deferred_refresh() -> void:
+	if _is_dirty:
+		_is_dirty = false
+		_refresh_all()
+
+
+# --- 信号处理函数 ---
+
+func _on_hud_update_requested(_p: Variant = null) -> void:
+	_mark_dirty()
 
 
 func _on_score_changed(_old_value: int, _new_value: int) -> void:
@@ -228,12 +212,29 @@ func _on_score_changed(_old_value: int, _new_value: int) -> void:
 func _on_move_count_changed(_old_value: int, _new_value: int) -> void:
 	_mark_dirty()
 
-func _mark_dirty() -> void:
-	if not _is_dirty:
-		_is_dirty = true
-		call_deferred("_deferred_refresh")
 
-func _deferred_refresh() -> void:
-	if _is_dirty:
-		_is_dirty = false
-		_refresh_all()
+func _on_high_score_changed(_old: int, _new_value: int) -> void:
+	_mark_dirty()
+
+
+func _on_highest_tile_changed(_old: int, _new_value: int) -> void:
+	_mark_dirty()
+
+
+func _on_status_message_changed(_old: String, new_value: String) -> void:
+	if is_instance_valid(_status_message_label):
+		_status_message_label.text = new_value
+		_status_message_label.visible = not new_value.is_empty()
+	else:
+		_mark_dirty()
+
+
+func _on_monsters_killed_changed(_old: int, _new: int) -> void:
+	_mark_dirty()
+
+
+## 响应式更新动态统计数据。
+## @param _old: 旧数据字典。
+## @param _dict: 新数据字典。结构：{ "key": "显示文本" 或 Array[Dictionary] }
+func _on_extra_stats_changed(_old: Dictionary, _dict: Dictionary) -> void:
+	_mark_dirty()

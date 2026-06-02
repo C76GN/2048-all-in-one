@@ -13,7 +13,7 @@ extends Button
 ## @param config_path: 卡片所代表的 GameModeConfig 资源路径。
 signal card_focused(config_path: String)
 
-const GAME_MODE_CONFIG_CACHE = preload("res://scripts/utilities/game_mode_config_cache.gd")
+const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
 
 # --- 私有变量 ---
 
@@ -51,7 +51,7 @@ func setup(config_path: String) -> void:
 
 ## 更新卡片文本（用于初始化或语言切换）。
 func update_text() -> void:
-	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE.get_config(_config_path)
+	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE_UTILITY.get_config(_config_path)
 
 	if is_instance_valid(mode_config):
 		_title_label.text = tr(mode_config.mode_name)

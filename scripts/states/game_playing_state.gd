@@ -7,6 +7,8 @@ extends GFState
 
 # --- 重写方法 ---
 
+## 进入游戏进行状态。
+## @param _msg: 状态切换传入的上下文字典。
 func enter(_msg: Dictionary = {}) -> void:
 	send_simple_event(EventNames.GAME_STATE_CHANGED, EventNames.STATE_PLAYING)
 

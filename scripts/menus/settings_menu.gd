@@ -243,20 +243,6 @@ func _update_ui_text() -> void:
 		_update_volume_value_label(_master_volume_slider.value)
 
 
-# --- 信号处理函数 ---
-
-func _on_form_field_changed(key: StringName, value: Variant) -> void:
-	match key:
-		_FIELD_LANGUAGE_INDEX:
-			_apply_locale(int(value))
-		_FIELD_WINDOW_MODE_INDEX:
-			_apply_window_mode(int(value))
-		_FIELD_VSYNC_INDEX:
-			_apply_vsync_mode(int(value))
-		_FIELD_MASTER_VOLUME:
-			_apply_master_volume(float(value))
-
-
 func _apply_locale(index: int) -> void:
 	var locale := _get_locale_for_index(index)
 	var save_system := get_system(SaveSystem) as SaveSystem
@@ -284,6 +270,20 @@ func _apply_master_volume(value: float) -> void:
 	if is_instance_valid(display_settings):
 		display_settings.set_audio_bus_volume(_AUDIO_BUS_MASTER, value)
 	_update_volume_value_label(value)
+
+
+# --- 信号处理函数 ---
+
+func _on_form_field_changed(key: StringName, value: Variant) -> void:
+	match key:
+		_FIELD_LANGUAGE_INDEX:
+			_apply_locale(int(value))
+		_FIELD_WINDOW_MODE_INDEX:
+			_apply_window_mode(int(value))
+		_FIELD_VSYNC_INDEX:
+			_apply_vsync_mode(int(value))
+		_FIELD_MASTER_VOLUME:
+			_apply_master_volume(float(value))
 
 
 func _on_back_button_pressed() -> void:

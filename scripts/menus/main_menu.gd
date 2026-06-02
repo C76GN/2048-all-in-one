@@ -43,30 +43,6 @@ func _ready() -> void:
 	_update_ui_text()
 
 
-# --- 信号处理函数 ---
-
-func _on_start_game_button_pressed() -> void:
-	_goto_scene(mode_selection_scene_path, "mode_selection_scene_path")
-
-
-func _on_load_bookmark_button_pressed() -> void:
-	_goto_scene(bookmark_list_scene_path, "bookmark_list_scene_path")
-
-
-func _on_replays_button_pressed() -> void:
-	_goto_scene(replay_list_scene_path, "replay_list_scene_path")
-
-
-func _on_settings_button_pressed() -> void:
-	_goto_scene(settings_scene_path, "settings_scene_path")
-
-
-func _on_quit_button_pressed() -> void:
-	var router := get_system(SceneRouterSystem) as SceneRouterSystem
-	if router:
-		router.quit_game()
-
-
 # --- 私有/辅助方法 ---
 
 func _goto_scene(scene_path: String, property_name: String) -> void:
@@ -90,3 +66,27 @@ func _update_ui_text() -> void:
 		_settings_button.text = tr("SETTINGS_TITLE")
 	if is_instance_valid(_quit_button):
 		_quit_button.text = tr("BTN_QUIT")
+
+
+# --- 信号处理函数 ---
+
+func _on_start_game_button_pressed() -> void:
+	_goto_scene(mode_selection_scene_path, "mode_selection_scene_path")
+
+
+func _on_load_bookmark_button_pressed() -> void:
+	_goto_scene(bookmark_list_scene_path, "bookmark_list_scene_path")
+
+
+func _on_replays_button_pressed() -> void:
+	_goto_scene(replay_list_scene_path, "replay_list_scene_path")
+
+
+func _on_settings_button_pressed() -> void:
+	_goto_scene(settings_scene_path, "settings_scene_path")
+
+
+func _on_quit_button_pressed() -> void:
+	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	if router:
+		router.quit_game()

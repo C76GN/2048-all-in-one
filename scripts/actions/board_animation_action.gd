@@ -92,6 +92,8 @@ func execute() -> Variant:
 	return null
 
 
+# --- 私有/辅助方法 ---
+
 func _release_consumed_tile(consumed: Tile, release_token: RefCounted) -> void:
 	if not is_instance_valid(consumed):
 		return

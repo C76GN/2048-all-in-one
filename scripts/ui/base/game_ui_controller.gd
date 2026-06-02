@@ -39,6 +39,7 @@ func get_architecture_or_null() -> GFArchitecture:
 
 
 ## 通过类型获取 Model 实例。
+## @param model_type: 要查找的 Model 脚本类型。
 func get_model(model_type: Script) -> Object:
 	var architecture := get_architecture_or_null()
 	if architecture == null:
@@ -47,6 +48,7 @@ func get_model(model_type: Script) -> Object:
 
 
 ## 通过类型获取 System 实例。
+## @param system_type: 要查找的 System 脚本类型。
 func get_system(system_type: Script) -> Object:
 	var architecture := get_architecture_or_null()
 	if architecture == null:
@@ -55,6 +57,7 @@ func get_system(system_type: Script) -> Object:
 
 
 ## 通过类型获取 Utility 实例。
+## @param utility_type: 要查找的 Utility 脚本类型。
 func get_utility(utility_type: Script) -> Object:
 	var architecture := get_architecture_or_null()
 	if architecture == null:
@@ -65,6 +68,7 @@ func get_utility(utility_type: Script) -> Object:
 # --- 命令与查询 ---
 
 ## 向架构发送命令。
+## @param command: 要执行的命令对象。
 func send_command(command: Object) -> Variant:
 	var architecture := get_architecture_or_null()
 	if architecture == null:
@@ -73,6 +77,7 @@ func send_command(command: Object) -> Variant:
 
 
 ## 执行查询并返回结果。
+## @param query: 要执行的查询对象。
 func send_query(query: Object) -> Variant:
 	var architecture := get_architecture_or_null()
 	if architecture == null:
@@ -83,6 +88,9 @@ func send_query(query: Object) -> Variant:
 # --- 事件系统 ---
 
 ## 注册类型事件监听器。
+## @param event_type: 类型事件的脚本类型。
+## @param callback: 事件触发时调用的回调。
+## @param priority: 监听器优先级。
 func register_event(event_type: Script, callback: Callable, priority: int = 0) -> void:
 	var architecture := get_architecture_or_null()
 	if architecture != null:
@@ -90,6 +98,8 @@ func register_event(event_type: Script, callback: Callable, priority: int = 0) -
 
 
 ## 注销类型事件监听器。
+## @param event_type: 类型事件的脚本类型。
+## @param callback: 注册时使用的回调。
 func unregister_event(event_type: Script, callback: Callable) -> void:
 	var architecture := get_architecture_or_null()
 	if architecture != null:
@@ -97,6 +107,7 @@ func unregister_event(event_type: Script, callback: Callable) -> void:
 
 
 ## 发送类型事件。
+## @param event_instance: 要派发的事件对象。
 func send_event(event_instance: Object) -> void:
 	var architecture := get_architecture_or_null()
 	if architecture != null:
@@ -104,6 +115,8 @@ func send_event(event_instance: Object) -> void:
 
 
 ## 注册轻量级 StringName 事件监听器。
+## @param event_id: 简单事件标识。
+## @param callback: 事件触发时调用的回调。
 func register_simple_event(event_id: StringName, callback: Callable) -> void:
 	var architecture := get_architecture_or_null()
 	if architecture != null:
@@ -111,6 +124,8 @@ func register_simple_event(event_id: StringName, callback: Callable) -> void:
 
 
 ## 注销轻量级 StringName 事件监听器。
+## @param event_id: 简单事件标识。
+## @param callback: 注册时使用的回调。
 func unregister_simple_event(event_id: StringName, callback: Callable) -> void:
 	var architecture := get_architecture_or_null()
 	if architecture != null:
@@ -118,10 +133,19 @@ func unregister_simple_event(event_id: StringName, callback: Callable) -> void:
 
 
 ## 发送轻量级 StringName 事件。
+## @param event_id: 简单事件标识。
+## @param payload: 可选事件载荷。
 func send_simple_event(event_id: StringName, payload: Variant = null) -> void:
 	var architecture := get_architecture_or_null()
 	if architecture != null:
 		architecture.send_simple_event(event_id, payload)
+
+
+# --- 虚方法 ---
+
+## 更新 UI 文本，子类应在此实现本地化逻辑。
+func _update_ui_text() -> void:
+	pass
 
 
 # --- 私有/辅助方法 ---
@@ -134,10 +158,3 @@ func _find_nearest_context() -> GFNodeContextBase:
 		current_node = current_node.get_parent()
 
 	return null
-
-
-# --- 虚方法 ---
-
-## 更新 UI 文本，子类应在此实现本地化逻辑。
-func _update_ui_text() -> void:
-	pass

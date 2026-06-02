@@ -38,6 +38,8 @@ func dispose() -> void:
 # --- 公共方法 ---
 
 ## 根据模式ID和棋盘大小，获取最高分。
+## @param mode_id: 模式资源文件名派生出的模式标识。
+## @param grid_size: 棋盘边长。
 func get_high_score(mode_id: String, grid_size: int) -> int:
 	_ensure_game_data_loaded()
 	
@@ -54,6 +56,9 @@ func get_high_score(mode_id: String, grid_size: int) -> int:
 
 
 ## 设置或更新一个模式在特定棋盘大小下的最高分。
+## @param mode_id: 模式资源文件名派生出的模式标识。
+## @param grid_size: 棋盘边长。
+## @param score: 本次尝试写入的分数。
 func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
 	_ensure_game_data_loaded()
 	
@@ -73,6 +78,7 @@ func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
 
 
 ## 设置并保存语言环境。
+## @param locale: Godot locale 代码。
 func set_language(locale: String) -> void:
 	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
 	if is_instance_valid(display_settings):

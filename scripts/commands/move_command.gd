@@ -48,17 +48,12 @@ func execute() -> Variant:
 	set_snapshot(game_state_system.get_full_game_state(grid_model.grid_size))
 
 	_reverse_target_map.clear()
-	var architecture := _get_architecture_or_null()
-	if architecture != null:
-		architecture.register_simple_event_owned(self, EventNames.BOARD_ANIMATION_REQUESTED, _on_animation_requested)
-
 	var move_sys := get_system(GridMovementSystem) as GridMovementSystem
 	var result: Variant = null
 	if is_instance_valid(move_sys):
 		result = move_sys.handle_move(_direction)
-
-	if architecture != null:
-		architecture.unregister_owner_events(self)
+		if result is MoveData:
+			_reverse_target_map = (result as MoveData).reverse_target_map.duplicate()
 	return result
 
 
@@ -90,6 +85,8 @@ func undo() -> Variant:
 	return null
 
 
+## 判断命令执行结果是否应该写入历史。
+## @param execute_result: execute() 返回的执行结果。
 func should_record(execute_result: Variant) -> bool:
 	return execute_result is MoveData
 
@@ -104,6 +101,8 @@ func serialize() -> Dictionary:
 	}
 
 
+## 从序列化字典恢复移动命令。
+## @param data: serialize() 产生的命令数据。
 static func deserialize(data: Dictionary) -> MoveCommand:
 	var direction := Vector2i(
 		data.get(&"direction_x", data.get("direction_x", 0)),
@@ -125,19 +124,3 @@ func _log_error(message: String) -> void:
 		return
 
 	push_error("[%s] %s" % [_LOG_TAG, message])
-
-
-# --- 信号处理函数 ---
-
-func _on_animation_requested(instructions: Array) -> void:
-	for instr in instructions:
-		if instr[&"type"] == &"MOVE":
-			var from_pos: Vector2i = instr[&"from_grid_pos"]
-			var key := "%d,%d" % [from_pos.x, from_pos.y]
-			_reverse_target_map[key] = instr[&"to_grid_pos"]
-		elif instr[&"type"] == &"MERGE":
-			var from_consumed: Vector2i = instr[&"from_grid_pos_consumed"]
-			var from_merged: Vector2i = instr[&"from_grid_pos_merged"]
-			var to_pos: Vector2i = instr[&"to_grid_pos"]
-			_reverse_target_map["%d,%d" % [from_consumed.x, from_consumed.y]] = to_pos
-			_reverse_target_map["%d,%d" % [from_merged.x, from_merged.y]] = to_pos

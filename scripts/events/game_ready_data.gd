@@ -1,6 +1,6 @@
 ## GameReadyData: 游戏初始化完成时发出的事件数据载体。
 ##
-## 该数据包含了所有 GamePlay 视窗需要配置表现层的核心规则、参数与模型状态。
+## 该数据包含了 GamePlayController 配置表现层所需的核心规则、参数与模型状态。
 class_name GameReadyData
 extends GFPayload
 

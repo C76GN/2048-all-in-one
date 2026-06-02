@@ -1,8 +1,8 @@
-## GameBoard: 负责游戏棋盘的视觉呈现和输入转发。
+## GameBoardController: 负责游戏棋盘的视觉呈现和输入转发。
 ##
 ## 它持有 GridModel (逻辑核心)，并根据 Model 的信号更新 Tile 节点的位置和状态。
-## 它是 Model 的 View。
-class_name GameBoard
+## 它是棋盘模型的表现层控制器。
+class_name GameBoardController
 extends GFController
 
 
@@ -26,7 +26,7 @@ const BOARD_PADDING: int = 15
 ## 用于让旧动画回调识别节点是否已被复用。
 const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 
-const _LOG_TAG: String = "GameBoard"
+const _LOG_TAG: String = "GameBoardController"
 
 
 # --- 导出变量 ---
@@ -121,7 +121,7 @@ func setup(
 	self.color_schemes = p_color_schemes
 	self.board_theme = p_board_theme
 
-	# GridModel 的逻辑初始化由 GameInitSystem 完成，GameBoard 只同步视觉。
+	# GridModel 的逻辑初始化由 GameInitSystem 完成，GameBoardController 只同步视觉。
 	call_deferred(&"_update_board_layout")
 	_draw_board_cells()
 	
@@ -152,6 +152,7 @@ func clear_visual_tiles() -> void:
 
 
 ## 供棋盘动画 Action 归还已离场的视觉方块，避免 Action 直接依赖对象池实现细节。
+## @param tile: 要释放或回收到对象池的视觉方块节点。
 func release_visual_tile(tile: Tile) -> void:
 	_release_visual_tile(tile)
 

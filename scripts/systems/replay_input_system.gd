@@ -47,6 +47,8 @@ func dispose() -> void:
 	_input_mapping = null
 
 
+## 轮询回放输入上下文并驱动回放步进。
+## @param _delta: 当前帧间隔；该系统使用输入缓冲，不直接依赖该值。
 func tick(_delta: float) -> void:
 	if not _is_active or not is_instance_valid(_input_mapping):
 		return

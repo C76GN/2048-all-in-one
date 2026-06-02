@@ -156,14 +156,16 @@ func handle_move(direction: Vector2i) -> MoveData:
 			send_simple_event(EventNames.SCORE_UPDATED, score_delta)
 		if monster_kill_count > 0:
 			send_simple_event(EventNames.MONSTER_KILLED, monster_kill_count)
-			
-		# 2. 发送动画请求事件 (简单事件)
-		send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instructions)
 
-		# 3. 构造并发送移动完成事件 (类型事件，用于触发后续生成逻辑)
 		var result_move_data := MoveData.new()
 		result_move_data.direction = direction
 		result_move_data.moved_lines = moved_lines_indices
+		result_move_data.reverse_target_map = _build_reverse_target_map(instructions)
+
+		# 2. 发送动画请求事件 (简单事件)
+		send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instructions)
+
+		# 3. 发送移动完成事件 (类型事件，用于触发后续生成逻辑)
 		send_event(result_move_data)
 
 		return result_move_data
@@ -172,6 +174,28 @@ func handle_move(direction: Vector2i) -> MoveData:
 
 
 # --- 辅助方法 ---
+
+func _build_reverse_target_map(instructions: Array) -> Dictionary:
+	var reverse_target_map: Dictionary = {}
+
+	for instr in instructions:
+		var instruction_type: StringName = instr.get(&"type", instr.get("type", &""))
+		if instruction_type == &"MOVE":
+			var from_pos: Vector2i = instr[&"from_grid_pos"]
+			reverse_target_map[_grid_pos_key(from_pos)] = instr[&"to_grid_pos"]
+		elif instruction_type == &"MERGE":
+			var from_consumed: Vector2i = instr[&"from_grid_pos_consumed"]
+			var from_merged: Vector2i = instr[&"from_grid_pos_merged"]
+			var to_pos: Vector2i = instr[&"to_grid_pos"]
+			reverse_target_map[_grid_pos_key(from_consumed)] = to_pos
+			reverse_target_map[_grid_pos_key(from_merged)] = to_pos
+
+	return reverse_target_map
+
+
+func _grid_pos_key(grid_pos: Vector2i) -> String:
+	return "%d,%d" % [grid_pos.x, grid_pos.y]
+
 
 func _get_coords_for_line(line_index: int, cell_index: int, direction: Vector2i, grid_size: int) -> Vector2i:
 	match direction:

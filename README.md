@@ -1,6 +1,6 @@
 # 2048 All In One
 
-一个基于 Godot 4 和 gf 1.20.2 的可扩展 2048 规则实验项目。项目把棋盘数据、规则、输入、存档、设置、回放和 UI 流程拆成独立模块，目标是作为 gf 框架在中小型游戏中的最佳实践示例。
+一个基于 Godot 4 和 gf 的可扩展 2048 规则实验项目。项目把棋盘数据、规则、输入、存档、设置、回放和 UI 流程拆成独立模块，目标是作为 gf 框架在中小型游戏中的最佳实践示例。
 
 > **⚠️ 重要提示：作为 gf 框架实例项目的定位**
 >
@@ -9,15 +9,17 @@
 ## 技术栈
 
 - Godot 4.6+
-- gf 1.20.2
+- gf（版本以 `addons/gf/plugin.cfg` 为准）
 - GDScript，遵循 `CODING_STYLE.md`
 
 ## 架构概览
 
 - `scripts/boot/game_architecture_installer.gd` 集中注册 Model、System、Utility，并由 Project Settings 中的 gf installer 驱动启动。
+- `scripts/controllers/` 放置直接继承 `GFController` 的场景控制器，例如 `GamePlayController` 和 `GameBoardController`。
 - `scripts/models/` 保存可绑定运行时状态，例如棋盘、当前模式、分数和最高方块。
 - `scripts/systems/` 承担业务流程：初始化、输入、移动、生成、最高分、回放、场景路由和游戏状态。
 - `scripts/rules/` 是规则资源的实现层。移动、交互、生成、结束判定互相解耦，模式配置通过 `resources/modes/*.tres` 组合它们。
+- `scripts/data/` 保存 Resource、Payload 和纯数据对象；`scripts/foundation/` 保存不接入 gf 生命周期的纯静态算法。
 - `resources/input/gameplay_input_context.tres` 使用 `GFInputContext` / `GFInputMapping` 描述玩法输入，运行时由 `GFInputMappingUtility` 消费。
 - `assets/translations.csv` 提供中文和英文 UI 文案。
 
@@ -35,6 +37,7 @@
 - 用 `GFStorageUtility` 的字典管线保存最高分和通用设置，并启用版本元信息与完整性校验；书签和回放以 Resource 形式保存在存储根目录下的相对子目录中。
 - 用 `GFObjectPoolUtility` 的池化 Hook 清理 Tile 和列表项复用状态。
 - 用 `GFController.get_host_as()` 访问 Controller 宿主节点，避免依赖 Godot `owner` 语义。
+- 用 `GFValidationReport` 汇总模式配置校验结果，再由项目层决定如何输出错误。
 - 用 `RuleContext` 给规则注入上下文并收集输出，避免规则资源直接触达全局 `Gf`。
 - 开发构建中注册 `gf_debug` 控制台命令，输出架构生命周期、事件系统和对象池诊断快照。
 

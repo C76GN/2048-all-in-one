@@ -48,6 +48,53 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+# --- 虚方法 (需子类覆写) ---
+
+## 获取数据列表。
+func _get_data_list() -> Array:
+	return []
+
+
+## 设置列表项显示。
+func _setup_item(_item: Control, _data: Resource) -> void:
+	pass
+
+
+## 连接列表项信号。
+func _connect_item_signals(_item: Control, _data: Resource) -> void:
+	pass
+
+
+## 更新预览。
+func _update_preview(_data: Resource) -> void:
+	pass
+
+
+## 更新静态 UI 文本。
+func _update_ui_text() -> void:
+	pass
+
+
+## 执行具体的删除逻辑。
+func _do_delete_logic(_data: Resource) -> void:
+	pass
+
+
+## 执行主按钮逻辑。
+func _on_primary_action_triggered(_data: Resource) -> void:
+	pass
+
+
+## 获取列表为空时的提示。
+func _get_empty_message() -> String:
+	return tr("MSG_NO_DATA")
+
+
+## 获取未选中时的提示。
+func _get_select_hint_message() -> String:
+	return tr("MSG_SELECT_ITEM")
+
+
 # --- 私有/辅助方法 ---
 
 ## 统一连接基础按钮信号。子类在设置完按钮引用后应调用此方法。
@@ -204,50 +251,3 @@ func _on_back_button_pressed() -> void:
 	var router := get_system(SceneRouterSystem) as SceneRouterSystem
 	if router:
 		router.return_to_main_menu()
-
-
-# --- 虚方法 (需子类覆写) ---
-
-## 获取数据列表。
-func _get_data_list() -> Array:
-	return []
-
-
-## 设置列表项显示。
-func _setup_item(_item: Control, _data: Resource) -> void:
-	pass
-
-
-## 连接列表项信号。
-func _connect_item_signals(_item: Control, _data: Resource) -> void:
-	pass
-
-
-## 更新预览。
-func _update_preview(_data: Resource) -> void:
-	pass
-
-
-## 更新静态 UI 文本。
-func _update_ui_text() -> void:
-	pass
-
-
-## 执行具体的删除逻辑。
-func _do_delete_logic(_data: Resource) -> void:
-	pass
-
-
-## 执行主按钮逻辑。
-func _on_primary_action_triggered(_data: Resource) -> void:
-	pass
-
-
-## 获取列表为空时的提示。
-func _get_empty_message() -> String:
-	return tr("MSG_NO_DATA")
-
-
-## 获取未选中时的提示。
-func _get_select_hint_message() -> String:
-	return tr("MSG_SELECT_ITEM")

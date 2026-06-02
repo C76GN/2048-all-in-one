@@ -124,6 +124,7 @@ func get_monster_spawn_pool(grid_model: GridModel = null) -> Dictionary:
 
 ## 根据动态生成的怪物池，计算本次要生成的怪物数值。
 ## @param grid_model: 网格模型引用。
+## @param context: 当前规则上下文；提供确定性随机分支。
 ## @return: 计算出的怪物数值。
 func _calculate_monster_value(grid_model: GridModel, context: RuleContext = null) -> int:
 	var spawn_pool: Dictionary = get_monster_spawn_pool(grid_model)

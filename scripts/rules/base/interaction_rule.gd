@@ -8,10 +8,10 @@ extends Resource
 
 # --- 公共方法 ---
 
-## 在游戏开始时被调用，用于设置此规则所需的依赖（如GameBoard）。
+## 在游戏开始时被调用，用于设置此规则所需的依赖。
 ##
 ## 子类可以重写此方法来存储对棋盘或其他节点的引用。
-## @param _game_board: 对当前GameBoard节点的引用。
+## @param _game_board: 对当前棋盘控制器或棋盘节点的引用。
 func setup(_game_board: Control) -> void:
 	pass
 
@@ -80,7 +80,7 @@ func get_spawnable_values(_type_id: int) -> Array[int]:
 
 ## 根据从UI（如TestPanel）接收的类型ID，返回对应的 Tile.TileType 枚举。
 ##
-## 这将类型转换的逻辑封装在规则内部，避免了GamePlay中的类型检查。
+## 这将类型转换的逻辑封装在规则内部，避免了 GamePlayController 中的类型检查。
 ## @param type_id: 来自UI的类型标识符。
 ## @return: Tile.TileType 枚举值。
 func get_tile_type_from_id(type_id: int) -> Tile.TileType:

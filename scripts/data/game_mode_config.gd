@@ -52,44 +52,68 @@ extends Resource
 ##
 ## @return: 如果所有关键规则均已配置则返回 true，否则 push_error 并返回 false。
 func validate() -> bool:
+	var report := get_validation_report()
+	if report.is_ok():
+		return true
+
+	for issue: GFValidationIssue in report.issues:
+		if issue != null and issue.is_error():
+			push_error("[GameModeConfig:%s] %s" % [mode_name, issue.message])
+	return false
+
+
+## 生成本配置的 gf 校验报告。
+## @return: 包含所有配置问题的 GFValidationReport。
+func get_validation_report() -> GFValidationReport:
+	var report := GFValidationReport.new(
+		"GameModeConfig:%s" % mode_name,
+		{
+			"mode_name": mode_name,
+			"resource_path": resource_path,
+		}
+	) as GFValidationReport
+
 	if not is_instance_valid(interaction_rule):
-		push_error("[GameModeConfig:%s] interaction_rule 未配置。" % mode_name)
-		return false
+		report.add_error(&"missing_interaction_rule", "interaction_rule 未配置。", &"interaction_rule", resource_path)
 
 	if not is_instance_valid(movement_rule):
-		push_error("[GameModeConfig:%s] movement_rule 未配置。" % mode_name)
-		return false
+		report.add_error(&"missing_movement_rule", "movement_rule 未配置。", &"movement_rule", resource_path)
 
 	if spawn_rules.is_empty():
-		push_error("[GameModeConfig:%s] spawn_rules 为空，游戏将无法生成方块。" % mode_name)
-		return false
+		report.add_error(&"empty_spawn_rules", "spawn_rules 为空，游戏将无法生成方块。", &"spawn_rules", resource_path)
 
 	for i in range(spawn_rules.size()):
 		if not is_instance_valid(spawn_rules[i]):
-			push_error("[GameModeConfig:%s] spawn_rules[%d] 未配置。" % [mode_name, i])
-			return false
+			report.add_error(
+				&"missing_spawn_rule",
+				"spawn_rules[%d] 未配置。" % i,
+				"spawn_rules/%d" % i,
+				resource_path
+			)
 
 	if not is_instance_valid(game_over_rule):
-		push_error("[GameModeConfig:%s] game_over_rule 未配置。" % mode_name)
-		return false
+		report.add_error(&"missing_game_over_rule", "game_over_rule 未配置。", &"game_over_rule", resource_path)
 
 	if not is_instance_valid(board_theme):
-		push_error("[GameModeConfig:%s] board_theme 未配置。" % mode_name)
-		return false
+		report.add_error(&"missing_board_theme", "board_theme 未配置。", &"board_theme", resource_path)
 
 	if min_grid_size <= 0:
-		push_error("[GameModeConfig:%s] min_grid_size 必须大于 0。" % mode_name)
-		return false
+		report.add_error(&"invalid_min_grid_size", "min_grid_size 必须大于 0。", &"min_grid_size", resource_path)
 
 	if min_grid_size > max_grid_size:
-		push_error("[GameModeConfig:%s] min_grid_size 不能大于 max_grid_size。" % mode_name)
-		return false
+		report.add_error(
+			&"invalid_grid_size_range",
+			"min_grid_size 不能大于 max_grid_size。",
+			&"min_grid_size",
+			resource_path
+		)
 
 	if default_grid_size < min_grid_size or default_grid_size > max_grid_size:
-		push_error(
-			"[GameModeConfig:%s] default_grid_size 必须位于 [%d, %d] 范围内。"
-			% [mode_name, min_grid_size, max_grid_size]
+		report.add_error(
+			&"invalid_default_grid_size",
+			"default_grid_size 必须位于 [%d, %d] 范围内。" % [min_grid_size, max_grid_size],
+			&"default_grid_size",
+			resource_path
 		)
-		return false
 
-	return true
+	return report

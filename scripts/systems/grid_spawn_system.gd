@@ -17,6 +17,7 @@ var _grid_model: GridModel
 var _seed_utility: GFSeedUtility
 var _log: GFLogUtility
 
+
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
@@ -33,59 +34,7 @@ func dispose() -> void:
 	_log = null
 
 
-# --- 事件处理 ---
-
-func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
-	if not is_instance_valid(spawn_data):
-		return
-
-	if not is_instance_valid(_grid_model) or not is_instance_valid(_seed_utility):
-		return
-
-	if _log:
-		_log.debug(_LOG_TAG, "收到生成请求: value=%d, type=%d, position=%s" % [spawn_data.value, spawn_data.type, spawn_data.position])
-
-	var value: int = spawn_data.value
-	var type: Tile.TileType = spawn_data.type
-	var is_priority: bool = spawn_data.is_priority
-	var spawn_pos: Vector2i
-
-	if not _is_auto_position(spawn_data.position):
-		spawn_pos = spawn_data.position
-		if not _is_cell_in_bounds(spawn_pos):
-			if _log:
-				_log.warn(_LOG_TAG, "忽略越界生成请求: %s" % spawn_pos)
-			return
-		if not _is_cell_empty(spawn_pos):
-			if is_priority:
-				_handle_priority_spawn(value, type)
-			elif _log:
-				_log.warn(_LOG_TAG, "忽略被占用的生成位置: %s" % spawn_pos)
-			return
-	else:
-		var empty_cells: Array[Vector2i] = _grid_model.get_empty_cells()
-		if not empty_cells.is_empty():
-			spawn_pos = empty_cells[_seed_utility.get_branched_rng("game_board_spawn").randi_range(0, empty_cells.size() - 1)]
-		else:
-			if is_priority:
-				_handle_priority_spawn(value, type)
-			return
-
-	# 2. 写入数据模型
-	var tile_data := GameTileData.new(value, type)
-	_grid_model.place_tile(tile_data, spawn_pos)
-	
-	if _log:
-		_log.debug(_LOG_TAG, "已生成方块: value=%d, type=%d, position=%s, empty_cells=%d" % [value, type, spawn_pos, _grid_model.get_empty_cells().size()])
-	
-	# 3. 发送视觉指令
-	var instruction: Array = [ {
-		&"type": &"SPAWN",
-		&"tile_data": tile_data,
-		&"to_grid_pos": spawn_pos
-	}]
-	send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
-
+# --- 私有/辅助方法 ---
 
 func _is_auto_position(position: Vector2i) -> bool:
 	return position.x < 0 or position.y < 0
@@ -145,3 +94,57 @@ func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
 				&"do_transform": false,
 			}]
 			send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
+
+
+# --- 信号处理函数 ---
+
+func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
+	if not is_instance_valid(spawn_data):
+		return
+
+	if not is_instance_valid(_grid_model) or not is_instance_valid(_seed_utility):
+		return
+
+	if _log:
+		_log.debug(_LOG_TAG, "收到生成请求: value=%d, type=%d, position=%s" % [spawn_data.value, spawn_data.type, spawn_data.position])
+
+	var value: int = spawn_data.value
+	var type: Tile.TileType = spawn_data.type
+	var is_priority: bool = spawn_data.is_priority
+	var spawn_pos: Vector2i
+
+	if not _is_auto_position(spawn_data.position):
+		spawn_pos = spawn_data.position
+		if not _is_cell_in_bounds(spawn_pos):
+			if _log:
+				_log.warn(_LOG_TAG, "忽略越界生成请求: %s" % spawn_pos)
+			return
+		if not _is_cell_empty(spawn_pos):
+			if is_priority:
+				_handle_priority_spawn(value, type)
+			elif _log:
+				_log.warn(_LOG_TAG, "忽略被占用的生成位置: %s" % spawn_pos)
+			return
+	else:
+		var empty_cells: Array[Vector2i] = _grid_model.get_empty_cells()
+		if not empty_cells.is_empty():
+			spawn_pos = empty_cells[_seed_utility.get_branched_rng("game_board_spawn").randi_range(0, empty_cells.size() - 1)]
+		else:
+			if is_priority:
+				_handle_priority_spawn(value, type)
+			return
+
+	# 2. 写入数据模型
+	var tile_data := GameTileData.new(value, type)
+	_grid_model.place_tile(tile_data, spawn_pos)
+
+	if _log:
+		_log.debug(_LOG_TAG, "已生成方块: value=%d, type=%d, position=%s, empty_cells=%d" % [value, type, spawn_pos, _grid_model.get_empty_cells().size()])
+
+	# 3. 发送视觉指令
+	var instruction: Array = [ {
+		&"type": &"SPAWN",
+		&"tile_data": tile_data,
+		&"to_grid_pos": spawn_pos,
+	}]
+	send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)

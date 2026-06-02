@@ -6,6 +6,7 @@
 class_name BookmarkSystem
 extends GFSystem
 
+
 # --- 常量 ---
 
 ## 书签存储目录。
@@ -17,7 +18,7 @@ const BOOKMARK_DIR_NAME: String = "bookmarks"
 func async_init() -> void:
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
 	if storage:
-		DirAccess.make_dir_recursive_absolute(_get_storage_dir_path(storage, BOOKMARK_DIR_NAME))
+		storage.ensure_directory(BOOKMARK_DIR_NAME)
 
 
 # --- 公共方法 ---
@@ -40,20 +41,14 @@ func load_bookmarks() -> Array[BookmarkData]:
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
 	if not storage:
 		return bookmarks
-	
-	var dir := DirAccess.open(_get_storage_dir_path(storage, BOOKMARK_DIR_NAME))
-	if dir:
-		dir.list_dir_begin()
-		var file_name = dir.get_next()
-		while file_name != "":
-			if not dir.current_is_dir() and file_name.ends_with(".tres"):
-				var path := BOOKMARK_DIR_NAME.path_join(file_name)
-				var res = storage.load_resource(path, "BookmarkData")
-				if res is BookmarkData:
-					res.file_path = path
-					bookmarks.append(res)
-			file_name = dir.get_next()
-	
+
+	for path: String in storage.list_files(BOOKMARK_DIR_NAME, "tres"):
+		var resource := storage.load_resource(path, "BookmarkData")
+		if resource is BookmarkData:
+			var bookmark := resource as BookmarkData
+			bookmark.file_path = path
+			bookmarks.append(bookmark)
+
 	# 按时间戳降序排序
 	bookmarks.sort_custom(func(a: BookmarkData, b: BookmarkData) -> bool:
 		return a.timestamp > b.timestamp
@@ -68,24 +63,5 @@ func delete_bookmark(bookmark_file_path: String) -> void:
 		return
 
 	var storage := get_utility(GFStorageUtility) as GFStorageUtility
-	var absolute_path := _get_storage_file_path(storage, BOOKMARK_DIR_NAME, bookmark_file_path)
-	if FileAccess.file_exists(absolute_path):
-		DirAccess.remove_absolute(absolute_path)
-
-
-func _get_storage_dir_path(storage: GFStorageUtility, directory_name: String) -> String:
-	return _get_storage_base_path(storage).path_join(directory_name)
-
-
-func _get_storage_file_path(
-	storage: GFStorageUtility,
-	directory_name: String,
-	file_path: String
-) -> String:
-	return _get_storage_dir_path(storage, directory_name).path_join(file_path.get_file())
-
-
-func _get_storage_base_path(storage: GFStorageUtility) -> String:
-	if is_instance_valid(storage) and not storage.save_dir_name.is_empty():
-		return "user://".path_join(storage.save_dir_name)
-	return "user://"
+	if storage:
+		storage.delete_file(bookmark_file_path)

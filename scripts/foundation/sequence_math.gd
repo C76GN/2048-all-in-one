@@ -92,6 +92,9 @@ static func get_fibonacci_level(value: int, sequence: Array[int] = []) -> int:
 
 
 ## 检查两个数是否是卢卡斯数列中的连续项。
+## @param a: 第一个整数。
+## @param b: 第二个整数。
+## @param sequence: 可选的卢卡斯数列缓存。
 static func are_consecutive_lucas(a: int, b: int, sequence: Array[int] = []) -> bool:
 	if sequence.is_empty():
 		sequence = generate_lucas()

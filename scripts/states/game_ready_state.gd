@@ -7,6 +7,8 @@ extends GFState
 
 # --- 重写方法 ---
 
+## 进入准备状态。
+## @param _msg: 状态切换传入的上下文字典。
 func enter(_msg: Dictionary = {}) -> void:
 	pass
 

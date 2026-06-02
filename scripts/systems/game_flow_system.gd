@@ -103,6 +103,7 @@ func dispose() -> void:
 
 
 ## 更新游戏流程状态机。
+## @param delta: 当前帧间隔。
 func tick(delta: float) -> void:
 	if _fsm != null:
 		_fsm.update(delta)
@@ -111,6 +112,8 @@ func tick(delta: float) -> void:
 # --- 公共方法 ---
 
 ## 注入当前游戏的规则环境。
+## @param rule_system: 负责执行生成规则的系统。
+## @param game_over_rule: 当前模式使用的游戏结束判定规则。
 func setup(rule_system: RuleSystem, game_over_rule: GameOverRule) -> void:
 	_rule_system = rule_system
 	_game_over_rule = game_over_rule
@@ -121,7 +124,7 @@ func sync_bookmark_baseline_state() -> void:
 	_last_saved_bookmark_state = _get_bookmark_comparison_state()
 
 
-## Synchronizes the status model's highest tile with the board state.
+## 从棋盘状态同步状态模型中的最高方块值。
 func sync_highest_tile_from_grid() -> void:
 	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_status_model):
 		return
@@ -159,32 +162,6 @@ func check_game_over() -> void:
 				return
 			_fsm.change_state(EventNames.STATE_GAME_OVER)
 			_handle_game_over()
-
-
-func _handle_game_over() -> void:
-	if _is_replay_mode:
-		return
-
-	_persist_current_high_score()
-	
-	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_status_model):
-		return
-
-	var replay_data := ReplayData.new()
-	replay_data.timestamp = int(Time.get_unix_time_from_system())
-	replay_data.mode_config_path = _mode_config_path
-	replay_data.initial_seed = _initial_seed_of_session
-	var current_grid_size := _get_current_grid_size()
-	replay_data.grid_size = current_grid_size
-	
-	replay_data.actions = _player_actions.duplicate()
-	replay_data.final_board_snapshot = _grid_model.get_snapshot()
-	replay_data.final_score = _game_status_model.score.get_value()
-	
-	if not _is_game_state_tainted and not replay_data.actions.is_empty():
-		var replay_system := get_system(ReplaySystem) as ReplaySystem
-		if replay_system:
-			replay_system.save_replay(replay_data)
 
 
 ## 使用当前模式、尺寸和初始种子重新开始本局。
@@ -229,6 +206,32 @@ func restart_game() -> void:
 
 
 # --- 私有事件处理 ---
+
+func _handle_game_over() -> void:
+	if _is_replay_mode:
+		return
+
+	_persist_current_high_score()
+
+	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_status_model):
+		return
+
+	var replay_data := ReplayData.new()
+	replay_data.timestamp = int(Time.get_unix_time_from_system())
+	replay_data.mode_config_path = _mode_config_path
+	replay_data.initial_seed = _initial_seed_of_session
+	var current_grid_size := _get_current_grid_size()
+	replay_data.grid_size = current_grid_size
+
+	replay_data.actions = _player_actions.duplicate()
+	replay_data.final_board_snapshot = _grid_model.get_snapshot()
+	replay_data.final_score = _game_status_model.score.get_value()
+
+	if not _is_game_state_tainted and not replay_data.actions.is_empty():
+		var replay_system := get_system(ReplaySystem) as ReplaySystem
+		if replay_system:
+			replay_system.save_replay(replay_data)
+
 
 func _on_game_ready(data: GameReadyData) -> void:
 	_is_replay_mode = data.is_replay_mode

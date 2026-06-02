@@ -29,6 +29,7 @@ var monsters_killed: int = 0
 # --- 公共方法 ---
 
 ## 获取指定分支的确定性随机数生成器。
+## @param branch_id: 随机分支标识。
 func get_rng(branch_id: String) -> RandomNumberGenerator:
 	if not is_instance_valid(seed_utility):
 		return RandomNumberGenerator.new()
@@ -37,6 +38,7 @@ func get_rng(branch_id: String) -> RandomNumberGenerator:
 
 
 ## 记录一个生成请求，由 RuleSystem 在本轮规则执行后派发。
+## @param spawn_data: 要生成的方块数据。
 func request_spawn(spawn_data: SpawnData) -> void:
 	if not is_instance_valid(spawn_data):
 		return
@@ -45,11 +47,13 @@ func request_spawn(spawn_data: SpawnData) -> void:
 
 
 ## 记录分数变化。
+## @param amount: 本轮增加的分数。
 func add_score(amount: int) -> void:
 	score_delta += amount
 
 
 ## 记录怪物击杀数量。
+## @param amount: 本轮增加的击杀数量。
 func add_monster_kill(amount: int = 1) -> void:
 	monsters_killed += max(amount, 0)
 

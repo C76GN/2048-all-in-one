@@ -7,7 +7,7 @@ extends BaseListMenu
 
 # --- 常量 ---
 
-const GAME_MODE_CONFIG_CACHE = preload("res://scripts/utilities/game_mode_config_cache.gd")
+const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
 
 
 # --- 导出变量 ---
@@ -70,7 +70,7 @@ func _update_preview(data: Resource) -> void:
 		_clear_preview()
 		return
 
-	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE.get_config(bookmark.mode_config_path)
+	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE_UTILITY.get_config(bookmark.mode_config_path)
 	if not is_instance_valid(mode_config):
 		detail_info_label.text = tr("ERR_LOAD_CONFIG")
 		if is_instance_valid(board_preview_node):

@@ -23,6 +23,9 @@ var movement_rule: MovementRule
 # --- 公共方法 ---
 
 ## 初始化或重置数据
+## @param size: 棋盘边长。
+## @param p_interaction_rule: 当前模式使用的交互规则。
+## @param p_movement_rule: 当前模式使用的移动规则。
 func initialize(size: int, p_interaction_rule: InteractionRule, p_movement_rule: MovementRule) -> void:
 	grid_size = size
 	interaction_rule = p_interaction_rule
@@ -54,6 +57,7 @@ func get_snapshot() -> Dictionary:
 
 
 ## 从快照还原数据
+## @param snapshot: get_snapshot() 产生的棋盘快照。
 func restore_from_snapshot(snapshot: Dictionary) -> void:
 	if not snapshot.has(&"tiles") and not snapshot.has("tiles"):
 		return
@@ -81,12 +85,15 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 
 
 ## 将指定的方块数据结构放入网格
+## @param tile: 要放置的方块数据。
+## @param grid_pos: 目标网格坐标。
 func place_tile(tile: GameTileData, grid_pos: Vector2i) -> void:
 	if _is_cell_in_bounds(grid_pos):
 		grid[grid_pos.x][grid_pos.y] = tile
 
 
 ## 扩展网格尺寸
+## @param new_size: 扩展后的棋盘边长。
 func expand_grid(new_size: int) -> void:
 	if new_size <= grid_size:
 		return
@@ -146,6 +153,7 @@ func to_dict() -> Dictionary:
 
 
 ## GFModel 序列化协议：从字典恢复模型状态。
+## @param data: 序列化后的棋盘状态。
 func from_dict(data: Dictionary) -> void:
 	restore_from_snapshot(data)
 

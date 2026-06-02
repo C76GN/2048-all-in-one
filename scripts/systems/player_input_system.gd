@@ -46,6 +46,8 @@ func dispose() -> void:
 	_input_mapping = null
 
 
+## 轮询玩法输入上下文并派发对应游戏命令。
+## @param _delta: 当前帧间隔；该系统使用输入缓冲，不直接依赖该值。
 func tick(_delta: float) -> void:
 	if not _is_active or not is_instance_valid(_input_mapping):
 		return

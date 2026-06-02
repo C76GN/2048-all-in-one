@@ -1,4 +1,4 @@
-## GameInitSystem: 负责提取原 GamePlay.gd 中的装配逻辑。
+## GameInitSystem: 负责当前对局的模式、规则和模型初始化装配。
 class_name GameInitSystem
 extends GFSystem
 
@@ -6,7 +6,7 @@ extends GFSystem
 # --- 常量 ---
 
 const _LOG_TAG: String = "GameInitSystem"
-const GAME_MODE_CONFIG_CACHE = preload("res://scripts/utilities/game_mode_config_cache.gd")
+const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
 
 
 # --- 私有变量 ---
@@ -116,7 +116,7 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	game_ready_data.current_grid_size = grid_size
 	game_ready_data.initial_seed = init_seed
 
-	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE.get_config(config_path)
+	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE_UTILITY.get_config(config_path)
 	if not is_instance_valid(mode_config):
 		if _log:
 			_log.error(_LOG_TAG, "GameModeConfig 加载失败: %s" % config_path)

@@ -1,7 +1,7 @@
 ## SpawnData: 用于描述一次方块生成请求的强类型数据对象。
 ##
-## 替代原有的裸 Dictionary 在 SpawnRule、RuleSystem 和 GameBoard 之间传递。
-## 当 position.x 为 -1 时，表示未指定位置，由 GameBoard 随机选取空格。
+## 替代原有的裸 Dictionary 在 SpawnRule、RuleSystem 和 GameBoardController 之间传递。
+## 当 position.x 为 -1 时，表示未指定位置，由 GameBoardController 随机选取空格。
 class_name SpawnData
 extends RefCounted
 

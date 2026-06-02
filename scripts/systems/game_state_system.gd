@@ -50,11 +50,14 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 
 
 ## 对比两个完整游戏状态是否等价。
+## @param left: 左侧完整游戏状态。
+## @param right: 右侧完整游戏状态。
 func are_states_equal(left: Dictionary, right: Dictionary) -> bool:
 	return _normalize_variant(left) == _normalize_variant(right)
 
 
 ## 根据快照恢复模型和系统的状态。
+## @param state_to_restore: get_full_game_state() 产生的完整游戏状态。
 ## @remark 该方法只恢复逻辑状态，表现层刷新由调用方决定。
 func restore_state(state_to_restore: Dictionary) -> void:
 	if state_to_restore.is_empty():

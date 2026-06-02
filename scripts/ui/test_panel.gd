@@ -30,7 +30,7 @@ func _ready() -> void:
 
 # --- 公共方法 ---
 
-## 初始化并设置测试面板的所有选项。由 GamePlay 在游戏开始时调用。
+## 初始化并设置测试面板的所有选项。由 GamePlayController 在游戏开始时调用。
 ##
 ## @param types: 一个字典 {id: "name", ...} 用于填充类型下拉菜单。
 func setup_panel(types: Dictionary) -> void:
@@ -47,7 +47,7 @@ func setup_panel(types: Dictionary) -> void:
 		_on_type_selected(0)
 
 
-## 更新“数值”下拉列表的内容。由 GamePlay 在收到新数值时调用。
+## 更新“数值”下拉列表的内容。由 GamePlayController 在收到新数值时调用。
 ##
 ## @param values: 一个包含所有可选数值(int)的数组。
 func update_value_options(values: Array[int]) -> void:

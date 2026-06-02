@@ -1,8 +1,8 @@
-## GamePlay: 通用的游戏逻辑控制器。
+## GamePlayController: 通用的游戏逻辑控制器。
 ##
 ## 负责加载 GameModeConfig，设置 RuleSystem，并协调核心组件之间的通信。
 ## 它作为撤回(Undo)、快照(Snapshot)和游戏回放(Replay)功能的总协调者。
-class_name GamePlay
+class_name GamePlayController
 extends GFController
 
 
@@ -14,7 +14,7 @@ const PAUSE_MENU_SCENE: String = "res://scenes/ui/pause_menu.tscn"
 ## 游戏结束菜单场景路径。
 const GAME_OVER_MENU_SCENE: String = "res://scenes/ui/game_over_menu.tscn"
 
-const _LOG_TAG: String = "GamePlay"
+const _LOG_TAG: String = "GamePlayController"
 
 
 # --- 私有变量 ---
@@ -41,7 +41,7 @@ var _is_cleaned_up: bool = false
 
 # --- @onready 变量 (节点引用) ---
 
-@onready var game_board: GameBoard = %GameBoard
+@onready var game_board: GameBoardController = %GameBoard
 @onready var test_panel: VBoxContainer = %TestPanel
 @onready var background_color_rect: ColorRect = %Background
 @onready var _page_title: Label = %PageTitle
@@ -231,7 +231,7 @@ func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
 		var console := get_utility(GFConsoleUtility) as GFConsoleUtility
 		if console and test_panel.visible:
 			console.execute_command("clear")
-			send_event(HudMessagePayload.new("Test panel toggled.", 2.0))
+			send_event(HudMessagePayload.new("测试面板已切换。", 2.0))
 
 
 func _setup_test_tools_for_current_board() -> void:

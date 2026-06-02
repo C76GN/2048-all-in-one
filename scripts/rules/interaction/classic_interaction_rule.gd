@@ -22,7 +22,7 @@ func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: In
 			var new_value: int = tile_a.value * 2
 			tile_b.value = new_value # Update value of logical data
 			tile_b.type = tile_a.type
-			# For visuals we don't have color_schemes on TileData anymore, GameBoard will handle visuals
+			# TileData 不再携带配色，视觉表现由 GameBoardController 统一处理。
 			return {"merged_tile": tile_b, "consumed_tile": tile_a, "score": new_value}
 
 	return {}

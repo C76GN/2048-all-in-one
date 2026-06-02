@@ -1,36 +1,96 @@
-## GameArchitectureInstaller: registers the project-wide GF modules.
+## GameArchitectureInstaller: 注册项目级 GF 模块。
 class_name GameArchitectureInstaller
 extends GFInstaller
 
 
-# --- Constants ---
+# --- 常量 ---
 
 const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
 const _COMMAND_HISTORY_LIMIT: int = 1024
 const _AUDIO_BUS_MASTER: String = "Master"
-const _GAME_SETTINGS_UTILITY_SCRIPT = preload("res://scripts/utilities/game_settings_utility.gd")
+const _GAME_MODE_CONFIG_CACHE_UTILITY_SCRIPT = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
 
 
-# --- Public Methods ---
+# --- 公共方法 ---
 
-func install(architecture: GFArchitecture) -> void:
-	_register_models(architecture)
-	_register_utilities(architecture)
-	_register_systems(architecture)
+## 兼容 GFInstaller 的旧式安装入口；当前项目使用 install_bindings() 注册模块。
+## @param _architecture: 当前 GF 架构实例。
+func install(_architecture: GFArchitecture) -> void:
+	pass
 
 
-# --- Private Methods ---
+## 使用声明式 Binder 注册项目级 Model、Utility 和 System。
+## @param binder: GF 传入的绑定器实例。
+func install_bindings(binder: Variant) -> void:
+	var gf_binder := binder as GFBinder
+	if gf_binder == null:
+		push_error("[GameArchitectureInstaller] install_bindings 失败：binder 为空或类型错误。")
+		return
 
-func _register_utilities(architecture: GFArchitecture) -> void:
+	await _bind_models(gf_binder)
+	await _bind_utilities(gf_binder)
+	await _bind_systems(gf_binder)
+
+
+# --- 私有/辅助方法 ---
+
+func _bind_models(binder: GFBinder) -> void:
+	await binder.bind_model(AppConfigModel).as_singleton()
+	await binder.bind_model(GridModel).as_singleton()
+	await binder.bind_model(GameStatusModel).as_singleton()
+	await binder.bind_model(CurrentGameModel).as_singleton()
+
+
+func _bind_utilities(binder: GFBinder) -> void:
+	await binder.bind_utility(GFStorageUtility).from_instance(_create_storage_utility()).as_singleton()
+	await binder.bind_utility(GameSettingsUtility).from_instance(_create_settings_utility()).with_alias(GFSettingsUtility).as_singleton()
+	await binder.bind_utility(GFDisplaySettingsUtility).as_singleton()
+	await binder.bind_utility(GFSeedUtility).as_singleton()
+	await binder.bind_utility(GFAssetUtility).as_singleton()
+	await binder.bind_utility(_GAME_MODE_CONFIG_CACHE_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(GFCommandHistoryUtility).from_instance(_create_history_utility()).as_singleton()
+	await binder.bind_utility(GFTimeUtility).as_singleton()
+	await binder.bind_utility(GFLogUtility).from_instance(_create_log_utility()).as_singleton()
+	await binder.bind_utility(GFSceneUtility).as_singleton()
+	await binder.bind_utility(GFUIUtility).as_singleton()
+	await binder.bind_utility(GFLevelUtility).as_singleton()
+	await binder.bind_utility(GFSignalUtility).as_singleton()
+	await binder.bind_utility(GFInputMappingUtility).as_singleton()
+	await binder.bind_utility(GFObjectPoolUtility).from_instance(_create_object_pool_utility()).as_singleton()
+
+	if _are_dev_tools_enabled():
+		await binder.bind_utility(TestToolUtility).as_singleton()
+		await binder.bind_utility(GFConsoleUtility).as_singleton()
+
+
+func _bind_systems(binder: GFBinder) -> void:
+	await binder.bind_system(GameStateSystem).as_singleton()
+	await binder.bind_system(SceneRouterSystem).as_singleton()
+	await binder.bind_system(SaveSystem).as_singleton()
+	await binder.bind_system(BookmarkSystem).as_singleton()
+	await binder.bind_system(ReplaySystem).as_singleton()
+	await binder.bind_system(GameFlowSystem).as_singleton()
+	await binder.bind_system(GridMovementSystem).as_singleton()
+	await binder.bind_system(GFActionQueueSystem).as_singleton()
+	await binder.bind_system(RuleSystem).as_singleton()
+	await binder.bind_system(GridSpawnSystem).as_singleton()
+	await binder.bind_system(GameInitSystem).as_singleton()
+	await binder.bind_system(PlayerInputSystem).as_singleton()
+	await binder.bind_system(ReplayInputSystem).as_singleton()
+
+
+func _create_storage_utility() -> GFStorageUtility:
 	var storage := GFStorageUtility.new()
 	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true
 	storage.save_version = 1
-	architecture.register_utility(GFStorageUtility, storage)
+	return storage
 
-	var settings := _GAME_SETTINGS_UTILITY_SCRIPT.new() as GFSettingsUtility
+
+func _create_settings_utility() -> GameSettingsUtility:
+	var settings := GameSettingsUtility.new()
 	settings.register_setting(
 		GFDisplaySettingsUtility.LOCALE_KEY,
 		"zh",
@@ -41,62 +101,29 @@ func _register_utilities(architecture: GFArchitecture) -> void:
 		1.0,
 		GFSettingDefinition.ValueType.FLOAT
 	)
-	architecture.register_utility(GFSettingsUtility, settings)
-	architecture.register_utility(GFDisplaySettingsUtility, GFDisplaySettingsUtility.new())
+	return settings
 
-	architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
-	architecture.register_utility(GFAssetUtility, GFAssetUtility.new())
 
+func _create_history_utility() -> GFCommandHistoryUtility:
 	var history_util := GFCommandHistoryUtility.new()
 	history_util.max_history_size = _COMMAND_HISTORY_LIMIT
-	architecture.register_utility(GFCommandHistoryUtility, history_util)
+	return history_util
 
-	architecture.register_utility(GFTimeUtility, GFTimeUtility.new())
 
+func _create_log_utility() -> GFLogUtility:
 	var log_utility := GFLogUtility.new()
 	log_utility.min_level = (
 		GFLogUtility.LogLevel.DEBUG
 		if _is_verbose_logging_enabled()
 		else GFLogUtility.LogLevel.INFO
 	)
-	architecture.register_utility(GFLogUtility, log_utility)
+	return log_utility
 
-	architecture.register_utility(GFSceneUtility, GFSceneUtility.new())
-	architecture.register_utility(GFUIUtility, GFUIUtility.new())
-	architecture.register_utility(GFLevelUtility, GFLevelUtility.new())
-	architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
-	architecture.register_utility(GFInputMappingUtility, GFInputMappingUtility.new())
 
+func _create_object_pool_utility() -> GFObjectPoolUtility:
 	var object_pool := GFObjectPoolUtility.new()
 	object_pool.max_available_per_scene = 128
-	architecture.register_utility(GFObjectPoolUtility, object_pool)
-
-	if _are_dev_tools_enabled():
-		architecture.register_utility(TestToolUtility, TestToolUtility.new())
-		architecture.register_utility(GFConsoleUtility, GFConsoleUtility.new())
-
-
-func _register_models(architecture: GFArchitecture) -> void:
-	architecture.register_model(AppConfigModel, AppConfigModel.new())
-	architecture.register_model(GridModel, GridModel.new())
-	architecture.register_model(GameStatusModel, GameStatusModel.new())
-	architecture.register_model(CurrentGameModel, CurrentGameModel.new())
-
-
-func _register_systems(architecture: GFArchitecture) -> void:
-	architecture.register_system(GameStateSystem, GameStateSystem.new())
-	architecture.register_system(SceneRouterSystem, SceneRouterSystem.new())
-	architecture.register_system(SaveSystem, SaveSystem.new())
-	architecture.register_system(BookmarkSystem, BookmarkSystem.new())
-	architecture.register_system(ReplaySystem, ReplaySystem.new())
-	architecture.register_system(GameFlowSystem, GameFlowSystem.new())
-	architecture.register_system(GridMovementSystem, GridMovementSystem.new())
-	architecture.register_system(GFActionQueueSystem, GFActionQueueSystem.new())
-	architecture.register_system(RuleSystem, RuleSystem.new())
-	architecture.register_system(GridSpawnSystem, GridSpawnSystem.new())
-	architecture.register_system(GameInitSystem, GameInitSystem.new())
-	architecture.register_system(PlayerInputSystem, PlayerInputSystem.new())
-	architecture.register_system(ReplayInputSystem, ReplayInputSystem.new())
+	return object_pool
 
 
 func _are_dev_tools_enabled() -> bool:

@@ -2,6 +2,7 @@
 ##
 ## 负责处理暂停菜单的显示/隐藏，以及响应各个按钮的点击事件。
 ## 它通过 GF 事件系统通知系统层执行继续、重启等操作。
+class_name PauseMenu
 extends "res://scripts/ui/base/game_ui_controller.gd"
 
 
@@ -33,6 +34,25 @@ func _ready() -> void:
 	_continue_button.grab_focus()
 
 
+# --- 私有/辅助方法 ---
+
+func _update_ui_text() -> void:
+	if is_instance_valid(_continue_button):
+		_continue_button.text = tr("BTN_RESUME")
+	if is_instance_valid(_restart_button):
+		_restart_button.text = tr("BTN_RESTART")
+	if is_instance_valid(_settings_button):
+		_settings_button.text = tr("BTN_SETTINGS")
+	if is_instance_valid(_main_menu_button):
+		_main_menu_button.text = tr("BTN_MAIN_MENU")
+
+
+func _configure_settings_panel(panel: Node) -> void:
+	panel.process_mode = Node.PROCESS_MODE_ALWAYS
+	if panel is SettingsMenu:
+		(panel as SettingsMenu).return_to_main_menu_on_back = false
+
+
 # --- 信号处理函数 ---
 
 ## 响应"继续游戏"按钮的点击事件。
@@ -54,22 +74,3 @@ func _on_settings_button_pressed() -> void:
 	var ui_util := get_utility(GFUIUtility) as GFUIUtility
 	if ui_util:
 		ui_util.push_panel(SETTINGS_MENU_SCENE, GFUIUtility.Layer.POPUP, _configure_settings_panel)
-
-
-# --- 私有/辅助方法 ---
-
-func _update_ui_text() -> void:
-	if is_instance_valid(_continue_button):
-		_continue_button.text = tr("BTN_RESUME")
-	if is_instance_valid(_restart_button):
-		_restart_button.text = tr("BTN_RESTART")
-	if is_instance_valid(_settings_button):
-		_settings_button.text = tr("BTN_SETTINGS")
-	if is_instance_valid(_main_menu_button):
-		_main_menu_button.text = tr("BTN_MAIN_MENU")
-
-
-func _configure_settings_panel(panel: Node) -> void:
-	panel.process_mode = Node.PROCESS_MODE_ALWAYS
-	if panel is SettingsMenu:
-		(panel as SettingsMenu).return_to_main_menu_on_back = false

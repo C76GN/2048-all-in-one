@@ -26,6 +26,8 @@ func _init() -> void:
 # --- 公共方法 ---
 
 ## 判断两个方块是否具备可交互性。
+## @param tile_a: 第一个方块数据。
+## @param tile_b: 第二个方块数据。
 func can_interact(tile_a: GameTileData, tile_b: GameTileData) -> bool:
 	if tile_a == null or tile_b == null:
 		return false
@@ -50,6 +52,9 @@ func can_interact(tile_a: GameTileData, tile_b: GameTileData) -> bool:
 
 
 ## 处理两个方块之间的合并交互。
+## @param tile_a: 被移动或消耗的方块数据。
+## @param tile_b: 目标方块数据。
+## @param _p_rule: 调用方传入的交互规则引用；此规则不直接使用。
 func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: InteractionRule) -> Dictionary:
 	if can_interact(tile_a, tile_b):
 		var new_value := tile_a.value + tile_b.value
@@ -60,6 +65,7 @@ func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: In
 
 
 ## 根据数值返回其在数列中的等级（索引）。
+## @param value: 方块数值。
 func get_level_by_value(value: int) -> int:
 	var index := _luc_sequence.find(value)
 	if index != -1:
@@ -73,6 +79,7 @@ func get_level_by_value(value: int) -> int:
 
 
 ## 根据数值判断应该使用哪个配色方案。
+## @param value: 方块数值。
 func get_color_scheme_index(value: int) -> int:
 	if value > 3 and _luc_set.has(value) and not _fib_set.has(value):
 		return 1
@@ -143,6 +150,7 @@ func get_spawnable_types() -> Dictionary:
 
 
 ## 根据指定的类型ID，获取所有可生成的方块"数值"。
+## @param type_id: 测试面板传入的生成类型 ID。
 func get_spawnable_values(type_id: int) -> Array[int]:
 	match type_id:
 		0: return _fib_sequence
@@ -154,6 +162,7 @@ func get_spawnable_values(type_id: int) -> Array[int]:
 
 
 ## 根据从UI接收的类型ID，返回对应的 Tile.TileType 枚举。
+## @param _type_id: UI 传入的类型 ID；该模式统一生成玩家方块。
 func get_tile_type_from_id(_type_id: int) -> Tile.TileType:
 	return Tile.TileType.PLAYER
 

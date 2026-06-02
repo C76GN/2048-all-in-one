@@ -33,8 +33,8 @@ func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: In
 			@warning_ignore("integer_division")
 			var new_player_value: int = int(player_tile.value / monster_tile.value)
 			player_tile.value = new_player_value
-			# Note: animate_transform() and queue_free() are visual/Node operations.
-			# We return the instruction, and GameBoard will perform the visual effects.
+			# animate_transform() 与 queue_free() 属于视觉节点操作。
+			# 返回表现指令，由 GameBoardController 负责执行视觉效果。
 			return {
 				"merged_tile": player_tile,
 				"consumed_tile": monster_tile,

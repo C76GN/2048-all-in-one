@@ -114,7 +114,7 @@ const REPLAY_CONTINUE_REQUESTED: StringName = &"replay_continue_requested"
 const REPLAY_CONTINUED_AS_GAME: StringName = &"replay_continued_as_game"
 
 
-# --- HUD ---
+# --- HUD 显示 ---
 
 ## 请求刷新 HUD 显示。
 const HUD_UPDATE_REQUESTED: StringName = &"hud_update_requested"
