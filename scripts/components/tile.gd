@@ -26,6 +26,13 @@ const HORIZONTAL_PADDING: float = 10.0
 ## 动态字体大小计算的基础字号。
 const BASE_FONT_SIZE: int = 48
 
+const _MOVE_DURATION: float = 0.14
+const _SPAWN_DURATION: float = 0.18
+const _MERGE_PULSE_DURATION: float = 0.09
+const _DESPAWN_DURATION: float = 0.14
+const _STYLE_BORDER_WIDTH: int = 2
+const _STYLE_SHADOW_SIZE: int = 10
+
 
 # --- 公共变量 ---
 
@@ -50,6 +57,9 @@ var _active_scale_tween: Tween
 ## 追踪当前正在执行的旋转 Tween。
 var _active_rotation_tween: Tween
 
+## 追踪当前正在执行的高光 Tween。
+var _active_flash_tween: Tween
+
 
 # --- @onready 变量 (节点引用) ---
 
@@ -61,6 +71,7 @@ var _active_rotation_tween: Tween
 
 func _ready() -> void:
 	background.add_theme_stylebox_override("panel", background.get_theme_stylebox("panel").duplicate())
+	_configure_pivots()
 
 
 # --- 公共方法 ---
@@ -77,7 +88,7 @@ func setup(new_value: int, new_type: TileType, bg_color: Color, font_color: Colo
 	self.type = new_type
 	
 	value_label.text = str(int(value))
-	(background.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = bg_color
+	_apply_background_style(bg_color)
 	value_label.add_theme_color_override("font_color", font_color)
 	_update_font_size()
 
@@ -90,13 +101,19 @@ func reset_animation_state() -> void:
 		_active_scale_tween.kill()
 	if _active_rotation_tween and _active_rotation_tween.is_valid():
 		_active_rotation_tween.kill()
+	if _active_flash_tween and _active_flash_tween.is_valid():
+		_active_flash_tween.kill()
 
 	_active_move_tween = null
 	_active_scale_tween = null
 	_active_rotation_tween = null
+	_active_flash_tween = null
 	scale = Vector2.ONE
 	rotation_degrees = 0
 	modulate = Color.WHITE
+	background.modulate = Color.WHITE
+	value_label.modulate = Color.WHITE
+	value_label.scale = Vector2.ONE
 
 
 ## GFObjectPoolUtility 取出节点时调用，确保复用节点没有残留 Tween。
@@ -115,13 +132,15 @@ func animate_spawn() -> Tween:
 	if _active_rotation_tween and _active_rotation_tween.is_valid():
 		_active_rotation_tween.kill()
 
-	scale = Vector2.ZERO
-	rotation_degrees = -360
+	scale = Vector2.ONE * 0.42
+	rotation_degrees = -5.0
+	modulate = Color(1.0, 1.0, 1.0, 0.0)
 	_active_rotation_tween = create_tween()
 	_active_rotation_tween.set_parallel(true)
 	_active_rotation_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_active_rotation_tween.tween_property(self, "scale", Vector2.ONE, 0.1)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", 0, 0.1)
+	_active_rotation_tween.tween_property(self, "scale", Vector2.ONE, _SPAWN_DURATION)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", 0.0, _SPAWN_DURATION)
+	_active_rotation_tween.tween_property(self, "modulate:a", 1.0, _SPAWN_DURATION * 0.75)
 	return _active_rotation_tween
 
 
@@ -136,8 +155,8 @@ func animate_move(new_position: Vector2) -> Tween:
 		_active_move_tween.kill()
 
 	_active_move_tween = create_tween()
-	_active_move_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_active_move_tween.tween_property(self, "position", new_position, 0.1)
+	_active_move_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_active_move_tween.tween_property(self, "position", new_position, _MOVE_DURATION)
 	return _active_move_tween
 
 
@@ -149,8 +168,9 @@ func animate_merge() -> Tween:
 
 	_active_scale_tween = create_tween()
 	_active_scale_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_active_scale_tween.tween_property(self, "scale", Vector2.ONE * 1.2, 0.1)
-	_active_scale_tween.tween_property(self, "scale", Vector2.ONE, 0.1)
+	_active_scale_tween.tween_property(self, "scale", Vector2.ONE * 1.24, _MERGE_PULSE_DURATION)
+	_active_scale_tween.tween_property(self, "scale", Vector2.ONE, _MERGE_PULSE_DURATION)
+	_play_flash(Color(1.0, 0.92, 0.62, 1.0), _MERGE_PULSE_DURATION * 2.0)
 	return _active_scale_tween
 
 
@@ -162,8 +182,8 @@ func animate_despawn() -> Tween:
 	_active_scale_tween = create_tween()
 	_active_scale_tween.set_parallel(true)
 	_active_scale_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-	_active_scale_tween.tween_property(self, "scale", Vector2.ZERO, 0.12)
-	_active_scale_tween.tween_property(self, "modulate:a", 0.0, 0.12)
+	_active_scale_tween.tween_property(self, "scale", Vector2.ONE * 0.28, _DESPAWN_DURATION)
+	_active_scale_tween.tween_property(self, "modulate:a", 0.0, _DESPAWN_DURATION)
 	return _active_scale_tween
 
 
@@ -174,18 +194,48 @@ func animate_transform() -> Tween:
 		_active_rotation_tween.kill()
 
 	_active_rotation_tween = create_tween()
-	_active_rotation_tween.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", -15, 0.05)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", 15, 0.05)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", -10, 0.05)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", 10, 0.05)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", 0, 0.05)
+	_active_rotation_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", -8.0, 0.04)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", 8.0, 0.06)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", -5.0, 0.05)
+	_active_rotation_tween.tween_property(self, "rotation_degrees", 0.0, 0.05)
+	_play_flash(Color(0.72, 0.9, 1.0, 1.0), 0.16)
 	return _active_rotation_tween
 
 
 # --- 私有/辅助方法 ---
 
-# _update_visuals 已整合进 setup 中
+func _configure_pivots() -> void:
+	if is_instance_valid(background):
+		background.pivot_offset = background.size * 0.5
+	if is_instance_valid(value_label):
+		value_label.pivot_offset = value_label.size * 0.5
+
+
+func _apply_background_style(bg_color: Color) -> void:
+	var stylebox := background.get_theme_stylebox("panel") as StyleBoxFlat
+	if stylebox == null:
+		return
+
+	stylebox.bg_color = bg_color
+	stylebox.border_color = bg_color.lightened(0.18)
+	stylebox.set_border_width_all(_STYLE_BORDER_WIDTH)
+	stylebox.shadow_color = Color(0.0, 0.0, 0.0, 0.22)
+	stylebox.shadow_size = _STYLE_SHADOW_SIZE
+	stylebox.shadow_offset = Vector2(0.0, 4.0)
+
+
+func _play_flash(color: Color, duration: float) -> void:
+	if _active_flash_tween and _active_flash_tween.is_valid():
+		_active_flash_tween.kill()
+
+	background.modulate = color
+	value_label.scale = Vector2.ONE * 1.08
+	_active_flash_tween = create_tween()
+	_active_flash_tween.set_parallel(true)
+	_active_flash_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_active_flash_tween.tween_property(background, "modulate", Color.WHITE, duration)
+	_active_flash_tween.tween_property(value_label, "scale", Vector2.ONE, duration)
 
 
 ## 动态计算并应用最佳字体大小。

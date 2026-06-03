@@ -9,6 +9,10 @@ const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
 const _COMMAND_HISTORY_LIMIT: int = 1024
 const _AUDIO_BUS_MASTER: String = "Master"
 const _GAME_MODE_CONFIG_CACHE_UTILITY_SCRIPT = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
+const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT = preload("res://scripts/utilities/saved_resource_collection_utility.gd")
+const _GAME_UI_ROUTER_UTILITY_SCRIPT = preload("res://scripts/utilities/game_ui_router_utility.gd")
+const _GAME_UI_MOTION_UTILITY_SCRIPT = preload("res://scripts/utilities/game_ui_motion_utility.gd")
+const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT = preload("res://scripts/utilities/game_board_feedback_utility.gd")
 
 
 # --- 公共方法 ---
@@ -48,12 +52,15 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFSeedUtility).as_singleton()
 	await binder.bind_utility(GFAssetUtility).as_singleton()
 	await binder.bind_utility(_GAME_MODE_CONFIG_CACHE_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFCommandHistoryUtility).from_instance(_create_history_utility()).as_singleton()
 	await binder.bind_utility(GFTimeUtility).as_singleton()
 	await binder.bind_utility(GFLogUtility).from_instance(_create_log_utility()).as_singleton()
 	await binder.bind_utility(GFSceneUtility).as_singleton()
 	await binder.bind_utility(GFUIUtility).as_singleton()
-	await binder.bind_utility(GFLevelUtility).as_singleton()
+	await binder.bind_utility(_GAME_UI_ROUTER_UTILITY_SCRIPT).with_alias(GFUIRouterUtility).as_singleton()
+	await binder.bind_utility(_GAME_UI_MOTION_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFSignalUtility).as_singleton()
 	await binder.bind_utility(GFInputMappingUtility).as_singleton()
 	await binder.bind_utility(GFObjectPoolUtility).from_instance(_create_object_pool_utility()).as_singleton()
@@ -71,7 +78,6 @@ func _bind_systems(binder: GFBinder) -> void:
 	await binder.bind_system(ReplaySystem).as_singleton()
 	await binder.bind_system(GameFlowSystem).as_singleton()
 	await binder.bind_system(GridMovementSystem).as_singleton()
-	await binder.bind_system(GFActionQueueSystem).as_singleton()
 	await binder.bind_system(RuleSystem).as_singleton()
 	await binder.bind_system(GridSpawnSystem).as_singleton()
 	await binder.bind_system(GameInitSystem).as_singleton()

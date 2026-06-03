@@ -8,13 +8,12 @@ extends GFController
 
 # --- 常量 ---
 
-## 暂停菜单场景路径。
-const PAUSE_MENU_SCENE: String = "res://scenes/ui/pause_menu.tscn"
-
-## 游戏结束菜单场景路径。
-const GAME_OVER_MENU_SCENE: String = "res://scenes/ui/game_over_menu.tscn"
-
 const _LOG_TAG: String = "GamePlayController"
+const _LEVEL_CLEANUP_ACTION_QUEUES: StringName = &"gameplay_action_queues"
+const _ROUTE_PAUSE_MENU: StringName = &"pause_menu"
+const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
+const _BACKGROUND_SHADER_BASE_COLOR: StringName = &"base_color"
+const _BACKGROUND_SHADER_ACCENT_COLOR: StringName = &"accent_color"
 
 
 # --- 私有变量 ---
@@ -31,6 +30,7 @@ var _command_history: GFCommandHistoryUtility
 var _action_queue: GFActionQueueSystem
 var _game_flow_system: GameFlowSystem
 var _replay_system: ReplaySystem
+var _level_utility: GFLevelUtility
 var _signal_utility: GFSignalUtility
 var _test_utility: TestToolUtility
 var _log: GFLogUtility
@@ -59,9 +59,11 @@ func _ready() -> void:
 	_current_game_model = get_model(CurrentGameModel) as CurrentGameModel
 	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
 	_replay_system = get_system(ReplaySystem) as ReplaySystem
+	_level_utility = get_utility(GFLevelUtility) as GFLevelUtility
 	_signal_utility = get_utility(GFSignalUtility) as GFSignalUtility
 	_test_utility = get_utility(TestToolUtility) as TestToolUtility
 	_log = get_utility(GFLogUtility) as GFLogUtility
+	_register_level_runtime_cleanup()
 	
 	if _page_title:
 		_page_title.visible = false
@@ -109,6 +111,8 @@ func _cleanup_listeners() -> void:
 		return
 	_is_cleaned_up = true
 	
+	_unregister_level_runtime_cleanup()
+
 	var console := get_utility(GFConsoleUtility) as GFConsoleUtility
 	if console:
 		console.unregister_command("toggle_test_panel")
@@ -131,6 +135,8 @@ func _cleanup_listeners() -> void:
 
 	if is_instance_valid(_test_utility):
 		_test_utility.clear_context()
+
+	_level_utility = null
 	
 	if _log:
 		_log.debug(_LOG_TAG, "已清理 GF 事件监听和原生信号连接。")
@@ -143,6 +149,16 @@ func _clear_action_queues() -> void:
 	if is_instance_valid(_action_queue):
 		_action_queue.clear_queue(true)
 		_action_queue.clear_all_named_queues(true)
+
+
+func _register_level_runtime_cleanup() -> void:
+	if is_instance_valid(_level_utility):
+		_level_utility.register_runtime_cleanup(_LEVEL_CLEANUP_ACTION_QUEUES, _clear_action_queues)
+
+
+func _unregister_level_runtime_cleanup() -> void:
+	if is_instance_valid(_level_utility):
+		_level_utility.unregister_runtime_cleanup(_LEVEL_CLEANUP_ACTION_QUEUES)
 
 
 func _connect_native_signal(source_signal: Signal, callback: Callable) -> void:
@@ -252,6 +268,26 @@ func _setup_test_tools_for_current_board() -> void:
 		)
 
 
+func _apply_game_background_theme(theme: BoardTheme) -> void:
+	if not is_instance_valid(background_color_rect):
+		return
+
+	if not is_instance_valid(theme):
+		background_color_rect.color = Color(0.14902, 0.14902, 0.14902, 1.0)
+		return
+
+	background_color_rect.color = theme.game_background_color
+	var shader_material := background_color_rect.material as ShaderMaterial
+	if shader_material == null:
+		return
+
+	shader_material.set_shader_parameter(_BACKGROUND_SHADER_BASE_COLOR, theme.game_background_color)
+	shader_material.set_shader_parameter(
+		_BACKGROUND_SHADER_ACCENT_COLOR,
+		theme.board_panel_color.lightened(0.35)
+	)
+
+
 # --- 信号处理函数 ---
 
 func _on_scene_will_change(_payload: Variant = null) -> void:
@@ -265,7 +301,8 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 	if not _action_queue:
 		_action_queue = get_system(GFActionQueueSystem) as GFActionQueueSystem
 	
-	_clear_action_queues()
+	if not is_instance_valid(_level_utility):
+		_clear_action_queues()
 			
 	_loaded_bookmark_data = data.loaded_bookmark_data
 	
@@ -278,9 +315,10 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 	
 	var mode_config := _current_game_model.mode_config.get_value() as GameModeConfig
 	if is_instance_valid(mode_config.board_theme):
-		background_color_rect.color = mode_config.board_theme.game_background_color
+		_apply_game_background_theme(mode_config.board_theme)
 		game_board.setup(mode_config.color_schemes, mode_config.board_theme)
 	else:
+		_apply_game_background_theme(null)
 		game_board.setup(mode_config.color_schemes, null)
 
 	_connect_signals()
@@ -322,16 +360,20 @@ func _on_toggle_pause_ui(_payload: Variant = null) -> void:
 	var tree := get_tree()
 	if tree.paused:
 		# 恢复游戏：弹出暂停菜单
-		var ui_util := get_utility(GFUIUtility) as GFUIUtility
-		if ui_util:
-			ui_util.pop_panel()
+		var ui_router := get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		if not is_instance_valid(ui_router) or not ui_router.back(GFUIUtility.Layer.POPUP):
+			var ui_util := get_utility(GFUIUtility) as GFUIUtility
+			if ui_util:
+				ui_util.pop_panel()
 		tree.paused = false
 	else:
 		# 暂停游戏：弹出暂停菜单
 		tree.paused = true
-		var ui_util := get_utility(GFUIUtility) as GFUIUtility
-		if ui_util:
-			ui_util.push_panel(PAUSE_MENU_SCENE)
+		var ui_router := get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		if is_instance_valid(ui_router):
+			ui_router.push_route(_ROUTE_PAUSE_MENU)
+		else:
+			push_warning("[GamePlayController] GFUIRouterUtility 未注册，无法打开暂停菜单。")
 
 
 func _on_show_hud_message_event(payload: HudMessagePayload) -> void:
@@ -362,7 +404,8 @@ func _on_game_state_changed(new_state: StringName) -> void:
 		return
 
 	if new_state == EventNames.STATE_GAME_OVER:
-		# 使用 GFUIUtility 弹出游戏结束菜单
-		var ui_util := get_utility(GFUIUtility) as GFUIUtility
-		if ui_util:
-			ui_util.push_panel(GAME_OVER_MENU_SCENE)
+		var ui_router := get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		if is_instance_valid(ui_router):
+			ui_router.push_route(_ROUTE_GAME_OVER_MENU)
+		else:
+			push_warning("[GamePlayController] GFUIRouterUtility 未注册，无法打开游戏结束菜单。")

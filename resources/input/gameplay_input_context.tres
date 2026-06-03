@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="GFInputContext" format=3]
 
-[ext_resource type="Script" path="res://addons/gf/input/gf_input_context.gd" id="1_context"]
-[ext_resource type="Script" path="res://addons/gf/input/gf_input_action.gd" id="2_action"]
-[ext_resource type="Script" path="res://addons/gf/input/gf_input_binding.gd" id="3_binding"]
-[ext_resource type="Script" path="res://addons/gf/input/gf_input_mapping.gd" id="4_mapping"]
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_context.gd" id="1_context"]
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_action.gd" id="2_action"]
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_binding.gd" id="3_binding"]
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_mapping.gd" id="4_mapping"]
 
 [sub_resource type="Resource" id="Action_pause"]
 script = ExtResource("2_action")

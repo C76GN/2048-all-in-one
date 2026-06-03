@@ -11,6 +11,9 @@ extends GFController
 ## 动态流程标签列表场景。
 const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://scenes/ui/flow_label_list.tscn")
 const _GET_HUD_STATS_QUERY_SCRIPT = preload("res://scripts/queries/get_hud_stats_query.gd")
+const _FEEDBACK_TWEEN_META: StringName = &"_hud_feedback_tween"
+const _FEEDBACK_SCALE: float = 1.035
+const _FEEDBACK_DURATION: float = 0.22
 
 
 # --- 私有变量 ---
@@ -24,6 +27,7 @@ var _game_status_model: GameStatusModel
 var _score_value_label: Label
 var _move_count_value_label: Label
 var _status_message_label: RichTextLabel
+var _last_display_values: Dictionary = {}
 
 
 # --- @onready 变量 (节点引用) ---
@@ -180,6 +184,10 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 			(ui_node as RichTextLabel).text = str(data_to_display)
 
 		ui_node.visible = true
+		var display_signature: String = _make_display_signature(data_to_display)
+		if not _last_display_values.has(key) or _last_display_values[key] != display_signature:
+			_pulse_control(ui_node)
+		_last_display_values[key] = display_signature
 
 
 func _update_ui_text() -> void:
@@ -199,6 +207,47 @@ func _deferred_refresh() -> void:
 		_refresh_all()
 
 
+func _pulse_control(control: Control) -> void:
+	if not is_instance_valid(control):
+		return
+
+	control.pivot_offset = control.size * 0.5
+	_kill_feedback_tween(control)
+	control.scale = Vector2.ONE * _FEEDBACK_SCALE
+	control.modulate = Color(1.0, 0.92, 0.62, 1.0)
+	if not control.is_inside_tree():
+		control.scale = Vector2.ONE
+		control.modulate = Color.WHITE
+		return
+
+	var tween := control.create_tween()
+	tween.set_parallel(true)
+	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(control, "scale", Vector2.ONE, _FEEDBACK_DURATION)
+	tween.tween_property(control, "modulate", Color.WHITE, _FEEDBACK_DURATION)
+	control.set_meta(_FEEDBACK_TWEEN_META, tween)
+
+
+func _kill_feedback_tween(control: Control) -> void:
+	var tween: Tween = null
+	if is_instance_valid(control) and control.has_meta(_FEEDBACK_TWEEN_META):
+		tween = _get_tween_value(control.get_meta(_FEEDBACK_TWEEN_META))
+	if tween != null and tween.is_valid():
+		tween.kill()
+	control.set_meta(_FEEDBACK_TWEEN_META, null)
+
+
+func _get_tween_value(value: Variant) -> Tween:
+	if value is Tween:
+		var tween: Tween = value
+		return tween
+	return null
+
+
+func _make_display_signature(value: Variant) -> String:
+	return var_to_str(value)
+
+
 # --- 信号处理函数 ---
 
 func _on_hud_update_requested(_p: Variant = null) -> void:
@@ -206,10 +255,12 @@ func _on_hud_update_requested(_p: Variant = null) -> void:
 
 
 func _on_score_changed(_old_value: int, _new_value: int) -> void:
+	_pulse_control(_score_value_label)
 	_mark_dirty()
 
 
 func _on_move_count_changed(_old_value: int, _new_value: int) -> void:
+	_pulse_control(_move_count_value_label)
 	_mark_dirty()
 
 
@@ -225,6 +276,8 @@ func _on_status_message_changed(_old: String, new_value: String) -> void:
 	if is_instance_valid(_status_message_label):
 		_status_message_label.text = new_value
 		_status_message_label.visible = not new_value.is_empty()
+		if not new_value.is_empty():
+			_pulse_control(_status_message_label)
 	else:
 		_mark_dirty()
 

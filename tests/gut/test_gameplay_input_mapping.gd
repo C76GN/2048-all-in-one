@@ -22,13 +22,17 @@ func test_keyboard_action_survives_until_next_system_poll() -> void:
 	assert_false(input_mapping.consume_action(ACTION_MOVE_RIGHT), "consume_action 应只消费一次 just_started 状态。")
 
 
-func test_transient_keyboard_action_clears_after_utility_tick() -> void:
+func test_transient_keyboard_action_clears_after_next_frame_utility_tick() -> void:
 	var input_mapping := GFInputMappingUtility.new()
 	input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
 
 	input_mapping.handle_input_event(_make_key_event(KEY_LEFT))
 	assert_true(input_mapping.was_action_just_started(ACTION_MOVE_LEFT))
 
+	input_mapping.tick(0.016)
+	assert_true(input_mapping.was_action_just_started(ACTION_MOVE_LEFT), "同帧 utility tick 不应提前清除输入缓冲。")
+
+	await get_tree().process_frame
 	input_mapping.tick(0.016)
 
 	assert_false(input_mapping.was_action_just_started(ACTION_MOVE_LEFT))

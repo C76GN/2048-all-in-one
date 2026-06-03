@@ -1,0 +1,68 @@
+[gd_resource type="Resource" script_class="GFResourceRegistry" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/assets/gf_resource_registry.gd" id="1_registry"]
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/assets/gf_resource_registry_entry.gd" id="2_entry"]
+
+[sub_resource type="Resource" id="Entry_classic"]
+script = ExtResource("2_entry")
+id = &"classic"
+path = "res://resources/modes/classic_mode_config.tres"
+type_hint = "GameModeConfig"
+fields = {
+"category": &"standard",
+"sort_order": 10
+}
+
+[sub_resource type="Resource" id="Entry_fibonacci"]
+script = ExtResource("2_entry")
+id = &"fibonacci"
+path = "res://resources/modes/fibonacci_mode_config.tres"
+type_hint = "GameModeConfig"
+fields = {
+"category": &"sequence",
+"sort_order": 20
+}
+
+[sub_resource type="Resource" id="Entry_lucas_fibonacci"]
+script = ExtResource("2_entry")
+id = &"lucas_fibonacci"
+path = "res://resources/modes/lucas_fibonacci_mode_config.tres"
+type_hint = "GameModeConfig"
+fields = {
+"category": &"sequence",
+"sort_order": 30
+}
+
+[sub_resource type="Resource" id="Entry_progressive"]
+script = ExtResource("2_entry")
+id = &"progressive"
+path = "res://resources/modes/progressive_mode_config.tres"
+type_hint = "GameModeConfig"
+fields = {
+"category": &"challenge",
+"sort_order": 40
+}
+
+[sub_resource type="Resource" id="Entry_step_by_step"]
+script = ExtResource("2_entry")
+id = &"step_by_step"
+path = "res://resources/modes/step_by_step_mode_config.tres"
+type_hint = "GameModeConfig"
+fields = {
+"category": &"challenge",
+"sort_order": 50
+}
+
+[sub_resource type="Resource" id="Entry_battle"]
+script = ExtResource("2_entry")
+id = &"battle"
+path = "res://resources/modes/battle_mode_config.tres"
+type_hint = "GameModeConfig"
+fields = {
+"category": &"challenge",
+"sort_order": 60
+}
+
+[resource]
+script = ExtResource("1_registry")
+entries = Array[ExtResource("2_entry")]([SubResource("Entry_classic"), SubResource("Entry_fibonacci"), SubResource("Entry_lucas_fibonacci"), SubResource("Entry_progressive"), SubResource("Entry_step_by_step"), SubResource("Entry_battle")])

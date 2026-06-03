@@ -8,8 +8,7 @@ extends "res://scripts/ui/base/game_ui_controller.gd"
 
 # --- 常量 ---
 
-## 设置菜单场景路径。
-const SETTINGS_MENU_SCENE: String = "res://scenes/menus/settings_menu.tscn"
+const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
 
 
 # --- @onready 变量 (节点引用) ---
@@ -71,6 +70,8 @@ func _on_main_menu_button_pressed() -> void:
 
 
 func _on_settings_button_pressed() -> void:
-	var ui_util := get_utility(GFUIUtility) as GFUIUtility
-	if ui_util:
-		ui_util.push_panel(SETTINGS_MENU_SCENE, GFUIUtility.Layer.POPUP, _configure_settings_panel)
+	var ui_router := get_utility(GFUIRouterUtility) as GFUIRouterUtility
+	if is_instance_valid(ui_router):
+		ui_router.push_route(_ROUTE_SETTINGS_MENU, {}, {}, _configure_settings_panel)
+	else:
+		push_warning("[PauseMenu] GFUIRouterUtility 未注册，无法打开设置菜单。")

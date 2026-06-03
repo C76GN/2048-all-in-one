@@ -10,6 +10,9 @@ extends "res://scripts/ui/base/game_ui_controller.gd"
 ## 单个模式卡片 UI 场景。
 const MODE_CARD_SCENE: PackedScene = preload("res://scenes/ui/mode_card.tscn")
 const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
+const _CARD_REVEAL_OFFSET: Vector2 = Vector2(18.0, 0.0)
+const _DETAIL_REVEAL_OFFSET: Vector2 = Vector2(10.0, 0.0)
+const _DETAIL_REVEAL_STAGGER: float = 0.02
 
 
 # --- 导出变量 ---
@@ -17,13 +20,10 @@ const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mod
 ## 游戏主场景路径。
 @export_file("*.tscn") var game_play_scene_path: String = ""
 
-## 可玩模式配置资源路径列表。
-@export var mode_config_paths: Array[String] = []
-
-
 # --- 私有变量 ---
 
 var _selected_mode_config: GameModeConfig = null
+var _mode_config_paths: PackedStringArray = PackedStringArray()
 var _current_grid_size: int = 4
 var _items_per_page: int = 5
 var _current_page: int = 0
@@ -61,7 +61,7 @@ func _ready() -> void:
 	if is_instance_valid(_seed_line_edit):
 		_seed_line_edit.placeholder_text = tr("HINT_SEED_PLACEHOLDER")
 
-	_sanitize_mode_config_paths()
+	_load_mode_config_paths()
 	_create_persistent_info_panel()
 	_update_pagination_buttons_visibility()
 
@@ -100,9 +100,9 @@ func _update_list_and_focus(is_initial_load: bool = false) -> void:
 
 	if _total_pages > 0:
 		var start_index: int = _current_page * _items_per_page
-		var end_index: int = mini(start_index + _items_per_page, mode_config_paths.size())
+		var end_index: int = mini(start_index + _items_per_page, _mode_config_paths.size())
 		for i in range(start_index, end_index):
-			var config_path: String = mode_config_paths[i]
+			var config_path: String = _mode_config_paths[i]
 			if config_path.is_empty():
 				continue
 
@@ -126,6 +126,7 @@ func _update_list_and_focus(is_initial_load: bool = false) -> void:
 	_set_selected_mode_by_path(first_card.get_config_path())
 	if is_initial_load:
 		first_card.grab_focus()
+	_bind_and_reveal_mode_cards()
 
 
 func _focus_last_selected_card() -> void:
@@ -138,18 +139,8 @@ func _focus_last_selected_card() -> void:
 			break
 
 
-func _sanitize_mode_config_paths() -> void:
-	var valid_paths: Array[String] = []
-	for config_path in mode_config_paths:
-		if config_path.is_empty():
-			continue
-
-		if ResourceLoader.exists(config_path):
-			valid_paths.append(config_path)
-		else:
-			push_warning("[ModeSelection] 缺少模式配置资源: %s" % config_path)
-
-	mode_config_paths = valid_paths
+func _load_mode_config_paths() -> void:
+	_mode_config_paths = GAME_MODE_CONFIG_CACHE_UTILITY.get_config_paths()
 
 
 func _create_persistent_info_panel() -> void:
@@ -233,6 +224,7 @@ func _update_ui_for_selection() -> void:
 
 	_populate_left_panel()
 	_populate_right_panel()
+	_reveal_selection_panels()
 
 
 func _show_default_info() -> void:
@@ -325,10 +317,10 @@ func _update_high_score_label() -> void:
 
 
 func _update_pagination_buttons_visibility() -> void:
-	if mode_config_paths.is_empty():
+	if _mode_config_paths.is_empty():
 		_total_pages = 0
 	else:
-		_total_pages = int(ceil(float(mode_config_paths.size()) / _items_per_page))
+		_total_pages = int(ceil(float(_mode_config_paths.size()) / _items_per_page))
 
 	_pagination_container.visible = _total_pages > 1
 
@@ -347,6 +339,28 @@ func _update_grid_size_and_ui(index: int) -> void:
 
 	if is_instance_valid(_selected_mode_config):
 		_update_high_score_label()
+
+
+func _bind_and_reveal_mode_cards() -> void:
+	var motion_utility := _get_ui_motion_utility()
+	if not is_instance_valid(motion_utility):
+		return
+
+	if motion_utility.has_method("bind_interactive_controls"):
+		motion_utility.bind_interactive_controls(_mode_list_container)
+	if motion_utility.has_method("play_children_reveal"):
+		motion_utility.play_children_reveal(_mode_list_container, _CARD_REVEAL_OFFSET)
+
+
+func _reveal_selection_panels() -> void:
+	var motion_utility := _get_ui_motion_utility()
+	if not is_instance_valid(motion_utility):
+		return
+	if not motion_utility.has_method("play_children_reveal"):
+		return
+
+	motion_utility.play_children_reveal(_left_panel_container, _DETAIL_REVEAL_OFFSET, _DETAIL_REVEAL_STAGGER)
+	motion_utility.play_children_reveal(_right_panel_container, _DETAIL_REVEAL_OFFSET, _DETAIL_REVEAL_STAGGER)
 
 
 func _change_page(direction: int) -> void:

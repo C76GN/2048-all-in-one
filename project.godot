@@ -40,6 +40,8 @@ enabled=PackedStringArray("res://addons/gf/plugin.cfg", "res://addons/gut/plugin
 [gf]
 
 project/installers=PackedStringArray("uid://dlby16xly4hri")
+network/contract_paths=PackedStringArray()
+network/contract_output_dir="res://gf/generated/network"
 
 [gui]
 

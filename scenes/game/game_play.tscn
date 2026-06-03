@@ -1,11 +1,11 @@
-[gd_scene load_steps=7 format=3 uid="uid://28ale2iku1n4"]
+[gd_scene load_steps=9 format=3 uid="uid://28ale2iku1n4"]
 
 [ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://scenes/ui/layouts/base_three_column_layout.tscn" id="1_base"]
 [ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://scripts/controllers/game_play_controller.gd" id="2_script"]
 [ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://scenes/ui/hud.tscn" id="3_hud"]
 [ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://scripts/controllers/game_board_controller.gd" id="4_board"]
 [ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://scenes/ui/test_panel.tscn" id="5_test_panel"]
-
+[ext_resource type="Shader" path="res://resources/shaders/game_background.gdshader" id="6_background_shader"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
 bg_color = Color(0.282702, 0.282702, 0.282702, 1)
@@ -14,10 +14,20 @@ corner_radius_top_right = 15
 corner_radius_bottom_right = 15
 corner_radius_bottom_left = 15
 
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_background"]
+shader = ExtResource("6_background_shader")
+shader_parameter/base_color = Color(0.14902, 0.14902, 0.14902, 1)
+shader_parameter/accent_color = Color(0.95, 0.72, 0.36, 1)
+shader_parameter/grid_strength = 0.08
+shader_parameter/glow_strength = 0.24
+shader_parameter/vignette_strength = 0.34
+shader_parameter/pulse_speed = 0.45
+
 [node name="GamePlay" instance=ExtResource("1_base")]
 script = ExtResource("2_script")
 
 [node name="Background" parent="." index="0"]
+material = SubResource("ShaderMaterial_background")
 color = Color(0.14902, 0.14902, 0.14902, 1)
 
 [node name="HUD" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0" instance=ExtResource("3_hud")]

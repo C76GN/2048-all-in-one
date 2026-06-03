@@ -28,7 +28,11 @@
 - 场景控制器：`scripts/controllers/**` 放置直接继承 `GFController` 的游戏场景控制器，类名保留 `Controller` 后缀。
 - 状态模型：`scripts/models/**` 保存棋盘、当前模式、分数、最高分、设置选择等可绑定状态，类名保留 `Model` 后缀。
 - 业务系统：`scripts/systems/**` 负责初始化、输入、移动、生成、状态流转、存档、书签、回放和场景路由。
+- 项目 Utility：`scripts/utilities/**` 承接项目级 gf Utility，例如设置过滤、模式配置缓存和基于 `GFStorageUtility` 的时间戳 Resource 集合持久化。
 - 规则资源：`scripts/rules/**` 定义移动、交互、生成、结束判定；`resources/modes/*.tres` 组合这些规则形成不同玩法模式。
+- 对局 session：`GameInitSystem` 使用 `GFLevelUtility` 记录当前一局的模式、尺寸、种子和来源；这只是运行时 session 语义，不代表项目引入关卡进度玩法。
+- 模式目录：`resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式列表，项目层通过 `GameModeConfigCacheUtility` 读取并复用 `GFAssetUtility` 缓存。
+- UI 路由：`resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 `GFUIRoute` 资源目录；`GameUiRouterUtility` 作为 `GFUIRouterUtility` 的项目级 Adapter 从注册表加载暂停、游戏结束和设置面板 route_id。业务 UI 优先按 route_id 打开面板，必要时才回退到 `GFUIUtility` 路径调用。
 - 表现层：`scripts/ui/**`、`scripts/menus/**` 负责菜单、HUD、列表项和弹层界面。
 - 数据与基础能力：`scripts/data/**` 放置 Resource、Payload 和纯数据对象；`scripts/foundation/**` 放置不接入 gf 生命周期的纯静态算法。
 - 配置校验：模式配置应优先使用 `GFValidationReport` 汇总问题，再由调用方决定是否 `push_error` 或写日志。
@@ -52,6 +56,7 @@
 - `scripts/data/game_mode_config.gd`
 - `resources/rules/**`
 - `resources/modes/*.tres`
+- `resources/registries/game_mode_registry.tres`
 - `resources/themes/**`
 - `scripts/systems/rule_system.gd`
 - `scripts/systems/game_init_system.gd`
@@ -85,17 +90,23 @@
 - `scripts/systems/game_state_system.gd`
 - `scripts/data/bookmark_data.gd`
 - `scripts/data/replay_data.gd`
+- `scripts/utilities/saved_resource_collection_utility.gd`
 - `scripts/utilities/game_settings_utility.gd`
 - `scripts/boot/game_architecture_installer.gd`
 - `scripts/menus/settings_menu.gd`
 
-存档字段变化属于高风险改动。要考虑旧数据兼容、默认值、完整性校验、Resource 保存路径和回放/书签恢复流程。
+存档字段变化属于高风险改动。要考虑旧数据兼容、默认值、完整性校验、Resource 保存路径和回放/书签恢复流程。书签和回放的文件集合逻辑应优先复用 `SavedResourceCollectionUtility`，不要在各自 System 中重复实现目录枚举、路径写回和时间戳排序。
 
 ### UI、菜单或表现变更
 
 检查并按需更新：
 
 - `scenes/**/*.tscn`
+- `resources/registries/ui_route_registry.tres`
+- `resources/ui_routes/*.tres`
+- `scripts/utilities/game_ui_router_utility.gd`
+- `scripts/utilities/game_ui_motion_utility.gd`
+- `scripts/utilities/game_board_feedback_utility.gd`
 - `scripts/controllers/game_play_controller.gd`
 - `scripts/controllers/game_board_controller.gd`
 - `scripts/ui/**`
@@ -121,6 +132,10 @@
 - 优先为 gf 增加通用能力、诊断、校验或文档，而不是为示例项目写特例。
 - 临时框架补丁必须有简短记录；当前 gf 版本已包含后删除该记录，避免维护噪音。
 - 在最终回复中单独说明：为什么需要改框架、这个改动如何服务其他项目、还发现了哪些后续框架缺口。
+
+当前临时框架补丁：
+
+- gf Utility 退出清理：`GFUIUtility`、`GFObjectPoolUtility`、`GFConsoleUtility`、`GFDebugOverlayUtility`、`GFScreenTransitionUtility` 在 `dispose()` 或销毁辅助函数中避免同步 `remove_child()` 后再 `queue_free()`。问题场景是 Godot 退出时 autoload `_exit_tree()` 触发架构 dispose，此时父节点可能正忙于 children 变更；直接 `queue_free()` 让引擎在安全点释放节点，可避免 `Parent node is busy adding/removing children`。当 gf 上游包含等价修复后删除本记录。
 
 ### 文档变更
 

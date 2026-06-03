@@ -173,8 +173,7 @@ func dispose() -> void:
 	_cancel_all_pending_async_panel_requests()
 	for canvas: CanvasLayer in _layer_roots.values():
 		if is_instance_valid(canvas):
-			_detach_node_from_tree(canvas)
-			canvas.queue_free()
+			_queue_free_node(canvas)
 	_layer_roots.clear()
 
 	for stack: Array in _panel_stacks.values():
@@ -876,6 +875,11 @@ func _detach_node_from_tree(node: Node) -> void:
 	var parent: Node = node.get_parent()
 	if parent != null:
 		parent.remove_child(node)
+
+
+func _queue_free_node(node: Node) -> void:
+	if is_instance_valid(node) and not node.is_queued_for_deletion():
+		node.queue_free()
 
 
 func _next_layer_request_serial(layer: Layer) -> int:

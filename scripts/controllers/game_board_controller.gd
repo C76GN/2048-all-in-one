@@ -13,6 +13,7 @@ extends GFController
 
 ## 预加载方块场景，用于在运行时动态实例化。
 const TileScene: PackedScene = preload("res://scenes/components/tile.tscn")
+const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT = preload("res://scripts/utilities/game_board_feedback_utility.gd")
 
 ## 每个单元格的像素尺寸。
 const CELL_SIZE: int = 100
@@ -27,6 +28,10 @@ const BOARD_PADDING: int = 15
 const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 
 const _LOG_TAG: String = "GameBoardController"
+const _BOARD_SHADOW_SIZE: int = 18
+const _BOARD_BORDER_WIDTH: int = 2
+const _CELL_BORDER_WIDTH: int = 1
+const _BOARD_INTRO_DURATION: float = 0.22
 
 
 # --- 导出变量 ---
@@ -63,6 +68,8 @@ var _is_cleaned_up: bool = false
 
 ## 棋盘扩展动画版本号，用于丢弃旧 Tween 的延迟回调。
 var _expansion_token: int = 0
+
+var _board_intro_tween: Tween
 
 
 # --- @onready 变量 (节点引用) ---
@@ -124,6 +131,7 @@ func setup(
 	# GridModel 的逻辑初始化由 GameInitSystem 完成，GameBoardController 只同步视觉。
 	call_deferred(&"_update_board_layout")
 	_draw_board_cells()
+	call_deferred(&"_play_board_intro")
 	
 	if is_instance_valid(_pool):
 		var grid_size: int = model.grid_size if is_instance_valid(model) else 0
@@ -155,6 +163,19 @@ func clear_visual_tiles() -> void:
 ## @param tile: 要释放或回收到对象池的视觉方块节点。
 func release_visual_tile(tile: Tile) -> void:
 	_release_visual_tile(tile)
+
+
+## 在指定方块位置播放棋盘反馈特效。
+## @param tile: 作为反馈定位来源的视觉方块。
+## @param feedback_type: 反馈类型，如 merge、spawn、transform。
+## @param label_text: 可选浮动文字。
+func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: String = "") -> void:
+	if not is_instance_valid(tile) or not is_instance_valid(board_container):
+		return
+
+	var feedback_utility := get_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)
+	if is_instance_valid(feedback_utility) and feedback_utility.has_method("play_feedback"):
+		feedback_utility.play_feedback(board_container, tile.position, feedback_type, label_text)
 
 
 ## 获取当前棋盘上数值最大的玩家方块的值。
@@ -326,7 +347,9 @@ func _animate_release_visual_tile(tile: Tile) -> void:
 func _release_visual_tile_if_valid(tile: Tile, release_token: RefCounted) -> void:
 	if not is_instance_valid(tile):
 		return
-	if tile.get_meta(RELEASE_TOKEN_META, null) != release_token:
+	if not tile.has_meta(RELEASE_TOKEN_META):
+		return
+	if tile.get_meta(RELEASE_TOKEN_META) != release_token:
 		return
 
 	_release_visual_tile(tile)
@@ -425,14 +448,26 @@ func _update_board_layout() -> void:
 		return
 
 	if is_instance_valid(board_theme):
-		var panel_style := board_background.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
-		panel_style.bg_color = board_theme.board_panel_color
-		board_background.add_theme_stylebox_override("panel", panel_style)
+		_apply_board_background_style()
 
 	board_background.position = layout_params.offset
 	board_background.size = layout_params.scaled_size
 	board_container.position = layout_params.offset + Vector2(BOARD_PADDING, BOARD_PADDING) * layout_params.scale_ratio
 	board_container.scale = Vector2.ONE * layout_params.scale_ratio
+
+
+func _apply_board_background_style() -> void:
+	var panel_style := board_background.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
+	if panel_style == null:
+		return
+
+	panel_style.bg_color = board_theme.board_panel_color
+	panel_style.border_color = board_theme.board_panel_color.lightened(0.16)
+	panel_style.set_border_width_all(_BOARD_BORDER_WIDTH)
+	panel_style.shadow_color = Color(0.0, 0.0, 0.0, 0.28)
+	panel_style.shadow_size = _BOARD_SHADOW_SIZE
+	panel_style.shadow_offset = Vector2(0.0, 6.0)
+	board_background.add_theme_stylebox_override("panel", panel_style)
 
 
 ## 绘制棋盘的静态背景单元格。
@@ -469,7 +504,7 @@ func _draw_board_cells() -> void:
 			if is_instance_valid(board_theme) and cell_instance is Panel:
 				var stylebox: StyleBox = cell_instance.get_theme_stylebox("panel").duplicate()
 				if stylebox is StyleBoxFlat:
-					stylebox.bg_color = board_theme.empty_cell_color
+					_configure_cell_style(stylebox as StyleBoxFlat)
 					cell_instance.add_theme_stylebox_override("panel", stylebox)
 
 			# 确保背景格子在最底层
@@ -479,6 +514,8 @@ func _draw_board_cells() -> void:
 ## 执行棋盘从旧尺寸到新尺寸的扩建动画。
 func _animate_expansion(old_size: int, new_size: int) -> void:
 	_expansion_token += 1
+	if _board_intro_tween and _board_intro_tween.is_valid():
+		_board_intro_tween.kill()
 	var expansion_token: int = _expansion_token
 	var final_layout: Dictionary = _calculate_layout_params(new_size)
 	if final_layout.is_empty():
@@ -518,7 +555,7 @@ func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) ->
 			if is_instance_valid(board_theme) and cell_instance is Panel:
 				var stylebox: StyleBox = cell_instance.get_theme_stylebox("panel").duplicate()
 				if stylebox is StyleBoxFlat:
-					stylebox.bg_color = board_theme.empty_cell_color
+					_configure_cell_style(stylebox as StyleBoxFlat)
 					cell_instance.add_theme_stylebox_override("panel", stylebox)
 
 			if x >= old_size or y >= old_size:
@@ -530,6 +567,43 @@ func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) ->
 			else:
 				cell_instance.size = final_size
 				cell_instance.position = final_pos
+
+
+func _configure_cell_style(stylebox: StyleBoxFlat) -> void:
+	stylebox.bg_color = board_theme.empty_cell_color
+	stylebox.border_color = board_theme.empty_cell_color.lightened(0.08)
+	stylebox.set_border_width_all(_CELL_BORDER_WIDTH)
+	stylebox.shadow_color = Color(0.0, 0.0, 0.0, 0.10)
+	stylebox.shadow_size = 4
+	stylebox.shadow_offset = Vector2(0.0, 2.0)
+
+
+func _play_board_intro() -> void:
+	if not is_instance_valid(board_background) or not is_instance_valid(board_container):
+		return
+	if not is_instance_valid(model):
+		return
+	if _board_intro_tween and _board_intro_tween.is_valid():
+		_board_intro_tween.kill()
+
+	var layout_params: Dictionary = _calculate_layout_params(model.grid_size)
+	if layout_params.is_empty():
+		return
+
+	board_background.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	board_container.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	board_container.scale = Vector2.ONE * GFVariantData.get_option_float(layout_params, "scale_ratio", 1.0) * 0.98
+
+	_board_intro_tween = create_tween().set_parallel(true)
+	_board_intro_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_board_intro_tween.tween_property(board_background, "modulate:a", 1.0, _BOARD_INTRO_DURATION)
+	_board_intro_tween.tween_property(board_container, "modulate:a", 1.0, _BOARD_INTRO_DURATION)
+	_board_intro_tween.tween_property(
+		board_container,
+		"scale",
+		Vector2.ONE * GFVariantData.get_option_float(layout_params, "scale_ratio", 1.0),
+		_BOARD_INTRO_DURATION
+	)
 
 
 ## 将网格坐标转换为棋盘容器内的局部像素中心点坐标。

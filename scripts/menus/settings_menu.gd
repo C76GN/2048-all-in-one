@@ -288,9 +288,11 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 
 func _on_back_button_pressed() -> void:
 	if not return_to_main_menu_on_back:
-		var ui_util := get_utility(GFUIUtility) as GFUIUtility
-		if ui_util:
-			ui_util.pop_panel()
+		var ui_router := get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		if not is_instance_valid(ui_router) or not ui_router.back(GFUIUtility.Layer.POPUP):
+			var ui_util := get_utility(GFUIUtility) as GFUIUtility
+			if ui_util:
+				ui_util.pop_panel()
 		return
 
 	var router := get_system(SceneRouterSystem) as SceneRouterSystem

@@ -74,10 +74,8 @@ func dispose() -> void:
 	var _cancel_transition_result_74: Variant = cancel_transition()
 	_finished_callback = Callable()
 	if is_instance_valid(_overlay_layer):
-		var parent: Node = _overlay_layer.get_parent()
-		if parent != null:
-			parent.remove_child(_overlay_layer)
-		_overlay_layer.queue_free()
+		if not _overlay_layer.is_queued_for_deletion():
+			_overlay_layer.queue_free()
 	_overlay_layer = null
 	_overlay_rect = null
 

@@ -6,7 +6,6 @@
 [node name="ModeSelection" unique_id=1133187568 instance=ExtResource("1_base")]
 script = ExtResource("2_script")
 game_play_scene_path = "res://scenes/game/game_play.tscn"
-mode_config_paths = Array[String](["res://resources/modes/classic_mode_config.tres", "res://resources/modes/fibonacci_mode_config.tres", "res://resources/modes/lucas_fibonacci_mode_config.tres", "res://resources/modes/progressive_mode_config.tres", "res://resources/modes/step_by_step_mode_config.tres", "res://resources/modes/battle_mode_config.tres"])
 
 [node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
 text = "模式选择"

@@ -21,6 +21,7 @@ signal playback_status_changed(is_playing: bool)
 ## 回放文件存储目录。
 const REPLAY_DIR_NAME: String = "replays"
 const _REPLAY_CONTINUE_DATA_SCRIPT = preload("res://scripts/events/replay_continue_data.gd")
+const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT = preload("res://scripts/utilities/saved_resource_collection_utility.gd")
 
 
 # --- 私有变量 ---
@@ -33,9 +34,9 @@ var _command_history: GFCommandHistoryUtility
 # --- Godot 生命周期方法 ---
 
 func async_init() -> void:
-	var storage := get_utility(GFStorageUtility) as GFStorageUtility
-	if storage:
-		storage.ensure_directory(REPLAY_DIR_NAME)
+	var collection = _get_saved_resource_collection()
+	if collection:
+		collection.ensure_collection_directory(REPLAY_DIR_NAME)
 
 
 func ready() -> void:
@@ -47,33 +48,22 @@ func ready() -> void:
 ## 将一个ReplayData资源保存到文件中。
 ## @param replay_data: 要保存的ReplayData资源。
 func save_replay(replay_data: ReplayData) -> void:
-	var file_path := REPLAY_DIR_NAME.path_join(
-		"replay_%d_%d.tres" % [replay_data.timestamp, Time.get_ticks_msec()]
-	)
-	var storage := get_utility(GFStorageUtility) as GFStorageUtility
-	if storage:
-		storage.save_resource(file_path, replay_data)
+	var collection = _get_saved_resource_collection()
+	if collection:
+		collection.save_timestamped_resource(REPLAY_DIR_NAME, "replay", replay_data)
 
 
 ## 加载所有已保存的回放文件。
 ## @return: 一个包含所有ReplayData资源的数组。
 func load_replays() -> Array[ReplayData]:
 	var replays: Array[ReplayData] = []
-	var storage := get_utility(GFStorageUtility) as GFStorageUtility
-	if not storage:
+	var collection = _get_saved_resource_collection()
+	if not collection:
 		return replays
 
-	for path: String in storage.list_files(REPLAY_DIR_NAME, "tres"):
-		var resource := storage.load_resource(path, "ReplayData")
+	for resource: Resource in collection.load_timestamped_resources(REPLAY_DIR_NAME, "ReplayData", ReplayData):
 		if resource is ReplayData:
-			var replay := resource as ReplayData
-			replay.file_path = path
-			replays.append(replay)
-
-	# 按时间戳降序排序
-	replays.sort_custom(func(a: ReplayData, b: ReplayData) -> bool:
-		return a.timestamp > b.timestamp
-	)
+			replays.append(resource as ReplayData)
 	return replays
 
 
@@ -83,9 +73,9 @@ func delete_replay(replay_file_path: String) -> void:
 	if replay_file_path.is_empty():
 		return
 
-	var storage := get_utility(GFStorageUtility) as GFStorageUtility
-	if storage:
-		storage.delete_file(replay_file_path)
+	var collection = _get_saved_resource_collection()
+	if collection:
+		collection.delete_resource_file(replay_file_path)
 
 
 ## 激活回放模式。
@@ -201,3 +191,7 @@ func _get_actions_prefix(step_count: int) -> Array[Vector2i]:
 		result.append(_current_replay.actions[i])
 
 	return result
+
+
+func _get_saved_resource_collection() -> Object:
+	return get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT)

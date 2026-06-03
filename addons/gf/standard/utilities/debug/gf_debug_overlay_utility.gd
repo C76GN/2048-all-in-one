@@ -103,10 +103,8 @@ func dispose() -> void:
 		_overlay_gui._architecture_provider = Callable()
 		_overlay_gui._watch_snapshot_provider = Callable()
 		_overlay_gui._panel_snapshot_provider = Callable()
-		var parent: Node = _overlay_gui.get_parent()
-		if parent != null:
-			parent.remove_child(_overlay_gui)
-		_overlay_gui.queue_free()
+		if not _overlay_gui.is_queued_for_deletion():
+			_overlay_gui.queue_free()
 	_overlay_gui = null
 	clear_watches()
 	clear_panels()

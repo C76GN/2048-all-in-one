@@ -6,6 +6,12 @@ class_name BaseListMenu
 extends "res://scripts/ui/base/game_ui_controller.gd"
 
 
+# --- 常量 ---
+
+const _LIST_REVEAL_OFFSET: Vector2 = Vector2(16.0, 0.0)
+const _LIST_REVEAL_STAGGER: float = 0.03
+
+
 # --- 私有变量 ---
 
 ## 用于实例化列表项的场景资源。由子类在 _ready 中初始化。
@@ -157,6 +163,7 @@ func _populate_list() -> void:
 	if not items.is_empty():
 		items[0].grab_focus()
 		_set_selected_item(data_list[0])
+		_bind_and_reveal_list_items()
 
 
 ## 处理列表为空的情况。
@@ -168,6 +175,7 @@ func _handle_empty_list() -> void:
 	items_container.add_child(label)
 	_clear_preview()
 	_update_focus_neighbors(null)
+	_bind_and_reveal_list_items()
 
 
 ## 集中处理选中逻辑。
@@ -213,6 +221,17 @@ func _update_action_buttons() -> void:
 		_primary_button.disabled = not has_selection
 	if is_instance_valid(_delete_button):
 		_delete_button.disabled = not has_selection
+
+
+func _bind_and_reveal_list_items() -> void:
+	var motion_utility := _get_ui_motion_utility()
+	if not is_instance_valid(motion_utility):
+		return
+
+	if motion_utility.has_method("bind_interactive_controls"):
+		motion_utility.bind_interactive_controls(items_container)
+	if motion_utility.has_method("play_children_reveal"):
+		motion_utility.play_children_reveal(items_container, _LIST_REVEAL_OFFSET, _LIST_REVEAL_STAGGER)
 
 
 ## 清空预览区域。

@@ -7,6 +7,10 @@ extends GFSystem
 
 const _LOG_TAG: String = "GameInitSystem"
 const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
+const _LEVEL_KIND_GAME_SESSION: StringName = &"2048_session"
+const _LEVEL_SOURCE_NEW_GAME: StringName = &"new_game"
+const _LEVEL_SOURCE_BOOKMARK: StringName = &"bookmark"
+const _LEVEL_SOURCE_REPLAY: StringName = &"replay"
 
 
 # --- 私有变量 ---
@@ -58,6 +62,52 @@ func _restore_bookmark_command_history(bookmark_data: BookmarkData) -> void:
 		_command_history.deserialize_history(history_data, Callable(MoveCommand, "deserialize"))
 
 
+func _start_level_session(
+	level_source: StringName,
+	mode_config: GameModeConfig,
+	game_ready_data: GameReadyData
+) -> void:
+	if not is_instance_valid(_level_utility) or not is_instance_valid(mode_config):
+		return
+
+	var level_id := _build_level_session_id(level_source, mode_config, game_ready_data)
+	var level_data := _build_level_session_data(level_source, mode_config, game_ready_data)
+	_level_utility.start_level(level_id, level_data)
+
+
+func _build_level_session_id(
+	level_source: StringName,
+	mode_config: GameModeConfig,
+	game_ready_data: GameReadyData
+) -> StringName:
+	var mode_id := mode_config.resource_path.get_file().get_basename()
+	return StringName("%s:%s:%d:%d" % [
+		String(level_source),
+		mode_id,
+		game_ready_data.current_grid_size,
+		game_ready_data.initial_seed,
+	])
+
+
+func _build_level_session_data(
+	level_source: StringName,
+	mode_config: GameModeConfig,
+	game_ready_data: GameReadyData
+) -> Dictionary:
+	var mode_path := mode_config.resource_path
+	return {
+		"kind": _LEVEL_KIND_GAME_SESSION,
+		"source": level_source,
+		"mode_id": mode_path.get_file().get_basename(),
+		"mode_config_path": mode_path,
+		"grid_size": game_ready_data.current_grid_size,
+		"initial_seed": game_ready_data.initial_seed,
+		"is_replay_mode": game_ready_data.is_replay_mode,
+		"has_bookmark": is_instance_valid(game_ready_data.loaded_bookmark_data),
+		"has_replay": is_instance_valid(game_ready_data.replay_data_resource),
+	}
+
+
 # --- 信号处理函数 ---
 
 func _on_request_initialization(_payload: Variant = null) -> void:
@@ -67,11 +117,14 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 
 	var replay_data: ReplayData = app_config.current_replay_data.get_value()
 	var loaded_bookmark_data: BookmarkData = app_config.selected_bookmark_data.get_value()
+	var level_source: StringName = _LEVEL_SOURCE_NEW_GAME
 
 	if is_instance_valid(replay_data):
 		loaded_bookmark_data = null
+		level_source = _LEVEL_SOURCE_REPLAY
 	elif is_instance_valid(loaded_bookmark_data):
 		replay_data = null
+		level_source = _LEVEL_SOURCE_BOOKMARK
 
 	app_config.current_replay_data.set_value(null)
 	app_config.selected_bookmark_data.set_value(null)
@@ -127,6 +180,7 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		return
 
 	game_ready_data.mode_config = mode_config
+	_start_level_session(level_source, mode_config, game_ready_data)
 	game_ready_data.interaction_rule = mode_config.interaction_rule.duplicate() as InteractionRule
 	game_ready_data.movement_rule = mode_config.movement_rule.duplicate() as MovementRule
 	game_ready_data.game_over_rule = mode_config.game_over_rule.duplicate() as GameOverRule

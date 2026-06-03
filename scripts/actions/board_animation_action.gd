@@ -68,13 +68,16 @@ func execute() -> Variant:
 					if not target_data.is_empty():
 						merged.setup(target_data[&"value"], target_data.get(&"type", merged.type), target_data[&"bg"], target_data[&"font"])
 						merged.animate_merge()
+						_play_tile_feedback(merged, &"merge", str(target_data[&"value"]))
 						if target_data.get(&"do_transform", false):
 							merged.animate_transform()
+							_play_tile_feedback(merged, &"transform")
 			
 			&"SPAWN":
 				var spawn_tile: Tile = instruction[&"tile"]
 				if is_instance_valid(spawn_tile):
 					spawn_tile.animate_spawn()
+					_play_tile_feedback(spawn_tile, &"spawn")
 
 			&"TRANSFORM":
 				tile = instruction[&"tile"]
@@ -83,8 +86,10 @@ func execute() -> Variant:
 					tile.setup(transform_data[&"value"], transform_data.get(&"type", tile.type), transform_data[&"bg"], transform_data[&"font"])
 					if transform_data.get(&"do_merge", false):
 						tile.animate_merge()
+						_play_tile_feedback(tile, &"merge", str(transform_data[&"value"]))
 					if transform_data.get(&"do_transform", false):
 						tile.animate_transform()
+						_play_tile_feedback(tile, &"transform")
 
 			_:
 				continue
@@ -97,7 +102,9 @@ func execute() -> Variant:
 func _release_consumed_tile(consumed: Tile, release_token: RefCounted) -> void:
 	if not is_instance_valid(consumed):
 		return
-	if consumed.get_meta(RELEASE_TOKEN_META, "") != release_token:
+	if not consumed.has_meta(RELEASE_TOKEN_META):
+		return
+	if consumed.get_meta(RELEASE_TOKEN_META) != release_token:
 		return
 
 	consumed.set_meta(RELEASE_TOKEN_META, 0)
@@ -106,3 +113,12 @@ func _release_consumed_tile(consumed: Tile, release_token: RefCounted) -> void:
 	else:
 		consumed.reset_animation_state()
 		consumed.queue_free()
+
+
+func _play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: String = "") -> void:
+	if not is_instance_valid(_game_board):
+		return
+	if not _game_board.has_method("play_tile_feedback"):
+		return
+
+	_game_board.play_tile_feedback(tile, feedback_type, label_text)

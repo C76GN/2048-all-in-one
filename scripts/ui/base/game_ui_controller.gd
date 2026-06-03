@@ -9,10 +9,15 @@ extends Control
 # --- 常量 ---
 
 ## GFNodeContext 脚本类型，用于避免循环依赖。
-const GFNodeContextBase = preload("res://addons/gf/core/gf_node_context.gd")
+const GFNodeContextBase = preload("res://addons/gf/kernel/core/gf_node_context.gd")
+const _GAME_UI_MOTION_UTILITY_SCRIPT = preload("res://scripts/utilities/game_ui_motion_utility.gd")
 
 
 # --- Godot 生命周期方法 ---
+
+func _enter_tree() -> void:
+	call_deferred(&"_apply_default_ui_motion")
+
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
@@ -158,3 +163,18 @@ func _find_nearest_context() -> GFNodeContextBase:
 		current_node = current_node.get_parent()
 
 	return null
+
+
+func _apply_default_ui_motion() -> void:
+	if not is_inside_tree():
+		return
+
+	var motion_utility := _get_ui_motion_utility()
+	if is_instance_valid(motion_utility) and motion_utility.has_method("bind_interactive_controls"):
+		motion_utility.bind_interactive_controls(self)
+	if is_instance_valid(motion_utility) and motion_utility.has_method("play_panel_intro"):
+		motion_utility.play_panel_intro(self)
+
+
+func _get_ui_motion_utility() -> Object:
+	return get_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)

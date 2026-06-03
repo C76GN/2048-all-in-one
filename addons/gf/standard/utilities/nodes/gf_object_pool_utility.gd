@@ -491,9 +491,6 @@ func _move_to_pool_root(node: Node) -> void:
 func _queue_free_detached(node: Node) -> void:
 	if not is_instance_valid(node):
 		return
-	var parent: Node = node.get_parent()
-	if parent != null:
-		parent.remove_child(node)
 	if not node.is_queued_for_deletion():
 		node.queue_free()
 
