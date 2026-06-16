@@ -30,20 +30,16 @@ func initialize(size: int, p_interaction_rule: InteractionRule, p_movement_rule:
 	grid_size = size
 	interaction_rule = p_interaction_rule
 	movement_rule = p_movement_rule
-	grid.clear()
-	grid.resize(grid_size)
-	for x in range(grid_size):
-		grid[x] = []
-		grid[x].resize(grid_size)
-		grid[x].fill(null)
+	grid = _create_empty_grid(grid_size)
 
 
 ## 获取快照，用于撤回或保存
 func get_snapshot() -> Dictionary:
 	var tiles_list: Array[Dictionary] = []
-	for x in range(grid_size):
-		for y in range(grid_size):
-			var a_tile: GameTileData = grid[x][y]
+	for x: int in range(grid_size):
+		var row: Array = grid[x]
+		for y: int in range(grid_size):
+			var a_tile: GameTileData = row[y]
 			if a_tile != null:
 				tiles_list.append({
 					&"pos": Vector2i(x, y),
@@ -66,15 +62,13 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 	if grid_size <= 0:
 		return
 
-	grid.clear()
-	grid.resize(grid_size)
-	for x in range(grid_size):
-		grid[x] = []
-		grid[x].resize(grid_size)
-		grid[x].fill(null)
+	grid = _create_empty_grid(grid_size)
 		
 	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
-	for tile_info in tiles_data:
+	for raw_tile_info: Variant in tiles_data:
+		if not raw_tile_info is Dictionary:
+			continue
+		var tile_info: Dictionary = raw_tile_info
 		var pos: Vector2i = tile_info.get(&"pos", tile_info.get("pos", Vector2i.ZERO))
 		if not _is_cell_in_bounds(pos):
 			continue
@@ -98,16 +92,13 @@ func expand_grid(new_size: int) -> void:
 	if new_size <= grid_size:
 		return
 	
-	var new_grid: Array = []
-	new_grid.resize(new_size)
-	for x in range(new_size):
-		new_grid[x] = []
-		new_grid[x].resize(new_size)
-		new_grid[x].fill(null)
+	var new_grid: Array = _create_empty_grid(new_size)
 		
-	for x in range(grid_size):
-		for y in range(grid_size):
-			new_grid[x][y] = grid[x][y]
+	for x: int in range(grid_size):
+		var source_row: Array = grid[x]
+		var target_row: Array = new_grid[x]
+		for y: int in range(grid_size):
+			target_row[y] = source_row[y]
 			
 	grid_size = new_size
 	grid = new_grid
@@ -116,19 +107,21 @@ func expand_grid(new_size: int) -> void:
 ## 获取所有空单元格的位置
 func get_empty_cells() -> Array[Vector2i]:
 	var empty_cells: Array[Vector2i] = []
-	for x in range(grid_size):
-		for y in range(grid_size):
-			if grid[x][y] == null:
+	for x: int in range(grid_size):
+		var row: Array = grid[x]
+		for y: int in range(grid_size):
+			if row[y] == null:
 				empty_cells.append(Vector2i(x, y))
 	return empty_cells
 
 
 ## 获取玩家拥有的最高方块值
 func get_max_player_value() -> int:
-	var max_val := 0
-	for x in range(grid_size):
-		for y in range(grid_size):
-			var tile: GameTileData = grid[x][y]
+	var max_val: int = 0
+	for x: int in range(grid_size):
+		var row: Array = grid[x]
+		for y: int in range(grid_size):
+			var tile: GameTileData = row[y]
 			if tile != null and tile.type == Tile.TileType.PLAYER:
 				if tile.value > max_val:
 					max_val = tile.value
@@ -138,9 +131,10 @@ func get_max_player_value() -> int:
 ## 获取所有玩家方块值的去重列表供外部统计使用
 func get_all_player_tile_values() -> Array[int]:
 	var values: Array[int] = []
-	for x in range(grid_size):
-		for y in range(grid_size):
-			var tile: GameTileData = grid[x][y]
+	for x: int in range(grid_size):
+		var row: Array = grid[x]
+		for y: int in range(grid_size):
+			var tile: GameTileData = row[y]
 			if tile != null and tile.type == Tile.TileType.PLAYER:
 				values.append(tile.value)
 	values.sort()
@@ -159,6 +153,17 @@ func from_dict(data: Dictionary) -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _create_empty_grid(size: int) -> Array:
+	var result: Array = []
+	var _resize_result: Variant = result.resize(size)
+	for x: int in range(size):
+		var row: Array = []
+		var _row_resize_result: Variant = row.resize(size)
+		row.fill(null)
+		result[x] = row
+	return result
+
 
 func _is_cell_in_bounds(grid_pos: Vector2i) -> bool:
 	return (

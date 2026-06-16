@@ -17,6 +17,12 @@ signal item_focused(data: Resource)
 signal item_selected(data: Resource)
 
 
+# --- 常量 ---
+
+const _SELECTED_SURFACE_COLOR: Color = Color(0.62, 0.18, 0.25, 0.36)
+const _SELECTED_BORDER_COLOR: Color = Color(0.93, 0.80, 0.54, 0.58)
+
+
 # --- 私有变量 ---
 
 var _item_data: Resource
@@ -32,8 +38,9 @@ var _is_selected_manually: bool = false
 
 func _ready() -> void:
 	toggle_mode = true
-	pressed.connect(_on_pressed)
-	focus_entered.connect(_on_focus_entered)
+	_apply_selection_highlight_style()
+	var _connect_result_42: int = pressed.connect(_on_pressed)
+	var _connect_result_43: int = focus_entered.connect(_on_focus_entered)
 
 
 # --- 公共方法 ---
@@ -79,6 +86,22 @@ func on_gf_pool_release() -> void:
 ## [虚方法] 更新 UI 元素的显示。
 func _update_display() -> void:
 	pass
+
+
+# --- 私有/辅助方法 ---
+
+func _apply_selection_highlight_style() -> void:
+	if not _selection_highlight is Panel:
+		return
+
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = _SELECTED_SURFACE_COLOR
+	style.border_color = _SELECTED_BORDER_COLOR
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(8)
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	(_selection_highlight as Panel).add_theme_stylebox_override("panel", style)
 
 
 # --- 信号处理函数 ---

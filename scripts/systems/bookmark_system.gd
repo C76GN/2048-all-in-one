@@ -11,15 +11,15 @@ extends GFSystem
 
 ## 书签存储目录。
 const BOOKMARK_DIR_NAME: String = "bookmarks"
-const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT = preload("res://scripts/utilities/saved_resource_collection_utility.gd")
+const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/saved_resource_collection_utility.gd")
 
 
 # --- Godot 生命周期方法 ---
 
 func async_init() -> void:
-	var collection = _get_saved_resource_collection()
+	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
 	if collection:
-		collection.ensure_collection_directory(BOOKMARK_DIR_NAME)
+		var _ensure_result: Error = collection.ensure_collection_directory(BOOKMARK_DIR_NAME)
 
 
 # --- 公共方法 ---
@@ -27,16 +27,16 @@ func async_init() -> void:
 ## 将一个BookmarkData资源保存到文件中。
 ## @param bookmark_data: 要保存的BookmarkData资源。
 func save_bookmark(bookmark_data: BookmarkData) -> void:
-	var collection = _get_saved_resource_collection()
+	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
 	if collection:
-		collection.save_timestamped_resource(BOOKMARK_DIR_NAME, "bookmark", bookmark_data)
+		var _saved_path: String = collection.save_timestamped_resource(BOOKMARK_DIR_NAME, "bookmark", bookmark_data)
 
 
 ## 加载所有已保存的书签文件。
 ## @return: 一个包含所有BookmarkData资源的数组。
 func load_bookmarks() -> Array[BookmarkData]:
 	var bookmarks: Array[BookmarkData] = []
-	var collection = _get_saved_resource_collection()
+	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
 	if not collection:
 		return bookmarks
 
@@ -52,12 +52,12 @@ func delete_bookmark(bookmark_file_path: String) -> void:
 	if bookmark_file_path.is_empty():
 		return
 
-	var collection = _get_saved_resource_collection()
+	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
 	if collection:
-		collection.delete_resource_file(bookmark_file_path)
+		var _delete_result: Error = collection.delete_resource_file(bookmark_file_path)
 
 
 # --- 私有/辅助方法 ---
 
-func _get_saved_resource_collection() -> Object:
-	return get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT)
+func _get_saved_resource_collection() -> SavedResourceCollectionUtility:
+	return get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT) as SavedResourceCollectionUtility

@@ -33,11 +33,11 @@ extends "res://scripts/ui/base/game_ui_controller.gd"
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	_start_game_button.pressed.connect(_on_start_game_button_pressed)
-	_load_bookmark_button.pressed.connect(_on_load_bookmark_button_pressed)
-	_replays_button.pressed.connect(_on_replays_button_pressed)
-	_settings_button.pressed.connect(_on_settings_button_pressed)
-	_quit_button.pressed.connect(_on_quit_button_pressed)
+	var _connect_result_36: int = _start_game_button.pressed.connect(_on_start_game_button_pressed)
+	var _connect_result_37: int = _load_bookmark_button.pressed.connect(_on_load_bookmark_button_pressed)
+	var _connect_result_38: int = _replays_button.pressed.connect(_on_replays_button_pressed)
+	var _connect_result_39: int = _settings_button.pressed.connect(_on_settings_button_pressed)
+	var _connect_result_40: int = _quit_button.pressed.connect(_on_quit_button_pressed)
 
 	_start_game_button.grab_focus()
 	_update_ui_text()
@@ -50,7 +50,7 @@ func _goto_scene(scene_path: String, property_name: String) -> void:
 		push_error("[MainMenu] 场景路径 %s 未设置。" % property_name)
 		return
 
-	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
 	if router:
 		router.goto_scene(scene_path)
 
@@ -87,6 +87,6 @@ func _on_settings_button_pressed() -> void:
 
 
 func _on_quit_button_pressed() -> void:
-	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
 	if router:
 		router.quit_game()

@@ -8,27 +8,29 @@
 [ext_resource type="Shader" path="res://resources/shaders/game_background.gdshader" id="6_background_shader"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
-bg_color = Color(0.282702, 0.282702, 0.282702, 1)
-corner_radius_top_left = 15
-corner_radius_top_right = 15
-corner_radius_bottom_right = 15
-corner_radius_bottom_left = 15
+bg_color = Color(0.18039216, 0.3254902, 0.3137255, 1)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_background"]
 shader = ExtResource("6_background_shader")
-shader_parameter/base_color = Color(0.14902, 0.14902, 0.14902, 1)
-shader_parameter/accent_color = Color(0.95, 0.72, 0.36, 1)
-shader_parameter/grid_strength = 0.08
-shader_parameter/glow_strength = 0.24
-shader_parameter/vignette_strength = 0.34
-shader_parameter/pulse_speed = 0.45
+shader_parameter/base_color = Color(0.03, 0.052, 0.07, 1)
+shader_parameter/accent_color = Color(0.185, 0.165, 0.33, 1)
+shader_parameter/secondary_color = Color(0.035, 0.3, 0.315, 1)
+shader_parameter/warm_color = Color(0.56, 0.39, 0.18, 1)
+shader_parameter/grid_strength = 0.0
+shader_parameter/glow_strength = 0.085
+shader_parameter/vignette_strength = 0.24
+shader_parameter/pulse_speed = 0.055
+shader_parameter/grain_strength = 0.014
+shader_parameter/stipple_strength = 0.004
+shader_parameter/flow_scale = 2.4
+shader_parameter/scanline_strength = 0.007
 
 [node name="GamePlay" instance=ExtResource("1_base")]
 script = ExtResource("2_script")
 
 [node name="Background" parent="." index="0"]
 material = SubResource("ShaderMaterial_background")
-color = Color(0.14902, 0.14902, 0.14902, 1)
+color = Color(0.03, 0.052, 0.07, 1)
 
 [node name="HUD" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0" instance=ExtResource("3_hud")]
 unique_name_in_owner = true

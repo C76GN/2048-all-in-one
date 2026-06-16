@@ -11,7 +11,7 @@ extends GFState
 ## @param _msg: 状态切换传入的上下文字典。
 func enter(_msg: Dictionary = {}) -> void:
 	# 清理所有规则，防止在 GameOver 状态下继续触发规则
-	var rule_manager := get_system(RuleSystem) as RuleSystem
+	var rule_manager: RuleSystem = get_system(RuleSystem) as RuleSystem
 	if rule_manager:
 		rule_manager.clear_rules()
 

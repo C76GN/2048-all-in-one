@@ -22,10 +22,10 @@ extends GFController
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	_spawn_button.pressed.connect(_on_spawn_button_pressed)
-	_reset_resize_button.pressed.connect(_on_reset_resize_button_pressed)
-	_live_expand_button.pressed.connect(_on_live_expand_button_pressed)
-	_type_option_button.item_selected.connect(_on_type_selected)
+	var _connect_result_25: int = _spawn_button.pressed.connect(_on_spawn_button_pressed)
+	var _connect_result_26: int = _reset_resize_button.pressed.connect(_on_reset_resize_button_pressed)
+	var _connect_result_27: int = _live_expand_button.pressed.connect(_on_live_expand_button_pressed)
+	var _connect_result_28: int = _type_option_button.item_selected.connect(_on_type_selected)
 
 
 # --- 公共方法 ---
@@ -39,8 +39,10 @@ func setup_panel(types: Dictionary) -> void:
 	var type_ids: Array = types.keys()
 	type_ids.sort()
 
-	for type_id in type_ids:
-		_type_option_button.add_item(types[type_id], type_id)
+	for type_id_value: Variant in type_ids:
+		var type_id: int = _variant_to_int(type_id_value, 0)
+		var type_name: String = GFVariantData.to_text(types[type_id_value], "")
+		_type_option_button.add_item(type_name, type_id)
 
 	# 初始时，自动为第一个类型请求数值列表。
 	if not type_ids.is_empty():
@@ -52,7 +54,7 @@ func setup_panel(types: Dictionary) -> void:
 ## @param values: 一个包含所有可选数值(int)的数组。
 func update_value_options(values: Array[int]) -> void:
 	_value_option_button.clear()
-	for v in values:
+	for v: int in values:
 		_value_option_button.add_item(str(v))
 
 
@@ -69,6 +71,17 @@ func update_coordinate_limits(new_grid_size: int) -> void:
 	_pos_y_spinbox.value = min(_pos_y_spinbox.value, max_coord)
 
 
+# --- 私有/辅助方法 ---
+
+static func _variant_to_int(value: Variant, default_value: int) -> int:
+	if value is int:
+		return value
+	if value is float:
+		var float_value: float = value
+		return int(float_value)
+	return default_value
+
+
 # --- 信号处理函数 ---
 
 ## 响应“生成方块”按钮的点击事件。
@@ -80,9 +93,9 @@ func _on_spawn_button_pressed() -> void:
 		push_warning("[TestPanel] 没有可选的生成类型。")
 		return
 
-	var pos := Vector2i(int(_pos_x_spinbox.value), int(_pos_y_spinbox.value))
+	var pos: Vector2i = Vector2i(int(_pos_x_spinbox.value), int(_pos_y_spinbox.value))
 	var value_text: String = _value_option_button.get_item_text(_value_option_button.selected)
-	var value := int(value_text)
+	var value: int = value_text.to_int()
 	var type_id: int = _type_option_button.get_item_id(_type_option_button.selected)
 
 	send_event(TestSpawnPayload.new(pos, value, type_id))
@@ -90,13 +103,13 @@ func _on_spawn_button_pressed() -> void:
 
 ## 响应“重置并调整大小”按钮的点击事件。
 func _on_reset_resize_button_pressed() -> void:
-	var new_size := int(_grid_size_spinbox.value)
+	var new_size: int = int(_grid_size_spinbox.value)
 	send_simple_event(EventNames.TEST_RESET_RESIZE_REQUESTED, new_size)
 
 
 ## 响应“游戏中扩建棋盘”按钮的点击事件。
 func _on_live_expand_button_pressed() -> void:
-	var new_size := int(_grid_size_spinbox.value)
+	var new_size: int = int(_grid_size_spinbox.value)
 	send_simple_event(EventNames.TEST_LIVE_EXPAND_REQUESTED, new_size)
 
 

@@ -96,7 +96,7 @@ func get_line_ids() -> PackedStringArray:
 	var result: PackedStringArray = PackedStringArray()
 	for line: GFDialogueLine in lines:
 		if line != null and line.line_id != &"":
-			var _append_result_99: Variant = result.append(String(line.line_id))
+			result.append(String(line.line_id))
 	return result
 
 
@@ -135,14 +135,14 @@ func validate_resource() -> Dictionary:
 
 		var next_ids: PackedStringArray = PackedStringArray()
 		if line.next_line_id != &"":
-			var _append_result_138: Variant = next_ids.append(String(line.next_line_id))
+			next_ids.append(String(line.next_line_id))
 		if line.jump_line_id != &"":
-			var _append_result_140: Variant = next_ids.append(String(line.jump_line_id))
+			next_ids.append(String(line.jump_line_id))
 		if line.fallback_line_id != &"":
-			var _append_result_142: Variant = next_ids.append(String(line.fallback_line_id))
+			next_ids.append(String(line.fallback_line_id))
 		for response: GFDialogueResponse in line.responses:
 			if response != null and response.next_line_id != &"":
-				var _append_result_145: Variant = next_ids.append(String(response.next_line_id))
+				next_ids.append(String(response.next_line_id))
 		for next_id: String in next_ids:
 			if get_line(StringName(next_id)) == null:
 				_append_issue(

@@ -9,12 +9,12 @@ extends GFSystem
 ## @param grid_size_override: 外部指定的棋盘尺寸；小于等于 0 时使用 GridModel 当前尺寸。
 ## @return: 可用于撤销、书签比较和恢复的完整状态字典。
 func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
-	var rule_sys := get_system(RuleSystem) as RuleSystem
-	var status := get_model(GameStatusModel) as GameStatusModel
-	var grid := get_model(GridModel) as GridModel
-	var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
+	var rule_sys: RuleSystem = get_system(RuleSystem) as RuleSystem
+	var status: GameStatusModel = get_model(GameStatusModel) as GameStatusModel
+	var grid: GridModel = get_model(GridModel) as GridModel
+	var seed_util: GFSeedUtility = get_utility(GFSeedUtility) as GFSeedUtility
 	var grid_size: int = grid_size_override
-	var highest_tile := 0
+	var highest_tile: int = 0
 	var extra_stats: Dictionary = {}
 
 	if grid_size <= 0 and is_instance_valid(grid):
@@ -23,14 +23,21 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 		highest_tile = grid.get_max_player_value()
 
 	if is_instance_valid(status):
-		extra_stats = status.extra_stats.get_value().duplicate(true)
+		var extra_stats_value: Variant = status.extra_stats.get_value()
+		if extra_stats_value is Dictionary:
+			var typed_extra_stats: Dictionary = extra_stats_value
+			extra_stats = typed_extra_stats.duplicate(true)
 
 	var rules_states: Array = []
 	if is_instance_valid(rule_sys):
-		for rule in rule_sys.get_all_spawn_rules():
+		for rule: SpawnRule in rule_sys.get_all_spawn_rules():
 			var state: Variant = rule.get_state()
-			if state is Dictionary or state is Array:
-				rules_states.append(state.duplicate(true))
+			if state is Dictionary:
+				var state_dictionary: Dictionary = state
+				rules_states.append(state_dictionary.duplicate(true))
+			elif state is Array:
+				var state_array: Array = state
+				rules_states.append(state_array.duplicate(true))
 			else:
 				rules_states.append(state)
 
@@ -63,10 +70,10 @@ func restore_state(state_to_restore: Dictionary) -> void:
 	if state_to_restore.is_empty():
 		return
 
-	var rule_sys := get_system(RuleSystem) as RuleSystem
-	var status := get_model(GameStatusModel) as GameStatusModel
-	var grid := get_model(GridModel) as GridModel
-	var seed_util := get_utility(GFSeedUtility) as GFSeedUtility
+	var rule_sys: RuleSystem = get_system(RuleSystem) as RuleSystem
+	var status: GameStatusModel = get_model(GameStatusModel) as GameStatusModel
+	var grid: GridModel = get_model(GridModel) as GridModel
+	var seed_util: GFSeedUtility = get_utility(GFSeedUtility) as GFSeedUtility
 
 	if is_instance_valid(grid):
 		var board_snapshot: Dictionary = state_to_restore.get(
@@ -89,11 +96,11 @@ func restore_state(state_to_restore: Dictionary) -> void:
 		status.extra_stats.set_value(extra_stats.duplicate(true))
 
 	if is_instance_valid(seed_util):
-		var rng_full_state: Dictionary = state_to_restore.get(&"rng_full_state", {})
+		var rng_full_state: Dictionary = _get_dictionary(state_to_restore, &"rng_full_state")
 		if not rng_full_state.is_empty():
 			seed_util.set_full_state(rng_full_state)
 		elif state_to_restore.has(&"rng_state"):
-			seed_util.set_state(state_to_restore[&"rng_state"])
+			seed_util.set_state(_get_int(state_to_restore, &"rng_state", 0))
 
 	if (
 		is_instance_valid(rule_sys)
@@ -101,7 +108,7 @@ func restore_state(state_to_restore: Dictionary) -> void:
 	):
 		var rules_states: Array = state_to_restore.get(&"rules_states", state_to_restore.get("rules_states", []))
 		var all_rules: Array[SpawnRule] = rule_sys.get_all_spawn_rules()
-		for i in range(min(all_rules.size(), rules_states.size())):
+		for i: int in range(min(all_rules.size(), rules_states.size())):
 			all_rules[i].set_state(rules_states[i])
 
 
@@ -110,11 +117,14 @@ func restore_state(state_to_restore: Dictionary) -> void:
 func _normalize_variant(value: Variant) -> Variant:
 	match typeof(value):
 		TYPE_DICTIONARY:
-			return _normalize_dictionary(value)
+			var dictionary_value: Dictionary = value
+			return _normalize_dictionary(dictionary_value)
 		TYPE_ARRAY:
-			return _normalize_array(value)
+			var array_value: Array = value
+			return _normalize_array(array_value)
 		TYPE_STRING_NAME:
-			return [&"StringName", String(value)]
+			var string_name_value: StringName = value
+			return [&"StringName", String(string_name_value)]
 		TYPE_VECTOR2:
 			return [&"Vector2", value.x, value.y]
 		TYPE_VECTOR2I:
@@ -130,7 +140,7 @@ func _normalize_dictionary(dictionary: Dictionary) -> Array:
 	)
 
 	var normalized: Array = []
-	for key in keys:
+	for key: Variant in keys:
 		normalized.append([
 			_normalize_variant(key),
 			_normalize_variant(dictionary[key]),
@@ -141,7 +151,7 @@ func _normalize_dictionary(dictionary: Dictionary) -> Array:
 
 func _normalize_array(array: Array) -> Array:
 	var normalized: Array = []
-	for item in array:
+	for item: Variant in array:
 		normalized.append(_normalize_variant(item))
 
 	return normalized
@@ -149,3 +159,20 @@ func _normalize_array(array: Array) -> Array:
 
 func _variant_sort_key(value: Variant) -> String:
 	return "%d:%s" % [typeof(value), str(value)]
+
+
+static func _get_dictionary(data: Dictionary, key: StringName) -> Dictionary:
+	var value: Variant = data.get(key, data.get(String(key), {}))
+	if value is Dictionary:
+		return value
+	return {}
+
+
+static func _get_int(data: Dictionary, key: StringName, default_value: int) -> int:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is int:
+		return value
+	if value is float:
+		var float_value: float = value
+		return int(float_value)
+	return default_value

@@ -60,7 +60,7 @@ func tick(_delta: float) -> void:
 	if not _is_playing:
 		return
 
-	var replay_system := get_system(ReplaySystem) as ReplaySystem
+	var replay_system: ReplaySystem = get_system(ReplaySystem) as ReplaySystem
 	if not is_instance_valid(replay_system):
 		return
 
@@ -102,7 +102,7 @@ func _execute_replay_step(direction: Vector2i) -> void:
 	if _is_step_processing:
 		return
 
-	var history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var history: GFCommandHistoryUtility = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	if not is_instance_valid(history):
 		return
 
@@ -142,19 +142,19 @@ func _on_next_step(_payload: Variant = null) -> void:
 	if not _is_active or not _is_playing or not is_instance_valid(_replay_data):
 		return
 		
-	var history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var history: GFCommandHistoryUtility = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	var step_index: int = maxi(history.undo_count - 1, 0) if history else 0
 	
 	if step_index < _replay_data.actions.size():
 		var direction: Vector2i = _replay_data.actions[step_index]
-		_execute_replay_step(direction)
+		call_deferred(&"_execute_replay_step", direction)
 
 
 func _on_prev_step(_payload: Variant = null) -> void:
 	if not _is_active or not _is_playing or _is_step_processing:
 		return
 		
-	var history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var history: GFCommandHistoryUtility = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	if history and history.undo_count > 1:
 		_is_step_processing = true
 		if await history.undo_last_async():

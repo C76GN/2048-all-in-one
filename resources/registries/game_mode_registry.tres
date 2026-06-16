@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="GFResourceRegistry" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="GFResourceRegistry" format=3 uid="uid://cdf76w1xb8g5r"]
 
-[ext_resource type="Script" path="res://addons/gf/standard/utilities/assets/gf_resource_registry.gd" id="1_registry"]
-[ext_resource type="Script" path="res://addons/gf/standard/utilities/assets/gf_resource_registry_entry.gd" id="2_entry"]
+[ext_resource type="Script" uid="uid://c2v8k6m4yaraf" path="res://addons/gf/standard/utilities/assets/gf_resource_registry.gd" id="1_registry"]
+[ext_resource type="Script" uid="uid://b5w4p2n7rasdx" path="res://addons/gf/standard/utilities/assets/gf_resource_registry_entry.gd" id="2_entry"]
 
 [sub_resource type="Resource" id="Entry_classic"]
 script = ExtResource("2_entry")

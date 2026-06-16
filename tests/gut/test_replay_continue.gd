@@ -5,7 +5,7 @@ extends GutTest
 # --- 测试用例 ---
 
 func test_continue_from_current_step_clears_redo_history() -> void:
-	var command_history := GFCommandHistoryUtility.new()
+	var command_history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()
 	command_history.init()
 	command_history.deserialize_full_history(
 		{
@@ -20,14 +20,14 @@ func test_continue_from_current_step_clears_redo_history() -> void:
 		Callable(MoveCommand, "deserialize")
 	)
 
-	var replay_data := ReplayData.new()
+	var replay_data: ReplayData = ReplayData.new()
 	replay_data.actions = [
 		Vector2i.RIGHT,
 		Vector2i.DOWN,
 		Vector2i.LEFT,
 	]
 
-	var replay_system := ReplaySystem.new()
+	var replay_system: ReplaySystem = ReplaySystem.new()
 	replay_system._command_history = command_history
 	replay_system.activate_replay_mode(replay_data)
 

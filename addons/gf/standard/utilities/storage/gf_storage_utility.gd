@@ -210,6 +210,16 @@ func init() -> void:
 ## @api public
 func dispose() -> void:
 	_wait_for_async_tasks()
+	_async_tasks.clear()
+	_async_queue.clear()
+	_async_file_locks.clear()
+	_migration_steps.clear()
+	default_values_for_new_keys.clear()
+	last_load_result.clear()
+	codec = null
+	_path_policy = null
+	_file_ops = null
+	_transaction_manager = null
 
 
 ## 驱动异步存档任务完成检查。

@@ -13,7 +13,7 @@ const MAIN_MENU_SCENE_PATH: String = "res://scenes/menus/main_menu.tscn"
 func _ready() -> void:
 	await Gf.init()
 
-	var router := Gf.get_system(SceneRouterSystem) as SceneRouterSystem
+	var router: SceneRouterSystem = Gf.get_system(SceneRouterSystem) as SceneRouterSystem
 	if router:
 		router.call_deferred("goto_scene", MAIN_MENU_SCENE_PATH)
 

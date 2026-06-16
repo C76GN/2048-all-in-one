@@ -38,12 +38,12 @@ func execute(context: RuleContext) -> bool:
 
 	spawn_count = min(spawn_count, context.grid_model.get_empty_cells().size())
 
-	for i in range(spawn_count):
+	for _i: int in range(spawn_count):
 		var spawn_pool: Array[int] = _get_current_spawn_pool(context.grid_model)
-		var rng := context.get_rng("progressive_spawn_rule")
+		var rng: RandomNumberGenerator = context.get_rng("progressive_spawn_rule")
 		var value: int = spawn_pool[rng.randi_range(0, spawn_pool.size() - 1)]
 
-		var spawn_data := SpawnData.new()
+		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.value = value
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
@@ -67,7 +67,7 @@ func _get_current_spawn_pool(grid_model: GridModel) -> Array[int]:
 
 	var power: int = int(log(max_value) / log(2))
 
-	for k in range(3, (power - 11) + 4):
+	for k: int in range(3, (power - 11) + 4):
 		spawn_pool.append(int(pow(2, k)))
 
 	return spawn_pool

@@ -66,7 +66,7 @@ func tick(_delta: float) -> void:
 		send_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED)
 		return
 
-	var direction := Vector2i.ZERO
+	var direction: Vector2i = Vector2i.ZERO
 	if _consume_action(ACTION_MOVE_UP):
 		direction = Vector2i.UP
 	elif _consume_action(ACTION_MOVE_DOWN):
@@ -77,13 +77,13 @@ func tick(_delta: float) -> void:
 		direction = Vector2i.RIGHT
 
 	if direction != Vector2i.ZERO:
-		_execute_move_command(direction)
+		call_deferred(&"_execute_move_command", direction)
 
 
 # --- 私有/辅助方法 ---
 
 func _execute_move_command(direction: Vector2i) -> void:
-	var history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var history: GFCommandHistoryUtility = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
 	if not is_instance_valid(history):
 		return
 

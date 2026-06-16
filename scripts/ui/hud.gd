@@ -10,7 +10,6 @@ extends GFController
 
 ## 动态流程标签列表场景。
 const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://scenes/ui/flow_label_list.tscn")
-const _GET_HUD_STATS_QUERY_SCRIPT = preload("res://scripts/queries/get_hud_stats_query.gd")
 const _FEEDBACK_TWEEN_META: StringName = &"_hud_feedback_tween"
 const _FEEDBACK_SCALE: float = 1.035
 const _FEEDBACK_DURATION: float = 0.22
@@ -43,7 +42,7 @@ func _ready() -> void:
 	
 	_score_value_label = get_node_or_null("%ScoreValueLabel") as Label
 	_move_count_value_label = get_node_or_null("%MoveCountValueLabel") as Label
-	var status_msg_node = get_node_or_null("%StatusMessageLabel")
+	var status_msg_node: Node = get_node_or_null("%StatusMessageLabel")
 	if status_msg_node is RichTextLabel:
 		_status_message_label = status_msg_node
 	
@@ -94,7 +93,7 @@ func _refresh_all() -> void:
 	var local_dict: Dictionary = {}
 	
 	if not is_instance_valid(_score_value_label):
-		var score_text := tr("LABEL_SCORE")
+		var score_text: String = tr("LABEL_SCORE")
 		if score_text == "LABEL_SCORE" or not ":" in score_text:
 			score_text = tr("SCORE_LABEL")
 		local_dict[&"score"] = (
@@ -104,7 +103,7 @@ func _refresh_all() -> void:
 		)
 	
 	if not is_instance_valid(_move_count_value_label):
-		var move_text := tr("LABEL_MOVES")
+		var move_text: String = tr("LABEL_MOVES")
 		if move_text == "LABEL_MOVES" or not ":" in move_text:
 			move_text = tr("MOVE_COUNT_LABEL")
 		local_dict[&"move_count"] = (
@@ -121,40 +120,43 @@ func _refresh_all() -> void:
 		if not msg.is_empty():
 			local_dict[&"status_message"] = "[color=yellow]" + msg + "[/color]"
 
-	var query_result: Variant = send_query(_GET_HUD_STATS_QUERY_SCRIPT.new())
+	var query_result: Variant = send_query(GetHudStatsQuery.new())
 	if query_result is Dictionary:
-		local_dict.merge(query_result)
+		var query_dict: Dictionary = query_result
+		local_dict.merge(query_dict)
 
 	_update_dynamic_list(local_dict)
 
 
 func _update_dynamic_list(dict: Dictionary) -> void:
 	# 1. 隐藏不再存在的 key
-	for key in _stat_labels:
+	for key: Variant in _stat_labels:
 		if not dict.has(key):
-			_stat_labels[key].visible = false
+			var stale_node: Control = _get_stat_label_node(key)
+			if is_instance_valid(stale_node):
+				stale_node.visible = false
 
 	var keys_in_order: Array = dict.keys()
 
 	# 2. 动态创建或更新 UI 节点
-	for key in keys_in_order:
+	for key: Variant in keys_in_order:
 		var data_to_display: Variant = dict[key]
 
-		if (
-			data_to_display == null
-			or (data_to_display is String and data_to_display.is_empty())
-			or (data_to_display is Array and data_to_display.is_empty())
-		):
+		if _is_display_value_empty(data_to_display):
 			if _stat_labels.has(key):
-				_stat_labels[key].visible = false
+				var hidden_node: Control = _get_stat_label_node(key)
+				if is_instance_valid(hidden_node):
+					hidden_node.visible = false
 			continue
 
 		var ui_node: Control
 		var needs_recreation: bool = false
 		
 		if _stat_labels.has(key):
-			var existing_node: Control = _stat_labels[key]
-			if (
+			var existing_node: Control = _get_stat_label_node(key)
+			if not is_instance_valid(existing_node):
+				needs_recreation = true
+			elif (
 				(data_to_display is Array and not existing_node is FlowLabelList)
 				or (not data_to_display is Array and existing_node is FlowLabelList)
 			):
@@ -165,9 +167,12 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 
 		if needs_recreation:
 			if data_to_display is Array:
-				ui_node = FLOW_LABEL_LIST_SCENE.instantiate()
+				var flow_label_node: Node = FLOW_LABEL_LIST_SCENE.instantiate()
+				if not flow_label_node is Control:
+					continue
+				ui_node = flow_label_node
 			else:
-				var new_label := RichTextLabel.new()
+				var new_label: RichTextLabel = RichTextLabel.new()
 				new_label.bbcode_enabled = true
 				new_label.fit_content = true
 				new_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -176,12 +181,17 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 			_stats_container.add_child(ui_node)
 			_stat_labels[key] = ui_node
 		else:
-			ui_node = _stat_labels[key]
+			ui_node = _get_stat_label_node(key)
+			if not is_instance_valid(ui_node):
+				continue
 
 		if ui_node is FlowLabelList:
-			(ui_node as FlowLabelList).update_data(data_to_display)
+			var data_array: Array = data_to_display if data_to_display is Array else []
+			var flow_label_list: FlowLabelList = ui_node
+			flow_label_list.update_data(data_array)
 		elif ui_node is RichTextLabel:
-			(ui_node as RichTextLabel).text = str(data_to_display)
+			var rich_label: RichTextLabel = ui_node
+			rich_label.text = str(data_to_display)
 
 		ui_node.visible = true
 		var display_signature: String = _make_display_signature(data_to_display)
@@ -220,11 +230,12 @@ func _pulse_control(control: Control) -> void:
 		control.modulate = Color.WHITE
 		return
 
-	var tween := control.create_tween()
-	tween.set_parallel(true)
-	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.tween_property(control, "scale", Vector2.ONE, _FEEDBACK_DURATION)
-	tween.tween_property(control, "modulate", Color.WHITE, _FEEDBACK_DURATION)
+	var tween: Tween = control.create_tween()
+	var _parallel_tween: Tween = tween.set_parallel(true)
+	var _trans_tween: Tween = tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_tween: Tween = tween.set_ease(Tween.EASE_OUT)
+	var _scale_tweener: PropertyTweener = tween.tween_property(control, "scale", Vector2.ONE, _FEEDBACK_DURATION)
+	var _modulate_tweener: PropertyTweener = tween.tween_property(control, "modulate", Color.WHITE, _FEEDBACK_DURATION)
 	control.set_meta(_FEEDBACK_TWEEN_META, tween)
 
 
@@ -242,6 +253,26 @@ func _get_tween_value(value: Variant) -> Tween:
 		var tween: Tween = value
 		return tween
 	return null
+
+
+func _get_stat_label_node(key: Variant) -> Control:
+	var node_value: Variant = _stat_labels[key] if _stat_labels.has(key) else null
+	if node_value is Control:
+		var control: Control = node_value
+		return control
+	return null
+
+
+static func _is_display_value_empty(value: Variant) -> bool:
+	if value == null:
+		return true
+	if value is String:
+		var text_value: String = value
+		return text_value.is_empty()
+	if value is Array:
+		var array_value: Array = value
+		return array_value.is_empty()
+	return false
 
 
 func _make_display_signature(value: Variant) -> String:

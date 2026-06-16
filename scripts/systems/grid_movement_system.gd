@@ -56,25 +56,31 @@ func handle_move(direction: Vector2i) -> MoveData:
 
 	var instructions: Array[Dictionary] = []
 	var new_grid: Array = []
-	new_grid.resize(grid_size)
+	var _resize_result: Variant = new_grid.resize(grid_size)
 
-	for i in range(grid_size):
-		new_grid[i] = []
-		new_grid[i].resize(grid_size)
-		new_grid[i].fill(null)
+	for i: int in range(grid_size):
+		var row: Array = []
+		var _row_resize_result: Variant = row.resize(grid_size)
+		row.fill(null)
+		new_grid[i] = row
 
 	var moved_lines_indices: Array[int] = []
 	var score_delta: int = 0
 	var monster_kill_count: int = 0
 
 	# 算法核心：按行/列处理
-	for i in range(grid_size):
+	for i: int in range(grid_size):
 		var line: Array[GameTileData] = []
 
 		# 提取当前行/列的 TileData 引用
-		for j in range(grid_size):
+		for j: int in range(grid_size):
 			var coords: Vector2i = _get_coords_for_line(i, j, direction, grid_size)
-			line.append(grid[coords.x][coords.y])
+			var source_column: Array = grid[coords.x]
+			var tile_value: Variant = source_column[coords.y]
+			if tile_value is GameTileData:
+				line.append(tile_value)
+			else:
+				line.append(null)
 
 		# 调用规则引擎计算合并结果
 		var result: Dictionary = movement_rule.process_line(line)
@@ -87,7 +93,7 @@ func handle_move(direction: Vector2i) -> MoveData:
 				moved_lines_indices.append(i)
 
 		# 记录合并指令 (用于动画)
-		for merge_info in merges:
+		for merge_info: Dictionary in merges:
 			var consumed: GameTileData = merge_info.consumed_tile
 			var merged: GameTileData = merge_info.merged_tile
 			merged_tile_ids[merged.get_instance_id()] = true
@@ -114,17 +120,17 @@ func handle_move(direction: Vector2i) -> MoveData:
 			instructions.append(instruction)
 
 			if merge_info.has("score"):
-				score_delta += int(merge_info.get("score", 0))
+				score_delta += _get_int(merge_info, &"score", 0)
 			if merge_info.has("monster_killed"):
-				monster_kill_count += int(merge_info.get("monster_killed", 0))
+				monster_kill_count += _get_int(merge_info, &"monster_killed", 0)
 
 		# 记录移动指令 (用于动画)
 		var tiles_in_new_line_ids: Array = []
-		for tile_data in new_line:
+		for tile_data: GameTileData in new_line:
 			if tile_data:
 				tiles_in_new_line_ids.append(tile_data.get_instance_id())
 
-		for j in range(grid_size):
+		for j: int in range(grid_size):
 			var original_data: GameTileData = line[j]
 			if original_data == null or not original_data.get_instance_id() in tiles_in_new_line_ids:
 				continue
@@ -143,9 +149,10 @@ func handle_move(direction: Vector2i) -> MoveData:
 				})
 
 		# 更新临时网格数据
-		for j in range(grid_size):
+		for j: int in range(grid_size):
 			var coords: Vector2i = _get_coords_for_line(i, j, direction, grid_size)
-			new_grid[coords.x][coords.y] = new_line[j]
+			var target_column: Array = new_grid[coords.x]
+			target_column[coords.y] = new_line[j]
 
 	# 如果有任何移动发生
 	if not moved_lines_indices.is_empty():
@@ -157,7 +164,7 @@ func handle_move(direction: Vector2i) -> MoveData:
 		if monster_kill_count > 0:
 			send_simple_event(EventNames.MONSTER_KILLED, monster_kill_count)
 
-		var result_move_data := MoveData.new()
+		var result_move_data: MoveData = MoveData.new()
 		result_move_data.direction = direction
 		result_move_data.moved_lines = moved_lines_indices
 		result_move_data.reverse_target_map = _build_reverse_target_map(instructions)
@@ -178,15 +185,18 @@ func handle_move(direction: Vector2i) -> MoveData:
 func _build_reverse_target_map(instructions: Array) -> Dictionary:
 	var reverse_target_map: Dictionary = {}
 
-	for instr in instructions:
-		var instruction_type: StringName = instr.get(&"type", instr.get("type", &""))
+	for raw_instr: Variant in instructions:
+		if not raw_instr is Dictionary:
+			continue
+		var instr: Dictionary = raw_instr
+		var instruction_type: StringName = _get_instruction_type(instr)
 		if instruction_type == &"MOVE":
-			var from_pos: Vector2i = instr[&"from_grid_pos"]
-			reverse_target_map[_grid_pos_key(from_pos)] = instr[&"to_grid_pos"]
+			var from_pos: Vector2i = _get_vector2i(instr, &"from_grid_pos", Vector2i.ZERO)
+			reverse_target_map[_grid_pos_key(from_pos)] = _get_vector2i(instr, &"to_grid_pos", from_pos)
 		elif instruction_type == &"MERGE":
-			var from_consumed: Vector2i = instr[&"from_grid_pos_consumed"]
-			var from_merged: Vector2i = instr[&"from_grid_pos_merged"]
-			var to_pos: Vector2i = instr[&"to_grid_pos"]
+			var from_consumed: Vector2i = _get_vector2i(instr, &"from_grid_pos_consumed", Vector2i.ZERO)
+			var from_merged: Vector2i = _get_vector2i(instr, &"from_grid_pos_merged", Vector2i.ZERO)
+			var to_pos: Vector2i = _get_vector2i(instr, &"to_grid_pos", Vector2i.ZERO)
 			reverse_target_map[_grid_pos_key(from_consumed)] = to_pos
 			reverse_target_map[_grid_pos_key(from_merged)] = to_pos
 
@@ -195,6 +205,30 @@ func _build_reverse_target_map(instructions: Array) -> Dictionary:
 
 func _grid_pos_key(grid_pos: Vector2i) -> String:
 	return "%d,%d" % [grid_pos.x, grid_pos.y]
+
+
+static func _get_instruction_type(data: Dictionary) -> StringName:
+	var value: Variant = data.get(&"type", data.get("type", &""))
+	if value is StringName:
+		return value
+	return StringName(str(value))
+
+
+static func _get_vector2i(data: Dictionary, key: StringName, default_value: Vector2i) -> Vector2i:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is Vector2i:
+		return value
+	return default_value
+
+
+static func _get_int(data: Dictionary, key: StringName, default_value: int) -> int:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is int:
+		return value
+	if value is float:
+		var float_value: float = value
+		return int(float_value)
+	return default_value
 
 
 func _get_coords_for_line(line_index: int, cell_index: int, direction: Vector2i, grid_size: int) -> Vector2i:

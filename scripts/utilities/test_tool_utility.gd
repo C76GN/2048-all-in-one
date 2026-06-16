@@ -13,7 +13,7 @@ const _LOG_TAG: String = "TestToolUtility"
 
 # --- 私有变量 ---
 
-var _test_panel: Control
+var _test_panel: TestPanel
 var _game_board: GameBoardController
 var _is_listening: bool = false
 var _is_debug_command_registered: bool = false
@@ -22,7 +22,7 @@ var _is_debug_command_registered: bool = false
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
-	var console := get_utility(GFConsoleUtility) as GFConsoleUtility
+	var console: GFConsoleUtility = get_utility(GFConsoleUtility) as GFConsoleUtility
 	if is_instance_valid(console):
 		console.register_command(_CMD_GF_DEBUG, _cmd_gf_debug, "Print GF runtime debug snapshot.")
 		_is_debug_command_registered = true
@@ -31,7 +31,7 @@ func ready() -> void:
 ## 释放测试工具持有的场景引用与事件监听。
 func dispose() -> void:
 	if _is_debug_command_registered:
-		var console := get_utility(GFConsoleUtility) as GFConsoleUtility
+		var console: GFConsoleUtility = get_utility(GFConsoleUtility) as GFConsoleUtility
 		if is_instance_valid(console):
 			console.unregister_command(_CMD_GF_DEBUG)
 		_is_debug_command_registered = false
@@ -51,7 +51,7 @@ func dispose() -> void:
 ## 设置测试工具。
 ## @param panel: 测试面板节点引用。
 ## @param board: 游戏棋盘节点引用。
-func setup_test_tools(panel: Control, board: GameBoardController) -> void:
+func setup_test_tools(panel: TestPanel, board: GameBoardController) -> void:
 	_test_panel = panel
 	_game_board = board
 	
@@ -101,29 +101,29 @@ func _register_listeners() -> void:
 
 
 func _cmd_gf_debug(_args: PackedStringArray) -> void:
-	var architecture := _get_architecture_or_null()
+	var architecture: GFArchitecture = _get_architecture_or_null()
 	var snapshot: Dictionary = {}
 	if architecture != null:
 		snapshot[&"lifecycle"] = architecture.get_debug_lifecycle_state()
 		snapshot[&"events"] = architecture.get_event_debug_stats()
 
-	var object_pool := get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
+	var object_pool: GFObjectPoolUtility = get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
 	if is_instance_valid(object_pool):
 		snapshot[&"object_pool"] = object_pool.get_debug_snapshot()
 
-	var log_utility := get_utility(GFLogUtility) as GFLogUtility
+	var log_utility: GFLogUtility = get_utility(GFLogUtility) as GFLogUtility
 	if is_instance_valid(log_utility):
 		log_utility.info(_LOG_TAG, JSON.stringify(snapshot, "\t"))
 
 
 func _sync_highest_tile_from_grid() -> void:
-	var game_flow_system := get_system(GameFlowSystem) as GameFlowSystem
+	var game_flow_system: GameFlowSystem = get_system(GameFlowSystem) as GameFlowSystem
 	if is_instance_valid(game_flow_system):
 		game_flow_system.sync_highest_tile_from_grid()
 		return
 
-	var grid_model := get_model(GridModel) as GridModel
-	var status_model := get_model(GameStatusModel) as GameStatusModel
+	var grid_model: GridModel = get_model(GridModel) as GridModel
+	var status_model: GameStatusModel = get_model(GameStatusModel) as GameStatusModel
 	if is_instance_valid(grid_model) and is_instance_valid(status_model):
 		status_model.highest_tile.set_value(grid_model.get_max_player_value())
 
@@ -143,19 +143,23 @@ func _is_grid_pos_in_bounds(grid_model: GridModel, grid_pos: Vector2i) -> bool:
 func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int) -> void:
 	send_simple_event(EventNames.GAME_STATE_TAINTED)
 	
-	var grid_model := get_model(GridModel) as GridModel
+	var grid_model: GridModel = get_model(GridModel) as GridModel
 	
 	if not grid_model:
 		return
 	if not _is_grid_pos_in_bounds(grid_model, grid_pos):
 		return
 		
-	var interaction_rule = grid_model.interaction_rule
+	var interaction_rule: InteractionRule = grid_model.interaction_rule
 	if interaction_rule:
 		var tile_type_enum: Tile.TileType = interaction_rule.get_tile_type_from_id(type_id)
 		
 		# 清理旧数据
-		var old_data = grid_model.grid[grid_pos.x][grid_pos.y]
+		var column: Array = grid_model.grid[grid_pos.x]
+		var old_data_value: Variant = column[grid_pos.y]
+		var old_data: GameTileData = null
+		if old_data_value is GameTileData:
+			old_data = old_data_value
 		if old_data != null:
 			# 发送移除动画指令
 			var _remove_instruction: Array = [ {
@@ -166,7 +170,7 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int
 			# 考虑到直接调用删除比较麻烦，这里让 GameBoardController 收到 BOARD_REFRESH_REQUESTED 时全量刷新即可。
 			
 		# 创建新数据并放置
-		var tile_data := GameTileData.new(value, tile_type_enum)
+		var tile_data: GameTileData = GameTileData.new(value, tile_type_enum)
 		grid_model.place_tile(tile_data, grid_pos)
 		
 		# 通知视图层全量刷新 (比单点刷新更安全，且测试工具不需要关心视图层怎么画)
@@ -175,8 +179,8 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int
 
 
 func _on_test_panel_values_requested(type_id: int) -> void:
-	var grid_model := get_model(GridModel) as GridModel
-	var interaction_rule = grid_model.interaction_rule if grid_model else null
+	var grid_model: GridModel = get_model(GridModel) as GridModel
+	var interaction_rule: InteractionRule = grid_model.interaction_rule if grid_model else null
 	
 	if interaction_rule:
 		var values: Array[int] = interaction_rule.get_spawnable_values(type_id)
@@ -202,7 +206,7 @@ func _on_reset_and_resize_requested_event(new_size: int) -> void:
 func _on_live_expand_requested_event(new_size: int) -> void:
 	send_simple_event(EventNames.GAME_STATE_TAINTED)
 	
-	var grid_model := get_model(GridModel) as GridModel
+	var grid_model: GridModel = get_model(GridModel) as GridModel
 	
 	if grid_model and new_size > grid_model.grid_size:
 		send_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, new_size)
@@ -213,25 +217,30 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	if new_size <= 0:
 		return
 
-	var grid_model := get_model(GridModel) as GridModel
-	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
-	var status_model := get_model(GameStatusModel) as GameStatusModel
-	var command_history := get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-	var rule_system := get_system(RuleSystem) as RuleSystem
+	var grid_model: GridModel = get_model(GridModel) as GridModel
+	var current_game_model: CurrentGameModel = get_model(CurrentGameModel) as CurrentGameModel
+	var status_model: GameStatusModel = get_model(GameStatusModel) as GameStatusModel
+	var command_history: GFCommandHistoryUtility = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var rule_system: RuleSystem = get_system(RuleSystem) as RuleSystem
 	var game_board: GameBoardController = _game_board
 
 	if not grid_model or not current_game_model or not is_instance_valid(game_board):
 		return
 
-	var mode_config := current_game_model.mode_config.get_value() as GameModeConfig
+	var mode_config_value: Variant = current_game_model.mode_config.get_value()
+	if not mode_config_value is GameModeConfig:
+		return
+	var mode_config: GameModeConfig = mode_config_value
 	if not is_instance_valid(mode_config):
 		return
 
 	grid_model.initialize(new_size, grid_model.interaction_rule, grid_model.movement_rule)
 	if is_instance_valid(rule_system):
 		var spawn_rules: Array[SpawnRule] = []
-		for rule_resource in mode_config.spawn_rules:
-			spawn_rules.append(rule_resource.duplicate() as SpawnRule)
+		for rule_resource: SpawnRule in mode_config.spawn_rules:
+			var duplicated_rule: Resource = rule_resource.duplicate()
+			if duplicated_rule is SpawnRule:
+				spawn_rules.append(duplicated_rule)
 		rule_system.register_rules(spawn_rules)
 
 	current_game_model.current_grid_size.set_value(new_size)
@@ -252,9 +261,9 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	_sync_highest_tile_from_grid()
 
 	if command_history:
-		var init_cmd := MoveCommand.new(Vector2i.ZERO)
+		var init_cmd: MoveCommand = MoveCommand.new(Vector2i.ZERO)
 		init_cmd.mark_as_baseline()
-		var game_state_system := get_system(GameStateSystem) as GameStateSystem
+		var game_state_system: GameStateSystem = get_system(GameStateSystem) as GameStateSystem
 		if is_instance_valid(game_state_system):
 			init_cmd.set_snapshot(game_state_system.get_full_game_state(new_size))
 		command_history.record(init_cmd)

@@ -350,5 +350,5 @@ func _headers_from_variant(value: Variant) -> PackedStringArray:
 	if value is Array:
 		var header_values: Array = value
 		for header: Variant in header_values:
-			var _append_result_353: Variant = result.append(GFVariantData.to_text(header))
+			result.append(GFVariantData.to_text(header))
 	return result

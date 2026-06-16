@@ -12,7 +12,7 @@ const ACTION_MOVE_RIGHT: StringName = &"move_right"
 # --- 测试用例 ---
 
 func test_keyboard_action_survives_until_next_system_poll() -> void:
-	var input_mapping := GFInputMappingUtility.new()
+	var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
 	input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
 
 	input_mapping.handle_input_event(_make_key_event(KEY_D, KEY_D))
@@ -23,7 +23,7 @@ func test_keyboard_action_survives_until_next_system_poll() -> void:
 
 
 func test_transient_keyboard_action_clears_after_next_frame_utility_tick() -> void:
-	var input_mapping := GFInputMappingUtility.new()
+	var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
 	input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
 
 	input_mapping.handle_input_event(_make_key_event(KEY_LEFT))
@@ -42,7 +42,7 @@ func test_transient_keyboard_action_clears_after_next_frame_utility_tick() -> vo
 # --- 私有/辅助方法 ---
 
 func _make_key_event(keycode: Key, physical_keycode: Key = KEY_NONE) -> InputEventKey:
-	var event := InputEventKey.new()
+	var event: InputEventKey = InputEventKey.new()
 	event.pressed = true
 	event.keycode = keycode
 	event.physical_keycode = physical_keycode

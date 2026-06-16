@@ -8,11 +8,11 @@ extends GFInstaller
 const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
 const _COMMAND_HISTORY_LIMIT: int = 1024
 const _AUDIO_BUS_MASTER: String = "Master"
-const _GAME_MODE_CONFIG_CACHE_UTILITY_SCRIPT = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
-const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT = preload("res://scripts/utilities/saved_resource_collection_utility.gd")
-const _GAME_UI_ROUTER_UTILITY_SCRIPT = preload("res://scripts/utilities/game_ui_router_utility.gd")
-const _GAME_UI_MOTION_UTILITY_SCRIPT = preload("res://scripts/utilities/game_ui_motion_utility.gd")
-const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT = preload("res://scripts/utilities/game_board_feedback_utility.gd")
+const _GAME_MODE_CONFIG_CACHE_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
+const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/saved_resource_collection_utility.gd")
+const _GAME_UI_ROUTER_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_ui_router_utility.gd")
+const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_ui_motion_utility.gd")
+const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_board_feedback_utility.gd")
 
 
 # --- 公共方法 ---
@@ -26,10 +26,10 @@ func install(_architecture: GFArchitecture) -> void:
 ## 使用声明式 Binder 注册项目级 Model、Utility 和 System。
 ## @param binder: GF 传入的绑定器实例。
 func install_bindings(binder: Variant) -> void:
-	var gf_binder := binder as GFBinder
-	if gf_binder == null:
+	if not binder is GFBinder:
 		push_error("[GameArchitectureInstaller] install_bindings 失败：binder 为空或类型错误。")
 		return
+	var gf_binder: GFBinder = binder
 
 	await _bind_models(gf_binder)
 	await _bind_utilities(gf_binder)
@@ -86,7 +86,7 @@ func _bind_systems(binder: GFBinder) -> void:
 
 
 func _create_storage_utility() -> GFStorageUtility:
-	var storage := GFStorageUtility.new()
+	var storage: GFStorageUtility = GFStorageUtility.new()
 	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	storage.include_storage_metadata = true
@@ -96,13 +96,13 @@ func _create_storage_utility() -> GFStorageUtility:
 
 
 func _create_settings_utility() -> GameSettingsUtility:
-	var settings := GameSettingsUtility.new()
-	settings.register_setting(
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	var _locale_setting: GFSettingDefinition = settings.register_setting(
 		GFDisplaySettingsUtility.LOCALE_KEY,
 		"zh",
 		GFSettingDefinition.ValueType.STRING
 	)
-	settings.register_setting(
+	var _master_volume_setting: GFSettingDefinition = settings.register_setting(
 		StringName("audio/%s/volume" % _AUDIO_BUS_MASTER),
 		1.0,
 		GFSettingDefinition.ValueType.FLOAT
@@ -111,13 +111,13 @@ func _create_settings_utility() -> GameSettingsUtility:
 
 
 func _create_history_utility() -> GFCommandHistoryUtility:
-	var history_util := GFCommandHistoryUtility.new()
+	var history_util: GFCommandHistoryUtility = GFCommandHistoryUtility.new()
 	history_util.max_history_size = _COMMAND_HISTORY_LIMIT
 	return history_util
 
 
 func _create_log_utility() -> GFLogUtility:
-	var log_utility := GFLogUtility.new()
+	var log_utility: GFLogUtility = GFLogUtility.new()
 	log_utility.min_level = (
 		GFLogUtility.LogLevel.DEBUG
 		if _is_verbose_logging_enabled()
@@ -127,7 +127,7 @@ func _create_log_utility() -> GFLogUtility:
 
 
 func _create_object_pool_utility() -> GFObjectPoolUtility:
-	var object_pool := GFObjectPoolUtility.new()
+	var object_pool: GFObjectPoolUtility = GFObjectPoolUtility.new()
 	object_pool.max_available_per_scene = 128
 	return object_pool
 

@@ -54,7 +54,7 @@ func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: In
 			tile_b.value = 1
 			
 			if destination_was_player:
-				var player_win_result := {
+				var player_win_result: Dictionary = {
 					"merged_tile": tile_b,
 					"consumed_tile": tile_a,
 					"score": 1,
@@ -64,7 +64,7 @@ func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: In
 					player_win_result["monster_killed"] = 1
 				return player_win_result
 
-			var monster_win_result := {
+			var monster_win_result: Dictionary = {
 				"merged_tile": tile_b,
 				"consumed_tile": tile_a,
 				"score": - 1,
@@ -132,6 +132,6 @@ func get_spawnable_values(_type_id: int) -> Array[int]:
 ## @param context: 包含当前游戏统计信息的 Dictionary 对象。
 ## @param stats: 要写入显示数据的 Dictionary 对象。
 func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
-	var monsters_killed: int = context.get(&"monsters_killed", 0)
+	var monsters_killed: int = GFVariantData.to_int(context.get(&"monsters_killed", 0), 0)
 	if monsters_killed >= 0:
 		stats[&"monsters_killed_display"] = tr("BATTLE_KILLED_DISPLAY") % monsters_killed

@@ -7,7 +7,6 @@ extends BaseListMenu
 
 # --- 常量 ---
 
-const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
 
 
 # --- 导出变量 ---
@@ -32,7 +31,7 @@ func _ready() -> void:
 	_setup_base_signals()
 	_update_ui_text()
 	_update_action_buttons()
-	_populate_list()
+	await _populate_list()
 
 	super._ready()
 
@@ -40,37 +39,41 @@ func _ready() -> void:
 # --- 虚方法覆写 ---
 
 func _get_data_list() -> Array:
-	var replay_system := get_system(ReplaySystem) as ReplaySystem
+	var replay_system: ReplaySystem = get_system(ReplaySystem) as ReplaySystem
 	var replays: Array[ReplayData] = []
 	if replay_system:
 		replays = replay_system.load_replays()
 	var result: Array = []
-	for replay_data in replays:
+	for replay_data: ReplayData in replays:
 		result.append(replay_data)
 	return result
 
 
 func _setup_item(item: Control, data: Resource) -> void:
-	if item is ReplayListItem and data is ReplayData:
-		item.setup(data)
+	var replay_item: ReplayListItem = item as ReplayListItem
+	var replay_data: ReplayData = data as ReplayData
+	if is_instance_valid(replay_item) and is_instance_valid(replay_data):
+		replay_item.setup(replay_data)
 
 
 func _connect_item_signals(item: Control, _data: Resource) -> void:
-	if item.has_signal("replay_selected"):
-		if not item.replay_selected.is_connected(_on_item_confirmed):
-			item.replay_selected.connect(_on_item_confirmed)
-	if item.has_signal("item_focused"):
-		if not item.item_focused.is_connected(_on_item_focused):
-			item.item_focused.connect(_on_item_focused)
+	var replay_item: ReplayListItem = item as ReplayListItem
+	if not is_instance_valid(replay_item):
+		return
+
+	if not replay_item.replay_selected.is_connected(_on_item_confirmed):
+		var _connect_result_61: int = replay_item.replay_selected.connect(_on_item_confirmed)
+	if not replay_item.item_focused.is_connected(_on_item_focused):
+		var _connect_result_64: int = replay_item.item_focused.connect(_on_item_focused)
 
 
 func _update_preview(data: Resource) -> void:
-	var replay = data as ReplayData
+	var replay: ReplayData = data as ReplayData
 	if not is_instance_valid(replay):
 		_clear_preview()
 		return
 
-	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE_UTILITY.get_config(replay.mode_config_path)
+	var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(replay.mode_config_path)
 	if not is_instance_valid(mode_config):
 		detail_info_label.text = tr("ERR_LOAD_CONFIG")
 		if is_instance_valid(board_preview_node):
@@ -101,9 +104,9 @@ func _update_ui_text() -> void:
 	if is_instance_valid(page_title):
 		page_title.text = tr("TITLE_REPLAY_LIST")
 
-	var left_column := get_node_or_null("MarginContainer/ColumnsContainer/LeftColumn")
+	var left_column: Node = get_node_or_null("MarginContainer/ColumnsContainer/LeftColumn")
 	if left_column and left_column.get_child_count() > 0:
-		var preview_label := left_column.get_child(0) as Label
+		var preview_label: Label = left_column.get_child(0) as Label
 		if preview_label:
 			preview_label.text = tr("TITLE_REPLAY_PREVIEW")
 
@@ -114,28 +117,28 @@ func _update_ui_text() -> void:
 	if is_instance_valid(back_button):
 		back_button.text = tr("BTN_RETURN_MAIN")
 
-	var right_column := get_node_or_null("MarginContainer/ColumnsContainer/RightColumn")
+	var right_column: Node = get_node_or_null("MarginContainer/ColumnsContainer/RightColumn")
 	if right_column and right_column.get_child_count() > 0:
-		var operations_label := right_column.get_child(0) as Label
+		var operations_label: Label = right_column.get_child(0) as Label
 		if operations_label:
 			operations_label.text = tr("CONTROLS_TITLE")
 
 
 func _do_delete_logic(data: Resource) -> void:
-	var replay = data as ReplayData
-	var replay_system := get_system(ReplaySystem) as ReplaySystem
+	var replay: ReplayData = data as ReplayData
+	var replay_system: ReplaySystem = get_system(ReplaySystem) as ReplaySystem
 	if replay_system:
 		replay_system.delete_replay(replay.file_path)
 
 
 func _on_primary_action_triggered(data: Resource) -> void:
-	var replay = data as ReplayData
-	var app_config := get_model(AppConfigModel) as AppConfigModel
+	var replay: ReplayData = data as ReplayData
+	var app_config: AppConfigModel = get_model(AppConfigModel) as AppConfigModel
 	if app_config:
 		app_config.selected_bookmark_data.set_value(null)
 		app_config.current_replay_data.set_value(replay)
 
-	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
 	if router:
 		router.goto_scene(game_scene_path)
 

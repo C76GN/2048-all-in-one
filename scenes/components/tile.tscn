@@ -3,10 +3,7 @@
 [ext_resource type="Script" uid="uid://caysggyfw3ps7" path="res://scripts/components/tile.gd" id="1_3dk36"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_3dk36"]
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
+bg_color = Color(0.93, 0.68, 0.32, 1)
 
 [node name="Tile" type="Node2D"]
 script = ExtResource("1_3dk36")

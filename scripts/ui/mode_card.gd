@@ -13,7 +13,17 @@ extends Button
 ## @param config_path: 卡片所代表的 GameModeConfig 资源路径。
 signal card_focused(config_path: String)
 
-const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
+# --- 常量 ---
+
+const _CARD_RADIUS: int = 8
+const _REST_SURFACE_COLOR: Color = Color(0.055, 0.090, 0.120, 0.58)
+const _REST_BORDER_COLOR: Color = Color(0.95, 0.88, 0.72, 0.08)
+const _FOCUS_BORDER_COLOR: Color = Color(0.93, 0.82, 0.58, 0.72)
+const _SELECTED_SURFACE_COLOR: Color = Color(0.62, 0.35, 0.45, 0.88)
+const _SELECTED_BORDER_COLOR: Color = Color(0.98, 0.88, 0.68, 0.24)
+const _TEXT_PRIMARY_COLOR: Color = Color(0.96, 0.92, 0.84, 1.0)
+const _TEXT_SECONDARY_COLOR: Color = Color(0.72, 0.78, 0.76, 0.86)
+const _TEXT_SELECTED_SECONDARY_COLOR: Color = Color(0.98, 0.86, 0.72, 0.80)
 
 # --- 私有变量 ---
 
@@ -22,6 +32,7 @@ var _is_selected: bool = false
 var _original_stylebox: StyleBox
 var _focused_stylebox: StyleBox
 var _selected_stylebox: StyleBox
+var _selected_focused_stylebox: StyleBox
 
 # --- @onready 变量 (节点引用) ---
 
@@ -35,9 +46,9 @@ var _selected_stylebox: StyleBox
 func _ready() -> void:
 	_setup_styles()
 
-	focus_entered.connect(_on_focus_entered)
-	focus_exited.connect(_on_focus_exited)
-	pressed.connect(_on_pressed)
+	var _connect_result_50: int = focus_entered.connect(_on_focus_entered)
+	var _connect_result_51: int = focus_exited.connect(_on_focus_exited)
+	var _connect_result_52: int = pressed.connect(_on_pressed)
 
 
 # --- 公共方法 ---
@@ -51,7 +62,7 @@ func setup(config_path: String) -> void:
 
 ## 更新卡片文本（用于初始化或语言切换）。
 func update_text() -> void:
-	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE_UTILITY.get_config(_config_path)
+	var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(_config_path)
 
 	if is_instance_valid(mode_config):
 		_title_label.text = tr(mode_config.mode_name)
@@ -77,53 +88,43 @@ func set_selected(is_selected: bool) -> void:
 # --- 私有/辅助方法 ---
 
 func _setup_styles() -> void:
-	_original_stylebox = _panel.get_theme_stylebox("panel")
-
-	# 确保有一个 StyleBoxFlat 作为基础
-	var base_style: StyleBoxFlat
-	if _original_stylebox is StyleBoxFlat:
-		base_style = _original_stylebox.duplicate()
-	else:
-		base_style = StyleBoxFlat.new()
-		base_style.bg_color = Color(0.2, 0.2, 0.2, 1)
-		base_style.set_corner_radius_all(8)
-
-	# 获取主题色
-	var accent_color: Color
-	if has_theme_color("accent_color", "Theme"):
-		accent_color = get_theme_color("accent_color", "Theme")
-	else:
-		accent_color = Color(0.4, 0.7, 1.0)
-
-	# 1. 聚焦样式 (Active Focus)
-	_focused_stylebox = base_style.duplicate()
-	_focused_stylebox.border_width_top = 4
-	_focused_stylebox.border_width_right = 4
-	_focused_stylebox.border_width_bottom = 4
-	_focused_stylebox.border_width_left = 4
-	_focused_stylebox.border_color = accent_color
-	_focused_stylebox.bg_color = base_style.bg_color.lightened(0.1)
-
-	# 2. 选中但未聚焦样式 (Passive Selection)
-	_selected_stylebox = base_style.duplicate()
-	_selected_stylebox.border_width_top = 2
-	_selected_stylebox.border_width_right = 2
-	_selected_stylebox.border_width_bottom = 2
-	_selected_stylebox.border_width_left = 2
-
-	var dimmed_color := accent_color
-	dimmed_color.a = 0.5
-	_selected_stylebox.border_color = dimmed_color
+	_original_stylebox = _create_card_style(_REST_SURFACE_COLOR, _REST_BORDER_COLOR, 1)
+	_focused_stylebox = _create_card_style(_REST_SURFACE_COLOR.lightened(0.035), _FOCUS_BORDER_COLOR, 2)
+	_selected_stylebox = _create_card_style(_SELECTED_SURFACE_COLOR, _SELECTED_BORDER_COLOR, 1)
+	_selected_focused_stylebox = _create_card_style(_SELECTED_SURFACE_COLOR.lightened(0.04), _FOCUS_BORDER_COLOR, 2)
+	_update_label_colors()
 
 
 func _update_style() -> void:
-	# 优先级：聚焦 > 选中 > 普通
-	if has_focus():
+	if has_focus() and _is_selected:
+		_panel.add_theme_stylebox_override("panel", _selected_focused_stylebox)
+	elif has_focus():
 		_panel.add_theme_stylebox_override("panel", _focused_stylebox)
 	elif _is_selected:
 		_panel.add_theme_stylebox_override("panel", _selected_stylebox)
 	else:
 		_panel.add_theme_stylebox_override("panel", _original_stylebox)
+	_update_label_colors()
+
+
+func _create_card_style(bg_color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = bg_color
+	style.border_color = border_color
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(_CARD_RADIUS)
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	style.shadow_offset = Vector2.ZERO
+	return style
+
+
+func _update_label_colors() -> void:
+	_title_label.add_theme_color_override("font_color", _TEXT_PRIMARY_COLOR)
+	if _is_selected or has_focus():
+		_description_label.add_theme_color_override("font_color", _TEXT_SELECTED_SECONDARY_COLOR)
+	else:
+		_description_label.add_theme_color_override("font_color", _TEXT_SECONDARY_COLOR)
 
 
 # --- 信号处理函数 ---
@@ -142,7 +143,7 @@ func _on_pressed() -> void:
 	var neighbor_path: NodePath = get_focus_neighbor(SIDE_RIGHT)
 
 	if not neighbor_path.is_empty():
-		var right_neighbor := get_node_or_null(neighbor_path)
+		var right_neighbor: Node = get_node_or_null(neighbor_path)
 
 		if right_neighbor is Control:
 			(right_neighbor as Control).grab_focus()

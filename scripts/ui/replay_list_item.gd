@@ -11,7 +11,6 @@ extends BaseListMenuItem
 ## 当一个回放列表项被确认选中时发出。
 signal replay_selected(replay_data: ReplayData)
 
-const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
 
 
 # --- @onready 变量 (节点引用) ---
@@ -37,26 +36,26 @@ func get_replay_data() -> ReplayData:
 # --- 虚方法重写 ---
 
 func _update_display() -> void:
-	var replay_data := _item_data as ReplayData
+	var replay_data: ReplayData = _item_data as ReplayData
 	if not is_instance_valid(replay_data):
 		return
 
 	_mode_name_label.text = tr("UNKNOWN_MODE")
 
 	if not replay_data.mode_config_path.is_empty():
-		var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE_UTILITY.get_config(replay_data.mode_config_path)
+		var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(replay_data.mode_config_path)
 		if is_instance_valid(mode_config):
 			_mode_name_label.text = tr(mode_config.mode_name)
 		else:
 			_mode_name_label.text = tr("CONFIG_MISSING")
 
-	var datetime := tr("TIME_PARSE_ERROR")
+	var datetime: String = tr("TIME_PARSE_ERROR")
 	if replay_data.timestamp > 0:
 		datetime = Time.get_datetime_string_from_unix_time(replay_data.timestamp).replace("T", " ")
 
-	var score_label := tr("SCORE_LABEL").replace(": %d", "").strip_edges()
-	var size_label := tr("SIZE_LABEL")
-	var info_format := tr("REPLAY_INFO_FORMAT")
+	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
+	var size_label: String = tr("SIZE_LABEL")
+	var info_format: String = tr("REPLAY_INFO_FORMAT")
 	_info_label.text = info_format % [
 		datetime,
 		score_label,

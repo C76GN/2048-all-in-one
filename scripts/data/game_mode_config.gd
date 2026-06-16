@@ -52,7 +52,7 @@ extends Resource
 ##
 ## @return: 如果所有关键规则均已配置则返回 true，否则 push_error 并返回 false。
 func validate() -> bool:
-	var report := get_validation_report()
+	var report: GFValidationReport = get_validation_report()
 	if report.is_ok():
 		return true
 
@@ -65,7 +65,7 @@ func validate() -> bool:
 ## 生成本配置的 gf 校验报告。
 ## @return: 包含所有配置问题的 GFValidationReport。
 func get_validation_report() -> GFValidationReport:
-	var report := GFValidationReport.new(
+	var report: GFValidationReport = GFValidationReport.new(
 		"GameModeConfig:%s" % mode_name,
 		{
 			"mode_name": mode_name,
@@ -74,46 +74,52 @@ func get_validation_report() -> GFValidationReport:
 	) as GFValidationReport
 
 	if not is_instance_valid(interaction_rule):
-		report.add_error(&"missing_interaction_rule", "interaction_rule 未配置。", &"interaction_rule", resource_path)
+		_add_config_error(report, &"missing_interaction_rule", "interaction_rule 未配置。", &"interaction_rule")
 
 	if not is_instance_valid(movement_rule):
-		report.add_error(&"missing_movement_rule", "movement_rule 未配置。", &"movement_rule", resource_path)
+		_add_config_error(report, &"missing_movement_rule", "movement_rule 未配置。", &"movement_rule")
 
 	if spawn_rules.is_empty():
-		report.add_error(&"empty_spawn_rules", "spawn_rules 为空，游戏将无法生成方块。", &"spawn_rules", resource_path)
+		_add_config_error(report, &"empty_spawn_rules", "spawn_rules 为空，游戏将无法生成方块。", &"spawn_rules")
 
-	for i in range(spawn_rules.size()):
+	for i: int in range(spawn_rules.size()):
 		if not is_instance_valid(spawn_rules[i]):
-			report.add_error(
+			_add_config_error(
+				report,
 				&"missing_spawn_rule",
 				"spawn_rules[%d] 未配置。" % i,
-				"spawn_rules/%d" % i,
-				resource_path
+				"spawn_rules/%d" % i
 			)
 
 	if not is_instance_valid(game_over_rule):
-		report.add_error(&"missing_game_over_rule", "game_over_rule 未配置。", &"game_over_rule", resource_path)
+		_add_config_error(report, &"missing_game_over_rule", "game_over_rule 未配置。", &"game_over_rule")
 
 	if not is_instance_valid(board_theme):
-		report.add_error(&"missing_board_theme", "board_theme 未配置。", &"board_theme", resource_path)
+		_add_config_error(report, &"missing_board_theme", "board_theme 未配置。", &"board_theme")
 
 	if min_grid_size <= 0:
-		report.add_error(&"invalid_min_grid_size", "min_grid_size 必须大于 0。", &"min_grid_size", resource_path)
+		_add_config_error(report, &"invalid_min_grid_size", "min_grid_size 必须大于 0。", &"min_grid_size")
 
 	if min_grid_size > max_grid_size:
-		report.add_error(
+		_add_config_error(
+			report,
 			&"invalid_grid_size_range",
 			"min_grid_size 不能大于 max_grid_size。",
-			&"min_grid_size",
-			resource_path
+			&"min_grid_size"
 		)
 
 	if default_grid_size < min_grid_size or default_grid_size > max_grid_size:
-		report.add_error(
+		_add_config_error(
+			report,
 			&"invalid_default_grid_size",
 			"default_grid_size 必须位于 [%d, %d] 范围内。" % [min_grid_size, max_grid_size],
-			&"default_grid_size",
-			resource_path
+			&"default_grid_size"
 		)
 
 	return report
+
+
+# --- 私有/辅助方法 ---
+
+func _add_config_error(report: GFValidationReport, kind: StringName, message: String, key: Variant) -> void:
+	var _issue: RefCounted = report.add_error(kind, message, key, resource_path)

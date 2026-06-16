@@ -57,20 +57,21 @@ func get_level_by_value(value: int) -> int:
 ## @param context: 包含当前游戏统计信息的 Dictionary 对象。
 ## @param stats: 要写入显示数据的 Dictionary 对象。
 func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
-	var max_value: int = context.get(&"max_player_value", 0)
-	var player_values_set: Dictionary = context.get(&"player_values_set", {})
+	var max_value: int = GFVariantData.to_int(context.get(&"max_player_value", 0), 0)
+	var player_values_value: Variant = context.get(&"player_values_set", {})
+	var player_values_set: Dictionary = player_values_value if player_values_value is Dictionary else {}
 
 	var max_display_value: int = 5 + max_value * 2
-	var full_sequence := SequenceMath.generate_fibonacci()
+	var full_sequence: Array[int] = SequenceMath.generate_fibonacci()
 	var display_sequence: Array[int] = []
 
-	for num in full_sequence:
+	for num: int in full_sequence:
 		display_sequence.append(num)
 		if num > max_display_value:
 			break
 
 	var fib_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_SYNTH_SEQ"), &"color": Color.WHITE}]
-	for num in display_sequence:
+	for num: int in display_sequence:
 		var item: Dictionary = {&"text": str(num), &"color": Color.GRAY}
 		if player_values_set.has(num):
 			item[&"color"] = Color.WHITE
@@ -91,17 +92,17 @@ func get_spawnable_types() -> Dictionary:
 ## @param _type_id: 类型的ID。
 ## @return: 一个包含所有合法数值(int)的数组。
 func get_spawnable_values(_type_id: int) -> Array[int]:
-	var sequence := SequenceMath.generate_fibonacci()
+	var sequence: Array[int] = SequenceMath.generate_fibonacci()
 	if not sequence.has(1):
 		sequence.push_front(1)
 
 	var result: Array[int] = []
-	for val in sequence:
+	for val: int in sequence:
 		if val < 10000:
 			result.append(val)
 
 	var unique_result: Array[int] = []
-	for item in result:
+	for item: int in result:
 		if not unique_result.has(item):
 			unique_result.append(item)
 	unique_result.sort()

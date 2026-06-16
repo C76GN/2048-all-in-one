@@ -40,7 +40,7 @@ var _delete_button: Button
 
 func _ready() -> void:
 	if is_instance_valid(back_button):
-		back_button.pressed.connect(_on_back_button_pressed)
+		var _connect_result_43: int = back_button.pressed.connect(_on_back_button_pressed)
 
 
 func _notification(what: int) -> void:
@@ -106,9 +106,9 @@ func _get_select_hint_message() -> String:
 ## 统一连接基础按钮信号。子类在设置完按钮引用后应调用此方法。
 func _setup_base_signals() -> void:
 	if is_instance_valid(_primary_button):
-		_primary_button.pressed.connect(_on_primary_button_pressed)
+		var _connect_result_109: int = _primary_button.pressed.connect(_on_primary_button_pressed)
 	if is_instance_valid(_delete_button):
-		_delete_button.pressed.connect(_on_delete_button_pressed)
+		var _connect_result_111: int = _delete_button.pressed.connect(_on_delete_button_pressed)
 
 
 ## 重新填充列表内容。
@@ -117,28 +117,34 @@ func _populate_list() -> void:
 		push_error("[BaseListMenu] _item_scene 未在子类中初始化。")
 		return
 
-	var pool := get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
+	var pool: GFObjectPoolUtility = get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
 
-	for child in items_container.get_children():
+	for child: Node in items_container.get_children():
 		if child is Label:
 			child.queue_free()
 		elif pool:
 			pool.release(child, _item_scene)
-			child.visible = false
+			if child is CanvasItem:
+				var child_canvas_item: CanvasItem = child
+				child_canvas_item.visible = false
 		else:
 			child.queue_free()
 
 	# 等待一帧确保 queue_free 完成
 	await get_tree().process_frame
 
-	var data_list: Array = _get_data_list()
+	var raw_data_list: Array = _get_data_list()
+	var data_list: Array[Resource] = []
+	for data_value: Variant in raw_data_list:
+		if data_value is Resource:
+			data_list.append(data_value)
 
 	if data_list.is_empty():
 		_handle_empty_list()
 		return
 
 	var items: Array[Control] = []
-	for data in data_list:
+	for data: Resource in data_list:
 		var item: Control
 		if pool:
 			item = pool.acquire(_item_scene, items_container) as Control
@@ -168,7 +174,7 @@ func _populate_list() -> void:
 
 ## 处理列表为空的情况。
 func _handle_empty_list() -> void:
-	var label := Label.new()
+	var label: Label = Label.new()
 	label.text = _get_empty_message()
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.custom_minimum_size.y = 50
@@ -185,12 +191,15 @@ func _set_selected_item(data: Resource) -> void:
 	_update_action_buttons()
 
 	var target_node: Control = null
-	for child in items_container.get_children():
-		if child.has_method("get_data") and child.get_data() == data:
-			child.set_selected(true)
-			target_node = child
-		elif child.has_method("set_selected"):
-			child.set_selected(false)
+	for child: Node in items_container.get_children():
+		if not child is BaseListMenuItem:
+			continue
+		var list_item: BaseListMenuItem = child
+		if list_item.get_data() == data:
+			list_item.set_selected(true)
+			target_node = list_item
+		else:
+			list_item.set_selected(false)
 
 	_update_focus_neighbors(target_node)
 
@@ -202,7 +211,7 @@ func _update_focus_neighbors(target_node: Control) -> void:
 	if is_instance_valid(target_node):
 		target_path = target_node.get_path()
 	elif items_container.get_child_count() > 0:
-		var first = items_container.get_child(0)
+		var first: Node = items_container.get_child(0)
 		if first is Control:
 			target_path = first.get_path()
 
@@ -224,14 +233,14 @@ func _update_action_buttons() -> void:
 
 
 func _bind_and_reveal_list_items() -> void:
-	var motion_utility := _get_ui_motion_utility()
+	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
 	if not is_instance_valid(motion_utility):
 		return
 
 	if motion_utility.has_method("bind_interactive_controls"):
-		motion_utility.bind_interactive_controls(items_container)
+		var _bound_count: int = motion_utility.bind_interactive_controls(items_container)
 	if motion_utility.has_method("play_children_reveal"):
-		motion_utility.play_children_reveal(items_container, _LIST_REVEAL_OFFSET, _LIST_REVEAL_STAGGER)
+		var _reveal_count: int = motion_utility.play_children_reveal(items_container, _LIST_REVEAL_OFFSET, _LIST_REVEAL_STAGGER)
 
 
 ## 清空预览区域。
@@ -267,6 +276,6 @@ func _on_delete_button_pressed() -> void:
 
 
 func _on_back_button_pressed() -> void:
-	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
 	if router:
 		router.return_to_main_menu()

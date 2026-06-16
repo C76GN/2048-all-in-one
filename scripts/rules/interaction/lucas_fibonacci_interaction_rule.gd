@@ -34,8 +34,8 @@ func can_interact(tile_a: GameTileData, tile_b: GameTileData) -> bool:
 	if tile_a.type != Tile.TileType.PLAYER or tile_b.type != Tile.TileType.PLAYER:
 		return false
 
-	var v1 := tile_a.value
-	var v2 := tile_b.value
+	var v1: int = tile_a.value
+	var v2: int = tile_b.value
 
 	if SequenceMath.are_consecutive_fibonacci(v1, v2):
 		return true
@@ -43,8 +43,8 @@ func can_interact(tile_a: GameTileData, tile_b: GameTileData) -> bool:
 	if SequenceMath.are_consecutive_lucas(v1, v2, _luc_sequence):
 		return true
 
-	var idx1_fib := _fib_sequence.find(v1)
-	var idx2_fib := _fib_sequence.find(v2)
+	var idx1_fib: int = _fib_sequence.find(v1)
+	var idx2_fib: int = _fib_sequence.find(v2)
 	if idx1_fib != -1 and idx2_fib != -1 and abs(idx1_fib - idx2_fib) == 2:
 		return true
 
@@ -57,7 +57,7 @@ func can_interact(tile_a: GameTileData, tile_b: GameTileData) -> bool:
 ## @param _p_rule: 调用方传入的交互规则引用；此规则不直接使用。
 func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: InteractionRule) -> Dictionary:
 	if can_interact(tile_a, tile_b):
-		var new_value := tile_a.value + tile_b.value
+		var new_value: int = tile_a.value + tile_b.value
 		tile_b.value = new_value
 		return {&"merged_tile": tile_b, &"consumed_tile": tile_a, &"score": new_value}
 
@@ -67,7 +67,7 @@ func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: In
 ## 根据数值返回其在数列中的等级（索引）。
 ## @param value: 方块数值。
 func get_level_by_value(value: int) -> int:
-	var index := _luc_sequence.find(value)
+	var index: int = _luc_sequence.find(value)
 	if index != -1:
 		return index
 
@@ -91,17 +91,18 @@ func get_color_scheme_index(value: int) -> int:
 ## @param context: 包含当前游戏统计信息的 Dictionary 对象。
 ## @param stats: 要写入显示数据的 Dictionary 对象。
 func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
-	var max_player_value: int = context.get(&"max_player_value", 0)
+	var max_player_value: int = GFVariantData.to_int(context.get(&"max_player_value", 0), 0)
 	var max_display_value: int = 5 + max_player_value * 2
-	var player_tiles_set: Dictionary = context.get(&"player_values_set", {})
+	var player_tiles_value: Variant = context.get(&"player_values_set", {})
+	var player_tiles_set: Dictionary = player_tiles_value if player_tiles_value is Dictionary else {}
 
 	var synthesis_data: Dictionary = {}
 
-	for i in range(1, _fib_sequence.size() - 1):
-		var f_n_minus_1 := _fib_sequence[i - 1]
-		var f_n_plus_1 := _fib_sequence[i + 1]
+	for i: int in range(1, _fib_sequence.size() - 1):
+		var f_n_minus_1: int = _fib_sequence[i - 1]
+		var f_n_plus_1: int = _fib_sequence[i + 1]
 		if player_tiles_set.has(f_n_minus_1) and player_tiles_set.has(f_n_plus_1):
-			var l_n := f_n_minus_1 + f_n_plus_1
+			var l_n: int = f_n_minus_1 + f_n_plus_1
 			if _luc_set.has(l_n):
 				synthesis_data = {&"f_minus_1": f_n_minus_1, &"f_plus_1": f_n_plus_1, &"l_n": l_n}
 				break
@@ -115,7 +116,7 @@ func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
 		stats[&"synthesis_tip_display"] = tr("TIP_SYNTHESIS_FORMAT") % [synthesis_data[&"f_minus_1"], synthesis_data[&"f_plus_1"], synthesis_data[&"l_n"]]
 
 	var fib_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_FIB_SEQ"), &"color": Color.WHITE}]
-	for num in _fib_sequence:
+	for num: int in _fib_sequence:
 		if num > max_display_value:
 			break
 		var item: Dictionary = {&"text": str(num), &"color": Color.GRAY}
@@ -126,10 +127,10 @@ func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
 		fib_data_for_ui.append(item)
 	stats[&"fibonacci_sequence_display"] = fib_data_for_ui
 
-	var luc_display_sequence := _luc_sequence.slice(1)
+	var luc_display_sequence: Array[int] = _luc_sequence.slice(1)
 	luc_display_sequence.sort()
 	var luc_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_LUC_SEQ"), &"color": Color.WHITE}]
-	for num in luc_display_sequence:
+	for num: int in luc_display_sequence:
 		if num > max_display_value:
 			break
 		var item: Dictionary = {&"text": str(num), &"color": Color.GRAY}
@@ -155,7 +156,7 @@ func get_spawnable_values(type_id: int) -> Array[int]:
 	match type_id:
 		0: return _fib_sequence
 		1:
-			var luc_display := _luc_sequence.duplicate()
+			var luc_display: Array[int] = _luc_sequence.duplicate()
 			luc_display.sort()
 			return luc_display
 	return []
@@ -174,7 +175,7 @@ func _generate_sequences() -> void:
 	_fib_sequence = SequenceMath.generate_fibonacci()
 	_luc_sequence = SequenceMath.generate_lucas()
 
-	for num in _fib_sequence:
+	for num: int in _fib_sequence:
 		_fib_set[num] = true
-	for num in _luc_sequence:
+	for num: int in _luc_sequence:
 		_luc_set[num] = true

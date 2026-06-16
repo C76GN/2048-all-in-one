@@ -28,7 +28,7 @@ var _current_data: Array = []
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	resized.connect(_recalculate_layout)
+	var _connect_result_31: int = resized.connect(_recalculate_layout)
 
 
 # --- 公共方法 ---
@@ -54,12 +54,13 @@ func update_data(data: Array) -> void:
 		_label_pool.append(new_label)
 
 	# 更新标签内容并管理可见性
-	for i in range(_label_pool.size()):
+	for i: int in range(_label_pool.size()):
 		var label: Label = _label_pool[i]
 		if i < data.size():
-			var item: Dictionary = data[i]
-			label.text = item["text"]
-			label.modulate = item["color"] # 使用 modulate 改变颜色，性能更佳
+			var item: Dictionary = data[i] if data[i] is Dictionary else {}
+			label.text = GFVariantData.to_text(item.get(&"text", item.get("text", "")))
+			var color_value: Variant = item.get(&"color", item.get("color", Color.WHITE))
+			label.modulate = color_value if color_value is Color else Color.WHITE
 			label.visible = true
 		else:
 			label.visible = false # 隐藏未使用的标签
@@ -71,10 +72,10 @@ func update_data(data: Array) -> void:
 
 ## 重新计算并应用所有可见标签的位置，实现流式布局和自动换行。
 func _recalculate_layout() -> void:
-	var cursor := Vector2.ZERO
+	var cursor: Vector2 = Vector2.ZERO
 	var line_height: float = 0.0
 
-	for i in range(_current_data.size()):
+	for i: int in range(_current_data.size()):
 		var label: Label = _label_pool[i]
 		if not label.visible:
 			continue

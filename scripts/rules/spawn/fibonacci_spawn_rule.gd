@@ -33,8 +33,8 @@ func execute(context: RuleContext) -> bool:
 
 	spawn_count = min(spawn_count, context.grid_model.get_empty_cells().size())
 
-	for i in range(spawn_count):
-		var spawn_data := SpawnData.new()
+	for _i: int in range(spawn_count):
+		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.value = 1
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false

@@ -17,12 +17,27 @@ const _CONTROL_BASE_POSITION_META: StringName = &"_game_ui_motion_control_base_p
 const _CONTROL_BASE_SCALE_META: StringName = &"_game_ui_motion_control_base_scale"
 const _CONTROL_BASE_MODULATE_META: StringName = &"_game_ui_motion_control_base_modulate"
 const _CONTROL_TWEEN_META: StringName = &"_game_ui_motion_control_tween"
+const _STATIC_STYLE_META: StringName = &"_game_ui_motion_static_style"
 
 const _REST_MODULATE: Color = Color.WHITE
-const _HOVER_MODULATE: Color = Color(1.0, 0.96, 0.88, 1.0)
-const _FOCUS_MODULATE: Color = Color(0.94, 1.0, 0.96, 1.0)
-const _PRESS_MODULATE: Color = Color(0.9, 0.9, 0.9, 1.0)
-const _HOVER_SCALE: float = 1.035
+const _HOVER_MODULATE: Color = Color(1.0, 0.98, 0.92, 1.0)
+const _FOCUS_MODULATE: Color = Color(1.0, 0.99, 0.95, 1.0)
+const _PRESS_MODULATE: Color = Color(0.92, 0.90, 0.86, 1.0)
+const _BUTTON_NORMAL_COLOR: Color = Color(0.055, 0.080, 0.120, 0.42)
+const _BUTTON_HOVER_COLOR: Color = Color(0.24, 0.46, 0.49, 0.78)
+const _BUTTON_PRESSED_COLOR: Color = Color(0.56, 0.32, 0.42, 0.86)
+const _BUTTON_FOCUS_BORDER_COLOR: Color = Color(0.93, 0.82, 0.58, 0.72)
+const _BUTTON_DISABLED_COLOR: Color = Color(0.055, 0.070, 0.100, 0.20)
+const _BUTTON_FONT_COLOR: Color = Color(0.94, 0.90, 0.82, 1.0)
+const _BUTTON_FONT_DISABLED_COLOR: Color = Color(0.94, 0.90, 0.82, 0.38)
+const _TEXT_PRIMARY_COLOR: Color = Color(0.94, 0.90, 0.82, 1.0)
+const _TEXT_SECONDARY_COLOR: Color = Color(0.74, 0.79, 0.78, 0.90)
+const _FIELD_SURFACE_COLOR: Color = Color(0.035, 0.050, 0.080, 0.52)
+const _FIELD_FOCUS_SURFACE_COLOR: Color = Color(0.055, 0.095, 0.125, 0.66)
+const _FIELD_BORDER_COLOR: Color = Color(0.92, 0.82, 0.60, 0.12)
+const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.93, 0.80, 0.54, 0.72)
+const _PANEL_SURFACE_COLOR: Color = Color(0.035, 0.050, 0.080, 0.42)
+const _HOVER_SCALE: float = 1.018
 const _PRESS_SCALE: float = 0.965
 const _HOVER_DURATION: float = 0.11
 const _PRESS_DURATION: float = 0.055
@@ -43,11 +58,14 @@ func bind_interactive_controls(root: Node) -> int:
 	if not is_instance_valid(root):
 		return 0
 
+	if root is Control:
+		_apply_support_control_style(root as Control)
+
 	var bound_count: int = 0
 	if root is BaseButton and _bind_button(root as BaseButton):
 		bound_count += 1
 
-	for child in root.get_children():
+	for child: Node in root.get_children():
 		bound_count += bind_interactive_controls(child)
 
 	return bound_count
@@ -104,11 +122,11 @@ func play_children_reveal(
 		return 0
 
 	var animated_count: int = 0
-	var animate_position := not container is Container
-	var reveal_offset := offset if animate_position else Vector2.ZERO
-	for child in container.get_children():
+	var animate_position: bool = not container is Container
+	var reveal_offset: Vector2 = offset if animate_position else Vector2.ZERO
+	for child: Node in container.get_children():
 		if child is Control and (child as Control).visible:
-			_play_control_reveal(
+			var _reveal_tween: Tween = _play_control_reveal(
 				child as Control,
 				reveal_offset,
 				_CHILD_REVEAL_DURATION,
@@ -134,15 +152,134 @@ func _bind_button(button: BaseButton) -> bool:
 	button.set_meta(_FOCUSED_META, false)
 	button.set_meta(_BASE_SCALE_META, button.scale)
 	button.call_deferred("set", "pivot_offset", button.size * 0.5)
+	_apply_button_visual_style(button)
 
-	button.mouse_entered.connect(_on_button_mouse_entered.bind(button))
-	button.mouse_exited.connect(_on_button_mouse_exited.bind(button))
-	button.focus_entered.connect(_on_button_focus_entered.bind(button))
-	button.focus_exited.connect(_on_button_focus_exited.bind(button))
-	button.button_down.connect(_on_button_down.bind(button))
-	button.button_up.connect(_on_button_up.bind(button))
-	button.tree_exited.connect(_on_button_tree_exited.bind(button), CONNECT_ONE_SHOT)
+	var _connect_result_157: int = button.mouse_entered.connect(_on_button_mouse_entered.bind(button))
+	var _connect_result_158: int = button.mouse_exited.connect(_on_button_mouse_exited.bind(button))
+	var _connect_result_159: int = button.focus_entered.connect(_on_button_focus_entered.bind(button))
+	var _connect_result_160: int = button.focus_exited.connect(_on_button_focus_exited.bind(button))
+	var _connect_result_161: int = button.button_down.connect(_on_button_down.bind(button))
+	var _connect_result_162: int = button.button_up.connect(_on_button_up.bind(button))
+	var _connect_result_163: int = button.tree_exited.connect(_on_button_tree_exited.bind(button), CONNECT_ONE_SHOT)
 	return true
+
+
+func _apply_button_visual_style(button: BaseButton) -> void:
+	button.add_theme_stylebox_override("normal", _create_button_style(_BUTTON_NORMAL_COLOR))
+	button.add_theme_stylebox_override("hover", _create_button_style(_BUTTON_HOVER_COLOR))
+	button.add_theme_stylebox_override("pressed", _create_button_style(_BUTTON_PRESSED_COLOR))
+	button.add_theme_stylebox_override(
+		"focus",
+		_create_button_style(Color.TRANSPARENT, _BUTTON_FOCUS_BORDER_COLOR, 2)
+	)
+	button.add_theme_stylebox_override("disabled", _create_button_style(_BUTTON_DISABLED_COLOR))
+	button.add_theme_color_override("font_color", _BUTTON_FONT_COLOR)
+	button.add_theme_color_override("font_hover_color", _BUTTON_FONT_COLOR)
+	button.add_theme_color_override("font_pressed_color", _BUTTON_FONT_COLOR)
+	button.add_theme_color_override("font_focus_color", _BUTTON_FONT_COLOR)
+	button.add_theme_color_override("font_disabled_color", _BUTTON_FONT_DISABLED_COLOR)
+
+
+func _create_button_style(
+	color: Color,
+	border_color: Color = Color.TRANSPARENT,
+	border_width: int = 0
+) -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = color
+	style.border_color = border_color
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(8)
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	style.set_content_margin(SIDE_LEFT, 12.0)
+	style.set_content_margin(SIDE_TOP, 8.0)
+	style.set_content_margin(SIDE_RIGHT, 12.0)
+	style.set_content_margin(SIDE_BOTTOM, 8.0)
+	return style
+
+
+func _apply_support_control_style(control: Control) -> void:
+	if GFVariantData.to_bool(_get_control_meta(control, _STATIC_STYLE_META, false)):
+		return
+
+	control.set_meta(_STATIC_STYLE_META, true)
+	if control is Label:
+		_style_label(control as Label)
+	elif control is RichTextLabel:
+		_style_rich_text_label(control as RichTextLabel)
+	elif control is LineEdit:
+		_style_line_edit(control as LineEdit)
+	elif control is Range:
+		_style_range(control as Range)
+	elif control is PanelContainer:
+		_style_panel_container(control as PanelContainer)
+
+
+func _style_label(label: Label) -> void:
+	if label.has_theme_color("font_color"):
+		return
+	label.add_theme_color_override("font_color", _TEXT_PRIMARY_COLOR)
+
+
+func _style_rich_text_label(label: RichTextLabel) -> void:
+	label.add_theme_color_override("default_color", _TEXT_SECONDARY_COLOR)
+	label.add_theme_color_override("font_selected_color", _TEXT_PRIMARY_COLOR)
+
+
+func _style_line_edit(line_edit: LineEdit) -> void:
+	line_edit.add_theme_stylebox_override(
+		"normal",
+		_create_field_style(_FIELD_SURFACE_COLOR, _FIELD_BORDER_COLOR, 1)
+	)
+	line_edit.add_theme_stylebox_override(
+		"focus",
+		_create_field_style(_FIELD_FOCUS_SURFACE_COLOR, _FIELD_FOCUS_BORDER_COLOR, 2)
+	)
+	line_edit.add_theme_stylebox_override(
+		"read_only",
+		_create_field_style(_FIELD_SURFACE_COLOR.darkened(0.08), _FIELD_BORDER_COLOR, 1)
+	)
+	line_edit.add_theme_color_override("font_color", _TEXT_PRIMARY_COLOR)
+	line_edit.add_theme_color_override("font_placeholder_color", _TEXT_SECONDARY_COLOR)
+	line_edit.add_theme_color_override("caret_color", _FIELD_FOCUS_BORDER_COLOR)
+
+
+func _style_range(range_control: Range) -> void:
+	range_control.add_theme_stylebox_override(
+		"slider",
+		_create_field_style(Color(0.02, 0.03, 0.05, 0.64), Color.TRANSPARENT, 0)
+	)
+	range_control.add_theme_stylebox_override(
+		"grabber_area",
+		_create_field_style(Color(0.25, 0.49, 0.52, 0.88), Color.TRANSPARENT, 0)
+	)
+	range_control.add_theme_stylebox_override(
+		"grabber_area_highlight",
+		_create_field_style(Color(0.62, 0.40, 0.28, 0.92), Color.TRANSPARENT, 0)
+	)
+
+
+func _style_panel_container(panel_container: PanelContainer) -> void:
+	panel_container.add_theme_stylebox_override(
+		"panel",
+		_create_field_style(_PANEL_SURFACE_COLOR, _FIELD_BORDER_COLOR, 1)
+	)
+
+
+func _create_field_style(bg_color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = bg_color
+	style.border_color = border_color
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(8)
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	style.set_content_margin(SIDE_LEFT, 10.0)
+	style.set_content_margin(SIDE_TOP, 7.0)
+	style.set_content_margin(SIDE_RIGHT, 10.0)
+	style.set_content_margin(SIDE_BOTTOM, 7.0)
+	return style
 
 
 func _play_control_reveal(
@@ -176,7 +313,7 @@ func _play_control_reveal(
 		_CONTROL_BASE_MODULATE_META,
 		control.modulate
 	)
-	var start_modulate := base_modulate
+	var start_modulate: Color = base_modulate
 	start_modulate.a = 0.0
 
 	if animate_position:
@@ -191,13 +328,17 @@ func _play_control_reveal(
 		control.modulate = base_modulate
 		return null
 
-	var tween := control.create_tween()
-	tween.set_parallel(true)
-	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var tween: Tween = control.create_tween()
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
 	if animate_position:
-		tween.tween_property(control, "position", base_position, duration).set_delay(delay)
-	tween.tween_property(control, "scale", base_scale, duration).set_delay(delay)
-	tween.tween_property(control, "modulate", base_modulate, duration).set_delay(delay)
+		var position_tweener: PropertyTweener = tween.tween_property(control, "position", base_position, duration)
+		var _position_delay_result: Tweener = position_tweener.set_delay(delay)
+	var scale_tweener: PropertyTweener = tween.tween_property(control, "scale", base_scale, duration)
+	var _scale_delay_result: Tweener = scale_tweener.set_delay(delay)
+	var modulate_tweener: PropertyTweener = tween.tween_property(control, "modulate", base_modulate, duration)
+	var _modulate_delay_result: Tweener = modulate_tweener.set_delay(delay)
 	control.set_meta(_CONTROL_TWEEN_META, tween)
 	return tween
 
@@ -219,11 +360,12 @@ func _animate_button(
 		button.modulate = modulate
 		return
 
-	var tween := button.create_tween()
-	tween.set_parallel(true)
-	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.tween_property(button, "scale", base_scale * scale_multiplier, duration)
-	tween.tween_property(button, "modulate", modulate, duration)
+	var tween: Tween = button.create_tween()
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
+	var _scale_tweener: PropertyTweener = tween.tween_property(button, "scale", base_scale * scale_multiplier, duration)
+	var _modulate_tweener: PropertyTweener = tween.tween_property(button, "modulate", modulate, duration)
 	button.set_meta(_TWEEN_META, tween)
 
 

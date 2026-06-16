@@ -8,7 +8,6 @@ extends GFUtility
 
 # --- 常量 ---
 
-const _OBJECT_PROPERTY_TOOLS = preload("res://addons/gf/kernel/core/gf_object_property_tools.gd")
 const _DEFAULT_EXTENSION: String = "tres"
 
 
@@ -33,7 +32,7 @@ func dispose() -> void:
 ## @param directory_name: 存储相对目录。
 ## @return: Godot Error 结果码。
 func ensure_collection_directory(directory_name: String) -> Error:
-	var storage := _get_storage()
+	var storage: GFStorageUtility = _get_storage()
 	if not is_instance_valid(storage):
 		push_error("[SavedResourceCollectionUtility] ensure_collection_directory 失败：GFStorageUtility 未注册。")
 		return FAILED
@@ -59,19 +58,19 @@ func save_timestamped_resource(
 		push_error("[SavedResourceCollectionUtility] save_timestamped_resource 失败：参数无效。")
 		return ""
 
-	var storage := _get_storage()
+	var storage: GFStorageUtility = _get_storage()
 	if not is_instance_valid(storage):
 		push_error("[SavedResourceCollectionUtility] save_timestamped_resource 失败：GFStorageUtility 未注册。")
 		return ""
 
-	var timestamp := _read_int_property(resource, timestamp_property, int(Time.get_unix_time_from_system()))
-	var file_path := directory_name.path_join("%s_%d_%d.%s" % [
+	var timestamp: int = _read_int_property(resource, timestamp_property, int(Time.get_unix_time_from_system()))
+	var file_path: String = directory_name.path_join("%s_%d_%d.%s" % [
 		file_prefix,
 		timestamp,
 		Time.get_ticks_msec(),
 		_DEFAULT_EXTENSION,
 	])
-	var error := storage.save_resource(file_path, resource)
+	var error: int = storage.save_resource(file_path, resource)
 	if error != OK:
 		push_error("[SavedResourceCollectionUtility] 保存 Resource 失败：%s，错误码：%s" % [file_path, error])
 		return ""
@@ -95,12 +94,12 @@ func load_timestamped_resources(
 	timestamp_property: StringName = &"timestamp"
 ) -> Array[Resource]:
 	var result: Array[Resource] = []
-	var storage := _get_storage()
+	var storage: GFStorageUtility = _get_storage()
 	if not is_instance_valid(storage):
 		return result
 
 	for path: String in storage.list_files(directory_name, _DEFAULT_EXTENSION):
-		var resource := storage.load_resource(path, type_hint)
+		var resource: Resource = storage.load_resource(path, type_hint)
 		if not _is_valid_collection_resource(resource, required_script):
 			continue
 
@@ -120,7 +119,7 @@ func delete_resource_file(file_path: String) -> Error:
 	if file_path.is_empty():
 		return ERR_INVALID_PARAMETER
 
-	var storage := _get_storage()
+	var storage: GFStorageUtility = _get_storage()
 	if not is_instance_valid(storage):
 		return FAILED
 
@@ -148,20 +147,20 @@ func _is_valid_collection_resource(resource: Resource, required_script: Script) 
 func _read_int_property(resource: Resource, property_name: StringName, fallback: int) -> int:
 	if resource == null or property_name == &"":
 		return fallback
-	if not _OBJECT_PROPERTY_TOOLS.has_property(resource, property_name):
+	if not GFObjectPropertyTools.has_property(resource, property_name):
 		return fallback
 
-	var value: Variant = _OBJECT_PROPERTY_TOOLS.read_property(resource, NodePath(String(property_name)), fallback)
+	var value: Variant = GFObjectPropertyTools.read_property(resource, NodePath(String(property_name)), fallback)
 	return GFVariantData.to_int(value, fallback)
 
 
 func _write_property_if_present(resource: Resource, property_name: StringName, value: Variant) -> void:
 	if resource == null or property_name == &"":
 		return
-	if not _OBJECT_PROPERTY_TOOLS.has_property(resource, property_name):
+	if not GFObjectPropertyTools.has_property(resource, property_name):
 		return
 
-	var _write_result: Dictionary = _OBJECT_PROPERTY_TOOLS.write_property(
+	var _write_result: Dictionary = GFObjectPropertyTools.write_property(
 		resource,
 		NodePath(String(property_name)),
 		value

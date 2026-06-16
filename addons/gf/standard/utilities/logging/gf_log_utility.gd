@@ -704,7 +704,7 @@ func _cleanup_old_logs() -> void:
 	var file_name: String = dir.get_next()
 	while file_name != "":
 		if not dir.current_is_dir() and file_name.begins_with("gf_log_") and file_name.ends_with(".log"):
-			var _append_result: bool = files.append(file_name)
+			files.append(file_name)
 		file_name = dir.get_next()
 	dir.list_dir_end()
 

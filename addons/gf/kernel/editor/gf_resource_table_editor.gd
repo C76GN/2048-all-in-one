@@ -531,7 +531,7 @@ func _rebuild_visible_row_indices() -> void:
 		if resource == null:
 			continue
 		if _resource_matches_search(resource, row_index, search_text):
-			var _append_result_534: Variant = _visible_row_indices.append(row_index)
+			_visible_row_indices.append(row_index)
 
 
 static func _scan_resource_paths_recursive(
@@ -574,7 +574,7 @@ static func _scan_resource_paths_recursive(
 		else:
 			var extension: String = file_name.get_extension().to_lower()
 			if extensions.has(extension):
-				var _append_result_577: Variant = result.append(path)
+				result.append(path)
 		file_name = dir.get_next()
 	dir.list_dir_end()
 
@@ -623,7 +623,7 @@ static func _warn_scan_depth_limit(path: String, max_scan_depth: int, scan_state
 static func _normalize_extensions(extensions: PackedStringArray) -> PackedStringArray:
 	var result: PackedStringArray = PackedStringArray()
 	for extension: String in extensions:
-		var _append_result_626: Variant = result.append(extension.trim_prefix(".").to_lower())
+		result.append(extension.trim_prefix(".").to_lower())
 	return result
 
 

@@ -78,7 +78,7 @@ static func get_property_names(object: Object, usage_filter: int = -1) -> Packed
 	for property_info: Dictionary in get_property_infos(object, usage_filter):
 		var property_name: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(property_info, "name", "")
 		if not property_name.is_empty():
-			var _append_result_81: Variant = result.append(property_name)
+			result.append(property_name)
 	return result
 
 

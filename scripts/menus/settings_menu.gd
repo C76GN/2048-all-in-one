@@ -59,7 +59,7 @@ func _ready() -> void:
 	_setup_setting_options()
 	_sync_controls_from_settings()
 	_setup_form_binder()
-	_back_button.pressed.connect(_on_back_button_pressed)
+	var _connect_result_62: int = _back_button.pressed.connect(_on_back_button_pressed)
 
 	_update_ui_text()
 	_language_option.grab_focus()
@@ -118,7 +118,7 @@ func _setup_form_binder() -> void:
 	_form_binder.bind_field(_FIELD_WINDOW_MODE_INDEX, _window_mode_option, 0)
 	_form_binder.bind_field(_FIELD_VSYNC_INDEX, _vsync_option, 1)
 	_form_binder.bind_field(_FIELD_MASTER_VOLUME, _master_volume_slider, 1.0)
-	_form_binder.field_changed.connect(_on_form_field_changed)
+	var _connect_result_121: int = _form_binder.field_changed.connect(_on_form_field_changed)
 
 
 func _sync_controls_from_settings() -> void:
@@ -137,11 +137,11 @@ func _sync_controls_from_settings() -> void:
 
 
 func _get_current_locale() -> String:
-	var save_system := get_system(SaveSystem) as SaveSystem
+	var save_system: SaveSystem = get_system(SaveSystem) as SaveSystem
 	if is_instance_valid(save_system):
 		return save_system.get_language()
 
-	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
 	if is_instance_valid(display_settings):
 		return display_settings.get_locale()
 
@@ -149,7 +149,7 @@ func _get_current_locale() -> String:
 
 
 func _get_current_window_mode() -> DisplayServer.WindowMode:
-	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
 	if is_instance_valid(display_settings):
 		return display_settings.get_window_mode()
 
@@ -157,7 +157,7 @@ func _get_current_window_mode() -> DisplayServer.WindowMode:
 
 
 func _get_current_vsync_mode() -> DisplayServer.VSyncMode:
-	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
 	if is_instance_valid(display_settings):
 		return display_settings.get_vsync_mode()
 
@@ -165,7 +165,7 @@ func _get_current_vsync_mode() -> DisplayServer.VSyncMode:
 
 
 func _get_current_master_volume() -> float:
-	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
 	if is_instance_valid(display_settings):
 		return display_settings.get_audio_bus_volume(_AUDIO_BUS_MASTER, 1.0)
 
@@ -180,15 +180,15 @@ func _get_locale_for_index(index: int) -> String:
 	if index < 0 or index >= _language_option.item_count:
 		return _LOCALE_ZH
 
-	return String(_language_option.get_item_metadata(index))
+	return GFVariantData.to_text(_language_option.get_item_metadata(index), _LOCALE_ZH)
 
 
 func _get_window_mode_for_index(index: int) -> DisplayServer.WindowMode:
-	return int(_get_option_metadata(_window_mode_option, index, DisplayServer.WINDOW_MODE_WINDOWED)) as DisplayServer.WindowMode
+	return _to_window_mode(GFVariantData.to_int(_get_option_metadata(_window_mode_option, index, DisplayServer.WINDOW_MODE_WINDOWED), int(DisplayServer.WINDOW_MODE_WINDOWED)))
 
 
 func _get_vsync_mode_for_index(index: int) -> DisplayServer.VSyncMode:
-	return int(_get_option_metadata(_vsync_option, index, DisplayServer.VSYNC_ENABLED)) as DisplayServer.VSyncMode
+	return _to_vsync_mode(GFVariantData.to_int(_get_option_metadata(_vsync_option, index, DisplayServer.VSYNC_ENABLED), int(DisplayServer.VSYNC_ENABLED)))
 
 
 func _get_option_metadata(option: OptionButton, index: int, fallback: Variant) -> Variant:
@@ -202,8 +202,8 @@ func _get_option_index_for_metadata(option: OptionButton, metadata: int) -> int:
 	if not is_instance_valid(option):
 		return 0
 
-	for index in range(option.item_count):
-		if int(option.get_item_metadata(index)) == metadata:
+	for index: int in range(option.item_count):
+		if GFVariantData.to_int(option.get_item_metadata(index), 0) == metadata:
 			return index
 	return 0
 
@@ -244,8 +244,8 @@ func _update_ui_text() -> void:
 
 
 func _apply_locale(index: int) -> void:
-	var locale := _get_locale_for_index(index)
-	var save_system := get_system(SaveSystem) as SaveSystem
+	var locale: String = _get_locale_for_index(index)
+	var save_system: SaveSystem = get_system(SaveSystem) as SaveSystem
 	if is_instance_valid(save_system):
 		save_system.set_language(locale)
 
@@ -254,22 +254,48 @@ func _apply_locale(index: int) -> void:
 
 
 func _apply_window_mode(index: int) -> void:
-	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
 	if is_instance_valid(display_settings):
 		display_settings.set_window_mode(_get_window_mode_for_index(index))
 
 
 func _apply_vsync_mode(index: int) -> void:
-	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
 	if is_instance_valid(display_settings):
 		display_settings.set_vsync_mode(_get_vsync_mode_for_index(index))
 
 
 func _apply_master_volume(value: float) -> void:
-	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
 	if is_instance_valid(display_settings):
 		display_settings.set_audio_bus_volume(_AUDIO_BUS_MASTER, value)
 	_update_volume_value_label(value)
+
+
+static func _to_window_mode(value: int) -> DisplayServer.WindowMode:
+	match value:
+		DisplayServer.WINDOW_MODE_FULLSCREEN:
+			return DisplayServer.WINDOW_MODE_FULLSCREEN
+		DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN:
+			return DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+		DisplayServer.WINDOW_MODE_MAXIMIZED:
+			return DisplayServer.WINDOW_MODE_MAXIMIZED
+		DisplayServer.WINDOW_MODE_MINIMIZED:
+			return DisplayServer.WINDOW_MODE_MINIMIZED
+		_:
+			return DisplayServer.WINDOW_MODE_WINDOWED
+
+
+static func _to_vsync_mode(value: int) -> DisplayServer.VSyncMode:
+	match value:
+		DisplayServer.VSYNC_DISABLED:
+			return DisplayServer.VSYNC_DISABLED
+		DisplayServer.VSYNC_ADAPTIVE:
+			return DisplayServer.VSYNC_ADAPTIVE
+		DisplayServer.VSYNC_MAILBOX:
+			return DisplayServer.VSYNC_MAILBOX
+		_:
+			return DisplayServer.VSYNC_ENABLED
 
 
 # --- 信号处理函数 ---
@@ -277,24 +303,24 @@ func _apply_master_volume(value: float) -> void:
 func _on_form_field_changed(key: StringName, value: Variant) -> void:
 	match key:
 		_FIELD_LANGUAGE_INDEX:
-			_apply_locale(int(value))
+			_apply_locale(GFVariantData.to_int(value, 0))
 		_FIELD_WINDOW_MODE_INDEX:
-			_apply_window_mode(int(value))
+			_apply_window_mode(GFVariantData.to_int(value, int(DisplayServer.WINDOW_MODE_WINDOWED)))
 		_FIELD_VSYNC_INDEX:
-			_apply_vsync_mode(int(value))
+			_apply_vsync_mode(GFVariantData.to_int(value, int(DisplayServer.VSYNC_ENABLED)))
 		_FIELD_MASTER_VOLUME:
-			_apply_master_volume(float(value))
+			_apply_master_volume(GFVariantData.to_float(value, 1.0))
 
 
 func _on_back_button_pressed() -> void:
 	if not return_to_main_menu_on_back:
-		var ui_router := get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		var ui_router: GFUIRouterUtility = get_utility(GFUIRouterUtility) as GFUIRouterUtility
 		if not is_instance_valid(ui_router) or not ui_router.back(GFUIUtility.Layer.POPUP):
-			var ui_util := get_utility(GFUIUtility) as GFUIUtility
+			var ui_util: GFUIUtility = get_utility(GFUIUtility) as GFUIUtility
 			if ui_util:
 				ui_util.pop_panel()
 		return
 
-	var router := get_system(SceneRouterSystem) as SceneRouterSystem
+	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
 	if router:
 		router.return_to_main_menu()

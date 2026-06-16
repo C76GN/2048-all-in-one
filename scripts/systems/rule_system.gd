@@ -41,11 +41,11 @@ func dispose() -> void:
 ## 注册一个规则列表到管理器中。
 ## @param p_rules: 包含所有 SpawnRule 实例的数组。
 func register_rules(p_rules: Array[SpawnRule]) -> void:
-	var next_rules := p_rules.duplicate()
+	var next_rules: Array[SpawnRule] = p_rules.duplicate()
 	clear_rules()
 	_rules = next_rules
 
-	for rule in _rules:
+	for rule: SpawnRule in _rules:
 		rule.setup()
 
 
@@ -56,7 +56,7 @@ func get_all_spawn_rules() -> Array[SpawnRule]:
 
 ## 清除所有规则。
 func clear_rules() -> void:
-	for rule in _rules:
+	for rule: SpawnRule in _rules:
 		rule.teardown()
 	_rules.clear()
 
@@ -64,18 +64,18 @@ func clear_rules() -> void:
 # --- 私有/辅助方法 ---
 
 func _execute_rules(trigger_type: SpawnRule.TriggerType, move_data: MoveData = null) -> void:
-	var context := RuleContext.new()
+	var context: RuleContext = RuleContext.new()
 	context.grid_model = _grid_model
 	context.move_data = move_data
 	context.seed_utility = _seed_utility
 
 	var active_rules: Array[SpawnRule] = []
-	for rule in _rules:
+	for rule: SpawnRule in _rules:
 		if _should_execute_rule(rule, trigger_type):
 			active_rules.append(rule)
 	active_rules.sort_custom(func(a: SpawnRule, b: SpawnRule) -> bool: return a.priority > b.priority)
 
-	for rule in active_rules:
+	for rule: SpawnRule in active_rules:
 		var is_consumed: bool = rule.execute(context)
 		_dispatch_context_outputs(context)
 		if is_consumed:
@@ -83,7 +83,7 @@ func _execute_rules(trigger_type: SpawnRule.TriggerType, move_data: MoveData = n
 
 
 func _dispatch_context_outputs(context: RuleContext) -> void:
-	for spawn_data in context.spawn_requests:
+	for spawn_data: Variant in context.spawn_requests:
 		send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
 
 	if context.score_delta != 0:

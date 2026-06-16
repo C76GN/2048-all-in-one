@@ -18,7 +18,7 @@ const MAX_SEQUENCE_VALUE: int = 65536
 static func generate_fibonacci() -> Array[int]:
 	var sequence: Array[int] = [1, 2]
 	while sequence[-1] < MAX_SEQUENCE_VALUE:
-		var next_val := sequence[-1] + sequence[-2]
+		var next_val: int = sequence[-1] + sequence[-2]
 		if next_val > MAX_SEQUENCE_VALUE:
 			break
 		sequence.append(next_val)
@@ -29,10 +29,10 @@ static func generate_fibonacci() -> Array[int]:
 ## @return: 包含卢卡斯数列的数组。
 static func generate_lucas() -> Array[int]:
 	var sequence: Array[int] = [2, 1] # L0, L1
-	var l_n_minus_2 := 2
-	var l_n_minus_1 := 1
+	var l_n_minus_2: int = 2
+	var l_n_minus_1: int = 1
 	while l_n_minus_1 < MAX_SEQUENCE_VALUE:
-		var next_luc := l_n_minus_1 + l_n_minus_2
+		var next_luc: int = l_n_minus_1 + l_n_minus_2
 		if next_luc > MAX_SEQUENCE_VALUE:
 			break
 		sequence.append(next_luc)
@@ -48,7 +48,7 @@ static func generate_lucas() -> Array[int]:
 static func are_consecutive_fibonacci(a: int, b: int) -> bool:
 	# 确保 a < b
 	if a > b:
-		var temp := a
+		var temp: int = a
 		a = b
 		b = temp
 
@@ -60,12 +60,12 @@ static func are_consecutive_fibonacci(a: int, b: int) -> bool:
 		return true
 
 	# 从 (1, 2) 开始迭代
-	var prev := 1
-	var curr := 2
+	var prev: int = 1
+	var curr: int = 2
 	while curr <= b:
 		if prev == a and curr == b:
 			return true
-		var next_val := prev + curr
+		var next_val: int = prev + curr
 		prev = curr
 		curr = next_val
 
@@ -80,7 +80,7 @@ static func get_fibonacci_level(value: int, sequence: Array[int] = []) -> int:
 	if sequence.is_empty():
 		sequence = generate_fibonacci()
 	
-	var index := sequence.find(value)
+	var index: int = sequence.find(value)
 	if index != -1:
 		return index
 	
@@ -99,8 +99,8 @@ static func are_consecutive_lucas(a: int, b: int, sequence: Array[int] = []) -> 
 	if sequence.is_empty():
 		sequence = generate_lucas()
 	
-	var idx1 := sequence.find(a)
-	var idx2 := sequence.find(b)
+	var idx1: int = sequence.find(a)
+	var idx2: int = sequence.find(b)
 	
 	if idx1 != -1 and idx2 != -1:
 		return abs(idx1 - idx2) == 1

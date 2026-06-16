@@ -18,6 +18,9 @@ var _main_menu_scene_path: String = "res://scenes/menus/main_menu.tscn"
 var _log: GFLogUtility
 var _scene_utility: GFSceneUtility
 var _signal_utility: GFSignalUtility
+var _scene_switch_started_connection: GFSignalConnection
+var _scene_load_completed_connection: GFSignalConnection
+var _scene_load_failed_connection: GFSignalConnection
 
 
 # --- Godot 生命周期方法 ---
@@ -40,6 +43,9 @@ func dispose() -> void:
 	_scene_utility = null
 	_signal_utility = null
 	_log = null
+	_scene_switch_started_connection = null
+	_scene_load_completed_connection = null
+	_scene_load_failed_connection = null
 
 
 # --- 公共方法 ---
@@ -57,7 +63,7 @@ func goto_scene_packed(scene: PackedScene) -> void:
 		goto_scene(scene.resource_path)
 		return
 
-	var tree := Engine.get_main_loop() as SceneTree
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
 	if not tree:
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, scene.resource_path)
 		return
@@ -65,7 +71,7 @@ func goto_scene_packed(scene: PackedScene) -> void:
 	if tree.current_scene:
 		send_simple_event(EventNames.SCENE_WILL_CHANGE)
 
-	var error := tree.change_scene_to_packed(scene)
+	var error: int = tree.change_scene_to_packed(scene)
 	if error != OK:
 		if _log:
 			_log.error(_LOG_TAG, "切换到场景失败，错误码: %d" % error)
@@ -94,7 +100,7 @@ func goto_scene(path: String) -> void:
 		_scene_utility.load_scene_async(path)
 		return
 
-	var next_scene_packed := ResourceLoader.load(path) as PackedScene
+	var next_scene_packed: PackedScene = ResourceLoader.load(path) as PackedScene
 	if next_scene_packed == null:
 		if _log:
 			_log.error(_LOG_TAG, "无法加载场景资源: %s" % path)
@@ -113,7 +119,7 @@ func return_to_main_menu() -> void:
 func quit_game() -> void:
 	if _log:
 		_log.info(_LOG_TAG, "正在退出游戏。")
-	var tree := Engine.get_main_loop() as SceneTree
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
 	if tree:
 		tree.quit()
 
@@ -125,17 +131,17 @@ func _connect_scene_utility_signals() -> void:
 		return
 
 	if is_instance_valid(_signal_utility):
-		_signal_utility.connect_signal(_scene_utility.scene_switch_started, _on_scene_switch_started, self)
-		_signal_utility.connect_signal(_scene_utility.scene_load_completed, _on_scene_load_completed, self)
-		_signal_utility.connect_signal(_scene_utility.scene_load_failed, _on_scene_load_failed, self)
+		_scene_switch_started_connection = _signal_utility.connect_signal(_scene_utility.scene_switch_started, _on_scene_switch_started, self)
+		_scene_load_completed_connection = _signal_utility.connect_signal(_scene_utility.scene_load_completed, _on_scene_load_completed, self)
+		_scene_load_failed_connection = _signal_utility.connect_signal(_scene_utility.scene_load_failed, _on_scene_load_failed, self)
 		return
 
 	if not _scene_utility.scene_switch_started.is_connected(_on_scene_switch_started):
-		_scene_utility.scene_switch_started.connect(_on_scene_switch_started)
+		var _connect_result_134: int = _scene_utility.scene_switch_started.connect(_on_scene_switch_started)
 	if not _scene_utility.scene_load_completed.is_connected(_on_scene_load_completed):
-		_scene_utility.scene_load_completed.connect(_on_scene_load_completed)
+		var _connect_result_136: int = _scene_utility.scene_load_completed.connect(_on_scene_load_completed)
 	if not _scene_utility.scene_load_failed.is_connected(_on_scene_load_failed):
-		_scene_utility.scene_load_failed.connect(_on_scene_load_failed)
+		var _connect_result_138: int = _scene_utility.scene_load_failed.connect(_on_scene_load_failed)
 
 
 func _disconnect_scene_utility_signals() -> void:

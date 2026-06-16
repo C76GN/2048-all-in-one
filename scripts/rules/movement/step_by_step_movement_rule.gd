@@ -19,7 +19,7 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 	var merged_in_this_turn: Dictionary = {}
 
 	# 从左到右（即从移动方向的起点开始）处理
-	for i in range(1, new_line.size()):
+	for i: int in range(1, new_line.size()):
 		var current_tile: GameTileData = new_line[i]
 		if current_tile == null:
 			continue

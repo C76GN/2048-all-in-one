@@ -12,7 +12,6 @@ extends BaseListMenuItem
 ## 兼容旧版信号名。
 signal bookmark_selected(bookmark_data: BookmarkData)
 
-const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
 
 
 # --- @onready 变量 (节点引用) ---
@@ -38,31 +37,31 @@ func get_bookmark_data() -> BookmarkData:
 # --- 虚方法重写 ---
 
 func _update_display() -> void:
-	var bookmark_data := _item_data as BookmarkData
+	var bookmark_data: BookmarkData = _item_data as BookmarkData
 	if not is_instance_valid(bookmark_data):
 		return
 
 	_mode_name_label.text = tr("UNKNOWN_MODE")
 
 	if not bookmark_data.mode_config_path.is_empty():
-		var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE_UTILITY.get_config(bookmark_data.mode_config_path)
+		var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(bookmark_data.mode_config_path)
 		if is_instance_valid(mode_config):
 			_mode_name_label.text = tr(mode_config.mode_name)
 		else:
 			_mode_name_label.text = tr("CONFIG_MISSING")
 
-	var datetime := tr("TIME_PARSE_ERROR")
+	var datetime: String = tr("TIME_PARSE_ERROR")
 	if bookmark_data.timestamp > 0:
 		datetime = Time.get_datetime_string_from_unix_time(bookmark_data.timestamp).replace("T", " ")
 
-	var grid_size: int = bookmark_data.board_snapshot.get(
-		&"grid_size",
-		bookmark_data.board_snapshot.get("grid_size", 0)
+	var grid_size: int = GFVariantData.to_int(
+		bookmark_data.board_snapshot.get(&"grid_size", bookmark_data.board_snapshot.get("grid_size", 0)),
+		0
 	)
 
-	var score_label := tr("SCORE_LABEL").replace(": %d", "").strip_edges()
-	var size_label := tr("SIZE_LABEL")
-	var info_format := tr("BOOKMARK_INFO_FORMAT")
+	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
+	var size_label: String = tr("SIZE_LABEL")
+	var info_format: String = tr("BOOKMARK_INFO_FORMAT")
 	_info_label.text = info_format % [
 		datetime,
 		score_label,

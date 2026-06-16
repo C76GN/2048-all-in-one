@@ -36,11 +36,11 @@ func execute(context: RuleContext) -> bool:
 
 	spawn_count = min(spawn_count, context.grid_model.get_empty_cells().size())
 
-	for i in range(spawn_count):
-		var rng := context.get_rng("classic_spawn_rule")
+	for _i: int in range(spawn_count):
+		var rng: RandomNumberGenerator = context.get_rng("classic_spawn_rule")
 		var value: int = 2 if rng.randf() < probability_of_2 else 4
 
-		var spawn_data := SpawnData.new()
+		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.value = value
 		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false

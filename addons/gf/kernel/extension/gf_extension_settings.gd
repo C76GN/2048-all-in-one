@@ -546,7 +546,7 @@ static func get_manifest_graph_report(manifests: Array[GFExtensionManifest] = []
 			continue
 		if seen_ids.has(manifest.id):
 			if not duplicate_ids.has(manifest.id):
-				var _append_result_549: Variant = duplicate_ids.append(manifest.id)
+				duplicate_ids.append(manifest.id)
 			continue
 
 		seen_ids[manifest.id] = true
@@ -766,11 +766,11 @@ static func _append_dependency_cycle(
 	var start_index: int = stack.find(extension_id)
 	var cycle: PackedStringArray = PackedStringArray()
 	if start_index == -1:
-		var _append_result_769: Variant = cycle.append(extension_id)
+		cycle.append(extension_id)
 	else:
 		for index: int in range(start_index, stack.size()):
-			var _append_result_772: Variant = cycle.append(stack[index])
-	var _append_result_773: Variant = cycle.append(extension_id)
+			cycle.append(stack[index])
+	cycle.append(extension_id)
 
 	var cycle_key: String = _make_cycle_key(cycle)
 	for existing_cycle: PackedStringArray in cycles:

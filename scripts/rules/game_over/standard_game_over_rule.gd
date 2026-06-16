@@ -18,8 +18,8 @@ func is_game_over(grid_model: GridModel, interaction_rule: InteractionRule) -> b
 	if not grid_model.get_empty_cells().is_empty():
 		return false
 
-	for x in range(grid_model.grid_size):
-		for y in range(grid_model.grid_size):
+	for x: int in range(grid_model.grid_size):
+		for y: int in range(grid_model.grid_size):
 			var current_tile: GameTileData = grid_model.grid[x][y]
 			if current_tile == null:
 				continue

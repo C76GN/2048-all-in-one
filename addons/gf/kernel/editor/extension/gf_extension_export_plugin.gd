@@ -99,7 +99,7 @@ func _format_reference_report(report: Dictionary) -> String:
 		if extension_report.is_empty():
 			continue
 
-		var _append_result_102: Variant = lines.append("- %s (%s)" % [
+		lines.append("- %s (%s)" % [
 			_GF_VARIANT_ACCESS_SCRIPT.get_option_string(extension_report, "display_name", extension_id),
 			extension_id,
 		])
@@ -107,7 +107,7 @@ func _format_reference_report(report: Dictionary) -> String:
 			_GF_VARIANT_ACCESS_SCRIPT.get_option_value(extension_report, "references", [])
 		)
 		for reference_entry: Dictionary in references:
-			var _append_result_110: Variant = lines.append("  %s:%d" % [
+			lines.append("  %s:%d" % [
 				_GF_VARIANT_ACCESS_SCRIPT.get_option_string(reference_entry, "path", ""),
 				_GF_VARIANT_ACCESS_SCRIPT.get_option_int(reference_entry, "line", 0),
 			])

@@ -139,7 +139,7 @@ func get_profile_ids() -> PackedStringArray:
 	for key: Variant in profiles.keys():
 		var config: GFInputRemapConfig = _variant_to_remap_config(profiles[key])
 		if config != null:
-			var _append_result_142: Variant = ids.append(GFVariantData.to_text(key))
+			ids.append(GFVariantData.to_text(key))
 	ids.sort()
 	return ids
 

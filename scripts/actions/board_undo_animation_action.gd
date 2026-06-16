@@ -19,7 +19,7 @@ func _init(snapshot: Dictionary, reverse_target_map: Dictionary, game_board: Nod
 	_snapshot = snapshot
 	_reverse_target_map = reverse_target_map
 	_game_board = game_board
-	as_fire_and_forget()
+	var _fire_and_forget_action: GFVisualAction = as_fire_and_forget()
 
 
 # --- 公共方法 ---
@@ -29,8 +29,8 @@ func execute() -> Variant:
 		return null
 
 	if _game_board.has_method(&"restore_from_snapshot_with_reverse_animation"):
-		_game_board.restore_from_snapshot_with_reverse_animation(_snapshot, _reverse_target_map)
+		var _restore_with_reverse_result: Variant = _game_board.call(&"restore_from_snapshot_with_reverse_animation", _snapshot, _reverse_target_map)
 	elif _game_board.has_method(&"restore_from_snapshot"):
-		_game_board.restore_from_snapshot(_snapshot)
+		var _restore_snapshot_result: Variant = _game_board.call(&"restore_from_snapshot", _snapshot)
 	
 	return null

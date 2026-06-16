@@ -74,24 +74,24 @@ func _validate_current_scene_save_graph() -> void:
 		return
 
 	var lines: PackedStringArray = PackedStringArray()
-	var _append_result_77: Variant = lines.append("Scene: %s" % scene_root.scene_file_path)
-	var _append_result_78: Variant = lines.append("Scope count: %d" % scopes.size())
-	var _append_result_79: Variant = lines.append("")
+	lines.append("Scene: %s" % scene_root.scene_file_path)
+	lines.append("Scope count: %d" % scopes.size())
+	lines.append("")
 	for scope: GFSaveScope in scopes:
 		var report: Dictionary = utility.inspect_scope(scope)
-		var _append_result_82: Variant = lines.append("[%s] %s" % [String(scope.get_path()), GFVariantData.get_option_string(report, "summary")])
-		var _append_result_83: Variant = lines.append("Next: %s" % GFVariantData.get_option_string(report, "next_action"))
+		lines.append("[%s] %s" % [String(scope.get_path()), GFVariantData.get_option_string(report, "summary")])
+		lines.append("Next: %s" % GFVariantData.get_option_string(report, "next_action"))
 		for issue_variant: Variant in GFVariantData.get_option_array(report, "issues"):
 			var issue: Dictionary = GFVariantData.as_dictionary(issue_variant)
 			if issue.is_empty():
 				continue
-			var _append_result_88: Variant = lines.append("- %s %s %s: %s" % [
+			lines.append("- %s %s %s: %s" % [
 				GFVariantData.get_option_string(issue, "severity"),
 				GFVariantData.get_option_string(issue, "kind"),
 				GFVariantData.get_option_string(issue, "path"),
 				GFVariantData.get_option_string(issue, "message"),
 			])
-		var _append_result_94: Variant = lines.append("")
+		lines.append("")
 
 	_show_diagnostic_dialog("GF SaveGraph Health", "\n".join(lines))
 

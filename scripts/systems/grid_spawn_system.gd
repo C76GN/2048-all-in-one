@@ -50,14 +50,19 @@ func _is_cell_in_bounds(position: Vector2i) -> bool:
 
 
 func _is_cell_empty(position: Vector2i) -> bool:
-	return _grid_model.grid[position.x][position.y] == null
+	var column: Array = _grid_model.grid[position.x]
+	return column[position.y] == null
 
 
 func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
 	var player_data_list: Array[GameTileData] = []
-	for x in _grid_model.grid_size:
-		for y in _grid_model.grid_size:
-			var data := _grid_model.grid[x][y] as GameTileData
+	for x: int in range(_grid_model.grid_size):
+		var column: Array = _grid_model.grid[x]
+		for y: int in range(_grid_model.grid_size):
+			var raw_data: Variant = column[y]
+			var data: GameTileData = null
+			if raw_data is GameTileData:
+				data = raw_data
 			if data != null and data.type == Tile.TileType.PLAYER:
 				player_data_list.append(data)
 
@@ -76,9 +81,13 @@ func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
 		send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
 	else:
 		var monster_data_list: Array[GameTileData] = []
-		for x in _grid_model.grid_size:
-			for y in _grid_model.grid_size:
-				var data := _grid_model.grid[x][y] as GameTileData
+		for x: int in range(_grid_model.grid_size):
+			var column: Array = _grid_model.grid[x]
+			for y: int in range(_grid_model.grid_size):
+				var raw_data: Variant = column[y]
+				var data: GameTileData = null
+				if raw_data is GameTileData:
+					data = raw_data
 				if data != null and data.type == Tile.TileType.MONSTER:
 					monster_data_list.append(data)
 					
@@ -135,7 +144,7 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 			return
 
 	# 2. 写入数据模型
-	var tile_data := GameTileData.new(value, type)
+	var tile_data: GameTileData = GameTileData.new(value, type)
 	_grid_model.place_tile(tile_data, spawn_pos)
 
 	if _log:

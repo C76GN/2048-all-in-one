@@ -20,8 +20,7 @@ signal playback_status_changed(is_playing: bool)
 
 ## 回放文件存储目录。
 const REPLAY_DIR_NAME: String = "replays"
-const _REPLAY_CONTINUE_DATA_SCRIPT = preload("res://scripts/events/replay_continue_data.gd")
-const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT = preload("res://scripts/utilities/saved_resource_collection_utility.gd")
+const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/saved_resource_collection_utility.gd")
 
 
 # --- 私有变量 ---
@@ -34,9 +33,9 @@ var _command_history: GFCommandHistoryUtility
 # --- Godot 生命周期方法 ---
 
 func async_init() -> void:
-	var collection = _get_saved_resource_collection()
+	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
 	if collection:
-		collection.ensure_collection_directory(REPLAY_DIR_NAME)
+		var _ensure_result: Error = collection.ensure_collection_directory(REPLAY_DIR_NAME)
 
 
 func ready() -> void:
@@ -48,16 +47,16 @@ func ready() -> void:
 ## 将一个ReplayData资源保存到文件中。
 ## @param replay_data: 要保存的ReplayData资源。
 func save_replay(replay_data: ReplayData) -> void:
-	var collection = _get_saved_resource_collection()
+	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
 	if collection:
-		collection.save_timestamped_resource(REPLAY_DIR_NAME, "replay", replay_data)
+		var _saved_path: String = collection.save_timestamped_resource(REPLAY_DIR_NAME, "replay", replay_data)
 
 
 ## 加载所有已保存的回放文件。
 ## @return: 一个包含所有ReplayData资源的数组。
 func load_replays() -> Array[ReplayData]:
 	var replays: Array[ReplayData] = []
-	var collection = _get_saved_resource_collection()
+	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
 	if not collection:
 		return replays
 
@@ -73,9 +72,9 @@ func delete_replay(replay_file_path: String) -> void:
 	if replay_file_path.is_empty():
 		return
 
-	var collection = _get_saved_resource_collection()
+	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
 	if collection:
-		collection.delete_resource_file(replay_file_path)
+		var _delete_result: Error = collection.delete_resource_file(replay_file_path)
 
 
 ## 激活回放模式。
@@ -125,9 +124,9 @@ func continue_from_current_step() -> void:
 	if not can_continue_from_current_step():
 		return
 
-	var current_step := get_current_step()
-	var actions_prefix := _get_actions_prefix(current_step)
-	var payload := _REPLAY_CONTINUE_DATA_SCRIPT.new(
+	var current_step: int = get_current_step()
+	var actions_prefix: Array[Vector2i] = _get_actions_prefix(current_step)
+	var payload: ReplayContinueData = ReplayContinueData.new(
 		_current_replay,
 		current_step,
 		get_total_steps(),
@@ -172,7 +171,7 @@ func _clear_command_history_redo_stack() -> void:
 	if not is_instance_valid(_command_history):
 		return
 
-	var history_data := _command_history.serialize_full_history()
+	var history_data: Dictionary = _command_history.serialize_full_history()
 	history_data["redo"] = []
 	_command_history.deserialize_full_history(history_data, Callable(MoveCommand, "deserialize"))
 
@@ -186,12 +185,12 @@ func _get_actions_prefix(step_count: int) -> Array[Vector2i]:
 	if not is_instance_valid(_current_replay):
 		return result
 
-	var safe_count := clampi(step_count, 0, _current_replay.actions.size())
-	for i in range(safe_count):
+	var safe_count: int = clampi(step_count, 0, _current_replay.actions.size())
+	for i: int in range(safe_count):
 		result.append(_current_replay.actions[i])
 
 	return result
 
 
-func _get_saved_resource_collection() -> Object:
-	return get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT)
+func _get_saved_resource_collection() -> SavedResourceCollectionUtility:
+	return get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT) as SavedResourceCollectionUtility

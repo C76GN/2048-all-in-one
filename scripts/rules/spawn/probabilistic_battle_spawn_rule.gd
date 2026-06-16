@@ -50,7 +50,7 @@ func execute(context: RuleContext) -> bool:
 
 	if rng.randf() < _current_probability:
 		var monster_value: int = _calculate_monster_value(context.grid_model, context)
-		var spawn_data := SpawnData.new()
+		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.value = monster_value
 		spawn_data.type = Tile.TileType.MONSTER
 		spawn_data.is_priority = true
@@ -72,14 +72,16 @@ func get_hud_stats(context: RuleContext, stats: Dictionary) -> void:
 
 	var grid_model: GridModel = context.grid_model if is_instance_valid(context) else null
 	var pool: Dictionary = get_monster_spawn_pool(grid_model)
+	var values: Array[int] = GFVariantData.to_int_array(pool.get(&"values", pool.get("values", [])))
+	var weights: Array[int] = GFVariantData.to_int_array(pool.get(&"weights", pool.get("weights", [])))
 	var spawn_info_text: String = tr("BATTLE_SPAWN_INFO")
 	var total_weight: int = 0
-	for w in pool["weights"]:
+	for w: int in weights:
 		total_weight += w
 	if total_weight > 0:
-		for i in range(pool["weights"].size()):
-			var p: float = (float(pool["weights"][i]) / total_weight) * 100
-			spawn_info_text += tr("FORMAT_BATTLE_PROBABILITY") % [pool["values"][i], p]
+		for i: int in range(weights.size()):
+			var p: float = (float(weights[i]) / total_weight) * 100
+			spawn_info_text += tr("FORMAT_BATTLE_PROBABILITY") % [values[i], p]
 	stats[&"spawn_info_label"] = spawn_info_text
 
 
@@ -92,8 +94,12 @@ func get_state() -> Variant:
 ## 从一个状态值恢复规则的内部状态。
 ## @param state: 从历史记录中加载的状态值。
 func set_state(state: Variant) -> void:
-	if state is Dictionary and state.has("current_probability"):
-		_current_probability = state["current_probability"]
+	if not state is Dictionary:
+		return
+
+	var state_dict: Dictionary = state
+	if state_dict.has("current_probability"):
+		_current_probability = GFVariantData.to_float(state_dict["current_probability"], base_probability)
 
 
 ## 动态计算并获取当前的怪物生成池。
@@ -113,7 +119,7 @@ func get_monster_spawn_pool(grid_model: GridModel = null) -> Dictionary:
 
 	var weights: Array[int] = []
 	var possible_values: Array[int] = []
-	for i in range(1, k + 1):
+	for i: int in range(1, k + 1):
 		possible_values.append(int(pow(2, i)))
 		weights.append(k - i + 1)
 
@@ -128,25 +134,25 @@ func get_monster_spawn_pool(grid_model: GridModel = null) -> Dictionary:
 ## @return: 计算出的怪物数值。
 func _calculate_monster_value(grid_model: GridModel, context: RuleContext = null) -> int:
 	var spawn_pool: Dictionary = get_monster_spawn_pool(grid_model)
-	var possible_values: Array[int] = spawn_pool["values"]
-	var weights: Array[int] = spawn_pool["weights"]
+	var possible_values: Array[int] = GFVariantData.to_int_array(spawn_pool.get(&"values", spawn_pool.get("values", [])))
+	var weights: Array[int] = GFVariantData.to_int_array(spawn_pool.get(&"weights", spawn_pool.get("weights", [])))
 
 	if possible_values.is_empty():
 		return 2
 
 	var total_weight: int = 0
-	for w in weights:
+	for w: int in weights:
 		total_weight += w
 	if total_weight == 0:
 		return 2
 
-	var rng := RandomNumberGenerator.new()
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	if is_instance_valid(context):
 		rng = context.get_rng("probabilistic_battle_spawn_rule")
 	var random_pick: int = rng.randi_range(1, total_weight)
 
 	var cumulative_weight: int = 0
-	for i in range(weights.size()):
+	for i: int in range(weights.size()):
 		cumulative_weight += weights[i]
 		if random_pick <= cumulative_weight:
 			return possible_values[i]

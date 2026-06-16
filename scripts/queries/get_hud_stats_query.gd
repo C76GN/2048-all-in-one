@@ -11,8 +11,8 @@ extends GFQuery
 ## @return: 动态统计数据字典。
 func execute() -> Variant:
 	var stats: Dictionary = {}
-	var grid_model := get_model(GridModel) as GridModel
-	var status_model := get_model(GameStatusModel) as GameStatusModel
+	var grid_model: GridModel = get_model(GridModel) as GridModel
+	var status_model: GameStatusModel = get_model(GameStatusModel) as GameStatusModel
 
 	if is_instance_valid(grid_model) and is_instance_valid(status_model):
 		_collect_interaction_stats(grid_model, status_model, stats)
@@ -21,7 +21,7 @@ func execute() -> Variant:
 		var external_extra: Dictionary = status_model.extra_stats.get_value()
 		stats.merge(external_extra)
 
-	var seed_utility := get_utility(GFSeedUtility) as GFSeedUtility
+	var seed_utility: GFSeedUtility = get_utility(GFSeedUtility) as GFSeedUtility
 	if is_instance_valid(seed_utility):
 		stats[&"seed_info"] = tr("SEED_INFO_LABEL") % seed_utility.get_global_seed()
 
@@ -35,12 +35,12 @@ func _collect_interaction_stats(
 	status_model: GameStatusModel,
 	stats: Dictionary
 ) -> void:
-	var interaction_rule := grid_model.interaction_rule
+	var interaction_rule: InteractionRule = grid_model.interaction_rule
 	if not is_instance_valid(interaction_rule):
 		return
 
 	var player_values_set: Dictionary = {}
-	for value in grid_model.get_all_player_tile_values():
+	for value: int in grid_model.get_all_player_tile_values():
 		player_values_set[value] = true
 
 	var context: Dictionary = {
@@ -52,12 +52,12 @@ func _collect_interaction_stats(
 
 
 func _collect_spawn_rule_stats(grid_model: GridModel, stats: Dictionary) -> void:
-	var rule_system := get_system(RuleSystem) as RuleSystem
+	var rule_system: RuleSystem = get_system(RuleSystem) as RuleSystem
 	if not is_instance_valid(rule_system):
 		return
 
-	var rule_context := RuleContext.new()
+	var rule_context: RuleContext = RuleContext.new()
 	rule_context.grid_model = grid_model
 
-	for rule in rule_system.get_all_spawn_rules():
+	for rule: SpawnRule in rule_system.get_all_spawn_rules():
 		rule.get_hud_stats(rule_context, stats)

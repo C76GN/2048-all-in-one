@@ -46,9 +46,9 @@ extends Resource
 func get_all_names() -> PackedStringArray:
 	var result: PackedStringArray = PackedStringArray()
 	if not command_name.is_empty():
-		var _append_result_49: Variant = result.append(command_name)
+		result.append(command_name)
 	for alias: String in aliases:
 		if alias.is_empty() or result.has(alias):
 			continue
-		var _append_result_53: Variant = result.append(alias)
+		result.append(alias)
 	return result

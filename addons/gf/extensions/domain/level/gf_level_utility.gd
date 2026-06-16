@@ -382,7 +382,7 @@ func has_runtime_cleanup(cleanup_id: StringName) -> bool:
 func get_runtime_cleanup_ids() -> PackedStringArray:
 	var result: PackedStringArray = PackedStringArray()
 	for cleanup_id: StringName in _runtime_cleanup_callbacks.keys():
-		var _append_result_385: Variant = result.append(String(cleanup_id))
+		result.append(String(cleanup_id))
 	result.sort()
 	return result
 

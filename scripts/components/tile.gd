@@ -30,8 +30,7 @@ const _MOVE_DURATION: float = 0.14
 const _SPAWN_DURATION: float = 0.18
 const _MERGE_PULSE_DURATION: float = 0.09
 const _DESPAWN_DURATION: float = 0.14
-const _STYLE_BORDER_WIDTH: int = 2
-const _STYLE_SHADOW_SIZE: int = 10
+const _STYLE_CORNER_RADIUS: int = 0
 
 
 # --- 公共变量 ---
@@ -70,7 +69,9 @@ var _active_flash_tween: Tween
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	background.add_theme_stylebox_override("panel", background.get_theme_stylebox("panel").duplicate())
+	var panel_stylebox: StyleBox = background.get_theme_stylebox("panel").duplicate() as StyleBox
+	if panel_stylebox != null:
+		background.add_theme_stylebox_override("panel", panel_stylebox)
 	_configure_pivots()
 
 
@@ -136,11 +137,12 @@ func animate_spawn() -> Tween:
 	rotation_degrees = -5.0
 	modulate = Color(1.0, 1.0, 1.0, 0.0)
 	_active_rotation_tween = create_tween()
-	_active_rotation_tween.set_parallel(true)
-	_active_rotation_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_active_rotation_tween.tween_property(self, "scale", Vector2.ONE, _SPAWN_DURATION)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", 0.0, _SPAWN_DURATION)
-	_active_rotation_tween.tween_property(self, "modulate:a", 1.0, _SPAWN_DURATION * 0.75)
+	var _parallel_result: Tween = _active_rotation_tween.set_parallel(true)
+	var _transition_result: Tween = _active_rotation_tween.set_trans(Tween.TRANS_BACK)
+	var _ease_result: Tween = _active_rotation_tween.set_ease(Tween.EASE_OUT)
+	var _scale_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "scale", Vector2.ONE, _SPAWN_DURATION)
+	var _rotation_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 0.0, _SPAWN_DURATION)
+	var _fade_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "modulate:a", 1.0, _SPAWN_DURATION * 0.75)
 	return _active_rotation_tween
 
 
@@ -155,8 +157,9 @@ func animate_move(new_position: Vector2) -> Tween:
 		_active_move_tween.kill()
 
 	_active_move_tween = create_tween()
-	_active_move_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_active_move_tween.tween_property(self, "position", new_position, _MOVE_DURATION)
+	var _transition_result: Tween = _active_move_tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = _active_move_tween.set_ease(Tween.EASE_OUT)
+	var _position_tweener: PropertyTweener = _active_move_tween.tween_property(self, "position", new_position, _MOVE_DURATION)
 	return _active_move_tween
 
 
@@ -167,9 +170,10 @@ func animate_merge() -> Tween:
 		_active_scale_tween.kill()
 
 	_active_scale_tween = create_tween()
-	_active_scale_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_active_scale_tween.tween_property(self, "scale", Vector2.ONE * 1.24, _MERGE_PULSE_DURATION)
-	_active_scale_tween.tween_property(self, "scale", Vector2.ONE, _MERGE_PULSE_DURATION)
+	var _transition_result: Tween = _active_scale_tween.set_trans(Tween.TRANS_BACK)
+	var _ease_result: Tween = _active_scale_tween.set_ease(Tween.EASE_OUT)
+	var _scale_up_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "scale", Vector2.ONE * 1.24, _MERGE_PULSE_DURATION)
+	var _scale_down_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "scale", Vector2.ONE, _MERGE_PULSE_DURATION)
 	_play_flash(Color(1.0, 0.92, 0.62, 1.0), _MERGE_PULSE_DURATION * 2.0)
 	return _active_scale_tween
 
@@ -180,10 +184,11 @@ func animate_despawn() -> Tween:
 	reset_animation_state()
 
 	_active_scale_tween = create_tween()
-	_active_scale_tween.set_parallel(true)
-	_active_scale_tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-	_active_scale_tween.tween_property(self, "scale", Vector2.ONE * 0.28, _DESPAWN_DURATION)
-	_active_scale_tween.tween_property(self, "modulate:a", 0.0, _DESPAWN_DURATION)
+	var _parallel_result: Tween = _active_scale_tween.set_parallel(true)
+	var _transition_result: Tween = _active_scale_tween.set_trans(Tween.TRANS_BACK)
+	var _ease_result: Tween = _active_scale_tween.set_ease(Tween.EASE_IN)
+	var _scale_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "scale", Vector2.ONE * 0.28, _DESPAWN_DURATION)
+	var _fade_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "modulate:a", 0.0, _DESPAWN_DURATION)
 	return _active_scale_tween
 
 
@@ -194,11 +199,12 @@ func animate_transform() -> Tween:
 		_active_rotation_tween.kill()
 
 	_active_rotation_tween = create_tween()
-	_active_rotation_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", -8.0, 0.04)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", 8.0, 0.06)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", -5.0, 0.05)
-	_active_rotation_tween.tween_property(self, "rotation_degrees", 0.0, 0.05)
+	var _transition_result: Tween = _active_rotation_tween.set_trans(Tween.TRANS_SINE)
+	var _ease_result: Tween = _active_rotation_tween.set_ease(Tween.EASE_IN_OUT)
+	var _rotate_left_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", -8.0, 0.04)
+	var _rotate_right_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 8.0, 0.06)
+	var _rotate_settle_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", -5.0, 0.05)
+	var _rotate_home_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 0.0, 0.05)
 	_play_flash(Color(0.72, 0.9, 1.0, 1.0), 0.16)
 	return _active_rotation_tween
 
@@ -213,16 +219,17 @@ func _configure_pivots() -> void:
 
 
 func _apply_background_style(bg_color: Color) -> void:
-	var stylebox := background.get_theme_stylebox("panel") as StyleBoxFlat
+	var stylebox: StyleBoxFlat = background.get_theme_stylebox("panel") as StyleBoxFlat
 	if stylebox == null:
 		return
 
 	stylebox.bg_color = bg_color
-	stylebox.border_color = bg_color.lightened(0.18)
-	stylebox.set_border_width_all(_STYLE_BORDER_WIDTH)
-	stylebox.shadow_color = Color(0.0, 0.0, 0.0, 0.22)
-	stylebox.shadow_size = _STYLE_SHADOW_SIZE
-	stylebox.shadow_offset = Vector2(0.0, 4.0)
+	stylebox.border_color = bg_color
+	stylebox.set_border_width_all(0)
+	stylebox.set_corner_radius_all(_STYLE_CORNER_RADIUS)
+	stylebox.shadow_color = Color.TRANSPARENT
+	stylebox.shadow_size = 0
+	stylebox.shadow_offset = Vector2.ZERO
 
 
 func _play_flash(color: Color, duration: float) -> void:
@@ -232,10 +239,11 @@ func _play_flash(color: Color, duration: float) -> void:
 	background.modulate = color
 	value_label.scale = Vector2.ONE * 1.08
 	_active_flash_tween = create_tween()
-	_active_flash_tween.set_parallel(true)
-	_active_flash_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	_active_flash_tween.tween_property(background, "modulate", Color.WHITE, duration)
-	_active_flash_tween.tween_property(value_label, "scale", Vector2.ONE, duration)
+	var _parallel_result: Tween = _active_flash_tween.set_parallel(true)
+	var _transition_result: Tween = _active_flash_tween.set_trans(Tween.TRANS_SINE)
+	var _ease_result: Tween = _active_flash_tween.set_ease(Tween.EASE_OUT)
+	var _background_tweener: PropertyTweener = _active_flash_tween.tween_property(background, "modulate", Color.WHITE, duration)
+	var _label_tweener: PropertyTweener = _active_flash_tween.tween_property(value_label, "scale", Vector2.ONE, duration)
 
 
 ## 动态计算并应用最佳字体大小。

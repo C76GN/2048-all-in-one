@@ -24,10 +24,10 @@ const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
 
-	_continue_button.pressed.connect(_on_continue_button_pressed)
-	_restart_button.pressed.connect(_on_restart_button_pressed)
-	_settings_button.pressed.connect(_on_settings_button_pressed)
-	_main_menu_button.pressed.connect(_on_main_menu_button_pressed)
+	var _connect_result_27: int = _continue_button.pressed.connect(_on_continue_button_pressed)
+	var _connect_result_28: int = _restart_button.pressed.connect(_on_restart_button_pressed)
+	var _connect_result_29: int = _settings_button.pressed.connect(_on_settings_button_pressed)
+	var _connect_result_30: int = _main_menu_button.pressed.connect(_on_main_menu_button_pressed)
 
 	_update_ui_text()
 	_continue_button.grab_focus()
@@ -70,8 +70,8 @@ func _on_main_menu_button_pressed() -> void:
 
 
 func _on_settings_button_pressed() -> void:
-	var ui_router := get_utility(GFUIRouterUtility) as GFUIRouterUtility
+	var ui_router: GFUIRouterUtility = get_utility(GFUIRouterUtility) as GFUIRouterUtility
 	if is_instance_valid(ui_router):
-		ui_router.push_route(_ROUTE_SETTINGS_MENU, {}, {}, _configure_settings_panel)
+		var _settings_panel: Node = ui_router.push_route(_ROUTE_SETTINGS_MENU, {}, {}, _configure_settings_panel)
 	else:
 		push_warning("[PauseMenu] GFUIRouterUtility 未注册，无法打开设置菜单。")

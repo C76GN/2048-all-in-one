@@ -10,11 +10,11 @@ extends GFUtility
 
 const _FEEDBACK_NODE_NAME: String = "BoardFeedback"
 const _FEEDBACK_Z_INDEX: int = 100
-const _MERGE_COLOR: Color = Color(1.0, 0.78, 0.24, 1.0)
-const _SPAWN_COLOR: Color = Color(0.74, 0.95, 1.0, 1.0)
-const _TRANSFORM_COLOR: Color = Color(0.58, 0.82, 1.0, 1.0)
-const _DEFAULT_COLOR: Color = Color.WHITE
-const _SPARK_BASE_SIZE: float = 7.0
+const _MERGE_COLOR: Color = Color(0.82, 0.60, 0.34, 1.0)
+const _SPAWN_COLOR: Color = Color(0.48, 0.68, 0.64, 1.0)
+const _TRANSFORM_COLOR: Color = Color(0.55, 0.49, 0.70, 1.0)
+const _DEFAULT_COLOR: Color = Color(0.94, 0.90, 0.82, 1.0)
+const _SPARK_BASE_SIZE: float = 6.0
 const _LABEL_SIZE: Vector2 = Vector2(120.0, 36.0)
 const _LABEL_OFFSET: Vector2 = Vector2(-60.0, -58.0)
 const _LABEL_RISE: Vector2 = Vector2(0.0, -20.0)
@@ -39,7 +39,7 @@ func play_feedback(
 	if not is_instance_valid(parent) or not parent.is_inside_tree():
 		return 0
 
-	var effect_root := Node2D.new()
+	var effect_root: Node2D = Node2D.new()
 	effect_root.name = _FEEDBACK_NODE_NAME
 	effect_root.position = local_position
 	effect_root.z_index = _FEEDBACK_Z_INDEX
@@ -50,11 +50,11 @@ func play_feedback(
 	var duration: float = _get_particle_duration(feedback_type)
 	var created_count: int = 0
 
-	for index in range(particle_count):
+	for index: int in range(particle_count):
 		_create_spark(effect_root, color, feedback_type, index, particle_count, duration)
 		created_count += 1
 
-	var resolved_label_text := _get_label_text(feedback_type, label_text)
+	var resolved_label_text: String = _get_label_text(feedback_type, label_text)
 	if not resolved_label_text.is_empty():
 		_create_label(effect_root, resolved_label_text, color)
 		created_count += 1
@@ -73,7 +73,7 @@ func _create_spark(
 	count: int,
 	duration: float
 ) -> void:
-	var spark := Panel.new()
+	var spark: Panel = Panel.new()
 	var spark_size: float = _SPARK_BASE_SIZE + float(index % 3)
 	spark.size = Vector2.ONE * spark_size
 	spark.pivot_offset = spark.size * 0.5
@@ -85,18 +85,19 @@ func _create_spark(
 	root.add_child(spark)
 
 	var angle: float = _get_particle_phase(feedback_type) + TAU * float(index) / maxf(float(count), 1.0)
-	var direction := Vector2.RIGHT.rotated(angle)
+	var direction: Vector2 = Vector2.RIGHT.rotated(angle)
 	var distance: float = _get_particle_distance(feedback_type) * (0.78 + float(index % 4) * 0.08)
-	var tween := spark.create_tween()
-	tween.set_parallel(true)
-	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.tween_property(spark, "position", direction * distance - spark.size * 0.5, duration)
-	tween.tween_property(spark, "scale", Vector2.ONE * 0.22, duration)
-	tween.tween_property(spark, "modulate:a", 0.0, duration)
+	var tween: Tween = spark.create_tween()
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
+	var _position_tweener: PropertyTweener = tween.tween_property(spark, "position", direction * distance - spark.size * 0.5, duration)
+	var _scale_tweener: PropertyTweener = tween.tween_property(spark, "scale", Vector2.ONE * 0.22, duration)
+	var _fade_tweener: PropertyTweener = tween.tween_property(spark, "modulate:a", 0.0, duration)
 
 
 func _create_label(root: Node2D, text: String, color: Color) -> void:
-	var label := Label.new()
+	var label: Label = Label.new()
 	label.text = text
 	label.size = _LABEL_SIZE
 	label.position = _LABEL_OFFSET
@@ -105,36 +106,35 @@ func _create_label(root: Node2D, text: String, color: Color) -> void:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.add_theme_font_size_override("font_size", 24)
-	label.add_theme_color_override("font_color", color.lightened(0.18))
-	label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.5))
-	label.add_theme_constant_override("shadow_offset_x", 0)
-	label.add_theme_constant_override("shadow_offset_y", 2)
+	label.add_theme_color_override("font_color", color.lightened(0.08))
 	label.scale = Vector2.ONE * 0.76
 	root.add_child(label)
 
-	var tween := label.create_tween()
-	tween.set_parallel(true)
-	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.tween_property(label, "position", _LABEL_OFFSET + _LABEL_RISE, _LABEL_DURATION)
-	tween.tween_property(label, "scale", Vector2.ONE, _LABEL_DURATION * 0.55)
-	tween.tween_property(label, "modulate:a", 0.0, _LABEL_DURATION).set_delay(_LABEL_DURATION * 0.25)
+	var tween: Tween = label.create_tween()
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
+	var _position_tweener: PropertyTweener = tween.tween_property(label, "position", _LABEL_OFFSET + _LABEL_RISE, _LABEL_DURATION)
+	var _scale_tweener: PropertyTweener = tween.tween_property(label, "scale", Vector2.ONE, _LABEL_DURATION * 0.55)
+	var fade_tweener: PropertyTweener = tween.tween_property(label, "modulate:a", 0.0, _LABEL_DURATION)
+	var _fade_delay_result: Tweener = fade_tweener.set_delay(_LABEL_DURATION * 0.25)
 
 
 func _create_spark_style(color: Color, spark_size: float) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
+	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = color
-	style.border_color = color.lightened(0.22)
-	style.set_border_width_all(1)
+	style.border_color = color
+	style.set_border_width_all(0)
 	style.set_corner_radius_all(roundi(spark_size))
-	style.shadow_color = Color(0.0, 0.0, 0.0, 0.25)
-	style.shadow_size = 3
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
 	return style
 
 
 func _queue_free_after(root: Node2D, lifetime: float) -> void:
-	var tween := root.create_tween()
-	tween.tween_interval(lifetime)
-	tween.tween_callback(root.queue_free)
+	var tween: Tween = root.create_tween()
+	var _interval_tweener: IntervalTweener = tween.tween_interval(lifetime)
+	var _callback_tweener: CallbackTweener = tween.tween_callback(root.queue_free)
 
 
 func _get_feedback_color(feedback_type: StringName) -> Color:

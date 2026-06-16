@@ -13,7 +13,7 @@ extends GFController
 
 ## 预加载方块场景，用于在运行时动态实例化。
 const TileScene: PackedScene = preload("res://scenes/components/tile.tscn")
-const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT = preload("res://scripts/utilities/game_board_feedback_utility.gd")
+const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_board_feedback_utility.gd")
 
 ## 每个单元格的像素尺寸。
 const CELL_SIZE: int = 100
@@ -28,9 +28,6 @@ const BOARD_PADDING: int = 15
 const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 
 const _LOG_TAG: String = "GameBoardController"
-const _BOARD_SHADOW_SIZE: int = 18
-const _BOARD_BORDER_WIDTH: int = 2
-const _CELL_BORDER_WIDTH: int = 1
 const _BOARD_INTRO_DURATION: float = 0.22
 
 
@@ -85,9 +82,9 @@ func _ready() -> void:
 	_log = get_utility(GFLogUtility) as GFLogUtility
 	_pool = get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
 	
-	var parent_control := get_host_as(Control) as Control
+	var parent_control: Control = get_host_as(Control) as Control
 	if is_instance_valid(parent_control):
-		parent_control.resized.connect(_on_resized)
+		var _connect_result_87: int = parent_control.resized.connect(_on_resized)
 	
 	# --- 注册 GF 事件监听 ---
 	register_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, _on_board_animation_requested)
@@ -113,7 +110,7 @@ func setup(
 ) -> void:
 	# 清理上一局遗留的方块节点和映射，防止幽灵方块
 	var old_tile_count: int = 0
-	for child in board_container.get_children():
+	for child: Node in board_container.get_children():
 		if child is Tile:
 			old_tile_count += 1
 			_release_visual_tile(child as Tile)
@@ -141,16 +138,16 @@ func setup(
 		if missing_tile_count > 0:
 			_pool.prewarm(TileScene, board_container, missing_tile_count)
 
-		for child in board_container.get_children():
+		for child: Node in board_container.get_children():
 			if child is Tile:
-				child.visible = false
+				(child as Tile).visible = false
 		
 	_is_initialized = true
 
 
 ## 清理所有视觉方块节点并重置映射表，通常在撤回动画启动前调用。
 func clear_visual_tiles() -> void:
-	for child in board_container.get_children():
+	for child: Node in board_container.get_children():
 		if child is Tile:
 			_release_visual_tile(child as Tile)
 	
@@ -173,9 +170,9 @@ func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Strin
 	if not is_instance_valid(tile) or not is_instance_valid(board_container):
 		return
 
-	var feedback_utility := get_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)
+	var feedback_utility: GameBoardFeedbackUtility = get_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)
 	if is_instance_valid(feedback_utility) and feedback_utility.has_method("play_feedback"):
-		feedback_utility.play_feedback(board_container, tile.position, feedback_type, label_text)
+		var _feedback_count: int = feedback_utility.play_feedback(board_container, tile.position, feedback_type, label_text)
 
 
 ## 获取当前棋盘上数值最大的玩家方块的值。
@@ -241,16 +238,16 @@ func restore_from_snapshot_with_reverse_animation(snapshot: Dictionary, reverse_
 
 func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary) -> void:
 	var current_tiles: Array[Tile] = []
-	for child in board_container.get_children():
+	for child: Node in board_container.get_children():
 		if child is Tile:
 			current_tiles.append(child as Tile)
 
 	if reverse_target_map.is_empty():
-		for tile in current_tiles:
+		for tile: Tile in current_tiles:
 			_release_visual_tile(tile)
 	else:
-		var reverse_start_tiles := _build_reverse_start_tiles_map(snapshot, reverse_target_map)
-		for tile in current_tiles:
+		var reverse_start_tiles: Dictionary = _build_reverse_start_tiles_map(snapshot, reverse_target_map)
+		for tile: Tile in current_tiles:
 			if _should_animate_undo_despawn(tile, reverse_start_tiles):
 				_animate_release_visual_tile(tile)
 			else:
@@ -263,13 +260,16 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 
 	var grid_size: int = snapshot.get(&"grid_size", snapshot.get("grid_size", 4))
 	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
-	for tile_data_snapshot in tiles_data:
-		var pos: Vector2i = tile_data_snapshot.get(&"pos", tile_data_snapshot.get("pos", Vector2i.ZERO))
+	for raw_tile_data_snapshot: Variant in tiles_data:
+		if not raw_tile_data_snapshot is Dictionary:
+			continue
+		var tile_data_snapshot: Dictionary = raw_tile_data_snapshot
+		var pos: Vector2i = _get_vector2i(tile_data_snapshot, &"pos", Vector2i.ZERO)
 		if not _is_grid_pos_in_bounds(pos, grid_size):
 			continue
 
-		var value: int = tile_data_snapshot.get(&"value", tile_data_snapshot.get("value", 0))
-		var type: Tile.TileType = tile_data_snapshot.get(&"type", tile_data_snapshot.get("type", Tile.TileType.PLAYER))
+		var value: int = _get_int(tile_data_snapshot, &"value", 0)
+		var type: Tile.TileType = _get_tile_type(tile_data_snapshot, &"type", Tile.TileType.PLAYER)
 		var tile_data: GameTileData = _get_model_tile_data(pos)
 		if tile_data == null:
 			tile_data = GameTileData.new(value, type)
@@ -277,14 +277,14 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 		var new_tile: Tile = _create_visual_tile(tile_data.value, tile_data.type)
 		_visual_map[tile_data] = new_tile
 		
-		var key := "%d,%d" % [pos.x, pos.y]
-		var start_grid_pos: Vector2i = reverse_target_map.get(key, pos)
+		var key: String = "%d,%d" % [pos.x, pos.y]
+		var start_grid_pos: Vector2i = _get_vector2i(reverse_target_map, StringName(key), pos)
 		new_tile.position = _grid_to_pixel_center(start_grid_pos)
 		new_tile.scale = Vector2.ONE
 		new_tile.rotation_degrees = 0
 
 		if start_grid_pos != pos:
-			new_tile.animate_move(_grid_to_pixel_center(pos))
+			var _move_tween: Tween = new_tile.animate_move(_grid_to_pixel_center(pos))
 
 
 func _cleanup_listeners() -> void:
@@ -311,8 +311,13 @@ func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
 	
 	new_tile.reset_animation_state()
 	new_tile.set_meta(RELEASE_TOKEN_META, 0)
-	var colors := _get_tile_colors(value, type)
-	new_tile.setup(value, type, colors.bg, colors.font)
+	var colors: Dictionary = _get_tile_colors(value, type)
+	new_tile.setup(
+		value,
+		type,
+		_get_color(colors, &"bg", Color.WHITE),
+		_get_color(colors, &"font", Color.BLACK)
+	)
 	return new_tile
 
 
@@ -333,13 +338,13 @@ func _animate_release_visual_tile(tile: Tile) -> void:
 	if not is_instance_valid(tile):
 		return
 
-	var release_token := RefCounted.new()
+	var release_token: RefCounted = RefCounted.new()
 	tile.set_meta(RELEASE_TOKEN_META, release_token)
 	tile.move_to_front()
 
 	var despawn_tween: Tween = tile.animate_despawn()
 	if is_instance_valid(despawn_tween) and despawn_tween.is_valid():
-		despawn_tween.finished.connect(func(): _release_visual_tile_if_valid(tile, release_token))
+		var _connect_result_339: int = despawn_tween.finished.connect(func() -> void: _release_visual_tile_if_valid(tile, release_token))
 	else:
 		_release_visual_tile_if_valid(tile, release_token)
 
@@ -360,21 +365,25 @@ func _build_reverse_start_tiles_map(snapshot: Dictionary, reverse_target_map: Di
 	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
 	var snapshot_grid_size: int = snapshot.get(&"grid_size", snapshot.get("grid_size", model.grid_size if model else 0))
 
-	for tile_data_snapshot in tiles_data:
-		var pos: Vector2i = tile_data_snapshot.get(&"pos", tile_data_snapshot.get("pos", Vector2i.ZERO))
+	for raw_tile_data_snapshot: Variant in tiles_data:
+		if not raw_tile_data_snapshot is Dictionary:
+			continue
+		var tile_data_snapshot: Dictionary = raw_tile_data_snapshot
+		var pos: Vector2i = _get_vector2i(tile_data_snapshot, &"pos", Vector2i.ZERO)
 		if not _is_grid_pos_in_bounds(pos, snapshot_grid_size):
 			continue
 
-		var value: int = tile_data_snapshot.get(&"value", tile_data_snapshot.get("value", 0))
-		var type: Tile.TileType = tile_data_snapshot.get(&"type", tile_data_snapshot.get("type", Tile.TileType.PLAYER))
-		var pos_key := "%d,%d" % [pos.x, pos.y]
-		var start_grid_pos: Vector2i = reverse_target_map.get(pos_key, pos)
-		var start_key := "%d,%d" % [start_grid_pos.x, start_grid_pos.y]
+		var value: int = _get_int(tile_data_snapshot, &"value", 0)
+		var type: Tile.TileType = _get_tile_type(tile_data_snapshot, &"type", Tile.TileType.PLAYER)
+		var pos_key: String = "%d,%d" % [pos.x, pos.y]
+		var start_grid_pos: Vector2i = _get_vector2i(reverse_target_map, StringName(pos_key), pos)
+		var start_key: String = "%d,%d" % [start_grid_pos.x, start_grid_pos.y]
 
 		if not reverse_start_tiles.has(start_key):
 			reverse_start_tiles[start_key] = []
 
-		reverse_start_tiles[start_key].append({
+		var start_tile_entries: Array = reverse_start_tiles[start_key]
+		start_tile_entries.append({
 			&"value": value,
 			&"type": type,
 		})
@@ -387,7 +396,7 @@ func _should_animate_undo_despawn(tile: Tile, reverse_start_tiles: Dictionary) -
 		return false
 
 	var current_grid_pos: Vector2i = _pixel_center_to_grid(tile.position)
-	var current_key := "%d,%d" % [current_grid_pos.x, current_grid_pos.y]
+	var current_key: String = "%d,%d" % [current_grid_pos.x, current_grid_pos.y]
 	var candidates: Array = reverse_start_tiles.get(current_key, [])
 
 	if candidates.size() != 1:
@@ -412,12 +421,15 @@ func _get_model_tile_data(grid_pos: Vector2i) -> GameTileData:
 	if grid_pos.y >= column.size():
 		return null
 
-	return column[grid_pos.y] as GameTileData
+	var tile_data: Variant = column[grid_pos.y]
+	if tile_data is GameTileData:
+		return tile_data
+	return null
 
 
 func _get_tile_colors(value: int, type: Tile.TileType) -> Dictionary:
-	var bg_color := Color.WHITE
-	var font_color := Color.BLACK
+	var bg_color: Color = Color.WHITE
+	var font_color: Color = Color.BLACK
 	
 	if not model or not model.interaction_rule:
 		return {"bg": bg_color, "font": font_color}
@@ -457,16 +469,17 @@ func _update_board_layout() -> void:
 
 
 func _apply_board_background_style() -> void:
-	var panel_style := board_background.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
+	var panel_style: StyleBoxFlat = board_background.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
 	if panel_style == null:
 		return
 
 	panel_style.bg_color = board_theme.board_panel_color
-	panel_style.border_color = board_theme.board_panel_color.lightened(0.16)
-	panel_style.set_border_width_all(_BOARD_BORDER_WIDTH)
-	panel_style.shadow_color = Color(0.0, 0.0, 0.0, 0.28)
-	panel_style.shadow_size = _BOARD_SHADOW_SIZE
-	panel_style.shadow_offset = Vector2(0.0, 6.0)
+	panel_style.border_color = board_theme.board_panel_color
+	panel_style.set_border_width_all(0)
+	panel_style.set_corner_radius_all(0)
+	panel_style.shadow_color = Color.TRANSPARENT
+	panel_style.shadow_size = 0
+	panel_style.shadow_offset = Vector2.ZERO
 	board_background.add_theme_stylebox_override("panel", panel_style)
 
 
@@ -476,7 +489,7 @@ func _draw_board_cells() -> void:
 		return
 
 	# 清除旧的格子
-	for child in board_container.get_children():
+	for child: Node in board_container.get_children():
 		# 注意：Tile 也是 Node2D 的子节点，所以这里需要区分
 		# 由于 Tile 是 Node2D 类型 (继承自 scenes/components/tile.tscn)，
 		# 而我们的格子场景是 Control (Panel)。
@@ -489,8 +502,8 @@ func _draw_board_cells() -> void:
 			_log.error(_LOG_TAG, "未配置 grid_cell_scene。")
 		return
 
-	for x in model.grid_size:
-		for y in model.grid_size:
+	for x: int in range(model.grid_size):
+		for y: int in range(model.grid_size):
 			var cell_instance: Control = grid_cell_scene.instantiate()
 			board_container.add_child(cell_instance)
 
@@ -520,13 +533,13 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 	var final_layout: Dictionary = _calculate_layout_params(new_size)
 	if final_layout.is_empty():
 		return
-	var main_tween := create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
-	main_tween.tween_property(board_background, "position", final_layout.offset, 0.3)
-	main_tween.tween_property(board_background, "size", final_layout.scaled_size, 0.3)
+	var main_tween: Tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
+	var _background_position_tweener: PropertyTweener = main_tween.tween_property(board_background, "position", final_layout.offset, 0.3)
+	var _background_size_tweener: PropertyTweener = main_tween.tween_property(board_background, "size", final_layout.scaled_size, 0.3)
 	var final_container_pos: Vector2 = final_layout.offset + Vector2(BOARD_PADDING, BOARD_PADDING) * final_layout.scale_ratio
-	main_tween.tween_property(board_container, "position", final_container_pos, 0.3)
-	main_tween.tween_property(board_container, "scale", Vector2.ONE * final_layout.scale_ratio, 0.3)
-	main_tween.finished.connect(func(): _draw_expanded_cells(old_size, new_size, expansion_token), CONNECT_ONE_SHOT)
+	var _container_position_tweener: PropertyTweener = main_tween.tween_property(board_container, "position", final_container_pos, 0.3)
+	var _container_scale_tweener: PropertyTweener = main_tween.tween_property(board_container, "scale", Vector2.ONE * final_layout.scale_ratio, 0.3)
+	var _connect_result_527: int = main_tween.finished.connect(func() -> void: _draw_expanded_cells(old_size, new_size, expansion_token), CONNECT_ONE_SHOT)
 
 
 func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) -> void:
@@ -534,23 +547,23 @@ func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) ->
 		return
 
 	# 清理旧格子 (非 Tile 节点)
-	for child in board_container.get_children():
+	for child: Node in board_container.get_children():
 		if child is Control and not child is Tile:
 			child.queue_free()
 
 	if not is_instance_valid(grid_cell_scene):
 		return
 
-	var new_cells_tween := create_tween().set_parallel(true)
+	var new_cells_tween: Tween = create_tween().set_parallel(true)
 
-	for x in new_size:
-		for y in new_size:
+	for x: int in range(new_size):
+		for y: int in range(new_size):
 			var cell_instance: Control = grid_cell_scene.instantiate()
 			board_container.add_child(cell_instance)
 			board_container.move_child(cell_instance, 0) # 保持在底部
 
-			var final_size := Vector2.ONE * CELL_SIZE
-			var final_pos := Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
+			var final_size: Vector2 = Vector2.ONE * CELL_SIZE
+			var final_pos: Vector2 = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
 
 			if is_instance_valid(board_theme) and cell_instance is Panel:
 				var stylebox: StyleBox = cell_instance.get_theme_stylebox("panel").duplicate()
@@ -562,8 +575,10 @@ func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) ->
 				var center_pos: Vector2 = final_pos + final_size / 2.0
 				cell_instance.size = Vector2.ZERO
 				cell_instance.position = center_pos
-				new_cells_tween.tween_property(cell_instance, "size", final_size, 0.2).set_delay(0.05 * (x + y))
-				new_cells_tween.tween_property(cell_instance, "position", final_pos, 0.2).set_delay(0.05 * (x + y))
+				var size_tweener: PropertyTweener = new_cells_tween.tween_property(cell_instance, "size", final_size, 0.2)
+				var _size_delay_result: Tweener = size_tweener.set_delay(0.05 * (x + y))
+				var position_tweener: PropertyTweener = new_cells_tween.tween_property(cell_instance, "position", final_pos, 0.2)
+				var _position_delay_result: Tweener = position_tweener.set_delay(0.05 * (x + y))
 			else:
 				cell_instance.size = final_size
 				cell_instance.position = final_pos
@@ -571,11 +586,12 @@ func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) ->
 
 func _configure_cell_style(stylebox: StyleBoxFlat) -> void:
 	stylebox.bg_color = board_theme.empty_cell_color
-	stylebox.border_color = board_theme.empty_cell_color.lightened(0.08)
-	stylebox.set_border_width_all(_CELL_BORDER_WIDTH)
-	stylebox.shadow_color = Color(0.0, 0.0, 0.0, 0.10)
-	stylebox.shadow_size = 4
-	stylebox.shadow_offset = Vector2(0.0, 2.0)
+	stylebox.border_color = board_theme.empty_cell_color
+	stylebox.set_border_width_all(0)
+	stylebox.set_corner_radius_all(0)
+	stylebox.shadow_color = Color.TRANSPARENT
+	stylebox.shadow_size = 0
+	stylebox.shadow_offset = Vector2.ZERO
 
 
 func _play_board_intro() -> void:
@@ -595,10 +611,11 @@ func _play_board_intro() -> void:
 	board_container.scale = Vector2.ONE * GFVariantData.get_option_float(layout_params, "scale_ratio", 1.0) * 0.98
 
 	_board_intro_tween = create_tween().set_parallel(true)
-	_board_intro_tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_board_intro_tween.tween_property(board_background, "modulate:a", 1.0, _BOARD_INTRO_DURATION)
-	_board_intro_tween.tween_property(board_container, "modulate:a", 1.0, _BOARD_INTRO_DURATION)
-	_board_intro_tween.tween_property(
+	var _transition_result: Tween = _board_intro_tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = _board_intro_tween.set_ease(Tween.EASE_OUT)
+	var _background_fade_tweener: PropertyTweener = _board_intro_tween.tween_property(board_background, "modulate:a", 1.0, _BOARD_INTRO_DURATION)
+	var _container_fade_tweener: PropertyTweener = _board_intro_tween.tween_property(board_container, "modulate:a", 1.0, _BOARD_INTRO_DURATION)
+	var _container_scale_tweener: PropertyTweener = _board_intro_tween.tween_property(
 		board_container,
 		"scale",
 		Vector2.ONE * GFVariantData.get_option_float(layout_params, "scale_ratio", 1.0),
@@ -609,7 +626,7 @@ func _play_board_intro() -> void:
 ## 将网格坐标转换为棋盘容器内的局部像素中心点坐标。
 ## @return: 对应于网格中心的像素坐标 (Vector2)。
 func _grid_to_pixel_center(grid_pos: Vector2i) -> Vector2:
-	var top_left_pos := Vector2(grid_pos.x * (CELL_SIZE + SPACING), grid_pos.y * (CELL_SIZE + SPACING))
+	var top_left_pos: Vector2 = Vector2(grid_pos.x * (CELL_SIZE + SPACING), grid_pos.y * (CELL_SIZE + SPACING))
 	return top_left_pos + Vector2.ONE * (CELL_SIZE / 2.0)
 
 
@@ -631,16 +648,84 @@ func _is_grid_pos_in_bounds(grid_pos: Vector2i, grid_size: int) -> bool:
 	)
 
 
+static func _get_instruction_type(data: Dictionary) -> StringName:
+	var value: Variant = data.get(&"type", data.get("type", &""))
+	if value is StringName:
+		return value
+	return StringName(str(value))
+
+
+static func _get_game_tile_data(data: Dictionary, key: StringName) -> GameTileData:
+	var value: Variant = data.get(key, data.get(String(key), null))
+	if value is GameTileData:
+		return value
+	return null
+
+
+func _get_visual_tile(tile_data: GameTileData) -> Tile:
+	if tile_data == null:
+		return null
+	var value: Variant = _visual_map.get(tile_data, null)
+	if value is Tile:
+		return value
+	return null
+
+
+static func _get_vector2i(data: Dictionary, key: StringName, default_value: Vector2i) -> Vector2i:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is Vector2i:
+		return value
+	if value is Vector2:
+		var vector_value: Vector2 = value
+		return Vector2i(roundi(vector_value.x), roundi(vector_value.y))
+	return default_value
+
+
+static func _get_int(data: Dictionary, key: StringName, default_value: int) -> int:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is int:
+		return value
+	if value is float:
+		var float_value: float = value
+		return int(float_value)
+	return default_value
+
+
+static func _get_bool(data: Dictionary, key: StringName, default_value: bool) -> bool:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is bool:
+		return value
+	return default_value
+
+
+static func _get_tile_type(data: Dictionary, key: StringName, default_value: Tile.TileType) -> Tile.TileType:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is int:
+		var enum_value: int = value
+		return enum_value as Tile.TileType
+	return default_value
+
+
+static func _get_color(data: Dictionary, key: StringName, default_value: Color) -> Color:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is Color:
+		return value
+	return default_value
+
+
 ## 根据棋盘尺寸和可用空间，计算缩放、尺寸和偏移等布局参数。
 ## @return: 一个包含布局参数的字典。
 func _calculate_layout_params(p_size: int) -> Dictionary:
 	var grid_area_side: float = float(p_size * CELL_SIZE + (p_size - 1) * SPACING)
 	var logical_board_side: float = grid_area_side + BOARD_PADDING * 2
-	var current_size: Vector2 = self.size
+	var host_control: Control = get_host_as(Control) as Control
+	if not is_instance_valid(host_control):
+		return {}
+	var current_size: Vector2 = host_control.size
 	if current_size.x == 0 or current_size.y == 0:
 		return {}
 	var scale_ratio: float = min(current_size.x / logical_board_side, current_size.y / logical_board_side)
-	var scaled_size := Vector2.ONE * logical_board_side * scale_ratio
+	var scaled_size: Vector2 = Vector2.ONE * logical_board_side * scale_ratio
 	var offset: Vector2 = (current_size - scaled_size) / 2.0
 	return {
 		"scale_ratio": scale_ratio,
@@ -661,8 +746,8 @@ func _on_board_undo_animation_requested(payload: Array) -> void:
 	if _log:
 		_log.debug(_LOG_TAG, "收到撤回动画请求。")
 	
-	var undo_action := BoardUndoAnimationAction.new(snapshot, reverse_map, self)
-	var action_sys := get_system(GFActionQueueSystem) as GFActionQueueSystem
+	var undo_action: BoardUndoAnimationAction = BoardUndoAnimationAction.new(snapshot, reverse_map, self)
+	var action_sys: GFActionQueueSystem = get_system(GFActionQueueSystem) as GFActionQueueSystem
 	if action_sys:
 		action_sys.enqueue(undo_action)
 	else:
@@ -670,30 +755,34 @@ func _on_board_undo_animation_requested(payload: Array) -> void:
 
 ## 接收到逻辑层的动画请求，将其包装为 Action 推入动画队列。
 func _on_board_animation_requested(instructions: Array) -> void:
-	var visual_instructions: Array = []
+	var visual_instructions: Array[Dictionary] = []
 	var needs_visual_resync: bool = false
 	if _log:
 		_log.debug(_LOG_TAG, "收到棋盘动画请求: instructions=%d, visual_map=%d" % [instructions.size(), _visual_map.size()])
 	
-	for instr in instructions:
+	for raw_instr: Variant in instructions:
+		if not raw_instr is Dictionary:
+			needs_visual_resync = true
+			continue
+		var instr: Dictionary = raw_instr
 		var visual_instr: Dictionary = instr.duplicate()
 		
 		# 转换逻辑数据到视觉节点
-		match instr[&"type"]:
+		match _get_instruction_type(instr):
 			&"MOVE":
-				var move_data: GameTileData = instr[&"tile_data"]
-				var move_tile_node: Tile = _visual_map.get(move_data)
+				var move_data: GameTileData = _get_game_tile_data(instr, &"tile_data")
+				var move_tile_node: Tile = _get_visual_tile(move_data)
 				if is_instance_valid(move_tile_node):
 					visual_instr[&"tile"] = move_tile_node
 				else:
 					needs_visual_resync = true
 					continue
 			&"MERGE":
-				var consumed_data: GameTileData = instr[&"consumed_data"]
-				var merged_data: GameTileData = instr[&"merged_data"]
+				var consumed_data: GameTileData = _get_game_tile_data(instr, &"consumed_data")
+				var merged_data: GameTileData = _get_game_tile_data(instr, &"merged_data")
 				
-				var consumed_node: Tile = _visual_map.get(consumed_data)
-				var merged_node: Tile = _visual_map.get(merged_data)
+				var consumed_node: Tile = _get_visual_tile(consumed_data)
+				var merged_node: Tile = _get_visual_tile(merged_data)
 				
 				if not is_instance_valid(consumed_node):
 					needs_visual_resync = true
@@ -707,7 +796,7 @@ func _on_board_animation_requested(instructions: Array) -> void:
 				
 				# 延迟更新合并后的视觉状态
 				if is_instance_valid(merged_node):
-					var merge_colors := _get_tile_colors(merged_data.value, merged_data.type)
+					var merge_colors: Dictionary = _get_tile_colors(merged_data.value, merged_data.type)
 					visual_instr[&"target_setup_data"] = {
 						&"value": merged_data.value,
 						&"type": merged_data.type,
@@ -718,36 +807,39 @@ func _on_board_animation_requested(instructions: Array) -> void:
 						
 				# 从映射中移除被消耗的节点
 				if consumed_data != null:
-					_visual_map.erase(consumed_data)
+					var _erase_result: bool = _visual_map.erase(consumed_data)
 			&"SPAWN":
-				var spawn_data: GameTileData = instr[&"tile_data"]
+				var spawn_data: GameTileData = _get_game_tile_data(instr, &"tile_data")
+				if spawn_data == null:
+					needs_visual_resync = true
+					continue
 				var new_tile: Tile = _create_visual_tile(spawn_data.value, spawn_data.type)
 				_visual_map[spawn_data] = new_tile
-				new_tile.position = _grid_to_pixel_center(instr[&"to_grid_pos"])
+				new_tile.position = _grid_to_pixel_center(_get_vector2i(instr, &"to_grid_pos", Vector2i.ZERO))
 				new_tile.scale = Vector2.ZERO
 				
 				visual_instr[&"tile"] = new_tile
 			&"TRANSFORM":
-				var transform_data: GameTileData = instr[&"tile_data"]
-				var transform_tile_node: Tile = _visual_map.get(transform_data)
+				var transform_data: GameTileData = _get_game_tile_data(instr, &"tile_data")
+				var transform_tile_node: Tile = _get_visual_tile(transform_data)
 				if not is_instance_valid(transform_tile_node):
 					needs_visual_resync = true
 					continue
 
-				var transform_colors := _get_tile_colors(transform_data.value, transform_data.type)
+				var transform_colors: Dictionary = _get_tile_colors(transform_data.value, transform_data.type)
 				visual_instr[&"tile"] = transform_tile_node
 				visual_instr[&"target_setup_data"] = {
 					&"value": transform_data.value,
 					&"type": transform_data.type,
 					&"bg": transform_colors.bg,
 					&"font": transform_colors.font,
-					&"do_merge": instr.get(&"do_merge", false),
-					&"do_transform": instr.get(&"do_transform", false),
+					&"do_merge": _get_bool(instr, &"do_merge", false),
+					&"do_transform": _get_bool(instr, &"do_transform", false),
 				}
 		
 		# 计算像素坐标
 		if visual_instr.has(&"to_grid_pos"):
-			visual_instr[&"to_pos"] = _grid_to_pixel_center(visual_instr[&"to_grid_pos"])
+			visual_instr[&"to_pos"] = _grid_to_pixel_center(_get_vector2i(visual_instr, &"to_grid_pos", Vector2i.ZERO))
 			
 		visual_instructions.append(visual_instr)
 
@@ -760,10 +852,10 @@ func _on_board_animation_requested(instructions: Array) -> void:
 		return
 			
 	# 2. 实例化视觉动作
-	var action := BoardAnimationAction.new(visual_instructions, self) as GFVisualAction
+	var action: GFVisualAction = BoardAnimationAction.new(visual_instructions, self) as GFVisualAction
 	
 	# 3. 推入 GFActionQueueSystem 执行
-	var queue_sys := get_system(GFActionQueueSystem) as GFActionQueueSystem
+	var queue_sys: GFActionQueueSystem = get_system(GFActionQueueSystem) as GFActionQueueSystem
 	if queue_sys:
 		queue_sys.enqueue(action)
 

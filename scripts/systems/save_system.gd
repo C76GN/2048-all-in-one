@@ -44,13 +44,13 @@ func get_high_score(mode_id: String, grid_size: int) -> int:
 	_ensure_game_data_loaded()
 	
 	var grid_size_str: String = "%dx%d" % [grid_size, grid_size]
-	var scores := _get_scores()
+	var scores: Dictionary = _get_scores()
 
 	var mode_scores_value: Variant = scores.get(mode_id, {})
 	if mode_scores_value is Dictionary:
 		var mode_scores: Dictionary = mode_scores_value
 		if mode_scores.has(grid_size_str):
-			return int(mode_scores[grid_size_str])
+			return _variant_to_int(mode_scores[grid_size_str], 0)
 
 	return 0
 
@@ -67,8 +67,8 @@ func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
 		return
 
 	var grid_size_str: String = "%dx%d" % [grid_size, grid_size]
-	var scores := _get_scores()
-	var mode_scores := _get_mode_scores(scores, mode_id)
+	var scores: Dictionary = _get_scores()
+	var mode_scores: Dictionary = _get_mode_scores(scores, mode_id)
 
 	mode_scores[grid_size_str] = score
 	scores[mode_id] = mode_scores
@@ -80,7 +80,7 @@ func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
 ## 设置并保存语言环境。
 ## @param locale: Godot locale 代码。
 func set_language(locale: String) -> void:
-	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
 	if is_instance_valid(display_settings):
 		display_settings.set_locale(locale)
 	else:
@@ -92,13 +92,13 @@ func set_language(locale: String) -> void:
 
 ## 获取当前保存的语言设置。
 func get_language() -> String:
-	var display_settings := get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
 	if is_instance_valid(display_settings):
 		return display_settings.get_locale()
 
-	var settings := get_utility(GFSettingsUtility) as GFSettingsUtility
+	var settings: GFSettingsUtility = get_utility(GFSettingsUtility) as GFSettingsUtility
 	if is_instance_valid(settings):
-		return String(settings.get_value(GFDisplaySettingsUtility.LOCALE_KEY, "zh"))
+		return _variant_to_string(settings.get_value(GFDisplaySettingsUtility.LOCALE_KEY, "zh"), "zh")
 
 	return "zh"
 
@@ -109,7 +109,7 @@ func _save_game_data() -> void:
 	if not is_instance_valid(_storage):
 		return
 
-	var error := _storage.save_data(SAVE_FILE_NAME, _save_data)
+	var error: int = _storage.save_data(SAVE_FILE_NAME, _save_data)
 	if error != OK and is_instance_valid(_log):
 		_log.error(_LOG_TAG, "保存最高分失败，错误码: %d" % error)
 
@@ -119,7 +119,7 @@ func _load_game_data() -> void:
 	if is_instance_valid(_storage):
 		_save_data = _storage.load_data(SAVE_FILE_NAME)
 
-	_save_data.erase(GFStorageCodec.META_KEY)
+	var _erase_result: bool = _save_data.erase(GFStorageCodec.META_KEY)
 	_ensure_game_data_defaults()
 	_is_game_data_loaded = true
 
@@ -147,3 +147,24 @@ func _get_mode_scores(scores: Dictionary, mode_id: String) -> Dictionary:
 		return mode_scores_value
 
 	return {}
+
+
+static func _variant_to_int(value: Variant, default_value: int) -> int:
+	if value is int:
+		return value
+	if value is float:
+		var float_value: float = value
+		return int(float_value)
+	return default_value
+
+
+static func _variant_to_string(value: Variant, default_value: String) -> String:
+	if value is String:
+		return value
+	if value is StringName:
+		var string_name_value: StringName = value
+		return String(string_name_value)
+	if value is NodePath:
+		var node_path_value: NodePath = value
+		return String(node_path_value)
+	return default_value

@@ -38,8 +38,8 @@ func is_baseline() -> bool:
 
 
 func execute() -> Variant:
-	var grid_model := get_model(GridModel) as GridModel
-	var game_state_system := get_system(GameStateSystem) as GameStateSystem
+	var grid_model: GridModel = get_model(GridModel) as GridModel
+	var game_state_system: GameStateSystem = get_system(GameStateSystem) as GameStateSystem
 
 	if not is_instance_valid(grid_model) or not is_instance_valid(game_state_system):
 		_log_error("GridModel 或 GameStateSystem 不可用。")
@@ -48,12 +48,13 @@ func execute() -> Variant:
 	set_snapshot(game_state_system.get_full_game_state(grid_model.grid_size))
 
 	_reverse_target_map.clear()
-	var move_sys := get_system(GridMovementSystem) as GridMovementSystem
+	var move_sys: GridMovementSystem = get_system(GridMovementSystem) as GridMovementSystem
 	var result: Variant = null
 	if is_instance_valid(move_sys):
 		result = move_sys.handle_move(_direction)
 		if result is MoveData:
-			_reverse_target_map = (result as MoveData).reverse_target_map.duplicate()
+			var move_data: MoveData = result
+			_reverse_target_map = move_data.reverse_target_map.duplicate()
 	return result
 
 
@@ -66,7 +67,7 @@ func undo() -> Variant:
 	if snapshot.is_empty():
 		return null
 
-	var game_state_system := get_system(GameStateSystem) as GameStateSystem
+	var game_state_system: GameStateSystem = get_system(GameStateSystem) as GameStateSystem
 	if not is_instance_valid(game_state_system):
 		_log_error("GameStateSystem 不可用，无法撤销。")
 		return null
@@ -104,11 +105,11 @@ func serialize() -> Dictionary:
 ## 从序列化字典恢复移动命令。
 ## @param data: serialize() 产生的命令数据。
 static func deserialize(data: Dictionary) -> MoveCommand:
-	var direction := Vector2i(
-		data.get(&"direction_x", data.get("direction_x", 0)),
-		data.get(&"direction_y", data.get("direction_y", 0))
+	var direction: Vector2i = Vector2i(
+		_get_int(data, &"direction_x", 0),
+		_get_int(data, &"direction_y", 0)
 	)
-	var cmd := MoveCommand.new(direction)
+	var cmd: MoveCommand = MoveCommand.new(direction)
 	cmd.set_snapshot(data.get(&"snapshot", data.get("snapshot", {})))
 	cmd._reverse_target_map = data.get(&"reverse_map", data.get("reverse_map", {}))
 	cmd._is_baseline = data.get(&"is_baseline", data.get("is_baseline", false))
@@ -117,8 +118,18 @@ static func deserialize(data: Dictionary) -> MoveCommand:
 
 # --- 私有/辅助方法 ---
 
+static func _get_int(data: Dictionary, key: StringName, default_value: int) -> int:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is int:
+		return value
+	if value is float:
+		var float_value: float = value
+		return int(float_value)
+	return default_value
+
+
 func _log_error(message: String) -> void:
-	var log_utility := get_utility(GFLogUtility) as GFLogUtility
+	var log_utility: GFLogUtility = get_utility(GFLogUtility) as GFLogUtility
 	if is_instance_valid(log_utility):
 		log_utility.error(_LOG_TAG, message)
 		return

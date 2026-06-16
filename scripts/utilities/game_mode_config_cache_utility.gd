@@ -45,9 +45,11 @@ func dispose() -> void:
 ## @param config_path: GameModeConfig 资源路径。
 ## @return: 成功时返回已缓存或新加载的 GameModeConfig，否则返回 null。
 static func get_config(config_path: String) -> GameModeConfig:
-	var cache := _get_registered_cache()
+	var cache: Object = _get_registered_cache()
 	if cache != null and cache.has_method("get_cached_config"):
-		return cache.get_cached_config(config_path) as GameModeConfig
+		var cached_value: Variant = cache.call(&"get_cached_config", config_path)
+		if cached_value is GameModeConfig:
+			return cached_value
 
 	return _get_fallback_config(config_path)
 
@@ -55,9 +57,14 @@ static func get_config(config_path: String) -> GameModeConfig:
 ## 获取模式注册表中的配置路径列表。
 ## @return: 按注册表顺序排列的 GameModeConfig 资源路径。
 static func get_config_paths() -> PackedStringArray:
-	var cache := _get_registered_cache()
+	var cache: Object = _get_registered_cache()
 	if cache != null and cache.has_method("get_registered_config_paths"):
-		return cache.get_registered_config_paths()
+		var registered_paths: Variant = cache.call(&"get_registered_config_paths")
+		if registered_paths is PackedStringArray:
+			return registered_paths
+		if registered_paths is Array:
+			var path_array: Array = registered_paths
+			return _array_to_packed_string_array(path_array)
 
 	return _get_registry_config_paths(DEFAULT_MODE_REGISTRY)
 
@@ -69,20 +76,22 @@ func get_cached_config(config_path: String) -> GameModeConfig:
 	if config_path.is_empty():
 		return null
 
-	var cached_config := _get_cached_config_from_asset_utility(config_path)
+	var cached_config: GameModeConfig = _get_cached_config_from_asset_utility(config_path)
 	if is_instance_valid(cached_config):
 		return cached_config
 
 	if _local_config_cache.has(config_path):
-		cached_config = _local_config_cache[config_path] as GameModeConfig
-		if is_instance_valid(cached_config):
-			return cached_config
-		_local_config_cache.erase(config_path)
+		var cached_value: Variant = _local_config_cache[config_path]
+		if cached_value is GameModeConfig:
+			cached_config = cached_value
+			if is_instance_valid(cached_config):
+				return cached_config
+		var _erase_result: bool = _local_config_cache.erase(config_path)
 
 	if _missing_paths.has(config_path):
 		return null
 
-	var mode_config := _load_config_from_registry(config_path)
+	var mode_config: GameModeConfig = _load_config_from_registry(config_path)
 	if is_instance_valid(mode_config):
 		_cache_config(config_path, mode_config)
 		return mode_config
@@ -113,9 +122,9 @@ func get_debug_snapshot() -> Dictionary:
 
 ## 清空全部缓存。
 static func clear() -> void:
-	var cache := _get_registered_cache()
+	var cache: Object = _get_registered_cache()
 	if cache != null and cache.has_method("clear_runtime_cache"):
-		cache.clear_runtime_cache()
+		var _clear_result: Variant = cache.call(&"clear_runtime_cache")
 
 	_fallback_config_cache.clear()
 	_fallback_missing_paths.clear()
@@ -130,11 +139,11 @@ func clear_runtime_cache() -> void:
 # --- 私有/辅助方法 ---
 
 static func _get_registered_cache() -> Object:
-	var architecture := GFAutoload.get_architecture_or_null()
+	var architecture: GFArchitecture = GFAutoload.get_architecture_or_null()
 	if architecture == null:
 		return null
 
-	var cache_script := load(_SCRIPT_PATH) as Script
+	var cache_script: Script = load(_SCRIPT_PATH) as Script
 	if cache_script == null:
 		return null
 
@@ -146,15 +155,17 @@ static func _get_fallback_config(config_path: String) -> GameModeConfig:
 		return null
 
 	if _fallback_config_cache.has(config_path):
-		var cached_config := _fallback_config_cache[config_path] as GameModeConfig
-		if is_instance_valid(cached_config):
-			return cached_config
-		_fallback_config_cache.erase(config_path)
+		var cached_value: Variant = _fallback_config_cache[config_path]
+		if cached_value is GameModeConfig:
+			var cached_config: GameModeConfig = cached_value
+			if is_instance_valid(cached_config):
+				return cached_config
+		var _erase_result: bool = _fallback_config_cache.erase(config_path)
 
 	if _fallback_missing_paths.has(config_path):
 		return null
 
-	var mode_config := _load_config_from_registry_static(config_path, DEFAULT_MODE_REGISTRY)
+	var mode_config: GameModeConfig = _load_config_from_registry_static(config_path, DEFAULT_MODE_REGISTRY)
 	if is_instance_valid(mode_config):
 		_fallback_config_cache[config_path] = mode_config
 		return mode_config
@@ -164,17 +175,17 @@ static func _get_fallback_config(config_path: String) -> GameModeConfig:
 
 
 static func _get_registry_config_paths(registry: GFResourceRegistry) -> PackedStringArray:
-	var result := PackedStringArray()
+	var result: PackedStringArray = PackedStringArray()
 	if not is_instance_valid(registry):
 		return result
 
-	for entry in registry.entries:
+	for entry: GFResourceRegistryEntry in registry.entries:
 		if not _is_valid_registry_entry(entry):
 			continue
 
 		var config_path: String = entry.path
 		if ResourceLoader.exists(config_path):
-			result.append(config_path)
+			var _append_result: bool = result.append(config_path)
 		else:
 			push_warning("[GameModeConfigCacheUtility] 注册表中的模式配置资源缺失: %s" % config_path)
 
@@ -195,19 +206,26 @@ static func _load_config_from_registry_static(
 	if resource == null:
 		resource = ResourceLoader.load(config_path)
 
-	return resource as GameModeConfig
+	if resource is GameModeConfig:
+		var mode_config: GameModeConfig = resource
+		return mode_config
+	return null
 
 
 func _get_cached_config_from_asset_utility(config_path: String) -> GameModeConfig:
-	var asset_utility := _get_asset_utility()
+	var asset_utility: GFAssetUtility = _get_asset_utility()
 	if not is_instance_valid(asset_utility):
 		return null
 
-	return asset_utility.get_cached(config_path) as GameModeConfig
+	var cached_resource: Resource = asset_utility.get_cached(config_path)
+	if cached_resource is GameModeConfig:
+		var mode_config: GameModeConfig = cached_resource
+		return mode_config
+	return null
 
 
 func _cache_config(config_path: String, mode_config: GameModeConfig) -> void:
-	var asset_utility := _get_asset_utility()
+	var asset_utility: GFAssetUtility = _get_asset_utility()
 	if is_instance_valid(asset_utility):
 		asset_utility.put_cache(config_path, mode_config)
 		return
@@ -220,11 +238,11 @@ func _load_config_from_registry(config_path: String) -> GameModeConfig:
 
 
 func _register_mode_group_paths() -> void:
-	var asset_utility := _get_asset_utility()
+	var asset_utility: GFAssetUtility = _get_asset_utility()
 	if not is_instance_valid(asset_utility) or not is_instance_valid(_mode_registry):
 		return
 
-	for entry in _mode_registry.entries:
+	for entry: GFResourceRegistryEntry in _mode_registry.entries:
 		if not _is_valid_registry_entry(entry):
 			continue
 
@@ -243,7 +261,7 @@ static func _get_type_hint_for_path(config_path: String, registry: GFResourceReg
 	if not is_instance_valid(registry):
 		return _MODE_TYPE_HINT
 
-	for entry in registry.entries:
+	for entry: GFResourceRegistryEntry in registry.entries:
 		if not _is_valid_registry_entry(entry):
 			continue
 		if entry.path == config_path:
@@ -254,3 +272,12 @@ static func _get_type_hint_for_path(config_path: String, registry: GFResourceReg
 
 static func _is_valid_registry_entry(entry: GFResourceRegistryEntry) -> bool:
 	return entry != null and entry.is_valid_entry()
+
+
+static func _array_to_packed_string_array(values: Array) -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	for value: Variant in values:
+		if value is String:
+			var string_value: String = value
+			var _append_result: bool = result.append(string_value)
+	return result

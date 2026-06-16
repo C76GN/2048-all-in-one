@@ -6,7 +6,6 @@ extends GFSystem
 # --- 常量 ---
 
 const _LOG_TAG: String = "GameInitSystem"
-const GAME_MODE_CONFIG_CACHE_UTILITY = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
 const _LEVEL_KIND_GAME_SESSION: StringName = &"2048_session"
 const _LEVEL_SOURCE_NEW_GAME: StringName = &"new_game"
 const _LEVEL_SOURCE_BOOKMARK: StringName = &"bookmark"
@@ -56,10 +55,14 @@ func _restore_bookmark_command_history(bookmark_data: BookmarkData) -> void:
 		return
 
 	var history_data: Variant = bookmark_data.game_state_history
-	if history_data is Dictionary and not history_data.is_empty():
-		_command_history.deserialize_full_history(history_data, Callable(MoveCommand, "deserialize"))
-	elif history_data is Array and not history_data.is_empty():
-		_command_history.deserialize_history(history_data, Callable(MoveCommand, "deserialize"))
+	if history_data is Dictionary:
+		var history_dictionary: Dictionary = history_data
+		if not history_dictionary.is_empty():
+			_command_history.deserialize_full_history(history_dictionary, Callable(MoveCommand, "deserialize"))
+	elif history_data is Array:
+		var history_array: Array = history_data
+		if not history_array.is_empty():
+			_command_history.deserialize_history(history_array, Callable(MoveCommand, "deserialize"))
 
 
 func _start_level_session(
@@ -70,9 +73,9 @@ func _start_level_session(
 	if not is_instance_valid(_level_utility) or not is_instance_valid(mode_config):
 		return
 
-	var level_id := _build_level_session_id(level_source, mode_config, game_ready_data)
-	var level_data := _build_level_session_data(level_source, mode_config, game_ready_data)
-	_level_utility.start_level(level_id, level_data)
+	var level_id: StringName = _build_level_session_id(level_source, mode_config, game_ready_data)
+	var level_data: Dictionary = _build_level_session_data(level_source, mode_config, game_ready_data)
+	var _level_session: Dictionary = _level_utility.start_level(level_id, level_data)
 
 
 func _build_level_session_id(
@@ -80,7 +83,7 @@ func _build_level_session_id(
 	mode_config: GameModeConfig,
 	game_ready_data: GameReadyData
 ) -> StringName:
-	var mode_id := mode_config.resource_path.get_file().get_basename()
+	var mode_id: String = mode_config.resource_path.get_file().get_basename()
 	return StringName("%s:%s:%d:%d" % [
 		String(level_source),
 		mode_id,
@@ -94,7 +97,7 @@ func _build_level_session_data(
 	mode_config: GameModeConfig,
 	game_ready_data: GameReadyData
 ) -> Dictionary:
-	var mode_path := mode_config.resource_path
+	var mode_path: String = mode_config.resource_path
 	return {
 		"kind": _LEVEL_KIND_GAME_SESSION,
 		"source": level_source,
@@ -111,7 +114,7 @@ func _build_level_session_data(
 # --- 信号处理函数 ---
 
 func _on_request_initialization(_payload: Variant = null) -> void:
-	var app_config := get_model(AppConfigModel) as AppConfigModel
+	var app_config: AppConfigModel = get_model(AppConfigModel) as AppConfigModel
 	if not app_config:
 		return
 
@@ -134,14 +137,14 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	elif _command_history:
 		_command_history.clear()
 
-	var game_ready_data := GameReadyData.new()
+	var game_ready_data: GameReadyData = GameReadyData.new()
 	game_ready_data.is_replay_mode = is_instance_valid(replay_data)
 	game_ready_data.loaded_bookmark_data = loaded_bookmark_data
 	game_ready_data.replay_data_resource = replay_data
 
 	var config_path: String = app_config.selected_mode_config_path.get_value()
-	var grid_size := 4
-	var init_seed := 0
+	var grid_size: int = 4
+	var init_seed: int = 0
 
 	if game_ready_data.is_replay_mode:
 		config_path = replay_data.mode_config_path
@@ -169,7 +172,7 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	game_ready_data.current_grid_size = grid_size
 	game_ready_data.initial_seed = init_seed
 
-	var mode_config: GameModeConfig = GAME_MODE_CONFIG_CACHE_UTILITY.get_config(config_path)
+	var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(config_path)
 	if not is_instance_valid(mode_config):
 		if _log:
 			_log.error(_LOG_TAG, "GameModeConfig 加载失败: %s" % config_path)
@@ -195,11 +198,11 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	if is_instance_valid(_seed_utility):
 		_seed_utility.set_global_seed(init_seed)
 
-	var save_system := get_system(SaveSystem) as SaveSystem
+	var save_system: SaveSystem = get_system(SaveSystem) as SaveSystem
 	var mode_id: String = mode_config.resource_path.get_file().get_basename()
 	var high_score: int = save_system.get_high_score(mode_id, grid_size) if save_system else 0
 
-	var game_status_model := get_model(GameStatusModel) as GameStatusModel
+	var game_status_model: GameStatusModel = get_model(GameStatusModel) as GameStatusModel
 	if is_instance_valid(loaded_bookmark_data):
 		if is_instance_valid(_seed_utility):
 			if not loaded_bookmark_data.rng_full_state.is_empty():
@@ -225,18 +228,20 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	if _game_flow_system:
 		_game_flow_system.setup(_rule_system, game_ready_data.game_over_rule)
 
-	for rule_resource in mode_config.spawn_rules:
-		var rule_instance: SpawnRule = rule_resource.duplicate() as SpawnRule
-		game_ready_data.all_spawn_rules.append(rule_instance)
+	for rule_resource: SpawnRule in mode_config.spawn_rules:
+		var duplicated_rule: Resource = rule_resource.duplicate()
+		if duplicated_rule is SpawnRule:
+			var rule_instance: SpawnRule = duplicated_rule
+			game_ready_data.all_spawn_rules.append(rule_instance)
 
 	_rule_system.register_rules(game_ready_data.all_spawn_rules)
 
 	if is_instance_valid(loaded_bookmark_data) and not loaded_bookmark_data.rules_states.is_empty():
 		var rules_states: Array = loaded_bookmark_data.rules_states
-		for i in range(min(game_ready_data.all_spawn_rules.size(), rules_states.size())):
+		for i: int in range(min(game_ready_data.all_spawn_rules.size(), rules_states.size())):
 			game_ready_data.all_spawn_rules[i].set_state(rules_states[i])
 
-	var current_game_model := get_model(CurrentGameModel) as CurrentGameModel
+	var current_game_model: CurrentGameModel = get_model(CurrentGameModel) as CurrentGameModel
 	if current_game_model:
 		current_game_model.mode_config.set_value(mode_config)
 		current_game_model.current_grid_size.set_value(grid_size)

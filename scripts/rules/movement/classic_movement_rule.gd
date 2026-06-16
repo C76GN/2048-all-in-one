@@ -14,7 +14,7 @@ extends MovementRule
 ## @return: 一个字典，包含 {"line": Array, "moved": bool, "merges": Array}。
 func process_line(line: Array[GameTileData]) -> Dictionary:
 	var slid_line: Array[GameTileData] = []
-	for tile in line:
+	for tile: GameTileData in line:
 		if tile != null:
 			slid_line.append(tile)
 
@@ -51,7 +51,7 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 	if result_line.size() != line.size():
 		has_moved = true
 	else:
-		for idx in range(result_line.size()):
+		for idx: int in range(result_line.size()):
 			if (
 				(result_line[idx] == null and line[idx] != null)
 				or (result_line[idx] != null and line[idx] == null)

@@ -44,25 +44,25 @@ func execute(context: RuleContext) -> bool:
 	match direction:
 		Vector2i.UP:
 			var target_y: int = grid_size - 1
-			for x in moved_lines:
+			for x: int in moved_lines:
 				if context.grid_model.grid[x][target_y] == null:
 					valid_spawn_points.append(Vector2i(x, target_y))
 
 		Vector2i.DOWN:
 			var target_y: int = 0
-			for x in moved_lines:
+			for x: int in moved_lines:
 				if context.grid_model.grid[x][target_y] == null:
 					valid_spawn_points.append(Vector2i(x, target_y))
 
 		Vector2i.LEFT:
 			var target_x: int = grid_size - 1
-			for y in moved_lines:
+			for y: int in moved_lines:
 				if context.grid_model.grid[target_x][y] == null:
 					valid_spawn_points.append(Vector2i(target_x, y))
 
 		Vector2i.RIGHT:
 			var target_x: int = 0
-			for y in moved_lines:
+			for y: int in moved_lines:
 				if context.grid_model.grid[target_x][y] == null:
 					valid_spawn_points.append(Vector2i(target_x, y))
 
@@ -74,7 +74,7 @@ func execute(context: RuleContext) -> bool:
 
 		var value: int = 2 if rng.randf() < probability_of_2 else 4
 
-		var spawn_data := SpawnData.new()
+		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.position = spawn_pos
 		spawn_data.value = value
 		spawn_data.type = Tile.TileType.PLAYER

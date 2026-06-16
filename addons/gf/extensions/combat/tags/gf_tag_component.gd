@@ -111,7 +111,7 @@ func get_tags() -> PackedStringArray:
 	var result: PackedStringArray = PackedStringArray()
 	for tag_variant: Variant in _tags.keys():
 		if GFVariantData.get_option_int(_tags, tag_variant, 0) > 0:
-			var _append_result_114: Variant = result.append(GFVariantData.to_text(tag_variant))
+			result.append(GFVariantData.to_text(tag_variant))
 	result.sort()
 	return result
 

@@ -14,6 +14,8 @@ const _ROUTE_PAUSE_MENU: StringName = &"pause_menu"
 const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
 const _BACKGROUND_SHADER_BASE_COLOR: StringName = &"base_color"
 const _BACKGROUND_SHADER_ACCENT_COLOR: StringName = &"accent_color"
+const _BACKGROUND_SHADER_SECONDARY_COLOR: StringName = &"secondary_color"
+const _BACKGROUND_SHADER_WARM_COLOR: StringName = &"warm_color"
 
 
 # --- 私有变量 ---
@@ -43,6 +45,7 @@ var _is_cleaned_up: bool = false
 
 @onready var game_board: GameBoardController = %GameBoard
 @onready var test_panel: VBoxContainer = %TestPanel
+@onready var _test_panel_controller: TestPanel = %TestPanel as TestPanel
 @onready var background_color_rect: ColorRect = %Background
 @onready var _page_title: Label = %PageTitle
 @onready var _hud_message_timer: Timer = %HUDMessageTimer
@@ -76,7 +79,7 @@ func _ready() -> void:
 	send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
 	_update_static_ui_text()
 	
-	var console := get_utility(GFConsoleUtility) as GFConsoleUtility
+	var console: GFConsoleUtility = get_utility(GFConsoleUtility) as GFConsoleUtility
 	if Boot.are_dev_tools_enabled() and console:
 		console.register_command("toggle_test_panel", _cmd_toggle_test_panel, "Toggle developer test panel.")
 
@@ -113,7 +116,7 @@ func _cleanup_listeners() -> void:
 	
 	_unregister_level_runtime_cleanup()
 
-	var console := get_utility(GFConsoleUtility) as GFConsoleUtility
+	var console: GFConsoleUtility = get_utility(GFConsoleUtility) as GFConsoleUtility
 	if console:
 		console.unregister_command("toggle_test_panel")
 	
@@ -153,7 +156,7 @@ func _clear_action_queues() -> void:
 
 func _register_level_runtime_cleanup() -> void:
 	if is_instance_valid(_level_utility):
-		_level_utility.register_runtime_cleanup(_LEVEL_CLEANUP_ACTION_QUEUES, _clear_action_queues)
+		var _registered: bool = _level_utility.register_runtime_cleanup(_LEVEL_CLEANUP_ACTION_QUEUES, _clear_action_queues)
 
 
 func _unregister_level_runtime_cleanup() -> void:
@@ -163,11 +166,11 @@ func _unregister_level_runtime_cleanup() -> void:
 
 func _connect_native_signal(source_signal: Signal, callback: Callable) -> void:
 	if is_instance_valid(_signal_utility):
-		_signal_utility.connect_signal(source_signal, callback, self)
+		var _connection: GFSignalConnection = _signal_utility.connect_signal(source_signal, callback, self)
 		return
 
 	if not source_signal.is_connected(callback):
-		source_signal.connect(callback)
+		var _connect_result_172: int = source_signal.connect(callback)
 
 
 func _disconnect_native_signals() -> void:
@@ -223,8 +226,8 @@ func _update_replay_ui() -> void:
 	if not is_instance_valid(_replay_system):
 		return
 
-	var current_step := _replay_system.get_current_step()
-	var total_steps := _replay_system.get_total_steps()
+	var current_step: int = _replay_system.get_current_step()
+	var total_steps: int = _replay_system.get_total_steps()
 	if is_instance_valid(replay_progress_label):
 		replay_progress_label.text = tr("LABEL_REPLAY_PROGRESS") % [current_step, total_steps]
 
@@ -244,9 +247,9 @@ func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
 
 	if is_instance_valid(test_panel) and not _current_game_model.is_replay_mode.get_value():
 		test_panel.visible = not test_panel.visible
-		var console := get_utility(GFConsoleUtility) as GFConsoleUtility
+		var console: GFConsoleUtility = get_utility(GFConsoleUtility) as GFConsoleUtility
 		if console and test_panel.visible:
-			console.execute_command("clear")
+			var _command_executed: bool = console.execute_command("clear")
 			send_event(HudMessagePayload.new("测试面板已切换。", 2.0))
 
 
@@ -255,16 +258,17 @@ func _setup_test_tools_for_current_board() -> void:
 		not Boot.are_dev_tools_enabled()
 		or not is_instance_valid(_test_utility)
 		or not is_instance_valid(_current_game_model)
+		or not is_instance_valid(_test_panel_controller)
 		or _current_game_model.is_replay_mode.get_value()
 	):
 		return
 
-	var grid_model := get_model(GridModel) as GridModel
+	var grid_model: GridModel = get_model(GridModel) as GridModel
 	if is_instance_valid(grid_model):
-		_test_utility.setup_test_tools(test_panel, game_board)
+		_test_utility.setup_test_tools(_test_panel_controller, game_board)
 		_test_utility.initialize_panel(
 			grid_model.interaction_rule,
-			_current_game_model.current_grid_size.get_value()
+			GFVariantData.to_int(_current_game_model.current_grid_size.get_value(), grid_model.grid_size)
 		)
 
 
@@ -273,19 +277,21 @@ func _apply_game_background_theme(theme: BoardTheme) -> void:
 		return
 
 	if not is_instance_valid(theme):
-		background_color_rect.color = Color(0.14902, 0.14902, 0.14902, 1.0)
+		background_color_rect.color = Color(0.030, 0.052, 0.070, 1.0)
 		return
 
 	background_color_rect.color = theme.game_background_color
-	var shader_material := background_color_rect.material as ShaderMaterial
+	var shader_material: ShaderMaterial = background_color_rect.material as ShaderMaterial
 	if shader_material == null:
 		return
 
 	shader_material.set_shader_parameter(_BACKGROUND_SHADER_BASE_COLOR, theme.game_background_color)
 	shader_material.set_shader_parameter(
 		_BACKGROUND_SHADER_ACCENT_COLOR,
-		theme.board_panel_color.lightened(0.35)
+		Color(0.185, 0.165, 0.330, 1.0)
 	)
+	shader_material.set_shader_parameter(_BACKGROUND_SHADER_SECONDARY_COLOR, Color(0.035, 0.300, 0.315, 1.0))
+	shader_material.set_shader_parameter(_BACKGROUND_SHADER_WARM_COLOR, Color(0.560, 0.390, 0.180, 1.0))
 
 
 # --- 信号处理函数 ---
@@ -313,7 +319,12 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 	
 	_configure_ui_for_mode()
 	
-	var mode_config := _current_game_model.mode_config.get_value() as GameModeConfig
+	var mode_config_value: Variant = _current_game_model.mode_config.get_value()
+	if not mode_config_value is GameModeConfig:
+		push_warning("[GamePlayController] 当前模式配置无效，无法初始化棋盘。")
+		return
+
+	var mode_config: GameModeConfig = mode_config_value
 	if is_instance_valid(mode_config.board_theme):
 		_apply_game_background_theme(mode_config.board_theme)
 		game_board.setup(mode_config.color_schemes, mode_config.board_theme)
@@ -339,9 +350,9 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 		_setup_test_tools_for_current_board()
 	
 	if not is_instance_valid(_loaded_bookmark_data) and _command_history:
-		var init_cmd := MoveCommand.new(Vector2i.ZERO)
+		var init_cmd: MoveCommand = MoveCommand.new(Vector2i.ZERO)
 		init_cmd.mark_as_baseline()
-		var game_state_system := get_system(GameStateSystem) as GameStateSystem
+		var game_state_system: GameStateSystem = get_system(GameStateSystem) as GameStateSystem
 		if is_instance_valid(game_state_system):
 			init_cmd.set_snapshot(game_state_system.get_full_game_state(data.current_grid_size))
 		_command_history.record(init_cmd)
@@ -357,21 +368,21 @@ func _on_move_count_changed(_old_value: int, _new_value: int) -> void:
 
 
 func _on_toggle_pause_ui(_payload: Variant = null) -> void:
-	var tree := get_tree()
+	var tree: SceneTree = get_tree()
 	if tree.paused:
 		# 恢复游戏：弹出暂停菜单
-		var ui_router := get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		var ui_router: GFUIRouterUtility = get_utility(GFUIRouterUtility) as GFUIRouterUtility
 		if not is_instance_valid(ui_router) or not ui_router.back(GFUIUtility.Layer.POPUP):
-			var ui_util := get_utility(GFUIUtility) as GFUIUtility
+			var ui_util: GFUIUtility = get_utility(GFUIUtility) as GFUIUtility
 			if ui_util:
 				ui_util.pop_panel()
 		tree.paused = false
 	else:
 		# 暂停游戏：弹出暂停菜单
 		tree.paused = true
-		var ui_router := get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		var ui_router: GFUIRouterUtility = get_utility(GFUIRouterUtility) as GFUIRouterUtility
 		if is_instance_valid(ui_router):
-			ui_router.push_route(_ROUTE_PAUSE_MENU)
+			var _pause_panel: Node = ui_router.push_route(_ROUTE_PAUSE_MENU)
 		else:
 			push_warning("[GamePlayController] GFUIRouterUtility 未注册，无法打开暂停菜单。")
 
@@ -404,8 +415,8 @@ func _on_game_state_changed(new_state: StringName) -> void:
 		return
 
 	if new_state == EventNames.STATE_GAME_OVER:
-		var ui_router := get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		var ui_router: GFUIRouterUtility = get_utility(GFUIRouterUtility) as GFUIRouterUtility
 		if is_instance_valid(ui_router):
-			ui_router.push_route(_ROUTE_GAME_OVER_MENU)
+			var _game_over_panel: Node = ui_router.push_route(_ROUTE_GAME_OVER_MENU)
 		else:
 			push_warning("[GamePlayController] GFUIRouterUtility 未注册，无法打开游戏结束菜单。")

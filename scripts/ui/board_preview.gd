@@ -61,8 +61,9 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 		show_message(tr("NO_PREVIEW_DATA")) # 本地化
 		return
 
-	var grid_size: int = snapshot.get(&"grid_size", snapshot.get("grid_size", 4))
-	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
+	var grid_size: int = GFVariantData.to_int(snapshot.get(&"grid_size", snapshot.get("grid_size", 4)), 4)
+	var tiles_value: Variant = snapshot.get(&"tiles", snapshot.get("tiles", []))
+	var tiles_data: Array = tiles_value if tiles_value is Array else []
 
 	# 动态计算尺寸
 	var raw_cell_size: float = MAX_PREVIEW_SIZE / (grid_size + (grid_size + 1) * SPACING_RATIO)
@@ -72,7 +73,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 	var total_content_size: float = grid_size * cell_size + (grid_size + 1) * spacing
 	var offset_start: float = (MAX_PREVIEW_SIZE - total_content_size) / 2.0
 
-	var style := StyleBoxFlat.new()
+	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = mode_config.board_theme.board_panel_color
 	style.set_corner_radius_all(4)
 	_background_panel.add_theme_stylebox_override("panel", style)
@@ -81,9 +82,11 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 	_background_panel.position = Vector2.ZERO
 
 	# 绘制背景格子
-	for x in grid_size:
-		for y in grid_size:
-			var cell_instance: Control = GRID_CELL_SCENE.instantiate()
+	for x: int in range(grid_size):
+		for y: int in range(grid_size):
+			var cell_instance: Control = GRID_CELL_SCENE.instantiate() as Control
+			if not is_instance_valid(cell_instance):
+				continue
 			_board_container.add_child(cell_instance)
 
 			cell_instance.size = Vector2.ONE * cell_size
@@ -91,27 +94,39 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 
 			# 兼容现有的主题颜色配置
 			if cell_instance is Panel:
-				var cell_style: StyleBox = cell_instance.get_theme_stylebox("panel").duplicate()
-				if cell_style is StyleBoxFlat:
-					cell_style.bg_color = mode_config.board_theme.empty_cell_color
-					# 预览图稍微缩小圆角
-					cell_style.set_corner_radius_all(max(2, cell_size * 0.1))
-					cell_instance.add_theme_stylebox_override("panel", cell_style)
+				var base_cell_style: StyleBox = cell_instance.get_theme_stylebox("panel")
+				var cell_style: StyleBoxFlat = null
+				if base_cell_style is StyleBoxFlat:
+					var base_flat_style: StyleBoxFlat = base_cell_style
+					cell_style = base_flat_style.duplicate() as StyleBoxFlat
+				if cell_style == null:
+					cell_style = StyleBoxFlat.new()
+				cell_style.bg_color = mode_config.board_theme.empty_cell_color
+				# 预览图稍微缩小圆角
+				cell_style.set_corner_radius_all(maxi(2, roundi(cell_size * 0.1)))
+				cell_instance.add_theme_stylebox_override("panel", cell_style)
 
 	# 绘制方块
-	for tile_data in tiles_data:
-		var pos: Vector2i = tile_data.get(&"pos", tile_data.get("pos", Vector2i.ZERO))
+	for tile_value: Variant in tiles_data:
+		if not tile_value is Dictionary:
+			continue
+		var tile_data: Dictionary = tile_value
+		var pos: Vector2i = _to_vector2i(tile_data.get(&"pos", tile_data.get("pos", Vector2i.ZERO)))
 		if not _is_grid_pos_in_bounds(pos, grid_size):
 			continue
 
-		var value: int = tile_data.get(&"value", tile_data.get("value", 0))
-		var type: Tile.TileType = tile_data.get(&"type", tile_data.get("type", Tile.TileType.PLAYER))
+		var value: int = GFVariantData.to_int(tile_data.get(&"value", tile_data.get("value", 0)), 0)
+		var type: Tile.TileType = _to_tile_type(tile_data.get(&"type", tile_data.get("type", Tile.TileType.PLAYER)))
 
-		var tile := TILE_SCENE.instantiate() as Tile
+		var tile: Tile = TILE_SCENE.instantiate() as Tile
+		if not is_instance_valid(tile):
+			continue
 		_board_container.add_child(tile)
 
-		var colors := _get_tile_colors(value, type, mode_config)
-		tile.setup(value, type, colors.bg, colors.font)
+		var colors: Dictionary = _get_tile_colors(value, type, mode_config)
+		var tile_bg_color: Color = _get_color(colors, &"bg", Color.WHITE)
+		var tile_font_color: Color = _get_color(colors, &"font", Color.BLACK)
+		tile.setup(value, type, tile_bg_color, tile_font_color)
 
 		var scale_factor: float = cell_size / 100.0
 		tile.scale = Vector2.ONE * scale_factor
@@ -126,7 +141,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 func show_message(text: String) -> void:
 	_clear_preview_internal()
 
-	var style := StyleBoxFlat.new()
+	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = Color(0.15, 0.15, 0.15, 1)
 	style.set_corner_radius_all(4)
 	_background_panel.add_theme_stylebox_override("panel", style)
@@ -142,7 +157,7 @@ func clear() -> void:
 	_clear_preview_internal()
 	_message_label.visible = false
 	
-	var style := StyleBoxFlat.new()
+	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = Color.TRANSPARENT
 	_background_panel.add_theme_stylebox_override("panel", style)
 
@@ -150,7 +165,7 @@ func clear() -> void:
 # --- 私有/辅助方法 ---
 
 func _clear_preview_internal() -> void:
-	for child in _board_container.get_children():
+	for child: Node in _board_container.get_children():
 		child.queue_free()
 
 
@@ -172,8 +187,8 @@ func _is_grid_pos_in_bounds(grid_pos: Vector2i, grid_size: int) -> bool:
 
 
 func _get_tile_colors(value: int, type: Tile.TileType, mode_config: GameModeConfig) -> Dictionary:
-	var bg_color := Color.WHITE
-	var font_color := Color.BLACK
+	var bg_color: Color = Color.WHITE
+	var font_color: Color = Color.BLACK
 	
 	if not mode_config or not mode_config.interaction_rule:
 		return {"bg": bg_color, "font": font_color}
@@ -193,3 +208,37 @@ func _get_tile_colors(value: int, type: Tile.TileType, mode_config: GameModeConf
 			font_color = current_style.font_color
 			
 	return {"bg": bg_color, "font": font_color}
+
+
+static func _to_vector2i(value: Variant) -> Vector2i:
+	if value is Vector2i:
+		var vector2i_value: Vector2i = value
+		return vector2i_value
+	if value is Vector2:
+		var vector2_value: Vector2 = value
+		return Vector2i(roundi(vector2_value.x), roundi(vector2_value.y))
+	if value is Dictionary:
+		var data: Dictionary = value
+		return Vector2i(
+			GFVariantData.to_int(data.get(&"x", data.get("x", 0)), 0),
+			GFVariantData.to_int(data.get(&"y", data.get("y", 0)), 0)
+		)
+	return Vector2i.ZERO
+
+
+static func _to_tile_type(value: Variant) -> Tile.TileType:
+	var raw_type: int = GFVariantData.to_int(value, int(Tile.TileType.PLAYER))
+	match raw_type:
+		Tile.TileType.PLAYER:
+			return Tile.TileType.PLAYER
+		Tile.TileType.MONSTER:
+			return Tile.TileType.MONSTER
+		_:
+			return Tile.TileType.PLAYER
+
+
+static func _get_color(data: Dictionary, key: StringName, fallback: Color) -> Color:
+	var color_value: Variant = data.get(key, data.get(String(key), fallback))
+	if color_value is Color:
+		return color_value
+	return fallback
