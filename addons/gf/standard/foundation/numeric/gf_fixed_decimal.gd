@@ -40,8 +40,17 @@ const MAX_DECIMAL_PLACES: int = 18
 
 const _BIG_NUMBER_SCRIPT: Script = preload("res://addons/gf/standard/foundation/numeric/gf_big_number.gd")
 const _DECIMAL_STRING_FORMATTER: Script = preload("res://addons/gf/standard/foundation/formatting/gf_decimal_string_formatter.gd")
+const _SERIALIZATION_SUPPORT: Script = preload("res://addons/gf/standard/foundation/numeric/gf_fixed_numeric_serialization_support.gd")
+const _BYTE_FORMAT_SIZE: int = 15
+const _BYTE_MAGIC_0: int = 71
+const _BYTE_MAGIC_1: int = 70
+const _BYTE_MAGIC_2: int = 70
+const _BYTE_MAGIC_3: int = 68
+const _BYTE_MAGNITUDE_OFFSET: int = 7
+const _SERIALIZATION_TYPE: String = "gf.fixed_decimal"
+const _SERIALIZATION_VERSION: int = 1
 const _MAX_INT_VALUE: int = 9_223_372_036_854_775_807
-const _MAX_INT_DIGITS: String = "9223372036854775807"
+const _INVALID_SIGNED_MAGNITUDE: int = -9_223_372_036_854_775_807 - 1
 
 
 # --- 公共变量 ---
@@ -60,7 +69,7 @@ var decimal_places: int = 2
 # --- Godot 生命周期方法 ---
 
 func _init(p_raw_value: int = 0, p_decimal_places: int = 2) -> void:
-	raw_value = p_raw_value
+	raw_value = _normalize_raw_value(p_raw_value, "init")
 	decimal_places = _normalize_decimal_places(p_decimal_places)
 
 
@@ -117,7 +126,9 @@ static func from_float(
 ## [br]
 ## @api public
 ## [br]
-## @param value: 普通十进制字符串。
+## @since 3.17.0
+## [br]
+## @param value: 普通十进制字符串；科学计数法会作为 float 兼容路径解析，不适合作为严格十进制导入源。
 ## [br]
 ## @param p_decimal_places: 目标小数位。
 ## [br]
@@ -162,6 +173,38 @@ static func from_string(
 		_parse_decimal_to_raw(integer_part, fractional_part, sign_multiplier, places, rounding_mode),
 		places
 	)
+
+
+## 从状态字典恢复定点数。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @param data: `to_dict()` 输出的状态字典。
+## [br]
+## @schema data: Dictionary with `type`, `version`, `raw_value`, and `decimal_places` fields.
+## [br]
+## @return 定点数实例。
+static func from_dict(data: Dictionary) -> GFFixedDecimal:
+	var value: GFFixedDecimal = GFFixedDecimal.new()
+	var _applied: bool = value.apply_dict(data)
+	return value
+
+
+## 从固定字节序列恢复定点数。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @param data: `to_bytes()` 输出的字节序列。
+## [br]
+## @return 定点数实例。
+static func from_bytes(data: PackedByteArray) -> GFFixedDecimal:
+	var value: GFFixedDecimal = GFFixedDecimal.new()
+	var _applied: bool = value.apply_bytes(data)
+	return value
 
 
 ## 克隆当前定点数。
@@ -294,7 +337,6 @@ func multiply(
 	if other == null:
 		return clone()
 
-	var product_raw: int = _checked_multiply(raw_value, other.raw_value, "multiply")
 	var product_places: int = decimal_places + other.decimal_places
 	var result_places: int = target_decimal_places
 	if result_places < 0:
@@ -302,7 +344,10 @@ func multiply(
 	else:
 		result_places = _normalize_decimal_places(result_places)
 
-	return GFFixedDecimal.new(product_raw, product_places).rescaled(result_places, rounding_mode)
+	return GFFixedDecimal.new(
+		_multiply_rescaled_raw(raw_value, other.raw_value, product_places - result_places, rounding_mode),
+		result_places
+	)
 
 
 ## 与另一个定点数相除。
@@ -396,7 +441,159 @@ func to_decimal_string(trim_zeroes: bool = false) -> String:
 	return sign_text + str(integer_part) + "." + fractional_text
 
 
+## 导出 JSON 安全的状态字典。
+## `raw_value` 固定写为十进制字符串，避免 JSON 64 位整数精度丢失。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @return 可稳定恢复定点数的状态字典。
+## [br]
+## @schema return: Dictionary with `type: String`, `version: int`, `raw_value: String`, and `decimal_places: int`.
+func to_dict() -> Dictionary:
+	var serialized_raw: int = _normalize_raw_value(raw_value, "to_dict")
+	var serialized_places: int = _normalize_decimal_places(decimal_places)
+	return {
+		"type": _SERIALIZATION_TYPE,
+		"version": _SERIALIZATION_VERSION,
+		"raw_value": str(serialized_raw),
+		"decimal_places": serialized_places,
+	}
+
+
+## 应用 JSON 安全状态字典。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @param data: `to_dict()` 输出的状态字典。
+## [br]
+## @schema data: Dictionary with `type`, `version`, `raw_value`, and `decimal_places` fields.
+## [br]
+## @return 状态有效并已应用时返回 true。
+func apply_dict(data: Dictionary) -> bool:
+	var type_name: String = GFVariantData.get_option_string(data, "type")
+	var version: int = GFVariantData.get_option_int(data, "version")
+	var raw_data: Variant = GFVariantData.get_option_value(data, "raw_value")
+	var places: int = GFVariantData.get_option_int(data, "decimal_places", -1)
+	if (
+		type_name != _SERIALIZATION_TYPE
+		or version != _SERIALIZATION_VERSION
+		or not _state_value_is_int(raw_data)
+		or not _decimal_places_are_in_serialized_range(places)
+	):
+		push_error("[GFFixedDecimal] 不支持的状态字典格式。")
+		_reset_serialized_zero()
+		return false
+
+	raw_value = _state_value_to_int(raw_data)
+	decimal_places = places
+	return true
+
+
+## 导出固定二进制序列。
+## 格式为 `GFFD` magic、版本、小数位、符号位和 8 字节大端绝对 raw 值。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @return 可稳定恢复定点数的字节序列。
+func to_bytes() -> PackedByteArray:
+	var result: PackedByteArray = PackedByteArray()
+	var _magic_0: bool = result.append(_BYTE_MAGIC_0)
+	var _magic_1: bool = result.append(_BYTE_MAGIC_1)
+	var _magic_2: bool = result.append(_BYTE_MAGIC_2)
+	var _magic_3: bool = result.append(_BYTE_MAGIC_3)
+	var _version_appended: bool = result.append(_SERIALIZATION_VERSION)
+	var _places_appended: bool = result.append(_normalize_decimal_places(decimal_places))
+	result = _append_signed_magnitude(result, raw_value, "GFFixedDecimal", "to_bytes")
+	return result
+
+
+## 应用固定二进制序列。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @param data: `to_bytes()` 输出的字节序列。
+## [br]
+## @return 字节序列有效并已应用时返回 true。
+func apply_bytes(data: PackedByteArray) -> bool:
+	if not _bytes_have_supported_header(data):
+		push_error("[GFFixedDecimal] 不支持的字节序列格式。")
+		_reset_serialized_zero()
+		return false
+
+	var signed_value: int = _read_signed_magnitude(data, 6, _BYTE_MAGNITUDE_OFFSET)
+	if _signed_magnitude_is_invalid(signed_value):
+		push_error("[GFFixedDecimal] 不支持的字节序列格式。")
+		_reset_serialized_zero()
+		return false
+
+	raw_value = signed_value
+	decimal_places = data[5]
+	return true
+
+
 # --- 私有/辅助方法 ---
+
+static func _call_serialization_support(method_name: StringName, arguments: Array) -> Variant:
+	return _SERIALIZATION_SUPPORT.callv(method_name, arguments)
+
+
+static func _call_serialization_support_bool(method_name: StringName, arguments: Array) -> bool:
+	var raw_result: Variant = _call_serialization_support(method_name, arguments)
+	if raw_result is bool:
+		var bool_result: bool = raw_result
+		return bool_result
+	return false
+
+
+static func _call_serialization_support_int(
+	method_name: StringName,
+	arguments: Array,
+	fallback: int = 0
+) -> int:
+	var raw_result: Variant = _call_serialization_support(method_name, arguments)
+	if raw_result is int:
+		var int_result: int = raw_result
+		return int_result
+	return fallback
+
+
+static func _append_signed_magnitude(
+	target: PackedByteArray,
+	value: int,
+	owner_name: String,
+	context: String
+) -> PackedByteArray:
+	var result: PackedByteArray = target
+	var _ignored: Variant = _call_serialization_support(
+		&"append_signed_magnitude",
+		[result, value, owner_name, context]
+	)
+	return result
+
+
+static func _read_signed_magnitude(
+	data: PackedByteArray,
+	sign_offset: int,
+	magnitude_offset: int
+) -> int:
+	return _call_serialization_support_int(
+		&"read_signed_magnitude",
+		[data, sign_offset, magnitude_offset],
+		_INVALID_SIGNED_MAGNITUDE
+	)
+
+
+static func _signed_magnitude_is_invalid(value: int) -> bool:
+	return _call_serialization_support_bool(&"signed_magnitude_is_invalid", [value])
+
 
 static func _make_big_number_from_string(value: String) -> GFBigNumber:
 	var result: Variant = _BIG_NUMBER_SCRIPT.call(&"from_string", value)
@@ -573,6 +770,22 @@ static func _divide_with_scaled_float(
 	return _decimal_string_to_int_saturated(adjusted_text, negative)
 
 
+static func _multiply_rescaled_raw(
+	left_raw: int,
+	right_raw: int,
+	scale_diff: int,
+	rounding_mode: RoundingMode
+) -> int:
+	var negative: bool = (left_raw < 0) != (right_raw < 0)
+	var product_text: String = _multiply_decimal_strings(str(_abs_int(left_raw)), str(_abs_int(right_raw)))
+	var adjusted_text: String = product_text
+	if scale_diff >= 0:
+		adjusted_text = _round_decimal_string_by_power(product_text, scale_diff, negative, rounding_mode)
+	else:
+		adjusted_text = product_text + _repeat_character("0", -scale_diff)
+	return _decimal_string_to_int_saturated(adjusted_text, negative, "multiply")
+
+
 static func _parse_decimal_to_raw(
 	integer_part: String,
 	fractional_part: String,
@@ -671,6 +884,104 @@ static func _normalize_decimal_string(text: String) -> String:
 	return result
 
 
+static func _multiply_decimal_strings(left: String, right: String) -> String:
+	var normalized_left: String = _normalize_decimal_string(left)
+	var normalized_right: String = _normalize_decimal_string(right)
+	if normalized_left == "0" or normalized_right == "0":
+		return "0"
+
+	var result: String = "0"
+	var zero_suffix: String = ""
+	for index: int in range(normalized_right.length() - 1, -1, -1):
+		var digit: int = normalized_right.substr(index, 1).to_int()
+		var partial: String = _multiply_decimal_string_by_digit(normalized_left, digit)
+		if partial != "0":
+			partial += zero_suffix
+		result = _add_decimal_strings(result, partial)
+		zero_suffix += "0"
+	return _normalize_decimal_string(result)
+
+
+static func _add_decimal_strings(left: String, right: String) -> String:
+	var left_text: String = _normalize_decimal_string(left)
+	var right_text: String = _normalize_decimal_string(right)
+	var result_parts: PackedStringArray = PackedStringArray()
+	var carry: int = 0
+	var left_index: int = left_text.length() - 1
+	var right_index: int = right_text.length() - 1
+	while left_index >= 0 or right_index >= 0 or carry > 0:
+		var digit_sum: int = carry
+		if left_index >= 0:
+			digit_sum += left_text.substr(left_index, 1).to_int()
+		if right_index >= 0:
+			digit_sum += right_text.substr(right_index, 1).to_int()
+		_append_packed_string(result_parts, str(digit_sum % 10))
+		carry = _divide_truncated(digit_sum, 10)
+		left_index -= 1
+		right_index -= 1
+	result_parts.reverse()
+	return _normalize_decimal_string("".join(result_parts))
+
+
+static func _round_decimal_string_by_power(
+	value: String,
+	scale_diff: int,
+	negative: bool,
+	rounding_mode: RoundingMode
+) -> String:
+	if scale_diff <= 0:
+		return value
+
+	var normalized_value: String = _normalize_decimal_string(value)
+	var quotient: String = "0"
+	var remainder: String = normalized_value
+	if normalized_value.length() > scale_diff:
+		quotient = normalized_value.left(normalized_value.length() - scale_diff)
+		remainder = normalized_value.substr(normalized_value.length() - scale_diff)
+	else:
+		remainder = _repeat_character("0", scale_diff - normalized_value.length()) + normalized_value
+
+	if _should_round_decimal_remainder(remainder, quotient, negative, rounding_mode):
+		return _add_one_decimal_string(quotient)
+	return _normalize_decimal_string(quotient)
+
+
+static func _should_round_decimal_remainder(
+	remainder: String,
+	quotient: String,
+	negative: bool,
+	rounding_mode: RoundingMode
+) -> bool:
+	if remainder.is_empty() or not _has_non_zero_digit(remainder):
+		return false
+
+	var first_digit: int = remainder.substr(0, 1).to_int()
+	match rounding_mode:
+		RoundingMode.HALF_UP:
+			return first_digit >= 5
+		RoundingMode.HALF_EVEN:
+			if first_digit > 5:
+				return true
+			if first_digit < 5:
+				return false
+			return _has_non_zero_digit(remainder.substr(1)) or _decimal_string_is_odd(quotient)
+		RoundingMode.FLOOR:
+			return negative
+		RoundingMode.CEIL:
+			return not negative
+		RoundingMode.TRUNCATE:
+			return false
+	return false
+
+
+static func _state_value_is_int(value: Variant) -> bool:
+	return _call_serialization_support_bool(&"state_value_is_int", [value])
+
+
+static func _state_value_to_int(value: Variant) -> int:
+	return _call_serialization_support_int(&"state_value_to_int", [value])
+
+
 static func _compare_decimal_strings(left: String, right: String) -> int:
 	var normalized_left: String = _normalize_decimal_string(left)
 	var normalized_right: String = _normalize_decimal_string(right)
@@ -746,19 +1057,19 @@ static func _decimal_string_is_odd(text: String) -> bool:
 	return normalized_text.substr(normalized_text.length() - 1, 1).to_int() % 2 != 0
 
 
-static func _decimal_string_to_int_saturated(text: String, is_negative: bool) -> int:
+static func _decimal_string_to_int_saturated(text: String, is_negative: bool, context: String = "divide") -> int:
 	var normalized_text: String = _normalize_decimal_string(text)
 	if normalized_text.length() > 19 or (
 		normalized_text.length() == 19
-		and normalized_text > _MAX_INT_DIGITS
+		and normalized_text > str(_MAX_INT_VALUE)
 	):
-		push_error("[GFFixedDecimal] divide 结果超出可表示范围，已钳制。")
+		push_error("[GFFixedDecimal] %s 结果超出可表示范围，已钳制。" % context)
 		return _get_saturated_int(is_negative)
 
 	var result: int = 0
 	for i: int in range(normalized_text.length()):
-		result = _checked_multiply(result, 10, "divide")
-		result = _checked_add(result, normalized_text.substr(i, 1).to_int(), "divide")
+		result = _checked_multiply(result, 10, context)
+		result = _checked_add(result, normalized_text.substr(i, 1).to_int(), context)
 
 	return -result if is_negative else result
 
@@ -789,13 +1100,20 @@ static func _left_pad(text: String, width: int, fill_char: String) -> String:
 	return result
 
 
+static func _normalize_raw_value(value: int, context: String) -> int:
+	return _call_serialization_support_int(
+		&"normalize_raw_value",
+		[value, "GFFixedDecimal", context],
+		value
+	)
+
+
 static func _normalize_decimal_places(value: int) -> int:
-	if value < 0:
-		return 0
-	if value > MAX_DECIMAL_PLACES:
-		push_error("[GFFixedDecimal] decimal_places 超出上限 %d，已自动钳制。" % MAX_DECIMAL_PLACES)
-		return MAX_DECIMAL_PLACES
-	return value
+	return _call_serialization_support_int(&"normalize_decimal_places", [value, "GFFixedDecimal"], value)
+
+
+static func _decimal_places_are_in_serialized_range(value: int) -> bool:
+	return _call_serialization_support_bool(&"decimal_places_are_in_serialized_range", [value])
 
 
 static func _parse_signed_digits(digits: String, sign_multiplier: int) -> int:
@@ -805,7 +1123,7 @@ static func _parse_signed_digits(digits: String, sign_multiplier: int) -> int:
 
 	if significant_digits.length() > 19 or (
 		significant_digits.length() == 19
-		and significant_digits > _MAX_INT_DIGITS
+		and significant_digits > str(_MAX_INT_VALUE)
 	):
 		push_error("[GFFixedDecimal] 数字超出可表示范围。")
 		return _get_saturated_int(sign_multiplier < 0)
@@ -853,7 +1171,24 @@ static func _get_saturated_int(is_negative: bool) -> int:
 
 
 static func _abs_int(value: int) -> int:
-	return -value if value < 0 else value
+	return _call_serialization_support_int(&"abs_symmetric", [value])
+
+
+static func _bytes_have_supported_header(data: PackedByteArray) -> bool:
+	return (
+		data.size() == _BYTE_FORMAT_SIZE
+		and data[0] == _BYTE_MAGIC_0
+		and data[1] == _BYTE_MAGIC_1
+		and data[2] == _BYTE_MAGIC_2
+		and data[3] == _BYTE_MAGIC_3
+		and data[4] == _SERIALIZATION_VERSION
+		and _decimal_places_are_in_serialized_range(data[5])
+	)
+
+
+func _reset_serialized_zero() -> void:
+	raw_value = 0
+	decimal_places = 2
 
 
 static func _compare_twice_remainder(remainder: int, denominator: int) -> int:

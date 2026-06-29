@@ -165,7 +165,7 @@ func get_header_values(header_name: String) -> PackedStringArray:
 			continue
 		if GFVariantData.get_option_string(parsed_header, "name") != normalized_name:
 			continue
-		result.append(GFVariantData.get_option_string(parsed_header, "value"))
+		var _append_result: bool = result.append(GFVariantData.get_option_string(parsed_header, "value"))
 	return result
 
 
@@ -187,7 +187,7 @@ func get_headers_dictionary() -> Dictionary:
 		var values: PackedStringArray = PackedStringArray()
 		if result.has(header_name):
 			values = _variant_to_packed_string_array(result[header_name])
-		values.append(GFVariantData.get_option_string(parsed_header, "value"))
+		var _append_result: bool = values.append(GFVariantData.get_option_string(parsed_header, "value"))
 		result[header_name] = values
 	return result
 

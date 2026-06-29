@@ -85,14 +85,14 @@ func _generate_contract_accessors() -> void:
 	var generator: GFNetworkContractGenerator = _GF_NETWORK_CONTRACT_GENERATOR_SCRIPT.new()
 	var report: Dictionary = generator.generate_many(contract_paths, output_dir)
 	var lines: PackedStringArray = PackedStringArray()
-	lines.append("Output: %s" % output_dir)
-	lines.append("Generated: %d" % GFVariantData.get_option_int(report, "generated_count"))
-	lines.append("")
+	var _append_result_88: Variant = lines.append("Output: %s" % output_dir)
+	var _append_result_89: Variant = lines.append("Generated: %d" % GFVariantData.get_option_int(report, "generated_count"))
+	var _append_result_90: Variant = lines.append("")
 	for item_variant: Variant in GFVariantData.get_option_array(report, "generated"):
 		if not (item_variant is Dictionary):
 			continue
 		var item: Dictionary = GFVariantData.as_dictionary(item_variant)
-		lines.append("- %s -> %s (%s)" % [
+		var _append_result_95: Variant = lines.append("- %s -> %s (%s)" % [
 			GFVariantData.get_option_string(item, "contract_path"),
 			GFVariantData.get_option_string(item, "output_path"),
 			GFVariantData.get_option_string(item, "error_name"),
@@ -101,7 +101,7 @@ func _generate_contract_accessors() -> void:
 		if not (issue_variant is Dictionary):
 			continue
 		var issue: Dictionary = GFVariantData.as_dictionary(issue_variant)
-		lines.append("! %s %s: %s" % [
+		var _append_result_104: Variant = lines.append("! %s %s: %s" % [
 			GFVariantData.get_option_string(issue, "kind"),
 			GFVariantData.get_option_string(issue, "path"),
 			GFVariantData.get_option_string(issue, "message"),
@@ -128,7 +128,7 @@ func _append_contract_path(result: PackedStringArray, path: String) -> void:
 	var normalized_path: String = path.strip_edges()
 	if normalized_path.is_empty() or result.has(normalized_path):
 		return
-	result.append(normalized_path)
+	var _append_result_131: Variant = result.append(normalized_path)
 
 
 func _show_diagnostic_dialog(title: String, text: String) -> void:

@@ -113,7 +113,7 @@ func get_option_ids() -> PackedStringArray:
 	var result: PackedStringArray = PackedStringArray()
 	for option: GFEditorToolOption in options:
 		if option != null and option.option_id != &"":
-			result.append(String(option.option_id))
+			var _append_result_116: Variant = result.append(String(option.option_id))
 	result.sort()
 	return result
 

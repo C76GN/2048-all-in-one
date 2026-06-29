@@ -3,6 +3,7 @@
 ## 支持槽位存档、元数据分离读取、`Resource` 存取，
 ## 以及可配置 codec、完整性校验、版本迁移和简单混淆，适合通用本地持久化场景。
 ## 该混淆不提供安全加密能力，请勿用于保护敏感数据。
+## `Resource` 存取只面向项目生成或项目已确认来源与格式的本地文件；它不是未确认来源资源的沙盒化导入器。
 ## [br]
 ## @api public
 ## [br]
@@ -135,6 +136,34 @@ var include_storage_metadata: bool = false
 ## @api public
 var allow_absolute_paths: bool = false
 
+## 是否允许通过 `load_resource()` 调用 Godot `ResourceLoader`。默认关闭，避免未确认来源文件进入资源加载链路。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+var allow_resource_loads: bool = false
+
+## `load_resource()` 允许读取的文件扩展名。不包含点号；空列表表示不允许任何 Resource 读取。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+var allowed_resource_load_extensions: PackedStringArray = PackedStringArray(["tres", "res"])
+
+## `load_resource()` 允许的类型提示。为空时不限制类型提示值；启用时 `type_hint` 必须精确匹配其中之一。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+var allowed_resource_load_type_hints: PackedStringArray = PackedStringArray()
+
+## `load_resource()` 是否要求调用方传入非空 `type_hint`。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+var require_resource_load_type_hint: bool = true
+
 ## 写入嵌套相对路径时是否自动创建目录。
 ## [br]
 ## @api public
@@ -214,12 +243,8 @@ func dispose() -> void:
 	_async_queue.clear()
 	_async_file_locks.clear()
 	_migration_steps.clear()
-	default_values_for_new_keys.clear()
 	last_load_result.clear()
-	codec = null
-	_path_policy = null
-	_file_ops = null
-	_transaction_manager = null
+	_release_storage_helpers()
 
 
 ## 驱动异步存档任务完成检查。
@@ -243,29 +268,75 @@ func tick(_delta: float = 0.0) -> void:
 ## [br]
 ## @return Godot 的 `Error` 结果码。
 func save_resource(file_name: String, resource: Resource) -> Error:
+	if not _validate_public_file_name(file_name, "save_resource"):
+		return ERR_INVALID_PARAMETER
+	if resource == null:
+		push_error("[GFStorageUtility] save_resource 失败：resource 为空。")
+		return ERR_INVALID_PARAMETER
+
 	init()
-	var path: String = _get_full_path(file_name)
-	var dir_error: Error = _ensure_parent_directory(path)
+	_wait_for_async_tasks_for_file(file_name)
+	_recover_transaction_files([file_name])
+
+	var temp_path: String = _get_full_path(_get_temp_filename(file_name))
+	var resource_temp_path: String = _get_full_path(_get_resource_temp_filename(file_name))
+	_remove_file_if_exists(resource_temp_path)
+	var dir_error: Error = _ensure_parent_directory(temp_path)
 	if dir_error != OK:
 		return dir_error
-	return ResourceSaver.save(resource, path)
+	var save_error: Error = ResourceSaver.save(resource, resource_temp_path)
+	if save_error != OK:
+		_remove_file_if_exists(resource_temp_path)
+		_cleanup_transaction_files([file_name])
+		return save_error
+	var copy_error: Error = _copy_file_bytes(resource_temp_path, temp_path)
+	_remove_file_if_exists(resource_temp_path)
+	if copy_error != OK:
+		_cleanup_transaction_files([file_name])
+		return copy_error
+	return _commit_transaction([file_name])
 
 
 ## 读取一个 `Resource` 文件。
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param file_name: 目标文件名。
 ## [br]
 ## @param type_hint: 可选类型提示。
 ## [br]
 ## @return 读取到的资源实例；不存在时返回 `null`。
+## [br]
+## 该方法会调用 Godot `ResourceLoader`，默认关闭。调用方必须先启用 `allow_resource_loads`，并通过类型提示、扩展名 allowlist 与存储路径策略收窄加载边界。
 func load_resource(file_name: String, type_hint: String = "") -> Resource:
+	if not _validate_public_file_name(file_name, "load_resource"):
+		return null
+	if not allow_resource_loads:
+		push_error("[GFStorageUtility] load_resource 已被默认安全策略拒绝：请先显式启用 allow_resource_loads。")
+		return null
+
+	init()
+	_wait_for_async_tasks_for_file(file_name)
+	_recover_transaction_files([file_name])
+
 	var path: String = _get_full_path(file_name)
 	if not FileAccess.file_exists(path):
 		return null
+	if not _is_resource_load_extension_allowed(path):
+		push_error("[GFStorageUtility] load_resource 拒绝读取未允许扩展名的文件：%s。" % path)
+		return null
 
-	return ResourceLoader.load(path, type_hint)
+	var normalized_type_hint: String = type_hint.strip_edges()
+	if require_resource_load_type_hint and normalized_type_hint.is_empty():
+		push_error("[GFStorageUtility] load_resource 需要显式 type_hint。")
+		return null
+	if not _is_resource_load_type_hint_allowed(normalized_type_hint):
+		push_error("[GFStorageUtility] load_resource 拒绝未允许的 type_hint：%s。" % normalized_type_hint)
+		return null
+
+	return ResourceLoader.load(path, normalized_type_hint, ResourceLoader.CACHE_MODE_IGNORE)
 
 
 # --- 公共方法（文件管理） ---
@@ -285,6 +356,20 @@ func ensure_directory(directory_name: String = "") -> Error:
 	if error != OK:
 		push_error("[GFStorageUtility] 无法创建目录：%s，错误码：%s" % [path, error])
 	return error
+
+
+## 获取存储目录路径，不创建目录。
+## [br]
+## @api public
+## [br]
+## @since 4.4.0
+## [br]
+## @param directory_name: 相对存储目录；为空时返回根存储目录。
+## [br]
+## @return 按当前路径策略解析后的目录路径。
+func get_storage_directory_path(directory_name: String = "") -> String:
+	var normalized_directory: String = _normalize_storage_directory_name(directory_name)
+	return _get_full_directory_path_from_normalized(normalized_directory)
 
 
 ## 枚举指定存储目录下的文件。
@@ -553,6 +638,7 @@ func save_data(file_name: String, data: Dictionary) -> Error:
 		return ERR_INVALID_PARAMETER
 
 	init()
+	_wait_for_async_tasks_for_file(file_name)
 	_recover_transaction_files([file_name])
 
 	var temp_file_name: String = _get_temp_filename(file_name)
@@ -578,6 +664,9 @@ func load_data(file_name: String) -> Dictionary:
 		last_load_result = _make_load_result(false, {}, "file_name is empty", true)
 		return {}
 
+	init()
+	_wait_for_async_tasks_for_file(file_name)
+	_recover_transaction_files([file_name])
 	return _read_json(file_name)
 
 
@@ -762,6 +851,23 @@ func get_registered_migrations() -> Array[Dictionary]:
 
 # --- 私有/辅助方法 ---
 
+func _wait_for_async_tasks_for_file(file_name: String) -> void:
+	if not _has_pending_async_task_for_file(file_name):
+		return
+	wait_for_async_tasks()
+
+
+func _has_pending_async_task_for_file(file_name: String) -> bool:
+	var file_key: String = _get_async_file_key(file_name)
+	if _async_file_locks.has(file_key):
+		return true
+	for task_value: Variant in _async_queue:
+		var task: Dictionary = GFVariantData.as_dictionary(task_value)
+		if _get_task_file_key(task) == file_key:
+			return true
+	return false
+
+
 func _ensure_storage_helpers() -> void:
 	if _path_policy == null:
 		_path_policy = _StoragePathPolicy.new(self)
@@ -769,6 +875,18 @@ func _ensure_storage_helpers() -> void:
 		_file_ops = _StorageFileOps.new(self, _path_policy)
 	if _transaction_manager == null:
 		_transaction_manager = _StorageTransactionManager.new(self, _path_policy, _file_ops)
+
+
+func _release_storage_helpers() -> void:
+	if _transaction_manager != null:
+		_transaction_manager._dispose()
+	if _file_ops != null:
+		_file_ops._dispose()
+	if _path_policy != null:
+		_path_policy._dispose()
+	_transaction_manager = null
+	_file_ops = null
+	_path_policy = null
 
 
 func _ensure_directory_absolute(path: String) -> Error:
@@ -1096,6 +1214,19 @@ func _write_buffer_absolute(path: String, bytes: PackedByteArray) -> Error:
 	return _file_ops._write_buffer_absolute(path, bytes)
 
 
+func _copy_file_bytes(source_path: String, target_path: String) -> Error:
+	var source_file: FileAccess = FileAccess.open(source_path, FileAccess.READ)
+	if source_file == null:
+		return FileAccess.get_open_error()
+
+	var bytes: PackedByteArray = source_file.get_buffer(source_file.get_length())
+	var read_error: Error = source_file.get_error()
+	source_file.close()
+	if read_error != OK:
+		return read_error
+	return _write_buffer_absolute(target_path, bytes)
+
+
 func _write_plain_json_absolute(path: String, data: Dictionary) -> Error:
 	_ensure_storage_helpers()
 	return _file_ops._write_plain_json_absolute(path, data)
@@ -1138,6 +1269,34 @@ func _get_save_base_path() -> String:
 func _get_full_path(file_name: String) -> String:
 	_ensure_storage_helpers()
 	return _path_policy._get_full_path(file_name)
+
+
+func _get_resource_temp_filename(file_name: String) -> String:
+	var extension: String = file_name.get_extension()
+	if extension.is_empty():
+		return _get_temp_filename(file_name)
+	var suffix: String = ".%s" % extension
+	return "%s%s%s" % [file_name.trim_suffix(suffix), _TEMP_SUFFIX, suffix]
+
+
+func _is_resource_load_extension_allowed(path: String) -> bool:
+	var extension: String = path.get_extension().to_lower()
+	if extension.is_empty():
+		return false
+	for allowed_extension: String in allowed_resource_load_extensions:
+		var normalized_extension: String = allowed_extension.strip_edges().trim_prefix(".").to_lower()
+		if normalized_extension == extension:
+			return true
+	return false
+
+
+func _is_resource_load_type_hint_allowed(type_hint: String) -> bool:
+	if allowed_resource_load_type_hints.is_empty():
+		return true
+	for allowed_type_hint: String in allowed_resource_load_type_hints:
+		if allowed_type_hint.strip_edges() == type_hint:
+			return true
+	return false
 
 
 func _get_full_directory_path_from_normalized(directory_name: String) -> String:
@@ -1578,6 +1737,9 @@ class _StoragePathPolicy:
 	func _init(p_owner: Object) -> void:
 		_owner = p_owner
 
+	func _dispose() -> void:
+		_owner = null
+
 	func _get_owner_property(property_name: String) -> Variant:
 		if _owner == null:
 			return null
@@ -1687,6 +1849,10 @@ class _StorageFileOps:
 	func _init(p_owner: Object, p_path_policy: _StoragePathPolicy) -> void:
 		_owner = p_owner
 		_path_policy = p_path_policy
+
+	func _dispose() -> void:
+		_owner = null
+		_path_policy = null
 
 	func _get_owner_property(property_name: String) -> Variant:
 		if _owner == null:
@@ -1837,6 +2003,11 @@ class _StorageTransactionManager:
 		_owner = p_owner
 		_path_policy = p_path_policy
 		_file_ops = p_file_ops
+
+	func _dispose() -> void:
+		_owner = null
+		_path_policy = null
+		_file_ops = null
 
 	func _get_temp_filename(file_name: String) -> String:
 		return file_name + _TEMP_SUFFIX

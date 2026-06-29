@@ -69,6 +69,16 @@ func dispose() -> void:
 	pass
 
 
+## 释放架构注入作用域和模块缓存的外部依赖引用。
+## 架构会在 dispose() 之后调用该方法；子类重写时应先释放自身缓存的 Model/System/Utility 引用，再调用 super.release_dependencies()。
+## [br]
+## @api public
+## [br]
+## @since 4.4.0
+func release_dependencies() -> void:
+	_release_dependency_scope()
+
+
 ## 获取架构级存档使用的稳定键。
 ## 默认返回空字符串，表示由 GFArchitecture 使用 class_name 或资源路径。
 ## [br]
@@ -127,8 +137,7 @@ func inject_dependencies(architecture: GFArchitecture) -> void:
 ## [br]
 ## @return 所属架构仍处于活动生命周期时返回 true。
 func is_lifecycle_active() -> bool:
-	var architecture: GFArchitecture = _get_architecture_or_null()
-	return architecture != null and architecture.is_lifecycle_active()
+	return _DEPENDENCY_SCOPE_SUPPORT._is_lifecycle_active(_dependency_scope, "GFModel")
 
 
 ## 检查当前模块是否已经完成 ready 阶段。
@@ -188,8 +197,8 @@ func send_simple_event(event_id: StringName, payload: Variant = null) -> void:
 
 # --- 私有/辅助方法 ---
 
-func _gf_set_dependency_scope(architecture: GFArchitecture) -> void:
-	_DEPENDENCY_SCOPE_SUPPORT._bind_scope(_dependency_scope, architecture)
+func _gf_set_dependency_scope(architecture: GFArchitecture, lifecycle_serial: int = -1) -> void:
+	_DEPENDENCY_SCOPE_SUPPORT._bind_scope(_dependency_scope, architecture, lifecycle_serial)
 
 
 func _get_architecture() -> GFArchitecture:

@@ -157,6 +157,41 @@ static func append_source_issue(
 	return append_issue(report, severity, kind, message, merged_fields)
 
 
+## 合并另一份字典报告的问题。
+## [br]
+## @api public
+## [br]
+## @param target: 目标报告字典，会被当前方法修改。
+## [br]
+## @param source: 来源报告字典，不会被当前方法修改。
+## [br]
+## @param options: 可选合并设置；copy_fields 指定需要从 source 复制到 target 的字段名。
+## [br]
+## @schema target: Dictionary report payload mutated in place.
+## [br]
+## @schema source: Dictionary report payload copied from.
+## [br]
+## @schema options: Dictionary may contain copy_fields as PackedStringArray or Array[String].
+## [br]
+## @return 同一个目标报告字典。
+## [br]
+## @schema return: Dictionary merged report payload.
+static func merge_report(target: Dictionary, source: Dictionary, options: Dictionary = {}) -> Dictionary:
+	var target_issues: Array = _get_issue_array(target)
+	for issue_variant: Variant in GFVariantData.get_option_array(source, "issues"):
+		var issue: Dictionary = issue_to_dict(issue_variant)
+		if issue.is_empty():
+			continue
+		target_issues.append(issue)
+	target["issues"] = target_issues
+
+	for field_name: String in _to_packed_string_array(GFVariantData.get_option_value(options, "copy_fields", PackedStringArray())):
+		if not _has_text_key(source, field_name):
+			continue
+		target[field_name] = GFVariantData.duplicate_variant(GFVariantData.get_option_value(source, field_name))
+	return target
+
+
 ## 重新计算字典报告的统计字段。
 ## [br]
 ## @api public
@@ -184,11 +219,12 @@ static func finalize_report(
 	var info_count: int = 0
 	var issue_counts_by_kind: Dictionary = {}
 	var issues: Array = _get_issue_array(report)
-	for issue_index: int in range(issues.size()):
-		var issue: Dictionary = issue_to_dict(issues[issue_index])
+	var normalized_issues: Array = []
+	for issue_variant: Variant in issues:
+		var issue: Dictionary = issue_to_dict(issue_variant)
 		if issue.is_empty():
 			continue
-		issues[issue_index] = issue
+		normalized_issues.append(issue)
 
 		var kind_key: String = _get_issue_kind(issue)
 		issue_counts_by_kind[kind_key] = GFVariantData.get_option_int(issue_counts_by_kind, kind_key, 0) + 1
@@ -201,11 +237,12 @@ static func finalize_report(
 			"info":
 				info_count += 1
 
+	report["issues"] = normalized_issues
 	report["error_count"] = error_count
 	report["warning_count"] = warning_count
 	if GFVariantData.get_option_bool(options, "include_info_count", report.has("info_count")):
 		report["info_count"] = info_count
-	report[GFResultDictionary.KEY_ISSUE_COUNT] = issues.size()
+	report[GFResultDictionary.KEY_ISSUE_COUNT] = normalized_issues.size()
 	report["issue_counts_by_kind"] = issue_counts_by_kind
 	report[GFResultDictionary.KEY_OK] = error_count == 0
 	report[GFResultDictionary.KEY_HEALTHY] = error_count == 0 and warning_count == 0
@@ -355,11 +392,12 @@ static func filter_issues(report: Dictionary, options: Dictionary = {}) -> Dicti
 	var source_issues: Array = _get_issue_array(filtered_report)
 	var retained_issues: Array = []
 	var filtered_count: int = 0
+	var filter_context: Dictionary = _make_filter_context(options)
 	for issue_variant: Variant in source_issues:
 		var issue: Dictionary = issue_to_dict(issue_variant)
 		if issue.is_empty():
 			continue
-		if _issue_matches_filter(issue, options):
+		if _issue_matches_filter(issue, filter_context):
 			filtered_count += 1
 			continue
 		retained_issues.append(issue)
@@ -474,29 +512,45 @@ static func _get_first_issue_by_priority(report: Dictionary, options: Dictionary
 	return {}
 
 
-static func _issue_matches_filter(issue: Dictionary, options: Dictionary) -> bool:
+static func _make_filter_context(options: Dictionary) -> Dictionary:
+	var fingerprint_fields: PackedStringArray = _to_packed_string_array(GFVariantData.get_option_value(options, "fingerprint_fields", PackedStringArray()))
+	return {
+		"ignored_kinds": _make_string_lookup(GFVariantData.get_option_value(options, "ignored_kinds", PackedStringArray())),
+		"ignored_keys": _make_string_lookup(GFVariantData.get_option_value(options, "ignored_keys", PackedStringArray())),
+		"ignored_paths": _make_string_lookup(GFVariantData.get_option_value(options, "ignored_paths", PackedStringArray())),
+		"ignored_path_regexes": _make_path_pattern_regexes(GFVariantData.get_option_value(options, "ignored_path_patterns", PackedStringArray())),
+		"fingerprint_fields": fingerprint_fields,
+		"fingerprints": _make_filter_fingerprint_lookup(options, fingerprint_fields),
+	}
+
+
+static func _issue_matches_filter(issue: Dictionary, filter_context: Dictionary) -> bool:
 	var kind: String = _get_issue_kind(issue)
-	if _lookup_has_value(_make_string_lookup(GFVariantData.get_option_value(options, "ignored_kinds", PackedStringArray())), kind):
+	var ignored_kinds: Dictionary = GFVariantData.get_option_dictionary(filter_context, "ignored_kinds")
+	if _lookup_has_value(ignored_kinds, kind):
 		return true
+	var ignored_keys: Dictionary = GFVariantData.get_option_dictionary(filter_context, "ignored_keys")
 	if _lookup_has_value(
-		_make_string_lookup(GFVariantData.get_option_value(options, "ignored_keys", PackedStringArray())),
+		ignored_keys,
 		GFVariantData.get_option_string(issue, "key")
 	):
 		return true
 
 	var path: String = GFVariantData.get_option_string(issue, "path")
 	var source_path: String = GFVariantData.get_option_string(issue, "source_path")
-	var ignored_paths: Dictionary = _make_string_lookup(GFVariantData.get_option_value(options, "ignored_paths", PackedStringArray()))
+	var ignored_paths: Dictionary = GFVariantData.get_option_dictionary(filter_context, "ignored_paths")
 	if _lookup_has_value(ignored_paths, path) or _lookup_has_value(ignored_paths, source_path):
 		return true
-	if _path_matches_patterns(path, GFVariantData.get_option_value(options, "ignored_path_patterns", PackedStringArray())):
+	var path_regexes: Array = GFVariantData.get_option_array(filter_context, "ignored_path_regexes")
+	if _path_matches_compiled_patterns(path, path_regexes):
 		return true
-	if _path_matches_patterns(source_path, GFVariantData.get_option_value(options, "ignored_path_patterns", PackedStringArray())):
+	if _path_matches_compiled_patterns(source_path, path_regexes):
 		return true
 
-	var fingerprint_fields: PackedStringArray = _to_packed_string_array(GFVariantData.get_option_value(options, "fingerprint_fields", PackedStringArray()))
+	var fingerprint_fields: PackedStringArray = GFVariantData.get_option_packed_string_array(filter_context, "fingerprint_fields")
 	var issue_fingerprint: String = make_issue_fingerprint(issue, fingerprint_fields)
-	if _lookup_has_value(_make_filter_fingerprint_lookup(options, fingerprint_fields), issue_fingerprint):
+	var fingerprints: Dictionary = GFVariantData.get_option_dictionary(filter_context, "fingerprints")
+	if _lookup_has_value(fingerprints, issue_fingerprint):
 		return true
 	return false
 
@@ -527,6 +581,10 @@ static func _lookup_has_value(lookup: Dictionary, value: String) -> bool:
 	return not value.is_empty() and lookup.has(value)
 
 
+static func _has_text_key(data: Dictionary, key: String) -> bool:
+	return data.has(key) or data.has(StringName(key))
+
+
 static func _to_packed_string_array(value: Variant) -> PackedStringArray:
 	if value is PackedStringArray:
 		var packed_value: PackedStringArray = value
@@ -548,14 +606,29 @@ static func _to_packed_string_array(value: Variant) -> PackedStringArray:
 static func _path_matches_patterns(path: String, patterns: Variant) -> bool:
 	if path.is_empty():
 		return false
+	return _path_matches_compiled_patterns(path, _make_path_pattern_regexes(patterns))
+
+
+static func _make_path_pattern_regexes(patterns: Variant) -> Array[RegEx]:
+	var regexes: Array[RegEx] = []
 	for pattern: String in _to_packed_string_array(patterns):
 		if pattern.is_empty():
 			continue
 		var regex: RegEx = RegEx.new()
 		if regex.compile("^%s$" % _glob_to_regex(pattern)) != OK:
 			continue
-		if regex.search(path) != null:
-			return true
+		regexes.append(regex)
+	return regexes
+
+
+static func _path_matches_compiled_patterns(path: String, regexes: Array) -> bool:
+	if path.is_empty():
+		return false
+	for regex_variant: Variant in regexes:
+		if regex_variant is RegEx:
+			var regex: RegEx = regex_variant
+			if regex.search(path) != null:
+				return true
 	return false
 
 

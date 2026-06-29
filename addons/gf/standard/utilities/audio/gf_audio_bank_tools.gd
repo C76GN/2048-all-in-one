@@ -31,6 +31,8 @@ enum ClipIdMode {
 
 # --- 常量 ---
 
+const _GF_PATH_TOOLS = preload("res://addons/gf/kernel/core/gf_path_tools.gd")
+
 ## 默认音频扩展名白名单，不包含点号。
 ## [br]
 ## @api public
@@ -106,13 +108,15 @@ static func scan_audio_paths(root_path: String = "res://", options: Dictionary =
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param paths: 音频资源路径列表。
 ## [br]
-## @param options: 可选项，支持 id_mode、base_path、path_separator、strip_extension、bus_name、volume_db、pitch_scale。
+## @param options: 可选项，支持 id_mode、base_path、path_separator、strip_extension、bus_name、volume_db、pitch_scale、metadata、metadata_by_path。
 ## [br]
 ## @return: 新建的音频集合。
 ## [br]
-## @schema options: Dictionary，可包含 id_mode、base_path、path_separator、strip_extension、bus_name、volume_db、pitch_scale 和 overwrite 字段。
+## @schema options: Dictionary，可包含 id_mode、base_path、path_separator、strip_extension、bus_name、volume_db、pitch_scale、metadata、metadata_by_path 和 overwrite 字段。
 static func create_bank_from_paths(paths: PackedStringArray, options: Dictionary = {}) -> GFAudioBank:
 	var bank: GFAudioBank = _make_bank()
 	var import_options: Dictionary = GFVariantData.to_dictionary(options)
@@ -141,15 +145,17 @@ static func create_bank_from_scan(root_path: String = "res://", options: Diction
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param bank: 要写入的音频集合。
 ## [br]
 ## @param paths: 音频资源路径列表。
 ## [br]
-## @param options: 可选项，支持 id_mode、base_path、path_separator、strip_extension、overwrite、bus_name、volume_db、pitch_scale。
+## @param options: 可选项，支持 id_mode、base_path、path_separator、strip_extension、overwrite、bus_name、volume_db、pitch_scale、metadata、metadata_by_path。
 ## [br]
 ## @return: 导入报告。
 ## [br]
-## @schema options: Dictionary，可包含 id_mode、base_path、path_separator、strip_extension、overwrite、bus_name、volume_db 和 pitch_scale 字段。
+## @schema options: Dictionary，可包含 id_mode、base_path、path_separator、strip_extension、overwrite、bus_name、volume_db、pitch_scale、metadata 和 metadata_by_path 字段。
 static func add_paths_to_bank(
 	bank: GFAudioBank,
 	paths: PackedStringArray,
@@ -298,7 +304,24 @@ static func _make_clip(path: String, options: Dictionary) -> GFAudioClip:
 	clip.bus_name = GFVariantData.get_option_string(options, "bus_name", "")
 	clip.volume_db = GFVariantData.get_option_float(options, "volume_db", 0.0)
 	clip.pitch_scale = GFVariantData.get_option_float(options, "pitch_scale", 1.0)
+	_apply_clip_metadata(clip, path, options)
 	return clip
+
+
+static func _apply_clip_metadata(clip: GFAudioClip, path: String, options: Dictionary) -> void:
+	var base_metadata: Dictionary = GFVariantData.get_option_dictionary(options, "metadata", {})
+	if not base_metadata.is_empty():
+		clip.metadata = GFVariantData.duplicate_metadata(base_metadata)
+
+	var metadata_by_path: Dictionary = GFVariantData.get_option_dictionary(options, "metadata_by_path", {})
+	if metadata_by_path.is_empty():
+		return
+
+	var path_metadata: Dictionary = GFVariantData.get_option_dictionary(metadata_by_path, path, {})
+	if path_metadata.is_empty():
+		return
+
+	var _merged_metadata: Dictionary = GFVariantData.merge_metadata(clip.metadata, path_metadata, true, true)
 
 
 static func _validate_clip_playback(
@@ -436,10 +459,7 @@ static func _get_excluded_paths(options: Dictionary) -> PackedStringArray:
 	if GFVariantData.get_option_bool(options, "include_addons", false):
 		return PackedStringArray()
 	var paths: PackedStringArray = GFVariantData.get_option_packed_string_array(options, "excluded_paths", DEFAULT_EXCLUDED_PATHS)
-	var result: PackedStringArray = PackedStringArray()
-	for path: String in paths:
-		_append_packed_string(result, _normalize_dir_path(path))
-	return result
+	return _GF_PATH_TOOLS.normalize_root_paths(paths, false)
 
 
 static func _normalize_extensions(extensions: PackedStringArray) -> PackedStringArray:
@@ -474,29 +494,18 @@ static func _resolve_id_mode(value: Variant) -> ClipIdMode:
 
 
 static func _make_relative_path(path: String, base_path: String) -> String:
-	var normalized_base: String = _normalize_dir_path(base_path)
-	if path.begins_with(normalized_base):
-		var relative_path: String = path.substr(normalized_base.length())
-		if relative_path.begins_with("/"):
-			relative_path = relative_path.substr(1)
-		return relative_path
-	return path
+	var relative_path: String = _GF_PATH_TOOLS.make_relative_path(path, base_path)
+	if relative_path.is_empty():
+		return _GF_PATH_TOOLS.normalize_resource_path(path, "", false)
+	return relative_path
 
 
 static func _normalize_dir_path(path: String) -> String:
-	var normalized: String = path.replace("\\", "/").strip_edges()
-	while normalized.ends_with("/") and normalized.length() > "res://".length():
-		normalized = normalized.substr(0, normalized.length() - 1)
-	return normalized
+	return _GF_PATH_TOOLS.normalize_root_path(path, "", false)
 
 
 static func _is_excluded_path(path: String, excluded_paths: PackedStringArray) -> bool:
-	var normalized_path: String = _normalize_dir_path(path)
-	for excluded_path: String in excluded_paths:
-		var normalized_excluded: String = _normalize_dir_path(excluded_path)
-		if normalized_path == normalized_excluded or normalized_path.begins_with(normalized_excluded + "/"):
-			return true
-	return false
+	return _GF_PATH_TOOLS.is_path_excluded(path, excluded_paths)
 
 
 static func _add_report_warning(

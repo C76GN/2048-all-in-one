@@ -56,6 +56,7 @@ const SILENCE_VOLUME_DB: float = -80.0
 const _FALLBACK_BUS_NAME: String = "Master"
 const _APPLY_SPATIAL_SETTINGS_2D_METHOD: StringName = &"apply_to_2d"
 const _APPLY_SPATIAL_SETTINGS_3D_METHOD: StringName = &"apply_to_3d"
+const _DEFAULT_SPATIAL_AREA_MASK: int = 1
 const _MIX_SNAPSHOT_BUSES_KEY: String = "buses"
 const _MIX_SNAPSHOT_EFFECTS_KEY: String = "effects"
 
@@ -735,7 +736,7 @@ func post_audio_event(event: GFAudioEvent, options: Dictionary = {}) -> GFAudioE
 			_post_ambient_event(event, request_options)
 			return null
 		&"spatial_sfx":
-			return null
+			return _post_spatial_sfx_event(event, request_options)
 		_:
 			return _post_sfx_event(event)
 
@@ -2263,6 +2264,42 @@ func _post_sfx_event(event: GFAudioEvent) -> GFAudioEmitterHandle:
 	return null
 
 
+func _post_spatial_sfx_event(event: GFAudioEvent, options: Dictionary) -> GFAudioEmitterHandle:
+	var source: Node = _get_node_option(options, "source")
+	if source == null:
+		return null
+
+	var follow_source: bool = GFVariantData.get_option_bool(options, "follow_source", false)
+	if event.clip != null:
+		return _play_spatial_sfx_event_clip(event.clip, source, follow_source)
+	if event.event_id != &"":
+		return _play_spatial_sfx_event_clip(_get_registered_clip(event.event_id, event.bank_id), source, follow_source)
+	if event.path.is_empty():
+		return null
+
+	var clip: GFAudioClip = GFAudioClip.new()
+	clip.path = event.path
+	return _play_spatial_sfx_event_clip(clip, source, follow_source)
+
+
+func _play_spatial_sfx_event_clip(clip: GFAudioClip, source: Node, follow_source: bool) -> GFAudioEmitterHandle:
+	if source is Node2D:
+		var source_2d: Node2D = source
+		return play_sfx_clip_2d_handle(clip, source_2d, follow_source)
+	if source is Node3D:
+		var source_3d: Node3D = source
+		return play_sfx_clip_3d_handle(clip, source_3d, follow_source)
+	return null
+
+
+func _get_node_option(options: Dictionary, key: Variant) -> Node:
+	var value: Variant = GFVariantData.get_option_value(options, key)
+	if value is Node:
+		var node: Node = value
+		return node
+	return null
+
+
 func _get_registered_clip(event_id: StringName, bank_id: StringName = &"") -> GFAudioClip:
 	if event_id == &"":
 		return null
@@ -2418,12 +2455,20 @@ func _get_clip_spatial_settings(clip: GFAudioClip) -> Resource:
 
 func _apply_spatial_settings_2d(player: AudioStreamPlayer2D, spatial_settings: Resource) -> void:
 	if spatial_settings != null and spatial_settings.has_method(_APPLY_SPATIAL_SETTINGS_2D_METHOD):
-		spatial_settings.call(_APPLY_SPATIAL_SETTINGS_2D_METHOD, player)
+		var apply_result: Variant = spatial_settings.call(_APPLY_SPATIAL_SETTINGS_2D_METHOD, player)
+		if not (apply_result is bool) or GFVariantData.to_bool(apply_result):
+			return
+
+	player.area_mask = _DEFAULT_SPATIAL_AREA_MASK
 
 
 func _apply_spatial_settings_3d(player: AudioStreamPlayer3D, spatial_settings: Resource) -> void:
 	if spatial_settings != null and spatial_settings.has_method(_APPLY_SPATIAL_SETTINGS_3D_METHOD):
-		spatial_settings.call(_APPLY_SPATIAL_SETTINGS_3D_METHOD, player)
+		var apply_result: Variant = spatial_settings.call(_APPLY_SPATIAL_SETTINGS_3D_METHOD, player)
+		if not (apply_result is bool) or GFVariantData.to_bool(apply_result):
+			return
+
+	player.area_mask = _DEFAULT_SPATIAL_AREA_MASK
 
 
 func _get_spatial_sfx_parent(source: Node) -> Node:
@@ -2800,13 +2845,22 @@ func _apply_sfx_request(
 	handle: GFAudioEmitterHandle = null
 ) -> void:
 	if request_serial != _sfx_lifecycle_serial:
+		if handle != null:
+			handle.stop(0.0)
 		return
 	if handle != null and handle.is_stop_requested():
+		return
+	if stream == null:
+		if handle != null:
+			handle.stop(0.0)
 		return
 
 	var player: AudioStreamPlayer = _play_sfx_stream(stream)
 	if handle != null:
-		handle.set_player(player)
+		if player == null:
+			handle.stop(0.0)
+		else:
+			handle.set_player(player)
 
 
 func _apply_sfx_request_with_settings(
@@ -2818,13 +2872,22 @@ func _apply_sfx_request_with_settings(
 	handle: GFAudioEmitterHandle = null
 ) -> void:
 	if request_serial != _sfx_lifecycle_serial:
+		if handle != null:
+			handle.stop(0.0)
 		return
 	if handle != null and handle.is_stop_requested():
+		return
+	if stream == null:
+		if handle != null:
+			handle.stop(0.0)
 		return
 
 	var player: AudioStreamPlayer = _play_sfx_stream_with_settings(stream, bus_name, volume_db, pitch_scale)
 	if handle != null:
-		handle.set_player(player)
+		if player == null:
+			handle.stop(0.0)
+		else:
+			handle.set_player(player)
 
 
 func _play_sfx_stream(stream: AudioStream) -> AudioStreamPlayer:

@@ -704,7 +704,7 @@ func _cleanup_old_logs() -> void:
 	var file_name: String = dir.get_next()
 	while file_name != "":
 		if not dir.current_is_dir() and file_name.begins_with("gf_log_") and file_name.ends_with(".log"):
-			files.append(file_name)
+			var _append_result: bool = files.append(file_name)
 		file_name = dir.get_next()
 	dir.list_dir_end()
 
@@ -831,8 +831,11 @@ static func _sanitize_log_value(value: Variant, depth: int = 0, visited: Array =
 		return "<max_depth>"
 
 	match typeof(value):
-		TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT:
+		TYPE_NIL, TYPE_BOOL, TYPE_INT:
 			return value
+		TYPE_FLOAT:
+			var float_value: float = value
+			return _sanitize_log_float(float_value)
 		TYPE_STRING:
 			return _truncate_log_string(_variant_to_log_string(value))
 		TYPE_STRING_NAME, TYPE_NODE_PATH:
@@ -903,10 +906,18 @@ func _get_log_entry_text(entry: Dictionary) -> String:
 	return _variant_to_log_string(entry["text"])
 
 
-static func _remove_absolute(path: String) -> void:
-	var remove_result: Error = DirAccess.remove_absolute(path)
-	if remove_result != OK:
-		push_warning("[GFLogUtility] 无法移除文件：%s，错误码：%s" % [path, remove_result])
+static func _remove_absolute(path: String, warn_on_failure: bool = false) -> void:
+	var remove_path: String = path.strip_edges()
+	if remove_path.is_empty():
+		return
+	if remove_path.begins_with("user://") or remove_path.begins_with("res://"):
+		remove_path = ProjectSettings.globalize_path(remove_path)
+	if not FileAccess.file_exists(remove_path) and not DirAccess.dir_exists_absolute(remove_path):
+		return
+
+	var remove_result: Error = DirAccess.remove_absolute(remove_path)
+	if remove_result != OK and warn_on_failure:
+		push_warning("[GFLogUtility] 无法移除文件：%s，错误码：%s" % [remove_path, remove_result])
 
 
 static func _sanitize_log_dictionary(source: Dictionary) -> Dictionary:
@@ -961,6 +972,14 @@ static func _variant_to_log_string(value: Variant) -> String:
 		var path_value: NodePath = value
 		return String(path_value)
 	return str(value)
+
+
+static func _sanitize_log_float(value: float) -> Variant:
+	if is_nan(value):
+		return "NaN"
+	if is_inf(value):
+		return "Infinity" if value > 0.0 else "-Infinity"
+	return value
 
 
 static func _visited_contains_reference(visited: Array, value: Variant) -> bool:

@@ -99,7 +99,7 @@ func get_projectile_ids() -> PackedStringArray:
 	var ids: PackedStringArray = PackedStringArray()
 	for entry: GFProjectileCatalogEntry in entries:
 		if entry != null and entry.is_valid_entry():
-			ids.append(String(entry.projectile_id))
+			var _append_result_102: Variant = ids.append(String(entry.projectile_id))
 	ids.sort()
 	return ids
 

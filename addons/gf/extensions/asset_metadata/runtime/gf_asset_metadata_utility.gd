@@ -24,6 +24,9 @@ const META_ASSET_METADATA: StringName = &"gf_asset_metadata"
 ## @api public
 const META_ASSET_METADATA_SOURCE: StringName = &"gf_asset_metadata_source"
 
+const _CUSTOM_SOURCE_KEY_SEPARATOR: String = "__"
+const _HEX_DIGITS: String = "0123456789abcdef"
+
 
 # --- 公共方法 ---
 
@@ -77,7 +80,7 @@ func write_object_metadata(
 
 	var metadata_source: String = GFVariantData.get_option_string(options, "metadata_source")
 	if not metadata_source.is_empty():
-		target.set_meta(META_ASSET_METADATA_SOURCE, metadata_source)
+		target.set_meta(_get_metadata_source_key(metadata_key), metadata_source)
 
 	return _make_record_for_object(target, normalized_metadata, options)
 
@@ -106,6 +109,78 @@ func read_object_metadata(target: Object, options: Dictionary = {}) -> Dictionar
 		var value: Variant = target.get_meta(metadata_key)
 		return normalize_metadata(value)
 	return {}
+
+
+## 读取对象资产元数据，并按通用 Dictionary schema 补默认值与可选转换。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+## [br]
+## @param target: 目标 Object。
+## [br]
+## @param schema: 通用 Dictionary schema；为空时只返回普通读取结果。
+## [br]
+## @param options: 可选项，支持 read_object_metadata() 的参数，并额外支持 include_optional_defaults 和 coerce_values。
+## [br]
+## @schema options: Dictionary，可包含 metadata_key、metadata_keys、include_optional_defaults 与 coerce_values。
+## [br]
+## @return 补齐后的元数据字典副本。
+## [br]
+## @schema return: Dictionary，按 schema 归一后的资产元数据字段。
+func read_object_metadata_with_schema(
+	target: Object,
+	schema: GFDictionarySchema,
+	options: Dictionary = {}
+) -> Dictionary:
+	var metadata: Dictionary = read_object_metadata(target, options)
+	if schema == null:
+		return metadata
+
+	var include_optional: bool = GFVariantData.get_option_bool(options, "include_optional_defaults", true)
+	var should_coerce: bool = GFVariantData.get_option_bool(options, "coerce_values", schema.coerce_values)
+	return schema.apply_defaults(metadata, include_optional, should_coerce)
+
+
+## 用通用 Dictionary schema 校验对象资产元数据。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+## [br]
+## @param target: 目标 Object。
+## [br]
+## @param schema: 通用 Dictionary schema。
+## [br]
+## @param options: 可选项，支持 read_object_metadata() 的参数，以及 source_path、subject、path。
+## [br]
+## @schema options: Dictionary，可包含 metadata_key、metadata_keys、source_path、subject 和 path。
+## [br]
+## @return GFValidationReport 兼容字典。
+## [br]
+## @schema return: Dictionary，包含 ok、healthy、summary、issues 等校验报告字段。
+func validate_object_metadata(
+	target: Object,
+	schema: GFDictionarySchema,
+	options: Dictionary = {}
+) -> Dictionary:
+	if schema == null:
+		var missing_schema_report: GFValidationReport = GFValidationReport.new("Asset metadata")
+		var _missing_schema_issue: RefCounted = missing_schema_report.add_error(
+			&"missing_schema",
+			"Metadata schema is null."
+		)
+		return missing_schema_report.to_dict()
+	if target == null:
+		var missing_target_report: GFValidationReport = GFValidationReport.new("Asset metadata")
+		var _missing_target_issue: RefCounted = missing_target_report.add_error(
+			&"missing_target",
+			"Metadata target is null."
+		)
+		return missing_target_report.to_dict()
+
+	var metadata: Dictionary = read_object_metadata_with_schema(target, schema, options)
+	return schema.validate_dictionary(metadata, _make_schema_validation_options(target, options)).to_dict()
 
 
 ## 检查对象是否带有资产元数据。
@@ -143,8 +218,9 @@ func clear_object_metadata(target: Object, options: Dictionary = {}) -> void:
 	for metadata_key: StringName in _get_metadata_keys(options):
 		if target.has_meta(metadata_key):
 			target.remove_meta(metadata_key)
-	if GFVariantData.get_option_bool(options, "clear_source", true) and target.has_meta(META_ASSET_METADATA_SOURCE):
-		target.remove_meta(META_ASSET_METADATA_SOURCE)
+		var source_key: StringName = _get_metadata_source_key(metadata_key)
+		if GFVariantData.get_option_bool(options, "clear_source", true) and target.has_meta(source_key):
+			target.remove_meta(source_key)
 
 
 ## 收集节点树中的资产元数据记录。
@@ -247,7 +323,7 @@ func _make_record_for_node(
 
 	var record: GFAssetMetadataRecord = GFAssetMetadataRecord.new()
 	var _configure_result_249: Variant = record.configure(
-		_get_source_path(root, options),
+		_normalize_source_path(_get_source_path(root, options)),
 		subject_path,
 		GFVariantData.get_option_string_name(options, "subject_kind", &"node"),
 		metadata
@@ -262,7 +338,7 @@ func _make_record_for_object(
 ) -> GFAssetMetadataRecord:
 	var record: GFAssetMetadataRecord = GFAssetMetadataRecord.new()
 	var _configure_result_264: Variant = record.configure(
-		GFVariantData.get_option_string(options, "source_path"),
+		_normalize_source_path(GFVariantData.get_option_string(options, "source_path")),
 		NodePath(GFVariantData.get_option_string(options, "subject_path", ".")),
 		GFVariantData.get_option_string_name(options, "subject_kind", &"object"),
 		metadata
@@ -273,15 +349,17 @@ func _make_record_for_object(
 func _get_source_path(root: Node, options: Dictionary) -> String:
 	var explicit_source_path: String = GFVariantData.get_option_string(options, "source_path")
 	if not explicit_source_path.is_empty():
-		return explicit_source_path
+		return _normalize_source_path(explicit_source_path)
 	if root != null and not root.scene_file_path.is_empty():
-		return root.scene_file_path
+		return _normalize_source_path(root.scene_file_path)
 	return ""
 
 
 func _get_metadata_key(options: Dictionary) -> StringName:
 	if options.has("metadata_key"):
-		return GFVariantData.get_option_string_name(options, "metadata_key")
+		var metadata_key: StringName = GFVariantData.get_option_string_name(options, "metadata_key")
+		if metadata_key != &"":
+			return metadata_key
 	return META_ASSET_METADATA
 
 
@@ -301,6 +379,47 @@ func _get_metadata_keys(options: Dictionary) -> Array[StringName]:
 func _append_metadata_key(result: Array[StringName], key: StringName) -> void:
 	if key != &"" and not result.has(key):
 		result.append(key)
+
+
+func _make_schema_validation_options(target: Object, options: Dictionary) -> Dictionary:
+	var result: Dictionary = options.duplicate(true)
+	if not result.has("subject"):
+		result["subject"] = "Asset metadata"
+	if not result.has("path"):
+		result["path"] = "metadata"
+	if not result.has("source_path"):
+		var source_path: String = GFVariantData.get_option_string(options, "source_path")
+		if source_path.is_empty() and target is Node:
+			var node: Node = target
+			source_path = node.scene_file_path
+		if not source_path.is_empty():
+			result["source_path"] = _normalize_source_path(source_path)
+	return result
+
+
+func _get_metadata_source_key(metadata_key: StringName) -> StringName:
+	if metadata_key == META_ASSET_METADATA:
+		return META_ASSET_METADATA_SOURCE
+	return StringName(
+		"%s%s%s" % [
+			String(META_ASSET_METADATA_SOURCE),
+			_CUSTOM_SOURCE_KEY_SEPARATOR,
+			_utf8_hex(String(metadata_key)),
+		]
+	)
+
+
+func _utf8_hex(value: String) -> String:
+	var bytes: PackedByteArray = value.to_utf8_buffer()
+	var result: String = ""
+	for byte: int in bytes:
+		result += _HEX_DIGITS.substr((byte >> 4) & 0x0f, 1)
+		result += _HEX_DIGITS.substr(byte & 0x0f, 1)
+	return result
+
+
+func _normalize_source_path(path: String) -> String:
+	return GFPathTools.normalize_resource_path(path)
 
 
 func _get_report_options() -> Dictionary:

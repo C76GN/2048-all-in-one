@@ -56,14 +56,14 @@ var required_payload_keys: PackedStringArray = PackedStringArray()
 func validate_message(message: GFNetworkMessage) -> Dictionary:
 	var errors: PackedStringArray = PackedStringArray()
 	if message == null:
-		errors.append("message_is_null")
+		var _append_result_59: Variant = errors.append("message_is_null")
 		return _make_report(errors)
 
 	if message.message_type == &"" and not allow_empty_message_type:
-		errors.append("empty_message_type")
+		var _append_result_63: Variant = errors.append("empty_message_type")
 	for key: String in required_payload_keys:
-		if not message.payload.has(key):
-			errors.append("missing_payload_key:%s" % key)
+		if not _payload_has_key(message.payload, key):
+			var _append_result_66: Variant = errors.append("missing_payload_key:%s" % key)
 	return _make_report(errors)
 
 
@@ -82,13 +82,13 @@ func validate_bytes(bytes: PackedByteArray, channel: GFNetworkChannel = null) ->
 	var errors: PackedStringArray = PackedStringArray()
 	var byte_count: int = bytes.size()
 	if min_packet_size > 0 and byte_count < min_packet_size:
-		errors.append("packet_too_small")
+		var _append_result_85: Variant = errors.append("packet_too_small")
 
 	var effective_max: int = max_packet_size
 	if channel != null and channel.max_packet_size > 0:
 		effective_max = channel.max_packet_size if effective_max <= 0 else mini(effective_max, channel.max_packet_size)
 	if effective_max > 0 and byte_count > effective_max:
-		errors.append("packet_too_large")
+		var _append_result_91: Variant = errors.append("packet_too_large")
 	return _make_report(errors)
 
 
@@ -115,3 +115,9 @@ func _make_report(errors: PackedStringArray) -> Dictionary:
 		"ok": errors.is_empty(),
 		"errors": errors,
 	}
+
+
+func _payload_has_key(payload: Dictionary, key: String) -> bool:
+	if payload.has(key):
+		return true
+	return payload.has(StringName(key))

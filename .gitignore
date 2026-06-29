@@ -22,6 +22,16 @@ repomix-output.txt
 repomix.config.json
 .repomixignore
 
+# GF package manager cache
+.gf/package_cache/
+
+# Runtime logs and local user data
+*.log
+logs/
+runtime_warning*.log
+user_data/
+ai_analysis/
+
 # VsCode
 .vscode/
 .env
@@ -30,3 +40,5 @@ unstaged_changes.diff.txt
 unstaged_changes.diff
 
 build/
+exports/
+*.pck

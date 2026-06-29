@@ -86,15 +86,15 @@ func get_summary() -> String:
 
 	var parts: PackedStringArray = PackedStringArray()
 	if not build_info.project_name.is_empty():
-		parts.append(build_info.project_name)
+		var _append_result_89: Variant = parts.append(build_info.project_name)
 	if not build_info.project_version.is_empty():
-		parts.append(build_info.project_version)
+		var _append_result_91: Variant = parts.append(build_info.project_version)
 	if not build_info.framework_version.is_empty():
-		parts.append("GF %s" % build_info.framework_version)
+		var _append_result_93: Variant = parts.append("GF %s" % build_info.framework_version)
 	if not build_info.build_id.is_empty():
-		parts.append("build %s" % build_info.build_id)
+		var _append_result_95: Variant = parts.append("build %s" % build_info.build_id)
 	if not build_info.commit_hash.is_empty():
-		parts.append(build_info.commit_hash)
+		var _append_result_97: Variant = parts.append(build_info.commit_hash)
 	return " | ".join(parts)
 
 

@@ -173,7 +173,8 @@ func dispose() -> void:
 	_cancel_all_pending_async_panel_requests()
 	for canvas: CanvasLayer in _layer_roots.values():
 		if is_instance_valid(canvas):
-			_queue_free_node(canvas)
+			_detach_node_from_tree(canvas)
+			canvas.queue_free()
 	_layer_roots.clear()
 
 	for stack: Array in _panel_stacks.values():
@@ -877,11 +878,6 @@ func _detach_node_from_tree(node: Node) -> void:
 		parent.remove_child(node)
 
 
-func _queue_free_node(node: Node) -> void:
-	if is_instance_valid(node) and not node.is_queued_for_deletion():
-		node.queue_free()
-
-
 func _next_layer_request_serial(layer: Layer) -> int:
 	var next_serial: int = _get_layer_request_serial(layer) + 1
 	_layer_request_serials[layer] = next_serial
@@ -1014,7 +1010,6 @@ func _add_panel_instance(
 			push_warning("[GFUIUtility] config_callback 销毁了面板实例，本次入栈已取消。")
 			return false
 
-	_capture_previous_focus(panel, normalized_options)
 	stack.push_back(panel)
 	_panel_options[panel.get_instance_id()] = normalized_options
 	var _tree_exited_connected: Error = panel.tree_exited.connect(
@@ -1025,6 +1020,7 @@ func _add_panel_instance(
 		panel.get_parent().remove_child(panel)
 	if panel.get_parent() != canvas:
 		canvas.add_child(panel)
+	_capture_previous_focus(panel, normalized_options)
 	_apply_open_focus_policy(panel, normalized_options)
 	panel_opened.emit(panel, layer)
 	_emit_navigation_changed(layer)

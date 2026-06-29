@@ -53,6 +53,7 @@ var _active_effect: GFScreenTransitionEffect
 var _finished_callback: Callable
 var _elapsed_seconds: float = 0.0
 var _transition_active: bool = false
+var _overlay_generation: int = 0
 
 
 # --- GF 生命周期方法 ---
@@ -71,11 +72,14 @@ func init() -> void:
 ## [br]
 ## @api public
 func dispose() -> void:
+	_overlay_generation += 1
 	var _cancel_transition_result_74: Variant = cancel_transition()
 	_finished_callback = Callable()
 	if is_instance_valid(_overlay_layer):
-		if not _overlay_layer.is_queued_for_deletion():
-			_overlay_layer.queue_free()
+		var parent: Node = _overlay_layer.get_parent()
+		if parent != null:
+			parent.remove_child(_overlay_layer)
+		_overlay_layer.queue_free()
 	_overlay_layer = null
 	_overlay_rect = null
 
@@ -282,6 +286,7 @@ func _ensure_overlay() -> void:
 	if is_instance_valid(_overlay_layer) and is_instance_valid(_overlay_rect):
 		return
 
+	_overlay_generation += 1
 	_overlay_layer = CanvasLayer.new()
 	_overlay_layer.name = "GFScreenTransition"
 	_overlay_layer.layer = 120
@@ -297,7 +302,17 @@ func _ensure_overlay() -> void:
 
 	var tree: SceneTree = _get_scene_tree()
 	if tree != null:
-		tree.root.call_deferred("add_child", _overlay_layer)
+		call_deferred("_add_overlay_if_current", _overlay_layer, _overlay_generation)
+
+
+func _add_overlay_if_current(layer: CanvasLayer, generation: int) -> void:
+	if generation != _overlay_generation or not is_instance_valid(layer):
+		return
+	if layer.get_parent() != null:
+		return
+	var tree: SceneTree = _get_scene_tree()
+	if tree != null:
+		tree.root.add_child(layer)
 
 
 func _apply_effect_visuals(progress: float) -> void:

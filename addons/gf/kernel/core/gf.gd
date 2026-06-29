@@ -6,8 +6,8 @@ extends Node
 
 # --- 常量 ---
 
-const _GF_VARIANT_ACCESS_SCRIPT_PATH: String = "res://addons/gf/kernel/core/gf_variant_access.gd"
-const _GF_ASYNC_CALL_SCRIPT_PATH: String = "res://addons/gf/kernel/core/gf_async_call.gd"
+const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
+const _GF_ASYNC_CALL_SCRIPT = preload("res://addons/gf/kernel/core/gf_async_call.gd")
 
 ## 项目级启动安装器配置。值为 GDScript 路径数组，脚本需继承 GFInstaller。
 ## [br]
@@ -24,13 +24,26 @@ const FAIL_ON_INSTALLER_ERROR_SETTING: String = "gf/project/fail_on_installer_er
 ## @api public
 const INSTALLER_TIMEOUT_SETTING: String = "gf/project/installer_timeout_seconds"
 
-## 默认短生命周期工厂策略，等价于 GFBindingLifetimes.Lifetime.TRANSIENT。
-## 避免 Gf Autoload 仅加载时提前持有额外脚本资源。
+## 项目 Installer 基类脚本。
 ## [br]
 ## @api framework_internal
 ## [br]
 ## @layer kernel/core
-const _DEFAULT_FACTORY_LIFETIME_TRANSIENT: int = 1
+const GFInstallerBase = preload("res://addons/gf/kernel/core/gf_installer.gd")
+
+## 依赖绑定生命周期定义脚本。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/core
+const GFBindingLifetimesBase = preload("res://addons/gf/kernel/core/gf_binding_lifetimes.gd")
+
+## 扩展启用设置读取脚本。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/core
+const GFExtensionSettingsBase = preload("res://addons/gf/kernel/extension/gf_extension_settings.gd")
 
 
 # --- 公共变量 ---
@@ -70,7 +83,6 @@ func _physics_process(delta: float) -> void:
 
 # 节点退出树时清理架构。
 func _exit_tree() -> void:
-	_release_current_scene_for_shutdown()
 	if _architecture != null:
 		_architecture_assignment_serial += 1
 		_architecture.dispose()
@@ -134,16 +146,21 @@ func set_architecture(architecture_instance: GFArchitecture) -> void:
 
 	_architecture_assignment_serial += 1
 	var assignment_serial: int = _architecture_assignment_serial
-	if _architecture != null and _architecture != architecture_instance:
-		_architecture.dispose()
-	_architecture = architecture_instance
+	var previous_architecture: GFArchitecture = _architecture
 	var installers_ready: bool = await _run_project_installers(architecture_instance)
-	if not _is_architecture_assignment_current(architecture_instance, assignment_serial):
+	if not _is_architecture_assignment_serial_current(assignment_serial):
 		return
 	if not installers_ready:
 		return
 	if not architecture_instance.is_inited():
 		await architecture_instance.init()
+	if not _is_architecture_assignment_serial_current(assignment_serial):
+		return
+	if architecture_instance.has_initialization_failed():
+		return
+	if previous_architecture != null and previous_architecture != architecture_instance:
+		previous_architecture.dispose()
+	_architecture = architecture_instance
 
 
 ## 初始化当前架构。若尚未创建架构，则自动创建默认 GFArchitecture。
@@ -227,7 +244,7 @@ func replace_utility(instance: Object) -> void:
 func register_factory(
 	script_cls: Script,
 	factory: Callable,
-	lifetime: int = _DEFAULT_FACTORY_LIFETIME_TRANSIENT
+	lifetime: int = GFBindingLifetimesBase.Lifetime.TRANSIENT
 ) -> void:
 	create_architecture().register_factory(script_cls, factory, lifetime)
 
@@ -253,7 +270,7 @@ func register_factory_instance(script_cls: Script, instance: Object) -> void:
 func replace_factory(
 	script_cls: Script,
 	factory: Callable,
-	lifetime: int = _DEFAULT_FACTORY_LIFETIME_TRANSIENT
+	lifetime: int = GFBindingLifetimesBase.Lifetime.TRANSIENT
 ) -> void:
 	create_architecture().replace_factory(script_cls, factory, lifetime)
 
@@ -393,6 +410,42 @@ func register_utility_alias(alias_cls: Script, target_cls: Script) -> void:
 	var arch: GFArchitecture = _get_architecture_or_null("register_utility_alias")
 	if arch != null:
 		arch.register_utility_alias(alias_cls, target_cls)
+
+## 注销 System 查询别名，不影响目标实例。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @param alias_cls: 要移除的别名脚本类型。
+func unregister_system_alias(alias_cls: Script) -> void:
+	var arch: GFArchitecture = _get_architecture_or_null("unregister_system_alias")
+	if arch != null:
+		arch.unregister_system_alias(alias_cls)
+
+## 注销 Model 查询别名，不影响目标实例。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @param alias_cls: 要移除的别名脚本类型。
+func unregister_model_alias(alias_cls: Script) -> void:
+	var arch: GFArchitecture = _get_architecture_or_null("unregister_model_alias")
+	if arch != null:
+		arch.unregister_model_alias(alias_cls)
+
+## 注销 Utility 查询别名，不影响目标实例。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @param alias_cls: 要移除的别名脚本类型。
+func unregister_utility_alias(alias_cls: Script) -> void:
+	var arch: GFArchitecture = _get_architecture_or_null("unregister_utility_alias")
+	if arch != null:
+		arch.unregister_utility_alias(alias_cls)
 
 ## 获取 System 实例。
 ## [br]
@@ -559,6 +612,53 @@ func configure_event_debugging(
 	if arch != null:
 		arch.configure_event_debugging(max_dispatch_depth, trace_enabled, max_trace_entries)
 
+## 获取事件系统诊断统计。
+## [br]
+## @api public
+## [br]
+## @since 7.0.0
+## [br]
+## @return 事件系统诊断统计。
+## [br]
+## @schema return: Dictionary produced by GFTypeEventSystem.get_debug_stats().
+func get_event_debug_stats() -> Dictionary:
+	var arch: GFArchitecture = _get_architecture_or_null("get_event_debug_stats")
+	if arch == null:
+		return {}
+	return arch.get_event_debug_stats()
+
+## 获取事件监听器诊断明细。
+## [br]
+## @api public
+## [br]
+## @since 7.0.0
+## [br]
+## @param options: 诊断选项，支持 include_entries。
+## [br]
+## @schema options: Dictionary，可包含 include_entries。
+## [br]
+## @return 监听器诊断报告。
+## [br]
+## @schema return: Dictionary produced by GFTypeEventSystem.get_listener_diagnostics().
+func get_event_listener_diagnostics(options: Dictionary = {}) -> Dictionary:
+	var arch: GFArchitecture = _get_architecture_or_null("get_event_listener_diagnostics")
+	if arch == null:
+		return {}
+	return arch.get_event_listener_diagnostics(options)
+
+## 清理 owner 已释放的事件监听器。
+## [br]
+## @api public
+## [br]
+## @since 7.0.0
+## [br]
+## @return 本次立即移除或排队清理的监听器数量。
+func compact_event_listeners() -> int:
+	var arch: GFArchitecture = _get_architecture_or_null("compact_event_listeners")
+	if arch == null:
+		return 0
+	return arch.compact_event_listeners()
+
 ## 获取最近事件派发追踪条目。
 ## [br]
 ## @api public
@@ -657,6 +757,22 @@ func unlisten(event_type: Script, on_event: Callable) -> void:
 	if arch != null:
 		arch.unregister_event(event_type, on_event)
 
+## 快捷注销带拥有者的类型事件监听。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @param listener_owner: 注册监听时使用的拥有者。
+## [br]
+## @param event_type: 要取消监听的事件脚本类型。
+## [br]
+## @param on_event: 要移除的回调。
+func unlisten_owned(listener_owner: Object, event_type: Script, on_event: Callable) -> void:
+	var arch: GFArchitecture = _get_architecture_or_null("unlisten_owned")
+	if arch != null:
+		arch.unregister_event_owned(listener_owner, event_type, on_event)
+
 ## 快捷注销可赋值类型事件监听。
 ## [br]
 ## @api public
@@ -668,6 +784,22 @@ func unlisten_assignable(base_event_type: Script, on_event: Callable) -> void:
 	var arch: GFArchitecture = _get_architecture_or_null("unlisten_assignable")
 	if arch != null:
 		arch.unregister_assignable_event(base_event_type, on_event)
+
+## 快捷注销带拥有者的可赋值类型事件监听。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @param listener_owner: 注册监听时使用的拥有者。
+## [br]
+## @param base_event_type: 要取消监听的基类事件脚本类型。
+## [br]
+## @param on_event: 要移除的回调。
+func unlisten_assignable_owned(listener_owner: Object, base_event_type: Script, on_event: Callable) -> void:
+	var arch: GFArchitecture = _get_architecture_or_null("unlisten_assignable_owned")
+	if arch != null:
+		arch.unregister_assignable_event_owned(listener_owner, base_event_type, on_event)
 
 ## 快捷注册轻量事件监听（别名：listen_simple）。
 ## [br]
@@ -706,6 +838,22 @@ func unlisten_simple(event_id: StringName, on_event: Callable) -> void:
 	var arch: GFArchitecture = _get_architecture_or_null("unlisten_simple")
 	if arch != null:
 		arch.unregister_simple_event(event_id, on_event)
+
+## 快捷注销带拥有者的轻量事件监听。
+## [br]
+## @api public
+## [br]
+## @since 5.0.0
+## [br]
+## @param listener_owner: 注册监听时使用的拥有者。
+## [br]
+## @param event_id: 简单事件标识符。
+## [br]
+## @param on_event: 要移除的回调。
+func unlisten_simple_owned(listener_owner: Object, event_id: StringName, on_event: Callable) -> void:
+	var arch: GFArchitecture = _get_architecture_or_null("unlisten_simple_owned")
+	if arch != null:
+		arch.unregister_simple_event_owned(listener_owner, event_id, on_event)
 
 ## 快捷注销某个拥有者注册过的所有事件监听。
 ## [br]
@@ -749,66 +897,6 @@ func unregister_utility(script_cls: Script) -> void:
 
 
 # --- 私有/辅助方法 ---
-
-func _release_current_scene_for_shutdown() -> void:
-	var main_loop: MainLoop = Engine.get_main_loop()
-	if not main_loop is SceneTree:
-		return
-
-	var scene_tree: SceneTree = main_loop
-	var current_scene: Node = scene_tree.current_scene
-	if not is_instance_valid(current_scene):
-		return
-
-	scene_tree.current_scene = null
-	current_scene.free()
-
-
-func _run_detached_async_call(callback: Callable, arguments: Array = []) -> void:
-	var async_call_script: Variant = load(_GF_ASYNC_CALL_SCRIPT_PATH)
-	if async_call_script == null:
-		callback.callv(arguments)
-		return
-
-	@warning_ignore("unsafe_method_access")
-	async_call_script.run_detached(callback, arguments)
-
-
-func _variant_get_option_bool(options: Dictionary, key: Variant, default_value: bool) -> bool:
-	var variant_access_script: Variant = load(_GF_VARIANT_ACCESS_SCRIPT_PATH)
-	if variant_access_script == null:
-		return default_value
-
-	@warning_ignore("unsafe_method_access")
-	return variant_access_script.get_option_bool(options, key, default_value)
-
-
-func _variant_to_text(value: Variant, default_value: String = "") -> String:
-	var variant_access_script: Variant = load(_GF_VARIANT_ACCESS_SCRIPT_PATH)
-	if variant_access_script == null:
-		return default_value
-
-	@warning_ignore("unsafe_method_access")
-	return variant_access_script.to_text(value, default_value)
-
-
-func _variant_to_bool(value: Variant, default_value: bool = false) -> bool:
-	var variant_access_script: Variant = load(_GF_VARIANT_ACCESS_SCRIPT_PATH)
-	if variant_access_script == null:
-		return default_value
-
-	@warning_ignore("unsafe_method_access")
-	return variant_access_script.to_bool(value, default_value)
-
-
-func _variant_to_float(value: Variant, default_value: float = 0.0) -> float:
-	var variant_access_script: Variant = load(_GF_VARIANT_ACCESS_SCRIPT_PATH)
-	if variant_access_script == null:
-		return default_value
-
-	@warning_ignore("unsafe_method_access")
-	return variant_access_script.to_float(value, default_value)
-
 
 func _get_architecture_or_null(context: String) -> GFArchitecture:
 	if _architecture == null:
@@ -885,7 +973,7 @@ func _await_project_installer_install(
 		"done": false,
 		"write_blocked": false,
 	}
-	_run_detached_async_call(
+	_GF_ASYNC_CALL_SCRIPT.run_detached(
 		Callable(self, &"_complete_project_installer_install"),
 		[installer, architecture_instance, completion_state]
 	)
@@ -914,7 +1002,7 @@ func _await_project_installer_bindings(
 		"done": false,
 		"write_blocked": false,
 	}
-	_run_detached_async_call(
+	_GF_ASYNC_CALL_SCRIPT.run_detached(
 		Callable(self, &"_complete_project_installer_bindings"),
 		[installer, architecture_instance, completion_state]
 	)
@@ -934,7 +1022,7 @@ func _complete_project_installer_install(
 	completion_state: Dictionary
 ) -> void:
 	await installer.call(&"install", architecture_instance)
-	if _variant_get_option_bool(completion_state, "write_blocked", false):
+	if _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(completion_state, "write_blocked", false):
 		architecture_instance._end_stale_async_write_block()
 	completion_state["done"] = true
 
@@ -945,7 +1033,7 @@ func _complete_project_installer_bindings(
 	completion_state: Dictionary
 ) -> void:
 	await installer.call(&"install_bindings", architecture_instance.create_binder())
-	if _variant_get_option_bool(completion_state, "write_blocked", false):
+	if _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(completion_state, "write_blocked", false):
 		architecture_instance._end_stale_async_write_block()
 	completion_state["done"] = true
 
@@ -960,7 +1048,7 @@ func _wait_for_project_installer_step(
 ) -> bool:
 	var start_msec: int = Time.get_ticks_msec()
 	var timeout_msec: int = int(timeout_seconds * 1000.0)
-	while not _variant_get_option_bool(completion_state, "done", false):
+	while not _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(completion_state, "done", false):
 		if architecture_instance.has_initialization_failed() or not architecture_instance.is_project_installers_running():
 			return false
 		var elapsed_msec: int = Time.get_ticks_msec() - start_msec
@@ -982,7 +1070,7 @@ func _wait_for_project_installer_step(
 func _get_project_installer_paths() -> Array[String]:
 	_last_project_installer_error = ""
 	var raw_paths: Variant = ProjectSettings.get_setting(INSTALLERS_SETTING, [])
-	var installer_paths: Array[String] = GFExtensionSettings.get_enabled_installer_paths()
+	var installer_paths: Array[String] = GFExtensionSettingsBase.get_enabled_installer_paths()
 
 	if raw_paths is PackedStringArray:
 		for path: String in raw_paths:
@@ -992,7 +1080,7 @@ func _get_project_installer_paths() -> Array[String]:
 	if raw_paths is Array:
 		for path_variant: Variant in raw_paths:
 			if typeof(path_variant) == TYPE_STRING:
-				_append_unique_installer_path(installer_paths, _variant_to_text(path_variant, ""))
+				_append_unique_installer_path(installer_paths, _GF_VARIANT_ACCESS_SCRIPT.to_text(path_variant, ""))
 			else:
 				push_warning("[GF] 项目 Installer 配置包含非字符串项，已跳过。")
 		return installer_paths
@@ -1048,11 +1136,11 @@ static func _instantiate_installer(installer_script: Script) -> GFInstaller:
 
 
 func _should_fail_on_project_installer_error() -> bool:
-	return _variant_to_bool(ProjectSettings.get_setting(FAIL_ON_INSTALLER_ERROR_SETTING, true), true)
+	return _GF_VARIANT_ACCESS_SCRIPT.to_bool(ProjectSettings.get_setting(FAIL_ON_INSTALLER_ERROR_SETTING, true), true)
 
 
 func _get_project_installer_timeout_seconds() -> float:
-	return maxf(_variant_to_float(ProjectSettings.get_setting(INSTALLER_TIMEOUT_SETTING, 0.0), 0.0), 0.0)
+	return maxf(_GF_VARIANT_ACCESS_SCRIPT.to_float(ProjectSettings.get_setting(INSTALLER_TIMEOUT_SETTING, 0.0), 0.0), 0.0)
 
 
 func _report_project_installer_error(message: String) -> void:
@@ -1062,3 +1150,7 @@ func _report_project_installer_error(message: String) -> void:
 
 func _is_architecture_assignment_current(architecture_instance: GFArchitecture, assignment_serial: int) -> bool:
 	return _architecture == architecture_instance and _architecture_assignment_serial == assignment_serial
+
+
+func _is_architecture_assignment_serial_current(assignment_serial: int) -> bool:
+	return _architecture_assignment_serial == assignment_serial

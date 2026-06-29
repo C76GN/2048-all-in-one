@@ -54,6 +54,43 @@ const TIME_UTC_SETTING: String = "gf/build/time_utc"
 ## @api public
 const METADATA_SETTING: String = "gf/build/metadata"
 
+## 是否在导出开始时写入构建元数据的 ProjectSettings 键。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+const EXPORT_ENABLED_SETTING: String = "gf/build/export/write_metadata"
+
+## 导出时写入 ProjectSettings 的构建元数据字典键。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+## [br]
+## @schema value: Dictionary，可包含 GFBuildInfo.write_metadata_to_project_settings() 支持的构建字段。
+const EXPORT_BUILD_METADATA_SETTING: String = "gf/build/export/build_metadata"
+
+## 导出结束后是否恢复旧构建元数据的 ProjectSettings 键。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+const EXPORT_RESTORE_PREVIOUS_SETTING: String = "gf/build/export/restore_previous_settings"
+
+## 写入或恢复后是否立即保存 ProjectSettings 的设置键。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+const EXPORT_SAVE_PROJECT_SETTINGS_SETTING: String = "gf/build/export/save_project_settings"
+
+## 导出时附加到构建信息中的自定义元数据 ProjectSettings 键。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+const EXPORT_EXTRA_METADATA_SETTING: String = "gf/build/export/metadata"
+
 ## 项目名称 ProjectSettings 键。
 ## [br]
 ## @api public
@@ -191,7 +228,8 @@ func apply_dict(data: Dictionary) -> void:
 	engine_version = GFVariantData.get_option_string(data, "engine_version", engine_version)
 	platform_name = GFVariantData.get_option_string(data, "platform_name", platform_name)
 	is_debug_build = GFVariantData.get_option_bool(data, "is_debug_build", is_debug_build)
-	metadata = GFVariantData.get_option_dictionary(data, "metadata")
+	if data.has("metadata") or data.has(&"metadata"):
+		metadata = GFVariantData.get_option_dictionary(data, "metadata")
 
 
 ## 创建当前运行环境的构建信息。
@@ -234,64 +272,53 @@ static func from_dict(data: Dictionary) -> GFBuildInfo:
 	return info
 
 
-## 从当前 Git 工作区收集构建元数据。该方法通常由导出脚本或编辑器工具调用。
+## 把外部构建流水线提供的构建元数据写入 ProjectSettings，供 collect() 在运行时读取。
 ## [br]
 ## @api public
 ## [br]
-## @param work_dir: Git 工作区目录；支持 `res://`、`user://` 或原生路径。
+## @since 5.2.0
 ## [br]
-## @return: Git 构建元数据。
-## [br]
-## @schema return: Dictionary，包含 commit_hash、branch、tag、commit_count、is_dirty 和 build_time_utc 字段。
-static func collect_git_metadata(work_dir: String = "res://") -> Dictionary:
-	var native_dir: String = _to_native_path(work_dir)
-	var short_hash: String = _run_git(native_dir, ["rev-parse", "--short=12", "HEAD"])
-	var branch_name: String = _run_git(native_dir, ["rev-parse", "--abbrev-ref", "HEAD"])
-	var tag_name: String = _run_git(native_dir, ["describe", "--tags", "--abbrev=0"])
-	var count_text: String = _run_git(native_dir, ["rev-list", "--count", "HEAD"])
-	var dirty_text: String = _run_git(native_dir, ["status", "--porcelain"])
-	return {
-		"commit_hash": short_hash,
-		"branch": branch_name,
-		"tag": tag_name,
-		"commit_count": count_text.to_int() if not count_text.is_empty() else 0,
-		"is_dirty": not dirty_text.is_empty(),
-		"build_time_utc": Time.get_datetime_string_from_system(true, false),
-	}
-
-
-## 把 Git 构建元数据写入 ProjectSettings，供 collect() 在运行时读取。
-## [br]
-## @api public
-## [br]
-## @param work_dir: Git 工作区目录；支持 `res://`、`user://` 或原生路径。
+## @param build_data: 构建流水线提供的构建元数据。
 ## [br]
 ## @param extra_metadata: 项目自定义构建元数据。
 ## [br]
 ## @param save_settings: 是否立即保存 ProjectSettings。
 ## [br]
-## @return: 写入的构建元数据。
+## @return: 实际写入的构建元数据。
+## [br]
+## @schema build_data: Dictionary，可包含 build_id、commit_hash、branch、tag、commit_count、is_dirty、build_time_utc 和 metadata 字段。
 ## [br]
 ## @schema extra_metadata: Dictionary，保存项目自定义构建元数据。
 ## [br]
-## @schema return: Dictionary，包含已写入的 Git 构建元数据。
-static func write_git_metadata_to_project_settings(
-	work_dir: String = "res://",
+## @schema return: Dictionary，包含已写入的构建元数据和可选 save_error。
+static func write_metadata_to_project_settings(
+	build_data: Dictionary = {},
 	extra_metadata: Dictionary = {},
 	save_settings: bool = false
 ) -> Dictionary:
-	var git_data: Dictionary = collect_git_metadata(work_dir)
-	ProjectSettings.set_setting(COMMIT_HASH_SETTING, GFVariantData.get_option_string(git_data, "commit_hash"))
-	ProjectSettings.set_setting(BRANCH_SETTING, GFVariantData.get_option_string(git_data, "branch"))
-	ProjectSettings.set_setting(TAG_SETTING, GFVariantData.get_option_string(git_data, "tag"))
-	ProjectSettings.set_setting(COMMIT_COUNT_SETTING, GFVariantData.get_option_int(git_data, "commit_count"))
-	ProjectSettings.set_setting(IS_DIRTY_SETTING, GFVariantData.get_option_bool(git_data, "is_dirty"))
-	ProjectSettings.set_setting(TIME_UTC_SETTING, GFVariantData.get_option_string(git_data, "build_time_utc"))
-	if not extra_metadata.is_empty():
-		ProjectSettings.set_setting(METADATA_SETTING, extra_metadata.duplicate(true))
+	var written_data: Dictionary = {}
+	_set_string_setting_from_data(written_data, build_data, "build_id", BUILD_ID_SETTING)
+	_set_string_setting_from_data(written_data, build_data, "commit_hash", COMMIT_HASH_SETTING)
+	_set_string_setting_from_data(written_data, build_data, "branch", BRANCH_SETTING)
+	_set_string_setting_from_data(written_data, build_data, "tag", TAG_SETTING)
+	_set_int_setting_from_data(written_data, build_data, "commit_count", COMMIT_COUNT_SETTING)
+	_set_bool_setting_from_data(written_data, build_data, "is_dirty", IS_DIRTY_SETTING)
+
+	var effective_build_time_utc: String = GFVariantData.get_option_string(build_data, "build_time_utc")
+	if effective_build_time_utc.is_empty():
+		effective_build_time_utc = Time.get_datetime_string_from_system(true, false)
+	ProjectSettings.set_setting(TIME_UTC_SETTING, effective_build_time_utc)
+	written_data["build_time_utc"] = effective_build_time_utc
+
+	var metadata_value: Dictionary = GFVariantData.get_option_dictionary(build_data, "metadata").duplicate(true)
+	var _merge_metadata_result: Dictionary = GFVariantData.merge_dictionary(metadata_value, extra_metadata, true, true)
+	ProjectSettings.set_setting(METADATA_SETTING, metadata_value)
+	written_data["metadata"] = metadata_value.duplicate(true)
+
 	if save_settings:
-		var _save_result: int = ProjectSettings.save()
-	return git_data
+		var save_result: int = ProjectSettings.save()
+		written_data["save_error"] = save_result
+	return written_data
 
 
 ## 复制构建信息。
@@ -334,18 +361,43 @@ static func _format_engine_version(version_info: Dictionary) -> String:
 	return result
 
 
-static func _to_native_path(path: String) -> String:
-	if path.begins_with("res://") or path.begins_with("user://"):
-		return ProjectSettings.globalize_path(path)
-	return path
+static func _set_string_setting_from_data(
+	written_data: Dictionary,
+	source: Dictionary,
+	key: String,
+	setting_path: String
+) -> void:
+	if not source.has(key):
+		return
+
+	var setting_value: String = GFVariantData.get_option_string(source, key)
+	ProjectSettings.set_setting(setting_path, setting_value)
+	written_data[key] = setting_value
 
 
-static func _run_git(native_dir: String, args: Array) -> String:
-	var output: Array = []
-	var git_args: PackedStringArray = PackedStringArray(["-C", native_dir])
-	for arg: Variant in args:
-		var _argument_appended: bool = git_args.append(GFVariantData.to_text(arg))
-	var exit_code: int = OS.execute("git", git_args, output, true, false)
-	if exit_code != OK or output.is_empty():
-		return ""
-	return GFVariantData.to_text(output[0]).strip_edges()
+static func _set_int_setting_from_data(
+	written_data: Dictionary,
+	source: Dictionary,
+	key: String,
+	setting_path: String
+) -> void:
+	if not source.has(key):
+		return
+
+	var setting_value: int = GFVariantData.get_option_int(source, key)
+	ProjectSettings.set_setting(setting_path, setting_value)
+	written_data[key] = setting_value
+
+
+static func _set_bool_setting_from_data(
+	written_data: Dictionary,
+	source: Dictionary,
+	key: String,
+	setting_path: String
+) -> void:
+	if not source.has(key):
+		return
+
+	var setting_value: bool = GFVariantData.get_option_bool(source, key)
+	ProjectSettings.set_setting(setting_path, setting_value)
+	written_data[key] = setting_value

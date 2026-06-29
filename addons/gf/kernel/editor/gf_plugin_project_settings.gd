@@ -7,6 +7,7 @@ extends RefCounted
 # --- 常量 ---
 
 const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
+const _GF_PROJECT_SETTINGS_TOOLS = preload("res://addons/gf/kernel/core/gf_project_settings_tools.gd")
 
 ## 项目启动 Installer 列表设置。
 ## [br]
@@ -78,34 +79,6 @@ const PROJECT_ACCESS_OUTPUT_SETTING: String = "gf/codegen/project_access_output_
 ## @layer kernel/editor
 const PROJECT_ACCESS_OUTPUT_DEFAULT: String = "res://gf/generated/gf_project_access.gd"
 
-## 构建信息导出开关设置。
-## [br]
-## @api framework_internal
-## [br]
-## @layer kernel/editor
-const BUILD_INFO_EXPORT_ENABLED_SETTING: String = "gf/build/export/write_git_metadata"
-
-## 构建信息导出后是否恢复设置。
-## [br]
-## @api framework_internal
-## [br]
-## @layer kernel/editor
-const BUILD_INFO_EXPORT_RESTORE_SETTING: String = "gf/build/export/restore_previous_settings"
-
-## 构建信息导出后是否保存项目设置。
-## [br]
-## @api framework_internal
-## [br]
-## @layer kernel/editor
-const BUILD_INFO_EXPORT_SAVE_SETTING: String = "gf/build/export/save_project_settings"
-
-## 构建信息导出元数据设置。
-## [br]
-## @api framework_internal
-## [br]
-## @layer kernel/editor
-const BUILD_INFO_EXPORT_METADATA_SETTING: String = "gf/build/export/metadata"
-
 ## 扩展启用设置脚本。
 ## [br]
 ## @api framework_internal
@@ -117,11 +90,19 @@ const GFExtensionSettingsBase = preload("res://addons/gf/kernel/extension/gf_ext
 # --- 公共方法 ---
 
 ## 确保所有 GF ProjectSettings 存在并注册显示信息。
+##
+## 该方法只补齐缺失默认值和 Inspector 属性提示，不会清理本次未贡献的设置。
+## 已写入的 ProjectSettings 归项目所有；模块禁用、贡献消失或 core-only 回退时，
+## GF 不会自动删除用户项目配置。
 ## [br]
 ## @api framework_internal
 ## [br]
 ## @layer kernel/editor
-static func ensure_all() -> void:
+## [br]
+## @param project_setting_records: 由标准库或扩展贡献的 ProjectSettings 记录。
+## [br]
+## @schema project_setting_records: Array[Dictionary] with name, default_value, type, hint, hint_string, basic, restart_if_changed, and internal.
+static func ensure_all(project_setting_records: Array[Dictionary] = []) -> void:
 	var should_save: bool = false
 	if _ensure_default(INSTALLERS_SETTING, INSTALLERS_DEFAULT):
 		should_save = true
@@ -133,13 +114,7 @@ static func ensure_all() -> void:
 		should_save = true
 	if _ensure_default(PROJECT_ACCESS_OUTPUT_SETTING, PROJECT_ACCESS_OUTPUT_DEFAULT):
 		should_save = true
-	if _ensure_default(BUILD_INFO_EXPORT_ENABLED_SETTING, false):
-		should_save = true
-	if _ensure_default(BUILD_INFO_EXPORT_RESTORE_SETTING, true):
-		should_save = true
-	if _ensure_default(BUILD_INFO_EXPORT_SAVE_SETTING, false):
-		should_save = true
-	if _ensure_default(BUILD_INFO_EXPORT_METADATA_SETTING, {}):
+	if _ensure_project_setting_records(project_setting_records):
 		should_save = true
 	if GFExtensionSettingsBase.ensure_defaults():
 		should_save = true
@@ -147,7 +122,7 @@ static func ensure_all() -> void:
 	_register_property_info()
 	GFExtensionSettingsBase.register_property_info()
 	if should_save:
-		var _save_result_150: Variant = ProjectSettings.save()
+		var _saved: bool = _save_project_settings()
 
 
 ## 获取 GF 访问器输出路径。
@@ -175,63 +150,71 @@ static func get_project_access_output_path() -> String:
 # --- 私有/辅助方法 ---
 
 static func _ensure_default(setting_name: String, default_value: Variant) -> bool:
-	if ProjectSettings.has_setting(setting_name):
+	return _GF_PROJECT_SETTINGS_TOOLS.ensure_setting(setting_name, default_value, {
+		"register_property_info": false,
+	})
+
+
+static func _ensure_project_setting_records(project_setting_records: Array[Dictionary]) -> bool:
+	var should_save: bool = false
+	for record: Dictionary in project_setting_records:
+		var setting_name: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(record, "name").strip_edges()
+		if setting_name.is_empty():
+			continue
+
+		var default_value: Variant = _GF_VARIANT_ACCESS_SCRIPT.get_option_value(record, "default_value")
+		var options: Dictionary = _make_project_setting_options(record, default_value)
+		if _GF_PROJECT_SETTINGS_TOOLS.ensure_setting(setting_name, default_value, options):
+			should_save = true
+	return should_save
+
+
+static func _save_project_settings() -> bool:
+	var save_result: Error = ProjectSettings.save()
+	if save_result != OK:
+		push_error("[GFPluginProjectSettings] ProjectSettings.save() 失败：%s" % error_string(save_result))
 		return false
-	ProjectSettings.set_setting(setting_name, default_value)
-	ProjectSettings.set_initial_value(setting_name, default_value)
 	return true
 
 
 static func _register_property_info() -> void:
-	ProjectSettings.add_property_info({
-		"name": INSTALLERS_SETTING,
-		"type": TYPE_ARRAY,
+	_GF_PROJECT_SETTINGS_TOOLS.register_property_info(INSTALLERS_SETTING, TYPE_ARRAY, {
 		"hint": PROPERTY_HINT_TYPE_STRING,
 		"hint_string": "%d/%d:*.gd" % [TYPE_STRING, PROPERTY_HINT_FILE],
+		"basic": true,
 	})
-	ProjectSettings.set_as_basic(INSTALLERS_SETTING, true)
-	ProjectSettings.add_property_info({
-		"name": FAIL_ON_INSTALLER_ERROR_SETTING,
-		"type": TYPE_BOOL,
+	_GF_PROJECT_SETTINGS_TOOLS.register_property_info(FAIL_ON_INSTALLER_ERROR_SETTING, TYPE_BOOL, {
+		"basic": true,
 	})
-	ProjectSettings.set_as_basic(FAIL_ON_INSTALLER_ERROR_SETTING, true)
-	ProjectSettings.add_property_info({
-		"name": INSTALLER_TIMEOUT_SETTING,
-		"type": TYPE_FLOAT,
+	_GF_PROJECT_SETTINGS_TOOLS.register_property_info(INSTALLER_TIMEOUT_SETTING, TYPE_FLOAT, {
 		"hint": PROPERTY_HINT_RANGE,
 		"hint_string": "0,600,0.1,or_greater",
+		"basic": true,
 	})
-	ProjectSettings.set_as_basic(INSTALLER_TIMEOUT_SETTING, true)
-	ProjectSettings.add_property_info({
-		"name": ACCESS_OUTPUT_SETTING,
-		"type": TYPE_STRING,
+	_GF_PROJECT_SETTINGS_TOOLS.register_property_info(ACCESS_OUTPUT_SETTING, TYPE_STRING, {
 		"hint": PROPERTY_HINT_FILE,
 		"hint_string": "*.gd",
+		"basic": true,
 	})
-	ProjectSettings.set_as_basic(ACCESS_OUTPUT_SETTING, true)
-	ProjectSettings.add_property_info({
-		"name": PROJECT_ACCESS_OUTPUT_SETTING,
-		"type": TYPE_STRING,
+	_GF_PROJECT_SETTINGS_TOOLS.register_property_info(PROJECT_ACCESS_OUTPUT_SETTING, TYPE_STRING, {
 		"hint": PROPERTY_HINT_FILE,
 		"hint_string": "*.gd",
+		"basic": true,
 	})
-	ProjectSettings.set_as_basic(PROJECT_ACCESS_OUTPUT_SETTING, true)
-	ProjectSettings.add_property_info({
-		"name": BUILD_INFO_EXPORT_ENABLED_SETTING,
-		"type": TYPE_BOOL,
-	})
-	ProjectSettings.set_as_basic(BUILD_INFO_EXPORT_ENABLED_SETTING, true)
-	ProjectSettings.add_property_info({
-		"name": BUILD_INFO_EXPORT_RESTORE_SETTING,
-		"type": TYPE_BOOL,
-	})
-	ProjectSettings.set_as_basic(BUILD_INFO_EXPORT_RESTORE_SETTING, true)
-	ProjectSettings.add_property_info({
-		"name": BUILD_INFO_EXPORT_SAVE_SETTING,
-		"type": TYPE_BOOL,
-	})
-	ProjectSettings.set_as_basic(BUILD_INFO_EXPORT_SAVE_SETTING, true)
-	ProjectSettings.add_property_info({
-		"name": BUILD_INFO_EXPORT_METADATA_SETTING,
-		"type": TYPE_DICTIONARY,
-	})
+
+
+static func _make_project_setting_options(record: Dictionary, default_value: Variant) -> Dictionary:
+	var options: Dictionary = {
+		"type": _GF_VARIANT_ACCESS_SCRIPT.get_option_int(record, "type", typeof(default_value)),
+		"register_property_info": true,
+	}
+	for bool_key: String in ["basic", "restart_if_changed", "internal", "update_initial_value"]:
+		if record.has(bool_key):
+			options[bool_key] = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(record, bool_key, false)
+	if record.has("hint"):
+		options["hint"] = _GF_VARIANT_ACCESS_SCRIPT.get_option_int(record, "hint", PROPERTY_HINT_NONE)
+	if record.has("hint_string"):
+		options["hint_string"] = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(record, "hint_string", "")
+	if record.has("usage"):
+		options["usage"] = _GF_VARIANT_ACCESS_SCRIPT.get_option_int(record, "usage", -1)
+	return options

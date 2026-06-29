@@ -50,6 +50,68 @@ static func get_export_plugin_records() -> Array[Dictionary]:
 	]
 
 
+## 获取标准库 Debugger 插件记录。
+## [br]
+## @api framework_internal
+## [br]
+## @layer standard/editor
+## [br]
+## @return Debugger 插件记录列表。
+## [br]
+## @schema return: Array of Dictionary debugger plugin records.
+static func get_debugger_plugin_records() -> Array[Dictionary]:
+	return [
+		{
+			"path": "res://addons/gf/standard/utilities/debug/editor/gf_runtime_debugger_plugin.gd",
+			"label": "GF Runtime Debugger",
+		},
+	]
+
+
+## 获取标准库 ProjectSettings 记录。
+## [br]
+## @api framework_internal
+## [br]
+## @layer standard/editor
+## [br]
+## @return ProjectSettings 记录列表。
+## [br]
+## @schema return: Array of Dictionary project setting records.
+static func get_project_setting_records() -> Array[Dictionary]:
+	return [
+		{
+			"name": GFBuildInfo.EXPORT_ENABLED_SETTING,
+			"default_value": false,
+			"type": TYPE_BOOL,
+			"basic": true,
+		},
+		{
+			"name": GFBuildInfo.EXPORT_RESTORE_PREVIOUS_SETTING,
+			"default_value": true,
+			"type": TYPE_BOOL,
+			"basic": true,
+		},
+		{
+			"name": GFBuildInfo.EXPORT_SAVE_PROJECT_SETTINGS_SETTING,
+			"default_value": false,
+			"type": TYPE_BOOL,
+			"basic": true,
+		},
+		{
+			"name": GFBuildInfo.EXPORT_BUILD_METADATA_SETTING,
+			"default_value": {},
+			"type": TYPE_DICTIONARY,
+			"basic": true,
+		},
+		{
+			"name": GFBuildInfo.EXPORT_EXTRA_METADATA_SETTING,
+			"default_value": {},
+			"type": TYPE_DICTIONARY,
+			"basic": true,
+		},
+	]
+
+
 ## 获取标准库工作区页面记录。
 ## [br]
 ## @api framework_internal

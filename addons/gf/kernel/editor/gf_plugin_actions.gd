@@ -13,6 +13,13 @@ extends RefCounted
 ## @layer kernel/editor
 signal workspace_requested
 
+## 请求刷新 GF 编辑器贡献记录。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+signal editor_contributions_refresh_requested
+
 
 # --- 常量 ---
 
@@ -66,6 +73,13 @@ const MENU_GENERATE_ACCESSORS: int = 11
 ## [br]
 ## @layer kernel/editor
 const MENU_GENERATE_PROJECT_ACCESSORS: int = 12
+
+## 菜单 ID：刷新 GF 编辑器贡献记录。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/editor
+const MENU_REFRESH_EDITOR_CONTRIBUTIONS: int = 13
 
 ## 扩展模板菜单 ID 起始值。
 ## [br]
@@ -225,6 +239,8 @@ func handle_menu_id(id: int) -> void:
 			_generate_project_accessors()
 		&"open_workspace":
 			workspace_requested.emit()
+		&"refresh_editor_contributions":
+			editor_contributions_refresh_requested.emit()
 		&"extension_action":
 			_handle_extension_action(handler)
 
@@ -242,6 +258,12 @@ func _setup_menu_actions(template_records: Array = []) -> void:
 		"打开 GF 工作区",
 		"工作区",
 		&"open_workspace"
+	)
+	_register_fixed_menu_action(
+		MENU_REFRESH_EDITOR_CONTRIBUTIONS,
+		"刷新 GF 编辑器贡献",
+		"工作区",
+		&"refresh_editor_contributions"
 	)
 	_register_fixed_menu_action(
 		MENU_GENERATE_ACCESSORS,
@@ -314,6 +336,9 @@ func _register_template_record(source_record: Dictionary) -> void:
 	record["type"] = template_type
 	if not record.has("base_class"):
 		record["base_class"] = "GF" + template_type
+	if _template_records.has(template_type):
+		push_error("[GF Framework] 模板 type 重复，已跳过: %s" % template_type)
+		return
 
 	var menu_id: int = _GF_VARIANT_ACCESS_SCRIPT.get_option_int(record, "menu_id", -1)
 	if menu_id < 0:

@@ -78,7 +78,7 @@ static func get_property_names(object: Object, usage_filter: int = -1) -> Packed
 	for property_info: Dictionary in get_property_infos(object, usage_filter):
 		var property_name: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(property_info, "name", "")
 		if not property_name.is_empty():
-			result.append(property_name)
+			var _append_result_81: Variant = result.append(property_name)
 	return result
 
 
@@ -181,6 +181,8 @@ static func read_property(
 		return default_value
 	if not has_property_path(object, property_path):
 		return default_value
+	if not _property_path_can_resolve(object, property_path):
+		return default_value
 	return object.get_indexed(property_path)
 
 
@@ -220,6 +222,8 @@ static func write_property(
 		return _make_write_result(false, "Missing property: %s" % String(root_property), root_property)
 	if _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "check_writable", true) and not is_property_writable(property_info):
 		return _make_write_result(false, "Property is not writable: %s" % String(root_property), root_property)
+	if not _property_path_can_resolve(object, property_path):
+		return _make_write_result(false, "Property path cannot be resolved: %s" % String(property_path), root_property)
 
 	var old_value: Variant = object.get_indexed(property_path)
 	var property_type: int = _get_effective_property_type(property_path, property_info, old_value)
@@ -349,6 +353,155 @@ static func coerce_property_value(value: Variant, property_type: int) -> Variant
 			return value
 
 
+## 将对象声明的属性导出为 Dictionary。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+## [br]
+## @param object: 目标对象。
+## [br]
+## @param options: 可选项，支持 usage_filter、include_properties、exclude_properties、include_null、copy_values、duplicate_resources、sort_keys。
+## [br]
+## @schema options: Dictionary with optional keys usage_filter: int, include_properties: Array[String] or PackedStringArray, exclude_properties: Array[String] or PackedStringArray, include_null: bool, copy_values: bool, duplicate_resources: bool, sort_keys: bool.
+## [br]
+## @return 以属性名 String 为键的属性值字典。
+## [br]
+## @schema return: Dictionary[String, Variant] containing direct declared object properties.
+static func object_to_dictionary(object: Object, options: Dictionary = {}) -> Dictionary:
+	var result: Dictionary = {}
+	if not is_instance_valid(object):
+		return result
+
+	var usage_filter: int = _GF_VARIANT_ACCESS_SCRIPT.get_option_int(options, "usage_filter", PROPERTY_USAGE_STORAGE)
+	var include_filter: Dictionary = _make_property_name_filter(
+		_GF_VARIANT_ACCESS_SCRIPT.get_option_value(options, "include_properties")
+	)
+	var exclude_filter: Dictionary = _make_property_name_filter(
+		_GF_VARIANT_ACCESS_SCRIPT.get_option_value(options, "exclude_properties")
+	)
+	var include_null: bool = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "include_null", true)
+	var copy_values: bool = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "copy_values", true)
+	var duplicate_resources: bool = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "duplicate_resources", false)
+	var sort_keys: bool = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "sort_keys", true)
+	var property_names: PackedStringArray = PackedStringArray()
+	var property_values: Dictionary = {}
+
+	for property_info: Dictionary in get_property_infos(object, usage_filter):
+		var property_name: StringName = _GF_VARIANT_ACCESS_SCRIPT.get_option_string_name(property_info, "name", &"")
+		if not _should_snapshot_property(property_name, include_filter, exclude_filter):
+			continue
+		var property_value: Variant = object.get(property_name)
+		if property_value == null and not include_null:
+			continue
+		if copy_values:
+			property_value = _GF_VARIANT_ACCESS_SCRIPT.duplicate_variant(
+				property_value,
+				true,
+				duplicate_resources
+			)
+		var property_key: String = String(property_name)
+		var _append_result_264: bool = property_names.append(property_key)
+		property_values[property_key] = property_value
+
+	if sort_keys:
+		property_names.sort()
+	for property_key: String in property_names:
+		result[property_key] = property_values[property_key]
+	return result
+
+
+## 将 Dictionary 字段批量写回对象属性。
+## [br]
+## @api public
+## [br]
+## @since 6.0.0
+## [br]
+## @param object: 目标对象。
+## [br]
+## @param values: 以属性名为键的字段字典。
+## [br]
+## @param options: 可选项，支持 check_writable、check_type、coerce_value、ignore_unknown_properties、copy_values、duplicate_resources。
+## [br]
+## @schema values: Dictionary[String or StringName, Variant] containing direct property assignments.
+## [br]
+## @schema options: Dictionary with optional bool keys check_writable, check_type, coerce_value, ignore_unknown_properties, copy_values, and duplicate_resources.
+## [br]
+## @return 写入报告，包含 ok、applied_count、skipped_count 与 issues。
+## [br]
+## @schema return: Dictionary { ok: bool, applied_count: int, skipped_count: int, issues: Array[Dictionary] }.
+static func apply_dictionary(object: Object, values: Dictionary, options: Dictionary = {}) -> Dictionary:
+	var issues: Array[Dictionary] = []
+	var report: Dictionary = {
+		"ok": true,
+		"applied_count": 0,
+		"skipped_count": 0,
+		"issues": issues,
+	}
+	if not is_instance_valid(object):
+		_append_apply_issue(issues, &"", "invalid_object", "Object is null.")
+		report["ok"] = false
+		report["skipped_count"] = values.size()
+		return report
+
+	var ignore_unknown: bool = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(
+		options,
+		"ignore_unknown_properties",
+		false
+	)
+	var copy_values: bool = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "copy_values", true)
+	var duplicate_resources: bool = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "duplicate_resources", false)
+	var write_options: Dictionary = {
+		"check_writable": _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "check_writable", true),
+		"check_type": _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "check_type", true),
+		"coerce_value": _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "coerce_value", true),
+	}
+
+	for key: Variant in values.keys():
+		var property_name: StringName = _GF_VARIANT_ACCESS_SCRIPT.to_string_name(key)
+		if property_name == &"":
+			_append_apply_issue(issues, property_name, "invalid_property", "Property name is empty.")
+			report["skipped_count"] += 1
+			continue
+		if not has_property(object, property_name):
+			if not ignore_unknown:
+				_append_apply_issue(
+					issues,
+					property_name,
+					"unknown_property",
+					"Missing property: %s" % String(property_name)
+				)
+			report["skipped_count"] += 1
+			continue
+
+		var value_to_write: Variant = values[key]
+		if copy_values:
+			value_to_write = _GF_VARIANT_ACCESS_SCRIPT.duplicate_variant(
+				value_to_write,
+				true,
+				duplicate_resources
+			)
+		var write_result: Dictionary = write_property(
+			object,
+			NodePath(String(property_name)),
+			value_to_write,
+			write_options
+		)
+		if _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(write_result, "ok", false):
+			report["applied_count"] += 1
+		else:
+			_append_apply_issue(
+				issues,
+				property_name,
+				"write_failed",
+				_GF_VARIANT_ACCESS_SCRIPT.get_option_string(write_result, "error", "Write failed.")
+			)
+			report["skipped_count"] += 1
+
+	report["ok"] = issues.is_empty()
+	return report
+
+
 ## 获取属性路径的根属性名。
 ## [br]
 ## @api public
@@ -382,6 +535,220 @@ static func _get_effective_property_type(
 
 static func _is_direct_property_path(property_path: NodePath) -> bool:
 	return property_path.get_name_count() <= 1 and property_path.get_subname_count() == 0
+
+
+static func _property_path_can_resolve(object: Object, property_path: NodePath) -> bool:
+	if not is_instance_valid(object) or property_path.is_empty():
+		return false
+	var root_property: StringName = get_root_property_name(property_path)
+	if root_property == &"" or not has_property(object, root_property):
+		return false
+	if _is_direct_property_path(property_path):
+		return true
+	if property_path.get_name_count() > 1:
+		return false
+
+	var current_value: Variant = object.get(root_property)
+	var subname_start: int = 0
+	if property_path.get_name_count() == 0 and property_path.get_subname_count() > 0:
+		subname_start = 1
+	for subname_index: int in range(subname_start, property_path.get_subname_count()):
+		var subname: StringName = StringName(property_path.get_subname(subname_index))
+		var subvalue: Dictionary = _get_supported_subproperty_value(current_value, subname)
+		if not _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(subvalue, "ok", false):
+			return false
+		current_value = _GF_VARIANT_ACCESS_SCRIPT.get_option_value(subvalue, "value")
+	return true
+
+
+static func _get_supported_subproperty_value(value: Variant, subname: StringName) -> Dictionary:
+	if subname == &"":
+		return { "ok": false }
+	if value is Object:
+		var object_value: Object = value
+		if not is_instance_valid(object_value) or not has_property(object_value, subname):
+			return { "ok": false }
+		return { "ok": true, "value": object_value.get(subname) }
+
+	match typeof(value):
+		TYPE_VECTOR2:
+			var vector2_value: Vector2 = value
+			match subname:
+				&"x":
+					return { "ok": true, "value": vector2_value.x }
+				&"y":
+					return { "ok": true, "value": vector2_value.y }
+		TYPE_VECTOR2I:
+			var vector2i_value: Vector2i = value
+			match subname:
+				&"x":
+					return { "ok": true, "value": vector2i_value.x }
+				&"y":
+					return { "ok": true, "value": vector2i_value.y }
+		TYPE_VECTOR3:
+			var vector3_value: Vector3 = value
+			match subname:
+				&"x":
+					return { "ok": true, "value": vector3_value.x }
+				&"y":
+					return { "ok": true, "value": vector3_value.y }
+				&"z":
+					return { "ok": true, "value": vector3_value.z }
+		TYPE_VECTOR3I:
+			var vector3i_value: Vector3i = value
+			match subname:
+				&"x":
+					return { "ok": true, "value": vector3i_value.x }
+				&"y":
+					return { "ok": true, "value": vector3i_value.y }
+				&"z":
+					return { "ok": true, "value": vector3i_value.z }
+		TYPE_VECTOR4:
+			var vector4_value: Vector4 = value
+			match subname:
+				&"x":
+					return { "ok": true, "value": vector4_value.x }
+				&"y":
+					return { "ok": true, "value": vector4_value.y }
+				&"z":
+					return { "ok": true, "value": vector4_value.z }
+				&"w":
+					return { "ok": true, "value": vector4_value.w }
+		TYPE_VECTOR4I:
+			var vector4i_value: Vector4i = value
+			match subname:
+				&"x":
+					return { "ok": true, "value": vector4i_value.x }
+				&"y":
+					return { "ok": true, "value": vector4i_value.y }
+				&"z":
+					return { "ok": true, "value": vector4i_value.z }
+				&"w":
+					return { "ok": true, "value": vector4i_value.w }
+		TYPE_COLOR:
+			var color_value: Color = value
+			match subname:
+				&"r":
+					return { "ok": true, "value": color_value.r }
+				&"g":
+					return { "ok": true, "value": color_value.g }
+				&"b":
+					return { "ok": true, "value": color_value.b }
+				&"a":
+					return { "ok": true, "value": color_value.a }
+		TYPE_QUATERNION:
+			var quaternion_value: Quaternion = value
+			match subname:
+				&"x":
+					return { "ok": true, "value": quaternion_value.x }
+				&"y":
+					return { "ok": true, "value": quaternion_value.y }
+				&"z":
+					return { "ok": true, "value": quaternion_value.z }
+				&"w":
+					return { "ok": true, "value": quaternion_value.w }
+		TYPE_RECT2:
+			var rect2_value: Rect2 = value
+			match subname:
+				&"position":
+					return { "ok": true, "value": rect2_value.position }
+				&"size":
+					return { "ok": true, "value": rect2_value.size }
+				&"end":
+					return { "ok": true, "value": rect2_value.end }
+		TYPE_RECT2I:
+			var rect2i_value: Rect2i = value
+			match subname:
+				&"position":
+					return { "ok": true, "value": rect2i_value.position }
+				&"size":
+					return { "ok": true, "value": rect2i_value.size }
+				&"end":
+					return { "ok": true, "value": rect2i_value.end }
+		TYPE_AABB:
+			var aabb_value: AABB = value
+			match subname:
+				&"position":
+					return { "ok": true, "value": aabb_value.position }
+				&"size":
+					return { "ok": true, "value": aabb_value.size }
+				&"end":
+					return { "ok": true, "value": aabb_value.end }
+		TYPE_TRANSFORM2D:
+			var transform2d_value: Transform2D = value
+			match subname:
+				&"x":
+					return { "ok": true, "value": transform2d_value.x }
+				&"y":
+					return { "ok": true, "value": transform2d_value.y }
+				&"origin":
+					return { "ok": true, "value": transform2d_value.origin }
+		TYPE_BASIS:
+			var basis_value: Basis = value
+			match subname:
+				&"x":
+					return { "ok": true, "value": basis_value.x }
+				&"y":
+					return { "ok": true, "value": basis_value.y }
+				&"z":
+					return { "ok": true, "value": basis_value.z }
+		TYPE_TRANSFORM3D:
+			var transform3d_value: Transform3D = value
+			match subname:
+				&"basis":
+					return { "ok": true, "value": transform3d_value.basis }
+				&"origin":
+					return { "ok": true, "value": transform3d_value.origin }
+		_:
+			pass
+	return { "ok": false }
+
+
+static func _make_property_name_filter(value: Variant) -> Dictionary:
+	var result: Dictionary = {}
+	if value is PackedStringArray:
+		var packed_names: PackedStringArray = value
+		for property_name: String in packed_names:
+			if not property_name.is_empty():
+				result[StringName(property_name)] = true
+	elif value is Array:
+		var names: Array = value
+		for item: Variant in names:
+			var item_name: StringName = _GF_VARIANT_ACCESS_SCRIPT.to_string_name(item)
+			if item_name != &"":
+				result[item_name] = true
+	elif value is String or value is StringName:
+		var single_name: StringName = _GF_VARIANT_ACCESS_SCRIPT.to_string_name(value)
+		if single_name != &"":
+			result[single_name] = true
+	return result
+
+
+static func _should_snapshot_property(
+	property_name: StringName,
+	include_filter: Dictionary,
+	exclude_filter: Dictionary
+) -> bool:
+	if property_name == &"":
+		return false
+	if not include_filter.is_empty() and not include_filter.has(property_name):
+		return false
+	if exclude_filter.has(property_name):
+		return false
+	return true
+
+
+static func _append_apply_issue(
+	issues: Array[Dictionary],
+	property_name: StringName,
+	kind: String,
+	message: String
+) -> void:
+	issues.append({
+		"property_name": property_name,
+		"kind": kind,
+		"message": message,
+	})
 
 
 static func _make_write_result(

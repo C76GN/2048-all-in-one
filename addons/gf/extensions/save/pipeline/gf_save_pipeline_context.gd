@@ -140,7 +140,7 @@ func record_event(
 ## [br]
 ## @schema payload: Dictionary，项目或流程步骤附加的诊断字段。
 func add_warning(message: String, payload: Dictionary = {}) -> void:
-	warnings.append(message)
+	var _append_result_143: Variant = warnings.append(message)
 	var _record_event_result_144: Variant = record_event(&"pipeline_warning", null, null, message, payload, &"warning")
 
 
@@ -154,7 +154,7 @@ func add_warning(message: String, payload: Dictionary = {}) -> void:
 ## [br]
 ## @schema payload: Dictionary，项目或流程步骤附加的诊断字段。
 func add_error(message: String, payload: Dictionary = {}) -> void:
-	errors.append(message)
+	var _append_result_157: Variant = errors.append(message)
 	var _record_event_result_158: Variant = record_event(&"pipeline_error", null, null, message, payload, &"error")
 
 
