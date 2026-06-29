@@ -1,6 +1,6 @@
 ## ReplayContinueData: 从回放恢复为普通对局时传递的事件数据。
 class_name ReplayContinueData
-extends GFPayload
+extends "res://addons/gf/kernel/base/gf_payload.gd"
 
 
 # --- 公共变量 ---

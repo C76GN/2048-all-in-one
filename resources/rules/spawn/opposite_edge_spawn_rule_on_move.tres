@@ -1,4 +1,4 @@
-[gd_resource type="Resource" load_steps=2 format=3 uid="uid://c6s7jklm8wan1"]
+[gd_resource type="Resource" script_class="OppositeEdgeSpawnRule" format=3 uid="uid://c6s7jklm8wan1"]
 
 [ext_resource type="Script" uid="uid://c5q50w1j58c70" path="res://scripts/rules/spawn/opposite_edge_spawn_rule.gd" id="1_abcde"]
 

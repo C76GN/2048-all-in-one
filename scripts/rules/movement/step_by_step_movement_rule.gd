@@ -40,8 +40,14 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 			):
 				var result: Dictionary = interaction_rule.process_interaction(current_tile, target_tile, interaction_rule)
 				if not result.is_empty():
-					var merged_tile: GameTileData = result.get("merged_tile")
-					var consumed_tile: GameTileData = result.get("consumed_tile")
+					var merged_value: Variant = result.get("merged_tile")
+					var consumed_value: Variant = result.get("consumed_tile")
+					var merged_tile: GameTileData = null
+					var consumed_tile: GameTileData = null
+					if merged_value is GameTileData:
+						merged_tile = merged_value
+					if consumed_value is GameTileData:
+						consumed_tile = consumed_value
 
 					# 更新逻辑位置
 					if merged_tile == target_tile:

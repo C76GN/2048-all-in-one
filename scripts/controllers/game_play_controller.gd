@@ -3,7 +3,7 @@
 ## 负责加载 GameModeConfig，设置 RuleSystem，并协调核心组件之间的通信。
 ## 它作为撤回(Undo)、快照(Snapshot)和游戏回放(Replay)功能的总协调者。
 class_name GamePlayController
-extends GFController
+extends "res://addons/gf/kernel/base/gf_controller.gd"
 
 
 # --- 常量 ---
@@ -12,10 +12,13 @@ const _LOG_TAG: String = "GamePlayController"
 const _LEVEL_CLEANUP_ACTION_QUEUES: StringName = &"gameplay_action_queues"
 const _ROUTE_PAUSE_MENU: StringName = &"pause_menu"
 const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
+const _ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
+const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _BACKGROUND_SHADER_BASE_COLOR: StringName = &"base_color"
 const _BACKGROUND_SHADER_ACCENT_COLOR: StringName = &"accent_color"
 const _BACKGROUND_SHADER_SECONDARY_COLOR: StringName = &"secondary_color"
 const _BACKGROUND_SHADER_WARM_COLOR: StringName = &"warm_color"
+const _REPLAY_PROGRESS_FORMAT_FALLBACK: String = "回放进度: %d / %d"
 
 
 # --- 私有变量 ---
@@ -45,7 +48,7 @@ var _is_cleaned_up: bool = false
 
 @onready var game_board: GameBoardController = %GameBoard
 @onready var test_panel: VBoxContainer = %TestPanel
-@onready var _test_panel_controller: TestPanel = %TestPanel as TestPanel
+@onready var _test_panel_controller: TestPanel = _get_test_panel_controller()
 @onready var background_color_rect: ColorRect = %Background
 @onready var _page_title: Label = %PageTitle
 @onready var _hud_message_timer: Timer = %HUDMessageTimer
@@ -58,14 +61,14 @@ var _is_cleaned_up: bool = false
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	_game_status_model = get_model(GameStatusModel) as GameStatusModel
-	_current_game_model = get_model(CurrentGameModel) as CurrentGameModel
-	_game_flow_system = get_system(GameFlowSystem) as GameFlowSystem
-	_replay_system = get_system(ReplaySystem) as ReplaySystem
-	_level_utility = get_utility(GFLevelUtility) as GFLevelUtility
-	_signal_utility = get_utility(GFSignalUtility) as GFSignalUtility
-	_test_utility = get_utility(TestToolUtility) as TestToolUtility
-	_log = get_utility(GFLogUtility) as GFLogUtility
+	_game_status_model = _get_game_status_model()
+	_current_game_model = _get_current_game_model()
+	_game_flow_system = _get_game_flow_system()
+	_replay_system = _get_replay_system()
+	_level_utility = _get_level_utility()
+	_signal_utility = _get_signal_utility()
+	_test_utility = _get_test_utility()
+	_log = _get_log_utility()
 	_register_level_runtime_cleanup()
 	
 	if _page_title:
@@ -79,8 +82,8 @@ func _ready() -> void:
 	send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
 	_update_static_ui_text()
 	
-	var console: GFConsoleUtility = get_utility(GFConsoleUtility) as GFConsoleUtility
-	if Boot.are_dev_tools_enabled() and console:
+	var console: GFConsoleUtility = _get_console_utility()
+	if Boot.are_dev_tools_enabled() and is_instance_valid(console):
 		console.register_command("toggle_test_panel", _cmd_toggle_test_panel, "Toggle developer test panel.")
 
 
@@ -100,7 +103,7 @@ func _exit_tree() -> void:
 
 func _update_static_ui_text() -> void:
 	if is_instance_valid(replay_controls_container):
-		var label: Label = replay_controls_container.get_node_or_null("Label") as Label
+		var label: Label = _get_replay_controls_label()
 		if is_instance_valid(label):
 			label.text = tr("LABEL_REPLAY_CONTROLS")
 	if is_instance_valid(replay_step_hint_label):
@@ -116,8 +119,8 @@ func _cleanup_listeners() -> void:
 	
 	_unregister_level_runtime_cleanup()
 
-	var console: GFConsoleUtility = get_utility(GFConsoleUtility) as GFConsoleUtility
-	if console:
+	var console: GFConsoleUtility = _get_console_utility()
+	if is_instance_valid(console):
 		console.unregister_command("toggle_test_panel")
 	
 	_clear_action_queues()
@@ -129,6 +132,7 @@ func _cleanup_listeners() -> void:
 	unregister_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
 	unregister_simple_event(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
 	unregister_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
+	unregister_simple_event(EventNames.TARGET_REACHED, _on_target_reached)
 	unregister_event(HudMessagePayload, _on_show_hud_message_event)
 
 	if is_instance_valid(_signal_utility):
@@ -141,13 +145,13 @@ func _cleanup_listeners() -> void:
 
 	_level_utility = null
 	
-	if _log:
+	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "已清理 GF 事件监听和原生信号连接。")
 
 
 func _clear_action_queues() -> void:
 	if not is_instance_valid(_action_queue):
-		_action_queue = get_system(GFActionQueueSystem) as GFActionQueueSystem
+		_action_queue = _get_action_queue_system()
 
 	if is_instance_valid(_action_queue):
 		_action_queue.clear_queue(true)
@@ -190,6 +194,12 @@ func _disconnect_native_signal(source_signal: Signal, callback: Callable) -> voi
 		source_signal.disconnect(callback)
 
 
+func _is_replay_mode() -> bool:
+	if not is_instance_valid(_current_game_model):
+		return false
+	return GFVariantData.to_bool(_current_game_model.is_replay_mode.get_value(), false)
+
+
 ## 集中管理所有信号连接。
 func _connect_signals() -> void:
 	if is_instance_valid(_replay_system):
@@ -200,6 +210,7 @@ func _connect_signals() -> void:
 	register_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
 	register_simple_event(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
 	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
+	register_simple_event(EventNames.TARGET_REACHED, _on_target_reached)
 	register_event(HudMessagePayload, _on_show_hud_message_event)
 
 	_connect_native_signal(_hud_message_timer.timeout, _on_hud_message_timer_timeout)
@@ -210,7 +221,7 @@ func _configure_ui_for_mode() -> void:
 	if not is_instance_valid(_current_game_model):
 		return
 
-	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
+	var is_replay: bool = _is_replay_mode()
 	replay_controls_container.visible = is_replay
 
 	test_panel.visible = not is_replay and Boot.are_dev_tools_enabled()
@@ -229,7 +240,11 @@ func _update_replay_ui() -> void:
 	var current_step: int = _replay_system.get_current_step()
 	var total_steps: int = _replay_system.get_total_steps()
 	if is_instance_valid(replay_progress_label):
-		replay_progress_label.text = tr("LABEL_REPLAY_PROGRESS") % [current_step, total_steps]
+		replay_progress_label.text = _GAME_TEXT_FORMATTER.format_template(
+			tr("LABEL_REPLAY_PROGRESS"),
+			_REPLAY_PROGRESS_FORMAT_FALLBACK,
+			[current_step, total_steps]
+		)
 
 
 ## 在HUD上显示一条临时消息。
@@ -245,10 +260,10 @@ func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
 	if not Boot.are_dev_tools_enabled():
 		return
 
-	if is_instance_valid(test_panel) and not _current_game_model.is_replay_mode.get_value():
+	if is_instance_valid(test_panel) and not _is_replay_mode():
 		test_panel.visible = not test_panel.visible
-		var console: GFConsoleUtility = get_utility(GFConsoleUtility) as GFConsoleUtility
-		if console and test_panel.visible:
+		var console: GFConsoleUtility = _get_console_utility()
+		if is_instance_valid(console) and test_panel.visible:
 			var _command_executed: bool = console.execute_command("clear")
 			send_event(HudMessagePayload.new("测试面板已切换。", 2.0))
 
@@ -259,11 +274,11 @@ func _setup_test_tools_for_current_board() -> void:
 		or not is_instance_valid(_test_utility)
 		or not is_instance_valid(_current_game_model)
 		or not is_instance_valid(_test_panel_controller)
-		or _current_game_model.is_replay_mode.get_value()
+		or _is_replay_mode()
 	):
 		return
 
-	var grid_model: GridModel = get_model(GridModel) as GridModel
+	var grid_model: GridModel = _get_grid_model()
 	if is_instance_valid(grid_model):
 		_test_utility.setup_test_tools(_test_panel_controller, game_board)
 		_test_utility.initialize_panel(
@@ -281,8 +296,8 @@ func _apply_game_background_theme(theme: BoardTheme) -> void:
 		return
 
 	background_color_rect.color = theme.game_background_color
-	var shader_material: ShaderMaterial = background_color_rect.material as ShaderMaterial
-	if shader_material == null:
+	var shader_material: ShaderMaterial = _get_background_shader_material()
+	if not is_instance_valid(shader_material):
 		return
 
 	shader_material.set_shader_parameter(_BACKGROUND_SHADER_BASE_COLOR, theme.game_background_color)
@@ -294,6 +309,160 @@ func _apply_game_background_theme(theme: BoardTheme) -> void:
 	shader_material.set_shader_parameter(_BACKGROUND_SHADER_WARM_COLOR, Color(0.560, 0.390, 0.180, 1.0))
 
 
+func _get_game_status_model() -> GameStatusModel:
+	var model_value: Object = get_model(GameStatusModel)
+	if model_value is GameStatusModel:
+		var status_model: GameStatusModel = model_value
+		return status_model
+	return null
+
+
+func _get_current_game_model() -> CurrentGameModel:
+	var model_value: Object = get_model(CurrentGameModel)
+	if model_value is CurrentGameModel:
+		var current_model: CurrentGameModel = model_value
+		return current_model
+	return null
+
+
+func _get_grid_model() -> GridModel:
+	var model_value: Object = get_model(GridModel)
+	if model_value is GridModel:
+		var grid_model: GridModel = model_value
+		return grid_model
+	return null
+
+
+func _get_game_flow_system() -> GameFlowSystem:
+	var system_value: Object = get_system(GameFlowSystem)
+	if system_value is GameFlowSystem:
+		var game_flow: GameFlowSystem = system_value
+		return game_flow
+	return null
+
+
+func _get_replay_system() -> ReplaySystem:
+	var system_value: Object = get_system(ReplaySystem)
+	if system_value is ReplaySystem:
+		var replay_system: ReplaySystem = system_value
+		return replay_system
+	return null
+
+
+func _get_action_queue_system() -> GFActionQueueSystem:
+	var system_value: Object = get_system(GFActionQueueSystem)
+	if system_value is GFActionQueueSystem:
+		var action_queue: GFActionQueueSystem = system_value
+		return action_queue
+	return null
+
+
+func _get_game_state_system() -> GameStateSystem:
+	var system_value: Object = get_system(GameStateSystem)
+	if system_value is GameStateSystem:
+		var game_state: GameStateSystem = system_value
+		return game_state
+	return null
+
+
+func _get_level_utility() -> GFLevelUtility:
+	var utility_value: Object = get_utility(GFLevelUtility)
+	if utility_value is GFLevelUtility:
+		var level_utility: GFLevelUtility = utility_value
+		return level_utility
+	return null
+
+
+func _get_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
+	return null
+
+
+func _get_test_utility() -> TestToolUtility:
+	var utility_value: Object = get_utility(TestToolUtility)
+	if utility_value is TestToolUtility:
+		var test_utility: TestToolUtility = utility_value
+		return test_utility
+	return null
+
+
+func _get_log_utility() -> GFLogUtility:
+	var utility_value: Object = get_utility(GFLogUtility)
+	if utility_value is GFLogUtility:
+		var log_utility: GFLogUtility = utility_value
+		return log_utility
+	return null
+
+
+func _get_console_utility() -> GFConsoleUtility:
+	var utility_value: Object = get_utility(GFConsoleUtility)
+	if utility_value is GFConsoleUtility:
+		var console: GFConsoleUtility = utility_value
+		return console
+	return null
+
+
+func _get_command_history_utility() -> GFCommandHistoryUtility:
+	var utility_value: Object = get_utility(GFCommandHistoryUtility)
+	if utility_value is GFCommandHistoryUtility:
+		var command_history: GFCommandHistoryUtility = utility_value
+		return command_history
+	return null
+
+
+func _get_ui_router_utility() -> GFUIRouterUtility:
+	var utility_value: Object = get_utility(GFUIRouterUtility)
+	if utility_value is GFUIRouterUtility:
+		var ui_router: GFUIRouterUtility = utility_value
+		return ui_router
+	return null
+
+
+func _get_ui_utility() -> GFUIUtility:
+	var utility_value: Object = get_utility(GFUIUtility)
+	if utility_value is GFUIUtility:
+		var ui_utility: GFUIUtility = utility_value
+		return ui_utility
+	return null
+
+
+func _get_replay_controls_label() -> Label:
+	if not is_instance_valid(replay_controls_container):
+		return null
+
+	var node_value: Node = replay_controls_container.get_node_or_null("Label")
+	if node_value is Label:
+		var label: Label = node_value
+		return label
+	return null
+
+
+func _get_test_panel_controller() -> TestPanel:
+	if test_panel is TestPanel:
+		var panel: TestPanel = test_panel
+		return panel
+
+	var node_value: Node = get_node_or_null("%TestPanel")
+	if node_value is TestPanel:
+		var panel: TestPanel = node_value
+		return panel
+	return null
+
+
+func _get_background_shader_material() -> ShaderMaterial:
+	if not is_instance_valid(background_color_rect):
+		return null
+
+	var material_value: Material = background_color_rect.material
+	if material_value is ShaderMaterial:
+		var shader_material: ShaderMaterial = material_value
+		return shader_material
+	return null
+
+
 # --- 信号处理函数 ---
 
 func _on_scene_will_change(_payload: Variant = null) -> void:
@@ -301,18 +470,18 @@ func _on_scene_will_change(_payload: Variant = null) -> void:
 
 
 func _on_game_ready_data_received(data: GameReadyData) -> void:
-	if not _command_history:
-		_command_history = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	if not is_instance_valid(_command_history):
+		_command_history = _get_command_history_utility()
 		
-	if not _action_queue:
-		_action_queue = get_system(GFActionQueueSystem) as GFActionQueueSystem
+	if not is_instance_valid(_action_queue):
+		_action_queue = _get_action_queue_system()
 	
 	if not is_instance_valid(_level_utility):
 		_clear_action_queues()
 			
 	_loaded_bookmark_data = data.loaded_bookmark_data
 	
-	if _current_game_model.is_replay_mode.get_value() and is_instance_valid(_replay_system):
+	if _is_replay_mode() and is_instance_valid(_replay_system):
 		_replay_system.activate_replay_mode(data.replay_data_resource)
 	elif is_instance_valid(_replay_system):
 		_replay_system.deactivate_replay_mode()
@@ -341,18 +510,18 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 			_game_flow_system.sync_bookmark_baseline_state()
 	else:
 		if is_instance_valid(_game_flow_system):
-			if _log:
+			if is_instance_valid(_log):
 				_log.debug(_LOG_TAG, "触发初始棋盘规则。")
 			_game_flow_system.trigger_initial_rules()
 
-	var is_replay: bool = _current_game_model.is_replay_mode.get_value()
+	var is_replay: bool = _is_replay_mode()
 	if not is_replay:
 		_setup_test_tools_for_current_board()
 	
-	if not is_instance_valid(_loaded_bookmark_data) and _command_history:
+	if not is_instance_valid(_loaded_bookmark_data) and is_instance_valid(_command_history):
 		var init_cmd: MoveCommand = MoveCommand.new(Vector2i.ZERO)
 		init_cmd.mark_as_baseline()
-		var game_state_system: GameStateSystem = get_system(GameStateSystem) as GameStateSystem
+		var game_state_system: GameStateSystem = _get_game_state_system()
 		if is_instance_valid(game_state_system):
 			init_cmd.set_snapshot(game_state_system.get_full_game_state(data.current_grid_size))
 		_command_history.record(init_cmd)
@@ -371,16 +540,16 @@ func _on_toggle_pause_ui(_payload: Variant = null) -> void:
 	var tree: SceneTree = get_tree()
 	if tree.paused:
 		# 恢复游戏：弹出暂停菜单
-		var ui_router: GFUIRouterUtility = get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		var ui_router: GFUIRouterUtility = _get_ui_router_utility()
 		if not is_instance_valid(ui_router) or not ui_router.back(GFUIUtility.Layer.POPUP):
-			var ui_util: GFUIUtility = get_utility(GFUIUtility) as GFUIUtility
-			if ui_util:
+			var ui_util: GFUIUtility = _get_ui_utility()
+			if is_instance_valid(ui_util):
 				ui_util.pop_panel()
 		tree.paused = false
 	else:
 		# 暂停游戏：弹出暂停菜单
 		tree.paused = true
-		var ui_router: GFUIRouterUtility = get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		var ui_router: GFUIRouterUtility = _get_ui_router_utility()
 		if is_instance_valid(ui_router):
 			var _pause_panel: Node = ui_router.push_route(_ROUTE_PAUSE_MENU)
 		else:
@@ -405,17 +574,32 @@ func _on_replay_continued_as_game(_payload: Variant = null) -> void:
 	_configure_ui_for_mode()
 
 
+func _on_target_reached(_payload: Variant = null) -> void:
+	if _is_replay_mode():
+		return
+
+	var tree: SceneTree = get_tree()
+	if is_instance_valid(tree):
+		tree.paused = true
+
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	if is_instance_valid(ui_router):
+		var _target_panel: Node = ui_router.push_route(_ROUTE_TARGET_REACHED_MENU)
+	else:
+		push_warning("[GamePlayController] GFUIRouterUtility 未注册，无法打开目标达成菜单。")
+
+
 func _on_hud_message_timer_timeout() -> void:
 	if is_instance_valid(_game_status_model):
 		_game_status_model.status_message.set_value("")
 
 
 func _on_game_state_changed(new_state: StringName) -> void:
-	if is_instance_valid(_current_game_model) and _current_game_model.is_replay_mode.get_value():
+	if _is_replay_mode():
 		return
 
 	if new_state == EventNames.STATE_GAME_OVER:
-		var ui_router: GFUIRouterUtility = get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		var ui_router: GFUIRouterUtility = _get_ui_router_utility()
 		if is_instance_valid(ui_router):
 			var _game_over_panel: Node = ui_router.push_route(_ROUTE_GAME_OVER_MENU)
 		else:

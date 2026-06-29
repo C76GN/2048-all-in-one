@@ -13,6 +13,11 @@ extends BaseListMenuItem
 signal bookmark_selected(bookmark_data: BookmarkData)
 
 
+# --- 常量 ---
+
+const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
+const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
+
 
 # --- @onready 变量 (节点引用) ---
 
@@ -31,13 +36,15 @@ func setup(bookmark_data: BookmarkData) -> void:
 
 ## 获取关联的 BookmarkData。
 func get_bookmark_data() -> BookmarkData:
-	return _item_data as BookmarkData
+	if _item_data is BookmarkData:
+		return _item_data
+	return null
 
 
 # --- 虚方法重写 ---
 
 func _update_display() -> void:
-	var bookmark_data: BookmarkData = _item_data as BookmarkData
+	var bookmark_data: BookmarkData = get_bookmark_data()
 	if not is_instance_valid(bookmark_data):
 		return
 
@@ -61,19 +68,24 @@ func _update_display() -> void:
 
 	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
 	var size_label: String = tr("SIZE_LABEL")
-	var info_format: String = tr("BOOKMARK_INFO_FORMAT")
-	_info_label.text = info_format % [
-		datetime,
-		score_label,
-		bookmark_data.score,
-		size_label,
-		grid_size,
-		grid_size
-	]
+	_info_label.text = _GAME_TEXT_FORMATTER.format_template(
+		tr("BOOKMARK_INFO_FORMAT"),
+		_INFO_FORMAT_FALLBACK,
+		[
+			datetime,
+			score_label,
+			bookmark_data.score,
+			size_label,
+			grid_size,
+			grid_size,
+		]
+	)
 
 
 # --- 信号处理函数 ---
 
 func _on_pressed() -> void:
 	super._on_pressed()
-	bookmark_selected.emit(_item_data as BookmarkData)
+	var bookmark_data: BookmarkData = get_bookmark_data()
+	if is_instance_valid(bookmark_data):
+		bookmark_selected.emit(bookmark_data)

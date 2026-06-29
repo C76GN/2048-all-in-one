@@ -38,19 +38,19 @@ var _form_binder: GFFormBinder
 @onready var _back_button: Button = %BackButton
 
 ## 语言选项标签。
-@onready var _language_label: Label = _language_option.get_parent().get_node("Label")
+@onready var _language_label: Label = _get_sibling_label(_language_option)
 
 ## 窗口模式标签。
-@onready var _window_mode_label: Label = _window_mode_option.get_parent().get_node("Label")
+@onready var _window_mode_label: Label = _get_sibling_label(_window_mode_option)
 
 ## 垂直同步标签。
-@onready var _vsync_label: Label = _vsync_option.get_parent().get_node("Label")
+@onready var _vsync_label: Label = _get_sibling_label(_vsync_option)
 
 ## 主音量标签。
-@onready var _master_volume_label: Label = _master_volume_slider.get_parent().get_node("Label")
+@onready var _master_volume_label: Label = _get_sibling_label(_master_volume_slider)
 
 ## 操作面板标题标签。
-@onready var _controls_header_label: Label = _back_button.get_parent().get_node("Label")
+@onready var _controls_header_label: Label = _get_sibling_label(_back_button)
 
 
 # --- Godot 生命周期方法 ---
@@ -82,6 +82,21 @@ func _setup_setting_options() -> void:
 	_setup_language_options()
 	_setup_window_mode_options()
 	_setup_vsync_options()
+
+
+func _get_sibling_label(control: Control) -> Label:
+	if not is_instance_valid(control):
+		return null
+
+	var parent: Node = control.get_parent()
+	if not is_instance_valid(parent):
+		return null
+
+	var label_node: Node = parent.get_node_or_null("Label")
+	if label_node is Label:
+		var label: Label = label_node
+		return label
+	return null
 
 
 func _setup_language_options() -> void:
@@ -137,11 +152,11 @@ func _sync_controls_from_settings() -> void:
 
 
 func _get_current_locale() -> String:
-	var save_system: SaveSystem = get_system(SaveSystem) as SaveSystem
+	var save_system: SaveSystem = _get_save_system()
 	if is_instance_valid(save_system):
 		return save_system.get_language()
 
-	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
 	if is_instance_valid(display_settings):
 		return display_settings.get_locale()
 
@@ -149,7 +164,7 @@ func _get_current_locale() -> String:
 
 
 func _get_current_window_mode() -> DisplayServer.WindowMode:
-	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
 	if is_instance_valid(display_settings):
 		return display_settings.get_window_mode()
 
@@ -157,7 +172,7 @@ func _get_current_window_mode() -> DisplayServer.WindowMode:
 
 
 func _get_current_vsync_mode() -> DisplayServer.VSyncMode:
-	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
 	if is_instance_valid(display_settings):
 		return display_settings.get_vsync_mode()
 
@@ -165,7 +180,7 @@ func _get_current_vsync_mode() -> DisplayServer.VSyncMode:
 
 
 func _get_current_master_volume() -> float:
-	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
 	if is_instance_valid(display_settings):
 		return display_settings.get_audio_bus_volume(_AUDIO_BUS_MASTER, 1.0)
 
@@ -245,7 +260,7 @@ func _update_ui_text() -> void:
 
 func _apply_locale(index: int) -> void:
 	var locale: String = _get_locale_for_index(index)
-	var save_system: SaveSystem = get_system(SaveSystem) as SaveSystem
+	var save_system: SaveSystem = _get_save_system()
 	if is_instance_valid(save_system):
 		save_system.set_language(locale)
 
@@ -254,22 +269,62 @@ func _apply_locale(index: int) -> void:
 
 
 func _apply_window_mode(index: int) -> void:
-	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
 	if is_instance_valid(display_settings):
 		display_settings.set_window_mode(_get_window_mode_for_index(index))
 
 
 func _apply_vsync_mode(index: int) -> void:
-	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
 	if is_instance_valid(display_settings):
 		display_settings.set_vsync_mode(_get_vsync_mode_for_index(index))
 
 
 func _apply_master_volume(value: float) -> void:
-	var display_settings: GFDisplaySettingsUtility = get_utility(GFDisplaySettingsUtility) as GFDisplaySettingsUtility
+	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
 	if is_instance_valid(display_settings):
 		display_settings.set_audio_bus_volume(_AUDIO_BUS_MASTER, value)
 	_update_volume_value_label(value)
+
+
+func _get_save_system() -> SaveSystem:
+	var system_value: Object = get_system(SaveSystem)
+	if system_value is SaveSystem:
+		var save_system: SaveSystem = system_value
+		return save_system
+	return null
+
+
+func _get_display_settings_utility() -> GFDisplaySettingsUtility:
+	var utility_value: Object = get_utility(GFDisplaySettingsUtility)
+	if utility_value is GFDisplaySettingsUtility:
+		var display_settings: GFDisplaySettingsUtility = utility_value
+		return display_settings
+	return null
+
+
+func _get_ui_router_utility() -> GFUIRouterUtility:
+	var utility_value: Object = get_utility(GFUIRouterUtility)
+	if utility_value is GFUIRouterUtility:
+		var ui_router: GFUIRouterUtility = utility_value
+		return ui_router
+	return null
+
+
+func _get_ui_utility() -> GFUIUtility:
+	var utility_value: Object = get_utility(GFUIUtility)
+	if utility_value is GFUIUtility:
+		var ui_utility: GFUIUtility = utility_value
+		return ui_utility
+	return null
+
+
+func _get_scene_router_system() -> SceneRouterSystem:
+	var system_value: Object = get_system(SceneRouterSystem)
+	if system_value is SceneRouterSystem:
+		var scene_router: SceneRouterSystem = system_value
+		return scene_router
+	return null
 
 
 static func _to_window_mode(value: int) -> DisplayServer.WindowMode:
@@ -314,13 +369,13 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 
 func _on_back_button_pressed() -> void:
 	if not return_to_main_menu_on_back:
-		var ui_router: GFUIRouterUtility = get_utility(GFUIRouterUtility) as GFUIRouterUtility
+		var ui_router: GFUIRouterUtility = _get_ui_router_utility()
 		if not is_instance_valid(ui_router) or not ui_router.back(GFUIUtility.Layer.POPUP):
-			var ui_util: GFUIUtility = get_utility(GFUIUtility) as GFUIUtility
-			if ui_util:
+			var ui_util: GFUIUtility = _get_ui_utility()
+			if is_instance_valid(ui_util):
 				ui_util.pop_panel()
 		return
 
-	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
-	if router:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
 		router.return_to_main_menu()

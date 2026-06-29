@@ -21,12 +21,12 @@ font_color = Color(0.050980393, 0.2784314, 0.6313726, 1)
 [sub_resource type="Resource" id="Resource_j2yau"]
 script = ExtResource("2_5t5s8")
 background_color = Color(0.39215687, 0.70980394, 0.9647059, 1)
-font_color = Color(1, 1, 1, 1)
+font_color = Color(0.050980393, 0.2784314, 0.6313726, 1)
 
 [sub_resource type="Resource" id="Resource_s5ie8"]
 script = ExtResource("2_5t5s8")
 background_color = Color(0.25882354, 0.64705884, 0.9607843, 1)
-font_color = Color(1, 1, 1, 1)
+font_color = Color(0.050980393, 0.2784314, 0.6313726, 1)
 
 [sub_resource type="Resource" id="Resource_75gh3"]
 script = ExtResource("2_5t5s8")

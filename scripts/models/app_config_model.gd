@@ -3,7 +3,7 @@
 ## 负责管理应用级别的全局配置与游戏启动状态，
 ## 用于跨场景传递数据（如选定的游戏模式、棋盘大小、待加载的书签或回放数据）。
 class_name AppConfigModel
-extends GFModel
+extends "res://addons/gf/kernel/base/gf_model.gd"
 
 
 # --- 公共变量 (使用 GFBindableProperty 包装) ---

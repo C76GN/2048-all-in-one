@@ -30,8 +30,8 @@ var _delete_button: Button
 # --- @onready 变量 (节点引用) ---
 
 @onready var items_container: VBoxContainer = %ReplayItemsContainer
-@onready var board_preview_node: BoardPreview = find_child("BoardPreview", true, false)
-@onready var detail_info_label: RichTextLabel = find_child("DetailInfoLabel", true, false)
+@onready var board_preview_node: BoardPreview = _find_board_preview_node()
+@onready var detail_info_label: RichTextLabel = _find_detail_info_label()
 @onready var back_button: Button = %BackButton
 @onready var page_title: Label = %PageTitle
 
@@ -111,13 +111,29 @@ func _setup_base_signals() -> void:
 		var _connect_result_111: int = _delete_button.pressed.connect(_on_delete_button_pressed)
 
 
+func _find_board_preview_node() -> BoardPreview:
+	var node_value: Node = find_child("BoardPreview", true, false)
+	if node_value is BoardPreview:
+		var board_preview: BoardPreview = node_value
+		return board_preview
+	return null
+
+
+func _find_detail_info_label() -> RichTextLabel:
+	var node_value: Node = find_child("DetailInfoLabel", true, false)
+	if node_value is RichTextLabel:
+		var detail_label: RichTextLabel = node_value
+		return detail_label
+	return null
+
+
 ## 重新填充列表内容。
 func _populate_list() -> void:
 	if not _item_scene:
 		push_error("[BaseListMenu] _item_scene 未在子类中初始化。")
 		return
 
-	var pool: GFObjectPoolUtility = get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
+	var pool: GFObjectPoolUtility = _get_object_pool_utility()
 
 	for child: Node in items_container.get_children():
 		if child is Label:
@@ -145,14 +161,9 @@ func _populate_list() -> void:
 
 	var items: Array[Control] = []
 	for data: Resource in data_list:
-		var item: Control
-		if pool:
-			item = pool.acquire(_item_scene, items_container) as Control
-			item.visible = true
-			items_container.move_child(item, -1)
-		else:
-			item = _item_scene.instantiate() as Control
-			items_container.add_child(item)
+		var item: Control = _create_list_item_control(pool)
+		if not is_instance_valid(item):
+			continue
 		
 		# 调用子类提供的设置逻辑
 		_setup_item(item, data)
@@ -170,6 +181,8 @@ func _populate_list() -> void:
 		items[0].grab_focus()
 		_set_selected_item(data_list[0])
 		_bind_and_reveal_list_items()
+	else:
+		_handle_empty_list()
 
 
 ## 处理列表为空的情况。
@@ -233,14 +246,57 @@ func _update_action_buttons() -> void:
 
 
 func _bind_and_reveal_list_items() -> void:
-	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
+	var motion_utility: GameUiMotionUtility = _get_game_ui_motion_utility()
 	if not is_instance_valid(motion_utility):
 		return
 
-	if motion_utility.has_method("bind_interactive_controls"):
-		var _bound_count: int = motion_utility.bind_interactive_controls(items_container)
-	if motion_utility.has_method("play_children_reveal"):
-		var _reveal_count: int = motion_utility.play_children_reveal(items_container, _LIST_REVEAL_OFFSET, _LIST_REVEAL_STAGGER)
+	var _bound_count: int = motion_utility.bind_interactive_controls(items_container)
+	var _reveal_count: int = motion_utility.play_children_reveal(items_container, _LIST_REVEAL_OFFSET, _LIST_REVEAL_STAGGER)
+
+
+func _get_object_pool_utility() -> GFObjectPoolUtility:
+	var pool_value: Object = get_utility(GFObjectPoolUtility)
+	if pool_value is GFObjectPoolUtility:
+		var pool_utility: GFObjectPoolUtility = pool_value
+		return pool_utility
+	return null
+
+
+func _get_game_ui_motion_utility() -> GameUiMotionUtility:
+	var motion_value: Object = _get_ui_motion_utility()
+	if motion_value is GameUiMotionUtility:
+		var motion_utility: GameUiMotionUtility = motion_value
+		return motion_utility
+	return null
+
+
+func _get_scene_router_system() -> SceneRouterSystem:
+	var system_value: Object = get_system(SceneRouterSystem)
+	if system_value is SceneRouterSystem:
+		var scene_router: SceneRouterSystem = system_value
+		return scene_router
+	return null
+
+
+func _create_list_item_control(pool: GFObjectPoolUtility) -> Control:
+	var item_node: Node = null
+	if is_instance_valid(pool):
+		item_node = pool.acquire(_item_scene, items_container)
+	else:
+		item_node = _item_scene.instantiate()
+		if is_instance_valid(item_node):
+			items_container.add_child(item_node)
+
+	if item_node is Control:
+		var item_control: Control = item_node
+		item_control.visible = true
+		items_container.move_child(item_control, -1)
+		return item_control
+
+	if is_instance_valid(item_node):
+		push_error("[BaseListMenu] 列表项场景必须实例化为 Control。")
+		item_node.queue_free()
+	return null
 
 
 ## 清空预览区域。
@@ -276,6 +332,6 @@ func _on_delete_button_pressed() -> void:
 
 
 func _on_back_button_pressed() -> void:
-	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
-	if router:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
 		router.return_to_main_menu()

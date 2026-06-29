@@ -45,6 +45,10 @@ extends Resource
 ## 此模式支持的最大棋盘大小。
 @export var max_grid_size: int = 8
 
+@export_group("目标配置")
+## 本模式用于统计目标达成的玩家方块值；为 0 表示暂不定义目标。
+@export var target_tile_value: int = 0
+
 
 # --- 公共方法 ---
 
@@ -71,7 +75,7 @@ func get_validation_report() -> GFValidationReport:
 			"mode_name": mode_name,
 			"resource_path": resource_path,
 		}
-	) as GFValidationReport
+	)
 
 	if not is_instance_valid(interaction_rule):
 		_add_config_error(report, &"missing_interaction_rule", "interaction_rule 未配置。", &"interaction_rule")
@@ -116,7 +120,21 @@ func get_validation_report() -> GFValidationReport:
 			&"default_grid_size"
 		)
 
+	if target_tile_value < 0:
+		_add_config_error(report, &"invalid_target_tile_value", "target_tile_value 不能小于 0。", &"target_tile_value")
+
 	return report
+
+
+## 当前模式是否定义了可统计的目标。
+func has_target() -> bool:
+	return target_tile_value > 0
+
+
+## 根据当前最大玩家方块判断是否达成目标。
+## @param max_player_tile: 本局达到的最大玩家方块值。
+func is_target_reached(max_player_tile: int) -> bool:
+	return has_target() and max_player_tile >= target_tile_value
 
 
 # --- 私有/辅助方法 ---

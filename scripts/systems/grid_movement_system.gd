@@ -3,7 +3,7 @@
 ## 该系统监听来自输入层或控制器的移动命令/事件，并执行滑动和合并算法。
 ## 执行结果将更新 `GridModel` 并可能触发 `board_changed` 等级事件。
 class_name GridMovementSystem
-extends GFSystem
+extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
 # --- 常量 ---
@@ -21,8 +21,8 @@ var _log: GFLogUtility
 
 ## 从架构获取必要的层级引用。
 func ready() -> void:
-	_grid_model = get_model(GridModel) as GridModel
-	_log = get_utility(GFLogUtility) as GFLogUtility
+	_grid_model = _get_grid_model()
+	_log = _get_log_utility()
 
 
 func dispose() -> void:
@@ -44,7 +44,7 @@ func handle_move(direction: Vector2i) -> MoveData:
 	var interaction_rule: InteractionRule = _grid_model.interaction_rule
 	var movement_rule: MovementRule = _grid_model.movement_rule
 	
-	if not interaction_rule or not movement_rule:
+	if not is_instance_valid(interaction_rule) or not is_instance_valid(movement_rule):
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GridModel 缺少交互规则或移动规则。")
 		return null
@@ -127,7 +127,7 @@ func handle_move(direction: Vector2i) -> MoveData:
 		# 记录移动指令 (用于动画)
 		var tiles_in_new_line_ids: Array = []
 		for tile_data: GameTileData in new_line:
-			if tile_data:
+			if tile_data != null:
 				tiles_in_new_line_ids.append(tile_data.get_instance_id())
 
 		for j: int in range(grid_size):
@@ -181,6 +181,22 @@ func handle_move(direction: Vector2i) -> MoveData:
 
 
 # --- 辅助方法 ---
+
+func _get_grid_model() -> GridModel:
+	var model_value: Object = get_model(GridModel)
+	if model_value is GridModel:
+		var grid_model: GridModel = model_value
+		return grid_model
+	return null
+
+
+func _get_log_utility() -> GFLogUtility:
+	var utility_value: Object = get_utility(GFLogUtility)
+	if utility_value is GFLogUtility:
+		var log_utility: GFLogUtility = utility_value
+		return log_utility
+	return null
+
 
 func _build_reverse_target_map(instructions: Array) -> Dictionary:
 	var reverse_target_map: Dictionary = {}

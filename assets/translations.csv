@@ -13,14 +13,17 @@ MOVE_COUNT_LABEL,移动次数: %d,Moves: %d
 STEP_INFO_FORMAT,步骤: %d / %d,Step: %d / %d
 CONTROLS_TITLE,操作,Controls
 CONTROLS_MOVE_HINT,移动: W/A/S/D 或 方向键,Move: W/A/S/D or Arrows
-CONTROLS_ACTION_HINT,撤回: Z | 保存: B | 暂停: Esc,Undo: Z | Save: B | Pause: Esc
+CONTROLS_ACTION_HINT,撤回: Z | 重做: Y | 保存: B | 暂停: Esc,Undo: Z | Redo: Y | Save: B | Pause: Esc
 SEED_INFO_LABEL,游戏种子: %d,Seed: %d
 DEBUG_TAINT_WARNING,[color=orange]警告: 调试工具已使用，回放将被禁用。[/color],[color=orange]Warning: Debug tools used. Replay disabled.[/color]
 UNDO_FAIL_MSG,[color=yellow]无法撤回: 已在最初状态。[/color],[color=yellow]Undo failed: At initial state.[/color]
+REDO_FAIL_MSG,[color=yellow]无法重做: 没有可恢复的步骤。[/color],[color=yellow]Redo failed: No step to restore.[/color]
+MOVE_FAIL_MSG,[color=yellow]这个方向无法移动。[/color],[color=yellow]No move available in that direction.[/color]
 SNAPSHOT_TAINT_WARN,[color=orange]警告: 正在保存一个被调试工具修改过的状态！[/color],[color=orange]Warning: Saving a tainted state![/color]
 SNAPSHOT_NO_CHANGE,[color=yellow]游戏状态未变，无需重复保存。[/color],[color=yellow]State unchanged. Save skipped.[/color]
 SNAPSHOT_SAVED_SUCCESS,[color=green]书签已保存！[/color],[color=green]Bookmark Saved![/color]
 REPLAY_CONTINUE_SUCCESS,[color=green]已从当前回放进度继续游戏。[/color],[color=green]Continued from the current replay step.[/color]
+TARGET_REACHED_MESSAGE,[color=green]已达成目标 %d！可以继续挑战更高方块。[/color],[color=green]Target %d reached! Keep going for a higher tile.[/color]
 SIZE_LABEL,尺寸,Size
 SETTINGS_TITLE,设置,Settings
 LANGUAGE_LABEL,语言,Language
@@ -42,6 +45,9 @@ UI_NEXT_PAGE,下一页,Next
 UI_UNKNOWN,未知,Unknown
 UI_ERROR,错误,Error
 UI_LOADING,加载中...,Loading...
+UI_NONE,无,None
+UI_TARGET_REACHED,已达成,Reached
+UI_TARGET_NOT_REACHED,未达成,Not Reached
 MSG_NO_BOOKMARKS,没有找到任何书签记录。,No bookmarks found.
 MSG_NO_REPLAYS,没有找到任何回放记录。,No replays found.
 MSG_NO_DATA,暂无数据。,No data.
@@ -59,8 +65,27 @@ HINT_SEED_PLACEHOLDER,留空则随机,Empty for random
 BTN_START_GAME,开始游戏,Start Game
 BTN_LOAD_BOOKMARK,读取书签（存档）,Load Bookmark
 BTN_REFRESH_SEED,点击以生成新的随机种子,Generate new seed
-DESC_SELECT_MODE_PREFIX,选择 ,Select 
+DESC_SELECT_MODE_PREFIX,"选择 ","Select "
 INFO_HIGH_SCORE_AT_SIZE,在 %dx%d 尺寸下的最高分：%d,High Score at %dx%d: %d
+INFO_MODE_STATS_EMPTY,"在 %dx%d 尺寸下的最高分：%d
+暂无完整对局统计","High Score at %dx%d: %d
+No completed runs yet"
+INFO_MODE_STATS_SUMMARY,"在 %dx%d 尺寸下的最高分：%d
+游玩 %d 局 · 最佳步数 %s · 最大方块 %s
+平均：%s 分 · %s 步
+最近一局：%d 分 · %s 步","High Score at %dx%d: %d
+Played %d · Best Moves %s · Max Tile %s
+Average: %s pts · %s moves
+Last Run: %d pts · %s moves"
+INFO_MODE_STATS_SUMMARY_WITH_TARGET,"在 %dx%d 尺寸下的最高分：%d
+游玩 %d 局 · 最佳步数 %s · 最大方块 %s
+目标 %d：达成 %d 次 · %d%%
+平均：%s 分 · %s 步
+最近一局：%d 分 · %s 步","High Score at %dx%d: %d
+Played %d · Best Moves %s · Max Tile %s
+Target %d: %d reached · %d%%
+Average: %s pts · %s moves
+Last Run: %d pts · %s moves"
 BTN_QUIT,退出,Quit
 MODE_CLASSIC_NAME,经典模式,Classic Mode
 MODE_CLASSIC_DESC,"玩法说明:
@@ -99,8 +124,39 @@ MODE_BATTLE_DESC,"玩法说明:
 Player and Monster tiles can attack each other.
 Monsters spawn with a low chance after moves. The chance increases after each failed spawn."
 TITLE_GAME_OVER,游戏结束,Game Over
+TITLE_TARGET_REACHED,目标达成,Target Reached
+TARGET_REACHED_PANEL_MESSAGE,"你已经达成本局目标。可以继续挑战更高方块，也可以重新开始或返回主界面。","You reached this run's target. Keep pushing for a higher tile, restart, or return to the main menu."
+TARGET_REACHED_SUMMARY_LOADING,正在整理目标摘要...,Preparing target summary...
+TARGET_REACHED_SUMMARY_UNAVAILABLE,暂无目标摘要,Target summary unavailable
+TARGET_REACHED_SUMMARY_FORMAT,"目标 %d 已完成
+当前：%d 分 · %d 步 · 最大方块 %d","Target %d reached
+Run: %d pts · %d moves · Max %d"
+GAME_OVER_SUMMARY_LOADING,正在整理结算...,Preparing summary...
+GAME_OVER_SUMMARY_UNAVAILABLE,暂无结算数据,Summary unavailable
+GAME_OVER_NEW_RECORD_PREFIX,新纪录！,New Record!
+GAME_OVER_SUMMARY_FORMAT,"%s · %dx%d
+本局：%d 分 · %d 步 · 最大方块 %d
+历史：最高分 %d · 最佳步数 %s · 最大方块 %s
+平均：%s 分 · %s 步
+完整对局：%d","%s · %dx%d
+Run: %d pts · %d moves · Max %d
+Best: %d pts · %s moves · Max %s
+Average: %s pts · %s moves
+Completed: %d"
+GAME_OVER_SUMMARY_FORMAT_WITH_TARGET,"%s · %dx%d
+本局：%d 分 · %d 步 · 最大方块 %d
+历史：最高分 %d · 最佳步数 %s · 最大方块 %s
+平均：%s 分 · %s 步
+目标 %d：本局%s · 累计 %d 次 · %d%%
+完整对局：%d","%s · %dx%d
+Run: %d pts · %d moves · Max %d
+Best: %d pts · %s moves · Max %s
+Average: %s pts · %s moves
+Target %d: %s · %d reached · %d%%
+Completed: %d"
 TITLE_PAUSE,暂停,Paused
 BTN_RESUME,继续游戏,Resume
+BTN_CONTINUE_CHALLENGE,继续挑战,Keep Going
 BTN_RESTART,重新开始,Restart
 BTN_SETTINGS,设置,Settings
 BTN_MAIN_MENU,返回主界面,Main Menu

@@ -1,6 +1,6 @@
-[gd_scene load_steps=0 format=3 uid="uid://b8yak2m1q3w5"]
+[gd_scene format=3 uid="uid://b8yak2m1q3w5"]
 
-[node name="FlowItemLabel" type="Label"]
+[node name="FlowItemLabel" type="Label" unique_id=303779070]
 offset_right = 40.0
 offset_bottom = 23.0
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.5)

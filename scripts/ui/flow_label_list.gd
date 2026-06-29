@@ -43,11 +43,7 @@ func update_data(data: Array) -> void:
 
 	# 确保标签池中有足够数量的Label节点
 	while _label_pool.size() < data.size():
-		var new_label: Label
-		if is_instance_valid(label_scene):
-			new_label = label_scene.instantiate() as Label
-		else:
-			new_label = Label.new() # 后备方案
+		var new_label: Label = _create_label()
 
 		new_label.add_theme_font_size_override("font_size", base_font_size)
 		add_child(new_label)
@@ -69,6 +65,18 @@ func update_data(data: Array) -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _create_label() -> Label:
+	if is_instance_valid(label_scene):
+		var instance: Node = label_scene.instantiate()
+		if instance is Label:
+			var label: Label = instance
+			return label
+		if is_instance_valid(instance):
+			instance.queue_free()
+
+	return Label.new()
+
 
 ## 重新计算并应用所有可见标签的位置，实现流式布局和自动换行。
 func _recalculate_layout() -> void:

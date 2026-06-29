@@ -3,7 +3,7 @@
 ## 统一处理“保存到目录、按时间戳加载、写回文件路径、删除文件”这类持久化流程。
 ## 适用于书签、回放等数量不固定的项目资源集合，避免各 System 重复存储细节。
 class_name SavedResourceCollectionUtility
-extends GFUtility
+extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 
 # --- 常量 ---
@@ -19,7 +19,7 @@ var _storage: GFStorageUtility = null
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
-	_storage = get_utility(GFStorageUtility) as GFStorageUtility
+	_storage = _resolve_storage_utility()
 
 
 func dispose() -> void:
@@ -132,8 +132,16 @@ func _get_storage() -> GFStorageUtility:
 	if is_instance_valid(_storage):
 		return _storage
 
-	_storage = get_utility(GFStorageUtility) as GFStorageUtility
+	_storage = _resolve_storage_utility()
 	return _storage
+
+
+func _resolve_storage_utility() -> GFStorageUtility:
+	var utility_value: Object = get_utility(GFStorageUtility)
+	if utility_value is GFStorageUtility:
+		var storage_utility: GFStorageUtility = utility_value
+		return storage_utility
+	return null
 
 
 func _is_valid_collection_resource(resource: Resource, required_script: Script) -> bool:

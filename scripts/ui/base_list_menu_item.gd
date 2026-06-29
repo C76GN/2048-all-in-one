@@ -58,7 +58,7 @@ func setup_item(new_data: Resource) -> void:
 ## @param is_selected: true 表示设为选中高亮。
 func set_selected(is_selected: bool) -> void:
 	_is_selected_manually = is_selected
-	if _selection_highlight:
+	if is_instance_valid(_selection_highlight):
 		_selection_highlight.visible = is_selected
 
 
@@ -93,6 +93,7 @@ func _update_display() -> void:
 func _apply_selection_highlight_style() -> void:
 	if not _selection_highlight is Panel:
 		return
+	var selection_panel: Panel = _selection_highlight
 
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = _SELECTED_SURFACE_COLOR
@@ -101,7 +102,7 @@ func _apply_selection_highlight_style() -> void:
 	style.set_corner_radius_all(8)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
-	(_selection_highlight as Panel).add_theme_stylebox_override("panel", style)
+	selection_panel.add_theme_stylebox_override("panel", style)
 
 
 # --- 信号处理函数 ---

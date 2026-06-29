@@ -10,6 +10,8 @@ extends Control
 
 ## GameUiMotionUtility 脚本类型，用作 GF Utility 注册键。
 const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_ui_motion_utility.gd")
+const _GF_AUTOLOAD_SCRIPT = preload("res://addons/gf/kernel/core/gf_autoload.gd")
+const GFNodeContextBase = preload("res://addons/gf/kernel/core/gf_node_context.gd")
 
 
 # --- Godot 生命周期方法 ---
@@ -33,13 +35,13 @@ func _exit_tree() -> void:
 
 ## 获取当前 UI 所属架构；未初始化时返回 null。
 func get_architecture_or_null() -> GFArchitecture:
-	var context: GFNodeContext = _find_nearest_context()
+	var context: GFNodeContextBase = _find_nearest_context()
 	if context != null:
 		var context_architecture: GFArchitecture = context.get_architecture()
 		if context_architecture != null:
 			return context_architecture
 
-	return GFAutoload.get_architecture_or_null()
+	return _GF_AUTOLOAD_SCRIPT.get_architecture_or_null()
 
 
 ## 通过类型获取 Model 实例。
@@ -154,11 +156,12 @@ func _update_ui_text() -> void:
 
 # --- 私有/辅助方法 ---
 
-func _find_nearest_context() -> GFNodeContext:
+func _find_nearest_context() -> GFNodeContextBase:
 	var current_node: Node = self
 	while current_node != null:
-		if current_node is GFNodeContext:
-			return current_node as GFNodeContext
+		if current_node is GFNodeContextBase:
+			var context: GFNodeContextBase = current_node
+			return context
 		current_node = current_node.get_parent()
 
 	return null
@@ -169,11 +172,16 @@ func _apply_default_ui_motion() -> void:
 		return
 
 	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
-	if is_instance_valid(motion_utility) and motion_utility.has_method("bind_interactive_controls"):
-		var _bound_count: int = motion_utility.bind_interactive_controls(self)
-	if is_instance_valid(motion_utility) and motion_utility.has_method("play_panel_intro"):
-		var _intro_tween: Tween = motion_utility.play_panel_intro(self)
+	if not is_instance_valid(motion_utility):
+		return
+
+	var _bound_count: int = motion_utility.bind_interactive_controls(self)
+	var _intro_tween: Tween = motion_utility.play_panel_intro(self)
 
 
-func _get_ui_motion_utility() -> Object:
-	return get_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)
+func _get_ui_motion_utility() -> GameUiMotionUtility:
+	var utility_value: Object = get_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)
+	if utility_value is GameUiMotionUtility:
+		var motion_utility: GameUiMotionUtility = utility_value
+		return motion_utility
+	return null

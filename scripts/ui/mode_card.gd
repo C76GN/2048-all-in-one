@@ -146,4 +146,5 @@ func _on_pressed() -> void:
 		var right_neighbor: Node = get_node_or_null(neighbor_path)
 
 		if right_neighbor is Control:
-			(right_neighbor as Control).grab_focus()
+			var right_control: Control = right_neighbor
+			right_control.grab_focus()

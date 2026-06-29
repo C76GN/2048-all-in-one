@@ -49,7 +49,16 @@ func _update_ui_text() -> void:
 func _configure_settings_panel(panel: Node) -> void:
 	panel.process_mode = Node.PROCESS_MODE_ALWAYS
 	if panel is SettingsMenu:
-		(panel as SettingsMenu).return_to_main_menu_on_back = false
+		var settings_menu: SettingsMenu = panel
+		settings_menu.return_to_main_menu_on_back = false
+
+
+func _get_ui_router_utility() -> GFUIRouterUtility:
+	var utility_value: Object = get_utility(GFUIRouterUtility)
+	if utility_value is GFUIRouterUtility:
+		var ui_router: GFUIRouterUtility = utility_value
+		return ui_router
+	return null
 
 
 # --- 信号处理函数 ---
@@ -70,7 +79,7 @@ func _on_main_menu_button_pressed() -> void:
 
 
 func _on_settings_button_pressed() -> void:
-	var ui_router: GFUIRouterUtility = get_utility(GFUIRouterUtility) as GFUIRouterUtility
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
 	if is_instance_valid(ui_router):
 		var _settings_panel: Node = ui_router.push_route(_ROUTE_SETTINGS_MENU, {}, {}, _configure_settings_panel)
 	else:

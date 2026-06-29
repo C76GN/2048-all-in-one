@@ -2,7 +2,7 @@
 ##
 ## 维护方块的二维网格数据，提供快照、恢复、初始化以及基础的网格查询能力。
 class_name GridModel
-extends GFModel
+extends "res://addons/gf/kernel/base/gf_model.gd"
 
 
 # --- 公共变量 ---
@@ -58,23 +58,23 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 	if not snapshot.has(&"tiles") and not snapshot.has("tiles"):
 		return
 
-	grid_size = snapshot.get(&"grid_size", snapshot.get("grid_size", grid_size))
+	grid_size = GFVariantData.to_int(snapshot.get(&"grid_size", snapshot.get("grid_size", grid_size)), grid_size)
 	if grid_size <= 0:
 		return
 
 	grid = _create_empty_grid(grid_size)
 		
-	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
+	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
 	for raw_tile_info: Variant in tiles_data:
 		if not raw_tile_info is Dictionary:
 			continue
 		var tile_info: Dictionary = raw_tile_info
-		var pos: Vector2i = tile_info.get(&"pos", tile_info.get("pos", Vector2i.ZERO))
+		var pos: Vector2i = _to_vector2i(tile_info.get(&"pos", tile_info.get("pos", Vector2i.ZERO)))
 		if not _is_cell_in_bounds(pos):
 			continue
 
-		var value: int = tile_info.get(&"value", tile_info.get("value", 0))
-		var type: Tile.TileType = tile_info.get(&"type", tile_info.get("type", Tile.TileType.PLAYER))
+		var value: int = GFVariantData.to_int(tile_info.get(&"value", tile_info.get("value", 0)), 0)
+		var type: Tile.TileType = _to_tile_type(tile_info.get(&"type", tile_info.get("type", Tile.TileType.PLAYER)))
 		grid[pos.x][pos.y] = GameTileData.new(value, type)
 
 
@@ -172,3 +172,30 @@ func _is_cell_in_bounds(grid_pos: Vector2i) -> bool:
 		and grid_pos.y >= 0
 		and grid_pos.y < grid_size
 	)
+
+
+static func _to_vector2i(value: Variant) -> Vector2i:
+	if value is Vector2i:
+		var vector2i_value: Vector2i = value
+		return vector2i_value
+	if value is Vector2:
+		var vector2_value: Vector2 = value
+		return Vector2i(roundi(vector2_value.x), roundi(vector2_value.y))
+	if value is Dictionary:
+		var data: Dictionary = value
+		return Vector2i(
+			GFVariantData.to_int(data.get(&"x", data.get("x", 0)), 0),
+			GFVariantData.to_int(data.get(&"y", data.get("y", 0)), 0)
+		)
+	return Vector2i.ZERO
+
+
+static func _to_tile_type(value: Variant) -> Tile.TileType:
+	var raw_type: int = GFVariantData.to_int(value, int(Tile.TileType.PLAYER))
+	match raw_type:
+		Tile.TileType.PLAYER:
+			return Tile.TileType.PLAYER
+		Tile.TileType.MONSTER:
+			return Tile.TileType.MONSTER
+		_:
+			return Tile.TileType.PLAYER

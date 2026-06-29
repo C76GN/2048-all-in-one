@@ -4,7 +4,7 @@
 ## 管理所有回放文件的保存、加载和删除。它在用户数据目录中
 ## 创建一个专用的 `replays` 文件夹来存放所有回放记录。
 class_name ReplaySystem
-extends GFSystem
+extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
 # --- 信号 ---
@@ -34,12 +34,12 @@ var _command_history: GFCommandHistoryUtility
 
 func async_init() -> void:
 	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if collection:
+	if is_instance_valid(collection):
 		var _ensure_result: Error = collection.ensure_collection_directory(REPLAY_DIR_NAME)
 
 
 func ready() -> void:
-	_command_history = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	_command_history = _get_command_history_utility()
 
 
 # --- 公共方法 ---
@@ -48,7 +48,7 @@ func ready() -> void:
 ## @param replay_data: 要保存的ReplayData资源。
 func save_replay(replay_data: ReplayData) -> void:
 	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if collection:
+	if is_instance_valid(collection):
 		var _saved_path: String = collection.save_timestamped_resource(REPLAY_DIR_NAME, "replay", replay_data)
 
 
@@ -57,12 +57,13 @@ func save_replay(replay_data: ReplayData) -> void:
 func load_replays() -> Array[ReplayData]:
 	var replays: Array[ReplayData] = []
 	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if not collection:
+	if not is_instance_valid(collection):
 		return replays
 
 	for resource: Resource in collection.load_timestamped_resources(REPLAY_DIR_NAME, "ReplayData", ReplayData):
 		if resource is ReplayData:
-			replays.append(resource as ReplayData)
+			var replay_data: ReplayData = resource
+			replays.append(replay_data)
 	return replays
 
 
@@ -73,7 +74,7 @@ func delete_replay(replay_file_path: String) -> void:
 		return
 
 	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if collection:
+	if is_instance_valid(collection):
 		var _delete_result: Error = collection.delete_resource_file(replay_file_path)
 
 
@@ -149,7 +150,7 @@ func get_current_step() -> int:
 
 ## 获取总步数。
 func get_total_steps() -> int:
-	return _current_replay.actions.size() if _current_replay else 0
+	return _current_replay.actions.size() if is_instance_valid(_current_replay) else 0
 
 
 ## 是否处于回放模式。
@@ -187,10 +188,25 @@ func _get_actions_prefix(step_count: int) -> Array[Vector2i]:
 
 	var safe_count: int = clampi(step_count, 0, _current_replay.actions.size())
 	for i: int in range(safe_count):
-		result.append(_current_replay.actions[i])
+		var action_value: Variant = _current_replay.actions[i]
+		if action_value is Vector2i:
+			var direction: Vector2i = action_value
+			result.append(direction)
 
 	return result
 
 
+func _get_command_history_utility() -> GFCommandHistoryUtility:
+	var utility_value: Object = get_utility(GFCommandHistoryUtility)
+	if utility_value is GFCommandHistoryUtility:
+		var command_history: GFCommandHistoryUtility = utility_value
+		return command_history
+	return null
+
+
 func _get_saved_resource_collection() -> SavedResourceCollectionUtility:
-	return get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT) as SavedResourceCollectionUtility
+	var utility_value: Object = get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT)
+	if utility_value is SavedResourceCollectionUtility:
+		var collection: SavedResourceCollectionUtility = utility_value
+		return collection
+	return null

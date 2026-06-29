@@ -3,7 +3,7 @@
 ## 接收核心游戏事件，并按触发器与优先级执行注册的生成规则。规则只描述业务结果，
 ## 事件派发由本系统统一完成，避免规则资源直接依赖全局架构。
 class_name RuleSystem
-extends GFSystem
+extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
 # --- 私有变量 ---
@@ -18,8 +18,8 @@ var _rules: Array[SpawnRule] = []
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
-	_grid_model = get_model(GridModel) as GridModel
-	_seed_utility = get_utility(GFSeedUtility) as GFSeedUtility
+	_grid_model = _get_grid_model()
+	_seed_utility = _get_seed_utility()
 
 	register_event(MoveData, _on_move_made)
 	register_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
@@ -62,6 +62,22 @@ func clear_rules() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _get_grid_model() -> GridModel:
+	var model_value: Object = get_model(GridModel)
+	if model_value is GridModel:
+		var grid_model: GridModel = model_value
+		return grid_model
+	return null
+
+
+func _get_seed_utility() -> GFSeedUtility:
+	var utility_value: Object = get_utility(GFSeedUtility)
+	if utility_value is GFSeedUtility:
+		var seed_utility: GFSeedUtility = utility_value
+		return seed_utility
+	return null
+
 
 func _execute_rules(trigger_type: SpawnRule.TriggerType, move_data: MoveData = null) -> void:
 	var context: RuleContext = RuleContext.new()

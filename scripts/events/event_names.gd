@@ -47,6 +47,9 @@ const STATE_GAME_OVER: StringName = &"GameOver"
 ## 游戏判负事件。
 const GAME_LOST: StringName = &"game_lost"
 
+## 首次达成当前模式目标。
+const TARGET_REACHED: StringName = &"target_reached"
+
 ## 游戏状态已被测试工具或调试入口修改。
 const GAME_STATE_TAINTED: StringName = &"game_state_tainted"
 
@@ -55,6 +58,9 @@ const GAME_STATE_TAINTED: StringName = &"game_state_tainted"
 
 ## 请求撤销上一步玩家操作。
 const UNDO_REQUESTED: StringName = &"undo_requested"
+
+## 请求重做最近撤销的玩家操作。
+const REDO_REQUESTED: StringName = &"redo_requested"
 
 ## 请求保存当前游戏书签。
 const SAVE_BOOKMARK_REQUESTED: StringName = &"save_bookmark_requested"

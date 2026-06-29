@@ -1,6 +1,6 @@
 ## GameStateSystem: 负责采集与恢复一局游戏的完整逻辑状态。
 class_name GameStateSystem
-extends GFSystem
+extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
 # --- 公共方法 ---
@@ -9,12 +9,17 @@ extends GFSystem
 ## @param grid_size_override: 外部指定的棋盘尺寸；小于等于 0 时使用 GridModel 当前尺寸。
 ## @return: 可用于撤销、书签比较和恢复的完整状态字典。
 func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
-	var rule_sys: RuleSystem = get_system(RuleSystem) as RuleSystem
-	var status: GameStatusModel = get_model(GameStatusModel) as GameStatusModel
-	var grid: GridModel = get_model(GridModel) as GridModel
-	var seed_util: GFSeedUtility = get_utility(GFSeedUtility) as GFSeedUtility
+	var rule_sys: RuleSystem = _get_rule_system()
+	var status: GameStatusModel = _get_status_model()
+	var grid: GridModel = _get_grid_model()
+	var seed_util: GFSeedUtility = _get_seed_utility()
 	var grid_size: int = grid_size_override
 	var highest_tile: int = 0
+	var score: int = 0
+	var move_count: int = 0
+	var monsters_killed: int = 0
+	var target_tile_value: int = 0
+	var target_reached: bool = false
 	var extra_stats: Dictionary = {}
 
 	if grid_size <= 0 and is_instance_valid(grid):
@@ -23,6 +28,11 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 		highest_tile = grid.get_max_player_value()
 
 	if is_instance_valid(status):
+		score = GFVariantData.to_int(status.score.get_value(), 0)
+		move_count = GFVariantData.to_int(status.move_count.get_value(), 0)
+		monsters_killed = GFVariantData.to_int(status.monsters_killed.get_value(), 0)
+		target_tile_value = GFVariantData.to_int(status.target_tile_value.get_value(), 0)
+		target_reached = GFVariantData.to_bool(status.target_reached.get_value(), false)
 		var extra_stats_value: Variant = status.extra_stats.get_value()
 		if extra_stats_value is Dictionary:
 			var typed_extra_stats: Dictionary = extra_stats_value
@@ -46,10 +56,12 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 		&"board_snapshot": grid.get_snapshot() if is_instance_valid(grid) else {},
 		&"rng_state": seed_util.get_state() if is_instance_valid(seed_util) else 0,
 		&"rng_full_state": seed_util.get_full_state() if is_instance_valid(seed_util) else {},
-		&"score": status.score.get_value() if is_instance_valid(status) else 0,
-		&"move_count": status.move_count.get_value() if is_instance_valid(status) else 0,
+		&"score": score,
+		&"move_count": move_count,
 		&"highest_tile": highest_tile,
-		&"monsters_killed": status.monsters_killed.get_value() if is_instance_valid(status) else 0,
+		&"monsters_killed": monsters_killed,
+		&"target_tile_value": target_tile_value,
+		&"target_reached": target_reached,
 		&"status_message": "",
 		&"extra_stats": extra_stats,
 		&"rules_states": rules_states,
@@ -70,29 +82,34 @@ func restore_state(state_to_restore: Dictionary) -> void:
 	if state_to_restore.is_empty():
 		return
 
-	var rule_sys: RuleSystem = get_system(RuleSystem) as RuleSystem
-	var status: GameStatusModel = get_model(GameStatusModel) as GameStatusModel
-	var grid: GridModel = get_model(GridModel) as GridModel
-	var seed_util: GFSeedUtility = get_utility(GFSeedUtility) as GFSeedUtility
+	var rule_sys: RuleSystem = _get_rule_system()
+	var status: GameStatusModel = _get_status_model()
+	var grid: GridModel = _get_grid_model()
+	var seed_util: GFSeedUtility = _get_seed_utility()
 
 	if is_instance_valid(grid):
-		var board_snapshot: Dictionary = state_to_restore.get(
+		var board_snapshot: Dictionary = _get_dictionary_with_fallback(
+			state_to_restore,
 			&"board_snapshot",
-			state_to_restore.get(&"grid_snapshot", {})
+			&"grid_snapshot"
 		)
 		if not board_snapshot.is_empty():
 			grid.restore_from_snapshot(board_snapshot)
 
 	if is_instance_valid(status):
-		status.score.set_value(state_to_restore.get(&"score", 0))
-		status.move_count.set_value(state_to_restore.get(&"move_count", 0))
-		status.monsters_killed.set_value(state_to_restore.get(&"monsters_killed", 0))
-		var highest_tile: int = state_to_restore.get(&"highest_tile", 0)
+		status.score.set_value(_get_int(state_to_restore, &"score", 0))
+		status.move_count.set_value(_get_int(state_to_restore, &"move_count", 0))
+		status.monsters_killed.set_value(_get_int(state_to_restore, &"monsters_killed", 0))
+		var highest_tile: int = _get_int(state_to_restore, &"highest_tile", 0)
 		if is_instance_valid(grid):
 			highest_tile = grid.get_max_player_value()
 		status.highest_tile.set_value(highest_tile)
+		status.set_target_state(
+			_get_int(state_to_restore, &"target_tile_value", 0),
+			_get_bool(state_to_restore, &"target_reached", false)
+		)
 		status.status_message.set_value("")
-		var extra_stats: Dictionary = state_to_restore.get(&"extra_stats", {})
+		var extra_stats: Dictionary = _get_dictionary(state_to_restore, &"extra_stats")
 		status.extra_stats.set_value(extra_stats.duplicate(true))
 
 	if is_instance_valid(seed_util):
@@ -106,13 +123,47 @@ func restore_state(state_to_restore: Dictionary) -> void:
 		is_instance_valid(rule_sys)
 		and (state_to_restore.has(&"rules_states") or state_to_restore.has("rules_states"))
 	):
-		var rules_states: Array = state_to_restore.get(&"rules_states", state_to_restore.get("rules_states", []))
+		var rules_states: Array = GFVariantData.to_array(
+			state_to_restore.get(&"rules_states", state_to_restore.get("rules_states", []))
+		)
 		var all_rules: Array[SpawnRule] = rule_sys.get_all_spawn_rules()
 		for i: int in range(min(all_rules.size(), rules_states.size())):
 			all_rules[i].set_state(rules_states[i])
 
 
 # --- 私有/辅助方法 ---
+
+func _get_rule_system() -> RuleSystem:
+	var system_value: Object = get_system(RuleSystem)
+	if system_value is RuleSystem:
+		var rule_system: RuleSystem = system_value
+		return rule_system
+	return null
+
+
+func _get_status_model() -> GameStatusModel:
+	var model_value: Object = get_model(GameStatusModel)
+	if model_value is GameStatusModel:
+		var status_model: GameStatusModel = model_value
+		return status_model
+	return null
+
+
+func _get_grid_model() -> GridModel:
+	var model_value: Object = get_model(GridModel)
+	if model_value is GridModel:
+		var grid_model: GridModel = model_value
+		return grid_model
+	return null
+
+
+func _get_seed_utility() -> GFSeedUtility:
+	var utility_value: Object = get_utility(GFSeedUtility)
+	if utility_value is GFSeedUtility:
+		var seed_utility: GFSeedUtility = utility_value
+		return seed_utility
+	return null
+
 
 func _normalize_variant(value: Variant) -> Variant:
 	match typeof(value):
@@ -164,7 +215,16 @@ func _variant_sort_key(value: Variant) -> String:
 static func _get_dictionary(data: Dictionary, key: StringName) -> Dictionary:
 	var value: Variant = data.get(key, data.get(String(key), {}))
 	if value is Dictionary:
-		return value
+		var dictionary_value: Dictionary = value
+		return dictionary_value
+	return {}
+
+
+static func _get_dictionary_with_fallback(data: Dictionary, key: StringName, fallback_key: StringName) -> Dictionary:
+	var value: Variant = data.get(key, data.get(fallback_key, data.get(String(fallback_key), {})))
+	if value is Dictionary:
+		var dictionary_value: Dictionary = value
+		return dictionary_value
 	return {}
 
 
@@ -176,3 +236,8 @@ static func _get_int(data: Dictionary, key: StringName, default_value: int) -> i
 		var float_value: float = value
 		return int(float_value)
 	return default_value
+
+
+static func _get_bool(data: Dictionary, key: StringName, default_value: bool) -> bool:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	return GFVariantData.to_bool(value, default_value)

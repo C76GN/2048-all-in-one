@@ -3,7 +3,7 @@
 ## 它持有 GridModel (逻辑核心)，并根据 Model 的信号更新 Tile 节点的位置和状态。
 ## 它是棋盘模型的表现层控制器。
 class_name GameBoardController
-extends GFController
+extends "res://addons/gf/kernel/base/gf_controller.gd"
 
 
 
@@ -78,11 +78,11 @@ var _board_intro_tween: Tween
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	model = get_model(GridModel) as GridModel
-	_log = get_utility(GFLogUtility) as GFLogUtility
-	_pool = get_utility(GFObjectPoolUtility) as GFObjectPoolUtility
+	model = _get_grid_model()
+	_log = _get_log_utility()
+	_pool = _get_object_pool_utility()
 	
-	var parent_control: Control = get_host_as(Control) as Control
+	var parent_control: Control = _get_host_control()
 	if is_instance_valid(parent_control):
 		var _connect_result_87: int = parent_control.resized.connect(_on_resized)
 	
@@ -112,8 +112,9 @@ func setup(
 	var old_tile_count: int = 0
 	for child: Node in board_container.get_children():
 		if child is Tile:
+			var old_tile: Tile = child
 			old_tile_count += 1
-			_release_visual_tile(child as Tile)
+			_release_visual_tile(old_tile)
 	
 	if _log:
 		_log.debug(
@@ -140,7 +141,8 @@ func setup(
 
 		for child: Node in board_container.get_children():
 			if child is Tile:
-				(child as Tile).visible = false
+				var tile_child: Tile = child
+				tile_child.visible = false
 		
 	_is_initialized = true
 
@@ -149,7 +151,8 @@ func setup(
 func clear_visual_tiles() -> void:
 	for child: Node in board_container.get_children():
 		if child is Tile:
-			_release_visual_tile(child as Tile)
+			var tile_child: Tile = child
+			_release_visual_tile(tile_child)
 	
 	_visual_map.clear()
 	if _log:
@@ -170,8 +173,8 @@ func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Strin
 	if not is_instance_valid(tile) or not is_instance_valid(board_container):
 		return
 
-	var feedback_utility: GameBoardFeedbackUtility = get_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)
-	if is_instance_valid(feedback_utility) and feedback_utility.has_method("play_feedback"):
+	var feedback_utility: GameBoardFeedbackUtility = _get_board_feedback_utility()
+	if is_instance_valid(feedback_utility):
 		var _feedback_count: int = feedback_utility.play_feedback(board_container, tile.position, feedback_type, label_text)
 
 
@@ -240,7 +243,8 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 	var current_tiles: Array[Tile] = []
 	for child: Node in board_container.get_children():
 		if child is Tile:
-			current_tiles.append(child as Tile)
+			var tile_child: Tile = child
+			current_tiles.append(tile_child)
 
 	if reverse_target_map.is_empty():
 		for tile: Tile in current_tiles:
@@ -258,8 +262,8 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 	if not model:
 		return
 
-	var grid_size: int = snapshot.get(&"grid_size", snapshot.get("grid_size", 4))
-	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
+	var grid_size: int = _get_int(snapshot, &"grid_size", 4)
+	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
 	for raw_tile_data_snapshot: Variant in tiles_data:
 		if not raw_tile_data_snapshot is Dictionary:
 			continue
@@ -275,6 +279,8 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 			tile_data = GameTileData.new(value, type)
 
 		var new_tile: Tile = _create_visual_tile(tile_data.value, tile_data.type)
+		if not is_instance_valid(new_tile):
+			continue
 		_visual_map[tile_data] = new_tile
 		
 		var key: String = "%d,%d" % [pos.x, pos.y]
@@ -300,14 +306,59 @@ func _cleanup_listeners() -> void:
 		_log.debug(_LOG_TAG, "已清理 GF 事件监听。")
 
 
+func _get_grid_model() -> GridModel:
+	var model_value: Object = get_model(GridModel)
+	if model_value is GridModel:
+		var grid_model: GridModel = model_value
+		return grid_model
+	return null
+
+
+func _get_log_utility() -> GFLogUtility:
+	var utility_value: Object = get_utility(GFLogUtility)
+	if utility_value is GFLogUtility:
+		var log_utility: GFLogUtility = utility_value
+		return log_utility
+	return null
+
+
+func _get_object_pool_utility() -> GFObjectPoolUtility:
+	var utility_value: Object = get_utility(GFObjectPoolUtility)
+	if utility_value is GFObjectPoolUtility:
+		var pool_utility: GFObjectPoolUtility = utility_value
+		return pool_utility
+	return null
+
+
+func _get_action_queue_system() -> GFActionQueueSystem:
+	var system_value: Object = get_system(GFActionQueueSystem)
+	if system_value is GFActionQueueSystem:
+		var action_queue: GFActionQueueSystem = system_value
+		return action_queue
+	return null
+
+
+func _get_board_feedback_utility() -> GameBoardFeedbackUtility:
+	var utility_value: Object = get_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)
+	if utility_value is GameBoardFeedbackUtility:
+		var feedback_utility: GameBoardFeedbackUtility = utility_value
+		return feedback_utility
+	return null
+
+
+func _get_host_control() -> Control:
+	var host_value: Variant = get_host_as(Control)
+	if host_value is Control:
+		var host_control: Control = host_value
+		return host_control
+	return null
+
+
 func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
-	var new_tile: Tile
-	if _pool:
-		new_tile = _pool.acquire(TileScene, board_container) as Tile
-		new_tile.visible = true
-	else:
-		new_tile = TileScene.instantiate() as Tile
-		board_container.add_child(new_tile)
+	var new_tile: Tile = _acquire_visual_tile()
+	if not is_instance_valid(new_tile):
+		push_error("[GameBoardController] 方块场景必须实例化为 Tile。")
+		return null
 	
 	new_tile.reset_animation_state()
 	new_tile.set_meta(RELEASE_TOKEN_META, 0)
@@ -319,6 +370,25 @@ func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
 		_get_color(colors, &"font", Color.BLACK)
 	)
 	return new_tile
+
+
+func _acquire_visual_tile() -> Tile:
+	var tile_node: Node = null
+	if is_instance_valid(_pool):
+		tile_node = _pool.acquire(TileScene, board_container)
+	else:
+		tile_node = TileScene.instantiate()
+		if is_instance_valid(tile_node):
+			board_container.add_child(tile_node)
+
+	if tile_node is Tile:
+		var tile: Tile = tile_node
+		tile.visible = true
+		return tile
+
+	if is_instance_valid(tile_node):
+		tile_node.queue_free()
+	return null
 
 
 func _release_visual_tile(tile: Tile) -> void:
@@ -362,8 +432,8 @@ func _release_visual_tile_if_valid(tile: Tile, release_token: RefCounted) -> voi
 
 func _build_reverse_start_tiles_map(snapshot: Dictionary, reverse_target_map: Dictionary) -> Dictionary:
 	var reverse_start_tiles: Dictionary = {}
-	var tiles_data: Array = snapshot.get(&"tiles", snapshot.get("tiles", []))
-	var snapshot_grid_size: int = snapshot.get(&"grid_size", snapshot.get("grid_size", model.grid_size if model else 0))
+	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
+	var snapshot_grid_size: int = _get_int(snapshot, &"grid_size", model.grid_size if model else 0)
 
 	for raw_tile_data_snapshot: Variant in tiles_data:
 		if not raw_tile_data_snapshot is Dictionary:
@@ -382,11 +452,12 @@ func _build_reverse_start_tiles_map(snapshot: Dictionary, reverse_target_map: Di
 		if not reverse_start_tiles.has(start_key):
 			reverse_start_tiles[start_key] = []
 
-		var start_tile_entries: Array = reverse_start_tiles[start_key]
+		var start_tile_entries: Array = GFVariantData.to_array(reverse_start_tiles[start_key])
 		start_tile_entries.append({
 			&"value": value,
 			&"type": type,
 		})
+		reverse_start_tiles[start_key] = start_tile_entries
 
 	return reverse_start_tiles
 
@@ -397,12 +468,12 @@ func _should_animate_undo_despawn(tile: Tile, reverse_start_tiles: Dictionary) -
 
 	var current_grid_pos: Vector2i = _pixel_center_to_grid(tile.position)
 	var current_key: String = "%d,%d" % [current_grid_pos.x, current_grid_pos.y]
-	var candidates: Array = reverse_start_tiles.get(current_key, [])
+	var candidates: Array = GFVariantData.to_array(reverse_start_tiles.get(current_key, []))
 
 	if candidates.size() != 1:
 		return true
 
-	var candidate: Dictionary = candidates[0]
+	var candidate: Dictionary = GFVariantData.to_dictionary(candidates[0])
 	return (
 		candidate.get(&"value", 0) != tile.value
 		or candidate.get(&"type", Tile.TileType.PLAYER) != tile.type
@@ -438,17 +509,32 @@ func _get_tile_colors(value: int, type: Tile.TileType) -> Dictionary:
 	if type == Tile.TileType.PLAYER:
 		scheme_index = model.interaction_rule.get_color_scheme_index(value)
 		
-	var current_scheme: TileColorScheme = color_schemes.get(scheme_index)
+	var current_scheme: TileColorScheme = _get_tile_color_scheme(scheme_index)
 	if is_instance_valid(current_scheme) and not current_scheme.styles.is_empty():
 		var level: int = model.interaction_rule.get_level_by_value(value)
 		if level >= current_scheme.styles.size():
 			level = current_scheme.styles.size() - 1
-		var current_style: TileLevelStyle = current_scheme.styles[level]
+		var current_style: TileLevelStyle = _get_tile_level_style(current_scheme, level)
 		if is_instance_valid(current_style):
 			bg_color = current_style.background_color
 			font_color = current_style.font_color
 			
 	return {"bg": bg_color, "font": font_color}
+
+
+func _get_tile_color_scheme(scheme_index: int) -> TileColorScheme:
+	var scheme_value: Variant = color_schemes.get(scheme_index)
+	if scheme_value is TileColorScheme:
+		var scheme: TileColorScheme = scheme_value
+		return scheme
+	return null
+
+
+func _get_tile_level_style(scheme: TileColorScheme, level: int) -> TileLevelStyle:
+	if not is_instance_valid(scheme) or level < 0 or level >= scheme.styles.size():
+		return null
+
+	return scheme.styles[level]
 
 
 ## 更新棋盘的整体布局以适应其容器大小。
@@ -469,8 +555,8 @@ func _update_board_layout() -> void:
 
 
 func _apply_board_background_style() -> void:
-	var panel_style: StyleBoxFlat = board_background.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
-	if panel_style == null:
+	var panel_style: StyleBoxFlat = _duplicate_flat_panel_style(board_background)
+	if not is_instance_valid(panel_style):
 		return
 
 	panel_style.bg_color = board_theme.board_panel_color
@@ -504,7 +590,9 @@ func _draw_board_cells() -> void:
 
 	for x: int in range(model.grid_size):
 		for y: int in range(model.grid_size):
-			var cell_instance: Control = grid_cell_scene.instantiate()
+			var cell_instance: Control = _create_grid_cell()
+			if not is_instance_valid(cell_instance):
+				continue
 			board_container.add_child(cell_instance)
 
 			# 设置格子的大小和位置
@@ -515,9 +603,9 @@ func _draw_board_cells() -> void:
 			# 注意：使用场景后，建议优先使用场景内的主题配置，
 			# 这里保留颜色覆盖是为了兼容现有的 JSON 主题系统。
 			if is_instance_valid(board_theme) and cell_instance is Panel:
-				var stylebox: StyleBox = cell_instance.get_theme_stylebox("panel").duplicate()
-				if stylebox is StyleBoxFlat:
-					_configure_cell_style(stylebox as StyleBoxFlat)
+				var stylebox: StyleBoxFlat = _duplicate_flat_panel_style(cell_instance)
+				if is_instance_valid(stylebox):
+					_configure_cell_style(stylebox)
 					cell_instance.add_theme_stylebox_override("panel", stylebox)
 
 			# 确保背景格子在最底层
@@ -558,7 +646,9 @@ func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) ->
 
 	for x: int in range(new_size):
 		for y: int in range(new_size):
-			var cell_instance: Control = grid_cell_scene.instantiate()
+			var cell_instance: Control = _create_grid_cell()
+			if not is_instance_valid(cell_instance):
+				continue
 			board_container.add_child(cell_instance)
 			board_container.move_child(cell_instance, 0) # 保持在底部
 
@@ -566,9 +656,9 @@ func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) ->
 			var final_pos: Vector2 = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
 
 			if is_instance_valid(board_theme) and cell_instance is Panel:
-				var stylebox: StyleBox = cell_instance.get_theme_stylebox("panel").duplicate()
-				if stylebox is StyleBoxFlat:
-					_configure_cell_style(stylebox as StyleBoxFlat)
+				var stylebox: StyleBoxFlat = _duplicate_flat_panel_style(cell_instance)
+				if is_instance_valid(stylebox):
+					_configure_cell_style(stylebox)
 					cell_instance.add_theme_stylebox_override("panel", stylebox)
 
 			if x >= old_size or y >= old_size:
@@ -592,6 +682,29 @@ func _configure_cell_style(stylebox: StyleBoxFlat) -> void:
 	stylebox.shadow_color = Color.TRANSPARENT
 	stylebox.shadow_size = 0
 	stylebox.shadow_offset = Vector2.ZERO
+
+
+func _create_grid_cell() -> Control:
+	var cell_node: Node = grid_cell_scene.instantiate()
+	if cell_node is Control:
+		var cell_control: Control = cell_node
+		return cell_control
+
+	if is_instance_valid(cell_node):
+		push_error("[GameBoardController] 棋盘背景格子场景必须实例化为 Control。")
+		cell_node.queue_free()
+	return null
+
+
+func _duplicate_flat_panel_style(control: Control) -> StyleBoxFlat:
+	if not is_instance_valid(control):
+		return null
+
+	var stylebox_value: Variant = control.get_theme_stylebox("panel").duplicate()
+	if stylebox_value is StyleBoxFlat:
+		var flat_stylebox: StyleBoxFlat = stylebox_value
+		return flat_stylebox
+	return null
 
 
 func _play_board_intro() -> void:
@@ -667,7 +780,8 @@ func _get_visual_tile(tile_data: GameTileData) -> Tile:
 		return null
 	var value: Variant = _visual_map.get(tile_data, null)
 	if value is Tile:
-		return value
+		var tile: Tile = value
+		return tile
 	return null
 
 
@@ -702,7 +816,11 @@ static func _get_tile_type(data: Dictionary, key: StringName, default_value: Til
 	var value: Variant = data.get(key, data.get(String(key), default_value))
 	if value is int:
 		var enum_value: int = value
-		return enum_value as Tile.TileType
+		match enum_value:
+			Tile.TileType.PLAYER:
+				return Tile.TileType.PLAYER
+			Tile.TileType.MONSTER:
+				return Tile.TileType.MONSTER
 	return default_value
 
 
@@ -718,7 +836,7 @@ static func _get_color(data: Dictionary, key: StringName, default_value: Color) 
 func _calculate_layout_params(p_size: int) -> Dictionary:
 	var grid_area_side: float = float(p_size * CELL_SIZE + (p_size - 1) * SPACING)
 	var logical_board_side: float = grid_area_side + BOARD_PADDING * 2
-	var host_control: Control = get_host_as(Control) as Control
+	var host_control: Control = _get_host_control()
 	if not is_instance_valid(host_control):
 		return {}
 	var current_size: Vector2 = host_control.size
@@ -740,15 +858,15 @@ func _calculate_layout_params(p_size: int) -> Dictionary:
 func _on_board_undo_animation_requested(payload: Array) -> void:
 	if payload.size() < 2:
 		return
-	var snapshot: Dictionary = payload[0]
-	var reverse_map: Dictionary = payload[1]
+	var snapshot: Dictionary = GFVariantData.to_dictionary(payload[0])
+	var reverse_map: Dictionary = GFVariantData.to_dictionary(payload[1])
 	
 	if _log:
 		_log.debug(_LOG_TAG, "收到撤回动画请求。")
 	
 	var undo_action: BoardUndoAnimationAction = BoardUndoAnimationAction.new(snapshot, reverse_map, self)
-	var action_sys: GFActionQueueSystem = get_system(GFActionQueueSystem) as GFActionQueueSystem
-	if action_sys:
+	var action_sys: GFActionQueueSystem = _get_action_queue_system()
+	if is_instance_valid(action_sys):
 		action_sys.enqueue(undo_action)
 	else:
 		undo_action.execute()
@@ -814,6 +932,9 @@ func _on_board_animation_requested(instructions: Array) -> void:
 					needs_visual_resync = true
 					continue
 				var new_tile: Tile = _create_visual_tile(spawn_data.value, spawn_data.type)
+				if not is_instance_valid(new_tile):
+					needs_visual_resync = true
+					continue
 				_visual_map[spawn_data] = new_tile
 				new_tile.position = _grid_to_pixel_center(_get_vector2i(instr, &"to_grid_pos", Vector2i.ZERO))
 				new_tile.scale = Vector2.ZERO
@@ -852,11 +973,11 @@ func _on_board_animation_requested(instructions: Array) -> void:
 		return
 			
 	# 2. 实例化视觉动作
-	var action: GFVisualAction = BoardAnimationAction.new(visual_instructions, self) as GFVisualAction
+	var action: BoardAnimationAction = BoardAnimationAction.new(visual_instructions, self)
 	
 	# 3. 推入 GFActionQueueSystem 执行
-	var queue_sys: GFActionQueueSystem = get_system(GFActionQueueSystem) as GFActionQueueSystem
-	if queue_sys:
+	var queue_sys: GFActionQueueSystem = _get_action_queue_system()
+	if is_instance_valid(queue_sys):
 		queue_sys.enqueue(action)
 
 

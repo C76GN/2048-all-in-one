@@ -2,7 +2,7 @@
 ##
 ## 激活输入源，允许玩家操作。纯代码实现。
 class_name GamePlayingState
-extends GFState
+extends "res://addons/gf/standard/state_machine/pure/gf_state.gd"
 
 
 # --- 重写方法 ---

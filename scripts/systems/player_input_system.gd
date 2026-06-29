@@ -1,6 +1,6 @@
 ## PlayerInputSystem: 负责处理标准模式下的玩家输入，并将抽象动作转换为游戏命令。
 class_name PlayerInputSystem
-extends GFSystem
+extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
 # --- 常量 ---
@@ -8,11 +8,14 @@ extends GFSystem
 const GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload("res://resources/input/gameplay_input_context.tres")
 const ACTION_PAUSE: StringName = &"pause"
 const ACTION_UNDO: StringName = &"undo"
+const ACTION_REDO: StringName = &"redo"
 const ACTION_SAVE_BOOKMARK: StringName = &"save_bookmark"
 const ACTION_MOVE_UP: StringName = &"move_up"
 const ACTION_MOVE_DOWN: StringName = &"move_down"
 const ACTION_MOVE_LEFT: StringName = &"move_left"
 const ACTION_MOVE_RIGHT: StringName = &"move_right"
+const _MOVE_FAIL_MESSAGE_FALLBACK: String = "[color=yellow]这个方向无法移动。[/color]"
+const _MOVE_FAIL_MESSAGE_DURATION: float = 1.6
 
 
 # --- 私有变量 ---
@@ -25,7 +28,7 @@ var _is_active: bool = false
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
-	_input_mapping = get_utility(GFInputMappingUtility) as GFInputMappingUtility
+	_input_mapping = _get_input_mapping_utility()
 	if is_instance_valid(_input_mapping):
 		_input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
 
@@ -62,6 +65,10 @@ func tick(_delta: float) -> void:
 		send_simple_event(EventNames.UNDO_REQUESTED)
 		return
 
+	if _consume_action(ACTION_REDO):
+		send_simple_event(EventNames.REDO_REQUESTED)
+		return
+
 	if _consume_action(ACTION_SAVE_BOOKMARK):
 		send_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED)
 		return
@@ -83,12 +90,13 @@ func tick(_delta: float) -> void:
 # --- 私有/辅助方法 ---
 
 func _execute_move_command(direction: Vector2i) -> void:
-	var history: GFCommandHistoryUtility = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var history: GFCommandHistoryUtility = _get_command_history_utility()
 	if not is_instance_valid(history):
 		return
 
 	var result: Variant = await history.execute_command(MoveCommand.new(direction))
 	if result == null:
+		_show_invalid_move_feedback()
 		return
 
 	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
@@ -99,6 +107,40 @@ func _consume_action(action_id: StringName) -> bool:
 		return false
 
 	return _input_mapping.consume_action(action_id)
+
+
+func _show_invalid_move_feedback() -> void:
+	send_event(_make_invalid_move_payload())
+
+
+func _make_invalid_move_payload() -> HudMessagePayload:
+	return HudMessagePayload.new(
+		_translate_with_fallback("MOVE_FAIL_MSG", _MOVE_FAIL_MESSAGE_FALLBACK),
+		_MOVE_FAIL_MESSAGE_DURATION
+	)
+
+
+func _translate_with_fallback(key: String, fallback: String) -> String:
+	var text: String = tr(key)
+	if text == key:
+		return fallback
+	return text
+
+
+func _get_input_mapping_utility() -> GFInputMappingUtility:
+	var utility_value: Object = get_utility(GFInputMappingUtility)
+	if utility_value is GFInputMappingUtility:
+		var input_mapping: GFInputMappingUtility = utility_value
+		return input_mapping
+	return null
+
+
+func _get_command_history_utility() -> GFCommandHistoryUtility:
+	var utility_value: Object = get_utility(GFCommandHistoryUtility)
+	if utility_value is GFCommandHistoryUtility:
+		var command_history: GFCommandHistoryUtility = utility_value
+		return command_history
+	return null
 
 
 # --- 信号处理函数 ---

@@ -9,6 +9,7 @@ extends "res://scripts/ui/base/game_ui_controller.gd"
 
 ## 单个模式卡片 UI 场景。
 const MODE_CARD_SCENE: PackedScene = preload("res://scenes/ui/mode_card.tscn")
+const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _CARD_REVEAL_OFFSET: Vector2 = Vector2(18.0, 0.0)
 const _DETAIL_REVEAL_OFFSET: Vector2 = Vector2(10.0, 0.0)
 const _DETAIL_REVEAL_STAGGER: float = 0.02
@@ -20,6 +21,9 @@ const _FIELD_SURFACE_COLOR: Color = Color(0.055, 0.080, 0.120, 0.46)
 const _FIELD_FOCUS_SURFACE_COLOR: Color = Color(0.075, 0.120, 0.150, 0.62)
 const _FIELD_BORDER_COLOR: Color = Color(0.95, 0.88, 0.72, 0.10)
 const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.93, 0.82, 0.58, 0.64)
+const _STATS_EMPTY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n暂无完整对局统计"
+const _STATS_SUMMARY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
+const _STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n目标 %d：达成 %d 次 · %d%%\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
 
 
 # --- 导出变量 ---
@@ -55,11 +59,11 @@ var _info_score_label: Label
 @onready var _refresh_seed_button: Button = %RefreshSeedButton
 @onready var _prev_page_button: Button = %PrevPageButton
 @onready var _next_page_button: Button = %NextPageButton
-@onready var _pagination_container: HBoxContainer = _prev_page_button.get_parent()
+@onready var _pagination_container: HBoxContainer = _get_parent_hbox(_prev_page_button)
 
-@onready var _config_header_label: Label = _right_panel_container.get_node("Label")
-@onready var _grid_size_label: Label = _grid_size_option_button.get_parent().get_node("Label")
-@onready var _seed_label: Label = _seed_line_edit.get_parent().get_node("Label")
+@onready var _config_header_label: Label = _get_child_label(_right_panel_container, "Label")
+@onready var _grid_size_label: Label = _get_sibling_label(_grid_size_option_button)
+@onready var _seed_label: Label = _get_sibling_label(_seed_line_edit)
 
 
 # --- Godot 生命周期方法 ---
@@ -114,7 +118,9 @@ func _update_list_and_focus(is_initial_load: bool = false) -> void:
 			if config_path.is_empty():
 				continue
 
-			var card: ModeCard = MODE_CARD_SCENE.instantiate() as ModeCard
+			var card: ModeCard = _create_mode_card()
+			if not is_instance_valid(card):
+				continue
 			_mode_list_container.add_child(card)
 			card.setup(config_path)
 			var _connect_result_121: int = card.card_focused.connect(_set_selected_mode_by_path)
@@ -377,9 +383,10 @@ func _update_high_score_label() -> void:
 		return
 
 	var mode_id: String = _selected_mode_config.resource_path.get_file().get_basename()
-	var save_system: SaveSystem = get_system(SaveSystem) as SaveSystem
-	var high_score: int = save_system.get_high_score(mode_id, _current_grid_size) if save_system else 0
-	_info_score_label.text = "\n" + tr("INFO_HIGH_SCORE_AT_SIZE") % [_current_grid_size, _current_grid_size, high_score]
+	var save_system: SaveSystem = _get_save_system()
+	var high_score: int = save_system.get_high_score(mode_id, _current_grid_size) if is_instance_valid(save_system) else 0
+	var stats: Dictionary = save_system.get_game_stats(mode_id, _current_grid_size) if is_instance_valid(save_system) else {}
+	_info_score_label.text = _format_stats_text(high_score, stats)
 
 
 func _update_pagination_buttons_visibility() -> void:
@@ -408,14 +415,12 @@ func _update_grid_size_and_ui(index: int) -> void:
 
 
 func _bind_and_reveal_mode_cards() -> void:
-	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
+	var motion_utility: GameUiMotionUtility = _get_game_ui_motion_utility()
 	if not is_instance_valid(motion_utility):
 		return
 
-	if motion_utility.has_method("bind_interactive_controls"):
-		var _bound_count: int = motion_utility.bind_interactive_controls(_mode_list_container)
-	if motion_utility.has_method("play_children_reveal"):
-		var _reveal_count: int = motion_utility.play_children_reveal(_mode_list_container, _CARD_REVEAL_OFFSET)
+	var _bound_count: int = motion_utility.bind_interactive_controls(_mode_list_container)
+	var _reveal_count: int = motion_utility.play_children_reveal(_mode_list_container, _CARD_REVEAL_OFFSET)
 
 
 func _get_mode_cards() -> Array[ModeCard]:
@@ -426,11 +431,101 @@ func _get_mode_cards() -> Array[ModeCard]:
 	return cards
 
 
+func _get_parent_hbox(control: Control) -> HBoxContainer:
+	if not is_instance_valid(control):
+		return null
+
+	var parent: Node = control.get_parent()
+	if parent is HBoxContainer:
+		var container: HBoxContainer = parent
+		return container
+	return null
+
+
+func _get_sibling_label(control: Control) -> Label:
+	if not is_instance_valid(control):
+		return null
+
+	var parent: Node = control.get_parent()
+	return _get_child_label(parent, "Label")
+
+
+func _get_child_label(parent: Node, child_path: NodePath) -> Label:
+	if not is_instance_valid(parent):
+		return null
+
+	var label_node: Node = parent.get_node_or_null(child_path)
+	if label_node is Label:
+		var label: Label = label_node
+		return label
+	return null
+
+
+func _format_stats_text(high_score: int, stats: Dictionary) -> String:
+	var plays: int = GFVariantData.to_int(stats.get("plays", 0), 0)
+	if plays <= 0:
+		return "\n" + _GAME_TEXT_FORMATTER.format_template(
+			tr("INFO_MODE_STATS_EMPTY"),
+			_STATS_EMPTY_FORMAT_FALLBACK,
+			[_current_grid_size, _current_grid_size, high_score]
+		)
+
+	var best_steps: int = GFVariantData.to_int(stats.get("best_steps", 0), 0)
+	var max_tile: int = GFVariantData.to_int(stats.get("max_tile", 0), 0)
+	var average_score: int = GFVariantData.to_int(stats.get("average_score", 0), 0)
+	var average_steps: int = GFVariantData.to_int(stats.get("average_steps", 0), 0)
+	var target_value: int = GFVariantData.to_int(stats.get("target_value", 0), 0)
+	var target_reached_count: int = GFVariantData.to_int(stats.get("target_reached_count", 0), 0)
+	var target_reached_rate: int = GFVariantData.to_int(stats.get("target_reached_rate", 0), 0)
+	var last_score: int = GFVariantData.to_int(stats.get("last_score", 0), 0)
+	var last_steps: int = GFVariantData.to_int(stats.get("last_steps", 0), 0)
+	if target_value > 0:
+		return "\n" + _GAME_TEXT_FORMATTER.format_template(
+			tr("INFO_MODE_STATS_SUMMARY_WITH_TARGET"),
+			_STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK,
+			[
+				_current_grid_size,
+				_current_grid_size,
+				high_score,
+				plays,
+				_format_optional_stat(best_steps),
+				_format_optional_stat(max_tile),
+				target_value,
+				target_reached_count,
+				target_reached_rate,
+				_format_optional_stat(average_score),
+				_format_optional_stat(average_steps),
+				last_score,
+				_format_optional_stat(last_steps),
+			]
+		)
+	return "\n" + _GAME_TEXT_FORMATTER.format_template(
+		tr("INFO_MODE_STATS_SUMMARY"),
+		_STATS_SUMMARY_FORMAT_FALLBACK,
+		[
+			_current_grid_size,
+			_current_grid_size,
+			high_score,
+			plays,
+			_format_optional_stat(best_steps),
+			_format_optional_stat(max_tile),
+			_format_optional_stat(average_score),
+			_format_optional_stat(average_steps),
+			last_score,
+			_format_optional_stat(last_steps),
+		]
+	)
+
+
+func _format_optional_stat(value: int) -> String:
+	if value <= 0:
+		return tr("UI_NONE")
+	return str(value)
+
+
 func _reveal_selection_panels() -> void:
-	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
+	var motion_utility: GameUiMotionUtility = _get_game_ui_motion_utility()
 	if not is_instance_valid(motion_utility):
-		return
-	if not motion_utility.has_method("play_children_reveal"):
 		return
 
 	var _left_reveal_count: int = motion_utility.play_children_reveal(_left_panel_container, _DETAIL_REVEAL_OFFSET, _DETAIL_REVEAL_STAGGER)
@@ -451,11 +546,63 @@ func _change_page(direction: int) -> void:
 	await _update_list_and_focus()
 
 
+func _create_mode_card() -> ModeCard:
+	var card_node: Node = MODE_CARD_SCENE.instantiate()
+	if card_node is ModeCard:
+		var card: ModeCard = card_node
+		return card
+
+	if is_instance_valid(card_node):
+		push_error("[ModeSelection] 模式卡片场景必须实例化为 ModeCard。")
+		card_node.queue_free()
+	return null
+
+
+func _get_game_ui_motion_utility() -> GameUiMotionUtility:
+	var utility_value: Object = _get_ui_motion_utility()
+	if utility_value is GameUiMotionUtility:
+		var motion_utility: GameUiMotionUtility = utility_value
+		return motion_utility
+	return null
+
+
+func _get_save_system() -> SaveSystem:
+	var system_value: Object = get_system(SaveSystem)
+	if system_value is SaveSystem:
+		var save_system: SaveSystem = system_value
+		return save_system
+	return null
+
+
+func _get_scene_router_system() -> SceneRouterSystem:
+	var system_value: Object = get_system(SceneRouterSystem)
+	if system_value is SceneRouterSystem:
+		var scene_router: SceneRouterSystem = system_value
+		return scene_router
+	return null
+
+
+func _get_app_config_model() -> AppConfigModel:
+	var model_value: Object = get_model(AppConfigModel)
+	if model_value is AppConfigModel:
+		var app_config: AppConfigModel = model_value
+		return app_config
+	return null
+
+
+func _get_seed_utility() -> GFSeedUtility:
+	var utility_value: Object = get_utility(GFSeedUtility)
+	if utility_value is GFSeedUtility:
+		var seed_utility: GFSeedUtility = utility_value
+		return seed_utility
+	return null
+
+
 # --- 信号处理函数 ---
 
 func _on_back_button_pressed() -> void:
-	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
-	if router:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
 		router.return_to_main_menu()
 
 
@@ -492,18 +639,18 @@ func _on_start_game_button_pressed() -> void:
 	else:
 		seed_value = seed_text.to_int() if seed_text.is_valid_int() else seed_text.hash()
 
-	var app_config: AppConfigModel = get_model(AppConfigModel) as AppConfigModel
-	if app_config:
+	var app_config: AppConfigModel = _get_app_config_model()
+	if is_instance_valid(app_config):
 		app_config.selected_mode_config_path.set_value(_selected_mode_config.resource_path)
 		app_config.selected_grid_size.set_value(_current_grid_size)
 		app_config.selected_seed.set_value(seed_value)
 
-	var seed_util: GFSeedUtility = get_utility(GFSeedUtility) as GFSeedUtility
-	if seed_util:
+	var seed_util: GFSeedUtility = _get_seed_utility()
+	if is_instance_valid(seed_util):
 		seed_util.set_global_seed(seed_value)
 
-	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
-	if router:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
 		router.goto_scene(game_play_scene_path)
 
 

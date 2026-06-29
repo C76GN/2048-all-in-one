@@ -3,16 +3,21 @@
 ## 该脚本负责接收来自游戏控制器的数据，并将其格式化后显示在对应的UI标签上。
 ## 它会根据传入数据的键动态创建或复用标签，实现对不同游戏模式的自适应。
 class_name HUD
-extends GFController
+extends "res://addons/gf/kernel/base/gf_controller.gd"
 
 
 # --- 常量 ---
 
 ## 动态流程标签列表场景。
 const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://scenes/ui/flow_label_list.tscn")
+const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _FEEDBACK_TWEEN_META: StringName = &"_hud_feedback_tween"
 const _FEEDBACK_SCALE: float = 1.035
 const _FEEDBACK_DURATION: float = 0.22
+const _SCORE_FORMAT_FALLBACK: String = "分数: %d"
+const _MOVE_COUNT_FORMAT_FALLBACK: String = "移动次数: %d"
+const _HIGH_SCORE_FORMAT_FALLBACK: String = "最高分: %d"
+const _HIGHEST_TILE_FORMAT_FALLBACK: String = "最大方块: %d"
 
 
 # --- 私有变量 ---
@@ -38,13 +43,14 @@ var _last_display_values: Dictionary = {}
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	_game_status_model = get_model(GameStatusModel) as GameStatusModel
+	_game_status_model = _get_game_status_model()
 	
-	_score_value_label = get_node_or_null("%ScoreValueLabel") as Label
-	_move_count_value_label = get_node_or_null("%MoveCountValueLabel") as Label
+	_score_value_label = _get_label_node("%ScoreValueLabel")
+	_move_count_value_label = _get_label_node("%MoveCountValueLabel")
 	var status_msg_node: Node = get_node_or_null("%StatusMessageLabel")
 	if status_msg_node is RichTextLabel:
-		_status_message_label = status_msg_node
+		var status_label: RichTextLabel = status_msg_node
+		_status_message_label = status_label
 	
 	if is_instance_valid(_game_status_model):
 		_game_status_model.score.bind_to(self, _on_score_changed)
@@ -79,16 +85,21 @@ func _refresh_all() -> void:
 		return
 
 	# 1. 更新显式标签
+	var score_value: int = GFVariantData.to_int(_game_status_model.score.get_value(), 0)
+	var move_count_value: int = GFVariantData.to_int(_game_status_model.move_count.get_value(), 0)
+	var high_score_value: int = GFVariantData.to_int(_game_status_model.high_score.get_value(), 0)
+	var highest_tile_value: int = GFVariantData.to_int(_game_status_model.highest_tile.get_value(), 0)
+	var status_message: String = GFVariantData.to_text(_game_status_model.status_message.get_value(), "")
+
 	if is_instance_valid(_score_value_label):
-		_score_value_label.text = str(_game_status_model.score.get_value())
+		_score_value_label.text = str(score_value)
 	
 	if is_instance_valid(_move_count_value_label):
-		_move_count_value_label.text = str(_game_status_model.move_count.get_value())
+		_move_count_value_label.text = str(move_count_value)
 	
 	if is_instance_valid(_status_message_label):
-		var msg: String = _game_status_model.status_message.get_value()
-		_status_message_label.text = msg
-		_status_message_label.visible = not msg.is_empty()
+		_status_message_label.text = status_message
+		_status_message_label.visible = not status_message.is_empty()
 
 	var local_dict: Dictionary = {}
 	
@@ -96,33 +107,40 @@ func _refresh_all() -> void:
 		var score_text: String = tr("LABEL_SCORE")
 		if score_text == "LABEL_SCORE" or not ":" in score_text:
 			score_text = tr("SCORE_LABEL")
-		local_dict[&"score"] = (
-			score_text % _game_status_model.score.get_value()
-			if "%" in score_text
-			else score_text + " [b]" + str(_game_status_model.score.get_value()) + "[/b]"
+		local_dict[&"score"] = _format_stat_text(
+			score_text,
+			_SCORE_FORMAT_FALLBACK,
+			score_value
 		)
 	
 	if not is_instance_valid(_move_count_value_label):
 		var move_text: String = tr("LABEL_MOVES")
 		if move_text == "LABEL_MOVES" or not ":" in move_text:
 			move_text = tr("MOVE_COUNT_LABEL")
-		local_dict[&"move_count"] = (
-			move_text % _game_status_model.move_count.get_value()
-			if "%" in move_text
-			else move_text + " [b]" + str(_game_status_model.move_count.get_value()) + "[/b]"
+		local_dict[&"move_count"] = _format_stat_text(
+			move_text,
+			_MOVE_COUNT_FORMAT_FALLBACK,
+			move_count_value
 		)
 
-	local_dict[&"high_score"] = tr("HIGH_SCORE_LABEL") % _game_status_model.high_score.get_value()
-	local_dict[&"highest_tile"] = tr("HIGHEST_TILE_LABEL") % _game_status_model.highest_tile.get_value()
+	local_dict[&"high_score"] = _GAME_TEXT_FORMATTER.format_template(
+		tr("HIGH_SCORE_LABEL"),
+		_HIGH_SCORE_FORMAT_FALLBACK,
+		[high_score_value]
+	)
+	local_dict[&"highest_tile"] = _GAME_TEXT_FORMATTER.format_template(
+		tr("HIGHEST_TILE_LABEL"),
+		_HIGHEST_TILE_FORMAT_FALLBACK,
+		[highest_tile_value]
+	)
 	
 	if not is_instance_valid(_status_message_label):
-		var msg: String = _game_status_model.status_message.get_value()
-		if not msg.is_empty():
-			local_dict[&"status_message"] = "[color=yellow]" + msg + "[/color]"
+		if not status_message.is_empty():
+			local_dict[&"status_message"] = "[color=yellow]" + status_message + "[/color]"
 
 	var query_result: Variant = send_query(GetHudStatsQuery.new())
 	if query_result is Dictionary:
-		var query_dict: Dictionary = query_result
+		var query_dict: Dictionary = GFVariantData.to_dictionary(query_result)
 		local_dict.merge(query_dict)
 
 	_update_dynamic_list(local_dict)
@@ -170,7 +188,8 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 				var flow_label_node: Node = FLOW_LABEL_LIST_SCENE.instantiate()
 				if not flow_label_node is Control:
 					continue
-				ui_node = flow_label_node
+				var flow_control: Control = flow_label_node
+				ui_node = flow_control
 			else:
 				var new_label: RichTextLabel = RichTextLabel.new()
 				new_label.bbcode_enabled = true
@@ -186,7 +205,7 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 				continue
 
 		if ui_node is FlowLabelList:
-			var data_array: Array = data_to_display if data_to_display is Array else []
+			var data_array: Array = GFVariantData.to_array(data_to_display)
 			var flow_label_list: FlowLabelList = ui_node
 			flow_label_list.update_data(data_array)
 		elif ui_node is RichTextLabel:
@@ -203,6 +222,12 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 func _update_ui_text() -> void:
 	if is_instance_valid(_title_label):
 		_title_label.text = tr("TITLE_GAME_STATUS")
+
+
+func _format_stat_text(template: String, fallback: String, value: int) -> String:
+	if template.contains("%"):
+		return _GAME_TEXT_FORMATTER.format_template(template, fallback, [value])
+	return template + " [b]" + str(value) + "[/b]"
 
 
 func _mark_dirty() -> void:
@@ -260,6 +285,22 @@ func _get_stat_label_node(key: Variant) -> Control:
 	if node_value is Control:
 		var control: Control = node_value
 		return control
+	return null
+
+
+func _get_game_status_model() -> GameStatusModel:
+	var model_value: Object = get_model(GameStatusModel)
+	if model_value is GameStatusModel:
+		var status_model: GameStatusModel = model_value
+		return status_model
+	return null
+
+
+func _get_label_node(path: NodePath) -> Label:
+	var node_value: Node = get_node_or_null(path)
+	if node_value is Label:
+		var label: Label = node_value
+		return label
 	return null
 
 

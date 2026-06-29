@@ -2,7 +2,13 @@
 ##
 ## 该查询只读取 Model、System 和 Utility，不修改任何运行时状态。
 class_name GetHudStatsQuery
-extends GFQuery
+extends "res://addons/gf/kernel/base/gf_query.gd"
+
+
+# --- 常量 ---
+
+const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
+const _SEED_INFO_FORMAT_FALLBACK: String = "游戏种子: %d"
 
 
 # --- 公共方法 ---
@@ -11,24 +17,60 @@ extends GFQuery
 ## @return: 动态统计数据字典。
 func execute() -> Variant:
 	var stats: Dictionary = {}
-	var grid_model: GridModel = get_model(GridModel) as GridModel
-	var status_model: GameStatusModel = get_model(GameStatusModel) as GameStatusModel
+	var grid_model: GridModel = _get_grid_model()
+	var status_model: GameStatusModel = _get_status_model()
 
 	if is_instance_valid(grid_model) and is_instance_valid(status_model):
 		_collect_interaction_stats(grid_model, status_model, stats)
 		_collect_spawn_rule_stats(grid_model, stats)
 
-		var external_extra: Dictionary = status_model.extra_stats.get_value()
+		var external_extra: Dictionary = GFVariantData.to_dictionary(status_model.extra_stats.get_value(), {})
 		stats.merge(external_extra)
 
-	var seed_utility: GFSeedUtility = get_utility(GFSeedUtility) as GFSeedUtility
+	var seed_utility: GFSeedUtility = _get_seed_utility()
 	if is_instance_valid(seed_utility):
-		stats[&"seed_info"] = tr("SEED_INFO_LABEL") % seed_utility.get_global_seed()
+		stats[&"seed_info"] = _GAME_TEXT_FORMATTER.format_template(
+			tr("SEED_INFO_LABEL"),
+			_SEED_INFO_FORMAT_FALLBACK,
+			[seed_utility.get_global_seed()]
+		)
 
 	return stats
 
 
 # --- 私有/辅助方法 ---
+
+func _get_grid_model() -> GridModel:
+	var model_value: Object = get_model(GridModel)
+	if model_value is GridModel:
+		var grid_model: GridModel = model_value
+		return grid_model
+	return null
+
+
+func _get_status_model() -> GameStatusModel:
+	var model_value: Object = get_model(GameStatusModel)
+	if model_value is GameStatusModel:
+		var status_model: GameStatusModel = model_value
+		return status_model
+	return null
+
+
+func _get_seed_utility() -> GFSeedUtility:
+	var utility_value: Object = get_utility(GFSeedUtility)
+	if utility_value is GFSeedUtility:
+		var seed_utility: GFSeedUtility = utility_value
+		return seed_utility
+	return null
+
+
+func _get_rule_system() -> RuleSystem:
+	var system_value: Object = get_system(RuleSystem)
+	if system_value is RuleSystem:
+		var rule_system: RuleSystem = system_value
+		return rule_system
+	return null
+
 
 func _collect_interaction_stats(
 	grid_model: GridModel,
@@ -43,16 +85,18 @@ func _collect_interaction_stats(
 	for value: int in grid_model.get_all_player_tile_values():
 		player_values_set[value] = true
 
+	var max_player_value: int = GFVariantData.to_int(status_model.highest_tile.get_value(), 0)
+	var monsters_killed: int = GFVariantData.to_int(status_model.monsters_killed.get_value(), 0)
 	var context: Dictionary = {
-		&"max_player_value": status_model.highest_tile.get_value(),
-		&"monsters_killed": status_model.monsters_killed.get_value(),
+		&"max_player_value": max_player_value,
+		&"monsters_killed": monsters_killed,
 		&"player_values_set": player_values_set,
 	}
 	interaction_rule.get_hud_stats(context, stats)
 
 
 func _collect_spawn_rule_stats(grid_model: GridModel, stats: Dictionary) -> void:
-	var rule_system: RuleSystem = get_system(RuleSystem) as RuleSystem
+	var rule_system: RuleSystem = _get_rule_system()
 	if not is_instance_valid(rule_system):
 		return
 

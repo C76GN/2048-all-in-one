@@ -1,6 +1,6 @@
 ## GameSettingsUtility: 项目设置工具，过滤存储层保留元信息。
 class_name GameSettingsUtility
-extends GFSettingsUtility
+extends "res://addons/gf/standard/utilities/settings/gf_settings_utility.gd"
 
 
 # --- 公共方法 ---

@@ -50,8 +50,8 @@ func _goto_scene(scene_path: String, property_name: String) -> void:
 		push_error("[MainMenu] 场景路径 %s 未设置。" % property_name)
 		return
 
-	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
-	if router:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
 		router.goto_scene(scene_path)
 
 
@@ -66,6 +66,14 @@ func _update_ui_text() -> void:
 		_settings_button.text = tr("SETTINGS_TITLE")
 	if is_instance_valid(_quit_button):
 		_quit_button.text = tr("BTN_QUIT")
+
+
+func _get_scene_router_system() -> SceneRouterSystem:
+	var system_value: Object = get_system(SceneRouterSystem)
+	if system_value is SceneRouterSystem:
+		var scene_router: SceneRouterSystem = system_value
+		return scene_router
+	return null
 
 
 # --- 信号处理函数 ---
@@ -87,6 +95,6 @@ func _on_settings_button_pressed() -> void:
 
 
 func _on_quit_button_pressed() -> void:
-	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
-	if router:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
 		router.quit_game()

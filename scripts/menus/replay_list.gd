@@ -39,9 +39,9 @@ func _ready() -> void:
 # --- 虚方法覆写 ---
 
 func _get_data_list() -> Array:
-	var replay_system: ReplaySystem = get_system(ReplaySystem) as ReplaySystem
+	var replay_system: ReplaySystem = _get_replay_system()
 	var replays: Array[ReplayData] = []
-	if replay_system:
+	if is_instance_valid(replay_system):
 		replays = replay_system.load_replays()
 	var result: Array = []
 	for replay_data: ReplayData in replays:
@@ -50,17 +50,19 @@ func _get_data_list() -> Array:
 
 
 func _setup_item(item: Control, data: Resource) -> void:
-	var replay_item: ReplayListItem = item as ReplayListItem
-	var replay_data: ReplayData = data as ReplayData
-	if is_instance_valid(replay_item) and is_instance_valid(replay_data):
-		replay_item.setup(replay_data)
+	if not item is ReplayListItem or not data is ReplayData:
+		return
+
+	var replay_item: ReplayListItem = item
+	var replay_data: ReplayData = data
+	replay_item.setup(replay_data)
 
 
 func _connect_item_signals(item: Control, _data: Resource) -> void:
-	var replay_item: ReplayListItem = item as ReplayListItem
-	if not is_instance_valid(replay_item):
+	if not item is ReplayListItem:
 		return
 
+	var replay_item: ReplayListItem = item
 	if not replay_item.replay_selected.is_connected(_on_item_confirmed):
 		var _connect_result_61: int = replay_item.replay_selected.connect(_on_item_confirmed)
 	if not replay_item.item_focused.is_connected(_on_item_focused):
@@ -68,11 +70,11 @@ func _connect_item_signals(item: Control, _data: Resource) -> void:
 
 
 func _update_preview(data: Resource) -> void:
-	var replay: ReplayData = data as ReplayData
-	if not is_instance_valid(replay):
+	if not data is ReplayData:
 		_clear_preview()
 		return
 
+	var replay: ReplayData = data
 	var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(replay.mode_config_path)
 	if not is_instance_valid(mode_config):
 		detail_info_label.text = tr("ERR_LOAD_CONFIG")
@@ -106,8 +108,8 @@ func _update_ui_text() -> void:
 
 	var left_column: Node = get_node_or_null("MarginContainer/ColumnsContainer/LeftColumn")
 	if left_column and left_column.get_child_count() > 0:
-		var preview_label: Label = left_column.get_child(0) as Label
-		if preview_label:
+		var preview_label: Label = _get_first_label_child(left_column)
+		if is_instance_valid(preview_label):
 			preview_label.text = tr("TITLE_REPLAY_PREVIEW")
 
 	if is_instance_valid(_primary_button):
@@ -119,28 +121,61 @@ func _update_ui_text() -> void:
 
 	var right_column: Node = get_node_or_null("MarginContainer/ColumnsContainer/RightColumn")
 	if right_column and right_column.get_child_count() > 0:
-		var operations_label: Label = right_column.get_child(0) as Label
-		if operations_label:
+		var operations_label: Label = _get_first_label_child(right_column)
+		if is_instance_valid(operations_label):
 			operations_label.text = tr("CONTROLS_TITLE")
 
 
 func _do_delete_logic(data: Resource) -> void:
-	var replay: ReplayData = data as ReplayData
-	var replay_system: ReplaySystem = get_system(ReplaySystem) as ReplaySystem
-	if replay_system:
+	if not data is ReplayData:
+		return
+
+	var replay: ReplayData = data
+	var replay_system: ReplaySystem = _get_replay_system()
+	if is_instance_valid(replay_system):
 		replay_system.delete_replay(replay.file_path)
 
 
 func _on_primary_action_triggered(data: Resource) -> void:
-	var replay: ReplayData = data as ReplayData
-	var app_config: AppConfigModel = get_model(AppConfigModel) as AppConfigModel
-	if app_config:
+	if not data is ReplayData:
+		return
+
+	var replay: ReplayData = data
+	var app_config: AppConfigModel = _get_app_config_model()
+	if is_instance_valid(app_config):
 		app_config.selected_bookmark_data.set_value(null)
 		app_config.current_replay_data.set_value(replay)
 
-	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
-	if router:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
 		router.goto_scene(game_scene_path)
+
+
+func _get_replay_system() -> ReplaySystem:
+	var system_value: Object = get_system(ReplaySystem)
+	if system_value is ReplaySystem:
+		var replay_system: ReplaySystem = system_value
+		return replay_system
+	return null
+
+
+func _get_app_config_model() -> AppConfigModel:
+	var model_value: Object = get_model(AppConfigModel)
+	if model_value is AppConfigModel:
+		var app_config: AppConfigModel = model_value
+		return app_config
+	return null
+
+
+func _get_first_label_child(parent: Node) -> Label:
+	if not is_instance_valid(parent) or parent.get_child_count() <= 0:
+		return null
+
+	var child: Node = parent.get_child(0)
+	if child is Label:
+		var label: Label = child
+		return label
+	return null
 
 
 func _get_empty_message() -> String:

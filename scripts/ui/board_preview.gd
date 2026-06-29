@@ -62,8 +62,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 		return
 
 	var grid_size: int = GFVariantData.to_int(snapshot.get(&"grid_size", snapshot.get("grid_size", 4)), 4)
-	var tiles_value: Variant = snapshot.get(&"tiles", snapshot.get("tiles", []))
-	var tiles_data: Array = tiles_value if tiles_value is Array else []
+	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
 
 	# 动态计算尺寸
 	var raw_cell_size: float = MAX_PREVIEW_SIZE / (grid_size + (grid_size + 1) * SPACING_RATIO)
@@ -84,7 +83,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 	# 绘制背景格子
 	for x: int in range(grid_size):
 		for y: int in range(grid_size):
-			var cell_instance: Control = GRID_CELL_SCENE.instantiate() as Control
+			var cell_instance: Control = _instantiate_control(GRID_CELL_SCENE)
 			if not is_instance_valid(cell_instance):
 				continue
 			_board_container.add_child(cell_instance)
@@ -94,13 +93,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 
 			# 兼容现有的主题颜色配置
 			if cell_instance is Panel:
-				var base_cell_style: StyleBox = cell_instance.get_theme_stylebox("panel")
-				var cell_style: StyleBoxFlat = null
-				if base_cell_style is StyleBoxFlat:
-					var base_flat_style: StyleBoxFlat = base_cell_style
-					cell_style = base_flat_style.duplicate() as StyleBoxFlat
-				if cell_style == null:
-					cell_style = StyleBoxFlat.new()
+				var cell_style: StyleBoxFlat = _duplicate_cell_style(cell_instance)
 				cell_style.bg_color = mode_config.board_theme.empty_cell_color
 				# 预览图稍微缩小圆角
 				cell_style.set_corner_radius_all(maxi(2, roundi(cell_size * 0.1)))
@@ -118,7 +111,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 		var value: int = GFVariantData.to_int(tile_data.get(&"value", tile_data.get("value", 0)), 0)
 		var type: Tile.TileType = _to_tile_type(tile_data.get(&"type", tile_data.get("type", Tile.TileType.PLAYER)))
 
-		var tile: Tile = TILE_SCENE.instantiate() as Tile
+		var tile: Tile = _instantiate_tile(TILE_SCENE)
 		if not is_instance_valid(tile):
 			continue
 		_board_container.add_child(tile)
@@ -169,6 +162,37 @@ func _clear_preview_internal() -> void:
 		child.queue_free()
 
 
+func _instantiate_control(scene: PackedScene) -> Control:
+	var instance: Node = scene.instantiate()
+	if instance is Control:
+		var control: Control = instance
+		return control
+	if is_instance_valid(instance):
+		instance.queue_free()
+	return null
+
+
+func _instantiate_tile(scene: PackedScene) -> Tile:
+	var instance: Node = scene.instantiate()
+	if instance is Tile:
+		var tile: Tile = instance
+		return tile
+	if is_instance_valid(instance):
+		instance.queue_free()
+	return null
+
+
+func _duplicate_cell_style(cell_instance: Control) -> StyleBoxFlat:
+	var base_cell_style: StyleBox = cell_instance.get_theme_stylebox("panel")
+	if base_cell_style is StyleBoxFlat:
+		var base_flat_style: StyleBoxFlat = base_cell_style
+		var duplicated_style: Resource = base_flat_style.duplicate()
+		if duplicated_style is StyleBoxFlat:
+			var flat_style: StyleBoxFlat = duplicated_style
+			return flat_style
+	return StyleBoxFlat.new()
+
+
 func _get_cell_position(x: int, y: int, cell_size: float, spacing: float, offset: float) -> Vector2:
 	return Vector2(
 		offset + spacing + x * (cell_size + spacing),
@@ -190,14 +214,17 @@ func _get_tile_colors(value: int, type: Tile.TileType, mode_config: GameModeConf
 	var bg_color: Color = Color.WHITE
 	var font_color: Color = Color.BLACK
 	
-	if not mode_config or not mode_config.interaction_rule:
+	if not is_instance_valid(mode_config) or not is_instance_valid(mode_config.interaction_rule):
 		return {"bg": bg_color, "font": font_color}
 		
 	var scheme_index: int = type
 	if type == Tile.TileType.PLAYER:
 		scheme_index = mode_config.interaction_rule.get_color_scheme_index(value)
 		
-	var current_scheme: TileColorScheme = mode_config.color_schemes.get(scheme_index)
+	var scheme_value: Variant = mode_config.color_schemes.get(scheme_index)
+	if not scheme_value is TileColorScheme:
+		return {"bg": bg_color, "font": font_color}
+	var current_scheme: TileColorScheme = scheme_value
 	if is_instance_valid(current_scheme) and not current_scheme.styles.is_empty():
 		var level: int = mode_config.interaction_rule.get_level_by_value(value)
 		if level >= current_scheme.styles.size():

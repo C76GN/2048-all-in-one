@@ -4,7 +4,7 @@
 ## 管理所有书签文件的保存、加载和删除。它在用户数据目录中
 ## 创建一个专用的 `bookmarks` 文件夹来存放所有状态记录。
 class_name BookmarkSystem
-extends GFSystem
+extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
 # --- 常量 ---
@@ -18,7 +18,7 @@ const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT: Script = preload("res://scripts
 
 func async_init() -> void:
 	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if collection:
+	if is_instance_valid(collection):
 		var _ensure_result: Error = collection.ensure_collection_directory(BOOKMARK_DIR_NAME)
 
 
@@ -28,7 +28,7 @@ func async_init() -> void:
 ## @param bookmark_data: 要保存的BookmarkData资源。
 func save_bookmark(bookmark_data: BookmarkData) -> void:
 	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if collection:
+	if is_instance_valid(collection):
 		var _saved_path: String = collection.save_timestamped_resource(BOOKMARK_DIR_NAME, "bookmark", bookmark_data)
 
 
@@ -37,12 +37,13 @@ func save_bookmark(bookmark_data: BookmarkData) -> void:
 func load_bookmarks() -> Array[BookmarkData]:
 	var bookmarks: Array[BookmarkData] = []
 	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if not collection:
+	if not is_instance_valid(collection):
 		return bookmarks
 
 	for resource: Resource in collection.load_timestamped_resources(BOOKMARK_DIR_NAME, "BookmarkData", BookmarkData):
 		if resource is BookmarkData:
-			bookmarks.append(resource as BookmarkData)
+			var bookmark_data: BookmarkData = resource
+			bookmarks.append(bookmark_data)
 	return bookmarks
 
 
@@ -53,11 +54,15 @@ func delete_bookmark(bookmark_file_path: String) -> void:
 		return
 
 	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if collection:
+	if is_instance_valid(collection):
 		var _delete_result: Error = collection.delete_resource_file(bookmark_file_path)
 
 
 # --- 私有/辅助方法 ---
 
 func _get_saved_resource_collection() -> SavedResourceCollectionUtility:
-	return get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT) as SavedResourceCollectionUtility
+	var utility_value: Object = get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT)
+	if utility_value is SavedResourceCollectionUtility:
+		var collection: SavedResourceCollectionUtility = utility_value
+		return collection
+	return null

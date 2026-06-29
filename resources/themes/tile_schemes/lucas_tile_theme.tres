@@ -31,7 +31,7 @@ font_color = Color(0.050980393, 0.2784314, 0.6313726, 1)
 [sub_resource type="Resource" id="Resource_oq8d3"]
 script = ExtResource("2_i87hp")
 background_color = Color(0.25882354, 0.64705884, 0.9607843, 1)
-font_color = Color(1, 1, 1, 1)
+font_color = Color(0.050980393, 0.2784314, 0.6313726, 1)
 
 [sub_resource type="Resource" id="Resource_7lh5w"]
 script = ExtResource("2_i87hp")

@@ -1,6 +1,6 @@
 ## GameArchitectureInstaller: 注册项目级 GF 模块。
 class_name GameArchitectureInstaller
-extends GFInstaller
+extends "res://addons/gf/kernel/core/gf_installer.gd"
 
 
 # --- 常量 ---
@@ -88,6 +88,9 @@ func _bind_systems(binder: GFBinder) -> void:
 func _create_storage_utility() -> GFStorageUtility:
 	var storage: GFStorageUtility = GFStorageUtility.new()
 	storage.allow_absolute_paths = false
+	storage.allow_resource_loads = true
+	storage.allowed_resource_load_extensions = PackedStringArray(["tres"])
+	storage.allowed_resource_load_type_hints = PackedStringArray(["BookmarkData", "ReplayData"])
 	storage.create_directories_for_nested_paths = true
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true

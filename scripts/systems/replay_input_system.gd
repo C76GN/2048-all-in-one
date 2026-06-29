@@ -1,6 +1,6 @@
 ## ReplayInputSystem: 负责处理回放模式下的输入和逐步播放逻辑。
 class_name ReplayInputSystem
-extends GFSystem
+extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
 # --- 常量 ---
@@ -25,7 +25,7 @@ var _is_step_processing: bool = false
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
-	_input_mapping = get_utility(GFInputMappingUtility) as GFInputMappingUtility
+	_input_mapping = _get_input_mapping_utility()
 
 	register_event(GameReadyData, _on_game_ready)
 	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
@@ -60,7 +60,7 @@ func tick(_delta: float) -> void:
 	if not _is_playing:
 		return
 
-	var replay_system: ReplaySystem = get_system(ReplaySystem) as ReplaySystem
+	var replay_system: ReplaySystem = _get_replay_system()
 	if not is_instance_valid(replay_system):
 		return
 
@@ -102,7 +102,7 @@ func _execute_replay_step(direction: Vector2i) -> void:
 	if _is_step_processing:
 		return
 
-	var history: GFCommandHistoryUtility = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
+	var history: GFCommandHistoryUtility = _get_command_history_utility()
 	if not is_instance_valid(history):
 		return
 
@@ -113,6 +113,43 @@ func _execute_replay_step(direction: Vector2i) -> void:
 		return
 
 	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+
+
+func _get_input_mapping_utility() -> GFInputMappingUtility:
+	var utility_value: Object = get_utility(GFInputMappingUtility)
+	if utility_value is GFInputMappingUtility:
+		var input_mapping: GFInputMappingUtility = utility_value
+		return input_mapping
+	return null
+
+
+func _get_replay_system() -> ReplaySystem:
+	var system_value: Object = get_system(ReplaySystem)
+	if system_value is ReplaySystem:
+		var replay_system: ReplaySystem = system_value
+		return replay_system
+	return null
+
+
+func _get_command_history_utility() -> GFCommandHistoryUtility:
+	var utility_value: Object = get_utility(GFCommandHistoryUtility)
+	if utility_value is GFCommandHistoryUtility:
+		var command_history: GFCommandHistoryUtility = utility_value
+		return command_history
+	return null
+
+
+func _get_replay_action_direction(step_index: int) -> Vector2i:
+	if not is_instance_valid(_replay_data):
+		return Vector2i.ZERO
+	if step_index < 0 or step_index >= _replay_data.actions.size():
+		return Vector2i.ZERO
+
+	var action_value: Variant = _replay_data.actions[step_index]
+	if action_value is Vector2i:
+		var direction: Vector2i = action_value
+		return direction
+	return Vector2i.ZERO
 
 
 # --- 信号处理函数 ---
@@ -142,11 +179,13 @@ func _on_next_step(_payload: Variant = null) -> void:
 	if not _is_active or not _is_playing or not is_instance_valid(_replay_data):
 		return
 		
-	var history: GFCommandHistoryUtility = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-	var step_index: int = maxi(history.undo_count - 1, 0) if history else 0
+	var history: GFCommandHistoryUtility = _get_command_history_utility()
+	var step_index: int = maxi(history.undo_count - 1, 0) if is_instance_valid(history) else 0
 	
 	if step_index < _replay_data.actions.size():
-		var direction: Vector2i = _replay_data.actions[step_index]
+		var direction: Vector2i = _get_replay_action_direction(step_index)
+		if direction == Vector2i.ZERO:
+			return
 		call_deferred(&"_execute_replay_step", direction)
 
 
@@ -154,8 +193,8 @@ func _on_prev_step(_payload: Variant = null) -> void:
 	if not _is_active or not _is_playing or _is_step_processing:
 		return
 		
-	var history: GFCommandHistoryUtility = get_utility(GFCommandHistoryUtility) as GFCommandHistoryUtility
-	if history and history.undo_count > 1:
+	var history: GFCommandHistoryUtility = _get_command_history_utility()
+	if is_instance_valid(history) and history.undo_count > 1:
 		_is_step_processing = true
 		if await history.undo_last_async():
 			send_simple_event(EventNames.HUD_UPDATE_REQUESTED)

@@ -13,8 +13,8 @@ const MAIN_MENU_SCENE_PATH: String = "res://scenes/menus/main_menu.tscn"
 func _ready() -> void:
 	await Gf.init()
 
-	var router: SceneRouterSystem = Gf.get_system(SceneRouterSystem) as SceneRouterSystem
-	if router:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
 		router.call_deferred("goto_scene", MAIN_MENU_SCENE_PATH)
 
 
@@ -22,3 +22,13 @@ func _ready() -> void:
 
 static func are_dev_tools_enabled() -> bool:
 	return OS.has_feature("editor") or OS.is_debug_build() or OS.has_feature("with_test_panel")
+
+
+# --- 私有/辅助方法 ---
+
+func _get_scene_router_system() -> SceneRouterSystem:
+	var system_value: Object = Gf.get_system(SceneRouterSystem)
+	if system_value is SceneRouterSystem:
+		var scene_router: SceneRouterSystem = system_value
+		return scene_router
+	return null

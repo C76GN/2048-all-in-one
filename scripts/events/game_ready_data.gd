@@ -2,7 +2,7 @@
 ##
 ## 该数据包含了 GamePlayController 配置表现层所需的核心规则、参数与模型状态。
 class_name GameReadyData
-extends GFPayload
+extends "res://addons/gf/kernel/base/gf_payload.gd"
 
 
 # --- 公共变量 ---

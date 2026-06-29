@@ -32,4 +32,5 @@ color_schemes = {
 1: ExtResource("3_8xxsn")
 }
 board_theme = ExtResource("1_xkyvo")
+target_tile_value = 2048
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

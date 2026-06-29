@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="GFInputContext" format=3]
+[gd_resource type="Resource" script_class="GFInputContext" format=3 uid="uid://2bwipvr1i8ir"]
 
-[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_context.gd" id="1_context"]
-[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_action.gd" id="2_action"]
-[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_binding.gd" id="3_binding"]
-[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_mapping.gd" id="4_mapping"]
+[ext_resource type="Script" uid="uid://hgibs471ravp" path="res://addons/gf/standard/input/mapping/gf_input_context.gd" id="1_context"]
+[ext_resource type="Script" uid="uid://dsss8r4nabnkv" path="res://addons/gf/standard/input/mapping/gf_input_action.gd" id="2_action"]
+[ext_resource type="Script" uid="uid://cif4uckx0draq" path="res://addons/gf/standard/input/mapping/gf_input_binding.gd" id="3_binding"]
+[ext_resource type="Script" uid="uid://bq3rwroglwdi2" path="res://addons/gf/standard/input/modifiers/gf_input_modifier.gd" id="4_88qn1"]
+[ext_resource type="Script" uid="uid://by4w6dh8466hs" path="res://addons/gf/standard/input/mapping/gf_input_mapping.gd" id="4_mapping"]
+[ext_resource type="Script" uid="uid://dtohn3v5towwt" path="res://addons/gf/standard/input/triggers/gf_input_trigger.gd" id="5_2y6sy"]
 
 [sub_resource type="Resource" id="Action_replay_prev_step"]
 script = ExtResource("2_action")
@@ -38,7 +40,6 @@ display_name = "D-pad Left"
 
 [sub_resource type="InputEventJoypadMotion" id="Joy_replay_prev_axis"]
 device = -1
-axis = 0
 axis_value = -1.0
 
 [sub_resource type="Resource" id="Binding_replay_prev_axis"]
@@ -102,7 +103,6 @@ display_name = "D-pad Right"
 
 [sub_resource type="InputEventJoypadButton" id="Joy_replay_next_a"]
 device = -1
-button_index = 0
 
 [sub_resource type="Resource" id="Binding_replay_next_a"]
 script = ExtResource("3_binding")
@@ -111,7 +111,6 @@ display_name = "A Button"
 
 [sub_resource type="InputEventJoypadMotion" id="Joy_replay_next_axis"]
 device = -1
-axis = 0
 axis_value = 1.0
 
 [sub_resource type="Resource" id="Binding_replay_next_axis"]

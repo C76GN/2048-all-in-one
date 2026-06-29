@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://c4av5x6smv12h"]
+[gd_scene format=3 uid="uid://c4av5x6smv12h"]
 
 [ext_resource type="Script" uid="uid://d3udmbuw4bj40" path="res://scripts/ui/board_preview.gd" id="1_miw6p"]
 
-[node name="BoardPreview" type="Control"]
+[node name="BoardPreview" type="Control" unique_id=1700723717]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

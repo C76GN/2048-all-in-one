@@ -2,7 +2,7 @@
 ##
 ## 该命令保存移动前的完整游戏快照，并在撤销时恢复游戏状态。
 class_name MoveCommand
-extends GFUndoableCommand
+extends "res://addons/gf/standard/command/gf_undoable_command.gd"
 
 
 # --- 常量 ---
@@ -38,8 +38,8 @@ func is_baseline() -> bool:
 
 
 func execute() -> Variant:
-	var grid_model: GridModel = get_model(GridModel) as GridModel
-	var game_state_system: GameStateSystem = get_system(GameStateSystem) as GameStateSystem
+	var grid_model: GridModel = _get_grid_model()
+	var game_state_system: GameStateSystem = _get_game_state_system()
 
 	if not is_instance_valid(grid_model) or not is_instance_valid(game_state_system):
 		_log_error("GridModel 或 GameStateSystem 不可用。")
@@ -48,7 +48,7 @@ func execute() -> Variant:
 	set_snapshot(game_state_system.get_full_game_state(grid_model.grid_size))
 
 	_reverse_target_map.clear()
-	var move_sys: GridMovementSystem = get_system(GridMovementSystem) as GridMovementSystem
+	var move_sys: GridMovementSystem = _get_grid_movement_system()
 	var result: Variant = null
 	if is_instance_valid(move_sys):
 		result = move_sys.handle_move(_direction)
@@ -67,17 +67,14 @@ func undo() -> Variant:
 	if snapshot.is_empty():
 		return null
 
-	var game_state_system: GameStateSystem = get_system(GameStateSystem) as GameStateSystem
+	var game_state_system: GameStateSystem = _get_game_state_system()
 	if not is_instance_valid(game_state_system):
 		_log_error("GameStateSystem 不可用，无法撤销。")
 		return null
 
 	game_state_system.restore_state(snapshot)
 
-	var board_snapshot: Dictionary = snapshot.get(
-		&"board_snapshot",
-		snapshot.get(&"grid_snapshot", {})
-	)
+	var board_snapshot: Dictionary = _get_dictionary_with_fallback(snapshot, &"board_snapshot", &"grid_snapshot")
 	send_simple_event(
 		EventNames.BOARD_UNDO_ANIMATION_REQUESTED,
 		[board_snapshot, _reverse_target_map]
@@ -111,12 +108,49 @@ static func deserialize(data: Dictionary) -> MoveCommand:
 	)
 	var cmd: MoveCommand = MoveCommand.new(direction)
 	cmd.set_snapshot(data.get(&"snapshot", data.get("snapshot", {})))
-	cmd._reverse_target_map = data.get(&"reverse_map", data.get("reverse_map", {}))
-	cmd._is_baseline = data.get(&"is_baseline", data.get("is_baseline", false))
+	cmd._reverse_target_map = GFVariantData.to_dictionary(data.get(&"reverse_map", data.get("reverse_map", {})))
+	cmd._is_baseline = GFVariantData.to_bool(data.get(&"is_baseline", data.get("is_baseline", false)), false)
 	return cmd
 
 
 # --- 私有/辅助方法 ---
+
+func _get_grid_model() -> GridModel:
+	var model_value: Object = get_model(GridModel)
+	if model_value is GridModel:
+		var grid_model: GridModel = model_value
+		return grid_model
+	return null
+
+
+func _get_game_state_system() -> GameStateSystem:
+	var system_value: Object = get_system(GameStateSystem)
+	if system_value is GameStateSystem:
+		var game_state_system: GameStateSystem = system_value
+		return game_state_system
+	return null
+
+
+func _get_grid_movement_system() -> GridMovementSystem:
+	var system_value: Object = get_system(GridMovementSystem)
+	if system_value is GridMovementSystem:
+		var movement_system: GridMovementSystem = system_value
+		return movement_system
+	return null
+
+
+func _get_log_utility() -> GFLogUtility:
+	var utility_value: Object = get_utility(GFLogUtility)
+	if utility_value is GFLogUtility:
+		var log_utility: GFLogUtility = utility_value
+		return log_utility
+	return null
+
+
+static func _get_dictionary_with_fallback(data: Dictionary, key: StringName, fallback_key: StringName) -> Dictionary:
+	var value: Variant = data.get(key, data.get(fallback_key, data.get(String(fallback_key), {})))
+	return GFVariantData.to_dictionary(value)
+
 
 static func _get_int(data: Dictionary, key: StringName, default_value: int) -> int:
 	var value: Variant = data.get(key, data.get(String(key), default_value))
@@ -129,7 +163,7 @@ static func _get_int(data: Dictionary, key: StringName, default_value: int) -> i
 
 
 func _log_error(message: String) -> void:
-	var log_utility: GFLogUtility = get_utility(GFLogUtility) as GFLogUtility
+	var log_utility: GFLogUtility = _get_log_utility()
 	if is_instance_valid(log_utility):
 		log_utility.error(_LOG_TAG, message)
 		return

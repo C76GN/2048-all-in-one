@@ -3,7 +3,7 @@
 ## 作为项目级 GFUtility，它负责按钮 hover、focus、press、面板入场和列表刷新表现，
 ## 不接管菜单业务、路由或输入语义。
 class_name GameUiMotionUtility
-extends GFUtility
+extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 
 # --- 常量 ---
@@ -59,11 +59,14 @@ func bind_interactive_controls(root: Node) -> int:
 		return 0
 
 	if root is Control:
-		_apply_support_control_style(root as Control)
+		var root_control: Control = root
+		_apply_support_control_style(root_control)
 
 	var bound_count: int = 0
-	if root is BaseButton and _bind_button(root as BaseButton):
-		bound_count += 1
+	if root is BaseButton:
+		var root_button: BaseButton = root
+		if _bind_button(root_button):
+			bound_count += 1
 
 	for child: Node in root.get_children():
 		bound_count += bind_interactive_controls(child)
@@ -125,9 +128,12 @@ func play_children_reveal(
 	var animate_position: bool = not container is Container
 	var reveal_offset: Vector2 = offset if animate_position else Vector2.ZERO
 	for child: Node in container.get_children():
-		if child is Control and (child as Control).visible:
+		if child is Control:
+			var child_control: Control = child
+			if not child_control.visible:
+				continue
 			var _reveal_tween: Tween = _play_control_reveal(
-				child as Control,
+				child_control,
 				reveal_offset,
 				_CHILD_REVEAL_DURATION,
 				float(animated_count) * stagger,
@@ -205,15 +211,20 @@ func _apply_support_control_style(control: Control) -> void:
 
 	control.set_meta(_STATIC_STYLE_META, true)
 	if control is Label:
-		_style_label(control as Label)
+		var label: Label = control
+		_style_label(label)
 	elif control is RichTextLabel:
-		_style_rich_text_label(control as RichTextLabel)
+		var rich_text_label: RichTextLabel = control
+		_style_rich_text_label(rich_text_label)
 	elif control is LineEdit:
-		_style_line_edit(control as LineEdit)
+		var line_edit: LineEdit = control
+		_style_line_edit(line_edit)
 	elif control is Range:
-		_style_range(control as Range)
+		var range_control: Range = control
+		_style_range(range_control)
 	elif control is PanelContainer:
-		_style_panel_container(control as PanelContainer)
+		var panel_container: PanelContainer = control
+		_style_panel_container(panel_container)
 
 
 func _style_label(label: Label) -> void:

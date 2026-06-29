@@ -28,7 +28,10 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 
 			var result: Dictionary = interaction_rule.process_interaction(current_tile, next_tile, interaction_rule)
 			if not result.is_empty():
-				var merged: GameTileData = result.get("merged_tile")
+				var merged_value: Variant = result.get("merged_tile")
+				var merged: GameTileData = null
+				if merged_value is GameTileData:
+					merged = merged_value
 				if merged != null:
 					merged_line.append(merged)
 

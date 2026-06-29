@@ -3,7 +3,7 @@
 ## 作为项目级 GFUtility，它只负责视觉反馈节点的生成与自动释放；
 ## 具体何时触发由棋盘表现 Action 决定。
 class_name GameBoardFeedbackUtility
-extends GFUtility
+extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 
 # --- 常量 ---

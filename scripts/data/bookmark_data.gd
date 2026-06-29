@@ -29,6 +29,12 @@ extends Resource
 ## 书签保存时的最高玩家方块。
 @export var highest_tile: int = 0
 
+## 书签保存时当前模式的目标方块值。
+@export var target_tile_value: int = 0
+
+## 书签保存时是否已经达成目标。
+@export var target_reached: bool = false
+
 ## 书签保存时的状态提示文本。
 @export var status_message: String = ""
 

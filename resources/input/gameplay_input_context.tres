@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="GFInputContext" format=3]
+[gd_resource type="Resource" script_class="GFInputContext" format=3 uid="uid://dbmbf7asylfdo"]
 
-[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_context.gd" id="1_context"]
-[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_action.gd" id="2_action"]
-[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_binding.gd" id="3_binding"]
-[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_mapping.gd" id="4_mapping"]
+[ext_resource type="Script" uid="uid://hgibs471ravp" path="res://addons/gf/standard/input/mapping/gf_input_context.gd" id="1_context"]
+[ext_resource type="Script" uid="uid://dsss8r4nabnkv" path="res://addons/gf/standard/input/mapping/gf_input_action.gd" id="2_action"]
+[ext_resource type="Script" uid="uid://cif4uckx0draq" path="res://addons/gf/standard/input/mapping/gf_input_binding.gd" id="3_binding"]
+[ext_resource type="Script" uid="uid://by4w6dh8466hs" path="res://addons/gf/standard/input/mapping/gf_input_mapping.gd" id="4_mapping"]
+[ext_resource type="Script" uid="uid://bq3rwroglwdi2" path="res://addons/gf/standard/input/modifiers/gf_input_modifier.gd" id="4_rtv0r"]
+[ext_resource type="Script" uid="uid://dtohn3v5towwt" path="res://addons/gf/standard/input/triggers/gf_input_trigger.gd" id="5_1prlj"]
 
 [sub_resource type="Resource" id="Action_pause"]
 script = ExtResource("2_action")
@@ -60,6 +62,34 @@ display_name = "Y"
 script = ExtResource("4_mapping")
 action = SubResource("Action_undo")
 bindings = Array[ExtResource("3_binding")]([SubResource("Binding_undo_z"), SubResource("Binding_undo_y")])
+
+[sub_resource type="Resource" id="Action_redo"]
+script = ExtResource("2_action")
+action_id = &"redo"
+display_name = "Redo"
+display_category = "Gameplay"
+
+[sub_resource type="InputEventKey" id="Key_redo_y"]
+physical_keycode = 89
+
+[sub_resource type="Resource" id="Binding_redo_y"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_redo_y")
+display_name = "Y"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_redo_right_shoulder"]
+device = -1
+button_index = 10
+
+[sub_resource type="Resource" id="Binding_redo_right_shoulder"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_redo_right_shoulder")
+display_name = "Right Shoulder"
+
+[sub_resource type="Resource" id="Mapping_redo"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_redo")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_redo_y"), SubResource("Binding_redo_right_shoulder")])
 
 [sub_resource type="Resource" id="Action_save_bookmark"]
 script = ExtResource("2_action")
@@ -237,4 +267,4 @@ bindings = Array[ExtResource("3_binding")]([SubResource("Binding_move_right_d"),
 script = ExtResource("1_context")
 context_id = &"gameplay"
 display_name = "Gameplay"
-mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_pause"), SubResource("Mapping_undo"), SubResource("Mapping_save_bookmark"), SubResource("Mapping_move_up"), SubResource("Mapping_move_down"), SubResource("Mapping_move_left"), SubResource("Mapping_move_right")])
+mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_pause"), SubResource("Mapping_undo"), SubResource("Mapping_redo"), SubResource("Mapping_save_bookmark"), SubResource("Mapping_move_up"), SubResource("Mapping_move_down"), SubResource("Mapping_move_left"), SubResource("Mapping_move_right")])

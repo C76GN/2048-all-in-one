@@ -84,4 +84,10 @@ func get_spawnable_values(_type_id: int) -> Array[int]:
 ## @param type_id: 来自UI的类型标识符。
 ## @return: Tile.TileType 枚举值。
 func get_tile_type_from_id(type_id: int) -> Tile.TileType:
-	return type_id as Tile.TileType
+	match type_id:
+		Tile.TileType.PLAYER:
+			return Tile.TileType.PLAYER
+		Tile.TileType.MONSTER:
+			return Tile.TileType.MONSTER
+		_:
+			return Tile.TileType.PLAYER

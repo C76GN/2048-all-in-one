@@ -69,7 +69,7 @@ var _active_flash_tween: Tween
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	var panel_stylebox: StyleBox = background.get_theme_stylebox("panel").duplicate() as StyleBox
+	var panel_stylebox: StyleBox = _duplicate_panel_style()
 	if panel_stylebox != null:
 		background.add_theme_stylebox_override("panel", panel_stylebox)
 	_configure_pivots()
@@ -96,13 +96,13 @@ func setup(new_value: int, new_type: TileType, bg_color: Color, font_color: Colo
 
 ## 停止当前动画并恢复基础变换状态，供对象池复用前调用。
 func reset_animation_state() -> void:
-	if _active_move_tween and _active_move_tween.is_valid():
+	if is_instance_valid(_active_move_tween) and _active_move_tween.is_valid():
 		_active_move_tween.kill()
-	if _active_scale_tween and _active_scale_tween.is_valid():
+	if is_instance_valid(_active_scale_tween) and _active_scale_tween.is_valid():
 		_active_scale_tween.kill()
-	if _active_rotation_tween and _active_rotation_tween.is_valid():
+	if is_instance_valid(_active_rotation_tween) and _active_rotation_tween.is_valid():
 		_active_rotation_tween.kill()
-	if _active_flash_tween and _active_flash_tween.is_valid():
+	if is_instance_valid(_active_flash_tween) and _active_flash_tween.is_valid():
 		_active_flash_tween.kill()
 
 	_active_move_tween = null
@@ -130,7 +130,7 @@ func on_gf_pool_release() -> void:
 ## 播放方块生成时的动画（从小到大旋转出现）。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_spawn() -> Tween:
-	if _active_rotation_tween and _active_rotation_tween.is_valid():
+	if is_instance_valid(_active_rotation_tween) and _active_rotation_tween.is_valid():
 		_active_rotation_tween.kill()
 
 	scale = Vector2.ONE * 0.42
@@ -153,7 +153,7 @@ func animate_move(new_position: Vector2) -> Tween:
 	if position.is_equal_approx(new_position):
 		return null
 
-	if _active_move_tween and _active_move_tween.is_valid():
+	if is_instance_valid(_active_move_tween) and _active_move_tween.is_valid():
 		_active_move_tween.kill()
 
 	_active_move_tween = create_tween()
@@ -166,7 +166,7 @@ func animate_move(new_position: Vector2) -> Tween:
 ## 播放方块合并或增强时的脉冲动画（放大后复原）。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_merge() -> Tween:
-	if _active_scale_tween and _active_scale_tween.is_valid():
+	if is_instance_valid(_active_scale_tween) and _active_scale_tween.is_valid():
 		_active_scale_tween.kill()
 
 	_active_scale_tween = create_tween()
@@ -195,7 +195,7 @@ func animate_despawn() -> Tween:
 ## 播放方块被强制转变类型时的“抖动”动画。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_transform() -> Tween:
-	if _active_rotation_tween and _active_rotation_tween.is_valid():
+	if is_instance_valid(_active_rotation_tween) and _active_rotation_tween.is_valid():
 		_active_rotation_tween.kill()
 
 	_active_rotation_tween = create_tween()
@@ -218,10 +218,31 @@ func _configure_pivots() -> void:
 		value_label.pivot_offset = value_label.size * 0.5
 
 
+func _duplicate_panel_style() -> StyleBox:
+	var base_style: StyleBox = background.get_theme_stylebox("panel")
+	if not is_instance_valid(base_style):
+		return null
+
+	var duplicated_style: Resource = base_style.duplicate()
+	if duplicated_style is StyleBox:
+		var stylebox: StyleBox = duplicated_style
+		return stylebox
+	return null
+
+
+func _get_background_stylebox_flat() -> StyleBoxFlat:
+	var base_style: StyleBox = background.get_theme_stylebox("panel")
+	if base_style is StyleBoxFlat:
+		var flat_style: StyleBoxFlat = base_style
+		return flat_style
+
+	var fallback_style: StyleBoxFlat = StyleBoxFlat.new()
+	background.add_theme_stylebox_override("panel", fallback_style)
+	return fallback_style
+
+
 func _apply_background_style(bg_color: Color) -> void:
-	var stylebox: StyleBoxFlat = background.get_theme_stylebox("panel") as StyleBoxFlat
-	if stylebox == null:
-		return
+	var stylebox: StyleBoxFlat = _get_background_stylebox_flat()
 
 	stylebox.bg_color = bg_color
 	stylebox.border_color = bg_color
@@ -233,7 +254,7 @@ func _apply_background_style(bg_color: Color) -> void:
 
 
 func _play_flash(color: Color, duration: float) -> void:
-	if _active_flash_tween and _active_flash_tween.is_valid():
+	if is_instance_valid(_active_flash_tween) and _active_flash_tween.is_valid():
 		_active_flash_tween.kill()
 
 	background.modulate = color

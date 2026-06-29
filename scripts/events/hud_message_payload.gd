@@ -1,6 +1,6 @@
 ## HudMessagePayload: 传递要在 HUD 上显示的提示消息及停留时间的数据载荷。
 class_name HudMessagePayload
-extends GFPayload
+extends "res://addons/gf/kernel/base/gf_payload.gd"
 
 
 # --- 公共变量 ---

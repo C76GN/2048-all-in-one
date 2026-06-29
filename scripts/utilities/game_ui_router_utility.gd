@@ -2,7 +2,7 @@
 ##
 ## 作为 GFUIRouterUtility 的项目级 Adapter，从 GFResourceRegistry 读取项目 UI 路由资源。
 class_name GameUiRouterUtility
-extends GFUIRouterUtility
+extends "res://addons/gf/standard/utilities/ui/gf_ui_router_utility.gd"
 
 
 # --- 常量 ---
@@ -12,6 +12,7 @@ const DEFAULT_UI_ROUTE_REGISTRY: GFResourceRegistry = preload("res://resources/r
 
 const ROUTE_PAUSE_MENU: StringName = &"pause_menu"
 const ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
+const ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
 const ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
 
 const _UI_ROUTE_GROUP_ID: StringName = &"ui_routes"
@@ -27,9 +28,9 @@ var _route_registry: GFResourceRegistry = DEFAULT_UI_ROUTE_REGISTRY
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
-	_asset_utility = get_utility(GFAssetUtility) as GFAssetUtility
+	_asset_utility = _resolve_asset_utility()
 	_register_route_group_paths()
-	configure(_load_routes_from_registry(), get_utility(GFUIUtility) as GFUIUtility)
+	configure(_load_routes_from_registry(), _resolve_ui_utility_for_configure())
 
 
 func dispose() -> void:
@@ -137,7 +138,8 @@ func _get_cached_route(route_path: String) -> GFUIRoute:
 
 	var cached_value: Variant = asset_utility.get_cached(route_path)
 	if cached_value is GFUIRoute:
-		return cached_value
+		var route: GFUIRoute = cached_value
+		return route
 	return null
 
 
@@ -145,8 +147,24 @@ func _get_asset_utility() -> GFAssetUtility:
 	if is_instance_valid(_asset_utility):
 		return _asset_utility
 
-	_asset_utility = get_utility(GFAssetUtility) as GFAssetUtility
+	_asset_utility = _resolve_asset_utility()
 	return _asset_utility
+
+
+func _resolve_asset_utility() -> GFAssetUtility:
+	var utility_value: Object = get_utility(GFAssetUtility)
+	if utility_value is GFAssetUtility:
+		var asset_utility: GFAssetUtility = utility_value
+		return asset_utility
+	return null
+
+
+func _resolve_ui_utility_for_configure() -> GFUIUtility:
+	var utility_value: Object = get_utility(GFUIUtility)
+	if utility_value is GFUIUtility:
+		var ui_utility: GFUIUtility = utility_value
+		return ui_utility
+	return null
 
 
 func _resolve_type_hint(entry: GFResourceRegistryEntry) -> String:

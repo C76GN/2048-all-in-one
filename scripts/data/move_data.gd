@@ -2,7 +2,7 @@
 ##
 ## 用于在移动和生成上下文之间传递的强类型数据模型。
 class_name MoveData
-extends GFPayload
+extends "res://addons/gf/kernel/base/gf_payload.gd"
 
 
 # --- 公共变量 ---

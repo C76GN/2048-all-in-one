@@ -1,6 +1,6 @@
 ## TestSpawnPayload: 在测试模式下从测试面板请求生成一个特定的方块。
 class_name TestSpawnPayload
-extends GFPayload
+extends "res://addons/gf/kernel/base/gf_payload.gd"
 
 
 # --- 公共变量 ---

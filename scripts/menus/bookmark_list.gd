@@ -39,9 +39,9 @@ func _ready() -> void:
 # --- 虚方法覆写 ---
 
 func _get_data_list() -> Array:
-	var bookmark_system: BookmarkSystem = get_system(BookmarkSystem) as BookmarkSystem
+	var bookmark_system: BookmarkSystem = _get_bookmark_system()
 	var bookmarks: Array[BookmarkData] = []
-	if bookmark_system:
+	if is_instance_valid(bookmark_system):
 		bookmarks = bookmark_system.load_bookmarks()
 	var result: Array = []
 	for bookmark_data: BookmarkData in bookmarks:
@@ -50,17 +50,19 @@ func _get_data_list() -> Array:
 
 
 func _setup_item(item: Control, data: Resource) -> void:
-	var bookmark_item: BookmarkListItem = item as BookmarkListItem
-	var bookmark_data: BookmarkData = data as BookmarkData
-	if is_instance_valid(bookmark_item) and is_instance_valid(bookmark_data):
-		bookmark_item.setup(bookmark_data)
+	if not item is BookmarkListItem or not data is BookmarkData:
+		return
+
+	var bookmark_item: BookmarkListItem = item
+	var bookmark_data: BookmarkData = data
+	bookmark_item.setup(bookmark_data)
 
 
 func _connect_item_signals(item: Control, _data: Resource) -> void:
-	var bookmark_item: BookmarkListItem = item as BookmarkListItem
-	if not is_instance_valid(bookmark_item):
+	if not item is BookmarkListItem:
 		return
 
+	var bookmark_item: BookmarkListItem = item
 	if not bookmark_item.bookmark_selected.is_connected(_on_item_confirmed):
 		var _connect_result_61: int = bookmark_item.bookmark_selected.connect(_on_item_confirmed)
 	if not bookmark_item.item_focused.is_connected(_on_item_focused):
@@ -68,11 +70,11 @@ func _connect_item_signals(item: Control, _data: Resource) -> void:
 
 
 func _update_preview(data: Resource) -> void:
-	var bookmark: BookmarkData = data as BookmarkData
-	if not is_instance_valid(bookmark):
+	if not data is BookmarkData:
 		_clear_preview()
 		return
 
+	var bookmark: BookmarkData = data
 	var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(bookmark.mode_config_path)
 	if not is_instance_valid(mode_config):
 		detail_info_label.text = tr("ERR_LOAD_CONFIG")
@@ -107,8 +109,8 @@ func _update_ui_text() -> void:
 
 	var left_column: Node = get_node_or_null("MarginContainer/ColumnsContainer/LeftColumn")
 	if left_column and left_column.get_child_count() > 0:
-		var preview_label: Label = left_column.get_child(0) as Label
-		if preview_label:
+		var preview_label: Label = _get_first_label_child(left_column)
+		if is_instance_valid(preview_label):
 			preview_label.text = tr("TITLE_SAVE_PREVIEW")
 
 	if is_instance_valid(_primary_button):
@@ -120,30 +122,63 @@ func _update_ui_text() -> void:
 
 	var right_column: Node = get_node_or_null("MarginContainer/ColumnsContainer/RightColumn")
 	if right_column and right_column.get_child_count() > 0:
-		var operations_label: Label = right_column.get_child(0) as Label
-		if operations_label:
+		var operations_label: Label = _get_first_label_child(right_column)
+		if is_instance_valid(operations_label):
 			operations_label.text = tr("CONTROLS_TITLE")
 
 
 func _do_delete_logic(data: Resource) -> void:
-	var bookmark: BookmarkData = data as BookmarkData
-	var bookmark_system: BookmarkSystem = get_system(BookmarkSystem) as BookmarkSystem
-	if bookmark_system:
+	if not data is BookmarkData:
+		return
+
+	var bookmark: BookmarkData = data
+	var bookmark_system: BookmarkSystem = _get_bookmark_system()
+	if is_instance_valid(bookmark_system):
 		bookmark_system.delete_bookmark(bookmark.file_path)
 
 
 func _on_primary_action_triggered(data: Resource) -> void:
-	var bookmark: BookmarkData = data as BookmarkData
-	var app_config: AppConfigModel = get_model(AppConfigModel) as AppConfigModel
-	if app_config:
+	if not data is BookmarkData:
+		return
+
+	var bookmark: BookmarkData = data
+	var app_config: AppConfigModel = _get_app_config_model()
+	if is_instance_valid(app_config):
 		app_config.current_replay_data.set_value(null)
 		app_config.selected_bookmark_data.set_value(bookmark)
 		app_config.selected_mode_config_path.set_value("")
 		app_config.selected_grid_size.set_value(0)
 
-	var router: SceneRouterSystem = get_system(SceneRouterSystem) as SceneRouterSystem
-	if router:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
 		router.goto_scene(game_scene_path)
+
+
+func _get_bookmark_system() -> BookmarkSystem:
+	var system_value: Object = get_system(BookmarkSystem)
+	if system_value is BookmarkSystem:
+		var bookmark_system: BookmarkSystem = system_value
+		return bookmark_system
+	return null
+
+
+func _get_app_config_model() -> AppConfigModel:
+	var model_value: Object = get_model(AppConfigModel)
+	if model_value is AppConfigModel:
+		var app_config: AppConfigModel = model_value
+		return app_config
+	return null
+
+
+func _get_first_label_child(parent: Node) -> Label:
+	if not is_instance_valid(parent) or parent.get_child_count() <= 0:
+		return null
+
+	var child: Node = parent.get_child(0)
+	if child is Label:
+		var label: Label = child
+		return label
+	return null
 
 
 func _get_empty_message() -> String:

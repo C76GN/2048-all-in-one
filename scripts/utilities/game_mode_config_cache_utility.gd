@@ -2,7 +2,7 @@
 ##
 ## 统一处理模式配置注册表、类型校验与运行时缓存，并优先复用 GFAssetUtility 的资源缓存。
 class_name GameModeConfigCacheUtility
-extends GFUtility
+extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 
 # --- 常量 ---
@@ -29,7 +29,7 @@ var _missing_paths: Dictionary = {}
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
-	_asset_utility = get_utility(GFAssetUtility) as GFAssetUtility
+	_asset_utility = _resolve_asset_utility()
 	_register_mode_group_paths()
 
 
@@ -45,11 +45,9 @@ func dispose() -> void:
 ## @param config_path: GameModeConfig 资源路径。
 ## @return: 成功时返回已缓存或新加载的 GameModeConfig，否则返回 null。
 static func get_config(config_path: String) -> GameModeConfig:
-	var cache: Object = _get_registered_cache()
-	if cache != null and cache.has_method("get_cached_config"):
-		var cached_value: Variant = cache.call(&"get_cached_config", config_path)
-		if cached_value is GameModeConfig:
-			return cached_value
+	var cache: GameModeConfigCacheUtility = _get_registered_cache()
+	if is_instance_valid(cache):
+		return cache.get_cached_config(config_path)
 
 	return _get_fallback_config(config_path)
 
@@ -57,14 +55,9 @@ static func get_config(config_path: String) -> GameModeConfig:
 ## 获取模式注册表中的配置路径列表。
 ## @return: 按注册表顺序排列的 GameModeConfig 资源路径。
 static func get_config_paths() -> PackedStringArray:
-	var cache: Object = _get_registered_cache()
-	if cache != null and cache.has_method("get_registered_config_paths"):
-		var registered_paths: Variant = cache.call(&"get_registered_config_paths")
-		if registered_paths is PackedStringArray:
-			return registered_paths
-		if registered_paths is Array:
-			var path_array: Array = registered_paths
-			return _array_to_packed_string_array(path_array)
+	var cache: GameModeConfigCacheUtility = _get_registered_cache()
+	if is_instance_valid(cache):
+		return cache.get_registered_config_paths()
 
 	return _get_registry_config_paths(DEFAULT_MODE_REGISTRY)
 
@@ -122,9 +115,9 @@ func get_debug_snapshot() -> Dictionary:
 
 ## 清空全部缓存。
 static func clear() -> void:
-	var cache: Object = _get_registered_cache()
-	if cache != null and cache.has_method("clear_runtime_cache"):
-		var _clear_result: Variant = cache.call(&"clear_runtime_cache")
+	var cache: GameModeConfigCacheUtility = _get_registered_cache()
+	if is_instance_valid(cache):
+		cache.clear_runtime_cache()
 
 	_fallback_config_cache.clear()
 	_fallback_missing_paths.clear()
@@ -138,16 +131,20 @@ func clear_runtime_cache() -> void:
 
 # --- 私有/辅助方法 ---
 
-static func _get_registered_cache() -> Object:
+static func _get_registered_cache() -> GameModeConfigCacheUtility:
 	var architecture: GFArchitecture = GFAutoload.get_architecture_or_null()
 	if architecture == null:
 		return null
 
-	var cache_script: Script = load(_SCRIPT_PATH) as Script
+	var cache_script: Script = _load_cache_script()
 	if cache_script == null:
 		return null
 
-	return architecture.get_utility(cache_script)
+	var cache_value: Object = architecture.get_utility(cache_script)
+	if cache_value is GameModeConfigCacheUtility:
+		var cache: GameModeConfigCacheUtility = cache_value
+		return cache
+	return null
 
 
 static func _get_fallback_config(config_path: String) -> GameModeConfig:
@@ -217,7 +214,7 @@ func _get_cached_config_from_asset_utility(config_path: String) -> GameModeConfi
 	if not is_instance_valid(asset_utility):
 		return null
 
-	var cached_resource: Resource = asset_utility.get_cached(config_path)
+	var cached_resource: Variant = asset_utility.get_cached(config_path)
 	if cached_resource is GameModeConfig:
 		var mode_config: GameModeConfig = cached_resource
 		return mode_config
@@ -253,8 +250,24 @@ func _get_asset_utility() -> GFAssetUtility:
 	if is_instance_valid(_asset_utility):
 		return _asset_utility
 
-	_asset_utility = get_utility(GFAssetUtility) as GFAssetUtility
+	_asset_utility = _resolve_asset_utility()
 	return _asset_utility
+
+
+func _resolve_asset_utility() -> GFAssetUtility:
+	var utility_value: Object = get_utility(GFAssetUtility)
+	if utility_value is GFAssetUtility:
+		var asset_utility: GFAssetUtility = utility_value
+		return asset_utility
+	return null
+
+
+static func _load_cache_script() -> Script:
+	var script_value: Variant = load(_SCRIPT_PATH)
+	if script_value is Script:
+		var cache_script: Script = script_value
+		return cache_script
+	return null
 
 
 static func _get_type_hint_for_path(config_path: String, registry: GFResourceRegistry) -> String:

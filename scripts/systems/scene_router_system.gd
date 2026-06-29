@@ -3,7 +3,7 @@
 ## 负责管理并执行全局的场景跳转功能。
 ## 任何需要切换场景的模块，通过调用此系统的公共方法或发送事件来实现。
 class_name SceneRouterSystem
-extends GFSystem
+extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
 # --- 常量 ---
@@ -26,9 +26,9 @@ var _scene_load_failed_connection: GFSignalConnection
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
-	_log = get_utility(GFLogUtility) as GFLogUtility
-	_scene_utility = get_utility(GFSceneUtility) as GFSceneUtility
-	_signal_utility = get_utility(GFSignalUtility) as GFSignalUtility
+	_log = _get_log_utility()
+	_scene_utility = _get_scene_utility()
+	_signal_utility = _get_signal_utility()
 	_connect_scene_utility_signals()
 
 	# 可选：监听全局事件 `scene_change_requested` 以解耦调用
@@ -54,7 +54,7 @@ func dispose() -> void:
 ## @param scene: 待切换的场景资源 (PackedScene)。
 func goto_scene_packed(scene: PackedScene) -> void:
 	if not _is_scene_resource_ready(scene):
-		if _log:
+		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "传入的场景资源为空或不可实例化。")
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, _get_scene_resource_path(scene))
 		return
@@ -63,21 +63,21 @@ func goto_scene_packed(scene: PackedScene) -> void:
 		goto_scene(scene.resource_path)
 		return
 
-	var tree: SceneTree = Engine.get_main_loop() as SceneTree
-	if not tree:
+	var tree: SceneTree = _get_scene_tree()
+	if not is_instance_valid(tree):
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, scene.resource_path)
 		return
 
-	if tree.current_scene:
+	if is_instance_valid(tree.current_scene):
 		send_simple_event(EventNames.SCENE_WILL_CHANGE)
 
 	var error: int = tree.change_scene_to_packed(scene)
 	if error != OK:
-		if _log:
+		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "切换到场景失败，错误码: %d" % error)
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, scene.resource_path)
 		return
-	if _log:
+	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "已请求切换到场景: %s" % scene.resource_path)
 
 
@@ -85,13 +85,13 @@ func goto_scene_packed(scene: PackedScene) -> void:
 ## @param path: 待切换的场景资源路径。
 func goto_scene(path: String) -> void:
 	if not path.begins_with("res://") or not path.ends_with(".tscn"):
-		if _log:
+		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "场景路径必须是绝对的 .tscn 资源路径: %s" % path)
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 		return
 
 	if not ResourceLoader.exists(path, "PackedScene"):
-		if _log:
+		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "场景资源不存在或不是 PackedScene: %s" % path)
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 		return
@@ -100,9 +100,9 @@ func goto_scene(path: String) -> void:
 		_scene_utility.load_scene_async(path)
 		return
 
-	var next_scene_packed: PackedScene = ResourceLoader.load(path) as PackedScene
+	var next_scene_packed: PackedScene = _load_packed_scene(path)
 	if next_scene_packed == null:
-		if _log:
+		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "无法加载场景资源: %s" % path)
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 		return
@@ -117,14 +117,54 @@ func return_to_main_menu() -> void:
 
 ## 安全地退出整个游戏。
 func quit_game() -> void:
-	if _log:
+	if is_instance_valid(_log):
 		_log.info(_LOG_TAG, "正在退出游戏。")
-	var tree: SceneTree = Engine.get_main_loop() as SceneTree
-	if tree:
+	var tree: SceneTree = _get_scene_tree()
+	if is_instance_valid(tree):
 		tree.quit()
 
 
 # --- 私有/辅助方法 ---
+
+func _get_log_utility() -> GFLogUtility:
+	var utility_value: Object = get_utility(GFLogUtility)
+	if utility_value is GFLogUtility:
+		var log_utility: GFLogUtility = utility_value
+		return log_utility
+	return null
+
+
+func _get_scene_utility() -> GFSceneUtility:
+	var utility_value: Object = get_utility(GFSceneUtility)
+	if utility_value is GFSceneUtility:
+		var scene_utility: GFSceneUtility = utility_value
+		return scene_utility
+	return null
+
+
+func _get_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
+	return null
+
+
+func _get_scene_tree() -> SceneTree:
+	var loop_value: MainLoop = Engine.get_main_loop()
+	if loop_value is SceneTree:
+		var tree: SceneTree = loop_value
+		return tree
+	return null
+
+
+func _load_packed_scene(path: String) -> PackedScene:
+	var resource: Resource = ResourceLoader.load(path)
+	if resource is PackedScene:
+		var packed_scene: PackedScene = resource
+		return packed_scene
+	return null
+
 
 func _connect_scene_utility_signals() -> void:
 	if not is_instance_valid(_scene_utility):
@@ -183,11 +223,11 @@ func _on_scene_switch_started(_path: String, _previous_path: String) -> void:
 
 
 func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
-	if _log:
+	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "已完成异步场景加载: %s" % path)
 
 
 func _on_scene_load_failed(path: String) -> void:
-	if _log:
+	if is_instance_valid(_log):
 		_log.error(_LOG_TAG, "异步场景加载失败: %s" % path)
 	send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)

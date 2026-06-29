@@ -12,6 +12,11 @@ extends BaseListMenuItem
 signal replay_selected(replay_data: ReplayData)
 
 
+# --- 常量 ---
+
+const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
+const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
+
 
 # --- @onready 变量 (节点引用) ---
 
@@ -30,13 +35,15 @@ func setup(replay_data: ReplayData) -> void:
 
 ## 获取关联的回放数据。
 func get_replay_data() -> ReplayData:
-	return _item_data as ReplayData
+	if _item_data is ReplayData:
+		return _item_data
+	return null
 
 
 # --- 虚方法重写 ---
 
 func _update_display() -> void:
-	var replay_data: ReplayData = _item_data as ReplayData
+	var replay_data: ReplayData = get_replay_data()
 	if not is_instance_valid(replay_data):
 		return
 
@@ -55,19 +62,24 @@ func _update_display() -> void:
 
 	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
 	var size_label: String = tr("SIZE_LABEL")
-	var info_format: String = tr("REPLAY_INFO_FORMAT")
-	_info_label.text = info_format % [
-		datetime,
-		score_label,
-		replay_data.final_score,
-		size_label,
-		replay_data.grid_size,
-		replay_data.grid_size
-	]
+	_info_label.text = _GAME_TEXT_FORMATTER.format_template(
+		tr("REPLAY_INFO_FORMAT"),
+		_INFO_FORMAT_FALLBACK,
+		[
+			datetime,
+			score_label,
+			replay_data.final_score,
+			size_label,
+			replay_data.grid_size,
+			replay_data.grid_size,
+		]
+	)
 
 
 # --- 信号处理函数 ---
 
 func _on_pressed() -> void:
 	super._on_pressed()
-	replay_selected.emit(_item_data as ReplayData)
+	var replay_data: ReplayData = get_replay_data()
+	if is_instance_valid(replay_data):
+		replay_selected.emit(replay_data)

@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://cjq41cf2jqg1h"]
+[gd_scene format=3 uid="uid://cjq41cf2jqg1h"]
 
 [ext_resource type="Script" uid="uid://c3xlbn570oc40" path="res://scripts/ui/hud.gd" id="1_y7dsf"]
 
-[node name="VBoxContainer" type="VBoxContainer"]
+[node name="VBoxContainer" type="VBoxContainer" unique_id=2136437495]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -12,9 +12,9 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 script = ExtResource("1_y7dsf")
 
-[node name="TitleLabel" type="Label" parent="."]
+[node name="TitleLabel" type="Label" parent="." unique_id=727872724]
 layout_mode = 2
 text = "游戏状态"
 
-[node name="StatsContainer" type="VBoxContainer" parent="."]
+[node name="StatsContainer" type="VBoxContainer" parent="." unique_id=1098768363]
 layout_mode = 2

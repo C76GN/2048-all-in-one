@@ -64,7 +64,7 @@ func _get_visible_content_rect() -> Rect2:
 	for child: Node in get_children():
 		if not child is Control:
 			continue
-		var child_control: Control = child as Control
+		var child_control: Control = child
 		if not child_control.visible:
 			continue
 		var child_rect: Rect2 = Rect2(child_control.position, child_control.size)

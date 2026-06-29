@@ -2,7 +2,7 @@
 ##
 ## 棋盘动画是非阻塞表现层：execute() 只启动 Tween 并立即返回，不等待动画完成。
 class_name BoardAnimationAction
-extends GFVisualAction
+extends "res://addons/gf/extensions/action_queue/actions/gf_visual_action.gd"
 
 
 # --- 常量 ---
@@ -14,12 +14,12 @@ const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 # --- 私有变量 ---
 
 var _instructions: Array[Dictionary] = []
-var _game_board: Node
+var _game_board: GameBoardController
 
 
 # --- Godot 生命周期方法 ---
 
-func _init(instructions: Array, game_board: Node) -> void:
+func _init(instructions: Array, game_board: GameBoardController) -> void:
 	for instruction: Variant in instructions:
 		if instruction is Dictionary:
 			_instructions.append(instruction)
@@ -56,7 +56,7 @@ func execute() -> Variant:
 					var release_token: RefCounted = RefCounted.new()
 					consumed.set_meta(RELEASE_TOKEN_META, release_token)
 					var consumed_tween: Tween = consumed.animate_move(target_pos)
-					if consumed_tween and consumed_tween.is_valid():
+					if is_instance_valid(consumed_tween) and consumed_tween.is_valid():
 						var _connect_result_58: int = consumed_tween.finished.connect(func() -> void: _release_consumed_tile(consumed, release_token))
 					else:
 						_release_consumed_tile(consumed, release_token)
@@ -110,20 +110,19 @@ func _release_consumed_tile(consumed: Tile, release_token: RefCounted) -> void:
 		return
 
 	consumed.set_meta(RELEASE_TOKEN_META, 0)
-	if _game_board.has_method(&"release_visual_tile"):
-		var _release_result: Variant = _game_board.call(&"release_visual_tile", consumed)
-	else:
-		consumed.reset_animation_state()
-		consumed.queue_free()
+	if is_instance_valid(_game_board):
+		_game_board.release_visual_tile(consumed)
+		return
+
+	consumed.reset_animation_state()
+	consumed.queue_free()
 
 
 func _play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: String = "") -> void:
 	if not is_instance_valid(_game_board):
 		return
-	if not _game_board.has_method("play_tile_feedback"):
-		return
 
-	var _feedback_result: Variant = _game_board.call(&"play_tile_feedback", tile, feedback_type, label_text)
+	_game_board.play_tile_feedback(tile, feedback_type, label_text)
 
 
 static func _get_instruction_type(instruction: Dictionary) -> StringName:
@@ -184,7 +183,11 @@ static func _get_tile_type(data: Dictionary, key: StringName, default_value: Til
 	var value: Variant = data.get(key, data.get(String(key), default_value))
 	if value is int:
 		var enum_value: int = value
-		return enum_value as Tile.TileType
+		match enum_value:
+			Tile.TileType.PLAYER:
+				return Tile.TileType.PLAYER
+			Tile.TileType.MONSTER:
+				return Tile.TileType.MONSTER
 	return default_value
 
 

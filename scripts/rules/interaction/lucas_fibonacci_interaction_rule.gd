@@ -9,6 +9,12 @@ class_name LucasFibonacciInteractionRule
 extends InteractionRule
 
 
+# --- 常量 ---
+
+const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
+const _SYNTHESIS_TIP_FORMAT_FALLBACK: String = "合成提示: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color]"
+
+
 # --- 私有变量 ---
 
 var _fib_sequence: Array[int] = []
@@ -113,7 +119,15 @@ func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
 		highlight_fib_components[synthesis_data[&"f_minus_1"]] = true
 		highlight_fib_components[synthesis_data[&"f_plus_1"]] = true
 		highlight_lucas_set[synthesis_data[&"l_n"]] = true
-		stats[&"synthesis_tip_display"] = tr("TIP_SYNTHESIS_FORMAT") % [synthesis_data[&"f_minus_1"], synthesis_data[&"f_plus_1"], synthesis_data[&"l_n"]]
+		stats[&"synthesis_tip_display"] = _GAME_TEXT_FORMATTER.format_template(
+			tr("TIP_SYNTHESIS_FORMAT"),
+			_SYNTHESIS_TIP_FORMAT_FALLBACK,
+			[
+				synthesis_data[&"f_minus_1"],
+				synthesis_data[&"f_plus_1"],
+				synthesis_data[&"l_n"],
+			]
+		)
 
 	var fib_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_FIB_SEQ"), &"color": Color.WHITE}]
 	for num: int in _fib_sequence:

@@ -3,7 +3,7 @@
 ## 该系统监听 `EventNames.SPAWN_TILE_REQUESTED` 事件，处理方块生成的逻辑（如网格空余判定、位置打乱），
 ## 将数据写入 `GridModel`，最后发送纯表现层的指令给视觉系统。
 class_name GridSpawnSystem
-extends GFSystem
+extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
 # --- 常量 ---
@@ -21,9 +21,9 @@ var _log: GFLogUtility
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
-	_grid_model = get_model(GridModel) as GridModel
-	_seed_utility = get_utility(GFSeedUtility) as GFSeedUtility
-	_log = get_utility(GFLogUtility) as GFLogUtility
+	_grid_model = _get_grid_model()
+	_seed_utility = _get_seed_utility()
+	_log = _get_log_utility()
 	register_simple_event(EventNames.SPAWN_TILE_REQUESTED, _on_spawn_tile_requested)
 
 
@@ -52,6 +52,30 @@ func _is_cell_in_bounds(position: Vector2i) -> bool:
 func _is_cell_empty(position: Vector2i) -> bool:
 	var column: Array = _grid_model.grid[position.x]
 	return column[position.y] == null
+
+
+func _get_grid_model() -> GridModel:
+	var model_value: Object = get_model(GridModel)
+	if model_value is GridModel:
+		var grid_model: GridModel = model_value
+		return grid_model
+	return null
+
+
+func _get_seed_utility() -> GFSeedUtility:
+	var utility_value: Object = get_utility(GFSeedUtility)
+	if utility_value is GFSeedUtility:
+		var seed_utility: GFSeedUtility = utility_value
+		return seed_utility
+	return null
+
+
+func _get_log_utility() -> GFLogUtility:
+	var utility_value: Object = get_utility(GFLogUtility)
+	if utility_value is GFLogUtility:
+		var log_utility: GFLogUtility = utility_value
+		return log_utility
+	return null
 
 
 func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
@@ -114,7 +138,7 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 	if not is_instance_valid(_grid_model) or not is_instance_valid(_seed_utility):
 		return
 
-	if _log:
+	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "收到生成请求: value=%d, type=%d, position=%s" % [spawn_data.value, spawn_data.type, spawn_data.position])
 
 	var value: int = spawn_data.value
@@ -125,13 +149,13 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 	if not _is_auto_position(spawn_data.position):
 		spawn_pos = spawn_data.position
 		if not _is_cell_in_bounds(spawn_pos):
-			if _log:
+			if is_instance_valid(_log):
 				_log.warn(_LOG_TAG, "忽略越界生成请求: %s" % spawn_pos)
 			return
 		if not _is_cell_empty(spawn_pos):
 			if is_priority:
 				_handle_priority_spawn(value, type)
-			elif _log:
+			elif is_instance_valid(_log):
 				_log.warn(_LOG_TAG, "忽略被占用的生成位置: %s" % spawn_pos)
 			return
 	else:
@@ -147,7 +171,7 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 	var tile_data: GameTileData = GameTileData.new(value, type)
 	_grid_model.place_tile(tile_data, spawn_pos)
 
-	if _log:
+	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "已生成方块: value=%d, type=%d, position=%s, empty_cells=%d" % [value, type, spawn_pos, _grid_model.get_empty_cells().size()])
 
 	# 3. 发送视觉指令
