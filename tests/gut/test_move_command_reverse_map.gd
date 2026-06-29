@@ -21,9 +21,9 @@ func test_grid_movement_system_builds_reverse_targets_from_animation_instruction
 
 	var reverse_map: Dictionary = movement_system._build_reverse_target_map(instructions)
 
-	assert_eq(_get_vector2i(reverse_map, "2,0"), Vector2i(0, 0), "普通移动应记录旧位置到移动后位置。")
-	assert_eq(_get_vector2i(reverse_map, "3,1"), Vector2i(0, 1), "合并中被消耗的方块应记录到合并后位置。")
-	assert_eq(_get_vector2i(reverse_map, "2,1"), Vector2i(0, 1), "合并中保留的方块应记录到合并后位置。")
+	assert_true(_get_vector2i(reverse_map, "2,0") == Vector2i(0, 0), "普通移动应记录旧位置到移动后位置。")
+	assert_true(_get_vector2i(reverse_map, "3,1") == Vector2i(0, 1), "合并中被消耗的方块应记录到合并后位置。")
+	assert_true(_get_vector2i(reverse_map, "2,1") == Vector2i(0, 1), "合并中保留的方块应记录到合并后位置。")
 
 
 func test_deserialize_preserves_reverse_targets() -> void:
@@ -38,10 +38,11 @@ func test_deserialize_preserves_reverse_targets() -> void:
 	}
 
 	var command: MoveCommand = MoveCommand.deserialize(command_data)
-	var reverse_map: Dictionary = command.serialize()[&"reverse_map"]
+	var command_state: Dictionary = command.serialize()
+	var reverse_map: Dictionary = GFVariantData.to_dictionary(command_state.get(&"reverse_map"))
 
-	assert_eq(command.get_direction(), Vector2i.LEFT, "反序列化应恢复移动方向。")
-	assert_eq(_get_vector2i(reverse_map, "1,2"), Vector2i(0, 2), "反序列化应保留撤回动画映射。")
+	assert_true(command.get_direction() == Vector2i.LEFT, "反序列化应恢复移动方向。")
+	assert_true(_get_vector2i(reverse_map, "1,2") == Vector2i(0, 2), "反序列化应保留撤回动画映射。")
 
 
 func test_records_reverse_targets_while_command_runs_inside_simple_event() -> void:
@@ -67,11 +68,12 @@ func test_records_reverse_targets_while_command_runs_inside_simple_event() -> vo
 	architecture.send_simple_event(&"test_execute_move")
 
 	var history: Array = command_history.get_undo_history()
-	assert_eq(history.size(), 1, "简单事件派发过程中执行的有效移动应写入命令历史。")
+	assert_true(history.size() == 1, "简单事件派发过程中执行的有效移动应写入命令历史。")
 
 	var command: MoveCommand = _get_move_command(history, 0)
-	var reverse_map: Dictionary = command.serialize()[&"reverse_map"]
-	assert_eq(_get_vector2i(reverse_map, "1,0"), Vector2i(0, 0), "嵌套在简单事件中执行命令时仍应记录撤回映射。")
+	var command_state: Dictionary = command.serialize()
+	var reverse_map: Dictionary = GFVariantData.to_dictionary(command_state.get(&"reverse_map"))
+	assert_true(_get_vector2i(reverse_map, "1,0") == Vector2i(0, 0), "嵌套在简单事件中执行命令时仍应记录撤回映射。")
 
 	architecture.dispose()
 
@@ -89,4 +91,7 @@ func _get_vector2i(source: Dictionary, key: String) -> Vector2i:
 
 func _get_move_command(source: Array, index: int) -> MoveCommand:
 	var value: Variant = source[index] if index >= 0 and index < source.size() else null
-	return value if value is MoveCommand else null
+	if value is MoveCommand:
+		return value
+	assert_true(false, "测试历史中缺少 MoveCommand，index=%d。" % index)
+	return MoveCommand.new(Vector2i.ZERO)

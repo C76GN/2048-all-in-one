@@ -18,7 +18,10 @@ func test_documented_params_match_function_signatures() -> void:
 	for path: String in script_paths:
 		issues.append_array(_collect_param_doc_issues(path))
 
-	assert_eq(issues, [], "API @param 注释应与函数签名双向一致：\n%s" % _join_lines(issues))
+	assert_true(
+		issues.is_empty(),
+		"API @param 注释应与函数签名双向一致：\n%s" % _join_lines(issues)
+	)
 
 
 # --- 私有/辅助方法 ---
@@ -68,7 +71,7 @@ func _collect_param_doc_issues(path: String) -> Array[String]:
 	var doc_lines: Array[String] = []
 	var line_index: int = 0
 	while line_index < lines.size():
-		var line: String = lines[line_index]
+		var line: String = _get_packed_line(lines, line_index)
 		var trimmed: String = line.strip_edges()
 		if trimmed.begins_with("##"):
 			_append_string(doc_lines, trimmed)
@@ -81,7 +84,7 @@ func _collect_param_doc_issues(path: String) -> Array[String]:
 			var signature_parenthesis_depth: int = _get_parenthesis_delta(trimmed)
 			while signature_parenthesis_depth > 0 and line_index + 1 < lines.size():
 				line_index += 1
-				var signature_line: String = lines[line_index].strip_edges()
+				var signature_line: String = _get_packed_line(lines, line_index).strip_edges()
 				signature += " " + signature_line
 				signature_parenthesis_depth += _get_parenthesis_delta(signature_line)
 
@@ -110,7 +113,7 @@ func _line_starts_function(trimmed: String) -> bool:
 func _get_parenthesis_delta(text: String) -> int:
 	var delta: int = 0
 	for i: int in range(text.length()):
-		var character: String = text[i]
+		var character: String = _get_character(text, i)
 		if character == "(":
 			delta += 1
 		elif character == ")":
@@ -223,7 +226,7 @@ func _split_top_level_arguments(args_text: String) -> PackedStringArray:
 	var result: PackedStringArray = PackedStringArray()
 	var start_index: int = 0
 	for i: int in range(args_text.length()):
-		if args_text[i] == "," and _is_top_level_character(args_text, i):
+		if _get_character(args_text, i) == "," and _is_top_level_character(args_text, i):
 			_append_packed_string(result, args_text.substr(start_index, i - start_index))
 			start_index = i + 1
 	_append_packed_string(result, args_text.substr(start_index))
@@ -232,7 +235,7 @@ func _split_top_level_arguments(args_text: String) -> PackedStringArray:
 
 func _find_top_level_character(text: String, target: String) -> int:
 	for i: int in range(text.length()):
-		if text[i] == target and _is_top_level_character(text, i):
+		if _get_character(text, i) == target and _is_top_level_character(text, i):
 			return i
 	return -1
 
@@ -246,7 +249,7 @@ func _is_top_level_character(text: String, target_index: int) -> bool:
 	var escaped: bool = false
 
 	for i: int in range(target_index):
-		var character: String = text[i]
+		var character: String = _get_character(text, i)
 		if in_string:
 			if escaped:
 				escaped = false
@@ -296,7 +299,7 @@ func _packed_string_arrays_equal(left: PackedStringArray, right: PackedStringArr
 	if left.size() != right.size():
 		return false
 	for i: int in range(left.size()):
-		if left[i] != right[i]:
+		if _get_packed_line(left, i) != _get_packed_line(right, i):
 			return false
 	return true
 
@@ -321,6 +324,18 @@ func _join_lines(lines: Array[String]) -> String:
 
 func _append_string(target: Array[String], value: String) -> void:
 	target.append(value)
+
+
+func _get_packed_line(lines: PackedStringArray, index: int) -> String:
+	if index < 0 or index >= lines.size():
+		return ""
+	return lines[index]
+
+
+func _get_character(text: String, index: int) -> String:
+	if index < 0 or index >= text.length():
+		return ""
+	return text.substr(index, 1)
 
 
 func _append_packed_string(target: PackedStringArray, value: String) -> void:

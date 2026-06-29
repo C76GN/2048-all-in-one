@@ -7,6 +7,7 @@ extends GutTest
 const EXPECTED_UI_ROUTE_PATHS: Array[String] = [
 	"res://resources/ui_routes/pause_menu_route.tres",
 	"res://resources/ui_routes/game_over_menu_route.tres",
+	"res://resources/ui_routes/target_reached_menu_route.tres",
 	"res://resources/ui_routes/settings_menu_route.tres",
 ]
 
@@ -22,10 +23,29 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 	await architecture.init()
 
 	var route_ids: Array[String] = _packed_strings_to_array(ui_router.get_route_ids())
-	assert_eq(route_ids, ["game_over_menu", "pause_menu", "settings_menu"], "项目 UI 路由应提供稳定 route_id。")
-	assert_eq(ui_router.get_route(&"pause_menu").scene_path, "res://scenes/ui/pause_menu.tscn", "暂停菜单路由应指向暂停面板。")
-	assert_eq(ui_router.get_route(&"game_over_menu").scene_path, "res://scenes/ui/game_over_menu.tscn", "游戏结束路由应指向游戏结束面板。")
-	assert_eq(ui_router.get_route(&"settings_menu").scene_path, "res://scenes/menus/settings_menu.tscn", "设置路由应指向设置菜单。")
+	var expected_route_ids: Array[String] = [
+		"game_over_menu",
+		"pause_menu",
+		"settings_menu",
+		"target_reached_menu",
+	]
+	assert_true(route_ids == expected_route_ids, "项目 UI 路由应提供稳定 route_id。")
+	assert_true(
+		ui_router.get_route(&"pause_menu").scene_path == "res://scenes/ui/pause_menu.tscn",
+		"暂停菜单路由应指向暂停面板。"
+	)
+	assert_true(
+		ui_router.get_route(&"game_over_menu").scene_path == "res://scenes/ui/game_over_menu.tscn",
+		"游戏结束路由应指向游戏结束面板。"
+	)
+	assert_true(
+		ui_router.get_route(&"target_reached_menu").scene_path == "res://scenes/ui/target_reached_menu.tscn",
+		"目标达成路由应指向目标达成面板。"
+	)
+	assert_true(
+		ui_router.get_route(&"settings_menu").scene_path == "res://scenes/menus/settings_menu.tscn",
+		"设置路由应指向设置菜单。"
+	)
 
 	architecture.dispose()
 
@@ -38,9 +58,8 @@ func test_game_ui_router_uses_ui_route_registry_order() -> void:
 	architecture.register_utility_alias(GFUIRouterUtility, GameUiRouterUtility)
 	await architecture.init()
 
-	assert_eq(
-		_packed_strings_to_array(ui_router.get_registered_route_paths()),
-		EXPECTED_UI_ROUTE_PATHS,
+	assert_true(
+		_packed_strings_to_array(ui_router.get_registered_route_paths()) == EXPECTED_UI_ROUTE_PATHS,
 		"项目 UI 路由资源路径应由 GFResourceRegistry 按注册顺序提供。"
 	)
 
@@ -63,7 +82,7 @@ func test_game_ui_router_registers_asset_group_paths_when_utility_is_ready() -> 
 	sorted_group_paths.sort()
 	sorted_expected_paths.sort()
 
-	assert_eq(sorted_group_paths, sorted_expected_paths, "UI Router Utility ready 后应把路由资源登记为 GFAssetUtility 分组。")
+	assert_true(sorted_group_paths == sorted_expected_paths, "UI Router Utility ready 后应把路由资源登记为 GFAssetUtility 分组。")
 
 	architecture.dispose()
 

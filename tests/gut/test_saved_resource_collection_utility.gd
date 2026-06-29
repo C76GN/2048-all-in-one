@@ -22,12 +22,12 @@ func test_utility_saves_loads_and_sorts_timestamped_resources() -> void:
 	_append_string(saved_paths, collection.save_timestamped_resource(_BOOKMARK_DIR_NAME, "bookmark", newer_bookmark))
 
 	var resources: Array = collection.load_timestamped_resources(_BOOKMARK_DIR_NAME, "BookmarkData", BookmarkData)
-	assert_eq(resources.size(), 2, "应能通过 GFStorageUtility 加载已保存的 Resource 集合。")
+	assert_true(resources.size() == 2, "应能通过 GFStorageUtility 加载已保存的 Resource 集合。")
 
 	var first: BookmarkData = _get_bookmark_data(resources[0])
 	var second: BookmarkData = _get_bookmark_data(resources[1])
-	assert_eq(first.timestamp, 200, "Resource 集合应按 timestamp 降序排列。")
-	assert_eq(second.timestamp, 100, "较旧 Resource 应排在后面。")
+	assert_true(first.timestamp == 200, "Resource 集合应按 timestamp 降序排列。")
+	assert_true(second.timestamp == 100, "较旧 Resource 应排在后面。")
 	assert_true(first.file_path.begins_with(_BOOKMARK_DIR_NAME.path_join("bookmark_")), "加载后应写回文件路径。")
 
 	for path: String in saved_paths:
@@ -53,19 +53,19 @@ func test_bookmark_and_replay_systems_use_shared_resource_collection_utility() -
 
 	var bookmarks: Array[BookmarkData] = bookmark_system.load_bookmarks()
 	var replays: Array[ReplayData] = replay_system.load_replays()
-	assert_eq(bookmarks.size(), 1, "BookmarkSystem 应通过共享 Utility 加载书签 Resource。")
-	assert_eq(replays.size(), 1, "ReplaySystem 应通过共享 Utility 加载回放 Resource。")
+	assert_true(bookmarks.size() == 1, "BookmarkSystem 应通过共享 Utility 加载书签 Resource。")
+	assert_true(replays.size() == 1, "ReplaySystem 应通过共享 Utility 加载回放 Resource。")
 	var first_bookmark: BookmarkData = bookmarks[0]
 	var first_replay: ReplayData = replays[0]
-	assert_eq(first_bookmark.score, 64, "书签业务字段应完整保留。")
-	assert_eq(first_replay.final_score, 128, "回放业务字段应完整保留。")
+	assert_true(first_bookmark.score == 64, "书签业务字段应完整保留。")
+	assert_true(first_replay.final_score == 128, "回放业务字段应完整保留。")
 	assert_false(first_bookmark.file_path.is_empty(), "书签加载后应带有可删除的文件路径。")
 	assert_false(first_replay.file_path.is_empty(), "回放加载后应带有可删除的文件路径。")
 
 	bookmark_system.delete_bookmark(first_bookmark.file_path)
 	replay_system.delete_replay(first_replay.file_path)
-	assert_eq(bookmark_system.load_bookmarks().size(), 0, "删除后书签列表应为空。")
-	assert_eq(replay_system.load_replays().size(), 0, "删除后回放列表应为空。")
+	assert_true(bookmark_system.load_bookmarks().size() == 0, "删除后书签列表应为空。")
+	assert_true(replay_system.load_replays().size() == 0, "删除后回放列表应为空。")
 
 	bookmarks.clear()
 	replays.clear()
@@ -82,6 +82,9 @@ func _create_collection_architecture(include_systems: bool = false) -> Dictionar
 
 	storage.save_dir_name = "gut_resource_collection_%d" % Time.get_ticks_usec()
 	storage.allow_absolute_paths = false
+	storage.allow_resource_loads = true
+	storage.allowed_resource_load_extensions = PackedStringArray(["tres"])
+	storage.allowed_resource_load_type_hints = PackedStringArray(["BookmarkData", "ReplayData"])
 	storage.create_directories_for_nested_paths = true
 
 	await architecture.register_utility(GFStorageUtility, storage)
@@ -99,8 +102,8 @@ func _create_collection_architecture(include_systems: bool = false) -> Dictionar
 	await architecture.init()
 	var bookmark_directory_error: Error = collection.ensure_collection_directory(_BOOKMARK_DIR_NAME)
 	var replay_directory_error: Error = collection.ensure_collection_directory(_REPLAY_DIR_NAME)
-	assert_eq(bookmark_directory_error, OK, "测试书签目录应创建成功。")
-	assert_eq(replay_directory_error, OK, "测试回放目录应创建成功。")
+	assert_true(bookmark_directory_error == OK, "测试书签目录应创建成功。")
+	assert_true(replay_directory_error == OK, "测试回放目录应创建成功。")
 
 	return {
 		"architecture": architecture,
@@ -131,23 +134,38 @@ func _append_string(target: Array[String], value: String) -> void:
 
 func _get_architecture(setup: Dictionary) -> GFArchitecture:
 	var value: Variant = setup.get("architecture")
-	return value if value is GFArchitecture else null
+	if value is GFArchitecture:
+		return value
+	assert_true(false, "测试 setup 缺少 GFArchitecture。")
+	return GFArchitecture.new()
 
 
 func _get_collection(setup: Dictionary) -> SavedResourceCollectionUtility:
 	var value: Variant = setup.get("collection")
-	return value if value is SavedResourceCollectionUtility else null
+	if value is SavedResourceCollectionUtility:
+		return value
+	assert_true(false, "测试 setup 缺少 SavedResourceCollectionUtility。")
+	return SavedResourceCollectionUtility.new()
 
 
 func _get_bookmark_system(setup: Dictionary) -> BookmarkSystem:
 	var value: Variant = setup.get("bookmark_system")
-	return value if value is BookmarkSystem else null
+	if value is BookmarkSystem:
+		return value
+	assert_true(false, "测试 setup 缺少 BookmarkSystem。")
+	return BookmarkSystem.new()
 
 
 func _get_replay_system(setup: Dictionary) -> ReplaySystem:
 	var value: Variant = setup.get("replay_system")
-	return value if value is ReplaySystem else null
+	if value is ReplaySystem:
+		return value
+	assert_true(false, "测试 setup 缺少 ReplaySystem。")
+	return ReplaySystem.new()
 
 
 func _get_bookmark_data(value: Variant) -> BookmarkData:
-	return value if value is BookmarkData else null
+	if value is BookmarkData:
+		return value
+	assert_true(false, "测试资源集合中缺少 BookmarkData。")
+	return BookmarkData.new()
