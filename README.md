@@ -8,14 +8,15 @@
 
 ## 技术栈
 
-- Godot 4.6+
-- gf（版本以 `addons/gf/plugin.cfg` 为准）
+- Godot 4.7+
+- GF Framework 7.x（版本以 `addons/gf/plugin.cfg` 为准，当前源码为 `7.0.0`）
+- GF Package Manager（GF 7 使用 Godot 原生 CLI；当前仓库为手动更新后的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在）
 - GDScript，遵循 `CODING_STYLE.md`
 
 ## 架构概览
 
 - `scripts/boot/game_architecture_installer.gd` 集中注册 Model、System、Utility，并由 Project Settings 中的 gf installer 驱动启动。
-- `scripts/controllers/` 放置直接继承 `GFController` 的场景控制器，例如 `GamePlayController` 和 `GameBoardController`。
+- `scripts/controllers/` 放置使用 `GFController` 基类能力的场景控制器，例如 `GamePlayController` 和 `GameBoardController`。当前脚本用显式 `res://addons/gf/...` 继承路径，避免框架升级后 Godot class cache 未刷新时解析失败。
 - `scripts/models/` 保存可绑定运行时状态，例如棋盘、当前模式、分数和最高方块。
 - `scripts/systems/` 承担业务流程：初始化、输入、移动、生成、最高分、回放、场景路由和游戏状态。
 - `scripts/utilities/` 放置项目级 Utility，例如模式配置缓存、项目设置和时间戳 Resource 集合持久化。
@@ -30,10 +31,23 @@
 
 项目启动入口是 `scenes/boot/boot.tscn`。`boot.gd` 调用 `await Gf.init()`，gf 会执行项目级 installer 并完成三阶段生命周期。业务模块内部优先使用 `GFSystem` / `GFController` 的基类方法访问 Model、System、Utility 和事件总线。
 
+当前启用的 GF 扩展：
+
+- `gf.domain`
+- `gf.action_queue`
+
+当前项目直接依赖的 GF 能力：
+
+- `gf.domain` 提供运行时 session、领域模型与通用进度语义。
+- `gf.action_queue` 提供棋盘视觉动作队列。
+- GF standard utilities 提供输入、状态机、资源注册、存储、设置、场景、UI、对象池、随机种子和诊断等能力。
+
+GF 7 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。如果后续重新使用包管理器安装/更新 GF 包，应让 `.gf/packages.lock.json` 与 `addons/gf/plugin.cfg`、`project.godot` 的扩展启用状态保持一致；`.gf/package_cache/` 是下载缓存，已在 `.gitignore` 中忽略。
+
 当前重点实践：
 
 - 用项目级 installer 管理注册顺序。
-- 用 `GFCommandHistoryUtility.execute_command()` 和 `undo_last_async()` 管理移动命令与撤销。
+- 用 `GFCommandHistoryUtility.execute_command()`、`undo_last_async()` 和 `redo_async()` 管理移动命令、撤销与重做。
 - 用 `GFInputMappingUtility` 管理资源化输入上下文。
 - 用 `GFSceneUtility` 做异步场景切换，`SceneRouterSystem` 负责业务事件和路由意图。
 - 用项目级 `GameUiRouterUtility` 从 `ui_route_registry.tres` 加载 `GFUIRoute` 路由表，暂停、游戏结束和设置面板通过稳定 route_id 打开。
@@ -48,6 +62,13 @@
 - 用 `GFValidationReport` 汇总模式配置校验结果，再由项目层决定如何输出错误。
 - 用 `RuleContext` 给规则注入上下文并收集输出，避免规则资源直接触达全局 `Gf`。
 - 开发构建中注册 `gf_debug` 控制台命令，输出架构生命周期、事件系统和对象池诊断快照。
+
+## 维护路线
+
+- 长期推进计划见 `docs/ROADMAP.md`。
+- 验证策略见 `docs/VALIDATION.md`，GF 7 包状态验证使用 Godot headless 原生包管理 CLI。
+- 视觉方向见 `docs/VISUAL_STYLE.md`；背景、方块、菜单、HUD 和动效应保持柔和肌理扁平独立游戏质感。
+- 历史上默认 Godot/GUT 运行曾写出巨大用户目录日志；需要运行 GUT 时，使用 `tools/run_gut_safe.ps1` 这样的隔离脚本，不要直接运行裸 Godot/GUT 命令。
 
 ## 新增模式的推荐流程
 

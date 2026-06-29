@@ -4,8 +4,9 @@
 
 ## 项目定位
 
-- 本项目是 Godot 4.6+ 与 gf 的 2048 实战示例，不是一个脱离框架的普通小游戏仓库。
+- 本项目是 Godot 4.7+ 与 gf 的 2048 实战示例，不是一个脱离框架的普通小游戏仓库。
 - gf 当前版本以 `addons/gf/plugin.cfg` 中的 `version` 字段为唯一来源。维护文档、README 和测试说明不应硬编码具体 gf 版本号；只有框架升级提交本身需要修改 `plugin.cfg`。
+- 当前 GF 源码是手动更新后的 vendored GF 7 状态。若 `.gf/packages.lock.json` 存在，GF Package Manager 的安装状态以它为准；若不存在，不要把旧 lockfile 假设当作当前事实。`.gf/package_cache/` 是下载缓存，不应提交。
 - 业务代码应尽量展示 gf 的核心能力：`GFInstaller`、`GFModel`、`GFSystem`、`GFController`、`GFUtility`、事件系统、命令历史、资源化输入、资源化规则、存储、场景工具、对象池、动作队列和设置绑定。
 - 当发现 gf 难以表达项目需求时，先判断问题属于示例项目建模不足、框架 API 可用性不足，还是框架缺陷。只有后两者才考虑修改 `addons/gf/**`。
 - 如果需要改 `addons/gf/**`，改动必须保持通用性和抽象性，不能把 2048 的玩法、UI、存档字段或资源路径写进 gf 框架。
@@ -18,6 +19,7 @@
 - GDScript 必须遵循 `CODING_STYLE.md`，尤其是 section 顺序、公共 API 文档、类型提示、Tab 缩进、LF 换行和文件末尾空行。
 - 项目文件命名遵循 gf 示例约定：脚本、场景、资源文件和项目目录使用 `snake_case`；`scripts/**` 中的脚本必须声明 `class_name`，类名应由文件名派生为 `PascalCase`，架构层脚本必须保留 `Model/System/Controller/Utility/Rule/State/Action/Command/Query` 等后缀。
 - 优先阅读现有项目形态再改代码：`README.md`、`CODING_STYLE.md`、`scripts/boot/game_architecture_installer.gd`、相关 `scripts/**`、相关 `resources/**` 和 `tests/gut/**`。
+- 默认不要启动 Godot 编辑器或裸 GUT 命令。历史上默认用户目录曾生成巨大日志；需要运行 GUT 时，优先使用 `tools/run_gut_safe.ps1`，并先以较短超时和较小日志上限做烟雾验证。
 - 不要提交临时分析、调试报告、AI 会话记录或一次性生成文件。
 - 不要把框架限制绕到业务层长期堆积；如果确认为 gf 能力缺口，应在实现中保留清晰边界，并在回复中说明反哺建议。
 
@@ -25,7 +27,7 @@
 
 - 启动入口：`scenes/boot/boot.tscn` 挂载 `scripts/boot/boot.gd`，调用 `await Gf.init()` 后交给 `SceneRouterSystem` 切到主菜单。
 - gf 装配入口：`scripts/boot/game_architecture_installer.gd` 注册项目 Model、System、Utility，并通过 Project Settings 的 `gf/project/installers` 接入。
-- 场景控制器：`scripts/controllers/**` 放置直接继承 `GFController` 的游戏场景控制器，类名保留 `Controller` 后缀。
+- 场景控制器：`scripts/controllers/**` 放置使用 `GFController` 基类能力的游戏场景控制器，类名保留 `Controller` 后缀。当前项目脚本使用显式 `res://addons/gf/...` 继承路径，以降低 Godot class cache 未刷新时的解析风险。
 - 状态模型：`scripts/models/**` 保存棋盘、当前模式、分数、最高分、设置选择等可绑定状态，类名保留 `Model` 后缀。
 - 业务系统：`scripts/systems/**` 负责初始化、输入、移动、生成、状态流转、存档、书签、回放和场景路由。
 - 项目 Utility：`scripts/utilities/**` 承接项目级 gf Utility，例如设置过滤、模式配置缓存和基于 `GFStorageUtility` 的时间戳 Resource 集合持久化。
@@ -44,7 +46,45 @@
 3. 保持边界清晰。规则资源不要直接触达全局 `Gf`；需要上下文时优先使用 `RuleContext` 或由 System 注入。
 4. 涉及资源组合时，同步检查 `.gd`、`.tres`、`.tscn`、翻译和 README 是否仍一致。
 5. 涉及公开方法、信号、导出变量、Resource 字段或存档格式时，同步补齐 `##` 文档和聚焦测试。
-6. 修改后运行相关 GUT 测试；如果无法运行，明确说明原因和剩余风险。
+6. 修改后优先运行安全静态验证；如需 GUT，必须使用隔离用户数据目录和日志策略。如果无法运行，明确说明原因和剩余风险。
+
+## GF 包管理
+
+当前项目使用手动 vendored GF 7 源码。GF 7 仍提供 Godot 原生 Package Manager；恢复包管理器安装流后，正式安装状态记录在 `.gf/packages.lock.json`。
+
+当前根包：
+
+- `gf.extension.action_queue`
+- `gf.extension.domain`
+- `gf.standard.deterministic`
+- `gf.standard.input`
+- `gf.standard.state_machine`
+- `gf.standard.ui`
+
+当前启用扩展：
+
+- `gf.action_queue`
+- `gf.domain`
+
+常用安全验证命令：
+
+```powershell
+git diff --check -- .gitignore .gf/packages.lock.json project.godot addons/gf scripts resources scenes tests README.md AI_MAINTENANCE.md CODING_STYLE.md docs tools
+```
+
+```powershell
+godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli.gd -- status --json
+```
+
+检查 `status --json` 输出中的 `ok`、`issue_count`、`orphan_packages` 和 `lockfile_verify.ok`。如果 `.gf/packages.lock.json` 不存在，`installed_count` 可能为 `0`，只表示当前是手动 vendored 源码状态。GF 7 包管理器没有 Python `package_tools` 入口，不要沿用旧命令。
+
+新增或移除 GF 包时必须同步检查：
+
+- `.gf/packages.lock.json`
+- `project.godot` 的 `gf/extensions/enabled`
+- `README.md`
+- `docs/ROADMAP.md`
+- `docs/SAVE_MODEL.md`，当变更涉及最高分、设置、书签、回放、统计或 `gf.extension.save` 时
 
 ## 按变更类型检查文件
 
@@ -94,6 +134,7 @@
 - `scripts/utilities/game_settings_utility.gd`
 - `scripts/boot/game_architecture_installer.gd`
 - `scripts/menus/settings_menu.gd`
+- `docs/SAVE_MODEL.md`
 
 存档字段变化属于高风险改动。要考虑旧数据兼容、默认值、完整性校验、Resource 保存路径和回放/书签恢复流程。书签和回放的文件集合逻辑应优先复用 `SavedResourceCollectionUtility`，不要在各自 System 中重复实现目录枚举、路径写回和时间戳排序。
 
@@ -113,8 +154,9 @@
 - `scripts/menus/**`
 - `assets/translations.csv`
 - `resources/themes/**`
+- `docs/VISUAL_STYLE.md`
 
-表现层应继续通过事件接收业务结果，不要把棋盘算法或存档语义写进 UI 节点。
+表现层应继续通过事件接收业务结果，不要把棋盘算法或存档语义写进 UI 节点。视觉改动必须保持 `docs/VISUAL_STYLE.md` 定义的柔和肌理扁平独立游戏方向，避免刺眼、粗糙或马赛克噪点。
 
 ### gf 框架反哺变更
 
@@ -135,7 +177,7 @@
 
 当前临时框架补丁：
 
-- gf Utility 退出清理：`GFUIUtility`、`GFObjectPoolUtility`、`GFConsoleUtility`、`GFDebugOverlayUtility`、`GFScreenTransitionUtility` 在 `dispose()` 或销毁辅助函数中避免同步 `remove_child()` 后再 `queue_free()`。问题场景是 Godot 退出时 autoload `_exit_tree()` 触发架构 dispose，此时父节点可能正忙于 children 变更；直接 `queue_free()` 让引擎在安全点释放节点，可避免 `Parent node is busy adding/removing children`。当 gf 上游包含等价修复后删除本记录。
+- gf 节点/Utility 退出清理：`GFUIUtility`、`GFObjectPoolUtility`、`GFConsoleUtility`、`GFDebugOverlayUtility`、`GFScreenTransitionUtility`、`GFNodeStateMachine`、`GFNodeStateGroup` 和 `GFPluginActions` 对话框清理在 `dispose()`、`_exit_tree()` 或销毁辅助函数中避免同步 `remove_child()` 后再 `queue_free()`。问题场景是 Godot 退出时 autoload `_exit_tree()` 触发架构 dispose，此时父节点可能正忙于 children 变更；直接 `queue_free()` 让引擎在安全点释放节点，可避免 `Parent node is busy adding/removing children`。当 gf 上游包含等价修复后删除本记录。
 
 ### 文档变更
 
@@ -171,17 +213,36 @@
 本项目的静态维护测试位于：
 
 - `tests/gut/test_api_docs_validation.gd`
+- `tests/gut/test_gf_package_validation.gd`
 - `tests/gut/test_gdscript_layout_validation.gd`
 
-它们扫描示例项目源码和项目测试，不扫描 `addons/gf/**` 或 `addons/gut/**`。这些测试用于把 `CODING_STYLE.md` 中能稳定机器判断的规则固定下来。
+它们扫描示例项目源码和项目测试，不扫描 `addons/gf/**` 或 `addons/gut/**`。这些测试用于把 `CODING_STYLE.md` 中能稳定机器判断的规则固定下来，也用于约束 GF 包状态和容易触发 Godot 4.7 静态警告的测试写法。
 
-运行命令：
+历史运行命令：
 
 ```powershell
 godot --headless --path . -s res://addons/gut/gut_cmdln.gd -gdir=res://tests/gut -ginclude_subdirs -gexit
 ```
 
-如果只改了文档，可以不运行 GUT，但应检查链接、路径和项目定位是否准确。只要改了 `.gd`，优先运行上述命令。
+不要直接使用默认用户目录运行上面的命令。项目提供了安全入口：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot
+```
+
+该脚本会使用临时 `APPDATA`、`LOCALAPPDATA`、`USERPROFILE`、`TEMP`、`TMP`，并通过 `--log-file` 把 Godot 日志写入临时运行目录。它还会限制运行时间、临时日志大小和默认 Godot 用户日志增长，失败时保留现场，成功时默认清理临时目录。
+
+注意：安全脚本已经完成过隔离 GUT 验证，但切换 Godot 可执行文件或升级版本后，仍应先使用较短 `-TimeoutSeconds`、较小 `-MaxLogMB` 和较小 `-MaxDefaultLogGrowthKB` 做烟雾运行，并确认默认 Godot 用户目录日志没有增长。
+
+当前已验证的安全 GUT 命令：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 45 -MaxLogMB 4 -MaxDefaultLogGrowthKB 64
+```
+
+2026-06-19 使用当前 `godot` 命令运行通过，临时 `godot.log` 约 `0.006 MB`，临时目录成功清理。当前静态计数为 14 个 GUT 脚本、93 个 `test_` 用例；如果需要与编辑器中的 Godot `4.7` 完全一致，应传入明确的 `-GodotExecutable` 路径再验证一次。
+
+如果只改了文档，可以不运行 GUT，但应检查链接、路径和项目定位是否准确。只要改了 `.gd`，应优先补充或运行相关测试；无法安全运行时，必须说明未验证风险。
 
 ## AI 临时工作区
 
