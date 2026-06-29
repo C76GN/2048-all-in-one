@@ -47,7 +47,7 @@ var _is_cleaned_up: bool = false
 # --- @onready 变量 (节点引用) ---
 
 @onready var game_board: GameBoardController = %GameBoard
-@onready var test_panel: VBoxContainer = %TestPanel
+@onready var test_panel: Node = %TestPanel
 @onready var _test_panel_controller: TestPanel = _get_test_panel_controller()
 @onready var background_color_rect: ColorRect = %Background
 @onready var _page_title: Label = %PageTitle
@@ -224,7 +224,7 @@ func _configure_ui_for_mode() -> void:
 	var is_replay: bool = _is_replay_mode()
 	replay_controls_container.visible = is_replay
 
-	test_panel.visible = not is_replay and Boot.are_dev_tools_enabled()
+	_set_test_panel_visible(not is_replay and Boot.are_dev_tools_enabled())
 
 	_update_replay_ui()
 
@@ -261,9 +261,9 @@ func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
 		return
 
 	if is_instance_valid(test_panel) and not _is_replay_mode():
-		test_panel.visible = not test_panel.visible
+		_set_test_panel_visible(not _is_test_panel_visible())
 		var console: GFConsoleUtility = _get_console_utility()
-		if is_instance_valid(console) and test_panel.visible:
+		if is_instance_valid(console) and _is_test_panel_visible():
 			var _command_executed: bool = console.execute_command("clear")
 			send_event(HudMessagePayload.new("测试面板已切换。", 2.0))
 
@@ -450,6 +450,24 @@ func _get_test_panel_controller() -> TestPanel:
 		var panel: TestPanel = node_value
 		return panel
 	return null
+
+
+func _get_test_panel_canvas_item() -> CanvasItem:
+	if test_panel is CanvasItem:
+		var panel_canvas_item: CanvasItem = test_panel
+		return panel_canvas_item
+	return null
+
+
+func _set_test_panel_visible(is_visible: bool) -> void:
+	var panel_canvas_item: CanvasItem = _get_test_panel_canvas_item()
+	if is_instance_valid(panel_canvas_item):
+		panel_canvas_item.visible = is_visible
+
+
+func _is_test_panel_visible() -> bool:
+	var panel_canvas_item: CanvasItem = _get_test_panel_canvas_item()
+	return is_instance_valid(panel_canvas_item) and panel_canvas_item.visible
 
 
 func _get_background_shader_material() -> ShaderMaterial:
