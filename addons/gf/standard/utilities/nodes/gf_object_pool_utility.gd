@@ -494,7 +494,7 @@ func _queue_free_detached(node: Node) -> void:
 		return
 	var parent: Node = node.get_parent()
 	if parent != null:
-		parent.remove_child(node)
+		parent.remove_child.call_deferred(node)
 	if not node.is_queued_for_deletion():
 		node.queue_free()
 

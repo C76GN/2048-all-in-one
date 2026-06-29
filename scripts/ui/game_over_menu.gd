@@ -9,7 +9,6 @@ extends "res://scripts/ui/base/game_ui_controller.gd"
 # --- 常量 ---
 
 const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _TEXT_PRIMARY_COLOR: Color = Color(0.96, 0.92, 0.84, 1.0)
 const _TEXT_SECONDARY_COLOR: Color = Color(0.78, 0.82, 0.78, 0.94)
 const _TEXT_SHADOW_COLOR: Color = Color(0.025, 0.035, 0.060, 0.26)
@@ -104,7 +103,7 @@ func _refresh_summary() -> void:
 	if score > initial_high_score:
 		prefix = tr("GAME_OVER_NEW_RECORD_PREFIX") + "\n"
 	if target_value > 0:
-		_summary_label.text = prefix + _GAME_TEXT_FORMATTER.format_template(
+		_summary_label.text = prefix + GameTextFormatUtility.format_template(
 			tr("GAME_OVER_SUMMARY_FORMAT_WITH_TARGET"),
 			_SUMMARY_FORMAT_WITH_TARGET_FALLBACK,
 			[
@@ -127,7 +126,7 @@ func _refresh_summary() -> void:
 			]
 		)
 		return
-	_summary_label.text = prefix + _GAME_TEXT_FORMATTER.format_template(
+	_summary_label.text = prefix + GameTextFormatUtility.format_template(
 		tr("GAME_OVER_SUMMARY_FORMAT"),
 		_SUMMARY_FORMAT_FALLBACK,
 		[

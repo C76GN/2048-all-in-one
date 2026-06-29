@@ -9,7 +9,6 @@ extends "res://scripts/ui/base/game_ui_controller.gd"
 
 ## 单个模式卡片 UI 场景。
 const MODE_CARD_SCENE: PackedScene = preload("res://scenes/ui/mode_card.tscn")
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _CARD_REVEAL_OFFSET: Vector2 = Vector2(18.0, 0.0)
 const _DETAIL_REVEAL_OFFSET: Vector2 = Vector2(10.0, 0.0)
 const _DETAIL_REVEAL_STAGGER: float = 0.02
@@ -464,7 +463,7 @@ func _get_child_label(parent: Node, child_path: NodePath) -> Label:
 func _format_stats_text(high_score: int, stats: Dictionary) -> String:
 	var plays: int = GFVariantData.to_int(stats.get("plays", 0), 0)
 	if plays <= 0:
-		return "\n" + _GAME_TEXT_FORMATTER.format_template(
+		return "\n" + GameTextFormatUtility.format_template(
 			tr("INFO_MODE_STATS_EMPTY"),
 			_STATS_EMPTY_FORMAT_FALLBACK,
 			[_current_grid_size, _current_grid_size, high_score]
@@ -480,7 +479,7 @@ func _format_stats_text(high_score: int, stats: Dictionary) -> String:
 	var last_score: int = GFVariantData.to_int(stats.get("last_score", 0), 0)
 	var last_steps: int = GFVariantData.to_int(stats.get("last_steps", 0), 0)
 	if target_value > 0:
-		return "\n" + _GAME_TEXT_FORMATTER.format_template(
+		return "\n" + GameTextFormatUtility.format_template(
 			tr("INFO_MODE_STATS_SUMMARY_WITH_TARGET"),
 			_STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK,
 			[
@@ -499,7 +498,7 @@ func _format_stats_text(high_score: int, stats: Dictionary) -> String:
 				_format_optional_stat(last_steps),
 			]
 		)
-	return "\n" + _GAME_TEXT_FORMATTER.format_template(
+	return "\n" + GameTextFormatUtility.format_template(
 		tr("INFO_MODE_STATS_SUMMARY"),
 		_STATS_SUMMARY_FORMAT_FALLBACK,
 		[

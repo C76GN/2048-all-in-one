@@ -11,7 +11,6 @@ extends InteractionRule
 
 # --- 常量 ---
 
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _SYNTHESIS_TIP_FORMAT_FALLBACK: String = "合成提示: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color]"
 
 
@@ -119,7 +118,7 @@ func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
 		highlight_fib_components[synthesis_data[&"f_minus_1"]] = true
 		highlight_fib_components[synthesis_data[&"f_plus_1"]] = true
 		highlight_lucas_set[synthesis_data[&"l_n"]] = true
-		stats[&"synthesis_tip_display"] = _GAME_TEXT_FORMATTER.format_template(
+		stats[&"synthesis_tip_display"] = GameTextFormatUtility.format_template(
 			tr("TIP_SYNTHESIS_FORMAT"),
 			_SYNTHESIS_TIP_FORMAT_FALLBACK,
 			[

@@ -9,7 +9,6 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 # --- 常量 ---
 
 const _LOG_TAG: String = "GameFlowSystem"
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _TARGET_REACHED_MESSAGE_DURATION: float = 4.0
 const _TARGET_REACHED_MESSAGE_FALLBACK: String = "[color=green]已达成目标 %d！可以继续挑战更高方块。[/color]"
 
@@ -488,7 +487,7 @@ func _notify_target_reached_if_needed() -> void:
 	_target_reached_notified = true
 	_sync_target_state(true)
 	send_event(HudMessagePayload.new(
-		_GAME_TEXT_FORMATTER.format_template(
+		GameTextFormatUtility.format_template(
 			tr("TARGET_REACHED_MESSAGE"),
 			_TARGET_REACHED_MESSAGE_FALLBACK,
 			[_get_target_tile_value()]

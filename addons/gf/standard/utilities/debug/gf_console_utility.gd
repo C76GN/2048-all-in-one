@@ -203,7 +203,7 @@ func dispose() -> void:
 	if is_instance_valid(_console_gui):
 		var parent: Node = _console_gui.get_parent()
 		if parent != null:
-			parent.remove_child(_console_gui)
+			parent.remove_child.call_deferred(_console_gui)
 		_console_gui.queue_free()
 
 	_console_gui = null

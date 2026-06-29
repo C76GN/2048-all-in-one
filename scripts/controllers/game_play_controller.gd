@@ -13,7 +13,6 @@ const _LEVEL_CLEANUP_ACTION_QUEUES: StringName = &"gameplay_action_queues"
 const _ROUTE_PAUSE_MENU: StringName = &"pause_menu"
 const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
 const _ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _BACKGROUND_SHADER_BASE_COLOR: StringName = &"base_color"
 const _BACKGROUND_SHADER_ACCENT_COLOR: StringName = &"accent_color"
 const _BACKGROUND_SHADER_SECONDARY_COLOR: StringName = &"secondary_color"
@@ -240,7 +239,7 @@ func _update_replay_ui() -> void:
 	var current_step: int = _replay_system.get_current_step()
 	var total_steps: int = _replay_system.get_total_steps()
 	if is_instance_valid(replay_progress_label):
-		replay_progress_label.text = _GAME_TEXT_FORMATTER.format_template(
+		replay_progress_label.text = GameTextFormatUtility.format_template(
 			tr("LABEL_REPLAY_PROGRESS"),
 			_REPLAY_PROGRESS_FORMAT_FALLBACK,
 			[current_step, total_steps]

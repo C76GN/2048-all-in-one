@@ -875,7 +875,7 @@ func _clear_layer_without_invalidating_requests(layer: Layer) -> void:
 func _detach_node_from_tree(node: Node) -> void:
 	var parent: Node = node.get_parent()
 	if parent != null:
-		parent.remove_child(node)
+		parent.remove_child.call_deferred(node)
 
 
 func _next_layer_request_serial(layer: Layer) -> int:

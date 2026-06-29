@@ -11,7 +11,6 @@ extends SpawnRule
 
 # --- 常量 ---
 
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _MONSTER_CHANCE_FORMAT_FALLBACK: String = "下次移动出现怪物概率: %.1f%%"
 const _BATTLE_PROBABILITY_FORMAT_FALLBACK: String = "  - %d (概率: %.1f%%)\n"
 
@@ -75,7 +74,7 @@ func execute(context: RuleContext) -> bool:
 ## @param context: 包含 grid_model 的上下文。
 ## @param stats: 要写入显示数据的字典。
 func get_hud_stats(context: RuleContext, stats: Dictionary) -> void:
-	stats[&"monster_chance_label"] = _GAME_TEXT_FORMATTER.format_template(
+	stats[&"monster_chance_label"] = GameTextFormatUtility.format_template(
 		tr("BATTLE_MONSTER_CHANCE"),
 		_MONSTER_CHANCE_FORMAT_FALLBACK,
 		[_current_probability * 100]
@@ -92,7 +91,7 @@ func get_hud_stats(context: RuleContext, stats: Dictionary) -> void:
 	if total_weight > 0:
 		for i: int in range(weights.size()):
 			var p: float = (float(weights[i]) / total_weight) * 100
-			spawn_info_text += _GAME_TEXT_FORMATTER.format_template(
+			spawn_info_text += GameTextFormatUtility.format_template(
 				tr("FORMAT_BATTLE_PROBABILITY"),
 				_BATTLE_PROBABILITY_FORMAT_FALLBACK,
 				[values[i], p]

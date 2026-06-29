@@ -7,7 +7,6 @@ extends "res://scripts/ui/base/game_ui_controller.gd"
 
 # --- 常量 ---
 
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _SUMMARY_FORMAT_FALLBACK: String = "目标 %d 已完成\n当前：%d 分 · %d 步 · 最大方块 %d"
 
 
@@ -69,7 +68,7 @@ func _refresh_summary() -> void:
 
 
 func _format_summary(target_value: int, score: int, move_count: int, highest_tile: int) -> String:
-	return _GAME_TEXT_FORMATTER.format_template(
+	return GameTextFormatUtility.format_template(
 		tr("TARGET_REACHED_SUMMARY_FORMAT"),
 		_SUMMARY_FORMAT_FALLBACK,
 		[target_value, score, move_count, highest_tile]

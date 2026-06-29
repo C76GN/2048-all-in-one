@@ -53,6 +53,64 @@ function Get-FileGrowth {
 	return $currentLength - $BaselineLength
 }
 
+function Get-CombinedOutputText {
+	param([string[]]$Paths)
+
+	$output = ""
+	foreach ($path in $Paths) {
+		if (Test-Path -LiteralPath $path) {
+			$output += "`n"
+			$output += Get-Content -Raw -Encoding UTF8 -LiteralPath $path
+		}
+	}
+	return $output
+}
+
+function Find-OutputPatternLines {
+	param(
+		[string]$Text,
+		[string[]]$Patterns,
+		[int]$Limit = 30
+	)
+
+	$matches = New-Object System.Collections.Generic.List[string]
+	foreach ($line in ($Text -split "`r?`n")) {
+		foreach ($pattern in $Patterns) {
+			if ($line.IndexOf($pattern, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+				$matches.Add($line.Trim())
+				break
+			}
+		}
+
+		if ($matches.Count -ge $Limit) {
+			break
+		}
+	}
+	return $matches
+}
+
+function Get-GodotValidationIssues {
+	param([string[]]$OutputPaths)
+
+	$output = Get-CombinedOutputText $OutputPaths
+	$patterns = @(
+		"SCRIPT ERROR",
+		"Parse Error:",
+		"ERROR: Failed to load script",
+		"GDScript::reload:",
+		"UNSAFE_",
+		"SHADOWED_",
+		"RETURN_VALUE_DISCARDED",
+		"MISSING_AWAIT",
+		"requires the subtype",
+		"is shadowing an already-declared",
+		"The `"await`" keyword is unnecessary",
+		"remove_child() can't be called",
+		"Parent node is busy adding/removing children"
+	)
+	return Find-OutputPatternLines $output $patterns
+}
+
 function Stop-ProcessSafely {
 	param([System.Diagnostics.Process]$Process)
 
@@ -195,6 +253,17 @@ try {
 		$exitCode = 126
 	} elseif ($defaultLogGrowthKB -gt 0) {
 		Write-Warning "Default Godot user log changed by $([Math]::Round($defaultLogGrowthKB, 3))KB despite isolation: $defaultGodotLog"
+	}
+
+	$validationIssues = Get-GodotValidationIssues @($stdoutFile, $stderrFile, $logFile)
+	if ($validationIssues.Count -gt 0) {
+		Write-Host "ERROR: Godot reported script warnings/errors despite test completion:"
+		foreach ($issue in $validationIssues) {
+			Write-Host "  $issue"
+		}
+		if ($exitCode -eq 0) {
+			$exitCode = 1
+		}
 	}
 
 	Write-Host "Exit code: $exitCode"

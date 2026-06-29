@@ -357,6 +357,18 @@ func test_project_scripts_avoid_dynamic_method_dispatch() -> void:
 	)
 
 
+func test_typed_gdscript_preloads_do_not_call_static_methods() -> void:
+	var script_paths: Array[String] = _collect_project_gdscript_files()
+	var issues: Array[String] = []
+	for path: String in script_paths:
+		issues.append_array(_collect_typed_gdscript_preload_static_call_issues(path))
+
+	assert_true(
+		issues.is_empty(),
+		"GDScript preload 常量不应作为静态方法宿主调用；请用 class_name 直接调用，避免 Godot 4.7 UNSAFE_METHOD_ACCESS：\n%s" % _join_lines(issues)
+	)
+
+
 func test_project_scripts_avoid_explicit_as_casts() -> void:
 	var issues: Array[String] = []
 	for path: String in _collect_gdscript_files("res://scripts"):
@@ -1120,6 +1132,52 @@ func _collect_dynamic_method_dispatch_issues(path: String) -> Array[String]:
 			line_index + 1,
 		])
 	return issues
+
+
+func _collect_typed_gdscript_preload_static_call_issues(path: String) -> Array[String]:
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return ["%s: 无法打开文件" % path]
+
+	var lines: PackedStringArray = file.get_as_text().split("\n")
+	file.close()
+	var preload_constant_names: Array[String] = []
+	var issues: Array[String] = []
+	for line_index: int in range(lines.size()):
+		var line: String = _trim_cr(_get_packed_line(lines, line_index)).strip_edges()
+		var constant_name: String = _parse_typed_gdscript_preload_constant_name(line)
+		if not constant_name.is_empty():
+			_append_string(preload_constant_names, constant_name)
+			continue
+
+		for preload_constant_name: String in preload_constant_names:
+			if _line_calls_preload_constant_static_method(line, preload_constant_name):
+				_append_string(issues, "%s:%d %s 应改为 class_name 直接调用静态方法。" % [
+					path,
+					line_index + 1,
+					preload_constant_name,
+				])
+	return issues
+
+
+func _parse_typed_gdscript_preload_constant_name(line: String) -> String:
+	if not line.begins_with("const "):
+		return ""
+	if not line.contains(": GDScript = preload("):
+		return ""
+
+	var colon_index: int = line.find(":")
+	if colon_index == -1:
+		return ""
+	return line.substr("const ".length(), colon_index - "const ".length()).strip_edges()
+
+
+func _line_calls_preload_constant_static_method(line: String, constant_name: String) -> bool:
+	if line.is_empty() or line.begins_with("#"):
+		return false
+	if constant_name.is_empty():
+		return false
+	return line.contains(constant_name + ".") and not line.contains(constant_name + ".new(")
 
 
 func _collect_explicit_as_cast_issues(path: String) -> Array[String]:

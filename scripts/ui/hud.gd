@@ -10,7 +10,6 @@ extends "res://addons/gf/kernel/base/gf_controller.gd"
 
 ## 动态流程标签列表场景。
 const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://scenes/ui/flow_label_list.tscn")
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _FEEDBACK_TWEEN_META: StringName = &"_hud_feedback_tween"
 const _FEEDBACK_SCALE: float = 1.035
 const _FEEDBACK_DURATION: float = 0.22
@@ -123,12 +122,12 @@ func _refresh_all() -> void:
 			move_count_value
 		)
 
-	local_dict[&"high_score"] = _GAME_TEXT_FORMATTER.format_template(
+	local_dict[&"high_score"] = GameTextFormatUtility.format_template(
 		tr("HIGH_SCORE_LABEL"),
 		_HIGH_SCORE_FORMAT_FALLBACK,
 		[high_score_value]
 	)
-	local_dict[&"highest_tile"] = _GAME_TEXT_FORMATTER.format_template(
+	local_dict[&"highest_tile"] = GameTextFormatUtility.format_template(
 		tr("HIGHEST_TILE_LABEL"),
 		_HIGHEST_TILE_FORMAT_FALLBACK,
 		[highest_tile_value]
@@ -226,7 +225,7 @@ func _update_ui_text() -> void:
 
 func _format_stat_text(template: String, fallback: String, value: int) -> String:
 	if template.contains("%"):
-		return _GAME_TEXT_FORMATTER.format_template(template, fallback, [value])
+		return GameTextFormatUtility.format_template(template, fallback, [value])
 	return template + " [b]" + str(value) + "[/b]"
 
 

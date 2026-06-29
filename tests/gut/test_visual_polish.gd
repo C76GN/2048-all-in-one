@@ -9,7 +9,6 @@ const _GAME_OVER_SCENE: PackedScene = preload("res://scenes/ui/game_over_menu.ts
 const _TARGET_REACHED_SCENE: PackedScene = preload("res://scenes/ui/target_reached_menu.tscn")
 const _BOOKMARK_ITEM_SCENE: PackedScene = preload("res://scenes/ui/bookmark_list_item.tscn")
 const _REPLAY_ITEM_SCENE: PackedScene = preload("res://scenes/ui/replay_list_item.tscn")
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _BACKGROUND_SHADER_PATH: String = "res://resources/shaders/game_background.gdshader"
 const _VISUAL_STYLE_DOC_PATH: String = "res://docs/VISUAL_STYLE.md"
 const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/classic_tile_theme.tres")
@@ -267,22 +266,22 @@ func test_game_over_menu_summary_uses_safe_format_fallback() -> void:
 
 func test_game_text_format_utility_uses_safe_fallbacks() -> void:
 	var fallback: String = "%s | %s %d | %s %dx%d"
-	var missing_key_text: String = _GAME_TEXT_FORMATTER.format_template(
+	var missing_key_text: String = GameTextFormatUtility.format_template(
 		"MISSING_BOOKMARK_INFO_FORMAT",
 		fallback,
 		["2026-06-19", "分数", 128, "尺寸", 4, 4]
 	)
-	var malformed_text: String = _GAME_TEXT_FORMATTER.format_template(
+	var malformed_text: String = GameTextFormatUtility.format_template(
 		"%s | %s",
 		fallback,
 		["2026-06-19", "分数", 256, "尺寸", 5, 5]
 	)
-	var translated_text: String = _GAME_TEXT_FORMATTER.format_template(
+	var translated_text: String = GameTextFormatUtility.format_template(
 		"%s / %s %d / %s %dx%d",
 		fallback,
 		["2026-06-19", "分数", 512, "尺寸", 6, 6]
 	)
-	var percent_text: String = _GAME_TEXT_FORMATTER.format_template(
+	var percent_text: String = GameTextFormatUtility.format_template(
 		"目标达成率 %d%%",
 		"目标达成率 %d%%",
 		[73]

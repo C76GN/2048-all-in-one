@@ -398,7 +398,7 @@ static func _update_target_stats(entry: Dictionary) -> void:
 	if target_value <= 0 or plays <= 0:
 		entry[_STAT_TARGET_REACHED_RATE] = 0
 		return
-	entry[_STAT_TARGET_REACHED_RATE] = int(round(float(reached_count * 100) / float(plays)))
+	entry[_STAT_TARGET_REACHED_RATE] = _rounded_average(reached_count * 100, plays)
 
 
 static func _normalize_target_reached_count(entry: Dictionary) -> int:
@@ -413,7 +413,8 @@ static func _normalize_target_reached_count(entry: Dictionary) -> int:
 static func _rounded_average(total_value: int, sample_count: int) -> int:
 	if sample_count <= 0:
 		return 0
-	return int(round(float(max(total_value, 0)) / float(sample_count)))
+	var normalized_total: int = maxi(total_value, 0)
+	return int(round(float(normalized_total) / float(sample_count)))
 
 
 static func _variant_to_bool(value: Variant, default_value: bool) -> bool:

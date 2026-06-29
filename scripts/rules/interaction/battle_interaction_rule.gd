@@ -7,7 +7,6 @@ extends InteractionRule
 
 # --- 常量 ---
 
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _MONSTERS_KILLED_FORMAT_FALLBACK: String = "消灭怪物: %d"
 
 
@@ -140,7 +139,7 @@ func get_spawnable_values(_type_id: int) -> Array[int]:
 func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
 	var monsters_killed: int = GFVariantData.to_int(context.get(&"monsters_killed", 0), 0)
 	if monsters_killed >= 0:
-		stats[&"monsters_killed_display"] = _GAME_TEXT_FORMATTER.format_template(
+		stats[&"monsters_killed_display"] = GameTextFormatUtility.format_template(
 			tr("BATTLE_KILLED_DISPLAY"),
 			_MONSTERS_KILLED_FORMAT_FALLBACK,
 			[monsters_killed]

@@ -15,7 +15,6 @@ signal bookmark_selected(bookmark_data: BookmarkData)
 
 # --- 常量 ---
 
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
 
 
@@ -68,7 +67,7 @@ func _update_display() -> void:
 
 	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
 	var size_label: String = tr("SIZE_LABEL")
-	_info_label.text = _GAME_TEXT_FORMATTER.format_template(
+	_info_label.text = GameTextFormatUtility.format_template(
 		tr("BOOKMARK_INFO_FORMAT"),
 		_INFO_FORMAT_FALLBACK,
 		[

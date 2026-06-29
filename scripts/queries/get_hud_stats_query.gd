@@ -7,7 +7,6 @@ extends "res://addons/gf/kernel/base/gf_query.gd"
 
 # --- 常量 ---
 
-const _GAME_TEXT_FORMATTER: GDScript = preload("res://scripts/utilities/game_text_format_utility.gd")
 const _SEED_INFO_FORMAT_FALLBACK: String = "游戏种子: %d"
 
 
@@ -29,7 +28,7 @@ func execute() -> Variant:
 
 	var seed_utility: GFSeedUtility = _get_seed_utility()
 	if is_instance_valid(seed_utility):
-		stats[&"seed_info"] = _GAME_TEXT_FORMATTER.format_template(
+		stats[&"seed_info"] = GameTextFormatUtility.format_template(
 			tr("SEED_INFO_LABEL"),
 			_SEED_INFO_FORMAT_FALLBACK,
 			[seed_utility.get_global_seed()]
