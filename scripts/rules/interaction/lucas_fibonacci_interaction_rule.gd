@@ -11,7 +11,11 @@ extends InteractionRule
 
 # --- 常量 ---
 
-const _SYNTHESIS_TIP_FORMAT_FALLBACK: String = "合成提示: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color]"
+const _SYNTHESIS_TIP_FORMAT_FALLBACK: String = "合成提示: [color=#2f7674]%d[/color] + [color=#2f7674]%d[/color] = [color=#944431]%d[/color]"
+const _HUD_TEXT_COLOR: Color = Color(0.34901962, 0.2901961, 0.27058825, 1.0)
+const _HUD_MUTED_COLOR: Color = Color(0.4, 0.35686275, 0.32156864, 1.0)
+const _HUD_TEAL_COLOR: Color = Color(0.18431373, 0.4627451, 0.45490196, 1.0)
+const _HUD_ACCENT_COLOR: Color = Color(0.5803922, 0.26666668, 0.19215687, 1.0)
 
 
 # --- 私有变量 ---
@@ -128,29 +132,29 @@ func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
 			]
 		)
 
-	var fib_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_FIB_SEQ"), &"color": Color.WHITE}]
+	var fib_data_for_ui: Array[Dictionary] = [{&"text": tr("LABEL_FIB_SEQ"), &"color": _HUD_TEXT_COLOR}]
 	for num: int in _fib_sequence:
 		if num > max_display_value:
 			break
-		var item: Dictionary = {&"text": str(num), &"color": Color.GRAY}
+		var item: Dictionary = {&"text": str(num), &"color": _HUD_MUTED_COLOR}
 		if highlight_fib_components.has(num):
-			item[&"color"] = Color.CYAN
+			item[&"color"] = _HUD_TEAL_COLOR
 		elif player_tiles_set.has(num):
-			item[&"color"] = Color.WHITE
+			item[&"color"] = _HUD_TEXT_COLOR
 		fib_data_for_ui.append(item)
 	stats[&"fibonacci_sequence_display"] = fib_data_for_ui
 
 	var luc_display_sequence: Array[int] = _luc_sequence.slice(1)
 	luc_display_sequence.sort()
-	var luc_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_LUC_SEQ"), &"color": Color.WHITE}]
+	var luc_data_for_ui: Array[Dictionary] = [{&"text": tr("LABEL_LUC_SEQ"), &"color": _HUD_TEXT_COLOR}]
 	for num: int in luc_display_sequence:
 		if num > max_display_value:
 			break
-		var item: Dictionary = {&"text": str(num), &"color": Color.GRAY}
+		var item: Dictionary = {&"text": str(num), &"color": _HUD_MUTED_COLOR}
 		if highlight_lucas_set.has(num):
-			item[&"color"] = Color.YELLOW
+			item[&"color"] = _HUD_ACCENT_COLOR
 		elif player_tiles_set.has(num):
-			item[&"color"] = Color.WHITE
+			item[&"color"] = _HUD_TEXT_COLOR
 		luc_data_for_ui.append(item)
 	stats[&"lucas_sequence_display"] = luc_data_for_ui
 

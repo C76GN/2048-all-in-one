@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_4j0o1"]
+
+[resource]
+script = ExtResource("1_4j0o1")
+asset_id = &"asset.review.four.hundred.sounds.pack.environment.gurgling.75c9e518"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Environment/gurgling"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "environment", "gurgling")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Environment/gurgling.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Environment/gurgling.wav"
+relative_path = "Environment/gurgling.wav"
+extension = "wav"
+file_size_bytes = 380972
+sha256 = "75c9e518f9bfa964e154cf1ca0fdeac43d3436d43bbc0dc876e357c08e74ea12"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

@@ -14,16 +14,19 @@ const _DEFAULT_EXTENSION: String = "tres"
 # --- 私有变量 ---
 
 var _storage: GFStorageUtility = null
+var _clock: GameClockUtility = null
 
 
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
 	_storage = _resolve_storage_utility()
+	_clock = _resolve_clock_utility()
 
 
 func dispose() -> void:
 	_storage = null
+	_clock = null
 
 
 # --- 公共方法 ---
@@ -63,11 +66,11 @@ func save_timestamped_resource(
 		push_error("[SavedResourceCollectionUtility] save_timestamped_resource 失败：GFStorageUtility 未注册。")
 		return ""
 
-	var timestamp: int = _read_int_property(resource, timestamp_property, int(Time.get_unix_time_from_system()))
+	var timestamp: int = _read_int_property(resource, timestamp_property, _get_unix_timestamp())
 	var file_path: String = directory_name.path_join("%s_%d_%d.%s" % [
 		file_prefix,
 		timestamp,
-		Time.get_ticks_msec(),
+		_get_tick_msec(),
 		_DEFAULT_EXTENSION,
 	])
 	var error: int = storage.save_resource(file_path, resource)
@@ -142,6 +145,38 @@ func _resolve_storage_utility() -> GFStorageUtility:
 		var storage_utility: GFStorageUtility = utility_value
 		return storage_utility
 	return null
+
+
+func _get_clock() -> GameClockUtility:
+	if is_instance_valid(_clock):
+		return _clock
+
+	_clock = _resolve_clock_utility()
+	return _clock
+
+
+func _resolve_clock_utility() -> GameClockUtility:
+	var utility_value: Object = get_utility(GameClockUtility)
+	if utility_value is GameClockUtility:
+		var clock: GameClockUtility = utility_value
+		return clock
+	return null
+
+
+func _get_unix_timestamp() -> int:
+	var clock: GameClockUtility = _get_clock()
+	if is_instance_valid(clock):
+		return clock.get_unix_timestamp()
+	push_error("[SavedResourceCollectionUtility] 缺少 GameClockUtility，无法获取系统时间戳。")
+	return 0
+
+
+func _get_tick_msec() -> int:
+	var clock: GameClockUtility = _get_clock()
+	if is_instance_valid(clock):
+		return clock.get_tick_msec()
+	push_error("[SavedResourceCollectionUtility] 缺少 GameClockUtility，无法获取短文件名 tick。")
+	return 0
 
 
 func _is_valid_collection_resource(resource: Resource, required_script: Script) -> bool:

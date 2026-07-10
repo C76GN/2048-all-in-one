@@ -3,6 +3,11 @@ class_name FlowLabelList
 extends Control
 
 
+# --- 常量 ---
+
+const _DEFAULT_TEXT_COLOR: Color = Color(0.34901962, 0.2901961, 0.27058825, 1.0)
+
+
 # --- 导出变量 ---
 
 @export_group("样式配置")
@@ -55,8 +60,8 @@ func update_data(data: Array) -> void:
 		if i < data.size():
 			var item: Dictionary = data[i] if data[i] is Dictionary else {}
 			label.text = GFVariantData.to_text(item.get(&"text", item.get("text", "")))
-			var color_value: Variant = item.get(&"color", item.get("color", Color.WHITE))
-			label.modulate = color_value if color_value is Color else Color.WHITE
+			var color_value: Variant = item.get(&"color", item.get("color", _DEFAULT_TEXT_COLOR))
+			label.modulate = color_value if color_value is Color else _DEFAULT_TEXT_COLOR
 			label.visible = true
 		else:
 			label.visible = false # 隐藏未使用的标签

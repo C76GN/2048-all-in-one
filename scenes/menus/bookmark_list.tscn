@@ -6,16 +6,16 @@
 [ext_resource type="PackedScene" uid="uid://ug4imooux68t" path="res://scenes/ui/bookmark_list_item.tscn" id="4_op0v2"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_preview_bg"]
-bg_color = Color(0.035, 0.05, 0.08, 0.42)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.92, 0.82, 0.6, 0.12)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
+bg_color = Color(1, 0.972549, 0.9098039, 0.86)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.76)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="BookmarkList" unique_id=1500451424 instance=ExtResource("1_base")]
 script = ExtResource("2_script")
@@ -24,7 +24,7 @@ item_scene = ExtResource("4_op0v2")
 
 [node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0" unique_id=1016797638]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.94, 0.9, 0.82, 1)
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 theme_override_font_sizes/font_size = 24
 text = "存档预览"
 horizontal_alignment = 1
@@ -71,7 +71,7 @@ theme_override_constants/separation = 10
 
 [node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="0" unique_id=877799478]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.94, 0.9, 0.82, 1)
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 theme_override_font_sizes/font_size = 24
 text = "操作"
 

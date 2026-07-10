@@ -1,0 +1,31 @@
+{
+	"author": "Nathan Gibson",
+	"display_name": "Universal UI Soundpack",
+	"imported_at": "2026-07-09 03:22:27",
+	"license": "CC BY 4.0",
+	"license_status": "known",
+	"original_source_path": "E:/_inbox/Downloads/UI Soundpack",
+	"report": {
+		"byte_count": 11466535,
+		"copied_count": 0,
+		"display_name": "Universal UI Soundpack",
+		"error_count": 0,
+		"file_count": 157,
+		"kind_counts": {
+			"audio": 156
+		},
+		"license_counts": {
+			"known": 156
+		},
+		"non_review_file_count": 1,
+		"review_record_count": 156,
+		"source_pack_id": "universal_ui_soundpack",
+		"status_counts": {
+			"inbox": 156
+		},
+		"unchanged_count": 157
+	},
+	"schema_version": 1,
+	"source_pack_id": "universal_ui_soundpack",
+	"source_url": "https://nathangibson.myportfolio.com"
+}

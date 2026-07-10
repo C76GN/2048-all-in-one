@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_kbv6q"]
+
+[resource]
+script = ExtResource("1_kbv6q")
+asset_id = &"asset.review.four.hundred.sounds.pack.items.pencil.eraser.42c254e6"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Items/pencil_eraser"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "items", "pencil_eraser")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Items/pencil_eraser.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Items/pencil_eraser.wav"
+relative_path = "Items/pencil_eraser.wav"
+extension = "wav"
+file_size_bytes = 147596
+sha256 = "42c254e6ed631a99bde0caf640a523ee876f02357a167b891475cdffd2f9fa4a"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

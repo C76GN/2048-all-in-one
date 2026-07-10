@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_si74m"]
+
+[resource]
+script = ExtResource("1_si74m")
+asset_id = &"asset.review.four.hundred.sounds.pack.items.keys.jingling.cf5b5473"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Items/keys_jingling"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "items", "keys_jingling")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Items/keys_jingling.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Items/keys_jingling.wav"
+relative_path = "Items/keys_jingling.wav"
+extension = "wav"
+file_size_bytes = 90156
+sha256 = "cf5b5473605780e6ec934b6add013a0eec803963a0cb1ba4eef97694bf85ae9b"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

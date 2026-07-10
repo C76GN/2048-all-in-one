@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_c1xpg"]
+
+[resource]
+script = ExtResource("1_c1xpg")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.music.box.positive.long.e8376cf0"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/music_box_positive_long"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "music_box_positive_long")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/music_box_positive_long.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/music_box_positive_long.wav"
+relative_path = "Musical Effects/music_box_positive_long.wav"
+extension = "wav"
+file_size_bytes = 422996
+sha256 = "e8376cf0240fbea6899ff1f3ba37a60a8f818fce28fba968991b6a96a62a2588"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

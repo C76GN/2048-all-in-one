@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_hnpts"]
+
+[resource]
+script = ExtResource("1_hnpts")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.ceramic.jar.open.09ef995b"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/ceramic_jar_open"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "ceramic_jar_open")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/ceramic_jar_open.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Materials/ceramic_jar_open.wav"
+relative_path = "Materials/ceramic_jar_open.wav"
+extension = "wav"
+file_size_bytes = 79916
+sha256 = "09ef995bfd20dd08461275b08e6fdf697ce1c68342464b8975b3162b9aacdea2"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

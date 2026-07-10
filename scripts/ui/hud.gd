@@ -17,6 +17,8 @@ const _SCORE_FORMAT_FALLBACK: String = "分数: %d"
 const _MOVE_COUNT_FORMAT_FALLBACK: String = "移动次数: %d"
 const _HIGH_SCORE_FORMAT_FALLBACK: String = "最高分: %d"
 const _HIGHEST_TILE_FORMAT_FALLBACK: String = "最大方块: %d"
+const _TEXT_PRIMARY_COLOR: Color = Color(0.34901962, 0.2901961, 0.27058825, 1.0)
+const _TEXT_ACCENT_COLOR_HEX: String = "#944431"
 
 
 # --- 私有变量 ---
@@ -135,7 +137,7 @@ func _refresh_all() -> void:
 	
 	if not is_instance_valid(_status_message_label):
 		if not status_message.is_empty():
-			local_dict[&"status_message"] = "[color=yellow]" + status_message + "[/color]"
+			local_dict[&"status_message"] = "[color=%s]%s[/color]" % [_TEXT_ACCENT_COLOR_HEX, status_message]
 
 	var query_result: Variant = send_query(GetHudStatsQuery.new())
 	if query_result is Dictionary:
@@ -194,6 +196,7 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 				new_label.bbcode_enabled = true
 				new_label.fit_content = true
 				new_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				_style_dynamic_rich_label(new_label)
 				ui_node = new_label
 
 			_stats_container.add_child(ui_node)
@@ -209,6 +212,7 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 			flow_label_list.update_data(data_array)
 		elif ui_node is RichTextLabel:
 			var rich_label: RichTextLabel = ui_node
+			_style_dynamic_rich_label(rich_label)
 			rich_label.text = str(data_to_display)
 
 		ui_node.visible = true
@@ -227,6 +231,15 @@ func _format_stat_text(template: String, fallback: String, value: int) -> String
 	if template.contains("%"):
 		return GameTextFormatUtility.format_template(template, fallback, [value])
 	return template + " [b]" + str(value) + "[/b]"
+
+
+func _style_dynamic_rich_label(label: RichTextLabel) -> void:
+	if not is_instance_valid(label):
+		return
+	label.add_theme_color_override("default_color", _TEXT_PRIMARY_COLOR)
+	label.add_theme_color_override("font_selected_color", _TEXT_PRIMARY_COLOR)
+	label.add_theme_color_override("font_outline_color", Color.TRANSPARENT)
+	label.modulate = Color.WHITE
 
 
 func _mark_dirty() -> void:
@@ -248,7 +261,7 @@ func _pulse_control(control: Control) -> void:
 	control.pivot_offset = control.size * 0.5
 	_kill_feedback_tween(control)
 	control.scale = Vector2.ONE * _FEEDBACK_SCALE
-	control.modulate = Color(1.0, 0.92, 0.62, 1.0)
+	control.modulate = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
 	if not control.is_inside_tree():
 		control.scale = Vector2.ONE
 		control.modulate = Color.WHITE

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_q7nmi"]
+
+[resource]
+script = ExtResource("1_q7nmi")
+asset_id = &"asset.review.manual.shader.notes.world.space.coordinate.grid.1e36eed0"
+source_pack_id = &"manual_shader_notes"
+display_name = "world_space_coordinate_grid"
+asset_kind = &"shader"
+review_status = &"candidate"
+tags = PackedStringArray("shader", "canvas_item", "coordinate_grid", "world_space", "debug_grid", "origin_lines", "tooling_candidate", "license_review_needed")
+notes = "Candidate canvas_item shader for debug coordinate systems, editor overlays, board-layout inspection, or future sandbox tools. It draws adaptive world-space grid lines with subdivision fading and colored origin axes. Kept review-only until source and license are confirmed."
+rating = 4
+source_path = "manual://chat/2026-07-09/world_space_coordinate_grid.gdshader"
+library_path = "res://asset_library/source_packs/manual_shader_notes/files/world_space_coordinate_grid.gdshader"
+relative_path = "world_space_coordinate_grid.gdshader"
+extension = "gdshader"
+file_size_bytes = 3347
+sha256 = "1e36eed085dc3f242e9b9d6120bddc04f7897ce3072c4bbc997f8db15b66b79c"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.debug.coordinate_grid", "slot.shader.tooling.world_grid")
+imported_at = "2026-07-09 23:08:00"

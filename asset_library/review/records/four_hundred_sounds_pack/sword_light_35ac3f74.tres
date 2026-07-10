@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_l6l0m"]
+
+[resource]
+script = ExtResource("1_l6l0m")
+asset_id = &"asset.review.four.hundred.sounds.pack.weapons.sword.light.35ac3f74"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Weapons/sword_light"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "weapons", "sword_light")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Weapons/sword_light.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Weapons/sword_light.wav"
+relative_path = "Weapons/sword_light.wav"
+extension = "wav"
+file_size_bytes = 63532
+sha256 = "35ac3f7454c9aee940a083ff1c29ca503f78e26e750c9cd54ff03659179cc791"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

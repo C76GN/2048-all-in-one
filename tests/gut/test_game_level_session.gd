@@ -12,6 +12,10 @@ const _CLASSIC_MODE_CONFIG_PATH: String = "res://resources/modes/classic_mode_co
 func test_game_initialization_records_current_session_in_level_utility() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var app_config: AppConfigModel = AppConfigModel.new()
+	var asset_utility: GFAssetUtility = GFAssetUtility.new()
+	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
+	var catalog: ProjectResourceCatalogUtility = ProjectResourceCatalogUtility.new()
+	var mode_cache: GameModeConfigCacheUtility = GameModeConfigCacheUtility.new()
 	var level_utility: GFLevelUtility = GFLevelUtility.new()
 	var command_history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()
 
@@ -19,6 +23,10 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	await architecture.register_model(GridModel, GridModel.new())
 	await architecture.register_model(GameStatusModel, GameStatusModel.new())
 	await architecture.register_model(CurrentGameModel, CurrentGameModel.new())
+	await architecture.register_utility(GFAssetUtility, asset_utility)
+	await architecture.register_utility(GFResourceResolverUtility, resolver)
+	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
+	await architecture.register_utility(GameModeConfigCacheUtility, mode_cache)
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
 	await architecture.register_utility(GFCommandHistoryUtility, command_history)
 	await architecture.register_utility(GFLevelUtility, level_utility)

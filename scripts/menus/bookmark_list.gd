@@ -55,7 +55,7 @@ func _setup_item(item: Control, data: Resource) -> void:
 
 	var bookmark_item: BookmarkListItem = item
 	var bookmark_data: BookmarkData = data
-	bookmark_item.setup(bookmark_data)
+	bookmark_item.setup(bookmark_data, _get_mode_display_name(bookmark_data.mode_config_path))
 
 
 func _connect_item_signals(item: Control, _data: Resource) -> void:
@@ -75,14 +75,14 @@ func _update_preview(data: Resource) -> void:
 		return
 
 	var bookmark: BookmarkData = data
-	var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(bookmark.mode_config_path)
+	var mode_config: GameModeConfig = _get_mode_config(bookmark.mode_config_path)
 	if not is_instance_valid(mode_config):
 		detail_info_label.text = tr("ERR_LOAD_CONFIG")
 		if is_instance_valid(board_preview_node):
 			board_preview_node.show_message(tr("ERR_LOAD_CONFIG"))
 		return
 
-	var datetime: String = Time.get_datetime_string_from_unix_time(bookmark.timestamp)
+	var datetime: String = _format_datetime(bookmark.timestamp)
 	var grid_size: int = GFVariantData.to_int(
 		bookmark.board_snapshot.get(&"grid_size", bookmark.board_snapshot.get("grid_size", 0)),
 		0
@@ -90,7 +90,7 @@ func _update_preview(data: Resource) -> void:
 
 	var details: String = ""
 	details += "[b]%s[/b] %s\n" % [tr("LABEL_MODE"), tr(mode_config.mode_name)]
-	details += "[b]%s[/b] %s\n" % [tr("LABEL_TIME"), datetime.replace("T", " ")]
+	details += "[b]%s[/b] %s\n" % [tr("LABEL_TIME"), datetime]
 	details += "[b]%s[/b] %d\n" % [tr("LABEL_SCORE"), bookmark.score]
 	details += "[b]%s[/b] %d\n" % [tr("LABEL_MOVES"), bookmark.move_count]
 	details += "[b]%s[/b] %d\n" % [tr("LABEL_KILLED"), bookmark.monsters_killed]
@@ -160,6 +160,17 @@ func _get_bookmark_system() -> BookmarkSystem:
 		var bookmark_system: BookmarkSystem = system_value
 		return bookmark_system
 	return null
+
+
+func _get_mode_display_name(mode_config_path: String) -> String:
+	if mode_config_path.is_empty():
+		return tr("UNKNOWN_MODE")
+
+	var mode_config: GameModeConfig = _get_mode_config(mode_config_path)
+	if is_instance_valid(mode_config):
+		return tr(mode_config.mode_name)
+
+	return tr("CONFIG_MISSING")
 
 
 func _get_app_config_model() -> AppConfigModel:

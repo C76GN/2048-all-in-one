@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_prycs"]
+
+[resource]
+script = ExtResource("1_prycs")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.brass.negative.quick.a117be0b"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/brass_negative_quick"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "brass_negative_quick", "ui")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/brass_negative_quick.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/brass_negative_quick.wav"
+relative_path = "Musical Effects/brass_negative_quick.wav"
+extension = "wav"
+file_size_bytes = 70596
+sha256 = "a117be0ba97a82f911fd0405b4a91751c21023b8c24086f65813d81b97cb2a92"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

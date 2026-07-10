@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_kthru"]
+
+[resource]
+script = ExtResource("1_kthru")
+asset_id = &"asset.review.four.hundred.sounds.pack.machines.industrial.door.open.d738ae57"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Machines/industrial_door_open"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "machines", "industrial_door_open")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Machines/industrial_door_open.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Machines/industrial_door_open.wav"
+relative_path = "Machines/industrial_door_open.wav"
+extension = "wav"
+file_size_bytes = 163884
+sha256 = "d738ae57fd29f9d95a3bbe3fe89a3e6ea227968773b2498246f498dc7695a867"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

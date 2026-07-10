@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_lc4bw"]
+
+[resource]
+script = ExtResource("1_lc4bw")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.clothing.2.c9049a6b"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/clothing_2"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "clothing_2")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/clothing_2.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Materials/clothing_2.wav"
+relative_path = "Materials/clothing_2.wav"
+extension = "wav"
+file_size_bytes = 264236
+sha256 = "c9049a6ba437542badedd17cfaf56f5544136a2d8996d91b058516e53b66d507"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

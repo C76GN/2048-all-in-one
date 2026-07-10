@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_ace13"]
+
+[resource]
+script = ExtResource("1_ace13")
+asset_id = &"asset.review.four.hundred.sounds.pack.retro.ghost.35d6f424"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Retro/ghost"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "ghost")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/ghost.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Retro/ghost.wav"
+relative_path = "Retro/ghost.wav"
+extension = "wav"
+file_size_bytes = 58006
+sha256 = "35d6f4249824518c5811e519f87ae6aa29d3b520fb5b4df850eb6131fe2c4919"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

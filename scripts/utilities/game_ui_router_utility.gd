@@ -15,28 +15,30 @@ const ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
 const ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
 const ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
 
+const _CATALOG_ID: StringName = &"ui_routes"
 const _UI_ROUTE_GROUP_ID: StringName = &"ui_routes"
+const _UI_ROUTE_RESOURCE_KEY_PREFIX: String = "game.ui_route."
 const _ROUTE_TYPE_HINT: String = "GFUIRoute"
 
 
 # --- 私有变量 ---
 
-var _asset_utility: GFAssetUtility = null
+var _resource_catalog: ProjectResourceCatalogUtility = null
 var _route_registry: GFResourceRegistry = DEFAULT_UI_ROUTE_REGISTRY
 
 
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
-	_asset_utility = _resolve_asset_utility()
-	_register_route_group_paths()
+	_resource_catalog = _resolve_resource_catalog_utility()
+	_register_route_registry_resources()
 	configure(_load_routes_from_registry(), _resolve_ui_utility_for_configure())
 
 
 func dispose() -> void:
 	super.dispose()
 	_release_route_assets()
-	_asset_utility = null
+	_resource_catalog = null
 
 
 # --- 公共方法 ---
@@ -44,16 +46,10 @@ func dispose() -> void:
 ## 获取 UI 路由注册表中的资源路径列表。
 ## @return: 按注册表顺序排列的 GFUIRoute 资源路径。
 func get_registered_route_paths() -> PackedStringArray:
-	var result: PackedStringArray = PackedStringArray()
-	if not is_instance_valid(_route_registry):
-		return result
-
-	for entry: GFResourceRegistryEntry in _route_registry.entries:
-		if not _is_valid_registry_entry(entry):
-			continue
-
-		var _append_result: bool = result.append(entry.path)
-	return result
+	var catalog: ProjectResourceCatalogUtility = _get_resource_catalog()
+	if is_instance_valid(catalog):
+		return catalog.get_registered_paths(_CATALOG_ID)
+	return _get_registry_paths_without_catalog()
 
 
 ## 获取项目 UI 路由诊断快照。
@@ -66,6 +62,7 @@ func get_debug_snapshot() -> Dictionary:
 
 	snapshot["registry"] = registry_snapshot
 	snapshot["route_paths"] = get_registered_route_paths()
+	snapshot["route_resource_keys"] = _get_registered_route_resource_keys()
 	return snapshot
 
 
@@ -92,9 +89,14 @@ func _load_route_entry(entry: GFResourceRegistryEntry) -> GFUIRoute:
 	if is_instance_valid(cached_route):
 		return cached_route
 
-	var route_resource: Resource = _route_registry.load_entry(
-		entry.id,
-		_resolve_type_hint(entry),
+	var catalog: ProjectResourceCatalogUtility = _get_resource_catalog()
+	if not is_instance_valid(catalog):
+		push_error("[GameUiRouterUtility] 缺少 ProjectResourceCatalogUtility，无法加载 UI 路由资源: %s" % entry.path)
+		return null
+
+	var route_resource: Resource = catalog.load_resource_by_entry(
+		_CATALOG_ID,
+		entry,
 		ResourceLoader.CACHE_MODE_IGNORE
 	)
 	if not route_resource is GFUIRoute:
@@ -105,57 +107,57 @@ func _load_route_entry(entry: GFResourceRegistryEntry) -> GFUIRoute:
 		push_warning("[GameUiRouterUtility] UI 路由资源加载失败: %s" % entry.path)
 		return null
 
-	var asset_utility: GFAssetUtility = _get_asset_utility()
-	if is_instance_valid(asset_utility):
-		asset_utility.put_cache(entry.path, route)
 	return route
 
 
-func _register_route_group_paths() -> void:
-	var asset_utility: GFAssetUtility = _get_asset_utility()
-	if not is_instance_valid(asset_utility) or not is_instance_valid(_route_registry):
+func _register_route_registry_resources() -> void:
+	var catalog: ProjectResourceCatalogUtility = _get_resource_catalog()
+	if not is_instance_valid(catalog) or not is_instance_valid(_route_registry):
 		return
 
-	for entry: GFResourceRegistryEntry in _route_registry.entries:
-		if not _is_valid_registry_entry(entry):
-			continue
-
-		asset_utility.register_group_path(_UI_ROUTE_GROUP_ID, entry.path, true)
+	var report: Dictionary = catalog.register_catalog(
+		_CATALOG_ID,
+		_route_registry,
+		_UI_ROUTE_RESOURCE_KEY_PREFIX,
+		_ROUTE_TYPE_HINT,
+		_UI_ROUTE_GROUP_ID,
+		{"registry": "ui_route_registry"}
+	)
+	if not GFVariantData.get_option_bool(report, "ok", false):
+		push_error("[GameUiRouterUtility] UI 路由资源目录注册失败。")
 
 
 func _release_route_assets() -> void:
-	var asset_utility: GFAssetUtility = _get_asset_utility()
-	if not is_instance_valid(asset_utility):
-		return
-
-	asset_utility.unload_group(_UI_ROUTE_GROUP_ID, true)
+	var catalog: ProjectResourceCatalogUtility = _get_resource_catalog()
+	if is_instance_valid(catalog):
+		catalog.unload_catalog_group(_CATALOG_ID, true)
 
 
 func _get_cached_route(route_path: String) -> GFUIRoute:
-	var asset_utility: GFAssetUtility = _get_asset_utility()
-	if not is_instance_valid(asset_utility):
+	var catalog: ProjectResourceCatalogUtility = _get_resource_catalog()
+	if not is_instance_valid(catalog):
 		return null
 
-	var cached_value: Variant = asset_utility.get_cached(route_path)
-	if cached_value is GFUIRoute:
-		var route: GFUIRoute = cached_value
+	var resource: Resource = catalog.load_resource_by_path(_CATALOG_ID, route_path, ResourceLoader.CACHE_MODE_IGNORE)
+	if resource is GFUIRoute:
+		var route: GFUIRoute = resource
 		return route
 	return null
 
 
-func _get_asset_utility() -> GFAssetUtility:
-	if is_instance_valid(_asset_utility):
-		return _asset_utility
+func _get_resource_catalog() -> ProjectResourceCatalogUtility:
+	if is_instance_valid(_resource_catalog):
+		return _resource_catalog
 
-	_asset_utility = _resolve_asset_utility()
-	return _asset_utility
+	_resource_catalog = _resolve_resource_catalog_utility()
+	return _resource_catalog
 
 
-func _resolve_asset_utility() -> GFAssetUtility:
-	var utility_value: Object = get_utility(GFAssetUtility)
-	if utility_value is GFAssetUtility:
-		var asset_utility: GFAssetUtility = utility_value
-		return asset_utility
+func _resolve_resource_catalog_utility() -> ProjectResourceCatalogUtility:
+	var utility_value: Object = get_utility(ProjectResourceCatalogUtility)
+	if utility_value is ProjectResourceCatalogUtility:
+		var catalog: ProjectResourceCatalogUtility = utility_value
+		return catalog
 	return null
 
 
@@ -173,5 +175,41 @@ func _resolve_type_hint(entry: GFResourceRegistryEntry) -> String:
 	return _ROUTE_TYPE_HINT
 
 
+func _get_registered_route_resource_keys() -> PackedStringArray:
+	var catalog: ProjectResourceCatalogUtility = _get_resource_catalog()
+	if is_instance_valid(catalog):
+		return catalog.get_registered_resource_keys(_CATALOG_ID)
+	return _get_registered_route_resource_keys_without_catalog()
+
+
+static func _get_resource_key_for_entry(entry: GFResourceRegistryEntry) -> StringName:
+	if not _is_valid_registry_entry(entry):
+		return &""
+	return StringName("%s%s" % [_UI_ROUTE_RESOURCE_KEY_PREFIX, String(entry.id)])
+
+
 static func _is_valid_registry_entry(entry: GFResourceRegistryEntry) -> bool:
 	return entry != null and entry.is_valid_entry()
+
+
+func _get_registry_paths_without_catalog() -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	if not is_instance_valid(_route_registry):
+		return result
+
+	for entry: GFResourceRegistryEntry in _route_registry.entries:
+		if _is_valid_registry_entry(entry):
+			var _append_result: bool = result.append(entry.path)
+	return result
+
+
+func _get_registered_route_resource_keys_without_catalog() -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	if not is_instance_valid(_route_registry):
+		return result
+
+	for entry: GFResourceRegistryEntry in _route_registry.entries:
+		if not _is_valid_registry_entry(entry):
+			continue
+		var _append_result: bool = result.append(String(_get_resource_key_for_entry(entry)))
+	return result

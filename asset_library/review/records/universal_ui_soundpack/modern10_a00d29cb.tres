@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_jrykx"]
+
+[resource]
+script = ExtResource("1_jrykx")
+asset_id = &"asset.review.universal.ui.soundpack.mp3.modern10.a00d29cb"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "MP3/Modern10"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "mp3", "modern10")
+source_path = "E:/_inbox/Downloads/UI Soundpack/MP3/Modern10.mp3"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/MP3/Modern10.mp3"
+relative_path = "MP3/Modern10.mp3"
+extension = "mp3"
+file_size_bytes = 6971
+sha256 = "a00d29cbc9093f1d142b354f0349140869212b0bc22ae899ebe2dfe56cbab7f3"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

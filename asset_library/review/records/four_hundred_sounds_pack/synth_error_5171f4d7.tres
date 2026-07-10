@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_v24w4"]
+
+[resource]
+script = ExtResource("1_v24w4")
+asset_id = &"asset.review.four.hundred.sounds.pack.ui.synth.error.5171f4d7"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "UI/synth_error"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "synth_error")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/synth_error.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/UI/synth_error.wav"
+relative_path = "UI/synth_error.wav"
+extension = "wav"
+file_size_bytes = 376824
+sha256 = "5171f4d778858ac7764fb16b08c71db90b7ac74186ac93061b1b227b7b6e1029"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.game.over")
+imported_at = "2026-07-09 03:08:11"

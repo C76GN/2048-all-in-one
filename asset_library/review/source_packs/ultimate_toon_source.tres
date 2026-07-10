@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="AssetSourcePack" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_source_pack.gd" id="1_1xt6k"]
+
+[resource]
+script = ExtResource("1_1xt6k")
+source_pack_id = &"ultimate_toon_source"
+display_name = "Ultimate Toon Source"
+original_source_path = "E:/_inbox/Downloads/UltimateToonSource"
+library_root_path = "res://asset_library/source_packs/ultimate_toon_source"
+author = "unknown"
+license = "unknown"
+imported_at = "2026-07-09 03:22:29"
+file_count = 1
+review_record_count = 1
+byte_count = 3644
+tags = PackedStringArray("shader", "toon", "license_review_needed")
+notes = "Imported for local visual review. Keep as review-only until license and origin are confirmed."

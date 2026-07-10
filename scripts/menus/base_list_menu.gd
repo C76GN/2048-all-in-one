@@ -10,6 +10,12 @@ extends "res://scripts/ui/base/game_ui_controller.gd"
 
 const _LIST_REVEAL_OFFSET: Vector2 = Vector2(16.0, 0.0)
 const _LIST_REVEAL_STAGGER: float = 0.03
+const _LIST_REPEATER_GROUP: StringName = &"base_list_menu_items"
+const _LIST_ITEM_DUPLICATE_FLAGS: int = (
+	Node.DUPLICATE_GROUPS
+	| Node.DUPLICATE_SCRIPTS
+	| Node.DUPLICATE_USE_INSTANTIATION
+)
 
 
 # --- 私有变量 ---
@@ -25,6 +31,9 @@ var _primary_button: Button
 
 ## 删除动作按钮。由子类在 _ready 中初始化。
 var _delete_button: Button
+
+## GFRepeaterBinder 使用的离树模板节点。
+var _repeater_template: Control = null
 
 
 # --- @onready 变量 (节点引用) ---
@@ -133,21 +142,7 @@ func _populate_list() -> void:
 		push_error("[BaseListMenu] _item_scene 未在子类中初始化。")
 		return
 
-	var pool: GFObjectPoolUtility = _get_object_pool_utility()
-
-	for child: Node in items_container.get_children():
-		if child is Label:
-			child.queue_free()
-		elif pool:
-			pool.release(child, _item_scene)
-			if child is CanvasItem:
-				var child_canvas_item: CanvasItem = child
-				child_canvas_item.visible = false
-		else:
-			child.queue_free()
-
-	# 等待一帧确保 queue_free 完成
-	await get_tree().process_frame
+	await _clear_list_content()
 
 	var raw_data_list: Array = _get_data_list()
 	var data_list: Array[Resource] = []
@@ -159,18 +154,24 @@ func _populate_list() -> void:
 		_handle_empty_list()
 		return
 
+	var template: Control = _get_repeater_template()
+	if not is_instance_valid(template):
+		_handle_empty_list()
+		return
+
+	var created_nodes: Array[Node] = GFRepeaterBinder.rebuild_container(items_container, template, data_list, {
+		"group_key": _LIST_REPEATER_GROUP,
+		"hide_template": false,
+		"clear_existing": true,
+		"duplicate_flags": _LIST_ITEM_DUPLICATE_FLAGS,
+		"configure_callable": Callable(self, "_configure_repeated_list_item"),
+	})
+
 	var items: Array[Control] = []
-	for data: Resource in data_list:
-		var item: Control = _create_list_item_control(pool)
-		if not is_instance_valid(item):
-			continue
-		
-		# 调用子类提供的设置逻辑
-		_setup_item(item, data)
-		items.append(item)
-		
-		# 统一连接列表项信号 (假设列表项具有这些信号)
-		_connect_item_signals(item, data)
+	for node: Node in created_nodes:
+		if node is Control:
+			var item_control: Control = node
+			items.append(item_control)
 
 	# 设置循环导航
 	if items.size() > 1:
@@ -195,6 +196,27 @@ func _handle_empty_list() -> void:
 	_clear_preview()
 	_update_focus_neighbors(null)
 	_bind_and_reveal_list_items()
+
+
+func _clear_list_content() -> void:
+	var _cleared_clones: int = GFRepeaterBinder.clear_clones(items_container, {
+		"group_key": _LIST_REPEATER_GROUP,
+	})
+
+	for child: Node in items_container.get_children():
+		child.queue_free()
+
+	await get_tree().process_frame
+
+
+func _configure_repeated_list_item(node: Node, item: Variant, _index: int) -> void:
+	if not node is Control or not item is Resource:
+		return
+
+	var item_control: Control = node
+	var data: Resource = item
+	_setup_item(item_control, data)
+	_connect_item_signals(item_control, data)
 
 
 ## 集中处理选中逻辑。
@@ -254,20 +276,47 @@ func _bind_and_reveal_list_items() -> void:
 	var _reveal_count: int = motion_utility.play_children_reveal(items_container, _LIST_REVEAL_OFFSET, _LIST_REVEAL_STAGGER)
 
 
-func _get_object_pool_utility() -> GFObjectPoolUtility:
-	var pool_value: Object = get_utility(GFObjectPoolUtility)
-	if pool_value is GFObjectPoolUtility:
-		var pool_utility: GFObjectPoolUtility = pool_value
-		return pool_utility
-	return null
-
-
 func _get_game_ui_motion_utility() -> GameUiMotionUtility:
 	var motion_value: Object = _get_ui_motion_utility()
 	if motion_value is GameUiMotionUtility:
 		var motion_utility: GameUiMotionUtility = motion_value
 		return motion_utility
 	return null
+
+
+func _get_mode_cache_utility() -> GameModeConfigCacheUtility:
+	var utility_value: Object = get_utility(GameModeConfigCacheUtility)
+	if utility_value is GameModeConfigCacheUtility:
+		var mode_cache: GameModeConfigCacheUtility = utility_value
+		return mode_cache
+	return null
+
+
+func _get_clock_utility() -> GameClockUtility:
+	var utility_value: Object = get_utility(GameClockUtility)
+	if utility_value is GameClockUtility:
+		var clock: GameClockUtility = utility_value
+		return clock
+	return null
+
+
+func _format_datetime(timestamp: int) -> String:
+	var clock: GameClockUtility = _get_clock_utility()
+	if is_instance_valid(clock):
+		return clock.format_datetime(timestamp)
+	return GameClockUtility.format_datetime_value(timestamp)
+
+
+func _get_mode_config(config_path: String) -> GameModeConfig:
+	if config_path.is_empty():
+		return null
+
+	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache_utility()
+	if not is_instance_valid(mode_cache):
+		push_error("[BaseListMenu] GameModeConfigCacheUtility 未注册，无法加载模式配置：%s。" % config_path)
+		return null
+
+	return mode_cache.get_cached_config(config_path)
 
 
 func _get_scene_router_system() -> SceneRouterSystem:
@@ -278,24 +327,19 @@ func _get_scene_router_system() -> SceneRouterSystem:
 	return null
 
 
-func _create_list_item_control(pool: GFObjectPoolUtility) -> Control:
-	var item_node: Node = null
-	if is_instance_valid(pool):
-		item_node = pool.acquire(_item_scene, items_container)
-	else:
-		item_node = _item_scene.instantiate()
-		if is_instance_valid(item_node):
-			items_container.add_child(item_node)
+func _get_repeater_template() -> Control:
+	if is_instance_valid(_repeater_template):
+		return _repeater_template
 
+	var item_node: Node = _item_scene.instantiate()
 	if item_node is Control:
 		var item_control: Control = item_node
-		item_control.visible = true
-		items_container.move_child(item_control, -1)
-		return item_control
+		_repeater_template = item_control
+		return _repeater_template
 
 	if is_instance_valid(item_node):
 		push_error("[BaseListMenu] 列表项场景必须实例化为 Control。")
-		item_node.queue_free()
+		item_node.free()
 	return null
 
 

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_64jlk"]
+
+[resource]
+script = ExtResource("1_64jlk")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.steel.drums.level.start.24257af4"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/steel_drums_level_start"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "steel_drums_level_start")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/steel_drums_level_start.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/steel_drums_level_start.wav"
+relative_path = "Musical Effects/steel_drums_level_start.wav"
+extension = "wav"
+file_size_bytes = 462284
+sha256 = "24257af409ef6f27fe745ae8b92d4bad6b0c04fdb6cbf5458d594fc5c1fc45bd"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.ui.confirm")
+imported_at = "2026-07-09 03:08:11"

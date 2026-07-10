@@ -1,6 +1,6 @@
 # 存档模型说明
 
-本文档记录 `2048-all-in-one` 当前的设置、最高分、轻量统计、书签、回放和未来 `gf.extension.save` 接入边界。它面向维护者和后续 AI，目的是先稳定项目存档语义，再决定是否把底层实现迁移到 GF Save 扩展。
+本文档记录 `2048-all-in-one` 当前的设置、最高分、轻量统计、书签、回放和 GF save 接入边界。它面向维护者和后续 AI，目的是稳定项目存档语义，并明确哪些数据已经走 GF save slot，哪些数据仍保持 Resource 集合。
 
 ## 目标
 
@@ -9,22 +9,28 @@
 1. 玩家数据可以稳定恢复。
 2. 示例项目清楚展示 GF 的存储、设置、资源集合和命令历史能力。
 3. 存档格式变化可追踪、可兼容，不把一次 UI 改动变成数据破坏。
-4. 未来接入 `gf.extension.save` 时有明确迁移边界，不重复实现框架能力。
+4. GF save 接入有明确边界，不重复实现框架能力。
 
 ## 当前持久化入口
 
-当前项目有四类持久化入口，其中 `game_save.sav` 同时保存最高分和轻量统计。
+当前项目有四类持久化入口，其中最高分和轻量统计写入稳定 GF save slot。
 
 ### 最高分
 
 入口：
 
 - `scripts/systems/save_system.gd`
+- `scripts/utilities/game_save_slot_workflow_utility.gd`
+- `GFSaveSlotWorkflow`
+- `GFSaveSlotMetadata`
+- `GFSaveSlotCard`
 - `GFStorageUtility`
 
-文件：
+槽位：
 
-- `game_save.sav`
+- `GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX`
+- `schema_id = "game_stats"`
+- `schema_version = 1`
 
 结构：
 
@@ -60,6 +66,8 @@
 - `stats` 记录完整对局次数、最佳分数、最佳步数、历史最大方块、平均表现、目标达成次数和最近一局摘要。
 - 旧 `scores` 数据会作为 `stats.best_score` 的默认值读取。
 - 加载后会移除 `GFStorageCodec.META_KEY`，避免存储层元信息污染业务数据。
+- 保存时 `GameSaveSlotWorkflowUtility` 会生成 GF slot metadata，记录总局数、最高分、模式数量和 `game_stats` schema。
+- UI 或调试工具需要展示概要时，应通过 `GFSaveSlotCard` 获取通用槽位摘要，不直接读取底层文件名。
 
 ### 设置
 
@@ -68,13 +76,14 @@
 - `scripts/utilities/game_settings_utility.gd`
 - `GFSettingsUtility`
 - `GFDisplaySettingsUtility`
-- `SaveSystem.get_language()` / `SaveSystem.set_language()`
 
 当前语义：
 
 - 显示和语言优先交给 GF display/settings 工具处理。
 - `GameSettingsUtility` 负责过滤 `GFStorageCodec.META_KEY`。
 - 设置不是书签或回放的一部分，恢复书签不应覆盖全局设置。
+- 视觉主题保存为 `appearance/theme_id`，音效主题保存为 `audio/sound_theme_id`。
+- 主题 ID 由 `GameThemeUtility` 解析到 `GameThemeRegistry` 中的资源包；书签和回放只记录玩法状态，不记录当前外观主题。
 
 ### 书签
 
@@ -178,6 +187,7 @@
 不同数据类型不要互相覆盖：
 
 - 设置是全局偏好，不随书签/回放恢复。
+- 视觉主题和音效主题是全局偏好，不随书签/回放恢复。
 - 最高分是成就统计，不应被加载旧书签回滚。
 - 书签是可继续游玩的状态快照。
 - 回放是可重演的操作记录。
@@ -223,7 +233,7 @@
 - 更详细的最近一局摘要。
 - 真正的胜利状态、胜利继续游玩和胜率。
 
-建议继续扩展 `game_save.sav` 的 `stats` 结构，而不是把统计塞进书签或回放：
+建议继续扩展 GF 统计槽中的 `stats` 结构，而不是把统计塞进书签或回放：
 
 ```gdscript
 {
@@ -256,20 +266,20 @@
 
 如果继续新增 `stats` 字段，必须保留旧 `scores` 读取兼容，或提供一次性迁移。
 
-## `gf.extension.save` 接入边界
+## GF Save 接入边界
 
-当前项目尚未把 `gf.extension.save` 作为根包安装。接入前应先确认：
+当前项目已启用 `gf.save` 并用 `GameSaveSlotWorkflowUtility` 展示了最高分/统计的 save slot 工作流。后续如果继续推进到 save graph，应先确认：
 
-1. `SaveSystem` 的最高分/统计字典是否应改为 GF Save graph 或 save pipeline。
+1. `SaveSystem` 的最高分/统计字典是否应从单槽位载荷迁移为 GF Save graph 或 save pipeline。
 2. `BookmarkData` / `ReplayData` 这类 Resource 集合是否继续由 `SavedResourceCollectionUtility` 管理，还是迁移到 GF Save 的资源序列化能力。
-3. 旧 `game_save.sav`、`bookmarks/*.tres`、`replays/*.tres` 是否需要迁移。
+3. 当前 `game_stats` slot、`bookmarks/*.tres`、`replays/*.tres` 是否需要迁移。
 4. GF Save 接入后，`README.md`、`docs/ROADMAP.md`、`project.godot` 的扩展启用状态必须同步；如果恢复 GF Package Manager 安装流，也必须同步 `.gf/packages.lock.json`。
 
 建议顺序：
 
 1. 基于 `tests/gut/test_save_system.gd` 继续补齐统计兼容测试，并保持旧数据归一化行为稳定。
-2. 再安装并验证 `gf.extension.save`。
-3. 最后迁移底层保存实现，保持 `SaveSystem`、`BookmarkSystem`、`ReplaySystem` 的公共接口尽量不变。
+2. 如果需要 save graph，再为当前对局、统计、书签和回放分别设计 `GFSaveScope` / `GFSaveSource` seam。
+3. 最后迁移底层保存实现，保持 `SaveSystem`、`BookmarkSystem`、`ReplaySystem` 的公共 Interface 尽量不变。
 
 ## 验证要求
 

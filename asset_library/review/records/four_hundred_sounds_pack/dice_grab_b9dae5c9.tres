@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_tec8b"]
+
+[resource]
+script = ExtResource("1_tec8b")
+asset_id = &"asset.review.four.hundred.sounds.pack.card.and.board.dice.grab.b9dae5c9"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Card and Board/dice_grab"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "card", "and", "board", "dice_grab")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Card and Board/dice_grab.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Card and Board/dice_grab.wav"
+relative_path = "Card and Board/dice_grab.wav"
+extension = "wav"
+file_size_bytes = 59436
+sha256 = "b9dae5c9907048011256b5c7f80c33598e4ce7341fa90a358f60bbe8fb1aed31"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

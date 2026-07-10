@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_hbru7"]
+
+[resource]
+script = ExtResource("1_hbru7")
+asset_id = &"asset.review.four.hundred.sounds.pack.match.three.match.xylophone.9.11a86503"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Match Three/match_xylophone_9"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "match", "three", "match_xylophone_9")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Match Three/match_xylophone_9.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Match Three/match_xylophone_9.wav"
+relative_path = "Match Three/match_xylophone_9.wav"
+extension = "wav"
+file_size_bytes = 148048
+sha256 = "11a8650328ea9e7950b346edd3f1376059fceaef4b47fb82968c6c8a818020cc"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.tile.merge")
+imported_at = "2026-07-09 03:08:11"

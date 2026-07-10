@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_sad1h"]
+
+[resource]
+script = ExtResource("1_sad1h")
+asset_id = &"asset.review.four.hundred.sounds.pack.items.map.open.754175c5"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Items/map_open"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "items", "map_open")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Items/map_open.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Items/map_open.wav"
+relative_path = "Items/map_open.wav"
+extension = "wav"
+file_size_bytes = 106540
+sha256 = "754175c5189f72a38d88aceac3596f527194f6ae622ea7563489cfee0085b06f"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

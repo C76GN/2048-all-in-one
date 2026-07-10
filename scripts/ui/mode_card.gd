@@ -15,19 +15,20 @@ signal card_focused(config_path: String)
 
 # --- 常量 ---
 
-const _CARD_RADIUS: int = 8
-const _REST_SURFACE_COLOR: Color = Color(0.055, 0.090, 0.120, 0.58)
-const _REST_BORDER_COLOR: Color = Color(0.95, 0.88, 0.72, 0.08)
-const _FOCUS_BORDER_COLOR: Color = Color(0.93, 0.82, 0.58, 0.72)
-const _SELECTED_SURFACE_COLOR: Color = Color(0.62, 0.35, 0.45, 0.88)
-const _SELECTED_BORDER_COLOR: Color = Color(0.98, 0.88, 0.68, 0.24)
-const _TEXT_PRIMARY_COLOR: Color = Color(0.96, 0.92, 0.84, 1.0)
-const _TEXT_SECONDARY_COLOR: Color = Color(0.72, 0.78, 0.76, 0.86)
-const _TEXT_SELECTED_SECONDARY_COLOR: Color = Color(0.98, 0.86, 0.72, 0.80)
+const _CARD_RADIUS: int = 4
+const _REST_SURFACE_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.90)
+const _REST_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.72)
+const _FOCUS_BORDER_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
+const _SELECTED_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.96)
+const _SELECTED_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _TEXT_PRIMARY_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _TEXT_SECONDARY_COLOR: Color = Color(0.46666667, 0.45882353, 0.43529412, 0.92)
+const _TEXT_SELECTED_SECONDARY_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.82)
 
 # --- 私有变量 ---
 
 var _config_path: String
+var _mode_config: GameModeConfig = null
 var _is_selected: bool = false
 var _original_stylebox: StyleBox
 var _focused_stylebox: StyleBox
@@ -55,18 +56,18 @@ func _ready() -> void:
 
 ## 初始化卡片内容。
 ## @param config_path: 指向 GameModeConfig 资源文件的路径。
-func setup(config_path: String) -> void:
+## @param mode_config: 已由父控制器通过 GF 架构解析出的模式配置。
+func setup(config_path: String, mode_config: GameModeConfig) -> void:
 	_config_path = config_path
+	_mode_config = mode_config
 	update_text()
 
 
 ## 更新卡片文本（用于初始化或语言切换）。
 func update_text() -> void:
-	var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(_config_path)
-
-	if is_instance_valid(mode_config):
-		_title_label.text = tr(mode_config.mode_name)
-		_description_label.text = tr("DESC_SELECT_MODE_PREFIX") + tr(mode_config.mode_name)
+	if is_instance_valid(_mode_config):
+		_title_label.text = tr(_mode_config.mode_name)
+		_description_label.text = tr("DESC_SELECT_MODE_PREFIX") + tr(_mode_config.mode_name)
 	else:
 		_title_label.text = tr("UI_ERROR")
 		_description_label.text = tr("ERR_LOAD_CONFIG")
@@ -88,10 +89,10 @@ func set_selected(is_selected: bool) -> void:
 # --- 私有/辅助方法 ---
 
 func _setup_styles() -> void:
-	_original_stylebox = _create_card_style(_REST_SURFACE_COLOR, _REST_BORDER_COLOR, 1)
-	_focused_stylebox = _create_card_style(_REST_SURFACE_COLOR.lightened(0.035), _FOCUS_BORDER_COLOR, 2)
-	_selected_stylebox = _create_card_style(_SELECTED_SURFACE_COLOR, _SELECTED_BORDER_COLOR, 1)
-	_selected_focused_stylebox = _create_card_style(_SELECTED_SURFACE_COLOR.lightened(0.04), _FOCUS_BORDER_COLOR, 2)
+	_original_stylebox = _create_card_style(_REST_SURFACE_COLOR, _REST_BORDER_COLOR, 2)
+	_focused_stylebox = _create_card_style(_REST_SURFACE_COLOR.lightened(0.035), _FOCUS_BORDER_COLOR, 3)
+	_selected_stylebox = _create_card_style(_SELECTED_SURFACE_COLOR, _SELECTED_BORDER_COLOR, 3)
+	_selected_focused_stylebox = _create_card_style(_SELECTED_SURFACE_COLOR.lightened(0.04), _FOCUS_BORDER_COLOR, 4)
 	_update_label_colors()
 
 

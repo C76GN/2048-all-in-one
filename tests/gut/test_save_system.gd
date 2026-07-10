@@ -190,26 +190,59 @@ func test_stats_persist_through_gf_storage() -> void:
 	_dispose_setup(reloaded_setup)
 
 
+func test_stats_persist_through_gf_save_slot_workflow_metadata() -> void:
+	var setup: Dictionary = await _create_save_architecture()
+	var save_system: SaveSystem = _get_save_system(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var save_slot_workflow: GameSaveSlotWorkflowUtility = _get_save_slot_workflow(setup)
+
+	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 2048, 42, 2048, 500, 2048, true)
+
+	assert_true(
+		storage.has_slot(GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX),
+		"最高分和统计应保存到 GF save slot。"
+	)
+	var card: GFSaveSlotCard = save_slot_workflow.build_stats_card(storage)
+	assert_false(card.is_empty, "GFSaveSlotWorkflow 应能构建非空统计槽卡片。")
+	assert_true(card.slot_index == GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX, "统计槽卡片应使用稳定槽位。")
+	assert_true(GFVariantData.get_option_string(card.metadata, "schema_id") == "game_stats", "统计槽元数据应记录 schema_id。")
+	assert_true(GFVariantData.get_option_int(card.metadata, "schema_version") == 1, "统计槽元数据应记录 schema_version。")
+	var custom_metadata: Dictionary = GFVariantData.get_option_dictionary(card.metadata, "custom_metadata")
+	assert_true(_get_stat_int(custom_metadata, "total_plays") == 1, "统计槽元数据应汇总总局数。")
+	assert_true(_get_stat_int(custom_metadata, "best_score") == 2048, "统计槽元数据应汇总最高分。")
+
+	_dispose_setup(setup)
+
+
 # --- 私有/辅助方法 ---
 
 func _create_save_architecture(save_dir_name: String = "", initial_save_data: Dictionary = {}) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = GFStorageUtility.new()
+	var clock: GameClockUtility = GameClockUtility.new()
+	var save_slot_workflow: GameSaveSlotWorkflowUtility = GameSaveSlotWorkflowUtility.new()
 	var save_system: SaveSystem = SaveSystem.new()
 
 	storage.save_dir_name = save_dir_name if not save_dir_name.is_empty() else "gut_save_system_%d" % Time.get_ticks_usec()
 	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	if not initial_save_data.is_empty():
-		var _seed_error: Error = storage.save_data(SaveSystem.SAVE_FILE_NAME, initial_save_data)
+		var _seed_error: Error = storage.save_slot(
+			GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX,
+			initial_save_data,
+			{}
+		)
 
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(GameClockUtility, clock)
+	await architecture.register_utility(GameSaveSlotWorkflowUtility, save_slot_workflow)
 	await architecture.register_system(SaveSystem, save_system)
 	await architecture.init()
 
 	return {
 		"architecture": architecture,
 		"storage": storage,
+		"save_slot_workflow": save_slot_workflow,
 		"save_system": save_system,
 	}
 
@@ -217,7 +250,7 @@ func _create_save_architecture(save_dir_name: String = "", initial_save_data: Di
 func _dispose_setup(setup: Dictionary, delete_file: bool = true) -> void:
 	var storage: GFStorageUtility = _get_storage(setup)
 	if delete_file and is_instance_valid(storage):
-		var _delete_error: Error = storage.delete_file(SaveSystem.SAVE_FILE_NAME)
+		storage.delete_slot(GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX)
 
 	var architecture: GFArchitecture = _get_architecture(setup)
 	architecture.dispose()
@@ -249,6 +282,15 @@ func _get_save_system(setup: Dictionary) -> SaveSystem:
 		return save_system
 	assert_true(false, "测试 setup 缺少 SaveSystem。")
 	return SaveSystem.new()
+
+
+func _get_save_slot_workflow(setup: Dictionary) -> GameSaveSlotWorkflowUtility:
+	var value: Variant = setup.get("save_slot_workflow")
+	if value is GameSaveSlotWorkflowUtility:
+		var save_slot_workflow: GameSaveSlotWorkflowUtility = value
+		return save_slot_workflow
+	assert_true(false, "测试 setup 缺少 GameSaveSlotWorkflowUtility。")
+	return GameSaveSlotWorkflowUtility.new()
 
 
 func _get_stat_int(stats: Dictionary, key: String) -> int:

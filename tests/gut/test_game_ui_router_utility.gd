@@ -11,13 +11,26 @@ const EXPECTED_UI_ROUTE_PATHS: Array[String] = [
 	"res://resources/ui_routes/settings_menu_route.tres",
 ]
 
+const EXPECTED_UI_ROUTE_RESOURCE_KEYS: Array[String] = [
+	"game.ui_route.pause_menu",
+	"game.ui_route.game_over_menu",
+	"game.ui_route.target_reached_menu",
+	"game.ui_route.settings_menu",
+]
+
 
 # --- 测试用例 ---
 
 func test_game_ui_router_registers_project_panel_routes() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
+	var asset_utility: GFAssetUtility = GFAssetUtility.new()
+	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
+	var catalog: ProjectResourceCatalogUtility = ProjectResourceCatalogUtility.new()
 	var ui_router: GameUiRouterUtility = GameUiRouterUtility.new()
 
+	await architecture.register_utility(GFAssetUtility, asset_utility)
+	await architecture.register_utility(GFResourceResolverUtility, resolver)
+	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
 	await architecture.register_utility(GameUiRouterUtility, ui_router)
 	architecture.register_utility_alias(GFUIRouterUtility, GameUiRouterUtility)
 	await architecture.init()
@@ -52,8 +65,14 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 
 func test_game_ui_router_uses_ui_route_registry_order() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
+	var asset_utility: GFAssetUtility = GFAssetUtility.new()
+	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
+	var catalog: ProjectResourceCatalogUtility = ProjectResourceCatalogUtility.new()
 	var ui_router: GameUiRouterUtility = GameUiRouterUtility.new()
 
+	await architecture.register_utility(GFAssetUtility, asset_utility)
+	await architecture.register_utility(GFResourceResolverUtility, resolver)
+	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
 	await architecture.register_utility(GameUiRouterUtility, ui_router)
 	architecture.register_utility_alias(GFUIRouterUtility, GameUiRouterUtility)
 	await architecture.init()
@@ -69,9 +88,13 @@ func test_game_ui_router_uses_ui_route_registry_order() -> void:
 func test_game_ui_router_registers_asset_group_paths_when_utility_is_ready() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var asset_utility: GFAssetUtility = GFAssetUtility.new()
+	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
+	var catalog: ProjectResourceCatalogUtility = ProjectResourceCatalogUtility.new()
 	var ui_router: GameUiRouterUtility = GameUiRouterUtility.new()
 
 	await architecture.register_utility(GFAssetUtility, asset_utility)
+	await architecture.register_utility(GFResourceResolverUtility, resolver)
+	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
 	await architecture.register_utility(GameUiRouterUtility, ui_router)
 	architecture.register_utility_alias(GFUIRouterUtility, GameUiRouterUtility)
 	await architecture.init()
@@ -83,6 +106,32 @@ func test_game_ui_router_registers_asset_group_paths_when_utility_is_ready() -> 
 	sorted_expected_paths.sort()
 
 	assert_true(sorted_group_paths == sorted_expected_paths, "UI Router Utility ready 后应把路由资源登记为 GFAssetUtility 分组。")
+
+	architecture.dispose()
+
+
+func test_game_ui_router_registers_resolver_resource_keys_when_utility_is_ready() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var asset_utility: GFAssetUtility = GFAssetUtility.new()
+	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
+	var catalog: ProjectResourceCatalogUtility = ProjectResourceCatalogUtility.new()
+	var ui_router: GameUiRouterUtility = GameUiRouterUtility.new()
+
+	await architecture.register_utility(GFAssetUtility, asset_utility)
+	await architecture.register_utility(GFResourceResolverUtility, resolver)
+	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
+	await architecture.register_utility(GameUiRouterUtility, ui_router)
+	architecture.register_utility_alias(GFUIRouterUtility, GameUiRouterUtility)
+	await architecture.init()
+
+	for resource_key: String in EXPECTED_UI_ROUTE_RESOURCE_KEYS:
+		assert_true(
+			resolver.has_registered_key(StringName(resource_key)),
+			"UI Router Utility ready 后应把路由注册为 GFResourceResolverUtility 资源键: %s" % resource_key
+		)
+
+	var route_resource: Resource = resolver.load(&"game.ui_route.pause_menu", "GFUIRoute")
+	assert_true(route_resource is GFUIRoute, "应能通过稳定资源键加载暂停菜单路由。")
 
 	architecture.dispose()
 

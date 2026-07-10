@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_bhcjo"]
+
+[resource]
+script = ExtResource("1_bhcjo")
+asset_id = &"asset.review.four.hundred.sounds.pack.retro.wobble.5d6b5916"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Retro/wobble"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "wobble")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/wobble.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Retro/wobble.wav"
+relative_path = "Retro/wobble.wav"
+extension = "wav"
+file_size_bytes = 24752
+sha256 = "5d6b59167b941b4850b09b0ad53b03bfe036492aef195e8b738db96ba4e32dbd"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

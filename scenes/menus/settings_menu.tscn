@@ -68,9 +68,47 @@ custom_minimum_size = Vector2(200, 50)
 layout_mode = 2
 size_flags_horizontal = 3
 focus_neighbor_top = NodePath("../../WindowModeContainer/WindowModeOptionButton")
+focus_neighbor_bottom = NodePath("../../VisualThemeContainer/VisualThemeOptionButton")
+
+[node name="VisualThemeContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="3"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/VisualThemeContainer" index="0"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "视觉主题"
+vertical_alignment = 1
+
+[node name="VisualThemeOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/VisualThemeContainer" index="1"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_neighbor_top = NodePath("../../VSyncContainer/VSyncOptionButton")
+focus_neighbor_bottom = NodePath("../../SoundThemeContainer/SoundThemeOptionButton")
+
+[node name="SoundThemeContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="4"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/SoundThemeContainer" index="0"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "音效主题"
+vertical_alignment = 1
+
+[node name="SoundThemeOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/SoundThemeContainer" index="1"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_neighbor_top = NodePath("../../VisualThemeContainer/VisualThemeOptionButton")
 focus_neighbor_bottom = NodePath("../../MasterVolumeContainer/MasterVolumeSlider")
 
-[node name="MasterVolumeContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="3" unique_id=1810698091]
+[node name="MasterVolumeContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="5" unique_id=1810698091]
 layout_mode = 2
 alignment = 1
 
@@ -86,7 +124,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 50)
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../VSyncContainer/VSyncOptionButton")
+focus_neighbor_top = NodePath("../../SoundThemeContainer/SoundThemeOptionButton")
 focus_neighbor_bottom = NodePath("../../../../../RightColumn/BackButton")
 max_value = 1.0
 step = 0.05

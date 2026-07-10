@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_surface_shine"]
+
+[resource]
+script = ExtResource("1_surface_shine")
+asset_id = &"asset.review.manual.shader.notes.surface.masked.shine.sweep.c6f76108"
+source_pack_id = &"manual_shader_notes"
+display_name = "surface_masked_shine_sweep"
+asset_kind = &"shader"
+review_status = &"candidate"
+tags = PackedStringArray("shader", "canvas_item", "shine_sweep", "surface_mask", "ui_effect", "reward_feedback", "premul_alpha", "license_review_needed")
+notes = "Candidate surface-masked shine sweep shader for buttons, cards, theme previews, rewards, and other shaped UI surfaces. It uses an explicit surface texture alpha mask, angled sweep rotation, edge distortion, and clamped brightness. Promotion requires an approved surface mask workflow and readability checks on text-heavy controls."
+rating = 5
+source_path = "manual://chat/2026-07-10/surface_masked_shine_sweep.gdshader"
+library_path = "res://asset_library/source_packs/manual_shader_notes/files/surface_masked_shine_sweep.gdshader"
+relative_path = "surface_masked_shine_sweep.gdshader"
+extension = "gdshader"
+file_size_bytes = 2335
+sha256 = "c6f76108c989366244c0f45932c21bf2dee01b4d78dba0bb9f7b8d2089ab14bb"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.ui.shine_sweep", "slot.shader.reward.highlight_sweep", "slot.shader.ui.card_surface_shine")
+imported_at = "2026-07-10 02:03:00"

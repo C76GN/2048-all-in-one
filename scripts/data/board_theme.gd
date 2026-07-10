@@ -13,5 +13,14 @@ extends Resource
 ## 棋盘区域的底板颜色。
 @export var board_panel_color: Color = Color.GRAY
 
+## 棋盘外框和格子缝隙的描边颜色。
+@export var board_border_color: Color = Color.BLACK
+
+## 棋盘左上内高光颜色。
+@export var board_highlight_color: Color = Color.WHITE
+
 ## 棋盘上空格子（未放置方块处）的颜色。
 @export var empty_cell_color: Color = Color.DARK_GRAY
+
+## 棋盘上空格子的描边颜色。
+@export var empty_cell_border_color: Color = Color.BLACK

@@ -11,6 +11,7 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 const _LOG_TAG: String = "GameFlowSystem"
 const _TARGET_REACHED_MESSAGE_DURATION: float = 4.0
 const _TARGET_REACHED_MESSAGE_FALLBACK: String = "[color=green]已达成目标 %d！可以继续挑战更高方块。[/color]"
+const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_utility.gd")
 
 
 # --- 私有变量 ---
@@ -33,6 +34,7 @@ var _player_actions: Array[Vector2i] = []
 var _fsm: GFStateMachine
 
 var _log: GFLogUtility
+var _clock: GameClockUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -50,6 +52,7 @@ func ready() -> void:
 	_grid_model = _get_grid_model()
 	_game_status_model = _get_game_status_model()
 	_log = _get_log_utility()
+	_clock = _get_clock_utility()
 
 	register_event(MoveData, _on_move_made)
 	register_simple_event(EventNames.TURN_FINISHED, _on_turn_finished)
@@ -95,6 +98,7 @@ func dispose() -> void:
 	_rule_system = null
 	_game_over_rule = null
 	_log = null
+	_clock = null
 	_player_actions.clear()
 	_last_saved_bookmark_state = {}
 	_mode_config = null
@@ -252,6 +256,26 @@ func _get_log_utility() -> GFLogUtility:
 	return null
 
 
+func _get_clock_utility() -> GameClockUtility:
+	var utility_value: Object = get_utility(GameClockUtility)
+	if utility_value is GameClockUtility:
+		var clock: GameClockUtility = utility_value
+		return clock
+	return null
+
+
+func _get_unix_timestamp() -> int:
+	if is_instance_valid(_clock):
+		return _clock.get_unix_timestamp()
+
+	_clock = _get_clock_utility()
+	if is_instance_valid(_clock):
+		return _clock.get_unix_timestamp()
+
+	push_error("[GameFlowSystem] 缺少 GameClockUtility，无法创建时间戳。")
+	return 0
+
+
 func _get_seed_utility() -> GFSeedUtility:
 	var utility_value: Object = get_utility(GFSeedUtility)
 	if utility_value is GFSeedUtility:
@@ -273,6 +297,14 @@ func _get_ui_utility() -> GFUIUtility:
 	if utility_value is GFUIUtility:
 		var ui_utility: GFUIUtility = utility_value
 		return ui_utility
+	return null
+
+
+func _get_theme_utility() -> GameThemeUtility:
+	var utility_value: Object = get_utility(_GAME_THEME_UTILITY_SCRIPT)
+	if utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = utility_value
+		return theme_utility
 	return null
 
 
@@ -330,13 +362,14 @@ func _handle_game_over() -> void:
 	if _is_replay_mode:
 		return
 
+	_play_game_over_sound()
 	_persist_current_game_result()
 
 	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_status_model):
 		return
 
 	var replay_data: ReplayData = ReplayData.new()
-	replay_data.timestamp = int(Time.get_unix_time_from_system())
+	replay_data.timestamp = _get_unix_timestamp()
 	replay_data.mode_config_path = _mode_config_path
 	replay_data.initial_seed = _initial_seed_of_session
 	var current_grid_size: int = _get_current_grid_size()
@@ -447,6 +480,12 @@ func _persist_current_game_result() -> void:
 		target_value,
 		target_reached
 	)
+
+
+func _play_game_over_sound() -> void:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		theme_utility.play_game_over_sound()
 
 
 func _get_target_tile_value() -> int:
@@ -625,7 +664,7 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 		return
 
 	var new_bookmark: BookmarkData = BookmarkData.new()
-	new_bookmark.timestamp = int(Time.get_unix_time_from_system())
+	new_bookmark.timestamp = _get_unix_timestamp()
 	new_bookmark.mode_config_path = _mode_config_path
 
 	var seed_utility: GFSeedUtility = _get_seed_utility()

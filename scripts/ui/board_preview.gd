@@ -10,6 +10,9 @@ extends Control
 const TILE_SCENE: PackedScene = preload("res://scenes/components/tile.tscn")
 ## 用于生成预览背景格子的场景。
 const GRID_CELL_SCENE: PackedScene = preload("res://scenes/components/board_grid_cell.tscn")
+const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_utility.gd")
+const _GF_AUTOLOAD_SCRIPT = preload("res://addons/gf/kernel/core/gf_autoload.gd")
+const GFNodeContextBase = preload("res://addons/gf/kernel/core/gf_node_context.gd")
 
 ## 预览区域的最大显示尺寸（像素）。
 const MAX_PREVIEW_SIZE: float = 300.0
@@ -23,20 +26,24 @@ const SPACING_RATIO: float = 0.1
 var _board_container: Control
 var _background_panel: Panel
 var _message_label: Label
+var _theme_utility: GameThemeUtility
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
 	_background_panel = Panel.new()
+	_background_panel.name = "BackgroundPanel"
 	_background_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_background_panel)
 
 	_board_container = Control.new()
+	_board_container.name = "BoardContainer"
 	_board_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_board_container)
 
 	_message_label = Label.new()
+	_message_label.name = "MessageLabel"
 	_message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_message_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -46,6 +53,7 @@ func _ready() -> void:
 
 	# 设置自身大小限制
 	custom_minimum_size = Vector2(MAX_PREVIEW_SIZE, MAX_PREVIEW_SIZE)
+	_theme_utility = _get_theme_utility()
 
 
 # --- 公共方法 ---
@@ -63,6 +71,8 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 
 	var grid_size: int = GFVariantData.to_int(snapshot.get(&"grid_size", snapshot.get("grid_size", 4)), 4)
 	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
+	var board_theme: BoardTheme = _resolve_board_theme(mode_config)
+	var color_schemes: Dictionary = _resolve_color_schemes(mode_config)
 
 	# 动态计算尺寸
 	var raw_cell_size: float = MAX_PREVIEW_SIZE / (grid_size + (grid_size + 1) * SPACING_RATIO)
@@ -72,10 +82,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 	var total_content_size: float = grid_size * cell_size + (grid_size + 1) * spacing
 	var offset_start: float = (MAX_PREVIEW_SIZE - total_content_size) / 2.0
 
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = mode_config.board_theme.board_panel_color
-	style.set_corner_radius_all(4)
-	_background_panel.add_theme_stylebox_override("panel", style)
+	_apply_background_panel_style(board_theme)
 
 	_background_panel.size = Vector2(MAX_PREVIEW_SIZE, MAX_PREVIEW_SIZE)
 	_background_panel.position = Vector2.ZERO
@@ -94,7 +101,10 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 			# 兼容现有的主题颜色配置
 			if cell_instance is Panel:
 				var cell_style: StyleBoxFlat = _duplicate_cell_style(cell_instance)
-				cell_style.bg_color = mode_config.board_theme.empty_cell_color
+				if is_instance_valid(board_theme):
+					cell_style.bg_color = board_theme.empty_cell_color
+					cell_style.border_color = board_theme.empty_cell_border_color
+				cell_style.set_border_width_all(2)
 				# 预览图稍微缩小圆角
 				cell_style.set_corner_radius_all(maxi(2, roundi(cell_size * 0.1)))
 				cell_instance.add_theme_stylebox_override("panel", cell_style)
@@ -116,7 +126,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 			continue
 		_board_container.add_child(tile)
 
-		var colors: Dictionary = _get_tile_colors(value, type, mode_config)
+		var colors: Dictionary = _get_tile_colors(value, type, mode_config, color_schemes)
 		var tile_bg_color: Color = _get_color(colors, &"bg", Color.WHITE)
 		var tile_font_color: Color = _get_color(colors, &"font", Color.BLACK)
 		tile.setup(value, type, tile_bg_color, tile_font_color)
@@ -133,11 +143,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 ## @param text: 要显示的文本。
 func show_message(text: String) -> void:
 	_clear_preview_internal()
-
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = Color(0.15, 0.15, 0.15, 1)
-	style.set_corner_radius_all(4)
-	_background_panel.add_theme_stylebox_override("panel", style)
+	_apply_background_panel_style(_resolve_board_theme(null))
 	_background_panel.size = Vector2(MAX_PREVIEW_SIZE, MAX_PREVIEW_SIZE)
 
 	_message_label.text = text
@@ -160,6 +166,18 @@ func clear() -> void:
 func _clear_preview_internal() -> void:
 	for child: Node in _board_container.get_children():
 		child.queue_free()
+
+
+func _apply_background_panel_style(board_theme: BoardTheme) -> void:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color(1.0, 0.972549, 0.9098039, 1.0)
+	style.border_color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+	if is_instance_valid(board_theme):
+		style.bg_color = board_theme.board_panel_color
+		style.border_color = board_theme.board_border_color
+	style.set_border_width_all(4)
+	style.set_corner_radius_all(4)
+	_background_panel.add_theme_stylebox_override("panel", style)
 
 
 func _instantiate_control(scene: PackedScene) -> Control:
@@ -210,7 +228,12 @@ func _is_grid_pos_in_bounds(grid_pos: Vector2i, grid_size: int) -> bool:
 	)
 
 
-func _get_tile_colors(value: int, type: Tile.TileType, mode_config: GameModeConfig) -> Dictionary:
+func _get_tile_colors(
+	value: int,
+	type: Tile.TileType,
+	mode_config: GameModeConfig,
+	color_schemes: Dictionary
+) -> Dictionary:
 	var bg_color: Color = Color.WHITE
 	var font_color: Color = Color.BLACK
 	
@@ -221,7 +244,7 @@ func _get_tile_colors(value: int, type: Tile.TileType, mode_config: GameModeConf
 	if type == Tile.TileType.PLAYER:
 		scheme_index = mode_config.interaction_rule.get_color_scheme_index(value)
 		
-	var scheme_value: Variant = mode_config.color_schemes.get(scheme_index)
+	var scheme_value: Variant = color_schemes.get(scheme_index)
 	if not scheme_value is TileColorScheme:
 		return {"bg": bg_color, "font": font_color}
 	var current_scheme: TileColorScheme = scheme_value
@@ -235,6 +258,65 @@ func _get_tile_colors(value: int, type: Tile.TileType, mode_config: GameModeConf
 			font_color = current_style.font_color
 			
 	return {"bg": bg_color, "font": font_color}
+
+
+func _resolve_board_theme(mode_config: GameModeConfig) -> BoardTheme:
+	var fallback: BoardTheme = null
+	if is_instance_valid(mode_config):
+		fallback = mode_config.board_theme
+
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		return theme_utility.resolve_board_theme(fallback)
+	return fallback
+
+
+func _resolve_color_schemes(mode_config: GameModeConfig) -> Dictionary:
+	var fallback: Dictionary = {}
+	if is_instance_valid(mode_config):
+		fallback = mode_config.color_schemes
+
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		return theme_utility.resolve_color_schemes(fallback)
+	return fallback
+
+
+func _get_theme_utility() -> GameThemeUtility:
+	if is_instance_valid(_theme_utility):
+		return _theme_utility
+
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	if architecture == null:
+		return null
+
+	var utility_value: Object = architecture.get_utility(_GAME_THEME_UTILITY_SCRIPT)
+	if utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = utility_value
+		_theme_utility = theme_utility
+		return theme_utility
+	return null
+
+
+func _get_architecture_or_null() -> GFArchitecture:
+	var context: GFNodeContextBase = _find_nearest_context()
+	if context != null:
+		var context_architecture: GFArchitecture = context.get_architecture()
+		if context_architecture != null:
+			return context_architecture
+
+	return _GF_AUTOLOAD_SCRIPT.get_architecture_or_null()
+
+
+func _find_nearest_context() -> GFNodeContextBase:
+	var current_node: Node = self
+	while current_node != null:
+		if current_node is GFNodeContextBase:
+			var context: GFNodeContextBase = current_node
+			return context
+		current_node = current_node.get_parent()
+
+	return null
 
 
 static func _to_vector2i(value: Variant) -> Vector2i:

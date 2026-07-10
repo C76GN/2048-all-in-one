@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_g2syl"]
+
+[resource]
+script = ExtResource("1_g2syl")
+asset_id = &"asset.review.four.hundred.sounds.pack.footsteps.foley.footstep.carpet.1.a8e16722"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Footsteps/foley_footstep_carpet_1"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "footsteps", "foley_footstep_carpet_1")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Footsteps/foley_footstep_carpet_1.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Footsteps/foley_footstep_carpet_1.wav"
+relative_path = "Footsteps/foley_footstep_carpet_1.wav"
+extension = "wav"
+file_size_bytes = 86060
+sha256 = "a8e167228fac2d3847b6a663a32f5a4e4a158797aecedc45bfe6a198bee37626"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

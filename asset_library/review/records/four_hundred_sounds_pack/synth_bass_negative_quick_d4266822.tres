@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_agr57"]
+
+[resource]
+script = ExtResource("1_agr57")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.synth.bass.negative.quick.d4266822"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/synth_bass_negative_quick"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "synth_bass_negative_quick", "ui")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/synth_bass_negative_quick.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/synth_bass_negative_quick.wav"
+relative_path = "Musical Effects/synth_bass_negative_quick.wav"
+extension = "wav"
+file_size_bytes = 87956
+sha256 = "d42668229e4d9bbe89d8e16fd80964e891fe6d9d86fe03a7275a8cc0678634d8"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

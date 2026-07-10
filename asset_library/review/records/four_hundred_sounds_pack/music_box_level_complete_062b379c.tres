@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_4aqdo"]
+
+[resource]
+script = ExtResource("1_4aqdo")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.music.box.level.complete.062b379c"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/music_box_level_complete"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "music_box_level_complete")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/music_box_level_complete.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/music_box_level_complete.wav"
+relative_path = "Musical Effects/music_box_level_complete.wav"
+extension = "wav"
+file_size_bytes = 740436
+sha256 = "062b379c143839a634367e2c5ae1bb47493920c1bebbe3b8f10b409dce2416d5"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

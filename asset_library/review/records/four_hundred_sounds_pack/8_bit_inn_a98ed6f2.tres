@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_6lnkf"]
+
+[resource]
+script = ExtResource("1_6lnkf")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.8.bit.inn.a98ed6f2"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/8_bit_inn"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "8_bit_inn")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/8_bit_inn.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/8_bit_inn.wav"
+relative_path = "Musical Effects/8_bit_inn.wav"
+extension = "wav"
+file_size_bytes = 521044
+sha256 = "a98ed6f22837109c4d4105796319d5eed6a7fc02c23e90c9c5346c9142e97f50"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

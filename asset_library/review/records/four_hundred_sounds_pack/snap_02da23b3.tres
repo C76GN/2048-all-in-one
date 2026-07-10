@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_ge2bw"]
+
+[resource]
+script = ExtResource("1_ge2bw")
+asset_id = &"asset.review.four.hundred.sounds.pack.other.snap.02da23b3"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Other/snap"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "snap")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/snap.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Other/snap.wav"
+relative_path = "Other/snap.wav"
+extension = "wav"
+file_size_bytes = 45100
+sha256 = "02da23b320cf57c8822302f0fc1119e5805a0d019dbe0e922b546033ec83b886"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

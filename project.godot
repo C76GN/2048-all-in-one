@@ -19,6 +19,10 @@ run/main_scene="res://scenes/boot/boot.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
+[audio]
+
+buses/default_bus_layout="res://resources/audio/default_bus_layout.tres"
+
 [autoload]
 
 Gf="*uid://dftf1eh06apl0"
@@ -47,7 +51,7 @@ enabled=PackedStringArray("res://addons/gf/plugin.cfg", "res://addons/gut/plugin
 [gf]
 
 project/installers=PackedStringArray("uid://dlby16xly4hri")
-extensions/enabled=PackedStringArray("gf.domain", "gf.action_queue")
+extensions/enabled=Array[String](["gf.action_queue", "gf.asset_metadata", "gf.behavior_tree", "gf.camera", "gf.capability", "gf.combat", "gf.content_package", "gf.decision", "gf.dialogue", "gf.domain", "gf.feedback", "gf.flow", "gf.interaction", "gf.network", "gf.physics", "gf.save", "gf.turn_based"])
 network/contract_paths=PackedStringArray()
 network/contract_output_dir="res://gf/generated/network"
 
@@ -145,3 +149,7 @@ save_bookmark={
 [internationalization]
 
 locale/translations=PackedStringArray("res://assets/translations.en.translation", "res://assets/translations.zh.translation")
+
+[rendering]
+
+textures/vram_compression/import_etc2_astc=true

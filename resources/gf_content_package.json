@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "package_id": "game.theme_pack.halftone_atlas",
+  "display_name": "Halftone Atlas Theme Pack",
+  "version": "1.0.0",
+  "content_types": [
+    "game_theme",
+    "visual_theme",
+    "audio_theme",
+    "audio_bank"
+  ],
+  "dependencies": [
+    "c76.asset_library.core"
+  ],
+  "safety_kind": "data_only",
+  "resources": [
+    {
+      "key": "game.theme_registry",
+      "path": "registries/game_theme_registry.tres",
+      "type_hint": "GameThemeRegistry",
+      "priority": 100,
+      "metadata": {
+        "role": "theme_registry"
+      }
+    },
+    {
+      "key": "game.theme.halftone_atlas",
+      "path": "themes/game/halftone_atlas_theme.tres",
+      "type_hint": "GameTheme",
+      "priority": 100,
+      "metadata": {
+        "theme_id": "halftone_atlas"
+      }
+    },
+    {
+      "key": "game.ui_palette.halftone_atlas",
+      "path": "themes/game/halftone_atlas_ui_palette.tres",
+      "type_hint": "GameUiPalette",
+      "priority": 100,
+      "metadata": {
+        "theme_id": "halftone_atlas"
+      }
+    },
+    {
+      "key": "game.audio_theme.printworks",
+      "path": "themes/game/printworks_audio_theme.tres",
+      "type_hint": "GameAudioTheme",
+      "priority": 100,
+      "metadata": {
+        "theme_id": "printworks"
+      }
+    },
+    {
+      "key": "game.audio_bank.printworks",
+      "path": "audio/printworks_audio_bank.tres",
+      "type_hint": "GFAudioBank",
+      "priority": 100,
+      "tags": [
+        "audio_bank"
+      ],
+      "metadata": {
+        "theme_id": "printworks"
+      }
+    },
+    {
+      "key": "game.board_theme.default",
+      "path": "themes/board/default_board_theme.tres",
+      "type_hint": "BoardTheme",
+      "priority": 100,
+      "metadata": {
+        "theme_id": "halftone_atlas"
+      }
+    },
+    {
+      "key": "game.tile_scheme.classic",
+      "path": "themes/tile_schemes/classic_tile_theme.tres",
+      "type_hint": "TileColorScheme",
+      "priority": 100,
+      "metadata": {
+        "theme_id": "halftone_atlas",
+        "tile_type": "player"
+      }
+    },
+    {
+      "key": "game.tile_scheme.fibonacci",
+      "path": "themes/tile_schemes/fibonacci_tile_theme.tres",
+      "type_hint": "TileColorScheme",
+      "priority": 100,
+      "metadata": {
+        "theme_id": "halftone_atlas",
+        "mode_id": "fibonacci"
+      }
+    },
+    {
+      "key": "game.tile_scheme.lucas",
+      "path": "themes/tile_schemes/lucas_tile_theme.tres",
+      "type_hint": "TileColorScheme",
+      "priority": 100,
+      "metadata": {
+        "theme_id": "halftone_atlas",
+        "mode_id": "lucas_fibonacci"
+      }
+    },
+    {
+      "key": "game.tile_scheme.red",
+      "path": "themes/tile_schemes/red_tile_theme.tres",
+      "type_hint": "TileColorScheme",
+      "priority": 100,
+      "metadata": {
+        "theme_id": "halftone_atlas",
+        "tile_type": "monster"
+      }
+    },
+    {
+      "key": "game.tile_scheme.blue",
+      "path": "themes/tile_schemes/blue_tile_theme.tres",
+      "type_hint": "TileColorScheme",
+      "priority": 100,
+      "metadata": {
+        "theme_id": "halftone_atlas",
+        "tile_type": "special"
+      }
+    }
+  ],
+  "metadata": {
+    "project": "2048-all-in-one",
+    "theme_id": "halftone_atlas",
+    "sound_theme_id": "printworks"
+  }
+}

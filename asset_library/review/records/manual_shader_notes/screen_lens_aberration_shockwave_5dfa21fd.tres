@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_lensshock"]
+
+[resource]
+script = ExtResource("1_lensshock")
+asset_id = &"asset.review.manual.shader.notes.screen.lens.aberration.shockwave.5dfa21fd"
+source_pack_id = &"manual_shader_notes"
+display_name = "screen_lens_aberration_shockwave"
+asset_kind = &"shader"
+review_status = &"candidate"
+tags = PackedStringArray("shader", "canvas_item", "screen_space", "lens_distortion", "chromatic_aberration", "shockwave", "vfx", "transition", "merge_impact", "license_review_needed")
+notes = "Candidate screen-space lens distortion and RGB aberration shader for tile merges, target reached feedback, short transition shocks, or special theme effects. Adapted with safe center normalization, project-style screen_texture uniform naming, and opacity control. Promotion requires motion tuning, reduced-motion fallback, and readability checks during gameplay."
+rating = 4
+source_path = "manual://chat/2026-07-10/screen_lens_aberration_shockwave.gdshader"
+library_path = "res://asset_library/source_packs/manual_shader_notes/files/screen_lens_aberration_shockwave.gdshader"
+relative_path = "screen_lens_aberration_shockwave.gdshader"
+extension = "gdshader"
+file_size_bytes = 1516
+sha256 = "5dfa21fd5e8663ef7c06dc2923febdbf570c3ee50eaf7a149314d149d5f5e527"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.vfx.glitch_aberration", "slot.shader.vfx.screen_lens_shockwave", "slot.shader.transition.screen_distortion")
+imported_at = "2026-07-10 03:35:00"

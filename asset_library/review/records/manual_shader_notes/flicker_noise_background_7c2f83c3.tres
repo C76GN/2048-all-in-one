@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_flicker"]
+
+[resource]
+script = ExtResource("1_flicker")
+asset_id = &"asset.review.manual.shader.notes.flicker.noise.background.7c2f83c3"
+source_pack_id = &"manual_shader_notes"
+display_name = "flicker_noise_background"
+asset_kind = &"shader"
+review_status = &"candidate"
+tags = PackedStringArray("shader", "canvas_item", "background", "noise", "flicker", "low_fi", "paper_texture", "theme", "license_review_needed")
+notes = "Candidate low-fi flicker noise background shader with noise-mixed colors, radial alpha falloff, subtle wave/pulse variation, and stepped alpha for a print-like animated texture. Adapted to Godot 4 source_color uniforms and snake_case parameters. Promotion requires an approved noise texture binding, readability checks under panels, and reduced-motion tuning."
+rating = 4
+source_path = "manual://chat/2026-07-10/flicker_noise_background.gdshader"
+library_path = "res://asset_library/source_packs/manual_shader_notes/files/flicker_noise_background.gdshader"
+relative_path = "flicker_noise_background.gdshader"
+extension = "gdshader"
+file_size_bytes = 1550
+sha256 = "7c2f83c3e0785955a034174768d5be853df54efe63f1dd0339e00c407d9cf451"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.background.main", "slot.shader.background.flicker_noise", "slot.shader.theme.printworks.background")
+imported_at = "2026-07-10 03:12:00"

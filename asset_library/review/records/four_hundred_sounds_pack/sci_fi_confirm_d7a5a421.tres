@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_gmu21"]
+
+[resource]
+script = ExtResource("1_gmu21")
+asset_id = &"asset.review.four.hundred.sounds.pack.ui.sci.fi.confirm.d7a5a421"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "UI/sci_fi_confirm"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "sci_fi_confirm", "confirm")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/sci_fi_confirm.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/UI/sci_fi_confirm.wav"
+relative_path = "UI/sci_fi_confirm.wav"
+extension = "wav"
+file_size_bytes = 263764
+sha256 = "d7a5a42162d4a4b1141ff33205fe75f009d2a6dfac0a270a817fcc8ead544884"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.ui.confirm")
+imported_at = "2026-07-09 03:08:11"

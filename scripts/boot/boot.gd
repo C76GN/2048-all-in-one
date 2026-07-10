@@ -1,21 +1,41 @@
 ## Boot: 游戏启动入口。
 class_name Boot
-extends Node
+extends Control
 
 
 # --- 常量 ---
 
 const MAIN_MENU_SCENE_PATH: String = "res://scenes/menus/main_menu.tscn"
+const _BACKGROUND_SHADER: Shader = preload("res://asset_library/shaders/background/halftone_paper_background.gdshader")
+const _PROGRESS_SHADER: Shader = preload("res://asset_library/shaders/ui/startup_progress_bar.gdshader")
+
+const _MIN_SPLASH_SECONDS: float = 1.05
+const _PRELOAD_TIMEOUT_MSEC: int = 8000
+const _PROGRESS_BAR_ASPECT_FALLBACK: float = 8.0
+const _PAPER_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.94)
+const _INK_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _MUTED_INK_COLOR: Color = Color(0.4, 0.35686275, 0.32156864, 0.92)
+const _ACCENT_COLOR: Color = Color(0.61960787, 0.8235294, 0.80784315, 1.0)
+const _WARM_COLOR: Color = Color(0.7176471, 0.47843137, 0.45882353, 1.0)
+const _GOLD_COLOR: Color = Color(0.9411765, 0.8392157, 0.5882353, 1.0)
+
+
+# --- 私有变量 ---
+
+var _startup_progress: GFAsyncProgress
+var _progress_bar: ColorRect
+var _progress_bar_material: ShaderMaterial
+var _status_label: Label
+var _percent_label: Label
+var _preload_failed: bool = false
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	await Gf.init()
-
-	var router: SceneRouterSystem = _get_scene_router_system()
-	if is_instance_valid(router):
-		router.call_deferred("goto_scene", MAIN_MENU_SCENE_PATH)
+	_setup_startup_screen()
+	_setup_progress()
+	await _run_startup_sequence()
 
 
 # --- 公共方法 ---
@@ -26,9 +46,362 @@ static func are_dev_tools_enabled() -> bool:
 
 # --- 私有/辅助方法 ---
 
+func _run_startup_sequence() -> void:
+	var started_msec: int = Time.get_ticks_msec()
+	_publish_progress(0.04, "准备纸面")
+	await get_tree().process_frame
+
+	_publish_progress(0.18, "初始化 GF 架构")
+	await Gf.init()
+	_publish_progress(0.54, "注册系统与素材")
+	await get_tree().process_frame
+
+	var scene_utility: GFSceneUtility = _get_scene_utility()
+	if is_instance_valid(scene_utility):
+		await _preload_main_menu(scene_utility)
+	else:
+		_publish_progress(0.88, "读取主菜单")
+		await get_tree().process_frame
+
+	_publish_progress(0.96, "整理菜单")
+	await _wait_for_minimum_duration(started_msec)
+	var _complete_result: bool = _startup_progress.complete("启动完成")
+
+	var finish_timer: SceneTreeTimer = get_tree().create_timer(0.14)
+	await finish_timer.timeout
+	_goto_main_menu()
+
+
+func _preload_main_menu(scene_utility: GFSceneUtility) -> void:
+	_preload_failed = false
+	_connect_preload_signals(scene_utility)
+	var error: Error = scene_utility.preload_scene(MAIN_MENU_SCENE_PATH, true)
+	if error == OK:
+		await _wait_for_main_menu_preload(scene_utility)
+	else:
+		_publish_progress(0.86, "主菜单将直接载入")
+		await get_tree().process_frame
+	_disconnect_preload_signals(scene_utility)
+
+
+func _wait_for_main_menu_preload(scene_utility: GFSceneUtility) -> void:
+	if scene_utility.is_scene_preloaded(MAIN_MENU_SCENE_PATH):
+		_publish_progress(0.92, "主菜单已预热")
+		return
+
+	var deadline_msec: int = Time.get_ticks_msec() + _PRELOAD_TIMEOUT_MSEC
+	while (
+		is_instance_valid(scene_utility)
+		and not scene_utility.is_scene_preloaded(MAIN_MENU_SCENE_PATH)
+		and scene_utility.is_scene_preloading(MAIN_MENU_SCENE_PATH)
+		and not _preload_failed
+		and Time.get_ticks_msec() < deadline_msec
+	):
+		await get_tree().process_frame
+
+	if is_instance_valid(scene_utility) and scene_utility.is_scene_preloaded(MAIN_MENU_SCENE_PATH):
+		_publish_progress(0.92, "主菜单已预热")
+	else:
+		_publish_progress(0.86, "主菜单将直接载入")
+
+
+func _wait_for_minimum_duration(started_msec: int) -> void:
+	var elapsed_seconds: float = float(Time.get_ticks_msec() - started_msec) / 1000.0
+	var remaining_seconds: float = _MIN_SPLASH_SECONDS - elapsed_seconds
+	if remaining_seconds <= 0.0:
+		await get_tree().process_frame
+		return
+
+	var timer: SceneTreeTimer = get_tree().create_timer(remaining_seconds)
+	await timer.timeout
+
+
+func _setup_progress() -> void:
+	_startup_progress = GFAsyncProgress.new(0.0, "准备启动")
+	_startup_progress.min_delta = 0.0
+	_startup_progress.min_interval_msec = 0
+	var _connect_result: int = _startup_progress.progressed.connect(_on_startup_progressed)
+	var _emit_result: bool = _startup_progress.force_emit()
+
+
+func _publish_progress(value: float, message: String) -> void:
+	if _startup_progress == null:
+		return
+	var _update_result: bool = _startup_progress.update(value, message)
+
+
+func _on_startup_progressed(value: float, message: String, _metadata: Dictionary) -> void:
+	var safe_value: float = clampf(value, 0.0, 1.0)
+	if is_instance_valid(_progress_bar_material):
+		_progress_bar_material.set_shader_parameter("progress", safe_value)
+	if is_instance_valid(_status_label):
+		_status_label.text = message
+	if is_instance_valid(_percent_label):
+		var percent_value: float = round(safe_value * 100.0)
+		_percent_label.text = "%d%%" % int(percent_value)
+	_sync_progress_bar_aspect()
+
+
+func _connect_preload_signals(scene_utility: GFSceneUtility) -> void:
+	if not scene_utility.scene_preload_progress.is_connected(_on_scene_preload_progress):
+		var _progress_connect: int = scene_utility.scene_preload_progress.connect(_on_scene_preload_progress)
+	if not scene_utility.scene_preload_failed.is_connected(_on_scene_preload_failed):
+		var _failed_connect: int = scene_utility.scene_preload_failed.connect(_on_scene_preload_failed)
+
+
+func _disconnect_preload_signals(scene_utility: GFSceneUtility) -> void:
+	if scene_utility.scene_preload_progress.is_connected(_on_scene_preload_progress):
+		scene_utility.scene_preload_progress.disconnect(_on_scene_preload_progress)
+	if scene_utility.scene_preload_failed.is_connected(_on_scene_preload_failed):
+		scene_utility.scene_preload_failed.disconnect(_on_scene_preload_failed)
+
+
+func _on_scene_preload_progress(path: String, progress: float) -> void:
+	if path != MAIN_MENU_SCENE_PATH:
+		return
+	var mapped_progress: float = lerpf(0.56, 0.92, clampf(progress, 0.0, 1.0))
+	_publish_progress(mapped_progress, "预热主菜单")
+
+
+func _on_scene_preload_failed(path: String) -> void:
+	if path != MAIN_MENU_SCENE_PATH:
+		return
+	_preload_failed = true
+	_publish_progress(0.84, "主菜单将直接载入")
+
+
+func _goto_main_menu() -> void:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
+		router.call_deferred("goto_scene", MAIN_MENU_SCENE_PATH)
+		return
+
+	var change_error: Error = get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
+	if change_error != OK:
+		push_error("[Boot] 无法进入主菜单：%s，错误码：%d" % [MAIN_MENU_SCENE_PATH, change_error])
+
+
 func _get_scene_router_system() -> SceneRouterSystem:
 	var system_value: Object = Gf.get_system(SceneRouterSystem)
 	if system_value is SceneRouterSystem:
 		var scene_router: SceneRouterSystem = system_value
 		return scene_router
 	return null
+
+
+func _get_scene_utility() -> GFSceneUtility:
+	var utility_value: Object = Gf.get_utility(GFSceneUtility)
+	if utility_value is GFSceneUtility:
+		var scene_utility: GFSceneUtility = utility_value
+		return scene_utility
+	return null
+
+
+func _setup_startup_screen() -> void:
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_set_full_rect(self)
+
+	var background: ColorRect = ColorRect.new()
+	background.name = "StartupBackground"
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background.color = Color.WHITE
+	_set_full_rect(background)
+	var background_material: ShaderMaterial = ShaderMaterial.new()
+	background_material.shader = _BACKGROUND_SHADER
+	background_material.set_shader_parameter("grain_strength", 0.030)
+	background_material.set_shader_parameter("stipple_strength", 0.012)
+	background_material.set_shader_parameter("cloud_strength", 0.026)
+	background.material = background_material
+	add_child(background)
+
+	var center: CenterContainer = CenterContainer.new()
+	center.name = "StartupCenter"
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_set_full_rect(center)
+	add_child(center)
+
+	var panel: PanelContainer = PanelContainer.new()
+	panel.name = "StartupPanel"
+	panel.custom_minimum_size = Vector2(560.0, 360.0)
+	panel.add_theme_stylebox_override("panel", _create_panel_style())
+	center.add_child(panel)
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.name = "PanelMargin"
+	margin.add_theme_constant_override("margin_left", 28)
+	margin.add_theme_constant_override("margin_top", 26)
+	margin.add_theme_constant_override("margin_right", 28)
+	margin.add_theme_constant_override("margin_bottom", 24)
+	panel.add_child(margin)
+
+	var content: VBoxContainer = VBoxContainer.new()
+	content.name = "StartupContent"
+	content.alignment = BoxContainer.ALIGNMENT_CENTER
+	content.add_theme_constant_override("separation", 14)
+	margin.add_child(content)
+
+	content.add_child(_create_title_label("2048"))
+	content.add_child(_create_subtitle_label("PRINTWORKS ATLAS"))
+	content.add_child(_create_micro_board())
+	content.add_child(_create_progress_row())
+	_progress_bar = _create_progress_bar()
+	content.add_child(_progress_bar)
+	content.add_child(_create_footer_label("GF Framework / Scene Preload"))
+
+
+func _create_title_label(text: String) -> Label:
+	var label: Label = Label.new()
+	label.name = "TitleLabel"
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", _INK_COLOR)
+	label.add_theme_color_override("font_shadow_color", _ACCENT_COLOR)
+	label.add_theme_constant_override("shadow_offset_x", 2)
+	label.add_theme_constant_override("shadow_offset_y", 2)
+	label.add_theme_font_size_override("font_size", 74)
+	return label
+
+
+func _create_subtitle_label(text: String) -> Label:
+	var label: Label = Label.new()
+	label.name = "SubtitleLabel"
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", _MUTED_INK_COLOR)
+	label.add_theme_font_size_override("font_size", 18)
+	return label
+
+
+func _create_footer_label(text: String) -> Label:
+	var label: Label = Label.new()
+	label.name = "FooterLabel"
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_color_override("font_color", _MUTED_INK_COLOR)
+	label.add_theme_font_size_override("font_size", 14)
+	return label
+
+
+func _create_progress_row() -> HBoxContainer:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.name = "ProgressStatusRow"
+	row.add_theme_constant_override("separation", 12)
+
+	_status_label = Label.new()
+	_status_label.name = "StatusLabel"
+	_status_label.text = "准备启动"
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_label.add_theme_color_override("font_color", _INK_COLOR)
+	_status_label.add_theme_font_size_override("font_size", 18)
+	row.add_child(_status_label)
+
+	_percent_label = Label.new()
+	_percent_label.name = "PercentLabel"
+	_percent_label.text = "0%"
+	_percent_label.custom_minimum_size = Vector2(72.0, 0.0)
+	_percent_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_percent_label.add_theme_color_override("font_color", _WARM_COLOR)
+	_percent_label.add_theme_font_size_override("font_size", 18)
+	row.add_child(_percent_label)
+	return row
+
+
+func _create_progress_bar() -> ColorRect:
+	var bar: ColorRect = ColorRect.new()
+	bar.name = "StartupProgressBar"
+	bar.custom_minimum_size = Vector2(460.0, 34.0)
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.color = Color.WHITE
+
+	_progress_bar_material = ShaderMaterial.new()
+	_progress_bar_material.shader = _PROGRESS_SHADER
+	_progress_bar_material.set_shader_parameter("aspect", _PROGRESS_BAR_ASPECT_FALLBACK)
+	_progress_bar_material.set_shader_parameter("progress", 0.0)
+	_progress_bar_material.set_shader_parameter("progress_color", _ACCENT_COLOR)
+	_progress_bar_material.set_shader_parameter("background_color", _GOLD_COLOR)
+	_progress_bar_material.set_shader_parameter("outline_color", _INK_COLOR)
+	bar.material = _progress_bar_material
+
+	var _resize_connect: int = bar.resized.connect(_on_progress_bar_resized)
+	return bar
+
+
+func _create_micro_board() -> GridContainer:
+	var board: GridContainer = GridContainer.new()
+	board.name = "StartupBoardPreview"
+	board.columns = 4
+	board.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	board.add_theme_constant_override("h_separation", 5)
+	board.add_theme_constant_override("v_separation", 5)
+
+	var values: PackedStringArray = PackedStringArray([
+		"2", "", "4", "",
+		"", "8", "", "16",
+		"32", "", "64", "",
+		"", "128", "", "2048",
+	])
+	for index: int in range(values.size()):
+		var cell: PanelContainer = PanelContainer.new()
+		cell.custom_minimum_size = Vector2(44.0, 44.0)
+		cell.add_theme_stylebox_override("panel", _create_board_cell_style(index))
+		var label: Label = Label.new()
+		label.text = values[index]
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.add_theme_color_override("font_color", _INK_COLOR)
+		label.add_theme_font_size_override("font_size", 18)
+		cell.add_child(label)
+		board.add_child(cell)
+	return board
+
+
+func _create_panel_style() -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = _PAPER_COLOR
+	style.border_color = _INK_COLOR
+	style.set_border_width_all(4)
+	style.set_corner_radius_all(4)
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	return style
+
+
+func _create_board_cell_style(index: int) -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	var palette: Array[Color] = [
+		Color(0.95686275, 0.92941177, 0.8666667, 1.0),
+		Color(0.61960787, 0.8235294, 0.80784315, 1.0),
+		Color(0.9411765, 0.8392157, 0.5882353, 1.0),
+		Color(0.7176471, 0.47843137, 0.45882353, 1.0),
+	]
+	style.bg_color = palette[index % palette.size()]
+	style.border_color = _INK_COLOR
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(3)
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	return style
+
+
+func _on_progress_bar_resized() -> void:
+	_sync_progress_bar_aspect()
+
+
+func _sync_progress_bar_aspect() -> void:
+	if not is_instance_valid(_progress_bar_material) or not is_instance_valid(_progress_bar):
+		return
+	var height: float = maxf(_progress_bar.size.y, 1.0)
+	var bar_aspect: float = maxf(_progress_bar.size.x / height, _PROGRESS_BAR_ASPECT_FALLBACK)
+	_progress_bar_material.set_shader_parameter("aspect", bar_aspect)
+
+
+func _set_full_rect(control: Control) -> void:
+	control.anchor_left = 0.0
+	control.anchor_top = 0.0
+	control.anchor_right = 1.0
+	control.anchor_bottom = 1.0
+	control.offset_left = 0.0
+	control.offset_top = 0.0
+	control.offset_right = 0.0
+	control.offset_bottom = 0.0

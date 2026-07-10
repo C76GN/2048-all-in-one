@@ -6,6 +6,12 @@ class_name GameUiMotionUtility
 extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 
+# --- 信号 ---
+
+signal interactive_control_selected(control: Control)
+signal interactive_control_confirmed(control: Control)
+
+
 # --- 常量 ---
 
 const _BOUND_META: StringName = &"_game_ui_motion_bound"
@@ -18,38 +24,102 @@ const _CONTROL_BASE_SCALE_META: StringName = &"_game_ui_motion_control_base_scal
 const _CONTROL_BASE_MODULATE_META: StringName = &"_game_ui_motion_control_base_modulate"
 const _CONTROL_TWEEN_META: StringName = &"_game_ui_motion_control_tween"
 const _STATIC_STYLE_META: StringName = &"_game_ui_motion_static_style"
+const _BUTTON_FOCUS_RING_NODE_NAME: String = "ButtonFocusRing"
+const _BUTTON_FOCUS_RING_SHADER: Shader = preload("res://asset_library/shaders/ui/button_focus_dash.gdshader")
 
 const _REST_MODULATE: Color = Color.WHITE
-const _HOVER_MODULATE: Color = Color(1.0, 0.98, 0.92, 1.0)
-const _FOCUS_MODULATE: Color = Color(1.0, 0.99, 0.95, 1.0)
-const _PRESS_MODULATE: Color = Color(0.92, 0.90, 0.86, 1.0)
-const _BUTTON_NORMAL_COLOR: Color = Color(0.055, 0.080, 0.120, 0.42)
-const _BUTTON_HOVER_COLOR: Color = Color(0.24, 0.46, 0.49, 0.78)
-const _BUTTON_PRESSED_COLOR: Color = Color(0.56, 0.32, 0.42, 0.86)
-const _BUTTON_FOCUS_BORDER_COLOR: Color = Color(0.93, 0.82, 0.58, 0.72)
-const _BUTTON_DISABLED_COLOR: Color = Color(0.055, 0.070, 0.100, 0.20)
-const _BUTTON_FONT_COLOR: Color = Color(0.94, 0.90, 0.82, 1.0)
-const _BUTTON_FONT_DISABLED_COLOR: Color = Color(0.94, 0.90, 0.82, 0.38)
-const _TEXT_PRIMARY_COLOR: Color = Color(0.94, 0.90, 0.82, 1.0)
-const _TEXT_SECONDARY_COLOR: Color = Color(0.74, 0.79, 0.78, 0.90)
-const _FIELD_SURFACE_COLOR: Color = Color(0.035, 0.050, 0.080, 0.52)
-const _FIELD_FOCUS_SURFACE_COLOR: Color = Color(0.055, 0.095, 0.125, 0.66)
-const _FIELD_BORDER_COLOR: Color = Color(0.92, 0.82, 0.60, 0.12)
-const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.93, 0.80, 0.54, 0.72)
-const _PANEL_SURFACE_COLOR: Color = Color(0.035, 0.050, 0.080, 0.42)
-const _HOVER_SCALE: float = 1.018
-const _PRESS_SCALE: float = 0.965
+const _HOVER_MODULATE: Color = Color(0.98, 1.0, 0.99, 1.0)
+const _FOCUS_MODULATE: Color = Color(1.0, 0.98, 1.0, 1.0)
+const _PRESS_MODULATE: Color = Color(0.96, 0.94, 0.84, 1.0)
+const _BUTTON_NORMAL_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.96)
+const _BUTTON_HOVER_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
+const _BUTTON_PRESSED_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+const _BUTTON_FOCUS_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _BUTTON_DISABLED_COLOR: Color = Color(0.95686275, 0.92941177, 0.8666667, 0.46)
+const _BUTTON_FONT_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _BUTTON_FONT_DISABLED_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.42)
+const _TEXT_PRIMARY_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _TEXT_SECONDARY_COLOR: Color = Color(0.4, 0.35686275, 0.32156864, 0.96)
+const _FIELD_SURFACE_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.94)
+const _FIELD_FOCUS_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.88)
+const _FIELD_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.72)
+const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
+const _PANEL_SURFACE_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.88)
+const _HOVER_SCALE: float = 1.012
+const _PRESS_SCALE: float = 0.980
 const _HOVER_DURATION: float = 0.11
 const _PRESS_DURATION: float = 0.055
-const _PANEL_INTRO_OFFSET: Vector2 = Vector2(0.0, 18.0)
-const _PANEL_INTRO_SCALE: float = 0.985
-const _PANEL_INTRO_DURATION: float = 0.26
-const _CHILD_REVEAL_OFFSET: Vector2 = Vector2(14.0, 0.0)
-const _CHILD_REVEAL_DURATION: float = 0.18
-const _CHILD_REVEAL_STAGGER: float = 0.035
+const _PANEL_INTRO_OFFSET: Vector2 = Vector2(0.0, 10.0)
+const _PANEL_INTRO_SCALE: float = 0.992
+const _PANEL_INTRO_DURATION: float = 0.18
+const _CHILD_REVEAL_OFFSET: Vector2 = Vector2(8.0, 0.0)
+const _CHILD_REVEAL_DURATION: float = 0.14
+const _CHILD_REVEAL_STAGGER: float = 0.025
+const _FOCUS_RING_MARGIN: float = 3.0
+const _FOCUS_RING_RADIUS: float = 7.0
+const _FOCUS_RING_THICKNESS: float = 3.0
+const _FOCUS_RING_DASH_COUNT: float = 18.0
+const _FOCUS_RING_DASH_RATIO: float = 0.54
+const _FOCUS_RING_SPEED: float = 0.65
+
+
+# --- 私有变量 ---
+
+var _button_normal_color: Color = _BUTTON_NORMAL_COLOR
+var _button_hover_color: Color = _BUTTON_HOVER_COLOR
+var _button_pressed_color: Color = _BUTTON_PRESSED_COLOR
+var _button_focus_border_color: Color = _BUTTON_FOCUS_BORDER_COLOR
+var _button_disabled_color: Color = _BUTTON_DISABLED_COLOR
+var _button_font_color: Color = _BUTTON_FONT_COLOR
+var _button_font_disabled_color: Color = _BUTTON_FONT_DISABLED_COLOR
+var _text_primary_color: Color = _TEXT_PRIMARY_COLOR
+var _text_secondary_color: Color = _TEXT_SECONDARY_COLOR
+var _field_surface_color: Color = _FIELD_SURFACE_COLOR
+var _field_focus_surface_color: Color = _FIELD_FOCUS_SURFACE_COLOR
+var _field_border_color: Color = _FIELD_BORDER_COLOR
+var _field_focus_border_color: Color = _FIELD_FOCUS_BORDER_COLOR
+var _panel_surface_color: Color = _PANEL_SURFACE_COLOR
+var _slider_track_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
+var _slider_grabber_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
+var _slider_grabber_highlight_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)
 
 
 # --- 公共方法 ---
+
+## 应用一套 UI 色板，后续绑定的控件会使用该色板。
+## @param palette: 当前视觉主题提供的 UI 色板。
+func apply_palette(palette: GameUiPalette) -> void:
+	if not is_instance_valid(palette):
+		_reset_palette()
+		return
+
+	_button_normal_color = palette.button_normal_color
+	_button_hover_color = palette.button_hover_color
+	_button_pressed_color = palette.button_pressed_color
+	_button_focus_border_color = palette.button_focus_border_color
+	_button_disabled_color = palette.button_disabled_color
+	_button_font_color = palette.button_font_color
+	_button_font_disabled_color = palette.button_font_disabled_color
+	_text_primary_color = palette.text_primary_color
+	_text_secondary_color = palette.text_secondary_color
+	_field_surface_color = palette.field_surface_color
+	_field_focus_surface_color = palette.field_focus_surface_color
+	_field_border_color = palette.field_border_color
+	_field_focus_border_color = palette.field_focus_border_color
+	_panel_surface_color = palette.panel_surface_color
+	_slider_track_color = palette.slider_track_color
+	_slider_grabber_color = palette.slider_grabber_color
+	_slider_grabber_highlight_color = palette.slider_grabber_highlight_color
+
+
+## 应用色板并刷新根节点下已存在的控件样式。
+## @param root: 要扫描的 UI 根节点。
+## @param palette: 当前视觉主题提供的 UI 色板。
+## @return: 本次刷新的 Control 数量。
+func apply_palette_to_tree(root: Node, palette: GameUiPalette) -> int:
+	apply_palette(palette)
+	return _refresh_palette_tree(root)
+
 
 ## 递归绑定根节点下所有 BaseButton 控件。
 ## @param root: 要扫描的 UI 根节点。
@@ -159,6 +229,7 @@ func _bind_button(button: BaseButton) -> bool:
 	button.set_meta(_BASE_SCALE_META, button.scale)
 	button.call_deferred("set", "pivot_offset", button.size * 0.5)
 	_apply_button_visual_style(button)
+	var _focus_ring: ColorRect = _ensure_button_focus_ring(button)
 
 	var _connect_result_157: int = button.mouse_entered.connect(_on_button_mouse_entered.bind(button))
 	var _connect_result_158: int = button.mouse_exited.connect(_on_button_mouse_exited.bind(button))
@@ -166,24 +237,38 @@ func _bind_button(button: BaseButton) -> bool:
 	var _connect_result_160: int = button.focus_exited.connect(_on_button_focus_exited.bind(button))
 	var _connect_result_161: int = button.button_down.connect(_on_button_down.bind(button))
 	var _connect_result_162: int = button.button_up.connect(_on_button_up.bind(button))
-	var _connect_result_163: int = button.tree_exited.connect(_on_button_tree_exited.bind(button), CONNECT_ONE_SHOT)
+	var _connect_result_163: int = button.resized.connect(_on_button_resized.bind(button))
+	var _connect_result_164: int = button.tree_exited.connect(_on_button_tree_exited.bind(button), CONNECT_ONE_SHOT)
 	return true
 
 
 func _apply_button_visual_style(button: BaseButton) -> void:
-	button.add_theme_stylebox_override("normal", _create_button_style(_BUTTON_NORMAL_COLOR))
-	button.add_theme_stylebox_override("hover", _create_button_style(_BUTTON_HOVER_COLOR))
-	button.add_theme_stylebox_override("pressed", _create_button_style(_BUTTON_PRESSED_COLOR))
+	button.add_theme_stylebox_override(
+		"normal",
+		_create_button_style(_button_normal_color, _button_focus_border_color, 2)
+	)
+	button.add_theme_stylebox_override(
+		"hover",
+		_create_button_style(_button_hover_color, _button_focus_border_color, 2)
+	)
+	button.add_theme_stylebox_override(
+		"pressed",
+		_create_button_style(_button_pressed_color, _button_focus_border_color, 3)
+	)
 	button.add_theme_stylebox_override(
 		"focus",
-		_create_button_style(Color.TRANSPARENT, _BUTTON_FOCUS_BORDER_COLOR, 2)
+		_create_button_style(Color.TRANSPARENT, _button_focus_border_color, 3)
 	)
-	button.add_theme_stylebox_override("disabled", _create_button_style(_BUTTON_DISABLED_COLOR))
-	button.add_theme_color_override("font_color", _BUTTON_FONT_COLOR)
-	button.add_theme_color_override("font_hover_color", _BUTTON_FONT_COLOR)
-	button.add_theme_color_override("font_pressed_color", _BUTTON_FONT_COLOR)
-	button.add_theme_color_override("font_focus_color", _BUTTON_FONT_COLOR)
-	button.add_theme_color_override("font_disabled_color", _BUTTON_FONT_DISABLED_COLOR)
+	button.add_theme_stylebox_override(
+		"disabled",
+		_create_button_style(_button_disabled_color, _button_focus_border_color.darkened(0.12), 1)
+	)
+	button.add_theme_color_override("font_color", _button_font_color)
+	button.add_theme_color_override("font_hover_color", _button_font_color)
+	button.add_theme_color_override("font_pressed_color", _button_font_color)
+	button.add_theme_color_override("font_focus_color", _button_font_color)
+	button.add_theme_color_override("font_disabled_color", _button_font_disabled_color)
+	_apply_button_focus_ring_style(button)
 
 
 func _create_button_style(
@@ -195,7 +280,7 @@ func _create_button_style(
 	style.bg_color = color
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(8)
+	style.set_corner_radius_all(4)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	style.set_content_margin(SIDE_LEFT, 12.0)
@@ -203,6 +288,90 @@ func _create_button_style(
 	style.set_content_margin(SIDE_RIGHT, 12.0)
 	style.set_content_margin(SIDE_BOTTOM, 8.0)
 	return style
+
+
+func _ensure_button_focus_ring(button: BaseButton) -> ColorRect:
+	if not is_instance_valid(button):
+		return null
+
+	var existing_node: Node = button.get_node_or_null(_BUTTON_FOCUS_RING_NODE_NAME)
+	if existing_node is ColorRect:
+		var existing_ring: ColorRect = existing_node
+		_apply_button_focus_ring_style(button)
+		return existing_ring
+
+	var ring: ColorRect = ColorRect.new()
+	ring.name = _BUTTON_FOCUS_RING_NODE_NAME
+	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ring.visible = false
+	ring.color = Color.WHITE
+	ring.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ring.offset_left = -_FOCUS_RING_MARGIN
+	ring.offset_top = -_FOCUS_RING_MARGIN
+	ring.offset_right = _FOCUS_RING_MARGIN
+	ring.offset_bottom = _FOCUS_RING_MARGIN
+	ring.z_index = 16
+
+	var shader_material: ShaderMaterial = ShaderMaterial.new()
+	shader_material.shader = _BUTTON_FOCUS_RING_SHADER
+	ring.material = shader_material
+	button.add_child(ring, false, Node.INTERNAL_MODE_FRONT)
+	_apply_button_focus_ring_style(button)
+	return ring
+
+
+func _apply_button_focus_ring_style(button: BaseButton) -> void:
+	var ring: ColorRect = _get_button_focus_ring(button)
+	if not is_instance_valid(ring):
+		return
+
+	var shader_material: ShaderMaterial = _get_focus_ring_material(ring)
+	if not is_instance_valid(shader_material):
+		return
+
+	shader_material.set_shader_parameter("rect_size", button.size + Vector2.ONE * _FOCUS_RING_MARGIN * 2.0)
+	shader_material.set_shader_parameter("radius", _FOCUS_RING_RADIUS)
+	shader_material.set_shader_parameter("thickness", _FOCUS_RING_THICKNESS)
+	shader_material.set_shader_parameter("color", _button_focus_border_color)
+	shader_material.set_shader_parameter("dash_count", _FOCUS_RING_DASH_COUNT)
+	shader_material.set_shader_parameter("dash_ratio", _FOCUS_RING_DASH_RATIO)
+	shader_material.set_shader_parameter("speed", _FOCUS_RING_SPEED)
+
+
+func _get_button_focus_ring(button: BaseButton) -> ColorRect:
+	if not is_instance_valid(button):
+		return null
+
+	var node: Node = button.get_node_or_null(_BUTTON_FOCUS_RING_NODE_NAME)
+	if node is ColorRect:
+		var ring: ColorRect = node
+		return ring
+	return null
+
+
+func _get_focus_ring_material(ring: ColorRect) -> ShaderMaterial:
+	if not is_instance_valid(ring):
+		return null
+
+	var material_value: Material = ring.material
+	if material_value is ShaderMaterial:
+		var shader_material: ShaderMaterial = material_value
+		return shader_material
+	return null
+
+
+func _set_button_focus_ring_visible(button: BaseButton, is_visible: bool) -> void:
+	var ring: ColorRect = _get_button_focus_ring(button)
+	if is_instance_valid(ring):
+		ring.visible = is_visible
+
+
+func _update_button_focus_ring_visibility(button: BaseButton) -> void:
+	if not is_instance_valid(button) or button.disabled:
+		_set_button_focus_ring_visible(button, false)
+		return
+
+	_set_button_focus_ring_visible(button, _is_button_active(button))
 
 
 func _apply_support_control_style(control: Control) -> void:
@@ -216,6 +385,9 @@ func _apply_support_control_style(control: Control) -> void:
 	elif control is RichTextLabel:
 		var rich_text_label: RichTextLabel = control
 		_style_rich_text_label(rich_text_label)
+	elif control is SpinBox:
+		var spin_box: SpinBox = control
+		_style_spin_box(spin_box)
 	elif control is LineEdit:
 		var line_edit: LineEdit = control
 		_style_line_edit(line_edit)
@@ -228,53 +400,62 @@ func _apply_support_control_style(control: Control) -> void:
 
 
 func _style_label(label: Label) -> void:
-	if label.has_theme_color("font_color"):
-		return
-	label.add_theme_color_override("font_color", _TEXT_PRIMARY_COLOR)
+	label.add_theme_color_override("font_color", _text_primary_color)
 
 
 func _style_rich_text_label(label: RichTextLabel) -> void:
-	label.add_theme_color_override("default_color", _TEXT_SECONDARY_COLOR)
-	label.add_theme_color_override("font_selected_color", _TEXT_PRIMARY_COLOR)
+	label.add_theme_color_override("default_color", _text_secondary_color)
+	label.add_theme_color_override("font_selected_color", _text_primary_color)
 
 
 func _style_line_edit(line_edit: LineEdit) -> void:
 	line_edit.add_theme_stylebox_override(
 		"normal",
-		_create_field_style(_FIELD_SURFACE_COLOR, _FIELD_BORDER_COLOR, 1)
+		_create_field_style(_field_surface_color, _field_border_color, 1)
 	)
 	line_edit.add_theme_stylebox_override(
 		"focus",
-		_create_field_style(_FIELD_FOCUS_SURFACE_COLOR, _FIELD_FOCUS_BORDER_COLOR, 2)
+		_create_field_style(_field_focus_surface_color, _field_focus_border_color, 2)
 	)
 	line_edit.add_theme_stylebox_override(
 		"read_only",
-		_create_field_style(_FIELD_SURFACE_COLOR.darkened(0.08), _FIELD_BORDER_COLOR, 1)
+		_create_field_style(_field_surface_color.darkened(0.04), _field_border_color, 1)
 	)
-	line_edit.add_theme_color_override("font_color", _TEXT_PRIMARY_COLOR)
-	line_edit.add_theme_color_override("font_placeholder_color", _TEXT_SECONDARY_COLOR)
-	line_edit.add_theme_color_override("caret_color", _FIELD_FOCUS_BORDER_COLOR)
+	line_edit.add_theme_color_override("font_color", _text_primary_color)
+	line_edit.add_theme_color_override("font_placeholder_color", _text_secondary_color)
+	line_edit.add_theme_color_override("caret_color", _field_focus_border_color)
+
+
+func _style_spin_box(spin_box: SpinBox) -> void:
+	spin_box.add_theme_color_override("font_color", _text_primary_color)
+	spin_box.add_theme_color_override("font_disabled_color", _text_secondary_color)
+	spin_box.add_theme_color_override("font_hover_color", _text_primary_color)
+	spin_box.add_theme_color_override("font_focus_color", _text_primary_color)
+
+	var line_edit: LineEdit = spin_box.get_line_edit()
+	if is_instance_valid(line_edit):
+		_style_line_edit(line_edit)
 
 
 func _style_range(range_control: Range) -> void:
 	range_control.add_theme_stylebox_override(
 		"slider",
-		_create_field_style(Color(0.02, 0.03, 0.05, 0.64), Color.TRANSPARENT, 0)
+		_create_field_style(_slider_track_color, Color.TRANSPARENT, 0)
 	)
 	range_control.add_theme_stylebox_override(
 		"grabber_area",
-		_create_field_style(Color(0.25, 0.49, 0.52, 0.88), Color.TRANSPARENT, 0)
+		_create_field_style(_slider_grabber_color, Color.TRANSPARENT, 0)
 	)
 	range_control.add_theme_stylebox_override(
 		"grabber_area_highlight",
-		_create_field_style(Color(0.62, 0.40, 0.28, 0.92), Color.TRANSPARENT, 0)
+		_create_field_style(_slider_grabber_highlight_color, Color.TRANSPARENT, 0)
 	)
 
 
 func _style_panel_container(panel_container: PanelContainer) -> void:
 	panel_container.add_theme_stylebox_override(
 		"panel",
-		_create_field_style(_PANEL_SURFACE_COLOR, _FIELD_BORDER_COLOR, 1)
+		_create_field_style(_panel_surface_color, _field_border_color, 1)
 	)
 
 
@@ -283,7 +464,7 @@ func _create_field_style(bg_color: Color, border_color: Color, border_width: int
 	style.bg_color = bg_color
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(8)
+	style.set_corner_radius_all(4)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	style.set_content_margin(SIDE_LEFT, 10.0)
@@ -465,12 +646,55 @@ func _get_control_color_meta(control: Control, key: StringName, default_value: C
 	return default_value
 
 
+func _reset_palette() -> void:
+	_button_normal_color = _BUTTON_NORMAL_COLOR
+	_button_hover_color = _BUTTON_HOVER_COLOR
+	_button_pressed_color = _BUTTON_PRESSED_COLOR
+	_button_focus_border_color = _BUTTON_FOCUS_BORDER_COLOR
+	_button_disabled_color = _BUTTON_DISABLED_COLOR
+	_button_font_color = _BUTTON_FONT_COLOR
+	_button_font_disabled_color = _BUTTON_FONT_DISABLED_COLOR
+	_text_primary_color = _TEXT_PRIMARY_COLOR
+	_text_secondary_color = _TEXT_SECONDARY_COLOR
+	_field_surface_color = _FIELD_SURFACE_COLOR
+	_field_focus_surface_color = _FIELD_FOCUS_SURFACE_COLOR
+	_field_border_color = _FIELD_BORDER_COLOR
+	_field_focus_border_color = _FIELD_FOCUS_BORDER_COLOR
+	_panel_surface_color = _PANEL_SURFACE_COLOR
+	_slider_track_color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
+	_slider_grabber_color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
+	_slider_grabber_highlight_color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)
+
+
+func _refresh_palette_tree(root: Node) -> int:
+	if not is_instance_valid(root):
+		return 0
+
+	var refreshed_count: int = 0
+	if root is BaseButton:
+		var button: BaseButton = root
+		_apply_button_visual_style(button)
+		var _focus_ring: ColorRect = _ensure_button_focus_ring(button)
+		refreshed_count += 1
+	elif root is Control:
+		var control: Control = root
+		control.set_meta(_STATIC_STYLE_META, false)
+		_apply_support_control_style(control)
+		refreshed_count += 1
+
+	for child: Node in root.get_children():
+		refreshed_count += _refresh_palette_tree(child)
+	return refreshed_count
+
+
 # --- 信号处理函数 ---
 
 func _on_button_mouse_entered(button: BaseButton) -> void:
 	if not is_instance_valid(button) or button.disabled:
 		return
 	button.set_meta(_HOVERED_META, true)
+	_update_button_focus_ring_visibility(button)
+	interactive_control_selected.emit(button)
 	_animate_button(button, _HOVER_SCALE, _HOVER_MODULATE, _HOVER_DURATION)
 
 
@@ -478,6 +702,7 @@ func _on_button_mouse_exited(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
 	button.set_meta(_HOVERED_META, false)
+	_update_button_focus_ring_visibility(button)
 	_restore_button(button)
 
 
@@ -485,6 +710,8 @@ func _on_button_focus_entered(button: BaseButton) -> void:
 	if not is_instance_valid(button) or button.disabled:
 		return
 	button.set_meta(_FOCUSED_META, true)
+	_update_button_focus_ring_visibility(button)
+	interactive_control_selected.emit(button)
 	_animate_button(button, _HOVER_SCALE, _FOCUS_MODULATE, _HOVER_DURATION)
 
 
@@ -492,19 +719,29 @@ func _on_button_focus_exited(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
 	button.set_meta(_FOCUSED_META, false)
+	_update_button_focus_ring_visibility(button)
 	_restore_button(button)
 
 
 func _on_button_down(button: BaseButton) -> void:
 	if not is_instance_valid(button) or button.disabled:
 		return
+	_set_button_focus_ring_visible(button, true)
+	interactive_control_confirmed.emit(button)
 	_animate_button(button, _PRESS_SCALE, _PRESS_MODULATE, _PRESS_DURATION)
 
 
 func _on_button_up(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
+	_update_button_focus_ring_visibility(button)
 	_restore_button(button)
+
+
+func _on_button_resized(button: BaseButton) -> void:
+	if not is_instance_valid(button):
+		return
+	_apply_button_focus_ring_style(button)
 
 
 func _on_button_tree_exited(button: BaseButton) -> void:

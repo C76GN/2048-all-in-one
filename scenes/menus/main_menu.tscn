@@ -1,34 +1,34 @@
 [gd_scene format=3 uid="uid://d3caufbu1axub"]
 
 [ext_resource type="Script" uid="uid://hybxd0keci4i" path="res://scripts/menus/main_menu.gd" id="1_l6cm7"]
-[ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://resources/shaders/game_background.gdshader" id="2_background_shader"]
+[ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://asset_library/shaders/background/halftone_paper_background.gdshader" id="2_background_shader"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_main_background"]
 shader = ExtResource("2_background_shader")
-shader_parameter/base_color = Color(0.03, 0.052, 0.07, 1)
-shader_parameter/accent_color = Color(0.185, 0.165, 0.33, 1)
-shader_parameter/secondary_color = Color(0.035, 0.3, 0.315, 1)
-shader_parameter/warm_color = Color(0.56, 0.39, 0.18, 1)
-shader_parameter/grid_strength = 0.0
-shader_parameter/glow_strength = 0.085
-shader_parameter/vignette_strength = 0.24
-shader_parameter/pulse_speed = 0.055
-shader_parameter/grain_strength = 0.014
-shader_parameter/stipple_strength = 0.004
-shader_parameter/flow_scale = 2.4
-shader_parameter/scanline_strength = 0.007
+shader_parameter/base_color = Color(0.95686275, 0.92941177, 0.8666667, 1)
+shader_parameter/accent_color = Color(0.61960787, 0.85882354, 0.8352941, 1)
+shader_parameter/secondary_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
+shader_parameter/warm_color = Color(0.9607843, 0.6392157, 0.7882353, 1)
+shader_parameter/grid_strength = 0.05
+shader_parameter/glow_strength = 0.0
+shader_parameter/vignette_strength = 0.045
+shader_parameter/pulse_speed = 0.0
+shader_parameter/grain_strength = 0.018
+shader_parameter/stipple_strength = 0.006
+shader_parameter/flow_scale = 1.35
+shader_parameter/scanline_strength = 0.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_menu_surface"]
-bg_color = Color(0.035, 0.05, 0.08, 0.44)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.92, 0.82, 0.6, 0.12)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
+bg_color = Color(1, 0.972549, 0.9098039, 0.94)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="MainMenu" type="Control" unique_id=1415483157]
 layout_mode = 3
@@ -51,7 +51,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.03, 0.052, 0.07, 1)
+color = Color(0.95686275, 0.92941177, 0.8666667, 1)
 
 [node name="MenuSurface" type="Panel" parent="." unique_id=1183524233]
 layout_mode = 1
@@ -87,9 +87,9 @@ alignment = 1
 
 [node name="Title" type="Label" parent="VBoxContainer" unique_id=82367243]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.97, 0.9, 0.76, 1)
-theme_override_colors/font_shadow_color = Color(0.02, 0.03, 0.05, 0.34)
-theme_override_constants/shadow_offset_x = 0
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_colors/font_shadow_color = Color(0.61960787, 0.85882354, 0.8352941, 0.58)
+theme_override_constants/shadow_offset_x = 2
 theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 72
 text = "2048"

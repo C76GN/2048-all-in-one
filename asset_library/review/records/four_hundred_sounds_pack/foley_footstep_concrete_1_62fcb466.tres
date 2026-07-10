@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_gqkbi"]
+
+[resource]
+script = ExtResource("1_gqkbi")
+asset_id = &"asset.review.four.hundred.sounds.pack.footsteps.foley.footstep.concrete.1.62fcb466"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Footsteps/foley_footstep_concrete_1"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "footsteps", "foley_footstep_concrete_1")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Footsteps/foley_footstep_concrete_1.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Footsteps/foley_footstep_concrete_1.wav"
+relative_path = "Footsteps/foley_footstep_concrete_1.wav"
+extension = "wav"
+file_size_bytes = 50732
+sha256 = "62fcb4661fcdaa607e9f02cde764475549ea82fc519b8671b2c2aa72afabc6c4"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

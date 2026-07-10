@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_3jv84"]
+
+[resource]
+script = ExtResource("1_3jv84")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.music.box.defeated.4479bcff"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/music_box_defeated"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "music_box_defeated")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/music_box_defeated.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/music_box_defeated.wav"
+relative_path = "Musical Effects/music_box_defeated.wav"
+extension = "wav"
+file_size_bytes = 617044
+sha256 = "4479bcff0d112d33147291e8d3d7b523258e6f0725fed31a339e603bfba4122e"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

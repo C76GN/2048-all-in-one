@@ -55,7 +55,7 @@ func _setup_item(item: Control, data: Resource) -> void:
 
 	var replay_item: ReplayListItem = item
 	var replay_data: ReplayData = data
-	replay_item.setup(replay_data)
+	replay_item.setup(replay_data, _get_mode_display_name(replay_data.mode_config_path))
 
 
 func _connect_item_signals(item: Control, _data: Resource) -> void:
@@ -75,19 +75,19 @@ func _update_preview(data: Resource) -> void:
 		return
 
 	var replay: ReplayData = data
-	var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(replay.mode_config_path)
+	var mode_config: GameModeConfig = _get_mode_config(replay.mode_config_path)
 	if not is_instance_valid(mode_config):
 		detail_info_label.text = tr("ERR_LOAD_CONFIG")
 		if is_instance_valid(board_preview_node):
 			board_preview_node.show_message(tr("ERR_LOAD_CONFIG"))
 		return
 
-	var datetime: String = Time.get_datetime_string_from_unix_time(replay.timestamp)
+	var datetime: String = _format_datetime(replay.timestamp)
 	var grid_size: int = replay.grid_size
 
 	var details: String = ""
 	details += "[b]%s[/b] %s\n" % [tr("LABEL_MODE"), tr(mode_config.mode_name)]
-	details += "[b]%s[/b] %s\n" % [tr("LABEL_TIME"), datetime.replace("T", " ")]
+	details += "[b]%s[/b] %s\n" % [tr("LABEL_TIME"), datetime]
 	details += "[b]%s[/b] %d\n" % [tr("LABEL_FINAL_SCORE"), replay.final_score]
 	details += "[b]%s[/b] %d\n" % [tr("LABEL_TOTAL_MOVES"), replay.actions.size()]
 	details += "[b]%s[/b] %dx%d\n" % [tr("LABEL_BOARD"), grid_size, grid_size]
@@ -157,6 +157,17 @@ func _get_replay_system() -> ReplaySystem:
 		var replay_system: ReplaySystem = system_value
 		return replay_system
 	return null
+
+
+func _get_mode_display_name(mode_config_path: String) -> String:
+	if mode_config_path.is_empty():
+		return tr("UNKNOWN_MODE")
+
+	var mode_config: GameModeConfig = _get_mode_config(mode_config_path)
+	if is_instance_valid(mode_config):
+		return tr(mode_config.mode_name)
+
+	return tr("CONFIG_MISSING")
 
 
 func _get_app_config_model() -> AppConfigModel:

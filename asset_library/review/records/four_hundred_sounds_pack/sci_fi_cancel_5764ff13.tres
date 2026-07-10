@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_v7n54"]
+
+[resource]
+script = ExtResource("1_v7n54")
+asset_id = &"asset.review.four.hundred.sounds.pack.ui.sci.fi.cancel.5764ff13"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "UI/sci_fi_cancel"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "sci_fi_cancel")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/sci_fi_cancel.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/UI/sci_fi_cancel.wav"
+relative_path = "UI/sci_fi_cancel.wav"
+extension = "wav"
+file_size_bytes = 275028
+sha256 = "5764ff136871b8e3397344e0e03394f2823bbf975a290b5713551f280362e559"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

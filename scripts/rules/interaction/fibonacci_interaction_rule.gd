@@ -9,6 +9,12 @@ class_name FibonacciInteractionRule
 extends InteractionRule
 
 
+# --- 常量 ---
+
+const _HUD_TEXT_COLOR: Color = Color(0.34901962, 0.2901961, 0.27058825, 1.0)
+const _HUD_MUTED_COLOR: Color = Color(0.4, 0.35686275, 0.32156864, 1.0)
+
+
 # --- 公共方法 ---
 
 ## 处理两个方块之间的合并交互。
@@ -70,11 +76,11 @@ func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
 		if num > max_display_value:
 			break
 
-	var fib_data_for_ui: Array[Dictionary] = [ {&"text": tr("LABEL_SYNTH_SEQ"), &"color": Color.WHITE}]
+	var fib_data_for_ui: Array[Dictionary] = [{&"text": tr("LABEL_SYNTH_SEQ"), &"color": _HUD_TEXT_COLOR}]
 	for num: int in display_sequence:
-		var item: Dictionary = {&"text": str(num), &"color": Color.GRAY}
+		var item: Dictionary = {&"text": str(num), &"color": _HUD_MUTED_COLOR}
 		if player_values_set.has(num):
-			item[&"color"] = Color.WHITE
+			item[&"color"] = _HUD_TEXT_COLOR
 		fib_data_for_ui.append(item)
 
 	stats[&"fibonacci_sequence_display"] = fib_data_for_ui

@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_fqm58"]
+
+[resource]
+script = ExtResource("1_fqm58")
+asset_id = &"asset.review.universal.ui.soundpack.ogg.modern7.aa81fa82"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "OGG/Modern7"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "ogg", "modern7")
+source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Modern7.ogg"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/OGG/Modern7.ogg"
+relative_path = "OGG/Modern7.ogg"
+extension = "ogg"
+file_size_bytes = 25275
+sha256 = "aa81fa826877cd9ba32ec7e51ca9824fb267dcda668cf4363e9411af55d6f252"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

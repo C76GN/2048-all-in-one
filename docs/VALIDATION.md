@@ -72,25 +72,43 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 ### 最近一次安全 GUT 验证
 
-验证时间：2026-06-19。
+验证时间：2026-07-09。
 
 命令：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 45 -MaxLogMB 4 -MaxDefaultLogGrowthKB 64
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 60 -MaxLogMB 4 -MaxDefaultLogGrowthKB 64
 ```
 
 结果：
 
 - Godot：当前环境中的 `godot` 命令。
 - GUT：命令完成并由安全脚本推断为成功。
-- 当前静态计数：`tests/gut/` 下 14 个脚本、93 个 `test_` 用例。
-- 临时 `godot.log` 大小：约 `0.006 MB`。
+- 当前静态计数：`tests/gut/` 下 17 个脚本、122 个 `test_` 用例。
+- 临时 `godot.log` 大小：约 `0.007 MB`。
 - 未触发默认 Godot 用户日志增长保护。
-- 当前输出无 GUT `Orphans` 提示。
+- 当前 GUT 输出无 `Orphans` 提示。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
+
+## GDScript LSP 诊断
+
+普通 headless editor 和 GUT 日志不一定能稳定输出编辑器面板里的所有 GDScript warning。项目提供了独立的 LSP 诊断入口，参考自 GF 维护工具：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1
+```
+
+默认扫描 `scripts`、`tests/gut` 和 `tools`，默认排除 `addons/gut`。报告会写入 `build/gdscript_lsp_diagnostics.json`。该命令会启动临时 Godot LSP，读取 `textDocument/publishDiagnostics`，并在存在 error 或 warning 时返回非零退出码。
+
+只想查看报告而不中断流程时使用：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
+```
+
+最近一次 LSP 诊断时间：2026-07-09。结果：扫描 123 个 `.gd` 文件，`diagnostic_count = 0`。
 
 ### 脚本静态检查
 
@@ -104,6 +122,6 @@ $null = [scriptblock]::Create($script)
 ## 当前验证缺口
 
 - `tools/run_gut_safe.ps1` 已通过一次隔离 GUT 验证；后续仍建议用当前编辑器一致的 Godot `4.7` 可执行文件复测。
-- Godot 编辑器中的 GDScript warning 数量需要在安全运行方案恢复后重新确认。
+- Godot 编辑器中的 GDScript warning 已通过 `tools/check_gdscript_lsp_diagnostics.ps1` 建立零诊断基线；后续修改 `.gd` 后应复跑。
 - 视觉和响应式布局仍需要 Playwright/截图或 Godot 运行级验证，目前只能依靠资源和脚本静态检查。
 - GF 包管理器的独立 lockfile 校验入口已并入原生 CLI `status --json` 的 `lockfile_verify` 字段；若后续 CLI 再次变化，需要先更新本文档再更新自动化命令。

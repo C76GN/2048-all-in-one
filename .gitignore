@@ -9,10 +9,7 @@ export_credentials.cfg
 *.tmp
 *.depren
 
-# Imported translations (automatically generated from CSV files)
-*.translation
-!assets/translations.en.translation
-!assets/translations.zh.translation
+
 
 # Mono-specific ignores
 .mono/

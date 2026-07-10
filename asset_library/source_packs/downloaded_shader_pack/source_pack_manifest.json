@@ -1,0 +1,31 @@
+{
+	"author": "unknown",
+	"display_name": "Downloaded Shader Pack",
+	"imported_at": "2026-07-09 03:22:27",
+	"license": "unknown",
+	"license_status": "unknown",
+	"original_source_path": "E:/_inbox/Downloads/shader",
+	"report": {
+		"byte_count": 5395,
+		"copied_count": 0,
+		"display_name": "Downloaded Shader Pack",
+		"error_count": 0,
+		"file_count": 2,
+		"kind_counts": {
+			"shader": 2
+		},
+		"license_counts": {
+			"unknown": 2
+		},
+		"non_review_file_count": 0,
+		"review_record_count": 2,
+		"source_pack_id": "downloaded_shader_pack",
+		"status_counts": {
+			"inbox": 2
+		},
+		"unchanged_count": 2
+	},
+	"schema_version": 1,
+	"source_pack_id": "downloaded_shader_pack",
+	"source_url": ""
+}

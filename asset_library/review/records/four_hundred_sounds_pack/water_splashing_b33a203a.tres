@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_670se"]
+
+[resource]
+script = ExtResource("1_670se")
+asset_id = &"asset.review.four.hundred.sounds.pack.environment.water.splashing.b33a203a"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Environment/water_splashing"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "environment", "water_splashing")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Environment/water_splashing.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Environment/water_splashing.wav"
+relative_path = "Environment/water_splashing.wav"
+extension = "wav"
+file_size_bytes = 202796
+sha256 = "b33a203a83bd3ae587a15d6e89744b94c8f6a1373449f699b76404d976ac7d40"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

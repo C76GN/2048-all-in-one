@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_y3o0t"]
+
+[resource]
+script = ExtResource("1_y3o0t")
+asset_id = &"asset.review.four.hundred.sounds.pack.environment.fire.lighting.254ea560"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Environment/fire_lighting"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "environment", "fire_lighting")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Environment/fire_lighting.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Environment/fire_lighting.wav"
+relative_path = "Environment/fire_lighting.wav"
+extension = "wav"
+file_size_bytes = 114732
+sha256 = "254ea560ab3602e61233c89db9cad89411f1854e8a2a78f0d6254c508bbb9112"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

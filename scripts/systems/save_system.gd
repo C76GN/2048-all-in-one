@@ -1,6 +1,6 @@
 ## SaveSystem: 负责处理游戏最高分与轻量统计数据持久化的系统。
 ##
-## 最高分和统计使用 GFStorageUtility 的字典存储管线，设置交给 GFSettingsUtility 管理。
+## 最高分和统计使用 GF save slot 工作流，设置交给 GFSettingsUtility 管理。
 class_name SaveSystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
@@ -8,7 +8,6 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 # --- 常量 ---
 
 const _LOG_TAG: String = "SaveSystem"
-const SAVE_FILE_NAME: String = "game_save.sav"
 const _KEY_SCORES: String = "scores"
 const _KEY_STATS: String = "stats"
 const _STAT_PLAYS: String = "plays"
@@ -36,6 +35,8 @@ var _storage: GFStorageUtility
 var _save_data: Dictionary = {}
 var _is_game_data_loaded: bool = false
 var _log: GFLogUtility
+var _clock: GameClockUtility
+var _save_slot_workflow: GameSaveSlotWorkflowUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -43,6 +44,8 @@ var _log: GFLogUtility
 func ready() -> void:
 	_storage = _get_storage_utility()
 	_log = _get_log_utility()
+	_clock = _get_clock_utility()
+	_save_slot_workflow = _get_save_slot_workflow_utility()
 	_load_game_data()
 
 
@@ -51,6 +54,8 @@ func dispose() -> void:
 	_save_data.clear()
 	_is_game_data_loaded = false
 	_log = null
+	_clock = null
+	_save_slot_workflow = null
 
 
 # --- 公共方法 ---
@@ -130,7 +135,7 @@ func record_game_result(
 	var normalized_steps: int = max(steps, 0)
 	var normalized_max_tile: int = max(max_tile, 0)
 	var normalized_target_value: int = max(target_value, 0)
-	var resolved_played_at: int = played_at if played_at > 0 else int(Time.get_unix_time_from_system())
+	var resolved_played_at: int = played_at if played_at > 0 else _get_unix_timestamp()
 	var legacy_high_score: int = _get_high_score_from_scores(mode_id, grid_size_str)
 	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(mode_id, grid_size_str), legacy_high_score)
 
@@ -169,47 +174,21 @@ func record_game_result(
 	_save_game_data()
 
 
-## 设置并保存语言环境。
-## @param locale: Godot locale 代码。
-func set_language(locale: String) -> void:
-	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if is_instance_valid(display_settings):
-		display_settings.set_locale(locale)
-	else:
-		TranslationServer.set_locale(locale)
-
-	if is_instance_valid(_log):
-		_log.info(_LOG_TAG, "已应用语言设置: %s" % locale)
-
-
-## 获取当前保存的语言设置。
-func get_language() -> String:
-	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if is_instance_valid(display_settings):
-		return display_settings.get_locale()
-
-	var settings: GFSettingsUtility = _get_settings_utility()
-	if is_instance_valid(settings):
-		return _variant_to_string(settings.get_value(GFDisplaySettingsUtility.LOCALE_KEY, "zh"), "zh")
-
-	return "zh"
-
-
 # --- 私有方法 ---
 
 func _save_game_data() -> void:
-	if not is_instance_valid(_storage):
+	if not is_instance_valid(_storage) or not is_instance_valid(_save_slot_workflow):
 		return
 
-	var error: int = _storage.save_data(SAVE_FILE_NAME, _save_data)
+	var error: int = _save_slot_workflow.save_stats_payload(_storage, _save_data)
 	if error != OK and is_instance_valid(_log):
 		_log.error(_LOG_TAG, "保存最高分失败，错误码: %d" % error)
 
 
 func _load_game_data() -> void:
 	_save_data = {}
-	if is_instance_valid(_storage):
-		_save_data = _storage.load_data(SAVE_FILE_NAME)
+	if is_instance_valid(_storage) and is_instance_valid(_save_slot_workflow):
+		_save_data = _save_slot_workflow.load_stats_payload(_storage)
 
 	var _erase_result: bool = _save_data.erase(GFStorageCodec.META_KEY)
 	_ensure_game_data_defaults()
@@ -414,7 +393,7 @@ static func _rounded_average(total_value: int, sample_count: int) -> int:
 	if sample_count <= 0:
 		return 0
 	var normalized_total: int = maxi(total_value, 0)
-	return int(round(float(normalized_total) / float(sample_count)))
+	return roundi(float(normalized_total) / float(sample_count))
 
 
 static func _variant_to_bool(value: Variant, default_value: bool) -> bool:
@@ -446,20 +425,32 @@ func _get_log_utility() -> GFLogUtility:
 	return null
 
 
-func _get_display_settings_utility() -> GFDisplaySettingsUtility:
-	var utility_value: Object = get_utility(GFDisplaySettingsUtility)
-	if utility_value is GFDisplaySettingsUtility:
-		var display_settings: GFDisplaySettingsUtility = utility_value
-		return display_settings
+func _get_clock_utility() -> GameClockUtility:
+	var utility_value: Object = get_utility(GameClockUtility)
+	if utility_value is GameClockUtility:
+		var clock: GameClockUtility = utility_value
+		return clock
 	return null
 
 
-func _get_settings_utility() -> GFSettingsUtility:
-	var utility_value: Object = get_utility(GFSettingsUtility)
-	if utility_value is GFSettingsUtility:
-		var settings: GFSettingsUtility = utility_value
-		return settings
+func _get_save_slot_workflow_utility() -> GameSaveSlotWorkflowUtility:
+	var utility_value: Object = get_utility(GameSaveSlotWorkflowUtility)
+	if utility_value is GameSaveSlotWorkflowUtility:
+		var save_slot_workflow: GameSaveSlotWorkflowUtility = utility_value
+		return save_slot_workflow
 	return null
+
+
+func _get_unix_timestamp() -> int:
+	if is_instance_valid(_clock):
+		return _clock.get_unix_timestamp()
+
+	_clock = _get_clock_utility()
+	if is_instance_valid(_clock):
+		return _clock.get_unix_timestamp()
+
+	push_error("[SaveSystem] 缺少 GameClockUtility，无法记录游戏结果时间戳。")
+	return 0
 
 
 static func _variant_to_int(value: Variant, default_value: int) -> int:
@@ -468,16 +459,4 @@ static func _variant_to_int(value: Variant, default_value: int) -> int:
 	if value is float:
 		var float_value: float = value
 		return int(float_value)
-	return default_value
-
-
-static func _variant_to_string(value: Variant, default_value: String) -> String:
-	if value is String:
-		return value
-	if value is StringName:
-		var string_name_value: StringName = value
-		return String(string_name_value)
-	if value is NodePath:
-		var node_path_value: NodePath = value
-		return String(node_path_value)
 	return default_value

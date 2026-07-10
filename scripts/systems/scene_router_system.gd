@@ -9,6 +9,14 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 # --- 常量 ---
 
 const _LOG_TAG: String = "SceneRouterSystem"
+const _TRANSITION_SHADER: Shader = preload("res://asset_library/shaders/transition/halftone_wipe_transition.gdshader")
+const _TRANSITION_LAYER_NAME: String = "SceneTransitionOverlay"
+const _TRANSITION_RECT_NAME: String = "SceneTransitionRect"
+const _TRANSITION_LAYER_INDEX: int = 1024
+const _TRANSITION_MINIMUM_SECONDS: float = 0.30
+const _TRANSITION_COVER_DURATION: float = 0.24
+const _TRANSITION_HOLD_DURATION: float = 0.04
+const _TRANSITION_REVEAL_DURATION: float = 0.26
 
 
 # --- 私有变量 ---
@@ -21,6 +29,10 @@ var _signal_utility: GFSignalUtility
 var _scene_switch_started_connection: GFSignalConnection
 var _scene_load_completed_connection: GFSignalConnection
 var _scene_load_failed_connection: GFSignalConnection
+var _transition_layer: CanvasLayer
+var _transition_rect: ColorRect
+var _transition_tween: Tween
+var _transition_factor: float = 0.0
 
 
 # --- Godot 生命周期方法 ---
@@ -46,6 +58,7 @@ func dispose() -> void:
 	_scene_switch_started_connection = null
 	_scene_load_completed_connection = null
 	_scene_load_failed_connection = null
+	_cleanup_transition_overlay()
 
 
 # --- 公共方法 ---
@@ -90,24 +103,13 @@ func goto_scene(path: String) -> void:
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 		return
 
-	if not ResourceLoader.exists(path, "PackedScene"):
-		if is_instance_valid(_log):
-			_log.error(_LOG_TAG, "场景资源不存在或不是 PackedScene: %s" % path)
-		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
-		return
-
 	if is_instance_valid(_scene_utility):
-		_scene_utility.load_scene_async(path)
+		_scene_utility.load_scene_async(path, "", {}, _TRANSITION_MINIMUM_SECONDS)
 		return
 
-	var next_scene_packed: PackedScene = _load_packed_scene(path)
-	if next_scene_packed == null:
-		if is_instance_valid(_log):
-			_log.error(_LOG_TAG, "无法加载场景资源: %s" % path)
-		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
-		return
-
-	goto_scene_packed(next_scene_packed)
+	if is_instance_valid(_log):
+		_log.error(_LOG_TAG, "GFSceneUtility 未注册，无法执行场景切换: %s" % path)
+	send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 
 
 ## 快速返回到主菜单。
@@ -158,14 +160,6 @@ func _get_scene_tree() -> SceneTree:
 	return null
 
 
-func _load_packed_scene(path: String) -> PackedScene:
-	var resource: Resource = ResourceLoader.load(path)
-	if resource is PackedScene:
-		var packed_scene: PackedScene = resource
-		return packed_scene
-	return null
-
-
 func _connect_scene_utility_signals() -> void:
 	if not is_instance_valid(_scene_utility):
 		return
@@ -208,6 +202,140 @@ func _get_scene_resource_path(scene: PackedScene) -> String:
 	return scene.resource_path if scene != null else ""
 
 
+func _play_scene_transition_cover() -> void:
+	var rect: ColorRect = _ensure_transition_overlay()
+	if not is_instance_valid(rect):
+		return
+
+	rect.visible = true
+	_sync_transition_resolution()
+	_set_transition_factor(0.0)
+	_kill_transition_tween()
+	_transition_tween = rect.create_tween()
+	var _transition_result: Tween = _transition_tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = _transition_tween.set_ease(Tween.EASE_OUT)
+	var _factor_tweener: MethodTweener = _transition_tween.tween_method(
+		_set_transition_factor,
+		_transition_factor,
+		1.0,
+		_TRANSITION_COVER_DURATION
+	)
+
+
+func _play_scene_transition_reveal() -> void:
+	var rect: ColorRect = _ensure_transition_overlay()
+	if not is_instance_valid(rect):
+		return
+
+	rect.visible = true
+	_sync_transition_resolution()
+	_set_transition_factor(1.0)
+	_kill_transition_tween()
+	_transition_tween = rect.create_tween()
+	var _transition_result: Tween = _transition_tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = _transition_tween.set_ease(Tween.EASE_IN_OUT)
+	var _hold_tweener: IntervalTweener = _transition_tween.tween_interval(_TRANSITION_HOLD_DURATION)
+	var _factor_tweener: MethodTweener = _transition_tween.tween_method(
+		_set_transition_factor,
+		_transition_factor,
+		0.0,
+		_TRANSITION_REVEAL_DURATION
+	)
+	var _callback_tweener: CallbackTweener = _transition_tween.tween_callback(_hide_transition_overlay)
+
+
+func _ensure_transition_overlay() -> ColorRect:
+	if is_instance_valid(_transition_rect):
+		return _transition_rect
+
+	var tree: SceneTree = _get_scene_tree()
+	if not is_instance_valid(tree) or not is_instance_valid(tree.root):
+		return null
+
+	var root: Window = tree.root
+	var existing_layer: Node = root.get_node_or_null(_TRANSITION_LAYER_NAME)
+	if existing_layer is CanvasLayer:
+		_transition_layer = existing_layer
+	else:
+		_transition_layer = CanvasLayer.new()
+		_transition_layer.name = _TRANSITION_LAYER_NAME
+		_transition_layer.layer = _TRANSITION_LAYER_INDEX
+		_transition_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+		root.add_child(_transition_layer)
+
+	var existing_rect: Node = _transition_layer.get_node_or_null(_TRANSITION_RECT_NAME)
+	if existing_rect is ColorRect:
+		_transition_rect = existing_rect
+	else:
+		_transition_rect = ColorRect.new()
+		_transition_rect.name = _TRANSITION_RECT_NAME
+		_transition_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_transition_rect.process_mode = Node.PROCESS_MODE_ALWAYS
+		_transition_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_transition_rect.offset_left = 0.0
+		_transition_rect.offset_top = 0.0
+		_transition_rect.offset_right = 0.0
+		_transition_rect.offset_bottom = 0.0
+		_transition_rect.color = Color.WHITE
+		_transition_layer.add_child(_transition_rect)
+
+	if not (_transition_rect.material is ShaderMaterial):
+		var shader_material: ShaderMaterial = ShaderMaterial.new()
+		shader_material.shader = _TRANSITION_SHADER
+		_transition_rect.material = shader_material
+
+	_set_transition_factor(_transition_factor)
+	_hide_transition_overlay()
+	return _transition_rect
+
+
+func _sync_transition_resolution() -> void:
+	if not is_instance_valid(_transition_rect):
+		return
+
+	var viewport_rect: Rect2 = _transition_rect.get_viewport_rect()
+	var shader_material: ShaderMaterial = _get_transition_material()
+	if is_instance_valid(shader_material):
+		shader_material.set_shader_parameter("node_resolution", viewport_rect.size)
+
+
+func _set_transition_factor(value: float) -> void:
+	_transition_factor = clampf(value, 0.0, 1.0)
+	var shader_material: ShaderMaterial = _get_transition_material()
+	if is_instance_valid(shader_material):
+		shader_material.set_shader_parameter("factor", _transition_factor)
+
+
+func _get_transition_material() -> ShaderMaterial:
+	if not is_instance_valid(_transition_rect):
+		return null
+	var material_value: Material = _transition_rect.material
+	if material_value is ShaderMaterial:
+		var shader_material: ShaderMaterial = material_value
+		return shader_material
+	return null
+
+
+func _hide_transition_overlay() -> void:
+	if is_instance_valid(_transition_rect) and _transition_factor <= 0.001:
+		_transition_rect.visible = false
+
+
+func _kill_transition_tween() -> void:
+	if is_instance_valid(_transition_tween):
+		_transition_tween.kill()
+	_transition_tween = null
+
+
+func _cleanup_transition_overlay() -> void:
+	_kill_transition_tween()
+	if is_instance_valid(_transition_layer):
+		_transition_layer.queue_free()
+	_transition_layer = null
+	_transition_rect = null
+	_transition_factor = 0.0
+
+
 # --- 信号处理函数 ---
 
 func _on_scene_change_requested(scene: PackedScene) -> void:
@@ -219,15 +347,18 @@ func _on_return_to_main_menu_requested(_payload: Variant = null) -> void:
 
 
 func _on_scene_switch_started(_path: String, _previous_path: String) -> void:
+	_play_scene_transition_cover()
 	send_simple_event(EventNames.SCENE_WILL_CHANGE)
 
 
 func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
 	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "已完成异步场景加载: %s" % path)
+	_play_scene_transition_reveal()
 
 
 func _on_scene_load_failed(path: String) -> void:
 	if is_instance_valid(_log):
 		_log.error(_LOG_TAG, "异步场景加载失败: %s" % path)
+	_play_scene_transition_reveal()
 	send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)

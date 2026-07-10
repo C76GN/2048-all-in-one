@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_jt7cq"]
+
+[resource]
+script = ExtResource("1_jt7cq")
+asset_id = &"asset.review.four.hundred.sounds.pack.ui.select.4.308a234c"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "UI/select_4"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "select_4", "select")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/select_4.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/UI/select_4.wav"
+relative_path = "UI/select_4.wav"
+extension = "wav"
+file_size_bytes = 31172
+sha256 = "308a234c936f218a021a4370d32f3d55ffb0870980e812629227ff6e37463021"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.ui.select")
+imported_at = "2026-07-09 03:08:11"

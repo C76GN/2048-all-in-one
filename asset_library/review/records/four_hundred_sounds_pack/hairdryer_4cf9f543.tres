@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_6a464"]
+
+[resource]
+script = ExtResource("1_6a464")
+asset_id = &"asset.review.four.hundred.sounds.pack.machines.hairdryer.4cf9f543"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Machines/hairdryer"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "machines", "hairdryer")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Machines/hairdryer.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Machines/hairdryer.wav"
+relative_path = "Machines/hairdryer.wav"
+extension = "wav"
+file_size_bytes = 384044
+sha256 = "4cf9f543d91aa79170259ce5ab14252f53648942e118a187432a412524269324"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

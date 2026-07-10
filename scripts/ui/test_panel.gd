@@ -34,15 +34,16 @@ func _ready() -> void:
 ##
 ## @param types: 一个字典 {id: "name", ...} 用于填充类型下拉菜单。
 func setup_panel(types: Dictionary) -> void:
-	_type_option_button.clear()
-
 	var type_ids: Array = types.keys()
 	type_ids.sort()
+	var items: Array[Dictionary] = []
 
 	for type_id_value: Variant in type_ids:
 		var type_id: int = _variant_to_int(type_id_value, 0)
 		var type_name: String = GFVariantData.to_text(types[type_id_value], "")
-		_type_option_button.add_item(type_name, type_id)
+		items.append(_make_option_item(type_name, type_id, type_id))
+
+	_write_option_items(_type_option_button, items)
 
 	# 初始时，自动为第一个类型请求数值列表。
 	if not type_ids.is_empty():
@@ -53,9 +54,10 @@ func setup_panel(types: Dictionary) -> void:
 ##
 ## @param values: 一个包含所有可选数值(int)的数组。
 func update_value_options(values: Array[int]) -> void:
-	_value_option_button.clear()
+	var items: Array[Dictionary] = []
 	for v: int in values:
-		_value_option_button.add_item(str(v))
+		items.append(_make_option_item(str(v), v, v))
+	_write_option_items(_value_option_button, items)
 
 
 ## 更新生成方块坐标选择器的上限值。
@@ -82,6 +84,22 @@ static func _variant_to_int(value: Variant, default_value: int) -> int:
 	return default_value
 
 
+func _write_option_items(option: OptionButton, items: Array[Dictionary]) -> void:
+	var _written_count: int = GFItemListBinder.write_items(option, items, {
+		"text_key": &"text",
+		"id_key": &"id",
+		"metadata_key": &"metadata",
+	})
+
+
+static func _make_option_item(text: String, metadata: Variant, item_id: int) -> Dictionary:
+	return {
+		"text": text,
+		"metadata": metadata,
+		"id": item_id,
+	}
+
+
 # --- 信号处理函数 ---
 
 ## 响应“生成方块”按钮的点击事件。
@@ -94,9 +112,14 @@ func _on_spawn_button_pressed() -> void:
 		return
 
 	var pos: Vector2i = Vector2i(int(_pos_x_spinbox.value), int(_pos_y_spinbox.value))
-	var value_text: String = _value_option_button.get_item_text(_value_option_button.selected)
-	var value: int = value_text.to_int()
-	var type_id: int = _type_option_button.get_item_id(_type_option_button.selected)
+	var value: int = _variant_to_int(
+		GFItemListBinder.get_item_metadata(_value_option_button, _value_option_button.selected, 0),
+		0
+	)
+	var type_id: int = _variant_to_int(
+		GFItemListBinder.get_item_metadata(_type_option_button, _type_option_button.selected, 0),
+		0
+	)
 
 	send_event(TestSpawnPayload.new(pos, value, type_id))
 
@@ -119,5 +142,5 @@ func _on_type_selected(index: int) -> void:
 	if index < 0 or index >= _type_option_button.item_count:
 		return
 
-	var type_id: int = _type_option_button.get_item_id(index)
+	var type_id: int = _variant_to_int(GFItemListBinder.get_item_metadata(_type_option_button, index, 0), 0)
 	send_simple_event(EventNames.TEST_VALUES_REQUESTED, type_id)

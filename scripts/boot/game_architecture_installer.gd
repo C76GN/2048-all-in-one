@@ -7,12 +7,18 @@ extends "res://addons/gf/kernel/core/gf_installer.gd"
 
 const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
 const _COMMAND_HISTORY_LIMIT: int = 1024
-const _AUDIO_BUS_MASTER: String = "Master"
+const _PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/project_resource_catalog_utility.gd")
+const _GAME_CLOCK_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_clock_utility.gd")
+const _GAME_SAVE_SLOT_WORKFLOW_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_save_slot_workflow_utility.gd")
 const _GAME_MODE_CONFIG_CACHE_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_mode_config_cache_utility.gd")
 const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/saved_resource_collection_utility.gd")
 const _GAME_UI_ROUTER_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_ui_router_utility.gd")
 const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_ui_motion_utility.gd")
 const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_board_feedback_utility.gd")
+const _GAME_ASSET_LIBRARY_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_asset_library_utility.gd")
+const _GAME_CELEBRATION_VFX_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_celebration_vfx_utility.gd")
+const _GAME_THEME_CATALOG_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_catalog_utility.gd")
+const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_utility.gd")
 
 
 # --- 公共方法 ---
@@ -49,8 +55,13 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFStorageUtility).from_instance(_create_storage_utility()).as_singleton()
 	await binder.bind_utility(GameSettingsUtility).from_instance(_create_settings_utility()).with_alias(GFSettingsUtility).as_singleton()
 	await binder.bind_utility(GFDisplaySettingsUtility).as_singleton()
+	await binder.bind_utility(GFAudioUtility).as_singleton()
 	await binder.bind_utility(GFSeedUtility).as_singleton()
 	await binder.bind_utility(GFAssetUtility).as_singleton()
+	await binder.bind_utility(GFResourceResolverUtility).as_singleton()
+	await binder.bind_utility(_PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_GAME_CLOCK_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_GAME_SAVE_SLOT_WORKFLOW_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_MODE_CONFIG_CACHE_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFCommandHistoryUtility).from_instance(_create_history_utility()).as_singleton()
@@ -61,6 +72,10 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(_GAME_UI_ROUTER_UTILITY_SCRIPT).with_alias(GFUIRouterUtility).as_singleton()
 	await binder.bind_utility(_GAME_UI_MOTION_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_GAME_ASSET_LIBRARY_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_GAME_CELEBRATION_VFX_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_GAME_THEME_CATALOG_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_GAME_THEME_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFSignalUtility).as_singleton()
 	await binder.bind_utility(GFInputMappingUtility).as_singleton()
 	await binder.bind_utility(GFObjectPoolUtility).from_instance(_create_object_pool_utility()).as_singleton()
@@ -100,16 +115,7 @@ func _create_storage_utility() -> GFStorageUtility:
 
 func _create_settings_utility() -> GameSettingsUtility:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
-	var _locale_setting: GFSettingDefinition = settings.register_setting(
-		GFDisplaySettingsUtility.LOCALE_KEY,
-		"zh",
-		GFSettingDefinition.ValueType.STRING
-	)
-	var _master_volume_setting: GFSettingDefinition = settings.register_setting(
-		StringName("audio/%s/volume" % _AUDIO_BUS_MASTER),
-		1.0,
-		GFSettingDefinition.ValueType.FLOAT
-	)
+	settings.register_project_defaults()
 	return settings
 
 

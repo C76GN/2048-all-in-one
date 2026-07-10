@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_vrcwl"]
+
+[resource]
+script = ExtResource("1_vrcwl")
+asset_id = &"asset.review.universal.ui.soundpack.wav.coffee2.77d5f92e"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "WAV/Coffee2"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "wav", "coffee2")
+source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/Coffee2.wav"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/WAV/Coffee2.wav"
+relative_path = "WAV/Coffee2.wav"
+extension = "wav"
+file_size_bytes = 228362
+sha256 = "77d5f92e41bad075b1acc4d99678f8f42303674ce2ce4dda1b4a67dca1b93afa"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

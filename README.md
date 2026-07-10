@@ -19,12 +19,12 @@
 - `scripts/controllers/` 放置使用 `GFController` 基类能力的场景控制器，例如 `GamePlayController` 和 `GameBoardController`。当前脚本用显式 `res://addons/gf/...` 继承路径，避免框架升级后 Godot class cache 未刷新时解析失败。
 - `scripts/models/` 保存可绑定运行时状态，例如棋盘、当前模式、分数和最高方块。
 - `scripts/systems/` 承担业务流程：初始化、输入、移动、生成、最高分、回放、场景路由和游戏状态。
-- `scripts/utilities/` 放置项目级 Utility，例如模式配置缓存、项目设置和时间戳 Resource 集合持久化。
+- `scripts/utilities/` 放置项目级 Utility，例如资源目录 Adapter、GF save slot 工作流、主题目录、项目设置和时间戳 Resource 集合持久化。
 - `scripts/rules/` 是规则资源的实现层。移动、交互、生成、结束判定互相解耦，模式配置通过 `resources/modes/*.tres` 组合它们。
 - `scripts/data/` 保存 Resource、Payload 和纯数据对象；`scripts/foundation/` 保存不接入 gf 生命周期的纯静态算法。
 - `resources/input/gameplay_input_context.tres` 使用 `GFInputContext` / `GFInputMapping` 描述玩法输入，运行时由 `GFInputMappingUtility` 消费。
-- `resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式目录，菜单和初始化流程通过 `GameModeConfigCacheUtility` 读取注册表。
-- `resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 UI 路由目录，`resources/ui_routes/*.tres` 用 `GFUIRoute` 描述弹层面板。
+- `resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式目录，菜单和初始化流程通过 `ProjectResourceCatalogUtility` / `GameModeConfigCacheUtility` 读取注册表。
+- `resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 UI 路由目录，`resources/ui_routes/*.tres` 用 `GFUIRoute` 描述弹层面板，并通过 `ProjectResourceCatalogUtility` 注册到资源解析器。
 - `assets/translations.csv` 提供中文和英文 UI 文案。
 
 ## gf 使用方式
@@ -35,6 +35,9 @@
 
 - `gf.domain`
 - `gf.action_queue`
+- `gf.content_package`
+- `gf.feedback`
+- `gf.save`
 
 当前项目直接依赖的 GF 能力：
 
@@ -49,15 +52,16 @@ GF 7 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 用项目级 installer 管理注册顺序。
 - 用 `GFCommandHistoryUtility.execute_command()`、`undo_last_async()` 和 `redo_async()` 管理移动命令、撤销与重做。
 - 用 `GFInputMappingUtility` 管理资源化输入上下文。
-- 用 `GFSceneUtility` 做异步场景切换，`SceneRouterSystem` 负责业务事件和路由意图。
+- 用 `GFSceneUtility` 做异步场景切换，`SceneRouterSystem` 负责业务事件、路由意图和半调纸媒转场遮罩。
 - 用项目级 `GameUiRouterUtility` 从 `ui_route_registry.tres` 加载 `GFUIRoute` 路由表，暂停、游戏结束和设置面板通过稳定 route_id 打开。
-- 用项目级 `GameSettingsUtility` 承接 `GFSettingsUtility` / `GFDisplaySettingsUtility`，语言设置通过 `GFFormBinder` 绑定到设置页控件。
-- 用 `GFStorageUtility` 的字典管线保存最高分和通用设置，并启用版本元信息与完整性校验；书签和回放通过项目级 `SavedResourceCollectionUtility` 复用同一套 Resource 集合持久化流程。
+- 用项目级 `GameSettingsUtility` 承接 `GFSettingsUtility` / `GFDisplaySettingsUtility`，语言、显示、音量、视觉主题和音效主题通过 `GFFormBinder` 绑定到设置页控件，选项列表用 `GFItemListBinder` 写入。
+- 用项目级 `GameSaveSlotWorkflowUtility` 承接 `GFSaveSlotWorkflow` / `GFSaveSlotMetadata` / `GFSaveSlotCard`，把最高分和轻量统计保存到稳定 GF save slot；书签和回放通过项目级 `SavedResourceCollectionUtility` 复用同一套 Resource 集合持久化流程。
 - 用 `GFLevelUtility` 把当前一局登记为运行时 session，集中清理命令历史与动作队列等对局残留；项目不把 2048 强行建模为关卡进度。
-- 用 `GFResourceRegistry` 描述模式资源目录和 UI 路由目录，并通过 `GFAssetUtility` 复用缓存与分组路径登记。
-- 用 `GFObjectPoolUtility` 的池化 Hook 清理 Tile 和列表项复用状态。
+- 用 `ProjectResourceCatalogUtility` 把 `GFResourceRegistry`、`GFResourceResolverUtility` 和 `GFAssetUtility` 组合成统一资源目录 Adapter，模式目录和 UI 路由目录不重复实现注册、解析和缓存细节。
+- 用 `GameThemeCatalogUtility` 承接 `gf.content_package` 的 `GFContentPackageUtility`，注册内置主题内容包，并通过 `GFResourceResolverUtility` 用稳定资源键加载主题注册表。
+- 用 `GFObjectPoolUtility` 的池化 Hook 清理 Tile 复用状态，并用 `GFRepeaterBinder` 重建书签/回放列表项。
 - 用项目级 `GameUiMotionUtility` 统一菜单、按钮、HUD 和列表刷新动效，避免各 UI 节点重复编写 Tween。
-- 用项目级 `GameBoardFeedbackUtility` 统一棋盘合并、生成和转化反馈特效，表现触发点跟随 `GFActionQueueSystem` 中的视觉 Action。
+- 用项目级 `GameBoardFeedbackUtility` 统一棋盘合并、生成和转化反馈特效，表现触发点跟随 `GFActionQueueSystem` 中的视觉 Action，并通过 `GFShakeUtility` 播放语义化 board channel 反馈。
 - 用 `GFController.get_host_as()` 访问 Controller 宿主节点，避免依赖 Godot `owner` 语义。
 - 用 `GFValidationReport` 汇总模式配置校验结果，再由项目层决定如何输出错误。
 - 用 `RuleContext` 给规则注入上下文并收集输出，避免规则资源直接触达全局 `Gf`。
@@ -67,7 +71,7 @@ GF 7 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 
 - 长期推进计划见 `docs/ROADMAP.md`。
 - 验证策略见 `docs/VALIDATION.md`，GF 7 包状态验证使用 Godot headless 原生包管理 CLI。
-- 视觉方向见 `docs/VISUAL_STYLE.md`；背景、方块、菜单、HUD 和动效应保持柔和肌理扁平独立游戏质感。
+- 视觉方向见 `docs/VISUAL_STYLE.md`；背景、方块、菜单、HUD、转场和动效应保持 CMYK 半调纸媒游戏质感。
 - 历史上默认 Godot/GUT 运行曾写出巨大用户目录日志；需要运行 GUT 时，使用 `tools/run_gut_safe.ps1` 这样的隔离脚本，不要直接运行裸 Godot/GUT 命令。
 
 ## 新增模式的推荐流程

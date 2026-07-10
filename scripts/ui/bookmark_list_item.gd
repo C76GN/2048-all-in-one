@@ -18,6 +18,11 @@ signal bookmark_selected(bookmark_data: BookmarkData)
 const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
 
 
+# --- 私有变量 ---
+
+var _mode_display_name: String = ""
+
+
 # --- @onready 变量 (节点引用) ---
 
 @onready var _mode_name_label: Label = %ModeNameLabel
@@ -28,7 +33,9 @@ const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
 
 ## 使用 BookmarkData 资源来配置此列表项。
 ## @param bookmark_data: 用于填充UI的书签数据资源。
-func setup(bookmark_data: BookmarkData) -> void:
+## @param mode_display_name: 已由父菜单通过 GF 架构解析出的模式名称。
+func setup(bookmark_data: BookmarkData, mode_display_name: String) -> void:
+	_mode_display_name = mode_display_name
 	# 设置基类数据并触发刷新
 	setup_item(bookmark_data)
 
@@ -47,18 +54,14 @@ func _update_display() -> void:
 	if not is_instance_valid(bookmark_data):
 		return
 
-	_mode_name_label.text = tr("UNKNOWN_MODE")
-
-	if not bookmark_data.mode_config_path.is_empty():
-		var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(bookmark_data.mode_config_path)
-		if is_instance_valid(mode_config):
-			_mode_name_label.text = tr(mode_config.mode_name)
-		else:
-			_mode_name_label.text = tr("CONFIG_MISSING")
+	if _mode_display_name.is_empty():
+		_mode_name_label.text = tr("UNKNOWN_MODE")
+	else:
+		_mode_name_label.text = _mode_display_name
 
 	var datetime: String = tr("TIME_PARSE_ERROR")
 	if bookmark_data.timestamp > 0:
-		datetime = Time.get_datetime_string_from_unix_time(bookmark_data.timestamp).replace("T", " ")
+		datetime = GameClockUtility.format_datetime_value(bookmark_data.timestamp)
 
 	var grid_size: int = GFVariantData.to_int(
 		bookmark_data.board_snapshot.get(&"grid_size", bookmark_data.board_snapshot.get("grid_size", 0)),

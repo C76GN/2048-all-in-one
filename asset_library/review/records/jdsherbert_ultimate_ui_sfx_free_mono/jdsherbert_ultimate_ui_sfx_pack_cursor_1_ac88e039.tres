@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_2xdpc"]
+
+[resource]
+script = ExtResource("1_2xdpc")
+asset_id = &"asset.review.jdsherbert.ultimate.ui.sfx.free.mono.mp3.jdsherbert.ultimate.ui.sfx.pack.cursor.1.ac88e039"
+source_pack_id = &"jdsherbert_ultimate_ui_sfx_free_mono"
+display_name = "mp3/JDSherbert - Ultimate UI SFX Pack - Cursor - 1"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "license_review_needed", "mp3", "jdsherbert", "ultimate", "sfx", "pack", "cursor", "1")
+source_path = "E:/_inbox/Downloads/JDSherbert - Ultimate UI SFX Pack (FREE)/Mono/mp3/JDSherbert - Ultimate UI SFX Pack - Cursor - 1.mp3"
+library_path = "res://asset_library/source_packs/jdsherbert_ultimate_ui_sfx_free_mono/files/mp3/JDSherbert - Ultimate UI SFX Pack - Cursor - 1.mp3"
+relative_path = "mp3/JDSherbert - Ultimate UI SFX Pack - Cursor - 1.mp3"
+extension = "mp3"
+file_size_bytes = 49279
+sha256 = "ac88e039dcd8af4ddfe0230e8dcb3d70ae0d90c959798d17ed7c8811b164e3f8"
+author = "JDSherbert"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.ui.select")
+imported_at = "2026-07-09 03:08:11"

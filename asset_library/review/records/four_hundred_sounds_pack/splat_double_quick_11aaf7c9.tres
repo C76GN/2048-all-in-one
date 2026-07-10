@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_580uq"]
+
+[resource]
+script = ExtResource("1_580uq")
+asset_id = &"asset.review.four.hundred.sounds.pack.combat.and.gore.splat.double.quick.11aaf7c9"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Combat and Gore/splat_double_quick"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "combat", "and", "gore", "splat_double_quick", "ui")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Combat and Gore/splat_double_quick.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Combat and Gore/splat_double_quick.wav"
+relative_path = "Combat and Gore/splat_double_quick.wav"
+extension = "wav"
+file_size_bytes = 84012
+sha256 = "11aaf7c942108732e88830b0c6bded24b48dc6202abacf7582a0bc553acfccb4"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

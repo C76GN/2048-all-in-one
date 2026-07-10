@@ -17,6 +17,11 @@ signal replay_selected(replay_data: ReplayData)
 const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
 
 
+# --- 私有变量 ---
+
+var _mode_display_name: String = ""
+
+
 # --- @onready 变量 (节点引用) ---
 
 @onready var _mode_name_label: Label = %ModeNameLabel
@@ -27,7 +32,9 @@ const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
 
 ## 使用 ReplayData 资源来配置此列表项。
 ## @param replay_data: 用于填充UI的回放数据资源。
-func setup(replay_data: ReplayData) -> void:
+## @param mode_display_name: 已由父菜单通过 GF 架构解析出的模式名称。
+func setup(replay_data: ReplayData, mode_display_name: String) -> void:
+	_mode_display_name = mode_display_name
 	# 设置基类数据并触发刷新
 	setup_item(replay_data)
 
@@ -46,18 +53,14 @@ func _update_display() -> void:
 	if not is_instance_valid(replay_data):
 		return
 
-	_mode_name_label.text = tr("UNKNOWN_MODE")
-
-	if not replay_data.mode_config_path.is_empty():
-		var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(replay_data.mode_config_path)
-		if is_instance_valid(mode_config):
-			_mode_name_label.text = tr(mode_config.mode_name)
-		else:
-			_mode_name_label.text = tr("CONFIG_MISSING")
+	if _mode_display_name.is_empty():
+		_mode_name_label.text = tr("UNKNOWN_MODE")
+	else:
+		_mode_name_label.text = _mode_display_name
 
 	var datetime: String = tr("TIME_PARSE_ERROR")
 	if replay_data.timestamp > 0:
-		datetime = Time.get_datetime_string_from_unix_time(replay_data.timestamp).replace("T", " ")
+		datetime = GameClockUtility.format_datetime_value(replay_data.timestamp)
 
 	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
 	var size_label: String = tr("SIZE_LABEL")

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_saydl"]
+
+[resource]
+script = ExtResource("1_saydl")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.paper.tear.2.d3c672a8"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/paper_tear_2"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "paper_tear_2")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/paper_tear_2.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Materials/paper_tear_2.wav"
+relative_path = "Materials/paper_tear_2.wav"
+extension = "wav"
+file_size_bytes = 217132
+sha256 = "d3c672a8693b28c6ce71aa419cc17197fb249432b6087104a2c9dea041a82031"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

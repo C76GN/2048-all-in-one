@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "package_id": "c76.asset_library.core",
+  "display_name": "C76 Common Asset Library",
+  "version": "0.1.0",
+  "content_types": [
+    "asset_library",
+    "audio",
+    "shader",
+    "texture",
+    "vfx"
+  ],
+  "safety_kind": "trusted_developer",
+  "resources": [
+    {
+      "key": "asset.audio.ui.printworks.select_soft_01",
+      "path": "audio/ui/printworks_select_soft_01.ogg",
+      "type_hint": "AudioStreamOggVorbis",
+      "priority": 100,
+      "tags": [
+        "audio",
+        "ui",
+        "printworks"
+      ],
+      "metadata": {
+        "asset_kind": "audio",
+        "category": "ui",
+        "event": "ui/select",
+        "origin": "third_party",
+        "author": "Nathan Gibson",
+        "source": "Universal UI Soundpack - Modern2.ogg",
+        "source_url": "https://nathangibson.myportfolio.com",
+        "license": "CC BY 4.0"
+      }
+    },
+    {
+      "key": "asset.audio.ui.printworks.confirm_soft_01",
+      "path": "audio/ui/printworks_confirm_soft_01.ogg",
+      "type_hint": "AudioStreamOggVorbis",
+      "priority": 100,
+      "tags": [
+        "audio",
+        "ui",
+        "printworks"
+      ],
+      "metadata": {
+        "asset_kind": "audio",
+        "category": "ui",
+        "event": "ui/confirm",
+        "origin": "third_party",
+        "author": "Nathan Gibson",
+        "source": "Universal UI Soundpack - Modern4.ogg",
+        "source_url": "https://nathangibson.myportfolio.com",
+        "license": "CC BY 4.0"
+      }
+    },
+    {
+      "key": "asset.audio.tile.printworks.spawn_soft_01",
+      "path": "audio/tile/printworks_spawn_soft_01.ogg",
+      "type_hint": "AudioStreamOggVorbis",
+      "priority": 100,
+      "tags": [
+        "audio",
+        "tile",
+        "printworks"
+      ],
+      "metadata": {
+        "asset_kind": "audio",
+        "category": "tile",
+        "event": "tile/spawn",
+        "origin": "third_party",
+        "author": "Nathan Gibson",
+        "source": "Universal UI Soundpack - Minimalist1.ogg",
+        "source_url": "https://nathangibson.myportfolio.com",
+        "license": "CC BY 4.0"
+      }
+    },
+    {
+      "key": "asset.audio.tile.printworks.move_soft_01",
+      "path": "audio/tile/printworks_move_soft_01.ogg",
+      "type_hint": "AudioStreamOggVorbis",
+      "priority": 100,
+      "tags": [
+        "audio",
+        "tile",
+        "printworks"
+      ],
+      "metadata": {
+        "asset_kind": "audio",
+        "category": "tile",
+        "event": "tile/move",
+        "origin": "third_party",
+        "author": "Nathan Gibson",
+        "source": "Universal UI Soundpack - Modern10.ogg",
+        "source_url": "https://nathangibson.myportfolio.com",
+        "license": "CC BY 4.0"
+      }
+    },
+    {
+      "key": "asset.audio.tile.printworks.merge_soft_01",
+      "path": "audio/tile/printworks_merge_soft_01.ogg",
+      "type_hint": "AudioStreamOggVorbis",
+      "priority": 100,
+      "tags": [
+        "audio",
+        "tile",
+        "printworks"
+      ],
+      "metadata": {
+        "asset_kind": "audio",
+        "category": "tile",
+        "event": "tile/merge",
+        "origin": "third_party",
+        "author": "Nathan Gibson",
+        "source": "Universal UI Soundpack - Coffee1.ogg",
+        "source_url": "https://nathangibson.myportfolio.com",
+        "license": "CC BY 4.0"
+      }
+    },
+    {
+      "key": "asset.audio.game.printworks.game_over_soft_01",
+      "path": "audio/game/printworks_game_over_soft_01.ogg",
+      "type_hint": "AudioStreamOggVorbis",
+      "priority": 100,
+      "tags": [
+        "audio",
+        "game",
+        "printworks"
+      ],
+      "metadata": {
+        "asset_kind": "audio",
+        "category": "game",
+        "event": "game/over",
+        "origin": "third_party",
+        "author": "Nathan Gibson",
+        "source": "Universal UI Soundpack - Retro10.ogg",
+        "source_url": "https://nathangibson.myportfolio.com",
+        "license": "CC BY 4.0"
+      }
+    },
+    {
+      "key": "asset.shader.background.halftone_paper",
+      "path": "shaders/background/halftone_paper_background.gdshader",
+      "type_hint": "Shader",
+      "priority": 100,
+      "tags": [
+        "shader",
+        "background",
+        "printworks"
+      ],
+      "metadata": {
+        "asset_kind": "shader",
+        "category": "background",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Project shader",
+        "license": "project"
+      }
+    },
+    {
+      "key": "asset.shader.transition.halftone_wipe",
+      "path": "shaders/transition/halftone_wipe_transition.gdshader",
+      "type_hint": "Shader",
+      "priority": 100,
+      "tags": [
+        "shader",
+        "transition",
+        "printworks"
+      ],
+      "metadata": {
+        "asset_kind": "shader",
+        "category": "transition",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Project shader",
+        "license": "project"
+      }
+    },
+    {
+      "key": "asset.shader.ui.button_focus_dash",
+      "path": "shaders/ui/button_focus_dash.gdshader",
+      "type_hint": "Shader",
+      "priority": 100,
+      "tags": [
+        "shader",
+        "ui",
+        "focus"
+      ],
+      "metadata": {
+        "asset_kind": "shader",
+        "category": "ui",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Project shader",
+        "license": "project"
+      }
+    },
+    {
+      "key": "asset.shader.ui.startup_progress_bar",
+      "path": "shaders/ui/startup_progress_bar.gdshader",
+      "type_hint": "Shader",
+      "priority": 100,
+      "tags": [
+        "shader",
+        "ui",
+        "startup",
+        "progress"
+      ],
+      "metadata": {
+        "asset_kind": "shader",
+        "category": "ui",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Project shader adapted from user-provided startup progress concept",
+        "license": "project"
+      }
+    },
+    {
+      "key": "asset.vfx.celebration.confetti_canvas",
+      "path": "vfx/celebration_confetti_canvas.gdshader",
+      "type_hint": "Shader",
+      "priority": 100,
+      "tags": [
+        "shader",
+        "vfx",
+        "celebration",
+        "printworks"
+      ],
+      "metadata": {
+        "asset_kind": "shader",
+        "category": "vfx",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Project shader adapted from user-provided confetti concept",
+        "license": "project"
+      }
+    }
+  ],
+  "metadata": {
+    "library_id": "c76.common_assets",
+    "project": "2048-all-in-one",
+    "audit_required_metadata": [
+      "asset_kind",
+      "category",
+      "origin",
+      "author",
+      "source",
+      "license"
+    ],
+    "third_party_required_metadata": [
+      "author",
+      "source",
+      "source_url",
+      "license"
+    ]
+  }
+}

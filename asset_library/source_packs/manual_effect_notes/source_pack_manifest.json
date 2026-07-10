@@ -1,0 +1,31 @@
+{
+	"author": "unknown",
+	"display_name": "Manual Effect Notes",
+	"imported_at": "2026-07-10 00:00:00",
+	"license": "unknown",
+	"license_status": "unknown",
+	"original_source_path": "manual://chat/2026-07-10",
+	"report": {
+		"byte_count": 9279,
+		"copied_count": 3,
+		"display_name": "Manual Effect Notes",
+		"error_count": 0,
+		"file_count": 3,
+		"kind_counts": {
+			"vfx": 3
+		},
+		"license_counts": {
+			"unknown": 3
+		},
+		"non_review_file_count": 0,
+		"review_record_count": 3,
+		"source_pack_id": "manual_effect_notes",
+		"status_counts": {
+			"candidate": 3
+		},
+		"unchanged_count": 0
+	},
+	"schema_version": 1,
+	"source_pack_id": "manual_effect_notes",
+	"source_url": ""
+}

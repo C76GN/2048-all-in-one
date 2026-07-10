@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_ff2yj"]
+
+[resource]
+script = ExtResource("1_ff2yj")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.vibraphone.mystery.708b0a49"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/vibraphone_mystery"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "vibraphone_mystery")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/vibraphone_mystery.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/vibraphone_mystery.wav"
+relative_path = "Musical Effects/vibraphone_mystery.wav"
+extension = "wav"
+file_size_bytes = 303980
+sha256 = "708b0a495bcd3b787b1b8b0b09face737ab69c826a40df60743a7aff3366d815"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

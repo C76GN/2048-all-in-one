@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_jksip"]
+
+[resource]
+script = ExtResource("1_jksip")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.vibraphone.inn.18a176d5"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/vibraphone_inn"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "vibraphone_inn")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/vibraphone_inn.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/vibraphone_inn.wav"
+relative_path = "Musical Effects/vibraphone_inn.wav"
+extension = "wav"
+file_size_bytes = 682276
+sha256 = "18a176d518639b4695b6d0b53c4a18b3285e85808c47298dd6f8fecebd1a6393"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

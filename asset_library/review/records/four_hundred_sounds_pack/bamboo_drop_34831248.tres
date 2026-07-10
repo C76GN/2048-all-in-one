@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_tthhx"]
+
+[resource]
+script = ExtResource("1_tthhx")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.bamboo.drop.34831248"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/bamboo_drop"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "bamboo_drop")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/bamboo_drop.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Materials/bamboo_drop.wav"
+relative_path = "Materials/bamboo_drop.wav"
+extension = "wav"
+file_size_bytes = 54316
+sha256 = "34831248af9823710e4039cd47e0736a9a94506236b0007b6425205cabd1c20c"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

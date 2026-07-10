@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_gux35"]
+
+[resource]
+script = ExtResource("1_gux35")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.xylophone.mystery.e453e0f7"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/xylophone_mystery"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "xylophone_mystery")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/xylophone_mystery.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/xylophone_mystery.wav"
+relative_path = "Musical Effects/xylophone_mystery.wav"
+extension = "wav"
+file_size_bytes = 254960
+sha256 = "e453e0f7d8d5e6fb65d654426735cfbb8633197c10791b6b36c3003728b64069"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_eh7wm"]
+
+[resource]
+script = ExtResource("1_eh7wm")
+asset_id = &"asset.review.four.hundred.sounds.pack.machines.hydraulic.up.ce5774f7"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Machines/hydraulic_up"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "machines", "hydraulic_up")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Machines/hydraulic_up.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Machines/hydraulic_up.wav"
+relative_path = "Machines/hydraulic_up.wav"
+extension = "wav"
+file_size_bytes = 198700
+sha256 = "ce5774f75c26c1b343591475d5e5ae5d91a9fecd680fe1aff798a86c6c769e6a"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

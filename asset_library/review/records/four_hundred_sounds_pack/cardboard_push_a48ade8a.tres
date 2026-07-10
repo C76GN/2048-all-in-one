@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_27o32"]
+
+[resource]
+script = ExtResource("1_27o32")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.cardboard.push.a48ade8a"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/cardboard_push"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "cardboard_push")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/cardboard_push.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Materials/cardboard_push.wav"
+relative_path = "Materials/cardboard_push.wav"
+extension = "wav"
+file_size_bytes = 233516
+sha256 = "a48ade8a7019b7f6e4da68083d116894207136ef5f6c1932dae106a8cfcf8a0f"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

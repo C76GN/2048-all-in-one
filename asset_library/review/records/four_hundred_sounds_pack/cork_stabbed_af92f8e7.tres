@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_mqabg"]
+
+[resource]
+script = ExtResource("1_mqabg")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.cork.stabbed.af92f8e7"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/cork_stabbed"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "cork_stabbed")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/cork_stabbed.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Materials/cork_stabbed.wav"
+relative_path = "Materials/cork_stabbed.wav"
+extension = "wav"
+file_size_bytes = 60460
+sha256 = "af92f8e74baad43150673a597a5cb2bc30e94f86906d250d5bd1929b7836de45"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_b40im"]
+
+[resource]
+script = ExtResource("1_b40im")
+asset_id = &"asset.review.universal.ui.soundpack.wav.retro7.b6408501"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "WAV/Retro7"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "wav", "retro7", "retro")
+source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/Retro7.wav"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/WAV/Retro7.wav"
+relative_path = "WAV/Retro7.wav"
+extension = "wav"
+file_size_bytes = 228362
+sha256 = "b6408501449c028ae698a205a355d71dc7c112fd7bbc3e62e234bf88a2721a89"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

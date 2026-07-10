@@ -10,6 +10,7 @@ extends Control
 
 ## GameUiMotionUtility 脚本类型，用作 GF Utility 注册键。
 const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_ui_motion_utility.gd")
+const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_utility.gd")
 const _GF_AUTOLOAD_SCRIPT = preload("res://addons/gf/kernel/core/gf_autoload.gd")
 const GFNodeContextBase = preload("res://addons/gf/kernel/core/gf_node_context.gd")
 
@@ -175,6 +176,10 @@ func _apply_default_ui_motion() -> void:
 	if not is_instance_valid(motion_utility):
 		return
 
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		var _theme_apply_count: int = theme_utility.apply_current_theme_to_tree(self)
+
 	var _bound_count: int = motion_utility.bind_interactive_controls(self)
 	var _intro_tween: Tween = motion_utility.play_panel_intro(self)
 
@@ -184,4 +189,12 @@ func _get_ui_motion_utility() -> GameUiMotionUtility:
 	if utility_value is GameUiMotionUtility:
 		var motion_utility: GameUiMotionUtility = utility_value
 		return motion_utility
+	return null
+
+
+func _get_theme_utility() -> GameThemeUtility:
+	var utility_value: Object = get_utility(_GAME_THEME_UTILITY_SCRIPT)
+	if utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = utility_value
+		return theme_utility
 	return null

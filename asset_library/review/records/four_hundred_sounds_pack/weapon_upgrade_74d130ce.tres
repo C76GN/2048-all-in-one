@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_nwhpf"]
+
+[resource]
+script = ExtResource("1_nwhpf")
+asset_id = &"asset.review.four.hundred.sounds.pack.weapons.weapon.upgrade.74d130ce"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Weapons/weapon_upgrade"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "weapons", "weapon_upgrade")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Weapons/weapon_upgrade.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Weapons/weapon_upgrade.wav"
+relative_path = "Weapons/weapon_upgrade.wav"
+extension = "wav"
+file_size_bytes = 139308
+sha256 = "74d130ceb849b6f60f24913587f5349415c22f4b8948e69a572eadebbfc5a77a"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

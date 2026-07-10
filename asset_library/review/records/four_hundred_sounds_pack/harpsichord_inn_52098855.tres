@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_8s6x2"]
+
+[resource]
+script = ExtResource("1_8s6x2")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.harpsichord.inn.52098855"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/harpsichord_inn"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "harpsichord_inn")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/harpsichord_inn.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/harpsichord_inn.wav"
+relative_path = "Musical Effects/harpsichord_inn.wav"
+extension = "wav"
+file_size_bytes = 638856
+sha256 = "52098855abd910b1e09ce746cbe10f17f695017bb93772600b7bf4d648258f65"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

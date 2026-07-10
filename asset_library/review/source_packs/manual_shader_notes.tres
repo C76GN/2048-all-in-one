@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="AssetSourcePack" format=3 uid="uid://dfbwb7662n6fp"]
+
+[ext_resource type="Script" uid="uid://b32gw7g13qe4x" path="res://scripts/data/asset_source_pack.gd" id="1_4bytc"]
+
+[resource]
+script = ExtResource("1_4bytc")
+source_pack_id = &"manual_shader_notes"
+display_name = "Manual Shader Notes"
+original_source_path = "manual://chat/2026-07-09"
+library_root_path = "res://asset_library/source_packs/manual_shader_notes"
+author = "unknown"
+license = "unknown"
+imported_at = "2026-07-09 21:27:10"
+file_count = 19
+review_record_count = 19
+byte_count = 38671
+tags = PackedStringArray("shader", "manual_note", "future_2_5d", "coordinate_grid", "debug_grid", "texture_mask_transition", "shine_sweep", "surface_masked_shine", "ui_effect", "space_background", "flicker_noise_background", "gyroid_fbm_background", "shadertoy", "weather", "rain", "snow", "steampunkdemon", "mit_license", "starfield", "glitch", "chromatic_aberration", "lens_distortion", "shockwave", "screen_space", "tile_pattern", "hand_drawn_hatch", "animated_checker", "angled_stripe", "sine_wave", "wave_stripe", "square_wave", "node_link", "noise_pattern", "reward_shine", "new_item", "radial_shine", "license_review_needed")
+notes = "User-selected shader notes captured from chat for future experiments, including 2.5D foliage/billboard, world-space coordinate grid, luminance texture-mask transition, shine sweep overlay, surface-masked shine sweep, space cloud starfield background, flicker noise background, Shadertoy-derived gyroid FBM background, rain/snow weather overlay, Brian Smith MIT rain/snow overlay, chromatic aberration glitch, screen lens aberration shockwave, hand-drawn hatch tile pattern, animated checker tile pattern, angled stripe tile pattern, sine wave stripe pattern, square wave tile pattern, noise node-link tile pattern, and new-item radial reward shine shaders. Keep review-only until original origin and license are confirmed."

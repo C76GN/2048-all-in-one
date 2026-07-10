@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_763n5"]
+
+[resource]
+script = ExtResource("1_763n5")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.sitar.negative.long.4005a96c"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/sitar_negative_long"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "sitar_negative_long")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/sitar_negative_long.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/sitar_negative_long.wav"
+relative_path = "Musical Effects/sitar_negative_long.wav"
+extension = "wav"
+file_size_bytes = 360940
+sha256 = "4005a96cd74c8038c2401c2d39e1c288e6ede3e0d800d8c11d6c4579133f2a31"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

@@ -35,6 +35,12 @@ VSYNC_LABEL,垂直同步,VSync
 VSYNC_DISABLED,关闭,Off
 VSYNC_ENABLED,开启,On
 VSYNC_ADAPTIVE,自适应,Adaptive
+VISUAL_THEME_LABEL,视觉主题,Visual Theme
+SOUND_THEME_LABEL,音效主题,Sound Theme
+THEME_HALFTONE_ATLAS,半调图集,Halftone Atlas
+THEME_HALFTONE_ATLAS_DESC,青蓝纸面、深色墨盘和多纹理方块的印刷主题。,"Printed cyan paper, dark ink board, and patterned tiles."
+SOUND_THEME_PRINTWORKS,印刷工坊,Printworks
+SOUND_THEME_PRINTWORKS_DESC,为纸媒印刷主题预留的柔和短音效包。,"A softer short-sound pack reserved for the print theme."
 MASTER_VOLUME_LABEL,主音量,Master Volume
 LANG_EN,English,English
 LANG_ZH,简体中文,Chinese

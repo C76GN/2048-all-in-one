@@ -21,6 +21,11 @@ const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
 		"extension": "gf.action_queue",
 		"owner": "addons/gf/extensions/action_queue/extension.gd",
 	},
+	{
+		"symbol": "GFContentPackageUtility",
+		"extension": "gf.content_package",
+		"owner": "addons/gf/extensions/content_package/extension.gd",
+	},
 ]
 
 

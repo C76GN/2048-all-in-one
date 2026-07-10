@@ -1251,8 +1251,8 @@ func _collect_stylebox_flat_api_issues(path: String) -> Array[String]:
 				else:
 					class_stylebox_vars[variable_name] = true
 			elif type_name == "StyleBoxFlat":
-				local_stylebox_vars.erase(variable_name)
-				class_stylebox_vars.erase(variable_name)
+				var _local_erase_result: bool = local_stylebox_vars.erase(variable_name)
+				var _class_erase_result: bool = class_stylebox_vars.erase(variable_name)
 
 		var matched_variable: String = _find_stylebox_parent_variable_using_flat_api(
 			line,
@@ -1442,11 +1442,11 @@ func _extract_assignment_expression(line: String) -> String:
 
 
 func _expression_uses_direct_dictionary_get(expression: String) -> bool:
-	var get_index: int = expression.find(".get(")
-	if get_index == -1:
+	var dictionary_get_index: int = expression.find(".get(")
+	if dictionary_get_index == -1:
 		return false
 
-	var prefix: String = expression.substr(0, get_index)
+	var prefix: String = expression.substr(0, dictionary_get_index)
 	return not prefix.contains("(")
 
 

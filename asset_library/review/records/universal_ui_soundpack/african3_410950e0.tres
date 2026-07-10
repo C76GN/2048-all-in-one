@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_ocdvw"]
+
+[resource]
+script = ExtResource("1_ocdvw")
+asset_id = &"asset.review.universal.ui.soundpack.wav.african3.410950e0"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "WAV/African3"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "wav", "african3")
+source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/African3.wav"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/WAV/African3.wav"
+relative_path = "WAV/African3.wav"
+extension = "wav"
+file_size_bytes = 228360
+sha256 = "410950e0de85a06e6b0f7162a727e764dfb7603e831ec9733b2382f640dbabd8"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

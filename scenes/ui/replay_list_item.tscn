@@ -3,16 +3,16 @@
 [ext_resource type="Script" uid="uid://bxbowaaale0ou" path="res://scripts/ui/replay_list_item.gd" id="1_3x61c"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1"]
-bg_color = Color(0.62, 0.18, 0.25, 0.36)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.93, 0.8, 0.54, 0.58)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
+bg_color = Color(0.61960787, 0.85882354, 0.8352941, 0.7)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="ReplayListItem" type="Button" unique_id=1795474176]
 custom_minimum_size = Vector2(0, 60)
@@ -62,13 +62,13 @@ alignment = 1
 [node name="ModeNameLabel" type="Label" parent="MarginContainer/HBoxContainer/VBoxContainer" unique_id=586794887]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.94, 0.9, 0.82, 1)
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 theme_override_font_sizes/font_size = 18
 text = "Mode Name"
 
 [node name="InfoLabel" type="Label" parent="MarginContainer/HBoxContainer/VBoxContainer" unique_id=944252953]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.74, 0.79, 0.78, 0.9)
+theme_override_colors/font_color = Color(0.46666667, 0.45882353, 0.43529412, 0.92)
 theme_override_font_sizes/font_size = 14
 text = "Info"

@@ -78,6 +78,7 @@ func test_bookmark_and_replay_systems_use_shared_resource_collection_utility() -
 func _create_collection_architecture(include_systems: bool = false) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = GFStorageUtility.new()
+	var clock: GameClockUtility = GameClockUtility.new()
 	var collection: SavedResourceCollectionUtility = SavedResourceCollectionUtility.new()
 
 	storage.save_dir_name = "gut_resource_collection_%d" % Time.get_ticks_usec()
@@ -88,6 +89,7 @@ func _create_collection_architecture(include_systems: bool = false) -> Dictionar
 	storage.create_directories_for_nested_paths = true
 
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(GameClockUtility, clock)
 	await architecture.register_utility(SavedResourceCollectionUtility, collection)
 
 	var bookmark_system: BookmarkSystem = null

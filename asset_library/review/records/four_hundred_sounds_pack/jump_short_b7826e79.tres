@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_wtxua"]
+
+[resource]
+script = ExtResource("1_wtxua")
+asset_id = &"asset.review.four.hundred.sounds.pack.retro.jump.short.b7826e79"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Retro/jump_short"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "jump_short")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/jump_short.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Retro/jump_short.wav"
+relative_path = "Retro/jump_short.wav"
+extension = "wav"
+file_size_bytes = 29224
+sha256 = "b7826e79e8b08ea82830592f34d46cd78bf7b24a6d00e5ccda85a032af8df1c9"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

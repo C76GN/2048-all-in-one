@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_tgvjq"]
+
+[resource]
+script = ExtResource("1_tgvjq")
+asset_id = &"asset.review.universal.ui.soundpack.wav.modern16.4dacde2a"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "WAV/Modern16"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "wav", "modern16")
+source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/Modern16.wav"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/WAV/Modern16.wav"
+relative_path = "WAV/Modern16.wav"
+extension = "wav"
+file_size_bytes = 228362
+sha256 = "4dacde2a1f7f8a9e457579f543b4b4448261c581f39adbe5d5dac0b21be7568e"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

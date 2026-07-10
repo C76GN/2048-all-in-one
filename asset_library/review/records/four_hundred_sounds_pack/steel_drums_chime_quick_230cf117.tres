@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_4le4y"]
+
+[resource]
+script = ExtResource("1_4le4y")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.steel.drums.chime.quick.230cf117"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/steel_drums_chime_quick"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "steel_drums_chime_quick", "ui")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/steel_drums_chime_quick.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/steel_drums_chime_quick.wav"
+relative_path = "Musical Effects/steel_drums_chime_quick.wav"
+extension = "wav"
+file_size_bytes = 188840
+sha256 = "230cf1179048239cdf16f251363aee740fc4ade4915116c1319f8acbdc7d0924"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

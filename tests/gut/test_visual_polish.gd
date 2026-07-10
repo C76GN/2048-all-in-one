@@ -9,14 +9,23 @@ const _GAME_OVER_SCENE: PackedScene = preload("res://scenes/ui/game_over_menu.ts
 const _TARGET_REACHED_SCENE: PackedScene = preload("res://scenes/ui/target_reached_menu.tscn")
 const _BOOKMARK_ITEM_SCENE: PackedScene = preload("res://scenes/ui/bookmark_list_item.tscn")
 const _REPLAY_ITEM_SCENE: PackedScene = preload("res://scenes/ui/replay_list_item.tscn")
-const _BACKGROUND_SHADER_PATH: String = "res://resources/shaders/game_background.gdshader"
+const _BOOT_SCENE: PackedScene = preload("res://scenes/boot/boot.tscn")
+const _BACKGROUND_SHADER_PATH: String = "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+const _SCENE_TRANSITION_SHADER_PATH: String = "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader"
+const _BUTTON_FOCUS_RING_SHADER_PATH: String = "res://asset_library/shaders/ui/button_focus_dash.gdshader"
+const _STARTUP_PROGRESS_SHADER_PATH: String = "res://asset_library/shaders/ui/startup_progress_bar.gdshader"
+const _CELEBRATION_CONFETTI_SHADER_PATH: String = "res://asset_library/vfx/celebration_confetti_canvas.gdshader"
 const _VISUAL_STYLE_DOC_PATH: String = "res://docs/VISUAL_STYLE.md"
+const _BOOT_SCRIPT_PATH: String = "res://scripts/boot/boot.gd"
+const _GAME_PLAY_CONTROLLER_PATH: String = "res://scripts/controllers/game_play_controller.gd"
+const _HALFTONE_UI_PALETTE: GameUiPalette = preload("res://resources/themes/game/halftone_atlas_ui_palette.tres")
 const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/classic_tile_theme.tres")
 const _FIBONACCI_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/fibonacci_tile_theme.tres")
 const _LUCAS_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/lucas_tile_theme.tres")
 const _RED_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/red_tile_theme.tres")
 const _BLUE_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/blue_tile_theme.tres")
 const _MIN_TILE_TEXT_CONTRAST: float = 3.0
+const _MIN_UI_TEXT_CONTRAST: float = 4.5
 
 
 # --- 测试用例 ---
@@ -27,24 +36,172 @@ func test_game_background_shader_loads() -> void:
 	assert_true(is_instance_valid(shader), "游戏背景 shader 应能正常加载。")
 
 
-func test_game_background_shader_keeps_soft_texture_defaults() -> void:
+func test_game_background_shader_keeps_light_paper_texture_defaults() -> void:
 	var shader_text: String = _read_text(_BACKGROUND_SHADER_PATH)
 
+	assert_true(shader_text.contains("grid_mask"), "背景 shader 应融合低对比虚线网格纸纹。")
+	assert_true(shader_text.contains("cell_color_1"), "背景 shader 应支持棋盘式纸面色块。")
+	assert_true(shader_text.contains("sub_grid_size"), "背景 shader 应支持细分副网格。")
+	assert_true(shader_text.contains("pixel_cloud_mask"), "背景 shader 应支持程序化像素云/墨流层。")
+	assert_true(shader_text.contains("cloud_scroll_speed_1"), "背景墨流层应暴露第一层滚动速度。")
+	assert_true(shader_text.contains("cloud_scroll_speed_2"), "背景墨流层应暴露第二层滚动速度。")
+	assert_true(shader_text.contains("TIME"), "背景墨流层应使用时间驱动的轻量动效。")
 	_assert_shader_float_default_in_range(shader_text, "grain_strength", 0.008, 0.020)
 	_assert_shader_float_default_in_range(shader_text, "stipple_strength", 0.000, 0.006)
 	_assert_shader_float_default_in_range(shader_text, "scanline_strength", 0.000, 0.008)
 	_assert_shader_float_default_in_range(shader_text, "glow_strength", 0.000, 0.100)
 	_assert_shader_float_default_in_range(shader_text, "pulse_speed", 0.000, 0.080)
+	_assert_shader_float_default_in_range(shader_text, "line_thickness", 0.000, 0.100)
+	_assert_shader_float_default_in_range(shader_text, "sub_line_thickness", 0.40, 1.20)
+	_assert_shader_float_default_in_range(shader_text, "sub_dash_length", 4.0, 12.0)
+	_assert_shader_float_default_in_range(shader_text, "cloud_position_impact", 0.45, 0.70)
+	_assert_shader_float_default_in_range(shader_text, "cloud_strength", 0.010, 0.050)
 
 
-func test_visual_style_document_records_indie_texture_direction() -> void:
+func test_scene_transition_shader_loads_and_keeps_print_defaults() -> void:
+	var shader: Shader = _load_shader(_SCENE_TRANSITION_SHADER_PATH)
+	var shader_text: String = _read_text(_SCENE_TRANSITION_SHADER_PATH)
+
+	assert_true(is_instance_valid(shader), "半调纸媒场景转场 shader 应能正常加载。")
+	assert_true(shader_text.contains("dot_pattern"), "场景转场应使用程序化半调点，不依赖外部形状贴图。")
+	assert_true(shader_text.contains("hatch_pattern"), "场景转场应保留印刷斜线纹理。")
+	assert_true(shader_text.contains("leading_edge"), "场景转场应有明确移动边缘，而不是静态全屏贴图。")
+	assert_true(shader_text.contains("combined_alpha"), "场景转场应组合半透明铺墨和边缘遮罩。")
+	assert_true(shader_text.contains("shape_mask_pattern"), "场景转场应使用程序化形状遮罩推进，不依赖外部 shape texture。")
+	assert_true(shader_text.contains("shaped_gradient"), "场景转场应由形状扰动擦除边缘，而不是单纯线性淡入。")
+	assert_true(shader_text.contains("node_resolution"), "场景转场应按视口比例修正遮罩方向。")
+	_assert_shader_float_default_in_range(shader_text, "width", 0.20, 0.36)
+	_assert_shader_float_default_in_range(shader_text, "dot_tiling", 24.0, 48.0)
+	_assert_shader_float_default_in_range(shader_text, "shape_tiling", 12.0, 28.0)
+	_assert_shader_float_default_in_range(shader_text, "shape_feathering", 0.08, 0.20)
+	_assert_shader_float_default_in_range(shader_text, "shape_threshold", 0.45, 0.62)
+	_assert_shader_float_default_in_range(shader_text, "shape_influence", 0.32, 0.58)
+	_assert_shader_float_default_in_range(shader_text, "grain_strength", 0.008, 0.020)
+	_assert_shader_float_default_in_range(shader_text, "band_strength", 0.04, 0.16)
+	_assert_shader_float_default_in_range(shader_text, "fill_opacity", 0.70, 0.92)
+	_assert_shader_float_default_in_range(shader_text, "edge_opacity", 0.88, 1.0)
+	_assert_shader_float_default_in_range(shader_text, "edge_strength", 0.60, 0.95)
+	_assert_shader_float_default_in_range(shader_text, "registration_offset", 0.008, 0.030)
+
+
+func test_button_focus_ring_shader_loads_and_uses_dashed_rounded_path() -> void:
+	var shader: Shader = _load_shader(_BUTTON_FOCUS_RING_SHADER_PATH)
+	var shader_text: String = _read_text(_BUTTON_FOCUS_RING_SHADER_PATH)
+
+	assert_true(is_instance_valid(shader), "按钮选中态虚线描边 shader 应能正常加载。")
+	assert_true(shader_text.contains("rounded_box_sdf"), "按钮选中态描边应使用圆角矩形 SDF。")
+	assert_true(shader_text.contains("dash_count"), "按钮选中态描边应支持虚线分段。")
+	assert_true(shader_text.contains("TIME"), "按钮选中态描边应有轻量移动感。")
+	_assert_shader_float_default_in_range(shader_text, "thickness", 2.0, 4.0)
+	_assert_shader_float_default_in_range(shader_text, "dash_count", 12.0, 24.0)
+	_assert_shader_float_default_in_range(shader_text, "dash_ratio", 0.42, 0.66)
+
+
+func test_startup_progress_shader_loads_and_uses_print_progress_motif() -> void:
+	var shader: Shader = _load_shader(_STARTUP_PROGRESS_SHADER_PATH)
+	var shader_text: String = _read_text(_STARTUP_PROGRESS_SHADER_PATH)
+
+	assert_true(is_instance_valid(shader), "启动进度条 shader 应能正常加载。")
+	assert_true(shader_text.contains("sd_rounded_box"), "启动进度条应使用圆角 SDF 边框。")
+	assert_true(shader_text.contains("sd_rounded_star"), "启动进度条填充应带有星纹印刷图案。")
+	assert_true(shader_text.contains("GRAIN_DARKNESS"), "启动进度条空槽应保留轻微颗粒感。")
+	assert_true(shader_text.contains("progress"), "启动进度条应暴露 progress 参数供 Boot 驱动。")
+
+
+func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
+	var boot_node: Node = _BOOT_SCENE.instantiate()
+	assert_true(boot_node is Boot, "启动场景根节点应为 Boot。")
+	assert_true(boot_node is Control, "启动场景根节点应是可绘制全屏 UI 的 Control。")
+	if is_instance_valid(boot_node):
+		boot_node.queue_free()
+
+	var boot_source: String = _read_text(_BOOT_SCRIPT_PATH)
+	assert_true(boot_source.contains("GFAsyncProgress"), "Boot 应使用 GFAsyncProgress 统一启动进度。")
+	assert_true(boot_source.contains("preload_scene(MAIN_MENU_SCENE_PATH, true)"), "Boot 应通过 GFSceneUtility 预热主菜单。")
+	assert_true(boot_source.contains(_STARTUP_PROGRESS_SHADER_PATH), "Boot 应使用正式登记的启动进度条 shader。")
+	assert_true(boot_source.contains("_setup_startup_screen"), "Boot 应创建启动画面内容，而不是空白等待。")
+
+
+func test_celebration_confetti_shader_loads_and_keeps_print_defaults() -> void:
+	var shader: Shader = _load_shader(_CELEBRATION_CONFETTI_SHADER_PATH)
+	var shader_text: String = _read_text(_CELEBRATION_CONFETTI_SHADER_PATH)
+
+	assert_true(is_instance_valid(shader), "庆祝纸屑 shader 应能正常加载。")
+	assert_true(shader_text.contains("PARTICLE_COUNT = 88"), "庆祝纸屑数量应克制，避免廉价全屏彩纸噪音。")
+	assert_true(shader_text.contains("palette_color"), "庆祝纸屑应使用主题化 CMYK 色板。")
+	assert_true(shader_text.contains("rotate2d"), "庆祝纸屑应有轻量旋转，而不是静态贴片。")
+	_assert_shader_float_default_in_range(shader_text, "speed", 80.0, 130.0)
+	_assert_shader_float_default_in_range(shader_text, "sway_strength", 24.0, 54.0)
+	_assert_shader_float_default_in_range(shader_text, "spin_speed", 1.8, 3.4)
+	_assert_shader_float_default_in_range(shader_text, "piece_size", 5.0, 9.0)
+
+
+func test_halftone_ui_palette_keeps_text_readable_on_light_surfaces() -> void:
+	assert_true(is_instance_valid(_HALFTONE_UI_PALETTE), "halftone_atlas UI 色板应能加载。")
+
+	var issues: Array[String] = []
+	_collect_palette_contrast_issue(
+		"主文字 / 面板",
+		_HALFTONE_UI_PALETTE.text_primary_color,
+		_HALFTONE_UI_PALETTE.panel_surface_color,
+		issues
+	)
+	_collect_palette_contrast_issue(
+		"次级文字 / 面板",
+		_HALFTONE_UI_PALETTE.text_secondary_color,
+		_HALFTONE_UI_PALETTE.panel_surface_color,
+		issues
+	)
+	_collect_palette_contrast_issue(
+		"按钮文字 / 默认按钮",
+		_HALFTONE_UI_PALETTE.button_font_color,
+		_HALFTONE_UI_PALETTE.button_normal_color,
+		issues
+	)
+	_collect_palette_contrast_issue(
+		"输入文字 / 输入框",
+		_HALFTONE_UI_PALETTE.text_primary_color,
+		_HALFTONE_UI_PALETTE.field_surface_color,
+		issues
+	)
+
+	assert_true(
+		issues.is_empty(),
+		"浅色纸面主题的 UI 文字对比度不能低于 %.1f:1：\n%s" % [
+			_MIN_UI_TEXT_CONTRAST,
+			_join_lines(issues),
+		]
+	)
+
+
+func test_gameplay_controller_applies_theme_to_non_menu_controls() -> void:
+	var source: String = _read_text(_GAME_PLAY_CONTROLLER_PATH)
+
+	assert_true(
+		source.contains("apply_current_theme_to_tree(self)"),
+		"游戏局内不是 GameUIController，必须主动把主题应用到 HUD / TestPanel。"
+	)
+	assert_true(
+		source.contains("bind_interactive_controls(self)"),
+		"游戏局内必须主动绑定测试面板等按钮的主题样式。"
+	)
+
+
+func test_visual_style_document_records_retro_print_direction() -> void:
 	var text: String = _read_text(_VISUAL_STYLE_DOC_PATH)
 	var missing_terms: Array[String] = []
 	for term: String in [
-		"柔和肌理扁平独立游戏",
-		"不是像素风",
+		"CMYK 半调纸媒游戏",
+		"risograph",
+		"半调网点",
+		"侧边重复印刷条纹",
+		"粗描边",
+		"不是深色玻璃 UI",
+		"TilePatternOverlay",
 		"grain_strength",
 		"stipple_strength",
+		"halftone_wipe_transition.gdshader",
+		"印刷擦除",
 		"resources/themes/tile_schemes",
 		"GameUiMotionUtility",
 	]:
@@ -53,11 +210,11 @@ func test_visual_style_document_records_indie_texture_direction() -> void:
 
 	assert_true(
 		missing_terms.is_empty(),
-		"视觉规范文档应固定柔和独立游戏方向和关键落地点，缺少：\n%s" % _join_lines(missing_terms)
+		"视觉规范文档应固定 CMYK 半调纸媒方向和关键落地点，缺少：\n%s" % _join_lines(missing_terms)
 	)
 
 
-func test_tile_setup_applies_flat_textured_style() -> void:
+func test_tile_setup_applies_pixel_textured_style() -> void:
 	var tile: Tile = await _create_tile()
 
 	tile.setup(2048, Tile.TileType.PLAYER, Color(0.8, 0.5, 0.2, 1.0), Color.WHITE)
@@ -65,8 +222,14 @@ func test_tile_setup_applies_flat_textured_style() -> void:
 	var stylebox: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
 	assert_not_null(stylebox, "Tile 背景应使用 StyleBoxFlat。")
 	assert_true(stylebox.shadow_size == 0, "Tile 背景应保持无阴影的平面色块。")
-	assert_true(stylebox.get_border_width(SIDE_TOP) == 0, "Tile 背景应保持无描边。")
+	assert_true(stylebox.get_border_width(SIDE_TOP) >= 3, "Tile 背景应使用粗像素描边。")
 	assert_true(stylebox.bg_color == Color(0.8, 0.5, 0.2, 1.0), "Tile 背景应直接使用实心色块。")
+
+	var pattern_node: Node = tile.get_node_or_null("PatternOverlay")
+	assert_true(pattern_node is Control, "Tile 应包含低对比度纹理叠层。")
+	if pattern_node is Control:
+		var pattern_control: Control = pattern_node
+		assert_true(pattern_control.mouse_filter == Control.MOUSE_FILTER_IGNORE, "纹理叠层不应阻挡输入。")
 
 
 func test_game_board_controller_uses_configured_tile_scheme_colors() -> void:
@@ -112,7 +275,7 @@ func test_tile_color_schemes_keep_large_number_text_readable() -> void:
 
 	assert_true(
 		issues.is_empty(),
-		"方块主题的数字文字应保持至少 %.1f:1 的大字号对比度，避免柔和色板牺牲可读性：\n%s" % [
+		"方块主题的数字文字应保持至少 %.1f:1 的大字号对比度，避免半调纹理和印刷色牺牲可读性：\n%s" % [
 			_MIN_TILE_TEXT_CONTRAST,
 			_join_lines(issues),
 		]
@@ -150,14 +313,65 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	await get_tree().process_frame
 
 	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var emitted_events: Dictionary = {
+		&"selected": 0,
+		&"confirmed": 0,
+	}
+	var _selected_connect: int = motion_utility.interactive_control_selected.connect(func(_control: Control) -> void:
+		emitted_events[&"selected"] = GFVariantData.to_int(emitted_events.get(&"selected", 0), 0) + 1
+	)
+	var _confirmed_connect: int = motion_utility.interactive_control_confirmed.connect(func(_control: Control) -> void:
+		emitted_events[&"confirmed"] = GFVariantData.to_int(emitted_events.get(&"confirmed", 0), 0) + 1
+	)
 
 	assert_true(motion_utility.bind_interactive_controls(root) == 1, "UI 动效 Utility 应递归绑定按钮。")
 	assert_true(motion_utility.bind_interactive_controls(root) == 0, "重复绑定不应重复连接同一按钮。")
+	button.mouse_entered.emit()
+	button.button_down.emit()
 
 	var button_style: StyleBoxFlat = _get_stylebox_flat(button, &"normal")
 	assert_not_null(button_style, "按钮绑定后应获得统一 StyleBoxFlat。")
-	assert_true(button_style.get_border_width(SIDE_TOP) == 0, "统一按钮样式应保持无描边。")
+	assert_true(button_style.get_border_width(SIDE_TOP) >= 2, "统一按钮样式应使用像素菜单描边。")
 	assert_true(button_style.shadow_size == 0, "统一按钮样式应保持无阴影。")
+
+	var ring_node: Node = button.get_node_or_null("ButtonFocusRing")
+	assert_true(ring_node is ColorRect, "按钮绑定后应自动挂载选中态虚线描边 overlay。")
+	if ring_node is ColorRect:
+		var ring: ColorRect = ring_node
+		assert_true(ring.mouse_filter == Control.MOUSE_FILTER_IGNORE, "选中态描边不应阻挡按钮输入。")
+		assert_true(ring.material is ShaderMaterial, "选中态描边应使用共享 shader 材质。")
+		assert_true(ring.visible, "hover 后选中态描边应可见。")
+
+	button.mouse_exited.emit()
+	if ring_node is ColorRect:
+		var hidden_ring: ColorRect = ring_node
+		assert_false(hidden_ring.visible, "hover 结束后选中态描边应隐藏。")
+
+	assert_true(_get_event_count(emitted_events, &"selected") == 1, "hover/focus 应发出 UI 选择音效语义信号。")
+	assert_true(_get_event_count(emitted_events, &"confirmed") == 1, "button down 应发出 UI 确认音效语义信号。")
+
+
+func test_ui_motion_utility_styles_spinbox_as_readable_light_field() -> void:
+	var root: Control = Control.new()
+	var spin_box: SpinBox = SpinBox.new()
+	root.add_child(spin_box)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var _applied_count: int = motion_utility.apply_palette_to_tree(root, _HALFTONE_UI_PALETTE)
+
+	var line_edit: LineEdit = spin_box.get_line_edit()
+	assert_true(is_instance_valid(line_edit), "SpinBox 应暴露可统一刷色的内部 LineEdit。")
+	if is_instance_valid(line_edit):
+		var font_color: Color = line_edit.get_theme_color("font_color")
+		var normal_style: StyleBoxFlat = _get_stylebox_flat(line_edit, &"normal")
+		assert_not_null(normal_style, "SpinBox 内部输入框应获得主题 StyleBoxFlat。")
+		if is_instance_valid(normal_style):
+			assert_true(
+				_get_contrast_ratio(font_color, normal_style.bg_color) >= _MIN_UI_TEXT_CONTRAST,
+				"SpinBox 字体在浅色字段上必须保持可读。"
+			)
 
 
 func test_ui_motion_utility_reveals_panel_with_tween() -> void:
@@ -412,6 +626,51 @@ func test_board_feedback_utility_spawns_effect_nodes() -> void:
 	assert_true(feedback_root.get_child_count() == created_count, "反馈子节点数量应与返回值一致。")
 
 
+func test_board_feedback_utility_plays_gf_shake_feedback() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shake_utility: GFShakeUtility = GFShakeUtility.new()
+	var feedback_utility: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
+	await architecture.register_utility(GFShakeUtility, shake_utility)
+	await architecture.register_utility(GameBoardFeedbackUtility, feedback_utility)
+	await architecture.init()
+
+	var board_container: Node2D = Node2D.new()
+	add_child_autoqfree(board_container)
+	await get_tree().process_frame
+
+	var _created_count: int = feedback_utility.play_feedback(board_container, Vector2(24.0, 36.0), &"merge", "8")
+
+	assert_true(
+		shake_utility.get_active_shake_count(&"board") == 1,
+		"棋盘反馈应同时通过 GFShakeUtility 播放语义化 board channel 反馈。"
+	)
+	architecture.dispose()
+
+
+func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
+	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
+	var played: bool = celebration_vfx.play_target_reached_celebration()
+	await get_tree().process_frame
+
+	var layer_node: Node = get_tree().root.get_node_or_null("GameCelebrationVfxLayer")
+	assert_true(played, "庆祝 VFX Utility 应能播放目标达成反馈。")
+	assert_true(layer_node is CanvasLayer, "庆祝 VFX 应创建全局 CanvasLayer。")
+	if layer_node is CanvasLayer:
+		var layer: CanvasLayer = layer_node
+		assert_true(layer.process_mode == Node.PROCESS_MODE_ALWAYS, "庆祝 VFX 在暂停目标达成面板下仍应播放。")
+		assert_true(layer.get_child_count() == 1, "一次庆祝播放应创建一个全屏 ColorRect。")
+		var rect_node: Node = layer.get_child(0)
+		assert_true(rect_node is ColorRect, "庆祝 VFX 子节点应是 ColorRect。")
+		if rect_node is ColorRect:
+			var rect: ColorRect = rect_node
+			assert_true(rect.mouse_filter == Control.MOUSE_FILTER_IGNORE, "庆祝 VFX 不应阻挡 UI 输入。")
+			assert_true(rect.material is ShaderMaterial, "庆祝 VFX 应使用 shader 材质。")
+			assert_true(rect.modulate.a < 1.0, "庆祝 VFX 默认透明度应克制。")
+
+	celebration_vfx.dispose()
+	await get_tree().process_frame
+
+
 # --- 私有/辅助方法 ---
 
 func _create_tile() -> Tile:
@@ -489,8 +748,8 @@ func _get_packed_line(lines: PackedStringArray, index: int) -> String:
 	return lines[index]
 
 
-func _get_stylebox_flat(control: Control, name: StringName) -> StyleBoxFlat:
-	var stylebox: StyleBox = control.get_theme_stylebox(name)
+func _get_stylebox_flat(control: Control, stylebox_name: StringName) -> StyleBoxFlat:
+	var stylebox: StyleBox = control.get_theme_stylebox(stylebox_name)
 	if stylebox is StyleBoxFlat:
 		var flat_stylebox: StyleBoxFlat = stylebox
 		return flat_stylebox
@@ -531,6 +790,24 @@ func _collect_tile_scheme_contrast_issues(
 					_MIN_TILE_TEXT_CONTRAST,
 				]
 			)
+
+
+func _collect_palette_contrast_issue(
+	label: String,
+	foreground: Color,
+	background: Color,
+	issues: Array[String]
+) -> void:
+	var contrast_ratio: float = _get_contrast_ratio(background, foreground)
+	if contrast_ratio < _MIN_UI_TEXT_CONTRAST:
+		_append_string(
+			issues,
+			"%s 对比度 %.2f 低于 %.2f。" % [
+				label,
+				contrast_ratio,
+				_MIN_UI_TEXT_CONTRAST,
+			]
+		)
 
 
 func _get_contrast_ratio(left: Color, right: Color) -> float:

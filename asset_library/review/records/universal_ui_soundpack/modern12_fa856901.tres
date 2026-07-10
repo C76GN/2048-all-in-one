@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_mytax"]
+
+[resource]
+script = ExtResource("1_mytax")
+asset_id = &"asset.review.universal.ui.soundpack.ogg.modern12.fa856901"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "OGG/Modern12"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "ogg", "modern12")
+source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Modern12.ogg"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/OGG/Modern12.ogg"
+relative_path = "OGG/Modern12.ogg"
+extension = "ogg"
+file_size_bytes = 8135
+sha256 = "fa8569019021ee438983fff98b3ef702c9e47d58fe017079f8cbbf15ec96ea8d"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

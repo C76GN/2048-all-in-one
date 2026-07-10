@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_5idsh"]
+
+[resource]
+script = ExtResource("1_5idsh")
+asset_id = &"asset.review.universal.ui.soundpack.mp3.abstract2.564b9e57"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "MP3/Abstract2"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "mp3", "abstract2")
+source_path = "E:/_inbox/Downloads/UI Soundpack/MP3/Abstract2.mp3"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/MP3/Abstract2.mp3"
+relative_path = "MP3/Abstract2.mp3"
+extension = "mp3"
+file_size_bytes = 8203
+sha256 = "564b9e57013ee10d70c293b04b8cba3927d14e8470f8f42284c586d06e0ad13b"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

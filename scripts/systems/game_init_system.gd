@@ -19,8 +19,10 @@ var _rule_system: RuleSystem
 var _game_flow_system: GameFlowSystem
 var _command_history: GFCommandHistoryUtility
 var _level_utility: GFLevelUtility
+var _mode_cache: GameModeConfigCacheUtility
 var _grid_model: GridModel
 var _log: GFLogUtility
+var _clock: GameClockUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -29,7 +31,9 @@ func ready() -> void:
 	_seed_utility = _get_seed_utility()
 	_command_history = _get_command_history_utility()
 	_level_utility = _get_level_utility()
+	_mode_cache = _get_mode_cache_utility()
 	_log = _get_log_utility()
+	_clock = _get_clock_utility()
 	_rule_system = _get_rule_system()
 	_game_flow_system = _get_game_flow_system()
 	_grid_model = _get_grid_model()
@@ -44,8 +48,10 @@ func dispose() -> void:
 	_game_flow_system = null
 	_command_history = null
 	_level_utility = null
+	_mode_cache = null
 	_grid_model = null
 	_log = null
+	_clock = null
 
 
 # --- 私有/辅助方法 ---
@@ -74,12 +80,40 @@ func _get_level_utility() -> GFLevelUtility:
 	return null
 
 
+func _get_mode_cache_utility() -> GameModeConfigCacheUtility:
+	var utility_value: Object = get_utility(GameModeConfigCacheUtility)
+	if utility_value is GameModeConfigCacheUtility:
+		var mode_cache: GameModeConfigCacheUtility = utility_value
+		return mode_cache
+	return null
+
+
 func _get_log_utility() -> GFLogUtility:
 	var utility_value: Object = get_utility(GFLogUtility)
 	if utility_value is GFLogUtility:
 		var log_utility: GFLogUtility = utility_value
 		return log_utility
 	return null
+
+
+func _get_clock_utility() -> GameClockUtility:
+	var utility_value: Object = get_utility(GameClockUtility)
+	if utility_value is GameClockUtility:
+		var clock: GameClockUtility = utility_value
+		return clock
+	return null
+
+
+func _get_unix_timestamp() -> int:
+	if is_instance_valid(_clock):
+		return _clock.get_unix_timestamp()
+
+	_clock = _get_clock_utility()
+	if is_instance_valid(_clock):
+		return _clock.get_unix_timestamp()
+
+	push_error("[GameInitSystem] 缺少 GameClockUtility，无法生成默认初始种子。")
+	return 0
 
 
 func _get_rule_system() -> RuleSystem:
@@ -311,14 +345,21 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		if config_seed != 0:
 			init_seed = config_seed
 		else:
-			init_seed = int(Time.get_unix_time_from_system())
+			init_seed = _get_unix_timestamp()
 		if is_instance_valid(_log):
 			_log.debug(_LOG_TAG, "本局初始种子: %d" % init_seed)
 
 	game_ready_data.current_grid_size = grid_size
 	game_ready_data.initial_seed = init_seed
 
-	var mode_config: GameModeConfig = GameModeConfigCacheUtility.get_config(config_path)
+	if not is_instance_valid(_mode_cache):
+		_mode_cache = _get_mode_cache_utility()
+	if not is_instance_valid(_mode_cache):
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "GameModeConfigCacheUtility 未注册，无法加载模式配置: %s" % config_path)
+		return
+
+	var mode_config: GameModeConfig = _mode_cache.get_cached_config(config_path)
 	if not is_instance_valid(mode_config):
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GameModeConfig 加载失败: %s" % config_path)

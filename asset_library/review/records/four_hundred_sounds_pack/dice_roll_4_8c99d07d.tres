@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_vyhp5"]
+
+[resource]
+script = ExtResource("1_vyhp5")
+asset_id = &"asset.review.four.hundred.sounds.pack.card.and.board.dice.roll.4.8c99d07d"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Card and Board/dice_roll_4"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "card", "and", "board", "dice_roll_4")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Card and Board/dice_roll_4.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Card and Board/dice_roll_4.wav"
+relative_path = "Card and Board/dice_roll_4.wav"
+extension = "wav"
+file_size_bytes = 110892
+sha256 = "8c99d07d759fa28582dd3bb55fc0af0c8b340e8733f2d78276b81507e020dfcd"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

@@ -1,0 +1,31 @@
+{
+	"author": "JDSherbert",
+	"display_name": "JDSherbert Ultimate UI SFX Pack FREE Mono",
+	"imported_at": "2026-07-09 03:22:27",
+	"license": "unknown",
+	"license_status": "unknown",
+	"original_source_path": "E:/_inbox/Downloads/JDSherbert - Ultimate UI SFX Pack (FREE)/Mono",
+	"report": {
+		"byte_count": 535865,
+		"copied_count": 0,
+		"display_name": "JDSherbert Ultimate UI SFX Pack FREE Mono",
+		"error_count": 0,
+		"file_count": 5,
+		"kind_counts": {
+			"audio": 5
+		},
+		"license_counts": {
+			"unknown": 5
+		},
+		"non_review_file_count": 0,
+		"review_record_count": 5,
+		"source_pack_id": "jdsherbert_ultimate_ui_sfx_free_mono",
+		"status_counts": {
+			"inbox": 5
+		},
+		"unchanged_count": 5
+	},
+	"schema_version": 1,
+	"source_pack_id": "jdsherbert_ultimate_ui_sfx_free_mono",
+	"source_url": ""
+}

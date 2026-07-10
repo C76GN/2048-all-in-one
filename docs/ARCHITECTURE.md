@@ -4,11 +4,12 @@
 
 ## 启动链路
 
-1. `scenes/boot/boot.tscn` 加载 `scripts/boot/boot.gd`。
-2. `boot.gd` 调用 `await Gf.init()`。
+1. `scenes/boot/boot.tscn` 加载 `scripts/boot/boot.gd`，先绘制启动画面和印刷风格进度条。
+2. `boot.gd` 通过 `GFAsyncProgress` 发布启动阶段进度，并调用 `await Gf.init()`。
 3. GF 根据 `project.godot` 的 `gf/project/installers` 运行 `GameArchitectureInstaller`。
 4. 项目注册 Model、Utility、System。
-5. `SceneRouterSystem` 接管初始场景流转。
+5. `Boot` 通过 `GFSceneUtility.preload_scene()` 预热主菜单。
+6. `SceneRouterSystem` 接管初始场景流转。
 
 GF AutoLoad 使用 `project.godot` 中的 `Gf="*uid://dftf1eh06apl0"`，对应 `addons/gf/kernel/core/gf.gd.uid`。
 
@@ -20,6 +21,9 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 
 - `gf.domain`
 - `gf.action_queue`
+- `gf.content_package`
+- `gf.feedback`
+- `gf.save`
 
 当前仓库是手动更新后的 vendored GF 源码状态，不应假设 `.gf/packages.lock.json` 一定存在。GF 7 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`；后续如果恢复包管理器安装流，需要重新生成 lockfile，并同步本文档、`README.md`、`docs/VALIDATION.md` 和包状态测试。
 
@@ -27,6 +31,7 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 
 - `gf.domain`
 - `gf.action_queue`
+- `gf.content_package`
 - `gf.standard.deterministic`
 - `gf.standard.input`
 - `gf.standard.state_machine`
@@ -49,9 +54,11 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 职责：
 
 - 启动 GF。
+- 显示启动画面和真实启动进度。
 - 注册项目 Model、Utility、System。
+- 通过 `GFSceneUtility` 预热主菜单，避免进入主菜单时突然空白等待。
 - 保持项目 Installer 只注册项目自身模块；GF 扩展模块由扩展 Installer 装配。
-- `gf.domain` 拥有 `GFLevelUtility` / `GFQuestUtility`，`gf.action_queue` 拥有 `GFActionQueueSystem`；项目 Installer 不手动绑定这些 Module。
+- `gf.domain` 拥有 `GFLevelUtility` / `GFQuestUtility`，`gf.action_queue` 拥有 `GFActionQueueSystem`，`gf.content_package` 拥有 `GFContentPackageUtility`；项目 Installer 不手动绑定这些 Module。
 
 当前风险：
 
@@ -92,6 +99,7 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 - 玩家移动通过 `MoveCommand` 和 `GFCommandHistoryUtility` 进入历史。
 - 回放和书签复用持久化资源集合。
 - 对局初始化通过 `GFLevelUtility` 登记当前 session。
+- 场景切换通过 `GFSceneUtility` 异步加载，`SceneRouterSystem` 负责业务路由和半调纸媒转场遮罩。
 
 ### Utility Module
 
@@ -106,17 +114,23 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 
 当前重要 Utility：
 
-- `GameModeConfigCacheUtility`：从 `GFResourceRegistry` 读取模式目录，并登记到 `GFAssetUtility`。
+- `ProjectResourceCatalogUtility`：把 `GFResourceRegistry`、`GFResourceResolverUtility` 和 `GFAssetUtility` 的组合用法集中成项目资源目录 Adapter。
+- `GameModeConfigCacheUtility`：通过 `ProjectResourceCatalogUtility` 读取模式目录、注册稳定资源键并复用 `GFAssetUtility` 缓存。
 - `GameUiRouterUtility`：作为 `GFUIRouterUtility` 的项目 Adapter，从 UI 路由注册表加载 `GFUIRoute`。
-- `GameSettingsUtility`：承接 `GFSettingsUtility` 和项目设置字段。
+- `GameSettingsUtility`：承接 `GFSettingsUtility` 和项目设置字段，统一声明语言、显示、音量、视觉主题和音效主题默认值。
+- `GameSaveSlotWorkflowUtility`：承接 `GFSaveSlotWorkflow`、`GFSaveSlotMetadata` 和 `GFSaveSlotCard`，把最高分/统计保存到稳定 GF save slot。
+- `GameAssetLibraryUtility`：承接 `GFContentPackageUtility`、`GFResourceResolverUtility` 和 `GFContentPackageExportPlan`，注册项目内通用素材库、解析稳定 `asset.*` 资源键并生成素材审计报告。
+- `GameThemeCatalogUtility`：承接 `GFContentPackageUtility` 和 `GFResourceResolverUtility`，注册内置主题内容包并加载主题注册表。
+- `GameThemeUtility`：承接 `GFSettingsUtility`、`GameThemeCatalogUtility`、`GameUiMotionUtility` 和 `GFAudioUtility`，解析当前视觉主题和音效主题。
 - `SavedResourceCollectionUtility`：复用 `GFStorageUtility` 保存时间戳 Resource 集合。
-- `GameUiMotionUtility`：统一菜单、按钮、面板和列表动效。
-- `GameBoardFeedbackUtility`：统一棋盘表现反馈，并和 `GFActionQueueSystem` 协作。
+- `GameClockUtility`：集中 wall-clock 时间戳、短文件名 tick 和用户可读日期格式；`GFTimeUtility` 仍负责游戏 delta、缩放和暂停。
+- `GameUiMotionUtility`：统一菜单、按钮、面板和列表动效；设置页、模式配置和调试面板选项通过 `GFItemListBinder` 写入 OptionButton。
+- `GameBoardFeedbackUtility`：统一棋盘表现反馈，和 `GFActionQueueSystem` 协作，并通过 `GFShakeUtility` 播放 board channel 反馈。
 
 深化方向：
 
-- 资源目录加载、排序、校验和 asset group 注册可以形成更深的内部 Module，减少模式目录和 UI 路由目录的重复知识。
-- 存档集合 Utility 已经有复用价值，后续接入 `gf.extension.save` 前应先稳定它的接口。
+- 回放/书签列表通过 `GFRepeaterBinder` 复制列表项模板并集中配置业务信号；`GFVirtualListModel` 暂不接入，留给未来大量历史记录场景。
+- 视觉主题资源已经成为主要真相来源，但场景内仍有散落 `theme_override_*`，后续应继续收敛到主题资源与 `GameUiMotionUtility`。
 
 ### Controller Module
 
@@ -189,7 +203,7 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 ### 新游戏
 
 1. 菜单选择模式和棋盘大小。
-2. `SceneRouterSystem` 切到游戏场景。
+2. `SceneRouterSystem` 通过 `GFSceneUtility` 切到游戏场景，并播放半调纸媒场景转场遮罩。
 3. `GameInitSystem` 读取 `GameModeConfig`。
 4. `RuleSystem` 配置规则。
 5. `GFSeedUtility` 处理初始种子。
@@ -199,14 +213,37 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 ### UI 弹层
 
 1. 业务代码按 route id 请求打开暂停、设置或游戏结束界面。
-2. `GameUiRouterUtility` 从 `ui_route_registry.tres` 找到 `GFUIRoute`。
+2. `ProjectResourceCatalogUtility` 将 `ui_route_registry.tres` 中的路由注册为稳定资源键，`GameUiRouterUtility` 找到并加载 `GFUIRoute`。
 3. `GFUIUtility` 将面板压入对应 UI layer。
 4. `GameUiMotionUtility` 绑定按钮和播放入场动效。
 
+### 主题切换
+
+1. 设置页通过 `GFFormBinder` 写入 `appearance/theme_id` 和 `audio/sound_theme_id`。
+2. `GameThemeCatalogUtility` 通过 `GFContentPackageUtility` 把 `resources/gf_content_package.json` 注册到 `GFResourceResolverUtility`。
+3. `GameThemeUtility` 通过 `GameThemeCatalogUtility` 使用 `game.theme_registry` 资源键解析 `GameTheme` / `GameAudioTheme`。
+4. `GameUiMotionUtility` 接收 `GameUiPalette` 并刷新当前 UI 树。
+5. `GamePlayController` 和 `BoardPreview` 通过当前 `GameTheme` 解析 `BoardTheme` 和 `TileColorScheme`，运行中切换时用 `GridModel` 快照重绘棋盘。
+6. `GFAudioUtility` 接收主题音频银行；当前 `printworks` 主题使用 Universal UI Soundpack 中筛选出的 UI / tile / game over OGG 素材，后续继续打磨音色、响度和混音。
+
+### 素材库
+
+1. `asset_library/gf_content_package.json` 维护可复用素材包，资源键统一使用 `asset.*` 前缀。
+2. `GameAssetLibraryUtility` 注册 `res://asset_library` source root，并把资源键同步到 `GFResourceResolverUtility`。
+3. 首批音频和 shader 都从 `asset_library/` 路径引用；主题包声明依赖 `c76.asset_library.core`。
+4. `tools/audit_asset_library.ps1` 生成 `asset_library/reports/asset_audit.json` 和 `.md`，报告素材存在性、元数据、未登记文件和项目引用者。
+
+### 统计存档
+
+1. `SaveSystem` 维护最高分和轻量统计的业务字典 Interface。
+2. `GameSaveSlotWorkflowUtility` 把业务字典写入 `GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX`。
+3. `GFSaveSlotWorkflow` 构建 `GFSaveSlotMetadata`，记录 `game_stats` schema、总局数和最高分摘要。
+4. `GFStorageUtility.save_slot()` 原子写入数据和元数据；UI 或调试工具可通过 `GFSaveSlotCard` 获取通用槽位摘要。
+
 ## 配套文档
 
-- `docs/SAVE_MODEL.md`：设置、最高分、书签、回放和未来 `gf.extension.save` 的接口。
-- `docs/VISUAL_STYLE.md`：柔和肌理扁平风的视觉方向、色彩和噪点约束。
+- `docs/SAVE_MODEL.md`：设置、最高分/统计 GF save slot、书签、回放和后续 save graph 扩展边界。
+- `docs/VISUAL_STYLE.md`：CMYK 半调纸媒游戏的视觉方向、色彩、纹理和动效约束。
 - `docs/VALIDATION.md`：安全验证命令、GUT 隔离运行策略和当前验证缺口。
 
 ## 待补事项

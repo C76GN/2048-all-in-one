@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_cvdke"]
+
+[resource]
+script = ExtResource("1_cvdke")
+asset_id = &"asset.review.four.hundred.sounds.pack.ui.pop.4.a1851850"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "UI/pop_4"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "pop_4")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/pop_4.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/UI/pop_4.wav"
+relative_path = "UI/pop_4.wav"
+extension = "wav"
+file_size_bytes = 51244
+sha256 = "a18518508634f060e1912adbd208c41f8ce834ce4e73ac85d144bc08a110a2ca"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.tile.spawn")
+imported_at = "2026-07-09 03:08:11"

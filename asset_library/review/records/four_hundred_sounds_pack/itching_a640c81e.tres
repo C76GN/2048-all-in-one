@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_u6qma"]
+
+[resource]
+script = ExtResource("1_u6qma")
+asset_id = &"asset.review.four.hundred.sounds.pack.other.itching.a640c81e"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Other/itching"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "itching")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/itching.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Other/itching.wav"
+relative_path = "Other/itching.wav"
+extension = "wav"
+file_size_bytes = 231468
+sha256 = "a640c81e99cdbce104fffd4ebbb745f93b269a611ea637432945a34e66f743b0"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

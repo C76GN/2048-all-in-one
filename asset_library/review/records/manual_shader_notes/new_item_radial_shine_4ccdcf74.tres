@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_reward"]
+
+[resource]
+script = ExtResource("1_reward")
+asset_id = &"asset.review.manual.shader.notes.new.item.radial.shine.4ccdcf74"
+source_pack_id = &"manual_shader_notes"
+display_name = "new_item_radial_shine"
+asset_kind = &"shader"
+review_status = &"candidate"
+tags = PackedStringArray("shader", "canvas_item", "vfx", "reward", "new_item", "unlock", "radial_shine", "noise", "license_review_needed")
+notes = "Candidate radial shine shader for new item, achievement, theme unlock, or reward reveal feedback. Adapted for Godot 4 with clearer parameter names, safe radial cutoff, optional texture alpha, and one noise texture. Promotion requires an approved noise texture, motion tuning, and readability checks over reward UI."
+rating = 4
+source_path = "manual://chat/2026-07-10/new_item_radial_shine.gdshader"
+library_path = "res://asset_library/source_packs/manual_shader_notes/files/new_item_radial_shine.gdshader"
+relative_path = "new_item_radial_shine.gdshader"
+extension = "gdshader"
+file_size_bytes = 1850
+sha256 = "4ccdcf742832c7dd59e27bf9da1125d59ce513d8f40717b605c8e4b87a5b73d9"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.vfx.new_item_radial_shine", "slot.shader.vfx.theme_unlock_reward", "slot.shader.vfx.achievement_reward_shine")
+imported_at = "2026-07-10 01:48:00"

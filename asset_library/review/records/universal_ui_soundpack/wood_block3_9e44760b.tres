@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_64sa8"]
+
+[resource]
+script = ExtResource("1_64sa8")
+asset_id = &"asset.review.universal.ui.soundpack.ogg.wood.block3.9e44760b"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "OGG/Wood Block3"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "ogg", "wood", "block3")
+source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Wood Block3.ogg"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/OGG/Wood Block3.ogg"
+relative_path = "OGG/Wood Block3.ogg"
+extension = "ogg"
+file_size_bytes = 24588
+sha256 = "9e44760ba7bd73d43ab8409603266abfd8130a795a960f3e9bedba983dcba21b"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

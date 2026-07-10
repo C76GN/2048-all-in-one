@@ -9,11 +9,16 @@ extends "res://scripts/ui/base/game_ui_controller.gd"
 # --- 常量 ---
 
 const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
-const _TEXT_PRIMARY_COLOR: Color = Color(0.96, 0.92, 0.84, 1.0)
-const _TEXT_SECONDARY_COLOR: Color = Color(0.78, 0.82, 0.78, 0.94)
-const _TEXT_SHADOW_COLOR: Color = Color(0.025, 0.035, 0.060, 0.26)
+const _TEXT_PRIMARY_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _TEXT_SECONDARY_COLOR: Color = Color(0.46666667, 0.45882353, 0.43529412, 0.96)
+const _TEXT_SHADOW_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.52)
 const _SUMMARY_FORMAT_FALLBACK: String = "%s · %dx%d\n本局：%d 分 · %d 步 · 最大方块 %d\n历史：最高分 %d · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n完整对局：%d"
 const _SUMMARY_FORMAT_WITH_TARGET_FALLBACK: String = "%s · %dx%d\n本局：%d 分 · %d 步 · 最大方块 %d\n历史：最高分 %d · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n目标 %d：本局%s · 累计 %d 次 · %d%%\n完整对局：%d"
+
+
+# --- 私有变量 ---
+
+var _has_played_new_record_celebration: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -66,8 +71,8 @@ func _style_label(label: Label, color: Color, font_size: int, use_shadow: bool) 
 	label.add_theme_font_size_override("font_size", font_size)
 	if use_shadow:
 		label.add_theme_color_override("font_shadow_color", _TEXT_SHADOW_COLOR)
-		label.add_theme_constant_override("shadow_offset_x", 0)
-		label.add_theme_constant_override("shadow_offset_y", 1)
+		label.add_theme_constant_override("shadow_offset_x", 2)
+		label.add_theme_constant_override("shadow_offset_y", 2)
 
 
 func _refresh_summary() -> void:
@@ -102,6 +107,7 @@ func _refresh_summary() -> void:
 	var prefix: String = ""
 	if score > initial_high_score:
 		prefix = tr("GAME_OVER_NEW_RECORD_PREFIX") + "\n"
+		_play_new_record_celebration_once()
 	if target_value > 0:
 		_summary_label.text = prefix + GameTextFormatUtility.format_template(
 			tr("GAME_OVER_SUMMARY_FORMAT_WITH_TARGET"),
@@ -183,6 +189,23 @@ func _get_ui_router_utility() -> GFUIRouterUtility:
 		var ui_router: GFUIRouterUtility = utility_value
 		return ui_router
 	return null
+
+
+func _get_celebration_vfx_utility() -> GameCelebrationVfxUtility:
+	var utility_value: Object = get_utility(GameCelebrationVfxUtility)
+	if utility_value is GameCelebrationVfxUtility:
+		var celebration_vfx: GameCelebrationVfxUtility = utility_value
+		return celebration_vfx
+	return null
+
+
+func _play_new_record_celebration_once() -> void:
+	if _has_played_new_record_celebration:
+		return
+	_has_played_new_record_celebration = true
+	var celebration_vfx: GameCelebrationVfxUtility = _get_celebration_vfx_utility()
+	if is_instance_valid(celebration_vfx):
+		var _played: bool = celebration_vfx.play_new_record_celebration()
 
 
 func _get_current_grid_size(current_game_model: CurrentGameModel) -> int:

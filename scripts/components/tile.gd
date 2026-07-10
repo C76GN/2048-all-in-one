@@ -26,11 +26,17 @@ const HORIZONTAL_PADDING: float = 10.0
 ## 动态字体大小计算的基础字号。
 const BASE_FONT_SIZE: int = 48
 
-const _MOVE_DURATION: float = 0.14
-const _SPAWN_DURATION: float = 0.18
-const _MERGE_PULSE_DURATION: float = 0.09
-const _DESPAWN_DURATION: float = 0.14
-const _STYLE_CORNER_RADIUS: int = 0
+const _MOVE_DURATION: float = 0.10
+const _SPAWN_DURATION: float = 0.12
+const _MERGE_PULSE_DURATION: float = 0.07
+const _DESPAWN_DURATION: float = 0.12
+const _STYLE_CORNER_RADIUS: int = 4
+const _STYLE_BORDER_WIDTH: int = 4
+const _STYLE_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _STYLE_OUTLINE_LIGHT: Color = Color(1.0, 0.972549, 0.9098039, 0.66)
+const _STYLE_OUTLINE_DARK: Color = Color(0.0, 0.0, 0.0, 0.35)
+const _FLASH_MERGE_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+const _FLASH_TRANSFORM_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
 
 
 # --- 公共变量 ---
@@ -63,6 +69,7 @@ var _active_flash_tween: Tween
 # --- @onready 变量 (节点引用) ---
 
 @onready var background: Panel = $Background
+@onready var pattern_overlay: TilePatternOverlay = $PatternOverlay
 @onready var value_label: Label = $ValueLabel
 
 
@@ -90,7 +97,10 @@ func setup(new_value: int, new_type: TileType, bg_color: Color, font_color: Colo
 	
 	value_label.text = str(int(value))
 	_apply_background_style(bg_color)
+	_apply_pattern_style(bg_color)
 	value_label.add_theme_color_override("font_color", font_color)
+	value_label.add_theme_color_override("font_outline_color", _get_label_outline_color(bg_color))
+	value_label.add_theme_constant_override("outline_size", 2)
 	_update_font_size()
 
 
@@ -127,21 +137,20 @@ func on_gf_pool_release() -> void:
 	reset_animation_state()
 
 
-## 播放方块生成时的动画（从小到大旋转出现）。
+## 播放方块生成时的动画（短促放大出现）。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_spawn() -> Tween:
 	if is_instance_valid(_active_rotation_tween) and _active_rotation_tween.is_valid():
 		_active_rotation_tween.kill()
 
-	scale = Vector2.ONE * 0.42
-	rotation_degrees = -5.0
+	scale = Vector2.ONE * 0.72
+	rotation_degrees = 0.0
 	modulate = Color(1.0, 1.0, 1.0, 0.0)
 	_active_rotation_tween = create_tween()
 	var _parallel_result: Tween = _active_rotation_tween.set_parallel(true)
 	var _transition_result: Tween = _active_rotation_tween.set_trans(Tween.TRANS_BACK)
 	var _ease_result: Tween = _active_rotation_tween.set_ease(Tween.EASE_OUT)
 	var _scale_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "scale", Vector2.ONE, _SPAWN_DURATION)
-	var _rotation_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 0.0, _SPAWN_DURATION)
 	var _fade_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "modulate:a", 1.0, _SPAWN_DURATION * 0.75)
 	return _active_rotation_tween
 
@@ -172,9 +181,9 @@ func animate_merge() -> Tween:
 	_active_scale_tween = create_tween()
 	var _transition_result: Tween = _active_scale_tween.set_trans(Tween.TRANS_BACK)
 	var _ease_result: Tween = _active_scale_tween.set_ease(Tween.EASE_OUT)
-	var _scale_up_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "scale", Vector2.ONE * 1.24, _MERGE_PULSE_DURATION)
+	var _scale_up_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "scale", Vector2.ONE * 1.12, _MERGE_PULSE_DURATION)
 	var _scale_down_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "scale", Vector2.ONE, _MERGE_PULSE_DURATION)
-	_play_flash(Color(1.0, 0.92, 0.62, 1.0), _MERGE_PULSE_DURATION * 2.0)
+	_play_flash(_FLASH_MERGE_COLOR, _MERGE_PULSE_DURATION * 2.0)
 	return _active_scale_tween
 
 
@@ -201,11 +210,11 @@ func animate_transform() -> Tween:
 	_active_rotation_tween = create_tween()
 	var _transition_result: Tween = _active_rotation_tween.set_trans(Tween.TRANS_SINE)
 	var _ease_result: Tween = _active_rotation_tween.set_ease(Tween.EASE_IN_OUT)
-	var _rotate_left_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", -8.0, 0.04)
-	var _rotate_right_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 8.0, 0.06)
-	var _rotate_settle_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", -5.0, 0.05)
+	var _rotate_left_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", -4.0, 0.04)
+	var _rotate_right_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 4.0, 0.05)
+	var _rotate_settle_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", -2.0, 0.04)
 	var _rotate_home_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 0.0, 0.05)
-	_play_flash(Color(0.72, 0.9, 1.0, 1.0), 0.16)
+	_play_flash(_FLASH_TRANSFORM_COLOR, 0.14)
 	return _active_rotation_tween
 
 
@@ -245,12 +254,52 @@ func _apply_background_style(bg_color: Color) -> void:
 	var stylebox: StyleBoxFlat = _get_background_stylebox_flat()
 
 	stylebox.bg_color = bg_color
-	stylebox.border_color = bg_color
-	stylebox.set_border_width_all(0)
+	stylebox.border_color = _STYLE_BORDER_COLOR
+	stylebox.set_border_width_all(_STYLE_BORDER_WIDTH)
 	stylebox.set_corner_radius_all(_STYLE_CORNER_RADIUS)
 	stylebox.shadow_color = Color.TRANSPARENT
 	stylebox.shadow_size = 0
 	stylebox.shadow_offset = Vector2.ZERO
+
+
+func _apply_pattern_style(bg_color: Color) -> void:
+	if not is_instance_valid(pattern_overlay):
+		return
+
+	pattern_overlay.setup(_get_pattern_type(), bg_color)
+
+
+func _get_pattern_type() -> TilePatternOverlay.PatternType:
+	match type:
+		TileType.MONSTER:
+			return TilePatternOverlay.PatternType.DIAGONAL_HATCH
+		TileType.PLAYER:
+			return _get_player_pattern_type()
+		_:
+			return TilePatternOverlay.PatternType.NONE
+
+
+func _get_player_pattern_type() -> TilePatternOverlay.PatternType:
+	var safe_value: int = maxi(absi(value), 1)
+	var approximate_level: int = maxi(roundi(log(float(safe_value)) / log(2.0)) - 1, 0)
+	match approximate_level % 4:
+		0:
+			return TilePatternOverlay.PatternType.HALFTONE
+		1:
+			return TilePatternOverlay.PatternType.DIAMOND
+		2:
+			return TilePatternOverlay.PatternType.CHECKER
+		_:
+			return TilePatternOverlay.PatternType.SCALES
+
+
+func _get_label_outline_color(bg_color: Color) -> Color:
+	var luminance: float = (
+		bg_color.r * 0.299
+		+ bg_color.g * 0.587
+		+ bg_color.b * 0.114
+	)
+	return _STYLE_OUTLINE_LIGHT if luminance < 0.50 else _STYLE_OUTLINE_DARK
 
 
 func _play_flash(color: Color, duration: float) -> void:

@@ -10,16 +10,42 @@ extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 const _FEEDBACK_NODE_NAME: String = "BoardFeedback"
 const _FEEDBACK_Z_INDEX: int = 100
-const _MERGE_COLOR: Color = Color(0.82, 0.60, 0.34, 1.0)
-const _SPAWN_COLOR: Color = Color(0.48, 0.68, 0.64, 1.0)
-const _TRANSFORM_COLOR: Color = Color(0.55, 0.49, 0.70, 1.0)
-const _DEFAULT_COLOR: Color = Color(0.94, 0.90, 0.82, 1.0)
-const _SPARK_BASE_SIZE: float = 6.0
+const _MERGE_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+const _SPAWN_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
+const _TRANSFORM_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
+const _DEFAULT_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _SPARK_BASE_SIZE: float = 5.0
 const _LABEL_SIZE: Vector2 = Vector2(120.0, 36.0)
 const _LABEL_OFFSET: Vector2 = Vector2(-60.0, -58.0)
 const _LABEL_RISE: Vector2 = Vector2(0.0, -20.0)
-const _LABEL_DURATION: float = 0.42
+const _LABEL_DURATION: float = 0.34
 const _ROOT_LIFETIME_PADDING: float = 0.08
+const _SHAKE_CHANNEL: StringName = &"board"
+
+
+# --- 私有变量 ---
+
+var _shake_utility: GFShakeUtility = null
+var _shake_presets: Dictionary = {}
+
+
+# --- GF 生命周期方法 ---
+
+func init() -> void:
+	_shake_presets = {
+		&"merge": _make_shake_preset(0.16, 2.2, 34.0),
+		&"spawn": _make_shake_preset(0.10, 0.9, 24.0),
+		&"transform": _make_shake_preset(0.14, 1.5, 30.0),
+	}
+
+
+func ready() -> void:
+	_shake_utility = _get_shake_utility()
+
+
+func dispose() -> void:
+	_shake_utility = null
+	_shake_presets.clear()
 
 
 # --- 公共方法 ---
@@ -59,6 +85,7 @@ func play_feedback(
 		_create_label(effect_root, resolved_label_text, color)
 		created_count += 1
 
+	_play_feedback_shake(feedback_type)
 	_queue_free_after(effect_root, maxf(duration, _LABEL_DURATION) + _ROOT_LIFETIME_PADDING)
 	return created_count
 
@@ -106,7 +133,9 @@ func _create_label(root: Node2D, text: String, color: Color) -> void:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.add_theme_font_size_override("font_size", 24)
-	label.add_theme_color_override("font_color", color.lightened(0.08))
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(1.0, 0.972549, 0.9098039, 0.72))
+	label.add_theme_constant_override("outline_size", 2)
 	label.scale = Vector2.ONE * 0.76
 	root.add_child(label)
 
@@ -120,12 +149,12 @@ func _create_label(root: Node2D, text: String, color: Color) -> void:
 	var _fade_delay_result: Tweener = fade_tweener.set_delay(_LABEL_DURATION * 0.25)
 
 
-func _create_spark_style(color: Color, spark_size: float) -> StyleBoxFlat:
+func _create_spark_style(color: Color, _spark_size: float) -> StyleBoxFlat:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = color
 	style.border_color = color
 	style.set_border_width_all(0)
-	style.set_corner_radius_all(roundi(spark_size))
+	style.set_corner_radius_all(0)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	return style
@@ -203,3 +232,51 @@ func _get_label_text(feedback_type: StringName, label_text: String) -> String:
 	if feedback_type == &"transform":
 		return "!"
 	return ""
+
+
+func _play_feedback_shake(feedback_type: StringName) -> void:
+	var shake: GFShakeUtility = _get_cached_shake_utility()
+	if not is_instance_valid(shake):
+		return
+
+	var preset: GFShakePreset = _get_shake_preset(feedback_type)
+	if preset == null:
+		return
+
+	var _shake_id: int = shake.play_shake(_SHAKE_CHANNEL, preset, 1.0, {
+		"feedback_type": String(feedback_type),
+	})
+
+
+func _get_cached_shake_utility() -> GFShakeUtility:
+	if is_instance_valid(_shake_utility):
+		return _shake_utility
+
+	_shake_utility = _get_shake_utility()
+	return _shake_utility
+
+
+func _get_shake_utility() -> GFShakeUtility:
+	var utility_value: Object = get_utility(GFShakeUtility)
+	if utility_value is GFShakeUtility:
+		var shake_utility: GFShakeUtility = utility_value
+		return shake_utility
+	return null
+
+
+func _get_shake_preset(feedback_type: StringName) -> GFShakePreset:
+	var preset_value: Variant = _shake_presets.get(feedback_type)
+	if preset_value is GFShakePreset:
+		var preset: GFShakePreset = preset_value
+		return preset
+	return null
+
+
+func _make_shake_preset(duration: float, amplitude: float, frequency: float) -> GFShakePreset:
+	var preset: GFShakePreset = GFShakePreset.new()
+	preset.duration_seconds = duration
+	preset.amplitude = amplitude
+	preset.frequency = frequency
+	preset.waveform = GFShakePreset.Waveform.NOISE
+	preset.position_axis = Vector3(1.0, 0.55, 0.0)
+	return preset

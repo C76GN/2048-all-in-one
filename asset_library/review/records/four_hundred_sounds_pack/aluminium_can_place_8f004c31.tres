@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_grsab"]
+
+[resource]
+script = ExtResource("1_grsab")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.aluminium.can.place.8f004c31"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/aluminium_can_place"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "aluminium_can_place")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/aluminium_can_place.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Materials/aluminium_can_place.wav"
+relative_path = "Materials/aluminium_can_place.wav"
+extension = "wav"
+file_size_bytes = 90156
+sha256 = "8f004c31ac76977dd957be057dc9d9ea7303e5323cb0e232d0e9523bece00ff2"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

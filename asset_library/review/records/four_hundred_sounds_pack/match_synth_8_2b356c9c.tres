@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_laoap"]
+
+[resource]
+script = ExtResource("1_laoap")
+asset_id = &"asset.review.four.hundred.sounds.pack.match.three.match.synth.8.2b356c9c"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Match Three/match_synth_8"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "match", "three", "match_synth_8")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Match Three/match_synth_8.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Match Three/match_synth_8.wav"
+relative_path = "Match Three/match_synth_8.wav"
+extension = "wav"
+file_size_bytes = 399080
+sha256 = "2b356c9c018c71b2f039cdf59aedead640b65a64476450e5672607050fdf2c5e"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.tile.merge")
+imported_at = "2026-07-09 03:08:11"

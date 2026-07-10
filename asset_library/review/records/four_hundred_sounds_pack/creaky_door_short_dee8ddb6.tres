@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_cccfd"]
+
+[resource]
+script = ExtResource("1_cccfd")
+asset_id = &"asset.review.four.hundred.sounds.pack.environment.creaky.door.short.dee8ddb6"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Environment/creaky_door_short"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "environment", "creaky_door_short")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Environment/creaky_door_short.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Environment/creaky_door_short.wav"
+relative_path = "Environment/creaky_door_short.wav"
+extension = "wav"
+file_size_bytes = 149036
+sha256 = "dee8ddb65250d0ed66059af245068b02d328e2d2ffe066d49faab477e614057a"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

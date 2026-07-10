@@ -14,6 +14,7 @@ extends "res://addons/gf/kernel/base/gf_controller.gd"
 ## 预加载方块场景，用于在运行时动态实例化。
 const TileScene: PackedScene = preload("res://scenes/components/tile.tscn")
 const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_board_feedback_utility.gd")
+const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_utility.gd")
 
 ## 每个单元格的像素尺寸。
 const CELL_SIZE: int = 100
@@ -176,6 +177,8 @@ func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Strin
 	var feedback_utility: GameBoardFeedbackUtility = _get_board_feedback_utility()
 	if is_instance_valid(feedback_utility):
 		var _feedback_count: int = feedback_utility.play_feedback(board_container, tile.position, feedback_type, label_text)
+
+	_play_tile_feedback_sound(feedback_type)
 
 
 ## 获取当前棋盘上数值最大的玩家方块的值。
@@ -343,6 +346,14 @@ func _get_board_feedback_utility() -> GameBoardFeedbackUtility:
 	if utility_value is GameBoardFeedbackUtility:
 		var feedback_utility: GameBoardFeedbackUtility = utility_value
 		return feedback_utility
+	return null
+
+
+func _get_theme_utility() -> GameThemeUtility:
+	var utility_value: Object = get_utility(_GAME_THEME_UTILITY_SCRIPT)
+	if utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = utility_value
+		return theme_utility
 	return null
 
 
@@ -560,9 +571,9 @@ func _apply_board_background_style() -> void:
 		return
 
 	panel_style.bg_color = board_theme.board_panel_color
-	panel_style.border_color = board_theme.board_panel_color
-	panel_style.set_border_width_all(0)
-	panel_style.set_corner_radius_all(0)
+	panel_style.border_color = board_theme.board_border_color
+	panel_style.set_border_width_all(6)
+	panel_style.set_corner_radius_all(6)
 	panel_style.shadow_color = Color.TRANSPARENT
 	panel_style.shadow_size = 0
 	panel_style.shadow_offset = Vector2.ZERO
@@ -676,9 +687,9 @@ func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) ->
 
 func _configure_cell_style(stylebox: StyleBoxFlat) -> void:
 	stylebox.bg_color = board_theme.empty_cell_color
-	stylebox.border_color = board_theme.empty_cell_color
-	stylebox.set_border_width_all(0)
-	stylebox.set_corner_radius_all(0)
+	stylebox.border_color = board_theme.empty_cell_border_color
+	stylebox.set_border_width_all(3)
+	stylebox.set_corner_radius_all(4)
 	stylebox.shadow_color = Color.TRANSPARENT
 	stylebox.shadow_size = 0
 	stylebox.shadow_offset = Vector2.ZERO
@@ -852,6 +863,24 @@ func _calculate_layout_params(p_size: int) -> Dictionary:
 	}
 
 
+func _play_tile_feedback_sound(feedback_type: StringName) -> void:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if not is_instance_valid(theme_utility):
+		return
+
+	match feedback_type:
+		&"spawn":
+			theme_utility.play_tile_spawn_sound()
+		&"merge":
+			theme_utility.play_tile_merge_sound()
+
+
+func _play_tile_move_sound() -> void:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		theme_utility.play_tile_move_sound()
+
+
 # --- 信号处理函数 ---
 
 ## 接收撤回动画请求，播放平滑动画。
@@ -875,6 +904,7 @@ func _on_board_undo_animation_requested(payload: Array) -> void:
 func _on_board_animation_requested(instructions: Array) -> void:
 	var visual_instructions: Array[Dictionary] = []
 	var needs_visual_resync: bool = false
+	var has_move_sound: bool = false
 	if _log:
 		_log.debug(_LOG_TAG, "收到棋盘动画请求: instructions=%d, visual_map=%d" % [instructions.size(), _visual_map.size()])
 	
@@ -884,9 +914,10 @@ func _on_board_animation_requested(instructions: Array) -> void:
 			continue
 		var instr: Dictionary = raw_instr
 		var visual_instr: Dictionary = instr.duplicate()
+		var instruction_type: StringName = _get_instruction_type(instr)
 		
 		# 转换逻辑数据到视觉节点
-		match _get_instruction_type(instr):
+		match instruction_type:
 			&"MOVE":
 				var move_data: GameTileData = _get_game_tile_data(instr, &"tile_data")
 				var move_tile_node: Tile = _get_visual_tile(move_data)
@@ -961,6 +992,9 @@ func _on_board_animation_requested(instructions: Array) -> void:
 		# 计算像素坐标
 		if visual_instr.has(&"to_grid_pos"):
 			visual_instr[&"to_pos"] = _grid_to_pixel_center(_get_vector2i(visual_instr, &"to_grid_pos", Vector2i.ZERO))
+
+		if instruction_type == &"MOVE" or instruction_type == &"MERGE":
+			has_move_sound = true
 			
 		visual_instructions.append(visual_instr)
 
@@ -971,6 +1005,9 @@ func _on_board_animation_requested(instructions: Array) -> void:
 
 	if visual_instructions.is_empty():
 		return
+
+	if has_move_sound:
+		_play_tile_move_sound()
 			
 	# 2. 实例化视觉动作
 	var action: BoardAnimationAction = BoardAnimationAction.new(visual_instructions, self)

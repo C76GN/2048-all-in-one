@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="AssetSourcePack" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_source_pack.gd" id="1_effect"]
+
+[resource]
+script = ExtResource("1_effect")
+source_pack_id = &"manual_effect_notes"
+display_name = "Manual Effect Notes"
+original_source_path = "manual://chat/2026-07-10"
+library_root_path = "res://asset_library/source_packs/manual_effect_notes"
+author = "unknown"
+license = "unknown"
+imported_at = "2026-07-10 00:00:00"
+file_count = 3
+review_record_count = 3
+byte_count = 9279
+tags = PackedStringArray("vfx", "manual_note", "interaction_recipe", "burn", "dissolve", "card_feedback", "button_motion", "hover_feedback", "drag_follow", "pooled_shader_drops", "shader_parameter_pool", "license_review_needed")
+notes = "User-selected effect recipes captured from chat for future experiments, including click-position UV driven burn or dissolve feedback for card-like UI, interactive button follow/wobble hover motion, and pooled shader drop/decal controllers. Keep review-only until paired shader, source, license, accessibility, and UI readability are confirmed."

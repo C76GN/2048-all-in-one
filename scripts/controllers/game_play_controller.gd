@@ -13,11 +13,9 @@ const _LEVEL_CLEANUP_ACTION_QUEUES: StringName = &"gameplay_action_queues"
 const _ROUTE_PAUSE_MENU: StringName = &"pause_menu"
 const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
 const _ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
-const _BACKGROUND_SHADER_BASE_COLOR: StringName = &"base_color"
-const _BACKGROUND_SHADER_ACCENT_COLOR: StringName = &"accent_color"
-const _BACKGROUND_SHADER_SECONDARY_COLOR: StringName = &"secondary_color"
-const _BACKGROUND_SHADER_WARM_COLOR: StringName = &"warm_color"
 const _REPLAY_PROGRESS_FORMAT_FALLBACK: String = "回放进度: %d / %d"
+const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_utility.gd")
+const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_ui_motion_utility.gd")
 
 
 # --- 私有变量 ---
@@ -38,6 +36,8 @@ var _level_utility: GFLevelUtility
 var _signal_utility: GFSignalUtility
 var _test_utility: TestToolUtility
 var _log: GFLogUtility
+var _theme_utility: GameThemeUtility
+var _celebration_vfx_utility: GameCelebrationVfxUtility
 
 ## 标记是否已完成清理，避免 _exit_tree 重复执行。
 var _is_cleaned_up: bool = false
@@ -68,6 +68,9 @@ func _ready() -> void:
 	_signal_utility = _get_signal_utility()
 	_test_utility = _get_test_utility()
 	_log = _get_log_utility()
+	_theme_utility = _get_theme_utility()
+	_celebration_vfx_utility = _get_celebration_vfx_utility()
+	_apply_current_ui_theme()
 	_register_level_runtime_cleanup()
 	
 	if _page_title:
@@ -75,6 +78,8 @@ func _ready() -> void:
 		
 	if is_instance_valid(_game_status_model):
 		_connect_native_signal(_game_status_model.move_count.value_changed, _on_move_count_changed)
+	if is_instance_valid(_theme_utility):
+		_connect_native_signal(_theme_utility.visual_theme_changed, _on_visual_theme_changed)
 		
 	register_event(GameReadyData, _on_game_ready_data_received)
 	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
@@ -143,6 +148,7 @@ func _cleanup_listeners() -> void:
 		_test_utility.clear_context()
 
 	_level_utility = null
+	_celebration_vfx_utility = null
 	
 	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "已清理 GF 事件监听和原生信号连接。")
@@ -182,6 +188,8 @@ func _disconnect_native_signals() -> void:
 	if is_instance_valid(_replay_system):
 		_disconnect_native_signal(_replay_system.playback_progress_changed, _on_replay_progress_changed)
 		_disconnect_native_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
+	if is_instance_valid(_theme_utility):
+		_disconnect_native_signal(_theme_utility.visual_theme_changed, _on_visual_theme_changed)
 	if is_instance_valid(_hud_message_timer):
 		_disconnect_native_signal(_hud_message_timer.timeout, _on_hud_message_timer_timeout)
 
@@ -290,22 +298,39 @@ func _apply_game_background_theme(theme: BoardTheme) -> void:
 	if not is_instance_valid(background_color_rect):
 		return
 
-	if not is_instance_valid(theme):
-		background_color_rect.color = Color(0.030, 0.052, 0.070, 1.0)
+	if not is_instance_valid(_theme_utility):
+		push_error("[GamePlayController] 缺少 GameThemeUtility，无法应用玩法背景主题。")
 		return
 
-	background_color_rect.color = theme.game_background_color
-	var shader_material: ShaderMaterial = _get_background_shader_material()
-	if not is_instance_valid(shader_material):
+	_theme_utility.apply_background_to_color_rect(background_color_rect, theme)
+
+
+func _apply_mode_visual_theme(mode_config: GameModeConfig, refresh_snapshot: bool = false) -> void:
+	if not is_instance_valid(mode_config) or not is_instance_valid(game_board):
+		return
+	if not is_instance_valid(_theme_utility):
+		push_error("[GamePlayController] 缺少 GameThemeUtility，无法解析玩法视觉主题。")
 		return
 
-	shader_material.set_shader_parameter(_BACKGROUND_SHADER_BASE_COLOR, theme.game_background_color)
-	shader_material.set_shader_parameter(
-		_BACKGROUND_SHADER_ACCENT_COLOR,
-		Color(0.185, 0.165, 0.330, 1.0)
-	)
-	shader_material.set_shader_parameter(_BACKGROUND_SHADER_SECONDARY_COLOR, Color(0.035, 0.300, 0.315, 1.0))
-	shader_material.set_shader_parameter(_BACKGROUND_SHADER_WARM_COLOR, Color(0.560, 0.390, 0.180, 1.0))
+	var resolved_board_theme: BoardTheme = _theme_utility.resolve_board_theme(mode_config.board_theme)
+	var resolved_color_schemes: Dictionary = _theme_utility.resolve_color_schemes(mode_config.color_schemes)
+
+	_apply_game_background_theme(resolved_board_theme)
+	game_board.setup(resolved_color_schemes, resolved_board_theme)
+
+	if refresh_snapshot:
+		var grid_model: GridModel = _get_grid_model()
+		if is_instance_valid(grid_model):
+			game_board.call_deferred(&"restore_from_snapshot", grid_model.get_snapshot())
+
+
+func _apply_current_ui_theme() -> void:
+	if is_instance_valid(_theme_utility):
+		var _theme_apply_count: int = _theme_utility.apply_current_theme_to_tree(self)
+
+	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion_utility):
+		var _bound_count: int = motion_utility.bind_interactive_controls(self)
 
 
 func _get_game_status_model() -> GameStatusModel:
@@ -404,6 +429,33 @@ func _get_console_utility() -> GFConsoleUtility:
 	return null
 
 
+func _get_theme_utility() -> GameThemeUtility:
+	var utility_value: Object = get_utility(_GAME_THEME_UTILITY_SCRIPT)
+	if utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = utility_value
+		return theme_utility
+	return null
+
+
+func _get_ui_motion_utility() -> GameUiMotionUtility:
+	var utility_value: Object = get_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)
+	if utility_value is GameUiMotionUtility:
+		var motion_utility: GameUiMotionUtility = utility_value
+		return motion_utility
+	return null
+
+
+func _get_celebration_vfx_utility() -> GameCelebrationVfxUtility:
+	if is_instance_valid(_celebration_vfx_utility):
+		return _celebration_vfx_utility
+	var utility_value: Object = get_utility(GameCelebrationVfxUtility)
+	if utility_value is GameCelebrationVfxUtility:
+		var celebration_vfx: GameCelebrationVfxUtility = utility_value
+		_celebration_vfx_utility = celebration_vfx
+		return celebration_vfx
+	return null
+
+
 func _get_command_history_utility() -> GFCommandHistoryUtility:
 	var utility_value: Object = get_utility(GFCommandHistoryUtility)
 	if utility_value is GFCommandHistoryUtility:
@@ -469,17 +521,6 @@ func _is_test_panel_visible() -> bool:
 	return is_instance_valid(panel_canvas_item) and panel_canvas_item.visible
 
 
-func _get_background_shader_material() -> ShaderMaterial:
-	if not is_instance_valid(background_color_rect):
-		return null
-
-	var material_value: Material = background_color_rect.material
-	if material_value is ShaderMaterial:
-		var shader_material: ShaderMaterial = material_value
-		return shader_material
-	return null
-
-
 # --- 信号处理函数 ---
 
 func _on_scene_will_change(_payload: Variant = null) -> void:
@@ -511,12 +552,7 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 		return
 
 	var mode_config: GameModeConfig = mode_config_value
-	if is_instance_valid(mode_config.board_theme):
-		_apply_game_background_theme(mode_config.board_theme)
-		game_board.setup(mode_config.color_schemes, mode_config.board_theme)
-	else:
-		_apply_game_background_theme(null)
-		game_board.setup(mode_config.color_schemes, null)
+	_apply_mode_visual_theme(mode_config, false)
 
 	_connect_signals()
 
@@ -551,6 +587,15 @@ func _on_board_resized(new_size: int) -> void:
 
 func _on_move_count_changed(_old_value: int, _new_value: int) -> void:
 	_update_replay_ui()
+
+
+func _on_visual_theme_changed(_theme: GameTheme) -> void:
+	var mode_config_value: Variant = _current_game_model.mode_config.get_value() if is_instance_valid(_current_game_model) else null
+	if not mode_config_value is GameModeConfig:
+		return
+	var mode_config: GameModeConfig = mode_config_value
+	_apply_current_ui_theme()
+	_apply_mode_visual_theme(mode_config, true)
 
 
 func _on_toggle_pause_ui(_payload: Variant = null) -> void:
@@ -594,6 +639,10 @@ func _on_replay_continued_as_game(_payload: Variant = null) -> void:
 func _on_target_reached(_payload: Variant = null) -> void:
 	if _is_replay_mode():
 		return
+
+	var celebration_vfx: GameCelebrationVfxUtility = _get_celebration_vfx_utility()
+	if is_instance_valid(celebration_vfx):
+		var _played: bool = celebration_vfx.play_target_reached_celebration()
 
 	var tree: SceneTree = get_tree()
 	if is_instance_valid(tree):

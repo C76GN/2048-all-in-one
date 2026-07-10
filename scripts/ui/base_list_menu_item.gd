@@ -19,8 +19,8 @@ signal item_selected(data: Resource)
 
 # --- 常量 ---
 
-const _SELECTED_SURFACE_COLOR: Color = Color(0.62, 0.18, 0.25, 0.36)
-const _SELECTED_BORDER_COLOR: Color = Color(0.93, 0.80, 0.54, 0.58)
+const _SELECTED_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.70)
+const _SELECTED_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
 
 
 # --- 私有变量 ---
@@ -68,13 +68,13 @@ func get_data() -> Resource:
 	return _item_data
 
 
-## GFObjectPoolUtility 取出列表项时调用，确保复用节点没有残留选中态。
+## 列表项被复用时调用，确保节点没有残留选中态。
 func on_gf_pool_acquire() -> void:
 	button_pressed = false
 	set_selected(false)
 
 
-## GFObjectPoolUtility 归还列表项时调用，清理资源引用和视觉状态。
+## 列表项退出复用池时调用，清理资源引用和视觉状态。
 func on_gf_pool_release() -> void:
 	_item_data = null
 	button_pressed = false
@@ -98,8 +98,8 @@ func _apply_selection_highlight_style() -> void:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = _SELECTED_SURFACE_COLOR
 	style.border_color = _SELECTED_BORDER_COLOR
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(8)
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(4)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	selection_panel.add_theme_stylebox_override("panel", style)

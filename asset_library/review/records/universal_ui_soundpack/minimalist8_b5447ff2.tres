@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_jiftc"]
+
+[resource]
+script = ExtResource("1_jiftc")
+asset_id = &"asset.review.universal.ui.soundpack.mp3.minimalist8.b5447ff2"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "MP3/Minimalist8"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "mp3", "minimalist8")
+source_path = "E:/_inbox/Downloads/UI Soundpack/MP3/Minimalist8.mp3"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/MP3/Minimalist8.mp3"
+relative_path = "MP3/Minimalist8.mp3"
+extension = "mp3"
+file_size_bytes = 8125
+sha256 = "b5447ff2375ad00a1f148e8b4c9559dff14e6f0d227c099c23b97b8bf569d6da"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

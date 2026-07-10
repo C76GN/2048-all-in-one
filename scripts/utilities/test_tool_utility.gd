@@ -9,6 +9,7 @@ extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 const _CMD_GF_DEBUG: String = "gf_debug"
 const _LOG_TAG: String = "TestToolUtility"
+const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_utility.gd")
 
 
 # --- 私有变量 ---
@@ -110,6 +111,26 @@ func _cmd_gf_debug(_args: PackedStringArray) -> void:
 	var object_pool: GFObjectPoolUtility = _get_object_pool_utility()
 	if is_instance_valid(object_pool):
 		snapshot[&"object_pool"] = object_pool.get_debug_snapshot()
+
+	var resource_catalog: ProjectResourceCatalogUtility = _get_resource_catalog_utility()
+	if is_instance_valid(resource_catalog):
+		snapshot[&"resource_catalog"] = resource_catalog.get_debug_snapshot()
+
+	var theme_catalog: GameThemeCatalogUtility = _get_theme_catalog_utility()
+	if is_instance_valid(theme_catalog):
+		snapshot[&"theme_catalog"] = theme_catalog.get_debug_snapshot()
+
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		snapshot[&"themes"] = theme_utility.get_debug_snapshot()
+
+	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache_utility()
+	if is_instance_valid(mode_cache):
+		snapshot[&"game_modes"] = mode_cache.get_debug_snapshot()
+
+	var ui_router: GameUiRouterUtility = _get_ui_router_utility()
+	if is_instance_valid(ui_router):
+		snapshot[&"ui_routes"] = ui_router.get_debug_snapshot()
 
 	var log_utility: GFLogUtility = _get_log_utility()
 	if is_instance_valid(log_utility):
@@ -215,6 +236,46 @@ func _get_command_history_utility() -> GFCommandHistoryUtility:
 	if utility_value is GFCommandHistoryUtility:
 		var command_history: GFCommandHistoryUtility = utility_value
 		return command_history
+	return null
+
+
+func _get_theme_utility() -> GameThemeUtility:
+	var utility_value: Object = get_utility(_GAME_THEME_UTILITY_SCRIPT)
+	if utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = utility_value
+		return theme_utility
+	return null
+
+
+func _get_resource_catalog_utility() -> ProjectResourceCatalogUtility:
+	var utility_value: Object = get_utility(ProjectResourceCatalogUtility)
+	if utility_value is ProjectResourceCatalogUtility:
+		var resource_catalog: ProjectResourceCatalogUtility = utility_value
+		return resource_catalog
+	return null
+
+
+func _get_theme_catalog_utility() -> GameThemeCatalogUtility:
+	var utility_value: Object = get_utility(GameThemeCatalogUtility)
+	if utility_value is GameThemeCatalogUtility:
+		var theme_catalog: GameThemeCatalogUtility = utility_value
+		return theme_catalog
+	return null
+
+
+func _get_mode_cache_utility() -> GameModeConfigCacheUtility:
+	var utility_value: Object = get_utility(GameModeConfigCacheUtility)
+	if utility_value is GameModeConfigCacheUtility:
+		var mode_cache: GameModeConfigCacheUtility = utility_value
+		return mode_cache
+	return null
+
+
+func _get_ui_router_utility() -> GameUiRouterUtility:
+	var utility_value: Object = get_utility(GameUiRouterUtility)
+	if utility_value is GameUiRouterUtility:
+		var ui_router: GameUiRouterUtility = utility_value
+		return ui_router
 	return null
 
 
@@ -325,7 +386,14 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 		rule_system.register_rules(spawn_rules)
 
 	current_game_model.current_grid_size.set_value(new_size)
-	game_board.setup(mode_config.color_schemes, mode_config.board_theme)
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if not is_instance_valid(theme_utility):
+		push_error("[TestToolUtility] 缺少 GameThemeUtility，无法重建测试棋盘视觉主题。")
+		return
+
+	var resolved_color_schemes: Dictionary = theme_utility.resolve_color_schemes(mode_config.color_schemes)
+	var resolved_board_theme: BoardTheme = theme_utility.resolve_board_theme(mode_config.board_theme)
+	game_board.setup(resolved_color_schemes, resolved_board_theme)
 
 	if is_instance_valid(status_model):
 		status_model.score.set_value(0)

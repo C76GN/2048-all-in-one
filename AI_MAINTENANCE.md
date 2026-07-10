@@ -20,6 +20,7 @@
 - 项目文件命名遵循 gf 示例约定：脚本、场景、资源文件和项目目录使用 `snake_case`；`scripts/**` 中的脚本必须声明 `class_name`，类名应由文件名派生为 `PascalCase`，架构层脚本必须保留 `Model/System/Controller/Utility/Rule/State/Action/Command/Query` 等后缀。
 - 优先阅读现有项目形态再改代码：`README.md`、`CODING_STYLE.md`、`scripts/boot/game_architecture_installer.gd`、相关 `scripts/**`、相关 `resources/**` 和 `tests/gut/**`。
 - 默认不要启动 Godot 编辑器或裸 GUT 命令。历史上默认用户目录曾生成巨大日志；需要运行 GUT 时，优先使用 `tools/run_gut_safe.ps1`，并先以较短超时和较小日志上限做烟雾验证。
+- Godot 编辑器中的 GDScript warning 不能只靠 GUT 判断。修改 `.gd` 后，尤其涉及 Variant、返回值、Signal 连接、`append()`、`erase()`、局部变量命名或 tool 脚本时，应运行 `tools/check_gdscript_lsp_diagnostics.ps1`。
 - 不要提交临时分析、调试报告、AI 会话记录或一次性生成文件。
 - 不要把框架限制绕到业务层长期堆积；如果确认为 gf 能力缺口，应在实现中保留清晰边界，并在回复中说明反哺建议。
 
@@ -55,6 +56,7 @@
 当前根包：
 
 - `gf.extension.action_queue`
+- `gf.extension.content_package`
 - `gf.extension.domain`
 - `gf.standard.deterministic`
 - `gf.standard.input`
@@ -64,6 +66,7 @@
 当前启用扩展：
 
 - `gf.action_queue`
+- `gf.content_package`
 - `gf.domain`
 
 常用安全验证命令：
@@ -237,10 +240,18 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 当前已验证的安全 GUT 命令：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 45 -MaxLogMB 4 -MaxDefaultLogGrowthKB 64
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 60 -MaxLogMB 4 -MaxDefaultLogGrowthKB 64
 ```
 
-2026-06-19 使用当前 `godot` 命令运行通过，临时 `godot.log` 约 `0.006 MB`，临时目录成功清理。当前静态计数为 14 个 GUT 脚本、93 个 `test_` 用例；如果需要与编辑器中的 Godot `4.7` 完全一致，应传入明确的 `-GodotExecutable` 路径再验证一次。
+2026-07-09 使用当前 `godot` 命令运行通过，临时 `godot.log` 约 `0.008 MB`，临时目录成功清理。当前静态计数为 17 个 GUT 脚本、122 个 `test_` 用例；如果需要与编辑器中的 Godot `4.7` 完全一致，应传入明确的 `-GodotExecutable` 路径再验证一次。
+
+编辑器 GDScript warning 诊断入口：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1
+```
+
+该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `scripts`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-09 已建立零诊断基线：扫描 123 个 `.gd` 文件，`diagnostic_count = 0`。
 
 如果只改了文档，可以不运行 GUT，但应检查链接、路径和项目定位是否准确。只要改了 `.gd`，应优先补充或运行相关测试；无法安全运行时，必须说明未验证风险。
 

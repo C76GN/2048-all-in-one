@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_nhuhp"]
+
+[resource]
+script = ExtResource("1_nhuhp")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.brass.chime.quick.81fef7b9"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/brass_chime_quick"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "brass_chime_quick", "ui")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/brass_chime_quick.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/brass_chime_quick.wav"
+relative_path = "Musical Effects/brass_chime_quick.wav"
+extension = "wav"
+file_size_bytes = 70424
+sha256 = "81fef7b9c7bb707324de993f6644f04f18fa67dd3897ef5f65b17714d8b804cf"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

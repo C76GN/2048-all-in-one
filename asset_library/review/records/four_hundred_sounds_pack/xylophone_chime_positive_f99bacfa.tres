@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_ccgch"]
+
+[resource]
+script = ExtResource("1_ccgch")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.xylophone.chime.positive.f99bacfa"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/xylophone_chime_positive"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "xylophone_chime_positive")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/xylophone_chime_positive.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/xylophone_chime_positive.wav"
+relative_path = "Musical Effects/xylophone_chime_positive.wav"
+extension = "wav"
+file_size_bytes = 183928
+sha256 = "f99bacfa71cbaac5b8aa0db980190c307b9e830f1c6b27bc68a40c9e35be03b5"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

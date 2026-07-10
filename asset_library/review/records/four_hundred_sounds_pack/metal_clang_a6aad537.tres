@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_gnky0"]
+
+[resource]
+script = ExtResource("1_gnky0")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.metal.clang.a6aad537"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/metal_clang"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "metal_clang")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/metal_clang.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Materials/metal_clang.wav"
+relative_path = "Materials/metal_clang.wav"
+extension = "wav"
+file_size_bytes = 104492
+sha256 = "a6aad537c9a142a7d6a35bf8dccf2ab90d31dcfa9a59d0ad7c59f894dc65d45e"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

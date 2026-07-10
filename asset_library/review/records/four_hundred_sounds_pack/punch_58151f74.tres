@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_yc7fs"]
+
+[resource]
+script = ExtResource("1_yc7fs")
+asset_id = &"asset.review.four.hundred.sounds.pack.combat.and.gore.punch.58151f74"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Combat and Gore/punch"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "combat", "and", "gore", "punch")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Combat and Gore/punch.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Combat and Gore/punch.wav"
+relative_path = "Combat and Gore/punch.wav"
+extension = "wav"
+file_size_bytes = 98348
+sha256 = "58151f74b1e43d39819931602e462b90ef85561b3cb0c3d2239cfcf699a48fdb"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

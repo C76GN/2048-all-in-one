@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_30r2y"]
+
+[resource]
+script = ExtResource("1_30r2y")
+asset_id = &"asset.review.four.hundred.sounds.pack.retro.power.up.2.76ddce51"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Retro/power_up_2"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "power_up_2")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/power_up_2.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Retro/power_up_2.wav"
+relative_path = "Retro/power_up_2.wav"
+extension = "wav"
+file_size_bytes = 64716
+sha256 = "76ddce5144c1cb6dc19b2beb907e11e90d4206e27e94af932d76f69c05f758d6"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

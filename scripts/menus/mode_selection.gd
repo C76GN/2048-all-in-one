@@ -12,14 +12,14 @@ const MODE_CARD_SCENE: PackedScene = preload("res://scenes/ui/mode_card.tscn")
 const _CARD_REVEAL_OFFSET: Vector2 = Vector2(18.0, 0.0)
 const _DETAIL_REVEAL_OFFSET: Vector2 = Vector2(10.0, 0.0)
 const _DETAIL_REVEAL_STAGGER: float = 0.02
-const _TEXT_PRIMARY_COLOR: Color = Color(0.96, 0.92, 0.84, 1.0)
-const _TEXT_SECONDARY_COLOR: Color = Color(0.78, 0.82, 0.78, 0.92)
-const _TEXT_MUTED_COLOR: Color = Color(0.68, 0.73, 0.72, 0.82)
-const _TEXT_SHADOW_COLOR: Color = Color(0.025, 0.035, 0.060, 0.24)
-const _FIELD_SURFACE_COLOR: Color = Color(0.055, 0.080, 0.120, 0.46)
-const _FIELD_FOCUS_SURFACE_COLOR: Color = Color(0.075, 0.120, 0.150, 0.62)
-const _FIELD_BORDER_COLOR: Color = Color(0.95, 0.88, 0.72, 0.10)
-const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.93, 0.82, 0.58, 0.64)
+const _TEXT_PRIMARY_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _TEXT_SECONDARY_COLOR: Color = Color(0.46666667, 0.45882353, 0.43529412, 0.96)
+const _TEXT_MUTED_COLOR: Color = Color(0.46666667, 0.45882353, 0.43529412, 0.82)
+const _TEXT_SHADOW_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.52)
+const _FIELD_SURFACE_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.94)
+const _FIELD_FOCUS_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.88)
+const _FIELD_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.72)
+const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
 const _STATS_EMPTY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n暂无完整对局统计"
 const _STATS_SUMMARY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
 const _STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n目标 %d：达成 %d 次 · %d%%\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
@@ -38,6 +38,7 @@ var _current_grid_size: int = 4
 var _items_per_page: int = 5
 var _current_page: int = 0
 var _total_pages: int = 0
+var _mode_cache: GameModeConfigCacheUtility = null
 
 var _info_name_label: Label
 var _info_separator: HSeparator
@@ -71,6 +72,7 @@ func _ready() -> void:
 	if is_instance_valid(_seed_line_edit):
 		_seed_line_edit.placeholder_text = tr("HINT_SEED_PLACEHOLDER")
 
+	_mode_cache = _get_mode_cache_utility()
 	_load_mode_config_paths()
 	_create_persistent_info_panel()
 	_update_pagination_buttons_visibility()
@@ -120,8 +122,11 @@ func _update_list_and_focus(is_initial_load: bool = false) -> void:
 			var card: ModeCard = _create_mode_card()
 			if not is_instance_valid(card):
 				continue
+			var mode_config: GameModeConfig = _get_mode_config(config_path)
+			if not is_instance_valid(mode_config):
+				continue
 			_mode_list_container.add_child(card)
-			card.setup(config_path)
+			card.setup(config_path, mode_config)
 			var _connect_result_121: int = card.card_focused.connect(_set_selected_mode_by_path)
 
 	await get_tree().process_frame
@@ -153,7 +158,13 @@ func _focus_last_selected_card() -> void:
 
 
 func _load_mode_config_paths() -> void:
-	_mode_config_paths = GameModeConfigCacheUtility.get_config_paths()
+	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache()
+	if not is_instance_valid(mode_cache):
+		push_error("[ModeSelection] GameModeConfigCacheUtility 未注册，无法加载模式列表。")
+		_mode_config_paths = PackedStringArray()
+		return
+
+	_mode_config_paths = mode_cache.get_registered_config_paths()
 
 
 func _create_persistent_info_panel() -> void:
@@ -186,7 +197,7 @@ func _apply_mode_selection_visual_system() -> void:
 	_style_label(_seed_label, _TEXT_SECONDARY_COLOR, 16, false)
 	_style_line_edit(_seed_line_edit)
 	if is_instance_valid(_info_separator):
-		_info_separator.modulate = Color(0.95, 0.88, 0.72, 0.28)
+		_info_separator.modulate = Color(0.18431373, 0.1882353, 0.21568628, 0.56)
 
 
 func _style_label(label: Label, color: Color, font_size: int, use_shadow: bool) -> void:
@@ -197,8 +208,8 @@ func _style_label(label: Label, color: Color, font_size: int, use_shadow: bool) 
 	label.add_theme_font_size_override("font_size", font_size)
 	if use_shadow:
 		label.add_theme_color_override("font_shadow_color", _TEXT_SHADOW_COLOR)
-		label.add_theme_constant_override("shadow_offset_x", 0)
-		label.add_theme_constant_override("shadow_offset_y", 1)
+		label.add_theme_constant_override("shadow_offset_x", 2)
+		label.add_theme_constant_override("shadow_offset_y", 2)
 
 
 func _style_line_edit(line_edit: LineEdit) -> void:
@@ -227,7 +238,7 @@ func _create_field_style(bg_color: Color, border_color: Color, border_width: int
 	style.bg_color = bg_color
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(8)
+	style.set_corner_radius_all(4)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	style.set_content_margin(SIDE_LEFT, 10.0)
@@ -263,7 +274,7 @@ func _set_selected_mode_by_path(config_path: String) -> void:
 	if is_instance_valid(_selected_mode_config) and _selected_mode_config.resource_path == config_path:
 		return
 
-	var loaded_config: GameModeConfig = GameModeConfigCacheUtility.get_config(config_path)
+	var loaded_config: GameModeConfig = _get_mode_config(config_path)
 	if not is_instance_valid(loaded_config):
 		_selected_mode_config = null
 		_show_default_info()
@@ -359,17 +370,17 @@ func _populate_right_panel() -> void:
 	if not is_instance_valid(_grid_size_option_button) or not is_instance_valid(_start_game_button):
 		return
 
-	_grid_size_option_button.clear()
 	var default_size_index: int = -1
+	var grid_size_items: Array[Dictionary] = []
 
 	for grid_size: int in range(_selected_mode_config.min_grid_size, _selected_mode_config.max_grid_size + 1):
 		var text: String = "%dx%d" % [grid_size, grid_size]
-		_grid_size_option_button.add_item(text)
-		var item_index: int = _grid_size_option_button.item_count - 1
-		_grid_size_option_button.set_item_metadata(item_index, grid_size)
+		var item_index: int = grid_size_items.size()
+		grid_size_items.append(_make_option_item(text, grid_size, item_index))
 		if grid_size == _selected_mode_config.default_grid_size:
 			default_size_index = item_index
 
+	_write_option_items(_grid_size_option_button, grid_size_items)
 	if default_size_index != -1:
 		_grid_size_option_button.select(default_size_index)
 		_on_grid_size_selected(default_size_index)
@@ -411,6 +422,22 @@ func _update_grid_size_and_ui(index: int) -> void:
 
 	if is_instance_valid(_selected_mode_config):
 		_update_high_score_label()
+
+
+func _write_option_items(option: OptionButton, items: Array[Dictionary]) -> void:
+	var _written_count: int = GFItemListBinder.write_items(option, items, {
+		"text_key": &"text",
+		"id_key": &"id",
+		"metadata_key": &"metadata",
+	})
+
+
+static func _make_option_item(text: String, metadata: Variant, id: int) -> Dictionary:
+	return {
+		"text": text,
+		"metadata": metadata,
+		"id": id,
+	}
 
 
 func _bind_and_reveal_mode_cards() -> void:
@@ -597,6 +624,51 @@ func _get_seed_utility() -> GFSeedUtility:
 	return null
 
 
+func _get_clock_utility() -> GameClockUtility:
+	var utility_value: Object = get_utility(GameClockUtility)
+	if utility_value is GameClockUtility:
+		var clock: GameClockUtility = utility_value
+		return clock
+	return null
+
+
+func _get_unix_timestamp() -> int:
+	var clock: GameClockUtility = _get_clock_utility()
+	if is_instance_valid(clock):
+		return clock.get_unix_timestamp()
+
+	push_error("[ModeSelection] 缺少 GameClockUtility，无法生成默认游戏种子。")
+	return 0
+
+
+func _get_mode_cache_utility() -> GameModeConfigCacheUtility:
+	var utility_value: Object = get_utility(GameModeConfigCacheUtility)
+	if utility_value is GameModeConfigCacheUtility:
+		var mode_cache: GameModeConfigCacheUtility = utility_value
+		return mode_cache
+	return null
+
+
+func _get_mode_cache() -> GameModeConfigCacheUtility:
+	if is_instance_valid(_mode_cache):
+		return _mode_cache
+
+	_mode_cache = _get_mode_cache_utility()
+	return _mode_cache
+
+
+func _get_mode_config(config_path: String) -> GameModeConfig:
+	if config_path.is_empty():
+		return null
+
+	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache()
+	if not is_instance_valid(mode_cache):
+		push_error("[ModeSelection] GameModeConfigCacheUtility 未注册，无法加载模式配置：%s。" % config_path)
+		return null
+
+	return mode_cache.get_cached_config(config_path)
+
+
 # --- 信号处理函数 ---
 
 func _on_back_button_pressed() -> void:
@@ -634,7 +706,7 @@ func _on_start_game_button_pressed() -> void:
 	var seed_value: int = 0
 
 	if seed_text.is_empty():
-		seed_value = int(Time.get_unix_time_from_system())
+		seed_value = _get_unix_timestamp()
 	else:
 		seed_value = seed_text.to_int() if seed_text.is_valid_int() else seed_text.hash()
 

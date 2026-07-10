@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_rcayi"]
+
+[resource]
+script = ExtResource("1_rcayi")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.8.bit.level.complete.4888a41a"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/8_bit_level_complete"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "8_bit_level_complete")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/8_bit_level_complete.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/8_bit_level_complete.wav"
+relative_path = "Musical Effects/8_bit_level_complete.wav"
+extension = "wav"
+file_size_bytes = 545024
+sha256 = "4888a41a651b205820414eb59b0e2137a751ac9879403148306ee620e36c3cad"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

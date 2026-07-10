@@ -7,13 +7,13 @@
 - Godot 版本目标：`project.godot` 声明 `config/features=PackedStringArray("4.7", "Forward Plus")`。
 - GF Framework 版本：`addons/gf/plugin.cfg` 为 `7.0.0`。
 - GF AutoLoad：`project.godot` 中 `Gf="*uid://dftf1eh06apl0"`，与 `addons/gf/kernel/core/gf.gd.uid` 匹配。
-- GF 扩展启用：`gf.domain`、`gf.action_queue`。
+- GF 扩展启用：`gf.domain`、`gf.action_queue`、`gf.content_package`。
 - GF 源码状态：当前仓库为手动更新后的 vendored GF 7 源码状态；`.gf/packages.lock.json` 可能暂时不存在，不再把旧 GF 5.1 lockfile 状态当作当前事实。
 - GF 包管理器：GF 7 使用 Godot 原生 CLI，入口为 `res://addons/gf/kernel/package/gf_package_cli.gd`。恢复包管理器安装流时，应重新生成 `.gf/packages.lock.json` 并再启用 installed 包数量强校验。
 - GF 下载缓存、运行日志、本地用户数据和导出产物已由 `.gitignore` 忽略，不应提交。
 - 当前文档：已有 `README.md`、`AI_MAINTENANCE.md`、`CODING_STYLE.md`、`docs/ARCHITECTURE.md`、`docs/VALIDATION.md` 和本文档。
-- 当前测试：`tests/gut/` 静态计数为 14 个测试脚本、93 个 `test_` 用例；由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
-- 安全测试入口：`tools/run_gut_safe.ps1` 已提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；2026-06-19 已用当前 `godot` 命令完成一次隔离 GUT 验证，临时 `godot.log` 约 `0.006 MB`，临时目录成功清理。
+- 当前测试：`tests/gut/` 静态计数为 15 个测试脚本、106 个 `test_` 用例；由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
+- 安全测试入口：`tools/run_gut_safe.ps1` 已提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；2026-07-08 已用当前 `godot` 命令完成一次隔离 GUT 验证，临时 `godot.log` 约 `0.007 MB`，临时目录成功清理。
 - 当前项目脚本中有 40 处显式继承 `res://addons/gf/...`，这是为了规避升级后 Godot class cache 对 `GF...` 类名解析不稳定的风险。
 - 当前脚本已清理掉 `get_model/get_system/get_utility(...) as ...`、显式 class cast、隐式变量类型和缺失返回类型等高频旧写法；维护测试已禁止用 GUT `assert_eq` 对比空数组来判断问题列表，并约束业务脚本中的 `GFBindableProperty.get_value()`、`Dictionary.get()` 自定义对象结果、资源加载/复制结果、`StyleBoxFlat` 专属 API 调用、typed `@onready` / 运行时节点查找收窄、已知高风险返回值调用和项目协程调用。剩余稳定性重点转向更细的 `unsafe_method_access` / `unsafe_property_access`。
 
@@ -35,7 +35,7 @@
 1. 工程稳定性：清理 Godot 4.7 静态警告、维护安全 GUT、固定 GF 7 源码/包状态、避免巨大日志和解析错误。
 2. GF 利用率：输入、命令历史、状态机、UI 路由、动作队列、存储、设置、资源注册和未来 save/content/debug 包的合理接入。
 3. 游戏完成度：新游戏、继续、撤销/重做、胜利/失败、书签、回放、统计、设置、模式说明、错误反馈、正式/调试面板隔离。
-4. 视觉与交互：严格围绕柔和肌理扁平独立游戏风格，修正背景、方块、菜单、弹层、响应式布局、焦点状态、动效节奏和可读性。
+4. 视觉与交互：严格围绕 CMYK 半调纸媒游戏风格，修正背景、方块、菜单、弹层、响应式布局、焦点状态、动效节奏和可读性；主题和音效主题必须资源化并能在设置页一键切换。
 5. 文档与示例价值：让 README、维护文档、架构文档、验证文档和测试共同解释这个项目如何作为 GF 示例。
 
 执行方式：
@@ -51,6 +51,7 @@
 根包：
 
 - `gf.extension.action_queue`
+- `gf.extension.content_package`
 - `gf.extension.domain`
 - `gf.standard.deterministic`
 - `gf.standard.input`
@@ -68,13 +69,11 @@
 - `gf.standard.state`
 - `gf.standard.storage`
 
-暂不作为根包安装：
+暂不作为核心示例深用：
 
-- `gf.extension.save`
-- `gf.extension.content_package`
 - `gf.standard.debug`
 
-原因：这三者有明确潜在价值，但需要保持接入边界清晰，避免只是为了“装更多包”而增加维护面。`docs/SAVE_MODEL.md` 已定义存档边界，后续 `gf.extension.save` 可从最高分/统计兼容测试开始推进；内容包和 debug 包仍需要先补边界说明。
+原因：debug 包需要保持接入边界清晰，避免只是为了“装更多包”而增加维护面。`gf.save` 已通过 `GameSaveSlotWorkflowUtility` 接入最高分/统计槽位；后续 save graph 是否接入以 `docs/SAVE_MODEL.md` 为边界。
 
 ## 安全验证命令
 
@@ -98,7 +97,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 1. 维护“安全运行 Godot/GUT”的本地脚本。
    - 问题：默认 Godot 用户目录曾生成巨大日志文件。
-   - 当前状态：`tools/run_gut_safe.ps1` 已提供临时 user data/log 路径、超时、日志大小上限和默认日志增长上限；当前 `godot` 命令下安全 GUT 通过，静态计数为 14 个 GUT 脚本、93 个 `test_` 用例。
+   - 当前状态：`tools/run_gut_safe.ps1` 已提供临时 user data/log 路径、超时、日志大小上限和默认日志增长上限；当前 `godot` 命令下安全 GUT 通过，静态计数为 15 个 GUT 脚本、106 个 `test_` 用例。
    - 结果目标：后续默认通过该脚本运行 GUT，且默认用户目录不产生大日志。
    - 验证：切换 Godot 可执行文件或升级版本后，用低上限参数重新运行烟雾测试。
 
@@ -136,16 +135,17 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 验证：session 元数据、命令历史清理、动作队列清理都有聚焦测试。
 
 3. 资源目录 Module 深化。
-   - 涉及：`GameModeConfigCacheUtility`、`GameUiRouterUtility`、`GFResourceRegistry`、`GFAssetUtility`。
+   - 涉及：`ProjectResourceCatalogUtility`、`GameModeConfigCacheUtility`、`GameUiRouterUtility`、`GFResourceRegistry`、`GFResourceResolverUtility`、`GFAssetUtility`。
    - 问题：模式目录和 UI 路由目录相似，容易重复注册、缓存、校验和错误输出。
-   - 方向：提炼项目级资源目录 Adapter 模式，保留两个业务入口，但共享加载、排序、校验和 asset group 注册逻辑。
+   - 当前状态：项目级资源目录 Adapter 已提炼，保留两个业务入口，但共享注册、解析、缓存和 asset group 逻辑。
    - 验证：模式注册表和 UI 路由注册表测试继续通过，并能捕获缺失路径。
 
 4. 存档 Module 深化。
-   - 涉及：`SaveSystem`、`BookmarkSystem`、`ReplaySystem`、`SavedResourceCollectionUtility`、`GFStorageUtility`。
+   - 涉及：`SaveSystem`、`GameSaveSlotWorkflowUtility`、`BookmarkSystem`、`ReplaySystem`、`SavedResourceCollectionUtility`、`GFStorageUtility`、`GFSaveSlotWorkflow`。
    - 问题：最高分、设置、书签、回放分属不同入口，持久化语义需要更统一。
-   - 方向：以 `docs/SAVE_MODEL.md` 为接口说明；当前已补 `SaveSystem.record_game_result()`、`get_game_stats()` 和 `tests/gut/test_save_system.gd`，下一步评估是否接入 `gf.extension.save`。
-   - 验证：存档兼容、集合排序、删除、恢复都有测试。
+   - 当前状态：最高分/统计已通过 `GameSaveSlotWorkflowUtility` 写入 GF save slot，书签/回放继续由 `SavedResourceCollectionUtility` 管理时间戳 Resource 集合。
+   - 后续方向：如果确实需要对象图级保存，再基于 `GFSaveScope` / `GFSaveSource` 设计 save graph seam。
+   - 验证：存档兼容、slot metadata/card、集合排序、删除、恢复都有测试。
 
 5. Installer ownership 固化。
    - 涉及：`GameArchitectureInstaller`、`gf.domain`、`gf.action_queue`。
@@ -167,23 +167,25 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 3. 统计和成就感。
    - 按模式记录最高分、最大方块、最佳步数、游戏次数。
-   - `game_save.sav` 已开始保存 `stats` 并保留旧 `scores` 兼容；普通倍增类模式已定义 2048 目标，目标上下文已写入 `GameStatusModel`、完整状态快照和书签，首次达成目标时会给出 HUD 提示和非强制弹层，结算统计以“本局曾达成目标”为准，模式选择页和游戏结束菜单已展示游玩次数、最佳步数、最大方块、平均表现、目标达成情况和最近一局摘要，后续可继续评估 `gf.extension.save`。
+   - GF `game_stats` slot 已保存 `stats` 并保留旧 `scores` 字典语义；普通倍增类模式已定义 2048 目标，目标上下文已写入 `GameStatusModel`、完整状态快照和书签，首次达成目标时会给出 HUD 提示和非强制弹层，结算统计以“本局曾达成目标”为准，模式选择页和游戏结束菜单已展示游玩次数、最佳步数、最大方块、平均表现、目标达成情况和最近一局摘要。
 
 4. 设置体验。
-   - 语言、音量、动画强度、视觉效果强度、棋盘辅助显示。
-   - 设置页应继续通过 GF 设置 Utility 与 UI 绑定，不直接散落到各菜单。
+   - 语言、音量、视觉主题、音效主题、动画强度、视觉效果强度、棋盘辅助显示。
+   - 设置页应继续通过 GF 设置 Utility 与 UI 绑定，不直接散落到各菜单；OptionButton 条目写入应复用 `GFItemListBinder`，书签/回放列表刷新应复用 `GFRepeaterBinder`。
+   - 当前已接入 `appearance/theme_id` 和 `audio/sound_theme_id`，由 `GameThemeUtility` 通过 `gf.content_package` 和 `GFResourceResolverUtility` 解析 `GameThemeRegistry`。
 
 ## 第四阶段：视觉与交互打磨
 
 目标：统一为柔和、独立游戏质感的扁平肌理风，避免刺眼、粗糙和马赛克噪点。
 
-1. 建立视觉规范文档。
+1. 建立视觉规范和主题系统文档。
    - 记录色板、字体、噪点强度、背景层级、方块色阶、按钮状态、动效原则。
-   - 当前状态：`docs/VISUAL_STYLE.md` 已建立，后续视觉改动必须同步该文档和相关测试。
+   - 当前状态：`docs/VISUAL_STYLE.md` 已建立，`GameThemeUtility`、`GameThemeRegistry`、`GameTheme`、`GameAudioTheme` 和 `GameUiPalette` 已形成第一版主题接口，后续视觉改动必须同步该文档和相关测试。
 
 2. 棋盘与方块。
    - 保持方块颜色来自配置资源，不在表现层硬编码覆盖用户预期。
-   - 统一生成、移动、合并、转化动效，动效由 `GameBoardFeedbackUtility` 和 `GFActionQueueSystem` 协调。
+   - 统一生成、移动、合并、转化动效，动效由 `GameBoardFeedbackUtility`、`GFActionQueueSystem` 和 `GFShakeUtility` 协调。
+   - 玩家方块纹理按数值阶层轮换半调、菱形、棋盘格和鳞片纹，怪物或特殊类型使用斜线纹理。
 
 3. 菜单和弹层。
    - 检查模式选择、主菜单、设置、暂停、游戏结束、回放列表在 1280x720、1920x1080、窄屏下不重叠。
@@ -218,16 +220,16 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 1. `GameArchitectureInstaller` 仍是高耦合装配点。
    - 问题：注册顺序、dev 工具、项目 Utility 实例化集中在一个文件，接口偏宽。
    - 方向：按“运行时基础设施 / UI / 玩法 / 调试”分组内部函数，或提取小的装配 Module，但不要增加额外外部接口。
-   - 收益：提高 locality，后续接入 `gf.extension.save` 或 debug 包时风险更低。
+   - 收益：提高 locality，后续接入 debug 包或 save graph 时风险更低。
 
 2. `GameUiMotionUtility` 和视觉测试已经成形，视觉规范已文档化。
    - 问题：资源和场景还没有完全围绕 `docs/VISUAL_STYLE.md` 收敛。
-   - 方向：继续让背景 shader、tile scheme、菜单场景和视觉测试围绕文档收敛。
+   - 方向：继续让 `GameThemeRegistry`、背景 shader、tile scheme、菜单场景和视觉测试围绕文档收敛。
    - 收益：后续 AI 不会反复把风格改歪。
 
 3. 存档/书签/回放共享能力值得继续加深。
-   - 问题：`SavedResourceCollectionUtility` 已有复用价值，但还不是完整的存档接口。
-   - 方向：`docs/SAVE_MODEL.md` 已记录时间戳资源集合、最高分、设置、书签和回放语义；下一步是用兼容测试把这些接口固定住。
+   - 问题：最高分/统计已有 GF save slot Adapter，书签/回放仍是时间戳 Resource 集合；二者语义不同，需要继续保持清晰 seam。
+   - 方向：`docs/SAVE_MODEL.md` 已记录时间戳资源集合、最高分、设置、书签和回放语义；下一步是评估 `GFSaveScope` / `GFSaveSource` 是否能带来足够 leverage。
    - 收益：减少 SaveSystem、BookmarkSystem、ReplaySystem 之间的重复知识。
 
 4. 包锁和物理源码目录存在策略差异。
@@ -241,5 +243,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 1. 继续收敛 Godot 4.7 静态警告：优先处理更细的 `unsafe_method_access` / `unsafe_property_access` 和资源类型收窄。
 2. 按 `docs/VISUAL_STYLE.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
-3. 以 `GameModeConfig.target_tile_value`、`GameStatusModel.target_reached` 和 `SaveSystem` 目标统计为基础，继续设计真正的胜利状态、胜利继续游玩和胜率。
-4. 用明确的 Godot `4.7` 可执行文件路径再跑一次 `tools/run_gut_safe.ps1`，确认和用户编辑器版本一致。
+3. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。
+4. 继续试听和打磨 `printworks` 音效主题的音色、响度、随机音高和混音，并在更多主题出现后拆出独立音效主题包。
+5. 以 `GameModeConfig.target_tile_value`、`GameStatusModel.target_reached` 和 `SaveSystem` 目标统计为基础，继续设计真正的胜利状态、胜利继续游玩和胜率。
+6. 用明确的 Godot `4.7` 可执行文件路径再跑一次 `tools/run_gut_safe.ps1`，确认和用户编辑器版本一致。

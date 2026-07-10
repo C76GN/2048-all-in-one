@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_mhstp"]
+
+[resource]
+script = ExtResource("1_mhstp")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.xylophone.level.complete.c52fcc68"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/xylophone_level_complete"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "xylophone_level_complete")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/xylophone_level_complete.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Musical Effects/xylophone_level_complete.wav"
+relative_path = "Musical Effects/xylophone_level_complete.wav"
+extension = "wav"
+file_size_bytes = 599612
+sha256 = "c52fcc68762c167c06fb8bc15648f28292eccbaefb2c888987e7900def6bb0e1"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

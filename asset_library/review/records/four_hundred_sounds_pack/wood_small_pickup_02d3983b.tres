@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_u4ua6"]
+
+[resource]
+script = ExtResource("1_u4ua6")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.wood.small.pickup.02d3983b"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/wood_small_pickup"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "wood_small_pickup")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/wood_small_pickup.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/Materials/wood_small_pickup.wav"
+relative_path = "Materials/wood_small_pickup.wav"
+extension = "wav"
+file_size_bytes = 98348
+sha256 = "02d3983bb4bdad4d2ce0eaf0a8c71e92684e27444c1478835be2a71c549b88a2"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

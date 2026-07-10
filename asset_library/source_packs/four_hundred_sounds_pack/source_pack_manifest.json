@@ -1,0 +1,31 @@
+{
+	"author": "unknown",
+	"display_name": "400 Sounds Pack",
+	"imported_at": "2026-07-09 03:22:27",
+	"license": "unknown",
+	"license_status": "unknown",
+	"original_source_path": "E:/_inbox/Downloads/400 Sounds Pack",
+	"report": {
+		"byte_count": 89384390,
+		"copied_count": 0,
+		"display_name": "400 Sounds Pack",
+		"error_count": 0,
+		"file_count": 400,
+		"kind_counts": {
+			"audio": 400
+		},
+		"license_counts": {
+			"unknown": 400
+		},
+		"non_review_file_count": 0,
+		"review_record_count": 400,
+		"source_pack_id": "four_hundred_sounds_pack",
+		"status_counts": {
+			"inbox": 400
+		},
+		"unchanged_count": 400
+	},
+	"schema_version": 1,
+	"source_pack_id": "four_hundred_sounds_pack",
+	"source_url": ""
+}

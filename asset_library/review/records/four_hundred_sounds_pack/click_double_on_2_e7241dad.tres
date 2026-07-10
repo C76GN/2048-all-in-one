@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_p1w47"]
+
+[resource]
+script = ExtResource("1_p1w47")
+asset_id = &"asset.review.four.hundred.sounds.pack.ui.click.double.on.2.e7241dad"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "UI/click_double_on_2"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "click_double_on_2", "click")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/click_double_on_2.wav"
+library_path = "res://asset_library/source_packs/four_hundred_sounds_pack/files/UI/click_double_on_2.wav"
+relative_path = "UI/click_double_on_2.wav"
+extension = "wav"
+file_size_bytes = 94252
+sha256 = "e7241dad670ad7f0b56033022e542e0e77eba4abcaecff1f584fdc600a8237da"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.ui.select")
+imported_at = "2026-07-09 03:08:11"

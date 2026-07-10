@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/asset_review_record.gd" id="1_c583a"]
+
+[resource]
+script = ExtResource("1_c583a")
+asset_id = &"asset.review.universal.ui.soundpack.wav.minimalist7.51c42929"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "WAV/Minimalist7"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "wav", "minimalist7")
+source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/Minimalist7.wav"
+library_path = "res://asset_library/source_packs/universal_ui_soundpack/files/WAV/Minimalist7.wav"
+relative_path = "WAV/Minimalist7.wav"
+extension = "wav"
+file_size_bytes = 133772
+sha256 = "51c42929c377b73d86e7660c2c25d3c3f60666bf85c6457b307f608363313408"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"
