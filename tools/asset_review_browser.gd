@@ -2,9 +2,10 @@
 extends Control
 
 
-const ASSET_REVIEW_RECORD_SCRIPT = preload("res://scripts/data/asset_review_record.gd")
+const REVIEW_CATALOG_PROVIDER_SCRIPT = preload(
+	"res://scripts/assets/catalog/game_asset_review_catalog_source_provider.gd"
+)
 const REVIEW_RECORD_ROOT: String = "res://asset_library/review/records"
-const RECORD_EXTENSIONS: Array[String] = ["tres"]
 const STATUS_OPTIONS: Array[String] = [
 	"inbox",
 	"candidate",
@@ -15,9 +16,10 @@ const STATUS_OPTIONS: Array[String] = [
 ]
 
 
-var _records: Array[Resource] = []
+var _records_by_asset_id: Dictionary = {}
 var _filtered_records: Array[Resource] = []
 var _selected_record: Resource = null
+var _review_catalog: GFAssetCatalog = GFAssetCatalog.new()
 var _ui_built: bool = false
 
 var _search_input: LineEdit
@@ -214,24 +216,44 @@ func _add_status_item(option: OptionButton, label: String, status: String) -> vo
 
 
 func _load_records() -> void:
-	_records.clear()
-	var paths: PackedStringArray = PackedStringArray()
-	_collect_files_recursive(REVIEW_RECORD_ROOT, paths, RECORD_EXTENSIONS)
-	paths.sort()
-	for path: String in paths:
-		var loaded: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
-		if _resource_uses_script(loaded, ASSET_REVIEW_RECORD_SCRIPT):
-			_append_resource(_records, loaded)
+	_records_by_asset_id.clear()
+	_review_catalog = GFAssetCatalog.new()
+	var provider: GameAssetReviewCatalogSourceProvider = REVIEW_CATALOG_PROVIDER_SCRIPT.new()
+	var _configured: GFAssetCatalogSourceProvider = provider.configure_review_records(
+		REVIEW_RECORD_ROOT,
+		&"asset_review"
+	)
+	_review_catalog = provider.build_catalog()
+	for asset_id: String in _review_catalog.get_all_ids():
+		var entry: GFAssetCatalogEntry = _review_catalog.get_entry(StringName(asset_id))
+		if entry == null:
+			continue
+		var record_path: String = GFVariantData.get_option_string(entry.metadata, "record_path")
+		var loaded: Resource = ResourceLoader.load(record_path, "", ResourceLoader.CACHE_MODE_REUSE)
+		if loaded == null:
+			continue
+		_records_by_asset_id[asset_id] = loaded
 
 
 func _refresh_list() -> void:
 	_filtered_records.clear()
 	_record_list.clear()
-	var query: String = _search_input.text.strip_edges().to_lower()
+	var query: String = _search_input.text.strip_edges()
 	var status_filter: String = _get_selected_option_metadata(_status_filter, "all")
-	for record: Resource in _records:
-		if not _record_matches(record, query, status_filter):
+	var candidate_ids: PackedStringArray = _get_search_candidate_ids(query)
+	var status_ids: PackedStringArray = PackedStringArray()
+	if status_filter != "all":
+		status_ids = _review_catalog.query(
+			GFAssetCatalog.GROUP_SOURCE_TAGS,
+			"status:%s" % status_filter
+		)
+	for asset_id: String in candidate_ids:
+		if status_filter != "all" and not status_ids.has(asset_id):
 			continue
+		var record_value: Variant = GFVariantData.get_option_value(_records_by_asset_id, asset_id)
+		if not (record_value is Resource):
+			continue
+		var record: Resource = record_value
 		_append_resource(_filtered_records, record)
 		var item_index: int = _record_list.item_count
 		var _add_item_result: int = _record_list.add_item(_make_record_list_text(record))
@@ -239,19 +261,19 @@ func _refresh_list() -> void:
 	_update_empty_state()
 
 
-func _record_matches(record: Resource, query: String, status_filter: String) -> bool:
-	if status_filter != "all" and _get_resource_string(record, "review_status") != status_filter:
-		return false
+func _get_search_candidate_ids(query: String) -> PackedStringArray:
 	if query.is_empty():
-		return true
-	var haystack: String = "%s %s %s %s %s" % [
-		_get_resource_string(record, "display_name"),
-		_get_resource_string(record, "relative_path"),
-		_get_resource_string(record, "asset_kind"),
-		_get_resource_string(record, "source_pack_id"),
-		", ".join(_get_resource_packed_string_array(record, "tags")),
-	]
-	return haystack.to_lower().contains(query)
+		return _review_catalog.get_all_ids()
+	var result: PackedStringArray = PackedStringArray()
+	for search_value: Variant in _review_catalog.search(query):
+		if not (search_value is Dictionary):
+			continue
+		var search_report: Dictionary = search_value
+		var candidate: Dictionary = GFVariantData.get_option_dictionary(search_report, "candidate")
+		var asset_id: String = GFVariantData.get_option_string(candidate, "asset_id")
+		if not asset_id.is_empty() and not result.has(asset_id):
+			var _appended: bool = result.append(asset_id)
+	return result
 
 
 func _make_record_list_text(record: Resource) -> String:
@@ -390,6 +412,11 @@ func _save_selected_record() -> void:
 	if save_result != OK:
 		_save_status_label.text = "保存失败：%d" % save_result
 		return
+	var selected_asset_id: String = _get_resource_string(_selected_record, "asset_id")
+	_load_records()
+	var reloaded_value: Variant = GFVariantData.get_option_value(_records_by_asset_id, selected_asset_id)
+	if reloaded_value is Resource:
+		_selected_record = reloaded_value
 	_save_status_label.text = "已保存。"
 	_refresh_list()
 
@@ -425,33 +452,8 @@ func _get_selected_option_metadata(option: OptionButton, fallback: String) -> St
 	return GFVariantData.to_text(option.get_item_metadata(selected_index), fallback)
 
 
-func _collect_files_recursive(root_path: String, files: PackedStringArray, extensions: Array[String]) -> void:
-	var dir: DirAccess = DirAccess.open(root_path)
-	if dir == null:
-		return
-	var list_result: Error = dir.list_dir_begin()
-	if list_result != OK:
-		return
-	var entry: String = dir.get_next()
-	while not entry.is_empty():
-		if entry.begins_with("."):
-			entry = dir.get_next()
-			continue
-		var child_path: String = root_path.path_join(entry)
-		if dir.current_is_dir():
-			_collect_files_recursive(child_path, files, extensions)
-		elif extensions.has(child_path.get_extension().to_lower()):
-			var _append_result: bool = files.append(child_path)
-		entry = dir.get_next()
-	dir.list_dir_end()
-
-
 func _append_resource(target: Array[Resource], value: Resource) -> void:
 	target.append(value)
-
-
-func _resource_uses_script(resource: Resource, script: Script) -> bool:
-	return resource != null and resource.get_script() == script
 
 
 func _get_resource_string(resource: Resource, property_name: String, fallback: String = "") -> String:

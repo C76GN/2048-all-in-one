@@ -244,14 +244,12 @@
       "category",
       "origin",
       "author",
-      "source",
-      "license"
+      "source"
     ],
     "third_party_required_metadata": [
       "author",
       "source",
-      "source_url",
-      "license"
+      "source_url"
     ]
   }
 }

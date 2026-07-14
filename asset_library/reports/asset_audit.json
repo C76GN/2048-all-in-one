@@ -6,12 +6,12 @@
 				"archive_path": "gf_content_package.json",
 				"entry_index": 0,
 				"exists": true,
-				"modified_time": 1783613584,
+				"modified_time": 1784064627,
 				"package_id": "c76.asset_library.core",
 				"resource_key": "",
 				"role": "manifest",
-				"sha256": "21fe52f537b051f06205df6af0e1a9e1e3283bd830a3be4e2489a1288782339f",
-				"size_bytes": 6844,
+				"sha256": "96e4ea257417d308515b266daea11639cf6fb56918cd3c0b6b9ebf40b3b3ebfe",
+				"size_bytes": 6810,
 				"source_path": "res://asset_library/gf_content_package.json",
 				"type_hint": "JSON",
 				"unreadable": false
@@ -185,12 +185,248 @@
 		"root_path": "res://asset_library",
 		"subject": "Content package artifact report",
 		"summary": "Content package artifact report is healthy.",
-		"total_size_bytes": 113758,
+		"total_size_bytes": 113724,
 		"unreadable_count": 0,
 		"version": "0.1.0",
 		"warning_count": 0
 	},
 	"asset_key_reference_count": 7,
+	"attribution_notice": "Asset library attributions\n\nCC BY 4.0\n- asset.audio.ui.printworks.select_soft_01 (res://asset_library/audio/ui/printworks_select_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.ui.printworks.confirm_soft_01 (res://asset_library/audio/ui/printworks_confirm_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.spawn_soft_01 (res://asset_library/audio/tile/printworks_spawn_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.move_soft_01 (res://asset_library/audio/tile/printworks_move_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.merge_soft_01 (res://asset_library/audio/tile/printworks_merge_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.game.printworks.game_over_soft_01 (res://asset_library/audio/game/printworks_game_over_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n\nproject\n- asset.shader.background.halftone_paper (res://asset_library/shaders/background/halftone_paper_background.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.transition.halftone_wipe (res://asset_library/shaders/transition/halftone_wipe_transition.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.ui.button_focus_dash (res://asset_library/shaders/ui/button_focus_dash.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.ui.startup_progress_bar (res://asset_library/shaders/ui/startup_progress_bar.gdshader)\n  Creator: 2048-all-in-one\n- asset.vfx.celebration.confetti_canvas (res://asset_library/vfx/celebration_confetti_canvas.gdshader)\n  Creator: 2048-all-in-one",
+	"attribution_report": {
+		"covered_path_count": 11,
+		"covered_paths": [
+			{
+				"attribution_path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg"
+			},
+			{
+				"attribution_path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg"
+			},
+			{
+				"attribution_path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg"
+			},
+			{
+				"attribution_path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg"
+			},
+			{
+				"attribution_path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg"
+			},
+			{
+				"attribution_path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg"
+			},
+			{
+				"attribution_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+			},
+			{
+				"attribution_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader"
+			},
+			{
+				"attribution_path": "res://asset_library/shaders/ui/button_focus_dash.gdshader",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/shaders/ui/button_focus_dash.gdshader"
+			},
+			{
+				"attribution_path": "res://asset_library/shaders/ui/startup_progress_bar.gdshader",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/shaders/ui/startup_progress_bar.gdshader"
+			},
+			{
+				"attribution_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader"
+			}
+		],
+		"entries": [
+			{
+				"copyright": "",
+				"creator": "Nathan Gibson",
+				"index": 0,
+				"license_id": "CC BY 4.0",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+				"source_url": "https://nathangibson.myportfolio.com",
+				"subject_kind": "audio",
+				"subject_path": "asset.audio.ui.printworks.select_soft_01",
+				"title": "asset.audio.ui.printworks.select_soft_01"
+			},
+			{
+				"copyright": "",
+				"creator": "Nathan Gibson",
+				"index": 1,
+				"license_id": "CC BY 4.0",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+				"source_url": "https://nathangibson.myportfolio.com",
+				"subject_kind": "audio",
+				"subject_path": "asset.audio.ui.printworks.confirm_soft_01",
+				"title": "asset.audio.ui.printworks.confirm_soft_01"
+			},
+			{
+				"copyright": "",
+				"creator": "Nathan Gibson",
+				"index": 2,
+				"license_id": "CC BY 4.0",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+				"source_url": "https://nathangibson.myportfolio.com",
+				"subject_kind": "audio",
+				"subject_path": "asset.audio.tile.printworks.spawn_soft_01",
+				"title": "asset.audio.tile.printworks.spawn_soft_01"
+			},
+			{
+				"copyright": "",
+				"creator": "Nathan Gibson",
+				"index": 3,
+				"license_id": "CC BY 4.0",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+				"source_url": "https://nathangibson.myportfolio.com",
+				"subject_kind": "audio",
+				"subject_path": "asset.audio.tile.printworks.move_soft_01",
+				"title": "asset.audio.tile.printworks.move_soft_01"
+			},
+			{
+				"copyright": "",
+				"creator": "Nathan Gibson",
+				"index": 4,
+				"license_id": "CC BY 4.0",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+				"source_url": "https://nathangibson.myportfolio.com",
+				"subject_kind": "audio",
+				"subject_path": "asset.audio.tile.printworks.merge_soft_01",
+				"title": "asset.audio.tile.printworks.merge_soft_01"
+			},
+			{
+				"copyright": "",
+				"creator": "Nathan Gibson",
+				"index": 5,
+				"license_id": "CC BY 4.0",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+				"source_url": "https://nathangibson.myportfolio.com",
+				"subject_kind": "audio",
+				"subject_path": "asset.audio.game.printworks.game_over_soft_01",
+				"title": "asset.audio.game.printworks.game_over_soft_01"
+			},
+			{
+				"copyright": "",
+				"creator": "2048-all-in-one",
+				"index": 6,
+				"license_id": "project",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"source_url": "",
+				"subject_kind": "shader",
+				"subject_path": "asset.shader.background.halftone_paper",
+				"title": "asset.shader.background.halftone_paper"
+			},
+			{
+				"copyright": "",
+				"creator": "2048-all-in-one",
+				"index": 7,
+				"license_id": "project",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+				"source_url": "",
+				"subject_kind": "shader",
+				"subject_path": "asset.shader.transition.halftone_wipe",
+				"title": "asset.shader.transition.halftone_wipe"
+			},
+			{
+				"copyright": "",
+				"creator": "2048-all-in-one",
+				"index": 8,
+				"license_id": "project",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/shaders/ui/button_focus_dash.gdshader",
+				"source_url": "",
+				"subject_kind": "shader",
+				"subject_path": "asset.shader.ui.button_focus_dash",
+				"title": "asset.shader.ui.button_focus_dash"
+			},
+			{
+				"copyright": "",
+				"creator": "2048-all-in-one",
+				"index": 9,
+				"license_id": "project",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/shaders/ui/startup_progress_bar.gdshader",
+				"source_url": "",
+				"subject_kind": "shader",
+				"subject_path": "asset.shader.ui.startup_progress_bar",
+				"title": "asset.shader.ui.startup_progress_bar"
+			},
+			{
+				"copyright": "",
+				"creator": "2048-all-in-one",
+				"index": 10,
+				"license_id": "project",
+				"metadata": {},
+				"notice": "",
+				"path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+				"source_url": "",
+				"subject_kind": "shader",
+				"subject_path": "asset.vfx.celebration.confetti_canvas",
+				"title": "asset.vfx.celebration.confetti_canvas"
+			}
+		],
+		"entry_count": 11,
+		"error_count": 0,
+		"healthy": true,
+		"info_count": 0,
+		"issue_count": 0,
+		"issue_counts_by_kind": {},
+		"issues": [],
+		"license_ids": [
+			"CC BY 4.0",
+			"project"
+		],
+		"next_action": "No action required.",
+		"ok": true,
+		"resource_path_count": 11,
+		"subject": "Asset attribution",
+		"summary": "Asset attribution is healthy.",
+		"uncovered_path_count": 0,
+		"uncovered_paths": [],
+		"warning_count": 0
+	},
 	"direct_path_reference_count": 14,
 	"error_count": 0,
 	"export_plan_report": {
@@ -556,8 +792,803 @@
 	"metadata_issues": [],
 	"ok": true,
 	"package_id": "c76.asset_library.core",
+	"reference_scan_report": {
+		"budget_exceeded": false,
+		"candidate_file_count": 168,
+		"input_target_count": 11,
+		"ok": false,
+		"partial_scan": false,
+		"reference_count": 14,
+		"references": [
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+				"kind": "path",
+				"line": 71,
+				"match": "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "path reference: res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+				"root_path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+				"source": "resource_text",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.audio.ui.printworks.select_soft_01",
+				"target_path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+				"kind": "path",
+				"line": 58,
+				"match": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "path reference: res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+				"root_path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+				"source": "resource_text",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.audio.ui.printworks.confirm_soft_01",
+				"target_path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+				"kind": "path",
+				"line": 45,
+				"match": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "path reference: res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+				"root_path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+				"source": "resource_text",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.audio.tile.printworks.spawn_soft_01",
+				"target_path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+				"kind": "path",
+				"line": 32,
+				"match": "res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "path reference: res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+				"root_path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+				"source": "resource_text",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.audio.tile.printworks.move_soft_01",
+				"target_path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+				"kind": "path",
+				"line": 19,
+				"match": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "path reference: res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+				"root_path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+				"source": "resource_text",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.audio.tile.printworks.merge_soft_01",
+				"target_path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+				"kind": "path",
+				"line": 8,
+				"match": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "path reference: res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+				"root_path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+				"source": "resource_text",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.audio.game.printworks.game_over_soft_01",
+				"target_path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"kind": "path",
+				"line": 8,
+				"match": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"path": "res://scenes/game/game_play.tscn",
+				"preview": "path reference: res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"root_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"source": "resource_text",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.shader.background.halftone_paper",
+				"target_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"kind": "path",
+				"line": 4,
+				"match": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"path": "res://scenes/menus/main_menu.tscn",
+				"preview": "path reference: res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"root_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"source": "resource_text",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.shader.background.halftone_paper",
+				"target_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"kind": "path",
+				"line": 3,
+				"match": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"path": "res://scenes/ui/layouts/base_three_column_layout.tscn",
+				"preview": "path reference: res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"root_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"source": "resource_text",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.shader.background.halftone_paper",
+				"target_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"kind": "path",
+				"line": 9,
+				"match": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"path": "res://scripts/boot/boot.gd",
+				"preview": "path reference: res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"root_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+				"source": "gdscript_load",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.shader.background.halftone_paper",
+				"target_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+				"kind": "path",
+				"line": 12,
+				"match": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+				"path": "res://scripts/systems/scene_router_system.gd",
+				"preview": "path reference: res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+				"root_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+				"source": "gdscript_load",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.shader.transition.halftone_wipe",
+				"target_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/shaders/ui/button_focus_dash.gdshader",
+				"kind": "path",
+				"line": 28,
+				"match": "res://asset_library/shaders/ui/button_focus_dash.gdshader",
+				"path": "res://scripts/utilities/game_ui_motion_utility.gd",
+				"preview": "path reference: res://asset_library/shaders/ui/button_focus_dash.gdshader",
+				"root_path": "res://asset_library/shaders/ui/button_focus_dash.gdshader",
+				"source": "gdscript_load",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.shader.ui.button_focus_dash",
+				"target_path": "res://asset_library/shaders/ui/button_focus_dash.gdshader"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/shaders/ui/startup_progress_bar.gdshader",
+				"kind": "path",
+				"line": 10,
+				"match": "res://asset_library/shaders/ui/startup_progress_bar.gdshader",
+				"path": "res://scripts/boot/boot.gd",
+				"preview": "path reference: res://asset_library/shaders/ui/startup_progress_bar.gdshader",
+				"root_path": "res://asset_library/shaders/ui/startup_progress_bar.gdshader",
+				"source": "gdscript_load",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.shader.ui.startup_progress_bar",
+				"target_path": "res://asset_library/shaders/ui/startup_progress_bar.gdshader"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+				"kind": "path",
+				"line": 10,
+				"match": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+				"path": "res://scripts/utilities/game_celebration_vfx_utility.gd",
+				"preview": "path reference: res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+				"root_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+				"source": "gdscript_load",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.vfx.celebration.confetti_canvas",
+				"target_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader"
+			}
+		],
+		"scan_warnings": [],
+		"scanned_bytes": 794731,
+		"scanned_file_count": 168,
+		"skipped_files": [],
+		"target_count": 11,
+		"targets": {
+			"asset.audio.game.printworks.game_over_soft_01": {
+				"id": "asset.audio.game.printworks.game_over_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+						"kind": "path",
+						"line": 8,
+						"match": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "path reference: res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+						"root_path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+						"source": "resource_text",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.audio.game.printworks.game_over_soft_01",
+						"target_path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg"
+					}
+				],
+				"root_path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg"
+			},
+			"asset.audio.tile.printworks.merge_soft_01": {
+				"id": "asset.audio.tile.printworks.merge_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+						"kind": "path",
+						"line": 19,
+						"match": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "path reference: res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+						"root_path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+						"source": "resource_text",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.audio.tile.printworks.merge_soft_01",
+						"target_path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg"
+					}
+				],
+				"root_path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg"
+			},
+			"asset.audio.tile.printworks.move_soft_01": {
+				"id": "asset.audio.tile.printworks.move_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+						"kind": "path",
+						"line": 32,
+						"match": "res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "path reference: res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+						"root_path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+						"source": "resource_text",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.audio.tile.printworks.move_soft_01",
+						"target_path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg"
+					}
+				],
+				"root_path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg"
+			},
+			"asset.audio.tile.printworks.spawn_soft_01": {
+				"id": "asset.audio.tile.printworks.spawn_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+						"kind": "path",
+						"line": 45,
+						"match": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "path reference: res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+						"root_path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+						"source": "resource_text",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.audio.tile.printworks.spawn_soft_01",
+						"target_path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg"
+					}
+				],
+				"root_path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg"
+			},
+			"asset.audio.ui.printworks.confirm_soft_01": {
+				"id": "asset.audio.ui.printworks.confirm_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+						"kind": "path",
+						"line": 58,
+						"match": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "path reference: res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+						"root_path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+						"source": "resource_text",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.audio.ui.printworks.confirm_soft_01",
+						"target_path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg"
+					}
+				],
+				"root_path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg"
+			},
+			"asset.audio.ui.printworks.select_soft_01": {
+				"id": "asset.audio.ui.printworks.select_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+						"kind": "path",
+						"line": 71,
+						"match": "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "path reference: res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+						"root_path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+						"source": "resource_text",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.audio.ui.printworks.select_soft_01",
+						"target_path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg"
+					}
+				],
+				"root_path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg"
+			},
+			"asset.shader.background.halftone_paper": {
+				"id": "asset.shader.background.halftone_paper",
+				"reference_count": 4,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"kind": "path",
+						"line": 8,
+						"match": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"path": "res://scenes/game/game_play.tscn",
+						"preview": "path reference: res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"root_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"source": "resource_text",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.shader.background.halftone_paper",
+						"target_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+					},
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"kind": "path",
+						"line": 4,
+						"match": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"path": "res://scenes/menus/main_menu.tscn",
+						"preview": "path reference: res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"root_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"source": "resource_text",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.shader.background.halftone_paper",
+						"target_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+					},
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"kind": "path",
+						"line": 3,
+						"match": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"path": "res://scenes/ui/layouts/base_three_column_layout.tscn",
+						"preview": "path reference: res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"root_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"source": "resource_text",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.shader.background.halftone_paper",
+						"target_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+					},
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"kind": "path",
+						"line": 9,
+						"match": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"path": "res://scripts/boot/boot.gd",
+						"preview": "path reference: res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"root_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader",
+						"source": "gdscript_load",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.shader.background.halftone_paper",
+						"target_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+					}
+				],
+				"root_path": "res://asset_library/shaders/background/halftone_paper_background.gdshader"
+			},
+			"asset.shader.transition.halftone_wipe": {
+				"id": "asset.shader.transition.halftone_wipe",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+						"kind": "path",
+						"line": 12,
+						"match": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+						"path": "res://scripts/systems/scene_router_system.gd",
+						"preview": "path reference: res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+						"root_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+						"source": "gdscript_load",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.shader.transition.halftone_wipe",
+						"target_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader"
+					}
+				],
+				"root_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader"
+			},
+			"asset.shader.ui.button_focus_dash": {
+				"id": "asset.shader.ui.button_focus_dash",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/shaders/ui/button_focus_dash.gdshader",
+						"kind": "path",
+						"line": 28,
+						"match": "res://asset_library/shaders/ui/button_focus_dash.gdshader",
+						"path": "res://scripts/utilities/game_ui_motion_utility.gd",
+						"preview": "path reference: res://asset_library/shaders/ui/button_focus_dash.gdshader",
+						"root_path": "res://asset_library/shaders/ui/button_focus_dash.gdshader",
+						"source": "gdscript_load",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.shader.ui.button_focus_dash",
+						"target_path": "res://asset_library/shaders/ui/button_focus_dash.gdshader"
+					}
+				],
+				"root_path": "res://asset_library/shaders/ui/button_focus_dash.gdshader"
+			},
+			"asset.shader.ui.startup_progress_bar": {
+				"id": "asset.shader.ui.startup_progress_bar",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/shaders/ui/startup_progress_bar.gdshader",
+						"kind": "path",
+						"line": 10,
+						"match": "res://asset_library/shaders/ui/startup_progress_bar.gdshader",
+						"path": "res://scripts/boot/boot.gd",
+						"preview": "path reference: res://asset_library/shaders/ui/startup_progress_bar.gdshader",
+						"root_path": "res://asset_library/shaders/ui/startup_progress_bar.gdshader",
+						"source": "gdscript_load",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.shader.ui.startup_progress_bar",
+						"target_path": "res://asset_library/shaders/ui/startup_progress_bar.gdshader"
+					}
+				],
+				"root_path": "res://asset_library/shaders/ui/startup_progress_bar.gdshader"
+			},
+			"asset.vfx.celebration.confetti_canvas": {
+				"id": "asset.vfx.celebration.confetti_canvas",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+						"kind": "path",
+						"line": 10,
+						"match": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+						"path": "res://scripts/utilities/game_celebration_vfx_utility.gd",
+						"preview": "path reference: res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+						"root_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+						"source": "gdscript_load",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.vfx.celebration.confetti_canvas",
+						"target_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader"
+					}
+				],
+				"root_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader"
+			}
+		},
+		"weak_reference_count": 7,
+		"weak_references": [
+			{
+				"blocking": false,
+				"evidence": "asset.audio.ui.printworks.select_soft_01",
+				"kind": "class_name",
+				"line": 77,
+				"match": "asset.audio.ui.printworks.select_soft_01",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "class_name reference: asset.audio.ui.printworks.select_soft_01",
+				"root_path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.audio.ui.printworks.select_soft_01",
+				"target_id": "asset.audio.ui.printworks.select_soft_01",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.audio.ui.printworks.confirm_soft_01",
+				"kind": "class_name",
+				"line": 64,
+				"match": "asset.audio.ui.printworks.confirm_soft_01",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "class_name reference: asset.audio.ui.printworks.confirm_soft_01",
+				"root_path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.audio.ui.printworks.confirm_soft_01",
+				"target_id": "asset.audio.ui.printworks.confirm_soft_01",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.audio.tile.printworks.spawn_soft_01",
+				"kind": "class_name",
+				"line": 51,
+				"match": "asset.audio.tile.printworks.spawn_soft_01",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "class_name reference: asset.audio.tile.printworks.spawn_soft_01",
+				"root_path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.audio.tile.printworks.spawn_soft_01",
+				"target_id": "asset.audio.tile.printworks.spawn_soft_01",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.audio.tile.printworks.move_soft_01",
+				"kind": "class_name",
+				"line": 38,
+				"match": "asset.audio.tile.printworks.move_soft_01",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "class_name reference: asset.audio.tile.printworks.move_soft_01",
+				"root_path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.audio.tile.printworks.move_soft_01",
+				"target_id": "asset.audio.tile.printworks.move_soft_01",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.audio.tile.printworks.merge_soft_01",
+				"kind": "class_name",
+				"line": 25,
+				"match": "asset.audio.tile.printworks.merge_soft_01",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "class_name reference: asset.audio.tile.printworks.merge_soft_01",
+				"root_path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.audio.tile.printworks.merge_soft_01",
+				"target_id": "asset.audio.tile.printworks.merge_soft_01",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.audio.game.printworks.game_over_soft_01",
+				"kind": "class_name",
+				"line": 12,
+				"match": "asset.audio.game.printworks.game_over_soft_01",
+				"path": "res://resources/audio/printworks_audio_bank.tres",
+				"preview": "class_name reference: asset.audio.game.printworks.game_over_soft_01",
+				"root_path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.audio.game.printworks.game_over_soft_01",
+				"target_id": "asset.audio.game.printworks.game_over_soft_01",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.vfx.celebration.confetti_canvas",
+				"kind": "class_name",
+				"line": 8,
+				"match": "asset.vfx.celebration.confetti_canvas",
+				"path": "res://scripts/utilities/game_celebration_vfx_utility.gd",
+				"preview": "class_name reference: asset.vfx.celebration.confetti_canvas",
+				"root_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.vfx.celebration.confetti_canvas",
+				"target_id": "asset.vfx.celebration.confetti_canvas",
+				"target_path": ""
+			}
+		],
+		"weak_targets": {
+			"asset.audio.game.printworks.game_over_soft_01": {
+				"id": "asset.audio.game.printworks.game_over_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.audio.game.printworks.game_over_soft_01",
+						"kind": "class_name",
+						"line": 12,
+						"match": "asset.audio.game.printworks.game_over_soft_01",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "class_name reference: asset.audio.game.printworks.game_over_soft_01",
+						"root_path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.audio.game.printworks.game_over_soft_01",
+						"target_id": "asset.audio.game.printworks.game_over_soft_01",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://asset_library/audio/game/printworks_game_over_soft_01.ogg"
+			},
+			"asset.audio.tile.printworks.merge_soft_01": {
+				"id": "asset.audio.tile.printworks.merge_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.audio.tile.printworks.merge_soft_01",
+						"kind": "class_name",
+						"line": 25,
+						"match": "asset.audio.tile.printworks.merge_soft_01",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "class_name reference: asset.audio.tile.printworks.merge_soft_01",
+						"root_path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.audio.tile.printworks.merge_soft_01",
+						"target_id": "asset.audio.tile.printworks.merge_soft_01",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://asset_library/audio/tile/printworks_merge_soft_01.ogg"
+			},
+			"asset.audio.tile.printworks.move_soft_01": {
+				"id": "asset.audio.tile.printworks.move_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.audio.tile.printworks.move_soft_01",
+						"kind": "class_name",
+						"line": 38,
+						"match": "asset.audio.tile.printworks.move_soft_01",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "class_name reference: asset.audio.tile.printworks.move_soft_01",
+						"root_path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.audio.tile.printworks.move_soft_01",
+						"target_id": "asset.audio.tile.printworks.move_soft_01",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://asset_library/audio/tile/printworks_move_soft_01.ogg"
+			},
+			"asset.audio.tile.printworks.spawn_soft_01": {
+				"id": "asset.audio.tile.printworks.spawn_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.audio.tile.printworks.spawn_soft_01",
+						"kind": "class_name",
+						"line": 51,
+						"match": "asset.audio.tile.printworks.spawn_soft_01",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "class_name reference: asset.audio.tile.printworks.spawn_soft_01",
+						"root_path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.audio.tile.printworks.spawn_soft_01",
+						"target_id": "asset.audio.tile.printworks.spawn_soft_01",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://asset_library/audio/tile/printworks_spawn_soft_01.ogg"
+			},
+			"asset.audio.ui.printworks.confirm_soft_01": {
+				"id": "asset.audio.ui.printworks.confirm_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.audio.ui.printworks.confirm_soft_01",
+						"kind": "class_name",
+						"line": 64,
+						"match": "asset.audio.ui.printworks.confirm_soft_01",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "class_name reference: asset.audio.ui.printworks.confirm_soft_01",
+						"root_path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.audio.ui.printworks.confirm_soft_01",
+						"target_id": "asset.audio.ui.printworks.confirm_soft_01",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg"
+			},
+			"asset.audio.ui.printworks.select_soft_01": {
+				"id": "asset.audio.ui.printworks.select_soft_01",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.audio.ui.printworks.select_soft_01",
+						"kind": "class_name",
+						"line": 77,
+						"match": "asset.audio.ui.printworks.select_soft_01",
+						"path": "res://resources/audio/printworks_audio_bank.tres",
+						"preview": "class_name reference: asset.audio.ui.printworks.select_soft_01",
+						"root_path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.audio.ui.printworks.select_soft_01",
+						"target_id": "asset.audio.ui.printworks.select_soft_01",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://asset_library/audio/ui/printworks_select_soft_01.ogg"
+			},
+			"asset.vfx.celebration.confetti_canvas": {
+				"id": "asset.vfx.celebration.confetti_canvas",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.vfx.celebration.confetti_canvas",
+						"kind": "class_name",
+						"line": 8,
+						"match": "asset.vfx.celebration.confetti_canvas",
+						"path": "res://scripts/utilities/game_celebration_vfx_utility.gd",
+						"preview": "class_name reference: asset.vfx.celebration.confetti_canvas",
+						"root_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.vfx.celebration.confetti_canvas",
+						"target_id": "asset.vfx.celebration.confetti_canvas",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader"
+			}
+		}
+	},
 	"report_id": "asset_library_audit",
 	"resource_count": 11,
+	"runtime_catalog": {
+		"asset_count": 11,
+		"ids": [
+			"asset.audio.game.printworks.game_over_soft_01",
+			"asset.audio.tile.printworks.merge_soft_01",
+			"asset.audio.tile.printworks.move_soft_01",
+			"asset.audio.tile.printworks.spawn_soft_01",
+			"asset.audio.ui.printworks.confirm_soft_01",
+			"asset.audio.ui.printworks.select_soft_01",
+			"asset.shader.background.halftone_paper",
+			"asset.shader.transition.halftone_wipe",
+			"asset.shader.ui.button_focus_dash",
+			"asset.shader.ui.startup_progress_bar",
+			"asset.vfx.celebration.confetti_canvas"
+		],
+		"indexed_field_count": 7
+	},
 	"unregistered_library_files": [],
 	"unused_keys": [],
 	"usage": {

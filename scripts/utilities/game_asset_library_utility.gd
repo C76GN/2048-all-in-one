@@ -25,17 +25,13 @@ const _ASSET_REVIEW_RECORD_SCRIPT = preload("res://scripts/data/asset_review_rec
 const _ASSET_SOURCE_PACK_SCRIPT = preload("res://scripts/data/asset_source_pack.gd")
 const _ASSET_SLOT_MAP_SCRIPT = preload("res://scripts/data/asset_slot_map.gd")
 const _ASSET_SLOT_BINDING_SCRIPT = preload("res://scripts/data/asset_slot_binding.gd")
+const _CONTENT_PACKAGE_CATALOG_SOURCE_SCRIPT = preload(
+	"res://scripts/assets/catalog/game_content_package_catalog_source_provider.gd"
+)
+const _REVIEW_CATALOG_SOURCE_SCRIPT = preload(
+	"res://scripts/assets/catalog/game_asset_review_catalog_source_provider.gd"
+)
 
-const _TEXT_SCAN_EXTENSIONS: Array[String] = [
-	"cfg",
-	"csv",
-	"gd",
-	"godot",
-	"json",
-	"md",
-	"tres",
-	"tscn",
-]
 const _ASSET_FILE_EXTENSIONS: Array[String] = [
 	"gdshader",
 	"jpeg",
@@ -67,24 +63,38 @@ const _DEFAULT_USAGE_SCAN_ROOTS: Array[String] = [
 var _resolver: GFResourceResolverUtility = null
 var _content_packages: GFContentPackageUtility = null
 var _last_registration_report: Dictionary = {}
+var _catalog_sources: GFAssetCatalogSourceRegistry = null
+var _runtime_catalog_provider: GameContentPackageCatalogSourceProvider = null
+var _review_catalog_provider: GameAssetReviewCatalogSourceProvider = null
+var _runtime_catalog: GFAssetCatalog = null
+var _review_catalog: GFAssetCatalog = null
 
 
 # --- GF 生命周期方法 ---
 
 func init() -> void:
 	_last_registration_report.clear()
+	_ensure_catalog_sources()
 
 
 func ready() -> void:
 	_resolver = _get_resource_resolver_utility()
 	_content_packages = _get_content_package_utility()
 	_last_registration_report = register_asset_library_content_package_resources()
+	_rebuild_runtime_catalog()
 
 
 func dispose() -> void:
 	_resolver = null
 	_content_packages = null
 	_last_registration_report.clear()
+	if _catalog_sources != null:
+		_catalog_sources.clear_sources()
+	_catalog_sources = null
+	_runtime_catalog_provider = null
+	_review_catalog_provider = null
+	_runtime_catalog = null
+	_review_catalog = null
 
 
 func release_dependencies() -> void:
@@ -175,7 +185,47 @@ func get_debug_snapshot() -> Dictionary:
 		"registration_report": _last_registration_report.duplicate(true),
 		"content_packages": content_package_snapshot,
 		"resolver": resolver_snapshot,
+		"catalog_sources": _catalog_sources.get_source_records() if _catalog_sources != null else [],
+		"runtime_catalog": _runtime_catalog.get_debug_snapshot() if _runtime_catalog != null else {},
+		"review_catalog": _review_catalog.get_debug_snapshot() if _review_catalog != null else {},
 	}
+
+
+## 获取由内容包 manifest 构建的 GF 标准运行时素材目录。
+## @return 运行时素材目录副本。
+func get_runtime_catalog() -> GFAssetCatalog:
+	if _runtime_catalog == null:
+		_rebuild_runtime_catalog()
+	if _runtime_catalog == null:
+		return GFAssetCatalog.new()
+	return GFAssetCatalog.from_dict(_runtime_catalog.to_dict())
+
+
+## 获取由 AssetReviewRecord 构建的 GF 标准候选素材目录。
+## @param rebuild: 为 true 时重新扫描评审记录。
+## @return 候选素材目录副本。
+func get_review_catalog(rebuild: bool = false) -> GFAssetCatalog:
+	if rebuild or _review_catalog == null:
+		_rebuild_review_catalog()
+	if _review_catalog == null:
+		return GFAssetCatalog.new()
+	return GFAssetCatalog.from_dict(_review_catalog.to_dict())
+
+
+## 使用 GFTextSearchScorer 搜索运行时素材。
+## @param query: 搜索文本。
+## @param options: GFAssetCatalog.search() 选项。
+## @return 排序后的匹配报告。
+func search_runtime_assets(query: String, options: Dictionary = {}) -> Array[Dictionary]:
+	return get_runtime_catalog().search(query, options)
+
+
+## 使用 GFTextSearchScorer 搜索候选素材。
+## @param query: 搜索文本。
+## @param options: GFAssetCatalog.search() 选项。
+## @return 排序后的匹配报告。
+func search_review_assets(query: String, options: Dictionary = {}) -> Array[Dictionary]:
+	return get_review_catalog().search(query, options)
 
 
 ## 构建素材库审计报告，不写入文件。
@@ -200,11 +250,17 @@ func build_audit_report(options: Dictionary = {}) -> Dictionary:
 	var artifact_report: Dictionary = export_plan.get_artifact_report({"include_modified_time": true})
 	var entries: Array[Dictionary] = manifest.get_normalized_resources()
 	var usage_scan_roots: PackedStringArray = _get_usage_scan_roots(options)
-	var usage: Dictionary = _collect_asset_usage(entries, usage_scan_roots)
+	var usage_result: Dictionary = _collect_asset_usage(entries, usage_scan_roots)
+	var usage: Dictionary = GFVariantData.get_option_dictionary(usage_result, "usage")
+	var reference_scan_report: Dictionary = GFVariantData.get_option_dictionary(
+		usage_result,
+		"reference_scan_report"
+	)
 	var usage_summary: Dictionary = _summarize_usage(usage)
 	var metadata_issues: Array[Dictionary] = _collect_metadata_issues(entries, manifest.metadata)
 	var unregistered_files: PackedStringArray = _collect_unregistered_asset_files(entries)
 	var unused_keys: PackedStringArray = _collect_unused_keys(entries, usage)
+	var attribution_report: Dictionary = _build_manifest_attribution_report(entries)
 
 	report["package_id"] = String(manifest.package_id)
 	report["version"] = manifest.version
@@ -212,6 +268,13 @@ func build_audit_report(options: Dictionary = {}) -> Dictionary:
 	report["manifest_report"] = manifest_report
 	report["export_plan_report"] = export_plan_report
 	report["artifact_report"] = artifact_report
+	report["runtime_catalog"] = get_runtime_catalog().get_debug_snapshot()
+	report["reference_scan_report"] = reference_scan_report
+	report["attribution_report"] = attribution_report
+	report["attribution_notice"] = GFAssetAttributionTools.format_notice_text(
+		attribution_report,
+		{"title": "Asset library attributions"}
+	)
 	report["usage"] = usage
 	report["unused_keys"] = unused_keys
 	report["unregistered_library_files"] = unregistered_files
@@ -226,6 +289,22 @@ func build_audit_report(options: Dictionary = {}) -> Dictionary:
 		_add_audit_issue(report, "error", "invalid_export_plan", "素材库导出计划校验失败。", {})
 	if not _is_report_ok(artifact_report):
 		_add_audit_issue(report, "error", "invalid_artifacts", "素材库 artifact 校验失败。", {})
+	if GFVariantData.get_option_bool(reference_scan_report, "partial_scan"):
+		_add_audit_issue(
+			report,
+			"error",
+			"partial_reference_scan",
+			"GF 项目引用扫描未完整完成，unused 结果不可作为删除依据。",
+			{"reference_scan_report": reference_scan_report}
+		)
+	if not _is_report_ok(attribution_report):
+		_add_audit_issue(
+			report,
+			"error",
+			"invalid_asset_attribution",
+			"GF 素材授权与署名覆盖校验失败。",
+			{"attribution_report": attribution_report}
+		)
 
 	for metadata_issue: Dictionary in metadata_issues:
 		_add_audit_issue(
@@ -265,14 +344,22 @@ func write_audit_reports(
 
 func build_review_catalog_report() -> Dictionary:
 	var report: Dictionary = _make_review_catalog_report()
+	var review_catalog: GFAssetCatalog = get_review_catalog(true)
 	var source_packs: Array[Resource] = _collect_source_pack_resources()
 	var records: Array[Resource] = _collect_review_records()
 	var slot_map: Resource = _load_asset_slot_map()
+	var approved_attribution_report: Dictionary = _build_review_attribution_report(records)
 
+	report["catalog"] = review_catalog.get_debug_snapshot()
 	report["source_pack_count"] = source_packs.size()
 	report["review_record_count"] = records.size()
 	report["slot_count"] = _get_slot_bindings(slot_map).size()
 	report["bound_slot_count"] = _get_bound_slot_count(slot_map)
+	report["approved_attribution_report"] = approved_attribution_report
+	report["approved_attribution_notice"] = GFAssetAttributionTools.format_notice_text(
+		approved_attribution_report,
+		{"title": "Approved asset attributions"}
+	)
 
 	for source_pack: Resource in source_packs:
 		_increment_count(report, "license_counts", _get_resource_string(source_pack, "license_status"))
@@ -288,11 +375,15 @@ func build_review_catalog_report() -> Dictionary:
 		_increment_count(report, "record_license_counts", _get_resource_string(record, "license_status"))
 		for slot_id: String in _get_resource_packed_string_array(record, "suggested_slots"):
 			_increment_count(report, "slot_candidate_counts", slot_id)
-		if _record_is_approved(record) and not _record_has_known_license(record):
-			_add_audit_issue(report, "error", "approved_asset_license_unknown", "已批准素材缺少明确授权：%s。" % _get_resource_string(record, "display_name"), {
-				"asset_id": _get_resource_string(record, "asset_id"),
-				"library_path": _get_resource_string(record, "library_path"),
-			})
+
+	if not _is_report_ok(approved_attribution_report):
+		_add_audit_issue(
+			report,
+			"error",
+			"invalid_approved_asset_attribution",
+			"已批准素材未通过 GF 授权与署名覆盖校验。",
+			{"attribution_report": approved_attribution_report}
+		)
 
 	for binding: Resource in _get_slot_bindings(slot_map):
 		if binding == null:
@@ -348,39 +439,117 @@ func _get_content_package_utility() -> GFContentPackageUtility:
 	return null
 
 
+func _ensure_catalog_sources() -> void:
+	if _catalog_sources != null:
+		return
+	_catalog_sources = GFAssetCatalogSourceRegistry.new()
+
+	_runtime_catalog_provider = _CONTENT_PACKAGE_CATALOG_SOURCE_SCRIPT.new()
+	var _runtime_configured: GFAssetCatalogSourceProvider = (
+		_runtime_catalog_provider.configure_manifest(
+			ASSET_LIBRARY_MANIFEST_PATH,
+			&"content_package"
+		)
+	)
+	var _runtime_registered: bool = _catalog_sources.register_source(
+		_runtime_catalog_provider,
+		{"priority": 100}
+	)
+
+	_review_catalog_provider = _REVIEW_CATALOG_SOURCE_SCRIPT.new()
+	var _review_configured: GFAssetCatalogSourceProvider = (
+		_review_catalog_provider.configure_review_records(
+			ASSET_LIBRARY_REVIEW_RECORD_ROOT,
+			&"asset_review"
+		)
+	)
+	var _review_registered: bool = _catalog_sources.register_source(
+		_review_catalog_provider,
+		{"priority": 50}
+	)
+
+
+func _rebuild_runtime_catalog() -> void:
+	_ensure_catalog_sources()
+	_runtime_catalog = GFAssetCatalog.new()
+	if _catalog_sources == null or _runtime_catalog_provider == null:
+		return
+	_runtime_catalog = _catalog_sources.build_catalog({
+		"source_ids": PackedStringArray(["content_package"]),
+	})
+
+
+func _rebuild_review_catalog() -> void:
+	_ensure_catalog_sources()
+	_review_catalog = GFAssetCatalog.new()
+	if _catalog_sources == null or _review_catalog_provider == null:
+		return
+	_review_catalog = _catalog_sources.build_catalog({
+		"source_ids": PackedStringArray(["asset_review"]),
+	})
+
+
 func _collect_asset_usage(entries: Array[Dictionary], scan_roots: PackedStringArray) -> Dictionary:
 	var usage: Dictionary = {}
-	var scan_files: PackedStringArray = _collect_scan_files(scan_roots)
+	var targets: Array[Dictionary] = []
 	for entry: Dictionary in entries:
 		var key_text: String = String(GFVariantData.get_option_string_name(entry, "key"))
+		var path: String = GFVariantData.get_option_string(entry, "path")
 		usage[key_text] = {
-			"path": GFVariantData.get_option_string(entry, "path"),
+			"path": path,
 			"type_hint": GFVariantData.get_option_string(entry, "type_hint"),
 			"path_users": PackedStringArray(),
 			"key_users": PackedStringArray(),
 			"used": false,
 		}
+		if key_text.is_empty() or path.is_empty():
+			continue
+		targets.append({
+			"id": key_text,
+			"root_path": path,
+			"class_names": [key_text],
+		})
 
-	for file_path: String in scan_files:
-		if _should_skip_usage_scan_file(file_path):
+	var reference_scan_report: Dictionary = GFProjectReferenceScanner.scan_references(targets, {
+		"scan_roots": scan_roots,
+		"additional_ignored_roots": PackedStringArray([ASSET_LIBRARY_SOURCE_ROOT]),
+		"include_weak_references": true,
+		"max_references_per_target": 500,
+		"max_weak_references_per_target": 500,
+		"max_scanned_files": 30000,
+		"max_total_bytes": 256 * 1024 * 1024,
+		"warning_prefix": "[GameAssetLibraryUtility]",
+	})
+	_apply_usage_references(
+		usage,
+		GFVariantData.get_option_array(reference_scan_report, "references")
+	)
+	_apply_usage_references(
+		usage,
+		GFVariantData.get_option_array(reference_scan_report, "weak_references")
+	)
+	return {
+		"usage": usage,
+		"reference_scan_report": reference_scan_report,
+	}
+
+
+func _apply_usage_references(usage: Dictionary, references: Array) -> void:
+	for reference_value: Variant in references:
+		if not (reference_value is Dictionary):
 			continue
-		var text: String = _read_text(file_path)
-		if text.is_empty():
+		var reference_record: Dictionary = reference_value
+		var asset_key: String = GFVariantData.get_option_string(reference_record, "target_id")
+		if not usage.has(asset_key):
 			continue
-		for entry: Dictionary in entries:
-			var key_text: String = String(GFVariantData.get_option_string_name(entry, "key"))
-			var path: String = GFVariantData.get_option_string(entry, "path")
-			var record: Dictionary = GFVariantData.get_option_dictionary(usage, key_text)
-			if not path.is_empty() and text.contains(path):
-				_append_unique_string_to_record(record, "path_users", file_path)
-			if not key_text.is_empty() and text.contains(key_text):
-				_append_unique_string_to_record(record, "key_users", file_path)
-			record["used"] = (
-				not GFVariantData.get_option_packed_string_array(record, "path_users").is_empty()
-				or not GFVariantData.get_option_packed_string_array(record, "key_users").is_empty()
-			)
-			usage[key_text] = record
-	return usage
+		var user_path: String = GFVariantData.get_option_string(reference_record, "path")
+		var record: Dictionary = GFVariantData.get_option_dictionary(usage, asset_key)
+		if GFVariantData.get_option_string(reference_record, "kind") == "class_name":
+			_append_unique_string_to_record(record, "key_users", user_path)
+		else:
+			_append_unique_string_to_record(record, "path_users", user_path)
+		record["used"] = true
+		usage[asset_key] = record
 
 
 func _summarize_usage(usage: Dictionary) -> Dictionary:
@@ -417,12 +586,12 @@ func _collect_metadata_issues(entries: Array[Dictionary], package_metadata: Dict
 	var required_fields: PackedStringArray = GFVariantData.get_option_packed_string_array(
 		package_metadata,
 		"audit_required_metadata",
-		PackedStringArray(["asset_kind", "category", "origin", "author", "source", "license"])
+		PackedStringArray(["asset_kind", "category", "origin", "author", "source"])
 	)
 	var third_party_required_fields: PackedStringArray = GFVariantData.get_option_packed_string_array(
 		package_metadata,
 		"third_party_required_metadata",
-		PackedStringArray(["author", "source", "source_url", "license"])
+		PackedStringArray(["author", "source", "source_url"])
 	)
 	for entry: Dictionary in entries:
 		var key_text: String = String(GFVariantData.get_option_string_name(entry, "key"))
@@ -456,18 +625,6 @@ func _collect_unregistered_asset_files(entries: Array[Dictionary]) -> PackedStri
 	return result
 
 
-func _collect_scan_files(scan_roots: PackedStringArray) -> PackedStringArray:
-	var files: PackedStringArray = PackedStringArray()
-	for root_path: String in scan_roots:
-		if FileAccess.file_exists(root_path):
-			if _is_text_scan_file(root_path):
-				_append_unique_string(files, root_path)
-			continue
-		_collect_files_recursive(root_path, files, _TEXT_SCAN_EXTENSIONS)
-	files.sort()
-	return files
-
-
 func _collect_files_recursive(root_path: String, files: PackedStringArray, extensions: Array[String]) -> void:
 	var dir: DirAccess = DirAccess.open(root_path)
 	if dir == null:
@@ -488,15 +645,6 @@ func _collect_files_recursive(root_path: String, files: PackedStringArray, exten
 	dir.list_dir_end()
 
 
-func _should_skip_usage_scan_file(path: String) -> bool:
-	return (
-		path == ASSET_LIBRARY_MANIFEST_PATH
-		or path.begins_with("res://asset_library/reports/")
-		or path.begins_with(ASSET_LIBRARY_REVIEW_ROOT + "/")
-		or path.begins_with(ASSET_LIBRARY_SOURCE_PACK_ROOT + "/")
-	)
-
-
 func _should_ignore_library_file(path: String) -> bool:
 	return (
 		path == ASSET_LIBRARY_MANIFEST_PATH
@@ -508,10 +656,6 @@ func _should_ignore_library_file(path: String) -> bool:
 		or path.ends_with(".import")
 		or path.ends_with(".uid")
 	)
-
-
-func _is_text_scan_file(path: String) -> bool:
-	return _has_allowed_extension(path, _TEXT_SCAN_EXTENSIONS)
 
 
 func _has_allowed_extension(path: String, extensions: Array[String]) -> bool:
@@ -531,15 +675,6 @@ func _get_usage_scan_roots(options: Dictionary) -> PackedStringArray:
 	for root_path: String in _DEFAULT_USAGE_SCAN_ROOTS:
 		var _append_result: bool = result.append(root_path)
 	return result
-
-
-func _read_text(path: String) -> String:
-	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return ""
-	var text: String = file.get_as_text()
-	file.close()
-	return text
 
 
 func _write_text(path: String, text: String) -> void:
@@ -639,12 +774,77 @@ func _append_markdown_count_section(lines: PackedStringArray, title: String, cou
 		_append_markdown_line(lines, "- `%s`: `%d`" % [key_text, GFVariantData.get_option_int(counts, key_text)])
 
 
+func _build_manifest_attribution_report(entries: Array[Dictionary]) -> Dictionary:
+	var attribution_entries: Array = []
+	var resource_paths: PackedStringArray = PackedStringArray()
+	for entry: Dictionary in entries:
+		var path: String = GFVariantData.get_option_string(entry, "path")
+		var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
+		attribution_entries.append({
+			"path": path,
+			"license_id": GFVariantData.get_option_string(metadata, "license"),
+			"title": GFVariantData.get_option_string(
+				metadata,
+				"display_name",
+				String(GFVariantData.get_option_string_name(entry, "key"))
+			),
+			"creator": GFVariantData.get_option_string(metadata, "author"),
+			"source_url": GFVariantData.get_option_string(metadata, "source_url"),
+			"notice": GFVariantData.get_option_string(metadata, "notice"),
+			"copyright": GFVariantData.get_option_string(metadata, "copyright"),
+			"subject_path": String(GFVariantData.get_option_string_name(entry, "key")),
+			"subject_kind": GFVariantData.get_option_string(metadata, "asset_kind"),
+		})
+		_append_unique_string(resource_paths, path)
+	return GFAssetAttributionTools.build_attribution_report(
+		attribution_entries,
+		resource_paths,
+		{
+			"require_license_id": true,
+			"inherit_from_parent": false,
+		}
+	)
+
+
+func _build_review_attribution_report(records: Array[Resource]) -> Dictionary:
+	var attribution_entries: Array = []
+	var resource_paths: PackedStringArray = PackedStringArray()
+	for record: Resource in records:
+		if not _record_is_approved(record):
+			continue
+		var path: String = _get_resource_string(record, "library_path")
+		var license_id: String = ""
+		if _get_resource_string_name(record, "license_status") == &"known":
+			license_id = _get_resource_string(record, "license")
+		attribution_entries.append({
+			"path": path,
+			"license_id": license_id,
+			"title": _get_resource_string(record, "display_name"),
+			"creator": _get_resource_string(record, "author"),
+			"source_url": _get_resource_string(record, "source_url"),
+			"subject_path": _get_resource_string(record, "asset_id"),
+			"subject_kind": _get_resource_string(record, "asset_kind"),
+		})
+		_append_unique_string(resource_paths, path)
+	return GFAssetAttributionTools.build_attribution_report(
+		attribution_entries,
+		resource_paths,
+		{
+			"require_license_id": true,
+			"inherit_from_parent": false,
+		}
+	)
+
+
 func _collect_review_records() -> Array[Resource]:
-	var paths: PackedStringArray = PackedStringArray()
-	_collect_files_recursive(ASSET_LIBRARY_REVIEW_RECORD_ROOT, paths, _RESOURCE_FILE_EXTENSIONS)
 	var records: Array[Resource] = []
-	for path: String in paths:
-		var loaded: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	var catalog: GFAssetCatalog = get_review_catalog()
+	for asset_id: String in catalog.get_all_ids():
+		var entry: GFAssetCatalogEntry = catalog.get_entry(StringName(asset_id))
+		if entry == null:
+			continue
+		var record_path: String = GFVariantData.get_option_string(entry.metadata, "record_path")
+		var loaded: Resource = ResourceLoader.load(record_path, "", ResourceLoader.CACHE_MODE_REUSE)
 		if _resource_uses_script(loaded, _ASSET_REVIEW_RECORD_SCRIPT):
 			_append_resource(records, loaded)
 	return records
@@ -679,13 +879,6 @@ func _source_pack_has_known_license(source_pack: Resource) -> bool:
 
 func _record_is_approved(record: Resource) -> bool:
 	return _get_resource_string_name(record, "review_status") == &"approved"
-
-
-func _record_has_known_license(record: Resource) -> bool:
-	return (
-		_get_resource_string_name(record, "license_status") == &"known"
-		and not _get_resource_string(record, "license").strip_edges().is_empty()
-	)
 
 
 func _get_slot_bindings(slot_map: Resource) -> Array[Resource]:
@@ -810,6 +1003,10 @@ func _make_audit_report() -> Dictionary:
 		"used_count": 0,
 		"direct_path_reference_count": 0,
 		"asset_key_reference_count": 0,
+		"runtime_catalog": {},
+		"reference_scan_report": {},
+		"attribution_report": {},
+		"attribution_notice": "",
 		"usage": {},
 		"unused_keys": PackedStringArray(),
 		"unregistered_library_files": PackedStringArray(),
@@ -832,6 +1029,9 @@ func _make_review_catalog_report() -> Dictionary:
 		"review_record_count": 0,
 		"slot_count": 0,
 		"bound_slot_count": 0,
+		"catalog": {},
+		"approved_attribution_report": {},
+		"approved_attribution_notice": "",
 		"kind_counts": {},
 		"status_counts": {},
 		"license_counts": {},

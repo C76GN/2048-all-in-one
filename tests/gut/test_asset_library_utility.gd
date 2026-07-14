@@ -5,6 +5,10 @@ extends GutTest
 # --- 常量 ---
 
 const _ASSET_LIBRARY_MANIFEST_PATH: String = "res://asset_library/gf_content_package.json"
+const _REVIEW_CATALOG_PROVIDER_SCRIPT = preload(
+	"res://scripts/assets/catalog/game_asset_review_catalog_source_provider.gd"
+)
+const _ASSET_REVIEW_RECORD_SCRIPT = preload("res://scripts/data/asset_review_record.gd")
 
 
 # --- 测试用例 ---
@@ -33,12 +37,17 @@ func test_asset_library_registers_assets_into_gf_resolver() -> void:
 	var startup_progress_shader: Resource = asset_library.load_asset(&"asset.shader.ui.startup_progress_bar", "Shader")
 	var celebration_shader: Resource = asset_library.load_asset(&"asset.vfx.celebration.confetti_canvas", "Shader")
 	var resolve_report: Dictionary = resolver.resolve(&"asset.shader.transition.halftone_wipe", "Shader")
+	var runtime_catalog: GFAssetCatalog = asset_library.get_runtime_catalog()
 
 	assert_true(audio is AudioStream, "素材库音频应能通过稳定 asset key 加载。")
 	assert_true(shader is Shader, "素材库 shader 应能通过稳定 asset key 加载。")
 	assert_true(startup_progress_shader is Shader, "启动进度条 shader 应能通过稳定 asset key 加载。")
 	assert_true(celebration_shader is Shader, "素材库庆祝 VFX shader 应能通过稳定 asset key 加载。")
 	assert_true(GFVariantData.get_option_bool(resolve_report, "ok", false), "素材库资源键应注册进 GFResourceResolverUtility。")
+	assert_true(
+		runtime_catalog.has_entry(&"asset.shader.transition.halftone_wipe"),
+		"内容包资源应同时进入 GFAssetCatalog，供搜索、分组和诊断复用。"
+	)
 	assert_true(
 		asset_library.resolve_asset_path(&"asset.audio.ui.printworks.select_soft_01", "AudioStreamOggVorbis")
 			== "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
@@ -68,6 +77,14 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 		usage,
 		"asset.shader.ui.startup_progress_bar"
 	)
+	var reference_scan_report: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		"reference_scan_report"
+	)
+	var attribution_report: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		"attribution_report"
+	)
 
 	assert_true(GFVariantData.get_option_bool(report, "ok", false), "素材库审计不应有 error。")
 	assert_true(GFVariantData.get_option_int(report, "resource_count") >= 11, "素材库审计应覆盖首批音频、shader 和 VFX。")
@@ -78,6 +95,23 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 	assert_true(
 		GFVariantData.get_option_array(report, "metadata_issues").is_empty(),
 		"素材库登记项必须包含审计所需元数据。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(reference_scan_report, "partial_scan"),
+		"GFProjectReferenceScanner 必须完整扫描，否则 unused 结论不可信。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(reference_scan_report, "scanned_file_count") > 0,
+		"素材引用审计应由 GFProjectReferenceScanner 提供扫描证据。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(attribution_report, "ok"),
+		"运行时素材必须通过 GFAssetAttributionTools 授权覆盖校验。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(attribution_report, "covered_path_count")
+			== GFVariantData.get_option_int(report, "resource_count"),
+		"每个运行时素材都应有明确归因条目。"
 	)
 	assert_true(
 		GFVariantData.get_option_packed_string_array(select_usage, "path_users").has("res://resources/audio/printworks_audio_bank.tres"),
@@ -95,6 +129,45 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 		GFVariantData.get_option_packed_string_array(startup_progress_usage, "path_users").has("res://scripts/boot/boot.gd"),
 		"审计报告应能说明启动进度条 shader 被 Boot 使用。"
 	)
+
+
+func test_asset_review_provider_uses_gf_catalog_search() -> void:
+	var fixture_root: String = "user://gut_asset_review_catalog"
+	var fixture_path: String = fixture_root.path_join("positive_chime.tres")
+	var absolute_fixture_root: String = ProjectSettings.globalize_path(fixture_root)
+	var _mkdir_result: Error = DirAccess.make_dir_recursive_absolute(absolute_fixture_root)
+	var record: Resource = _ASSET_REVIEW_RECORD_SCRIPT.new()
+	record.set(
+		"asset_id",
+		&"asset.review.fixture.audio.positive_chime"
+	)
+	record.set("display_name", "Positive Chime")
+	record.set("asset_kind", &"audio")
+	record.set("review_status", &"candidate")
+	record.set("tags", PackedStringArray(["audio", "positive", "ui"]))
+	record.set("library_path", "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg")
+	var save_result: Error = ResourceSaver.save(record, fixture_path)
+	assert_true(save_result == OK, "候选素材 fixture 应保存成功。")
+
+	var provider: GameAssetReviewCatalogSourceProvider = _REVIEW_CATALOG_PROVIDER_SCRIPT.new()
+	assert_true(provider is GFAssetCatalogSourceProvider, "评审目录 adapter 应实现 GF provider 契约。")
+	var _configured: GFAssetCatalogSourceProvider = provider.configure_review_records(
+		fixture_root,
+		&"fixture_review"
+	)
+	var catalog: GFAssetCatalog = provider.build_catalog()
+	var search_reports: Array[Dictionary] = catalog.search("positive chime", {"limit": 5})
+
+	assert_true(catalog.get_all_ids().size() == 1, "GF 候选素材目录应覆盖 fixture 记录。")
+	assert_false(search_reports.is_empty(), "GFAssetCatalog 搜索应命中已导入的候选音频。")
+	if not search_reports.is_empty():
+		var candidate: Dictionary = GFVariantData.get_option_dictionary(search_reports[0], "candidate")
+		assert_true(
+			GFVariantData.get_option_string(candidate, "asset_id")
+				== "asset.review.fixture.audio.positive_chime",
+			"候选素材搜索应返回稳定 asset_id。"
+		)
+	_cleanup_review_fixture(fixture_path, absolute_fixture_root)
 
 
 # --- 私有/辅助方法 ---
@@ -149,3 +222,11 @@ func _get_asset_library(setup: Dictionary) -> GameAssetLibraryUtility:
 		return asset_library
 	assert_true(false, "测试 setup 缺少 GameAssetLibraryUtility。")
 	return GameAssetLibraryUtility.new()
+
+
+func _cleanup_review_fixture(fixture_path: String, absolute_fixture_root: String) -> void:
+	var absolute_fixture_path: String = ProjectSettings.globalize_path(fixture_path)
+	if FileAccess.file_exists(fixture_path):
+		var _remove_file_result: Error = DirAccess.remove_absolute(absolute_fixture_path)
+	if DirAccess.dir_exists_absolute(absolute_fixture_root):
+		var _remove_dir_result: Error = DirAccess.remove_absolute(absolute_fixture_root)
