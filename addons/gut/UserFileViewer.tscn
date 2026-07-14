@@ -1,18 +1,19 @@
-[gd_scene format=3 uid="uid://bsm7wtt1gie4v"]
+[gd_scene load_steps=2 format=3 uid="uid://bsm7wtt1gie4v"]
 
 [ext_resource type="Script" uid="uid://x51wilphva3d" path="res://addons/gut/UserFileViewer.gd" id="1"]
 
-[node name="UserFileViewer" type="Window" unique_id=1877074951]
-oversampling_override = 1.0
+[node name="UserFileViewer" type="Window"]
 exclusive = true
 script = ExtResource("1")
 
-[node name="FileDialog" type="FileDialog" parent="." unique_id=1610107324]
+[node name="FileDialog" type="FileDialog" parent="."]
 access = 1
 show_hidden_files = true
+__meta__ = {
+"_edit_use_anchors_": false
+}
 
-[node name="TextDisplay" type="ColorRect" parent="." unique_id=1443101160]
-anchors_preset = 15
+[node name="TextDisplay" type="ColorRect" parent="."]
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 8.0
@@ -20,8 +21,7 @@ offset_right = -10.0
 offset_bottom = -65.0
 color = Color(0.2, 0.188235, 0.188235, 1)
 
-[node name="RichTextLabel" type="RichTextLabel" parent="TextDisplay" unique_id=575200341]
-layout_mode = 0
+[node name="RichTextLabel" type="RichTextLabel" parent="TextDisplay"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 focus_mode = 2
@@ -32,8 +32,7 @@ Lorem ipsum is typically a corrupted version of De finibus bonorum et malorum, a
 Versions of the Lorem ipsum text have been used in typesetting at least since the 1960s, when it was popularized by advertisements for Letraset transfer sheets. Lorem ipsum was introduced to the digital world in the mid-1980s when Aldus employed it in graphic and word-processing templates for its desktop publishing program PageMaker. Other popular word processors including Pages and Microsoft Word have since adopted Lorem ipsum as well."
 selection_enabled = true
 
-[node name="OpenFile" type="Button" parent="." unique_id=315073961]
-anchors_preset = 3
+[node name="OpenFile" type="Button" parent="."]
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
@@ -44,8 +43,7 @@ offset_right = -84.0
 offset_bottom = -30.0
 text = "Open File"
 
-[node name="Home" type="Button" parent="." unique_id=1891203360]
-anchors_preset = 3
+[node name="Home" type="Button" parent="."]
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
@@ -56,8 +54,7 @@ offset_right = -404.0
 offset_bottom = -30.0
 text = "Home"
 
-[node name="Copy" type="Button" parent="." unique_id=367776723]
-anchors_preset = 2
+[node name="Copy" type="Button" parent="."]
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 160.0
@@ -66,8 +63,7 @@ offset_right = 234.0
 offset_bottom = -30.0
 text = "Copy"
 
-[node name="End" type="Button" parent="." unique_id=577934036]
-anchors_preset = 3
+[node name="End" type="Button" parent="."]
 anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
@@ -78,8 +74,7 @@ offset_right = -244.0
 offset_bottom = -30.0
 text = "End"
 
-[node name="Close" type="Button" parent="." unique_id=1755386795]
-anchors_preset = 2
+[node name="Close" type="Button" parent="."]
 anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 10.0

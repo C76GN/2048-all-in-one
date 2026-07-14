@@ -2,8 +2,6 @@
 class_name GutUtils
 extends Object
 
-const GUT_METADATA = '__gutdbl'
-
 # Note, these cannot change since places are checking for TYPE_INT to determine
 # how to process parameters.
 enum DOUBLE_STRATEGY{
@@ -15,6 +13,13 @@ enum DIFF {
 	DEEP,
 	SIMPLE
 }
+
+enum TREAT_AS {
+	NOTHING,
+	FAILURE,
+}
+
+const GUT_METADATA = '__gutdbl'
 
 const TEST_STATUSES = {
 	NO_ASSERTS = 'no asserts',
@@ -37,24 +42,27 @@ const NOTHING := '__NOTHING__'
 const NO_TEST := 'NONE'
 const GUT_ERROR_TYPE = 999
 
-enum TREAT_AS {
-	NOTHING,
-	FAILURE,
-}
 
-static var class_ref_by_name = {} :
+static var _class_ref_by_name := {}
+static var class_ref_by_name := {} :
 	get():
-		if(class_ref_by_name == {}):
-			class_ref_by_name = _create_class_dictionary()
-		return class_ref_by_name;
-
+		if(_class_ref_by_class == {}):
+			_create_class_dictionaries()
+		return _class_ref_by_name
+static var _class_ref_by_class := {}
+static var class_ref_by_class := {} :
+	get():
+		if(_class_ref_by_class == {}):
+			_create_class_dictionaries()
+		return _class_ref_by_class
 
 
 ## This dictionary defaults to all the native classes that we cannot call new
 ## on.  It is further populated during a run so that we only have to create
 ## a new instance once to get the class name string.
 static var gdscript_native_class_names_by_type = {
-	Tween:"Tween"
+	Tween:"Tween",
+	CanvasItem:"CanvasItem",
 }
 
 
@@ -194,16 +202,16 @@ static var TestCollector = LazyLoader.new('res://addons/gut/test_collector.gd'):
 static var ThingCounter = LazyLoader.new('res://addons/gut/thing_counter.gd'):
 	get: return ThingCounter.get_loaded()
 	set(val): pass
+static var UpdateDetector = LazyLoader.new('res://addons/gut/update_detector.gd'):
+	get: return UpdateDetector.get_loaded()
+	set(val): pass
 # --------------------------------
 
 static var gut_fonts = GutFonts.new()
 static var avail_fonts = gut_fonts.get_font_names()
 
 static var version_numbers = VersionNumbers.new(
-	# gut_versrion (source of truth)
-	'9.6.0',
-	# required_godot_version
-	'4.6'
+	'9.7.0' # gut_versrion (source of truth)
 )
 
 
@@ -249,17 +257,25 @@ static func get_error_tracker():
 #
 # This is lazy loaded into class_ref_by_name, it's only needed when finding
 # stubs.
-static func _create_class_dictionary():
+static func _create_class_dictionaries():
 	var text = "var all_the_classes: Dictionary = {\n"
 	var black_list = [
+		"IPUnix",
+		"GodotNavigationServer2D",
+		"NativeMenuMacOS",
 	]
 	for classname in ClassDB.get_class_list():
-		if(!black_list.has(classname) and (ClassDB.can_instantiate(classname) or GodotSingletons.names.has(classname))):
+		if(!black_list.has(classname) and (ClassDB.can_instantiate(classname) or \
+		 	GodotSingletons.names.has(classname))):
 			text += str('"', classname, '": ', classname, ", \n")
 
 	text += "}"
 	var inst =  GutUtils.create_script_from_source(text, 'res://dynamically_generated/class_dictionary.gd').new()
-	return inst.all_the_classes
+
+	_class_ref_by_name = inst.all_the_classes
+	for key in inst.all_the_classes:
+		_class_ref_by_class[inst.all_the_classes[key]] = key
+
 
 
 
@@ -314,14 +330,9 @@ static func make_install_check_text(template_paths=DOUBLE_TEMPLATES, ver_nums=ve
 		!FileAccess.file_exists(template_paths.SCRIPT)):
 
 		text = 'One or more GUT template files are missing.  If this is an exported project, you must include *.txt files in the export to run GUT.  If it is not an exported project then reinstall GUT.'
-	elif(!ver_nums.is_godot_version_valid()):
-		text = ver_nums.get_bad_version_text()
 
 	return text
 
-
-static func is_install_valid(template_paths=DOUBLE_TEMPLATES, ver_nums=version_numbers):
-	return make_install_check_text(template_paths, ver_nums) == INSTALL_OK_TEXT
 
 
 # ------------------------------------------------------------------------------
@@ -647,7 +658,12 @@ static func find_method_meta(methods, method_name):
 
 
 static func get_method_meta(object, method_name):
-	return find_method_meta(object.get_method_list(), method_name)
+	if(object is GDScript):
+		return find_method_meta(object.get_script_method_list(), method_name)
+	elif(is_native_class(object)):
+		return find_method_meta(ClassDB.class_get_method_list(class_ref_by_class[object]), method_name)
+	else:
+		return find_method_meta(object.get_method_list(), method_name)
 
 
 static func is_singleton(thing):
