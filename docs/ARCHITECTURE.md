@@ -21,6 +21,7 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 
 - `gf.domain`
 - `gf.action_queue`
+- `gf.asset_metadata`
 - `gf.content_package`
 - `gf.feedback`
 - `gf.save`
@@ -99,7 +100,7 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 - 玩家移动通过 `MoveCommand` 和 `GFCommandHistoryUtility` 进入历史。
 - 回放和书签复用持久化资源集合。
 - 对局初始化通过 `GFLevelUtility` 登记当前 session。
-- 场景切换通过 `GFSceneUtility` 异步加载，`SceneRouterSystem` 负责业务路由和半调纸媒转场遮罩。
+- 场景切换通过 `GFSceneUtility` 异步加载，`SceneRouterSystem` 负责业务路由和半调纸媒转场遮罩；切换阶段由 `GFOperationDiagnosticsUtility` 记录，遮罩 Tween 由 `GFAsyncTrackerUtility` 跟踪。
 
 ### Utility Module
 
@@ -119,7 +120,8 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 - `GameUiRouterUtility`：作为 `GFUIRouterUtility` 的项目 Adapter，从 UI 路由注册表加载 `GFUIRoute`。
 - `GameSettingsUtility`：承接 `GFSettingsUtility` 和项目设置字段，统一声明语言、显示、音量、视觉主题和音效主题默认值。
 - `GameSaveSlotWorkflowUtility`：承接 `GFSaveSlotWorkflow`、`GFSaveSlotMetadata` 和 `GFSaveSlotCard`，把最高分/统计保存到稳定 GF save slot。
-- `GameAssetLibraryUtility`：承接 `GFContentPackageUtility`、`GFResourceResolverUtility` 和 `GFContentPackageExportPlan`，注册项目内通用素材库、解析稳定 `asset.*` 资源键并生成素材审计报告。
+- `GameAssetLibraryUtility`：承接 `GFContentPackageUtility`、`GFResourceResolverUtility` 和 `GFContentPackageExportPlan`，并用 `GFAssetCatalogSourceRegistry` 聚合运行时内容包与候选评审记录；引用关系交给 `GFProjectReferenceScanner`，第三方归因交给 `GFAssetAttributionTools`。
+- `GameDiagnosticsUtility`：向 `GFDiagnosticsUtility` 注册项目快照 provider，并通过 `GFSupportReportUtility` 和 `GFConsoleUtility` 提供统一的运行时支持报告入口。
 - `GameThemeCatalogUtility`：承接 `GFContentPackageUtility` 和 `GFResourceResolverUtility`，注册内置主题内容包并加载主题注册表。
 - `GameThemeUtility`：承接 `GFSettingsUtility`、`GameThemeCatalogUtility`、`GameUiMotionUtility` 和 `GFAudioUtility`，解析当前视觉主题和音效主题。
 - `SavedResourceCollectionUtility`：复用 `GFStorageUtility` 保存时间戳 Resource 集合。
@@ -145,8 +147,7 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 
 当前实现说明：
 
-- 项目脚本使用显式 `res://addons/gf/...` 继承路径，而不是裸 `extends GFController`。这是 GF 升级后为了规避 Godot class cache 未刷新时解析失败的兼容策略。
-- 如果未来确认 Godot class cache 稳定，可以评估是否恢复裸类名继承；恢复前必须能安全运行解析和测试。
+- 项目脚本使用显式 `res://addons/gf/...` 继承路径，以文件路径固定框架依赖并避免依赖编辑器全局类缓存。GF 升级后必须通过 LSP 零诊断和完整 GUT 验证，不保留旧接口分支。
 
 ### Rule Module
 
@@ -203,7 +204,7 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 ### 新游戏
 
 1. 菜单选择模式和棋盘大小。
-2. `SceneRouterSystem` 通过 `GFSceneUtility` 切到游戏场景，并播放半调纸媒场景转场遮罩。
+2. `SceneRouterSystem` 通过 `GFSceneUtility` 切到游戏场景，并播放半调纸媒场景转场遮罩；诊断 Utility 记录请求、遮罩、加载、提交和揭示阶段。
 3. `GameInitSystem` 读取 `GameModeConfig`。
 4. `RuleSystem` 配置规则。
 5. `GFSeedUtility` 处理初始种子。
@@ -229,9 +230,11 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 ### 素材库
 
 1. `asset_library/gf_content_package.json` 维护可复用素材包，资源键统一使用 `asset.*` 前缀。
-2. `GameAssetLibraryUtility` 注册 `res://asset_library` source root，并把资源键同步到 `GFResourceResolverUtility`。
-3. 首批音频和 shader 都从 `asset_library/` 路径引用；主题包声明依赖 `c76.asset_library.core`。
-4. `tools/audit_asset_library.ps1` 生成 `asset_library/reports/asset_audit.json` 和 `.md`，报告素材存在性、元数据、未登记文件和项目引用者。
+2. `GameContentPackageCatalogSourceProvider` 把内容包转换为 `GFAssetCatalog`，资源键同时同步到 `GFResourceResolverUtility`。
+3. `GameAssetReviewCatalogSourceProvider` 把候选 `AssetReviewRecord` 转换为同一套目录接口，评审浏览器通过 `GFAssetCatalog` 搜索和筛选。
+4. `GFProjectReferenceScanner` 扫描项目引用；扫描不完整会让审计失败，禁止把不完整结果当成“未使用”。
+5. `GFAssetAttributionTools` 校验第三方素材归因并生成 notices；主题包声明依赖 `c76.asset_library.core`。
+6. `tools/audit_asset_library.ps1` 生成运行时和候选目录的 JSON/Markdown 审计报告。
 
 ### 统计存档
 

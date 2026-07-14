@@ -7,7 +7,7 @@
 ### 1. 空白与路径检查
 
 ```powershell
-git diff --check -- .gitignore .gf/packages.lock.json project.godot addons/gf scripts resources scenes tests README.md AI_MAINTENANCE.md CODING_STYLE.md docs tools
+git diff --check -- .gitignore .gf project.godot addons/gf scripts resources scenes tests README.md AI_MAINTENANCE.md CODING_STYLE.md docs tools
 ```
 
 ### 2. GF 包状态
@@ -27,6 +27,14 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 注意：GF 7 使用 Godot 原生包管理 CLI，入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。不要继续使用旧的 Python `addons/gf/kernel/package_tools/gf_package_installer.py` 命令。
 
 当前仓库是手动更新后的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在。缺失 lockfile 时，包状态命令会把 lockfile 视为空安装状态；这不等价于项目运行失败，但表示当前 GF 源码不是由包管理器重建出来的。若后续恢复包管理器安装流，应先重新生成 lockfile，再恢复对 installed 包数量的强校验。
+
+手动 vendored 源码由独立锁文件校验：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1
+```
+
+该命令校验 `addons/gf/` 的版本、文件数和内容哈希是否与 `.gf/vendor.lock.json` 一致。更新 GF 后必须同步锁文件；不要把 package lockfile 和 vendor lockfile 混为一谈。
 
 ## Godot / GUT 运行策略
 
@@ -72,22 +80,21 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 ### 最近一次安全 GUT 验证
 
-验证时间：2026-07-09。
+验证时间：2026-07-15。
 
 命令：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 60 -MaxLogMB 4 -MaxDefaultLogGrowthKB 64
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 300 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
 结果：
 
 - Godot：当前环境中的 `godot` 命令。
-- GUT：命令完成并由安全脚本推断为成功。
-- 当前静态计数：`tests/gut/` 下 17 个脚本、122 个 `test_` 用例。
-- 临时 `godot.log` 大小：约 `0.007 MB`。
+- GUT：151 个测试全部通过。
+- 当前静态计数：`tests/gut/` 下 18 个测试脚本、151 个 `test_` 用例。
 - 未触发默认 Godot 用户日志增长保护。
-- 当前 GUT 输出无 `Orphans` 提示。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 250`、`Resources = 108`、RID 类型数 `= 3`；基线上升会让安全脚本失败。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
@@ -108,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-09。结果：扫描 123 个 `.gd` 文件，`diagnostic_count = 0`。
+最近一次 LSP 诊断时间：2026-07-15。结果：扫描 133 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 ### 脚本静态检查
 
@@ -123,5 +130,6 @@ $null = [scriptblock]::Create($script)
 
 - `tools/run_gut_safe.ps1` 已通过一次隔离 GUT 验证；后续仍建议用当前编辑器一致的 Godot `4.7` 可执行文件复测。
 - Godot 编辑器中的 GDScript warning 已通过 `tools/check_gdscript_lsp_diagnostics.ps1` 建立零诊断基线；后续修改 `.gd` 后应复跑。
+- Godot 退出仍存在已量化的框架/测试对象泄漏债务；当前通过严格基线阻止继续增长，不能把基线当成已经修复。
 - 视觉和响应式布局仍需要 Playwright/截图或 Godot 运行级验证，目前只能依靠资源和脚本静态检查。
 - GF 包管理器的独立 lockfile 校验入口已并入原生 CLI `status --json` 的 `lockfile_verify` 字段；若后续 CLI 再次变化，需要先更新本文档再更新自动化命令。

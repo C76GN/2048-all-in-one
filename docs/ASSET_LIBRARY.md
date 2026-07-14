@@ -67,6 +67,8 @@ asset.vfx.celebration.confetti_canvas
 - `asset_library/gf_content_package.json` 是 GF 内容包 manifest。
 - `GameAssetLibraryUtility` 注册 `res://asset_library` 到 `GFContentPackageUtility`。
 - 素材资源键同步到 `GFResourceResolverUtility`，供项目通过稳定 ID 解析和加载。
+- `GameContentPackageCatalogSourceProvider` 和 `GameAssetReviewCatalogSourceProvider` 通过 `GFAssetCatalogSourceRegistry` 把运行时素材与候选素材映射为统一的 `GFAssetCatalog` 接口。
+- 项目引用由 `GFProjectReferenceScanner` 扫描；第三方归因、授权覆盖率和 notices 由 `GFAssetAttributionTools` 生成。
 - 主题包 `resources/gf_content_package.json` 依赖 `c76.asset_library.core`。
 
 ## 审计
@@ -92,11 +94,13 @@ asset_library/reports/review_catalog_audit.md
 - 登记素材文件是否存在。
 - 库内是否有未登记运行时素材。
 - 第三方素材是否有作者、来源 URL 和授权。
-- 每个素材被哪些项目文件按路径或 key 引用。
+- 每个素材被哪些项目文件按路径或 key 引用，以及引用扫描是否完整。
+- 运行时目录的 GF attribution coverage 是否完整。
 
 评审目录审计会检查：
 
 - 候选记录数量、类型、状态和授权分布。
+- 候选 `GFAssetCatalog` 是否可以按状态、类型、标签和稳定 ID 查询。
 - 源包授权是否已确认。
 - 已批准候选是否仍缺少明确授权。
 - 用途槽位绑定的运行时文件是否存在。
@@ -151,6 +155,8 @@ scenes/tools/asset_review_browser.tscn
 - 预览 shader 和图片。
 - 修改状态、评分、标签和备注。
 - 保存回对应的 `review/records/*.tres`。
+
+浏览器的搜索和状态过滤以 `GFAssetCatalog` 为真相来源；保存评审记录后会重建目录，不维护第二套手写索引。
 
 ## 批准素材流程
 
