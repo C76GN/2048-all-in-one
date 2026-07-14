@@ -24,11 +24,10 @@ func ready() -> void:
 	_grid_model = _get_grid_model()
 	_seed_utility = _get_seed_utility()
 	_log = _get_log_utility()
-	register_simple_event(EventNames.SPAWN_TILE_REQUESTED, _on_spawn_tile_requested)
+	register_simple_event(EventNames.SPAWN_TILE_REQUESTED, GFEventListener.from_method(self, &"_on_spawn_tile_requested", 1))
 
 
 func dispose() -> void:
-	unregister_simple_event(EventNames.SPAWN_TILE_REQUESTED, _on_spawn_tile_requested)
 	_grid_model = null
 	_seed_utility = null
 	_log = null

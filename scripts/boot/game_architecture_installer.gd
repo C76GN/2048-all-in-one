@@ -19,19 +19,15 @@ const _GAME_ASSET_LIBRARY_UTILITY_SCRIPT: Script = preload("res://scripts/utilit
 const _GAME_CELEBRATION_VFX_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_celebration_vfx_utility.gd")
 const _GAME_THEME_CATALOG_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_catalog_utility.gd")
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_utility.gd")
+const _GAME_DIAGNOSTICS_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_diagnostics_utility.gd")
 
 
 # --- 公共方法 ---
 
-## 兼容 GFInstaller 的旧式安装入口；当前项目使用 install_bindings() 注册模块。
-## @param _architecture: 当前 GF 架构实例。
-func install(_architecture: GFArchitecture) -> void:
-	pass
-
-
 ## 使用声明式 Binder 注册项目级 Model、Utility 和 System。
 ## @param binder: GF 传入的绑定器实例。
-func install_bindings(binder: Variant) -> void:
+## @param _scope: GF 为本次安装创建的可取消异步作用域。
+func install_bindings(binder: Variant, _scope: GFAsyncScope) -> void:
 	if not binder is GFBinder:
 		push_error("[GameArchitectureInstaller] install_bindings 失败：binder 为空或类型错误。")
 		return
@@ -67,6 +63,7 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFCommandHistoryUtility).from_instance(_create_history_utility()).as_singleton()
 	await binder.bind_utility(GFTimeUtility).as_singleton()
 	await binder.bind_utility(GFLogUtility).from_instance(_create_log_utility()).as_singleton()
+	await binder.bind_utility(GFBuildInfoUtility).as_singleton()
 	await binder.bind_utility(GFSceneUtility).as_singleton()
 	await binder.bind_utility(GFUIUtility).as_singleton()
 	await binder.bind_utility(_GAME_UI_ROUTER_UTILITY_SCRIPT).with_alias(GFUIRouterUtility).as_singleton()
@@ -81,8 +78,13 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFObjectPoolUtility).from_instance(_create_object_pool_utility()).as_singleton()
 
 	if _are_dev_tools_enabled():
-		await binder.bind_utility(TestToolUtility).as_singleton()
 		await binder.bind_utility(GFConsoleUtility).as_singleton()
+		await binder.bind_utility(GFAsyncTrackerUtility).from_instance(_create_async_tracker_utility()).as_singleton()
+		await binder.bind_utility(GFOperationDiagnosticsUtility).as_singleton()
+		await binder.bind_utility(GFDiagnosticsUtility).as_singleton()
+		await binder.bind_utility(GFSupportReportUtility).as_singleton()
+		await binder.bind_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT).as_singleton()
+		await binder.bind_utility(TestToolUtility).as_singleton()
 
 
 func _bind_systems(binder: GFBinder) -> void:
@@ -139,6 +141,13 @@ func _create_object_pool_utility() -> GFObjectPoolUtility:
 	var object_pool: GFObjectPoolUtility = GFObjectPoolUtility.new()
 	object_pool.max_available_per_scene = 128
 	return object_pool
+
+
+func _create_async_tracker_utility() -> GFAsyncTrackerUtility:
+	var tracker: GFAsyncTrackerUtility = GFAsyncTrackerUtility.new()
+	tracker.tracking_enabled = true
+	tracker.stack_trace_enabled = _is_verbose_logging_enabled()
+	return tracker
 
 
 func _are_dev_tools_enabled() -> bool:

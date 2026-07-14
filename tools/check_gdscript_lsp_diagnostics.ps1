@@ -59,3 +59,5 @@ if ($AllowDiagnostics) {
 }
 
 python @arguments
+$diagnosticsExitCode = $LASTEXITCODE
+exit $diagnosticsExitCode

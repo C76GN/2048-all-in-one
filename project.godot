@@ -50,10 +50,14 @@ enabled=PackedStringArray("res://addons/gf/plugin.cfg", "res://addons/gut/plugin
 
 [gf]
 
-project/installers=PackedStringArray("uid://dlby16xly4hri")
-extensions/enabled=Array[String](["gf.action_queue", "gf.asset_metadata", "gf.behavior_tree", "gf.camera", "gf.capability", "gf.combat", "gf.content_package", "gf.decision", "gf.dialogue", "gf.domain", "gf.feedback", "gf.flow", "gf.interaction", "gf.network", "gf.physics", "gf.save", "gf.turn_based"])
+project/installers=PackedStringArray("res://scripts/boot/game_architecture_installer.gd")
+extensions/enabled=Array[String](["gf.action_queue", "gf.asset_metadata", "gf.content_package", "gf.domain", "gf.feedback", "gf.save"])
 network/contract_paths=PackedStringArray()
 network/contract_output_dir="res://gf/generated/network"
+extensions/selection_mode="explicit"
+extensions/auto_install_enabled_installers=true
+extensions/export_exclude_disabled=true
+extensions/export_fail_on_disabled_references=true
 
 [gui]
 

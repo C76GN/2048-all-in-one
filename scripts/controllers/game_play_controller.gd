@@ -81,8 +81,8 @@ func _ready() -> void:
 	if is_instance_valid(_theme_utility):
 		_connect_native_signal(_theme_utility.visual_theme_changed, _on_visual_theme_changed)
 		
-	register_event(GameReadyData, _on_game_ready_data_received)
-	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
+	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready_data_received", 1))
+	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
 	send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
 	_update_static_ui_text()
 	
@@ -129,15 +129,9 @@ func _cleanup_listeners() -> void:
 	
 	_clear_action_queues()
 
-	# 清理所有 GF 事件监听，防止旧场景实例在场景重载后仍接收事件
-	unregister_event(GameReadyData, _on_game_ready_data_received)
-	unregister_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	unregister_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	unregister_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
-	unregister_simple_event(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
-	unregister_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
-	unregister_simple_event(EventNames.TARGET_REACHED, _on_target_reached)
-	unregister_event(HudMessagePayload, _on_show_hud_message_event)
+	var architecture: GFArchitecture = get_architecture_or_null()
+	if architecture != null:
+		architecture.unregister_owner_events(self)
 
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
@@ -170,7 +164,7 @@ func _register_level_runtime_cleanup() -> void:
 
 func _unregister_level_runtime_cleanup() -> void:
 	if is_instance_valid(_level_utility):
-		_level_utility.unregister_runtime_cleanup(_LEVEL_CLEANUP_ACTION_QUEUES)
+		var _unregistered: bool = _level_utility.unregister_runtime_cleanup(_LEVEL_CLEANUP_ACTION_QUEUES)
 
 
 func _connect_native_signal(source_signal: Signal, callback: Callable) -> void:
@@ -213,12 +207,12 @@ func _connect_signals() -> void:
 		_connect_native_signal(_replay_system.playback_progress_changed, _on_replay_progress_changed)
 		_connect_native_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
 
-	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	register_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
-	register_simple_event(EventNames.TOGGLE_PAUSE_UI, _on_toggle_pause_ui)
-	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
-	register_simple_event(EventNames.TARGET_REACHED, _on_target_reached)
-	register_event(HudMessagePayload, _on_show_hud_message_event)
+	register_simple_event(EventNames.GAME_STATE_CHANGED, GFEventListener.from_method(self, &"_on_game_state_changed", 1))
+	register_simple_event(EventNames.BOARD_RESIZED, GFEventListener.from_method(self, &"_on_board_resized", 1))
+	register_simple_event(EventNames.TOGGLE_PAUSE_UI, GFEventListener.from_method(self, &"_on_toggle_pause_ui", 1))
+	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, GFEventListener.from_method(self, &"_on_replay_continued_as_game", 1))
+	register_simple_event(EventNames.TARGET_REACHED, GFEventListener.from_method(self, &"_on_target_reached", 1))
+	register_event(HudMessagePayload, GFEventListener.from_method(self, &"_on_show_hud_message_event", 1))
 
 	_connect_native_signal(_hud_message_timer.timeout, _on_hud_message_timer_timeout)
 

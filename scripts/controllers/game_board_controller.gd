@@ -88,11 +88,11 @@ func _ready() -> void:
 		var _connect_result_87: int = parent_control.resized.connect(_on_resized)
 	
 	# --- 注册 GF 事件监听 ---
-	register_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, _on_board_animation_requested)
-	register_simple_event(EventNames.BOARD_UNDO_ANIMATION_REQUESTED, _on_board_undo_animation_requested)
-	register_simple_event(EventNames.BOARD_REFRESH_REQUESTED, _on_board_refresh_requested)
-	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	register_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, _on_board_live_expand_requested)
+	register_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, GFEventListener.from_method(self, &"_on_board_animation_requested", 1))
+	register_simple_event(EventNames.BOARD_UNDO_ANIMATION_REQUESTED, GFEventListener.from_method(self, &"_on_board_undo_animation_requested", 1))
+	register_simple_event(EventNames.BOARD_REFRESH_REQUESTED, GFEventListener.from_method(self, &"_on_board_refresh_requested", 1))
+	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
+	register_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, GFEventListener.from_method(self, &"_on_board_live_expand_requested", 1))
 
 
 func _exit_tree() -> void:
@@ -300,11 +300,9 @@ func _cleanup_listeners() -> void:
 	if _is_cleaned_up:
 		return
 	_is_cleaned_up = true
-	unregister_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, _on_board_animation_requested)
-	unregister_simple_event(EventNames.BOARD_UNDO_ANIMATION_REQUESTED, _on_board_undo_animation_requested)
-	unregister_simple_event(EventNames.BOARD_REFRESH_REQUESTED, _on_board_refresh_requested)
-	unregister_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	unregister_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, _on_board_live_expand_requested)
+	var architecture: GFArchitecture = get_architecture_or_null()
+	if architecture != null:
+		architecture.unregister_owner_events(self)
 	if _log:
 		_log.debug(_LOG_TAG, "已清理 GF 事件监听。")
 

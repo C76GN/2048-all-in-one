@@ -27,22 +27,15 @@ var _is_step_processing: bool = false
 func ready() -> void:
 	_input_mapping = _get_input_mapping_utility()
 
-	register_event(GameReadyData, _on_game_ready)
-	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	register_simple_event(EventNames.REPLAY_NEXT_STEP, _on_next_step)
-	register_simple_event(EventNames.REPLAY_PREV_STEP, _on_prev_step)
-	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
+	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready", 1))
+	register_simple_event(EventNames.GAME_STATE_CHANGED, GFEventListener.from_method(self, &"_on_game_state_changed", 1))
+	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
+	register_simple_event(EventNames.REPLAY_NEXT_STEP, GFEventListener.from_method(self, &"_on_next_step", 1))
+	register_simple_event(EventNames.REPLAY_PREV_STEP, GFEventListener.from_method(self, &"_on_prev_step", 1))
+	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, GFEventListener.from_method(self, &"_on_replay_continued_as_game", 1))
 
 
 func dispose() -> void:
-	unregister_event(GameReadyData, _on_game_ready)
-	unregister_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	unregister_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	unregister_simple_event(EventNames.REPLAY_NEXT_STEP, _on_next_step)
-	unregister_simple_event(EventNames.REPLAY_PREV_STEP, _on_prev_step)
-	unregister_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
-
 	_set_replay_input_enabled(false)
 	_input_mapping = null
 

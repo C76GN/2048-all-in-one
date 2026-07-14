@@ -7,8 +7,6 @@ extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 # --- 常量 ---
 
-const _CMD_GF_DEBUG: String = "gf_debug"
-const _LOG_TAG: String = "TestToolUtility"
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game_theme_utility.gd")
 
 
@@ -17,32 +15,11 @@ const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://scripts/utilities/game
 var _test_panel: TestPanel
 var _game_board: GameBoardController
 var _is_listening: bool = false
-var _is_debug_command_registered: bool = false
-
-
-# --- Godot 生命周期方法 ---
-
-func ready() -> void:
-	var console: GFConsoleUtility = _get_console_utility()
-	if is_instance_valid(console):
-		console.register_command(_CMD_GF_DEBUG, _cmd_gf_debug, "Print GF runtime debug snapshot.")
-		_is_debug_command_registered = true
 
 
 ## 释放测试工具持有的场景引用与事件监听。
 func dispose() -> void:
-	if _is_debug_command_registered:
-		var console: GFConsoleUtility = _get_console_utility()
-		if is_instance_valid(console):
-			console.unregister_command(_CMD_GF_DEBUG)
-		_is_debug_command_registered = false
-
-	if _is_listening:
-		unregister_event(TestSpawnPayload, _on_test_panel_spawn_requested_event)
-		unregister_simple_event(EventNames.TEST_VALUES_REQUESTED, _on_test_panel_values_requested_event)
-		unregister_simple_event(EventNames.TEST_RESET_RESIZE_REQUESTED, _on_reset_and_resize_requested_event)
-		unregister_simple_event(EventNames.TEST_LIVE_EXPAND_REQUESTED, _on_live_expand_requested_event)
-		_is_listening = false
+	_is_listening = false
 
 	clear_context()
 
@@ -94,47 +71,11 @@ func _register_listeners() -> void:
 	if _is_listening:
 		return
 
-	register_event(TestSpawnPayload, _on_test_panel_spawn_requested_event)
-	register_simple_event(EventNames.TEST_VALUES_REQUESTED, _on_test_panel_values_requested_event)
-	register_simple_event(EventNames.TEST_RESET_RESIZE_REQUESTED, _on_reset_and_resize_requested_event)
-	register_simple_event(EventNames.TEST_LIVE_EXPAND_REQUESTED, _on_live_expand_requested_event)
+	register_event(TestSpawnPayload, GFEventListener.from_method(self, &"_on_test_panel_spawn_requested_event", 1))
+	register_simple_event(EventNames.TEST_VALUES_REQUESTED, GFEventListener.from_method(self, &"_on_test_panel_values_requested_event", 1))
+	register_simple_event(EventNames.TEST_RESET_RESIZE_REQUESTED, GFEventListener.from_method(self, &"_on_reset_and_resize_requested_event", 1))
+	register_simple_event(EventNames.TEST_LIVE_EXPAND_REQUESTED, GFEventListener.from_method(self, &"_on_live_expand_requested_event", 1))
 	_is_listening = true
-
-
-func _cmd_gf_debug(_args: PackedStringArray) -> void:
-	var architecture: GFArchitecture = _get_architecture_or_null()
-	var snapshot: Dictionary = {}
-	if architecture != null:
-		snapshot[&"lifecycle"] = architecture.get_debug_lifecycle_state()
-		snapshot[&"events"] = architecture.get_event_debug_stats()
-
-	var object_pool: GFObjectPoolUtility = _get_object_pool_utility()
-	if is_instance_valid(object_pool):
-		snapshot[&"object_pool"] = object_pool.get_debug_snapshot()
-
-	var resource_catalog: ProjectResourceCatalogUtility = _get_resource_catalog_utility()
-	if is_instance_valid(resource_catalog):
-		snapshot[&"resource_catalog"] = resource_catalog.get_debug_snapshot()
-
-	var theme_catalog: GameThemeCatalogUtility = _get_theme_catalog_utility()
-	if is_instance_valid(theme_catalog):
-		snapshot[&"theme_catalog"] = theme_catalog.get_debug_snapshot()
-
-	var theme_utility: GameThemeUtility = _get_theme_utility()
-	if is_instance_valid(theme_utility):
-		snapshot[&"themes"] = theme_utility.get_debug_snapshot()
-
-	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache_utility()
-	if is_instance_valid(mode_cache):
-		snapshot[&"game_modes"] = mode_cache.get_debug_snapshot()
-
-	var ui_router: GameUiRouterUtility = _get_ui_router_utility()
-	if is_instance_valid(ui_router):
-		snapshot[&"ui_routes"] = ui_router.get_debug_snapshot()
-
-	var log_utility: GFLogUtility = _get_log_utility()
-	if is_instance_valid(log_utility):
-		log_utility.info(_LOG_TAG, JSON.stringify(snapshot, "\t"))
 
 
 func _sync_highest_tile_from_grid() -> void:
@@ -157,30 +98,6 @@ func _is_grid_pos_in_bounds(grid_model: GridModel, grid_pos: Vector2i) -> bool:
 		and grid_pos.y >= 0
 		and grid_pos.y < grid_model.grid_size
 	)
-
-
-func _get_console_utility() -> GFConsoleUtility:
-	var utility_value: Object = get_utility(GFConsoleUtility)
-	if utility_value is GFConsoleUtility:
-		var console: GFConsoleUtility = utility_value
-		return console
-	return null
-
-
-func _get_object_pool_utility() -> GFObjectPoolUtility:
-	var utility_value: Object = get_utility(GFObjectPoolUtility)
-	if utility_value is GFObjectPoolUtility:
-		var object_pool: GFObjectPoolUtility = utility_value
-		return object_pool
-	return null
-
-
-func _get_log_utility() -> GFLogUtility:
-	var utility_value: Object = get_utility(GFLogUtility)
-	if utility_value is GFLogUtility:
-		var log_utility: GFLogUtility = utility_value
-		return log_utility
-	return null
 
 
 func _get_game_flow_system() -> GameFlowSystem:
@@ -244,38 +161,6 @@ func _get_theme_utility() -> GameThemeUtility:
 	if utility_value is GameThemeUtility:
 		var theme_utility: GameThemeUtility = utility_value
 		return theme_utility
-	return null
-
-
-func _get_resource_catalog_utility() -> ProjectResourceCatalogUtility:
-	var utility_value: Object = get_utility(ProjectResourceCatalogUtility)
-	if utility_value is ProjectResourceCatalogUtility:
-		var resource_catalog: ProjectResourceCatalogUtility = utility_value
-		return resource_catalog
-	return null
-
-
-func _get_theme_catalog_utility() -> GameThemeCatalogUtility:
-	var utility_value: Object = get_utility(GameThemeCatalogUtility)
-	if utility_value is GameThemeCatalogUtility:
-		var theme_catalog: GameThemeCatalogUtility = utility_value
-		return theme_catalog
-	return null
-
-
-func _get_mode_cache_utility() -> GameModeConfigCacheUtility:
-	var utility_value: Object = get_utility(GameModeConfigCacheUtility)
-	if utility_value is GameModeConfigCacheUtility:
-		var mode_cache: GameModeConfigCacheUtility = utility_value
-		return mode_cache
-	return null
-
-
-func _get_ui_router_utility() -> GameUiRouterUtility:
-	var utility_value: Object = get_utility(GameUiRouterUtility)
-	if utility_value is GameUiRouterUtility:
-		var ui_router: GameUiRouterUtility = utility_value
-		return ui_router
 	return null
 
 

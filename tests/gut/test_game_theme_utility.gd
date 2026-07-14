@@ -145,7 +145,7 @@ func test_board_preview_uses_current_theme_for_preview_styles() -> void:
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var fallback_board: BoardTheme = BoardTheme.new()
 	var mode_config: GameModeConfig = GameModeConfig.new()
-	var context: _TestArchitectureContext = _TestArchitectureContext.new()
+	var context: TestArchitectureContext = TestArchitectureContext.new()
 	var preview: BoardPreview = BoardPreview.new()
 
 	fallback_board.board_panel_color = Color(1.0, 0.0, 1.0, 1.0)
@@ -215,7 +215,7 @@ func test_theme_utility_plays_semantic_sound_events_through_gf_audio() -> void:
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var theme_utility: GameThemeUtility = _get_theme_utility(setup)
 	var audio_utility: GFAudioUtility = _get_audio_utility(setup)
-	var backend: _RecordingAudioBackend = _RecordingAudioBackend.new()
+	var backend: TestRecordingAudioBackend = TestRecordingAudioBackend.new()
 	audio_utility.set_audio_backend(backend)
 
 	theme_utility.play_ui_select_sound()
@@ -334,41 +334,3 @@ func _get_audio_utility(setup: Dictionary) -> GFAudioUtility:
 		return audio
 	assert_true(false, "测试 setup 缺少 GFAudioUtility。")
 	return GFAudioUtility.new()
-
-
-# --- 内部类 ---
-
-class _TestArchitectureContext:
-	extends GFNodeContext
-
-	var test_architecture: GFArchitecture
-
-	func _enter_tree() -> void:
-		pass
-
-	func _exit_tree() -> void:
-		test_architecture = null
-
-	func get_architecture() -> GFArchitecture:
-		return test_architecture
-
-
-class _RecordingAudioBackend:
-	extends GFAudioBackend
-
-	var sfx_clip_count: int = 0
-	var paths: PackedStringArray = PackedStringArray()
-
-	## @param clip: 音频片段配置。
-	## @param channel: 音频通道。
-	## @param _context: 播放请求上下文。
-	func can_handle_clip(clip: GFAudioClip, channel: StringName, _context: Dictionary = {}) -> bool:
-		return channel == &"sfx" and clip != null
-
-	## @param clip: 音频片段配置。
-	## @param _options: 播放请求选项。
-	func play_sfx_clip(clip: GFAudioClip, _options: Dictionary = {}) -> GFAudioEmitterHandle:
-		sfx_clip_count += 1
-		if clip != null:
-			var _append_result: bool = paths.append(clip.path)
-		return GFAudioEmitterHandle.new()

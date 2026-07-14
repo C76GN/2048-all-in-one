@@ -5,12 +5,16 @@ extends GutTest
 # --- 常量 ---
 
 const _LOCKFILE_PATH: String = "res://.gf/packages.lock.json"
+const _VENDOR_LOCKFILE_PATH: String = "res://.gf/vendor.lock.json"
 const _PROJECT_CONFIG_PATH: String = "res://project.godot"
 const _GF_PLUGIN_CONFIG_PATH: String = "res://addons/gf/plugin.cfg"
 const _GF_PACKAGE_CLI_PATH: String = "res://addons/gf/kernel/package/gf_package_cli.gd"
 const _GF_PACKAGE_BACKEND_PATH: String = "res://addons/gf/kernel/package/gf_package_manager_backend.gd"
 const _GF_EXTENSION_ROOT_PATH: String = "res://addons/gf/extensions"
 const _GITIGNORE_PATH: String = "res://.gitignore"
+const _GUT_RUNNER_PATH: String = "res://tools/run_gut_safe.ps1"
+const _GUT_SHUTDOWN_HOOK_PATH: String = "res://tests/gut/support/gf_test_shutdown_hook.gd"
+const _GODOT_EXIT_LEAK_BASELINE_PATH: String = "res://.gf/godot_exit_leak_baseline.json"
 
 
 # --- 测试用例 ---
@@ -26,6 +30,36 @@ func test_gf_plugin_version_is_recorded_as_semver() -> void:
 		_append_string(issues, "addons/gf/plugin.cfg 的 plugin/version 应为 SemVer：%s。" % plugin_version)
 
 	assert_true(issues.is_empty(), "GF 插件版本应可作为包管理和文档事实来源：\n%s" % _join_lines(issues))
+
+
+func test_vendored_gf_source_is_pinned() -> void:
+	var issues: Array[String] = []
+	if not FileAccess.file_exists(_VENDOR_LOCKFILE_PATH):
+		_append_string(issues, "手动 vendored GF 必须提交 .gf/vendor.lock.json。")
+		assert_true(false, _join_lines(issues))
+		return
+
+	var vendor_lock: Dictionary = _read_json_dictionary(_VENDOR_LOCKFILE_PATH)
+	var plugin_config: ConfigFile = _load_config_file(_GF_PLUGIN_CONFIG_PATH)
+	var plugin_version: String = _get_config_text(plugin_config, "plugin", "version")
+	var locked_version: String = _get_dictionary_text(vendor_lock, "framework_version")
+	var source_commit: String = _get_dictionary_text(vendor_lock, "source_commit")
+	var tree_sha256: String = _get_dictionary_text(vendor_lock, "vendor_tree_sha256")
+
+	if _get_dictionary_int(vendor_lock, "schema_version", 0) != 1:
+		_append_string(issues, "GF vendor lock schema_version 必须为 1。")
+	if _get_dictionary_text(vendor_lock, "source_kind") != "vendored_git_snapshot":
+		_append_string(issues, "GF vendor lock source_kind 必须为 vendored_git_snapshot。")
+	if locked_version != plugin_version:
+		_append_string(issues, "GF vendor lock version=%s 应与 plugin.cfg version=%s 一致。" % [locked_version, plugin_version])
+	if source_commit.length() != 40 or not _is_hex_text(source_commit):
+		_append_string(issues, "GF vendor lock source_commit 必须是 40 位 Git commit。")
+	if tree_sha256.length() != 64 or not _is_hex_text(tree_sha256):
+		_append_string(issues, "GF vendor lock vendor_tree_sha256 必须是 64 位 SHA-256。")
+	if _get_dictionary_int(vendor_lock, "vendor_file_count", 0) <= 0:
+		_append_string(issues, "GF vendor lock vendor_file_count 必须大于 0。")
+
+	assert_true(issues.is_empty(), "vendored GF 必须有可验证的精确来源：\n%s" % _join_lines(issues))
 
 
 func test_native_package_manager_entrypoints_exist() -> void:
@@ -118,6 +152,72 @@ func test_project_enabled_extensions_have_vendored_manifests() -> void:
 			_format_packed_string_array(project_extensions),
 		]
 	)
+
+
+func test_extension_selection_is_explicit_and_export_strict() -> void:
+	var project_config: ConfigFile = _load_config_file(_PROJECT_CONFIG_PATH)
+	var issues: Array[String] = []
+
+	if _get_config_text(project_config, "gf", "extensions/selection_mode") != "explicit":
+		_append_string(issues, "GF 扩展选择模式必须为 explicit。")
+	if not _get_config_bool(project_config, "gf", "extensions/auto_install_enabled_installers", false):
+		_append_string(issues, "启用扩展必须自动安装其 installer。")
+	if not _get_config_bool(project_config, "gf", "extensions/export_exclude_disabled", false):
+		_append_string(issues, "导出时必须排除禁用扩展。")
+	if not _get_config_bool(project_config, "gf", "extensions/export_fail_on_disabled_references", false):
+		_append_string(issues, "导出发现禁用扩展引用时必须失败。")
+
+	assert_true(issues.is_empty(), "GF 扩展选择和导出策略必须保持严格：\n%s" % _join_lines(issues))
+
+
+func test_project_installers_use_auditable_resource_paths() -> void:
+	var project_config: ConfigFile = _load_config_file(_PROJECT_CONFIG_PATH)
+	var installer_paths: PackedStringArray = _get_config_packed_string_array(
+		project_config,
+		"gf",
+		"project/installers"
+	)
+	var issues: Array[String] = []
+
+	if installer_paths.is_empty():
+		_append_string(issues, "GF 项目必须声明至少一个 Installer。")
+	for installer_path: String in installer_paths:
+		if not installer_path.begins_with("res://") or not installer_path.ends_with(".gd"):
+			_append_string(issues, "GF Installer 必须使用 res:// GDScript 路径：%s。" % installer_path)
+		elif not ResourceLoader.exists(installer_path, "Script"):
+			_append_string(issues, "GF Installer 路径不可加载：%s。" % installer_path)
+
+	assert_true(issues.is_empty(), "GF Installer 必须可追溯、可加载：\n%s" % _join_lines(issues))
+
+
+func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
+	var runner_text: String = _read_text(_GUT_RUNNER_PATH)
+	var hook_text: String = _read_text(_GUT_SHUTDOWN_HOOK_PATH)
+	var baseline: Dictionary = _read_json_dictionary(_GODOT_EXIT_LEAK_BASELINE_PATH)
+	var issues: Array[String] = []
+
+	if not runner_text.contains("-gpost_run_script=$PostRunScript"):
+		_append_string(issues, "GUT 安全运行器必须安装 post-run 清理 hook。")
+	if not runner_text.contains(_GUT_SHUTDOWN_HOOK_PATH.trim_prefix("res://")):
+		_append_string(issues, "GUT 安全运行器必须默认使用 GF 清理 hook。")
+	if not hook_text.contains("GFExtensionSettings.clear_manifest_cache()"):
+		_append_string(issues, "GUT post-run hook 必须释放 GF 扩展发现缓存。")
+	if not runner_text.contains("Get-GodotExitLeakBaselineIssues"):
+		_append_string(issues, "GUT 安全运行器必须对退出泄漏做版本化非回归检查。")
+	if _get_dictionary_int(baseline, "schema_version", 0) != 1:
+		_append_string(issues, "Godot 退出泄漏基线 schema_version 必须为 1。")
+	if _get_dictionary_text(baseline, "godot_version") != "4.7":
+		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 4.7 运行时。")
+	if _get_dictionary_text(baseline, "gf_version") != "7.0.0":
+		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 GF 7.0.0。")
+	if _get_dictionary_text(baseline, "gut_version") != "9.7.1":
+		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 GUT 9.7.1。")
+	if _get_dictionary_int(baseline, "max_objectdb_instances", 0) <= 0:
+		_append_string(issues, "Godot 退出泄漏基线必须记录已审查的 ObjectDB 上限。")
+	if _get_dictionary_int(baseline, "max_resources_in_use", 0) <= 0:
+		_append_string(issues, "Godot 退出泄漏基线必须记录已审查的 Resource 上限。")
+
+	assert_true(issues.is_empty(), "GUT 退出必须释放可控缓存，并禁止已知上游清理债务增长：\n%s" % _join_lines(issues))
 
 
 func test_gf_package_cache_is_ignored_without_ignoring_lockfile() -> void:
@@ -224,6 +324,12 @@ func _get_config_packed_string_array(config: ConfigFile, section: String, key: S
 	return result
 
 
+func _get_config_bool(config: ConfigFile, section: String, key: String, fallback: bool) -> bool:
+	if not config.has_section_key(section, key):
+		return fallback
+	return GFVariantData.to_bool(config.get_value(section, key, fallback), fallback)
+
+
 func _gitignore_has_entry(source: String, expected_entry: String) -> bool:
 	var lines: PackedStringArray = source.split("\n")
 	for line_index: int in range(lines.size()):
@@ -261,6 +367,10 @@ func _get_dictionary_text(source: Dictionary, key: Variant, fallback: String = "
 	return GFVariantData.to_text(value, fallback)
 
 
+func _get_dictionary_int(source: Dictionary, key: Variant, fallback: int = 0) -> int:
+	return GFVariantData.to_int(source.get(key, fallback), fallback)
+
+
 func _get_extension_manifest_path(extension_id: String) -> String:
 	var directory_name: String = extension_id
 	if directory_name.begins_with("gf."):
@@ -288,6 +398,17 @@ func _is_digits(value: String) -> bool:
 		if code < 48 or code > 57:
 			return false
 	return true
+
+
+func _is_hex_text(value: String) -> bool:
+	for index: int in range(value.length()):
+		var code: int = value.unicode_at(index)
+		var is_digit: bool = code >= 48 and code <= 57
+		var is_lower_hex: bool = code >= 97 and code <= 102
+		var is_upper_hex: bool = code >= 65 and code <= 70
+		if not is_digit and not is_lower_hex and not is_upper_hex:
+			return false
+	return not value.is_empty()
 
 
 func _join_lines(lines: Array[String]) -> String:

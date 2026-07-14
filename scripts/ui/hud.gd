@@ -64,12 +64,11 @@ func _ready() -> void:
 		
 		_refresh_all()
 		
-	register_simple_event(EventNames.HUD_UPDATE_REQUESTED, _on_hud_update_requested)
+	register_simple_event(EventNames.HUD_UPDATE_REQUESTED, GFEventListener.from_method(self, &"_on_hud_update_requested", 1))
 	_update_ui_text()
 
 
 func _exit_tree() -> void:
-	unregister_simple_event(EventNames.HUD_UPDATE_REQUESTED, _on_hud_update_requested)
 	super._exit_tree()
 
 

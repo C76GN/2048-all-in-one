@@ -113,7 +113,7 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 	assert_true(boot_node is Boot, "启动场景根节点应为 Boot。")
 	assert_true(boot_node is Control, "启动场景根节点应是可绘制全屏 UI 的 Control。")
 	if is_instance_valid(boot_node):
-		boot_node.queue_free()
+		boot_node.free()
 
 	var boot_source: String = _read_text(_BOOT_SCRIPT_PATH)
 	assert_true(boot_source.contains("GFAsyncProgress"), "Boot 应使用 GFAsyncProgress 统一启动进度。")
@@ -458,7 +458,7 @@ func test_game_over_menu_summary_uses_safe_format_fallback() -> void:
 	await architecture.register_model(GameStatusModel, status_model)
 	await architecture.init()
 
-	var context: _TestArchitectureContext = _TestArchitectureContext.new()
+	var context: TestArchitectureContext = TestArchitectureContext.new()
 	context.test_architecture = architecture
 	add_child_autoqfree(context)
 	var panel: Control = _instantiate_control(_GAME_OVER_SCENE)
@@ -553,7 +553,7 @@ func test_target_reached_menu_summary_uses_status_model() -> void:
 	await architecture.register_model(GameStatusModel, status_model)
 	await architecture.init()
 
-	var context: _TestArchitectureContext = _TestArchitectureContext.new()
+	var context: TestArchitectureContext = TestArchitectureContext.new()
 	context.test_architecture = architecture
 	add_child_autoqfree(context)
 	var panel: Control = _instantiate_control(_TARGET_REACHED_SCENE)
@@ -581,17 +581,20 @@ func test_target_reached_menu_buttons_emit_flow_events() -> void:
 		&"restart": 0,
 		&"main_menu": 0,
 	}
-	architecture.register_simple_event(EventNames.RESUME_GAME_REQUESTED, func(_payload: Variant) -> void:
-		emitted_events[&"resume"] = GFVariantData.to_int(emitted_events.get(&"resume", 0), 0) + 1
+	architecture.register_simple_event(
+		EventNames.RESUME_GAME_REQUESTED,
+		GFEventListener.from_callable(func(_payload: Variant) -> void: emitted_events[&"resume"] = GFVariantData.to_int(emitted_events.get(&"resume", 0), 0) + 1, 1)
 	)
-	architecture.register_simple_event(EventNames.RESTART_GAME_REQUESTED, func(_payload: Variant) -> void:
-		emitted_events[&"restart"] = GFVariantData.to_int(emitted_events.get(&"restart", 0), 0) + 1
+	architecture.register_simple_event(
+		EventNames.RESTART_GAME_REQUESTED,
+		GFEventListener.from_callable(func(_payload: Variant) -> void: emitted_events[&"restart"] = GFVariantData.to_int(emitted_events.get(&"restart", 0), 0) + 1, 1)
 	)
-	architecture.register_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, func(_payload: Variant) -> void:
-		emitted_events[&"main_menu"] = GFVariantData.to_int(emitted_events.get(&"main_menu", 0), 0) + 1
+	architecture.register_simple_event(
+		EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED,
+		GFEventListener.from_callable(func(_payload: Variant) -> void: emitted_events[&"main_menu"] = GFVariantData.to_int(emitted_events.get(&"main_menu", 0), 0) + 1, 1)
 	)
 
-	var context: _TestArchitectureContext = _TestArchitectureContext.new()
+	var context: TestArchitectureContext = TestArchitectureContext.new()
 	context.test_architecture = architecture
 	add_child_autoqfree(context)
 	var panel: Control = _instantiate_control(_TARGET_REACHED_SCENE)
@@ -896,20 +899,3 @@ func _press_button(root: Control, path: NodePath) -> void:
 
 func _get_event_count(events: Dictionary, key: StringName) -> int:
 	return GFVariantData.to_int(events.get(key, 0), 0)
-
-
-# --- 内部类 ---
-
-class _TestArchitectureContext:
-	extends GFNodeContext
-
-	var test_architecture: GFArchitecture
-
-	func _enter_tree() -> void:
-		pass
-
-	func _exit_tree() -> void:
-		test_architecture = null
-
-	func get_architecture() -> GFArchitecture:
-		return test_architecture

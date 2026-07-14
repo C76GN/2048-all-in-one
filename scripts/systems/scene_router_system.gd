@@ -26,6 +26,8 @@ var _main_menu_scene_path: String = "res://scenes/menus/main_menu.tscn"
 var _log: GFLogUtility
 var _scene_utility: GFSceneUtility
 var _signal_utility: GFSignalUtility
+var _async_tracker: GFAsyncTrackerUtility
+var _operation_diagnostics: GFOperationDiagnosticsUtility
 var _scene_switch_started_connection: GFSignalConnection
 var _scene_load_completed_connection: GFSignalConnection
 var _scene_load_failed_connection: GFSignalConnection
@@ -33,6 +35,9 @@ var _transition_layer: CanvasLayer
 var _transition_rect: ColorRect
 var _transition_tween: Tween
 var _transition_factor: float = 0.0
+var _transition_tracking_id: int = 0
+var _scene_change_operation_id: StringName = &""
+var _scene_change_started_usec: int = 0
 
 
 # --- Godot 生命周期方法 ---
@@ -41,19 +46,22 @@ func ready() -> void:
 	_log = _get_log_utility()
 	_scene_utility = _get_scene_utility()
 	_signal_utility = _get_signal_utility()
+	_async_tracker = _get_async_tracker_utility()
+	_operation_diagnostics = _get_operation_diagnostics_utility()
 	_connect_scene_utility_signals()
 
 	# 可选：监听全局事件 `scene_change_requested` 以解耦调用
-	register_simple_event(EventNames.SCENE_CHANGE_REQUESTED, _on_scene_change_requested)
-	register_simple_event(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, _on_return_to_main_menu_requested)
+	register_simple_event(EventNames.SCENE_CHANGE_REQUESTED, GFEventListener.from_method(self, &"_on_scene_change_requested", 1))
+	register_simple_event(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, GFEventListener.from_method(self, &"_on_return_to_main_menu_requested", 1))
 
 
 func dispose() -> void:
-	unregister_simple_event(EventNames.SCENE_CHANGE_REQUESTED, _on_scene_change_requested)
-	unregister_simple_event(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, _on_return_to_main_menu_requested)
+	_finish_scene_change_operation(false, {"reason": "system_disposed"})
 	_disconnect_scene_utility_signals()
 	_scene_utility = null
 	_signal_utility = null
+	_async_tracker = null
+	_operation_diagnostics = null
 	_log = null
 	_scene_switch_started_connection = null
 	_scene_load_completed_connection = null
@@ -104,6 +112,7 @@ func goto_scene(path: String) -> void:
 		return
 
 	if is_instance_valid(_scene_utility):
+		_begin_scene_change_operation(path)
 		_scene_utility.load_scene_async(path, "", {}, _TRANSITION_MINIMUM_SECONDS)
 		return
 
@@ -149,6 +158,22 @@ func _get_signal_utility() -> GFSignalUtility:
 	if utility_value is GFSignalUtility:
 		var signal_utility: GFSignalUtility = utility_value
 		return signal_utility
+	return null
+
+
+func _get_async_tracker_utility() -> GFAsyncTrackerUtility:
+	var utility_value: Object = get_utility(GFAsyncTrackerUtility)
+	if utility_value is GFAsyncTrackerUtility:
+		var tracker: GFAsyncTrackerUtility = utility_value
+		return tracker
+	return null
+
+
+func _get_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:
+	var utility_value: Object = get_utility(GFOperationDiagnosticsUtility)
+	if utility_value is GFOperationDiagnosticsUtility:
+		var diagnostics: GFOperationDiagnosticsUtility = utility_value
+		return diagnostics
 	return null
 
 
@@ -220,6 +245,7 @@ func _play_scene_transition_cover() -> void:
 		1.0,
 		_TRANSITION_COVER_DURATION
 	)
+	_track_transition_tween(_transition_tween, &"cover")
 
 
 func _play_scene_transition_reveal() -> void:
@@ -242,6 +268,7 @@ func _play_scene_transition_reveal() -> void:
 		_TRANSITION_REVEAL_DURATION
 	)
 	var _callback_tweener: CallbackTweener = _transition_tween.tween_callback(_hide_transition_overlay)
+	_track_transition_tween(_transition_tween, &"reveal")
 
 
 func _ensure_transition_overlay() -> ColorRect:
@@ -322,9 +349,63 @@ func _hide_transition_overlay() -> void:
 
 
 func _kill_transition_tween() -> void:
+	_untrack_transition_tween()
 	if is_instance_valid(_transition_tween):
 		_transition_tween.kill()
 	_transition_tween = null
+
+
+func _track_transition_tween(tween: Tween, phase: StringName) -> void:
+	if not is_instance_valid(tween) or not is_instance_valid(_async_tracker):
+		return
+	_transition_tracking_id = _async_tracker.track_handle(
+		tween,
+		&"scene_transition_tween",
+		{"phase": phase},
+		Callable(self, &"_get_transition_tracking_snapshot").bind(phase)
+	)
+	if _transition_tracking_id > 0:
+		var _connect_result: int = tween.finished.connect(
+			Callable(self, &"_on_transition_tween_finished").bind(tween, _transition_tracking_id)
+		)
+
+
+func _untrack_transition_tween() -> void:
+	if _transition_tracking_id > 0 and is_instance_valid(_async_tracker):
+		var _untracked: bool = _async_tracker.untrack_id(_transition_tracking_id)
+	_transition_tracking_id = 0
+
+
+func _get_transition_tracking_snapshot(phase: StringName) -> Dictionary:
+	return {
+		"phase": phase,
+		"factor": _transition_factor,
+		"overlay_visible": is_instance_valid(_transition_rect) and _transition_rect.visible,
+	}
+
+
+func _begin_scene_change_operation(path: String) -> void:
+	_finish_scene_change_operation(false, {"reason": "superseded"})
+	_scene_change_started_usec = Time.get_ticks_usec()
+	if not is_instance_valid(_operation_diagnostics):
+		return
+	_scene_change_operation_id = _operation_diagnostics.begin_operation(&"game.scene_change", {
+		"component": &"scene_router",
+		"label": "Load scene",
+		"started_ticks_usec": _scene_change_started_usec,
+		"metadata": {"path": path},
+	})
+
+
+func _finish_scene_change_operation(success: bool, metadata: Dictionary = {}) -> void:
+	if _scene_change_operation_id != &"" and is_instance_valid(_operation_diagnostics):
+		var _operation: Dictionary = _operation_diagnostics.finish_operation(
+			_scene_change_operation_id,
+			success,
+			{"metadata": metadata}
+		)
+	_scene_change_operation_id = &""
+	_scene_change_started_usec = 0
 
 
 func _cleanup_transition_overlay() -> void:
@@ -346,7 +427,14 @@ func _on_return_to_main_menu_requested(_payload: Variant = null) -> void:
 	return_to_main_menu()
 
 
-func _on_scene_switch_started(_path: String, _previous_path: String) -> void:
+func _on_scene_switch_started(path: String, previous_path: String) -> void:
+	if _scene_change_operation_id != &"" and is_instance_valid(_operation_diagnostics):
+		var _state: Dictionary = _operation_diagnostics.record_state_snapshot(
+			_scene_change_operation_id,
+			&"loading",
+			GFOperationDiagnosticsUtility.STATE_RUNNING,
+			{"progress": 0.1, "metadata": {"path": path, "previous_path": previous_path}}
+		)
 	_play_scene_transition_cover()
 	send_simple_event(EventNames.SCENE_WILL_CHANGE)
 
@@ -354,11 +442,41 @@ func _on_scene_switch_started(_path: String, _previous_path: String) -> void:
 func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
 	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "已完成异步场景加载: %s" % path)
+	if _scene_change_operation_id != &"" and is_instance_valid(_operation_diagnostics):
+		var _phase: Dictionary = _operation_diagnostics.record_phase_from_ticks(
+			_scene_change_operation_id,
+			&"load",
+			_scene_change_started_usec,
+			{"metadata": {"path": path}}
+		)
+	_finish_scene_change_operation(true, {"path": path})
 	_play_scene_transition_reveal()
 
 
 func _on_scene_load_failed(path: String) -> void:
 	if is_instance_valid(_log):
 		_log.error(_LOG_TAG, "异步场景加载失败: %s" % path)
+	if is_instance_valid(_operation_diagnostics):
+		var _incident: Dictionary = _operation_diagnostics.record_incident(
+			GFOperationDiagnosticsUtility.SEVERITY_ERROR,
+			&"scene_load_failed",
+			"GFSceneUtility failed to load a scene.",
+			{
+				"category": &"scene",
+				"component": &"scene_router",
+				"recoverable": true,
+				"metadata": {"path": path},
+			}
+		)
+	_finish_scene_change_operation(false, {"path": path, "reason": "load_failed"})
 	_play_scene_transition_reveal()
 	send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
+
+
+func _on_transition_tween_finished(tween: Tween, tracking_id: int) -> void:
+	if tracking_id > 0 and is_instance_valid(_async_tracker):
+		var _untracked: bool = _async_tracker.untrack_id(tracking_id)
+	if _transition_tracking_id == tracking_id:
+		_transition_tracking_id = 0
+	if _transition_tween == tween:
+		_transition_tween = null

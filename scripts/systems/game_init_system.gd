@@ -38,11 +38,10 @@ func ready() -> void:
 	_game_flow_system = _get_game_flow_system()
 	_grid_model = _get_grid_model()
 
-	register_simple_event(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
+	register_simple_event(EventNames.REQUEST_GAME_INITIALIZATION, GFEventListener.from_method(self, &"_on_request_initialization", 1))
 
 
 func dispose() -> void:
-	unregister_simple_event(EventNames.REQUEST_GAME_INITIALIZATION, _on_request_initialization)
 	_seed_utility = null
 	_rule_system = null
 	_game_flow_system = null

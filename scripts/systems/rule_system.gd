@@ -21,16 +21,12 @@ func ready() -> void:
 	_grid_model = _get_grid_model()
 	_seed_utility = _get_seed_utility()
 
-	register_event(MoveData, _on_move_made)
-	register_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
-	register_simple_event(EventNames.MONSTER_KILLED, _on_monster_killed)
+	register_event(MoveData, GFEventListener.from_method(self, &"_on_move_made", 1))
+	register_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION, GFEventListener.from_method(self, &"_on_request_board_init", 1))
+	register_simple_event(EventNames.MONSTER_KILLED, GFEventListener.from_method(self, &"_on_monster_killed", 1))
 
 
 func dispose() -> void:
-	unregister_event(MoveData, _on_move_made)
-	unregister_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION, _on_request_board_init)
-	unregister_simple_event(EventNames.MONSTER_KILLED, _on_monster_killed)
-
 	clear_rules()
 	_grid_model = null
 	_seed_utility = null

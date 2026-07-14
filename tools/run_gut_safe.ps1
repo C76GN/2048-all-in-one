@@ -2,6 +2,8 @@ param(
 	[string]$GodotExecutable = "godot",
 	[string]$ProjectRoot = ".",
 	[string]$TestDir = "res://tests/gut",
+	[string]$PostRunScript = "res://tests/gut/support/gf_test_shutdown_hook.gd",
+	[string]$ExitLeakBaseline = ".gf/godot_exit_leak_baseline.json",
 	[ValidateRange(1, 3600)]
 	[int]$TimeoutSeconds = 180,
 	[ValidateRange(1, 1024)]
@@ -106,9 +108,116 @@ function Get-GodotValidationIssues {
 		"is shadowing an already-declared",
 		"The `"await`" keyword is unnecessary",
 		"remove_child() can't be called",
-		"Parent node is busy adding/removing children"
+		"Parent node is busy adding/removing children",
+		"Orphans"
 	)
 	return Find-OutputPatternLines $output $patterns
+}
+
+function Get-GodotExitLeakReport {
+	param([string]$Text)
+
+	$ridAllocations = @{}
+	$ridPattern = [regex]"(?im)ERROR:\s+(\d+)\s+RID allocations of type '([^']+)' were leaked at exit\."
+	foreach ($match in $ridPattern.Matches($Text)) {
+		$count = [int]$match.Groups[1].Value
+		$typeName = $match.Groups[2].Value
+		if (-not $ridAllocations.ContainsKey($typeName) -or $count -gt $ridAllocations[$typeName]) {
+			$ridAllocations[$typeName] = $count
+		}
+	}
+
+	$objectDbInstances = 0
+	$objectPattern = [regex]"(?im)(\d+)\s+ObjectDB instances were leaked at exit"
+	foreach ($match in $objectPattern.Matches($Text)) {
+		$objectDbInstances = [Math]::Max($objectDbInstances, [int]$match.Groups[1].Value)
+	}
+
+	$resourcesInUse = 0
+	$resourcePattern = [regex]"(?im)(\d+)\s+resources still in use at exit"
+	foreach ($match in $resourcePattern.Matches($Text)) {
+		$resourcesInUse = [Math]::Max($resourcesInUse, [int]$match.Groups[1].Value)
+	}
+
+	$pagedAllocatorTypes = New-Object System.Collections.Generic.HashSet[string]
+	$pagedPattern = [regex]"(?im)Pages in use exist at exit in PagedAllocator:\s+([^\r\n]+)"
+	foreach ($match in $pagedPattern.Matches($Text)) {
+		[void]$pagedAllocatorTypes.Add($match.Groups[1].Value.Trim())
+	}
+
+	$hasUncountedObjectLeak = $Text -match "(?im)ObjectDB instances were leaked at exit" -and $objectDbInstances -eq 0
+	return [PSCustomObject]@{
+		RidAllocations = $ridAllocations
+		ObjectDbInstances = $objectDbInstances
+		ResourcesInUse = $resourcesInUse
+		PagedAllocatorTypes = @($pagedAllocatorTypes | Sort-Object)
+		HasUncountedObjectLeak = $hasUncountedObjectLeak
+		HasLeaks = $ridAllocations.Count -gt 0 -or $objectDbInstances -gt 0 -or $resourcesInUse -gt 0 -or $pagedAllocatorTypes.Count -gt 0 -or $hasUncountedObjectLeak
+	}
+}
+
+function Get-GodotExitLeakBaselineIssues {
+	param(
+		[object]$Report,
+		[string]$BaselinePath
+	)
+
+	$issues = New-Object System.Collections.Generic.List[string]
+	if (-not $Report.HasLeaks) {
+		return $issues
+	}
+	if ([string]::IsNullOrWhiteSpace($BaselinePath) -or -not (Test-Path -LiteralPath $BaselinePath)) {
+		$issues.Add("Godot exit leaks were reported, but no baseline exists: $BaselinePath")
+		return $issues
+	}
+
+	try {
+		$baseline = Get-Content -Raw -Encoding UTF8 -LiteralPath $BaselinePath | ConvertFrom-Json
+	} catch {
+		$issues.Add("Godot exit leak baseline is invalid JSON: $($_.Exception.Message)")
+		return $issues
+	}
+
+	if ([int]$baseline.schema_version -ne 1) {
+		$issues.Add("Unsupported Godot exit leak baseline schema_version: $($baseline.schema_version)")
+	}
+	if ($Report.HasUncountedObjectLeak) {
+		$issues.Add("Godot reported an uncounted ObjectDB leak that cannot be compared safely.")
+	}
+
+	$maxObjectDbInstances = [int]$baseline.max_objectdb_instances
+	if ($Report.ObjectDbInstances -gt $maxObjectDbInstances) {
+		$issues.Add("ObjectDB leak regression: $($Report.ObjectDbInstances) > baseline $maxObjectDbInstances")
+	}
+
+	$maxResourcesInUse = [int]$baseline.max_resources_in_use
+	if ($Report.ResourcesInUse -gt $maxResourcesInUse) {
+		$issues.Add("Resource leak regression: $($Report.ResourcesInUse) > baseline $maxResourcesInUse")
+	}
+
+	$allowedRidAllocations = @{}
+	if ($null -ne $baseline.max_rid_allocations_by_type) {
+		foreach ($property in $baseline.max_rid_allocations_by_type.PSObject.Properties) {
+			$allowedRidAllocations[$property.Name] = [int]$property.Value
+		}
+	}
+	foreach ($typeName in $Report.RidAllocations.Keys) {
+		if (-not $allowedRidAllocations.ContainsKey($typeName)) {
+			$issues.Add("New leaked RID type: $typeName ($($Report.RidAllocations[$typeName]))")
+			continue
+		}
+		if ($Report.RidAllocations[$typeName] -gt $allowedRidAllocations[$typeName]) {
+			$issues.Add("RID leak regression for ${typeName}: $($Report.RidAllocations[$typeName]) > baseline $($allowedRidAllocations[$typeName])")
+		}
+	}
+
+	$allowedPagedAllocatorTypes = @($baseline.allowed_paged_allocator_types)
+	foreach ($typeName in $Report.PagedAllocatorTypes) {
+		if ($allowedPagedAllocatorTypes -notcontains $typeName) {
+			$issues.Add("New PagedAllocator leak type: $typeName")
+		}
+	}
+	return $issues
 }
 
 function Stop-ProcessSafely {
@@ -160,6 +269,10 @@ $projectFile = Join-Path $resolvedProjectRoot "project.godot"
 if (-not (Test-Path -LiteralPath $projectFile)) {
 	throw "Project root does not contain project.godot: $resolvedProjectRoot"
 }
+$resolvedExitLeakBaseline = ""
+if (-not [string]::IsNullOrWhiteSpace($ExitLeakBaseline)) {
+	$resolvedExitLeakBaseline = Join-Path $resolvedProjectRoot $ExitLeakBaseline
+}
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $runId = [Guid]::NewGuid().ToString("N").Substring(0, 8)
@@ -204,6 +317,9 @@ try {
 		"-ginclude_subdirs",
 		"-gexit"
 	)
+	if (-not [string]::IsNullOrWhiteSpace($PostRunScript)) {
+		$arguments += "-gpost_run_script=$PostRunScript"
+	}
 
 	$argumentLine = ($arguments | ForEach-Object { ConvertTo-CommandLineArgument $_ }) -join " "
 	Write-Host "Run root: $runRoot"
@@ -264,6 +380,21 @@ try {
 		if ($exitCode -eq 0) {
 			$exitCode = 1
 		}
+	}
+
+	$combinedOutput = Get-CombinedOutputText @($stdoutFile, $stderrFile, $logFile)
+	$exitLeakReport = Get-GodotExitLeakReport $combinedOutput
+	$exitLeakIssues = Get-GodotExitLeakBaselineIssues $exitLeakReport $resolvedExitLeakBaseline
+	if ($exitLeakIssues.Count -gt 0) {
+		Write-Host "ERROR: Godot exit leak baseline regressed:"
+		foreach ($issue in $exitLeakIssues) {
+			Write-Host "  $issue"
+		}
+		if ($exitCode -eq 0) {
+			$exitCode = 1
+		}
+	} elseif ($exitLeakReport.HasLeaks) {
+		Write-Warning "Godot reported known GF/GUT shutdown debt within the reviewed baseline: ObjectDB=$($exitLeakReport.ObjectDbInstances), Resources=$($exitLeakReport.ResourcesInUse), RID types=$($exitLeakReport.RidAllocations.Count)."
 	}
 
 	Write-Host "Exit code: $exitCode"

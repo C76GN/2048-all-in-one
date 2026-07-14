@@ -32,18 +32,13 @@ func ready() -> void:
 	if is_instance_valid(_input_mapping):
 		_input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
 
-	register_event(GameReadyData, _on_game_ready)
-	register_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	register_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
+	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready", 1))
+	register_simple_event(EventNames.GAME_STATE_CHANGED, GFEventListener.from_method(self, &"_on_game_state_changed", 1))
+	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
+	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, GFEventListener.from_method(self, &"_on_replay_continued_as_game", 1))
 
 
 func dispose() -> void:
-	unregister_event(GameReadyData, _on_game_ready)
-	unregister_simple_event(EventNames.GAME_STATE_CHANGED, _on_game_state_changed)
-	unregister_simple_event(EventNames.SCENE_WILL_CHANGE, _on_scene_will_change)
-	unregister_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, _on_replay_continued_as_game)
-
 	if is_instance_valid(_input_mapping):
 		_input_mapping.disable_context(GAMEPLAY_INPUT_CONTEXT)
 	_input_mapping = null

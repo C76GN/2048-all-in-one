@@ -61,9 +61,12 @@ func test_records_reverse_targets_while_command_runs_inside_simple_event() -> vo
 
 	grid_model.initialize(4, ClassicInteractionRule.new(), ClassicMovementRule.new())
 	grid_model.place_tile(GameTileData.new(2, Tile.TileType.PLAYER), Vector2i(1, 0))
-	architecture.register_simple_event(&"test_execute_move", func(_payload: Variant) -> void:
-		var _execute_result: Variant = await command_history.execute_command(MoveCommand.new(Vector2i.LEFT))
+	var execute_listener: GFEventListener = GFEventListener.from_callable(
+		func(_payload: Variant) -> void:
+			var _execute_result: Variant = await command_history.execute_command(MoveCommand.new(Vector2i.LEFT)),
+		1
 	)
+	architecture.register_simple_event(&"test_execute_move", execute_listener)
 
 	architecture.send_simple_event(&"test_execute_move")
 

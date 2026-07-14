@@ -1,5 +1,5 @@
 ## 验证回放继续游玩时的命令历史处理。
-extends GutTest
+extends "res://tests/gut/support/gf_test_case.gd"
 
 
 # --- 测试用例 ---
@@ -39,7 +39,7 @@ func test_continue_from_current_step_clears_redo_history() -> void:
 
 
 func test_game_flow_rejects_baseline_only_undo_history() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var command_history: GFCommandHistoryUtility = _make_history([
 		_make_move_command_data(Vector2i.ZERO, true),
 	])
@@ -51,7 +51,7 @@ func test_game_flow_rejects_baseline_only_undo_history() -> void:
 
 
 func test_game_flow_rejects_zero_direction_move_for_undo() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var command_history: GFCommandHistoryUtility = _make_history([
 		_make_move_command_data(Vector2i.ZERO, false),
 	])
@@ -63,7 +63,7 @@ func test_game_flow_rejects_zero_direction_move_for_undo() -> void:
 
 
 func test_game_flow_accepts_last_player_move_for_undo() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var command_history: GFCommandHistoryUtility = _make_history([
 		_make_move_command_data(Vector2i.ZERO, true),
 		_make_move_command_data(Vector2i.RIGHT, false),
@@ -76,7 +76,7 @@ func test_game_flow_accepts_last_player_move_for_undo() -> void:
 
 
 func test_game_flow_rejects_empty_redo_history() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var command_history: GFCommandHistoryUtility = _make_history([
 		_make_move_command_data(Vector2i.ZERO, true),
 	])
@@ -88,7 +88,7 @@ func test_game_flow_rejects_empty_redo_history() -> void:
 
 
 func test_game_flow_rejects_baseline_only_redo_history() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var command_history: GFCommandHistoryUtility = _make_history(
 		[],
 		[
@@ -103,7 +103,7 @@ func test_game_flow_rejects_baseline_only_redo_history() -> void:
 
 
 func test_game_flow_rejects_zero_direction_move_for_redo() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var command_history: GFCommandHistoryUtility = _make_history(
 		[],
 		[
@@ -118,7 +118,7 @@ func test_game_flow_rejects_zero_direction_move_for_redo() -> void:
 
 
 func test_game_flow_accepts_last_player_move_for_redo() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var command_history: GFCommandHistoryUtility = _make_history(
 		[],
 		[
@@ -133,6 +133,12 @@ func test_game_flow_accepts_last_player_move_for_redo() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _make_flow_system() -> GameFlowSystem:
+	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	track_gf_system(flow_system)
+	return flow_system
+
 
 func _make_history(undo_commands: Array, redo_commands: Array = []) -> GFCommandHistoryUtility:
 	var command_history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()

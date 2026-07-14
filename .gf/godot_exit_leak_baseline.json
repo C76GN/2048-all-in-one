@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-07-15",
+  "godot_version": "4.7",
+  "gf_version": "7.0.0",
+  "gut_version": "9.7.1",
+  "scope": "Headless GUT shutdown after all project tests; tracks upstream GF/GUT global-script cleanup debt and must only move downward.",
+  "max_objectdb_instances": 250,
+  "max_resources_in_use": 108,
+  "max_rid_allocations_by_type": {
+    "PN13RendererDummy14TextureStorage12DummyTextureE": 8,
+    "PN18TextServerAdvanced22ShapedTextDataAdvancedE": 2,
+    "PN18TextServerAdvanced12FontAdvancedE": 3
+  },
+  "allowed_paged_allocator_types": [
+    "N12VariantPools11BucketLargeE",
+    "N12VariantPools11BucketSmallE",
+    "N12VariantPools12BucketMediumE"
+  ]
+}

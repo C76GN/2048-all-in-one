@@ -33,7 +33,6 @@ var _player_actions: Array[Vector2i] = []
 ## 核心状态机。
 var _fsm: GFStateMachine
 
-var _log: GFLogUtility
 var _clock: GameClockUtility
 
 
@@ -51,44 +50,27 @@ func init() -> void:
 func ready() -> void:
 	_grid_model = _get_grid_model()
 	_game_status_model = _get_game_status_model()
-	_log = _get_log_utility()
 	_clock = _get_clock_utility()
 
-	register_event(MoveData, _on_move_made)
-	register_simple_event(EventNames.TURN_FINISHED, _on_turn_finished)
-	register_simple_event(EventNames.MONSTER_KILLED, _on_monster_killed)
-	register_simple_event(EventNames.SCORE_UPDATED, _on_score_updated)
-	register_event(GameReadyData, _on_game_ready)
-	register_simple_event(EventNames.UNDO_REQUESTED, _on_undo_requested)
-	register_simple_event(EventNames.REDO_REQUESTED, _on_redo_requested)
-	register_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED, _on_save_bookmark_requested)
-	register_simple_event(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
-	register_simple_event(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
-	register_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
-	register_simple_event(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
-	register_simple_event(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
-	register_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
-	register_simple_event(EventNames.REPLAY_CONTINUE_REQUESTED, _on_replay_continue_requested)
+	register_event(MoveData, GFEventListener.from_method(self, &"_on_move_made", 1))
+	register_simple_event(EventNames.TURN_FINISHED, GFEventListener.from_method(self, &"_on_turn_finished", 1))
+	register_simple_event(EventNames.MONSTER_KILLED, GFEventListener.from_method(self, &"_on_monster_killed", 1))
+	register_simple_event(EventNames.SCORE_UPDATED, GFEventListener.from_method(self, &"_on_score_updated", 1))
+	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready", 1))
+	register_simple_event(EventNames.UNDO_REQUESTED, GFEventListener.from_method(self, &"_on_undo_requested", 1))
+	register_simple_event(EventNames.REDO_REQUESTED, GFEventListener.from_method(self, &"_on_redo_requested", 1))
+	register_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED, GFEventListener.from_method(self, &"_on_save_bookmark_requested", 1))
+	register_simple_event(EventNames.UI_PAUSE_REQUESTED, GFEventListener.from_method(self, &"_on_ui_pause_requested", 1))
+	register_simple_event(EventNames.GAME_STATE_TAINTED, GFEventListener.from_method(self, &"_on_game_state_tainted", 1))
+	register_simple_event(EventNames.BOARD_RESIZED, GFEventListener.from_method(self, &"_on_board_resized", 1))
+	register_simple_event(EventNames.RESUME_GAME_REQUESTED, GFEventListener.from_method(self, &"_on_resume_game_requested", 1))
+	register_simple_event(EventNames.RESTART_GAME_REQUESTED, GFEventListener.from_method(self, &"_on_restart_game_requested", 1))
+	register_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, GFEventListener.from_method(self, &"_on_return_to_main_menu_from_game", 1))
+	register_simple_event(EventNames.REPLAY_CONTINUE_REQUESTED, GFEventListener.from_method(self, &"_on_replay_continue_requested", 1))
 
 
-## 释放事件监听、状态机和运行时缓存。
+## 释放状态机和运行时缓存。GF 在绑定释放时按 owner 统一清理事件。
 func dispose() -> void:
-	unregister_event(MoveData, _on_move_made)
-	unregister_simple_event(EventNames.TURN_FINISHED, _on_turn_finished)
-	unregister_simple_event(EventNames.MONSTER_KILLED, _on_monster_killed)
-	unregister_simple_event(EventNames.SCORE_UPDATED, _on_score_updated)
-	unregister_event(GameReadyData, _on_game_ready)
-	unregister_simple_event(EventNames.UNDO_REQUESTED, _on_undo_requested)
-	unregister_simple_event(EventNames.REDO_REQUESTED, _on_redo_requested)
-	unregister_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED, _on_save_bookmark_requested)
-	unregister_simple_event(EventNames.UI_PAUSE_REQUESTED, _on_ui_pause_requested)
-	unregister_simple_event(EventNames.GAME_STATE_TAINTED, _on_game_state_tainted)
-	unregister_simple_event(EventNames.BOARD_RESIZED, _on_board_resized)
-	unregister_simple_event(EventNames.RESUME_GAME_REQUESTED, _on_resume_game_requested)
-	unregister_simple_event(EventNames.RESTART_GAME_REQUESTED, _on_restart_game_requested)
-	unregister_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED, _on_return_to_main_menu_from_game)
-	unregister_simple_event(EventNames.REPLAY_CONTINUE_REQUESTED, _on_replay_continue_requested)
-
 	if _fsm != null:
 		_fsm.dispose()
 		_fsm = null
@@ -97,7 +79,6 @@ func dispose() -> void:
 	_game_status_model = null
 	_rule_system = null
 	_game_over_rule = null
-	_log = null
 	_clock = null
 	_player_actions.clear()
 	_last_saved_bookmark_state = {}
@@ -193,21 +174,22 @@ func restart_game() -> void:
 	var mode_config: GameModeConfig = mode_config_value
 	var grid_size: int = GFVariantData.to_int(current_game_model.current_grid_size.get_value(), 4)
 	var initial_seed: int = GFVariantData.to_int(current_game_model.initial_seed.get_value(), 0)
-	if is_instance_valid(_log):
-		_log.debug(_LOG_TAG, "重新开始本局: initial_seed=%d, grid_size=%d" % [initial_seed, grid_size])
+	var log_utility: GFLogUtility = _get_log_utility()
+	if is_instance_valid(log_utility):
+		log_utility.debug(_LOG_TAG, "重新开始本局: initial_seed=%d, grid_size=%d" % [initial_seed, grid_size])
 
 	var app_config: AppConfigModel = _get_app_config_model()
 	if is_instance_valid(app_config):
 		app_config.selected_mode_config_path.set_value(mode_config.resource_path)
 		app_config.selected_grid_size.set_value(grid_size)
 		app_config.selected_seed.set_value(initial_seed)
-		if is_instance_valid(_log):
-			_log.debug(_LOG_TAG, "已写回 AppConfigModel.selected_seed=%d" % initial_seed)
+		if is_instance_valid(log_utility):
+			log_utility.debug(_LOG_TAG, "已写回 AppConfigModel.selected_seed=%d" % initial_seed)
 
 	var seed_utility: GFSeedUtility = _get_seed_utility()
 	if is_instance_valid(seed_utility):
-		if is_instance_valid(_log):
-			_log.debug(_LOG_TAG, "预设全局随机种子: %d" % initial_seed)
+		if is_instance_valid(log_utility):
+			log_utility.debug(_LOG_TAG, "预设全局随机种子: %d" % initial_seed)
 		seed_utility.set_global_seed(initial_seed)
 
 	if is_instance_valid(tree.current_scene) and not tree.current_scene.scene_file_path.is_empty():

@@ -32,7 +32,7 @@ var _command_history: GFCommandHistoryUtility
 
 # --- Godot 生命周期方法 ---
 
-func async_init() -> void:
+func init() -> void:
 	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
 	if is_instance_valid(collection):
 		var _ensure_result: Error = collection.ensure_collection_directory(REPLAY_DIR_NAME)

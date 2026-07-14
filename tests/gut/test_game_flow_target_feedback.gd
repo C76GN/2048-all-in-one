@@ -1,11 +1,11 @@
 ## 验证 GameFlowSystem 的目标达成提示门控逻辑。
-extends GutTest
+extends "res://tests/gut/support/gf_test_case.gd"
 
 
 # --- 测试用例 ---
 
 func test_target_reached_notification_is_gated_once_per_session() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var mode_config: GameModeConfig = GameModeConfig.new()
 	mode_config.target_tile_value = 2048
 	flow_system._mode_config = mode_config
@@ -27,7 +27,7 @@ func test_target_reached_notification_is_gated_once_per_session() -> void:
 
 
 func test_target_reached_notification_is_disabled_without_mode_target() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var mode_config: GameModeConfig = GameModeConfig.new()
 	flow_system._mode_config = mode_config
 
@@ -38,7 +38,7 @@ func test_target_reached_notification_is_disabled_without_mode_target() -> void:
 
 
 func test_target_reached_notification_is_disabled_during_replay() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var mode_config: GameModeConfig = GameModeConfig.new()
 	mode_config.target_tile_value = 2048
 	flow_system._mode_config = mode_config
@@ -51,7 +51,7 @@ func test_target_reached_notification_is_disabled_during_replay() -> void:
 
 
 func test_target_state_sync_writes_status_model() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var mode_config: GameModeConfig = GameModeConfig.new()
 	var status_model: GameStatusModel = GameStatusModel.new()
 	mode_config.target_tile_value = 2048
@@ -78,7 +78,7 @@ func test_target_state_sync_writes_status_model() -> void:
 
 
 func test_session_target_reached_uses_runtime_status_model() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var mode_config: GameModeConfig = GameModeConfig.new()
 	var status_model: GameStatusModel = GameStatusModel.new()
 	mode_config.target_tile_value = 2048
@@ -93,7 +93,7 @@ func test_session_target_reached_uses_runtime_status_model() -> void:
 
 
 func test_session_target_reached_requires_mode_target() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var mode_config: GameModeConfig = GameModeConfig.new()
 	var status_model: GameStatusModel = GameStatusModel.new()
 	status_model.set_target_state(2048, true)
@@ -132,7 +132,7 @@ func test_resume_request_closes_top_panel_and_unpauses_tree() -> void:
 func test_restart_request_clears_all_panels_and_delegates_restart() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var ui_utility: GFUIUtility = GFUIUtility.new()
-	var flow_system: _TestGameFlowSystem = _TestGameFlowSystem.new()
+	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
 	await architecture.register_utility(GFUIUtility, ui_utility)
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.init()
@@ -157,7 +157,7 @@ func test_return_to_main_menu_request_clears_panels_unpauses_and_routes() -> voi
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var flow_system: GameFlowSystem = GameFlowSystem.new()
-	var router: _TestSceneRouterSystem = _TestSceneRouterSystem.new()
+	var router: TestSceneRouterSystemSpy = TestSceneRouterSystemSpy.new()
 	await architecture.register_utility(GFUIUtility, ui_utility)
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.register_system(SceneRouterSystem, router)
@@ -185,7 +185,7 @@ func test_return_to_main_menu_request_clears_panels_unpauses_and_routes() -> voi
 
 
 func test_game_ready_preserves_target_reached_for_legacy_bookmark() -> void:
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: GameFlowSystem = _make_flow_system()
 	var mode_config: GameModeConfig = GameModeConfig.new()
 	var status_model: GameStatusModel = GameStatusModel.new()
 	var ready_data: GameReadyData = GameReadyData.new()
@@ -211,27 +211,13 @@ func test_game_ready_preserves_target_reached_for_legacy_bookmark() -> void:
 
 # --- 私有/辅助方法 ---
 
+func _make_flow_system() -> GameFlowSystem:
+	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	track_gf_system(flow_system)
+	return flow_system
+
+
 func _dispose_architecture_and_flush(architecture: GFArchitecture) -> void:
 	architecture.dispose()
 	await get_tree().process_frame
 	await get_tree().process_frame
-
-
-# --- 内部类 ---
-
-class _TestSceneRouterSystem:
-	extends SceneRouterSystem
-
-	var return_to_main_menu_count: int = 0
-
-	func return_to_main_menu() -> void:
-		return_to_main_menu_count += 1
-
-
-class _TestGameFlowSystem:
-	extends GameFlowSystem
-
-	var restart_count: int = 0
-
-	func restart_game() -> void:
-		restart_count += 1
