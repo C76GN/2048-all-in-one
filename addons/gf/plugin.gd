@@ -84,12 +84,19 @@ const GFPluginPreviewTools = preload("res://addons/gf/kernel/editor/gf_plugin_pr
 ## @layer plugin
 const GFPluginGltfDocumentTools = preload("res://addons/gf/kernel/editor/gf_plugin_gltf_document_tools.gd")
 
-## 标准库编辑器扩展记录脚本路径。
+## 编辑器贡献清单读取辅助脚本。
 ## [br]
 ## @api framework_internal
 ## [br]
 ## @layer plugin
-const STANDARD_EDITOR_EXTENSIONS_SCRIPT_PATH: String = "res://addons/gf/standard/editor/gf_standard_editor_extensions.gd"
+const GF_EDITOR_CONTRIBUTION_REGISTRY_SCRIPT = preload("res://addons/gf/kernel/editor/gf_editor_contribution_registry.gd")
+
+## 标准库编辑器贡献清单路径。
+## [br]
+## @api framework_internal
+## [br]
+## @layer plugin
+const STANDARD_EDITOR_CONTRIBUTIONS_MANIFEST_PATH: String = "res://addons/gf/standard/editor/gf_editor_contributions.json"
 
 
 # --- 私有变量 ---
@@ -246,50 +253,7 @@ func _scan_editor_filesystem() -> void:
 
 
 func _collect_standard_editor_extension_records() -> Dictionary:
-	var standard_editor_script: Script = _load_optional_script(STANDARD_EDITOR_EXTENSIONS_SCRIPT_PATH)
-	if standard_editor_script == null:
-		return {
-			"inspector_plugin_records": [],
-			"export_plugin_records": [],
-			"debugger_plugin_records": [],
-			"dock_records": [],
-			"template_records": [],
-			"project_setting_records": [],
-		}
-	return {
-		"inspector_plugin_records": _call_record_array(standard_editor_script, &"get_inspector_plugin_records"),
-		"export_plugin_records": _call_record_array(standard_editor_script, &"get_export_plugin_records"),
-		"debugger_plugin_records": _call_record_array(standard_editor_script, &"get_debugger_plugin_records"),
-		"dock_records": _call_record_array(standard_editor_script, &"get_dock_records"),
-		"template_records": _call_record_array(standard_editor_script, &"get_template_records"),
-		"project_setting_records": _call_record_array(standard_editor_script, &"get_project_setting_records"),
-	}
-
-
-func _load_optional_script(script_path: String) -> Script:
-	if not ResourceLoader.exists(script_path, "Script"):
-		return null
-
-	var resource: Resource = ResourceLoader.load(script_path, "Script")
-	if resource is Script:
-		var script: Script = resource
-		return script
-	return null
-
-
-func _call_record_array(script: Script, method_name: StringName) -> Array[Dictionary]:
-	var records: Array[Dictionary] = []
-	if script == null or not script.has_method(method_name):
-		return records
-
-	var value: Variant = script.call(method_name)
-	if not value is Array:
-		return records
-	for record_variant: Variant in value:
-		if record_variant is Dictionary:
-			var record: Dictionary = record_variant
-			records.append(record.duplicate(true))
-	return records
+	return GF_EDITOR_CONTRIBUTION_REGISTRY_SCRIPT.load_manifest_records(STANDARD_EDITOR_CONTRIBUTIONS_MANIFEST_PATH)
 
 
 func _get_record_array(records: Dictionary, key: String) -> Array[Dictionary]:

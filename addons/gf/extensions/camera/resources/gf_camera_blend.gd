@@ -38,7 +38,7 @@ extends Resource
 ## [br]
 ## @return 持续时间小于等于 0 时返回 true。
 func is_instant() -> bool:
-	return duration_seconds <= 0.0
+	return duration_seconds <= 0.0 or not _is_finite_float(duration_seconds)
 
 
 ## 按已过时间采样 0..1 权重。
@@ -51,7 +51,8 @@ func is_instant() -> bool:
 func sample_weight(elapsed_seconds: float) -> float:
 	if is_instant():
 		return 1.0
-	var clamped_elapsed: float = clampf(elapsed_seconds, 0.0, duration_seconds)
+	var safe_elapsed: float = elapsed_seconds if _is_finite_float(elapsed_seconds) else 0.0
+	var clamped_elapsed: float = clampf(safe_elapsed, 0.0, duration_seconds)
 	return clampf(GFVariantData.to_float(Tween.interpolate_value(
 		0.0,
 		1.0,
@@ -73,3 +74,9 @@ func duplicate_blend() -> GFCameraBlend:
 	blend.transition_type = transition_type
 	blend.ease_type = ease_type
 	return blend
+
+
+# --- 私有/辅助方法 ---
+
+func _is_finite_float(value: float) -> bool:
+	return not is_nan(value) and not is_inf(value)

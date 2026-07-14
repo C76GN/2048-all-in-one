@@ -289,6 +289,7 @@ func _update_connection_status() -> void:
 		MultiplayerPeer.CONNECTION_CONNECTED:
 			_emit_connected()
 		MultiplayerPeer.CONNECTION_DISCONNECTED:
+			_close_peer(false)
 			_emit_disconnected("connection_status_disconnected")
 
 

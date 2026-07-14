@@ -12,6 +12,12 @@ class_name GFCacheDiagnostics
 extends RefCounted
 
 
+# --- 常量 ---
+
+const _GF_REPORT_VALUE_CODEC_SCRIPT = preload("res://addons/gf/kernel/core/gf_report_value_codec.gd")
+const _GF_VARIANT_KEY_CODEC_SCRIPT = preload("res://addons/gf/standard/foundation/variant/gf_variant_key_codec.gd")
+
+
 # --- 公共变量 ---
 
 ## 诊断对象标识。
@@ -177,7 +183,16 @@ func _record_invalidation_reason(reason: StringName, amount: int = 1) -> void:
 func _make_event(event_type: StringName, key: Variant, amount: int = 1) -> Dictionary:
 	return {
 		"type": event_type,
-		"key": "" if key == null else str(key),
+		"key": _make_key_text(key),
 		"amount": amount,
 		"timestamp_msec": Time.get_ticks_msec(),
 	}
+
+
+func _make_key_text(key: Variant) -> String:
+	if key == null:
+		return ""
+	var key_token: String = _GF_VARIANT_KEY_CODEC_SCRIPT.make_key_token(key)
+	if not key_token.is_empty():
+		return key_token
+	return _GF_REPORT_VALUE_CODEC_SCRIPT.stringify_json_compatible(key, "", true)

@@ -123,12 +123,24 @@ func flush() -> void:
 	_last_flush_msec = Time.get_ticks_msec()
 	var payload: Dictionary = {
 		"logs": batch,
-		"metadata": metadata.duplicate(true),
+		"metadata": GFVariantData.as_dictionary(GFLogUtility.sanitize_log_value(metadata.duplicate(true))),
 		"dropped_count": _dropped_count,
 	}
 	if sender_callback.is_valid():
-		sender_callback.call(payload)
-	batch_ready.emit(batch)
+		var send_result: Variant = sender_callback.call(payload.duplicate(true))
+		if send_result is Dictionary:
+			var send_dictionary: Dictionary = send_result
+			if not GFVariantData.get_option_bool(send_dictionary, "success", true):
+				_requeue_front(batch)
+				return
+			var accepted_count: int = clampi(GFVariantData.get_option_int(send_dictionary, "accepted", batch.size()), 0, batch.size())
+			if accepted_count < batch.size():
+				var remaining: Array[Dictionary] = []
+				for index: int in range(accepted_count, batch.size()):
+					remaining.append(batch[index])
+				_requeue_front(remaining)
+				batch = batch.slice(0, accepted_count)
+	batch_ready.emit(batch.duplicate(true))
 
 
 ## 关闭 sink 并尽力 flush。
@@ -180,6 +192,12 @@ func _trim_queue() -> void:
 	while _queue.size() > max_queue_size:
 		_queue.pop_front()
 		_dropped_count += 1
+
+
+func _requeue_front(batch: Array[Dictionary]) -> void:
+	for index: int in range(batch.size() - 1, -1, -1):
+		_queue.push_front(batch[index].duplicate(true))
+	_trim_queue()
 
 
 func _should_flush_by_interval() -> bool:

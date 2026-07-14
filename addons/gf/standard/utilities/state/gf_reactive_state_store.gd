@@ -139,8 +139,7 @@ static func normalize_path(path: Variant) -> Array:
 
 	var segments: Array = []
 	for part: String in text.split(".", false):
-		if not part.is_empty():
-			segments.append(StringName(part))
+		_append_text_path_part(segments, part)
 	return segments
 
 
@@ -413,16 +412,16 @@ func flush() -> Array[Dictionary]:
 		_dirty_change_indices.clear()
 		dispatched_changes.append_array(changes)
 
-		state_changed.emit(changes, get_state())
+		state_changed.emit(_copy_changes(changes), get_state())
 		for change: Dictionary in changes:
-			path_changed.emit(GFVariantData.get_option_string(change, "path"), change)
+			path_changed.emit(GFVariantData.get_option_string(change, "path"), GFVariantData.to_dictionary(change))
 		_notify_subscribers(changes)
 
 		if _batch_depth > 0:
 			break
 
 	_is_flushing = false
-	return dispatched_changes
+	return _copy_changes(dispatched_changes)
 
 
 ## 获取尚未派发的 dirty changes。
@@ -572,6 +571,39 @@ static func _format_path_segments(segments: Array) -> String:
 		else:
 			path_text += "." + key_text
 	return path_text
+
+
+static func _append_text_path_part(segments: Array, part: String) -> void:
+	if part.is_empty():
+		return
+
+	var key_text: String = ""
+	var index: int = 0
+	while index < part.length():
+		var character: String = part.substr(index, 1)
+		if character != "[":
+			key_text += character
+			index += 1
+			continue
+
+		if not key_text.is_empty():
+			segments.append(StringName(key_text))
+			key_text = ""
+
+		var close_index: int = part.find("]", index + 1)
+		if close_index < 0:
+			key_text = part.substr(index)
+			break
+
+		var index_text: String = part.substr(index + 1, close_index - index - 1).strip_edges()
+		if index_text.is_valid_int():
+			segments.append(index_text.to_int())
+		elif not index_text.is_empty():
+			segments.append(StringName(index_text))
+		index = close_index + 1
+
+	if not key_text.is_empty():
+		segments.append(StringName(key_text))
 
 
 static func _variant_values_equal(left: Variant, right: Variant) -> bool:
@@ -837,7 +869,7 @@ func _notify_subscribers(changes: Array[Dictionary]) -> void:
 			if _find_subscription_index(subscription_id) == -1:
 				break
 			if _subscription_matches_change(subscription, change):
-				callback.call(change, self)
+				callback.call(GFVariantData.to_dictionary(change), self)
 
 
 func _subscription_matches_change(subscription: Dictionary, change: Dictionary) -> bool:

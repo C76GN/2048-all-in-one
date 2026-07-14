@@ -10,5 +10,5 @@
     "res://addons/gf/extensions/combat/extension.gd"
   ],
   "enabled_by_default": false,
-  "tags": ["combat", "attributes", "hit-detection", "externalization-candidate"]
+  "tags": ["combat", "attributes", "hit-detection"]
 }

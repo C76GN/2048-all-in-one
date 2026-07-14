@@ -1,6 +1,6 @@
 ## GFCompatibilityPreflight: 通用兼容性预检报告构建器。
 ##
-## 将版本、平台、功能、包和外部报告合并为标准校验报告。它只做显式声明的
+## 将版本、平台、功能、包、artifact 和外部报告合并为标准校验报告。它只做显式声明的
 ## 预检，不安装包、不下载资源、不执行代码，也不把项目发布策略写入框架。
 ## [br]
 ## @api public
@@ -332,6 +332,144 @@ func require_package(
 	return version_check
 
 
+## 要求 artifact 条目存在，并可选检查声明路径。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param artifact_id: artifact ID。
+## [br]
+## @param options: 检查选项，支持 check_id、severity、metadata、require_path、expected_path、expected_kind、require_file_exists、expected_sha256 和 expected_size_bytes。
+## [br]
+## @schema options: Dictionary check metadata; require_path checks that the profile entry has a non-empty path, expected_path checks exact declared path when provided, require_file_exists checks the declared file without downloading or installing anything.
+## [br]
+## @return 检查记录副本。
+## [br]
+## @schema return: Dictionary check record.
+func require_artifact(artifact_id: StringName, options: Dictionary = {}) -> Dictionary:
+	var artifact_entry: Dictionary = _get_profile_artifact(artifact_id)
+	var expected_path: String = _normalize_artifact_path(GFVariantData.get_option_string(options, "expected_path"))
+	var require_path: bool = GFVariantData.get_option_bool(options, "require_path", not expected_path.is_empty())
+	var expected_kind: StringName = GFVariantData.get_option_string_name(options, "expected_kind")
+	var require_file_exists: bool = GFVariantData.get_option_bool(options, "require_file_exists", false)
+	var expected_sha256: String = _normalize_sha256(GFVariantData.get_option_string(options, "expected_sha256"))
+	var expected_size_bytes: int = GFVariantData.get_option_int(options, "expected_size_bytes", -1)
+	var check_id: StringName = GFVariantData.get_option_string_name(
+		options,
+		"check_id",
+		StringName("artifact:%s" % String(artifact_id))
+	)
+	var expected_value: Variant = _get_artifact_expected_value(
+		artifact_id,
+		require_path,
+		expected_path,
+		expected_kind,
+		require_file_exists,
+		expected_sha256,
+		expected_size_bytes
+	)
+	if artifact_entry.is_empty():
+		var check: Dictionary = _append_check(
+			check_id,
+			&"artifact",
+			false,
+			expected_value,
+			"",
+			options
+		)
+		_append_issue(
+			GFVariantData.get_option_string_name(options, "severity", &"error"),
+			&"artifact_missing",
+			"required artifact is missing",
+			{
+				"artifact_id": artifact_id,
+				"expected_value": expected_value,
+			}
+		)
+		return check
+
+	var actual_path: String = _normalize_artifact_path(GFVariantData.get_option_string(artifact_entry, "path"))
+	var actual_kind: StringName = GFVariantData.get_option_string_name(artifact_entry, "kind")
+	var file_metadata: Dictionary = _get_artifact_file_metadata(
+		actual_path,
+		require_file_exists or not expected_sha256.is_empty() or expected_size_bytes >= 0
+	)
+	var actual_value: Dictionary = artifact_entry.duplicate(true)
+	if not file_metadata.is_empty():
+		actual_value["file"] = file_metadata
+	var ok: bool = true
+	var pending_issues: Array[Dictionary] = []
+	if require_path and actual_path.is_empty():
+		ok = false
+		pending_issues.append(_make_pending_artifact_issue(&"artifact_path_missing", "required artifact path is missing", {
+			"artifact_id": artifact_id,
+			"expected_value": expected_value,
+			"actual_value": actual_value,
+			"actual_path": actual_path,
+		}))
+	elif not expected_path.is_empty() and actual_path != expected_path:
+		ok = false
+		pending_issues.append(_make_pending_artifact_issue(&"artifact_path_mismatch", "artifact path does not match expected path", {
+			"artifact_id": artifact_id,
+			"expected_value": expected_value,
+			"actual_value": actual_value,
+			"actual_path": actual_path,
+		}))
+	if expected_kind != &"" and actual_kind != expected_kind:
+		ok = false
+		pending_issues.append(_make_pending_artifact_issue(&"artifact_kind_mismatch", "artifact kind does not match expected kind", {
+			"artifact_id": artifact_id,
+			"expected_value": expected_kind,
+			"actual_value": actual_kind,
+		}))
+	if require_file_exists and not GFVariantData.get_option_bool(file_metadata, "exists", false):
+		ok = false
+		pending_issues.append(_make_pending_artifact_issue(&"artifact_file_missing", "artifact file is missing", {
+			"artifact_id": artifact_id,
+			"expected_value": actual_path,
+			"actual_value": file_metadata,
+		}))
+	if expected_size_bytes >= 0 and GFVariantData.get_option_bool(file_metadata, "exists", false):
+		var actual_size_bytes: int = GFVariantData.get_option_int(file_metadata, "size_bytes", -1)
+		if actual_size_bytes != expected_size_bytes:
+			ok = false
+			pending_issues.append(_make_pending_artifact_issue(&"artifact_size_mismatch", "artifact file size does not match expected size", {
+				"artifact_id": artifact_id,
+				"expected_value": expected_size_bytes,
+				"actual_value": actual_size_bytes,
+			}))
+	if not expected_sha256.is_empty() and GFVariantData.get_option_bool(file_metadata, "exists", false):
+		var actual_sha256: String = _normalize_sha256(GFVariantData.get_option_string(file_metadata, "sha256"))
+		if actual_sha256 != expected_sha256:
+			ok = false
+			pending_issues.append(_make_pending_artifact_issue(&"artifact_sha256_mismatch", "artifact sha256 does not match expected sha256", {
+				"artifact_id": artifact_id,
+				"expected_value": expected_sha256,
+				"actual_value": actual_sha256,
+			}))
+
+	var check_options: Dictionary = GFVariantData.merge_dictionary(options, {
+		"artifact_id": artifact_id,
+	}, true)
+	var artifact_check: Dictionary = _append_check(
+		check_id,
+		&"artifact",
+		ok,
+		expected_value,
+		actual_value,
+		check_options
+	)
+	for pending_issue: Dictionary in pending_issues:
+		_append_issue(
+			GFVariantData.get_option_string_name(options, "severity", &"error"),
+			GFVariantData.get_option_string_name(pending_issue, "kind"),
+			GFVariantData.get_option_string(pending_issue, "message"),
+			GFVariantData.get_option_dictionary(pending_issue, "fields")
+		)
+	return artifact_check
+
+
 ## 添加自定义检查结果。
 ## [br]
 ## @api public
@@ -592,6 +730,87 @@ func _get_profile_features() -> PackedStringArray:
 
 func _get_profile_package(package_id: StringName) -> Dictionary:
 	return profile.get_package(package_id) if profile != null else {}
+
+
+func _get_profile_artifact(artifact_id: StringName) -> Dictionary:
+	return profile.get_artifact(artifact_id) if profile != null else {}
+
+
+static func _get_artifact_expected_value(
+	artifact_id: StringName,
+	require_path: bool,
+	expected_path: String,
+	expected_kind: StringName = &"",
+	require_file_exists: bool = false,
+	expected_sha256: String = "",
+	expected_size_bytes: int = -1
+) -> Variant:
+	var normalized_expected_path: String = _normalize_artifact_path(expected_path)
+	var normalized_sha256: String = _normalize_sha256(expected_sha256)
+	if (
+		not require_path
+		and normalized_expected_path.is_empty()
+		and expected_kind == &""
+		and not require_file_exists
+		and normalized_sha256.is_empty()
+		and expected_size_bytes < 0
+	):
+		return String(artifact_id)
+	var expected: Dictionary = {
+		"artifact_id": artifact_id,
+		"require_path": require_path,
+		"expected_path": normalized_expected_path,
+	}
+	if expected_kind != &"":
+		expected["expected_kind"] = expected_kind
+	if require_file_exists:
+		expected["require_file_exists"] = true
+	if not normalized_sha256.is_empty():
+		expected["expected_sha256"] = normalized_sha256
+	if expected_size_bytes >= 0:
+		expected["expected_size_bytes"] = expected_size_bytes
+	return expected
+
+
+static func _normalize_artifact_path(path: String) -> String:
+	var normalized: String = path.strip_edges().replace("\\", "/")
+	if normalized.is_empty():
+		return ""
+	return normalized.simplify_path()
+
+
+static func _get_artifact_file_metadata(path: String, inspect_file: bool) -> Dictionary:
+	if not inspect_file:
+		return {}
+	var normalized_path: String = _normalize_artifact_path(path)
+	var file_metadata: Dictionary = {
+		"path": normalized_path,
+		"exists": false,
+	}
+	if normalized_path.is_empty():
+		return file_metadata
+	if not FileAccess.file_exists(normalized_path):
+		return file_metadata
+
+	file_metadata["exists"] = true
+	var file: FileAccess = FileAccess.open(normalized_path, FileAccess.READ)
+	if file != null:
+		file_metadata["size_bytes"] = int(file.get_length())
+		file.close()
+	file_metadata["sha256"] = _normalize_sha256(FileAccess.get_sha256(normalized_path))
+	return file_metadata
+
+
+static func _normalize_sha256(value: String) -> String:
+	return value.strip_edges().to_lower()
+
+
+static func _make_pending_artifact_issue(kind: StringName, message: String, fields: Dictionary) -> Dictionary:
+	return {
+		"kind": kind,
+		"message": message,
+		"fields": fields,
+	}
 
 
 static func _copy_entries(source_entries: Array[Dictionary]) -> Array[Dictionary]:

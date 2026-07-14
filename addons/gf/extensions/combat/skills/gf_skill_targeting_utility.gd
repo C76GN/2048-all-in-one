@@ -59,7 +59,10 @@ func find_targets(p_center: Vector2, p_rule: GFSkillTargetingRule, p_available_e
 # --- 私有/辅助方法 ---
 
 func _is_entity_in_shape(p_entity: Object, p_center: Vector2, p_rule: GFSkillTargetingRule) -> bool:
-	var pos: Vector2 = _get_entity_position(p_entity)
+	var position_value: Variant = _get_entity_position(p_entity)
+	if not position_value is Vector2:
+		return false
+	var pos: Vector2 = position_value
 	var offset: Vector2 = pos - p_center
 
 	match p_rule.shape:
@@ -115,11 +118,11 @@ func _sort_targets(p_targets: Array[Object], p_center: Vector2, p_rule: GFSkillT
 	match p_rule.sort_rule:
 		GFSkillTargetingRule.SortRule.DISTANCE_CLOSEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
-				return p_center.distance_squared_to(_get_entity_position(a)) < p_center.distance_squared_to(_get_entity_position(b))
+				return p_center.distance_squared_to(_get_entity_position_or_default(a, p_center)) < p_center.distance_squared_to(_get_entity_position_or_default(b, p_center))
 			)
 		GFSkillTargetingRule.SortRule.DISTANCE_FURTHEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
-				return p_center.distance_squared_to(_get_entity_position(a)) > p_center.distance_squared_to(_get_entity_position(b))
+				return p_center.distance_squared_to(_get_entity_position_or_default(a, p_center)) > p_center.distance_squared_to(_get_entity_position_or_default(b, p_center))
 			)
 		GFSkillTargetingRule.SortRule.ATTRIBUTE_LOWEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
@@ -140,12 +143,22 @@ func _sort_targets(p_targets: Array[Object], p_center: Vector2, p_rule: GFSkillT
 
 
 # 获取实体坐标位置。
-func _get_entity_position(p_entity: Object) -> Vector2:
+func _get_entity_position(p_entity: Object) -> Variant:
+	if p_entity is Node and not p_entity is Node2D:
+		return null
+
 	var position: Variant = GFObjectPropertyTools.read_property(p_entity, NodePath("global_position"))
 	if position is Vector2:
 		return position
 
-	return Vector2.ZERO
+	return null
+
+
+func _get_entity_position_or_default(p_entity: Object, default_position: Vector2) -> Vector2:
+	var position: Variant = _get_entity_position(p_entity)
+	if position is Vector2:
+		return position
+	return default_position
 
 
 # 获取实体属性值。

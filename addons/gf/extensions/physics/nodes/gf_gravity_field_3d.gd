@@ -17,6 +17,8 @@ extends Node3D
 ## 力场参数变化时发出。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 signal field_changed
 
 
@@ -25,6 +27,8 @@ signal field_changed
 ## 力场方向模式。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 enum DirectionMode {
 	## 朝向力场节点原点。
 	TOWARD_ORIGIN,
@@ -37,6 +41,8 @@ enum DirectionMode {
 ## 强度衰减模式。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 enum FalloffMode {
 	## 半径内保持恒定强度。
 	CONSTANT,
@@ -54,6 +60,8 @@ enum FalloffMode {
 ## 是否启用力场。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var enabled: bool = true:
 	set(value):
 		enabled = value
@@ -62,6 +70,8 @@ enum FalloffMode {
 ## 采样器使用优先级组合模式时的力场优先级；数值越大优先级越高。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var priority: int = 0:
 	set(value):
 		priority = value
@@ -70,30 +80,38 @@ enum FalloffMode {
 ## 基础加速度强度。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var acceleration: float = 9.8:
 	set(value):
-		acceleration = maxf(value, 0.0)
+		acceleration = maxf(_finite_float_or(value, 0.0), 0.0)
 		field_changed.emit()
 
 ## 影响半径；小于等于 0 表示无限范围。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var radius: float = 0.0:
 	set(value):
-		radius = maxf(value, 0.0)
+		radius = maxf(_finite_float_or(value, 0.0), 0.0)
 		field_changed.emit()
 
 ## 平方反比模式下用于避免近距离发散的最小距离。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var min_distance: float = 1.0:
 	set(value):
-		min_distance = maxf(value, 0.001)
+		min_distance = maxf(_finite_float_or(value, 1.0), 0.001)
 		field_changed.emit()
 
 ## 方向模式。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var direction_mode: DirectionMode = DirectionMode.TOWARD_ORIGIN:
 	set(value):
 		direction_mode = value
@@ -102,14 +120,18 @@ enum FalloffMode {
 ## 固定方向模式使用的方向。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var constant_direction: Vector3 = Vector3.DOWN:
 	set(value):
-		constant_direction = value
+		constant_direction = value if _is_finite_vector3(value) else Vector3.DOWN
 		field_changed.emit()
 
 ## 强度衰减模式。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var falloff_mode: FalloffMode = FalloffMode.CONSTANT:
 	set(value):
 		falloff_mode = value
@@ -118,6 +140,8 @@ enum FalloffMode {
 ## 曲线衰减模式使用的 Curve。采样值会乘以 acceleration。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var falloff_curve: Curve = null:
 	set(value):
 		falloff_curve = value
@@ -140,11 +164,13 @@ func _exit_tree() -> void:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param world_position: 世界坐标。
 ## [br]
-## @return 加速度向量。
+## @return: 加速度向量。
 func get_acceleration_at(world_position: Vector3) -> Vector3:
-	if not enabled:
+	if not enabled or not _is_finite_vector3(world_position):
 		return Vector3.ZERO
 
 	var distance: float = global_position.distance_to(world_position)
@@ -153,7 +179,7 @@ func get_acceleration_at(world_position: Vector3) -> Vector3:
 		return Vector3.ZERO
 
 	var direction: Vector3 = _get_direction_at(world_position)
-	if direction.is_zero_approx():
+	if not _is_finite_vector3(direction) or direction.is_zero_approx():
 		return Vector3.ZERO
 	return direction.normalized() * strength
 
@@ -162,11 +188,13 @@ func get_acceleration_at(world_position: Vector3) -> Vector3:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param distance: 距离。
 ## [br]
-## @return 加速度强度。
+## @return: 加速度强度。
 func get_strength_at_distance(distance: float) -> float:
-	if acceleration <= 0.0:
+	if acceleration <= 0.0 or is_nan(distance) or is_inf(distance):
 		return 0.0
 	var safe_distance: float = maxf(distance, 0.0)
 	if radius > 0.0 and safe_distance > radius:
@@ -184,7 +212,8 @@ func get_strength_at_distance(distance: float) -> float:
 			if falloff_curve == null:
 				return acceleration
 			var sample_position: float = clampf(safe_distance / radius, 0.0, 1.0) if radius > 0.0 else 0.0
-			return acceleration * maxf(falloff_curve.sample(sample_position), 0.0)
+			var curve_value: float = falloff_curve.sample(sample_position)
+			return acceleration * maxf(_finite_float_or(curve_value, 0.0), 0.0)
 		_:
 			return acceleration
 
@@ -193,7 +222,9 @@ func get_strength_at_distance(distance: float) -> float:
 ## [br]
 ## @api public
 ## [br]
-## @return 优先级数值，越大越优先。
+## @since 3.17.0
+## [br]
+## @return: 优先级数值，越大越优先。
 func get_gravity_priority() -> int:
 	return priority
 
@@ -204,9 +235,11 @@ func get_gravity_priority() -> int:
 ## [br]
 ## @api protected
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param world_position: 世界坐标。
 ## [br]
-## @return 方向向量。
+## @return: 方向向量。
 func _get_direction_at(world_position: Vector3) -> Vector3:
 	match direction_mode:
 		DirectionMode.AWAY_FROM_ORIGIN:
@@ -215,3 +248,18 @@ func _get_direction_at(world_position: Vector3) -> Vector3:
 			return constant_direction
 		_:
 			return global_position - world_position
+
+
+func _finite_float_or(value: float, fallback: float) -> float:
+	return fallback if is_nan(value) or is_inf(value) else value
+
+
+func _is_finite_vector3(value: Vector3) -> bool:
+	return (
+		not is_nan(value.x)
+		and not is_inf(value.x)
+		and not is_nan(value.y)
+		and not is_inf(value.y)
+		and not is_nan(value.z)
+		and not is_inf(value.z)
+	)

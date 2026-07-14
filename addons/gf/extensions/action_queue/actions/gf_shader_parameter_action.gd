@@ -171,7 +171,11 @@ func resume() -> void:
 ## @api public
 func finish() -> void:
 	if is_instance_valid(_active_tween):
-		var _custom_step_result_165: Variant = _active_tween.custom_step(INF)
+		_clear_active_tween()
+		_set_shader_parameter(target_value)
+		_restore_initial_value_on_finish()
+		_emit_completed_once()
+		return
 	_clear_active_tween()
 	_restore_initial_value_on_finish()
 	_emit_completed_once()
@@ -280,10 +284,12 @@ func _restore_initial_value() -> void:
 
 
 func _get_tween_host() -> Node:
-	if is_instance_valid(host_node):
+	if is_instance_valid(host_node) and host_node.is_inside_tree():
 		return host_node
 	if target is Node and is_instance_valid(target):
-		return _get_node_value(target)
+		var target_node: Node = _get_node_value(target)
+		if target_node != null and target_node.is_inside_tree():
+			return target_node
 	return null
 
 

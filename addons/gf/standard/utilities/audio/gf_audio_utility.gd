@@ -389,6 +389,7 @@ func play_bgm_event(
 ## [br]
 ## @param fade_seconds: 淡出秒数。
 func stop_bgm(fade_seconds: float = 0.0) -> void:
+	_bgm_request_serial += 1
 	_notify_backend_stop_bgm(fade_seconds)
 	_cancel_bgm_crossfade_playback()
 	_bgm_pause_serial += 1

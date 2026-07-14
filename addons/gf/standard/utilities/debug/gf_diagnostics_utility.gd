@@ -213,7 +213,7 @@ func ready() -> void:
 ## @api public
 func dispose() -> void:
 	_unregister_debugger_capture()
-	if _console_utility != null and _console_command_registered:
+	if _console_utility != null and _console_command_registered and _owns_console_command():
 		_console_utility.unregister_command("diagnostics")
 	_console_utility = null
 	_console_command_registered = false
@@ -727,7 +727,7 @@ func export_monitor_snapshot(snapshot: Dictionary, format: StringName = &"json")
 		&"csv":
 			return _export_monitor_snapshot_as_csv(snapshot)
 		_:
-			return JSON.stringify(snapshot, "\t")
+			return GFReportValueCodec.stringify_json_compatible(snapshot, "\t")
 
 
 ## 设置诊断认证 token。
@@ -786,10 +786,12 @@ func execute_command(command_name: StringName, args: Dictionary = {}) -> Diction
 	var prepared_args: Dictionary = _prepare_command_args(args, entry)
 	var validation_report: GFValidationReport = _validate_command_args(entry, prepared_args, args)
 	if not validation_report.is_ok():
-		var validation_result: Dictionary = _make_command_result(false, null, validation_report.make_summary(String(command_name)), {
+		var validation_metadata: Dictionary = validation_report.to_dict()
+		validation_metadata["summary"] = _make_command_validation_summary(validation_report, command_name)
+		var validation_result: Dictionary = _make_command_result(false, null, GFVariantData.get_option_string(validation_metadata, "summary"), {
 			"tier": tier,
 			"tier_name": _get_tier_name(tier),
-			"validation": validation_report.to_dict(),
+			"validation": validation_metadata,
 		})
 		diagnostic_command_executed.emit(command_name, validation_result)
 		return validation_result
@@ -844,7 +846,7 @@ func execute_command_json_safe(command_name: StringName, args: Dictionary = {}) 
 ## [br]
 ## @schema return: Dictionary，JSON 兼容命令结果。
 func command_result_to_json_compatible(result: Dictionary, options: Dictionary = {}) -> Dictionary:
-	return GFVariantData.to_dictionary(GFVariantJsonCodec.variant_to_json_compatible(result, options))
+	return GFVariantData.to_dictionary(GFReportValueCodec.to_json_compatible(result, options))
 
 
 ## 采集运行时诊断快照。
@@ -1217,7 +1219,7 @@ func _is_reserved_snapshot_section_id(section_id: StringName) -> bool:
 
 func _is_builtin_tool_snapshot_id(tool_id: StringName) -> bool:
 	match tool_id:
-		&"build_info", &"asset", &"timer", &"remote_cache", &"download", &"object_pool", &"operation_diagnostics", &"async_tracker":
+		&"build_info", &"timer", &"object_pool", &"operation_diagnostics", &"async_tracker":
 			return true
 		_:
 			return false
@@ -1303,8 +1305,20 @@ func _bind_console_command() -> void:
 	if _console_utility.get_command_names().has("diagnostics"):
 		return
 
-	_console_utility.register_command("diagnostics", Callable(self, "_on_console_diagnostics_command"), "输出 GF 诊断摘要。")
+	_console_utility.register_command("diagnostics", Callable(self, "_on_console_diagnostics_command"), "输出 GF 诊断摘要。", {
+		"tier": GFConsoleUtility.CommandTier.OBSERVE,
+		"owner_instance_id": get_instance_id(),
+	})
 	_console_command_registered = true
+
+
+func _owns_console_command() -> bool:
+	if _console_utility == null or not _console_utility.has_command("diagnostics"):
+		return false
+	var catalog: Dictionary = _console_utility.get_command_catalog()
+	var entry: Dictionary = GFVariantData.get_option_dictionary(catalog, "diagnostics")
+	var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
+	return GFVariantData.get_option_int(metadata, "owner_instance_id", -1) == get_instance_id()
 
 
 func _register_debugger_capture() -> void:
@@ -1393,6 +1407,21 @@ func _make_command_result(ok: bool, value: Variant, error: String, metadata: Dic
 		"metadata": metadata.duplicate(true),
 	}
 	return result
+
+
+func _make_command_validation_summary(report: GFValidationReport, command_name: StringName) -> String:
+	var summary: String = report.make_summary(String(command_name))
+	var issue_kinds: PackedStringArray = PackedStringArray()
+	var counts_by_kind: Dictionary = report.get_issue_counts_by_kind()
+	for kind_variant: Variant in counts_by_kind.keys():
+		var kind_text: String = GFVariantData.to_text(kind_variant)
+		if kind_text.is_empty():
+			continue
+		var _kind_appended: bool = issue_kinds.append(kind_text)
+	if issue_kinds.is_empty():
+		return summary
+	issue_kinds.sort()
+	return "%s Issues: %s." % [summary, ", ".join(issue_kinds)]
 
 
 func _command_collect_snapshot(args: Dictionary) -> Dictionary:
@@ -1530,9 +1559,7 @@ func _register_builtin_monitors() -> void:
 	_register_builtin_monitor(&"architecture.systems", &"_monitor_architecture_system_count", "Systems", "Architecture", 0.25)
 	_register_builtin_monitor(&"architecture.utilities", &"_monitor_architecture_utility_count", "Utilities", "Architecture", 0.25)
 	_register_builtin_monitor(&"event_system.stats", &"_monitor_event_system_stats", "Event Stats", "Architecture", 0.25)
-	_register_builtin_monitor(&"tools.asset", &"_monitor_tool_asset_snapshot", "Asset Utility", "Tools", 0.25)
 	_register_builtin_monitor(&"tools.timer", &"_monitor_tool_timer_snapshot", "Timer Utility", "Tools", 0.25)
-	_register_builtin_monitor(&"tools.download", &"_monitor_tool_download_snapshot", "Download Utility", "Tools", 0.25)
 
 	_register_builtin_monitor_preset(&"minimal", PackedStringArray([
 		"performance.fps",
@@ -1553,9 +1580,7 @@ func _register_builtin_monitors() -> void:
 		"event_system.stats",
 	]), "Architecture")
 	_register_builtin_monitor_preset(&"tools", PackedStringArray([
-		"tools.asset",
 		"tools.timer",
-		"tools.download",
 	]), "Tools")
 	_register_builtin_monitor_preset(&"overlay", PackedStringArray([
 		"performance.fps",
@@ -1661,25 +1686,14 @@ func _monitor_event_system_stats() -> Dictionary:
 	return architecture.get_event_debug_stats()
 
 
-func _monitor_tool_asset_snapshot() -> Dictionary:
-	return _get_instance_debug_snapshot(get_utility(GFAssetUtility))
-
-
 func _monitor_tool_timer_snapshot() -> Dictionary:
 	return _get_instance_debug_snapshot(get_utility(GFTimerUtility))
-
-
-func _monitor_tool_download_snapshot() -> Dictionary:
-	return _get_instance_debug_snapshot(get_utility(GFDownloadUtility))
 
 
 func _collect_tool_debug_snapshots() -> Dictionary:
 	var result: Dictionary = {}
 	_add_tool_debug_snapshot(result, &"build_info", get_utility(GFBuildInfoUtility))
-	_add_tool_debug_snapshot(result, &"asset", get_utility(GFAssetUtility))
 	_add_tool_debug_snapshot(result, &"timer", get_utility(GFTimerUtility))
-	_add_tool_debug_snapshot(result, &"remote_cache", get_utility(GFRemoteCacheUtility))
-	_add_tool_debug_snapshot(result, &"download", get_utility(GFDownloadUtility))
 	_add_tool_debug_snapshot(result, &"object_pool", get_utility(GFObjectPoolUtility))
 	_add_tool_debug_snapshot(result, &"operation_diagnostics", get_utility(GFOperationDiagnosticsUtility))
 	_add_tool_debug_snapshot(result, &"async_tracker", get_utility(GFAsyncTrackerUtility))
@@ -1967,6 +1981,9 @@ func _validate_numeric_range(
 	if not (value is int or value is float):
 		return
 	var value_float: float = _number_to_float(value)
+	if not _is_finite_float(value_float):
+		var _finite_issue: RefCounted = report.add_error(&"parameter_non_finite", "Diagnostic command parameter must be finite.", name)
+		return
 	var min_value: Variant = GFVariantData.get_option_value(parameter, "min", null)
 	if _is_float_convertible(min_value) and value_float < _number_to_float(min_value):
 		var _min_issue: RefCounted = report.add_error(&"parameter_below_minimum", "Diagnostic command parameter is below minimum.", name)
@@ -2019,3 +2036,7 @@ func _get_tier_name(tier: int) -> String:
 			return "danger"
 		_:
 			return "observe"
+
+
+func _is_finite_float(value: float) -> bool:
+	return not is_nan(value) and not is_inf(value)

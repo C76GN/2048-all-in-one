@@ -19,15 +19,17 @@ const _GF_ASYNC_WAIT_SUPPORT = preload("res://addons/gf/standard/common/gf_async
 
 # --- 公共变量 ---
 
-## 撤销栈的最大容量；为 0 时表示不限制。
+## 命令历史栈的最大容量；为 0 时表示不限制。该上限分别约束撤销栈和重做栈。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 var max_history_size: int:
 	get:
 		return _max_history_size
 	set(value):
 		_max_history_size = maxi(value, 0)
-		_trim_undo_stack()
+		_trim_history_stacks()
 
 ## 当前撤销栈深度。
 ## [br]
@@ -94,6 +96,20 @@ func dispose() -> void:
 
 
 # --- 公共方法 ---
+
+## 注入当前架构并注册命令历史服务 capability。
+## [br]
+## @api framework_internal
+## [br]
+## @param architecture: 当前注册该工具的架构。
+func inject_dependencies(architecture: GFArchitecture) -> void:
+	super.inject_dependencies(architecture)
+	if architecture != null:
+		var _registered_history_service: bool = architecture.register_service(
+			GFArchitecture.SERVICE_COMMAND_HISTORY_STORE,
+			self
+		)
+
 
 ## 记录一条已经执行完成的命令。
 ## [br]
@@ -163,6 +179,7 @@ func undo_last() -> bool:
 		return false
 
 	_redo_stack.push_back(cmd)
+	_trim_redo_stack()
 	return true
 
 
@@ -191,6 +208,7 @@ func undo_last_async() -> bool:
 			return false
 
 	_redo_stack.push_back(cmd)
+	_trim_redo_stack()
 	return true
 
 
@@ -212,6 +230,7 @@ func redo() -> bool:
 		return false
 
 	_undo_stack.push_back(cmd)
+	_trim_undo_stack()
 	return true
 
 
@@ -240,6 +259,7 @@ func redo_async() -> bool:
 			return false
 
 	_undo_stack.push_back(cmd)
+	_trim_undo_stack()
 	return true
 
 
@@ -345,6 +365,7 @@ func deserialize_history(data_array: Array, command_builder: Callable) -> void:
 			if is_instance_valid(restored_cmd):
 				_inject_command_dependencies(restored_cmd)
 				_undo_stack.append(restored_cmd)
+	_trim_history_stacks()
 
 
 ## 通过构造器从完整历史数据恢复撤销栈与重做栈。
@@ -370,6 +391,7 @@ func deserialize_full_history(data: Dictionary, command_builder: Callable) -> vo
 
 	_undo_stack = _deserialize_stack(GFVariantData.get_option_array(data, "undo"), command_builder)
 	_redo_stack = _deserialize_stack(GFVariantData.get_option_array(data, "redo"), command_builder)
+	_trim_history_stacks()
 
 
 # --- 私有/辅助方法 ---
@@ -387,6 +409,19 @@ func _trim_undo_stack() -> void:
 
 	var overflow: int = _undo_stack.size() - max_history_size
 	_undo_stack = _undo_stack.slice(overflow)
+
+
+func _trim_redo_stack() -> void:
+	if max_history_size <= 0 or _redo_stack.size() <= max_history_size:
+		return
+
+	var overflow: int = _redo_stack.size() - max_history_size
+	_redo_stack = _redo_stack.slice(overflow)
+
+
+func _trim_history_stacks() -> void:
+	_trim_undo_stack()
+	_trim_redo_stack()
 
 
 func _serialize_stack(stack: Array[GFUndoableCommand]) -> Array[Dictionary]:

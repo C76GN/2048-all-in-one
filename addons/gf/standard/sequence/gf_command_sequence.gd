@@ -77,7 +77,43 @@ signal sequence_cancelled
 # --- 常量 ---
 
 const _GF_ASYNC_WAIT_SUPPORT = preload("res://addons/gf/standard/common/gf_async_wait_support.gd")
+const _GF_REPORT_VALUE_CODEC_SCRIPT = preload("res://addons/gf/kernel/core/gf_report_value_codec.gd")
 const _INSTANCE_GUARD = preload("res://addons/gf/kernel/core/gf_instance_guard.gd")
+
+## 本次运行未进入 rollback。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const ROLLBACK_STATUS_NOT_RUN: StringName = &"not_run"
+
+## rollback 已完成。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const ROLLBACK_STATUS_COMPLETED: StringName = &"completed"
+
+## rollback 中至少一个 undo() 报告失败。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const ROLLBACK_STATUS_FAILED: StringName = &"failed"
+
+## rollback 等待异步 undo() 时被取消。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const ROLLBACK_STATUS_CANCELLED: StringName = &"cancelled"
+
+## rollback 等待异步 undo() 时超时。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const ROLLBACK_STATUS_TIMEOUT: StringName = &"timeout"
 
 
 # --- 公共变量 ---
@@ -132,6 +168,7 @@ var last_run_report: Dictionary = {}
 var _cancel_requested: bool = false
 var _architecture_ref: WeakRef = null
 var _current_step: Variant = null
+var _current_rollback_step: Variant = null
 var _last_wait_result: Dictionary = {}
 
 
@@ -225,8 +262,15 @@ func run(p_steps: Array = []) -> void:
 	_current_step = null
 	var rolled_back: bool = false
 	var rollback_errors: Array[Dictionary] = []
+	var rollback_status: StringName = ROLLBACK_STATUS_NOT_RUN
+	var rollback_cancelled: bool = false
+	var rollback_timeout: bool = false
 	if failed and stop_on_error and rollback_on_failure:
-		rollback_errors = await _rollback_steps(completed_steps)
+		var rollback_report: Dictionary = await _rollback_steps(completed_steps)
+		rollback_errors = _get_dictionary_array(rollback_report, "errors")
+		rollback_status = GFVariantData.get_option_string_name(rollback_report, "status", ROLLBACK_STATUS_COMPLETED)
+		rollback_cancelled = GFVariantData.get_option_bool(rollback_report, "cancelled")
+		rollback_timeout = GFVariantData.get_option_bool(rollback_report, "timeout")
 		rolled_back = true
 	is_running = false
 
@@ -237,7 +281,10 @@ func run(p_steps: Array = []) -> void:
 		"error": failed_error,
 		"succeeded": completed_steps.size(),
 		"rolled_back": rolled_back,
-		"rollback_failed": not rollback_errors.is_empty(),
+		"rollback_failed": rollback_status == ROLLBACK_STATUS_FAILED or rollback_status == ROLLBACK_STATUS_CANCELLED or rollback_status == ROLLBACK_STATUS_TIMEOUT,
+		"rollback_status": rollback_status,
+		"rollback_cancelled": rollback_cancelled,
+		"rollback_timeout": rollback_timeout,
 		"rollback_errors": rollback_errors,
 		"results": results,
 	}
@@ -257,6 +304,7 @@ func cancel() -> void:
 		return
 	_cancel_requested = true
 	_cancel_current_step()
+	_cancel_current_rollback_step()
 
 
 ## 设置等待 Signal 的超时时间，并返回自身以便链式调用。
@@ -313,10 +361,18 @@ func _execute_step(step: Variant) -> Variant:
 
 
 func _cancel_current_step() -> void:
-	if _current_step == null:
+	_cancel_step(_current_step)
+
+
+func _cancel_current_rollback_step() -> void:
+	_cancel_step(_current_rollback_step)
+
+
+func _cancel_step(step: Variant) -> void:
+	if step == null:
 		return
 
-	var step_object: Object = _get_valid_step_object(_current_step)
+	var step_object: Object = _get_valid_step_object(step)
 	if step_object == null:
 		return
 
@@ -357,7 +413,7 @@ func _get_step_error(result: Variant) -> String:
 		)
 	)
 	if error_value is Dictionary or error_value is Array:
-		return JSON.stringify(error_value)
+		return _GF_REPORT_VALUE_CODEC_SCRIPT.stringify_json_compatible(error_value)
 
 	var error: String = GFVariantData.to_text(error_value)
 	return error if not error.is_empty() else "Step failed."
@@ -368,10 +424,10 @@ func _make_step_report(index: int, ok: bool, error: String, result: Variant) -> 
 		"index": index,
 		"ok": ok,
 		"error": error,
-		"result": result,
+		"result": _GF_REPORT_VALUE_CODEC_SCRIPT.to_json_compatible(result),
 	}
 	if not _last_wait_result.is_empty():
-		report["wait_result"] = _last_wait_result.duplicate(true)
+		report["wait_result"] = _GF_REPORT_VALUE_CODEC_SCRIPT.to_json_compatible(_last_wait_result)
 		report["wait_status"] = _get_last_wait_status()
 		report["wait_completed"] = GFVariantData.get_option_bool(_last_wait_result, "completed")
 	return report
@@ -386,31 +442,59 @@ func _make_unsupported_step_result(step: Variant) -> Dictionary:
 	}
 
 
-func _rollback_steps(completed_steps: Array) -> Array[Dictionary]:
+func _rollback_steps(completed_steps: Array) -> Dictionary:
 	var rollback_errors: Array[Dictionary] = []
+	var rollback_status: StringName = ROLLBACK_STATUS_COMPLETED
+	var rollback_cancelled: bool = false
+	var rollback_timeout: bool = false
 	var previous_wait_result: Dictionary = _last_wait_result.duplicate(true)
 	for index: int in range(completed_steps.size() - 1, -1, -1):
-		var step: Object = _get_valid_step_object(completed_steps[index])
+		if _cancel_requested:
+			rollback_status = ROLLBACK_STATUS_CANCELLED
+			rollback_cancelled = true
+			break
+		var step_value: Variant = completed_steps[index]
+		var step: Object = _get_valid_step_object(step_value)
 		if step == null or not step.has_method("undo"):
 			continue
 		_inject_step(step)
+		_current_rollback_step = step_value
+		_last_wait_result.clear()
 		var result: Variant = step.call("undo")
 		if result is Signal:
 			var result_signal: Signal = result
 			result = await _await_signal_result_safely(result_signal)
+		var wait_status: StringName = _get_last_wait_status() if not _last_wait_result.is_empty() else ROLLBACK_STATUS_COMPLETED
+		if not _last_wait_result.is_empty() and wait_status == GFAsyncWaitUtility.STATUS_CANCELLED:
+			rollback_status = ROLLBACK_STATUS_CANCELLED
+			rollback_cancelled = true
+		elif not _last_wait_result.is_empty() and wait_status == GFAsyncWaitUtility.STATUS_TIMEOUT:
+			rollback_status = ROLLBACK_STATUS_TIMEOUT
+			rollback_timeout = true
 		var step_error: String = _get_step_error(result)
 		if not step_error.is_empty():
+			if rollback_status == ROLLBACK_STATUS_COMPLETED:
+				rollback_status = ROLLBACK_STATUS_FAILED
 			var rollback_report: Dictionary = {
 				"index": index,
 				"error": step_error,
-				"result": result,
+				"status": rollback_status,
+				"result": _GF_REPORT_VALUE_CODEC_SCRIPT.to_json_compatible(result),
 			}
 			if not _last_wait_result.is_empty():
-				rollback_report["wait_result"] = _last_wait_result.duplicate(true)
-				rollback_report["wait_status"] = _get_last_wait_status()
+				rollback_report["wait_result"] = _GF_REPORT_VALUE_CODEC_SCRIPT.to_json_compatible(_last_wait_result)
+				rollback_report["wait_status"] = wait_status
 			rollback_errors.append(rollback_report)
+		if rollback_cancelled or rollback_timeout:
+			break
+	_current_rollback_step = null
 	_last_wait_result = previous_wait_result
-	return rollback_errors
+	return {
+		"errors": rollback_errors,
+		"status": rollback_status,
+		"cancelled": rollback_cancelled,
+		"timeout": rollback_timeout,
+	}
 
 
 func _inject_step(step: Object) -> void:
@@ -444,11 +528,16 @@ func _await_signal_result_safely(result_signal: Signal) -> Variant:
 		_get_time_utility(),
 		signal_timeout_seconds,
 		signal_timeout_respects_time_scale,
-		"[GFCommandSequence] 等待 Signal 超时，序列将继续执行后续步骤。"
+		"[GFCommandSequence] 等待 Signal 超时，序列已标记当前步骤失败。"
 	)
 	_last_wait_result = wait_result.duplicate(true)
 	if not GFVariantData.get_option_bool(wait_result, "completed"):
-		return null
+		return {
+			"ok": false,
+			"status": _get_last_wait_status(),
+			"error": String(_get_last_wait_status()),
+			"wait_result": wait_result.duplicate(true),
+		}
 	return _normalize_signal_result(GFVariantData.get_option_array(wait_result, "args"))
 
 
@@ -472,6 +561,15 @@ func _normalize_signal_result(args: Variant) -> Variant:
 	if values.size() == 1:
 		return values[0]
 	return values
+
+
+static func _get_dictionary_array(source: Dictionary, key: String) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for value: Variant in GFVariantData.get_option_array(source, key):
+		if value is Dictionary:
+			var entry: Dictionary = value
+			result.append(entry.duplicate(true))
+	return result
 
 
 func _get_time_utility() -> GFTimeUtility:

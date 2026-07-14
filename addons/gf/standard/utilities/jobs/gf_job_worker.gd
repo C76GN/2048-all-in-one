@@ -191,14 +191,14 @@ func process_next_job() -> GFJob:
 		if not GFVariantData.get_option_bool(wait_result, "completed", false):
 			if not job.is_finished():
 				var _fail_job_result_189: Variant = utility.fail_job(job.job_id, "processor_signal_cancelled_or_timeout", wait_result)
-			job_processed.emit(job)
+			_emit_job_processed_if_not_cancelled(job)
 			return job
 		if job.is_finished():
-			job_processed.emit(job)
+			_emit_job_processed_if_not_cancelled(job)
 			return job
 		result = GFVariantData.get_option_value(wait_result, "result")
 	_apply_processor_result(utility, job, result)
-	job_processed.emit(job)
+	_emit_job_processed_if_not_cancelled(job)
 	return job
 
 
@@ -287,6 +287,12 @@ func _apply_processor_result(utility: GFJobQueueUtility, job: GFJob, result: Var
 		var _fail_job_result_283: Variant = utility.fail_job(job.job_id, "", result)
 	else:
 		var _complete_job_result_285: Variant = utility.complete_job(job.job_id, result)
+
+
+func _emit_job_processed_if_not_cancelled(job: GFJob) -> void:
+	if job == null or job.status == GFJob.Status.CANCELLED:
+		return
+	job_processed.emit(job)
 
 
 func _normalize_signal_result(result: Variant) -> Variant:

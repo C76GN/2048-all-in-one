@@ -34,31 +34,43 @@ const _INSTANCE_GUARD = preload("res://addons/gf/kernel/core/gf_instance_guard.g
 ## 采样 channel。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var channel: StringName = &"default"
 
 ## 是否应用 position 偏移。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var apply_position: bool = true
 
 ## 是否应用 rotation_degrees 偏移。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var apply_rotation: bool = true
 
 ## 是否应用 scale 偏移。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var apply_scale: bool = false
 
 ## ready 时是否记录基础变换。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var capture_on_ready: bool = true
 
 ## 退出树时是否恢复基础变换。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var restore_on_exit: bool = true
 
 
@@ -67,6 +79,8 @@ const _INSTANCE_GUARD = preload("res://addons/gf/kernel/core/gf_instance_guard.g
 ## 可选反馈工具实例；为空时从全局架构查询。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 var utility: GFShakeUtility = null
 
 
@@ -102,6 +116,8 @@ func _exit_tree() -> void:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param shake_utility: 反馈工具实例。
 func set_utility(shake_utility: GFShakeUtility) -> void:
 	utility = shake_utility
@@ -111,7 +127,9 @@ func set_utility(shake_utility: GFShakeUtility) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @return 目标 Node2D；不存在时返回 null。
+## @since 3.17.0
+## [br]
+## @return: 目标 Node2D；不存在时返回 null。
 func get_target() -> Node2D:
 	if _target_ref == null:
 		return null
@@ -123,7 +141,9 @@ func get_target() -> Node2D:
 ## [br]
 ## @api public
 ## [br]
-## @return 记录成功返回 true。
+## @since 3.17.0
+## [br]
+## @return: 记录成功返回 true。
 func capture_base_transform() -> bool:
 	var target: Node2D = get_target()
 	if target == null:
@@ -141,7 +161,9 @@ func capture_base_transform() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @return 应用成功返回 true。
+## @since 3.17.0
+## [br]
+## @return: 应用成功返回 true。
 func apply_current_sample() -> bool:
 	var target: Node2D = get_target()
 	var shake_utility: GFShakeUtility = _get_utility()
@@ -179,7 +201,9 @@ func apply_current_sample() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @return 恢复成功返回 true。
+## @since 3.17.0
+## [br]
+## @return: 恢复成功返回 true。
 func reset_to_base() -> bool:
 	var target: Node2D = get_target()
 	if target == null:

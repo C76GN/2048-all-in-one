@@ -149,7 +149,11 @@ func unregister_target(target_id: StringName) -> bool:
 ## [br]
 ## @return 目标存在且对象有效时返回 true。
 func has_target(target_id: StringName) -> bool:
-	return _resolve_target(target_id) != null
+	if _resolve_target(target_id) != null:
+		return true
+	if _targets.has(target_id):
+		_erase_dictionary_key(_targets, target_id)
+	return false
 
 
 ## 为目标注册或替换一个可调属性。
@@ -212,6 +216,7 @@ func remove_property(target_id: StringName, property_id: StringName) -> bool:
 ## [br]
 ## @return 排序后的目标 ID。
 func get_target_ids(include_hidden: bool = false) -> PackedStringArray:
+	_prune_invalid_targets()
 	var entries: Array[Dictionary] = _get_sorted_entries(include_hidden)
 	var result: PackedStringArray = PackedStringArray()
 	for entry: Dictionary in entries:
@@ -277,6 +282,7 @@ func set_property_value(target_id: StringName, property_id: StringName, value: V
 ## [br]
 ## @schema return: Array[Dictionary]，每个元素包含 id、label、group、visible、valid 和 properties。
 func get_target_snapshot(include_hidden: bool = false) -> Array[Dictionary]:
+	_prune_invalid_targets()
 	var result: Array[Dictionary] = []
 	for entry: Dictionary in _get_sorted_entries(include_hidden):
 		result.append(_build_target_snapshot(entry, include_hidden))
@@ -333,6 +339,7 @@ func detach_from_debug_overlay(panel_id: StringName = &"") -> void:
 ## [br]
 ## @schema return: Dictionary，包含 target_count、target_ids 和 writes_allowed。
 func get_debug_snapshot() -> Dictionary:
+	_prune_invalid_targets()
 	return {
 		"target_count": _targets.size(),
 		"target_ids": get_target_ids(true),
@@ -385,6 +392,15 @@ func _get_sorted_entries(include_hidden: bool) -> Array[Dictionary]:
 		entries.append(entry)
 	entries.sort_custom(_sort_entries)
 	return entries
+
+
+func _prune_invalid_targets() -> void:
+	var invalid_target_ids: PackedStringArray = PackedStringArray()
+	for target_id: StringName in _targets.keys():
+		if _resolve_target(target_id) == null:
+			_append_packed_string(invalid_target_ids, String(target_id))
+	for target_id_text: String in invalid_target_ids:
+		_erase_dictionary_key(_targets, StringName(target_id_text))
 
 
 func _sort_entries(left: Dictionary, right: Dictionary) -> bool:

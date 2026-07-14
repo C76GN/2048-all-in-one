@@ -172,7 +172,7 @@ func get_debug_snapshot(score_snapshot: GFDecisionScore = null) -> Dictionary:
 		"display_name": display_name,
 		"enabled": enabled,
 		"aggregation": aggregation,
-		"base_score": base_score,
+		"base_score": _normalized_score(base_score),
 		"score": score_snapshot.to_dictionary() if score_snapshot != null else {},
 	}
 
@@ -181,9 +181,13 @@ func get_debug_snapshot(score_snapshot: GFDecisionScore = null) -> Dictionary:
 
 func _score_considerations(context: GFDecisionContext) -> Array[Dictionary]:
 	var details: Array[Dictionary] = []
+	var seen_considerations: Dictionary = {}
 	for consideration: GFDecisionConsideration in considerations:
 		if consideration == null or not consideration.enabled:
 			continue
+		if consideration.consideration_id == &"" or seen_considerations.has(consideration.consideration_id):
+			continue
+		seen_considerations[consideration.consideration_id] = true
 		var raw_score: float = consideration.score(context)
 		var weighted_score: float = _apply_weight(raw_score, consideration.weight)
 		details.append({
@@ -197,7 +201,7 @@ func _score_considerations(context: GFDecisionContext) -> Array[Dictionary]:
 
 func _aggregate_scores(details: Array[Dictionary]) -> float:
 	if details.is_empty():
-		return clampf(base_score, 0.0, 1.0)
+		return _normalized_score(base_score)
 
 	match aggregation:
 		Aggregation.WEIGHTED_AVERAGE:
@@ -213,7 +217,7 @@ func _aggregate_scores(details: Array[Dictionary]) -> float:
 
 
 func _aggregate_multiply(details: Array[Dictionary]) -> float:
-	var result: float = clampf(base_score, 0.0, 1.0)
+	var result: float = _normalized_score(base_score)
 	for detail: Dictionary in details:
 		result *= GFVariantData.get_option_float(detail, "weighted_score", 1.0)
 	return clampf(result, 0.0, 1.0)
@@ -229,12 +233,12 @@ func _aggregate_weighted_average(details: Array[Dictionary]) -> float:
 		total += GFVariantData.get_option_float(detail, "score", 0.0) * weight
 		total_weight += weight
 	if total_weight <= 0.0:
-		return clampf(base_score, 0.0, 1.0)
-	return clampf(clampf(base_score, 0.0, 1.0) * (total / total_weight), 0.0, 1.0)
+		return _normalized_score(base_score)
+	return clampf(_normalized_score(base_score) * (total / total_weight), 0.0, 1.0)
 
 
 func _aggregate_sum(details: Array[Dictionary]) -> float:
-	var result: float = clampf(base_score, 0.0, 1.0)
+	var result: float = _normalized_score(base_score)
 	for detail: Dictionary in details:
 		result += GFVariantData.get_option_float(detail, "score", 0.0) * maxf(GFVariantData.get_option_float(detail, "weight", 1.0), 0.0)
 	return clampf(result, 0.0, 1.0)
@@ -244,19 +248,27 @@ func _aggregate_min(details: Array[Dictionary]) -> float:
 	var result: float = 1.0
 	for detail: Dictionary in details:
 		result = minf(result, GFVariantData.get_option_float(detail, "score", 0.0))
-	return clampf(clampf(base_score, 0.0, 1.0) * result, 0.0, 1.0)
+	return clampf(_normalized_score(base_score) * result, 0.0, 1.0)
 
 
 func _aggregate_max(details: Array[Dictionary]) -> float:
 	var result: float = 0.0
 	for detail: Dictionary in details:
 		result = maxf(result, GFVariantData.get_option_float(detail, "score", 0.0))
-	return clampf(clampf(base_score, 0.0, 1.0) * result, 0.0, 1.0)
+	return clampf(_normalized_score(base_score) * result, 0.0, 1.0)
 
 
 func _apply_weight(raw_score: float, raw_weight: float) -> float:
-	var normalized_score: float = clampf(raw_score, 0.0, 1.0)
-	var normalized_weight: float = maxf(raw_weight, 0.0)
+	var normalized_score: float = _normalized_score(raw_score)
+	var normalized_weight: float = maxf(_finite_or_default(raw_weight, 0.0), 0.0)
 	if normalized_weight <= 0.0:
 		return 1.0
 	return clampf(pow(normalized_score, normalized_weight), 0.0, 1.0)
+
+
+func _normalized_score(value: float) -> float:
+	return clampf(_finite_or_default(value, 0.0), 0.0, 1.0)
+
+
+func _finite_or_default(value: float, default_value: float) -> float:
+	return value if not is_nan(value) and not is_inf(value) else default_value

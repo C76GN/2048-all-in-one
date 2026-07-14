@@ -338,17 +338,7 @@ func capture_burst(options: Dictionary = {}) -> Dictionary:
 		burst_finished.emit(report)
 		return report
 
-	var tree: SceneTree = _get_scene_tree()
-	var previous_paused: bool = false
-	var should_pause_tree: bool = GFVariantData.get_option_bool(options, "pause_tree", false)
-	if tree != null:
-		previous_paused = tree.paused
-		if should_pause_tree:
-			tree.paused = true
-
-	var previous_locale: String = TranslationServer.get_locale()
-	var previous_size: Vector2i = DisplayServer.window_get_size()
-	var resized_window: bool = false
+	var environment_transaction: Dictionary = _begin_burst_environment_transaction(options)
 	_burst_capture_active = true
 	burst_started.emit(options.duplicate(true))
 
@@ -358,7 +348,7 @@ func capture_burst(options: Dictionary = {}) -> Dictionary:
 		for resolution: Vector2i in resolutions:
 			if _is_valid_resolution(resolution):
 				DisplayServer.window_set_size(resolution)
-				resized_window = true
+				_mark_burst_window_resized(environment_transaction)
 			await _wait_for_capture_frame(GFVariantData.get_option_float(options, "frame_delay_seconds", 0.0))
 
 			for format: String in formats:
@@ -369,12 +359,7 @@ func capture_burst(options: Dictionary = {}) -> Dictionary:
 				capture_options["resolution"] = DisplayServer.window_get_size() if resolution == Vector2i.ZERO else resolution
 				records.append(save_viewport_screenshot("", capture_options))
 
-	TranslationServer.set_locale(previous_locale)
-	if resized_window:
-		DisplayServer.window_set_size(previous_size)
-	if tree != null and should_pause_tree:
-		tree.paused = previous_paused
-
+	_restore_burst_environment(environment_transaction)
 	_burst_capture_active = false
 	_update_burst_report_counts(report, records)
 	burst_finished.emit(report)
@@ -399,6 +384,47 @@ func _get_scene_tree() -> SceneTree:
 		var tree: SceneTree = main_loop
 		return tree
 	return null
+
+
+func _begin_burst_environment_transaction(options: Dictionary) -> Dictionary:
+	var tree: SceneTree = _get_scene_tree()
+	var should_pause_tree: bool = GFVariantData.get_option_bool(options, "pause_tree", false)
+	var transaction: Dictionary = {
+		"tree": tree,
+		"previous_paused": tree.paused if tree != null else false,
+		"should_pause_tree": should_pause_tree,
+		"previous_locale": TranslationServer.get_locale(),
+		"previous_size": DisplayServer.window_get_size(),
+		"resized_window": false,
+		"restored": false,
+	}
+	if tree != null and should_pause_tree:
+		tree.paused = true
+	return transaction
+
+
+func _mark_burst_window_resized(transaction: Dictionary) -> void:
+	transaction["resized_window"] = true
+
+
+func _restore_burst_environment(transaction: Dictionary) -> void:
+	if GFVariantData.get_option_bool(transaction, "restored"):
+		return
+	TranslationServer.set_locale(GFVariantData.get_option_string(transaction, "previous_locale"))
+	if GFVariantData.get_option_bool(transaction, "resized_window"):
+		var previous_size_value: Variant = GFVariantData.get_option_value(transaction, "previous_size", Vector2i.ZERO)
+		if previous_size_value is Vector2i:
+			var previous_size: Vector2i = previous_size_value
+			if _is_valid_resolution(previous_size):
+				DisplayServer.window_set_size(previous_size)
+	var tree_value: Variant = GFVariantData.get_option_value(transaction, "tree", null)
+	if (
+		tree_value is SceneTree
+		and GFVariantData.get_option_bool(transaction, "should_pause_tree")
+	):
+		var tree: SceneTree = tree_value
+		tree.paused = GFVariantData.get_option_bool(transaction, "previous_paused")
+	transaction["restored"] = true
 
 
 func _get_viewport_option(options: Dictionary) -> Viewport:

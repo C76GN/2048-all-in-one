@@ -86,6 +86,7 @@ func execute() -> Variant:
 	_execution_serial += 1
 	_remaining_seconds = seconds
 	_paused = false
+	_connect_host_guard()
 	_GF_ASYNC_CALL_SCRIPT.run_detached(Callable(self, &"_complete_after_delay_async"), [tree, _execution_serial])
 	return wait_completed
 
@@ -127,6 +128,17 @@ func finish() -> void:
 	wait_completed.emit()
 
 
+## 返回等待宿主节点，用于队列等待时绑定生命周期。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 有效且仍在场景树内的宿主节点；没有宿主时返回 null。
+func get_wait_guard_node() -> Node:
+	return host_node if is_instance_valid(host_node) and host_node.is_inside_tree() else null
+
+
 # --- 私有/辅助方法 ---
 
 func _complete_after_delay_async(tree: SceneTree, serial: int) -> void:
@@ -136,6 +148,11 @@ func _complete_after_delay_async(tree: SceneTree, serial: int) -> void:
 			return
 		await _await_frame(tree)
 		if serial != _execution_serial:
+			return
+		if not _is_host_guard_alive():
+			_execution_serial += 1
+			_remaining_seconds = 0.0
+			_paused = false
 			return
 
 		var current_msec: int = Time.get_ticks_msec()
@@ -149,6 +166,11 @@ func _complete_after_delay_async(tree: SceneTree, serial: int) -> void:
 
 	if serial != _execution_serial:
 		return
+	if not _is_host_guard_alive():
+		_execution_serial += 1
+		_remaining_seconds = 0.0
+		_paused = false
+		return
 
 	_remaining_seconds = 0.0
 	_paused = false
@@ -156,8 +178,10 @@ func _complete_after_delay_async(tree: SceneTree, serial: int) -> void:
 
 
 func _get_scene_tree() -> SceneTree:
-	if is_instance_valid(host_node) and host_node.is_inside_tree():
-		return host_node.get_tree()
+	if host_node != null:
+		if is_instance_valid(host_node) and host_node.is_inside_tree():
+			return host_node.get_tree()
+		return null
 	return _get_scene_tree_value(Engine.get_main_loop())
 
 
@@ -166,6 +190,24 @@ func _get_scene_tree_value(value: Variant) -> SceneTree:
 		var tree: SceneTree = value
 		return tree
 	return null
+
+
+func _connect_host_guard() -> void:
+	if host_node == null or not is_instance_valid(host_node):
+		return
+	var guard_callable: Callable = Callable(self, &"_on_host_node_tree_exiting")
+	if host_node.tree_exiting.is_connected(guard_callable):
+		return
+	var _connect_result: Error = host_node.tree_exiting.connect(
+		guard_callable,
+		CONNECT_ONE_SHOT as Object.ConnectFlags
+	) as Error
+
+
+func _is_host_guard_alive() -> bool:
+	if host_node == null:
+		return true
+	return is_instance_valid(host_node) and host_node.is_inside_tree()
 
 
 func _await_frame(tree: SceneTree) -> void:
@@ -181,3 +223,9 @@ func _should_pause_countdown(tree: SceneTree) -> bool:
 	if process_always:
 		return false
 	return tree.paused
+
+
+# --- 信号处理函数 ---
+
+func _on_host_node_tree_exiting() -> void:
+	cancel()

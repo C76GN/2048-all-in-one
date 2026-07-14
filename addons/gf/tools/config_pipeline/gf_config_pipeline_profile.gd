@@ -12,6 +12,19 @@ class_name GFConfigPipelineProfile
 extends Resource
 
 
+# --- 常量 ---
+
+const _BUILD_OPTION_KEYS: PackedStringArray = [
+	"database_id",
+	"version",
+	"metadata",
+	"validate_database",
+	"validate_schema",
+	"parse_options",
+	"rebuild_indexes",
+]
+
+
 # --- 导出变量 ---
 
 ## Profile 稳定标识。
@@ -136,15 +149,9 @@ func make_build_options(overrides: Dictionary = {}) -> Dictionary:
 		result["metadata"] = merged_metadata
 
 	var _merge_build_options_result: Dictionary = GFVariantData.merge_dictionary(result, GFVariantData.get_option_dictionary(overrides, "build_options"))
-	var direct_overrides: Dictionary = overrides.duplicate(true)
-	var _build_options_removed: bool = direct_overrides.erase("build_options")
-	var _save_options_removed: bool = direct_overrides.erase("save_options")
-	var _output_path_removed: bool = direct_overrides.erase("output_path")
-	var _access_options_removed: bool = direct_overrides.erase("access_options")
-	var _access_output_path_removed: bool = direct_overrides.erase("access_output_path")
-	var _access_class_name_removed: bool = direct_overrides.erase("access_class_name")
-	var _access_provider_accessor_removed: bool = direct_overrides.erase("access_provider_accessor")
-	var _merge_direct_overrides_result: Dictionary = GFVariantData.merge_dictionary(result, direct_overrides)
+	for key: String in _BUILD_OPTION_KEYS:
+		if overrides.has(key):
+			result[key] = GFVariantData.duplicate_variant(overrides[key])
 	return result
 
 

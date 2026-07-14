@@ -113,7 +113,7 @@ func start(
 		_next_event_index = 0
 		source.clear_all()
 	else:
-		_next_event_index = _find_next_event_index(elapsed_seconds)
+		_rebuild_source_state_at_elapsed_time()
 	playback_started.emit(recording)
 	return true
 

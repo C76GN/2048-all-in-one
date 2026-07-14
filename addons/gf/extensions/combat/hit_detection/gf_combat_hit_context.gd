@@ -199,3 +199,20 @@ func to_dict() -> Dictionary:
 		"normal_3d": normal_3d,
 		"metadata": metadata.duplicate(true),
 	}
+
+
+## 转换为 JSON-safe 报告字典。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param options: 传给 GFReportValueCodec 的编码选项。
+## [br]
+## @return 报告字典快照。
+## [br]
+## @schema options: Dictionary with GFReportValueCodec encoding options.
+## [br]
+## @schema return: JSON-safe Dictionary based on to_dict().
+func to_report_dictionary(options: Dictionary = {}) -> Dictionary:
+	return GFReportValueCodec.to_report_dictionary(to_dict(), options)

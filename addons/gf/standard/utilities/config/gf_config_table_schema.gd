@@ -533,10 +533,11 @@ func _validate_array_table(rows: Array, report: Dictionary, options: Dictionary)
 		var record: Dictionary = GFVariantData.as_dictionary(row)
 		var row_key: Variant = _get_record_row_key(record, index)
 		var row_options: Dictionary = _make_row_options(options, index)
+		var table_record: Dictionary = coerce_record(record) if coerce_values else record
 		valid_rows.append({
 			"row_key": row_key,
 			"row_index": index,
-			"record": record,
+			"record": table_record,
 		})
 		_merge_report(report, validate_record(record, row_key, row_options))
 		_validate_unique_id(record, row_key, seen_ids, report, row_options)
@@ -556,9 +557,10 @@ func _validate_dictionary_table(table: Dictionary, report: Dictionary, options: 
 
 		var record: Dictionary = GFVariantData.as_dictionary(row)
 		var row_key: Variant = _get_record_row_key(record, key)
+		var table_record: Dictionary = coerce_record(record) if coerce_values else record
 		valid_rows.append({
 			"row_key": row_key,
-			"record": record,
+			"record": table_record,
 		})
 		_merge_report(report, validate_record(record, row_key, options))
 		_validate_unique_id(record, row_key, seen_ids, report, options)

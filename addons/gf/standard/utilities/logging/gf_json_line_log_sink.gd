@@ -12,6 +12,23 @@ class_name GFJsonLineLogSink
 extends GFLogSink
 
 
+# --- 枚举 ---
+
+## JSONL 文件打开策略。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+enum FileOpenMode {
+	## 每次 init() 截断已有文件。
+	TRUNCATE,
+	## 每次 init() 追加到已有文件末尾。
+	APPEND,
+	## 目标文件已存在时拒绝打开。
+	FAIL_IF_EXISTS,
+}
+
+
 # --- 导出变量 ---
 
 ## 输出文件路径。留空时会根据 GFLogUtility 当前日志文件派生同名 `.jsonl` 文件。
@@ -41,6 +58,13 @@ extends GFLogSink
 	set(value):
 		max_jsonl_files = maxi(value, 1)
 
+## 自定义 file_path 重复初始化时的打开策略。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+@export var file_open_mode: FileOpenMode = FileOpenMode.TRUNCATE
+
 
 # --- 私有变量 ---
 
@@ -48,6 +72,10 @@ var _file: FileAccess
 var _effective_file_path: String = ""
 var _last_flush_msec: int = 0
 var _uses_default_file_path: bool = false
+var _last_error: Error = OK
+var _last_error_message: String = ""
+var _write_error_count: int = 0
+var _cleanup_error_count: int = 0
 
 
 # --- 公共方法 ---
@@ -59,13 +87,15 @@ var _uses_default_file_path: bool = false
 ## @param owner: 持有该 sink 的日志工具。
 func init(owner: Object) -> void:
 	_effective_file_path = _resolve_file_path(owner)
-	_ensure_parent_dir(_effective_file_path)
-	_file = FileAccess.open(_effective_file_path, FileAccess.WRITE)
+	_last_error = OK
+	_last_error_message = ""
+	var directory_error: Error = _ensure_parent_dir(_effective_file_path)
+	if directory_error != OK:
+		return
+	_file = _open_jsonl_file(_effective_file_path)
 	if _file == null:
-		push_error("[GFJsonLineLogSink] 无法创建日志文件：%s，错误码：%s" % [
-			_effective_file_path,
-			FileAccess.get_open_error(),
-		])
+		if _last_error == OK:
+			_record_error(FileAccess.get_open_error(), "无法创建日志文件：%s" % _effective_file_path, true)
 	else:
 		_last_flush_msec = Time.get_ticks_msec()
 
@@ -89,7 +119,11 @@ func write(entry: Dictionary) -> void:
 		var payload_dictionary: Dictionary = payload
 		var _erase_result_90: Variant = payload_dictionary.erase("text")
 
-	var _store_line_result_92: Variant = _file.store_line(JSON.stringify(payload))
+	var stored: bool = _file.store_line(JSON.stringify(payload))
+	if not stored:
+		_write_error_count += 1
+		_record_error(_file.get_error(), "无法写入 JSONL 日志：%s" % _effective_file_path, true)
+		return
 	_flush_if_needed()
 
 
@@ -121,6 +155,27 @@ func get_file_path() -> String:
 	return _effective_file_path
 
 
+## 获取 JSONL sink 的调试快照。
+## [br]
+## @api public
+## [br]
+## @return 当前文件、打开状态和最近错误信息。
+## [br]
+## @schema return: Dictionary，包含 file_path、is_open、last_error、last_error_message、write_error_count、cleanup_error_count 和 uses_default_file_path。
+## [br]
+## @since unreleased
+func get_debug_snapshot() -> Dictionary:
+	return {
+		"file_path": _effective_file_path,
+		"is_open": _file != null,
+		"last_error": int(_last_error),
+		"last_error_message": _last_error_message,
+		"write_error_count": _write_error_count,
+		"cleanup_error_count": _cleanup_error_count,
+		"uses_default_file_path": _uses_default_file_path,
+	}
+
+
 # --- 私有/辅助方法 ---
 
 func _resolve_file_path(owner: Object) -> String:
@@ -136,13 +191,33 @@ func _resolve_file_path(owner: Object) -> String:
 	return "user://logs/gf_log_%d.jsonl" % Time.get_ticks_msec()
 
 
-func _ensure_parent_dir(path: String) -> void:
+func _ensure_parent_dir(path: String) -> Error:
 	var base_dir: String = path.get_base_dir()
 	if base_dir.is_empty() or base_dir == ".":
-		return
+		return OK
 
 	if not DirAccess.dir_exists_absolute(base_dir):
-		var _make_dir_recursive_absolute_result_145: Variant = DirAccess.make_dir_recursive_absolute(base_dir)
+		var make_dir_error: Error = DirAccess.make_dir_recursive_absolute(base_dir)
+		if make_dir_error != OK:
+			_record_error(make_dir_error, "无法创建 JSONL 日志目录：%s" % base_dir, true)
+			return make_dir_error
+	return OK
+
+
+func _open_jsonl_file(path: String) -> FileAccess:
+	if file_open_mode == FileOpenMode.FAIL_IF_EXISTS and FileAccess.file_exists(path):
+		_record_error(ERR_ALREADY_EXISTS, "JSONL 日志文件已存在：%s" % path, true)
+		return null
+
+	if file_open_mode == FileOpenMode.APPEND:
+		var append_file: FileAccess = FileAccess.open(path, FileAccess.READ_WRITE)
+		if append_file == null:
+			append_file = FileAccess.open(path, FileAccess.WRITE)
+		if append_file != null:
+			append_file.seek_end()
+		return append_file
+
+	return FileAccess.open(path, FileAccess.WRITE)
 
 
 func _flush_if_needed() -> void:
@@ -166,7 +241,11 @@ func _cleanup_old_jsonl_files() -> void:
 		return
 
 	var files: PackedStringArray = PackedStringArray()
-	var _list_dir_begin_result_169: Variant = dir.list_dir_begin()
+	var list_error: Error = dir.list_dir_begin()
+	if list_error != OK:
+		_cleanup_error_count += 1
+		_record_error(list_error, "无法列出 JSONL 日志目录：%s" % base_dir)
+		return
 	var file_name: String = dir.get_next()
 	while file_name != "":
 		if not dir.current_is_dir() and file_name.begins_with("gf_log_") and file_name.ends_with(".jsonl"):
@@ -180,8 +259,17 @@ func _cleanup_old_jsonl_files() -> void:
 	files.sort()
 	var to_remove: int = files.size() - max_jsonl_files
 	for index: int in range(to_remove):
-		var _remove_absolute_result_183: Variant = DirAccess.remove_absolute(base_dir.path_join(files[index]))
+		var remove_error: Error = DirAccess.remove_absolute(base_dir.path_join(files[index]))
+		if remove_error != OK:
+			_cleanup_error_count += 1
+			_record_error(remove_error, "无法清理旧 JSONL 日志：%s" % base_dir.path_join(files[index]))
 
 
 func _sanitize_for_json(value: Variant, _depth: int = 0) -> Variant:
 	return GFLogUtility.sanitize_log_value(value)
+
+
+func _record_error(error: Error, message: String, _as_error: bool = false) -> void:
+	_last_error = error
+	_last_error_message = "%s，错误码：%s" % [message, error]
+	push_warning("[GFJsonLineLogSink] %s" % _last_error_message)

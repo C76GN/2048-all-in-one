@@ -122,7 +122,7 @@ func _apply_context(instance: Object) -> void:
 	if instance == null or context == null:
 		return
 
-	if instance.has_method("set_interaction_context"):
+	if _can_call_set_interaction_context(instance):
 		instance.call("set_interaction_context", context)
 	elif _has_property(instance, &"interaction_context"):
 		instance.set("interaction_context", context)
@@ -147,4 +147,14 @@ func _has_property(instance: Object, property_name: StringName) -> bool:
 	for property_info: Dictionary in instance.get_property_list():
 		if StringName(GFVariantData.get_option_string(property_info, "name")) == property_name:
 			return true
+	return false
+
+
+func _can_call_set_interaction_context(instance: Object) -> bool:
+	if instance == null or not instance.has_method("set_interaction_context"):
+		return false
+	for method_info: Dictionary in instance.get_method_list():
+		if StringName(GFVariantData.get_option_string(method_info, "name")) != &"set_interaction_context":
+			continue
+		return GFVariantData.get_option_array(method_info, "args").size() >= 1
 	return false

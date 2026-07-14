@@ -109,7 +109,7 @@ func init() -> void:
 	_is_flushing = false
 	_shutdown = false
 	if should_keep_explicit_client_id:
-		if config.persist_client_id:
+		if _should_persist_client_id():
 			_save_client_id(_client_id)
 	else:
 		_client_id = _load_or_create_client_id()
@@ -175,7 +175,7 @@ func identify(client_id: String) -> void:
 		return
 	_client_id = client_id
 	_explicit_client_id = true
-	if config.persist_client_id:
+	if _should_persist_client_id():
 		_save_client_id(_client_id)
 
 
@@ -201,7 +201,7 @@ func track(event_name: StringName, properties: Dictionary = {}) -> void:
 		"client_id": _client_id,
 		"session_id": _session_id,
 		"timestamp": Time.get_datetime_string_from_system(true, true),
-		"properties": properties.duplicate(true),
+		"properties": _json_safe_dictionary(properties),
 	}
 
 	if config.auto_capture_context:
@@ -211,7 +211,7 @@ func track(event_name: StringName, properties: Dictionary = {}) -> void:
 		event_data["context"] = event_context
 
 	_queue.append(event_data)
-	event_tracked.emit(event_name, event_data)
+	event_tracked.emit(event_name, event_data.duplicate(true))
 
 	if _queue.size() >= _get_batch_size():
 		flush()
@@ -228,9 +228,9 @@ func flush() -> void:
 	var count: int = mini(_get_batch_size(), _queue.size())
 	var batch: Array = []
 	for _i: int in range(count):
-		batch.append(GFVariantData.as_dictionary(_queue.pop_front()))
+		batch.append(GFVariantData.as_dictionary(_queue.pop_front()).duplicate(true))
 	_pending_batch = batch.duplicate(true)
-	flush_started.emit(batch)
+	flush_started.emit(_duplicate_batch(batch))
 	_send_batch(batch)
 
 
@@ -319,8 +319,9 @@ func capture_context() -> Dictionary:
 # --- 私有/辅助方法 ---
 
 func _send_batch(batch: Array) -> void:
+	var payload: Dictionary = _build_payload(batch)
 	if transport_callback.is_valid():
-		var custom_result: Variant = transport_callback.call(_build_payload(batch))
+		var custom_result: Variant = transport_callback.call(payload.duplicate(true))
 		if custom_result is Dictionary:
 			var custom_dictionary: Dictionary = custom_result
 			_finish_flush(custom_dictionary, batch)
@@ -340,7 +341,6 @@ func _send_batch(batch: Array) -> void:
 		_finish_flush({ "success": false, "error": "HTTPRequest unavailable" }, batch)
 		return
 
-	var payload: Dictionary = _build_payload(batch)
 	var payload_text: String = JSON.stringify(payload)
 	var error: Error = OK
 	if config.compress_payload:
@@ -429,11 +429,19 @@ func _finish_flush(result: Dictionary, batch: Array) -> void:
 		for index: int in range(batch.size() - 1, -1, -1):
 			_queue.push_front(GFVariantData.as_dictionary(batch[index]))
 		_trim_queue_to_max_size()
-		flush_failed.emit(result)
+		flush_failed.emit(result.duplicate(true))
+	else:
+		var accepted_count: int = clampi(GFVariantData.get_option_int(result, "accepted", batch.size()), 0, batch.size())
+		if accepted_count < batch.size():
+			for index: int in range(batch.size() - 1, accepted_count - 1, -1):
+				_queue.push_front(GFVariantData.as_dictionary(batch[index]).duplicate(true))
+			_trim_queue_to_max_size()
 
 	_pending_batch.clear()
 	_is_flushing = false
-	flush_completed.emit(result)
+	flush_completed.emit(result.duplicate(true))
+	if _shutdown and config.flush_on_shutdown and not _queue.is_empty():
+		flush()
 
 
 func _trim_queue_to_max_size() -> void:
@@ -451,8 +459,8 @@ func _build_payload(batch: Array) -> Dictionary:
 		var payload: Variant = payload_builder.call(batch)
 		if payload is Dictionary:
 			var payload_dictionary: Dictionary = payload
-			return payload_dictionary
-	return { "events": batch }
+			return _json_safe_dictionary(payload_dictionary)
+	return _json_safe_dictionary({ "events": batch })
 
 
 func _compress_payload_text(payload_text: String) -> PackedByteArray:
@@ -460,7 +468,7 @@ func _compress_payload_text(payload_text: String) -> PackedByteArray:
 
 
 func _load_or_create_client_id() -> String:
-	if not config.persist_client_id:
+	if not _should_persist_client_id():
 		return _generate_id()
 
 	var loaded_id: String = _load_client_id()
@@ -470,6 +478,27 @@ func _load_or_create_client_id() -> String:
 	var generated_id: String = _generate_id()
 	_save_client_id(generated_id)
 	return generated_id
+
+
+func _should_persist_client_id() -> bool:
+	return config.persist_client_id and config.enabled and (not config.endpoint_url.is_empty() or transport_callback.is_valid())
+
+
+func _json_safe_dictionary(value: Dictionary) -> Dictionary:
+	var sanitized: Variant = GFLogUtility.sanitize_log_value(value)
+	if sanitized is Dictionary:
+		var sanitized_dictionary: Dictionary = sanitized
+		return sanitized_dictionary
+	return {}
+
+
+func _duplicate_batch(batch: Array) -> Array:
+	var result: Array = []
+	for item: Variant in batch:
+		if item is Dictionary:
+			var item_dictionary: Dictionary = item
+			result.append(item_dictionary.duplicate(true))
+	return result
 
 
 func _load_client_id() -> String:

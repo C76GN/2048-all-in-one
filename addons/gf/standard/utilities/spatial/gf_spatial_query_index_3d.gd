@@ -527,25 +527,7 @@ func _aabb_contains_point(bounds: AABB, point: Vector3) -> bool:
 
 
 func _sort_entity_keys(left_key: String, right_key: String) -> bool:
-	var left_kind: String = _get_entity_key_kind(left_key)
-	var right_kind: String = _get_entity_key_kind(right_key)
-	if left_kind == right_kind and left_kind == "int":
-		return _get_int_entity_key_value(left_key) < _get_int_entity_key_value(right_key)
-	return left_key < right_key
-
-
-func _get_entity_key_kind(entity_key: String) -> String:
-	var separator_index: int = entity_key.find(":")
-	if separator_index < 0:
-		return ""
-	return entity_key.substr(0, separator_index)
-
-
-func _get_int_entity_key_value(entity_key: String) -> int:
-	var prefix: String = "int:"
-	if not entity_key.begins_with(prefix):
-		return 0
-	return int(entity_key.substr(prefix.length()))
+	return GFSpatialQueryIdentity.sort_keys(left_key, right_key)
 
 
 func _ensure_spatial_hash() -> bool:
@@ -574,9 +556,15 @@ func _get_active_strategy() -> StringName:
 
 
 func _make_record(entity: Variant, entity_bounds: AABB, p_metadata: Dictionary) -> Dictionary:
-	if entity is Object:
-		var object: Object = _variant_to_object(entity)
+	var identity: GFSpatialQueryIdentity = GFSpatialQueryIdentity.from_value(entity)
+	if identity.key.is_empty():
+		return {}
+	if identity.kind == GFSpatialQueryIdentity.KIND_OBJECT:
+		var object: Object = identity.get_object()
+		if object == null:
+			return {}
 		return {
+			"identity": identity.to_dictionary(),
 			"entity_ref": weakref(object),
 			"entity": null,
 			"bounds": entity_bounds,
@@ -584,8 +572,9 @@ func _make_record(entity: Variant, entity_bounds: AABB, p_metadata: Dictionary) 
 		}
 
 	return {
+		"identity": identity.to_dictionary(),
 		"entity_ref": null,
-		"entity": GFVariantData.duplicate_variant(entity, true),
+		"entity": identity.get_value(),
 		"bounds": entity_bounds,
 		"metadata": p_metadata.duplicate(true),
 	}
@@ -593,6 +582,7 @@ func _make_record(entity: Variant, entity_bounds: AABB, p_metadata: Dictionary) 
 
 func _record_to_snapshot(entity_record: Dictionary) -> Dictionary:
 	return {
+		"identity": GFVariantData.get_option_dictionary(entity_record, "identity").duplicate(true),
 		"entity": _record_to_entity(entity_record),
 		"bounds": _get_record_bounds(entity_record),
 		"metadata": GFVariantData.get_option_dictionary(entity_record, "metadata").duplicate(true),
@@ -626,25 +616,7 @@ func _get_record_bounds(entity_record: Dictionary) -> AABB:
 
 
 func _make_entity_key(entity: Variant) -> String:
-	if entity == null:
-		return ""
-	if entity is Object:
-		var object: Object = _variant_to_object(entity)
-		return "object:%d" % object.get_instance_id()
-	if entity is StringName:
-		var string_name_value: StringName = entity
-		if string_name_value == &"":
-			return ""
-		return "string_name:%s" % String(string_name_value)
-	if entity is String:
-		var string_value: String = entity
-		if string_value.is_empty():
-			return ""
-		return "string:%s" % string_value
-	if entity is int:
-		var int_value: int = entity
-		return "int:%d" % int_value
-	return ""
+	return GFSpatialQueryIdentity.make_key(entity)
 
 
 func _mark_index_dirty() -> void:
@@ -672,13 +644,6 @@ func _normalize_aabb(entity_bounds: AABB) -> AABB:
 		position.z += size.z
 		size.z = -size.z
 	return AABB(position, size)
-
-
-func _variant_to_object(value: Variant) -> Object:
-	if value is Object:
-		var object: Object = value
-		return object
-	return null
 
 
 func _variant_to_weak_ref(value: Variant) -> WeakRef:

@@ -94,13 +94,13 @@ var activation_query: GFTagQuery = null
 ## @schema activation_checks: Array[Callable]，用于项目自定义成本、状态或上下文检查。
 var activation_checks: Array[Callable] = []
 
-## 激活提交回调。执行成功后、进入冷却前调用。
+## 激活提交回调。在技能副作用执行前调用；失败会阻断执行和冷却。
 ## [br]
 ## @api public
 ## [br]
 ## @since 6.0.0
 ## [br]
-## @schema activation_commit_callbacks: Array[Callable]，用于项目自定义成功提交、资源结算或日志写入。
+## @schema activation_commit_callbacks: Array[Callable]，用于项目自定义资源扣除、预留确认或事务提交。
 var activation_commit_callbacks: Array[Callable] = []
 
 
@@ -227,13 +227,13 @@ func execute(
 		activation_failed.emit(self, context)
 		return false
 
-	if not _try_activate(context):
-		var _execute_failed_report: Dictionary = _fail_activation_context(context, &"execute_failed")
+	report = _run_activation_callbacks(context, activation_commit_callbacks, &"activation_commit_failed")
+	if not _report_ok(report):
 		activation_failed.emit(self, context)
 		return false
 
-	report = _run_activation_callbacks(context, activation_commit_callbacks, &"activation_commit_failed")
-	if not _report_ok(report):
+	if not _try_activate(context):
+		var _execute_failed_report: Dictionary = _fail_activation_context(context, &"execute_failed")
 		activation_failed.emit(self, context)
 		return false
 	cooldown_left = cooldown_max

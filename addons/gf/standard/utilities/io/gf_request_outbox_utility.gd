@@ -384,6 +384,8 @@ func get_failed_requests() -> Array[GFRequestEnvelope]:
 func save_queue() -> Error:
 	if storage_path.is_empty():
 		return ERR_INVALID_PARAMETER
+	if not _is_allowed_storage_path(storage_path):
+		return ERR_UNAUTHORIZED
 
 	var base_dir: String = storage_path.get_base_dir()
 	if not base_dir.is_empty() and base_dir != "user://":
@@ -409,6 +411,8 @@ func save_queue() -> Error:
 ## @return Godot 错误码。
 func load_queue() -> Error:
 	_invalidate_replay()
+	if not storage_path.is_empty() and not _is_allowed_storage_path(storage_path):
+		return ERR_UNAUTHORIZED
 	_queue.clear()
 	_failed_requests.clear()
 	if storage_path.is_empty() or not FileAccess.file_exists(storage_path):
@@ -612,6 +616,19 @@ func _get_request_ids(requests: Array[GFRequestEnvelope]) -> PackedStringArray:
 
 func _generate_request_id() -> String:
 	return "req_%d_%d" % [Time.get_unix_time_from_system(), randi()]
+
+
+func _is_allowed_storage_path(path: String) -> bool:
+	var normalized_path: String = path.replace("\\", "/").strip_edges()
+	if not normalized_path.begins_with("user://"):
+		return false
+	var relative_path: String = normalized_path.substr("user://".length())
+	if relative_path.is_empty():
+		return false
+	for segment: String in relative_path.split("/", false):
+		if segment == "..":
+			return false
+	return true
 
 
 func _store_string_checked(file: FileAccess, value: String) -> void:

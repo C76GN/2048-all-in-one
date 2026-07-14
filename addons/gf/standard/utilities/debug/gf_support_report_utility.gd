@@ -345,7 +345,7 @@ func add_attachment_to_report(
 ## [br]
 ## @schema report: Dictionary，build_report() 返回结构。
 func export_report_json(report: Dictionary, indent: String = "\t") -> String:
-	return JSON.stringify(report, indent)
+	return GFReportValueCodec.stringify_json_compatible(report, indent)
 
 
 ## 将报告导出为 Markdown 文本。
@@ -859,9 +859,11 @@ func _get_path_roots(options: Dictionary, key: String, default_roots: PackedStri
 
 
 func _is_path_under_allowed_roots(path: String, roots: PackedStringArray) -> bool:
-	var normalized_path: String = path.replace("\\", "/")
+	var normalized_path: String = _canonical_path_for_boundary(path)
+	if normalized_path.is_empty():
+		return false
 	for root: String in roots:
-		var normalized_root: String = root.replace("\\", "/")
+		var normalized_root: String = _canonical_path_for_boundary(root)
 		if normalized_root.is_empty():
 			continue
 		if normalized_path == normalized_root:
@@ -872,6 +874,33 @@ func _is_path_under_allowed_roots(path: String, roots: PackedStringArray) -> boo
 		if normalized_path.begins_with(prefix):
 			return true
 	return false
+
+
+func _canonical_path_for_boundary(path: String) -> String:
+	var normalized_path: String = path.replace("\\", "/").strip_edges()
+	if normalized_path.begins_with("user://"):
+		return _canonical_virtual_path(normalized_path, "user://")
+	if normalized_path.begins_with("res://"):
+		return _canonical_virtual_path(normalized_path, "res://")
+	return normalized_path.simplify_path()
+
+
+func _canonical_virtual_path(path: String, prefix: String) -> String:
+	var relative_path: String = path.substr(prefix.length())
+	var segments: PackedStringArray = relative_path.split("/", false)
+	var stack: PackedStringArray = PackedStringArray()
+	for segment: String in segments:
+		if segment == ".":
+			continue
+		if segment == "..":
+			if stack.is_empty():
+				return ""
+			stack.remove_at(stack.size() - 1)
+			continue
+		var _segment_appended: bool = stack.append(segment)
+	if stack.is_empty():
+		return prefix
+	return prefix + "/".join(stack)
 
 
 func _normalize_submit_result(raw_result: Variant) -> Dictionary:
@@ -1084,10 +1113,7 @@ func _tags_to_markdown_text(value: Variant) -> String:
 
 
 func _variant_to_json_text(value: Variant) -> String:
-	var compatible: Variant = GFVariantJsonCodec.variant_to_json_compatible(value, {
-		"unsupported": "string",
-	})
-	return JSON.stringify(compatible, "\t")
+	return GFReportValueCodec.stringify_json_compatible(value, "\t")
 
 
 func _get_sorted_dictionary_keys(dictionary: Dictionary) -> Array:

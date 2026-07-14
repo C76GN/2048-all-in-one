@@ -85,6 +85,14 @@ var _metric_series: Dictionary = {}
 ## [br]
 ## @api public
 func init() -> void:
+	if is_instance_valid(_overlay_gui):
+		_overlay_gui._toggle_key = toggle_key
+		_overlay_gui._refresh_interval_seconds = refresh_interval_seconds
+		_overlay_gui._architecture_provider = Callable(self, "_get_architecture_or_null")
+		_overlay_gui._watch_snapshot_provider = Callable(self, "get_watch_snapshot")
+		_overlay_gui._panel_snapshot_provider = Callable(self, "get_panel_snapshot")
+		return
+
 	if debug_only and not OS.is_debug_build():
 		return
 
@@ -797,7 +805,7 @@ func _sort_metric_series_entries(left: Dictionary, right: Dictionary) -> bool:
 
 func _format_panel_content(value: Variant) -> String:
 	if value is Dictionary or value is Array:
-		return JSON.stringify(value, "\t")
+		return GFReportValueCodec.stringify_json_compatible(value, "\t")
 	return str(value)
 
 

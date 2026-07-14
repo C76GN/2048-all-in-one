@@ -9,6 +9,7 @@ extends SceneTree
 # --- 常量 ---
 
 const _GF_PACKAGE_MANAGER_BACKEND = preload("res://addons/gf/kernel/package/gf_package_manager_backend.gd")
+const _GF_REPORT_VALUE_CODEC_SCRIPT = preload("res://addons/gf/kernel/core/gf_report_value_codec.gd")
 const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
 
 ## 默认包 lockfile 相对项目路径。
@@ -53,6 +54,13 @@ const COMMAND_UPDATE: String = "update"
 ## @layer kernel/package
 const COMMAND_VERIFY: String = "verify"
 
+## recover 命令名称。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/package
+const COMMAND_RECOVER: String = "recover"
+
 
 # --- Godot 生命周期方法 ---
 
@@ -60,7 +68,9 @@ func _init() -> void:
 	var raw_args: PackedStringArray = _get_cli_args()
 	var result: Dictionary = _run_cli(raw_args)
 	if _cli_wants_json(raw_args):
-		print(JSON.stringify(result, "", false))
+		print(_GF_REPORT_VALUE_CODEC_SCRIPT.stringify_json_compatible(result, "", false, {
+			"path_redaction": "none",
+		}))
 	else:
 		print(_format_human_result(result))
 	quit(0 if _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(result, "ok", false) else 1)
@@ -114,6 +124,11 @@ func _run_cli(raw_args: PackedStringArray) -> Dictionary:
 		)
 	if command == COMMAND_VERIFY:
 		return _run_verify(registry_path, options)
+	if command == COMMAND_RECOVER:
+		return _GF_PACKAGE_MANAGER_BACKEND.recover_package_transaction(
+			_GF_VARIANT_ACCESS_SCRIPT.get_option_string(options, "project_root"),
+			_GF_VARIANT_ACCESS_SCRIPT.get_option_string(options, "lockfile")
+		)
 
 	var package_ids: PackedStringArray = _GF_VARIANT_ACCESS_SCRIPT.get_option_packed_string_array(options, "packages")
 	var all_installed: bool = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(options, "all_installed", false)
@@ -358,6 +373,7 @@ func _is_valid_command(command: String) -> bool:
 		or command == COMMAND_UNINSTALL
 		or command == COMMAND_UPDATE
 		or command == COMMAND_VERIFY
+		or command == COMMAND_RECOVER
 	)
 
 
@@ -392,6 +408,7 @@ func _usage_text() -> String:
 		"  godot --headless --path <project> --script res://addons/gf/kernel/package/gf_package_cli.gd -- update [<package-id>...] [--all-installed] [--registry <index.json-or-url-or-source.json>] [--channel <name>] [--project-root <target>] [--lockfile <path>] [--cache-dir <path>] [--dry-run] [--json]",
 		"  godot --headless --path <project> --script res://addons/gf/kernel/package/gf_package_cli.gd -- uninstall <package-id>... [--registry <index.json-or-url-or-source.json>] [--channel <name>] [--project-root <target>] [--lockfile <path>] [--cache-dir <path>] [--dry-run] [--force] [--json]",
 		"  godot --headless --path <project> --script res://addons/gf/kernel/package/gf_package_cli.gd -- verify [--registry <index.json-or-url-or-source.json>] [--channel <name>] [--project-root <target>] [--lockfile <path>] [--json]",
+		"  godot --headless --path <project> --script res://addons/gf/kernel/package/gf_package_cli.gd -- recover [--project-root <target>] [--lockfile <path>] [--json]",
 		"  --registry is optional; omit it to use the default GF release registry source.",
 	]))
 
@@ -458,6 +475,11 @@ func _format_human_result(result: Dictionary) -> String:
 		_append_human_flag_line(lines, "Rolled back", _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(result, "rolled_back", false))
 	elif operation == COMMAND_VERIFY:
 		_append_human_lockfile_verify(lines, result)
+	elif operation == COMMAND_RECOVER:
+		_append_human_line(lines, "Transaction outcome: %s" % _GF_VARIANT_ACCESS_SCRIPT.get_option_string(result, "outcome", "none"))
+		_append_human_flag_line(lines, "Recovered", _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(result, "recovered", false))
+		_append_human_flag_line(lines, "Rolled back", _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(result, "rolled_back", false))
+		_append_human_flag_line(lines, "Recovery required", _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(result, "recovery_required", false))
 
 	_append_human_issues(lines, _GF_VARIANT_ACCESS_SCRIPT.get_option_array(result, "issues"))
 	if not ok and result.has("usage"):

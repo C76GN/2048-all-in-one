@@ -123,7 +123,7 @@ func apply_instant(target: Object) -> void:
 func duplicate_step() -> GFTweenActionStep:
 	var step: GFTweenActionStep = GFTweenActionStep.new()
 	step.property_name = property_name
-	step.target_value = target_value
+	step.target_value = GFVariantData.duplicate_variant(target_value)
 	step.duration = duration
 	step.delay = delay
 	step.as_relative = as_relative

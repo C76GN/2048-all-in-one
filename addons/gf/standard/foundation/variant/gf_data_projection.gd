@@ -36,7 +36,7 @@ static func project_dictionary(values: Dictionary, options: Dictionary = {}) -> 
 	var source_values: Dictionary = values.duplicate(false)
 	var schema: GFDictionarySchema = _read_schema(options)
 	if schema != null:
-		source_values = schema.coerce_dictionary(source_values, GFVariantData.get_option_bool(options, "include_defaults", true))
+		source_values = _normalize_dictionary_with_schema(source_values, schema, options)
 
 	var state: Dictionary = _make_state(options)
 	var allowed_lookup: Dictionary = _make_allowed_lookup(options, schema)
@@ -302,6 +302,33 @@ static func _read_schema(options: Dictionary) -> GFDictionarySchema:
 		var schema: GFDictionarySchema = schema_value
 		return schema
 	return null
+
+
+static func _normalize_dictionary_with_schema(
+	values: Dictionary,
+	schema: GFDictionarySchema,
+	options: Dictionary
+) -> Dictionary:
+	var schema_options: Dictionary = {
+		"include_optional": GFVariantData.get_option_bool(options, "include_defaults", true),
+		"coerce": true,
+		"strip_extra_fields": false,
+		"validate_rows": true,
+		"keep_invalid_rows": true,
+		"path": GFVariantData.get_option_string(options, "path"),
+		"subject": GFVariantData.get_option_string(options, "subject", "Data projection"),
+	}
+	var normalized: Dictionary = schema.normalize_dictionary_array([values], schema_options)
+	var projection_report: GFValidationReport = _variant_to_validation_report(GFVariantData.get_option_value(options, "_projection_report"))
+	var schema_report: GFValidationReport = _variant_to_validation_report(GFVariantData.get_option_value(normalized, "report"))
+	if projection_report != null and schema_report != null:
+		var _merge_result: RefCounted = projection_report.merge(schema_report, false)
+
+	var rows: Array = GFVariantData.get_option_array(normalized, "rows")
+	if not rows.is_empty() and rows[0] is Dictionary:
+		var row: Dictionary = rows[0]
+		return row
+	return values.duplicate(true)
 
 
 static func _is_plain_key(value: Variant) -> bool:

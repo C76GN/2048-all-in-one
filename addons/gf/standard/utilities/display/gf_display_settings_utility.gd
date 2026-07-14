@@ -151,7 +151,7 @@ func register_default_settings() -> void:
 func apply_all() -> void:
 	apply_window_mode()
 	if get_window_mode() == DisplayServer.WINDOW_MODE_WINDOWED:
-		apply_window_size()
+		_apply_window_size(true)
 	apply_vsync_mode()
 	apply_locale()
 	apply_registered_audio_bus_volumes()
@@ -166,7 +166,7 @@ func set_window_mode(mode: DisplayServer.WindowMode) -> void:
 	_set_setting_value(WINDOW_MODE_KEY, int(mode))
 	apply_window_mode()
 	if mode == DisplayServer.WINDOW_MODE_WINDOWED:
-		apply_window_size()
+		_apply_window_size(true)
 
 
 ## 获取窗口模式设置。
@@ -242,14 +242,7 @@ func get_window_size() -> Vector2i:
 ## [br]
 ## @api public
 func apply_window_size() -> void:
-	var size: Vector2i = get_window_size()
-	if size.x <= 0 or size.y <= 0:
-		return
-	if DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
-		return
-
-	DisplayServer.window_set_size(size)
-	display_setting_applied.emit(WINDOW_SIZE_KEY, size)
+	_apply_window_size(false)
 
 
 ## 设置垂直同步模式并应用。
@@ -402,6 +395,20 @@ func apply_registered_audio_bus_volumes() -> void:
 
 # --- 私有/辅助方法 ---
 
+func _apply_window_size(allow_window_mode_transition: bool) -> void:
+	var size: Vector2i = get_window_size()
+	if size.x <= 0 or size.y <= 0:
+		return
+	if (
+		not allow_window_mode_transition
+		and DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED
+	):
+		return
+
+	DisplayServer.window_set_size(size)
+	display_setting_applied.emit(WINDOW_SIZE_KEY, size)
+
+
 func _set_setting_value(key: StringName, value: Variant) -> void:
 	var settings: GFSettingsUtility = _get_settings_utility()
 	if settings != null:
@@ -499,6 +506,8 @@ func _on_setting_changed(key: StringName, _old_value: Variant, _new_value: Varia
 	match key:
 		WINDOW_MODE_KEY:
 			apply_window_mode()
+			if get_window_mode() == DisplayServer.WINDOW_MODE_WINDOWED:
+				_apply_window_size(true)
 		WINDOW_SIZE_KEY:
 			apply_window_size()
 		VSYNC_MODE_KEY:

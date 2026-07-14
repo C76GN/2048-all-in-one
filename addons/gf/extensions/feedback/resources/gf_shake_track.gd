@@ -17,6 +17,8 @@ extends Resource
 ## 反馈采样波形。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 enum Waveform {
 	## 正弦波，适合可预期的摆动。
 	SINE,
@@ -31,6 +33,8 @@ enum Waveform {
 ## 轨道混合模式。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 enum BlendMode {
 	## 叠加到已有采样上。
 	ADD,
@@ -54,71 +58,99 @@ enum BlendMode {
 ## 是否启用该轨道。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var enabled: bool = true
 
 ## 轨道混合模式。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var blend_mode: BlendMode = BlendMode.ADD
 
 ## 轨道采样波形。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var waveform: Waveform = Waveform.NOISE
 
 ## 轨道开始进度，范围 0 到 1。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export_range(0.0, 1.0, 0.001) var start_progress: float = 0.0
 
 ## 轨道结束进度，范围 0 到 1。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export_range(0.0, 1.0, 0.001) var end_progress: float = 1.0
 
 ## 轨道振幅倍率。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export_range(0.0, 1000.0, 0.001, "or_greater") var amplitude: float = 1.0
 
 ## 每秒采样频率。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export_range(0.0, 240.0, 0.001, "or_greater") var frequency: float = 24.0
 
 ## 位移轴权重。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var position_axis: Vector3 = Vector3.ONE
 
 ## 旋转轴权重，单位度。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var rotation_axis_degrees: Vector3 = Vector3.ZERO
 
 ## 缩放偏移轴权重。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var scale_axis: Vector3 = Vector3.ZERO
 
 ## 轨道包络曲线。为空时使用线性衰减。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var envelope_curve: Curve = null
 
 ## 自定义波形曲线。仅在 waveform 为 CURVE 时使用。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var wave_curve: Curve = null
 
 ## 确定性采样种子。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var sample_seed: int = 1
 
 ## 项目自定义元数据。框架不解释该字段。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @schema metadata: Dictionary，项目自定义轨道元数据；框架会在采样结果中复制透传。
 @export var metadata: Dictionary = {}
@@ -130,6 +162,8 @@ enum BlendMode {
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param preset_progress: 预设归一化进度，范围 0 到 1。
 ## [br]
 ## @param elapsed_seconds: 预设已播放秒数。
@@ -138,7 +172,7 @@ enum BlendMode {
 ## [br]
 ## @param phase_offset: 相位偏移。
 ## [br]
-## @return 采样结果字典。
+## @return: 采样结果字典。
 ## [br]
 ## @schema return: Dictionary，包含 position: Vector3、rotation_degrees: Vector3、scale: Vector3、intensity: float、progress: float、track_progress: float 与 metadata: Dictionary。
 func sample(
@@ -189,7 +223,9 @@ func sample(
 ## [br]
 ## @api public
 ## [br]
-## @return 空采样结果字典。
+## @since 3.17.0
+## [br]
+## @return: 空采样结果字典。
 ## [br]
 ## @schema return: Dictionary，包含零值 position、rotation_degrees、scale、intensity、progress、track_progress 与空 metadata。
 static func zero_sample() -> Dictionary:
@@ -208,6 +244,8 @@ static func zero_sample() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param base_sample: 当前合成采样。
 ## [br]
 ## @param track_sample: 轨道采样。
@@ -218,7 +256,7 @@ static func zero_sample() -> Dictionary:
 ## [br]
 ## @schema track_sample: Dictionary，包含 position、rotation_degrees、scale、intensity 与 progress 字段的轨道采样。
 ## [br]
-## @return 合成后的采样。
+## @return: 合成后的采样。
 ## [br]
 ## @schema return: Dictionary，合并后的反馈采样，包含 position、rotation_degrees、scale、intensity 与 progress。
 static func blend_sample(base_sample: Dictionary, track_sample: Dictionary, mode: BlendMode) -> Dictionary:

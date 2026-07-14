@@ -100,14 +100,17 @@ func define_attribute(
 	if attribute_id == &"":
 		return
 
-	var safe_min: float = minf(min_value, max_value)
-	var safe_max: float = maxf(min_value, max_value)
-	var resolved_current: float = base_value
+	var finite_min: float = _finite_or_default(min_value, DEFAULT_MIN_VALUE)
+	var finite_max: float = _finite_or_default(max_value, DEFAULT_MAX_VALUE)
+	var safe_min: float = minf(finite_min, finite_max)
+	var safe_max: float = maxf(finite_min, finite_max)
+	var safe_base: float = _finite_or_default(base_value, 0.0)
+	var resolved_current: float = safe_base
 	if current_value != null:
 		var parsed_current: float = GFVariantData.to_float(current_value, NAN)
-		resolved_current = base_value if is_nan(parsed_current) else parsed_current
+		resolved_current = safe_base if not _is_finite_number(parsed_current) else parsed_current
 	attributes[attribute_id] = {
-		"base": clampf(base_value, safe_min, safe_max),
+		"base": clampf(safe_base, safe_min, safe_max),
 		"current": clampf(resolved_current, safe_min, safe_max),
 		"min": safe_min,
 		"max": safe_max,
@@ -157,6 +160,8 @@ func clear() -> void:
 func set_value(attribute_id: StringName, value: float) -> bool:
 	if not attributes.has(attribute_id):
 		return false
+	if not _is_finite_number(value):
+		return false
 
 	var record: Dictionary = _get_attribute_record(attribute_id)
 	var previous_value: float = GFVariantData.get_option_float(record, "current", 0.0)
@@ -199,6 +204,8 @@ func adjust_value(attribute_id: StringName, delta: float) -> bool:
 func set_base_value(attribute_id: StringName, value: float, sync_current: bool = false) -> bool:
 	if not attributes.has(attribute_id):
 		return false
+	if not _is_finite_number(value):
+		return false
 
 	var record: Dictionary = _get_attribute_record(attribute_id)
 	var previous_base: float = GFVariantData.get_option_float(record, "base", 0.0)
@@ -231,6 +238,8 @@ func set_base_value(attribute_id: StringName, value: float, sync_current: bool =
 ## @return: 成功返回 true。
 func set_limits(attribute_id: StringName, min_value: float, max_value: float) -> bool:
 	if not attributes.has(attribute_id):
+		return false
+	if not _is_finite_number(min_value) or not _is_finite_number(max_value):
 		return false
 
 	var record: Dictionary = _get_attribute_record(attribute_id)
@@ -482,6 +491,14 @@ func _get_attribute_record(attribute_id: StringName) -> Dictionary:
 	return GFVariantData.as_dictionary(GFVariantData.get_option_value(attributes, attribute_id, {}))
 
 
+func _is_finite_number(value: float) -> bool:
+	return not is_nan(value) and not is_inf(value)
+
+
+func _finite_or_default(value: float, default_value: float) -> float:
+	return value if _is_finite_number(value) else default_value
+
+
 func _recalculate_derived_dependents(source_attribute_id: StringName, visited: Dictionary = {}) -> void:
 	if _suspend_derived_recalculation:
 		return
@@ -590,6 +607,9 @@ func _get_sorted_string_name_keys(dictionary: Dictionary) -> Array[StringName]:
 
 
 func _write_derived_value(rule: GFDerivedAttributeRule, value: float) -> bool:
+	if not _is_finite_number(value):
+		return false
+
 	if not attributes.has(rule.attribute_id):
 		define_attribute(rule.attribute_id, value, value, rule.min_value, rule.max_value)
 		return true

@@ -811,8 +811,6 @@ func _get_port_id_for_editor(port: Resource) -> StringName:
 	var port_id: StringName = _get_string_name_property(port, &"port_id")
 	if port_id != &"":
 		return port_id
-	if port != null and not port.resource_path.is_empty():
-		return StringName(port.resource_path)
 	return &""
 
 

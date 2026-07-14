@@ -51,8 +51,8 @@ func _init() -> void:
 ## @param context: 输入上下文资源。
 func set_input_context(context: GFInputContext) -> void:
 	_context = context
-	if _path_edit != null and context != null:
-		_path_edit.text = context.resource_path
+	if _path_edit != null:
+		_path_edit.text = context.resource_path if context != null else ""
 	refresh()
 
 
@@ -217,7 +217,6 @@ func _render_context() -> void:
 	for mapping_index: int in range(_context.mappings.size()):
 		var mapping: GFInputMapping = _context.mappings[mapping_index]
 		if mapping == null:
-			_add_issue_item(root_item, _make_issue("error", "null_mapping", "mappings/%d" % mapping_index, "映射为空。"))
 			continue
 		var mapping_item: TreeItem = _tree.create_item(root_item)
 		mapping_item.set_text(0, "动作")
@@ -376,17 +375,22 @@ func _safe_json(value: Variant) -> String:
 
 
 func _sanitize_for_display(value: Variant) -> Variant:
+	var sanitized: Variant = GFLogUtility.sanitize_log_value(value)
+	return _normalize_display_value(sanitized)
+
+
+func _normalize_display_value(value: Variant) -> Variant:
 	if value is Dictionary:
 		var dictionary: Dictionary = GFVariantData.as_dictionary(value)
 		var result: Dictionary = {}
 		for key: Variant in dictionary.keys():
-			result[str(key)] = _sanitize_for_display(dictionary[key])
+			result[str(key)] = _normalize_display_value(dictionary[key])
 		return result
 	if value is Array:
 		var array: Array = GFVariantData.as_array(value)
 		var array_result: Array = []
 		for item: Variant in array:
-			array_result.append(_sanitize_for_display(item))
+			array_result.append(_normalize_display_value(item))
 		return array_result
 	if value is PackedStringArray:
 		var packed_strings: PackedStringArray = value

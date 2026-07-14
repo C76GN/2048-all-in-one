@@ -621,6 +621,9 @@ func sort_slots(order_resolver: Callable = Callable()) -> bool:
 func move_between_slots(source_slot: int, target_slot: int, amount: int = 0) -> GFInventoryOperationResult:
 	if not _begin_inventory_mutation("move_between_slots"):
 		return GFInventoryOperationResult.partial(&"", amount, 0, &"reentrant_mutation", source_slot, target_slot)
+	if source_slot == target_slot:
+		_end_inventory_mutation()
+		return GFInventoryOperationResult.partial(&"", amount, 0, &"same_slot", source_slot, target_slot)
 	var source_stack: GFInventoryStack = _get_stack_ref(source_slot)
 	if source_stack == null or not is_valid_slot(target_slot):
 		_end_inventory_mutation()

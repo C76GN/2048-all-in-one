@@ -20,6 +20,8 @@ extends GFUtility
 enum CommandTier {
 	## 只读观察类命令。
 	OBSERVE,
+	## 修改调试输入、过滤器或临时可视化状态的命令。
+	INPUT,
 	## 会改变运行时状态的控制类命令。
 	CONTROL,
 	## 删档、跳关、重连等高风险命令。
@@ -166,6 +168,7 @@ func init() -> void:
 	_console_gui.minimum_window_size = minimum_window_size
 	_console_gui.keep_topmost = keep_topmost
 	_console_gui.command_name_provider = Callable(self, "get_command_names")
+	_console_gui.command_argument_provider = Callable(self, "suggest_command_arguments")
 	_connect_signal(_console_gui.command_submitted, _on_command_submitted)
 
 	var tree: SceneTree = _get_main_scene_tree()
@@ -202,9 +205,10 @@ func dispose() -> void:
 
 	if is_instance_valid(_console_gui):
 		var parent: Node = _console_gui.get_parent()
-		if parent != null:
-			parent.remove_child.call_deferred(_console_gui)
-		_console_gui.queue_free()
+		if parent != null and not GFAutoload.is_tree_shutdown_in_progress():
+			parent.remove_child(_console_gui)
+		if not _console_gui.is_queued_for_deletion():
+			_console_gui.queue_free()
 
 	_console_gui = null
 
@@ -254,6 +258,8 @@ func register_command_definition(definition: GFConsoleCommandDefinition, callbac
 		var metadata: Dictionary = definition.metadata.duplicate(true)
 		metadata["definition"] = definition
 		metadata["primary_command_name"] = definition.command_name
+		if definition.argument_suggester.is_valid():
+			metadata["argument_suggester"] = definition.argument_suggester
 		register_command(cmd_name, callback, definition.description, metadata)
 
 
@@ -263,7 +269,8 @@ func register_command_definition(definition: GFConsoleCommandDefinition, callbac
 ## [br]
 ## @param cmd_name: 指令名称。
 func unregister_command(cmd_name: String) -> void:
-	_erase_dictionary_key(_commands, cmd_name)
+	for registered_name: String in _get_registered_command_names(cmd_name):
+		_erase_dictionary_key(_commands, registered_name)
 
 
 ## 检查控制台命令是否已注册。
@@ -303,7 +310,7 @@ func get_command_catalog() -> Dictionary:
 		var entry: Dictionary = _get_command_entry(cmd_name)
 		result[cmd_name] = {
 			"description": GFVariantData.get_option_string(entry, "description"),
-			"metadata": GFVariantData.get_option_dictionary(entry, "metadata"),
+			"metadata": _make_command_catalog_metadata(GFVariantData.get_option_dictionary(entry, "metadata")),
 			"tier": _get_command_tier(entry),
 		}
 	return result
@@ -322,6 +329,53 @@ func suggest_commands(prefix: String) -> PackedStringArray:
 		if prefix.is_empty() or cmd_name.begins_with(prefix):
 			_append_packed_string(suggestions, cmd_name)
 	return suggestions
+
+
+## 根据当前输入获取命令参数补全候选。
+##
+## 命令通过 metadata.argument_suggester 或 GFConsoleCommandDefinition.argument_suggester
+## 提供候选。回调接收的上下文字典包含 command_name、args、argument_index、
+## prefix 和 raw_input。GF 会按当前参数前缀做一次稳定过滤。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param raw_input: 控制台当前输入。
+## [br]
+## @return 排序后的参数候选。
+func suggest_command_arguments(raw_input: String) -> PackedStringArray:
+	var text: String = raw_input.strip_edges(true, false)
+	if text.is_empty() or not _has_argument_boundary(text):
+		return PackedStringArray()
+
+	var parts: PackedStringArray = _parse_command_line(text)
+	if parts.is_empty():
+		return PackedStringArray()
+
+	var cmd_name: String = parts[0]
+	if not _commands.has(cmd_name):
+		return PackedStringArray()
+
+	var args: PackedStringArray = PackedStringArray()
+	for index: int in range(1, parts.size()):
+		_append_packed_string(args, parts[index])
+
+	var prefix: String = ""
+	var argument_index: int = args.size()
+	if not _ends_with_argument_separator(text) and not args.is_empty():
+		argument_index = args.size() - 1
+		prefix = args[argument_index]
+
+	var entry: Dictionary = _get_command_entry(cmd_name)
+	var context: Dictionary = {
+		"command_name": cmd_name,
+		"args": args,
+		"argument_index": argument_index,
+		"prefix": prefix,
+		"raw_input": raw_input,
+	}
+	return _filter_suggestions_by_prefix(_call_argument_suggester(entry, context), prefix)
 
 
 ## 根据字符串相似度获取可能的命令名，用于未知命令诊断。
@@ -509,6 +563,61 @@ func _connect_signal(source_signal: Signal, callback: Callable) -> void:
 		return
 
 
+func _has_argument_boundary(text: String) -> bool:
+	return text.find(" ") >= 0 or text.find("\t") >= 0
+
+
+func _ends_with_argument_separator(text: String) -> bool:
+	return text.ends_with(" ") or text.ends_with("\t")
+
+
+func _call_argument_suggester(entry: Dictionary, context: Dictionary) -> PackedStringArray:
+	var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
+	var suggester: Callable = _get_callable_value(GFVariantData.get_option_value(metadata, "argument_suggester", Callable()))
+	if not suggester.is_valid():
+		var definition_value: Variant = GFVariantData.get_option_value(metadata, "definition")
+		if definition_value is GFConsoleCommandDefinition:
+			var definition: GFConsoleCommandDefinition = definition_value
+			suggester = definition.argument_suggester
+	if not suggester.is_valid():
+		return PackedStringArray()
+
+	var raw_suggestions: Variant = suggester.call(context.duplicate(true))
+	return _string_suggestions_from_variant(raw_suggestions)
+
+
+func _string_suggestions_from_variant(value: Variant) -> PackedStringArray:
+	var suggestions: PackedStringArray = PackedStringArray()
+	if value is PackedStringArray:
+		var packed_values: PackedStringArray = value
+		for suggestion: String in packed_values:
+			_append_unique_suggestion(suggestions, suggestion)
+	elif value is Array:
+		var array_values: Array = value
+		for suggestion_value: Variant in array_values:
+			_append_unique_suggestion(suggestions, GFVariantData.to_text(suggestion_value))
+	suggestions.sort()
+	return suggestions
+
+
+func _filter_suggestions_by_prefix(suggestions: PackedStringArray, prefix: String) -> PackedStringArray:
+	if prefix.is_empty():
+		return suggestions
+
+	var filtered: PackedStringArray = PackedStringArray()
+	for suggestion: String in suggestions:
+		if suggestion.begins_with(prefix):
+			_append_packed_string(filtered, suggestion)
+	return filtered
+
+
+func _append_unique_suggestion(target: PackedStringArray, value: String) -> void:
+	var suggestion: String = value.strip_edges()
+	if suggestion.is_empty() or target.has(suggestion):
+		return
+	_append_packed_string(target, suggestion)
+
+
 func _parse_command_line(raw_input: String) -> PackedStringArray:
 	var parts: PackedStringArray = PackedStringArray()
 	var current: String = ""
@@ -581,6 +690,46 @@ func _get_command_tier(entry: Dictionary) -> CommandTier:
 	return _to_command_tier(GFVariantData.to_int(tier_value, CommandTier.OBSERVE))
 
 
+func _get_registered_command_names(cmd_name: String) -> PackedStringArray:
+	var normalized_name: String = cmd_name.strip_edges()
+	var names: PackedStringArray = PackedStringArray()
+	if normalized_name.is_empty():
+		return names
+	_append_unique_command_name(names, normalized_name)
+
+	var entry: Dictionary = _get_command_entry(normalized_name)
+	if entry.is_empty():
+		return names
+
+	var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
+	var definition_value: Variant = GFVariantData.get_option_value(metadata, "definition")
+	if definition_value is GFConsoleCommandDefinition:
+		var definition: GFConsoleCommandDefinition = definition_value
+		for definition_name: String in definition.get_all_names():
+			_append_unique_command_name(names, definition_name)
+
+	var primary_command_name: String = GFVariantData.get_option_string(metadata, "primary_command_name")
+	_append_unique_command_name(names, primary_command_name)
+	return names
+
+
+func _append_unique_command_name(target: PackedStringArray, value: String) -> void:
+	var normalized_name: String = value.strip_edges()
+	if normalized_name.is_empty() or target.has(normalized_name):
+		return
+	_append_packed_string(target, normalized_name)
+
+
+func _make_command_catalog_metadata(metadata: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for key: Variant in metadata.keys():
+		var key_text: String = GFVariantData.to_text(key)
+		if key_text == "definition" or key_text == "argument_suggester":
+			continue
+		result[key_text] = GFReportValueCodec.to_json_compatible(metadata[key])
+	return result
+
+
 func _get_callable_value(value: Variant) -> Callable:
 	if value is Callable:
 		var callback: Callable = value
@@ -590,6 +739,8 @@ func _get_callable_value(value: Variant) -> Callable:
 
 func _to_command_tier(value: int) -> CommandTier:
 	match clampi(value, CommandTier.OBSERVE, CommandTier.DANGER):
+		CommandTier.INPUT:
+			return CommandTier.INPUT
 		CommandTier.CONTROL:
 			return CommandTier.CONTROL
 		CommandTier.DANGER:
@@ -818,6 +969,11 @@ class _GFConsoleGUI extends CanvasLayer:
 	## [br]
 	## @api framework_internal
 	var command_name_provider: Callable
+
+	## 命令参数补全提供回调。
+	## [br]
+	## @api framework_internal
+	var command_argument_provider: Callable
 
 	## 控制台最多保留的输出行数。
 	## [br]
@@ -1275,10 +1431,12 @@ class _GFConsoleGUI extends CanvasLayer:
 
 
 	func _apply_command_completion() -> void:
+		var text: String = _input_field.text
+		if _try_apply_argument_completion(text):
+			return
 		if not command_name_provider.is_valid():
 			return
 
-		var text: String = _input_field.text
 		var parts: PackedStringArray = text.split(" ", false)
 		var prefix: String = parts[0] if parts.size() > 0 else text
 		var names_variant: Variant = command_name_provider.call()
@@ -1297,6 +1455,42 @@ class _GFConsoleGUI extends CanvasLayer:
 			_set_input_text(matches[0] + " ")
 		elif matches.size() > 1:
 			append_text("[color=cyan]%s[/color]" % GFConsoleUtility._escape_bbcode_string(", ".join(matches)))
+
+
+	func _try_apply_argument_completion(text: String) -> bool:
+		if not command_argument_provider.is_valid() or not _input_has_argument_boundary(text):
+			return false
+
+		var suggestions_variant: Variant = command_argument_provider.call(text)
+		var suggestions: PackedStringArray = PackedStringArray()
+		if suggestions_variant is PackedStringArray:
+			suggestions = suggestions_variant
+		elif suggestions_variant is Array:
+			var suggestion_array: Array = suggestions_variant
+			for suggestion_value: Variant in suggestion_array:
+				_append_packed_string(suggestions, GFVariantData.to_text(suggestion_value))
+
+		if suggestions.size() == 1:
+			_set_input_text(_replace_active_argument(text, suggestions[0]))
+			return true
+		if suggestions.size() > 1:
+			append_text("[color=cyan]%s[/color]" % GFConsoleUtility._escape_bbcode_string(", ".join(suggestions)))
+			return true
+		return false
+
+
+	func _input_has_argument_boundary(text: String) -> bool:
+		var stripped_left: String = text.strip_edges(true, false)
+		return stripped_left.find(" ") >= 0 or stripped_left.find("\t") >= 0
+
+
+	func _replace_active_argument(text: String, completion: String) -> String:
+		var separator_index: int = maxi(text.rfind(" "), text.rfind("\t"))
+		if separator_index < 0:
+			return completion + " "
+		if text.ends_with(" ") or text.ends_with("\t"):
+			return text + completion + " "
+		return text.substr(0, separator_index + 1) + completion + " "
 
 
 	func _trim_command_history() -> void:

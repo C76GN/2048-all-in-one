@@ -350,7 +350,7 @@ func to_dictionary(json_compatible: bool = false) -> Dictionary:
 		serialized_events.append(_event_to_dictionary(event, json_compatible))
 	return {
 		"timeline_id": String(timeline_id),
-		"duration_seconds": duration_seconds,
+		"duration_seconds": _normalize_time_seconds(duration_seconds),
 		"events": serialized_events,
 		"metadata": GFVariantJsonCodec.variant_to_json_compatible(metadata) if json_compatible else metadata.duplicate(true),
 	}
@@ -367,7 +367,7 @@ func to_dictionary(json_compatible: bool = false) -> Dictionary:
 ## @schema data: Dictionary，包含 timeline_id、duration_seconds、events 和 metadata。
 func apply_dictionary(data: Dictionary, json_compatible: bool = false) -> void:
 	timeline_id = GFVariantData.get_option_string_name(data, "timeline_id")
-	duration_seconds = maxf(GFVariantData.get_option_float(data, "duration_seconds"), 0.0)
+	duration_seconds = _normalize_time_seconds(GFVariantData.get_option_float(data, "duration_seconds"))
 	events.clear()
 	_next_event_sequence = 0
 	var max_event_time: float = 0.0
@@ -412,7 +412,7 @@ func _make_event(
 	payload: Variant,
 	event_metadata: Dictionary
 ) -> Dictionary:
-	var clamped_time: float = maxf(time_seconds, 0.0)
+	var clamped_time: float = _normalize_time_seconds(time_seconds)
 	return {
 		"time_seconds": clamped_time,
 		"event_kind": event_kind,
@@ -443,7 +443,7 @@ func _event_from_dictionary(event: Dictionary, json_compatible: bool) -> Diction
 	var event_metadata: Variant = GFVariantData.get_option_value(event, "metadata", {})
 	event_metadata = GFVariantJsonCodec.json_compatible_to_variant(event_metadata) if json_compatible else GFVariantData.duplicate_variant(event_metadata)
 	return {
-		"time_seconds": maxf(_get_event_time(event), 0.0),
+		"time_seconds": _normalize_time_seconds(_get_event_time(event)),
 		"event_kind": _get_event_kind(event),
 		"sequence": GFVariantData.get_option_int(event, "sequence", -1),
 		"payload": payload,
@@ -460,7 +460,13 @@ func _get_timeline_events(timeline: RefCounted) -> Array:
 
 
 func _get_event_time(event: Dictionary) -> float:
-	return GFVariantData.get_option_float(event, "time_seconds")
+	return _normalize_time_seconds(GFVariantData.get_option_float(event, "time_seconds"))
+
+
+static func _normalize_time_seconds(value: float) -> float:
+	if is_nan(value) or is_inf(value):
+		return 0.0
+	return maxf(value, 0.0)
 
 
 func _get_event_kind(event: Dictionary) -> StringName:

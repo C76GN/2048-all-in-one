@@ -178,7 +178,7 @@ func get_metadata_value(key: StringName, default_value: Variant = null) -> Varia
 ## [br]
 ## @schema return: 从主体读取的项目值，或传入的 fallback。
 func get_subject_value(key: StringName, fallback: Variant = null) -> Variant:
-	return _read_snapshot_value(subject_values, key, fallback)
+	return _read_object_snapshot_value(subject_values, get_subject_or_null(), key, fallback)
 
 
 ## 从目标快照读取决策值。
@@ -197,7 +197,7 @@ func get_subject_value(key: StringName, fallback: Variant = null) -> Variant:
 ## [br]
 ## @schema return: 从目标读取的项目值，或传入的 fallback。
 func get_target_value(key: StringName, fallback: Variant = null) -> Variant:
-	return _read_snapshot_value(target_values, key, fallback)
+	return _read_object_snapshot_value(target_values, get_target_or_null(), key, fallback)
 
 
 ## 获取当前主体对象；对象已释放时返回 null。
@@ -246,10 +246,14 @@ func get_target_or_null() -> Object:
 func duplicate_context() -> GFDecisionContext:
 	var duplicated: GFDecisionContext = GFDecisionContext.new(
 		_ensure_blackboard().duplicate_blackboard(),
-		get_subject_or_null(),
-		get_target_or_null(),
+		null,
+		null,
 		metadata.duplicate(true)
 	)
+	var current_subject: Object = get_subject_or_null()
+	var current_target: Object = get_target_or_null()
+	duplicated._subject_ref = weakref(current_subject) if current_subject != null else null
+	duplicated._target_ref = weakref(current_target) if current_target != null else null
 	duplicated.subject_values = subject_values.duplicate(true)
 	duplicated.target_values = target_values.duplicate(true)
 	return duplicated
@@ -266,12 +270,12 @@ func get_debug_snapshot() -> Dictionary:
 	var current_subject: Object = get_subject_or_null()
 	var current_target: Object = get_target_or_null()
 	return {
-		"blackboard": _ensure_blackboard().get_debug_snapshot(),
-		"metadata": metadata.duplicate(true),
+		"blackboard": _json_safe_dictionary(_ensure_blackboard().get_debug_snapshot()),
+		"metadata": _json_safe_dictionary(metadata),
 		"subject_class": current_subject.get_class() if current_subject != null else "",
 		"target_class": current_target.get_class() if current_target != null else "",
-		"subject_values": subject_values.duplicate(true),
-		"target_values": target_values.duplicate(true),
+		"subject_values": _json_safe_dictionary(subject_values),
+		"target_values": _json_safe_dictionary(target_values),
 	}
 
 
@@ -297,17 +301,24 @@ func _snapshot_decision_object(object_ref: Object) -> Dictionary:
 	if object_ref == null or not is_instance_valid(object_ref):
 		return {}
 
-	var snapshot: Dictionary = _snapshot_object_properties(object_ref)
 	if object_ref.has_method("get_decision_snapshot"):
 		var method_snapshot: Variant = object_ref.call("get_decision_snapshot")
 		if method_snapshot is Dictionary:
+			var method_result: Dictionary = {}
 			for key_variant: Variant in GFVariantData.as_dictionary(method_snapshot).keys():
-				snapshot[_normalize_snapshot_key(key_variant)] = GFVariantData.duplicate_variant(method_snapshot[key_variant])
-	elif object_ref.has_method("get_decision_values"):
+				method_result[_normalize_snapshot_key(key_variant)] = GFVariantData.duplicate_variant(method_snapshot[key_variant])
+			_apply_decision_value_overrides(object_ref, method_result)
+			return method_result
+	if object_ref.has_method("get_decision_values"):
 		var method_values: Variant = object_ref.call("get_decision_values")
 		if method_values is Dictionary:
+			var values_result: Dictionary = {}
 			for key_variant: Variant in GFVariantData.as_dictionary(method_values).keys():
-				snapshot[_normalize_snapshot_key(key_variant)] = GFVariantData.duplicate_variant(method_values[key_variant])
+				values_result[_normalize_snapshot_key(key_variant)] = GFVariantData.duplicate_variant(method_values[key_variant])
+			_apply_decision_value_overrides(object_ref, values_result)
+			return values_result
+
+	var snapshot: Dictionary = _snapshot_object_properties(object_ref)
 	_apply_decision_value_overrides(object_ref, snapshot)
 	return snapshot
 
@@ -354,6 +365,33 @@ func _read_snapshot_value(snapshot: Dictionary, key: StringName, fallback: Varia
 	return fallback
 
 
+func _read_object_snapshot_value(
+	snapshot: Dictionary,
+	object_ref: Object,
+	key: StringName,
+	fallback: Variant = null
+) -> Variant:
+	if _snapshot_has_key(snapshot, key):
+		return _read_snapshot_value(snapshot, key, fallback)
+	if object_ref == null or not is_instance_valid(object_ref) or not object_ref.has_method("get_decision_value"):
+		return fallback
+
+	var sentinel: RefCounted = RefCounted.new()
+	var value: Variant = object_ref.call("get_decision_value", key, sentinel)
+	if value is RefCounted:
+		var ref_value: RefCounted = value
+		if ref_value == sentinel:
+			return fallback
+	snapshot[key] = GFVariantData.duplicate_variant(value)
+	return GFVariantData.duplicate_variant(value)
+
+
+func _snapshot_has_key(snapshot: Dictionary, key: StringName) -> bool:
+	if snapshot.has(key):
+		return true
+	return snapshot.has(String(key))
+
+
 func _normalize_snapshot_key(key: Variant) -> Variant:
 	if key is StringName:
 		return key
@@ -361,3 +399,26 @@ func _normalize_snapshot_key(key: Variant) -> Variant:
 		var string_key: String = key
 		return StringName(string_key)
 	return key
+
+
+func _json_safe_dictionary(data: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for key: Variant in data.keys():
+		var encoded_value: Variant = GFVariantJsonCodec.variant_to_json_compatible(data[key], {
+			"encode_dictionary_keys": true,
+		})
+		result[_debug_snapshot_key_to_string(key)] = GFVariantData.duplicate_variant(encoded_value)
+	return result
+
+
+func _debug_snapshot_key_to_string(key: Variant) -> String:
+	if key is String:
+		var string_key: String = key
+		return string_key
+	if key is StringName:
+		var string_name_key: StringName = key
+		return String(string_name_key)
+	if key is NodePath:
+		var node_path_key: NodePath = key
+		return String(node_path_key)
+	return var_to_str(key)

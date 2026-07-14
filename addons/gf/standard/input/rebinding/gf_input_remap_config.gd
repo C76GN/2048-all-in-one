@@ -174,10 +174,14 @@ func get_custom_data(key: Variant, default_value: Variant = null) -> Variant:
 ## [br]
 ## @api public
 ## [br]
+## @since unreleased
+## [br]
+## @param json_compatible: 为 true 时将 custom_data 转为 JSON 兼容值。
+## [br]
 ## @schema return: Dictionary，包含 remapped_events 和 custom_data；remapped_events 为 context_id -> action_id -> binding_index -> event record。
 ## [br]
 ## @return 重映射配置字典。
-func to_dict() -> Dictionary:
+func to_dict(json_compatible: bool = true) -> Dictionary:
 	var serialized_events: Dictionary = {}
 	for context_key: Variant in remapped_events.keys():
 		var context_map: Dictionary = _get_dictionary_reference(remapped_events, context_key)
@@ -206,7 +210,7 @@ func to_dict() -> Dictionary:
 
 	return {
 		"remapped_events": serialized_events,
-		"custom_data": GFVariantData.duplicate_variant(custom_data),
+		"custom_data": GFVariantJsonCodec.variant_to_json_compatible(custom_data) if json_compatible else GFVariantData.duplicate_variant(custom_data),
 	}
 
 
@@ -214,10 +218,14 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
+## @since unreleased
+## [br]
 ## @param data: 重映射配置字典。
 ## [br]
+## @param json_compatible: 为 true 时会先恢复 custom_data 的 JSON 兼容值。
+## [br]
 ## @schema data: Dictionary，包含 remapped_events 和 custom_data。
-func apply_dict(data: Dictionary) -> void:
+func apply_dict(data: Dictionary, json_compatible: bool = true) -> void:
 	remapped_events.clear()
 	var serialized_events: Dictionary = GFVariantData.get_option_dictionary(data, "remapped_events")
 	for context_key: Variant in serialized_events.keys():
@@ -246,21 +254,27 @@ func apply_dict(data: Dictionary) -> void:
 					if input_event != null:
 						set_binding(context_id, action_id, binding_index, input_event)
 
-	custom_data = GFVariantData.get_option_dictionary(data, "custom_data")
+	var custom_data_value: Variant = GFVariantData.get_option_value(data, "custom_data", {})
+	custom_data_value = GFVariantJsonCodec.json_compatible_to_variant(custom_data_value) if json_compatible else GFVariantData.duplicate_variant(custom_data_value)
+	custom_data = GFVariantData.as_dictionary(custom_data_value)
 
 
 ## 从 Dictionary 创建重映射配置。
 ## [br]
 ## @api public
 ## [br]
+## @since unreleased
+## [br]
 ## @param data: 重映射配置字典。
+## [br]
+## @param json_compatible: 为 true 时会先恢复 custom_data 的 JSON 兼容值。
 ## [br]
 ## @schema data: Dictionary，包含 remapped_events 和 custom_data。
 ## [br]
 ## @return 新重映射配置。
-static func from_dict(data: Dictionary) -> GFInputRemapConfig:
+static func from_dict(data: Dictionary, json_compatible: bool = true) -> GFInputRemapConfig:
 	var config: GFInputRemapConfig = GFInputRemapConfig.new()
-	config.apply_dict(data)
+	config.apply_dict(data, json_compatible)
 	return config
 
 
@@ -270,7 +284,7 @@ static func from_dict(data: Dictionary) -> GFInputRemapConfig:
 ## [br]
 ## @return 深拷贝后的重映射配置。
 func duplicate_config() -> GFInputRemapConfig:
-	return GFInputRemapConfig.from_dict(to_dict())
+	return GFInputRemapConfig.from_dict(to_dict(false), false)
 
 
 # --- 私有/辅助方法 ---

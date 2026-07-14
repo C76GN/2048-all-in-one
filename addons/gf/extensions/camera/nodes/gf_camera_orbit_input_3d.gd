@@ -264,10 +264,14 @@ func apply_zoom_value(value: float, scale: float = 1.0) -> bool:
 ## [br]
 ## @api public
 ## [br]
+## @since unreleased
+## [br]
 ## @return 调试快照。
 ## [br]
-## @schema return: Dictionary，包含 enabled、update_mode、use_input_mapping、orbit_action_id、zoom_action_id、has_rig 和 has_input_mapping。
+## @schema return: Dictionary，包含 enabled、update_mode、use_input_mapping、orbit_action_id、zoom_action_id、has_rig、has_input_mapping、input_mapping_missing、missing_actions 和 ready。
 func get_debug_snapshot() -> Dictionary:
+	var input_mapping: GFInputMappingUtility = _get_input_mapping_utility()
+	var missing_actions: PackedStringArray = _get_missing_action_ids(input_mapping)
 	return {
 		"enabled": enabled,
 		"update_mode": update_mode,
@@ -275,7 +279,10 @@ func get_debug_snapshot() -> Dictionary:
 		"orbit_action_id": orbit_action_id,
 		"zoom_action_id": zoom_action_id,
 		"has_rig": get_orbit_rig() != null,
-		"has_input_mapping": _get_input_mapping_utility() != null,
+		"has_input_mapping": input_mapping != null,
+		"input_mapping_missing": use_input_mapping and input_mapping == null,
+		"missing_actions": missing_actions,
+		"ready": enabled and get_orbit_rig() != null and (not use_input_mapping or (input_mapping != null and missing_actions.is_empty())),
 	}
 
 
@@ -300,6 +307,9 @@ func _apply_mouse_wheel(event: InputEventMouseButton) -> bool:
 
 func _apply_mouse_orbit_button(event: InputEventMouseButton) -> bool:
 	if event.pressed:
+		if get_orbit_rig() == null:
+			_clear_mouse_orbit_capture()
+			return false
 		_mouse_orbit_active = true
 		_mouse_orbit_device = event.device
 		return true
@@ -384,3 +394,23 @@ func _get_node_context_value(value: Variant) -> GFNodeContext:
 		var context: GFNodeContext = value
 		return context
 	return null
+
+
+func _get_missing_action_ids(input_mapping: GFInputMappingUtility) -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	if not use_input_mapping:
+		return result
+	_append_missing_action_id(result, input_mapping, orbit_action_id)
+	_append_missing_action_id(result, input_mapping, zoom_action_id)
+	return result
+
+
+func _append_missing_action_id(
+	result: PackedStringArray,
+	input_mapping: GFInputMappingUtility,
+	action_id: StringName
+) -> void:
+	if action_id == &"" or result.has(String(action_id)):
+		return
+	if input_mapping == null or input_mapping.get_action_value(action_id) == null:
+		var _append_result: bool = result.append(String(action_id))

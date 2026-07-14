@@ -70,6 +70,20 @@ enum UpdateMode {
 ## @api public
 @export var rig_group_name: StringName = &"gf_camera_rig_2d"
 
+## 分组候选 Rig 的收集作用域。为空时使用 Director 父节点。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+@export_node_path("Node") var camera_scope_path: NodePath = NodePath("")
+
+## 分组候选 Rig 的收集频道。为空时只收集默认频道 Rig。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+@export var camera_channel: StringName = &""
+
 ## 自动更新模式。
 ## [br]
 ## @api public
@@ -103,6 +117,7 @@ var _blend_elapsed_seconds: float = 0.0
 var _blend_from_pose: Dictionary = {}
 var _is_blending: bool = false
 var _active_rig_is_manual_override: bool = false
+var _last_process_report: Dictionary = {}
 
 
 # --- Godot 生命周期方法 ---
@@ -160,7 +175,9 @@ func collect_candidate_rigs() -> Array[GFCameraRig2D]:
 
 	if collect_group_rigs and is_inside_tree() and rig_group_name != &"":
 		for node: Node in get_tree().get_nodes_in_group(rig_group_name):
-			_append_unique_rig(result, seen, _get_rig_value(node))
+			var group_rig: GFCameraRig2D = _get_rig_value(node)
+			if _is_group_rig_in_scope(group_rig):
+				_append_unique_rig(result, seen, group_rig)
 	result.sort_custom(_sort_rigs)
 	return result
 
@@ -173,8 +190,11 @@ func collect_candidate_rigs() -> Array[GFCameraRig2D]:
 ## [br]
 ## @return 当前 Rig。
 func refresh_active_rig(force_snap: bool = false) -> GFCameraRig2D:
-	_prune_active_rig()
 	if _active_rig_is_manual_override:
+		if _active_rig != null and is_instance_valid(_active_rig) and _active_rig.is_available():
+			return _active_rig
+		_active_rig_is_manual_override = false
+		var _clear_invalid_manual_result: Variant = _set_active_rig_internal(null, force_snap, false)
 		return _active_rig
 
 	var best_rig: GFCameraRig2D = null
@@ -217,20 +237,48 @@ func clear_active_rig_override(force_snap: bool = false) -> GFCameraRig2D:
 	return refresh_active_rig(force_snap)
 
 
+## 获取 Director 调试快照。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 调试快照。
+## [br]
+## @schema return: Dictionary，包含 has_camera、has_active_rig、active_rig_path、active_rig_is_manual_override、is_blending 和 last_process。
+func get_debug_snapshot() -> Dictionary:
+	_prune_active_rig()
+	return {
+		"has_camera": get_camera() != null,
+		"has_active_rig": _active_rig != null,
+		"active_rig_path": _get_node_debug_path(_active_rig),
+		"active_rig_name": _get_node_debug_name(_active_rig),
+		"active_rig_is_manual_override": _active_rig_is_manual_override,
+		"is_blending": _is_blending,
+		"last_process": _last_process_report.duplicate(true),
+	}
+
+
 ## 推进并应用相机姿态。
 ## [br]
 ## @api public
 ## [br]
+## @since unreleased
+## [br]
 ## @param delta: 秒。
 ## [br]
-## @return 成功应用时返回 true。
+## @return 本帧实际应用相机姿态时返回 true；无可用 Rig 时返回 false。
 func process_camera(delta: float) -> bool:
 	var _refresh_active_rig_result_199: Variant = refresh_active_rig(false)
 	var camera: Camera2D = get_camera()
 	if camera == null:
+		_last_process_report = _make_process_report(false, "missing_camera", camera, _active_rig)
 		return false
 	if _active_rig == null or not is_instance_valid(_active_rig) or not _active_rig.is_available():
-		return keep_camera_when_no_rig
+		if not keep_camera_when_no_rig:
+			_is_blending = false
+		_last_process_report = _make_process_report(false, "missing_rig", camera, _active_rig)
+		return false
 
 	var target_pose: Dictionary = _active_rig.get_camera_pose()
 	var pose: Dictionary = target_pose
@@ -243,6 +291,7 @@ func process_camera(delta: float) -> bool:
 
 	_apply_pose(camera, pose)
 	camera_pose_applied.emit(_active_rig)
+	_last_process_report = _make_process_report(true, "", camera, _active_rig)
 	return true
 
 
@@ -340,6 +389,12 @@ func _make_camera_current(camera: Camera2D) -> void:
 	camera.enabled = true
 
 
+func _get_camera_scope_node() -> Node:
+	if not camera_scope_path.is_empty():
+		return get_node_or_null(camera_scope_path)
+	return get_parent()
+
+
 func _append_unique_rig(result: Array[GFCameraRig2D], seen: Dictionary, rig: GFCameraRig2D) -> void:
 	if rig == null:
 		return
@@ -348,6 +403,16 @@ func _append_unique_rig(result: Array[GFCameraRig2D], seen: Dictionary, rig: GFC
 		return
 	seen[instance_id] = true
 	result.append(rig)
+
+
+func _is_group_rig_in_scope(rig: GFCameraRig2D) -> bool:
+	if rig == null:
+		return false
+	if rig.camera_channel != camera_channel:
+		return false
+	var director_scope: Node = _get_camera_scope_node()
+	var rig_scope: Node = rig.get_camera_scope_node()
+	return director_scope != null and rig_scope == director_scope
 
 
 func _sort_rigs(left: GFCameraRig2D, right: GFCameraRig2D) -> bool:
@@ -368,3 +433,28 @@ func _get_rig_value(value: Variant) -> GFCameraRig2D:
 		var rig: GFCameraRig2D = value
 		return rig
 	return null
+
+
+func _make_process_report(applied: bool, reason: String, camera: Camera2D, rig: GFCameraRig2D) -> Dictionary:
+	return {
+		"applied": applied,
+		"reason": reason,
+		"has_camera": camera != null,
+		"has_active_rig": rig != null and is_instance_valid(rig),
+		"active_rig_path": _get_node_debug_path(rig),
+		"active_rig_name": _get_node_debug_name(rig),
+		"active_rig_is_manual_override": _active_rig_is_manual_override,
+		"is_blending": _is_blending,
+	}
+
+
+func _get_node_debug_path(node: Node) -> String:
+	if node != null and is_instance_valid(node) and node.is_inside_tree():
+		return String(node.get_path())
+	return ""
+
+
+func _get_node_debug_name(node: Node) -> String:
+	if node != null and is_instance_valid(node):
+		return String(node.name)
+	return ""

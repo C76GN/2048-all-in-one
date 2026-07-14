@@ -240,6 +240,8 @@ func read_value(target: Object) -> Variant:
 func write_value(target: Object, value: Variant) -> bool:
 	if read_only or not is_instance_valid(target):
 		return false
+	if not _can_normalize_value(value):
+		return false
 
 	var normalized_value: Variant = normalize_value(value)
 	if validator.is_valid() and not GFVariantData.to_bool(validator.call(target, self, normalized_value)):
@@ -323,6 +325,23 @@ func _normalize_value_by_kind(value: Variant) -> Variant:
 			return value
 
 
+func _can_normalize_value(value: Variant) -> bool:
+	match value_kind:
+		ValueKind.INT, ValueKind.FLOAT:
+			if value is float:
+				var float_value: float = value
+				return _is_finite_float(float_value)
+			return true
+		ValueKind.VECTOR2:
+			return value is Vector2
+		ValueKind.VECTOR3:
+			return value is Vector3
+		ValueKind.COLOR:
+			return value is Color
+		_:
+			return true
+
+
 func _get_normalized_options() -> Array:
 	var result: Array = []
 	for option_value: Variant in options:
@@ -346,3 +365,7 @@ func _normalize_float(value: Variant) -> float:
 	if has_max_value:
 		number = minf(number, max_value)
 	return number
+
+
+func _is_finite_float(value: float) -> bool:
+	return not is_nan(value) and not is_inf(value)

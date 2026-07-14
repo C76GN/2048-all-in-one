@@ -32,17 +32,35 @@ static func apply_decimal_places(value: float, decimal_places: int, use_truncati
 
 	var normalized_decimal_places: int = _normalize_decimal_places(decimal_places)
 	if normalized_decimal_places <= 0:
+		var integer_adjusted_value: float = 0.0
 		if use_truncation:
-			return floor(value) if value >= 0.0 else ceil(value)
-		return round(value)
+			integer_adjusted_value = floor(value) if value >= 0.0 else ceil(value)
+		else:
+			integer_adjusted_value = round(value)
+		if _is_non_finite(integer_adjusted_value):
+			_report_scaled_non_finite()
+			return 0.0
+		return integer_adjusted_value
 
 	var scale: float = pow(10.0, normalized_decimal_places)
+	var scaled_value: float = value * scale
+	if _is_non_finite(scaled_value):
+		_report_scaled_non_finite()
+		return 0.0
+
+	var adjusted_value: float = 0.0
 	if use_truncation:
 		if value >= 0.0:
-			return floor(value * scale) / scale
-		return ceil(value * scale) / scale
+			adjusted_value = floor(scaled_value) / scale
+		else:
+			adjusted_value = ceil(scaled_value) / scale
+	else:
+		adjusted_value = round(scaled_value) / scale
 
-	return round(value * scale) / scale
+	if _is_non_finite(adjusted_value):
+		_report_scaled_non_finite()
+		return 0.0
+	return adjusted_value
 
 
 ## 格式化小数值。
@@ -160,3 +178,7 @@ static func _normalize_decimal_places(decimal_places: int) -> int:
 
 static func _is_non_finite(value: float) -> bool:
 	return is_nan(value) or is_inf(value)
+
+
+static func _report_scaled_non_finite() -> void:
+	push_error("[GFDecimalStringFormatter] 小数缩放后超过有限浮点范围。")

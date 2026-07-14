@@ -79,7 +79,7 @@ func execute() -> Variant:
 	_original_color = _get_color_value(original_color_value)
 	_has_original_color = true
 	if duration <= 0.0:
-		target.set_indexed(property_name, _original_color)
+		target.set_indexed(property_name, flash_color)
 		_clear_original_color()
 		return null
 

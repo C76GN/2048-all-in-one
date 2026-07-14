@@ -128,6 +128,10 @@ func schedule(task: GFRuntimeTask) -> bool:
 	if task.is_scheduled():
 		task_rejected.emit(task, &"already_scheduled")
 		return false
+	var rejection_reason: StringName = task.get_schedule_rejection_reason()
+	if rejection_reason != &"":
+		task_rejected.emit(task, rejection_reason)
+		return false
 	var conflicts: Array[GFRuntimeTask] = _get_conflicting_tasks(task)
 	for conflict: GFRuntimeTask in conflicts:
 		if conflict != null and not conflict.is_interruptible():
@@ -424,9 +428,9 @@ func _finish_task(task: GFRuntimeTask, interrupted: bool) -> void:
 	if task == null or not _active_tasks.has(task):
 		return
 	_active_tasks.erase(task)
-	_release_requirements(task)
 	if task.is_scheduled():
 		task.end(interrupted)
+	_release_requirements(task)
 	task.mark_unscheduled()
 	if interrupted:
 		task_cancelled.emit(task)

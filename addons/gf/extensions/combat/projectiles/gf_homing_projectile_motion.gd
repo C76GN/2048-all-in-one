@@ -233,13 +233,12 @@ func _get_target_position_2d(projectile: Node2D, projectile_context: Dictionary)
 	var target: Variant = GFVariantData.get_option_value(projectile_context, target_context_key)
 	if target is Vector2:
 		return target
-	if target is Node2D:
-		var target_2d: Node2D = target
+	var target_2d: Node2D = _variant_to_valid_node_2d(target)
+	if target_2d != null:
 		return target_2d.global_position if target_2d.is_inside_tree() else target_2d.position
 
-	var path_target: Node = _get_path_target(projectile)
-	if path_target is Node2D:
-		var path_target_2d: Node2D = path_target
+	var path_target_2d: Node2D = _variant_to_valid_node_2d(_get_path_target(projectile))
+	if path_target_2d != null:
 		return path_target_2d.global_position if path_target_2d.is_inside_tree() else path_target_2d.position
 	return null
 
@@ -257,13 +256,12 @@ func _get_target_position_3d(projectile: Node3D, projectile_context: Dictionary)
 	var target: Variant = GFVariantData.get_option_value(projectile_context, target_context_key)
 	if target is Vector3:
 		return target
-	if target is Node3D:
-		var target_3d: Node3D = target
+	var target_3d: Node3D = _variant_to_valid_node_3d(target)
+	if target_3d != null:
 		return target_3d.global_position if target_3d.is_inside_tree() else target_3d.position
 
-	var path_target: Node = _get_path_target(projectile)
-	if path_target is Node3D:
-		var path_target_3d: Node3D = path_target
+	var path_target_3d: Node3D = _variant_to_valid_node_3d(_get_path_target(projectile))
+	if path_target_3d != null:
 		return path_target_3d.global_position if path_target_3d.is_inside_tree() else path_target_3d.position
 	return null
 
@@ -272,6 +270,26 @@ func _get_path_target(projectile: Node) -> Node:
 	if target_path == NodePath(""):
 		return null
 	return projectile.get_node_or_null(target_path)
+
+
+func _variant_to_valid_node_2d(value: Variant) -> Node2D:
+	if typeof(value) != TYPE_OBJECT or not is_instance_valid(value):
+		return null
+	var object: Object = value
+	if object is Node2D:
+		var node: Node2D = object
+		return node
+	return null
+
+
+func _variant_to_valid_node_3d(value: Variant) -> Node3D:
+	if typeof(value) != TYPE_OBJECT or not is_instance_valid(value):
+		return null
+	var object: Object = value
+	if object is Node3D:
+		var node: Node3D = object
+		return node
+	return null
 
 
 func _get_projectile_position_2d(projectile: Node2D) -> Vector2:

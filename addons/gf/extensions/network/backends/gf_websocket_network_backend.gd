@@ -62,7 +62,7 @@ var _endpoint: String = ""
 var _peers: Dictionary[int, WebSocketPeer] = {}
 var _open_peer_ids: Dictionary[int, bool] = {}
 var _server_peer_options: Dictionary = {}
-var _next_peer_id: int = SERVER_PEER_ID
+var _next_peer_id: int = SERVER_PEER_ID + 1
 var _client_was_open: bool = false
 
 
@@ -94,7 +94,7 @@ func host(options: Dictionary = {}) -> Error:
 	_mode = Mode.SERVER
 	_endpoint = "%s:%d" % [bind_address, port]
 	_server_peer_options = options.duplicate(true)
-	_next_peer_id = SERVER_PEER_ID
+	_next_peer_id = SERVER_PEER_ID + 1
 	_emit_connected()
 	return OK
 

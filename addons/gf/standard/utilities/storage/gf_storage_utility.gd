@@ -131,9 +131,11 @@ var require_integrity_checksum: bool = true
 ## @api public
 var include_storage_metadata: bool = false
 
-## 是否允许传入绝对路径。关闭后绝对路径会被收敛到存档目录下的同名文件。
+## 是否允许传入绝对路径。关闭后绝对路径会被拒绝。
 ## [br]
 ## @api public
+## [br]
+## @since 2.0.0
 var allow_absolute_paths: bool = false
 
 ## 是否允许通过 `load_resource()` 调用 Godot `ResourceLoader`。默认关闭，避免未确认来源文件进入资源加载链路。
@@ -150,7 +152,7 @@ var allow_resource_loads: bool = false
 ## @since 6.0.0
 var allowed_resource_load_extensions: PackedStringArray = PackedStringArray(["tres", "res"])
 
-## `load_resource()` 允许的类型提示。为空时不限制类型提示值；启用时 `type_hint` 必须精确匹配其中之一。
+## `load_resource()` 允许的类型提示。空列表表示不允许任何 Resource 读取；启用时 `type_hint` 必须精确匹配其中之一。
 ## [br]
 ## @api public
 ## [br]
@@ -309,7 +311,7 @@ func save_resource(file_name: String, resource: Resource) -> Error:
 ## [br]
 ## @return 读取到的资源实例；不存在时返回 `null`。
 ## [br]
-## 该方法会调用 Godot `ResourceLoader`，默认关闭。调用方必须先启用 `allow_resource_loads`，并通过类型提示、扩展名 allowlist 与存储路径策略收窄加载边界。
+## 该方法会调用 Godot `ResourceLoader`，默认关闭。调用方必须先启用 `allow_resource_loads`，并通过类型提示 allowlist、扩展名 allowlist 与存储路径策略收窄加载边界。
 func load_resource(file_name: String, type_hint: String = "") -> Resource:
 	if not _validate_public_file_name(file_name, "load_resource"):
 		return null
@@ -336,7 +338,13 @@ func load_resource(file_name: String, type_hint: String = "") -> Resource:
 		push_error("[GFStorageUtility] load_resource 拒绝未允许的 type_hint：%s。" % normalized_type_hint)
 		return null
 
-	return ResourceLoader.load(path, normalized_type_hint, ResourceLoader.CACHE_MODE_IGNORE)
+	var loaded_resource: Resource = ResourceLoader.load(path, normalized_type_hint, ResourceLoader.CACHE_MODE_IGNORE)
+	if loaded_resource == null:
+		return null
+	if not _is_loaded_resource_compatible(loaded_resource, normalized_type_hint):
+		push_error("[GFStorageUtility] load_resource 读取结果类型与 type_hint 不匹配：%s。" % normalized_type_hint)
+		return null
+	return loaded_resource
 
 
 # --- 公共方法（文件管理） ---
@@ -349,6 +357,8 @@ func load_resource(file_name: String, type_hint: String = "") -> Resource:
 ## [br]
 ## @return Godot 的 `Error` 结果码。
 func ensure_directory(directory_name: String = "") -> Error:
+	if not _validate_public_directory_name(directory_name, "ensure_directory"):
+		return ERR_INVALID_PARAMETER
 	init()
 	var normalized_directory: String = _normalize_storage_directory_name(directory_name)
 	var path: String = _get_full_directory_path_from_normalized(normalized_directory)
@@ -368,6 +378,8 @@ func ensure_directory(directory_name: String = "") -> Error:
 ## [br]
 ## @return 按当前路径策略解析后的目录路径。
 func get_storage_directory_path(directory_name: String = "") -> String:
+	if not _validate_public_directory_name(directory_name, "get_storage_directory_path"):
+		return ""
 	var normalized_directory: String = _normalize_storage_directory_name(directory_name)
 	return _get_full_directory_path_from_normalized(normalized_directory)
 
@@ -393,6 +405,8 @@ func list_files(
 	recursive: bool = false,
 	options: Dictionary = {}
 ) -> PackedStringArray:
+	if not _validate_public_directory_name(directory_name, "list_files"):
+		return PackedStringArray()
 	init()
 	var result: PackedStringArray = PackedStringArray()
 	var normalized_directory: String = _normalize_storage_directory_name(directory_name)
@@ -417,21 +431,40 @@ func list_files(
 
 
 ## 删除一个存储文件。
+## 同时清理同名事务临时文件、备份文件和事务标记，避免删除后被遗留事务恢复。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param file_name: 存储相对文件路径。
 ## [br]
 ## @return Godot 的 `Error` 结果码；文件不存在时返回 `ERR_FILE_NOT_FOUND`。
 func delete_file(file_name: String) -> Error:
-	if file_name.is_empty():
-		push_error("[GFStorageUtility] delete_file 失败：file_name 为空。")
+	if not _validate_public_file_name(file_name, "delete_file"):
 		return ERR_INVALID_PARAMETER
 
+	init()
+	_wait_for_async_tasks_for_file(file_name)
+
 	var path: String = _get_full_path(file_name)
-	if not FileAccess.file_exists(path):
+	var temp_path: String = _get_full_path(_get_temp_filename(file_name))
+	var backup_path: String = _get_full_path(_get_backup_filename(file_name))
+	var transaction_path: String = _get_full_path(_get_transaction_filename(file_name))
+	var has_storage_family: bool = (
+		FileAccess.file_exists(path)
+		or FileAccess.file_exists(temp_path)
+		or FileAccess.file_exists(backup_path)
+		or FileAccess.file_exists(transaction_path)
+	)
+	if not has_storage_family:
 		return ERR_FILE_NOT_FOUND
-	return DirAccess.remove_absolute(path)
+
+	var delete_error: Error = OK
+	if FileAccess.file_exists(path):
+		delete_error = DirAccess.remove_absolute(path)
+	_cleanup_transaction_files([file_name])
+	return delete_error
 
 
 # --- 公共方法（槽位存档） ---
@@ -451,6 +484,10 @@ func delete_file(file_name: String) -> Error:
 ## @schema metadata: Dictionary，作为存档槽展示元数据保存。
 ## [br]
 ## @return Godot 的 `Error` 结果码。
+## [br]
+## @since 3.17.0
+## [br]
+## @deprecated 7.0.0 Use the Save extension slot storage adapter for slot workflows.
 func save_slot(slot_id: int, data: Dictionary, metadata: Dictionary = {}) -> Error:
 	if not _is_valid_slot_id(slot_id):
 		push_error("[GFStorageUtility] save_slot 失败：slot_id 必须大于等于 0，当前为 %d。" % slot_id)
@@ -486,6 +523,10 @@ func save_slot(slot_id: int, data: Dictionary, metadata: Dictionary = {}) -> Err
 ## @return 反序列化后的核心数据字典。
 ## [br]
 ## @schema return: Dictionary，作为存档槽主要数据保存的载荷。
+## [br]
+## @since 3.17.0
+## [br]
+## @deprecated 7.0.0 Use the Save extension slot storage adapter for slot workflows.
 func load_slot(slot_id: int) -> Dictionary:
 	if not _is_valid_slot_id(slot_id):
 		last_load_result = _make_load_result(false, {}, "Invalid slot_id: %d" % slot_id, true)
@@ -504,6 +545,10 @@ func load_slot(slot_id: int) -> Dictionary:
 ## @return 结果字典，包含 ok、data、metadata、integrity_valid、error。
 ## [br]
 ## @schema return: Dictionary，包含 ok: bool、data: Dictionary、metadata: Dictionary、integrity_valid: bool 和 error: String。
+## [br]
+## @since 3.17.0
+## [br]
+## @deprecated 7.0.0 Use the Save extension slot storage adapter for slot workflows.
 func load_slot_result(slot_id: int) -> Dictionary:
 	var _loaded_data: Dictionary = load_slot(slot_id)
 	return last_load_result.duplicate(true)
@@ -518,6 +563,10 @@ func load_slot_result(slot_id: int) -> Dictionary:
 ## @return 反序列化后的元数据字典。
 ## [br]
 ## @schema return: Dictionary，作为存档槽展示元数据保存。
+## [br]
+## @since 3.17.0
+## [br]
+## @deprecated 7.0.0 Use the Save extension slot storage adapter for slot workflows.
 func load_slot_meta(slot_id: int) -> Dictionary:
 	if not _is_valid_slot_id(slot_id):
 		last_load_result = _make_load_result(false, {}, "Invalid slot_id: %d" % slot_id, true)
@@ -536,6 +585,10 @@ func load_slot_meta(slot_id: int) -> Dictionary:
 ## @return 结果字典，包含 ok、data、metadata、integrity_valid、error。
 ## [br]
 ## @schema return: Dictionary，包含 ok: bool、data: Dictionary、metadata: Dictionary、integrity_valid: bool 和 error: String。
+## [br]
+## @since 3.17.0
+## [br]
+## @deprecated 7.0.0 Use the Save extension slot storage adapter for slot workflows.
 func load_slot_meta_result(slot_id: int) -> Dictionary:
 	var _loaded_metadata: Dictionary = load_slot_meta(slot_id)
 	return last_load_result.duplicate(true)
@@ -548,6 +601,10 @@ func load_slot_meta_result(slot_id: int) -> Dictionary:
 ## @param slot_id: 槽位 ID。
 ## [br]
 ## @return 核心数据与元数据文件都存在时返回 `true`。
+## [br]
+## @since 3.17.0
+## [br]
+## @deprecated 7.0.0 Use the Save extension slot storage adapter for slot workflows.
 func has_slot(slot_id: int) -> bool:
 	if not _is_valid_slot_id(slot_id):
 		return false
@@ -569,6 +626,10 @@ func has_slot(slot_id: int) -> bool:
 ## @return 槽位信息数组，元素包含 `slot_id`、`metadata` 与 `modified_time`。
 ## [br]
 ## @schema return: Array，包含 slot_id: int、metadata: Dictionary 和 modified_time: int 的 Dictionary 条目。
+## [br]
+## @since 3.17.0
+## [br]
+## @deprecated 7.0.0 Use the Save extension slot storage adapter for slot workflows.
 func list_slots() -> Array[Dictionary]:
 	init()
 	var dir: DirAccess = DirAccess.open(_get_save_base_path())
@@ -606,6 +667,10 @@ func list_slots() -> Array[Dictionary]:
 ## @api public
 ## [br]
 ## @param slot_id: 槽位 ID。
+## [br]
+## @since 3.17.0
+## [br]
+## @deprecated 7.0.0 Use the Save extension slot storage adapter for slot workflows.
 func delete_slot(slot_id: int) -> void:
 	if not _is_valid_slot_id(slot_id):
 		return
@@ -648,6 +713,53 @@ func save_data(file_name: String, data: Dictionary) -> Error:
 		return write_error
 
 	return _commit_transaction([file_name])
+
+
+## 以同一个事务保存多个纯字典文件。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param files: 文件名到字典载荷的映射。
+## [br]
+## @return Godot 的 `Error` 结果码。
+## [br]
+## @schema files: Dictionary，键为存储相对文件名，值为要序列化并保存的 Dictionary 载荷。
+func save_data_group(files: Dictionary) -> Error:
+	if files.is_empty():
+		push_error("[GFStorageUtility] save_data_group 失败：files 为空。")
+		return ERR_INVALID_PARAMETER
+
+	var file_names: Array[String] = []
+	var payloads_by_file: Dictionary = {}
+	for raw_file_name: Variant in files.keys():
+		var file_name: String = GFVariantData.to_text(raw_file_name)
+		if not _validate_public_file_name(file_name, "save_data_group"):
+			return ERR_INVALID_PARAMETER
+		if file_names.has(file_name):
+			push_error("[GFStorageUtility] save_data_group 失败：重复文件名 %s。" % file_name)
+			return ERR_INVALID_PARAMETER
+		var payload_value: Variant = files[raw_file_name]
+		if not (payload_value is Dictionary):
+			push_error("[GFStorageUtility] save_data_group 失败：%s 的载荷必须是 Dictionary。" % file_name)
+			return ERR_INVALID_DATA
+		file_names.append(file_name)
+		payloads_by_file[file_name] = GFVariantData.as_dictionary(payload_value)
+
+	init()
+	for file_name: String in file_names:
+		_wait_for_async_tasks_for_file(file_name)
+	_recover_transaction_files(file_names)
+
+	for file_name: String in file_names:
+		var temp_file_name: String = _get_temp_filename(file_name)
+		var write_error: Error = _write_json(temp_file_name, GFVariantData.get_option_dictionary(payloads_by_file, file_name))
+		if write_error != OK:
+			_cleanup_transaction_files(file_names)
+			return write_error
+
+	return _commit_transaction(file_names)
 
 
 ## 读取纯字典数据。
@@ -1292,11 +1404,31 @@ func _is_resource_load_extension_allowed(path: String) -> bool:
 
 func _is_resource_load_type_hint_allowed(type_hint: String) -> bool:
 	if allowed_resource_load_type_hints.is_empty():
-		return true
+		return false
 	for allowed_type_hint: String in allowed_resource_load_type_hints:
 		if allowed_type_hint.strip_edges() == type_hint:
 			return true
 	return false
+
+
+func _is_loaded_resource_compatible(resource: Resource, type_hint: String) -> bool:
+	if resource == null or type_hint.is_empty():
+		return false
+	if resource.is_class(type_hint):
+		return true
+
+	var script: Script = _get_script_value(resource.get_script())
+	while script != null:
+		if GFVariantData.to_text(script.get_global_name()) == type_hint or script.resource_path == type_hint:
+			return true
+		script = script.get_base_script()
+	return false
+
+
+func _get_script_value(value: Variant) -> Script:
+	if value is Script:
+		return value
+	return null
 
 
 func _get_full_directory_path_from_normalized(directory_name: String) -> String:
@@ -1422,12 +1554,28 @@ func _validate_public_file_name(file_name: String, operation: String) -> bool:
 	if file_name.strip_edges().is_empty():
 		push_error("[GFStorageUtility] %s 失败：file_name 为空。" % operation)
 		return false
+	if not _is_safe_storage_path(file_name, "file_name"):
+		return false
+	return true
+
+
+func _validate_public_directory_name(directory_name: String, operation: String) -> bool:
+	if directory_name.is_empty() or directory_name == ".":
+		return true
+	if not _is_safe_storage_path(directory_name, "directory_name"):
+		push_error("[GFStorageUtility] %s 失败：directory_name 非法。" % operation)
+		return false
 	return true
 
 
 func _is_parent_directory_path(path: String) -> bool:
 	_ensure_storage_helpers()
 	return _path_policy._is_parent_directory_path(path)
+
+
+func _is_safe_storage_path(path: String, label: String) -> bool:
+	_ensure_storage_helpers()
+	return _path_policy._is_safe_storage_path(path, label)
 
 
 func _get_async_file_key(file_name: String) -> String:
@@ -1782,9 +1930,11 @@ class _StoragePathPolicy:
 			if _get_bool_property("allow_absolute_paths"):
 				return file_name
 			push_error("[GFStorageUtility] 已禁用绝对路径：%s" % file_name)
-			file_name = file_name.get_file()
+			return ""
 
 		file_name = _sanitize_storage_relative_path(file_name, "file_name")
+		if file_name.is_empty():
+			return ""
 		if _get_string_property("save_dir_name").is_empty():
 			return "user://" + file_name
 		return _get_save_base_path() + "/" + file_name
@@ -1805,7 +1955,7 @@ class _StoragePathPolicy:
 			if _get_bool_property("allow_absolute_paths"):
 				return directory_name.replace("\\", "/").simplify_path()
 			push_error("[GFStorageUtility] 已禁用绝对路径：%s" % directory_name)
-			directory_name = directory_name.get_file()
+			return "_invalid_storage_directory"
 
 		var original_path: String = directory_name
 		var normalized: String = directory_name.replace("\\", "/").simplify_path()
@@ -1813,7 +1963,7 @@ class _StoragePathPolicy:
 			return ""
 		if _is_parent_directory_path(normalized):
 			push_error("[GFStorageUtility] 已拒绝跨目录路径（directory_name）：%s" % original_path)
-			normalized = original_path.get_file()
+			return "_invalid_storage_directory"
 		if normalized.is_empty() or normalized == "." or normalized == "..":
 			push_error("[GFStorageUtility] directory_name 为空。")
 			return "_invalid_storage_directory"
@@ -1832,14 +1982,32 @@ class _StoragePathPolicy:
 			normalized = ""
 		if _is_parent_directory_path(normalized):
 			push_error("[GFStorageUtility] 已拒绝跨目录路径（%s）：%s" % [label, original_path])
-			normalized = original_path.get_file()
+			return ""
 		if normalized.is_empty() or normalized == "." or normalized == "..":
 			push_error("[GFStorageUtility] %s 为空。" % label)
-			return "_invalid_storage_file"
+			return ""
 		return normalized
 
 	func _is_parent_directory_path(path: String) -> bool:
 		return path == ".." or path.begins_with("../") or path.contains("/../")
+
+	func _is_safe_storage_path(path: String, label: String) -> bool:
+		if path.is_absolute_path():
+			if _get_bool_property("allow_absolute_paths"):
+				return true
+			push_error("[GFStorageUtility] 已禁用绝对路径：%s" % path)
+			return false
+
+		var normalized: String = path.replace("\\", "/").simplify_path()
+		if normalized == ".":
+			normalized = ""
+		if _is_parent_directory_path(normalized):
+			push_error("[GFStorageUtility] 已拒绝跨目录路径（%s）：%s" % [label, path])
+			return false
+		if normalized.is_empty() or normalized == "." or normalized == "..":
+			push_error("[GFStorageUtility] %s 为空。" % label)
+			return false
+		return true
 
 
 class _StorageFileOps:

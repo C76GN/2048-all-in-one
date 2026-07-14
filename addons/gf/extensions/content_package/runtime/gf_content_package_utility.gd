@@ -38,7 +38,7 @@ var _catalog: GFContentPackageCatalog = GFContentPackageCatalog.new()
 ## [br]
 ## @api framework_internal
 func init() -> void:
-	clear_source_roots()
+	_source_roots.clear()
 	_catalog = GFContentPackageCatalog.new()
 
 
@@ -46,8 +46,8 @@ func init() -> void:
 ## [br]
 ## @api framework_internal
 func dispose() -> void:
-	clear_source_roots()
-	_catalog.clear()
+	_source_roots.clear()
+	_catalog = GFContentPackageCatalog.new()
 
 
 # --- 公共方法 ---
@@ -85,6 +85,7 @@ func unregister_source_root(root_path: String) -> bool:
 		if _source_roots[index] != normalized_root:
 			continue
 		_source_roots.remove_at(index)
+		_reset_catalog_after_roots_changed()
 		return true
 	return false
 
@@ -94,6 +95,7 @@ func unregister_source_root(root_path: String) -> bool:
 ## @api public
 func clear_source_roots() -> void:
 	_source_roots.clear()
+	_reset_catalog_after_roots_changed()
 
 
 ## 获取内容包 source root 列表。
@@ -307,6 +309,11 @@ func _add_manifest_load_failures(report: Dictionary, failed_manifest_paths: Pack
 
 func _report_ok(report: Dictionary) -> bool:
 	return GFVariantData.get_option_bool(report, "ok", false)
+
+
+func _reset_catalog_after_roots_changed() -> void:
+	_catalog = GFContentPackageCatalog.new()
+	catalog_rebuilt.emit(_catalog)
 
 
 static func _normalize_root_path(path: String) -> String:

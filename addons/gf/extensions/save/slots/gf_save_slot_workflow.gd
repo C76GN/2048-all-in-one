@@ -284,6 +284,33 @@ func build_cards_from_storage(storage: GFStorageUtility, indices: Array = []) ->
 	return build_cards_for_indices(target_indices, summaries)
 
 
+## 从 GFSaveSlotStorageAdapter 读取摘要并构建卡片。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param slot_store: 槽位存储适配器。
+## [br]
+## @param indices: 需要展示的槽位索引；为空时使用已有槽位。
+## [br]
+## @return 卡片列表。
+## [br]
+## @schema indices: Array，元素为可转换为 int 的槽位索引。
+func build_cards_from_slot_store(slot_store: GFSaveSlotStorageAdapter, indices: Array = []) -> Array[GFSaveSlotCard]:
+	if slot_store == null:
+		return []
+
+	var summaries: Array = slot_store.list_slots()
+	var target_indices: Array = indices.duplicate()
+	if target_indices.is_empty():
+		for summary: Dictionary in summaries:
+			var summary_index: int = _get_summary_slot_index(summary)
+			if summary_index >= 0:
+				target_indices.append(summary_index)
+	return build_cards_for_indices(target_indices, summaries)
+
+
 # --- 私有/辅助方法 ---
 
 func _new_metadata() -> GFSaveSlotMetadata:

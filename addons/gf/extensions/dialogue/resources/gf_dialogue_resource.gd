@@ -177,6 +177,8 @@ func validate_resource() -> Dictionary:
 					"Dialogue transition references a missing line."
 				)
 
+	_validate_automatic_cycles(report)
+
 	return _GF_VALIDATION_REPORT_DICTIONARY_SCRIPT.finalize_report(report, "Dialogue resource", {
 		"include_issue_count": true,
 		"next_actions": _get_validation_next_actions(),
@@ -236,7 +238,52 @@ func _get_validation_next_actions() -> Dictionary:
 		"empty_response_id": "Assign every response on a line a stable non-empty response_id.",
 		"duplicate_response_id": "Make response_id values unique within each dialogue line.",
 		"missing_next_line": "Create the referenced dialogue line or update the transition id.",
+		"automatic_cycle": "Break the automatic JUMP/MUTATION chain with a TEXT/END line or a conditional fallback.",
 	}
+
+
+func _validate_automatic_cycles(report: Dictionary) -> void:
+	var reported_cycles: Dictionary = {}
+	for line: GFDialogueLine in lines:
+		if not _is_automatic_line(line):
+			continue
+		_validate_automatic_chain(line.line_id, reported_cycles, report)
+
+
+func _validate_automatic_chain(
+	start_id: StringName,
+	reported_cycles: Dictionary,
+	report: Dictionary
+) -> void:
+	var visited: Dictionary = {}
+	var current_id: StringName = start_id
+	while current_id != &"":
+		var line: GFDialogueLine = get_line(current_id)
+		if not _is_automatic_line(line):
+			return
+		if visited.has(current_id):
+			if reported_cycles.has(current_id):
+				return
+			reported_cycles[current_id] = true
+			_append_issue(
+				report,
+				&"automatic_cycle",
+				String(current_id),
+				"Dialogue automatic JUMP/MUTATION chain contains a cycle."
+			)
+			return
+		visited[current_id] = true
+		current_id = line.get_default_next_line_id()
+
+
+func _is_automatic_line(line: GFDialogueLine) -> bool:
+	return (
+		line != null
+		and (
+			line.kind == GFDialogueLine.LineKind.JUMP
+			or line.kind == GFDialogueLine.LineKind.MUTATION
+		)
+	)
 
 
 func _get_dialogue_resource_value(value: Variant) -> GFDialogueResource:

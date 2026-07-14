@@ -22,16 +22,22 @@ const _GF_GRAPH_MATH_SCRIPT: Script = preload("res://addons/gf/standard/foundati
 ## 起始节点标识。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var start_node_id: StringName = &""
 
 ## 流程节点列表。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var nodes: Array[GFFlowNode] = []
 
 ## 节点连接列表。连接结构为 from_node_id/from_port_id/to_node_id/to_port_id/metadata。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @schema connections: 连接字典数组；每项包含 from_node_id、from_port_id、to_node_id、to_port_id 和 metadata 字段。
 @export var connections: Array[Dictionary] = []
@@ -39,26 +45,36 @@ const _GF_GRAPH_MATH_SCRIPT: Script = preload("res://addons/gf/standard/foundati
 ## 校验时是否把端口值类型和类名提示不兼容视为错误。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var validate_port_compatibility: bool = true
 
 ## 校验时是否提示从 start_node_id 无法到达的节点。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var warn_unreachable_nodes: bool = true
 
 ## 校验时是否提示图中的循环。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var warn_cycles: bool = true
 
 ## 校验时是否提示没有后继的终端节点。默认关闭，避免把正常结束节点视为问题。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 @export var warn_terminal_nodes: bool = false
 
 ## 编辑器分组数据。结构由编辑器工具解释，运行时不读取。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @schema editor_groups: 编辑器分组字典数组；字段由 FlowGraph 编辑器或项目工具解释。
 @export var editor_groups: Array[Dictionary] = []
@@ -67,12 +83,16 @@ const _GF_GRAPH_MATH_SCRIPT: Script = preload("res://addons/gf/standard/foundati
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @schema editor_metadata: 编辑器或项目工具自定义元数据 Dictionary；运行时不解释其中键值。
 @export var editor_metadata: Dictionary = {}
 
 ## 编辑器或项目工具元数据的轻量 Schema。框架只校验结构，不解释业务含义。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @schema metadata_schema: 轻量元数据校验规则 Dictionary；键为元数据 key，值为包含 required、allow_null、type、class_name、allowed_values 等字段的规则字典。
 @export var metadata_schema: Dictionary = {}
@@ -83,6 +103,8 @@ const _GF_GRAPH_MATH_SCRIPT: Script = preload("res://addons/gf/standard/foundati
 ## 设置或替换一个节点。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param node: 流程节点。
 func set_node(node: GFFlowNode) -> void:
@@ -100,6 +122,8 @@ func set_node(node: GFFlowNode) -> void:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param node_id: 节点标识。
 ## [br]
 ## @return: 流程节点；不存在时返回 null。
@@ -114,6 +138,8 @@ func get_node(node_id: StringName) -> GFFlowNode:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param node_id: 节点标识。
 ## [br]
 ## @return: 存在返回 true。
@@ -124,6 +150,8 @@ func has_node(node_id: StringName) -> bool:
 ## 移除节点。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param node_id: 节点标识。
 func remove_node(node_id: StringName) -> void:
@@ -137,6 +165,8 @@ func remove_node(node_id: StringName) -> void:
 ## 添加节点连接。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param from_node_id: 来源节点。
 ## [br]
@@ -173,6 +203,8 @@ func add_connection(
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param from_node_id: 连接起点节点标识。
 ## [br]
 ## @param from_port_id: 连接起点端口标识。
@@ -199,6 +231,8 @@ func remove_connection(
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param node_id: 节点标识。
 func remove_connections_for_node(node_id: StringName) -> void:
 	for index: int in range(connections.size() - 1, -1, -1):
@@ -210,6 +244,8 @@ func remove_connections_for_node(node_id: StringName) -> void:
 ## 检查连接是否存在。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param from_node_id: 连接起点节点标识。
 ## [br]
@@ -236,6 +272,8 @@ func has_connection(
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param node_id: 节点标识。
 ## [br]
 ## @param port_id: 端口标识；为空时返回该节点所有输出连接。
@@ -257,6 +295,8 @@ func get_connections_from(node_id: StringName, port_id: StringName = &"") -> Arr
 ## 获取指向指定节点或端口的连接。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param node_id: 节点标识。
 ## [br]
@@ -280,6 +320,8 @@ func get_connections_to(node_id: StringName, port_id: StringName = &"") -> Array
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param node_id: 节点标识。
 ## [br]
 ## @param port_id: 端口标识；为空时返回该节点所有输出目标。
@@ -298,6 +340,8 @@ func get_connected_node_ids_from(node_id: StringName, port_id: StringName = &"")
 ## 检查指定连接端口的兼容性。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param from_node_id: 来源节点。
 ## [br]
@@ -346,6 +390,8 @@ func check_connection_compatibility(
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @return: 兼容性报告列表。
 ## [br]
 ## @schema return: 兼容性报告字典数组；每项结构同 check_connection_compatibility() 返回值。
@@ -365,6 +411,8 @@ func get_connection_compatibility_report() -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param node_id: 节点标识。
 ## [br]
 ## @param position: 编辑器坐标。
@@ -381,6 +429,8 @@ func set_node_editor_position(node_id: StringName, position: Vector2) -> bool:
 ## 设置节点编辑器布局。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param node_id: 节点标识。
 ## [br]
@@ -409,6 +459,8 @@ func set_node_editor_layout(
 ## 获取编辑器或可视化工具可消费的节点目录。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @return: 节点目录字典。
 ## [br]
@@ -452,6 +504,8 @@ func get_editor_catalog() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @return: 图描述字典。
 ## [br]
 ## @schema return: 包含 start_node_id、node_count、nodes、connection_count、connections、validate_port_compatibility、diagnostics 和 editor 字段的 Dictionary。
@@ -484,6 +538,8 @@ func describe_graph() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param options: 可选参数，支持 clear_runtime_state。
 ## [br]
 ## @return: 流程图副本；复制失败时返回 null。
@@ -500,25 +556,36 @@ func instantiate_graph(options: Dictionary = {}) -> GFFlowGraph:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
+## @param json_compatible: 为 true 时输出 JSON-safe 报告值；默认为 false，保留运行时原始 Variant。
+## [br]
 ## @return: 运行态快照。
 ## [br]
 ## @schema return: 包含 nodes 字段的 Dictionary；nodes 按 node_id 保存节点运行态 Dictionary。
-func serialize_runtime_state() -> Dictionary:
+func serialize_runtime_state(json_compatible: bool = false) -> Dictionary:
 	var node_states: Dictionary = {}
 	for node: GFFlowNode in nodes:
 		if node == null or node.node_id == &"":
 			continue
-		var state: Dictionary = node.serialize_runtime_state()
+		var state: Dictionary = node.serialize_runtime_state(json_compatible)
 		if not state.is_empty():
 			node_states[node.node_id] = state
-	return {
+	var snapshot: Dictionary = {
 		"nodes": node_states,
 	}
+	if json_compatible:
+		return GFReportValueCodec.to_report_dictionary(snapshot, {
+			"path_redaction": "basename",
+		})
+	return snapshot
 
 
 ## 反序列化图内节点运行态。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param data: 运行态快照。
 ## [br]
@@ -542,6 +609,8 @@ func deserialize_runtime_state(data: Dictionary) -> void:
 ## 清空图内所有节点运行态。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 func clear_runtime_state() -> void:
 	for node: GFFlowNode in nodes:
 		if node != null:
@@ -551,6 +620,8 @@ func clear_runtime_state() -> void:
 ## 校验元数据是否符合轻量 Schema。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param target_metadata: 待校验元数据。
 ## [br]
@@ -586,6 +657,8 @@ func validate_metadata(target_metadata: Dictionary, schema: Dictionary = {}) -> 
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @return: 校验报告。
 ## [br]
 ## @schema return: GFValidationReportDictionary.finalize_report() 生成的 Dictionary，包含 ok、healthy、summary、issues、next_action、error_count 和 warning_count 等字段。
@@ -596,6 +669,8 @@ func validate_graph_metadata() -> Dictionary:
 ## 校验流程图结构。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @return: 校验报告。
 ## [br]
@@ -654,6 +729,8 @@ func validate_graph() -> Dictionary:
 ## 构建面向编辑器和可视化工具的流程图报告。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @return: 包含校验、目录和编辑器元数据的报告。
 ## [br]
@@ -826,8 +903,6 @@ func _get_port_id(port: GFFlowPort) -> StringName:
 		return &""
 	if port.port_id != &"":
 		return port.port_id
-	if not port.resource_path.is_empty():
-		return StringName(port.resource_path)
 	return &""
 
 

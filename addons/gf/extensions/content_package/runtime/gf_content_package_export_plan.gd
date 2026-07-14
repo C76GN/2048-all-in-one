@@ -134,6 +134,12 @@ func add_entry(
 			"archive_path": archive_path,
 		})
 		return false
+	if _has_archive_path(normalized_archive):
+		_append_issue("error", _KIND_DUPLICATE_ARCHIVE_PATH, "archive path is duplicated", {
+			"path": normalized_archive,
+			"source_path": normalized_source,
+		})
+		return false
 	entries.append({
 		"source_path": normalized_source,
 		"archive_path": normalized_archive,
@@ -190,7 +196,6 @@ func build_from_manifest(
 	for resource_entry: Dictionary in manifest.get_normalized_resources():
 		_append_manifest_resource_entry(resource_entry, options)
 
-	_validate_archive_path_uniqueness()
 	return self
 
 
@@ -240,7 +245,6 @@ func build_from_catalog(
 			root_path = _normalize_root_path(manifest.root_path)
 		_append_manifest_to_existing_plan(manifest, options)
 
-	_validate_archive_path_uniqueness()
 	return self
 
 
@@ -267,6 +271,7 @@ func get_validation_report() -> Dictionary:
 	for issue: Dictionary in issues:
 		report_issues.append(issue.duplicate(true))
 	report["issues"] = report_issues
+	_append_archive_path_uniqueness_issues(report)
 	return GFValidationReportDictionary.finalize_report(report, _REPORT_SUBJECT, {
 		"fallback_action": "Review the first content package export plan issue.",
 		"no_action": "Content package export plan is valid.",
@@ -435,6 +440,23 @@ func to_dictionary() -> Dictionary:
 	}
 
 
+## 转换为 JSON-safe 报告字典。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param options: 传给 GFReportValueCodec 的编码选项。
+## [br]
+## @return 计划报告字典。
+## [br]
+## @schema options: Dictionary with GFReportValueCodec encoding options.
+## [br]
+## @schema return: JSON-safe Dictionary based on to_dictionary().
+func to_report_dictionary(options: Dictionary = {}) -> Dictionary:
+	return GFReportValueCodec.to_report_dictionary(to_dictionary(), options)
+
+
 ## 从 manifest 创建计划。
 ## [br]
 ## @api public
@@ -558,6 +580,35 @@ func _validate_archive_path_uniqueness() -> void:
 			})
 			continue
 		seen[archive_path] = true
+
+
+func _append_archive_path_uniqueness_issues(report: Dictionary) -> void:
+	var seen: Dictionary = {}
+	for index: int in range(entries.size()):
+		var entry: Dictionary = entries[index]
+		var archive_path: String = GFVariantData.get_option_string(entry, "archive_path")
+		if archive_path.is_empty():
+			continue
+		if seen.has(archive_path):
+			var _issue: Dictionary = GFValidationReportDictionary.append_issue(
+				report,
+				"error",
+				StringName(_KIND_DUPLICATE_ARCHIVE_PATH),
+				"archive path is duplicated",
+				{
+					"path": archive_path,
+					"row_index": index,
+				}
+			)
+			continue
+		seen[archive_path] = true
+
+
+func _has_archive_path(archive_path: String) -> bool:
+	for entry: Dictionary in entries:
+		if GFVariantData.get_option_string(entry, "archive_path") == archive_path:
+			return true
+	return false
 
 
 func _make_artifact_entry(

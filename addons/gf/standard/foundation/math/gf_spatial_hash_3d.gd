@@ -512,31 +512,19 @@ func _world_to_cell(position: Vector3) -> Vector3i:
 
 
 func _make_entity_key(entity: Variant) -> String:
-	if entity == null:
-		return ""
-	if entity is Object:
-		var object: Object = _variant_to_object(entity)
-		return "object:%d" % object.get_instance_id()
-	if entity is StringName:
-		var string_name_value: StringName = entity
-		if string_name_value == &"":
-			return ""
-		return "string_name:%s" % String(string_name_value)
-	if entity is String:
-		var string_value: String = entity
-		if string_value.is_empty():
-			return ""
-		return "string:%s" % string_value
-	if entity is int:
-		var int_value: int = entity
-		return "int:%d" % int_value
-	return ""
+	return GFSpatialQueryIdentity.make_key(entity)
 
 
 func _make_entity_record(entity: Variant, bounds: AABB, cells: Array[Vector3i]) -> Dictionary:
-	if entity is Object:
-		var object: Object = _variant_to_object(entity)
+	var identity: GFSpatialQueryIdentity = GFSpatialQueryIdentity.from_value(entity)
+	if identity.key.is_empty():
+		return {}
+	if identity.kind == GFSpatialQueryIdentity.KIND_OBJECT:
+		var object: Object = identity.get_object()
+		if object == null:
+			return {}
 		return {
+			"identity": identity.to_dictionary(),
 			"entity_ref": weakref(object),
 			"entity": null,
 			"bounds": bounds,
@@ -544,8 +532,9 @@ func _make_entity_record(entity: Variant, bounds: AABB, cells: Array[Vector3i]) 
 		}
 
 	return {
+		"identity": identity.to_dictionary(),
 		"entity_ref": null,
-		"entity": entity,
+		"entity": identity.get_value(),
 		"bounds": bounds,
 		"cells": cells,
 	}

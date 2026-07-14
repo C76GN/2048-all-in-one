@@ -184,6 +184,82 @@ func restore_runtime_state(state: Dictionary) -> GFInputVirtualCursorModifier:
 	return self
 
 
+## 当前修饰器是否维护运行时状态。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 始终返回 true。
+func supports_runtime_state() -> bool:
+	return true
+
+
+## 获取运行时状态快照。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 当前运行时状态。
+## [br]
+## @schema return: Dictionary，包含 position 与 initialized。
+func get_modifier_runtime_state() -> Dictionary:
+	return get_runtime_state()
+
+
+## 从运行时状态快照恢复虚拟光标。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param state: get_modifier_runtime_state() 生成的状态。
+## [br]
+## @schema state: Dictionary，可包含 position: Vector2 与 initialized: bool。
+## [br]
+## @return 当前修饰器。
+func restore_modifier_runtime_state(state: Dictionary) -> GFInputModifier:
+	return restore_runtime_state(state)
+
+
+## 重置运行时状态。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 当前修饰器。
+func reset_modifier_runtime_state() -> GFInputModifier:
+	return reset_position()
+
+
+## 设置下一步和后续步骤使用的运行时 delta 秒数。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param delta_seconds: 运行时 delta 秒数；小于 0 时按 0 处理。
+## [br]
+## @return 当前修饰器。
+func set_runtime_delta_seconds(delta_seconds: float) -> GFInputModifier:
+	return set_manual_delta_seconds(delta_seconds)
+
+
+## 清除手动运行时 delta，恢复系统时间源。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 当前修饰器。
+func clear_runtime_delta_seconds() -> GFInputModifier:
+	use_manual_delta_time = false
+	_last_ticks_msec = 0
+	return self
+
+
 ## 创建运行时副本。
 ## [br]
 ## @api public

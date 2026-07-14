@@ -661,7 +661,7 @@ func is_capability_active(receiver: Object, capability_type: Script) -> bool:
 ## [br]
 ## @param capability_type: 要查询、添加或移除的能力脚本类型。
 func remove_capability(receiver: Object, capability_type: Script) -> void:
-	_remove_capability(receiver, capability_type, true)
+	var _removed: bool = _remove_capability(receiver, capability_type, true)
 
 
 ## 从对象注销指定能力，但不释放能力实例。
@@ -672,7 +672,7 @@ func remove_capability(receiver: Object, capability_type: Script) -> void:
 ## [br]
 ## @param capability_type: 要查询、添加或移除的能力脚本类型。
 func unregister_capability(receiver: Object, capability_type: Script) -> void:
-	_remove_capability(receiver, capability_type, false)
+	var _removed: bool = _remove_capability(receiver, capability_type, false)
 
 
 ## 清空对象上的所有能力。
@@ -833,7 +833,15 @@ func remove_recipe(receiver: Object, recipe: GFCapabilityRecipe, remove_groups: 
 			})
 			continue
 
-		remove_capability(receiver, capability_type)
+		var removed: bool = _remove_capability(receiver, capability_type, true)
+		if not removed:
+			result["ok"] = false
+			_append_report_array_item(result, "skipped", {
+				"index": index,
+				"type": _get_script_key(capability_type),
+				"kind": "remove_failed",
+			})
+			continue
 		_append_report_array_item(result, "removed", {
 			"index": index,
 			"type": _get_script_key(capability_type),
@@ -1090,10 +1098,10 @@ func _dispose_receiver_capabilities(receiver: Object) -> void:
 	_clear_empty_capability_metadata(receiver)
 
 
-func _remove_capability(receiver: Object, capability_type: Script, free_instance: bool) -> void:
+func _remove_capability(receiver: Object, capability_type: Script, free_instance: bool) -> bool:
 	var record: Dictionary = _find_capability_record(receiver, capability_type)
 	if record.is_empty():
-		return
+		return false
 
 	var registered_type: Script = _get_script_value(GFVariantData.get_option_value(record, "type"))
 	var capability: Object = _get_object_value(GFVariantData.get_option_value(record, "instance"))
@@ -1103,7 +1111,7 @@ func _remove_capability(receiver: Object, capability_type: Script, free_instance
 			"[GFCapabilityUtility] remove_capability 失败：能力 %s 仍被其他能力依赖。"
 			% _get_script_key(registered_type)
 		)
-		return
+		return false
 
 	var dependency_types: Array[Script] = _get_dependency_types(receiver, registered_type)
 	var dependency_removal_policy: int = _get_dependency_removal_policy(capability)
@@ -1120,6 +1128,7 @@ func _remove_capability(receiver: Object, capability_type: Script, free_instance
 		_free_registered_capability(capability)
 	if dependency_removal_policy == DependencyRemovalPolicy.REMOVE_AUTO_DEPENDENCIES:
 		_remove_unused_auto_dependencies(receiver, dependency_types)
+	return true
 
 
 func _apply_recipe_entry(
@@ -1155,23 +1164,30 @@ func _apply_recipe_entry(
 
 	if capability_type == null:
 		capability_type = _get_script_value(capability.get_script())
-	var had_capability: bool = capability_type != null and before_types.has(capability_type)
-	if had_capability and not reused_active_states.has(capability_type):
-		reused_active_states[capability_type] = is_capability_active(receiver, capability_type)
-	if capability_type != null:
-		set_capability_active(receiver, capability_type, entry.active)
+	var record: Dictionary = _find_capability_record(receiver, capability_type, false)
+	var registered_type: Script = _get_script_value(GFVariantData.get_option_value(record, "type", capability_type))
+	if registered_type == null:
+		registered_type = capability_type
+	var had_capability: bool = registered_type != null and before_types.has(registered_type)
+	if had_capability and not reused_active_states.has(registered_type):
+		reused_active_states[registered_type] = is_capability_active(receiver, registered_type)
+	if registered_type != null:
+		set_capability_active(receiver, registered_type, entry.active)
+
+	var created_types: Array[Script] = _get_created_capability_types(before_types, _get_capability_type_list(receiver))
+	for created_type: Script in created_types:
+		if created_type != null and not added_types.has(created_type):
+			added_types.append(created_type)
 
 	var entry_report: Dictionary = {
 		"index": index,
-		"type": _get_script_key(capability_type),
+		"type": _get_script_key(registered_type),
 		"active": entry.active,
-		"metadata": entry.metadata.duplicate(true),
+		"metadata": _json_safe_dictionary(entry.metadata),
 	}
 	if had_capability:
 		_append_report_array_item(result, "reused", entry_report)
 	else:
-		if capability_type != null and not added_types.has(capability_type):
-			added_types.append(capability_type)
 		_append_report_array_item(result, "added", entry_report)
 
 
@@ -1199,6 +1215,16 @@ func _append_recipe_failure(result: Dictionary, index: int, kind: String, messag
 		"kind": kind,
 		"message": message,
 	})
+
+
+func _json_safe_dictionary(data: Dictionary) -> Dictionary:
+	var encoded: Variant = GFVariantJsonCodec.variant_to_json_compatible(data, {
+		"encode_dictionary_keys": true,
+	})
+	if encoded is Dictionary:
+		var encoded_dictionary: Dictionary = encoded
+		return encoded_dictionary.duplicate(true)
+	return {}
 
 
 func _resolve_recipe_entry_type(receiver: Object, entry: GFCapabilityRecipeEntry) -> Script:
@@ -1238,7 +1264,9 @@ func _add_capability(receiver: Object, capability_type: Script, provider: Varian
 	var existing: Object = get_capability(receiver, capability_type)
 	if existing != null:
 		if is_top_level:
-			_mark_capability_top_level(receiver, capability_type, true)
+			var existing_record: Dictionary = _find_capability_record(receiver, capability_type, false)
+			var registered_existing_type: Script = _get_script_value(GFVariantData.get_option_value(existing_record, "type", capability_type))
+			_mark_capability_top_level(receiver, registered_existing_type if registered_existing_type != null else capability_type, true)
 		return existing
 
 	var creation_key: String = _get_creation_key(receiver, capability_type)
@@ -1301,11 +1329,13 @@ func _add_capability_instance(
 	var existing_record: Dictionary = _find_capability_record(receiver, capability_type, false)
 	var existing: Object = _get_object_value(GFVariantData.get_option_value(existing_record, "instance"))
 	if existing != null:
+		var registered_existing_type: Script = _get_script_value(GFVariantData.get_option_value(existing_record, "type", capability_type))
+		var existing_type: Script = registered_existing_type if registered_existing_type != null else capability_type
 		if existing == capability:
-			_mark_capability_top_level(receiver, capability_type, true)
+			_mark_capability_top_level(receiver, existing_type, true)
 			return capability
 		push_warning("[GFCapabilityUtility] add_capability_instance：目标对象已拥有该能力，已忽略新实例。")
-		_mark_capability_top_level(receiver, capability_type, true)
+		_mark_capability_top_level(receiver, existing_type, true)
 		return existing
 
 	var dependency_result: Dictionary = _ensure_required_capabilities(receiver, capability)

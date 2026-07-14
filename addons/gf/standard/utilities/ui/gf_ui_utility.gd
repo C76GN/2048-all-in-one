@@ -874,8 +874,8 @@ func _clear_layer_without_invalidating_requests(layer: Layer) -> void:
 
 func _detach_node_from_tree(node: Node) -> void:
 	var parent: Node = node.get_parent()
-	if parent != null:
-		parent.remove_child.call_deferred(node)
+	if parent != null and not GFAutoload.is_tree_shutdown_in_progress():
+		parent.remove_child(node)
 
 
 func _next_layer_request_serial(layer: Layer) -> int:
@@ -969,7 +969,7 @@ func _create_layers() -> void:
 		var canvas: CanvasLayer = CanvasLayer.new()
 		canvas.layer = 50 + layer_idx * 10
 		canvas.name = "GFUILayer_" + str(Layer.keys()[layer_idx])
-		root.call_deferred("add_child", canvas)
+		root.add_child(canvas)
 		_layer_roots[layer_idx] = canvas
 
 
@@ -1010,16 +1010,17 @@ func _add_panel_instance(
 			push_warning("[GFUIUtility] config_callback 销毁了面板实例，本次入栈已取消。")
 			return false
 
+	if panel.get_parent() != null and panel.get_parent() != canvas:
+		panel.get_parent().remove_child(panel)
+	if panel.get_parent() != canvas:
+		canvas.add_child(panel)
+
 	stack.push_back(panel)
 	_panel_options[panel.get_instance_id()] = normalized_options
 	var _tree_exited_connected: Error = panel.tree_exited.connect(
 		_on_panel_tree_exited.bind(panel, layer),
 		CONNECT_ONE_SHOT as Object.ConnectFlags
 	) as Error
-	if panel.get_parent() != null and panel.get_parent() != canvas:
-		panel.get_parent().remove_child(panel)
-	if panel.get_parent() != canvas:
-		canvas.add_child(panel)
 	_capture_previous_focus(panel, normalized_options)
 	_apply_open_focus_policy(panel, normalized_options)
 	panel_opened.emit(panel, layer)

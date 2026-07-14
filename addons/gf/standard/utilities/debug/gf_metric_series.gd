@@ -110,8 +110,10 @@ func configure(metric_id: StringName, options: Dictionary = {}) -> GFMetricSerie
 ## [br]
 ## @schema sample_metadata: Dictionary[String, Variant]，单个采样的项目自定义元数据。
 func add_sample(value: float, timestamp_seconds: float = -1.0, sample_metadata: Dictionary = {}) -> void:
+	if not _is_finite_float(value):
+		return
 	var timestamp: float = timestamp_seconds
-	if timestamp < 0.0:
+	if not _is_finite_float(timestamp) or timestamp < 0.0:
 		timestamp = float(Time.get_ticks_msec()) / 1000.0
 
 	_samples.append({
@@ -311,3 +313,7 @@ func _trim_samples() -> void:
 
 func _get_sample_value(sample: Dictionary) -> float:
 	return GFVariantData.get_option_float(sample, "value", 0.0)
+
+
+func _is_finite_float(value: float) -> bool:
+	return not is_nan(value) and not is_inf(value)

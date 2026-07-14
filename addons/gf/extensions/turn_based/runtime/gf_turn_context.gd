@@ -72,6 +72,27 @@ func clear_actions() -> void:
 	actions.clear()
 
 
+## 清理已经失效的参与者引用。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return: 被移除的失效参与者数量。
+## [br]
+## @schema return: int removed invalid actor reference count.
+func cleanup_invalid_actors() -> int:
+	var removed_count: int = 0
+	for index: int in range(actors.size() - 1, -1, -1):
+		var actor: Object = actors[index]
+		if actor == null or not is_instance_valid(actor):
+			actors.remove_at(index)
+			removed_count += 1
+	if current_actor != null and not is_instance_valid(current_actor):
+		current_actor = null
+	return removed_count
+
+
 ## 从参与者读取排序或判定值。
 ##
 ## 优先调用 `get_turn_value(key, fallback)`，其次读取对象属性。

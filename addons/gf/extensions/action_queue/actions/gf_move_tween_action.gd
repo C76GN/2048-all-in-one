@@ -87,6 +87,9 @@ func execute() -> Variant:
 	if duration <= 0.0:
 		target.set_indexed(property_name, target_position)
 		return null
+	if not target.is_inside_tree():
+		push_warning("[GFMoveTweenAction] 目标节点未进入场景树，无法创建 Tween。")
+		return null
 
 	_active_tween = target.create_tween()
 	var _set_ease_result_92: Variant = _active_tween.tween_property(target, property_name, target_position, duration).set_trans(transition_type).set_ease(ease_type)
@@ -126,7 +129,11 @@ func resume() -> void:
 ## @api public
 func finish() -> void:
 	if is_instance_valid(_active_tween):
-		var _custom_step_result_129: Variant = _active_tween.custom_step(INF)
+		_clear_active_tween()
+		if is_instance_valid(target):
+			target.set_indexed(property_name, target_position)
+		_emit_completed_once()
+		return
 	_clear_active_tween()
 	_emit_completed_once()
 

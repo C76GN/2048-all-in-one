@@ -102,7 +102,7 @@ func score(context: GFDecisionContext) -> float:
 
 	var raw_score: float = _score(context)
 	if is_nan(raw_score) or is_inf(raw_score):
-		raw_score = missing_score
+		raw_score = _finite_or_default(missing_score, 0.0)
 	raw_score = clampf(raw_score, 0.0, 1.0)
 	if invert:
 		raw_score = 1.0 - raw_score
@@ -172,11 +172,18 @@ func _resolve_input(context: GFDecisionContext) -> Variant:
 
 
 func _normalize_input(value: float) -> float:
-	if is_equal_approx(input_min, input_max):
-		return 1.0 if value >= input_max else 0.0
-	return clampf(inverse_lerp(input_min, input_max, value), 0.0, 1.0)
+	var safe_min: float = _finite_or_default(input_min, 0.0)
+	var safe_max: float = _finite_or_default(input_max, 1.0)
+	var safe_value: float = _finite_or_default(value, safe_min)
+	if is_equal_approx(safe_min, safe_max):
+		return 1.0 if safe_value >= safe_max else 0.0
+	return clampf(inverse_lerp(safe_min, safe_max, safe_value), 0.0, 1.0)
 
 
 func _is_numeric(value: Variant) -> bool:
 	var value_type: int = typeof(value)
 	return value_type == TYPE_INT or value_type == TYPE_FLOAT
+
+
+func _finite_or_default(value: float, default_value: float) -> float:
+	return value if not is_nan(value) and not is_inf(value) else default_value

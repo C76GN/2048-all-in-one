@@ -16,6 +16,7 @@ extends EditorDebuggerPlugin
 # --- 私有变量 ---
 
 var _tabs_by_session_id: Dictionary = {}
+var _session_stopped_callables: Dictionary = {}
 
 
 # --- Godot 回调方法 ---
@@ -52,8 +53,9 @@ func _setup_session(session_id: int) -> void:
 	tab.setup_session(session, session_id)
 	_tabs_by_session_id[session_id] = tab
 	session.add_session_tab(tab)
-	if not session.stopped.is_connected(_on_session_stopped.bind(session_id)):
-		var _stopped_connected: Error = session.stopped.connect(_on_session_stopped.bind(session_id)) as Error
+	var stopped_callable: Callable = _get_session_stopped_callable(session_id)
+	if not session.stopped.is_connected(stopped_callable):
+		var _stopped_connected: Error = session.stopped.connect(stopped_callable) as Error
 
 
 func _exit_tree() -> void:
@@ -110,10 +112,32 @@ func _data_string_name(data: Array, index: int) -> StringName:
 
 
 func _remove_session_tab(session_id: int) -> void:
+	var session: EditorDebuggerSession = get_session(session_id)
+	var stopped_callable: Callable = _get_existing_session_stopped_callable(session_id)
+	if session != null and stopped_callable.is_valid() and session.stopped.is_connected(stopped_callable):
+		session.stopped.disconnect(stopped_callable)
+	var _callable_erased: bool = _session_stopped_callables.erase(session_id)
 	var tab: GFRuntimeDebuggerTab = _get_tab(session_id)
 	var _erased: bool = _tabs_by_session_id.erase(session_id)
 	if tab != null and is_instance_valid(tab):
 		tab.queue_free()
+
+
+func _get_session_stopped_callable(session_id: int) -> Callable:
+	var existing: Callable = _get_existing_session_stopped_callable(session_id)
+	if existing.is_valid():
+		return existing
+	var callback: Callable = _on_session_stopped.bind(session_id)
+	_session_stopped_callables[session_id] = callback
+	return callback
+
+
+func _get_existing_session_stopped_callable(session_id: int) -> Callable:
+	var value: Variant = GFVariantData.get_option_value(_session_stopped_callables, session_id, Callable())
+	if value is Callable:
+		var callback: Callable = value
+		return callback
+	return Callable()
 
 
 # --- 信号处理函数 ---

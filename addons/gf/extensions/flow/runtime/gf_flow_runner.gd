@@ -178,6 +178,8 @@ func _run_graph(graph: GFFlowGraph, context: GFFlowContext) -> void:
 		executed_count += 1
 		context.clear_next_nodes()
 		node_started.emit(node_id, node)
+		if _cancel_requested:
+			return
 		var result: Variant = _execute_node_with_runtime_state(node, context)
 		if node.wait_for_result and result is Signal:
 			var result_signal: Signal = result

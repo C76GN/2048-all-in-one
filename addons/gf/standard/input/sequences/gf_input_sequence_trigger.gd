@@ -43,6 +43,12 @@ const _INSTANCE_GUARD = preload("res://addons/gf/kernel/core/gf_instance_guard.g
 @export var player_scoped: bool = true
 
 
+# --- 私有变量 ---
+
+var _required_branch_cache: Array[GFInputSequenceBranch] = []
+var _required_branch_cache_signature: String = ""
+
+
 # --- 公共方法 ---
 
 ## 重置输入触发器运行时状态。
@@ -124,8 +130,7 @@ func _get_effective_branches() -> Array[GFInputSequenceBranch]:
 		return result
 	if required_action_ids.is_empty():
 		return result
-	result.append(GFInputSequenceBranch.from_action_ids(required_action_ids, max_gap_seconds))
-	return result
+	return _get_required_action_branches()
 
 
 func _advance_branches(
@@ -143,6 +148,30 @@ func _advance_branches(
 		if branch == null:
 			continue
 		_advance_branch(branch_states[branch_index], branch, input_runtime, delta, _get_runtime_player_index(state))
+
+
+func _get_required_action_branches() -> Array[GFInputSequenceBranch]:
+	var signature: String = _make_required_action_signature()
+	if _required_branch_cache_signature != signature or _required_branch_cache.is_empty():
+		_required_branch_cache_signature = signature
+		_required_branch_cache.clear()
+		_required_branch_cache.append(GFInputSequenceBranch.from_action_ids(required_action_ids, max_gap_seconds))
+	var result: Array[GFInputSequenceBranch] = []
+	for branch: GFInputSequenceBranch in _required_branch_cache:
+		result.append(branch)
+	return result
+
+
+func _make_required_action_signature() -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	_append_signature_part(parts, str(max_gap_seconds))
+	for action_id: StringName in required_action_ids:
+		_append_signature_part(parts, String(action_id))
+	return "|".join(parts)
+
+
+func _append_signature_part(parts: PackedStringArray, value: String) -> void:
+	var _append_result: bool = parts.append("%d:%s" % [value.length(), value])
 
 
 func _advance_branch(

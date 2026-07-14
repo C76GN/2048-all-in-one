@@ -121,10 +121,14 @@ func clear_decisions() -> void:
 ## @schema return: Array[GFDecisionScore]，每个候选的评分结果。
 func score_all(context: GFDecisionContext) -> Array[GFDecisionScore]:
 	var scores: Array[GFDecisionScore] = []
+	var seen_decisions: Dictionary = {}
 	for index: int in range(decisions.size()):
 		var decision: GFDecisionOption = decisions[index]
 		if decision == null:
 			continue
+		if decision.decision_id == &"" or seen_decisions.has(decision.decision_id):
+			continue
+		seen_decisions[decision.decision_id] = true
 		if not decision.enabled and not include_disabled_in_reports:
 			continue
 		var candidate_score: GFDecisionScore = decision.score(context)
@@ -143,10 +147,43 @@ func score_all(context: GFDecisionContext) -> Array[GFDecisionScore]:
 ## @return: 最佳评分结果；没有可选候选时返回 rejected score。
 func select_best(context: GFDecisionContext) -> GFDecisionScore:
 	var scores: Array[GFDecisionScore] = score_all(context)
+	return select_best_from_scores(scores)
+
+
+## 从已计算评分中选择分数最高的候选决策。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param scores: 已计算的候选评分。
+## [br]
+## @return: 最佳评分结果；没有可选候选时返回 rejected score。
+## [br]
+## @schema scores: Array[GFDecisionScore]，通常来自 score_all() 或 GFDecisionEvaluation.scores。
+func select_best_from_scores(scores: Array[GFDecisionScore]) -> GFDecisionScore:
+	var required_score: float = _normalized_minimum_score()
 	for candidate_score: GFDecisionScore in scores:
-		if candidate_score != null and candidate_score.accepted and candidate_score.score >= minimum_score:
+		if candidate_score != null and candidate_score.accepted and candidate_score.score >= required_score:
 			return candidate_score
 	return GFDecisionScore.new(null, 0.0, [], false)
+
+
+## 一次性评价集合并返回评分、最佳候选和调试快照。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param context: 决策上下文。
+## [br]
+## @return: 决策评价结果。
+func evaluate(context: GFDecisionContext) -> GFDecisionEvaluation:
+	var scores: Array[GFDecisionScore] = score_all(context)
+	var best_score: GFDecisionScore = select_best_from_scores(scores)
+	var snapshot: Dictionary = get_debug_snapshot(null, scores)
+	var evaluation: GFDecisionEvaluation = GFDecisionEvaluation.new()
+	return evaluation.configure(decision_set_id, scores, best_score, snapshot)
 
 
 ## 获取集合调试快照。
@@ -175,9 +212,9 @@ func get_debug_snapshot(context: GFDecisionContext = null, scores: Array[GFDecis
 	return {
 		"decision_set_id": decision_set_id,
 		"decision_count": decisions.size(),
-		"minimum_score": minimum_score,
+		"minimum_score": _normalized_minimum_score(),
 		"scores": score_dictionaries,
-		"metadata": metadata.duplicate(true),
+		"metadata": _json_safe_dictionary(metadata),
 	}
 
 
@@ -197,3 +234,19 @@ func _normalized_order(order: int) -> int:
 	if order < 0:
 		return 999999
 	return order
+
+
+func _normalized_minimum_score() -> float:
+	if is_nan(minimum_score) or is_inf(minimum_score):
+		return 1.0
+	return clampf(minimum_score, 0.0, 1.0)
+
+
+func _json_safe_dictionary(data: Dictionary) -> Dictionary:
+	var encoded: Variant = GFVariantJsonCodec.variant_to_json_compatible(data, {
+		"encode_dictionary_keys": true,
+	})
+	if encoded is Dictionary:
+		var encoded_dictionary: Dictionary = encoded
+		return encoded_dictionary.duplicate(true)
+	return {}

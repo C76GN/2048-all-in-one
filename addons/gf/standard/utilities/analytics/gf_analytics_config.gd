@@ -100,6 +100,9 @@ func build_headers() -> PackedStringArray:
 		if not _is_valid_header(header_name, header_value):
 			push_warning("[GFAnalyticsConfig] 忽略非法 HTTP Header：%s" % _escape_header_for_log(header_name))
 			continue
+		if _is_same_header_name(header_name, "Content-Type"):
+			push_warning("[GFAnalyticsConfig] 忽略自定义 Content-Type；analytics payload 固定为 application/json。")
+			continue
 		if compress_payload and _is_same_header_name(header_name, "Content-Encoding"):
 			push_warning("[GFAnalyticsConfig] compress_payload 已启用，忽略自定义 Content-Encoding。")
 			continue

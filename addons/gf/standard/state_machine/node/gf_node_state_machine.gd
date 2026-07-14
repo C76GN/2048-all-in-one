@@ -136,7 +136,7 @@ var _internal_group: GFNodeStateGroup = null
 var _group_keys_by_instance_id: Dictionary = {}
 var _group_state_changed_callables: Dictionary = {}
 var _group_state_event_handled_callables: Dictionary = {}
-var _event_architectures: Array[GFArchitecture] = []
+var _event_architectures: Array[WeakRef] = []
 var _is_ready: bool = false
 var _reload_queued: bool = false
 var _is_reloading: bool = false
@@ -368,6 +368,19 @@ func remove_state_group(group: GFNodeStateGroup) -> bool:
 	return true
 
 
+## 获取已注册状态组列表。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return: 已注册状态组节点列表。
+## [br]
+## @schema return: Array[GFNodeStateGroup]，只读快照；修改状态组请使用 add_state_group() 与 remove_state_group()。
+func get_state_groups() -> Array[GFNodeStateGroup]:
+	return _get_registered_groups()
+
+
 ## 获取状态组。
 ## [br]
 ## @api public
@@ -530,6 +543,43 @@ func get_state_snapshot() -> Dictionary:
 		"groups": groups,
 		"internal_group": INTERNAL_GROUP_NAME,
 	}
+
+
+## 获取 JSON-safe 节点状态机调试快照。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param options: 传给 GFReportValueCodec 的编码选项。
+## [br]
+## @return 可安全 JSON.stringify() 的节点状态机调试快照。
+## [br]
+## @schema options: Dictionary with GFReportValueCodec options.
+## [br]
+## @schema return: Dictionary，包含 JSON-safe groups 和 internal_group 字段。
+func get_json_compatible_state_snapshot(options: Dictionary = {}) -> Dictionary:
+	var codec_options: Dictionary = options.duplicate(true)
+	return GFVariantData.as_dictionary(GFReportValueCodec.to_json_compatible(get_state_snapshot(), codec_options))
+
+
+## 从 get_state_snapshot() 的结果恢复所有已注册状态组。
+## [br]
+## 该入口只恢复状态机运行态，不创建缺失状态组或状态节点；调用方应先完成场景树装配或 reload_from_children()。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param snapshot: get_state_snapshot() 返回的状态机快照。
+## [br]
+## @return: 恢复报告。
+## [br]
+## @schema snapshot: Dictionary，包含 groups 和 internal_group 字段。
+## [br]
+## @schema return: Dictionary，包含 ok、restored、groups 和 missing_group_snapshots 字段。
+func restore_state_snapshot(snapshot: Dictionary) -> Dictionary:
+	return _restore_state_snapshot(GFVariantData.get_option_dictionary(snapshot, "groups"))
 
 
 ## 获取当前状态机可用的架构实例。
@@ -699,17 +749,19 @@ func send_simple_event(event_id: StringName, payload: Variant = null) -> void:
 ## [br]
 ## @api public
 ## [br]
+## @since unreleased
+## [br]
 ## @param listener_owner: 监听器拥有者。
 ## [br]
 ## @param event_type: 要监听的脚本类型。
 ## [br]
-## @param callback: 回调函数。
+## @param listener: 事件监听器契约。
 ## [br]
 ## @param priority: 回调优先级，数值越大越先执行，默认为 0。
-func register_event_owned(listener_owner: Object, event_type: Script, callback: Callable, priority: int = 0) -> void:
+func register_event_owned(listener_owner: Object, event_type: Script, listener: GFEventListener, priority: int = 0) -> void:
 	var architecture: GFArchitecture = _get_architecture_or_null()
 	if architecture != null:
-		architecture.register_event_owned(listener_owner, event_type, callback, priority)
+		architecture.register_event_owned(listener_owner, event_type, listener, priority)
 		_remember_event_architecture(architecture)
 
 
@@ -721,37 +773,39 @@ func register_event_owned(listener_owner: Object, event_type: Script, callback: 
 ## [br]
 ## @param event_type: 要注销的脚本类型。
 ## [br]
-## @param callback: 要移除的回调函数。
+## @param listener: 要移除的事件监听器契约。
 ## [br]
 ## @param listener_owner: 注册监听时使用的拥有者；为空时只注销无 owner 监听。
-func unregister_event(event_type: Script, callback: Callable, listener_owner: Object = null) -> void:
+func unregister_event(event_type: Script, listener: GFEventListener, listener_owner: Object = null) -> void:
 	for architecture: GFArchitecture in _get_tracked_event_architectures():
 		if listener_owner != null:
-			architecture.unregister_event_owned(listener_owner, event_type, callback)
+			architecture.unregister_event_owned(listener_owner, event_type, listener)
 		else:
-			architecture.unregister_event(event_type, callback)
+			architecture.unregister_event(event_type, listener)
 
 
 ## 注册带拥有者的可赋值类型事件监听器。
 ## [br]
 ## @api public
 ## [br]
+## @since unreleased
+## [br]
 ## @param listener_owner: 监听器拥有者。
 ## [br]
 ## @param base_event_type: 要监听的基类脚本类型。
 ## [br]
-## @param callback: 回调函数。
+## @param listener: 事件监听器契约。
 ## [br]
 ## @param priority: 回调优先级，数值越大越先执行，默认为 0。
 func register_assignable_event_owned(
 	listener_owner: Object,
 	base_event_type: Script,
-	callback: Callable,
+	listener: GFEventListener,
 	priority: int = 0
 ) -> void:
 	var architecture: GFArchitecture = _get_architecture_or_null()
 	if architecture != null:
-		architecture.register_assignable_event_owned(listener_owner, base_event_type, callback, priority)
+		architecture.register_assignable_event_owned(listener_owner, base_event_type, listener, priority)
 		_remember_event_architecture(architecture)
 
 
@@ -763,30 +817,32 @@ func register_assignable_event_owned(
 ## [br]
 ## @param base_event_type: 注册时使用的基类脚本类型。
 ## [br]
-## @param callback: 要移除的回调函数。
+## @param listener: 要移除的事件监听器契约。
 ## [br]
 ## @param listener_owner: 注册监听时使用的拥有者；为空时只注销无 owner 监听。
-func unregister_assignable_event(base_event_type: Script, callback: Callable, listener_owner: Object = null) -> void:
+func unregister_assignable_event(base_event_type: Script, listener: GFEventListener, listener_owner: Object = null) -> void:
 	for architecture: GFArchitecture in _get_tracked_event_architectures():
 		if listener_owner != null:
-			architecture.unregister_assignable_event_owned(listener_owner, base_event_type, callback)
+			architecture.unregister_assignable_event_owned(listener_owner, base_event_type, listener)
 		else:
-			architecture.unregister_assignable_event(base_event_type, callback)
+			architecture.unregister_assignable_event(base_event_type, listener)
 
 
 ## 注册带拥有者的轻量级 StringName 事件监听器。
 ## [br]
 ## @api public
 ## [br]
+## @since unreleased
+## [br]
 ## @param listener_owner: 监听器拥有者。
 ## [br]
 ## @param event_id: StringName 事件标识符。
 ## [br]
-## @param callback: 回调函数，签名为 func(payload: Variant)。
-func register_simple_event_owned(listener_owner: Object, event_id: StringName, callback: Callable) -> void:
+## @param listener: 简单事件监听器契约。
+func register_simple_event_owned(listener_owner: Object, event_id: StringName, listener: GFEventListener) -> void:
 	var architecture: GFArchitecture = _get_architecture_or_null()
 	if architecture != null:
-		architecture.register_simple_event_owned(listener_owner, event_id, callback)
+		architecture.register_simple_event_owned(listener_owner, event_id, listener)
 		_remember_event_architecture(architecture)
 
 
@@ -798,15 +854,15 @@ func register_simple_event_owned(listener_owner: Object, event_id: StringName, c
 ## [br]
 ## @param event_id: StringName 事件标识符。
 ## [br]
-## @param callback: 要移除的回调函数。
+## @param listener: 要移除的简单事件监听器契约。
 ## [br]
 ## @param listener_owner: 注册监听时使用的拥有者；为空时只注销无 owner 监听。
-func unregister_simple_event(event_id: StringName, callback: Callable, listener_owner: Object = null) -> void:
+func unregister_simple_event(event_id: StringName, listener: GFEventListener, listener_owner: Object = null) -> void:
 	for architecture: GFArchitecture in _get_tracked_event_architectures():
 		if listener_owner != null:
-			architecture.unregister_simple_event_owned(listener_owner, event_id, callback)
+			architecture.unregister_simple_event_owned(listener_owner, event_id, listener)
 		else:
-			architecture.unregister_simple_event(event_id, callback)
+			architecture.unregister_simple_event(event_id, listener)
 
 
 ## 注销指定拥有者通过状态机事件代理注册过的全部监听器。
@@ -861,7 +917,7 @@ func reload_from_children() -> void:
 	_is_reloading = false
 	_preserve_reload_state_active = false
 	if should_preserve_state:
-		_restore_state_snapshot(state_snapshot)
+		var _restore_report: Dictionary = _restore_state_snapshot(state_snapshot)
 
 
 ## 清空所有状态组。
@@ -919,19 +975,29 @@ func _find_nearest_context() -> GFNodeContext:
 func _remember_event_architecture(architecture: GFArchitecture) -> void:
 	if architecture == null or not is_instance_valid(architecture):
 		return
-	if not _event_architectures.has(architecture):
-		_event_architectures.append(architecture)
+	for architecture_ref: WeakRef in _event_architectures:
+		if architecture_ref.get_ref() == architecture:
+			return
+	_event_architectures.append(weakref(architecture))
 
 
 func _get_tracked_event_architectures() -> Array[GFArchitecture]:
 	var result: Array[GFArchitecture] = []
-	var live_architectures: Array[GFArchitecture] = []
-	for architecture: GFArchitecture in _event_architectures:
+	var live_architectures: Array[WeakRef] = []
+	for architecture_ref: WeakRef in _event_architectures:
+		var architecture: GFArchitecture = _variant_to_architecture(architecture_ref.get_ref())
 		if architecture != null and is_instance_valid(architecture):
 			result.append(architecture)
-			live_architectures.append(architecture)
+			live_architectures.append(architecture_ref)
 	_event_architectures = live_architectures
 	return result
+
+
+func _variant_to_architecture(value: Variant) -> GFArchitecture:
+	if value is GFArchitecture:
+		var architecture: GFArchitecture = value
+		return architecture
+	return null
 
 
 func _is_node_state(node: Node) -> bool:
@@ -1187,7 +1253,15 @@ func _capture_state_snapshot() -> Dictionary:
 	return result
 
 
-func _restore_state_snapshot(snapshot: Dictionary) -> void:
+func _restore_state_snapshot(snapshot: Dictionary) -> Dictionary:
+	var report: Dictionary = {
+		"ok": true,
+		"restored": true,
+		"groups": {},
+		"missing_group_snapshots": [],
+	}
+	var group_reports: Dictionary = {}
+	var missing_group_snapshots: Array[StringName] = []
 	for group_key: Variant in _groups.keys():
 		var group: GFNodeStateGroup = _variant_to_state_group(_groups[group_key])
 		if group == null:
@@ -1195,8 +1269,16 @@ func _restore_state_snapshot(snapshot: Dictionary) -> void:
 
 		var group_snapshot: Dictionary = GFVariantData.get_option_dictionary(snapshot, group_key)
 		if not group_snapshot.is_empty():
-			group.restore_state_snapshot(group_snapshot)
+			var group_report: Dictionary = group.restore_state_snapshot(group_snapshot)
+			group_reports[group_key] = group_report
+			if not GFVariantData.get_option_bool(group_report, "ok"):
+				report["ok"] = false
+				report["restored"] = false
 			if group.get_current_state_name() == &"" and _should_start_group_on_initialize():
 				_start_group_node(group, {})
 		elif _should_start_group_on_initialize():
+			missing_group_snapshots.append(GFVariantData.to_string_name(group_key))
 			_start_group_node(group, {})
+	report["groups"] = group_reports
+	report["missing_group_snapshots"] = missing_group_snapshots
+	return report

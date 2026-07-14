@@ -64,6 +64,13 @@ const _GF_NODE_CONTEXT_SCRIPT = preload("res://addons/gf/kernel/core/gf_node_con
 ## @api public
 @export var spawn_pattern: GFProjectileSpawnPattern2D = null
 
+## 可选发射请求策略。用于通用冷却、数量裁剪或项目侧自定义门控。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+@export var emission_policy: GFProjectileEmissionPolicy = null
+
 ## 默认上下文。每次发射会深拷贝后再合并调用方上下文。
 ## [br]
 ## @api public
@@ -174,6 +181,19 @@ func emit_projectiles(
 		_emit_failure(&"empty_spawn_pattern", { "projectile_id": effective_id })
 		return []
 
+	var policy_report: Dictionary = _prepare_emission_policy(effective_id, projectile_context, transforms.size())
+	if not GFVariantData.get_option_bool(policy_report, "ok", false):
+		_emit_failure(GFVariantData.get_option_string_name(policy_report, "reason", &"emission_policy_blocked"), policy_report)
+		return []
+
+	var allowed_count: int = GFVariantData.get_option_int(policy_report, "emit_count", transforms.size())
+	if allowed_count <= 0:
+		_emit_failure(&"emission_policy_blocked", policy_report)
+		return []
+	if allowed_count < transforms.size():
+		transforms = transforms.slice(0, allowed_count)
+
+	var effective_context: Dictionary = GFVariantData.get_option_dictionary(policy_report, "projectile_context")
 	var result: Array[Node] = []
 	for index: int in range(transforms.size()):
 		var spawn_transform: Transform2D = transforms[index]
@@ -186,12 +206,14 @@ func emit_projectiles(
 			continue
 
 		_apply_spawn_transform(projectile, spawn_transform)
-		var context: Dictionary = _build_spawn_context(projectile_context, effective_id, spawn_transform, index, transforms.size())
+		var context: Dictionary = _build_spawn_context(effective_context, effective_id, spawn_transform, index, transforms.size())
 		_prepare_projectile_runtime(projectile, scene)
 		if launch_after_spawn and projectile.has_method(&"launch"):
 			var _launch_result: Variant = projectile.call(&"launch", context)
 		projectile_emitted.emit(projectile, context.duplicate(true))
 		result.append(projectile)
+	if emission_policy != null:
+		var _commit_report: Dictionary = emission_policy.commit_emission(self, policy_report, result.size())
 	return result
 
 
@@ -245,7 +267,7 @@ func prewarm_projectiles(count: int, projectile_id: StringName = &"") -> bool:
 	var parent: Node = resolve_spawn_parent()
 	if scene == null or parent == null:
 		return false
-	pool.prewarm(scene, parent, count)
+	pool.prewarm(scene, parent, count, Callable(self, "_disable_auto_launch_if_supported"))
 	return true
 
 
@@ -257,11 +279,28 @@ func _get_spawn_transforms(projectile_context: Dictionary, emit_count: int) -> A
 	return [global_transform]
 
 
+func _prepare_emission_policy(
+	projectile_id: StringName,
+	projectile_context: Dictionary,
+	requested_count: int
+) -> Dictionary:
+	if emission_policy == null:
+		return {
+			"ok": true,
+			"reason": &"",
+			"projectile_id": projectile_id,
+			"requested_count": requested_count,
+			"emit_count": requested_count,
+			"projectile_context": projectile_context.duplicate(true),
+		}
+	return emission_policy.prepare_emission(self, projectile_id, projectile_context, requested_count)
+
+
 func _create_projectile_node(scene: PackedScene, parent: Node) -> Node:
 	if use_object_pool:
 		var pool: GFObjectPoolUtility = _get_object_pool()
 		if pool != null:
-			return pool.acquire(scene, parent)
+			return pool.acquire(scene, parent, Callable(self, "_disable_auto_launch_if_supported"))
 
 	var projectile: Node = _variant_to_node(scene.instantiate())
 	if projectile == null:

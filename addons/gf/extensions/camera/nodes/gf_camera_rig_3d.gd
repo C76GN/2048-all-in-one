@@ -107,6 +107,20 @@ signal priority_changed(priority: int)
 	set(value):
 		_set_group_name(value)
 
+## 相机选择作用域。为空时使用 Rig 父节点；Director 只会从相同作用域收集分组 Rig。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+@export_node_path("Node") var camera_scope_path: NodePath = NodePath("")
+
+## 相机选择频道。为空表示默认频道；Director 配置非空频道时只收集同频道 Rig。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+@export var camera_channel: StringName = &""
+
 ## 项目自定义元数据。框架不解释该字段。
 ## [br]
 ## @api public
@@ -167,21 +181,31 @@ func get_camera_transform() -> Transform3D:
 		camera_transform.origin = target.global_transform.origin
 		if use_target_rotation:
 			camera_transform.basis = target.global_transform.basis.orthonormalized()
+	camera_transform.origin = _sanitize_vector3(camera_transform.origin, Vector3.ZERO)
 	camera_transform.basis = camera_transform.basis.orthonormalized()
 
-	var effective_offset: Vector3 = camera_transform.basis * offset if offset_follows_rotation else offset
+	var safe_offset: Vector3 = _sanitize_vector3(offset, Vector3.ZERO)
+	var effective_offset: Vector3 = camera_transform.basis * safe_offset if offset_follows_rotation else safe_offset
 	camera_transform.origin += effective_offset
 	if look_at_enabled:
 		var look_at_target: Node3D = get_look_at_target_node()
 		if look_at_target != null and not camera_transform.origin.is_equal_approx(look_at_target.global_position):
 			var look_direction: Vector3 = look_at_target.global_position - camera_transform.origin
 			camera_transform = camera_transform.looking_at(look_at_target.global_position, _get_safe_up_axis_for_direction(look_direction))
-	if rotation_degrees_offset != Vector3.ZERO:
-		camera_transform.basis = camera_transform.basis.rotated(camera_transform.basis.x.normalized(), deg_to_rad(rotation_degrees_offset.x))
-		camera_transform.basis = camera_transform.basis.rotated(camera_transform.basis.y.normalized(), deg_to_rad(rotation_degrees_offset.y))
-		camera_transform.basis = camera_transform.basis.rotated(camera_transform.basis.z.normalized(), deg_to_rad(rotation_degrees_offset.z))
-	camera_transform.basis = camera_transform.basis.orthonormalized()
-	return camera_transform
+	return _apply_rotation_offset(camera_transform)
+
+
+## 获取相机选择作用域节点。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 作用域节点；显式路径为空时返回父节点。
+func get_camera_scope_node() -> Node:
+	if not camera_scope_path.is_empty():
+		return get_node_or_null(camera_scope_path)
+	return get_parent()
 
 
 ## 检查 Rig 是否可被选择。
@@ -226,9 +250,10 @@ func _unregister_group() -> void:
 
 
 func _get_safe_up_axis() -> Vector3:
-	if up_axis.length_squared() <= 0.000001:
+	var safe_axis: Vector3 = _sanitize_vector3(up_axis, Vector3.UP)
+	if safe_axis.length_squared() <= 0.000001:
 		return Vector3.UP
-	return up_axis.normalized()
+	return safe_axis.normalized()
 
 
 func _get_safe_up_axis_for_direction(direction: Vector3) -> Vector3:
@@ -248,3 +273,30 @@ func _get_node_3d_value(value: Variant) -> Node3D:
 		var node: Node3D = value
 		return node
 	return null
+
+
+func _apply_rotation_offset(camera_transform: Transform3D) -> Transform3D:
+	var safe_rotation_offset: Vector3 = _sanitize_vector3(rotation_degrees_offset, Vector3.ZERO)
+	if safe_rotation_offset != Vector3.ZERO:
+		camera_transform.basis = camera_transform.basis.rotated(camera_transform.basis.x.normalized(), deg_to_rad(safe_rotation_offset.x))
+		camera_transform.basis = camera_transform.basis.rotated(camera_transform.basis.y.normalized(), deg_to_rad(safe_rotation_offset.y))
+		camera_transform.basis = camera_transform.basis.rotated(camera_transform.basis.z.normalized(), deg_to_rad(safe_rotation_offset.z))
+	camera_transform.basis = camera_transform.basis.orthonormalized()
+	return camera_transform
+
+
+func _sanitize_float(value: float, fallback: float) -> float:
+	return value if not is_nan(value) and not is_inf(value) else fallback
+
+
+func _sanitize_vector3(value: Vector3, fallback: Vector3) -> Vector3:
+	if (
+		is_nan(value.x)
+		or is_inf(value.x)
+		or is_nan(value.y)
+		or is_inf(value.y)
+		or is_nan(value.z)
+		or is_inf(value.z)
+	):
+		return fallback
+	return value

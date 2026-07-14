@@ -23,7 +23,35 @@ const AUTOLOAD_NAME: StringName = &"Gf"
 const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
 
 
+# --- 私有变量 ---
+
+static var _tree_shutdown_in_progress: bool = false
+
+
 # --- 公共方法 ---
+
+## 标记 Gf AutoLoad 已进入 SceneTree 退出阶段。
+## 节点型 Utility 在此阶段不应主动 remove_child，由 SceneTree 统一完成拆树。
+## [br]
+## @api framework_internal
+static func mark_tree_shutdown_started() -> void:
+	_tree_shutdown_in_progress = true
+
+
+## 重置 SceneTree 退出标记，供 AutoLoad 再次进入树或隔离测试使用。
+## [br]
+## @api framework_internal
+static func reset_tree_shutdown_state() -> void:
+	_tree_shutdown_in_progress = false
+
+
+## 查询 Gf AutoLoad 是否正在随 SceneTree 退出。
+## [br]
+## @api framework_internal
+## [br]
+## @return 正在退出 SceneTree 时返回 true。
+static func is_tree_shutdown_in_progress() -> bool:
+	return _tree_shutdown_in_progress
 
 ## 获取 Gf AutoLoad 节点；未注册或场景树不可用时返回 null。
 ## [br]

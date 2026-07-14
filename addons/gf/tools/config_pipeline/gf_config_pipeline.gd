@@ -28,6 +28,8 @@ const _JSON_VARIANT_TYPE_KEY: String = "__gf_variant_type"
 const _JSON_VARIANT_VALUE_KEY: String = "value"
 const _DEFAULT_JSON_INDENT: String = "\t"
 const _DEFAULT_MAX_XLSX_ENTRY_BYTES: int = 8 * 1024 * 1024
+const _DEFAULT_MAX_XLSX_FILE_BYTES: int = 64 * 1024 * 1024
+const _DEFAULT_MAX_XLSX_ENTRY_COUNT: int = 4096
 const _DEFAULT_MAX_XLSX_SHARED_STRINGS: int = 100000
 const _DEFAULT_MAX_XLSX_ROWS: int = 100000
 const _DEFAULT_MAX_XLSX_COLUMNS: int = 512
@@ -728,12 +730,24 @@ func _build_table_from_parse_result(
 
 
 func _parse_xlsx_file(path: String, options: Dictionary) -> Dictionary:
+	var file_limit: int = _get_xlsx_limit(options, "max_xlsx_file_bytes", _DEFAULT_MAX_XLSX_FILE_BYTES)
+	var size_file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if size_file == null:
+		return _make_xlsx_parse_failure("XLSX open failed: %s" % error_string(FileAccess.get_open_error()), path)
+	var file_size: int = int(size_file.get_length())
+	size_file.close()
+	if _is_xlsx_limit_exceeded(file_size, file_limit):
+		return _make_xlsx_parse_failure("XLSX file exceeds max_xlsx_file_bytes.", path)
+
 	var reader: ZIPReader = ZIPReader.new()
 	var open_error: Error = reader.open(path)
 	if open_error != OK:
 		return _make_xlsx_parse_failure("XLSX open failed: %s" % error_string(open_error), path)
 
 	var files: PackedStringArray = reader.get_files()
+	if _is_xlsx_limit_exceeded(files.size(), _get_xlsx_limit(options, "max_xlsx_entry_count", _DEFAULT_MAX_XLSX_ENTRY_COUNT)):
+		_close_zip_reader(reader)
+		return _make_xlsx_parse_failure("XLSX archive exceeds max_xlsx_entry_count.", path)
 	var shared_strings_result: Dictionary = _read_xlsx_shared_strings(reader, files, options)
 	if not GFVariantData.get_option_bool(shared_strings_result, "success"):
 		_close_zip_reader(reader)
@@ -976,57 +990,21 @@ func _parse_xlsx_sheet(
 
 
 func _xlsx_rows_to_parse_result(rows: Array[Dictionary], options: Dictionary) -> Dictionary:
-	var source: String = GFVariantData.get_option_string(options, "source")
-	var header_row_number: int = maxi(GFVariantData.get_option_int(options, "header_row", 1), 1)
 	var trim_cells: bool = GFVariantData.get_option_bool(options, "trim_cells", true)
-	var skip_empty_lines: bool = GFVariantData.get_option_bool(options, "skip_empty_lines", true)
-	var reject_duplicate_headers: bool = GFVariantData.get_option_bool(options, "reject_duplicate_headers", true)
-	var header: PackedStringArray = PackedStringArray()
-	var records: Array[Dictionary] = []
-	var row_locations: Array[Dictionary] = []
-	var data_row_index: int = 0
-	var header_found: bool = false
-
+	var parsed_rows: Array[PackedStringArray] = []
+	var row_numbers: PackedInt32Array = PackedInt32Array()
 	for row_info: Dictionary in rows:
 		var row_number: int = GFVariantData.get_option_int(row_info, "row_number")
 		var cells: Dictionary = GFVariantData.get_option_dictionary(row_info, "cells")
-		if row_number == header_row_number:
-			header_found = true
-			header = _xlsx_cells_to_row(cells, trim_cells)
-			var header_error: String = _validate_xlsx_header(header, reject_duplicate_headers)
-			if not header_error.is_empty():
-				return _make_xlsx_parse_failure(header_error, source, row_number, 1)
-			continue
-		if row_number <= header_row_number:
-			continue
+		parsed_rows.append(_xlsx_cells_to_row(cells, trim_cells))
+		var _row_number_appended: bool = row_numbers.append(row_number)
 
-		var row: PackedStringArray = _xlsx_cells_to_row(cells, trim_cells)
-		if skip_empty_lines and _xlsx_row_is_empty(row):
-			continue
-
-		var record: Dictionary = {}
-		for column_index: int in range(header.size()):
-			var key: StringName = StringName(header[column_index])
-			if key == &"":
-				continue
-			record[key] = row[column_index] if column_index < row.size() else ""
-		records.append(record)
-		row_locations.append(_make_xlsx_row_location(source, row_number, data_row_index, header))
-		data_row_index += 1
-
-	if not header_found:
-		return _make_xlsx_parse_failure("XLSX header row is missing.", source, header_row_number, 1)
-
-	return {
-		"success": true,
-		"data": records,
-		"header": header,
-		"row_locations": row_locations,
-		"error": "",
-		"error_line": 0,
-		"error_column": 0,
-		"source": source,
-	}
+	var row_options: Dictionary = options.duplicate(true)
+	row_options["row_numbers"] = row_numbers
+	row_options["require_header"] = true
+	row_options["reject_empty_header"] = true
+	row_options["error_prefix"] = "XLSX"
+	return GFConfigTableImporter.parse_rows_table(parsed_rows, row_options)
 
 
 func _xlsx_cells_to_row(cells: Dictionary, trim_cells: bool) -> PackedStringArray:
@@ -1058,60 +1036,6 @@ func _resolve_xlsx_cell_value(
 	if cell_type == "b":
 		return "true" if text == "1" else "false"
 	return raw_value
-
-
-func _validate_xlsx_header(header: PackedStringArray, reject_duplicate_headers: bool) -> String:
-	var has_named_column: bool = false
-	var seen: Dictionary = {}
-	for column_name: String in header:
-		if column_name.is_empty():
-			continue
-		has_named_column = true
-		if seen.has(column_name):
-			return "XLSX header has duplicate column: %s" % column_name
-		if reject_duplicate_headers:
-			seen[column_name] = true
-	if not has_named_column:
-		return "XLSX header row is empty."
-	return ""
-
-
-func _make_xlsx_row_location(
-	source: String,
-	row_number: int,
-	row_index: int,
-	header: PackedStringArray
-) -> Dictionary:
-	var fields: Dictionary = {}
-	for column_index: int in range(header.size()):
-		var key: StringName = StringName(header[column_index])
-		if key == &"":
-			continue
-		var field_location: Dictionary = {
-			"line": row_number,
-			"column": column_index + 1,
-			"column_index": column_index,
-		}
-		if not source.is_empty():
-			field_location["source"] = source
-		fields[key] = field_location
-		fields[String(key)] = field_location
-
-	var row_location: Dictionary = {
-		"line": row_number,
-		"row_index": row_index,
-		"fields": fields,
-	}
-	if not source.is_empty():
-		row_location["source"] = source
-	return row_location
-
-
-func _xlsx_row_is_empty(row: PackedStringArray) -> bool:
-	for cell: String in row:
-		if not cell.strip_edges().is_empty():
-			return false
-	return true
 
 
 func _xlsx_column_index_from_cell_ref(cell_ref: String) -> int:
@@ -1946,18 +1870,28 @@ func _make_dry_run_options(options: Dictionary) -> Dictionary:
 
 
 func _validate_output_path_policy(output_path: String, options: Dictionary, artifact_label: String) -> String:
-	var normalized_path: String = output_path.replace("\\", "/").strip_edges()
-	if normalized_path.is_empty():
+	var raw_path: String = output_path.replace("\\", "/").strip_edges()
+	if raw_path.is_empty():
 		return "%s输出路径为空。" % artifact_label
-	if _has_unsupported_output_scheme(normalized_path):
+	if _has_unsupported_output_scheme(raw_path):
 		return "%s输出路径使用了不支持的 URI scheme：%s。" % [artifact_label, output_path]
-	if _path_has_parent_segment(normalized_path) and not GFVariantData.get_option_bool(options, "allow_parent_output_path", false):
+	if _path_has_parent_segment(raw_path) and not GFVariantData.get_option_bool(options, "allow_parent_output_path", false):
 		return "%s输出路径不能包含父级越界片段：%s。" % [artifact_label, output_path]
-	if _is_filesystem_absolute_path(normalized_path) and not GFVariantData.get_option_bool(options, "allow_absolute_output_path", false):
+	if _is_filesystem_absolute_path(raw_path):
 		return "%s输出路径不能是绝对文件系统路径：%s。" % [artifact_label, output_path]
+	var normalized_path: String = _normalize_output_path(raw_path)
 	if _is_gf_source_output_path(normalized_path) and not GFVariantData.get_option_bool(options, "allow_gf_source_output", false):
 		return "%s输出路径不能写入 GF 框架源码目录：%s。" % [artifact_label, output_path]
 	return ""
+
+
+func _normalize_output_path(path: String) -> String:
+	var normalized: String = path.replace("\\", "/").strip_edges()
+	if normalized.contains("://"):
+		var scheme: String = normalized.get_slice("://", 0).to_lower()
+		var body: String = normalized.get_slice("://", 1).simplify_path()
+		return "%s://%s" % [scheme, body]
+	return normalized.simplify_path()
 
 
 func _path_has_parent_segment(path: String) -> bool:

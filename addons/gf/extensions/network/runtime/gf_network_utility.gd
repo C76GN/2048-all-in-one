@@ -97,6 +97,7 @@ var connect_timeout_msec: int = 15000
 var _channels: Dictionary = {}
 var _connect_timeout_active: bool = false
 var _connect_timeout_elapsed_msec: int = 0
+var _diagnostics_section_key: StringName = &""
 
 
 # --- GF 生命周期方法 ---
@@ -440,7 +441,7 @@ func _on_backend_message_received(peer_id: int, bytes: PackedByteArray) -> void:
 			if not GFVariantData.get_option_bool(channel_bytes_report, "ok", false):
 				message_rejected.emit(peer_id, "invalid_packet", channel_bytes_report)
 				return
-		var message_report: Dictionary = validator.validate_message(message)
+		var message_report: Dictionary = validator.validate_message_for_peer(message, peer_id)
 		if not GFVariantData.get_option_bool(message_report, "ok", false):
 			message_rejected.emit(peer_id, "invalid_message", message_report)
 			return
@@ -527,15 +528,21 @@ func _register_diagnostics_contribution() -> void:
 	if diagnostics == null:
 		return
 
-	var _register_snapshot_section_provider_result_471: Variant = diagnostics.register_snapshot_section_provider(&"network", Callable(self, "get_debug_snapshot"))
+	_diagnostics_section_key = _get_diagnostics_section_key()
+	var _register_snapshot_section_provider_result_472: Variant = diagnostics.register_snapshot_section_provider(_diagnostics_section_key, Callable(self, "get_debug_snapshot"))
 
 
 func _unregister_diagnostics_contribution() -> void:
 	var diagnostics: GFDiagnosticsUtility = _get_diagnostics_utility_value(get_utility(GFDiagnosticsUtility))
-	if diagnostics == null:
+	if diagnostics == null or _diagnostics_section_key == &"":
 		return
 
-	diagnostics.unregister_snapshot_section_provider(&"network")
+	diagnostics.unregister_snapshot_section_provider(_diagnostics_section_key)
+	_diagnostics_section_key = &""
+
+
+func _get_diagnostics_section_key() -> StringName:
+	return &"network"
 
 
 func _get_network_channel_value(value: Variant) -> GFNetworkChannel:

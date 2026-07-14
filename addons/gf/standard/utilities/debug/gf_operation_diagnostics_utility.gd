@@ -35,6 +35,13 @@ const DEFAULT_MAX_INCIDENTS: int = 200
 ## @since 7.0.0
 const DEFAULT_MAX_STATE_TRACE_ENTRIES: int = 64
 
+## 默认保留的采样统计数量。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const DEFAULT_MAX_SAMPLE_STATS: int = 256
+
 ## 默认慢操作阈值，单位毫秒。
 ## [br]
 ## @api public
@@ -152,6 +159,16 @@ var max_state_trace_entries: int = DEFAULT_MAX_STATE_TRACE_ENTRIES:
 		max_state_trace_entries = maxi(value, 0)
 		_trim_operation_state_traces()
 
+## 最多保留的采样统计数量。设置为 0 时不保留采样统计。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+var max_sample_stats: int = DEFAULT_MAX_SAMPLE_STATS:
+	set(value):
+		max_sample_stats = maxi(value, 0)
+		_trim_sample_stats()
+
 ## 超过该耗时的完成操作会在健康快照中计入慢操作，单位毫秒。小于 0 时禁用慢操作统计。
 ## [br]
 ## @api public
@@ -164,6 +181,7 @@ var slow_operation_threshold_ms: float = DEFAULT_SLOW_OPERATION_THRESHOLD_MS
 
 var _operations: Array[Dictionary] = []
 var _incidents: Array[Dictionary] = []
+var _sample_stats: Dictionary = {}
 var _next_operation_index: int = 1
 var _next_incident_index: int = 1
 var _next_sequence: int = 1
@@ -190,6 +208,7 @@ func dispose() -> void:
 func clear() -> void:
 	_operations.clear()
 	_incidents.clear()
+	_sample_stats.clear()
 	_next_operation_index = 1
 	_next_incident_index = 1
 	_next_sequence = 1
@@ -209,7 +228,7 @@ func clear() -> void:
 ## [br]
 ## @schema options: Dictionary，支持 operation_id、component、label、metadata 和 started_ticks_usec。
 func begin_operation(operation_type: StringName, options: Dictionary = {}) -> StringName:
-	if operation_type == &"":
+	if operation_type == &"" or max_operations <= 0:
 		return &""
 
 	var operation_id: StringName = GFVariantData.get_option_string_name(options, "operation_id")
@@ -278,23 +297,14 @@ func record_completed_operation(
 	success: bool = true,
 	options: Dictionary = {}
 ) -> Dictionary:
-	var safe_duration_ms: float = maxf(duration_ms, 0.0)
-	var ended_ticks_usec: int = GFVariantData.get_option_int(options, "ended_ticks_usec", Time.get_ticks_usec())
-	var started_ticks_usec: int = GFVariantData.get_option_int(
+	return _record_completed_operation_with_terminal_state(
+		operation_type,
+		duration_ms,
+		success,
 		options,
-		"started_ticks_usec",
-		ended_ticks_usec - roundi(safe_duration_ms * 1000.0)
+		_get_default_terminal_operation_state(success),
+		_get_default_terminal_state_status(success)
 	)
-	var operation_options: Dictionary = options.duplicate(true)
-	operation_options["started_ticks_usec"] = started_ticks_usec
-	var operation_id: StringName = begin_operation(operation_type, operation_options)
-	if operation_id == &"":
-		return {}
-
-	var finish_options: Dictionary = options.duplicate(true)
-	finish_options["ended_ticks_usec"] = ended_ticks_usec
-	finish_options["duration_ms"] = safe_duration_ms
-	return finish_operation(operation_id, success, finish_options)
 
 
 ## 为已有操作记录一个阶段耗时。
@@ -495,39 +505,13 @@ func record_state_snapshot(
 ## [br]
 ## @schema return: Dictionary，包含 operation_id、operation_type、component、state、duration_ms、phases、anomaly_codes 和 metadata 等字段。
 func finish_operation(operation_id: StringName, success: bool = true, options: Dictionary = {}) -> Dictionary:
-	if operation_id == &"":
-		return {}
-
-	var index: int = _find_operation_index(operation_id)
-	if index < 0:
-		return {}
-
-	var operation: Dictionary = _operations[index]
-	var ended_ticks_usec: int = GFVariantData.get_option_int(options, "ended_ticks_usec", Time.get_ticks_usec())
-	var started_ticks_usec: int = GFVariantData.get_option_int(operation, "started_ticks_usec", ended_ticks_usec)
-	var duration_ms: float = GFVariantData.get_option_float(
+	return _finish_operation_with_terminal_state(
+		operation_id,
+		success,
 		options,
-		"duration_ms",
-		maxf(float(ended_ticks_usec - started_ticks_usec) / 1000.0, 0.0)
+		_get_default_terminal_operation_state(success),
+		_get_default_terminal_state_status(success)
 	)
-	var ended_at_unix: float = Time.get_unix_time_from_system()
-
-	operation["success"] = success
-	operation["state"] = &"completed" if success else &"failed"
-	operation["current_state_status"] = STATE_SUCCEEDED if success else STATE_FAILED
-	operation["user_action_required"] = false
-	operation["ended_ticks_usec"] = ended_ticks_usec
-	operation["duration_ms"] = maxf(duration_ms, 0.0)
-	operation["ended_at_unix"] = ended_at_unix
-	operation["ended_at_iso"] = _datetime_from_unix(ended_at_unix)
-	operation["last_sequence"] = _take_sequence()
-	operation["metadata"] = _merge_metadata(GFVariantData.get_option_dictionary(operation, "metadata"), GFVariantData.get_option_dictionary(options, "metadata"))
-	operation["anomaly_codes"] = _merge_string_arrays(
-		GFVariantData.get_option_packed_string_array(operation, "anomaly_codes"),
-		GFVariantData.get_option_packed_string_array(options, "anomaly_codes")
-	)
-	_operations[index] = operation
-	return operation.duplicate(true)
 
 
 ## 记录一个异常事件；同类事件会聚合 occurrence_count 并更新时间。
@@ -644,22 +628,143 @@ func record_async_snapshot(
 		return get_operation(begin_operation(operation_type, operation_options))
 
 	var success: bool = _async_snapshot_is_successful(snapshot)
+	var terminal_state: StringName = _get_async_terminal_operation_state(snapshot, success)
+	var terminal_state_status: StringName = _get_async_terminal_state_status(snapshot, success)
 	var duration_ms: float = _get_async_snapshot_duration_ms(snapshot, options)
 	var anomaly_codes: PackedStringArray = _get_async_snapshot_anomaly_codes(snapshot)
 	if not anomaly_codes.is_empty():
 		operation_options["anomaly_codes"] = anomaly_codes
 	var existing_operation_id: StringName = GFVariantData.get_option_string_name(operation_options, "operation_id")
 	if existing_operation_id != &"" and has_operation(existing_operation_id):
-		var finished_operation: Dictionary = finish_operation(existing_operation_id, success, {
-			"duration_ms": duration_ms,
-			"metadata": GFVariantData.get_option_dictionary(operation_options, "metadata"),
-			"anomaly_codes": anomaly_codes,
-		})
+		var finished_operation: Dictionary = _finish_operation_with_terminal_state(
+			existing_operation_id,
+			success,
+			{
+				"duration_ms": duration_ms,
+				"metadata": GFVariantData.get_option_dictionary(operation_options, "metadata"),
+				"anomaly_codes": anomaly_codes,
+			},
+			terminal_state,
+			terminal_state_status
+		)
 		_record_async_snapshot_incident(snapshot, options)
 		return finished_operation
-	var operation: Dictionary = record_completed_operation(operation_type, duration_ms, success, operation_options)
+	var operation: Dictionary = _record_completed_operation_with_terminal_state(
+		operation_type,
+		duration_ms,
+		success,
+		operation_options,
+		terminal_state,
+		terminal_state_status
+	)
 	_record_async_snapshot_incident(snapshot, options)
 	return operation
+
+
+## 记录一次命名耗时采样并更新聚合统计。
+## [br]
+## 采样统计适合记录高频、短生命周期或不需要完整 begin/finish 生命周期的诊断点。
+## GF 只聚合调用次数、耗时和 metadata，不解释 sample_id 的业务含义。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param sample_id: 采样点 ID，建议使用稳定命名空间标识。
+## [br]
+## @param duration_ms: 本次采样耗时，单位毫秒。
+## [br]
+## @param options: 可选参数，支持 component、label、metadata、started_ticks_usec 和 ended_ticks_usec。
+## [br]
+## @return 更新后的采样统计副本；sample_id 为空或采样统计被禁用时返回空字典。
+## [br]
+## @schema options: Dictionary，支持 component、label、metadata、started_ticks_usec 和 ended_ticks_usec。
+## [br]
+## @schema return: Dictionary，包含 sample_id、component、sample_count、total_duration_ms、average_duration_ms、min_duration_ms、max_duration_ms、slow_sample_count 和 metadata。
+func record_sample(sample_id: StringName, duration_ms: float, options: Dictionary = {}) -> Dictionary:
+	if sample_id == &"" or max_sample_stats <= 0:
+		return {}
+
+	var safe_duration_ms: float = maxf(duration_ms, 0.0)
+	var ended_ticks_usec: int = GFVariantData.get_option_int(options, "ended_ticks_usec", Time.get_ticks_usec())
+	var started_ticks_usec: int = GFVariantData.get_option_int(
+		options,
+		"started_ticks_usec",
+		ended_ticks_usec - roundi(safe_duration_ms * 1000.0)
+	)
+	var sequence: int = _take_sequence()
+	var now_unix: float = Time.get_unix_time_from_system()
+	var stat: Dictionary = _get_or_create_sample_stat(sample_id, sequence, now_unix)
+	var previous_count: int = GFVariantData.get_option_int(stat, "sample_count", 0)
+	var sample_count: int = previous_count + 1
+	var total_duration_ms: float = GFVariantData.get_option_float(stat, "total_duration_ms", 0.0) + safe_duration_ms
+	var slow_sample_count: int = GFVariantData.get_option_int(stat, "slow_sample_count", 0)
+	if _is_slow_operation_duration(safe_duration_ms):
+		slow_sample_count += 1
+
+	stat["component"] = GFVariantData.get_option_string_name(options, "component", GFVariantData.get_option_string_name(stat, "component"))
+	stat["label"] = GFVariantData.get_option_string(options, "label", GFVariantData.get_option_string(stat, "label", String(sample_id)))
+	stat["sample_count"] = sample_count
+	stat["total_duration_ms"] = total_duration_ms
+	stat["average_duration_ms"] = total_duration_ms / float(sample_count)
+	stat["last_duration_ms"] = safe_duration_ms
+	stat["min_duration_ms"] = safe_duration_ms if previous_count == 0 else minf(GFVariantData.get_option_float(stat, "min_duration_ms", safe_duration_ms), safe_duration_ms)
+	stat["max_duration_ms"] = safe_duration_ms if previous_count == 0 else maxf(GFVariantData.get_option_float(stat, "max_duration_ms", safe_duration_ms), safe_duration_ms)
+	stat["slow_sample_count"] = slow_sample_count
+	stat["last_started_ticks_usec"] = started_ticks_usec
+	stat["last_ended_ticks_usec"] = ended_ticks_usec
+	stat["last_seen_unix"] = now_unix
+	stat["last_seen_iso"] = _datetime_from_unix(now_unix)
+	stat["last_sequence"] = sequence
+	stat["metadata"] = _merge_metadata(GFVariantData.get_option_dictionary(stat, "metadata"), GFVariantData.get_option_dictionary(options, "metadata"))
+	_sample_stats[sample_id] = stat
+	_trim_sample_stats()
+	return stat.duplicate(true)
+
+
+## 使用 Godot tick 起点记录一次命名耗时采样。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param sample_id: 采样点 ID。
+## [br]
+## @param started_ticks_usec: 采样开始时的 Time.get_ticks_usec()。
+## [br]
+## @param options: 可选参数，支持 component、label、metadata 和 ended_ticks_usec。
+## [br]
+## @return 更新后的采样统计副本；sample_id 为空或采样统计被禁用时返回空字典。
+## [br]
+## @schema options: Dictionary，支持 component、label、metadata 和 ended_ticks_usec。
+## [br]
+## @schema return: Dictionary，包含 sample_id、sample_count、total_duration_ms、average_duration_ms、min_duration_ms、max_duration_ms 和 slow_sample_count。
+func record_sample_from_ticks(sample_id: StringName, started_ticks_usec: int, options: Dictionary = {}) -> Dictionary:
+	var ended_ticks_usec: int = GFVariantData.get_option_int(options, "ended_ticks_usec", Time.get_ticks_usec())
+	var duration_ms: float = maxf(float(ended_ticks_usec - started_ticks_usec) / 1000.0, 0.0)
+	var sample_options: Dictionary = options.duplicate(true)
+	sample_options["started_ticks_usec"] = started_ticks_usec
+	sample_options["ended_ticks_usec"] = ended_ticks_usec
+	return record_sample(sample_id, duration_ms, sample_options)
+
+
+## 清理采样统计。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param sample_id: 采样点 ID；为空时清空全部采样统计。
+## [br]
+## @return 实际移除的采样统计数量。
+func clear_sample_stats(sample_id: StringName = &"") -> int:
+	if sample_id == &"":
+		var removed_count: int = _sample_stats.size()
+		_sample_stats.clear()
+		return removed_count
+	if _sample_stats.erase(sample_id):
+		return 1
+	return 0
 
 
 ## 检查操作是否仍在历史中。
@@ -718,6 +823,48 @@ func get_operation_state_trace(operation_id: StringName, limit: int = 0) -> Arra
 	for index: int in range(start_index, state_trace.size()):
 		result.append(state_trace[index])
 	return result
+
+
+## 获取单个采样统计副本。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param sample_id: 采样点 ID。
+## [br]
+## @return 采样统计副本；不存在时返回空字典。
+## [br]
+## @schema return: Dictionary，包含 sample_id、component、sample_count、total_duration_ms、average_duration_ms、min_duration_ms、max_duration_ms、slow_sample_count 和 metadata。
+func get_sample_stat(sample_id: StringName) -> Dictionary:
+	if not _sample_stats.has(sample_id):
+		return {}
+	return GFVariantData.as_dictionary(_sample_stats[sample_id]).duplicate(true)
+
+
+## 获取采样统计列表。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param limit: 最大返回数量；小于等于 0 时返回全部匹配统计。
+## [br]
+## @param filters: 过滤条件，支持 sample_id 和 component。
+## [br]
+## @return 采样统计数组，按最近更新倒序排列。
+## [br]
+## @schema filters: Dictionary，支持 sample_id 和 component。
+## [br]
+## @schema return: Array[Dictionary]，每个元素是采样统计副本。
+func get_sample_stats(limit: int = 0, filters: Dictionary = {}) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for stat_value: Variant in _sample_stats.values():
+		var stat: Dictionary = GFVariantData.as_dictionary(stat_value)
+		if _sample_stat_matches_filters(stat, filters):
+			result.append(stat.duplicate(true))
+	result.sort_custom(Callable(self, "_sort_records_desc"))
+	return _limit_records(result, limit)
 
 
 ## 获取操作历史。
@@ -805,14 +952,16 @@ func get_timeline(limit: int = 0, filters: Dictionary = {}) -> Array[Dictionary]
 ## [br]
 ## @return 健康快照字典。
 ## [br]
-## @schema return: Dictionary，包含 status、operation_count、incident_count、open_operation_count、failed_operation_count、slow_operation_count、recent_operations、recent_incidents 和 slowest_operation。
+## @schema return: Dictionary，包含 status、operation_count、incident_count、sample_stat_count、open_operation_count、failed_operation_count、slow_operation_count、slow_sample_count、recent_operations、recent_incidents、recent_sample_stats、slowest_operation 和 slowest_sample。
 func get_health_snapshot(limit: int = 5) -> Dictionary:
 	var recent_limit: int = maxi(limit, 0)
 	var open_operation_count: int = 0
 	var failed_operation_count: int = 0
 	var slow_operation_count: int = 0
+	var slow_sample_count: int = 0
 	var user_action_required_count: int = 0
 	var slowest_operation: Dictionary = {}
+	var slowest_sample: Dictionary = {}
 	var status: StringName = &"ok"
 
 	for operation: Dictionary in _operations:
@@ -832,6 +981,16 @@ func get_health_snapshot(limit: int = 5) -> Dictionary:
 		if slowest_operation.is_empty() or duration_ms > GFVariantData.get_option_float(slowest_operation, "duration_ms", -1.0):
 			slowest_operation = operation
 
+	for stat_value: Variant in _sample_stats.values():
+		var sample_stat: Dictionary = GFVariantData.as_dictionary(stat_value)
+		var sample_slow_count: int = GFVariantData.get_option_int(sample_stat, "slow_sample_count", 0)
+		slow_sample_count += sample_slow_count
+		if sample_slow_count > 0:
+			status = _max_status(status, &"warning")
+		var sample_max_duration_ms: float = GFVariantData.get_option_float(sample_stat, "max_duration_ms", 0.0)
+		if slowest_sample.is_empty() or sample_max_duration_ms > GFVariantData.get_option_float(slowest_sample, "max_duration_ms", -1.0):
+			slowest_sample = sample_stat
+
 	for incident: Dictionary in _incidents:
 		var incident_severity: StringName = GFVariantData.get_option_string_name(incident, "severity", SEVERITY_INFO)
 		status = _max_status(status, _severity_to_status(incident_severity))
@@ -840,14 +999,18 @@ func get_health_snapshot(limit: int = 5) -> Dictionary:
 		"status": status,
 		"operation_count": _operations.size(),
 		"incident_count": _incidents.size(),
+		"sample_stat_count": _sample_stats.size(),
 		"open_operation_count": open_operation_count,
 		"failed_operation_count": failed_operation_count,
 		"slow_operation_count": slow_operation_count,
+		"slow_sample_count": slow_sample_count,
 		"user_action_required_count": user_action_required_count,
 		"slow_operation_threshold_ms": slow_operation_threshold_ms,
 		"recent_operations": get_operations(recent_limit),
 		"recent_incidents": get_incidents(recent_limit),
+		"recent_sample_stats": get_sample_stats(recent_limit),
 		"slowest_operation": slowest_operation.duplicate(true),
+		"slowest_sample": slowest_sample.duplicate(true),
 	}
 
 
@@ -859,18 +1022,78 @@ func get_health_snapshot(limit: int = 5) -> Dictionary:
 ## [br]
 ## @return 调试快照字典。
 ## [br]
-## @schema return: Dictionary，包含 history 上限、计数、健康快照和最近时间线。
+## @schema return: Dictionary，包含 history 上限、计数、健康快照、最近时间线和采样统计。
 func get_debug_snapshot() -> Dictionary:
 	return {
 		"max_operations": max_operations,
 		"max_incidents": max_incidents,
 		"max_state_trace_entries": max_state_trace_entries,
+		"max_sample_stats": max_sample_stats,
 		"slow_operation_threshold_ms": slow_operation_threshold_ms,
 		"operation_count": _operations.size(),
 		"incident_count": _incidents.size(),
+		"sample_stat_count": _sample_stats.size(),
 		"health": get_health_snapshot(3),
 		"timeline": get_timeline(8),
+		"sample_stats": get_sample_stats(8),
 	}
+
+
+## 将操作诊断记录或快照转换为 JSON-safe 结构。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param record: 操作、异常、健康快照或调试快照。
+## [br]
+## @param options: 传给 GFReportValueCodec 的编码选项。
+## [br]
+## @return JSON-safe 诊断记录。
+## [br]
+## @schema record: Dictionary，来自本工具的 raw 诊断记录或快照。
+## [br]
+## @schema options: Dictionary with GFReportValueCodec options.
+## [br]
+## @schema return: Dictionary，已脱敏 Object、Callable、RID 和非 JSON 原生值。
+func to_json_compatible_record(record: Dictionary, options: Dictionary = {}) -> Dictionary:
+	return _to_json_compatible_dictionary(record, options)
+
+
+## 获取 JSON-safe 健康快照。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param limit: recent_operations 与 recent_incidents 的最大数量。
+## [br]
+## @param options: 传给 GFReportValueCodec 的编码选项。
+## [br]
+## @return JSON-safe 健康快照。
+## [br]
+## @schema options: Dictionary with GFReportValueCodec options.
+## [br]
+## @schema return: Dictionary，包含 JSON-safe health snapshot 字段。
+func get_json_compatible_health_snapshot(limit: int = 5, options: Dictionary = {}) -> Dictionary:
+	return _to_json_compatible_dictionary(get_health_snapshot(limit), options)
+
+
+## 获取 JSON-safe 调试快照。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param options: 传给 GFReportValueCodec 的编码选项。
+## [br]
+## @return JSON-safe 调试快照。
+## [br]
+## @schema options: Dictionary with GFReportValueCodec options.
+## [br]
+## @schema return: Dictionary，包含 JSON-safe debug snapshot 字段。
+func get_json_compatible_debug_snapshot(options: Dictionary = {}) -> Dictionary:
+	return _to_json_compatible_dictionary(get_debug_snapshot(), options)
 
 
 ## 构建适合复制到 issue、日志或支持报告的纯文本摘要。
@@ -888,18 +1111,26 @@ func build_copy_text(snapshot: Dictionary = {}) -> String:
 	var source: Dictionary = snapshot.duplicate(true) if not snapshot.is_empty() else get_health_snapshot()
 	var lines: PackedStringArray = PackedStringArray()
 	_append_line(lines, "GF operation diagnostics")
-	_append_line(lines, "status=%s operations=%d incidents=%d failed=%d slow=%d" % [
+	_append_line(lines, "status=%s operations=%d incidents=%d failed=%d slow=%d samples=%d slow_samples=%d" % [
 		String(GFVariantData.get_option_string_name(source, "status", &"ok")),
 		GFVariantData.get_option_int(source, "operation_count"),
 		GFVariantData.get_option_int(source, "incident_count"),
 		GFVariantData.get_option_int(source, "failed_operation_count"),
 		GFVariantData.get_option_int(source, "slow_operation_count"),
+		GFVariantData.get_option_int(source, "sample_stat_count"),
+		GFVariantData.get_option_int(source, "slow_sample_count"),
 	])
 	var slowest_operation: Dictionary = GFVariantData.get_option_dictionary(source, "slowest_operation")
 	if not slowest_operation.is_empty():
 		_append_line(lines, "slowest=%s %.2fms" % [
 			String(GFVariantData.get_option_string_name(slowest_operation, "operation_type")),
 			GFVariantData.get_option_float(slowest_operation, "duration_ms", 0.0),
+		])
+	var slowest_sample: Dictionary = GFVariantData.get_option_dictionary(source, "slowest_sample")
+	if not slowest_sample.is_empty():
+		_append_line(lines, "slowest_sample=%s %.2fms" % [
+			String(GFVariantData.get_option_string_name(slowest_sample, "sample_id")),
+			GFVariantData.get_option_float(slowest_sample, "max_duration_ms", 0.0),
 		])
 	var incidents: Array = GFVariantData.get_option_array(source, "recent_incidents")
 	for incident_value: Variant in incidents:
@@ -935,6 +1166,76 @@ func _take_sequence() -> int:
 	return result
 
 
+func _record_completed_operation_with_terminal_state(
+	operation_type: StringName,
+	duration_ms: float,
+	success: bool,
+	options: Dictionary,
+	terminal_state: StringName,
+	terminal_state_status: StringName
+) -> Dictionary:
+	var safe_duration_ms: float = maxf(duration_ms, 0.0)
+	var ended_ticks_usec: int = GFVariantData.get_option_int(options, "ended_ticks_usec", Time.get_ticks_usec())
+	var started_ticks_usec: int = GFVariantData.get_option_int(
+		options,
+		"started_ticks_usec",
+		ended_ticks_usec - roundi(safe_duration_ms * 1000.0)
+	)
+	var operation_options: Dictionary = options.duplicate(true)
+	operation_options["started_ticks_usec"] = started_ticks_usec
+	var operation_id: StringName = begin_operation(operation_type, operation_options)
+	if operation_id == &"":
+		return {}
+
+	var finish_options: Dictionary = options.duplicate(true)
+	finish_options["ended_ticks_usec"] = ended_ticks_usec
+	finish_options["duration_ms"] = safe_duration_ms
+	return _finish_operation_with_terminal_state(operation_id, success, finish_options, terminal_state, terminal_state_status)
+
+
+func _finish_operation_with_terminal_state(
+	operation_id: StringName,
+	success: bool,
+	options: Dictionary,
+	terminal_state: StringName,
+	terminal_state_status: StringName
+) -> Dictionary:
+	if operation_id == &"":
+		return {}
+
+	var index: int = _find_operation_index(operation_id)
+	if index < 0:
+		return {}
+
+	var operation: Dictionary = _operations[index]
+	var ended_ticks_usec: int = GFVariantData.get_option_int(options, "ended_ticks_usec", Time.get_ticks_usec())
+	var started_ticks_usec: int = GFVariantData.get_option_int(operation, "started_ticks_usec", ended_ticks_usec)
+	var duration_ms: float = GFVariantData.get_option_float(
+		options,
+		"duration_ms",
+		maxf(float(ended_ticks_usec - started_ticks_usec) / 1000.0, 0.0)
+	)
+	var ended_at_unix: float = Time.get_unix_time_from_system()
+
+	operation["success"] = success
+	operation["state"] = _normalize_terminal_operation_state(terminal_state, success)
+	operation["current_state_status"] = _normalize_terminal_state_status(terminal_state_status, success)
+	operation["user_action_required"] = false
+	operation["ended_ticks_usec"] = ended_ticks_usec
+	operation["duration_ms"] = maxf(duration_ms, 0.0)
+	operation["ended_at_unix"] = ended_at_unix
+	operation["ended_at_iso"] = _datetime_from_unix(ended_at_unix)
+	operation["last_sequence"] = _take_sequence()
+	operation["metadata"] = _merge_metadata(GFVariantData.get_option_dictionary(operation, "metadata"), GFVariantData.get_option_dictionary(options, "metadata"))
+	operation["anomaly_codes"] = _merge_string_arrays(
+		GFVariantData.get_option_packed_string_array(operation, "anomaly_codes"),
+		GFVariantData.get_option_packed_string_array(options, "anomaly_codes")
+	)
+	_operations[index] = operation
+	_trim_operations()
+	return operation.duplicate(true)
+
+
 func _find_operation_index(operation_id: StringName) -> int:
 	for index: int in range(_operations.size()):
 		if GFVariantData.get_option_string_name(_operations[index], "operation_id") == operation_id:
@@ -964,6 +1265,33 @@ func _find_incident_index(
 	return -1
 
 
+func _get_or_create_sample_stat(sample_id: StringName, sequence: int, now_unix: float) -> Dictionary:
+	if _sample_stats.has(sample_id):
+		return GFVariantData.as_dictionary(_sample_stats[sample_id])
+	return {
+		"entry_type": &"sample_stat",
+		"sample_id": sample_id,
+		"sequence": sequence,
+		"last_sequence": sequence,
+		"component": &"",
+		"label": String(sample_id),
+		"sample_count": 0,
+		"total_duration_ms": 0.0,
+		"average_duration_ms": 0.0,
+		"last_duration_ms": 0.0,
+		"min_duration_ms": 0.0,
+		"max_duration_ms": 0.0,
+		"slow_sample_count": 0,
+		"first_seen_unix": now_unix,
+		"last_seen_unix": now_unix,
+		"first_seen_iso": _datetime_from_unix(now_unix),
+		"last_seen_iso": _datetime_from_unix(now_unix),
+		"last_started_ticks_usec": 0,
+		"last_ended_ticks_usec": 0,
+		"metadata": {},
+	}
+
+
 func _update_incident(index: int, options: Dictionary) -> Dictionary:
 	var incident: Dictionary = _incidents[index]
 	var now_unix: float = Time.get_unix_time_from_system()
@@ -989,6 +1317,11 @@ func _merge_metadata(base: Dictionary, extra: Dictionary) -> Dictionary:
 	for key: Variant in extra.keys():
 		result[key] = GFVariantData.duplicate_variant(extra[key])
 	return result
+
+
+func _to_json_compatible_dictionary(value: Dictionary, options: Dictionary) -> Dictionary:
+	var codec_options: Dictionary = options.duplicate(true)
+	return GFVariantData.as_dictionary(GFReportValueCodec.to_json_compatible(value, codec_options))
 
 
 func _merge_string_arrays(base: PackedStringArray, extra: PackedStringArray) -> PackedStringArray:
@@ -1037,6 +1370,14 @@ func _incident_matches_filters(incident: Dictionary, filters: Dictionary) -> boo
 	return true
 
 
+func _sample_stat_matches_filters(sample_stat: Dictionary, filters: Dictionary) -> bool:
+	if not _matches_string_name_filter(sample_stat, filters, "sample_id"):
+		return false
+	if not _matches_string_name_filter(sample_stat, filters, "component"):
+		return false
+	return true
+
+
 func _record_matches_filters(record: Dictionary, filters: Dictionary) -> bool:
 	if not _matches_string_name_filter(record, filters, "entry_type"):
 		return false
@@ -1062,11 +1403,19 @@ func _async_snapshot_is_terminal(snapshot: Dictionary) -> bool:
 
 
 func _async_snapshot_is_successful(snapshot: Dictionary) -> bool:
+	var status_name: StringName = _get_async_snapshot_status(snapshot)
+	if status_name == &"failed" or status_name == &"cancelled" or status_name == &"timeout":
+		return false
+	if GFVariantData.get_option_bool(snapshot, "failed"):
+		return false
+	if GFVariantData.get_option_bool(snapshot, "cancelled"):
+		return false
+	if GFVariantData.get_option_bool(snapshot, "timed_out"):
+		return false
 	if GFVariantData.get_option_bool(snapshot, "success"):
 		return true
 	if GFVariantData.get_option_bool(snapshot, "successful"):
 		return true
-	var status_name: StringName = _get_async_snapshot_status(snapshot)
 	return status_name == &"succeeded" or status_name == &"completed"
 
 
@@ -1081,6 +1430,24 @@ func _get_async_operation_state_status(snapshot: Dictionary) -> StringName:
 			return STATE_RETRYING
 		_:
 			return STATE_RUNNING
+
+
+func _get_async_terminal_operation_state(snapshot: Dictionary, success: bool) -> StringName:
+	if success:
+		return &"completed"
+	var status_name: StringName = _get_async_snapshot_status(snapshot)
+	if status_name == &"cancelled":
+		return &"cancelled"
+	return &"failed"
+
+
+func _get_async_terminal_state_status(snapshot: Dictionary, success: bool) -> StringName:
+	if success:
+		return STATE_SUCCEEDED
+	var status_name: StringName = _get_async_snapshot_status(snapshot)
+	if status_name == &"cancelled":
+		return STATE_CANCELLED
+	return STATE_FAILED
 
 
 func _get_async_snapshot_status(snapshot: Dictionary) -> StringName:
@@ -1176,6 +1543,9 @@ func _limit_records(records: Array[Dictionary], limit: int) -> Array[Dictionary]
 
 
 func _trim_operations() -> void:
+	if max_operations <= 0:
+		_operations.clear()
+		return
 	while _operations.size() > max_operations:
 		var terminal_index: int = _find_oldest_terminal_operation_index()
 		if terminal_index < 0:
@@ -1200,6 +1570,34 @@ func _operation_is_terminal(operation: Dictionary) -> bool:
 func _trim_incidents() -> void:
 	while _incidents.size() > max_incidents:
 		_incidents.pop_front()
+
+
+func _trim_sample_stats() -> void:
+	if max_sample_stats <= 0:
+		_sample_stats.clear()
+		return
+	while _sample_stats.size() > max_sample_stats:
+		var oldest_sample_id: StringName = _find_oldest_sample_stat_id()
+		if oldest_sample_id == &"":
+			return
+		var _sample_erased: bool = _sample_stats.erase(oldest_sample_id)
+
+
+func _find_oldest_sample_stat_id() -> StringName:
+	var has_oldest: bool = false
+	var oldest_sample_id: StringName = &""
+	var oldest_sequence: int = 0
+	for sample_id_variant: Variant in _sample_stats.keys():
+		var sample_id: StringName = GFVariantData.to_string_name(sample_id_variant)
+		if sample_id == &"":
+			continue
+		var sample_stat: Dictionary = GFVariantData.as_dictionary(_sample_stats[sample_id_variant])
+		var sequence: int = GFVariantData.get_option_int(sample_stat, "last_sequence", 0)
+		if not has_oldest or sequence < oldest_sequence:
+			has_oldest = true
+			oldest_sample_id = sample_id
+			oldest_sequence = sequence
+	return oldest_sample_id
 
 
 func _trim_operation_state_traces() -> void:
@@ -1233,6 +1631,30 @@ func _normalize_state_status(status: StringName) -> StringName:
 			return status
 		_:
 			return STATE_RUNNING
+
+
+func _get_default_terminal_operation_state(success: bool) -> StringName:
+	return &"completed" if success else &"failed"
+
+
+func _get_default_terminal_state_status(success: bool) -> StringName:
+	return STATE_SUCCEEDED if success else STATE_FAILED
+
+
+func _normalize_terminal_operation_state(terminal_state: StringName, success: bool) -> StringName:
+	match terminal_state:
+		&"completed", &"failed", &"cancelled":
+			return terminal_state
+		_:
+			return _get_default_terminal_operation_state(success)
+
+
+func _normalize_terminal_state_status(terminal_state_status: StringName, success: bool) -> StringName:
+	match terminal_state_status:
+		STATE_SUCCEEDED, STATE_FAILED, STATE_CANCELLED:
+			return terminal_state_status
+		_:
+			return _get_default_terminal_state_status(success)
 
 
 func _severity_to_status(severity: StringName) -> StringName:

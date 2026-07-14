@@ -79,7 +79,7 @@ static func analyze_mono_samples(
 	options: Dictionary = {}
 ) -> Dictionary:
 	var report: Dictionary = _make_report()
-	if sample_rate <= 0.0:
+	if not _is_finite_float(sample_rate) or sample_rate <= 0.0:
 		_add_issue(report, &"invalid_sample_rate", "sample_rate must be positive.")
 		return _finalize_report(report)
 
@@ -87,16 +87,28 @@ static func analyze_mono_samples(
 	if window.size() < 8:
 		_add_issue(report, &"insufficient_samples", "samples window is too small.")
 		return _finalize_report(report)
+	if not _samples_are_finite(window):
+		_add_issue(report, &"non_finite_sample", "samples must not contain NaN or Infinity.")
+		return _finalize_report(report)
 
 	var rms: float = calculate_rms(window)
 	report["rms"] = rms
-	if rms < GFVariantData.get_option_float(options, "min_rms", DEFAULT_MIN_RMS):
+	var min_rms: float = _finite_or_default(GFVariantData.get_option_float(options, "min_rms", DEFAULT_MIN_RMS), DEFAULT_MIN_RMS)
+	if rms < min_rms:
 		_add_issue(report, &"signal_too_quiet", "RMS is below min_rms.")
 		return _finalize_report(report)
 
-	var min_frequency: float = maxf(GFVariantData.get_option_float(options, "min_frequency_hz", DEFAULT_MIN_FREQUENCY_HZ), 1.0)
-	var max_frequency: float = minf(
+	var requested_min_frequency: float = _finite_or_default(
+		GFVariantData.get_option_float(options, "min_frequency_hz", DEFAULT_MIN_FREQUENCY_HZ),
+		DEFAULT_MIN_FREQUENCY_HZ
+	)
+	var requested_max_frequency: float = _finite_or_default(
 		GFVariantData.get_option_float(options, "max_frequency_hz", DEFAULT_MAX_FREQUENCY_HZ),
+		DEFAULT_MAX_FREQUENCY_HZ
+	)
+	var min_frequency: float = maxf(requested_min_frequency, 1.0)
+	var max_frequency: float = minf(
+		requested_max_frequency,
 		sample_rate * 0.5
 	)
 	if max_frequency <= min_frequency:
@@ -120,7 +132,7 @@ static func analyze_mono_samples(
 			best_confidence = confidence
 			best_lag = lag
 
-	var peak_threshold: float = GFVariantData.get_option_float(options, "peak_pick_threshold", 0.75)
+	var peak_threshold: float = _finite_or_default(GFVariantData.get_option_float(options, "peak_pick_threshold", 0.75), 0.75)
 	for offset: int in range(1, correlations.size() - 1):
 		var previous_confidence: float = correlations[offset - 1]
 		var current_confidence: float = correlations[offset]
@@ -139,7 +151,10 @@ static func analyze_mono_samples(
 		return _finalize_report(report)
 
 	var frequency: float = sample_rate / float(best_lag)
-	var threshold: float = GFVariantData.get_option_float(options, "confidence_threshold", DEFAULT_CONFIDENCE_THRESHOLD)
+	var threshold: float = _finite_or_default(
+		GFVariantData.get_option_float(options, "confidence_threshold", DEFAULT_CONFIDENCE_THRESHOLD),
+		DEFAULT_CONFIDENCE_THRESHOLD
+	)
 	var note: Dictionary = frequency_to_note(frequency)
 	report["ok"] = true
 	report["detected"] = best_confidence >= threshold
@@ -220,6 +235,8 @@ static func calculate_rms(samples: PackedFloat32Array) -> float:
 		return 0.0
 	var sum: float = 0.0
 	for sample: float in samples:
+		if not _is_finite_float(sample):
+			return 0.0
 		sum += sample * sample
 	return sqrt(sum / float(samples.size()))
 
@@ -236,10 +253,10 @@ static func calculate_rms(samples: PackedFloat32Array) -> float:
 ## [br]
 ## @schema return: Dictionary with ok, frequency_hz, note_number, note_name, midi_float, and cents.
 static func frequency_to_note(frequency_hz: float) -> Dictionary:
-	if frequency_hz <= 0.0:
+	if not _is_finite_float(frequency_hz) or frequency_hz <= 0.0:
 		return {
 			"ok": false,
-			"frequency_hz": frequency_hz,
+			"frequency_hz": 0.0,
 			"note_number": -1,
 			"note_name": "",
 			"midi_float": 0.0,
@@ -320,12 +337,34 @@ static func _normalized_autocorrelation(samples: PackedFloat32Array, lag: int) -
 	for index: int in range(count):
 		var left: float = samples[index]
 		var right: float = samples[index + lag]
+		if not _is_finite_float(left) or not _is_finite_float(right):
+			return -1.0
 		numerator += left * right
 		left_energy += left * left
 		right_energy += right * right
-	if left_energy <= 0.0 or right_energy <= 0.0:
+	if (
+		left_energy <= 0.0
+		or right_energy <= 0.0
+		or not _is_finite_float(left_energy)
+		or not _is_finite_float(right_energy)
+	):
 		return -1.0
 	return numerator / sqrt(left_energy * right_energy)
+
+
+static func _samples_are_finite(samples: PackedFloat32Array) -> bool:
+	for sample: float in samples:
+		if not _is_finite_float(sample):
+			return false
+	return true
+
+
+static func _finite_or_default(value: float, default_value: float) -> float:
+	return value if _is_finite_float(value) else default_value
+
+
+static func _is_finite_float(value: float) -> bool:
+	return not is_nan(value) and not is_inf(value)
 
 
 static func _make_report() -> Dictionary:

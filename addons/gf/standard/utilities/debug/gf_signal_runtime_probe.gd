@@ -246,6 +246,26 @@ func get_events() -> Array[Dictionary]:
 	return result
 
 
+## 获取 JSON-safe 最近事件副本。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param options: 传给 GFReportValueCodec 的编码选项；路径字段默认脱敏。
+## [br]
+## @return JSON-safe 事件快照数组。
+## [br]
+## @schema options: Dictionary with GFReportValueCodec options.
+## [br]
+## @schema return: Array[Dictionary]，每个元素为已脱敏且可 JSON.stringify() 的信号事件。
+func get_json_compatible_events(options: Dictionary = {}) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for event: Dictionary in get_events():
+		result.append(_to_json_compatible_probe_dictionary(event, options))
+	return result
+
+
 ## 获取被监听的信号数量。
 ## [br]
 ## @api public
@@ -272,6 +292,23 @@ func get_debug_snapshot() -> Dictionary:
 		"max_argument_count": max_argument_count,
 		"watches": _describe_watches(),
 	}
+
+
+## 获取 JSON-safe 调试快照。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param options: 传给 GFReportValueCodec 的编码选项；路径字段默认脱敏。
+## [br]
+## @return JSON-safe 调试快照。
+## [br]
+## @schema options: Dictionary with GFReportValueCodec options.
+## [br]
+## @schema return: Dictionary，包含已脱敏且可 JSON.stringify() 的 watch_count、event_count、max_events、max_argument_count 和 watches。
+func get_json_compatible_debug_snapshot(options: Dictionary = {}) -> Dictionary:
+	return _to_json_compatible_probe_dictionary(get_debug_snapshot(), options)
 
 
 # --- 私有/辅助方法 ---
@@ -430,6 +467,51 @@ func _describe_watches() -> Array[Dictionary]:
 			"argument_count": GFVariantData.get_option_int(entry, "argument_count"),
 		})
 	return result
+
+
+func _to_json_compatible_probe_dictionary(value: Dictionary, options: Dictionary) -> Dictionary:
+	var codec_options: Dictionary = options.duplicate(true)
+	var redacted_value: Variant = _redact_probe_paths(value, codec_options)
+	return GFVariantData.as_dictionary(GFReportValueCodec.to_json_compatible(redacted_value, codec_options))
+
+
+func _redact_probe_paths(value: Variant, options: Dictionary) -> Variant:
+	if value is Dictionary:
+		var source_dictionary: Dictionary = value
+		var result: Dictionary = {}
+		for key: Variant in source_dictionary.keys():
+			var key_text: String = GFVariantData.to_text(key)
+			var item: Variant = source_dictionary[key]
+			if _is_probe_path_field(key_text) and (typeof(item) == TYPE_STRING or typeof(item) == TYPE_STRING_NAME):
+				result[key] = _redact_probe_path(GFVariantData.to_text(item), options)
+			else:
+				result[key] = _redact_probe_paths(item, options)
+		return result
+	if value is Array:
+		var source_array: Array = value
+		var result_array: Array = []
+		for item: Variant in source_array:
+			result_array.append(_redact_probe_paths(item, options))
+		return result_array
+	return value
+
+
+func _is_probe_path_field(key: String) -> bool:
+	return key == "source_node_path" or key == "source_path" or key == "resource_path" or key == "script_path"
+
+
+func _redact_probe_path(path: String, options: Dictionary) -> String:
+	var path_redaction: String = GFVariantData.get_option_string(options, "path_redaction", "redact")
+	if path_redaction == "none":
+		return path
+	if path.is_empty():
+		return "<redacted_path>"
+	if path_redaction == "basename":
+		var file_name: String = path.get_file()
+		return file_name if not file_name.is_empty() else path
+	if path_redaction == "hash":
+		return path.sha256_text()
+	return "<redacted_path>"
 
 
 func _make_emit_callable(argument_count: int) -> Callable:

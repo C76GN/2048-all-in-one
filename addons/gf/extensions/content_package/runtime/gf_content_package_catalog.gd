@@ -22,6 +22,8 @@ const _KIND_INVALID_MANIFEST: String = "invalid_manifest"
 const _KIND_MISSING_DEPENDENCY: String = "missing_dependency"
 const _KIND_DEPENDENCY_CYCLE: String = "dependency_cycle"
 const _KIND_RESOURCE_REGISTRATION_FAILED: String = "resource_registration_failed"
+const _KIND_MISSING_RESOURCE_RESOLVER: String = "missing_resource_resolver"
+const _RESOLVER_OWNER_ID: StringName = &"gf.content_package.catalog"
 
 
 # --- 私有变量 ---
@@ -185,7 +187,6 @@ func get_graph_report(options: Dictionary = {}) -> Dictionary:
 ## @schema return: GFValidationReportDictionary.finalize_report() 生成的 Dictionary，并包含 registered_count。
 func register_resources(resolver: GFResourceResolverUtility, options: Dictionary = {}) -> Dictionary:
 	var report: Dictionary = _make_report("Content package resource registration")
-	_unregister_content_package_resources(resolver)
 	var graph_report: Dictionary = get_graph_report(options)
 	var _merged_report: Dictionary = GFValidationReportDictionary.merge_report(report, graph_report, {
 		"copy_fields": PackedStringArray([
@@ -198,9 +199,21 @@ func register_resources(resolver: GFResourceResolverUtility, options: Dictionary
 	var registered_count: int = 0
 	var base_priority: int = GFVariantData.get_option_int(options, "base_priority")
 
+	if resolver == null:
+		var _missing_resolver_issue: Dictionary = GFValidationReportDictionary.append_issue(
+			report,
+			"error",
+			StringName(_KIND_MISSING_RESOURCE_RESOLVER),
+			"resource resolver is required"
+		)
+		report["registered_count"] = 0
+		return _finalize_report(report, "Content package resource registration")
+
 	if not GFVariantData.get_option_bool(graph_report, "ok"):
 		report["registered_count"] = 0
 		return _finalize_report(report, "Content package resource registration")
+
+	_unregister_content_package_resources(resolver)
 
 	for package_id_text: String in get_ordered_package_ids():
 		var manifest: GFContentPackageManifest = get_manifest(StringName(package_id_text))
@@ -215,7 +228,15 @@ func register_resources(resolver: GFResourceResolverUtility, options: Dictionary
 			metadata["content_package_id"] = StringName(package_id_text)
 			metadata["content_package_resource_key"] = resource_key
 			metadata["_gf_content_package_resource"] = true
-			if resolver.register_path(resource_key, path, type_hint, priority, metadata):
+			var registration_id: StringName = resolver.register_path_for_owner(
+				resource_key,
+				_RESOLVER_OWNER_ID,
+				path,
+				type_hint,
+				priority,
+				metadata
+			)
+			if registration_id != &"":
 				registered_count += 1
 				continue
 
@@ -272,13 +293,7 @@ func _remove_duplicate_package_id(package_id: StringName) -> void:
 func _unregister_content_package_resources(resolver: GFResourceResolverUtility) -> void:
 	if resolver == null:
 		return
-	for key_text: String in resolver.get_registered_keys():
-		var key: StringName = StringName(key_text)
-		var report: Dictionary = resolver.resolve(key, "", { "check_exists": false })
-		var metadata: Dictionary = GFVariantData.get_option_dictionary(report, "metadata")
-		if not GFVariantData.get_option_bool(metadata, "_gf_content_package_resource"):
-			continue
-		var _unregistered: bool = resolver.unregister_path(key)
+	var _removed_count: int = resolver.unregister_owner(_RESOLVER_OWNER_ID)
 
 
 func _add_duplicate_issues(report: Dictionary) -> void:

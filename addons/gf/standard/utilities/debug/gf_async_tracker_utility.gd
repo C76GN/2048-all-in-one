@@ -129,7 +129,7 @@ func track_handle(
 		"handle_instance_id": handle.get_instance_id(),
 		"created_msec": Time.get_ticks_msec(),
 		"metadata": metadata.duplicate(true),
-		"snapshot_provider": snapshot_provider,
+		"snapshot_provider_ref": _make_snapshot_provider_ref(snapshot_provider),
 		"stack_trace": _capture_stack_trace() if stack_trace_enabled else "",
 	}
 	_dirty = true
@@ -286,13 +286,44 @@ func _record_to_snapshot(record: Dictionary, is_valid_record: bool) -> Dictionar
 	if not stack_trace.is_empty():
 		result["stack_trace"] = stack_trace
 
-	var snapshot_provider: Callable = _variant_to_callable(GFVariantData.get_option_value(record, "snapshot_provider", Callable()))
+	var snapshot_provider: Callable = _resolve_snapshot_provider(record)
 	if is_valid_record and snapshot_provider.is_valid():
 		var snapshot_value: Variant = snapshot_provider.call()
 		var snapshot: Dictionary = GFVariantData.to_dictionary(snapshot_value)
 		if not snapshot.is_empty():
 			result["snapshot"] = snapshot
 	return result
+
+
+func _make_snapshot_provider_ref(snapshot_provider: Callable) -> Dictionary:
+	if not snapshot_provider.is_valid():
+		return {}
+	var target: Object = snapshot_provider.get_object()
+	if target == null:
+		return {
+			"callable": snapshot_provider,
+		}
+	return {
+		"target_ref": weakref(target),
+		"target_instance_id": target.get_instance_id(),
+		"method": snapshot_provider.get_method(),
+	}
+
+
+func _resolve_snapshot_provider(record: Dictionary) -> Callable:
+	var provider_ref: Dictionary = GFVariantData.get_option_dictionary(record, "snapshot_provider_ref")
+	if provider_ref.is_empty():
+		return Callable()
+	var static_callable: Callable = _variant_to_callable(GFVariantData.get_option_value(provider_ref, "callable", Callable()))
+	if static_callable.is_valid():
+		return static_callable
+	var target: Object = _weak_ref_to_object(_variant_to_weak_ref(GFVariantData.get_option_value(provider_ref, "target_ref")))
+	if target == null:
+		return Callable()
+	var method_name: StringName = GFVariantData.get_option_string_name(provider_ref, "method")
+	if method_name == &"":
+		return Callable()
+	return Callable(target, method_name)
 
 
 func _record_handle_is_valid(record: Dictionary) -> bool:

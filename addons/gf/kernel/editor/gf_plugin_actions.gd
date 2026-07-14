@@ -24,6 +24,7 @@ signal editor_contributions_refresh_requested
 # --- 常量 ---
 
 const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
+const _GF_PLUGIN_ACTION_DEPENDENCIES_SCRIPT = preload("res://addons/gf/kernel/editor/gf_plugin_action_dependencies.gd")
 
 ## 菜单 ID：生成 System。
 ## [br]
@@ -95,13 +96,6 @@ const TEMPLATE_MENU_ID_START: int = 100
 ## @layer kernel/editor
 const EXTENSION_MENU_ID_START: int = 1000
 
-## 强类型访问器生成器脚本路径。
-## [br]
-## @api framework_internal
-## [br]
-## @layer kernel/editor
-const ACCESS_GENERATOR_SCRIPT_PATH: String = "res://addons/gf/kernel/editor/gf_access_generator.gd"
-
 ## 诊断对话框最小尺寸。
 ## [br]
 ## @api framework_internal
@@ -137,21 +131,6 @@ const SECTION_CODE_GENERATION: String = "代码生成"
 ## @layer kernel/editor
 const SECTION_EXTENSION_TOOLS: String = "扩展工具"
 
-## GF ProjectSettings 注册辅助脚本。
-## [br]
-## @api framework_internal
-## [br]
-## @layer kernel/editor
-const GFPluginProjectSettings = preload("res://addons/gf/kernel/editor/gf_plugin_project_settings.gd")
-
-## 扩展启用设置脚本。
-## [br]
-## @api framework_internal
-## [br]
-## @layer kernel/editor
-const GFExtensionSettingsBase = preload("res://addons/gf/kernel/extension/gf_extension_settings.gd")
-
-
 # --- 私有变量 ---
 
 var _file_dialog: FileDialog
@@ -164,6 +143,7 @@ var _menu_entries: Array[Dictionary] = []
 var _template_records: Dictionary = {}
 var _next_template_menu_id: int = TEMPLATE_MENU_ID_START
 var _next_extension_menu_id: int = EXTENSION_MENU_ID_START
+var _dependencies: RefCounted
 
 
 # --- 公共方法 ---
@@ -177,8 +157,11 @@ var _next_extension_menu_id: int = EXTENSION_MENU_ID_START
 ## @param template_records: 根插件或上层组合入口注入的模板记录。
 ## [br]
 ## @schema template_records: Array of Dictionary template records.
-func setup(template_records: Array = []) -> void:
+## [br]
+## @param dependencies: 可选依赖 provider；为空时使用默认 GFPluginActionDependencies。
+func setup(template_records: Array = [], dependencies: RefCounted = null) -> void:
 	cleanup()
+	_set_dependencies(dependencies)
 	_file_dialog = FileDialog.new()
 	_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	_file_dialog.access = FileDialog.ACCESS_RESOURCES
@@ -203,6 +186,7 @@ func cleanup() -> void:
 	if is_instance_valid(_file_dialog):
 		_queue_free_detached(_file_dialog)
 	_file_dialog = null
+	_dependencies = null
 
 
 ## 获取 GF 工具菜单项。
@@ -431,9 +415,8 @@ func _on_file_selected(path: String) -> void:
 
 
 func _generate_accessors() -> void:
-	var output_path: String = GFPluginProjectSettings.get_access_output_path()
-	var generator: GFAccessGenerator = GFAccessGenerator.new()
-	var error: Error = generator.generate(output_path)
+	var output_path: String = _call_dependency_string(&"get_access_output_path")
+	var error: Error = _call_dependency_error(&"generate_accessors", [output_path])
 	if error == OK:
 		print("[GF Framework] 成功生成强类型访问器: ", output_path)
 	else:
@@ -441,9 +424,8 @@ func _generate_accessors() -> void:
 
 
 func _generate_project_accessors() -> void:
-	var output_path: String = GFPluginProjectSettings.get_project_access_output_path()
-	var generator: GFAccessGenerator = GFAccessGenerator.new()
-	var error: Error = generator.generate_project_access(output_path)
+	var output_path: String = _call_dependency_string(&"get_project_access_output_path")
+	var error: Error = _call_dependency_error(&"generate_project_accessors", [output_path])
 	if error == OK:
 		print("[GF Framework] 成功生成项目常量访问器: ", output_path)
 	else:
@@ -476,7 +458,7 @@ func _show_diagnostic_dialog(title: String, text: String) -> void:
 
 func _load_extension_editor_actions() -> void:
 	_cleanup_extension_editor_actions()
-	for script_path: String in GFExtensionSettings.get_enabled_editor_action_paths():
+	for script_path: String in _call_dependency_string_array(&"get_enabled_editor_action_paths"):
 		var action: RefCounted = _create_extension_editor_action(script_path)
 		if action == null:
 			continue
@@ -598,6 +580,59 @@ func _get_editor_base_control() -> Control:
 	return EditorInterface.get_base_control()
 
 
+func _set_dependencies(dependencies: RefCounted = null) -> void:
+	if dependencies == null:
+		_dependencies = _GF_PLUGIN_ACTION_DEPENDENCIES_SCRIPT.new()
+		return
+	_dependencies = dependencies
+
+
+func _get_dependencies() -> RefCounted:
+	if _dependencies == null:
+		_dependencies = _GF_PLUGIN_ACTION_DEPENDENCIES_SCRIPT.new()
+	return _dependencies
+
+
+func _call_dependency_value(method_name: StringName, args: Array = []) -> Variant:
+	var dependencies: RefCounted = _get_dependencies()
+	if dependencies == null or not dependencies.has_method(method_name):
+		push_error("[GF Framework] 插件动作依赖缺少方法: %s" % method_name)
+		return null
+	return dependencies.callv(method_name, args)
+
+
+func _call_dependency_string(method_name: StringName) -> String:
+	return _GF_VARIANT_ACCESS_SCRIPT.to_text(_call_dependency_value(method_name)).strip_edges()
+
+
+func _call_dependency_string_array(method_name: StringName) -> Array[String]:
+	var value: Variant = _call_dependency_value(method_name)
+	var result: Array[String] = []
+	if value is PackedStringArray:
+		var packed_values: PackedStringArray = value
+		for item: String in packed_values:
+			var packed_path: String = item.strip_edges()
+			if not packed_path.is_empty():
+				result.append(packed_path)
+		return result
+	if value is Array:
+		var raw_values: Array = value
+		for item: Variant in raw_values:
+			var path: String = _GF_VARIANT_ACCESS_SCRIPT.to_text(item).strip_edges()
+			if not path.is_empty():
+				result.append(path)
+	return result
+
+
+func _call_dependency_error(method_name: StringName, args: Array = []) -> Error:
+	var value: Variant = _call_dependency_value(method_name, args)
+	if value is int:
+		var error_code: int = value
+		return error_code as Error
+	push_error("[GF Framework] 插件动作依赖返回值不是 Error: %s" % method_name)
+	return FAILED
+
+
 func _load_script(path: String) -> Script:
 	var resource: Resource = load(path)
 	if resource is Script:
@@ -651,7 +686,8 @@ func init() -> void:
 	pass
 
 
-func async_init() -> void:
+## @param _scope: 异步初始化作用域。
+func async_init(_scope: GFAsyncScope) -> void:
 	pass
 
 

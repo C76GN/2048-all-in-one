@@ -141,6 +141,96 @@ func set_full_state(state: Dictionary) -> void:
 	_deterministic_branch_counters = GFVariantData.get_option_dictionary(parsed_state, &"deterministic_branch_counters")
 
 
+## 将文本稳定映射为 32-bit seed。
+## 该入口使用 GF 固定 FNV-32 哈希，适合把关卡名、规则 ID 或生成命名空间映射到可复现随机种子；不适合作为安全随机或防作弊来源。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param text: 参与 seed 派生的文本。
+## [br]
+## @return 0 到 4294967295 范围内的稳定整数 seed。
+static func make_stable_text_seed(text: String) -> int:
+	return _stable_hash(text)
+
+
+## 将纯 Variant 部件稳定映射为 32-bit seed。
+## 输入会先经过 GFDeterministicVariantSerializer 的规范编码，因此 Dictionary key 顺序不会影响结果。默认拒绝 float、Object、Resource、Callable 和循环引用。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param parts: 参与 seed 派生的纯数据部件。
+## [br]
+## @schema parts: Array of deterministic Variant values accepted by GFDeterministicVariantSerializer.to_canonical_value().
+## [br]
+## @param options: 确定性编码选项。
+## [br]
+## @schema options: Dictionary with optional `allow_floats: bool` and `max_depth: int`.
+## [br]
+## @return seed 派生结果。
+## [br]
+## @schema return: Dictionary with `ok: bool`, `seed: int`, and `error: String`. ok 为 false 时 seed 为 0，error 为稳定错误码。
+static func try_make_stable_seed(parts: Array, options: Dictionary = {}) -> Dictionary:
+	var canonical_json: String = GFDeterministicVariantSerializer.to_canonical_json(parts, options)
+	if canonical_json.is_empty():
+		return {
+			&"ok": false,
+			&"seed": 0,
+			&"error": "canonical_encode_failed",
+		}
+
+	return {
+		&"ok": true,
+		&"seed": _stable_hash(canonical_json),
+		&"error": "",
+	}
+
+
+## 将纯 Variant 部件稳定映射为 32-bit seed。
+## 输入会先经过 GFDeterministicVariantSerializer 的规范编码，因此 Dictionary key 顺序不会影响结果。默认拒绝 float、Object、Resource、Callable 和循环引用。
+## 需要区分编码失败与合法 0 seed 时使用 try_make_stable_seed()。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param parts: 参与 seed 派生的纯数据部件。
+## [br]
+## @schema parts: Array of deterministic Variant values accepted by GFDeterministicVariantSerializer.to_canonical_value().
+## [br]
+## @param options: 确定性编码选项。
+## [br]
+## @schema options: Dictionary with optional `allow_floats: bool` and `max_depth: int`.
+## [br]
+## @return 派生 seed；输入无法规范编码时返回 0。
+static func make_stable_seed(parts: Array, options: Dictionary = {}) -> int:
+	var seed_result: Dictionary = try_make_stable_seed(parts, options)
+	if not GFVariantData.get_option_bool(seed_result, &"ok", false):
+		return 0
+	return GFVariantData.get_option_int(seed_result, &"seed")
+
+
+## 将 2D 网格坐标稳定映射为 32-bit seed。
+## 适合 tile 变体、程序化摆放、刷点或规则 tie-break。namespace_id 用于隔离不同系统，seed_value 用于接入项目主种子或配置种子。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param cell: 参与派生的网格坐标。
+## [br]
+## @param seed_value: 上游种子；相同坐标和 namespace 下不同 seed_value 会得到不同结果。
+## [br]
+## @param namespace_id: 可选命名空间，用于隔离不同用途。
+## [br]
+## @return 0 到 4294967295 范围内的稳定整数 seed。
+static func make_stable_grid_seed(cell: Vector2i, seed_value: int = 0, namespace_id: String = "") -> int:
+	return make_stable_seed([namespace_id, seed_value, cell])
+
+
 ## 基于主 RNG 当前状态与字符串标签，派生出一个独立的 Godot 子 RNG。
 ## 每次调用只推进当前标签的分支计数，不推进主 RNG 的随机序列。
 ## 同一主状态、同一标签和同一调用序号会在同一 Godot 随机算法下产生可复现的子随机序列。
@@ -184,7 +274,7 @@ func get_branched_godot_rng(string_seed: String) -> RandomNumberGenerator:
 	return branched
 
 
-## 基于主 RNG 当前状态与字符串标签，派生 GF 固定算法随机源。
+## 基于主种子与字符串标签，派生 GF 固定算法随机源。
 ## 每次调用只推进 deterministic 分支计数，不推进主 RNG 的随机序列，
 ## 也不影响 `get_branched_rng()` 的 Godot RNG 分支计数。
 ## [br]
@@ -198,9 +288,8 @@ func get_branched_godot_rng(string_seed: String) -> RandomNumberGenerator:
 func get_branched_deterministic_random(string_seed: String) -> GFDeterministicRandom:
 	_ensure_rng()
 	var branch_index: int = _next_branch_index(_deterministic_branch_counters, string_seed)
-	var branch_seed: int = _stable_hash("%d:%d:deterministic:%s:%d" % [
+	var branch_seed: int = _stable_hash("%d:deterministic:%s:%d" % [
 		_global_seed,
-		_rng.state,
 		string_seed,
 		branch_index,
 	])
@@ -209,7 +298,7 @@ func get_branched_deterministic_random(string_seed: String) -> GFDeterministicRa
 
 # --- 私有/辅助方法 ---
 
-func _stable_hash(text: String) -> int:
+static func _stable_hash(text: String) -> int:
 	var hash_value: int = _FNV_32_OFFSET
 	var bytes: PackedByteArray = text.to_utf8_buffer()
 	for value: int in bytes:
@@ -367,7 +456,7 @@ func _try_state_value_to_int(value: Variant, field_name: String) -> Dictionary:
 
 
 func _state_schema_version_is_supported(version: int) -> bool:
-	return version >= 1 and version <= _STATE_SCHEMA_VERSION
+	return version == _STATE_SCHEMA_VERSION
 
 
 func _int_to_state_text(value: int) -> String:

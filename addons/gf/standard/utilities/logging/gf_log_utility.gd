@@ -105,6 +105,8 @@ var max_memory_entries: int:
 	get:
 		return _max_memory_entries
 	set(value):
+		if maxi(value, 0) > _max_memory_entries:
+			_linearize_memory_entries()
 		_max_memory_entries = maxi(value, 0)
 		_trim_memory_entries()
 
@@ -137,6 +139,7 @@ var _last_file_flush_msec: int = 0
 var _memory_entries: Array[Dictionary] = []
 var _memory_head: int = 0
 var _memory_dropped_count: int = 0
+var _memory_appended_total: int = 0
 var _sinks: Array[GFLogSink] = []
 var _is_initialized: bool = false
 var _global_context: Dictionary = {}
@@ -572,6 +575,58 @@ func get_entries(offset: int = 0, count: int = -1) -> Array[Dictionary]:
 	return result
 
 
+## 获取内存日志的下一个序列游标。
+## 该值随每条通过过滤的日志递增，可作为 get_entries_since() 的 since_sequence。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 下一条日志将使用的序列号。
+func get_memory_sequence() -> int:
+	return _memory_appended_total
+
+
+## 按序列游标读取新增内存日志。
+## 适合诊断 UI、远端采集器或支持报告面板轮询日志缓存，而不需要每次重新读取全部最近日志。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param since_sequence: 调用方上次保存的 next_sequence；表示下一条想读取的日志序列。
+## [br]
+## @param limit: 最多返回的条目数量；小于 0 表示读取所有可用条目。
+## [br]
+## @return 增量读取报告。
+## [br]
+## @schema return: Dictionary with requested_sequence, oldest_sequence, next_sequence, current_sequence, entries, truncated, has_more, missed_count, and dropped_count fields.
+func get_entries_since(since_sequence: int, limit: int = -1) -> Dictionary:
+	var retained_count: int = _memory_entries.size()
+	var oldest_sequence: int = _memory_appended_total - retained_count
+	var requested_sequence: int = maxi(since_sequence, 0)
+	var start_sequence: int = clampi(requested_sequence, oldest_sequence, _memory_appended_total)
+	var start_offset: int = start_sequence - oldest_sequence
+	var available_count: int = maxi(retained_count - start_offset, 0)
+	var read_count: int = available_count
+	if limit >= 0:
+		read_count = mini(available_count, limit)
+
+	var entries: Array[Dictionary] = get_entries(start_offset, read_count)
+	var next_sequence: int = start_sequence + entries.size()
+	return {
+		"requested_sequence": since_sequence,
+		"oldest_sequence": oldest_sequence,
+		"next_sequence": next_sequence,
+		"current_sequence": _memory_appended_total,
+		"entries": entries,
+		"truncated": requested_sequence < oldest_sequence,
+		"has_more": next_sequence < _memory_appended_total,
+		"missed_count": maxi(oldest_sequence - requested_sequence, 0),
+		"dropped_count": _memory_dropped_count,
+	}
+
+
 ## 获取当前内存日志条目数量。
 ## [br]
 ## @api public
@@ -600,8 +655,11 @@ func get_log_file_path() -> String:
 
 
 ## 清空内存日志缓存。
+## 已分配的序列游标不会重置；调用方仍可用 get_memory_sequence() 继续进行增量读取。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 func clear_memory_entries() -> void:
 	_memory_entries.clear()
 	_memory_head = 0
@@ -767,6 +825,7 @@ func _write_sinks(entry: Dictionary) -> void:
 
 
 func _append_memory_entry(entry: Dictionary) -> void:
+	_memory_appended_total += 1
 	if _max_memory_entries <= 0:
 		_memory_dropped_count += 1
 		return
@@ -800,6 +859,14 @@ func _trim_memory_entries() -> void:
 	_memory_entries = retained
 	_memory_head = _memory_entries.size() % _max_memory_entries
 	_memory_dropped_count += dropped_count
+
+
+func _linearize_memory_entries() -> void:
+	if _memory_entries.is_empty():
+		return
+	var retained: Array[Dictionary] = get_recent_entries(-1)
+	_memory_entries = retained
+	_memory_head = 0 if _max_memory_entries <= 0 else _memory_entries.size() % _max_memory_entries
 
 
 func _memory_logical_to_physical(logical_index: int) -> int:

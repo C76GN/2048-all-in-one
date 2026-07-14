@@ -117,12 +117,20 @@ func add_buff(p_entity: Object, p_buff: GFBuff) -> void:
 		var existing: GFBuff = _variant_to_buff(existing_value)
 		if _should_refresh_existing_buff(existing, p_buff):
 			existing.owner = p_entity
-			existing.refresh_from(p_buff)
-			_send_combat_event(GFCombatPayloads.GFBuffRefreshedPayload.new(p_entity, existing))
+			var refresh_report: Dictionary = existing.refresh_from(p_buff)
+			if (
+				GFVariantData.get_option_bool(refresh_report, "ok", false)
+				and GFVariantData.get_option_bool(refresh_report, "changed", true)
+			):
+				_send_combat_event(GFCombatPayloads.GFBuffRefreshedPayload.new(p_entity, existing))
 			return
 			
+	var lifecycle_report: Dictionary = p_buff.on_apply()
+	if not GFVariantData.get_option_bool(lifecycle_report, "ok", false):
+		p_buff.owner = null
+		return
+
 	buffs.append(p_buff)
-	p_buff.on_apply()
 	_send_combat_event(GFCombatPayloads.GFBuffAppliedPayload.new(p_entity, p_buff))
 	
 	_update_active_status(p_entity)
@@ -542,7 +550,7 @@ func _cleanup_entity_data(data: Dictionary, remove_effects: bool, reason: String
 			continue
 		if remove_effects:
 			buff.mark_removed(reason)
-			buff.on_remove()
+			var _remove_report: Dictionary = buff.on_remove()
 
 	var skills: Array = _get_entity_skills(data)
 	for skill_value: Variant in skills:
@@ -579,7 +587,7 @@ func _remove_buff_at(
 	var removed_id: StringName = buff.id
 	if remove_effects:
 		buff.mark_removed(reason)
-		buff.on_remove()
+		var _remove_report: Dictionary = buff.on_remove()
 	_send_combat_event(GFCombatPayloads.GFBuffRemovedPayload.new(p_entity, removed_id))
 
 
@@ -640,7 +648,7 @@ func _process_entity(p_entity: Object, p_delta: float) -> void:
 			else:
 				buffs.erase(buff)
 				buff.mark_removed(GFBuff.REMOVAL_REASON_EXPIRED)
-				buff.on_remove()
+				var _remove_report: Dictionary = buff.on_remove()
 				_send_combat_event(GFCombatPayloads.GFBuffRemovedPayload.new(p_entity, buff.id))
 		buff_index -= 1
 

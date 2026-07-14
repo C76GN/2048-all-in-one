@@ -199,21 +199,33 @@ func get_target_or_null() -> Object:
 # --- 私有/辅助方法 ---
 
 func _set_sender(value: Object) -> void:
-	_sender_ref = weakref(value) if value != null else null
-	sender_instance_id = value.get_instance_id() if value != null and is_instance_valid(value) else 0
+	if value == null or not is_instance_valid(value):
+		_sender_ref = null
+		sender_instance_id = 0
+		sender_path = NodePath("")
+		sender_class = ""
+		return
+	_sender_ref = weakref(value)
+	sender_instance_id = value.get_instance_id()
 	sender_path = _get_node_path_snapshot(value)
-	sender_class = value.get_class() if value != null and is_instance_valid(value) else ""
+	sender_class = value.get_class()
 
 
 func _set_target(value: Object) -> void:
-	_target_ref = weakref(value) if value != null else null
-	target_instance_id = value.get_instance_id() if value != null and is_instance_valid(value) else 0
+	if value == null or not is_instance_valid(value):
+		_target_ref = null
+		target_instance_id = 0
+		target_path = NodePath("")
+		target_class = ""
+		return
+	_target_ref = weakref(value)
+	target_instance_id = value.get_instance_id()
 	target_path = _get_node_path_snapshot(value)
-	target_class = value.get_class() if value != null and is_instance_valid(value) else ""
+	target_class = value.get_class()
 
 
 func _get_node_path_snapshot(value: Object) -> NodePath:
-	if value is Node:
+	if value != null and is_instance_valid(value) and value is Node:
 		var node_value: Node = value
 		if node_value.is_inside_tree():
 			return node_value.get_path()

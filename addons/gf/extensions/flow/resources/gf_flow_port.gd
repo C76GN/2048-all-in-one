@@ -114,8 +114,6 @@ enum ValueType {
 func get_port_id() -> StringName:
 	if port_id != &"":
 		return port_id
-	if not resource_path.is_empty():
-		return StringName(resource_path)
 	return &""
 
 
@@ -250,8 +248,6 @@ func _get_effective_port_id(port: GFFlowPort) -> StringName:
 		return &""
 	if port.port_id != &"":
 		return port.port_id
-	if not port.resource_path.is_empty():
-		return StringName(port.resource_path)
 	return &""
 
 

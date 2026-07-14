@@ -253,10 +253,12 @@ func transition_to(next_state_name: StringName, args: Dictionary = {}) -> void:
 			if next_state == null:
 				_current_state = null
 				_warn_missing_state(next_state_name)
+				current_state_changed.emit(previous_state, _current_state)
 				return
 			if not _can_enter_state(next_state, previous_name, args):
 				_current_state = null
 				_emit_transition_blocked(previous_state, next_state_name, args, "enter_guard")
+				current_state_changed.emit(previous_state, _current_state)
 				return
 
 	if not _state_stack.is_empty():
@@ -273,10 +275,12 @@ func transition_to(next_state_name: StringName, args: Dictionary = {}) -> void:
 			if next_state == null:
 				_current_state = null
 				_warn_missing_state(next_state_name)
+				current_state_changed.emit(previous_state, _current_state)
 				return
 			if not _can_enter_state(next_state, previous_name, args):
 				_current_state = null
 				_emit_transition_blocked(previous_state, next_state_name, args, "enter_guard")
+				current_state_changed.emit(previous_state, _current_state)
 				return
 
 	_current_state = next_state
@@ -637,6 +641,24 @@ func get_state_snapshot() -> Dictionary:
 	}
 
 
+## 获取 JSON-safe 状态组调试快照。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param options: 传给 GFReportValueCodec 的编码选项。
+## [br]
+## @return 可安全 JSON.stringify() 的状态组调试快照。
+## [br]
+## @schema options: Dictionary with GFReportValueCodec options.
+## [br]
+## @schema return: Dictionary，包含 JSON-safe group_name、current_state、stack、history、states 和 blackboard 字段。
+func get_json_compatible_state_snapshot(options: Dictionary = {}) -> Dictionary:
+	var codec_options: Dictionary = options.duplicate(true)
+	return GFVariantData.as_dictionary(GFReportValueCodec.to_json_compatible(get_state_snapshot(), codec_options))
+
+
 ## 从状态组快照恢复当前状态、暂停栈、历史与黑板。
 ## [br]
 ## @api framework_internal
@@ -645,34 +667,40 @@ func get_state_snapshot() -> Dictionary:
 ## [br]
 ## @param snapshot: get_state_snapshot() 返回的状态组快照。
 ## [br]
+## @return: 恢复报告。
+## [br]
 ## @schema snapshot: Dictionary，包含 current_state、stack、history 和 blackboard 字段。
-func restore_state_snapshot(snapshot: Dictionary) -> void:
+## [br]
+## @schema return: Dictionary，包含 ok、restored、error、missing_states、skipped_history_states、current_state_restored、stack_restored、history_restored 和 blackboard_restored 字段。
+func restore_state_snapshot(snapshot: Dictionary) -> Dictionary:
+	var report: Dictionary = _make_restore_report()
+	var current_state_name: StringName = GFVariantData.get_option_string_name(snapshot, "current_state")
+	var stack_names: Array[StringName] = _get_snapshot_state_name_array(snapshot, "stack")
+	var history_names: Array[StringName] = _get_snapshot_state_name_array(snapshot, "history")
+	var missing_states: Array[StringName] = _get_missing_restore_states(current_state_name, stack_names)
+	if not missing_states.is_empty():
+		report["error"] = "snapshot references missing states."
+		report["missing_states"] = missing_states
+		return report
+	if current_state_name == &"" and not stack_names.is_empty():
+		report["error"] = "current_state is required when stack is not empty."
+		return report
+
+	var previous_state: GFNodeState = _current_state
 	stop()
 	blackboard = GFVariantData.get_option_dictionary(snapshot, "blackboard").duplicate(true)
+	_restore_active_state_stack(stack_names, current_state_name)
+	_restore_history(history_names, report)
 
-	var stack_names: Array = GFVariantData.get_option_array(snapshot, "stack")
-	for stack_name_value: Variant in stack_names:
-		var stack_state_name: StringName = GFVariantData.to_string_name(stack_name_value)
-		if stack_state_name == &"" or _get_registered_state(stack_state_name) == null:
-			continue
-		if _current_state == null:
-			transition_to(stack_state_name, {})
-		elif get_current_state_name() != stack_state_name:
-			push_state(stack_state_name, {})
-
-	var current_state_name: StringName = GFVariantData.get_option_string_name(snapshot, "current_state")
-	if current_state_name != &"" and _get_registered_state(current_state_name) != null:
-		if _current_state == null:
-			transition_to(current_state_name, {})
-		elif get_current_state_name() != current_state_name:
-			push_state(current_state_name, {})
-
-	_history.clear()
-	for history_value: Variant in GFVariantData.get_option_array(snapshot, "history"):
-		var history_name: StringName = GFVariantData.to_string_name(history_value)
-		if history_name != &"" and _get_registered_state(history_name) != null:
-			_history.append(history_name)
-	_trim_history()
+	report["ok"] = true
+	report["restored"] = true
+	report["current_state_restored"] = current_state_name == get_current_state_name()
+	report["stack_restored"] = stack_names == _get_stack_state_names()
+	report["history_restored"] = true
+	report["blackboard_restored"] = true
+	if previous_state != _current_state:
+		current_state_changed.emit(previous_state, _current_state)
+	return report
 
 
 ## 清空状态。
@@ -702,7 +730,9 @@ func reload_states_from_children() -> void:
 		_queue_configuration_warning_update()
 		return
 
-	clear_states()
+	for registered_state: GFNodeState in get_states():
+		if registered_state != null and registered_state.get_parent() == self:
+			var _removed_child_state: bool = remove_state(registered_state)
 	for child: Node in get_children():
 		var child_state: GFNodeState = _node_as_state(child)
 		if child_state != null:
@@ -770,6 +800,93 @@ func _get_stack_state_names() -> Array[StringName]:
 	return result
 
 
+func _get_snapshot_state_name_array(snapshot: Dictionary, key: String) -> Array[StringName]:
+	var result: Array[StringName] = []
+	for value: Variant in GFVariantData.get_option_array(snapshot, key):
+		var state_name_value: StringName = GFVariantData.to_string_name(value)
+		if state_name_value != &"":
+			result.append(state_name_value)
+	return result
+
+
+func _get_missing_restore_states(
+	current_state_name: StringName,
+	stack_names: Array[StringName]
+) -> Array[StringName]:
+	var result: Array[StringName] = []
+	if current_state_name != &"" and _get_registered_state(current_state_name) == null:
+		result.append(current_state_name)
+	for stack_state_name: StringName in stack_names:
+		if _get_registered_state(stack_state_name) == null and not result.has(stack_state_name):
+			result.append(stack_state_name)
+	return result
+
+
+func _restore_active_state_stack(stack_names: Array[StringName], current_state_name: StringName) -> void:
+	_transition_serial += 1
+	_is_exiting_current_state = false
+	_clear_queued_exit_transition()
+	_current_state = null
+	_state_stack.clear()
+
+	var previous_state: GFNodeState = null
+	var previous_state_name: StringName = &""
+	for stack_state_name: StringName in stack_names:
+		var stack_state: GFNodeState = _get_registered_state(stack_state_name)
+		if stack_state == null:
+			continue
+		if previous_state == null:
+			stack_state.enter(&"", {})
+		else:
+			previous_state.pause(stack_state_name, {})
+			_state_stack.append(previous_state)
+			stack_state.enter(previous_state_name, {})
+		previous_state = stack_state
+		previous_state_name = stack_state_name
+
+	if current_state_name == &"":
+		return
+
+	var restored_current: GFNodeState = _get_registered_state(current_state_name)
+	if restored_current == null:
+		return
+	if previous_state != null:
+		previous_state.pause(current_state_name, {})
+		_state_stack.append(previous_state)
+		restored_current.enter(previous_state_name, {})
+	else:
+		restored_current.enter(&"", {})
+	_current_state = restored_current
+
+
+func _restore_history(history_names: Array[StringName], report: Dictionary) -> void:
+	_history.clear()
+	var skipped_history_states: Array[StringName] = []
+	for history_name: StringName in history_names:
+		if _get_registered_state(history_name) == null:
+			if not skipped_history_states.has(history_name):
+				skipped_history_states.append(history_name)
+			continue
+		_history.append(history_name)
+	_trim_history()
+	report["skipped_history_states"] = skipped_history_states
+
+
+func _make_restore_report() -> Dictionary:
+	return {
+		"ok": false,
+		"restored": false,
+		"error": "",
+		"group_name": get_group_name(),
+		"missing_states": [],
+		"skipped_history_states": [],
+		"current_state_restored": false,
+		"stack_restored": false,
+		"history_restored": false,
+		"blackboard_restored": false,
+	}
+
+
 func _get_registered_state_names() -> Array[StringName]:
 	var result: Array[StringName] = []
 	for state_name: StringName in _states.keys():
@@ -789,7 +906,8 @@ func _exit_active_states_for_clear() -> void:
 	if current_state != null:
 		current_state.exit(&"", {})
 		current_state.unregister_owner_events()
-	for state: GFNodeState in stacked_states:
+	for index: int in range(stacked_states.size() - 1, -1, -1):
+		var state: GFNodeState = stacked_states[index]
 		if state != null and state != current_state:
 			state.exit(&"", {})
 			state.unregister_owner_events()
@@ -1014,6 +1132,8 @@ func _remove_from_stack(state: GFNodeState) -> void:
 	var index: int = _state_stack.find(state)
 	while index != -1:
 		_state_stack.remove_at(index)
+		state.exit(&"", {})
+		state.unregister_owner_events()
 		index = _state_stack.find(state)
 
 

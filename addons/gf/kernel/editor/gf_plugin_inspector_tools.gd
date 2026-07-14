@@ -55,6 +55,7 @@ var _standard_export_records: Array[Dictionary] = []
 func setup(plugin: EditorPlugin, standard_records: Dictionary = {}) -> void:
 	if plugin == null:
 		return
+	cleanup(plugin)
 	_standard_inspector_records = _to_record_array(
 		_GF_VARIANT_ACCESS_SCRIPT.get_option_value(standard_records, "inspector_plugin_records", [])
 	)

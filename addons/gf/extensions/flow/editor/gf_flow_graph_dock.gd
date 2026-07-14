@@ -609,7 +609,9 @@ func _show_details(value: Variant) -> void:
 
 
 func _safe_json(value: Variant) -> String:
-	return JSON.stringify(value, "\t")
+	return GFReportValueCodec.stringify_json_compatible(value, "\t", false, {
+		"path_redaction": "basename",
+	})
 
 
 # --- 信号处理函数 ---

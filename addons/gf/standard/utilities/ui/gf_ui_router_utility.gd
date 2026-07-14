@@ -473,6 +473,14 @@ func _open_route_async(
 		_fail_route(route_id, "missing_ui_utility")
 		return
 
+	var pending_route: Dictionary = _find_pending_async_route(route.scene_path, route.layer, operation)
+	if not pending_route.is_empty():
+		var pending_route_id: StringName = GFVariantData.get_option_string_name(pending_route, "route_id", &"")
+		if pending_route_id == route_id:
+			return
+		_fail_route(route_id, "route_async_conflict")
+		return
+
 	route_open_requested.emit(route_id, operation, params.duplicate(true))
 	var options: Dictionary = route.build_options(params, option_overrides)
 	var wrapped_callback: Callable = _make_route_config_callback(route, params, config_callback, operation)
@@ -541,6 +549,11 @@ func _get_connected_ui_utility() -> GFUIUtility:
 
 func _make_pending_async_route_key(path: String, layer: int, operation: Operation) -> String:
 	return "%d:%d:%s" % [layer, int(operation), path]
+
+
+func _find_pending_async_route(path: String, layer: int, operation: Operation) -> Dictionary:
+	var key: String = _make_pending_async_route_key(path, layer, operation)
+	return GFVariantData.get_option_dictionary(_pending_async_routes, key)
 
 
 func _take_pending_async_route(path: String, layer: int, operation: StringName) -> Dictionary:

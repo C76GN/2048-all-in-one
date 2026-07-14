@@ -25,18 +25,6 @@ extends RefCounted
 ## @since 6.0.0
 var task_id: StringName = &""
 
-## 此任务占用的运行时对象。
-##
-## [br]
-## 相同 requirement 同一时间只能被一个任务占用。调度器会忽略已经释放的对象。
-## [br]
-## @api public
-## [br]
-## @category state
-## [br]
-## @since 6.0.0
-var requirements: Array[Object] = []
-
 ## 当其他任务请求相同 requirement 时，当前任务是否允许被中断。
 ##
 ## [br]
@@ -50,6 +38,7 @@ var interruptible: bool = true
 
 # --- 私有变量 ---
 
+var _requirements: Array[Object] = []
 var _scheduled: bool = false
 var _initialized: bool = false
 
@@ -90,7 +79,7 @@ func _init(p_requirements: Array[Object] = [], p_interruptible: bool = true) -> 
 func set_requirements(next_requirements: Array[Object]) -> GFRuntimeTask:
 	if not _can_mutate_requirements():
 		return self
-	requirements.clear()
+	_requirements.clear()
 	for requirement: Object in next_requirements:
 		var _add_requirement_result: GFRuntimeTask = add_requirement(requirement)
 	return self
@@ -113,9 +102,9 @@ func add_requirement(requirement: Object) -> GFRuntimeTask:
 		return self
 	if requirement == null or not is_instance_valid(requirement):
 		return self
-	if requirements.has(requirement):
+	if _requirements.has(requirement):
 		return self
-	requirements.append(requirement)
+	_requirements.append(requirement)
 	return self
 
 
@@ -136,9 +125,9 @@ func remove_requirement(requirement: Object) -> bool:
 		return false
 	if requirement == null:
 		return false
-	if not requirements.has(requirement):
+	if not _requirements.has(requirement):
 		return false
-	requirements.erase(requirement)
+	_requirements.erase(requirement)
 	return true
 
 
@@ -153,7 +142,7 @@ func remove_requirement(requirement: Object) -> bool:
 func clear_requirements() -> void:
 	if not _can_mutate_requirements():
 		return
-	requirements.clear()
+	_requirements.clear()
 
 
 ## 返回仍然有效的占用对象副本。
@@ -168,7 +157,7 @@ func clear_requirements() -> void:
 ## @return 仍然有效的占用对象副本。
 func get_requirements() -> Array[Object]:
 	var result: Array[Object] = []
-	for requirement: Object in requirements:
+	for requirement: Object in _requirements:
 		if requirement != null and is_instance_valid(requirement):
 			result.append(requirement)
 	return result
@@ -187,7 +176,7 @@ func get_requirements() -> Array[Object]:
 ## [br]
 ## @return 任务占用该对象时返回 true。
 func has_requirement(requirement: Object) -> bool:
-	return requirement != null and requirements.has(requirement)
+	return requirement != null and _requirements.has(requirement)
 
 
 ## 设置任务是否可中断。
@@ -352,6 +341,23 @@ func get_debug_snapshot() -> Dictionary:
 
 # --- 框架内部方法 ---
 
+## 返回调度前拒绝原因。
+##
+## [br]
+## 空 StringName 表示当前任务允许进入调度器；复合任务可覆盖该入口，在调度器占用
+## requirement 前拒绝内部不一致状态。
+## [br]
+## @api framework_internal
+## [br]
+## @category lifecycle
+## [br]
+## @since unreleased
+## [br]
+## @return 调度拒绝原因；为空表示可调度。
+func get_schedule_rejection_reason() -> StringName:
+	return &""
+
+
 ## 标记任务进入调度器。
 ##
 ## [br]
@@ -388,6 +394,18 @@ func mark_unscheduled() -> void:
 ## @since 6.0.0
 func mark_initialized() -> void:
 	_initialized = true
+
+
+# 直接替换占用对象列表，不执行调度状态 guard。
+# 仅供复合任务在调度前同步聚合后的 requirement 状态。
+func _replace_requirements_unchecked(next_requirements: Array[Object]) -> void:
+	_requirements.clear()
+	for requirement: Object in next_requirements:
+		if requirement == null or not is_instance_valid(requirement):
+			continue
+		if _requirements.has(requirement):
+			continue
+		_requirements.append(requirement)
 
 
 # --- 私有/辅助方法 ---

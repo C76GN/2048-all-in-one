@@ -22,8 +22,19 @@ signal detection_started
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param input_event: 检测到的输入事件；取消或超时时为 null。
 signal input_detected(input_event: InputEvent)
+
+## 检测结束时发出结构化结果。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param result: 检测结束结果。
+signal detection_finished(result: GFInputDetectionResult)
 
 
 # --- 枚举 ---
@@ -113,8 +124,10 @@ var _countdown_remaining: float = 0.0
 var _value_type: int = _ANY_VALUE_TYPE
 var _allowed_device_types: Array[int] = []
 var _pending_detected_event: InputEvent = null
+var _pending_finish_reason: GFInputDetectionResult.FinishReason = GFInputDetectionResult.FinishReason.CANCELLED
 var _pending_screen_touch_index: int = -1
 var _pending_screen_touch_pressed: bool = false
+var _last_detection_result: GFInputDetectionResult = null
 
 
 # --- Godot 生命周期方法 ---
@@ -149,7 +162,11 @@ func _input(event: InputEvent) -> void:
 	if not _matches_value_type_filter(event):
 		return
 
-	_finish_detection(_INPUT_EVENT_TOOLS.duplicate_input_event(event), wait_for_clear_after_detection)
+	_finish_detection(
+		_INPUT_EVENT_TOOLS.duplicate_input_event(event),
+		wait_for_clear_after_detection,
+		GFInputDetectionResult.FinishReason.SUCCESS
+	)
 	get_viewport().set_input_as_handled()
 
 
@@ -161,7 +178,7 @@ func _process(delta: float) -> void:
 	if timeout_seconds > 0.0:
 		_elapsed += safe_delta
 		if _elapsed >= timeout_seconds:
-			cancel_detection()
+			_finish_detection(null, false, GFInputDetectionResult.FinishReason.TIMEOUT)
 			return
 
 	if _state == DetectionState.COUNTDOWN:
@@ -307,7 +324,7 @@ func is_accepting_input() -> bool:
 func cancel_detection() -> void:
 	if _state == DetectionState.IDLE:
 		return
-	_finish_detection(null, false)
+	_finish_detection(null, false, GFInputDetectionResult.FinishReason.CANCELLED)
 
 
 ## 检查当前是否正在检测。
@@ -319,16 +336,28 @@ func is_detecting() -> bool:
 	return _state != DetectionState.IDLE
 
 
+## 获取最近一次检测结束结果。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 最近一次检测结束结果；尚未结束过检测时返回 null。
+func get_last_detection_result() -> GFInputDetectionResult:
+	return _last_detection_result
+
+
 # --- 私有/辅助方法 ---
 
 func _begin_detection_internal(value_type: int, allowed_device_types: Array[int]) -> void:
 	if _state != DetectionState.IDLE:
-		cancel_detection()
+		_finish_detection(null, false, GFInputDetectionResult.FinishReason.REPLACED)
 	_allowed_device_types = allowed_device_types.duplicate()
 	_elapsed = 0.0
 	_countdown_remaining = maxf(countdown_seconds, 0.0)
 	_value_type = value_type
 	_pending_detected_event = null
+	_pending_finish_reason = GFInputDetectionResult.FinishReason.CANCELLED
 	_pending_screen_touch_index = -1
 	_pending_screen_touch_pressed = false
 	_state = DetectionState.COUNTDOWN if _countdown_remaining > 0.0 else DetectionState.PRE_CLEAR
@@ -338,28 +367,47 @@ func _begin_detection_internal(value_type: int, allowed_device_types: Array[int]
 	detection_started.emit()
 
 
-func _finish_detection(input_event: InputEvent, wait_for_release: bool) -> void:
+func _finish_detection(
+	input_event: InputEvent,
+	wait_for_release: bool,
+	finish_reason: GFInputDetectionResult.FinishReason
+) -> void:
 	if input_event != null and wait_for_release and _is_event_still_pressed(input_event):
 		_pending_detected_event = input_event
+		_pending_finish_reason = finish_reason
 		_track_pending_touch(input_event)
 		_state = DetectionState.POST_CLEAR
 		set_process(true)
 		return
 
 	_pending_detected_event = input_event
+	_pending_finish_reason = finish_reason
 	_emit_detected_input()
 
 
 func _emit_detected_input() -> void:
 	var input_event: InputEvent = _pending_detected_event
+	var finish_reason: GFInputDetectionResult.FinishReason = _pending_finish_reason
+	var detection_elapsed_seconds: float = _elapsed
+	var detection_value_type: int = _value_type
+	var detection_allowed_device_types: Array[int] = _allowed_device_types.duplicate()
 	_state = DetectionState.IDLE
 	_elapsed = 0.0
 	_countdown_remaining = 0.0
 	_value_type = _ANY_VALUE_TYPE
 	_pending_detected_event = null
+	_pending_finish_reason = GFInputDetectionResult.FinishReason.CANCELLED
 	_pending_screen_touch_index = -1
 	_pending_screen_touch_pressed = false
 	set_process(false)
+	_last_detection_result = GFInputDetectionResult.create(
+		finish_reason,
+		input_event,
+		detection_elapsed_seconds,
+		detection_value_type,
+		detection_allowed_device_types
+	)
+	detection_finished.emit(_last_detection_result)
 	input_detected.emit(input_event)
 
 
@@ -463,7 +511,7 @@ func _matches_device_filter(event: InputEvent) -> bool:
 
 func _matches_value_type_filter(event: InputEvent) -> bool:
 	if _value_type == _ANY_VALUE_TYPE:
-		return true
+		return _is_default_bindable_event(event)
 
 	match _value_type:
 		GFInputAction.ValueType.BOOL:
@@ -472,6 +520,10 @@ func _matches_value_type_filter(event: InputEvent) -> bool:
 			return event is InputEventJoypadMotion
 		_:
 			return true
+
+
+func _is_default_bindable_event(event: InputEvent) -> bool:
+	return _is_bool_event(event)
 
 
 func _is_bool_event(event: InputEvent) -> bool:

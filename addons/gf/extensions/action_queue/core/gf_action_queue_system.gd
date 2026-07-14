@@ -75,6 +75,10 @@ var _is_disposed: bool = false
 ## [br]
 ## @api public
 func init() -> void:
+	if is_processing or is_instance_valid(_current_action) or not _queue.is_empty() or not _named_queues.is_empty():
+		clear_queue(true)
+		_dispose_all_named_queues()
+
 	_is_disposed = false
 	_processing_serial += 1
 	_queue.clear()
@@ -428,13 +432,12 @@ func clear_named_queue(queue_name: StringName, stop_current: bool = false) -> vo
 ## [br]
 ## @api public
 ## [br]
-## @param stop_current: 是否停止当前正在执行的动作。
+## @since unreleased
+## [br]
+## @param stop_current: 兼容参数；命名队列由父队列拥有，清理时总会释放子队列并停止其当前动作。
 func clear_all_named_queues(stop_current: bool = false) -> void:
-	for queue_value: Variant in _named_queues.values():
-		var queue: GFActionQueueSystem = _variant_to_action_queue(queue_value)
-		if queue != null:
-			queue.clear_queue(stop_current)
-	_named_queues.clear()
+	var _stop_current_value: bool = stop_current
+	_dispose_all_named_queues()
 
 
 ## 跳过当前动作并继续消费后续动作。

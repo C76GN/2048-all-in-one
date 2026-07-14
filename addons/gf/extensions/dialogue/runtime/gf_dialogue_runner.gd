@@ -65,7 +65,7 @@ signal line_blocked(line_id: StringName, reason: StringName)
 ## @api public
 ## [br]
 ## @since 5.0.0
-const SNAPSHOT_SCHEMA_VERSION: int = 2
+const SNAPSHOT_SCHEMA_VERSION: int = 3
 
 
 # --- 公共变量 ---
@@ -147,6 +147,9 @@ func advance(response_id: StringName = &"") -> GFDialogueLine:
 		if not _apply_response(response_id):
 			return _current_line
 	elif _current_line != null:
+		if not _current_line.get_available_responses(_context).is_empty():
+			line_blocked.emit(_current_line.line_id, &"response_required")
+			return _current_line
 		_current_line_id = _current_line.get_default_next_line_id()
 		_current_line = null
 		if _current_line_id == &"":
@@ -249,16 +252,15 @@ func restore_runtime_snapshot(
 	snapshot: Dictionary,
 	context: GFDialogueContext = null
 ) -> GFDialogueLine:
-	_reset_runtime_state()
-
 	if GFVariantData.get_option_int(snapshot, "schema_version", -1) != SNAPSHOT_SCHEMA_VERSION:
 		return null
 
-	var restored_context: GFDialogueContext = _prepare_context(context)
-	restored_context.deserialize_values(GFVariantData.get_option_dictionary(snapshot, "context_values", {}))
-	_context = restored_context
+	var context_values: Dictionary = GFVariantData.get_option_dictionary(snapshot, "context_values", {})
 
 	if not GFVariantData.get_option_bool(snapshot, "is_running", false):
+		_reset_runtime_state()
+		_context = _prepare_context(context)
+		_context.deserialize_values(context_values)
 		return null
 	if resource == null:
 		return null
@@ -274,7 +276,10 @@ func restore_runtime_snapshot(
 	if line == null or line.kind != GFDialogueLine.LineKind.TEXT:
 		return null
 
+	_reset_runtime_state()
 	_resource = resource
+	_context = _prepare_context(context)
+	_context.deserialize_values(context_values)
 	_current_line_id = line_id
 	_current_line = line
 	_is_running = true
@@ -332,6 +337,7 @@ func _advance_to_next_text() -> GFDialogueLine:
 
 		var line: GFDialogueLine = _resource.get_line(_current_line_id)
 		if line == null:
+			line_blocked.emit(_current_line_id, &"missing_line")
 			_end_dialogue()
 			return null
 		if not line.can_enter(_context):
@@ -437,4 +443,11 @@ func _get_architecture_value(value: Variant) -> GFArchitecture:
 func _get_resource_fingerprint(resource: GFDialogueResource) -> String:
 	if resource == null:
 		return ""
-	return JSON.stringify(resource.to_dictionary())
+	return GFVariantJsonCodec.stringify_json_compatible(
+		resource.to_dictionary(),
+		"",
+		true,
+		{
+			"encode_dictionary_keys": true,
+		}
+	).sha256_text()

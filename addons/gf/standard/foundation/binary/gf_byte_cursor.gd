@@ -16,6 +16,7 @@ extends RefCounted
 
 const _DEFAULT_MAX_READ_BYTE_COUNT: int = 16 * 1024 * 1024
 const _MAX_VAR_UINT_VALUE: int = 9223372036854775807
+const _GF_REPORT_VALUE_CODEC_SCRIPT = preload("res://addons/gf/kernel/core/gf_report_value_codec.gd")
 
 
 # --- 公共变量 ---
@@ -373,6 +374,10 @@ func read_var_uint() -> int:
 				return 0
 		result = result | ((byte_value & 0x7f) << shift)
 		if (byte_value & 0x80) == 0:
+			var encoded_length: int = read_position - _position
+			if encoded_length != _get_var_uint_encoded_length(result):
+				_last_error = ERR_PARSE_ERROR
+				return 0
 			_position = read_position
 			_last_error = OK
 			return result
@@ -441,6 +446,29 @@ func try_read_bytes(byte_count: int) -> Dictionary:
 		_position = start_position
 		return _make_read_report(false, PackedByteArray(), _last_error, start_position, start_position)
 	return _make_read_report(true, value, OK, start_position, _position)
+
+
+## 将读取报告转换为 JSON.stringify() 安全的诊断报告。
+## [br]
+## try_read_bytes() 会保留 PackedByteArray 作为功能返回值；日志、导出和跨进程诊断应使用该方法。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param report: try_read_*() 返回的读取报告。
+## [br]
+## @param options: 编码选项，透传给 GFReportValueCodec。
+## [br]
+## @return JSON-safe 读取报告。
+## [br]
+## @schema report: Dictionary raw byte cursor read report.
+## [br]
+## @schema options: Dictionary report value codec options.
+## [br]
+## @schema return: Dictionary safe for JSON.stringify().
+static func to_json_compatible_read_report(report: Dictionary, options: Dictionary = {}) -> Dictionary:
+	return GFVariantData.as_dictionary(_GF_REPORT_VALUE_CODEC_SCRIPT.to_json_compatible(report, options))
 
 
 ## 读取 UTF-8 字符串。
@@ -759,6 +787,15 @@ func _make_read_report(ok: bool, value: Variant, error: Error, start_position: i
 func _read_report_is_ok(report: Dictionary) -> bool:
 	var raw_ok: Variant = report.get("ok", false)
 	return raw_ok is bool and raw_ok
+
+
+static func _get_var_uint_encoded_length(value: int) -> int:
+	var length: int = 1
+	var remaining_value: int = value
+	while remaining_value >= 0x80:
+		length += 1
+		remaining_value = remaining_value >> 7
+	return length
 
 
 func _write_uint(value: int, byte_count: int) -> void:

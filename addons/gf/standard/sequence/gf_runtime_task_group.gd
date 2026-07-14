@@ -33,6 +33,25 @@ enum Mode {
 }
 
 
+# --- 常量 ---
+
+## 子任务已被其他调度器或任务组持有时的拒绝原因。
+##
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const REJECTION_CHILD_SCHEDULED: StringName = &"group_child_scheduled"
+
+## 并行任务组存在组内 requirement 冲突时的拒绝原因。
+##
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const REJECTION_PARALLEL_REQUIREMENT_CONFLICT: StringName = &"group_parallel_requirement_conflict"
+
+
 # --- 公共变量 ---
 
 ## 子任务列表。
@@ -114,11 +133,16 @@ func add_task(task: GFRuntimeTask) -> GFRuntimeTaskGroup:
 		return self
 	if task == null:
 		return self
+	if task.is_scheduled():
+		push_warning("[GFRuntimeTaskGroup] 已调度子任务不能加入任务组。")
+		return self
 	if tasks.has(task):
 		return self
+	if mode != Mode.SEQUENCE and _would_create_parallel_requirement_conflict(task):
+		push_warning("[GFRuntimeTaskGroup] 并行任务组不能包含占用相同 requirement 的子任务。")
+		return self
 	tasks.append(task)
-	for requirement: Object in task.get_requirements():
-		var _add_requirement_result: GFRuntimeTask = add_requirement(requirement)
+	_rebuild_requirements_unchecked()
 	return self
 
 
@@ -157,12 +181,23 @@ func rebuild_requirements() -> void:
 	if is_scheduled():
 		push_warning("[GFRuntimeTaskGroup] 已调度任务组不能重建 requirements。")
 		return
-	requirements.clear()
-	for task: GFRuntimeTask in tasks:
-		if task == null:
-			continue
-		for requirement: Object in task.get_requirements():
-			var _add_requirement_result: GFRuntimeTask = add_requirement(requirement)
+	_rebuild_requirements_unchecked()
+
+
+## 返回当前子任务聚合后的占用对象副本。
+##
+## [br]
+## @api public
+## [br]
+## @category query
+## [br]
+## @since 6.0.0
+## [br]
+## @return 仍然有效的占用对象副本。
+func get_requirements() -> Array[Object]:
+	if not is_scheduled():
+		_rebuild_requirements_unchecked()
+	return super.get_requirements()
 
 
 ## 返回子任务副本。
@@ -276,6 +311,37 @@ func end(interrupted: bool) -> void:
 	_scheduler_ref = null
 
 
+# --- 框架内部方法 ---
+
+## 返回任务组调度前拒绝原因。
+##
+## [br]
+## 调度前会重新检查子任务所有权、嵌套子任务调度条件，以及并行模式下的组内
+## requirement 冲突，避免后续子任务变更绕过 add_task() 的即时校验。
+## [br]
+## @api framework_internal
+## [br]
+## @category lifecycle
+## [br]
+## @since unreleased
+## [br]
+## @return 调度拒绝原因；为空表示可调度。
+func get_schedule_rejection_reason() -> StringName:
+	var parent_reason: StringName = super.get_schedule_rejection_reason()
+	if parent_reason != &"":
+		return parent_reason
+	for task: GFRuntimeTask in get_tasks():
+		if task.is_scheduled() or task.has_initialized():
+			return REJECTION_CHILD_SCHEDULED
+		var child_reason: StringName = task.get_schedule_rejection_reason()
+		if child_reason != &"":
+			return child_reason
+	if mode != Mode.SEQUENCE and _has_parallel_requirement_conflict():
+		return REJECTION_PARALLEL_REQUIREMENT_CONFLICT
+	_rebuild_requirements_unchecked()
+	return &""
+
+
 # --- 私有/辅助方法 ---
 
 func _tick_sequence(delta: float, use_physics: bool) -> void:
@@ -356,3 +422,39 @@ func _get_scheduler_or_null() -> GFRuntimeTaskScheduler:
 	if scheduler is GFRuntimeTaskScheduler:
 		return scheduler
 	return null
+
+
+func _rebuild_requirements_unchecked() -> void:
+	var aggregate_requirements: Array[Object] = []
+	for task: GFRuntimeTask in tasks:
+		if task == null:
+			continue
+		for requirement: Object in task.get_requirements():
+			if not aggregate_requirements.has(requirement):
+				aggregate_requirements.append(requirement)
+	_replace_requirements_unchecked(aggregate_requirements)
+
+
+func _has_parallel_requirement_conflict() -> bool:
+	var owners_by_requirement_id: Dictionary = {}
+	for task: GFRuntimeTask in tasks:
+		if task == null:
+			continue
+		for requirement: Object in task.get_requirements():
+			if requirement == null or not is_instance_valid(requirement):
+				continue
+			var requirement_id: int = requirement.get_instance_id()
+			if owners_by_requirement_id.has(requirement_id):
+				return true
+			owners_by_requirement_id[requirement_id] = task
+	return false
+
+
+func _would_create_parallel_requirement_conflict(next_task: GFRuntimeTask) -> bool:
+	for next_requirement: Object in next_task.get_requirements():
+		if next_requirement == null or not is_instance_valid(next_requirement):
+			continue
+		for task: GFRuntimeTask in tasks:
+			if task != null and task.has_requirement(next_requirement):
+				return true
+	return false

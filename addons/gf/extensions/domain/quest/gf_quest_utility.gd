@@ -200,8 +200,8 @@ func define_quest(
 	target_count: int = 1,
 	metadata: Dictionary = {}
 ) -> void:
-	if quest_id == &"":
-		push_error("[GFQuestUtility] quest_id 不能为空。")
+	if quest_id == &"" or target_event == &"":
+		push_error("[GFQuestUtility] quest_id 和 target_event 不能为空。")
 		return
 	if _quests.has(quest_id):
 		push_warning("[GFQuestUtility] 任务已存在：%s" % quest_id)
@@ -563,7 +563,11 @@ func _register_event_handler(event_id: StringName) -> void:
 	if arch == null:
 		return
 
-	var event_handler: Callable = Callable(self, "_on_quest_event_triggered").bind(event_id)
+	var event_handler: GFEventListener = GFEventListener.from_callable(
+		Callable(self, "_on_quest_event_triggered").bind(event_id),
+		1,
+		"quest_event"
+	)
 	_event_handlers[event_id] = event_handler
 	register_simple_event(event_id, event_handler)
 
@@ -574,7 +578,7 @@ func _unregister_event_handler(event_id: StringName) -> void:
 
 	var arch: GFArchitecture = _get_arch()
 	if arch != null:
-		var event_handler: Callable = _get_event_handler(event_id)
+		var event_handler: GFEventListener = _get_event_handler(event_id)
 		unregister_simple_event(event_id, event_handler)
 	_erase_dictionary_key(_event_handlers, event_id)
 
@@ -583,7 +587,7 @@ func _unregister_all_event_handlers() -> void:
 	var arch: GFArchitecture = _get_arch()
 	if arch != null:
 		for event_id: StringName in _event_handlers:
-			var event_handler: Callable = _get_event_handler(event_id)
+			var event_handler: GFEventListener = _get_event_handler(event_id)
 			unregister_simple_event(event_id, event_handler)
 
 	_event_handlers.clear()
@@ -675,6 +679,11 @@ func _check_conditions(conditions: Array[Callable], data: _QuestData) -> Diction
 		var result: Variant = condition.call(data._quest_id, data._to_dict())
 		if result is Dictionary:
 			var result_dictionary: Dictionary = result
+			if not result_dictionary.has("ok"):
+				return {
+					"ok": false,
+					"reason": "invalid_condition_result",
+				}
 			if not GFVariantData.get_option_bool(result_dictionary, "ok", false):
 				return {
 					"ok": false,
@@ -738,8 +747,12 @@ func _get_quest_data(quest_id: StringName) -> _QuestData:
 	return _variant_to_quest_data(GFVariantData.get_option_value(_quests, quest_id))
 
 
-func _get_event_handler(event_id: StringName) -> Callable:
-	return _variant_to_callable(GFVariantData.get_option_value(_event_handlers, event_id, Callable()))
+func _get_event_handler(event_id: StringName) -> GFEventListener:
+	var value: Variant = GFVariantData.get_option_value(_event_handlers, event_id)
+	if value is GFEventListener:
+		var listener: GFEventListener = value
+		return listener
+	return null
 
 
 func _get_event_quest_list(event_id: StringName) -> Array:
@@ -763,12 +776,6 @@ func _erase_dictionary_key(source: Dictionary, key: Variant) -> void:
 
 func _append_packed_string(target: PackedStringArray, value: String) -> void:
 	var _appended: bool = target.append(value)
-
-
-func _variant_to_callable(value: Variant) -> Callable:
-	if value is Callable:
-		return value
-	return Callable()
 
 
 func _variant_to_quest_data(value: Variant) -> _QuestData:

@@ -2,14 +2,15 @@
 
 # GFPackageManagerBackend: 内核包管理器的 Godot 原生状态后端。
 #
-# 这个脚本只依赖 Godot 内置 JSON / FileAccess / DirAccess 能力，用于逐步替代用户侧
-# 对 Python 包工具的硬依赖。安装事务和联网下载仍由后续阶段补齐。
+# 这个脚本只依赖 Godot 内置 JSON / FileAccess / DirAccess 能力。它负责 registry、规划、
+# staging 与结果适配，项目文件和 lockfile 的持久提交统一委托给 Package Transaction Engine。
 extends RefCounted
 
 
 # --- 常量 ---
 
 const _GF_VARIANT_ACCESS = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
+const _GF_PACKAGE_TRANSACTION_ENGINE = preload("res://addons/gf/kernel/package/gf_package_transaction_engine.gd")
 
 ## GF 包 archive 允许写入的根路径前缀。
 ## [br]
@@ -215,6 +216,8 @@ const DEFAULT_REGISTRY_SOURCE_ENV: String = "GF_PACKAGE_DEFAULT_REGISTRY_SOURCE"
 ## [br]
 ## @layer kernel/package
 const UNSUPPORTED_REGISTRY_SOURCE_SIGNATURE_FIELDS: Array[String] = [
+	"public_key",
+	"public_keys",
 	"registry_signature",
 	"registry_signature_algorithm",
 	"registry_signature_sha256",
@@ -223,9 +226,12 @@ const UNSUPPORTED_REGISTRY_SOURCE_SIGNATURE_FIELDS: Array[String] = [
 	"registry_signing_key_id",
 	"signature",
 	"signature_algorithm",
+	"signature_public_key",
 	"signature_sha256",
 	"signature_url",
+	"signing_key",
 	"signing_key_id",
+	"signing_keys",
 ]
 
 # Godot 原生验签实现前必须拒绝的 registry package 签名字段。
@@ -302,6 +308,52 @@ static func get_default_registry_source_url() -> String:
 	return DEFAULT_REGISTRY_SOURCE_LATEST_URL
 
 
+## 恢复或收尾项目中遗留的 package 文件事务。
+## [br]
+## @api framework_internal
+## [br]
+## @param project_root: 目标 Godot 项目根目录。
+## [br]
+## @schema project_root: String，绝对路径或 res:// 项目路径。
+## [br]
+## @param lockfile_path: lockfile 路径，非绝对路径时相对 project_root；用于校验调用边界。
+## [br]
+## @schema lockfile_path: String，默认 .gf/packages.lock.json。
+## [br]
+## @param options: 内部恢复参数。
+## [br]
+## @schema options: Dictionary；测试可包含 force_recovery_current_process。
+## [br]
+## @return 版本化 Package Transaction 恢复报告。
+## [br]
+## @schema return: 包含 schema_version、ok、outcome、recovered、rolled_back、recovery_required、issues 等字段。
+static func recover_package_transaction(
+	project_root: String,
+	lockfile_path: String = ".gf/packages.lock.json",
+	options: Dictionary = {}
+) -> Dictionary:
+	var resolved_project_root: String = _resolve_project_root(project_root)
+	var resolved_lockfile_path: String = _resolve_lockfile_path(resolved_project_root, lockfile_path)
+	var issues: PackedStringArray = PackedStringArray()
+	_append_lockfile_path_issues(resolved_project_root, resolved_lockfile_path, lockfile_path, issues)
+	if not issues.is_empty():
+		var invalid_result: Dictionary = _GF_PACKAGE_TRANSACTION_ENGINE.make_empty_report("recover")
+		invalid_result["ok"] = false
+		invalid_result["outcome"] = "blocked"
+		invalid_result["recovery_required"] = true
+		invalid_result["issue_count"] = issues.size()
+		invalid_result["issues"] = _packed_to_array(issues)
+		invalid_result["backend"] = "godot_native"
+		invalid_result["project_root"] = _display_path(resolved_project_root)
+		invalid_result["lockfile"] = _display_path(resolved_lockfile_path)
+		return invalid_result
+	var result: Dictionary = _GF_PACKAGE_TRANSACTION_ENGINE.recover_pending(resolved_project_root, options)
+	result["backend"] = "godot_native"
+	result["project_root"] = _display_path(resolved_project_root)
+	result["lockfile"] = _display_path(resolved_lockfile_path)
+	return result
+
+
 ## 读取 registry 与项目 lockfile，并返回编辑器包管理器状态。
 ## [br]
 ## @api framework_internal
@@ -335,6 +387,12 @@ static func make_status(
 	var resolved_lockfile_path: String = _resolve_lockfile_path(resolved_project_root, lockfile_path)
 	var issues: PackedStringArray = PackedStringArray()
 	_append_lockfile_path_issues(resolved_project_root, resolved_lockfile_path, lockfile_path, issues)
+	var transaction_recovery: Dictionary = _GF_PACKAGE_TRANSACTION_ENGINE.make_empty_report("recover")
+	if issues.is_empty():
+		transaction_recovery = _GF_PACKAGE_TRANSACTION_ENGINE.recover_pending(resolved_project_root)
+		if not _GF_VARIANT_ACCESS.get_option_bool(transaction_recovery, "ok", false):
+			_append_string_array(issues, _GF_VARIANT_ACCESS.get_option_packed_string_array(transaction_recovery, "issues"))
+	var registry_source: Dictionary = { "_transaction_recovery": transaction_recovery }
 	if _append_cancelled_if_requested(options, issues):
 		return _make_status_result(
 			false,
@@ -345,11 +403,12 @@ static func make_status(
 			[],
 			PackedStringArray(),
 			{ "ok": false, "issues": _packed_to_array(issues) },
-			issues
+			issues,
+			registry_source
 		)
-	var registry_source: Dictionary = {}
 	if issues.is_empty():
 		registry_source = _prepare_registry_source(registry_path, resolved_project_root, options, issues)
+		registry_source["_transaction_recovery"] = transaction_recovery
 	var resolved_registry_path: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "path", registry_path)
 	var registry_remote: bool = _GF_VARIANT_ACCESS.get_option_bool(registry_source, "remote")
 	if not issues.is_empty():
@@ -540,7 +599,7 @@ static func make_install_plan(
 			continue
 		var original_entry: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(original_installed, package_id)
 		var planned_entry: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(installed, package_id)
-		if _lock_entry_changed(original_entry, planned_entry):
+		if _lock_entry_payload_changed(original_entry, planned_entry):
 			var _append_update: bool = to_update.append(package_id)
 
 	var plan_entries: Array[Dictionary] = _make_install_update_plan_entries(
@@ -638,6 +697,9 @@ static func make_update_plan(
 		var existing_files: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(existing, "files")
 		if not existing_files.is_empty():
 			entry["files"] = _packed_to_array(existing_files)
+		var existing_metadata: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(existing, "file_metadata")
+		if not existing_metadata.is_empty():
+			entry["file_metadata"] = _sort_dictionary_by_key(existing_metadata)
 		if reasons.is_empty():
 			_append_unique(reasons, "bundled" if package_id == "gf.kernel" else "dependency")
 		reasons.sort()
@@ -654,7 +716,7 @@ static func make_update_plan(
 			continue
 		var original_entry: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(original_installed, package_id)
 		var planned_entry: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(installed, package_id)
-		if _lock_entry_changed(original_entry, planned_entry):
+		if _lock_entry_payload_changed(original_entry, planned_entry):
 			var _append_update: bool = to_update.append(package_id)
 
 	var requested_package_ids: Dictionary = {}
@@ -907,11 +969,17 @@ static func install_packages(
 	var resolved_lockfile_path: String = _resolve_lockfile_path(resolved_project_root, lockfile_path)
 	var issues: PackedStringArray = PackedStringArray()
 	_append_lockfile_path_issues(resolved_project_root, resolved_lockfile_path, lockfile_path, issues)
+	var transaction_recovery: Dictionary = _GF_PACKAGE_TRANSACTION_ENGINE.make_empty_report("recover")
+	if issues.is_empty():
+		transaction_recovery = _GF_PACKAGE_TRANSACTION_ENGINE.recover_pending(resolved_project_root)
+		if not _GF_VARIANT_ACCESS.get_option_bool(transaction_recovery, "ok", false):
+			_append_string_array(issues, _GF_VARIANT_ACCESS.get_option_packed_string_array(transaction_recovery, "issues"))
+	var registry_source: Dictionary = { "_transaction_recovery": transaction_recovery }
 	if _append_cancelled_if_requested(options, issues):
-		return _make_install_result(false, registry_path, resolved_project_root, resolved_lockfile_path, package_ids, {}, PackedStringArray(), 0, dry_run, false, issues)
-	var registry_source: Dictionary = {}
+		return _make_install_result(false, registry_path, resolved_project_root, resolved_lockfile_path, package_ids, {}, PackedStringArray(), 0, dry_run, false, issues, registry_source)
 	if issues.is_empty():
 		registry_source = _prepare_registry_source(registry_path, resolved_project_root, options, issues)
+		registry_source["_transaction_recovery"] = transaction_recovery
 	var resolved_registry_path: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "path", registry_path)
 	var cache_root: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "cache_dir")
 	if not issues.is_empty():
@@ -968,8 +1036,26 @@ static func install_packages(
 		)
 
 	var packages_to_change: PackedStringArray = _packages_to_change_from_plan(plan)
+	var planned_lockfile: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(plan, "planned_lockfile")
+	var lockfile_changed: bool = _lockfile_data_changed(lockfile_data, planned_lockfile)
 	if packages_to_change.is_empty():
-		return _make_install_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, PackedStringArray(), 0, dry_run, false, PackedStringArray(), registry_source)
+		if dry_run or not lockfile_changed:
+			return _make_install_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, PackedStringArray(), 0, dry_run, false, PackedStringArray(), registry_source)
+		var metadata_transaction: Dictionary = _execute_package_transaction(
+			"install",
+			[],
+			[],
+			resolved_project_root,
+			resolved_lockfile_path,
+			planned_lockfile,
+			PackedStringArray(),
+			options
+		)
+		registry_source["_transaction"] = metadata_transaction
+		var transaction_issues: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(metadata_transaction, "issues")
+		if not _GF_VARIANT_ACCESS.get_option_bool(metadata_transaction, "ok", false):
+			return _make_install_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, PackedStringArray(), 0, false, _GF_VARIANT_ACCESS.get_option_bool(metadata_transaction, "rolled_back", false), transaction_issues, registry_source)
+		return _make_install_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, PackedStringArray(), 0, false, false, PackedStringArray(), registry_source, true)
 
 	var packages_to_stage: PackedStringArray = _packages_requiring_archive(packages_to_change, registry_packages)
 	if dry_run:
@@ -987,7 +1073,6 @@ static func install_packages(
 
 	var temp_root: String = _make_temp_root(resolved_project_root)
 	var staging_root: String = temp_root.path_join("staging")
-	var backup_root: String = temp_root.path_join("backup")
 	var staged_files: Array[Dictionary] = _stage_package_archives(
 		packages_to_stage,
 		registry_packages,
@@ -1002,9 +1087,14 @@ static func install_packages(
 		_remove_path_recursive_absolute(temp_root)
 		return _make_install_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, packages_to_change, 0, dry_run, false, issues, registry_source)
 
-	var planned_lockfile: Dictionary = _lockfile_with_installed_files(
-		_GF_VARIANT_ACCESS.get_option_dictionary(plan, "planned_lockfile"),
-		staged_files
+	planned_lockfile = _lockfile_with_installed_files(planned_lockfile, staged_files)
+	var packages_to_update: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(plan, "to_update")
+	_append_modified_existing_update_file_issues(
+		packages_to_update,
+		lockfile_data,
+		planned_lockfile,
+		resolved_project_root,
+		issues
 	)
 	_append_existing_target_ownership_issues(
 		staged_files,
@@ -1015,22 +1105,32 @@ static func install_packages(
 	if not issues.is_empty():
 		_remove_path_recursive_absolute(temp_root)
 		return _make_install_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, packages_to_change, 0, false, true, issues, registry_source)
-	var simulate_copy_failure_after: int = _GF_VARIANT_ACCESS.get_option_int(options, "simulate_copy_failure_after", 0)
-	var obsolete_targets: Array[Dictionary] = []
-	var installed_file_count: int = _copy_staged_files_to_project(
+	var obsolete_targets: Array[Dictionary] = _collect_update_obsolete_targets(
+		packages_to_update,
+		lockfile_data,
+		planned_lockfile,
+		resolved_project_root,
+		issues
+	)
+	if not issues.is_empty():
+		_remove_path_recursive_absolute(temp_root)
+		return _make_install_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, packages_to_change, 0, false, true, issues, registry_source)
+	var transaction: Dictionary = _execute_package_transaction(
+		"install",
 		staged_files,
+		obsolete_targets,
 		resolved_project_root,
 		resolved_lockfile_path,
 		planned_lockfile,
-		obsolete_targets,
-		backup_root,
-		simulate_copy_failure_after,
-		issues,
+		PackedStringArray([temp_root]),
 		options
 	)
+	registry_source["_transaction"] = transaction
+	_append_string_array(issues, _GF_VARIANT_ACCESS.get_option_packed_string_array(transaction, "issues"))
+	var installed_file_count: int = _GF_VARIANT_ACCESS.get_option_int(transaction, "write_count", 0)
 	_remove_path_recursive_absolute(temp_root)
-	if not issues.is_empty():
-		return _make_install_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, packages_to_change, 0, false, true, issues, registry_source)
+	if not _GF_VARIANT_ACCESS.get_option_bool(transaction, "ok", false):
+		return _make_install_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, packages_to_change, 0, false, _GF_VARIANT_ACCESS.get_option_bool(transaction, "rolled_back", false), issues, registry_source)
 	return _make_install_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, packages_to_change, installed_file_count, false, false, PackedStringArray(), registry_source)
 
 
@@ -1082,11 +1182,17 @@ static func update_packages(
 	var resolved_lockfile_path: String = _resolve_lockfile_path(resolved_project_root, lockfile_path)
 	var issues: PackedStringArray = PackedStringArray()
 	_append_lockfile_path_issues(resolved_project_root, resolved_lockfile_path, lockfile_path, issues)
+	var transaction_recovery: Dictionary = _GF_PACKAGE_TRANSACTION_ENGINE.make_empty_report("recover")
+	if issues.is_empty():
+		transaction_recovery = _GF_PACKAGE_TRANSACTION_ENGINE.recover_pending(resolved_project_root)
+		if not _GF_VARIANT_ACCESS.get_option_bool(transaction_recovery, "ok", false):
+			_append_string_array(issues, _GF_VARIANT_ACCESS.get_option_packed_string_array(transaction_recovery, "issues"))
+	var registry_source: Dictionary = { "_transaction_recovery": transaction_recovery }
 	if _append_cancelled_if_requested(options, issues):
-		return _make_update_result(false, registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, {}, PackedStringArray(), 0, dry_run, false, false, issues)
-	var registry_source: Dictionary = {}
+		return _make_update_result(false, registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, {}, PackedStringArray(), 0, dry_run, false, false, issues, registry_source)
 	if issues.is_empty():
 		registry_source = _prepare_registry_source(registry_path, resolved_project_root, options, issues)
+		registry_source["_transaction_recovery"] = transaction_recovery
 	var resolved_registry_path: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "path", registry_path)
 	var cache_root: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "cache_dir")
 	if not issues.is_empty():
@@ -1147,12 +1253,20 @@ static func update_packages(
 	if packages_to_change.is_empty():
 		if dry_run or not lockfile_changed:
 			return _make_update_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, plan, PackedStringArray(), 0, dry_run, false, false, PackedStringArray(), registry_source)
-		var write_issues: PackedStringArray = PackedStringArray()
-		if _append_cancelled_if_requested(options, write_issues):
-			return _make_update_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, plan, PackedStringArray(), 0, false, false, false, write_issues, registry_source)
-		var lockfile_written: bool = _write_lockfile_last(resolved_lockfile_path, planned_lockfile, write_issues)
-		if not lockfile_written:
-			return _make_update_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, plan, PackedStringArray(), 0, false, false, false, write_issues, registry_source)
+		var metadata_transaction: Dictionary = _execute_package_transaction(
+			"update",
+			[],
+			[],
+			resolved_project_root,
+			resolved_lockfile_path,
+			planned_lockfile,
+			PackedStringArray(),
+			options
+		)
+		registry_source["_transaction"] = metadata_transaction
+		var transaction_issues: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(metadata_transaction, "issues")
+		if not _GF_VARIANT_ACCESS.get_option_bool(metadata_transaction, "ok", false):
+			return _make_update_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, plan, PackedStringArray(), 0, false, _GF_VARIANT_ACCESS.get_option_bool(metadata_transaction, "rolled_back", false), false, transaction_issues, registry_source)
 		return _make_update_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, plan, PackedStringArray(), 0, false, false, true, PackedStringArray(), registry_source)
 
 	var packages_to_stage: PackedStringArray = _packages_requiring_archive(packages_to_change, registry_packages)
@@ -1171,7 +1285,6 @@ static func update_packages(
 
 	var temp_root: String = _make_temp_root(resolved_project_root)
 	var staging_root: String = temp_root.path_join("staging")
-	var backup_root: String = temp_root.path_join("backup")
 	var staged_files: Array[Dictionary] = _stage_package_archives(
 		packages_to_stage,
 		registry_packages,
@@ -1213,21 +1326,22 @@ static func update_packages(
 	if not issues.is_empty():
 		_remove_path_recursive_absolute(temp_root)
 		return _make_update_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, plan, packages_to_change, 0, false, true, false, issues, registry_source)
-	var simulate_copy_failure_after: int = _GF_VARIANT_ACCESS.get_option_int(options, "simulate_copy_failure_after", 0)
-	var updated_file_count: int = _copy_staged_files_to_project(
+	var transaction: Dictionary = _execute_package_transaction(
+		"update",
 		staged_files,
+		obsolete_targets,
 		resolved_project_root,
 		resolved_lockfile_path,
 		planned_lockfile,
-		obsolete_targets,
-		backup_root,
-		simulate_copy_failure_after,
-		issues,
+		PackedStringArray([temp_root]),
 		options
 	)
+	registry_source["_transaction"] = transaction
+	_append_string_array(issues, _GF_VARIANT_ACCESS.get_option_packed_string_array(transaction, "issues"))
+	var updated_file_count: int = _GF_VARIANT_ACCESS.get_option_int(transaction, "write_count", 0)
 	_remove_path_recursive_absolute(temp_root)
-	if not issues.is_empty():
-		return _make_update_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, plan, packages_to_change, 0, false, true, false, issues, registry_source)
+	if not _GF_VARIANT_ACCESS.get_option_bool(transaction, "ok", false):
+		return _make_update_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, plan, packages_to_change, 0, false, _GF_VARIANT_ACCESS.get_option_bool(transaction, "rolled_back", false), false, issues, registry_source)
 	return _make_update_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, plan, packages_to_change, updated_file_count, false, false, true, PackedStringArray(), registry_source)
 
 
@@ -1279,11 +1393,17 @@ static func uninstall_packages(
 	var resolved_lockfile_path: String = _resolve_lockfile_path(resolved_project_root, lockfile_path)
 	var issues: PackedStringArray = PackedStringArray()
 	_append_lockfile_path_issues(resolved_project_root, resolved_lockfile_path, lockfile_path, issues)
+	var transaction_recovery: Dictionary = _GF_PACKAGE_TRANSACTION_ENGINE.make_empty_report("recover")
+	if issues.is_empty():
+		transaction_recovery = _GF_PACKAGE_TRANSACTION_ENGINE.recover_pending(resolved_project_root)
+		if not _GF_VARIANT_ACCESS.get_option_bool(transaction_recovery, "ok", false):
+			_append_string_array(issues, _GF_VARIANT_ACCESS.get_option_packed_string_array(transaction_recovery, "issues"))
+	var registry_source: Dictionary = { "_transaction_recovery": transaction_recovery }
 	if _append_cancelled_if_requested(options, issues):
-		return _make_uninstall_result(false, registry_path, resolved_project_root, resolved_lockfile_path, package_ids, {}, PackedStringArray(), 0, 0, dry_run, force, false, issues)
-	var registry_source: Dictionary = {}
+		return _make_uninstall_result(false, registry_path, resolved_project_root, resolved_lockfile_path, package_ids, {}, PackedStringArray(), 0, 0, dry_run, force, false, issues, registry_source)
 	if issues.is_empty():
 		registry_source = _prepare_registry_source(registry_path, resolved_project_root, options, issues)
+		registry_source["_transaction_recovery"] = transaction_recovery
 	var resolved_registry_path: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "path", registry_path)
 	if not issues.is_empty():
 		return _make_uninstall_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, {}, PackedStringArray(), 0, 0, dry_run, force, false, issues, registry_source)
@@ -1341,21 +1461,22 @@ static func uninstall_packages(
 		return _make_uninstall_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, plan, to_remove, targets.size(), 0, true, force, false, PackedStringArray(), registry_source)
 
 	var temp_root: String = _make_temp_root(resolved_project_root)
-	var backup_root: String = temp_root.path_join("uninstall_backup")
-	var simulate_delete_failure_after: int = _GF_VARIANT_ACCESS.get_option_int(options, "simulate_delete_failure_after", 0)
-	var removed_file_count: int = _delete_package_files_from_project(
+	var transaction: Dictionary = _execute_package_transaction(
+		"uninstall",
+		[],
 		targets,
 		resolved_project_root,
 		resolved_lockfile_path,
 		_GF_VARIANT_ACCESS.get_option_dictionary(plan, "planned_lockfile"),
-		backup_root,
-		simulate_delete_failure_after,
-		issues,
+		PackedStringArray([temp_root]),
 		options
 	)
+	registry_source["_transaction"] = transaction
+	_append_string_array(issues, _GF_VARIANT_ACCESS.get_option_packed_string_array(transaction, "issues"))
+	var removed_file_count: int = _GF_VARIANT_ACCESS.get_option_int(transaction, "delete_count", 0)
 	_remove_path_recursive_absolute(temp_root)
-	if not issues.is_empty():
-		return _make_uninstall_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, plan, to_remove, targets.size(), 0, false, force, true, issues, registry_source)
+	if not _GF_VARIANT_ACCESS.get_option_bool(transaction, "ok", false):
+		return _make_uninstall_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, plan, to_remove, targets.size(), 0, false, force, _GF_VARIANT_ACCESS.get_option_bool(transaction, "rolled_back", false), issues, registry_source)
 	return _make_uninstall_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, plan, to_remove, targets.size(), removed_file_count, false, force, false, PackedStringArray(), registry_source)
 
 
@@ -1606,7 +1727,7 @@ static func _make_status_package_entry(
 		"dependencies": _GF_VARIANT_ACCESS.get_option_array(registry_entry, "dependencies"),
 		"packages": _GF_VARIANT_ACCESS.get_option_array(registry_entry, "packages"),
 		"paths": _GF_VARIANT_ACCESS.get_option_array(registry_entry, "paths"),
-		"enable_extension": _GF_VARIANT_ACCESS.get_option_string(registry_entry, "enable_extension"),
+		"gf_extension_id": _GF_VARIANT_ACCESS.get_option_string(registry_entry, "gf_extension_id"),
 		"installed": installed,
 		"reason": _GF_VARIANT_ACCESS.get_option_array(lock_entry, "reason"),
 		"required_by": _GF_VARIANT_ACCESS.get_option_array(lock_entry, "required_by"),
@@ -1700,9 +1821,9 @@ static func _make_lock_entry(registry_entry: Dictionary) -> Dictionary:
 	}
 	if _GF_VARIANT_ACCESS.get_option_string(registry_entry, "kind") == "preset":
 		entry["packages"] = _GF_VARIANT_ACCESS.get_option_array(registry_entry, "packages")
-	var enable_extension: String = _GF_VARIANT_ACCESS.get_option_string(registry_entry, "enable_extension")
-	if not enable_extension.is_empty():
-		entry["enable_extension"] = enable_extension
+	var gf_extension_id: String = _GF_VARIANT_ACCESS.get_option_string(registry_entry, "gf_extension_id")
+	if not gf_extension_id.is_empty():
+		entry["gf_extension_id"] = gf_extension_id
 	return entry
 
 
@@ -1836,6 +1957,8 @@ static func _make_install_update_plan_entries(
 			action = "install"
 		elif update_lookup.has(package_id):
 			action = "update"
+		elif not original_entry.is_empty() and _lock_entry_metadata_changed(original_entry, planned_entry):
+			action = "metadata"
 		var requested: bool = requested_package_ids.has(package_id)
 		var decision_reasons: PackedStringArray = PackedStringArray()
 		_append_unique(decision_reasons, "requested" if requested else "dependency")
@@ -1843,6 +1966,8 @@ static func _make_install_update_plan_entries(
 			_append_unique(decision_reasons, "missing_from_lockfile")
 		elif action == "update":
 			_append_unique(decision_reasons, "lockfile_changed")
+		elif action == "metadata":
+			_append_unique(decision_reasons, "lockfile_metadata_changed")
 		else:
 			_append_unique(decision_reasons, "already_satisfied")
 		if _GF_VARIANT_ACCESS.get_option_string(registry_entry, "kind") == "preset":
@@ -1948,7 +2073,8 @@ static func _make_install_result(
 	dry_run: bool,
 	rolled_back: bool,
 	issues: PackedStringArray,
-	registry_source: Dictionary = {}
+	registry_source: Dictionary = {},
+	lockfile_written: bool = false
 ) -> Dictionary:
 	var result: Dictionary = {
 		"ok": ok,
@@ -1965,7 +2091,7 @@ static func _make_install_result(
 		"plan_summary": _GF_VARIANT_ACCESS.get_option_dictionary(plan, "plan_summary"),
 		"installed_packages": _packed_to_array(installed_packages),
 		"installed_file_count": installed_file_count,
-		"lockfile_written": ok and not dry_run and not installed_packages.is_empty(),
+		"lockfile_written": ok and not dry_run and (lockfile_written or not installed_packages.is_empty()),
 		"dry_run": dry_run,
 		"rolled_back": rolled_back,
 		"issue_count": issues.size(),
@@ -2067,6 +2193,15 @@ static func _make_uninstall_result(
 
 
 static func _append_registry_source_fields(result: Dictionary, registry_source: Dictionary) -> void:
+	var operation: String = _GF_VARIANT_ACCESS.get_option_string(result, "operation")
+	var transaction: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(registry_source, "_transaction")
+	if transaction.is_empty():
+		transaction = _GF_PACKAGE_TRANSACTION_ENGINE.make_empty_report(operation)
+	result["transaction"] = transaction
+	var transaction_recovery: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(registry_source, "_transaction_recovery")
+	if transaction_recovery.is_empty():
+		transaction_recovery = _GF_PACKAGE_TRANSACTION_ENGINE.make_empty_report("recover")
+	result["transaction_recovery"] = transaction_recovery
 	if registry_source.is_empty():
 		return
 
@@ -2273,7 +2408,7 @@ static func _audit_package_archives(
 
 
 static func _lockfile_data_changed(current_lockfile: Dictionary, planned_lockfile: Dictionary) -> bool:
-	return JSON.stringify(current_lockfile, "\t", false) != JSON.stringify(planned_lockfile, "\t", false)
+	return not _json_values_equivalent(current_lockfile, planned_lockfile)
 
 
 static func _stage_package_archives(
@@ -2871,244 +3006,43 @@ static func _remaining_package_owner(
 	return ""
 
 
-static func _copy_staged_files_to_project(
-	staged_files: Array[Dictionary],
+static func _execute_package_transaction(
+	operation: String,
+	staged_files: Array,
+	delete_targets: Array,
 	project_root: String,
 	lockfile_path: String,
 	planned_lockfile: Dictionary,
-	obsolete_targets: Array[Dictionary],
-	backup_root: String,
-	simulate_copy_failure_after: int,
-	issues: PackedStringArray,
-	options: Dictionary = {}
-) -> int:
-	if _append_cancelled_if_requested(options, issues):
-		return 0
-	var make_project_error: Error = DirAccess.make_dir_recursive_absolute(project_root)
-	if make_project_error != OK:
-		var _append_project: bool = issues.append("Could not create project root: %s" % error_string(make_project_error))
-		return 0
-
-	var created_files: PackedStringArray = PackedStringArray()
-	var created_dirs: PackedStringArray = PackedStringArray()
-	var backups: Array[Dictionary] = []
-	var copied_count: int = 0
-	for item: Dictionary in staged_files:
-		if _append_cancelled_if_requested(options, issues):
-			_rollback_install_files(created_files, backups, created_dirs, issues)
-			return 0
-		var relative_path: String = _GF_VARIANT_ACCESS.get_option_string(item, "relative_path")
-		var staged_path: String = _GF_VARIANT_ACCESS.get_option_string(item, "staged_path")
-		var target_path: String = _project_target_path(project_root, relative_path, issues)
-		if target_path.is_empty():
-			_rollback_install_files(created_files, backups, created_dirs, issues)
-			return 0
-		if not _make_parent_dirs(target_path.get_base_dir(), project_root, created_dirs, issues):
-			_rollback_install_files(created_files, backups, created_dirs, issues)
-			return 0
-		if DirAccess.dir_exists_absolute(target_path):
-			var _append_dir: bool = issues.append("Cannot overwrite directory with package file: %s" % target_path)
-			_rollback_install_files(created_files, backups, created_dirs, issues)
-			return 0
-		if FileAccess.file_exists(target_path):
-			var backup_path: String = backup_root.path_join(relative_path)
-			var backup_make_error: Error = DirAccess.make_dir_recursive_absolute(backup_path.get_base_dir())
-			if backup_make_error != OK:
-				var _append_backup_dir: bool = issues.append("Could not create package backup directory: %s" % error_string(backup_make_error))
-				_rollback_install_files(created_files, backups, created_dirs, issues)
-				return 0
-			if not _copy_file(target_path, backup_path, issues, "backup %s" % relative_path):
-				_rollback_install_files(created_files, backups, created_dirs, issues)
-				return 0
-			backups.append({ "target": target_path, "backup": backup_path })
-		else:
-			var _append_created: bool = created_files.append(target_path)
-		if not _copy_file(staged_path, target_path, issues, "install %s" % relative_path):
-			_rollback_install_files(created_files, backups, created_dirs, issues)
-			return 0
-		copied_count += 1
-		if simulate_copy_failure_after > 0 and copied_count >= simulate_copy_failure_after:
-			var _append_simulated: bool = issues.append("Simulated package install copy failure.")
-			_rollback_install_files(created_files, backups, created_dirs, issues)
-			return 0
-
-	for item: Dictionary in obsolete_targets:
-		if _append_cancelled_if_requested(options, issues):
-			_rollback_install_files(created_files, backups, created_dirs, issues)
-			return 0
-		var relative_path: String = _GF_VARIANT_ACCESS.get_option_string(item, "relative_path")
-		var target_path: String = _GF_VARIANT_ACCESS.get_option_string(item, "target_path")
-		if target_path.is_empty() or not FileAccess.file_exists(target_path):
+	cleanup_paths: PackedStringArray,
+	options: Dictionary
+) -> Dictionary:
+	var writes: Array[Dictionary] = []
+	for raw_value: Variant in staged_files:
+		if not raw_value is Dictionary:
 			continue
-		var backup_path: String = backup_root.path_join("obsolete").path_join(relative_path)
-		var backup_make_error: Error = DirAccess.make_dir_recursive_absolute(backup_path.get_base_dir())
-		if backup_make_error != OK:
-			var _append_backup_dir: bool = issues.append("Could not create obsolete package backup directory: %s" % error_string(backup_make_error))
-			_rollback_install_files(created_files, backups, created_dirs, issues)
-			return 0
-		if not _copy_file(target_path, backup_path, issues, "backup obsolete %s" % relative_path):
-			_rollback_install_files(created_files, backups, created_dirs, issues)
-			return 0
-		backups.append({ "target": target_path, "backup": backup_path })
-		var remove_error: Error = DirAccess.remove_absolute(target_path)
-		if remove_error != OK:
-			var _append_remove: bool = issues.append("Could not delete obsolete package file: %s (%s)" % [target_path, error_string(remove_error)])
-			_rollback_install_files(created_files, backups, created_dirs, issues)
-			return 0
-
-	if _append_cancelled_if_requested(options, issues):
-		_rollback_install_files(created_files, backups, created_dirs, issues)
-		return 0
-	if not _write_lockfile_last(lockfile_path, planned_lockfile, issues):
-		_rollback_install_files(created_files, backups, created_dirs, issues)
-		return 0
-	return copied_count
-
-
-static func _delete_package_files_from_project(
-	targets: Array[Dictionary],
-	project_root: String,
-	lockfile_path: String,
-	planned_lockfile: Dictionary,
-	backup_root: String,
-	simulate_delete_failure_after: int,
-	issues: PackedStringArray,
-	options: Dictionary = {}
-) -> int:
-	var backups: Array[Dictionary] = []
-	var touched_dirs: PackedStringArray = PackedStringArray()
-	var deleted_count: int = 0
-	for item: Dictionary in targets:
-		if _append_cancelled_if_requested(options, issues):
-			_restore_deleted_files(backups, issues)
-			return 0
-		var relative_path: String = _GF_VARIANT_ACCESS.get_option_string(item, "relative_path")
-		var target_path: String = _GF_VARIANT_ACCESS.get_option_string(item, "target_path")
-		if target_path.is_empty():
-			var _append_target: bool = issues.append("Invalid uninstall target path: %s" % relative_path)
-			_restore_deleted_files(backups, issues)
-			return 0
-		if not FileAccess.file_exists(target_path) and not DirAccess.dir_exists_absolute(target_path):
+		var staged_file: Dictionary = raw_value
+		writes.append({
+			"relative_path": _GF_VARIANT_ACCESS.get_option_string(staged_file, "relative_path"),
+			"source_path": _GF_VARIANT_ACCESS.get_option_string(staged_file, "staged_path"),
+		})
+	var deletes: Array[Dictionary] = []
+	for raw_value: Variant in delete_targets:
+		if not raw_value is Dictionary:
 			continue
-		if DirAccess.dir_exists_absolute(target_path):
-			var _append_dir: bool = issues.append("Refusing to delete directory as a package file: %s" % target_path)
-			_restore_deleted_files(backups, issues)
-			return 0
-		var backup_path: String = backup_root.path_join(relative_path)
-		var make_backup_error: Error = DirAccess.make_dir_recursive_absolute(backup_path.get_base_dir())
-		if make_backup_error != OK:
-			var _append_backup_dir: bool = issues.append("Could not create package uninstall backup directory: %s" % error_string(make_backup_error))
-			_restore_deleted_files(backups, issues)
-			return 0
-		if not _copy_file(target_path, backup_path, issues, "backup uninstall %s" % relative_path):
-			_restore_deleted_files(backups, issues)
-			return 0
-		backups.append({ "target": target_path, "backup": backup_path })
-		var remove_error: Error = DirAccess.remove_absolute(target_path)
-		if remove_error != OK:
-			var _append_remove: bool = issues.append("Could not delete package file: %s (%s)" % [target_path, error_string(remove_error)])
-			_restore_deleted_files(backups, issues)
-			return 0
-		deleted_count += 1
-		_append_unique(touched_dirs, target_path.get_base_dir())
-		if simulate_delete_failure_after > 0 and deleted_count >= simulate_delete_failure_after:
-			var _append_simulated: bool = issues.append("Simulated package uninstall delete failure.")
-			_restore_deleted_files(backups, issues)
-			return 0
-
-	_remove_empty_project_dirs(touched_dirs, project_root)
-	if _append_cancelled_if_requested(options, issues):
-		_restore_deleted_files(backups, issues)
-		return 0
-	if not _write_lockfile_last(lockfile_path, planned_lockfile, issues):
-		_restore_deleted_files(backups, issues)
-		return 0
-	return deleted_count
-
-
-static func _restore_deleted_files(backups: Array[Dictionary], issues: PackedStringArray) -> void:
-	for index: int in range(backups.size() - 1, -1, -1):
-		var backup: Dictionary = backups[index]
-		var target_path: String = _GF_VARIANT_ACCESS.get_option_string(backup, "target")
-		var backup_path: String = _GF_VARIANT_ACCESS.get_option_string(backup, "backup")
-		if FileAccess.file_exists(backup_path):
-			var _copy_back: bool = _copy_file(backup_path, target_path, issues, "restore %s" % target_path)
-
-
-static func _remove_empty_project_dirs(directories: PackedStringArray, project_root: String) -> void:
-	var normalized_root: String = _trim_trailing_path_separators(project_root.replace("\\", "/"))
-	for directory_path: String in directories:
-		var current: String = _trim_trailing_path_separators(directory_path.replace("\\", "/"))
-		while not current.is_empty() and current != current.get_base_dir():
-			if not _is_path_inside(normalized_root, current) or current == normalized_root:
-				break
-			if not DirAccess.dir_exists_absolute(current):
-				current = current.get_base_dir()
-				continue
-			if current == normalized_root.path_join("addons"):
-				break
-			var remove_error: Error = DirAccess.remove_absolute(current)
-			if remove_error != OK:
-				break
-			current = current.get_base_dir()
-
-
-static func _rollback_install_files(
-	created_files: PackedStringArray,
-	backups: Array[Dictionary],
-	created_dirs: PackedStringArray,
-	issues: PackedStringArray
-) -> void:
-	for index: int in range(created_files.size() - 1, -1, -1):
-		var path: String = created_files[index]
-		if FileAccess.file_exists(path):
-			var _remove_file_error: Error = DirAccess.remove_absolute(path)
-	for index: int in range(backups.size() - 1, -1, -1):
-		var backup: Dictionary = backups[index]
-		var target_path: String = _GF_VARIANT_ACCESS.get_option_string(backup, "target")
-		var backup_path: String = _GF_VARIANT_ACCESS.get_option_string(backup, "backup")
-		if FileAccess.file_exists(backup_path):
-			var _copy_back: bool = _copy_file(backup_path, target_path, issues, "restore %s" % target_path)
-	for index: int in range(created_dirs.size() - 1, -1, -1):
-		var directory_path: String = created_dirs[index]
-		if DirAccess.dir_exists_absolute(directory_path):
-			var _remove_dir_error: Error = DirAccess.remove_absolute(directory_path)
-
-
-static func _write_lockfile_last(lockfile_path: String, planned_lockfile: Dictionary, issues: PackedStringArray) -> bool:
-	var directory_path: String = lockfile_path.get_base_dir()
-	var make_error: Error = DirAccess.make_dir_recursive_absolute(directory_path)
-	if make_error != OK:
-		var _append_make: bool = issues.append("Could not create lockfile directory: %s" % error_string(make_error))
-		return false
-
-	var temp_path: String = lockfile_path + ".tmp"
-	var backup_path: String = lockfile_path + ".bak"
-	if not _write_text_file_absolute(temp_path, JSON.stringify(planned_lockfile, "\t", false) + "\n", issues, "write lockfile temp"):
-		return false
-
-	var had_lockfile: bool = FileAccess.file_exists(lockfile_path)
-	if had_lockfile:
-		if not _copy_file(lockfile_path, backup_path, issues, "backup lockfile"):
-			var _remove_temp_error: Error = DirAccess.remove_absolute(temp_path)
-			return false
-		var remove_error: Error = DirAccess.remove_absolute(lockfile_path)
-		if remove_error != OK:
-			var _append_remove: bool = issues.append("Could not replace existing lockfile: %s" % error_string(remove_error))
-			var _remove_temp_after_error: Error = DirAccess.remove_absolute(temp_path)
-			return false
-
-	var rename_error: Error = DirAccess.rename_absolute(temp_path, lockfile_path)
-	if rename_error != OK:
-		var _append_rename: bool = issues.append("Could not write lockfile: %s" % error_string(rename_error))
-		if had_lockfile and FileAccess.file_exists(backup_path):
-			var _restore_lock: bool = _copy_file(backup_path, lockfile_path, issues, "restore lockfile")
-		var _remove_temp_error: Error = DirAccess.remove_absolute(temp_path)
-		return false
-
-	if FileAccess.file_exists(backup_path):
-		var _remove_backup_error: Error = DirAccess.remove_absolute(backup_path)
-	return true
+		var delete_target: Dictionary = raw_value
+		deletes.append({
+			"relative_path": _GF_VARIANT_ACCESS.get_option_string(delete_target, "relative_path"),
+		})
+	var request: Dictionary = _GF_PACKAGE_TRANSACTION_ENGINE.make_request(
+		operation,
+		project_root,
+		lockfile_path,
+		planned_lockfile,
+		writes,
+		deletes,
+		cleanup_paths
+	)
+	return _GF_PACKAGE_TRANSACTION_ENGINE.execute(request, options)
 
 
 static func _prepare_registry_source(
@@ -3725,11 +3659,15 @@ static func _resolve_archive_path(
 		return offline_archive_path
 	if _is_http_url(text):
 		return _cache_remote_archive(package_id, text, registry_entry, cache_root, issues, options)
-	if text.begins_with("res://") or text.begins_with("user://"):
-		return ProjectSettings.globalize_path(text).replace("\\", "/")
-	if text.is_absolute_path():
-		return text.replace("\\", "/")
-	return registry_path.get_base_dir().path_join(text).replace("\\", "/")
+	if text.begins_with("res://") or text.begins_with("user://") or text.is_absolute_path() or text.contains(":"):
+		var _append_local_external: bool = issues.append("%s: local registry archive must be a relative file path in the local registry bundle: %s" % [package_id, text])
+		return ""
+	var registry_root: String = registry_path.get_base_dir().replace("\\", "/").simplify_path()
+	var local_archive_path: String = registry_root.path_join(text).replace("\\", "/").simplify_path()
+	if not _is_local_registry_archive_path_allowed(registry_root, local_archive_path):
+		var _append_local_escape: bool = issues.append("%s: local registry archive path escapes the local registry bundle: %s" % [package_id, text])
+		return ""
+	return local_archive_path
 
 
 static func _cache_remote_archive(
@@ -3879,7 +3817,20 @@ static func _download_url_to_file(
 			var _append_large: bool = issues.append("%s: remote file exceeded the allowed download limit." % label)
 			return false
 		var _store_chunk_result: Variant = file.store_buffer(chunk)
+		if file.get_error() != OK:
+			var write_error: Error = file.get_error()
+			file.close()
+			client.close()
+			var _remove_write_failed: Error = DirAccess.remove_absolute(temp_path)
+			var _append_write: bool = issues.append("%s: could not write download cache: %s" % [label, error_string(write_error)])
+			return false
 	file.close()
+	client.close()
+
+	if _file_size(temp_path) != bytes_written:
+		var _remove_size_mismatch: Error = DirAccess.remove_absolute(temp_path)
+		var _append_size_mismatch: bool = issues.append("%s: downloaded file size mismatch." % label)
+		return false
 
 	if FileAccess.file_exists(target_path):
 		var remove_error: Error = DirAccess.remove_absolute(target_path)
@@ -4152,12 +4103,10 @@ static func _sha256_text(value: String) -> String:
 
 static func _normalize_archive_name(path: String) -> String:
 	var normalized: String = path.strip_edges().replace("\\", "/")
-	if normalized.begins_with("res://") or normalized.contains(":"):
+	if normalized.begins_with("/") or normalized.begins_with("res://") or normalized.begins_with("user://") or normalized.contains(":"):
 		return ""
 	while normalized.begins_with("./"):
 		normalized = normalized.substr(2)
-	while normalized.begins_with("/"):
-		normalized = normalized.substr(1)
 	var parts: PackedStringArray = normalized.split("/", false)
 	var safe_parts: PackedStringArray = PackedStringArray()
 	for part: String in parts:
@@ -4262,35 +4211,6 @@ static func _project_target_path(project_root: String, relative_path: String, is
 	return target_path
 
 
-static func _make_parent_dirs(
-	directory_path: String,
-	project_root: String,
-	created_dirs: PackedStringArray,
-	issues: PackedStringArray
-) -> bool:
-	var normalized_directory: String = _trim_trailing_path_separators(directory_path.replace("\\", "/"))
-	if not _is_path_inside(project_root, normalized_directory):
-		var _append_outside: bool = issues.append("Package directory is outside project root: %s" % normalized_directory)
-		return false
-	if DirAccess.dir_exists_absolute(normalized_directory):
-		return true
-
-	var missing: PackedStringArray = PackedStringArray()
-	var cursor: String = normalized_directory
-	var normalized_root: String = _trim_trailing_path_separators(project_root.replace("\\", "/"))
-	while _is_path_inside(normalized_root, cursor) and cursor != normalized_root and not DirAccess.dir_exists_absolute(cursor):
-		var _append_missing: bool = missing.append(cursor)
-		cursor = cursor.get_base_dir()
-
-	var make_error: Error = DirAccess.make_dir_recursive_absolute(normalized_directory)
-	if make_error != OK:
-		var _append_make: bool = issues.append("Could not create package directory: %s" % error_string(make_error))
-		return false
-	for index: int in range(missing.size() - 1, -1, -1):
-		var _append_created: bool = created_dirs.append(missing[index])
-	return true
-
-
 static func _copy_file(source_path: String, target_path: String, issues: PackedStringArray, context: String) -> bool:
 	var source_file: FileAccess = FileAccess.open(source_path, FileAccess.READ)
 	if source_file == null:
@@ -4341,7 +4261,15 @@ static func _read_binary_file(path: String, issues: PackedStringArray, context: 
 		return PackedByteArray()
 	var length: int = file.get_length()
 	var bytes: PackedByteArray = file.get_buffer(length)
+	if file.get_error() != OK:
+		var read_error: Error = file.get_error()
+		file.close()
+		var _append_read: bool = issues.append("Could not read %s: %s" % [context, error_string(read_error)])
+		return PackedByteArray()
 	file.close()
+	if bytes.size() != length:
+		var _append_size: bool = issues.append("Read file size mismatch while reading %s: %s" % [context, path])
+		return PackedByteArray()
 	return bytes
 
 
@@ -4355,7 +4283,15 @@ static func _write_binary_file(path: String, bytes: PackedByteArray, issues: Pac
 		var _append_open: bool = issues.append("Could not %s: %s" % [context, error_string(FileAccess.get_open_error())])
 		return false
 	var _store_bytes_result: Variant = file.store_buffer(bytes)
+	if file.get_error() != OK:
+		var write_error: Error = file.get_error()
+		file.close()
+		var _append_write: bool = issues.append("Could not write %s: %s" % [context, error_string(write_error)])
+		return false
 	file.close()
+	if _file_size(path) != bytes.size():
+		var _append_size: bool = issues.append("Wrote file size mismatch while writing %s: %s" % [context, path])
+		return false
 	return true
 
 
@@ -4369,7 +4305,15 @@ static func _write_text_file_absolute(path: String, text: String, issues: Packed
 		var _append_open: bool = issues.append("Could not %s: %s" % [context, error_string(FileAccess.get_open_error())])
 		return false
 	var _store_text_result: Variant = file.store_string(text)
+	if file.get_error() != OK:
+		var write_error: Error = file.get_error()
+		file.close()
+		var _append_write: bool = issues.append("Could not write %s: %s" % [context, error_string(write_error)])
+		return false
 	file.close()
+	if _file_size(path) != text.to_utf8_buffer().size():
+		var _append_size: bool = issues.append("Wrote file size mismatch while writing %s: %s" % [context, path])
+		return false
 	return true
 
 
@@ -4409,6 +4353,14 @@ static func _remove_path_recursive_absolute(path: String) -> void:
 				_remove_path_recursive_absolute(normalized.path_join(item_name))
 			directory.list_dir_end()
 	var _remove_dir_error: Error = DirAccess.remove_absolute(normalized)
+
+
+static func _is_local_registry_archive_path_allowed(registry_root: String, archive_path: String) -> bool:
+	if _is_path_inside(registry_root, archive_path):
+		return true
+	var distribution_root: String = registry_root.get_base_dir().replace("\\", "/").simplify_path()
+	var sibling_packages_root: String = distribution_root.path_join("packages").replace("\\", "/").simplify_path()
+	return _is_path_inside(sibling_packages_root, archive_path)
 
 
 static func _is_path_inside(root_path: String, child_path: String) -> bool:
@@ -4745,16 +4697,17 @@ static func _package_dependency_ids(registry_entry: Dictionary) -> PackedStringA
 	return _GF_VARIANT_ACCESS.get_option_packed_string_array(registry_entry, "dependencies")
 
 
-static func _lock_entry_changed(left: Dictionary, right: Dictionary) -> bool:
-	var left_reasons: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(left, "reason")
-	var right_reasons: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(right, "reason")
-	left_reasons.sort()
-	right_reasons.sort()
+static func _lock_entry_payload_changed(left: Dictionary, right: Dictionary) -> bool:
 	return (
 		_GF_VARIANT_ACCESS.get_option_string(left, "version") != _GF_VARIANT_ACCESS.get_option_string(right, "version")
 		or _GF_VARIANT_ACCESS.get_option_string(left, "sha256") != _GF_VARIANT_ACCESS.get_option_string(right, "sha256")
-		or left_reasons != right_reasons
 	)
+
+
+static func _lock_entry_metadata_changed(left: Dictionary, right: Dictionary) -> bool:
+	if _lock_entry_payload_changed(left, right):
+		return false
+	return not _json_values_equivalent(left, right)
 
 
 static func _framework_compatibility_issues(
@@ -5018,6 +4971,70 @@ static func _sort_dictionary_by_key(data: Dictionary) -> Dictionary:
 	for key: String in _sorted_dictionary_keys(data):
 		result[key] = _GF_VARIANT_ACCESS.duplicate_variant(data.get(key, {}), true)
 	return result
+
+
+static func _canonicalize_json_value(value: Variant) -> Variant:
+	if value is Dictionary:
+		var dictionary: Dictionary = value
+		var result: Dictionary = {}
+		for key: String in _sorted_dictionary_keys(dictionary):
+			result[key] = _canonicalize_json_value(dictionary.get(key))
+		return result
+	if value is Array:
+		var values: Array = value
+		var result: Array = []
+		for item: Variant in values:
+			result.append(_canonicalize_json_value(item))
+		return result
+	return _GF_VARIANT_ACCESS.duplicate_variant(value, true)
+
+
+static func _json_values_equivalent(left: Variant, right: Variant) -> bool:
+	if _json_numbers_equivalent(left, right):
+		return true
+	if left is Dictionary and right is Dictionary:
+		var left_dictionary: Dictionary = left
+		var right_dictionary: Dictionary = right
+		var left_keys: PackedStringArray = _sorted_dictionary_keys(left_dictionary)
+		var right_keys: PackedStringArray = _sorted_dictionary_keys(right_dictionary)
+		if left_keys != right_keys:
+			return false
+		for key: String in left_keys:
+			if not _json_values_equivalent(left_dictionary.get(key), right_dictionary.get(key)):
+				return false
+		return true
+	if left is Array and right is Array:
+		var left_array: Array = left
+		var right_array: Array = right
+		if left_array.size() != right_array.size():
+			return false
+		for index: int in range(left_array.size()):
+			if not _json_values_equivalent(left_array[index], right_array[index]):
+				return false
+		return true
+	return left == right
+
+
+static func _json_numbers_equivalent(left: Variant, right: Variant) -> bool:
+	var left_is_number: bool = left is int or left is float
+	var right_is_number: bool = right is int or right is float
+	if not left_is_number or not right_is_number:
+		return false
+	var left_number: float = _json_number_to_float(left)
+	var right_number: float = _json_number_to_float(right)
+	if is_nan(left_number) or is_nan(right_number):
+		return false
+	return left_number == right_number
+
+
+static func _json_number_to_float(value: Variant) -> float:
+	if value is int:
+		var int_value: int = value
+		return float(int_value)
+	if value is float:
+		var float_value: float = value
+		return float_value
+	return NAN
 
 
 static func _append_string_array(target: PackedStringArray, source: PackedStringArray) -> void:

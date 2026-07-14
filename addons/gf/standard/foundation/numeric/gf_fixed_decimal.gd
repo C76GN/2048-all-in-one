@@ -58,12 +58,20 @@ const _INVALID_SIGNED_MAGNITUDE: int = -9_223_372_036_854_775_807 - 1
 ## 实际保存的整数值。
 ## [br]
 ## @api public
-var raw_value: int = 0
+## [br]
+## @since 3.17.0
+var raw_value: int = 0:
+	set(value):
+		raw_value = _normalize_raw_value(value, "raw_value")
 
 ## 小数位数。
 ## [br]
 ## @api public
-var decimal_places: int = 2
+## [br]
+## @since 3.17.0
+var decimal_places: int = 2:
+	set(value):
+		decimal_places = _normalize_decimal_places(value)
 
 
 # --- Godot 生命周期方法 ---

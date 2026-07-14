@@ -166,6 +166,8 @@ func validate_definition() -> Dictionary:
 	var issues: Array[Dictionary] = []
 	if field_name == &"":
 		issues.append(_make_issue("error", "empty_field_name", "Network contract field name is empty."))
+	if value_type == ValueType.OBJECT:
+		issues.append(_make_issue("error", "object_value_type_not_transport_safe", "Network contract fields must not use Object values across the transport boundary."))
 	return _finalize_report(issues)
 
 
@@ -256,10 +258,7 @@ func _get_value_type_issue(value: Variant) -> Dictionary:
 			if not (value is NodePath):
 				return _make_type_issue("NodePath")
 		ValueType.OBJECT:
-			if not (value is Object):
-				return _make_type_issue("Object")
-			if class_name_hint != &"" and not _object_matches_class_hint(_get_object_value(value)):
-				return _make_issue("error", "class_name_mismatch", "Network contract field object class does not match.")
+			return _make_issue("error", "object_value_type_not_transport_safe", "Network contract fields must not use Object values across the transport boundary.")
 		_:
 			pass
 	return {}
@@ -315,6 +314,7 @@ func _get_validation_next_actions() -> Dictionary:
 		"null_not_allowed": "Provide a value or allow null for this network contract field.",
 		"type_mismatch": "Send a value matching the declared network contract field type.",
 		"class_name_mismatch": "Send an Object or Resource matching class_name_hint.",
+		"object_value_type_not_transport_safe": "Use a transport-safe identifier, Dictionary, Array, NodePath, StringName, or numeric value instead of Object.",
 	}
 
 

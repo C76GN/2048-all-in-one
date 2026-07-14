@@ -44,6 +44,7 @@ const _KIND_RESOURCE_PATH_OUTSIDE_PACKAGE: String = "resource_path_outside_packa
 const _KIND_RESOURCE_EXTENSION_FORBIDDEN: String = "resource_extension_forbidden"
 const _KIND_MISSING_RESOURCE_FILE: String = "missing_resource_file"
 const _KIND_INVALID_SAFETY_KIND: String = "invalid_safety_kind"
+const _KIND_UNKNOWN_FIELD: String = "unknown_field"
 
 ## 只允许数据资源的内容包安全分类。
 ## [br]
@@ -75,6 +76,21 @@ const _DATA_ONLY_FORBIDDEN_EXTENSIONS: PackedStringArray = [
 	"sh",
 	"shader",
 	"so",
+]
+
+const _ALLOWED_FIELDS: PackedStringArray = [
+	"schema_version",
+	"package_id",
+	"id",
+	"display_name",
+	"name",
+	"version",
+	"content_types",
+	"dependencies",
+	"safety_kind",
+	"forbidden_resource_extensions",
+	"resources",
+	"metadata",
 ]
 
 
@@ -158,6 +174,7 @@ var source_path: String = ""
 
 var _schema_version_was_present: bool = true
 var _schema_version_has_valid_type: bool = true
+var _unknown_fields: PackedStringArray = PackedStringArray()
 
 
 # --- 公共方法 ---
@@ -213,6 +230,7 @@ func configure(
 	schema_version = SCHEMA_VERSION
 	_schema_version_was_present = true
 	_schema_version_has_valid_type = true
+	_unknown_fields = PackedStringArray()
 	package_id = p_package_id
 	version = p_version.strip_edges()
 	resources = _copy_resource_entries(p_resources)
@@ -240,6 +258,7 @@ func configure(
 ## @schema data: Dictionary，支持 package_id/id、display_name/name、version、content_types、dependencies、resources 和 metadata。
 func apply_dictionary(data: Dictionary, p_root_path: String = "", p_source_path: String = "") -> void:
 	_apply_schema_version(data)
+	_unknown_fields = _collect_unknown_fields(data)
 	package_id = GFVariantData.get_option_string_name(
 		data,
 		"package_id",
@@ -285,6 +304,23 @@ func to_dictionary() -> Dictionary:
 	}
 
 
+## 转换为 JSON-safe 报告字典。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param options: 传给 GFReportValueCodec 的编码选项。
+## [br]
+## @return manifest 报告字典。
+## [br]
+## @schema options: Dictionary with GFReportValueCodec encoding options.
+## [br]
+## @schema return: JSON-safe Dictionary based on to_dictionary().
+func to_report_dictionary(options: Dictionary = {}) -> Dictionary:
+	return GFReportValueCodec.to_report_dictionary(to_dictionary(), options)
+
+
 ## 创建 manifest 深拷贝。
 ## [br]
 ## @api public
@@ -308,6 +344,7 @@ func duplicate_manifest() -> GFContentPackageManifest:
 	manifest.schema_version = schema_version
 	manifest._schema_version_was_present = _schema_version_was_present
 	manifest._schema_version_has_valid_type = _schema_version_has_valid_type
+	manifest._unknown_fields = _unknown_fields.duplicate()
 	return manifest
 
 
@@ -338,6 +375,7 @@ func is_valid(options: Dictionary = {}) -> bool:
 ## @schema return: GFValidationReportDictionary.finalize_report() 生成的 Dictionary，包含 ok、healthy、summary、issues、next_action、error_count、warning_count、issue_count、package_id、source_path 和 resource_count。
 func get_validation_report(options: Dictionary = {}) -> Dictionary:
 	var report: Dictionary = _make_validation_report()
+	_validate_unknown_fields(report)
 	_validate_schema_version(report)
 	_validate_required_fields(report)
 	_validate_safety_kind(report)
@@ -655,7 +693,7 @@ func _validate_resource_path(
 
 	if (
 		GFVariantData.get_option_bool(options, "check_resource_exists", false)
-		and not ResourceLoader.exists(normalized_path, GFVariantData.get_option_string(entry, "type_hint"))
+		and not _resource_path_exists(normalized_path, GFVariantData.get_option_string(entry, "type_hint"))
 	):
 		_add_resource_issue(
 			report,
@@ -683,6 +721,20 @@ func _validate_safety_kind(report: Dictionary) -> void:
 			"expected_value": PackedStringArray([String(SAFETY_KIND_DATA_ONLY), String(SAFETY_KIND_TRUSTED_DEVELOPER)]),
 		}
 	)
+
+
+func _validate_unknown_fields(report: Dictionary) -> void:
+	for field_name: String in _unknown_fields:
+		_add_manifest_issue(
+			report,
+			_KIND_UNKNOWN_FIELD,
+			StringName(field_name),
+			"manifest field is not supported",
+			{
+				"actual_value": field_name,
+				"expected_value": _ALLOWED_FIELDS.duplicate(),
+			}
+		)
 
 
 func _validate_resource_safety(
@@ -904,3 +956,20 @@ static func _is_supported_resource_path(path: String) -> bool:
 static func _is_path_inside_root(path: String, package_root: String) -> bool:
 	var normalized_root: String = _normalize_root_path(package_root)
 	return _GF_PATH_TOOLS.is_path_under_root(path, normalized_root, true, true)
+
+
+static func _collect_unknown_fields(data: Dictionary) -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	for key: Variant in data.keys():
+		var field_name: String = GFVariantData.to_text(key)
+		if _ALLOWED_FIELDS.has(field_name):
+			continue
+		var _append_result: bool = result.append(field_name)
+	result.sort()
+	return result
+
+
+static func _resource_path_exists(path: String, type_hint: String = "") -> bool:
+	if ResourceLoader.exists(path, type_hint):
+		return true
+	return FileAccess.file_exists(path)
