@@ -48,6 +48,20 @@ powershell -ExecutionPolicy Bypass -File tools/validate_project_layout.ps1 -Godo
 
 包装器通过 `tools/invoke_godot_project_tool.ps1` 等待 Steam 派生的 Godot 子进程、隔离用户目录并检查脚本诊断。GDScript 使用 `GFProjectLayoutValidator` 扫描项目，将报告写入 `build/project_layout_report.json`，并把 warning 与 error 都视为失败。当前 profile 为 `c76.2048.feature_cohesive.v1`，基于 GF 内置 `gf.project_layout.feature_cohesive.v1` 收紧而来。文件与目录计数仅作诊断信息，因为 `build/` 内的本地报告会随验证命令变化。
 
+### GF API 与生命周期合规
+
+`tests/gut/test_gf_project_conformance.gd` 使用 `GFScriptStructureTools` 扫描 `app/`、`features/`、`shared/` 和当前 `addons/gf/`：
+
+- 动态读取 GF 源码中的 `@deprecated` 方法，并按项目接收者类型阻止调用。
+- 限制全局 `Gf` / `GFAutoload` 只能由 `app/scripts/boot.gd` 组合根访问。
+- 沿项目本地 helper 调用链检查 GF Module 的 `init()` / `async_init()`，禁止提前获取跨模块依赖。
+
+更新 vendored GF 或修改 Module 生命周期时，先运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TestScripts "res://tests/gut/test_gf_project_conformance.gd,res://tests/gut/test_gdscript_layout_validation.gd" -TimeoutSeconds 180
+```
+
 历史上，直接运行 Godot/GUT 曾在默认用户数据目录生成巨大日志文件。因此默认不要直接运行：
 
 ```powershell
