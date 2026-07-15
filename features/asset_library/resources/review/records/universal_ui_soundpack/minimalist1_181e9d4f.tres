@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_v0i1p"]
+
+[resource]
+script = ExtResource("1_v0i1p")
+asset_id = &"asset.review.universal.ui.soundpack.ogg.minimalist1.181e9d4f"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "OGG/Minimalist1"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "ogg", "minimalist1")
+source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Minimalist1.ogg"
+library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/Minimalist1.ogg"
+relative_path = "OGG/Minimalist1.ogg"
+extension = "ogg"
+file_size_bytes = 15692
+sha256 = "181e9d4f02040202acff53581a7832756c92556fafbbd7d83413a0ae9165e430"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

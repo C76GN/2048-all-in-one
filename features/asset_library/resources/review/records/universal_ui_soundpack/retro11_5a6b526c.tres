@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_3fitj"]
+
+[resource]
+script = ExtResource("1_3fitj")
+asset_id = &"asset.review.universal.ui.soundpack.mp3.retro11.5a6b526c"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "MP3/Retro11"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "mp3", "retro11", "retro")
+source_path = "E:/_inbox/Downloads/UI Soundpack/MP3/Retro11.mp3"
+library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/MP3/Retro11.mp3"
+relative_path = "MP3/Retro11.mp3"
+extension = "mp3"
+file_size_bytes = 6943
+sha256 = "5a6b526c416b98ce97015a815d29a0418b9f762a070e0d092e4c6dc9568e3b47"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_c7rnv"]
+
+[resource]
+script = ExtResource("1_c7rnv")
+asset_id = &"asset.review.four.hundred.sounds.pack.other.record.scratch.40c593e7"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Other/record_scratch"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "record_scratch")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/record_scratch.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Other/record_scratch.wav"
+relative_path = "Other/record_scratch.wav"
+extension = "wav"
+file_size_bytes = 54348
+sha256 = "40c593e70db5afbcd6c835a80ca469929aa3f9513817b2b053083c5dc81a083d"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

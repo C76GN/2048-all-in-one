@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_tpvun"]
+
+[resource]
+script = ExtResource("1_tpvun")
+asset_id = &"asset.review.four.hundred.sounds.pack.retro.coin.3.e3312f5c"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Retro/coin_3"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "coin_3")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/coin_3.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Retro/coin_3.wav"
+relative_path = "Retro/coin_3.wav"
+extension = "wav"
+file_size_bytes = 44752
+sha256 = "e3312f5c0fb283d095a2fa39b360e20b75b95e5978d3631071139b1b2dabd4c0"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

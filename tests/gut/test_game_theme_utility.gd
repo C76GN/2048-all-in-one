@@ -4,10 +4,10 @@ extends GutTest
 
 # --- 常量 ---
 
-const _THEME_REGISTRY_PATH: String = "res://resources/registries/game_theme_registry.tres"
-const _BACKGROUND_SHADER_PATH: String = "res://asset_library/shaders/background/halftone_paper_background.gdshader"
-const _DEFAULT_BOARD_THEME: BoardTheme = preload("res://resources/themes/board/default_board_theme.tres")
-const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/classic_tile_theme.tres")
+const _THEME_REGISTRY_PATH: String = "res://features/themes/resources/registries/game_theme_registry.tres"
+const _BACKGROUND_SHADER_PATH: String = "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
+const _DEFAULT_BOARD_THEME: BoardTheme = preload("res://features/themes/resources/themes/board/default_board_theme.tres")
+const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres")
 
 
 # --- 测试用例 ---
@@ -378,11 +378,11 @@ func test_theme_utility_plays_semantic_sound_events_through_gf_audio() -> void:
 
 	assert_true(backend.sfx_clip_count == 6, "主题语义音效应全部通过 GFAudioUtility 播放。")
 	assert_true(
-		backend.paths.has("res://asset_library/audio/ui/printworks_select_soft_01.ogg"),
+		backend.paths.has("res://features/asset_library/resources/audio/ui/printworks_select_soft_01.ogg"),
 		"UI 选择音效应来自当前音效主题音频银行。"
 	)
 	assert_true(
-		backend.paths.has("res://asset_library/audio/game/printworks_game_over_soft_01.ogg"),
+		backend.paths.has("res://features/asset_library/resources/audio/game/printworks_game_over_soft_01.ogg"),
 		"游戏结束音效应来自当前音效主题音频银行。"
 	)
 

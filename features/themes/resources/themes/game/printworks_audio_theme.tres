@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="GameAudioTheme" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_audio_theme.gd" id="1_audio_theme"]
+[ext_resource type="Resource" path="res://features/themes/resources/audio/printworks_audio_bank.tres" id="2_audio_bank"]
+
+[resource]
+script = ExtResource("1_audio_theme")
+theme_id = &"printworks"
+display_name_key = "SOUND_THEME_PRINTWORKS"
+description_key = "SOUND_THEME_PRINTWORKS_DESC"
+audio_bank_id = &"printworks"
+audio_bank = ExtResource("2_audio_bank")
+ui_select_event = &"ui/select"
+ui_confirm_event = &"ui/confirm"
+tile_spawn_event = &"tile/spawn"
+tile_move_event = &"tile/move"
+tile_merge_event = &"tile/merge"
+game_over_event = &"game/over"

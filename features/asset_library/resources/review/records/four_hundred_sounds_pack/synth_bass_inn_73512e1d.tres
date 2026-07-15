@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_n4320"]
+
+[resource]
+script = ExtResource("1_n4320")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.synth.bass.inn.73512e1d"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/synth_bass_inn"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "synth_bass_inn")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/synth_bass_inn.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/synth_bass_inn.wav"
+relative_path = "Musical Effects/synth_bass_inn.wav"
+extension = "wav"
+file_size_bytes = 542232
+sha256 = "73512e1daa04ee7dca019a8bfb0eaaeda6c7d729a7ca2138c94012156d81c97a"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

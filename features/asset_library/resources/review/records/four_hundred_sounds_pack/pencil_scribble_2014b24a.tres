@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_8aol1"]
+
+[resource]
+script = ExtResource("1_8aol1")
+asset_id = &"asset.review.four.hundred.sounds.pack.items.pencil.scribble.2014b24a"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Items/pencil_scribble"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "items", "pencil_scribble")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Items/pencil_scribble.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Items/pencil_scribble.wav"
+relative_path = "Items/pencil_scribble.wav"
+extension = "wav"
+file_size_bytes = 415788
+sha256 = "2014b24af52ae20131341cedf8751909739996390a36ca1ba6771cfe16c62366"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

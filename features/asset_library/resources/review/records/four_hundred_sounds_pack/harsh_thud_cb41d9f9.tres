@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_85d0n"]
+
+[resource]
+script = ExtResource("1_85d0n")
+asset_id = &"asset.review.four.hundred.sounds.pack.weapons.harsh.thud.cb41d9f9"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Weapons/harsh_thud"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "weapons", "harsh_thud")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Weapons/harsh_thud.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Weapons/harsh_thud.wav"
+relative_path = "Weapons/harsh_thud.wav"
+extension = "wav"
+file_size_bytes = 89644
+sha256 = "cb41d9f9d3462f723a6e4fd7595de19dc2dc9510964685dd6f06640f95d14b45"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

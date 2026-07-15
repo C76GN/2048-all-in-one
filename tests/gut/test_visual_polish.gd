@@ -4,27 +4,27 @@ extends GutTest
 
 # --- 常量 ---
 
-const _TILE_SCENE: PackedScene = preload("res://scenes/components/tile.tscn")
-const _GAME_OVER_SCENE: PackedScene = preload("res://scenes/ui/game_over_menu.tscn")
-const _TARGET_REACHED_SCENE: PackedScene = preload("res://scenes/ui/target_reached_menu.tscn")
-const _BOOKMARK_ITEM_SCENE: PackedScene = preload("res://scenes/ui/bookmark_list_item.tscn")
-const _REPLAY_ITEM_SCENE: PackedScene = preload("res://scenes/ui/replay_list_item.tscn")
-const _BOOT_SCENE: PackedScene = preload("res://scenes/boot/boot.tscn")
-const _BACKGROUND_SHADER_PATH: String = "res://asset_library/shaders/background/halftone_paper_background.gdshader"
-const _SCENE_TRANSITION_SHADER_PATH: String = "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader"
-const _BUTTON_FOCUS_RING_SHADER_PATH: String = "res://asset_library/shaders/ui/button_focus_dash.gdshader"
-const _STARTUP_PROGRESS_SHADER_PATH: String = "res://asset_library/shaders/ui/startup_progress_bar.gdshader"
-const _CELEBRATION_CONFETTI_SHADER_PATH: String = "res://asset_library/vfx/celebration_confetti_canvas.gdshader"
-const _VISUAL_STYLE_DOC_PATH: String = "res://docs/VISUAL_STYLE.md"
-const _BOOT_SCRIPT_PATH: String = "res://scripts/boot/boot.gd"
-const _GAME_PLAY_CONTROLLER_PATH: String = "res://scripts/controllers/game_play_controller.gd"
-const _HALFTONE_UI_PALETTE: GameUiPalette = preload("res://resources/themes/game/halftone_atlas_ui_palette.tres")
-const _HALFTONE_CELEBRATION_VFX_THEME: GameCelebrationVfxTheme = preload("res://resources/themes/game/vfx/halftone_atlas_celebration_theme.tres")
-const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/classic_tile_theme.tres")
-const _FIBONACCI_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/fibonacci_tile_theme.tres")
-const _LUCAS_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/lucas_tile_theme.tres")
-const _RED_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/red_tile_theme.tres")
-const _BLUE_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/blue_tile_theme.tres")
+const _TILE_SCENE: PackedScene = preload("res://features/gameplay/scenes/components/tile.tscn")
+const _GAME_OVER_SCENE: PackedScene = preload("res://features/gameplay/scenes/ui/game_over_menu.tscn")
+const _TARGET_REACHED_SCENE: PackedScene = preload("res://features/gameplay/scenes/ui/target_reached_menu.tscn")
+const _BOOKMARK_ITEM_SCENE: PackedScene = preload("res://features/bookmarks/scenes/ui/bookmark_list_item.tscn")
+const _REPLAY_ITEM_SCENE: PackedScene = preload("res://features/replays/scenes/ui/replay_list_item.tscn")
+const _BOOT_SCENE: PackedScene = preload("res://app/scenes/boot.tscn")
+const _BACKGROUND_SHADER_PATH: String = "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
+const _SCENE_TRANSITION_SHADER_PATH: String = "res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader"
+const _BUTTON_FOCUS_RING_SHADER_PATH: String = "res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader"
+const _STARTUP_PROGRESS_SHADER_PATH: String = "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader"
+const _CELEBRATION_CONFETTI_SHADER_PATH: String = "res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader"
+const _VISUAL_STYLE_DOC_PATH: String = "res://docs/visual_style.md"
+const _BOOT_SCRIPT_PATH: String = "res://app/scripts/boot.gd"
+const _GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_play_controller.gd"
+const _HALFTONE_UI_PALETTE: GameUiPalette = preload("res://features/themes/resources/themes/game/halftone_atlas_ui_palette.tres")
+const _HALFTONE_CELEBRATION_VFX_THEME: GameCelebrationVfxTheme = preload("res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres")
+const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres")
+const _FIBONACCI_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/fibonacci_tile_theme.tres")
+const _LUCAS_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/lucas_tile_theme.tres")
+const _RED_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/red_tile_theme.tres")
+const _BLUE_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/blue_tile_theme.tres")
 const _MIN_TILE_TEXT_CONTRAST: float = 3.0
 const _MIN_UI_TEXT_CONTRAST: float = 4.5
 
@@ -208,7 +208,7 @@ func test_visual_style_document_records_retro_print_direction() -> void:
 		"stipple_strength",
 		"halftone_wipe_transition.gdshader",
 		"印刷擦除",
-		"resources/themes/tile_schemes",
+		"features/themes/resources/themes/tile_schemes",
 		"GameUiMotionUtility",
 	]:
 		if not text.contains(term):

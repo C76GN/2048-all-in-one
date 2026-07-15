@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_e201o"]
+
+[resource]
+script = ExtResource("1_e201o")
+asset_id = &"asset.review.four.hundred.sounds.pack.environment.zipper.down.c9bce4fd"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Environment/zipper_down"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "environment", "zipper_down")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Environment/zipper_down.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Environment/zipper_down.wav"
+relative_path = "Environment/zipper_down.wav"
+extension = "wav"
+file_size_bytes = 94252
+sha256 = "c9bce4fd521582ec9aa6d12694f37356ad7744a5d450f2eda4123fcf587aad19"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_j0rm5"]
+
+[resource]
+script = ExtResource("1_j0rm5")
+asset_id = &"asset.review.four.hundred.sounds.pack.items.broom.sweep.2.ebc07267"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Items/broom_sweep_2"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "items", "broom_sweep_2")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Items/broom_sweep_2.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Items/broom_sweep_2.wav"
+relative_path = "Items/broom_sweep_2.wav"
+extension = "wav"
+file_size_bytes = 130092
+sha256 = "ebc072675d974558cd47fbc4be048d7501c004c3da33598b5265c20289609216"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

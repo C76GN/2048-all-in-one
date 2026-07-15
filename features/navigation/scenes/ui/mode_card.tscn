@@ -1,0 +1,61 @@
+[gd_scene format=3 uid="uid://devy0pwhd8gpc"]
+
+[ext_resource type="Script" uid="uid://c7dnjx10rry4q" path="res://features/navigation/scripts/ui/mode_card.gd" id="1_ndo2r"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_r07v3"]
+bg_color = Color(1, 0.972549, 0.9098039, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.72)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="ModeCard" type="Button" unique_id=1474199775]
+custom_minimum_size = Vector2(0, 84)
+offset_right = 8.0
+offset_bottom = 8.0
+flat = true
+script = ExtResource("1_ndo2r")
+
+[node name="Panel" type="Panel" parent="." unique_id=1787422167]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_r07v3")
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=955432541]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=93230546]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=269947841]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_font_sizes/font_size = 17
+text = "模式名称"
+horizontal_alignment = 1
+
+[node name="DescriptionLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=515414387]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.46666667, 0.45882353, 0.43529412, 0.92)
+theme_override_font_sizes/font_size = 13
+text = "模式的简短描述"
+horizontal_alignment = 1

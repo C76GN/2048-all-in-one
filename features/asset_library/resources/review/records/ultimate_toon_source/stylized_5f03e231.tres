@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_i0vgd"]
+
+[resource]
+script = ExtResource("1_i0vgd")
+asset_id = &"asset.review.ultimate.toon.source.shader.stylized.5f03e231"
+source_pack_id = &"ultimate_toon_source"
+display_name = "stylized"
+asset_kind = &"shader"
+tags = PackedStringArray("shader", "toon", "license_review_needed", "stylized")
+source_path = "E:/_inbox/Downloads/UltimateToonSource/shader/stylized.gdshader"
+library_path = "res://features/asset_library/resources/source_packs/ultimate_toon_source/files/shader/stylized.gdshader"
+relative_path = "shader/stylized.gdshader"
+extension = "gdshader"
+file_size_bytes = 3644
+sha256 = "5f03e23162d23c3c8a24c5535304566ddc441cb89983aac1cd9fe11b608c4e03"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.background.main")
+imported_at = "2026-07-09 03:08:15"

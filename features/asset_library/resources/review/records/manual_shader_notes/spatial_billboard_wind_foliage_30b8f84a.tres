@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_xsfov"]
+
+[resource]
+script = ExtResource("1_xsfov")
+asset_id = &"asset.review.manual.shader.notes.spatial.billboard.wind.foliage.30b8f84a"
+source_pack_id = &"manual_shader_notes"
+display_name = "spatial_billboard_wind_foliage"
+asset_kind = &"shader"
+review_status = &"candidate"
+tags = PackedStringArray("shader", "spatial", "2_5d", "billboard", "wind", "foliage", "alpha_dither", "future_candidate", "license_review_needed")
+notes = "Candidate spatial shader for future 2.5D games: billboard support, wind deformation, atlas sampling, noise-gradient color variation, and smooth/dither/cut alpha modes. Not promoted to runtime asset package until a 2.5D project has a concrete slot and license is confirmed."
+rating = 4
+source_path = "manual://chat/2026-07-09/spatial_billboard_wind_foliage.gdshader"
+library_path = "res://features/asset_library/resources/source_packs/manual_shader_notes/files/spatial_billboard_wind_foliage.gdshader"
+relative_path = "spatial_billboard_wind_foliage.gdshader"
+extension = "gdshader"
+file_size_bytes = 3798
+sha256 = "30b8f84accc3fbd2d817e364c7621f03ff88cfdab60d2be8755106a65afa963e"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.2_5d.foliage_billboard")
+imported_at = "2026-07-09 21:27:10"

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_0vh1c"]
+
+[resource]
+script = ExtResource("1_0vh1c")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.steel.drums.level.complete.f08b0d9a"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/steel_drums_level_complete"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "steel_drums_level_complete")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/steel_drums_level_complete.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/steel_drums_level_complete.wav"
+relative_path = "Musical Effects/steel_drums_level_complete.wav"
+extension = "wav"
+file_size_bytes = 652236
+sha256 = "f08b0d9a52730397382c5a395c49c5021995ce4f1cfec8f0cdd536caf673a206"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

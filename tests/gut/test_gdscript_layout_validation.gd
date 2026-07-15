@@ -5,17 +5,25 @@ extends GutTest
 # --- 常量 ---
 
 const SOURCE_ROOTS: Array[String] = [
-	"res://scripts",
+	"res://app",
+	"res://features",
+	"res://shared",
 	"res://tests/gut",
 ]
 const NAMING_SOURCE_ROOTS: Array[String] = [
-	"res://scripts",
-	"res://scenes",
-	"res://resources",
+	"res://app",
+	"res://features",
+	"res://shared",
 	"res://tests/gut",
+	"res://tools",
 ]
 const CLASS_NAME_REQUIRED_ROOTS: Array[String] = [
-	"res://scripts",
+	"res://app",
+	"res://features",
+	"res://shared",
+]
+const SOURCE_EXCLUDED_ROOTS: Array[String] = [
+	"res://features/asset_library/resources/source_packs",
 ]
 const PROJECT_NAMING_EXTENSIONS: Array[String] = [
 	".gd",
@@ -27,15 +35,15 @@ const CLASS_NAME_OVERRIDES: Dictionary = {
 	"hud": "HUD",
 }
 const GF_LAYER_SUFFIX_RULES: Array[Dictionary] = [
-	{ "root": "res://scripts/actions", "suffix": "Action" },
-	{ "root": "res://scripts/commands", "suffix": "Command" },
-	{ "root": "res://scripts/controllers", "suffix": "Controller" },
-	{ "root": "res://scripts/models", "suffix": "Model" },
-	{ "root": "res://scripts/queries", "suffix": "Query" },
-	{ "root": "res://scripts/rules", "suffix": "Rule" },
-	{ "root": "res://scripts/states", "suffix": "State" },
-	{ "root": "res://scripts/systems", "suffix": "System" },
-	{ "root": "res://scripts/utilities", "suffix": "Utility" },
+	{ "directory": "actions", "suffix": "Action" },
+	{ "directory": "commands", "suffix": "Command" },
+	{ "directory": "controllers", "suffix": "Controller" },
+	{ "directory": "models", "suffix": "Model" },
+	{ "directory": "queries", "suffix": "Query" },
+	{ "directory": "rules", "suffix": "Rule" },
+	{ "directory": "states", "suffix": "State" },
+	{ "directory": "systems", "suffix": "System" },
+	{ "directory": "utilities", "suffix": "Utility" },
 ]
 const SECTION_PREFIX: String = "# --- "
 const SECTION_SUFFIX: String = " ---"
@@ -182,7 +190,7 @@ func test_top_level_sections_follow_documented_order() -> void:
 	for path: String in script_paths:
 		issues.append_array(_collect_section_order_issues(path))
 
-	assert_true(issues.is_empty(), "顶层 section 应遵循 CODING_STYLE.md 的布局顺序：\n%s" % _join_lines(issues))
+	assert_true(issues.is_empty(), "顶层 section 应遵循 docs/coding_style.md 的布局顺序：\n%s" % _join_lines(issues))
 
 
 func test_top_level_section_names_use_chinese_labels() -> void:
@@ -213,10 +221,12 @@ func test_project_scripts_declare_gf_style_class_names() -> void:
 
 func test_gf_layer_script_names_express_architecture_layer() -> void:
 	var issues: Array[String] = []
-	for rule: Dictionary in GF_LAYER_SUFFIX_RULES:
-		var root_path: String = _get_dictionary_text(rule, "root")
-		var expected_suffix: String = _get_dictionary_text(rule, "suffix")
-		for path: String in _collect_gdscript_files(root_path):
+	for path: String in _collect_runtime_gdscript_files():
+		for rule: Dictionary in GF_LAYER_SUFFIX_RULES:
+			var directory_name: String = _get_dictionary_text(rule, "directory")
+			if not path.contains("/scripts/%s/" % directory_name):
+				continue
+			var expected_suffix: String = _get_dictionary_text(rule, "suffix")
 			issues.append_array(_collect_gf_layer_suffix_issues(path, expected_suffix))
 
 	assert_true(issues.is_empty(), "gf 架构层脚本类名应体现所属层级：\n%s" % _join_lines(issues))
@@ -271,7 +281,7 @@ func test_known_coroutine_calls_are_awaited() -> void:
 
 func test_bindable_property_get_value_results_are_narrowed() -> void:
 	var issues: Array[String] = []
-	for path: String in _collect_gdscript_files("res://scripts"):
+	for path: String in _collect_runtime_gdscript_files():
 		issues.append_array(_collect_get_value_narrowing_issues(path))
 
 	assert_true(
@@ -282,7 +292,7 @@ func test_bindable_property_get_value_results_are_narrowed() -> void:
 
 func test_project_scripts_narrow_dictionary_get_object_results() -> void:
 	var issues: Array[String] = []
-	for path: String in _collect_gdscript_files("res://scripts"):
+	for path: String in _collect_runtime_gdscript_files():
 		issues.append_array(_collect_dictionary_get_object_assignment_issues(path))
 
 	assert_true(
@@ -293,7 +303,7 @@ func test_project_scripts_narrow_dictionary_get_object_results() -> void:
 
 func test_stylebox_flat_api_uses_flat_styleboxes() -> void:
 	var issues: Array[String] = []
-	for path: String in _collect_gdscript_files("res://scripts"):
+	for path: String in _collect_runtime_gdscript_files():
 		issues.append_array(_collect_stylebox_flat_api_issues(path))
 
 	assert_true(
@@ -304,7 +314,7 @@ func test_stylebox_flat_api_uses_flat_styleboxes() -> void:
 
 func test_typed_onready_node_lookups_use_helper_narrowing() -> void:
 	var issues: Array[String] = []
-	for path: String in _collect_gdscript_files("res://scripts"):
+	for path: String in _collect_runtime_gdscript_files():
 		issues.append_array(_collect_typed_onready_node_lookup_issues(path))
 
 	assert_true(
@@ -315,7 +325,7 @@ func test_typed_onready_node_lookups_use_helper_narrowing() -> void:
 
 func test_runtime_node_lookup_results_are_narrowed() -> void:
 	var issues: Array[String] = []
-	for path: String in _collect_gdscript_files("res://scripts"):
+	for path: String in _collect_runtime_gdscript_files():
 		issues.append_array(_collect_runtime_node_lookup_assignment_issues(path))
 
 	assert_true(
@@ -326,7 +336,7 @@ func test_runtime_node_lookup_results_are_narrowed() -> void:
 
 func test_resource_load_results_are_narrowed() -> void:
 	var issues: Array[String] = []
-	for path: String in _collect_gdscript_files("res://scripts"):
+	for path: String in _collect_runtime_gdscript_files():
 		issues.append_array(_collect_resource_result_assignment_issues(path))
 
 	assert_true(
@@ -337,7 +347,7 @@ func test_resource_load_results_are_narrowed() -> void:
 
 func test_stable_project_interfaces_use_typed_calls() -> void:
 	var issues: Array[String] = []
-	for path: String in _collect_gdscript_files("res://scripts"):
+	for path: String in _collect_runtime_gdscript_files():
 		issues.append_array(_collect_stable_project_interface_dynamic_call_issues(path))
 
 	assert_true(
@@ -348,7 +358,7 @@ func test_stable_project_interfaces_use_typed_calls() -> void:
 
 func test_project_scripts_avoid_dynamic_method_dispatch() -> void:
 	var issues: Array[String] = []
-	for path: String in _collect_gdscript_files("res://scripts"):
+	for path: String in _collect_runtime_gdscript_files():
 		issues.append_array(_collect_dynamic_method_dispatch_issues(path))
 
 	assert_true(
@@ -371,7 +381,7 @@ func test_typed_gdscript_preloads_do_not_call_static_methods() -> void:
 
 func test_project_scripts_avoid_explicit_as_casts() -> void:
 	var issues: Array[String] = []
-	for path: String in _collect_gdscript_files("res://scripts"):
+	for path: String in _collect_runtime_gdscript_files():
 		issues.append_array(_collect_explicit_as_cast_issues(path))
 
 	assert_true(
@@ -414,6 +424,14 @@ func _collect_project_gdscript_files() -> Array[String]:
 	return result
 
 
+func _collect_runtime_gdscript_files() -> Array[String]:
+	var result: Array[String] = []
+	for source_root: String in CLASS_NAME_REQUIRED_ROOTS:
+		result.append_array(_collect_gdscript_files(source_root))
+	result.sort()
+	return result
+
+
 func _collect_gdscript_files(root_path: String) -> Array[String]:
 	var result: Array[String] = []
 	var scan_report: Dictionary = _scan_project_files(root_path, PackedStringArray(["gd"]))
@@ -423,6 +441,8 @@ func _collect_gdscript_files(root_path: String) -> Array[String]:
 		"GF GDScript 路径扫描不应达到安全上限。"
 	)
 	for path: String in GFVariantData.get_option_packed_string_array(scan_report, "paths"):
+		if _is_excluded_source_path(path):
+			continue
 		_append_string(result, path)
 	return result
 
@@ -630,6 +650,8 @@ func _collect_path_naming_issues(root_path: String) -> Array[String]:
 	var checked_directories: Dictionary = {}
 	var root_prefix: String = root_path.trim_suffix("/") + "/"
 	for child_path: String in GFVariantData.get_option_packed_string_array(scan_report, "paths"):
+		if _is_excluded_source_path(child_path):
+			continue
 		var relative_path: String = child_path.trim_prefix(root_prefix)
 		var segments: PackedStringArray = relative_path.split("/", false)
 		for segment_index: int in range(maxi(segments.size() - 1, 0)):
@@ -646,6 +668,13 @@ func _collect_path_naming_issues(root_path: String) -> Array[String]:
 		if _should_validate_project_file_name(file_name) and not _is_snake_case_name(file_name.get_basename()):
 			_append_string(issues, "%s 文件名应使用 snake_case" % child_path)
 	return issues
+
+
+func _is_excluded_source_path(path: String) -> bool:
+	for excluded_root: String in SOURCE_EXCLUDED_ROOTS:
+		if path == excluded_root or path.begins_with(excluded_root + "/"):
+			return true
+	return false
 
 
 func _scan_project_files(

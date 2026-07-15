@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="GameThemeRegistry" format=3]
+
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_theme_registry.gd" id="1_registry"]
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_theme.gd" id="2_theme_script"]
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_audio_theme.gd" id="3_audio_script"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/halftone_atlas_theme.tres" id="4_theme"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/printworks_audio_theme.tres" id="5_audio"]
+
+[resource]
+script = ExtResource("1_registry")
+default_theme_id = &"halftone_atlas"
+default_sound_theme_id = &"printworks"
+themes = Array[ExtResource("2_theme_script")]([ExtResource("4_theme")])
+sound_themes = Array[ExtResource("3_audio_script")]([ExtResource("5_audio")])

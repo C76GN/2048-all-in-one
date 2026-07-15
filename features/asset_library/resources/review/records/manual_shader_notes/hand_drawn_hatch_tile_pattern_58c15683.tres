@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_hatch"]
+
+[resource]
+script = ExtResource("1_hatch")
+asset_id = &"asset.review.manual.shader.notes.hand.drawn.hatch.tile.pattern.58c15683"
+source_pack_id = &"manual_shader_notes"
+display_name = "hand_drawn_hatch_tile_pattern"
+asset_kind = &"shader"
+review_status = &"candidate"
+tags = PackedStringArray("shader", "canvas_item", "tile_pattern", "hand_drawn_hatch", "sdf", "progress_fill", "overlay", "license_review_needed")
+notes = "Candidate tile pattern shader for hand-drawn hatch overlays. It draws rounded-box contour and jittered hatch lines with a progress parameter for reveal or merge feedback. Adapted to support transparent overlay colors so it can sit above tile colors without hurting number readability."
+rating = 4
+source_path = "manual://chat/2026-07-10/hand_drawn_hatch_tile_pattern.gdshader"
+library_path = "res://features/asset_library/resources/source_packs/manual_shader_notes/files/hand_drawn_hatch_tile_pattern.gdshader"
+relative_path = "hand_drawn_hatch_tile_pattern.gdshader"
+extension = "gdshader"
+file_size_bytes = 3890
+sha256 = "58c15683ed65003bb6e21de2c2e56842a597121f496ae10d481e9c7bcedc4140"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.tile.hand_drawn_hatch_pattern", "slot.shader.tile.progress_hatch_pattern")
+imported_at = "2026-07-10 00:55:47"

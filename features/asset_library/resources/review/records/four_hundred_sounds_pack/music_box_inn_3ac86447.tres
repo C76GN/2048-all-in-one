@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_aoqpk"]
+
+[resource]
+script = ExtResource("1_aoqpk")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.music.box.inn.3ac86447"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/music_box_inn"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "music_box_inn")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/music_box_inn.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/music_box_inn.wav"
+relative_path = "Musical Effects/music_box_inn.wav"
+extension = "wav"
+file_size_bytes = 727124
+sha256 = "3ac86447fb524ee4aa954c52c39b7a2bea0735a918b1ad19b08b908237c1b010"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

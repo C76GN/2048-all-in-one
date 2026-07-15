@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_n2w0e"]
+
+[resource]
+script = ExtResource("1_n2w0e")
+asset_id = &"asset.review.four.hundred.sounds.pack.ui.toggle.off.3fda9556"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "UI/toggle_off"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "toggle_off")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/toggle_off.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/UI/toggle_off.wav"
+relative_path = "UI/toggle_off.wav"
+extension = "wav"
+file_size_bytes = 75820
+sha256 = "3fda95562a48031fa117e2c22234eb2a2d50e9065465bfecb4cc52e3c31edc26"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

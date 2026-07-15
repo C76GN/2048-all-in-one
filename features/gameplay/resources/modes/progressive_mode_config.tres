@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="GameModeConfig" format=3 uid="uid://da3ioky106k1i"]
+
+[ext_resource type="Script" uid="uid://cmxpkj6kgwm5k" path="res://features/gameplay/scripts/data/game_mode_config.gd" id="1_o4y40"]
+[ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://features/themes/resources/themes/board/default_board_theme.tres" id="1_wpcmn"]
+[ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres" id="2_vrvml"]
+[ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://features/gameplay/scripts/rules/base/spawn_rule.gd" id="2_xvfhn"]
+[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://features/themes/resources/themes/tile_schemes/red_tile_theme.tres" id="3_xk0rl"]
+[ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://features/gameplay/scripts/rules/game_over/standard_game_over_rule.gd" id="4_1n815"]
+[ext_resource type="Script" uid="uid://bdsn1pa4fjc01" path="res://features/gameplay/scripts/rules/interaction/classic_interaction_rule.gd" id="5_31pnh"]
+[ext_resource type="Resource" uid="uid://c6s7jklm8wan2" path="res://features/gameplay/resources/rules/movement/classic_movement_rule.tres" id="6_vrvml"]
+[ext_resource type="Resource" uid="uid://iys6hto11ixt" path="res://features/gameplay/resources/rules/spawn/progressive_spawn_rule_init.tres" id="7_prog_init"]
+[ext_resource type="Resource" uid="uid://nod11pulyd7i" path="res://features/gameplay/resources/rules/spawn/progressive_spawn_rule_on_move.tres" id="8_prog_move"]
+
+[sub_resource type="Resource" id="Resource_1kej1"]
+script = ExtResource("4_1n815")
+metadata/_custom_type_script = "uid://cd58tqmib7wsk"
+
+[sub_resource type="Resource" id="Resource_cubgt"]
+script = ExtResource("5_31pnh")
+metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
+
+[resource]
+script = ExtResource("1_o4y40")
+mode_name = "MODE_PROGRESSIVE_NAME"
+mode_description = "MODE_PROGRESSIVE_DESC"
+interaction_rule = SubResource("Resource_cubgt")
+movement_rule = ExtResource("6_vrvml")
+spawn_rules = Array[ExtResource("2_xvfhn")]([ExtResource("7_prog_init"), ExtResource("8_prog_move")])
+game_over_rule = SubResource("Resource_1kej1")
+color_schemes = {
+0: ExtResource("2_vrvml"),
+1: ExtResource("3_xk0rl")
+}
+board_theme = ExtResource("1_wpcmn")
+target_tile_value = 2048
+metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 & "$PSScriptRoot\invoke_godot_project_tool.ps1" `
-	-ScriptPath "res://tools/import_asset_sources.gd" `
+	-ScriptPath "res://features/asset_library/tools/import_asset_sources.gd" `
 	-GodotExecutable $GodotExecutable `
 	-ProjectRoot $ProjectRoot `
 	-ExpectedOutputPattern 'Asset source import:' `

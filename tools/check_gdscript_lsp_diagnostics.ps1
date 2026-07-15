@@ -1,8 +1,8 @@
 param(
 	[string]$GodotExecutable = "godot",
 	[string]$ProjectRoot = ".",
-	[string[]]$Include = @("scripts", "tests/gut", "tools"),
-	[string[]]$ExcludePrefix = @("addons/gut"),
+	[string[]]$Include = @("app", "features", "shared", "tests/gut", "tools"),
+	[string[]]$ExcludePrefix = @("addons/gut", "features/asset_library/resources/source_packs"),
 	[ValidateRange(1, 300)]
 	[int]$StartupTimeoutSeconds = 120,
 	[ValidateRange(1, 120)]

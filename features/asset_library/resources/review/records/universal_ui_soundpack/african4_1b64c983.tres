@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_s5jxf"]
+
+[resource]
+script = ExtResource("1_s5jxf")
+asset_id = &"asset.review.universal.ui.soundpack.ogg.african4.1b64c983"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "OGG/African4"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "ogg", "african4")
+source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/African4.ogg"
+library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/African4.ogg"
+relative_path = "OGG/African4.ogg"
+extension = "ogg"
+file_size_bytes = 26466
+sha256 = "1b64c98321c576e0e7254e575aa2c7c22b3423ffb5a4d06eed2f3bb3a3a73b5b"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

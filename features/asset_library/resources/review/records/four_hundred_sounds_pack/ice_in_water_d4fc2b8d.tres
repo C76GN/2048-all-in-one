@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_4rmmo"]
+
+[resource]
+script = ExtResource("1_4rmmo")
+asset_id = &"asset.review.four.hundred.sounds.pack.environment.ice.in.water.d4fc2b8d"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Environment/ice_in_water"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "environment", "ice_in_water")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Environment/ice_in_water.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Environment/ice_in_water.wav"
+relative_path = "Environment/ice_in_water.wav"
+extension = "wav"
+file_size_bytes = 86060
+sha256 = "d4fc2b8de4e05d38b4fc15d9306c29c774722425e643c5af02a9fa8d43b1cefd"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

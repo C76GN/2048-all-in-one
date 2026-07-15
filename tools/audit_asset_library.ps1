@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 & "$PSScriptRoot\invoke_godot_project_tool.ps1" `
-	-ScriptPath "res://tools/audit_asset_library.gd" `
+	-ScriptPath "res://features/asset_library/tools/audit_asset_library.gd" `
 	-GodotExecutable $GodotExecutable `
 	-ProjectRoot $ProjectRoot `
 	-ExpectedOutputPattern 'Asset audit:' `

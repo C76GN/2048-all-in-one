@@ -1,0 +1,175 @@
+{
+	"bound_slot_count": 10,
+	"byte_count": 101395829,
+	"config_path": "res://features/asset_library/resources/import_sources.json",
+	"copied_count": 0,
+	"error_count": 0,
+	"file_count": 565,
+	"issue_count": 0,
+	"issues": [],
+	"kind_counts": {
+		"audio": 561,
+		"shader": 3
+	},
+	"license_counts": {
+		"known": 156,
+		"unknown": 408
+	},
+	"ok": true,
+	"report_id": "asset_source_import",
+	"review_record_count": 564,
+	"slot_count": 20,
+	"source_pack_count": 5,
+	"source_packs": [
+		{
+			"byte_count": 11466535,
+			"copied_count": 0,
+			"display_name": "Universal UI Soundpack",
+			"error_count": 0,
+			"file_count": 157,
+			"kind_counts": {
+				"audio": 156
+			},
+			"license_counts": {
+				"known": 156
+			},
+			"non_review_file_count": 1,
+			"review_record_count": 156,
+			"source_pack_id": "universal_ui_soundpack",
+			"source_scan_report": {
+				"limit_kind": "",
+				"limit_path": "",
+				"limit_value": 0,
+				"ok": true,
+				"root_path": "E:/_inbox/Downloads/UI Soundpack",
+				"scanned_count": 157,
+				"truncated": false
+			},
+			"status_counts": {
+				"inbox": 156
+			},
+			"unchanged_count": 157
+		},
+		{
+			"byte_count": 535865,
+			"copied_count": 0,
+			"display_name": "JDSherbert Ultimate UI SFX Pack FREE Mono",
+			"error_count": 0,
+			"file_count": 5,
+			"kind_counts": {
+				"audio": 5
+			},
+			"license_counts": {
+				"unknown": 5
+			},
+			"non_review_file_count": 0,
+			"review_record_count": 5,
+			"source_pack_id": "jdsherbert_ultimate_ui_sfx_free_mono",
+			"source_scan_report": {
+				"limit_kind": "",
+				"limit_path": "",
+				"limit_value": 0,
+				"ok": true,
+				"root_path": "E:/_inbox/Downloads/JDSherbert - Ultimate UI SFX Pack (FREE)/Mono",
+				"scanned_count": 5,
+				"truncated": false
+			},
+			"status_counts": {
+				"inbox": 5
+			},
+			"unchanged_count": 5
+		},
+		{
+			"byte_count": 5395,
+			"copied_count": 0,
+			"display_name": "Downloaded Shader Pack",
+			"error_count": 0,
+			"file_count": 2,
+			"kind_counts": {
+				"shader": 2
+			},
+			"license_counts": {
+				"unknown": 2
+			},
+			"non_review_file_count": 0,
+			"review_record_count": 2,
+			"source_pack_id": "downloaded_shader_pack",
+			"source_scan_report": {
+				"limit_kind": "",
+				"limit_path": "",
+				"limit_value": 0,
+				"ok": true,
+				"root_path": "E:/_inbox/Downloads/shader",
+				"scanned_count": 2,
+				"truncated": false
+			},
+			"status_counts": {
+				"inbox": 2
+			},
+			"unchanged_count": 2
+		},
+		{
+			"byte_count": 89384390,
+			"copied_count": 0,
+			"display_name": "400 Sounds Pack",
+			"error_count": 0,
+			"file_count": 400,
+			"kind_counts": {
+				"audio": 400
+			},
+			"license_counts": {
+				"unknown": 400
+			},
+			"non_review_file_count": 0,
+			"review_record_count": 400,
+			"source_pack_id": "four_hundred_sounds_pack",
+			"source_scan_report": {
+				"limit_kind": "",
+				"limit_path": "",
+				"limit_value": 0,
+				"ok": true,
+				"root_path": "E:/_inbox/Downloads/400 Sounds Pack",
+				"scanned_count": 400,
+				"truncated": false
+			},
+			"status_counts": {
+				"inbox": 400
+			},
+			"unchanged_count": 400
+		},
+		{
+			"byte_count": 3644,
+			"copied_count": 0,
+			"display_name": "Ultimate Toon Source",
+			"error_count": 0,
+			"file_count": 1,
+			"kind_counts": {
+				"shader": 1
+			},
+			"license_counts": {
+				"unknown": 1
+			},
+			"non_review_file_count": 0,
+			"review_record_count": 1,
+			"source_pack_id": "ultimate_toon_source",
+			"source_scan_report": {
+				"limit_kind": "",
+				"limit_path": "",
+				"limit_value": 0,
+				"ok": true,
+				"root_path": "E:/_inbox/Downloads/UltimateToonSource",
+				"scanned_count": 1,
+				"truncated": false
+			},
+			"status_counts": {
+				"inbox": 1
+			},
+			"unchanged_count": 1
+		}
+	],
+	"status_counts": {
+		"inbox": 564
+	},
+	"unchanged_count": 565,
+	"warning_count": 0
+}

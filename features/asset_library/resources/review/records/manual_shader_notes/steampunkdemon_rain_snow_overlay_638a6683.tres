@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_steamrain"]
+
+[resource]
+script = ExtResource("1_steamrain")
+asset_id = &"asset.review.manual.shader.notes.steampunkdemon.rain.snow.overlay.638a6683"
+source_pack_id = &"manual_shader_notes"
+display_name = "steampunkdemon_rain_snow_overlay"
+asset_kind = &"shader"
+review_status = &"candidate"
+tags = PackedStringArray("shader", "canvas_item", "weather", "rain", "snow", "overlay", "seasonal", "background_overlay", "steampunkdemon", "brian_smith", "mit_license", "known_license")
+notes = "Candidate Rain and Snow shader by Brian Smith (steampunkdemon.itch.io), declared MIT. Adapted as a transparent overlay for Godot 4 with a use_blurred_trail toggle, opacity control, and bounded rain amount. Promotion requires visual readability checks over the printworks UI and performance checks on target hardware."
+rating = 4
+source_path = "https://steampunkdemon.itch.io/"
+library_path = "res://features/asset_library/resources/source_packs/manual_shader_notes/files/steampunkdemon_rain_snow_overlay.gdshader"
+relative_path = "steampunkdemon_rain_snow_overlay.gdshader"
+extension = "gdshader"
+file_size_bytes = 1951
+sha256 = "638a66831ccbe61dd18cef9bf5435811e24852d3a57b489ffa32b71cc4353cab"
+author = "Brian Smith"
+license = "MIT"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.weather.rain_snow_overlay", "slot.shader.background.weather_overlay", "slot.shader.vfx.seasonal_weather")
+imported_at = "2026-07-10 03:27:00"

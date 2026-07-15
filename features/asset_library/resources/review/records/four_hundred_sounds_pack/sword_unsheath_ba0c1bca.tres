@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_lf8eh"]
+
+[resource]
+script = ExtResource("1_lf8eh")
+asset_id = &"asset.review.four.hundred.sounds.pack.weapons.sword.unsheath.ba0c1bca"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Weapons/sword_unsheath"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "weapons", "sword_unsheath")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Weapons/sword_unsheath.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Weapons/sword_unsheath.wav"
+relative_path = "Weapons/sword_unsheath.wav"
+extension = "wav"
+file_size_bytes = 124972
+sha256 = "ba0c1bcab0a0ce1090e3dc97fbf26fc556413ed1fd3c607603b47ebe59ed87da"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

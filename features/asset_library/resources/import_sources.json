@@ -1,0 +1,65 @@
+{
+	"schema_version": 1,
+	"review_defaults": {
+		"default_status": "inbox",
+		"copy_root": "res://features/asset_library/resources/source_packs",
+		"review_root": "res://features/asset_library/resources/review"
+	},
+	"source_packs": [
+		{
+			"source_pack_id": "universal_ui_soundpack",
+			"display_name": "Universal UI Soundpack",
+			"source_path": "E:/_inbox/Downloads/UI Soundpack",
+			"author": "Nathan Gibson",
+			"license": "CC BY 4.0",
+			"license_status": "known",
+			"source_url": "https://nathangibson.myportfolio.com",
+			"tags": ["audio", "ui", "known_license"],
+			"notes": "Readme states Universal UI Soundpack by Nathan Gibson under CC BY 4.0."
+		},
+		{
+			"source_pack_id": "jdsherbert_ultimate_ui_sfx_free_mono",
+			"display_name": "JDSherbert Ultimate UI SFX Pack FREE Mono",
+			"source_path": "E:/_inbox/Downloads/JDSherbert - Ultimate UI SFX Pack (FREE)/Mono",
+			"author": "JDSherbert",
+			"license": "unknown",
+			"license_status": "unknown",
+			"source_url": "",
+			"tags": ["audio", "ui", "license_review_needed"],
+			"notes": "No local license file was found during the first scan. Keep as review-only until license is confirmed."
+		},
+		{
+			"source_pack_id": "downloaded_shader_pack",
+			"display_name": "Downloaded Shader Pack",
+			"source_path": "E:/_inbox/Downloads/shader",
+			"author": "unknown",
+			"license": "unknown",
+			"license_status": "unknown",
+			"source_url": "",
+			"tags": ["shader", "license_review_needed"],
+			"notes": "Imported for local visual review. Keep as review-only until license and origin are confirmed."
+		},
+		{
+			"source_pack_id": "four_hundred_sounds_pack",
+			"display_name": "400 Sounds Pack",
+			"source_path": "E:/_inbox/Downloads/400 Sounds Pack",
+			"author": "unknown",
+			"license": "unknown",
+			"license_status": "unknown",
+			"source_url": "",
+			"tags": ["audio", "large_pack", "license_review_needed"],
+			"notes": "No local license file was found during the first scan. Keep as review-only until license is confirmed."
+		},
+		{
+			"source_pack_id": "ultimate_toon_source",
+			"display_name": "Ultimate Toon Source",
+			"source_path": "E:/_inbox/Downloads/UltimateToonSource",
+			"author": "unknown",
+			"license": "unknown",
+			"license_status": "unknown",
+			"source_url": "",
+			"tags": ["shader", "toon", "license_review_needed"],
+			"notes": "Imported for local visual review. Keep as review-only until license and origin are confirmed."
+		}
+	]
+}

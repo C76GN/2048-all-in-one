@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_ww3s4"]
+
+[resource]
+script = ExtResource("1_ww3s4")
+asset_id = &"asset.review.four.hundred.sounds.pack.environment.water.drop.synthetic.3658fe3a"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Environment/water_drop_synthetic"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "environment", "water_drop_synthetic")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Environment/water_drop_synthetic.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Environment/water_drop_synthetic.wav"
+relative_path = "Environment/water_drop_synthetic.wav"
+extension = "wav"
+file_size_bytes = 12536
+sha256 = "3658fe3a83c925a1546243866b5cf7ab0394d532d39ab19ff026a9c3fc042c72"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

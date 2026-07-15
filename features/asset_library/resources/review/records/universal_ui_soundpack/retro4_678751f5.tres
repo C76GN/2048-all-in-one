@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_me440"]
+
+[resource]
+script = ExtResource("1_me440")
+asset_id = &"asset.review.universal.ui.soundpack.wav.retro4.678751f5"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "WAV/Retro4"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "wav", "retro4", "retro")
+source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/Retro4.wav"
+library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/WAV/Retro4.wav"
+relative_path = "WAV/Retro4.wav"
+extension = "wav"
+file_size_bytes = 228234
+sha256 = "678751f576bb46b1d5a16f870d79fd579bcdf89ca0801412374fc6d285d0a041"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

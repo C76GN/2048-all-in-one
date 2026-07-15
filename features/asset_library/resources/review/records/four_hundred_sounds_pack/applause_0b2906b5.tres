@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_hxg1f"]
+
+[resource]
+script = ExtResource("1_hxg1f")
+asset_id = &"asset.review.four.hundred.sounds.pack.other.applause.0b2906b5"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Other/applause"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "applause")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/applause.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Other/applause.wav"
+relative_path = "Other/applause.wav"
+extension = "wav"
+file_size_bytes = 2078764
+sha256 = "0b2906b5f4b08dca480886df0e8c25c924be57b9ac5edaedaeb1b188de04c369"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

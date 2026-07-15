@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_wobble"]
+
+[resource]
+script = ExtResource("1_wobble")
+asset_id = &"asset.review.manual.effect.notes.interactive.button.follow.wobble.recipe.8a5fa6f0"
+source_pack_id = &"manual_effect_notes"
+display_name = "interactive_button_follow_wobble_recipe"
+asset_kind = &"vfx"
+review_status = &"candidate"
+tags = PackedStringArray("vfx", "interaction_recipe", "button_motion", "hover_feedback", "drag_follow", "idle_float", "inertial_rotation", "shader_parameter", "license_review_needed")
+notes = "Candidate UI motion recipe for card-like buttons. It combines drag-follow, inertial rotation, idle floating, hover scale, and shader parameters `hovering` / `mouse_screen_pos`. Promotion should be a reusable component or GF-friendly utility with keyboard/gamepad parity and reduced-motion fallback."
+rating = 4
+source_path = "manual://chat/2026-07-10/interactive_button_follow_wobble_recipe.md"
+library_path = "res://features/asset_library/resources/source_packs/manual_effect_notes/files/interactive_button_follow_wobble_recipe.md"
+relative_path = "interactive_button_follow_wobble_recipe.md"
+extension = "md"
+file_size_bytes = 4453
+sha256 = "8a5fa6f01e578cd40abaa733ca538a60476c685c7243cfa8f8985917b21f1a0b"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = false
+suggested_slots = PackedStringArray("slot.vfx.ui.interactive_button_follow_wobble", "slot.vfx.ui.mode_card_hover_motion", "slot.vfx.ui.theme_card_hover_motion", "slot.vfx.ui.list_item_hover_motion")
+imported_at = "2026-07-10 01:37:00"

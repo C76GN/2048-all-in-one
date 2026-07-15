@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_6duo1"]
+
+[resource]
+script = ExtResource("1_6duo1")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.paper.move.6f49ad3d"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/paper_move"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "paper_move")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/paper_move.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Materials/paper_move.wav"
+relative_path = "Materials/paper_move.wav"
+extension = "wav"
+file_size_bytes = 114732
+sha256 = "6f49ad3dbc577e1164ce0a4ce490a430511bbad46c7aa2da7ee4860c36e4600c"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.tile.move")
+imported_at = "2026-07-09 03:08:11"

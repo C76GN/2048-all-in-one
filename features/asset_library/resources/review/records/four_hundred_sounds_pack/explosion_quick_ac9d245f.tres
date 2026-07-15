@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_63utl"]
+
+[resource]
+script = ExtResource("1_63utl")
+asset_id = &"asset.review.four.hundred.sounds.pack.retro.explosion.quick.ac9d245f"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Retro/explosion_quick"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "explosion_quick", "ui")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/explosion_quick.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Retro/explosion_quick.wav"
+relative_path = "Retro/explosion_quick.wav"
+extension = "wav"
+file_size_bytes = 57510
+sha256 = "ac9d245f539c2ea522565b171107c921f5d99388353bffa2b09557819271009a"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

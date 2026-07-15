@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_uuwcp"]
+
+[resource]
+script = ExtResource("1_uuwcp")
+asset_id = &"asset.review.four.hundred.sounds.pack.combat.and.gore.slap.93ad2de1"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Combat and Gore/slap"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "combat", "and", "gore", "slap")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Combat and Gore/slap.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Combat and Gore/slap.wav"
+relative_path = "Combat and Gore/slap.wav"
+extension = "wav"
+file_size_bytes = 120876
+sha256 = "93ad2de1218a99ca8247aa4148055e739e14feb7f2caf180fe774c21455e08e1"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

@@ -4,7 +4,7 @@ extends GutTest
 
 # --- 常量 ---
 
-const _GAME_DIAGNOSTICS_UTILITY_SCRIPT = preload("res://scripts/utilities/game_diagnostics_utility.gd")
+const _GAME_DIAGNOSTICS_UTILITY_SCRIPT = preload("res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd")
 
 
 # --- 测试用例 ---

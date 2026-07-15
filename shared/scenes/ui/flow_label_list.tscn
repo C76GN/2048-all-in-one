@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://cngktfwyf857"]
+
+[ext_resource type="Script" uid="uid://dpifdcy3mxrw" path="res://shared/scripts/ui/flow_label_list.gd" id="1_03old"]
+
+[node name="FlowLabelList" type="Control" unique_id=1179076639]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("1_03old")

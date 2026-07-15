@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_x21xh"]
+
+[resource]
+script = ExtResource("1_x21xh")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.wood.small.drop.9281703a"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/wood_small_drop"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "wood_small_drop")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/wood_small_drop.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Materials/wood_small_drop.wav"
+relative_path = "Materials/wood_small_drop.wav"
+extension = "wav"
+file_size_bytes = 94252
+sha256 = "9281703af49c69869a4d1610d7b47b17d605d8817b768ce1c29e88088380fa9f"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

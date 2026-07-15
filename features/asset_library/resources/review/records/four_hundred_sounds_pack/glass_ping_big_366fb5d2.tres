@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_3m7qx"]
+
+[resource]
+script = ExtResource("1_3m7qx")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.glass.ping.big.366fb5d2"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/glass_ping_big"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "glass_ping_big")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/glass_ping_big.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Materials/glass_ping_big.wav"
+relative_path = "Materials/glass_ping_big.wav"
+extension = "wav"
+file_size_bytes = 206892
+sha256 = "366fb5d2a832104fe7ff4fadf3c2cb423361343f132633e05ac9dfff6ae7abf6"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

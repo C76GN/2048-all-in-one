@@ -5,12 +5,12 @@ extends GutTest
 # --- 常量 ---
 
 const EXPECTED_MODE_CONFIG_PATHS: Array[String] = [
-	"res://resources/modes/classic_mode_config.tres",
-	"res://resources/modes/fibonacci_mode_config.tres",
-	"res://resources/modes/lucas_fibonacci_mode_config.tres",
-	"res://resources/modes/progressive_mode_config.tres",
-	"res://resources/modes/step_by_step_mode_config.tres",
-	"res://resources/modes/battle_mode_config.tres",
+	"res://features/gameplay/resources/modes/classic_mode_config.tres",
+	"res://features/gameplay/resources/modes/fibonacci_mode_config.tres",
+	"res://features/gameplay/resources/modes/lucas_fibonacci_mode_config.tres",
+	"res://features/gameplay/resources/modes/progressive_mode_config.tres",
+	"res://features/gameplay/resources/modes/step_by_step_mode_config.tres",
+	"res://features/gameplay/resources/modes/battle_mode_config.tres",
 ]
 
 const EXPECTED_MODE_RESOURCE_KEYS: Array[String] = [
@@ -180,11 +180,11 @@ func _packed_paths_to_array(paths: PackedStringArray) -> Array[String]:
 
 func _get_expected_target_for_mode(config_path: String) -> int:
 	match config_path:
-		"res://resources/modes/classic_mode_config.tres":
+		"res://features/gameplay/resources/modes/classic_mode_config.tres":
 			return 2048
-		"res://resources/modes/progressive_mode_config.tres":
+		"res://features/gameplay/resources/modes/progressive_mode_config.tres":
 			return 2048
-		"res://resources/modes/step_by_step_mode_config.tres":
+		"res://features/gameplay/resources/modes/step_by_step_mode_config.tres":
 			return 2048
 		_:
 			return 0

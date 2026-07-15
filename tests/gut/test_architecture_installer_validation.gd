@@ -4,7 +4,7 @@ extends GutTest
 
 # --- 常量 ---
 
-const PROJECT_INSTALLER_PATH: String = "res://scripts/boot/game_architecture_installer.gd"
+const PROJECT_INSTALLER_PATH: String = "res://app/scripts/game_architecture_installer.gd"
 const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
 	{
 		"symbol": "GFLevelUtility",

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_wrk5r"]
+
+[resource]
+script = ExtResource("1_wrk5r")
+asset_id = &"asset.review.four.hundred.sounds.pack.environment.water.dripping.20757581"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Environment/water_dripping"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "environment", "water_dripping")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Environment/water_dripping.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Environment/water_dripping.wav"
+relative_path = "Environment/water_dripping.wav"
+extension = "wav"
+file_size_bytes = 3022892
+sha256 = "207575814cbc1259aaffac830f3084e582f486cf0b6dd78e7acadfbdf05051e4"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

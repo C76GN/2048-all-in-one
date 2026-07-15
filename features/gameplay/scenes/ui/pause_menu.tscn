@@ -1,0 +1,59 @@
+[gd_scene format=3 uid="uid://bsourh8co1vbn"]
+
+[ext_resource type="Script" uid="uid://bfr61i4qrbw0t" path="res://features/gameplay/scripts/ui/pause_menu.gd" id="1_6tw0m"]
+
+[node name="PauseMenu" type="Control" unique_id=504252191]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_6tw0m")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=1393953684]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.95686275, 0.92941177, 0.8666667, 0.80)
+
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=1668457161]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer" unique_id=1716349088]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="ContinueButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1733666930]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+focus_neighbor_top = NodePath("../MainMenuButton")
+focus_neighbor_bottom = NodePath("../RestartButton")
+text = "继续游戏"
+
+[node name="RestartButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1863348491]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+focus_neighbor_top = NodePath("../ContinueButton")
+focus_neighbor_bottom = NodePath("../SettingsButton")
+text = "重新开始"
+
+[node name="SettingsButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=471856737]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+focus_neighbor_top = NodePath("../RestartButton")
+focus_next = NodePath("../MainMenuButton")
+text = "设置"
+
+[node name="MainMenuButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=21410395]
+custom_minimum_size = Vector2(250, 60)
+layout_mode = 2
+focus_neighbor_top = NodePath("../SettingsButton")
+focus_neighbor_bottom = NodePath("../ContinueButton")
+text = "返回主界面"

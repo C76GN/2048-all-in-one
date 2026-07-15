@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_itopr"]
+
+[resource]
+script = ExtResource("1_itopr")
+asset_id = &"asset.review.four.hundred.sounds.pack.items.coins.gather.quick.30514b5b"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Items/coins_gather_quick"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "items", "coins_gather_quick", "ui")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Items/coins_gather_quick.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Items/coins_gather_quick.wav"
+relative_path = "Items/coins_gather_quick.wav"
+extension = "wav"
+file_size_bytes = 84012
+sha256 = "30514b5b00b0408afe4a1b98ed9de332439493f7108843d375cb024ce2bc3be1"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

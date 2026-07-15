@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_ls5fr"]
+
+[resource]
+script = ExtResource("1_ls5fr")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.cardboard.box.close.d76bdd86"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/cardboard_box_close"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "cardboard_box_close")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/cardboard_box_close.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Materials/cardboard_box_close.wav"
+relative_path = "Materials/cardboard_box_close.wav"
+extension = "wav"
+file_size_bytes = 206892
+sha256 = "d76bdd86bfad3e19987df43c7ed051cd97960d6c81e07b8e94231e7f3de5805b"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.game.over")
+imported_at = "2026-07-09 03:08:11"

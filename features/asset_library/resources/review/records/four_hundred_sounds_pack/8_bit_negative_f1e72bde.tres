@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_7gbtr"]
+
+[resource]
+script = ExtResource("1_7gbtr")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.8.bit.negative.f1e72bde"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/8_bit_negative"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "8_bit_negative")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/8_bit_negative.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/8_bit_negative.wav"
+relative_path = "Musical Effects/8_bit_negative.wav"
+extension = "wav"
+file_size_bytes = 146444
+sha256 = "f1e72bdef0b4748cd1680bc301e06b21227d99c8627c7317bb4e476b335060de"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

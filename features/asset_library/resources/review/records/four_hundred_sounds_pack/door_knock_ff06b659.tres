@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_axpwj"]
+
+[resource]
+script = ExtResource("1_axpwj")
+asset_id = &"asset.review.four.hundred.sounds.pack.environment.door.knock.ff06b659"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Environment/door_knock"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "environment", "door_knock")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Environment/door_knock.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Environment/door_knock.wav"
+relative_path = "Environment/door_knock.wav"
+extension = "wav"
+file_size_bytes = 184364
+sha256 = "ff06b659022acdc733a48b1430ca2bb0af4b41ccc39e22f8adfa28828dcb51dd"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

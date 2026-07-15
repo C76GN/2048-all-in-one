@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_vfq6j"]
+
+[resource]
+script = ExtResource("1_vfq6j")
+asset_id = &"asset.review.universal.ui.soundpack.mp3.minimalist10.b17bb9a4"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "MP3/Minimalist10"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "mp3", "minimalist10")
+source_path = "E:/_inbox/Downloads/UI Soundpack/MP3/Minimalist10.mp3"
+library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/MP3/Minimalist10.mp3"
+relative_path = "MP3/Minimalist10.mp3"
+extension = "mp3"
+file_size_bytes = 10449
+sha256 = "b17bb9a49106816ae6ec3fc7d9eeb16f0035a427549681d650f8d9a8a423601e"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

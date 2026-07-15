@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_1tv27"]
+
+[resource]
+script = ExtResource("1_1tv27")
+asset_id = &"asset.review.four.hundred.sounds.pack.combat.and.gore.squelching.2.e7d025d0"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Combat and Gore/squelching_2"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "combat", "and", "gore", "squelching_2")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Combat and Gore/squelching_2.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Combat and Gore/squelching_2.wav"
+relative_path = "Combat and Gore/squelching_2.wav"
+extension = "wav"
+file_size_bytes = 149548
+sha256 = "e7d025d0069952bd4bfce9bc3e872e3f928701b41e82059c6da0ea454eeabada"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

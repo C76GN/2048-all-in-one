@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_r4p5i"]
+
+[resource]
+script = ExtResource("1_r4p5i")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.8.bit.level.start.ea72d6d6"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/8_bit_level_start"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "8_bit_level_start")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/8_bit_level_start.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/8_bit_level_start.wav"
+relative_path = "Musical Effects/8_bit_level_start.wav"
+extension = "wav"
+file_size_bytes = 367524
+sha256 = "ea72d6d64a41e7fed9ee3675bf256e511365edf0d5539adecbf4c4a1142596e9"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.ui.confirm")
+imported_at = "2026-07-09 03:08:11"

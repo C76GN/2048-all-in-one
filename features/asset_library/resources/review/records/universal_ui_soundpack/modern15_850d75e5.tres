@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_spj2o"]
+
+[resource]
+script = ExtResource("1_spj2o")
+asset_id = &"asset.review.universal.ui.soundpack.ogg.modern15.850d75e5"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "OGG/Modern15"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "ogg", "modern15")
+source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Modern15.ogg"
+library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/Modern15.ogg"
+relative_path = "OGG/Modern15.ogg"
+extension = "ogg"
+file_size_bytes = 24334
+sha256 = "850d75e50b83d0abccb83fa86d18f3f0543626a87c158e48c70733a90da06fbd"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

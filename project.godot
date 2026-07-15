@@ -15,13 +15,9 @@ general/updates_per_second=100
 [application]
 
 config/name="2048-all-in-one"
-run/main_scene="res://scenes/boot/boot.tscn"
+run/main_scene="res://app/scenes/boot.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
-
-[audio]
-
-buses/default_bus_layout="res://resources/audio/default_bus_layout.tres"
 
 [autoload]
 
@@ -50,10 +46,10 @@ enabled=PackedStringArray("res://addons/gf/plugin.cfg", "res://addons/gut/plugin
 
 [gf]
 
-project/installers=PackedStringArray("res://scripts/boot/game_architecture_installer.gd")
+project/installers=PackedStringArray("res://app/scripts/game_architecture_installer.gd")
 extensions/enabled=Array[String](["gf.action_queue", "gf.asset_metadata", "gf.content_package", "gf.domain", "gf.feedback", "gf.save"])
 network/contract_paths=PackedStringArray()
-network/contract_output_dir="res://gf/generated/network"
+network/contract_output_dir="res://generated/network"
 extensions/selection_mode="explicit"
 extensions/auto_install_enabled_installers=true
 extensions/export_exclude_disabled=true
@@ -61,7 +57,7 @@ extensions/export_fail_on_disabled_references=true
 
 [gui]
 
-theme/custom_font="uid://cvosdaiqn3n5s"
+theme/custom_font="res://shared/assets/fonts/zcool_kuaile_regular.ttf"
 
 [input]
 
@@ -152,7 +148,7 @@ save_bookmark={
 
 [internationalization]
 
-locale/translations=PackedStringArray("res://assets/translations.en.translation", "res://assets/translations.zh.translation")
+locale/translations=PackedStringArray("res://shared/assets/translations.en.translation", "res://shared/assets/translations.zh.translation")
 
 [rendering]
 

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_pool"]
+
+[resource]
+script = ExtResource("1_pool")
+asset_id = &"asset.review.manual.effect.notes.pooled.shader.drop.controller.recipe.54f8901e"
+source_pack_id = &"manual_effect_notes"
+display_name = "pooled_shader_drop_controller_recipe"
+asset_kind = &"vfx"
+review_status = &"candidate"
+tags = PackedStringArray("vfx", "interaction_recipe", "pooled_shader_drops", "shader_parameter_pool", "decal", "mesh_instance_3d", "tween", "license_review_needed")
+notes = "Candidate VFX controller recipe for pooled shader-driven drops or decals. It writes `positions` and `scales` uniform arrays and uses tweens for grow/fade lifecycle. Promotion requires a paired shader with matching array size, call-rate guardrails, and theme-neutral naming."
+rating = 4
+source_path = "manual://chat/2026-07-10/pooled_shader_drop_controller_recipe.md"
+library_path = "res://features/asset_library/resources/source_packs/manual_effect_notes/files/pooled_shader_drop_controller_recipe.md"
+relative_path = "pooled_shader_drop_controller_recipe.md"
+extension = "md"
+file_size_bytes = 2966
+sha256 = "54f8901e7fd20475574ce531fb28e680bb545f4bcb6877e4e808f76bae34144d"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = false
+suggested_slots = PackedStringArray("slot.vfx.shader.pooled_drop_controller", "slot.vfx.tile.merge_residue", "slot.vfx.reward.surface_drops")
+imported_at = "2026-07-10 03:04:00"

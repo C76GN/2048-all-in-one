@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_8q5up"]
+
+[resource]
+script = ExtResource("1_8q5up")
+asset_id = &"asset.review.four.hundred.sounds.pack.footsteps.foley.creak.1.9b78690f"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Footsteps/foley_creak_1"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "footsteps", "foley_creak_1")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Footsteps/foley_creak_1.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Footsteps/foley_creak_1.wav"
+relative_path = "Footsteps/foley_creak_1.wav"
+extension = "wav"
+file_size_bytes = 90156
+sha256 = "9b78690f842cb04cfae68e4624e812b97a7d0491e09497230913ab44174c89e1"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

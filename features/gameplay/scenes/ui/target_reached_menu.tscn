@@ -1,0 +1,73 @@
+[gd_scene format=3 uid="uid://dmmnovgc8w38a"]
+
+[ext_resource type="Script" uid="uid://cf6o5qtrn5qud" path="res://features/gameplay/scripts/ui/target_reached_menu.gd" id="1_target"]
+
+[node name="TargetReachedMenu" type="Control" unique_id=926126856]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_target")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=864103103]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.95686275, 0.92941177, 0.8666667, 0.78)
+
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=833331645]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer" unique_id=944492088]
+custom_minimum_size = Vector2(380, 0)
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer" unique_id=1981830571]
+layout_mode = 2
+theme_override_font_sizes/font_size = 34
+text = "目标达成"
+horizontal_alignment = 1
+
+[node name="MessageLabel" type="Label" parent="CenterContainer/VBoxContainer" unique_id=371978972]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "已经达成目标。"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="SummaryLabel" type="Label" parent="CenterContainer/VBoxContainer" unique_id=1315762209]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "目标 2048 已完成"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ContinueButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=123551160]
+custom_minimum_size = Vector2(300, 52)
+layout_mode = 2
+focus_neighbor_top = NodePath("../MainMenuButton")
+focus_neighbor_bottom = NodePath("../RestartButton")
+text = "继续挑战"
+
+[node name="RestartButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=434555914]
+custom_minimum_size = Vector2(300, 52)
+layout_mode = 2
+focus_neighbor_top = NodePath("../ContinueButton")
+focus_neighbor_bottom = NodePath("../MainMenuButton")
+text = "重新开始"
+
+[node name="MainMenuButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=558560822]
+custom_minimum_size = Vector2(300, 52)
+layout_mode = 2
+focus_neighbor_top = NodePath("../RestartButton")
+focus_neighbor_bottom = NodePath("../ContinueButton")
+text = "返回主界面"

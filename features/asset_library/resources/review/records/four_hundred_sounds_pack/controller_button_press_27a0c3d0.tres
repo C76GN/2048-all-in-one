@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_v7tuf"]
+
+[resource]
+script = ExtResource("1_v7tuf")
+asset_id = &"asset.review.four.hundred.sounds.pack.other.controller.button.press.27a0c3d0"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Other/controller_button_press"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "controller_button_press", "button")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/controller_button_press.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Other/controller_button_press.wav"
+relative_path = "Other/controller_button_press.wav"
+extension = "wav"
+file_size_bytes = 196652
+sha256 = "27a0c3d013147b5b6cb3cfe1ebf0b3473c4d42c515513f734bfff3312652e24b"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.ui.select")
+imported_at = "2026-07-09 03:08:11"

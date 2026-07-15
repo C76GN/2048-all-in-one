@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_vjsgj"]
+
+[resource]
+script = ExtResource("1_vjsgj")
+asset_id = &"asset.review.four.hundred.sounds.pack.machines.razor.buzz.3938f87d"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Machines/razor_buzz"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "machines", "razor_buzz")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Machines/razor_buzz.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Machines/razor_buzz.wav"
+relative_path = "Machines/razor_buzz.wav"
+extension = "wav"
+file_size_bytes = 249900
+sha256 = "3938f87dcf0b1d8eebcfebdd0aa6d0966423691211f54a5806dabfb9053e55bd"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

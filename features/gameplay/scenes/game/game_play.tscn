@@ -1,0 +1,98 @@
+[gd_scene format=3 uid="uid://28ale2iku1n4"]
+
+[ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://shared/scenes/ui/layouts/base_three_column_layout.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://features/gameplay/scripts/controllers/game_play_controller.gd" id="2_script"]
+[ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://features/gameplay/scenes/ui/hud.tscn" id="3_hud"]
+[ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://features/gameplay/scripts/controllers/game_board_controller.gd" id="4_board"]
+[ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://features/diagnostics/scenes/ui/test_panel.tscn" id="5_test_panel"]
+[ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader" id="6_background_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_background"]
+shader = ExtResource("6_background_shader")
+shader_parameter/base_color = Color(0.95686275, 0.92941177, 0.8666667, 1)
+shader_parameter/accent_color = Color(0.61960787, 0.85882354, 0.8352941, 1)
+shader_parameter/secondary_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
+shader_parameter/warm_color = Color(0.9607843, 0.6392157, 0.7882353, 1)
+shader_parameter/grid_strength = 0.05
+shader_parameter/glow_strength = 0.0
+shader_parameter/vignette_strength = 0.045
+shader_parameter/pulse_speed = 0.0
+shader_parameter/grain_strength = 0.018
+shader_parameter/stipple_strength = 0.006
+shader_parameter/flow_scale = 1.35
+shader_parameter/scanline_strength = 0.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
+bg_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[node name="GamePlay" unique_id=993855468 instance=ExtResource("1_base")]
+script = ExtResource("2_script")
+
+[node name="Background" parent="." index="0"]
+material = SubResource("ShaderMaterial_background")
+
+[node name="HUDMessageTimer" type="Timer" parent="." index="1" unique_id=1723771130]
+unique_name_in_owner = true
+one_shot = true
+
+[node name="HUD" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0" unique_id=758110357 instance=ExtResource("3_hud")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ReplayControlsContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/LeftColumn" index="1" unique_id=1861338845]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer" index="0" unique_id=79560195]
+layout_mode = 2
+text = "回放控制"
+
+[node name="ReplayProgressLabel" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer" index="1" unique_id=1478657253]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0 / 0"
+horizontal_alignment = 1
+
+[node name="ReplayStepHintLabel" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer" index="2" unique_id=2035225653]
+unique_name_in_owner = true
+layout_mode = 2
+text = "上一步: A / ← | 下一步: D / → / Space"
+autowrap_mode = 3
+
+[node name="ReplayActionHintLabel" type="Label" parent="MarginContainer/ColumnsContainer/LeftColumn/ReplayControlsContainer" index="3" unique_id=2034687879]
+unique_name_in_owner = true
+layout_mode = 2
+text = "继续: C | 返回: Esc / B"
+autowrap_mode = 3
+
+[node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
+visible = false
+text = ""
+
+[node name="GameBoard" type="Control" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0" unique_id=156759848]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(450, 450)
+layout_mode = 2
+script = ExtResource("4_board")
+
+[node name="BoardBackground" type="Panel" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/GameBoard" index="0" unique_id=169865869]
+unique_name_in_owner = true
+layout_mode = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_0wfyh")
+
+[node name="BoardContainer" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/GameBoard" index="1" unique_id=788591149]
+unique_name_in_owner = true
+
+[node name="TestPanel" parent="MarginContainer/ColumnsContainer/RightColumn" index="0" unique_id=1513242499 instance=ExtResource("5_test_panel")]
+unique_name_in_owner = true
+layout_mode = 2

@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-DEFAULT_SCAN_ROOTS = ("scripts", "tests/gut", "tools")
+DEFAULT_SCAN_ROOTS = ("app", "features", "shared", "tests/gut", "tools")
 DEFAULT_EXCLUDED_PARTS = {
 	".git",
 	".godot",
@@ -34,7 +34,10 @@ DEFAULT_EXCLUDED_PARTS = {
 	"build",
 	"site",
 }
-DEFAULT_EXCLUDED_PREFIXES = ("addons/gut",)
+DEFAULT_EXCLUDED_PREFIXES = (
+	"addons/gut",
+	"features/asset_library/resources/source_packs",
+)
 DEFAULT_FAIL_SEVERITIES = ("error", "warning")
 SEVERITY_NAMES = {
 	1: "error",

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_qfhaj"]
+
+[resource]
+script = ExtResource("1_qfhaj")
+asset_id = &"asset.review.four.hundred.sounds.pack.human.man.6.c578d35e"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Human/man_6"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "human", "man_6")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Human/man_6.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Human/man_6.wav"
+relative_path = "Human/man_6.wav"
+extension = "wav"
+file_size_bytes = 116780
+sha256 = "c578d35eec309d7206fdc4d710f9d7cf5f42ce5915a93479169d7241cf0151a2"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

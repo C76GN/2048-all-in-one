@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="GameCelebrationVfxPreset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_celebration_vfx_preset.gd" id="1_preset"]
+
+[resource]
+script = ExtResource("1_preset")
+duration = 1.45
+opacity = 0.74
+shader_parameters = {
+"piece_size": 6.2,
+"speed": 94.0,
+"sway_strength": 34.0
+}
+

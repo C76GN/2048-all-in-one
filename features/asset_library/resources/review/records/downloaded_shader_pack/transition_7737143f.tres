@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_725km"]
+
+[resource]
+script = ExtResource("1_725km")
+asset_id = &"asset.review.downloaded.shader.pack.transition.7737143f"
+source_pack_id = &"downloaded_shader_pack"
+display_name = "transition"
+asset_kind = &"shader"
+tags = PackedStringArray("shader", "license_review_needed", "transition")
+source_path = "E:/_inbox/Downloads/shader/transition.gdshader"
+library_path = "res://features/asset_library/resources/source_packs/downloaded_shader_pack/files/transition.gdshader"
+relative_path = "transition.gdshader"
+extension = "gdshader"
+file_size_bytes = 1751
+sha256 = "7737143f2bfba0b1d71b65cf472ca8220b5726ce5a988a065f40c276a9509eca"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.transition.scene_wipe")
+imported_at = "2026-07-09 03:08:11"

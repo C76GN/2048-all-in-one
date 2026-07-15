@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_e6qiy"]
+
+[resource]
+script = ExtResource("1_e6qiy")
+asset_id = &"asset.review.four.hundred.sounds.pack.items.tennis.ball.bounce.1.878d5109"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Items/tennis_ball_bounce_1"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "items", "tennis_ball_bounce_1")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Items/tennis_ball_bounce_1.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Items/tennis_ball_bounce_1.wav"
+relative_path = "Items/tennis_ball_bounce_1.wav"
+extension = "wav"
+file_size_bytes = 54828
+sha256 = "878d5109c4c70c6a2a58beeef808988d875445294ee85f70b26800f8992fb8f3"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

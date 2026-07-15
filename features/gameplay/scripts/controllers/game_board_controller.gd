@@ -1,0 +1,1036 @@
+## GameBoardController: 负责游戏棋盘的视觉呈现和输入转发。
+##
+## 它持有 GridModel (逻辑核心)，并根据 Model 的信号更新 Tile 节点的位置和状态。
+## 它是棋盘模型的表现层控制器。
+class_name GameBoardController
+extends "res://addons/gf/kernel/base/gf_controller.gd"
+
+
+
+
+
+# --- 常量 ---
+
+## 预加载方块场景，用于在运行时动态实例化。
+const TileScene: PackedScene = preload("res://features/gameplay/scenes/components/tile.tscn")
+const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_board_feedback_utility.gd")
+const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
+
+## 每个单元格的像素尺寸。
+const CELL_SIZE: int = 100
+
+## 单元格之间的间距。
+const SPACING: int = 15
+
+## 棋盘背景的内边距。
+const BOARD_PADDING: int = 15
+
+## 用于让旧动画回调识别节点是否已被复用。
+const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
+
+const _LOG_TAG: String = "GameBoardController"
+const _BOARD_INTRO_DURATION: float = 0.22
+
+
+# --- 导出变量 ---
+
+## 用于生成棋盘背景格子的场景文件。
+@export var grid_cell_scene: PackedScene = preload("res://features/gameplay/scenes/components/board_grid_cell.tscn")
+
+
+# --- 公共变量 ---
+
+## 逻辑模型引用。
+var model: GridModel
+
+## 外部注入的配色方案字典。
+var color_schemes: Dictionary
+
+## 外部注入的棋盘与背景主题。
+var board_theme: BoardTheme
+
+
+# --- 私有变量 ---
+
+## 逻辑数据到视觉节点的映射字典 { GameTileData: Tile }
+var _visual_map: Dictionary = {}
+
+## 防止在窗口大小改变时重复初始化棋盘。
+var _is_initialized: bool = false
+
+var _log: GFLogUtility
+var _pool: GFObjectPoolUtility
+
+## 标记是否已完成清理。
+var _is_cleaned_up: bool = false
+
+## 棋盘扩展动画版本号，用于丢弃旧 Tween 的延迟回调。
+var _expansion_token: int = 0
+
+var _board_intro_tween: Tween
+
+
+# --- @onready 变量 (节点引用) ---
+
+@onready var board_background: Panel = %BoardBackground
+@onready var board_container: Node2D = %BoardContainer
+
+
+# --- Godot 生命周期方法 ---
+
+func _ready() -> void:
+	model = _get_grid_model()
+	_log = _get_log_utility()
+	_pool = _get_object_pool_utility()
+	
+	var parent_control: Control = _get_host_control()
+	if is_instance_valid(parent_control):
+		var _connect_result_87: int = parent_control.resized.connect(_on_resized)
+	
+	# --- 注册 GF 事件监听 ---
+	register_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, GFEventListener.from_method(self, &"_on_board_animation_requested", 1))
+	register_simple_event(EventNames.BOARD_UNDO_ANIMATION_REQUESTED, GFEventListener.from_method(self, &"_on_board_undo_animation_requested", 1))
+	register_simple_event(EventNames.BOARD_REFRESH_REQUESTED, GFEventListener.from_method(self, &"_on_board_refresh_requested", 1))
+	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
+	register_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, GFEventListener.from_method(self, &"_on_board_live_expand_requested", 1))
+
+
+func _exit_tree() -> void:
+	_cleanup_listeners()
+	super._exit_tree()
+
+
+# --- 公共方法 ---
+
+## 设置并同步棋盘视觉。
+## @param p_color_schemes: 配色方案字典。
+## @param p_board_theme: 棋盘主题。
+func setup(
+	p_color_schemes: Dictionary,
+	p_board_theme: BoardTheme
+) -> void:
+	# 清理上一局遗留的方块节点和映射，防止幽灵方块
+	var old_tile_count: int = 0
+	for child: Node in board_container.get_children():
+		if child is Tile:
+			var old_tile: Tile = child
+			old_tile_count += 1
+			_release_visual_tile(old_tile)
+	
+	if _log:
+		_log.debug(
+			_LOG_TAG,
+			"初始化棋盘前已回收旧方块: tiles=%d, visual_map=%d" % [old_tile_count, _visual_map.size()]
+		)
+	
+	_visual_map.clear()
+	self.color_schemes = p_color_schemes
+	self.board_theme = p_board_theme
+
+	# GridModel 的逻辑初始化由 GameInitSystem 完成，GameBoardController 只同步视觉。
+	call_deferred(&"_update_board_layout")
+	_draw_board_cells()
+	call_deferred(&"_play_board_intro")
+	
+	if is_instance_valid(_pool):
+		var grid_size: int = model.grid_size if is_instance_valid(model) else 0
+		var required_tile_count: int = grid_size * grid_size
+		var available_tile_count: int = _pool.get_available_count(TileScene)
+		var missing_tile_count: int = max(required_tile_count - available_tile_count, 0)
+		if missing_tile_count > 0:
+			_pool.prewarm(TileScene, board_container, missing_tile_count)
+
+		for child: Node in board_container.get_children():
+			if child is Tile:
+				var tile_child: Tile = child
+				tile_child.visible = false
+		
+	_is_initialized = true
+
+
+## 清理所有视觉方块节点并重置映射表，通常在撤回动画启动前调用。
+func clear_visual_tiles() -> void:
+	for child: Node in board_container.get_children():
+		if child is Tile:
+			var tile_child: Tile = child
+			_release_visual_tile(tile_child)
+	
+	_visual_map.clear()
+	if _log:
+		_log.debug(_LOG_TAG, "已回收所有视觉方块并清空映射。")
+
+
+## 供棋盘动画 Action 归还已离场的视觉方块，避免 Action 直接依赖对象池实现细节。
+## @param tile: 要释放或回收到对象池的视觉方块节点。
+func release_visual_tile(tile: Tile) -> void:
+	_release_visual_tile(tile)
+
+
+## 在指定方块位置播放棋盘反馈特效。
+## @param tile: 作为反馈定位来源的视觉方块。
+## @param feedback_type: 反馈类型，如 merge、spawn、transform。
+## @param label_text: 可选浮动文字。
+func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: String = "") -> void:
+	if not is_instance_valid(tile) or not is_instance_valid(board_container):
+		return
+
+	var feedback_utility: GameBoardFeedbackUtility = _get_board_feedback_utility()
+	if is_instance_valid(feedback_utility):
+		var _feedback_count: int = feedback_utility.play_feedback(board_container, tile.position, feedback_type, label_text)
+
+	_play_tile_feedback_sound(feedback_type)
+
+
+## 获取当前棋盘上数值最大的玩家方块的值。
+## @return: 最大的玩家方块数值。
+func get_max_player_value() -> int:
+	if not model:
+		return 0
+	return model.get_max_player_value()
+
+
+## 游戏中扩建棋盘。
+## @param new_size: 新的棋盘尺寸。
+func live_expand(new_size: int) -> void:
+	if not model:
+		return
+	var old_size: int = model.grid_size
+	if new_size <= old_size:
+		return
+
+	model.expand_grid(new_size)
+	_animate_expansion(old_size, new_size)
+	send_simple_event(EventNames.BOARD_RESIZED, new_size)
+
+
+## 遍历整个网格，返回所有空格子坐标的数组。
+## @return: 一个包含所有空单元格 Vector2i 坐标的数组。
+func get_empty_cells() -> Array[Vector2i]:
+	if not model:
+		return []
+	return model.get_empty_cells()
+
+
+## 遍历整个网格，返回所有玩家方块数值的数组。
+## @return: 一个已排序的、包含所有玩家方块数值的数组。
+func get_all_player_tile_values() -> Array[int]:
+	if not model:
+		return []
+	return model.get_all_player_tile_values()
+
+
+## 获取当前棋盘所有方块状态的可序列化快照。
+## @return: 一个字典，包含grid_size和所有方块的数据。
+func get_state_snapshot() -> Dictionary:
+	if not model:
+		return {"grid_size": 4, "tiles": []}
+	return model.get_snapshot()
+
+
+## 从快照恢复。
+## @param snapshot: 包含棋盘状态的字典。
+func restore_from_snapshot(snapshot: Dictionary) -> void:
+	_restore_from_snapshot(snapshot, {})
+
+
+## 从快照恢复，并从撤回前的位置播放非阻塞过渡。
+## @param snapshot: 包含棋盘状态的字典。
+## @param reverse_target_map: 原始位置到撤回前位置的映射。
+func restore_from_snapshot_with_reverse_animation(snapshot: Dictionary, reverse_target_map: Dictionary) -> void:
+	_restore_from_snapshot(snapshot, reverse_target_map)
+
+
+# --- 私有/辅助方法 ---
+
+func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary) -> void:
+	var current_tiles: Array[Tile] = []
+	for child: Node in board_container.get_children():
+		if child is Tile:
+			var tile_child: Tile = child
+			current_tiles.append(tile_child)
+
+	if reverse_target_map.is_empty():
+		for tile: Tile in current_tiles:
+			_release_visual_tile(tile)
+	else:
+		var reverse_start_tiles: Dictionary = _build_reverse_start_tiles_map(snapshot, reverse_target_map)
+		for tile: Tile in current_tiles:
+			if _should_animate_undo_despawn(tile, reverse_start_tiles):
+				_animate_release_visual_tile(tile)
+			else:
+				_release_visual_tile(tile)
+
+	_visual_map.clear()
+
+	if not model:
+		return
+
+	var grid_size: int = _get_int(snapshot, &"grid_size", 4)
+	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
+	for raw_tile_data_snapshot: Variant in tiles_data:
+		if not raw_tile_data_snapshot is Dictionary:
+			continue
+		var tile_data_snapshot: Dictionary = raw_tile_data_snapshot
+		var pos: Vector2i = _get_vector2i(tile_data_snapshot, &"pos", Vector2i.ZERO)
+		if not _is_grid_pos_in_bounds(pos, grid_size):
+			continue
+
+		var value: int = _get_int(tile_data_snapshot, &"value", 0)
+		var type: Tile.TileType = _get_tile_type(tile_data_snapshot, &"type", Tile.TileType.PLAYER)
+		var tile_data: GameTileData = _get_model_tile_data(pos)
+		if tile_data == null:
+			tile_data = GameTileData.new(value, type)
+
+		var new_tile: Tile = _create_visual_tile(tile_data.value, tile_data.type)
+		if not is_instance_valid(new_tile):
+			continue
+		_visual_map[tile_data] = new_tile
+		
+		var key: String = "%d,%d" % [pos.x, pos.y]
+		var start_grid_pos: Vector2i = _get_vector2i(reverse_target_map, StringName(key), pos)
+		new_tile.position = _grid_to_pixel_center(start_grid_pos)
+		new_tile.scale = Vector2.ONE
+		new_tile.rotation_degrees = 0
+
+		if start_grid_pos != pos:
+			var _move_tween: Tween = new_tile.animate_move(_grid_to_pixel_center(pos))
+
+
+func _cleanup_listeners() -> void:
+	if _is_cleaned_up:
+		return
+	_is_cleaned_up = true
+	var architecture: GFArchitecture = get_architecture_or_null()
+	if architecture != null:
+		architecture.unregister_owner_events(self)
+	if _log:
+		_log.debug(_LOG_TAG, "已清理 GF 事件监听。")
+
+
+func _get_grid_model() -> GridModel:
+	var model_value: Object = get_model(GridModel)
+	if model_value is GridModel:
+		var grid_model: GridModel = model_value
+		return grid_model
+	return null
+
+
+func _get_log_utility() -> GFLogUtility:
+	var utility_value: Object = get_utility(GFLogUtility)
+	if utility_value is GFLogUtility:
+		var log_utility: GFLogUtility = utility_value
+		return log_utility
+	return null
+
+
+func _get_object_pool_utility() -> GFObjectPoolUtility:
+	var utility_value: Object = get_utility(GFObjectPoolUtility)
+	if utility_value is GFObjectPoolUtility:
+		var pool_utility: GFObjectPoolUtility = utility_value
+		return pool_utility
+	return null
+
+
+func _get_action_queue_system() -> GFActionQueueSystem:
+	var system_value: Object = get_system(GFActionQueueSystem)
+	if system_value is GFActionQueueSystem:
+		var action_queue: GFActionQueueSystem = system_value
+		return action_queue
+	return null
+
+
+func _get_board_feedback_utility() -> GameBoardFeedbackUtility:
+	var utility_value: Object = get_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)
+	if utility_value is GameBoardFeedbackUtility:
+		var feedback_utility: GameBoardFeedbackUtility = utility_value
+		return feedback_utility
+	return null
+
+
+func _get_theme_utility() -> GameThemeUtility:
+	var utility_value: Object = get_utility(_GAME_THEME_UTILITY_SCRIPT)
+	if utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = utility_value
+		return theme_utility
+	return null
+
+
+func _get_host_control() -> Control:
+	var host_value: Variant = get_host_as(Control)
+	if host_value is Control:
+		var host_control: Control = host_value
+		return host_control
+	return null
+
+
+func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
+	var new_tile: Tile = _acquire_visual_tile()
+	if not is_instance_valid(new_tile):
+		push_error("[GameBoardController] 方块场景必须实例化为 Tile。")
+		return null
+	
+	new_tile.reset_animation_state()
+	new_tile.set_meta(RELEASE_TOKEN_META, 0)
+	var colors: Dictionary = _get_tile_colors(value, type)
+	new_tile.setup(
+		value,
+		type,
+		_get_color(colors, &"bg", Color.WHITE),
+		_get_color(colors, &"font", Color.BLACK)
+	)
+	return new_tile
+
+
+func _acquire_visual_tile() -> Tile:
+	var tile_node: Node = null
+	if is_instance_valid(_pool):
+		tile_node = _pool.acquire(TileScene, board_container)
+	else:
+		tile_node = TileScene.instantiate()
+		if is_instance_valid(tile_node):
+			board_container.add_child(tile_node)
+
+	if tile_node is Tile:
+		var tile: Tile = tile_node
+		tile.visible = true
+		return tile
+
+	if is_instance_valid(tile_node):
+		tile_node.queue_free()
+	return null
+
+
+func _release_visual_tile(tile: Tile) -> void:
+	if not is_instance_valid(tile):
+		return
+
+	tile.reset_animation_state()
+	tile.set_meta(RELEASE_TOKEN_META, 0)
+	if _pool:
+		_pool.release(tile, TileScene)
+		tile.visible = false
+	else:
+		tile.queue_free()
+
+
+func _animate_release_visual_tile(tile: Tile) -> void:
+	if not is_instance_valid(tile):
+		return
+
+	var release_token: RefCounted = RefCounted.new()
+	tile.set_meta(RELEASE_TOKEN_META, release_token)
+	tile.move_to_front()
+
+	var despawn_tween: Tween = tile.animate_despawn()
+	if is_instance_valid(despawn_tween) and despawn_tween.is_valid():
+		var _connect_result_339: int = despawn_tween.finished.connect(func() -> void: _release_visual_tile_if_valid(tile, release_token))
+	else:
+		_release_visual_tile_if_valid(tile, release_token)
+
+
+func _release_visual_tile_if_valid(tile: Tile, release_token: RefCounted) -> void:
+	if not is_instance_valid(tile):
+		return
+	if not tile.has_meta(RELEASE_TOKEN_META):
+		return
+	if tile.get_meta(RELEASE_TOKEN_META) != release_token:
+		return
+
+	_release_visual_tile(tile)
+
+
+func _build_reverse_start_tiles_map(snapshot: Dictionary, reverse_target_map: Dictionary) -> Dictionary:
+	var reverse_start_tiles: Dictionary = {}
+	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
+	var snapshot_grid_size: int = _get_int(snapshot, &"grid_size", model.grid_size if model else 0)
+
+	for raw_tile_data_snapshot: Variant in tiles_data:
+		if not raw_tile_data_snapshot is Dictionary:
+			continue
+		var tile_data_snapshot: Dictionary = raw_tile_data_snapshot
+		var pos: Vector2i = _get_vector2i(tile_data_snapshot, &"pos", Vector2i.ZERO)
+		if not _is_grid_pos_in_bounds(pos, snapshot_grid_size):
+			continue
+
+		var value: int = _get_int(tile_data_snapshot, &"value", 0)
+		var type: Tile.TileType = _get_tile_type(tile_data_snapshot, &"type", Tile.TileType.PLAYER)
+		var pos_key: String = "%d,%d" % [pos.x, pos.y]
+		var start_grid_pos: Vector2i = _get_vector2i(reverse_target_map, StringName(pos_key), pos)
+		var start_key: String = "%d,%d" % [start_grid_pos.x, start_grid_pos.y]
+
+		if not reverse_start_tiles.has(start_key):
+			reverse_start_tiles[start_key] = []
+
+		var start_tile_entries: Array = GFVariantData.to_array(reverse_start_tiles[start_key])
+		start_tile_entries.append({
+			&"value": value,
+			&"type": type,
+		})
+		reverse_start_tiles[start_key] = start_tile_entries
+
+	return reverse_start_tiles
+
+
+func _should_animate_undo_despawn(tile: Tile, reverse_start_tiles: Dictionary) -> bool:
+	if not is_instance_valid(tile):
+		return false
+
+	var current_grid_pos: Vector2i = _pixel_center_to_grid(tile.position)
+	var current_key: String = "%d,%d" % [current_grid_pos.x, current_grid_pos.y]
+	var candidates: Array = GFVariantData.to_array(reverse_start_tiles.get(current_key, []))
+
+	if candidates.size() != 1:
+		return true
+
+	var candidate: Dictionary = GFVariantData.to_dictionary(candidates[0])
+	return (
+		candidate.get(&"value", 0) != tile.value
+		or candidate.get(&"type", Tile.TileType.PLAYER) != tile.type
+	)
+
+
+func _get_model_tile_data(grid_pos: Vector2i) -> GameTileData:
+	if not is_instance_valid(model):
+		return null
+	if not _is_grid_pos_in_bounds(grid_pos, model.grid_size):
+		return null
+	if grid_pos.x >= model.grid.size():
+		return null
+
+	var column: Array = model.grid[grid_pos.x]
+	if grid_pos.y >= column.size():
+		return null
+
+	var tile_data: Variant = column[grid_pos.y]
+	if tile_data is GameTileData:
+		return tile_data
+	return null
+
+
+func _get_tile_colors(value: int, type: Tile.TileType) -> Dictionary:
+	var bg_color: Color = Color.WHITE
+	var font_color: Color = Color.BLACK
+	
+	if not model or not model.interaction_rule:
+		return {"bg": bg_color, "font": font_color}
+		
+	var scheme_index: int = type
+	if type == Tile.TileType.PLAYER:
+		scheme_index = model.interaction_rule.get_color_scheme_index(value)
+		
+	var current_scheme: TileColorScheme = _get_tile_color_scheme(scheme_index)
+	if is_instance_valid(current_scheme) and not current_scheme.styles.is_empty():
+		var level: int = model.interaction_rule.get_level_by_value(value)
+		if level >= current_scheme.styles.size():
+			level = current_scheme.styles.size() - 1
+		var current_style: TileLevelStyle = _get_tile_level_style(current_scheme, level)
+		if is_instance_valid(current_style):
+			bg_color = current_style.background_color
+			font_color = current_style.font_color
+			
+	return {"bg": bg_color, "font": font_color}
+
+
+func _get_tile_color_scheme(scheme_index: int) -> TileColorScheme:
+	var scheme_value: Variant = color_schemes.get(scheme_index)
+	if scheme_value is TileColorScheme:
+		var scheme: TileColorScheme = scheme_value
+		return scheme
+	return null
+
+
+func _get_tile_level_style(scheme: TileColorScheme, level: int) -> TileLevelStyle:
+	if not is_instance_valid(scheme) or level < 0 or level >= scheme.styles.size():
+		return null
+
+	return scheme.styles[level]
+
+
+## 更新棋盘的整体布局以适应其容器大小。
+func _update_board_layout() -> void:
+	if not model:
+		return
+	var layout_params: Dictionary = _calculate_layout_params(model.grid_size)
+	if layout_params.is_empty():
+		return
+
+	if is_instance_valid(board_theme):
+		_apply_board_background_style()
+
+	board_background.position = layout_params.offset
+	board_background.size = layout_params.scaled_size
+	board_container.position = layout_params.offset + Vector2(BOARD_PADDING, BOARD_PADDING) * layout_params.scale_ratio
+	board_container.scale = Vector2.ONE * layout_params.scale_ratio
+
+
+func _apply_board_background_style() -> void:
+	var panel_style: StyleBoxFlat = _duplicate_flat_panel_style(board_background)
+	if not is_instance_valid(panel_style):
+		return
+
+	panel_style.bg_color = board_theme.board_panel_color
+	panel_style.border_color = board_theme.board_border_color
+	panel_style.set_border_width_all(6)
+	panel_style.set_corner_radius_all(6)
+	panel_style.shadow_color = Color.TRANSPARENT
+	panel_style.shadow_size = 0
+	panel_style.shadow_offset = Vector2.ZERO
+	board_background.add_theme_stylebox_override("panel", panel_style)
+
+
+## 绘制棋盘的静态背景单元格。
+func _draw_board_cells() -> void:
+	if not model:
+		return
+
+	# 清除旧的格子
+	for child: Node in board_container.get_children():
+		# 注意：Tile 也是 Node2D 的子节点，所以这里需要区分
+		# 由于 Tile 是 Node2D 类型 (继承自 features/gameplay/scenes/components/tile.tscn)，
+		# 而我们的格子场景是 Control (Panel)。
+		if child is Control and not child is Tile:
+			child.queue_free()
+
+	# 确保有一个有效的格子场景
+	if not is_instance_valid(grid_cell_scene):
+		if _log:
+			_log.error(_LOG_TAG, "未配置 grid_cell_scene。")
+		return
+
+	for x: int in range(model.grid_size):
+		for y: int in range(model.grid_size):
+			var cell_instance: Control = _create_grid_cell()
+			if not is_instance_valid(cell_instance):
+				continue
+			board_container.add_child(cell_instance)
+
+			# 设置格子的大小和位置
+			cell_instance.size = Vector2.ONE * CELL_SIZE
+			cell_instance.position = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
+
+			# 如果定义了 BoardTheme，尝试应用颜色
+			# 注意：使用场景后，建议优先使用场景内的主题配置，
+			# 这里保留颜色覆盖是为了兼容现有的 JSON 主题系统。
+			if is_instance_valid(board_theme) and cell_instance is Panel:
+				var stylebox: StyleBoxFlat = _duplicate_flat_panel_style(cell_instance)
+				if is_instance_valid(stylebox):
+					_configure_cell_style(stylebox)
+					cell_instance.add_theme_stylebox_override("panel", stylebox)
+
+			# 确保背景格子在最底层
+			board_container.move_child(cell_instance, 0)
+
+
+## 执行棋盘从旧尺寸到新尺寸的扩建动画。
+func _animate_expansion(old_size: int, new_size: int) -> void:
+	_expansion_token += 1
+	if _board_intro_tween and _board_intro_tween.is_valid():
+		_board_intro_tween.kill()
+	var expansion_token: int = _expansion_token
+	var final_layout: Dictionary = _calculate_layout_params(new_size)
+	if final_layout.is_empty():
+		return
+	var main_tween: Tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
+	var _background_position_tweener: PropertyTweener = main_tween.tween_property(board_background, "position", final_layout.offset, 0.3)
+	var _background_size_tweener: PropertyTweener = main_tween.tween_property(board_background, "size", final_layout.scaled_size, 0.3)
+	var final_container_pos: Vector2 = final_layout.offset + Vector2(BOARD_PADDING, BOARD_PADDING) * final_layout.scale_ratio
+	var _container_position_tweener: PropertyTweener = main_tween.tween_property(board_container, "position", final_container_pos, 0.3)
+	var _container_scale_tweener: PropertyTweener = main_tween.tween_property(board_container, "scale", Vector2.ONE * final_layout.scale_ratio, 0.3)
+	var _connect_result_527: int = main_tween.finished.connect(func() -> void: _draw_expanded_cells(old_size, new_size, expansion_token), CONNECT_ONE_SHOT)
+
+
+func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) -> void:
+	if expansion_token != _expansion_token:
+		return
+
+	# 清理旧格子 (非 Tile 节点)
+	for child: Node in board_container.get_children():
+		if child is Control and not child is Tile:
+			child.queue_free()
+
+	if not is_instance_valid(grid_cell_scene):
+		return
+
+	var new_cells_tween: Tween = create_tween().set_parallel(true)
+
+	for x: int in range(new_size):
+		for y: int in range(new_size):
+			var cell_instance: Control = _create_grid_cell()
+			if not is_instance_valid(cell_instance):
+				continue
+			board_container.add_child(cell_instance)
+			board_container.move_child(cell_instance, 0) # 保持在底部
+
+			var final_size: Vector2 = Vector2.ONE * CELL_SIZE
+			var final_pos: Vector2 = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
+
+			if is_instance_valid(board_theme) and cell_instance is Panel:
+				var stylebox: StyleBoxFlat = _duplicate_flat_panel_style(cell_instance)
+				if is_instance_valid(stylebox):
+					_configure_cell_style(stylebox)
+					cell_instance.add_theme_stylebox_override("panel", stylebox)
+
+			if x >= old_size or y >= old_size:
+				var center_pos: Vector2 = final_pos + final_size / 2.0
+				cell_instance.size = Vector2.ZERO
+				cell_instance.position = center_pos
+				var size_tweener: PropertyTweener = new_cells_tween.tween_property(cell_instance, "size", final_size, 0.2)
+				var _size_delay_result: Tweener = size_tweener.set_delay(0.05 * (x + y))
+				var position_tweener: PropertyTweener = new_cells_tween.tween_property(cell_instance, "position", final_pos, 0.2)
+				var _position_delay_result: Tweener = position_tweener.set_delay(0.05 * (x + y))
+			else:
+				cell_instance.size = final_size
+				cell_instance.position = final_pos
+
+
+func _configure_cell_style(stylebox: StyleBoxFlat) -> void:
+	stylebox.bg_color = board_theme.empty_cell_color
+	stylebox.border_color = board_theme.empty_cell_border_color
+	stylebox.set_border_width_all(3)
+	stylebox.set_corner_radius_all(4)
+	stylebox.shadow_color = Color.TRANSPARENT
+	stylebox.shadow_size = 0
+	stylebox.shadow_offset = Vector2.ZERO
+
+
+func _create_grid_cell() -> Control:
+	var cell_node: Node = grid_cell_scene.instantiate()
+	if cell_node is Control:
+		var cell_control: Control = cell_node
+		return cell_control
+
+	if is_instance_valid(cell_node):
+		push_error("[GameBoardController] 棋盘背景格子场景必须实例化为 Control。")
+		cell_node.queue_free()
+	return null
+
+
+func _duplicate_flat_panel_style(control: Control) -> StyleBoxFlat:
+	if not is_instance_valid(control):
+		return null
+
+	var stylebox_value: Variant = control.get_theme_stylebox("panel").duplicate()
+	if stylebox_value is StyleBoxFlat:
+		var flat_stylebox: StyleBoxFlat = stylebox_value
+		return flat_stylebox
+	return null
+
+
+func _play_board_intro() -> void:
+	if not is_instance_valid(board_background) or not is_instance_valid(board_container):
+		return
+	if not is_instance_valid(model):
+		return
+	if _board_intro_tween and _board_intro_tween.is_valid():
+		_board_intro_tween.kill()
+
+	var layout_params: Dictionary = _calculate_layout_params(model.grid_size)
+	if layout_params.is_empty():
+		return
+
+	board_background.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	board_container.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	board_container.scale = Vector2.ONE * GFVariantData.get_option_float(layout_params, "scale_ratio", 1.0) * 0.98
+
+	_board_intro_tween = create_tween().set_parallel(true)
+	var _transition_result: Tween = _board_intro_tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = _board_intro_tween.set_ease(Tween.EASE_OUT)
+	var _background_fade_tweener: PropertyTweener = _board_intro_tween.tween_property(board_background, "modulate:a", 1.0, _BOARD_INTRO_DURATION)
+	var _container_fade_tweener: PropertyTweener = _board_intro_tween.tween_property(board_container, "modulate:a", 1.0, _BOARD_INTRO_DURATION)
+	var _container_scale_tweener: PropertyTweener = _board_intro_tween.tween_property(
+		board_container,
+		"scale",
+		Vector2.ONE * GFVariantData.get_option_float(layout_params, "scale_ratio", 1.0),
+		_BOARD_INTRO_DURATION
+	)
+
+
+## 将网格坐标转换为棋盘容器内的局部像素中心点坐标。
+## @return: 对应于网格中心的像素坐标 (Vector2)。
+func _grid_to_pixel_center(grid_pos: Vector2i) -> Vector2:
+	var top_left_pos: Vector2 = Vector2(grid_pos.x * (CELL_SIZE + SPACING), grid_pos.y * (CELL_SIZE + SPACING))
+	return top_left_pos + Vector2.ONE * (CELL_SIZE / 2.0)
+
+
+func _pixel_center_to_grid(pixel_pos: Vector2) -> Vector2i:
+	var step: float = CELL_SIZE + SPACING
+	return Vector2i(
+		roundi((pixel_pos.x - CELL_SIZE / 2.0) / step),
+		roundi((pixel_pos.y - CELL_SIZE / 2.0) / step)
+	)
+
+
+func _is_grid_pos_in_bounds(grid_pos: Vector2i, grid_size: int) -> bool:
+	return (
+		grid_size > 0
+		and grid_pos.x >= 0
+		and grid_pos.x < grid_size
+		and grid_pos.y >= 0
+		and grid_pos.y < grid_size
+	)
+
+
+static func _get_instruction_type(data: Dictionary) -> StringName:
+	var value: Variant = data.get(&"type", data.get("type", &""))
+	if value is StringName:
+		return value
+	return StringName(str(value))
+
+
+static func _get_game_tile_data(data: Dictionary, key: StringName) -> GameTileData:
+	var value: Variant = data.get(key, data.get(String(key), null))
+	if value is GameTileData:
+		return value
+	return null
+
+
+func _get_visual_tile(tile_data: GameTileData) -> Tile:
+	if tile_data == null:
+		return null
+	var value: Variant = _visual_map.get(tile_data, null)
+	if value is Tile:
+		var tile: Tile = value
+		return tile
+	return null
+
+
+static func _get_vector2i(data: Dictionary, key: StringName, default_value: Vector2i) -> Vector2i:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is Vector2i:
+		return value
+	if value is Vector2:
+		var vector_value: Vector2 = value
+		return Vector2i(roundi(vector_value.x), roundi(vector_value.y))
+	return default_value
+
+
+static func _get_int(data: Dictionary, key: StringName, default_value: int) -> int:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is int:
+		return value
+	if value is float:
+		var float_value: float = value
+		return int(float_value)
+	return default_value
+
+
+static func _get_bool(data: Dictionary, key: StringName, default_value: bool) -> bool:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is bool:
+		return value
+	return default_value
+
+
+static func _get_tile_type(data: Dictionary, key: StringName, default_value: Tile.TileType) -> Tile.TileType:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is int:
+		var enum_value: int = value
+		match enum_value:
+			Tile.TileType.PLAYER:
+				return Tile.TileType.PLAYER
+			Tile.TileType.MONSTER:
+				return Tile.TileType.MONSTER
+	return default_value
+
+
+static func _get_color(data: Dictionary, key: StringName, default_value: Color) -> Color:
+	var value: Variant = data.get(key, data.get(String(key), default_value))
+	if value is Color:
+		return value
+	return default_value
+
+
+## 根据棋盘尺寸和可用空间，计算缩放、尺寸和偏移等布局参数。
+## @return: 一个包含布局参数的字典。
+func _calculate_layout_params(p_size: int) -> Dictionary:
+	var grid_area_side: float = float(p_size * CELL_SIZE + (p_size - 1) * SPACING)
+	var logical_board_side: float = grid_area_side + BOARD_PADDING * 2
+	var host_control: Control = _get_host_control()
+	if not is_instance_valid(host_control):
+		return {}
+	var current_size: Vector2 = host_control.size
+	if current_size.x == 0 or current_size.y == 0:
+		return {}
+	var scale_ratio: float = min(current_size.x / logical_board_side, current_size.y / logical_board_side)
+	var scaled_size: Vector2 = Vector2.ONE * logical_board_side * scale_ratio
+	var offset: Vector2 = (current_size - scaled_size) / 2.0
+	return {
+		"scale_ratio": scale_ratio,
+		"scaled_size": scaled_size,
+		"offset": offset,
+	}
+
+
+func _play_tile_feedback_sound(feedback_type: StringName) -> void:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if not is_instance_valid(theme_utility):
+		return
+
+	match feedback_type:
+		&"spawn":
+			theme_utility.play_tile_spawn_sound()
+		&"merge":
+			theme_utility.play_tile_merge_sound()
+
+
+func _play_tile_move_sound() -> void:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		theme_utility.play_tile_move_sound()
+
+
+# --- 信号处理函数 ---
+
+## 接收撤回动画请求，播放平滑动画。
+func _on_board_undo_animation_requested(payload: Array) -> void:
+	if payload.size() < 2:
+		return
+	var snapshot: Dictionary = GFVariantData.to_dictionary(payload[0])
+	var reverse_map: Dictionary = GFVariantData.to_dictionary(payload[1])
+	
+	if _log:
+		_log.debug(_LOG_TAG, "收到撤回动画请求。")
+	
+	var undo_action: BoardUndoAnimationAction = BoardUndoAnimationAction.new(snapshot, reverse_map, self)
+	var action_sys: GFActionQueueSystem = _get_action_queue_system()
+	if is_instance_valid(action_sys):
+		action_sys.enqueue(undo_action)
+	else:
+		undo_action.execute()
+
+## 接收到逻辑层的动画请求，将其包装为 Action 推入动画队列。
+func _on_board_animation_requested(instructions: Array) -> void:
+	var visual_instructions: Array[Dictionary] = []
+	var needs_visual_resync: bool = false
+	var has_move_sound: bool = false
+	if _log:
+		_log.debug(_LOG_TAG, "收到棋盘动画请求: instructions=%d, visual_map=%d" % [instructions.size(), _visual_map.size()])
+	
+	for raw_instr: Variant in instructions:
+		if not raw_instr is Dictionary:
+			needs_visual_resync = true
+			continue
+		var instr: Dictionary = raw_instr
+		var visual_instr: Dictionary = instr.duplicate()
+		var instruction_type: StringName = _get_instruction_type(instr)
+		
+		# 转换逻辑数据到视觉节点
+		match instruction_type:
+			&"MOVE":
+				var move_data: GameTileData = _get_game_tile_data(instr, &"tile_data")
+				var move_tile_node: Tile = _get_visual_tile(move_data)
+				if is_instance_valid(move_tile_node):
+					visual_instr[&"tile"] = move_tile_node
+				else:
+					needs_visual_resync = true
+					continue
+			&"MERGE":
+				var consumed_data: GameTileData = _get_game_tile_data(instr, &"consumed_data")
+				var merged_data: GameTileData = _get_game_tile_data(instr, &"merged_data")
+				
+				var consumed_node: Tile = _get_visual_tile(consumed_data)
+				var merged_node: Tile = _get_visual_tile(merged_data)
+				
+				if not is_instance_valid(consumed_node):
+					needs_visual_resync = true
+					continue
+				if not is_instance_valid(merged_node):
+					needs_visual_resync = true
+					continue
+				
+				visual_instr[&"consumed_tile"] = consumed_node
+				visual_instr[&"merged_tile"] = merged_node
+				
+				# 延迟更新合并后的视觉状态
+				if is_instance_valid(merged_node):
+					var merge_colors: Dictionary = _get_tile_colors(merged_data.value, merged_data.type)
+					visual_instr[&"target_setup_data"] = {
+						&"value": merged_data.value,
+						&"type": merged_data.type,
+						&"bg": merge_colors.bg,
+						&"font": merge_colors.font,
+						&"do_transform": instr.has(&"transform")
+					}
+						
+				# 从映射中移除被消耗的节点
+				if consumed_data != null:
+					var _erase_result: bool = _visual_map.erase(consumed_data)
+			&"SPAWN":
+				var spawn_data: GameTileData = _get_game_tile_data(instr, &"tile_data")
+				if spawn_data == null:
+					needs_visual_resync = true
+					continue
+				var new_tile: Tile = _create_visual_tile(spawn_data.value, spawn_data.type)
+				if not is_instance_valid(new_tile):
+					needs_visual_resync = true
+					continue
+				_visual_map[spawn_data] = new_tile
+				new_tile.position = _grid_to_pixel_center(_get_vector2i(instr, &"to_grid_pos", Vector2i.ZERO))
+				new_tile.scale = Vector2.ZERO
+				
+				visual_instr[&"tile"] = new_tile
+			&"TRANSFORM":
+				var transform_data: GameTileData = _get_game_tile_data(instr, &"tile_data")
+				var transform_tile_node: Tile = _get_visual_tile(transform_data)
+				if not is_instance_valid(transform_tile_node):
+					needs_visual_resync = true
+					continue
+
+				var transform_colors: Dictionary = _get_tile_colors(transform_data.value, transform_data.type)
+				visual_instr[&"tile"] = transform_tile_node
+				visual_instr[&"target_setup_data"] = {
+					&"value": transform_data.value,
+					&"type": transform_data.type,
+					&"bg": transform_colors.bg,
+					&"font": transform_colors.font,
+					&"do_merge": _get_bool(instr, &"do_merge", false),
+					&"do_transform": _get_bool(instr, &"do_transform", false),
+				}
+		
+		# 计算像素坐标
+		if visual_instr.has(&"to_grid_pos"):
+			visual_instr[&"to_pos"] = _grid_to_pixel_center(_get_vector2i(visual_instr, &"to_grid_pos", Vector2i.ZERO))
+
+		if instruction_type == &"MOVE" or instruction_type == &"MERGE":
+			has_move_sound = true
+			
+		visual_instructions.append(visual_instr)
+
+	if needs_visual_resync and model:
+		if _log:
+			_log.debug(_LOG_TAG, "视觉映射缺失动画目标，使用模型快照重同步。")
+		call_deferred(&"restore_from_snapshot", model.get_snapshot())
+
+	if visual_instructions.is_empty():
+		return
+
+	if has_move_sound:
+		_play_tile_move_sound()
+			
+	# 2. 实例化视觉动作
+	var action: BoardAnimationAction = BoardAnimationAction.new(visual_instructions, self)
+	
+	# 3. 推入 GFActionQueueSystem 执行
+	var queue_sys: GFActionQueueSystem = _get_action_queue_system()
+	if is_instance_valid(queue_sys):
+		queue_sys.enqueue(action)
+
+
+## 接收到全量刷新请求（如撤回操作），直接重置棋盘视觉状态。
+func _on_board_refresh_requested(grid_snapshot: Dictionary) -> void:
+	restore_from_snapshot(grid_snapshot)
+
+
+## 接收到棋盘动态扩建请求。
+func _on_board_live_expand_requested(new_size: int) -> void:
+	live_expand(new_size)
+
+
+## 当场景即将改变时调用，确保释放旧场景前断开监听
+func _on_scene_will_change(_payload: Variant = null) -> void:
+	_cleanup_listeners()
+
+
+## 当棋盘尺寸改变时，更新布局。
+func _on_resized() -> void:
+	_update_board_layout()

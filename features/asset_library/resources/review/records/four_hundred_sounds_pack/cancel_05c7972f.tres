@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_32r86"]
+
+[resource]
+script = ExtResource("1_32r86")
+asset_id = &"asset.review.four.hundred.sounds.pack.ui.cancel.05c7972f"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "UI/cancel"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "cancel")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/cancel.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/UI/cancel.wav"
+relative_path = "UI/cancel.wav"
+extension = "wav"
+file_size_bytes = 26856
+sha256 = "05c7972f74ffcc64d16e615b6a6adce1a34ab35d0405eface5b853d656718d21"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

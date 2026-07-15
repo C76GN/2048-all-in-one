@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_weather"]
+
+[resource]
+script = ExtResource("1_weather")
+asset_id = &"asset.review.manual.shader.notes.rain.snow.weather.overlay.513017af"
+source_pack_id = &"manual_shader_notes"
+display_name = "rain_snow_weather_overlay"
+asset_kind = &"shader"
+review_status = &"candidate"
+tags = PackedStringArray("shader", "canvas_item", "weather", "rain", "snow", "atmosphere", "background_overlay", "vfx", "license_review_needed")
+notes = "Candidate procedural rain/snow overlay shader for menus, backgrounds, seasonal themes, or special ambience. Adapted with a conservative max count of 512, opacity controls, optional texture alpha, and safer size bounds. Promotion requires performance checks on target hardware and readability checks over UI panels."
+rating = 4
+source_path = "manual://chat/2026-07-10/rain_snow_weather_overlay.gdshader"
+library_path = "res://features/asset_library/resources/source_packs/manual_shader_notes/files/rain_snow_weather_overlay.gdshader"
+relative_path = "rain_snow_weather_overlay.gdshader"
+extension = "gdshader"
+file_size_bytes = 1494
+sha256 = "513017af7260fff0be48ad1aa119515b85413163cfeee4a363d8f800b8074750"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.weather.rain_snow_overlay", "slot.shader.background.weather_overlay", "slot.shader.vfx.seasonal_weather")
+imported_at = "2026-07-10 02:51:00"

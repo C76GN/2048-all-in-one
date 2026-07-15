@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_rgi4v"]
+
+[resource]
+script = ExtResource("1_rgi4v")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.xylophone.negative.quick.1d303633"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/xylophone_negative_quick"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "xylophone_negative_quick", "ui")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/xylophone_negative_quick.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/xylophone_negative_quick.wav"
+relative_path = "Musical Effects/xylophone_negative_quick.wav"
+extension = "wav"
+file_size_bytes = 191720
+sha256 = "1d303633a03ff8e1ec8a697a25126b93bab445507400c8e5ec1e24bf1132777c"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

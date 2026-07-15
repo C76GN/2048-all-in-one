@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_0fji0"]
+
+[resource]
+script = ExtResource("1_0fji0")
+asset_id = &"asset.review.four.hundred.sounds.pack.retro.power.down.2.9b6e133e"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Retro/power_down_2"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "power_down_2")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/power_down_2.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Retro/power_down_2.wav"
+relative_path = "Retro/power_down_2.wav"
+extension = "wav"
+file_size_bytes = 29738
+sha256 = "9b6e133ec1d7d786b6b761c1779f28d9f6bd442383e41f06dfe12228ab2e2b76"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

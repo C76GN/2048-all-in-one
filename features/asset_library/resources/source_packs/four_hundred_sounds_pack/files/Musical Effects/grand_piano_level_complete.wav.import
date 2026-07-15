@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ccm1ial34nfa5"
+path="res://.godot/imported/grand_piano_level_complete.wav-03bed35cd064d63226c306591f79289a.sample"
+
+[deps]
+
+source_file="res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/grand_piano_level_complete.wav"
+dest_files=["res://.godot/imported/grand_piano_level_complete.wav-03bed35cd064d63226c306591f79289a.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_burn"]
+
+[resource]
+script = ExtResource("1_burn")
+asset_id = &"asset.review.manual.effect.notes.click.uv.radius.burn.card.recipe.293dea5f"
+source_pack_id = &"manual_effect_notes"
+display_name = "click_uv_radius_burn_card_recipe"
+asset_kind = &"vfx"
+review_status = &"candidate"
+tags = PackedStringArray("vfx", "interaction_recipe", "burn", "dissolve", "card_feedback", "uv_click", "shader_parameter", "license_review_needed")
+notes = "Candidate interaction recipe that maps a Sprite2D click to UV coordinates, writes shader parameter `position`, and tweens shader parameter `radius`. Needs a matching approved dissolve/burn shader and Control/TextureRect adaptation before runtime promotion."
+rating = 4
+source_path = "manual://chat/2026-07-10/click_uv_radius_burn_card_recipe.md"
+library_path = "res://features/asset_library/resources/source_packs/manual_effect_notes/files/click_uv_radius_burn_card_recipe.md"
+relative_path = "click_uv_radius_burn_card_recipe.md"
+extension = "md"
+file_size_bytes = 1860
+sha256 = "293dea5f30c26f201f4d6aae756fe681edffd4bbde9a464b0f5d68c86ba0a4e5"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = false
+suggested_slots = PackedStringArray("slot.vfx.ui.card_burn_dissolve", "slot.vfx.bookmark.delete_burn", "slot.vfx.replay.delete_burn")
+imported_at = "2026-07-10 00:00:00"

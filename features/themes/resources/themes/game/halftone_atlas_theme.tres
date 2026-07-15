@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="GameTheme" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_theme.gd" id="1_theme"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/board/default_board_theme.tres" id="2_board"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres" id="3_classic"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/tile_schemes/red_tile_theme.tres" id="4_red"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/halftone_atlas_ui_palette.tres" id="5_palette"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/transitions/halftone_cover_transition.tres" id="7_cover"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/transitions/halftone_reveal_transition.tres" id="8_reveal"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/backgrounds/halftone_atlas_background_profile.tres" id="9_background"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres" id="10_celebration"]
+
+[resource]
+script = ExtResource("1_theme")
+theme_id = &"halftone_atlas"
+display_name_key = "THEME_HALFTONE_ATLAS"
+description_key = "THEME_HALFTONE_ATLAS_DESC"
+board_theme = ExtResource("2_board")
+color_schemes = {
+0: ExtResource("3_classic"),
+1: ExtResource("4_red")
+}
+ui_palette = ExtResource("5_palette")
+background_shader_profile = ExtResource("9_background")
+celebration_vfx_theme = ExtResource("10_celebration")
+scene_transition_cover_effect = ExtResource("7_cover")
+scene_transition_reveal_effect = ExtResource("8_reveal")

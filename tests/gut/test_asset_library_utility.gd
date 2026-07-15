@@ -4,11 +4,11 @@ extends GutTest
 
 # --- 常量 ---
 
-const _ASSET_LIBRARY_MANIFEST_PATH: String = "res://asset_library/gf_content_package.json"
+const _ASSET_LIBRARY_MANIFEST_PATH: String = "res://features/asset_library/resources/gf_content_package.json"
 const _REVIEW_CATALOG_PROVIDER_SCRIPT = preload(
-	"res://scripts/assets/catalog/game_asset_review_catalog_source_provider.gd"
+	"res://features/asset_library/scripts/catalog/game_asset_review_catalog_source_provider.gd"
 )
-const _ASSET_REVIEW_RECORD_SCRIPT = preload("res://scripts/data/asset_review_record.gd")
+const _ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/scripts/data/asset_review_record.gd")
 
 
 # --- 测试用例 ---
@@ -50,7 +50,7 @@ func test_asset_library_registers_assets_into_gf_resolver() -> void:
 	)
 	assert_true(
 		asset_library.resolve_asset_path(&"asset.audio.ui.printworks.select_soft_01", "AudioStreamOggVorbis")
-			== "res://asset_library/audio/ui/printworks_select_soft_01.ogg",
+			== "res://features/asset_library/resources/audio/ui/printworks_select_soft_01.ogg",
 		"素材库应提供稳定 ID 到资源路径的解析。"
 	)
 
@@ -126,19 +126,19 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 		"每个运行时素材都应有明确归因条目。"
 	)
 	assert_true(
-		GFVariantData.get_option_packed_string_array(select_usage, "path_users").has("res://resources/audio/printworks_audio_bank.tres"),
+		GFVariantData.get_option_packed_string_array(select_usage, "path_users").has("res://features/themes/resources/audio/printworks_audio_bank.tres"),
 		"审计报告应能说明 UI 选择音效被音频银行使用。"
 	)
 	assert_true(
-		GFVariantData.get_option_packed_string_array(button_shader_usage, "path_users").has("res://scripts/utilities/game_ui_motion_utility.gd"),
+		GFVariantData.get_option_packed_string_array(button_shader_usage, "path_users").has("res://features/themes/scripts/utilities/game_ui_motion_utility.gd"),
 		"审计报告应能说明按钮焦点 shader 被 UI 动效 Utility 使用。"
 	)
 	assert_true(
-		GFVariantData.get_option_packed_string_array(celebration_vfx_usage, "key_users").has("res://resources/themes/game/vfx/halftone_atlas_celebration_theme.tres"),
+		GFVariantData.get_option_packed_string_array(celebration_vfx_usage, "key_users").has("res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres"),
 		"审计报告应能说明庆祝 VFX shader 资源键由当前庆祝主题声明。"
 	)
 	assert_true(
-		GFVariantData.get_option_packed_string_array(startup_progress_usage, "path_users").has("res://scripts/boot/boot.gd"),
+		GFVariantData.get_option_packed_string_array(startup_progress_usage, "path_users").has("res://app/scripts/boot.gd"),
 		"审计报告应能说明启动进度条 shader 被 Boot 使用。"
 	)
 
@@ -157,7 +157,7 @@ func test_asset_review_provider_uses_gf_catalog_search() -> void:
 	record.set("asset_kind", &"audio")
 	record.set("review_status", &"candidate")
 	record.set("tags", PackedStringArray(["audio", "positive", "ui"]))
-	record.set("library_path", "res://asset_library/audio/ui/printworks_confirm_soft_01.ogg")
+	record.set("library_path", "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg")
 	var save_result: Error = ResourceSaver.save(record, fixture_path)
 	assert_true(save_result == OK, "候选素材 fixture 应保存成功。")
 

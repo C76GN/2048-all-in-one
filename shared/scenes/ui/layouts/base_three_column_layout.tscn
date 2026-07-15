@@ -1,0 +1,94 @@
+[gd_scene format=3 uid="uid://b3x8q5j4l2k1"]
+
+[ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader" id="1_background_shader"]
+[ext_resource type="Script" uid="uid://oyvormqr2bhb" path="res://shared/scripts/ui/surface_vbox_container.gd" id="2_surface_column"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_pop_background"]
+shader = ExtResource("1_background_shader")
+shader_parameter/base_color = Color(0.95686275, 0.92941177, 0.8666667, 1)
+shader_parameter/accent_color = Color(0.61960787, 0.85882354, 0.8352941, 1)
+shader_parameter/secondary_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
+shader_parameter/warm_color = Color(0.9607843, 0.6392157, 0.7882353, 1)
+shader_parameter/grid_strength = 0.05
+shader_parameter/glow_strength = 0.0
+shader_parameter/vignette_strength = 0.045
+shader_parameter/pulse_speed = 0.0
+shader_parameter/grain_strength = 0.018
+shader_parameter/stipple_strength = 0.006
+shader_parameter/flow_scale = 1.35
+shader_parameter/scanline_strength = 0.0
+
+[node name="BaseThreeColumnLayout" type="Control" unique_id=790460852]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="." unique_id=1503483202]
+unique_name_in_owner = true
+material = SubResource("ShaderMaterial_pop_background")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.95686275, 0.92941177, 0.8666667, 1)
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1973447540]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 56
+theme_override_constants/margin_top = 54
+theme_override_constants/margin_right = 56
+theme_override_constants/margin_bottom = 54
+
+[node name="ColumnsContainer" type="HBoxContainer" parent="MarginContainer" unique_id=456458417]
+layout_mode = 2
+theme_override_constants/separation = 34
+
+[node name="LeftColumn" type="VBoxContainer" parent="MarginContainer/ColumnsContainer" unique_id=1380498374]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(310, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+script = ExtResource("2_surface_column")
+
+[node name="CenterColumn" type="VBoxContainer" parent="MarginContainer/ColumnsContainer" unique_id=1201243811]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 5
+
+[node name="PageTitle" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn" unique_id=1347289482]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_colors/font_shadow_color = Color(0.61960787, 0.85882354, 0.8352941, 0.52)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 44
+text = "页面标题"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CenterContentHolder" type="CenterContainer" parent="MarginContainer/ColumnsContainer/CenterColumn" unique_id=789752896]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RightColumn" type="VBoxContainer" parent="MarginContainer/ColumnsContainer" unique_id=1383845263]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(310, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+script = ExtResource("2_surface_column")

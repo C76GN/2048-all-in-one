@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_n4urx"]
+
+[resource]
+script = ExtResource("1_n4urx")
+asset_id = &"asset.review.four.hundred.sounds.pack.footsteps.digital.digital.footstep.gravel.4.6e6c1660"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Footsteps/digital/digital_footstep_gravel_4"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "footsteps", "digital", "digital_footstep_gravel_4")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Footsteps/digital/digital_footstep_gravel_4.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Footsteps/digital/digital_footstep_gravel_4.wav"
+relative_path = "Footsteps/digital/digital_footstep_gravel_4.wav"
+extension = "wav"
+file_size_bytes = 31118
+sha256 = "6e6c1660f62510574c73b5ea847d4b7886b382faf75660b76189aad0e44086e0"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

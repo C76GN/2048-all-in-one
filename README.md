@@ -11,25 +11,27 @@
 - Godot 4.7+
 - GF Framework 7.x（版本以 `addons/gf/plugin.cfg` 为准，当前源码为 `7.0.0`）
 - GF Package Manager（GF 7 使用 Godot 原生 CLI；当前仓库为手动更新后的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在）
-- GDScript，遵循 `CODING_STYLE.md`
+- GDScript，遵循 `docs/coding_style.md`
 
 ## 架构概览
 
-- `scripts/boot/game_architecture_installer.gd` 集中注册 Model、System、Utility，并由 Project Settings 中的 gf installer 驱动启动。
-- `scripts/controllers/` 放置使用 `GFController` 基类能力的场景控制器，例如 `GamePlayController` 和 `GameBoardController`。当前脚本用显式 `res://addons/gf/...` 继承路径，避免框架升级后 Godot class cache 未刷新时解析失败。
-- `scripts/models/` 保存可绑定运行时状态，例如棋盘、当前模式、分数和最高方块。
-- `scripts/systems/` 承担业务流程：初始化、输入、移动、生成、最高分、回放、场景路由和游戏状态。
-- `scripts/utilities/` 放置项目级 Utility，例如资源目录 Adapter、GF save slot 工作流、主题目录、项目设置和时间戳 Resource 集合持久化。
-- `scripts/rules/` 是规则资源的实现层。移动、交互、生成、结束判定互相解耦，模式配置通过 `resources/modes/*.tres` 组合它们。
-- `scripts/data/` 保存 Resource、Payload 和纯数据对象；`scripts/foundation/` 保存不接入 gf 生命周期的纯静态算法。
-- `resources/input/gameplay_input_context.tres` 使用 `GFInputContext` / `GFInputMapping` 描述玩法输入，运行时由 `GFInputMappingUtility` 消费。
-- `resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式目录，菜单和初始化流程通过 `ProjectResourceCatalogUtility` / `GameModeConfigCacheUtility` 读取注册表。
-- `resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 UI 路由目录，`resources/ui_routes/*.tres` 用 `GFUIRoute` 描述弹层面板，并通过 `ProjectResourceCatalogUtility` 注册到资源解析器。
-- `assets/translations.csv` 提供中文和英文 UI 文案。
+- 项目严格采用 GF 内置的 Feature-Cohesive 目录契约，`gf_project_profile.json` 是可执行的结构真相来源。
+- `app/` 只包含启动、Composition Root 和跨 Feature 装配；`app/scripts/game_architecture_installer.gd` 声明项目 Model、System、Utility。
+- `features/` 按业务能力划分为 gameplay、navigation、settings、bookmarks、replays、progress、themes、asset_library 和 diagnostics。
+- 每个 Feature 在自己的 `scripts/`、`scenes/`、`resources/`、`docs/` 或 `tools/` 内拥有完整实现；GF 的 Model/System/Utility/Controller 是 Feature 内部逻辑层。
+- `shared/` 只保存跨 Feature 复用的契约、基础算法、UI 原语、素材和 Utility，不得引用具体 Feature。
+- 旧的全局 `scripts/`、`scenes/`、`resources/`、`assets/` 和 `asset_library/` 类型桶不再使用，也不提供旧路径兼容。
+- `features/gameplay/scripts/rules/` 是规则实现层。移动、交互、生成、结束判定互相解耦，模式配置通过 `features/gameplay/resources/modes/*.tres` 组合它们。
+- `features/gameplay/resources/input/gameplay_input_context.tres` 使用 `GFInputContext` / `GFInputMapping` 描述玩法输入，运行时由 `GFInputMappingUtility` 消费。
+- `features/gameplay/resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式目录，菜单和初始化流程通过 `ProjectResourceCatalogUtility` / `GameModeConfigCacheUtility` 读取注册表。
+- `features/navigation/resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 UI 路由目录，`features/navigation/resources/ui_routes/*.tres` 用 `GFUIRoute` 描述弹层面板，并通过 `ProjectResourceCatalogUtility` 注册到资源解析器。
+- `shared/assets/translations.csv` 提供中文和英文 UI 文案。
+
+完整 Feature 所有权和依赖方向见 `docs/architecture.md`。
 
 ## gf 使用方式
 
-项目启动入口是 `scenes/boot/boot.tscn`。`boot.gd` 调用 `await Gf.init()`，gf 会执行项目级 installer 并完成三阶段生命周期。业务模块内部优先使用 `GFSystem` / `GFController` 的基类方法访问 Model、System、Utility 和事件总线。
+项目启动入口是 `app/scenes/boot.tscn`。`boot.gd` 调用 `await Gf.init()`，gf 会执行项目级 installer 并完成三阶段生命周期。业务模块内部优先使用 `GFSystem` / `GFController` 的基类方法访问 Model、System、Utility 和事件总线。
 
 当前启用的 GF 扩展：
 
@@ -69,15 +71,15 @@ GF 7 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 
 ## 维护路线
 
-- 长期推进计划见 `docs/ROADMAP.md`。
-- 验证策略见 `docs/VALIDATION.md`，GF 7 包状态验证使用 Godot headless 原生包管理 CLI。
+- 长期推进计划见 `docs/roadmap.md`。
+- 验证策略见 `docs/validation.md`，GF 7 包状态验证使用 Godot headless 原生包管理 CLI。
 - 项目结构由 `gf_project_profile.json` 声明，并通过 `GFProjectLayoutValidator` 与 GUT 持续校验。
-- 视觉方向见 `docs/VISUAL_STYLE.md`；背景、方块、菜单、HUD、转场和动效应保持 CMYK 半调纸媒游戏质感。
+- 视觉方向见 `docs/visual_style.md`；背景、方块、菜单、HUD、转场和动效应保持 CMYK 半调纸媒游戏质感。
 - 历史上默认 Godot/GUT 运行曾写出巨大用户目录日志；需要运行 GUT 时，使用 `tools/run_gut_safe.ps1` 这样的隔离脚本，不要直接运行裸 Godot/GUT 命令。
 
 ## 新增模式的推荐流程
 
-1. 在 `scripts/rules/` 中实现所需的 `InteractionRule`、`MovementRule`、`SpawnRule` 或 `GameOverRule`。
-2. 在 `resources/rules/` 中创建对应资源。
-3. 新增 `resources/modes/*.tres`，组合棋盘主题、颜色主题和规则资源。
-4. 在 `resources/registries/game_mode_registry.tres` 中新增 `GFResourceRegistryEntry`，让模式选择菜单自动读取新的模式资源。
+1. 在 `features/gameplay/scripts/rules/` 中实现所需的 `InteractionRule`、`MovementRule`、`SpawnRule` 或 `GameOverRule`。
+2. 在 `features/gameplay/resources/rules/` 中创建对应资源。
+3. 新增 `features/gameplay/resources/modes/*.tres`，组合棋盘主题、颜色主题和规则资源。
+4. 在 `features/gameplay/resources/registries/game_mode_registry.tres` 中新增 `GFResourceRegistryEntry`，让模式选择菜单自动读取新的模式资源。

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_ctf1w"]
+
+[resource]
+script = ExtResource("1_ctf1w")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.steel.drums.chime.positive.ff0ecd19"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/steel_drums_chime_positive"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "steel_drums_chime_positive")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/steel_drums_chime_positive.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/steel_drums_chime_positive.wav"
+relative_path = "Musical Effects/steel_drums_chime_positive.wav"
+extension = "wav"
+file_size_bytes = 202152
+sha256 = "ff0ecd1936ffb9114d722e9e5ea67b1d726ef599ef55b01611d7b766788979ba"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

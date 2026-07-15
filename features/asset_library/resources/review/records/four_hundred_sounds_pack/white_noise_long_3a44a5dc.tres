@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_ywate"]
+
+[resource]
+script = ExtResource("1_ywate")
+asset_id = &"asset.review.four.hundred.sounds.pack.other.white.noise.long.3a44a5dc"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Other/white_noise_long"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "white_noise_long")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/white_noise_long.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Other/white_noise_long.wav"
+relative_path = "Other/white_noise_long.wav"
+extension = "wav"
+file_size_bytes = 1063196
+sha256 = "3a44a5dc8e4b19888f9c08d9b626314abea717f0ab3c702c6eb7f1ca7364b8b3"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

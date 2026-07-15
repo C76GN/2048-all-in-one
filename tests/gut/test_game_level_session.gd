@@ -4,7 +4,7 @@ extends GutTest
 
 # --- 常量 ---
 
-const _CLASSIC_MODE_CONFIG_PATH: String = "res://resources/modes/classic_mode_config.tres"
+const _CLASSIC_MODE_CONFIG_PATH: String = "res://features/gameplay/resources/modes/classic_mode_config.tres"
 
 
 # --- 测试用例 ---

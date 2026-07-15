@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_y5nee"]
+
+[resource]
+script = ExtResource("1_y5nee")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.brass.level.start.a137bda7"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/brass_level_start"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "brass_level_start")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/brass_level_start.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/brass_level_start.wav"
+relative_path = "Musical Effects/brass_level_start.wav"
+extension = "wav"
+file_size_bytes = 370376
+sha256 = "a137bda7fc2e0e034bf3c097cc7c6ecac491c988fec048124190f502257cb5f2"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.ui.confirm")
+imported_at = "2026-07-09 03:08:11"

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_8i1jt"]
+
+[resource]
+script = ExtResource("1_8i1jt")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.grand.piano.negative.7605b1af"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/grand_piano_negative"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "grand_piano_negative")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/grand_piano_negative.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/grand_piano_negative.wav"
+relative_path = "Musical Effects/grand_piano_negative.wav"
+extension = "wav"
+file_size_bytes = 268020
+sha256 = "7605b1afbfe190ccd580382e3ec9d82393c0ac022d4429681c1b2db542033f9a"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

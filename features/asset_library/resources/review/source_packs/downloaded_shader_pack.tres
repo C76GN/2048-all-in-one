@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="AssetSourcePack" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_source_pack.gd" id="1_idth0"]
+
+[resource]
+script = ExtResource("1_idth0")
+source_pack_id = &"downloaded_shader_pack"
+display_name = "Downloaded Shader Pack"
+original_source_path = "E:/_inbox/Downloads/shader"
+library_root_path = "res://features/asset_library/resources/source_packs/downloaded_shader_pack"
+author = "unknown"
+license = "unknown"
+imported_at = "2026-07-09 03:22:27"
+file_count = 2
+review_record_count = 2
+byte_count = 5395
+tags = PackedStringArray("shader", "license_review_needed")
+notes = "Imported for local visual review. Keep as review-only until license and origin are confirmed."

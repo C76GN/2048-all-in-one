@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_0vole"]
+
+[resource]
+script = ExtResource("1_0vole")
+asset_id = &"asset.review.four.hundred.sounds.pack.environment.lock.lock.5bfa3254"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Environment/lock_lock"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "environment", "lock_lock")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Environment/lock_lock.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Environment/lock_lock.wav"
+relative_path = "Environment/lock_lock.wav"
+extension = "wav"
+file_size_bytes = 170028
+sha256 = "5bfa3254ccf4c4b514e427f085e0b8ba679de73cc85d84c0c2a185015210796f"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

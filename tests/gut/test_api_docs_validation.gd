@@ -5,8 +5,13 @@ extends GutTest
 # --- 常量 ---
 
 const SOURCE_ROOTS: Array[String] = [
-	"res://scripts",
+	"res://app",
+	"res://features",
+	"res://shared",
 	"res://tests/gut",
+]
+const SOURCE_EXCLUDED_ROOTS: Array[String] = [
+	"res://features/asset_library/resources/source_packs",
 ]
 
 
@@ -49,8 +54,17 @@ func _collect_gdscript_files(root_path: String) -> Array[String]:
 		"GF API 文档路径扫描不应达到安全上限。"
 	)
 	for path: String in GFVariantData.get_option_packed_string_array(scan_report, "paths"):
+		if _is_excluded_source_path(path):
+			continue
 		_append_string(result, path)
 	return result
+
+
+func _is_excluded_source_path(path: String) -> bool:
+	for excluded_root: String in SOURCE_EXCLUDED_ROOTS:
+		if path == excluded_root or path.begins_with(excluded_root + "/"):
+			return true
+	return false
 
 
 func _collect_param_doc_issues(path: String) -> Array[String]:

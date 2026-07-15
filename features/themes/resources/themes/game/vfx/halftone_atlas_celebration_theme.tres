@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="GameCelebrationVfxTheme" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_celebration_vfx_theme.gd" id="1_theme"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_profile.tres" id="2_profile"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/vfx/presets/halftone_target_reached_preset.tres" id="3_target"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/vfx/presets/halftone_new_record_preset.tres" id="4_record"]
+
+[resource]
+script = ExtResource("1_theme")
+shader_asset_key = &"asset.vfx.celebration.confetti_canvas"
+shader_parameter_profile = ExtResource("2_profile")
+presets = {
+&"new_record": ExtResource("4_record"),
+&"target_reached": ExtResource("3_target")
+}

@@ -1,58 +1,74 @@
 {
   "schema_version": 1,
-  "id": "c76.2048.gf_module_layered.v1",
-  "display_name": "2048 GF Module-Layered Project Layout",
-  "description": "Strict project layout for the GF sample: composition, runtime modules, content, tests, and tooling remain explicit.",
+  "id": "c76.2048.feature_cohesive.v1",
+  "display_name": "2048 GF Feature-Cohesive Project Layout",
+  "description": "Strict project profile derived from GF's built-in Feature-Cohesive layout.",
   "zones": [
     {
+      "id": "app",
+      "description": "Composition root, boot scene, installer, and application entry points.",
+      "roots": ["app"],
+      "required": true,
+      "severity": "error"
+    },
+    {
+      "id": "features",
+      "description": "Cohesive business features that own their scripts, scenes, resources, docs, and local tools.",
+      "roots": ["features"],
+      "required": true,
+      "severity": "error"
+    },
+    {
+      "id": "shared",
+      "description": "Deliberately cross-feature contracts, foundations, UI primitives, resources, and utilities.",
+      "roots": ["shared"],
+      "required": true,
+      "severity": "error"
+    },
+    {
+      "id": "tests",
+      "description": "Cross-feature contract, integration, and regression tests.",
+      "roots": ["tests"],
+      "required": true,
+      "severity": "error"
+    },
+    {
+      "id": "project_support",
+      "description": "Project-wide documentation and automation tools.",
+      "roots": ["docs", "tools"],
+      "required": true,
+      "severity": "error"
+    },
+    {
       "id": "framework",
-      "description": "Vendored framework and editor plugins.",
+      "description": "Vendored GF and test add-ons.",
       "roots": ["addons"],
       "required": true,
       "severity": "error"
     },
     {
-      "id": "runtime",
-      "description": "GF Models, Systems, Utilities, Controllers, rules, and application boot code.",
-      "roots": ["scripts"],
-      "required": true,
-      "severity": "error"
-    },
-    {
-      "id": "presentation",
-      "description": "Godot scenes and runtime resources.",
-      "roots": ["scenes", "resources"],
-      "required": true,
-      "severity": "error"
-    },
-    {
-      "id": "asset_library",
-      "description": "Audited reusable assets and candidate review records.",
-      "roots": ["asset_library"],
-      "required": true,
-      "severity": "error"
-    },
-    {
-      "id": "quality",
-      "description": "Automated tests, maintenance tools, and architecture documentation.",
-      "roots": ["tests", "tools", "docs"],
-      "required": true,
+      "id": "generated",
+      "description": "Generated source and reproducible intermediate output.",
+      "roots": ["generated"],
       "severity": "error"
     }
   ],
   "rules": [
     {
       "id": "root_files_are_declared",
-      "description": "Keep project root intentional and review every new root-level file.",
+      "description": "Keep the project root intentional; runtime content belongs to app, features, or shared.",
       "kind": "forbid_root_files",
       "allowed_files": [
         "project.godot",
         ".editorconfig",
+        ".env",
         ".gitattributes",
         ".gitignore",
-        "AI_MAINTENANCE.md",
-        "CODING_STYLE.md",
+        ".repomixignore",
         "README.md",
+        "LICENSE",
+        "LICENSE.md",
+        "default_bus_layout.tres",
         "export_presets.cfg",
         "gf_project_profile.json",
         "icon.svg",
@@ -63,34 +79,50 @@
       "severity": "error"
     },
     {
-      "id": "runtime_paths_are_snake_case",
-      "description": "Runtime-facing project paths remain portable across case-sensitive exported builds.",
+      "id": "project_paths_are_snake_case",
+      "description": "Hand-authored project paths use stable lowercase snake_case names.",
       "kind": "naming_convention",
-      "roots": ["scripts", "scenes", "resources", "tests", "tools"],
-      "exclude": ["**/*.uid", "**/*.import"],
+      "roots": ["app", "features", "shared", "generated", "tests", "tools", "docs"],
+      "exclude": [
+        "**/*.uid",
+        "**/*.import",
+        "features/asset_library/resources/source_packs/**"
+      ],
       "pattern": "^[a-z0-9_./-]+$",
       "target": "path",
       "severity": "error"
     },
     {
-      "id": "generated_files_stay_in_generated_roots",
-      "description": "Generated source and resources must remain in explicit generated roots.",
-      "kind": "generated_boundary",
-      "include": ["**/*.generated.*", "**/generated/**"],
-      "roots": ["build", ".godot", "gf/generated"],
+      "id": "features_are_inner_cohesive",
+      "description": "Each feature owns its scripts and may only expose standard Feature-Cohesive subdirectories.",
+      "kind": "feature_module_contract",
+      "roots": ["features"],
+      "feature_id_pattern": "^[a-z][a-z0-9_]*$",
+      "required_subdirs": ["scripts"],
+      "allowed_subdirs": ["scripts", "scenes", "resources", "tests", "docs", "tools"],
+      "allow_root_files": false,
       "severity": "error"
     },
     {
-      "id": "module_buckets_have_growth_budgets",
-      "description": "Large type buckets are bounded so new cohesive modules are introduced before locality degrades.",
+      "id": "generated_files_stay_in_generated_roots",
+      "description": "Generated files stay in generated instead of leaking into hand-authored modules.",
+      "kind": "generated_boundary",
+      "include": ["**/*.generated.*", "**/generated/**"],
+      "roots": ["generated"],
+      "severity": "error"
+    },
+    {
+      "id": "legacy_type_buckets_are_empty",
+      "description": "Legacy global type buckets are migration-only and may not regain project files.",
       "kind": "bucket_size",
-      "roots": ["scripts", "resources", "scenes"],
-      "max_files": 240,
-      "severity": "warning"
+      "roots": ["scripts", "scenes", "resources", "assets", "asset_library"],
+      "max_files": 1,
+      "severity": "error"
     }
   ],
   "metadata": {
-    "architecture": "gf_module_layered",
+    "layout": "feature_cohesive",
+    "base_profile": "gf.project_layout.feature_cohesive.v1",
     "stage": "v1",
     "warnings_are_failures": true
   }

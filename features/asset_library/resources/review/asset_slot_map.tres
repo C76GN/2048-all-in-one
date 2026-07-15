@@ -1,0 +1,237 @@
+[gd_resource type="Resource" script_class="AssetSlotMap" format=3 uid="uid://ovj40vkbj7p4"]
+
+[ext_resource type="Script" uid="uid://b26l6xf08rumx" path="res://features/asset_library/scripts/data/asset_slot_binding.gd" id="1_qu3yw"]
+[ext_resource type="Script" uid="uid://drssce7asnjpv" path="res://features/asset_library/scripts/data/asset_slot_map.gd" id="2_anet3"]
+
+[sub_resource type="Resource" id="Resource_qu3yw"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.ui.select"
+display_name = "UI Select"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.ui.printworks.select_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/ui/printworks_select_soft_01.ogg"
+fallback_asset_key = &"asset.audio.ui.printworks.select_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "ui", "select")
+notes = "Default menu focus or hover sound."
+
+[sub_resource type="Resource" id="Resource_anet3"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.ui.confirm"
+display_name = "UI Confirm"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.ui.printworks.confirm_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg"
+fallback_asset_key = &"asset.audio.ui.printworks.confirm_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "ui", "confirm")
+notes = "Default menu activation sound."
+
+[sub_resource type="Resource" id="Resource_ebadd"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.tile.spawn"
+display_name = "Tile Spawn"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.tile.printworks.spawn_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/tile/printworks_spawn_soft_01.ogg"
+fallback_asset_key = &"asset.audio.tile.printworks.spawn_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "tile", "spawn")
+notes = "Default tile creation sound."
+
+[sub_resource type="Resource" id="Resource_4072c"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.tile.move"
+display_name = "Tile Move"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.tile.printworks.move_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/tile/printworks_move_soft_01.ogg"
+fallback_asset_key = &"asset.audio.tile.printworks.move_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "tile", "move")
+notes = "Default tile slide sound."
+
+[sub_resource type="Resource" id="Resource_0f4y4"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.tile.merge"
+display_name = "Tile Merge"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.tile.printworks.merge_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/tile/printworks_merge_soft_01.ogg"
+fallback_asset_key = &"asset.audio.tile.printworks.merge_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "tile", "merge")
+notes = "Default tile merge sound."
+
+[sub_resource type="Resource" id="Resource_66jv2"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.game.over"
+display_name = "Game Over"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.game.printworks.game_over_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/game/printworks_game_over_soft_01.ogg"
+fallback_asset_key = &"asset.audio.game.printworks.game_over_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "game", "over")
+notes = "Default game over sound."
+
+[sub_resource type="Resource" id="Resource_a18lh"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.background.main"
+display_name = "Main Background Shader"
+expected_kind = &"shader"
+current_asset_key = &"asset.shader.background.halftone_paper"
+current_library_path = "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
+fallback_asset_key = &"asset.shader.background.halftone_paper"
+candidate_asset_ids = PackedStringArray("asset.review.manual.shader.notes.flicker.noise.background.7c2f83c3", "asset.review.manual.shader.notes.gyroid.fbm.background.eeb8815a")
+tags = PackedStringArray("shader", "background")
+notes = "Default printworks background shader. Flicker noise and gyroid FBM backgrounds are tracked as candidates until source/license, readability, texture, and motion tuning are approved."
+
+[sub_resource type="Resource" id="Resource_ytxpy"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.transition.scene_wipe"
+display_name = "Scene Wipe Transition"
+expected_kind = &"shader"
+current_asset_key = &"asset.shader.transition.halftone_wipe"
+current_library_path = "res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader"
+fallback_asset_key = &"asset.shader.transition.halftone_wipe"
+candidate_asset_ids = PackedStringArray("asset.review.manual.shader.notes.luminance.mask.texture.transition.aa1d8745")
+tags = PackedStringArray("shader", "transition")
+notes = "Default routed scene transition shader. The luminance mask texture transition is tracked as a candidate until concrete mask/display textures are approved."
+
+[sub_resource type="Resource" id="Resource_kdkxu"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.ui.button_focus"
+display_name = "Button Focus Border"
+expected_kind = &"shader"
+current_asset_key = &"asset.shader.ui.button_focus_dash"
+current_library_path = "res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader"
+fallback_asset_key = &"asset.shader.ui.button_focus_dash"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("shader", "ui", "focus")
+notes = "Default selected button border shader."
+
+[sub_resource type="Resource" id="Resource_4pb9r"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.ui.startup_progress_bar"
+display_name = "Startup Progress Bar"
+expected_kind = &"shader"
+current_asset_key = &"asset.shader.ui.startup_progress_bar"
+current_library_path = "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader"
+fallback_asset_key = &"asset.shader.ui.startup_progress_bar"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("shader", "ui", "startup", "progress")
+notes = "Default startup loading progress bar shader with print-style star fill, grain, and hard-edged rounded border."
+
+[sub_resource type="Resource" id="Resource_2683b"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.ui.shine_sweep"
+display_name = "UI Shine Sweep"
+expected_kind = &"shader"
+candidate_asset_ids = PackedStringArray("asset.review.manual.shader.notes.shine.sweep.overlay.2683bab7", "asset.review.manual.shader.notes.surface.masked.shine.sweep.c6f76108")
+tags = PackedStringArray("shader", "ui", "shine", "highlight", "reward", "surface_mask")
+notes = "Candidate slot for reusable shine sweep overlays on buttons, cards, tiles, reward feedback, or premium unlock affordances. The surface-masked variant is preferred for shaped UI surfaces that need alpha-mask constrained highlights."
+
+[sub_resource type="Resource" id="Resource_93f9a"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.background.space_clouds"
+display_name = "Space Cloud Background"
+expected_kind = &"shader"
+candidate_asset_ids = PackedStringArray("asset.review.manual.shader.notes.space.cloud.starfield.background.93f9a76f")
+tags = PackedStringArray("shader", "background", "space", "clouds", "starfield", "theme")
+notes = "Candidate slot for procedural space or sci-fi theme backgrounds. Promotion requires an approved noise texture binding."
+
+[sub_resource type="Resource" id="Resource_51301"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.weather.rain_snow_overlay"
+display_name = "Rain Snow Weather Overlay"
+expected_kind = &"shader"
+current_asset_key = &""
+current_library_path = ""
+fallback_asset_key = &""
+candidate_asset_ids = PackedStringArray("asset.review.manual.shader.notes.rain.snow.weather.overlay.513017af", "asset.review.manual.shader.notes.steampunkdemon.rain.snow.overlay.638a6683")
+tags = PackedStringArray("shader", "weather", "rain", "snow", "background", "seasonal", "vfx", "known_license")
+notes = "Candidate weather overlay shader slot for rain, snow, seasonal backgrounds, or ambience. Brian Smith's MIT rain/snow overlay is tracked as a known-license candidate; promotion still requires performance and UI readability checks."
+
+[sub_resource type="Resource" id="Resource_c807c"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.vfx.glitch_aberration"
+display_name = "Glitch Chromatic Aberration"
+expected_kind = &"shader"
+candidate_asset_ids = PackedStringArray("asset.review.manual.shader.notes.chromatic.aberration.glitch.c807ca4f", "asset.review.manual.shader.notes.screen.lens.aberration.shockwave.5dfa21fd")
+tags = PackedStringArray("shader", "vfx", "glitch", "chromatic_aberration", "transition", "lens_distortion", "shockwave")
+notes = "Candidate slot for short screen-space RGB split, lens distortion, or shockwave feedback during failures, undo shocks, merges, scene transitions, or special visual themes."
+
+[sub_resource type="Resource" id="Resource_4ccdc"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.vfx.new_item_radial_shine"
+display_name = "New Item Radial Shine"
+expected_kind = &"shader"
+current_asset_key = &""
+current_library_path = ""
+fallback_asset_key = &""
+candidate_asset_ids = PackedStringArray("asset.review.manual.shader.notes.new.item.radial.shine.4ccdcf74")
+tags = PackedStringArray("shader", "vfx", "reward", "new_item", "unlock", "radial_shine")
+notes = "Candidate radial shine shader for new item, achievement, theme unlock, or reward reveal feedback. Promotion requires approved noise texture binding and readability checks."
+
+[sub_resource type="Resource" id="Resource_a7a2d"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.pattern.sine_wave_stripes"
+display_name = "Sine Wave Stripe Pattern"
+expected_kind = &"shader"
+current_asset_key = &""
+current_library_path = ""
+fallback_asset_key = &""
+candidate_asset_ids = PackedStringArray("asset.review.manual.shader.notes.sine.wave.stripe.pattern.a7a2d8b2")
+tags = PackedStringArray("shader", "pattern", "sine_wave", "wave_stripe", "tile", "background", "ui")
+notes = "Candidate generic sine-wave stripe shader for tile overlays, background motion, card surfaces, or reward panels. Promotion requires per-use readability and motion checks."
+
+[sub_resource type="Resource" id="Resource_58c15"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.shader.tile.hand_drawn_hatch_pattern"
+display_name = "Tile Pattern Overlay"
+expected_kind = &"shader"
+candidate_asset_ids = PackedStringArray("asset.review.manual.shader.notes.hand.drawn.hatch.tile.pattern.58c15683", "asset.review.manual.shader.notes.animated.checker.tile.pattern.4b84449f", "asset.review.manual.shader.notes.angled.stripe.tile.pattern.a1c96b85", "asset.review.manual.shader.notes.sine.wave.stripe.pattern.a7a2d8b2", "asset.review.manual.shader.notes.noise.node.link.tile.pattern.27ec9424", "asset.review.manual.shader.notes.square.wave.tile.pattern.aef95b1d")
+tags = PackedStringArray("shader", "tile", "pattern", "hand_drawn_hatch", "animated_checker", "angled_stripe", "sine_wave", "node_link", "square_wave", "overlay")
+notes = "Candidate tile overlay shader slot for hand-drawn hatch, animated checker, angled stripe, sine wave stripe, node-link, square-wave grid, and related per-tile pattern treatments. Promotion requires readability checks with all tile color schemes."
+
+[sub_resource type="Resource" id="Resource_293de"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.vfx.ui.card_burn_dissolve"
+display_name = "Card Burn Dissolve"
+expected_kind = &"vfx"
+current_asset_key = &""
+current_library_path = ""
+fallback_asset_key = &""
+candidate_asset_ids = PackedStringArray("asset.review.manual.effect.notes.click.uv.radius.burn.card.recipe.293dea5f")
+tags = PackedStringArray("vfx", "ui", "card", "burn", "dissolve", "interaction_recipe")
+notes = "Candidate card-like UI burn/dissolve interaction. Promotion requires an approved shader exposing `position` and `radius`, plus Control/TextureRect adaptation."
+
+[sub_resource type="Resource" id="Resource_8a5fa"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.vfx.ui.interactive_button_follow_wobble"
+display_name = "Interactive Button Follow Wobble"
+expected_kind = &"vfx"
+current_asset_key = &""
+current_library_path = ""
+fallback_asset_key = &""
+candidate_asset_ids = PackedStringArray("asset.review.manual.effect.notes.interactive.button.follow.wobble.recipe.8a5fa6f0")
+tags = PackedStringArray("vfx", "ui", "button", "hover", "drag_follow", "wobble", "interaction_recipe")
+notes = "Candidate reusable UI motion recipe for hover scale, shader-driven pointer feedback, drag-follow, idle float, and inertial rotation. Promotion requires a reusable component with keyboard/gamepad parity and reduced-motion fallback."
+
+[sub_resource type="Resource" id="Resource_54f89"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.vfx.shader.pooled_drop_controller"
+display_name = "Pooled Shader Drop Controller"
+expected_kind = &"vfx"
+current_asset_key = &""
+current_library_path = ""
+fallback_asset_key = &""
+candidate_asset_ids = PackedStringArray("asset.review.manual.effect.notes.pooled.shader.drop.controller.recipe.54f8901e")
+tags = PackedStringArray("vfx", "shader", "pool", "drops", "decal", "mesh_instance_3d", "interaction_recipe")
+notes = "Candidate reusable VFX controller for pooled shader-driven drops or decals. Promotion requires paired shader arrays, pool-size diagnostics, and call-rate guardrails."
+
+[resource]
+script = ExtResource("2_anet3")
+bindings = Array[Resource]([SubResource("Resource_qu3yw"), SubResource("Resource_anet3"), SubResource("Resource_ebadd"), SubResource("Resource_4072c"), SubResource("Resource_0f4y4"), SubResource("Resource_66jv2"), SubResource("Resource_a18lh"), SubResource("Resource_ytxpy"), SubResource("Resource_kdkxu"), SubResource("Resource_4pb9r"), SubResource("Resource_2683b"), SubResource("Resource_93f9a"), SubResource("Resource_51301"), SubResource("Resource_c807c"), SubResource("Resource_4ccdc"), SubResource("Resource_a7a2d"), SubResource("Resource_58c15"), SubResource("Resource_293de"), SubResource("Resource_8a5fa"), SubResource("Resource_54f89")])
+updated_at = "2026-07-10 03:43:00"

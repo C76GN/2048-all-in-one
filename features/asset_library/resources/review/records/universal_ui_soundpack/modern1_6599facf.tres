@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_jjoko"]
+
+[resource]
+script = ExtResource("1_jjoko")
+asset_id = &"asset.review.universal.ui.soundpack.wav.modern1.6599facf"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "WAV/Modern1"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "wav", "modern1")
+source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/Modern1.wav"
+library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/WAV/Modern1.wav"
+relative_path = "WAV/Modern1.wav"
+extension = "wav"
+file_size_bytes = 133772
+sha256 = "6599facf569d12461e9351763bcceb257d496f34768772349ea84777a066d33e"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

@@ -5,10 +5,10 @@ extends GutTest
 # --- 常量 ---
 
 const EXPECTED_UI_ROUTE_PATHS: Array[String] = [
-	"res://resources/ui_routes/pause_menu_route.tres",
-	"res://resources/ui_routes/game_over_menu_route.tres",
-	"res://resources/ui_routes/target_reached_menu_route.tres",
-	"res://resources/ui_routes/settings_menu_route.tres",
+	"res://features/navigation/resources/ui_routes/pause_menu_route.tres",
+	"res://features/navigation/resources/ui_routes/game_over_menu_route.tres",
+	"res://features/navigation/resources/ui_routes/target_reached_menu_route.tres",
+	"res://features/navigation/resources/ui_routes/settings_menu_route.tres",
 ]
 
 const EXPECTED_UI_ROUTE_RESOURCE_KEYS: Array[String] = [
@@ -44,19 +44,19 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 	]
 	assert_true(route_ids == expected_route_ids, "项目 UI 路由应提供稳定 route_id。")
 	assert_true(
-		ui_router.get_route(&"pause_menu").scene_path == "res://scenes/ui/pause_menu.tscn",
+		ui_router.get_route(&"pause_menu").scene_path == "res://features/gameplay/scenes/ui/pause_menu.tscn",
 		"暂停菜单路由应指向暂停面板。"
 	)
 	assert_true(
-		ui_router.get_route(&"game_over_menu").scene_path == "res://scenes/ui/game_over_menu.tscn",
+		ui_router.get_route(&"game_over_menu").scene_path == "res://features/gameplay/scenes/ui/game_over_menu.tscn",
 		"游戏结束路由应指向游戏结束面板。"
 	)
 	assert_true(
-		ui_router.get_route(&"target_reached_menu").scene_path == "res://scenes/ui/target_reached_menu.tscn",
+		ui_router.get_route(&"target_reached_menu").scene_path == "res://features/gameplay/scenes/ui/target_reached_menu.tscn",
 		"目标达成路由应指向目标达成面板。"
 	)
 	assert_true(
-		ui_router.get_route(&"settings_menu").scene_path == "res://scenes/menus/settings_menu.tscn",
+		ui_router.get_route(&"settings_menu").scene_path == "res://features/settings/scenes/menus/settings_menu.tscn",
 		"设置路由应指向设置菜单。"
 	)
 

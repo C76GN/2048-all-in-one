@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_ims7p"]
+
+[resource]
+script = ExtResource("1_ims7p")
+asset_id = &"asset.review.four.hundred.sounds.pack.retro.lose.54195c22"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Retro/lose"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "lose")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/lose.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Retro/lose.wav"
+relative_path = "Retro/lose.wav"
+extension = "wav"
+file_size_bytes = 93740
+sha256 = "54195c22c4f614cd858c572dff721999d449b3fcb3ee00224a7d1df0bf2b4505"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.audio.game.over")
+imported_at = "2026-07-09 03:08:11"

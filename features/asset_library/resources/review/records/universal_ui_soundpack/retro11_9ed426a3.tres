@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_d42pm"]
+
+[resource]
+script = ExtResource("1_d42pm")
+asset_id = &"asset.review.universal.ui.soundpack.ogg.retro11.9ed426a3"
+source_pack_id = &"universal_ui_soundpack"
+display_name = "OGG/Retro11"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "ui", "known_license", "ogg", "retro11", "retro")
+source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Retro11.ogg"
+library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/Retro11.ogg"
+relative_path = "OGG/Retro11.ogg"
+extension = "ogg"
+file_size_bytes = 7209
+sha256 = "9ed426a3de769fe1a65e453a5b2ed78dbc10c3f87b54775f8bee850e06f2c4a4"
+author = "Nathan Gibson"
+license = "CC BY 4.0"
+source_url = "https://nathangibson.myportfolio.com"
+license_status = &"known"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:10"

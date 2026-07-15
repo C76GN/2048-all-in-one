@@ -1,8 +1,0 @@
-[gd_resource type="Resource" script_class="GFUIRoute" format=3 uid="uid://dq2qdib1cbq68"]
-
-[ext_resource type="Script" uid="uid://di25s71c8a4mt" path="res://addons/gf/standard/utilities/ui/gf_ui_route.gd" id="1_route"]
-
-[resource]
-script = ExtResource("1_route")
-route_id = &"game_over_menu"
-scene_path = "res://scenes/ui/game_over_menu.tscn"

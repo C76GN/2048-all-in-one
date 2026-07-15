@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_pb6wr"]
+
+[resource]
+script = ExtResource("1_pb6wr")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.stone.push.medium.9b2f090b"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/stone_push_medium"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "stone_push_medium")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/stone_push_medium.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Materials/stone_push_medium.wav"
+relative_path = "Materials/stone_push_medium.wav"
+extension = "wav"
+file_size_bytes = 307244
+sha256 = "9b2f090bec550ae12aeb2dbf44e772e23c1c1ef93212e388039bdadca572228f"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

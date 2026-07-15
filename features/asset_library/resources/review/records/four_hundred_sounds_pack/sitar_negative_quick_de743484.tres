@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_uxp77"]
+
+[resource]
+script = ExtResource("1_uxp77")
+asset_id = &"asset.review.four.hundred.sounds.pack.musical.effects.sitar.negative.quick.de743484"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Musical Effects/sitar_negative_quick"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "sitar_negative_quick", "ui")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/sitar_negative_quick.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/sitar_negative_quick.wav"
+relative_path = "Musical Effects/sitar_negative_quick.wav"
+extension = "wav"
+file_size_bytes = 260312
+sha256 = "de743484469343c12ce3e07f9ee3ac48434f70c7e4fcd16c4ab8636d13f6dd63"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

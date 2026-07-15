@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_sine"]
+
+[resource]
+script = ExtResource("1_sine")
+asset_id = &"asset.review.manual.shader.notes.sine.wave.stripe.pattern.a7a2d8b2"
+source_pack_id = &"manual_shader_notes"
+display_name = "sine_wave_stripe_pattern"
+asset_kind = &"shader"
+review_status = &"candidate"
+tags = PackedStringArray("shader", "canvas_item", "pattern", "tile_pattern", "background_pattern", "sine_wave", "wave_stripe", "overlay", "license_review_needed")
+notes = "Candidate generic sine-wave stripe shader for tile overlays, background motion, card surfaces, or reward panels. The submitted snippet had an unused FRAGCOORD/amplitude path, so this version keeps the visible behavior as a UV-based animated two-color stripe with safe edge softness and optional texture alpha."
+rating = 4
+source_path = "manual://chat/2026-07-10/sine_wave_stripe_pattern.gdshader"
+library_path = "res://features/asset_library/resources/source_packs/manual_shader_notes/files/sine_wave_stripe_pattern.gdshader"
+relative_path = "sine_wave_stripe_pattern.gdshader"
+extension = "gdshader"
+file_size_bytes = 1019
+sha256 = "a7a2d8b27f67c9663d785f253208504efe18d0e22636c926e953406428014920"
+author = "unknown"
+license = "unknown"
+license_status = &"unknown"
+preview_supported = true
+suggested_slots = PackedStringArray("slot.shader.pattern.sine_wave_stripes", "slot.shader.tile.hand_drawn_hatch_pattern", "slot.shader.background.motion_pattern")
+imported_at = "2026-07-10 02:28:00"

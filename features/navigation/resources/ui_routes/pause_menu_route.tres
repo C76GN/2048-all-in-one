@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="GFUIRoute" format=3 uid="uid://8ljmrolffqq5"]
+
+[ext_resource type="Script" uid="uid://di25s71c8a4mt" path="res://addons/gf/standard/utilities/ui/gf_ui_route.gd" id="1_route"]
+
+[resource]
+script = ExtResource("1_route")
+route_id = &"pause_menu"
+scene_path = "res://features/gameplay/scenes/ui/pause_menu.tscn"

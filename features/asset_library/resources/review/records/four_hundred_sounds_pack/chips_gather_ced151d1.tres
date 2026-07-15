@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_u5mdw"]
+
+[resource]
+script = ExtResource("1_u5mdw")
+asset_id = &"asset.review.four.hundred.sounds.pack.card.and.board.chips.gather.ced151d1"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Card and Board/chips_gather"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "card", "and", "board", "chips_gather")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Card and Board/chips_gather.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Card and Board/chips_gather.wav"
+relative_path = "Card and Board/chips_gather.wav"
+extension = "wav"
+file_size_bytes = 63532
+sha256 = "ced151d1290a2b2f3abe8a6710faaa2483a97a62ea3a65073cb0148296d80513"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

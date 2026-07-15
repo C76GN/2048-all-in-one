@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_w6ejt"]
+
+[resource]
+script = ExtResource("1_w6ejt")
+asset_id = &"asset.review.four.hundred.sounds.pack.materials.concrete.scrape.d0c37469"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Materials/concrete_scrape"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "materials", "concrete_scrape")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Materials/concrete_scrape.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Materials/concrete_scrape.wav"
+relative_path = "Materials/concrete_scrape.wav"
+extension = "wav"
+file_size_bytes = 152108
+sha256 = "d0c37469800abf1251a5c6bd20c71b24a805e23a467035d7deaa7ae350fc6a23"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"

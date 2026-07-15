@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
+
+[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_qiaoh"]
+
+[resource]
+script = ExtResource("1_qiaoh")
+asset_id = &"asset.review.four.hundred.sounds.pack.weapons.weapon.drop.51a6fbf5"
+source_pack_id = &"four_hundred_sounds_pack"
+display_name = "Weapons/weapon_drop"
+asset_kind = &"audio"
+tags = PackedStringArray("audio", "large_pack", "license_review_needed", "weapons", "weapon_drop")
+source_path = "E:/_inbox/Downloads/400 Sounds Pack/Weapons/weapon_drop.wav"
+library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Weapons/weapon_drop.wav"
+relative_path = "Weapons/weapon_drop.wav"
+extension = "wav"
+file_size_bytes = 137260
+sha256 = "51a6fbf5f49fd0d14da1e049893a04046be86f05c441b671736cd1393f4324b1"
+author = "unknown"
+license = "unknown"
+preview_supported = true
+suggested_slots = PackedStringArray()
+imported_at = "2026-07-09 03:08:11"
