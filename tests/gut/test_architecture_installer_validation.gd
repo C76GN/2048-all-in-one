@@ -5,6 +5,8 @@ extends GutTest
 # --- 常量 ---
 
 const PROJECT_INSTALLER_PATH: String = "res://app/scripts/game_architecture_installer.gd"
+const GAME_BOARD_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_board_controller.gd"
+const SCENE_ROUTER_SYSTEM_PATH: String = "res://features/navigation/scripts/systems/scene_router_system.gd"
 const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
 	{
 		"symbol": "GFLevelUtility",
@@ -65,6 +67,18 @@ func test_project_installer_binds_signal_utility_before_theme_consumers() -> voi
 		signal_position < theme_position,
 		"GFSignalUtility 必须先于依赖它的 GameThemeUtility 注册。"
 	)
+
+
+func test_required_gf_modules_have_no_manual_runtime_fallbacks() -> void:
+	var board_source: String = _read_text(GAME_BOARD_CONTROLLER_PATH)
+	var router_source: String = _read_text(SCENE_ROUTER_SYSTEM_PATH)
+
+	assert_true(board_source.contains("_has_required_dependencies"), "棋盘控制器应显式校验 GF 必需依赖。")
+	assert_false(board_source.contains("TileScene.instantiate()"), "Tile 只能通过 GFObjectPoolUtility 获取。")
+	assert_false(board_source.contains("undo_action.execute()"), "视觉 Action 只能由 GFActionQueueSystem 执行。")
+	assert_true(router_source.contains("_has_required_dependencies"), "场景路由应显式校验 GF 必需依赖。")
+	assert_false(router_source.contains("change_scene_to_packed("), "场景切换不能绕过 GFSceneUtility。")
+	assert_false(router_source.contains("scene_switch_started.connect("), "跨生命周期信号只能由 GFSignalUtility 管理。")
 
 
 # --- 私有/辅助方法 ---

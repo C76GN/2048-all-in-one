@@ -407,6 +407,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	var theme_utility: GameThemeUtility = GameThemeUtility.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var signal_utility: GFSignalUtility = GFSignalUtility.new()
+	var scene_utility: GFSceneUtility = null
 	var screen_transition: GFScreenTransitionUtility = null
 	var scene_router: SceneRouterSystem = null
 
@@ -422,8 +423,10 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	await architecture.register_utility(GameThemeCatalogUtility, theme_catalog)
 	await architecture.register_utility(GameThemeUtility, theme_utility)
 	if include_scene_router:
+		scene_utility = GFSceneUtility.new()
 		screen_transition = GFScreenTransitionUtility.new()
 		scene_router = SceneRouterSystem.new()
+		await architecture.register_utility(GFSceneUtility, scene_utility)
 		await architecture.register_utility(GFScreenTransitionUtility, screen_transition)
 		await architecture.register_system(SceneRouterSystem, scene_router)
 	await architecture.init()
@@ -441,6 +444,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 		"theme_utility": theme_utility,
 		"shader_parameters": shader_parameters,
 		"signal_utility": signal_utility,
+		"scene_utility": scene_utility,
 		"screen_transition": screen_transition,
 		"scene_router": scene_router,
 	}

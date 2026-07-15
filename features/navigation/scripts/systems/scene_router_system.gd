@@ -40,6 +40,8 @@ func ready() -> void:
 	_theme_utility = _get_theme_utility()
 	_signal_utility = _get_signal_utility()
 	_operation_diagnostics = _get_operation_diagnostics_utility()
+	if not _has_required_dependencies():
+		return
 	_connect_scene_utility_signals()
 
 	register_simple_event(EventNames.SCENE_CHANGE_REQUESTED, GFEventListener.from_method(self, &"_on_scene_change_requested", 1))
@@ -72,26 +74,12 @@ func goto_scene_packed(scene: PackedScene) -> void:
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, _get_scene_resource_path(scene))
 		return
 
-	if is_instance_valid(_scene_utility) and not scene.resource_path.is_empty():
-		goto_scene(scene.resource_path)
-		return
-
-	var tree: SceneTree = _get_scene_tree()
-	if not is_instance_valid(tree):
-		send_simple_event(EventNames.SCENE_CHANGE_FAILED, scene.resource_path)
-		return
-
-	if is_instance_valid(tree.current_scene):
-		send_simple_event(EventNames.SCENE_WILL_CHANGE)
-
-	var error: Error = tree.change_scene_to_packed(scene)
-	if error != OK:
+	if scene.resource_path.is_empty():
 		if is_instance_valid(_log):
-			_log.error(_LOG_TAG, "切换到场景失败，错误码: %d" % error)
+			_log.error(_LOG_TAG, "PackedScene 缺少稳定资源路径，无法交给 GFSceneUtility。")
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, scene.resource_path)
 		return
-	if is_instance_valid(_log):
-		_log.debug(_LOG_TAG, "已请求切换到场景: %s" % scene.resource_path)
+	goto_scene(scene.resource_path)
 
 
 ## 使用 GFSceneTransitionConfig 切换到指定场景路径。
@@ -207,6 +195,24 @@ func _get_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:
 	return null
 
 
+func _has_required_dependencies() -> bool:
+	var missing: PackedStringArray = PackedStringArray()
+	if not is_instance_valid(_scene_utility):
+		var _scene_appended: bool = missing.append("GFSceneUtility")
+	if not is_instance_valid(_screen_transition):
+		var _transition_appended: bool = missing.append("GFScreenTransitionUtility")
+	if not is_instance_valid(_shader_parameters):
+		var _shader_appended: bool = missing.append("GFShaderParameterUtility")
+	if not is_instance_valid(_theme_utility):
+		var _theme_appended: bool = missing.append("GameThemeUtility")
+	if not is_instance_valid(_signal_utility):
+		var _signal_appended: bool = missing.append("GFSignalUtility")
+	if missing.is_empty():
+		return true
+	push_error("[SceneRouterSystem] 缺少必需架构依赖：%s。" % ", ".join(missing))
+	return false
+
+
 func _get_scene_tree() -> SceneTree:
 	var loop_value: MainLoop = Engine.get_main_loop()
 	if loop_value is SceneTree:
@@ -216,37 +222,29 @@ func _get_scene_tree() -> SceneTree:
 
 
 func _connect_scene_utility_signals() -> void:
-	if not is_instance_valid(_scene_utility):
+	if not is_instance_valid(_scene_utility) or not is_instance_valid(_signal_utility):
 		return
 
-	if is_instance_valid(_signal_utility):
-		_scene_switch_started_connection = _signal_utility.connect_signal(_scene_utility.scene_switch_started, _on_scene_switch_started, self)
-		_scene_load_completed_connection = _signal_utility.connect_signal(_scene_utility.scene_load_completed, _on_scene_load_completed, self)
-		_scene_load_failed_connection = _signal_utility.connect_signal(_scene_utility.scene_load_failed, _on_scene_load_failed, self)
-		return
-
-	if not _scene_utility.scene_switch_started.is_connected(_on_scene_switch_started):
-		var _connect_started_result: int = _scene_utility.scene_switch_started.connect(_on_scene_switch_started)
-	if not _scene_utility.scene_load_completed.is_connected(_on_scene_load_completed):
-		var _connect_completed_result: int = _scene_utility.scene_load_completed.connect(_on_scene_load_completed)
-	if not _scene_utility.scene_load_failed.is_connected(_on_scene_load_failed):
-		var _connect_failed_result: int = _scene_utility.scene_load_failed.connect(_on_scene_load_failed)
+	_scene_switch_started_connection = _signal_utility.connect_signal(
+		_scene_utility.scene_switch_started,
+		_on_scene_switch_started,
+		self
+	)
+	_scene_load_completed_connection = _signal_utility.connect_signal(
+		_scene_utility.scene_load_completed,
+		_on_scene_load_completed,
+		self
+	)
+	_scene_load_failed_connection = _signal_utility.connect_signal(
+		_scene_utility.scene_load_failed,
+		_on_scene_load_failed,
+		self
+	)
 
 
 func _disconnect_scene_utility_signals() -> void:
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
-		return
-
-	if not is_instance_valid(_scene_utility):
-		return
-
-	if _scene_utility.scene_switch_started.is_connected(_on_scene_switch_started):
-		_scene_utility.scene_switch_started.disconnect(_on_scene_switch_started)
-	if _scene_utility.scene_load_completed.is_connected(_on_scene_load_completed):
-		_scene_utility.scene_load_completed.disconnect(_on_scene_load_completed)
-	if _scene_utility.scene_load_failed.is_connected(_on_scene_load_failed):
-		_scene_utility.scene_load_failed.disconnect(_on_scene_load_failed)
 
 
 func _is_scene_resource_ready(scene: PackedScene) -> bool:

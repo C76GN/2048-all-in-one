@@ -6,5 +6,9 @@ extends SceneRouterSystem
 var return_to_main_menu_count: int = 0
 
 
+func ready() -> void:
+	pass
+
+
 func return_to_main_menu() -> void:
 	return_to_main_menu_count += 1

@@ -116,6 +116,8 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 Installer 不得重复绑定这些扩展拥有的模块。启用扩展但不使用其核心能力时，应明确采用或关闭，不能用自动注册数量虚增 GF 利用率。
 
+项目 Module 对 Installer 和扩展声明的依赖采用严格契约：依赖缺失时停止初始化并报告配置错误，不允许退回直接实例化、直接执行 Action、手动跨生命周期连接信号或绕过 GFSceneUtility 切换场景。
+
 ## 验证门禁
 
 - `GFProjectLayoutValidator` 的 error 与 warning 必须同时为零。

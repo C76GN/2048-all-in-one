@@ -60,6 +60,7 @@ var _is_initialized: bool = false
 
 var _log: GFLogUtility
 var _pool: GFObjectPoolUtility
+var _action_queue: GFActionQueueSystem
 
 ## 标记是否已完成清理。
 var _is_cleaned_up: bool = false
@@ -82,6 +83,9 @@ func _ready() -> void:
 	model = _get_grid_model()
 	_log = _get_log_utility()
 	_pool = _get_object_pool_utility()
+	_action_queue = _get_action_queue_system()
+	if not _has_required_dependencies():
+		return
 	
 	var parent_control: Control = _get_host_control()
 	if is_instance_valid(parent_control):
@@ -350,6 +354,20 @@ func _get_action_queue_system() -> GFActionQueueSystem:
 	return null
 
 
+func _has_required_dependencies() -> bool:
+	var missing: PackedStringArray = PackedStringArray()
+	if not is_instance_valid(model):
+		var _model_appended: bool = missing.append("GridModel")
+	if not is_instance_valid(_pool):
+		var _pool_appended: bool = missing.append("GFObjectPoolUtility")
+	if not is_instance_valid(_action_queue):
+		var _queue_appended: bool = missing.append("GFActionQueueSystem")
+	if missing.is_empty():
+		return true
+	push_error("[GameBoardController] 缺少必需架构依赖：%s。" % ", ".join(missing))
+	return false
+
+
 func _get_board_feedback_utility() -> GameBoardFeedbackUtility:
 	var utility_value: Object = get_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)
 	if utility_value is GameBoardFeedbackUtility:
@@ -393,13 +411,10 @@ func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
 
 
 func _acquire_visual_tile() -> Tile:
-	var tile_node: Node = null
-	if is_instance_valid(_pool):
-		tile_node = _pool.acquire(TileScene, board_container)
-	else:
-		tile_node = TileScene.instantiate()
-		if is_instance_valid(tile_node):
-			board_container.add_child(tile_node)
+	if not is_instance_valid(_pool):
+		push_error("[GameBoardController] GFObjectPoolUtility 不可用。")
+		return null
+	var tile_node: Node = _pool.acquire(TileScene, board_container)
 
 	if tile_node is Tile:
 		var tile: Tile = tile_node
@@ -417,11 +432,11 @@ func _release_visual_tile(tile: Tile) -> void:
 
 	tile.reset_animation_state()
 	tile.set_meta(RELEASE_TOKEN_META, 0)
-	if _pool:
-		_pool.release(tile, TileScene)
-		tile.visible = false
-	else:
-		tile.queue_free()
+	if not is_instance_valid(_pool):
+		push_error("[GameBoardController] GFObjectPoolUtility 不可用，无法归还 Tile。")
+		return
+	_pool.release(tile, TileScene)
+	tile.visible = false
 
 
 func _animate_release_visual_tile(tile: Tile) -> Tween:
@@ -907,11 +922,10 @@ func _on_board_undo_animation_requested(payload: Array) -> void:
 		_log.debug(_LOG_TAG, "收到撤回动画请求。")
 	
 	var undo_action: BoardUndoAnimationAction = BoardUndoAnimationAction.new(snapshot, reverse_map, self)
-	var action_sys: GFActionQueueSystem = _get_action_queue_system()
-	if is_instance_valid(action_sys):
-		action_sys.enqueue(undo_action)
-	else:
-		undo_action.execute()
+	if not is_instance_valid(_action_queue):
+		push_error("[GameBoardController] GFActionQueueSystem 不可用，撤回动画被拒绝。")
+		return
+	_action_queue.enqueue(undo_action)
 
 ## 接收到逻辑层的动画请求，将其包装为 Action 推入动画队列。
 func _on_board_animation_requested(instructions: Array) -> void:
@@ -1026,9 +1040,10 @@ func _on_board_animation_requested(instructions: Array) -> void:
 	var action: BoardAnimationAction = BoardAnimationAction.new(visual_instructions, self)
 	
 	# 3. 推入 GFActionQueueSystem 执行
-	var queue_sys: GFActionQueueSystem = _get_action_queue_system()
-	if is_instance_valid(queue_sys):
-		queue_sys.enqueue(action)
+	if not is_instance_valid(_action_queue):
+		push_error("[GameBoardController] GFActionQueueSystem 不可用，棋盘动画被拒绝。")
+		return
+	_action_queue.enqueue(action)
 
 
 ## 接收到全量刷新请求（如撤回操作），直接重置棋盘视觉状态。
