@@ -182,6 +182,27 @@ function Get-GodotExitLeakBaselineIssues {
 	if ([int]$baseline.schema_version -ne 1) {
 		$issues.Add("Unsupported Godot exit leak baseline schema_version: $($baseline.schema_version)")
 	}
+	$baselineDirectory = Split-Path -Parent $BaselinePath
+	$vendorLockPath = Join-Path $baselineDirectory "vendor.lock.json"
+	$baselineVendorTree = [string]$baseline.gf_vendor_tree_sha256
+	$baselineSourceCommit = [string]$baseline.gf_source_commit
+	if ([string]::IsNullOrWhiteSpace($baselineVendorTree) -or [string]::IsNullOrWhiteSpace($baselineSourceCommit)) {
+		$issues.Add("Godot exit leak baseline must record the audited GF vendor tree and source commit.")
+	} elseif (-not (Test-Path -LiteralPath $vendorLockPath)) {
+		$issues.Add("GF vendor lock is missing beside the exit leak baseline: $vendorLockPath")
+	} else {
+		try {
+			$vendorLock = Get-Content -Raw -Encoding UTF8 -LiteralPath $vendorLockPath | ConvertFrom-Json
+			if ([string]$vendorLock.vendor_tree_sha256 -ne $baselineVendorTree) {
+				$issues.Add("Godot exit leak baseline vendor tree does not match .gf/vendor.lock.json; audit and recalibrate the pinned GF snapshot.")
+			}
+			if ([string]$vendorLock.source_commit -ne $baselineSourceCommit) {
+				$issues.Add("Godot exit leak baseline source commit does not match .gf/vendor.lock.json; audit and recalibrate the pinned GF snapshot.")
+			}
+		} catch {
+			$issues.Add("GF vendor lock is invalid JSON: $($_.Exception.Message)")
+		}
+	}
 	if ($Report.HasUncountedObjectLeak) {
 		$issues.Add("Godot reported an uncounted ObjectDB leak that cannot be compared safely.")
 	}

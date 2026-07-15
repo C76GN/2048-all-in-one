@@ -194,6 +194,7 @@ func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
 	var runner_text: String = _read_text(_GUT_RUNNER_PATH)
 	var hook_text: String = _read_text(_GUT_SHUTDOWN_HOOK_PATH)
 	var baseline: Dictionary = _read_json_dictionary(_GODOT_EXIT_LEAK_BASELINE_PATH)
+	var vendor_lock: Dictionary = _read_json_dictionary(_VENDOR_LOCKFILE_PATH)
 	var issues: Array[String] = []
 
 	if not runner_text.contains("-gpost_run_script=$PostRunScript"):
@@ -212,6 +213,22 @@ func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
 		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 GF 7.0.0。")
 	if _get_dictionary_text(baseline, "gut_version") != "9.7.1":
 		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 GUT 9.7.1。")
+	if (
+		_get_dictionary_text(baseline, "gf_source_commit")
+		!= _get_dictionary_text(vendor_lock, "source_commit")
+	):
+		_append_string(issues, "Godot 退出泄漏基线必须绑定已审计的 GF source commit。")
+	if (
+		_get_dictionary_text(baseline, "gf_vendor_tree_sha256")
+		!= _get_dictionary_text(vendor_lock, "vendor_tree_sha256")
+	):
+		_append_string(issues, "Godot 退出泄漏基线必须绑定已审计的 GF vendor tree。")
+	var gf_global_script_class_count: int = _count_declared_script_classes("res://addons/gf")
+	if (
+		_get_dictionary_int(baseline, "gf_global_script_class_count", 0)
+		!= gf_global_script_class_count
+	):
+		_append_string(issues, "Godot 退出泄漏基线记录的 GF 全局脚本类数量应为 %d。" % gf_global_script_class_count)
 	if _get_dictionary_int(baseline, "max_objectdb_instances", 0) <= 0:
 		_append_string(issues, "Godot 退出泄漏基线必须记录已审查的 ObjectDB 上限。")
 	if _get_dictionary_int(baseline, "max_resources_in_use", 0) <= 0:
@@ -255,6 +272,24 @@ func test_generated_logs_user_data_and_exports_are_ignored() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _count_declared_script_classes(root_path: String) -> int:
+	var count: int = 0
+	var paths: PackedStringArray = GFScriptStructureTools.scan_script_paths(root_path, {
+		"recursive": true,
+		"include_addons": true,
+		"include_hidden": false,
+		"max_scan_depth": 64,
+		"max_resource_paths": 10000,
+	})
+	for path: String in paths:
+		var lines: PackedStringArray = _read_text(path).split("\n")
+		for raw_line: String in lines:
+			if raw_line.strip_edges().begins_with("class_name "):
+				count += 1
+				break
+	return count
+
 
 func _read_text(path: String) -> String:
 	var file: FileAccess = FileAccess.open(path, FileAccess.READ)

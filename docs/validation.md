@@ -122,10 +122,10 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 结果：
 
 - Godot：当前环境中的 `godot` 命令。
-- GUT：157 个测试全部通过，共 817 个断言。
-- 当前静态计数：`tests/gut/` 下 19 个测试脚本、157 个 `test_` 用例。
+- GUT：170 个测试全部通过，共 953 个断言。
+- 当前完整套件：`tests/gut/` 下 22 个测试脚本、170 个 `test_` 用例。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 250`、`Resources = 108`、RID 类型数 `= 3`；基线上升会让安全脚本失败。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 256`、`Resources = 113`、RID 类型数 `= 3`。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit 与 vendor tree；同一 vendor tree 下任何增长都会失败。升级 GF 时只有在干净 HEAD 对照证明增量来自新增 Godot 全局脚本类后，才允许带审计理由重新校准原始计数。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
