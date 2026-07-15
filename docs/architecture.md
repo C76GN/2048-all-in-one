@@ -73,10 +73,12 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 1. `PlayerInputSystem` 从 `GFInputMappingUtility` 消费 `GFInputContext`。
 2. `MoveCommand` 调用棋盘 System 更新 `GridModel`。
-3. `GFCommandHistoryUtility` 保存可撤销状态。
-4. 业务事件携带动画指令到 `GameBoardController`。
-5. `BoardTweenBatchAction` 把同一批已有 Tween 适配成可等待的 `GFVisualAction`。
-6. `GFActionQueueSystem` 等待整批移动、合并、生成或撤回 Tween，并拥有暂停、完成与取消生命周期；棋盘 Action 不使用 fire-and-forget。
+3. `GameTurnSystem` 将有效 `MoveData` 封装为一次性的 `GameMoveTurnAction`，交给扩展拥有的 `GFTurnFlowSystem`。
+4. GF 为回合 Action 注入 `RuleSystem` 与 `GameFlowSystem`，顺序完成移动统计、生成规则和目标/失败结算；不再派发项目私有 `TURN_FINISHED` 事件。
+5. `GFCommandHistoryUtility` 保存可撤销状态。
+6. 业务事件携带动画指令到 `GameBoardController`。
+7. `BoardTweenBatchAction` 把同一批已有 Tween 适配成可等待的 `GFVisualAction`。
+8. `GFActionQueueSystem` 等待整批移动、合并、生成或撤回 Tween，并拥有暂停、完成与取消生命周期；棋盘 Action 不使用 fire-and-forget。
 
 ### 主题切换
 
@@ -121,6 +123,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 - `gf.domain`
 - `gf.feedback`
 - `gf.save`
+- `gf.turn_based`
 
 Installer 不得重复绑定这些扩展拥有的模块。启用扩展但不使用其核心能力时，应明确采用或关闭，不能用自动注册数量虚增 GF 利用率。
 

@@ -11,11 +11,16 @@ const GAME_PLAY_SCENE_PATH: String = "res://features/gameplay/scenes/game/game_p
 const GAME_STATUS_MODEL_PATH: String = "res://features/gameplay/scripts/models/game_status_model.gd"
 const GAME_STATE_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_state_system.gd"
 const GAME_FLOW_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_flow_system.gd"
+const GAME_TURN_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_turn_system.gd"
+const GAME_MOVE_TURN_ACTION_PATH: String = "res://features/gameplay/scripts/actions/game_move_turn_action.gd"
+const RULE_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/rule_system.gd"
 const PLAYER_INPUT_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/player_input_system.gd"
 const HUD_PATH: String = "res://features/gameplay/scripts/ui/hud.gd"
 const BOOKMARK_DATA_PATH: String = "res://features/bookmarks/scripts/data/bookmark_data.gd"
 const REMOVED_HUD_PAYLOAD_PATH: String = "res://features/gameplay/scripts/events/hud_message_payload.gd"
 const SCENE_ROUTER_SYSTEM_PATH: String = "res://features/navigation/scripts/systems/scene_router_system.gd"
+const EVENT_NAMES_PATH: String = "res://shared/scripts/contracts/event_names.gd"
+const PROJECT_SETTINGS_PATH: String = "res://project.godot"
 const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
 	{
 		"symbol": "GFLevelUtility",
@@ -36,6 +41,11 @@ const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
 		"symbol": "GFContentPackageUtility",
 		"extension": "gf.content_package",
 		"owner": "addons/gf/extensions/content_package/extension.gd",
+	},
+	{
+		"symbol": "GFTurnFlowSystem",
+		"extension": "gf.turn_based",
+		"owner": "addons/gf/extensions/turn_based/extension.gd",
 	},
 ]
 
@@ -99,6 +109,27 @@ func test_transient_feedback_uses_gf_notification_utility_only() -> void:
 	assert_false(status_source.contains("status_message"), "瞬时通知不得进入运行时统计 Model。")
 	assert_false(game_state_source.contains("status_message"), "瞬时通知不得进入撤销或书签状态快照。")
 	assert_false(bookmark_source.contains("status_message"), "瞬时通知不得进入书签 schema。")
+
+
+func test_move_turn_pipeline_uses_gf_turn_action_lifecycle() -> void:
+	var settings_source: String = _read_text(PROJECT_SETTINGS_PATH)
+	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var turn_source: String = _read_text(GAME_TURN_SYSTEM_PATH)
+	var action_source: String = _read_text(GAME_MOVE_TURN_ACTION_PATH)
+	var flow_source: String = _read_text(GAME_FLOW_SYSTEM_PATH)
+	var rule_source: String = _read_text(RULE_SYSTEM_PATH)
+	var event_source: String = _read_text(EVENT_NAMES_PATH)
+
+	assert_true(settings_source.contains("\"gf.turn_based\""), "项目应显式启用 gf.turn_based 扩展。")
+	assert_true(installer_source.contains("bind_system(GameTurnSystem)"), "项目 Installer 应注册移动回合 Adapter。")
+	assert_true(turn_source.contains("get_system(GFTurnFlowSystem)"), "回合 Adapter 应使用扩展拥有的 GFTurnFlowSystem。")
+	assert_true(turn_source.contains("enqueue_action(GameMoveTurnAction.new"), "有效移动应进入 GF 回合行动队列。")
+	assert_true(turn_source.contains("resolve_actions()"), "回合行动只能由 GFTurnFlowSystem 解析。")
+	assert_true(action_source.contains("extends GFTurnAction"), "移动回合应实现强类型 GFTurnAction。")
+	assert_true(action_source.contains("_inject_dependencies"), "移动回合依赖应由 GF Flow 注入。")
+	assert_false(flow_source.contains("register_event(MoveData"), "GameFlowSystem 不得旁路 GF 回合行动消费移动。")
+	assert_false(rule_source.contains("register_event(MoveData"), "RuleSystem 不得旁路 GF 回合行动消费移动。")
+	assert_false(event_source.contains("TURN_FINISHED"), "不得保留重复的 TURN_FINISHED 项目事件协议。")
 
 
 func test_required_gf_modules_have_no_manual_runtime_fallbacks() -> void:

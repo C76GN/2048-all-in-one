@@ -74,9 +74,6 @@ const TOGGLE_PAUSE_UI: StringName = &"toggle_pause_ui"
 
 # --- 回合 / 得分 ---
 
-## 当前回合结束。
-const TURN_FINISHED: StringName = &"turn_finished"
-
 ## 得分变化事件，payload 为分数增量。
 const SCORE_UPDATED: StringName = &"score_updated"
 

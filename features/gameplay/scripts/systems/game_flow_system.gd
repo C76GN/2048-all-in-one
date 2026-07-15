@@ -57,8 +57,6 @@ func ready() -> void:
 	if not is_instance_valid(_notifications):
 		push_error("[GameFlowSystem] 缺少 GFNotificationUtility，玩法反馈不可用。")
 
-	register_event(MoveData, GFEventListener.from_method(self, &"_on_move_made", 1))
-	register_simple_event(EventNames.TURN_FINISHED, GFEventListener.from_method(self, &"_on_turn_finished", 1))
 	register_simple_event(EventNames.MONSTER_KILLED, GFEventListener.from_method(self, &"_on_monster_killed", 1))
 	register_simple_event(EventNames.SCORE_UPDATED, GFEventListener.from_method(self, &"_on_score_updated", 1))
 	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready", 1))
@@ -141,6 +139,25 @@ func trigger_initial_rules() -> void:
 	enter_playing_state()
 	send_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION)
 	sync_highest_tile_from_grid()
+
+
+## 应用一次有效移动产生的局内统计变化。
+## @param move_data: 当前 GF 回合行动携带的移动结果。
+func apply_move_turn(move_data: MoveData) -> void:
+	if not is_instance_valid(move_data):
+		return
+	if not _is_replay_mode and move_data.direction != Vector2i.ZERO:
+		_player_actions.append(move_data.direction)
+	if is_instance_valid(_game_status_model):
+		_game_status_model.increment_move_count()
+	sync_highest_tile_from_grid()
+
+
+## 完成当前 GF 移动回合的目标与失败结算。
+func settle_move_turn() -> void:
+	sync_highest_tile_from_grid()
+	_notify_target_reached_if_needed()
+	check_game_over()
 
 
 ## 检查游戏是否结束。
@@ -833,15 +850,6 @@ func _on_replay_continue_requested(payload: Variant = null) -> void:
 	)
 
 
-func _on_move_made(move_data: MoveData) -> void:
-	if is_instance_valid(move_data):
-		if not _is_replay_mode and move_data.direction != Vector2i.ZERO:
-			_player_actions.append(move_data.direction)
-		if is_instance_valid(_game_status_model):
-			_game_status_model.increment_move_count()
-		sync_highest_tile_from_grid()
-
-
 func _on_monster_killed(payload: Variant = null) -> void:
 	var kill_count: int = 1
 	if payload is int:
@@ -851,11 +859,6 @@ func _on_monster_killed(payload: Variant = null) -> void:
 	if is_instance_valid(_game_status_model):
 		_game_status_model.increment_monsters_killed(kill_count)
 
-
-func _on_turn_finished(_payload: Variant = null) -> void:
-	sync_highest_tile_from_grid()
-	_notify_target_reached_if_needed()
-	check_game_over()
 
 func _on_score_updated(amount: int) -> void:
 	if is_instance_valid(_game_status_model):

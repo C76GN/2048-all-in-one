@@ -97,6 +97,7 @@ func _bind_systems(binder: GFBinder) -> void:
 	await binder.bind_system(GameFlowSystem).as_singleton()
 	await binder.bind_system(GridMovementSystem).as_singleton()
 	await binder.bind_system(RuleSystem).as_singleton()
+	await binder.bind_system(GameTurnSystem).as_singleton()
 	await binder.bind_system(GridSpawnSystem).as_singleton()
 	await binder.bind_system(GameInitSystem).as_singleton()
 	await binder.bind_system(PlayerInputSystem).as_singleton()
