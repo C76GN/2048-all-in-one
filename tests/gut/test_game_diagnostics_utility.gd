@@ -27,11 +27,11 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	assert_true(console.has_command("diagnostics"), "GFDiagnosticsUtility 应提供标准 diagnostics 命令。")
 	assert_true(console.has_command("support_report"), "项目诊断应提供支持报告落盘命令。")
 	assert_true(
-		diagnostics.has_tool_snapshot_provider(&"resource_catalog"),
-		"项目资源目录应通过 GF 工具快照 provider 扩展诊断。"
+		diagnostics.has_tool_snapshot(&"resource_catalog"),
+		"项目资源目录应通过 GF 工具快照扩展诊断。"
 	)
 	assert_true(
-		diagnostics.has_tool_snapshot_provider(&"project_diagnostics"),
+		diagnostics.has_tool_snapshot(&"project_diagnostics"),
 		"项目诊断接入状态应能被 GF 诊断快照观察。"
 	)
 
@@ -43,6 +43,6 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	await get_tree().process_frame
 	assert_false(console.has_command("support_report"), "销毁 Architecture 时应注销项目支持报告命令。")
 	assert_false(
-		diagnostics.has_tool_snapshot_provider(&"project_diagnostics"),
-		"销毁 Architecture 时应注销项目诊断 provider。"
+		diagnostics.has_tool_snapshot(&"project_diagnostics"),
+		"销毁 Architecture 时应移除项目诊断快照。"
 	)

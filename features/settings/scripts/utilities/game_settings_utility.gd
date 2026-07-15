@@ -51,10 +51,23 @@ func to_dict(persistent_only: bool = true) -> Dictionary:
 	return data
 
 
-## 从字典恢复设置，并忽略存储层元信息。
+## 从字典完整恢复设置，并忽略存储层元信息。
 ## @param data: 设置字典。
 ## @param emit_changes: 是否派发设置变更通知。
-func from_dict(data: Dictionary, emit_changes: bool = true) -> void:
+func replace_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
+	super.replace_from_dict(_without_storage_metadata(data), emit_changes)
+
+
+## 将字典合并到当前设置，并忽略存储层元信息。
+## @param data: 设置字典。
+## @param emit_changes: 是否派发设置变更通知。
+func merge_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
+	super.merge_from_dict(_without_storage_metadata(data), emit_changes)
+
+
+# --- 私有/辅助方法 ---
+
+func _without_storage_metadata(data: Dictionary) -> Dictionary:
 	var clean_data: Dictionary = data.duplicate(true)
 	var _erase_result: bool = clean_data.erase(GFStorageCodec.META_KEY)
-	super.from_dict(clean_data, emit_changes)
+	return clean_data

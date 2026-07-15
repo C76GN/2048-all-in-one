@@ -46,7 +46,9 @@ func execute() -> Variant:
 		_log_error("GridModel 或 GameStateSystem 不可用。")
 		return null
 
-	set_snapshot(game_state_system.get_full_game_state(grid_model.grid_size))
+	if not set_snapshot(game_state_system.get_full_game_state(grid_model.grid_size)):
+		_log_error("移动前状态不符合 GFUndoableCommand 快照契约。")
+		return null
 
 	_reverse_target_map.clear()
 	var move_sys: GridMovementSystem = _get_grid_movement_system()
@@ -114,7 +116,9 @@ static func deserialize(data: Dictionary) -> MoveCommand:
 		GFVariantData.get_option_int(data, &"direction_y", 0)
 	)
 	var cmd: MoveCommand = MoveCommand.new(direction)
-	cmd.set_snapshot(GFVariantData.get_option_value(data, &"snapshot", {}))
+	if not cmd.set_snapshot(GFVariantData.get_option_value(data, &"snapshot", {})):
+		push_error("[MoveCommand] 序列化快照不符合 GFUndoableCommand 快照契约。")
+		return null
 	cmd._reverse_target_map = GFVariantData.get_option_dictionary(data, &"reverse_map")
 	cmd._is_baseline = GFVariantData.get_option_bool(data, &"is_baseline", false)
 	return cmd

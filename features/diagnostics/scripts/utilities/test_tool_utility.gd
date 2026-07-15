@@ -299,8 +299,13 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 		init_cmd.mark_as_baseline()
 		var game_state_system: GameStateSystem = _get_game_state_system()
 		if is_instance_valid(game_state_system):
-			init_cmd.set_snapshot(game_state_system.get_full_game_state(new_size))
-		command_history.record(init_cmd)
+			var snapshot_set: bool = init_cmd.set_snapshot(
+				game_state_system.get_full_game_state(new_size)
+			)
+			if snapshot_set:
+				command_history.record(init_cmd)
+			else:
+				push_error("[TestToolUtility] 重建后的状态不符合 GFUndoableCommand 快照契约。")
 
 	send_simple_event(EventNames.BOARD_RESIZED, new_size)
 	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)

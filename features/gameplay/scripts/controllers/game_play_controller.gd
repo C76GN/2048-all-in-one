@@ -38,6 +38,7 @@ var _test_utility: TestToolUtility
 var _log: GFLogUtility
 var _theme_utility: GameThemeUtility
 var _celebration_vfx_utility: GameCelebrationVfxUtility
+var _console_command_subscription: GFLifetimeSubscription
 
 ## 标记是否已完成清理，避免 _exit_tree 重复执行。
 var _is_cleaned_up: bool = false
@@ -88,7 +89,13 @@ func _ready() -> void:
 	
 	var console: GFConsoleUtility = _get_console_utility()
 	if Boot.are_dev_tools_enabled() and is_instance_valid(console):
-		console.register_command("toggle_test_panel", _cmd_toggle_test_panel, "Toggle developer test panel.")
+		_console_command_subscription = console.register_command(
+			self,
+			"toggle_test_panel",
+			Callable(self, &"_cmd_toggle_test_panel"),
+			"Toggle developer test panel.",
+			{"tier": GFConsoleUtility.CommandTier.INPUT}
+		)
 
 
 func _notification(what: int) -> void:
@@ -123,9 +130,9 @@ func _cleanup_listeners() -> void:
 	
 	_unregister_level_runtime_cleanup()
 
-	var console: GFConsoleUtility = _get_console_utility()
-	if is_instance_valid(console):
-		console.unregister_command("toggle_test_panel")
+	if _console_command_subscription != null:
+		var _console_command_cancelled: bool = _console_command_subscription.cancel()
+		_console_command_subscription = null
 	
 	_clear_action_queues()
 
@@ -570,8 +577,13 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 		init_cmd.mark_as_baseline()
 		var game_state_system: GameStateSystem = _get_game_state_system()
 		if is_instance_valid(game_state_system):
-			init_cmd.set_snapshot(game_state_system.get_full_game_state(data.current_grid_size))
-		_command_history.record(init_cmd)
+			var snapshot_set: bool = init_cmd.set_snapshot(
+				game_state_system.get_full_game_state(data.current_grid_size)
+			)
+			if snapshot_set:
+				_command_history.record(init_cmd)
+			elif is_instance_valid(_log):
+				_log.error(_LOG_TAG, "初始状态不符合 GFUndoableCommand 快照契约，未写入命令历史。")
 
 
 func _on_board_resized(new_size: int) -> void:

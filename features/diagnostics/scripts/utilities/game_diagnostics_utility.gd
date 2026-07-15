@@ -11,12 +11,12 @@ const _REPORT_DIRECTORY: String = "user://diagnostics"
 # --- 私有变量 ---
 
 var _registered_tool_ids: Array[StringName] = []
-var _support_report_command_registered: bool = false
 var _last_report_path: String = ""
 var _diagnostics_utility: GFDiagnosticsUtility
 var _support_report_utility: GFSupportReportUtility
 var _console_utility: GFConsoleUtility
 var _log_utility: GFLogUtility
+var _support_report_command_subscription: GFLifetimeSubscription
 
 
 # --- GF 生命周期方法 ---
@@ -27,21 +27,20 @@ func ready() -> void:
 	_support_report_utility = _get_support_report_utility()
 	_console_utility = _get_console_utility()
 	_log_utility = _get_log_utility()
-	_register_project_tool_snapshots()
 	_register_support_report_command()
+	_refresh_project_tool_snapshots()
 
 
 ## 注销项目贡献，避免运行时重装 Architecture 时残留回调。
 func dispose() -> void:
 	if _diagnostics_utility != null:
 		for tool_id: StringName in _registered_tool_ids:
-			_diagnostics_utility.unregister_tool_snapshot_provider(tool_id)
+			var _snapshot_removed: bool = _diagnostics_utility.remove_tool_snapshot(self, tool_id)
 	_registered_tool_ids.clear()
 
-	if _support_report_command_registered and _console_utility != null:
-		if _console_utility.has_command(_CMD_SUPPORT_REPORT):
-			_console_utility.unregister_command(_CMD_SUPPORT_REPORT)
-	_support_report_command_registered = false
+	if _support_report_command_subscription != null:
+		var _command_cancelled: bool = _support_report_command_subscription.cancel()
+	_support_report_command_subscription = null
 	_last_report_path = ""
 	_diagnostics_utility = null
 	_support_report_utility = null
@@ -55,40 +54,46 @@ func dispose() -> void:
 func get_debug_snapshot() -> Dictionary:
 	return {
 		"registered_tool_ids": _registered_tool_ids.duplicate(),
-		"support_report_command_registered": _support_report_command_registered,
+		"support_report_command_registered": (
+			_support_report_command_subscription != null
+			and _support_report_command_subscription.is_active()
+		),
 		"last_report_path": _last_report_path,
 	}
 
 
 # --- 私有/辅助方法 ---
 
-func _register_project_tool_snapshots() -> void:
+func _refresh_project_tool_snapshots() -> void:
 	if _diagnostics_utility == null:
 		return
 
-	_register_tool_snapshot(&"resource_catalog", Callable(self, &"_collect_resource_catalog_snapshot"))
-	_register_tool_snapshot(&"save_slots", Callable(self, &"_collect_save_slots_snapshot"))
-	_register_tool_snapshot(&"asset_library", Callable(self, &"_collect_asset_library_snapshot"))
-	_register_tool_snapshot(&"theme_catalog", Callable(self, &"_collect_theme_catalog_snapshot"))
-	_register_tool_snapshot(&"themes", Callable(self, &"_collect_themes_snapshot"))
-	_register_tool_snapshot(&"game_modes", Callable(self, &"_collect_game_modes_snapshot"))
-	_register_tool_snapshot(&"ui_routes", Callable(self, &"_collect_ui_routes_snapshot"))
-	_register_tool_snapshot(&"project_diagnostics", Callable(self, &"get_debug_snapshot"))
+	_publish_tool_snapshot(&"resource_catalog", _collect_resource_catalog_snapshot())
+	_publish_tool_snapshot(&"save_slots", _collect_save_slots_snapshot())
+	_publish_tool_snapshot(&"asset_library", _collect_asset_library_snapshot())
+	_publish_tool_snapshot(&"theme_catalog", _collect_theme_catalog_snapshot())
+	_publish_tool_snapshot(&"themes", _collect_themes_snapshot())
+	_publish_tool_snapshot(&"game_modes", _collect_game_modes_snapshot())
+	_publish_tool_snapshot(&"ui_routes", _collect_ui_routes_snapshot())
+	_publish_tool_snapshot(&"project_diagnostics", get_debug_snapshot())
 
 
 func _register_support_report_command() -> void:
 	if _console_utility == null:
 		return
-	_console_utility.register_command(
+	_support_report_command_subscription = _console_utility.register_command(
+		self,
 		_CMD_SUPPORT_REPORT,
 		Callable(self, &"_on_support_report_command"),
-		"Build and save a GF support report. Optional arguments become the description."
+		"Build and save a GF support report. Optional arguments become the description.",
+		{"tier": GFConsoleUtility.CommandTier.CONTROL}
 	)
-	_support_report_command_registered = true
 
 
-func _register_tool_snapshot(tool_id: StringName, provider: Callable) -> void:
-	if _diagnostics_utility.register_tool_snapshot_provider(tool_id, provider):
+func _publish_tool_snapshot(tool_id: StringName, snapshot: Dictionary) -> void:
+	if _diagnostics_utility.publish_tool_snapshot(self, tool_id, snapshot):
+		if _registered_tool_ids.has(tool_id):
+			return
 		_registered_tool_ids.append(tool_id)
 
 
@@ -154,6 +159,7 @@ func _on_support_report_command(args: PackedStringArray) -> void:
 			_log_utility.error(_LOG_TAG, "GFSupportReportUtility is unavailable.")
 		return
 
+	_refresh_project_tool_snapshots()
 	_last_report_path = "%s/support_report_%d.json" % [
 		_REPORT_DIRECTORY,
 		int(Time.get_unix_time_from_system()),
