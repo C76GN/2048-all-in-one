@@ -259,7 +259,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 300 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-15 使用当前 `godot` 命令运行通过，临时 `godot.log` 约 `0.011 MB`，临时目录成功清理。当前静态计数为 19 个 GUT 测试脚本、152 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束。
+2026-07-15 使用当前 `godot` 命令运行通过，临时 `godot.log` 约 `0.011 MB`，临时目录成功清理。当前静态计数为 19 个 GUT 测试脚本、153 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束。
 
 编辑器 GDScript warning 诊断入口：
 

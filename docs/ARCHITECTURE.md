@@ -102,7 +102,9 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 - 玩家移动通过 `MoveCommand` 和 `GFCommandHistoryUtility` 进入历史。
 - 回放和书签复用持久化资源集合。
 - 对局初始化通过 `GFLevelUtility` 登记当前 session。
-- 场景切换通过 `GFSceneUtility` 异步加载，`SceneRouterSystem` 负责业务路由和半调纸媒转场遮罩；切换阶段由 `GFOperationDiagnosticsUtility` 记录，遮罩 Tween 由 `GFAsyncTrackerUtility` 跟踪。
+- `SceneRouterSystem` 只编排业务路由：使用 `GFSceneTransitionConfig` 描述加载事务，由 `GFSceneUtility` 异步切换场景，由 `GFScreenTransitionUtility` 管理覆盖层、输入阻断、进度推进、中断与释放。
+- 场景转场效果由当前 `GameTheme` 的 `GFScreenTransitionEffect` 资源提供；路由系统不持有主题专属 Shader、Tween 或覆盖层节点。
+- 切换阶段继续由 `GFOperationDiagnosticsUtility` 记录，不为 GF 已管理的屏幕转场重复建立项目级异步句柄。
 
 ### Utility Module
 
@@ -206,7 +208,7 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 ### 新游戏
 
 1. 菜单选择模式和棋盘大小。
-2. `SceneRouterSystem` 通过 `GFSceneUtility` 切到游戏场景，并播放半调纸媒场景转场遮罩；诊断 Utility 记录请求、遮罩、加载、提交和揭示阶段。
+2. `SceneRouterSystem` 通过 `GFSceneTransitionConfig` 请求 `GFSceneUtility` 切到游戏场景，并让 `GFScreenTransitionUtility` 播放当前 `GameTheme` 的覆盖/揭示效果；诊断 Utility 记录请求与加载结果。
 3. `GameInitSystem` 读取 `GameModeConfig`。
 4. `RuleSystem` 配置规则。
 5. `GFSeedUtility` 处理初始种子。
