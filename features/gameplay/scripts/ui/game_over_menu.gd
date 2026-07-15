@@ -3,7 +3,7 @@
 ## 在游戏失败后显示，提供重来或返回主菜单的选项。
 ## 通过 GF 事件系统通知系统层执行操作。
 class_name GameOverMenu
-extends "res://shared/scripts/ui/base/game_ui_controller.gd"
+extends GameUiController
 
 
 # --- 常量 ---

@@ -3,7 +3,7 @@
 ## 负责处理主菜单中的所有用户交互，
 ## 并通过 SceneRouterSystem 执行场景切换或退出游戏。
 class_name MainMenu
-extends "res://shared/scripts/ui/base/game_ui_controller.gd"
+extends GameUiController
 
 
 # --- 导出变量 ---

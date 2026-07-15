@@ -2,7 +2,7 @@
 ##
 ## 负责处理语言、显示与音频等通用设置选项。
 class_name SettingsMenu
-extends "res://shared/scripts/ui/base/game_ui_controller.gd"
+extends GameUiController
 
 
 # --- 常量 ---

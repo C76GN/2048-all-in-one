@@ -3,7 +3,7 @@
 ## 它接收一个棋盘快照（Snapshot）和交互规则，渲染出一个缩小版的棋盘。
 ## 主要用于存档和回放列表的预览。会自动根据容器大小调整单元格尺寸。
 class_name BoardPreview
-extends "res://shared/scripts/ui/base/game_ui_controller.gd"
+extends GameUiController
 
 # --- 常量 ---
 

@@ -2,7 +2,7 @@
 ##
 ## 负责动态展示可用模式、更新选中态、配置棋盘参数并启动游戏。
 class_name ModeSelection
-extends "res://shared/scripts/ui/base/game_ui_controller.gd"
+extends GameUiController
 
 
 # --- 常量 ---

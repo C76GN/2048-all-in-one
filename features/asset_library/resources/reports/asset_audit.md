@@ -75,7 +75,7 @@
   - `res://app/scripts/boot.gd`
   - `res://features/gameplay/scenes/game/game_play.tscn`
   - `res://features/navigation/scenes/menus/main_menu.tscn`
-  - `res://shared/scenes/ui/layouts/base_three_column_layout.tscn`
+  - `res://features/themes/scenes/layouts/base_three_column_layout.tscn`
   - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
   - `res://features/asset_library/tools/import_asset_sources.gd`

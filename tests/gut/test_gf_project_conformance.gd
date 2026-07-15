@@ -37,6 +37,17 @@ const ASSET_LIBRARY_TOOL_PATHS: Array[String] = [
 ]
 const ASSET_LIBRARY_REPORT_ROOT: String = "features\\asset_library\\resources\\reports"
 const LEGACY_ASSET_LIBRARY_REPORT_ROOT: String = "asset_library\\reports"
+const SHARED_TEXT_RESOURCE_EXTENSIONS: Array[String] = [
+	"cfg",
+	"csv",
+	"gd",
+	"gdshader",
+	"import",
+	"json",
+	"res",
+	"tres",
+	"tscn",
+]
 
 
 # --- 测试用例 ---
@@ -129,6 +140,51 @@ func test_asset_library_tools_use_feature_cohesive_report_root() -> void:
 	)
 
 
+func test_shared_does_not_depend_on_features() -> void:
+	var feature_class_owners: Dictionary = _collect_feature_class_owners()
+	var scan_report: Dictionary = GFPathEnumerationTools.scan_files("res://shared", {
+		"recursive": true,
+		"include_hidden": false,
+		"extensions": PackedStringArray(SHARED_TEXT_RESOURCE_EXTENSIONS),
+		"max_file_count": 5000,
+		"sort": true,
+	})
+	var issues: Array[String] = []
+	if not GFVariantData.get_option_bool(scan_report, "ok"):
+		_append_string(issues, "GFPathEnumerationTools 无法完成 shared 依赖扫描。")
+	if GFVariantData.get_option_bool(scan_report, "truncated"):
+		_append_string(issues, "shared 依赖扫描达到安全上限，结果不完整。")
+
+	for path: String in GFVariantData.get_option_packed_string_array(scan_report, "paths"):
+		var source: String = _read_text(path)
+		var lines: PackedStringArray = source.split("\n")
+		for line_index: int in range(lines.size()):
+			var line: String = _get_packed_line(lines, line_index)
+			var code: String = _get_code_line(line) if path.ends_with(".gd") else line
+			if code.contains("res://features/"):
+				_append_string(issues, "%s:%d shared 不得引用 Feature 资源路径。" % [
+					path,
+					line_index + 1,
+				])
+			if not path.ends_with(".gd"):
+				continue
+			for class_name_value: Variant in feature_class_owners.keys():
+				var feature_class_name: String = GFVariantData.to_text(class_name_value)
+				if not _regex_matches(code, "\\b%s\\b" % feature_class_name):
+					continue
+				_append_string(issues, "%s:%d shared 不得依赖 Feature 类型 %s（声明于 %s）。" % [
+					path,
+					line_index + 1,
+					feature_class_name,
+					GFVariantData.get_option_string(feature_class_owners, feature_class_name),
+				])
+
+	assert_true(
+		issues.is_empty(),
+		"Feature-Cohesive 依赖方向要求 shared 不得反向依赖 features：\n%s" % _join_lines(issues)
+	)
+
+
 # --- 私有/辅助方法 ---
 
 func _collect_project_script_paths() -> Array[String]:
@@ -146,6 +202,25 @@ func _collect_project_script_paths() -> Array[String]:
 			if not _is_excluded_path(path):
 				result.append(path)
 	result.sort()
+	return result
+
+
+func _collect_feature_class_owners() -> Dictionary:
+	var result: Dictionary = {}
+	var paths: PackedStringArray = GFScriptStructureTools.scan_script_paths("res://features", {
+		"recursive": true,
+		"include_addons": false,
+		"include_hidden": false,
+		"excluded_paths": SOURCE_EXCLUDED_ROOTS,
+		"max_scan_depth": 64,
+		"max_resource_paths": 5000,
+	})
+	for path: String in paths:
+		if _is_excluded_path(path):
+			continue
+		var declared_class_name: String = _parse_class_name(_read_text(path))
+		if not declared_class_name.is_empty():
+			result[declared_class_name] = path
 	return result
 
 

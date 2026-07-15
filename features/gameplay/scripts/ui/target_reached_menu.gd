@@ -2,7 +2,7 @@
 ##
 ## 该面板不结束对局，只给玩家继续挑战、重开或返回主界面的清晰选择。
 class_name TargetReachedMenu
-extends "res://shared/scripts/ui/base/game_ui_controller.gd"
+extends GameUiController
 
 
 # --- 常量 ---

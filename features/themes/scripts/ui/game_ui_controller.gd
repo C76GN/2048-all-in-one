@@ -1,16 +1,19 @@
-## GameUiController: 游戏 UI 宿主基类，通过内部 GFController 连接 GF 架构。
+## GameUiController: 主题化游戏 UI 宿主，通过内部 GFController 连接 GF 架构。
 ##
-## 适用于菜单、弹窗等 Control 派生节点。Control 仅保留 UI 职责；
-## 架构上下文、依赖访问和事件 owner 生命周期均由 GFController 处理。
+## 适用于菜单、弹窗等 Control 派生节点。主题 Feature 拥有该表现层宿主，
+## GFController 负责架构上下文和事件生命周期，主题 Utility 负责视觉与交互动效。
 class_name GameUiController
 extends Control
 
 
 # --- 常量 ---
 
-## GameUiMotionUtility 脚本类型，用作 GF Utility 注册键。
-const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_ui_motion_utility.gd")
-const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
+const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload(
+	"res://features/themes/scripts/utilities/game_ui_motion_utility.gd"
+)
+const _GAME_THEME_UTILITY_SCRIPT: Script = preload(
+	"res://features/themes/scripts/utilities/game_theme_utility.gd"
+)
 
 
 # --- 私有变量 ---
