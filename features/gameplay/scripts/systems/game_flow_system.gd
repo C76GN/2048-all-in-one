@@ -11,6 +11,7 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 const _LOG_TAG: String = "GameFlowSystem"
 const _TARGET_REACHED_MESSAGE_DURATION: float = 4.0
 const _TARGET_REACHED_MESSAGE_FALLBACK: String = "[color=green]已达成目标 %d！可以继续挑战更高方块。[/color]"
+const _NOTIFICATION_SURFACE: String = "gameplay_hud"
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
 
 
@@ -34,6 +35,7 @@ var _player_actions: Array[Vector2i] = []
 var _fsm: GFStateMachine
 
 var _clock: GameClockUtility
+var _notifications: GFNotificationUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -51,6 +53,9 @@ func ready() -> void:
 	_grid_model = _get_grid_model()
 	_game_status_model = _get_game_status_model()
 	_clock = _get_clock_utility()
+	_notifications = _get_notification_utility()
+	if not is_instance_valid(_notifications):
+		push_error("[GameFlowSystem] 缺少 GFNotificationUtility，玩法反馈不可用。")
 
 	register_event(MoveData, GFEventListener.from_method(self, &"_on_move_made", 1))
 	register_simple_event(EventNames.TURN_FINISHED, GFEventListener.from_method(self, &"_on_turn_finished", 1))
@@ -80,6 +85,7 @@ func dispose() -> void:
 	_rule_system = null
 	_game_over_rule = null
 	_clock = null
+	_notifications = null
 	_player_actions.clear()
 	_last_saved_bookmark_state = {}
 	_mode_config = null
@@ -280,6 +286,35 @@ func _get_ui_utility() -> GFUIUtility:
 		var ui_utility: GFUIUtility = utility_value
 		return ui_utility
 	return null
+
+
+func _get_notification_utility() -> GFNotificationUtility:
+	var utility_value: Object = get_utility(GFNotificationUtility)
+	if utility_value is GFNotificationUtility:
+		var notification_utility: GFNotificationUtility = utility_value
+		return notification_utility
+	return null
+
+
+func _push_gameplay_notification(
+	message: String,
+	duration_seconds: float,
+	level: GFNotificationUtility.Level,
+	key: String
+) -> void:
+	if not is_instance_valid(_notifications):
+		push_error("[GameFlowSystem] GFNotificationUtility 未注册，无法显示玩法反馈。")
+		return
+	var _notification_id: int = _notifications.push_notification(
+		message,
+		"",
+		level,
+		{
+			"duration_seconds": duration_seconds,
+			"key": key,
+			"metadata": {"surface": _NOTIFICATION_SURFACE},
+		}
+	)
 
 
 func _get_theme_utility() -> GameThemeUtility:
@@ -518,14 +553,16 @@ func _notify_target_reached_if_needed() -> void:
 
 	_target_reached_notified = true
 	_sync_target_state(true)
-	send_event(HudMessagePayload.new(
+	_push_gameplay_notification(
 		GameTextFormatUtility.format_template(
 			tr("TARGET_REACHED_MESSAGE"),
 			_TARGET_REACHED_MESSAGE_FALLBACK,
 			[_get_target_tile_value()]
 		),
-		_TARGET_REACHED_MESSAGE_DURATION
-	))
+		_TARGET_REACHED_MESSAGE_DURATION,
+		GFNotificationUtility.Level.SUCCESS,
+		"gameplay.target_reached"
+	)
 	send_simple_event(EventNames.TARGET_REACHED)
 
 
@@ -591,14 +628,24 @@ func _on_undo_requested(_payload: Variant = null) -> void:
 
 	var command_history: GFCommandHistoryUtility = _get_command_history_utility()
 	if not is_instance_valid(command_history) or not _can_undo_player_move(command_history):
-		send_event(HudMessagePayload.new(tr("UNDO_FAIL_MSG"), 3.0))
+		_push_gameplay_notification(
+			tr("UNDO_FAIL_MSG"),
+			3.0,
+			GFNotificationUtility.Level.WARNING,
+			"gameplay.undo_unavailable"
+		)
 		return
 
 	if await command_history.undo_last_async():
 		if not _player_actions.is_empty():
 			_player_actions.pop_back()
 	else:
-		send_event(HudMessagePayload.new(tr("UNDO_FAIL_MSG"), 3.0))
+		_push_gameplay_notification(
+			tr("UNDO_FAIL_MSG"),
+			3.0,
+			GFNotificationUtility.Level.WARNING,
+			"gameplay.undo_unavailable"
+		)
 
 
 func _can_undo_player_move(command_history: GFCommandHistoryUtility) -> bool:
@@ -620,13 +667,23 @@ func _on_redo_requested(_payload: Variant = null) -> void:
 
 	var command_history: GFCommandHistoryUtility = _get_command_history_utility()
 	if not is_instance_valid(command_history) or not _can_redo_player_move(command_history):
-		send_event(HudMessagePayload.new(tr("REDO_FAIL_MSG"), 3.0))
+		_push_gameplay_notification(
+			tr("REDO_FAIL_MSG"),
+			3.0,
+			GFNotificationUtility.Level.WARNING,
+			"gameplay.redo_unavailable"
+		)
 		return
 
 	if await command_history.redo_async():
 		send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
 	else:
-		send_event(HudMessagePayload.new(tr("REDO_FAIL_MSG"), 3.0))
+		_push_gameplay_notification(
+			tr("REDO_FAIL_MSG"),
+			3.0,
+			GFNotificationUtility.Level.WARNING,
+			"gameplay.redo_unavailable"
+		)
 
 
 func _can_redo_player_move(command_history: GFCommandHistoryUtility) -> bool:
@@ -647,13 +704,23 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 		return
 
 	if _is_game_state_tainted:
-		send_event(HudMessagePayload.new(tr("SNAPSHOT_TAINT_WARN"), 4.0))
+		_push_gameplay_notification(
+			tr("SNAPSHOT_TAINT_WARN"),
+			4.0,
+			GFNotificationUtility.Level.WARNING,
+			"gameplay.bookmark_tainted"
+		)
 		return
 
 	var current_state_for_comparison: Dictionary = _get_bookmark_comparison_state()
 
 	if _are_game_states_equal(current_state_for_comparison, _last_saved_bookmark_state):
-		send_event(HudMessagePayload.new(tr("SNAPSHOT_NO_CHANGE"), 3.0))
+		_push_gameplay_notification(
+			tr("SNAPSHOT_NO_CHANGE"),
+			3.0,
+			GFNotificationUtility.Level.INFO,
+			"gameplay.bookmark_unchanged"
+		)
 		return
 
 	var new_bookmark: BookmarkData = BookmarkData.new()
@@ -670,7 +737,6 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	new_bookmark.highest_tile = GFVariantData.to_int(current_state_for_comparison.get(&"highest_tile", 0), 0)
 	new_bookmark.target_tile_value = GFVariantData.to_int(current_state_for_comparison.get(&"target_tile_value", 0), 0)
 	new_bookmark.target_reached = GFVariantData.to_bool(current_state_for_comparison.get(&"target_reached", false), false)
-	new_bookmark.status_message = GFVariantData.to_text(current_state_for_comparison.get(&"status_message", ""), "")
 	var extra_stats: Dictionary = GFVariantData.to_dictionary(current_state_for_comparison.get(&"extra_stats", {}))
 	new_bookmark.extra_stats = extra_stats.duplicate(true)
 	new_bookmark.rng_full_state = GFVariantData.to_dictionary(current_state_for_comparison.get(&"rng_full_state", {}))
@@ -687,10 +753,20 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	var bookmark_save_error: Error = bookmark_system.save_bookmark(new_bookmark)
 	if bookmark_save_error != OK:
 		_log_persistence_error("save bookmark", bookmark_save_error)
-		send_event(HudMessagePayload.new(tr("SNAPSHOT_SAVE_FAILED"), 3.0))
+		_push_gameplay_notification(
+			tr("SNAPSHOT_SAVE_FAILED"),
+			3.0,
+			GFNotificationUtility.Level.ERROR,
+			"gameplay.bookmark_save_failed"
+		)
 		return
 	_last_saved_bookmark_state = current_state_for_comparison.duplicate(true)
-	send_event(HudMessagePayload.new(tr("SNAPSHOT_SAVED_SUCCESS"), 3.0))
+	_push_gameplay_notification(
+		tr("SNAPSHOT_SAVED_SUCCESS"),
+		3.0,
+		GFNotificationUtility.Level.SUCCESS,
+		"gameplay.bookmark_saved"
+	)
 
 func _on_ui_pause_requested(_payload: Variant = null) -> void:
 	if _fsm.current_state_name == EventNames.STATE_GAME_OVER or _is_replay_mode:
@@ -749,7 +825,12 @@ func _on_replay_continue_requested(payload: Variant = null) -> void:
 	_target_reached_notified = _has_reached_target_in_session(_get_current_highest_tile())
 	_sync_target_state(_target_reached_notified)
 	send_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, payload)
-	send_event(HudMessagePayload.new(tr("REPLAY_CONTINUE_SUCCESS"), 3.0))
+	_push_gameplay_notification(
+		tr("REPLAY_CONTINUE_SUCCESS"),
+		3.0,
+		GFNotificationUtility.Level.SUCCESS,
+		"gameplay.replay_continued"
+	)
 
 
 func _on_move_made(move_data: MoveData) -> void:

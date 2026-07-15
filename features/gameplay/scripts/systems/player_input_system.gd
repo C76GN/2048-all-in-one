@@ -21,6 +21,7 @@ const _MOVE_FAIL_MESSAGE_DURATION: float = 1.6
 # --- 私有变量 ---
 
 var _input_mapping: GFInputMappingUtility
+var _notifications: GFNotificationUtility
 var _is_playing: bool = false
 var _is_active: bool = false
 
@@ -29,8 +30,13 @@ var _is_active: bool = false
 
 func ready() -> void:
 	_input_mapping = _get_input_mapping_utility()
+	_notifications = _get_notification_utility()
 	if is_instance_valid(_input_mapping):
 		_input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
+	else:
+		push_error("[PlayerInputSystem] 缺少 GFInputMappingUtility，玩法输入不可用。")
+	if not is_instance_valid(_notifications):
+		push_error("[PlayerInputSystem] 缺少 GFNotificationUtility，玩法反馈不可用。")
 
 	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready", 1))
 	register_simple_event(EventNames.GAME_STATE_CHANGED, GFEventListener.from_method(self, &"_on_game_state_changed", 1))
@@ -42,6 +48,7 @@ func dispose() -> void:
 	if is_instance_valid(_input_mapping):
 		_input_mapping.disable_context(GAMEPLAY_INPUT_CONTEXT)
 	_input_mapping = null
+	_notifications = null
 
 
 ## 轮询玩法输入上下文并派发对应游戏命令。
@@ -105,13 +112,18 @@ func _consume_action(action_id: StringName) -> bool:
 
 
 func _show_invalid_move_feedback() -> void:
-	send_event(_make_invalid_move_payload())
-
-
-func _make_invalid_move_payload() -> HudMessagePayload:
-	return HudMessagePayload.new(
+	if not is_instance_valid(_notifications):
+		push_error("[PlayerInputSystem] GFNotificationUtility 未注册，无法显示无效移动反馈。")
+		return
+	var _notification_id: int = _notifications.push_notification(
 		_translate_with_fallback("MOVE_FAIL_MSG", _MOVE_FAIL_MESSAGE_FALLBACK),
-		_MOVE_FAIL_MESSAGE_DURATION
+		"",
+		GFNotificationUtility.Level.WARNING,
+		{
+			"duration_seconds": _MOVE_FAIL_MESSAGE_DURATION,
+			"key": "gameplay.invalid_move",
+			"metadata": {"surface": "gameplay_hud"},
+		}
 	)
 
 
@@ -135,6 +147,14 @@ func _get_command_history_utility() -> GFCommandHistoryUtility:
 	if utility_value is GFCommandHistoryUtility:
 		var command_history: GFCommandHistoryUtility = utility_value
 		return command_history
+	return null
+
+
+func _get_notification_utility() -> GFNotificationUtility:
+	var utility_value: Object = get_utility(GFNotificationUtility)
+	if utility_value is GFNotificationUtility:
+		var notification_utility: GFNotificationUtility = utility_value
+		return notification_utility
 	return null
 
 

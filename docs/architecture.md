@@ -94,12 +94,20 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 4. `GFProjectReferenceScanner`、`GFAssetAttributionTools` 和 `GFAssetCatalog` 生成引用、授权和用途报告。
 5. Feature 局部浏览器和导入脚本位于 `features/asset_library/scenes/` 与 `features/asset_library/tools/`。
 
+### 运行时通知
+
+1. `PlayerInputSystem`、`GameFlowSystem` 等生产者只向 `GFNotificationUtility` 写入通知记录，不定义项目私有消息载荷。
+2. GF 通知队列统一负责去重、优先级、展示时长和生命周期；场景内不再维护额外 `Timer`。
+3. `Hud` 通过 `GFSignalUtility` 订阅通知开始与结束信号，只负责当前主题下的视觉呈现。
+4. 通知属于瞬时表现状态，不进入 `GameStatusModel`、撤销快照、书签或回放 schema。
+
 ### 持久化
 
 - `persistence` 创建 `player_data` 根 Scope，并通过 `GFSaveGraphUtility` 统一校验、阶段排序、事务应用和诊断。
 - `progress`、`bookmarks` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
 - 三个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 负责存储元数据、checksum 和原子文件事务。
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。
+- `bookmarks` section 当前 schema 为 v2；已删除瞬时 HUD 消息字段，不提供运行时旧字段兼容分支。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
 - 存档 Schema 发生破坏性变化时使用显式迁移工具；运行时代码不长期保留旧字段双读分支。
 

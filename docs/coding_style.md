@@ -38,7 +38,7 @@
 	*   示例: `_update_board_layout()`, `_process_line()`
 *   **Godot内置虚方法**: 遵循Godot的命名，例如 `_ready()`, `_process()`。
 *   **信号回调函数**: 推荐使用 `_on_NodeName_signal_name` 的格式，这是Godot编辑器自动连接信号时生成的默认格式，非常直观。
-	*   示例: `_on_start_game_button_pressed()`, `_on_hud_message_timer_timeout()`
+	*   示例: `_on_start_game_button_pressed()`, `_on_notification_finished()`
 
 ### 1.4 变量与属性命名
 *   **公共变量/属性**: 使用蛇形命名法 (`snake_case`)。

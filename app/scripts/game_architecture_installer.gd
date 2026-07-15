@@ -56,6 +56,7 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFResourceResolverUtility).as_singleton()
 	await binder.bind_utility(GFShaderParameterUtility).as_singleton()
 	await binder.bind_utility(GFSignalUtility).as_singleton()
+	await binder.bind_utility(GFNotificationUtility).as_singleton()
 	await binder.bind_utility(_PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_CLOCK_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_SAVE_GRAPH_UTILITY_SCRIPT).from_instance(_create_game_save_graph_utility()).as_singleton()

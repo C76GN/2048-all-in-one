@@ -34,6 +34,7 @@ var _game_flow_system: GameFlowSystem
 var _replay_system: ReplaySystem
 var _level_utility: GFLevelUtility
 var _signal_utility: GFSignalUtility
+var _notification_utility: GFNotificationUtility
 var _test_utility: TestToolUtility
 var _log: GFLogUtility
 var _theme_utility: GameThemeUtility
@@ -51,7 +52,6 @@ var _is_cleaned_up: bool = false
 @onready var _test_panel_controller: TestPanel = _get_test_panel_controller()
 @onready var background_color_rect: ColorRect = %Background
 @onready var _page_title: Label = %PageTitle
-@onready var _hud_message_timer: Timer = %HUDMessageTimer
 @onready var replay_controls_container: VBoxContainer = %ReplayControlsContainer
 @onready var replay_progress_label: Label = %ReplayProgressLabel
 @onready var replay_step_hint_label: Label = %ReplayStepHintLabel
@@ -67,6 +67,7 @@ func _ready() -> void:
 	_replay_system = _get_replay_system()
 	_level_utility = _get_level_utility()
 	_signal_utility = _get_signal_utility()
+	_notification_utility = _get_notification_utility()
 	_test_utility = _get_test_utility()
 	_log = _get_log_utility()
 	_theme_utility = _get_theme_utility()
@@ -78,9 +79,9 @@ func _ready() -> void:
 		_page_title.visible = false
 		
 	if is_instance_valid(_game_status_model):
-		_connect_native_signal(_game_status_model.move_count.value_changed, _on_move_count_changed)
+		_connect_managed_signal(_game_status_model.move_count.value_changed, _on_move_count_changed)
 	if is_instance_valid(_theme_utility):
-		_connect_native_signal(_theme_utility.visual_theme_changed, _on_visual_theme_changed)
+		_connect_managed_signal(_theme_utility.visual_theme_changed, _on_visual_theme_changed)
 		
 	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready_data_received", 1))
 	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
@@ -142,14 +143,13 @@ func _cleanup_listeners() -> void:
 
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
-	else:
-		_disconnect_native_signals()
 
 	if is_instance_valid(_test_utility):
 		_test_utility.clear_context()
 
 	_level_utility = null
 	_celebration_vfx_utility = null
+	_notification_utility = null
 	
 	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "已清理 GF 事件监听和原生信号连接。")
@@ -174,32 +174,11 @@ func _unregister_level_runtime_cleanup() -> void:
 		var _unregistered: bool = _level_utility.unregister_runtime_cleanup(_LEVEL_CLEANUP_ACTION_QUEUES)
 
 
-func _connect_native_signal(source_signal: Signal, callback: Callable) -> void:
-	if is_instance_valid(_signal_utility):
-		var _connection: GFSignalConnection = _signal_utility.connect_signal(source_signal, callback, self)
+func _connect_managed_signal(source_signal: Signal, callback: Callable) -> void:
+	if not is_instance_valid(_signal_utility):
+		push_error("[GamePlayController] 缺少 GFSignalUtility，无法连接跨生命周期信号。")
 		return
-
-	if not source_signal.is_connected(callback):
-		var _connect_result_172: int = source_signal.connect(callback)
-
-
-func _disconnect_native_signals() -> void:
-	if is_instance_valid(_game_status_model):
-		_disconnect_native_signal(_game_status_model.move_count.value_changed, _on_move_count_changed)
-	if is_instance_valid(_replay_system):
-		_disconnect_native_signal(_replay_system.playback_progress_changed, _on_replay_progress_changed)
-		_disconnect_native_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
-	if is_instance_valid(_theme_utility):
-		_disconnect_native_signal(_theme_utility.visual_theme_changed, _on_visual_theme_changed)
-	if is_instance_valid(_hud_message_timer):
-		_disconnect_native_signal(_hud_message_timer.timeout, _on_hud_message_timer_timeout)
-
-
-func _disconnect_native_signal(source_signal: Signal, callback: Callable) -> void:
-	if source_signal.is_null() or not is_instance_valid(source_signal.get_object()):
-		return
-	if source_signal.is_connected(callback):
-		source_signal.disconnect(callback)
+	var _connection: GFSignalConnection = _signal_utility.connect_signal(source_signal, callback, self)
 
 
 func _is_replay_mode() -> bool:
@@ -211,17 +190,14 @@ func _is_replay_mode() -> bool:
 ## 集中管理所有信号连接。
 func _connect_signals() -> void:
 	if is_instance_valid(_replay_system):
-		_connect_native_signal(_replay_system.playback_progress_changed, _on_replay_progress_changed)
-		_connect_native_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
+		_connect_managed_signal(_replay_system.playback_progress_changed, _on_replay_progress_changed)
+		_connect_managed_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
 
 	register_simple_event(EventNames.GAME_STATE_CHANGED, GFEventListener.from_method(self, &"_on_game_state_changed", 1))
 	register_simple_event(EventNames.BOARD_RESIZED, GFEventListener.from_method(self, &"_on_board_resized", 1))
 	register_simple_event(EventNames.TOGGLE_PAUSE_UI, GFEventListener.from_method(self, &"_on_toggle_pause_ui", 1))
 	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, GFEventListener.from_method(self, &"_on_replay_continued_as_game", 1))
 	register_simple_event(EventNames.TARGET_REACHED, GFEventListener.from_method(self, &"_on_target_reached", 1))
-	register_event(HudMessagePayload, GFEventListener.from_method(self, &"_on_show_hud_message_event", 1))
-
-	_connect_native_signal(_hud_message_timer.timeout, _on_hud_message_timer_timeout)
 
 
 ## 根据当前是普通模式还是回放模式，配置UI元素的可见性。
@@ -255,15 +231,6 @@ func _update_replay_ui() -> void:
 		)
 
 
-## 在HUD上显示一条临时消息。
-## @param message: 要显示的消息文本（支持BBCode）。
-## @param duration: 消息显示的持续时间（秒）。
-func _show_hud_message(message: String, duration: float) -> void:
-	if is_instance_valid(_game_status_model):
-		_game_status_model.status_message.set_value(message)
-	_hud_message_timer.start(duration)
-
-
 func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
 	if not Boot.are_dev_tools_enabled():
 		return
@@ -273,7 +240,17 @@ func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
 		var console: GFConsoleUtility = _get_console_utility()
 		if is_instance_valid(console) and _is_test_panel_visible():
 			var _command_executed: bool = console.execute_command("clear")
-			send_event(HudMessagePayload.new("测试面板已切换。", 2.0))
+			if is_instance_valid(_notification_utility):
+				var _notification_id: int = _notification_utility.push_notification(
+					"测试面板已切换。",
+					"",
+					GFNotificationUtility.Level.INFO,
+					{
+						"duration_seconds": 2.0,
+						"key": "diagnostics.test_panel_toggled",
+						"metadata": {"surface": "gameplay_hud"},
+					}
+				)
 
 
 func _setup_test_tools_for_current_board() -> void:
@@ -403,6 +380,14 @@ func _get_signal_utility() -> GFSignalUtility:
 	if utility_value is GFSignalUtility:
 		var signal_utility: GFSignalUtility = utility_value
 		return signal_utility
+	return null
+
+
+func _get_notification_utility() -> GFNotificationUtility:
+	var utility_value: Object = get_utility(GFNotificationUtility)
+	if utility_value is GFNotificationUtility:
+		var notification_utility: GFNotificationUtility = utility_value
+		return notification_utility
 	return null
 
 
@@ -624,11 +609,6 @@ func _on_toggle_pause_ui(_payload: Variant = null) -> void:
 			push_warning("[GamePlayController] GFUIRouterUtility 未注册，无法打开暂停菜单。")
 
 
-func _on_show_hud_message_event(payload: HudMessagePayload) -> void:
-	if is_instance_valid(payload):
-		_show_hud_message(payload.message, payload.duration)
-
-
 func _on_replay_progress_changed(_current_step: int, _total_steps: int) -> void:
 	_update_replay_ui()
 
@@ -659,11 +639,6 @@ func _on_target_reached(_payload: Variant = null) -> void:
 		var _target_panel: Node = ui_router.push_route(_ROUTE_TARGET_REACHED_MENU)
 	else:
 		push_warning("[GamePlayController] GFUIRouterUtility 未注册，无法打开目标达成菜单。")
-
-
-func _on_hud_message_timer_timeout() -> void:
-	if is_instance_valid(_game_status_model):
-		_game_status_model.status_message.set_value("")
 
 
 func _on_game_state_changed(new_state: StringName) -> void:

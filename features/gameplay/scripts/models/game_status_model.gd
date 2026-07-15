@@ -26,9 +26,6 @@ var move_count: GFBindableProperty = GFBindableProperty.new(0)
 ## 游戏中击杀的怪物数量。
 var monsters_killed: GFBindableProperty = GFBindableProperty.new(0)
 
-## 顶端状态消息
-var status_message: GFBindableProperty = GFBindableProperty.new("")
-
 ## 规则特定的额外统计数据 (Dictionary 或 Array)
 var extra_stats: GFBindableProperty = GFBindableProperty.new({})
 
@@ -44,7 +41,6 @@ func reset_for_new_game(saved_high_score: int = 0) -> void:
 	highest_tile.set_value(0)
 	target_tile_value.set_value(0)
 	target_reached.set_value(false)
-	status_message.set_value("")
 	extra_stats.set_value({})
 	high_score.set_value(saved_high_score)
 

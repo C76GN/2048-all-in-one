@@ -18,7 +18,6 @@ const _MOVE_COUNT_FORMAT_FALLBACK: String = "移动次数: %d"
 const _HIGH_SCORE_FORMAT_FALLBACK: String = "最高分: %d"
 const _HIGHEST_TILE_FORMAT_FALLBACK: String = "最大方块: %d"
 const _TEXT_PRIMARY_COLOR: Color = Color(0.34901962, 0.2901961, 0.27058825, 1.0)
-const _TEXT_ACCENT_COLOR_HEX: String = "#944431"
 
 
 # --- 私有变量 ---
@@ -29,9 +28,12 @@ var _stat_labels: Dictionary = {}
 
 var _is_dirty: bool = false
 var _game_status_model: GameStatusModel
+var _notification_utility: GFNotificationUtility
+var _signal_utility: GFSignalUtility
 var _score_value_label: Label
 var _move_count_value_label: Label
-var _status_message_label: RichTextLabel
+var _notification_label: RichTextLabel
+var _active_notification_id: int = 0
 var _last_display_values: Dictionary = {}
 
 
@@ -45,13 +47,14 @@ var _last_display_values: Dictionary = {}
 
 func _ready() -> void:
 	_game_status_model = _get_game_status_model()
+	_notification_utility = _get_notification_utility()
+	_signal_utility = _get_signal_utility()
 	
 	_score_value_label = _get_label_node("%ScoreValueLabel")
 	_move_count_value_label = _get_label_node("%MoveCountValueLabel")
-	var status_msg_node: Node = get_node_or_null("%StatusMessageLabel")
-	if status_msg_node is RichTextLabel:
-		var status_label: RichTextLabel = status_msg_node
-		_status_message_label = status_label
+	_notification_label = _get_rich_text_label_node("%NotificationLabel")
+	if not is_instance_valid(_notification_label):
+		push_error("[Hud] 缺少 NotificationLabel，无法呈现 GF 通知。")
 	
 	if is_instance_valid(_game_status_model):
 		_game_status_model.score.bind_to(self, _on_score_changed)
@@ -59,16 +62,19 @@ func _ready() -> void:
 		_game_status_model.high_score.bind_to(self, _on_high_score_changed)
 		_game_status_model.highest_tile.bind_to(self, _on_highest_tile_changed)
 		_game_status_model.monsters_killed.bind_to(self, _on_monsters_killed_changed)
-		_game_status_model.status_message.bind_to(self, _on_status_message_changed)
 		_game_status_model.extra_stats.bind_to(self, _on_extra_stats_changed)
 		
 		_refresh_all()
-		
+
+	_connect_notification_signals()
+	_sync_active_notification()
 	register_simple_event(EventNames.HUD_UPDATE_REQUESTED, GFEventListener.from_method(self, &"_on_hud_update_requested", 1))
 	_update_ui_text()
 
 
 func _exit_tree() -> void:
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	super._exit_tree()
 
 
@@ -89,7 +95,6 @@ func _refresh_all() -> void:
 	var move_count_value: int = GFVariantData.to_int(_game_status_model.move_count.get_value(), 0)
 	var high_score_value: int = GFVariantData.to_int(_game_status_model.high_score.get_value(), 0)
 	var highest_tile_value: int = GFVariantData.to_int(_game_status_model.highest_tile.get_value(), 0)
-	var status_message: String = GFVariantData.to_text(_game_status_model.status_message.get_value(), "")
 
 	if is_instance_valid(_score_value_label):
 		_score_value_label.text = str(score_value)
@@ -97,10 +102,6 @@ func _refresh_all() -> void:
 	if is_instance_valid(_move_count_value_label):
 		_move_count_value_label.text = str(move_count_value)
 	
-	if is_instance_valid(_status_message_label):
-		_status_message_label.text = status_message
-		_status_message_label.visible = not status_message.is_empty()
-
 	var local_dict: Dictionary = {}
 	
 	if not is_instance_valid(_score_value_label):
@@ -134,10 +135,6 @@ func _refresh_all() -> void:
 		[highest_tile_value]
 	)
 	
-	if not is_instance_valid(_status_message_label):
-		if not status_message.is_empty():
-			local_dict[&"status_message"] = "[color=%s]%s[/color]" % [_TEXT_ACCENT_COLOR_HEX, status_message]
-
 	var query_result: Variant = send_query(GetHudStatsQuery.new())
 	if query_result is Dictionary:
 		var query_dict: Dictionary = GFVariantData.to_dictionary(query_result)
@@ -307,12 +304,77 @@ func _get_game_status_model() -> GameStatusModel:
 	return null
 
 
+func _get_notification_utility() -> GFNotificationUtility:
+	var utility_value: Object = get_utility(GFNotificationUtility)
+	if utility_value is GFNotificationUtility:
+		var notification_utility: GFNotificationUtility = utility_value
+		return notification_utility
+	return null
+
+
+func _get_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
+	return null
+
+
 func _get_label_node(path: NodePath) -> Label:
 	var node_value: Node = get_node_or_null(path)
 	if node_value is Label:
 		var label: Label = node_value
 		return label
 	return null
+
+
+func _get_rich_text_label_node(path: NodePath) -> RichTextLabel:
+	var node_value: Node = get_node_or_null(path)
+	if node_value is RichTextLabel:
+		var label: RichTextLabel = node_value
+		return label
+	return null
+
+
+func _connect_notification_signals() -> void:
+	if not is_instance_valid(_notification_utility):
+		push_error("[Hud] 缺少 GFNotificationUtility，无法读取通知队列。")
+		return
+	if not is_instance_valid(_signal_utility):
+		push_error("[Hud] 缺少 GFSignalUtility，无法管理通知信号生命周期。")
+		return
+
+	var _started_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_notification_utility.notification_started,
+		_on_notification_started,
+		self
+	)
+	var _finished_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_notification_utility.notification_finished,
+		_on_notification_finished,
+		self
+	)
+
+
+func _sync_active_notification() -> void:
+	if not is_instance_valid(_notification_utility):
+		_set_notification_message(0, "")
+		return
+	var notification_record: Dictionary = _notification_utility.get_active_notification()
+	if notification_record.is_empty():
+		_set_notification_message(0, "")
+		return
+	_on_notification_started(notification_record)
+
+
+func _set_notification_message(notification_id: int, message: String) -> void:
+	_active_notification_id = notification_id
+	if not is_instance_valid(_notification_label):
+		return
+	_notification_label.text = message
+	_notification_label.visible = not message.is_empty()
+	if not message.is_empty():
+		_pulse_control(_notification_label)
 
 
 static func _is_display_value_empty(value: Variant) -> bool:
@@ -355,14 +417,17 @@ func _on_highest_tile_changed(_old: int, _new_value: int) -> void:
 	_mark_dirty()
 
 
-func _on_status_message_changed(_old: String, new_value: String) -> void:
-	if is_instance_valid(_status_message_label):
-		_status_message_label.text = new_value
-		_status_message_label.visible = not new_value.is_empty()
-		if not new_value.is_empty():
-			_pulse_control(_status_message_label)
-	else:
-		_mark_dirty()
+func _on_notification_started(notification_record: Dictionary) -> void:
+	_set_notification_message(
+		GFVariantData.get_option_int(notification_record, "id"),
+		GFVariantData.get_option_string(notification_record, "message")
+	)
+
+
+func _on_notification_finished(notification_record: Dictionary, _reason: String) -> void:
+	var notification_id: int = GFVariantData.get_option_int(notification_record, "id")
+	if notification_id == _active_notification_id:
+		_set_notification_message(0, "")
 
 
 func _on_monsters_killed_changed(_old: int, _new: int) -> void:

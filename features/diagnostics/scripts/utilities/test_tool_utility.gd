@@ -285,7 +285,6 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 		status_model.move_count.set_value(0)
 		status_model.monsters_killed.set_value(0)
 		status_model.highest_tile.set_value(0)
-		status_model.status_message.set_value("")
 		status_model.extra_stats.set_value({})
 
 	if is_instance_valid(command_history):

@@ -111,6 +111,7 @@ func test_resume_request_closes_top_panel_and_unpauses_tree() -> void:
 	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var flow_system: GameFlowSystem = GameFlowSystem.new()
 	await architecture.register_utility(GFUIUtility, ui_utility)
+	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.init()
 
@@ -134,6 +135,7 @@ func test_restart_request_clears_all_panels_and_delegates_restart() -> void:
 	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
 	await architecture.register_utility(GFUIUtility, ui_utility)
+	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.init()
 
@@ -159,6 +161,7 @@ func test_return_to_main_menu_request_clears_panels_unpauses_and_routes() -> voi
 	var flow_system: GameFlowSystem = GameFlowSystem.new()
 	var router: TestSceneRouterSystemSpy = TestSceneRouterSystemSpy.new()
 	await architecture.register_utility(GFUIUtility, ui_utility)
+	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.register_system(SceneRouterSystem, router)
 	await architecture.init()

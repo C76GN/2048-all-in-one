@@ -50,17 +50,25 @@ func test_redo_keyboard_mapping_is_registered() -> void:
 	assert_false(input_mapping.consume_action(ACTION_REDO), "重做动作应只消费一次。")
 
 
-func test_invalid_move_feedback_payload_is_short_and_localized() -> void:
+func test_invalid_move_feedback_uses_gf_notification_queue() -> void:
 	var input_system: PlayerInputSystem = PlayerInputSystem.new()
+	var notifications: GFNotificationUtility = GFNotificationUtility.new()
+	input_system._notifications = notifications
 
-	var payload: HudMessagePayload = input_system._make_invalid_move_payload()
+	input_system._show_invalid_move_feedback()
+	var notification_record: Dictionary = notifications.get_active_notification()
 
-	assert_true(is_instance_valid(payload), "无效移动应生成 HUD 提示载荷。")
 	assert_true(
-		payload.message.contains("无法移动") or payload.message.contains("No move"),
+		GFVariantData.get_option_string(notification_record, "message").contains("无法移动")
+		or GFVariantData.get_option_string(notification_record, "message").contains("No move"),
 		"无效移动提示应使用本地化文案或安全 fallback。"
 	)
-	assert_true(payload.duration > 0.0 and payload.duration <= 2.0, "无效移动提示应短暂显示。")
+	var duration: float = GFVariantData.get_option_float(notification_record, "duration_seconds")
+	assert_true(duration > 0.0 and duration <= 2.0, "无效移动提示应短暂显示。")
+	assert_true(
+		GFVariantData.get_option_int(notification_record, "level") == GFNotificationUtility.Level.WARNING,
+		"无效移动应进入 GF 警告级通知队列。"
+	)
 
 
 # --- 私有/辅助方法 ---

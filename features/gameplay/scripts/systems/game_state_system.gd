@@ -66,7 +66,6 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 		&"monsters_killed": monsters_killed,
 		&"target_tile_value": target_tile_value,
 		&"target_reached": target_reached,
-		&"status_message": "",
 		&"extra_stats": extra_stats,
 		&"rules_states": rules_states,
 	}
@@ -121,7 +120,6 @@ func restore_state(state_to_restore: Dictionary) -> void:
 			GFVariantData.get_option_int(state_to_restore, &"target_tile_value", 0),
 			GFVariantData.get_option_bool(state_to_restore, &"target_reached", false)
 		)
-		status.status_message.set_value("")
 		var extra_stats: Dictionary = GFVariantData.get_option_dictionary(state_to_restore, &"extra_stats")
 		status.extra_stats.set_value(extra_stats.duplicate(true))
 

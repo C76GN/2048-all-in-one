@@ -16,5 +16,16 @@ script = ExtResource("1_y7dsf")
 layout_mode = 2
 text = "游戏状态"
 
+[node name="NotificationLabel" type="RichTextLabel" parent="." unique_id=1723771130]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+bbcode_enabled = true
+text = ""
+fit_content = true
+scroll_active = false
+autowrap_mode = 3
+
 [node name="StatsContainer" type="VBoxContainer" parent="." unique_id=1098768363]
 layout_mode = 2

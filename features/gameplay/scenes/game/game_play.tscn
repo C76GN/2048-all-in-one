@@ -40,10 +40,6 @@ script = ExtResource("2_script")
 [node name="Background" parent="." index="0"]
 material = SubResource("ShaderMaterial_background")
 
-[node name="HUDMessageTimer" type="Timer" parent="." index="1" unique_id=1723771130]
-unique_name_in_owner = true
-one_shot = true
-
 [node name="HUD" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0" unique_id=758110357 instance=ExtResource("3_hud")]
 unique_name_in_owner = true
 layout_mode = 2

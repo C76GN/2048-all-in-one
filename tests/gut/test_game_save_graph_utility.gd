@@ -152,6 +152,22 @@ func test_profile_schema_mismatch_is_rejected_without_fallback() -> void:
 	_dispose_setup(reloaded)
 
 
+func test_bookmark_schema_rejects_removed_transient_status_field() -> void:
+	var bookmark: BookmarkData = _make_bookmark(900, 256)
+	bookmark.bookmark_id = GFUuid.generate_v7(900000)
+	var current_payload: Dictionary = bookmark.to_dict()
+
+	assert_false(current_payload.has("status_message"), "瞬时 HUD 通知不得进入书签持久化 schema。")
+	assert_true(BookmarkData.from_dict(current_payload) != null, "当前严格书签 schema 应可反序列化。")
+
+	var removed_schema_payload: Dictionary = current_payload.duplicate(true)
+	removed_schema_payload["status_message"] = "legacy transient message"
+	assert_true(
+		BookmarkData.from_dict(removed_schema_payload) == null,
+		"已移除字段不得通过兼容分支继续进入当前书签模型。"
+	)
+
+
 func test_save_dependency_failure_rolls_back_replaced_section() -> void:
 	var setup: Dictionary = await _create_persistence_architecture("", true)
 	var architecture: GFArchitecture = _get_architecture(setup)

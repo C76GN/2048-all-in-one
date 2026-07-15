@@ -6,6 +6,15 @@ extends GutTest
 
 const PROJECT_INSTALLER_PATH: String = "res://app/scripts/game_architecture_installer.gd"
 const GAME_BOARD_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_board_controller.gd"
+const GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_play_controller.gd"
+const GAME_PLAY_SCENE_PATH: String = "res://features/gameplay/scenes/game/game_play.tscn"
+const GAME_STATUS_MODEL_PATH: String = "res://features/gameplay/scripts/models/game_status_model.gd"
+const GAME_STATE_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_state_system.gd"
+const GAME_FLOW_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_flow_system.gd"
+const PLAYER_INPUT_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/player_input_system.gd"
+const HUD_PATH: String = "res://features/gameplay/scripts/ui/hud.gd"
+const BOOKMARK_DATA_PATH: String = "res://features/bookmarks/scripts/data/bookmark_data.gd"
+const REMOVED_HUD_PAYLOAD_PATH: String = "res://features/gameplay/scripts/events/hud_message_payload.gd"
 const SCENE_ROUTER_SYSTEM_PATH: String = "res://features/navigation/scripts/systems/scene_router_system.gd"
 const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
 	{
@@ -67,6 +76,29 @@ func test_project_installer_binds_signal_utility_before_theme_consumers() -> voi
 		signal_position < theme_position,
 		"GFSignalUtility 必须先于依赖它的 GameThemeUtility 注册。"
 	)
+
+
+func test_transient_feedback_uses_gf_notification_utility_only() -> void:
+	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var controller_source: String = _read_text(GAME_PLAY_CONTROLLER_PATH)
+	var scene_source: String = _read_text(GAME_PLAY_SCENE_PATH)
+	var status_source: String = _read_text(GAME_STATUS_MODEL_PATH)
+	var game_state_source: String = _read_text(GAME_STATE_SYSTEM_PATH)
+	var flow_source: String = _read_text(GAME_FLOW_SYSTEM_PATH)
+	var input_source: String = _read_text(PLAYER_INPUT_SYSTEM_PATH)
+	var hud_source: String = _read_text(HUD_PATH)
+	var bookmark_source: String = _read_text(BOOKMARK_DATA_PATH)
+
+	assert_true(installer_source.contains("bind_utility(GFNotificationUtility)"), "项目 Installer 应注册 GFNotificationUtility。")
+	assert_true(flow_source.contains("push_notification("), "游戏流程反馈应写入 GF 通知队列。")
+	assert_true(input_source.contains("push_notification("), "输入反馈应写入 GF 通知队列。")
+	assert_true(hud_source.contains("notification_started"), "HUD 应消费 GF 通知生命周期信号。")
+	assert_false(FileAccess.file_exists(REMOVED_HUD_PAYLOAD_PATH), "不得保留重复的 HudMessagePayload 协议。")
+	assert_false(scene_source.contains("HUDMessageTimer"), "通知超时应由 GFNotificationUtility 管理。")
+	assert_false(controller_source.contains("HudMessagePayload"), "游戏控制器不得承担通知队列职责。")
+	assert_false(status_source.contains("status_message"), "瞬时通知不得进入运行时统计 Model。")
+	assert_false(game_state_source.contains("status_message"), "瞬时通知不得进入撤销或书签状态快照。")
+	assert_false(bookmark_source.contains("status_message"), "瞬时通知不得进入书签 schema。")
 
 
 func test_required_gf_modules_have_no_manual_runtime_fallbacks() -> void:

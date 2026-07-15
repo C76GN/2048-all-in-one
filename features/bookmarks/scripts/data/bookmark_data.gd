@@ -38,9 +38,6 @@ extends Resource
 ## 书签保存时是否已经达成目标。
 @export var target_reached: bool = false
 
-## 书签保存时的状态提示文本。
-@export var status_message: String = ""
-
 ## 书签保存时的扩展统计数据。
 @export var extra_stats: Dictionary = {}
 
@@ -72,7 +69,6 @@ func to_dict() -> Dictionary:
 		"highest_tile": highest_tile,
 		"target_tile_value": target_tile_value,
 		"target_reached": target_reached,
-		"status_message": status_message,
 		"extra_stats": extra_stats.duplicate(true),
 		"rng_full_state": rng_full_state.duplicate(true),
 		"board_snapshot": board_snapshot.duplicate(true),
@@ -100,7 +96,6 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	result.highest_tile = GFVariantData.get_option_int(data, "highest_tile")
 	result.target_tile_value = GFVariantData.get_option_int(data, "target_tile_value")
 	result.target_reached = GFVariantData.get_option_bool(data, "target_reached")
-	result.status_message = GFVariantData.get_option_string(data, "status_message")
 	result.extra_stats = GFVariantData.get_option_dictionary(data, "extra_stats").duplicate(true)
 	result.rng_full_state = GFVariantData.get_option_dictionary(data, "rng_full_state").duplicate(true)
 	result.board_snapshot = GFVariantData.get_option_dictionary(data, "board_snapshot").duplicate(true)
@@ -112,7 +107,7 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 # --- 私有/辅助方法 ---
 
 static func _has_valid_persisted_shape(data: Dictionary) -> bool:
-	if data.size() != 16:
+	if data.size() != 15:
 		return false
 	return (
 		GFVariantData.get_option_value(data, "bookmark_id") is String
@@ -125,7 +120,6 @@ static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, "highest_tile") is int
 		and GFVariantData.get_option_value(data, "target_tile_value") is int
 		and GFVariantData.get_option_value(data, "target_reached") is bool
-		and GFVariantData.get_option_value(data, "status_message") is String
 		and GFVariantData.get_option_value(data, "extra_stats") is Dictionary
 		and GFVariantData.get_option_value(data, "rng_full_state") is Dictionary
 		and GFVariantData.get_option_value(data, "board_snapshot") is Dictionary

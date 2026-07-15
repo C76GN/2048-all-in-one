@@ -411,7 +411,6 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 				or mode_config.is_target_reached(loaded_bookmark_data.highest_tile)
 			)
 			game_status_model.set_target_state(loaded_target_value, loaded_target_reached)
-			game_status_model.status_message.set_value(loaded_bookmark_data.status_message)
 			game_status_model.extra_stats.set_value(loaded_bookmark_data.extra_stats.duplicate(true))
 			game_status_model.high_score.set_value(high_score)
 
