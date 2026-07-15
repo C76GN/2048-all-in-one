@@ -118,12 +118,12 @@
 				"archive_path": "shaders/transition/halftone_wipe_transition.gdshader",
 				"entry_index": 8,
 				"exists": true,
-				"modified_time": 1783616759,
+				"modified_time": 1784079135,
 				"package_id": "c76.asset_library.core",
 				"resource_key": "asset.shader.transition.halftone_wipe",
 				"role": "resource",
-				"sha256": "90936fb990f52e29832d796c5f65ba8f3d3609ab4422dcfc9916efb648bb27a8",
-				"size_bytes": 5956,
+				"sha256": "672cf92dce475e18c0bcedb184302b467af95b2665f6e89a22255c9422ff0d9d",
+				"size_bytes": 6102,
 				"source_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
 				"type_hint": "Shader",
 				"unreadable": false
@@ -185,7 +185,7 @@
 		"root_path": "res://asset_library",
 		"subject": "Content package artifact report",
 		"summary": "Content package artifact report is healthy.",
-		"total_size_bytes": 113724,
+		"total_size_bytes": 113870,
 		"unreadable_count": 0,
 		"version": "0.1.0",
 		"warning_count": 0
@@ -427,7 +427,7 @@
 		"uncovered_paths": [],
 		"warning_count": 0
 	},
-	"direct_path_reference_count": 14,
+	"direct_path_reference_count": 15,
 	"error_count": 0,
 	"export_plan_report": {
 		"entries": [
@@ -803,11 +803,11 @@
 	"package_id": "c76.asset_library.core",
 	"reference_scan_report": {
 		"budget_exceeded": false,
-		"candidate_file_count": 168,
+		"candidate_file_count": 170,
 		"input_target_count": 11,
 		"ok": false,
 		"partial_scan": false,
-		"reference_count": 14,
+		"reference_count": 15,
 		"references": [
 			{
 				"blocking": true,
@@ -963,13 +963,28 @@
 				"blocking": true,
 				"evidence": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
 				"kind": "path",
-				"line": 12,
+				"line": 0,
 				"match": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
-				"path": "res://scripts/systems/scene_router_system.gd",
+				"path": "res://resources/themes/game/transitions/halftone_cover_transition.tres",
 				"preview": "path reference: res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
 				"root_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
-				"source": "gdscript_load",
-				"strength": "strong",
+				"source": "godot_dependency",
+				"strength": "verified",
+				"symbol": "",
+				"target_id": "asset.shader.transition.halftone_wipe",
+				"target_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+				"kind": "path",
+				"line": 0,
+				"match": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+				"path": "res://resources/themes/game/transitions/halftone_reveal_transition.tres",
+				"preview": "path reference: res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+				"root_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+				"source": "godot_dependency",
+				"strength": "verified",
 				"symbol": "",
 				"target_id": "asset.shader.transition.halftone_wipe",
 				"target_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader"
@@ -1021,8 +1036,8 @@
 			}
 		],
 		"scan_warnings": [],
-		"scanned_bytes": 798140,
-		"scanned_file_count": 168,
+		"scanned_bytes": 797838,
+		"scanned_file_count": 170,
 		"skipped_files": [],
 		"target_count": 11,
 		"targets": {
@@ -1227,19 +1242,34 @@
 			},
 			"asset.shader.transition.halftone_wipe": {
 				"id": "asset.shader.transition.halftone_wipe",
-				"reference_count": 1,
+				"reference_count": 2,
 				"references": [
 					{
 						"blocking": true,
 						"evidence": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
 						"kind": "path",
-						"line": 12,
+						"line": 0,
 						"match": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
-						"path": "res://scripts/systems/scene_router_system.gd",
+						"path": "res://resources/themes/game/transitions/halftone_cover_transition.tres",
 						"preview": "path reference: res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
 						"root_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
-						"source": "gdscript_load",
-						"strength": "strong",
+						"source": "godot_dependency",
+						"strength": "verified",
+						"symbol": "",
+						"target_id": "asset.shader.transition.halftone_wipe",
+						"target_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader"
+					},
+					{
+						"blocking": true,
+						"evidence": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+						"kind": "path",
+						"line": 0,
+						"match": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+						"path": "res://resources/themes/game/transitions/halftone_reveal_transition.tres",
+						"preview": "path reference: res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+						"root_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
+						"source": "godot_dependency",
+						"strength": "verified",
 						"symbol": "",
 						"target_id": "asset.shader.transition.halftone_wipe",
 						"target_path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader"
@@ -1683,7 +1713,8 @@
 			"key_users": [],
 			"path": "res://asset_library/shaders/transition/halftone_wipe_transition.gdshader",
 			"path_users": [
-				"res://scripts/systems/scene_router_system.gd"
+				"res://resources/themes/game/transitions/halftone_cover_transition.tres",
+				"res://resources/themes/game/transitions/halftone_reveal_transition.tres"
 			],
 			"type_hint": "Shader",
 			"used": true

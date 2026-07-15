@@ -45,6 +45,8 @@ const _BACKGROUND_SHADER_CLOUD_STRENGTH: StringName = &"cloud_strength"
 @export var color_schemes: Dictionary = {}
 @export var ui_palette: GameUiPalette
 @export var audio_theme: GameAudioTheme
+@export var scene_transition_cover_effect: GFScreenTransitionEffect
+@export var scene_transition_reveal_effect: GFScreenTransitionEffect
 
 @export var background_base_color: Color = Color(0.95686275, 0.92941177, 0.8666667, 1.0)
 @export var background_accent_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
@@ -103,6 +105,18 @@ func get_color_schemes_with_fallback(fallback: Dictionary) -> Dictionary:
 		if scheme_value is TileColorScheme:
 			resolved_schemes[key] = scheme_value
 	return resolved_schemes
+
+
+## 获取主题配置的场景转场效果。
+## @param phase: `cover` 表示覆盖旧场景，`reveal` 表示揭示新场景。
+func get_scene_transition_effect(phase: StringName) -> GFScreenTransitionEffect:
+	match phase:
+		&"cover":
+			return scene_transition_cover_effect
+		&"reveal":
+			return scene_transition_reveal_effect
+		_:
+			return null
 
 
 ## 将当前主题背景颜色和 shader 参数写入 ColorRect。

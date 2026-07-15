@@ -70,7 +70,8 @@
 - Path: `res://asset_library/shaders/transition/halftone_wipe_transition.gdshader`
 - Used: `yes`
 - Path users:
-  - `res://scripts/systems/scene_router_system.gd`
+  - `res://resources/themes/game/transitions/halftone_cover_transition.tres`
+  - `res://resources/themes/game/transitions/halftone_reveal_transition.tres`
 - Key users: none
 
 ### `asset.shader.ui.button_focus_dash`

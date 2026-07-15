@@ -1,7 +1,7 @@
-## SceneRouterSystem: 负责全局的场景切换与路由控制。
+## SceneRouterSystem: 负责全局场景路由并编排 GF 场景加载与屏幕转场。
 ##
-## 负责管理并执行全局的场景跳转功能。
-## 任何需要切换场景的模块，通过调用此系统的公共方法或发送事件来实现。
+## 业务模块只提交路由意图；GFSceneUtility 管理加载事务，
+## GFScreenTransitionUtility 管理覆盖层生命周期和效果推进。
 class_name SceneRouterSystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
@@ -9,14 +9,7 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 # --- 常量 ---
 
 const _LOG_TAG: String = "SceneRouterSystem"
-const _TRANSITION_SHADER: Shader = preload("res://asset_library/shaders/transition/halftone_wipe_transition.gdshader")
-const _TRANSITION_LAYER_NAME: String = "SceneTransitionOverlay"
-const _TRANSITION_RECT_NAME: String = "SceneTransitionRect"
-const _TRANSITION_LAYER_INDEX: int = 1024
 const _TRANSITION_MINIMUM_SECONDS: float = 0.30
-const _TRANSITION_COVER_DURATION: float = 0.24
-const _TRANSITION_HOLD_DURATION: float = 0.04
-const _TRANSITION_REVEAL_DURATION: float = 0.26
 
 
 # --- 私有变量 ---
@@ -25,32 +18,28 @@ const _TRANSITION_REVEAL_DURATION: float = 0.26
 var _main_menu_scene_path: String = "res://scenes/menus/main_menu.tscn"
 var _log: GFLogUtility
 var _scene_utility: GFSceneUtility
+var _screen_transition: GFScreenTransitionUtility
+var _theme_utility: GameThemeUtility
 var _signal_utility: GFSignalUtility
-var _async_tracker: GFAsyncTrackerUtility
 var _operation_diagnostics: GFOperationDiagnosticsUtility
 var _scene_switch_started_connection: GFSignalConnection
 var _scene_load_completed_connection: GFSignalConnection
 var _scene_load_failed_connection: GFSignalConnection
-var _transition_layer: CanvasLayer
-var _transition_rect: ColorRect
-var _transition_tween: Tween
-var _transition_factor: float = 0.0
-var _transition_tracking_id: int = 0
 var _scene_change_operation_id: StringName = &""
 var _scene_change_started_usec: int = 0
 
 
-# --- Godot 生命周期方法 ---
+# --- GF 生命周期方法 ---
 
 func ready() -> void:
 	_log = _get_log_utility()
 	_scene_utility = _get_scene_utility()
+	_screen_transition = _get_screen_transition_utility()
+	_theme_utility = _get_theme_utility()
 	_signal_utility = _get_signal_utility()
-	_async_tracker = _get_async_tracker_utility()
 	_operation_diagnostics = _get_operation_diagnostics_utility()
 	_connect_scene_utility_signals()
 
-	# 可选：监听全局事件 `scene_change_requested` 以解耦调用
 	register_simple_event(EventNames.SCENE_CHANGE_REQUESTED, GFEventListener.from_method(self, &"_on_scene_change_requested", 1))
 	register_simple_event(EventNames.RETURN_TO_MAIN_MENU_REQUESTED, GFEventListener.from_method(self, &"_on_return_to_main_menu_requested", 1))
 
@@ -59,14 +48,14 @@ func dispose() -> void:
 	_finish_scene_change_operation(false, {"reason": "system_disposed"})
 	_disconnect_scene_utility_signals()
 	_scene_utility = null
+	_screen_transition = null
+	_theme_utility = null
 	_signal_utility = null
-	_async_tracker = null
 	_operation_diagnostics = null
 	_log = null
 	_scene_switch_started_connection = null
 	_scene_load_completed_connection = null
 	_scene_load_failed_connection = null
-	_cleanup_transition_overlay()
 
 
 # --- 公共方法 ---
@@ -92,7 +81,7 @@ func goto_scene_packed(scene: PackedScene) -> void:
 	if is_instance_valid(tree.current_scene):
 		send_simple_event(EventNames.SCENE_WILL_CHANGE)
 
-	var error: int = tree.change_scene_to_packed(scene)
+	var error: Error = tree.change_scene_to_packed(scene)
 	if error != OK:
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "切换到场景失败，错误码: %d" % error)
@@ -102,7 +91,7 @@ func goto_scene_packed(scene: PackedScene) -> void:
 		_log.debug(_LOG_TAG, "已请求切换到场景: %s" % scene.resource_path)
 
 
-## 切换到指定的场景路径。
+## 使用 GFSceneTransitionConfig 切换到指定场景路径。
 ## @param path: 待切换的场景资源路径。
 func goto_scene(path: String) -> void:
 	if not path.begins_with("res://") or not path.ends_with(".tscn"):
@@ -111,13 +100,21 @@ func goto_scene(path: String) -> void:
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 		return
 
-	if is_instance_valid(_scene_utility):
-		_begin_scene_change_operation(path)
-		_scene_utility.load_scene_async(path, "", {}, _TRANSITION_MINIMUM_SECONDS)
+	if not is_instance_valid(_scene_utility):
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "GFSceneUtility 未注册，无法执行场景切换: %s" % path)
+		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 		return
 
+	_begin_scene_change_operation(path)
+	var config: GFSceneTransitionConfig = _make_scene_transition_config(path)
+	var error: Error = _scene_utility.load_scene_with_transition(config)
+	if error == OK:
+		return
+
+	_finish_scene_change_operation(false, {"path": path, "error": error})
 	if is_instance_valid(_log):
-		_log.error(_LOG_TAG, "GFSceneUtility 未注册，无法执行场景切换: %s" % path)
+		_log.error(_LOG_TAG, "GFSceneUtility 拒绝场景切换，错误码: %d，路径: %s" % [error, path])
 	send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 
 
@@ -133,6 +130,20 @@ func quit_game() -> void:
 	var tree: SceneTree = _get_scene_tree()
 	if is_instance_valid(tree):
 		tree.quit()
+
+
+## 返回场景路由与 GF 转场服务的诊断快照。
+func get_debug_snapshot() -> Dictionary:
+	return {
+		"main_menu_scene_path": _main_menu_scene_path,
+		"scene_change_active": _scene_change_operation_id != &"",
+		"scene_change_started_usec": _scene_change_started_usec,
+		"screen_transition": (
+			_screen_transition.get_debug_snapshot()
+			if is_instance_valid(_screen_transition)
+			else {}
+		),
+	}
 
 
 # --- 私有/辅助方法 ---
@@ -153,19 +164,27 @@ func _get_scene_utility() -> GFSceneUtility:
 	return null
 
 
+func _get_screen_transition_utility() -> GFScreenTransitionUtility:
+	var utility_value: Object = get_utility(GFScreenTransitionUtility)
+	if utility_value is GFScreenTransitionUtility:
+		var transition_utility: GFScreenTransitionUtility = utility_value
+		return transition_utility
+	return null
+
+
+func _get_theme_utility() -> GameThemeUtility:
+	var utility_value: Object = get_utility(GameThemeUtility)
+	if utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = utility_value
+		return theme_utility
+	return null
+
+
 func _get_signal_utility() -> GFSignalUtility:
 	var utility_value: Object = get_utility(GFSignalUtility)
 	if utility_value is GFSignalUtility:
 		var signal_utility: GFSignalUtility = utility_value
 		return signal_utility
-	return null
-
-
-func _get_async_tracker_utility() -> GFAsyncTrackerUtility:
-	var utility_value: Object = get_utility(GFAsyncTrackerUtility)
-	if utility_value is GFAsyncTrackerUtility:
-		var tracker: GFAsyncTrackerUtility = utility_value
-		return tracker
 	return null
 
 
@@ -196,11 +215,11 @@ func _connect_scene_utility_signals() -> void:
 		return
 
 	if not _scene_utility.scene_switch_started.is_connected(_on_scene_switch_started):
-		var _connect_result_134: int = _scene_utility.scene_switch_started.connect(_on_scene_switch_started)
+		var _connect_started_result: int = _scene_utility.scene_switch_started.connect(_on_scene_switch_started)
 	if not _scene_utility.scene_load_completed.is_connected(_on_scene_load_completed):
-		var _connect_result_136: int = _scene_utility.scene_load_completed.connect(_on_scene_load_completed)
+		var _connect_completed_result: int = _scene_utility.scene_load_completed.connect(_on_scene_load_completed)
 	if not _scene_utility.scene_load_failed.is_connected(_on_scene_load_failed):
-		var _connect_result_138: int = _scene_utility.scene_load_failed.connect(_on_scene_load_failed)
+		var _connect_failed_result: int = _scene_utility.scene_load_failed.connect(_on_scene_load_failed)
 
 
 func _disconnect_scene_utility_signals() -> void:
@@ -227,161 +246,76 @@ func _get_scene_resource_path(scene: PackedScene) -> String:
 	return scene.resource_path if scene != null else ""
 
 
-func _play_scene_transition_cover() -> void:
-	var rect: ColorRect = _ensure_transition_overlay()
-	if not is_instance_valid(rect):
-		return
+func _make_scene_transition_config(path: String) -> GFSceneTransitionConfig:
+	var config: GFSceneTransitionConfig = GFSceneTransitionConfig.new()
+	config.target_scene_path = path
+	config.cache_loaded_scene = true
+	config.minimum_duration_seconds = _TRANSITION_MINIMUM_SECONDS
+	config.metadata = {
+		"source": &"scene_router",
+		"path": path,
+	}
+	return config
 
-	rect.visible = true
-	_sync_transition_resolution()
-	_set_transition_factor(0.0)
-	_kill_transition_tween()
-	_transition_tween = rect.create_tween()
-	var _transition_result: Tween = _transition_tween.set_trans(Tween.TRANS_CUBIC)
-	var _ease_result: Tween = _transition_tween.set_ease(Tween.EASE_OUT)
-	var _factor_tweener: MethodTweener = _transition_tween.tween_method(
-		_set_transition_factor,
-		_transition_factor,
-		1.0,
-		_TRANSITION_COVER_DURATION
-	)
-	_track_transition_tween(_transition_tween, &"cover")
+
+func _play_scene_transition_cover() -> void:
+	_play_scene_transition(&"cover")
 
 
 func _play_scene_transition_reveal() -> void:
-	var rect: ColorRect = _ensure_transition_overlay()
-	if not is_instance_valid(rect):
+	_play_scene_transition(&"reveal")
+
+
+func _play_scene_transition(phase: StringName) -> void:
+	if not is_instance_valid(_screen_transition):
+		_log_transition_error("GFScreenTransitionUtility 未注册，无法播放 %s 转场。" % phase)
 		return
 
-	rect.visible = true
-	_sync_transition_resolution()
-	_set_transition_factor(1.0)
-	_kill_transition_tween()
-	_transition_tween = rect.create_tween()
-	var _transition_result: Tween = _transition_tween.set_trans(Tween.TRANS_CUBIC)
-	var _ease_result: Tween = _transition_tween.set_ease(Tween.EASE_IN_OUT)
-	var _hold_tweener: IntervalTweener = _transition_tween.tween_interval(_TRANSITION_HOLD_DURATION)
-	var _factor_tweener: MethodTweener = _transition_tween.tween_method(
-		_set_transition_factor,
-		_transition_factor,
-		0.0,
-		_TRANSITION_REVEAL_DURATION
-	)
-	var _callback_tweener: CallbackTweener = _transition_tween.tween_callback(_hide_transition_overlay)
-	_track_transition_tween(_transition_tween, &"reveal")
+	var effect: GFScreenTransitionEffect = _resolve_scene_transition_effect(phase)
+	if effect == null:
+		_log_transition_error("当前主题未配置 %s 场景转场。" % phase)
+		return
+
+	var on_finished: Callable = Callable()
+	if phase == &"reveal":
+		on_finished = Callable(_screen_transition, &"hide_overlay")
+	var error: Error = _screen_transition.play(effect, on_finished)
+	if error != OK:
+		_log_transition_error("GFScreenTransitionUtility 启动 %s 转场失败，错误码: %d。" % [phase, error])
 
 
-func _ensure_transition_overlay() -> ColorRect:
-	if is_instance_valid(_transition_rect):
-		return _transition_rect
+func _resolve_scene_transition_effect(phase: StringName) -> GFScreenTransitionEffect:
+	if not is_instance_valid(_theme_utility):
+		return null
+	var theme: GameTheme = _theme_utility.get_current_visual_theme()
+	if theme == null:
+		return null
+	var configured_effect: GFScreenTransitionEffect = theme.get_scene_transition_effect(phase)
+	if configured_effect == null:
+		return null
 
+	var effect: GFScreenTransitionEffect = configured_effect.duplicate_effect()
+	effect.metadata["phase"] = phase
+	effect.metadata["theme_id"] = theme.theme_id
+	if effect.shader_material != null:
+		effect.shader_material.set_shader_parameter(&"node_resolution", _get_transition_resolution())
+	return effect
+
+
+func _get_transition_resolution() -> Vector2:
 	var tree: SceneTree = _get_scene_tree()
-	if not is_instance_valid(tree) or not is_instance_valid(tree.root):
-		return null
-
-	var root: Window = tree.root
-	var existing_layer: Node = root.get_node_or_null(_TRANSITION_LAYER_NAME)
-	if existing_layer is CanvasLayer:
-		_transition_layer = existing_layer
-	else:
-		_transition_layer = CanvasLayer.new()
-		_transition_layer.name = _TRANSITION_LAYER_NAME
-		_transition_layer.layer = _TRANSITION_LAYER_INDEX
-		_transition_layer.process_mode = Node.PROCESS_MODE_ALWAYS
-		root.add_child(_transition_layer)
-
-	var existing_rect: Node = _transition_layer.get_node_or_null(_TRANSITION_RECT_NAME)
-	if existing_rect is ColorRect:
-		_transition_rect = existing_rect
-	else:
-		_transition_rect = ColorRect.new()
-		_transition_rect.name = _TRANSITION_RECT_NAME
-		_transition_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_transition_rect.process_mode = Node.PROCESS_MODE_ALWAYS
-		_transition_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-		_transition_rect.offset_left = 0.0
-		_transition_rect.offset_top = 0.0
-		_transition_rect.offset_right = 0.0
-		_transition_rect.offset_bottom = 0.0
-		_transition_rect.color = Color.WHITE
-		_transition_layer.add_child(_transition_rect)
-
-	if not (_transition_rect.material is ShaderMaterial):
-		var shader_material: ShaderMaterial = ShaderMaterial.new()
-		shader_material.shader = _TRANSITION_SHADER
-		_transition_rect.material = shader_material
-
-	_set_transition_factor(_transition_factor)
-	_hide_transition_overlay()
-	return _transition_rect
+	if is_instance_valid(tree) and is_instance_valid(tree.root):
+		var viewport_size: Vector2 = tree.root.get_visible_rect().size
+		if viewport_size.x > 0.0 and viewport_size.y > 0.0:
+			return viewport_size
+	return Vector2(1280.0, 720.0)
 
 
-func _sync_transition_resolution() -> void:
-	if not is_instance_valid(_transition_rect):
+func _log_transition_error(message: String) -> void:
+	if is_instance_valid(_log):
+		_log.error(_LOG_TAG, message)
 		return
-
-	var viewport_rect: Rect2 = _transition_rect.get_viewport_rect()
-	var shader_material: ShaderMaterial = _get_transition_material()
-	if is_instance_valid(shader_material):
-		shader_material.set_shader_parameter("node_resolution", viewport_rect.size)
-
-
-func _set_transition_factor(value: float) -> void:
-	_transition_factor = clampf(value, 0.0, 1.0)
-	var shader_material: ShaderMaterial = _get_transition_material()
-	if is_instance_valid(shader_material):
-		shader_material.set_shader_parameter("factor", _transition_factor)
-
-
-func _get_transition_material() -> ShaderMaterial:
-	if not is_instance_valid(_transition_rect):
-		return null
-	var material_value: Material = _transition_rect.material
-	if material_value is ShaderMaterial:
-		var shader_material: ShaderMaterial = material_value
-		return shader_material
-	return null
-
-
-func _hide_transition_overlay() -> void:
-	if is_instance_valid(_transition_rect) and _transition_factor <= 0.001:
-		_transition_rect.visible = false
-
-
-func _kill_transition_tween() -> void:
-	_untrack_transition_tween()
-	if is_instance_valid(_transition_tween):
-		_transition_tween.kill()
-	_transition_tween = null
-
-
-func _track_transition_tween(tween: Tween, phase: StringName) -> void:
-	if not is_instance_valid(tween) or not is_instance_valid(_async_tracker):
-		return
-	_transition_tracking_id = _async_tracker.track_handle(
-		tween,
-		&"scene_transition_tween",
-		{"phase": phase},
-		Callable(self, &"_get_transition_tracking_snapshot").bind(phase)
-	)
-	if _transition_tracking_id > 0:
-		var _connect_result: int = tween.finished.connect(
-			Callable(self, &"_on_transition_tween_finished").bind(tween, _transition_tracking_id)
-		)
-
-
-func _untrack_transition_tween() -> void:
-	if _transition_tracking_id > 0 and is_instance_valid(_async_tracker):
-		var _untracked: bool = _async_tracker.untrack_id(_transition_tracking_id)
-	_transition_tracking_id = 0
-
-
-func _get_transition_tracking_snapshot(phase: StringName) -> Dictionary:
-	return {
-		"phase": phase,
-		"factor": _transition_factor,
-		"overlay_visible": is_instance_valid(_transition_rect) and _transition_rect.visible,
-	}
+	push_error("[%s] %s" % [_LOG_TAG, message])
 
 
 func _begin_scene_change_operation(path: String) -> void:
@@ -406,15 +340,6 @@ func _finish_scene_change_operation(success: bool, metadata: Dictionary = {}) ->
 		)
 	_scene_change_operation_id = &""
 	_scene_change_started_usec = 0
-
-
-func _cleanup_transition_overlay() -> void:
-	_kill_transition_tween()
-	if is_instance_valid(_transition_layer):
-		_transition_layer.queue_free()
-	_transition_layer = null
-	_transition_rect = null
-	_transition_factor = 0.0
 
 
 # --- 信号处理函数 ---
@@ -471,12 +396,3 @@ func _on_scene_load_failed(path: String) -> void:
 	_finish_scene_change_operation(false, {"path": path, "reason": "load_failed"})
 	_play_scene_transition_reveal()
 	send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
-
-
-func _on_transition_tween_finished(tween: Tween, tracking_id: int) -> void:
-	if tracking_id > 0 and is_instance_valid(_async_tracker):
-		var _untracked: bool = _async_tracker.untrack_id(tracking_id)
-	if _transition_tracking_id == tracking_id:
-		_transition_tracking_id = 0
-	if _transition_tween == tween:
-		_transition_tween = null

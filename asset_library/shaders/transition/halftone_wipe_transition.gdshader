@@ -5,6 +5,7 @@ uniform vec4 ink_color : source_color = vec4(0.1843, 0.1882, 0.2157, 1.0);
 uniform vec4 accent_color : source_color = vec4(0.6196, 0.8588, 0.8353, 1.0);
 uniform vec2 node_resolution = vec2(1280.0, 720.0);
 uniform float factor : hint_range(0.0, 1.0, 0.01) = 0.0;
+uniform bool reverse_progress = false;
 uniform float width : hint_range(0.02, 0.8, 0.01) = 0.28;
 uniform float angle_degrees : hint_range(-180.0, 180.0, 1.0) = -12.0;
 uniform float dot_tiling : hint_range(8.0, 96.0, 1.0) = 38.0;
@@ -86,7 +87,11 @@ void fragment() {
 	float paper_noise = hash(floor(FRAGCOORD.xy * 0.72));
 	float print_jitter = (hash(floor(FRAGCOORD.xy * 0.18)) - 0.5) * 0.030;
 	float gradient = clamp(rotated_uv.x + print_jitter, 0.0, 1.0);
-	float progress = mix(-width, 1.0 + width, factor);
+	float effective_factor = factor;
+	if (reverse_progress) {
+		effective_factor = 1.0 - factor;
+	}
+	float progress = mix(-width, 1.0 + width, effective_factor);
 
 	vec2 shape_uv = rotate_uv(
 		(aspect_uv + TIME * shape_scroll) * vec2(shape_tiling, shape_tiling * max(aspect, 0.001)),

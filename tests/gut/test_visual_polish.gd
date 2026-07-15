@@ -70,6 +70,7 @@ func test_scene_transition_shader_loads_and_keeps_print_defaults() -> void:
 	assert_true(shader_text.contains("shape_mask_pattern"), "场景转场应使用程序化形状遮罩推进，不依赖外部 shape texture。")
 	assert_true(shader_text.contains("shaped_gradient"), "场景转场应由形状扰动擦除边缘，而不是单纯线性淡入。")
 	assert_true(shader_text.contains("node_resolution"), "场景转场应按视口比例修正遮罩方向。")
+	assert_true(shader_text.contains("reverse_progress"), "同一转场 shader 应支持由主题资源配置覆盖与揭示方向。")
 	_assert_shader_float_default_in_range(shader_text, "width", 0.20, 0.36)
 	_assert_shader_float_default_in_range(shader_text, "dot_tiling", 24.0, 48.0)
 	_assert_shader_float_default_in_range(shader_text, "shape_tiling", 12.0, 28.0)

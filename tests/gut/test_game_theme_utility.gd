@@ -24,7 +24,53 @@ func test_theme_registry_loads_default_theme_pack() -> void:
 	assert_true(is_instance_valid(theme.board_theme), "主题应引用棋盘主题资源。")
 	assert_true(is_instance_valid(theme.ui_palette), "主题应引用 UI 色板资源。")
 	assert_true(is_instance_valid(theme.audio_theme), "主题应引用默认音效主题。")
+	assert_true(is_instance_valid(theme.scene_transition_cover_effect), "主题应声明覆盖旧场景的 GF 转场效果。")
+	assert_true(is_instance_valid(theme.scene_transition_reveal_effect), "主题应声明揭示新场景的 GF 转场效果。")
+	assert_true(theme.scene_transition_cover_effect.shader_material != null, "覆盖转场应由主题提供 ShaderMaterial。")
+	assert_true(theme.scene_transition_reveal_effect.shader_material != null, "揭示转场应由主题提供 ShaderMaterial。")
+	assert_false(
+		GFVariantData.to_bool(theme.scene_transition_cover_effect.shader_material.get_shader_parameter(&"reverse_progress")),
+		"覆盖转场应正向推进半调遮罩。"
+	)
+	assert_true(
+		GFVariantData.to_bool(theme.scene_transition_reveal_effect.shader_material.get_shader_parameter(&"reverse_progress")),
+		"揭示转场应反向推进半调遮罩。"
+	)
 	assert_true(theme.color_schemes.has(Tile.TileType.PLAYER), "主题应覆盖玩家方块色阶。")
+
+
+func test_scene_router_delegates_theme_transitions_to_gf_utility() -> void:
+	var setup: Dictionary = await _create_theme_architecture(true)
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var transition_utility: GFScreenTransitionUtility = _get_screen_transition_utility(setup)
+	var router: SceneRouterSystem = _get_scene_router_system(setup)
+
+	router.call("_play_scene_transition_cover")
+	var cover_snapshot: Dictionary = transition_utility.get_debug_snapshot()
+	var cover_effect: Dictionary = GFVariantData.get_option_dictionary(cover_snapshot, "active_effect")
+	var cover_metadata: Dictionary = GFVariantData.get_option_dictionary(cover_effect, "metadata")
+
+	assert_true(GFVariantData.get_option_bool(cover_snapshot, "transition_active"), "覆盖阶段应由 GFScreenTransitionUtility 推进。")
+	assert_true(GFVariantData.get_option_bool(cover_effect, "has_shader_material"), "主题覆盖阶段应携带 ShaderMaterial。")
+	assert_true(GFVariantData.get_option_int(cover_effect, "layer") == 1024, "主题资源应控制转场覆盖层级。")
+	assert_true(GFVariantData.to_string_name(cover_metadata.get("phase")) == &"cover", "活动效果应保留覆盖阶段元数据。")
+	assert_true(GFVariantData.to_string_name(cover_metadata.get("theme_id")) == &"halftone_atlas", "活动效果应记录当前主题。")
+
+	assert_true(transition_utility.complete_transition(), "覆盖转场应能通过 GF 服务完成。")
+	router.call("_play_scene_transition_reveal")
+	var reveal_snapshot: Dictionary = transition_utility.get_debug_snapshot()
+	var reveal_effect: Dictionary = GFVariantData.get_option_dictionary(reveal_snapshot, "active_effect")
+	var reveal_metadata: Dictionary = GFVariantData.get_option_dictionary(reveal_effect, "metadata")
+
+	assert_true(GFVariantData.get_option_bool(reveal_snapshot, "transition_active"), "揭示阶段应由同一个 GF 服务接管。")
+	assert_true(GFVariantData.to_string_name(reveal_metadata.get("phase")) == &"reveal", "活动效果应保留揭示阶段元数据。")
+	assert_true(transition_utility.complete_transition(), "揭示转场应能通过 GF 服务完成。")
+	assert_false(
+		GFVariantData.get_option_bool(transition_utility.get_debug_snapshot(), "overlay_visible"),
+		"揭示完成后应通过 GF 完成回调隐藏覆盖层。"
+	)
+
+	await _dispose_architecture(architecture)
 
 
 func test_game_settings_utility_registers_theme_settings_and_theme_utility_resolves_defaults() -> void:
@@ -240,7 +286,7 @@ func test_theme_utility_plays_semantic_sound_events_through_gf_audio() -> void:
 
 # --- 私有/辅助方法 ---
 
-func _create_theme_architecture() -> Dictionary:
+func _create_theme_architecture(include_scene_router: bool = false) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
 	var content_packages: GFContentPackageUtility = GFContentPackageUtility.new()
@@ -253,6 +299,8 @@ func _create_theme_architecture() -> Dictionary:
 	var motion: GameUiMotionUtility = GameUiMotionUtility.new()
 	var theme_catalog: GameThemeCatalogUtility = GameThemeCatalogUtility.new()
 	var theme_utility: GameThemeUtility = GameThemeUtility.new()
+	var screen_transition: GFScreenTransitionUtility = null
+	var scene_router: SceneRouterSystem = null
 
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(GFContentPackageUtility, content_packages)
@@ -262,6 +310,11 @@ func _create_theme_architecture() -> Dictionary:
 	await architecture.register_utility(GameUiMotionUtility, motion)
 	await architecture.register_utility(GameThemeCatalogUtility, theme_catalog)
 	await architecture.register_utility(GameThemeUtility, theme_utility)
+	if include_scene_router:
+		screen_transition = GFScreenTransitionUtility.new()
+		scene_router = SceneRouterSystem.new()
+		await architecture.register_utility(GFScreenTransitionUtility, screen_transition)
+		await architecture.register_system(SceneRouterSystem, scene_router)
 	await architecture.init()
 	await get_tree().process_frame
 
@@ -274,6 +327,8 @@ func _create_theme_architecture() -> Dictionary:
 		"audio": audio,
 		"theme_catalog": theme_catalog,
 		"theme_utility": theme_utility,
+		"screen_transition": screen_transition,
+		"scene_router": scene_router,
 	}
 
 
@@ -325,6 +380,24 @@ func _get_theme_utility(setup: Dictionary) -> GameThemeUtility:
 		return theme_utility
 	assert_true(false, "测试 setup 缺少 GameThemeUtility。")
 	return GameThemeUtility.new()
+
+
+func _get_screen_transition_utility(setup: Dictionary) -> GFScreenTransitionUtility:
+	var value: Variant = setup.get("screen_transition")
+	if value is GFScreenTransitionUtility:
+		var transition_utility: GFScreenTransitionUtility = value
+		return transition_utility
+	assert_true(false, "测试 setup 缺少 GFScreenTransitionUtility。")
+	return GFScreenTransitionUtility.new()
+
+
+func _get_scene_router_system(setup: Dictionary) -> SceneRouterSystem:
+	var value: Variant = setup.get("scene_router")
+	if value is SceneRouterSystem:
+		var scene_router: SceneRouterSystem = value
+		return scene_router
+	assert_true(false, "测试 setup 缺少 SceneRouterSystem。")
+	return SceneRouterSystem.new()
 
 
 func _get_audio_utility(setup: Dictionary) -> GFAudioUtility:

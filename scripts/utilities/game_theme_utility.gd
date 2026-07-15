@@ -17,7 +17,7 @@ const DEFAULT_THEME_ID: StringName = &"halftone_atlas"
 const DEFAULT_SOUND_THEME_ID: StringName = &"printworks"
 const THEME_REGISTRY_RESOURCE_KEY: StringName = &"game.theme_registry"
 const CONTENT_PACKAGE_SOURCE_ROOT: String = "res://resources"
-const DEFAULT_THEME_REGISTRY: GameThemeRegistry = preload("res://resources/registries/game_theme_registry.tres")
+const DEFAULT_THEME_REGISTRY_PATH: String = "res://resources/registries/game_theme_registry.tres"
 
 
 # --- 私有变量 ---
@@ -283,8 +283,11 @@ func _load_registry() -> GameThemeRegistry:
 		if is_instance_valid(registry):
 			return registry
 
-	if is_instance_valid(DEFAULT_THEME_REGISTRY):
-		return DEFAULT_THEME_REGISTRY
+	var resource: Resource = load(DEFAULT_THEME_REGISTRY_PATH)
+	if resource is GameThemeRegistry:
+		var registry: GameThemeRegistry = resource
+		return registry
+	push_error("[GameThemeUtility] 默认主题注册表加载失败：%s。" % DEFAULT_THEME_REGISTRY_PATH)
 	return GameThemeRegistry.new()
 
 
