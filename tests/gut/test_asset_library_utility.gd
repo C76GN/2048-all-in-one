@@ -137,8 +137,12 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 		"审计报告应能说明 UI 选择音效被音频银行使用。"
 	)
 	assert_true(
+		GFVariantData.get_option_packed_string_array(button_shader_usage, "key_users").has("res://features/themes/scripts/utilities/game_ui_motion_utility.gd"),
+		"审计报告应能说明 UI 动效 Utility 通过稳定素材键使用按钮焦点 shader。"
+	)
+	assert_false(
 		GFVariantData.get_option_packed_string_array(button_shader_usage, "path_users").has("res://features/themes/scripts/utilities/game_ui_motion_utility.gd"),
-		"审计报告应能说明按钮焦点 shader 被 UI 动效 Utility 使用。"
+		"UI 动效 Utility 不应绕过 GF 素材解析器直接引用按钮焦点 shader 路径。"
 	)
 	assert_true(
 		GFVariantData.get_option_packed_string_array(celebration_vfx_usage, "key_users").has("res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres"),

@@ -25,7 +25,7 @@ const _CONTROL_BASE_MODULATE_META: StringName = &"_game_ui_motion_control_base_m
 const _CONTROL_TWEEN_META: StringName = &"_game_ui_motion_control_tween"
 const _STATIC_STYLE_META: StringName = &"_game_ui_motion_static_style"
 const _BUTTON_FOCUS_RING_NODE_NAME: String = "ButtonFocusRing"
-const _BUTTON_FOCUS_RING_SHADER: Shader = preload("res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader")
+const _BUTTON_FOCUS_RING_SHADER_ASSET_KEY: StringName = &"asset.shader.ui.button_focus_dash"
 
 const _REST_MODULATE: Color = Color.WHITE
 const _HOVER_MODULATE: Color = Color(0.98, 1.0, 0.99, 1.0)
@@ -78,21 +78,38 @@ var _slider_track_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
 var _slider_grabber_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
 var _slider_grabber_highlight_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)
 var _button_focus_shader_profile: GFShaderParameterProfile
+var _asset_library: GameAssetLibraryUtility
+var _button_focus_ring_shader: Shader
 var _shader_parameters: GFShaderParameterUtility
 
 
 # --- GF 生命周期方法 ---
 
 func ready() -> void:
+	_asset_library = _get_asset_library_utility()
+	_button_focus_ring_shader = _load_button_focus_ring_shader()
 	_shader_parameters = _get_shader_parameter_utility()
+	if not is_instance_valid(_asset_library):
+		push_error("[GameUiMotionUtility] 缺少 GameAssetLibraryUtility。")
+	if not is_instance_valid(_button_focus_ring_shader):
+		push_error(
+			"[GameUiMotionUtility] 无法通过素材键加载按钮焦点 shader：%s。"
+			% String(_BUTTON_FOCUS_RING_SHADER_ASSET_KEY)
+		)
+	if not is_instance_valid(_shader_parameters):
+		push_error("[GameUiMotionUtility] 缺少 GFShaderParameterUtility。")
 
 
 func dispose() -> void:
 	_button_focus_shader_profile = null
+	_asset_library = null
+	_button_focus_ring_shader = null
 	_shader_parameters = null
 
 
 func release_dependencies() -> void:
+	_asset_library = null
+	_button_focus_ring_shader = null
 	_shader_parameters = null
 	super.release_dependencies()
 
@@ -307,6 +324,13 @@ func _create_button_style(
 func _ensure_button_focus_ring(button: BaseButton) -> ColorRect:
 	if not is_instance_valid(button):
 		return null
+	var focus_ring_shader: Shader = _get_button_focus_ring_shader()
+	if not is_instance_valid(focus_ring_shader):
+		push_error(
+			"[GameUiMotionUtility] 无法通过素材键加载按钮焦点 shader：%s。"
+			% String(_BUTTON_FOCUS_RING_SHADER_ASSET_KEY)
+		)
+		return null
 
 	var existing_node: Node = button.get_node_or_null(_BUTTON_FOCUS_RING_NODE_NAME)
 	if existing_node is ColorRect:
@@ -327,7 +351,7 @@ func _ensure_button_focus_ring(button: BaseButton) -> ColorRect:
 	ring.z_index = 16
 
 	var shader_material: ShaderMaterial = ShaderMaterial.new()
-	shader_material.shader = _BUTTON_FOCUS_RING_SHADER
+	shader_material.shader = focus_ring_shader
 	ring.material = shader_material
 	button.add_child(ring, false, Node.INTERNAL_MODE_FRONT)
 	_apply_button_focus_ring_style(button)
@@ -684,6 +708,33 @@ func _get_shader_parameter_utility() -> GFShaderParameterUtility:
 	if utility_value is GFShaderParameterUtility:
 		var shader_utility: GFShaderParameterUtility = utility_value
 		return shader_utility
+	return null
+
+
+func _get_asset_library_utility() -> GameAssetLibraryUtility:
+	var utility_value: Object = get_utility(GameAssetLibraryUtility)
+	if utility_value is GameAssetLibraryUtility:
+		var asset_library: GameAssetLibraryUtility = utility_value
+		return asset_library
+	return null
+
+
+func _get_button_focus_ring_shader() -> Shader:
+	if is_instance_valid(_button_focus_ring_shader):
+		return _button_focus_ring_shader
+	if not is_instance_valid(_asset_library):
+		_asset_library = _get_asset_library_utility()
+	_button_focus_ring_shader = _load_button_focus_ring_shader()
+	return _button_focus_ring_shader
+
+
+func _load_button_focus_ring_shader() -> Shader:
+	if not is_instance_valid(_asset_library):
+		return null
+	var resource: Resource = _asset_library.load_asset(_BUTTON_FOCUS_RING_SHADER_ASSET_KEY, "Shader")
+	if resource is Shader:
+		var shader: Shader = resource
+		return shader
 	return null
 
 

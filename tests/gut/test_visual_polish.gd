@@ -321,6 +321,7 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	await _register_asset_library_stack(architecture)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GameUiMotionUtility, motion_utility)
 	await architecture.init()
@@ -385,7 +386,13 @@ func test_ui_motion_utility_styles_spinbox_as_readable_light_field() -> void:
 	add_child_autoqfree(root)
 	await get_tree().process_frame
 
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiMotionUtility, motion_utility)
+	await architecture.init()
 	var _applied_count: int = motion_utility.apply_palette_to_tree(root, _HALFTONE_UI_PALETTE)
 
 	var line_edit: LineEdit = spin_box.get_line_edit()
@@ -399,6 +406,7 @@ func test_ui_motion_utility_styles_spinbox_as_readable_light_field() -> void:
 				_get_contrast_ratio(font_color, normal_style.bg_color) >= _MIN_UI_TEXT_CONTRAST,
 				"SpinBox 字体在浅色字段上必须保持可读。"
 			)
+	architecture.dispose()
 
 
 func test_ui_motion_utility_reveals_panel_with_tween() -> void:
@@ -681,6 +689,7 @@ func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
+	await _register_asset_library_stack(architecture)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.init()
@@ -722,6 +731,15 @@ func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _register_asset_library_stack(architecture: GFArchitecture) -> void:
+	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
+	var content_packages: GFContentPackageUtility = GFContentPackageUtility.new()
+	var asset_library: GameAssetLibraryUtility = GameAssetLibraryUtility.new()
+	await architecture.register_utility(GFResourceResolverUtility, resolver)
+	await architecture.register_utility(GFContentPackageUtility, content_packages)
+	await architecture.register_utility(GameAssetLibraryUtility, asset_library)
+
 
 func _create_tile() -> Tile:
 	var tile: Tile = _instantiate_tile(_TILE_SCENE)

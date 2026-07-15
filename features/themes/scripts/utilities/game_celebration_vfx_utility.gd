@@ -5,7 +5,6 @@ extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 # --- 常量 ---
 
-const _FALLBACK_CONFETTI_SHADER: Shader = preload("res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader")
 const _LAYER_NAME: String = "GameCelebrationVfxLayer"
 const _RECT_NAME_PREFIX: String = "CelebrationConfetti"
 const _LAYER_INDEX: int = 960
@@ -25,6 +24,10 @@ var _layer: CanvasLayer = null
 func ready() -> void:
 	_asset_library = _get_asset_library_utility()
 	_shader_parameters = _get_shader_parameter_utility()
+	if not is_instance_valid(_asset_library):
+		push_error("[GameCelebrationVfxUtility] 缺少 GameAssetLibraryUtility。")
+	if not is_instance_valid(_shader_parameters):
+		push_error("[GameCelebrationVfxUtility] 缺少 GFShaderParameterUtility。")
 
 
 func dispose() -> void:
@@ -88,6 +91,13 @@ func _play_confetti(event_id: StringName) -> bool:
 	if not is_instance_valid(_shader_parameters):
 		push_error("[GameCelebrationVfxUtility] 缺少 GFShaderParameterUtility。")
 		return false
+	var confetti_shader: Shader = _load_confetti_shader(_theme.shader_asset_key)
+	if not is_instance_valid(confetti_shader):
+		push_error(
+			"[GameCelebrationVfxUtility] 无法通过素材键加载庆祝 shader：%s。"
+			% String(_theme.shader_asset_key)
+		)
+		return false
 
 	var layer: CanvasLayer = _ensure_layer()
 	if not is_instance_valid(layer):
@@ -108,7 +118,7 @@ func _play_confetti(event_id: StringName) -> bool:
 
 	var viewport_size: Vector2 = _sync_rect_to_viewport(rect)
 	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = _load_confetti_shader(_theme.shader_asset_key)
+	material.shader = confetti_shader
 	rect.material = material
 	var profile_count: int = _shader_parameters.apply_profile(
 		material,
@@ -174,12 +184,13 @@ func _queue_rect_fade_out(rect: ColorRect, duration: float) -> void:
 
 func _load_confetti_shader(asset_key: StringName) -> Shader:
 	var asset_library: GameAssetLibraryUtility = _get_cached_asset_library_utility()
-	if is_instance_valid(asset_library):
-		var resource: Resource = asset_library.load_asset(asset_key, "Shader")
-		if resource is Shader:
-			var shader: Shader = resource
-			return shader
-	return _FALLBACK_CONFETTI_SHADER
+	if not is_instance_valid(asset_library):
+		return null
+	var resource: Resource = asset_library.load_asset(asset_key, "Shader")
+	if resource is Shader:
+		var shader: Shader = resource
+		return shader
+	return null
 
 
 func _get_cached_asset_library_utility() -> GameAssetLibraryUtility:

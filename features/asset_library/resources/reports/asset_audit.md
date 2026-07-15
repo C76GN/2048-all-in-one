@@ -94,10 +94,10 @@
 - Path: `res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader`
 - Used: `yes`
 - Path users:
-  - `res://features/themes/scripts/utilities/game_ui_motion_utility.gd`
   - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
   - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/themes/scripts/utilities/game_ui_motion_utility.gd`
 
 ### `asset.shader.ui.startup_progress_bar`
 - Path: `res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader`
@@ -109,8 +109,7 @@
 ### `asset.vfx.celebration.confetti_canvas`
 - Path: `res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader`
 - Used: `yes`
-- Path users:
-  - `res://features/themes/scripts/utilities/game_celebration_vfx_utility.gd`
+- Path users: none
 - Key users:
   - `res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres`
 
