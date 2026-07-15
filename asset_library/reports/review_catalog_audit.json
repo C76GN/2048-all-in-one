@@ -677,6 +677,15 @@
 	},
 	"report_id": "asset_review_catalog_audit",
 	"review_record_count": 586,
+	"review_record_scan_report": {
+		"limit_kind": "",
+		"limit_path": "",
+		"limit_value": 0,
+		"ok": true,
+		"root_path": "res://asset_library/review/records",
+		"scanned_count": 586,
+		"truncated": false
+	},
 	"review_root": "res://asset_library/review",
 	"slot_candidate_counts": {
 		"slot.audio.game.over": 11,
@@ -734,6 +743,15 @@
 	"slot_count": 20,
 	"source_pack_count": 7,
 	"source_pack_root": "res://asset_library/source_packs",
+	"source_pack_scan_report": {
+		"limit_kind": "",
+		"limit_path": "",
+		"limit_value": 0,
+		"ok": true,
+		"root_path": "res://asset_library/review/source_packs",
+		"scanned_count": 7,
+		"truncated": false
+	},
 	"status_counts": {
 		"candidate": 22,
 		"inbox": 564

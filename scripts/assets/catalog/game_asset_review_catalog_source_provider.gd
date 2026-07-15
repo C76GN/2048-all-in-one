@@ -7,11 +7,13 @@ extends GFAssetCatalogSourceProvider
 # --- 常量 ---
 
 const _ASSET_REVIEW_RECORD_SCRIPT: Script = preload("res://scripts/data/asset_review_record.gd")
+const _MAX_REVIEW_RECORD_COUNT: int = 20000
 
 
 # --- 私有变量 ---
 
 var _review_record_root: String = ""
+var _last_scan_report: Dictionary = {}
 
 
 # --- 公共方法 ---
@@ -25,6 +27,7 @@ func configure_review_records(
 	catalog_source_id: StringName
 ) -> GFAssetCatalogSourceProvider:
 	_review_record_root = review_record_root
+	_last_scan_report.clear()
 	return configure(catalog_source_id)
 
 
@@ -33,7 +36,15 @@ func configure_review_records(
 ## @return 候选素材目录。
 func build_catalog(_options: Dictionary = {}) -> GFAssetCatalog:
 	var catalog: GFAssetCatalog = GFAssetCatalog.new()
-	for record_path: String in _collect_record_paths():
+	_last_scan_report = _scan_record_paths()
+	if not GFVariantData.get_option_bool(_last_scan_report, "ok"):
+		push_error("[GameAssetReviewCatalogSourceProvider] 候选素材记录目录无法扫描：%s。" % _review_record_root)
+		return catalog
+	if GFVariantData.get_option_bool(_last_scan_report, "truncated"):
+		push_error("[GameAssetReviewCatalogSourceProvider] 候选素材记录扫描达到安全上限，拒绝构建不完整目录。")
+		return catalog
+
+	for record_path: String in GFVariantData.get_option_packed_string_array(_last_scan_report, "paths"):
 		var record: Resource = ResourceLoader.load(record_path, "", ResourceLoader.CACHE_MODE_REUSE)
 		if record == null or record.get_script() != _ASSET_REVIEW_RECORD_SCRIPT:
 			continue
@@ -48,8 +59,17 @@ func build_catalog(_options: Dictionary = {}) -> GFAssetCatalog:
 func get_debug_snapshot() -> Dictionary:
 	var snapshot: Dictionary = super.get_debug_snapshot()
 	snapshot["review_record_root"] = _review_record_root
-	snapshot["record_count"] = _collect_record_paths().size()
+	snapshot["record_count"] = GFVariantData.get_option_int(_last_scan_report, "scanned_count")
+	var scan_summary: Dictionary = _last_scan_report.duplicate(true)
+	var _erase_result: bool = scan_summary.erase("paths")
+	snapshot["scan_report"] = scan_summary
 	return snapshot
+
+
+## 获取最近一次 GF 路径枚举报告。
+## @return 扫描报告副本。
+func get_scan_report() -> Dictionary:
+	return _last_scan_report.duplicate(true)
 
 
 # --- 私有/辅助方法 ---
@@ -99,32 +119,14 @@ func _make_catalog_entry(record: Resource, record_path: String) -> GFAssetCatalo
 	})
 
 
-func _collect_record_paths() -> PackedStringArray:
-	var result: PackedStringArray = PackedStringArray()
-	_collect_record_paths_recursive(_review_record_root, result)
-	result.sort()
-	return result
-
-
-func _collect_record_paths_recursive(root_path: String, result: PackedStringArray) -> void:
-	var directory: DirAccess = DirAccess.open(root_path)
-	if directory == null:
-		return
-	var list_error: Error = directory.list_dir_begin()
-	if list_error != OK:
-		return
-	var entry_name: String = directory.get_next()
-	while not entry_name.is_empty():
-		if entry_name.begins_with("."):
-			entry_name = directory.get_next()
-			continue
-		var child_path: String = root_path.path_join(entry_name)
-		if directory.current_is_dir():
-			_collect_record_paths_recursive(child_path, result)
-		elif child_path.get_extension().to_lower() == "tres":
-			var _appended: bool = result.append(child_path)
-		entry_name = directory.get_next()
-	directory.list_dir_end()
+func _scan_record_paths() -> Dictionary:
+	return GFPathEnumerationTools.scan_files(_review_record_root, {
+		"recursive": true,
+		"include_hidden": false,
+		"extensions": PackedStringArray(["tres"]),
+		"max_file_count": _MAX_REVIEW_RECORD_COUNT,
+		"sort": true,
+	})
 
 
 func _get_type_hint(kind: StringName) -> String:

@@ -32,7 +32,7 @@ const _REVIEW_CATALOG_SOURCE_SCRIPT = preload(
 	"res://scripts/assets/catalog/game_asset_review_catalog_source_provider.gd"
 )
 
-const _ASSET_FILE_EXTENSIONS: Array[String] = [
+const _ASSET_FILE_EXTENSIONS: PackedStringArray = [
 	"gdshader",
 	"jpeg",
 	"jpg",
@@ -46,9 +46,14 @@ const _ASSET_FILE_EXTENSIONS: Array[String] = [
 	"wav",
 	"webp",
 ]
-const _RESOURCE_FILE_EXTENSIONS: Array[String] = [
+const _RESOURCE_FILE_EXTENSIONS: PackedStringArray = [
 	"tres",
 ]
+const _ASSET_SCAN_EXCLUDED_PATHS: PackedStringArray = [
+	ASSET_LIBRARY_REVIEW_ROOT,
+	ASSET_LIBRARY_SOURCE_PACK_ROOT,
+]
+const _MAX_ASSET_LIBRARY_FILE_COUNT: int = 20000
 const _DEFAULT_USAGE_SCAN_ROOTS: Array[String] = [
 	"res://assets",
 	"res://resources",
@@ -258,7 +263,8 @@ func build_audit_report(options: Dictionary = {}) -> Dictionary:
 	)
 	var usage_summary: Dictionary = _summarize_usage(usage)
 	var metadata_issues: Array[Dictionary] = _collect_metadata_issues(entries, manifest.metadata)
-	var unregistered_files: PackedStringArray = _collect_unregistered_asset_files(entries)
+	var library_scan_report: Dictionary = _scan_asset_library_files()
+	var unregistered_files: PackedStringArray = _collect_unregistered_asset_files(entries, library_scan_report)
 	var unused_keys: PackedStringArray = _collect_unused_keys(entries, usage)
 	var attribution_report: Dictionary = _build_manifest_attribution_report(entries)
 
@@ -269,6 +275,7 @@ func build_audit_report(options: Dictionary = {}) -> Dictionary:
 	report["export_plan_report"] = export_plan_report
 	report["artifact_report"] = artifact_report
 	report["runtime_catalog"] = get_runtime_catalog().get_debug_snapshot()
+	report["library_scan_report"] = _summarize_path_scan_report(library_scan_report)
 	report["reference_scan_report"] = reference_scan_report
 	report["attribution_report"] = attribution_report
 	report["attribution_notice"] = GFAssetAttributionTools.format_notice_text(
@@ -289,6 +296,17 @@ func build_audit_report(options: Dictionary = {}) -> Dictionary:
 		_add_audit_issue(report, "error", "invalid_export_plan", "素材库导出计划校验失败。", {})
 	if not _is_report_ok(artifact_report):
 		_add_audit_issue(report, "error", "invalid_artifacts", "素材库 artifact 校验失败。", {})
+	if (
+		not GFVariantData.get_option_bool(library_scan_report, "ok")
+		or GFVariantData.get_option_bool(library_scan_report, "truncated")
+	):
+		_add_audit_issue(
+			report,
+			"error",
+			"partial_library_file_scan",
+			"GF 素材库路径枚举未完整完成，未登记文件结果不可作为清理依据。",
+			{"library_scan_report": _summarize_path_scan_report(library_scan_report)}
+		)
 	if GFVariantData.get_option_bool(reference_scan_report, "partial_scan"):
 		_add_audit_issue(
 			report,
@@ -337,20 +355,36 @@ func write_audit_reports(
 	markdown_path: String = DEFAULT_AUDIT_MARKDOWN_PATH
 ) -> Dictionary:
 	var report: Dictionary = build_audit_report()
-	_write_text(json_path, JSON.stringify(report, "\t"))
-	_write_text(markdown_path, _format_audit_markdown(report))
+	var markdown_error: Error = _write_text_if_changed(markdown_path, _format_audit_markdown(report))
+	if markdown_error != OK:
+		_add_audit_issue(report, "error", "audit_markdown_write_failed", "素材库 Markdown 审计报告写入失败。", {
+			"path": markdown_path,
+			"error": markdown_error,
+		})
+		_finalize_audit_report(report)
+	var json_error: Error = _write_text_if_changed(json_path, JSON.stringify(report, "\t"))
+	if json_error != OK:
+		_add_audit_issue(report, "error", "audit_json_write_failed", "素材库 JSON 审计报告写入失败。", {
+			"path": json_path,
+			"error": json_error,
+		})
+		_finalize_audit_report(report)
 	return report
 
 
 func build_review_catalog_report() -> Dictionary:
 	var report: Dictionary = _make_review_catalog_report()
 	var review_catalog: GFAssetCatalog = get_review_catalog(true)
-	var source_packs: Array[Resource] = _collect_source_pack_resources()
+	var source_pack_scan_report: Dictionary = _scan_source_pack_resources()
+	var source_packs: Array[Resource] = _collect_source_pack_resources(source_pack_scan_report)
+	var review_record_scan_report: Dictionary = _get_review_record_scan_report()
 	var records: Array[Resource] = _collect_review_records()
 	var slot_map: Resource = _load_asset_slot_map()
 	var approved_attribution_report: Dictionary = _build_review_attribution_report(records)
 
 	report["catalog"] = review_catalog.get_debug_snapshot()
+	report["review_record_scan_report"] = _summarize_path_scan_report(review_record_scan_report)
+	report["source_pack_scan_report"] = _summarize_path_scan_report(source_pack_scan_report)
 	report["source_pack_count"] = source_packs.size()
 	report["review_record_count"] = records.size()
 	report["slot_count"] = _get_slot_bindings(slot_map).size()
@@ -360,6 +394,28 @@ func build_review_catalog_report() -> Dictionary:
 		approved_attribution_report,
 		{"title": "Approved asset attributions"}
 	)
+	if (
+		not GFVariantData.get_option_bool(source_pack_scan_report, "ok")
+		or GFVariantData.get_option_bool(source_pack_scan_report, "truncated")
+	):
+		_add_audit_issue(
+			report,
+			"error",
+			"partial_source_pack_scan",
+			"GF 源包资源路径枚举未完整完成，候选审计结果不可信。",
+			{"source_pack_scan_report": _summarize_path_scan_report(source_pack_scan_report)}
+		)
+	if (
+		not GFVariantData.get_option_bool(review_record_scan_report, "ok")
+		or GFVariantData.get_option_bool(review_record_scan_report, "truncated")
+	):
+		_add_audit_issue(
+			report,
+			"error",
+			"partial_review_record_scan",
+			"GF 候选记录路径枚举未完整完成，候选目录结果不可信。",
+			{"review_record_scan_report": _summarize_path_scan_report(review_record_scan_report)}
+		)
 
 	for source_pack: Resource in source_packs:
 		_increment_count(report, "license_counts", _get_resource_string(source_pack, "license_status"))
@@ -409,8 +465,23 @@ func write_review_catalog_reports(
 	markdown_path: String = DEFAULT_REVIEW_CATALOG_MARKDOWN_PATH
 ) -> Dictionary:
 	var report: Dictionary = build_review_catalog_report()
-	_write_text(json_path, JSON.stringify(report, "\t"))
-	_write_text(markdown_path, _format_review_catalog_markdown(report))
+	var markdown_error: Error = _write_text_if_changed(
+		markdown_path,
+		_format_review_catalog_markdown(report)
+	)
+	if markdown_error != OK:
+		_add_audit_issue(report, "error", "review_markdown_write_failed", "评审目录 Markdown 报告写入失败。", {
+			"path": markdown_path,
+			"error": markdown_error,
+		})
+		_finalize_audit_report(report)
+	var json_error: Error = _write_text_if_changed(json_path, JSON.stringify(report, "\t"))
+	if json_error != OK:
+		_add_audit_issue(report, "error", "review_json_write_failed", "评审目录 JSON 报告写入失败。", {
+			"path": json_path,
+			"error": json_error,
+		})
+		_finalize_audit_report(report)
 	return report
 
 
@@ -607,17 +678,17 @@ func _collect_metadata_issues(entries: Array[Dictionary], package_metadata: Dict
 	return issues
 
 
-func _collect_unregistered_asset_files(entries: Array[Dictionary]) -> PackedStringArray:
+func _collect_unregistered_asset_files(
+	entries: Array[Dictionary],
+	library_scan_report: Dictionary
+) -> PackedStringArray:
 	var registered_paths: Dictionary = {}
 	for entry: Dictionary in entries:
 		registered_paths[GFVariantData.get_option_string(entry, "path")] = true
 
-	var files: PackedStringArray = PackedStringArray()
-	_collect_files_recursive(ASSET_LIBRARY_SOURCE_ROOT, files, _ASSET_FILE_EXTENSIONS)
+	var files: PackedStringArray = GFVariantData.get_option_packed_string_array(library_scan_report, "paths")
 	var result: PackedStringArray = PackedStringArray()
 	for path: String in files:
-		if _should_ignore_library_file(path):
-			continue
 		if registered_paths.has(path):
 			continue
 		var _append_result: bool = result.append(path)
@@ -625,42 +696,15 @@ func _collect_unregistered_asset_files(entries: Array[Dictionary]) -> PackedStri
 	return result
 
 
-func _collect_files_recursive(root_path: String, files: PackedStringArray, extensions: Array[String]) -> void:
-	var dir: DirAccess = DirAccess.open(root_path)
-	if dir == null:
-		return
-
-	var _begin_result: Error = dir.list_dir_begin()
-	var entry: String = dir.get_next()
-	while not entry.is_empty():
-		if entry.begins_with("."):
-			entry = dir.get_next()
-			continue
-		var child_path: String = root_path.path_join(entry)
-		if dir.current_is_dir():
-			_collect_files_recursive(child_path, files, extensions)
-		elif _has_allowed_extension(child_path, extensions):
-			_append_unique_string(files, child_path)
-		entry = dir.get_next()
-	dir.list_dir_end()
-
-
-func _should_ignore_library_file(path: String) -> bool:
-	return (
-		path == ASSET_LIBRARY_MANIFEST_PATH
-		or path == ASSET_LIBRARY_IMPORT_SOURCES_PATH
-		or path.begins_with("res://asset_library/licenses/")
-		or path.begins_with("res://asset_library/reports/")
-		or path.begins_with(ASSET_LIBRARY_REVIEW_ROOT + "/")
-		or path.begins_with(ASSET_LIBRARY_SOURCE_PACK_ROOT + "/")
-		or path.ends_with(".import")
-		or path.ends_with(".uid")
-	)
-
-
-func _has_allowed_extension(path: String, extensions: Array[String]) -> bool:
-	var extension: String = path.get_extension().to_lower()
-	return not extension.is_empty() and extensions.has(extension)
+func _scan_asset_library_files() -> Dictionary:
+	return GFPathEnumerationTools.scan_files(ASSET_LIBRARY_SOURCE_ROOT, {
+		"recursive": true,
+		"include_hidden": false,
+		"extensions": _ASSET_FILE_EXTENSIONS,
+		"excluded_paths": _ASSET_SCAN_EXCLUDED_PATHS,
+		"max_file_count": _MAX_ASSET_LIBRARY_FILE_COUNT,
+		"sort": true,
+	})
 
 
 func _get_usage_scan_roots(options: Dictionary) -> PackedStringArray:
@@ -677,16 +721,32 @@ func _get_usage_scan_roots(options: Dictionary) -> PackedStringArray:
 	return result
 
 
-func _write_text(path: String, text: String) -> void:
+func _write_text(path: String, text: String) -> Error:
 	var directory: String = path.get_base_dir()
 	if directory.begins_with("res://") or directory.begins_with("user://"):
-		var _mkdir_result: Error = DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))
+		var mkdir_result: Error = DirAccess.make_dir_recursive_absolute(
+			ProjectSettings.globalize_path(directory)
+		)
+		if mkdir_result != OK:
+			return mkdir_result
 	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
-		push_warning("[GameAssetLibraryUtility] 无法写入审计报告：%s。" % path)
-		return
-	var _store_string_result: bool = file.store_string(text)
+		return FileAccess.get_open_error()
+	var store_result: bool = file.store_string(text)
 	file.close()
+	return OK if store_result else ERR_FILE_CANT_WRITE
+
+
+func _write_text_if_changed(path: String, text: String) -> Error:
+	if FileAccess.file_exists(path):
+		var existing_file: FileAccess = FileAccess.open(path, FileAccess.READ)
+		if existing_file == null:
+			return FileAccess.get_open_error()
+		var existing_text: String = existing_file.get_as_text()
+		existing_file.close()
+		if existing_text == text:
+			return OK
+	return _write_text(path, text)
 
 
 func _format_audit_markdown(report: Dictionary) -> String:
@@ -850,15 +910,36 @@ func _collect_review_records() -> Array[Resource]:
 	return records
 
 
-func _collect_source_pack_resources() -> Array[Resource]:
-	var paths: PackedStringArray = PackedStringArray()
-	_collect_files_recursive(ASSET_LIBRARY_SOURCE_PACK_RESOURCE_ROOT, paths, _RESOURCE_FILE_EXTENSIONS)
+func _scan_source_pack_resources() -> Dictionary:
+	return GFPathEnumerationTools.scan_files(ASSET_LIBRARY_SOURCE_PACK_RESOURCE_ROOT, {
+		"recursive": true,
+		"include_hidden": false,
+		"extensions": _RESOURCE_FILE_EXTENSIONS,
+		"max_file_count": _MAX_ASSET_LIBRARY_FILE_COUNT,
+		"sort": true,
+	})
+
+
+func _collect_source_pack_resources(scan_report: Dictionary) -> Array[Resource]:
+	var paths: PackedStringArray = GFVariantData.get_option_packed_string_array(scan_report, "paths")
 	var source_packs: Array[Resource] = []
 	for path: String in paths:
 		var loaded: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		if _resource_uses_script(loaded, _ASSET_SOURCE_PACK_SCRIPT):
 			_append_resource(source_packs, loaded)
 	return source_packs
+
+
+func _get_review_record_scan_report() -> Dictionary:
+	if _review_catalog_provider == null:
+		return {}
+	return _review_catalog_provider.get_scan_report()
+
+
+func _summarize_path_scan_report(scan_report: Dictionary) -> Dictionary:
+	var summary: Dictionary = scan_report.duplicate(true)
+	var _erase_result: bool = summary.erase("paths")
+	return summary
 
 
 func _load_asset_slot_map() -> Resource:
@@ -1004,6 +1085,7 @@ func _make_audit_report() -> Dictionary:
 		"direct_path_reference_count": 0,
 		"asset_key_reference_count": 0,
 		"runtime_catalog": {},
+		"library_scan_report": {},
 		"reference_scan_report": {},
 		"attribution_report": {},
 		"attribution_notice": "",
@@ -1030,6 +1112,8 @@ func _make_review_catalog_report() -> Dictionary:
 		"slot_count": 0,
 		"bound_slot_count": 0,
 		"catalog": {},
+		"review_record_scan_report": {},
+		"source_pack_scan_report": {},
 		"approved_attribution_report": {},
 		"approved_attribution_notice": "",
 		"kind_counts": {},

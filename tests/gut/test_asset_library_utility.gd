@@ -85,6 +85,10 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 		report,
 		"attribution_report"
 	)
+	var library_scan_report: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		"library_scan_report"
+	)
 
 	assert_true(GFVariantData.get_option_bool(report, "ok", false), "素材库审计不应有 error。")
 	assert_true(GFVariantData.get_option_int(report, "resource_count") >= 11, "素材库审计应覆盖首批音频、shader 和 VFX。")
@@ -95,6 +99,14 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 	assert_true(
 		GFVariantData.get_option_array(report, "metadata_issues").is_empty(),
 		"素材库登记项必须包含审计所需元数据。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(library_scan_report, "ok"),
+		"运行时素材文件应由 GFPathEnumerationTools 成功枚举。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(library_scan_report, "truncated"),
+		"运行时素材文件枚举不应达到安全上限。"
 	)
 	assert_false(
 		GFVariantData.get_option_bool(reference_scan_report, "partial_scan"),
@@ -157,8 +169,11 @@ func test_asset_review_provider_uses_gf_catalog_search() -> void:
 	)
 	var catalog: GFAssetCatalog = provider.build_catalog()
 	var search_reports: Array[Dictionary] = catalog.search("positive chime", {"limit": 5})
+	var scan_report: Dictionary = provider.get_scan_report()
 
 	assert_true(catalog.get_all_ids().size() == 1, "GF 候选素材目录应覆盖 fixture 记录。")
+	assert_true(GFVariantData.get_option_bool(scan_report, "ok"), "候选目录应使用 GF 路径枚举并成功完成。")
+	assert_false(GFVariantData.get_option_bool(scan_report, "truncated"), "候选目录路径枚举不应达到安全上限。")
 	assert_false(search_reports.is_empty(), "GFAssetCatalog 搜索应命中已导入的候选音频。")
 	if not search_reports.is_empty():
 		var candidate: Dictionary = GFVariantData.get_option_dictionary(search_reports[0], "candidate")

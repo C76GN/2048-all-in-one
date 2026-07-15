@@ -5,7 +5,7 @@
 - Review records: `564`
 - Copied: `0`
 - Unchanged: `565`
-- Slot bindings: `9 / 9`
+- Slot bindings: `10 / 20`
 - Issues: `0`
 
 ## Packs

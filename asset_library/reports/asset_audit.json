@@ -772,6 +772,15 @@
 	"issue_count": 0,
 	"issues": [],
 	"library_root": "res://asset_library",
+	"library_scan_report": {
+		"limit_kind": "",
+		"limit_path": "",
+		"limit_value": 0,
+		"ok": true,
+		"root_path": "res://asset_library",
+		"scanned_count": 11,
+		"truncated": false
+	},
 	"manifest_path": "res://asset_library/gf_content_package.json",
 	"manifest_report": {
 		"error_count": 0,
@@ -1012,7 +1021,7 @@
 			}
 		],
 		"scan_warnings": [],
-		"scanned_bytes": 794731,
+		"scanned_bytes": 798140,
 		"scanned_file_count": 168,
 		"skipped_files": [],
 		"target_count": 11,

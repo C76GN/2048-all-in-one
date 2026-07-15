@@ -10,6 +10,7 @@ const SLOT_MAP_PATH: String = "res://asset_library/review/asset_slot_map.tres"
 const REPORT_JSON_PATH: String = "res://asset_library/reports/source_import_report.json"
 const REPORT_MARKDOWN_PATH: String = "res://asset_library/reports/source_import_report.md"
 const COPY_BUFFER_SIZE: int = 1_048_576
+const MAX_SOURCE_FILE_COUNT: int = 100000
 const ASSET_REVIEW_RECORD_SCRIPT = preload("res://scripts/data/asset_review_record.gd")
 const ASSET_SOURCE_PACK_SCRIPT = preload("res://scripts/data/asset_source_pack.gd")
 const ASSET_SLOT_BINDING_SCRIPT = preload("res://scripts/data/asset_slot_binding.gd")
@@ -35,6 +36,46 @@ const REVIEW_EXTENSIONS: Array[String] = [
 	"wav",
 	"webp",
 ]
+const REVIEW_RECORD_PERSISTED_PROPERTIES: Array[String] = [
+	"asset_id",
+	"source_pack_id",
+	"display_name",
+	"asset_kind",
+	"review_status",
+	"tags",
+	"notes",
+	"rating",
+	"source_path",
+	"library_path",
+	"relative_path",
+	"extension",
+	"file_size_bytes",
+	"sha256",
+	"author",
+	"license",
+	"source_url",
+	"license_status",
+	"preview_supported",
+	"suggested_slots",
+	"imported_at",
+	"reviewed_at",
+]
+const SOURCE_PACK_PERSISTED_PROPERTIES: Array[String] = [
+	"source_pack_id",
+	"display_name",
+	"original_source_path",
+	"library_root_path",
+	"author",
+	"license",
+	"source_url",
+	"license_status",
+	"imported_at",
+	"file_count",
+	"review_record_count",
+	"byte_count",
+	"tags",
+	"notes",
+]
 const STATUS_INBOX: StringName = &"inbox"
 const STATUS_APPROVED: StringName = &"approved"
 const KIND_AUDIO: StringName = &"audio"
@@ -48,7 +89,9 @@ func _init() -> void:
 	print("Importing asset source packs...")
 	var report: Dictionary = run_import()
 	var ok: bool = GFVariantData.get_option_int(report, "error_count", 0) == 0
-	print("Asset source import: %d packs, %d files, %d review records, %d copied, %d issues" % [
+	var summary_prefix: String = "Asset source import:" if ok else "Asset source import failed:"
+	print("%s %d packs, %d files, %d review records, %d copied, %d issues" % [
+		summary_prefix,
 		GFVariantData.get_option_int(report, "source_pack_count"),
 		GFVariantData.get_option_int(report, "file_count"),
 		GFVariantData.get_option_int(report, "review_record_count"),
@@ -117,7 +160,9 @@ func _import_source_pack(source_pack_config: Dictionary, report: Dictionary) -> 
 		})
 		return
 
-	var imported_at: String = Time.get_datetime_string_from_system(false, true)
+	var imported_at: String = _get_existing_source_pack_imported_at(pack_id)
+	if imported_at.is_empty():
+		imported_at = Time.get_datetime_string_from_system(false, true)
 	var target_root: String = SOURCE_PACK_ROOT.path_join(pack_id).path_join("files")
 	var records_root: String = REVIEW_RECORD_ROOT.path_join(pack_id)
 	var ensure_target_error: Error = _ensure_dir(target_root)
@@ -130,9 +175,25 @@ func _import_source_pack(source_pack_config: Dictionary, report: Dictionary) -> 
 		})
 		return
 
-	var source_files: PackedStringArray = _collect_all_files(source_path)
-	var audio_entry_lookup: Dictionary = _collect_audio_entry_lookup(source_path)
+	var source_scan_report: Dictionary = _scan_all_files(source_path)
+	var source_files: PackedStringArray = GFVariantData.get_option_packed_string_array(
+		source_scan_report,
+		"paths"
+	)
 	var pack_report: Dictionary = _make_pack_report(pack_id, source_pack_config, source_files.size())
+	pack_report["source_scan_report"] = _summarize_path_scan_report(source_scan_report)
+	if (
+		not GFVariantData.get_option_bool(source_scan_report, "ok")
+		or GFVariantData.get_option_bool(source_scan_report, "truncated")
+	):
+		_add_issue(report, "error", "partial_source_scan", "GF source-pack enumeration did not complete.", {
+			"source_pack_id": pack_id,
+			"source_path": source_path,
+			"scan_report": _summarize_path_scan_report(source_scan_report),
+		})
+		_accumulate_pack_report(report, pack_report)
+		return
+	var audio_entry_lookup: Dictionary = _collect_audio_entry_lookup(source_path)
 	var total_bytes: int = 0
 	for source_file: String in source_files:
 		var relative_path: String = _make_relative_path(source_file, source_path)
@@ -190,6 +251,12 @@ func _import_file(
 		pack_report["non_review_file_count"] = GFVariantData.get_option_int(pack_report, "non_review_file_count") + 1
 		return
 
+	var record_path: String = _make_record_resource_path(
+		GFVariantData.get_option_string(source_pack_config, "source_pack_id"),
+		relative_path,
+		sha256
+	)
+	var existing_record: Resource = _load_review_record(record_path)
 	var record: Resource = _make_review_record(
 		source_pack_config,
 		source_file,
@@ -198,20 +265,17 @@ func _import_file(
 		file_size,
 		sha256,
 		imported_at,
-		audio_entry_lookup
+		audio_entry_lookup,
+		existing_record
 	)
-	var record_path: String = _make_record_resource_path(
-		GFVariantData.get_option_string(source_pack_config, "source_pack_id"),
-		relative_path,
-		sha256
-	)
-	var save_result: Error = ResourceSaver.save(record, record_path)
-	if save_result != OK:
-		_add_issue(report, "error", "record_save_failed", "Review record could not be saved.", {
-			"path": record_path,
-			"error": save_result,
-		})
-		return
+	if not _resources_match(existing_record, record, REVIEW_RECORD_PERSISTED_PROPERTIES):
+		var save_result: Error = ResourceSaver.save(record, record_path)
+		if save_result != OK:
+			_add_issue(report, "error", "record_save_failed", "Review record could not be saved.", {
+				"path": record_path,
+				"error": save_result,
+			})
+			return
 	pack_report["review_record_count"] = GFVariantData.get_option_int(pack_report, "review_record_count") + 1
 	_increment_nested_count(pack_report, "kind_counts", _get_resource_string(record, "asset_kind"))
 	_increment_nested_count(pack_report, "status_counts", _get_resource_string(record, "review_status"))
@@ -226,11 +290,10 @@ func _make_review_record(
 	file_size: int,
 	sha256: String,
 	imported_at: String,
-	audio_entry_lookup: Dictionary
+	audio_entry_lookup: Dictionary,
+	existing_record: Resource
 ) -> Resource:
 	var pack_id: String = GFVariantData.get_option_string(source_pack_config, "source_pack_id")
-	var record_path: String = _make_record_resource_path(pack_id, relative_path, sha256)
-	var existing_record: Resource = _load_review_record(record_path)
 	var extension: String = source_file.get_extension().to_lower()
 	var inferred_kind: StringName = _infer_asset_kind(extension)
 	var record: Resource = ASSET_REVIEW_RECORD_SCRIPT.new()
@@ -302,6 +365,9 @@ func _save_source_pack_resource(
 	resource.set("notes", GFVariantData.get_option_string(source_pack_config, "notes"))
 
 	var save_path: String = SOURCE_PACK_RESOURCE_ROOT.path_join("%s.tres" % pack_id)
+	var existing_resource: Resource = _load_source_pack_resource(save_path)
+	if _resources_match(existing_resource, resource, SOURCE_PACK_PERSISTED_PROPERTIES):
+		return
 	var save_result: Error = ResourceSaver.save(resource, save_path)
 	if save_result != OK:
 		_add_issue(report, "error", "source_pack_resource_save_failed", "Source pack resource could not be saved.", {
@@ -330,7 +396,7 @@ func _write_source_pack_manifest(
 		"imported_at": imported_at,
 		"report": pack_report,
 	}
-	var write_error: Error = _write_text(manifest_path, JSON.stringify(manifest, "\t"))
+	var write_error: Error = _write_text_if_changed(manifest_path, JSON.stringify(manifest, "\t"))
 	if write_error != OK:
 		_add_issue(report, "error", "source_pack_manifest_write_failed", "Source pack manifest could not be written.", {
 			"path": manifest_path,
@@ -340,21 +406,23 @@ func _write_source_pack_manifest(
 
 func _ensure_slot_map(report: Dictionary) -> void:
 	var slot_map: Resource = _load_slot_map()
+	var changed: bool = false
 	for slot_definition: Dictionary in _get_default_slot_definitions():
 		var slot_id: StringName = StringName(GFVariantData.get_option_string(slot_definition, "slot_id"))
 		if _find_slot_binding(slot_map, slot_id) != null:
 			continue
 		_upsert_slot_binding(slot_map, _make_slot_binding(slot_definition))
-	slot_map.set("updated_at", Time.get_datetime_string_from_system(false, true))
-	var save_result: Error = ResourceSaver.save(slot_map, SLOT_MAP_PATH)
-	if save_result != OK:
-		_add_issue(report, "error", "slot_map_save_failed", "Asset slot map could not be saved.", {
-			"path": SLOT_MAP_PATH,
-			"error": save_result,
-		})
-	else:
-		report["slot_count"] = _get_slot_bindings(slot_map).size()
-		report["bound_slot_count"] = _get_bound_slot_count(slot_map)
+		changed = true
+	if changed:
+		slot_map.set("updated_at", Time.get_datetime_string_from_system(false, true))
+		var save_result: Error = ResourceSaver.save(slot_map, SLOT_MAP_PATH)
+		if save_result != OK:
+			_add_issue(report, "error", "slot_map_save_failed", "Asset slot map could not be saved.", {
+				"path": SLOT_MAP_PATH,
+				"error": save_result,
+			})
+	report["slot_count"] = _get_slot_bindings(slot_map).size()
+	report["bound_slot_count"] = _get_bound_slot_count(slot_map)
 
 
 func _load_slot_map() -> Resource:
@@ -601,32 +669,19 @@ func _infer_suggested_slots(relative_path: String, asset_kind: StringName) -> Pa
 	return slots
 
 
-func _collect_all_files(root_path: String) -> PackedStringArray:
-	var files: PackedStringArray = PackedStringArray()
-	_collect_all_files_recursive(root_path, files)
-	files.sort()
-	return files
+func _scan_all_files(root_path: String) -> Dictionary:
+	return GFPathEnumerationTools.scan_files(root_path, {
+		"recursive": true,
+		"include_hidden": false,
+		"max_file_count": MAX_SOURCE_FILE_COUNT,
+		"sort": true,
+	})
 
 
-func _collect_all_files_recursive(root_path: String, files: PackedStringArray) -> void:
-	var dir: DirAccess = DirAccess.open(root_path)
-	if dir == null:
-		return
-	var list_result: Error = dir.list_dir_begin()
-	if list_result != OK:
-		return
-	var entry: String = dir.get_next()
-	while not entry.is_empty():
-		if entry.begins_with("."):
-			entry = dir.get_next()
-			continue
-		var child_path: String = _normalize_path(root_path.path_join(entry))
-		if dir.current_is_dir():
-			_collect_all_files_recursive(child_path, files)
-		else:
-			var _append_result: bool = files.append(child_path)
-		entry = dir.get_next()
-	dir.list_dir_end()
+func _summarize_path_scan_report(scan_report: Dictionary) -> Dictionary:
+	var summary: Dictionary = scan_report.duplicate(true)
+	var _erase_result: bool = summary.erase("paths")
+	return summary
 
 
 func _copy_file_if_changed(source_path: String, target_path: String, source_sha256: String) -> String:
@@ -761,12 +816,20 @@ func _finalize_report(report: Dictionary) -> void:
 
 
 func _write_reports(report: Dictionary) -> void:
-	var json_error: Error = _write_text(REPORT_JSON_PATH, JSON.stringify(report, "\t"))
-	if json_error != OK:
-		push_error("Could not write source import JSON report: %s" % REPORT_JSON_PATH)
-	var markdown_error: Error = _write_text(REPORT_MARKDOWN_PATH, _format_report_markdown(report))
+	var markdown_error: Error = _write_text_if_changed(REPORT_MARKDOWN_PATH, _format_report_markdown(report))
 	if markdown_error != OK:
-		push_error("Could not write source import Markdown report: %s" % REPORT_MARKDOWN_PATH)
+		_add_issue(report, "error", "report_markdown_write_failed", "Source import Markdown report could not be written.", {
+			"path": REPORT_MARKDOWN_PATH,
+			"error": markdown_error,
+		})
+		_finalize_report(report)
+	var json_error: Error = _write_text_if_changed(REPORT_JSON_PATH, JSON.stringify(report, "\t"))
+	if json_error != OK:
+		_add_issue(report, "error", "report_json_write_failed", "Source import JSON report could not be written.", {
+			"path": REPORT_JSON_PATH,
+			"error": json_error,
+		})
+		_finalize_report(report)
 
 
 func _format_report_markdown(report: Dictionary) -> String:
@@ -839,6 +902,18 @@ func _write_text(path: String, text: String) -> Error:
 	return OK
 
 
+func _write_text_if_changed(path: String, text: String) -> Error:
+	if FileAccess.file_exists(path):
+		var existing_file: FileAccess = FileAccess.open(path, FileAccess.READ)
+		if existing_file == null:
+			return FileAccess.get_open_error()
+		var existing_text: String = existing_file.get_as_text()
+		existing_file.close()
+		if existing_text == text:
+			return OK
+	return _write_text(path, text)
+
+
 func _ensure_dir(path: String) -> Error:
 	if path.is_empty() or path == ".":
 		return OK
@@ -896,6 +971,34 @@ func _to_absolute_path(path: String) -> String:
 
 func _resource_uses_script(resource: Resource, script: Script) -> bool:
 	return resource != null and resource.get_script() == script
+
+
+func _load_source_pack_resource(path: String) -> Resource:
+	if not FileAccess.file_exists(path):
+		return null
+	var loaded: Resource = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	if _resource_uses_script(loaded, ASSET_SOURCE_PACK_SCRIPT):
+		return loaded
+	return null
+
+
+func _get_existing_source_pack_imported_at(pack_id: String) -> String:
+	var resource_path: String = SOURCE_PACK_RESOURCE_ROOT.path_join("%s.tres" % pack_id)
+	var existing_resource: Resource = _load_source_pack_resource(resource_path)
+	var imported_at: String = _get_resource_string(existing_resource, "imported_at")
+	if not imported_at.is_empty():
+		return imported_at
+	var manifest_path: String = SOURCE_PACK_ROOT.path_join(pack_id).path_join("source_pack_manifest.json")
+	return GFVariantData.get_option_string(_read_json(manifest_path), "imported_at")
+
+
+func _resources_match(left: Resource, right: Resource, property_names: Array[String]) -> bool:
+	if left == null or right == null:
+		return false
+	for property_name: String in property_names:
+		if left.get(property_name) != right.get(property_name):
+			return false
+	return true
 
 
 func _get_resource_string(resource: Resource, property_name: String, fallback: String = "") -> String:

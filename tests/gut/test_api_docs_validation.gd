@@ -36,28 +36,21 @@ func _collect_project_gdscript_files() -> Array[String]:
 
 func _collect_gdscript_files(root_path: String) -> Array[String]:
 	var result: Array[String] = []
-	_collect_gdscript_files_recursive(root_path, result)
+	var scan_report: Dictionary = GFPathEnumerationTools.scan_files(root_path, {
+		"recursive": true,
+		"include_hidden": false,
+		"extensions": PackedStringArray(["gd"]),
+		"max_file_count": 20000,
+		"sort": true,
+	})
+	assert_true(GFVariantData.get_option_bool(scan_report, "ok"), "GF API 文档路径扫描应成功。")
+	assert_false(
+		GFVariantData.get_option_bool(scan_report, "truncated"),
+		"GF API 文档路径扫描不应达到安全上限。"
+	)
+	for path: String in GFVariantData.get_option_packed_string_array(scan_report, "paths"):
+		_append_string(result, path)
 	return result
-
-
-func _collect_gdscript_files_recursive(root_path: String, result: Array[String]) -> void:
-	var dir: DirAccess = DirAccess.open(root_path)
-	if dir == null:
-		return
-
-	var list_error: Error = dir.list_dir_begin()
-	if list_error != OK:
-		return
-	var entry: String = dir.get_next()
-	while not entry.is_empty():
-		var child_path: String = root_path.path_join(entry)
-		if dir.current_is_dir():
-			if not entry.begins_with("."):
-				_collect_gdscript_files_recursive(child_path, result)
-		elif entry.ends_with(".gd"):
-			_append_string(result, child_path)
-		entry = dir.get_next()
-	dir.list_dir_end()
 
 
 func _collect_param_doc_issues(path: String) -> Array[String]:

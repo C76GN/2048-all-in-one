@@ -416,28 +416,15 @@ func _collect_project_gdscript_files() -> Array[String]:
 
 func _collect_gdscript_files(root_path: String) -> Array[String]:
 	var result: Array[String] = []
-	_collect_gdscript_files_recursive(root_path, result)
+	var scan_report: Dictionary = _scan_project_files(root_path, PackedStringArray(["gd"]))
+	assert_true(GFVariantData.get_option_bool(scan_report, "ok"), "GF GDScript 路径扫描应成功。")
+	assert_false(
+		GFVariantData.get_option_bool(scan_report, "truncated"),
+		"GF GDScript 路径扫描不应达到安全上限。"
+	)
+	for path: String in GFVariantData.get_option_packed_string_array(scan_report, "paths"):
+		_append_string(result, path)
 	return result
-
-
-func _collect_gdscript_files_recursive(root_path: String, result: Array[String]) -> void:
-	var dir: DirAccess = DirAccess.open(root_path)
-	if dir == null:
-		return
-
-	var list_error: Error = dir.list_dir_begin()
-	if list_error != OK:
-		return
-	var entry: String = dir.get_next()
-	while not entry.is_empty():
-		var child_path: String = root_path.path_join(entry)
-		if dir.current_is_dir():
-			if not entry.begins_with("."):
-				_collect_gdscript_files_recursive(child_path, result)
-		elif entry.ends_with(".gd"):
-			_append_string(result, child_path)
-		entry = dir.get_next()
-	dir.list_dir_end()
 
 
 func _collect_underscore_method_section_issues(path: String) -> Array[String]:
@@ -632,37 +619,46 @@ func _collect_section_language_issues(path: String) -> Array[String]:
 
 func _collect_path_naming_issues(root_path: String) -> Array[String]:
 	var issues: Array[String] = []
-	_collect_path_naming_issues_recursive(root_path, issues)
+	var scan_report: Dictionary = _scan_project_files(root_path)
+	if not GFVariantData.get_option_bool(scan_report, "ok"):
+		_append_string(issues, "%s: GF 路径扫描失败" % root_path)
+		return issues
+	if GFVariantData.get_option_bool(scan_report, "truncated"):
+		_append_string(issues, "%s: GF 路径扫描达到安全上限" % root_path)
+		return issues
+
+	var checked_directories: Dictionary = {}
+	var root_prefix: String = root_path.trim_suffix("/") + "/"
+	for child_path: String in GFVariantData.get_option_packed_string_array(scan_report, "paths"):
+		var relative_path: String = child_path.trim_prefix(root_prefix)
+		var segments: PackedStringArray = relative_path.split("/", false)
+		for segment_index: int in range(maxi(segments.size() - 1, 0)):
+			var directory_name: String = segments[segment_index]
+			var directory_path: String = root_path.path_join("/".join(segments.slice(0, segment_index + 1)))
+			if checked_directories.has(directory_path):
+				continue
+			checked_directories[directory_path] = true
+			if not _is_snake_case_name(directory_name):
+				_append_string(issues, "%s 目录名应使用 snake_case" % directory_path)
+		if segments.is_empty():
+			continue
+		var file_name: String = segments[segments.size() - 1]
+		if _should_validate_project_file_name(file_name) and not _is_snake_case_name(file_name.get_basename()):
+			_append_string(issues, "%s 文件名应使用 snake_case" % child_path)
 	return issues
 
 
-func _collect_path_naming_issues_recursive(root_path: String, issues: Array[String]) -> void:
-	var dir: DirAccess = DirAccess.open(root_path)
-	if dir == null:
-		_append_string(issues, "%s: 无法打开目录" % root_path)
-		return
-
-	var list_error: Error = dir.list_dir_begin()
-	if list_error != OK:
-		_append_string(issues, "%s: 无法读取目录，错误码 %d" % [root_path, list_error])
-		return
-	var entry: String = dir.get_next()
-	while not entry.is_empty():
-		if entry.begins_with("."):
-			entry = dir.get_next()
-			continue
-
-		var child_path: String = root_path.path_join(entry)
-		if dir.current_is_dir():
-			if not _is_snake_case_name(entry):
-				_append_string(issues, "%s 目录名应使用 snake_case" % child_path)
-			_collect_path_naming_issues_recursive(child_path, issues)
-		elif _should_validate_project_file_name(entry):
-			var basename: String = entry.get_basename()
-			if not _is_snake_case_name(basename):
-				_append_string(issues, "%s 文件名应使用 snake_case" % child_path)
-		entry = dir.get_next()
-	dir.list_dir_end()
+func _scan_project_files(
+	root_path: String,
+	extensions: PackedStringArray = PackedStringArray()
+) -> Dictionary:
+	return GFPathEnumerationTools.scan_files(root_path, {
+		"recursive": true,
+		"include_hidden": false,
+		"extensions": extensions,
+		"max_file_count": 20000,
+		"sort": true,
+	})
 
 
 func _collect_script_class_name_issues(path: String) -> Array[String]:

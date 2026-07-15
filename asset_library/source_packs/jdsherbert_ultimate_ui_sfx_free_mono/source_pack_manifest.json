@@ -20,6 +20,15 @@
 		"non_review_file_count": 0,
 		"review_record_count": 5,
 		"source_pack_id": "jdsherbert_ultimate_ui_sfx_free_mono",
+		"source_scan_report": {
+			"limit_kind": "",
+			"limit_path": "",
+			"limit_value": 0,
+			"ok": true,
+			"root_path": "E:/_inbox/Downloads/JDSherbert - Ultimate UI SFX Pack (FREE)/Mono",
+			"scanned_count": 5,
+			"truncated": false
+		},
 		"status_counts": {
 			"inbox": 5
 		},

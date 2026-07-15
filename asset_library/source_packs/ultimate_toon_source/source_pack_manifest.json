@@ -20,6 +20,15 @@
 		"non_review_file_count": 0,
 		"review_record_count": 1,
 		"source_pack_id": "ultimate_toon_source",
+		"source_scan_report": {
+			"limit_kind": "",
+			"limit_path": "",
+			"limit_value": 0,
+			"ok": true,
+			"root_path": "E:/_inbox/Downloads/UltimateToonSource",
+			"scanned_count": 1,
+			"truncated": false
+		},
 		"status_counts": {
 			"inbox": 1
 		},
