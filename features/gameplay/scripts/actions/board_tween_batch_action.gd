@@ -43,7 +43,7 @@ func get_wait_guard_node() -> Node:
 
 # --- 受保护的辅助方法 ---
 
-func wait_for_tweens(tweens: Array[Tween], guard_node: Node) -> Variant:
+func _wait_for_tweens(tweens: Array[Tween], guard_node: Node) -> Variant:
 	_clear_tracked_tweens(true)
 	_reset_completion_state()
 	_wait_guard_node = guard_node
@@ -53,10 +53,7 @@ func wait_for_tweens(tweens: Array[Tween], guard_node: Node) -> Variant:
 			continue
 		_active_tweens.append(tween)
 		var finished_callback: Callable = _on_tracked_tween_finished.bind(tween)
-		var _finished_connected: Error = tween.finished.connect(
-			finished_callback,
-			CONNECT_ONE_SHOT as Object.ConnectFlags
-		) as Error
+		var _finished_connected: int = tween.finished.connect(finished_callback)
 
 	if _active_tweens.is_empty():
 		_wait_guard_node = null

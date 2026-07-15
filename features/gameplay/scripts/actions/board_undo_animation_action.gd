@@ -31,4 +31,4 @@ func execute() -> Variant:
 		_snapshot,
 		_reverse_target_map
 	)
-	return wait_for_tweens(tweens, _game_board)
+	return _wait_for_tweens(tweens, _game_board)

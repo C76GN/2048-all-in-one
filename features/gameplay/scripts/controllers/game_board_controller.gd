@@ -434,10 +434,9 @@ func _animate_release_visual_tile(tile: Tile) -> Tween:
 
 	var despawn_tween: Tween = tile.animate_despawn()
 	if is_instance_valid(despawn_tween) and despawn_tween.is_valid():
-		var _release_connected: Error = despawn_tween.finished.connect(
-			_release_visual_tile_if_valid.bind(tile, release_token),
-			CONNECT_ONE_SHOT as Object.ConnectFlags
-		) as Error
+		var _release_connected: int = despawn_tween.finished.connect(
+			_release_visual_tile_if_valid.bind(tile, release_token)
+		)
 		return despawn_tween
 	else:
 		_release_visual_tile_if_valid(tile, release_token)

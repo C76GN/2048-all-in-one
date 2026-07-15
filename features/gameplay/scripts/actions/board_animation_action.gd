@@ -61,10 +61,9 @@ func execute() -> Variant:
 					var consumed_tween: Tween = consumed.animate_move(target_pos)
 					if is_instance_valid(consumed_tween) and consumed_tween.is_valid():
 						_append_tween(tweens, consumed_tween)
-						var _release_connected: Error = consumed_tween.finished.connect(
-							_release_consumed_tile.bind(consumed, release_token),
-							CONNECT_ONE_SHOT as Object.ConnectFlags
-						) as Error
+						var _release_connected: int = consumed_tween.finished.connect(
+							_release_consumed_tile.bind(consumed, release_token)
+						)
 					else:
 						_release_consumed_tile(consumed, release_token)
 
@@ -103,7 +102,7 @@ func execute() -> Variant:
 			_:
 				continue
 
-	return wait_for_tweens(tweens, _game_board)
+	return _wait_for_tweens(tweens, _game_board)
 
 
 func cancel() -> void:
