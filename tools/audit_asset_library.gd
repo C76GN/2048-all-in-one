@@ -10,7 +10,9 @@ func _init() -> void:
 		GFVariantData.get_option_bool(report, "ok", false)
 		and GFVariantData.get_option_bool(review_report, "ok", false)
 	)
-	var summary: String = "Asset audit: %d resources, %d used, %d issues" % [
+	var summary_prefix: String = "Asset audit:" if ok else "Asset audit failed:"
+	var summary: String = "%s %d resources, %d used, %d issues" % [
+		summary_prefix,
 		GFVariantData.get_option_int(report, "resource_count"),
 		GFVariantData.get_option_int(report, "used_count"),
 		GFVariantData.get_option_int(report, "issue_count"),
