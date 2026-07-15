@@ -187,7 +187,7 @@ func test_return_to_main_menu_request_clears_panels_unpauses_and_routes() -> voi
 	assert_true(route_count == 1, "返回主界面应调用 SceneRouterSystem.return_to_main_menu()。")
 
 
-func test_game_ready_preserves_target_reached_for_legacy_bookmark() -> void:
+func test_game_ready_uses_explicit_bookmark_target_state() -> void:
 	var flow_system: GameFlowSystem = _make_flow_system()
 	var mode_config: GameModeConfig = GameModeConfig.new()
 	var status_model: GameStatusModel = GameStatusModel.new()
@@ -202,13 +202,13 @@ func test_game_ready_preserves_target_reached_for_legacy_bookmark() -> void:
 
 	flow_system._on_game_ready(ready_data)
 
-	assert_true(
+	assert_false(
 		GFVariantData.to_bool(status_model.target_reached.get_value(), false),
-		"旧书签没有 target_reached 字段时，应从最高方块兼容推断已达成目标。"
+		"当前书签 schema 的 target_reached 应是唯一事实，不得从最高方块重新推断。"
 	)
-	assert_true(
+	assert_false(
 		flow_system._target_reached_notified,
-		"恢复已达成目标的局面时不应再次弹出首次达成提示。"
+		"显式未达成状态不得被旧兼容逻辑改写。"
 	)
 
 

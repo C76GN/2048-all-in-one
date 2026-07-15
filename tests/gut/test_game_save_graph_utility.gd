@@ -168,6 +168,33 @@ func test_bookmark_schema_rejects_removed_transient_status_field() -> void:
 	)
 
 
+func test_bookmark_schema_rejects_inconsistent_target_state() -> void:
+	var bookmark: BookmarkData = _make_bookmark(901, 512)
+	bookmark.bookmark_id = GFUuid.generate_v7(901000)
+	bookmark.highest_tile = 4096
+	bookmark.target_tile_value = 2048
+	bookmark.target_reached = false
+
+	assert_true(
+		BookmarkData.from_dict(bookmark.to_dict()) == null,
+		"最高方块已达到目标时，当前 schema 不得接受 target_reached=false。"
+	)
+
+
+func test_bookmark_schema_preserves_historical_target_achievement() -> void:
+	var bookmark: BookmarkData = _make_bookmark(902, 1024)
+	bookmark.bookmark_id = GFUuid.generate_v7(902000)
+	bookmark.highest_tile = 1024
+	bookmark.target_tile_value = 2048
+	bookmark.target_reached = true
+
+	var restored: BookmarkData = BookmarkData.from_dict(bookmark.to_dict())
+
+	assert_true(restored != null, "曾达成目标后当前最高方块降低的书签仍应有效。")
+	if restored != null:
+		assert_true(restored.target_reached, "显式目标达成状态必须原样恢复。")
+
+
 func test_save_dependency_failure_rolls_back_replaced_section() -> void:
 	var setup: Dictionary = await _create_persistence_architecture("", true)
 	var architecture: GFArchitecture = _get_architecture(setup)

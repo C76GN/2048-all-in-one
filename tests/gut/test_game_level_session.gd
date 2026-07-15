@@ -9,6 +9,24 @@ const _CLASSIC_MODE_CONFIG_PATH: String = "res://features/gameplay/resources/mod
 
 # --- 测试用例 ---
 
+func test_bookmark_target_contract_must_match_current_mode() -> void:
+	var init_system: GameInitSystem = GameInitSystem.new()
+	var bookmark: BookmarkData = BookmarkData.new()
+	var mode_config: GameModeConfig = GameModeConfig.new()
+	bookmark.target_tile_value = 1024
+	mode_config.target_tile_value = 2048
+
+	assert_false(
+		init_system._is_bookmark_mode_contract_valid(bookmark, mode_config),
+		"书签目标值与当前模式不一致时必须拒绝恢复。"
+	)
+	bookmark.target_tile_value = 2048
+	assert_true(
+		init_system._is_bookmark_mode_contract_valid(bookmark, mode_config),
+		"目标契约一致的当前书签应允许恢复。"
+	)
+
+
 func test_game_initialization_records_current_session_in_level_utility() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var app_config: AppConfigModel = AppConfigModel.new()

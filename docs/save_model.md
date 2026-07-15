@@ -38,7 +38,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 | --- | --- | --- | --- |
 | `player_data` | `NORMAL` | 根作用域，无业务 Source | Profile `1` |
 | `progress` | `EARLY` | `GameStatsSaveData` | `2` |
-| `bookmarks` | `NORMAL` | `BookmarkCatalogSaveData` | `1` |
+| `bookmarks` | `NORMAL` | `BookmarkCatalogSaveData` | `2` |
 | `replays` | `LATE` | `ReplayCatalogSaveData` | `1` |
 
 每个子 Scope 只有一个稳定 Source：`state`。Source 的数据 Provider 必须实现统一 envelope：
@@ -95,6 +95,8 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 `BookmarkCatalogSaveData` 的业务根只有 `items`。每个 `BookmarkData` 使用 `bookmark_id` UUID v7 作为稳定身份，删除和替换不得依赖时间戳或文件路径。
 
 书签是可继续游玩的完整局面快照，包括模式、种子、棋盘、规则状态、命令历史、分数、步数和目标状态。视觉主题、音效主题和全局设置不属于书签。
+
+`target_tile_value` 与 `target_reached` 是当前 schema 的显式契约。恢复时不允许从最高方块猜测缺失状态；目标值必须与当前模式一致。若当前最高方块已达到目标却声明 `target_reached=false`，载荷无效；`target_reached=true` 且当前最高方块较低仍可表示本局曾经达成过目标。
 
 ### Replays
 

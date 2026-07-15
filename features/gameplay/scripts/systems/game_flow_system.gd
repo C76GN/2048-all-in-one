@@ -432,9 +432,11 @@ func _on_game_ready(data: GameReadyData) -> void:
 	_initial_seed_of_session = data.initial_seed
 	_player_actions.clear()
 	_last_saved_bookmark_state = {}
-	var initial_target_reached: bool = _is_target_reached(_get_initial_highest_tile(data))
+	var initial_target_reached: bool = false
 	if is_instance_valid(data.loaded_bookmark_data):
-		initial_target_reached = initial_target_reached or data.loaded_bookmark_data.target_reached
+		initial_target_reached = data.loaded_bookmark_data.target_reached
+	else:
+		initial_target_reached = _is_target_reached(_get_initial_highest_tile(data))
 	_sync_target_state(initial_target_reached)
 	_target_reached_notified = initial_target_reached
 	if is_instance_valid(data.loaded_bookmark_data):

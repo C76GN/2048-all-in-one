@@ -237,6 +237,15 @@ func _restore_bookmark_command_history(bookmark_data: BookmarkData) -> void:
 		)
 
 
+func _is_bookmark_mode_contract_valid(
+	bookmark_data: BookmarkData,
+	mode_config: GameModeConfig
+) -> bool:
+	if not is_instance_valid(bookmark_data) or not is_instance_valid(mode_config):
+		return false
+	return bookmark_data.target_tile_value == maxi(mode_config.target_tile_value, 0)
+
+
 func _start_level_session(
 	level_source: StringName,
 	mode_config: GameModeConfig,
@@ -363,6 +372,23 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GameModeConfig 校验失败: %s" % config_path)
 		return
+	if (
+		is_instance_valid(loaded_bookmark_data)
+		and not _is_bookmark_mode_contract_valid(loaded_bookmark_data, mode_config)
+	):
+		var target_contract_error: String = (
+			"书签目标契约与模式不一致，拒绝恢复: bookmark=%d, mode=%d, path=%s"
+			% [
+				loaded_bookmark_data.target_tile_value,
+				mode_config.target_tile_value,
+				config_path,
+			]
+		)
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, target_contract_error)
+		else:
+			push_error("[GameInitSystem] %s" % target_contract_error)
+		return
 
 	game_ready_data.mode_config = mode_config
 	_start_level_session(level_source, mode_config, game_ready_data)
@@ -403,14 +429,10 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 			game_status_model.move_count.set_value(loaded_bookmark_data.move_count)
 			game_status_model.monsters_killed.set_value(loaded_bookmark_data.monsters_killed)
 			game_status_model.highest_tile.set_value(loaded_bookmark_data.highest_tile)
-			var loaded_target_value: int = loaded_bookmark_data.target_tile_value
-			if loaded_target_value <= 0:
-				loaded_target_value = mode_config.target_tile_value
-			var loaded_target_reached: bool = (
+			game_status_model.set_target_state(
+				mode_config.target_tile_value,
 				loaded_bookmark_data.target_reached
-				or mode_config.is_target_reached(loaded_bookmark_data.highest_tile)
 			)
-			game_status_model.set_target_state(loaded_target_value, loaded_target_reached)
 			game_status_model.extra_stats.set_value(loaded_bookmark_data.extra_stats.duplicate(true))
 			game_status_model.high_score.set_value(high_score)
 

@@ -109,7 +109,7 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 	if data.size() != 15:
 		return false
-	return (
+	var has_expected_types: bool = (
 		GFVariantData.get_option_value(data, "bookmark_id") is String
 		and GFVariantData.get_option_value(data, "timestamp") is int
 		and GFVariantData.get_option_value(data, "mode_config_path") is String
@@ -126,3 +126,17 @@ static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, "rules_states") is Array
 		and GFVariantData.get_option_value(data, "game_state_history") is Dictionary
 	)
+	if not has_expected_types:
+		return false
+	return _has_valid_target_state(data)
+
+
+static func _has_valid_target_state(data: Dictionary) -> bool:
+	var highest_tile_value: int = GFVariantData.get_option_int(data, "highest_tile")
+	var target_value: int = GFVariantData.get_option_int(data, "target_tile_value")
+	var reached: bool = GFVariantData.get_option_bool(data, "target_reached")
+	if highest_tile_value < 0 or target_value < 0:
+		return false
+	if target_value == 0:
+		return not reached
+	return reached or highest_tile_value < target_value
