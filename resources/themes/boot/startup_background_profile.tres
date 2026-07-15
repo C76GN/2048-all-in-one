@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="GFShaderParameterProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/display/gf_shader_parameter_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+parameters = {
+"cloud_strength": 0.026,
+"grain_strength": 0.03,
+"stipple_strength": 0.012
+}
+metadata = {
+"profile_id": &"boot.startup_background",
+"role": &"boot_background"
+}
+

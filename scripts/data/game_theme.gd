@@ -14,6 +14,7 @@ extends Resource
 @export var ui_palette: GameUiPalette
 @export var audio_theme: GameAudioTheme
 @export var background_shader_profile: GFShaderParameterProfile
+@export var celebration_vfx_theme: GameCelebrationVfxTheme
 @export var scene_transition_cover_effect: GFScreenTransitionEffect
 @export var scene_transition_reveal_effect: GFScreenTransitionEffect
 

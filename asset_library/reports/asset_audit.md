@@ -94,7 +94,7 @@
 - Path users:
   - `res://scripts/utilities/game_celebration_vfx_utility.gd`
 - Key users:
-  - `res://scripts/utilities/game_celebration_vfx_utility.gd`
+  - `res://resources/themes/game/vfx/halftone_atlas_celebration_theme.tres`
 
 ## Issues
 - None

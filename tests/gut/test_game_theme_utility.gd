@@ -24,9 +24,14 @@ func test_theme_registry_loads_default_theme_pack() -> void:
 	assert_true(theme.theme_id == &"halftone_atlas", "默认视觉主题 ID 应稳定。")
 	assert_true(is_instance_valid(theme.board_theme), "主题应引用棋盘主题资源。")
 	assert_true(is_instance_valid(theme.ui_palette), "主题应引用 UI 色板资源。")
+	assert_true(is_instance_valid(theme.ui_palette.button_focus_shader_profile), "UI 色板应引用按钮焦点 GF Profile。")
+	assert_true(theme.ui_palette.button_focus_shader_profile.get_parameter_names().size() == 5, "按钮焦点 Profile 应声明 5 个静态样式参数。")
 	assert_true(is_instance_valid(theme.audio_theme), "主题应引用默认音效主题。")
 	assert_true(is_instance_valid(theme.background_shader_profile), "主题应引用 GF 背景 Shader 参数 Profile。")
 	assert_true(theme.background_shader_profile.get_parameter_names().size() == 28, "背景 Profile 应完整声明当前 shader 的 28 个主题参数。")
+	assert_true(is_instance_valid(theme.celebration_vfx_theme), "主题应引用庆祝 VFX 主题资源。")
+	assert_true(theme.celebration_vfx_theme.get_validation_report().is_ok(), "庆祝 VFX 主题应通过 GFValidationReport。")
+	assert_true(theme.celebration_vfx_theme.shader_parameter_profile.get_parameter_names().size() == 11, "庆祝 VFX Profile 应声明 11 个基础视觉参数。")
 	assert_true(is_instance_valid(theme.scene_transition_cover_effect), "主题应声明覆盖旧场景的 GF 转场效果。")
 	assert_true(is_instance_valid(theme.scene_transition_reveal_effect), "主题应声明揭示新场景的 GF 转场效果。")
 	assert_true(theme.scene_transition_cover_effect.shader_material != null, "覆盖转场应由主题提供 ShaderMaterial。")
@@ -168,6 +173,10 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 	var setup: Dictionary = await _create_theme_architecture()
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var theme_utility: GameThemeUtility = _get_theme_utility(setup)
+	var celebration_value: Variant = setup.get("celebration_vfx")
+	var celebration_vfx: GameCelebrationVfxUtility = null
+	if celebration_value is GameCelebrationVfxUtility:
+		celebration_vfx = celebration_value
 	var fallback_board: BoardTheme = BoardTheme.new()
 	var fallback_scheme: TileColorScheme = TileColorScheme.new()
 	var background_rect: ColorRect = ColorRect.new()
@@ -191,6 +200,10 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 	assert_true(
 		resolved_player_scheme == _CLASSIC_TILE_THEME,
 		"当前主题应覆盖玩家方块色阶。"
+	)
+	assert_true(
+		is_instance_valid(celebration_vfx) and celebration_vfx.get_theme() == theme_utility.get_current_visual_theme().celebration_vfx_theme,
+		"GameThemeUtility 应把当前庆祝 VFX 主题注入运行时 Utility。"
 	)
 	theme_utility.apply_background_to_color_rect(background_rect)
 	assert_true(
@@ -318,6 +331,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	settings.register_project_defaults()
 	var audio: GFAudioUtility = GFAudioUtility.new()
 	var motion: GameUiMotionUtility = GameUiMotionUtility.new()
+	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
 	var theme_catalog: GameThemeCatalogUtility = GameThemeCatalogUtility.new()
 	var theme_utility: GameThemeUtility = GameThemeUtility.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
@@ -329,8 +343,9 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	await architecture.register_utility(GameAssetLibraryUtility, asset_library)
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFAudioUtility, audio)
-	await architecture.register_utility(GameUiMotionUtility, motion)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiMotionUtility, motion)
+	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.register_utility(GameThemeCatalogUtility, theme_catalog)
 	await architecture.register_utility(GameThemeUtility, theme_utility)
 	if include_scene_router:
@@ -348,6 +363,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 		"asset_library": asset_library,
 		"settings": settings,
 		"audio": audio,
+		"celebration_vfx": celebration_vfx,
 		"theme_catalog": theme_catalog,
 		"theme_utility": theme_utility,
 		"shader_parameters": shader_parameters,

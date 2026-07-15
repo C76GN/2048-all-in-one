@@ -19,6 +19,7 @@ const _VISUAL_STYLE_DOC_PATH: String = "res://docs/VISUAL_STYLE.md"
 const _BOOT_SCRIPT_PATH: String = "res://scripts/boot/boot.gd"
 const _GAME_PLAY_CONTROLLER_PATH: String = "res://scripts/controllers/game_play_controller.gd"
 const _HALFTONE_UI_PALETTE: GameUiPalette = preload("res://resources/themes/game/halftone_atlas_ui_palette.tres")
+const _HALFTONE_CELEBRATION_VFX_THEME: GameCelebrationVfxTheme = preload("res://resources/themes/game/vfx/halftone_atlas_celebration_theme.tres")
 const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/classic_tile_theme.tres")
 const _FIBONACCI_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/fibonacci_tile_theme.tres")
 const _LUCAS_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/lucas_tile_theme.tres")
@@ -118,6 +119,8 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 
 	var boot_source: String = _read_text(_BOOT_SCRIPT_PATH)
 	assert_true(boot_source.contains("GFAsyncProgress"), "Boot 应使用 GFAsyncProgress 统一启动进度。")
+	assert_true(boot_source.contains("GFAsyncWaitUtility.wait_until"), "Boot 应使用 GFAsyncWaitUtility 统一预加载条件与超时。")
+	assert_true(boot_source.contains("GFAsyncWaitUtility.delay_seconds"), "Boot 启动画面延迟应受 GF 生命周期保护。")
 	assert_true(boot_source.contains("preload_scene(MAIN_MENU_SCENE_PATH, true)"), "Boot 应通过 GFSceneUtility 预热主菜单。")
 	assert_true(boot_source.contains(_STARTUP_PROGRESS_SHADER_PATH), "Boot 应使用正式登记的启动进度条 shader。")
 	assert_true(boot_source.contains("_setup_startup_screen"), "Boot 应创建启动画面内容，而不是空白等待。")
@@ -313,7 +316,13 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	add_child_autoqfree(root)
 	await get_tree().process_frame
 
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiMotionUtility, motion_utility)
+	await architecture.init()
+	motion_utility.apply_palette(_HALFTONE_UI_PALETTE)
 	var emitted_events: Dictionary = {
 		&"selected": 0,
 		&"confirmed": 0,
@@ -342,6 +351,20 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 		assert_true(ring.mouse_filter == Control.MOUSE_FILTER_IGNORE, "选中态描边不应阻挡按钮输入。")
 		assert_true(ring.material is ShaderMaterial, "选中态描边应使用共享 shader 材质。")
 		assert_true(ring.visible, "hover 后选中态描边应可见。")
+		if ring.material is ShaderMaterial:
+			var ring_material: ShaderMaterial = ring.material
+			var ring_color_value: Variant = ring_material.get_shader_parameter(&"color")
+			var ring_color: Color = Color.TRANSPARENT
+			if ring_color_value is Color:
+				ring_color = ring_color_value
+			assert_true(
+				is_equal_approx(GFVariantData.to_float(ring_material.get_shader_parameter(&"dash_count")), 18.0),
+				"按钮焦点描边应由主题 GFShaderParameterProfile 写入虚线数量。"
+			)
+			assert_true(
+				ring_color == _HALFTONE_UI_PALETTE.button_focus_border_color,
+				"按钮焦点描边颜色应跟随当前 UI 色板。"
+			)
 
 	button.mouse_exited.emit()
 	if ring_node is ColorRect:
@@ -350,6 +373,7 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 
 	assert_true(_get_event_count(emitted_events, &"selected") == 1, "hover/focus 应发出 UI 选择音效语义信号。")
 	assert_true(_get_event_count(emitted_events, &"confirmed") == 1, "button down 应发出 UI 确认音效语义信号。")
+	architecture.dispose()
 
 
 func test_ui_motion_utility_styles_spinbox_as_readable_light_field() -> void:
@@ -652,7 +676,13 @@ func test_board_feedback_utility_plays_gf_shake_feedback() -> void:
 
 
 func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
+	await architecture.init()
+	assert_true(celebration_vfx.apply_theme(_HALFTONE_CELEBRATION_VFX_THEME), "庆祝 VFX 应接受完整主题资源。")
 	var played: bool = celebration_vfx.play_target_reached_celebration()
 	await get_tree().process_frame
 
@@ -670,8 +700,22 @@ func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
 			assert_true(rect.mouse_filter == Control.MOUSE_FILTER_IGNORE, "庆祝 VFX 不应阻挡 UI 输入。")
 			assert_true(rect.material is ShaderMaterial, "庆祝 VFX 应使用 shader 材质。")
 			assert_true(rect.modulate.a < 1.0, "庆祝 VFX 默认透明度应克制。")
+			if rect.material is ShaderMaterial:
+				var material: ShaderMaterial = rect.material
+				var primary_color_value: Variant = material.get_shader_parameter(&"col0")
+				var primary_color: Color = Color.TRANSPARENT
+				if primary_color_value is Color:
+					primary_color = primary_color_value
+				assert_true(
+					is_equal_approx(GFVariantData.to_float(material.get_shader_parameter(&"speed")), 94.0),
+					"目标达成事件应应用主题 preset 的速度参数。"
+				)
+				assert_true(
+					primary_color == Color(0.61960787, 0.85882354, 0.8352941, 1.0),
+					"庆祝纸屑色板应来自主题 GFShaderParameterProfile。"
+				)
 
-	celebration_vfx.dispose()
+	architecture.dispose()
 	await get_tree().process_frame
 
 

@@ -134,8 +134,8 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 		"审计报告应能说明按钮焦点 shader 被 UI 动效 Utility 使用。"
 	)
 	assert_true(
-		GFVariantData.get_option_packed_string_array(celebration_vfx_usage, "key_users").has("res://scripts/utilities/game_celebration_vfx_utility.gd"),
-		"审计报告应能说明庆祝 VFX shader 被庆祝 Utility 使用。"
+		GFVariantData.get_option_packed_string_array(celebration_vfx_usage, "key_users").has("res://resources/themes/game/vfx/halftone_atlas_celebration_theme.tres"),
+		"审计报告应能说明庆祝 VFX shader 资源键由当前庆祝主题声明。"
 	)
 	assert_true(
 		GFVariantData.get_option_packed_string_array(startup_progress_usage, "path_users").has("res://scripts/boot/boot.gd"),

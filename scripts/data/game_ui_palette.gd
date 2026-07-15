@@ -29,3 +29,5 @@ extends Resource
 @export var slider_track_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
 @export var slider_grabber_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
 @export var slider_grabber_highlight_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)
+
+@export var button_focus_shader_profile: GFShaderParameterProfile

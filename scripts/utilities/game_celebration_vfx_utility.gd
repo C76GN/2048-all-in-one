@@ -5,20 +5,18 @@ extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 # --- 常量 ---
 
-const CELEBRATION_CONFETTI_ASSET_KEY: StringName = &"asset.vfx.celebration.confetti_canvas"
-
 const _FALLBACK_CONFETTI_SHADER: Shader = preload("res://asset_library/vfx/celebration_confetti_canvas.gdshader")
 const _LAYER_NAME: String = "GameCelebrationVfxLayer"
 const _RECT_NAME_PREFIX: String = "CelebrationConfetti"
 const _LAYER_INDEX: int = 960
-const _TARGET_REACHED_DURATION: float = 1.45
-const _NEW_RECORD_DURATION: float = 2.05
 const _FADE_OUT_SECONDS: float = 0.34
 
 
 # --- 私有变量 ---
 
 var _asset_library: GameAssetLibraryUtility = null
+var _shader_parameters: GFShaderParameterUtility = null
+var _theme: GameCelebrationVfxTheme = null
 var _layer: CanvasLayer = null
 
 
@@ -26,6 +24,7 @@ var _layer: CanvasLayer = null
 
 func ready() -> void:
 	_asset_library = _get_asset_library_utility()
+	_shader_parameters = _get_shader_parameter_utility()
 
 
 func dispose() -> void:
@@ -33,32 +32,63 @@ func dispose() -> void:
 		_layer.queue_free()
 	_layer = null
 	_asset_library = null
+	_shader_parameters = null
+	_theme = null
 
 
 func release_dependencies() -> void:
 	_asset_library = null
+	_shader_parameters = null
 	super.release_dependencies()
 
 
 # --- 公共方法 ---
 
+## 应用当前视觉主题提供的庆祝特效配置。
+## @param theme: 要应用的庆祝特效主题。
+func apply_theme(theme: GameCelebrationVfxTheme) -> bool:
+	if not is_instance_valid(theme):
+		push_error("[GameCelebrationVfxUtility] 庆祝特效主题无效。")
+		return false
+	var report: GFValidationReport = theme.get_validation_report()
+	if not report.is_ok():
+		for issue: GFValidationIssue in report.issues:
+			if issue != null and issue.is_error():
+				push_error("[GameCelebrationVfxUtility] %s" % issue.message)
+		return false
+	_theme = theme
+	return true
+
+
+## 获取当前生效的庆祝特效主题。
+func get_theme() -> GameCelebrationVfxTheme:
+	return _theme
+
+
 func play_target_reached_celebration() -> bool:
-	return _play_confetti(_TARGET_REACHED_DURATION, 0.74, 94.0, 34.0, 6.2)
+	return _play_confetti(GameCelebrationVfxTheme.EVENT_TARGET_REACHED)
 
 
 func play_new_record_celebration() -> bool:
-	return _play_confetti(_NEW_RECORD_DURATION, 0.86, 118.0, 46.0, 7.5)
+	return _play_confetti(GameCelebrationVfxTheme.EVENT_NEW_RECORD)
 
 
 # --- 私有/辅助方法 ---
 
-func _play_confetti(
-	duration: float,
-	opacity: float,
-	speed: float,
-	sway_strength: float,
-	piece_size: float
-) -> bool:
+func _play_confetti(event_id: StringName) -> bool:
+	if not is_instance_valid(_theme):
+		push_error("[GameCelebrationVfxUtility] 尚未应用庆祝特效主题。")
+		return false
+	var preset: GameCelebrationVfxPreset = _theme.get_preset(event_id)
+	if not is_instance_valid(preset):
+		push_error("[GameCelebrationVfxUtility] 主题缺少庆祝事件 preset：%s。" % String(event_id))
+		return false
+	if not is_instance_valid(_shader_parameters):
+		_shader_parameters = _get_shader_parameter_utility()
+	if not is_instance_valid(_shader_parameters):
+		push_error("[GameCelebrationVfxUtility] 缺少 GFShaderParameterUtility。")
+		return false
+
 	var layer: CanvasLayer = _ensure_layer()
 	if not is_instance_valid(layer):
 		return false
@@ -73,19 +103,34 @@ func _play_confetti(
 	rect.offset_right = 0.0
 	rect.offset_bottom = 0.0
 	rect.color = Color.WHITE
-	rect.modulate = Color(1.0, 1.0, 1.0, opacity)
+	rect.modulate = Color(1.0, 1.0, 1.0, preset.opacity)
 	layer.add_child(rect)
 
 	var viewport_size: Vector2 = _sync_rect_to_viewport(rect)
 	var material: ShaderMaterial = ShaderMaterial.new()
-	material.shader = _load_confetti_shader()
-	material.set_shader_parameter("resolution", viewport_size)
-	material.set_shader_parameter("speed", speed)
-	material.set_shader_parameter("sway_strength", sway_strength)
-	material.set_shader_parameter("piece_size", piece_size)
+	material.shader = _load_confetti_shader(_theme.shader_asset_key)
 	rect.material = material
+	var profile_count: int = _shader_parameters.apply_profile(
+		material,
+		_theme.shader_parameter_profile,
+		_get_shader_apply_options()
+	)
+	if profile_count != _theme.shader_parameter_profile.get_parameter_names().size():
+		rect.queue_free()
+		return false
 
-	_queue_rect_fade_out(rect, duration)
+	var event_parameters: Dictionary = preset.get_shader_parameters()
+	event_parameters[&"resolution"] = viewport_size
+	var event_parameter_count: int = _shader_parameters.apply_parameters(
+		material,
+		event_parameters,
+		_get_shader_apply_options()
+	)
+	if event_parameter_count != event_parameters.size():
+		rect.queue_free()
+		return false
+
+	_queue_rect_fade_out(rect, preset.duration)
 	return true
 
 
@@ -127,10 +172,10 @@ func _queue_rect_fade_out(rect: ColorRect, duration: float) -> void:
 	var _callback_tweener: CallbackTweener = tween.tween_callback(rect.queue_free)
 
 
-func _load_confetti_shader() -> Shader:
+func _load_confetti_shader(asset_key: StringName) -> Shader:
 	var asset_library: GameAssetLibraryUtility = _get_cached_asset_library_utility()
 	if is_instance_valid(asset_library):
-		var resource: Resource = asset_library.load_asset(CELEBRATION_CONFETTI_ASSET_KEY, "Shader")
+		var resource: Resource = asset_library.load_asset(asset_key, "Shader")
 		if resource is Shader:
 			var shader: Shader = resource
 			return shader
@@ -150,6 +195,24 @@ func _get_asset_library_utility() -> GameAssetLibraryUtility:
 		var asset_library: GameAssetLibraryUtility = utility_value
 		return asset_library
 	return null
+
+
+func _get_shader_parameter_utility() -> GFShaderParameterUtility:
+	var utility_value: Object = get_utility(GFShaderParameterUtility)
+	if utility_value is GFShaderParameterUtility:
+		var shader_utility: GFShaderParameterUtility = utility_value
+		return shader_utility
+	return null
+
+
+func _get_shader_apply_options() -> Dictionary:
+	return {
+		"duplicate_material": false,
+		"require_declared_parameters": true,
+		"warn_on_invalid_target": true,
+		"warn_on_missing_parameters": true,
+		"copy_values": true,
+	}
 
 
 func _get_scene_tree() -> SceneTree:

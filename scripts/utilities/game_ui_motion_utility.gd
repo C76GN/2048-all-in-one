@@ -56,11 +56,6 @@ const _CHILD_REVEAL_OFFSET: Vector2 = Vector2(8.0, 0.0)
 const _CHILD_REVEAL_DURATION: float = 0.14
 const _CHILD_REVEAL_STAGGER: float = 0.025
 const _FOCUS_RING_MARGIN: float = 3.0
-const _FOCUS_RING_RADIUS: float = 7.0
-const _FOCUS_RING_THICKNESS: float = 3.0
-const _FOCUS_RING_DASH_COUNT: float = 18.0
-const _FOCUS_RING_DASH_RATIO: float = 0.54
-const _FOCUS_RING_SPEED: float = 0.65
 
 
 # --- 私有变量 ---
@@ -82,6 +77,24 @@ var _panel_surface_color: Color = _PANEL_SURFACE_COLOR
 var _slider_track_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
 var _slider_grabber_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
 var _slider_grabber_highlight_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)
+var _button_focus_shader_profile: GFShaderParameterProfile
+var _shader_parameters: GFShaderParameterUtility
+
+
+# --- GF 生命周期方法 ---
+
+func ready() -> void:
+	_shader_parameters = _get_shader_parameter_utility()
+
+
+func dispose() -> void:
+	_button_focus_shader_profile = null
+	_shader_parameters = null
+
+
+func release_dependencies() -> void:
+	_shader_parameters = null
+	super.release_dependencies()
 
 
 # --- 公共方法 ---
@@ -110,6 +123,7 @@ func apply_palette(palette: GameUiPalette) -> void:
 	_slider_track_color = palette.slider_track_color
 	_slider_grabber_color = palette.slider_grabber_color
 	_slider_grabber_highlight_color = palette.slider_grabber_highlight_color
+	_button_focus_shader_profile = palette.button_focus_shader_profile
 
 
 ## 应用色板并刷新根节点下已存在的控件样式。
@@ -325,17 +339,26 @@ func _apply_button_focus_ring_style(button: BaseButton) -> void:
 	if not is_instance_valid(ring):
 		return
 
-	var shader_material: ShaderMaterial = _get_focus_ring_material(ring)
-	if not is_instance_valid(shader_material):
+	if not is_instance_valid(_shader_parameters):
+		_shader_parameters = _get_shader_parameter_utility()
+	if not is_instance_valid(_shader_parameters):
+		push_error("[GameUiMotionUtility] 缺少 GFShaderParameterUtility，无法应用按钮焦点样式。")
 		return
 
-	shader_material.set_shader_parameter("rect_size", button.size + Vector2.ONE * _FOCUS_RING_MARGIN * 2.0)
-	shader_material.set_shader_parameter("radius", _FOCUS_RING_RADIUS)
-	shader_material.set_shader_parameter("thickness", _FOCUS_RING_THICKNESS)
-	shader_material.set_shader_parameter("color", _button_focus_border_color)
-	shader_material.set_shader_parameter("dash_count", _FOCUS_RING_DASH_COUNT)
-	shader_material.set_shader_parameter("dash_ratio", _FOCUS_RING_DASH_RATIO)
-	shader_material.set_shader_parameter("speed", _FOCUS_RING_SPEED)
+	if _button_focus_shader_profile != null:
+		var _profile_count: int = _shader_parameters.apply_profile(
+			ring,
+			_button_focus_shader_profile,
+			_get_shader_apply_options()
+		)
+	var _dynamic_count: int = _shader_parameters.apply_parameters(
+		ring,
+		{
+			&"rect_size": button.size + Vector2.ONE * _FOCUS_RING_MARGIN * 2.0,
+			&"color": _button_focus_border_color,
+		},
+		_get_shader_apply_options()
+	)
 
 
 func _get_button_focus_ring(button: BaseButton) -> ColorRect:
@@ -346,17 +369,6 @@ func _get_button_focus_ring(button: BaseButton) -> ColorRect:
 	if node is ColorRect:
 		var ring: ColorRect = node
 		return ring
-	return null
-
-
-func _get_focus_ring_material(ring: ColorRect) -> ShaderMaterial:
-	if not is_instance_valid(ring):
-		return null
-
-	var material_value: Material = ring.material
-	if material_value is ShaderMaterial:
-		var shader_material: ShaderMaterial = material_value
-		return shader_material
 	return null
 
 
@@ -664,6 +676,25 @@ func _reset_palette() -> void:
 	_slider_track_color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
 	_slider_grabber_color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
 	_slider_grabber_highlight_color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)
+	_button_focus_shader_profile = null
+
+
+func _get_shader_parameter_utility() -> GFShaderParameterUtility:
+	var utility_value: Object = get_utility(GFShaderParameterUtility)
+	if utility_value is GFShaderParameterUtility:
+		var shader_utility: GFShaderParameterUtility = utility_value
+		return shader_utility
+	return null
+
+
+func _get_shader_apply_options() -> Dictionary:
+	return {
+		"duplicate_material": false,
+		"require_declared_parameters": true,
+		"warn_on_invalid_target": true,
+		"warn_on_missing_parameters": true,
+		"copy_values": true,
+	}
 
 
 func _refresh_palette_tree(root: Node) -> int:

@@ -19,6 +19,7 @@ var _main_menu_scene_path: String = "res://scenes/menus/main_menu.tscn"
 var _log: GFLogUtility
 var _scene_utility: GFSceneUtility
 var _screen_transition: GFScreenTransitionUtility
+var _shader_parameters: GFShaderParameterUtility
 var _theme_utility: GameThemeUtility
 var _signal_utility: GFSignalUtility
 var _operation_diagnostics: GFOperationDiagnosticsUtility
@@ -35,6 +36,7 @@ func ready() -> void:
 	_log = _get_log_utility()
 	_scene_utility = _get_scene_utility()
 	_screen_transition = _get_screen_transition_utility()
+	_shader_parameters = _get_shader_parameter_utility()
 	_theme_utility = _get_theme_utility()
 	_signal_utility = _get_signal_utility()
 	_operation_diagnostics = _get_operation_diagnostics_utility()
@@ -49,6 +51,7 @@ func dispose() -> void:
 	_disconnect_scene_utility_signals()
 	_scene_utility = null
 	_screen_transition = null
+	_shader_parameters = null
 	_theme_utility = null
 	_signal_utility = null
 	_operation_diagnostics = null
@@ -169,6 +172,14 @@ func _get_screen_transition_utility() -> GFScreenTransitionUtility:
 	if utility_value is GFScreenTransitionUtility:
 		var transition_utility: GFScreenTransitionUtility = utility_value
 		return transition_utility
+	return null
+
+
+func _get_shader_parameter_utility() -> GFShaderParameterUtility:
+	var utility_value: Object = get_utility(GFShaderParameterUtility)
+	if utility_value is GFShaderParameterUtility:
+		var shader_utility: GFShaderParameterUtility = utility_value
+		return shader_utility
 	return null
 
 
@@ -298,7 +309,24 @@ func _resolve_scene_transition_effect(phase: StringName) -> GFScreenTransitionEf
 	effect.metadata["phase"] = phase
 	effect.metadata["theme_id"] = theme.theme_id
 	if effect.shader_material != null:
-		effect.shader_material.set_shader_parameter(&"node_resolution", _get_transition_resolution())
+		if not is_instance_valid(_shader_parameters):
+			_shader_parameters = _get_shader_parameter_utility()
+		if not is_instance_valid(_shader_parameters):
+			_log_transition_error("GFShaderParameterUtility 未注册，无法同步转场分辨率。")
+			return null
+		var applied_count: int = _shader_parameters.apply_parameters(
+			effect.shader_material,
+			{&"node_resolution": _get_transition_resolution()},
+			{
+				"require_declared_parameters": true,
+				"warn_on_invalid_target": true,
+				"warn_on_missing_parameters": true,
+				"copy_values": true,
+			}
+		)
+		if applied_count != 1:
+			_log_transition_error("主题转场 shader 缺少 node_resolution 参数。")
+			return null
 	return effect
 
 

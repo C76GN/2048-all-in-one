@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="GFShaderParameterProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/display/gf_shader_parameter_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+parameters = {
+"aspect_ratio": 1.85,
+"col0": Color(0.61960787, 0.85882354, 0.8352941, 1),
+"col1": Color(0.9372549, 0.81960785, 0.3647059, 1),
+"col2": Color(0.8745098, 0.29411766, 0.6039216, 1),
+"col3": Color(0.5803922, 0.26666668, 0.19215687, 1),
+"col4": Color(0.27058825, 0.31764707, 0.38431373, 1),
+"col5": Color(0.94509804, 0.8862745, 0.74509805, 1),
+"col6": Color(0.6784314, 0.6156863, 0.38431373, 1),
+"col7": Color(0.18431373, 0.1882353, 0.21568628, 1),
+"spin_speed": 2.8,
+"sway_speed": 1.15
+}
+metadata = {
+"profile_id": &"halftone_atlas.vfx.celebration",
+"role": &"celebration_vfx"
+}
+

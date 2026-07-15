@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="GFShaderParameterProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/display/gf_shader_parameter_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+parameters = {
+"aspect": 8.0,
+"background_color": Color(0.9411765, 0.8392157, 0.5882353, 1),
+"outline_color": Color(0.18431373, 0.1882353, 0.21568628, 1),
+"progress": 0.0,
+"progress_color": Color(0.61960787, 0.8235294, 0.80784315, 1)
+}
+metadata = {
+"profile_id": &"boot.startup_progress",
+"role": &"boot_progress"
+}
+

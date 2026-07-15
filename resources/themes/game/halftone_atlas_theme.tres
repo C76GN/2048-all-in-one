@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameTheme" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="GameTheme" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/game_theme.gd" id="1_theme"]
 [ext_resource type="Resource" path="res://resources/themes/board/default_board_theme.tres" id="2_board"]
@@ -9,6 +9,7 @@
 [ext_resource type="Resource" path="res://resources/themes/game/transitions/halftone_cover_transition.tres" id="7_cover"]
 [ext_resource type="Resource" path="res://resources/themes/game/transitions/halftone_reveal_transition.tres" id="8_reveal"]
 [ext_resource type="Resource" path="res://resources/themes/game/backgrounds/halftone_atlas_background_profile.tres" id="9_background"]
+[ext_resource type="Resource" path="res://resources/themes/game/vfx/halftone_atlas_celebration_theme.tres" id="10_celebration"]
 
 [resource]
 script = ExtResource("1_theme")
@@ -23,5 +24,6 @@ color_schemes = {
 ui_palette = ExtResource("5_palette")
 audio_theme = ExtResource("6_audio")
 background_shader_profile = ExtResource("9_background")
+celebration_vfx_theme = ExtResource("10_celebration")
 scene_transition_cover_effect = ExtResource("7_cover")
 scene_transition_reveal_effect = ExtResource("8_reveal")

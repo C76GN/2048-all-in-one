@@ -8,16 +8,18 @@ extends Control
 const MAIN_MENU_SCENE_PATH: String = "res://scenes/menus/main_menu.tscn"
 const _BACKGROUND_SHADER: Shader = preload("res://asset_library/shaders/background/halftone_paper_background.gdshader")
 const _PROGRESS_SHADER: Shader = preload("res://asset_library/shaders/ui/startup_progress_bar.gdshader")
+const _BACKGROUND_SHADER_PROFILE: GFShaderParameterProfile = preload("res://resources/themes/boot/startup_background_profile.tres")
+const _PROGRESS_SHADER_PROFILE: GFShaderParameterProfile = preload("res://resources/themes/boot/startup_progress_profile.tres")
 
 const _MIN_SPLASH_SECONDS: float = 1.05
-const _PRELOAD_TIMEOUT_MSEC: int = 8000
+const _PRELOAD_TIMEOUT_SECONDS: float = 8.0
+const _FINISH_DELAY_SECONDS: float = 0.14
 const _PROGRESS_BAR_ASPECT_FALLBACK: float = 8.0
 const _PAPER_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.94)
 const _INK_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
 const _MUTED_INK_COLOR: Color = Color(0.4, 0.35686275, 0.32156864, 0.92)
 const _ACCENT_COLOR: Color = Color(0.61960787, 0.8235294, 0.80784315, 1.0)
 const _WARM_COLOR: Color = Color(0.7176471, 0.47843137, 0.45882353, 1.0)
-const _GOLD_COLOR: Color = Color(0.9411765, 0.8392157, 0.5882353, 1.0)
 
 
 # --- 私有变量 ---
@@ -28,6 +30,7 @@ var _progress_bar_material: ShaderMaterial
 var _status_label: Label
 var _percent_label: Label
 var _preload_failed: bool = false
+var _shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 
 
 # --- Godot 生命周期方法 ---
@@ -67,8 +70,12 @@ func _run_startup_sequence() -> void:
 	await _wait_for_minimum_duration(started_msec)
 	var _complete_result: bool = _startup_progress.complete("启动完成")
 
-	var finish_timer: SceneTreeTimer = get_tree().create_timer(0.14)
-	await finish_timer.timeout
+	var finish_wait: Dictionary = await GFAsyncWaitUtility.delay_seconds(
+		_FINISH_DELAY_SECONDS,
+		_get_boot_wait_options()
+	)
+	if not GFVariantData.get_option_bool(finish_wait, "completed"):
+		return
 	_goto_main_menu()
 
 
@@ -89,15 +96,10 @@ func _wait_for_main_menu_preload(scene_utility: GFSceneUtility) -> void:
 		_publish_progress(0.92, "主菜单已预热")
 		return
 
-	var deadline_msec: int = Time.get_ticks_msec() + _PRELOAD_TIMEOUT_MSEC
-	while (
-		is_instance_valid(scene_utility)
-		and not scene_utility.is_scene_preloaded(MAIN_MENU_SCENE_PATH)
-		and scene_utility.is_scene_preloading(MAIN_MENU_SCENE_PATH)
-		and not _preload_failed
-		and Time.get_ticks_msec() < deadline_msec
-	):
-		await get_tree().process_frame
+	var _preload_wait: Dictionary = await GFAsyncWaitUtility.wait_until(
+		_is_main_menu_preload_finished.bind(scene_utility),
+		_get_boot_wait_options(_PRELOAD_TIMEOUT_SECONDS)
+	)
 
 	if is_instance_valid(scene_utility) and scene_utility.is_scene_preloaded(MAIN_MENU_SCENE_PATH):
 		_publish_progress(0.92, "主菜单已预热")
@@ -112,8 +114,29 @@ func _wait_for_minimum_duration(started_msec: int) -> void:
 		await get_tree().process_frame
 		return
 
-	var timer: SceneTreeTimer = get_tree().create_timer(remaining_seconds)
-	await timer.timeout
+	var _duration_wait: Dictionary = await GFAsyncWaitUtility.delay_seconds(
+		remaining_seconds,
+		_get_boot_wait_options()
+	)
+
+
+func _is_main_menu_preload_finished(scene_utility: GFSceneUtility) -> bool:
+	return (
+		not is_instance_valid(scene_utility)
+		or scene_utility.is_scene_preloaded(MAIN_MENU_SCENE_PATH)
+		or not scene_utility.is_scene_preloading(MAIN_MENU_SCENE_PATH)
+		or _preload_failed
+	)
+
+
+func _get_boot_wait_options(timeout_seconds: float = 0.0) -> Dictionary:
+	var options: Dictionary = {
+		"guard_node": self,
+		"respect_time_scale": false,
+	}
+	if timeout_seconds > 0.0:
+		options["timeout_seconds"] = timeout_seconds
+	return options
 
 
 func _setup_progress() -> void:
@@ -133,7 +156,11 @@ func _publish_progress(value: float, message: String) -> void:
 func _on_startup_progressed(value: float, message: String, _metadata: Dictionary) -> void:
 	var safe_value: float = clampf(value, 0.0, 1.0)
 	if is_instance_valid(_progress_bar_material):
-		_progress_bar_material.set_shader_parameter("progress", safe_value)
+		var _parameter_count: int = _shader_parameters.apply_parameters(
+			_progress_bar_material,
+			{&"progress": safe_value},
+			_get_shader_apply_options()
+		)
 	if is_instance_valid(_status_label):
 		_status_label.text = message
 	if is_instance_valid(_percent_label):
@@ -208,10 +235,12 @@ func _setup_startup_screen() -> void:
 	_set_full_rect(background)
 	var background_material: ShaderMaterial = ShaderMaterial.new()
 	background_material.shader = _BACKGROUND_SHADER
-	background_material.set_shader_parameter("grain_strength", 0.030)
-	background_material.set_shader_parameter("stipple_strength", 0.012)
-	background_material.set_shader_parameter("cloud_strength", 0.026)
 	background.material = background_material
+	var _background_parameter_count: int = _shader_parameters.apply_profile(
+		background,
+		_BACKGROUND_SHADER_PROFILE,
+		_get_shader_apply_options()
+	)
 	add_child(background)
 
 	var center: CenterContainer = CenterContainer.new()
@@ -316,12 +345,12 @@ func _create_progress_bar() -> ColorRect:
 
 	_progress_bar_material = ShaderMaterial.new()
 	_progress_bar_material.shader = _PROGRESS_SHADER
-	_progress_bar_material.set_shader_parameter("aspect", _PROGRESS_BAR_ASPECT_FALLBACK)
-	_progress_bar_material.set_shader_parameter("progress", 0.0)
-	_progress_bar_material.set_shader_parameter("progress_color", _ACCENT_COLOR)
-	_progress_bar_material.set_shader_parameter("background_color", _GOLD_COLOR)
-	_progress_bar_material.set_shader_parameter("outline_color", _INK_COLOR)
 	bar.material = _progress_bar_material
+	var _progress_parameter_count: int = _shader_parameters.apply_profile(
+		bar,
+		_PROGRESS_SHADER_PROFILE,
+		_get_shader_apply_options()
+	)
 
 	var _resize_connect: int = bar.resized.connect(_on_progress_bar_resized)
 	return bar
@@ -393,7 +422,21 @@ func _sync_progress_bar_aspect() -> void:
 		return
 	var height: float = maxf(_progress_bar.size.y, 1.0)
 	var bar_aspect: float = maxf(_progress_bar.size.x / height, _PROGRESS_BAR_ASPECT_FALLBACK)
-	_progress_bar_material.set_shader_parameter("aspect", bar_aspect)
+	var _parameter_count: int = _shader_parameters.apply_parameters(
+		_progress_bar_material,
+		{&"aspect": bar_aspect},
+		_get_shader_apply_options()
+	)
+
+
+func _get_shader_apply_options() -> Dictionary:
+	return {
+		"duplicate_material": false,
+		"require_declared_parameters": true,
+		"warn_on_invalid_target": true,
+		"warn_on_missing_parameters": true,
+		"copy_values": true,
+	}
 
 
 func _set_full_rect(control: Control) -> void:

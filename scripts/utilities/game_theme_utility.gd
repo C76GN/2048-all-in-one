@@ -26,6 +26,7 @@ var _registry: GameThemeRegistry
 var _settings: GFSettingsUtility
 var _audio: GFAudioUtility
 var _motion: GameUiMotionUtility
+var _celebration_vfx: GameCelebrationVfxUtility
 var _theme_catalog: GameThemeCatalogUtility
 var _shader_parameters: GFShaderParameterUtility
 
@@ -40,6 +41,7 @@ func ready() -> void:
 	_settings = _get_settings_utility()
 	_audio = _get_audio_utility()
 	_motion = _get_motion_utility()
+	_celebration_vfx = _get_celebration_vfx_utility()
 	_theme_catalog = _get_theme_catalog_utility()
 	_shader_parameters = _get_shader_parameter_utility()
 	_registry = _load_registry()
@@ -58,6 +60,7 @@ func dispose() -> void:
 	_settings = null
 	_audio = null
 	_motion = null
+	_celebration_vfx = null
 	_theme_catalog = null
 	_shader_parameters = null
 	_registry = null
@@ -68,6 +71,7 @@ func release_dependencies() -> void:
 	_settings = null
 	_audio = null
 	_motion = null
+	_celebration_vfx = null
 	_theme_catalog = null
 	_shader_parameters = null
 	super.release_dependencies()
@@ -359,6 +363,10 @@ func _apply_visual_theme_to_utilities(theme: GameTheme) -> void:
 		_motion = _get_motion_utility()
 	if is_instance_valid(_motion) and is_instance_valid(theme.ui_palette):
 		_motion.apply_palette(theme.ui_palette)
+	if not is_instance_valid(_celebration_vfx):
+		_celebration_vfx = _get_celebration_vfx_utility()
+	if is_instance_valid(_celebration_vfx) and is_instance_valid(theme.celebration_vfx_theme):
+		var _theme_applied: bool = _celebration_vfx.apply_theme(theme.celebration_vfx_theme)
 	_connect_motion_audio_feedback()
 
 
@@ -476,6 +484,14 @@ func _get_motion_utility() -> GameUiMotionUtility:
 	if utility_value is GameUiMotionUtility:
 		var motion: GameUiMotionUtility = utility_value
 		return motion
+	return null
+
+
+func _get_celebration_vfx_utility() -> GameCelebrationVfxUtility:
+	var utility_value: Object = get_utility(GameCelebrationVfxUtility)
+	if utility_value is GameCelebrationVfxUtility:
+		var celebration_vfx: GameCelebrationVfxUtility = utility_value
+		return celebration_vfx
 	return null
 
 

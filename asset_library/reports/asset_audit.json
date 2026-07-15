@@ -803,7 +803,7 @@
 	"package_id": "c76.asset_library.core",
 	"reference_scan_report": {
 		"budget_exceeded": false,
-		"candidate_file_count": 171,
+		"candidate_file_count": 180,
 		"input_target_count": 11,
 		"ok": false,
 		"partial_scan": false,
@@ -1023,7 +1023,7 @@
 				"blocking": true,
 				"evidence": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
 				"kind": "path",
-				"line": 10,
+				"line": 8,
 				"match": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
 				"path": "res://scripts/utilities/game_celebration_vfx_utility.gd",
 				"preview": "path reference: res://asset_library/vfx/celebration_confetti_canvas.gdshader",
@@ -1036,8 +1036,8 @@
 			}
 		],
 		"scan_warnings": [],
-		"scanned_bytes": 792281,
-		"scanned_file_count": 171,
+		"scanned_bytes": 804622,
+		"scanned_file_count": 180,
 		"skipped_files": [],
 		"target_count": 11,
 		"targets": {
@@ -1329,7 +1329,7 @@
 						"blocking": true,
 						"evidence": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
 						"kind": "path",
-						"line": 10,
+						"line": 8,
 						"match": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
 						"path": "res://scripts/utilities/game_celebration_vfx_utility.gd",
 						"preview": "path reference: res://asset_library/vfx/celebration_confetti_canvas.gdshader",
@@ -1440,9 +1440,9 @@
 				"blocking": false,
 				"evidence": "asset.vfx.celebration.confetti_canvas",
 				"kind": "class_name",
-				"line": 8,
+				"line": 10,
 				"match": "asset.vfx.celebration.confetti_canvas",
-				"path": "res://scripts/utilities/game_celebration_vfx_utility.gd",
+				"path": "res://resources/themes/game/vfx/halftone_atlas_celebration_theme.tres",
 				"preview": "class_name reference: asset.vfx.celebration.confetti_canvas",
 				"root_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
 				"source": "text_fallback",
@@ -1593,9 +1593,9 @@
 						"blocking": false,
 						"evidence": "asset.vfx.celebration.confetti_canvas",
 						"kind": "class_name",
-						"line": 8,
+						"line": 10,
 						"match": "asset.vfx.celebration.confetti_canvas",
-						"path": "res://scripts/utilities/game_celebration_vfx_utility.gd",
+						"path": "res://resources/themes/game/vfx/halftone_atlas_celebration_theme.tres",
 						"preview": "class_name reference: asset.vfx.celebration.confetti_canvas",
 						"root_path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
 						"source": "text_fallback",
@@ -1739,7 +1739,7 @@
 		},
 		"asset.vfx.celebration.confetti_canvas": {
 			"key_users": [
-				"res://scripts/utilities/game_celebration_vfx_utility.gd"
+				"res://resources/themes/game/vfx/halftone_atlas_celebration_theme.tres"
 			],
 			"path": "res://asset_library/vfx/celebration_confetti_canvas.gdshader",
 			"path_users": [

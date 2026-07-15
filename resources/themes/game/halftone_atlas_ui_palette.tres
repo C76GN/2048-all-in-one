@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="GameUiPalette" format=3]
+[gd_resource type="Resource" script_class="GameUiPalette" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/game_ui_palette.gd" id="1_palette"]
+[ext_resource type="Resource" path="res://resources/themes/game/ui/halftone_atlas_focus_ring_profile.tres" id="2_focus"]
 
 [resource]
 script = ExtResource("1_palette")
@@ -24,3 +25,4 @@ selected_border_color = Color(0.9411765, 0.8392157, 0.5882353, 1)
 slider_track_color = Color(0.6784314, 0.6156863, 0.38431373, 0.42)
 slider_grabber_color = Color(0.49411765, 0.79607844, 0.827451, 0.94)
 slider_grabber_highlight_color = Color(0.5803922, 0.26666668, 0.19215687, 0.9)
+button_focus_shader_profile = ExtResource("2_focus")
