@@ -19,7 +19,7 @@ var _rule_system: RuleSystem
 var _game_flow_system: GameFlowSystem
 var _command_history: GFCommandHistoryUtility
 var _level_utility: GFLevelUtility
-var _mode_cache: GameModeConfigCacheUtility
+var _mode_catalog: GameModeCatalogUtility
 var _grid_model: GridModel
 var _log: GFLogUtility
 var _clock: GameClockUtility
@@ -31,7 +31,7 @@ func ready() -> void:
 	_seed_utility = _get_seed_utility()
 	_command_history = _get_command_history_utility()
 	_level_utility = _get_level_utility()
-	_mode_cache = _get_mode_cache_utility()
+	_mode_catalog = _get_mode_catalog_utility()
 	_log = _get_log_utility()
 	_clock = _get_clock_utility()
 	_rule_system = _get_rule_system()
@@ -47,7 +47,7 @@ func dispose() -> void:
 	_game_flow_system = null
 	_command_history = null
 	_level_utility = null
-	_mode_cache = null
+	_mode_catalog = null
 	_grid_model = null
 	_log = null
 	_clock = null
@@ -79,11 +79,11 @@ func _get_level_utility() -> GFLevelUtility:
 	return null
 
 
-func _get_mode_cache_utility() -> GameModeConfigCacheUtility:
-	var utility_value: Object = get_utility(GameModeConfigCacheUtility)
-	if utility_value is GameModeConfigCacheUtility:
-		var mode_cache: GameModeConfigCacheUtility = utility_value
-		return mode_cache
+func _get_mode_catalog_utility() -> GameModeCatalogUtility:
+	var utility_value: Object = get_utility(GameModeCatalogUtility)
+	if utility_value is GameModeCatalogUtility:
+		var mode_catalog: GameModeCatalogUtility = utility_value
+		return mode_catalog
 	return null
 
 
@@ -347,14 +347,14 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	game_ready_data.current_grid_size = grid_size
 	game_ready_data.initial_seed = init_seed
 
-	if not is_instance_valid(_mode_cache):
-		_mode_cache = _get_mode_cache_utility()
-	if not is_instance_valid(_mode_cache):
+	if not is_instance_valid(_mode_catalog):
+		_mode_catalog = _get_mode_catalog_utility()
+	if not is_instance_valid(_mode_catalog):
 		if is_instance_valid(_log):
-			_log.error(_LOG_TAG, "GameModeConfigCacheUtility 未注册，无法加载模式配置: %s" % config_path)
+			_log.error(_LOG_TAG, "GameModeCatalogUtility 未注册，无法加载模式配置: %s" % config_path)
 		return
 
-	var mode_config: GameModeConfig = _mode_cache.get_cached_config(config_path)
+	var mode_config: GameModeConfig = _mode_catalog.get_config(config_path)
 	if not is_instance_valid(mode_config):
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GameModeConfig 加载失败: %s" % config_path)

@@ -284,11 +284,11 @@ func _get_game_ui_motion_utility() -> GameUiMotionUtility:
 	return null
 
 
-func _get_mode_cache_utility() -> GameModeConfigCacheUtility:
-	var utility_value: Object = get_utility(GameModeConfigCacheUtility)
-	if utility_value is GameModeConfigCacheUtility:
-		var mode_cache: GameModeConfigCacheUtility = utility_value
-		return mode_cache
+func _get_mode_catalog_utility() -> GameModeCatalogUtility:
+	var utility_value: Object = get_utility(GameModeCatalogUtility)
+	if utility_value is GameModeCatalogUtility:
+		var mode_catalog: GameModeCatalogUtility = utility_value
+		return mode_catalog
 	return null
 
 
@@ -311,12 +311,12 @@ func _get_mode_config(config_path: String) -> GameModeConfig:
 	if config_path.is_empty():
 		return null
 
-	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache_utility()
-	if not is_instance_valid(mode_cache):
-		push_error("[BaseListMenu] GameModeConfigCacheUtility 未注册，无法加载模式配置：%s。" % config_path)
+	var mode_catalog: GameModeCatalogUtility = _get_mode_catalog_utility()
+	if not is_instance_valid(mode_catalog):
+		push_error("[BaseListMenu] GameModeCatalogUtility 未注册，无法加载模式配置：%s。" % config_path)
 		return null
 
-	return mode_cache.get_cached_config(config_path)
+	return mode_catalog.get_config(config_path)
 
 
 func _get_scene_router_system() -> SceneRouterSystem:

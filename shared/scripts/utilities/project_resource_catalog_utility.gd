@@ -1,9 +1,14 @@
 ## ProjectResourceCatalogUtility: 项目资源目录 Adapter。
 ##
-## 把 GFResourceRegistry、GFResourceResolverUtility 和 GFAssetUtility 的组合用法集中起来，
-## 让模式、UI 路由、主题等项目 Module 不再重复实现注册、解析和缓存细节。
+## 将项目 GFResourceRegistry 原子注册到 GFResourceResolverUtility，并统一交给
+## GFAssetUtility 分组管理缓存生命周期。业务 Feature 只需要面对目录 ID 和资源路径。
 class_name ProjectResourceCatalogUtility
 extends "res://addons/gf/kernel/base/gf_utility.gd"
+
+
+# --- 常量 ---
+
+const _RESOLVER_OWNER_PREFIX: String = "project.catalog."
 
 
 # --- 私有变量 ---
@@ -13,30 +18,31 @@ var _resource_resolver: GFResourceResolverUtility = null
 var _catalogs: Dictionary = {}
 
 
-# --- GF 生命周期方法 ---
+# --- Godot 生命周期方法 ---
 
 func ready() -> void:
 	_asset_utility = _resolve_asset_utility()
 	_resource_resolver = _resolve_resource_resolver_utility()
+	if not is_instance_valid(_asset_utility):
+		push_error("[ProjectResourceCatalogUtility] GFAssetUtility 未注册。")
+	if not is_instance_valid(_resource_resolver):
+		push_error("[ProjectResourceCatalogUtility] GFResourceResolverUtility 未注册。")
 
 
 func dispose() -> void:
+	var catalog_ids: Array = _catalogs.keys()
+	for catalog_id_value: Variant in catalog_ids:
+		var catalog_id: StringName = GFVariantData.to_string_name(catalog_id_value, &"")
+		if catalog_id != &"":
+			var _catalog_unregistered: bool = unregister_catalog(catalog_id, true)
+	_catalogs.clear()
 	_asset_utility = null
 	_resource_resolver = null
-	_catalogs.clear()
 
 
 # --- 公共方法 ---
 
-## 注册一个项目资源目录。
-## @param catalog_id: 项目内稳定目录 ID。
-## @param registry: 资源注册表。
-## @param resource_key_prefix: 写入 GFResourceResolverUtility 的资源键前缀。
-## @param default_type_hint: 条目未指定类型时使用的默认类型。
-## @param group_id: 写入 GFAssetUtility 的资源分组 ID。
-## @param metadata: 附加到解析器注册项的元数据。
-## @param pin_group_paths: 是否固定分组路径，避免清理时误卸载。
-## @param priority: 写入解析器的解析优先级。
+## 将一个项目资源注册表原子接入 GF Resolver 与 Asset 分组。
 func register_catalog(
 	catalog_id: StringName,
 	registry: GFResourceRegistry,
@@ -46,13 +52,80 @@ func register_catalog(
 	metadata: Dictionary = {},
 	pin_group_paths: bool = true,
 	priority: int = 0
-) -> Dictionary:
-	var report: Dictionary = _make_registration_report(catalog_id)
+) -> GFValidationReport:
+	var report: GFValidationReport = GFValidationReport.new(
+		"ProjectResourceCatalog",
+		{"catalog_id": String(catalog_id)}
+	)
+	var paths: PackedStringArray = PackedStringArray()
+	var resource_keys: PackedStringArray = PackedStringArray()
+	report.extra_fields = {
+		"paths": paths,
+		"resource_keys": resource_keys,
+		"registered_count": 0,
+	}
+
 	if catalog_id == &"" or not is_instance_valid(registry) or resource_key_prefix.is_empty():
-		_add_report_issue(report, "error", "invalid_catalog", "资源目录配置无效。")
-		_finalize_registration_report(report)
+		var _invalid_catalog_issue: RefCounted = report.add_error(&"invalid_catalog", "资源目录配置无效。", catalog_id)
+		return report
+	if not is_instance_valid(_get_asset_utility()):
+		var _asset_issue: RefCounted = report.add_error(&"missing_asset_utility", "GFAssetUtility 未注册。", catalog_id)
+	if not is_instance_valid(_get_resource_resolver()):
+		var _resolver_issue: RefCounted = report.add_error(&"missing_resource_resolver", "GFResourceResolverUtility 未注册。", catalog_id)
+	if not report.is_ok():
 		return report
 
+	var resolver_entries: Array[Dictionary] = []
+	var seen_paths: Dictionary = {}
+	var entry_ids_by_path: Dictionary = {}
+	for entry: GFResourceRegistryEntry in registry.entries:
+		if not _is_valid_registry_entry(entry):
+			var _invalid_entry_issue: RefCounted = report.add_error(&"invalid_entry", "资源目录包含无效条目。", catalog_id)
+			continue
+		if seen_paths.has(entry.path):
+			var _duplicate_path_issue: RefCounted = report.add_error(
+				&"duplicate_path",
+				"资源目录包含重复路径：%s。" % entry.path,
+				entry.id,
+				entry.path
+			)
+			continue
+		seen_paths[entry.path] = true
+		entry_ids_by_path[entry.path] = entry.id
+
+		var resource_key: StringName = make_resource_key(entry, resource_key_prefix)
+		var type_hint: String = get_entry_type_hint(entry, default_type_hint)
+		resolver_entries.append({
+			"resource_key": resource_key,
+			"path": entry.path,
+			"type_hint": type_hint,
+			"priority": priority,
+			"metadata": _make_entry_metadata(metadata, catalog_id, entry),
+		})
+		var _path_appended: bool = paths.append(entry.path)
+		var _key_appended: bool = resource_keys.append(String(resource_key))
+
+	report.extra_fields["paths"] = paths
+	report.extra_fields["resource_keys"] = resource_keys
+	if not report.is_ok():
+		return report
+
+	var resolver: GFResourceResolverUtility = _get_resource_resolver()
+	var resolver_owner_id: StringName = _make_resolver_owner_id(catalog_id)
+	var replacement: Dictionary = resolver.replace_owner_paths(resolver_owner_id, resolver_entries)
+	if not GFResultDictionary.is_ok(replacement):
+		var reason: String = GFVariantData.get_option_string(replacement, "reason", "resolver_registration_failed")
+		var failed_index: int = GFVariantData.get_option_int(replacement, "failed_index", -1)
+		var _registration_issue: RefCounted = report.add_error(
+			&"resolver_registration_failed",
+			"资源目录原子注册失败：%s。" % reason,
+			failed_index,
+			"",
+			{"reason": reason}
+		)
+		return report
+
+	_release_catalog_asset_group(_get_catalog(catalog_id), true)
 	_catalogs[catalog_id] = {
 		"registry": registry,
 		"resource_key_prefix": resource_key_prefix,
@@ -61,78 +134,57 @@ func register_catalog(
 		"metadata": metadata.duplicate(true),
 		"pin_group_paths": pin_group_paths,
 		"priority": priority,
+		"paths": paths,
+		"resource_keys": resource_keys,
+		"entry_ids_by_path": entry_ids_by_path,
+		"resolver_owner_id": resolver_owner_id,
 	}
 
 	var asset_utility: GFAssetUtility = _get_asset_utility()
-	var resolver: GFResourceResolverUtility = _get_resource_resolver()
-	for entry: GFResourceRegistryEntry in registry.entries:
-		if not _is_valid_registry_entry(entry):
-			_add_report_issue(report, "warning", "invalid_entry", "资源目录包含无效条目。")
-			continue
+	if group_id != &"":
+		for path: String in paths:
+			asset_utility.register_group_path(group_id, path, pin_group_paths)
 
-		var resource_key: StringName = make_resource_key(entry, resource_key_prefix)
-		var type_hint: String = get_entry_type_hint(entry, default_type_hint)
-		if is_instance_valid(asset_utility) and group_id != &"":
-			asset_utility.register_group_path(group_id, entry.path, pin_group_paths)
-		if is_instance_valid(resolver):
-			var registered: bool = resolver.register_path(
-				resource_key,
-				entry.path,
-				type_hint,
-				priority,
-				_make_entry_metadata(metadata, catalog_id, entry)
-			)
-			if not registered:
-				_add_report_issue(report, "error", "resolver_registration_failed", "资源键注册失败：%s。" % String(resource_key))
-				continue
-
-		_append_report_string(report, "paths", entry.path)
-		_append_report_string(report, "resource_keys", String(resource_key))
-
-	_finalize_registration_report(report)
+	report.extra_fields["registered_count"] = resolver_entries.size()
 	return report
 
 
-## 获取目录中的有效资源路径，保持注册表顺序。
-## @param catalog_id: 项目内稳定目录 ID。
-## @param check_resolvable: 是否只返回解析器可解析的条目。
-func get_registered_paths(catalog_id: StringName, check_resolvable: bool = false) -> PackedStringArray:
-	var result: PackedStringArray = PackedStringArray()
+## 注销目录拥有的 Resolver 映射和 Asset 分组。
+func unregister_catalog(catalog_id: StringName, remove_unreferenced_cache: bool = true) -> bool:
 	var catalog: Dictionary = _get_catalog(catalog_id)
-	var registry: GFResourceRegistry = _get_catalog_registry(catalog)
-	if not is_instance_valid(registry):
-		return result
+	if catalog.is_empty():
+		return false
 
-	for entry: GFResourceRegistryEntry in registry.entries:
-		if not _is_valid_registry_entry(entry):
-			continue
-		if check_resolvable and not _is_entry_resolvable(catalog, entry):
-			continue
-		var _append_result: bool = result.append(entry.path)
+	var resolver: GFResourceResolverUtility = _get_resource_resolver()
+	if is_instance_valid(resolver):
+		var _removed_registration_count: int = resolver.unregister_owner(_get_catalog_resolver_owner_id(catalog))
+	_release_catalog_asset_group(catalog, remove_unreferenced_cache)
+	var _catalog_erased: bool = _catalogs.erase(catalog_id)
+	return true
+
+
+## 获取目录中的有效资源路径，保持注册表顺序。
+func get_registered_paths(catalog_id: StringName, check_resolvable: bool = false) -> PackedStringArray:
+	var catalog: Dictionary = _get_catalog(catalog_id)
+	var paths: PackedStringArray = _get_catalog_paths(catalog)
+	if not check_resolvable:
+		return paths
+
+	var result: PackedStringArray = PackedStringArray()
+	var registry: GFResourceRegistry = _get_catalog_registry(catalog)
+	for path: String in paths:
+		var entry: GFResourceRegistryEntry = _get_catalog_entry_by_path(catalog, registry, path)
+		if _is_valid_registry_entry(entry) and _is_entry_resolvable(catalog, entry):
+			var _path_appended: bool = result.append(path)
 	return result
 
 
 ## 获取目录中已注册的稳定资源键，保持注册表顺序。
-## @param catalog_id: 项目内稳定目录 ID。
 func get_registered_resource_keys(catalog_id: StringName) -> PackedStringArray:
-	var result: PackedStringArray = PackedStringArray()
-	var catalog: Dictionary = _get_catalog(catalog_id)
-	var registry: GFResourceRegistry = _get_catalog_registry(catalog)
-	if not is_instance_valid(registry):
-		return result
-
-	var resource_key_prefix: String = _get_catalog_resource_key_prefix(catalog)
-	for entry: GFResourceRegistryEntry in registry.entries:
-		if not _is_valid_registry_entry(entry):
-			continue
-		var _append_result: bool = result.append(String(make_resource_key(entry, resource_key_prefix)))
-	return result
+	return _get_catalog_resource_keys(_get_catalog(catalog_id))
 
 
 ## 通过目录资源路径加载资源，并复用 GFAssetUtility 缓存。
-## @param catalog_id: 项目内稳定目录 ID。
-## @param resource_path: 注册表中的资源路径。
-## @param cache_mode: 传递给 Godot ResourceLoader 的缓存模式。
 func load_resource_by_path(
 	catalog_id: StringName,
 	resource_path: String,
@@ -143,72 +195,50 @@ func load_resource_by_path(
 
 	var catalog: Dictionary = _get_catalog(catalog_id)
 	var registry: GFResourceRegistry = _get_catalog_registry(catalog)
-	var entry: GFResourceRegistryEntry = find_entry_by_path(registry, resource_path)
+	var entry: GFResourceRegistryEntry = _get_catalog_entry_by_path(catalog, registry, resource_path)
 	if not _is_valid_registry_entry(entry):
 		return null
 	return load_resource_by_entry(catalog_id, entry, cache_mode)
 
 
 ## 通过目录条目加载资源，并复用 GFAssetUtility 缓存。
-## @param catalog_id: 项目内稳定目录 ID。
-## @param entry: 注册表条目。
-## @param cache_mode: 传递给 Godot ResourceLoader 的缓存模式。
 func load_resource_by_entry(
 	catalog_id: StringName,
 	entry: GFResourceRegistryEntry,
 	cache_mode: int = ResourceLoader.CACHE_MODE_REUSE
 ) -> Resource:
-	if not _is_valid_registry_entry(entry):
+	var catalog: Dictionary = _get_catalog(catalog_id)
+	if catalog.is_empty() or not _is_valid_registry_entry(entry):
 		return null
 
-	var catalog: Dictionary = _get_catalog(catalog_id)
 	var type_hint: String = get_entry_type_hint(entry, _get_catalog_default_type_hint(catalog))
 	var asset_utility: GFAssetUtility = _get_asset_utility()
-	if is_instance_valid(asset_utility):
-		var cached: Resource = asset_utility.get_cached(entry.path)
-		if _is_resource_compatible(cached, type_hint):
-			return cached
+	var cached: Resource = asset_utility.get_cached(entry.path)
+	if is_instance_valid(cached):
+		return cached
 
-	var resolver: GFResourceResolverUtility = _get_resource_resolver()
-	var resource: Resource = null
-	if is_instance_valid(resolver):
-		resource = resolver.load(
-			make_resource_key(entry, _get_catalog_resource_key_prefix(catalog)),
-			type_hint,
-			cache_mode
-		)
-	else:
-		var registry: GFResourceRegistry = _get_catalog_registry(catalog)
-		if is_instance_valid(registry):
-			resource = registry.load_entry(entry.id, type_hint, cache_mode)
-
-	if _is_resource_compatible(resource, type_hint) and is_instance_valid(asset_utility):
-		asset_utility.put_cache(entry.path, resource)
+	var resource: Resource = _get_resource_resolver().load(
+		make_resource_key(entry, _get_catalog_resource_key_prefix(catalog)),
+		type_hint,
+		cache_mode
+	)
+	if not is_instance_valid(resource):
+		return null
+	asset_utility.put_cache(entry.path, resource)
 	return resource
 
 
-## 卸载目录关联的 GFAssetUtility 分组。
-## @param catalog_id: 项目内稳定目录 ID。
-## @param remove_unreferenced_cache: 是否同时移除未被引用的缓存。
-func unload_catalog_group(catalog_id: StringName, remove_unreferenced_cache: bool = false) -> void:
-	var catalog: Dictionary = _get_catalog(catalog_id)
-	var group_id: StringName = _get_catalog_group_id(catalog)
-	if group_id == &"":
-		return
-
-	var asset_utility: GFAssetUtility = _get_asset_utility()
-	if is_instance_valid(asset_utility):
-		asset_utility.unload_group(group_id, remove_unreferenced_cache)
-
-
+## 获取项目资源目录诊断快照。
 func get_debug_snapshot() -> Dictionary:
 	var catalogs: Dictionary = {}
 	for catalog_id_value: Variant in _catalogs.keys():
 		var catalog_id: StringName = GFVariantData.to_string_name(catalog_id_value, &"")
+		var catalog: Dictionary = _get_catalog(catalog_id)
 		catalogs[String(catalog_id)] = {
-			"paths": get_registered_paths(catalog_id, false),
-			"resource_keys": get_registered_resource_keys(catalog_id),
-			"group_id": String(_get_catalog_group_id(_get_catalog(catalog_id))),
+			"paths": _get_catalog_paths(catalog),
+			"resource_keys": _get_catalog_resource_keys(catalog),
+			"group_id": String(_get_catalog_group_id(catalog)),
+			"resolver_owner_id": String(_get_catalog_resolver_owner_id(catalog)),
 		}
 	return {
 		"catalog_count": _catalogs.size(),
@@ -216,30 +246,34 @@ func get_debug_snapshot() -> Dictionary:
 	}
 
 
-## @param registry: 资源注册表。
-## @param resource_path: 要匹配的资源路径。
+## 通过 GFResourceRegistry 的路径分组查找唯一条目。
 static func find_entry_by_path(registry: GFResourceRegistry, resource_path: String) -> GFResourceRegistryEntry:
 	if not is_instance_valid(registry) or resource_path.is_empty():
 		return null
 
-	for entry: GFResourceRegistryEntry in registry.entries:
-		if _is_valid_registry_entry(entry) and entry.path == resource_path:
-			return entry
+	var path_groups: Dictionary = registry.group_entry_ids(GFResourceRegistry.GROUP_SOURCE_PATH)
+	var entry_ids: PackedStringArray = GFVariantData.get_option_packed_string_array(
+		path_groups,
+		resource_path,
+		PackedStringArray()
+	)
+	if entry_ids.size() != 1:
+		return null
+	var entry_resource: Resource = registry.get_entry(StringName(entry_ids[0]))
+	if entry_resource is GFResourceRegistryEntry:
+		var entry: GFResourceRegistryEntry = entry_resource
+		return entry
 	return null
 
 
-## @param entry: 注册表条目。
-## @param resource_key_prefix: 资源键前缀。
 static func make_resource_key(entry: GFResourceRegistryEntry, resource_key_prefix: String) -> StringName:
 	if not _is_valid_registry_entry(entry) or resource_key_prefix.is_empty():
 		return &""
 	return StringName("%s%s" % [resource_key_prefix, String(entry.id)])
 
 
-## @param entry: 注册表条目。
-## @param default_type_hint: 条目未指定类型时使用的默认类型。
 static func get_entry_type_hint(entry: GFResourceRegistryEntry, default_type_hint: String = "") -> String:
-	if entry != null and not entry.type_hint.is_empty():
+	if _is_valid_registry_entry(entry) and not entry.type_hint.is_empty():
 		return entry.type_hint
 	return default_type_hint
 
@@ -247,27 +281,20 @@ static func get_entry_type_hint(entry: GFResourceRegistryEntry, default_type_hin
 # --- 私有/辅助方法 ---
 
 func _get_catalog(catalog_id: StringName) -> Dictionary:
-	if _catalogs.has(catalog_id):
-		return GFVariantData.as_dictionary(_catalogs[catalog_id])
+	var catalog_value: Variant = _catalogs.get(catalog_id, {})
+	if catalog_value is Dictionary:
+		return catalog_value
 	return {}
 
 
 func _is_entry_resolvable(catalog: Dictionary, entry: GFResourceRegistryEntry) -> bool:
 	var resolver: GFResourceResolverUtility = _get_resource_resolver()
-	if not is_instance_valid(resolver):
-		return true
-
-	var report: Dictionary = resolver.resolve(
-		make_resource_key(entry, _get_catalog_resource_key_prefix(catalog)),
-		get_entry_type_hint(entry, _get_catalog_default_type_hint(catalog))
-	)
-	return GFVariantData.get_option_bool(report, "ok", false)
+	return resolver.has_registered_key(make_resource_key(entry, _get_catalog_resource_key_prefix(catalog)))
 
 
 func _get_asset_utility() -> GFAssetUtility:
 	if is_instance_valid(_asset_utility):
 		return _asset_utility
-
 	_asset_utility = _resolve_asset_utility()
 	return _asset_utility
 
@@ -275,7 +302,6 @@ func _get_asset_utility() -> GFAssetUtility:
 func _get_resource_resolver() -> GFResourceResolverUtility:
 	if is_instance_valid(_resource_resolver):
 		return _resource_resolver
-
 	_resource_resolver = _resolve_resource_resolver_utility()
 	return _resource_resolver
 
@@ -283,24 +309,28 @@ func _get_resource_resolver() -> GFResourceResolverUtility:
 func _resolve_asset_utility() -> GFAssetUtility:
 	var utility_value: Object = get_utility(GFAssetUtility)
 	if utility_value is GFAssetUtility:
-		var asset_utility: GFAssetUtility = utility_value
-		return asset_utility
+		return utility_value
 	return null
 
 
 func _resolve_resource_resolver_utility() -> GFResourceResolverUtility:
 	var utility_value: Object = get_utility(GFResourceResolverUtility)
 	if utility_value is GFResourceResolverUtility:
-		var resolver: GFResourceResolverUtility = utility_value
-		return resolver
+		return utility_value
 	return null
 
 
+func _release_catalog_asset_group(catalog: Dictionary, remove_unreferenced_cache: bool) -> void:
+	var group_id: StringName = _get_catalog_group_id(catalog)
+	var asset_utility: GFAssetUtility = _get_asset_utility()
+	if group_id != &"" and is_instance_valid(asset_utility):
+		asset_utility.unload_group(group_id, remove_unreferenced_cache)
+
+
 func _get_catalog_registry(catalog: Dictionary) -> GFResourceRegistry:
-	var value: Variant = GFVariantData.get_option_value(catalog, "registry")
-	if value is GFResourceRegistry:
-		var registry: GFResourceRegistry = value
-		return registry
+	var registry_value: Variant = catalog.get("registry")
+	if registry_value is GFResourceRegistry:
+		return registry_value
 	return null
 
 
@@ -316,77 +346,58 @@ func _get_catalog_group_id(catalog: Dictionary) -> StringName:
 	return GFVariantData.get_option_string_name(catalog, "group_id")
 
 
+func _get_catalog_resolver_owner_id(catalog: Dictionary) -> StringName:
+	return GFVariantData.get_option_string_name(catalog, "resolver_owner_id")
+
+
+func _get_catalog_paths(catalog: Dictionary) -> PackedStringArray:
+	var paths_value: Variant = catalog.get("paths")
+	if paths_value is PackedStringArray:
+		var paths: PackedStringArray = paths_value
+		return paths.duplicate()
+	return PackedStringArray()
+
+
+func _get_catalog_resource_keys(catalog: Dictionary) -> PackedStringArray:
+	var keys_value: Variant = catalog.get("resource_keys")
+	if keys_value is PackedStringArray:
+		var resource_keys: PackedStringArray = keys_value
+		return resource_keys.duplicate()
+	return PackedStringArray()
+
+
+func _get_catalog_entry_by_path(
+	catalog: Dictionary,
+	registry: GFResourceRegistry,
+	resource_path: String
+) -> GFResourceRegistryEntry:
+	if not is_instance_valid(registry) or resource_path.is_empty():
+		return null
+	var entry_ids_value: Variant = catalog.get("entry_ids_by_path")
+	if not entry_ids_value is Dictionary:
+		return null
+	var entry_ids_by_path: Dictionary = entry_ids_value
+	var entry_id: StringName = GFVariantData.get_option_string_name(entry_ids_by_path, resource_path)
+	if entry_id == &"":
+		return null
+	var entry_resource: Resource = registry.get_entry(entry_id)
+	if entry_resource is GFResourceRegistryEntry:
+		var entry: GFResourceRegistryEntry = entry_resource
+		return entry
+	return null
+
+
 func _make_entry_metadata(metadata: Dictionary, catalog_id: StringName, entry: GFResourceRegistryEntry) -> Dictionary:
-	var result: Dictionary = metadata.duplicate(true)
-	result["catalog_id"] = String(catalog_id)
-	result["entry_id"] = String(entry.id)
-	return result
+	var entry_metadata: Dictionary = metadata.duplicate(true)
+	entry_metadata["catalog_id"] = String(catalog_id)
+	entry_metadata["entry_id"] = String(entry.id)
+	entry_metadata["resource_path"] = entry.path
+	return entry_metadata
 
 
-func _make_registration_report(catalog_id: StringName) -> Dictionary:
-	return {
-		"ok": true,
-		"healthy": true,
-		"catalog_id": String(catalog_id),
-		"paths": PackedStringArray(),
-		"resource_keys": PackedStringArray(),
-		"issues": [],
-		"issue_count": 0,
-		"error_count": 0,
-		"warning_count": 0,
-	}
-
-
-func _add_report_issue(report: Dictionary, severity: String, kind: String, message: String) -> void:
-	var issues: Array = GFVariantData.get_option_array(report, "issues")
-	issues.append({
-		"severity": severity,
-		"kind": kind,
-		"message": message,
-	})
-	report["issues"] = issues
-	if severity == "error":
-		report["error_count"] = GFVariantData.get_option_int(report, "error_count", 0) + 1
-	elif severity == "warning":
-		report["warning_count"] = GFVariantData.get_option_int(report, "warning_count", 0) + 1
-
-
-func _finalize_registration_report(report: Dictionary) -> void:
-	var issues: Array = GFVariantData.get_option_array(report, "issues")
-	report["issue_count"] = issues.size()
-	report["ok"] = GFVariantData.get_option_int(report, "error_count", 0) == 0
-	report["healthy"] = (
-		GFVariantData.get_option_int(report, "error_count", 0) == 0
-		and GFVariantData.get_option_int(report, "warning_count", 0) == 0
-	)
-
-
-func _append_report_string(report: Dictionary, key: String, value: String) -> void:
-	var values: PackedStringArray = GFVariantData.get_option_packed_string_array(
-		report,
-		key,
-		PackedStringArray()
-	)
-	if value.is_empty() or values.has(value):
-		return
-	var _append_result: bool = values.append(value)
-	report[key] = values
+static func _make_resolver_owner_id(catalog_id: StringName) -> StringName:
+	return StringName("%s%s" % [_RESOLVER_OWNER_PREFIX, String(catalog_id)])
 
 
 static func _is_valid_registry_entry(entry: GFResourceRegistryEntry) -> bool:
 	return entry != null and entry.is_valid_entry()
-
-
-static func _is_resource_compatible(resource: Resource, type_hint: String) -> bool:
-	if resource == null:
-		return false
-	if type_hint.is_empty() or resource.is_class(type_hint):
-		return true
-
-	var script_value: Variant = resource.get_script()
-	var script: Script = script_value if script_value is Script else null
-	while script != null:
-		if GFVariantData.to_text(script.get_global_name()) == type_hint or script.resource_path == type_hint:
-			return true
-		script = script.get_base_script()
-	return false

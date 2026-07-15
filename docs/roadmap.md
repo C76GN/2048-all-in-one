@@ -135,7 +135,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 验证：session 元数据、命令历史清理、动作队列清理都有聚焦测试。
 
 3. 资源目录 Module 深化。
-   - 涉及：`ProjectResourceCatalogUtility`、`GameModeConfigCacheUtility`、`GameUiRouterUtility`、`GFResourceRegistry`、`GFResourceResolverUtility`、`GFAssetUtility`。
+   - 涉及：`ProjectResourceCatalogUtility`、`GameModeCatalogUtility`、`GameUiRouterUtility`、`GFResourceRegistry`、`GFResourceResolverUtility`、`GFAssetUtility`。
    - 问题：模式目录和 UI 路由目录相似，容易重复注册、缓存、校验和错误输出。
    - 当前状态：项目级资源目录 Adapter 已提炼，保留两个业务入口，但共享注册、解析、缓存和 asset group 逻辑。
    - 验证：模式注册表和 UI 路由注册表测试继续通过，并能捕获缺失路径。

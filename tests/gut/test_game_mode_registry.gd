@@ -26,10 +26,10 @@ const EXPECTED_MODE_RESOURCE_KEYS: Array[String] = [
 # --- 测试用例 ---
 
 func test_registered_mode_paths_match_registry_order() -> void:
-	var setup: Dictionary = await _create_mode_cache_setup()
+	var setup: Dictionary = await _create_mode_catalog_setup()
 	var architecture: GFArchitecture = _get_architecture(setup)
-	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache(setup)
-	var mode_paths: PackedStringArray = mode_cache.get_registered_config_paths()
+	var mode_catalog: GameModeCatalogUtility = _get_mode_catalog(setup)
+	var mode_paths: PackedStringArray = mode_catalog.get_registered_config_paths()
 
 	assert_true(
 		_packed_paths_to_array(mode_paths) == EXPECTED_MODE_CONFIG_PATHS,
@@ -40,11 +40,11 @@ func test_registered_mode_paths_match_registry_order() -> void:
 
 
 func test_registered_mode_paths_load_valid_game_mode_configs() -> void:
-	var setup: Dictionary = await _create_mode_cache_setup()
+	var setup: Dictionary = await _create_mode_catalog_setup()
 	var architecture: GFArchitecture = _get_architecture(setup)
-	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache(setup)
-	for config_path: String in mode_cache.get_registered_config_paths():
-		var mode_config: GameModeConfig = mode_cache.get_cached_config(config_path)
+	var mode_catalog: GameModeCatalogUtility = _get_mode_catalog(setup)
+	for config_path: String in mode_catalog.get_registered_config_paths():
+		var mode_config: GameModeConfig = mode_catalog.get_config(config_path)
 
 		assert_true(is_instance_valid(mode_config), "注册表路径应能加载 GameModeConfig: %s" % config_path)
 		assert_true(mode_config.validate(), "注册表中的模式配置应通过自身校验: %s" % config_path)
@@ -53,11 +53,11 @@ func test_registered_mode_paths_load_valid_game_mode_configs() -> void:
 
 
 func test_classic_style_modes_define_optional_2048_target() -> void:
-	var setup: Dictionary = await _create_mode_cache_setup()
+	var setup: Dictionary = await _create_mode_catalog_setup()
 	var architecture: GFArchitecture = _get_architecture(setup)
-	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache(setup)
-	for config_path: String in mode_cache.get_registered_config_paths():
-		var mode_config: GameModeConfig = mode_cache.get_cached_config(config_path)
+	var mode_catalog: GameModeCatalogUtility = _get_mode_catalog(setup)
+	for config_path: String in mode_catalog.get_registered_config_paths():
+		var mode_config: GameModeConfig = mode_catalog.get_config(config_path)
 		var expected_target: int = _get_expected_target_for_mode(config_path)
 
 		assert_true(is_instance_valid(mode_config), "注册表路径应能加载 GameModeConfig: %s" % config_path)
@@ -79,7 +79,7 @@ func test_classic_style_modes_define_optional_2048_target() -> void:
 
 
 func test_mode_registry_registers_asset_group_paths_when_utility_is_ready() -> void:
-	var setup: Dictionary = await _create_mode_cache_setup()
+	var setup: Dictionary = await _create_mode_catalog_setup()
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var asset_utility: GFAssetUtility = _get_asset_utility(setup)
 
@@ -95,7 +95,7 @@ func test_mode_registry_registers_asset_group_paths_when_utility_is_ready() -> v
 
 
 func test_mode_registry_registers_resolver_resource_keys_when_utility_is_ready() -> void:
-	var setup: Dictionary = await _create_mode_cache_setup()
+	var setup: Dictionary = await _create_mode_catalog_setup()
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var resolver: GFResourceResolverUtility = _get_resolver(setup)
 
@@ -113,17 +113,17 @@ func test_mode_registry_registers_resolver_resource_keys_when_utility_is_ready()
 
 # --- 私有/辅助方法 ---
 
-func _create_mode_cache_setup() -> Dictionary:
+func _create_mode_catalog_setup() -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var asset_utility: GFAssetUtility = GFAssetUtility.new()
 	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
 	var catalog: ProjectResourceCatalogUtility = ProjectResourceCatalogUtility.new()
-	var mode_cache: GameModeConfigCacheUtility = GameModeConfigCacheUtility.new()
+	var mode_catalog: GameModeCatalogUtility = GameModeCatalogUtility.new()
 
 	await architecture.register_utility(GFAssetUtility, asset_utility)
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
-	await architecture.register_utility(GameModeConfigCacheUtility, mode_cache)
+	await architecture.register_utility(GameModeCatalogUtility, mode_catalog)
 	await architecture.init()
 
 	return {
@@ -131,7 +131,7 @@ func _create_mode_cache_setup() -> Dictionary:
 		"asset_utility": asset_utility,
 		"resolver": resolver,
 		"catalog": catalog,
-		"mode_cache": mode_cache,
+		"mode_catalog": mode_catalog,
 	}
 
 
@@ -162,13 +162,13 @@ func _get_resolver(setup: Dictionary) -> GFResourceResolverUtility:
 	return GFResourceResolverUtility.new()
 
 
-func _get_mode_cache(setup: Dictionary) -> GameModeConfigCacheUtility:
-	var value: Variant = setup.get("mode_cache")
-	if value is GameModeConfigCacheUtility:
-		var mode_cache: GameModeConfigCacheUtility = value
-		return mode_cache
-	assert_true(false, "测试 setup 缺少 GameModeConfigCacheUtility。")
-	return GameModeConfigCacheUtility.new()
+func _get_mode_catalog(setup: Dictionary) -> GameModeCatalogUtility:
+	var value: Variant = setup.get("mode_catalog")
+	if value is GameModeCatalogUtility:
+		var mode_catalog: GameModeCatalogUtility = value
+		return mode_catalog
+	assert_true(false, "测试 setup 缺少 GameModeCatalogUtility。")
+	return GameModeCatalogUtility.new()
 
 
 func _packed_paths_to_array(paths: PackedStringArray) -> Array[String]:

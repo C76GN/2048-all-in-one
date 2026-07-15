@@ -23,7 +23,7 @@
 - 旧的全局 `scripts/`、`scenes/`、`resources/`、`assets/` 和 `asset_library/` 类型桶不再使用，也不提供旧路径兼容。
 - `features/gameplay/scripts/rules/` 是规则实现层。移动、交互、生成、结束判定互相解耦，模式配置通过 `features/gameplay/resources/modes/*.tres` 组合它们。
 - `features/gameplay/resources/input/gameplay_input_context.tres` 使用 `GFInputContext` / `GFInputMapping` 描述玩法输入，运行时由 `GFInputMappingUtility` 消费。
-- `features/gameplay/resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式目录，菜单和初始化流程通过 `ProjectResourceCatalogUtility` / `GameModeConfigCacheUtility` 读取注册表。
+- `features/gameplay/resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式目录，菜单和初始化流程通过 `ProjectResourceCatalogUtility` / `GameModeCatalogUtility` 读取注册表。
 - `features/navigation/resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 UI 路由目录，`features/navigation/resources/ui_routes/*.tres` 用 `GFUIRoute` 描述弹层面板，并通过 `ProjectResourceCatalogUtility` 注册到资源解析器。
 - `shared/assets/translations.csv` 提供中文和英文 UI 文案。
 

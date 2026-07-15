@@ -15,7 +15,7 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	var asset_utility: GFAssetUtility = GFAssetUtility.new()
 	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
 	var catalog: ProjectResourceCatalogUtility = ProjectResourceCatalogUtility.new()
-	var mode_cache: GameModeConfigCacheUtility = GameModeConfigCacheUtility.new()
+	var mode_catalog: GameModeCatalogUtility = GameModeCatalogUtility.new()
 	var level_utility: GFLevelUtility = GFLevelUtility.new()
 	var command_history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()
 
@@ -26,7 +26,7 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	await architecture.register_utility(GFAssetUtility, asset_utility)
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
-	await architecture.register_utility(GameModeConfigCacheUtility, mode_cache)
+	await architecture.register_utility(GameModeCatalogUtility, mode_catalog)
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
 	await architecture.register_utility(GFCommandHistoryUtility, command_history)
 	await architecture.register_utility(GFLevelUtility, level_utility)

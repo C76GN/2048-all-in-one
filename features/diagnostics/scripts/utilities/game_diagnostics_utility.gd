@@ -138,9 +138,9 @@ func _collect_themes_snapshot() -> Dictionary:
 
 
 func _collect_game_modes_snapshot() -> Dictionary:
-	var utility_value: Object = get_utility(GameModeConfigCacheUtility)
-	if utility_value is GameModeConfigCacheUtility:
-		var utility: GameModeConfigCacheUtility = utility_value
+	var utility_value: Object = get_utility(GameModeCatalogUtility)
+	if utility_value is GameModeCatalogUtility:
+		var utility: GameModeCatalogUtility = utility_value
 		return utility.get_debug_snapshot()
 	return {}
 

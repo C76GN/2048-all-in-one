@@ -38,7 +38,7 @@ var _current_grid_size: int = 4
 var _items_per_page: int = 5
 var _current_page: int = 0
 var _total_pages: int = 0
-var _mode_cache: GameModeConfigCacheUtility = null
+var _mode_catalog: GameModeCatalogUtility = null
 
 var _info_name_label: Label
 var _info_separator: HSeparator
@@ -72,7 +72,7 @@ func _ready() -> void:
 	if is_instance_valid(_seed_line_edit):
 		_seed_line_edit.placeholder_text = tr("HINT_SEED_PLACEHOLDER")
 
-	_mode_cache = _get_mode_cache_utility()
+	_mode_catalog = _get_mode_catalog_utility()
 	_load_mode_config_paths()
 	_create_persistent_info_panel()
 	_update_pagination_buttons_visibility()
@@ -158,13 +158,13 @@ func _focus_last_selected_card() -> void:
 
 
 func _load_mode_config_paths() -> void:
-	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache()
-	if not is_instance_valid(mode_cache):
-		push_error("[ModeSelection] GameModeConfigCacheUtility 未注册，无法加载模式列表。")
+	var mode_catalog: GameModeCatalogUtility = _get_mode_catalog()
+	if not is_instance_valid(mode_catalog):
+		push_error("[ModeSelection] GameModeCatalogUtility 未注册，无法加载模式列表。")
 		_mode_config_paths = PackedStringArray()
 		return
 
-	_mode_config_paths = mode_cache.get_registered_config_paths()
+	_mode_config_paths = mode_catalog.get_registered_config_paths()
 
 
 func _create_persistent_info_panel() -> void:
@@ -641,32 +641,32 @@ func _get_unix_timestamp() -> int:
 	return 0
 
 
-func _get_mode_cache_utility() -> GameModeConfigCacheUtility:
-	var utility_value: Object = get_utility(GameModeConfigCacheUtility)
-	if utility_value is GameModeConfigCacheUtility:
-		var mode_cache: GameModeConfigCacheUtility = utility_value
-		return mode_cache
+func _get_mode_catalog_utility() -> GameModeCatalogUtility:
+	var utility_value: Object = get_utility(GameModeCatalogUtility)
+	if utility_value is GameModeCatalogUtility:
+		var mode_catalog: GameModeCatalogUtility = utility_value
+		return mode_catalog
 	return null
 
 
-func _get_mode_cache() -> GameModeConfigCacheUtility:
-	if is_instance_valid(_mode_cache):
-		return _mode_cache
+func _get_mode_catalog() -> GameModeCatalogUtility:
+	if is_instance_valid(_mode_catalog):
+		return _mode_catalog
 
-	_mode_cache = _get_mode_cache_utility()
-	return _mode_cache
+	_mode_catalog = _get_mode_catalog_utility()
+	return _mode_catalog
 
 
 func _get_mode_config(config_path: String) -> GameModeConfig:
 	if config_path.is_empty():
 		return null
 
-	var mode_cache: GameModeConfigCacheUtility = _get_mode_cache()
-	if not is_instance_valid(mode_cache):
-		push_error("[ModeSelection] GameModeConfigCacheUtility 未注册，无法加载模式配置：%s。" % config_path)
+	var mode_catalog: GameModeCatalogUtility = _get_mode_catalog()
+	if not is_instance_valid(mode_catalog):
+		push_error("[ModeSelection] GameModeCatalogUtility 未注册，无法加载模式配置：%s。" % config_path)
 		return null
 
-	return mode_cache.get_cached_config(config_path)
+	return mode_catalog.get_config(config_path)
 
 
 # --- 信号处理函数 ---
