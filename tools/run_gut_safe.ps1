@@ -2,6 +2,7 @@ param(
 	[string]$GodotExecutable = "godot",
 	[string]$ProjectRoot = ".",
 	[string]$TestDir = "res://tests/gut",
+	[string]$TestScripts = "",
 	[string]$PostRunScript = "res://tests/gut/support/gf_test_shutdown_hook.gd",
 	[string]$ExitLeakBaseline = ".gf/godot_exit_leak_baseline.json",
 	[ValidateRange(1, 3600)]
@@ -312,11 +313,15 @@ try {
 		"--path",
 		$resolvedProjectRoot,
 		"-s",
-		"res://addons/gut/gut_cmdln.gd",
-		"-gdir=$TestDir",
-		"-ginclude_subdirs",
-		"-gexit"
+		"res://addons/gut/gut_cmdln.gd"
 	)
+	if ([string]::IsNullOrWhiteSpace($TestScripts)) {
+		$arguments += "-gdir=$TestDir"
+		$arguments += "-ginclude_subdirs"
+	} else {
+		$arguments += "-gtest=$TestScripts"
+	}
+	$arguments += "-gexit"
 	if (-not [string]::IsNullOrWhiteSpace($PostRunScript)) {
 		$arguments += "-gpost_run_script=$PostRunScript"
 	}

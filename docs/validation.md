@@ -65,6 +65,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 - `-GodotExecutable`：Godot 可执行文件路径或命令名，默认 `godot`。
 - `-ProjectRoot`：项目根目录，默认当前目录。
 - `-TestDir`：GUT 测试目录，默认 `res://tests/gut`。
+- `-TestScripts`：逗号分隔的 GUT 测试脚本完整路径；非空时只运行这些脚本，并忽略 `-TestDir`。
 - `-TimeoutSeconds`：超时时间，默认 `180`。
 - `-MaxLogMB`：临时 Godot 日志大小上限，默认 `32`。
 - `-MaxDefaultLogGrowthKB`：默认 Godot 用户日志允许增长上限，默认 `256`。
@@ -86,6 +87,12 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 30 -MaxLogMB 4 -MaxDefaultLogGrowthKB 64 -KeepTemp
+```
+
+只验证本次改动覆盖的脚本时，仍必须经过同一个安全包装器：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TestScripts "res://tests/gut/test_deterministic_gameplay.gd,res://tests/gut/test_move_command_reverse_map.gd" -TimeoutSeconds 120
 ```
 
 ### 最近一次安全 GUT 验证
