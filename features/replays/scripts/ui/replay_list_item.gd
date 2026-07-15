@@ -6,12 +6,6 @@ class_name ReplayListItem
 extends BaseListMenuItem
 
 
-# --- 信号 ---
-
-## 当一个回放列表项被确认选中时发出。
-signal replay_selected(replay_data: ReplayData)
-
-
 # --- 常量 ---
 
 const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
@@ -76,12 +70,3 @@ func _update_display() -> void:
 			replay_data.grid_size,
 		]
 	)
-
-
-# --- 信号处理函数 ---
-
-func _on_pressed() -> void:
-	super._on_pressed()
-	var replay_data: ReplayData = get_replay_data()
-	if is_instance_valid(replay_data):
-		replay_selected.emit(replay_data)

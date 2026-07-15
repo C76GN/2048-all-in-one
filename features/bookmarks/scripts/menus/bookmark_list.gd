@@ -58,17 +58,6 @@ func _setup_item(item: Control, data: Resource) -> void:
 	bookmark_item.setup(bookmark_data, _get_mode_display_name(bookmark_data.mode_config_path))
 
 
-func _connect_item_signals(item: Control, _data: Resource) -> void:
-	if not item is BookmarkListItem:
-		return
-
-	var bookmark_item: BookmarkListItem = item
-	if not bookmark_item.bookmark_selected.is_connected(_on_item_confirmed):
-		var _connect_result_61: int = bookmark_item.bookmark_selected.connect(_on_item_confirmed)
-	if not bookmark_item.item_focused.is_connected(_on_item_focused):
-		var _connect_result_64: int = bookmark_item.item_focused.connect(_on_item_focused)
-
-
 func _update_preview(data: Resource) -> void:
 	if not data is BookmarkData:
 		_clear_preview()

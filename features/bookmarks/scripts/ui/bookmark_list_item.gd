@@ -6,13 +6,6 @@ class_name BookmarkListItem
 extends BaseListMenuItem
 
 
-# --- 信号 ---
-
-## 当一个书签被确认选中时发出。
-## 兼容旧版信号名。
-signal bookmark_selected(bookmark_data: BookmarkData)
-
-
 # --- 常量 ---
 
 const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
@@ -82,12 +75,3 @@ func _update_display() -> void:
 			grid_size,
 		]
 	)
-
-
-# --- 信号处理函数 ---
-
-func _on_pressed() -> void:
-	super._on_pressed()
-	var bookmark_data: BookmarkData = get_bookmark_data()
-	if is_instance_valid(bookmark_data):
-		bookmark_selected.emit(bookmark_data)

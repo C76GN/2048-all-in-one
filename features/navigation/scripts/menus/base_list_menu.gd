@@ -1,4 +1,4 @@
-## BaseListMenu: 列表类菜单的历史基类。
+## BaseListMenu: 列表类菜单的通用基类。
 ##
 ## 封装了加载数据列表、实例化列表项、焦点导航、预览更新以及通用按钮处理的核心逻辑。
 ## 子类需继承此类并实现特定的数据加载和预览格式化方法。
@@ -75,9 +75,17 @@ func _setup_item(_item: Control, _data: Resource) -> void:
 	pass
 
 
-## 连接列表项信号。
-func _connect_item_signals(_item: Control, _data: Resource) -> void:
-	pass
+## 连接列表项的统一交互信号。
+func _connect_item_signals(item: Control, _data: Resource) -> void:
+	if not item is BaseListMenuItem:
+		push_error("[BaseListMenu] 列表项必须继承 BaseListMenuItem。")
+		return
+
+	var list_item: BaseListMenuItem = item
+	if not list_item.item_selected.is_connected(_on_item_confirmed):
+		var _selected_connect_result: int = list_item.item_selected.connect(_on_item_confirmed)
+	if not list_item.item_focused.is_connected(_on_item_focused):
+		var _focused_connect_result: int = list_item.item_focused.connect(_on_item_focused)
 
 
 ## 更新预览。

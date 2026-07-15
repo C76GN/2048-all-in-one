@@ -58,17 +58,6 @@ func _setup_item(item: Control, data: Resource) -> void:
 	replay_item.setup(replay_data, _get_mode_display_name(replay_data.mode_config_path))
 
 
-func _connect_item_signals(item: Control, _data: Resource) -> void:
-	if not item is ReplayListItem:
-		return
-
-	var replay_item: ReplayListItem = item
-	if not replay_item.replay_selected.is_connected(_on_item_confirmed):
-		var _connect_result_61: int = replay_item.replay_selected.connect(_on_item_confirmed)
-	if not replay_item.item_focused.is_connected(_on_item_focused):
-		var _connect_result_64: int = replay_item.item_focused.connect(_on_item_focused)
-
-
 func _update_preview(data: Resource) -> void:
 	if not data is ReplayData:
 		_clear_preview()
