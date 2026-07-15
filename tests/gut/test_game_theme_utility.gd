@@ -5,6 +5,7 @@ extends GutTest
 # --- 常量 ---
 
 const _THEME_REGISTRY_PATH: String = "res://resources/registries/game_theme_registry.tres"
+const _BACKGROUND_SHADER_PATH: String = "res://asset_library/shaders/background/halftone_paper_background.gdshader"
 const _DEFAULT_BOARD_THEME: BoardTheme = preload("res://resources/themes/board/default_board_theme.tres")
 const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://resources/themes/tile_schemes/classic_tile_theme.tres")
 
@@ -24,6 +25,8 @@ func test_theme_registry_loads_default_theme_pack() -> void:
 	assert_true(is_instance_valid(theme.board_theme), "主题应引用棋盘主题资源。")
 	assert_true(is_instance_valid(theme.ui_palette), "主题应引用 UI 色板资源。")
 	assert_true(is_instance_valid(theme.audio_theme), "主题应引用默认音效主题。")
+	assert_true(is_instance_valid(theme.background_shader_profile), "主题应引用 GF 背景 Shader 参数 Profile。")
+	assert_true(theme.background_shader_profile.get_parameter_names().size() == 28, "背景 Profile 应完整声明当前 shader 的 28 个主题参数。")
 	assert_true(is_instance_valid(theme.scene_transition_cover_effect), "主题应声明覆盖旧场景的 GF 转场效果。")
 	assert_true(is_instance_valid(theme.scene_transition_reveal_effect), "主题应声明揭示新场景的 GF 转场效果。")
 	assert_true(theme.scene_transition_cover_effect.shader_material != null, "覆盖转场应由主题提供 ShaderMaterial。")
@@ -167,6 +170,13 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 	var theme_utility: GameThemeUtility = _get_theme_utility(setup)
 	var fallback_board: BoardTheme = BoardTheme.new()
 	var fallback_scheme: TileColorScheme = TileColorScheme.new()
+	var background_rect: ColorRect = ColorRect.new()
+	var background_material: ShaderMaterial = ShaderMaterial.new()
+	var shader_resource: Resource = load(_BACKGROUND_SHADER_PATH)
+	if shader_resource is Shader:
+		var background_shader: Shader = shader_resource
+		background_material.shader = background_shader
+	background_rect.material = background_material
 
 	var resolved_board: BoardTheme = theme_utility.resolve_board_theme(fallback_board)
 	var resolved_schemes: Dictionary = theme_utility.resolve_color_schemes({
@@ -182,6 +192,17 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 		resolved_player_scheme == _CLASSIC_TILE_THEME,
 		"当前主题应覆盖玩家方块色阶。"
 	)
+	theme_utility.apply_background_to_color_rect(background_rect)
+	assert_true(
+		is_equal_approx(GFVariantData.to_float(background_material.get_shader_parameter(&"grain_strength")), 0.038),
+		"GameThemeUtility 应通过 GFShaderParameterUtility 应用背景 Profile。"
+	)
+	assert_true(
+		GFVariantData.to_vector2(background_material.get_shader_parameter(&"cloud_pixelation")) == Vector2(176.0, 99.0),
+		"GF 背景 Profile 应完整写入向量参数。"
+	)
+	background_rect.material = null
+	background_rect.free()
 
 	await _dispose_architecture(architecture)
 
@@ -299,6 +320,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	var motion: GameUiMotionUtility = GameUiMotionUtility.new()
 	var theme_catalog: GameThemeCatalogUtility = GameThemeCatalogUtility.new()
 	var theme_utility: GameThemeUtility = GameThemeUtility.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var screen_transition: GFScreenTransitionUtility = null
 	var scene_router: SceneRouterSystem = null
 
@@ -308,6 +330,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFAudioUtility, audio)
 	await architecture.register_utility(GameUiMotionUtility, motion)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GameThemeCatalogUtility, theme_catalog)
 	await architecture.register_utility(GameThemeUtility, theme_utility)
 	if include_scene_router:
@@ -327,6 +350,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 		"audio": audio,
 		"theme_catalog": theme_catalog,
 		"theme_utility": theme_utility,
+		"shader_parameters": shader_parameters,
 		"screen_transition": screen_transition,
 		"scene_router": scene_router,
 	}

@@ -27,6 +27,7 @@ var _settings: GFSettingsUtility
 var _audio: GFAudioUtility
 var _motion: GameUiMotionUtility
 var _theme_catalog: GameThemeCatalogUtility
+var _shader_parameters: GFShaderParameterUtility
 
 
 # --- GF 生命周期方法 ---
@@ -40,6 +41,7 @@ func ready() -> void:
 	_audio = _get_audio_utility()
 	_motion = _get_motion_utility()
 	_theme_catalog = _get_theme_catalog_utility()
+	_shader_parameters = _get_shader_parameter_utility()
 	_registry = _load_registry()
 	_connect_settings()
 	_apply_visual_theme_to_utilities(get_current_visual_theme())
@@ -57,6 +59,7 @@ func dispose() -> void:
 	_audio = null
 	_motion = null
 	_theme_catalog = null
+	_shader_parameters = null
 	_registry = null
 
 
@@ -66,6 +69,7 @@ func release_dependencies() -> void:
 	_audio = null
 	_motion = null
 	_theme_catalog = null
+	_shader_parameters = null
 	super.release_dependencies()
 
 
@@ -180,7 +184,7 @@ func resolve_color_schemes(fallback: Dictionary) -> Dictionary:
 func apply_background_to_color_rect(rect: ColorRect, fallback_board_theme: BoardTheme = null) -> void:
 	var theme: GameTheme = get_current_visual_theme()
 	if is_instance_valid(theme):
-		theme.apply_background_to_color_rect(rect, fallback_board_theme)
+		_apply_background_to_color_rect(rect, theme, fallback_board_theme)
 		return
 
 	if is_instance_valid(rect) and is_instance_valid(fallback_board_theme):
@@ -404,7 +408,7 @@ func _apply_backgrounds_to_tree(root: Node, theme: GameTheme) -> int:
 	var applied_count: int = 0
 	if root is ColorRect and root.name == "Background":
 		var background_rect: ColorRect = root
-		theme.apply_background_to_color_rect(background_rect)
+		_apply_background_to_color_rect(background_rect, theme)
 		applied_count += 1
 
 	for child: Node in root.get_children():
@@ -412,11 +416,50 @@ func _apply_backgrounds_to_tree(root: Node, theme: GameTheme) -> int:
 	return applied_count
 
 
+func _apply_background_to_color_rect(
+	rect: ColorRect,
+	theme: GameTheme,
+	fallback_board_theme: BoardTheme = null
+) -> void:
+	if not is_instance_valid(rect) or not is_instance_valid(theme):
+		return
+
+	var resolved_board_theme: BoardTheme = theme.get_board_theme_with_fallback(fallback_board_theme)
+	rect.color = theme.get_background_base_color()
+	if is_instance_valid(resolved_board_theme):
+		rect.color = resolved_board_theme.game_background_color
+
+	if theme.background_shader_profile == null:
+		push_error("[GameThemeUtility] 主题缺少背景 GFShaderParameterProfile：%s。" % String(theme.theme_id))
+		return
+	if not is_instance_valid(_shader_parameters):
+		_shader_parameters = _get_shader_parameter_utility()
+	if not is_instance_valid(_shader_parameters):
+		push_error("[GameThemeUtility] 缺少 GFShaderParameterUtility，无法应用背景主题。")
+		return
+
+	var _applied_count: int = _shader_parameters.apply_profile(rect, theme.background_shader_profile, {
+		"duplicate_material": false,
+		"require_declared_parameters": true,
+		"warn_on_invalid_target": true,
+		"warn_on_missing_parameters": true,
+		"copy_values": true,
+	})
+
+
 func _get_settings_utility() -> GFSettingsUtility:
 	var utility_value: Object = get_utility(GFSettingsUtility)
 	if utility_value is GFSettingsUtility:
 		var settings: GFSettingsUtility = utility_value
 		return settings
+	return null
+
+
+func _get_shader_parameter_utility() -> GFShaderParameterUtility:
+	var utility_value: Object = get_utility(GFShaderParameterUtility)
+	if utility_value is GFShaderParameterUtility:
+		var shader_utility: GFShaderParameterUtility = utility_value
+		return shader_utility
 	return null
 
 

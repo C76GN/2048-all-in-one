@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameTheme" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="GameTheme" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/game_theme.gd" id="1_theme"]
 [ext_resource type="Resource" path="res://resources/themes/board/default_board_theme.tres" id="2_board"]
@@ -8,6 +8,7 @@
 [ext_resource type="Resource" path="res://resources/themes/game/printworks_audio_theme.tres" id="6_audio"]
 [ext_resource type="Resource" path="res://resources/themes/game/transitions/halftone_cover_transition.tres" id="7_cover"]
 [ext_resource type="Resource" path="res://resources/themes/game/transitions/halftone_reveal_transition.tres" id="8_reveal"]
+[ext_resource type="Resource" path="res://resources/themes/game/backgrounds/halftone_atlas_background_profile.tres" id="9_background"]
 
 [resource]
 script = ExtResource("1_theme")
@@ -21,33 +22,6 @@ color_schemes = {
 }
 ui_palette = ExtResource("5_palette")
 audio_theme = ExtResource("6_audio")
+background_shader_profile = ExtResource("9_background")
 scene_transition_cover_effect = ExtResource("7_cover")
 scene_transition_reveal_effect = ExtResource("8_reveal")
-background_base_color = Color(0.9137255, 0.9019608, 0.8627451, 1)
-background_accent_color = Color(0.61960787, 0.8235294, 0.80784315, 1)
-background_secondary_color = Color(0.83137256, 0.7529412, 0.48235294, 1)
-background_warm_color = Color(0.7176471, 0.47843137, 0.45882353, 1)
-background_cell_color_1 = Color(0.9647059, 0.9529412, 0.91764706, 0.2)
-background_cell_color_2 = Color(0.8352941, 0.81960785, 0.76862746, 0.145)
-background_grid_size = Vector2(192, 192)
-background_line_thickness = 0.0
-background_dash_length = 0.0
-background_grid_color = Color(0.34901962, 0.2901961, 0.27058825, 0.06)
-background_sub_grid_size = Vector2(64, 64)
-background_sub_line_thickness = 0.82
-background_sub_dash_length = 7.0
-background_sub_grid_color = Color(0.34901962, 0.2901961, 0.27058825, 0.11)
-background_grid_strength = 0.064
-background_glow_strength = 0.0
-background_vignette_strength = 0.038
-background_pulse_speed = 0.0
-background_grain_strength = 0.038
-background_stipple_strength = 0.018
-background_flow_scale = 2.45
-background_scanline_strength = 0.004
-background_cloud_pixelation = Vector2(176, 99)
-background_cloud_scroll_speed_1 = Vector2(0.0032, 0.0011)
-background_cloud_scroll_speed_2 = Vector2(-0.0024, -0.0007)
-background_cloud_center_pos = Vector2(0.5, 0.06)
-background_cloud_position_impact = 0.62
-background_cloud_strength = 0.032

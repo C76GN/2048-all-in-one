@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="GFShaderParameterProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/display/gf_shader_parameter_profile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+parameters = {
+"accent_color": Color(0.61960787, 0.8235294, 0.80784315, 1),
+"base_color": Color(0.9137255, 0.9019608, 0.8627451, 1),
+"cell_color_1": Color(0.9647059, 0.9529412, 0.91764706, 0.2),
+"cell_color_2": Color(0.8352941, 0.81960785, 0.76862746, 0.145),
+"cloud_center_pos": Vector2(0.5, 0.06),
+"cloud_pixelation": Vector2(176, 99),
+"cloud_position_impact": 0.62,
+"cloud_scroll_speed_1": Vector2(0.0032, 0.0011),
+"cloud_scroll_speed_2": Vector2(-0.0024, -0.0007),
+"cloud_strength": 0.032,
+"dash_length": 0.0,
+"flow_scale": 2.45,
+"glow_strength": 0.0,
+"grain_strength": 0.038,
+"grid_color": Color(0.34901962, 0.2901961, 0.27058825, 0.06),
+"grid_size": Vector2(192, 192),
+"grid_strength": 0.064,
+"line_thickness": 0.0,
+"pulse_speed": 0.0,
+"scanline_strength": 0.004,
+"secondary_color": Color(0.83137256, 0.7529412, 0.48235294, 1),
+"stipple_strength": 0.018,
+"sub_dash_length": 7.0,
+"sub_grid_color": Color(0.34901962, 0.2901961, 0.27058825, 0.11),
+"sub_grid_size": Vector2(64, 64),
+"sub_line_thickness": 0.82,
+"vignette_strength": 0.038,
+"warm_color": Color(0.7176471, 0.47843137, 0.45882353, 1)
+}
+metadata = {
+"profile_id": &"halftone_atlas.background",
+"role": &"theme_background"
+}

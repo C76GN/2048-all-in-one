@@ -55,6 +55,7 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFSeedUtility).as_singleton()
 	await binder.bind_utility(GFAssetUtility).as_singleton()
 	await binder.bind_utility(GFResourceResolverUtility).as_singleton()
+	await binder.bind_utility(GFShaderParameterUtility).as_singleton()
 	await binder.bind_utility(_PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_CLOCK_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_SAVE_SLOT_WORKFLOW_UTILITY_SCRIPT).as_singleton()
