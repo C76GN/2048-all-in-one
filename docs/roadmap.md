@@ -184,7 +184,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 2. 棋盘与方块。
    - 保持方块颜色来自配置资源，不在表现层硬编码覆盖用户预期。
-   - 统一生成、移动、合并、转化动效，动效由 `GameBoardFeedbackUtility`、`GFActionQueueSystem` 和 `GFShakeUtility` 协调。
+   - 统一生成、移动、合并、转化动效，现有 Tween 通过 `BoardTweenBatchAction` 进入 `GFActionQueueSystem` 的等待、暂停、完成与取消生命周期，再由 `GameBoardFeedbackUtility` 和 `GFShakeUtility` 协调附加反馈。
    - 玩家方块纹理按数值阶层轮换半调、菱形、棋盘格和鳞片纹，怪物或特殊类型使用斜线纹理。
 
 3. 菜单和弹层。

@@ -230,19 +230,24 @@ func get_state_snapshot() -> Dictionary:
 ## 从快照恢复。
 ## @param snapshot: 包含棋盘状态的字典。
 func restore_from_snapshot(snapshot: Dictionary) -> void:
-	_restore_from_snapshot(snapshot, {})
+	var _restore_tweens: Array[Tween] = _restore_from_snapshot(snapshot, {})
 
 
 ## 从快照恢复，并从撤回前的位置播放非阻塞过渡。
 ## @param snapshot: 包含棋盘状态的字典。
 ## @param reverse_target_map: 原始位置到撤回前位置的映射。
-func restore_from_snapshot_with_reverse_animation(snapshot: Dictionary, reverse_target_map: Dictionary) -> void:
-	_restore_from_snapshot(snapshot, reverse_target_map)
+## @return: 本次恢复启动的全部 Tween，由 GF ActionQueue 跟踪完成状态。
+func restore_from_snapshot_with_reverse_animation(
+	snapshot: Dictionary,
+	reverse_target_map: Dictionary
+) -> Array[Tween]:
+	return _restore_from_snapshot(snapshot, reverse_target_map)
 
 
 # --- 私有/辅助方法 ---
 
-func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary) -> void:
+func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary) -> Array[Tween]:
+	var animation_tweens: Array[Tween] = []
 	var current_tiles: Array[Tile] = []
 	for child: Node in board_container.get_children():
 		if child is Tile:
@@ -256,14 +261,16 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 		var reverse_start_tiles: Dictionary = _build_reverse_start_tiles_map(snapshot, reverse_target_map)
 		for tile: Tile in current_tiles:
 			if _should_animate_undo_despawn(tile, reverse_start_tiles):
-				_animate_release_visual_tile(tile)
+				var despawn_tween: Tween = _animate_release_visual_tile(tile)
+				if is_instance_valid(despawn_tween) and despawn_tween.is_valid():
+					animation_tweens.append(despawn_tween)
 			else:
 				_release_visual_tile(tile)
 
 	_visual_map.clear()
 
 	if not model:
-		return
+		return animation_tweens
 
 	var grid_size: int = _get_int(snapshot, &"grid_size", 4)
 	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
@@ -293,7 +300,11 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 		new_tile.rotation_degrees = 0
 
 		if start_grid_pos != pos:
-			var _move_tween: Tween = new_tile.animate_move(_grid_to_pixel_center(pos))
+			var move_tween: Tween = new_tile.animate_move(_grid_to_pixel_center(pos))
+			if is_instance_valid(move_tween) and move_tween.is_valid():
+				animation_tweens.append(move_tween)
+
+	return animation_tweens
 
 
 func _cleanup_listeners() -> void:
@@ -413,9 +424,9 @@ func _release_visual_tile(tile: Tile) -> void:
 		tile.queue_free()
 
 
-func _animate_release_visual_tile(tile: Tile) -> void:
+func _animate_release_visual_tile(tile: Tile) -> Tween:
 	if not is_instance_valid(tile):
-		return
+		return null
 
 	var release_token: RefCounted = RefCounted.new()
 	tile.set_meta(RELEASE_TOKEN_META, release_token)
@@ -423,9 +434,14 @@ func _animate_release_visual_tile(tile: Tile) -> void:
 
 	var despawn_tween: Tween = tile.animate_despawn()
 	if is_instance_valid(despawn_tween) and despawn_tween.is_valid():
-		var _connect_result_339: int = despawn_tween.finished.connect(func() -> void: _release_visual_tile_if_valid(tile, release_token))
+		var _release_connected: Error = despawn_tween.finished.connect(
+			_release_visual_tile_if_valid.bind(tile, release_token),
+			CONNECT_ONE_SHOT as Object.ConnectFlags
+		) as Error
+		return despawn_tween
 	else:
 		_release_visual_tile_if_valid(tile, release_token)
+	return null
 
 
 func _release_visual_tile_if_valid(tile: Tile, release_token: RefCounted) -> void:
