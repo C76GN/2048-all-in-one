@@ -101,8 +101,8 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 结果：
 
 - Godot：当前环境中的 `godot` 命令。
-- GUT：153 个测试全部通过。
-- 当前静态计数：`tests/gut/` 下 19 个测试脚本、153 个 `test_` 用例。
+- GUT：157 个测试全部通过，共 817 个断言。
+- 当前静态计数：`tests/gut/` 下 19 个测试脚本、157 个 `test_` 用例。
 - 未触发默认 Godot 用户日志增长保护。
 - 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 250`、`Resources = 108`、RID 类型数 `= 3`；基线上升会让安全脚本失败。
 - 临时运行目录已在成功后自动清理。
