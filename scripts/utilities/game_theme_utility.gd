@@ -15,9 +15,7 @@ const VISUAL_THEME_SETTING_KEY: StringName = &"appearance/theme_id"
 const SOUND_THEME_SETTING_KEY: StringName = &"audio/sound_theme_id"
 const DEFAULT_THEME_ID: StringName = &"halftone_atlas"
 const DEFAULT_SOUND_THEME_ID: StringName = &"printworks"
-const THEME_REGISTRY_RESOURCE_KEY: StringName = &"game.theme_registry"
-const CONTENT_PACKAGE_SOURCE_ROOT: String = "res://resources"
-const DEFAULT_THEME_REGISTRY_PATH: String = "res://resources/registries/game_theme_registry.tres"
+const THEME_REGISTRY_RESOURCE_KEY: StringName = GameThemeCatalogUtility.THEME_REGISTRY_RESOURCE_KEY
 
 
 # --- 私有变量 ---
@@ -29,6 +27,7 @@ var _motion: GameUiMotionUtility
 var _celebration_vfx: GameCelebrationVfxUtility
 var _theme_catalog: GameThemeCatalogUtility
 var _shader_parameters: GFShaderParameterUtility
+var _signal_utility: GFSignalUtility
 
 
 # --- GF 生命周期方法 ---
@@ -44,6 +43,7 @@ func ready() -> void:
 	_celebration_vfx = _get_celebration_vfx_utility()
 	_theme_catalog = _get_theme_catalog_utility()
 	_shader_parameters = _get_shader_parameter_utility()
+	_signal_utility = _get_signal_utility()
 	_registry = _load_registry()
 	_connect_settings()
 	_apply_visual_theme_to_utilities(get_current_visual_theme())
@@ -52,28 +52,28 @@ func ready() -> void:
 
 
 func dispose() -> void:
-	_disconnect_motion_audio_feedback()
-	if is_instance_valid(_settings):
-		var callback: Callable = _on_setting_changed
-		if _settings.setting_changed.is_connected(callback):
-			_settings.setting_changed.disconnect(callback)
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	_settings = null
 	_audio = null
 	_motion = null
 	_celebration_vfx = null
 	_theme_catalog = null
 	_shader_parameters = null
+	_signal_utility = null
 	_registry = null
 
 
 func release_dependencies() -> void:
-	_disconnect_motion_audio_feedback()
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	_settings = null
 	_audio = null
 	_motion = null
 	_celebration_vfx = null
 	_theme_catalog = null
 	_shader_parameters = null
+	_signal_utility = null
 	super.release_dependencies()
 
 
@@ -271,7 +271,6 @@ func get_debug_snapshot() -> Dictionary:
 		catalog_snapshot = _theme_catalog.get_debug_snapshot()
 
 	return {
-		"content_package_source_root": CONTENT_PACKAGE_SOURCE_ROOT,
 		"theme_registry_key": THEME_REGISTRY_RESOURCE_KEY,
 		"current_visual_theme_id": get_current_visual_theme_id(),
 		"current_sound_theme_id": get_current_sound_theme_id(),
@@ -286,16 +285,13 @@ func get_debug_snapshot() -> Dictionary:
 func _load_registry() -> GameThemeRegistry:
 	if not is_instance_valid(_theme_catalog):
 		_theme_catalog = _get_theme_catalog_utility()
-	if is_instance_valid(_theme_catalog):
-		var registry: GameThemeRegistry = _theme_catalog.get_registry()
-		if is_instance_valid(registry):
-			return registry
-
-	var resource: Resource = load(DEFAULT_THEME_REGISTRY_PATH)
-	if resource is GameThemeRegistry:
-		var registry: GameThemeRegistry = resource
+	if not is_instance_valid(_theme_catalog):
+		push_error("[GameThemeUtility] 缺少 GameThemeCatalogUtility，无法加载主题注册表。")
+		return GameThemeRegistry.new()
+	var registry: GameThemeRegistry = _theme_catalog.get_registry()
+	if is_instance_valid(registry):
 		return registry
-	push_error("[GameThemeUtility] 默认主题注册表加载失败：%s。" % DEFAULT_THEME_REGISTRY_PATH)
+	push_error("[GameThemeUtility] GF 主题目录未返回有效注册表。")
 	return GameThemeRegistry.new()
 
 
@@ -307,10 +303,16 @@ func _ensure_registry_loaded() -> void:
 func _connect_settings() -> void:
 	if not is_instance_valid(_settings):
 		return
-
-	var callback: Callable = _on_setting_changed
-	if not _settings.setting_changed.is_connected(callback):
-		var _connect_result: int = _settings.setting_changed.connect(callback)
+	if not is_instance_valid(_signal_utility):
+		_signal_utility = _get_signal_utility()
+	if not is_instance_valid(_signal_utility):
+		push_error("[GameThemeUtility] 缺少 GFSignalUtility，无法监听主题设置。")
+		return
+	var _connection: GFSignalConnection = _signal_utility.connect_signal(
+		_settings.setting_changed,
+		_on_setting_changed,
+		self
+	)
 
 
 func _get_setting_string_name(key: StringName, fallback: StringName) -> StringName:
@@ -386,27 +388,21 @@ func _connect_motion_audio_feedback() -> void:
 		_motion = _get_motion_utility()
 	if not is_instance_valid(_motion):
 		return
-
-	var select_callback: Callable = _on_interactive_control_selected
-	if not _motion.interactive_control_selected.is_connected(select_callback):
-		var _select_connect_result: int = _motion.interactive_control_selected.connect(select_callback)
-
-	var confirm_callback: Callable = _on_interactive_control_confirmed
-	if not _motion.interactive_control_confirmed.is_connected(confirm_callback):
-		var _confirm_connect_result: int = _motion.interactive_control_confirmed.connect(confirm_callback)
-
-
-func _disconnect_motion_audio_feedback() -> void:
-	if not is_instance_valid(_motion):
+	if not is_instance_valid(_signal_utility):
+		_signal_utility = _get_signal_utility()
+	if not is_instance_valid(_signal_utility):
+		push_error("[GameThemeUtility] 缺少 GFSignalUtility，无法连接 UI 音效反馈。")
 		return
-
-	var select_callback: Callable = _on_interactive_control_selected
-	if _motion.interactive_control_selected.is_connected(select_callback):
-		_motion.interactive_control_selected.disconnect(select_callback)
-
-	var confirm_callback: Callable = _on_interactive_control_confirmed
-	if _motion.interactive_control_confirmed.is_connected(confirm_callback):
-		_motion.interactive_control_confirmed.disconnect(confirm_callback)
+	var _select_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_motion.interactive_control_selected,
+		_on_interactive_control_selected,
+		self
+	)
+	var _confirm_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_motion.interactive_control_confirmed,
+		_on_interactive_control_confirmed,
+		self
+	)
 
 
 func _apply_backgrounds_to_tree(root: Node, theme: GameTheme) -> int:
@@ -468,6 +464,14 @@ func _get_shader_parameter_utility() -> GFShaderParameterUtility:
 	if utility_value is GFShaderParameterUtility:
 		var shader_utility: GFShaderParameterUtility = utility_value
 		return shader_utility
+	return null
+
+
+func _get_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
 	return null
 
 

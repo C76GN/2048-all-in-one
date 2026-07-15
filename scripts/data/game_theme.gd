@@ -12,7 +12,6 @@ extends Resource
 @export var board_theme: BoardTheme
 @export var color_schemes: Dictionary = {}
 @export var ui_palette: GameUiPalette
-@export var audio_theme: GameAudioTheme
 @export var background_shader_profile: GFShaderParameterProfile
 @export var celebration_vfx_theme: GameCelebrationVfxTheme
 @export var scene_transition_cover_effect: GFScreenTransitionEffect
@@ -27,6 +26,67 @@ func get_display_text() -> String:
 	if theme_id != &"":
 		return String(theme_id)
 	return tr("UI_UNKNOWN")
+
+
+## 生成完整视觉主题校验报告。
+func get_validation_report() -> GFValidationReport:
+	var report: GFValidationReport = GFValidationReport.new(
+		"GameTheme:%s" % String(theme_id),
+		{
+			"resource_path": resource_path,
+			"theme_id": theme_id,
+		}
+	)
+	if theme_id == &"":
+		_add_error(report, &"missing_theme_id", "theme_id 未配置。", &"theme_id")
+	if not is_instance_valid(board_theme):
+		_add_error(report, &"missing_board_theme", "board_theme 未配置。", &"board_theme")
+	_validate_color_schemes(report)
+	if not is_instance_valid(ui_palette):
+		_add_error(report, &"missing_ui_palette", "ui_palette 未配置。", &"ui_palette")
+	else:
+		var _palette_report: RefCounted = report.merge(ui_palette.get_validation_report(), false)
+	if background_shader_profile == null:
+		_add_error(
+			report,
+			&"missing_background_shader_profile",
+			"background_shader_profile 未配置。",
+			&"background_shader_profile"
+		)
+	elif background_shader_profile.get_parameter_names().is_empty():
+		_add_error(
+			report,
+			&"empty_background_shader_profile",
+			"background_shader_profile 未声明任何参数。",
+			&"background_shader_profile"
+		)
+	if not is_instance_valid(celebration_vfx_theme):
+		_add_error(
+			report,
+			&"missing_celebration_vfx_theme",
+			"celebration_vfx_theme 未配置。",
+			&"celebration_vfx_theme"
+		)
+	else:
+		var _celebration_report: RefCounted = report.merge(
+			celebration_vfx_theme.get_validation_report(),
+			false
+		)
+	if not is_instance_valid(scene_transition_cover_effect):
+		_add_error(
+			report,
+			&"missing_cover_transition",
+			"scene_transition_cover_effect 未配置。",
+			&"scene_transition_cover_effect"
+		)
+	if not is_instance_valid(scene_transition_reveal_effect):
+		_add_error(
+			report,
+			&"missing_reveal_transition",
+			"scene_transition_reveal_effect 未配置。",
+			&"scene_transition_reveal_effect"
+		)
+	return report
 
 
 ## 获取当前主题棋盘资源；未配置时返回调用方的模式默认资源。
@@ -70,3 +130,23 @@ func get_scene_transition_effect(phase: StringName) -> GFScreenTransitionEffect:
 			return scene_transition_reveal_effect
 		_:
 			return null
+
+
+# --- 私有/辅助方法 ---
+
+func _validate_color_schemes(report: GFValidationReport) -> void:
+	if color_schemes.is_empty():
+		_add_error(report, &"empty_color_schemes", "color_schemes 为空。", &"color_schemes")
+		return
+	for key: Variant in color_schemes.keys():
+		if not (color_schemes[key] is TileColorScheme):
+			_add_error(
+				report,
+				&"invalid_color_scheme",
+				"color_schemes 中存在非 TileColorScheme 资源。",
+				key
+			)
+
+
+func _add_error(report: GFValidationReport, kind: StringName, message: String, key: Variant) -> void:
+	var _issue: RefCounted = report.add_error(kind, message, key, resource_path)

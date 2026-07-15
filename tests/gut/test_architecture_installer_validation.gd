@@ -54,6 +54,19 @@ func test_project_installer_does_not_bind_extension_owned_modules() -> void:
 	)
 
 
+func test_project_installer_binds_signal_utility_before_theme_consumers() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var signal_position: int = source.find("bind_utility(GFSignalUtility)")
+	var theme_position: int = source.find("bind_utility(_GAME_THEME_UTILITY_SCRIPT)")
+
+	assert_true(signal_position >= 0, "项目 Installer 应注册 GFSignalUtility。")
+	assert_true(theme_position >= 0, "项目 Installer 应注册 GameThemeUtility。")
+	assert_true(
+		signal_position < theme_position,
+		"GFSignalUtility 必须先于依赖它的 GameThemeUtility 注册。"
+	)
+
+
 # --- 私有/辅助方法 ---
 
 func _read_text(path: String) -> String:

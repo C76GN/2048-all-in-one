@@ -20,12 +20,14 @@ var _registry: GameThemeRegistry = null
 var _resolver: GFResourceResolverUtility = null
 var _content_packages: GFContentPackageUtility = null
 var _last_registration_report: Dictionary = {}
+var _registry_validation_report: GFValidationReport = null
 
 
 # --- GF 生命周期方法 ---
 
 func init() -> void:
 	_registry = null
+	_registry_validation_report = null
 	_last_registration_report.clear()
 
 
@@ -38,6 +40,7 @@ func ready() -> void:
 
 func dispose() -> void:
 	_registry = null
+	_registry_validation_report = null
 	_resolver = null
 	_content_packages = null
 	_last_registration_report.clear()
@@ -45,6 +48,7 @@ func dispose() -> void:
 
 func release_dependencies() -> void:
 	_registry = null
+	_registry_validation_report = null
 	_resolver = null
 	_content_packages = null
 	super.release_dependencies()
@@ -56,6 +60,19 @@ func get_registry() -> GameThemeRegistry:
 	if not is_instance_valid(_registry):
 		_registry = _load_registry()
 	return _registry
+
+
+## 获取最近一次主题注册表 GF 校验报告副本。
+func get_registry_validation_report() -> GFValidationReport:
+	if not is_instance_valid(_registry_validation_report):
+		var _registry_value: GameThemeRegistry = get_registry()
+	if not is_instance_valid(_registry_validation_report):
+		return GFValidationReport.new("GameThemeRegistry")
+	var duplicate_value: RefCounted = _registry_validation_report.duplicate_report()
+	if duplicate_value is GFValidationReport:
+		var duplicate_report: GFValidationReport = duplicate_value
+		return duplicate_report
+	return GFValidationReport.new("GameThemeRegistry")
 
 
 func register_theme_content_package_resources() -> Dictionary:
@@ -105,11 +122,15 @@ func get_debug_snapshot() -> Dictionary:
 	var resolver_snapshot: Dictionary = {}
 	if is_instance_valid(_resolver):
 		resolver_snapshot = _resolver.get_debug_snapshot()
+	var validation_snapshot: Dictionary = {}
+	if is_instance_valid(_registry_validation_report):
+		validation_snapshot = _registry_validation_report.to_dict()
 
 	return {
 		"content_package_source_root": CONTENT_PACKAGE_SOURCE_ROOT,
 		"theme_registry_key": THEME_REGISTRY_RESOURCE_KEY,
 		"registration_report": _last_registration_report.duplicate(true),
+		"registry_validation": validation_snapshot,
 		"content_packages": content_package_snapshot,
 		"resolver": resolver_snapshot,
 	}
@@ -123,12 +144,37 @@ func _load_registry() -> GameThemeRegistry:
 		resource = _resolver.load(THEME_REGISTRY_RESOURCE_KEY, _REGISTRY_TYPE_HINT)
 	if resource is GameThemeRegistry:
 		var registry: GameThemeRegistry = resource
-		return registry
-	push_warning("[GameThemeCatalogUtility] 主题注册表资源键加载失败：%s (%s)。" % [
-		String(THEME_REGISTRY_RESOURCE_KEY),
-		_REGISTRY_PATH,
-	])
+		_registry_validation_report = registry.get_validation_report()
+		if _registry_validation_report.is_ok():
+			return registry
+		_log_registry_validation_issues(_registry_validation_report)
+		return GameThemeRegistry.new()
+
+	_registry_validation_report = GFValidationReport.new(
+		"GameThemeRegistry",
+		{
+			"resource_key": THEME_REGISTRY_RESOURCE_KEY,
+			"resource_path": _REGISTRY_PATH,
+		}
+	)
+	var _issue: RefCounted = _registry_validation_report.add_error(
+		&"theme_registry_load_failed",
+		"主题注册表资源键加载失败。",
+		THEME_REGISTRY_RESOURCE_KEY,
+		_REGISTRY_PATH
+	)
+	_log_registry_validation_issues(_registry_validation_report)
 	return GameThemeRegistry.new()
+
+
+func _log_registry_validation_issues(report: GFValidationReport) -> void:
+	for issue: GFValidationIssue in report.issues:
+		if issue == null:
+			continue
+		if issue.is_error():
+			push_error("[GameThemeCatalogUtility] %s" % issue.message)
+		elif issue.is_warning():
+			push_warning("[GameThemeCatalogUtility] %s" % issue.message)
 
 
 func _get_resource_resolver_utility() -> GFResourceResolverUtility:

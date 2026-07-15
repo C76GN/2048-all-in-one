@@ -122,6 +122,8 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 	assert_true(boot_source.contains("GFAsyncWaitUtility.wait_until"), "Boot 应使用 GFAsyncWaitUtility 统一预加载条件与超时。")
 	assert_true(boot_source.contains("GFAsyncWaitUtility.delay_seconds"), "Boot 启动画面延迟应受 GF 生命周期保护。")
 	assert_true(boot_source.contains("preload_scene(MAIN_MENU_SCENE_PATH, true)"), "Boot 应通过 GFSceneUtility 预热主菜单。")
+	assert_true(boot_source.contains("_get_scene_router_system"), "Boot 应把最终场景切换交给 SceneRouterSystem。")
+	assert_false(boot_source.contains("change_scene_to_file"), "GF 初始化后不应保留绕过 SceneRouterSystem 的场景切换旁路。")
 	assert_true(boot_source.contains(_STARTUP_PROGRESS_SHADER_PATH), "Boot 应使用正式登记的启动进度条 shader。")
 	assert_true(boot_source.contains("_setup_startup_screen"), "Boot 应创建启动画面内容，而不是空白等待。")
 

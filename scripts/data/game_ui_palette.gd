@@ -31,3 +31,34 @@ extends Resource
 @export var slider_grabber_highlight_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)
 
 @export var button_focus_shader_profile: GFShaderParameterProfile
+
+
+# --- 公共方法 ---
+
+## 生成 UI 色板校验报告。
+func get_validation_report() -> GFValidationReport:
+	var report: GFValidationReport = GFValidationReport.new(
+		"GameUiPalette",
+		{"resource_path": resource_path}
+	)
+	if button_focus_shader_profile == null:
+		_add_error(
+			report,
+			&"missing_button_focus_shader_profile",
+			"button_focus_shader_profile 未配置。",
+			&"button_focus_shader_profile"
+		)
+	elif button_focus_shader_profile.get_parameter_names().is_empty():
+		_add_error(
+			report,
+			&"empty_button_focus_shader_profile",
+			"button_focus_shader_profile 未声明任何参数。",
+			&"button_focus_shader_profile"
+		)
+	return report
+
+
+# --- 私有/辅助方法 ---
+
+func _add_error(report: GFValidationReport, kind: StringName, message: String, key: Variant) -> void:
+	var _issue: RefCounted = report.add_error(kind, message, key, resource_path)

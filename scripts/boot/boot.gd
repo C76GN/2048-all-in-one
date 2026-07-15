@@ -199,13 +199,10 @@ func _on_scene_preload_failed(path: String) -> void:
 
 func _goto_main_menu() -> void:
 	var router: SceneRouterSystem = _get_scene_router_system()
-	if is_instance_valid(router):
-		router.call_deferred("goto_scene", MAIN_MENU_SCENE_PATH)
+	if not is_instance_valid(router):
+		push_error("[Boot] 缺少 SceneRouterSystem，无法进入主菜单。")
 		return
-
-	var change_error: Error = get_tree().change_scene_to_file(MAIN_MENU_SCENE_PATH)
-	if change_error != OK:
-		push_error("[Boot] 无法进入主菜单：%s，错误码：%d" % [MAIN_MENU_SCENE_PATH, change_error])
+	router.call_deferred("goto_scene", MAIN_MENU_SCENE_PATH)
 
 
 func _get_scene_router_system() -> SceneRouterSystem:

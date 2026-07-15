@@ -16,6 +16,7 @@ func test_theme_registry_loads_default_theme_pack() -> void:
 	var registry: GameThemeRegistry = _load_theme_registry()
 
 	assert_true(is_instance_valid(registry), "主题注册表应能加载。")
+	assert_true(registry.get_validation_report().is_ok(), "默认主题注册表及全部主题资源应通过 GFValidationReport。")
 	assert_true(registry.default_theme_id == &"halftone_atlas", "默认视觉主题应是当前半调图集主题。")
 	assert_true(registry.default_sound_theme_id == &"printworks", "默认音效主题应是印刷工坊。")
 
@@ -26,7 +27,6 @@ func test_theme_registry_loads_default_theme_pack() -> void:
 	assert_true(is_instance_valid(theme.ui_palette), "主题应引用 UI 色板资源。")
 	assert_true(is_instance_valid(theme.ui_palette.button_focus_shader_profile), "UI 色板应引用按钮焦点 GF Profile。")
 	assert_true(theme.ui_palette.button_focus_shader_profile.get_parameter_names().size() == 5, "按钮焦点 Profile 应声明 5 个静态样式参数。")
-	assert_true(is_instance_valid(theme.audio_theme), "主题应引用默认音效主题。")
 	assert_true(is_instance_valid(theme.background_shader_profile), "主题应引用 GF 背景 Shader 参数 Profile。")
 	assert_true(theme.background_shader_profile.get_parameter_names().size() == 28, "背景 Profile 应完整声明当前 shader 的 28 个主题参数。")
 	assert_true(is_instance_valid(theme.celebration_vfx_theme), "主题应引用庆祝 VFX 主题资源。")
@@ -45,6 +45,49 @@ func test_theme_registry_loads_default_theme_pack() -> void:
 		"揭示转场应反向推进半调遮罩。"
 	)
 	assert_true(theme.color_schemes.has(Tile.TileType.PLAYER), "主题应覆盖玩家方块色阶。")
+
+
+func test_theme_registry_validation_rejects_duplicate_ids_and_missing_defaults() -> void:
+	var registry: GameThemeRegistry = GameThemeRegistry.new()
+	registry.default_theme_id = &"missing_visual"
+	registry.default_sound_theme_id = &"missing_sound"
+	registry.themes.append(_load_theme_registry().get_default_theme())
+	var duplicate_theme: GameTheme = GameTheme.new()
+	duplicate_theme.theme_id = &"halftone_atlas"
+	registry.themes.append(duplicate_theme)
+
+	var report: GFValidationReport = registry.get_validation_report()
+	var counts_by_kind: Dictionary = report.get_issue_counts_by_kind()
+
+	assert_false(report.is_ok(), "重复主题 ID 和无效默认项必须让注册表校验失败。")
+	assert_true(
+		GFVariantData.get_option_int(counts_by_kind, &"duplicate_visual_theme_id") == 1,
+		"注册表应明确报告重复视觉主题 ID。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(counts_by_kind, &"missing_default_visual_theme") == 1,
+		"注册表应明确报告缺失的默认视觉主题。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(counts_by_kind, &"missing_default_sound_theme") == 1,
+		"注册表应明确报告缺失的默认音效主题。"
+	)
+
+
+func test_audio_theme_validation_requires_registered_semantic_events() -> void:
+	var audio_theme: GameAudioTheme = GameAudioTheme.new()
+	audio_theme.theme_id = &"empty_bank"
+	audio_theme.audio_bank_id = &"empty_bank"
+	audio_theme.audio_bank = GFAudioBank.new()
+
+	var report: GFValidationReport = audio_theme.get_validation_report()
+	var counts_by_kind: Dictionary = report.get_issue_counts_by_kind()
+
+	assert_false(report.is_ok(), "缺少语义事件音频的主题必须校验失败。")
+	assert_true(
+		GFVariantData.get_option_int(counts_by_kind, &"unresolved_audio_event") == 6,
+		"音效主题应逐项校验六个运行时语义事件。"
+	)
 
 
 func test_scene_router_delegates_theme_transitions_to_gf_utility() -> void:
@@ -113,6 +156,26 @@ func test_game_settings_utility_registers_theme_settings_and_theme_utility_resol
 	await _dispose_architecture(architecture)
 
 
+func test_theme_utility_tracks_cross_utility_signals_with_gf_signal_utility() -> void:
+	var setup: Dictionary = await _create_theme_architecture()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var signal_value: Variant = setup.get("signal_utility")
+	var signal_utility: GFSignalUtility = null
+	if signal_value is GFSignalUtility:
+		signal_utility = signal_value
+
+	assert_true(is_instance_valid(signal_utility), "主题测试架构应注册 GFSignalUtility。")
+	if is_instance_valid(signal_utility):
+		assert_true(
+			signal_utility.get_connection_count() == 3,
+			"主题 Utility 应由 GFSignalUtility 追踪设置变更与两个 UI 音效信号。"
+		)
+
+	await _dispose_architecture(architecture)
+	if is_instance_valid(signal_utility):
+		assert_true(signal_utility.get_connection_count() == 0, "架构释放后 GF 信号连接必须清空。")
+
+
 func test_theme_content_package_registers_theme_registry_resource_key() -> void:
 	var setup: Dictionary = await _create_theme_architecture()
 	var architecture: GFArchitecture = _get_architecture(setup)
@@ -147,6 +210,10 @@ func test_theme_debug_snapshot_exposes_content_package_and_resolver_state() -> v
 
 	var snapshot: Dictionary = theme_utility.get_debug_snapshot()
 	var catalog_snapshot: Dictionary = GFVariantData.get_option_dictionary(snapshot, "catalog")
+	var registry_validation: Dictionary = GFVariantData.get_option_dictionary(
+		catalog_snapshot,
+		"registry_validation"
+	)
 	var resolver_snapshot: Dictionary = GFVariantData.get_option_dictionary(catalog_snapshot, "resolver")
 	var registered_keys: PackedStringArray = GFVariantData.get_option_packed_string_array(
 		resolver_snapshot,
@@ -160,6 +227,10 @@ func test_theme_debug_snapshot_exposes_content_package_and_resolver_state() -> v
 	assert_true(
 		registered_keys.has(String(GameThemeUtility.THEME_REGISTRY_RESOURCE_KEY)),
 		"主题诊断快照应包含 resolver 已注册资源键。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(registry_validation, "ok"),
+		"主题诊断快照应公开通过的 GF 注册表校验报告。"
 	)
 	assert_true(
 		GFVariantData.to_int(snapshot.get("available_visual_theme_count"), 0) > 0,
@@ -335,6 +406,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	var theme_catalog: GameThemeCatalogUtility = GameThemeCatalogUtility.new()
 	var theme_utility: GameThemeUtility = GameThemeUtility.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var screen_transition: GFScreenTransitionUtility = null
 	var scene_router: SceneRouterSystem = null
 
@@ -344,6 +416,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFAudioUtility, audio)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GFSignalUtility, signal_utility)
 	await architecture.register_utility(GameUiMotionUtility, motion)
 	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.register_utility(GameThemeCatalogUtility, theme_catalog)
@@ -367,6 +440,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 		"theme_catalog": theme_catalog,
 		"theme_utility": theme_utility,
 		"shader_parameters": shader_parameters,
+		"signal_utility": signal_utility,
 		"screen_transition": screen_transition,
 		"scene_router": scene_router,
 	}
