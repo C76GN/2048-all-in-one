@@ -28,6 +28,8 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 
 当前仓库是手动更新后的 vendored GF 源码状态，不应假设 `.gf/packages.lock.json` 一定存在。GF 7 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`；后续如果恢复包管理器安装流，需要重新生成 lockfile，并同步本文档、`README.md`、`docs/VALIDATION.md` 和包状态测试。
 
+项目目录契约由根目录 `gf_project_profile.json` 描述，并由 `GFProjectLayoutValidator` 校验。当前采用 GF Module 分层，而不是内置的 Feature-Cohesive 模板；这是示例项目的明确架构选择，不是未完成迁移的兼容目录。
+
 项目实际使用的 GF 能力包括：
 
 - `gf.domain`
@@ -120,7 +122,7 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 - `GameUiRouterUtility`：作为 `GFUIRouterUtility` 的项目 Adapter，从 UI 路由注册表加载 `GFUIRoute`。
 - `GameSettingsUtility`：承接 `GFSettingsUtility` 和项目设置字段，统一声明语言、显示、音量、视觉主题和音效主题默认值。
 - `GameSaveSlotWorkflowUtility`：承接 `GFSaveSlotWorkflow`、`GFSaveSlotMetadata` 和 `GFSaveSlotCard`，把最高分/统计保存到稳定 GF save slot。
-- `GameAssetLibraryUtility`：承接 `GFContentPackageUtility`、`GFResourceResolverUtility` 和 `GFContentPackageExportPlan`，并用 `GFAssetCatalogSourceRegistry` 聚合运行时内容包与候选评审记录；引用关系交给 `GFProjectReferenceScanner`，第三方归因交给 `GFAssetAttributionTools`。
+- `GameAssetLibraryUtility`：承接 `GFContentPackageUtility`、`GFResourceResolverUtility` 和 `GFContentPackageExportPlan`，并用 `GFAssetCatalogSourceRegistry` 聚合运行时内容包与候选评审记录；文件枚举交给 `GFPathEnumerationTools`，引用关系交给 `GFProjectReferenceScanner`，第三方归因交给 `GFAssetAttributionTools`。
 - `GameDiagnosticsUtility`：向 `GFDiagnosticsUtility` 注册项目快照 provider，并通过 `GFSupportReportUtility` 和 `GFConsoleUtility` 提供统一的运行时支持报告入口。
 - `GameThemeCatalogUtility`：承接 `GFContentPackageUtility` 和 `GFResourceResolverUtility`，注册内置主题内容包并加载主题注册表。
 - `GameThemeUtility`：承接 `GFSettingsUtility`、`GameThemeCatalogUtility`、`GameUiMotionUtility` 和 `GFAudioUtility`，解析当前视觉主题和音效主题。

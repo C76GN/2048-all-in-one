@@ -68,6 +68,7 @@ asset.vfx.celebration.confetti_canvas
 - `GameAssetLibraryUtility` 注册 `res://asset_library` 到 `GFContentPackageUtility`。
 - 素材资源键同步到 `GFResourceResolverUtility`，供项目通过稳定 ID 解析和加载。
 - `GameContentPackageCatalogSourceProvider` 和 `GameAssetReviewCatalogSourceProvider` 通过 `GFAssetCatalogSourceRegistry` 把运行时素材与候选素材映射为统一的 `GFAssetCatalog` 接口。
+- 运行时文件、候选记录、源包资源和外部导入目录统一由 `GFPathEnumerationTools` 枚举；任何 `truncated` 结果都作为审计或导入错误，不允许静默使用半套目录。
 - 项目引用由 `GFProjectReferenceScanner` 扫描；第三方归因、授权覆盖率和 notices 由 `GFAssetAttributionTools` 生成。
 - 主题包 `resources/gf_content_package.json` 依赖 `c76.asset_library.core`。
 

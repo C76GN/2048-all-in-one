@@ -38,6 +38,16 @@ powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1
 
 ## Godot / GUT 运行策略
 
+### GF 项目布局
+
+项目目录契约位于 `gf_project_profile.json`，独立验证命令为：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/validate_project_layout.ps1 -GodotExecutable godot
+```
+
+包装器通过 `tools/invoke_godot_project_tool.ps1` 等待 Steam 派生的 Godot 子进程、隔离用户目录并检查脚本诊断。GDScript 使用 `GFProjectLayoutValidator` 扫描项目，将报告写入 `build/project_layout_report.json`，并把 warning 与 error 都视为失败。最近一次验证时间为 2026-07-15：profile `c76.2048.gf_module_layered.v1` 的 `error_count = 0`、`warning_count = 0`。文件与目录计数仅作诊断信息，因为 `build/` 内的本地报告会随验证命令变化。
+
 历史上，直接运行 Godot/GUT 曾在默认用户数据目录生成巨大日志文件。因此默认不要直接运行：
 
 ```powershell
@@ -91,8 +101,8 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 结果：
 
 - Godot：当前环境中的 `godot` 命令。
-- GUT：151 个测试全部通过。
-- 当前静态计数：`tests/gut/` 下 18 个测试脚本、151 个 `test_` 用例。
+- GUT：152 个测试全部通过。
+- 当前静态计数：`tests/gut/` 下 19 个测试脚本、152 个 `test_` 用例。
 - 未触发默认 Godot 用户日志增长保护。
 - 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 250`、`Resources = 108`、RID 类型数 `= 3`；基线上升会让安全脚本失败。
 - 临时运行目录已在成功后自动清理。
@@ -115,7 +125,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-15。结果：扫描 133 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+最近一次 LSP 诊断时间：2026-07-15。结果：扫描 135 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 ### 脚本静态检查
 

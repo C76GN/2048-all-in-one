@@ -65,12 +65,13 @@ GF 7 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 用 `GFController.get_host_as()` 访问 Controller 宿主节点，避免依赖 Godot `owner` 语义。
 - 用 `GFValidationReport` 汇总模式配置校验结果，再由项目层决定如何输出错误。
 - 用 `RuleContext` 给规则注入上下文并收集输出，避免规则资源直接触达全局 `Gf`。
-- 开发构建中注册 `gf_debug` 控制台命令，输出架构生命周期、事件系统和对象池诊断快照。
+- 开发构建中由 `GameDiagnosticsUtility` 向 `GFDiagnosticsUtility` 注册项目快照 provider，并注册 `support_report` 控制台命令生成统一支持报告。
 
 ## 维护路线
 
 - 长期推进计划见 `docs/ROADMAP.md`。
 - 验证策略见 `docs/VALIDATION.md`，GF 7 包状态验证使用 Godot headless 原生包管理 CLI。
+- 项目结构由 `gf_project_profile.json` 声明，并通过 `GFProjectLayoutValidator` 与 GUT 持续校验。
 - 视觉方向见 `docs/VISUAL_STYLE.md`；背景、方块、菜单、HUD、转场和动效应保持 CMYK 半调纸媒游戏质感。
 - 历史上默认 Godot/GUT 运行曾写出巨大用户目录日志；需要运行 GUT 时，使用 `tools/run_gut_safe.ps1` 这样的隔离脚本，不要直接运行裸 Godot/GUT 命令。
 

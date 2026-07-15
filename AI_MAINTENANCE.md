@@ -53,27 +53,43 @@
 
 当前项目使用手动 vendored GF 7 源码。GF 7 仍提供 Godot 原生 Package Manager；恢复包管理器安装流后，正式安装状态记录在 `.gf/packages.lock.json`。
 
-当前根包：
+当前实际使用的 GF 能力：
 
-- `gf.extension.action_queue`
-- `gf.extension.content_package`
-- `gf.extension.domain`
+- `gf.action_queue`
+- `gf.asset_metadata`
+- `gf.content_package`
+- `gf.domain`
+- `gf.feedback`
+- `gf.save`
+- `gf.standard.assets`
+- `gf.standard.audio`
+- `gf.standard.diagnostics`
 - `gf.standard.deterministic`
 - `gf.standard.input`
 - `gf.standard.state_machine`
+- `gf.standard.storage`
 - `gf.standard.ui`
 
 当前启用扩展：
 
 - `gf.action_queue`
+- `gf.asset_metadata`
 - `gf.content_package`
 - `gf.domain`
+- `gf.feedback`
+- `gf.save`
 
 常用安全验证命令：
 
 ```powershell
-git diff --check -- .gitignore .gf/packages.lock.json project.godot addons/gf scripts resources scenes tests README.md AI_MAINTENANCE.md CODING_STYLE.md docs tools
+git diff --check -- .gitignore .gf gf_project_profile.json project.godot addons/gf scripts resources scenes tests README.md AI_MAINTENANCE.md CODING_STYLE.md docs tools
 ```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/validate_project_layout.ps1 -GodotExecutable godot
+```
+
+`gf_project_profile.json` 是项目目录结构的真相来源；`GFProjectLayoutValidator` 的 warning 和 error 都必须清零。
 
 ```powershell
 godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli.gd -- status --json
@@ -240,10 +256,10 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 当前已验证的安全 GUT 命令：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 60 -MaxLogMB 4 -MaxDefaultLogGrowthKB 64
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 300 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-09 使用当前 `godot` 命令运行通过，临时 `godot.log` 约 `0.008 MB`，临时目录成功清理。当前静态计数为 17 个 GUT 脚本、122 个 `test_` 用例；如果需要与编辑器中的 Godot `4.7` 完全一致，应传入明确的 `-GodotExecutable` 路径再验证一次。
+2026-07-15 使用当前 `godot` 命令运行通过，临时 `godot.log` 约 `0.011 MB`，临时目录成功清理。当前静态计数为 19 个 GUT 测试脚本、152 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束。
 
 编辑器 GDScript warning 诊断入口：
 
@@ -251,7 +267,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1
 ```
 
-该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `scripts`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-09 已建立零诊断基线：扫描 123 个 `.gd` 文件，`diagnostic_count = 0`。
+该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `scripts`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-15 零诊断基线为 135 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 如果只改了文档，可以不运行 GUT，但应检查链接、路径和项目定位是否准确。只要改了 `.gd`，应优先补充或运行相关测试；无法安全运行时，必须说明未验证风险。
 
