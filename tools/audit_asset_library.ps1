@@ -14,8 +14,8 @@ $ErrorActionPreference = "Stop"
 	-TimeoutSeconds $TimeoutSeconds
 
 foreach ($relativePath in @(
-	"asset_library\reports\asset_audit.json",
-	"asset_library\reports\review_catalog_audit.json"
+	"features\asset_library\resources\reports\asset_audit.json",
+	"features\asset_library\resources\reports\review_catalog_audit.json"
 )) {
 	$reportPath = Join-Path $ProjectRoot $relativePath
 	if (-not (Test-Path -LiteralPath $reportPath)) {

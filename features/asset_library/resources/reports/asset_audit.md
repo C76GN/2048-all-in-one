@@ -13,7 +13,9 @@
 - Used: `yes`
 - Path users:
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
 
 ### `asset.audio.tile.printworks.merge_soft_01`
@@ -21,7 +23,9 @@
 - Used: `yes`
 - Path users:
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
 
 ### `asset.audio.tile.printworks.move_soft_01`
@@ -29,7 +33,9 @@
 - Used: `yes`
 - Path users:
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
 
 ### `asset.audio.tile.printworks.spawn_soft_01`
@@ -37,7 +43,9 @@
 - Used: `yes`
 - Path users:
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
 
 ### `asset.audio.ui.printworks.confirm_soft_01`
@@ -45,7 +53,9 @@
 - Used: `yes`
 - Path users:
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
 
 ### `asset.audio.ui.printworks.select_soft_01`
@@ -53,18 +63,22 @@
 - Used: `yes`
 - Path users:
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
 
 ### `asset.shader.background.halftone_paper`
 - Path: `res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader`
 - Used: `yes`
 - Path users:
+  - `res://app/scripts/boot.gd`
   - `res://features/gameplay/scenes/game/game_play.tscn`
   - `res://features/navigation/scenes/menus/main_menu.tscn`
   - `res://shared/scenes/ui/layouts/base_three_column_layout.tscn`
-  - `res://app/scripts/boot.gd`
-- Key users: none
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+- Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
 
 ### `asset.shader.transition.halftone_wipe`
 - Path: `res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader`
@@ -72,14 +86,18 @@
 - Path users:
   - `res://features/themes/resources/themes/game/transitions/halftone_cover_transition.tres`
   - `res://features/themes/resources/themes/game/transitions/halftone_reveal_transition.tres`
-- Key users: none
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+- Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
 
 ### `asset.shader.ui.button_focus_dash`
 - Path: `res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader`
 - Used: `yes`
 - Path users:
   - `res://features/themes/scripts/utilities/game_ui_motion_utility.gd`
-- Key users: none
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+- Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
 
 ### `asset.shader.ui.startup_progress_bar`
 - Path: `res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader`

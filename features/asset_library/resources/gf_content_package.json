@@ -17,12 +17,12 @@
       "path": "audio/ui/printworks_select_soft_01.ogg",
       "type_hint": "AudioStreamOggVorbis",
       "priority": 100,
-      "tags": [
-        "audio",
-        "ui",
-        "printworks"
-      ],
       "metadata": {
+        "tags": [
+          "audio",
+          "ui",
+          "printworks"
+        ],
         "asset_kind": "audio",
         "category": "ui",
         "event": "ui/select",
@@ -38,12 +38,12 @@
       "path": "audio/ui/printworks_confirm_soft_01.ogg",
       "type_hint": "AudioStreamOggVorbis",
       "priority": 100,
-      "tags": [
-        "audio",
-        "ui",
-        "printworks"
-      ],
       "metadata": {
+        "tags": [
+          "audio",
+          "ui",
+          "printworks"
+        ],
         "asset_kind": "audio",
         "category": "ui",
         "event": "ui/confirm",
@@ -59,12 +59,12 @@
       "path": "audio/tile/printworks_spawn_soft_01.ogg",
       "type_hint": "AudioStreamOggVorbis",
       "priority": 100,
-      "tags": [
-        "audio",
-        "tile",
-        "printworks"
-      ],
       "metadata": {
+        "tags": [
+          "audio",
+          "tile",
+          "printworks"
+        ],
         "asset_kind": "audio",
         "category": "tile",
         "event": "tile/spawn",
@@ -80,12 +80,12 @@
       "path": "audio/tile/printworks_move_soft_01.ogg",
       "type_hint": "AudioStreamOggVorbis",
       "priority": 100,
-      "tags": [
-        "audio",
-        "tile",
-        "printworks"
-      ],
       "metadata": {
+        "tags": [
+          "audio",
+          "tile",
+          "printworks"
+        ],
         "asset_kind": "audio",
         "category": "tile",
         "event": "tile/move",
@@ -101,12 +101,12 @@
       "path": "audio/tile/printworks_merge_soft_01.ogg",
       "type_hint": "AudioStreamOggVorbis",
       "priority": 100,
-      "tags": [
-        "audio",
-        "tile",
-        "printworks"
-      ],
       "metadata": {
+        "tags": [
+          "audio",
+          "tile",
+          "printworks"
+        ],
         "asset_kind": "audio",
         "category": "tile",
         "event": "tile/merge",
@@ -122,12 +122,12 @@
       "path": "audio/game/printworks_game_over_soft_01.ogg",
       "type_hint": "AudioStreamOggVorbis",
       "priority": 100,
-      "tags": [
-        "audio",
-        "game",
-        "printworks"
-      ],
       "metadata": {
+        "tags": [
+          "audio",
+          "game",
+          "printworks"
+        ],
         "asset_kind": "audio",
         "category": "game",
         "event": "game/over",
@@ -143,12 +143,12 @@
       "path": "shaders/background/halftone_paper_background.gdshader",
       "type_hint": "Shader",
       "priority": 100,
-      "tags": [
-        "shader",
-        "background",
-        "printworks"
-      ],
       "metadata": {
+        "tags": [
+          "shader",
+          "background",
+          "printworks"
+        ],
         "asset_kind": "shader",
         "category": "background",
         "origin": "project",
@@ -162,12 +162,12 @@
       "path": "shaders/transition/halftone_wipe_transition.gdshader",
       "type_hint": "Shader",
       "priority": 100,
-      "tags": [
-        "shader",
-        "transition",
-        "printworks"
-      ],
       "metadata": {
+        "tags": [
+          "shader",
+          "transition",
+          "printworks"
+        ],
         "asset_kind": "shader",
         "category": "transition",
         "origin": "project",
@@ -181,12 +181,12 @@
       "path": "shaders/ui/button_focus_dash.gdshader",
       "type_hint": "Shader",
       "priority": 100,
-      "tags": [
-        "shader",
-        "ui",
-        "focus"
-      ],
       "metadata": {
+        "tags": [
+          "shader",
+          "ui",
+          "focus"
+        ],
         "asset_kind": "shader",
         "category": "ui",
         "origin": "project",
@@ -200,13 +200,13 @@
       "path": "shaders/ui/startup_progress_bar.gdshader",
       "type_hint": "Shader",
       "priority": 100,
-      "tags": [
-        "shader",
-        "ui",
-        "startup",
-        "progress"
-      ],
       "metadata": {
+        "tags": [
+          "shader",
+          "ui",
+          "startup",
+          "progress"
+        ],
         "asset_kind": "shader",
         "category": "ui",
         "origin": "project",
@@ -220,13 +220,13 @@
       "path": "vfx/celebration_confetti_canvas.gdshader",
       "type_hint": "Shader",
       "priority": 100,
-      "tags": [
-        "shader",
-        "vfx",
-        "celebration",
-        "printworks"
-      ],
       "metadata": {
+        "tags": [
+          "shader",
+          "vfx",
+          "celebration",
+          "printworks"
+        ],
         "asset_kind": "shader",
         "category": "vfx",
         "origin": "project",

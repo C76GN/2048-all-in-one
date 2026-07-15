@@ -684,7 +684,8 @@
 		"ok": true,
 		"root_path": "res://features/asset_library/resources/review/records",
 		"scanned_count": 586,
-		"truncated": false
+		"truncated": false,
+		"visited_entry_count": 593
 	},
 	"review_root": "res://features/asset_library/resources/review",
 	"slot_candidate_counts": {
@@ -750,7 +751,8 @@
 		"ok": true,
 		"root_path": "res://features/asset_library/resources/review/source_packs",
 		"scanned_count": 7,
-		"truncated": false
+		"truncated": false,
+		"visited_entry_count": 7
 	},
 	"status_counts": {
 		"candidate": 22,

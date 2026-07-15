@@ -55,10 +55,10 @@
       "path": "audio/printworks_audio_bank.tres",
       "type_hint": "GFAudioBank",
       "priority": 100,
-      "tags": [
-        "audio_bank"
-      ],
       "metadata": {
+        "tags": [
+          "audio_bank"
+        ],
         "theme_id": "printworks"
       }
     },

@@ -51,7 +51,7 @@ func build_catalog(_options: Dictionary = {}) -> GFAssetCatalog:
 			{
 				"title": title,
 				"description": description,
-				"tags": GFVariantData.get_option_packed_string_array(resource_entry, "tags"),
+				"tags": GFVariantData.get_option_packed_string_array(metadata, "tags"),
 				"category": GFVariantData.get_option_string_name(metadata, "category"),
 				"type_hint": GFVariantData.get_option_string(resource_entry, "type_hint"),
 				"source_id": source_id,

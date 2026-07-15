@@ -31,6 +31,12 @@ const CROSS_MODULE_LOOKUP_METHODS: Array[String] = [
 	"get_system",
 	"get_utility",
 ]
+const ASSET_LIBRARY_TOOL_PATHS: Array[String] = [
+	"res://tools/audit_asset_library.ps1",
+	"res://tools/import_asset_sources.ps1",
+]
+const ASSET_LIBRARY_REPORT_ROOT: String = "features\\asset_library\\resources\\reports"
+const LEGACY_ASSET_LIBRARY_REPORT_ROOT: String = "asset_library\\reports"
 
 
 # --- 测试用例 ---
@@ -102,6 +108,24 @@ func test_gf_modules_only_resolve_cross_module_dependencies_in_ready() -> void:
 		issues.is_empty(),
 		"GF init()/async_init() 只能初始化模块自身；跨模块 Model/System/Utility 必须在 ready() 获取：\n%s"
 		% _join_lines(issues)
+	)
+
+
+func test_asset_library_tools_use_feature_cohesive_report_root() -> void:
+	var issues: Array[String] = []
+	for path: String in ASSET_LIBRARY_TOOL_PATHS:
+		var source: String = _read_text(path)
+		if source.is_empty():
+			_append_string(issues, "%s 无法读取或为空。" % path)
+			continue
+		if not source.contains(ASSET_LIBRARY_REPORT_ROOT):
+			_append_string(issues, "%s 未使用 Feature-Cohesive 素材报告目录。" % path)
+		if source.contains('"%s' % LEGACY_ASSET_LIBRARY_REPORT_ROOT):
+			_append_string(issues, "%s 仍引用迁移前的根级素材报告目录。" % path)
+
+	assert_true(
+		issues.is_empty(),
+		"素材工具报告必须归属 asset_library Feature：\n%s" % _join_lines(issues)
 	)
 
 

@@ -38,6 +38,9 @@ func test_asset_library_registers_assets_into_gf_resolver() -> void:
 	var celebration_shader: Resource = asset_library.load_asset(&"asset.vfx.celebration.confetti_canvas", "Shader")
 	var resolve_report: Dictionary = resolver.resolve(&"asset.shader.transition.halftone_wipe", "Shader")
 	var runtime_catalog: GFAssetCatalog = asset_library.get_runtime_catalog()
+	var transition_entry: GFAssetCatalogEntry = runtime_catalog.get_entry(
+		&"asset.shader.transition.halftone_wipe"
+	)
 
 	assert_true(audio is AudioStream, "素材库音频应能通过稳定 asset key 加载。")
 	assert_true(shader is Shader, "素材库 shader 应能通过稳定 asset key 加载。")
@@ -48,6 +51,10 @@ func test_asset_library_registers_assets_into_gf_resolver() -> void:
 		runtime_catalog.has_entry(&"asset.shader.transition.halftone_wipe"),
 		"内容包资源应同时进入 GFAssetCatalog，供搜索、分组和诊断复用。"
 	)
+	assert_true(transition_entry != null, "内容包目录应保留已注册资源条目。")
+	if transition_entry != null:
+		assert_true(transition_entry.tags.has("shader"), "GF 标准 metadata.tags 应进入目录标签索引。")
+		assert_true(transition_entry.tags.has("transition"), "转场素材应保留用途标签。")
 	assert_true(
 		asset_library.resolve_asset_path(&"asset.audio.ui.printworks.select_soft_01", "AudioStreamOggVorbis")
 			== "res://features/asset_library/resources/audio/ui/printworks_select_soft_01.ogg",
