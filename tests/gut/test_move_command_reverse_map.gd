@@ -28,6 +28,7 @@ func test_grid_movement_system_builds_reverse_targets_from_animation_instruction
 
 func test_deserialize_preserves_reverse_targets() -> void:
 	var command_data: Dictionary = {
+		&"schema_version": MoveCommand.SERIALIZATION_SCHEMA_VERSION,
 		&"direction_x": -1,
 		&"direction_y": 0,
 		&"snapshot": {},
@@ -41,6 +42,10 @@ func test_deserialize_preserves_reverse_targets() -> void:
 	var command_state: Dictionary = command.serialize()
 	var reverse_map: Dictionary = GFVariantData.to_dictionary(command_state.get(&"reverse_map"))
 
+	assert_true(
+		GFVariantData.get_option_int(command_state, &"schema_version") == MoveCommand.SERIALIZATION_SCHEMA_VERSION,
+		"移动命令应明确记录当前序列化 schema。"
+	)
 	assert_true(command.get_direction() == Vector2i.LEFT, "反序列化应恢复移动方向。")
 	assert_true(_get_vector2i(reverse_map, "1,2") == Vector2i(0, 2), "反序列化应保留撤回动画映射。")
 

@@ -662,7 +662,6 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	new_bookmark.status_message = GFVariantData.to_text(current_state_for_comparison.get(&"status_message", ""), "")
 	var extra_stats: Dictionary = GFVariantData.to_dictionary(current_state_for_comparison.get(&"extra_stats", {}))
 	new_bookmark.extra_stats = extra_stats.duplicate(true)
-	new_bookmark.rng_state = GFVariantData.to_int(current_state_for_comparison.get(&"rng_state", 0), 0)
 	new_bookmark.rng_full_state = GFVariantData.to_dictionary(current_state_for_comparison.get(&"rng_full_state", {}))
 	new_bookmark.board_snapshot = GFVariantData.to_dictionary(current_state_for_comparison.get(&"board_snapshot", {}))
 	new_bookmark.rules_states = GFVariantData.to_array(current_state_for_comparison.get(&"rules_states", []))

@@ -1017,8 +1017,8 @@ func _on_board_animation_requested(instructions: Array) -> void:
 
 
 ## 接收到全量刷新请求（如撤回操作），直接重置棋盘视觉状态。
-func _on_board_refresh_requested(grid_snapshot: Dictionary) -> void:
-	restore_from_snapshot(grid_snapshot)
+func _on_board_refresh_requested(board_snapshot: Dictionary) -> void:
+	restore_from_snapshot(board_snapshot)
 
 
 ## 接收到棋盘动态扩建请求。

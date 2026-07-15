@@ -8,6 +8,7 @@ extends "res://addons/gf/standard/command/gf_undoable_command.gd"
 # --- 常量 ---
 
 const _LOG_TAG: String = "MoveCommand"
+const SERIALIZATION_SCHEMA_VERSION: int = 1
 
 
 # --- 私有变量 ---
@@ -74,7 +75,7 @@ func undo() -> Variant:
 
 	game_state_system.restore_state(snapshot)
 
-	var board_snapshot: Dictionary = _get_dictionary_with_fallback(snapshot, &"board_snapshot", &"grid_snapshot")
+	var board_snapshot: Dictionary = GFVariantData.get_option_dictionary(snapshot, &"board_snapshot")
 	send_simple_event(
 		EventNames.BOARD_UNDO_ANIMATION_REQUESTED,
 		[board_snapshot, _reverse_target_map]
@@ -91,6 +92,7 @@ func should_record(execute_result: Variant) -> bool:
 
 func serialize() -> Dictionary:
 	return {
+		&"schema_version": SERIALIZATION_SCHEMA_VERSION,
 		&"direction_x": _direction.x,
 		&"direction_y": _direction.y,
 		&"snapshot": get_snapshot(),
@@ -102,14 +104,19 @@ func serialize() -> Dictionary:
 ## 从序列化字典恢复移动命令。
 ## @param data: serialize() 产生的命令数据。
 static func deserialize(data: Dictionary) -> MoveCommand:
+	var schema_version: int = GFVariantData.get_option_int(data, &"schema_version", -1)
+	if schema_version != SERIALIZATION_SCHEMA_VERSION:
+		push_error("[MoveCommand] 不支持的序列化 schema 版本：%d。" % schema_version)
+		return null
+
 	var direction: Vector2i = Vector2i(
-		_get_int(data, &"direction_x", 0),
-		_get_int(data, &"direction_y", 0)
+		GFVariantData.get_option_int(data, &"direction_x", 0),
+		GFVariantData.get_option_int(data, &"direction_y", 0)
 	)
 	var cmd: MoveCommand = MoveCommand.new(direction)
-	cmd.set_snapshot(data.get(&"snapshot", data.get("snapshot", {})))
-	cmd._reverse_target_map = GFVariantData.to_dictionary(data.get(&"reverse_map", data.get("reverse_map", {})))
-	cmd._is_baseline = GFVariantData.to_bool(data.get(&"is_baseline", data.get("is_baseline", false)), false)
+	cmd.set_snapshot(GFVariantData.get_option_value(data, &"snapshot", {}))
+	cmd._reverse_target_map = GFVariantData.get_option_dictionary(data, &"reverse_map")
+	cmd._is_baseline = GFVariantData.get_option_bool(data, &"is_baseline", false)
 	return cmd
 
 
@@ -145,21 +152,6 @@ func _get_log_utility() -> GFLogUtility:
 		var log_utility: GFLogUtility = utility_value
 		return log_utility
 	return null
-
-
-static func _get_dictionary_with_fallback(data: Dictionary, key: StringName, fallback_key: StringName) -> Dictionary:
-	var value: Variant = data.get(key, data.get(fallback_key, data.get(String(fallback_key), {})))
-	return GFVariantData.to_dictionary(value)
-
-
-static func _get_int(data: Dictionary, key: StringName, default_value: int) -> int:
-	var value: Variant = data.get(key, data.get(String(key), default_value))
-	if value is int:
-		return value
-	if value is float:
-		var float_value: float = value
-		return int(float_value)
-	return default_value
 
 
 func _log_error(message: String) -> void:

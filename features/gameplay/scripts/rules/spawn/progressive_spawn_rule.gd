@@ -40,8 +40,10 @@ func execute(context: RuleContext) -> bool:
 
 	for _i: int in range(spawn_count):
 		var spawn_pool: Array[int] = _get_current_spawn_pool(context.grid_model)
-		var rng: RandomNumberGenerator = context.get_rng("progressive_spawn_rule")
-		var value: int = spawn_pool[rng.randi_range(0, spawn_pool.size() - 1)]
+		var random_stream: GFDeterministicRandom = context.get_random_stream("progressive_spawn_rule")
+		if random_stream == null:
+			return false
+		var value: int = spawn_pool[random_stream.next_int_range(0, spawn_pool.size() - 1)]
 
 		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.value = value

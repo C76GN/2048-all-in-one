@@ -90,7 +90,11 @@ func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
 				player_data_list.append(data)
 
 	if not player_data_list.is_empty():
-		var data_to_transform: GameTileData = player_data_list[_seed_utility.get_branched_rng("game_board_priority_player").randi_range(0, player_data_list.size() - 1)]
+		var player_random: GFDeterministicRandom = _seed_utility.get_branched_deterministic_random(
+			"game_board_priority_player"
+		)
+		var player_index: int = player_random.next_int_range(0, player_data_list.size() - 1)
+		var data_to_transform: GameTileData = player_data_list[player_index]
 		
 		# 数据更新
 		data_to_transform.value = value
@@ -115,7 +119,11 @@ func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
 					monster_data_list.append(data)
 					
 		if not monster_data_list.is_empty():
-			var data_to_empower: GameTileData = monster_data_list[_seed_utility.get_branched_rng("game_board_priority_monster").randi_range(0, monster_data_list.size() - 1)]
+			var monster_random: GFDeterministicRandom = _seed_utility.get_branched_deterministic_random(
+				"game_board_priority_monster"
+			)
+			var monster_index: int = monster_random.next_int_range(0, monster_data_list.size() - 1)
+			var data_to_empower: GameTileData = monster_data_list[monster_index]
 			
 			data_to_empower.value *= 2
 			
@@ -160,7 +168,10 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 	else:
 		var empty_cells: Array[Vector2i] = _grid_model.get_empty_cells()
 		if not empty_cells.is_empty():
-			spawn_pos = empty_cells[_seed_utility.get_branched_rng("game_board_spawn").randi_range(0, empty_cells.size() - 1)]
+			var spawn_random: GFDeterministicRandom = _seed_utility.get_branched_deterministic_random(
+				"game_board_spawn"
+			)
+			spawn_pos = empty_cells[spawn_random.next_int_range(0, empty_cells.size() - 1)]
 		else:
 			if is_priority:
 				_handle_priority_spawn(value, type)

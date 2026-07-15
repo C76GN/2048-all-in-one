@@ -28,13 +28,14 @@ var monsters_killed: int = 0
 
 # --- 公共方法 ---
 
-## 获取指定分支的确定性随机数生成器。
+## 获取指定分支的 GF 固定算法随机流。
 ## @param branch_id: 随机分支标识。
-func get_rng(branch_id: String) -> RandomNumberGenerator:
+func get_random_stream(branch_id: String) -> GFDeterministicRandom:
 	if not is_instance_valid(seed_utility):
-		return RandomNumberGenerator.new()
+		push_error("[RuleContext] 缺少 GFSeedUtility，无法创建确定性随机流。")
+		return null
 
-	return seed_utility.get_branched_rng(branch_id)
+	return seed_utility.get_branched_deterministic_random(branch_id)
 
 
 ## 记录一个生成请求，由 RuleSystem 在本轮规则执行后派发。

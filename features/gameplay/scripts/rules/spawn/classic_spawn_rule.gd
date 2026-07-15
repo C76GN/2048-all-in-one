@@ -37,8 +37,10 @@ func execute(context: RuleContext) -> bool:
 	spawn_count = min(spawn_count, context.grid_model.get_empty_cells().size())
 
 	for _i: int in range(spawn_count):
-		var rng: RandomNumberGenerator = context.get_rng("classic_spawn_rule")
-		var value: int = 2 if rng.randf() < probability_of_2 else 4
+		var random_stream: GFDeterministicRandom = context.get_random_stream("classic_spawn_rule")
+		if random_stream == null:
+			return false
+		var value: int = 2 if random_stream.next_float_unit() < probability_of_2 else 4
 
 		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.value = value

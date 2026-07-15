@@ -230,15 +230,11 @@ func _restore_bookmark_command_history(bookmark_data: BookmarkData) -> void:
 	if not is_instance_valid(_command_history) or not is_instance_valid(bookmark_data):
 		return
 
-	var history_data: Variant = bookmark_data.game_state_history
-	if history_data is Dictionary:
-		var history_dictionary: Dictionary = history_data
-		if not history_dictionary.is_empty():
-			_command_history.deserialize_full_history(history_dictionary, Callable(MoveCommand, "deserialize"))
-	elif history_data is Array:
-		var history_array: Array = history_data
-		if not history_array.is_empty():
-			_command_history.deserialize_history(history_array, Callable(MoveCommand, "deserialize"))
+	if not bookmark_data.game_state_history.is_empty():
+		_command_history.deserialize_full_history(
+			bookmark_data.game_state_history,
+			Callable(MoveCommand, "deserialize")
+		)
 
 
 func _start_level_session(
@@ -400,11 +396,8 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 
 	var game_status_model: GameStatusModel = _get_game_status_model()
 	if is_instance_valid(loaded_bookmark_data):
-		if is_instance_valid(_seed_utility):
-			if not loaded_bookmark_data.rng_full_state.is_empty():
-				_seed_utility.set_full_state(loaded_bookmark_data.rng_full_state)
-			else:
-				_seed_utility.set_state(loaded_bookmark_data.rng_state)
+		if is_instance_valid(_seed_utility) and not loaded_bookmark_data.rng_full_state.is_empty():
+			_seed_utility.set_full_state(loaded_bookmark_data.rng_full_state)
 		if is_instance_valid(game_status_model):
 			game_status_model.score.set_value(loaded_bookmark_data.score)
 			game_status_model.move_count.set_value(loaded_bookmark_data.move_count)

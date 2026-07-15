@@ -155,6 +155,7 @@ func _make_history(undo_commands: Array, redo_commands: Array = []) -> GFCommand
 
 func _make_move_command_data(direction: Vector2i, is_baseline: bool) -> Dictionary:
 	return {
+		&"schema_version": MoveCommand.SERIALIZATION_SCHEMA_VERSION,
 		&"direction_x": direction.x,
 		&"direction_y": direction.y,
 		&"snapshot": {},

@@ -3,6 +3,11 @@ class_name GameStateSystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
+# --- 常量 ---
+
+const _CANONICAL_OPTIONS: Dictionary = {"allow_floats": true}
+
+
 # --- 公共方法 ---
 
 ## 提取完整快照。
@@ -54,7 +59,6 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 	return {
 		&"grid_size": grid_size,
 		&"board_snapshot": grid.get_snapshot() if is_instance_valid(grid) else {},
-		&"rng_state": seed_util.get_state() if is_instance_valid(seed_util) else 0,
 		&"rng_full_state": seed_util.get_full_state() if is_instance_valid(seed_util) else {},
 		&"score": score,
 		&"move_count": move_count,
@@ -72,7 +76,17 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 ## @param left: 左侧完整游戏状态。
 ## @param right: 右侧完整游戏状态。
 func are_states_equal(left: Dictionary, right: Dictionary) -> bool:
-	return _normalize_variant(left) == _normalize_variant(right)
+	var left_bytes: PackedByteArray = GFDeterministicVariantSerializer.to_canonical_bytes(
+		left,
+		_CANONICAL_OPTIONS
+	)
+	if left_bytes.is_empty():
+		return false
+	var right_bytes: PackedByteArray = GFDeterministicVariantSerializer.to_canonical_bytes(
+		right,
+		_CANONICAL_OPTIONS
+	)
+	return not right_bytes.is_empty() and left_bytes == right_bytes
 
 
 ## 根据快照恢复模型和系统的状态。
@@ -88,44 +102,39 @@ func restore_state(state_to_restore: Dictionary) -> void:
 	var seed_util: GFSeedUtility = _get_seed_utility()
 
 	if is_instance_valid(grid):
-		var board_snapshot: Dictionary = _get_dictionary_with_fallback(
+		var board_snapshot: Dictionary = GFVariantData.get_option_dictionary(
 			state_to_restore,
-			&"board_snapshot",
-			&"grid_snapshot"
+			&"board_snapshot"
 		)
 		if not board_snapshot.is_empty():
 			grid.restore_from_snapshot(board_snapshot)
 
 	if is_instance_valid(status):
-		status.score.set_value(_get_int(state_to_restore, &"score", 0))
-		status.move_count.set_value(_get_int(state_to_restore, &"move_count", 0))
-		status.monsters_killed.set_value(_get_int(state_to_restore, &"monsters_killed", 0))
-		var highest_tile: int = _get_int(state_to_restore, &"highest_tile", 0)
+		status.score.set_value(GFVariantData.get_option_int(state_to_restore, &"score", 0))
+		status.move_count.set_value(GFVariantData.get_option_int(state_to_restore, &"move_count", 0))
+		status.monsters_killed.set_value(GFVariantData.get_option_int(state_to_restore, &"monsters_killed", 0))
+		var highest_tile: int = GFVariantData.get_option_int(state_to_restore, &"highest_tile", 0)
 		if is_instance_valid(grid):
 			highest_tile = grid.get_max_player_value()
 		status.highest_tile.set_value(highest_tile)
 		status.set_target_state(
-			_get_int(state_to_restore, &"target_tile_value", 0),
-			_get_bool(state_to_restore, &"target_reached", false)
+			GFVariantData.get_option_int(state_to_restore, &"target_tile_value", 0),
+			GFVariantData.get_option_bool(state_to_restore, &"target_reached", false)
 		)
 		status.status_message.set_value("")
-		var extra_stats: Dictionary = _get_dictionary(state_to_restore, &"extra_stats")
+		var extra_stats: Dictionary = GFVariantData.get_option_dictionary(state_to_restore, &"extra_stats")
 		status.extra_stats.set_value(extra_stats.duplicate(true))
 
 	if is_instance_valid(seed_util):
-		var rng_full_state: Dictionary = _get_dictionary(state_to_restore, &"rng_full_state")
+		var rng_full_state: Dictionary = GFVariantData.get_option_dictionary(
+			state_to_restore,
+			&"rng_full_state"
+		)
 		if not rng_full_state.is_empty():
 			seed_util.set_full_state(rng_full_state)
-		elif state_to_restore.has(&"rng_state"):
-			seed_util.set_state(_get_int(state_to_restore, &"rng_state", 0))
 
-	if (
-		is_instance_valid(rule_sys)
-		and (state_to_restore.has(&"rules_states") or state_to_restore.has("rules_states"))
-	):
-		var rules_states: Array = GFVariantData.to_array(
-			state_to_restore.get(&"rules_states", state_to_restore.get("rules_states", []))
-		)
+	if is_instance_valid(rule_sys):
+		var rules_states: Array = GFVariantData.get_option_array(state_to_restore, &"rules_states")
 		var all_rules: Array[SpawnRule] = rule_sys.get_all_spawn_rules()
 		for i: int in range(min(all_rules.size(), rules_states.size())):
 			all_rules[i].set_state(rules_states[i])
@@ -163,81 +172,3 @@ func _get_seed_utility() -> GFSeedUtility:
 		var seed_utility: GFSeedUtility = utility_value
 		return seed_utility
 	return null
-
-
-func _normalize_variant(value: Variant) -> Variant:
-	match typeof(value):
-		TYPE_DICTIONARY:
-			var dictionary_value: Dictionary = value
-			return _normalize_dictionary(dictionary_value)
-		TYPE_ARRAY:
-			var array_value: Array = value
-			return _normalize_array(array_value)
-		TYPE_STRING_NAME:
-			var string_name_value: StringName = value
-			return [&"StringName", String(string_name_value)]
-		TYPE_VECTOR2:
-			return [&"Vector2", value.x, value.y]
-		TYPE_VECTOR2I:
-			return [&"Vector2i", value.x, value.y]
-		_:
-			return value
-
-
-func _normalize_dictionary(dictionary: Dictionary) -> Array:
-	var keys: Array = dictionary.keys()
-	keys.sort_custom(func(a: Variant, b: Variant) -> bool:
-		return _variant_sort_key(a) < _variant_sort_key(b)
-	)
-
-	var normalized: Array = []
-	for key: Variant in keys:
-		normalized.append([
-			_normalize_variant(key),
-			_normalize_variant(dictionary[key]),
-		])
-
-	return normalized
-
-
-func _normalize_array(array: Array) -> Array:
-	var normalized: Array = []
-	for item: Variant in array:
-		normalized.append(_normalize_variant(item))
-
-	return normalized
-
-
-func _variant_sort_key(value: Variant) -> String:
-	return "%d:%s" % [typeof(value), str(value)]
-
-
-static func _get_dictionary(data: Dictionary, key: StringName) -> Dictionary:
-	var value: Variant = data.get(key, data.get(String(key), {}))
-	if value is Dictionary:
-		var dictionary_value: Dictionary = value
-		return dictionary_value
-	return {}
-
-
-static func _get_dictionary_with_fallback(data: Dictionary, key: StringName, fallback_key: StringName) -> Dictionary:
-	var value: Variant = data.get(key, data.get(fallback_key, data.get(String(fallback_key), {})))
-	if value is Dictionary:
-		var dictionary_value: Dictionary = value
-		return dictionary_value
-	return {}
-
-
-static func _get_int(data: Dictionary, key: StringName, default_value: int) -> int:
-	var value: Variant = data.get(key, data.get(String(key), default_value))
-	if value is int:
-		return value
-	if value is float:
-		var float_value: float = value
-		return int(float_value)
-	return default_value
-
-
-static func _get_bool(data: Dictionary, key: StringName, default_value: bool) -> bool:
-	var value: Variant = data.get(key, data.get(String(key), default_value))
-	return GFVariantData.to_bool(value, default_value)

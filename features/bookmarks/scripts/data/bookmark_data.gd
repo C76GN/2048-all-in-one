@@ -41,10 +41,7 @@ extends Resource
 ## 书签保存时的扩展统计数据。
 @export var extra_stats: Dictionary = {}
 
-## RNG生成器的内部状态，用于精确恢复。
-@export var rng_state: int = 0
-
-## 完整 RNG 状态，包含分支随机流计数。
+## 完整 RNG 状态，包含 GF 固定随机流与 Godot RNG 分支计数。
 @export var rng_full_state: Dictionary = {}
 
 ## 完整的棋盘状态快照。
@@ -54,7 +51,7 @@ extends Resource
 @export var rules_states: Array = []
 
 ## 保存完整的撤回历史记录。
-@export var game_state_history: Variant = {}
+@export var game_state_history: Dictionary = {}
 
 
 # --- 公共变量 ---

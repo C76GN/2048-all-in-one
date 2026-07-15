@@ -67,12 +67,14 @@ func execute(context: RuleContext) -> bool:
 					valid_spawn_points.append(Vector2i(target_x, y))
 
 	if not valid_spawn_points.is_empty():
-		var rng: RandomNumberGenerator = context.get_rng("opposite_edge_spawn_rule")
-		
-		var random_index: int = rng.randi_range(0, valid_spawn_points.size() - 1)
+		var random_stream: GFDeterministicRandom = context.get_random_stream("opposite_edge_spawn_rule")
+		if random_stream == null:
+			return false
+
+		var random_index: int = random_stream.next_int_range(0, valid_spawn_points.size() - 1)
 		var spawn_pos: Vector2i = valid_spawn_points[random_index]
 
-		var value: int = 2 if rng.randf() < probability_of_2 else 4
+		var value: int = 2 if random_stream.next_float_unit() < probability_of_2 else 4
 
 		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.position = spawn_pos

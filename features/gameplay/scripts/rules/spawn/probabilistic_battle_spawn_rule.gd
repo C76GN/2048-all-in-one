@@ -52,9 +52,11 @@ func execute(context: RuleContext) -> bool:
 	if context.grid_model.get_empty_cells().is_empty():
 		return false
 
-	var rng: RandomNumberGenerator = context.get_rng("probabilistic_battle_spawn_rule")
+	var random_stream: GFDeterministicRandom = context.get_random_stream("probabilistic_battle_spawn_rule")
+	if random_stream == null:
+		return false
 
-	if rng.randf() < _current_probability:
+	if random_stream.next_float_unit() < _current_probability:
 		var monster_value: int = _calculate_monster_value(context.grid_model, context)
 		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.value = monster_value
@@ -146,7 +148,7 @@ func get_monster_spawn_pool(grid_model: GridModel = null) -> Dictionary:
 ## @param grid_model: 网格模型引用。
 ## @param context: 当前规则上下文；提供确定性随机分支。
 ## @return: 计算出的怪物数值。
-func _calculate_monster_value(grid_model: GridModel, context: RuleContext = null) -> int:
+func _calculate_monster_value(grid_model: GridModel, context: RuleContext) -> int:
 	var spawn_pool: Dictionary = get_monster_spawn_pool(grid_model)
 	var possible_values: Array[int] = GFVariantData.to_int_array(spawn_pool.get(&"values", spawn_pool.get("values", [])))
 	var weights: Array[int] = GFVariantData.to_int_array(spawn_pool.get(&"weights", spawn_pool.get("weights", [])))
@@ -160,10 +162,13 @@ func _calculate_monster_value(grid_model: GridModel, context: RuleContext = null
 	if total_weight == 0:
 		return 2
 
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	if is_instance_valid(context):
-		rng = context.get_rng("probabilistic_battle_spawn_rule")
-	var random_pick: int = rng.randi_range(1, total_weight)
+	if not is_instance_valid(context):
+		push_error("[ProbabilisticBattleSpawnRule] 缺少 RuleContext，无法选择怪物数值。")
+		return 2
+	var random_stream: GFDeterministicRandom = context.get_random_stream("probabilistic_battle_spawn_rule")
+	if random_stream == null:
+		return 2
+	var random_pick: int = random_stream.next_int_range(1, total_weight)
 
 	var cumulative_weight: int = 0
 	for i: int in range(weights.size()):
