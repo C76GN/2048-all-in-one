@@ -1,8 +1,7 @@
 ## ReplaySystem: 负责处理游戏回放数据持久化的核心系统。
 ##
 ## 取代了原本的 ReplayManager 全局单例。
-## 管理所有回放文件的保存、加载和删除。它在用户数据目录中
-## 创建一个专用的 `replays` 文件夹来存放所有回放记录。
+## 回放作为独立 Feature section 参与统一玩家数据 SaveGraph 事务。
 class_name ReplaySystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
@@ -16,68 +15,106 @@ signal playback_progress_changed(current_step: int, total_steps: int)
 signal playback_status_changed(is_playing: bool)
 
 
-# --- 常量 ---
-
-## 回放文件存储目录。
-const REPLAY_DIR_NAME: String = "replays"
-const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/saved_resource_collection_utility.gd")
-
-
 # --- 私有变量 ---
 
 var _current_replay: ReplayData = null
 var _is_replay_active: bool = false
 var _command_history: GFCommandHistoryUtility = null
-var _saved_resources: SavedResourceCollectionUtility = null
+var _save_graph: GameSaveGraphUtility = null
 
 
 # --- Godot 生命周期方法 ---
 
 func ready() -> void:
 	_command_history = _get_command_history_utility()
-	_saved_resources = _resolve_saved_resource_collection()
-	if is_instance_valid(_saved_resources):
-		var _ensure_result: Error = _saved_resources.ensure_collection_directory(REPLAY_DIR_NAME)
+	_save_graph = _resolve_save_graph_utility()
 
 
 func dispose() -> void:
 	_command_history = null
-	_saved_resources = null
+	_save_graph = null
 	_current_replay = null
 	_is_replay_active = false
 
 
 # --- 公共方法 ---
 
-## 将一个ReplayData资源保存到文件中。
+## 将一个 ReplayData 原子写入统一玩家数据图。
 ## @param replay_data: 要保存的ReplayData资源。
-func save_replay(replay_data: ReplayData) -> void:
-	if is_instance_valid(_saved_resources):
-		var _saved_path: String = _saved_resources.save_timestamped_resource(REPLAY_DIR_NAME, "replay", replay_data)
+func save_replay(replay_data: ReplayData) -> Error:
+	if replay_data == null:
+		return ERR_INVALID_PARAMETER
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return ERR_UNCONFIGURED
+
+	if replay_data.replay_id.is_empty():
+		var timestamp_msec: int = replay_data.timestamp * 1000 if replay_data.timestamp > 0 else -1
+		replay_data.replay_id = GFUuid.generate_v7(timestamp_msec)
+	if not GFUuid.is_valid(replay_data.replay_id, 7):
+		return ERR_INVALID_DATA
+
+	var candidate: ReplayData = ReplayData.from_dict(replay_data.to_dict())
+	if candidate == null:
+		return ERR_INVALID_DATA
+	var replays: Array[ReplayData] = load_replays()
+	for existing: ReplayData in replays:
+		if existing.replay_id == candidate.replay_id:
+			return ERR_ALREADY_EXISTS
+	replays.append(candidate)
+	replays.sort_custom(func(left: ReplayData, right: ReplayData) -> bool:
+		return left.replay_id > right.replay_id
+	)
+	return save_graph.replace_section_data(
+		GameSaveGraphUtility.REPLAYS_SECTION_ID,
+		_serialize_replays(replays)
+	)
 
 
-## 加载所有已保存的回放文件。
+## 从统一玩家数据图读取全部回放。
 ## @return: 一个包含所有ReplayData资源的数组。
 func load_replays() -> Array[ReplayData]:
 	var replays: Array[ReplayData] = []
-	if not is_instance_valid(_saved_resources):
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
 		return replays
 
-	for resource: Resource in _saved_resources.load_timestamped_resources(REPLAY_DIR_NAME, "ReplayData", ReplayData):
-		if resource is ReplayData:
-			var replay_data: ReplayData = resource
-			replays.append(replay_data)
+	var section_data: Dictionary = save_graph.get_section_data(GameSaveGraphUtility.REPLAYS_SECTION_ID)
+	for item_value: Variant in GFVariantData.get_option_array(section_data, "items"):
+		if not (item_value is Dictionary):
+			continue
+		var replay: ReplayData = ReplayData.from_dict(GFVariantData.as_dictionary(item_value))
+		if replay != null:
+			replays.append(replay)
+	replays.sort_custom(func(left: ReplayData, right: ReplayData) -> bool:
+		return left.replay_id > right.replay_id
+	)
 	return replays
 
 
-## 根据其文件路径删除一个回放文件。
-## @param replay_file_path: 要删除的回放文件的文件路径。
-func delete_replay(replay_file_path: String) -> void:
-	if replay_file_path.is_empty():
-		return
+## 根据稳定 ID 删除一个回放。
+## @param replay_id: 要删除的 UUID v7 回放标识。
+func delete_replay(replay_id: String) -> Error:
+	if not GFUuid.is_valid(replay_id, 7):
+		return ERR_INVALID_PARAMETER
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return ERR_UNCONFIGURED
 
-	if is_instance_valid(_saved_resources):
-		var _delete_result: Error = _saved_resources.delete_resource_file(replay_file_path)
+	var replays: Array[ReplayData] = load_replays()
+	var found: bool = false
+	var retained: Array[ReplayData] = []
+	for replay: ReplayData in replays:
+		if replay.replay_id == replay_id:
+			found = true
+			continue
+		retained.append(replay)
+	if not found:
+		return ERR_DOES_NOT_EXIST
+	return save_graph.replace_section_data(
+		GameSaveGraphUtility.REPLAYS_SECTION_ID,
+		_serialize_replays(retained)
+	)
 
 
 ## 激活回放模式。
@@ -206,9 +243,26 @@ func _get_command_history_utility() -> GFCommandHistoryUtility:
 	return null
 
 
-func _resolve_saved_resource_collection() -> SavedResourceCollectionUtility:
-	var utility_value: Object = get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT)
-	if utility_value is SavedResourceCollectionUtility:
-		var collection: SavedResourceCollectionUtility = utility_value
-		return collection
+func _serialize_replays(replays: Array[ReplayData]) -> Dictionary:
+	var items: Array[Dictionary] = []
+	for replay: ReplayData in replays:
+		if replay != null:
+			items.append(replay.to_dict())
+	return {
+		"items": items,
+	}
+
+
+func _get_save_graph() -> GameSaveGraphUtility:
+	if is_instance_valid(_save_graph):
+		return _save_graph
+	_save_graph = _resolve_save_graph_utility()
+	return _save_graph
+
+
+func _resolve_save_graph_utility() -> GameSaveGraphUtility:
+	var utility_value: Object = get_utility(GameSaveGraphUtility)
+	if utility_value is GameSaveGraphUtility:
+		var utility: GameSaveGraphUtility = utility_value
+		return utility
 	return null

@@ -8,7 +8,10 @@ extends Resource
 
 # --- 导出变量 ---
 
-## 书签保存时的Unix时间戳，可用作唯一标识符。
+## 书签的稳定 UUID v7 标识。
+@export var bookmark_id: String = ""
+
+## 书签保存时的 Unix 时间戳，用于展示与生成 UUID v7 的时间部分。
 @export var timestamp: int = 0
 
 ## 该局游戏使用的模式配置资源路径。
@@ -54,8 +57,78 @@ extends Resource
 @export var game_state_history: Dictionary = {}
 
 
-# --- 公共变量 ---
+# --- 公共方法 ---
 
-## 此书签资源在文件系统中的完整路径。
-## @remark 主要由存储系统在加载和删除时内部使用。
-var file_path: String = ""
+## 转换为 SaveGraph 可持久化字典。
+func to_dict() -> Dictionary:
+	return {
+		"bookmark_id": bookmark_id,
+		"timestamp": timestamp,
+		"mode_config_path": mode_config_path,
+		"initial_seed": initial_seed,
+		"score": score,
+		"move_count": move_count,
+		"monsters_killed": monsters_killed,
+		"highest_tile": highest_tile,
+		"target_tile_value": target_tile_value,
+		"target_reached": target_reached,
+		"status_message": status_message,
+		"extra_stats": extra_stats.duplicate(true),
+		"rng_full_state": rng_full_state.duplicate(true),
+		"board_snapshot": board_snapshot.duplicate(true),
+		"rules_states": rules_states.duplicate(true),
+		"game_state_history": game_state_history.duplicate(true),
+	}
+
+
+## 从当前严格 schema 构造书签；任何字段缺失、类型错误或 ID 非法时返回 null。
+## @param data: 当前版本的完整书签字典。
+static func from_dict(data: Dictionary) -> BookmarkData:
+	if not _has_valid_persisted_shape(data):
+		return null
+
+	var result: BookmarkData = BookmarkData.new()
+	result.bookmark_id = GFVariantData.get_option_string(data, "bookmark_id")
+	if not GFUuid.is_valid(result.bookmark_id, 7):
+		return null
+	result.timestamp = GFVariantData.get_option_int(data, "timestamp")
+	result.mode_config_path = GFVariantData.get_option_string(data, "mode_config_path")
+	result.initial_seed = GFVariantData.get_option_int(data, "initial_seed")
+	result.score = GFVariantData.get_option_int(data, "score")
+	result.move_count = GFVariantData.get_option_int(data, "move_count")
+	result.monsters_killed = GFVariantData.get_option_int(data, "monsters_killed")
+	result.highest_tile = GFVariantData.get_option_int(data, "highest_tile")
+	result.target_tile_value = GFVariantData.get_option_int(data, "target_tile_value")
+	result.target_reached = GFVariantData.get_option_bool(data, "target_reached")
+	result.status_message = GFVariantData.get_option_string(data, "status_message")
+	result.extra_stats = GFVariantData.get_option_dictionary(data, "extra_stats").duplicate(true)
+	result.rng_full_state = GFVariantData.get_option_dictionary(data, "rng_full_state").duplicate(true)
+	result.board_snapshot = GFVariantData.get_option_dictionary(data, "board_snapshot").duplicate(true)
+	result.rules_states = GFVariantData.get_option_array(data, "rules_states").duplicate(true)
+	result.game_state_history = GFVariantData.get_option_dictionary(data, "game_state_history").duplicate(true)
+	return result
+
+
+# --- 私有/辅助方法 ---
+
+static func _has_valid_persisted_shape(data: Dictionary) -> bool:
+	if data.size() != 16:
+		return false
+	return (
+		GFVariantData.get_option_value(data, "bookmark_id") is String
+		and GFVariantData.get_option_value(data, "timestamp") is int
+		and GFVariantData.get_option_value(data, "mode_config_path") is String
+		and GFVariantData.get_option_value(data, "initial_seed") is int
+		and GFVariantData.get_option_value(data, "score") is int
+		and GFVariantData.get_option_value(data, "move_count") is int
+		and GFVariantData.get_option_value(data, "monsters_killed") is int
+		and GFVariantData.get_option_value(data, "highest_tile") is int
+		and GFVariantData.get_option_value(data, "target_tile_value") is int
+		and GFVariantData.get_option_value(data, "target_reached") is bool
+		and GFVariantData.get_option_value(data, "status_message") is String
+		and GFVariantData.get_option_value(data, "extra_stats") is Dictionary
+		and GFVariantData.get_option_value(data, "rng_full_state") is Dictionary
+		and GFVariantData.get_option_value(data, "board_snapshot") is Dictionary
+		and GFVariantData.get_option_value(data, "rules_states") is Array
+		and GFVariantData.get_option_value(data, "game_state_history") is Dictionary
+	)

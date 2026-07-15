@@ -364,7 +364,8 @@ func _handle_game_over() -> void:
 	if not _is_game_state_tainted and not replay_data.actions.is_empty():
 		var replay_system: ReplaySystem = _get_replay_system()
 		if is_instance_valid(replay_system):
-			replay_system.save_replay(replay_data)
+			var replay_save_error: Error = replay_system.save_replay(replay_data)
+			_log_persistence_error("save replay", replay_save_error)
 
 
 func _on_game_ready(data: GameReadyData) -> void:
@@ -431,7 +432,8 @@ func _persist_current_high_score() -> void:
 	var mode_id: String = _mode_config_path.get_file().get_basename()
 	var current_grid_size: int = _get_current_grid_size()
 	var best_score: int = GFVariantData.to_int(_game_status_model.high_score.get_value(), 0)
-	save_system.set_high_score(mode_id, current_grid_size, best_score)
+	var save_error: Error = save_system.set_high_score(mode_id, current_grid_size, best_score)
+	_log_persistence_error("save high score", save_error)
 
 
 func _persist_current_game_result() -> void:
@@ -452,7 +454,7 @@ func _persist_current_game_result() -> void:
 	var highest_tile: int = GFVariantData.to_int(_game_status_model.highest_tile.get_value(), 0)
 	var target_value: int = _get_target_tile_value()
 	var target_reached: bool = _has_reached_target_in_session(highest_tile)
-	save_system.record_game_result(
+	var save_error: Error = save_system.record_game_result(
 		mode_id,
 		current_grid_size,
 		final_score,
@@ -462,12 +464,21 @@ func _persist_current_game_result() -> void:
 		target_value,
 		target_reached
 	)
+	_log_persistence_error("save game result", save_error)
 
 
 func _play_game_over_sound() -> void:
 	var theme_utility: GameThemeUtility = _get_theme_utility()
 	if is_instance_valid(theme_utility):
 		theme_utility.play_game_over_sound()
+
+
+func _log_persistence_error(operation: String, error: Error) -> void:
+	if error == OK:
+		return
+	var log_utility: GFLogUtility = _get_log_utility()
+	if is_instance_valid(log_utility):
+		log_utility.error(_LOG_TAG, "%s failed with error %d." % [operation, error])
 
 
 func _get_target_tile_value() -> int:
@@ -671,8 +682,13 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 		new_bookmark.game_state_history = command_history.serialize_full_history()
 
 	var bookmark_system: BookmarkSystem = _get_bookmark_system()
-	if is_instance_valid(bookmark_system):
-		bookmark_system.save_bookmark(new_bookmark)
+	if not is_instance_valid(bookmark_system):
+		return
+	var bookmark_save_error: Error = bookmark_system.save_bookmark(new_bookmark)
+	if bookmark_save_error != OK:
+		_log_persistence_error("save bookmark", bookmark_save_error)
+		send_event(HudMessagePayload.new(tr("SNAPSHOT_SAVE_FAILED"), 3.0))
+		return
 	_last_saved_bookmark_state = current_state_for_comparison.duplicate(true)
 	send_event(HudMessagePayload.new(tr("SNAPSHOT_SAVED_SUCCESS"), 3.0))
 

@@ -9,9 +9,8 @@ const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
 const _COMMAND_HISTORY_LIMIT: int = 1024
 const _PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_resource_catalog_utility.gd")
 const _GAME_CLOCK_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/game_clock_utility.gd")
-const _GAME_SAVE_SLOT_WORKFLOW_UTILITY_SCRIPT: Script = preload("res://features/progress/scripts/utilities/game_save_slot_workflow_utility.gd")
+const _GAME_SAVE_GRAPH_UTILITY_SCRIPT: Script = preload("res://features/persistence/scripts/utilities/game_save_graph_utility.gd")
 const _GAME_MODE_CONFIG_CACHE_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_mode_config_cache_utility.gd")
-const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/saved_resource_collection_utility.gd")
 const _GAME_UI_ROUTER_UTILITY_SCRIPT: Script = preload("res://features/navigation/scripts/utilities/game_ui_router_utility.gd")
 const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_ui_motion_utility.gd")
 const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_board_feedback_utility.gd")
@@ -59,9 +58,8 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFSignalUtility).as_singleton()
 	await binder.bind_utility(_PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_CLOCK_UTILITY_SCRIPT).as_singleton()
-	await binder.bind_utility(_GAME_SAVE_SLOT_WORKFLOW_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_GAME_SAVE_GRAPH_UTILITY_SCRIPT).from_instance(_create_game_save_graph_utility()).as_singleton()
 	await binder.bind_utility(_GAME_MODE_CONFIG_CACHE_UTILITY_SCRIPT).as_singleton()
-	await binder.bind_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFCommandHistoryUtility).from_instance(_create_history_utility()).as_singleton()
 	await binder.bind_utility(GFTimeUtility).as_singleton()
 	await binder.bind_utility(GFLogUtility).from_instance(_create_log_utility()).as_singleton()
@@ -107,14 +105,34 @@ func _bind_systems(binder: GFBinder) -> void:
 func _create_storage_utility() -> GFStorageUtility:
 	var storage: GFStorageUtility = GFStorageUtility.new()
 	storage.allow_absolute_paths = false
-	storage.allow_resource_loads = true
-	storage.allowed_resource_load_extensions = PackedStringArray(["tres"])
-	storage.allowed_resource_load_type_hints = PackedStringArray(["BookmarkData", "ReplayData"])
 	storage.create_directories_for_nested_paths = true
+	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true
 	storage.save_version = 1
 	return storage
+
+
+func _create_game_save_graph_utility() -> GameSaveGraphUtility:
+	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	var progress_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		GameStatsSaveData.new(),
+		GFSaveScope.Phase.EARLY
+	)
+	var bookmarks_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+		BookmarkCatalogSaveData.new(),
+		GFSaveScope.Phase.NORMAL
+	)
+	var replays_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.REPLAYS_SECTION_ID,
+		ReplayCatalogSaveData.new(),
+		GFSaveScope.Phase.LATE
+	)
+	if not progress_registered or not bookmarks_registered or not replays_registered:
+		push_error("[GameArchitectureInstaller] 玩家数据 SaveGraph section 注册失败。")
+	return save_graph
 
 
 func _create_settings_utility() -> GameSettingsUtility:

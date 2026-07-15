@@ -22,6 +22,7 @@ MOVE_FAIL_MSG,[color=yellow]这个方向无法移动。[/color],[color=yellow]No
 SNAPSHOT_TAINT_WARN,[color=orange]警告: 正在保存一个被调试工具修改过的状态！[/color],[color=orange]Warning: Saving a tainted state![/color]
 SNAPSHOT_NO_CHANGE,[color=yellow]游戏状态未变，无需重复保存。[/color],[color=yellow]State unchanged. Save skipped.[/color]
 SNAPSHOT_SAVED_SUCCESS,[color=green]书签已保存！[/color],[color=green]Bookmark Saved![/color]
+SNAPSHOT_SAVE_FAILED,[color=red]书签保存失败。[/color],[color=red]Bookmark save failed.[/color]
 REPLAY_CONTINUE_SUCCESS,[color=green]已从当前回放进度继续游戏。[/color],[color=green]Continued from the current replay step.[/color]
 TARGET_REACHED_MESSAGE,[color=green]已达成目标 %d！可以继续挑战更高方块。[/color],[color=green]Target %d reached! Keep going for a higher tile.[/color]
 SIZE_LABEL,尺寸,Size

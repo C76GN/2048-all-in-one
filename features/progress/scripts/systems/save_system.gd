@@ -1,6 +1,6 @@
 ## SaveSystem: 负责处理游戏最高分与轻量统计数据持久化的系统。
 ##
-## 最高分和统计使用 GF save slot 工作流，设置交给 GFSettingsUtility 管理。
+## 最高分和统计作为 progress section 参与统一玩家数据 SaveGraph，设置交给 GFSettingsUtility 管理。
 class_name SaveSystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
@@ -30,11 +30,9 @@ const _STAT_LAST_PLAYED_AT: String = "last_played_at"
 
 # --- 私有变量 ---
 
-var _save_data: Dictionary = {}
-var _is_game_data_loaded: bool = false
 var _log: GFLogUtility
 var _clock: GameClockUtility
-var _save_slot_workflow: GameSaveSlotWorkflowUtility
+var _save_graph: GameSaveGraphUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -42,16 +40,13 @@ var _save_slot_workflow: GameSaveSlotWorkflowUtility
 func ready() -> void:
 	_log = _get_log_utility()
 	_clock = _get_clock_utility()
-	_save_slot_workflow = _get_save_slot_workflow_utility()
-	_load_game_data()
+	_save_graph = _get_save_graph_utility()
 
 
 func dispose() -> void:
-	_save_data.clear()
-	_is_game_data_loaded = false
 	_log = null
 	_clock = null
-	_save_slot_workflow = null
+	_save_graph = null
 
 
 # --- 公共方法 ---
@@ -60,12 +55,12 @@ func dispose() -> void:
 ## @param mode_id: 模式资源文件名派生出的模式标识。
 ## @param grid_size: 棋盘边长。
 func get_high_score(mode_id: String, grid_size: int) -> int:
-	_ensure_game_data_loaded()
 	if mode_id.is_empty() or grid_size <= 0:
 		return 0
 
+	var save_data: Dictionary = _get_save_data()
 	var grid_size_str: String = _get_grid_size_key(grid_size)
-	var stats_entry: Dictionary = _get_stats_entry(mode_id, grid_size_str)
+	var stats_entry: Dictionary = _get_stats_entry(save_data, mode_id, grid_size_str)
 	return maxi(GFVariantData.get_option_int(stats_entry, _STAT_BEST_SCORE, 0), 0)
 
 
@@ -73,34 +68,35 @@ func get_high_score(mode_id: String, grid_size: int) -> int:
 ## @param mode_id: 模式资源文件名派生出的模式标识。
 ## @param grid_size: 棋盘边长。
 func get_game_stats(mode_id: String, grid_size: int) -> Dictionary:
-	_ensure_game_data_loaded()
 	if mode_id.is_empty() or grid_size <= 0:
 		return _make_default_stats()
 
+	var save_data: Dictionary = _get_save_data()
 	var grid_size_str: String = _get_grid_size_key(grid_size)
-	return _normalize_stats_entry(_get_stats_entry(mode_id, grid_size_str))
+	return _normalize_stats_entry(_get_stats_entry(save_data, mode_id, grid_size_str))
 
 
 ## 设置或更新一个模式在特定棋盘大小下的最高分。
 ## @param mode_id: 模式资源文件名派生出的模式标识。
 ## @param grid_size: 棋盘边长。
 ## @param score: 本次尝试写入的分数。
-func set_high_score(mode_id: String, grid_size: int, score: int) -> void:
-	_ensure_game_data_loaded()
+func set_high_score(mode_id: String, grid_size: int, score: int) -> Error:
 	if mode_id.is_empty() or grid_size <= 0:
-		return
+		return ERR_INVALID_PARAMETER
 
+	var save_data: Dictionary = _get_save_data()
 	var grid_size_str: String = _get_grid_size_key(grid_size)
-	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(mode_id, grid_size_str))
+	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(save_data, mode_id, grid_size_str))
 	var normalized_score: int = maxi(score, 0)
 	if normalized_score <= GFVariantData.get_option_int(entry, _STAT_BEST_SCORE, 0):
-		return
+		return OK
 
 	entry[_STAT_BEST_SCORE] = normalized_score
-	_set_stats_entry(mode_id, grid_size_str, entry)
-	if is_instance_valid(_log):
+	_set_stats_entry(save_data, mode_id, grid_size_str, entry)
+	var save_error: Error = _save_game_data(save_data)
+	if save_error == OK and is_instance_valid(_log):
 		_log.info(_LOG_TAG, "新纪录: mode=%s, grid=%s, score=%d" % [mode_id, grid_size_str, normalized_score])
-	_save_game_data()
+	return save_error
 
 
 ## 记录一局完整游戏结果，并维护最高分、最佳步数、最大方块、平均表现和最近一局摘要。
@@ -121,18 +117,18 @@ func record_game_result(
 	played_at: int = 0,
 	target_value: int = 0,
 	target_reached: bool = false
-) -> void:
-	_ensure_game_data_loaded()
+) -> Error:
 	if mode_id.is_empty() or grid_size <= 0:
-		return
+		return ERR_INVALID_PARAMETER
 
+	var save_data: Dictionary = _get_save_data()
 	var grid_size_str: String = _get_grid_size_key(grid_size)
 	var normalized_score: int = max(score, 0)
 	var normalized_steps: int = max(steps, 0)
 	var normalized_max_tile: int = max(max_tile, 0)
 	var normalized_target_value: int = max(target_value, 0)
 	var resolved_played_at: int = played_at if played_at > 0 else _get_unix_timestamp()
-	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(mode_id, grid_size_str))
+	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(save_data, mode_id, grid_size_str))
 
 	var previous_plays: int = GFVariantData.get_option_int(entry, _STAT_PLAYS, 0)
 	entry[_STAT_PLAYS] = previous_plays + 1
@@ -164,45 +160,42 @@ func record_game_result(
 	_update_average_stats(entry)
 	_update_target_stats(entry)
 
-	_set_stats_entry(mode_id, grid_size_str, entry)
-	_save_game_data()
+	_set_stats_entry(save_data, mode_id, grid_size_str, entry)
+	return _save_game_data(save_data)
 
 
 # --- 私有方法 ---
 
-func _save_game_data() -> void:
-	if not is_instance_valid(_save_slot_workflow):
-		return
-
-	var error: Error = _save_slot_workflow.save_stats_payload(_save_data)
+func _save_game_data(save_data: Dictionary) -> Error:
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return ERR_UNCONFIGURED
+	var error: Error = save_graph.replace_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		save_data
+	)
 	if error != OK and is_instance_valid(_log):
-		_log.error(_LOG_TAG, "保存最高分失败，错误码: %d" % error)
+		_log.error(_LOG_TAG, "保存统计 SaveGraph section 失败，错误码: %d" % error)
+	return error
 
 
-func _load_game_data() -> void:
-	_save_data = {}
-	if is_instance_valid(_save_slot_workflow):
-		_save_data = _save_slot_workflow.load_stats_payload()
-
-	_ensure_game_data_defaults()
-	_is_game_data_loaded = true
-
-
-func _ensure_game_data_loaded() -> void:
-	if _is_game_data_loaded:
-		return
-
-	_load_game_data()
+func _get_save_data() -> Dictionary:
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	var save_data: Dictionary = {}
+	if save_graph != null:
+		save_data = save_graph.get_section_data(GameSaveGraphUtility.PROGRESS_SECTION_ID)
+	_ensure_game_data_defaults(save_data)
+	return save_data
 
 
-func _ensure_game_data_defaults() -> void:
-	if not _save_data.has(_KEY_STATS) or not (_save_data[_KEY_STATS] is Dictionary):
-		_save_data[_KEY_STATS] = {}
+func _ensure_game_data_defaults(save_data: Dictionary) -> void:
+	if not save_data.has(_KEY_STATS) or not (save_data[_KEY_STATS] is Dictionary):
+		save_data[_KEY_STATS] = {}
 
 
-func _get_stats() -> Dictionary:
-	_ensure_game_data_defaults()
-	var stats_value: Variant = _save_data[_KEY_STATS]
+func _get_stats(save_data: Dictionary) -> Dictionary:
+	_ensure_game_data_defaults(save_data)
+	var stats_value: Variant = save_data[_KEY_STATS]
 	if stats_value is Dictionary:
 		var stats: Dictionary = stats_value
 		return stats
@@ -218,8 +211,8 @@ func _get_mode_stats(stats: Dictionary, mode_id: String) -> Dictionary:
 	return {}
 
 
-func _get_stats_entry(mode_id: String, grid_size_str: String) -> Dictionary:
-	var stats: Dictionary = _get_stats()
+func _get_stats_entry(save_data: Dictionary, mode_id: String, grid_size_str: String) -> Dictionary:
+	var stats: Dictionary = _get_stats(save_data)
 	var mode_stats: Dictionary = _get_mode_stats(stats, mode_id)
 	var entry_value: Variant = mode_stats.get(grid_size_str, {})
 	if entry_value is Dictionary:
@@ -229,8 +222,13 @@ func _get_stats_entry(mode_id: String, grid_size_str: String) -> Dictionary:
 	return {}
 
 
-func _set_stats_entry(mode_id: String, grid_size_str: String, entry: Dictionary) -> void:
-	var stats: Dictionary = _get_stats()
+func _set_stats_entry(
+	save_data: Dictionary,
+	mode_id: String,
+	grid_size_str: String,
+	entry: Dictionary
+) -> void:
+	var stats: Dictionary = _get_stats(save_data)
 	var mode_stats: Dictionary = _get_mode_stats(stats, mode_id)
 	mode_stats[grid_size_str] = entry
 	stats[mode_id] = mode_stats
@@ -344,11 +342,18 @@ func _get_clock_utility() -> GameClockUtility:
 	return null
 
 
-func _get_save_slot_workflow_utility() -> GameSaveSlotWorkflowUtility:
-	var utility_value: Object = get_utility(GameSaveSlotWorkflowUtility)
-	if utility_value is GameSaveSlotWorkflowUtility:
-		var save_slot_workflow: GameSaveSlotWorkflowUtility = utility_value
-		return save_slot_workflow
+func _get_save_graph() -> GameSaveGraphUtility:
+	if is_instance_valid(_save_graph):
+		return _save_graph
+	_save_graph = _get_save_graph_utility()
+	return _save_graph
+
+
+func _get_save_graph_utility() -> GameSaveGraphUtility:
+	var utility_value: Object = get_utility(GameSaveGraphUtility)
+	if utility_value is GameSaveGraphUtility:
+		var save_graph: GameSaveGraphUtility = utility_value
+		return save_graph
 	return null
 
 

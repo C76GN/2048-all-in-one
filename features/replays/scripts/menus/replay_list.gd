@@ -133,7 +133,9 @@ func _do_delete_logic(data: Resource) -> void:
 	var replay: ReplayData = data
 	var replay_system: ReplaySystem = _get_replay_system()
 	if is_instance_valid(replay_system):
-		replay_system.delete_replay(replay.file_path)
+		var delete_error: Error = replay_system.delete_replay(replay.replay_id)
+		if delete_error != OK:
+			push_error("[ReplayList] 删除回放失败，错误码：%d。" % delete_error)
 
 
 func _on_primary_action_triggered(data: Resource) -> void:

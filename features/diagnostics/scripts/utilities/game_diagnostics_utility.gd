@@ -69,7 +69,7 @@ func _refresh_project_tool_snapshots() -> void:
 		return
 
 	_publish_tool_snapshot(&"resource_catalog", _collect_resource_catalog_snapshot())
-	_publish_tool_snapshot(&"save_slots", _collect_save_slots_snapshot())
+	_publish_tool_snapshot(&"save_graph", _collect_save_graph_snapshot())
 	_publish_tool_snapshot(&"asset_library", _collect_asset_library_snapshot())
 	_publish_tool_snapshot(&"theme_catalog", _collect_theme_catalog_snapshot())
 	_publish_tool_snapshot(&"themes", _collect_themes_snapshot())
@@ -105,10 +105,10 @@ func _collect_resource_catalog_snapshot() -> Dictionary:
 	return {}
 
 
-func _collect_save_slots_snapshot() -> Dictionary:
-	var utility_value: Object = get_utility(GameSaveSlotWorkflowUtility)
-	if utility_value is GameSaveSlotWorkflowUtility:
-		var utility: GameSaveSlotWorkflowUtility = utility_value
+func _collect_save_graph_snapshot() -> Dictionary:
+	var utility_value: Object = get_utility(GameSaveGraphUtility)
+	if utility_value is GameSaveGraphUtility:
+		var utility: GameSaveGraphUtility = utility_value
 		return utility.get_debug_snapshot()
 	return {}
 

@@ -1,74 +1,128 @@
 ## BookmarkSystem: 负责处理游戏书签（状态存档）持久化的核心系统。
 ##
 ## 负责管理并持久化游戏书签记录。
-## 管理所有书签文件的保存、加载和删除。它在用户数据目录中
-## 创建一个专用的 `bookmarks` 文件夹来存放所有状态记录。
+## 书签作为独立 Feature section 参与统一玩家数据 SaveGraph 事务。
 class_name BookmarkSystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
-# --- 常量 ---
-
-## 书签存储目录。
-const BOOKMARK_DIR_NAME: String = "bookmarks"
-const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/saved_resource_collection_utility.gd")
-
-
 # --- 私有变量 ---
 
-var _saved_resources: SavedResourceCollectionUtility = null
+var _save_graph: GameSaveGraphUtility = null
 
 
 # --- GF 生命周期方法 ---
 
 func ready() -> void:
-	_saved_resources = _resolve_saved_resource_collection()
-	if is_instance_valid(_saved_resources):
-		var _ensure_result: Error = _saved_resources.ensure_collection_directory(BOOKMARK_DIR_NAME)
+	_save_graph = _resolve_save_graph_utility()
 
 
 func dispose() -> void:
-	_saved_resources = null
+	_save_graph = null
 
 
 # --- 公共方法 ---
 
-## 将一个BookmarkData资源保存到文件中。
+## 将一个 BookmarkData 原子写入统一玩家数据图。
 ## @param bookmark_data: 要保存的BookmarkData资源。
-func save_bookmark(bookmark_data: BookmarkData) -> void:
-	if is_instance_valid(_saved_resources):
-		var _saved_path: String = _saved_resources.save_timestamped_resource(BOOKMARK_DIR_NAME, "bookmark", bookmark_data)
+func save_bookmark(bookmark_data: BookmarkData) -> Error:
+	if bookmark_data == null:
+		return ERR_INVALID_PARAMETER
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return ERR_UNCONFIGURED
+
+	if bookmark_data.bookmark_id.is_empty():
+		var timestamp_msec: int = bookmark_data.timestamp * 1000 if bookmark_data.timestamp > 0 else -1
+		bookmark_data.bookmark_id = GFUuid.generate_v7(timestamp_msec)
+	if not GFUuid.is_valid(bookmark_data.bookmark_id, 7):
+		return ERR_INVALID_DATA
+
+	var candidate: BookmarkData = BookmarkData.from_dict(bookmark_data.to_dict())
+	if candidate == null:
+		return ERR_INVALID_DATA
+	var bookmarks: Array[BookmarkData] = load_bookmarks()
+	for existing: BookmarkData in bookmarks:
+		if existing.bookmark_id == candidate.bookmark_id:
+			return ERR_ALREADY_EXISTS
+	bookmarks.append(candidate)
+	bookmarks.sort_custom(func(left: BookmarkData, right: BookmarkData) -> bool:
+		return left.bookmark_id > right.bookmark_id
+	)
+	return save_graph.replace_section_data(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+		_serialize_bookmarks(bookmarks)
+	)
 
 
-## 加载所有已保存的书签文件。
+## 从统一玩家数据图读取全部书签。
 ## @return: 一个包含所有BookmarkData资源的数组。
 func load_bookmarks() -> Array[BookmarkData]:
 	var bookmarks: Array[BookmarkData] = []
-	if not is_instance_valid(_saved_resources):
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
 		return bookmarks
 
-	for resource: Resource in _saved_resources.load_timestamped_resources(BOOKMARK_DIR_NAME, "BookmarkData", BookmarkData):
-		if resource is BookmarkData:
-			var bookmark_data: BookmarkData = resource
-			bookmarks.append(bookmark_data)
+	var section_data: Dictionary = save_graph.get_section_data(GameSaveGraphUtility.BOOKMARKS_SECTION_ID)
+	for item_value: Variant in GFVariantData.get_option_array(section_data, "items"):
+		if not (item_value is Dictionary):
+			continue
+		var bookmark: BookmarkData = BookmarkData.from_dict(GFVariantData.as_dictionary(item_value))
+		if bookmark != null:
+			bookmarks.append(bookmark)
+	bookmarks.sort_custom(func(left: BookmarkData, right: BookmarkData) -> bool:
+		return left.bookmark_id > right.bookmark_id
+	)
 	return bookmarks
 
 
-## 根据其文件路径删除一个书签文件。
-## @param bookmark_file_path: 要删除的书签文件的文件路径。
-func delete_bookmark(bookmark_file_path: String) -> void:
-	if bookmark_file_path.is_empty():
-		return
+## 根据稳定 ID 删除一个书签。
+## @param bookmark_id: 要删除的 UUID v7 书签标识。
+func delete_bookmark(bookmark_id: String) -> Error:
+	if not GFUuid.is_valid(bookmark_id, 7):
+		return ERR_INVALID_PARAMETER
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return ERR_UNCONFIGURED
 
-	if is_instance_valid(_saved_resources):
-		var _delete_result: Error = _saved_resources.delete_resource_file(bookmark_file_path)
+	var bookmarks: Array[BookmarkData] = load_bookmarks()
+	var found: bool = false
+	var retained: Array[BookmarkData] = []
+	for bookmark: BookmarkData in bookmarks:
+		if bookmark.bookmark_id == bookmark_id:
+			found = true
+			continue
+		retained.append(bookmark)
+	if not found:
+		return ERR_DOES_NOT_EXIST
+	return save_graph.replace_section_data(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+		_serialize_bookmarks(retained)
+	)
 
 
 # --- 私有/辅助方法 ---
 
-func _resolve_saved_resource_collection() -> SavedResourceCollectionUtility:
-	var utility_value: Object = get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT)
-	if utility_value is SavedResourceCollectionUtility:
-		var collection: SavedResourceCollectionUtility = utility_value
-		return collection
+func _serialize_bookmarks(bookmarks: Array[BookmarkData]) -> Dictionary:
+	var items: Array[Dictionary] = []
+	for bookmark: BookmarkData in bookmarks:
+		if bookmark != null:
+			items.append(bookmark.to_dict())
+	return {
+		"items": items,
+	}
+
+
+func _get_save_graph() -> GameSaveGraphUtility:
+	if is_instance_valid(_save_graph):
+		return _save_graph
+	_save_graph = _resolve_save_graph_utility()
+	return _save_graph
+
+
+func _resolve_save_graph_utility() -> GameSaveGraphUtility:
+	var utility_value: Object = get_utility(GameSaveGraphUtility)
+	if utility_value is GameSaveGraphUtility:
+		var utility: GameSaveGraphUtility = utility_value
+		return utility
 	return null

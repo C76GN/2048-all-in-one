@@ -134,7 +134,9 @@ func _do_delete_logic(data: Resource) -> void:
 	var bookmark: BookmarkData = data
 	var bookmark_system: BookmarkSystem = _get_bookmark_system()
 	if is_instance_valid(bookmark_system):
-		bookmark_system.delete_bookmark(bookmark.file_path)
+		var delete_error: Error = bookmark_system.delete_bookmark(bookmark.bookmark_id)
+		if delete_error != OK:
+			push_error("[BookmarkList] 删除书签失败，错误码：%d。" % delete_error)
 
 
 func _on_primary_action_triggered(data: Resource) -> void:

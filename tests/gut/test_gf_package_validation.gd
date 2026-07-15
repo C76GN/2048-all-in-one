@@ -229,6 +229,19 @@ func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
 		!= gf_global_script_class_count
 	):
 		_append_string(issues, "Godot 退出泄漏基线记录的 GF 全局脚本类数量应为 %d。" % gf_global_script_class_count)
+	var project_runtime_script_class_count: int = (
+		_count_declared_script_classes("res://app")
+		+ _count_declared_script_classes("res://features")
+		+ _count_declared_script_classes("res://shared")
+	)
+	if (
+		_get_dictionary_int(baseline, "project_runtime_script_class_count", 0)
+		!= project_runtime_script_class_count
+	):
+		_append_string(
+			issues,
+			"Godot 退出泄漏基线记录的项目运行时脚本类数量应为 %d。" % project_runtime_script_class_count,
+		)
 	if _get_dictionary_int(baseline, "max_objectdb_instances", 0) <= 0:
 		_append_string(issues, "Godot 退出泄漏基线必须记录已审查的 ObjectDB 上限。")
 	if _get_dictionary_int(baseline, "max_resources_in_use", 0) <= 0:

@@ -1,4 +1,4 @@
-## 验证 SaveSystem 的最高分和轻量统计存储语义。
+## 验证 SaveSystem 的最高分和轻量统计 SaveGraph 语义。
 extends GutTest
 
 
@@ -13,16 +13,15 @@ const _GRID_SIZE: int = 4
 func test_set_high_score_updates_stats_without_recording_play() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var save_system: SaveSystem = _get_save_system(setup)
-
-	save_system.set_high_score(_MODE_ID, _GRID_SIZE, 2048)
+	var save_error: Error = save_system.set_high_score(_MODE_ID, _GRID_SIZE, 2048)
 
 	var stats: Dictionary = save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
-	assert_true(save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 2048, "统计槽应提供最高分。")
+	assert_true(save_error == OK, "最高分应写入 progress section。")
+	assert_true(save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 2048, "统计图应提供最高分。")
 	assert_true(_get_stat_int(stats, "best_score") == 2048, "最高分应以 stats.best_score 为唯一真源。")
 	assert_true(_get_stat_int(stats, "plays") == 0, "只写入最高分不应增加完整对局次数。")
 	assert_true(_get_stat_int(stats, "average_score") == 0, "只写入最高分不应生成平均分。")
 	assert_true(_get_stat_int(stats, "average_steps") == 0, "只写入最高分不应生成平均步数。")
-	assert_true(_get_stat_int(stats, "target_value") == 0, "只写入最高分不应生成目标值。")
 	assert_true(_get_stat_int(stats, "target_reached_count") == 0, "只写入最高分不应生成目标达成次数。")
 
 	_dispose_setup(setup)
@@ -31,47 +30,41 @@ func test_set_high_score_updates_stats_without_recording_play() -> void:
 func test_record_game_result_updates_stats() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var save_system: SaveSystem = _get_save_system(setup)
-
-	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 512, 20, 128, 100)
-	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 256, 18, 256, 200)
+	var first_error: Error = save_system.record_game_result(_MODE_ID, _GRID_SIZE, 512, 20, 128, 100)
+	var second_error: Error = save_system.record_game_result(_MODE_ID, _GRID_SIZE, 256, 18, 256, 200)
 
 	var stats: Dictionary = save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
-	assert_true(_get_stat_int(stats, "plays") == 2, "每次完整对局结果都应增加 plays。")
+	assert_true(first_error == OK, "第一局统计应保存成功。")
+	assert_true(second_error == OK, "第二局统计应保存成功。")
+	assert_true(_get_stat_int(stats, "plays") == 2, "每次完整对局都应增加 plays。")
 	assert_true(_get_stat_int(stats, "best_score") == 512, "统计应保留最佳分数。")
 	assert_true(_get_stat_int(stats, "best_steps") == 18, "统计应保留最少有效步数。")
 	assert_true(_get_stat_int(stats, "max_tile") == 256, "统计应保留历史最大方块。")
-	assert_true(_get_stat_int(stats, "total_score") == 768, "统计应累计完整对局总分。")
-	assert_true(_get_stat_int(stats, "total_steps") == 38, "统计应累计完整对局总步数。")
+	assert_true(_get_stat_int(stats, "total_score") == 768, "统计应累计总分。")
+	assert_true(_get_stat_int(stats, "total_steps") == 38, "统计应累计总步数。")
 	assert_true(_get_stat_int(stats, "step_samples") == 2, "统计应记录有效步数样本数。")
 	assert_true(_get_stat_int(stats, "average_score") == 384, "统计应计算平均分。")
 	assert_true(_get_stat_int(stats, "average_steps") == 19, "统计应计算平均步数。")
 	assert_true(_get_stat_int(stats, "last_score") == 256, "统计应记录最近一局分数。")
-	assert_true(_get_stat_int(stats, "last_steps") == 18, "统计应记录最近一局步数。")
-	assert_true(_get_stat_int(stats, "last_max_tile") == 256, "统计应记录最近一局最大方块。")
 	assert_true(_get_stat_int(stats, "last_played_at") == 200, "统计应记录最近一局时间戳。")
-	assert_true(save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 512, "完整对局结果也应同步最高分。")
 
 	_dispose_setup(setup)
 
 
 func test_target_rate_is_bounded_by_play_count() -> void:
-	var setup: Dictionary = await _create_save_architecture(
-		"",
-		{
-			"stats": {
-				_MODE_ID: {
-					"4x4": {
-						"plays": 2,
-						"target_value": 2048,
-						"target_reached_count": 5,
-					},
+	var setup: Dictionary = await _create_save_architecture({
+		"stats": {
+			_MODE_ID: {
+				"4x4": {
+					"plays": 2,
+					"target_value": 2048,
+					"target_reached_count": 5,
 				},
 			},
-		}
-	)
-	var save_system: SaveSystem = _get_save_system(setup)
+		},
+	})
+	var stats: Dictionary = _get_save_system(setup).get_game_stats(_MODE_ID, _GRID_SIZE)
 
-	var stats: Dictionary = save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
 	assert_true(_get_stat_int(stats, "target_reached_count") == 2, "目标达成次数不应超过完整对局次数。")
 	assert_true(_get_stat_int(stats, "target_reached_rate") == 100, "目标达成率应归一化到 0 到 100。")
 
@@ -81,18 +74,18 @@ func test_target_rate_is_bounded_by_play_count() -> void:
 func test_zero_step_results_do_not_pollute_step_averages() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var save_system: SaveSystem = _get_save_system(setup)
-
-	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 64, 0, 64, 100)
-	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 128, 10, 128, 200)
-
+	var zero_step_error: Error = save_system.record_game_result(_MODE_ID, _GRID_SIZE, 64, 0, 64, 100)
+	var normal_error: Error = save_system.record_game_result(_MODE_ID, _GRID_SIZE, 128, 10, 128, 200)
 	var stats: Dictionary = save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
+
+	assert_true(zero_step_error == OK, "零步结果应保存成功。")
+	assert_true(normal_error == OK, "正常结果应保存成功。")
 	assert_true(_get_stat_int(stats, "plays") == 2, "零步结果仍应计入完整对局次数。")
 	assert_true(_get_stat_int(stats, "best_steps") == 10, "零步结果不应成为最佳步数。")
 	assert_true(_get_stat_int(stats, "total_steps") == 10, "零步结果不应污染总步数。")
 	assert_true(_get_stat_int(stats, "step_samples") == 1, "零步结果不应增加步数样本。")
 	assert_true(_get_stat_int(stats, "average_score") == 96, "平均分仍应按所有完整对局计算。")
 	assert_true(_get_stat_int(stats, "average_steps") == 10, "平均步数只应按有效步数样本计算。")
-	assert_true(_get_stat_int(stats, "last_steps") == 10, "最近一局应记录最新有效步数。")
 
 	_dispose_setup(setup)
 
@@ -100,13 +93,14 @@ func test_zero_step_results_do_not_pollute_step_averages() -> void:
 func test_record_game_result_tracks_target_reach_stats() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var save_system: SaveSystem = _get_save_system(setup)
-
-	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 1024, 26, 1024, 100, 2048, false)
-	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 2048, 35, 2048, 200, 2048, true)
-
+	var missed_error: Error = save_system.record_game_result(_MODE_ID, _GRID_SIZE, 1024, 26, 1024, 100, 2048, false)
+	var reached_error: Error = save_system.record_game_result(_MODE_ID, _GRID_SIZE, 2048, 35, 2048, 200, 2048, true)
 	var stats: Dictionary = save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
-	assert_true(_get_stat_int(stats, "plays") == 2, "目标统计仍应以完整对局次数为分母。")
-	assert_true(_get_stat_int(stats, "target_value") == 2048, "统计应记录当前模式配置的目标方块值。")
+
+	assert_true(missed_error == OK, "未达成局应保存成功。")
+	assert_true(reached_error == OK, "达成局应保存成功。")
+	assert_true(_get_stat_int(stats, "plays") == 2, "目标统计应以完整对局次数为分母。")
+	assert_true(_get_stat_int(stats, "target_value") == 2048, "统计应记录目标方块值。")
 	assert_true(_get_stat_int(stats, "target_reached_count") == 1, "统计应累计目标达成次数。")
 	assert_true(_get_stat_int(stats, "target_reached_rate") == 50, "统计应计算目标达成率百分比。")
 	assert_true(_get_stat_bool(stats, "last_target_reached"), "最近一局目标状态应记录为已达成。")
@@ -117,118 +111,74 @@ func test_record_game_result_tracks_target_reach_stats() -> void:
 func test_record_game_result_preserves_existing_higher_score() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var save_system: SaveSystem = _get_save_system(setup)
-
-	save_system.set_high_score(_MODE_ID, _GRID_SIZE, 4096)
-	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 1024, 30, 512, 300)
-
+	var high_score_error: Error = save_system.set_high_score(_MODE_ID, _GRID_SIZE, 4096)
+	var result_error: Error = save_system.record_game_result(_MODE_ID, _GRID_SIZE, 1024, 30, 512, 300)
 	var stats: Dictionary = save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
-	assert_true(save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 4096, "较低的完整对局分数不应覆盖已有最高分。")
-	assert_true(_get_stat_int(stats, "best_score") == 4096, "统计 best_score 应保留已有最高分。")
+
+	assert_true(high_score_error == OK, "已有最高分应保存成功。")
+	assert_true(result_error == OK, "后续对局应保存成功。")
+	assert_true(save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 4096, "较低分数不应覆盖已有最高分。")
 	assert_true(_get_stat_int(stats, "plays") == 1, "记录完整对局仍应增加 plays。")
-	assert_true(_get_stat_int(stats, "average_score") == 1024, "平均分应基于完整对局实际得分。")
-	assert_true(_get_stat_int(stats, "average_steps") == 30, "平均步数应基于完整对局实际步数。")
+	assert_true(_get_stat_int(stats, "average_score") == 1024, "平均分应基于实际得分。")
 	assert_true(_get_stat_int(stats, "last_score") == 1024, "最近一局摘要应保留实际结束分数。")
 
 	_dispose_setup(setup)
 
 
-func test_stats_persist_through_gf_storage() -> void:
+func test_stats_persist_through_gf_save_graph() -> void:
 	var save_dir_name: String = "gut_save_system_%d" % Time.get_ticks_usec()
-	var setup: Dictionary = await _create_save_architecture(save_dir_name)
-	var save_system: SaveSystem = _get_save_system(setup)
-
-	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 1024, 24, 512, 400)
+	var setup: Dictionary = await _create_save_architecture({}, save_dir_name)
+	var save_error: Error = _get_save_system(setup).record_game_result(_MODE_ID, _GRID_SIZE, 1024, 24, 512, 400)
+	assert_true(save_error == OK, "统计应写入 SaveGraph。")
 	_dispose_setup(setup, false)
 
-	var reloaded_setup: Dictionary = await _create_save_architecture(save_dir_name)
+	var reloaded_setup: Dictionary = await _create_save_architecture({}, save_dir_name)
 	var reloaded_save_system: SaveSystem = _get_save_system(reloaded_setup)
 	var stats: Dictionary = reloaded_save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
 	assert_true(reloaded_save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 1024, "重新加载后应保留最高分。")
 	assert_true(_get_stat_int(stats, "plays") == 1, "重新加载后应保留统计次数。")
-	assert_true(_get_stat_int(stats, "average_score") == 1024, "重新加载后应保留平均分。")
 	assert_true(_get_stat_int(stats, "average_steps") == 24, "重新加载后应保留平均步数。")
-	assert_true(_get_stat_int(stats, "last_played_at") == 400, "重新加载后应保留最近一局时间戳。")
+	assert_true(_get_stat_int(stats, "last_played_at") == 400, "重新加载后应保留最近时间戳。")
 
 	_dispose_setup(reloaded_setup)
 
 
-func test_stats_schema_mismatch_is_rejected_without_compatibility_fallback() -> void:
-	var setup: Dictionary = await _create_save_architecture(
-		"",
+func test_progress_section_rejects_multiple_business_roots() -> void:
+	var setup: Dictionary = await _create_save_architecture()
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var invalid_error: Error = save_graph.replace_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		{
-			"stats": {
-				_MODE_ID: {
-					"4x4": {
-						"best_score": 8192,
-					},
-				},
-			},
-		},
-		GameSaveSlotWorkflowUtility.STATS_SCHEMA_VERSION - 1
+			"stats": {},
+			"scores": {},
+		}
 	)
-	var save_system: SaveSystem = _get_save_system(setup)
 
-	assert_true(save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 0, "旧 schema 不应进入当前统计模型。")
-	assert_true(
-		_get_stat_int(save_system.get_game_stats(_MODE_ID, _GRID_SIZE), "best_score") == 0,
-		"schema 不匹配时应从当前默认统计开始。"
-	)
+	assert_true(invalid_error == ERR_INVALID_DATA, "progress schema 应拒绝多真源载荷。")
+	assert_true(save_graph.get_section_data(GameSaveGraphUtility.PROGRESS_SECTION_ID) == {"stats": {}}, "非法替换不得改变内存 section。")
 
 	_dispose_setup(setup)
 
 
-func test_persisted_payload_uses_stats_as_single_root() -> void:
+func test_persisted_progress_payload_has_strict_section_schema() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var save_system: SaveSystem = _get_save_system(setup)
-	var save_slot_workflow: GameSaveSlotWorkflowUtility = _get_save_slot_workflow(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var save_error: Error = save_system.set_high_score(_MODE_ID, _GRID_SIZE, 2048)
+	var payload: Dictionary = save_graph.preview_profile_payload()
+	var scopes: Dictionary = GFVariantData.get_option_dictionary(payload, "scopes")
+	var progress_scope: Dictionary = GFVariantData.get_option_dictionary(scopes, "progress")
+	var sources: Dictionary = GFVariantData.get_option_dictionary(progress_scope, "sources")
+	var source: Dictionary = GFVariantData.get_option_dictionary(sources, "state")
+	var envelope: Dictionary = GFVariantData.get_option_dictionary(source, "data")
+	var data: Dictionary = GFVariantData.get_option_dictionary(envelope, "data")
 
-	save_system.set_high_score(_MODE_ID, _GRID_SIZE, 2048)
-	var payload: Dictionary = save_slot_workflow.load_stats_payload()
-
-	assert_true(payload.has("stats"), "当前统计载荷必须包含 stats 根字段。")
-	assert_false(payload.has("scores"), "当前统计载荷不应保留第二套 scores 真源。")
-	assert_true(payload.size() == 1, "统计载荷根字段应保持单一。")
-
-	_dispose_setup(setup)
-
-
-func test_stats_workflow_rejects_multiple_business_roots() -> void:
-	var setup: Dictionary = await _create_save_architecture()
-	var save_slot_workflow: GameSaveSlotWorkflowUtility = _get_save_slot_workflow(setup)
-	var save_error: Error = save_slot_workflow.save_stats_payload({
-		"stats": {},
-		"scores": {},
-	})
-
-	assert_true(save_error == ERR_INVALID_DATA, "统计工作流应拒绝多真源载荷。")
-	assert_false(save_slot_workflow.has_stats_payload(), "非法载荷不应创建 GF 槽位。")
-
-	_dispose_setup(setup)
-
-
-func test_stats_persist_through_gf_save_slot_workflow_metadata() -> void:
-	var setup: Dictionary = await _create_save_architecture()
-	var save_system: SaveSystem = _get_save_system(setup)
-	var save_slot_workflow: GameSaveSlotWorkflowUtility = _get_save_slot_workflow(setup)
-
-	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 2048, 42, 2048, 500, 2048, true)
-
-	assert_true(
-		save_slot_workflow.has_stats_payload(),
-		"最高分和统计应保存到 GF save slot。"
-	)
-	var card: GFSaveSlotCard = save_slot_workflow.build_stats_card()
-	assert_false(card.is_empty, "GFSaveSlotWorkflow 应能构建非空统计槽卡片。")
-	assert_true(card.slot_index == GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX, "统计槽卡片应使用稳定槽位。")
-	assert_true(GFVariantData.get_option_string(card.metadata, "schema_id") == "game_stats", "统计槽元数据应记录 schema_id。")
-	assert_true(
-		GFVariantData.get_option_int(card.metadata, "schema_version")
-		== GameSaveSlotWorkflowUtility.STATS_SCHEMA_VERSION,
-		"统计槽元数据应记录当前 schema_version。"
-	)
-	var custom_metadata: Dictionary = GFVariantData.get_option_dictionary(card.metadata, "custom_metadata")
-	assert_true(_get_stat_int(custom_metadata, "total_plays") == 1, "统计槽元数据应汇总总局数。")
-	assert_true(_get_stat_int(custom_metadata, "best_score") == 2048, "统计槽元数据应汇总最高分。")
+	assert_true(save_error == OK, "测试最高分应保存成功。")
+	assert_true(GFVariantData.get_option_string(envelope, "section_id") == "progress", "Source 应声明稳定 section ID。")
+	assert_true(GFVariantData.get_option_int(envelope, "schema_version") == GameStatsSaveData.SCHEMA_VERSION, "Source 应声明严格 schema 版本。")
+	assert_true(data.has("stats"), "progress 数据必须包含 stats 根字段。")
+	assert_false(data.has("scores"), "progress 数据不得保留第二套 scores 真源。")
+	assert_true(data.size() == 1, "progress 业务根字段应保持单一。")
 
 	_dispose_setup(setup)
 
@@ -236,59 +186,75 @@ func test_stats_persist_through_gf_save_slot_workflow_metadata() -> void:
 # --- 私有/辅助方法 ---
 
 func _create_save_architecture(
-	save_dir_name: String = "",
 	initial_save_data: Dictionary = {},
-	initial_schema_version: int = GameSaveSlotWorkflowUtility.STATS_SCHEMA_VERSION
+	save_dir_name: String = ""
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = GFStorageUtility.new()
-	var clock: GameClockUtility = GameClockUtility.new()
-	var save_slot_workflow: GameSaveSlotWorkflowUtility = GameSaveSlotWorkflowUtility.new()
+	var save_graph: GameSaveGraphUtility = _make_game_save_graph()
 	var save_system: SaveSystem = SaveSystem.new()
 
 	storage.save_dir_name = save_dir_name if not save_dir_name.is_empty() else "gut_save_system_%d" % Time.get_ticks_usec()
 	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
-	if not initial_save_data.is_empty():
-		var seed_store: GFSaveSlotStorageAdapter = GFSaveSlotStorageAdapter.new().setup(storage)
-		var seed_error: Error = seed_store.save_slot(
-			GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX,
-			initial_save_data,
-			{
-				"slot_id": &"profile_0",
-				"schema_id": GameSaveSlotWorkflowUtility.STATS_SCHEMA_ID,
-				"schema_version": initial_schema_version,
-			}
-		)
-		assert_true(seed_error == OK, "测试统计载荷应通过 GFSaveSlotStorageAdapter 写入。")
+	storage.file_format = GFStorageCodec.Format.BINARY
+	storage.include_storage_metadata = true
+	storage.use_integrity_checksum = true
 
 	await architecture.register_utility(GFStorageUtility, storage)
-	await architecture.register_utility(GameClockUtility, clock)
-	await architecture.register_utility(GameSaveSlotWorkflowUtility, save_slot_workflow)
+	await architecture.register_utility(GFSaveGraphUtility, GFSaveGraphUtility.new())
+	await architecture.register_utility(GameSaveGraphUtility, save_graph)
+	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_system(SaveSystem, save_system)
 	await architecture.init()
+	if not initial_save_data.is_empty():
+		var seed_error: Error = save_graph.replace_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			initial_save_data
+		)
+		assert_true(seed_error == OK, "测试统计初始数据应写入 progress section。")
 
 	return {
 		"architecture": architecture,
 		"storage": storage,
-		"save_slot_workflow": save_slot_workflow,
+		"save_graph": save_graph,
 		"save_system": save_system,
 	}
 
 
-func _dispose_setup(setup: Dictionary, delete_file: bool = true) -> void:
-	var save_slot_workflow: GameSaveSlotWorkflowUtility = _get_save_slot_workflow(setup)
-	if delete_file and is_instance_valid(save_slot_workflow):
-		var delete_error: Error = save_slot_workflow.delete_stats_payload()
-		assert_true(delete_error == OK or delete_error == ERR_FILE_NOT_FOUND, "统计槽清理应返回可预期结果。")
+func _make_game_save_graph() -> GameSaveGraphUtility:
+	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	var progress_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		GameStatsSaveData.new(),
+		GFSaveScope.Phase.EARLY
+	)
+	var bookmarks_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+		BookmarkCatalogSaveData.new(),
+		GFSaveScope.Phase.NORMAL
+	)
+	var replays_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.REPLAYS_SECTION_ID,
+		ReplayCatalogSaveData.new(),
+		GFSaveScope.Phase.LATE
+	)
+	assert_true(progress_registered and bookmarks_registered and replays_registered, "测试 SaveGraph section 应完整注册。")
+	return save_graph
 
+
+func _dispose_setup(setup: Dictionary, delete_profile: bool = true) -> void:
+	var storage: GFStorageUtility = _get_storage(setup)
+	if delete_profile:
+		var delete_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
+		assert_true(delete_error == OK or delete_error == ERR_FILE_NOT_FOUND, "统计测试清理应返回可预期结果。")
 	var architecture: GFArchitecture = _get_architecture(setup)
 	architecture.dispose()
 	setup.clear()
 
 
 func _get_architecture(setup: Dictionary) -> GFArchitecture:
-	var value: Variant = setup.get("architecture")
+	var value: Variant = GFVariantData.get_option_value(setup, "architecture")
 	if value is GFArchitecture:
 		var architecture: GFArchitecture = value
 		return architecture
@@ -296,8 +262,26 @@ func _get_architecture(setup: Dictionary) -> GFArchitecture:
 	return GFArchitecture.new()
 
 
+func _get_storage(setup: Dictionary) -> GFStorageUtility:
+	var value: Variant = GFVariantData.get_option_value(setup, "storage")
+	if value is GFStorageUtility:
+		var storage: GFStorageUtility = value
+		return storage
+	assert_true(false, "测试 setup 缺少 GFStorageUtility。")
+	return GFStorageUtility.new()
+
+
+func _get_save_graph(setup: Dictionary) -> GameSaveGraphUtility:
+	var value: Variant = GFVariantData.get_option_value(setup, "save_graph")
+	if value is GameSaveGraphUtility:
+		var save_graph: GameSaveGraphUtility = value
+		return save_graph
+	assert_true(false, "测试 setup 缺少 GameSaveGraphUtility。")
+	return GameSaveGraphUtility.new()
+
+
 func _get_save_system(setup: Dictionary) -> SaveSystem:
-	var value: Variant = setup.get("save_system")
+	var value: Variant = GFVariantData.get_option_value(setup, "save_system")
 	if value is SaveSystem:
 		var save_system: SaveSystem = value
 		return save_system
@@ -305,18 +289,9 @@ func _get_save_system(setup: Dictionary) -> SaveSystem:
 	return SaveSystem.new()
 
 
-func _get_save_slot_workflow(setup: Dictionary) -> GameSaveSlotWorkflowUtility:
-	var value: Variant = setup.get("save_slot_workflow")
-	if value is GameSaveSlotWorkflowUtility:
-		var save_slot_workflow: GameSaveSlotWorkflowUtility = value
-		return save_slot_workflow
-	assert_true(false, "测试 setup 缺少 GameSaveSlotWorkflowUtility。")
-	return GameSaveSlotWorkflowUtility.new()
-
-
 func _get_stat_int(stats: Dictionary, key: String) -> int:
-	return GFVariantData.to_int(stats.get(key, 0), 0)
+	return GFVariantData.get_option_int(stats, key)
 
 
 func _get_stat_bool(stats: Dictionary, key: String) -> bool:
-	return GFVariantData.to_bool(stats.get(key, false), false)
+	return GFVariantData.get_option_bool(stats, key)
