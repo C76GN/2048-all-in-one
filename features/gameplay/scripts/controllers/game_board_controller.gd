@@ -638,9 +638,7 @@ func _draw_board_cells() -> void:
 			cell_instance.size = Vector2.ONE * CELL_SIZE
 			cell_instance.position = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
 
-			# 如果定义了 BoardTheme，尝试应用颜色
-			# 注意：使用场景后，建议优先使用场景内的主题配置，
-			# 这里保留颜色覆盖是为了兼容现有的 JSON 主题系统。
+			# 当前解析后的 BoardTheme 统一覆盖格子场景模板的默认颜色。
 			if is_instance_valid(board_theme) and cell_instance is Panel:
 				var stylebox: StyleBoxFlat = _duplicate_flat_panel_style(cell_instance)
 				if is_instance_valid(stylebox):

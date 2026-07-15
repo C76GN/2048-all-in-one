@@ -153,6 +153,22 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 		"审计报告应能说明启动进度条 shader 被 Boot 使用。"
 	)
 
+	var allowed_direct_script_users: PackedStringArray = [
+		"res://app/scripts/boot.gd",
+		"res://features/asset_library/tools/import_asset_sources.gd",
+	]
+	for asset_key_value: Variant in usage:
+		var asset_key: String = GFVariantData.to_text(asset_key_value)
+		var asset_usage: Dictionary = GFVariantData.get_option_dictionary(usage, asset_key_value)
+		for path_user: String in GFVariantData.get_option_packed_string_array(asset_usage, "path_users"):
+			if not path_user.ends_with(".gd"):
+				continue
+			assert_true(
+				allowed_direct_script_users.has(path_user),
+				"架构启动后的业务 GDScript 必须通过稳定素材键加载：%s -> %s。"
+				% [asset_key, path_user]
+			)
+
 
 func test_asset_review_provider_uses_gf_catalog_search() -> void:
 	var fixture_root: String = "user://gut_asset_review_catalog"

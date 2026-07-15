@@ -60,7 +60,10 @@ asset.vfx.celebration.confetti_canvas
 - `kind` 对应素材大类：`audio`、`shader`、`texture`、`vfx`。
 - `domain` 对应使用语义：`ui`、`tile`、`game`、`background`、`transition`。
 - 文件可以移动，但资源键不应随意改名。
-- 主题、音效银行或场景必须优先通过 manifest 中的素材路径或稳定 key 建立引用。
+- 架构完成初始化后的业务 GDScript 必须通过 `GameAssetLibraryUtility` 和稳定 key 加载正式素材。
+- `app/scripts/boot.gd` 在 GF 架构启动前运行，可直接预载启动画面所需的最小 shader 集合。
+- `.tscn`、`.tres` 等 Godot 序列化资源可以声明包内路径；需要运行时替换的资源仍须同时暴露稳定 key。
+- 素材导入与审计工具可以记录包内路径，但不得成为业务运行时加载入口。
 
 ## GF 接入
 

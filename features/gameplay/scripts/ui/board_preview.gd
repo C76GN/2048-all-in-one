@@ -95,7 +95,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 			cell_instance.size = Vector2.ONE * cell_size
 			cell_instance.position = _get_cell_position(x, y, cell_size, spacing, offset_start)
 
-			# 兼容现有的主题颜色配置
+			# 预览使用当前解析后的 BoardTheme 覆盖格子模板默认色。
 			if cell_instance is Panel:
 				var cell_style: StyleBoxFlat = _duplicate_cell_style(cell_instance)
 				if is_instance_valid(board_theme):

@@ -109,7 +109,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 - `progress`、`bookmarks` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
 - 三个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 负责存储元数据、checksum 和原子文件事务。
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。
-- `bookmarks` section 当前 schema 为 v2；已删除瞬时 HUD 消息字段，不提供运行时旧字段兼容分支。
+- `bookmarks` section 当前 schema 为 v2；已删除瞬时 HUD 消息字段，并把目标值与达成状态作为严格语义契约，不提供运行时旧字段推断或兼容分支。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
 - 存档 Schema 发生破坏性变化时使用显式迁移工具；运行时代码不长期保留旧字段双读分支。
 
