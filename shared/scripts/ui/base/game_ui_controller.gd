@@ -1,8 +1,8 @@
-## GameUIController: 游戏 UI 宿主基类，通过内部 GFController 连接 GF 架构。
+## GameUiController: 游戏 UI 宿主基类，通过内部 GFController 连接 GF 架构。
 ##
 ## 适用于菜单、弹窗等 Control 派生节点。Control 仅保留 UI 职责；
 ## 架构上下文、依赖访问和事件 owner 生命周期均由 GFController 处理。
-class_name GameUIController
+class_name GameUiController
 extends Control
 
 

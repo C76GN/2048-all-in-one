@@ -14,12 +14,21 @@ const BOOKMARK_DIR_NAME: String = "bookmarks"
 const _SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/saved_resource_collection_utility.gd")
 
 
-# --- Godot 生命周期方法 ---
+# --- 私有变量 ---
 
-func init() -> void:
-	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if is_instance_valid(collection):
-		var _ensure_result: Error = collection.ensure_collection_directory(BOOKMARK_DIR_NAME)
+var _saved_resources: SavedResourceCollectionUtility = null
+
+
+# --- GF 生命周期方法 ---
+
+func ready() -> void:
+	_saved_resources = _resolve_saved_resource_collection()
+	if is_instance_valid(_saved_resources):
+		var _ensure_result: Error = _saved_resources.ensure_collection_directory(BOOKMARK_DIR_NAME)
+
+
+func dispose() -> void:
+	_saved_resources = null
 
 
 # --- 公共方法 ---
@@ -27,20 +36,18 @@ func init() -> void:
 ## 将一个BookmarkData资源保存到文件中。
 ## @param bookmark_data: 要保存的BookmarkData资源。
 func save_bookmark(bookmark_data: BookmarkData) -> void:
-	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if is_instance_valid(collection):
-		var _saved_path: String = collection.save_timestamped_resource(BOOKMARK_DIR_NAME, "bookmark", bookmark_data)
+	if is_instance_valid(_saved_resources):
+		var _saved_path: String = _saved_resources.save_timestamped_resource(BOOKMARK_DIR_NAME, "bookmark", bookmark_data)
 
 
 ## 加载所有已保存的书签文件。
 ## @return: 一个包含所有BookmarkData资源的数组。
 func load_bookmarks() -> Array[BookmarkData]:
 	var bookmarks: Array[BookmarkData] = []
-	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if not is_instance_valid(collection):
+	if not is_instance_valid(_saved_resources):
 		return bookmarks
 
-	for resource: Resource in collection.load_timestamped_resources(BOOKMARK_DIR_NAME, "BookmarkData", BookmarkData):
+	for resource: Resource in _saved_resources.load_timestamped_resources(BOOKMARK_DIR_NAME, "BookmarkData", BookmarkData):
 		if resource is BookmarkData:
 			var bookmark_data: BookmarkData = resource
 			bookmarks.append(bookmark_data)
@@ -53,14 +60,13 @@ func delete_bookmark(bookmark_file_path: String) -> void:
 	if bookmark_file_path.is_empty():
 		return
 
-	var collection: SavedResourceCollectionUtility = _get_saved_resource_collection()
-	if is_instance_valid(collection):
-		var _delete_result: Error = collection.delete_resource_file(bookmark_file_path)
+	if is_instance_valid(_saved_resources):
+		var _delete_result: Error = _saved_resources.delete_resource_file(bookmark_file_path)
 
 
 # --- 私有/辅助方法 ---
 
-func _get_saved_resource_collection() -> SavedResourceCollectionUtility:
+func _resolve_saved_resource_collection() -> SavedResourceCollectionUtility:
 	var utility_value: Object = get_utility(_SAVED_RESOURCE_COLLECTION_UTILITY_SCRIPT)
 	if utility_value is SavedResourceCollectionUtility:
 		var collection: SavedResourceCollectionUtility = utility_value

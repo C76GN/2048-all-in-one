@@ -30,10 +30,6 @@ const PROJECT_NAMING_EXTENSIONS: Array[String] = [
 	".tscn",
 	".tres",
 ]
-const CLASS_NAME_OVERRIDES: Dictionary = {
-	"game_ui_controller": "GameUIController",
-	"hud": "HUD",
-}
 const GF_LAYER_SUFFIX_RULES: Array[Dictionary] = [
 	{ "directory": "actions", "suffix": "Action" },
 	{ "directory": "commands", "suffix": "Command" },
@@ -1681,8 +1677,6 @@ func _is_snake_case_name(value: String) -> bool:
 
 func _get_expected_class_name(path: String) -> String:
 	var basename: String = path.get_file().get_basename()
-	if CLASS_NAME_OVERRIDES.has(basename):
-		return _get_dictionary_text(CLASS_NAME_OVERRIDES, basename)
 	return basename.to_pascal_case()
 
 

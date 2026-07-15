@@ -3,16 +3,13 @@
 ## 它接收一个棋盘快照（Snapshot）和交互规则，渲染出一个缩小版的棋盘。
 ## 主要用于存档和回放列表的预览。会自动根据容器大小调整单元格尺寸。
 class_name BoardPreview
-extends Control
+extends "res://shared/scripts/ui/base/game_ui_controller.gd"
 
 # --- 常量 ---
 
 const TILE_SCENE: PackedScene = preload("res://features/gameplay/scenes/components/tile.tscn")
 ## 用于生成预览背景格子的场景。
 const GRID_CELL_SCENE: PackedScene = preload("res://features/gameplay/scenes/components/board_grid_cell.tscn")
-const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
-const _GF_AUTOLOAD_SCRIPT = preload("res://addons/gf/kernel/core/gf_autoload.gd")
-const GFNodeContextBase = preload("res://addons/gf/kernel/core/gf_node_context.gd")
 
 ## 预览区域的最大显示尺寸（像素）。
 const MAX_PREVIEW_SIZE: float = 300.0
@@ -286,36 +283,11 @@ func _get_theme_utility() -> GameThemeUtility:
 	if is_instance_valid(_theme_utility):
 		return _theme_utility
 
-	var architecture: GFArchitecture = _get_architecture_or_null()
-	if architecture == null:
-		return null
-
-	var utility_value: Object = architecture.get_utility(_GAME_THEME_UTILITY_SCRIPT)
+	var utility_value: Object = get_utility(_GAME_THEME_UTILITY_SCRIPT)
 	if utility_value is GameThemeUtility:
 		var theme_utility: GameThemeUtility = utility_value
 		_theme_utility = theme_utility
 		return theme_utility
-	return null
-
-
-func _get_architecture_or_null() -> GFArchitecture:
-	var context: GFNodeContextBase = _find_nearest_context()
-	if context != null:
-		var context_architecture: GFArchitecture = context.get_architecture()
-		if context_architecture != null:
-			return context_architecture
-
-	return _GF_AUTOLOAD_SCRIPT.get_architecture_or_null()
-
-
-func _find_nearest_context() -> GFNodeContextBase:
-	var current_node: Node = self
-	while current_node != null:
-		if current_node is GFNodeContextBase:
-			var context: GFNodeContextBase = current_node
-			return context
-		current_node = current_node.get_parent()
-
 	return null
 
 

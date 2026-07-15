@@ -27,6 +27,7 @@
 ### 1.2 类与节点命名
 *   **`class_name`**: 使用大驼峰命名法 (`PascalCase`)。
 	*   示例: `class_name GameBoard`, `class_name StateMachine`
+	*   项目脚本必须严格由文件名执行 `to_pascal_case()` 推导，不维护缩写例外：`game_ui_controller.gd` 对应 `GameUiController`，`hud.gd` 对应 `Hud`。显示文案、注释和场景节点仍可使用 UI、HUD 等领域缩写。
 *   **场景树中的节点**: 使用大驼峰命名法 (`PascalCase`)。如果一个节点在脚本中会被频繁引用（通过 `%` 唯一名称获取），其名称应清晰表达其用途。
 	*   示例: `GameBoard`, `ModeListContainer`, `StartGameButton`
 
@@ -93,6 +94,8 @@
 17.  **内部类 (Subclasses)**
 
 下划线前缀代表非普通公共 API。即使某个 `_` 方法会被框架通过反射、`has_method()`、`call()` 或约定名称调用，它仍应按其语义放入“私有/辅助方法”“可重写钩子/虚方法”“Godot 生命周期方法”或“信号回调函数”区，不能仅因为调用点相邻就放在公共方法区。
+
+GF Module 的三阶段生命周期必须保持职责分离：`init()` 初始化自身状态，`async_init()` 准备自身异步资源，`ready()` 才解析其他 Model、System、Utility 或 Architecture。不得从 `init()` / `async_init()` 经由私有 helper 间接调用 `get_model()`、`get_system()`、`get_utility()` 或架构访问器。
 
 允许按模块职责细化 section 名称，但 section 名称应保留可识别的语义标记。例如 `# --- 私有/编辑器工具 ---`、`# --- 公共方法 (简单事件) ---`、`# --- 虚方法（由子类重写） ---` 都比模糊的 `# --- 工具 ---` 更容易检查和维护。
 

@@ -185,7 +185,7 @@ func test_gameplay_controller_applies_theme_to_non_menu_controls() -> void:
 
 	assert_true(
 		source.contains("apply_current_theme_to_tree(self)"),
-		"游戏局内不是 GameUIController，必须主动把主题应用到 HUD / TestPanel。"
+		"游戏局内不是 GameUiController，必须主动把主题应用到 HUD / TestPanel。"
 	)
 	assert_true(
 		source.contains("bind_interactive_controls(self)"),

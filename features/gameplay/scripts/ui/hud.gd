@@ -1,8 +1,8 @@
-## HUD: 游戏界面的状态显示器。
+## Hud: 游戏界面的状态显示器。
 ##
 ## 该脚本负责接收来自游戏控制器的数据，并将其格式化后显示在对应的UI标签上。
 ## 它会根据传入数据的键动态创建或复用标签，实现对不同游戏模式的自适应。
-class_name HUD
+class_name Hud
 extends "res://addons/gf/kernel/base/gf_controller.gd"
 
 
