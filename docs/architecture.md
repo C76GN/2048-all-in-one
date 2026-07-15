@@ -28,7 +28,8 @@
 | `settings` | 应用设置模型、设置持久化和设置界面 |
 | `bookmarks` | 书签数据、保存流程、列表和预览入口 |
 | `replays` | 回放数据、回放输入、播放流程、列表和继续游戏入口 |
-| `progress` | 最高分、统计和 GF save slot 工作流 |
+| `progress` | 最高分、统计和 progress SaveGraph section |
+| `persistence` | 通用玩家数据 section 协议、GF SaveGraph 事务编排和存储诊断 |
 | `themes` | 视觉主题、音效主题、主题化 UI 宿主与布局、UI 色板、棋盘反馈和主题内容包 |
 | `asset_library` | 可复用素材内容包、候选评审、授权、引用审计和局部导入工具 |
 | `diagnostics` | 项目诊断快照、支持报告和仅开发环境使用的测试面板 |
@@ -95,9 +96,11 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 持久化
 
-- `progress` 管理最高分和统计 save slot。
-- `bookmarks` 与 `replays` 拥有各自业务 Resource。
-- `shared/SavedResourceCollectionUtility` 只封装两者共同需要的 GFStorage 集合操作。
+- `persistence` 创建 `player_data` 根 Scope，并通过 `GFSaveGraphUtility` 统一校验、阶段排序、事务应用和诊断。
+- `progress`、`bookmarks` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
+- 三个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 负责存储元数据、checksum 和原子文件事务。
+- 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。
+- 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
 - 存档 Schema 发生破坏性变化时使用显式迁移工具；运行时代码不长期保留旧字段双读分支。
 
 ## GF 扩展

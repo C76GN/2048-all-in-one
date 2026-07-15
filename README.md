@@ -57,7 +57,7 @@ GF 7 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 用 `GFSceneUtility` 做异步场景切换，`SceneRouterSystem` 负责业务事件、路由意图和半调纸媒转场遮罩。
 - 用项目级 `GameUiRouterUtility` 从 `ui_route_registry.tres` 加载 `GFUIRoute` 路由表，暂停、游戏结束和设置面板通过稳定 route_id 打开。
 - 用项目级 `GameSettingsUtility` 承接 `GFSettingsUtility` / `GFDisplaySettingsUtility`，语言、显示、音量、视觉主题和音效主题通过 `GFFormBinder` 绑定到设置页控件，选项列表用 `GFItemListBinder` 写入。
-- 用项目级 `GameSaveSlotWorkflowUtility` 承接 `GFSaveSlotWorkflow` / `GFSaveSlotMetadata` / `GFSaveSlotCard`，把最高分和轻量统计保存到稳定 GF save slot；书签和回放通过项目级 `SavedResourceCollectionUtility` 复用同一套 Resource 集合持久化流程。
+- 用项目级 `GameSaveGraphUtility` 组合 `GFSaveGraphUtility` / `GFSaveScope` / `GFSaveDataSource`，把统计、书签和回放作为三个 Feature section 原子保存到类型保真的 Binary 玩家数据图；设置保持独立生命周期。
 - 用 `GFLevelUtility` 把当前一局登记为运行时 session，集中清理命令历史与动作队列等对局残留；项目不把 2048 强行建模为关卡进度。
 - 用 `ProjectResourceCatalogUtility` 把 `GFResourceRegistry`、`GFResourceResolverUtility` 和 `GFAssetUtility` 组合成统一资源目录 Adapter，模式目录和 UI 路由目录不重复实现注册、解析和缓存细节。
 - 用 `GameThemeCatalogUtility` 承接 `gf.content_package` 的 `GFContentPackageUtility`，注册内置主题内容包，并通过 `GFResourceResolverUtility` 用稳定资源键加载主题注册表。

@@ -73,7 +73,7 @@
 
 - `gf.standard.debug`
 
-原因：debug 包需要保持接入边界清晰，避免只是为了“装更多包”而增加维护面。`gf.save` 已通过 `GameSaveSlotWorkflowUtility` 接入最高分/统计槽位；后续 save graph 是否接入以 `docs/save_model.md` 为边界。
+原因：debug 包需要保持接入边界清晰，避免只是为了“装更多包”而增加维护面。`gf.save` 已通过 `GameSaveGraphUtility` 深入接入统计、书签和回放的统一事务图，边界以 `docs/save_model.md` 为准。
 
 ## 安全验证命令
 
@@ -141,11 +141,11 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 验证：模式注册表和 UI 路由注册表测试继续通过，并能捕获缺失路径。
 
 4. 存档 Module 深化。
-   - 涉及：`SaveSystem`、`GameSaveSlotWorkflowUtility`、`BookmarkSystem`、`ReplaySystem`、`SavedResourceCollectionUtility`、`GFStorageUtility`、`GFSaveSlotWorkflow`。
+   - 涉及：`GameSaveGraphUtility`、`GameSaveSectionData`、`SaveSystem`、`BookmarkSystem`、`ReplaySystem`、`GFSaveGraphUtility`、`GFSaveScope`、`GFSaveDataSource`、`GFStorageUtility`。
    - 问题：最高分、设置、书签、回放分属不同入口，持久化语义需要更统一。
-   - 当前状态：最高分/统计已通过 `GameSaveSlotWorkflowUtility` 写入 GF save slot，书签/回放继续由 `SavedResourceCollectionUtility` 管理时间戳 Resource 集合。
-   - 后续方向：如果确实需要对象图级保存，再基于 `GFSaveScope` / `GFSaveSource` 设计 save graph seam。
-   - 验证：统计 schema 拒绝、slot metadata/card、集合排序、删除、恢复都有测试。
+   - 当前状态：统计、书签和回放已迁移为三个 Feature-owned section，由项目级 SaveGraph 原子保存；设置保持独立生命周期。旧 SaveSlot Adapter 和时间戳 Resource 集合已删除。
+   - 存储契约：Binary Variant 类型保真、GF storage metadata、checksum、严格 Profile/section schema、UUID v7 稳定身份，不提供旧格式运行时双读。
+   - 验证：跨架构重载、单文件约束、后期 section 失败全图回滚、schema 拒绝和保存失败内存回滚均有聚焦测试。
 
 5. Installer ownership 固化。
    - 涉及：`GameArchitectureInstaller`、`gf.domain`、`gf.action_queue`。
@@ -167,7 +167,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 3. 统计和成就感。
    - 按模式记录最高分、最大方块、最佳步数、游戏次数。
-   - GF `game_stats` slot 已通过 `GFSaveSlotStorageAdapter` 保存单一 `stats` 真源，并严格校验 schema；普通倍增类模式已定义 2048 目标，目标上下文已写入 `GameStatusModel`、完整状态快照和书签，首次达成目标时会给出 HUD 提示和非强制弹层，结算统计以“本局曾达成目标”为准，模式选择页和游戏结束菜单已展示游玩次数、最佳步数、最大方块、平均表现、目标达成情况和最近一局摘要。
+   - GF `progress` SaveGraph section 保存单一 `stats` 真源并严格校验 schema；普通倍增类模式已定义 2048 目标，目标上下文已写入 `GameStatusModel`、完整状态快照和书签，首次达成目标时会给出 HUD 提示和非强制弹层，结算统计以“本局曾达成目标”为准，模式选择页和游戏结束菜单已展示游玩次数、最佳步数、最大方块、平均表现、目标达成情况和最近一局摘要。
 
 4. 设置体验。
    - 语言、音量、视觉主题、音效主题、动画强度、视觉效果强度、棋盘辅助显示。
@@ -227,10 +227,10 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 方向：继续让 `GameThemeRegistry`、背景 shader、tile scheme、菜单场景和视觉测试围绕文档收敛。
    - 收益：后续 AI 不会反复把风格改歪。
 
-3. 存档/书签/回放共享能力值得继续加深。
-   - 问题：最高分/统计已有 GF save slot Adapter，书签/回放仍是时间戳 Resource 集合；二者语义不同，需要继续保持清晰 seam。
-   - 方向：`docs/save_model.md` 已记录时间戳资源集合、最高分、设置、书签和回放语义；下一步是评估 `GFSaveScope` / `GFSaveSource` 是否能带来足够 leverage。
-   - 收益：减少 SaveSystem、BookmarkSystem、ReplaySystem 之间的重复知识。
+3. SaveGraph 运维体验可以继续加深。
+   - 当前状态：统计、书签和回放已统一到 Feature-owned section，GF SaveGraph 负责图级事务，旧并行实现已删除。
+   - 方向：在不放宽严格 schema 的前提下，为损坏存档增加面向玩家的隔离、导出诊断和显式重置流程。
+   - 收益：让 checksum 或未来版本拒绝不只出现在日志中，同时保持运行时无隐式降级。
 
 4. 包锁和物理源码目录存在策略差异。
    - 问题：当前是完整 GF 7 源码 vendored 状态，但 `.gf/packages.lock.json` 可能暂时不存在。

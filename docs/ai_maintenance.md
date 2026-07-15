@@ -149,13 +149,17 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 - `features/gameplay/scripts/systems/game_state_system.gd`
 - `features/bookmarks/scripts/data/bookmark_data.gd`
 - `features/replays/scripts/data/replay_data.gd`
-- `shared/scripts/utilities/saved_resource_collection_utility.gd`
+- `features/persistence/scripts/data/game_save_section_data.gd`
+- `features/persistence/scripts/utilities/game_save_graph_utility.gd`
+- `features/progress/scripts/data/game_stats_save_data.gd`
+- `features/bookmarks/scripts/data/bookmark_catalog_save_data.gd`
+- `features/replays/scripts/data/replay_catalog_save_data.gd`
 - `features/settings/scripts/utilities/game_settings_utility.gd`
 - `app/scripts/game_architecture_installer.gd`
 - `features/settings/scripts/menus/settings_menu.gd`
 - `docs/save_model.md`
 
-存档字段变化属于高风险改动。破坏性 Schema 变化应提供一次性显式迁移工具，不在运行时代码中长期保留旧字段双读；同时检查默认值、完整性校验、Resource 保存路径和回放/书签恢复流程。书签和回放的文件集合逻辑应复用 `SavedResourceCollectionUtility`。
+存档字段变化属于高风险改动。统计、书签和回放必须通过各自的 `GameSaveSectionData` Provider 进入 `GameSaveGraphUtility`，不得重新创建 SaveSlot、时间戳 Resource 集合或业务 System 直写文件。破坏性 Schema 变化应提供一次性显式迁移工具，不在运行时代码中长期保留旧字段双读；同时检查 Binary Variant 类型、checksum、Profile/section 版本、全图回滚和设置独立性。
 
 ### UI、菜单或表现变更
 
@@ -258,7 +262,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 300 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-16 使用当前 `godot` 命令运行通过。当前完整套件为 22 个 GUT 测试脚本、170 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree。当前 GF 快照声明 703 个全局脚本类，升级前为 698 个；原始退出计数因此经干净 HEAD 对照重新校准为 `ObjectDB = 256`、`Resources = 113`，同一 vendor tree 下不得继续增长。
+2026-07-15 使用当前 `godot` 命令运行通过。当前完整套件为 22 个 GUT 测试脚本、171 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 703 个全局脚本类，项目运行时声明 115 个；SaveGraph 迁移净增加 3 个项目运行时类，与干净对照中新增的 3 个 ObjectDB 注册和 3 个 Resource 完全一致，因此基线校准为 `ObjectDB = 259`、`Resources = 116`。GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
 
 编辑器 GDScript warning 诊断入口：
 
