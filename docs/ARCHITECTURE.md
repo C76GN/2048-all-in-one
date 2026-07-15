@@ -5,7 +5,7 @@
 ## 启动链路
 
 1. `scenes/boot/boot.tscn` 加载 `scripts/boot/boot.gd`，先绘制启动画面和印刷风格进度条。
-2. `boot.gd` 通过 `GFAsyncProgress` 发布启动阶段进度，并调用 `await Gf.init()`。
+2. `boot.gd` 通过 `GFAsyncProgress` 发布启动阶段进度，用 `GFAsyncWaitUtility` 管理预加载条件、超时和生命周期安全延迟，并调用 `await Gf.init()`。
 3. GF 根据 `project.godot` 的 `gf/project/installers` 运行 `GameArchitectureInstaller`。
 4. 项目注册 Model、Utility、System。
 5. `Boot` 通过 `GFSceneUtility.preload_scene()` 预热主菜单。
@@ -127,10 +127,11 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 - `GameAssetLibraryUtility`：承接 `GFContentPackageUtility`、`GFResourceResolverUtility` 和 `GFContentPackageExportPlan`，并用 `GFAssetCatalogSourceRegistry` 聚合运行时内容包与候选评审记录；文件枚举交给 `GFPathEnumerationTools`，引用关系交给 `GFProjectReferenceScanner`，第三方归因交给 `GFAssetAttributionTools`。
 - `GameDiagnosticsUtility`：向 `GFDiagnosticsUtility` 注册项目快照 provider，并通过 `GFSupportReportUtility` 和 `GFConsoleUtility` 提供统一的运行时支持报告入口。
 - `GameThemeCatalogUtility`：承接 `GFContentPackageUtility` 和 `GFResourceResolverUtility`，注册内置主题内容包并加载主题注册表。
-- `GameThemeUtility`：承接 `GFSettingsUtility`、`GameThemeCatalogUtility`、`GFShaderParameterUtility`、`GameUiMotionUtility` 和 `GFAudioUtility`，解析当前视觉/音效主题，并把主题的 `GFShaderParameterProfile` 批量应用到背景材质。
+- `GameThemeUtility`：承接 `GFSettingsUtility`、`GameThemeCatalogUtility`、`GFShaderParameterUtility`、`GameUiMotionUtility`、`GameCelebrationVfxUtility` 和 `GFAudioUtility`，解析当前视觉/音效主题，并把主题 Profile 注入背景、UI 与庆祝特效。
 - `SavedResourceCollectionUtility`：复用 `GFStorageUtility` 保存时间戳 Resource 集合。
 - `GameClockUtility`：集中 wall-clock 时间戳、短文件名 tick 和用户可读日期格式；`GFTimeUtility` 仍负责游戏 delta、缩放和暂停。
 - `GameUiMotionUtility`：统一菜单、按钮、面板和列表动效；设置页、模式配置和调试面板选项通过 `GFItemListBinder` 写入 OptionButton。
+- `GameCelebrationVfxUtility`：按 `GameCelebrationVfxTheme` 的素材键、基础 `GFShaderParameterProfile` 和事件 preset 播放目标达成/新纪录反馈，参数写入由 `GFShaderParameterUtility` 校验。
 - `GameBoardFeedbackUtility`：统一棋盘表现反馈，和 `GFActionQueueSystem` 协作，并通过 `GFShakeUtility` 播放 board channel 反馈。
 
 深化方向：
@@ -227,10 +228,11 @@ GF 框架版本以 `addons/gf/plugin.cfg` 为准，当前源码版本为 `7.0.0`
 1. 设置页通过 `GFFormBinder` 写入 `appearance/theme_id` 和 `audio/sound_theme_id`。
 2. `GameThemeCatalogUtility` 通过 `GFContentPackageUtility` 把 `resources/gf_content_package.json` 注册到 `GFResourceResolverUtility`。
 3. `GameThemeUtility` 通过 `GameThemeCatalogUtility` 使用 `game.theme_registry` 资源键解析 `GameTheme` / `GameAudioTheme`。
-4. `GFShaderParameterUtility` 校验并应用当前主题的背景 `GFShaderParameterProfile`；项目代码不维护 uniform 名到字段的重复映射。
-5. `GameUiMotionUtility` 接收 `GameUiPalette` 并刷新当前 UI 树。
-6. `GamePlayController` 和 `BoardPreview` 通过当前 `GameTheme` 解析 `BoardTheme` 和 `TileColorScheme`，运行中切换时用 `GridModel` 快照重绘棋盘。
-7. `GFAudioUtility` 接收主题音频银行；当前 `printworks` 主题使用 Universal UI Soundpack 中筛选出的 UI / tile / game over OGG 素材，后续继续打磨音色、响度和混音。
+4. `GFShaderParameterUtility` 校验并应用背景、按钮焦点和庆祝 VFX 的 `GFShaderParameterProfile`；项目脚本不直接调用 `set_shader_parameter()`。
+5. `GameUiMotionUtility` 接收 `GameUiPalette`，刷新当前 UI 树并应用色板引用的按钮焦点 Profile。
+6. `GameCelebrationVfxUtility` 接收 `GameCelebrationVfxTheme`，按事件 ID 解析 preset；主题可同时替换 shader 资源键、基础色板和事件参数。
+7. `GamePlayController` 和 `BoardPreview` 通过当前 `GameTheme` 解析 `BoardTheme` 和 `TileColorScheme`，运行中切换时用 `GridModel` 快照重绘棋盘。
+8. `GFAudioUtility` 接收主题音频银行；当前 `printworks` 主题使用 Universal UI Soundpack 中筛选出的 UI / tile / game over OGG 素材，后续继续打磨音色、响度和混音。
 
 ### 素材库
 
