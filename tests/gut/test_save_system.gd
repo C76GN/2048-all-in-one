@@ -10,15 +10,15 @@ const _GRID_SIZE: int = 4
 
 # --- 测试用例 ---
 
-func test_legacy_high_score_feeds_default_stats() -> void:
+func test_set_high_score_updates_stats_without_recording_play() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var save_system: SaveSystem = _get_save_system(setup)
 
 	save_system.set_high_score(_MODE_ID, _GRID_SIZE, 2048)
 
 	var stats: Dictionary = save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
-	assert_true(save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 2048, "旧 scores 结构应继续提供最高分。")
-	assert_true(_get_stat_int(stats, "best_score") == 2048, "旧最高分应成为默认统计的 best_score。")
+	assert_true(save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 2048, "统计槽应提供最高分。")
+	assert_true(_get_stat_int(stats, "best_score") == 2048, "最高分应以 stats.best_score 为唯一真源。")
 	assert_true(_get_stat_int(stats, "plays") == 0, "只写入最高分不应增加完整对局次数。")
 	assert_true(_get_stat_int(stats, "average_score") == 0, "只写入最高分不应生成平均分。")
 	assert_true(_get_stat_int(stats, "average_steps") == 0, "只写入最高分不应生成平均步数。")
@@ -54,45 +54,7 @@ func test_record_game_result_updates_stats() -> void:
 	_dispose_setup(setup)
 
 
-func test_sparse_legacy_stats_are_normalized() -> void:
-	var setup: Dictionary = await _create_save_architecture(
-		"",
-		{
-			"scores": {
-				_MODE_ID: {
-					"4x4": 2048,
-				},
-			},
-			"stats": {
-				_MODE_ID: {
-					"4x4": {
-						"plays": 3,
-						"best_score": 1024,
-						"last_score": 400,
-						"last_steps": 20,
-						"target_value": 2048,
-						"target_reached_count": 2,
-					},
-				},
-			},
-		}
-	)
-	var save_system: SaveSystem = _get_save_system(setup)
-
-	var stats: Dictionary = save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
-	assert_true(_get_stat_int(stats, "plays") == 3, "旧统计应保留完整对局次数。")
-	assert_true(_get_stat_int(stats, "best_score") == 2048, "旧 scores 最高分应补齐到统计 best_score。")
-	assert_true(_get_stat_int(stats, "total_score") == 1200, "缺失总分时应按最近分数和次数回填。")
-	assert_true(_get_stat_int(stats, "total_steps") == 60, "缺失总步数时应按最近步数和样本数回填。")
-	assert_true(_get_stat_int(stats, "step_samples") == 3, "缺失步数样本时应兼容旧统计次数。")
-	assert_true(_get_stat_int(stats, "average_score") == 400, "旧统计应重新计算平均分。")
-	assert_true(_get_stat_int(stats, "average_steps") == 20, "旧统计应重新计算平均步数。")
-	assert_true(_get_stat_int(stats, "target_reached_rate") == 67, "旧目标统计应重新计算达成率。")
-
-	_dispose_setup(setup)
-
-
-func test_legacy_target_rate_is_bounded_by_play_count() -> void:
+func test_target_rate_is_bounded_by_play_count() -> void:
 	var setup: Dictionary = await _create_save_architecture(
 		"",
 		{
@@ -110,7 +72,7 @@ func test_legacy_target_rate_is_bounded_by_play_count() -> void:
 	var save_system: SaveSystem = _get_save_system(setup)
 
 	var stats: Dictionary = save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
-	assert_true(_get_stat_int(stats, "target_reached_count") == 2, "旧统计的目标达成次数不应超过完整对局次数。")
+	assert_true(_get_stat_int(stats, "target_reached_count") == 2, "目标达成次数不应超过完整对局次数。")
 	assert_true(_get_stat_int(stats, "target_reached_rate") == 100, "目标达成率应归一化到 0 到 100。")
 
 	_dispose_setup(setup)
@@ -161,7 +123,7 @@ func test_record_game_result_preserves_existing_higher_score() -> void:
 
 	var stats: Dictionary = save_system.get_game_stats(_MODE_ID, _GRID_SIZE)
 	assert_true(save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 4096, "较低的完整对局分数不应覆盖已有最高分。")
-	assert_true(_get_stat_int(stats, "best_score") == 4096, "统计 best_score 应兼容并保留旧最高分。")
+	assert_true(_get_stat_int(stats, "best_score") == 4096, "统计 best_score 应保留已有最高分。")
 	assert_true(_get_stat_int(stats, "plays") == 1, "记录完整对局仍应增加 plays。")
 	assert_true(_get_stat_int(stats, "average_score") == 1024, "平均分应基于完整对局实际得分。")
 	assert_true(_get_stat_int(stats, "average_steps") == 30, "平均步数应基于完整对局实际步数。")
@@ -190,23 +152,80 @@ func test_stats_persist_through_gf_storage() -> void:
 	_dispose_setup(reloaded_setup)
 
 
+func test_stats_schema_mismatch_is_rejected_without_compatibility_fallback() -> void:
+	var setup: Dictionary = await _create_save_architecture(
+		"",
+		{
+			"stats": {
+				_MODE_ID: {
+					"4x4": {
+						"best_score": 8192,
+					},
+				},
+			},
+		},
+		GameSaveSlotWorkflowUtility.STATS_SCHEMA_VERSION - 1
+	)
+	var save_system: SaveSystem = _get_save_system(setup)
+
+	assert_true(save_system.get_high_score(_MODE_ID, _GRID_SIZE) == 0, "旧 schema 不应进入当前统计模型。")
+	assert_true(
+		_get_stat_int(save_system.get_game_stats(_MODE_ID, _GRID_SIZE), "best_score") == 0,
+		"schema 不匹配时应从当前默认统计开始。"
+	)
+
+	_dispose_setup(setup)
+
+
+func test_persisted_payload_uses_stats_as_single_root() -> void:
+	var setup: Dictionary = await _create_save_architecture()
+	var save_system: SaveSystem = _get_save_system(setup)
+	var save_slot_workflow: GameSaveSlotWorkflowUtility = _get_save_slot_workflow(setup)
+
+	save_system.set_high_score(_MODE_ID, _GRID_SIZE, 2048)
+	var payload: Dictionary = save_slot_workflow.load_stats_payload()
+
+	assert_true(payload.has("stats"), "当前统计载荷必须包含 stats 根字段。")
+	assert_false(payload.has("scores"), "当前统计载荷不应保留第二套 scores 真源。")
+	assert_true(payload.size() == 1, "统计载荷根字段应保持单一。")
+
+	_dispose_setup(setup)
+
+
+func test_stats_workflow_rejects_multiple_business_roots() -> void:
+	var setup: Dictionary = await _create_save_architecture()
+	var save_slot_workflow: GameSaveSlotWorkflowUtility = _get_save_slot_workflow(setup)
+	var save_error: Error = save_slot_workflow.save_stats_payload({
+		"stats": {},
+		"scores": {},
+	})
+
+	assert_true(save_error == ERR_INVALID_DATA, "统计工作流应拒绝多真源载荷。")
+	assert_false(save_slot_workflow.has_stats_payload(), "非法载荷不应创建 GF 槽位。")
+
+	_dispose_setup(setup)
+
+
 func test_stats_persist_through_gf_save_slot_workflow_metadata() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var save_system: SaveSystem = _get_save_system(setup)
-	var storage: GFStorageUtility = _get_storage(setup)
 	var save_slot_workflow: GameSaveSlotWorkflowUtility = _get_save_slot_workflow(setup)
 
 	save_system.record_game_result(_MODE_ID, _GRID_SIZE, 2048, 42, 2048, 500, 2048, true)
 
 	assert_true(
-		storage.has_slot(GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX),
+		save_slot_workflow.has_stats_payload(),
 		"最高分和统计应保存到 GF save slot。"
 	)
-	var card: GFSaveSlotCard = save_slot_workflow.build_stats_card(storage)
+	var card: GFSaveSlotCard = save_slot_workflow.build_stats_card()
 	assert_false(card.is_empty, "GFSaveSlotWorkflow 应能构建非空统计槽卡片。")
 	assert_true(card.slot_index == GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX, "统计槽卡片应使用稳定槽位。")
 	assert_true(GFVariantData.get_option_string(card.metadata, "schema_id") == "game_stats", "统计槽元数据应记录 schema_id。")
-	assert_true(GFVariantData.get_option_int(card.metadata, "schema_version") == 1, "统计槽元数据应记录 schema_version。")
+	assert_true(
+		GFVariantData.get_option_int(card.metadata, "schema_version")
+		== GameSaveSlotWorkflowUtility.STATS_SCHEMA_VERSION,
+		"统计槽元数据应记录当前 schema_version。"
+	)
 	var custom_metadata: Dictionary = GFVariantData.get_option_dictionary(card.metadata, "custom_metadata")
 	assert_true(_get_stat_int(custom_metadata, "total_plays") == 1, "统计槽元数据应汇总总局数。")
 	assert_true(_get_stat_int(custom_metadata, "best_score") == 2048, "统计槽元数据应汇总最高分。")
@@ -216,7 +235,11 @@ func test_stats_persist_through_gf_save_slot_workflow_metadata() -> void:
 
 # --- 私有/辅助方法 ---
 
-func _create_save_architecture(save_dir_name: String = "", initial_save_data: Dictionary = {}) -> Dictionary:
+func _create_save_architecture(
+	save_dir_name: String = "",
+	initial_save_data: Dictionary = {},
+	initial_schema_version: int = GameSaveSlotWorkflowUtility.STATS_SCHEMA_VERSION
+) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = GFStorageUtility.new()
 	var clock: GameClockUtility = GameClockUtility.new()
@@ -227,11 +250,17 @@ func _create_save_architecture(save_dir_name: String = "", initial_save_data: Di
 	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	if not initial_save_data.is_empty():
-		var _seed_error: Error = storage.save_slot(
+		var seed_store: GFSaveSlotStorageAdapter = GFSaveSlotStorageAdapter.new().setup(storage)
+		var seed_error: Error = seed_store.save_slot(
 			GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX,
 			initial_save_data,
-			{}
+			{
+				"slot_id": &"profile_0",
+				"schema_id": GameSaveSlotWorkflowUtility.STATS_SCHEMA_ID,
+				"schema_version": initial_schema_version,
+			}
 		)
+		assert_true(seed_error == OK, "测试统计载荷应通过 GFSaveSlotStorageAdapter 写入。")
 
 	await architecture.register_utility(GFStorageUtility, storage)
 	await architecture.register_utility(GameClockUtility, clock)
@@ -248,9 +277,10 @@ func _create_save_architecture(save_dir_name: String = "", initial_save_data: Di
 
 
 func _dispose_setup(setup: Dictionary, delete_file: bool = true) -> void:
-	var storage: GFStorageUtility = _get_storage(setup)
-	if delete_file and is_instance_valid(storage):
-		storage.delete_slot(GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX)
+	var save_slot_workflow: GameSaveSlotWorkflowUtility = _get_save_slot_workflow(setup)
+	if delete_file and is_instance_valid(save_slot_workflow):
+		var delete_error: Error = save_slot_workflow.delete_stats_payload()
+		assert_true(delete_error == OK or delete_error == ERR_FILE_NOT_FOUND, "统计槽清理应返回可预期结果。")
 
 	var architecture: GFArchitecture = _get_architecture(setup)
 	architecture.dispose()
@@ -264,15 +294,6 @@ func _get_architecture(setup: Dictionary) -> GFArchitecture:
 		return architecture
 	assert_true(false, "测试 setup 缺少 GFArchitecture。")
 	return GFArchitecture.new()
-
-
-func _get_storage(setup: Dictionary) -> GFStorageUtility:
-	var value: Variant = setup.get("storage")
-	if value is GFStorageUtility:
-		var storage: GFStorageUtility = value
-		return storage
-	assert_true(false, "测试 setup 缺少 GFStorageUtility。")
-	return GFStorageUtility.new()
 
 
 func _get_save_system(setup: Dictionary) -> SaveSystem:

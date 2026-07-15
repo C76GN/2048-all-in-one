@@ -1,6 +1,6 @@
 ## GameSaveSlotWorkflowUtility: 项目存档槽工作流 Adapter。
 ##
-## 把 GFSaveSlotWorkflow、GFSaveSlotMetadata、GFSaveSlotCard 和 GFStorageUtility
+## 把 GFSaveSlotWorkflow、GFSaveSlotMetadata、GFSaveSlotCard 和 GFSaveSlotStorageAdapter
 ## 组合成项目稳定的“玩家统计槽”Interface，让 SaveSystem 不需要了解槽位元数据细节。
 class_name GameSaveSlotWorkflowUtility
 extends "res://addons/gf/kernel/base/gf_utility.gd"
@@ -10,7 +10,7 @@ extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 const MAIN_STATS_SLOT_INDEX: int = 0
 const STATS_SCHEMA_ID: StringName = &"game_stats"
-const STATS_SCHEMA_VERSION: int = 1
+const STATS_SCHEMA_VERSION: int = 2
 const _SLOT_ID_TEMPLATE: String = "profile_{index}"
 const _SLOT_ROLE: StringName = &"profile"
 const _EMPTY_DISPLAY_NAME_TEMPLATE: String = "Profile {index}"
@@ -21,48 +21,67 @@ const _PROJECT_VERSION_SETTING: String = "application/config/version"
 # --- 私有变量 ---
 
 var _workflow: GFSaveSlotWorkflow
+var _slot_store: GFSaveSlotStorageAdapter
 
 
 # --- GF 生命周期方法 ---
 
 func init() -> void:
 	_workflow = _create_workflow()
+	_slot_store = GFSaveSlotStorageAdapter.new()
+
+
+func ready() -> void:
+	_slot_store = _slot_store.setup(_get_storage_utility())
 
 
 func dispose() -> void:
+	_slot_store = null
 	_workflow = null
 
 
 # --- 公共方法 ---
 
 ## 保存玩家统计载荷到 GF 存档槽。
-## @param storage: GF 存储工具。
 ## @param payload: SaveSystem 维护的统计载荷。
 ## @return: Godot Error 结果码。
-func save_stats_payload(storage: GFStorageUtility, payload: Dictionary) -> Error:
-	if storage == null:
+func save_stats_payload(payload: Dictionary) -> Error:
+	if not _is_slot_store_configured():
 		return ERR_UNCONFIGURED
+	if payload.size() != 1 or not (GFVariantData.get_option_value(payload, "stats") is Dictionary):
+		return ERR_INVALID_DATA
 	var metadata: GFSaveSlotMetadata = build_stats_metadata(payload)
-	return storage.save_slot(MAIN_STATS_SLOT_INDEX, payload, metadata.to_dict(true))
+	return _slot_store.save_slot(MAIN_STATS_SLOT_INDEX, payload, metadata.to_dict(true))
 
 
 ## 读取玩家统计载荷。
-## @param storage: GF 存储工具。
 ## @return: SaveSystem 统计载荷；无槽位时返回空字典。
-func load_stats_payload(storage: GFStorageUtility) -> Dictionary:
-	if storage == null or not storage.has_slot(MAIN_STATS_SLOT_INDEX):
+func load_stats_payload() -> Dictionary:
+	if not has_stats_payload():
 		return {}
-	var payload: Dictionary = storage.load_slot(MAIN_STATS_SLOT_INDEX)
-	var _erase_result: bool = payload.erase(GFStorageCodec.META_KEY)
-	return payload
+	var metadata: Dictionary = _slot_store.load_slot_metadata(MAIN_STATS_SLOT_INDEX)
+	if not _is_current_stats_metadata(metadata):
+		return {}
+	var payload: Dictionary = _slot_store.load_slot(MAIN_STATS_SLOT_INDEX)
+	var stats_value: Variant = GFVariantData.get_option_value(payload, "stats")
+	if not (stats_value is Dictionary):
+		return {}
+	return {
+		"stats": GFVariantData.as_dictionary(stats_value).duplicate(true),
+	}
+
+
+## 查询当前 GF 槽位是否具备完整的数据和元数据文件。
+func has_stats_payload() -> bool:
+	return _is_slot_store_configured() and _slot_store.has_slot(MAIN_STATS_SLOT_INDEX)
 
 
 ## 删除玩家统计槽。
-## @param storage: GF 存储工具。
-func delete_stats_payload(storage: GFStorageUtility) -> void:
-	if storage == null:
-		return
-	storage.delete_slot(MAIN_STATS_SLOT_INDEX)
+## @return: Godot Error 结果码。
+func delete_stats_payload() -> Error:
+	if not _is_slot_store_configured():
+		return ERR_UNCONFIGURED
+	return _slot_store.delete_slot(MAIN_STATS_SLOT_INDEX)
 
 
 ## 构建玩家统计槽元数据。
@@ -87,11 +106,17 @@ func build_stats_metadata(payload: Dictionary) -> GFSaveSlotMetadata:
 
 
 ## 构建玩家统计槽 UI 摘要卡。
-## @param storage: GF 存储工具。
 ## @return: GF 存档槽卡片。
-func build_stats_card(storage: GFStorageUtility) -> GFSaveSlotCard:
-	var summary: Dictionary = _find_stats_slot_summary(storage)
-	return _get_workflow().build_card_for_index(MAIN_STATS_SLOT_INDEX, summary)
+func build_stats_card() -> GFSaveSlotCard:
+	if not _is_slot_store_configured():
+		return _get_workflow().build_empty_card(MAIN_STATS_SLOT_INDEX)
+	var cards: Array[GFSaveSlotCard] = _get_workflow().build_cards_from_slot_store(
+		_slot_store,
+		[MAIN_STATS_SLOT_INDEX]
+	)
+	if cards.is_empty():
+		return _get_workflow().build_empty_card(MAIN_STATS_SLOT_INDEX)
+	return cards[0]
 
 
 func get_debug_snapshot() -> Dictionary:
@@ -100,6 +125,9 @@ func get_debug_snapshot() -> Dictionary:
 		"slot_id": String(_get_workflow().get_slot_id_for_index(MAIN_STATS_SLOT_INDEX)),
 		"schema_id": String(STATS_SCHEMA_ID),
 		"schema_version": STATS_SCHEMA_VERSION,
+		"storage_configured": _is_slot_store_configured(),
+		"data_file_template": _slot_store.data_file_template if _slot_store != null else "",
+		"metadata_file_template": _slot_store.metadata_file_template if _slot_store != null else "",
 	}
 
 
@@ -120,14 +148,16 @@ func _get_workflow() -> GFSaveSlotWorkflow:
 	return _workflow
 
 
-func _find_stats_slot_summary(storage: GFStorageUtility) -> Dictionary:
-	if storage == null:
-		return {}
-	for summary: Dictionary in storage.list_slots():
-		var summary_slot_index: int = GFVariantData.get_option_int(summary, "slot_id", -1)
-		if summary_slot_index == MAIN_STATS_SLOT_INDEX:
-			return summary
-	return {}
+func _is_slot_store_configured() -> bool:
+	return _slot_store != null and _slot_store.get_storage() != null
+
+
+func _is_current_stats_metadata(metadata_data: Dictionary) -> bool:
+	var metadata: GFSaveSlotMetadata = GFSaveSlotMetadata.from_dict(metadata_data)
+	return (
+		metadata.schema_id == STATS_SCHEMA_ID
+		and metadata.schema_version == STATS_SCHEMA_VERSION
+	)
 
 
 func _make_custom_metadata(payload: Dictionary) -> Dictionary:
@@ -164,12 +194,6 @@ func _count_total_plays(payload: Dictionary) -> int:
 
 func _find_best_score(payload: Dictionary) -> int:
 	var best_score: int = 0
-	var scores: Dictionary = GFVariantData.get_option_dictionary(payload, "scores")
-	for mode_scores_value: Variant in scores.values():
-		var mode_scores: Dictionary = GFVariantData.as_dictionary(mode_scores_value)
-		for score_value: Variant in mode_scores.values():
-			best_score = maxi(best_score, GFVariantData.to_int(score_value, 0))
-
 	var stats: Dictionary = GFVariantData.get_option_dictionary(payload, "stats")
 	for mode_stats_value: Variant in stats.values():
 		var mode_stats: Dictionary = GFVariantData.as_dictionary(mode_stats_value)
@@ -192,3 +216,11 @@ func _get_latest_played_at(payload: Dictionary) -> int:
 
 func _get_project_version() -> String:
 	return GFVariantData.to_text(ProjectSettings.get_setting(_PROJECT_VERSION_SETTING, ""))
+
+
+func _get_storage_utility() -> GFStorageUtility:
+	var utility_value: Object = get_utility(GFStorageUtility)
+	if utility_value is GFStorageUtility:
+		var storage: GFStorageUtility = utility_value
+		return storage
+	return null

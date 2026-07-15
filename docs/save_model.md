@@ -8,7 +8,7 @@
 
 1. 玩家数据可以稳定恢复。
 2. 示例项目清楚展示 GF 的存储、设置、资源集合和命令历史能力。
-3. 存档格式变化可追踪、可兼容，不把一次 UI 改动变成数据破坏。
+3. 存档格式变化必须显式提升 schema；不支持的 schema 直接拒绝，禁止长期保留双轨字段。
 4. GF save 接入有明确边界，不重复实现框架能力。
 
 ## 当前持久化入口
@@ -24,23 +24,19 @@
 - `GFSaveSlotWorkflow`
 - `GFSaveSlotMetadata`
 - `GFSaveSlotCard`
+- `GFSaveSlotStorageAdapter`
 - `GFStorageUtility`
 
 槽位：
 
 - `GameSaveSlotWorkflowUtility.MAIN_STATS_SLOT_INDEX`
 - `schema_id = "game_stats"`
-- `schema_version = 1`
+- `schema_version = 2`
 
 结构：
 
 ```gdscript
 {
-	"scores": {
-		"<mode_id>": {
-			"<grid_size>x<grid_size>": <high_score>
-		}
-	},
 	"stats": {
 		"<mode_id>": {
 			"<grid_size>x<grid_size>": {
@@ -48,6 +44,15 @@
 				"best_score": 0,
 				"best_steps": 0,
 				"max_tile": 0,
+				"total_score": 0,
+				"total_steps": 0,
+				"step_samples": 0,
+				"average_score": 0,
+				"average_steps": 0,
+				"target_value": 0,
+				"target_reached_count": 0,
+				"target_reached_rate": 0,
+				"last_target_reached": false,
 				"last_score": 0,
 				"last_steps": 0,
 				"last_max_tile": 0,
@@ -62,10 +67,11 @@
 
 - `mode_id` 来自模式资源文件名派生的稳定标识。
 - `grid_size` 以 `4x4`、`5x5` 这样的字符串作为二级 key。
-- `scores` 保留旧最高分结构，用于兼容旧数据和模式选择页的最高分展示。
-- `stats` 记录完整对局次数、最佳分数、最佳步数、历史最大方块、平均表现、目标达成次数和最近一局摘要。
-- 旧 `scores` 数据会作为 `stats.best_score` 的默认值读取。
-- 加载后会移除 `GFStorageCodec.META_KEY`，避免存储层元信息污染业务数据。
+- `stats.best_score` 是最高分的唯一真源；项目不维护第二套 `scores` 根字段。
+- `stats` 同时记录完整对局次数、最佳步数、历史最大方块、平均表现、目标达成次数和最近一局摘要。
+- `GameSaveSlotWorkflowUtility` 在 `ready()` 阶段把 `GFSaveSlotStorageAdapter` 绑定到 `GFStorageUtility`，`SaveSystem` 不直接依赖底层存储工具。
+- 加载前必须校验 slot metadata 的 `schema_id` 与 `schema_version`；不匹配时返回空的当前模型，不执行旧字段回退。
+- 加载后只投影出 `stats` 根字段，存储元信息和未知根字段不会进入业务模型。
 - 保存时 `GameSaveSlotWorkflowUtility` 会生成 GF slot metadata，记录总局数、最高分、模式数量和 `game_stats` schema。
 - UI 或调试工具需要展示概要时，应通过 `GFSaveSlotCard` 获取通用槽位摘要，不直接读取底层文件名。
 
@@ -115,7 +121,6 @@
 - `target_reached`
 - `status_message`
 - `extra_stats`
-- `rng_state`
 - `rng_full_state`
 - `board_snapshot`
 - `rules_states`
@@ -224,7 +229,7 @@
 - `last_max_tile`
 - `last_played_at`
 
-`SaveSystem.get_game_stats()` 会返回带默认值的统计字典，并兼容旧 `scores` 最高分。目标达成统计以 `GameStatusModel.target_reached` 代表的“本局曾经达成目标”为准，再用当前最高方块做兜底判断；旧统计中的 `target_reached_count` 会被限制在 `0..plays`，确保 `target_reached_rate` 始终是 `0..100` 的胜率。当前测试已覆盖旧最高分、稀疏旧统计回填、目标达成率归一化、零步对局不污染步数平均值、目标达成统计和 GF Storage 持久化。
+`SaveSystem.get_game_stats()` 会返回满足当前 schema 默认值和数值范围约束的统计字典。目标达成统计以 `GameStatusModel.target_reached` 代表的“本局曾经达成目标”为准，再用当前最高方块做兜底判断；`target_reached_count` 会被限制在 `0..plays`，确保 `target_reached_rate` 始终位于 `0..100`。当前测试已覆盖单一最高分真源、schema 拒绝、目标达成率归一化、零步对局不污染步数平均值、GF Adapter 持久化和 slot metadata/card。
 
 模式选择页会读取这些统计，用一段短摘要展示当前尺寸下的游玩次数、最佳步数、最大方块、平均表现、目标达成情况和最近一局表现。游戏结束菜单也会展示当前局结果、历史摘要、平均表现和目标达成情况。统计展示不应覆盖模式玩法说明，也不应把书签或回放数据混入全局成绩。
 
@@ -237,7 +242,6 @@
 
 ```gdscript
 {
-	"scores": {},
 	"stats": {
 		"<mode_id>": {
 			"<grid_size>x<grid_size>": {
@@ -264,7 +268,7 @@
 }
 ```
 
-如果继续新增 `stats` 字段，必须保留旧 `scores` 读取兼容，或提供一次性迁移。
+如果继续新增必需的 `stats` 字段，应提升 `STATS_SCHEMA_VERSION` 并更新测试和本文档。确需迁移历史数据时，应提供一次性离线迁移工具；运行时模型不得长期保留旧字段旁路。
 
 ## GF Save 接入边界
 
@@ -277,7 +281,7 @@
 
 建议顺序：
 
-1. 基于 `tests/gut/test_save_system.gd` 继续补齐统计兼容测试，并保持旧数据归一化行为稳定。
+1. 基于 `tests/gut/test_save_system.gd` 保持当前 schema、单一真源和 slot metadata 校验稳定。
 2. 如果需要 save graph，再为当前对局、统计、书签和回放分别设计 `GFSaveScope` / `GFSaveSource` seam。
 3. 最后迁移底层保存实现，保持 `SaveSystem`、`BookmarkSystem`、`ReplaySystem` 的公共 Interface 尽量不变。
 
@@ -294,7 +298,8 @@
 
 高风险改动还应新增聚焦测试：
 
-- 旧最高分数据仍可读取。
+- 不匹配的统计 schema 会被明确拒绝。
+- 保存后的统计载荷只有 `stats` 一个业务根字段。
 - 新统计字段默认值正确。
 - 书签加载后 `file_path` 可用于删除。
 - 回放继续游玩会清理 redo 历史。

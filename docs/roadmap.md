@@ -145,7 +145,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 问题：最高分、设置、书签、回放分属不同入口，持久化语义需要更统一。
    - 当前状态：最高分/统计已通过 `GameSaveSlotWorkflowUtility` 写入 GF save slot，书签/回放继续由 `SavedResourceCollectionUtility` 管理时间戳 Resource 集合。
    - 后续方向：如果确实需要对象图级保存，再基于 `GFSaveScope` / `GFSaveSource` 设计 save graph seam。
-   - 验证：存档兼容、slot metadata/card、集合排序、删除、恢复都有测试。
+   - 验证：统计 schema 拒绝、slot metadata/card、集合排序、删除、恢复都有测试。
 
 5. Installer ownership 固化。
    - 涉及：`GameArchitectureInstaller`、`gf.domain`、`gf.action_queue`。
@@ -167,7 +167,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 3. 统计和成就感。
    - 按模式记录最高分、最大方块、最佳步数、游戏次数。
-   - GF `game_stats` slot 已保存 `stats` 并保留旧 `scores` 字典语义；普通倍增类模式已定义 2048 目标，目标上下文已写入 `GameStatusModel`、完整状态快照和书签，首次达成目标时会给出 HUD 提示和非强制弹层，结算统计以“本局曾达成目标”为准，模式选择页和游戏结束菜单已展示游玩次数、最佳步数、最大方块、平均表现、目标达成情况和最近一局摘要。
+   - GF `game_stats` slot 已通过 `GFSaveSlotStorageAdapter` 保存单一 `stats` 真源，并严格校验 schema；普通倍增类模式已定义 2048 目标，目标上下文已写入 `GameStatusModel`、完整状态快照和书签，首次达成目标时会给出 HUD 提示和非强制弹层，结算统计以“本局曾达成目标”为准，模式选择页和游戏结束菜单已展示游玩次数、最佳步数、最大方块、平均表现、目标达成情况和最近一局摘要。
 
 4. 设置体验。
    - 语言、音量、视觉主题、音效主题、动画强度、视觉效果强度、棋盘辅助显示。
