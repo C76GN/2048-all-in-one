@@ -5,7 +5,7 @@
 ## [br]
 ## @api public
 ## [br]
-## @category runtime_handle
+## @category runtime_service
 ## [br]
 ## @since 3.17.0
 class_name GFGravityProbe3D
@@ -100,20 +100,14 @@ var _cached_acceleration: Vector3 = Vector3.ZERO
 ## [br]
 ## @return: 按 combination_mode 组合后的加速度。
 func sample() -> Vector3:
-	if _can_use_cached_sample():
+	var fields: Array[Node] = _get_fields_from_group()
+	var field_signature: String = _get_field_group_signature(fields)
+	if _can_use_cached_sample(field_signature):
 		last_acceleration = _cached_acceleration
 		return last_acceleration
 
-	if get_tree() == null or field_group == &"":
-		last_acceleration = Vector3.ZERO
-		if use_fallback_when_empty:
-			last_acceleration = _get_finite_fallback_acceleration()
-		_store_sample_cache()
-		return last_acceleration
-
-	var fields: Array[Node] = _get_fields_from_group()
 	last_acceleration = sample_fields(fields)
-	_store_sample_cache()
+	_store_sample_cache(field_signature)
 	return last_acceleration
 
 
@@ -200,11 +194,14 @@ func invalidate_cache() -> void:
 
 func _collect_field_samples(fields: Array) -> Array[Dictionary]:
 	var samples: Array[Dictionary] = []
-	for field_value: Variant in fields:
+	var field_snapshot: Array = fields.duplicate()
+	for field_value: Variant in field_snapshot:
 		var field: Object = _variant_to_valid_object(field_value)
 		if field == null or not _is_field_in_probe_scope(field) or not _can_call_get_acceleration_at(field):
 			continue
 		var value: Variant = field.call("get_acceleration_at", global_position)
+		if not is_instance_valid(field):
+			continue
 		if value is Vector3:
 			var acceleration_value: Vector3 = value
 			if not _is_finite_vector3(acceleration_value):
@@ -219,10 +216,10 @@ func _collect_field_samples(fields: Array) -> Array[Dictionary]:
 
 func _get_field_provider_objects(candidate_provider: Object, options: Dictionary) -> Array[Object]:
 	var objects: Array[Object] = []
-	if candidate_provider == null or not candidate_provider.has_method("get_candidate_objects"):
+	if not is_instance_valid(candidate_provider) or not candidate_provider.has_method("get_candidate_objects"):
 		return objects
 
-	var query_options: Dictionary = options.duplicate(true)
+	var query_options: Dictionary = options.duplicate()
 	if not query_options.has("method_name"):
 		query_options["method_name"] = &"get_acceleration_at"
 	var value: Variant = candidate_provider.call("get_candidate_objects", query_options)
@@ -230,9 +227,9 @@ func _get_field_provider_objects(candidate_provider: Object, options: Dictionary
 		return objects
 
 	for candidate_value: Variant in GFVariantData.as_array(value):
-		if not (candidate_value is Object):
+		var candidate: Object = _variant_to_valid_object(candidate_value)
+		if candidate == null:
 			continue
-		var candidate: Object = candidate_value
 		if not _can_call_get_acceleration_at(candidate):
 			continue
 		objects.append(candidate)
@@ -294,6 +291,8 @@ func _get_field_priority(field: Object) -> int:
 			return priority_value
 		if priority_value is float:
 			var float_priority: float = priority_value
+			if is_nan(float_priority) or is_inf(float_priority):
+				return 0
 			return int(float_priority)
 	return 0
 
@@ -316,7 +315,7 @@ func _get_sample_priority(sample_record: Dictionary) -> int:
 	return 0
 
 
-func _can_use_cached_sample() -> bool:
+func _can_use_cached_sample(field_signature: String) -> bool:
 	return (
 		cache_samples_per_frame
 		and _cached_process_frame == Engine.get_process_frames()
@@ -326,11 +325,11 @@ func _can_use_cached_sample() -> bool:
 		and _cached_use_fallback_when_empty == use_fallback_when_empty
 		and _cached_fallback_acceleration == fallback_acceleration
 		and _cached_position == global_position
-		and _cached_field_signature == _get_field_group_signature()
+		and _cached_field_signature == field_signature
 	)
 
 
-func _store_sample_cache() -> void:
+func _store_sample_cache(field_signature: String) -> void:
 	_cached_process_frame = Engine.get_process_frames()
 	_cached_physics_frame = Engine.get_physics_frames()
 	_cached_field_group = field_group
@@ -338,15 +337,15 @@ func _store_sample_cache() -> void:
 	_cached_use_fallback_when_empty = use_fallback_when_empty
 	_cached_fallback_acceleration = fallback_acceleration
 	_cached_position = global_position
-	_cached_field_signature = _get_field_group_signature()
+	_cached_field_signature = field_signature
 	_cached_acceleration = last_acceleration
 
 
-func _get_field_group_signature() -> String:
-	if get_tree() == null or field_group == &"":
+func _get_field_group_signature(fields: Array[Node]) -> String:
+	if fields.is_empty():
 		return ""
 	var ids: PackedStringArray = PackedStringArray()
-	for node: Node in _get_fields_from_group():
+	for node: Node in fields:
 		var _append_result: bool = ids.append(_get_field_signature(node))
 	ids.sort()
 	return "|".join(ids)
@@ -357,7 +356,7 @@ func _get_fields_from_group() -> Array[Node]:
 	if get_tree() == null or field_group == &"":
 		return result
 	for node: Node in get_tree().get_nodes_in_group(String(field_group)):
-		if _is_field_in_probe_scope(node):
+		if _is_field_in_probe_scope(node) and _can_call_get_acceleration_at(node):
 			result.append(node)
 	return result
 
@@ -378,13 +377,22 @@ func _is_field_in_probe_scope(field: Object) -> bool:
 
 
 func _can_call_get_acceleration_at(field: Object) -> bool:
-	if field == null or not field.has_method("get_acceleration_at"):
+	if not is_instance_valid(field) or not field.has_method("get_acceleration_at"):
 		return false
 	for method_info: Dictionary in field.get_method_list():
 		if StringName(GFVariantData.get_option_string(method_info, "name")) != &"get_acceleration_at":
 			continue
-		return GFVariantData.get_option_array(method_info, "args").size() >= 1
+		return _method_accepts_argument_count(method_info, 1)
 	return false
+
+
+func _method_accepts_argument_count(method_info: Dictionary, argument_count: int) -> bool:
+	var arguments: Array = GFVariantData.get_option_array(method_info, "args")
+	var default_arguments: Array = GFVariantData.get_option_array(method_info, "default_args")
+	var required_count: int = maxi(arguments.size() - default_arguments.size(), 0)
+	var method_flags: int = GFVariantData.get_option_int(method_info, "flags", 0)
+	var accepts_varargs: bool = (method_flags & METHOD_FLAG_VARARG) != 0
+	return required_count <= argument_count and (argument_count <= arguments.size() or accepts_varargs)
 
 
 func _get_field_order_key(field: Object) -> String:
@@ -403,7 +411,7 @@ func _get_field_signature(field: Node) -> String:
 		var _position_appended: bool = parts.append(str(node_3d.global_position))
 	if field is GFGravityField3D:
 		var gravity_field: GFGravityField3D = field
-		var _state_appended: bool = parts.append("%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % [
+		var _state_appended: bool = parts.append("%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % [
 			str(gravity_field.enabled),
 			str(gravity_field.priority),
 			str(gravity_field.acceleration),
@@ -414,6 +422,7 @@ func _get_field_signature(field: Node) -> String:
 			str(gravity_field.falloff_mode),
 			str(gravity_field.falloff_curve.get_instance_id() if gravity_field.falloff_curve != null else 0),
 			str(gravity_field.is_inside_tree()),
+			str(gravity_field.get_gravity_revision_for_probe()),
 		])
 	return ":".join(parts)
 

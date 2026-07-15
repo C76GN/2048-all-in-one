@@ -195,7 +195,7 @@ func scan(payload_override: Variant = null, hit_id_override: StringName = &"") -
 	if not is_colliding():
 		return _emit_missed(&"no_collision")
 
-	var receiver: Object = get_collider()
+	var receiver: Object = _resolve_hit_receiver(get_collider())
 	var context: GFCombatHitContext = build_hit_context(receiver, payload_override, hit_id_override)
 	var report_value: Variant = _MESSAGE_DISPATCH_SUPPORT._dispatch_to_receiver(
 		hit_enabled,
@@ -241,3 +241,7 @@ func _resolve_sender() -> Object:
 		if sender != null:
 			return sender
 	return self
+
+
+func _resolve_hit_receiver(candidate: Object) -> Object:
+	return _MESSAGE_DISPATCH_SUPPORT._resolve_receiver(candidate, &"receive_hit")

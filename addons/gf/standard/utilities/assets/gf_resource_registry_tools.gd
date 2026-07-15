@@ -84,6 +84,13 @@ const DEFAULT_MAX_SCAN_DEPTH: int = 32
 ## @api public
 const DEFAULT_MAX_RESOURCE_PATHS: int = 10000
 
+## 默认单次资源扫描访问的目录项数量上限。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const DEFAULT_MAX_SCANNED_ENTRIES: int = 100000
+
 ## 默认路径字段：资源扩展名。
 ## [br]
 ## @api public
@@ -166,11 +173,11 @@ static func is_resource_path(path: String, extensions: PackedStringArray = RESOU
 ## [br]
 ## @param root_path: 扫描起点，通常是 res:// 下的目录。
 ## [br]
-## @param options: 可选项，支持 recursive、include_addons、excluded_paths、extensions、include_patterns、exclude_patterns、pattern_base_path、include_hidden、include_import_sidecars、max_scan_depth 与 max_resource_paths。
+## @param options: 可选项，支持 recursive、include_addons、excluded_paths、extensions、include_patterns、exclude_patterns、pattern_base_path、include_hidden、include_import_sidecars、max_scan_depth、max_resource_paths 与 max_scanned_entries。
 ## [br]
 ## @return 按字典序排序的资源路径。
 ## [br]
-## @schema options: Dictionary，可包含 recursive、include_addons、excluded_paths、extensions、include_patterns、exclude_patterns、pattern_base_path、include_hidden、include_import_sidecars、max_scan_depth 和 max_resource_paths 字段。
+## @schema options: Dictionary，可包含 recursive、include_addons、excluded_paths、extensions、include_patterns、exclude_patterns、pattern_base_path、include_hidden、include_import_sidecars、max_scan_depth、max_resource_paths 和 max_scanned_entries 字段。
 static func scan_resource_paths(root_path: String = "res://", options: Dictionary = {}) -> PackedStringArray:
 	var result: PackedStringArray = PackedStringArray()
 	var normalized_root: String = _normalize_dir_path(root_path)
@@ -188,43 +195,46 @@ static func scan_resource_paths(root_path: String = "res://", options: Dictionar
 	var include_import_sidecars: bool = GFVariantData.get_option_bool(options, "include_import_sidecars", false)
 	var max_scan_depth: int = maxi(GFVariantData.get_option_int(options, "max_scan_depth", DEFAULT_MAX_SCAN_DEPTH), 0)
 	var max_resource_paths: int = maxi(GFVariantData.get_option_int(options, "max_resource_paths", DEFAULT_MAX_RESOURCE_PATHS), 0)
+	var max_scanned_entries: int = maxi(
+		GFVariantData.get_option_int(options, "max_scanned_entries", DEFAULT_MAX_SCANNED_ENTRIES),
+		0
+	)
 	var scan_state: Dictionary = _make_scan_state()
 	var enumeration_options: Dictionary = {
 		"recursive": recursive,
 		"include_hidden": include_hidden,
 		"extensions": extensions,
 		"excluded_paths": excluded_paths,
+		"file_filter": func(candidate_path: String) -> bool:
+			return _can_include_file_entry(
+				candidate_path.get_file(),
+				candidate_path,
+				extensions,
+				pattern_base_path,
+				include_patterns,
+				exclude_patterns,
+				include_import_sidecars
+			),
 		"max_scan_depth": max_scan_depth,
-		"max_file_count": 0,
+		"max_file_count": max_resource_paths,
+		"max_entry_count": max_scanned_entries,
 		"sort": false,
 	}
 	var scan_report: Dictionary = GFPathEnumerationTools.scan_files(normalized_root, enumeration_options)
-	var candidate_paths: PackedStringArray = GFVariantData.get_option_packed_string_array(scan_report, "paths")
-	for candidate_path: String in candidate_paths:
-		if not _can_include_file_entry(
-			candidate_path.get_file(),
-			candidate_path,
-			extensions,
-			pattern_base_path,
-			include_patterns,
-			exclude_patterns,
-			include_import_sidecars
-		):
-			continue
-		if not _can_collect_more_resource_paths(result, max_resource_paths):
-			_warn_resource_path_limit(max_resource_paths, scan_state)
-			break
-		var _path_appended: bool = result.append(candidate_path)
+	result = GFVariantData.get_option_packed_string_array(scan_report, "paths")
 
-	if (
-		GFVariantData.get_option_bool(scan_report, "truncated")
-		and GFVariantData.get_option_string(scan_report, "limit_kind", "") == "depth"
-	):
-		_warn_scan_depth_limit(
-			GFVariantData.get_option_string(scan_report, "limit_path", normalized_root),
-			max_scan_depth,
-			scan_state
-		)
+	if GFVariantData.get_option_bool(scan_report, "truncated"):
+		var limit_kind: String = GFVariantData.get_option_string(scan_report, "limit_kind", "")
+		if limit_kind == "count":
+			_warn_resource_path_limit(max_resource_paths, scan_state)
+		elif limit_kind == "entry_count":
+			_warn_scanned_entry_limit(max_scanned_entries, scan_state)
+		elif limit_kind == "depth":
+			_warn_scan_depth_limit(
+				GFVariantData.get_option_string(scan_report, "limit_path", normalized_root),
+				max_scan_depth,
+				scan_state
+			)
 	result.sort()
 	return result
 
@@ -769,6 +779,7 @@ static func _can_collect_more_resource_paths(result: PackedStringArray, max_reso
 static func _make_scan_state() -> Dictionary:
 	return {
 		"count_warning_emitted": false,
+		"entry_warning_emitted": false,
 		"depth_warning_emitted": false,
 	}
 
@@ -813,6 +824,13 @@ static func _warn_resource_path_limit(max_resource_paths: int, scan_state: Dicti
 		return
 	scan_state["count_warning_emitted"] = true
 	push_warning("[GFResourceRegistryTools] scan_resource_paths 已达到 max_resource_paths=%d，后续资源已跳过。" % max_resource_paths)
+
+
+static func _warn_scanned_entry_limit(max_scanned_entries: int, scan_state: Dictionary) -> void:
+	if max_scanned_entries <= 0 or GFVariantData.get_option_bool(scan_state, "entry_warning_emitted"):
+		return
+	scan_state["entry_warning_emitted"] = true
+	push_warning("[GFResourceRegistryTools] scan_resource_paths 已达到 max_scanned_entries=%d，后续目录项已跳过。" % max_scanned_entries)
 
 
 static func _warn_scan_depth_limit(path: String, max_scan_depth: int, scan_state: Dictionary) -> void:

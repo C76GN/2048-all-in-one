@@ -29,7 +29,13 @@ const _GF_ASYNC_CALL_SCRIPT = preload("res://addons/gf/kernel/core/gf_async_call
 ## 等待秒数。
 ## [br]
 ## @api public
-var seconds: float = 0.0
+## [br]
+## @since 3.17.0
+var seconds: float:
+	get:
+		return _seconds
+	set(value):
+		_seconds = _ACTION_TIME_POLICY.sanitize_non_negative_seconds(value)
 
 ## 可选宿主节点。存在时优先从该节点获取 SceneTree。
 ## [br]
@@ -55,6 +61,7 @@ var ignore_time_scale: bool = false
 # --- 私有变量 ---
 
 var _execution_serial: int = 0
+var _seconds: float = 0.0
 var _remaining_seconds: float = 0.0
 var _paused: bool = false
 
@@ -62,7 +69,7 @@ var _paused: bool = false
 # --- Godot 生命周期方法 ---
 
 func _init(p_seconds: float = 0.0, p_host_node: Node = null) -> void:
-	seconds = maxf(p_seconds, 0.0)
+	seconds = p_seconds
 	host_node = p_host_node
 
 

@@ -4,6 +4,11 @@
 extends RefCounted
 
 
+# --- 常量 ---
+
+const _MAX_PARENT_RECEIVER_DEPTH: int = 128
+
+
 # --- 私有/辅助方法 ---
 
 static func _dispatch_to_receiver(
@@ -81,10 +86,17 @@ static func _resolve_receiver(candidate: Object, receiver_method: StringName) ->
 		return candidate
 
 	var node: Node = _variant_to_node(candidate)
-	while node != null:
+	var visited: Dictionary = {}
+	var depth: int = 0
+	while node != null and depth < _MAX_PARENT_RECEIVER_DEPTH:
+		var instance_id: int = node.get_instance_id()
+		if visited.has(instance_id):
+			return null
+		visited[instance_id] = true
 		if node.has_method(receiver_method):
 			return node
 		node = node.get_parent()
+		depth += 1
 	return null
 
 

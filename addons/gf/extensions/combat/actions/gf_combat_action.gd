@@ -27,6 +27,11 @@ enum Operation {
 }
 
 
+# --- 常量 ---
+
+const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/gf_combat_finite_math.gd")
+
+
 # --- 导出变量 ---
 
 ## 动作标识。
@@ -47,7 +52,15 @@ enum Operation {
 ## 动作数值。
 ## [br]
 ## @api public
-@export var amount: float = 0.0
+## [br]
+## @since 3.17.0
+@export var amount: float:
+	get:
+		return _amount
+	set(value):
+		_amount_is_valid = _GF_COMBAT_FINITE_MATH.is_finite_float(value)
+		if _amount_is_valid:
+			_amount = value
 
 ## 动作标签，由项目定义。
 ## [br]
@@ -69,6 +82,12 @@ enum Operation {
 @export var metadata: Dictionary = {}
 
 
+# --- 私有变量 ---
+
+var _amount: float = 0.0
+var _amount_is_valid: bool = true
+
+
 # --- 公共方法 ---
 
 ## 复制动作。
@@ -82,6 +101,7 @@ func duplicate_action() -> GFCombatAction:
 	action.action_kind = action_kind
 	action.operation = operation
 	action.amount = amount
+	action._amount_is_valid = _amount_is_valid
 	action.tags = tags.duplicate()
 	action.payload = GFVariantData.duplicate_variant(payload)
 	action.metadata = metadata.duplicate(true)
@@ -134,6 +154,17 @@ func with_operation(value: Operation) -> GFCombatAction:
 func with_amount(value: float) -> GFCombatAction:
 	amount = value
 	return self
+
+
+## 检查动作数值是否可安全参与运算。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 最近一次 amount 写入有效且当前值有限时返回 true。
+func is_numeric_state_valid() -> bool:
+	return _amount_is_valid and _GF_COMBAT_FINITE_MATH.is_finite_float(_amount)
 
 
 ## 设置动作标签并返回自身。

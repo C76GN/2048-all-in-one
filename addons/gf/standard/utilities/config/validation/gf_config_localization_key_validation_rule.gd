@@ -12,6 +12,11 @@ class_name GFConfigLocalizationKeyValidationRule
 extends GFConfigValidationRule
 
 
+# --- 常量 ---
+
+const _SUPPORTED_VALUES_INLINE_LIMIT: int = 32
+
+
 # --- 导出变量 ---
 
 ## 空字符串是否直接视为通过。
@@ -136,7 +141,18 @@ func _make_issue_context(context: Dictionary, value: Variant, expected_value: Va
 	issue_context["value"] = GFVariantData.duplicate_variant(value)
 	issue_context["actual_value"] = GFVariantData.duplicate_variant(value)
 	issue_context["expected_value"] = GFVariantData.duplicate_variant(expected_value)
-	issue_context["supported_values"] = _get_supported_keys()
+	var supported_keys: PackedStringArray = _get_supported_keys()
+	if supported_keys.size() <= _SUPPORTED_VALUES_INLINE_LIMIT:
+		issue_context["supported_values"] = supported_keys
+	else:
+		var summary: Dictionary = GFReportValueCodec.make_collection_summary(supported_keys, {
+			"sample_count": _SUPPORTED_VALUES_INLINE_LIMIT,
+			"encode_dictionary_keys": true,
+		})
+		issue_context["supported_values_count"] = GFVariantData.get_option_int(summary, "count")
+		issue_context["supported_values_sample"] = GFVariantData.get_option_array(summary, "sample")
+		issue_context["supported_values_hash"] = GFVariantData.get_option_string(summary, "hash")
+		issue_context["supported_values_truncated"] = true
 	issue_context["supported_content_types"] = ["localization_key"]
 	return issue_context
 

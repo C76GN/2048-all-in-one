@@ -66,6 +66,7 @@ const DEFAULT_MAX_VALUE: float = 1.0e20
 # --- 私有变量 ---
 
 var _suspend_derived_recalculation: bool = false
+var _is_evaluating_derived_rule: bool = false
 
 
 # --- 公共方法 ---
@@ -97,6 +98,8 @@ func define_attribute(
 	max_value: float = DEFAULT_MAX_VALUE,
 	metadata: Dictionary = {}
 ) -> void:
+	if _reject_derived_mutation("define_attribute"):
+		return
 	if attribute_id == &"":
 		return
 
@@ -137,6 +140,8 @@ func has_attribute(attribute_id: StringName) -> bool:
 ## [br]
 ## @param attribute_id: 属性标识。
 func remove_attribute(attribute_id: StringName) -> void:
+	if _reject_derived_mutation("remove_attribute"):
+		return
 	var _removed_attribute: bool = attributes.erase(attribute_id)
 	_recalculate_derived_dependents(attribute_id)
 
@@ -145,6 +150,8 @@ func remove_attribute(attribute_id: StringName) -> void:
 ## [br]
 ## @api public
 func clear() -> void:
+	if _reject_derived_mutation("clear"):
+		return
 	attributes.clear()
 
 
@@ -158,6 +165,8 @@ func clear() -> void:
 ## [br]
 ## @return: 成功返回 true。
 func set_value(attribute_id: StringName, value: float) -> bool:
+	if _reject_derived_mutation("set_value"):
+		return false
 	if not attributes.has(attribute_id):
 		return false
 	if not _is_finite_number(value):
@@ -202,6 +211,8 @@ func adjust_value(attribute_id: StringName, delta: float) -> bool:
 ## [br]
 ## @return: 成功返回 true。
 func set_base_value(attribute_id: StringName, value: float, sync_current: bool = false) -> bool:
+	if _reject_derived_mutation("set_base_value"):
+		return false
 	if not attributes.has(attribute_id):
 		return false
 	if not _is_finite_number(value):
@@ -237,6 +248,8 @@ func set_base_value(attribute_id: StringName, value: float, sync_current: bool =
 ## [br]
 ## @return: 成功返回 true。
 func set_limits(attribute_id: StringName, min_value: float, max_value: float) -> bool:
+	if _reject_derived_mutation("set_limits"):
+		return false
 	if not attributes.has(attribute_id):
 		return false
 	if not _is_finite_number(min_value) or not _is_finite_number(max_value):
@@ -343,6 +356,8 @@ func get_metadata(attribute_id: StringName) -> Dictionary:
 ## [br]
 ## @schema metadata: Dictionary，项目自定义属性元数据；GF 会深拷贝保存。
 func set_metadata(attribute_id: StringName, metadata: Dictionary) -> bool:
+	if _reject_derived_mutation("set_metadata"):
+		return false
 	if not attributes.has(attribute_id):
 		return false
 	var record: Dictionary = _get_attribute_record(attribute_id)
@@ -358,6 +373,8 @@ func set_metadata(attribute_id: StringName, metadata: Dictionary) -> bool:
 ## [br]
 ## @return: 成功返回 true。
 func add_derived_rule(rule: GFDerivedAttributeRule) -> bool:
+	if _reject_derived_mutation("add_derived_rule"):
+		return false
 	if rule == null or rule.attribute_id == &"":
 		return false
 
@@ -375,6 +392,8 @@ func add_derived_rule(rule: GFDerivedAttributeRule) -> bool:
 ## [br]
 ## @return: 至少移除一个规则时返回 true。
 func remove_derived_rule(attribute_id: StringName) -> bool:
+	if _reject_derived_mutation("remove_derived_rule"):
+		return false
 	var removed: bool = false
 	for index: int in range(derived_rules.size() - 1, -1, -1):
 		var rule: GFDerivedAttributeRule = derived_rules[index]
@@ -404,6 +423,8 @@ func get_derived_rule(attribute_id: StringName) -> GFDerivedAttributeRule:
 ## [br]
 ## @param attribute_id: 目标属性 ID；为空时重算全部规则。
 func recalculate_derived(attribute_id: StringName = &"") -> void:
+	if _reject_derived_mutation("recalculate_derived"):
+		return
 	if _suspend_derived_recalculation:
 		return
 
@@ -443,6 +464,8 @@ func get_snapshot() -> Dictionary:
 ## [br]
 ## @schema snapshot: Dictionary，键为 String 或 StringName 属性 ID，值为包含 base、current、min、max 与 metadata 的属性记录。
 func restore_snapshot(snapshot: Dictionary) -> void:
+	if _reject_derived_mutation("restore_snapshot"):
+		return
 	_suspend_derived_recalculation = true
 	attributes.clear()
 	for attribute_id_variant: Variant in snapshot.keys():
@@ -524,12 +547,22 @@ func _apply_derived_rule(
 		return false
 
 	visited[rule.attribute_id] = true
+	var was_evaluating: bool = _is_evaluating_derived_rule
+	_is_evaluating_derived_rule = true
 	var next_value: float = rule.calculate(self)
+	_is_evaluating_derived_rule = was_evaluating
 	var did_change: bool = _write_derived_value(rule, next_value)
 	if did_change:
 		_recalculate_derived_dependents(rule.attribute_id, visited)
 	var _visited_removed: bool = visited.erase(rule.attribute_id)
 	return did_change
+
+
+func _reject_derived_mutation(method_name: String) -> bool:
+	if not _is_evaluating_derived_rule:
+		return false
+	push_warning("[GFAttributeSet] %s 失败：派生规则计算期间不允许修改同一个属性集合。" % method_name)
+	return true
 
 
 func _get_derived_cycle_targets() -> Dictionary:

@@ -260,6 +260,7 @@ func set_assignment(
 		push_warning("[GFInputDeviceUtility] 忽略越界玩家设备映射：%d" % assignment.player_index)
 		return
 
+	var active_player_before: int = active_player_index
 	var next_assignment: GFInputDeviceAssignment = assignment.duplicate_assignment()
 	next_assignment.device_id = _normalize_device_id(next_assignment.device_type, next_assignment.device_id)
 	var previous_assignment: GFInputDeviceAssignment = null
@@ -291,6 +292,8 @@ func set_assignment(
 		metadata["displaced_player_indices"] = displaced_players
 	_record_assignment_event(&"assignment_set", next_assignment, previous_assignment, reason, source_event, metadata)
 	_repair_active_player_after_assignments_changed(&"assignment_set")
+	if active_player_before == next_assignment.player_index and active_player_index == next_assignment.player_index:
+		_emit_active_device_changed(next_assignment, source_event, reason)
 
 
 ## 移除指定玩家的设备映射。
@@ -529,6 +532,8 @@ func set_active_player(player_index: int) -> void:
 ## @param deadzone: 死区值。
 func set_player_deadzone(player_index: int, deadzone: float) -> void:
 	if player_index < 0:
+		return
+	if is_nan(deadzone) or is_inf(deadzone):
 		return
 	if deadzone < 0.0:
 		var _deadzone_removed: bool = _player_deadzones.erase(player_index)
@@ -857,6 +862,10 @@ func _assignment_event_to_dictionary(record: Dictionary, json_compatible: bool) 
 		var previous_data: Dictionary = previous_value
 		result["previous_assignment"] = _assignment_data_to_dictionary(previous_data, json_compatible)
 	result["metadata"] = _report_metadata(GFVariantData.get_option_dictionary(record, "metadata"), json_compatible)
+	if json_compatible:
+		result["input_event"] = GFVariantJsonCodec.variant_to_json_compatible(
+			GFVariantData.get_option_dictionary(record, "input_event")
+		)
 	return result
 
 
@@ -998,6 +1007,14 @@ func _set_active_player(
 	active_player_index = player_index
 	active_player_changed.emit(active_player_index)
 	var assignment: GFInputDeviceAssignment = get_assignment(active_player_index)
+	_emit_active_device_changed(assignment, event, reason)
+
+
+func _emit_active_device_changed(
+	assignment: GFInputDeviceAssignment,
+	event: InputEvent,
+	reason: StringName
+) -> void:
 	var event_copy: InputEvent = null
 	if event != null:
 		event_copy = _INPUT_EVENT_TOOLS.duplicate_input_event(event)

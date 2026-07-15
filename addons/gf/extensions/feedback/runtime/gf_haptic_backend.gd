@@ -34,7 +34,7 @@ extends RefCounted
 ## [br]
 ## @schema metadata: Dictionary copied from GFHapticUtility output target metadata.
 ## [br]
-## @return 后端接受输出时返回 true。
+## @return: 后端接受输出时返回 true。
 func start_output(
 	target_type: int,
 	target_id: int,
@@ -60,7 +60,7 @@ func start_output(
 ## [br]
 ## @schema metadata: Dictionary copied from GFHapticUtility output target metadata.
 ## [br]
-## @return 后端确认停止时返回 true。
+## @return: 后端确认停止时返回 true。
 func stop_output(target_type: int, target_id: int, metadata: Dictionary = {}) -> bool:
 	return _stop_output(target_type, target_id, metadata)
 
@@ -87,7 +87,7 @@ func stop_output(target_type: int, target_id: int, metadata: Dictionary = {}) ->
 ## [br]
 ## @schema _metadata: Dictionary copied from GFHapticUtility output target metadata.
 ## [br]
-## @return 后端接受输出时返回 true。
+## @return: 后端接受输出时返回 true。
 func _start_output(
 	_target_type: int,
 	_target_id: int,
@@ -113,6 +113,6 @@ func _start_output(
 ## [br]
 ## @schema _metadata: Dictionary copied from GFHapticUtility output target metadata.
 ## [br]
-## @return 后端确认停止时返回 true。
+## @return: 后端确认停止时返回 true。
 func _stop_output(_target_type: int, _target_id: int, _metadata: Dictionary = {}) -> bool:
 	return false

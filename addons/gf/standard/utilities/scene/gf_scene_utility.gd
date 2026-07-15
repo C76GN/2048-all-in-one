@@ -336,6 +336,8 @@ func dispose() -> void:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.0.0
+## [br]
 ## @param path: 目标场景资源路径。
 ## [br]
 ## @param loading_scene_path: 可选的过渡场景路径。
@@ -345,22 +347,24 @@ func dispose() -> void:
 ## @param minimum_duration_seconds: loading scene 最短保留秒数；小于 0 时使用默认值。
 ## [br]
 ## @schema params: Dictionary[String, Variant]，切换完成后复制到当前场景参数中的场景切换参数。
+## [br]
+## @return 发起加载的 Godot Error；异步终态继续通过信号报告。
 func load_scene_async(
 	path: String,
 	loading_scene_path: String = "",
 	params: Dictionary = {},
 	minimum_duration_seconds: float = -1.0
-) -> void:
+) -> Error:
 	if _is_loading:
 		push_warning("[GFSceneUtility] 当前已有场景正在加载中：%s" % _target_path)
-		return
+		return ERR_BUSY
 
 	var scene_path: String = _normalize_scene_path(path)
 	var validation_error: String = _validate_scene_resource_path(scene_path, "load_scene_async")
 	if not validation_error.is_empty():
 		push_error(validation_error)
 		scene_load_failed.emit(scene_path)
-		return
+		return ERR_INVALID_PARAMETER
 
 	var effective_loading_scene_path: String = _resolve_loading_scene_path(loading_scene_path)
 	_begin_loading_state(scene_path, effective_loading_scene_path, cache_loaded_scenes, params, minimum_duration_seconds)
@@ -371,25 +375,25 @@ func load_scene_async(
 	if cached_scene != null:
 		_emit_scene_load_progress(scene_path, 1.0)
 		_schedule_complete_loading(scene_path, cached_scene)
-		return
+		return OK
 
 	if is_scene_preloading(scene_path):
 		_active_load_uses_preload_request = true
 		_show_loading_scene_if_needed()
-		return
+		return OK
 
 	if _should_load_active_scene_synchronously():
 		_show_loading_scene_if_needed()
-		_load_active_scene_synchronously(_target_path)
-		return
+		return _load_active_scene_synchronously(_target_path)
 
 	_active_load_operation = _request_threaded_operation(_target_path, "PackedScene")
 	var error: Error = _active_load_operation.get_request_error() if _active_load_operation != null else ERR_CANT_CREATE
 	if error != OK:
 		_fail_loading(scene_path, "[GFSceneUtility] 无法发起场景异步加载：%s (错误码：%d)" % [_target_path, error])
-		return
+		return error
 
 	_show_loading_scene_if_needed()
+	return OK
 
 
 ## 按资源配置切换场景。
@@ -412,14 +416,14 @@ func load_scene_with_transition(config: GFSceneTransitionConfig) -> Error:
 
 	var previous_cache_loaded_scenes: bool = cache_loaded_scenes
 	cache_loaded_scenes = config.cache_loaded_scene
-	load_scene_async(
+	var load_error: Error = load_scene_async(
 		config.target_scene_path,
 		config.loading_scene_path,
 		config.params,
 		config.minimum_duration_seconds
 	)
 	cache_loaded_scenes = previous_cache_loaded_scenes
-	return OK
+	return load_error
 
 
 ## 预加载一个场景资源并放入缓存。
@@ -513,13 +517,12 @@ func activate_background_scene(
 		return ERR_DOES_NOT_EXIST
 
 	var params: Dictionary = _get_background_scene_params_reference(scene_path)
-	load_scene_async(
+	return load_scene_async(
 		scene_path,
 		loading_scene_path,
 		params.duplicate(true),
 		minimum_duration_seconds
 	)
-	return OK
 
 
 ## 获取后台场景记录的参数副本。
@@ -1049,13 +1052,15 @@ func load_previous_scene(loading_scene_path: String = "", minimum_duration_secon
 		return ERR_INVALID_PARAMETER
 
 	_pending_previous_history_path = path
-	load_scene_async(
+	var load_error: Error = load_scene_async(
 		path,
 		loading_scene_path,
 		params.duplicate(true) if params != null else {},
 		minimum_duration_seconds
 	)
-	return OK
+	if load_error != OK:
+		_pending_previous_history_path = ""
+	return load_error
 
 
 ## 标记一个脚本类型为瞬态实例。
@@ -1385,16 +1390,17 @@ func _make_scene_preload_map_error(path: String, error: Error, fixed: bool) -> D
 	}
 
 
-func _load_active_scene_synchronously(path: String) -> void:
+func _load_active_scene_synchronously(path: String) -> Error:
 	var scene: PackedScene = _load_packed_scene_synchronously(path)
 	if scene == null:
 		_fail_loading(path, "[GFSceneUtility] 同步加载场景失败：%s" % path)
-		return
+		return ERR_CANT_OPEN
 
 	_emit_scene_load_progress(path, 1.0)
 	if _active_load_cache_loaded_scene:
 		put_preloaded_scene(path, scene)
 	_schedule_complete_loading(path, scene)
+	return OK
 
 
 func _poll_active_scene_load() -> void:

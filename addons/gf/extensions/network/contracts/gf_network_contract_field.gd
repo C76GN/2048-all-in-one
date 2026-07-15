@@ -54,6 +54,7 @@ enum ValueType {
 # --- 常量 ---
 
 const _GF_VALIDATION_REPORT_DICTIONARY = preload("res://addons/gf/standard/foundation/validation/gf_validation_report_dictionary.gd")
+const _TRANSPORT_VALUE_VALIDATOR = preload("res://addons/gf/extensions/network/runtime/gf_network_transport_value_validator.gd")
 
 
 # --- 导出变量 ---
@@ -189,9 +190,19 @@ func validate_value(value: Variant) -> Dictionary:
 		return _finalize_report([])
 
 	var issue: Dictionary = _get_value_type_issue(value)
-	if issue.is_empty():
-		return _finalize_report([])
-	return _finalize_report([issue])
+	if not issue.is_empty():
+		return _finalize_report([issue])
+	var transport_report: Dictionary = _TRANSPORT_VALUE_VALIDATOR.validate(value)
+	if not GFVariantData.get_option_bool(transport_report, "ok"):
+		return _finalize_report([_make_issue(
+			"error",
+			"value_not_transport_safe",
+			"Network contract field contains a transport-unsafe value at %s (%s)." % [
+				GFVariantData.get_option_string(transport_report, "path", "$"),
+				GFVariantData.get_option_string(transport_report, "error", "invalid_value"),
+			]
+		)])
+	return _finalize_report([])
 
 
 ## 描述字段契约。
@@ -315,6 +326,7 @@ func _get_validation_next_actions() -> Dictionary:
 		"type_mismatch": "Send a value matching the declared network contract field type.",
 		"class_name_mismatch": "Send an Object or Resource matching class_name_hint.",
 		"object_value_type_not_transport_safe": "Use a transport-safe identifier, Dictionary, Array, NodePath, StringName, or numeric value instead of Object.",
+		"value_not_transport_safe": "Remove nested Object, Callable, Signal, RID, circular containers, non-finite numbers, or over-budget values.",
 	}
 
 

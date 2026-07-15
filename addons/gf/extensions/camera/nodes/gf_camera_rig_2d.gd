@@ -12,6 +12,9 @@ class_name GFCameraRig2D
 extends Node2D
 
 
+const _GF_CAMERA_FINITE_MATH = preload("res://addons/gf/extensions/camera/core/gf_camera_finite_math.gd")
+
+
 # --- 信号 ---
 
 ## Rig 激活状态变化后发出。
@@ -167,8 +170,11 @@ func get_camera_pose() -> Dictionary:
 	var safe_offset: Vector2 = _sanitize_vector2(offset, Vector2.ZERO)
 	var effective_offset: Vector2 = safe_offset.rotated(base_rotation) if offset_follows_rotation else safe_offset
 	return {
-		"position": base_position + effective_offset,
-		"rotation": base_rotation + deg_to_rad(_sanitize_float(rotation_degrees_offset, 0.0)),
+		"position": _sanitize_vector2(base_position + effective_offset, base_position),
+		"rotation": _sanitize_float(
+			base_rotation + deg_to_rad(_sanitize_float(rotation_degrees_offset, 0.0)),
+			base_rotation
+		),
 		"zoom": _sanitize_vector2(zoom, Vector2.ONE),
 		"rig": self,
 	}
@@ -248,10 +254,8 @@ func _get_node_2d_value(value: Variant) -> Node2D:
 
 
 func _sanitize_float(value: float, fallback: float) -> float:
-	return value if not is_nan(value) and not is_inf(value) else fallback
+	return _GF_CAMERA_FINITE_MATH.sanitize_float(value, fallback)
 
 
 func _sanitize_vector2(value: Vector2, fallback: Vector2) -> Vector2:
-	if is_nan(value.x) or is_inf(value.x) or is_nan(value.y) or is_inf(value.y):
-		return fallback
-	return value
+	return _GF_CAMERA_FINITE_MATH.sanitize_vector2(value, fallback)

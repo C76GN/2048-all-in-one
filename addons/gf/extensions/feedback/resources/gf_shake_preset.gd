@@ -122,7 +122,7 @@ enum Waveform {
 ## [br]
 ## @return: 持续时间，最小为 0。
 func get_duration_seconds() -> float:
-	return maxf(duration_seconds, 0.0)
+	return _finite_nonnegative(duration_seconds)
 
 
 ## 按时间采样反馈偏移。
@@ -141,9 +141,10 @@ func get_duration_seconds() -> float:
 ## [br]
 ## @schema return: Dictionary，包含 position: Vector3、rotation_degrees: Vector3、scale: Vector3、intensity: float 与 progress: float。
 func sample(elapsed_seconds: float, strength: float = 1.0, phase_offset: float = 0.0) -> Dictionary:
-	var duration: float = maxf(duration_seconds, 0.0001)
-	var progress: float = clampf(elapsed_seconds / duration, 0.0, 1.0)
-	return sample_at_progress(progress, elapsed_seconds, strength, phase_offset)
+	var duration: float = maxf(get_duration_seconds(), 0.0001)
+	var safe_elapsed: float = _finite_float(elapsed_seconds)
+	var progress: float = clampf(_finite_float(safe_elapsed / duration), 0.0, 1.0)
+	return sample_at_progress(progress, safe_elapsed, strength, phase_offset)
 
 
 ## 按归一化进度采样反馈偏移。
@@ -169,31 +170,37 @@ func sample_at_progress(
 	strength: float = 1.0,
 	phase_offset: float = 0.0
 ) -> Dictionary:
-	var normalized_progress: float = clampf(progress, 0.0, 1.0)
+	var normalized_progress: float = clampf(_finite_float(progress), 0.0, 1.0)
+	var safe_elapsed: float = _finite_float(elapsed_seconds)
+	var safe_strength: float = _finite_nonnegative(strength)
+	var safe_phase_offset: float = _finite_float(phase_offset)
 	if has_tracks():
-		return _sample_tracks(normalized_progress, elapsed_seconds, strength, phase_offset)
+		return _sanitize_sample(_sample_tracks(normalized_progress, safe_elapsed, safe_strength, safe_phase_offset))
 
-	var intensity: float = amplitude * maxf(strength, 0.0) * _sample_envelope(normalized_progress)
-	var wave_value: Vector3 = _sample_wave_vector(elapsed_seconds, normalized_progress, phase_offset) * intensity
-	return {
+	var intensity: float = _finite_nonnegative(amplitude) * safe_strength * _sample_envelope(normalized_progress)
+	intensity = _finite_nonnegative(intensity)
+	var wave_value: Vector3 = _finite_vector3(
+		_sample_wave_vector(safe_elapsed, normalized_progress, safe_phase_offset) * intensity
+	)
+	return _sanitize_sample({
 		"position": Vector3(
-			position_axis.x * wave_value.x,
-			position_axis.y * wave_value.y,
-			position_axis.z * wave_value.z
+			_finite_float(position_axis.x) * wave_value.x,
+			_finite_float(position_axis.y) * wave_value.y,
+			_finite_float(position_axis.z) * wave_value.z
 		),
 		"rotation_degrees": Vector3(
-			rotation_axis_degrees.x * wave_value.x,
-			rotation_axis_degrees.y * wave_value.y,
-			rotation_axis_degrees.z * wave_value.z
+			_finite_float(rotation_axis_degrees.x) * wave_value.x,
+			_finite_float(rotation_axis_degrees.y) * wave_value.y,
+			_finite_float(rotation_axis_degrees.z) * wave_value.z
 		),
 		"scale": Vector3(
-			scale_axis.x * wave_value.x,
-			scale_axis.y * wave_value.y,
-			scale_axis.z * wave_value.z
+			_finite_float(scale_axis.x) * wave_value.x,
+			_finite_float(scale_axis.y) * wave_value.y,
+			_finite_float(scale_axis.z) * wave_value.z
 		),
 		"intensity": intensity,
 		"progress": normalized_progress,
-	}
+	})
 
 
 ## 添加反馈轨道。
@@ -272,22 +279,25 @@ static func combine_samples(samples: Array[Dictionary]) -> Dictionary:
 	var max_intensity: float = 0.0
 	var max_progress: float = 0.0
 	for sample_data: Dictionary in samples:
-		result["position"] = _read_sample_vector3(result, "position") + _read_sample_vector3(sample_data, "position")
-		result["rotation_degrees"] = _read_sample_vector3(result, "rotation_degrees") + _read_sample_vector3(sample_data, "rotation_degrees")
-		result["scale"] = _read_sample_vector3(result, "scale") + _read_sample_vector3(sample_data, "scale")
-		max_intensity = maxf(max_intensity, GFVariantData.get_option_float(sample_data, "intensity", 0.0))
-		max_progress = maxf(max_progress, GFVariantData.get_option_float(sample_data, "progress", 0.0))
+		result["position"] = _finite_vector3(_read_sample_vector3(result, "position") + _read_sample_vector3(sample_data, "position"))
+		result["rotation_degrees"] = _finite_vector3(
+			_read_sample_vector3(result, "rotation_degrees")
+			+ _read_sample_vector3(sample_data, "rotation_degrees")
+		)
+		result["scale"] = _finite_vector3(_read_sample_vector3(result, "scale") + _read_sample_vector3(sample_data, "scale"))
+		max_intensity = maxf(max_intensity, _finite_nonnegative(GFVariantData.get_option_float(sample_data, "intensity", 0.0)))
+		max_progress = maxf(max_progress, clampf(_finite_float(GFVariantData.get_option_float(sample_data, "progress", 0.0)), 0.0, 1.0))
 	result["intensity"] = max_intensity
 	result["progress"] = max_progress
-	return result
+	return _sanitize_sample(result)
 
 
 # --- 私有/辅助方法 ---
 
 func _sample_envelope(progress: float) -> float:
 	if decay_curve != null:
-		return maxf(decay_curve.sample_baked(progress), 0.0)
-	return 1.0 - progress
+		return _finite_nonnegative(decay_curve.sample_baked(progress))
+	return _finite_nonnegative(1.0 - progress)
 
 
 func _sample_tracks(
@@ -311,20 +321,24 @@ func _sample_tracks(
 		else:
 			result = GFShakeTrack.blend_sample(result, track_sample, track.blend_mode)
 	result["progress"] = progress
-	return result
+	return _sanitize_sample(result)
 
 
 func _sample_wave_vector(elapsed_seconds: float, progress: float, phase_offset: float) -> Vector3:
 	match waveform:
 		Waveform.SINE:
-			var phase: float = (elapsed_seconds * maxf(frequency, 0.0) + phase_offset) * TAU
+			var phase_cycles: float = (
+				fposmod(_finite_float(elapsed_seconds * _finite_nonnegative(frequency)), 1.0)
+				+ fposmod(_finite_float(phase_offset), 1.0)
+			)
+			var phase: float = phase_cycles * TAU
 			return Vector3(
 				sin(phase),
 				sin(phase + TAU / 3.0),
 				sin(phase + TAU * 2.0 / 3.0)
 			)
 		Waveform.RANDOM:
-			var step: int = GFVariantData.to_int(floor(elapsed_seconds * maxf(frequency, 1.0)))
+			var step: int = floori(_safe_sample_cursor(elapsed_seconds, frequency))
 			return Vector3(
 				_hash_noise(step, sample_seed + 11),
 				_hash_noise(step, sample_seed + 37),
@@ -333,7 +347,7 @@ func _sample_wave_vector(elapsed_seconds: float, progress: float, phase_offset: 
 		Waveform.CURVE:
 			var curve_value: float = 0.5
 			if wave_curve != null:
-				curve_value = wave_curve.sample_baked(progress)
+				curve_value = _finite_float(wave_curve.sample_baked(progress), 0.5)
 			var mapped: float = clampf(curve_value, 0.0, 1.0) * 2.0 - 1.0
 			return Vector3(mapped, mapped, mapped)
 		_:
@@ -341,9 +355,8 @@ func _sample_wave_vector(elapsed_seconds: float, progress: float, phase_offset: 
 
 
 func _sample_noise_vector(elapsed_seconds: float) -> Vector3:
-	var sample_frequency: float = maxf(frequency, 1.0)
-	var cursor: float = elapsed_seconds * sample_frequency
-	var step: int = GFVariantData.to_int(floor(cursor))
+	var cursor: float = _safe_sample_cursor(elapsed_seconds, maxf(_finite_nonnegative(frequency), 1.0))
+	var step: int = floori(cursor)
 	var blend: float = smoothstep(0.0, 1.0, cursor - float(step))
 	return Vector3(
 		lerpf(_hash_noise(step, sample_seed + 11), _hash_noise(step + 1, sample_seed + 11), blend),
@@ -365,7 +378,7 @@ static func _read_sample_vector3(sample_data: Dictionary, key: Variant) -> Vecto
 	var value: Variant = GFVariantData.get_option_value(sample_data, key, Vector3.ZERO)
 	if value is Vector3:
 		var vector: Vector3 = value
-		return vector
+		return _finite_vector3(vector)
 	return Vector3.ZERO
 
 
@@ -376,3 +389,32 @@ static func _is_zero_sample(sample_data: Dictionary) -> bool:
 		and _read_sample_vector3(sample_data, "scale") == Vector3.ZERO
 		and is_zero_approx(GFVariantData.get_option_float(sample_data, "intensity", 0.0))
 	)
+
+
+static func _sanitize_sample(sample_data: Dictionary) -> Dictionary:
+	return {
+		"position": _read_sample_vector3(sample_data, "position"),
+		"rotation_degrees": _read_sample_vector3(sample_data, "rotation_degrees"),
+		"scale": _read_sample_vector3(sample_data, "scale"),
+		"intensity": _finite_nonnegative(GFVariantData.get_option_float(sample_data, "intensity", 0.0)),
+		"progress": clampf(_finite_float(GFVariantData.get_option_float(sample_data, "progress", 0.0)), 0.0, 1.0),
+	}
+
+
+static func _safe_sample_cursor(elapsed_seconds: float, sample_frequency: float) -> float:
+	var cursor: float = _finite_float(elapsed_seconds) * maxf(_finite_nonnegative(sample_frequency), 1.0)
+	return clampf(_finite_float(cursor), -2147483647.0, 2147483647.0)
+
+
+static func _finite_nonnegative(value: float, fallback: float = 0.0) -> float:
+	return maxf(_finite_float(value, fallback), 0.0)
+
+
+static func _finite_float(value: float, fallback: float = 0.0) -> float:
+	return value if is_finite(value) else fallback
+
+
+static func _finite_vector3(value: Vector3, fallback: Vector3 = Vector3.ZERO) -> Vector3:
+	if not is_finite(value.x) or not is_finite(value.y) or not is_finite(value.z):
+		return fallback
+	return value

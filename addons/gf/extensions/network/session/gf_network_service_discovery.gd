@@ -71,6 +71,10 @@ const MESSAGE_KIND: String = "gf.service.discovery"
 ## [br]
 ## @since unreleased
 const SCHEMA_VERSION: int = 1
+const _TRANSPORT_VALUE_VALIDATOR = preload("res://addons/gf/extensions/network/runtime/gf_network_transport_value_validator.gd")
+const _DEFAULT_MAX_ADVERTISEMENT_BYTES: int = GFNetworkMessageValidator.DEFAULT_MAX_PACKET_SIZE
+const _DEFAULT_MAX_METADATA_DEPTH: int = 16
+const _DEFAULT_MAX_METADATA_ENTRIES: int = 1024
 
 
 # --- 公共变量 ---
@@ -209,11 +213,11 @@ func accept_advertisement(advertisement: Dictionary, options: Dictionary = {}) -
 ## [br]
 ## @param remote_port: 底层传输报告的远端端口。
 ## [br]
-## @param options: 可选项，支持 json_codec_options 和 now_seconds。
+## @param options: 可选项，支持 json_codec_options、now_seconds 和广告结构预算。
 ## [br]
 ## @return 接收报告。
 ## [br]
-## @schema options: Dictionary with json_codec_options: Dictionary and now_seconds: float.
+## @schema options: Dictionary with json_codec_options, now_seconds, max_advertisement_bytes, max_metadata_depth, and max_metadata_entries.
 ## [br]
 ## @schema return: Dictionary with ok, status, service_key, record, error, issues, issue_count, and next_action.
 func accept_packet(
@@ -353,16 +357,37 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @param advertisement: 服务广告字典。
 ## [br]
-## @param options: 可选项，支持 json_codec_options。
+## @param options: 可选项，支持 json_codec_options 和广告结构预算。
 ## [br]
 ## @return UTF-8 JSON bytes。
 ## [br]
 ## @schema advertisement: Dictionary produced by make_advertisement().
 ## [br]
-## @schema options: Dictionary with json_codec_options: Dictionary passed to GFVariantJsonCodec.
+## @schema options: Dictionary with json_codec_options, max_advertisement_bytes, max_metadata_depth, and max_metadata_entries.
 static func encode_advertisement(advertisement: Dictionary, options: Dictionary = {}) -> PackedByteArray:
+	var validation: Dictionary = validate_advertisement(advertisement, options)
+	if not GFVariantData.get_option_bool(validation, "ok", false):
+		push_error(
+			"[GFNetworkServiceDiscovery] 广告编码失败：%s。" %
+			GFVariantData.get_option_string(validation, "error", "invalid_advertisement")
+		)
+		return PackedByteArray()
 	var codec_options: Dictionary = GFVariantData.get_option_dictionary(options, "json_codec_options")
-	return GFVariantJsonCodec.stringify_json_compatible(advertisement, "", false, codec_options).to_utf8_buffer()
+	var normalized: Dictionary = GFVariantData.get_option_dictionary(validation, "data")
+	var encoded: PackedByteArray = GFVariantJsonCodec.stringify_json_compatible(
+		normalized,
+		"",
+		false,
+		codec_options
+	).to_utf8_buffer()
+	var max_advertisement_bytes: int = maxi(
+		GFVariantData.get_option_int(options, "max_advertisement_bytes", _DEFAULT_MAX_ADVERTISEMENT_BYTES),
+		1
+	)
+	if encoded.size() > max_advertisement_bytes:
+		push_error("[GFNetworkServiceDiscovery] 广告编码失败：advertisement_too_large。")
+		return PackedByteArray()
+	return encoded
 
 
 ## 解码 UTF-8 JSON bytes 为服务广告字典。
@@ -383,6 +408,12 @@ static func encode_advertisement(advertisement: Dictionary, options: Dictionary 
 static func decode_advertisement(bytes: PackedByteArray, options: Dictionary = {}) -> Dictionary:
 	if bytes.is_empty():
 		return _make_failure("empty_bytes", "Provide non-empty advertisement bytes.")
+	var max_advertisement_bytes: int = maxi(
+		GFVariantData.get_option_int(options, "max_advertisement_bytes", _DEFAULT_MAX_ADVERTISEMENT_BYTES),
+		1
+	)
+	if bytes.size() > max_advertisement_bytes:
+		return _make_failure("advertisement_too_large", "Reduce the advertisement packet size before decoding.")
 
 	var json: JSON = JSON.new()
 	var error: Error = json.parse(bytes.get_string_from_utf8())
@@ -393,8 +424,8 @@ static func decode_advertisement(bytes: PackedByteArray, options: Dictionary = {
 	var decoded: Variant = GFVariantJsonCodec.json_compatible_to_variant(json.data, codec_options)
 	if not (decoded is Dictionary):
 		return _make_failure("json_not_dictionary", "Service advertisement payload must be a Dictionary.")
-
-	return validate_advertisement(GFVariantData.to_dictionary(decoded))
+	var decoded_dictionary: Dictionary = GFVariantData.to_dictionary(decoded)
+	return validate_advertisement(decoded_dictionary, options)
 
 
 ## 校验并规范化服务广告字典。
@@ -405,14 +436,18 @@ static func decode_advertisement(bytes: PackedByteArray, options: Dictionary = {
 ## [br]
 ## @param advertisement: 服务广告字典。
 ## [br]
+## @param options: 与 encode_advertisement()/decode_advertisement() 共享的结构预算。
+## [br]
 ## @return 校验报告。
 ## [br]
 ## @schema advertisement: Dictionary service advertisement payload.
 ## [br]
+## @schema options: Dictionary with max_metadata_depth and max_metadata_entries.
+## [br]
 ## @schema return: Dictionary with ok, data, error, issues, issue_count, and next_action.
-static func validate_advertisement(advertisement: Dictionary) -> Dictionary:
+static func validate_advertisement(advertisement: Dictionary, options: Dictionary = {}) -> Dictionary:
 	var issues: Array[Dictionary] = []
-	var normalized: Dictionary = _normalize_advertisement(advertisement, issues)
+	var normalized: Dictionary = _normalize_advertisement(advertisement, issues, options)
 	if not issues.is_empty():
 		var first_issue: Dictionary = issues[0]
 		return {
@@ -455,7 +490,11 @@ static func make_service_key(service_id: StringName, endpoint: String) -> String
 
 # --- 私有/辅助方法 ---
 
-static func _normalize_advertisement(advertisement: Dictionary, issues: Array[Dictionary]) -> Dictionary:
+static func _normalize_advertisement(
+	advertisement: Dictionary,
+	issues: Array[Dictionary],
+	options: Dictionary
+) -> Dictionary:
 	var metadata_value: Variant = GFVariantData.get_option_value(advertisement, "metadata", {})
 	var tags_value: Variant = GFVariantData.get_option_value(advertisement, "tags", PackedStringArray())
 	var kind: String = GFVariantData.get_option_string(advertisement, "kind")
@@ -476,6 +515,22 @@ static func _normalize_advertisement(advertisement: Dictionary, issues: Array[Di
 		issues.append(_make_issue("invalid_ttl_seconds", "Advertisement ttl_seconds must be a positive finite number."))
 	if not (metadata_value is Dictionary):
 		issues.append(_make_issue("metadata_not_dictionary", "Advertisement metadata must be a Dictionary."))
+	else:
+		var metadata_report: Dictionary = _TRANSPORT_VALUE_VALIDATOR.validate(metadata_value, {
+			"max_depth": maxi(
+				GFVariantData.get_option_int(options, "max_metadata_depth", _DEFAULT_MAX_METADATA_DEPTH),
+				0
+			),
+			"max_nodes": maxi(
+				GFVariantData.get_option_int(options, "max_metadata_entries", _DEFAULT_MAX_METADATA_ENTRIES),
+				1
+			),
+		})
+		if not GFVariantData.get_option_bool(metadata_report, "ok"):
+			issues.append(_make_issue(
+				"metadata_%s" % GFVariantData.get_option_string(metadata_report, "error", "invalid_value"),
+				"Advertisement metadata is not transport-safe."
+			))
 	if not (tags_value is PackedStringArray) and not (tags_value is Array):
 		issues.append(_make_issue("tags_not_array", "Advertisement tags must be PackedStringArray or Array."))
 

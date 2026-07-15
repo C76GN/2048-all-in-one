@@ -49,6 +49,31 @@ const DEFAULT_MIN_RMS: float = 0.005
 ## @since 6.0.0
 const DEFAULT_CONFIDENCE_THRESHOLD: float = 0.45
 
+## 单次分析允许的最大样本窗口硬上限。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const MAX_SAMPLE_COUNT: int = 16384
+
+## 单次分析允许扫描的 lag 数量硬上限。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const MAX_LAG_COUNT: int = 4096
+
+## 单次分析允许的保守自相关乘加工作量硬上限。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const MAX_CORRELATION_OPERATIONS: int = 8_000_000
+
+const _DEFAULT_MAX_SAMPLE_COUNT: int = 8192
+const _DEFAULT_MAX_LAG_COUNT: int = 2048
+const _DEFAULT_MAX_CORRELATION_OPERATIONS: int = MAX_CORRELATION_OPERATIONS
+
 const _NOTE_NAMES: Array[String] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 
@@ -68,7 +93,7 @@ const _NOTE_NAMES: Array[String] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "
 ## [br]
 ## @schema samples: PackedFloat32Array mono samples in -1..1 range.
 ## [br]
-## @schema options: Dictionary，可包含 min_frequency_hz、max_frequency_hz、min_rms、confidence_threshold、start_index 和 sample_count。
+## @schema options: Dictionary，可包含 min_frequency_hz、max_frequency_hz、min_rms、confidence_threshold、start_index、sample_count、max_sample_count、max_lag_count 和 max_correlation_operations。
 ## [br]
 ## @return 分析报告。
 ## [br]
@@ -83,7 +108,9 @@ static func analyze_mono_samples(
 		_add_issue(report, &"invalid_sample_rate", "sample_rate must be positive.")
 		return _finalize_report(report)
 
-	var window: PackedFloat32Array = _slice_samples(samples, options)
+	report["input_sample_count"] = samples.size()
+	var window: PackedFloat32Array = _slice_samples(samples, options, report)
+	report["analyzed_sample_count"] = window.size()
 	if window.size() < 8:
 		_add_issue(report, &"insufficient_samples", "samples window is too small.")
 		return _finalize_report(report)
@@ -121,6 +148,30 @@ static func analyze_mono_samples(
 	if max_lag <= min_lag:
 		_add_issue(report, &"insufficient_lag_range", "sample window is too small for the requested frequency range.")
 		return _finalize_report(report)
+
+	var requested_lag_count: int = max_lag - min_lag + 1
+	var max_lag_count: int = clampi(
+		GFVariantData.get_option_int(options, "max_lag_count", _DEFAULT_MAX_LAG_COUNT),
+		1,
+		MAX_LAG_COUNT
+	)
+	var max_operations: int = clampi(
+		GFVariantData.get_option_int(
+			options,
+			"max_correlation_operations",
+			_DEFAULT_MAX_CORRELATION_OPERATIONS
+		),
+		1,
+		MAX_CORRELATION_OPERATIONS
+	)
+	var normalized_size: int = maxi(normalized.size(), 1)
+	var operation_lag_limit: int = maxi(floori(float(max_operations) / float(normalized_size)), 1)
+	var lag_count: int = mini(requested_lag_count, mini(max_lag_count, operation_lag_limit))
+	if lag_count < requested_lag_count:
+		report["truncated"] = true
+	max_lag = min_lag + lag_count - 1
+	report["lag_count"] = lag_count
+	report["correlation_operations"] = lag_count * normalized.size()
 
 	var best_lag: int = 0
 	var best_confidence: float = -1.0
@@ -184,7 +235,7 @@ static func analyze_mono_samples(
 ## [br]
 ## @schema frames: PackedVector2Array where x/y are left/right samples.
 ## [br]
-## @schema options: Dictionary forwarded to analyze_mono_samples().
+## @schema options: Dictionary forwarded to analyze_mono_samples(), including sample and work budgets.
 ## [br]
 ## @return 分析报告。
 ## [br]
@@ -194,27 +245,42 @@ static func analyze_stereo_frames(
 	sample_rate: float,
 	options: Dictionary = {}
 ) -> Dictionary:
+	var start_index: int = clampi(GFVariantData.get_option_int(options, "start_index", 0), 0, frames.size())
+	var requested_count: int = clampi(
+		GFVariantData.get_option_int(options, "sample_count", frames.size() - start_index),
+		0,
+		frames.size() - start_index
+	)
+	var max_sample_count: int = _resolve_max_sample_count(options)
+	var frame_count: int = mini(requested_count, max_sample_count)
 	var left: PackedFloat32Array = PackedFloat32Array()
 	var right: PackedFloat32Array = PackedFloat32Array()
 	var mid: PackedFloat32Array = PackedFloat32Array()
 	var side: PackedFloat32Array = PackedFloat32Array()
-	var _left_resize_error: Error = left.resize(frames.size()) as Error
-	var _right_resize_error: Error = right.resize(frames.size()) as Error
-	var _mid_resize_error: Error = mid.resize(frames.size()) as Error
-	var _side_resize_error: Error = side.resize(frames.size()) as Error
-	for index: int in range(frames.size()):
-		var frame: Vector2 = frames[index]
+	var _left_resize_error: Error = left.resize(frame_count) as Error
+	var _right_resize_error: Error = right.resize(frame_count) as Error
+	var _mid_resize_error: Error = mid.resize(frame_count) as Error
+	var _side_resize_error: Error = side.resize(frame_count) as Error
+	for index: int in range(frame_count):
+		var frame: Vector2 = frames[start_index + index]
 		left[index] = frame.x
 		right[index] = frame.y
 		mid[index] = (frame.x + frame.y) * 0.5
 		side[index] = (frame.x - frame.y) * 0.5
 
 	var selected: Dictionary = _select_stereo_pitch_candidate(left, right, mid, side)
+	var mono_options: Dictionary = options.duplicate(true)
+	mono_options["start_index"] = 0
+	mono_options["sample_count"] = frame_count
+	mono_options["max_sample_count"] = frame_count
 	var report: Dictionary = analyze_mono_samples(
 		_get_float_array_value(GFVariantData.get_option_value(selected, "samples", mid)),
 		sample_rate,
-		options
+		mono_options
 	)
+	report["input_sample_count"] = frames.size()
+	if frame_count < requested_count:
+		report["truncated"] = true
 	report["stereo_mix_mode"] = GFVariantData.get_option_string_name(selected, "mode", &"mid")
 	return report
 
@@ -278,15 +344,30 @@ static func frequency_to_note(frequency_hz: float) -> Dictionary:
 
 # --- 私有/辅助方法 ---
 
-static func _slice_samples(samples: PackedFloat32Array, options: Dictionary) -> PackedFloat32Array:
+static func _slice_samples(
+	samples: PackedFloat32Array,
+	options: Dictionary,
+	report: Dictionary
+) -> PackedFloat32Array:
 	var start_index: int = clampi(GFVariantData.get_option_int(options, "start_index", 0), 0, samples.size())
 	var requested_count: int = GFVariantData.get_option_int(options, "sample_count", samples.size() - start_index)
-	var count: int = clampi(requested_count, 0, samples.size() - start_index)
+	requested_count = clampi(requested_count, 0, samples.size() - start_index)
+	var count: int = mini(requested_count, _resolve_max_sample_count(options))
+	if count < requested_count:
+		report["truncated"] = true
 	var result: PackedFloat32Array = PackedFloat32Array()
 	var _result_resize_error: Error = result.resize(count) as Error
 	for index: int in range(count):
 		result[index] = samples[start_index + index]
 	return result
+
+
+static func _resolve_max_sample_count(options: Dictionary) -> int:
+	return clampi(
+		GFVariantData.get_option_int(options, "max_sample_count", _DEFAULT_MAX_SAMPLE_COUNT),
+		8,
+		MAX_SAMPLE_COUNT
+	)
 
 
 static func _remove_dc_offset(samples: PackedFloat32Array) -> PackedFloat32Array:
@@ -381,6 +462,11 @@ static func _make_report() -> Dictionary:
 		"cents": 0.0,
 		"issues": [],
 		"issue_count": 0,
+		"input_sample_count": 0,
+		"analyzed_sample_count": 0,
+		"lag_count": 0,
+		"correlation_operations": 0,
+		"truncated": false,
 	}
 
 

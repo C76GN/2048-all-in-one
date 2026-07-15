@@ -111,9 +111,9 @@ func to_dictionary() -> Dictionary:
 ## [br]
 ## @return 评价结果调试快照。
 ## [br]
-## @schema return: 与 to_dictionary() 相同的评价结果 Dictionary。
+## @schema return: 基于 to_dictionary() 编码的 JSON-safe 评价结果 Dictionary。
 func get_debug_snapshot() -> Dictionary:
-	return to_dictionary()
+	return to_report_dictionary()
 
 
 ## 转换为 JSON-safe 报告字典。

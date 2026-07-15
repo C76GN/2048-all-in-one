@@ -45,10 +45,15 @@ var redo_count: int:
 	get:
 		return _redo_stack.size()
 
-## 异步命令等待超时时间（秒）。小于等于 0 时表示不启用超时。
+## 异步命令等待告警阈值（秒）。超过阈值只告警并继续持有历史锁，直到命令进入真实终态。
 ## [br]
 ## @api public
-var async_timeout_seconds: float = 30.0
+## [br]
+## @since unreleased
+var async_stall_warning_seconds: float = 30.0:
+	set(value):
+		if is_finite(value):
+			async_stall_warning_seconds = maxf(value, 0.0)
 
 ## 当前是否正在等待一条异步命令完成。
 ## [br]
@@ -483,17 +488,26 @@ func _await_command_signal(result_signal: Signal, lifecycle_serial: int) -> bool
 		CONNECT_ONE_SHOT as Object.ConnectFlags
 	)
 
-	var timeout_msec: int = int(async_timeout_seconds * 1000.0)
+	var warning_msec: int = (
+		maxi(ceili(async_stall_warning_seconds * 1000.0), 1)
+		if async_stall_warning_seconds > 0.0
+		else 0
+	)
 	var start_msec: int = Time.get_ticks_msec()
+	var stall_warning_emitted: bool = false
 
 	while not completed[0]:
 		if lifecycle_serial != _lifecycle_serial:
 			break
 		if not is_instance_valid(target_obj):
 			break
-		if timeout_msec > 0 and Time.get_ticks_msec() - start_msec >= timeout_msec:
-			push_warning("[GFCommandHistoryUtility] 等待异步命令超时，历史操作已取消。")
-			break
+		if (
+			warning_msec > 0
+			and not stall_warning_emitted
+			and Time.get_ticks_msec() - start_msec >= warning_msec
+		):
+			stall_warning_emitted = true
+			push_warning("[GFCommandHistoryUtility] 异步命令尚未完成；历史锁将保持到真实终态。")
 		var main_loop: MainLoop = Engine.get_main_loop()
 		if not (main_loop is SceneTree):
 			break

@@ -81,12 +81,16 @@ var target_class: String = ""
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @schema payload: 交互携带的任意项目载荷；框架只透传，不解释其中结构。
 var payload: Variant = null
 
 ## 交互所属的可选分组。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 var group_name: StringName = &""
 
 
@@ -116,6 +120,8 @@ func _init(
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param value: 要写入或修改的值。
 ## [br]
 ## @return: 当前上下文。
@@ -128,6 +134,8 @@ func with_sender(value: Object) -> GFInteractionContext:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.17.0
+## [br]
 ## @param value: 要写入或修改的值。
 ## [br]
 ## @return: 当前上下文。
@@ -139,6 +147,8 @@ func with_target(value: Object) -> GFInteractionContext:
 ## 设置 payload 并返回自身，便于链式构造。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param value: 要写入或修改的值。
 ## [br]
@@ -153,6 +163,8 @@ func with_payload(value: Variant) -> GFInteractionContext:
 ## 设置 group_name 并返回自身，便于链式构造。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param value: 要写入或修改的值。
 ## [br]

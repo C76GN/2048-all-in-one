@@ -25,6 +25,7 @@ const FORMAT_ID: String = "gf_save_graph"
 const FORMAT_VERSION: int = 1
 
 const _GF_VALIDATION_REPORT_DICTIONARY_SCRIPT = preload("res://addons/gf/standard/foundation/validation/gf_validation_report_dictionary.gd")
+const _GF_SAVE_PERSISTED_VALUE_VALIDATOR = preload("res://addons/gf/extensions/save/core/gf_save_persisted_value_validator.gd")
 const _CREATED_ENTITIES_CONTEXT_KEY: String = "_gf_save_graph_created_entities"
 const _SOURCE_SNAPSHOTS_CONTEXT_KEY: String = "_gf_save_graph_source_snapshots"
 const _TRANSACTION_BOUNDARY_CONTEXT_KEY: String = "_gf_save_graph_transaction_boundary"
@@ -622,12 +623,20 @@ func save_scope(
 	var storage: GFStorageUtility = _get_storage_utility()
 	if storage == null:
 		return ERR_UNCONFIGURED
+	var metadata_validation: Dictionary = _GF_SAVE_PERSISTED_VALUE_VALIDATOR.validate(metadata)
+	if not GFVariantData.get_option_bool(metadata_validation, "ok", false):
+		_push_persisted_validation_error("payload.metadata", metadata_validation)
+		return ERR_INVALID_DATA
 
 	var payload: Dictionary = gather_scope(scope, context)
 	if payload.is_empty():
 		return ERR_INVALID_DATA
 	if not metadata.is_empty():
 		payload["metadata"] = metadata.duplicate(true)
+	var payload_validation: Dictionary = _GF_SAVE_PERSISTED_VALUE_VALIDATOR.validate(payload)
+	if not GFVariantData.get_option_bool(payload_validation, "ok", false):
+		_push_persisted_validation_error("payload", payload_validation)
+		return ERR_INVALID_DATA
 	return storage.save_data(file_name, payload)
 
 
@@ -1954,6 +1963,16 @@ func _record_pipeline_step_event(
 
 func _get_storage_utility() -> GFStorageUtility:
 	return _get_storage_utility_value(get_utility(GFStorageUtility))
+
+
+func _push_persisted_validation_error(label: String, report: Dictionary) -> void:
+	push_error(
+		"[GFSaveGraphUtility] save_scope 失败：%s 在 %s 不可持久化：%s。" % [
+			label,
+			GFVariantData.get_option_string(report, "path", "$"),
+			GFVariantData.get_option_string(report, "error", "invalid_value"),
+		]
+	)
 
 
 func _get_source_serializer_ids(source: GFSaveSource, target: Node) -> PackedStringArray:

@@ -12,6 +12,9 @@ class_name GFCameraRig3D
 extends Node3D
 
 
+const _GF_CAMERA_FINITE_MATH = preload("res://addons/gf/extensions/camera/core/gf_camera_finite_math.gd")
+
+
 # --- 信号 ---
 
 ## Rig 激活状态变化后发出。
@@ -176,23 +179,42 @@ func get_look_at_target_node() -> Node3D:
 ## @return 期望全局 Transform。
 func get_camera_transform() -> Transform3D:
 	var target: Node3D = get_target_node()
-	var camera_transform: Transform3D = global_transform
+	var camera_transform: Transform3D = _GF_CAMERA_FINITE_MATH.sanitize_transform3d(
+		global_transform,
+		Transform3D.IDENTITY
+	)
 	if target != null:
-		camera_transform.origin = target.global_transform.origin
+		var target_transform: Transform3D = _GF_CAMERA_FINITE_MATH.sanitize_transform3d(
+			target.global_transform,
+			camera_transform
+		)
+		camera_transform.origin = target_transform.origin
 		if use_target_rotation:
-			camera_transform.basis = target.global_transform.basis.orthonormalized()
-	camera_transform.origin = _sanitize_vector3(camera_transform.origin, Vector3.ZERO)
-	camera_transform.basis = camera_transform.basis.orthonormalized()
+			camera_transform.basis = target_transform.basis
 
 	var safe_offset: Vector3 = _sanitize_vector3(offset, Vector3.ZERO)
 	var effective_offset: Vector3 = camera_transform.basis * safe_offset if offset_follows_rotation else safe_offset
-	camera_transform.origin += effective_offset
+	camera_transform.origin = _sanitize_vector3(
+		camera_transform.origin + effective_offset,
+		camera_transform.origin
+	)
 	if look_at_enabled:
 		var look_at_target: Node3D = get_look_at_target_node()
-		if look_at_target != null and not camera_transform.origin.is_equal_approx(look_at_target.global_position):
-			var look_direction: Vector3 = look_at_target.global_position - camera_transform.origin
-			camera_transform = camera_transform.looking_at(look_at_target.global_position, _get_safe_up_axis_for_direction(look_direction))
-	return _apply_rotation_offset(camera_transform)
+		var look_at_position: Vector3 = (
+			_sanitize_vector3(look_at_target.global_position, camera_transform.origin)
+			if look_at_target != null
+			else camera_transform.origin
+		)
+		if look_at_target != null and not camera_transform.origin.is_equal_approx(look_at_position):
+			var look_direction: Vector3 = look_at_position - camera_transform.origin
+			camera_transform = camera_transform.looking_at(
+				look_at_position,
+				_get_safe_up_axis_for_direction(look_direction)
+			)
+	return _GF_CAMERA_FINITE_MATH.sanitize_transform3d(
+		_apply_rotation_offset(camera_transform),
+		camera_transform
+	)
 
 
 ## 获取相机选择作用域节点。
@@ -286,17 +308,8 @@ func _apply_rotation_offset(camera_transform: Transform3D) -> Transform3D:
 
 
 func _sanitize_float(value: float, fallback: float) -> float:
-	return value if not is_nan(value) and not is_inf(value) else fallback
+	return _GF_CAMERA_FINITE_MATH.sanitize_float(value, fallback)
 
 
 func _sanitize_vector3(value: Vector3, fallback: Vector3) -> Vector3:
-	if (
-		is_nan(value.x)
-		or is_inf(value.x)
-		or is_nan(value.y)
-		or is_inf(value.y)
-		or is_nan(value.z)
-		or is_inf(value.z)
-	):
-		return fallback
-	return value
+	return _GF_CAMERA_FINITE_MATH.sanitize_vector3(value, fallback)

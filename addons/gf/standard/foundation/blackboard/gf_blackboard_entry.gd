@@ -303,7 +303,10 @@ func _try_coerce_bool(value: Variant) -> Dictionary:
 		var bool_value: bool = value
 		return _make_coerce_result(true, bool_value)
 	if value is int or value is float:
-		return _make_coerce_result(true, GFVariantData.to_float(value, 0.0) != 0.0)
+		var numeric_value: float = GFVariantData.to_float(value, 0.0)
+		if not is_finite(numeric_value):
+			return _make_coerce_result(false, false, "Value cannot be coerced to bool from a non-finite number.")
+		return _make_coerce_result(true, numeric_value != 0.0)
 	if value is String or value is StringName:
 		var text: String = GFVariantData.to_text(value, "").strip_edges().to_lower()
 		if text in ["true", "1", "yes", "on"]:

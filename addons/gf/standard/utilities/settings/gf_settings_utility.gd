@@ -679,20 +679,45 @@ func to_dict(persistent_only: bool = true) -> Dictionary:
 	return _to_dict_with_state(persistent_only, serialization_state)
 
 
-## 从字典恢复设置。
+## 使用字典完整替换当前设置。
 ## [br]
 ## @api public
+## [br]
+## @since unreleased
 ## [br]
 ## @param data: 设置数据。
 ## [br]
 ## @schema data: Dictionary[String, Variant] serialized setting values produced by to_dict().
 ## [br]
 ## @param emit_changes: 变化时是否发出 setting_changed。
-func from_dict(data: Dictionary, emit_changes: bool = true) -> void:
+func replace_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
+	var previous_values: Dictionary = _values.duplicate(false)
+	_values = _build_restored_values(data)
+	if emit_changes:
+		_emit_replaced_value_changes(previous_values)
+		var _discarded_staged_keys: PackedStringArray = discard_staged_values()
+	else:
+		_staged_values.clear()
+
+
+## 将字典作为覆盖层合并到当前设置。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param data: 设置数据。
+## [br]
+## @schema data: Dictionary[String, Variant] serialized setting values produced by to_dict().
+## [br]
+## @param emit_changes: 变化时是否发出 setting_changed。
+func merge_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
 	for key_variant: Variant in data.keys():
 		var key: StringName = GFVariantData.to_string_name(key_variant)
 		_set_value_internal(key, _deserialize_value(data[key_variant]), emit_changes, false)
 	_apply_defaults_to_missing()
+	for staged_key_variant: Variant in _staged_values.keys():
+		_reconcile_staged_value(GFVariantData.to_string_name(staged_key_variant))
 
 
 ## 读取持久化设置。
@@ -708,7 +733,7 @@ func load_settings(file_name: String = "") -> Dictionary:
 	var target_file_name: String = storage_file_name if file_name.is_empty() else file_name
 	_clear_pending_save(target_file_name)
 	var data: Dictionary = _read_persisted_data(target_file_name)
-	from_dict(data, false)
+	replace_from_dict(data, false)
 	settings_loaded.emit(data)
 	return data
 
@@ -989,6 +1014,40 @@ func _apply_defaults_to_missing() -> void:
 		var definition: GFSettingDefinition = _get_definition(key)
 		if definition != null:
 			_values[key] = definition.coerce_value(definition.default_value)
+
+
+func _build_restored_values(data: Dictionary) -> Dictionary:
+	var restored_values: Dictionary = {}
+	for key_variant: Variant in data.keys():
+		var key: StringName = GFVariantData.to_string_name(key_variant)
+		if key == &"":
+			continue
+		var value: Variant = _deserialize_value(data[key_variant])
+		var definition: GFSettingDefinition = _get_definition(key)
+		restored_values[key] = definition.coerce_value(value) if definition != null else value
+
+	for key: StringName in _definitions.keys():
+		if restored_values.has(key):
+			continue
+		var definition: GFSettingDefinition = _get_definition(key)
+		if definition != null:
+			restored_values[key] = definition.coerce_value(definition.default_value)
+	return restored_values
+
+
+func _emit_replaced_value_changes(previous_values: Dictionary) -> void:
+	for key_variant: Variant in previous_values.keys():
+		var key: StringName = GFVariantData.to_string_name(key_variant)
+		var old_value: Variant = previous_values[key_variant]
+		var has_new_value: bool = _values.has(key)
+		var new_value: Variant = GFVariantData.get_option_value(_values, key)
+		if not has_new_value or old_value != new_value:
+			setting_changed.emit(key, old_value, new_value if has_new_value else null)
+
+	for key: StringName in _values.keys():
+		if previous_values.has(key):
+			continue
+		setting_changed.emit(key, null, _values[key])
 
 
 func _get_storage_utility() -> GFStorageUtility:

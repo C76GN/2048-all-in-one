@@ -248,6 +248,7 @@ func replace_tokens(text: String, options: Dictionary = {}) -> String:
 	var end_token: String = GFVariantData.get_option_string(options, "end_token", "}}")
 	var missing_text: String = GFVariantData.get_option_string(options, "missing_text")
 	var max_replacements: int = GFVariantData.get_option_int(options, "max_replacements", 0)
+	var replacement_state: Dictionary = _get_replacement_state(options)
 	var source_span: Variant = GFVariantData.get_option_value(options, "source_span")
 	if start_token.is_empty() or end_token.is_empty():
 		_add_source_error(&"invalid_token_delimiter", "Token delimiters must not be empty.", source_span)
@@ -255,7 +256,7 @@ func replace_tokens(text: String, options: Dictionary = {}) -> String:
 
 	var output: String = ""
 	var cursor: int = 0
-	var replacement_count: int = 0
+	var replacement_count: int = GFVariantData.get_option_int(replacement_state, "count")
 	while cursor < text.length():
 		if not _consume_step(source_span):
 			var remaining_after_budget: String = text.substr(cursor)
@@ -286,7 +287,9 @@ func replace_tokens(text: String, options: Dictionary = {}) -> String:
 			break
 
 		if max_replacements > 0 and replacement_count >= max_replacements:
-			_add_source_error(&"replacement_limit_exceeded", "Token replacement limit exceeded.", source_span)
+			if not GFVariantData.get_option_bool(replacement_state, "limit_reported"):
+				_add_source_error(&"replacement_limit_exceeded", "Token replacement limit exceeded.", source_span)
+				replacement_state["limit_reported"] = true
 			var skipped_text: String = text.substr(start_index)
 			if not _check_text_length(output.length() + skipped_text.length(), source_span):
 				return output
@@ -304,6 +307,7 @@ func replace_tokens(text: String, options: Dictionary = {}) -> String:
 			return output
 		output += replacement_text
 		replacement_count += 1
+		replacement_state["count"] = replacement_count
 		cursor = end_index + end_token.length()
 	return output
 
@@ -327,8 +331,13 @@ func replace_tokens(text: String, options: Dictionary = {}) -> String:
 ## [br]
 ## @schema options: Dictionary，可包含 start_token、end_token、missing_text、max_replacements、source_span、value_formatter、max_loop_items、max_template_depth 和 loop_key。
 func render_template(template_text: String, options: Dictionary = {}) -> String:
-	var source_span: Variant = GFVariantData.get_option_value(options, "source_span")
-	return _render_template_text(template_text, options, 0, source_span)
+	var render_options: Dictionary = options.duplicate(true)
+	render_options["_replacement_state"] = {
+		"count": 0,
+		"limit_reported": false,
+	}
+	var source_span: Variant = GFVariantData.get_option_value(render_options, "source_span")
+	return _render_template_text(template_text, render_options, 0, source_span)
 
 
 ## 追加文本到输出缓冲。
@@ -507,6 +516,17 @@ func _get_value_formatter(options: Dictionary) -> Callable:
 		var formatter: Callable = formatter_value
 		return formatter
 	return Callable()
+
+
+func _get_replacement_state(options: Dictionary) -> Dictionary:
+	var state_value: Variant = GFVariantData.get_option_value(options, "_replacement_state")
+	if state_value is Dictionary:
+		var state: Dictionary = state_value
+		return state
+	return {
+		"count": 0,
+		"limit_reported": false,
+	}
 
 
 func _render_template_text(text: String, options: Dictionary, depth: int, source_span: Variant) -> String:

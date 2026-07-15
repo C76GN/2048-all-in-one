@@ -27,17 +27,8 @@ const _MANIFEST_PATH_FIELDS: Array[String] = [
 	"import_plugin_paths",
 	"installer_paths",
 ]
-const _TOOL_CONTRIBUTION_PATH_FIELDS: Array[String] = [
-	"access_generator_extension_paths",
-	"editor_action_paths",
-	"editor_dock_paths",
-	"editor_inspector_paths",
-	"export_plugin_paths",
-	"gltf_document_extension_paths",
-	"import_plugin_paths",
-]
-
 const _GF_DEPENDENCY_GRAPH_TOOLS = preload("res://addons/gf/kernel/core/gf_dependency_graph_tools.gd")
+const _GF_EXTENSION_TOOL_CONTRIBUTION_SCRIPT = preload("res://addons/gf/kernel/extension/gf_extension_tool_contribution.gd")
 const _GF_PATH_TOOLS = preload("res://addons/gf/kernel/core/gf_path_tools.gd")
 const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
 const _GF_EXTENSION_JSON_FILE_READER_SCRIPT = preload("res://addons/gf/kernel/extension/gf_extension_json_file_reader.gd")
@@ -425,7 +416,7 @@ static func _collect_tool_contribution_path_dictionary(
 	manifests: Array[GFExtensionManifest],
 	errors: Array[Dictionary]
 ) -> Dictionary:
-	var result: Dictionary = _make_empty_path_dictionary(_TOOL_CONTRIBUTION_PATH_FIELDS)
+	var result: Dictionary = _make_empty_path_dictionary(_GF_EXTENSION_TOOL_CONTRIBUTION_SCRIPT.PATH_FIELDS)
 	for manifest: GFExtensionManifest in manifests:
 		var contribution_path: String = _get_tool_contribution_path(manifest)
 		if contribution_path.is_empty() or not FileAccess.file_exists(contribution_path):
@@ -443,17 +434,21 @@ static func _collect_tool_contribution_path_dictionary(
 			))
 			continue
 
-		var data: Dictionary = _GF_VARIANT_ACCESS_SCRIPT.get_option_dictionary(json_report, "data")
-		var extension_id: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(data, "extension_id")
-		if extension_id != manifest.id:
+		var raw_data: Dictionary = _GF_VARIANT_ACCESS_SCRIPT.get_option_dictionary(json_report, "data")
+		var schema_report: Dictionary = _GF_EXTENSION_TOOL_CONTRIBUTION_SCRIPT.parse_dictionary(
+			raw_data,
+			manifest.id
+		)
+		if not _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(schema_report, "ok", false):
 			errors.append(_make_tool_contribution_error_record(
 				manifest.id,
 				contribution_path,
-				["tool contribution extension_id mismatch"]
+				_GF_VARIANT_ACCESS_SCRIPT.get_option_string_array(schema_report, "errors")
 			))
 			continue
+		var data: Dictionary = _GF_VARIANT_ACCESS_SCRIPT.get_option_dictionary(schema_report, "data")
 
-		for property_name: String in _TOOL_CONTRIBUTION_PATH_FIELDS:
+		for property_name: String in _GF_EXTENSION_TOOL_CONTRIBUTION_SCRIPT.PATH_FIELDS:
 			for raw_path: String in _GF_VARIANT_ACCESS_SCRIPT.get_option_string_array(data, property_name):
 				var normalized_path: String = _normalize_tool_contribution_resource_path(
 					raw_path,

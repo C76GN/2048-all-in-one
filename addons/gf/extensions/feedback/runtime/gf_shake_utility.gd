@@ -133,6 +133,7 @@ func dispose() -> void:
 func tick(delta: float) -> void:
 	if _active_shakes.is_empty():
 		return
+	var safe_delta: float = maxf(delta, 0.0) if is_finite(delta) else 0.0
 
 	var finished_ids: PackedInt32Array = PackedInt32Array()
 	for shake_id: int in _active_shakes.keys():
@@ -141,14 +142,16 @@ func tick(delta: float) -> void:
 			var _invalid_state_id_appended: bool = finished_ids.append(shake_id)
 			continue
 		var previous_elapsed: float = _get_state_float(state, "elapsed_seconds", 0.0)
-		var next_elapsed: float = previous_elapsed + maxf(delta, 0.0)
+		var next_elapsed: float = previous_elapsed + safe_delta
+		if not is_finite(next_elapsed):
+			next_elapsed = previous_elapsed
 		var preset: GFShakePreset = _get_state_preset(state)
 		if preset == null:
 			var _finished_id_appended: bool = finished_ids.append(shake_id)
 			continue
 		var duration: float = preset.get_duration_seconds()
 		if next_elapsed >= duration:
-			if previous_elapsed <= 0.0 and delta > 0.0:
+			if previous_elapsed <= 0.0 and safe_delta > 0.0:
 				state["elapsed_seconds"] = duration * 0.25
 				continue
 			var _finished_id_appended: bool = finished_ids.append(shake_id)
@@ -196,7 +199,7 @@ func play_shake(
 		"id": shake_id,
 		"channel": effective_channel,
 		"preset": preset,
-		"strength": maxf(strength, 0.0),
+		"strength": maxf(strength, 0.0) if is_finite(strength) else 0.0,
 		"elapsed_seconds": 0.0,
 		"phase_offset": _rng.randf() if randomize_phase else 0.0,
 		"metadata": metadata.duplicate(true),
@@ -450,7 +453,8 @@ func _get_state_channel(state: Dictionary) -> StringName:
 
 
 func _get_state_float(state: Dictionary, key: String, default_value: float) -> float:
-	return GFVariantData.get_option_float(state, key, default_value)
+	var value: float = GFVariantData.get_option_float(state, key, default_value)
+	return value if is_finite(value) else default_value
 
 
 func _get_state_metadata_copy(state: Dictionary) -> Dictionary:

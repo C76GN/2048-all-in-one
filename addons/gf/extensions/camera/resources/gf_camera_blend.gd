@@ -17,17 +17,43 @@ extends Resource
 ## 过渡持续时间，单位秒。小于等于 0 时表示立即切换。
 ## [br]
 ## @api public
-@export_range(0.0, 60.0, 0.001, "or_greater") var duration_seconds: float = 0.35
+## [br]
+## @since 3.17.0
+@export_range(0.0, 60.0, 0.001, "or_greater") var duration_seconds: float:
+	get:
+		return _duration_seconds
+	set(value):
+		if is_finite(value):
+			_duration_seconds = maxf(value, 0.0)
 
 ## Tween 过渡类型。
 ## [br]
 ## @api public
-@export var transition_type: Tween.TransitionType = Tween.TRANS_SINE
+## [br]
+## @since 3.17.0
+@export var transition_type: Tween.TransitionType:
+	get:
+		return _transition_type
+	set(value):
+		_transition_type = value if _is_valid_transition_type(value) else Tween.TRANS_LINEAR
 
 ## Tween 缓动类型。
 ## [br]
 ## @api public
-@export var ease_type: Tween.EaseType = Tween.EASE_IN_OUT
+## [br]
+## @since 3.17.0
+@export var ease_type: Tween.EaseType:
+	get:
+		return _ease_type
+	set(value):
+		_ease_type = value if _is_valid_ease_type(value) else Tween.EASE_IN_OUT
+
+
+# --- 私有变量 ---
+
+var _duration_seconds: float = 0.35
+var _transition_type: Tween.TransitionType = Tween.TRANS_SINE
+var _ease_type: Tween.EaseType = Tween.EASE_IN_OUT
 
 
 # --- 公共方法 ---
@@ -80,3 +106,29 @@ func duplicate_blend() -> GFCameraBlend:
 
 func _is_finite_float(value: float) -> bool:
 	return not is_nan(value) and not is_inf(value)
+
+
+func _is_valid_transition_type(value: int) -> bool:
+	return value in [
+		Tween.TRANS_LINEAR,
+		Tween.TRANS_SINE,
+		Tween.TRANS_QUINT,
+		Tween.TRANS_QUART,
+		Tween.TRANS_QUAD,
+		Tween.TRANS_EXPO,
+		Tween.TRANS_ELASTIC,
+		Tween.TRANS_CUBIC,
+		Tween.TRANS_CIRC,
+		Tween.TRANS_BOUNCE,
+		Tween.TRANS_BACK,
+		Tween.TRANS_SPRING,
+	]
+
+
+func _is_valid_ease_type(value: int) -> bool:
+	return value in [
+		Tween.EASE_IN,
+		Tween.EASE_OUT,
+		Tween.EASE_IN_OUT,
+		Tween.EASE_OUT_IN,
+	]

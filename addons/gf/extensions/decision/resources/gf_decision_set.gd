@@ -12,6 +12,11 @@ class_name GFDecisionSet
 extends Resource
 
 
+# --- 常量 ---
+
+const _GF_DECISION_NUMERIC_POLICY = preload("res://addons/gf/extensions/decision/runtime/gf_decision_numeric_policy.gd")
+
+
 # --- 导出变量 ---
 
 ## 候选决策集合标识。
@@ -192,30 +197,68 @@ func evaluate(context: GFDecisionContext) -> GFDecisionEvaluation:
 ## [br]
 ## @since 7.0.0
 ## [br]
-## @param context: 决策上下文；scores 为空时用于现场评分。
+## @param context: 决策上下文；scores 为 null 时用于现场评分。
 ## [br]
-## @param scores: 已计算的评分快照；传入时不会重新评分。
+## @param scores: 已计算的评分快照；显式传入空数组也不会重新评分。
 ## [br]
 ## @return: 调试快照字典。
 ## [br]
 ## @schema return: 包含 decision_set_id、decision_count、minimum_score、scores 和 metadata 字段的 Dictionary。
 ## [br]
-## @schema scores: Array[GFDecisionScore]，可复用 score_all() 的结果以避免调试快照二次评分。
-func get_debug_snapshot(context: GFDecisionContext = null, scores: Array[GFDecisionScore] = []) -> Dictionary:
-	var resolved_scores: Array[GFDecisionScore] = scores.duplicate()
-	if resolved_scores.is_empty() and context != null:
-		resolved_scores = score_all(context)
+## @schema scores: Variant，可为 null 或 Array[GFDecisionScore]；null 表示按 context 现场评分，Array 表示完整预计算结果。
+func get_debug_snapshot(context: GFDecisionContext = null, scores: Variant = null) -> Dictionary:
+	var resolved_scores: Array[GFDecisionScore] = _resolve_score_snapshot(context, scores)
 	var score_dictionaries: Array[Dictionary] = []
 	for candidate_score: GFDecisionScore in resolved_scores:
 		if candidate_score != null:
 			score_dictionaries.append(candidate_score.to_dictionary())
-	return {
+	return GFReportValueCodec.to_report_dictionary({
 		"decision_set_id": decision_set_id,
 		"decision_count": decisions.size(),
 		"minimum_score": _normalized_minimum_score(),
 		"scores": score_dictionaries,
-		"metadata": _json_safe_dictionary(metadata),
+		"metadata": metadata.duplicate(true),
+	})
+
+
+## 获取集合资源的 authoring 校验报告。
+## [br]
+## @api public
+## [br]
+## @return GFValidationReportDictionary 兼容报告。
+## [br]
+## @since unreleased
+## [br]
+## @schema return: Dictionary with ok, healthy, decision_set_id, issues, summary, and next_action.
+func get_validation_report() -> Dictionary:
+	var report: Dictionary = {
+		"subject": "Decision set",
+		"decision_set_id": decision_set_id,
+		"issues": [],
 	}
+	if decision_set_id == &"":
+		_append_validation_issue(report, &"missing_decision_set_id", "decision_set_id is required", "decision_set_id")
+	if not _GF_DECISION_NUMERIC_POLICY.is_valid_score(minimum_score):
+		_append_validation_issue(report, &"invalid_minimum_score", "minimum_score must be finite and within 0 to 1", "minimum_score")
+
+	var seen_ids: Dictionary = {}
+	for index: int in range(decisions.size()):
+		var decision: GFDecisionOption = decisions[index]
+		if decision == null:
+			_append_validation_issue(report, &"missing_decision", "decision is null", "decisions[%d]" % index)
+			continue
+		if decision.decision_id == &"":
+			_append_validation_issue(report, &"missing_decision_id", "decision_id is required", "decisions[%d].decision_id" % index)
+		elif seen_ids.has(decision.decision_id):
+			_append_validation_issue(report, &"duplicate_decision_id", "decision_id is duplicated", "decisions[%d].decision_id" % index)
+		else:
+			seen_ids[decision.decision_id] = true
+		_append_option_validation_issues(report, decision, index)
+
+	return GFValidationReportDictionary.finalize_report(report, "Decision set", {
+		"fallback_action": "Review the first decision set issue.",
+		"no_action": "Decision set is valid.",
+	})
 
 
 # --- 私有/辅助方法 ---
@@ -225,7 +268,7 @@ func _sort_score_desc(left: GFDecisionScore, right: GFDecisionScore) -> bool:
 		return false
 	if right == null:
 		return true
-	if not is_equal_approx(left.score, right.score):
+	if left.score != right.score:
 		return left.score > right.score
 	return _normalized_order(left.decision_order) < _normalized_order(right.decision_order)
 
@@ -237,16 +280,58 @@ func _normalized_order(order: int) -> int:
 
 
 func _normalized_minimum_score() -> float:
-	if is_nan(minimum_score) or is_inf(minimum_score):
-		return 1.0
-	return clampf(minimum_score, 0.0, 1.0)
+	return _GF_DECISION_NUMERIC_POLICY.normalize_score(minimum_score, 1.0)
 
 
-func _json_safe_dictionary(data: Dictionary) -> Dictionary:
-	var encoded: Variant = GFVariantJsonCodec.variant_to_json_compatible(data, {
-		"encode_dictionary_keys": true,
-	})
-	if encoded is Dictionary:
-		var encoded_dictionary: Dictionary = encoded
-		return encoded_dictionary.duplicate(true)
-	return {}
+func _resolve_score_snapshot(context: GFDecisionContext, scores: Variant) -> Array[GFDecisionScore]:
+	if scores == null:
+		return score_all(context) if context != null else []
+	var result: Array[GFDecisionScore] = []
+	if not scores is Array:
+		return result
+	var score_values: Array = scores
+	for score_value: Variant in score_values:
+		if score_value is GFDecisionScore:
+			var candidate_score: GFDecisionScore = score_value
+			result.append(candidate_score)
+	return result
+
+
+func _append_option_validation_issues(
+	report: Dictionary,
+	decision: GFDecisionOption,
+	index: int
+) -> void:
+	var option_report: Dictionary = decision.get_validation_report()
+	for issue_value: Variant in GFVariantData.get_option_array(option_report, "issues"):
+		var issue: Dictionary = GFValidationReportDictionary.issue_to_dict(issue_value)
+		var option_path: String = GFVariantData.get_option_string(issue, "path")
+		var _issue: Dictionary = GFValidationReportDictionary.append_issue(
+			report,
+			GFVariantData.get_option_string(issue, "severity", "error"),
+			GFVariantData.get_option_string_name(issue, "kind", &"invalid_decision"),
+			GFVariantData.get_option_string(issue, "message", "decision is invalid"),
+			{
+				"key": decision.decision_id,
+				"row_index": index,
+				"path": "decisions[%d].%s" % [index, option_path],
+			}
+		)
+
+
+func _append_validation_issue(
+	report: Dictionary,
+	kind: StringName,
+	message: String,
+	path: String
+) -> void:
+	var _issue: Dictionary = GFValidationReportDictionary.append_issue(
+		report,
+		"error",
+		kind,
+		message,
+		{
+			"key": decision_set_id,
+			"path": path,
+		}
+	)

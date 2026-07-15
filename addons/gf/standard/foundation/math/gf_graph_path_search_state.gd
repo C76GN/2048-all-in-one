@@ -340,7 +340,7 @@ func _get_heuristic_for(node: Variant, goal: Variant) -> float:
 func _push_node_priority(node: Variant, priority: float) -> void:
 	var sequence: int = _sequence
 	_sequence += 1
-	_open_queue.push_with_order({
+	var _node_queued: bool = _open_queue.push_with_order({
 		"node": node,
 		"priority": priority,
 		"sequence": sequence,

@@ -492,7 +492,7 @@ func _start_queued_thread_tasks() -> void:
 
 
 func _insert_queued_thread_task(task: GFBackgroundWorkTask, front: bool) -> void:
-	_queued_thread_tasks.push(task, task.priority, front)
+	var _task_queued: bool = _queued_thread_tasks.push(task, task.priority, front)
 
 
 func _start_thread_task(task: GFBackgroundWorkTask) -> void:

@@ -14,12 +14,19 @@ extends GFUtility
 
 # --- 常量 ---
 
-## 默认保留的操作数量。
+## 默认保留的已完成操作数量。
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
-const DEFAULT_MAX_OPERATIONS: int = 100
+## @since unreleased
+const DEFAULT_MAX_COMPLETED_OPERATIONS: int = 100
+
+## 默认允许同时追踪的活动操作数量。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const DEFAULT_MAX_ACTIVE_OPERATIONS: int = 100
 
 ## 默认保留的异常事件数量。
 ## [br]
@@ -42,12 +49,22 @@ const DEFAULT_MAX_STATE_TRACE_ENTRIES: int = 64
 ## @since unreleased
 const DEFAULT_MAX_SAMPLE_STATS: int = 256
 
+## 单个 metadata 默认最多保留的唯一业务键数量。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const DEFAULT_MAX_METADATA_KEYS: int = 64
+
 ## 默认慢操作阈值，单位毫秒。
 ## [br]
 ## @api public
 ## [br]
 ## @since 7.0.0
 const DEFAULT_SLOW_OPERATION_THRESHOLD_MS: float = 1200.0
+
+const _MAX_DURATION_MS: float = 9_000_000_000_000_000.0
+const _DROPPED_METADATA_KEY: StringName = &"__gf_dropped_key_count"
 
 ## 信息级事件。
 ## [br]
@@ -129,15 +146,25 @@ const STATE_CANCELLED: StringName = &"cancelled"
 
 # --- 公共变量 ---
 
-## 最多保留的操作记录数量。设置为 0 时不保留操作历史。
+## 最多保留的已完成操作数量。设置为 0 时完成结果不会进入历史。
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
-var max_operations: int = DEFAULT_MAX_OPERATIONS:
+## @since unreleased
+var max_completed_operations: int = DEFAULT_MAX_COMPLETED_OPERATIONS:
 	set(value):
-		max_operations = maxi(value, 0)
+		max_completed_operations = maxi(value, 0)
 		_trim_operations()
+
+## 最多同时追踪的活动操作数量。设置为 0 时 begin_operation() 拒绝新操作。
+## 已存在的活动操作不会因降低上限而被隐式取消。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+var max_active_operations: int = DEFAULT_MAX_ACTIVE_OPERATIONS:
+	set(value):
+		max_active_operations = maxi(value, 0)
 
 ## 最多保留的异常事件数量。设置为 0 时不保留异常历史。
 ## [br]
@@ -169,12 +196,26 @@ var max_sample_stats: int = DEFAULT_MAX_SAMPLE_STATS:
 		max_sample_stats = maxi(value, 0)
 		_trim_sample_stats()
 
+## 单个 metadata 最多保留的唯一业务键数量。覆盖已有键不消耗新额度。
+## 超额键会被丢弃，并通过 __gf_dropped_key_count 记录累计数量。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+var max_metadata_keys: int = DEFAULT_MAX_METADATA_KEYS:
+	set(value):
+		max_metadata_keys = maxi(value, 0)
+		_trim_all_metadata()
+
 ## 超过该耗时的完成操作会在健康快照中计入慢操作，单位毫秒。小于 0 时禁用慢操作统计。
 ## [br]
 ## @api public
 ## [br]
 ## @since 7.0.0
-var slow_operation_threshold_ms: float = DEFAULT_SLOW_OPERATION_THRESHOLD_MS
+var slow_operation_threshold_ms: float = DEFAULT_SLOW_OPERATION_THRESHOLD_MS:
+	set(value):
+		if is_finite(value):
+			slow_operation_threshold_ms = value
 
 
 # --- 私有变量 ---
@@ -185,6 +226,7 @@ var _sample_stats: Dictionary = {}
 var _next_operation_index: int = 1
 var _next_incident_index: int = 1
 var _next_sequence: int = 1
+var _rejected_active_operation_count: int = 0
 
 
 # --- GF 生命周期方法 ---
@@ -212,6 +254,7 @@ func clear() -> void:
 	_next_operation_index = 1
 	_next_incident_index = 1
 	_next_sequence = 1
+	_rejected_active_operation_count = 0
 
 
 ## 开始记录一个操作。
@@ -228,48 +271,12 @@ func clear() -> void:
 ## [br]
 ## @schema options: Dictionary，支持 operation_id、component、label、metadata 和 started_ticks_usec。
 func begin_operation(operation_type: StringName, options: Dictionary = {}) -> StringName:
-	if operation_type == &"" or max_operations <= 0:
+	if operation_type == &"":
 		return &""
-
-	var operation_id: StringName = GFVariantData.get_option_string_name(options, "operation_id")
-	if operation_id == &"" or has_operation(operation_id):
-		operation_id = _make_operation_id(operation_type)
-
-	var sequence: int = _take_sequence()
-	var started_ticks_usec: int = GFVariantData.get_option_int(options, "started_ticks_usec", Time.get_ticks_usec())
-	var started_at_unix: float = Time.get_unix_time_from_system()
-	var operation: Dictionary = {
-		"entry_type": &"operation",
-		"operation_id": operation_id,
-		"operation_type": operation_type,
-		"sequence": sequence,
-		"last_sequence": sequence,
-		"component": GFVariantData.get_option_string_name(options, "component"),
-		"label": GFVariantData.get_option_string(options, "label", String(operation_type)),
-		"state": &"running",
-		"success": false,
-		"started_ticks_usec": started_ticks_usec,
-		"ended_ticks_usec": 0,
-		"duration_ms": 0.0,
-		"started_at_unix": started_at_unix,
-		"ended_at_unix": 0.0,
-		"started_at_iso": _datetime_from_unix(started_at_unix),
-		"ended_at_iso": "",
-		"phases": [],
-		"state_trace": [],
-		"current_state_id": &"",
-		"current_state_status": STATE_RUNNING,
-		"progress": 0.0,
-		"attempt": 0,
-		"max_attempts": 0,
-		"user_action_required": false,
-		"last_error": "",
-		"anomaly_codes": PackedStringArray(),
-		"metadata": GFVariantData.get_option_dictionary(options, "metadata"),
-	}
-	_operations.append(operation)
-	_trim_operations()
-	return operation_id
+	if max_active_operations <= 0 or _get_active_operation_count() >= max_active_operations:
+		_rejected_active_operation_count += 1
+		return &""
+	return _begin_operation_unchecked(operation_type, options)
 
 
 ## 直接记录一个已完成操作。
@@ -332,7 +339,7 @@ func record_phase(
 	duration_ms: float,
 	options: Dictionary = {}
 ) -> Dictionary:
-	if operation_id == &"" or phase_id == &"":
+	if operation_id == &"" or phase_id == &"" or not _duration_is_valid(duration_ms):
 		return {}
 
 	var index: int = _find_operation_index(operation_id)
@@ -360,7 +367,7 @@ func record_phase(
 		"started_ticks_usec": started_ticks_usec,
 		"ended_ticks_usec": ended_ticks_usec,
 		"sequence": sequence,
-		"metadata": GFVariantData.get_option_dictionary(options, "metadata"),
+		"metadata": _merge_metadata({}, GFVariantData.get_option_dictionary(options, "metadata")),
 	}
 	var phases: Array[Dictionary] = _get_dictionary_array(operation, "phases")
 	phases.append(phase)
@@ -445,11 +452,12 @@ func record_state_snapshot(
 	var normalized_status: StringName = _normalize_state_status(status)
 	var attempt: int = maxi(GFVariantData.get_option_int(options, "attempt", GFVariantData.get_option_int(operation, "attempt", 0)), 0)
 	var max_attempts: int = maxi(GFVariantData.get_option_int(options, "max_attempts", GFVariantData.get_option_int(operation, "max_attempts", 0)), 0)
-	var progress: float = clampf(
-		GFVariantData.get_option_float(options, "progress", GFVariantData.get_option_float(operation, "progress", 0.0)),
-		0.0,
-		1.0
-	)
+	var progress: float = GFVariantData.get_option_float(options, "progress", GFVariantData.get_option_float(operation, "progress", 0.0))
+	var progress_current: float = GFVariantData.get_option_float(options, "progress_current", -1.0)
+	var progress_total: float = GFVariantData.get_option_float(options, "progress_total", -1.0)
+	if not is_finite(progress) or not is_finite(progress_current) or not is_finite(progress_total):
+		return {}
+	progress = clampf(progress, 0.0, 1.0)
 	var error_text: String = GFVariantData.get_option_string(options, "error")
 	var state_record: Dictionary = {
 		"state_id": state_id,
@@ -460,14 +468,14 @@ func record_state_snapshot(
 		"attempt": attempt,
 		"max_attempts": max_attempts,
 		"progress": progress,
-		"progress_current": GFVariantData.get_option_float(options, "progress_current", -1.0),
-		"progress_total": GFVariantData.get_option_float(options, "progress_total", -1.0),
+		"progress_current": progress_current,
+		"progress_total": progress_total,
 		"user_action_required": GFVariantData.get_option_bool(options, "user_action_required", normalized_status == STATE_WAITING_FOR_USER),
 		"error": error_text,
 		"seen_ticks_usec": seen_ticks_usec,
 		"seen_at_unix": seen_at_unix,
 		"seen_at_iso": _datetime_from_unix(seen_at_unix),
-		"metadata": GFVariantData.get_option_dictionary(options, "metadata"),
+		"metadata": _merge_metadata({}, GFVariantData.get_option_dictionary(options, "metadata")),
 	}
 
 	var state_trace: Array[Dictionary] = _get_dictionary_array(operation, "state_trace")
@@ -571,7 +579,7 @@ func record_incident(
 		"last_seen_unix": now_unix,
 		"first_seen_iso": _datetime_from_unix(now_unix),
 		"last_seen_iso": _datetime_from_unix(now_unix),
-		"metadata": GFVariantData.get_option_dictionary(options, "metadata"),
+		"metadata": _merge_metadata({}, GFVariantData.get_option_dictionary(options, "metadata")),
 	}
 	_incidents.append(incident)
 	_trim_incidents()
@@ -682,7 +690,7 @@ func record_async_snapshot(
 ## [br]
 ## @schema return: Dictionary，包含 sample_id、component、sample_count、total_duration_ms、average_duration_ms、min_duration_ms、max_duration_ms、slow_sample_count 和 metadata。
 func record_sample(sample_id: StringName, duration_ms: float, options: Dictionary = {}) -> Dictionary:
-	if sample_id == &"" or max_sample_stats <= 0:
+	if sample_id == &"" or max_sample_stats <= 0 or not _duration_is_valid(duration_ms):
 		return {}
 
 	var safe_duration_ms: float = maxf(duration_ms, 0.0)
@@ -952,7 +960,7 @@ func get_timeline(limit: int = 0, filters: Dictionary = {}) -> Array[Dictionary]
 ## [br]
 ## @return 健康快照字典。
 ## [br]
-## @schema return: Dictionary，包含 status、operation_count、incident_count、sample_stat_count、open_operation_count、failed_operation_count、slow_operation_count、slow_sample_count、recent_operations、recent_incidents、recent_sample_stats、slowest_operation 和 slowest_sample。
+## @schema return: Dictionary，包含 status、operation_count、active_operation_count、completed_operation_count、rejected_active_operation_count、incident_count、sample_stat_count、failed_operation_count、slow_operation_count、slow_sample_count、recent_operations、recent_incidents、recent_sample_stats、slowest_operation 和 slowest_sample。
 func get_health_snapshot(limit: int = 5) -> Dictionary:
 	var recent_limit: int = maxi(limit, 0)
 	var open_operation_count: int = 0
@@ -994,10 +1002,15 @@ func get_health_snapshot(limit: int = 5) -> Dictionary:
 	for incident: Dictionary in _incidents:
 		var incident_severity: StringName = GFVariantData.get_option_string_name(incident, "severity", SEVERITY_INFO)
 		status = _max_status(status, _severity_to_status(incident_severity))
+	if _rejected_active_operation_count > 0 or open_operation_count > max_active_operations:
+		status = _max_status(status, &"warning")
 
 	return {
 		"status": status,
 		"operation_count": _operations.size(),
+		"active_operation_count": open_operation_count,
+		"completed_operation_count": _get_completed_operation_count(),
+		"rejected_active_operation_count": _rejected_active_operation_count,
 		"incident_count": _incidents.size(),
 		"sample_stat_count": _sample_stats.size(),
 		"open_operation_count": open_operation_count,
@@ -1025,12 +1038,17 @@ func get_health_snapshot(limit: int = 5) -> Dictionary:
 ## @schema return: Dictionary，包含 history 上限、计数、健康快照、最近时间线和采样统计。
 func get_debug_snapshot() -> Dictionary:
 	return {
-		"max_operations": max_operations,
+		"max_completed_operations": max_completed_operations,
+		"max_active_operations": max_active_operations,
 		"max_incidents": max_incidents,
 		"max_state_trace_entries": max_state_trace_entries,
 		"max_sample_stats": max_sample_stats,
+		"max_metadata_keys": max_metadata_keys,
 		"slow_operation_threshold_ms": slow_operation_threshold_ms,
 		"operation_count": _operations.size(),
+		"active_operation_count": _get_active_operation_count(),
+		"completed_operation_count": _get_completed_operation_count(),
+		"rejected_active_operation_count": _rejected_active_operation_count,
 		"incident_count": _incidents.size(),
 		"sample_stat_count": _sample_stats.size(),
 		"health": get_health_snapshot(3),
@@ -1166,6 +1184,47 @@ func _take_sequence() -> int:
 	return result
 
 
+func _begin_operation_unchecked(operation_type: StringName, options: Dictionary) -> StringName:
+	var operation_id: StringName = GFVariantData.get_option_string_name(options, "operation_id")
+	if operation_id == &"" or has_operation(operation_id):
+		operation_id = _make_operation_id(operation_type)
+
+	var sequence: int = _take_sequence()
+	var started_ticks_usec: int = GFVariantData.get_option_int(options, "started_ticks_usec", Time.get_ticks_usec())
+	var started_at_unix: float = Time.get_unix_time_from_system()
+	var operation: Dictionary = {
+		"entry_type": &"operation",
+		"operation_id": operation_id,
+		"operation_type": operation_type,
+		"sequence": sequence,
+		"last_sequence": sequence,
+		"component": GFVariantData.get_option_string_name(options, "component"),
+		"label": GFVariantData.get_option_string(options, "label", String(operation_type)),
+		"state": &"running",
+		"success": false,
+		"started_ticks_usec": started_ticks_usec,
+		"ended_ticks_usec": 0,
+		"duration_ms": 0.0,
+		"started_at_unix": started_at_unix,
+		"ended_at_unix": 0.0,
+		"started_at_iso": _datetime_from_unix(started_at_unix),
+		"ended_at_iso": "",
+		"phases": [],
+		"state_trace": [],
+		"current_state_id": &"",
+		"current_state_status": STATE_RUNNING,
+		"progress": 0.0,
+		"attempt": 0,
+		"max_attempts": 0,
+		"user_action_required": false,
+		"last_error": "",
+		"anomaly_codes": PackedStringArray(),
+		"metadata": _merge_metadata({}, GFVariantData.get_option_dictionary(options, "metadata")),
+	}
+	_operations.append(operation)
+	return operation_id
+
+
 func _record_completed_operation_with_terminal_state(
 	operation_type: StringName,
 	duration_ms: float,
@@ -1174,6 +1233,8 @@ func _record_completed_operation_with_terminal_state(
 	terminal_state: StringName,
 	terminal_state_status: StringName
 ) -> Dictionary:
+	if operation_type == &"" or not _duration_is_valid(duration_ms):
+		return {}
 	var safe_duration_ms: float = maxf(duration_ms, 0.0)
 	var ended_ticks_usec: int = GFVariantData.get_option_int(options, "ended_ticks_usec", Time.get_ticks_usec())
 	var started_ticks_usec: int = GFVariantData.get_option_int(
@@ -1183,7 +1244,7 @@ func _record_completed_operation_with_terminal_state(
 	)
 	var operation_options: Dictionary = options.duplicate(true)
 	operation_options["started_ticks_usec"] = started_ticks_usec
-	var operation_id: StringName = begin_operation(operation_type, operation_options)
+	var operation_id: StringName = _begin_operation_unchecked(operation_type, operation_options)
 	if operation_id == &"":
 		return {}
 
@@ -1215,6 +1276,8 @@ func _finish_operation_with_terminal_state(
 		"duration_ms",
 		maxf(float(ended_ticks_usec - started_ticks_usec) / 1000.0, 0.0)
 	)
+	if not _duration_is_valid(duration_ms):
+		return {}
 	var ended_at_unix: float = Time.get_unix_time_from_system()
 
 	operation["success"] = success
@@ -1313,10 +1376,44 @@ func _update_incident(index: int, options: Dictionary) -> Dictionary:
 
 
 func _merge_metadata(base: Dictionary, extra: Dictionary) -> Dictionary:
-	var result: Dictionary = base.duplicate(true)
+	var result: Dictionary = {}
+	var dropped_count: int = _get_dropped_metadata_key_count(base)
+	var business_key_count: int = 0
+	for key: Variant in base.keys():
+		if _metadata_key_is_reserved(key):
+			continue
+		if business_key_count >= max_metadata_keys:
+			dropped_count += 1
+			continue
+		result[key] = GFVariantData.duplicate_variant(base[key])
+		business_key_count += 1
 	for key: Variant in extra.keys():
+		if _metadata_key_is_reserved(key):
+			continue
+		if not result.has(key) and business_key_count >= max_metadata_keys:
+			dropped_count += 1
+			continue
 		result[key] = GFVariantData.duplicate_variant(extra[key])
+		if not base.has(key):
+			business_key_count += 1
+	if dropped_count > 0:
+		result[_DROPPED_METADATA_KEY] = dropped_count
 	return result
+
+
+func _get_dropped_metadata_key_count(metadata: Dictionary) -> int:
+	for key: Variant in metadata.keys():
+		if _metadata_key_is_reserved(key):
+			return maxi(GFVariantData.to_int(metadata[key]), 0)
+	return 0
+
+
+func _metadata_key_is_reserved(key: Variant) -> bool:
+	return StringName(GFVariantData.to_text(key)) == _DROPPED_METADATA_KEY
+
+
+func _duration_is_valid(duration_ms: float) -> bool:
+	return is_finite(duration_ms) and duration_ms <= _MAX_DURATION_MS
 
 
 func _to_json_compatible_dictionary(value: Dictionary, options: Dictionary) -> Dictionary:
@@ -1543,10 +1640,7 @@ func _limit_records(records: Array[Dictionary], limit: int) -> Array[Dictionary]
 
 
 func _trim_operations() -> void:
-	if max_operations <= 0:
-		_operations.clear()
-		return
-	while _operations.size() > max_operations:
+	while _get_completed_operation_count() > max_completed_operations:
 		var terminal_index: int = _find_oldest_terminal_operation_index()
 		if terminal_index < 0:
 			return
@@ -1554,10 +1648,33 @@ func _trim_operations() -> void:
 
 
 func _find_oldest_terminal_operation_index() -> int:
+	var oldest_index: int = -1
+	var oldest_sequence: int = 0
 	for index: int in range(_operations.size()):
-		if _operation_is_terminal(_operations[index]):
-			return index
-	return -1
+		var operation: Dictionary = _operations[index]
+		if not _operation_is_terminal(operation):
+			continue
+		var sequence: int = GFVariantData.get_option_int(operation, "last_sequence")
+		if oldest_index < 0 or sequence < oldest_sequence:
+			oldest_index = index
+			oldest_sequence = sequence
+	return oldest_index
+
+
+func _get_active_operation_count() -> int:
+	var count: int = 0
+	for operation: Dictionary in _operations:
+		if not _operation_is_terminal(operation):
+			count += 1
+	return count
+
+
+func _get_completed_operation_count() -> int:
+	var count: int = 0
+	for operation: Dictionary in _operations:
+		if _operation_is_terminal(operation):
+			count += 1
+	return count
 
 
 func _operation_is_terminal(operation: Dictionary) -> bool:
@@ -1607,6 +1724,33 @@ func _trim_operation_state_traces() -> void:
 		_trim_state_trace(state_trace)
 		operation["state_trace"] = state_trace
 		_operations[index] = operation
+
+
+func _trim_all_metadata() -> void:
+	for operation_index: int in range(_operations.size()):
+		var operation: Dictionary = _operations[operation_index]
+		operation["metadata"] = _merge_metadata({}, GFVariantData.get_option_dictionary(operation, "metadata"))
+		var phases: Array[Dictionary] = _get_dictionary_array(operation, "phases")
+		for phase_index: int in range(phases.size()):
+			var phase: Dictionary = phases[phase_index]
+			phase["metadata"] = _merge_metadata({}, GFVariantData.get_option_dictionary(phase, "metadata"))
+			phases[phase_index] = phase
+		operation["phases"] = phases
+		var state_trace: Array[Dictionary] = _get_dictionary_array(operation, "state_trace")
+		for state_index: int in range(state_trace.size()):
+			var state_record: Dictionary = state_trace[state_index]
+			state_record["metadata"] = _merge_metadata({}, GFVariantData.get_option_dictionary(state_record, "metadata"))
+			state_trace[state_index] = state_record
+		operation["state_trace"] = state_trace
+		_operations[operation_index] = operation
+	for incident_index: int in range(_incidents.size()):
+		var incident: Dictionary = _incidents[incident_index]
+		incident["metadata"] = _merge_metadata({}, GFVariantData.get_option_dictionary(incident, "metadata"))
+		_incidents[incident_index] = incident
+	for sample_id: Variant in _sample_stats.keys():
+		var stat: Dictionary = GFVariantData.as_dictionary(_sample_stats[sample_id])
+		stat["metadata"] = _merge_metadata({}, GFVariantData.get_option_dictionary(stat, "metadata"))
+		_sample_stats[sample_id] = stat
 
 
 func _trim_state_trace(state_trace: Array[Dictionary]) -> void:

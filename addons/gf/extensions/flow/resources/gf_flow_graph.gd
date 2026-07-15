@@ -593,14 +593,18 @@ func serialize_runtime_state(json_compatible: bool = false) -> Dictionary:
 func deserialize_runtime_state(data: Dictionary) -> void:
 	var node_states_value: Variant = GFVariantData.get_option_value(data, "nodes", {})
 	if not (node_states_value is Dictionary):
+		push_error("[GFFlowGraph] deserialize_runtime_state 失败：nodes 必须是 Dictionary。")
 		return
 
 	var node_states: Dictionary = node_states_value
+	for state_value: Variant in node_states.values():
+		if not (state_value is Dictionary):
+			push_error("[GFFlowGraph] deserialize_runtime_state 失败：每个节点状态必须是 Dictionary。")
+			return
+	clear_runtime_state()
 	for node_id_variant: Variant in node_states.keys():
 		var node: GFFlowNode = get_node(_get_string_name_value(node_id_variant))
 		var state_value: Variant = node_states[node_id_variant]
-		if not (state_value is Dictionary):
-			continue
 		var state: Dictionary = state_value
 		if node != null:
 			node.deserialize_runtime_state(state)
@@ -767,8 +771,11 @@ func _get_string_name_value(value: Variant, default_value: StringName = &"") -> 
 
 
 func _get_object_value(value: Variant) -> Object:
+	if typeof(value) != TYPE_OBJECT or not is_instance_valid(value):
+		return null
 	if value is Object:
-		return value
+		var object_value: Object = value
+		return object_value
 	return null
 
 
@@ -1007,6 +1014,7 @@ func _get_validation_next_actions() -> Dictionary:
 		"terminal_node": "Connect a successor, disable warn_terminal_nodes, or keep the node intentionally terminal.",
 		"metadata_missing_required": "Add the required metadata key or relax the metadata schema.",
 		"metadata_null_not_allowed": "Provide a non-null metadata value or allow null in the schema.",
+		"metadata_invalid_object": "Remove the freed object reference or provide a live object value.",
 		"metadata_type_mismatch": "Update the metadata value type or the schema type hint.",
 		"metadata_class_mismatch": "Update the metadata object class or the schema class_name hint.",
 		"metadata_value_not_allowed": "Use one of the schema allowed_values or remove the restriction.",
@@ -1018,6 +1026,7 @@ func _get_metadata_validation_next_actions() -> Dictionary:
 	return {
 		"metadata_missing_required": "Add the required metadata key or relax the metadata schema.",
 		"metadata_null_not_allowed": "Provide a non-null metadata value or allow null in the schema.",
+		"metadata_invalid_object": "Remove the freed object reference or provide a live object value.",
 		"metadata_type_mismatch": "Update the metadata value type or the schema type hint.",
 		"metadata_class_mismatch": "Update the metadata object class or the schema class_name hint.",
 		"metadata_value_not_allowed": "Use one of the schema allowed_values or remove the restriction.",
@@ -1175,6 +1184,9 @@ func _validate_metadata_against_schema(
 			continue
 
 		var rule: Dictionary = rule_value
+		if rule.is_empty():
+			_append_validation_issue(report, "warning", "metadata_invalid_rule", String(key), "%s schema rule must not be empty: %s" % [label, String(key)])
+			continue
 		var has_key: bool = _metadata_has_key(target_metadata, key)
 		var required: bool = GFVariantData.get_option_bool(rule, "required", false)
 		if required and not has_key:
@@ -1184,6 +1196,9 @@ func _validate_metadata_against_schema(
 			continue
 
 		var value: Variant = _metadata_get_value(target_metadata, key)
+		if typeof(value) == TYPE_OBJECT and not is_instance_valid(value):
+			_append_validation_issue(report, "error", "metadata_invalid_object", String(key), "%s metadata references a freed object: %s" % [label, String(key)])
+			continue
 		if value == null:
 			if not GFVariantData.get_option_bool(rule, "allow_null", true):
 				_append_validation_issue(report, "error", "metadata_null_not_allowed", String(key), "%s metadata does not allow null: %s" % [label, String(key)])
@@ -1196,7 +1211,7 @@ func _validate_metadata_against_schema(
 
 		var expected_class: String = GFVariantData.get_option_string(rule, "class_name", "")
 		var object_value: Object = _get_object_value(value)
-		if not expected_class.is_empty() and not (object_value != null and object_value.is_class(expected_class)):
+		if not expected_class.is_empty() and not _object_matches_class(object_value, expected_class):
 			_append_validation_issue(report, "error", "metadata_class_mismatch", String(key), "%s metadata class does not match schema: %s" % [label, String(key)])
 
 		var allowed_values: Array = GFVariantData.get_option_array(rule, "allowed_values")
@@ -1224,6 +1239,8 @@ func _get_successor_node_ids(node_id: StringName, node_ids: Dictionary) -> Array
 	for connection: Dictionary in connections:
 		if _get_connection_from_node_id(connection) != node_id:
 			continue
+		if _get_connection_from_port_id(connection) != &"" or _get_connection_to_port_id(connection) != &"":
+			continue
 		_append_successor_id(result, _get_connection_to_node_id(connection), node_ids)
 	return result
 
@@ -1232,6 +1249,20 @@ func _append_successor_id(result: Array[StringName], node_id: StringName, node_i
 	if node_id == &"" or not node_ids.has(node_id) or result.has(node_id):
 		return
 	result.append(node_id)
+
+
+func _object_matches_class(value: Object, expected_class: String) -> bool:
+	if value == null or not is_instance_valid(value):
+		return false
+	if value.is_class(expected_class):
+		return true
+	var script_value: Variant = value.get_script()
+	while script_value is Script:
+		var script: Script = script_value
+		if script.get_global_name() == expected_class:
+			return true
+		script_value = script.get_base_script()
+	return false
 
 
 func _get_sorted_node_ids(node_ids: Dictionary) -> Array[StringName]:

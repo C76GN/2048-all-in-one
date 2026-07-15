@@ -602,10 +602,21 @@ func _require_version_range(
 	var ok: bool = true
 	var issue_kind: StringName = &""
 	var message: String = ""
+	var actual_semver: Dictionary = _parse_semver(actual_version)
+	var minimum_semver: Dictionary = _parse_semver(minimum) if not minimum.is_empty() else { "ok": true }
+	var maximum_semver: Dictionary = _parse_semver(maximum) if not maximum.is_empty() else { "ok": true }
 	if actual_version.strip_edges().is_empty():
 		ok = false
 		issue_kind = StringName("%s_missing" % String(kind))
 		message = "%s is missing" % String(kind)
+	elif not GFVariantData.get_option_bool(actual_semver, "ok"):
+		ok = false
+		issue_kind = StringName("%s_invalid" % String(kind))
+		message = "%s is not valid semantic version text" % String(kind)
+	elif not GFVariantData.get_option_bool(minimum_semver, "ok") or not GFVariantData.get_option_bool(maximum_semver, "ok"):
+		ok = false
+		issue_kind = StringName("%s_requirement_invalid" % String(kind))
+		message = "%s requirement contains invalid semantic version text" % String(kind)
 	elif not minimum.is_empty() and _compare_versions(actual_version, minimum) < 0:
 		ok = false
 		issue_kind = StringName("%s_below_minimum" % String(kind))
@@ -865,8 +876,15 @@ static func _compare_versions(left: String, right: String) -> int:
 
 static func _parse_semver(version: String) -> Dictionary:
 	var normalized: String = version.strip_edges()
+	if normalized.is_empty() or normalized.length() > 128:
+		return { "ok": false, "numbers": [0, 0, 0], "prerelease": PackedStringArray() }
 	var build_index: int = normalized.find("+")
 	if build_index >= 0:
+		if normalized.find("+", build_index + 1) >= 0:
+			return { "ok": false, "numbers": [0, 0, 0], "prerelease": PackedStringArray() }
+		var build_text: String = normalized.substr(build_index + 1)
+		if not _semver_identifiers_are_valid(build_text, false):
+			return { "ok": false, "numbers": [0, 0, 0], "prerelease": PackedStringArray() }
 		normalized = normalized.substr(0, build_index)
 
 	var prerelease: PackedStringArray = PackedStringArray()
@@ -874,11 +892,38 @@ static func _parse_semver(version: String) -> Dictionary:
 	var prerelease_index: int = normalized.find("-")
 	if prerelease_index >= 0:
 		core = normalized.substr(0, prerelease_index)
-		prerelease = normalized.substr(prerelease_index + 1).split(".")
+		var prerelease_text: String = normalized.substr(prerelease_index + 1)
+		if not _semver_identifiers_are_valid(prerelease_text, true):
+			return { "ok": false, "numbers": [0, 0, 0], "prerelease": PackedStringArray() }
+		prerelease = prerelease_text.split(".")
+	var core_parts: PackedStringArray = core.split(".", true)
+	if core_parts.size() != 3:
+		return { "ok": false, "numbers": [0, 0, 0], "prerelease": PackedStringArray() }
+	var numbers: Array[int] = []
+	for part: String in core_parts:
+		if not _is_numeric_identifier(part) or (part.length() > 1 and part.begins_with("0")) or part.length() > 18:
+			return { "ok": false, "numbers": [0, 0, 0], "prerelease": PackedStringArray() }
+		numbers.append(int(part))
 	return {
-		"numbers": _parse_version_numbers(core),
+		"ok": true,
+		"numbers": numbers,
 		"prerelease": prerelease,
 	}
+
+
+static func _semver_identifiers_are_valid(value: String, reject_numeric_leading_zeroes: bool) -> bool:
+	if value.is_empty():
+		return false
+	for identifier: String in value.split(".", true):
+		if identifier.is_empty():
+			return false
+		for index: int in range(identifier.length()):
+			var character: String = identifier.substr(index, 1)
+			if not "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-".contains(character):
+				return false
+		if reject_numeric_leading_zeroes and _is_numeric_identifier(identifier) and identifier.length() > 1 and identifier.begins_with("0"):
+			return false
+	return true
 
 
 static func _compare_prerelease(left: PackedStringArray, right: PackedStringArray) -> int:
@@ -913,24 +958,6 @@ static func _compare_prerelease(left: PackedStringArray, right: PackedStringArra
 			return -1 if left_numeric else 1
 		return -1 if left_part < right_part else 1
 	return 0
-
-
-static func _parse_version_numbers(version: String) -> Array[int]:
-	var result: Array[int] = [0, 0, 0]
-	var parts: PackedStringArray = version.strip_edges().split(".")
-	for index: int in range(mini(parts.size(), 3)):
-		result[index] = _leading_int(parts[index])
-	return result
-
-
-static func _leading_int(value: String) -> int:
-	var digits: String = ""
-	for index: int in range(value.length()):
-		var character: String = value.substr(index, 1)
-		if not "0123456789".contains(character):
-			break
-		digits += character
-	return int(digits) if not digits.is_empty() else 0
 
 
 static func _is_numeric_identifier(value: String) -> bool:

@@ -12,6 +12,11 @@ class_name GFProjectileEmissionPolicy
 extends Resource
 
 
+# --- 常量 ---
+
+const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/gf_combat_finite_math.gd")
+
+
 # --- 导出变量 ---
 
 ## 策略标识，便于调试或项目工具识别。
@@ -118,6 +123,8 @@ func prepare_emission(
 ) -> Dictionary:
 	var effective_now_msec: int = _resolve_now_msec(now_msec)
 	var context: Dictionary = projectile_context.duplicate(true)
+	if not is_configuration_valid():
+		return _make_prepare_report(false, &"non_finite_policy_configuration", projectile_id, requested_count, 0, context, effective_now_msec)
 	if not enabled:
 		return _make_prepare_report(true, &"", projectile_id, requested_count, requested_count, context, effective_now_msec)
 
@@ -173,14 +180,16 @@ func prepare_emission(
 ## [br]
 ## @schema return: Dictionary，包含 ok、committed、reason、emitted_count、emission_count、available_charges 和 consumed_charges。
 func commit_emission(emitter: Node, prepare_report: Dictionary, emitted_count: int) -> Dictionary:
-	if not enabled:
-		return _make_commit_report(true, true, &"", emitted_count, 0.0)
-	if not GFVariantData.get_option_bool(prepare_report, "ok"):
-		return _make_commit_report(false, false, &"prepare_report_not_ok", emitted_count, 0.0)
-	if emitted_count <= 0:
-		return _make_commit_report(false, false, &"nothing_emitted", emitted_count, 0.0)
-
 	var now_msec: int = GFVariantData.get_option_int(prepare_report, "now_msec", _resolve_now_msec(-1))
+	if not is_configuration_valid():
+		return _make_commit_report(false, false, &"non_finite_policy_configuration", emitted_count, 0.0, now_msec)
+	if not enabled:
+		return _make_commit_report(true, true, &"", emitted_count, 0.0, now_msec)
+	if not GFVariantData.get_option_bool(prepare_report, "ok"):
+		return _make_commit_report(false, false, &"prepare_report_not_ok", emitted_count, 0.0, now_msec)
+	if emitted_count <= 0:
+		return _make_commit_report(false, false, &"nothing_emitted", emitted_count, 0.0, now_msec)
+
 	_recover_charges(now_msec)
 	var consumed_charges: float = get_required_charges(emitted_count)
 	if consumed_charges > 0.0:
@@ -189,7 +198,7 @@ func commit_emission(emitter: Node, prepare_report: Dictionary, emitted_count: i
 	_last_emission_msec = now_msec
 	_emission_count += 1
 	_commit_emission(emitter, prepare_report, emitted_count)
-	return _make_commit_report(true, true, &"", emitted_count, consumed_charges)
+	return _make_commit_report(true, true, &"", emitted_count, consumed_charges, now_msec)
 
 
 ## 重置运行时策略状态。
@@ -235,7 +244,10 @@ func get_available_charges(now_msec: int = -1) -> float:
 func get_required_charges(emit_count: int) -> float:
 	if not _uses_charges():
 		return 0.0
-	return maxf(0.0, charge_cost_per_request) + maxf(0.0, charge_cost_per_projectile) * maxf(float(emit_count), 0.0)
+	var request_cost: float = _GF_COMBAT_FINITE_MATH.non_negative_or(charge_cost_per_request)
+	var projectile_cost: float = _GF_COMBAT_FINITE_MATH.non_negative_or(charge_cost_per_projectile)
+	var total_cost: float = request_cost + projectile_cost * maxf(float(emit_count), 0.0)
+	return total_cost if _GF_COMBAT_FINITE_MATH.is_finite_float(total_cost) else INF
 
 
 ## 获取剩余冷却秒数。
@@ -248,11 +260,28 @@ func get_required_charges(emit_count: int) -> float:
 ## [br]
 ## @return 剩余冷却秒数。
 func get_remaining_cooldown_seconds(now_msec: int = -1) -> float:
-	if cooldown_seconds <= 0.0 or _last_emission_msec < 0:
+	if not _GF_COMBAT_FINITE_MATH.is_finite_float(cooldown_seconds) or cooldown_seconds <= 0.0 or _last_emission_msec < 0:
 		return 0.0
 	var effective_now_msec: int = _resolve_now_msec(now_msec)
 	var elapsed_seconds: float = maxf(float(effective_now_msec - _last_emission_msec) / 1000.0, 0.0)
 	return maxf(cooldown_seconds - elapsed_seconds, 0.0)
+
+
+## 检查策略数值配置是否有限。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 所有浮点配置有限时返回 true。
+func is_configuration_valid() -> bool:
+	return (
+		_GF_COMBAT_FINITE_MATH.is_finite_float(cooldown_seconds)
+		and _GF_COMBAT_FINITE_MATH.is_finite_float(charge_capacity)
+		and _GF_COMBAT_FINITE_MATH.is_finite_float(charge_cost_per_request)
+		and _GF_COMBAT_FINITE_MATH.is_finite_float(charge_cost_per_projectile)
+		and _GF_COMBAT_FINITE_MATH.is_finite_float(charge_recovery_seconds)
+	)
 
 
 ## 获取策略调试快照。
@@ -357,7 +386,8 @@ func _make_commit_report(
 	committed: bool,
 	reason: StringName,
 	emitted_count: int,
-	consumed_charges: float
+	consumed_charges: float,
+	now_msec: int
 ) -> Dictionary:
 	return {
 		"ok": ok,
@@ -365,8 +395,9 @@ func _make_commit_report(
 		"reason": reason,
 		"emitted_count": emitted_count,
 		"emission_count": _emission_count,
-		"available_charges": get_available_charges(_resolve_now_msec(-1)),
+		"available_charges": get_available_charges(now_msec),
 		"consumed_charges": consumed_charges,
+		"now_msec": now_msec,
 	}
 
 
@@ -390,14 +421,14 @@ func _get_recovered_charges(now_msec: int) -> float:
 
 
 func _uses_charges() -> bool:
-	return charge_capacity > 0.0 and (
+	return is_configuration_valid() and charge_capacity > 0.0 and (
 		charge_cost_per_request > 0.0
 		or charge_cost_per_projectile > 0.0
 	)
 
 
 func _get_charge_capacity() -> float:
-	if is_nan(charge_capacity) or is_inf(charge_capacity):
+	if not _GF_COMBAT_FINITE_MATH.is_finite_float(charge_capacity):
 		return 0.0
 	return maxf(charge_capacity, 0.0)
 

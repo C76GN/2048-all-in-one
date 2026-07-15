@@ -398,7 +398,7 @@ static func _reconstruct_path(start: Vector3i, goal: Vector3i, came_from: Dictio
 
 
 static func _push_scored_cell(priority_queue: GFPriorityQueue, cell: Vector3i, score: float, order: int) -> void:
-	priority_queue.push_with_order({
+	var _cell_queued: bool = priority_queue.push_with_order({
 		"cell": cell,
 		"score": score,
 		"order": order,

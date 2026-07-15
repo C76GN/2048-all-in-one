@@ -265,6 +265,15 @@ static func _collect_preset_action_plans(
 			continue
 
 		var deadzone: float = GFVariantData.get_option_float(action_record, "deadzone", 0.5)
+		if is_nan(deadzone) or is_inf(deadzone) or deadzone < 0.0 or deadzone > 1.0:
+			_append_issue(
+				issues,
+				action_id,
+				"invalid_deadzone",
+				"Action deadzone must be finite and within [0, 1]."
+			)
+			report["skipped_count"] += 1
+			continue
 		var input_events: Array[InputEvent] = []
 		var event_records: Array = GFVariantData.get_option_array(action_record, "events")
 		for event_record_value: Variant in event_records:

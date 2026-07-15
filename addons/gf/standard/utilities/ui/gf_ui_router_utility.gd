@@ -398,14 +398,17 @@ func clear_history() -> void:
 ## [br]
 ## @api public
 ## [br]
+## @since 3.0.0
+## [br]
 ## @return 诊断快照。
 ## [br]
-## @schema return: Dictionary，包含 route_count、history_count、current_route_id 和 has_ui_utility。
+## @schema return: Dictionary，包含 route_count、history_count、pending_async_route_count、current_route_id 和 has_ui_utility。
 func get_debug_snapshot() -> Dictionary:
 	_prune_history()
 	return {
 		"route_count": _routes.size(),
 		"history_count": _history.size(),
+		"pending_async_route_count": _pending_async_routes.size(),
 		"current_route_id": String(get_current_route_id()),
 		"has_ui_utility": _get_ui_utility() != null,
 	}

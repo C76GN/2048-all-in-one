@@ -186,7 +186,8 @@ static func generate_cellular_automata_map(
 	options: Dictionary = {}
 ) -> Dictionary:
 	var automata_seed: int = GFVariantData.get_option_int(options, "seed", 0)
-	var alive_chance: float = clampf(GFVariantData.get_option_float(options, "alive_chance", 0.45), 0.0, 1.0)
+	var requested_alive_chance: float = GFVariantData.get_option_float(options, "alive_chance", 0.45)
+	var alive_chance: float = 0.45
 	var iterations: int = maxi(GFVariantData.get_option_int(options, "iterations", 4), 0)
 	var include_diagonal: bool = GFVariantData.get_option_bool(options, "include_diagonal", true)
 	var outside_alive: bool = GFVariantData.get_option_bool(options, "outside_alive", true)
@@ -195,6 +196,19 @@ static func generate_cellular_automata_map(
 		1
 	)
 	var cell_count: int = grid_size.x * grid_size.y
+	if is_nan(requested_alive_chance) or is_inf(requested_alive_chance):
+		return _make_cellular_automata_failure(
+			grid_size,
+			automata_seed,
+			alive_chance,
+			iterations,
+			include_diagonal,
+			outside_alive,
+			cell_count,
+			max_cells,
+			"alive_chance must be finite."
+		)
+	alive_chance = clampf(requested_alive_chance, 0.0, 1.0)
 	if grid_size.x <= 0 or grid_size.y <= 0:
 		return _make_cellular_automata_failure(
 			grid_size,

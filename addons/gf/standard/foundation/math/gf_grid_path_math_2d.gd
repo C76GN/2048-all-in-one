@@ -367,7 +367,7 @@ static func _reconstruct_path(start: Vector2i, goal: Vector2i, came_from: Dictio
 
 
 static func _push_cell_priority(priority_queue: GFPriorityQueue, cell: Vector2i, priority: float) -> void:
-	priority_queue.push({
+	var _cell_queued: bool = priority_queue.push({
 		"cell": cell,
 		"priority": priority,
 	}, priority)

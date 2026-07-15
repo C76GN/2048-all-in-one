@@ -95,14 +95,29 @@ extends Resource
 
 # --- 公共变量 ---
 
-## 节点运行态数据。默认不导出，项目可通过序列化接口自行存档或迁移。
+## 节点运行态数据的只读副本。项目应通过 set_runtime_value() 等方法修改，
+## 以便执行器在异步隔离期间拒绝写入共享 Resource。
 ## [br]
 ## @api public
 ## [br]
 ## @since 3.17.0
 ## [br]
 ## @schema runtime_state: 项目自定义运行态 Dictionary；键和值由节点实现维护。
-var runtime_state: Dictionary = {}
+var runtime_state: Dictionary:
+	get:
+		return _runtime_state.duplicate(true)
+	set(value):
+		if _reject_runtime_state_write("runtime_state"):
+			return
+		_runtime_state = value.duplicate(true)
+
+
+# --- 私有变量 ---
+
+var _runtime_state: Dictionary = {}
+var _runtime_state_lease_serial: int = 0
+var _runtime_state_lease_id: int = 0
+var _runtime_state_lease_write_depth: int = 0
 
 
 # --- 公共方法 ---
@@ -269,9 +284,11 @@ func describe_node() -> Dictionary:
 ## [br]
 ## @schema value: 任意可写入 runtime_state 的项目值。
 func set_runtime_value(key: StringName, value: Variant) -> void:
+	if _reject_runtime_state_write("set_runtime_value"):
+		return
 	if key == &"":
 		return
-	runtime_state[key] = value
+	_runtime_state[key] = GFVariantData.duplicate_variant(value)
 
 
 ## 读取节点运行态值。
@@ -290,7 +307,9 @@ func set_runtime_value(key: StringName, value: Variant) -> void:
 ## [br]
 ## @schema return: 找到的运行态值，或传入的 default_value。
 func get_runtime_value(key: StringName, default_value: Variant = null) -> Variant:
-	return GFVariantData.get_option_value(runtime_state, key, default_value)
+	return GFVariantData.duplicate_variant(
+		GFVariantData.get_option_value(_runtime_state, key, default_value)
+	)
 
 
 ## 清空节点运行态数据。
@@ -299,7 +318,9 @@ func get_runtime_value(key: StringName, default_value: Variant = null) -> Varian
 ## [br]
 ## @since 3.17.0
 func clear_runtime_state() -> void:
-	runtime_state.clear()
+	if _reject_runtime_state_write("clear_runtime_state"):
+		return
+	_runtime_state.clear()
 
 
 ## 序列化节点运行态数据。
@@ -315,10 +336,10 @@ func clear_runtime_state() -> void:
 ## @schema return: runtime_state 的深拷贝 Dictionary。
 func serialize_runtime_state(json_compatible: bool = false) -> Dictionary:
 	if json_compatible:
-		return GFReportValueCodec.to_report_dictionary(runtime_state, {
+		return GFReportValueCodec.to_report_dictionary(_runtime_state, {
 			"path_redaction": "basename",
 		})
-	return runtime_state.duplicate(true)
+	return _runtime_state.duplicate(true)
 
 
 ## 反序列化节点运行态数据。
@@ -331,10 +352,106 @@ func serialize_runtime_state(json_compatible: bool = false) -> Dictionary:
 ## [br]
 ## @schema data: serialize_runtime_state() 返回的运行态 Dictionary。
 func deserialize_runtime_state(data: Dictionary) -> void:
-	runtime_state = data.duplicate(true)
+	if _reject_runtime_state_write("deserialize_runtime_state"):
+		return
+	_runtime_state = data.duplicate(true)
+
+
+## 原子取得共享节点运行态的独占租约。
+##
+## Runner 必须在发出 node_started 或调用 execute() 之前取得租约。
+## [br]
+## @api framework_internal
+## [br]
+## @since unreleased
+## [br]
+## @return: 正整数租约 ID；节点正被其他执行占用时返回 -1。
+func acquire_runtime_state_lease() -> int:
+	if _runtime_state_lease_id > 0:
+		return -1
+	_runtime_state_lease_serial += 1
+	if _runtime_state_lease_serial <= 0:
+		_runtime_state_lease_serial = 1
+	_runtime_state_lease_id = _runtime_state_lease_serial
+	_runtime_state_lease_write_depth = 0
+	return _runtime_state_lease_id
+
+
+## 为租约持有者开启同步写阶段。
+## [br]
+## @api framework_internal
+## [br]
+## @since unreleased
+## [br]
+## @param lease_id: acquire_runtime_state_lease() 返回的租约 ID。
+## [br]
+## @return: 租约有效时返回 true。
+func begin_runtime_state_lease_write(lease_id: int) -> bool:
+	if lease_id <= 0 or lease_id != _runtime_state_lease_id:
+		return false
+	_runtime_state_lease_write_depth += 1
+	return true
+
+
+## 结束租约持有者的同步写阶段。
+## [br]
+## @api framework_internal
+## [br]
+## @since unreleased
+## [br]
+## @param lease_id: 当前租约 ID。
+## [br]
+## @return: 写阶段有效时返回 true。
+func end_runtime_state_lease_write(lease_id: int) -> bool:
+	if (
+		lease_id <= 0
+		or lease_id != _runtime_state_lease_id
+		or _runtime_state_lease_write_depth <= 0
+	):
+		return false
+	_runtime_state_lease_write_depth -= 1
+	return true
+
+
+## 释放共享节点运行态租约。
+## [br]
+## @api framework_internal
+## [br]
+## @since unreleased
+## [br]
+## @param lease_id: 当前租约 ID。
+## [br]
+## @return: 成功释放时返回 true。
+func release_runtime_state_lease(lease_id: int) -> bool:
+	if lease_id <= 0 or lease_id != _runtime_state_lease_id:
+		return false
+	_runtime_state_lease_write_depth = 0
+	_runtime_state_lease_id = 0
+	return true
+
+
+## 查询共享节点运行态是否已被执行租约占用。
+## [br]
+## @api framework_internal
+## [br]
+## @since unreleased
+## [br]
+## @return: 存在活动租约时返回 true。
+func is_runtime_state_leased() -> bool:
+	return _runtime_state_lease_id > 0
 
 
 # --- 私有/辅助方法 ---
+
+
+func _reject_runtime_state_write(operation: String) -> bool:
+	if not is_runtime_state_leased() or _runtime_state_lease_write_depth > 0:
+		return false
+	push_error(
+		"[GFFlowNode] %s 失败：节点运行态已由隔离执行租约保护，必须通过当前 GFFlowContext 写入运行态。"
+		% operation
+	)
+	return true
 
 func _find_port(ports: Array[GFFlowPort], port_id: StringName) -> GFFlowPort:
 	for port: GFFlowPort in ports:

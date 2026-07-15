@@ -415,6 +415,7 @@ func set_virtual_action_value(
 
 	if player_index >= 0:
 		var player_binding_key: String = _make_player_binding_key(player_index, binding_key)
+		_register_player_binding_metadata(player_binding_key, player_index, binding_key)
 		_player_binding_values[player_binding_key] = contribution
 		_player_binding_to_action[player_binding_key] = action_id
 		_refresh_player_action_state(player_index, action_id, action)
@@ -1169,6 +1170,7 @@ func _apply_entry_event(entry: Dictionary, event: InputEvent, player_index: int)
 		if player_index >= 0:
 			_binding_player_indices[key] = player_index
 			var player_binding_key: String = _make_player_binding_key(player_index, key)
+			_register_player_binding_metadata(player_binding_key, player_index, key)
 			_player_binding_values[player_binding_key] = contribution
 			_player_binding_to_action[player_binding_key] = action_id
 		else:
@@ -1315,12 +1317,16 @@ func _mark_action_just_completed(action_id: StringName) -> void:
 
 
 func _mark_player_action_just_started(player_index: int, action_id: StringName) -> void:
-	_player_just_started[_make_player_action_key(player_index, action_id)] = true
+	var key: String = _make_player_action_key(player_index, action_id)
+	_register_player_action_metadata(key, player_index, action_id)
+	_player_just_started[key] = true
 	_queue_clear_transient_input_state()
 
 
 func _mark_player_action_just_completed(player_index: int, action_id: StringName) -> void:
-	_player_just_completed[_make_player_action_key(player_index, action_id)] = true
+	var key: String = _make_player_action_key(player_index, action_id)
+	_register_player_action_metadata(key, player_index, action_id)
+	_player_just_completed[key] = true
 	_queue_clear_transient_input_state()
 
 
@@ -1451,12 +1457,14 @@ func _make_binding_key(context_id: StringName, action_id: StringName, binding_in
 
 
 func _make_player_binding_key(player_index: int, binding_key: String) -> String:
-	var key: String = _make_compound_key(["player_binding", player_index, binding_key])
+	return _make_compound_key(["player_binding", player_index, binding_key])
+
+
+func _register_player_binding_metadata(key: String, player_index: int, binding_key: String) -> void:
 	_player_binding_metadata[key] = {
 		"player_index": player_index,
 		"binding_key": binding_key,
 	}
-	return key
 
 
 func _make_virtual_binding_key(source_id: StringName, action_id: StringName, player_index: int = -1) -> String:
@@ -1468,12 +1476,14 @@ func _make_source_binding_key(binding_key: String, event: InputEvent) -> String:
 
 
 func _make_player_action_key(player_index: int, action_id: StringName) -> String:
-	var key: String = _make_compound_key(["player_action", player_index, action_id])
+	return _make_compound_key(["player_action", player_index, action_id])
+
+
+func _register_player_action_metadata(key: String, player_index: int, action_id: StringName) -> void:
 	_player_action_metadata[key] = {
 		"player_index": player_index,
 		"action_id": action_id,
 	}
-	return key
 
 
 func _get_player_source_binding_key(player_binding_key: String) -> String:
@@ -1636,6 +1646,7 @@ func _refresh_player_action_state(
 	action: GFInputAction
 ) -> void:
 	var key: String = _make_player_action_key(player_index, action_id)
+	_register_player_action_metadata(key, player_index, action_id)
 	var previous_value: Variant = _get_player_action_value_or_default(key, action.value_type)
 	var previous_active: bool = _get_player_action_active_by_key(key)
 	var next_value: Variant = _calculate_player_action_value(player_index, action_id, action.value_type)
@@ -1750,6 +1761,7 @@ func _set_player_action_active_from_triggers(
 	delta: float
 ) -> void:
 	var key: String = _make_player_action_key(player_index, action_id)
+	_register_player_action_metadata(key, player_index, action_id)
 	var previous_active: bool = _get_player_action_active_by_key(key)
 	var next_active: bool = _evaluate_player_action_triggers(player_index, action_id, raw_active, value, delta)
 	_player_action_active[key] = next_active
@@ -1789,6 +1801,7 @@ func _evaluate_player_action_triggers(
 	delta: float
 ) -> bool:
 	var key: String = _make_player_action_key(player_index, action_id)
+	_register_player_action_metadata(key, player_index, action_id)
 	return _evaluate_triggers(
 		action_id,
 		player_index,

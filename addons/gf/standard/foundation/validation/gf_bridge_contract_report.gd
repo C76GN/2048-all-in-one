@@ -157,6 +157,27 @@ func clear() -> void:
 	metadata.clear()
 
 
+## 构建经过报告边界脱敏的 JSON-safe 契约报告。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param report_options: 传给 get_report() 的报告选项。
+## [br]
+## @param codec_options: 传给 GFReportValueCodec 的脱敏与编码选项。
+## [br]
+## @return 可直接交给 JSON.stringify() 的报告字典。
+## [br]
+## @schema report_options: Dictionary bridge contract report options.
+## [br]
+## @schema codec_options: Dictionary GFReportValueCodec options.
+## [br]
+## @schema return: JSON-compatible redacted bridge contract report Dictionary.
+func get_json_compatible_report(report_options: Dictionary = {}, codec_options: Dictionary = {}) -> Dictionary:
+	return GFReportValueCodec.to_report_dictionary(get_report(report_options), codec_options)
+
+
 ## 添加一个期望桥接契约。
 ## [br]
 ## @api public

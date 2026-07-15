@@ -210,17 +210,32 @@ static func execute(request: Dictionary, options: Dictionary = {}) -> Dictionary
 static func recover_pending(project_root: String, options: Dictionary = {}) -> Dictionary:
 	var issues: PackedStringArray = PackedStringArray()
 	var normalized_root: String = _normalize_project_root(project_root)
-	if normalized_root.is_empty():
+	if normalized_root.is_empty() or _path_has_link_component(normalized_root):
 		var _append_root: bool = issues.append("Package transaction project root is invalid: %s" % project_root)
 		return _make_report(false, "", "recover", "", _OUTCOME_BLOCKED, 0, 0, false, false, false, true, issues)
-
-	var transaction_root: String = _transaction_root(normalized_root)
-	_cleanup_abandoned_candidates(transaction_root)
-	var active_root: String = transaction_root.path_join(_ACTIVE_DIRECTORY_NAME)
-	if not DirAccess.dir_exists_absolute(active_root):
+	if FileAccess.file_exists(normalized_root):
+		var _append_root_file: bool = issues.append("Package transaction project root is not a directory: %s" % project_root)
+		return _make_report(false, "", "recover", "", _OUTCOME_BLOCKED, 0, 0, false, false, false, true, issues)
+	if not DirAccess.dir_exists_absolute(normalized_root):
 		return make_empty_report("recover")
 
-	var journal: Dictionary = _read_latest_journal(active_root, issues)
+	var transaction_root: String = _transaction_root(normalized_root)
+	if _path_has_link_component(transaction_root):
+		var _append_transaction_link: bool = issues.append("Package transaction directory crosses a filesystem link: %s" % transaction_root)
+		return _make_report(false, "", "recover", "", _OUTCOME_RECOVERY_FAILED, 0, 0, false, false, false, true, issues)
+	if _path_exists(transaction_root) and not DirAccess.dir_exists_absolute(transaction_root):
+		var _append_transaction_type: bool = issues.append("Package transaction path is not a directory: %s" % transaction_root)
+		return _make_report(false, "", "recover", "", _OUTCOME_RECOVERY_FAILED, 0, 0, false, false, false, true, issues)
+	if not _cleanup_abandoned_candidates(transaction_root, issues, normalized_root):
+		return _make_report(false, "", "recover", "", _OUTCOME_RECOVERY_FAILED, 0, 0, false, false, false, true, issues)
+	var active_root: String = transaction_root.path_join(_ACTIVE_DIRECTORY_NAME)
+	if not _path_exists(active_root):
+		return make_empty_report("recover")
+	if not DirAccess.dir_exists_absolute(active_root) or _path_has_link_component(active_root):
+		var _append_active_path: bool = issues.append("Active package transaction path is not a safe directory: %s" % active_root)
+		return _make_report(false, "", "recover", "", _OUTCOME_RECOVERY_FAILED, 0, 0, false, false, false, true, issues)
+
+	var journal: Dictionary = _read_latest_journal(active_root, issues, normalized_root)
 	if journal.is_empty():
 		if issues.is_empty():
 			var _append_missing: bool = issues.append("Package transaction directory exists without a valid journal: %s" % active_root)
@@ -291,11 +306,13 @@ static func _normalize_request(request: Dictionary, issues: PackedStringArray) -
 	if not _GF_VARIANT_ACCESS.get_option_packed_string_array(schema_contract, "operations").has(operation):
 		var _append_operation: bool = issues.append("Invalid package transaction operation: %s" % operation)
 	var project_root: String = _normalize_project_root(_GF_VARIANT_ACCESS.get_option_string(request, "project_root"))
-	if project_root.is_empty():
+	if project_root.is_empty() or _path_has_link_component(project_root) or FileAccess.file_exists(project_root):
 		var _append_project: bool = issues.append("Package transaction project root is invalid.")
 	var lockfile_path: String = _normalize_absolute_path(_GF_VARIANT_ACCESS.get_option_string(request, "lockfile_path"))
 	if lockfile_path.is_empty() or not _is_path_inside(project_root, lockfile_path):
 		var _append_lockfile: bool = issues.append("Package transaction lockfile must stay inside project root: %s" % lockfile_path)
+	elif _path_has_link_component(lockfile_path):
+		var _append_lockfile_link: bool = issues.append("Package transaction lockfile path crosses a filesystem link: %s" % lockfile_path)
 	var transaction_root: String = _transaction_root(project_root)
 	if not lockfile_path.is_empty() and _is_path_inside(transaction_root, lockfile_path):
 		var _append_internal_lock: bool = issues.append("Package lockfile cannot be stored inside the package transaction directory.")
@@ -311,13 +328,17 @@ static func _normalize_request(request: Dictionary, issues: PackedStringArray) -
 		var raw_write: Dictionary = raw_value
 		var relative_path: String = _normalize_payload_relative_path(_GF_VARIANT_ACCESS.get_option_string(raw_write, "relative_path"))
 		var source_path: String = _normalize_absolute_path(_GF_VARIANT_ACCESS.get_option_string(raw_write, "source_path"))
-		if relative_path.is_empty() or source_path.is_empty() or not FileAccess.file_exists(source_path):
+		if relative_path.is_empty() or source_path.is_empty() or not FileAccess.file_exists(source_path) or _path_has_link_component(source_path):
 			var _append_write: bool = issues.append("Invalid package transaction write entry: %s" % _GF_VARIANT_ACCESS.get_option_string(raw_write, "relative_path"))
 			continue
-		if seen_paths.has(relative_path):
+		var path_identity: String = _portable_path_identity(relative_path)
+		if seen_paths.has(path_identity):
 			var _append_duplicate: bool = issues.append("Duplicate package transaction payload path: %s" % relative_path)
 			continue
-		seen_paths[relative_path] = true
+		seen_paths[path_identity] = true
+		var target_path: String = project_root.path_join(relative_path).replace("\\", "/").simplify_path()
+		if _path_has_link_component(target_path):
+			var _append_target_link: bool = issues.append("Package transaction payload target crosses a filesystem link: %s" % relative_path)
 		normalized_writes.append({ "relative_path": relative_path, "source_path": source_path })
 	for raw_value: Variant in _GF_VARIANT_ACCESS.get_option_array(request, "deletes"):
 		if not raw_value is Dictionary:
@@ -328,10 +349,14 @@ static func _normalize_request(request: Dictionary, issues: PackedStringArray) -
 		if relative_path.is_empty():
 			var _append_delete: bool = issues.append("Invalid package transaction delete entry: %s" % _GF_VARIANT_ACCESS.get_option_string(raw_delete, "relative_path"))
 			continue
-		if seen_paths.has(relative_path):
+		var path_identity: String = _portable_path_identity(relative_path)
+		if seen_paths.has(path_identity):
 			var _append_duplicate: bool = issues.append("Duplicate package transaction payload path: %s" % relative_path)
 			continue
-		seen_paths[relative_path] = true
+		seen_paths[path_identity] = true
+		var target_path: String = project_root.path_join(relative_path).replace("\\", "/").simplify_path()
+		if _path_has_link_component(target_path):
+			var _append_target_link: bool = issues.append("Package transaction payload target crosses a filesystem link: %s" % relative_path)
 		normalized_deletes.append({ "relative_path": relative_path })
 
 	var normalized_cleanup_paths: PackedStringArray = PackedStringArray()
@@ -344,7 +369,10 @@ static func _normalize_request(request: Dictionary, issues: PackedStringArray) -
 		if _is_path_inside(transaction_root, cleanup_path) or _is_path_inside(cleanup_path, transaction_root):
 			var _append_cleanup_transaction: bool = issues.append("Package transaction cleanup path cannot overlap the transaction directory: %s" % raw_path)
 			continue
-		if not normalized_cleanup_paths.has(cleanup_path):
+		if _path_has_link_component(cleanup_path):
+			var _append_cleanup_link: bool = issues.append("Package transaction cleanup path crosses a filesystem link: %s" % raw_path)
+			continue
+		if not _packed_array_has_portable_path(normalized_cleanup_paths, cleanup_path):
 			var _append_cleanup_path: bool = normalized_cleanup_paths.append(cleanup_path)
 
 	if not issues.is_empty():
@@ -368,11 +396,17 @@ static func _claim_transaction(request: Dictionary, issues: PackedStringArray) -
 	if make_root_error != OK:
 		var _append_root: bool = issues.append("Could not create package transaction root: %s" % error_string(make_root_error))
 		return { "ok": false }
+	if _path_has_link_component(transaction_root):
+		var _append_root_link: bool = issues.append("Package transaction root crosses a filesystem link: %s" % transaction_root)
+		return { "ok": false }
 	var transaction_id: String = "%d-%d-%d" % [OS.get_process_id(), Time.get_unix_time_from_system(), Time.get_ticks_usec()]
 	var candidate_root: String = transaction_root.path_join(_CANDIDATE_PREFIX + transaction_id)
 	var make_candidate_error: Error = DirAccess.make_dir_absolute(candidate_root)
 	if make_candidate_error != OK:
 		var _append_candidate: bool = issues.append("Could not create package transaction candidate: %s" % error_string(make_candidate_error))
+		return { "ok": false }
+	if _path_has_link_component(candidate_root):
+		var _append_candidate_link: bool = issues.append("Package transaction candidate crosses a filesystem link: %s" % candidate_root)
 		return { "ok": false }
 	var journal: Dictionary = {
 		"schema_version": _SCHEMA_VERSION,
@@ -389,12 +423,16 @@ static func _claim_transaction(request: Dictionary, issues: PackedStringArray) -
 		"writes": [],
 		"deletes": [],
 		"cleanup_paths": _GF_VARIANT_ACCESS.get_option_array(request, "cleanup_paths"),
-		"started_unix_time": Time.get_unix_time_from_system(),
+		"started_unix_time": int(Time.get_unix_time_from_system()),
 	}
 	if not _write_journal_snapshot(candidate_root, journal, issues):
 		var _candidate_removed: bool = _remove_tree(candidate_root, PackedStringArray())
 		return { "ok": false }
 	var active_root: String = transaction_root.path_join(_ACTIVE_DIRECTORY_NAME)
+	if _path_exists(active_root) or _path_has_link_component(active_root):
+		var _candidate_removed: bool = _remove_tree(candidate_root, PackedStringArray())
+		var _append_active_exists: bool = issues.append("Active package transaction path already exists or is unsafe: %s" % active_root)
+		return { "ok": false }
 	var claim_error: Error = DirAccess.rename_absolute(candidate_root, active_root)
 	if claim_error != OK:
 		var _candidate_removed: bool = _remove_tree(candidate_root, PackedStringArray())
@@ -458,6 +496,9 @@ static func _prepare_payload_entry(
 	var target_path: String = project_root.path_join(relative_path).replace("\\", "/").simplify_path()
 	if not _is_path_inside(project_root, target_path):
 		var _append_target: bool = issues.append("Package transaction target is outside project root: %s" % target_path)
+		return {}
+	if _path_has_link_component(target_path):
+		var _append_target_link: bool = issues.append("Package transaction target crosses a filesystem link: %s" % relative_path)
 		return {}
 	if DirAccess.dir_exists_absolute(target_path):
 		var _append_directory: bool = issues.append("Package transaction target is a directory: %s" % relative_path)
@@ -530,7 +571,7 @@ static func _apply_write(
 	source_path: String,
 	issues: PackedStringArray
 ) -> bool:
-	if source_path.is_empty() or not FileAccess.file_exists(source_path):
+	if source_path.is_empty() or not FileAccess.file_exists(source_path) or _path_has_link_component(source_path):
 		var _append_source: bool = issues.append("Package transaction staged source is missing: %s" % source_path)
 		return false
 	var expected_sha: String = _GF_VARIANT_ACCESS.get_option_string(entry, "expected_sha256")
@@ -540,7 +581,13 @@ static func _apply_write(
 		return false
 	var target_path: String = _payload_target_path(journal, entry)
 	var temp_path: String = _payload_temp_path(target_path, _GF_VARIANT_ACCESS.get_option_string(journal, "transaction_id"))
+	if _path_has_link_component(target_path) or _path_has_link_component(temp_path):
+		var _append_target_link: bool = issues.append("Package transaction write target crosses a filesystem link: %s" % target_path)
+		return false
 	if not _copy_file(source_path, temp_path, issues, "stage package payload %s" % _GF_VARIANT_ACCESS.get_option_string(entry, "relative_path")):
+		return false
+	if _path_has_link_component(target_path) or _path_has_link_component(temp_path):
+		var _append_changed_link: bool = issues.append("Package transaction write path became a filesystem link: %s" % target_path)
 		return false
 	if FileAccess.file_exists(target_path):
 		var remove_error: Error = DirAccess.remove_absolute(target_path)
@@ -559,6 +606,9 @@ static func _apply_write(
 
 static func _apply_delete(journal: Dictionary, entry: Dictionary, issues: PackedStringArray) -> bool:
 	var target_path: String = _payload_target_path(journal, entry)
+	if _path_has_link_component(target_path):
+		var _append_target_link: bool = issues.append("Package transaction delete target crosses a filesystem link: %s" % target_path)
+		return false
 	if DirAccess.dir_exists_absolute(target_path):
 		var _append_directory: bool = issues.append("Refusing to delete directory as package payload: %s" % target_path)
 		return false
@@ -575,7 +625,13 @@ static func _commit_lockfile(active_root: String, journal: Dictionary, issues: P
 	var planned_path: String = active_root.path_join(_LOCKFILE_PLANNED_NAME)
 	var lockfile_path: String = _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_path")
 	var temp_path: String = _lockfile_temp_path(lockfile_path, _GF_VARIANT_ACCESS.get_option_string(journal, "transaction_id"))
+	if _path_has_link_component(planned_path) or _path_has_link_component(lockfile_path) or _path_has_link_component(temp_path):
+		var _append_lock_link: bool = issues.append("Package transaction lockfile path crosses a filesystem link.")
+		return false
 	if not _copy_file(planned_path, temp_path, issues, "stage package lockfile"):
+		return false
+	if _path_has_link_component(lockfile_path) or _path_has_link_component(temp_path):
+		var _append_changed_link: bool = issues.append("Package transaction lockfile path became a filesystem link.")
 		return false
 	if FileAccess.file_exists(lockfile_path):
 		var remove_error: Error = DirAccess.remove_absolute(lockfile_path)
@@ -616,6 +672,8 @@ static func _rollback_after_failure(
 
 
 static func _rollback_state(active_root: String, journal: Dictionary, issues: PackedStringArray) -> bool:
+	if _append_rollback_conflict_issues(journal, issues):
+		return false
 	var entries: Array = _GF_VARIANT_ACCESS.get_option_array(journal, "deletes") + _GF_VARIANT_ACCESS.get_option_array(journal, "writes")
 	for index: int in range(entries.size() - 1, -1, -1):
 		var raw_value: Variant = entries[index]
@@ -639,6 +697,13 @@ static func _restore_payload_entry(
 	var target_path: String = _payload_target_path(journal, entry)
 	var temp_path: String = _payload_temp_path(target_path, _GF_VARIANT_ACCESS.get_option_string(journal, "transaction_id"))
 	_remove_file_if_exists(temp_path, issues, "remove transaction payload temp")
+	if _payload_matches_original_state(target_path, entry):
+		return
+	if not _payload_matches_planned_state(target_path, entry):
+		var _append_conflict: bool = issues.append(
+			"Package rollback target changed outside the transaction: %s" % _GF_VARIANT_ACCESS.get_option_string(entry, "relative_path")
+		)
+		return
 	if _GF_VARIANT_ACCESS.get_option_bool(entry, "original_exists", false):
 		var backup_path: String = active_root.path_join(_GF_VARIANT_ACCESS.get_option_string(entry, "backup_relative_path"))
 		_restore_file_from_snapshot(backup_path, target_path, _GF_VARIANT_ACCESS.get_option_string(journal, "transaction_id"), issues, "restore package payload")
@@ -651,10 +716,70 @@ static func _restore_lockfile(active_root: String, journal: Dictionary, issues: 
 	var lockfile_path: String = _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_path")
 	var temp_path: String = _lockfile_temp_path(lockfile_path, _GF_VARIANT_ACCESS.get_option_string(journal, "transaction_id"))
 	_remove_file_if_exists(temp_path, issues, "remove transaction lockfile temp")
+	if _lockfile_matches_original_state(lockfile_path, journal):
+		return
+	if not _lockfile_matches_planned_state(lockfile_path, journal):
+		var _append_conflict: bool = issues.append("Package rollback lockfile changed outside the transaction.")
+		return
 	if _GF_VARIANT_ACCESS.get_option_bool(journal, "lockfile_had_original", false):
 		_restore_file_from_snapshot(active_root.path_join(_LOCKFILE_ORIGINAL_NAME), lockfile_path, _GF_VARIANT_ACCESS.get_option_string(journal, "transaction_id"), issues, "restore package lockfile")
 		return
 	_remove_file_if_exists(lockfile_path, issues, "remove newly created package lockfile")
+
+
+static func _append_rollback_conflict_issues(journal: Dictionary, issues: PackedStringArray) -> bool:
+	var original_issue_count: int = issues.size()
+	var entries: Array = _GF_VARIANT_ACCESS.get_option_array(journal, "writes") + _GF_VARIANT_ACCESS.get_option_array(journal, "deletes")
+	for raw_value: Variant in entries:
+		if not raw_value is Dictionary:
+			var _append_entry: bool = issues.append("Package transaction journal contains an invalid payload entry.")
+			continue
+		var entry: Dictionary = raw_value
+		var target_path: String = _payload_target_path(journal, entry)
+		var relative_path: String = _GF_VARIANT_ACCESS.get_option_string(entry, "relative_path")
+		if _path_has_link_component(target_path):
+			var _append_link: bool = issues.append("Package rollback target crosses a filesystem link: %s" % relative_path)
+			continue
+		if not _payload_matches_original_state(target_path, entry) and not _payload_matches_planned_state(target_path, entry):
+			var _append_conflict: bool = issues.append(
+				"Package rollback conflict; target matches neither original nor planned state: %s" % relative_path
+			)
+	var lockfile_path: String = _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_path")
+	if _path_has_link_component(lockfile_path):
+		var _append_lock_link: bool = issues.append("Package rollback lockfile path crosses a filesystem link.")
+	elif not _lockfile_matches_original_state(lockfile_path, journal) and not _lockfile_matches_planned_state(lockfile_path, journal):
+		var _append_lock_conflict: bool = issues.append("Package rollback conflict; lockfile matches neither original nor planned state.")
+	return issues.size() > original_issue_count
+
+
+static func _payload_matches_original_state(target_path: String, entry: Dictionary) -> bool:
+	if _GF_VARIANT_ACCESS.get_option_bool(entry, "original_exists", false):
+		return _file_matches(
+			target_path,
+			_GF_VARIANT_ACCESS.get_option_string(entry, "original_sha256"),
+			_GF_VARIANT_ACCESS.get_option_int(entry, "original_size_bytes", -1)
+		)
+	return not _path_exists(target_path)
+
+
+static func _payload_matches_planned_state(target_path: String, entry: Dictionary) -> bool:
+	if _GF_VARIANT_ACCESS.get_option_string(entry, "action") == "write":
+		return _file_matches(
+			target_path,
+			_GF_VARIANT_ACCESS.get_option_string(entry, "expected_sha256"),
+			_GF_VARIANT_ACCESS.get_option_int(entry, "expected_size_bytes", -1)
+		)
+	return not _path_exists(target_path)
+
+
+static func _lockfile_matches_original_state(lockfile_path: String, journal: Dictionary) -> bool:
+	if _GF_VARIANT_ACCESS.get_option_bool(journal, "lockfile_had_original", false):
+		return _file_matches(lockfile_path, _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_original_sha256"), -1)
+	return not _path_exists(lockfile_path)
+
+
+static func _lockfile_matches_planned_state(lockfile_path: String, journal: Dictionary) -> bool:
+	return _file_matches(lockfile_path, _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_planned_sha256"), -1)
 
 
 static func _restore_file_from_snapshot(
@@ -664,11 +789,17 @@ static func _restore_file_from_snapshot(
 	issues: PackedStringArray,
 	context: String
 ) -> void:
+	if _path_has_link_component(snapshot_path) or _path_has_link_component(target_path):
+		var _append_link: bool = issues.append("Filesystem link blocked while attempting to %s." % context)
+		return
 	if not FileAccess.file_exists(snapshot_path):
 		var _append_missing: bool = issues.append("Missing transaction snapshot while attempting to %s: %s" % [context, snapshot_path])
 		return
 	var temp_path: String = target_path + ".gf-package-restore-" + transaction_id + ".tmp"
 	if not _copy_file(snapshot_path, temp_path, issues, context):
+		return
+	if _path_has_link_component(snapshot_path) or _path_has_link_component(target_path) or _path_has_link_component(temp_path):
+		var _append_changed_link: bool = issues.append("Filesystem link appeared while attempting to %s." % context)
 		return
 	if FileAccess.file_exists(target_path):
 		var remove_error: Error = DirAccess.remove_absolute(target_path)
@@ -730,27 +861,50 @@ static func _verify_original_state(journal: Dictionary, issues: PackedStringArra
 static func _cleanup_active_transaction(active_root: String, journal: Dictionary, issues: PackedStringArray) -> bool:
 	if not DirAccess.dir_exists_absolute(active_root):
 		return true
-	var transaction_root: String = active_root.get_base_dir()
+	var project_root: String = _GF_VARIANT_ACCESS.get_option_string(journal, "project_root")
+	var transaction_root: String = _transaction_root(project_root)
+	var validated_cleanup_paths: PackedStringArray = PackedStringArray()
+	for raw_cleanup: Variant in _GF_VARIANT_ACCESS.get_option_array(journal, "cleanup_paths"):
+		if not raw_cleanup is String:
+			var _append_cleanup_type: bool = issues.append("Package transaction journal contains a non-string cleanup path.")
+			continue
+		var raw_cleanup_path: String = raw_cleanup
+		var cleanup_path: String = _validate_cleanup_path(project_root, transaction_root, raw_cleanup_path)
+		if cleanup_path.is_empty():
+			var _append_cleanup_path: bool = issues.append("Package transaction journal contains an unsafe cleanup path: %s" % raw_cleanup_path)
+			continue
+		var _append_validated: bool = validated_cleanup_paths.append(cleanup_path)
+	if validated_cleanup_paths.size() != _GF_VARIANT_ACCESS.get_option_array(journal, "cleanup_paths").size():
+		return false
+	if _path_has_link_component(active_root) or _tree_has_link(active_root):
+		var _append_active_link: bool = issues.append("Active package transaction directory contains a filesystem link: %s" % active_root)
+		return false
 	var cleanup_root: String = transaction_root.path_join(
 		_CLEANUP_PREFIX + _GF_VARIANT_ACCESS.get_option_string(journal, "transaction_id")
 	)
-	if DirAccess.dir_exists_absolute(cleanup_root):
+	if _path_exists(cleanup_root):
 		cleanup_root += "-%d" % Time.get_ticks_usec()
+	if _path_exists(cleanup_root) or _path_has_link_component(cleanup_root):
+		var _append_cleanup_root: bool = issues.append("Package transaction cleanup directory is unsafe: %s" % cleanup_root)
+		return false
 	var finalize_error: Error = DirAccess.rename_absolute(active_root, cleanup_root)
 	if finalize_error != OK:
 		var _append_finalize: bool = issues.append("Could not finalize package transaction directory: %s" % error_string(finalize_error))
 		return false
-	for cleanup_path: String in _GF_VARIANT_ACCESS.get_option_packed_string_array(journal, "cleanup_paths"):
+	var ok: bool = true
+	for cleanup_path: String in validated_cleanup_paths:
 		var cleanup_issues: PackedStringArray = PackedStringArray()
 		var cleanup_ok: bool = _remove_tree(cleanup_path, cleanup_issues)
 		if not cleanup_ok:
 			_append_string_array(issues, cleanup_issues)
+			ok = false
 	var cleanup_directory_issues: PackedStringArray = PackedStringArray()
 	var cleanup_directory_removed: bool = _remove_tree(cleanup_root, cleanup_directory_issues)
 	if not cleanup_directory_removed:
 		_append_string_array(issues, cleanup_directory_issues)
+		ok = false
 	_remove_empty_directory(transaction_root)
-	return true
+	return ok
 
 
 static func _write_phase(
@@ -769,7 +923,13 @@ static func _write_journal_snapshot(root: String, journal: Dictionary, issues: P
 	var base_name: String = "%s%06d%s" % [_JOURNAL_PREFIX, sequence, _JOURNAL_SUFFIX]
 	var final_path: String = root.path_join(base_name)
 	var temp_path: String = final_path + _JOURNAL_TEMP_SUFFIX
+	if _path_exists(final_path) or _path_has_link_component(final_path) or _path_has_link_component(temp_path):
+		var _append_existing: bool = issues.append("Package transaction journal snapshot path is unsafe or already exists: %s" % final_path)
+		return false
 	if not _write_text_file(temp_path, JSON.stringify(journal, "\t", false) + "\n", issues, "write package transaction journal"):
+		return false
+	if _path_has_link_component(final_path) or _path_has_link_component(temp_path):
+		var _append_link: bool = issues.append("Package transaction journal path became a filesystem link: %s" % final_path)
 		return false
 	var rename_error: Error = DirAccess.rename_absolute(temp_path, final_path)
 	if rename_error != OK:
@@ -778,7 +938,11 @@ static func _write_journal_snapshot(root: String, journal: Dictionary, issues: P
 	return true
 
 
-static func _read_latest_journal(active_root: String, issues: PackedStringArray) -> Dictionary:
+static func _read_latest_journal(
+	active_root: String,
+	issues: PackedStringArray,
+	expected_project_root: String = ""
+) -> Dictionary:
 	var directory: DirAccess = DirAccess.open(active_root)
 	if directory == null:
 		var _append_open: bool = issues.append("Could not open package transaction directory: %s" % active_root)
@@ -795,15 +959,27 @@ static func _read_latest_journal(active_root: String, issues: PackedStringArray)
 		file_name = directory.get_next()
 	directory.list_dir_end()
 	names.sort()
-	for index: int in range(names.size() - 1, -1, -1):
-		var parsed: Variant = _read_json_value(active_root.path_join(names[index]))
-		if not parsed is Dictionary:
-			continue
-		var journal: Dictionary = parsed
-		if _journal_is_valid(journal):
-			return journal
-	var _append_invalid: bool = issues.append("Package transaction has no valid journal snapshot: %s" % active_root)
-	return {}
+	if names.is_empty():
+		var _append_missing: bool = issues.append("Package transaction has no journal snapshot: %s" % active_root)
+		return {}
+	var latest_name: String = names[names.size() - 1]
+	var latest_path: String = active_root.path_join(latest_name)
+	if _path_has_link_component(latest_path):
+		var _append_link: bool = issues.append("Latest package transaction journal crosses a filesystem link: %s" % latest_path)
+		return {}
+	var parsed: Variant = _read_json_value(latest_path)
+	if not parsed is Dictionary:
+		var _append_invalid: bool = issues.append("Latest package transaction journal is unreadable: %s" % latest_path)
+		return {}
+	var sequence_text: String = latest_name.substr(
+		_JOURNAL_PREFIX.length(),
+		latest_name.length() - _JOURNAL_PREFIX.length() - _JOURNAL_SUFFIX.length()
+	)
+	var expected_sequence: int = sequence_text.to_int() if sequence_text.is_valid_int() else -1
+	var journal: Dictionary = parsed
+	if not _validate_journal(journal, active_root, expected_project_root, expected_sequence, issues):
+		return {}
+	return journal
 
 
 static func _journal_is_valid(journal: Dictionary) -> bool:
@@ -811,17 +987,216 @@ static func _journal_is_valid(journal: Dictionary) -> bool:
 	var schema_contract: Dictionary = _load_schema_contract(schema_issues)
 	if schema_contract.is_empty():
 		return false
-	for field_name: String in _GF_VARIANT_ACCESS.get_option_packed_string_array(schema_contract, "journal_required_fields"):
+	var required_fields: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(schema_contract, "journal_required_fields")
+	var _append_started: bool = required_fields.append("started_unix_time")
+	for field_name: String in required_fields:
 		if not journal.has(field_name):
 			return false
 	return (
-		_GF_VARIANT_ACCESS.get_option_int(journal, "schema_version", 0) == _GF_VARIANT_ACCESS.get_option_int(schema_contract, "schema_version", 0)
-		and not _GF_VARIANT_ACCESS.get_option_string(journal, "transaction_id").is_empty()
+		_is_exact_integer(journal.get("schema_version"))
+		and _GF_VARIANT_ACCESS.get_option_int(journal, "schema_version", 0) == _GF_VARIANT_ACCESS.get_option_int(schema_contract, "schema_version", 0)
+		and typeof(journal.get("transaction_id")) == TYPE_STRING
+		and _transaction_id_is_valid(_GF_VARIANT_ACCESS.get_option_string(journal, "transaction_id"))
+		and typeof(journal.get("operation")) == TYPE_STRING
 		and _GF_VARIANT_ACCESS.get_option_packed_string_array(schema_contract, "operations").has(_GF_VARIANT_ACCESS.get_option_string(journal, "operation"))
+		and typeof(journal.get("phase")) == TYPE_STRING
 		and _GF_VARIANT_ACCESS.get_option_packed_string_array(schema_contract, "phases").has(_GF_VARIANT_ACCESS.get_option_string(journal, "phase"))
-		and not _normalize_project_root(_GF_VARIANT_ACCESS.get_option_string(journal, "project_root")).is_empty()
-		and not _normalize_absolute_path(_GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_path")).is_empty()
+		and _is_exact_integer(journal.get("sequence"))
+		and _GF_VARIANT_ACCESS.get_option_int(journal, "sequence", -1) >= 0
+		and _is_exact_integer(journal.get("owner_pid"))
+		and _GF_VARIANT_ACCESS.get_option_int(journal, "owner_pid", -1) >= 0
+		and _is_exact_integer(journal.get("started_unix_time"))
+		and _GF_VARIANT_ACCESS.get_option_int(journal, "started_unix_time", -1) >= 0
 	)
+
+
+static func _validate_journal(
+	journal: Dictionary,
+	active_root: String,
+	expected_project_root: String,
+	expected_sequence: int,
+	issues: PackedStringArray
+) -> bool:
+	var schema_contract: Dictionary = _load_schema_contract(issues)
+	if schema_contract.is_empty():
+		return false
+	var required_fields: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(schema_contract, "journal_required_fields")
+	var _append_started: bool = required_fields.append("started_unix_time")
+	var allowed_fields: PackedStringArray = required_fields.duplicate()
+	var _append_fault: bool = allowed_fields.append("fault_injected")
+	if not _dictionary_fields_are_exact(journal, required_fields, allowed_fields, "Package transaction journal", issues):
+		return false
+	if not _journal_is_valid(journal):
+		var _append_base: bool = issues.append("Package transaction journal scalar schema is invalid.")
+		return false
+	if journal.has("fault_injected") and typeof(journal.get("fault_injected")) != TYPE_BOOL:
+		var _append_fault_type: bool = issues.append("Package transaction journal fault_injected must be boolean.")
+	if _GF_VARIANT_ACCESS.get_option_int(journal, "sequence", -1) != expected_sequence:
+		var _append_sequence: bool = issues.append("Package transaction journal filename sequence does not match its payload.")
+
+	var raw_project_root: String = _GF_VARIANT_ACCESS.get_option_string(journal, "project_root")
+	var project_root: String = _normalize_project_root(raw_project_root)
+	if project_root.is_empty() or raw_project_root.replace("\\", "/") != project_root:
+		var _append_project: bool = issues.append("Package transaction journal project_root is not canonical.")
+	if not expected_project_root.is_empty() and not _paths_equal(project_root, expected_project_root):
+		var _append_expected_project: bool = issues.append("Package transaction journal project root does not match the requested project.")
+	if not DirAccess.dir_exists_absolute(project_root) or _path_has_link_component(project_root):
+		var _append_project_link: bool = issues.append("Package transaction journal project root is missing or crosses a filesystem link.")
+	var transaction_root: String = _transaction_root(project_root)
+	var normalized_active_root: String = _normalize_absolute_path(active_root)
+	if (
+		normalized_active_root.is_empty()
+		or not _paths_equal(normalized_active_root.get_base_dir(), transaction_root)
+		or (
+			normalized_active_root.get_file() != _ACTIVE_DIRECTORY_NAME
+			and not normalized_active_root.get_file().begins_with(_CANDIDATE_PREFIX)
+		)
+	):
+		var _append_active: bool = issues.append("Package transaction journal directory is not bound to the project transaction root.")
+	if _path_has_link_component(normalized_active_root):
+		var _append_active_link: bool = issues.append("Package transaction journal directory crosses a filesystem link.")
+
+	var raw_lockfile_path: String = _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_path")
+	var lockfile_path: String = _normalize_absolute_path(raw_lockfile_path)
+	if lockfile_path.is_empty() or raw_lockfile_path.replace("\\", "/") != lockfile_path:
+		var _append_lockfile: bool = issues.append("Package transaction journal lockfile_path is not canonical.")
+	if not _is_path_inside(project_root, lockfile_path) or _is_path_inside(transaction_root, lockfile_path):
+		var _append_lock_root: bool = issues.append("Package transaction journal lockfile_path is outside its permitted project root.")
+	if _path_has_link_component(lockfile_path):
+		var _append_lock_link: bool = issues.append("Package transaction journal lockfile_path crosses a filesystem link.")
+
+	var raw_cleanup_values: Array = _GF_VARIANT_ACCESS.get_option_array(journal, "cleanup_paths")
+	var seen_cleanup_paths: Dictionary = {}
+	for raw_cleanup: Variant in raw_cleanup_values:
+		if not raw_cleanup is String:
+			var _append_cleanup_type: bool = issues.append("Package transaction journal cleanup_paths must contain only non-empty strings.")
+			continue
+		var raw_cleanup_path: String = raw_cleanup
+		var cleanup_path: String = _validate_cleanup_path(project_root, transaction_root, raw_cleanup_path)
+		if cleanup_path.is_empty():
+			var _append_cleanup: bool = issues.append("Package transaction journal cleanup path is unsafe: %s" % raw_cleanup_path)
+			continue
+		var cleanup_identity: String = _absolute_portable_path_identity(cleanup_path)
+		if seen_cleanup_paths.has(cleanup_identity):
+			var _append_cleanup_duplicate: bool = issues.append("Package transaction journal cleanup path is duplicated: %s" % raw_cleanup_path)
+		seen_cleanup_paths[cleanup_identity] = true
+
+	if typeof(journal.get("lockfile_had_original")) != TYPE_BOOL:
+		var _append_lock_bool: bool = issues.append("Package transaction journal lockfile_had_original must be boolean.")
+	for sha_field: String in ["lockfile_original_sha256", "lockfile_planned_sha256"]:
+		if typeof(journal.get(sha_field)) != TYPE_STRING:
+			var _append_sha_type: bool = issues.append("Package transaction journal %s must be a string." % sha_field)
+	for array_field: String in ["writes", "deletes", "cleanup_paths"]:
+		if typeof(journal.get(array_field)) != TYPE_ARRAY:
+			var _append_array_type: bool = issues.append("Package transaction journal %s must be an array." % array_field)
+
+	var phase: String = _GF_VARIANT_ACCESS.get_option_string(journal, "phase")
+	var writes: Array = _GF_VARIANT_ACCESS.get_option_array(journal, "writes")
+	var deletes: Array = _GF_VARIANT_ACCESS.get_option_array(journal, "deletes")
+	if phase == _PHASE_PREPARING:
+		if not writes.is_empty() or not deletes.is_empty():
+			var _append_preparing_payload: bool = issues.append("Preparing package transaction journal cannot contain prepared payload entries.")
+		if (
+			_GF_VARIANT_ACCESS.get_option_bool(journal, "lockfile_had_original", false)
+			or not _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_original_sha256").is_empty()
+			or not _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_planned_sha256").is_empty()
+		):
+			var _append_preparing_lock: bool = issues.append("Preparing package transaction journal cannot claim prepared lockfile snapshots.")
+		return issues.is_empty()
+
+	var planned_snapshot: String = normalized_active_root.path_join(_LOCKFILE_PLANNED_NAME)
+	var planned_sha: String = _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_planned_sha256")
+	if not _is_sha256(planned_sha) or _path_has_link_component(planned_snapshot) or not _file_matches(planned_snapshot, planned_sha, -1):
+		var _append_planned: bool = issues.append("Package transaction journal planned lockfile snapshot is missing or invalid.")
+	if _GF_VARIANT_ACCESS.get_option_bool(journal, "lockfile_had_original", false):
+		var original_snapshot: String = normalized_active_root.path_join(_LOCKFILE_ORIGINAL_NAME)
+		var original_sha: String = _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_original_sha256")
+		if not _is_sha256(original_sha) or _path_has_link_component(original_snapshot) or not _file_matches(original_snapshot, original_sha, -1):
+			var _append_original: bool = issues.append("Package transaction journal original lockfile snapshot is missing or invalid.")
+	elif not _GF_VARIANT_ACCESS.get_option_string(journal, "lockfile_original_sha256").is_empty():
+		var _append_absent_original: bool = issues.append("Package transaction journal has an original lockfile digest without an original lockfile.")
+
+	var seen_payload_paths: Dictionary = {}
+	for raw_write: Variant in writes:
+		_validate_journal_payload_entry(raw_write, "write", project_root, normalized_active_root, seen_payload_paths, issues)
+	for raw_delete: Variant in deletes:
+		_validate_journal_payload_entry(raw_delete, "delete", project_root, normalized_active_root, seen_payload_paths, issues)
+	return issues.is_empty()
+
+
+static func _validate_journal_payload_entry(
+	raw_entry: Variant,
+	action: String,
+	project_root: String,
+	active_root: String,
+	seen_paths: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	if not raw_entry is Dictionary:
+		var _append_type: bool = issues.append("Package transaction journal %s entry must be a Dictionary." % action)
+		return
+	var entry: Dictionary = raw_entry
+	var common_fields: PackedStringArray = PackedStringArray([
+		"action", "relative_path", "original_exists", "original_sha256", "original_size_bytes", "backup_relative_path"
+	])
+	var allowed_fields: PackedStringArray = common_fields.duplicate()
+	if action == "write":
+		var _append_expected_sha: bool = allowed_fields.append("expected_sha256")
+		var _append_expected_size: bool = allowed_fields.append("expected_size_bytes")
+	if not _dictionary_fields_are_exact(entry, allowed_fields, allowed_fields, "Package transaction journal %s entry" % action, issues):
+		return
+	if _GF_VARIANT_ACCESS.get_option_string(entry, "action") != action:
+		var _append_action: bool = issues.append("Package transaction journal payload action is invalid.")
+	var relative_path: String = _GF_VARIANT_ACCESS.get_option_string(entry, "relative_path")
+	if relative_path.is_empty() or _normalize_payload_relative_path(relative_path) != relative_path:
+		var _append_path: bool = issues.append("Package transaction journal payload path is invalid: %s" % relative_path)
+		return
+	var path_identity: String = _portable_path_identity(relative_path)
+	if seen_paths.has(path_identity):
+		var _append_duplicate: bool = issues.append("Package transaction journal payload path is duplicated: %s" % relative_path)
+	seen_paths[path_identity] = true
+	var target_path: String = project_root.path_join(relative_path).replace("\\", "/").simplify_path()
+	if not _is_path_inside(project_root, target_path) or _path_has_link_component(target_path):
+		var _append_target: bool = issues.append("Package transaction journal payload target is unsafe: %s" % relative_path)
+	if typeof(entry.get("original_exists")) != TYPE_BOOL:
+		var _append_original_bool: bool = issues.append("Package transaction journal original_exists must be boolean: %s" % relative_path)
+		return
+	if typeof(entry.get("original_sha256")) != TYPE_STRING or not _is_exact_integer(entry.get("original_size_bytes")):
+		var _append_original_metadata: bool = issues.append("Package transaction journal original metadata is invalid: %s" % relative_path)
+		return
+	var backup_relative_path: String = _GF_VARIANT_ACCESS.get_option_string(entry, "backup_relative_path")
+	if typeof(entry.get("backup_relative_path")) != TYPE_STRING:
+		var _append_backup_type: bool = issues.append("Package transaction journal backup path is invalid: %s" % relative_path)
+		return
+	if _GF_VARIANT_ACCESS.get_option_bool(entry, "original_exists", false):
+		var expected_backup: String = _BACKUP_DIRECTORY_NAME.path_join(relative_path).replace("\\", "/")
+		var backup_path: String = active_root.path_join(backup_relative_path).replace("\\", "/").simplify_path()
+		if backup_relative_path != expected_backup or not _is_path_inside(active_root, backup_path):
+			var _append_backup_root: bool = issues.append("Package transaction journal backup path is not bound to its payload: %s" % relative_path)
+		elif (
+			_path_has_link_component(backup_path)
+			or not _is_sha256(_GF_VARIANT_ACCESS.get_option_string(entry, "original_sha256"))
+			or _GF_VARIANT_ACCESS.get_option_int(entry, "original_size_bytes", -1) < 0
+			or not _file_matches(
+				backup_path,
+				_GF_VARIANT_ACCESS.get_option_string(entry, "original_sha256"),
+				_GF_VARIANT_ACCESS.get_option_int(entry, "original_size_bytes", -1)
+			)
+		):
+			var _append_backup: bool = issues.append("Package transaction journal backup snapshot is missing or invalid: %s" % relative_path)
+	elif (
+		not _GF_VARIANT_ACCESS.get_option_string(entry, "original_sha256").is_empty()
+		or _GF_VARIANT_ACCESS.get_option_int(entry, "original_size_bytes", 0) != 0
+		or not backup_relative_path.is_empty()
+	):
+		var _append_absent: bool = issues.append("Package transaction journal absent original state contains backup metadata: %s" % relative_path)
+	if action == "write" and (
+		typeof(entry.get("expected_sha256")) != TYPE_STRING
+		or not _is_sha256(_GF_VARIANT_ACCESS.get_option_string(entry, "expected_sha256"))
+		or not _is_exact_integer(entry.get("expected_size_bytes"))
+		or _GF_VARIANT_ACCESS.get_option_int(entry, "expected_size_bytes", -1) < 0
+	):
+		var _append_expected: bool = issues.append("Package transaction journal planned write metadata is invalid: %s" % relative_path)
 
 
 static func _load_schema_contract(issues: PackedStringArray) -> Dictionary:
@@ -853,36 +1228,44 @@ static func _transaction_owner_is_running(journal: Dictionary) -> bool:
 	return OS.is_process_running(owner_pid)
 
 
-static func _cleanup_abandoned_candidates(transaction_root: String) -> void:
+static func _cleanup_abandoned_candidates(
+	transaction_root: String,
+	issues: PackedStringArray,
+	expected_project_root: String
+) -> bool:
 	if not DirAccess.dir_exists_absolute(transaction_root):
-		return
+		return true
+	if _path_has_link_component(transaction_root):
+		var _append_root_link: bool = issues.append("Package transaction root crosses a filesystem link: %s" % transaction_root)
+		return false
 	var directory: DirAccess = DirAccess.open(transaction_root)
 	if directory == null:
-		return
+		var _append_open: bool = issues.append("Could not open package transaction root: %s" % transaction_root)
+		return false
 	var candidates: PackedStringArray = PackedStringArray()
 	var list_error: Error = directory.list_dir_begin()
 	if list_error != OK:
-		return
+		var _append_list: bool = issues.append("Could not enumerate package transaction root: %s" % error_string(list_error))
+		return false
 	var directory_name: String = directory.get_next()
 	while not directory_name.is_empty():
-		if (
-			directory.current_is_dir()
-			and (
-				directory_name.begins_with(_CANDIDATE_PREFIX)
-				or directory_name.begins_with(_CLEANUP_PREFIX)
-			)
-		):
+		if directory_name.begins_with(_CANDIDATE_PREFIX) or directory_name.begins_with(_CLEANUP_PREFIX):
 			var _append_candidate: bool = candidates.append(transaction_root.path_join(directory_name))
 		directory_name = directory.get_next()
 	directory.list_dir_end()
 	for candidate_root: String in candidates:
+		if not DirAccess.dir_exists_absolute(candidate_root) or _path_has_link_component(candidate_root) or _tree_has_link(candidate_root):
+			var _append_candidate_link: bool = issues.append("Package transaction candidate is not a safe directory: %s" % candidate_root)
+			continue
 		if candidate_root.get_file().begins_with(_CLEANUP_PREFIX):
-			var _cleanup_removed: bool = _remove_tree(candidate_root, PackedStringArray())
+			if not _remove_tree(candidate_root, issues):
+				continue
 			continue
 		var ignored_issues: PackedStringArray = PackedStringArray()
-		var journal: Dictionary = _read_latest_journal(candidate_root, ignored_issues)
+		var journal: Dictionary = _read_latest_journal(candidate_root, ignored_issues, expected_project_root)
 		if journal.is_empty() or not _transaction_owner_is_running(journal):
-			var _removed: bool = _remove_tree(candidate_root, PackedStringArray())
+			var _removed: bool = _remove_tree(candidate_root, issues)
+	return issues.is_empty()
 
 
 static func _make_report(
@@ -947,7 +1330,7 @@ static func _normalize_project_root(path: String) -> String:
 
 static func _normalize_absolute_path(path: String) -> String:
 	var stripped: String = path.strip_edges()
-	if stripped.is_empty():
+	if stripped.is_empty() or stripped != path:
 		return ""
 	var normalized: String = stripped
 	if stripped.begins_with("res://") or stripped.begins_with("user://"):
@@ -959,13 +1342,23 @@ static func _normalize_absolute_path(path: String) -> String:
 
 
 static func _normalize_payload_relative_path(path: String) -> String:
-	var normalized: String = path.strip_edges().replace("\\", "/")
+	if path.is_empty() or path != path.strip_edges():
+		return ""
+	var normalized: String = path.replace("\\", "/")
 	if normalized.is_empty() or normalized.begins_with("/") or normalized.contains(":"):
 		return ""
-	normalized = normalized.simplify_path()
-	while normalized.begins_with("./"):
-		normalized = normalized.substr(2)
-	if normalized == ".." or normalized.begins_with("../") or not normalized.begins_with(_PACKAGE_ROOT_PREFIX):
+	var parts: PackedStringArray = normalized.split("/", true)
+	for part: String in parts:
+		if (
+			part.is_empty()
+			or part == "."
+			or part == ".."
+			or part != part.rstrip(" .")
+			or _string_has_control_character(part)
+		):
+			return ""
+	normalized = "/".join(parts)
+	if not normalized.begins_with(_PACKAGE_ROOT_PREFIX):
 		return ""
 	return normalized
 
@@ -973,17 +1366,186 @@ static func _normalize_payload_relative_path(path: String) -> String:
 static func _is_path_inside(root_path: String, child_path: String) -> bool:
 	var root: String = _trim_trailing_separators(root_path.replace("\\", "/").simplify_path())
 	var child: String = _trim_trailing_separators(child_path.replace("\\", "/").simplify_path())
+	if OS.get_name() == "Windows":
+		root = root.to_lower()
+		child = child.to_lower()
 	return child == root or child.begins_with(root + "/")
+
+
+static func _paths_equal(left: String, right: String) -> bool:
+	var normalized_left: String = _normalize_absolute_path(left)
+	var normalized_right: String = _normalize_absolute_path(right)
+	if OS.get_name() == "Windows":
+		return normalized_left.to_lower() == normalized_right.to_lower()
+	return normalized_left == normalized_right
+
+
+static func _portable_path_identity(path: String) -> String:
+	var normalized: String = _normalize_payload_relative_path(path)
+	return normalized.to_lower() if not normalized.is_empty() else ""
+
+
+static func _absolute_portable_path_identity(path: String) -> String:
+	return _normalize_absolute_path(path).to_lower()
+
+
+static func _packed_array_has_portable_path(values: PackedStringArray, path: String) -> bool:
+	var identity: String = _absolute_portable_path_identity(path)
+	for value: String in values:
+		if _absolute_portable_path_identity(value) == identity:
+			return true
+	return false
+
+
+static func _validate_cleanup_path(project_root: String, transaction_root: String, raw_path: String) -> String:
+	if raw_path.is_empty() or raw_path != raw_path.strip_edges():
+		return ""
+	var cleanup_path: String = _normalize_absolute_path(raw_path)
+	if cleanup_path.is_empty() or raw_path.replace("\\", "/") != cleanup_path:
+		return ""
+	var project_internal_root: String = project_root.path_join(".gf").replace("\\", "/").simplify_path()
+	if cleanup_path == project_internal_root or not _is_path_inside(project_internal_root, cleanup_path):
+		return ""
+	if _is_path_inside(transaction_root, cleanup_path) or _is_path_inside(cleanup_path, transaction_root):
+		return ""
+	if _path_has_link_component(cleanup_path):
+		return ""
+	return cleanup_path
+
+
+static func _path_exists(path: String) -> bool:
+	return FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path) or _path_component_is_link(path)
+
+
+static func _path_has_link_component(path: String) -> bool:
+	var current: String = _normalize_absolute_path(path)
+	if current.is_empty():
+		return true
+	while not current.is_empty():
+		if _path_component_is_link(current):
+			return true
+		var parent: String = _trim_trailing_separators(current.get_base_dir().replace("\\", "/"))
+		if parent.is_empty() or parent == current:
+			break
+		current = parent
+	return false
+
+
+static func _path_component_is_link(path: String) -> bool:
+	var normalized: String = _trim_trailing_separators(path.replace("\\", "/"))
+	var parent: String = normalized.get_base_dir()
+	var component_name: String = normalized.get_file()
+	if parent.is_empty() or component_name.is_empty():
+		return false
+	var directory: DirAccess = DirAccess.open(parent)
+	if directory == null:
+		return DirAccess.dir_exists_absolute(parent)
+	return directory.is_link(component_name)
+
+
+static func _tree_has_link(path: String) -> bool:
+	if _path_has_link_component(path):
+		return true
+	if FileAccess.file_exists(path) or not DirAccess.dir_exists_absolute(path):
+		return false
+	var directory: DirAccess = DirAccess.open(path)
+	if directory == null or directory.list_dir_begin() != OK:
+		return true
+	var result: bool = false
+	var child_name: String = directory.get_next()
+	while not child_name.is_empty():
+		if child_name != "." and child_name != "..":
+			if directory.is_link(child_name):
+				result = true
+				break
+			if directory.current_is_dir() and _tree_has_link(path.path_join(child_name)):
+				result = true
+				break
+		child_name = directory.get_next()
+	directory.list_dir_end()
+	return result
+
+
+static func _string_has_control_character(value: String) -> bool:
+	for index: int in range(value.length()):
+		if value.unicode_at(index) < 32:
+			return true
+	return false
+
+
+static func _is_exact_integer(value: Variant) -> bool:
+	if value is int:
+		return true
+	if not value is float:
+		return false
+	var float_value: float = value
+	return is_finite(float_value) and float_value == floorf(float_value)
+
+
+static func _is_sha256(value: String) -> bool:
+	if value.length() != 64:
+		return false
+	for index: int in range(value.length()):
+		if "0123456789abcdef".find(value.substr(index, 1)) < 0:
+			return false
+	return true
+
+
+static func _transaction_id_is_valid(value: String) -> bool:
+	if value.is_empty() or value.length() > 128:
+		return false
+	for index: int in range(value.length()):
+		var character: String = value.substr(index, 1)
+		var code: int = character.unicode_at(0)
+		if not (
+			(code >= 48 and code <= 57)
+			or (code >= 65 and code <= 90)
+			or (code >= 97 and code <= 122)
+			or (index > 0 and character in [".", "_", "-"])
+		):
+			return false
+	return true
+
+
+static func _dictionary_fields_are_exact(
+	value: Dictionary,
+	required_fields: PackedStringArray,
+	allowed_fields: PackedStringArray,
+	label: String,
+	issues: PackedStringArray
+) -> bool:
+	var valid: bool = true
+	for field_name: String in required_fields:
+		if not value.has(field_name):
+			var _append_missing: bool = issues.append("%s is missing required field: %s" % [label, field_name])
+			valid = false
+	for raw_key: Variant in value.keys():
+		if not raw_key is String:
+			var _append_unknown: bool = issues.append("%s contains unsupported field: %s" % [label, str(raw_key)])
+			valid = false
+			continue
+		var field_name: String = raw_key
+		if not allowed_fields.has(field_name):
+			var _append_unknown: bool = issues.append("%s contains unsupported field: %s" % [label, field_name])
+			valid = false
+	return valid
 
 
 static func _trim_trailing_separators(path: String) -> String:
 	var result: String = path
-	while result.length() > 1 and result.ends_with("/"):
+	while (
+		result.length() > 1
+		and result.ends_with("/")
+		and not (result.length() == 3 and result.substr(1, 1) == ":")
+	):
 		result = result.substr(0, result.length() - 1)
 	return result
 
 
 static func _copy_file(source_path: String, target_path: String, issues: PackedStringArray, context: String) -> bool:
+	if _path_has_link_component(source_path) or _path_has_link_component(target_path):
+		var _append_link: bool = issues.append("Could not %s because the path crosses a filesystem link." % context)
+		return false
 	var source_file: FileAccess = FileAccess.open(source_path, FileAccess.READ)
 	if source_file == null:
 		var _append_source: bool = issues.append("Could not %s: %s" % [context, error_string(FileAccess.get_open_error())])
@@ -994,6 +1556,10 @@ static func _copy_file(source_path: String, target_path: String, issues: PackedS
 	if make_error != OK:
 		source_file.close()
 		var _append_make: bool = issues.append("Could not create directory for %s: %s" % [context, error_string(make_error)])
+		return false
+	if _path_has_link_component(source_path) or _path_has_link_component(target_path):
+		source_file.close()
+		var _append_changed_link: bool = issues.append("Could not %s because the path became a filesystem link." % context)
 		return false
 	var target_file: FileAccess = FileAccess.open(target_path, FileAccess.WRITE)
 	if target_file == null:
@@ -1024,9 +1590,15 @@ static func _copy_file(source_path: String, target_path: String, issues: PackedS
 
 
 static func _write_text_file(path: String, text: String, issues: PackedStringArray, context: String) -> bool:
+	if _path_has_link_component(path):
+		var _append_link: bool = issues.append("Could not %s because the path crosses a filesystem link." % context)
+		return false
 	var make_error: Error = DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	if make_error != OK:
 		var _append_make: bool = issues.append("Could not create directory for %s: %s" % [context, error_string(make_error)])
+		return false
+	if _path_has_link_component(path):
+		var _append_changed_link: bool = issues.append("Could not %s because the path became a filesystem link." % context)
 		return false
 	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
@@ -1046,6 +1618,8 @@ static func _write_text_file(path: String, text: String, issues: PackedStringArr
 
 
 static func _read_json_value(path: String) -> Variant:
+	if _path_has_link_component(path):
+		return null
 	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return null
@@ -1055,7 +1629,7 @@ static func _read_json_value(path: String) -> Variant:
 
 
 static func _file_matches(path: String, expected_sha: String, expected_size: int) -> bool:
-	if not FileAccess.file_exists(path):
+	if _path_has_link_component(path) or not FileAccess.file_exists(path):
 		return false
 	if expected_size >= 0 and _file_size(path) != expected_size:
 		return false
@@ -1072,6 +1646,9 @@ static func _file_size(path: String) -> int:
 
 
 static func _remove_file_if_exists(path: String, issues: PackedStringArray, context: String) -> void:
+	if _path_has_link_component(path):
+		var _append_link: bool = issues.append("Could not %s because the path crosses a filesystem link." % context)
+		return
 	if not FileAccess.file_exists(path):
 		return
 	var remove_error: Error = DirAccess.remove_absolute(path)
@@ -1083,6 +1660,9 @@ static func _remove_tree(path: String, issues: PackedStringArray) -> bool:
 	var normalized: String = _normalize_absolute_path(path)
 	if normalized.is_empty() or normalized == "/" or normalized.length() < 4:
 		var _append_unsafe: bool = issues.append("Refusing to remove unsafe package transaction path: %s" % path)
+		return false
+	if _path_has_link_component(normalized) or _tree_has_link(normalized):
+		var _append_link: bool = issues.append("Refusing to remove package transaction path containing a filesystem link: %s" % normalized)
 		return false
 	if FileAccess.file_exists(normalized):
 		var file_error: Error = DirAccess.remove_absolute(normalized)
@@ -1124,6 +1704,8 @@ static func _remove_empty_parents(directory_path: String, project_root: String) 
 	var current: String = _trim_trailing_separators(directory_path.replace("\\", "/").simplify_path())
 	var root: String = _trim_trailing_separators(project_root.replace("\\", "/").simplify_path())
 	while current != root and _is_path_inside(root, current):
+		if _path_has_link_component(current):
+			break
 		if current == root.path_join("addons"):
 			break
 		if not DirAccess.dir_exists_absolute(current):

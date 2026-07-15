@@ -19,7 +19,6 @@ const _OPERATION_BUILD: StringName = &"build"
 const _OPERATION_EXPORT: StringName = &"export"
 const _OPERATION_LOAD: StringName = &"load"
 const _DEFAULT_OPERATION: StringName = _OPERATION_EXPORT
-const _MAX_JSON_DEPTH: int = 64
 
 
 # --- 公共方法 ---
@@ -34,7 +33,7 @@ const _MAX_JSON_DEPTH: int = 64
 ## [br]
 ## @param base_options: 调用方直接注入的默认选项，命令行参数会覆盖同名字段。
 ## [br]
-## @schema base_options: Dictionary，可包含 GFConfigPipelineRunner 选项，以及 output_path、access_output_path、access_class_name、access_provider_accessor、dry_run、changed_only、manifest_path 和 write_manifest。
+## @schema base_options: Dictionary，可包含 GFConfigPipelineRunner 选项，以及 output_path、access_output_path、access_class_name、access_provider_accessor、dry_run、changed_only、manifest_path、write_manifest、manifest_options、max_freshness_file_bytes、max_freshness_total_bytes 和 max_freshness_entries；各产物 options 可包含 allow_unowned_overwrite。
 ## [br]
 ## @return: 命令报告。
 ## [br]
@@ -115,8 +114,12 @@ func make_output_text(result: Dictionary, pretty: bool = true) -> String:
 		return get_usage()
 	if GFVariantData.get_option_bool(result, "json_report"):
 		var indent: String = "\t" if pretty else ""
-		var safe_result: Variant = _to_json_safe(result, 0)
-		return JSON.stringify(safe_result, indent, true)
+		return GFReportValueCodec.stringify_json_compatible(
+			result,
+			indent,
+			true,
+			_make_report_codec_options()
+		)
 	return _make_summary_text(result)
 
 
@@ -321,9 +324,17 @@ func _read_option_value(
 			"next_index": index + 1,
 			"error": "%s 缺少参数值。" % option_name,
 		}
+	var next_token: String = arguments[index + 1]
+	if next_token.begins_with("-"):
+		return {
+			"success": false,
+			"value": "",
+			"next_index": index + 1,
+			"error": "%s 缺少参数值；后续 token 是另一个 option：%s。" % [option_name, next_token],
+		}
 	return {
 		"success": true,
-		"value": arguments[index + 1],
+		"value": next_token,
 		"next_index": index + 2,
 		"error": "",
 	}
@@ -437,141 +448,14 @@ func _append_line(lines: PackedStringArray, text: String) -> void:
 	var _append_result: bool = lines.append(text)
 
 
-func _to_json_safe(value: Variant, depth: int) -> Variant:
-	if depth > _MAX_JSON_DEPTH:
-		return "<max_depth>"
-
-	match typeof(value):
-		TYPE_NIL:
-			return null
-		TYPE_BOOL:
-			var bool_value: bool = value
-			return bool_value
-		TYPE_INT:
-			var int_value: int = value
-			return int_value
-		TYPE_FLOAT:
-			var float_value: float = value
-			if is_nan(float_value) or is_inf(float_value):
-				return null
-			return float_value
-		TYPE_STRING:
-			var string_value: String = value
-			return string_value
-		TYPE_STRING_NAME:
-			var string_name_value: StringName = value
-			return String(string_name_value)
-		TYPE_NODE_PATH:
-			var node_path_value: NodePath = value
-			return String(node_path_value)
-		TYPE_ARRAY:
-			return _array_to_json_safe(value, depth + 1)
-		TYPE_DICTIONARY:
-			return _dictionary_to_json_safe(value, depth + 1)
-		TYPE_PACKED_STRING_ARRAY:
-			var string_array: PackedStringArray = value
-			return _packed_string_array_to_array(string_array)
-		TYPE_PACKED_INT32_ARRAY:
-			var int32_array: PackedInt32Array = value
-			return _packed_int32_array_to_array(int32_array)
-		TYPE_PACKED_INT64_ARRAY:
-			var int64_array: PackedInt64Array = value
-			return _packed_int64_array_to_array(int64_array)
-		TYPE_PACKED_FLOAT32_ARRAY:
-			var float32_array: PackedFloat32Array = value
-			return _packed_float32_array_to_array(float32_array)
-		TYPE_PACKED_FLOAT64_ARRAY:
-			var float64_array: PackedFloat64Array = value
-			return _packed_float64_array_to_array(float64_array)
-		TYPE_OBJECT:
-			return _object_to_json_safe(value)
-
-	return str(value)
-
-
-func _array_to_json_safe(value: Variant, depth: int) -> Array:
-	var source: Array = GFVariantData.as_array(value)
-	var result: Array = []
-	for item: Variant in source:
-		result.append(_to_json_safe(item, depth + 1))
-	return result
-
-
-func _dictionary_to_json_safe(value: Variant, depth: int) -> Dictionary:
-	var source: Dictionary = GFVariantData.as_dictionary(value)
-	var result: Dictionary = {}
-	for key: Variant in source.keys():
-		result[_json_key_to_string(key)] = _to_json_safe(source[key], depth + 1)
-	return result
-
-
-func _json_key_to_string(key: Variant) -> String:
-	match typeof(key):
-		TYPE_STRING:
-			var string_key: String = key
-			return string_key
-		TYPE_STRING_NAME:
-			var string_name_key: StringName = key
-			return String(string_name_key)
-		TYPE_INT:
-			var int_key: int = key
-			return str(int_key)
-	return str(key)
-
-
-func _packed_string_array_to_array(values: PackedStringArray) -> Array:
-	var result: Array = []
-	for value: String in values:
-		result.append(value)
-	return result
-
-
-func _packed_int32_array_to_array(values: PackedInt32Array) -> Array:
-	var result: Array = []
-	for value: int in values:
-		result.append(value)
-	return result
-
-
-func _packed_int64_array_to_array(values: PackedInt64Array) -> Array:
-	var result: Array = []
-	for value: int in values:
-		result.append(value)
-	return result
-
-
-func _packed_float32_array_to_array(values: PackedFloat32Array) -> Array:
-	var result: Array = []
-	for value: float in values:
-		if is_nan(value) or is_inf(value):
-			result.append(null)
-		else:
-			result.append(value)
-	return result
-
-
-func _packed_float64_array_to_array(values: PackedFloat64Array) -> Array:
-	var result: Array = []
-	for value: float in values:
-		if is_nan(value) or is_inf(value):
-			result.append(null)
-		else:
-			result.append(value)
-	return result
-
-
-func _object_to_json_safe(value: Variant) -> Dictionary:
-	if value is Resource:
-		var resource: Resource = value
-		return {
-			"object_type": resource.get_class(),
-			"resource_path": resource.resource_path,
+func _make_report_codec_options() -> Dictionary:
+	return GFReportValueCodec.make_redaction_options(
+		GFReportValueCodec.REDACTION_PROFILE_DEBUG,
+		{
+			"max_depth": 64,
+			"max_string_length": 65536,
+			"max_collection_items": 4096,
+			"max_total_nodes": 32768,
+			"encode_dictionary_keys": false,
 		}
-	if value is Object:
-		var object_value: Object = value
-		return {
-			"object_type": object_value.get_class(),
-		}
-	return {
-		"object_type": "Object",
-	}
+	)

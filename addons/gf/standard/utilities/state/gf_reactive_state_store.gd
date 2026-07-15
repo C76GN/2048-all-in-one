@@ -796,9 +796,9 @@ func _enqueue_report_changes(diff_report: Dictionary, prefix_segments: Array) ->
 
 
 func _enqueue_change(change: Dictionary) -> void:
-	var path: String = GFVariantData.get_option_string(change, "path")
-	if _dirty_change_indices.has(path):
-		var change_index: int = GFVariantData.to_int(_dirty_change_indices[path])
+	var path_identity: String = _make_path_identity(GFVariantData.get_option_array(change, "path_segments"))
+	if _dirty_change_indices.has(path_identity):
+		var change_index: int = GFVariantData.to_int(_dirty_change_indices[path_identity])
 		var existing: Dictionary = _dirty_changes[change_index]
 		existing["new_value"] = GFVariantData.duplicate_variant(GFVariantData.get_option_value(change, "new_value"))
 		existing["new_exists"] = GFVariantData.get_option_bool(change, "new_exists")
@@ -811,7 +811,7 @@ func _enqueue_change(change: Dictionary) -> void:
 			_remove_dirty_change_at(change_index)
 		return
 
-	_dirty_change_indices[path] = _dirty_changes.size()
+	_dirty_change_indices[path_identity] = _dirty_changes.size()
 	_dirty_changes.append(GFVariantData.to_dictionary(change))
 
 
@@ -838,7 +838,18 @@ func _remove_dirty_change_at(change_index: int) -> void:
 	_dirty_changes.remove_at(change_index)
 	_dirty_change_indices.clear()
 	for index: int in range(_dirty_changes.size()):
-		_dirty_change_indices[GFVariantData.get_option_string(_dirty_changes[index], "path")] = index
+		var path_segments: Array = GFVariantData.get_option_array(_dirty_changes[index], "path_segments")
+		_dirty_change_indices[_make_path_identity(path_segments)] = index
+
+
+func _make_path_identity(segments: Array) -> String:
+	var identity_parts: PackedStringArray = PackedStringArray()
+	for segment: Variant in segments:
+		if segment is int:
+			var _integer_part_appended: bool = identity_parts.append("i:%d" % segment)
+		else:
+			var _string_part_appended: bool = identity_parts.append("s:%s" % JSON.stringify(GFVariantData.to_text(segment)))
+	return "|".join(identity_parts)
 
 
 func _flush_if_ready() -> void:

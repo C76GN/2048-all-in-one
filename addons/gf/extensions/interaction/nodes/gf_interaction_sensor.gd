@@ -179,6 +179,7 @@ func send_to(
 		"Receiver does not expose receive_interaction().",
 		"Receiver returned an invalid interaction report."
 	)
+	report = _normalize_report(report, receiver)
 	_emit_send_result(context, receiver, report)
 	return report
 
@@ -308,8 +309,9 @@ func broadcast_to_candidates(
 	var reports: Array[Dictionary] = []
 	var candidates: Array[Object] = _get_candidate_provider_objects(candidate_provider, options)
 	var dispatch_host: Object = _resolve_collision_dispatch_host()
+	var accepted_count: int = 0
 	for receiver: Object in candidates:
-		if max_count > 0 and reports.size() >= max_count:
+		if max_count > 0 and accepted_count >= max_count:
 			break
 		var report: Dictionary = _get_report_value(_send_to_with_dispatch_host(
 			dispatch_host,
@@ -319,6 +321,8 @@ func broadcast_to_candidates(
 		))
 		if not report.is_empty():
 			reports.append(report)
+			if GFVariantData.get_option_bool(report, "ok"):
+				accepted_count += 1
 	return reports
 
 
@@ -515,16 +519,14 @@ func _get_candidate_provider_objects(candidate_provider: Object, options: Dictio
 
 
 func _make_report(ok: bool, effective_interaction_id: StringName, reason: String, message: String) -> Dictionary:
-	return {
+	return _normalize_report({
 		"ok": ok,
 		"interaction_id": effective_interaction_id,
 		"receiver": null,
 		"reason": reason,
 		"message": message,
-		"metadata": GFReportValueCodec.to_report_dictionary(metadata, {
-			"path_redaction": "basename",
-		}),
-	}
+		"metadata": metadata,
+	}, null)
 
 
 func _resolve_sender() -> Object:
@@ -576,25 +578,25 @@ func _can_use_send_to_override(candidate: Object) -> bool:
 		var method_name: StringName = GFVariantData.to_string_name(GFVariantData.get_option_value(method_value, "name", &""))
 		if method_name != &"send_to":
 			continue
-		return GFVariantData.get_option_array(method_value, "args").size() >= 3
+		return _method_accepts_argument_count(method_value, 3)
 	return false
 
 
 func _normalize_report(report: Dictionary, default_receiver: Object) -> Dictionary:
 	if report.is_empty():
 		return {}
-	var result: Dictionary = report.duplicate(true)
-	var receiver_value: Variant = GFVariantData.get_option_value(result, "receiver", default_receiver)
-	if receiver_value is Object:
-		result["receiver"] = GFReportValueCodec.to_json_compatible(receiver_value, {
-			"path_redaction": "basename",
-		})
-	elif not result.has("receiver") and default_receiver != null:
-		result["receiver"] = GFReportValueCodec.to_json_compatible(default_receiver, {
-			"path_redaction": "basename",
-		})
-	if result.has("metadata") and result["metadata"] is Dictionary:
-		result["metadata"] = GFReportValueCodec.to_report_dictionary(GFVariantData.as_dictionary(result["metadata"]), {
-			"path_redaction": "basename",
-		})
-	return result
+	var raw_report: Dictionary = report.duplicate(false)
+	if not raw_report.has("receiver") and default_receiver != null:
+		raw_report["receiver"] = default_receiver
+	return GFReportValueCodec.to_report_dictionary(raw_report, {
+		"path_redaction": "basename",
+	})
+
+
+func _method_accepts_argument_count(method_info: Dictionary, argument_count: int) -> bool:
+	var arguments: Array = GFVariantData.get_option_array(method_info, "args")
+	var default_arguments: Array = GFVariantData.get_option_array(method_info, "default_args")
+	var required_count: int = maxi(arguments.size() - default_arguments.size(), 0)
+	var method_flags: int = GFVariantData.get_option_int(method_info, "flags", 0)
+	var accepts_varargs: bool = (method_flags & METHOD_FLAG_VARARG) != 0
+	return required_count <= argument_count and (argument_count <= arguments.size() or accepts_varargs)

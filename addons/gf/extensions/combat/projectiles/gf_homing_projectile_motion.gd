@@ -88,7 +88,13 @@ func _setup(projectile: Node, projectile_context: Dictionary = {}) -> void:
 ## [br]
 ## @schema projectile_context: Dictionary，本次发射上下文；会写入目标距离、速度和到达状态。
 func _step(projectile: Node, delta: float, projectile_context: Dictionary = {}) -> void:
-	if delta <= 0.0:
+	if (
+		delta <= 0.0
+		or not _GF_COMBAT_FINITE_MATH.is_finite_float(delta)
+		or not _GF_COMBAT_FINITE_MATH.is_finite_float(speed)
+		or not _GF_COMBAT_FINITE_MATH.is_finite_float(arrival_distance)
+	):
+		projectile_context["motion_rejected_reason"] = &"non_finite_motion_configuration"
 		return
 	if projectile is Node2D:
 		var projectile_2d: Node2D = projectile
@@ -109,8 +115,17 @@ func _step_2d(projectile: Node2D, delta: float, projectile_context: Dictionary) 
 
 	var target_position: Vector2 = target_position_variant
 	var current_position: Vector2 = _get_projectile_position_2d(projectile)
+	if (
+		not _GF_COMBAT_FINITE_MATH.is_finite_vector2(target_position)
+		or not _GF_COMBAT_FINITE_MATH.is_finite_vector2(current_position)
+	):
+		_reject_motion_2d(projectile_context)
+		return
 	var offset: Vector2 = target_position - current_position
 	var distance: float = offset.length()
+	if not _GF_COMBAT_FINITE_MATH.is_finite_float(distance):
+		_reject_motion_2d(projectile_context)
+		return
 	projectile_context["target_distance_2d"] = distance
 	if _is_arrived(distance):
 		projectile_context["target_reached"] = true
@@ -128,7 +143,15 @@ func _step_2d(projectile: Node2D, delta: float, projectile_context: Dictionary) 
 		travel_distance = minf(travel_distance, maxf(distance - arrival_distance, 0.0))
 
 	var velocity: Vector2 = direction * (travel_distance / delta)
-	_set_projectile_position_2d(projectile, current_position + direction * travel_distance)
+	var next_position: Vector2 = current_position + direction * travel_distance
+	if (
+		not _GF_COMBAT_FINITE_MATH.is_finite_float(travel_distance)
+		or not _GF_COMBAT_FINITE_MATH.is_finite_vector2(velocity)
+		or not _GF_COMBAT_FINITE_MATH.is_finite_vector2(next_position)
+	):
+		_reject_motion_2d(projectile_context)
+		return
+	_set_projectile_position_2d(projectile, next_position)
 	projectile_context["velocity_2d"] = velocity
 	if _is_arrived(distance - travel_distance):
 		projectile_context["target_reached"] = true
@@ -143,8 +166,17 @@ func _step_3d(projectile: Node3D, delta: float, projectile_context: Dictionary) 
 
 	var target_position: Vector3 = target_position_variant
 	var current_position: Vector3 = _get_projectile_position_3d(projectile)
+	if (
+		not _GF_COMBAT_FINITE_MATH.is_finite_vector3(target_position)
+		or not _GF_COMBAT_FINITE_MATH.is_finite_vector3(current_position)
+	):
+		_reject_motion_3d(projectile_context)
+		return
 	var offset: Vector3 = target_position - current_position
 	var distance: float = offset.length()
+	if not _GF_COMBAT_FINITE_MATH.is_finite_float(distance):
+		_reject_motion_3d(projectile_context)
+		return
 	projectile_context["target_distance_3d"] = distance
 	if _is_arrived(distance):
 		projectile_context["target_reached"] = true
@@ -162,7 +194,15 @@ func _step_3d(projectile: Node3D, delta: float, projectile_context: Dictionary) 
 		travel_distance = minf(travel_distance, maxf(distance - arrival_distance, 0.0))
 
 	var velocity: Vector3 = direction * (travel_distance / delta)
-	_set_projectile_position_3d(projectile, current_position + direction * travel_distance)
+	var next_position: Vector3 = current_position + direction * travel_distance
+	if (
+		not _GF_COMBAT_FINITE_MATH.is_finite_float(travel_distance)
+		or not _GF_COMBAT_FINITE_MATH.is_finite_vector3(velocity)
+		or not _GF_COMBAT_FINITE_MATH.is_finite_vector3(next_position)
+	):
+		_reject_motion_3d(projectile_context)
+		return
+	_set_projectile_position_3d(projectile, next_position)
 	projectile_context["velocity_3d"] = velocity
 	if _is_arrived(distance - travel_distance):
 		projectile_context["target_reached"] = true
@@ -199,7 +239,7 @@ func _get_direction_2d(offset: Vector2, projectile_context: Dictionary) -> Vecto
 	var cached_direction: Variant = GFVariantData.get_option_value(projectile_context, _DIRECTION_2D_KEY, Vector2.ZERO)
 	if cached_direction is Vector2:
 		var direction: Vector2 = cached_direction
-		if not direction.is_zero_approx():
+		if _GF_COMBAT_FINITE_MATH.is_finite_vector2(direction) and not direction.is_zero_approx():
 			return direction.normalized()
 	return Vector2.ZERO
 
@@ -215,7 +255,7 @@ func _get_direction_3d(offset: Vector3, projectile_context: Dictionary) -> Vecto
 	var cached_direction: Variant = GFVariantData.get_option_value(projectile_context, _DIRECTION_3D_KEY, Vector3.ZERO)
 	if cached_direction is Vector3:
 		var direction: Vector3 = cached_direction
-		if not direction.is_zero_approx():
+		if _GF_COMBAT_FINITE_MATH.is_finite_vector3(direction) and not direction.is_zero_approx():
 			return direction.normalized()
 	return Vector3.ZERO
 
@@ -224,15 +264,21 @@ func _get_target_position_2d(projectile: Node2D, projectile_context: Dictionary)
 	if projectile_context.has(&"target_position_2d"):
 		var typed_position: Variant = GFVariantData.get_option_value(projectile_context, &"target_position_2d")
 		if typed_position is Vector2:
-			return typed_position
+			var typed_vector: Vector2 = typed_position
+			if _GF_COMBAT_FINITE_MATH.is_finite_vector2(typed_vector):
+				return typed_vector
 
 	var common_position: Variant = GFVariantData.get_option_value(projectile_context, target_position_context_key)
 	if common_position is Vector2:
-		return common_position
+		var common_vector: Vector2 = common_position
+		if _GF_COMBAT_FINITE_MATH.is_finite_vector2(common_vector):
+			return common_vector
 
 	var target: Variant = GFVariantData.get_option_value(projectile_context, target_context_key)
 	if target is Vector2:
-		return target
+		var target_vector: Vector2 = target
+		if _GF_COMBAT_FINITE_MATH.is_finite_vector2(target_vector):
+			return target_vector
 	var target_2d: Node2D = _variant_to_valid_node_2d(target)
 	if target_2d != null:
 		return target_2d.global_position if target_2d.is_inside_tree() else target_2d.position
@@ -247,15 +293,21 @@ func _get_target_position_3d(projectile: Node3D, projectile_context: Dictionary)
 	if projectile_context.has(&"target_position_3d"):
 		var typed_position: Variant = GFVariantData.get_option_value(projectile_context, &"target_position_3d")
 		if typed_position is Vector3:
-			return typed_position
+			var typed_vector: Vector3 = typed_position
+			if _GF_COMBAT_FINITE_MATH.is_finite_vector3(typed_vector):
+				return typed_vector
 
 	var common_position: Variant = GFVariantData.get_option_value(projectile_context, target_position_context_key)
 	if common_position is Vector3:
-		return common_position
+		var common_vector: Vector3 = common_position
+		if _GF_COMBAT_FINITE_MATH.is_finite_vector3(common_vector):
+			return common_vector
 
 	var target: Variant = GFVariantData.get_option_value(projectile_context, target_context_key)
 	if target is Vector3:
-		return target
+		var target_vector: Vector3 = target
+		if _GF_COMBAT_FINITE_MATH.is_finite_vector3(target_vector):
+			return target_vector
 	var target_3d: Node3D = _variant_to_valid_node_3d(target)
 	if target_3d != null:
 		return target_3d.global_position if target_3d.is_inside_tree() else target_3d.position
@@ -315,4 +367,19 @@ func _set_projectile_position_3d(projectile: Node3D, position: Vector3) -> void:
 
 
 func _is_arrived(distance: float) -> bool:
-	return arrival_distance >= 0.0 and distance <= arrival_distance
+	return (
+		_GF_COMBAT_FINITE_MATH.is_finite_float(distance)
+		and _GF_COMBAT_FINITE_MATH.is_finite_float(arrival_distance)
+		and arrival_distance >= 0.0
+		and distance <= arrival_distance
+	)
+
+
+func _reject_motion_2d(projectile_context: Dictionary) -> void:
+	projectile_context["motion_rejected_reason"] = &"non_finite_motion_state"
+	projectile_context["velocity_2d"] = Vector2.ZERO
+
+
+func _reject_motion_3d(projectile_context: Dictionary) -> void:
+	projectile_context["motion_rejected_reason"] = &"non_finite_motion_state"
+	projectile_context["velocity_3d"] = Vector3.ZERO

@@ -164,7 +164,7 @@ func add_step(
 	rollback_callback: Callable = Callable(),
 	options: Dictionary = {}
 ) -> bool:
-	if step_id == &"" or not apply_callback.is_valid():
+	if state != STATE_PENDING or step_id == &"" or not apply_callback.is_valid():
 		return false
 	_steps.append({
 		"step_id": step_id,

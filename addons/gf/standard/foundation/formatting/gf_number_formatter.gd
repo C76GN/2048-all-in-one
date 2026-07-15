@@ -202,9 +202,17 @@ static func format_full(
 					use_truncation
 				)
 			TYPE_STRING:
-				text = value
+				var string_value: String = value
+				var normalization: Dictionary = _DECIMAL_STRING_FORMATTER.normalize_numeric_text(string_value)
+				if not GFVariantData.get_option_bool(normalization, "ok"):
+					push_error("[GFNumberFormatter] format_full() 只接受合法数值文本。")
+					return "0"
+				text = GFVariantData.get_option_string(normalization, "text")
+				if text.contains("e") or text.contains("E"):
+					return format_full(GFBigNumber.from_string(text), decimal_places, trim_zeroes, use_grouping, use_truncation)
 			_:
-				text = str(value)
+				push_error("[GFNumberFormatter] format_full() 收到不支持的值类型。")
+				return "0"
 
 	if use_grouping:
 		return _group_integer_part(text)

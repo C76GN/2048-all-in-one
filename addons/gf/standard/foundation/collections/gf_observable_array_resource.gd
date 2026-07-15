@@ -118,6 +118,8 @@ const OPERATION_REPLACE: StringName = &"replace"
 var _batch_depth: int = 0
 var _batch_metadata: Dictionary = {}
 var _pending_changes: Array[Dictionary] = []
+var _change_emission_queue: Array[Dictionary] = []
+var _is_emitting_changes: bool = false
 
 
 # --- 公共方法 ---
@@ -380,15 +382,27 @@ func _record_change(change: Dictionary) -> void:
 	if _batch_depth > 0:
 		_pending_changes.append(copied_change)
 		return
-	item_changed.emit(
-		GFVariantData.get_option_string_name(copied_change, "operation"),
-		GFVariantData.get_option_int(copied_change, "index", -1),
-		GFVariantData.get_option_value(copied_change, "old_value"),
-		GFVariantData.get_option_value(copied_change, "new_value"),
-		GFVariantData.get_option_dictionary(copied_change, "metadata")
-	)
-	items_changed.emit([copied_change], GFVariantData.get_option_dictionary(copied_change, "metadata"))
-	emit_changed()
+	_change_emission_queue.append(copied_change)
+	_drain_change_emission_queue()
+
+
+func _drain_change_emission_queue() -> void:
+	if _is_emitting_changes:
+		return
+	_is_emitting_changes = true
+	while not _change_emission_queue.is_empty():
+		var change: Dictionary = _change_emission_queue.pop_front()
+		item_changed.emit(
+			GFVariantData.get_option_string_name(change, "operation"),
+			GFVariantData.get_option_int(change, "index", -1),
+			GFVariantData.get_option_value(change, "old_value"),
+			GFVariantData.get_option_value(change, "new_value"),
+			GFVariantData.get_option_dictionary(change, "metadata")
+		)
+		var changes: Array[Dictionary] = [change]
+		items_changed.emit(changes, GFVariantData.get_option_dictionary(change, "metadata"))
+		emit_changed()
+	_is_emitting_changes = false
 
 
 func _make_change(

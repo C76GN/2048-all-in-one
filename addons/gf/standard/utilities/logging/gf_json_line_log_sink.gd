@@ -76,9 +76,23 @@ var _last_error: Error = OK
 var _last_error_message: String = ""
 var _write_error_count: int = 0
 var _cleanup_error_count: int = 0
+var _is_initialized: bool = false
 
 
 # --- 公共方法 ---
+
+## 使用本地 JSONL 诊断所需的 debug 脱敏 profile。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return debug profile 名称。
+## [br]
+## @schema return: String naming GFReportValueCodec.REDACTION_PROFILE_DEBUG.
+func get_report_redaction_profile() -> String:
+	return GFReportValueCodec.REDACTION_PROFILE_DEBUG
+
 
 ## 初始化 sink 并打开 JSONL 文件。
 ## [br]
@@ -86,9 +100,13 @@ var _cleanup_error_count: int = 0
 ## [br]
 ## @param owner: 持有该 sink 的日志工具。
 func init(owner: Object) -> void:
-	_effective_file_path = _resolve_file_path(owner)
+	if _is_initialized and _file != null:
+		return
 	_last_error = OK
 	_last_error_message = ""
+	_effective_file_path = _resolve_file_path(owner)
+	if _effective_file_path.is_empty():
+		return
 	var directory_error: Error = _ensure_parent_dir(_effective_file_path)
 	if directory_error != OK:
 		return
@@ -98,6 +116,7 @@ func init(owner: Object) -> void:
 			_record_error(FileAccess.get_open_error(), "无法创建日志文件：%s" % _effective_file_path, true)
 	else:
 		_last_flush_msec = Time.get_ticks_msec()
+		_is_initialized = true
 
 	if _uses_default_file_path:
 		_cleanup_old_jsonl_files()
@@ -114,10 +133,9 @@ func write(entry: Dictionary) -> void:
 	if _file == null:
 		return
 
-	var payload: Variant = _sanitize_for_json(entry.duplicate(true))
-	if payload is Dictionary and omit_formatted_text:
-		var payload_dictionary: Dictionary = payload
-		var _erase_result_90: Variant = payload_dictionary.erase("text")
+	var payload: Dictionary = entry.duplicate(true)
+	if omit_formatted_text:
+		var _erase_result_90: Variant = payload.erase("text")
 
 	var stored: bool = _file.store_line(JSON.stringify(payload))
 	if not stored:
@@ -144,6 +162,7 @@ func shutdown() -> void:
 		_file.flush()
 		_file.close()
 		_file = null
+	_is_initialized = false
 
 
 ## 获取当前实际输出路径。
@@ -181,7 +200,7 @@ func get_debug_snapshot() -> Dictionary:
 func _resolve_file_path(owner: Object) -> String:
 	_uses_default_file_path = file_path.is_empty()
 	if not file_path.is_empty():
-		return file_path
+		return _normalize_custom_file_path(file_path)
 
 	if owner != null and owner.has_method("get_log_file_path"):
 		var owner_path: String = GFVariantData.to_text(owner.call("get_log_file_path"))
@@ -191,13 +210,37 @@ func _resolve_file_path(owner: Object) -> String:
 	return "user://logs/gf_log_%d.jsonl" % Time.get_ticks_msec()
 
 
+func _normalize_custom_file_path(path: String) -> String:
+	var normalized: String = path.replace("\\", "/").strip_edges()
+	if normalized.is_empty():
+		_record_error(ERR_INVALID_PARAMETER, "JSONL 日志路径为空", true)
+		return ""
+	if not normalized.contains("://"):
+		if normalized.is_absolute_path() or normalized.contains(":") or _has_parent_segment(normalized):
+			_record_error(ERR_INVALID_PARAMETER, "相对 JSONL 日志路径不能越过 user://logs：%s" % path, true)
+			return ""
+		return "user://logs".path_join(normalized.simplify_path())
+	if not normalized.begins_with("user://") or _has_parent_segment(normalized):
+		_record_error(ERR_INVALID_PARAMETER, "JSONL 日志路径必须位于 user:// 且不能包含父级越界片段：%s" % path, true)
+		return ""
+	return "user://%s" % normalized.trim_prefix("user://").simplify_path()
+
+
+func _has_parent_segment(path: String) -> bool:
+	for segment: String in path.trim_prefix("user://").split("/", false):
+		if segment == "..":
+			return true
+	return false
+
+
 func _ensure_parent_dir(path: String) -> Error:
 	var base_dir: String = path.get_base_dir()
 	if base_dir.is_empty() or base_dir == ".":
 		return OK
 
-	if not DirAccess.dir_exists_absolute(base_dir):
-		var make_dir_error: Error = DirAccess.make_dir_recursive_absolute(base_dir)
+	var absolute_base_dir: String = ProjectSettings.globalize_path(base_dir)
+	if not DirAccess.dir_exists_absolute(absolute_base_dir):
+		var make_dir_error: Error = DirAccess.make_dir_recursive_absolute(absolute_base_dir)
 		if make_dir_error != OK:
 			_record_error(make_dir_error, "无法创建 JSONL 日志目录：%s" % base_dir, true)
 			return make_dir_error
@@ -263,10 +306,6 @@ func _cleanup_old_jsonl_files() -> void:
 		if remove_error != OK:
 			_cleanup_error_count += 1
 			_record_error(remove_error, "无法清理旧 JSONL 日志：%s" % base_dir.path_join(files[index]))
-
-
-func _sanitize_for_json(value: Variant, _depth: int = 0) -> Variant:
-	return GFLogUtility.sanitize_log_value(value)
 
 
 func _record_error(error: Error, message: String, _as_error: bool = false) -> void:

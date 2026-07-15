@@ -350,13 +350,13 @@ func _apply_axis_actions(value: float, negative_action: StringName, positive_act
 func _press_action(action: StringName, strength: float) -> void:
 	if action == &"":
 		return
-	var _pressed_action: bool = _VIRTUAL_INPUT_BRIDGE.press_action(action, _get_action_owner_id(action), strength)
+	var _pressed_action: bool = _VIRTUAL_INPUT_BRIDGE.press_action(action, self, action, strength)
 
 
 func _release_action(action: StringName) -> void:
 	if action == &"":
 		return
-	var _released_action: bool = _VIRTUAL_INPUT_BRIDGE.release_action(action, _get_action_owner_id(action))
+	var _released_action: bool = _VIRTUAL_INPUT_BRIDGE.release_action(action, self, action)
 
 
 func _emit_joypad_motion(direction: Vector2) -> void:
@@ -402,10 +402,6 @@ func _apply_follow_origin(local_pos: Vector2) -> Vector2:
 
 func _uses_touch_origin() -> bool:
 	return position_mode == PositionMode.RELATIVE or position_mode == PositionMode.FOLLOW
-
-
-func _get_action_owner_id(action: StringName) -> String:
-	return _VIRTUAL_INPUT_BRIDGE.make_owner_id(self, action)
 
 
 func _is_screen_position_in_active_region(screen_position: Vector2) -> bool:

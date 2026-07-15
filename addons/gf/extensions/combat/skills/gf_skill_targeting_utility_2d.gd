@@ -1,15 +1,21 @@
-## GFSkillTargetingUtility: 技能索敌处理工具。
+## GFSkillTargetingUtility2D: 2D 技能索敌处理工具。
 ##
-## 提供统一的目标筛选流程：先做空间过滤，
+## 提供统一的 2D 目标筛选流程：先做空间过滤，
 ## 再执行标签过滤、排序与数量截断。
 ## [br]
 ## @api public
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since 3.17.0
-class_name GFSkillTargetingUtility
+## @since unreleased
+class_name GFSkillTargetingUtility2D
 extends GFUtility
+
+
+# --- 常量 ---
+
+const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/gf_combat_finite_math.gd")
+const _GF_SKILL_TARGETING_RULE_2D_SCRIPT = preload("res://addons/gf/extensions/combat/skills/gf_skill_targeting_rule_2d.gd")
 
 
 # --- 公共方法 ---
@@ -17,6 +23,8 @@ extends GFUtility
 ## 执行索敌 pipeline。
 ## [br]
 ## @api public
+## [br]
+## @since unreleased
 ## [br]
 ## @param p_center: 索敌中心点。
 ## [br]
@@ -27,8 +35,12 @@ extends GFUtility
 ## @return 最终筛选出的目标数组。
 ## [br]
 ## @schema p_available_entities: Array，元素为候选实体 Object；无效实例会被跳过。
-func find_targets(p_center: Vector2, p_rule: GFSkillTargetingRule, p_available_entities: Array) -> Array[Object]:
-	if p_rule == null:
+func find_targets(p_center: Vector2, p_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT, p_available_entities: Array) -> Array[Object]:
+	if (
+		p_rule == null
+		or not p_rule.is_configuration_valid()
+		or not _GF_COMBAT_FINITE_MATH.is_finite_vector2(p_center)
+	):
 		return []
 
 	var targets: Array[Object] = []
@@ -58,23 +70,25 @@ func find_targets(p_center: Vector2, p_rule: GFSkillTargetingRule, p_available_e
 
 # --- 私有/辅助方法 ---
 
-func _is_entity_in_shape(p_entity: Object, p_center: Vector2, p_rule: GFSkillTargetingRule) -> bool:
+func _is_entity_in_shape(p_entity: Object, p_center: Vector2, p_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT) -> bool:
 	var position_value: Variant = _get_entity_position(p_entity)
 	if not position_value is Vector2:
 		return false
 	var pos: Vector2 = position_value
 	var offset: Vector2 = pos - p_center
+	if not _GF_COMBAT_FINITE_MATH.is_finite_vector2(offset):
+		return false
 
 	match p_rule.shape:
-		GFSkillTargetingRule.Shape.RECTANGLE:
+		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.Shape.RECTANGLE:
 			var half_size: Vector2 = p_rule.rectangle_size * 0.5
 			return absf(offset.x) <= half_size.x and absf(offset.y) <= half_size.y
 
-		GFSkillTargetingRule.Shape.CIRCLE, GFSkillTargetingRule.Shape.SINGLE:
-			return offset.length_squared() <= p_rule.radius * p_rule.radius
+		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.Shape.CIRCLE, _GF_SKILL_TARGETING_RULE_2D_SCRIPT.Shape.SINGLE:
+			return _is_within_radius(offset, p_rule.radius)
 
-		GFSkillTargetingRule.Shape.SECTOR:
-			if offset.length_squared() > p_rule.radius * p_rule.radius:
+		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.Shape.SECTOR:
+			if not _is_within_radius(offset, p_rule.radius):
 				return false
 
 			if offset == Vector2.ZERO:
@@ -94,7 +108,7 @@ func _is_entity_in_shape(p_entity: Object, p_center: Vector2, p_rule: GFSkillTar
 
 
 # 检查实体标签是否符合规则。
-func _check_tags(p_entity: Object, p_rule: GFSkillTargetingRule) -> bool:
+func _check_tags(p_entity: Object, p_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT) -> bool:
 	if not p_entity.has_method(&"get_tag_component"):
 		return p_rule.require_tags.is_empty()
 
@@ -114,25 +128,25 @@ func _check_tags(p_entity: Object, p_rule: GFSkillTargetingRule) -> bool:
 
 
 # 对目标列表进行排序。
-func _sort_targets(p_targets: Array[Object], p_center: Vector2, p_rule: GFSkillTargetingRule) -> void:
+func _sort_targets(p_targets: Array[Object], p_center: Vector2, p_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT) -> void:
 	match p_rule.sort_rule:
-		GFSkillTargetingRule.SortRule.DISTANCE_CLOSEST:
+		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.SortRule.DISTANCE_CLOSEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
-				return p_center.distance_squared_to(_get_entity_position_or_default(a, p_center)) < p_center.distance_squared_to(_get_entity_position_or_default(b, p_center))
+				return _get_distance_sort_value(p_center, a) < _get_distance_sort_value(p_center, b)
 			)
-		GFSkillTargetingRule.SortRule.DISTANCE_FURTHEST:
+		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.SortRule.DISTANCE_FURTHEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
-				return p_center.distance_squared_to(_get_entity_position_or_default(a, p_center)) > p_center.distance_squared_to(_get_entity_position_or_default(b, p_center))
+				return _get_distance_sort_value(p_center, a) > _get_distance_sort_value(p_center, b)
 			)
-		GFSkillTargetingRule.SortRule.ATTRIBUTE_LOWEST:
+		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.SortRule.ATTRIBUTE_LOWEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
 				return _get_entity_attribute_value(a, p_rule.sort_attribute_name) < _get_entity_attribute_value(b, p_rule.sort_attribute_name)
 			)
-		GFSkillTargetingRule.SortRule.ATTRIBUTE_HIGHEST:
+		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.SortRule.ATTRIBUTE_HIGHEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
 				return _get_entity_attribute_value(a, p_rule.sort_attribute_name) > _get_entity_attribute_value(b, p_rule.sort_attribute_name)
 			)
-		GFSkillTargetingRule.SortRule.RANDOM:
+		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.SortRule.RANDOM:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
 				var left_key: int = _get_random_sort_key(a, p_rule.random_seed)
 				var right_key: int = _get_random_sort_key(b, p_rule.random_seed)
@@ -149,7 +163,9 @@ func _get_entity_position(p_entity: Object) -> Variant:
 
 	var position: Variant = GFObjectPropertyTools.read_property(p_entity, NodePath("global_position"))
 	if position is Vector2:
-		return position
+		var position_2d: Vector2 = position
+		if _GF_COMBAT_FINITE_MATH.is_finite_vector2(position_2d):
+			return position_2d
 
 	return null
 
@@ -161,16 +177,35 @@ func _get_entity_position_or_default(p_entity: Object, default_position: Vector2
 	return default_position
 
 
+func _get_distance_sort_value(center: Vector2, entity: Object) -> float:
+	var offset: Vector2 = _get_entity_position_or_default(entity, center) - center
+	if not _GF_COMBAT_FINITE_MATH.is_finite_vector2(offset):
+		return 1.0e300
+	var distance_squared: float = offset.length_squared()
+	return distance_squared if _GF_COMBAT_FINITE_MATH.is_finite_float(distance_squared) else 1.0e300
+
+
+func _is_within_radius(offset: Vector2, radius: float) -> bool:
+	if radius == 0.0:
+		return offset == Vector2.ZERO
+	if absf(offset.x) > radius or absf(offset.y) > radius:
+		return false
+	var normalized_offset: Vector2 = offset / radius
+	return normalized_offset.length_squared() <= 1.0
+
+
 # 获取实体属性值。
 func _get_entity_attribute_value(p_entity: Object, p_attr_name: StringName) -> float:
 	if p_entity.has_method(&"get_attribute"):
 		var attribute: GFModifiedAttribute = _get_modified_attribute_value(p_entity.call(&"get_attribute", p_attr_name))
 		if attribute != null:
-			return attribute.current_value.get_value()
+			var attribute_value: float = attribute.current_value.get_value()
+			return attribute_value if _GF_COMBAT_FINITE_MATH.is_finite_float(attribute_value) else 0.0
 
 	var value: Variant = GFObjectPropertyTools.read_property(p_entity, NodePath(String(p_attr_name)))
 	if value is float or value is int:
-		return GFVariantData.to_float(value)
+		var numeric_value: float = GFVariantData.to_float(value)
+		return numeric_value if _GF_COMBAT_FINITE_MATH.is_finite_float(numeric_value) else 0.0
 
 	return 0.0
 

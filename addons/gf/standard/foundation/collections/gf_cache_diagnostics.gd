@@ -115,7 +115,9 @@ func record_eviction(reason: StringName = &"evicted", key: Variant = null) -> vo
 ## [br]
 ## @param amount: 失效数量。
 func record_invalidation(reason: StringName = &"invalidated", key: Variant = null, amount: int = 1) -> void:
-	var count: int = maxi(amount, 1)
+	if amount <= 0:
+		return
+	var count: int = amount
 	_invalidation_count += count
 	_record_invalidation_reason(reason, count)
 	_last_event = _make_event(reason, key, count)
@@ -176,8 +178,10 @@ func get_debug_snapshot() -> Dictionary:
 # --- 私有/辅助方法 ---
 
 func _record_invalidation_reason(reason: StringName, amount: int = 1) -> void:
+	if amount <= 0:
+		return
 	var reason_key: String = String(reason) if reason != &"" else "invalidated"
-	_invalidation_reasons[reason_key] = GFVariantData.get_option_int(_invalidation_reasons, reason_key, 0) + maxi(amount, 1)
+	_invalidation_reasons[reason_key] = GFVariantData.get_option_int(_invalidation_reasons, reason_key, 0) + amount
 
 
 func _make_event(event_type: StringName, key: Variant, amount: int = 1) -> Dictionary:

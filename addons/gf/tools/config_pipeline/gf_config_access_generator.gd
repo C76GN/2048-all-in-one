@@ -7,11 +7,10 @@
 ## [br]
 ## @api public
 ## [br]
-## @category editor_api
+## @category tool_api
 ## [br]
 ## @since 3.17.0
 ## [br]
-## @layer kernel/editor
 class_name GFConfigAccessGenerator
 extends RefCounted
 
@@ -21,16 +20,22 @@ extends RefCounted
 ## 默认生成输出路径。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 const DEFAULT_OUTPUT_PATH: String = "res://gf/generated/gf_config_access.gd"
 
 ## 默认生成 class_name。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 const DEFAULT_CLASS_NAME: String = "GFConfigAccess"
 
 ## 默认 provider 获取表达式。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 const DEFAULT_PROVIDER_ACCESSOR: String = "null"
 const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
 const _GENERATED_ARTIFACT_REPORT_SCRIPT = preload("res://addons/gf/kernel/editor/gf_generated_artifact_report.gd")
@@ -221,6 +226,8 @@ func build_source(
 ## 保存生成源码到指定路径。
 ## [br]
 ## @api public
+## [br]
+## @since 3.17.0
 ## [br]
 ## @param output_path: 生成文件输出路径。
 ## [br]

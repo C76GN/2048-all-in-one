@@ -205,6 +205,9 @@ func get_catalog_levels(pack_id: StringName = &"") -> Array[GFLevelEntry]:
 ## @schema return: Dictionary，当前关卡数据副本；找不到数据时为空字典。
 func load_level_data(level_id: Variant) -> Dictionary:
 	var canonical_level_id: StringName = _to_level_id(level_id)
+	if canonical_level_id == &"":
+		push_error("[GFLevelUtility] load_level_data 失败：关卡 ID 为空。")
+		return {}
 	var config_provider: GFConfigProvider = _get_config_provider()
 	if config_provider != null:
 		var record: Variant = config_provider.get_record(level_table_name, canonical_level_id)
@@ -249,6 +252,9 @@ func load_level_data(level_id: Variant) -> Dictionary:
 ## @schema return: Dictionary，启动后的当前关卡数据副本；失败时为空字典。
 func start_level(level_id: Variant, level_data_override: Dictionary = {}) -> Dictionary:
 	var canonical_level_id: StringName = _to_level_id(level_id)
+	if canonical_level_id == &"":
+		push_error("[GFLevelUtility] start_level 失败：关卡 ID 为空。")
+		return {}
 	var next_override: Dictionary = level_data_override.duplicate(true)
 	var next_data: Dictionary = next_override.duplicate(true) if not next_override.is_empty() else load_level_data(canonical_level_id)
 	if fail_on_missing_level_data and next_data.is_empty():

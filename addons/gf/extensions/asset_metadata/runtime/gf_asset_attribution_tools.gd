@@ -132,16 +132,17 @@ static func build_attribution_report(
 		"uncovered_paths"
 	)
 
-	return report.to_dict({
+	var raw_report: Dictionary = report.to_dict({
 		"entry_count": normalized_entries.size(),
 		"resource_path_count": _normalize_paths(resource_paths).size(),
 		"covered_path_count": covered_paths.size(),
 		"uncovered_path_count": uncovered_paths.size(),
-		"entries": _make_report_entries(normalized_entries, options),
-		"covered_paths": _make_report_array(covered_paths, options),
-		"uncovered_paths": uncovered_paths,
-		"license_ids": _collect_license_ids(normalized_entries),
+		"entries": normalized_entries,
+		"covered_paths": covered_paths,
+		"uncovered_paths": _packed_strings_to_array(uncovered_paths),
+		"license_ids": _packed_strings_to_array(_collect_license_ids(normalized_entries)),
 	}, _report_options())
+	return GFReportValueCodec.to_report_dictionary(raw_report, _get_report_encoding_options())
 
 
 ## 将归因报告格式化为稳定的通知文本。
@@ -378,7 +379,10 @@ static func _normalize_paths(paths: PackedStringArray) -> PackedStringArray:
 
 
 static func _normalize_path(path: String) -> String:
-	return GFPathTools.normalize_root_path(path)
+	var identity: GFResourceIdentity = GFResourceIdentity.from_path(path, &"", "", {
+		"check_exists": false,
+	})
+	return identity.canonical_path
 
 
 static func _first_text(data: Dictionary, keys: PackedStringArray) -> String:
@@ -425,34 +429,21 @@ static func _make_entry_issue_metadata(entry: Dictionary, index: int, field_name
 	}
 
 
-static func _make_report_entries(entries: Array[Dictionary], options: Dictionary) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	var json_safe: bool = GFVariantData.get_option_bool(options, "json_safe", true)
-	for entry: Dictionary in entries:
-		if json_safe:
-			result.append(_to_json_safe_dictionary(entry))
-		else:
-			result.append(entry.duplicate(true))
+static func _get_report_encoding_options() -> Dictionary:
+	return GFReportValueCodec.make_redaction_options(
+		GFReportValueCodec.REDACTION_PROFILE_PUBLIC,
+		{
+			"path_redaction": "none",
+			"include_resource_path": true,
+		}
+	)
+
+
+static func _packed_strings_to_array(values: PackedStringArray) -> Array[String]:
+	var result: Array[String] = []
+	for value: String in values:
+		result.append(value)
 	return result
-
-
-static func _make_report_array(values: Array[Dictionary], options: Dictionary) -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	var json_safe: bool = GFVariantData.get_option_bool(options, "json_safe", true)
-	for value: Dictionary in values:
-		if json_safe:
-			result.append(_to_json_safe_dictionary(value))
-		else:
-			result.append(value.duplicate(true))
-	return result
-
-
-static func _to_json_safe_dictionary(data: Dictionary) -> Dictionary:
-	var encoded_value: Variant = GFVariantJsonCodec.variant_to_json_compatible(data)
-	if encoded_value is Dictionary:
-		var encoded_dictionary: Dictionary = encoded_value
-		return encoded_dictionary
-	return {}
 
 
 static func _has_any_known_field(data: Dictionary) -> bool:

@@ -2,9 +2,9 @@
   "schema_version": 1,
   "framework_version": "7.0.0",
   "source_kind": "vendored_git_snapshot",
-  "source_commit": "0e6430abc0422b0281d90b37112e7e72e5211afa",
-  "source_git_tree": "e12e8b656c28abe9cbfdc913d720beeeba80d0b2",
-  "vendor_file_count": 1553,
-  "vendor_tree_sha256": "c94f90de3c12c7161a0bebfdc2f2ad811d194b8446e7518b4d535896f4ea80ef",
+  "source_commit": "391f0cd1e44fda0084b4edded30e7a0fd1015728",
+  "source_git_tree": "b62250376a04c72e53eae70d566c8c0c15f3f195",
+  "vendor_file_count": 1592,
+  "vendor_tree_sha256": "3fe4bfbfd1b9717a3d609b124fb04878701480973408f9b51580b44d95fca522",
   "hash_record_format": "relative_path<TAB>file_sha256<LF>"
 }

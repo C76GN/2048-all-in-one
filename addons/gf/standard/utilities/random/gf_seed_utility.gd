@@ -68,16 +68,60 @@ func get_global_seed() -> int:
 	return _global_seed
 
 
-## 获取主随机数生成器。
-##
-## 调用方可以直接使用该实例生成随机数；生成行为会推进主 RNG 状态。
+## 推进主随机流并返回无符号 32 位随机值。
 ## [br]
 ## @api public
 ## [br]
-## @return 主随机数生成器实例。
-func get_rng() -> RandomNumberGenerator:
+## @since unreleased
+## [br]
+## @return 0 到 4294967295 范围内的随机值。
+func next_uint32() -> int:
 	_ensure_rng()
-	return _rng
+	return _rng.randi()
+
+
+## 推进主随机流并返回 [0, 1) 浮点值。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return [0, 1) 范围内的随机值。
+func next_float() -> float:
+	_ensure_rng()
+	return _rng.randf()
+
+
+## 推进主随机流并返回闭区间整数值。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param from: 最小值。
+## [br]
+## @param to: 最大值。
+## [br]
+## @return 闭区间随机整数。
+func next_int_range(from: int, to: int) -> int:
+	_ensure_rng()
+	return _rng.randi_range(from, to)
+
+
+## 推进主随机流并返回指定浮点区间值。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param from: 最小值。
+## [br]
+## @param to: 最大值。
+## [br]
+## @return 指定区间内的随机浮点值。
+func next_float_range(from: float, to: float) -> float:
+	_ensure_rng()
+	return _rng.randf_range(from, to)
 
 
 ## 获取当前主 RNG 的内部精确状态。

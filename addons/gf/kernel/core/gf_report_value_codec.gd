@@ -28,6 +28,11 @@ const _FLOAT_NEGATIVE_INF_TEXT: String = "-INF"
 const _DEFAULT_MAX_DEPTH: int = 32
 const _DEFAULT_MAX_STRING_LENGTH: int = 8192
 const _DEFAULT_SUMMARY_SAMPLE_COUNT: int = 16
+const _DEFAULT_MAX_COLLECTION_ITEMS: int = 1024
+const _DEFAULT_MAX_PACKED_LENGTH: int = 4096
+const _DEFAULT_MAX_TOTAL_NODES: int = 16384
+const _DEFAULT_MAX_TOTAL_BYTES: int = 1024 * 1024
+const _COMPACT_TRUNCATION_MARKER: String = "<gf_truncated>"
 
 
 # --- 常量 ---
@@ -75,7 +80,7 @@ const REDACTION_PROFILE_PRIVACY: String = "privacy"
 ## [br]
 ## @return 编码选项字典。
 ## [br]
-## @schema overrides: Dictionary，可覆盖 redaction_profile、path_redaction、include_node_name、include_node_path、include_object_instance_id 和 include_resource_path。
+## @schema overrides: Dictionary，可覆盖 redaction_profile、path_redaction、include_node_name、include_node_path、include_object_instance_id、include_resource_path、max_depth、max_string_length、max_collection_items、max_packed_length、max_total_nodes 和 max_total_bytes。
 ## [br]
 ## @schema return: Dictionary，可直接传给 GFReportValueCodec 的编码选项。
 static func make_redaction_options(profile: String, overrides: Dictionary = {}) -> Dictionary:
@@ -94,19 +99,27 @@ static func make_redaction_options(profile: String, overrides: Dictionary = {}) 
 ## [br]
 ## @param value: 待转换的报告值。
 ## [br]
-## @param options: 可选项；支持 redaction_profile、circular_reference、include_resource_path、include_node_name、include_node_path、include_object_instance_id、max_depth、max_string_length 和 path_redaction；路径默认脱敏。
+## @param options: 可选项；支持 redaction_profile、circular_reference、include_resource_path、include_node_name、include_node_path、include_object_instance_id、max_depth、max_string_length、max_collection_items、max_packed_length、max_total_nodes、max_total_bytes 和 path_redaction；路径默认脱敏，所有非负预算均为遍历工作量与输出硬上限。
 ## [br]
 ## @return JSON 兼容值；不支持的运行时类型会写入脱敏 marker。
 ## [br]
 ## @schema value: Variant report value to encode.
 ## [br]
-## @schema options: Dictionary with redaction_profile, circular_reference, include_resource_path, include_node_name, include_node_path, include_object_instance_id, max_depth, max_string_length, path_redaction, and encode_dictionary_keys options; path_redaction defaults to redacted.
+## @schema options: Dictionary with redaction_profile, circular_reference, include_resource_path, include_node_name, include_node_path, include_object_instance_id, max_depth, max_string_length, max_collection_items, max_packed_length, max_total_nodes, max_total_bytes, path_redaction, and encode_dictionary_keys options; path_redaction defaults to redacted and non-negative budgets stop traversal immediately when exhausted.
 ## [br]
 ## @schema return: Variant made only from JSON-compatible values, GF variant markers, and GF report redaction markers.
 static func to_json_compatible(value: Variant, options: Dictionary = {}) -> Variant:
 	var effective_options: Dictionary = _normalize_options(options)
-	var sanitized: Variant = _sanitize_report_value(value, effective_options, [], 0)
-	return _variant_to_json_compatible(sanitized, _make_variant_json_options(effective_options), [])
+	var budget_state: Dictionary = {
+		"node_count": 0,
+		"work_bytes": 0,
+		"truncated_count": 0,
+		"exhausted": false,
+		"reason": "",
+	}
+	var sanitized: Variant = _sanitize_report_value(value, effective_options, [], 0, budget_state)
+	var encoded: Variant = _variant_to_json_compatible(sanitized, _make_variant_json_options(effective_options), [])
+	return _apply_final_byte_budget(encoded, effective_options)
 
 
 ## 将任意报告值转为 JSON-safe Dictionary。
@@ -123,7 +136,7 @@ static func to_json_compatible(value: Variant, options: Dictionary = {}) -> Vari
 ## [br]
 ## @schema value: Variant report value to encode before narrowing to Dictionary.
 ## [br]
-## @schema options: Dictionary with redaction_profile, circular_reference, include_resource_path, include_node_name, include_node_path, include_object_instance_id, max_depth, max_string_length, path_redaction, and encode_dictionary_keys options; path_redaction defaults to redacted.
+## @schema options: Dictionary with redaction_profile, circular_reference, include_resource_path, include_node_name, include_node_path, include_object_instance_id, max_depth, max_string_length, max_collection_items, max_packed_length, max_total_nodes, max_total_bytes, path_redaction, and encode_dictionary_keys options.
 ## [br]
 ## @schema return: Dictionary made only from JSON-compatible values, GF variant markers, and GF report redaction markers.
 static func to_report_dictionary(value: Variant, options: Dictionary = {}) -> Dictionary:
@@ -152,7 +165,7 @@ static func to_report_dictionary(value: Variant, options: Dictionary = {}) -> Di
 ## [br]
 ## @schema value: Variant report value to encode before JSON.stringify().
 ## [br]
-## @schema options: Dictionary with redaction_profile, circular_reference, include_resource_path, include_node_name, include_node_path, include_object_instance_id, max_depth, max_string_length, path_redaction, and encode_dictionary_keys options; path_redaction defaults to redacted.
+## @schema options: Dictionary with redaction_profile, circular_reference, include_resource_path, include_node_name, include_node_path, include_object_instance_id, max_depth, max_string_length, max_collection_items, max_packed_length, max_total_nodes, max_total_bytes, path_redaction, and encode_dictionary_keys options.
 static func stringify_json_compatible(
 	value: Variant,
 	indent: String = "",
@@ -160,7 +173,20 @@ static func stringify_json_compatible(
 	options: Dictionary = {}
 ) -> String:
 	var encoded: Variant = to_json_compatible(value, options)
-	return JSON.stringify(encoded, indent, sort_keys)
+	var text: String = JSON.stringify(encoded, indent, sort_keys)
+	var effective_options: Dictionary = _normalize_options(options)
+	var max_total_bytes: int = _option_int(
+		effective_options,
+		"max_total_bytes",
+		_DEFAULT_MAX_TOTAL_BYTES
+	)
+	if max_total_bytes < 0 or text.to_utf8_buffer().size() <= max_total_bytes:
+		return text
+	var fallback: Variant = _make_final_byte_budget_value(max_total_bytes)
+	var fallback_text: String = JSON.stringify(fallback)
+	if fallback_text.to_utf8_buffer().size() <= max_total_bytes:
+		return fallback_text
+	return ""
 
 
 ## 为报告中的大型集合生成稳定摘要。
@@ -181,8 +207,8 @@ static func stringify_json_compatible(
 ## [br]
 ## @schema return: Dictionary with ok, collection_type, count, sample, truncated, and hash.
 static func make_collection_summary(value: Variant, options: Dictionary = {}) -> Dictionary:
-	var values: Array = _collection_to_array(value)
-	if values.is_empty() and not _is_empty_collection(value):
+	var collection_size: int = _get_collection_size(value)
+	if collection_size < 0:
 		return {
 			"ok": false,
 			"collection_type": type_string(typeof(value)),
@@ -194,36 +220,57 @@ static func make_collection_summary(value: Variant, options: Dictionary = {}) ->
 
 	var effective_options: Dictionary = _normalize_options(options)
 	var sample_count: int = maxi(_option_int(effective_options, "sample_count", _DEFAULT_SUMMARY_SAMPLE_COUNT), 0)
-	var sample: Array = []
-	var limit: int = mini(sample_count, values.size())
-	for index: int in range(limit):
-		sample.append(_sanitize_report_value(values[index], effective_options, [], 0))
-
-	var full_text: String = stringify_json_compatible(values, "", true, effective_options)
+	var sample: Array = _make_collection_sample(value, mini(sample_count, collection_size))
+	var full_text: String = stringify_json_compatible(value, "", true, effective_options)
 	return {
 		"ok": true,
 		"collection_type": type_string(typeof(value)),
-		"count": values.size(),
+		"count": collection_size,
 		"sample": to_json_compatible(sample, effective_options),
-		"truncated": values.size() > sample.size(),
+		"truncated": collection_size > sample.size(),
 		"hash": full_text.sha256_text(),
 	}
 
 
 # --- 私有/辅助方法 ---
 
-static func _sanitize_report_value(value: Variant, options: Dictionary, visited: Array, depth: int) -> Variant:
+static func _sanitize_report_value(
+	value: Variant,
+	options: Dictionary,
+	visited: Array,
+	depth: int,
+	budget_state: Dictionary
+) -> Variant:
+	if _is_budget_exhausted(budget_state):
+		return _make_budget_exhaustion_marker(budget_state, options)
 	var max_depth: int = _option_int(options, "max_depth", _DEFAULT_MAX_DEPTH)
 	if max_depth >= 0 and depth > max_depth:
+		_mark_budget_truncated(budget_state)
 		return _make_marker("MaxDepth", {
 			"depth": depth,
 			"max_depth": max_depth,
 		})
+	var max_total_nodes: int = _option_int(options, "max_total_nodes", _DEFAULT_MAX_TOTAL_NODES)
+	var node_count: int = _option_int(budget_state, "node_count", 0)
+	if max_total_nodes >= 0 and node_count >= max_total_nodes:
+		_exhaust_budget(budget_state, "NodeBudget")
+		return _make_budget_exhaustion_marker(budget_state, options)
+	budget_state["node_count"] = node_count + 1
+	if not _consume_value_work_budget(value, options, budget_state):
+		return _make_budget_exhaustion_marker(budget_state, options)
 
 	match typeof(value):
 		TYPE_STRING:
 			var text_value: String = value
 			return _sanitize_string_value(text_value, options)
+		TYPE_STRING_NAME:
+			var string_name_text: String = str(value)
+			var sanitized_string_name: String = _sanitize_string_value(string_name_text, options)
+			return value if sanitized_string_name == string_name_text else sanitized_string_name
+		TYPE_NODE_PATH:
+			var node_path_text: String = str(value)
+			var sanitized_node_path: String = _sanitize_known_path_value(node_path_text, options)
+			return value if sanitized_node_path == node_path_text else sanitized_node_path
 		TYPE_ARRAY:
 			if _visited_contains_reference(visited, value):
 				return _make_marker("CircularReference", {
@@ -232,8 +279,18 @@ static func _sanitize_report_value(value: Variant, options: Dictionary, visited:
 			visited.append(value)
 			var array_value: Array = value
 			var array_result: Array = []
-			for item: Variant in array_value:
-				array_result.append(_sanitize_report_value(item, options, visited, depth + 1))
+			var array_limit: int = _get_collection_limit(array_value.size(), options)
+			for index: int in range(array_limit):
+				array_result.append(_sanitize_report_value(array_value[index], options, visited, depth + 1, budget_state))
+				if _is_budget_exhausted(budget_state):
+					break
+			if not _is_budget_exhausted(budget_state) and array_value.size() > array_limit:
+				_mark_budget_truncated(budget_state)
+				array_result.append(_make_marker("CollectionBudget", {
+					"collection_type": "Array",
+					"count": array_value.size(),
+					"omitted_count": array_value.size() - array_limit,
+				}))
 			var _removed_array_reference: Variant = visited.pop_back()
 			return array_result
 		TYPE_DICTIONARY:
@@ -244,9 +301,42 @@ static func _sanitize_report_value(value: Variant, options: Dictionary, visited:
 			visited.append(value)
 			var dictionary_value: Dictionary = value
 			var dictionary_result: Dictionary = {}
-			for key: Variant in dictionary_value.keys():
-				dictionary_result[key] = _sanitize_report_value(dictionary_value[key], options, visited, depth + 1)
+			var encoded_entries: Array[Dictionary] = []
+			var requires_entry_encoding: bool = false
+			var dictionary_keys: Array = dictionary_value.keys()
+			var dictionary_limit: int = _get_collection_limit(dictionary_keys.size(), options)
+			for index: int in range(dictionary_limit):
+				var key: Variant = dictionary_keys[index]
+				var sanitized_key: Variant = _sanitize_report_value(key, options, visited, depth + 1, budget_state)
+				if _is_budget_exhausted(budget_state):
+					break
+				var sanitized_value: Variant = _sanitize_report_value(dictionary_value[key], options, visited, depth + 1, budget_state)
+				if _is_budget_exhausted(budget_state):
+					break
+				encoded_entries.append({
+					"key": sanitized_key,
+					"value": sanitized_value,
+				})
+				if _report_key_requires_entry_encoding(key, sanitized_key):
+					requires_entry_encoding = true
+				else:
+					dictionary_result[key] = sanitized_value
 			var _removed_dictionary_reference: Variant = visited.pop_back()
+			if _is_budget_exhausted(budget_state):
+				return _make_budget_exhaustion_marker(budget_state, options)
+			if dictionary_keys.size() > dictionary_limit:
+				_mark_budget_truncated(budget_state)
+				var collection_sample: Variant = dictionary_result
+				if requires_entry_encoding:
+					collection_sample = encoded_entries
+				return _make_marker("CollectionBudget", {
+					"collection_type": "Dictionary",
+					"count": dictionary_keys.size(),
+					"omitted_count": dictionary_keys.size() - dictionary_limit,
+					"sample": collection_sample,
+				})
+			if requires_entry_encoding:
+				return _make_marker("Dictionary", { "entries": encoded_entries })
 			return dictionary_result
 		TYPE_OBJECT:
 			return _object_to_marker(value, options)
@@ -260,7 +350,157 @@ static func _sanitize_report_value(value: Variant, options: Dictionary, visited:
 		TYPE_RID:
 			return _make_marker("RID", {})
 		_:
+			if _is_packed_array_type(typeof(value)):
+				return _sanitize_packed_array(value, options, visited, depth, budget_state)
 			return value
+
+
+static func _get_collection_limit(collection_size: int, options: Dictionary) -> int:
+	var max_collection_items: int = _option_int(
+		options,
+		"max_collection_items",
+		_DEFAULT_MAX_COLLECTION_ITEMS
+	)
+	if max_collection_items < 0:
+		return collection_size
+	return mini(collection_size, max_collection_items)
+
+
+static func _get_packed_limit(collection_size: int, options: Dictionary) -> int:
+	var collection_limit: int = _get_collection_limit(collection_size, options)
+	var max_packed_length: int = _option_int(options, "max_packed_length", _DEFAULT_MAX_PACKED_LENGTH)
+	if max_packed_length < 0:
+		return collection_limit
+	return mini(collection_limit, max_packed_length)
+
+
+static func _mark_budget_truncated(budget_state: Dictionary) -> void:
+	budget_state["truncated_count"] = _option_int(budget_state, "truncated_count", 0) + 1
+
+
+static func _is_budget_exhausted(budget_state: Dictionary) -> bool:
+	return _option_bool(budget_state, "exhausted", false)
+
+
+static func _exhaust_budget(budget_state: Dictionary, reason: String) -> void:
+	if _is_budget_exhausted(budget_state):
+		return
+	budget_state["exhausted"] = true
+	budget_state["reason"] = reason
+	_mark_budget_truncated(budget_state)
+
+
+static func _make_budget_exhaustion_marker(budget_state: Dictionary, options: Dictionary) -> Dictionary:
+	var reason: String = _option_string(budget_state, "reason", "Budget")
+	var payload: Dictionary = {
+		"reason": reason,
+		"node_count": _option_int(budget_state, "node_count", 0),
+		"work_bytes": _option_int(budget_state, "work_bytes", 0),
+	}
+	if reason == "NodeBudget":
+		payload["max_total_nodes"] = _option_int(options, "max_total_nodes", _DEFAULT_MAX_TOTAL_NODES)
+	if reason == "ByteBudget":
+		payload["max_total_bytes"] = _option_int(options, "max_total_bytes", _DEFAULT_MAX_TOTAL_BYTES)
+	return _make_marker(reason, payload)
+
+
+static func _consume_value_work_budget(
+	value: Variant,
+	options: Dictionary,
+	budget_state: Dictionary
+) -> bool:
+	var max_total_bytes: int = _option_int(options, "max_total_bytes", _DEFAULT_MAX_TOTAL_BYTES)
+	if max_total_bytes < 0:
+		return true
+	var used_bytes: int = _option_int(budget_state, "work_bytes", 0)
+	var remaining_bytes: int = maxi(max_total_bytes - used_bytes, 0)
+	var minimum_cost: int = _estimate_minimum_work_bytes(value)
+	if minimum_cost > remaining_bytes:
+		_exhaust_budget(budget_state, "ByteBudget")
+		return false
+	var exact_cost: int = minimum_cost
+	match typeof(value):
+		TYPE_STRING:
+			var string_value: String = value
+			exact_cost = string_value.to_utf8_buffer().size() + 2
+		TYPE_STRING_NAME, TYPE_NODE_PATH:
+			var text_value: String = str(value)
+			exact_cost = text_value.to_utf8_buffer().size() + 2
+	if exact_cost > remaining_bytes:
+		_exhaust_budget(budget_state, "ByteBudget")
+		return false
+	budget_state["work_bytes"] = used_bytes + exact_cost
+	return true
+
+
+static func _estimate_minimum_work_bytes(value: Variant) -> int:
+	match typeof(value):
+		TYPE_STRING:
+			var string_value: String = value
+			return string_value.length() + 2
+		TYPE_STRING_NAME, TYPE_NODE_PATH:
+			return str(value).length() + 2
+		TYPE_ARRAY, TYPE_DICTIONARY:
+			return 2
+		TYPE_OBJECT, TYPE_CALLABLE, TYPE_SIGNAL, TYPE_RID:
+			return 128
+		_:
+			if _is_packed_array_type(typeof(value)):
+				return 2
+			return 32
+
+
+static func _is_packed_array_type(value_type: int) -> bool:
+	return value_type in [
+		TYPE_PACKED_BYTE_ARRAY,
+		TYPE_PACKED_INT32_ARRAY,
+		TYPE_PACKED_INT64_ARRAY,
+		TYPE_PACKED_FLOAT32_ARRAY,
+		TYPE_PACKED_FLOAT64_ARRAY,
+		TYPE_PACKED_STRING_ARRAY,
+		TYPE_PACKED_VECTOR2_ARRAY,
+		TYPE_PACKED_VECTOR3_ARRAY,
+		TYPE_PACKED_COLOR_ARRAY,
+		TYPE_PACKED_VECTOR4_ARRAY,
+	]
+
+
+static func _sanitize_packed_array(
+	value: Variant,
+	options: Dictionary,
+	visited: Array,
+	depth: int,
+	budget_state: Dictionary
+) -> Variant:
+	var item_count: int = len(value)
+	var item_limit: int = _get_packed_limit(item_count, options)
+	var sample: Array = []
+	for index: int in range(item_limit):
+		sample.append(_sanitize_report_value(value[index], options, visited, depth + 1, budget_state))
+		if _is_budget_exhausted(budget_state):
+			break
+	if _is_budget_exhausted(budget_state):
+		return _make_budget_exhaustion_marker(budget_state, options)
+	if item_count <= item_limit:
+		if typeof(value) == TYPE_PACKED_STRING_ARRAY:
+			return PackedStringArray(sample)
+		return value
+	_mark_budget_truncated(budget_state)
+	return _make_marker("CollectionBudget", {
+		"collection_type": type_string(typeof(value)),
+		"count": item_count,
+		"omitted_count": item_count - item_limit,
+		"sample": sample,
+	})
+
+
+static func _report_key_requires_entry_encoding(source_key: Variant, sanitized_key: Variant) -> bool:
+	match typeof(source_key):
+		TYPE_OBJECT, TYPE_CALLABLE, TYPE_SIGNAL, TYPE_RID, TYPE_ARRAY, TYPE_DICTIONARY:
+			return true
+		TYPE_STRING, TYPE_STRING_NAME, TYPE_NODE_PATH:
+			return str(source_key) != str(sanitized_key) or typeof(source_key) != typeof(sanitized_key)
+	return false
 
 
 static func _object_to_marker(value: Variant, options: Dictionary) -> Dictionary:
@@ -477,6 +717,29 @@ static func _make_variant_json_options(options: Dictionary) -> Dictionary:
 	}
 
 
+static func _apply_final_byte_budget(value: Variant, options: Dictionary) -> Variant:
+	var max_total_bytes: int = _option_int(options, "max_total_bytes", _DEFAULT_MAX_TOTAL_BYTES)
+	if max_total_bytes < 0:
+		return value
+	var encoded_text: String = JSON.stringify(value)
+	if encoded_text.to_utf8_buffer().size() <= max_total_bytes:
+		return value
+	return _make_final_byte_budget_value(max_total_bytes)
+
+
+static func _make_final_byte_budget_value(max_total_bytes: int) -> Variant:
+	var marker: Dictionary = _make_marker("ByteBudget", {
+		"max_total_bytes": max_total_bytes,
+	})
+	if JSON.stringify(marker).to_utf8_buffer().size() <= max_total_bytes:
+		return marker
+	if JSON.stringify(_COMPACT_TRUNCATION_MARKER).to_utf8_buffer().size() <= max_total_bytes:
+		return _COMPACT_TRUNCATION_MARKER
+	if max_total_bytes >= 2:
+		return ""
+	return null
+
+
 static func _make_circular_reference_value(options: Dictionary) -> Variant:
 	return _make_json_typed_value(
 		"CircularReference",
@@ -485,16 +748,24 @@ static func _make_circular_reference_value(options: Dictionary) -> Variant:
 
 
 static func _sanitize_string_value(value: String, options: Dictionary) -> String:
-	var result: String = _redact_path(value, options)
 	var max_length: int = _option_int(options, "max_string_length", _DEFAULT_MAX_STRING_LENGTH)
-	if max_length >= 0 and result.length() > max_length:
-		return "%s..." % result.substr(0, max_length)
-	return result
+	var bounded_value: String = value
+	if max_length >= 0 and bounded_value.length() > max_length:
+		bounded_value = "%s..." % bounded_value.substr(0, max_length)
+	return _redact_path(bounded_value, options)
 
 
-static func _redact_path(value: String, options: Dictionary) -> String:
+static func _sanitize_known_path_value(value: String, options: Dictionary) -> String:
+	var max_length: int = _option_int(options, "max_string_length", _DEFAULT_MAX_STRING_LENGTH)
+	var bounded_value: String = value
+	if max_length >= 0 and bounded_value.length() > max_length:
+		bounded_value = "%s..." % bounded_value.substr(0, max_length)
+	return _redact_path(bounded_value, options, true)
+
+
+static func _redact_path(value: String, options: Dictionary, known_path: bool = false) -> String:
 	var path_redaction: String = _option_string(options, "path_redaction", "redact")
-	if path_redaction == "none" or not _looks_like_path(value):
+	if path_redaction == "none" or (not known_path and not _looks_like_path(value)):
 		return value
 	if path_redaction == "basename":
 		return value.get_file()
@@ -504,13 +775,50 @@ static func _redact_path(value: String, options: Dictionary) -> String:
 
 
 static func _looks_like_path(value: String) -> bool:
+	var normalized: String = value.strip_edges()
 	return (
-		value.begins_with("res://")
-		or value.begins_with("user://")
-		or value.begins_with("uid://")
-		or value.contains(":/")
-		or value.contains(":\\")
+		normalized.begins_with("res://")
+		or normalized.begins_with("user://")
+		or normalized.begins_with("uid://")
+		or normalized.begins_with("/")
+		or normalized.begins_with("\\\\")
+		or normalized.contains(" /")
+		or normalized.contains(" \\\\")
+		or normalized.contains(":/")
+		or normalized.contains(":\\")
 	)
+
+
+static func _get_collection_size(value: Variant) -> int:
+	match typeof(value):
+		TYPE_ARRAY:
+			var array_value: Array = value
+			return array_value.size()
+		TYPE_DICTIONARY:
+			var dictionary_value: Dictionary = value
+			return dictionary_value.size()
+		TYPE_PACKED_BYTE_ARRAY, TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_INT64_ARRAY, TYPE_PACKED_FLOAT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY, TYPE_PACKED_STRING_ARRAY, TYPE_PACKED_VECTOR2_ARRAY, TYPE_PACKED_VECTOR3_ARRAY, TYPE_PACKED_COLOR_ARRAY, TYPE_PACKED_VECTOR4_ARRAY:
+			return len(value)
+	return -1
+
+
+static func _make_collection_sample(value: Variant, limit: int) -> Array:
+	var result: Array = []
+	if limit <= 0:
+		return result
+	if typeof(value) == TYPE_DICTIONARY:
+		var dictionary_value: Dictionary = value
+		for key: Variant in dictionary_value:
+			result.append({
+				"key": key,
+				"value": dictionary_value[key],
+			})
+			if result.size() >= limit:
+				break
+		return result
+	for index: int in range(limit):
+		result.append(value[index])
+	return result
 
 
 static func _collection_to_array(value: Variant) -> Array:

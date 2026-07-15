@@ -215,9 +215,9 @@ func _apply_input_action(pressed: bool) -> void:
 	if action_name == &"":
 		return
 	if pressed:
-		var _pressed_action: bool = _VIRTUAL_INPUT_BRIDGE.press_action(action_name, _get_action_owner_id())
+		var _pressed_action: bool = _VIRTUAL_INPUT_BRIDGE.press_action(action_name, self, action_name)
 	else:
-		var _released_action: bool = _VIRTUAL_INPUT_BRIDGE.release_action(action_name, _get_action_owner_id())
+		var _released_action: bool = _VIRTUAL_INPUT_BRIDGE.release_action(action_name, self, action_name)
 
 
 func _emit_joypad_button(pressed: bool) -> void:
@@ -225,7 +225,3 @@ func _emit_joypad_button(pressed: bool) -> void:
 		return
 
 	_VIRTUAL_INPUT_BRIDGE.emit_joypad_button(joypad_device_id, joy_button, pressed)
-
-
-func _get_action_owner_id() -> String:
-	return _VIRTUAL_INPUT_BRIDGE.make_owner_id(self, action_name)

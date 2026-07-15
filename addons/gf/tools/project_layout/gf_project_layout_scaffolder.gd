@@ -35,6 +35,47 @@ const _SUPPORTED_RULE_KINDS: PackedStringArray = [
 	_RULE_NAMING_CONVENTION,
 ]
 const _SUPPORTED_SEVERITIES: PackedStringArray = ["error", "warning", "info"]
+const _PROFILE_ALLOWED_FIELDS: PackedStringArray = [
+	"schema_version",
+	"id",
+	"display_name",
+	"description",
+	"zones",
+	"rules",
+	"metadata",
+]
+const _ZONE_ALLOWED_FIELDS: PackedStringArray = [
+	"id",
+	"description",
+	"roots",
+	"required",
+	"allow_extensions",
+	"deny_extensions",
+	"exclude",
+	"severity",
+	"metadata",
+]
+const _RULE_ALLOWED_FIELDS: PackedStringArray = [
+	"id",
+	"description",
+	"kind",
+	"paths",
+	"any",
+	"roots",
+	"include",
+	"exclude",
+	"extensions",
+	"pattern",
+	"target",
+	"allowed_files",
+	"feature_id_pattern",
+	"required_subdirs",
+	"allowed_subdirs",
+	"allow_root_files",
+	"max_files",
+	"severity",
+	"metadata",
+]
 
 
 # --- 公共方法 ---
@@ -51,7 +92,7 @@ const _SUPPORTED_SEVERITIES: PackedStringArray = ["error", "warning", "info"]
 ## [br]
 ## @return: 脚手架报告。
 ## [br]
-## @schema return: Dictionary，包含 success、profile_id、root_path、dry_run、created_paths、existing_paths、skipped_paths、issues、error_count 和 warning_count。
+## @schema return: Dictionary，包含 success、profile_id、root_path、dry_run、planned_paths、created_paths、existing_paths、rolled_back_paths、rollback_failed_paths、operations、issues、error_count 和 warning_count。
 func scaffold_default_profile(options: Dictionary = {}) -> Dictionary:
 	return scaffold_profile_path(DEFAULT_FEATURE_COHESIVE_PROFILE_PATH, options)
 
@@ -70,7 +111,7 @@ func scaffold_default_profile(options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @return: 脚手架报告。
 ## [br]
-## @schema return: Dictionary，包含 success、profile_id、root_path、dry_run、created_paths、existing_paths、skipped_paths、issues、error_count 和 warning_count。
+## @schema return: Dictionary，包含 success、profile_id、root_path、dry_run、planned_paths、created_paths、existing_paths、rolled_back_paths、rollback_failed_paths、operations、issues、error_count 和 warning_count。
 func scaffold_profile_path(profile_path: String, options: Dictionary = {}) -> Dictionary:
 	var load_result: Dictionary = _load_profile(profile_path)
 	if not _get_bool(load_result, "success"):
@@ -112,7 +153,7 @@ func scaffold_profile_path(profile_path: String, options: Dictionary = {}) -> Di
 ## [br]
 ## @return: 脚手架报告。
 ## [br]
-## @schema return: Dictionary，包含 success、profile_id、root_path、dry_run、created_paths、existing_paths、skipped_paths、issues、error_count 和 warning_count。
+## @schema return: Dictionary，包含 success、profile_id、root_path、dry_run、planned_paths、created_paths、existing_paths、rolled_back_paths、rollback_failed_paths、operations、issues、error_count 和 warning_count。
 func scaffold_profile(profile: Dictionary, options: Dictionary = {}) -> Dictionary:
 	var root_path: String = _normalize_root_path(_get_string(options, "root_path", "res://"))
 	var report: Dictionary = _make_report(_get_string(profile, "id"), root_path, _get_bool(options, "dry_run"))
@@ -166,15 +207,21 @@ func make_feature_module_paths(profile: Dictionary, feature_id: String, options:
 		for allowed_subdir: String in allowed_subdirs:
 			if not subdirs.has(allowed_subdir):
 				var _append_allowed_subdir: bool = subdirs.append(allowed_subdir)
+	for index: int in roots.size():
+		var normalized_root: String = _normalize_relative_path(roots[index])
+		if _relative_path_is_invalid(normalized_root):
+			return result
+		roots[index] = normalized_root
+	for index: int in subdirs.size():
+		var normalized_subdir: String = _normalize_relative_path(subdirs[index])
+		if _relative_path_is_invalid(normalized_subdir):
+			return result
+		subdirs[index] = normalized_subdir
 
 	for root: String in roots:
-		if _relative_path_is_invalid(root):
-			continue
 		var feature_root: String = root.path_join(feature_id)
 		var _append_feature_root: bool = result.append(feature_root)
 		for subdir: String in subdirs:
-			if _relative_path_is_invalid(subdir):
-				continue
 			var _append_feature_subdir: bool = result.append(feature_root.path_join(subdir))
 	return result
 
@@ -228,6 +275,7 @@ func _make_report(profile_id: String, root_path: String, dry_run: bool) -> Dicti
 		"existing_paths": [],
 		"rolled_back_paths": [],
 		"rollback_failed_paths": [],
+		"operations": [],
 		"skipped_paths": [],
 		"issues": [],
 		"error_count": 0,
@@ -237,25 +285,42 @@ func _make_report(profile_id: String, root_path: String, dry_run: bool) -> Dicti
 
 
 func _validate_profile_header(profile: Dictionary, report: Dictionary) -> void:
-	if _get_int(profile, "schema_version") != _SCHEMA_VERSION:
+	var schema_version: Variant = profile.get("schema_version")
+	if not _is_exact_integer(schema_version):
+		_add_issue(
+			report,
+			"error",
+			"invalid_integer_field",
+			"schema_version",
+			"项目结构 profile schema_version 必须是整数。",
+			{ "field": "schema_version", "actual_type": typeof(schema_version) }
+		)
+	elif _exact_integer_value(schema_version) != _SCHEMA_VERSION:
 		_add_issue(
 			report,
 			"error",
 			"unsupported_schema_version",
 			"",
 			"项目结构 profile schema_version 必须为 %d。" % _SCHEMA_VERSION,
-			{ "actual_value": _get_int(profile, "schema_version") }
+			{ "actual_value": schema_version }
 		)
 	if _get_string(profile, "id").is_empty():
 		_add_issue(report, "error", "missing_profile_id", "", "项目结构 profile 缺少 id。")
 
 
 func _validate_profile_schema(profile: Dictionary, report: Dictionary) -> void:
+	_append_unsupported_fields(profile, _PROFILE_ALLOWED_FIELDS, "unsupported_profile_field", "profile", report)
+	if not profile.get("zones", []) is Array:
+		_add_issue(report, "error", "invalid_profile_field_type", "zones", "项目结构 profile zones 必须是 Array。")
+	if not profile.get("rules", []) is Array:
+		_add_issue(report, "error", "invalid_profile_field_type", "rules", "项目结构 profile rules 必须是 Array。")
 	var zones: Array = _get_array(profile, "zones")
 	for zone_value: Variant in zones:
 		if not (zone_value is Dictionary):
+			_add_issue(report, "error", "invalid_zone", "", "项目结构 profile zones 条目必须是 Dictionary。")
 			continue
 		var zone: Dictionary = zone_value
+		_append_unsupported_fields(zone, _ZONE_ALLOWED_FIELDS, "unsupported_zone_field", _get_string(zone, "id"), report)
 		if zone.has("severity"):
 			_validate_profile_severity(_get_string(zone, "severity"), "zones", _get_string(zone, "id"), report)
 
@@ -265,6 +330,7 @@ func _validate_profile_schema(profile: Dictionary, report: Dictionary) -> void:
 			_add_issue(report, "error", "invalid_rule", "", "项目结构 profile rules 条目必须是 Dictionary。")
 			continue
 		var rule: Dictionary = rule_value
+		_append_unsupported_fields(rule, _RULE_ALLOWED_FIELDS, "unsupported_rule_field", _get_string(rule, "id"), report)
 		var kind: String = _get_string(rule, "kind")
 		if not _SUPPORTED_RULE_KINDS.has(kind):
 			_add_issue(
@@ -277,6 +343,43 @@ func _validate_profile_schema(profile: Dictionary, report: Dictionary) -> void:
 			)
 		if rule.has("severity"):
 			_validate_profile_severity(_get_string(rule, "severity"), "rules", _get_string(rule, "id"), report)
+		if rule.has("max_files"):
+			_validate_positive_integer_field(rule, "max_files", _get_string(rule, "id"), report)
+
+
+func _append_unsupported_fields(
+	data: Dictionary,
+	allowed_fields: PackedStringArray,
+	issue_kind: String,
+	scope: String,
+	report: Dictionary
+) -> void:
+	for field_value: Variant in data.keys():
+		var field_name: String = str(field_value)
+		if allowed_fields.has(field_name):
+			continue
+		_add_issue(
+			report,
+			"error",
+			issue_kind,
+			scope,
+			"项目结构 profile 包含不受支持的字段：%s。" % field_name,
+			{ "field": field_name }
+		)
+
+
+func _validate_positive_integer_field(data: Dictionary, field_name: String, scope: String, report: Dictionary) -> void:
+	var value: Variant = data.get(field_name)
+	if _is_exact_integer(value) and _exact_integer_value(value) > 0:
+		return
+	_add_issue(
+		report,
+		"error",
+		"invalid_integer_field",
+		scope,
+		"项目结构 profile %s 必须是正整数。" % field_name,
+		{ "field": field_name, "actual_value": value }
+	)
 
 
 func _validate_profile_severity(severity: String, scope: String, item_id: String, report: Dictionary) -> void:
@@ -298,6 +401,9 @@ func _validate_root_path(root_path: String, options: Dictionary, report: Diction
 		return
 	if _path_has_parent_segment(root_path):
 		_add_issue(report, "error", "root_path_has_parent_segment", root_path, "项目根路径不能包含父级越界片段。")
+		return
+	if _path_crosses_link(root_path):
+		_add_issue(report, "error", "linked_path_not_allowed", root_path, "项目根路径不能穿过符号链接或目录联接。")
 		return
 	if root_path.begins_with("res://") or root_path.begins_with("user://"):
 		return
@@ -390,13 +496,20 @@ func _create_queued_paths(report: Dictionary) -> void:
 			continue
 		var path: String = path_value
 		var absolute_path: String = ProjectSettings.globalize_path(path)
+		if _path_crosses_link(path):
+			_append_operation(report, path, "create_directory", "failed", false)
+			_add_issue(report, "error", "linked_path_not_allowed", path, "脚手架目标路径不能穿过符号链接或目录联接。")
+			_rollback_created_paths(report, created_this_run)
+			return
 		if DirAccess.dir_exists_absolute(absolute_path):
 			var existing_paths: Array = _get_array(report, "existing_paths")
 			existing_paths.append(path)
+			_append_operation(report, path, "create_directory", "skipped_existing", false)
 			continue
 
 		var blocking_ancestor: String = _find_non_directory_ancestor(path)
 		if not blocking_ancestor.is_empty():
+			_append_operation(report, path, "create_directory", "failed", false)
 			_add_issue(
 				report,
 				"error",
@@ -411,12 +524,13 @@ func _create_queued_paths(report: Dictionary) -> void:
 			_rollback_created_paths(report, created_this_run)
 			return
 
+		var missing_paths: Array[String] = _missing_directory_chain(path)
 		var create_error: Error = DirAccess.make_dir_recursive_absolute(absolute_path)
+		_record_created_paths(report, missing_paths, path, created_this_run)
 		if create_error == OK:
-			var created_paths: Array = _get_array(report, "created_paths")
-			created_paths.append(path)
-			created_this_run.append(path)
+			continue
 		else:
+			_append_operation(report, path, "create_directory", "failed", false)
 			_add_issue(
 				report,
 				"error",
@@ -436,20 +550,77 @@ func _finalize_report(report: Dictionary) -> Dictionary:
 		if path_value is String and not planned_paths.has(path_value):
 			planned_paths.append(path_value)
 	if _get_bool(report, "dry_run"):
-		var created_paths: Array = _get_array(report, "created_paths")
 		for path_value: Variant in queued_paths:
 			if path_value is String:
 				var path: String = path_value
-				if DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(path)):
+				if _path_crosses_link(path):
+					_append_operation(report, path, "create_directory", "failed", false)
+					_add_issue(report, "error", "linked_path_not_allowed", path, "脚手架目标路径不能穿过符号链接或目录联接。")
+				elif DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(path)):
 					var existing_paths: Array = _get_array(report, "existing_paths")
 					if not existing_paths.has(path):
 						existing_paths.append(path)
-				elif not created_paths.has(path):
-					created_paths.append(path)
+					_append_operation(report, path, "create_directory", "skipped_existing", false)
+				else:
+					_append_operation(report, path, "create_directory", "planned", false)
 
 	var _queued_paths_removed: bool = report.erase("_queued_paths")
 	report["success"] = _get_int(report, "error_count") == 0
 	return report
+
+
+func _missing_directory_chain(path: String) -> Array[String]:
+	var result: Array[String] = []
+	var probe_path: String = _normalize_root_path(path)
+	while not probe_path.is_empty() and probe_path != ".":
+		var absolute_probe_path: String = ProjectSettings.globalize_path(probe_path)
+		if DirAccess.dir_exists_absolute(absolute_probe_path) or FileAccess.file_exists(absolute_probe_path):
+			break
+		result.push_front(probe_path)
+		var parent_path: String = probe_path.get_base_dir()
+		if parent_path == probe_path:
+			break
+		probe_path = parent_path
+	return result
+
+
+func _record_created_paths(
+	report: Dictionary,
+	paths: Array[String],
+	requested_path: String,
+	created_this_run: Array[String]
+) -> void:
+	var created_paths: Array = _get_array(report, "created_paths")
+	for path: String in paths:
+		if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(path)):
+			continue
+		if not created_paths.has(path):
+			created_paths.append(path)
+		if not created_this_run.has(path):
+			created_this_run.append(path)
+		_append_operation(report, path, "create_directory", "applied", path != requested_path)
+
+
+func _append_operation(report: Dictionary, path: String, kind: String, state: String, implicit: bool) -> void:
+	var operations: Array = _get_array(report, "operations")
+	operations.append({
+		"kind": kind,
+		"path": path,
+		"state": state,
+		"implicit": implicit,
+	})
+
+
+func _set_applied_operation_state(report: Dictionary, path: String, state: String) -> void:
+	var operations: Array = _get_array(report, "operations")
+	for index: int in range(operations.size() - 1, -1, -1):
+		var operation_value: Variant = operations[index]
+		if not operation_value is Dictionary:
+			continue
+		var operation: Dictionary = operation_value
+		if _get_string(operation, "path") == path and _get_string(operation, "state") == "applied":
+			operation["state"] = state
+			return
 
 
 func _rollback_created_paths(report: Dictionary, created_paths: Array[String]) -> void:
@@ -462,12 +633,15 @@ func _rollback_created_paths(report: Dictionary, created_paths: Array[String]) -
 			continue
 		if not _directory_is_empty(absolute_path):
 			rollback_failed_paths.append(path)
+			_set_applied_operation_state(report, path, "rollback_failed")
 			continue
 		var remove_error: Error = DirAccess.remove_absolute(absolute_path)
 		if remove_error == OK:
 			rolled_back_paths.append(path)
+			_set_applied_operation_state(report, path, "rolled_back")
 		else:
 			rollback_failed_paths.append(path)
+			_set_applied_operation_state(report, path, "rollback_failed")
 	if not created_paths.is_empty():
 		_add_issue(
 			report,
@@ -558,21 +732,36 @@ func _is_valid_feature_id(feature_id: String, pattern: String) -> bool:
 
 
 func _relative_path_is_invalid(path: String) -> bool:
-	if path.contains("://"):
+	var normalized_path: String = _normalize_relative_path(path)
+	if normalized_path.contains("://") or normalized_path.contains(":"):
 		return true
-	if path.is_absolute_path() or _is_filesystem_absolute_path(path):
+	if normalized_path.is_absolute_path() or _is_filesystem_absolute_path(normalized_path):
 		return true
-	return _path_has_parent_segment(path)
+	return _path_has_parent_segment(normalized_path)
 
 
 func _path_has_parent_segment(path: String) -> bool:
-	var body: String = path
-	if path.contains("://"):
-		body = path.get_slice("://", 1)
+	var normalized_path: String = path.replace("\\", "/")
+	var body: String = normalized_path
+	if normalized_path.contains("://"):
+		body = normalized_path.get_slice("://", 1)
 	var parts: PackedStringArray = body.split("/", false)
 	for part: String in parts:
 		if part == "..":
 			return true
+	return false
+
+
+func _path_crosses_link(path: String) -> bool:
+	var probe_path: String = ProjectSettings.globalize_path(path).replace("\\", "/").simplify_path()
+	while not probe_path.is_empty():
+		var parent_path: String = probe_path.get_base_dir()
+		if parent_path == probe_path or parent_path.is_empty():
+			return false
+		var parent_directory: DirAccess = DirAccess.open(parent_path)
+		if parent_directory != null and parent_directory.is_link(probe_path.get_file()):
+			return true
+		probe_path = parent_path
 	return false
 
 
@@ -590,6 +779,10 @@ func _normalize_root_path(path: String) -> String:
 	while normalized_path.ends_with("/") and normalized_path != "res://" and normalized_path != "user://":
 		normalized_path = normalized_path.substr(0, normalized_path.length() - 1)
 	return normalized_path
+
+
+func _normalize_relative_path(path: String) -> String:
+	return path.replace("\\", "/").strip_edges().trim_prefix("./").trim_suffix("/")
 
 
 func _get_string(source: Dictionary, key: String, default_value: String = "") -> String:
@@ -622,9 +815,27 @@ func _get_int(source: Dictionary, key: String, default_value: int = 0) -> int:
 	if value is int:
 		var int_value: int = value
 		return int_value
+	if value is float and _is_exact_integer(value):
+		return _exact_integer_value(value)
+	return default_value
+
+
+func _is_exact_integer(value: Variant) -> bool:
+	if value is int:
+		return true
+	if not value is float:
+		return false
+	var float_value: float = value
+	return is_finite(float_value) and float_value == floorf(float_value)
+
+
+func _exact_integer_value(value: Variant, default_value: int = 0) -> int:
+	if value is int:
+		return value
 	if value is float:
 		var float_value: float = value
-		return int(float_value)
+		if _is_exact_integer(float_value):
+			return int(float_value)
 	return default_value
 
 

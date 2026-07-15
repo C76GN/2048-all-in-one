@@ -664,7 +664,7 @@ static func _reconstruct_path(start: Variant, goal: Variant, came_from: Dictiona
 
 
 static func _push_node_priority(priority_queue: GFPriorityQueue, node: Variant, priority: float) -> void:
-	priority_queue.push({
+	var _node_queued: bool = priority_queue.push({
 		"node": node,
 		"priority": priority,
 	}, priority)
@@ -806,7 +806,7 @@ static func _push_spanning_edge(
 	priority: float,
 	sequence: int
 ) -> void:
-	priority_queue.push_with_order(edge, priority, sequence)
+	var _edge_queued: bool = priority_queue.push_with_order(edge, priority, sequence)
 
 
 static func _pop_spanning_edge(priority_queue: GFPriorityQueue) -> Dictionary:

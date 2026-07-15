@@ -307,13 +307,13 @@ func has_shader_parameter(material: ShaderMaterial, parameter_name: StringName) 
 ## [br]
 ## @param default_value: 参数缺失时用于注册或持久化的默认值。
 ## [br]
-## @param options: 可选项，支持 persist_project_setting、project_setting_type、project_setting_definition、project_setting_path、overwrite_project_setting、save_project_settings、register_live_parameter、update_live_value、copy_values、warn_on_invalid_parameter 和 dry_run。
+## @param options: 可选项，支持 persist_project_setting、project_setting_type、project_setting_definition、overwrite_project_setting、save_project_settings、register_live_parameter、update_live_value、copy_values、warn_on_invalid_parameter 和 dry_run。
 ## [br]
 ## @return: 参数处理报告。
 ## [br]
 ## @schema default_value: Variant，可被 RenderingServer.global_shader_parameter_add() 或 ProjectSettings shader_globals 定义接受的默认值。
 ## [br]
-## @schema options: Dictionary，persist_project_setting 为 true 时写入 ProjectSettings；project_setting_type 覆盖持久化 type；project_setting_definition 提供完整 shader_globals/<name> 定义；project_setting_path 覆盖默认设置路径；overwrite_project_setting 控制是否覆盖已有设置；save_project_settings 控制是否立即保存 project.godot；register_live_parameter 控制是否补当前会话 RenderingServer 注册；update_live_value 控制是否同时设置当前值；copy_values 控制写入前是否复制集合值；warn_on_invalid_parameter 控制无效参数 warning；dry_run 为 true 时只生成报告。
+## @schema options: Dictionary，persist_project_setting 为 true 时写入由参数名唯一派生的 shader_globals/<name>；project_setting_type 覆盖持久化 type；project_setting_definition 提供完整声明；overwrite_project_setting 控制是否覆盖已有设置；save_project_settings 控制是否立即保存 project.godot；register_live_parameter 控制是否补当前会话 RenderingServer 注册；update_live_value 控制是否同时设置当前值；copy_values 控制写入前是否复制集合值；warn_on_invalid_parameter 控制无效参数 warning；dry_run 为 true 时只生成报告。
 ## [br]
 ## @schema return: Dictionary，包含 ok、parameter_name、parameter_type、live_registered、live_already_registered、live_available、live_updated、project_setting_path、project_setting_written、project_setting_already_present、declaration_written、declaration_already_present、declaration_available、project_settings_saved 和 error。
 func ensure_global_parameter(
@@ -503,6 +503,14 @@ func _ensure_global_parameter_internal(
 			"无法推断全局 shader 参数类型：%s。" % String(parameter_name),
 			warn_on_invalid_parameter
 		)
+	if GFVariantData.get_option_bool(options, "persist_project_setting", false):
+		report["project_setting_path"] = _get_global_project_setting_path(parameter_name)
+		if options.has("project_setting_path"):
+			return _fail_global_parameter_report(
+				report,
+				"project_setting_path 不受支持；全局 shader 声明只能写入由参数名派生的 shader_globals 命名空间。",
+				warn_on_invalid_parameter
+			)
 
 	var dry_run: bool = GFVariantData.get_option_bool(options, "dry_run", false)
 	var copy_values: bool = GFVariantData.get_option_bool(options, "copy_values", true)
@@ -555,7 +563,7 @@ func _persist_global_parameter_project_setting(
 	save_immediately: bool
 ) -> Dictionary:
 	var report: Dictionary = {}
-	var setting_path: String = _get_global_project_setting_path(parameter_name, options)
+	var setting_path: String = _get_global_project_setting_path(parameter_name)
 	report["project_setting_path"] = setting_path
 	var definition: Dictionary = _build_project_shader_global_definition(
 		parameter_type,
@@ -694,10 +702,7 @@ func _build_project_shader_global_definition(
 	}
 
 
-func _get_global_project_setting_path(parameter_name: StringName, options: Dictionary) -> String:
-	var explicit_path: String = GFVariantData.get_option_string(options, "project_setting_path", "")
-	if not explicit_path.strip_edges().is_empty():
-		return explicit_path.strip_edges()
+func _get_global_project_setting_path(parameter_name: StringName) -> String:
 	return _GLOBAL_SHADER_SETTING_PREFIX + String(parameter_name)
 
 

@@ -251,12 +251,11 @@ func get_event_count() -> int:
 ## [br]
 ## @api public
 func sort_events() -> void:
-	for event: Dictionary in events:
-		_assign_restored_event_sequence(event)
+	_normalize_event_sequences()
 	events.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
 		var left_time: float = _get_event_time(left)
 		var right_time: float = _get_event_time(right)
-		if is_equal_approx(left_time, right_time):
+		if left_time == right_time:
 			return _get_event_sequence(left) < _get_event_sequence(right)
 		return left_time < right_time
 	)
@@ -376,7 +375,6 @@ func apply_dictionary(data: Dictionary, json_compatible: bool = false) -> void:
 		if event_value is Dictionary:
 			var event_dictionary: Dictionary = event_value
 			var restored_event: Dictionary = _event_from_dictionary(event_dictionary, json_compatible)
-			_assign_restored_event_sequence(restored_event)
 			max_event_time = maxf(max_event_time, _get_event_time(restored_event))
 			events.append(restored_event)
 
@@ -487,12 +485,18 @@ func _take_event_sequence() -> int:
 	return event_sequence
 
 
-func _assign_restored_event_sequence(event: Dictionary) -> void:
-	var event_sequence: int = GFVariantData.get_option_int(event, "sequence", -1)
-	if event_sequence < 0:
-		event["sequence"] = _take_event_sequence()
-		return
-	_next_event_sequence = maxi(_next_event_sequence, event_sequence + 1)
+func _normalize_event_sequences() -> void:
+	var used_sequences: Dictionary = {}
+	_next_event_sequence = 0
+	for event: Dictionary in events:
+		var event_sequence: int = GFVariantData.get_option_int(event, "sequence", -1)
+		if event_sequence < 0 or used_sequences.has(event_sequence):
+			while used_sequences.has(_next_event_sequence):
+				_next_event_sequence += 1
+			event_sequence = _next_event_sequence
+			event["sequence"] = event_sequence
+		used_sequences[event_sequence] = true
+		_next_event_sequence = maxi(_next_event_sequence, event_sequence + 1)
 
 
 func _get_object_property(target: Object, property_name: String) -> Variant:

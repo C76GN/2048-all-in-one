@@ -106,6 +106,11 @@ const STATUS_CANCELLED: StringName = &"cancelled"
 ## @api public
 const STATUS_FAILED: StringName = &"failed"
 
+const _INT64_MAX: int = 9223372036854775807
+const _INT64_MIN: int = -9223372036854775807 - 1
+const _INT64_UPPER_EXCLUSIVE_AS_FLOAT: float = 9.223372036854776e18
+const _INT64_MIN_AS_FLOAT: float = -9.223372036854776e18
+
 
 # --- 公共变量 ---
 
@@ -549,7 +554,7 @@ func _on_quest_event_triggered(payload: Variant, event_id: StringName) -> void:
 		if data == null or data._status != STATUS_ACTIVE or data._is_completed:
 			continue
 
-		data._current_count += amount
+		data._current_count = _add_int_saturated(data._current_count, amount)
 		if data._current_count >= data._target_count:
 			data._current_count = data._target_count
 			quest_progressed.emit(quest_id, data._current_count, data._target_count)
@@ -615,9 +620,23 @@ func _payload_to_amount(payload: Variant) -> int:
 		return int_amount
 	if current_payload is float:
 		var float_amount: float = current_payload
+		if is_nan(float_amount) or is_inf(float_amount):
+			push_error("[GFQuestUtility] payload.amount 必须是有限数，已回退为默认进度 1。")
+			return 1
+		if float_amount >= _INT64_UPPER_EXCLUSIVE_AS_FLOAT or float_amount < _INT64_MIN_AS_FLOAT:
+			push_error("[GFQuestUtility] payload.amount 超出 int64 范围，已回退为默认进度 1。")
+			return 1
 		return roundi(float_amount)
 
 	return 1
+
+
+func _add_int_saturated(left: int, right: int) -> int:
+	if right > 0 and left > _INT64_MAX - right:
+		return _INT64_MAX
+	if right < 0 and left < _INT64_MIN - right:
+		return _INT64_MIN
+	return left + right
 
 
 func _create_quest_data(
@@ -715,32 +734,83 @@ func _is_descendant_quest(root_quest_id: StringName, expected_descendant_id: Str
 	var root: _QuestData = _get_quest_data(root_quest_id)
 	if root == null:
 		return false
+	var pending: Array[StringName] = []
 	for child_id_text: String in root._child_ids:
-		var child_id: StringName = StringName(child_id_text)
-		if child_id == expected_descendant_id or _is_descendant_quest(child_id, expected_descendant_id):
+		pending.append(StringName(child_id_text))
+	var visited: Dictionary = {}
+	while not pending.is_empty():
+		var child_id: StringName = pending.pop_back()
+		if child_id == expected_descendant_id:
 			return true
+		if visited.has(child_id):
+			continue
+		visited[child_id] = true
+		var child: _QuestData = _get_quest_data(child_id)
+		if child == null:
+			continue
+		for nested_child_id_text: String in child._child_ids:
+			pending.append(StringName(nested_child_id_text))
 	return false
 
 
 func _build_quest_tree_report(data: _QuestData) -> Dictionary:
-	var children: Array[Dictionary] = []
-	var total_count: int = 1
-	var completed_count: int = 1 if data._status == STATUS_COMPLETED else 0
-	for child_id_text: String in data._child_ids:
-		var child: _QuestData = _get_quest_data(StringName(child_id_text))
-		if child == null:
+	if data == null:
+		return {}
+	var pending: Array[Dictionary] = [{
+		"quest_id": data._quest_id,
+		"expanded": false,
+	}]
+	var scheduled: Dictionary = {data._quest_id: true}
+	var reports: Dictionary = {}
+	while not pending.is_empty():
+		var frame: Dictionary = pending.pop_back()
+		var quest_id: StringName = GFVariantData.get_option_string_name(frame, "quest_id", &"")
+		var current: _QuestData = _get_quest_data(quest_id)
+		if current == null:
 			continue
-		var child_report: Dictionary = _build_quest_tree_report(child)
-		children.append(child_report)
-		total_count += GFVariantData.get_option_int(child_report, "total_count")
-		completed_count += GFVariantData.get_option_int(child_report, "completed_count")
+		if not GFVariantData.get_option_bool(frame, "expanded", false):
+			pending.append({
+				"quest_id": quest_id,
+				"expanded": true,
+			})
+			for index: int in range(current._child_ids.size() - 1, -1, -1):
+				var child_id: StringName = StringName(current._child_ids[index])
+				if child_id == &"" or scheduled.has(child_id):
+					continue
+				scheduled[child_id] = true
+				pending.append({
+					"quest_id": child_id,
+					"expanded": false,
+				})
+			continue
 
-	var report: Dictionary = data._to_dict()
-	report["children"] = children
-	report["total_count"] = total_count
-	report["completed_count"] = completed_count
-	report["aggregate_progress"] = float(completed_count) / float(total_count) if total_count > 0 else 0.0
-	return report
+		var children: Array[Dictionary] = []
+		var total_count: int = 1
+		var completed_count: int = 1 if current._status == STATUS_COMPLETED else 0
+		for child_id_text: String in current._child_ids:
+			var child_id: StringName = StringName(child_id_text)
+			var child_report: Dictionary = _get_report_dictionary_ref(reports, child_id)
+			if child_report.is_empty():
+				continue
+			children.append(child_report)
+			total_count += GFVariantData.get_option_int(child_report, "total_count")
+			completed_count += GFVariantData.get_option_int(child_report, "completed_count")
+
+		var report: Dictionary = current._to_dict()
+		report["children"] = children
+		report["total_count"] = total_count
+		report["completed_count"] = completed_count
+		report["aggregate_progress"] = float(completed_count) / float(total_count) if total_count > 0 else 0.0
+		reports[quest_id] = report
+	return _get_report_dictionary_ref(reports, data._quest_id)
+
+
+func _get_report_dictionary_ref(reports: Dictionary, quest_id: StringName) -> Dictionary:
+	var value: Variant = GFVariantData.get_option_value(reports, quest_id, {})
+	if value is Dictionary:
+		var report: Dictionary = value
+		return report
+	return {}
 
 
 func _get_quest_data(quest_id: StringName) -> _QuestData:

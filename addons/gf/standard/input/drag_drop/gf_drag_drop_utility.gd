@@ -382,10 +382,19 @@ func get_drop_candidates(
 ## [br]
 ## @return 最佳落点；没有可用落点时返回 null。
 func get_best_drop_zone(session_id: int, position: Vector2) -> GFDropZone:
-	var candidates: Array[GFDropZone] = get_drop_candidates(session_id, position, true)
-	if candidates.is_empty():
+	var _pruned_stale_zones: int = _prune_stale_zones()
+	var session: GFDragSession = get_session(session_id)
+	if session == null:
 		return null
-	return candidates[0]
+
+	var best_zone: GFDropZone = null
+	for zone_variant: Variant in _zones.values():
+		var zone: GFDropZone = _variant_to_drop_zone(zone_variant)
+		if zone == null or not zone.can_accept(session) or not zone.contains(position, session):
+			continue
+		if best_zone == null or _sort_zones(zone, best_zone):
+			best_zone = zone
+	return best_zone
 
 
 ## 清空拖拽会话。
@@ -402,7 +411,7 @@ func clear_sessions() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 3.9.0
 ## [br]
 ## @param json_compatible: 为 true 时返回可直接 JSON.stringify() 的值。
 ## [br]

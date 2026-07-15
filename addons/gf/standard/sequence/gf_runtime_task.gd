@@ -41,6 +41,7 @@ var interruptible: bool = true
 var _requirements: Array[Object] = []
 var _scheduled: bool = false
 var _initialized: bool = false
+var _schedule_resolution_locked: bool = false
 
 
 # --- Godot 生命周期方法 ---
@@ -175,8 +176,13 @@ func get_requirements() -> Array[Object]:
 ## @param requirement: 要检查的占用对象。
 ## [br]
 ## @return 任务占用该对象时返回 true。
-func has_requirement(requirement: Object) -> bool:
-	return requirement != null and _requirements.has(requirement)
+## [br]
+## @schema requirement: Object requirement reference; released or non-Object values return false.
+func has_requirement(requirement: Variant) -> bool:
+	if typeof(requirement) != TYPE_OBJECT or not is_instance_valid(requirement):
+		return false
+	var requirement_object: Object = requirement
+	return _requirements.has(requirement_object)
 
 
 ## 设置任务是否可中断。
@@ -358,6 +364,44 @@ func get_schedule_rejection_reason() -> StringName:
 	return &""
 
 
+## 冻结调度仲裁期间的任务配置。
+##
+## [br]
+## @api framework_internal
+## [br]
+## @category lifecycle
+## [br]
+## @since unreleased
+func begin_schedule_resolution() -> void:
+	_schedule_resolution_locked = true
+
+
+## 解除调度仲裁期间的任务配置冻结。
+##
+## [br]
+## @api framework_internal
+## [br]
+## @category lifecycle
+## [br]
+## @since unreleased
+func end_schedule_resolution() -> void:
+	_schedule_resolution_locked = false
+
+
+## 返回任务配置当前是否被调度仲裁冻结。
+##
+## [br]
+## @api framework_internal
+## [br]
+## @category query
+## [br]
+## @since unreleased
+## [br]
+## @return 正在调度仲裁或已经进入调度器时返回 true。
+func is_configuration_locked() -> bool:
+	return _schedule_resolution_locked or is_scheduled()
+
+
 ## 标记任务进入调度器。
 ##
 ## [br]
@@ -369,6 +413,7 @@ func get_schedule_rejection_reason() -> StringName:
 func mark_scheduled() -> void:
 	_scheduled = true
 	_initialized = false
+	_schedule_resolution_locked = false
 
 
 ## 标记任务离开调度器。
@@ -382,6 +427,7 @@ func mark_scheduled() -> void:
 func mark_unscheduled() -> void:
 	_scheduled = false
 	_initialized = false
+	_schedule_resolution_locked = false
 
 
 ## 标记任务已经完成初始化。
@@ -411,7 +457,7 @@ func _replace_requirements_unchecked(next_requirements: Array[Object]) -> void:
 # --- 私有/辅助方法 ---
 
 func _can_mutate_requirements() -> bool:
-	if not is_scheduled():
+	if not is_configuration_locked():
 		return true
-	push_warning("[GFRuntimeTask] 已调度任务不能修改 requirements；请取消并重新调度。")
+	push_warning("[GFRuntimeTask] 调度仲裁中或已调度的任务不能修改 requirements；请取消并重新配置。")
 	return false

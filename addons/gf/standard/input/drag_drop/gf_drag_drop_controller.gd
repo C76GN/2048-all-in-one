@@ -133,6 +133,7 @@ var _restore_source_parent_on_rejected_drop: bool = true
 var _restore_source_parent_on_success: bool = false
 var _reparent_keep_global_transform: bool = true
 var _pending_cancel_reason: StringName = &""
+var _source_tree_exited_callable: Callable = Callable()
 
 
 # --- Godot 生命周期方法 ---
@@ -146,7 +147,6 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	var _pruned_zone_count: int = _utility.prune_stale_zones()
 	var _source_valid: bool = _cancel_active_drag_if_source_invalid()
 
 
@@ -296,8 +296,13 @@ func start_drag(
 	source: Object = null,
 	options: Dictionary = {}
 ) -> int:
-	if has_active_drag():
+	if has_active_drag() or drag_type == &"":
 		return -1
+
+	var source_node: Node = _node_from_object(source)
+	if not _validate_drag_visual_transaction(source_node, options):
+		return -1
+
 	var pointer_id: int = GFVariantData.get_option_int(options, "pointer_id", 0)
 	var capture_pointer: bool = GFVariantData.get_option_bool(options, "capture_pointer", true)
 	_captures_pointer = capture_pointer
@@ -308,20 +313,24 @@ func start_drag(
 	_restore_source_parent_on_success = GFVariantData.get_option_bool(options, "restore_source_parent_on_success", false)
 	_reparent_keep_global_transform = GFVariantData.get_option_bool(options, "keep_global_transform", true)
 
-	var source_node: Node = _node_from_object(source)
+	_source_ref = weakref(source) if is_instance_valid(source) else null
 	if source_node != null:
 		_capture_original_parent(source_node)
-		_reparent_source_if_requested(source_node, options)
+		var drag_parent: Node = _get_requested_drag_parent(options)
+		if not _commit_drag_visual_transaction(source_node, drag_parent):
+			_release_pointer_capture()
+			_clear_active_source_state()
+			return -1
 
 	var metadata: Dictionary = GFVariantData.get_option_dictionary(options, "metadata")
 	var session_id: int = _utility.start_drag(drag_type, payload, position, source, metadata)
 	if session_id < 0:
+		_restore_active_source_parent()
 		_release_pointer_capture()
 		_clear_active_source_state()
 		return -1
 
 	_active_session_id = session_id
-	_source_ref = weakref(source) if is_instance_valid(source) else null
 	_connect_active_source_tree_exit(source_node, session_id)
 	set_process(true)
 	return session_id
@@ -559,6 +568,7 @@ func _cancel_active_drag_if_source_invalid() -> bool:
 func _finish_controller_session(session_id: int, _reason: StringName, restore_source_parent: bool) -> void:
 	if session_id != _active_session_id:
 		return
+	_disconnect_active_source_tree_exit()
 	if restore_source_parent:
 		_restore_active_source_parent()
 	_release_pointer_capture()
@@ -574,11 +584,37 @@ func _capture_original_parent(source_node: Node) -> void:
 	_original_index = source_node.get_index() if parent != null else -1
 
 
-func _reparent_source_if_requested(source_node: Node, options: Dictionary) -> void:
-	var drag_parent: Node = _node_from_variant(GFVariantData.get_option_value(options, "drag_parent"))
+func _commit_drag_visual_transaction(source_node: Node, drag_parent: Node) -> bool:
 	if drag_parent == null or drag_parent == source_node.get_parent():
-		return
+		return true
 	source_node.reparent(drag_parent, _reparent_keep_global_transform)
+	return source_node.get_parent() == drag_parent
+
+
+func _validate_drag_visual_transaction(source_node: Node, options: Dictionary) -> bool:
+	if not options.has("drag_parent"):
+		return true
+	var raw_drag_parent: Variant = GFVariantData.get_option_value(options, "drag_parent")
+	if raw_drag_parent == null:
+		return true
+	if source_node == null or not raw_drag_parent is Node:
+		return false
+	var drag_parent: Node = raw_drag_parent
+	if not is_instance_valid(drag_parent) or drag_parent.is_queued_for_deletion():
+		return false
+	if source_node.is_queued_for_deletion() or source_node.get_parent() == null:
+		return false
+	if drag_parent == source_node or source_node.is_ancestor_of(drag_parent):
+		return false
+	if source_node.is_inside_tree() and not drag_parent.is_inside_tree():
+		return false
+	if source_node.is_inside_tree() and drag_parent.is_inside_tree():
+		return source_node.get_tree() == drag_parent.get_tree()
+	return true
+
+
+func _get_requested_drag_parent(options: Dictionary) -> Node:
+	return _node_from_variant(GFVariantData.get_option_value(options, "drag_parent"))
 
 
 func _restore_active_source_parent() -> void:
@@ -600,13 +636,27 @@ func _restore_active_source_parent() -> void:
 func _connect_active_source_tree_exit(source_node: Node, session_id: int) -> void:
 	if source_node == null or not cancel_when_source_exits_tree:
 		return
-	var _tree_exited_connected: int = source_node.tree_exited.connect(
-		_on_active_source_tree_exited.bind(session_id),
+	_disconnect_active_source_tree_exit()
+	_source_tree_exited_callable = _on_active_source_tree_exited.bind(session_id)
+	var _tree_exited_connected: Error = source_node.tree_exited.connect(
+		_source_tree_exited_callable,
 		CONNECT_ONE_SHOT as Object.ConnectFlags
-	)
+	) as Error
+
+
+func _disconnect_active_source_tree_exit() -> void:
+	var source_node: Node = _get_source_node()
+	if (
+		source_node != null
+		and _source_tree_exited_callable.is_valid()
+		and source_node.tree_exited.is_connected(_source_tree_exited_callable)
+	):
+		source_node.tree_exited.disconnect(_source_tree_exited_callable)
+	_source_tree_exited_callable = Callable()
 
 
 func _clear_active_source_state() -> void:
+	_source_tree_exited_callable = Callable()
 	_source_ref = null
 	_original_parent_ref = null
 	_original_index = -1

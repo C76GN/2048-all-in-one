@@ -147,15 +147,14 @@ func to_dictionary() -> Dictionary:
 ## [br]
 ## @return 可作为缓存 key 的签名文本。
 func to_text() -> String:
-	var parts: PackedStringArray = PackedStringArray()
-	for domain_key: String in _get_sorted_domain_keys():
+	var domain_keys: PackedStringArray = _get_sorted_domain_keys()
+	var result: String = "gfq1:%d:" % domain_keys.size()
+	for domain_key: String in domain_keys:
 		var values: PackedStringArray = get_domain_values(StringName(domain_key))
-		var _part_appended: bool = parts.append("%s(%d):%s" % [
-			domain_key,
-			values.size(),
-			",".join(values),
-		])
-	return "|".join(parts)
+		result += "%d:%s%d:" % [domain_key.length(), domain_key, values.size()]
+		for encoded_value: String in values:
+			result += "%d:%s" % [encoded_value.length(), encoded_value]
+	return result
 
 
 ## 获取签名 hash。

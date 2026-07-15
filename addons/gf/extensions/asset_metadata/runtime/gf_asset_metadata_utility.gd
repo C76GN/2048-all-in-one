@@ -109,8 +109,11 @@ func write_object_metadata(
 	target.set_meta(metadata_key, normalized_metadata)
 
 	var metadata_source: String = GFVariantData.get_option_string(options, "metadata_source")
+	var source_key: StringName = _get_metadata_source_key(metadata_key)
 	if not metadata_source.is_empty():
-		target.set_meta(_get_metadata_source_key(metadata_key), metadata_source)
+		target.set_meta(source_key, metadata_source)
+	elif target.has_meta(source_key):
+		target.remove_meta(source_key)
 
 	return _make_record_for_object(target, normalized_metadata, options)
 
@@ -200,17 +203,19 @@ func validate_object_metadata(
 			&"missing_schema",
 			"Metadata schema is null."
 		)
-		return missing_schema_report.to_dict()
+		return _encode_report(missing_schema_report.to_dict())
 	if target == null:
 		var missing_target_report: GFValidationReport = GFValidationReport.new("Asset metadata")
 		var _missing_target_issue: RefCounted = missing_target_report.add_error(
 			&"missing_target",
 			"Metadata target is null."
 		)
-		return missing_target_report.to_dict()
+		return _encode_report(missing_target_report.to_dict())
 
 	var metadata: Dictionary = read_object_metadata(target, options)
-	return schema.validate_dictionary(metadata, _make_schema_validation_options(target, options)).to_dict()
+	return _encode_report(
+		schema.validate_dictionary(metadata, _make_schema_validation_options(target, options)).to_dict()
+	)
 
 
 ## 检查对象是否带有资产元数据。
@@ -328,9 +333,9 @@ func collect_node_tree_dicts(root: Node, options: Dictionary = {}) -> Array[Dict
 ## [br]
 ## @param root: 节点树根节点。
 ## [br]
-## @param options: 可选项，支持 collect_node_tree() 的参数；json_safe 默认为 true，用于外部报告。
+## @param options: 可选项，支持 collect_node_tree() 的参数。
 ## [br]
-## @schema options: Dictionary，可包含 metadata_key、metadata_keys、source_path、subject_kind、max_depth、max_nodes 与 json_safe。
+## @schema options: Dictionary，可包含 metadata_key、metadata_keys、source_path、subject_kind、max_depth 与 max_nodes。
 ## [br]
 ## @return 报告字典。
 ## [br]
@@ -339,20 +344,20 @@ func build_node_tree_report(root: Node, options: Dictionary = {}) -> Dictionary:
 	var report: GFValidationReport = GFValidationReport.new("Asset metadata")
 	if root == null:
 		var _add_error_result_207: Variant = report.add_error(&"missing_root", "Root node is null.")
-		return report.to_dict({}, _get_report_options())
+		return _encode_report(report.to_dict({}, _get_report_options()))
 
 	var collect_options: Dictionary = options.duplicate(true)
-	collect_options["json_safe"] = GFVariantData.get_option_bool(options, "json_safe", true)
+	collect_options["json_safe"] = false
 	var collection: Dictionary = _collect_node_tree_data(root, collect_options)
 	var entries: Array[Dictionary] = _records_to_dicts(_get_record_array(collection), collect_options)
-	return report.to_dict({
+	return _encode_report(report.to_dict({
 		"source_path": _get_source_path(root, options),
 		"entry_count": entries.size(),
 		"entries": entries,
 		"visited_node_count": GFVariantData.get_option_int(collection, "visited_node_count"),
 		"max_nodes": GFVariantData.get_option_int(collection, "max_nodes", -1),
 		"truncated": GFVariantData.get_option_bool(collection, "truncated"),
-	}, _get_report_options())
+	}, _get_report_options()))
 
 
 # --- 私有/辅助方法 ---
@@ -389,8 +394,9 @@ func _collect_node_tree_data(root: Node, options: Dictionary) -> Dictionary:
 
 		visited_node_count += 1
 		var depth: int = GFVariantData.get_option_int(item, "depth")
-		var metadata: Dictionary = read_object_metadata(node, options)
-		if not metadata.is_empty():
+		var metadata_state: StringName = get_object_metadata_state(node, options)
+		if metadata_state != METADATA_STATE_ABSENT:
+			var metadata: Dictionary = read_object_metadata(node, options)
 			records.append(_make_record_for_node(root, node, metadata, options))
 
 		if max_depth >= 0 and depth >= max_depth:
@@ -552,11 +558,21 @@ func _get_node_value(value: Variant) -> Node:
 
 
 func _to_json_safe_dictionary(data: Dictionary) -> Dictionary:
-	var encoded_value: Variant = GFVariantJsonCodec.variant_to_json_compatible(data)
-	if encoded_value is Dictionary:
-		var encoded_dictionary: Dictionary = encoded_value
-		return encoded_dictionary
-	return {}
+	return GFReportValueCodec.to_report_dictionary(data, _get_report_encoding_options())
+
+
+func _encode_report(report: Dictionary) -> Dictionary:
+	return GFReportValueCodec.to_report_dictionary(report, _get_report_encoding_options())
+
+
+func _get_report_encoding_options() -> Dictionary:
+	return GFReportValueCodec.make_redaction_options(
+		GFReportValueCodec.REDACTION_PROFILE_PUBLIC,
+		{
+			"path_redaction": "none",
+			"include_resource_path": true,
+		}
+	)
 
 
 func _get_report_options() -> Dictionary:

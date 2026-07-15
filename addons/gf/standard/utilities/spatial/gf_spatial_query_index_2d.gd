@@ -36,6 +36,7 @@ const STRATEGY_LINEAR: StringName = &"linear"
 const STRATEGY_QUADTREE: StringName = &"quadtree"
 
 const _GF_REPORT_VALUE_CODEC_SCRIPT = preload("res://addons/gf/kernel/core/gf_report_value_codec.gd")
+const _SPATIAL_BOUNDS_MATH = preload("res://addons/gf/standard/foundation/math/gf_spatial_bounds_math.gd")
 
 
 # --- 公共变量 ---
@@ -57,6 +58,9 @@ var strategy: StringName = STRATEGY_AUTO:
 ## @since 7.0.0
 var bounds: Rect2 = Rect2():
 	set(value):
+		if not _SPATIAL_BOUNDS_MATH.is_finite_rect2(value):
+			push_error("[GFSpatialQueryIndex2D] bounds 必须只包含有限值。")
+			return
 		bounds = _normalize_rect(value)
 		_mark_index_dirty()
 
@@ -97,6 +101,7 @@ var _records: Dictionary = {}
 var _quad_tree: GFQuadTreeUtility
 var _quad_tree_key_by_id: Dictionary = {}
 var _index_dirty: bool = true
+var _backend_build_failed: bool = false
 
 
 # --- 公共方法 ---
@@ -148,6 +153,8 @@ func configure(
 ## [br]
 ## @return 成功时返回 true。
 func upsert(entity: Variant, rect: Rect2, p_metadata: Dictionary = {}) -> bool:
+	if not _SPATIAL_BOUNDS_MATH.is_finite_rect2(rect):
+		return false
 	var entity_key: String = _make_entity_key(entity)
 	if entity_key.is_empty():
 		return false
@@ -185,6 +192,8 @@ func upsert_point(
 	radius: float = 0.0,
 	p_metadata: Dictionary = {}
 ) -> bool:
+	if not _SPATIAL_BOUNDS_MATH.is_finite_vector2(position) or not _SPATIAL_BOUNDS_MATH.is_finite_float(radius):
+		return false
 	var safe_radius: float = maxf(radius, 0.0)
 	return upsert(
 		entity,
@@ -462,6 +471,8 @@ func query_records_rect(area: Rect2) -> Array[Dictionary]:
 func query_records_rect_into(area: Rect2, out_records: Array[Dictionary], clear_output: bool = true) -> Array[Dictionary]:
 	if clear_output:
 		out_records.clear()
+	if not _SPATIAL_BOUNDS_MATH.is_finite_rect2(area):
+		return out_records
 	var normalized_area: Rect2 = _normalize_rect(area)
 	_append_records_for_keys(_query_rect_candidate_keys(normalized_area), out_records)
 	return out_records
@@ -512,6 +523,8 @@ func query_records_radius_into(
 ) -> Array[Dictionary]:
 	if clear_output:
 		out_records.clear()
+	if not _SPATIAL_BOUNDS_MATH.is_finite_vector2(center) or not _SPATIAL_BOUNDS_MATH.is_finite_float(radius):
+		return out_records
 	var safe_radius: float = maxf(radius, 0.0)
 	if safe_radius == 0.0:
 		_append_records_for_keys(_query_point_candidate_keys(center), out_records)
@@ -537,6 +550,7 @@ func get_debug_snapshot() -> Dictionary:
 		"bounds": bounds,
 		"entity_count": _records.size(),
 		"index_dirty": _index_dirty,
+		"backend_build_failed": _backend_build_failed,
 		"auto_quadtree_threshold": auto_quadtree_threshold,
 		"quadtree_max_depth": quadtree_max_depth,
 		"quadtree_max_entities": quadtree_max_entities,
@@ -564,21 +578,23 @@ func get_json_compatible_debug_snapshot(options: Dictionary = {}) -> Dictionary:
 
 func _query_rect_candidate_keys(area: Rect2) -> Array[String]:
 	prune_invalid_entities()
-	if _get_active_strategy() == STRATEGY_QUADTREE and _ensure_quad_tree():
+	if _get_active_strategy() == STRATEGY_QUADTREE:
 		return _surrogate_ids_to_entity_keys(_quad_tree.query_rect(area))
 	return _query_rect_linear_keys(area)
 
 
 func _query_radius_candidate_keys(center: Vector2, radius: float) -> Array[String]:
 	prune_invalid_entities()
-	if _get_active_strategy() == STRATEGY_QUADTREE and _ensure_quad_tree():
+	if _get_active_strategy() == STRATEGY_QUADTREE:
 		return _surrogate_ids_to_entity_keys(_quad_tree.query_radius(center, radius))
 	return _query_radius_linear_keys(center, radius)
 
 
 func _query_point_candidate_keys(point: Vector2) -> Array[String]:
 	prune_invalid_entities()
-	if _get_active_strategy() == STRATEGY_QUADTREE and _ensure_quad_tree():
+	if not _SPATIAL_BOUNDS_MATH.is_finite_vector2(point):
+		return []
+	if _get_active_strategy() == STRATEGY_QUADTREE:
 		return _surrogate_ids_to_entity_keys(_quad_tree.query_point(point, false))
 	return _query_point_linear_keys(point)
 
@@ -632,22 +648,30 @@ func _append_records_for_keys(entity_keys: Array[String], out_records: Array[Dic
 
 func _ensure_quad_tree() -> bool:
 	var world_bounds: Rect2 = _get_effective_bounds()
-	if not _rect_has_area(world_bounds):
+	if not _SPATIAL_BOUNDS_MATH.is_finite_rect2(world_bounds) or not _rect_has_area(world_bounds):
 		return false
-	if _quad_tree != null and not _index_dirty:
-		return true
+	if not _index_dirty:
+		return _quad_tree != null and not _backend_build_failed
 
-	_quad_tree = GFQuadTreeUtility.new()
-	_quad_tree.init()
-	_quad_tree.setup(world_bounds, quadtree_max_depth, quadtree_max_entities)
-	_quad_tree_key_by_id.clear()
+	var candidate_tree: GFQuadTreeUtility = GFQuadTreeUtility.new()
+	candidate_tree.init()
+	candidate_tree.setup(world_bounds, quadtree_max_depth, quadtree_max_entities)
+	var candidate_keys: Dictionary = {}
 	var surrogate_id: int = 0
 	for entity_key: String in _records.keys():
 		var entity_record: Dictionary = GFVariantData.as_dictionary(_records[entity_key])
-		_quad_tree_key_by_id[surrogate_id] = entity_key
-		var _inserted: bool = _quad_tree.insert(surrogate_id, _get_record_bounds(entity_record))
+		candidate_keys[surrogate_id] = entity_key
+		if not candidate_tree.insert(surrogate_id, _get_record_bounds(entity_record)):
+			_quad_tree = null
+			_quad_tree_key_by_id.clear()
+			_index_dirty = false
+			_backend_build_failed = true
+			return false
 		surrogate_id += 1
+	_quad_tree = candidate_tree
+	_quad_tree_key_by_id = candidate_keys
 	_index_dirty = false
+	_backend_build_failed = false
 	return true
 
 
@@ -684,6 +708,13 @@ func _get_effective_bounds() -> Rect2:
 
 
 func _get_active_strategy() -> StringName:
+	var preferred_strategy: StringName = _get_preferred_strategy()
+	if preferred_strategy == STRATEGY_QUADTREE and _ensure_quad_tree():
+		return STRATEGY_QUADTREE
+	return STRATEGY_LINEAR
+
+
+func _get_preferred_strategy() -> StringName:
 	if strategy == STRATEGY_LINEAR:
 		return STRATEGY_LINEAR
 	if strategy == STRATEGY_QUADTREE:
@@ -762,6 +793,7 @@ func _make_entity_key(entity: Variant) -> String:
 
 func _mark_index_dirty() -> void:
 	_index_dirty = true
+	_backend_build_failed = false
 
 
 func _normalize_strategy(value: StringName) -> StringName:
@@ -786,15 +818,7 @@ func _rect_contains_point(rect: Rect2, point: Vector2) -> bool:
 
 
 func _normalize_rect(rect: Rect2) -> Rect2:
-	var position: Vector2 = rect.position
-	var size: Vector2 = rect.size
-	if size.x < 0.0:
-		position.x += size.x
-		size.x = -size.x
-	if size.y < 0.0:
-		position.y += size.y
-		size.y = -size.y
-	return Rect2(position, size)
+	return _SPATIAL_BOUNDS_MATH.normalize_rect2(rect)
 
 
 func _variant_to_weak_ref(value: Variant) -> WeakRef:

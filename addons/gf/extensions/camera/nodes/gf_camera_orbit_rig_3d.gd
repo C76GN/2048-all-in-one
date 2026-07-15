@@ -117,13 +117,19 @@ var _suspend_orbit_signal: bool = false
 ## @return 当前焦点的全局位置。
 func get_focus_position() -> Vector3:
 	var target: Node3D = get_target_node()
-	var focus_transform: Transform3D = global_transform
+	var focus_transform: Transform3D = _GF_CAMERA_FINITE_MATH.sanitize_transform3d(
+		global_transform,
+		Transform3D.IDENTITY
+	)
 	if target != null:
-		focus_transform = target.global_transform
+		focus_transform = _GF_CAMERA_FINITE_MATH.sanitize_transform3d(
+			target.global_transform,
+			focus_transform
+		)
 
-	var focus_basis: Basis = focus_transform.basis.orthonormalized()
-	var effective_offset: Vector3 = focus_basis * offset if offset_follows_rotation else offset
-	return focus_transform.origin + effective_offset
+	var safe_offset: Vector3 = _sanitize_vector3(offset, Vector3.ZERO)
+	var effective_offset: Vector3 = focus_transform.basis * safe_offset if offset_follows_rotation else safe_offset
+	return _sanitize_vector3(focus_transform.origin + effective_offset, focus_transform.origin)
 
 
 ## 获取从焦点指向相机的单位方向。
@@ -152,8 +158,14 @@ func get_orbit_direction() -> Vector3:
 ## @return 期望全局 Transform。
 func get_camera_transform() -> Transform3D:
 	var focus: Vector3 = get_focus_position()
-	var camera_position: Vector3 = focus + get_orbit_direction() * _sanitize_float(distance, 0.0)
-	var camera_transform: Transform3D = Transform3D(global_transform.basis.orthonormalized(), camera_position)
+	var camera_position: Vector3 = _sanitize_vector3(
+		focus + get_orbit_direction() * _sanitize_float(distance, 0.0),
+		focus
+	)
+	var camera_transform: Transform3D = Transform3D(
+		_GF_CAMERA_FINITE_MATH.sanitize_basis(global_transform.basis, Basis.IDENTITY),
+		camera_position
+	)
 	if look_at_enabled:
 		var look_at_target: Node3D = get_look_at_target_node()
 		if look_at_target != null and not camera_position.is_equal_approx(look_at_target.global_position):
@@ -161,7 +173,10 @@ func get_camera_transform() -> Transform3D:
 			camera_transform = camera_transform.looking_at(look_at_target.global_position, _get_safe_up_axis_for_direction(look_direction))
 	elif look_at_focus and not camera_position.is_equal_approx(focus):
 		camera_transform = camera_transform.looking_at(focus, _get_safe_orbit_up_axis_for_direction(focus - camera_position))
-	return _apply_rotation_offset(camera_transform)
+	return _GF_CAMERA_FINITE_MATH.sanitize_transform3d(
+		_apply_rotation_offset(camera_transform),
+		Transform3D(Basis.IDENTITY, camera_position)
+	)
 
 
 ## 设置环绕参数。
@@ -231,13 +246,13 @@ func clamp_orbit() -> void:
 ## [br]
 ## @schema return: Dictionary，包含 yaw_degrees、pitch_degrees、distance、focus_position 和 direction。
 func get_debug_snapshot() -> Dictionary:
-	return {
+	return GFReportValueCodec.to_report_dictionary({
 		"yaw_degrees": yaw_degrees,
 		"pitch_degrees": pitch_degrees,
 		"distance": distance,
 		"focus_position": get_focus_position(),
 		"direction": get_orbit_direction(),
-	}
+	}, GFReportValueCodec.make_redaction_options(GFReportValueCodec.REDACTION_PROFILE_DEBUG))
 
 
 # --- 私有/辅助方法 ---
@@ -268,6 +283,4 @@ func _get_safe_orbit_up_axis_for_direction(direction: Vector3) -> Vector3:
 
 
 func _sanitize_vector2(value: Vector2, fallback: Vector2) -> Vector2:
-	if is_nan(value.x) or is_inf(value.x) or is_nan(value.y) or is_inf(value.y):
-		return fallback
-	return value
+	return _GF_CAMERA_FINITE_MATH.sanitize_vector2(value, fallback)

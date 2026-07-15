@@ -10,6 +10,8 @@ extends RefCounted
 # --- 常量 ---
 
 const _GF_VARIANT_ACCESS = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
+const _GF_PACKAGE_CACHE_POLICY = preload("res://addons/gf/kernel/package/gf_package_cache_policy.gd")
+const _GF_PACKAGE_FILESYSTEM_CACHE_STORE = preload("res://addons/gf/kernel/package/gf_package_filesystem_cache_store.gd")
 const _GF_PACKAGE_TRANSACTION_ENGINE = preload("res://addons/gf/kernel/package/gf_package_transaction_engine.gd")
 
 ## GF 包 archive 允许写入的根路径前缀。
@@ -258,7 +260,6 @@ const _UNSUPPORTED_REGISTRY_PACKAGE_SIGNATURE_FIELDS: Array[String] = [
 const _PROJECT_REFERENCE_SCAN_CACHE_KEY: String = "_gf_project_reference_scan_cache"
 
 # 远程 registry cache sidecar 文件后缀，记录 source manifest 校验过的 raw 元数据。
-const _REMOTE_REGISTRY_CACHE_METADATA_SUFFIX: String = ".metadata.json"
 
 # 非 tool 运行时包不能夹带会暗示外部安装器的工具载荷。
 const _RUNTIME_PACKAGE_FORBIDDEN_EXTERNAL_TOOL_SUFFIXES: Array[String] = [
@@ -354,6 +355,23 @@ static func recover_package_transaction(
 	return result
 
 
+## 初始化一个显式外部 package cache 根目录。
+## [br]
+## @api framework_internal
+## [br]
+## @param cache_dir: 待初始化的绝对目录；已有非 marker 内容时拒绝接管。
+## [br]
+## @schema cache_dir: String，绝对文件系统路径。
+## [br]
+## @return 版本化缓存初始化报告。
+## [br]
+## @schema return: Dictionary，包含 schema_version、ok、operation、cache_dir、marker_path、created、issues。
+static func initialize_package_cache(cache_dir: String) -> Dictionary:
+	var result: Dictionary = _GF_PACKAGE_CACHE_POLICY.initialize_external_cache(cache_dir)
+	result["backend"] = "godot_native"
+	return result
+
+
 ## 读取 registry 与项目 lockfile，并返回编辑器包管理器状态。
 ## [br]
 ## @api framework_internal
@@ -372,7 +390,7 @@ static func recover_package_transaction(
 ## [br]
 ## @param options: 内部包管理参数。
 ## [br]
-## @schema options: Dictionary，可包含 cache_dir、channel、cancel_callback。
+## @schema options: Dictionary，可包含 cache_mode、cache_dir、channel、cancel_callback。
 ## [br]
 ## @return 与 Python status 命令兼容的状态 Dictionary。
 ## [br]
@@ -579,6 +597,9 @@ static func make_install_plan(
 		var existing_files: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(existing, "files")
 		if not existing_files.is_empty():
 			entry["files"] = _packed_to_array(existing_files)
+		var existing_metadata: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(existing, "file_metadata")
+		if not existing_metadata.is_empty():
+			entry["file_metadata"] = _sort_dictionary_by_key(existing_metadata)
 		if requested_package_ids.has(package_id):
 			_append_unique(reasons, reason)
 		elif package_id == "gf.kernel":
@@ -951,7 +972,7 @@ static func make_uninstall_plan(
 ## [br]
 ## @param options: 内部测试和后续安装参数。
 ## [br]
-## @schema options: Dictionary，可包含 cache_dir、channel、simulate_copy_failure_after、cancel_callback。
+## @schema options: Dictionary，可包含 cache_mode、cache_dir、channel、simulate_copy_failure_after、cancel_callback。
 ## [br]
 ## @return 安装结果 Dictionary。
 ## [br]
@@ -981,7 +1002,7 @@ static func install_packages(
 		registry_source = _prepare_registry_source(registry_path, resolved_project_root, options, issues)
 		registry_source["_transaction_recovery"] = transaction_recovery
 	var resolved_registry_path: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "path", registry_path)
-	var cache_root: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "cache_dir")
+	var cache_context: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(registry_source, "_cache_context")
 	if not issues.is_empty():
 		return _make_install_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, {}, PackedStringArray(), 0, dry_run, false, issues, registry_source)
 
@@ -1063,7 +1084,7 @@ static func install_packages(
 			packages_to_stage,
 			registry_packages,
 			resolved_registry_path,
-			cache_root,
+			cache_context,
 			options,
 			registry_source
 		)
@@ -1072,12 +1093,12 @@ static func install_packages(
 		return _make_install_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, target_package_ids, plan, packages_to_change, 0, true, false, PackedStringArray(), registry_source)
 
 	var temp_root: String = _make_temp_root(resolved_project_root)
-	var staging_root: String = temp_root.path_join("staging")
+	var staging_root: String = temp_root
 	var staged_files: Array[Dictionary] = _stage_package_archives(
 		packages_to_stage,
 		registry_packages,
 		resolved_registry_path,
-		cache_root,
+		cache_context,
 		staging_root,
 		issues,
 		options,
@@ -1164,7 +1185,7 @@ static func install_packages(
 ## [br]
 ## @param options: 内部测试和后续更新参数。
 ## [br]
-## @schema options: Dictionary，可包含 cache_dir、channel、simulate_copy_failure_after、cancel_callback。
+## @schema options: Dictionary，可包含 cache_mode、cache_dir、channel、simulate_copy_failure_after、cancel_callback。
 ## [br]
 ## @return 更新结果 Dictionary。
 ## [br]
@@ -1194,7 +1215,7 @@ static func update_packages(
 		registry_source = _prepare_registry_source(registry_path, resolved_project_root, options, issues)
 		registry_source["_transaction_recovery"] = transaction_recovery
 	var resolved_registry_path: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "path", registry_path)
-	var cache_root: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "cache_dir")
+	var cache_context: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(registry_source, "_cache_context")
 	if not issues.is_empty():
 		return _make_update_result(false, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, {}, PackedStringArray(), 0, dry_run, false, false, issues, registry_source)
 
@@ -1275,7 +1296,7 @@ static func update_packages(
 			packages_to_stage,
 			registry_packages,
 			resolved_registry_path,
-			cache_root,
+			cache_context,
 			options,
 			registry_source
 		)
@@ -1284,12 +1305,12 @@ static func update_packages(
 		return _make_update_result(true, resolved_registry_path, resolved_project_root, resolved_lockfile_path, package_ids, update_all_installed, plan, packages_to_change, 0, true, false, false, PackedStringArray(), registry_source)
 
 	var temp_root: String = _make_temp_root(resolved_project_root)
-	var staging_root: String = temp_root.path_join("staging")
+	var staging_root: String = temp_root
 	var staged_files: Array[Dictionary] = _stage_package_archives(
 		packages_to_stage,
 		registry_packages,
 		resolved_registry_path,
-		cache_root,
+		cache_context,
 		staging_root,
 		issues,
 		options,
@@ -1375,7 +1396,7 @@ static func update_packages(
 ## [br]
 ## @param options: 内部测试和后续卸载参数。
 ## [br]
-## @schema options: Dictionary，可包含 cache_dir、channel、simulate_delete_failure_after、cancel_callback。
+## @schema options: Dictionary，可包含 cache_mode、cache_dir、channel、simulate_delete_failure_after、cancel_callback。
 ## [br]
 ## @return 卸载结果 Dictionary。
 ## [br]
@@ -1505,6 +1526,7 @@ static func verify_lock_data(
 	registry_framework_version: String = ""
 ) -> Dictionary:
 	var issues: PackedStringArray = PackedStringArray()
+	_append_lockfile_schema_issues(lockfile_data, issues)
 	var installed: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(lockfile_data, "installed")
 	var lockfile_framework_version: String = _GF_VARIANT_ACCESS.get_option_string(lockfile_data, "framework_version")
 	if not lockfile_framework_version.is_empty() and not registry_framework_version.is_empty() and lockfile_framework_version != registry_framework_version:
@@ -1522,10 +1544,7 @@ static func verify_lock_data(
 		if registry_entry.is_empty():
 			var _append_missing: bool = issues.append("Installed package is missing from registry: %s" % package_id)
 			continue
-		if _package_requires_archive(registry_entry) and _GF_VARIANT_ACCESS.get_option_packed_string_array(entry, "files").is_empty():
-			var _append_missing_files: bool = issues.append("Installed package lockfile entry is missing files list: %s" % package_id)
-		if _GF_VARIANT_ACCESS.get_option_string(entry, "sha256") != _GF_VARIANT_ACCESS.get_option_string(registry_entry, "sha256"):
-			var _append_sha: bool = issues.append("Installed package sha256 differs from registry: %s" % package_id)
+		_append_lock_entry_identity_issues(package_id, entry, registry_entry, issues)
 		var current_required_by: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(entry, "required_by")
 		var expected_entry: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(expected, package_id)
 		var expected_required_by: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(expected_entry, "required_by")
@@ -1603,6 +1622,207 @@ static func scan_project_references(
 
 # --- 私有/辅助方法 ---
 
+static func _append_lockfile_schema_issues(lockfile_data: Dictionary, issues: PackedStringArray) -> void:
+	_append_exact_dictionary_field_issues(
+		lockfile_data,
+		PackedStringArray(["schema_version", "framework_version", "installed"]),
+		PackedStringArray(["schema_version", "framework_version", "installed", "registry_source"]),
+		"Lockfile",
+		issues
+	)
+	if not _is_exact_integer(lockfile_data.get("schema_version")) or _GF_VARIANT_ACCESS.get_option_int(lockfile_data, "schema_version", -1) != LOCKFILE_SCHEMA_VERSION:
+		var _append_schema: bool = issues.append("Lockfile schema_version must be the integer %d." % LOCKFILE_SCHEMA_VERSION)
+	if typeof(lockfile_data.get("framework_version")) != TYPE_STRING:
+		var _append_framework: bool = issues.append("Lockfile framework_version must be a string.")
+	if typeof(lockfile_data.get("installed")) != TYPE_DICTIONARY:
+		var _append_installed: bool = issues.append("Lockfile installed must be an object.")
+	if lockfile_data.has("registry_source"):
+		var raw_source: Variant = lockfile_data.get("registry_source")
+		if not raw_source is Dictionary:
+			var _append_source_type: bool = issues.append("Lockfile registry_source must be an object when present.")
+		else:
+			var source: Dictionary = raw_source
+			_append_lockfile_registry_source_schema_issues(source, issues)
+
+
+static func _append_lockfile_registry_source_schema_issues(source: Dictionary, issues: PackedStringArray) -> void:
+	var allowed_fields: PackedStringArray = PackedStringArray([
+		"source", "source_manifest", "channel", "offline_bundle", "registry_sha256", "remote", "mirror_index", "registry_size_bytes"
+	])
+	_append_exact_dictionary_field_issues(source, PackedStringArray(), allowed_fields, "Lockfile registry_source", issues)
+	for field_name: String in ["source", "source_manifest", "channel", "offline_bundle", "registry_sha256"]:
+		if source.has(field_name) and typeof(source.get(field_name)) != TYPE_STRING:
+			var _append_string: bool = issues.append("Lockfile registry_source %s must be a string." % field_name)
+	if source.has("registry_sha256") and not _registry_source_sha_is_valid(_GF_VARIANT_ACCESS.get_option_string(source, "registry_sha256")):
+		var _append_sha: bool = issues.append("Lockfile registry_source registry_sha256 must be a full SHA-256.")
+	if source.has("remote") and typeof(source.get("remote")) != TYPE_BOOL:
+		var _append_remote: bool = issues.append("Lockfile registry_source remote must be boolean.")
+	if source.has("mirror_index") and (
+		not _is_exact_integer(source.get("mirror_index"))
+		or _GF_VARIANT_ACCESS.get_option_int(source, "mirror_index", -2) < -1
+	):
+		var _append_mirror: bool = issues.append("Lockfile registry_source mirror_index must be an integer greater than or equal to -1.")
+	if source.has("registry_size_bytes") and (
+		not _is_exact_integer(source.get("registry_size_bytes"))
+		or _GF_VARIANT_ACCESS.get_option_int(source, "registry_size_bytes", -1) < 0
+	):
+		var _append_size: bool = issues.append("Lockfile registry_source registry_size_bytes must be a non-negative integer.")
+
+
+static func _append_lock_entry_identity_issues(
+	package_id: String,
+	entry: Dictionary,
+	registry_entry: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	var common_fields: PackedStringArray = PackedStringArray([
+		"version", "kind", "reason", "required_by", "paths", "archive", "sha256"
+	])
+	var required_fields: PackedStringArray = common_fields.duplicate()
+	if _GF_VARIANT_ACCESS.get_option_string(registry_entry, "kind") == "preset":
+		var _append_packages: bool = required_fields.append("packages")
+	else:
+		var _append_files: bool = required_fields.append("files")
+		var _append_metadata: bool = required_fields.append("file_metadata")
+	var allowed_fields: PackedStringArray = required_fields.duplicate()
+	var _append_extension: bool = allowed_fields.append("gf_extension_id")
+	_append_exact_dictionary_field_issues(entry, required_fields, allowed_fields, "Installed package lockfile entry %s" % package_id, issues)
+
+	for field_name: String in ["version", "kind", "archive", "sha256"]:
+		if typeof(entry.get(field_name)) != TYPE_STRING:
+			var _append_string: bool = issues.append("Installed package lockfile entry %s must be a string: %s" % [field_name, package_id])
+	for field_name: String in ["reason", "required_by", "paths"]:
+		if not _valid_unique_string_array(entry.get(field_name)):
+			var _append_array: bool = issues.append("Installed package lockfile entry %s must be an array of unique non-empty strings: %s" % [field_name, package_id])
+	for reason: String in _GF_VARIANT_ACCESS.get_option_packed_string_array(entry, "reason"):
+		if not VALID_REASONS.has(reason) and reason != "dependency":
+			var _append_reason: bool = issues.append("Installed package lockfile entry contains invalid reason: %s: %s" % [package_id, reason])
+	for required_by_id: String in _GF_VARIANT_ACCESS.get_option_packed_string_array(entry, "required_by"):
+		if not _package_id_is_valid(required_by_id):
+			var _append_required_by: bool = issues.append("Installed package lockfile entry contains invalid required_by id: %s: %s" % [package_id, required_by_id])
+
+	for field_name: String in ["version", "kind", "archive", "sha256"]:
+		if entry.get(field_name) != registry_entry.get(field_name, ""):
+			var _append_identity: bool = issues.append("Installed package %s differs from registry: %s" % [field_name, package_id])
+	var lock_paths: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(entry, "paths")
+	var registry_paths: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(registry_entry, "paths")
+	if lock_paths != registry_paths:
+		var _append_paths: bool = issues.append("Installed package paths differ from registry: %s" % package_id)
+	var seen_path_identities: Dictionary = {}
+	for path: String in lock_paths:
+		var path_identity: String = _portable_manifest_path_identity(path)
+		if path_identity.is_empty() or seen_path_identities.has(path_identity):
+			var _append_path: bool = issues.append("Installed package path identity is unsafe or duplicated: %s: %s" % [package_id, path])
+		seen_path_identities[path_identity] = true
+
+	var registry_extension_id: String = _GF_VARIANT_ACCESS.get_option_string(registry_entry, "gf_extension_id")
+	if entry.has("gf_extension_id") and typeof(entry.get("gf_extension_id")) != TYPE_STRING:
+		var _append_extension_type: bool = issues.append("Installed package gf_extension_id must be a string: %s" % package_id)
+	if _GF_VARIANT_ACCESS.get_option_string(entry, "gf_extension_id") != registry_extension_id:
+		var _append_extension_identity: bool = issues.append("Installed package gf_extension_id differs from registry: %s" % package_id)
+
+	if _GF_VARIANT_ACCESS.get_option_string(registry_entry, "kind") == "preset":
+		if not _valid_unique_string_array(entry.get("packages")):
+			var _append_preset_packages: bool = issues.append("Installed preset packages must be an array of unique non-empty strings: %s" % package_id)
+		elif _GF_VARIANT_ACCESS.get_option_packed_string_array(entry, "packages") != _GF_VARIANT_ACCESS.get_option_packed_string_array(registry_entry, "packages"):
+			var _append_preset_identity: bool = issues.append("Installed preset packages differ from registry: %s" % package_id)
+		return
+	_append_concrete_lock_entry_file_schema_issues(package_id, entry, registry_entry, issues)
+
+
+static func _append_concrete_lock_entry_file_schema_issues(
+	package_id: String,
+	entry: Dictionary,
+	registry_entry: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	if not _valid_unique_string_array(entry.get("files")):
+		var _append_files: bool = issues.append("Installed package lockfile entry files must be a non-empty array of unique package paths: %s" % package_id)
+		return
+	var files: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(entry, "files")
+	if files.is_empty():
+		var _append_empty: bool = issues.append("Installed package lockfile entry is missing files list: %s" % package_id)
+		return
+	var raw_metadata: Variant = entry.get("file_metadata")
+	if not raw_metadata is Dictionary:
+		var _append_metadata: bool = issues.append("Installed package lockfile entry file_metadata must be an object: %s" % package_id)
+		return
+	var metadata: Dictionary = raw_metadata
+	var file_identities: Dictionary = {}
+	for relative_path: String in files:
+		var normalized: String = _normalize_archive_name(relative_path)
+		var identity: String = _portable_path_identity(normalized)
+		if normalized != relative_path or identity.is_empty() or file_identities.has(identity):
+			var _append_path: bool = issues.append("Installed package files entry is unsafe or aliased: %s: %s" % [package_id, relative_path])
+			continue
+		file_identities[identity] = true
+		if not _path_matches_any_manifest_path(relative_path, _GF_VARIANT_ACCESS.get_option_packed_string_array(registry_entry, "paths")):
+			var _append_uncovered: bool = issues.append("Installed package file is not covered by registry paths: %s: %s" % [package_id, relative_path])
+		var file_state: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(metadata, relative_path)
+		if not _valid_file_metadata(file_state):
+			var _append_state: bool = issues.append("Installed package file_metadata entry is invalid: %s: %s" % [package_id, relative_path])
+	var metadata_identities: Dictionary = {}
+	for raw_metadata_path: Variant in metadata.keys():
+		if not raw_metadata_path is String:
+			var _append_metadata_path_type: bool = issues.append("Installed package file_metadata contains a non-string path: %s" % package_id)
+			continue
+		var metadata_path: String = raw_metadata_path
+		var normalized_metadata_path: String = _normalize_archive_name(metadata_path)
+		var metadata_identity: String = _portable_path_identity(normalized_metadata_path)
+		if normalized_metadata_path != metadata_path or metadata_identity.is_empty() or metadata_identities.has(metadata_identity):
+			var _append_metadata_alias: bool = issues.append("Installed package file_metadata contains unsafe or aliased paths: %s" % package_id)
+			continue
+		metadata_identities[metadata_identity] = true
+	if not _dictionary_key_sets_equal(file_identities, metadata_identities):
+		var _append_coverage: bool = issues.append("Installed package file_metadata must exactly cover files: %s" % package_id)
+
+
+static func _append_exact_dictionary_field_issues(
+	value: Dictionary,
+	required_fields: PackedStringArray,
+	allowed_fields: PackedStringArray,
+	label: String,
+	issues: PackedStringArray
+) -> void:
+	for field_name: String in required_fields:
+		if not value.has(field_name):
+			var _append_missing: bool = issues.append("%s is missing required field: %s" % [label, field_name])
+	for raw_key: Variant in value.keys():
+		if not raw_key is String:
+			var _append_key_type: bool = issues.append("%s contains a non-string field." % label)
+			continue
+		var field_name: String = raw_key
+		if not allowed_fields.has(field_name):
+			var _append_unknown: bool = issues.append("%s contains unsupported field: %s" % [label, field_name])
+
+
+static func _valid_unique_string_array(value: Variant) -> bool:
+	if not value is Array:
+		return false
+	var values: Array = value
+	var seen: Dictionary = {}
+	for raw_item: Variant in values:
+		if not raw_item is String:
+			return false
+		var item: String = raw_item
+		if item.is_empty() or item != item.strip_edges() or seen.has(item):
+			return false
+		seen[item] = true
+	return true
+
+
+static func _portable_manifest_path_identity(path: String) -> String:
+	if path.is_empty() or path != path.strip_edges():
+		return ""
+	var normalized: String = _normalize_manifest_path(path)
+	if normalized != path:
+		return ""
+	var parts: PackedStringArray = normalized.split("/", true)
+	for part: String in parts:
+		if part.is_empty() or part == "." or part == ".." or part != part.rstrip(" .") or _string_has_control_character(part):
+			return ""
+	return normalized.to_lower()
+
 static func _load_registry(path: String) -> Dictionary:
 	var issues: PackedStringArray = PackedStringArray()
 	var data: Dictionary = _read_json_dictionary(path, "registry", issues)
@@ -1648,8 +1868,7 @@ static func _load_lockfile(path: String) -> Dictionary:
 	var data: Dictionary = _read_json_dictionary(path, "lockfile", issues)
 	if data.is_empty() and not issues.is_empty():
 		return { "data": _empty_lockfile(), "issues": _packed_to_array(issues) }
-	if _GF_VARIANT_ACCESS.get_option_int(data, "schema_version", -1) != LOCKFILE_SCHEMA_VERSION:
-		var _append_schema_issue: bool = issues.append("Lockfile schema_version must be %d." % LOCKFILE_SCHEMA_VERSION)
+	_append_lockfile_schema_issues(data, issues)
 	var raw_installed: Variant = data.get("installed", {})
 	var installed: Dictionary = {}
 	if raw_installed is Dictionary:
@@ -1661,6 +1880,8 @@ static func _load_lockfile(path: String) -> Dictionary:
 			var entry: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(installed_dictionary, package_id)
 			if not entry.is_empty():
 				installed[package_id] = entry
+			else:
+				var _append_entry: bool = issues.append("Lockfile package entry must be a non-empty object: %s" % package_id)
 	else:
 		var _append_installed_issue: bool = issues.append("Lockfile installed must be an object.")
 	data["installed"] = installed
@@ -1668,6 +1889,9 @@ static func _load_lockfile(path: String) -> Dictionary:
 
 
 static func _read_json_dictionary(path: String, label: String, issues: PackedStringArray) -> Dictionary:
+	if _path_has_link_component(path):
+		var _append_link: bool = issues.append("Could not read %s because its path crosses a filesystem link: %s" % [label, path])
+		return {}
 	if not FileAccess.file_exists(path):
 		var _append_missing: bool = issues.append("Could not read %s: file does not exist: %s" % [label, path])
 		return {}
@@ -2228,9 +2452,13 @@ static func _append_registry_source_fields(result: Dictionary, registry_source: 
 		result["registry_source_sha256"] = registry_sha
 	if registry_source.has("registry_size_bytes"):
 		result["registry_source_size_bytes"] = _GF_VARIANT_ACCESS.get_option_int(registry_source, "registry_size_bytes", 0)
-	var cache_dir: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "cache_dir")
-	if not cache_dir.is_empty():
-		result["registry_cache_dir"] = _display_path(cache_dir)
+	var cache_context: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(registry_source, "_cache_context")
+	if not cache_context.is_empty():
+		var cache_report: Dictionary = _GF_PACKAGE_CACHE_POLICY.make_report(cache_context)
+		result["cache"] = cache_report
+		var artifact_write_root: String = _GF_VARIANT_ACCESS.get_option_string(cache_context, "artifact_write_root")
+		if not artifact_write_root.is_empty():
+			result["registry_cache_dir"] = _display_path(artifact_write_root)
 
 
 static func _append_cancelled_if_requested(options: Dictionary, issues: PackedStringArray) -> bool:
@@ -2376,7 +2604,7 @@ static func _audit_package_archives(
 	package_ids: PackedStringArray,
 	registry_packages: Dictionary,
 	registry_path: String,
-	cache_root: String,
+	cache_context: Dictionary,
 	options: Dictionary = {},
 	registry_source: Dictionary = {}
 ) -> PackedStringArray:
@@ -2396,7 +2624,7 @@ static func _audit_package_archives(
 			registry_path,
 			package_id,
 			registry_entry,
-			cache_root,
+			cache_context,
 			issues,
 			options,
 			registry_source
@@ -2415,7 +2643,7 @@ static func _stage_package_archives(
 	package_ids: PackedStringArray,
 	registry_packages: Dictionary,
 	registry_path: String,
-	cache_root: String,
+	cache_context: Dictionary,
 	staging_root: String,
 	issues: PackedStringArray,
 	options: Dictionary = {},
@@ -2437,7 +2665,7 @@ static func _stage_package_archives(
 			registry_path,
 			package_id,
 			registry_entry,
-			cache_root,
+			cache_context,
 			issues,
 			options,
 			registry_source
@@ -2466,6 +2694,9 @@ static func _stage_package_archives(
 			if normalized.is_empty():
 				continue
 			var staged_path: String = _package_staging_directory(staging_root, package_id).path_join(normalized)
+			if _path_has_link_component(staged_path):
+				var _append_link: bool = issues.append("%s: archive staging path crosses a filesystem link: %s" % [package_id, normalized])
+				continue
 			var make_error: Error = DirAccess.make_dir_recursive_absolute(staged_path.get_base_dir())
 			if make_error != OK:
 				var _append_make: bool = issues.append("%s: could not create staging directory: %s" % [package_id, error_string(make_error)])
@@ -2489,6 +2720,9 @@ static func _stage_package_archives(
 
 static func _audit_package_archive(package_id: String, registry_entry: Dictionary, archive_path: String) -> PackedStringArray:
 	var issues: PackedStringArray = PackedStringArray()
+	if _path_has_link_component(archive_path):
+		var _append_link: bool = issues.append("%s: archive path crosses a filesystem link: %s" % [package_id, archive_path])
+		return issues
 	if not FileAccess.file_exists(archive_path):
 		var _append_missing: bool = issues.append("%s: archive is missing: %s" % [package_id, archive_path])
 		return issues
@@ -2538,10 +2772,11 @@ static func _audit_package_archive(package_id: String, registry_entry: Dictionar
 			var _append_zero_compressed: bool = issues.append("%s: archive entry has invalid compressed size: %s" % [package_id, normalized])
 		elif compressed_size > 0 and uncompressed_size > compressed_size * MAX_ARCHIVE_COMPRESSION_RATIO:
 			var _append_ratio: bool = issues.append("%s: archive entry compression ratio exceeds limit: %s" % [package_id, normalized])
-		if seen.has(normalized):
+		var path_identity: String = _portable_path_identity(normalized)
+		if seen.has(path_identity):
 			var _append_duplicate: bool = issues.append("%s: duplicate archive entry path: %s" % [package_id, normalized])
 			continue
-		seen[normalized] = true
+		seen[path_identity] = true
 		if not normalized.begins_with(GF_PACKAGE_ROOT_PREFIX):
 			var _append_outside: bool = issues.append("%s: archive entry is outside addons/gf: %s" % [package_id, normalized])
 		if not _path_matches_any_manifest_path(normalized, package_paths):
@@ -2748,7 +2983,7 @@ static func _package_id_character_is_valid(character: String) -> bool:
 
 
 static func _package_staging_directory(staging_root: String, package_id: String) -> String:
-	return staging_root.path_join("%s-%s" % [_safe_cache_name(package_id), _sha256_text(package_id).substr(0, 12)])
+	return staging_root.path_join(_sha256_text(package_id).substr(0, 16))
 
 
 static func _lockfile_with_installed_files(planned_lockfile: Dictionary, staged_files: Array[Dictionary]) -> Dictionary:
@@ -2808,8 +3043,41 @@ static func _collect_uninstall_targets(
 		if patterns.is_empty():
 			patterns = _GF_VARIANT_ACCESS.get_option_packed_string_array(registry_entry, "paths")
 		var file_paths: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(lock_entry, "files")
-		if file_paths.is_empty():
+		if not _valid_unique_string_array(lock_entry.get("files")) or file_paths.is_empty():
 			var _append_missing_files: bool = issues.append("%s: lockfile entry is missing the installed files list; reinstall or repair the package before uninstalling." % package_id)
+			continue
+		var file_identities: Dictionary = {}
+		var files_valid: bool = true
+		for relative_path: String in file_paths:
+			var normalized_file: String = _normalize_archive_name(relative_path)
+			var file_identity: String = _portable_path_identity(normalized_file)
+			if normalized_file != relative_path or file_identity.is_empty() or file_identities.has(file_identity):
+				files_valid = false
+				break
+			file_identities[file_identity] = true
+		if not files_valid:
+			var _append_files_schema: bool = issues.append("%s: lockfile entry files must contain unique portable package paths." % package_id)
+			continue
+		var raw_file_metadata: Variant = lock_entry.get("file_metadata")
+		if not raw_file_metadata is Dictionary:
+			var _append_metadata_type: bool = issues.append("%s: lockfile entry file_metadata must be an object; reinstall or repair the package before uninstalling." % package_id)
+			continue
+		var file_metadata: Dictionary = raw_file_metadata
+		var metadata_identities: Dictionary = {}
+		var metadata_valid: bool = true
+		for raw_metadata_path: Variant in file_metadata.keys():
+			if not raw_metadata_path is String:
+				metadata_valid = false
+				break
+			var metadata_path: String = raw_metadata_path
+			var normalized_metadata_path: String = _normalize_archive_name(metadata_path)
+			var metadata_identity: String = _portable_path_identity(normalized_metadata_path)
+			if normalized_metadata_path != metadata_path or metadata_identity.is_empty() or metadata_identities.has(metadata_identity):
+				metadata_valid = false
+				break
+			metadata_identities[metadata_identity] = true
+		if not metadata_valid or not _dictionary_key_sets_equal(file_identities, metadata_identities):
+			var _append_metadata_coverage: bool = issues.append("%s: lockfile entry file_metadata must exactly cover the installed files list." % package_id)
 			continue
 		for relative_path: String in file_paths:
 			var normalized: String = _normalize_archive_name(relative_path)
@@ -2826,20 +3094,28 @@ static func _collect_uninstall_targets(
 			if not remaining_owner.is_empty():
 				var _append_owned: bool = issues.append("%s: uninstall target is still owned by installed package %s: %s" % [package_id, remaining_owner, normalized])
 				continue
-			if targets_by_path.has(normalized):
+			var path_identity: String = _portable_path_identity(normalized)
+			if targets_by_path.has(path_identity):
 				continue
 			var target_path: String = _project_target_path(project_root, normalized, issues)
 			if target_path.is_empty():
 				continue
-			targets_by_path[normalized] = {
+			var metadata: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(file_metadata, normalized)
+			if not _valid_file_metadata(metadata):
+				var _append_missing_metadata: bool = issues.append("%s: installed file is missing valid lockfile metadata; refusing to uninstall: %s" % [package_id, normalized])
+				continue
+			if FileAccess.file_exists(target_path) and not _file_matches_metadata(target_path, metadata):
+				var _append_modified: bool = issues.append("%s: installed file was modified; refusing to delete it during uninstall: %s" % [package_id, normalized])
+				continue
+			targets_by_path[path_identity] = {
 				"package_id": package_id,
 				"relative_path": normalized,
 				"target_path": target_path,
 			}
 
 	var targets: Array[Dictionary] = []
-	for relative_path: String in _sorted_dictionary_keys(targets_by_path):
-		targets.append(_GF_VARIANT_ACCESS.get_option_dictionary(targets_by_path, relative_path))
+	for path_identity: String in _sorted_dictionary_keys(targets_by_path):
+		targets.append(_GF_VARIANT_ACCESS.get_option_dictionary(targets_by_path, path_identity))
 	return targets
 
 
@@ -2898,8 +3174,6 @@ static func _append_existing_target_ownership_issues(
 			continue
 		var owner: String = _installed_file_owner(normalized, installed)
 		if owner.is_empty():
-			if _target_matches_staged_file(target_path, item):
-				continue
 			var _append_unowned: bool = issues.append("%s: package target already exists but is not owned by the lockfile: %s" % [package_id, normalized])
 			continue
 		if owner != package_id:
@@ -2966,22 +3240,26 @@ static func _collect_update_obsolete_targets(
 
 
 static func _installed_file_owner(relative_path: String, installed: Dictionary) -> String:
+	var expected_identity: String = _portable_path_identity(relative_path)
 	for package_id: String in _sorted_dictionary_keys(installed):
 		var lock_entry: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(installed, package_id)
 		var files: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(lock_entry, "files")
-		if files.has(relative_path):
-			return package_id
+		for owned_path: String in files:
+			if _portable_path_identity(owned_path) == expected_identity:
+				return package_id
 	return ""
 
 
 static func _remaining_package_file_owner(relative_path: String, installed: Dictionary, current_package_id: String) -> String:
+	var expected_identity: String = _portable_path_identity(relative_path)
 	for package_id: String in _sorted_dictionary_keys(installed):
 		if package_id == current_package_id:
 			continue
 		var lock_entry: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(installed, package_id)
 		var files: PackedStringArray = _GF_VARIANT_ACCESS.get_option_packed_string_array(lock_entry, "files")
-		if files.has(relative_path):
-			return package_id
+		for owned_path: String in files:
+			if _portable_path_identity(owned_path) == expected_identity:
+				return package_id
 	return ""
 
 
@@ -3051,15 +3329,30 @@ static func _prepare_registry_source(
 	options: Dictionary,
 	issues: PackedStringArray
 ) -> Dictionary:
-	var cache_root: String = _resolve_cache_dir(project_root, options)
+	var cache_context: Dictionary = _GF_PACKAGE_CACHE_POLICY.resolve_context(project_root, options, issues)
 	var effective_registry_value: String = _resolve_registry_value(registry_value)
+	if not issues.is_empty():
+		return _make_registry_candidate_result(
+			effective_registry_value,
+			cache_context,
+			_is_http_url(effective_registry_value),
+			effective_registry_value
+		)
 	var candidate_issues: PackedStringArray = PackedStringArray()
-	var source: Dictionary = _prepare_registry_candidate(effective_registry_value, project_root, cache_root, candidate_issues, "", 0, options)
+	var source: Dictionary = _prepare_registry_candidate(
+		effective_registry_value,
+		project_root,
+		cache_context,
+		candidate_issues,
+		"",
+		0,
+		options
+	)
 	if not candidate_issues.is_empty():
 		_append_string_array(issues, candidate_issues)
 		return source
 	if _registry_file_is_source_manifest(_GF_VARIANT_ACCESS.get_option_string(source, "path")):
-		return _prepare_registry_source_channel(source, project_root, cache_root, options, issues)
+		return _prepare_registry_source_channel(source, project_root, cache_context, options, issues)
 	return source
 
 
@@ -3073,7 +3366,7 @@ static func _resolve_registry_value(registry_value: String) -> String:
 static func _prepare_registry_candidate(
 	registry_value: String,
 	project_root: String,
-	cache_root: String,
+	cache_context: Dictionary,
 	issues: PackedStringArray,
 	expected_sha: String = "",
 	expected_size: int = 0,
@@ -3081,65 +3374,58 @@ static func _prepare_registry_candidate(
 ) -> Dictionary:
 	var registry: String = registry_value.strip_edges()
 	if _append_cancelled_if_requested(options, issues):
-		return {
-			"path": registry,
-			"cache_dir": cache_root,
-			"remote": _is_http_url(registry),
-			"source": registry,
-		}
+		return _make_registry_candidate_result(registry, cache_context, _is_http_url(registry), registry)
 	if _is_http_url(registry):
-		var cache_path: String = cache_root.path_join("registries").path_join("%s.json" % _sha256_text(registry))
-		var raw_path: String = cache_path + ".raw"
-		if _remote_registry_cache_matches_metadata(cache_path, registry, expected_sha, expected_size):
-			return {
-				"path": cache_path,
-				"cache_dir": cache_root,
-				"remote": true,
-				"source": registry,
-			}
-		if not _download_url_to_file(registry, raw_path, "registry", issues, MAX_REGISTRY_DOWNLOAD_BYTES, 0, 0, options):
-			return {
-				"path": cache_path,
-				"cache_dir": cache_root,
-				"remote": true,
-				"source": registry,
-			}
-		if not _registry_file_matches_metadata(raw_path, expected_sha, expected_size, issues):
-			if FileAccess.file_exists(raw_path):
-				var _remove_invalid_raw: Error = DirAccess.remove_absolute(raw_path)
-			return {
-				"path": cache_path,
-				"cache_dir": cache_root,
-				"remote": true,
-				"source": registry,
-			}
+		var cache_path: String = _GF_PACKAGE_FILESYSTEM_CACHE_STORE.make_workspace_temp_path(cache_context, "registries", ".json")
+		var raw_path: String = ""
+		var downloaded_path: String = ""
+		if not expected_sha.is_empty() and expected_size > 0:
+			raw_path = _GF_PACKAGE_FILESYSTEM_CACHE_STORE.find_artifact(cache_context, expected_sha, expected_size, ".json")
+		if raw_path.is_empty():
+			downloaded_path = _GF_PACKAGE_FILESYSTEM_CACHE_STORE.make_workspace_temp_path(cache_context, "registry_downloads", ".json")
+			raw_path = downloaded_path
+			if not _download_url_to_file(registry, raw_path, "registry", issues, MAX_REGISTRY_DOWNLOAD_BYTES, 0, 0, options):
+				return _make_registry_candidate_result(cache_path, cache_context, true, registry)
+			if not _registry_file_matches_metadata(raw_path, expected_sha, expected_size, issues):
+				_remove_file_if_exists(downloaded_path)
+				return _make_registry_candidate_result(cache_path, cache_context, true, registry)
+			if not expected_sha.is_empty() and expected_size > 0:
+				var committed_path: String = _GF_PACKAGE_FILESYSTEM_CACHE_STORE.commit_artifact(
+					cache_context,
+					raw_path,
+					expected_sha,
+					expected_size,
+					".json",
+					issues
+				)
+				if committed_path.is_empty():
+					_remove_file_if_exists(downloaded_path)
+					return _make_registry_candidate_result(cache_path, cache_context, true, registry)
+				raw_path = committed_path
 		_rewrite_remote_registry(raw_path, cache_path, registry, issues)
-		if FileAccess.file_exists(cache_path):
-			_write_remote_registry_cache_metadata(cache_path, registry, raw_path, expected_sha, expected_size, issues)
-		if FileAccess.file_exists(raw_path):
-			var _remove_raw: Error = DirAccess.remove_absolute(raw_path)
-		return {
-			"path": cache_path,
-			"cache_dir": cache_root,
-			"remote": true,
-			"source": registry,
-		}
+		_remove_file_if_exists(downloaded_path)
+		return _make_registry_candidate_result(cache_path, cache_context, true, registry)
 	var registry_path: String = _resolve_path(registry_value, project_root)
 	if _registry_path_is_offline_bundle(registry_path):
 		if not _registry_file_matches_metadata(registry_path, expected_sha, expected_size, issues):
-			return {
-				"path": registry_path,
-				"cache_dir": cache_root,
-				"remote": false,
-				"source": registry_value,
-			}
-		return _prepare_offline_bundle_registry_candidate(registry_path, registry_value, cache_root, issues, options)
+			return _make_registry_candidate_result(registry_path, cache_context, false, registry_value)
+		return _prepare_offline_bundle_registry_candidate(registry_path, registry_value, cache_context, issues, options)
 	var _registry_matches_metadata: bool = _registry_file_matches_metadata(registry_path, expected_sha, expected_size, issues)
+	return _make_registry_candidate_result(registry_path, cache_context, false, registry_value)
+
+
+static func _make_registry_candidate_result(
+	path: String,
+	cache_context: Dictionary,
+	remote: bool,
+	source: String
+) -> Dictionary:
 	return {
-		"path": registry_path,
-		"cache_dir": cache_root,
-		"remote": false,
-		"source": registry_value,
+		"path": path,
+		"cache_dir": _GF_VARIANT_ACCESS.get_option_string(cache_context, "artifact_write_root"),
+		"remote": remote,
+		"source": source,
+		"_cache_context": cache_context,
 	}
 
 
@@ -3156,34 +3442,27 @@ static func _registry_path_is_offline_bundle(path: String) -> bool:
 static func _prepare_offline_bundle_registry_candidate(
 	bundle_path: String,
 	registry_value: String,
-	cache_root: String,
+	cache_context: Dictionary,
 	issues: PackedStringArray,
 	options: Dictionary = {}
 ) -> Dictionary:
 	var bundle_sha: String = FileAccess.get_sha256(bundle_path).to_lower()
 	if bundle_sha.is_empty():
 		bundle_sha = _sha256_text(bundle_path)
-	var extract_root: String = cache_root.path_join("offline_bundles").path_join(bundle_sha).replace("\\", "/")
+	var workspace_root: String = _GF_VARIANT_ACCESS.get_option_string(cache_context, "workspace_root")
+	var extract_root: String = workspace_root.path_join("offline_bundles").path_join(bundle_sha).replace("\\", "/")
 	var registry_path: String = extract_root.path_join(_OFFLINE_BUNDLE_REGISTRY_ENTRY).replace("\\", "/")
 	if not _extract_offline_bundle_registry(bundle_path, extract_root, issues, options):
-		return {
-			"path": registry_path,
-			"cache_dir": cache_root,
-			"remote": false,
-			"source": registry_value,
-			"offline_bundle": bundle_path,
-			"offline_bundle_extracted": extract_root,
-		}
+		var failed_result: Dictionary = _make_registry_candidate_result(registry_path, cache_context, false, registry_value)
+		failed_result["offline_bundle"] = bundle_path
+		failed_result["offline_bundle_extracted"] = extract_root
+		return failed_result
 	if not FileAccess.file_exists(registry_path):
 		var _append_missing: bool = issues.append("Offline bundle is missing registry/index.json: %s" % bundle_path)
-	return {
-		"path": registry_path,
-		"cache_dir": cache_root,
-		"remote": false,
-		"source": registry_value,
-		"offline_bundle": bundle_path,
-		"offline_bundle_extracted": extract_root,
-	}
+	var result: Dictionary = _make_registry_candidate_result(registry_path, cache_context, false, registry_value)
+	result["offline_bundle"] = bundle_path
+	result["offline_bundle_extracted"] = extract_root
+	return result
 
 
 static func _extract_offline_bundle_registry(
@@ -3313,7 +3592,7 @@ static func _offline_bundle_entry_is_allowed(path: String) -> bool:
 static func _prepare_registry_source_channel(
 	source: Dictionary,
 	project_root: String,
-	cache_root: String,
+	cache_context: Dictionary,
 	options: Dictionary,
 	issues: PackedStringArray
 ) -> Dictionary:
@@ -3353,7 +3632,7 @@ static func _prepare_registry_source_channel(
 		var result: Dictionary = _prepare_registry_candidate(
 			resolved_candidate,
 			project_root,
-			cache_root,
+			cache_context,
 			candidate_issues,
 			expected_sha,
 			expected_size,
@@ -3486,97 +3765,6 @@ static func _rewrite_remote_registry(
 		return
 
 
-static func _remote_registry_cache_matches_metadata(
-	cache_path: String,
-	registry_url: String,
-	expected_sha: String,
-	expected_size: int
-) -> bool:
-	if expected_sha.is_empty() or expected_size <= 0:
-		return false
-	if not FileAccess.file_exists(cache_path):
-		return false
-
-	var metadata: Dictionary = _read_json_dictionary_if_exists(_remote_registry_cache_metadata_path(cache_path))
-	if metadata.is_empty():
-		return false
-	if _GF_VARIANT_ACCESS.get_option_string(metadata, "registry_url") != registry_url:
-		return false
-	var normalized_expected_sha: String = expected_sha.strip_edges().to_lower()
-	if _GF_VARIANT_ACCESS.get_option_string(metadata, "raw_sha256").to_lower() != normalized_expected_sha:
-		return false
-	if _GF_VARIANT_ACCESS.get_option_int(metadata, "raw_size_bytes", 0) != expected_size:
-		return false
-	var cached_sha: String = _GF_VARIANT_ACCESS.get_option_string(metadata, "cache_sha256").to_lower()
-	var cached_size: int = _GF_VARIANT_ACCESS.get_option_int(metadata, "cache_size_bytes", 0)
-	if cached_sha.is_empty() or cached_size <= 0:
-		return false
-	if _file_size(cache_path) != cached_size:
-		return false
-	if FileAccess.get_sha256(cache_path).to_lower() != cached_sha:
-		return false
-	return not _read_json_dictionary_if_exists(cache_path).is_empty()
-
-
-static func _write_remote_registry_cache_metadata(
-	cache_path: String,
-	registry_url: String,
-	raw_path: String,
-	expected_sha: String,
-	expected_size: int,
-	issues: PackedStringArray
-) -> void:
-	var raw_sha: String = expected_sha
-	if raw_sha.is_empty() and FileAccess.file_exists(raw_path):
-		raw_sha = FileAccess.get_sha256(raw_path).to_lower()
-	raw_sha = raw_sha.strip_edges().to_lower()
-	var raw_size: int = expected_size
-	if raw_size <= 0 and FileAccess.file_exists(raw_path):
-		raw_size = _file_size(raw_path)
-	if raw_sha.is_empty() or raw_size <= 0:
-		return
-	if not FileAccess.file_exists(cache_path):
-		return
-	var cache_sha: String = FileAccess.get_sha256(cache_path).to_lower()
-	var cache_size: int = _file_size(cache_path)
-	if cache_sha.is_empty() or cache_size <= 0:
-		return
-
-	var metadata: Dictionary = {
-		"schema_version": 1,
-		"registry_url": registry_url,
-		"raw_sha256": raw_sha,
-		"raw_size_bytes": raw_size,
-		"cache_sha256": cache_sha,
-		"cache_size_bytes": cache_size,
-	}
-	var text: String = JSON.stringify(metadata, "\t", false) + "\n"
-	var _write_metadata: bool = _write_text_file_absolute(
-		_remote_registry_cache_metadata_path(cache_path),
-		text,
-		issues,
-		"write cached registry metadata"
-	)
-
-
-static func _remote_registry_cache_metadata_path(cache_path: String) -> String:
-	return cache_path + _REMOTE_REGISTRY_CACHE_METADATA_SUFFIX
-
-
-static func _read_json_dictionary_if_exists(path: String) -> Dictionary:
-	if not FileAccess.file_exists(path):
-		return {}
-	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return {}
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	file.close()
-	if parsed is Dictionary:
-		var data: Dictionary = parsed
-		return data
-	return {}
-
-
 static func _resolve_remote_archive_reference(
 	package_id: String,
 	archive: String,
@@ -3619,19 +3807,12 @@ static func _resolve_remote_archive_reference(
 	return "%s://%s%s" % [scheme, authority, normalized_path]
 
 
-static func _resolve_cache_dir(project_root: String, options: Dictionary) -> String:
-	var cache_dir: String = _GF_VARIANT_ACCESS.get_option_string(options, "cache_dir").strip_edges()
-	if cache_dir.is_empty():
-		return project_root.path_join(".gf/package_cache").replace("\\", "/")
-	return _resolve_path(cache_dir, project_root)
-
-
 static func _resolve_archive_path(
 	archive_path: String,
 	registry_path: String,
 	package_id: String,
 	registry_entry: Dictionary,
-	cache_root: String,
+	cache_context: Dictionary,
 	issues: PackedStringArray,
 	options: Dictionary = {},
 	registry_source: Dictionary = {}
@@ -3646,7 +3827,7 @@ static func _resolve_archive_path(
 		if not _is_http_url(text):
 			var _append_remote_local: bool = issues.append("%s: remote registry archive must resolve to an HTTP(S) URL: %s" % [package_id, text])
 			return ""
-		return _cache_remote_archive(package_id, text, registry_entry, cache_root, issues, options)
+		return _cache_remote_archive(package_id, text, registry_entry, cache_context, issues, options)
 	var offline_root: String = _GF_VARIANT_ACCESS.get_option_string(registry_source, "offline_bundle_extracted")
 	if not offline_root.is_empty():
 		if _is_http_url(text) or text.begins_with("res://") or text.begins_with("user://") or text.is_absolute_path() or text.contains(":"):
@@ -3656,9 +3837,12 @@ static func _resolve_archive_path(
 		if not _is_path_inside(offline_root, offline_archive_path):
 			var _append_offline_outside: bool = issues.append("%s: offline bundle archive path escapes the bundle cache: %s" % [package_id, text])
 			return ""
+		if _path_has_link_component(offline_archive_path):
+			var _append_offline_link: bool = issues.append("%s: offline bundle archive path crosses a filesystem link: %s" % [package_id, text])
+			return ""
 		return offline_archive_path
 	if _is_http_url(text):
-		return _cache_remote_archive(package_id, text, registry_entry, cache_root, issues, options)
+		return _cache_remote_archive(package_id, text, registry_entry, cache_context, issues, options)
 	if text.begins_with("res://") or text.begins_with("user://") or text.is_absolute_path() or text.contains(":"):
 		var _append_local_external: bool = issues.append("%s: local registry archive must be a relative file path in the local registry bundle: %s" % [package_id, text])
 		return ""
@@ -3667,6 +3851,9 @@ static func _resolve_archive_path(
 	if not _is_local_registry_archive_path_allowed(registry_root, local_archive_path):
 		var _append_local_escape: bool = issues.append("%s: local registry archive path escapes the local registry bundle: %s" % [package_id, text])
 		return ""
+	if _path_has_link_component(registry_root) or _path_has_link_component(local_archive_path):
+		var _append_local_link: bool = issues.append("%s: local registry archive path crosses a filesystem link: %s" % [package_id, text])
+		return ""
 	return local_archive_path
 
 
@@ -3674,7 +3861,7 @@ static func _cache_remote_archive(
 	package_id: String,
 	archive_url: String,
 	registry_entry: Dictionary,
-	cache_root: String,
+	cache_context: Dictionary,
 	issues: PackedStringArray,
 	options: Dictionary = {}
 ) -> String:
@@ -3688,17 +3875,31 @@ static func _cache_remote_archive(
 	if expected_size <= 0:
 		var _append_size: bool = issues.append("%s: remote archive requires positive size_bytes in the registry." % package_id)
 		return ""
-	var archive_path: String = cache_root.path_join("archives").path_join("%s-%s.zip" % [_safe_cache_name(package_id), expected_sha.substr(0, 16)])
-	if _archive_file_matches_metadata(archive_path, expected_sha, expected_size):
+	var archive_path: String = _GF_PACKAGE_FILESYSTEM_CACHE_STORE.find_artifact(cache_context, expected_sha, expected_size, ".zip")
+	if not archive_path.is_empty():
 		return archive_path
+	var downloaded_path: String = _GF_PACKAGE_FILESYSTEM_CACHE_STORE.make_workspace_temp_path(cache_context, "archive_downloads", ".zip")
 	var max_bytes: int = mini(MAX_ARCHIVE_DOWNLOAD_BYTES, expected_size + 1)
-	if not _download_url_to_file(archive_url, archive_path, "%s archive" % package_id, issues, max_bytes, 0, 0, options):
+	if not _download_url_to_file(archive_url, downloaded_path, "%s archive" % package_id, issues, max_bytes, 0, 0, options):
 		return ""
+	if not _archive_file_matches_metadata(downloaded_path, expected_sha, expected_size):
+		_remove_file_if_exists(downloaded_path)
+		var _append_integrity: bool = issues.append("%s: downloaded archive does not match registry sha256 and size." % package_id)
+		return ""
+	archive_path = _GF_PACKAGE_FILESYSTEM_CACHE_STORE.commit_artifact(
+		cache_context,
+		downloaded_path,
+		expected_sha,
+		expected_size,
+		".zip",
+		issues
+	)
+	_remove_file_if_exists(downloaded_path)
 	return archive_path
 
 
 static func _archive_file_matches_metadata(path: String, expected_sha: String, expected_size: int) -> bool:
-	if not FileAccess.file_exists(path):
+	if _path_has_link_component(path) or not FileAccess.file_exists(path):
 		return false
 	if expected_size > 0 and _file_size(path) != expected_size:
 		return false
@@ -3776,7 +3977,7 @@ static func _download_url_to_file(
 		var _append_response: bool = issues.append("%s: download failed with HTTP %d." % [label, response_code])
 		return false
 
-	var temp_path: String = target_path + ".download"
+	var temp_path: String = target_path + ".download-%d-%d" % [OS.get_process_id(), Time.get_ticks_usec()]
 	var make_error: Error = DirAccess.make_dir_recursive_absolute(target_path.get_base_dir())
 	if make_error != OK:
 		var _append_make: bool = issues.append("%s: could not create download cache directory: %s" % [label, error_string(make_error)])
@@ -4102,18 +4303,72 @@ static func _sha256_text(value: String) -> String:
 
 
 static func _normalize_archive_name(path: String) -> String:
-	var normalized: String = path.strip_edges().replace("\\", "/")
+	if path.is_empty() or path != path.strip_edges():
+		return ""
+	var normalized: String = path.replace("\\", "/")
 	if normalized.begins_with("/") or normalized.begins_with("res://") or normalized.begins_with("user://") or normalized.contains(":"):
 		return ""
-	while normalized.begins_with("./"):
-		normalized = normalized.substr(2)
-	var parts: PackedStringArray = normalized.split("/", false)
+	var parts: PackedStringArray = normalized.split("/", true)
 	var safe_parts: PackedStringArray = PackedStringArray()
 	for part: String in parts:
-		if part.is_empty() or part == "." or part == "..":
+		if (
+			part.is_empty()
+			or part == "."
+			or part == ".."
+			or part != part.rstrip(" .")
+			or _string_has_control_character(part)
+		):
 			return ""
 		var _append_part: bool = safe_parts.append(part)
 	return "/".join(safe_parts)
+
+
+static func _portable_path_identity(path: String) -> String:
+	var normalized: String = _normalize_archive_name(path)
+	return normalized.to_lower() if not normalized.is_empty() else ""
+
+
+static func _string_has_control_character(value: String) -> bool:
+	for index: int in range(value.length()):
+		if value.unicode_at(index) < 32:
+			return true
+	return false
+
+
+static func _valid_file_metadata(metadata: Dictionary) -> bool:
+	if metadata.size() != 2 or not metadata.has("sha256") or not metadata.has("size_bytes"):
+		return false
+	if typeof(metadata.get("sha256")) != TYPE_STRING or not _is_exact_integer(metadata.get("size_bytes")):
+		return false
+	return _registry_source_sha_is_valid(_GF_VARIANT_ACCESS.get_option_string(metadata, "sha256")) and _GF_VARIANT_ACCESS.get_option_int(metadata, "size_bytes", -1) >= 0
+
+
+static func _file_matches_metadata(path: String, metadata: Dictionary) -> bool:
+	return (
+		_valid_file_metadata(metadata)
+		and not _path_has_link_component(path)
+		and FileAccess.file_exists(path)
+		and _file_size(path) == _GF_VARIANT_ACCESS.get_option_int(metadata, "size_bytes", -1)
+		and FileAccess.get_sha256(path).to_lower() == _GF_VARIANT_ACCESS.get_option_string(metadata, "sha256").to_lower()
+	)
+
+
+static func _dictionary_key_sets_equal(left: Dictionary, right: Dictionary) -> bool:
+	if left.size() != right.size():
+		return false
+	for key: Variant in left.keys():
+		if not right.has(key):
+			return false
+	return true
+
+
+static func _is_exact_integer(value: Variant) -> bool:
+	if value is int:
+		return true
+	if not value is float:
+		return false
+	var float_value: float = value
+	return is_finite(float_value) and float_value == floorf(float_value)
 
 
 static func _path_matches_any_manifest_path(path: String, manifest_paths: PackedStringArray) -> bool:
@@ -4208,10 +4463,16 @@ static func _project_target_path(project_root: String, relative_path: String, is
 	if not _is_path_inside(project_root, target_path):
 		var _append_outside: bool = issues.append("Package file target is outside project root: %s" % target_path)
 		return ""
+	if _path_has_link_component(project_root) or _path_has_link_component(target_path):
+		var _append_link: bool = issues.append("Package file target crosses a filesystem link: %s" % target_path)
+		return ""
 	return target_path
 
 
 static func _copy_file(source_path: String, target_path: String, issues: PackedStringArray, context: String) -> bool:
+	if _path_has_link_component(source_path) or _path_has_link_component(target_path):
+		var _append_link: bool = issues.append("Could not %s because the path crosses a filesystem link." % context)
+		return false
 	var source_file: FileAccess = FileAccess.open(source_path, FileAccess.READ)
 	if source_file == null:
 		var _append_open_source: bool = issues.append("Could not %s: %s" % [context, error_string(FileAccess.get_open_error())])
@@ -4255,6 +4516,9 @@ static func _copy_file(source_path: String, target_path: String, issues: PackedS
 
 
 static func _read_binary_file(path: String, issues: PackedStringArray, context: String) -> PackedByteArray:
+	if _path_has_link_component(path):
+		var _append_link: bool = issues.append("Could not %s because the path crosses a filesystem link." % context)
+		return PackedByteArray()
 	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		var _append_open: bool = issues.append("Could not %s: %s" % [context, error_string(FileAccess.get_open_error())])
@@ -4274,6 +4538,9 @@ static func _read_binary_file(path: String, issues: PackedStringArray, context: 
 
 
 static func _write_binary_file(path: String, bytes: PackedByteArray, issues: PackedStringArray, context: String) -> bool:
+	if _path_has_link_component(path):
+		var _append_link: bool = issues.append("Could not %s because the path crosses a filesystem link." % context)
+		return false
 	var make_error: Error = DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	if make_error != OK:
 		var _append_make: bool = issues.append("Could not create directory for %s: %s" % [context, error_string(make_error)])
@@ -4296,6 +4563,9 @@ static func _write_binary_file(path: String, bytes: PackedByteArray, issues: Pac
 
 
 static func _write_text_file_absolute(path: String, text: String, issues: PackedStringArray, context: String) -> bool:
+	if _path_has_link_component(path):
+		var _append_link: bool = issues.append("Could not %s because the path crosses a filesystem link." % context)
+		return false
 	var make_error: Error = DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	if make_error != OK:
 		var _append_make: bool = issues.append("Could not create directory for %s: %s" % [context, error_string(make_error)])
@@ -4326,13 +4596,21 @@ static func _file_size(path: String) -> int:
 	return size
 
 
+static func _remove_file_if_exists(path: String) -> void:
+	if path.is_empty() or _path_has_link_component(path) or not FileAccess.file_exists(path):
+		return
+	var _remove_result: Error = DirAccess.remove_absolute(path)
+
+
 static func _make_temp_root(project_root: String) -> String:
-	return project_root.path_join(".gf/package_temp/native_install_%d" % Time.get_ticks_usec()).replace("\\", "/")
+	return project_root.path_join(".gf/t/%d" % Time.get_ticks_usec()).replace("\\", "/")
 
 
 static func _remove_path_recursive_absolute(path: String) -> void:
 	var normalized: String = _trim_trailing_path_separators(path.strip_edges().replace("\\", "/"))
 	if normalized.is_empty() or normalized == "/" or normalized.length() < 4:
+		return
+	if _path_has_link_component(normalized):
 		return
 	if FileAccess.file_exists(normalized):
 		var _remove_file_error: Error = DirAccess.remove_absolute(normalized)
@@ -4366,7 +4644,14 @@ static func _is_local_registry_archive_path_allowed(registry_root: String, archi
 static func _is_path_inside(root_path: String, child_path: String) -> bool:
 	var root: String = _trim_trailing_path_separators(root_path.replace("\\", "/").simplify_path())
 	var child: String = _trim_trailing_path_separators(child_path.replace("\\", "/").simplify_path())
+	if OS.get_name() == "Windows":
+		root = root.to_lower()
+		child = child.to_lower()
 	return child == root or child.begins_with(root + "/")
+
+
+static func _path_has_link_component(path: String) -> bool:
+	return _GF_PACKAGE_TRANSACTION_ENGINE._path_has_link_component(path)
 
 
 static func _resolve_dependency_closure(packages: Dictionary, roots: PackedStringArray) -> Dictionary:
@@ -4588,6 +4873,8 @@ static func _collect_project_scan_files_recursive(
 			break
 		if item_name == "." or item_name == "..":
 			continue
+		if directory.is_link(item_name):
+			continue
 		var absolute_path: String = current.path_join(item_name)
 		var relative_path: String = _relative_to_root(absolute_path, root)
 		if directory.current_is_dir():
@@ -4657,6 +4944,8 @@ static func _collect_files_recursive(directory_path: String, result: PackedStrin
 		if item_name.is_empty():
 			break
 		if item_name == "." or item_name == "..":
+			continue
+		if directory.is_link(item_name):
 			continue
 		var absolute_path: String = directory_path.path_join(item_name)
 		if directory.current_is_dir():
@@ -4865,11 +5154,19 @@ static func _append_lockfile_path_issues(
 	raw_lockfile_path: String,
 	issues: PackedStringArray
 ) -> void:
+	if project_root.is_empty() or _path_has_link_component(project_root):
+		var _append_project: bool = issues.append("Project root is empty or crosses a filesystem link: %s" % project_root)
+		return
+	if FileAccess.file_exists(project_root):
+		var _append_file: bool = issues.append("Project root is not a directory: %s" % project_root)
+		return
 	if raw_lockfile_path.strip_edges().is_empty():
 		var _append_empty: bool = issues.append("Lockfile path is required.")
 		return
 	if not _is_path_inside(project_root, resolved_lockfile_path):
 		var _append_outside: bool = issues.append("Lockfile path must stay inside project root: %s" % resolved_lockfile_path)
+	elif _path_has_link_component(resolved_lockfile_path):
+		var _append_link: bool = issues.append("Lockfile path crosses a filesystem link: %s" % resolved_lockfile_path)
 
 
 static func _display_path(path: String) -> String:
@@ -4908,7 +5205,7 @@ static func _relative_to_root(absolute_path: String, root: String) -> String:
 
 
 static func _read_text_file(path: String) -> String:
-	if not FileAccess.file_exists(path):
+	if _path_has_link_component(path) or not FileAccess.file_exists(path):
 		return ""
 	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if file == null:

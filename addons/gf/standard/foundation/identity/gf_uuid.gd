@@ -36,6 +36,7 @@ const _MAX_V7_TAIL_SEQUENCE: int = 4611686018427387903
 static var _last_v7_timestamp_msec: int = -1
 static var _last_v7_sequence: int = -1
 static var _last_v7_tail_sequence: int = -1
+static var _v7_state_mutex: Mutex = Mutex.new()
 
 
 # --- 公共方法 ---
@@ -131,6 +132,7 @@ static func _resolve_unix_time_msec(unix_time_msec: int) -> int:
 
 
 static func _reserve_v7_monotonic_state(timestamp_msec: int) -> Dictionary:
+	_v7_state_mutex.lock()
 	var effective_timestamp: int = timestamp_msec
 	var sequence: int = 0
 	var tail_sequence: int = -1
@@ -151,11 +153,13 @@ static func _reserve_v7_monotonic_state(timestamp_msec: int) -> Dictionary:
 	_last_v7_timestamp_msec = effective_timestamp
 	_last_v7_sequence = sequence
 	_last_v7_tail_sequence = tail_sequence
-	return {
+	var result: Dictionary = {
 		"timestamp_msec": effective_timestamp,
 		"sequence": sequence,
 		"tail_sequence": tail_sequence,
 	}
+	_v7_state_mutex.unlock()
+	return result
 
 
 static func _write_v7_tail_sequence(bytes: PackedByteArray, tail_sequence: int) -> void:

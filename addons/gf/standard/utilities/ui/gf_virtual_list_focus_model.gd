@@ -82,13 +82,19 @@ var auto_focus_on_count_change: bool = false
 ## @since unreleased
 ## [br]
 ## @schema focusable_callback: Callable(item_index: int) -> bool。
-var focusable_callback: Callable = Callable()
+var focusable_callback: Callable:
+	get:
+		return _focusable_callback
+	set(value):
+		_focusable_callback = value
+		_repair_focus_internal(_focused_index)
 
 
 # --- 私有变量 ---
 
 var _item_count: int = 0
 var _focused_index: int = NO_FOCUS
+var _focusable_callback: Callable = Callable()
 
 
 # --- 公共方法 ---
@@ -107,6 +113,7 @@ var _focused_index: int = NO_FOCUS
 ## [br]
 ## @schema options: Dictionary，支持 focused_index、wrap_navigation、auto_focus_on_count_change 和 focusable_callback。
 func configure(p_item_count: int, options: Dictionary = {}) -> GFVirtualListFocusModel:
+	var previous_focus_index: int = _focused_index
 	wrap_navigation = GFVariantData.get_option_bool(options, "wrap_navigation", wrap_navigation)
 	auto_focus_on_count_change = GFVariantData.get_option_bool(
 		options,
@@ -115,13 +122,17 @@ func configure(p_item_count: int, options: Dictionary = {}) -> GFVirtualListFocu
 	)
 	var raw_callback: Variant = GFVariantData.get_option_value(options, "focusable_callback", Callable())
 	if raw_callback is Callable:
-		focusable_callback = raw_callback
+		_focusable_callback = raw_callback
 
 	_apply_item_count(p_item_count, false)
 	if options.has("focused_index"):
-		_apply_focused_index(GFVariantData.get_option_int(options, "focused_index", NO_FOCUS))
-	elif auto_focus_on_count_change:
-		_repair_focus_internal(NO_FOCUS)
+		var requested_focus_index: int = GFVariantData.get_option_int(options, "focused_index", NO_FOCUS)
+		if requested_focus_index == NO_FOCUS or is_focusable(requested_focus_index):
+			_apply_focused_index(requested_focus_index)
+		else:
+			_repair_focus_internal(previous_focus_index)
+	else:
+		_repair_focus_internal(previous_focus_index)
 	return self
 
 
@@ -297,10 +308,10 @@ func repair_focus(preferred_index: int = NO_FOCUS) -> bool:
 func is_focusable(item_index: int) -> bool:
 	if item_index < 0 or item_index >= _item_count:
 		return false
-	if not focusable_callback.is_valid():
+	if not _focusable_callback.is_valid():
 		return true
 
-	var callback_result: Variant = focusable_callback.call(item_index)
+	var callback_result: Variant = _focusable_callback.call(item_index)
 	return GFVariantData.to_bool(callback_result, true)
 
 

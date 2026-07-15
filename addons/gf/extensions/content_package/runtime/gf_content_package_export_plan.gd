@@ -83,6 +83,11 @@ var issues: Array[Dictionary] = []
 var metadata: Dictionary = {}
 
 
+# --- 私有变量 ---
+
+var _archive_package_scope: String = ""
+
+
 # --- 公共方法 ---
 
 ## 清空计划。
@@ -97,6 +102,7 @@ func clear() -> void:
 	entries.clear()
 	issues.clear()
 	metadata.clear()
+	_archive_package_scope = ""
 
 
 ## 添加导出条目。
@@ -503,7 +509,9 @@ static func from_catalog(
 
 func _append_manifest_to_existing_plan(manifest: GFContentPackageManifest, options: Dictionary) -> void:
 	var previous_root_path: String = root_path
+	var previous_archive_package_scope: String = _archive_package_scope
 	root_path = _normalize_root_path(manifest.root_path)
+	_archive_package_scope = String(manifest.package_id)
 	var manifest_report: Dictionary = manifest.get_validation_report({
 		"check_resource_exists": GFVariantData.get_option_bool(options, "check_files", false),
 	})
@@ -520,13 +528,15 @@ func _append_manifest_to_existing_plan(manifest: GFContentPackageManifest, optio
 	for resource_entry: Dictionary in manifest.get_normalized_resources():
 		_append_manifest_resource_entry(resource_entry, options)
 	root_path = previous_root_path
+	_archive_package_scope = previous_archive_package_scope
 
 
 func _append_manifest_resource_entry(resource_entry: Dictionary, options: Dictionary) -> void:
 	var source_path: String = GFVariantData.get_option_string(resource_entry, "path")
 	var entry_metadata: Dictionary = GFVariantData.get_option_dictionary(resource_entry, "metadata")
 	entry_metadata["resource_key"] = GFVariantData.get_option_string_name(resource_entry, "key")
-	entry_metadata["package_id"] = GFVariantData.get_option_string_name(resource_entry, "package_id", package_id)
+	var owner_package_id: StringName = GFVariantData.get_option_string_name(resource_entry, "package_id", package_id)
+	entry_metadata["package_id"] = owner_package_id
 	entry_metadata["type_hint"] = GFVariantData.get_option_string(resource_entry, "type_hint")
 	if not _source_is_inside_root(source_path):
 		_append_issue("error", _KIND_RESOURCE_OUTSIDE_ROOT, "resource path is outside package root", {
@@ -542,10 +552,14 @@ func _append_manifest_resource_entry(resource_entry: Dictionary, options: Dictio
 		})
 
 	if GFVariantData.get_option_bool(options, "include_resource_dependencies", false):
-		_append_dependency_entries(source_path, options)
+		_append_dependency_entries(source_path, owner_package_id, options)
 
 
-func _append_dependency_entries(source_path: String, options: Dictionary) -> void:
+func _append_dependency_entries(
+	source_path: String,
+	owner_package_id: StringName,
+	options: Dictionary
+) -> void:
 	var dependency_options: Dictionary = GFVariantData.get_option_dictionary(options, "dependency_options")
 	dependency_options["include_root"] = false
 	var dependency_report: Dictionary = GFResourceRegistryTools.build_dependency_report(source_path, dependency_options)
@@ -554,7 +568,7 @@ func _append_dependency_entries(source_path: String, options: Dictionary) -> voi
 		if path.is_empty() or not _source_is_inside_root(path):
 			continue
 		var _dependency_added: bool = add_entry(path, "", &"dependency", {
-			"package_id": package_id,
+			"package_id": owner_package_id,
 			"source_resource_path": source_path,
 		})
 
@@ -715,7 +729,7 @@ func _append_report_issue(
 
 func _source_is_inside_root(source_path: String) -> bool:
 	if root_path.is_empty():
-		return true
+		return false
 	return _GF_PATH_TOOLS.is_path_under_root(source_path, root_path, true, false)
 
 
@@ -724,6 +738,8 @@ func _make_archive_path(source_path: String) -> String:
 	var relative_path: String = _GF_PATH_TOOLS.make_relative_path(source_path, root_path)
 	if relative_path.is_empty() or relative_path == source_path:
 		relative_path = source_path.trim_prefix("res://").trim_prefix("user://")
+	if not _archive_package_scope.is_empty():
+		relative_path = _archive_package_scope.path_join(relative_path)
 	if archive_root.is_empty():
 		return relative_path
 	return archive_root.path_join(relative_path)

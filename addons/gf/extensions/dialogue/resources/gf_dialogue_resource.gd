@@ -15,6 +15,7 @@ extends Resource
 # --- 常量 ---
 
 const _GF_VALIDATION_REPORT_DICTIONARY_SCRIPT = preload("res://addons/gf/standard/foundation/validation/gf_validation_report_dictionary.gd")
+const _SNAPSHOT_COPY = preload("res://addons/gf/extensions/dialogue/resources/gf_dialogue_snapshot_copy.gd")
 
 
 # --- 导出变量 ---
@@ -203,15 +204,51 @@ func duplicate_dialogue() -> GFDialogueResource:
 ## [br]
 ## @schema return: 包含 start_line_id、lines 和 metadata 字段的 Dictionary；lines 为行快照字典数组。
 func to_dictionary() -> Dictionary:
-	var line_data: Array[Dictionary] = []
+	return _SNAPSHOT_COPY.copy_snapshot_dictionary(create_serialization_source())
+
+
+## 创建对话序列化操作的原始结构。
+##
+## 返回值只供共享预算复制器立即消费；调用方不得将其视为隔离快照。
+## [br]
+## @api framework_internal
+## [br]
+## @since unreleased
+## [br]
+## @return: 包含资源及全部行身份字段的原始结构。
+## [br]
+## @schema return: 包含 start_line_id、lines 和 metadata 字段的 Dictionary；null 行槽位会被保留。
+func create_serialization_source() -> Dictionary:
+	var line_data: Array = []
 	for line: GFDialogueLine in lines:
 		if line != null:
-			line_data.append(line.to_dictionary())
+			line_data.append(line.create_serialization_source())
+		else:
+			line_data.append(null)
 	return {
 		"start_line_id": start_line_id,
 		"lines": line_data,
-		"metadata": metadata.duplicate(true),
+		"metadata": metadata,
 	}
+
+
+## 创建完整且稳定的资源身份输入报告。
+##
+## 循环引用、对象值或任一操作级预算超限都会失败，不会返回截断身份。
+## [br]
+## @api framework_internal
+## [br]
+## @since unreleased
+## [br]
+## @param options: 可选身份复制预算。
+## [br]
+## @schema options: 可包含 max_depth、max_nodes、max_bytes 和 max_packed_length 正整数。
+## [br]
+## @return: 完整副本报告。
+## [br]
+## @schema return: 包含 ok、value、error、path、node_count、byte_count 和 packed_length 字段的 Dictionary。
+func build_identity_report(options: Dictionary = {}) -> Dictionary:
+	return _SNAPSHOT_COPY.copy_complete_report(create_serialization_source(), options)
 
 
 # --- 私有/辅助方法 ---
@@ -260,6 +297,8 @@ func _validate_automatic_chain(
 	while current_id != &"":
 		var line: GFDialogueLine = get_line(current_id)
 		if not _is_automatic_line(line):
+			return
+		if line.condition_id != &"" or line.fallback_line_id != &"":
 			return
 		if visited.has(current_id):
 			if reported_cycles.has(current_id):

@@ -150,9 +150,10 @@ func commit(max_operations: int = -1) -> Dictionary:
 			break
 		var _removed_failed_operation: Variant = _pending_operations.pop_front()
 
-	var summary: Dictionary = _make_commit_summary(committed_count, failed_count, errors)
-	if GFVariantData.get_option_bool(summary, "ok") and auto_clear_committed_on_success:
+	var commit_succeeded: bool = failed_count == 0
+	if commit_succeeded and auto_clear_committed_on_success:
 		_committed_operations.clear()
+	var summary: Dictionary = _make_commit_summary(committed_count, failed_count, errors)
 	batch_committed.emit(summary)
 	return summary
 

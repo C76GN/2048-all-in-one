@@ -123,6 +123,7 @@ func register_target(
 	for property: GFRuntimeTunableProperty in properties:
 		var _registered: bool = register_property(target_id, property)
 	target_registered.emit(target_id)
+	_refresh_attached_overlay_panel()
 	return true
 
 
@@ -138,6 +139,7 @@ func unregister_target(target_id: StringName) -> bool:
 		return false
 	_erase_dictionary_key(_targets, target_id)
 	target_unregistered.emit(target_id)
+	_refresh_attached_overlay_panel()
 	return true
 
 
@@ -182,6 +184,7 @@ func register_property(target_id: StringName, property: GFRuntimeTunableProperty
 	else:
 		properties.append(property)
 	properties_by_id[property.property_id] = property
+	_refresh_attached_overlay_panel()
 	return true
 
 
@@ -205,6 +208,7 @@ func remove_property(target_id: StringName, property_id: StringName) -> bool:
 	var property: Variant = properties_by_id[property_id]
 	_erase_array_value(_get_array_ref(entry, "properties"), property)
 	_erase_dictionary_key(properties_by_id, property_id)
+	_refresh_attached_overlay_panel()
 	return true
 
 
@@ -269,6 +273,7 @@ func set_property_value(target_id: StringName, property_id: StringName, value: V
 		return false
 	var new_value: Variant = property.read_value(target)
 	property_changed.emit(target_id, property_id, old_value, new_value)
+	_refresh_attached_overlay_panel()
 	return true
 
 
@@ -295,6 +300,7 @@ func get_target_snapshot(include_hidden: bool = false) -> Array[Dictionary]:
 func clear_targets() -> void:
 	_targets.clear()
 	_target_order_counter = 0
+	_refresh_attached_overlay_panel()
 
 
 ## 将 Inspector 快照作为文本面板注册到 GFDebugOverlayUtility。
@@ -309,10 +315,33 @@ func attach_to_debug_overlay(panel_id: StringName = &"gf.runtime_inspector") -> 
 	if overlay == null:
 		return false
 	_attached_overlay_panel_id = panel_id
-	return overlay.register_panel(panel_id, Callable(self, "_build_overlay_panel_text"), {
+	return overlay.push_panel_text(panel_id, _build_overlay_panel_text(), {
 		"label": "Runtime Inspector",
 		"group": "Diagnostics",
 	})
+
+
+## 把 Inspector 当前状态重新发布到已附加的 Overlay 面板。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @return 已附加且发布成功时返回 true。
+func refresh_debug_overlay_panel() -> bool:
+	if _attached_overlay_panel_id == &"":
+		return false
+	var overlay: GFDebugOverlayUtility = _get_debug_overlay_utility()
+	if overlay == null:
+		return false
+	return overlay.push_panel_text(
+		_attached_overlay_panel_id,
+		_build_overlay_panel_text(),
+		{
+			"label": "Runtime Inspector",
+			"group": "Diagnostics",
+		}
+	)
 
 
 ## 从 GFDebugOverlayUtility 移除 Inspector 面板。
@@ -441,6 +470,12 @@ func _writes_are_allowed() -> bool:
 	if debug_build_writes_only and not OS.is_debug_build():
 		return false
 	return true
+
+
+func _refresh_attached_overlay_panel() -> void:
+	if _attached_overlay_panel_id == &"":
+		return
+	var _refreshed: bool = refresh_debug_overlay_panel()
 
 
 func _build_overlay_panel_text() -> String:

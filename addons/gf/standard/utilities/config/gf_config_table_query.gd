@@ -599,7 +599,7 @@ func _filter_matches(record: Dictionary, filter: Dictionary) -> bool:
 	var operator: int = GFVariantData.get_option_int(filter, "operator", Operator.EQ)
 	if operator == Operator.PREDICATE:
 		var predicate: Callable = _variant_to_callable(GFVariantData.get_option_value(filter, "value"))
-		return predicate.is_valid() and GFVariantData.to_bool(predicate.call(record), false)
+		return predicate.is_valid() and GFVariantData.to_bool(predicate.call(record.duplicate(true)), false)
 	if operator == Operator.ANY:
 		return _any_child_filter_matches(record, GFVariantData.get_option_array(filter, "filters"))
 	if operator == Operator.NONE:
@@ -835,6 +835,12 @@ static func _compare_values(left: Variant, right: Variant) -> int:
 	if _is_number(left) and _is_number(right):
 		var left_float: float = GFVariantData.to_float(left, 0.0)
 		var right_float: float = GFVariantData.to_float(right, 0.0)
+		var left_is_nan: bool = is_nan(left_float)
+		var right_is_nan: bool = is_nan(right_float)
+		if left_is_nan or right_is_nan:
+			if left_is_nan and right_is_nan:
+				return 0
+			return 1 if left_is_nan else -1
 		if is_equal_approx(left_float, right_float):
 			return 0
 		return -1 if left_float < right_float else 1

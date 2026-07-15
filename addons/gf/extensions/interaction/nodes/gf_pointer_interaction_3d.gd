@@ -217,7 +217,12 @@ const _RESERVED_POINTER_PAYLOAD_KEYS: Array[String] = [
 ## @api public
 ## [br]
 ## @since 3.17.0
-@export var ensure_input_ray_pickable: bool = true
+@export var ensure_input_ray_pickable: bool = true:
+	set(value):
+		if ensure_input_ray_pickable == value:
+			return
+		ensure_input_ray_pickable = value
+		_refresh_current_collision_object_binding(get_collision_object())
 
 ## hover 时是否临时切换鼠标光标。
 ## [br]
@@ -243,11 +248,17 @@ var _pressed_shape_idx: int = -1
 var _bound_input_ray_pickable_original: bool = false
 var _bound_input_ray_pickable_changed: bool = false
 var _has_previous_cursor_shape: bool = false
-var _previous_cursor_shape: Input.CursorShape = Input.CURSOR_ARROW
 static var _cursor_owner_stack: Array[Dictionary] = []
+static var _cursor_base_shape: Input.CursorShape = Input.CURSOR_ARROW
+static var _has_cursor_base_shape: bool = false
 
 
 # --- Godot 生命周期方法 ---
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		_disconnect_collision_object()
+
 
 func _ready() -> void:
 	bind_collision_object(_resolve_collision_object())
@@ -403,7 +414,11 @@ func _disconnect_collision_object() -> void:
 
 func _refresh_current_collision_object_binding(collision_object: CollisionObject3D) -> void:
 	_reset_pointer_state(true)
-	if collision_object == null or not ensure_input_ray_pickable:
+	if collision_object == null:
+		return
+	if not ensure_input_ray_pickable:
+		_restore_input_ray_pickable(collision_object)
+		_clear_collision_binding_state()
 		return
 	if not _bound_input_ray_pickable_changed:
 		_retain_input_ray_pickable(collision_object)
@@ -512,15 +527,16 @@ func _is_wheel_button(button_index: int) -> bool:
 
 
 func _set_hover_cursor(active: bool) -> void:
-	if not change_cursor_on_hover:
+	if active and not change_cursor_on_hover:
 		return
 	var owner_id: int = get_instance_id()
 	if active:
 		if not _cursor_stack_has_owner(owner_id):
-			_previous_cursor_shape = Input.get_current_cursor_shape()
+			if _cursor_owner_stack.is_empty():
+				_cursor_base_shape = Input.get_current_cursor_shape()
+				_has_cursor_base_shape = true
 			_cursor_owner_stack.append({
 				"owner_id": owner_id,
-				"previous_shape": _previous_cursor_shape,
 				"shape": cursor_shape,
 			})
 			_has_previous_cursor_shape = true
@@ -530,10 +546,10 @@ func _set_hover_cursor(active: bool) -> void:
 	_has_previous_cursor_shape = false
 	if not _cursor_owner_stack.is_empty():
 		Input.set_default_cursor_shape(_get_cursor_shape_from_entry(_cursor_owner_stack[_cursor_owner_stack.size() - 1], Input.CURSOR_ARROW))
-	elif not removed_entry.is_empty():
-		Input.set_default_cursor_shape(_get_cursor_shape_from_entry(removed_entry, Input.CURSOR_ARROW, "previous_shape"))
-	else:
-		Input.set_default_cursor_shape(Input.CURSOR_ARROW)
+	elif not removed_entry.is_empty() and _has_cursor_base_shape:
+		Input.set_default_cursor_shape(_cursor_base_shape)
+		_has_cursor_base_shape = false
+		_cursor_base_shape = Input.CURSOR_ARROW
 
 
 func _reset_pointer_state(reset_cursor: bool) -> void:
@@ -617,10 +633,9 @@ func _remove_cursor_stack_owner(owner_id: int) -> Dictionary:
 
 func _get_cursor_shape_from_entry(
 	entry: Dictionary,
-	fallback: Input.CursorShape,
-	field_name: String = "shape"
+	fallback: Input.CursorShape
 ) -> Input.CursorShape:
-	var shape: int = GFVariantData.get_option_int(entry, field_name, fallback)
+	var shape: int = GFVariantData.get_option_int(entry, "shape", fallback)
 	return shape as Input.CursorShape
 
 

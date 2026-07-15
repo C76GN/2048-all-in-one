@@ -136,7 +136,7 @@ func clear() -> void:
 ## [br]
 ## @return 注册成功返回 true。
 ## [br]
-## @schema packet_id: Variant used as dictionary key; null and empty text keys are rejected.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @schema entry_metadata: Dictionary copied into the ledger entry.
 func register_packet(packet_id: Variant, entry_metadata: Dictionary = {}, now_msec: int = -1) -> bool:
@@ -172,7 +172,7 @@ func register_packet(packet_id: Variant, entry_metadata: Dictionary = {}, now_ms
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
-## @schema packet_id: Variant stable protocol packet id.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @param result: 确认结果。
 ## [br]
@@ -193,7 +193,7 @@ func acknowledge_packet(packet_id: Variant, result: Variant = null, now_msec: in
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
-## @schema packet_id: Variant stable protocol packet id.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @param error: 失败说明。
 ## [br]
@@ -250,7 +250,7 @@ func expire_pending(now_msec: int = -1) -> Dictionary:
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
-## @schema packet_id: Variant stable protocol packet id.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @param now_msec: 当前时间；小于 0 时使用 Time.get_ticks_msec()。
 ## [br]
@@ -323,7 +323,7 @@ func get_retry_ready_ids(now_msec: int = -1, limit: int = 0) -> Array:
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
-## @schema packet_id: Variant stable protocol packet id.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @return 条目不存在时返回 0。
 func get_attempt_count(packet_id: Variant) -> int:
@@ -340,7 +340,7 @@ func get_attempt_count(packet_id: Variant) -> int:
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
-## @schema packet_id: Variant used as incoming dedupe key; null and empty text keys are rejected.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @param sequence: 可选严格递增序号；小于 0 时不执行顺序检查。
 ## [br]
@@ -380,7 +380,7 @@ func accept_incoming_packet(
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
-## @schema packet_id: Variant stable protocol packet id.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @return 已出现时返回 true。
 func has_incoming_packet(packet_id: Variant) -> bool:
@@ -395,7 +395,7 @@ func has_incoming_packet(packet_id: Variant) -> bool:
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
-## @schema packet_id: Variant stable protocol packet id.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @return 移除成功返回 true。
 func remove_packet(packet_id: Variant) -> bool:
@@ -414,7 +414,7 @@ func remove_packet(packet_id: Variant) -> bool:
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
-## @schema packet_id: Variant stable protocol packet id.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @return 存在返回 true。
 func has_packet(packet_id: Variant) -> bool:
@@ -429,7 +429,7 @@ func has_packet(packet_id: Variant) -> bool:
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
-## @schema packet_id: Variant stable protocol packet id.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @return 待确认返回 true。
 func is_pending(packet_id: Variant) -> bool:
@@ -446,7 +446,7 @@ func is_pending(packet_id: Variant) -> bool:
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
-## @schema packet_id: Variant stable protocol packet id.
+## @schema packet_id: Non-empty String/StringName or int stable protocol packet id.
 ## [br]
 ## @return 条目副本；不存在时返回空字典。
 ## [br]
@@ -690,8 +690,8 @@ func _normalize_time_msec(now_msec: int) -> int:
 
 
 func _is_valid_packet_id(packet_id: Variant) -> bool:
-	if packet_id == null:
-		return false
+	if packet_id is int:
+		return true
 	if packet_id is String or packet_id is StringName:
 		return not GFVariantData.to_text(packet_id).strip_edges().is_empty()
-	return true
+	return false

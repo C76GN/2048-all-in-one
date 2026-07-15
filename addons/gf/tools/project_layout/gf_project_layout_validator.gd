@@ -35,6 +35,47 @@ const _SUPPORTED_RULE_KINDS: PackedStringArray = [
 	_RULE_NAMING_CONVENTION,
 ]
 const _SUPPORTED_SEVERITIES: PackedStringArray = ["error", "warning", "info"]
+const _PROFILE_ALLOWED_FIELDS: PackedStringArray = [
+	"schema_version",
+	"id",
+	"display_name",
+	"description",
+	"zones",
+	"rules",
+	"metadata",
+]
+const _ZONE_ALLOWED_FIELDS: PackedStringArray = [
+	"id",
+	"description",
+	"roots",
+	"required",
+	"allow_extensions",
+	"deny_extensions",
+	"exclude",
+	"severity",
+	"metadata",
+]
+const _RULE_ALLOWED_FIELDS: PackedStringArray = [
+	"id",
+	"description",
+	"kind",
+	"paths",
+	"any",
+	"roots",
+	"include",
+	"exclude",
+	"extensions",
+	"pattern",
+	"target",
+	"allowed_files",
+	"feature_id_pattern",
+	"required_subdirs",
+	"allowed_subdirs",
+	"allow_root_files",
+	"max_files",
+	"severity",
+	"metadata",
+]
 
 
 # --- 公共方法 ---
@@ -47,7 +88,7 @@ const _SUPPORTED_SEVERITIES: PackedStringArray = ["error", "warning", "info"]
 ## [br]
 ## @param options: 校验选项。
 ## [br]
-## @schema options: Dictionary，可包含 root_path、include_hidden、max_scanned_files、allow_missing_root 和 allow_absolute_root。
+## @schema options: Dictionary，可包含 root_path、include_hidden、max_scanned_files、max_scanned_directories、max_scan_depth、allow_missing_root 和 allow_absolute_root。
 ## [br]
 ## @return: 校验报告。
 ## [br]
@@ -66,7 +107,7 @@ func validate_default_profile(options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @param options: 校验选项。
 ## [br]
-## @schema options: Dictionary，可包含 root_path、include_hidden、max_scanned_files、allow_missing_root 和 allow_absolute_root。
+## @schema options: Dictionary，可包含 root_path、include_hidden、max_scanned_files、max_scanned_directories、max_scan_depth、allow_missing_root 和 allow_absolute_root。
 ## [br]
 ## @return: 校验报告。
 ## [br]
@@ -108,7 +149,7 @@ func validate_profile_path(profile_path: String, options: Dictionary = {}) -> Di
 ## [br]
 ## @param options: 校验选项。
 ## [br]
-## @schema options: Dictionary，可包含 root_path、include_hidden、max_scanned_files、allow_missing_root 和 allow_absolute_root。
+## @schema options: Dictionary，可包含 root_path、include_hidden、max_scanned_files、max_scanned_directories、max_scan_depth、allow_missing_root 和 allow_absolute_root。
 ## [br]
 ## @return: 校验报告。
 ## [br]
@@ -187,25 +228,42 @@ func _make_report(profile_id: String, root_path: String) -> Dictionary:
 
 
 func _validate_profile_header(profile: Dictionary, report: Dictionary) -> void:
-	if _get_int(profile, "schema_version") != _SCHEMA_VERSION:
+	var schema_version: Variant = profile.get("schema_version")
+	if not _is_exact_integer(schema_version):
+		_add_issue(
+			report,
+			"error",
+			"invalid_integer_field",
+			"schema_version",
+			"项目结构 profile schema_version 必须是整数。",
+			{ "field": "schema_version", "actual_type": typeof(schema_version) }
+		)
+	elif _exact_integer_value(schema_version) != _SCHEMA_VERSION:
 		_add_issue(
 			report,
 			"error",
 			"unsupported_schema_version",
 			"",
 			"项目结构 profile schema_version 必须为 %d。" % _SCHEMA_VERSION,
-			{ "actual_value": _get_int(profile, "schema_version") }
+			{ "actual_value": schema_version }
 		)
 	if _get_string(profile, "id").is_empty():
 		_add_issue(report, "error", "missing_profile_id", "", "项目结构 profile 缺少 id。")
 
 
 func _validate_profile_schema(profile: Dictionary, report: Dictionary) -> void:
+	_append_unsupported_fields(profile, _PROFILE_ALLOWED_FIELDS, "unsupported_profile_field", "profile", report)
+	if not profile.get("zones", []) is Array:
+		_add_issue(report, "error", "invalid_profile_field_type", "zones", "项目结构 profile zones 必须是 Array。")
+	if not profile.get("rules", []) is Array:
+		_add_issue(report, "error", "invalid_profile_field_type", "rules", "项目结构 profile rules 必须是 Array。")
 	var zones: Array = _get_array(profile, "zones")
 	for zone_value: Variant in zones:
 		if not (zone_value is Dictionary):
+			_add_issue(report, "error", "invalid_zone", "", "项目结构 profile zones 条目必须是 Dictionary。")
 			continue
 		var zone: Dictionary = zone_value
+		_append_unsupported_fields(zone, _ZONE_ALLOWED_FIELDS, "unsupported_zone_field", _get_string(zone, "id"), report)
 		if zone.has("severity"):
 			_validate_profile_severity(_get_string(zone, "severity"), "zones", _get_string(zone, "id"), report)
 
@@ -215,6 +273,7 @@ func _validate_profile_schema(profile: Dictionary, report: Dictionary) -> void:
 			_add_issue(report, "error", "invalid_rule", "", "项目结构 profile rules 条目必须是 Dictionary。")
 			continue
 		var rule: Dictionary = rule_value
+		_append_unsupported_fields(rule, _RULE_ALLOWED_FIELDS, "unsupported_rule_field", _get_string(rule, "id"), report)
 		var kind: String = _get_string(rule, "kind")
 		if not _SUPPORTED_RULE_KINDS.has(kind):
 			_add_issue(
@@ -227,6 +286,43 @@ func _validate_profile_schema(profile: Dictionary, report: Dictionary) -> void:
 			)
 		if rule.has("severity"):
 			_validate_profile_severity(_get_string(rule, "severity"), "rules", _get_string(rule, "id"), report)
+		if rule.has("max_files"):
+			_validate_positive_integer_field(rule, "max_files", _get_string(rule, "id"), report)
+
+
+func _append_unsupported_fields(
+	data: Dictionary,
+	allowed_fields: PackedStringArray,
+	issue_kind: String,
+	scope: String,
+	report: Dictionary
+) -> void:
+	for field_value: Variant in data.keys():
+		var field_name: String = str(field_value)
+		if allowed_fields.has(field_name):
+			continue
+		_add_issue(
+			report,
+			"error",
+			issue_kind,
+			scope,
+			"项目结构 profile 包含不受支持的字段：%s。" % field_name,
+			{ "field": field_name }
+		)
+
+
+func _validate_positive_integer_field(data: Dictionary, field_name: String, scope: String, report: Dictionary) -> void:
+	var value: Variant = data.get(field_name)
+	if _is_exact_integer(value) and _exact_integer_value(value) > 0:
+		return
+	_add_issue(
+		report,
+		"error",
+		"invalid_integer_field",
+		scope,
+		"项目结构 profile %s 必须是正整数。" % field_name,
+		{ "field": field_name, "actual_value": value }
+	)
 
 
 func _validate_profile_severity(severity: String, scope: String, item_id: String, report: Dictionary) -> void:
@@ -249,6 +345,9 @@ func _validate_root_path(root_path: String, options: Dictionary, report: Diction
 	if _path_has_parent_segment(root_path):
 		_add_issue(report, "error", "root_path_has_parent_segment", root_path, "项目根路径不能包含父级越界片段。")
 		return
+	if _path_crosses_link(root_path):
+		_add_issue(report, "error", "linked_path_not_allowed", root_path, "项目根路径不能穿过符号链接或目录联接。")
+		return
 	if root_path.begins_with("res://") or root_path.begins_with("user://"):
 		return
 	if _is_filesystem_absolute_path(root_path) and _get_bool(options, "allow_absolute_root"):
@@ -269,9 +368,11 @@ func _scan_project(root_path: String, options: Dictionary, report: Dictionary) -
 			_add_issue(report, "error", "root_path_not_found", root_path, "项目根目录不存在。")
 		return result
 
-	var max_scanned_files: int = maxi(_get_int(options, "max_scanned_files", 20000), 1)
-	var max_scanned_directories: int = maxi(_get_int(options, "max_scanned_directories", 20000), 1)
-	var max_scan_depth: int = maxi(_get_int(options, "max_scan_depth", 32), 1)
+	var max_scanned_files: int = _get_positive_integer_option(options, "max_scanned_files", 20000, report)
+	var max_scanned_directories: int = _get_positive_integer_option(options, "max_scanned_directories", 20000, report)
+	var max_scan_depth: int = _get_positive_integer_option(options, "max_scan_depth", 32, report)
+	if _get_int(report, "error_count") > 0:
+		return result
 	_scan_directory(root_path, "", _get_bool(options, "include_hidden"), max_scanned_files, max_scanned_directories, max_scan_depth, 0, result, report)
 	return result
 
@@ -287,45 +388,47 @@ func _scan_directory(
 	result: Dictionary,
 	report: Dictionary
 ) -> void:
-	if _get_int(result, "file_count") >= max_scanned_files:
-		return
-	if _get_int(result, "directory_count") >= max_scanned_directories:
-		return
 	if depth > max_scan_depth:
-		_add_issue(report, "warning", "scan_depth_limit_reached", root_path, "项目结构扫描达到目录深度上限。")
+		_add_issue(report, "error", "scan_depth_limit_reached", root_path, "项目结构扫描超过目录深度上限，无法证明项目结构有效。")
 		return
 
 	var current_path: String = root_path if relative_path.is_empty() else root_path.path_join(relative_path)
 	var directory: DirAccess = DirAccess.open(ProjectSettings.globalize_path(current_path))
 	if directory == null:
-		_add_issue(report, "warning", "directory_scan_failed", current_path, "目录无法扫描。")
+		_add_issue(report, "error", "directory_scan_failed", current_path, "目录无法扫描，无法证明项目结构有效。")
 		return
 
 	var files: PackedStringArray = directory.get_files()
 	for file_name: String in files:
 		if not include_hidden and file_name.begins_with("."):
 			continue
+		if directory.is_link(file_name):
+			_add_issue(report, "error", "linked_path_not_allowed", current_path.path_join(file_name), "项目结构扫描不允许符号链接文件。")
+			continue
+		if _get_int(result, "file_count") >= max_scanned_files:
+			_add_issue(report, "error", "scan_file_limit_reached", root_path, "项目结构扫描超过文件数量上限，无法证明项目结构有效。")
+			return
 		var file_path: String = _join_relative_path(relative_path, file_name)
 		var file_list: PackedStringArray = _get_packed_string_array(result, "files")
 		var _append_file: bool = file_list.append(file_path)
 		result["files"] = file_list
 		result["file_count"] = _get_int(result, "file_count") + 1
-		if _get_int(result, "file_count") >= max_scanned_files:
-			_add_issue(report, "warning", "scan_file_limit_reached", root_path, "项目结构扫描达到文件数量上限。")
-			return
 
 	var directories: PackedStringArray = directory.get_directories()
 	for directory_name: String in directories:
 		if not include_hidden and directory_name.begins_with("."):
 			continue
 		var child_path: String = _join_relative_path(relative_path, directory_name)
+		if directory.is_link(directory_name):
+			_add_issue(report, "error", "linked_path_not_allowed", root_path.path_join(child_path), "项目结构扫描不允许符号链接或目录联接。")
+			continue
+		if _get_int(result, "directory_count") >= max_scanned_directories:
+			_add_issue(report, "error", "scan_directory_limit_reached", root_path, "项目结构扫描超过目录数量上限，无法证明项目结构有效。")
+			return
 		var directory_list: PackedStringArray = _get_packed_string_array(result, "directories")
 		var _append_directory: bool = directory_list.append(child_path)
 		result["directories"] = directory_list
 		result["directory_count"] = _get_int(result, "directory_count") + 1
-		if _get_int(result, "directory_count") >= max_scanned_directories:
-			_add_issue(report, "warning", "scan_directory_limit_reached", root_path, "项目结构扫描达到目录数量上限。")
-			return
 		_scan_directory(root_path, child_path, include_hidden, max_scanned_files, max_scanned_directories, max_scan_depth, depth + 1, result, report)
 
 
@@ -797,13 +900,27 @@ func _normalize_relative_path(path: String) -> String:
 
 
 func _path_has_parent_segment(path: String) -> bool:
-	var body: String = path
-	if path.contains("://"):
-		body = path.get_slice("://", 1)
+	var normalized_path: String = path.replace("\\", "/")
+	var body: String = normalized_path
+	if normalized_path.contains("://"):
+		body = normalized_path.get_slice("://", 1)
 	var parts: PackedStringArray = body.split("/", false)
 	for part: String in parts:
 		if part == "..":
 			return true
+	return false
+
+
+func _path_crosses_link(path: String) -> bool:
+	var probe_path: String = ProjectSettings.globalize_path(path).replace("\\", "/").simplify_path()
+	while not probe_path.is_empty():
+		var parent_path: String = probe_path.get_base_dir()
+		if parent_path == probe_path or parent_path.is_empty():
+			return false
+		var parent_directory: DirAccess = DirAccess.open(parent_path)
+		if parent_directory != null and parent_directory.is_link(probe_path.get_file()):
+			return true
+		probe_path = parent_path
 	return false
 
 
@@ -853,9 +970,44 @@ func _get_int(source: Dictionary, key: String, default_value: int = 0) -> int:
 	if value is int:
 		var int_value: int = value
 		return int_value
+	if value is float and _is_exact_integer(value):
+		return _exact_integer_value(value)
+	return default_value
+
+
+func _is_exact_integer(value: Variant) -> bool:
+	if value is int:
+		return true
+	if not value is float:
+		return false
+	var float_value: float = value
+	return is_finite(float_value) and float_value == floorf(float_value)
+
+
+func _exact_integer_value(value: Variant, default_value: int = 0) -> int:
+	if value is int:
+		return value
 	if value is float:
 		var float_value: float = value
-		return int(float_value)
+		if _is_exact_integer(float_value):
+			return int(float_value)
+	return default_value
+
+
+func _get_positive_integer_option(options: Dictionary, key: String, default_value: int, report: Dictionary) -> int:
+	if not options.has(key):
+		return default_value
+	var value: Variant = options[key]
+	if value is int and value > 0:
+		return value
+	_add_issue(
+		report,
+		"error",
+		"invalid_integer_option",
+		key,
+		"项目结构扫描选项 %s 必须是正整数。" % key,
+		{ "option": key, "actual_value": value }
+	)
 	return default_value
 
 

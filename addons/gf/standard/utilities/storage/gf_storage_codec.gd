@@ -65,10 +65,24 @@ const COMPRESSION_KEY: String = "compression"
 ## @api public
 const ENVELOPE_KEY: String = "__gf_storage_envelope"
 
+## 存储 envelope schema 版本字段名。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const ENVELOPE_VERSION_KEY: String = "__gf_storage_envelope_version"
+
 ## 存储 envelope 内原始用户数据的字段名。
 ## [br]
 ## @api public
 const ENVELOPE_DATA_KEY: String = "data"
+
+## 当前存储 envelope schema 版本。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+const ENVELOPE_VERSION: int = 1
 
 const _COMPRESSION_MODE: int = FileAccess.COMPRESSION_DEFLATE
 
@@ -202,19 +216,27 @@ func decode(bytes: PackedByteArray, options: Dictionary = {}) -> Dictionary:
 	if payload_bytes.is_empty():
 		return _make_result(false, {}, "Payload is empty", true)
 
+	var deserialize_result: Dictionary = {}
 	if should_compress:
-		payload_bytes = payload_bytes.decompress_dynamic(
-			GFVariantData.get_option_int(options, "max_decompressed_bytes", max_decompressed_bytes),
-			_COMPRESSION_MODE
-		)
-		if payload_bytes.is_empty() and not bytes.is_empty():
-			return _make_result(false, {}, "Decompression failed", true)
+		if should_allow_legacy_plain_json:
+			deserialize_result = _try_legacy_plain_json(bytes, should_normalize_json_numbers)
+		if GFVariantData.get_option_bool(deserialize_result, "ok"):
+			payload_bytes = bytes
+		else:
+			deserialize_result.clear()
+			payload_bytes = payload_bytes.decompress_dynamic(
+				GFVariantData.get_option_int(options, "max_decompressed_bytes", max_decompressed_bytes),
+				_COMPRESSION_MODE
+			)
+			if payload_bytes.is_empty() and not bytes.is_empty():
+				return _make_result(false, {}, "Decompression failed", true)
 
-	var deserialize_result: Dictionary = _try_deserialize_dictionary(
-		payload_bytes,
-		active_format,
-		should_normalize_json_numbers
-	)
+	if deserialize_result.is_empty():
+		deserialize_result = _try_deserialize_dictionary(
+			payload_bytes,
+			active_format,
+			should_normalize_json_numbers
+		)
 	var data: Dictionary = GFVariantData.as_dictionary(GFVariantData.get_option_value(deserialize_result, "data", {}))
 	if (
 		should_allow_legacy_plain_json
@@ -391,9 +413,14 @@ func _prepare_metadata(
 
 func _make_storage_payload(data: Dictionary, should_write_metadata: bool) -> Dictionary:
 	var payload: Dictionary = data.duplicate(true)
-	if should_write_metadata and payload.has(META_KEY):
+	if (
+		(should_write_metadata and payload.has(META_KEY))
+		or payload.has(ENVELOPE_KEY)
+		or payload.has(ENVELOPE_VERSION_KEY)
+	):
 		return {
 			ENVELOPE_KEY: true,
+			ENVELOPE_VERSION_KEY: ENVELOPE_VERSION,
 			ENVELOPE_DATA_KEY: payload,
 		}
 	return payload
@@ -406,10 +433,16 @@ func _get_user_payload(data: Dictionary) -> Dictionary:
 
 
 func _is_storage_envelope(data: Dictionary) -> bool:
-	return (
-		GFVariantData.get_option_bool(data, ENVELOPE_KEY)
-		and GFVariantData.get_option_value(data, ENVELOPE_DATA_KEY) is Dictionary
-	)
+	if not data.has(ENVELOPE_KEY) or not data[ENVELOPE_KEY] is bool or not data[ENVELOPE_KEY]:
+		return false
+	if GFVariantData.get_option_int(data, ENVELOPE_VERSION_KEY, -1) != ENVELOPE_VERSION:
+		return false
+	if not GFVariantData.get_option_value(data, ENVELOPE_DATA_KEY) is Dictionary:
+		return false
+	for key: Variant in data.keys():
+		if key != ENVELOPE_KEY and key != ENVELOPE_VERSION_KEY and key != ENVELOPE_DATA_KEY and key != META_KEY:
+			return false
+	return true
 
 
 func _serialize_dictionary(data: Dictionary, p_format: Format) -> PackedByteArray:

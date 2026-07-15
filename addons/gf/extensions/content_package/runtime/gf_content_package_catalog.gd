@@ -58,7 +58,7 @@ func add_manifest(manifest: GFContentPackageManifest) -> bool:
 		_add_duplicate_package_id(manifest.package_id)
 		return false
 
-	_manifests[manifest.package_id] = manifest
+	_manifests[manifest.package_id] = manifest.duplicate_manifest()
 	_manifest_order.append(manifest.package_id)
 	return true
 
@@ -112,15 +112,33 @@ func has_package(package_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
+## @since 4.4.0
+## [br]
 ## @param package_id: 内容包 ID。
 ## [br]
-## @return manifest；不存在时返回 null。
+## @return manifest 深拷贝；不存在时返回 null。
 func get_manifest(package_id: StringName) -> GFContentPackageManifest:
-	var manifest_value: Variant = _manifests.get(package_id)
-	if manifest_value is GFContentPackageManifest:
-		var manifest: GFContentPackageManifest = manifest_value
-		return manifest
-	return null
+	var manifest: GFContentPackageManifest = _get_manifest_ref(package_id)
+	return manifest.duplicate_manifest() if manifest != null else null
+
+
+## 创建目录深拷贝。
+## [br]
+## @api public
+## [br]
+## @return 与当前依赖图和重复 ID 状态一致的新目录。
+## [br]
+## @since unreleased
+func duplicate_catalog() -> GFContentPackageCatalog:
+	var result: GFContentPackageCatalog = GFContentPackageCatalog.new()
+	for package_id: StringName in _manifest_order:
+		var manifest: GFContentPackageManifest = _get_manifest_ref(package_id)
+		if manifest == null:
+			continue
+		result._manifests[package_id] = manifest.duplicate_manifest()
+		result._manifest_order.append(package_id)
+	result._duplicate_package_ids = _duplicate_package_ids.duplicate()
+	return result
 
 
 ## 获取内容包 ID 列表。
@@ -152,11 +170,13 @@ func get_ordered_package_ids() -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
+## @since 4.4.0
+## [br]
 ## @param options: 校验选项，透传给 GFContentPackageManifest。
 ## [br]
 ## @return GFValidationReportDictionary 兼容报告。
 ## [br]
-## @schema options: Dictionary，可包含 check_resource_exists: bool。
+## @schema options: Dictionary，可包含 check_resource_exists: bool、check_resource_dependencies: bool 和 dependency_options: Dictionary。
 ## [br]
 ## @schema return: GFValidationReportDictionary.finalize_report() 生成的 Dictionary，并包含 package_count、package_ids、ordered_package_ids 和 duplicate_package_ids。
 func get_graph_report(options: Dictionary = {}) -> Dictionary:
@@ -176,13 +196,15 @@ func get_graph_report(options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
+## @since 4.4.0
+## [br]
 ## @param resolver: 标准资源解析器。
 ## [br]
-## @param options: 注册选项。`base_priority` 默认为 0；`check_resource_exists` 默认为 false。
+## @param options: 注册选项。`base_priority` 默认为 0；校验选项透传给 manifest。
 ## [br]
 ## @return GFValidationReportDictionary 兼容报告，并包含 registered_count。
 ## [br]
-## @schema options: Dictionary，可包含 base_priority: int 和 check_resource_exists: bool。
+## @schema options: Dictionary，可包含 base_priority: int、check_resource_exists: bool、check_resource_dependencies: bool 和 dependency_options: Dictionary。
 ## [br]
 ## @schema return: GFValidationReportDictionary.finalize_report() 生成的 Dictionary，并包含 registered_count。
 func register_resources(resolver: GFResourceResolverUtility, options: Dictionary = {}) -> Dictionary:
@@ -213,10 +235,9 @@ func register_resources(resolver: GFResourceResolverUtility, options: Dictionary
 		report["registered_count"] = 0
 		return _finalize_report(report, "Content package resource registration")
 
-	_unregister_content_package_resources(resolver)
-
+	var registration_entries: Array[Dictionary] = []
 	for package_id_text: String in get_ordered_package_ids():
-		var manifest: GFContentPackageManifest = get_manifest(StringName(package_id_text))
+		var manifest: GFContentPackageManifest = _get_manifest_ref(StringName(package_id_text))
 		if manifest == null:
 			continue
 		for resource_entry: Dictionary in manifest.get_normalized_resources():
@@ -228,31 +249,33 @@ func register_resources(resolver: GFResourceResolverUtility, options: Dictionary
 			metadata["content_package_id"] = StringName(package_id_text)
 			metadata["content_package_resource_key"] = resource_key
 			metadata["_gf_content_package_resource"] = true
-			var registration_id: StringName = resolver.register_path_for_owner(
-				resource_key,
-				_RESOLVER_OWNER_ID,
-				path,
-				type_hint,
-				priority,
-				metadata
-			)
-			if registration_id != &"":
-				registered_count += 1
-				continue
+			registration_entries.append({
+				"resource_key": resource_key,
+				"path": path,
+				"type_hint": type_hint,
+				"priority": priority,
+				"metadata": metadata,
+			})
 
-			var _issue: Dictionary = GFValidationReportDictionary.append_issue(
-				report,
-				"error",
-				StringName(_KIND_RESOURCE_REGISTRATION_FAILED),
-				"resource registration failed",
-				{
-					"key": package_id_text,
-					"row_key": resource_key,
-					"field": &"resources",
-					"path": "packages.%s.resources" % package_id_text,
-					"actual_value": path,
-				}
-			)
+	var replacement_report: Dictionary = resolver.replace_owner_paths(
+		_RESOLVER_OWNER_ID,
+		registration_entries
+	)
+	if GFVariantData.get_option_bool(replacement_report, "ok", false):
+		registered_count = GFVariantData.get_option_int(replacement_report, "registered_count")
+	else:
+		var _issue: Dictionary = GFValidationReportDictionary.append_issue(
+			report,
+			"error",
+			StringName(_KIND_RESOURCE_REGISTRATION_FAILED),
+			"resource registration transaction failed",
+			{
+				"field": &"resources",
+				"path": "packages.resources",
+				"actual_value": GFVariantData.get_option_string_name(replacement_report, "reason"),
+				"row_index": GFVariantData.get_option_int(replacement_report, "failed_index", -1),
+			}
+		)
 
 	report["registered_count"] = registered_count
 	return _finalize_report(report, "Content package resource registration")
@@ -276,6 +299,13 @@ func get_debug_snapshot() -> Dictionary:
 
 # --- 私有/辅助方法 ---
 
+func _get_manifest_ref(package_id: StringName) -> GFContentPackageManifest:
+	var manifest_value: Variant = _manifests.get(package_id)
+	if manifest_value is GFContentPackageManifest:
+		var manifest: GFContentPackageManifest = manifest_value
+		return manifest
+	return null
+
 func _add_duplicate_package_id(package_id: StringName) -> void:
 	var package_id_text: String = String(package_id)
 	if not _duplicate_package_ids.has(package_id_text):
@@ -288,12 +318,6 @@ func _remove_duplicate_package_id(package_id: StringName) -> void:
 	while index >= 0:
 		_duplicate_package_ids.remove_at(index)
 		index = _duplicate_package_ids.find(package_id_text)
-
-
-func _unregister_content_package_resources(resolver: GFResourceResolverUtility) -> void:
-	if resolver == null:
-		return
-	var _removed_count: int = resolver.unregister_owner(_RESOLVER_OWNER_ID)
 
 
 func _add_duplicate_issues(report: Dictionary) -> void:
@@ -318,7 +342,7 @@ func _add_manifest_issues(
 	options: Dictionary
 ) -> void:
 	for package_id: StringName in _manifest_order:
-		var manifest: GFContentPackageManifest = get_manifest(package_id)
+		var manifest: GFContentPackageManifest = _get_manifest_ref(package_id)
 		if manifest == null:
 			continue
 		var manifest_report: Dictionary = manifest.get_validation_report(options)
@@ -346,7 +370,7 @@ func _add_manifest_issues(
 
 func _add_dependency_issues(report: Dictionary) -> void:
 	for package_id: StringName in _manifest_order:
-		var manifest: GFContentPackageManifest = get_manifest(package_id)
+		var manifest: GFContentPackageManifest = _get_manifest_ref(package_id)
 		if manifest == null:
 			continue
 		for dependency_id_text: String in manifest.dependencies:
@@ -398,7 +422,7 @@ func _collect_dependency_cycles() -> Array[PackedStringArray]:
 func _build_dependency_map() -> Dictionary:
 	var result: Dictionary = {}
 	for package_id: StringName in _manifest_order:
-		var manifest: GFContentPackageManifest = get_manifest(package_id)
+		var manifest: GFContentPackageManifest = _get_manifest_ref(package_id)
 		if manifest == null:
 			continue
 		var dependencies: PackedStringArray = PackedStringArray()

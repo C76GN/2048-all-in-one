@@ -14,6 +14,7 @@ extends GFInputTrigger
 # --- 常量 ---
 
 const _INSTANCE_GUARD = preload("res://addons/gf/kernel/core/gf_instance_guard.gd")
+const _BRANCH_CONFIGURATION_SIGNATURE_KEY: String = "branch_configuration_signature"
 
 
 # --- 导出变量 ---
@@ -64,6 +65,7 @@ func reset_trigger_state(state: Dictionary) -> void:
 	state["gap_elapsed"] = 0.0
 	state["completed"] = false
 	state["branch_states"] = []
+	state[_BRANCH_CONFIGURATION_SIGNATURE_KEY] = ""
 
 
 ## 准备输入动作运行时状态。
@@ -108,6 +110,7 @@ func prepare_runtime(
 ## @return 触发状态。
 func update(raw_active: bool, _value: Variant, delta: float, state: Dictionary) -> TriggerState:
 	var effective_branches: Array[GFInputSequenceBranch] = _get_effective_branches()
+	_ensure_branch_configuration_state(state, effective_branches)
 	if effective_branches.is_empty():
 		return TriggerState.TRIGGERED if raw_active else TriggerState.INACTIVE
 
@@ -172,6 +175,37 @@ func _make_required_action_signature() -> String:
 
 func _append_signature_part(parts: PackedStringArray, value: String) -> void:
 	var _append_result: bool = parts.append("%d:%s" % [value.length(), value])
+
+
+func _make_branch_configuration_signature(effective_branches: Array[GFInputSequenceBranch]) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	_append_signature_part(parts, str(max_gap_seconds))
+	_append_signature_part(parts, "1" if player_scoped else "0")
+	_append_signature_part(parts, str(effective_branches.size()))
+	for branch: GFInputSequenceBranch in effective_branches:
+		_append_signature_part(parts, str(branch.max_gap_seconds))
+		var steps: Array[GFInputSequenceStep] = _get_valid_steps(branch)
+		_append_signature_part(parts, str(steps.size()))
+		for step: GFInputSequenceStep in steps:
+			_append_signature_part(parts, String(step.action_id))
+			_append_signature_part(parts, str(step.max_gap_seconds))
+			_append_signature_part(parts, str(step.min_hold_seconds))
+			_append_signature_part(parts, "1" if step.trigger_on_release else "0")
+	return "|".join(parts)
+
+
+func _ensure_branch_configuration_state(
+	state: Dictionary,
+	effective_branches: Array[GFInputSequenceBranch]
+) -> void:
+	var signature: String = _make_branch_configuration_signature(effective_branches)
+	if GFVariantData.get_option_string(state, _BRANCH_CONFIGURATION_SIGNATURE_KEY) == signature:
+		return
+	state["sequence_index"] = 0
+	state["gap_elapsed"] = 0.0
+	state["completed"] = false
+	state["branch_states"] = []
+	state[_BRANCH_CONFIGURATION_SIGNATURE_KEY] = signature
 
 
 func _advance_branch(
@@ -332,9 +366,14 @@ func _get_branch_states(state: Dictionary, branch_count: int) -> Array[Dictionar
 		branch_states.pop_back()
 	state["branch_states"] = branch_states
 	var typed_states: Array[Dictionary] = []
-	for branch_state_value: Variant in branch_states:
+	for index: int in range(branch_states.size()):
+		var branch_state_value: Variant = branch_states[index]
 		if branch_state_value is Dictionary:
 			typed_states.append(GFVariantData.as_dictionary(branch_state_value))
+		else:
+			var replacement: Dictionary = _make_branch_state()
+			branch_states[index] = replacement
+			typed_states.append(replacement)
 	return typed_states
 
 

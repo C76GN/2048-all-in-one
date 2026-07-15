@@ -34,6 +34,20 @@ const JSON_TYPE_KEY: String = "type"
 ## @api framework_internal
 const JSON_VALUE_KEY: String = "value"
 
+## JSON 类型标记中的 codec 身份字段名。
+## [br]
+## @api framework_internal
+## [br]
+## @since unreleased
+const JSON_CODEC_KEY: String = "codec"
+
+## 当前 typed marker 的 codec 身份。
+## [br]
+## @api framework_internal
+## [br]
+## @since unreleased
+const JSON_CODEC_ID: String = "gf.variant-json"
+
 ## 当前 Variant JSON 标记格式版本。
 ## [br]
 ## @api framework_internal
@@ -678,6 +692,7 @@ static func _make_json_typed_value(type_name: String, typed_value: Variant) -> D
 	return {
 		JSON_MARKER_KEY: {
 			JSON_VERSION_KEY: JSON_SCHEMA_VERSION,
+			JSON_CODEC_KEY: JSON_CODEC_ID,
 			JSON_TYPE_KEY: type_name,
 			JSON_VALUE_KEY: typed_value,
 		},
@@ -690,6 +705,7 @@ static func _is_json_typed_value(value: Dictionary) -> bool:
 	var marker: Dictionary = GFVariantData.as_dictionary(GFVariantData.get_option_value(value, JSON_MARKER_KEY))
 	return (
 		GFVariantData.get_option_int(marker, JSON_VERSION_KEY, 0) == JSON_SCHEMA_VERSION
+		and GFVariantData.get_option_string(marker, JSON_CODEC_KEY) == JSON_CODEC_ID
 		and marker.has(JSON_TYPE_KEY)
 		and marker.has(JSON_VALUE_KEY)
 	)

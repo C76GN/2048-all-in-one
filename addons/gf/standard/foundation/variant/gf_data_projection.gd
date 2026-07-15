@@ -23,7 +23,7 @@ extends RefCounted
 ## [br]
 ## @param values: 输入字典。
 ## [br]
-## @param options: 可选配置，支持 allowed_fields、rename_fields、schema、max_depth、unsupported、include_null 和 defaults。
+## @param options: 可选配置，支持 allowed_fields、rename_fields、schema、max_depth、unsupported、include_null、defaults 和 json_safe。
 ## [br]
 ## @return 投影后的字典。
 ## [br]
@@ -58,7 +58,7 @@ static func project_dictionary(values: Dictionary, options: Dictionary = {}) -> 
 	var defaults: Dictionary = GFVariantData.get_option_dictionary(options, "defaults")
 	if not defaults.is_empty():
 		var _merged_defaults: Dictionary = GFVariantData.deep_merge_defaults(result, defaults)
-	return result
+	return _dictionary_to_requested_output(result, options)
 
 
 ## 投影 Object 或 Resource 的显式字段。
@@ -113,7 +113,7 @@ static func project_object(
 ## [br]
 ## @param value: 输入值。
 ## [br]
-## @param options: 可选配置，支持 max_depth、unsupported 和 include_null。
+## @param options: 可选配置，支持 max_depth、unsupported、include_null 和 json_safe。
 ## [br]
 ## @return 投影后的值；无法投影且 unsupported 为 drop 时返回 null。
 ## [br]
@@ -125,7 +125,10 @@ static func project_object(
 static func project_value(value: Variant, options: Dictionary = {}) -> Variant:
 	var projected: Dictionary = _project_value(value, 0, _make_state(options))
 	if GFVariantData.get_option_bool(projected, "ok", false):
-		return GFVariantData.get_option_value(projected, "value")
+		var projected_value: Variant = GFVariantData.get_option_value(projected, "value")
+		if GFVariantData.get_option_bool(options, "json_safe", false):
+			return GFVariantJsonCodec.variant_to_json_compatible(projected_value)
+		return projected_value
 	return null
 
 
@@ -362,6 +365,16 @@ static func _is_plain_value(value: Variant) -> bool:
 		or value_type == TYPE_PACKED_VECTOR3_ARRAY
 		or value_type == TYPE_PACKED_COLOR_ARRAY
 	)
+
+
+static func _dictionary_to_requested_output(value: Dictionary, options: Dictionary) -> Dictionary:
+	if not GFVariantData.get_option_bool(options, "json_safe", false):
+		return value
+	var encoded: Variant = GFVariantJsonCodec.variant_to_json_compatible(value)
+	if encoded is Dictionary:
+		var encoded_dictionary: Dictionary = encoded
+		return encoded_dictionary
+	return {}
 
 
 static func _to_packed_string_array(value: Variant) -> PackedStringArray:

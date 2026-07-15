@@ -131,6 +131,12 @@ var require_danger_confirmation: bool = true
 # 已注册命令表。
 var _commands: Dictionary = {}
 
+# 下一次命令注册使用的内部所有权标识。
+var _next_registration_id: int = 1
+
+# 内置命令注册句柄。
+var _builtin_command_subscriptions: Array[GFLifetimeSubscription] = []
+
 # 控制台 GUI 实例。
 var _console_gui: _GFConsoleGUI
 
@@ -148,14 +154,14 @@ func init() -> void:
 	if debug_only and not OS.is_debug_build():
 		return
 
-	register_command("help", _cmd_help, "显示所有可用指令。")
-	register_command("clear", _cmd_clear, "清空控制台输出。")
-	register_command("scene.tree", _cmd_scene_tree, "输出只读场景树摘要。", {
+	_remember_builtin_command(register_command(self, "help", _cmd_help, "显示所有可用指令。"))
+	_remember_builtin_command(register_command(self, "clear", _cmd_clear, "清空控制台输出。"))
+	_remember_builtin_command(register_command(self, "scene.tree", _cmd_scene_tree, "输出只读场景树摘要。", {
 		"tier": CommandTier.OBSERVE,
-	})
-	register_command("scene.node", _cmd_scene_node, "查看节点的只读摘要。", {
+	}))
+	_remember_builtin_command(register_command(self, "scene.node", _cmd_scene_node, "查看节点的只读摘要。", {
 		"tier": CommandTier.OBSERVE,
-	})
+	}))
 
 	_console_gui = _GFConsoleGUI.new()
 	_console_gui.name = "GFConsoleOverlay"
@@ -211,6 +217,11 @@ func dispose() -> void:
 			_console_gui.queue_free()
 
 	_console_gui = null
+	for subscription: GFLifetimeSubscription in _builtin_command_subscriptions:
+		var _cancelled: bool = subscription.cancel()
+	_builtin_command_subscriptions.clear()
+	_commands.clear()
+	_next_registration_id = 1
 
 
 # --- 公共方法 ---
@@ -218,6 +229,10 @@ func dispose() -> void:
 ## 注册控制台命令。
 ## [br]
 ## @api public
+## [br]
+## @since 3.0.0
+## [br]
+## @param owner: 命令生命周期 owner。
 ## [br]
 ## @param cmd_name: 指令名称。
 ## [br]
@@ -227,50 +242,67 @@ func dispose() -> void:
 ## [br]
 ## @param metadata: 项目自定义元数据。
 ## [br]
+## @return owner-bound 注册句柄；注册失败时返回 inactive token。
+## [br]
 ## @schema metadata: Dictionary，支持 tier 等项目自定义命令元数据。
-func register_command(cmd_name: String, callback: Callable, description: String, metadata: Dictionary = {}) -> void:
+func register_command(
+	owner: Object,
+	cmd_name: String,
+	callback: Callable,
+	description: String,
+	metadata: Dictionary = {}
+) -> GFLifetimeSubscription:
 	var normalized_name: String = cmd_name.strip_edges()
-	if normalized_name.is_empty():
-		push_warning("[GFConsoleUtility] 注册命令失败：命令名为空。")
-		return
-	if not callback.is_valid():
-		push_warning("[GFConsoleUtility] 注册命令失败：callback 无效：%s。" % normalized_name)
-		return
-	_commands[normalized_name] = {
-		"callback": callback,
-		"description": description,
-		"metadata": metadata.duplicate(true),
-	}
+	if not _can_register_command_name(owner, normalized_name, callback):
+		return GFLifetimeSubscription.new()
+
+	var registration_id: int = _take_registration_id()
+	_register_command_entry(owner, normalized_name, callback, description, metadata, registration_id)
+	return GFLifetimeSubscription.new(
+		owner,
+		_cancel_registration.bind(registration_id),
+		"GFConsoleUtility:%s" % normalized_name
+	)
 
 
 ## 注册资源化控制台命令。
 ## [br]
 ## @api public
 ## [br]
+## @since 3.0.0
+## [br]
+## @param owner: 命令生命周期 owner。
+## [br]
 ## @param definition: 命令资源定义。
 ## [br]
 ## @param callback: 指令回调，签名为 `func(args: PackedStringArray) -> void`。
-func register_command_definition(definition: GFConsoleCommandDefinition, callback: Callable) -> void:
-	if definition == null or not callback.is_valid():
-		return
+## [br]
+## @return owner-bound 注册句柄；注册失败时返回 inactive token。
+func register_command_definition(
+	owner: Object,
+	definition: GFConsoleCommandDefinition,
+	callback: Callable
+) -> GFLifetimeSubscription:
+	if owner == null or definition == null or not callback.is_valid():
+		return GFLifetimeSubscription.new()
+	var command_names: PackedStringArray = definition.get_all_names()
+	for command_name: String in command_names:
+		if not _can_register_command_name(owner, command_name.strip_edges(), callback):
+			return GFLifetimeSubscription.new()
 
-	for cmd_name: String in definition.get_all_names():
+	var registration_id: int = _take_registration_id()
+	for cmd_name: String in command_names:
 		var metadata: Dictionary = definition.metadata.duplicate(true)
 		metadata["definition"] = definition
 		metadata["primary_command_name"] = definition.command_name
 		if definition.argument_suggester.is_valid():
 			metadata["argument_suggester"] = definition.argument_suggester
-		register_command(cmd_name, callback, definition.description, metadata)
-
-
-## 注销控制台命令。
-## [br]
-## @api public
-## [br]
-## @param cmd_name: 指令名称。
-func unregister_command(cmd_name: String) -> void:
-	for registered_name: String in _get_registered_command_names(cmd_name):
-		_erase_dictionary_key(_commands, registered_name)
+		_register_command_entry(owner, cmd_name, callback, definition.description, metadata, registration_id)
+	return GFLifetimeSubscription.new(
+		owner,
+		_cancel_registration.bind(registration_id),
+		"GFConsoleUtility:%s" % definition.command_name
+	)
 
 
 ## 检查控制台命令是否已注册。
@@ -281,7 +313,7 @@ func unregister_command(cmd_name: String) -> void:
 ## [br]
 ## @return 已注册返回 true。
 func has_command(cmd_name: String) -> bool:
-	return _commands.has(cmd_name)
+	return not _get_live_command_entry(cmd_name).is_empty()
 
 
 ## 获取当前已注册命令名称。
@@ -290,6 +322,7 @@ func has_command(cmd_name: String) -> bool:
 ## [br]
 ## @return 排序后的命令名称数组。
 func get_command_names() -> PackedStringArray:
+	_prune_released_commands()
 	var names: PackedStringArray = PackedStringArray()
 	for cmd_name: String in _commands.keys():
 		_append_packed_string(names, cmd_name)
@@ -354,7 +387,8 @@ func suggest_command_arguments(raw_input: String) -> PackedStringArray:
 		return PackedStringArray()
 
 	var cmd_name: String = parts[0]
-	if not _commands.has(cmd_name):
+	var entry: Dictionary = _get_live_command_entry(cmd_name)
+	if entry.is_empty():
 		return PackedStringArray()
 
 	var args: PackedStringArray = PackedStringArray()
@@ -367,7 +401,6 @@ func suggest_command_arguments(raw_input: String) -> PackedStringArray:
 		argument_index = args.size() - 1
 		prefix = args[argument_index]
 
-	var entry: Dictionary = _get_command_entry(cmd_name)
 	var context: Dictionary = {
 		"command_name": cmd_name,
 		"args": args,
@@ -390,11 +423,12 @@ func suggest_command_arguments(raw_input: String) -> PackedStringArray:
 ## [br]
 ## @return 按相似度降序排列的候选命令名。
 func suggest_similar_commands(cmd_name: String, limit: int = 3, threshold: float = 0.5) -> PackedStringArray:
-	if cmd_name.is_empty() or _commands.is_empty() or limit <= 0:
+	var registered_names: PackedStringArray = get_command_names()
+	if cmd_name.is_empty() or registered_names.is_empty() or limit <= 0:
 		return PackedStringArray()
 
 	var scored: Array[Array] = []
-	for registered_name: String in _commands.keys():
+	for registered_name: String in registered_names:
 		var score: float = cmd_name.similarity(registered_name)
 		if score >= threshold:
 			scored.append([score, registered_name])
@@ -432,7 +466,8 @@ func execute_command(raw_input: String) -> bool:
 	for i: int in range(1, parts.size()):
 		_append_packed_string(args, parts[i])
 
-	if not _commands.has(cmd_name):
+	var entry: Dictionary = _get_live_command_entry(cmd_name)
+	if entry.is_empty():
 		if is_instance_valid(_console_gui):
 			var similar_commands: PackedStringArray = suggest_similar_commands(cmd_name)
 			if similar_commands.is_empty():
@@ -446,7 +481,6 @@ func execute_command(raw_input: String) -> bool:
 				)
 		return false
 
-	var entry: Dictionary = _get_command_entry(cmd_name)
 	if not _prepare_command_execution(cmd_name, entry, args):
 		return false
 
@@ -525,8 +559,104 @@ func get_debug_snapshot() -> Dictionary:
 
 # --- 私有/辅助方法 ---
 
+func _register_command_entry(
+	owner: Object,
+	cmd_name: String,
+	callback: Callable,
+	description: String,
+	metadata: Dictionary,
+	registration_id: int
+) -> void:
+	var normalized_name: String = cmd_name.strip_edges()
+	if normalized_name.is_empty():
+		push_warning("[GFConsoleUtility] 注册命令失败：命令名为空。")
+		return
+	if not callback.is_valid():
+		push_warning("[GFConsoleUtility] 注册命令失败：callback 无效：%s。" % normalized_name)
+		return
+	_commands[normalized_name] = {
+		"owner_ref": weakref(owner),
+		"owner_instance_id": owner.get_instance_id(),
+		"callback": callback,
+		"description": description,
+		"metadata": metadata.duplicate(true),
+		"registration_id": registration_id,
+	}
+
 func _get_command_entry(cmd_name: String) -> Dictionary:
 	return GFVariantData.as_dictionary(GFVariantData.get_option_value(_commands, cmd_name, {}))
+
+
+func _get_live_command_entry(cmd_name: String) -> Dictionary:
+	var entry: Dictionary = _get_command_entry(cmd_name)
+	if entry.is_empty():
+		return {}
+	if _command_entry_owner_is_live(entry):
+		return entry
+	_cancel_registration(GFVariantData.get_option_int(entry, "registration_id", -1))
+	return {}
+
+
+func _can_register_command_name(owner: Object, cmd_name: String, callback: Callable) -> bool:
+	if owner == null:
+		return false
+	if cmd_name.is_empty():
+		push_warning("[GFConsoleUtility] 注册命令失败：命令名为空。")
+		return false
+	if not callback.is_valid():
+		push_warning("[GFConsoleUtility] 注册命令失败：callback 无效：%s。" % cmd_name)
+		return false
+
+	var existing_entry: Dictionary = _get_live_command_entry(cmd_name)
+	return (
+		existing_entry.is_empty()
+		or GFVariantData.get_option_int(existing_entry, "owner_instance_id", 0) == owner.get_instance_id()
+	)
+
+
+func _command_entry_owner_is_live(entry: Dictionary) -> bool:
+	var owner_ref_value: Variant = GFVariantData.get_option_value(entry, "owner_ref")
+	if not (owner_ref_value is WeakRef):
+		return false
+	var owner_ref: WeakRef = owner_ref_value
+	var owner_value: Variant = owner_ref.get_ref()
+	if not (owner_value is Object):
+		return false
+	var owner: Object = owner_value
+	return (
+		is_instance_valid(owner)
+		and owner.get_instance_id() == GFVariantData.get_option_int(entry, "owner_instance_id", 0)
+	)
+
+
+func _cancel_registration(registration_id: int) -> void:
+	if registration_id <= 0:
+		return
+	var names_to_remove: PackedStringArray = PackedStringArray()
+	for cmd_name: String in _commands.keys():
+		var entry: Dictionary = _get_command_entry(cmd_name)
+		if GFVariantData.get_option_int(entry, "registration_id", -1) == registration_id:
+			_append_packed_string(names_to_remove, cmd_name)
+	for cmd_name: String in names_to_remove:
+		_erase_dictionary_key(_commands, cmd_name)
+
+
+func _prune_released_commands() -> void:
+	var stale_registration_ids: PackedInt64Array = PackedInt64Array()
+	for cmd_name: String in _commands.keys():
+		var entry: Dictionary = _get_command_entry(cmd_name)
+		if _command_entry_owner_is_live(entry):
+			continue
+		var registration_id: int = GFVariantData.get_option_int(entry, "registration_id", -1)
+		if registration_id > 0 and not stale_registration_ids.has(registration_id):
+			var _appended: bool = stale_registration_ids.append(registration_id)
+	for registration_id: int in stale_registration_ids:
+		_cancel_registration(registration_id)
+
+
+func _remember_builtin_command(subscription: GFLifetimeSubscription) -> void:
+	if subscription != null and subscription.is_active():
+		_builtin_command_subscriptions.append(subscription)
 
 
 func _get_main_scene_tree() -> SceneTree:
@@ -690,34 +820,10 @@ func _get_command_tier(entry: Dictionary) -> CommandTier:
 	return _to_command_tier(GFVariantData.to_int(tier_value, CommandTier.OBSERVE))
 
 
-func _get_registered_command_names(cmd_name: String) -> PackedStringArray:
-	var normalized_name: String = cmd_name.strip_edges()
-	var names: PackedStringArray = PackedStringArray()
-	if normalized_name.is_empty():
-		return names
-	_append_unique_command_name(names, normalized_name)
-
-	var entry: Dictionary = _get_command_entry(normalized_name)
-	if entry.is_empty():
-		return names
-
-	var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
-	var definition_value: Variant = GFVariantData.get_option_value(metadata, "definition")
-	if definition_value is GFConsoleCommandDefinition:
-		var definition: GFConsoleCommandDefinition = definition_value
-		for definition_name: String in definition.get_all_names():
-			_append_unique_command_name(names, definition_name)
-
-	var primary_command_name: String = GFVariantData.get_option_string(metadata, "primary_command_name")
-	_append_unique_command_name(names, primary_command_name)
-	return names
-
-
-func _append_unique_command_name(target: PackedStringArray, value: String) -> void:
-	var normalized_name: String = value.strip_edges()
-	if normalized_name.is_empty() or target.has(normalized_name):
-		return
-	_append_packed_string(target, normalized_name)
+func _take_registration_id() -> int:
+	var registration_id: int = _next_registration_id
+	_next_registration_id += 1
+	return registration_id
 
 
 func _make_command_catalog_metadata(metadata: Dictionary) -> Dictionary:

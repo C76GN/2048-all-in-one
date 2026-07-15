@@ -23,7 +23,7 @@ extends RefCounted
 ## @api framework_internal
 ## [br]
 ## @layer kernel/editor
-const SCHEMA_VERSION: int = 1
+const SCHEMA_VERSION: int = 4
 
 const _GF_PATH_TOOLS = preload("res://addons/gf/kernel/core/gf_path_tools.gd")
 const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_variant_access.gd")
@@ -36,13 +36,16 @@ const _MANIFEST_ALLOWED_KEYS: Array[String] = [
 	"dock_records",
 	"template_records",
 	"project_setting_records",
+	"project_setting_section_records",
 ]
 const _SCRIPT_RECORD_ALLOWED_KEYS: Array[String] = [
+	"owner_package_id",
 	"source_id",
 	"path",
 	"label",
 ]
 const _DOCK_RECORD_ALLOWED_KEYS: Array[String] = [
+	"owner_package_id",
 	"source_id",
 	"path",
 	"label",
@@ -50,6 +53,7 @@ const _DOCK_RECORD_ALLOWED_KEYS: Array[String] = [
 	"order",
 ]
 const _TEMPLATE_RECORD_ALLOWED_KEYS: Array[String] = [
+	"owner_package_id",
 	"source_id",
 	"type",
 	"label",
@@ -58,6 +62,7 @@ const _TEMPLATE_RECORD_ALLOWED_KEYS: Array[String] = [
 	"template_path",
 ]
 const _PROJECT_SETTING_RECORD_ALLOWED_KEYS: Array[String] = [
+	"owner_package_id",
 	"source_id",
 	"name",
 	"default_value",
@@ -70,6 +75,17 @@ const _PROJECT_SETTING_RECORD_ALLOWED_KEYS: Array[String] = [
 	"internal",
 	"update_initial_value",
 	"usage",
+	"editor_labels",
+	"editor_descriptions",
+	"editor_enum_labels",
+	"editor_enum_descriptions",
+]
+const _PROJECT_SETTING_SECTION_RECORD_ALLOWED_KEYS: Array[String] = [
+	"owner_package_id",
+	"source_id",
+	"path",
+	"editor_labels",
+	"editor_descriptions",
 ]
 
 
@@ -83,7 +99,7 @@ const _PROJECT_SETTING_RECORD_ALLOWED_KEYS: Array[String] = [
 ## [br]
 ## @return 空记录集合。
 ## [br]
-## @schema return: Dictionary，包含 inspector_plugin_records、export_plugin_records、debugger_plugin_records、dock_records、template_records 和 project_setting_records 数组。
+## @schema return: Dictionary，包含 inspector_plugin_records、export_plugin_records、debugger_plugin_records、dock_records、template_records、project_setting_records 和 project_setting_section_records 数组。
 static func empty_records() -> Dictionary:
 	return {
 		"inspector_plugin_records": [],
@@ -92,6 +108,7 @@ static func empty_records() -> Dictionary:
 		"dock_records": [],
 		"template_records": [],
 		"project_setting_records": [],
+		"project_setting_section_records": [],
 	}
 
 
@@ -203,6 +220,13 @@ static func load_manifest_report(manifest_path: String) -> Dictionary:
 		package_id,
 		issues
 	)
+	records["project_setting_section_records"] = _collect_project_setting_section_records(
+		data,
+		"project_setting_section_records",
+		package_id,
+		issues
+	)
+	_validate_record_identities(records, issues)
 	return _make_report(issues.is_empty(), normalized_path, records, issues, skipped_records)
 
 
@@ -271,7 +295,10 @@ static func _collect_script_records(
 		if not _record_uses_allowed_keys(raw_record, record_key, allowed_keys, issues):
 			continue
 
-		var source_id: String = _make_source_id(package_id, raw_record, record_key, issues)
+		var owner_package_id: String = _get_owner_package_id(raw_record, record_key, issues)
+		if owner_package_id.is_empty():
+			continue
+		var source_id: String = _make_source_id(owner_package_id, raw_record, record_key, issues)
 		if source_id.is_empty():
 			continue
 		var script_path: String = _GF_PATH_TOOLS.normalize_resource_path(
@@ -303,7 +330,9 @@ static func _collect_script_records(
 			continue
 
 		var record: Dictionary = _copy_allowed_record(raw_record, allowed_keys)
-		record["package_id"] = package_id
+		record["manifest_package_id"] = package_id
+		record["owner_package_id"] = owner_package_id
+		record["package_id"] = owner_package_id
 		record["source_id"] = source_id
 		record["path"] = script_path
 		record["label"] = label
@@ -326,7 +355,10 @@ static func _collect_template_records(
 		if not _record_uses_allowed_keys(raw_record, record_key, _TEMPLATE_RECORD_ALLOWED_KEYS, issues):
 			continue
 
-		var source_id: String = _make_source_id(package_id, raw_record, record_key, issues)
+		var owner_package_id: String = _get_owner_package_id(raw_record, record_key, issues)
+		if owner_package_id.is_empty():
+			continue
+		var source_id: String = _make_source_id(owner_package_id, raw_record, record_key, issues)
 		if source_id.is_empty():
 			continue
 		var template_type: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(raw_record, "type").strip_edges()
@@ -363,7 +395,9 @@ static func _collect_template_records(
 			continue
 
 		var record: Dictionary = _copy_allowed_record(raw_record, _TEMPLATE_RECORD_ALLOWED_KEYS)
-		record["package_id"] = package_id
+		record["manifest_package_id"] = package_id
+		record["owner_package_id"] = owner_package_id
+		record["package_id"] = owner_package_id
 		record["source_id"] = source_id
 		record["type"] = template_type
 		record["label"] = label
@@ -385,7 +419,10 @@ static func _collect_project_setting_records(
 		if not _record_uses_allowed_keys(raw_record, record_key, _PROJECT_SETTING_RECORD_ALLOWED_KEYS, issues):
 			continue
 
-		var source_id: String = _make_source_id(package_id, raw_record, record_key, issues)
+		var owner_package_id: String = _get_owner_package_id(raw_record, record_key, issues)
+		if owner_package_id.is_empty():
+			continue
+		var source_id: String = _make_source_id(owner_package_id, raw_record, record_key, issues)
 		if source_id.is_empty():
 			continue
 		var setting_name: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(raw_record, "name").strip_edges()
@@ -396,16 +433,242 @@ static func _collect_project_setting_records(
 		var default_value: Variant = _GF_VARIANT_ACCESS_SCRIPT.get_option_value(raw_record, "default_value")
 		var issue_count_before: int = issues.size()
 		var variant_type: int = _record_variant_type(raw_record, default_value, record_key, source_id, issues)
+		_validate_project_setting_presentation(raw_record, record_key, source_id, issues)
 		if issues.size() != issue_count_before:
 			continue
 		var record: Dictionary = _copy_allowed_record(raw_record, _PROJECT_SETTING_RECORD_ALLOWED_KEYS)
 		var _type_name_erased: bool = record.erase("type_name")
-		record["package_id"] = package_id
+		record["manifest_package_id"] = package_id
+		record["owner_package_id"] = owner_package_id
+		record["package_id"] = owner_package_id
 		record["source_id"] = source_id
 		record["name"] = setting_name
 		record["type"] = variant_type
 		records.append(record)
 	return records
+
+
+static func _validate_project_setting_presentation(
+	record: Dictionary,
+	record_key: String,
+	source_id: String,
+	issues: Array[Dictionary]
+) -> void:
+	var presentation_fields: Array[String] = [
+		"editor_labels",
+		"editor_descriptions",
+		"editor_enum_labels",
+		"editor_enum_descriptions",
+	]
+	var has_presentation: bool = false
+	for field: String in presentation_fields:
+		if record.has(field):
+			has_presentation = true
+			break
+	if not has_presentation:
+		return
+
+	if not record.has("editor_labels") or not record.has("editor_descriptions"):
+		issues.append(_make_issue(
+			"incomplete_setting_presentation",
+			record_key,
+			"ProjectSettings presentation requires both editor_labels and editor_descriptions.",
+			"editor_labels",
+			"",
+			source_id
+		))
+		return
+
+	_validate_locale_text_map(record["editor_labels"], "editor_labels", record_key, source_id, issues)
+	_validate_locale_text_map(record["editor_descriptions"], "editor_descriptions", record_key, source_id, issues)
+	for field: String in ["editor_enum_labels", "editor_enum_descriptions"]:
+		if record.has(field):
+			_validate_localized_enum_map(record[field], field, record_key, source_id, issues)
+
+
+static func _collect_project_setting_section_records(
+	data: Dictionary,
+	record_key: String,
+	package_id: String,
+	issues: Array[Dictionary]
+) -> Array[Dictionary]:
+	var records: Array[Dictionary] = []
+	for raw_record: Dictionary in _get_record_dictionaries(data, record_key, issues):
+		if not _record_uses_allowed_keys(
+			raw_record,
+			record_key,
+			_PROJECT_SETTING_SECTION_RECORD_ALLOWED_KEYS,
+			issues
+		):
+			continue
+
+		var owner_package_id: String = _get_owner_package_id(raw_record, record_key, issues)
+		if owner_package_id.is_empty():
+			continue
+		var source_id: String = _make_source_id(owner_package_id, raw_record, record_key, issues)
+		if source_id.is_empty():
+			continue
+		var section_path: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(
+			raw_record,
+			"path"
+		).strip_edges().trim_suffix("/")
+		if section_path.is_empty() or section_path.begins_with("/") or section_path.contains("//"):
+			issues.append(_make_issue(
+				"invalid_project_setting_section_path",
+				record_key,
+				"ProjectSettings section path must be a non-empty relative path.",
+				"path",
+				section_path,
+				source_id
+			))
+			continue
+
+		var issue_count_before: int = issues.size()
+		if not raw_record.has("editor_labels") or not raw_record.has("editor_descriptions"):
+			issues.append(_make_issue(
+				"incomplete_setting_section_presentation",
+				record_key,
+				"ProjectSettings section presentation requires editor_labels and editor_descriptions.",
+				"editor_labels",
+				"",
+				source_id
+			))
+		else:
+			_validate_locale_text_map(
+				raw_record["editor_labels"],
+				"editor_labels",
+				record_key,
+				source_id,
+				issues
+			)
+			_validate_locale_text_map(
+				raw_record["editor_descriptions"],
+				"editor_descriptions",
+				record_key,
+				source_id,
+				issues
+			)
+		if issues.size() != issue_count_before:
+			continue
+
+		var record: Dictionary = _copy_allowed_record(
+			raw_record,
+			_PROJECT_SETTING_SECTION_RECORD_ALLOWED_KEYS
+		)
+		record["manifest_package_id"] = package_id
+		record["owner_package_id"] = owner_package_id
+		record["package_id"] = owner_package_id
+		record["source_id"] = source_id
+		record["path"] = section_path
+		records.append(record)
+	return records
+
+
+static func _validate_locale_text_map(
+	value: Variant,
+	field: String,
+	record_key: String,
+	source_id: String,
+	issues: Array[Dictionary]
+) -> void:
+	if not value is Dictionary:
+		issues.append(_make_issue(
+			"invalid_setting_locale_map",
+			record_key,
+			"ProjectSettings presentation locale map must be an object.",
+			field,
+			str(value),
+			source_id
+		))
+		return
+
+	var text_map: Dictionary = value
+	if text_map.is_empty() or not text_map.has("en"):
+		issues.append(_make_issue(
+			"missing_setting_presentation_fallback",
+			record_key,
+			"ProjectSettings presentation locale map requires a non-empty en fallback.",
+			field,
+			"",
+			source_id
+		))
+		return
+
+	for locale_value: Variant in text_map:
+		if not locale_value is String:
+			issues.append(_make_issue(
+				"invalid_setting_presentation_locale",
+				record_key,
+				"ProjectSettings presentation locale keys must be strings.",
+				field,
+				str(locale_value),
+				source_id
+			))
+			continue
+		var locale: String = locale_value
+		var text_value: Variant = text_map[locale_value]
+		var localized_text: String = ""
+		if text_value is String:
+			localized_text = text_value
+		if locale.strip_edges().is_empty() or localized_text.strip_edges().is_empty():
+			issues.append(_make_issue(
+				"invalid_setting_presentation_text",
+				record_key,
+				"ProjectSettings presentation text must use non-empty locale and string values.",
+				field,
+				locale,
+				source_id
+			))
+
+
+static func _validate_localized_enum_map(
+	value: Variant,
+	field: String,
+	record_key: String,
+	source_id: String,
+	issues: Array[Dictionary]
+) -> void:
+	if not value is Dictionary:
+		issues.append(_make_issue(
+			"invalid_setting_enum_presentation",
+			record_key,
+			"ProjectSettings enum presentation must be an object.",
+			field,
+			str(value),
+			source_id
+		))
+		return
+
+	var enum_map: Dictionary = value
+	for enum_value: Variant in enum_map:
+		if not enum_value is String:
+			issues.append(_make_issue(
+				"invalid_setting_enum_value",
+				record_key,
+				"ProjectSettings enum presentation keys must be non-empty strings.",
+				field,
+				str(enum_value),
+				source_id
+			))
+			continue
+		var enum_key: String = enum_value
+		if enum_key.strip_edges().is_empty():
+			issues.append(_make_issue(
+				"invalid_setting_enum_value",
+				record_key,
+				"ProjectSettings enum presentation keys must be non-empty strings.",
+				field,
+				enum_key,
+				source_id
+			))
+			continue
+		_validate_locale_text_map(
+			enum_map[enum_value],
+			"%s.%s" % [field, enum_key],
+			record_key,
+			source_id,
+			issues
+		)
 
 
 static func _get_record_dictionaries(
@@ -516,7 +779,7 @@ static func _copy_allowed_record(record: Dictionary, allowed_keys: Array[String]
 
 
 static func _make_source_id(
-	package_id: String,
+	owner_package_id: String,
 	record: Dictionary,
 	record_key: String,
 	issues: Array[Dictionary]
@@ -526,8 +789,89 @@ static func _make_source_id(
 		issues.append(_make_issue("missing_source_id", record_key, "Contribution record source_id is required.", "source_id"))
 		return ""
 	if source_id.contains(":"):
-		return source_id
-	return "%s:%s" % [package_id, source_id]
+		issues.append(_make_issue(
+			"invalid_local_source_id",
+			record_key,
+			"Contribution record source_id must be local to owner_package_id.",
+			"source_id",
+			source_id
+		))
+		return ""
+	return "%s:%s" % [owner_package_id, source_id]
+
+
+static func _get_owner_package_id(
+	record: Dictionary,
+	record_key: String,
+	issues: Array[Dictionary]
+) -> String:
+	var owner_package_id: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(
+		record,
+		"owner_package_id"
+	).strip_edges()
+	if owner_package_id.is_empty():
+		issues.append(_make_issue(
+			"missing_owner_package_id",
+			record_key,
+			"Contribution record owner_package_id is required.",
+			"owner_package_id"
+		))
+	return owner_package_id
+
+
+static func _validate_record_identities(records: Dictionary, issues: Array[Dictionary]) -> void:
+	var source_ids: Dictionary = {}
+	var payload_ids: Dictionary = {}
+	for record_key: String in empty_records().keys():
+		var validated_records: Array[Dictionary] = []
+		var raw_records: Variant = records.get(record_key, [])
+		if not (raw_records is Array):
+			continue
+		var record_array: Array = raw_records
+		for record_value: Variant in record_array:
+			if not (record_value is Dictionary):
+				continue
+			var record: Dictionary = record_value
+			var source_id: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(
+				record,
+				"source_id"
+			)
+			if source_ids.has(source_id):
+				issues.append(_make_issue(
+					"duplicate_source_id",
+					record_key,
+					"Contribution source_id must be globally unique within the manifest.",
+					"source_id",
+					source_id,
+					source_id
+				))
+				continue
+
+			var payload_id: String = _get_record_payload_id(record)
+			if not payload_id.is_empty() and payload_ids.has(payload_id):
+				issues.append(_make_issue(
+					"duplicate_payload_identity",
+					record_key,
+					"Contribution payload identity must be globally unique within the manifest.",
+					"path",
+					payload_id,
+					source_id
+				))
+				continue
+
+			source_ids[source_id] = record_key
+			if not payload_id.is_empty():
+				payload_ids[payload_id] = source_id
+			validated_records.append(record)
+		records[record_key] = validated_records
+
+
+static func _get_record_payload_id(record: Dictionary) -> String:
+	for field: String in ["path", "template_path", "name"]:
+		var value: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(record, field).strip_edges()
+		if not value.is_empty():
+			return "%s:%s" % [field, value]
+	return ""
 
 
 static func _record_variant_type(

@@ -114,23 +114,57 @@ static func _sanitize_debug_value(key_text: String, value: Variant, visited: Arr
 ## [br]
 ## @return: 敏感字段返回 true。
 static func is_sensitive_debug_key(key_text: String) -> bool:
-	var lower_key: String = key_text.to_lower()
-	return (
-		lower_key == "key"
-		or lower_key == "service_keys"
-		or lower_key == "service_key"
-		or lower_key.ends_with("_key")
-		or lower_key.ends_with("_keys")
-		or lower_key.contains("api_key")
-		or lower_key.contains("token")
-		or lower_key.contains("secret")
-		or lower_key.contains("password")
-		or lower_key.contains("passwd")
-		or lower_key.contains("auth")
-		or lower_key.contains("credential")
-		or lower_key.contains("cookie")
-		or lower_key.contains("session_id")
-	)
+	var token_source: String = key_text.to_snake_case().to_lower()
+	for separator: String in ["-", " ", ".", "/", "\\", ":"]:
+		token_source = token_source.replace(separator, "_")
+	var tokens: PackedStringArray = token_source.split("_", false)
+	for token: String in tokens:
+		if token in [
+			"auth",
+			"authorization",
+			"token",
+			"secret",
+			"password",
+			"passwd",
+			"credential",
+			"cookie",
+		]:
+			return true
+
+	var normalized_key: String = "".join(tokens)
+	if normalized_key in [
+		"key",
+		"keys",
+		"servicekey",
+		"servicekeys",
+		"apikey",
+		"accesskey",
+		"privatekey",
+		"secretkey",
+		"sessionid",
+	]:
+		return true
+	for sensitive_compound: String in [
+		"authorization",
+		"password",
+		"passwd",
+		"credential",
+		"accesstoken",
+		"refreshtoken",
+		"authtoken",
+		"clientsecret",
+		"sessiontoken",
+		"sessioncookie",
+		"apikey",
+		"accesskey",
+		"privatekey",
+		"secretkey",
+		"servicekey",
+		"sessionid",
+	]:
+		if normalized_key.contains(sensitive_compound):
+			return true
+	return false
 
 
 ## 脱敏 endpoint。

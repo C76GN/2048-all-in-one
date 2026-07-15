@@ -88,11 +88,16 @@ static func from_array(
 ## [br]
 ## @param front: 为 true 时会排在相同 priority 的既有元素之前。
 ## [br]
+## @return priority 有限并成功入队时返回 true。
+## [br]
 ## @schema value: Variant queue value.
-func push(value: Variant, priority: float = 0.0, front: bool = false) -> void:
+func push(value: Variant, priority: float = 0.0, front: bool = false) -> bool:
+	if not is_finite(priority):
+		return false
 	_reset_order_if_empty()
 	var order: int = _make_order(front)
 	_push_entry(value, priority, order)
+	return true
 
 
 ## 按显式稳定顺序推入一个值。
@@ -107,10 +112,15 @@ func push(value: Variant, priority: float = 0.0, front: bool = false) -> void:
 ## [br]
 ## @param order: 相同 priority 下的稳定排序值，数值越小越先弹出。
 ## [br]
+## @return priority 有限并成功入队时返回 true。
+## [br]
 ## @schema value: Variant queue value.
-func push_with_order(value: Variant, priority: float = 0.0, order: int = 0) -> void:
+func push_with_order(value: Variant, priority: float = 0.0, order: int = 0) -> bool:
+	if not is_finite(priority):
+		return false
 	_reset_order_if_empty()
 	_push_entry(value, priority, order)
+	return true
 
 
 ## 弹出当前最高优先级值。
@@ -245,6 +255,8 @@ func has_value(value: Variant) -> bool:
 ## [br]
 ## @schema value: Variant queue value.
 func set_priority(value: Variant, priority: float, front: bool = false) -> bool:
+	if not is_finite(priority):
+		return false
 	for index: int in range(_entries.size()):
 		if _values_equal(GFVariantData.get_option_value(_entries[index], "value"), value):
 			_entries[index]["priority"] = priority
@@ -479,7 +491,7 @@ func _sift_down_entries(entries: Array[Dictionary], index: int) -> void:
 func _entry_is_before(left: Dictionary, right: Dictionary) -> bool:
 	var left_priority: float = GFVariantData.get_option_float(left, "priority")
 	var right_priority: float = GFVariantData.get_option_float(right, "priority")
-	if not is_equal_approx(left_priority, right_priority):
+	if left_priority != right_priority:
 		if high_priority_first:
 			return left_priority > right_priority
 		return left_priority < right_priority
