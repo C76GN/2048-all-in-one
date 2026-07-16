@@ -152,7 +152,7 @@ func _load_registry() -> GameThemeRegistry:
 		if _registry_validation_report.is_ok():
 			return registry
 		_log_registry_validation_issues(_registry_validation_report)
-		return GameThemeRegistry.new()
+		return null
 
 	_registry_validation_report = GFValidationReport.new(
 		"GameThemeRegistry",
@@ -168,7 +168,7 @@ func _load_registry() -> GameThemeRegistry:
 		_REGISTRY_PATH
 	)
 	_log_registry_validation_issues(_registry_validation_report)
-	return GameThemeRegistry.new()
+	return null
 
 
 func _log_registry_validation_issues(report: GFValidationReport) -> void:

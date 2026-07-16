@@ -270,7 +270,10 @@ func _start_level_session(
 	mode_config: GameModeConfig,
 	game_ready_data: GameReadyData
 ) -> void:
-	if not is_instance_valid(_level_utility) or not is_instance_valid(mode_config):
+	if not is_instance_valid(mode_config):
+		return
+	if not is_instance_valid(_level_utility):
+		push_error("[GameInitSystem] 缺少 GFLevelUtility，无法启动对局生命周期。")
 		return
 
 	var level_id: StringName = _build_level_session_id(level_source, mode_config, game_ready_data)
@@ -332,10 +335,10 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	app_config.current_replay_data.set_value(null)
 	app_config.selected_bookmark_data.set_value(null)
 
-	if is_instance_valid(_level_utility):
-		_level_utility.clear_level_runtime()
-	elif is_instance_valid(_command_history):
-		_command_history.clear()
+	if not is_instance_valid(_level_utility):
+		push_error("[GameInitSystem] 缺少 GFLevelUtility，无法清理上一局运行时状态。")
+		return
+	_level_utility.clear_level_runtime()
 
 	var game_ready_data: GameReadyData = GameReadyData.new()
 	game_ready_data.is_replay_mode = is_instance_valid(replay_data)

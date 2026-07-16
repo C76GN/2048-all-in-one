@@ -299,12 +299,12 @@ func _load_registry() -> GameThemeRegistry:
 		_theme_catalog = _get_theme_catalog_utility()
 	if not is_instance_valid(_theme_catalog):
 		push_error("[GameThemeUtility] 缺少 GameThemeCatalogUtility，无法加载主题注册表。")
-		return GameThemeRegistry.new()
+		return null
 	var registry: GameThemeRegistry = _theme_catalog.get_registry()
 	if is_instance_valid(registry):
 		return registry
 	push_error("[GameThemeUtility] GF 主题目录未返回有效注册表。")
-	return GameThemeRegistry.new()
+	return null
 
 
 func _ensure_registry_loaded() -> void:
@@ -329,23 +329,16 @@ func _connect_settings() -> void:
 
 func _get_setting_string_name(key: StringName, fallback: StringName) -> StringName:
 	if not is_instance_valid(_settings):
+		push_error("[GameThemeUtility] 缺少 GFSettingsUtility，无法读取主题设置：%s。" % key)
 		return fallback
 	return GFVariantData.to_string_name(_settings.get_value(key, fallback), fallback)
 
 
 func _set_setting_string_name(key: StringName, value: StringName) -> void:
-	if is_instance_valid(_settings):
-		_settings.set_value(key, value)
+	if not is_instance_valid(_settings):
+		push_error("[GameThemeUtility] 缺少 GFSettingsUtility，无法写入主题设置：%s。" % key)
 		return
-
-	if key == VISUAL_THEME_SETTING_KEY:
-		var visual_theme: GameTheme = _get_theme_or_default(value)
-		_apply_visual_theme_to_utilities(visual_theme)
-		visual_theme_changed.emit(visual_theme)
-	elif key == SOUND_THEME_SETTING_KEY:
-		var sound_theme: GameAudioTheme = _get_sound_theme_or_default(value)
-		_apply_sound_theme_to_utilities(sound_theme)
-		sound_theme_changed.emit(sound_theme)
+	_settings.set_value(key, value)
 
 
 func _get_theme_or_default(theme_id: StringName) -> GameTheme:

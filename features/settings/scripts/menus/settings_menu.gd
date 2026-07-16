@@ -16,6 +16,7 @@ const _FIELD_MASTER_VOLUME: StringName = &"master_volume"
 const _LOCALE_EN: String = "en"
 const _LOCALE_ZH: String = "zh"
 const _AUDIO_BUS_MASTER: String = "Master"
+const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
 
 
 # --- 公共变量 ---
@@ -228,48 +229,50 @@ func _sync_controls_from_settings() -> void:
 
 func _get_current_locale() -> String:
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if is_instance_valid(display_settings):
-		return display_settings.get_locale()
-
-	return _LOCALE_ZH
+	if not is_instance_valid(display_settings):
+		push_error("[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法读取语言设置。")
+		return _LOCALE_ZH
+	return display_settings.get_locale()
 
 
 func _get_current_window_mode() -> DisplayServer.WindowMode:
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if is_instance_valid(display_settings):
-		return display_settings.get_window_mode()
-
-	return DisplayServer.window_get_mode()
+	if not is_instance_valid(display_settings):
+		push_error("[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法读取窗口模式。")
+		return DisplayServer.WINDOW_MODE_WINDOWED
+	return display_settings.get_window_mode()
 
 
 func _get_current_vsync_mode() -> DisplayServer.VSyncMode:
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if is_instance_valid(display_settings):
-		return display_settings.get_vsync_mode()
-
-	return DisplayServer.window_get_vsync_mode()
+	if not is_instance_valid(display_settings):
+		push_error("[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法读取垂直同步设置。")
+		return DisplayServer.VSYNC_ENABLED
+	return display_settings.get_vsync_mode()
 
 
 func _get_current_master_volume() -> float:
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if is_instance_valid(display_settings):
-		return display_settings.get_audio_bus_volume(_AUDIO_BUS_MASTER, 1.0)
-
-	return 1.0
+	if not is_instance_valid(display_settings):
+		push_error("[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法读取主音量。")
+		return 1.0
+	return display_settings.get_audio_bus_volume(_AUDIO_BUS_MASTER, 1.0)
 
 
 func _get_current_visual_theme_id() -> StringName:
 	var theme_utility: GameThemeUtility = _get_theme_utility()
-	if is_instance_valid(theme_utility):
-		return theme_utility.get_current_visual_theme_id()
-	return GameThemeUtility.DEFAULT_THEME_ID
+	if not is_instance_valid(theme_utility):
+		push_error("[SettingsMenu] 缺少 GameThemeUtility，无法读取视觉主题。")
+		return GameThemeUtility.DEFAULT_THEME_ID
+	return theme_utility.get_current_visual_theme_id()
 
 
 func _get_current_sound_theme_id() -> StringName:
 	var theme_utility: GameThemeUtility = _get_theme_utility()
-	if is_instance_valid(theme_utility):
-		return theme_utility.get_current_sound_theme_id()
-	return GameThemeUtility.DEFAULT_SOUND_THEME_ID
+	if not is_instance_valid(theme_utility):
+		push_error("[SettingsMenu] 缺少 GameThemeUtility，无法读取音效主题。")
+		return GameThemeUtility.DEFAULT_SOUND_THEME_ID
+	return theme_utility.get_current_sound_theme_id()
 
 
 func _get_locale_index(locale: String) -> int:
@@ -365,10 +368,10 @@ func _update_ui_text() -> void:
 func _apply_locale(index: int) -> void:
 	var locale: String = _get_locale_for_index(index)
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if is_instance_valid(display_settings):
-		display_settings.set_locale(locale)
-	else:
-		TranslationServer.set_locale(locale)
+	if not is_instance_valid(display_settings):
+		push_error("[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法写入语言设置。")
+		return
+	display_settings.set_locale(locale)
 
 	_sync_controls_from_settings()
 	_update_ui_text()
@@ -376,26 +379,33 @@ func _apply_locale(index: int) -> void:
 
 func _apply_window_mode(index: int) -> void:
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if is_instance_valid(display_settings):
-		display_settings.set_window_mode(_get_window_mode_for_index(index))
+	if not is_instance_valid(display_settings):
+		push_error("[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法写入窗口模式。")
+		return
+	display_settings.set_window_mode(_get_window_mode_for_index(index))
 
 
 func _apply_vsync_mode(index: int) -> void:
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if is_instance_valid(display_settings):
-		display_settings.set_vsync_mode(_get_vsync_mode_for_index(index))
+	if not is_instance_valid(display_settings):
+		push_error("[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法写入垂直同步设置。")
+		return
+	display_settings.set_vsync_mode(_get_vsync_mode_for_index(index))
 
 
 func _apply_master_volume(value: float) -> void:
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if is_instance_valid(display_settings):
-		display_settings.set_audio_bus_volume(_AUDIO_BUS_MASTER, value)
+	if not is_instance_valid(display_settings):
+		push_error("[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法写入主音量。")
+		return
+	display_settings.set_audio_bus_volume(_AUDIO_BUS_MASTER, value)
 	_update_volume_value_label(value)
 
 
 func _apply_visual_theme(index: int) -> void:
 	var theme_utility: GameThemeUtility = _get_theme_utility()
 	if not is_instance_valid(theme_utility):
+		push_error("[SettingsMenu] 缺少 GameThemeUtility，无法写入视觉主题。")
 		return
 
 	var theme_id: StringName = _get_string_name_for_index(
@@ -413,6 +423,7 @@ func _apply_visual_theme(index: int) -> void:
 func _apply_sound_theme(index: int) -> void:
 	var theme_utility: GameThemeUtility = _get_theme_utility()
 	if not is_instance_valid(theme_utility):
+		push_error("[SettingsMenu] 缺少 GameThemeUtility，无法写入音效主题。")
 		return
 
 	var theme_id: StringName = _get_string_name_for_index(
@@ -471,22 +482,6 @@ func _get_display_settings_utility() -> GFDisplaySettingsUtility:
 	return null
 
 
-func _get_ui_router_utility() -> GFUIRouterUtility:
-	var utility_value: Object = get_utility(GFUIRouterUtility)
-	if utility_value is GFUIRouterUtility:
-		var ui_router: GFUIRouterUtility = utility_value
-		return ui_router
-	return null
-
-
-func _get_ui_utility() -> GFUIUtility:
-	var utility_value: Object = get_utility(GFUIUtility)
-	if utility_value is GFUIUtility:
-		var ui_utility: GFUIUtility = utility_value
-		return ui_utility
-	return null
-
-
 func _get_scene_router_system() -> SceneRouterSystem:
 	var system_value: Object = get_system(SceneRouterSystem)
 	if system_value is SceneRouterSystem:
@@ -541,13 +536,11 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 
 func _on_back_button_pressed() -> void:
 	if not return_to_main_menu_on_back:
-		var ui_router: GFUIRouterUtility = _get_ui_router_utility()
-		if not is_instance_valid(ui_router) or not ui_router.back(GFUIUtility.Layer.POPUP):
-			var ui_util: GFUIUtility = _get_ui_utility()
-			if is_instance_valid(ui_util):
-				ui_util.pop_panel()
+		var _closed: bool = _close_current_popup_route(_ROUTE_SETTINGS_MENU)
 		return
 
 	var router: SceneRouterSystem = _get_scene_router_system()
-	if is_instance_valid(router):
-		router.return_to_main_menu()
+	if not is_instance_valid(router):
+		push_error("[SettingsMenu] 缺少 SceneRouterSystem，无法返回主菜单。")
+		return
+	router.return_to_main_menu()

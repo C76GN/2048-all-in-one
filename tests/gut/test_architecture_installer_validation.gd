@@ -11,6 +11,7 @@ const GAME_PLAY_SCENE_PATH: String = "res://features/gameplay/scenes/game/game_p
 const GAME_STATUS_MODEL_PATH: String = "res://features/gameplay/scripts/models/game_status_model.gd"
 const GAME_STATE_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_state_system.gd"
 const GAME_FLOW_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_flow_system.gd"
+const GAME_INIT_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_init_system.gd"
 const GAME_TURN_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_turn_system.gd"
 const GAME_MOVE_TURN_ACTION_PATH: String = "res://features/gameplay/scripts/actions/game_move_turn_action.gd"
 const RULE_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/rule_system.gd"
@@ -19,6 +20,10 @@ const HUD_PATH: String = "res://features/gameplay/scripts/ui/hud.gd"
 const BOOKMARK_DATA_PATH: String = "res://features/bookmarks/scripts/data/bookmark_data.gd"
 const REMOVED_HUD_PAYLOAD_PATH: String = "res://features/gameplay/scripts/events/hud_message_payload.gd"
 const SCENE_ROUTER_SYSTEM_PATH: String = "res://features/navigation/scripts/systems/scene_router_system.gd"
+const SETTINGS_MENU_PATH: String = "res://features/settings/scripts/menus/settings_menu.gd"
+const GAME_UI_CONTROLLER_PATH: String = "res://features/themes/scripts/ui/game_ui_controller.gd"
+const THEME_CATALOG_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_theme_catalog_utility.gd"
+const THEME_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_theme_utility.gd"
 const EVENT_NAMES_PATH: String = "res://shared/scripts/contracts/event_names.gd"
 const PROJECT_SETTINGS_PATH: String = "res://project.godot"
 const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
@@ -135,7 +140,14 @@ func test_move_turn_pipeline_uses_gf_turn_action_lifecycle() -> void:
 
 func test_required_gf_modules_have_no_manual_runtime_fallbacks() -> void:
 	var board_source: String = _read_text(GAME_BOARD_CONTROLLER_PATH)
+	var controller_source: String = _read_text(GAME_PLAY_CONTROLLER_PATH)
+	var flow_source: String = _read_text(GAME_FLOW_SYSTEM_PATH)
+	var init_source: String = _read_text(GAME_INIT_SYSTEM_PATH)
 	var router_source: String = _read_text(SCENE_ROUTER_SYSTEM_PATH)
+	var settings_source: String = _read_text(SETTINGS_MENU_PATH)
+	var ui_controller_source: String = _read_text(GAME_UI_CONTROLLER_PATH)
+	var theme_catalog_source: String = _read_text(THEME_CATALOG_UTILITY_PATH)
+	var theme_source: String = _read_text(THEME_UTILITY_PATH)
 
 	assert_true(board_source.contains("_has_required_dependencies"), "棋盘控制器应显式校验 GF 必需依赖。")
 	assert_false(board_source.contains("TileScene.instantiate()"), "Tile 只能通过 GFObjectPoolUtility 获取。")
@@ -143,6 +155,18 @@ func test_required_gf_modules_have_no_manual_runtime_fallbacks() -> void:
 	assert_true(router_source.contains("_has_required_dependencies"), "场景路由应显式校验 GF 必需依赖。")
 	assert_false(router_source.contains("change_scene_to_packed("), "场景切换不能绕过 GFSceneUtility。")
 	assert_false(router_source.contains("scene_switch_started.connect("), "跨生命周期信号只能由 GFSignalUtility 管理。")
+	assert_false(controller_source.contains("func _get_ui_utility"), "游戏控制器不得保留 GFUIUtility 兼容入口。")
+	assert_false(controller_source.contains(".pop_panel("), "游戏控制器只能通过 GFUIRouterUtility 关闭面板。")
+	assert_true(ui_controller_source.contains("_close_current_popup_route_and_send_event"), "游戏菜单应捕获架构、关闭自身 GF UI 路由后再派发业务事件。")
+	assert_false(flow_source.contains("GFUIUtility"), "GameFlowSystem 不得拥有表现层 UI 栈。")
+	assert_false(flow_source.contains(".clear_all("), "业务系统不得越权清空 UI 栈。")
+	assert_false(init_source.contains("elif is_instance_valid(_command_history)"), "关卡清理不得绕过 GFLevelUtility。")
+	assert_false(settings_source.contains("TranslationServer.set_locale("), "设置写入不得绕过 GFDisplaySettingsUtility。")
+	assert_false(settings_source.contains("DisplayServer.window_get_mode("), "设置读取不得绕过 GFDisplaySettingsUtility。")
+	assert_false(settings_source.contains("DisplayServer.window_get_vsync_mode("), "垂直同步读取不得绕过 GFDisplaySettingsUtility。")
+	assert_false(settings_source.contains("func _get_ui_utility"), "设置菜单不得保留 GFUIUtility 兼容入口。")
+	assert_false(theme_catalog_source.contains("GameThemeRegistry.new()"), "主题目录加载失败不得伪造空注册表。")
+	assert_false(theme_source.contains("GameThemeRegistry.new()"), "主题运行时加载失败不得伪造空注册表。")
 
 
 # --- 私有/辅助方法 ---
