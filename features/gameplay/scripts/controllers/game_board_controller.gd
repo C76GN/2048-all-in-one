@@ -52,7 +52,7 @@ var board_theme: BoardTheme
 
 # --- 私有变量 ---
 
-## 逻辑数据到视觉节点的映射字典 { GameTileData: Tile }
+## 逻辑数据到视觉节点的映射字典 { TileState: Tile }
 var _visual_map: Dictionary = {}
 
 ## 防止在窗口大小改变时重复初始化棋盘。
@@ -185,12 +185,12 @@ func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Strin
 	_play_tile_feedback_sound(feedback_type)
 
 
-## 获取当前棋盘上数值最大的玩家方块的值。
-## @return: 最大的玩家方块数值。
-func get_max_player_value() -> int:
+## 获取当前棋盘上的最高方块值。
+## @return: 最大方块数值。
+func get_max_tile_value() -> int:
 	if not model:
 		return 0
-	return model.get_max_player_value()
+	return model.get_max_tile_value()
 
 
 ## 游戏中扩建棋盘。
@@ -215,12 +215,12 @@ func get_empty_cells() -> Array[Vector2i]:
 	return model.get_empty_cells()
 
 
-## 遍历整个网格，返回所有玩家方块数值的数组。
-## @return: 一个已排序的、包含所有玩家方块数值的数组。
-func get_all_player_tile_values() -> Array[int]:
+## 遍历整个网格，返回所有方块数值的数组。
+## @return: 一个已排序的方块数值数组。
+func get_all_tile_values() -> Array[int]:
 	if not model:
 		return []
-	return model.get_all_player_tile_values()
+	return model.get_all_tile_values()
 
 
 ## 获取当前棋盘所有方块状态的可序列化快照。
@@ -286,13 +286,13 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 		if not _is_grid_pos_in_bounds(pos, grid_size):
 			continue
 
-		var value: int = _get_int(tile_data_snapshot, &"value", 0)
-		var type: Tile.TileType = _get_tile_type(tile_data_snapshot, &"type", Tile.TileType.PLAYER)
-		var tile_data: GameTileData = _get_model_tile_data(pos)
+		var tile_data: TileState = _get_model_tile_data(pos)
 		if tile_data == null:
-			tile_data = GameTileData.new(value, type)
+			if _log:
+				_log.error(_LOG_TAG, "模型缺少快照位置 %s 对应的 TileState。" % pos)
+			continue
 
-		var new_tile: Tile = _create_visual_tile(tile_data.value, tile_data.type)
+		var new_tile: Tile = _create_visual_tile(tile_data)
 		if not is_instance_valid(new_tile):
 			continue
 		_visual_map[tile_data] = new_tile
@@ -392,7 +392,9 @@ func _get_host_control() -> Control:
 	return null
 
 
-func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
+func _create_visual_tile(tile_data: TileState) -> Tile:
+	if tile_data == null:
+		return null
 	var new_tile: Tile = _acquire_visual_tile()
 	if not is_instance_valid(new_tile):
 		push_error("[GameBoardController] 方块场景必须实例化为 Tile。")
@@ -400,14 +402,28 @@ func _create_visual_tile(value: int, type: Tile.TileType) -> Tile:
 	
 	new_tile.reset_animation_state()
 	new_tile.set_meta(RELEASE_TOKEN_META, 0)
-	var colors: Dictionary = _get_tile_colors(value, type)
+	var colors: Dictionary = _get_tile_colors(tile_data.value, tile_data.definition_id)
+	var presentation: Dictionary = _get_tile_presentation_descriptor(tile_data)
 	new_tile.setup(
-		value,
-		type,
+		tile_data.value,
+		tile_data.definition_id,
 		_get_color(colors, &"bg", Color.WHITE),
-		_get_color(colors, &"font", Color.BLACK)
+		_get_color(colors, &"font", Color.BLACK),
+		GFVariantData.to_string_name(
+			GFVariantData.get_option_value(presentation, &"visual_family_id")
+		),
+		_get_string_name_array(presentation, &"visual_layer_ids")
 	)
 	return new_tile
+
+
+func _get_tile_presentation_descriptor(tile_data: TileState) -> Dictionary:
+	if tile_data == null or not is_instance_valid(model) or model.interaction_rule == null:
+		return {}
+	var definition: TileDefinition = model.interaction_rule.get_tile_definition(tile_data.definition_id)
+	if definition == null:
+		return {}
+	return definition.get_presentation_descriptor(tile_data.capability_recipe_ids)
 
 
 func _acquire_visual_tile() -> Tile:
@@ -483,7 +499,10 @@ func _build_reverse_start_tiles_map(snapshot: Dictionary, reverse_target_map: Di
 			continue
 
 		var value: int = _get_int(tile_data_snapshot, &"value", 0)
-		var type: Tile.TileType = _get_tile_type(tile_data_snapshot, &"type", Tile.TileType.PLAYER)
+		var definition_id: StringName = GFVariantData.get_option_string_name(
+			tile_data_snapshot,
+			&"definition_id"
+		)
 		var pos_key: String = "%d,%d" % [pos.x, pos.y]
 		var start_grid_pos: Vector2i = _get_vector2i(reverse_target_map, StringName(pos_key), pos)
 		var start_key: String = "%d,%d" % [start_grid_pos.x, start_grid_pos.y]
@@ -494,7 +513,7 @@ func _build_reverse_start_tiles_map(snapshot: Dictionary, reverse_target_map: Di
 		var start_tile_entries: Array = GFVariantData.to_array(reverse_start_tiles[start_key])
 		start_tile_entries.append({
 			&"value": value,
-			&"type": type,
+			&"definition_id": definition_id,
 		})
 		reverse_start_tiles[start_key] = start_tile_entries
 
@@ -515,11 +534,11 @@ func _should_animate_undo_despawn(tile: Tile, reverse_start_tiles: Dictionary) -
 	var candidate: Dictionary = GFVariantData.to_dictionary(candidates[0])
 	return (
 		candidate.get(&"value", 0) != tile.value
-		or candidate.get(&"type", Tile.TileType.PLAYER) != tile.type
+		or GFVariantData.get_option_string_name(candidate, &"definition_id") != tile.definition_id
 	)
 
 
-func _get_model_tile_data(grid_pos: Vector2i) -> GameTileData:
+func _get_model_tile_data(grid_pos: Vector2i) -> TileState:
 	if not is_instance_valid(model):
 		return null
 	if not _is_grid_pos_in_bounds(grid_pos, model.grid_size):
@@ -532,21 +551,19 @@ func _get_model_tile_data(grid_pos: Vector2i) -> GameTileData:
 		return null
 
 	var tile_data: Variant = column[grid_pos.y]
-	if tile_data is GameTileData:
+	if tile_data is TileState:
 		return tile_data
 	return null
 
 
-func _get_tile_colors(value: int, type: Tile.TileType) -> Dictionary:
+func _get_tile_colors(value: int, definition_id: StringName) -> Dictionary:
 	var bg_color: Color = Color.WHITE
 	var font_color: Color = Color.BLACK
 	
 	if not model or not model.interaction_rule:
 		return {"bg": bg_color, "font": font_color}
 		
-	var scheme_index: int = type
-	if type == Tile.TileType.PLAYER:
-		scheme_index = model.interaction_rule.get_color_scheme_index(value)
+	var scheme_index: int = model.interaction_rule.get_color_scheme_index(value, definition_id)
 		
 	var current_scheme: TileColorScheme = _get_tile_color_scheme(scheme_index)
 	if is_instance_valid(current_scheme) and not current_scheme.styles.is_empty():
@@ -805,14 +822,14 @@ static func _get_instruction_type(data: Dictionary) -> StringName:
 	return StringName(str(value))
 
 
-static func _get_game_tile_data(data: Dictionary, key: StringName) -> GameTileData:
+static func _get_game_tile_data(data: Dictionary, key: StringName) -> TileState:
 	var value: Variant = data.get(key, data.get(String(key), null))
-	if value is GameTileData:
+	if value is TileState:
 		return value
 	return null
 
 
-func _get_visual_tile(tile_data: GameTileData) -> Tile:
+func _get_visual_tile(tile_data: TileState) -> Tile:
 	if tile_data == null:
 		return null
 	var value: Variant = _visual_map.get(tile_data, null)
@@ -849,16 +866,11 @@ static func _get_bool(data: Dictionary, key: StringName, default_value: bool) ->
 	return default_value
 
 
-static func _get_tile_type(data: Dictionary, key: StringName, default_value: Tile.TileType) -> Tile.TileType:
-	var value: Variant = data.get(key, data.get(String(key), default_value))
-	if value is int:
-		var enum_value: int = value
-		match enum_value:
-			Tile.TileType.PLAYER:
-				return Tile.TileType.PLAYER
-			Tile.TileType.MONSTER:
-				return Tile.TileType.MONSTER
-	return default_value
+static func _get_string_name_array(data: Dictionary, key: StringName) -> Array[StringName]:
+	var result: Array[StringName] = []
+	for value: Variant in GFVariantData.get_option_array(data, key):
+		result.append(GFVariantData.to_string_name(value))
+	return result
 
 
 static func _get_color(data: Dictionary, key: StringName, default_value: Color) -> Color:
@@ -944,7 +956,7 @@ func _on_board_animation_requested(instructions: Array) -> void:
 		# 转换逻辑数据到视觉节点
 		match instruction_type:
 			&"MOVE":
-				var move_data: GameTileData = _get_game_tile_data(instr, &"tile_data")
+				var move_data: TileState = _get_game_tile_data(instr, &"tile_data")
 				var move_tile_node: Tile = _get_visual_tile(move_data)
 				if is_instance_valid(move_tile_node):
 					visual_instr[&"tile"] = move_tile_node
@@ -952,8 +964,8 @@ func _on_board_animation_requested(instructions: Array) -> void:
 					needs_visual_resync = true
 					continue
 			&"MERGE":
-				var consumed_data: GameTileData = _get_game_tile_data(instr, &"consumed_data")
-				var merged_data: GameTileData = _get_game_tile_data(instr, &"merged_data")
+				var consumed_data: TileState = _get_game_tile_data(instr, &"consumed_data")
+				var merged_data: TileState = _get_game_tile_data(instr, &"merged_data")
 				
 				var consumed_node: Tile = _get_visual_tile(consumed_data)
 				var merged_node: Tile = _get_visual_tile(merged_data)
@@ -970,12 +982,24 @@ func _on_board_animation_requested(instructions: Array) -> void:
 				
 				# 延迟更新合并后的视觉状态
 				if is_instance_valid(merged_node):
-					var merge_colors: Dictionary = _get_tile_colors(merged_data.value, merged_data.type)
+					var merge_colors: Dictionary = _get_tile_colors(
+						merged_data.value,
+						merged_data.definition_id
+					)
+					var merge_presentation: Dictionary = _get_tile_presentation_descriptor(merged_data)
 					visual_instr[&"target_setup_data"] = {
 						&"value": merged_data.value,
-						&"type": merged_data.type,
+						&"definition_id": merged_data.definition_id,
 						&"bg": merge_colors.bg,
 						&"font": merge_colors.font,
+						&"visual_family_id": GFVariantData.get_option_value(
+							merge_presentation,
+							&"visual_family_id"
+						),
+						&"visual_layer_ids": GFVariantData.get_option_array(
+							merge_presentation,
+							&"visual_layer_ids"
+						),
 						&"do_transform": instr.has(&"transform")
 					}
 						
@@ -983,11 +1007,11 @@ func _on_board_animation_requested(instructions: Array) -> void:
 				if consumed_data != null:
 					var _erase_result: bool = _visual_map.erase(consumed_data)
 			&"SPAWN":
-				var spawn_data: GameTileData = _get_game_tile_data(instr, &"tile_data")
+				var spawn_data: TileState = _get_game_tile_data(instr, &"tile_data")
 				if spawn_data == null:
 					needs_visual_resync = true
 					continue
-				var new_tile: Tile = _create_visual_tile(spawn_data.value, spawn_data.type)
+				var new_tile: Tile = _create_visual_tile(spawn_data)
 				if not is_instance_valid(new_tile):
 					needs_visual_resync = true
 					continue
@@ -997,19 +1021,31 @@ func _on_board_animation_requested(instructions: Array) -> void:
 				
 				visual_instr[&"tile"] = new_tile
 			&"TRANSFORM":
-				var transform_data: GameTileData = _get_game_tile_data(instr, &"tile_data")
+				var transform_data: TileState = _get_game_tile_data(instr, &"tile_data")
 				var transform_tile_node: Tile = _get_visual_tile(transform_data)
 				if not is_instance_valid(transform_tile_node):
 					needs_visual_resync = true
 					continue
 
-				var transform_colors: Dictionary = _get_tile_colors(transform_data.value, transform_data.type)
+				var transform_colors: Dictionary = _get_tile_colors(
+					transform_data.value,
+					transform_data.definition_id
+				)
+				var transform_presentation: Dictionary = _get_tile_presentation_descriptor(transform_data)
 				visual_instr[&"tile"] = transform_tile_node
 				visual_instr[&"target_setup_data"] = {
 					&"value": transform_data.value,
-					&"type": transform_data.type,
+					&"definition_id": transform_data.definition_id,
 					&"bg": transform_colors.bg,
 					&"font": transform_colors.font,
+					&"visual_family_id": GFVariantData.get_option_value(
+						transform_presentation,
+						&"visual_family_id"
+					),
+					&"visual_layer_ids": GFVariantData.get_option_array(
+						transform_presentation,
+						&"visual_layer_ids"
+					),
 					&"do_merge": _get_bool(instr, &"do_merge", false),
 					&"do_transform": _get_bool(instr, &"do_transform", false),
 				}

@@ -15,6 +15,7 @@ const _LOG_TAG: String = "GridMovementSystem"
 
 var _grid_model: GridModel
 var _log: GFLogUtility
+var _tile_composition_utility: TileCompositionUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -24,18 +25,22 @@ func get_required_models() -> Array[Script]:
 
 
 func get_required_utilities() -> Array[Script]:
-	return [GFLogUtility]
+	return [GFLogUtility, TileCompositionUtility]
 
 
 ## 从架构获取必要的层级引用。
 func ready() -> void:
 	_grid_model = _get_grid_model()
 	_log = _get_log_utility()
+	var utility_value: Variant = get_utility(TileCompositionUtility)
+	if utility_value is TileCompositionUtility:
+		_tile_composition_utility = utility_value
 
 
 func dispose() -> void:
 	_grid_model = null
 	_log = null
+	_tile_composition_utility = null
 
 
 # --- 核心逻辑 ---
@@ -56,6 +61,7 @@ func handle_move(direction: Vector2i) -> MoveData:
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GridModel 缺少交互规则或移动规则。")
 		return null
+	interaction_rule.setup(_tile_composition_utility)
 		
 	var grid_size: int = _grid_model.grid_size
 	var grid: Array = _grid_model.grid
@@ -74,25 +80,25 @@ func handle_move(direction: Vector2i) -> MoveData:
 
 	var moved_lines_indices: Array[int] = []
 	var score_delta: int = 0
-	var monster_kill_count: int = 0
+	var ratio_resolution_count: int = 0
 
 	# 算法核心：按行/列处理
 	for i: int in range(grid_size):
-		var line: Array[GameTileData] = []
+		var line: Array[TileState] = []
 
 		# 提取当前行/列的 TileData 引用
 		for j: int in range(grid_size):
 			var coords: Vector2i = _get_coords_for_line(i, j, direction, grid_size)
 			var source_column: Array = grid[coords.x]
 			var tile_value: Variant = source_column[coords.y]
-			if tile_value is GameTileData:
+			if tile_value is TileState:
 				line.append(tile_value)
 			else:
 				line.append(null)
 
 		# 调用规则引擎计算合并结果
 		var result: Dictionary = movement_rule.process_line(line)
-		var new_line: Array[GameTileData] = result.line
+		var new_line: Array[TileState] = result.line
 		var merges: Array[Dictionary] = result.merges
 		var merged_tile_ids: Dictionary = {}
 
@@ -102,8 +108,8 @@ func handle_move(direction: Vector2i) -> MoveData:
 
 		# 记录合并指令 (用于动画)
 		for merge_info: Dictionary in merges:
-			var consumed: GameTileData = merge_info.consumed_tile
-			var merged: GameTileData = merge_info.merged_tile
+			var consumed: TileState = merge_info.consumed_tile
+			var merged: TileState = merge_info.merged_tile
 			merged_tile_ids[merged.get_instance_id()] = true
 			var final_line_pos: int = new_line.find(merged)
 			var final_coords: Vector2i = _get_coords_for_line(i, final_line_pos, direction, grid_size)
@@ -129,17 +135,17 @@ func handle_move(direction: Vector2i) -> MoveData:
 
 			if merge_info.has("score"):
 				score_delta += _get_int(merge_info, &"score", 0)
-			if merge_info.has("monster_killed"):
-				monster_kill_count += _get_int(merge_info, &"monster_killed", 0)
+			if merge_info.has("ratio_resolved"):
+				ratio_resolution_count += _get_int(merge_info, &"ratio_resolved", 0)
 
 		# 记录移动指令 (用于动画)
 		var tiles_in_new_line_ids: Array = []
-		for tile_data: GameTileData in new_line:
+		for tile_data: TileState in new_line:
 			if tile_data != null:
 				tiles_in_new_line_ids.append(tile_data.get_instance_id())
 
 		for j: int in range(grid_size):
-			var original_data: GameTileData = line[j]
+			var original_data: TileState = line[j]
 			if original_data == null or not original_data.get_instance_id() in tiles_in_new_line_ids:
 				continue
 			if merged_tile_ids.has(original_data.get_instance_id()):
@@ -169,8 +175,8 @@ func handle_move(direction: Vector2i) -> MoveData:
 
 		if score_delta != 0:
 			send_simple_event(EventNames.SCORE_UPDATED, score_delta)
-		if monster_kill_count > 0:
-			send_simple_event(EventNames.MONSTER_KILLED, monster_kill_count)
+		if ratio_resolution_count > 0:
+			send_simple_event(EventNames.RATIO_RESOLVED, ratio_resolution_count)
 
 		var result_move_data: MoveData = MoveData.new()
 		result_move_data.direction = direction

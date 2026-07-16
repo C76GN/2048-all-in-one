@@ -16,7 +16,7 @@ extends Resource
 @export_multiline var mode_description: String = ""
 
 @export_group("规则配置")
-## 方块如何交互（合并、战斗等）的规则。
+## 方块如何交互（相加、求商、变换等）的规则。
 @export var interaction_rule: InteractionRule
 
 ## 方块如何移动（经典滑动、步进等）的规则。
@@ -29,7 +29,7 @@ extends Resource
 @export var game_over_rule: GameOverRule
 
 @export_group("视觉主题")
-## 一个字典，用于存储不同方块类型（Tile.TileType）对应的配色方案。
+## 一个字典，用于存储 TileDefinition.color_scheme_index 对应的配色方案。
 @export var color_schemes: Dictionary = {}
 
 ## 棋盘和背景的视觉主题。
@@ -46,7 +46,7 @@ extends Resource
 @export var max_grid_size: int = 8
 
 @export_group("目标配置")
-## 本模式用于统计目标达成的玩家方块值；为 0 表示暂不定义目标。
+## 本模式用于统计目标达成的最高方块值；为 0 表示暂不定义目标。
 @export var target_tile_value: int = 0
 
 
@@ -79,6 +79,13 @@ func get_validation_report() -> GFValidationReport:
 
 	if not is_instance_valid(interaction_rule):
 		_add_config_error(report, &"missing_interaction_rule", "interaction_rule 未配置。", &"interaction_rule")
+	elif not interaction_rule.get_tile_definition_validation_report().is_ok():
+		_add_config_error(
+			report,
+			&"invalid_tile_definitions",
+			"interaction_rule 的 TileDefinition 或 GF Capability Recipe 校验失败。",
+			&"interaction_rule"
+		)
 
 	if not is_instance_valid(movement_rule):
 		_add_config_error(report, &"missing_movement_rule", "movement_rule 未配置。", &"movement_rule")
@@ -94,6 +101,24 @@ func get_validation_report() -> GFValidationReport:
 				"spawn_rules[%d] 未配置。" % i,
 				"spawn_rules/%d" % i
 			)
+			continue
+		var spawn_rule: SpawnRule = spawn_rules[i]
+		var _merged_spawn_report: RefCounted = report.merge(
+			spawn_rule.get_validation_report(),
+			false
+		)
+		if is_instance_valid(interaction_rule):
+			for definition_id: StringName in spawn_rule.get_referenced_definition_ids():
+				if interaction_rule.get_tile_definition(definition_id) == null:
+					_add_config_error(
+						report,
+						&"unknown_spawn_definition_id",
+						"spawn_rules[%d] 引用了当前模式未声明的 definition_id：%s。" % [
+							i,
+							definition_id,
+						],
+						"spawn_rules/%d" % i
+					)
 
 	if not is_instance_valid(game_over_rule):
 		_add_config_error(report, &"missing_game_over_rule", "game_over_rule 未配置。", &"game_over_rule")
@@ -131,10 +156,10 @@ func has_target() -> bool:
 	return target_tile_value > 0
 
 
-## 根据当前最大玩家方块判断是否达成目标。
-## @param max_player_tile: 本局达到的最大玩家方块值。
-func is_target_reached(max_player_tile: int) -> bool:
-	return has_target() and max_player_tile >= target_tile_value
+## 根据当前最高方块值判断是否达成目标。
+## @param max_tile_value: 本局达到的最高方块值。
+func is_target_reached(max_tile_value: int) -> bool:
+	return has_target() and max_tile_value >= target_tile_value
 
 
 # --- 私有/辅助方法 ---

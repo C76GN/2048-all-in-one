@@ -37,6 +37,8 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	var level_utility: GFLevelUtility = GFLevelUtility.new()
 	var command_history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()
 
+	await architecture.register_utility(GFCapabilityUtility, GFCapabilityUtility.new())
+	await architecture.register_utility(TileCompositionUtility, TileCompositionUtility.new())
 	await architecture.register_model(AppConfigModel, app_config)
 	await architecture.register_model(GridModel, GridModel.new())
 	await architecture.register_model(GameStatusModel, GameStatusModel.new())

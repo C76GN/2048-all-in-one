@@ -1,21 +1,10 @@
 ## Tile: 定义了棋盘上单个方块的行为、外观和动画。
 ##
-## 每个方块节点都挂载此脚本。它负责管理自身的数值、类型（玩家或怪物），
+## 每个方块节点都挂载此脚本。它负责管理自身的数值、定义表现，
 ## 并根据这些属性更新背景颜色、文本内容和字体大小。
 ## 同时，它也封装了所有与自身相关的动画，如生成、移动、合并等。
 class_name Tile
 extends Node2D
-
-
-# --- 枚举 ---
-
-## 定义了方块的两种基本类型，用于区分游戏逻辑和视觉表现。
-enum TileType {
-	## 玩家控制的方块
-	PLAYER,
-	## 游戏生成的障碍或敌对方块
-	MONSTER,
-}
 
 
 # --- 常量 ---
@@ -44,8 +33,14 @@ const _FLASH_TRANSFORM_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 1
 ## 方块当前的数值。
 var value: int = 0
 
-## 方块当前的类型。
-var type: TileType = TileType.PLAYER
+## 方块当前的稳定定义 ID。
+var definition_id: StringName = &""
+
+## 方块身份定义提供的稳定视觉家族。
+var visual_family_id: StringName = &""
+
+## 当前 GF Recipe 组合提供的视觉标记层。
+var visual_layer_ids: Array[StringName] = []
 
 ## 存储所有可用配色方案的字典。 (已废弃，由 Controller 计算颜色)
 var color_schemes: Dictionary
@@ -88,12 +83,23 @@ func _ready() -> void:
 ##
 ## 这是该节点的唯一公共接口，用于设置其所有核心属性。
 ## @param new_value: 方块的新数值。
-## @param new_type: 方块的新类型。
+## @param new_definition_id: 方块的稳定定义 ID。
 ## @param bg_color: 背景颜色。
 ## @param font_color: 字体颜色。
-func setup(new_value: int, new_type: TileType, bg_color: Color, font_color: Color) -> void:
+## @param new_visual_family_id: 方块定义提供的稳定视觉家族 ID。
+## @param new_visual_layer_ids: 当前 Recipe 组合提供的视觉标记层。
+func setup(
+	new_value: int,
+	new_definition_id: StringName,
+	bg_color: Color,
+	font_color: Color,
+	new_visual_family_id: StringName = &"",
+	new_visual_layer_ids: Array[StringName] = []
+) -> void:
 	self.value = new_value
-	self.type = new_type
+	definition_id = new_definition_id
+	visual_family_id = new_visual_family_id
+	visual_layer_ids = new_visual_layer_ids.duplicate()
 	
 	value_label.text = str(int(value))
 	_apply_background_style(bg_color)
@@ -266,31 +272,24 @@ func _apply_pattern_style(bg_color: Color) -> void:
 	if not is_instance_valid(pattern_overlay):
 		return
 
-	pattern_overlay.setup(_get_pattern_type(), bg_color)
+	pattern_overlay.setup(_get_pattern_type(), bg_color, visual_layer_ids)
 
 
 func _get_pattern_type() -> TilePatternOverlay.PatternType:
-	match type:
-		TileType.MONSTER:
-			return TilePatternOverlay.PatternType.DIAGONAL_HATCH
-		TileType.PLAYER:
-			return _get_player_pattern_type()
-		_:
-			return TilePatternOverlay.PatternType.NONE
-
-
-func _get_player_pattern_type() -> TilePatternOverlay.PatternType:
-	var safe_value: int = maxi(absi(value), 1)
-	var approximate_level: int = maxi(roundi(log(float(safe_value)) / log(2.0)) - 1, 0)
-	match approximate_level % 4:
-		0:
+	match visual_family_id:
+		&"tile.visual.classic_numeric":
 			return TilePatternOverlay.PatternType.HALFTONE
-		1:
-			return TilePatternOverlay.PatternType.DIAMOND
-		2:
-			return TilePatternOverlay.PatternType.CHECKER
-		_:
+		&"tile.visual.fibonacci_numeric":
 			return TilePatternOverlay.PatternType.SCALES
+		&"tile.visual.classic_fibonacci_hybrid":
+			return TilePatternOverlay.PatternType.CHECKER
+		&"tile.visual.lucas_fibonacci_hybrid":
+			return TilePatternOverlay.PatternType.DIAMOND
+		&"tile.visual.ratio_base":
+			return TilePatternOverlay.PatternType.CHECKER
+		&"tile.visual.ratio_factor":
+			return TilePatternOverlay.PatternType.DIAGONAL_HATCH
+	return TilePatternOverlay.PatternType.NONE
 
 
 func _get_label_outline_color(bg_color: Color) -> Color:

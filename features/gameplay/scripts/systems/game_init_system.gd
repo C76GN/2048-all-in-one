@@ -449,7 +449,7 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		if is_instance_valid(game_status_model):
 			game_status_model.score.set_value(loaded_bookmark_data.score)
 			game_status_model.move_count.set_value(loaded_bookmark_data.move_count)
-			game_status_model.monsters_killed.set_value(loaded_bookmark_data.monsters_killed)
+			game_status_model.ratio_resolutions.set_value(loaded_bookmark_data.ratio_resolutions)
 			game_status_model.highest_tile.set_value(loaded_bookmark_data.highest_tile)
 			game_status_model.set_target_state(
 				mode_config.target_tile_value,

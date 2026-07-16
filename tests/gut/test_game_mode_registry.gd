@@ -10,7 +10,7 @@ const EXPECTED_MODE_CONFIG_PATHS: Array[String] = [
 	"res://features/gameplay/resources/modes/lucas_fibonacci_mode_config.tres",
 	"res://features/gameplay/resources/modes/progressive_mode_config.tres",
 	"res://features/gameplay/resources/modes/step_by_step_mode_config.tres",
-	"res://features/gameplay/resources/modes/battle_mode_config.tres",
+	"res://features/gameplay/resources/modes/ratio_mode_config.tres",
 ]
 
 const EXPECTED_MODE_RESOURCE_KEYS: Array[String] = [
@@ -19,7 +19,7 @@ const EXPECTED_MODE_RESOURCE_KEYS: Array[String] = [
 	"game.mode_config.lucas_fibonacci",
 	"game.mode_config.progressive",
 	"game.mode_config.step_by_step",
-	"game.mode_config.battle",
+	"game.mode_config.ratio",
 ]
 
 
@@ -109,6 +109,30 @@ func test_mode_registry_registers_resolver_resource_keys_when_utility_is_ready()
 	assert_true(resource is GameModeConfig, "应能通过稳定资源键加载经典模式配置。")
 
 	architecture.dispose()
+
+
+func test_mode_validation_rejects_unknown_spawn_definition_reference() -> void:
+	var resource: Resource = load("res://features/gameplay/resources/modes/ratio_mode_config.tres")
+	assert_true(resource is GameModeConfig, "应加载比值模式配置。")
+	if not resource is GameModeConfig:
+		return
+	var mode_config: GameModeConfig = resource.duplicate(true)
+	var ratio_spawn_rule: ProbabilisticRatioSpawnRule = null
+	for spawn_rule: SpawnRule in mode_config.spawn_rules:
+		if spawn_rule is ProbabilisticRatioSpawnRule:
+			ratio_spawn_rule = spawn_rule
+			break
+	assert_not_null(ratio_spawn_rule, "比值模式应包含概率因子方块生成规则。")
+	if ratio_spawn_rule == null:
+		return
+	ratio_spawn_rule.alternate_definition_id = &"tile.ratio.unknown"
+
+	var report: GFValidationReport = mode_config.get_validation_report()
+	assert_false(report.is_ok(), "生成规则引用未声明定义时模式配置必须无效。")
+	assert_true(
+		GFVariantData.get_option_int(report.get_issue_counts_by_kind(), &"unknown_spawn_definition_id") == 1,
+		"模式校验应明确报告未知的生成 definition_id。"
+	)
 
 
 # --- 私有/辅助方法 ---

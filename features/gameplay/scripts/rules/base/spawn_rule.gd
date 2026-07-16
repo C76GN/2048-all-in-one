@@ -18,8 +18,8 @@ enum TriggerType {
 	ON_MOVE_PROBABILITY,
 	## 由外部计时器触发
 	ON_TIMER,
-	## 当一个怪物被消灭时
-	ON_KILL,
+	## 当一次跨定义求商完成时
+	ON_RATIO_RESOLVED,
 }
 
 
@@ -64,6 +64,19 @@ func teardown() -> void:
 ## @param _stats: 要写入显示数据的 Dictionary 对象。
 func get_hud_stats(_context: RuleContext, _stats: Dictionary) -> void:
 	pass
+
+
+## 生成规则自身的 GF 校验报告。
+func get_validation_report() -> GFValidationReport:
+	return GFValidationReport.new(
+		"SpawnRule:%s" % get_class(),
+		{&"resource_path": resource_path}
+	)
+
+
+## 返回此规则引用的稳定方块定义 ID，供模式配置做跨资源校验。
+func get_referenced_definition_ids() -> Array[StringName]:
+	return []
 
 
 ## 获取规则当前的内部状态，用于保存。

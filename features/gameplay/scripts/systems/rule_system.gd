@@ -30,7 +30,7 @@ func ready() -> void:
 	_seed_utility = _get_seed_utility()
 
 	register_simple_event(EventNames.REQUEST_BOARD_INITIALIZATION, GFEventListener.from_method(self, &"_on_request_board_init", 1))
-	register_simple_event(EventNames.MONSTER_KILLED, GFEventListener.from_method(self, &"_on_monster_killed", 1))
+	register_simple_event(EventNames.RATIO_RESOLVED, GFEventListener.from_method(self, &"_on_ratio_resolved", 1))
 
 
 func dispose() -> void:
@@ -116,8 +116,8 @@ func _dispatch_context_outputs(context: RuleContext) -> void:
 	if context.score_delta != 0:
 		send_simple_event(EventNames.SCORE_UPDATED, context.score_delta)
 
-	if context.monsters_killed > 0:
-		send_simple_event(EventNames.MONSTER_KILLED, context.monsters_killed)
+	if context.ratio_resolutions > 0:
+		send_simple_event(EventNames.RATIO_RESOLVED, context.ratio_resolutions)
 
 	context.clear_runtime_outputs()
 
@@ -138,5 +138,5 @@ func _on_request_board_init(_payload: Variant = null) -> void:
 	_execute_rules(SpawnRule.TriggerType.ON_INITIALIZE)
 
 
-func _on_monster_killed(_payload: Variant = null) -> void:
-	_execute_rules(SpawnRule.TriggerType.ON_KILL)
+func _on_ratio_resolved(_payload: Variant = null) -> void:
+	_execute_rules(SpawnRule.TriggerType.ON_RATIO_RESOLVED)

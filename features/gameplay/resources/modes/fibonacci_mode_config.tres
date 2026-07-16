@@ -10,6 +10,8 @@
 [ext_resource type="Resource" uid="uid://d2gxks83gv2v2" path="res://features/gameplay/resources/rules/spawn/fibonacci_spawn_rule_init.tres" id="4_dtg25"]
 [ext_resource type="Resource" uid="uid://42cxoxfotqxu" path="res://features/gameplay/resources/rules/spawn/fibonacci_spawn_rule_on_move.tres" id="5_4014i"]
 [ext_resource type="Resource" uid="uid://c6s7jklm8wan2" path="res://features/gameplay/resources/rules/movement/classic_movement_rule.tres" id="6_s7tht"]
+[ext_resource type="Script" path="res://features/gameplay/scripts/tiles/definitions/tile_definition.gd" id="7_tile_definition"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/tiles/definitions/fibonacci_numeric_tile.tres" id="8_fibonacci_tile"]
 
 [sub_resource type="Resource" id="Resource_4014i"]
 script = ExtResource("1_dtg25")
@@ -17,6 +19,8 @@ metadata/_custom_type_script = "uid://cd58tqmib7wsk"
 
 [sub_resource type="Resource" id="Resource_n5c15"]
 script = ExtResource("1_naqou")
+tile_definitions = Array[ExtResource("7_tile_definition")]([ExtResource("8_fibonacci_tile")])
+default_definition_id = &"tile.fibonacci.numeric"
 metadata/_custom_type_script = "uid://cjyusdv36u0s6"
 
 [resource]

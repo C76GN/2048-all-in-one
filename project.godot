@@ -47,7 +47,7 @@ enabled=PackedStringArray("res://addons/gf/plugin.cfg", "res://addons/gut/plugin
 [gf]
 
 project/installers=PackedStringArray("res://app/scripts/game_architecture_installer.gd")
-extensions/enabled=Array[String](["gf.action_queue", "gf.asset_metadata", "gf.content_package", "gf.domain", "gf.feedback", "gf.save", "gf.turn_based"])
+extensions/enabled=Array[String](["gf.action_queue", "gf.asset_metadata", "gf.capability", "gf.content_package", "gf.domain", "gf.feedback", "gf.save", "gf.turn_based"])
 network/contract_paths=PackedStringArray()
 network/contract_output_dir="res://generated/network"
 extensions/selection_mode="explicit"

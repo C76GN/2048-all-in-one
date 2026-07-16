@@ -44,7 +44,7 @@ func test_theme_registry_loads_default_theme_pack() -> void:
 		GFVariantData.to_bool(theme.scene_transition_reveal_effect.shader_material.get_shader_parameter(&"reverse_progress")),
 		"揭示转场应反向推进半调遮罩。"
 	)
-	assert_true(theme.color_schemes.has(Tile.TileType.PLAYER), "主题应覆盖玩家方块色阶。")
+	assert_true(theme.color_schemes.has(0), "主题应覆盖默认方块色阶槽位。")
 
 
 func test_theme_registry_validation_rejects_duplicate_ids_and_missing_defaults() -> void:
@@ -260,17 +260,17 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 
 	var resolved_board: BoardTheme = theme_utility.resolve_board_theme(fallback_board)
 	var resolved_schemes: Dictionary = theme_utility.resolve_color_schemes({
-		Tile.TileType.PLAYER: fallback_scheme,
+		0: fallback_scheme,
 	})
-	var player_scheme_value: Variant = resolved_schemes.get(Tile.TileType.PLAYER)
-	var resolved_player_scheme: TileColorScheme = null
-	if player_scheme_value is TileColorScheme:
-		resolved_player_scheme = player_scheme_value
+	var default_scheme_value: Variant = resolved_schemes.get(0)
+	var resolved_default_scheme: TileColorScheme = null
+	if default_scheme_value is TileColorScheme:
+		resolved_default_scheme = default_scheme_value
 
 	assert_true(resolved_board == _DEFAULT_BOARD_THEME, "当前主题应覆盖模式默认棋盘主题。")
 	assert_true(
-		resolved_player_scheme == _CLASSIC_TILE_THEME,
-		"当前主题应覆盖玩家方块色阶。"
+		resolved_default_scheme == _CLASSIC_TILE_THEME,
+		"当前主题应覆盖默认方块色阶槽位。"
 	)
 	assert_true(
 		is_instance_valid(celebration_vfx) and celebration_vfx.get_theme() == theme_utility.get_current_visual_theme().celebration_vfx_theme,

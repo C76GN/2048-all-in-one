@@ -22,8 +22,8 @@ var spawn_requests: Array[SpawnData] = []
 ## 规则请求增加的分数。
 var score_delta: int = 0
 
-## 规则请求增加的击杀数量。
-var monsters_killed: int = 0
+## 规则请求增加的跨定义求商次数。
+var ratio_resolutions: int = 0
 
 
 # --- 公共方法 ---
@@ -53,14 +53,14 @@ func add_score(amount: int) -> void:
 	score_delta += amount
 
 
-## 记录怪物击杀数量。
-## @param amount: 本轮增加的击杀数量。
-func add_monster_kill(amount: int = 1) -> void:
-	monsters_killed += max(amount, 0)
+## 记录跨定义求商次数。
+## @param amount: 本轮增加的求商次数。
+func add_ratio_resolution(amount: int = 1) -> void:
+	ratio_resolutions += max(amount, 0)
 
 
 ## 清空运行时输出，避免下一条规则重复派发上一条规则的结果。
 func clear_runtime_outputs() -> void:
 	spawn_requests.clear()
 	score_delta = 0
-	monsters_killed = 0
+	ratio_resolutions = 0

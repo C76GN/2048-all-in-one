@@ -53,10 +53,10 @@ fields = {
 "sort_order": 50
 }
 
-[sub_resource type="Resource" id="Entry_battle"]
+[sub_resource type="Resource" id="Entry_ratio"]
 script = ExtResource("2_entry")
-id = &"battle"
-path = "res://features/gameplay/resources/modes/battle_mode_config.tres"
+id = &"ratio"
+path = "res://features/gameplay/resources/modes/ratio_mode_config.tres"
 type_hint = "GameModeConfig"
 fields = {
 "category": &"challenge",
@@ -65,4 +65,4 @@ fields = {
 
 [resource]
 script = ExtResource("1_registry")
-entries = Array[ExtResource("2_entry")]([SubResource("Entry_classic"), SubResource("Entry_fibonacci"), SubResource("Entry_lucas_fibonacci"), SubResource("Entry_progressive"), SubResource("Entry_step_by_step"), SubResource("Entry_battle")])
+entries = Array[ExtResource("2_entry")]([SubResource("Entry_classic"), SubResource("Entry_fibonacci"), SubResource("Entry_lucas_fibonacci"), SubResource("Entry_progressive"), SubResource("Entry_step_by_step"), SubResource("Entry_ratio")])

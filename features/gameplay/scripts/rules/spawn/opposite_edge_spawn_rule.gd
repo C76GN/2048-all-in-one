@@ -13,7 +13,7 @@ extends SpawnRule
 
 @export_group("规则配置")
 
-## 生成数值为2的玩家方块的概率（其余为4）。
+## 生成数值为2的方块概率（其余为4）。
 @export var probability_of_2: float = 0.9
 
 ## 如果生成成功，是否"消费"事件，阻止后续低优先级的移动规则执行。
@@ -79,7 +79,6 @@ func execute(context: RuleContext) -> bool:
 		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.position = spawn_pos
 		spawn_data.value = value
-		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
 		context.request_spawn(spawn_data)

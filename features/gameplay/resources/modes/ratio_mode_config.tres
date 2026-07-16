@@ -6,27 +6,32 @@
 [ext_resource type="Script" uid="uid://rtyr5upmnau6" path="res://features/gameplay/scripts/rules/base/spawn_rule.gd" id="2_rv56s"]
 [ext_resource type="Script" uid="uid://cd58tqmib7wsk" path="res://features/gameplay/scripts/rules/game_over/standard_game_over_rule.gd" id="3_2ldk4"]
 [ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://features/themes/resources/themes/tile_schemes/red_tile_theme.tres" id="3_06hy0"]
-[ext_resource type="Script" uid="uid://dg4uoygc0uq8m" path="res://features/gameplay/scripts/rules/interaction/battle_interaction_rule.gd" id="4_deic8"]
+[ext_resource type="Script" uid="uid://dg4uoygc0uq8m" path="res://features/gameplay/scripts/rules/interaction/ratio_interaction_rule.gd" id="4_ratio_rule"]
 [ext_resource type="Resource" uid="uid://c6s7jklm8wan2" path="res://features/gameplay/resources/rules/movement/classic_movement_rule.tres" id="6_2ldk4"]
-[ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://features/gameplay/resources/rules/spawn/classic_spawn_rule_init.tres" id="7_battle_init"]
-[ext_resource type="Resource" uid="uid://t1sr0qod56au" path="res://features/gameplay/resources/rules/spawn/probabilistic_battle_spawn_rule_on_move.tres" id="8_battle_prob"]
-[ext_resource type="Resource" uid="uid://c6s7jklm8wan1" path="res://features/gameplay/resources/rules/spawn/opposite_edge_spawn_rule_on_move.tres" id="9_battle_opposite"]
+[ext_resource type="Resource" uid="uid://dbb0u5q2klk3u" path="res://features/gameplay/resources/rules/spawn/classic_spawn_rule_init.tres" id="7_ratio_init"]
+[ext_resource type="Resource" uid="uid://t1sr0qod56au" path="res://features/gameplay/resources/rules/spawn/probabilistic_ratio_spawn_rule_on_move.tres" id="8_ratio_prob"]
+[ext_resource type="Resource" uid="uid://c6s7jklm8wan1" path="res://features/gameplay/resources/rules/spawn/opposite_edge_spawn_rule_on_move.tres" id="9_ratio_opposite"]
+[ext_resource type="Script" path="res://features/gameplay/scripts/tiles/definitions/tile_definition.gd" id="10_tile_definition"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/tiles/definitions/ratio_base_tile.tres" id="11_ratio_base"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/tiles/definitions/ratio_factor_tile.tres" id="12_ratio_factor"]
 
 [sub_resource type="Resource" id="Resource_8rw1r"]
 script = ExtResource("3_2ldk4")
 metadata/_custom_type_script = "uid://cd58tqmib7wsk"
 
 [sub_resource type="Resource" id="Resource_8wciv"]
-script = ExtResource("4_deic8")
+script = ExtResource("4_ratio_rule")
+tile_definitions = Array[ExtResource("10_tile_definition")]([ExtResource("11_ratio_base"), ExtResource("12_ratio_factor")])
+default_definition_id = &"tile.ratio.base"
 metadata/_custom_type_script = "uid://dg4uoygc0uq8m"
 
 [resource]
 script = ExtResource("1_vuygr")
-mode_name = "MODE_BATTLE_NAME"
-mode_description = "MODE_BATTLE_DESC"
+mode_name = "MODE_RATIO_NAME"
+mode_description = "MODE_RATIO_DESC"
 interaction_rule = SubResource("Resource_8wciv")
 movement_rule = ExtResource("6_2ldk4")
-spawn_rules = Array[ExtResource("2_rv56s")]([ExtResource("7_battle_init"), ExtResource("8_battle_prob"), ExtResource("9_battle_opposite")])
+spawn_rules = Array[ExtResource("2_rv56s")]([ExtResource("7_ratio_init"), ExtResource("8_ratio_prob"), ExtResource("9_ratio_opposite")])
 game_over_rule = SubResource("Resource_8rw1r")
 color_schemes = {
 0: ExtResource("2_06hy0"),

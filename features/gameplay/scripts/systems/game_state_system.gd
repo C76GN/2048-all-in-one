@@ -34,7 +34,7 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 	var highest_tile: int = 0
 	var score: int = 0
 	var move_count: int = 0
-	var monsters_killed: int = 0
+	var ratio_resolutions: int = 0
 	var target_tile_value: int = 0
 	var target_reached: bool = false
 	var extra_stats: Dictionary = {}
@@ -42,12 +42,12 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 	if grid_size <= 0 and is_instance_valid(grid):
 		grid_size = grid.grid_size
 	if is_instance_valid(grid):
-		highest_tile = grid.get_max_player_value()
+		highest_tile = grid.get_max_tile_value()
 
 	if is_instance_valid(status):
 		score = GFVariantData.to_int(status.score.get_value(), 0)
 		move_count = GFVariantData.to_int(status.move_count.get_value(), 0)
-		monsters_killed = GFVariantData.to_int(status.monsters_killed.get_value(), 0)
+		ratio_resolutions = GFVariantData.to_int(status.ratio_resolutions.get_value(), 0)
 		target_tile_value = GFVariantData.to_int(status.target_tile_value.get_value(), 0)
 		target_reached = GFVariantData.to_bool(status.target_reached.get_value(), false)
 		var extra_stats_value: Variant = status.extra_stats.get_value()
@@ -75,7 +75,7 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 		&"score": score,
 		&"move_count": move_count,
 		&"highest_tile": highest_tile,
-		&"monsters_killed": monsters_killed,
+		&"ratio_resolutions": ratio_resolutions,
 		&"target_tile_value": target_tile_value,
 		&"target_reached": target_reached,
 		&"extra_stats": extra_stats,
@@ -123,10 +123,10 @@ func restore_state(state_to_restore: Dictionary) -> void:
 	if is_instance_valid(status):
 		status.score.set_value(GFVariantData.get_option_int(state_to_restore, &"score", 0))
 		status.move_count.set_value(GFVariantData.get_option_int(state_to_restore, &"move_count", 0))
-		status.monsters_killed.set_value(GFVariantData.get_option_int(state_to_restore, &"monsters_killed", 0))
+		status.ratio_resolutions.set_value(GFVariantData.get_option_int(state_to_restore, &"ratio_resolutions", 0))
 		var highest_tile: int = GFVariantData.get_option_int(state_to_restore, &"highest_tile", 0)
 		if is_instance_valid(grid):
-			highest_tile = grid.get_max_player_value()
+			highest_tile = grid.get_max_tile_value()
 		status.highest_tile.set_value(highest_tile)
 		status.set_target_state(
 			GFVariantData.get_option_int(state_to_restore, &"target_tile_value", 0),

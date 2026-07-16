@@ -5,6 +5,11 @@ class_name GridModel
 extends "res://addons/gf/kernel/base/gf_model.gd"
 
 
+# --- 常量 ---
+
+const SNAPSHOT_SCHEMA_VERSION: int = 2
+
+
 # --- 公共变量 ---
 
 ## 棋盘尺寸
@@ -20,6 +25,33 @@ var interaction_rule: InteractionRule
 var movement_rule: MovementRule
 
 
+# --- 私有变量 ---
+
+var _tile_composition_utility: TileCompositionUtility = null
+
+
+# --- GF 生命周期方法 ---
+
+func get_required_utilities() -> Array[Script]:
+	return [TileCompositionUtility]
+
+
+func ready() -> void:
+	var utility_value: Variant = get_utility(TileCompositionUtility)
+	if utility_value is TileCompositionUtility:
+		_tile_composition_utility = utility_value
+	if interaction_rule != null:
+		interaction_rule.setup(_tile_composition_utility)
+
+
+func dispose() -> void:
+	_release_grid_tiles()
+	_tile_composition_utility = null
+	interaction_rule = null
+	movement_rule = null
+	grid.clear()
+
+
 # --- 公共方法 ---
 
 ## 初始化或重置数据
@@ -27,9 +59,12 @@ var movement_rule: MovementRule
 ## @param p_interaction_rule: 当前模式使用的交互规则。
 ## @param p_movement_rule: 当前模式使用的移动规则。
 func initialize(size: int, p_interaction_rule: InteractionRule, p_movement_rule: MovementRule) -> void:
+	_release_grid_tiles()
 	grid_size = size
 	interaction_rule = p_interaction_rule
 	movement_rule = p_movement_rule
+	if interaction_rule != null:
+		interaction_rule.setup(_tile_composition_utility)
 	grid = _create_empty_grid(grid_size)
 
 
@@ -39,14 +74,13 @@ func get_snapshot() -> Dictionary:
 	for x: int in range(grid_size):
 		var row: Array = grid[x]
 		for y: int in range(grid_size):
-			var a_tile: GameTileData = row[y]
+			var a_tile: TileState = row[y]
 			if a_tile != null:
-				tiles_list.append({
-					&"pos": Vector2i(x, y),
-					&"value": a_tile.value,
-					&"type": a_tile.type,
-				})
+				var tile_snapshot: Dictionary = a_tile.to_dict()
+				tile_snapshot[&"pos"] = Vector2i(x, y)
+				tiles_list.append(tile_snapshot)
 	return {
+		&"schema_version": SNAPSHOT_SCHEMA_VERSION,
 		&"grid_size": grid_size,
 		&"tiles": tiles_list,
 	}
@@ -55,33 +89,80 @@ func get_snapshot() -> Dictionary:
 ## 从快照还原数据
 ## @param snapshot: get_snapshot() 产生的棋盘快照。
 func restore_from_snapshot(snapshot: Dictionary) -> void:
-	if not snapshot.has(&"tiles") and not snapshot.has("tiles"):
+	if not _has_strict_snapshot_shape(snapshot):
+		push_error("[GridModel] 拒绝恢复不符合当前严格结构的棋盘快照。")
+		return
+	var snapshot_schema_version: int = snapshot[&"schema_version"]
+	if snapshot_schema_version != SNAPSHOT_SCHEMA_VERSION:
+		push_error("[GridModel] 拒绝恢复未知棋盘快照 schema。")
+		return
+	if interaction_rule == null or _tile_composition_utility == null:
+		push_error("[GridModel] 无法恢复方块快照：组合工具或交互规则不可用。")
 		return
 
-	grid_size = GFVariantData.to_int(snapshot.get(&"grid_size", snapshot.get("grid_size", grid_size)), grid_size)
-	if grid_size <= 0:
+	var restored_size: int = snapshot[&"grid_size"]
+	if restored_size <= 0:
+		push_error("[GridModel] 棋盘快照 grid_size 必须大于 0。")
 		return
 
-	grid = _create_empty_grid(grid_size)
-		
-	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
+	var restored_grid: Array = _create_empty_grid(restored_size)
+	var restored_tiles: Array[TileState] = []
+	var seen_tile_ids: Dictionary = {}
+	var tiles_data: Array = snapshot[&"tiles"]
+	if tiles_data.size() > restored_size * restored_size:
+		push_error("[GridModel] 棋盘快照方块数量超过棋盘容量。")
+		return
 	for raw_tile_info: Variant in tiles_data:
 		if not raw_tile_info is Dictionary:
-			continue
+			_release_tiles(restored_tiles)
+			push_error("[GridModel] 方块快照包含非 Dictionary 项。")
+			return
 		var tile_info: Dictionary = raw_tile_info
-		var pos: Vector2i = _to_vector2i(tile_info.get(&"pos", tile_info.get("pos", Vector2i.ZERO)))
-		if not _is_cell_in_bounds(pos):
-			continue
+		if tile_info.size() != 7 or not tile_info.has(&"pos") or not tile_info[&"pos"] is Vector2i:
+			_release_tiles(restored_tiles)
+			push_error("[GridModel] 方块快照条目结构无效。")
+			return
+		var pos: Vector2i = tile_info[&"pos"]
+		if not _is_cell_in_bounds_for_size(pos, restored_size) or restored_grid[pos.x][pos.y] != null:
+			_release_tiles(restored_tiles)
+			push_error("[GridModel] 方块快照位置无效或重复：%s。" % pos)
+			return
 
-		var value: int = GFVariantData.to_int(tile_info.get(&"value", tile_info.get("value", 0)), 0)
-		var type: Tile.TileType = _to_tile_type(tile_info.get(&"type", tile_info.get("type", Tile.TileType.PLAYER)))
-		grid[pos.x][pos.y] = GameTileData.new(value, type)
+		var tile_payload: Dictionary = tile_info.duplicate(true)
+		var _position_erased: bool = tile_payload.erase(&"pos")
+		if not tile_payload.has(&"tile_id") or not tile_payload[&"tile_id"] is String:
+			_release_tiles(restored_tiles)
+			push_error("[GridModel] 方块快照缺少严格 tile_id。")
+			return
+		var tile_id: String = tile_payload[&"tile_id"]
+		if seen_tile_ids.has(tile_id):
+			_release_tiles(restored_tiles)
+			push_error("[GridModel] 方块快照包含重复 tile_id：%s。" % tile_id)
+			return
+		seen_tile_ids[tile_id] = true
+		var definition_id: StringName = (
+			tile_payload[&"definition_id"]
+			if tile_payload.has(&"definition_id") and tile_payload[&"definition_id"] is StringName
+			else &""
+		)
+		var definition: TileDefinition = interaction_rule.get_tile_definition(definition_id)
+		var tile: TileState = _tile_composition_utility.restore_tile(tile_payload, definition)
+		if tile == null:
+			_release_tiles(restored_tiles)
+			push_error("[GridModel] 方块快照不符合当前严格 schema：%s。" % tile_info)
+			return
+		restored_grid[pos.x][pos.y] = tile
+		restored_tiles.append(tile)
+
+	_release_grid_tiles()
+	grid_size = restored_size
+	grid = restored_grid
 
 
 ## 将指定的方块数据结构放入网格
 ## @param tile: 要放置的方块数据。
 ## @param grid_pos: 目标网格坐标。
-func place_tile(tile: GameTileData, grid_pos: Vector2i) -> void:
+func place_tile(tile: TileState, grid_pos: Vector2i) -> void:
 	if _is_cell_in_bounds(grid_pos):
 		grid[grid_pos.x][grid_pos.y] = tile
 
@@ -115,27 +196,26 @@ func get_empty_cells() -> Array[Vector2i]:
 	return empty_cells
 
 
-## 获取玩家拥有的最高方块值
-func get_max_player_value() -> int:
+## 获取棋盘上的最高方块值。
+func get_max_tile_value() -> int:
 	var max_val: int = 0
 	for x: int in range(grid_size):
 		var row: Array = grid[x]
 		for y: int in range(grid_size):
-			var tile: GameTileData = row[y]
-			if tile != null and tile.type == Tile.TileType.PLAYER:
-				if tile.value > max_val:
-					max_val = tile.value
+			var tile: TileState = row[y]
+			if tile != null and tile.value > max_val:
+				max_val = tile.value
 	return max_val
 
 
-## 获取所有玩家方块值的去重列表供外部统计使用
-func get_all_player_tile_values() -> Array[int]:
+## 获取棋盘全部方块值并排序，供外部统计使用。
+func get_all_tile_values() -> Array[int]:
 	var values: Array[int] = []
 	for x: int in range(grid_size):
 		var row: Array = grid[x]
 		for y: int in range(grid_size):
-			var tile: GameTileData = row[y]
-			if tile != null and tile.type == Tile.TileType.PLAYER:
+			var tile: TileState = row[y]
+			if tile != null:
 				values.append(tile.value)
 	values.sort()
 	return values
@@ -166,12 +246,44 @@ func _create_empty_grid(size: int) -> Array:
 
 
 func _is_cell_in_bounds(grid_pos: Vector2i) -> bool:
+	return _is_cell_in_bounds_for_size(grid_pos, grid_size)
+
+
+func _is_cell_in_bounds_for_size(grid_pos: Vector2i, size: int) -> bool:
+	return grid_pos.x >= 0 and grid_pos.x < size and grid_pos.y >= 0 and grid_pos.y < size
+
+
+static func _has_strict_snapshot_shape(snapshot: Dictionary) -> bool:
 	return (
-		grid_pos.x >= 0
-		and grid_pos.x < grid_size
-		and grid_pos.y >= 0
-		and grid_pos.y < grid_size
+		snapshot.size() == 3
+		and snapshot.has(&"schema_version")
+		and snapshot[&"schema_version"] is int
+		and snapshot.has(&"grid_size")
+		and snapshot[&"grid_size"] is int
+		and snapshot.has(&"tiles")
+		and snapshot[&"tiles"] is Array
 	)
+
+
+func _release_grid_tiles() -> void:
+	if _tile_composition_utility == null:
+		return
+	var tiles: Array[TileState] = []
+	for column_value: Variant in grid:
+		if not column_value is Array:
+			continue
+		var column: Array = column_value
+		for tile_value: Variant in column:
+			if tile_value is TileState:
+				tiles.append(tile_value)
+	_release_tiles(tiles)
+
+
+func _release_tiles(tiles: Array[TileState]) -> void:
+	if _tile_composition_utility == null:
+		return
+	for tile: TileState in tiles:
+		_tile_composition_utility.release_tile(tile)
 
 
 static func _to_vector2i(value: Variant) -> Vector2i:
@@ -188,14 +300,3 @@ static func _to_vector2i(value: Variant) -> Vector2i:
 			GFVariantData.to_int(data.get(&"y", data.get("y", 0)), 0)
 		)
 	return Vector2i.ZERO
-
-
-static func _to_tile_type(value: Variant) -> Tile.TileType:
-	var raw_type: int = GFVariantData.to_int(value, int(Tile.TileType.PLAYER))
-	match raw_type:
-		Tile.TileType.PLAYER:
-			return Tile.TileType.PLAYER
-		Tile.TileType.MONSTER:
-			return Tile.TileType.MONSTER
-		_:
-			return Tile.TileType.PLAYER

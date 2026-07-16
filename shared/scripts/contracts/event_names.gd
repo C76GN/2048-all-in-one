@@ -77,8 +77,8 @@ const TOGGLE_PAUSE_UI: StringName = &"toggle_pause_ui"
 ## 得分变化事件，payload 为分数增量。
 const SCORE_UPDATED: StringName = &"score_updated"
 
-## 怪物被击杀。
-const MONSTER_KILLED: StringName = &"monster_killed"
+## 一次跨定义求商完成，payload 为本轮完成次数。
+const RATIO_RESOLVED: StringName = &"ratio_resolved"
 
 ## 请求生成方块，payload 为 SpawnData。
 const SPAWN_TILE_REQUESTED: StringName = &"spawn_tile_requested"
@@ -137,7 +137,7 @@ const RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED: StringName = &"return_to_main_men
 
 # --- 测试工具 (TestPanel) ---
 
-## 测试面板请求指定类型的可生成数值列表，payload 为类型 ID。
+## 测试面板请求指定生成选项的可用数值列表，payload 为局部选项 ID。
 const TEST_VALUES_REQUESTED: StringName = &"test_values_requested"
 
 ## 测试面板请求重置棋盘并调整大小，payload 为新尺寸。

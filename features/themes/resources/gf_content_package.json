@@ -78,7 +78,7 @@
       "priority": 100,
       "metadata": {
         "theme_id": "halftone_atlas",
-        "tile_type": "player"
+        "scheme_slot": 0
       }
     },
     {
@@ -108,7 +108,7 @@
       "priority": 100,
       "metadata": {
         "theme_id": "halftone_atlas",
-        "tile_type": "monster"
+        "scheme_slot": 1
       }
     },
     {
@@ -118,7 +118,7 @@
       "priority": 100,
       "metadata": {
         "theme_id": "halftone_atlas",
-        "tile_type": "special"
+        "scheme_slot": 2
       }
     }
   ],

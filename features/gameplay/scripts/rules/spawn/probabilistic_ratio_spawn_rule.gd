@@ -1,37 +1,40 @@
-## ProbabilisticBattleSpawnRule: 实现了玩家或怪物二选一的概率生成规则。
+## ProbabilisticRatioSpawnRule: 按递增概率生成另一种比值方块定义。
 ##
 ## 规则行为:
 ## 1. 监听移动事件 (ON_MOVE)。
-## 2. 每次移动后，有较低概率生成一个怪物方块；失败时交给后续规则生成玩家方块。
-## 3. 怪物生成概率是动态的：如果失败，则增加下一次的成功概率，直到达到上限；如果成功，则重置为基础概率。
-## 4. 生成的怪物数值会根据当前棋盘上玩家方块的最大值动态调整，变得更具挑战性。
-class_name ProbabilisticBattleSpawnRule
+## 2. 每次移动后，有较低概率生成指定的替代定义；失败时交给后续规则生成默认定义。
+## 3. 失败会提高下次概率，成功后恢复基础概率。
+## 4. 生成数值根据当前棋盘最大值动态调整。
+class_name ProbabilisticRatioSpawnRule
 extends SpawnRule
 
 
 # --- 常量 ---
 
-const _MONSTER_CHANCE_FORMAT_FALLBACK: String = "下次移动出现怪物概率: %.1f%%"
-const _BATTLE_PROBABILITY_FORMAT_FALLBACK: String = "  - %d (概率: %.1f%%)\n"
+const _ALTERNATE_CHANCE_FORMAT_FALLBACK: String = "下次出现比值方块概率: %.1f%%"
+const _RATIO_PROBABILITY_FORMAT_FALLBACK: String = "  - %d (概率: %.1f%%)\n"
 
 
 # --- 导出变量 ---
 
 @export_group("概率配置")
 
-## 生成怪物的基础概率（0.0 到 1.0 之间）。
+## 生成替代定义的基础概率（0.0 到 1.0 之间）。
 @export_range(0.0, 1.0) var base_probability: float = 0.05
 
-## 每次生成怪物失败后，概率增加的量。
+## 每次生成失败后，概率增加的量。
 @export_range(0.0, 1.0) var increase_on_failure: float = 0.02
 
-## 怪物生成概率可以达到的最大值。
+## 生成概率可以达到的最大值。
 @export_range(0.0, 1.0) var max_probability: float = 0.5
+
+## 成功触发时请求生成的稳定方块定义 ID。
+@export var alternate_definition_id: StringName = &""
 
 
 # --- 私有变量 ---
 
-## 当前的动态怪物生成概率值。
+## 当前动态生成概率。
 var _current_probability: float = 0.0
 
 
@@ -46,21 +49,25 @@ func setup() -> void:
 ## @param context: 包含 grid_model 的上下文。
 ## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
 func execute(context: RuleContext) -> bool:
-	if not is_instance_valid(context) or not is_instance_valid(context.grid_model):
+	if (
+		alternate_definition_id == &""
+		or not is_instance_valid(context)
+		or not is_instance_valid(context.grid_model)
+	):
 		return false
 
 	if context.grid_model.get_empty_cells().is_empty():
 		return false
 
-	var random_stream: GFDeterministicRandom = context.get_random_stream("probabilistic_battle_spawn_rule")
+	var random_stream: GFDeterministicRandom = context.get_random_stream("probabilistic_ratio_spawn_rule")
 	if random_stream == null:
 		return false
 
 	if random_stream.next_float_unit() < _current_probability:
-		var monster_value: int = _calculate_monster_value(context.grid_model, context)
+		var alternate_value: int = _calculate_alternate_value(context.grid_model, context)
 		var spawn_data: SpawnData = SpawnData.new()
-		spawn_data.value = monster_value
-		spawn_data.type = Tile.TileType.MONSTER
+		spawn_data.value = alternate_value
+		spawn_data.definition_id = alternate_definition_id
 		spawn_data.is_priority = true
 		context.request_spawn(spawn_data)
 
@@ -76,17 +83,17 @@ func execute(context: RuleContext) -> bool:
 ## @param context: 包含 grid_model 的上下文。
 ## @param stats: 要写入显示数据的字典。
 func get_hud_stats(context: RuleContext, stats: Dictionary) -> void:
-	stats[&"monster_chance_label"] = GameTextFormatUtility.format_template(
-		tr("BATTLE_MONSTER_CHANCE"),
-		_MONSTER_CHANCE_FORMAT_FALLBACK,
+	stats[&"ratio_chance_label"] = GameTextFormatUtility.format_template(
+		tr("RATIO_ALTERNATE_CHANCE"),
+		_ALTERNATE_CHANCE_FORMAT_FALLBACK,
 		[_current_probability * 100]
 	)
 
 	var grid_model: GridModel = context.grid_model if is_instance_valid(context) else null
-	var pool: Dictionary = get_monster_spawn_pool(grid_model)
+	var pool: Dictionary = get_alternate_spawn_pool(grid_model)
 	var values: Array[int] = GFVariantData.to_int_array(pool.get(&"values", pool.get("values", [])))
 	var weights: Array[int] = GFVariantData.to_int_array(pool.get(&"weights", pool.get("weights", [])))
-	var spawn_info_text: String = tr("BATTLE_SPAWN_INFO")
+	var spawn_info_text: String = tr("RATIO_SPAWN_INFO")
 	var total_weight: int = 0
 	for w: int in weights:
 		total_weight += w
@@ -94,11 +101,34 @@ func get_hud_stats(context: RuleContext, stats: Dictionary) -> void:
 		for i: int in range(weights.size()):
 			var p: float = (float(weights[i]) / total_weight) * 100
 			spawn_info_text += GameTextFormatUtility.format_template(
-				tr("FORMAT_BATTLE_PROBABILITY"),
-				_BATTLE_PROBABILITY_FORMAT_FALLBACK,
+				tr("FORMAT_RATIO_PROBABILITY"),
+				_RATIO_PROBABILITY_FORMAT_FALLBACK,
 				[values[i], p]
 			)
 	stats[&"spawn_info_label"] = spawn_info_text
+
+
+func get_validation_report() -> GFValidationReport:
+	var report: GFValidationReport = super.get_validation_report()
+	if alternate_definition_id == &"":
+		var _definition_issue: RefCounted = report.add_error(
+			&"missing_alternate_definition_id",
+			"ProbabilisticRatioSpawnRule.alternate_definition_id 不能为空。",
+			&"alternate_definition_id",
+			resource_path
+		)
+	if base_probability > max_probability:
+		var _probability_issue: RefCounted = report.add_error(
+			&"invalid_probability_range",
+			"base_probability 不能大于 max_probability。",
+			&"base_probability",
+			resource_path
+		)
+	return report
+
+
+func get_referenced_definition_ids() -> Array[StringName]:
+	return [alternate_definition_id] if alternate_definition_id != &"" else []
 
 
 ## 获取规则当前的内部状态，用于保存。
@@ -115,21 +145,25 @@ func set_state(state: Variant) -> void:
 
 	var state_dict: Dictionary = state
 	if state_dict.has("current_probability"):
-		_current_probability = GFVariantData.to_float(state_dict["current_probability"], base_probability)
+		_current_probability = clampf(
+			GFVariantData.to_float(state_dict["current_probability"], base_probability),
+			base_probability,
+			max_probability
+		)
 
 
-## 动态计算并获取当前的怪物生成池。
+## 动态计算并获取当前的替代定义生成池。
 ## @param grid_model: 网格模型引用。
 ## @return: 一个包含 "values" 和 "weights" 数组的字典。
-func get_monster_spawn_pool(grid_model: GridModel = null) -> Dictionary:
+func get_alternate_spawn_pool(grid_model: GridModel = null) -> Dictionary:
 	if not is_instance_valid(grid_model):
 		return {"values": [2], "weights": [1]}
 
-	var max_player_value: int = grid_model.get_max_player_value()
-	if max_player_value <= 0:
+	var max_tile_value: int = grid_model.get_max_tile_value()
+	if max_tile_value <= 0:
 		return {"values": [2], "weights": [1]}
 
-	var k: int = int(log(max_player_value) / log(2))
+	var k: int = int(log(max_tile_value) / log(2))
 	if k < 1:
 		k = 1
 
@@ -144,12 +178,12 @@ func get_monster_spawn_pool(grid_model: GridModel = null) -> Dictionary:
 
 # --- 私有/辅助方法 ---
 
-## 根据动态生成的怪物池，计算本次要生成的怪物数值。
+## 根据动态生成池计算本次要生成的数值。
 ## @param grid_model: 网格模型引用。
 ## @param context: 当前规则上下文；提供确定性随机分支。
-## @return: 计算出的怪物数值。
-func _calculate_monster_value(grid_model: GridModel, context: RuleContext) -> int:
-	var spawn_pool: Dictionary = get_monster_spawn_pool(grid_model)
+## @return: 计算出的替代定义方块数值。
+func _calculate_alternate_value(grid_model: GridModel, context: RuleContext) -> int:
+	var spawn_pool: Dictionary = get_alternate_spawn_pool(grid_model)
 	var possible_values: Array[int] = GFVariantData.to_int_array(spawn_pool.get(&"values", spawn_pool.get("values", [])))
 	var weights: Array[int] = GFVariantData.to_int_array(spawn_pool.get(&"weights", spawn_pool.get("weights", [])))
 
@@ -163,9 +197,9 @@ func _calculate_monster_value(grid_model: GridModel, context: RuleContext) -> in
 		return 2
 
 	if not is_instance_valid(context):
-		push_error("[ProbabilisticBattleSpawnRule] 缺少 RuleContext，无法选择怪物数值。")
+		push_error("[ProbabilisticRatioSpawnRule] 缺少 RuleContext，无法选择生成数值。")
 		return 2
-	var random_stream: GFDeterministicRandom = context.get_random_stream("probabilistic_battle_spawn_rule")
+	var random_stream: GFDeterministicRandom = context.get_random_stream("probabilistic_ratio_spawn_rule")
 	if random_stream == null:
 		return 2
 	var random_pick: int = random_stream.next_int_range(1, total_weight)

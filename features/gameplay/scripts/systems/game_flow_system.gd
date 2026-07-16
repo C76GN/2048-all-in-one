@@ -76,7 +76,7 @@ func ready() -> void:
 	if not is_instance_valid(_notifications):
 		push_error("[GameFlowSystem] 缺少 GFNotificationUtility，玩法反馈不可用。")
 
-	register_simple_event(EventNames.MONSTER_KILLED, GFEventListener.from_method(self, &"_on_monster_killed", 1))
+	register_simple_event(EventNames.RATIO_RESOLVED, GFEventListener.from_method(self, &"_on_ratio_resolved", 1))
 	register_simple_event(EventNames.SCORE_UPDATED, GFEventListener.from_method(self, &"_on_score_updated", 1))
 	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready", 1))
 	register_simple_event(EventNames.UNDO_REQUESTED, GFEventListener.from_method(self, &"_on_undo_requested", 1))
@@ -604,7 +604,7 @@ func _get_current_highest_tile() -> int:
 	if is_instance_valid(_game_status_model):
 		return GFVariantData.to_int(_game_status_model.highest_tile.get_value(), 0)
 	if is_instance_valid(_grid_model):
-		return _grid_model.get_max_player_value()
+		return _grid_model.get_max_tile_value()
 	return 0
 
 
@@ -763,7 +763,7 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 
 	new_bookmark.score = GFVariantData.to_int(current_state_for_comparison.get(&"score", 0), 0)
 	new_bookmark.move_count = GFVariantData.to_int(current_state_for_comparison.get(&"move_count", 0), 0)
-	new_bookmark.monsters_killed = GFVariantData.to_int(current_state_for_comparison.get(&"monsters_killed", 0), 0)
+	new_bookmark.ratio_resolutions = GFVariantData.to_int(current_state_for_comparison.get(&"ratio_resolutions", 0), 0)
 	new_bookmark.highest_tile = GFVariantData.to_int(current_state_for_comparison.get(&"highest_tile", 0), 0)
 	new_bookmark.target_tile_value = GFVariantData.to_int(current_state_for_comparison.get(&"target_tile_value", 0), 0)
 	new_bookmark.target_reached = GFVariantData.to_bool(current_state_for_comparison.get(&"target_reached", false), false)
@@ -854,14 +854,14 @@ func _on_replay_continue_requested(payload: Variant = null) -> void:
 	)
 
 
-func _on_monster_killed(payload: Variant = null) -> void:
-	var kill_count: int = 1
+func _on_ratio_resolved(payload: Variant = null) -> void:
+	var resolution_count: int = 1
 	if payload is int:
 		var payload_count: int = payload
-		kill_count = max(payload_count, 0)
+		resolution_count = max(payload_count, 0)
 
 	if is_instance_valid(_game_status_model):
-		_game_status_model.increment_monsters_killed(kill_count)
+		_game_status_model.increment_ratio_resolutions(resolution_count)
 
 
 func _on_score_updated(amount: int) -> void:

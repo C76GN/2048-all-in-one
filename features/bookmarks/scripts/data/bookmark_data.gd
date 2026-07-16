@@ -26,10 +26,10 @@ extends Resource
 ## 书签保存时的移动次数。
 @export var move_count: int = 0
 
-## 书签保存时消灭的怪物数。
-@export var monsters_killed: int = 0
+## 书签保存时完成的跨定义求商次数。
+@export var ratio_resolutions: int = 0
 
-## 书签保存时的最高玩家方块。
+## 书签保存时的最高方块值。
 @export var highest_tile: int = 0
 
 ## 书签保存时当前模式的目标方块值。
@@ -65,7 +65,7 @@ func to_dict() -> Dictionary:
 		"initial_seed": initial_seed,
 		"score": score,
 		"move_count": move_count,
-		"monsters_killed": monsters_killed,
+		"ratio_resolutions": ratio_resolutions,
 		"highest_tile": highest_tile,
 		"target_tile_value": target_tile_value,
 		"target_reached": target_reached,
@@ -92,7 +92,7 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	result.initial_seed = GFVariantData.get_option_int(data, "initial_seed")
 	result.score = GFVariantData.get_option_int(data, "score")
 	result.move_count = GFVariantData.get_option_int(data, "move_count")
-	result.monsters_killed = GFVariantData.get_option_int(data, "monsters_killed")
+	result.ratio_resolutions = GFVariantData.get_option_int(data, "ratio_resolutions")
 	result.highest_tile = GFVariantData.get_option_int(data, "highest_tile")
 	result.target_tile_value = GFVariantData.get_option_int(data, "target_tile_value")
 	result.target_reached = GFVariantData.get_option_bool(data, "target_reached")
@@ -116,7 +116,7 @@ static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, "initial_seed") is int
 		and GFVariantData.get_option_value(data, "score") is int
 		and GFVariantData.get_option_value(data, "move_count") is int
-		and GFVariantData.get_option_value(data, "monsters_killed") is int
+		and GFVariantData.get_option_value(data, "ratio_resolutions") is int
 		and GFVariantData.get_option_value(data, "highest_tile") is int
 		and GFVariantData.get_option_value(data, "target_tile_value") is int
 		and GFVariantData.get_option_value(data, "target_reached") is bool

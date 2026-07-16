@@ -26,7 +26,7 @@ func get_required_systems() -> Array[Script]:
 
 
 func get_required_utilities() -> Array[Script]:
-	return [_GAME_THEME_UTILITY_SCRIPT, GFCommandHistoryUtility]
+	return [_GAME_THEME_UTILITY_SCRIPT, GFCommandHistoryUtility, TileCompositionUtility]
 
 
 ## 释放测试工具持有的场景引用与事件监听。
@@ -59,14 +59,14 @@ func clear_context() -> void:
 
 
 ## 初始化面板数据。
-## @param interaction_rule: 当前的交互规则，用于获取可生成类型。
+## @param interaction_rule: 当前的交互规则，用于获取可生成选项。
 ## @param grid_size: 当前棋盘尺寸。
 func initialize_panel(interaction_rule: InteractionRule, grid_size: int) -> void:
 	if not is_instance_valid(_test_panel) or not is_instance_valid(interaction_rule):
 		return
 		
-	var spawnable_types: Dictionary = interaction_rule.get_spawnable_types()
-	_test_panel.setup_panel(spawnable_types)
+	var spawnable_options: Dictionary = interaction_rule.get_spawnable_options()
+	_test_panel.setup_panel(spawnable_options)
 	_test_panel.update_coordinate_limits(grid_size)
 
 
@@ -99,7 +99,7 @@ func _sync_highest_tile_from_grid() -> void:
 	var grid_model: GridModel = _get_grid_model()
 	var status_model: GameStatusModel = _get_status_model()
 	if is_instance_valid(grid_model) and is_instance_valid(status_model):
-		status_model.highest_tile.set_value(grid_model.get_max_player_value())
+		status_model.highest_tile.set_value(grid_model.get_max_tile_value())
 
 
 func _is_grid_pos_in_bounds(grid_model: GridModel, grid_pos: Vector2i) -> bool:
@@ -176,9 +176,17 @@ func _get_theme_utility() -> GameThemeUtility:
 	return null
 
 
+func _get_tile_composition_utility() -> TileCompositionUtility:
+	var utility_value: Variant = get_utility(TileCompositionUtility)
+	if utility_value is TileCompositionUtility:
+		var composition_utility: TileCompositionUtility = utility_value
+		return composition_utility
+	return null
+
+
 # --- 信号处理函数 ---
 
-func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int) -> void:
+func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, option_id: int) -> void:
 	send_simple_event(EventNames.GAME_STATE_TAINTED)
 	
 	var grid_model: GridModel = _get_grid_model()
@@ -190,15 +198,16 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int
 		
 	var interaction_rule: InteractionRule = grid_model.interaction_rule
 	if is_instance_valid(interaction_rule):
-		var tile_type_enum: Tile.TileType = interaction_rule.get_tile_type_from_id(type_id)
-		
 		# 清理旧数据
 		var column: Array = grid_model.grid[grid_pos.x]
 		var old_data_value: Variant = column[grid_pos.y]
-		var old_data: GameTileData = null
-		if old_data_value is GameTileData:
+		var old_data: TileState = null
+		if old_data_value is TileState:
 			old_data = old_data_value
 		if old_data != null:
+			var old_tile_composition: TileCompositionUtility = _get_tile_composition_utility()
+			if old_tile_composition != null:
+				old_tile_composition.release_tile(old_data)
 			# 发送移除动画指令
 			var _remove_instruction: Array = [ {
 				&"type": &"REMOVE", # 需要确保 GameBoardController 支持处理这个伪指令或刷新
@@ -208,7 +217,13 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int
 			# 考虑到直接调用删除比较麻烦，这里让 GameBoardController 收到 BOARD_REFRESH_REQUESTED 时全量刷新即可。
 			
 		# 创建新数据并放置
-		var tile_data: GameTileData = GameTileData.new(value, tile_type_enum)
+		var composition_utility: TileCompositionUtility = _get_tile_composition_utility()
+		if composition_utility == null:
+			return
+		var definition: TileDefinition = interaction_rule.get_spawn_definition(option_id)
+		var tile_data: TileState = composition_utility.create_tile(definition, value)
+		if tile_data == null:
+			return
 		grid_model.place_tile(tile_data, grid_pos)
 		
 		# 通知视图层全量刷新 (比单点刷新更安全，且测试工具不需要关心视图层怎么画)
@@ -216,12 +231,12 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, type_id: int
 		_sync_highest_tile_from_grid()
 
 
-func _on_test_panel_values_requested(type_id: int) -> void:
+func _on_test_panel_values_requested(option_id: int) -> void:
 	var grid_model: GridModel = _get_grid_model()
 	var interaction_rule: InteractionRule = grid_model.interaction_rule if is_instance_valid(grid_model) else null
 	
 	if is_instance_valid(interaction_rule):
-		var values: Array[int] = interaction_rule.get_spawnable_values(type_id)
+		var values: Array[int] = interaction_rule.get_spawnable_values(option_id)
 		if is_instance_valid(_test_panel):
 			_test_panel.update_value_options(values)
 
@@ -230,11 +245,11 @@ func _on_test_panel_values_requested(type_id: int) -> void:
 
 func _on_test_panel_spawn_requested_event(payload: TestSpawnPayload) -> void:
 	if is_instance_valid(payload):
-		_on_test_panel_spawn_requested(payload.grid_pos, payload.value, payload.type_id)
+		_on_test_panel_spawn_requested(payload.grid_pos, payload.value, payload.option_id)
 
 
-func _on_test_panel_values_requested_event(type_id: int) -> void:
-	_on_test_panel_values_requested(type_id)
+func _on_test_panel_values_requested_event(option_id: int) -> void:
+	_on_test_panel_values_requested(option_id)
 
 
 func _on_reset_and_resize_requested_event(new_size: int) -> void:
@@ -295,7 +310,7 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	if is_instance_valid(status_model):
 		status_model.score.set_value(0)
 		status_model.move_count.set_value(0)
-		status_model.monsters_killed.set_value(0)
+		status_model.ratio_resolutions.set_value(0)
 		status_model.highest_tile.set_value(0)
 		status_model.extra_stats.set_value({})
 

@@ -223,7 +223,7 @@ func test_visual_style_document_records_retro_print_direction() -> void:
 func test_tile_setup_applies_pixel_textured_style() -> void:
 	var tile: Tile = await _create_tile()
 
-	tile.setup(2048, Tile.TileType.PLAYER, Color(0.8, 0.5, 0.2, 1.0), Color.WHITE)
+	tile.setup(2048, &"tile.classic.numeric", Color(0.8, 0.5, 0.2, 1.0), Color.WHITE)
 
 	var stylebox: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
 	assert_not_null(stylebox, "Tile 背景应使用 StyleBoxFlat。")
@@ -244,11 +244,11 @@ func test_game_board_controller_uses_configured_tile_scheme_colors() -> void:
 	grid_model.interaction_rule = ClassicInteractionRule.new()
 	controller.model = grid_model
 	controller.color_schemes = {
-		Tile.TileType.PLAYER: _CLASSIC_TILE_THEME,
+		0: _CLASSIC_TILE_THEME,
 	}
 
-	var value_2_colors: Dictionary = controller._get_tile_colors(2, Tile.TileType.PLAYER)
-	var value_4_colors: Dictionary = controller._get_tile_colors(4, Tile.TileType.PLAYER)
+	var value_2_colors: Dictionary = controller._get_tile_colors(2, &"tile.classic.numeric")
+	var value_4_colors: Dictionary = controller._get_tile_colors(4, &"tile.classic.numeric")
 	var value_2_style: TileLevelStyle = _get_tile_level_style(_CLASSIC_TILE_THEME, 0)
 	var value_4_style: TileLevelStyle = _get_tile_level_style(_CLASSIC_TILE_THEME, 1)
 
@@ -290,7 +290,7 @@ func test_tile_color_schemes_keep_large_number_text_readable() -> void:
 
 func test_tile_visual_animations_return_live_tweens() -> void:
 	var tile: Tile = await _create_tile()
-	tile.setup(2, Tile.TileType.PLAYER, Color(0.9, 0.75, 0.45, 1.0), Color.BLACK)
+	tile.setup(2, &"tile.classic.numeric", Color(0.9, 0.75, 0.45, 1.0), Color.BLACK)
 
 	var spawn_tween: Tween = tile.animate_spawn()
 	assert_true(is_instance_valid(spawn_tween) and spawn_tween.is_valid(), "生成动画应返回有效 Tween。")

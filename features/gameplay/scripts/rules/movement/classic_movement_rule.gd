@@ -10,27 +10,27 @@ extends MovementRule
 
 ## 处理单行/列的移动与交互，采用经典滑动逻辑。
 ##
-## @param line: 一个包含GameTileData节点或null的一维数组，代表棋盘的一行或一列。
+## @param line: 一个包含TileState节点或null的一维数组，代表棋盘的一行或一列。
 ## @return: 一个字典，包含 {"line": Array, "moved": bool, "merges": Array}。
-func process_line(line: Array[GameTileData]) -> Dictionary:
-	var slid_line: Array[GameTileData] = []
-	for tile: GameTileData in line:
+func process_line(line: Array[TileState]) -> Dictionary:
+	var slid_line: Array[TileState] = []
+	for tile: TileState in line:
 		if tile != null:
 			slid_line.append(tile)
 
-	var merged_line: Array[GameTileData] = []
+	var merged_line: Array[TileState] = []
 	var merge_results: Array[Dictionary] = []
 	var i: int = 0
 	while i < slid_line.size():
-		var current_tile: GameTileData = slid_line[i]
+		var current_tile: TileState = slid_line[i]
 		if i + 1 < slid_line.size():
-			var next_tile: GameTileData = slid_line[i + 1]
+			var next_tile: TileState = slid_line[i + 1]
 
 			var result: Dictionary = interaction_rule.process_interaction(current_tile, next_tile, interaction_rule)
 			if not result.is_empty():
 				var merged_value: Variant = result.get("merged_tile")
-				var merged: GameTileData = null
-				if merged_value is GameTileData:
+				var merged: TileState = null
+				if merged_value is TileState:
 					merged = merged_value
 				if merged != null:
 					merged_line.append(merged)
@@ -43,7 +43,7 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 		merged_line.append(current_tile)
 		i += 1
 
-	var result_line: Array[GameTileData] = []
+	var result_line: Array[TileState] = []
 	result_line.append_array(merged_line)
 	# 用 null 填充剩余空间，使新行长度与原行一致。
 	# 使用 line.size() 作为目标长度，因为它本身就是 grid_size，且能避免在 line[0] 为 null 时崩溃。

@@ -183,9 +183,15 @@ static func _get_dictionary(instruction: Dictionary, key: StringName) -> Diction
 static func _apply_target_setup_data(tile: Tile, target_data: Dictionary) -> void:
 	tile.setup(
 		_get_int(target_data, &"value", tile.value),
-		_get_tile_type(target_data, &"type", tile.type),
+		GFVariantData.get_option_string_name(
+			target_data,
+			&"definition_id",
+			tile.definition_id
+		),
 		_get_color(target_data, &"bg", Color.WHITE),
-		_get_color(target_data, &"font", Color.BLACK)
+		_get_color(target_data, &"font", Color.BLACK),
+		GFVariantData.get_option_string_name(target_data, &"visual_family_id"),
+		_get_string_name_array(target_data, &"visual_layer_ids")
 	)
 
 
@@ -197,16 +203,11 @@ static func _get_bool(data: Dictionary, key: StringName, default_value: bool) ->
 	return GFVariantData.get_option_bool(data, key, default_value)
 
 
-static func _get_tile_type(data: Dictionary, key: StringName, default_value: Tile.TileType) -> Tile.TileType:
-	var value: Variant = data.get(key, data.get(String(key), default_value))
-	if value is int:
-		var enum_value: int = value
-		match enum_value:
-			Tile.TileType.PLAYER:
-				return Tile.TileType.PLAYER
-			Tile.TileType.MONSTER:
-				return Tile.TileType.MONSTER
-	return default_value
+static func _get_string_name_array(data: Dictionary, key: StringName) -> Array[StringName]:
+	var result: Array[StringName] = []
+	for value: Variant in GFVariantData.get_option_array(data, key):
+		result.append(GFVariantData.to_string_name(value))
+	return result
 
 
 static func _get_color(data: Dictionary, key: StringName, default_value: Color) -> Color:

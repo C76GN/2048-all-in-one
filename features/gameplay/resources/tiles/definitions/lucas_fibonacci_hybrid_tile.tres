@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TileDefinition" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://features/gameplay/scripts/tiles/definitions/tile_definition.gd" id="1_definition"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/tiles/recipes/fibonacci_merge_recipe.tres" id="2_fibonacci_recipe"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/tiles/recipes/lucas_merge_recipe.tres" id="3_lucas_recipe"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/tiles/recipes/lucas_bridge_recipe.tres" id="4_bridge_recipe"]
+[ext_resource type="Script" path="res://addons/gf/extensions/capability/recipes/gf_capability_recipe.gd" id="5_recipe_script"]
+
+[resource]
+script = ExtResource("1_definition")
+definition_id = &"tile.lucas_fibonacci.hybrid"
+display_name_key = &"RULE_LUCAS_FIBONACCI_TILE"
+color_scheme_index = 0
+capability_recipes = Array[ExtResource("5_recipe_script")]([ExtResource("2_fibonacci_recipe"), ExtResource("3_lucas_recipe"), ExtResource("4_bridge_recipe")])
+initial_recipe_ids = Array[StringName]([&"tile.recipe.fibonacci_merge", &"tile.recipe.lucas_merge", &"tile.recipe.lucas_bridge"])
+visual_family_id = &"tile.visual.lucas_fibonacci_hybrid"
+audio_family_id = &"tile.audio.lucas_fibonacci_hybrid"
+tags = PackedStringArray("tile", "numeric", "fibonacci", "lucas", "hybrid")

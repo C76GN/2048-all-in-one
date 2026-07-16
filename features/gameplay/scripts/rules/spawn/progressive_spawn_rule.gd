@@ -5,9 +5,9 @@
 ## 2. 触发器(ON_MOVE): 在每次有效移动后，生成一个新方块。
 ## 3. 动态生成池:
 ##    - 游戏开始时，只生成 2 和 4。
-##    - 当玩家合成 2048 后，生成池扩展为 2, 4, 8。
-##    - 当玩家合成 4096 后，生成池扩展为 2, 4, 8, 16。
-##    - 这个模式会随着玩家合成的最高方块值 (2^n) 而解锁更多低阶方块的生成。
+##    - 当棋盘合成 2048 后，生成池扩展为 2, 4, 8。
+##    - 当棋盘合成 4096 后，生成池扩展为 2, 4, 8, 16。
+##    - 这个模式会随着最高方块值 (2^n) 解锁更多低阶方块的生成。
 class_name ProgressiveSpawnRule
 extends SpawnRule
 
@@ -47,7 +47,6 @@ func execute(context: RuleContext) -> bool:
 
 		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.value = value
-		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
 		context.request_spawn(spawn_data)
@@ -61,7 +60,7 @@ func execute(context: RuleContext) -> bool:
 ## @param grid_model: 网格模型引用。
 ## @return: 一个包含当前所有可生成数值的数组。
 func _get_current_spawn_pool(grid_model: GridModel) -> Array[int]:
-	var max_value: int = grid_model.get_max_player_value()
+	var max_value: int = grid_model.get_max_tile_value()
 	var spawn_pool: Array[int] = [2, 4]
 
 	if max_value < 2048:

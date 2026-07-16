@@ -80,16 +80,16 @@ func _collect_interaction_stats(
 	if not is_instance_valid(interaction_rule):
 		return
 
-	var player_values_set: Dictionary = {}
-	for value: int in grid_model.get_all_player_tile_values():
-		player_values_set[value] = true
+	var tile_values_set: Dictionary = {}
+	for value: int in grid_model.get_all_tile_values():
+		tile_values_set[value] = true
 
-	var max_player_value: int = GFVariantData.to_int(status_model.highest_tile.get_value(), 0)
-	var monsters_killed: int = GFVariantData.to_int(status_model.monsters_killed.get_value(), 0)
+	var max_tile_value: int = GFVariantData.to_int(status_model.highest_tile.get_value(), 0)
+	var ratio_resolutions: int = GFVariantData.to_int(status_model.ratio_resolutions.get_value(), 0)
 	var context: Dictionary = {
-		&"max_player_value": max_player_value,
-		&"monsters_killed": monsters_killed,
-		&"player_values_set": player_values_set,
+		&"max_tile_value": max_tile_value,
+		&"ratio_resolutions": ratio_resolutions,
+		&"tile_values_set": tile_values_set,
 	}
 	interaction_rule.get_hud_stats(context, stats)
 

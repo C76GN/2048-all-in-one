@@ -108,7 +108,7 @@ func set_high_score(mode_id: String, grid_size: int, score: int) -> Error:
 ## @param grid_size: 棋盘边长。
 ## @param score: 本局最终分数。
 ## @param steps: 本局有效移动步数。
-## @param max_tile: 本局达到的最大玩家方块值。
+## @param max_tile: 本局达到的最大方块值。
 ## @param played_at: 本局结束时间戳；为 0 时使用当前系统时间。
 ## @param target_value: 当前模式配置的目标方块值；为 0 表示此模式未定义目标。
 ## @param target_reached: 本局是否达成目标。

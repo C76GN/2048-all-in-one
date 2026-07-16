@@ -1,6 +1,6 @@
 ## TestPanel: 一个动态的、由规则驱动的测试和调试工具面板。
 ##
-## 该脚本负责管理测试面板的UI交互。它不再硬编码任何数值或类型，
+## 该脚本负责管理测试面板的 UI 交互。它不再硬编码任何数值或定义，
 ## 而是通过外部数据来动态填充选项。它允许开发者在运行时手动生成
 ## 符合当前游戏模式规则的方块，或调整棋盘大小。
 class_name TestPanel
@@ -12,7 +12,7 @@ extends "res://addons/gf/kernel/base/gf_controller.gd"
 @onready var _pos_x_spinbox: SpinBox = %PosXSpinBox
 @onready var _pos_y_spinbox: SpinBox = %PosYSpinBox
 @onready var _value_option_button: OptionButton = %ValueOptionButton
-@onready var _type_option_button: OptionButton = %TypeOptionButton
+@onready var _definition_option_button: OptionButton = %DefinitionOptionButton
 @onready var _spawn_button: Button = %SpawnButton
 @onready var _grid_size_spinbox: SpinBox = %GridSizeSpinBox
 @onready var _reset_resize_button: Button = %ResetResizeButton
@@ -25,29 +25,29 @@ func _ready() -> void:
 	var _connect_result_25: int = _spawn_button.pressed.connect(_on_spawn_button_pressed)
 	var _connect_result_26: int = _reset_resize_button.pressed.connect(_on_reset_resize_button_pressed)
 	var _connect_result_27: int = _live_expand_button.pressed.connect(_on_live_expand_button_pressed)
-	var _connect_result_28: int = _type_option_button.item_selected.connect(_on_type_selected)
+	var _connect_result_28: int = _definition_option_button.item_selected.connect(_on_definition_selected)
 
 
 # --- 公共方法 ---
 
 ## 初始化并设置测试面板的所有选项。由 GamePlayController 在游戏开始时调用。
 ##
-## @param types: 一个字典 {id: "name", ...} 用于填充类型下拉菜单。
-func setup_panel(types: Dictionary) -> void:
-	var type_ids: Array = types.keys()
-	type_ids.sort()
+## @param options: 一个字典 {id: "name", ...} 用于填充方块定义下拉菜单。
+func setup_panel(options: Dictionary) -> void:
+	var option_ids: Array = options.keys()
+	option_ids.sort()
 	var items: Array[Dictionary] = []
 
-	for type_id_value: Variant in type_ids:
-		var type_id: int = _variant_to_int(type_id_value, 0)
-		var type_name: String = GFVariantData.to_text(types[type_id_value], "")
-		items.append(_make_option_item(type_name, type_id, type_id))
+	for option_id_value: Variant in option_ids:
+		var option_id: int = _variant_to_int(option_id_value, 0)
+		var option_name: String = GFVariantData.to_text(options[option_id_value], "")
+		items.append(_make_option_item(option_name, option_id, option_id))
 
-	_write_option_items(_type_option_button, items)
+	_write_option_items(_definition_option_button, items)
 
-	# 初始时，自动为第一个类型请求数值列表。
-	if not type_ids.is_empty():
-		_on_type_selected(0)
+	# 初始时，自动为第一个定义请求数值列表。
+	if not option_ids.is_empty():
+		_on_definition_selected(0)
 
 
 ## 更新“数值”下拉列表的内容。由 GamePlayController 在收到新数值时调用。
@@ -107,8 +107,8 @@ func _on_spawn_button_pressed() -> void:
 	if _value_option_button.item_count == 0:
 		push_warning("[TestPanel] 没有可选的生成数值。")
 		return
-	if _type_option_button.item_count == 0:
-		push_warning("[TestPanel] 没有可选的生成类型。")
+	if _definition_option_button.item_count == 0:
+		push_warning("[TestPanel] 没有可选的方块定义。")
 		return
 
 	var pos: Vector2i = Vector2i(int(_pos_x_spinbox.value), int(_pos_y_spinbox.value))
@@ -116,12 +116,16 @@ func _on_spawn_button_pressed() -> void:
 		GFItemListBinder.get_item_metadata(_value_option_button, _value_option_button.selected, 0),
 		0
 	)
-	var type_id: int = _variant_to_int(
-		GFItemListBinder.get_item_metadata(_type_option_button, _type_option_button.selected, 0),
+	var option_id: int = _variant_to_int(
+		GFItemListBinder.get_item_metadata(
+			_definition_option_button,
+			_definition_option_button.selected,
+			0
+		),
 		0
 	)
 
-	send_event(TestSpawnPayload.new(pos, value, type_id))
+	send_event(TestSpawnPayload.new(pos, value, option_id))
 
 
 ## 响应“重置并调整大小”按钮的点击事件。
@@ -136,11 +140,14 @@ func _on_live_expand_button_pressed() -> void:
 	send_simple_event(EventNames.TEST_LIVE_EXPAND_REQUESTED, new_size)
 
 
-## 当类型下拉菜单中的选项被改变时调用。
+## 当方块定义下拉菜单中的选项被改变时调用。
 ## @param index: 被选中项的索引。
-func _on_type_selected(index: int) -> void:
-	if index < 0 or index >= _type_option_button.item_count:
+func _on_definition_selected(index: int) -> void:
+	if index < 0 or index >= _definition_option_button.item_count:
 		return
 
-	var type_id: int = _variant_to_int(GFItemListBinder.get_item_metadata(_type_option_button, index, 0), 0)
-	send_simple_event(EventNames.TEST_VALUES_REQUESTED, type_id)
+	var option_id: int = _variant_to_int(
+		GFItemListBinder.get_item_metadata(_definition_option_button, index, 0),
+		0
+	)
+	send_simple_event(EventNames.TEST_VALUES_REQUESTED, option_id)

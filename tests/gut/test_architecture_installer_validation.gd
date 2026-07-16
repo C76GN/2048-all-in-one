@@ -50,6 +50,11 @@ const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
 		"owner": "addons/gf/extensions/content_package/extension.gd",
 	},
 	{
+		"symbol": "GFCapabilityUtility",
+		"extension": "gf.capability",
+		"owner": "addons/gf/extensions/capability/extension.gd",
+	},
+	{
 		"symbol": "GFTurnFlowSystem",
 		"extension": "gf.turn_based",
 		"owner": "addons/gf/extensions/turn_based/extension.gd",
@@ -92,6 +97,53 @@ func test_project_installer_binds_signal_utility_before_theme_consumers() -> voi
 	assert_true(
 		signal_position < theme_position,
 		"GFSignalUtility 必须先于依赖它的 GameThemeUtility 注册。"
+	)
+
+
+func test_project_installer_binds_input_device_before_input_mapping() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var device_position: int = source.find("bind_utility(GFInputDeviceUtility)")
+	var mapping_position: int = source.find("bind_utility(GFInputMappingUtility)")
+
+	assert_true(device_position >= 0, "项目 Installer 应注册 GFInputDeviceUtility。")
+	assert_true(mapping_position >= 0, "项目 Installer 应注册 GFInputMappingUtility。")
+	assert_true(
+		device_position < mapping_position,
+		"GFInputDeviceUtility 必须先于依赖它的 GFInputMappingUtility 注册。"
+	)
+
+
+func test_project_installer_binds_asset_library_before_ui_consumers() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var asset_library_position: int = source.find("bind_utility(_GAME_ASSET_LIBRARY_UTILITY_SCRIPT)")
+	var motion_position: int = source.find("bind_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)")
+	var board_feedback_position: int = source.find("bind_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)")
+
+	assert_true(asset_library_position >= 0, "项目 Installer 应注册 GameAssetLibraryUtility。")
+	assert_true(motion_position >= 0, "项目 Installer 应注册 GameUiMotionUtility。")
+	assert_true(board_feedback_position >= 0, "项目 Installer 应注册 GameBoardFeedbackUtility。")
+	assert_true(
+		asset_library_position < motion_position,
+		"GameAssetLibraryUtility 必须先于读取稳定素材键的 GameUiMotionUtility 注册。"
+	)
+	assert_true(
+		asset_library_position < board_feedback_position,
+		"GameAssetLibraryUtility 必须先于读取稳定素材键的 GameBoardFeedbackUtility 注册。"
+	)
+
+
+func test_tile_composition_uses_capability_extension_ownership() -> void:
+	var settings_source: String = _read_text(PROJECT_SETTINGS_PATH)
+	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+
+	assert_true(settings_source.contains("\"gf.capability\""), "项目应显式启用 gf.capability 扩展。")
+	assert_true(
+		installer_source.contains("bind_utility(_TILE_COMPOSITION_UTILITY_SCRIPT)"),
+		"项目 Installer 应注册项目侧 TileCompositionUtility。"
+	)
+	assert_false(
+		_source_binds_symbol(installer_source, "GFCapabilityUtility"),
+		"GFCapabilityUtility 应由 gf.capability 扩展拥有，项目不得重复绑定。"
 	)
 
 

@@ -1,4 +1,4 @@
-## GameStatusModel: 负责游戏运行时的状态统计 (分数、步数、击杀数等)。
+## GameStatusModel: 负责游戏运行时的状态统计 (分数、步数、规则结算次数等)。
 class_name GameStatusModel
 extends "res://addons/gf/kernel/base/gf_model.gd"
 
@@ -23,8 +23,8 @@ var target_reached: GFBindableProperty = GFBindableProperty.new(false)
 ## 游戏中的移动总步数。
 var move_count: GFBindableProperty = GFBindableProperty.new(0)
 
-## 游戏中击杀的怪物数量。
-var monsters_killed: GFBindableProperty = GFBindableProperty.new(0)
+## 游戏中完成的跨定义求商次数。
+var ratio_resolutions: GFBindableProperty = GFBindableProperty.new(0)
 
 ## 规则特定的额外统计数据 (Dictionary 或 Array)
 var extra_stats: GFBindableProperty = GFBindableProperty.new({})
@@ -37,7 +37,7 @@ var extra_stats: GFBindableProperty = GFBindableProperty.new({})
 func reset_for_new_game(saved_high_score: int = 0) -> void:
 	score.set_value(0)
 	move_count.set_value(0)
-	monsters_killed.set_value(0)
+	ratio_resolutions.set_value(0)
 	highest_tile.set_value(0)
 	target_tile_value.set_value(0)
 	target_reached.set_value(false)
@@ -63,20 +63,20 @@ func increment_move_count(amount: int = 1) -> void:
 	move_count.set_value(current_move_count + max(amount, 0))
 
 
-## 增加击杀怪物数量。
-## @param amount: 要增加的击杀数量。
-func increment_monsters_killed(amount: int = 1) -> void:
-	var current_monsters_killed: int = GFVariantData.to_int(monsters_killed.get_value(), 0)
-	monsters_killed.set_value(current_monsters_killed + max(amount, 0))
+## 增加跨定义求商次数。
+## @param amount: 要增加的求商次数。
+func increment_ratio_resolutions(amount: int = 1) -> void:
+	var current_ratio_resolutions: int = GFVariantData.to_int(ratio_resolutions.get_value(), 0)
+	ratio_resolutions.set_value(current_ratio_resolutions + max(amount, 0))
 
 
-## 从棋盘模型同步最高玩家方块。
+## 从棋盘模型同步最高方块值。
 ## @param grid_model: 当前棋盘模型。
 func sync_highest_tile_from_grid(grid_model: GridModel) -> void:
 	if not is_instance_valid(grid_model):
 		return
 
-	highest_tile.set_value(grid_model.get_max_player_value())
+	highest_tile.set_value(grid_model.get_max_tile_value())
 
 
 ## 设置当前对局的目标上下文。

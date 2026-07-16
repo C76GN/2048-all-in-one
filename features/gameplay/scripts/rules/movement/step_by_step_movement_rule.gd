@@ -9,10 +9,10 @@ extends MovementRule
 
 ## 处理单行/列的移动与交互，采用步进式逻辑。
 ##
-## @param line: 一个包含GameTileData节点或null的一维数组，代表棋盘的一行或一列。
+## @param line: 一个包含TileState节点或null的一维数组，代表棋盘的一行或一列。
 ## @return: 一个字典，包含 {"line": Array, "moved": bool, "merges": Array}。
-func process_line(line: Array[GameTileData]) -> Dictionary:
-	var new_line: Array[GameTileData] = line.duplicate(false)
+func process_line(line: Array[TileState]) -> Dictionary:
+	var new_line: Array[TileState] = line.duplicate(false)
 	var merge_results: Array[Dictionary] = []
 	var moved_in_this_line: bool = false
 	# 记录本轮已合并的方块，防止二次合并
@@ -20,11 +20,11 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 
 	# 从左到右（即从移动方向的起点开始）处理
 	for i: int in range(1, new_line.size()):
-		var current_tile: GameTileData = new_line[i]
+		var current_tile: TileState = new_line[i]
 		if current_tile == null:
 			continue
 
-		var target_tile: GameTileData = new_line[i - 1]
+		var target_tile: TileState = new_line[i - 1]
 
 		# 如果目标位置为空，则移动
 		if target_tile == null:
@@ -42,11 +42,11 @@ func process_line(line: Array[GameTileData]) -> Dictionary:
 				if not result.is_empty():
 					var merged_value: Variant = result.get("merged_tile")
 					var consumed_value: Variant = result.get("consumed_tile")
-					var merged_tile: GameTileData = null
-					var consumed_tile: GameTileData = null
-					if merged_value is GameTileData:
+					var merged_tile: TileState = null
+					var consumed_tile: TileState = null
+					if merged_value is TileState:
 						merged_tile = merged_value
-					if consumed_value is GameTileData:
+					if consumed_value is TileState:
 						consumed_tile = consumed_value
 
 					# 更新逻辑位置

@@ -124,12 +124,12 @@ MODE_STEP_DESC,"玩法说明:
 生成规则: 新方块会生成在您滑动方向的对向边缘。","How to play:
 Movement: Tiles move only one step per slide.
 Spawn: New tiles appear on the edge opposite to your slide direction."
-MODE_BATTLE_NAME,战斗模式,Battle Mode
-MODE_BATTLE_DESC,"玩法说明:
-经典战斗规则，玩家与怪物可以互相攻击。
-每次移动后，有较小概率生成怪物，否则生成玩家方块。怪物出现的概率会随着失败次数动态增长。","How to play:
-Player and Monster tiles can attack each other.
-Monsters spawn with a low chance after moves. The chance increases after each failed spawn."
+MODE_RATIO_NAME,比值模式,Ratio Mode
+MODE_RATIO_DESC,"玩法说明:
+同定义的等值方块相加；不同定义的方块相遇时，以较大数除以较小数，商至少为 1。
+每次移动后有较小概率生成因子方块，未生成时会提高下一次概率。","How to play:
+Equal tiles with the same definition add together. Tiles with different definitions resolve to the larger value divided by the smaller, with a minimum result of 1.
+Factor tiles have a low chance to spawn after each move. A miss increases the next chance."
 TITLE_GAME_OVER,游戏结束,Game Over
 TITLE_TARGET_REACHED,目标达成,Target Reached
 TARGET_REACHED_PANEL_MESSAGE,"你已经达成本局目标。可以继续挑战更高方块，也可以重新开始或返回主界面。","You reached this run's target. Keep pushing for a higher tile, restart, or return to the main menu."
@@ -169,11 +169,15 @@ BTN_SETTINGS,设置,Settings
 BTN_MAIN_MENU,返回主界面,Main Menu
 BTN_REPLAY_AGAIN,重来,Play Again
 BTN_REPLAY_LIST,回放列表,Replay List
-RULE_PLAYER,玩家,Player
-RULE_MONSTER,怪物,Monster
-BATTLE_KILLED_DISPLAY,消灭怪物: %d,Killed: %d
-BATTLE_MONSTER_CHANCE,下次移动出现怪物概率: %.1f%%,Monster Spawn Chance: %.1f%%
-BATTLE_SPAWN_INFO,可能出现的怪物:\n,Possible Monsters:\n
+RULE_CLASSIC_TILE,经典方块,Classic Tile
+RULE_FIBONACCI_TILE,斐波那契方块,Fibonacci Tile
+RULE_CLASSIC_FIBONACCI,经典与斐波那契复合方块,Classic/Fibonacci Hybrid Tile
+RULE_LUCAS_FIBONACCI_TILE,数列复合方块,Sequence Hybrid Tile
+RULE_RATIO_BASE_TILE,基础方块,Base Tile
+RULE_RATIO_FACTOR_TILE,因子方块,Factor Tile
+RATIO_RESOLUTIONS_DISPLAY,求商次数: %d,Ratio Resolutions: %d
+RATIO_ALTERNATE_CHANCE,下次移动生成因子方块概率: %.1f%%,Factor Tile Chance: %.1f%%
+RATIO_SPAWN_INFO,可能生成的因子方块:\n,Possible Factor Tiles:\n
 RULE_FIBONACCI,斐波那契数,Fibonacci Number
 RULE_LUCAS,卢卡斯数,Lucas Number
 TIP_SYNTHESIS_FORMAT,合成提示: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color],Hint: [color=cyan]%d[/color] + [color=cyan]%d[/color] = [color=yellow]%d[/color]
@@ -184,7 +188,7 @@ DEBUG_TITLE,测试工具 (仅编辑器内),Debug Tools (Editor Only)
 DEBUG_POS_X,X坐标：,Pos X:
 DEBUG_POS_Y,Y坐标：,Pos Y:
 DEBUG_VALUE,数值：,Value:
-DEBUG_TYPE,类型：,Type:
+DEBUG_TYPE,方块：,Tile:
 DEBUG_SPAWN,生成方块,Spawn Tile
 DEBUG_BOARD_CTRL,棋盘控制,Board Control
 DEBUG_BOARD_SIZE,棋盘大小：,Board Size:
@@ -194,7 +198,7 @@ LABEL_MODE,模式:,Mode:
 LABEL_TIME,时间:,Time:
 LABEL_SCORE,分数:,Score:
 LABEL_MOVES,步数:,Moves:
-LABEL_KILLED,杀怪:,Killed:
+LABEL_RATIO_RESOLUTIONS,求商:,Ratios:
 LABEL_BOARD,棋盘:,Board:
 LABEL_SEED,种子:,Seed:
 LABEL_FINAL_SCORE,最终分数:,Final Score:
@@ -213,6 +217,6 @@ LABEL_REPLAY_CONTROLS,回放控制,Replay Controls
 LABEL_REPLAY_PROGRESS,回放进度: %d / %d,Replay Step: %d / %d
 REPLAY_KEYS_STEP_HINT,上一步: A / ←    下一步: D / → / Space / Enter,Prev: A / ←    Next: D / → / Space / Enter
 REPLAY_KEYS_ACTION_HINT,从此继续: C    返回列表: Esc / B,Continue: C    Back: Esc / B
-FORMAT_BATTLE_PROBABILITY,"  - %d (概率: %.1f%%)
+FORMAT_RATIO_PROBABILITY,"  - %d (概率: %.1f%%)
 ","  - %d (Chance: %.1f%%)
 "

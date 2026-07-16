@@ -10,6 +10,8 @@
 [ext_resource type="Resource" uid="uid://c6s7jklm8wan2" path="res://features/gameplay/resources/rules/movement/classic_movement_rule.tres" id="6_vrvml"]
 [ext_resource type="Resource" uid="uid://iys6hto11ixt" path="res://features/gameplay/resources/rules/spawn/progressive_spawn_rule_init.tres" id="7_prog_init"]
 [ext_resource type="Resource" uid="uid://nod11pulyd7i" path="res://features/gameplay/resources/rules/spawn/progressive_spawn_rule_on_move.tres" id="8_prog_move"]
+[ext_resource type="Script" path="res://features/gameplay/scripts/tiles/definitions/tile_definition.gd" id="9_tile_definition"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/tiles/definitions/classic_numeric_tile.tres" id="10_classic_tile"]
 
 [sub_resource type="Resource" id="Resource_1kej1"]
 script = ExtResource("4_1n815")
@@ -17,6 +19,8 @@ metadata/_custom_type_script = "uid://cd58tqmib7wsk"
 
 [sub_resource type="Resource" id="Resource_cubgt"]
 script = ExtResource("5_31pnh")
+tile_definitions = Array[ExtResource("9_tile_definition")]([ExtResource("10_classic_tile")])
+default_definition_id = &"tile.classic.numeric"
 metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 
 [resource]

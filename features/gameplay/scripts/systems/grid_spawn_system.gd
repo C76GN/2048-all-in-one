@@ -16,6 +16,7 @@ const _LOG_TAG: String = "GridSpawnSystem"
 var _grid_model: GridModel
 var _seed_utility: GFSeedUtility
 var _log: GFLogUtility
+var _tile_composition_utility: TileCompositionUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -25,13 +26,14 @@ func get_required_models() -> Array[Script]:
 
 
 func get_required_utilities() -> Array[Script]:
-	return [GFLogUtility, GFSeedUtility]
+	return [GFLogUtility, GFSeedUtility, TileCompositionUtility]
 
 
 func ready() -> void:
 	_grid_model = _get_grid_model()
 	_seed_utility = _get_seed_utility()
 	_log = _get_log_utility()
+	_tile_composition_utility = _get_tile_composition_utility()
 	register_simple_event(EventNames.SPAWN_TILE_REQUESTED, GFEventListener.from_method(self, &"_on_spawn_tile_requested", 1))
 
 
@@ -39,6 +41,7 @@ func dispose() -> void:
 	_grid_model = null
 	_seed_utility = null
 	_log = null
+	_tile_composition_utility = null
 
 
 # --- 私有/辅助方法 ---
@@ -85,63 +88,83 @@ func _get_log_utility() -> GFLogUtility:
 	return null
 
 
-func _handle_priority_spawn(value: int, type: Tile.TileType) -> void:
-	var player_data_list: Array[GameTileData] = []
+func _get_tile_composition_utility() -> TileCompositionUtility:
+	var utility_value: Variant = get_utility(TileCompositionUtility)
+	if utility_value is TileCompositionUtility:
+		var composition_utility: TileCompositionUtility = utility_value
+		return composition_utility
+	return null
+
+
+func _handle_priority_spawn(value: int, definition_id: StringName) -> void:
+	var interaction_rule: InteractionRule = _grid_model.interaction_rule
+	if interaction_rule == null:
+		return
+	var next_definition: TileDefinition = interaction_rule.get_tile_definition(definition_id)
+	if next_definition == null:
+		next_definition = interaction_rule.get_default_tile_definition()
+	if next_definition == null:
+		return
+
+	var recompose_candidates: Array[TileState] = []
+	var same_definition_candidates: Array[TileState] = []
 	for x: int in range(_grid_model.grid_size):
 		var column: Array = _grid_model.grid[x]
 		for y: int in range(_grid_model.grid_size):
 			var raw_data: Variant = column[y]
-			var data: GameTileData = null
-			if raw_data is GameTileData:
-				data = raw_data
-			if data != null and data.type == Tile.TileType.PLAYER:
-				player_data_list.append(data)
+			if not raw_data is TileState:
+				continue
+			var data: TileState = raw_data
+			if data.definition_id == next_definition.definition_id:
+				same_definition_candidates.append(data)
+			else:
+				recompose_candidates.append(data)
 
-	if not player_data_list.is_empty():
-		var player_random: GFDeterministicRandom = _seed_utility.get_branched_deterministic_random(
-			"game_board_priority_player"
+	if not recompose_candidates.is_empty():
+		var recompose_random: GFDeterministicRandom = _seed_utility.get_branched_deterministic_random(
+			"game_board_priority_recompose"
 		)
-		var player_index: int = player_random.next_int_range(0, player_data_list.size() - 1)
-		var data_to_transform: GameTileData = player_data_list[player_index]
-		
-		# 数据更新
+		var candidate_index: int = recompose_random.next_int_range(0, recompose_candidates.size() - 1)
+		var data_to_transform: TileState = recompose_candidates[candidate_index]
+		var current_definition: TileDefinition = interaction_rule.get_tile_definition(
+			data_to_transform.definition_id
+		)
+		if (
+			current_definition == null
+			or not _tile_composition_utility.recompose_tile(
+				data_to_transform,
+				current_definition,
+				next_definition
+			)
+		):
+			if is_instance_valid(_log):
+				_log.error(_LOG_TAG, "优先生成无法重组为目标方块定义。")
+			return
+
 		data_to_transform.value = value
-		data_to_transform.type = type
-		
-		var instruction: Array = [ {
+		var instruction: Array = [{
 			&"type": &"TRANSFORM",
 			&"tile_data": data_to_transform,
 			&"do_transform": true,
 		}]
 		send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
-	else:
-		var monster_data_list: Array[GameTileData] = []
-		for x: int in range(_grid_model.grid_size):
-			var column: Array = _grid_model.grid[x]
-			for y: int in range(_grid_model.grid_size):
-				var raw_data: Variant = column[y]
-				var data: GameTileData = null
-				if raw_data is GameTileData:
-					data = raw_data
-				if data != null and data.type == Tile.TileType.MONSTER:
-					monster_data_list.append(data)
-					
-		if not monster_data_list.is_empty():
-			var monster_random: GFDeterministicRandom = _seed_utility.get_branched_deterministic_random(
-				"game_board_priority_monster"
-			)
-			var monster_index: int = monster_random.next_int_range(0, monster_data_list.size() - 1)
-			var data_to_empower: GameTileData = monster_data_list[monster_index]
-			
-			data_to_empower.value *= 2
-			
-			var instruction: Array = [ {
-				&"type": &"TRANSFORM",
-				&"tile_data": data_to_empower,
-				&"do_merge": true,
-				&"do_transform": false,
-			}]
-			send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
+		return
+
+	if same_definition_candidates.is_empty():
+		return
+	var empower_random: GFDeterministicRandom = _seed_utility.get_branched_deterministic_random(
+		"game_board_priority_empower"
+	)
+	var empower_index: int = empower_random.next_int_range(0, same_definition_candidates.size() - 1)
+	var data_to_empower: TileState = same_definition_candidates[empower_index]
+	data_to_empower.value = maxi(value, data_to_empower.value * 2)
+	var empower_instruction: Array = [{
+		&"type": &"TRANSFORM",
+		&"tile_data": data_to_empower,
+		&"do_merge": true,
+		&"do_transform": false,
+	}]
+	send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, empower_instruction)
 
 
 # --- 信号处理函数 ---
@@ -150,14 +173,29 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 	if not is_instance_valid(spawn_data):
 		return
 
-	if not is_instance_valid(_grid_model) or not is_instance_valid(_seed_utility):
+	if (
+		not is_instance_valid(_grid_model)
+		or not is_instance_valid(_seed_utility)
+		or not is_instance_valid(_tile_composition_utility)
+	):
+		return
+	if spawn_data.value <= 0:
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "拒绝生成非正数方块。")
 		return
 
 	if is_instance_valid(_log):
-		_log.debug(_LOG_TAG, "收到生成请求: value=%d, type=%d, position=%s" % [spawn_data.value, spawn_data.type, spawn_data.position])
+		_log.debug(
+			_LOG_TAG,
+			"收到生成请求: value=%d, definition_id=%s, position=%s" % [
+				spawn_data.value,
+				spawn_data.definition_id,
+				spawn_data.position,
+			]
+		)
 
 	var value: int = spawn_data.value
-	var type: Tile.TileType = spawn_data.type
+	var definition_id: StringName = spawn_data.definition_id
 	var is_priority: bool = spawn_data.is_priority
 	var spawn_pos: Vector2i
 
@@ -169,7 +207,7 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 			return
 		if not _is_cell_empty(spawn_pos):
 			if is_priority:
-				_handle_priority_spawn(value, type)
+				_handle_priority_spawn(value, definition_id)
 			elif is_instance_valid(_log):
 				_log.warn(_LOG_TAG, "忽略被占用的生成位置: %s" % spawn_pos)
 			return
@@ -182,15 +220,35 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 			spawn_pos = empty_cells[spawn_random.next_int_range(0, empty_cells.size() - 1)]
 		else:
 			if is_priority:
-				_handle_priority_spawn(value, type)
+				_handle_priority_spawn(value, definition_id)
 			return
 
 	# 2. 写入数据模型
-	var tile_data: GameTileData = GameTileData.new(value, type)
+	var interaction_rule: InteractionRule = _grid_model.interaction_rule
+	if interaction_rule == null:
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "无法生成方块：当前棋盘缺少交互规则。")
+		return
+	var definition: TileDefinition = interaction_rule.get_tile_definition(definition_id)
+	if definition == null:
+		definition = interaction_rule.get_default_tile_definition()
+	var tile_data: TileState = _tile_composition_utility.create_tile(definition, value)
+	if tile_data == null:
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "无法按当前模式的 TileDefinition 创建方块。")
+		return
 	_grid_model.place_tile(tile_data, spawn_pos)
 
 	if is_instance_valid(_log):
-		_log.debug(_LOG_TAG, "已生成方块: value=%d, type=%d, position=%s, empty_cells=%d" % [value, type, spawn_pos, _grid_model.get_empty_cells().size()])
+		_log.debug(
+			_LOG_TAG,
+			"已生成方块: value=%d, definition_id=%s, position=%s, empty_cells=%d" % [
+				value,
+				definition.definition_id,
+				spawn_pos,
+				_grid_model.get_empty_cells().size(),
+			]
+		)
 
 	# 3. 发送视觉指令
 	var instruction: Array = [ {

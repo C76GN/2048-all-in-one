@@ -2,6 +2,11 @@
 extends GutTest
 
 
+# --- 常量 ---
+
+const _CLASSIC_DEFINITION_PATH: String = "res://features/gameplay/resources/tiles/definitions/classic_numeric_tile.tres"
+
+
 # --- 测试用例 ---
 
 func test_grid_movement_system_builds_reverse_targets_from_animation_instructions() -> void:
@@ -54,7 +59,10 @@ func test_records_reverse_targets_while_command_runs_inside_simple_event() -> vo
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var grid_model: GridModel = GridModel.new()
 	var command_history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()
+	var composition: TileCompositionUtility = TileCompositionUtility.new()
 
+	await architecture.register_utility(GFCapabilityUtility, GFCapabilityUtility.new())
+	await architecture.register_utility(TileCompositionUtility, composition)
 	await architecture.register_model(GridModel, grid_model)
 	await architecture.register_model(GameStatusModel, GameStatusModel.new())
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
@@ -64,8 +72,15 @@ func test_records_reverse_targets_while_command_runs_inside_simple_event() -> vo
 	await architecture.register_system(RuleSystem, RuleSystem.new())
 	await architecture.init()
 
-	grid_model.initialize(4, ClassicInteractionRule.new(), ClassicMovementRule.new())
-	grid_model.place_tile(GameTileData.new(2, Tile.TileType.PLAYER), Vector2i(1, 0))
+	var definition: TileDefinition = _load_classic_definition()
+	var interaction_rule: ClassicInteractionRule = ClassicInteractionRule.new()
+	interaction_rule.tile_definitions = [definition]
+	interaction_rule.default_definition_id = definition.definition_id
+	grid_model.initialize(4, interaction_rule, ClassicMovementRule.new())
+	grid_model.place_tile(
+		composition.create_tile(definition, 2),
+		Vector2i(1, 0)
+	)
 	var execute_listener: GFEventListener = GFEventListener.from_callable(
 		func(_payload: Variant) -> void:
 			var _execute_result: Variant = await command_history.execute_command(MoveCommand.new(Vector2i.LEFT)),
@@ -103,3 +118,12 @@ func _get_move_command(source: Array, index: int) -> MoveCommand:
 		return value
 	assert_true(false, "测试历史中缺少 MoveCommand，index=%d。" % index)
 	return MoveCommand.new(Vector2i.ZERO)
+
+
+func _load_classic_definition() -> TileDefinition:
+	var resource: Resource = load(_CLASSIC_DEFINITION_PATH)
+	if resource is TileDefinition:
+		var definition: TileDefinition = resource
+		return definition
+	assert_true(false, "无法加载经典 TileDefinition。")
+	return null

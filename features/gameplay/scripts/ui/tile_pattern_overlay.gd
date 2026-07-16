@@ -32,6 +32,7 @@ var _pattern_type: PatternType = PatternType.NONE
 var _pattern_color: Color = Color(0.0, 0.0, 0.0, 0.0)
 var _highlight_color: Color = Color(1.0, 1.0, 1.0, 0.0)
 var _registration_shadow_color: Color = Color(1.0, 1.0, 1.0, 0.0)
+var _visual_layer_ids: Array[StringName] = []
 
 
 # --- Godot 生命周期方法 ---
@@ -41,24 +42,26 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	if _pattern_type == PatternType.NONE:
+	if _pattern_type == PatternType.NONE and _visual_layer_ids.is_empty():
 		return
 
-	match _pattern_type:
-		PatternType.DIAMOND:
-			_draw_diamond_pattern()
-		PatternType.CHECKER:
-			_draw_checker_pattern()
-		PatternType.SCALES:
-			_draw_scales_pattern()
-		PatternType.HALFTONE:
-			_draw_halftone_pattern()
-		PatternType.DIAGONAL_HATCH:
-			_draw_diagonal_hatch_pattern()
-		_:
-			pass
+	if _pattern_type != PatternType.NONE:
+		match _pattern_type:
+			PatternType.DIAMOND:
+				_draw_diamond_pattern()
+			PatternType.CHECKER:
+				_draw_checker_pattern()
+			PatternType.SCALES:
+				_draw_scales_pattern()
+			PatternType.HALFTONE:
+				_draw_halftone_pattern()
+			PatternType.DIAGONAL_HATCH:
+				_draw_diagonal_hatch_pattern()
+			_:
+				pass
 
 	_draw_inner_highlight()
+	_draw_visual_layer_markers()
 
 
 # --- 公共方法 ---
@@ -66,8 +69,14 @@ func _draw() -> void:
 ## 设置纹理类型和颜色基准。
 ## @param pattern_type: 要绘制的纹理类型。
 ## @param base_color: 方块底色，用于计算纹理明暗。
-func setup(pattern_type: PatternType, base_color: Color) -> void:
+## @param visual_layer_ids: Recipe 提供的稳定视觉标记 ID。
+func setup(
+	pattern_type: PatternType,
+	base_color: Color,
+	visual_layer_ids: Array[StringName] = []
+) -> void:
 	_pattern_type = pattern_type
+	_visual_layer_ids = visual_layer_ids.duplicate()
 	_resolve_pattern_colors(base_color)
 	queue_redraw()
 
@@ -194,3 +203,40 @@ func _draw_inner_highlight() -> void:
 	draw_line(top_left, bottom_left, _highlight_color, 2.0)
 	draw_line(bottom_left, bottom_right, _registration_shadow_color, 2.0)
 	draw_line(top_right, bottom_right, _registration_shadow_color, 2.0)
+
+
+func _draw_visual_layer_markers() -> void:
+	var marker_count: int = mini(_visual_layer_ids.size(), 4)
+	if marker_count <= 0:
+		return
+	var marker_spacing: float = 15.0
+	var total_width: float = float(marker_count - 1) * marker_spacing
+	var start_x: float = size.x * 0.5 - total_width * 0.5
+	var marker_y: float = size.y - _INNER_MARGIN - 5.0
+	for index: int in range(marker_count):
+		_draw_visual_layer_marker(
+			_visual_layer_ids[index],
+			Vector2(start_x + float(index) * marker_spacing, marker_y)
+		)
+
+
+func _draw_visual_layer_marker(layer_id: StringName, center: Vector2) -> void:
+	match layer_id:
+		&"tile.visual_trait.classic_merge":
+			draw_rect(Rect2(center - Vector2(4.0, 4.0), Vector2(8.0, 8.0)), _registration_shadow_color, false, 2.0)
+		&"tile.visual_trait.fibonacci_merge":
+			_draw_diamond(center, 5.0)
+		&"tile.visual_trait.lucas_merge":
+			draw_arc(center, 5.0, 0.0, TAU, 12, _registration_shadow_color, 2.0, false)
+		&"tile.visual_trait.lucas_bridge":
+			draw_line(center - Vector2(5.0, 0.0), center + Vector2(5.0, 0.0), _registration_shadow_color, 2.0)
+			draw_line(center - Vector2(0.0, 5.0), center + Vector2(0.0, 5.0), _registration_shadow_color, 2.0)
+		&"tile.visual_trait.ratio":
+			var points: PackedVector2Array = PackedVector2Array([
+				center + Vector2(0.0, -5.0),
+				center + Vector2(5.0, 4.0),
+				center + Vector2(-5.0, 4.0),
+			])
+			draw_polyline(points, _registration_shadow_color, 2.0)
+		_:
+			draw_circle(center, 3.0, _registration_shadow_color)

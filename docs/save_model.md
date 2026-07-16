@@ -30,6 +30,8 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 设置是全局偏好，不参与玩家数据图事务。语言、显示、主音量、视觉主题和音效主题不随书签或回放恢复。
 
+GF 存储格式升级后，项目只对已知的旧版 `XOR + Base64 JSON` 设置载荷执行一次性迁移，成功后立即以当前 Binary codec 原子覆写。该迁移不构成长期双读：未命中精确旧格式时仍由当前 GF codec 严格处理，未知损坏载荷不得猜测。
+
 ## SaveGraph 结构
 
 `GameSaveGraphUtility` 创建一个根 Scope，并由 `app/scripts/game_architecture_installer.gd` 在 GF `init()` 前登记三个 Feature section：
@@ -94,7 +96,9 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 `BookmarkCatalogSaveData` 的业务根只有 `items`。每个 `BookmarkData` 使用 `bookmark_id` UUID v7 作为稳定身份，删除和替换不得依赖时间戳或文件路径。
 
-书签是可继续游玩的完整局面快照，包括模式、种子、棋盘、规则状态、命令历史、分数、步数和目标状态。视觉主题、音效主题和全局设置不属于书签。
+书签是可继续游玩的完整局面快照，包括模式、种子、棋盘、规则状态、命令历史、分数、步数、跨定义求商次数和目标状态。视觉主题、音效主题和全局设置不属于书签。`BookmarkCatalogSaveData` 当前为 schema v3；`ratio_resolutions` 只表示规则执行次数，不携带阵营或击杀语义。
+
+棋盘快照使用 `GridModel.SNAPSHOT_SCHEMA_VERSION`。其中每个方块使用 `TileState.SERIALIZATION_SCHEMA_VERSION`，并显式保存 UUID v7、`definition_id`、当前实际 `capability_recipe_ids` 以及按 Recipe ID 隔离的 `capability_state`。恢复时由 `TileCompositionUtility` 通过 GF Recipe 重建能力实例；不得仅按定义的初始 Recipe 猜测运行时组合。
 
 `target_tile_value` 与 `target_reached` 是当前 schema 的显式契约。恢复时不允许从最高方块猜测缺失状态；目标值必须与当前模式一致。若当前最高方块已达到目标却声明 `target_reached=false`，载荷无效；`target_reached=true` 且当前最高方块较低仍可表示本局曾经达成过目标。
 

@@ -222,6 +222,8 @@ func test_valid_move_resolves_once_through_gf_turn_flow() -> void:
 		func(action: GFTurnAction) -> void: resolved_actions.append(action)
 	) as Error
 
+	await architecture.register_utility(GFCapabilityUtility, GFCapabilityUtility.new())
+	await architecture.register_utility(TileCompositionUtility, TileCompositionUtility.new())
 	await architecture.register_model(GridModel, grid_model)
 	await architecture.register_model(GameStatusModel, status_model)
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
@@ -233,7 +235,16 @@ func test_valid_move_resolves_once_through_gf_turn_flow() -> void:
 	await architecture.register_system(GameTurnSystem, GameTurnSystem.new())
 	await architecture.init()
 
-	grid_model.initialize(4, ClassicInteractionRule.new(), ClassicMovementRule.new())
+	var definition_resource: Resource = load(
+		"res://features/gameplay/resources/tiles/definitions/classic_numeric_tile.tres"
+	)
+	assert_true(definition_resource is TileDefinition, "应加载经典方块定义。")
+	var interaction_rule: ClassicInteractionRule = ClassicInteractionRule.new()
+	if definition_resource is TileDefinition:
+		var definition: TileDefinition = definition_resource
+		interaction_rule.tile_definitions = [definition]
+		interaction_rule.default_definition_id = definition.definition_id
+	grid_model.initialize(4, interaction_rule, ClassicMovementRule.new())
 	architecture.send_event(GameReadyData.new())
 
 	var move_data: MoveData = MoveData.new()

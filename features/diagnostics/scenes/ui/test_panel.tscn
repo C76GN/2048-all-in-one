@@ -54,11 +54,11 @@ layout_mode = 2
 [node name="HBoxContainer4" type="HBoxContainer" parent="." unique_id=1796250253]
 layout_mode = 2
 
-[node name="TypeOptionLabel" type="Label" parent="HBoxContainer4" unique_id=1029296399]
+[node name="DefinitionOptionLabel" type="Label" parent="HBoxContainer4" unique_id=1029296399]
 layout_mode = 2
-text = "类型："
+text = "方块："
 
-[node name="TypeOptionButton" type="OptionButton" parent="HBoxContainer4" unique_id=111307989]
+[node name="DefinitionOptionButton" type="OptionButton" parent="HBoxContainer4" unique_id=111307989]
 unique_name_in_owner = true
 layout_mode = 2
 

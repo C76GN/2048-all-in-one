@@ -34,45 +34,6 @@ func _init() -> void:
 
 # --- 公共方法 ---
 
-## 判断两个方块是否具备可交互性。
-## @param tile_a: 第一个方块数据。
-## @param tile_b: 第二个方块数据。
-func can_interact(tile_a: GameTileData, tile_b: GameTileData) -> bool:
-	if tile_a == null or tile_b == null:
-		return false
-	if tile_a.type != Tile.TileType.PLAYER or tile_b.type != Tile.TileType.PLAYER:
-		return false
-
-	var v1: int = tile_a.value
-	var v2: int = tile_b.value
-
-	if SequenceMath.are_consecutive_fibonacci(v1, v2):
-		return true
-
-	if SequenceMath.are_consecutive_lucas(v1, v2, _luc_sequence):
-		return true
-
-	var idx1_fib: int = _fib_sequence.find(v1)
-	var idx2_fib: int = _fib_sequence.find(v2)
-	if idx1_fib != -1 and idx2_fib != -1 and abs(idx1_fib - idx2_fib) == 2:
-		return true
-
-	return false
-
-
-## 处理两个方块之间的合并交互。
-## @param tile_a: 被移动或消耗的方块数据。
-## @param tile_b: 目标方块数据。
-## @param _p_rule: 调用方传入的交互规则引用；此规则不直接使用。
-func process_interaction(tile_a: GameTileData, tile_b: GameTileData, _p_rule: InteractionRule) -> Dictionary:
-	if can_interact(tile_a, tile_b):
-		var new_value: int = tile_a.value + tile_b.value
-		tile_b.value = new_value
-		return {&"merged_tile": tile_b, &"consumed_tile": tile_a, &"score": new_value}
-
-	return {}
-
-
 ## 根据数值返回其在数列中的等级（索引）。
 ## @param value: 方块数值。
 func get_level_by_value(value: int) -> int:
@@ -89,7 +50,8 @@ func get_level_by_value(value: int) -> int:
 
 ## 根据数值判断应该使用哪个配色方案。
 ## @param value: 方块数值。
-func get_color_scheme_index(value: int) -> int:
+## @param _definition_id: 方块定义 ID；该数列规则只按数值选择色阶。
+func get_color_scheme_index(value: int, _definition_id: StringName) -> int:
 	if value > 3 and _luc_set.has(value) and not _fib_set.has(value):
 		return 1
 	return 0
@@ -100,17 +62,17 @@ func get_color_scheme_index(value: int) -> int:
 ## @param context: 包含当前游戏统计信息的 Dictionary 对象。
 ## @param stats: 要写入显示数据的 Dictionary 对象。
 func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
-	var max_player_value: int = GFVariantData.to_int(context.get(&"max_player_value", 0), 0)
-	var max_display_value: int = 5 + max_player_value * 2
-	var player_tiles_value: Variant = context.get(&"player_values_set", {})
-	var player_tiles_set: Dictionary = player_tiles_value if player_tiles_value is Dictionary else {}
+	var max_tile_value: int = GFVariantData.to_int(context.get(&"max_tile_value", 0), 0)
+	var max_display_value: int = 5 + max_tile_value * 2
+	var tile_values_value: Variant = context.get(&"tile_values_set", {})
+	var tile_values_set: Dictionary = tile_values_value if tile_values_value is Dictionary else {}
 
 	var synthesis_data: Dictionary = {}
 
 	for i: int in range(1, _fib_sequence.size() - 1):
 		var f_n_minus_1: int = _fib_sequence[i - 1]
 		var f_n_plus_1: int = _fib_sequence[i + 1]
-		if player_tiles_set.has(f_n_minus_1) and player_tiles_set.has(f_n_plus_1):
+		if tile_values_set.has(f_n_minus_1) and tile_values_set.has(f_n_plus_1):
 			var l_n: int = f_n_minus_1 + f_n_plus_1
 			if _luc_set.has(l_n):
 				synthesis_data = {&"f_minus_1": f_n_minus_1, &"f_plus_1": f_n_plus_1, &"l_n": l_n}
@@ -139,7 +101,7 @@ func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
 		var item: Dictionary = {&"text": str(num), &"color": _HUD_MUTED_COLOR}
 		if highlight_fib_components.has(num):
 			item[&"color"] = _HUD_TEAL_COLOR
-		elif player_tiles_set.has(num):
+		elif tile_values_set.has(num):
 			item[&"color"] = _HUD_TEXT_COLOR
 		fib_data_for_ui.append(item)
 	stats[&"fibonacci_sequence_display"] = fib_data_for_ui
@@ -153,24 +115,24 @@ func get_hud_stats(context: Dictionary, stats: Dictionary) -> void:
 		var item: Dictionary = {&"text": str(num), &"color": _HUD_MUTED_COLOR}
 		if highlight_lucas_set.has(num):
 			item[&"color"] = _HUD_ACCENT_COLOR
-		elif player_tiles_set.has(num):
+		elif tile_values_set.has(num):
 			item[&"color"] = _HUD_TEXT_COLOR
 		luc_data_for_ui.append(item)
 	stats[&"lucas_sequence_display"] = luc_data_for_ui
 
 
-## 获取此规则下所有可生成的方块"类型"。
-func get_spawnable_types() -> Dictionary:
+## 获取诊断工具可选择的数列生成选项。
+func get_spawnable_options() -> Dictionary:
 	return {
 		0: tr("RULE_FIBONACCI"),
 		1: tr("RULE_LUCAS")
 	}
 
 
-## 根据指定的类型ID，获取所有可生成的方块"数值"。
-## @param type_id: 测试面板传入的生成类型 ID。
-func get_spawnable_values(type_id: int) -> Array[int]:
-	match type_id:
+## 根据生成选项 ID 获取可生成数值。
+## @param option_id: 测试面板传入的生成选项 ID。
+func get_spawnable_values(option_id: int) -> Array[int]:
+	match option_id:
 		0: return _fib_sequence
 		1:
 			var luc_display: Array[int] = _luc_sequence.duplicate()
@@ -179,10 +141,10 @@ func get_spawnable_values(type_id: int) -> Array[int]:
 	return []
 
 
-## 根据从UI接收的类型ID，返回对应的 Tile.TileType 枚举。
-## @param _type_id: UI 传入的类型 ID；该模式统一生成玩家方块。
-func get_tile_type_from_id(_type_id: int) -> Tile.TileType:
-	return Tile.TileType.PLAYER
+## 两个数列选项都使用同一个复合方块定义。
+## @param _option_id: UI 传入的局部生成选项 ID。
+func get_spawn_definition(_option_id: int) -> TileDefinition:
+	return get_default_tile_definition()
 
 
 # --- 私有/辅助方法 ---

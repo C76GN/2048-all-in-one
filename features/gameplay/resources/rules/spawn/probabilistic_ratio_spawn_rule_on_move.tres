@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="ProbabilisticRatioSpawnRule" format=3 uid="uid://t1sr0qod56au"]
+
+[ext_resource type="Script" uid="uid://bbsc8cax1618a" path="res://features/gameplay/scripts/rules/spawn/probabilistic_ratio_spawn_rule.gd" id="1_1sahg"]
+
+[resource]
+script = ExtResource("1_1sahg")
+priority = 20
+alternate_definition_id = &"tile.ratio.factor"
+metadata/_custom_type_script = "uid://bbsc8cax1618a"

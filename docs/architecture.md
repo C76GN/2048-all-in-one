@@ -73,12 +73,15 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 1. `PlayerInputSystem` 从 `GFInputMappingUtility` 消费 `GFInputContext`。
 2. `MoveCommand` 调用棋盘 System 更新 `GridModel`。
-3. `GameTurnSystem` 将有效 `MoveData` 封装为一次性的 `GameMoveTurnAction`，交给扩展拥有的 `GFTurnFlowSystem`。
-4. GF 为回合 Action 注入 `RuleSystem` 与 `GameFlowSystem`，顺序完成移动统计、生成规则和目标/失败结算；不再派发项目私有 `TURN_FINISHED` 事件。
-5. `GFCommandHistoryUtility` 保存可撤销状态。
-6. 业务事件携带动画指令到 `GameBoardController`。
-7. `BoardTweenBatchAction` 把同一批已有 Tween 适配成可等待的 `GFVisualAction`。
-8. `GFActionQueueSystem` 等待整批移动、合并、生成或撤回 Tween，并拥有暂停、完成与取消生命周期；棋盘 Action 不使用 fire-and-forget。
+3. `MovementRule` 只确定移动和碰撞候选，`TileCompositionUtility` 通过 `GFCapabilityUtility` 解析双方共同 Recipe 能力并仲裁交互提案。
+4. `GameTurnSystem` 将有效 `MoveData` 封装为一次性的 `GameMoveTurnAction`，交给扩展拥有的 `GFTurnFlowSystem`。
+5. GF 为回合 Action 注入 `RuleSystem` 与 `GameFlowSystem`，顺序完成移动统计、生成规则和目标/失败结算；不再派发项目私有 `TURN_FINISHED` 事件。
+6. `GFCommandHistoryUtility` 保存包含定义、实际 Recipe 清单和能力状态的严格棋盘快照。
+7. 业务事件携带动画指令到 `GameBoardController`；定义视觉家族与 Recipe 视觉层共同生成方块表现。
+8. `BoardTweenBatchAction` 把同一批已有 Tween 适配成可等待的 `GFVisualAction`。
+9. `GFActionQueueSystem` 等待整批移动、合并、生成或撤回 Tween，并拥有暂停、完成与取消生命周期；棋盘 Action 不使用 fire-and-forget。
+
+方块组合详细契约见 `features/gameplay/docs/tile_composition.md`。
 
 ### 主题切换
 
@@ -123,7 +126,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 - `progress`、`bookmarks` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
 - 三个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 负责存储元数据、checksum 和原子文件事务。
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。
-- `bookmarks` section 当前 schema 为 v2；已删除瞬时 HUD 消息字段，并把目标值与达成状态作为严格语义契约，不提供运行时旧字段推断或兼容分支。
+- `bookmarks` section 当前 schema 为 v3；规则统计使用中性的 `ratio_resolutions`，并把目标值与达成状态作为严格语义契约，不提供旧阵营字段推断或兼容分支。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
 - 存档 Schema 发生破坏性变化时使用显式迁移工具；运行时代码不长期保留旧字段双读分支。
 
@@ -133,6 +136,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 - `gf.action_queue`
 - `gf.asset_metadata`
+- `gf.capability`
 - `gf.content_package`
 - `gf.domain`
 - `gf.feedback`

@@ -82,7 +82,7 @@ func _update_preview(data: Resource) -> void:
 	details += "[b]%s[/b] %s\n" % [tr("LABEL_TIME"), datetime]
 	details += "[b]%s[/b] %d\n" % [tr("LABEL_SCORE"), bookmark.score]
 	details += "[b]%s[/b] %d\n" % [tr("LABEL_MOVES"), bookmark.move_count]
-	details += "[b]%s[/b] %d\n" % [tr("LABEL_KILLED"), bookmark.monsters_killed]
+	details += "[b]%s[/b] %d\n" % [tr("LABEL_RATIO_RESOLUTIONS"), bookmark.ratio_resolutions]
 	details += "[b]%s[/b] %dx%d\n" % [tr("LABEL_BOARD"), grid_size, grid_size]
 	details += "[b]%s[/b] %d" % [tr("LABEL_SEED"), bookmark.initial_seed]
 

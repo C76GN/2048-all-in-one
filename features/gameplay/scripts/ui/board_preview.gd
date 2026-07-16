@@ -116,17 +116,37 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 			continue
 
 		var value: int = GFVariantData.to_int(tile_data.get(&"value", tile_data.get("value", 0)), 0)
-		var type: Tile.TileType = _to_tile_type(tile_data.get(&"type", tile_data.get("type", Tile.TileType.PLAYER)))
+		var definition_id: StringName = GFVariantData.get_option_string_name(
+			tile_data,
+			&"definition_id"
+		)
+		var presentation: Dictionary = _get_tile_presentation_descriptor(
+			tile_data,
+			definition_id,
+			mode_config
+		)
 
 		var tile: Tile = _instantiate_tile(TILE_SCENE)
 		if not is_instance_valid(tile):
 			continue
 		_board_container.add_child(tile)
 
-		var colors: Dictionary = _get_tile_colors(value, type, mode_config, color_schemes)
+		var colors: Dictionary = _get_tile_colors(
+			value,
+			definition_id,
+			mode_config,
+			color_schemes
+		)
 		var tile_bg_color: Color = _get_color(colors, &"bg", Color.WHITE)
 		var tile_font_color: Color = _get_color(colors, &"font", Color.BLACK)
-		tile.setup(value, type, tile_bg_color, tile_font_color)
+		tile.setup(
+			value,
+			definition_id,
+			tile_bg_color,
+			tile_font_color,
+			GFVariantData.get_option_string_name(presentation, &"visual_family_id"),
+			_get_string_name_array(presentation, &"visual_layer_ids")
+		)
 
 		var scale_factor: float = cell_size / 100.0
 		tile.scale = Vector2.ONE * scale_factor
@@ -227,7 +247,7 @@ func _is_grid_pos_in_bounds(grid_pos: Vector2i, grid_size: int) -> bool:
 
 func _get_tile_colors(
 	value: int,
-	type: Tile.TileType,
+	definition_id: StringName,
 	mode_config: GameModeConfig,
 	color_schemes: Dictionary
 ) -> Dictionary:
@@ -237,9 +257,10 @@ func _get_tile_colors(
 	if not is_instance_valid(mode_config) or not is_instance_valid(mode_config.interaction_rule):
 		return {"bg": bg_color, "font": font_color}
 		
-	var scheme_index: int = type
-	if type == Tile.TileType.PLAYER:
-		scheme_index = mode_config.interaction_rule.get_color_scheme_index(value)
+	var scheme_index: int = mode_config.interaction_rule.get_color_scheme_index(
+		value,
+		definition_id
+	)
 		
 	var scheme_value: Variant = color_schemes.get(scheme_index)
 	if not scheme_value is TileColorScheme:
@@ -255,6 +276,21 @@ func _get_tile_colors(
 			font_color = current_style.font_color
 			
 	return {"bg": bg_color, "font": font_color}
+
+
+func _get_tile_presentation_descriptor(
+	tile_data: Dictionary,
+	definition_id: StringName,
+	mode_config: GameModeConfig
+) -> Dictionary:
+	if not is_instance_valid(mode_config) or not is_instance_valid(mode_config.interaction_rule):
+		return {}
+	var definition: TileDefinition = mode_config.interaction_rule.get_tile_definition(definition_id)
+	if definition == null:
+		return {}
+	return definition.get_presentation_descriptor(
+		_get_string_name_array(tile_data, &"capability_recipe_ids")
+	)
 
 
 func _resolve_board_theme(mode_config: GameModeConfig) -> BoardTheme:
@@ -307,15 +343,11 @@ static func _to_vector2i(value: Variant) -> Vector2i:
 	return Vector2i.ZERO
 
 
-static func _to_tile_type(value: Variant) -> Tile.TileType:
-	var raw_type: int = GFVariantData.to_int(value, int(Tile.TileType.PLAYER))
-	match raw_type:
-		Tile.TileType.PLAYER:
-			return Tile.TileType.PLAYER
-		Tile.TileType.MONSTER:
-			return Tile.TileType.MONSTER
-		_:
-			return Tile.TileType.PLAYER
+static func _get_string_name_array(data: Dictionary, key: StringName) -> Array[StringName]:
+	var result: Array[StringName] = []
+	for value: Variant in GFVariantData.get_option_array(data, key):
+		result.append(GFVariantData.to_string_name(value))
+	return result
 
 
 static func _get_color(data: Dictionary, key: StringName, fallback: Color) -> Color:

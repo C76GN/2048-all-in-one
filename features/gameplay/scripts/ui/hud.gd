@@ -61,7 +61,7 @@ func _ready() -> void:
 		_game_status_model.move_count.bind_to(self, _on_move_count_changed)
 		_game_status_model.high_score.bind_to(self, _on_high_score_changed)
 		_game_status_model.highest_tile.bind_to(self, _on_highest_tile_changed)
-		_game_status_model.monsters_killed.bind_to(self, _on_monsters_killed_changed)
+		_game_status_model.ratio_resolutions.bind_to(self, _on_ratio_resolutions_changed)
 		_game_status_model.extra_stats.bind_to(self, _on_extra_stats_changed)
 		
 		_refresh_all()
@@ -430,7 +430,7 @@ func _on_notification_finished(notification_record: Dictionary, _reason: String)
 		_set_notification_message(0, "")
 
 
-func _on_monsters_killed_changed(_old: int, _new: int) -> void:
+func _on_ratio_resolutions_changed(_old: int, _new: int) -> void:
 	_mark_dirty()
 
 

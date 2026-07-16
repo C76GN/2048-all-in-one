@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TileDefinition" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://features/gameplay/scripts/tiles/definitions/tile_definition.gd" id="1_definition"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/tiles/recipes/classic_merge_recipe.tres" id="2_recipe"]
+[ext_resource type="Script" path="res://addons/gf/extensions/capability/recipes/gf_capability_recipe.gd" id="3_recipe_script"]
+
+[resource]
+script = ExtResource("1_definition")
+definition_id = &"tile.classic.numeric"
+display_name_key = &"RULE_CLASSIC_TILE"
+color_scheme_index = 0
+capability_recipes = Array[ExtResource("3_recipe_script")]([ExtResource("2_recipe")])
+initial_recipe_ids = Array[StringName]([&"tile.recipe.classic_merge"])
+visual_family_id = &"tile.visual.classic_numeric"
+audio_family_id = &"tile.audio.classic"
+tags = PackedStringArray("tile", "numeric", "classic")

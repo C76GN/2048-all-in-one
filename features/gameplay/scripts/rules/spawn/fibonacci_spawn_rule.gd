@@ -2,7 +2,7 @@
 ##
 ## 规则：
 ## 1. 触发器(ON_INITIALIZE): 负责在棋盘上生成两个初始方块。
-## 2. 触发器(ON_MOVE): 在每次有效移动后，生成一个新的数值为1的玩家方块。
+## 2. 触发器(ON_MOVE): 在每次有效移动后，生成一个新的数值为1的方块。
 class_name FibonacciSpawnRule
 extends SpawnRule
 
@@ -36,7 +36,6 @@ func execute(context: RuleContext) -> bool:
 	for _i: int in range(spawn_count):
 		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.value = 1
-		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
 		context.request_spawn(spawn_data)

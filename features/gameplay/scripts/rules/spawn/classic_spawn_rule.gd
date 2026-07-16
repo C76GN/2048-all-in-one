@@ -2,7 +2,7 @@
 ##
 ## 规则包括：
 ## 1. 触发器(ON_INITIALIZE): 负责在棋盘上生成两个初始方块。
-## 2. 触发器(ON_MOVE): 在每次有效移动后，生成一个新的玩家方块。
+## 2. 触发器(ON_MOVE): 在每次有效移动后，生成一个新方块。
 class_name ClassicSpawnRule
 extends SpawnRule
 
@@ -11,7 +11,7 @@ extends SpawnRule
 
 @export_group("规则配置")
 
-## 生成数值为2的玩家方块的概率（其余为4）。
+## 生成数值为2的方块概率（其余为4）。
 @export var probability_of_2: float = 0.9
 
 ## 如果为true，成功执行后将阻止其他低优先级规则运行。
@@ -44,7 +44,6 @@ func execute(context: RuleContext) -> bool:
 
 		var spawn_data: SpawnData = SpawnData.new()
 		spawn_data.value = value
-		spawn_data.type = Tile.TileType.PLAYER
 		spawn_data.is_priority = false
 
 		context.request_spawn(spawn_data)
