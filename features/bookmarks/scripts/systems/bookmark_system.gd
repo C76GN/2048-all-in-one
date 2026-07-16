@@ -13,6 +13,10 @@ var _save_graph: GameSaveGraphUtility = null
 
 # --- GF 生命周期方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [GameSaveGraphUtility]
+
+
 func ready() -> void:
 	_save_graph = _resolve_save_graph_utility()
 

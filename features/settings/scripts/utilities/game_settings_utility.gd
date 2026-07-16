@@ -11,6 +11,10 @@ const AUDIO_BUS_MASTER: String = "Master"
 
 # --- 公共方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [GFStorageUtility]
+
+
 ## 注册项目设置定义。
 func register_project_defaults() -> void:
 	var _locale_setting: GFSettingDefinition = register_setting(

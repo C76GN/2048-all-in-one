@@ -28,6 +28,10 @@ var _route_registry: GFResourceRegistry = DEFAULT_UI_ROUTE_REGISTRY
 
 # --- Godot 生命周期方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [GFUIUtility, ProjectResourceCatalogUtility]
+
+
 func ready() -> void:
 	_resource_catalog = _resolve_resource_catalog_utility()
 	if not is_instance_valid(_resource_catalog):

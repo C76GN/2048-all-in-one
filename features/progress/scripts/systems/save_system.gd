@@ -37,6 +37,10 @@ var _save_graph: GameSaveGraphUtility
 
 # --- Godot 生命周期方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [GameClockUtility, GameSaveGraphUtility, GFLogUtility]
+
+
 func ready() -> void:
 	_log = _get_log_utility()
 	_clock = _get_clock_utility()

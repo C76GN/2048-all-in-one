@@ -25,6 +25,10 @@ var _save_graph: GameSaveGraphUtility = null
 
 # --- Godot 生命周期方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [GameSaveGraphUtility, GFCommandHistoryUtility]
+
+
 func ready() -> void:
 	_command_history = _get_command_history_utility()
 	_save_graph = _resolve_save_graph_utility()

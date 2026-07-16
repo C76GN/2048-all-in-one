@@ -17,6 +17,18 @@ var _game_board: GameBoardController
 var _is_listening: bool = false
 
 
+func get_required_models() -> Array[Script]:
+	return [CurrentGameModel, GameStatusModel, GridModel]
+
+
+func get_required_systems() -> Array[Script]:
+	return [GameFlowSystem, GameStateSystem, RuleSystem]
+
+
+func get_required_utilities() -> Array[Script]:
+	return [_GAME_THEME_UTILITY_SCRIPT, GFCommandHistoryUtility]
+
+
 ## 释放测试工具持有的场景引用与事件监听。
 func dispose() -> void:
 	_is_listening = false

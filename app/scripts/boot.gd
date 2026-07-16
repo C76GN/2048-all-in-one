@@ -55,7 +55,14 @@ func _run_startup_sequence() -> void:
 	await get_tree().process_frame
 
 	_publish_progress(0.18, "初始化 GF 架构")
-	await Gf.init()
+	var architecture: GFArchitecture = Gf.create_architecture()
+	architecture.strict_dependency_lookup = true
+	architecture.fail_on_missing_declared_dependencies = true
+	var architecture_ready: bool = await Gf.init()
+	if not architecture_ready:
+		push_error("[Boot] GF 架构严格初始化失败。")
+		_publish_progress(1.0, "架构初始化失败")
+		return
 	_publish_progress(0.54, "注册系统与素材")
 	await get_tree().process_frame
 

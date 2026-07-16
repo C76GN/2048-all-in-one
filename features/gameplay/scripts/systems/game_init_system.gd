@@ -27,6 +27,25 @@ var _clock: GameClockUtility
 
 # --- Godot 生命周期方法 ---
 
+func get_required_models() -> Array[Script]:
+	return [AppConfigModel, CurrentGameModel, GameStatusModel, GridModel]
+
+
+func get_required_systems() -> Array[Script]:
+	return [GameFlowSystem, RuleSystem, SaveSystem]
+
+
+func get_required_utilities() -> Array[Script]:
+	return [
+		GameClockUtility,
+		GameModeCatalogUtility,
+		GFCommandHistoryUtility,
+		GFLevelUtility,
+		GFLogUtility,
+		GFSeedUtility,
+	]
+
+
 func ready() -> void:
 	_seed_utility = _get_seed_utility()
 	_command_history = _get_command_history_utility()

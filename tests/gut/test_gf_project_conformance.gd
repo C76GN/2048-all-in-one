@@ -15,10 +15,13 @@ const SOURCE_EXCLUDED_ROOTS: Array[String] = [
 const GLOBAL_GF_ACCESS_ALLOWLIST: Array[String] = [
 	"res://app/scripts/boot.gd",
 ]
+const BOOT_SCRIPT_PATH: String = "res://app/scripts/boot.gd"
 const GF_MODULE_BASE_PATHS: Array[String] = [
 	"res://addons/gf/kernel/base/gf_model.gd",
 	"res://addons/gf/kernel/base/gf_system.gd",
 	"res://addons/gf/kernel/base/gf_utility.gd",
+	"res://addons/gf/standard/utilities/settings/gf_settings_utility.gd",
+	"res://addons/gf/standard/utilities/ui/gf_ui_router_utility.gd",
 ]
 const EARLY_LIFECYCLE_METHODS: Array[String] = [
 	"init",
@@ -30,6 +33,26 @@ const CROSS_MODULE_LOOKUP_METHODS: Array[String] = [
 	"get_model",
 	"get_system",
 	"get_utility",
+]
+const DECLARED_DEPENDENCY_CONTRACTS: Array[Dictionary] = [
+	{
+		"kind": "model",
+		"lookup_method": "get_model",
+		"hook_method": "get_required_models",
+	},
+	{
+		"kind": "system",
+		"lookup_method": "get_system",
+		"hook_method": "get_required_systems",
+	},
+	{
+		"kind": "utility",
+		"lookup_method": "get_utility",
+		"hook_method": "get_required_utilities",
+	},
+]
+const OPTIONAL_MODULE_DEPENDENCIES: Array[String] = [
+	"res://features/navigation/scripts/systems/scene_router_system.gd|utility:GFOperationDiagnosticsUtility",
 ]
 const ASSET_LIBRARY_TOOL_PATHS: Array[String] = [
 	"res://tools/audit_asset_library.ps1",
@@ -118,6 +141,53 @@ func test_gf_modules_only_resolve_cross_module_dependencies_in_ready() -> void:
 	assert_true(
 		issues.is_empty(),
 		"GF init()/async_init() 只能初始化模块自身；跨模块 Model/System/Utility 必须在 ready() 获取：\n%s"
+		% _join_lines(issues)
+	)
+
+
+func test_boot_enables_strict_architecture_dependency_contracts() -> void:
+	var source: String = _read_text(BOOT_SCRIPT_PATH)
+
+	assert_true(source.contains("Gf.create_architecture()"), "Boot 应显式配置 GF 根架构。")
+	assert_true(source.contains("architecture.strict_dependency_lookup = true"), "根架构必须禁用隐式父级依赖回退。")
+	assert_true(
+		source.contains("architecture.fail_on_missing_declared_dependencies = true"),
+		"根架构必须在生命周期开始前拒绝缺失的声明式依赖。"
+	)
+	assert_true(source.contains("architecture_ready: bool = await Gf.init()"), "Boot 必须检查 GF 严格初始化结果。")
+
+
+func test_gf_modules_declare_static_cross_module_dependencies() -> void:
+	var issues: Array[String] = []
+	for path: String in _collect_project_script_paths():
+		var source: String = _read_text(path)
+		if not _is_gf_module_source(source):
+			continue
+		var functions: Dictionary = _parse_top_level_functions(source)
+		var generic_declarations: String = _get_function_body(functions, "get_required_dependencies")
+		for contract: Dictionary in DECLARED_DEPENDENCY_CONTRACTS:
+			var kind: String = GFVariantData.get_option_string(contract, "kind")
+			var lookup_method: String = GFVariantData.get_option_string(contract, "lookup_method")
+			var hook_method: String = GFVariantData.get_option_string(contract, "hook_method")
+			var declarations: String = "%s\n%s" % [
+				generic_declarations,
+				_get_function_body(functions, hook_method),
+			]
+			for dependency_symbol: String in _collect_static_dependency_symbols(source, lookup_method):
+				var dependency_id: String = "%s:%s" % [kind, dependency_symbol]
+				if _is_optional_module_dependency(path, dependency_id):
+					continue
+				if _regex_matches(declarations, "\\b%s\\b" % dependency_symbol):
+					continue
+				_append_string(issues, "%s 未通过 %s() 声明 %s。" % [
+					path,
+					hook_method,
+					dependency_id,
+				])
+
+	assert_true(
+		issues.is_empty(),
+		"项目 GF Module 的静态跨模块查找必须进入 GF 声明式依赖图；可选诊断依赖必须显式列入 allowlist：\n%s"
 		% _join_lines(issues)
 	)
 
@@ -431,6 +501,32 @@ func _contains_cross_module_lookup(body: String) -> bool:
 	return false
 
 
+func _get_function_body(functions: Dictionary, function_name: String) -> String:
+	if not functions.has(function_name):
+		return ""
+	var function_record: Dictionary = _get_dictionary(functions, function_name)
+	return _join_lines(_get_string_array(function_record, "body_lines"))
+
+
+func _collect_static_dependency_symbols(source: String, lookup_method: String) -> Array[String]:
+	var result: Array[String] = []
+	var regex: RegEx = _compile_regex(
+		"\\b%s\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_]*)" % lookup_method
+	)
+	if regex == null:
+		return result
+	for match_value: RegExMatch in regex.search_all(source):
+		var symbol: String = match_value.get_string(1)
+		if not symbol.is_empty() and not result.has(symbol):
+			result.append(symbol)
+	result.sort()
+	return result
+
+
+func _is_optional_module_dependency(path: String, dependency_id: String) -> bool:
+	return OPTIONAL_MODULE_DEPENDENCIES.has("%s|%s" % [path, dependency_id])
+
+
 func _contains_global_gf_access(code: String) -> bool:
 	return (
 		_regex_matches(code, "(?:^|[^A-Za-z0-9_])Gf\\s*\\.")
@@ -442,7 +538,7 @@ func _is_gf_module_source(source: String) -> bool:
 	for base_path: String in GF_MODULE_BASE_PATHS:
 		if source.contains("extends \"%s\"" % base_path):
 			return true
-	return false
+	return _regex_matches(source, "(?m)^extends\\s+GF(?:Model|System|Utility)\\s*$")
 
 
 func _parse_class_name(source: String) -> String:

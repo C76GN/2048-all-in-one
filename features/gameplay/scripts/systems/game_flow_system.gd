@@ -40,6 +40,26 @@ var _notifications: GFNotificationUtility
 
 # --- Godot 生命周期方法 ---
 
+func get_required_models() -> Array[Script]:
+	return [AppConfigModel, CurrentGameModel, GameStatusModel, GridModel]
+
+
+func get_required_systems() -> Array[Script]:
+	return [BookmarkSystem, GameStateSystem, ReplaySystem, SaveSystem, SceneRouterSystem]
+
+
+func get_required_utilities() -> Array[Script]:
+	return [
+		_GAME_THEME_UTILITY_SCRIPT,
+		GameClockUtility,
+		GFCommandHistoryUtility,
+		GFLogUtility,
+		GFNotificationUtility,
+		GFSeedUtility,
+		GFUIUtility,
+	]
+
+
 ## 初始化内部状态机。
 func init() -> void:
 	_fsm = GFStateMachine.new(self)

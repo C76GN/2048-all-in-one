@@ -81,6 +81,10 @@ func init() -> void:
 	_ensure_catalog_sources()
 
 
+func get_required_utilities() -> Array[Script]:
+	return [GFContentPackageUtility, GFResourceResolverUtility]
+
+
 func ready() -> void:
 	_resolver = _get_resource_resolver_utility()
 	_content_packages = _get_content_package_utility()

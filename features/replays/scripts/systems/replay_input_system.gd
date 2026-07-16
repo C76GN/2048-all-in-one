@@ -24,6 +24,14 @@ var _is_step_processing: bool = false
 
 # --- Godot 生命周期方法 ---
 
+func get_required_systems() -> Array[Script]:
+	return [ReplaySystem]
+
+
+func get_required_utilities() -> Array[Script]:
+	return [GFCommandHistoryUtility, GFInputMappingUtility]
+
+
 func ready() -> void:
 	_input_mapping = _get_input_mapping_utility()
 

@@ -34,10 +34,15 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 		diagnostics.has_tool_snapshot(&"project_diagnostics"),
 		"项目诊断接入状态应能被 GF 诊断快照观察。"
 	)
+	assert_true(
+		diagnostics.has_tool_snapshot(&"architecture_dependencies"),
+		"GF 声明式依赖图应进入项目诊断快照。"
+	)
 
 	var snapshot: Dictionary = diagnostics.collect_snapshot({"include_recent_logs": false})
 	var tools: Dictionary = GFVariantData.get_option_dictionary(snapshot, "tools")
 	assert_true(tools.has(&"project_diagnostics"), "GF 标准快照应聚合项目诊断状态。")
+	assert_true(tools.has(&"architecture_dependencies"), "GF 标准快照应聚合声明式依赖诊断。")
 
 	architecture.dispose()
 	await get_tree().process_frame

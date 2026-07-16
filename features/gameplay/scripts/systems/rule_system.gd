@@ -17,6 +17,14 @@ var _rules: Array[SpawnRule] = []
 
 # --- Godot 生命周期方法 ---
 
+func get_required_models() -> Array[Script]:
+	return [GridModel]
+
+
+func get_required_utilities() -> Array[Script]:
+	return [GFSeedUtility]
+
+
 func ready() -> void:
 	_grid_model = _get_grid_model()
 	_seed_utility = _get_seed_utility()

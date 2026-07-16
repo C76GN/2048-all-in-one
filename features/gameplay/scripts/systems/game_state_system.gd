@@ -10,6 +10,18 @@ const _CANONICAL_OPTIONS: Dictionary = {"allow_floats": true}
 
 # --- 公共方法 ---
 
+func get_required_models() -> Array[Script]:
+	return [GameStatusModel, GridModel]
+
+
+func get_required_systems() -> Array[Script]:
+	return [RuleSystem]
+
+
+func get_required_utilities() -> Array[Script]:
+	return [GFSeedUtility]
+
+
 ## 提取完整快照。
 ## @param grid_size_override: 外部指定的棋盘尺寸；小于等于 0 时使用 GridModel 当前尺寸。
 ## @return: 可用于撤销、书签比较和恢复的完整状态字典。

@@ -38,6 +38,10 @@ func init() -> void:
 	_build_scope_graph()
 
 
+func get_required_utilities() -> Array[Script]:
+	return [GFLogUtility, GFSaveGraphUtility, GFStorageUtility]
+
+
 func ready() -> void:
 	_save_graph = _resolve_save_graph_utility()
 	_storage = _resolve_storage_utility()

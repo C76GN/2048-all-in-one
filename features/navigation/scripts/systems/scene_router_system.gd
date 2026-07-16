@@ -32,6 +32,17 @@ var _scene_change_started_usec: int = 0
 
 # --- GF 生命周期方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [
+		GameThemeUtility,
+		GFLogUtility,
+		GFSceneUtility,
+		GFScreenTransitionUtility,
+		GFShaderParameterUtility,
+		GFSignalUtility,
+	]
+
+
 func ready() -> void:
 	_log = _get_log_utility()
 	_scene_utility = _get_scene_utility()

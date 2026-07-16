@@ -21,6 +21,10 @@ var _layer: CanvasLayer = null
 
 # --- GF 生命周期方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [GameAssetLibraryUtility, GFShaderParameterUtility]
+
+
 func ready() -> void:
 	_asset_library = _get_asset_library_utility()
 	_shader_parameters = _get_shader_parameter_utility()

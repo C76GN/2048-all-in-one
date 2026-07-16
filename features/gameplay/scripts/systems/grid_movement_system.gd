@@ -19,6 +19,14 @@ var _log: GFLogUtility
 
 # --- Godot 生命周期方法 ---
 
+func get_required_models() -> Array[Script]:
+	return [GridModel]
+
+
+func get_required_utilities() -> Array[Script]:
+	return [GFLogUtility]
+
+
 ## 从架构获取必要的层级引用。
 func ready() -> void:
 	_grid_model = _get_grid_model()

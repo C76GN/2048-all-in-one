@@ -20,6 +20,10 @@ var _catalogs: Dictionary = {}
 
 # --- Godot 生命周期方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [GFAssetUtility, GFResourceResolverUtility]
+
+
 func ready() -> void:
 	_asset_utility = _resolve_asset_utility()
 	_resource_resolver = _resolve_resource_resolver_utility()

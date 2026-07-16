@@ -28,6 +28,10 @@ var _is_active: bool = false
 
 # --- Godot 生命周期方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [GFCommandHistoryUtility, GFInputMappingUtility, GFNotificationUtility]
+
+
 func ready() -> void:
 	_input_mapping = _get_input_mapping_utility()
 	_notifications = _get_notification_utility()

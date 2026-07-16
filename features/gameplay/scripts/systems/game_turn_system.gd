@@ -14,6 +14,14 @@ var _is_resolving: bool = false
 
 # --- GF 生命周期方法 ---
 
+func get_required_models() -> Array[Script]:
+	return [GridModel]
+
+
+func get_required_systems() -> Array[Script]:
+	return [GFTurnFlowSystem]
+
+
 func ready() -> void:
 	_turn_flow = _get_turn_flow_system()
 	_grid_model = _get_grid_model()

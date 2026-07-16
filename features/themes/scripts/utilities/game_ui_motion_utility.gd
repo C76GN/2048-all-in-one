@@ -85,6 +85,10 @@ var _shader_parameters: GFShaderParameterUtility
 
 # --- GF 生命周期方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [GameAssetLibraryUtility, GFShaderParameterUtility]
+
+
 func ready() -> void:
 	_asset_library = _get_asset_library_utility()
 	_button_focus_ring_shader = _load_button_focus_ring_shader()

@@ -22,6 +22,22 @@ var _support_report_command_subscription: GFLifetimeSubscription
 # --- GF 生命周期方法 ---
 
 ## 注册项目诊断 provider 和支持报告命令。
+func get_required_utilities() -> Array[Script]:
+	return [
+		GameAssetLibraryUtility,
+		GameModeCatalogUtility,
+		GameSaveGraphUtility,
+		GameThemeCatalogUtility,
+		GameThemeUtility,
+		GameUiRouterUtility,
+		GFConsoleUtility,
+		GFDiagnosticsUtility,
+		GFLogUtility,
+		GFSupportReportUtility,
+		ProjectResourceCatalogUtility,
+	]
+
+
 func ready() -> void:
 	_diagnostics_utility = _get_diagnostics_utility()
 	_support_report_utility = _get_support_report_utility()
@@ -75,6 +91,7 @@ func _refresh_project_tool_snapshots() -> void:
 	_publish_tool_snapshot(&"themes", _collect_themes_snapshot())
 	_publish_tool_snapshot(&"game_modes", _collect_game_modes_snapshot())
 	_publish_tool_snapshot(&"ui_routes", _collect_ui_routes_snapshot())
+	_publish_tool_snapshot(&"architecture_dependencies", _collect_architecture_dependency_snapshot())
 	_publish_tool_snapshot(&"project_diagnostics", get_debug_snapshot())
 
 
@@ -151,6 +168,16 @@ func _collect_ui_routes_snapshot() -> Dictionary:
 		var utility: GameUiRouterUtility = utility_value
 		return utility.get_debug_snapshot()
 	return {}
+
+
+func _collect_architecture_dependency_snapshot() -> Dictionary:
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	if architecture == null:
+		return {}
+	return architecture.get_dependency_diagnostics({
+		"include_parent_lookup": false,
+		"include_factories": true,
+	})
 
 
 func _on_support_report_command(args: PackedStringArray) -> void:

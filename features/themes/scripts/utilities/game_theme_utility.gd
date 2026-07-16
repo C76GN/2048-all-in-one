@@ -36,6 +36,18 @@ func init() -> void:
 	_registry = null
 
 
+func get_required_utilities() -> Array[Script]:
+	return [
+		GameCelebrationVfxUtility,
+		GameThemeCatalogUtility,
+		GameUiMotionUtility,
+		GFAudioUtility,
+		GFSettingsUtility,
+		GFShaderParameterUtility,
+		GFSignalUtility,
+	]
+
+
 func ready() -> void:
 	_settings = _get_settings_utility()
 	_audio = _get_audio_utility()

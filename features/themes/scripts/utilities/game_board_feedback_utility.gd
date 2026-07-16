@@ -39,6 +39,10 @@ func init() -> void:
 	}
 
 
+func get_required_utilities() -> Array[Script]:
+	return [GFShakeUtility]
+
+
 func ready() -> void:
 	_shake_utility = _get_shake_utility()
 
