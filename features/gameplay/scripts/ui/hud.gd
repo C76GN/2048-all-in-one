@@ -10,9 +10,9 @@ extends "res://addons/gf/kernel/base/gf_controller.gd"
 
 ## 动态流程标签列表场景。
 const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://shared/scenes/ui/flow_label_list.tscn")
-const _FEEDBACK_TWEEN_META: StringName = &"_hud_feedback_tween"
 const _FEEDBACK_SCALE: float = 1.035
 const _FEEDBACK_DURATION: float = 0.22
+const _FEEDBACK_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
 const _SCORE_FORMAT_FALLBACK: String = "分数: %d"
 const _MOVE_COUNT_FORMAT_FALLBACK: String = "移动次数: %d"
 const _HIGH_SCORE_FORMAT_FALLBACK: String = "最高分: %d"
@@ -30,6 +30,7 @@ var _is_dirty: bool = false
 var _game_status_model: GameStatusModel
 var _notification_utility: GFNotificationUtility
 var _signal_utility: GFSignalUtility
+var _ui_motion_utility: GameUiMotionUtility
 var _score_value_label: Label
 var _move_count_value_label: Label
 var _notification_label: RichTextLabel
@@ -49,6 +50,9 @@ func _ready() -> void:
 	_game_status_model = _get_game_status_model()
 	_notification_utility = _get_notification_utility()
 	_signal_utility = _get_signal_utility()
+	_ui_motion_utility = _get_ui_motion_utility()
+	if not is_instance_valid(_ui_motion_utility):
+		push_error("[Hud] 缺少 GameUiMotionUtility，无法播放状态反馈动效。")
 	
 	_score_value_label = _get_label_node("%ScoreValueLabel")
 	_move_count_value_label = _get_label_node("%MoveCountValueLabel")
@@ -251,41 +255,14 @@ func _deferred_refresh() -> void:
 
 
 func _pulse_control(control: Control) -> void:
-	if not is_instance_valid(control):
+	if not is_instance_valid(control) or not is_instance_valid(_ui_motion_utility):
 		return
-
-	control.pivot_offset = control.size * 0.5
-	_kill_feedback_tween(control)
-	control.scale = Vector2.ONE * _FEEDBACK_SCALE
-	control.modulate = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
-	if not control.is_inside_tree():
-		control.scale = Vector2.ONE
-		control.modulate = Color.WHITE
-		return
-
-	var tween: Tween = control.create_tween()
-	var _parallel_tween: Tween = tween.set_parallel(true)
-	var _trans_tween: Tween = tween.set_trans(Tween.TRANS_CUBIC)
-	var _ease_tween: Tween = tween.set_ease(Tween.EASE_OUT)
-	var _scale_tweener: PropertyTweener = tween.tween_property(control, "scale", Vector2.ONE, _FEEDBACK_DURATION)
-	var _modulate_tweener: PropertyTweener = tween.tween_property(control, "modulate", Color.WHITE, _FEEDBACK_DURATION)
-	control.set_meta(_FEEDBACK_TWEEN_META, tween)
-
-
-func _kill_feedback_tween(control: Control) -> void:
-	var tween: Tween = null
-	if is_instance_valid(control) and control.has_meta(_FEEDBACK_TWEEN_META):
-		tween = _get_tween_value(control.get_meta(_FEEDBACK_TWEEN_META))
-	if tween != null and tween.is_valid():
-		tween.kill()
-	control.set_meta(_FEEDBACK_TWEEN_META, null)
-
-
-func _get_tween_value(value: Variant) -> Tween:
-	if value is Tween:
-		var tween: Tween = value
-		return tween
-	return null
+	var _feedback_tween: Tween = _ui_motion_utility.play_control_pulse(
+		control,
+		_FEEDBACK_SCALE,
+		_FEEDBACK_COLOR,
+		_FEEDBACK_DURATION
+	)
 
 
 func _get_stat_label_node(key: Variant) -> Control:
@@ -317,6 +294,14 @@ func _get_signal_utility() -> GFSignalUtility:
 	if utility_value is GFSignalUtility:
 		var signal_utility: GFSignalUtility = utility_value
 		return signal_utility
+	return null
+
+
+func _get_ui_motion_utility() -> GameUiMotionUtility:
+	var utility_value: Object = get_utility(GameUiMotionUtility)
+	if utility_value is GameUiMotionUtility:
+		var motion_utility: GameUiMotionUtility = utility_value
+		return motion_utility
 	return null
 
 

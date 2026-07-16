@@ -66,6 +66,7 @@ GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 用 `GameThemeCatalogUtility` 承接 `gf.content_package` 的 `GFContentPackageUtility`，注册内置主题内容包，并通过 `GFResourceResolverUtility` 用稳定资源键加载主题注册表。
 - 用 `GFObjectPoolUtility` 的池化 Hook 清理 Tile 复用状态，并用 `GFRepeaterBinder` 重建书签/回放列表项。
 - 用项目级 `GameUiMotionUtility` 统一菜单、按钮、HUD 和列表刷新动效，避免各 UI 节点重复编写 Tween。
+- 用 `GFTextFitter` 统一方块等动态文本的字号适配，禁止各控件自行测量字体并维护另一套缩放算法。
 - 用项目级 `GameBoardFeedbackUtility` 统一棋盘合并、生成和转化反馈特效，表现触发点跟随 `GFActionQueueSystem` 中的视觉 Action，并通过 `GFShakeUtility` 播放语义化 board channel 反馈。
 - 用 `GFController.get_host_as()` 访问 Controller 宿主节点，避免依赖 Godot `owner` 语义。
 - 用 `GFValidationReport` 汇总模式配置校验结果，再由项目层决定如何输出错误。

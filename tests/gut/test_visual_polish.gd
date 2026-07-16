@@ -238,6 +238,23 @@ func test_tile_setup_applies_pixel_textured_style() -> void:
 		assert_true(pattern_control.mouse_filter == Control.MOUSE_FILTER_IGNORE, "纹理叠层不应阻挡输入。")
 
 
+func test_tile_uses_gf_text_fitter_for_large_values() -> void:
+	var tile: Tile = await _create_tile()
+	tile.setup(2147483647, &"tile.classic.numeric", Color(0.8, 0.5, 0.2, 1.0), Color.WHITE)
+
+	var font_size: int = tile.value_label.get_theme_font_size("font_size")
+	var text_size: Vector2 = GFTextFitter.measure_control_text(tile.value_label, font_size, {
+		"available_size": tile.background.size,
+		"content_insets": Vector4(10.0, 6.0, 10.0, 6.0),
+		"fit_width": true,
+		"fit_height": true,
+	})
+
+	assert_between(font_size, 12, 48, "方块字号应保持在明确的可读范围内。")
+	assert_lte(text_size.x, tile.background.size.x - 20.0 + 0.01, "大数值文本不得越过方块水平内容区。")
+	assert_lte(text_size.y, tile.background.size.y - 12.0 + 0.01, "大数值文本不得越过方块垂直内容区。")
+
+
 func test_game_board_controller_uses_configured_tile_scheme_colors() -> void:
 	var controller: GameBoardController = GameBoardController.new()
 	var grid_model: GridModel = GridModel.new()
@@ -422,6 +439,33 @@ func test_ui_motion_utility_reveals_panel_with_tween() -> void:
 	assert_true(is_instance_valid(tween) and tween.is_valid(), "面板入场应返回有效 Tween。")
 	assert_gt(panel.position.y, 20.0, "面板入场起点应带有轻微下移。")
 	assert_lt(panel.modulate.a, 1.0, "面板入场起点应先淡入。")
+
+
+func test_ui_motion_utility_pulses_from_stable_base_state() -> void:
+	var control: Control = Control.new()
+	control.size = Vector2(120.0, 40.0)
+	control.scale = Vector2(1.2, 0.8)
+	control.modulate = Color(0.9, 0.8, 0.7, 1.0)
+	add_child_autoqfree(control)
+	await get_tree().process_frame
+
+	var base_scale: Vector2 = control.scale
+	var base_modulate: Color = control.modulate
+	var feedback_color: Color = Color(0.95, 0.75, 0.3, 1.0)
+	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var first_tween: Tween = motion_utility.play_control_pulse(control, 1.1, feedback_color, 0.2)
+
+	assert_true(is_instance_valid(first_tween) and first_tween.is_valid(), "强调反馈应返回有效 Tween。")
+	assert_true(control.scale.is_equal_approx(base_scale * 1.1), "强调反馈应从基础缩放的倍率开始。")
+	assert_true(control.modulate.is_equal_approx(feedback_color), "强调反馈应从调用方指定颜色开始。")
+
+	var second_tween: Tween = motion_utility.play_control_pulse(control, 1.05, feedback_color, 0.2)
+	assert_false(first_tween.is_valid(), "重复反馈应打断旧 Tween，避免动效叠加。")
+	assert_true(is_instance_valid(second_tween) and second_tween.is_valid(), "重复反馈应创建新的有效 Tween。")
+	assert_true(control.scale.is_equal_approx(base_scale * 1.05), "重复反馈不得把瞬时缩放累计为新基础状态。")
+	second_tween.kill()
+	control.scale = base_scale
+	control.modulate = base_modulate
 
 
 func test_ui_motion_utility_reveals_visible_children_only() -> void:

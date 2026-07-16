@@ -9,11 +9,10 @@ extends Node2D
 
 # --- 常量 ---
 
-## 方块内文本的水平内边距，用于动态字体大小计算。
-const HORIZONTAL_PADDING: float = 10.0
-
-## 动态字体大小计算的基础字号。
-const BASE_FONT_SIZE: int = 48
+## 方块文本适配边距，顺序为左、上、右、下。
+const _TEXT_CONTENT_INSETS: Vector4 = Vector4(10.0, 6.0, 10.0, 6.0)
+const _MIN_FONT_SIZE: int = 12
+const _MAX_FONT_SIZE: int = 48
 
 const _MOVE_DURATION: float = 0.10
 const _SPAWN_DURATION: float = 0.12
@@ -41,10 +40,6 @@ var visual_family_id: StringName = &""
 
 ## 当前 GF Recipe 组合提供的视觉标记层。
 var visual_layer_ids: Array[StringName] = []
-
-## 存储所有可用配色方案的字典。 (已废弃，由 Controller 计算颜色)
-var color_schemes: Dictionary
-
 
 # --- 私有变量 ---
 
@@ -107,7 +102,7 @@ func setup(
 	value_label.add_theme_color_override("font_color", font_color)
 	value_label.add_theme_color_override("font_outline_color", _get_label_outline_color(bg_color))
 	value_label.add_theme_constant_override("outline_size", 2)
-	_update_font_size()
+	_fit_value_text()
 
 
 ## 停止当前动画并恢复基础变换状态，供对象池复用前调用。
@@ -315,15 +310,13 @@ func _play_flash(color: Color, duration: float) -> void:
 	var _label_tweener: PropertyTweener = _active_flash_tween.tween_property(value_label, "scale", Vector2.ONE, duration)
 
 
-## 动态计算并应用最佳字体大小。
-func _update_font_size() -> void:
-	var new_font_size: int = BASE_FONT_SIZE
-	var available_width: float = background.size.x - (HORIZONTAL_PADDING * 2)
-	var font: Font = value_label.get_theme_font("font")
-	var text_width: float = font.get_string_size(value_label.text, HORIZONTAL_ALIGNMENT_CENTER, -1, BASE_FONT_SIZE).x
-
-	if text_width > available_width:
-		var scale_factor: float = available_width / text_width
-		new_font_size = floori(BASE_FONT_SIZE * scale_factor)
-
-	value_label.add_theme_font_size_override("font_size", new_font_size)
+## 使用 GF 的统一文本适配算法计算并应用最大可读字号。
+func _fit_value_text() -> void:
+	var _font_size: int = GFTextFitter.fit_label(value_label, {
+		"min_font_size": _MIN_FONT_SIZE,
+		"max_font_size": _MAX_FONT_SIZE,
+		"available_size": background.size,
+		"content_insets": _TEXT_CONTENT_INSETS,
+		"fit_width": true,
+		"fit_height": true,
+	})

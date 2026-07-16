@@ -189,6 +189,15 @@ func test_transient_feedback_uses_gf_notification_utility_only() -> void:
 	assert_false(bookmark_source.contains("status_message"), "瞬时通知不得进入书签 schema。")
 
 
+func test_hud_delegates_feedback_motion_to_game_ui_motion_utility() -> void:
+	var source: String = _read_text(HUD_PATH)
+
+	assert_true(source.contains("get_utility(GameUiMotionUtility)"), "HUD 应从 GF Architecture 获取统一 UI 动效 Utility。")
+	assert_true(source.contains("play_control_pulse("), "HUD 应通过 GameUiMotionUtility 表达状态强调意图。")
+	assert_false(source.contains("create_tween()"), "HUD 不得重复实现控件 Tween 生命周期。")
+	assert_false(source.contains("_hud_feedback_tween"), "HUD 不得保留私有 Tween 元数据协议。")
+
+
 func test_move_turn_pipeline_uses_gf_turn_action_lifecycle() -> void:
 	var settings_source: String = _read_text(PROJECT_SETTINGS_PATH)
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)

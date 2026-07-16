@@ -216,6 +216,64 @@ func play_control_reveal(
 	return _play_control_reveal(control, offset, duration, delay, start_scale, true)
 
 
+## 播放单个控件的短促强调反馈，并恢复控件首次记录的基础状态。
+## @param control: 要强调的控件。
+## @param scale_multiplier: 动画起点相对于基础缩放的倍率。
+## @param start_modulate: 动画起点的调制颜色。
+## @param duration: 恢复基础状态所需时间。
+## @return: 创建成功时返回 Tween，否则返回 null。
+func play_control_pulse(
+	control: Control,
+	scale_multiplier: float = 1.035,
+	start_modulate: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0),
+	duration: float = 0.22
+) -> Tween:
+	if not is_instance_valid(control):
+		return null
+
+	_store_control_base_state(control, false)
+	_kill_control_tween(control)
+
+	var base_scale: Vector2 = _get_control_vector2_meta(
+		control,
+		_CONTROL_BASE_SCALE_META,
+		control.scale
+	)
+	var base_modulate: Color = _get_control_color_meta(
+		control,
+		_CONTROL_BASE_MODULATE_META,
+		control.modulate
+	)
+	control.pivot_offset = control.size * 0.5
+	control.scale = base_scale * maxf(scale_multiplier, 0.0)
+	control.modulate = start_modulate
+
+	if not control.is_inside_tree():
+		control.scale = base_scale
+		control.modulate = base_modulate
+		return null
+
+	var tween: Tween = control.create_tween()
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
+	var safe_duration: float = maxf(duration, 0.001)
+	var _scale_tweener: PropertyTweener = tween.tween_property(
+		control,
+		"scale",
+		base_scale,
+		safe_duration
+	)
+	var _modulate_tweener: PropertyTweener = tween.tween_property(
+		control,
+		"modulate",
+		base_modulate,
+		safe_duration
+	)
+	control.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
+
+
 ## 错峰播放容器直接子控件的出现动画。
 ## @param container: 要扫描直接子节点的容器。
 ## @param offset: 每个子控件动画起点相对于原始位置的偏移。
