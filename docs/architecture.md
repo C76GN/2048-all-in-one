@@ -48,7 +48,7 @@ Feature 的 `scripts/` 内可以继续使用 `models/`、`systems/`、`utilities
 ## 启动与装配
 
 1. `app/scenes/boot.tscn` 加载 `app/scripts/boot.gd`，显示启动画面并发布 `GFAsyncProgress`。
-2. Boot 调用 `await Gf.init()`。
+2. Boot 创建根 `GFArchitecture`，启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`，再调用 `await Gf.init()`。
 3. GF 根据 `project.godot` 的 `gf/project/installers` 执行 `GameArchitectureInstaller`。
 4. `app/scripts/game_architecture_installer.gd` 声明项目 Model、System、Utility；GF 扩展拥有的模块由扩展 Installer 自动装配。
 5. Boot 通过 `GFSceneUtility` 预热主菜单，随后由 `SceneRouterSystem` 接管场景流转。
@@ -128,6 +128,15 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 Installer 不得重复绑定这些扩展拥有的模块。启用扩展但不使用其核心能力时，应明确采用或关闭，不能用自动注册数量虚增 GF 利用率。
 
 项目 Module 对 Installer 和扩展声明的依赖采用严格契约：依赖缺失时停止初始化并报告配置错误，不允许退回直接实例化、直接执行 Action、手动跨生命周期连接信号或绕过 GFSceneUtility 切换场景。
+
+## GF 框架变更治理
+
+- `addons/gf/**` 是由 `.gf/vendor.lock.json` 锁定的上游快照，项目开发中视为只读；不得在项目功能提交中直接修补、格式化或重构 GF 源码。
+- 发现 GF 缺陷或通用能力缺口时，必须先在 `C76GN/gf-framework` 创建可复现的 GitHub issue，明确影响版本、最小复现、期望契约和验证标准。
+- GF 实现只能在独立的干净 worktree 和非 `main` 分支完成，通过对应 issue 的 PR、GF 自身测试与维护门禁合并；禁止直接向 GF `main` 提交或推送框架改动。
+- 项目与 GF 的改动不得混在同一提交或 PR。项目可以先提交不依赖框架修改的调用侧改进；必须等待 GF PR 合并后，才能通过正式 vendor 更新流程同步新的上游提交。
+- 同步 GF 时必须更新 `.gf/vendor.lock.json`，运行 vendor 完整性、GUT、LSP、Feature-Cohesive 和退出泄漏验证，并在项目提交中引用上游 issue、PR 与精确 source commit。
+- GF 工作区存在未提交改动时只允许只读分析；不得代替所有者整理、覆盖、提交或推送这些改动。需要开发框架修复时另建干净 worktree。
 
 ## 验证门禁
 

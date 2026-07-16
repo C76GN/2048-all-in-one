@@ -28,7 +28,8 @@
 
 ## 架构速览
 
-- 启动入口：`app/scenes/boot.tscn` 挂载 `app/scripts/boot.gd`，调用 `await Gf.init()` 后交给 `SceneRouterSystem` 切到主菜单。
+- 启动入口：`app/scenes/boot.tscn` 挂载 `app/scripts/boot.gd`，启用 GF 根架构的严格依赖查询与声明校验，调用 `await Gf.init()` 后交给 `SceneRouterSystem` 切到主菜单。
+- GF 上游治理：`addons/gf/**` 是只读 vendor 快照。框架缺陷必须在 `C76GN/gf-framework` 先建 issue，再从干净 worktree 的非 `main` 分支提交 PR；合并后才允许更新项目 vendor lock，禁止把 GF 本体修改直接提交到任一仓库主线。
 - gf 装配入口：`app/scripts/game_architecture_installer.gd` 注册项目 Model、System、Utility，并通过 Project Settings 的 `gf/project/installers` 接入。
 - Feature：`features/<feature_id>/` 内聚脚本、场景、资源、文档和局部工具；GF 层目录只在所属 Feature 内出现。
 - Shared：`shared/**` 只保存跨 Feature 契约、基础算法、UI 原语、素材和 Utility，禁止引用具体 Feature。
