@@ -56,7 +56,6 @@ func get_required_utilities() -> Array[Script]:
 		GFLogUtility,
 		GFNotificationUtility,
 		GFSeedUtility,
-		GFUIUtility,
 	]
 
 
@@ -314,14 +313,6 @@ func _get_command_history_utility() -> GFCommandHistoryUtility:
 	if utility_value is GFCommandHistoryUtility:
 		var command_history: GFCommandHistoryUtility = utility_value
 		return command_history
-	return null
-
-
-func _get_ui_utility() -> GFUIUtility:
-	var utility_value: Object = get_utility(GFUIUtility)
-	if utility_value is GFUIUtility:
-		var ui_utility: GFUIUtility = utility_value
-		return ui_utility
 	return null
 
 
@@ -814,25 +805,16 @@ func _on_ui_pause_requested(_payload: Variant = null) -> void:
 
 
 func _on_resume_game_requested(_payload: Variant = null) -> void:
-	var ui_util: GFUIUtility = _get_ui_utility()
-	if is_instance_valid(ui_util):
-		ui_util.pop_panel()
 	var tree: SceneTree = _get_scene_tree()
 	if is_instance_valid(tree):
 		tree.paused = false
 
 
 func _on_restart_game_requested(_payload: Variant = null) -> void:
-	var ui_util: GFUIUtility = _get_ui_utility()
-	if is_instance_valid(ui_util):
-		ui_util.clear_all()
 	restart_game()
 
 
 func _on_return_to_main_menu_from_game(_payload: Variant = null) -> void:
-	var ui_util: GFUIUtility = _get_ui_utility()
-	if is_instance_valid(ui_util):
-		ui_util.clear_all()
 	var tree: SceneTree = _get_scene_tree()
 	if is_instance_valid(tree):
 		tree.paused = false

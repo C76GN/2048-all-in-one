@@ -9,6 +9,7 @@ extends GameUiController
 # --- 常量 ---
 
 const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
+const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
 const _TEXT_PRIMARY_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
 const _TEXT_SECONDARY_COLOR: Color = Color(0.46666667, 0.45882353, 0.43529412, 0.96)
 const _TEXT_SHADOW_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.52)
@@ -183,14 +184,6 @@ func _get_save_system() -> SaveSystem:
 	return null
 
 
-func _get_ui_router_utility() -> GFUIRouterUtility:
-	var utility_value: Object = get_utility(GFUIRouterUtility)
-	if utility_value is GFUIRouterUtility:
-		var ui_router: GFUIRouterUtility = utility_value
-		return ui_router
-	return null
-
-
 func _get_celebration_vfx_utility() -> GameCelebrationVfxUtility:
 	var utility_value: Object = get_utility(GameCelebrationVfxUtility)
 	if utility_value is GameCelebrationVfxUtility:
@@ -261,17 +254,25 @@ func _format_target_reached(value: bool) -> String:
 
 ## 响应"重来"按钮的点击事件。
 func _on_restart_button_pressed() -> void:
-	send_simple_event(EventNames.RESTART_GAME_REQUESTED)
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_GAME_OVER_MENU,
+		EventNames.RESTART_GAME_REQUESTED
+	)
 
 
 ## 响应"返回主界面"按钮的点击事件。
 func _on_main_menu_button_pressed() -> void:
-	send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_GAME_OVER_MENU,
+		EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED
+	)
 
 
 func _on_settings_button_pressed() -> void:
 	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
-	if is_instance_valid(ui_router):
-		var _settings_panel: Node = ui_router.push_route(_ROUTE_SETTINGS_MENU, {}, {}, _configure_settings_panel)
-	else:
-		push_warning("[GameOverMenu] GFUIRouterUtility 未注册，无法打开设置菜单。")
+	if not is_instance_valid(ui_router):
+		push_error("[GameOverMenu] 缺少 GFUIRouterUtility，无法打开设置菜单。")
+		return
+	var settings_panel: Node = ui_router.push_route(_ROUTE_SETTINGS_MENU, {}, {}, _configure_settings_panel)
+	if not is_instance_valid(settings_panel):
+		push_error("[GameOverMenu] GF UI 路由未能打开设置菜单。")

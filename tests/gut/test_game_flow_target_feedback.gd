@@ -106,7 +106,7 @@ func test_session_target_reached_requires_mode_target() -> void:
 	)
 
 
-func test_resume_request_closes_top_panel_and_unpauses_tree() -> void:
+func test_resume_request_only_unpauses_tree() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var flow_system: GameFlowSystem = GameFlowSystem.new()
@@ -127,10 +127,10 @@ func test_resume_request_closes_top_panel_and_unpauses_tree() -> void:
 	await _dispose_architecture_and_flush(architecture)
 
 	assert_true(not paused_after_resume, "继续挑战应恢复 SceneTree 暂停状态。")
-	assert_true(open_panel_count == 0, "继续挑战应关闭当前目标达成弹层。")
+	assert_true(open_panel_count == 1, "GameFlowSystem 不应越权关闭由 UI 路由拥有的弹层。")
 
 
-func test_restart_request_clears_all_panels_and_delegates_restart() -> void:
+func test_restart_request_preserves_ui_stack_and_delegates_restart() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
@@ -150,12 +150,12 @@ func test_restart_request_clears_all_panels_and_delegates_restart() -> void:
 	var restart_count: int = flow_system.restart_count
 	await _dispose_architecture_and_flush(architecture)
 
-	assert_true(popup_panel_count == 0, "重新开始应清空弹层栈。")
-	assert_true(top_panel_count == 0, "重新开始应清空顶层提示栈。")
+	assert_true(popup_panel_count == 1, "GameFlowSystem 不应清空 UI 路由拥有的弹层栈。")
+	assert_true(top_panel_count == 1, "GameFlowSystem 不应清空无关的顶层提示栈。")
 	assert_true(restart_count == 1, "重新开始请求应委托 GameFlowSystem.restart_game()。")
 
 
-func test_return_to_main_menu_request_clears_panels_unpauses_and_routes() -> void:
+func test_return_to_main_menu_request_preserves_ui_stack_unpauses_and_routes() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var flow_system: GameFlowSystem = GameFlowSystem.new()
@@ -182,8 +182,8 @@ func test_return_to_main_menu_request_clears_panels_unpauses_and_routes() -> voi
 	await _dispose_architecture_and_flush(architecture)
 
 	assert_true(not paused_after_return, "返回主界面应恢复 SceneTree 暂停状态。")
-	assert_true(popup_panel_count == 0, "返回主界面应清空弹层栈。")
-	assert_true(top_panel_count == 0, "返回主界面应清空顶层提示栈。")
+	assert_true(popup_panel_count == 1, "GameFlowSystem 不应直接清空 UI 路由拥有的弹层栈。")
+	assert_true(top_panel_count == 1, "GameFlowSystem 不应直接清空无关的顶层提示栈。")
 	assert_true(route_count == 1, "返回主界面应调用 SceneRouterSystem.return_to_main_menu()。")
 
 

@@ -178,3 +178,50 @@ func _get_theme_utility() -> GameThemeUtility:
 		var theme_utility: GameThemeUtility = utility_value
 		return theme_utility
 	return null
+
+
+func _get_ui_router_utility() -> GFUIRouterUtility:
+	var utility_value: Object = get_utility(GFUIRouterUtility)
+	if utility_value is GFUIRouterUtility:
+		var ui_router: GFUIRouterUtility = utility_value
+		return ui_router
+	return null
+
+
+## 关闭当前弹层路由，并校验关闭目标仍是调用方拥有的路由。
+func _close_current_popup_route(expected_route_id: StringName) -> bool:
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		push_error("[GameUiController] 缺少 GFUIRouterUtility，无法关闭路由 %s。" % expected_route_id)
+		return false
+
+	var current_route_id: StringName = ui_router.get_current_route_id(GFUIUtility.Layer.POPUP)
+	if current_route_id != expected_route_id:
+		push_error(
+			"[GameUiController] 拒绝关闭非当前路由：expected=%s, current=%s。" % [
+				expected_route_id,
+				current_route_id,
+			]
+		)
+		return false
+
+	if not ui_router.back(GFUIUtility.Layer.POPUP):
+		push_error("[GameUiController] GF UI 路由关闭失败：%s。" % expected_route_id)
+		return false
+	return true
+
+
+## 捕获当前架构后关闭弹层，再通过该架构派发业务事件。
+func _close_current_popup_route_and_send_event(
+	expected_route_id: StringName,
+	event_id: StringName,
+	payload: Variant = null
+) -> bool:
+	var architecture: GFArchitecture = get_architecture_or_null()
+	if architecture == null:
+		push_error("[GameUiController] 缺少 GFArchitecture，无法派发事件 %s。" % event_id)
+		return false
+	if not _close_current_popup_route(expected_route_id):
+		return false
+	architecture.send_simple_event(event_id, payload)
+	return true

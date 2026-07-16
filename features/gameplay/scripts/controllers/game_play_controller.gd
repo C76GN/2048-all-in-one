@@ -458,14 +458,6 @@ func _get_ui_router_utility() -> GFUIRouterUtility:
 	return null
 
 
-func _get_ui_utility() -> GFUIUtility:
-	var utility_value: Object = get_utility(GFUIUtility)
-	if utility_value is GFUIUtility:
-		var ui_utility: GFUIUtility = utility_value
-		return ui_utility
-	return null
-
-
 func _get_replay_controls_label() -> Label:
 	if not is_instance_valid(replay_controls_container):
 		return null
@@ -520,9 +512,6 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 	if not is_instance_valid(_action_queue):
 		_action_queue = _get_action_queue_system()
 	
-	if not is_instance_valid(_level_utility):
-		_clear_action_queues()
-			
 	_loaded_bookmark_data = data.loaded_bookmark_data
 	
 	if _is_replay_mode() and is_instance_valid(_replay_system):
@@ -591,22 +580,25 @@ func _on_visual_theme_changed(_theme: GameTheme) -> void:
 
 func _on_toggle_pause_ui(_payload: Variant = null) -> void:
 	var tree: SceneTree = get_tree()
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		push_error("[GamePlayController] 缺少 GFUIRouterUtility，无法切换暂停菜单。")
+		return
+
 	if tree.paused:
-		# 恢复游戏：弹出暂停菜单
-		var ui_router: GFUIRouterUtility = _get_ui_router_utility()
-		if not is_instance_valid(ui_router) or not ui_router.back(GFUIUtility.Layer.POPUP):
-			var ui_util: GFUIUtility = _get_ui_utility()
-			if is_instance_valid(ui_util):
-				ui_util.pop_panel()
+		if ui_router.get_current_route_id(GFUIUtility.Layer.POPUP) != _ROUTE_PAUSE_MENU:
+			push_error("[GamePlayController] 当前弹层不是暂停菜单，拒绝恢复游戏。")
+			return
+		if not ui_router.back(GFUIUtility.Layer.POPUP):
+			push_error("[GamePlayController] GF UI 路由未能关闭暂停菜单。")
+			return
 		tree.paused = false
 	else:
-		# 暂停游戏：弹出暂停菜单
+		var pause_panel: Node = ui_router.push_route(_ROUTE_PAUSE_MENU)
+		if not is_instance_valid(pause_panel):
+			push_error("[GamePlayController] GF UI 路由未能打开暂停菜单。")
+			return
 		tree.paused = true
-		var ui_router: GFUIRouterUtility = _get_ui_router_utility()
-		if is_instance_valid(ui_router):
-			var _pause_panel: Node = ui_router.push_route(_ROUTE_PAUSE_MENU)
-		else:
-			push_warning("[GamePlayController] GFUIRouterUtility 未注册，无法打开暂停菜单。")
 
 
 func _on_replay_progress_changed(_current_step: int, _total_steps: int) -> void:
@@ -630,15 +622,15 @@ func _on_target_reached(_payload: Variant = null) -> void:
 	if is_instance_valid(celebration_vfx):
 		var _played: bool = celebration_vfx.play_target_reached_celebration()
 
-	var tree: SceneTree = get_tree()
-	if is_instance_valid(tree):
-		tree.paused = true
-
 	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
-	if is_instance_valid(ui_router):
-		var _target_panel: Node = ui_router.push_route(_ROUTE_TARGET_REACHED_MENU)
-	else:
-		push_warning("[GamePlayController] GFUIRouterUtility 未注册，无法打开目标达成菜单。")
+	if not is_instance_valid(ui_router):
+		push_error("[GamePlayController] 缺少 GFUIRouterUtility，无法打开目标达成菜单。")
+		return
+	var target_panel: Node = ui_router.push_route(_ROUTE_TARGET_REACHED_MENU)
+	if not is_instance_valid(target_panel):
+		push_error("[GamePlayController] GF UI 路由未能打开目标达成菜单。")
+		return
+	get_tree().paused = true
 
 
 func _on_game_state_changed(new_state: StringName) -> void:
@@ -647,7 +639,9 @@ func _on_game_state_changed(new_state: StringName) -> void:
 
 	if new_state == EventNames.STATE_GAME_OVER:
 		var ui_router: GFUIRouterUtility = _get_ui_router_utility()
-		if is_instance_valid(ui_router):
-			var _game_over_panel: Node = ui_router.push_route(_ROUTE_GAME_OVER_MENU)
-		else:
-			push_warning("[GamePlayController] GFUIRouterUtility 未注册，无法打开游戏结束菜单。")
+		if not is_instance_valid(ui_router):
+			push_error("[GamePlayController] 缺少 GFUIRouterUtility，无法打开游戏结束菜单。")
+			return
+		var game_over_panel: Node = ui_router.push_route(_ROUTE_GAME_OVER_MENU)
+		if not is_instance_valid(game_over_panel):
+			push_error("[GamePlayController] GF UI 路由未能打开游戏结束菜单。")

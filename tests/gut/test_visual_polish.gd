@@ -610,6 +610,10 @@ func test_target_reached_menu_summary_uses_status_model() -> void:
 
 func test_target_reached_menu_buttons_emit_flow_events() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
+	var ui_utility: GFUIUtility = GFUIUtility.new()
+	var ui_router: GFUIRouterUtility = GFUIRouterUtility.new()
+	await architecture.register_utility(GFUIUtility, ui_utility)
+	await architecture.register_utility(GFUIRouterUtility, ui_router)
 	await architecture.init()
 	var emitted_events: Dictionary = {
 		&"resume": 0,
@@ -632,14 +636,35 @@ func test_target_reached_menu_buttons_emit_flow_events() -> void:
 	var context: TestArchitectureContext = TestArchitectureContext.new()
 	context.test_architecture = architecture
 	add_child_autoqfree(context)
-	var panel: Control = _instantiate_control(_TARGET_REACHED_SCENE)
-	assert_true(is_instance_valid(panel), "目标达成场景应能实例化为 Control。")
-	context.add_child(panel)
 	await get_tree().process_frame
+	var popup_root: CanvasLayer = ui_utility.get_layer_root(GFUIUtility.Layer.POPUP)
+	assert_true(is_instance_valid(popup_root), "GFUIUtility 应创建弹层根节点。")
+	if is_instance_valid(popup_root):
+		popup_root.reparent(context)
 
-	_press_button(panel, "CenterContainer/VBoxContainer/ContinueButton")
-	_press_button(panel, "CenterContainer/VBoxContainer/RestartButton")
-	_press_button(panel, "CenterContainer/VBoxContainer/MainMenuButton")
+	var target_route: GFUIRoute = GFUIRoute.new()
+	target_route.route_id = &"target_reached_menu"
+	target_route.scene_path = _TARGET_REACHED_SCENE.resource_path
+	target_route.layer = GFUIUtility.Layer.POPUP
+	ui_router.configure([target_route], ui_utility)
+
+	var button_paths: Array[NodePath] = [
+		NodePath("CenterContainer/VBoxContainer/ContinueButton"),
+		NodePath("CenterContainer/VBoxContainer/RestartButton"),
+		NodePath("CenterContainer/VBoxContainer/MainMenuButton"),
+	]
+	for button_path: NodePath in button_paths:
+		var panel_value: Node = ui_router.push_route(&"target_reached_menu")
+		assert_true(panel_value is Control, "目标达成场景应通过 GF UI 路由打开为 Control。")
+		if panel_value is Control:
+			var panel: Control = panel_value
+			await get_tree().process_frame
+			_press_button(panel, button_path)
+			assert_true(
+				ui_router.get_current_route_id(GFUIUtility.Layer.POPUP) == &"",
+				"目标达成按钮派发业务事件前应关闭自身 GF UI 路由。"
+			)
+		await get_tree().process_frame
 
 	assert_true(_get_event_count(emitted_events, &"resume") == 1, "继续挑战按钮应请求恢复游戏。")
 	assert_true(_get_event_count(emitted_events, &"restart") == 1, "重新开始按钮应请求重启当前局。")

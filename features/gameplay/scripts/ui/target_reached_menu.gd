@@ -8,6 +8,7 @@ extends GameUiController
 # --- 常量 ---
 
 const _SUMMARY_FORMAT_FALLBACK: String = "目标 %d 已完成\n当前：%d 分 · %d 步 · 最大方块 %d"
+const _ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
 
 
 # --- @onready 变量 (节点引用) ---
@@ -86,12 +87,21 @@ func _get_game_status_model() -> GameStatusModel:
 # --- 信号处理函数 ---
 
 func _on_continue_button_pressed() -> void:
-	send_simple_event(EventNames.RESUME_GAME_REQUESTED)
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_TARGET_REACHED_MENU,
+		EventNames.RESUME_GAME_REQUESTED
+	)
 
 
 func _on_restart_button_pressed() -> void:
-	send_simple_event(EventNames.RESTART_GAME_REQUESTED)
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_TARGET_REACHED_MENU,
+		EventNames.RESTART_GAME_REQUESTED
+	)
 
 
 func _on_main_menu_button_pressed() -> void:
-	send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_TARGET_REACHED_MENU,
+		EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED
+	)

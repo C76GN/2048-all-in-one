@@ -103,6 +103,13 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 3. `Hud` 通过 `GFSignalUtility` 订阅通知开始与结束信号，只负责当前主题下的视觉呈现。
 4. 通知属于瞬时表现状态，不进入 `GameStatusModel`、撤销快照、书签或回放 schema。
 
+### UI 路由与所有权
+
+1. 弹层只能通过 `GFUIRouterUtility` 的稳定 route ID 打开和关闭；业务代码不得直接调用 `GFUIUtility.pop_panel()` 或 `clear_all()`。
+2. 菜单控制器拥有自身路由的关闭职责。触发继续、重开或返回等业务事件时，先捕获当前 `GFArchitecture`，校验并关闭自身路由，再由捕获的架构派发事件。
+3. `GameFlowSystem` 只处理暂停状态、重新开始和场景路由等业务结果，不读取或清空 UI 栈。
+4. 路由创建或关闭失败时保持原业务状态并显式报错，不切换暂停状态，也不回退到直接面板操作。
+
 ### 持久化
 
 - `persistence` 创建 `player_data` 根 Scope，并通过 `GFSaveGraphUtility` 统一校验、阶段排序、事务应用和诊断。

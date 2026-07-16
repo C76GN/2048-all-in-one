@@ -9,6 +9,7 @@ extends GameUiController
 # --- 常量 ---
 
 const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
+const _ROUTE_PAUSE_MENU: StringName = &"pause_menu"
 
 
 # --- @onready 变量 (节点引用) ---
@@ -53,34 +54,37 @@ func _configure_settings_panel(panel: Node) -> void:
 		settings_menu.return_to_main_menu_on_back = false
 
 
-func _get_ui_router_utility() -> GFUIRouterUtility:
-	var utility_value: Object = get_utility(GFUIRouterUtility)
-	if utility_value is GFUIRouterUtility:
-		var ui_router: GFUIRouterUtility = utility_value
-		return ui_router
-	return null
-
-
 # --- 信号处理函数 ---
 
 ## 响应"继续游戏"按钮的点击事件。
 func _on_continue_button_pressed() -> void:
-	send_simple_event(EventNames.RESUME_GAME_REQUESTED)
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_PAUSE_MENU,
+		EventNames.RESUME_GAME_REQUESTED
+	)
 
 
 ## 响应"重新开始"按钮的点击事件。
 func _on_restart_button_pressed() -> void:
-	send_simple_event(EventNames.RESTART_GAME_REQUESTED)
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_PAUSE_MENU,
+		EventNames.RESTART_GAME_REQUESTED
+	)
 
 
 ## 响应"返回主界面"按钮的点击事件。
 func _on_main_menu_button_pressed() -> void:
-	send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_PAUSE_MENU,
+		EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED
+	)
 
 
 func _on_settings_button_pressed() -> void:
 	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
-	if is_instance_valid(ui_router):
-		var _settings_panel: Node = ui_router.push_route(_ROUTE_SETTINGS_MENU, {}, {}, _configure_settings_panel)
-	else:
-		push_warning("[PauseMenu] GFUIRouterUtility 未注册，无法打开设置菜单。")
+	if not is_instance_valid(ui_router):
+		push_error("[PauseMenu] 缺少 GFUIRouterUtility，无法打开设置菜单。")
+		return
+	var settings_panel: Node = ui_router.push_route(_ROUTE_SETTINGS_MENU, {}, {}, _configure_settings_panel)
+	if not is_instance_valid(settings_panel):
+		push_error("[PauseMenu] GF UI 路由未能打开设置菜单。")
