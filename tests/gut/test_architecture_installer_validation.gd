@@ -127,6 +127,7 @@ func test_move_turn_pipeline_uses_gf_turn_action_lifecycle() -> void:
 	assert_true(turn_source.contains("resolve_actions()"), "回合行动只能由 GFTurnFlowSystem 解析。")
 	assert_true(action_source.contains("extends GFTurnAction"), "移动回合应实现强类型 GFTurnAction。")
 	assert_true(action_source.contains("_inject_dependencies"), "移动回合依赖应由 GF Flow 注入。")
+	assert_true(action_source.contains("_rule_system.execute_move_rules"), "移动回合 Action 必须执行项目规则链。")
 	assert_false(flow_source.contains("register_event(MoveData"), "GameFlowSystem 不得旁路 GF 回合行动消费移动。")
 	assert_false(rule_source.contains("register_event(MoveData"), "RuleSystem 不得旁路 GF 回合行动消费移动。")
 	assert_false(event_source.contains("TURN_FINISHED"), "不得保留重复的 TURN_FINISHED 项目事件协议。")

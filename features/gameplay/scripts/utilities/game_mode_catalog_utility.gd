@@ -50,6 +50,7 @@ func dispose() -> void:
 # --- 公共方法 ---
 
 ## 获取指定路径的模式配置资源。
+## @param config_path: 已登记到模式目录的资源路径。
 func get_config(config_path: String) -> GameModeConfig:
 	if config_path.is_empty() or not is_instance_valid(_resource_catalog):
 		return null

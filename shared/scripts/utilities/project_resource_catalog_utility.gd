@@ -43,6 +43,15 @@ func dispose() -> void:
 # --- 公共方法 ---
 
 ## 将一个项目资源注册表原子接入 GF Resolver 与 Asset 分组。
+## @param catalog_id: 项目内稳定且唯一的目录 ID。
+## @param registry: 要注册的 GF 资源注册表。
+## @param resource_key_prefix: 为每个条目生成稳定资源键时使用的前缀。
+## @param default_type_hint: 条目未声明类型时使用的 ResourceLoader 类型提示。
+## @param group_id: 可选的 GFAssetUtility 资源分组 ID。
+## @param metadata: 合并到每个 Resolver 条目的目录级元数据。
+## @param pin_group_paths: 是否固定分组中的资源路径。
+## @param priority: Resolver 条目的解析优先级。
+## @return: 包含注册路径、资源键和错误详情的校验报告。
 func register_catalog(
 	catalog_id: StringName,
 	registry: GFResourceRegistry,
@@ -150,6 +159,8 @@ func register_catalog(
 
 
 ## 注销目录拥有的 Resolver 映射和 Asset 分组。
+## @param catalog_id: 要注销的稳定目录 ID。
+## @param remove_unreferenced_cache: 是否同时移除分组释放后的无引用缓存。
 func unregister_catalog(catalog_id: StringName, remove_unreferenced_cache: bool = true) -> bool:
 	var catalog: Dictionary = _get_catalog(catalog_id)
 	if catalog.is_empty():
@@ -164,6 +175,8 @@ func unregister_catalog(catalog_id: StringName, remove_unreferenced_cache: bool 
 
 
 ## 获取目录中的有效资源路径，保持注册表顺序。
+## @param catalog_id: 要查询的稳定目录 ID。
+## @param check_resolvable: 是否只返回当前 Resolver 可解析的路径。
 func get_registered_paths(catalog_id: StringName, check_resolvable: bool = false) -> PackedStringArray:
 	var catalog: Dictionary = _get_catalog(catalog_id)
 	var paths: PackedStringArray = _get_catalog_paths(catalog)
@@ -180,11 +193,15 @@ func get_registered_paths(catalog_id: StringName, check_resolvable: bool = false
 
 
 ## 获取目录中已注册的稳定资源键，保持注册表顺序。
+## @param catalog_id: 要查询的稳定目录 ID。
 func get_registered_resource_keys(catalog_id: StringName) -> PackedStringArray:
 	return _get_catalog_resource_keys(_get_catalog(catalog_id))
 
 
 ## 通过目录资源路径加载资源，并复用 GFAssetUtility 缓存。
+## @param catalog_id: 资源所属的稳定目录 ID。
+## @param resource_path: 已登记的项目资源路径。
+## @param cache_mode: ResourceLoader 缓存模式。
 func load_resource_by_path(
 	catalog_id: StringName,
 	resource_path: String,
@@ -202,6 +219,9 @@ func load_resource_by_path(
 
 
 ## 通过目录条目加载资源，并复用 GFAssetUtility 缓存。
+## @param catalog_id: 资源所属的稳定目录 ID。
+## @param entry: 已登记的资源条目。
+## @param cache_mode: ResourceLoader 缓存模式。
 func load_resource_by_entry(
 	catalog_id: StringName,
 	entry: GFResourceRegistryEntry,
@@ -247,6 +267,8 @@ func get_debug_snapshot() -> Dictionary:
 
 
 ## 通过 GFResourceRegistry 的路径分组查找唯一条目。
+## @param registry: 要查询的 GF 资源注册表。
+## @param resource_path: 要匹配的完整项目资源路径。
 static func find_entry_by_path(registry: GFResourceRegistry, resource_path: String) -> GFResourceRegistryEntry:
 	if not is_instance_valid(registry) or resource_path.is_empty():
 		return null
@@ -266,12 +288,18 @@ static func find_entry_by_path(registry: GFResourceRegistry, resource_path: Stri
 	return null
 
 
+## 根据目录前缀与条目 ID 构造稳定 Resolver 资源键。
+## @param entry: 用于生成资源键的注册表条目。
+## @param resource_key_prefix: 目录拥有的稳定资源键前缀。
 static func make_resource_key(entry: GFResourceRegistryEntry, resource_key_prefix: String) -> StringName:
 	if not _is_valid_registry_entry(entry) or resource_key_prefix.is_empty():
 		return &""
 	return StringName("%s%s" % [resource_key_prefix, String(entry.id)])
 
 
+## 获取条目的类型提示，未声明时使用目录默认值。
+## @param entry: 要查询的注册表条目。
+## @param default_type_hint: 条目未声明类型时使用的默认提示。
 static func get_entry_type_hint(entry: GFResourceRegistryEntry, default_type_hint: String = "") -> String:
 	if _is_valid_registry_entry(entry) and not entry.type_hint.is_empty():
 		return entry.type_hint
