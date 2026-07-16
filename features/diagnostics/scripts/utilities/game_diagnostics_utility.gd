@@ -163,7 +163,7 @@ func _register_console_commands() -> void:
 	_register_console_command(
 		_CMD_SCREENSHOT,
 		Callable(self, &"_on_screenshot_command"),
-		"Capture the current viewport. The first optional argument is used as the filename prefix."
+		"Capture the current viewport. The first optional argument sets the filename prefix."
 	)
 
 

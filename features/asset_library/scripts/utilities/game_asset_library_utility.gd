@@ -126,6 +126,8 @@ func register_asset_library_content_package_resources() -> Dictionary:
 
 
 ## 解析稳定素材键到 Godot 资源路径。
+## @param asset_key: 内容包中注册的稳定素材键。
+## @param type_hint: 可选资源类型约束。
 func resolve_asset_path(asset_key: StringName, type_hint: String = "") -> String:
 	var resolver: GFResourceResolverUtility = _get_resolver()
 	if not is_instance_valid(resolver):
@@ -134,6 +136,9 @@ func resolve_asset_path(asset_key: StringName, type_hint: String = "") -> String
 
 
 ## 通过稳定素材键同步加载资源。
+## @param asset_key: 内容包中注册的稳定素材键。
+## @param type_hint: 可选资源类型约束。
+## @param cache_mode: Godot ResourceLoader 缓存策略。
 func load_asset(
 	asset_key: StringName,
 	type_hint: String = "",
@@ -154,6 +159,9 @@ func get_runtime_catalog() -> GFAssetCatalog:
 	return GFAssetCatalog.from_dict(_runtime_catalog.to_dict())
 
 
+## 查询已注册到运行时内容包的素材目录。
+## @param query: 匹配素材键、路径、类型和标签的查询文本。
+## @param options: GFAssetCatalog 搜索选项。
 func search_runtime_assets(query: String, options: Dictionary = {}) -> Array[Dictionary]:
 	return get_runtime_catalog().search(query, options)
 
