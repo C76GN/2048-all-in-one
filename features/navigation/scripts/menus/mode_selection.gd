@@ -409,9 +409,19 @@ func _update_pagination_buttons_visibility() -> void:
 
 
 func _generate_and_display_new_seed() -> void:
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.randomize()
-	_seed_line_edit.text = str(rng.randi())
+	var seed_utility: GFSeedUtility = _get_seed_utility()
+	var clock_utility: GameClockUtility = _get_clock_utility()
+	if not is_instance_valid(seed_utility) or not is_instance_valid(clock_utility):
+		push_error("[ModeSelection] 缺少 GFSeedUtility 或 GameClockUtility，无法生成游戏种子。")
+		return
+
+	var seed_value: int = GFSeedUtility.make_stable_seed([
+		"mode_selection",
+		clock_utility.get_unix_timestamp(),
+		clock_utility.get_tick_msec(),
+		seed_utility.next_uint32(),
+	])
+	_seed_line_edit.text = str(seed_value)
 
 
 func _update_grid_size_and_ui(index: int) -> void:

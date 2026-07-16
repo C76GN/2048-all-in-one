@@ -15,6 +15,12 @@ const SOURCE_EXCLUDED_ROOTS: Array[String] = [
 const GLOBAL_GF_ACCESS_ALLOWLIST: Array[String] = [
 	"res://app/scripts/boot.gd",
 ]
+const DIRECT_TIME_AND_RANDOM_ALLOWLIST: Array[String] = [
+	"res://app/scripts/boot.gd",
+	"res://features/asset_library/tools/asset_review_browser.gd",
+	"res://features/asset_library/tools/import_asset_sources.gd",
+	"res://shared/scripts/utilities/game_clock_utility.gd",
+]
 const BOOT_SCRIPT_PATH: String = "res://app/scripts/boot.gd"
 const GF_MODULE_BASE_PATHS: Array[String] = [
 	"res://addons/gf/kernel/base/gf_model.gd",
@@ -90,6 +96,25 @@ func test_global_gf_access_is_limited_to_composition_root() -> void:
 	assert_true(
 		issues.is_empty(),
 		"全局 GF 架构访问只允许出现在应用启动组合根；其他节点和模块应使用 GF 注入或 Controller 上下文：\n%s"
+		% _join_lines(issues)
+	)
+
+
+func test_direct_time_and_random_access_is_limited_to_adapters_and_tooling() -> void:
+	var issues: Array[String] = []
+	for path: String in _collect_project_script_paths():
+		if DIRECT_TIME_AND_RANDOM_ALLOWLIST.has(path):
+			continue
+		var source: String = _read_text(path)
+		var lines: PackedStringArray = source.split("\n")
+		for line_index: int in range(lines.size()):
+			var code: String = _get_code_line(_get_packed_line(lines, line_index))
+			if _contains_direct_time_or_random_access(code):
+				_append_string(issues, "%s:%d 不应直接访问 Time 或原生随机源。" % [path, line_index + 1])
+
+	assert_true(
+		issues.is_empty(),
+		"运行时系统时间应集中在 GameClockUtility，随机流应由 GFSeedUtility 管理；仅启动组合根和离线素材工具可直接访问底层 API：\n%s"
 		% _join_lines(issues)
 	)
 
@@ -531,6 +556,15 @@ func _contains_global_gf_access(code: String) -> bool:
 	return (
 		_regex_matches(code, "(?:^|[^A-Za-z0-9_])Gf\\s*\\.")
 		or _regex_matches(code, "(?:^|[^A-Za-z0-9_])GFAutoload\\s*\\.")
+	)
+
+
+func _contains_direct_time_or_random_access(code: String) -> bool:
+	return (
+		_regex_matches(code, "(?:^|[^A-Za-z0-9_])Time\\s*\\.")
+		or _regex_matches(code, "(?:^|[^A-Za-z0-9_])RandomNumberGenerator\\b")
+		or _regex_matches(code, "(?:^|[^A-Za-z0-9_])(?:randf|randf_range|randfn|randi|randi_range|randomize|seed)\\s*\\(")
+		or _regex_matches(code, "\\.(?:pick_random|shuffle)\\s*\\(")
 	)
 
 

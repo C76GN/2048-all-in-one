@@ -27,7 +27,6 @@ var _scene_switch_started_connection: GFSignalConnection
 var _scene_load_completed_connection: GFSignalConnection
 var _scene_load_failed_connection: GFSignalConnection
 var _scene_change_operation_id: StringName = &""
-var _scene_change_started_usec: int = 0
 
 
 # --- GF 生命周期方法 ---
@@ -139,7 +138,7 @@ func get_debug_snapshot() -> Dictionary:
 	return {
 		"main_menu_scene_path": _main_menu_scene_path,
 		"scene_change_active": _scene_change_operation_id != &"",
-		"scene_change_started_usec": _scene_change_started_usec,
+		"scene_change_started_usec": _get_scene_change_started_usec(),
 		"screen_transition": (
 			_screen_transition.get_debug_snapshot()
 			if is_instance_valid(_screen_transition)
@@ -357,15 +356,20 @@ func _log_transition_error(message: String) -> void:
 
 func _begin_scene_change_operation(path: String) -> void:
 	_finish_scene_change_operation(false, {"reason": "superseded"})
-	_scene_change_started_usec = Time.get_ticks_usec()
 	if not is_instance_valid(_operation_diagnostics):
 		return
 	_scene_change_operation_id = _operation_diagnostics.begin_operation(&"game.scene_change", {
 		"component": &"scene_router",
 		"label": "Load scene",
-		"started_ticks_usec": _scene_change_started_usec,
 		"metadata": {"path": path},
 	})
+
+
+func _get_scene_change_started_usec() -> int:
+	if _scene_change_operation_id == &"" or not is_instance_valid(_operation_diagnostics):
+		return 0
+	var operation: Dictionary = _operation_diagnostics.get_operation(_scene_change_operation_id)
+	return GFVariantData.get_option_int(operation, "started_ticks_usec", 0)
 
 
 func _finish_scene_change_operation(success: bool, metadata: Dictionary = {}) -> void:
@@ -376,7 +380,6 @@ func _finish_scene_change_operation(success: bool, metadata: Dictionary = {}) ->
 			{"metadata": metadata}
 		)
 	_scene_change_operation_id = &""
-	_scene_change_started_usec = 0
 
 
 # --- 信号处理函数 ---
@@ -404,11 +407,12 @@ func _on_scene_switch_started(path: String, previous_path: String) -> void:
 func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
 	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "已完成异步场景加载: %s" % path)
-	if _scene_change_operation_id != &"" and is_instance_valid(_operation_diagnostics):
+	var started_ticks_usec: int = _get_scene_change_started_usec()
+	if started_ticks_usec > 0:
 		var _phase: Dictionary = _operation_diagnostics.record_phase_from_ticks(
 			_scene_change_operation_id,
 			&"load",
-			_scene_change_started_usec,
+			started_ticks_usec,
 			{"metadata": {"path": path}}
 		)
 	_finish_scene_change_operation(true, {"path": path})

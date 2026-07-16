@@ -20,6 +20,8 @@ const HUD_PATH: String = "res://features/gameplay/scripts/ui/hud.gd"
 const BOOKMARK_DATA_PATH: String = "res://features/bookmarks/scripts/data/bookmark_data.gd"
 const REMOVED_HUD_PAYLOAD_PATH: String = "res://features/gameplay/scripts/events/hud_message_payload.gd"
 const SCENE_ROUTER_SYSTEM_PATH: String = "res://features/navigation/scripts/systems/scene_router_system.gd"
+const MODE_SELECTION_PATH: String = "res://features/navigation/scripts/menus/mode_selection.gd"
+const GAME_DIAGNOSTICS_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd"
 const SETTINGS_MENU_PATH: String = "res://features/settings/scripts/menus/settings_menu.gd"
 const GAME_UI_CONTROLLER_PATH: String = "res://features/themes/scripts/ui/game_ui_controller.gd"
 const THEME_CATALOG_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_theme_catalog_utility.gd"
@@ -144,6 +146,8 @@ func test_required_gf_modules_have_no_manual_runtime_fallbacks() -> void:
 	var flow_source: String = _read_text(GAME_FLOW_SYSTEM_PATH)
 	var init_source: String = _read_text(GAME_INIT_SYSTEM_PATH)
 	var router_source: String = _read_text(SCENE_ROUTER_SYSTEM_PATH)
+	var mode_selection_source: String = _read_text(MODE_SELECTION_PATH)
+	var diagnostics_source: String = _read_text(GAME_DIAGNOSTICS_UTILITY_PATH)
 	var settings_source: String = _read_text(SETTINGS_MENU_PATH)
 	var ui_controller_source: String = _read_text(GAME_UI_CONTROLLER_PATH)
 	var theme_catalog_source: String = _read_text(THEME_CATALOG_UTILITY_PATH)
@@ -167,6 +171,10 @@ func test_required_gf_modules_have_no_manual_runtime_fallbacks() -> void:
 	assert_false(settings_source.contains("func _get_ui_utility"), "设置菜单不得保留 GFUIUtility 兼容入口。")
 	assert_false(theme_catalog_source.contains("GameThemeRegistry.new()"), "主题目录加载失败不得伪造空注册表。")
 	assert_false(theme_source.contains("GameThemeRegistry.new()"), "主题运行时加载失败不得伪造空注册表。")
+	assert_true(mode_selection_source.contains("GFSeedUtility.make_stable_seed("), "模式种子应通过 GF 稳定种子算法派生。")
+	assert_true(mode_selection_source.contains("seed_utility.next_uint32()"), "模式种子应消费 GF 管理的随机流。")
+	assert_true(diagnostics_source.contains("_clock_utility.get_unix_timestamp()"), "支持报告文件名应使用项目 wall-clock Adapter。")
+	assert_true(router_source.contains("_operation_diagnostics.get_operation("), "场景耗时应复用 GF 操作诊断记录的起始时间。")
 
 
 # --- 私有/辅助方法 ---

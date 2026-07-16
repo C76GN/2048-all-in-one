@@ -16,6 +16,7 @@ var _diagnostics_utility: GFDiagnosticsUtility
 var _support_report_utility: GFSupportReportUtility
 var _console_utility: GFConsoleUtility
 var _log_utility: GFLogUtility
+var _clock_utility: GameClockUtility
 var _support_report_command_subscription: GFLifetimeSubscription
 
 
@@ -25,6 +26,7 @@ var _support_report_command_subscription: GFLifetimeSubscription
 func get_required_utilities() -> Array[Script]:
 	return [
 		GameAssetLibraryUtility,
+		GameClockUtility,
 		GameModeCatalogUtility,
 		GameSaveGraphUtility,
 		GameThemeCatalogUtility,
@@ -43,6 +45,7 @@ func ready() -> void:
 	_support_report_utility = _get_support_report_utility()
 	_console_utility = _get_console_utility()
 	_log_utility = _get_log_utility()
+	_clock_utility = _get_clock_utility()
 	_register_support_report_command()
 	_refresh_project_tool_snapshots()
 
@@ -62,6 +65,7 @@ func dispose() -> void:
 	_support_report_utility = null
 	_console_utility = null
 	_log_utility = null
+	_clock_utility = null
 
 
 # --- 公共方法 ---
@@ -185,11 +189,15 @@ func _on_support_report_command(args: PackedStringArray) -> void:
 		if _log_utility != null:
 			_log_utility.error(_LOG_TAG, "GFSupportReportUtility is unavailable.")
 		return
+	if _clock_utility == null:
+		if _log_utility != null:
+			_log_utility.error(_LOG_TAG, "GameClockUtility is unavailable.")
+		return
 
 	_refresh_project_tool_snapshots()
 	_last_report_path = "%s/support_report_%d.json" % [
 		_REPORT_DIRECTORY,
-		int(Time.get_unix_time_from_system()),
+		_clock_utility.get_unix_timestamp(),
 	]
 	var description: String = " ".join(args)
 	var error: Error = _support_report_utility.build_and_save_report(_last_report_path, description, {
@@ -236,4 +244,12 @@ func _get_log_utility() -> GFLogUtility:
 	if utility is GFLogUtility:
 		var log_utility: GFLogUtility = utility
 		return log_utility
+	return null
+
+
+func _get_clock_utility() -> GameClockUtility:
+	var utility: Object = get_utility(GameClockUtility)
+	if utility is GameClockUtility:
+		var clock_utility: GameClockUtility = utility
+		return clock_utility
 	return null

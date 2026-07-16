@@ -21,6 +21,7 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	await architecture.register_utility(GFConsoleUtility, console)
 	await architecture.register_utility(GFDiagnosticsUtility, diagnostics)
 	await architecture.register_utility(GFSupportReportUtility, support_reports)
+	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT, project_diagnostics)
 	await architecture.init()
 
@@ -51,3 +52,28 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 		diagnostics.has_tool_snapshot(&"project_diagnostics"),
 		"销毁 Architecture 时应移除项目诊断快照。"
 	)
+
+
+func test_scene_router_reuses_gf_operation_start_tick() -> void:
+	var operation_diagnostics: GFOperationDiagnosticsUtility = GFOperationDiagnosticsUtility.new()
+	operation_diagnostics.init()
+	var router: SceneRouterSystem = SceneRouterSystem.new()
+	router.set("_operation_diagnostics", operation_diagnostics)
+
+	var _begin_result: Variant = router.call(
+		"_begin_scene_change_operation",
+		"res://features/navigation/scenes/menus/main_menu.tscn"
+	)
+	var router_snapshot: Dictionary = router.get_debug_snapshot()
+	var operations: Array[Dictionary] = operation_diagnostics.get_operations(1, {
+		"operation_type": &"game.scene_change",
+	})
+	var operation: Dictionary = operations[0] if not operations.is_empty() else {}
+	var router_started_ticks: int = GFVariantData.get_option_int(router_snapshot, "scene_change_started_usec")
+	var operation_started_ticks: int = GFVariantData.get_option_int(operation, "started_ticks_usec")
+
+	assert_gt(router_started_ticks, 0, "场景路由诊断应暴露 GF 操作记录的起始 tick。")
+	assert_true(router_started_ticks == operation_started_ticks, "场景路由不得平行维护另一份操作起始 tick。")
+
+	router.dispose()
+	operation_diagnostics.dispose()
