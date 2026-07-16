@@ -2,19 +2,6 @@
 extends GutTest
 
 
-# --- 辅助类 ---
-
-class CountingMoveRule extends SpawnRule:
-	var execution_count: int = 0
-
-	func _init() -> void:
-		trigger = TriggerType.ON_MOVE
-
-	func execute(_context: RuleContext) -> bool:
-		execution_count += 1
-		return false
-
-
 # --- 测试用例 ---
 
 func test_valid_move_resolves_once_through_gf_turn_flow() -> void:
@@ -79,3 +66,16 @@ func test_valid_move_resolves_once_through_gf_turn_flow() -> void:
 	assert_true(turn_flow.context.current_actor == null, "行动解析完成后 GF 应释放当前 actor。")
 
 	architecture.dispose()
+
+
+# --- 内部类 ---
+
+class CountingMoveRule extends SpawnRule:
+	var execution_count: int = 0
+
+	func _init() -> void:
+		trigger = TriggerType.ON_MOVE
+
+	func execute(_context: RuleContext) -> bool:
+		execution_count += 1
+		return false

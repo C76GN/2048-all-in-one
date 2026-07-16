@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-07-15",
+  "reviewed_at": "2026-07-16",
   "godot_version": "4.7",
   "gf_version": "7.0.0",
   "gut_version": "9.7.1",
   "gf_source_commit": "391f0cd1e44fda0084b4edded30e7a0fd1015728",
   "gf_vendor_tree_sha256": "3fe4bfbfd1b9717a3d609b124fb04878701480973408f9b51580b44d95fca522",
   "gf_global_script_class_count": 703,
-  "project_runtime_script_class_count": 115,
+  "project_runtime_script_class_count": 116,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "GF source 391f0cd added five GF class_name scripts. The SaveGraph migration then added five project runtime class_name scripts and removed two, a net project increase of three that exactly matches the additional three retained Resources and three ObjectDB registrations.",
+  "calibration_reason": "GF source 391f0cd remains pinned. The turn-flow integration added GameMoveTurnAction and GameTurnSystem while the notification migration removed HudMessagePayload, a net increase of one project runtime class. Leak maxima remain unchanged until a full-suite regression demonstrates a class-registration delta.",
   "max_objectdb_instances": 259,
   "max_resources_in_use": 116,
   "max_rid_allocations_by_type": {

@@ -89,7 +89,7 @@ func _get_grid_model() -> GridModel:
 	return null
 
 
-# --- 事件处理函数 ---
+# --- 信号处理函数 ---
 
 func _on_game_ready(data: GameReadyData) -> void:
 	if is_instance_valid(data):
