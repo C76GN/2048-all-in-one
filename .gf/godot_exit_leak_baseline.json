@@ -9,7 +9,7 @@
   "gf_global_script_class_count": 703,
   "project_runtime_script_class_count": 116,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "GF source 391f0cd remains pinned. The turn-flow integration added GameMoveTurnAction and GameTurnSystem while the notification migration removed HudMessagePayload, a net increase of one project runtime class. Leak maxima remain unchanged until a full-suite regression demonstrates a class-registration delta.",
+  "calibration_reason": "GF source 391f0cd remains pinned. The turn-flow integration added GameMoveTurnAction and GameTurnSystem while the notification migration removed HudMessagePayload, a net increase of one project runtime class. The full 179-test suite still exited at the existing ObjectDB 259, Resources 116, and three RID-type limits, so no leak maximum was raised.",
   "max_objectdb_instances": 259,
   "max_resources_in_use": 116,
   "max_rid_allocations_by_type": {

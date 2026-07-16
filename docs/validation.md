@@ -111,21 +111,21 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 ### 最近一次安全 GUT 验证
 
-验证时间：2026-07-15。
+验证时间：2026-07-16。
 
 命令：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 300 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 330 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
 结果：
 
-- Godot：当前环境中的 `godot` 命令。
-- GUT：170 个测试全部通过，共 953 个断言。
-- 当前完整套件：`tests/gut/` 下 22 个测试脚本、170 个 `test_` 用例。
+- Godot：`4.7.stable.steam.5b4e0cb0f`。
+- GUT：179 个测试全部通过，共 1044 个断言。
+- 当前完整套件：`tests/gut/` 下 22 个测试脚本、179 个 `test_` 用例。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 256`、`Resources = 113`、RID 类型数 `= 3`。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit 与 vendor tree；同一 vendor tree 下任何增长都会失败。升级 GF 时只有在干净 HEAD 对照证明增量来自新增 Godot 全局脚本类后，才允许带审计理由重新校准原始计数。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 259`、`Resources = 116`、RID 类型数 `= 3`。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时 `class_name` 集合；输入集合不变时任何增长都会失败。只有在干净 HEAD 对照证明增量来自经过审计的运行时类集合变化后，才允许带理由重新校准原始计数。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
@@ -146,7 +146,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-15。结果：扫描 135 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+最近一次 LSP 诊断时间：2026-07-16。结果：扫描 145 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 ### 脚本静态检查
 
