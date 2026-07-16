@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/extension
 class_name GFExtensionManifestDiscovery
@@ -37,7 +37,7 @@ static var _cache_revision: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param extra_root_paths: 额外扩展集合根目录列表，每个根目录下一层为独立扩展目录。
 ## [br]
@@ -66,7 +66,7 @@ static func get_snapshot(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 static func clear_cache() -> void:
 	_snapshot_cache.clear()
 	_has_snapshot_cache = false

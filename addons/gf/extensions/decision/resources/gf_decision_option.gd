@@ -188,7 +188,7 @@ func get_debug_snapshot(score_snapshot: GFDecisionScore = null) -> Dictionary:
 ## [br]
 ## @return GFValidationReportDictionary 兼容报告。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema return: Dictionary with ok, healthy, decision_id, issues, summary, and next_action.
 func get_validation_report() -> Dictionary:

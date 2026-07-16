@@ -361,7 +361,7 @@ static func sort_topological(nodes: Array, get_dependencies: Callable) -> Dictio
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param nodes: 需要分组的节点列表；重复节点会按首次出现去重。
 ## [br]
@@ -459,7 +459,7 @@ static func find_connected_components(nodes: Array, get_neighbors: Callable) -> 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param nodes: 需要纳入生成树的节点列表；重复节点会按首次出现去重。
 ## [br]

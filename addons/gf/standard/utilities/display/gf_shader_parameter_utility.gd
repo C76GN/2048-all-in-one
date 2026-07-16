@@ -58,7 +58,7 @@ func apply_profile(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param profile: 要应用的 shader 参数 profile。
 ## [br]
@@ -152,7 +152,7 @@ func apply_parameters(target: Object, parameters: Dictionary, options: Dictionar
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param parameters: 要应用的全局 shader 参数字典。
 ## [br]
@@ -299,7 +299,7 @@ func has_shader_parameter(material: ShaderMaterial, parameter_name: StringName) 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param parameter_name: 全局 shader uniform 参数名。
 ## [br]
@@ -329,7 +329,7 @@ func ensure_global_parameter(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 全局 shader 参数名数组。
 ## [br]
@@ -345,7 +345,7 @@ func get_global_parameter_names() -> Array[StringName]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: live 全局 shader 参数名数组。
 ## [br]
@@ -360,7 +360,7 @@ func get_global_parameter_live_names() -> Array[StringName]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: declaration 全局 shader 参数名数组。
 ## [br]
@@ -375,7 +375,7 @@ func get_global_parameter_declaration_names() -> Array[StringName]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param parameter_name: 全局 shader uniform 参数名。
 ## [br]
@@ -388,7 +388,7 @@ func has_global_parameter(parameter_name: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param parameter_name: 全局 shader uniform 参数名。
 ## [br]
@@ -403,7 +403,7 @@ func has_global_parameter_live(parameter_name: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param parameter_name: 全局 shader uniform 参数名。
 ## [br]

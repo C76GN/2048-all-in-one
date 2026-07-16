@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFVariantKeyCodec
 extends RefCounted
 
@@ -22,7 +22,7 @@ const _KEY_SCHEMA_PREFIX: String = "gfv1"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待检查的 Variant。
 ## [br]
@@ -63,7 +63,7 @@ static func is_stable_key(value: Variant) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待编码的 key 值。
 ## [br]
@@ -103,7 +103,7 @@ static func try_make_key_token(value: Variant, options: Dictionary = {}) -> Dict
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待编码的 key 值。
 ## [br]

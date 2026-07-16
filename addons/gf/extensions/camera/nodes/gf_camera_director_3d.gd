@@ -80,14 +80,14 @@ enum UpdateMode {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_node_path("Node") var camera_scope_path: NodePath = NodePath("")
 
 ## 分组候选 Rig 的收集频道。为空时只收集默认频道 Rig。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var camera_channel: StringName = &""
 
 ## 自动更新模式。
@@ -245,7 +245,7 @@ func clear_active_rig_override(force_snap: bool = false) -> GFCameraRig3D:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试快照。
 ## [br]
@@ -271,7 +271,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param delta: 秒。
 ## [br]

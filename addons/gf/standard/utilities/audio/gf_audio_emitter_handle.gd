@@ -173,7 +173,7 @@ func is_stop_requested() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 已自然完成、失败或停止时返回 true。
 func is_terminal() -> bool:

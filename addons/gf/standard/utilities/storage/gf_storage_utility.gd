@@ -501,7 +501,7 @@ func save_data(file_name: String, data: Dictionary) -> Error:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param files: 文件名到字典载荷的映射。
 ## [br]
@@ -536,6 +536,10 @@ func save_data_group(files: Dictionary) -> Error:
 	for file_name: String in file_names:
 		_wait_for_async_tasks_for_file(file_name)
 	_recover_transaction_files(file_names)
+	var marker_error: Error = _write_transaction_markers(file_names, false)
+	if marker_error != OK:
+		_cleanup_transaction_files(file_names)
+		return marker_error
 
 	for file_name: String in file_names:
 		var temp_file_name: String = _get_temp_filename(file_name)
@@ -544,7 +548,7 @@ func save_data_group(files: Dictionary) -> Error:
 			_cleanup_transaction_files(file_names)
 			return write_error
 
-	return _commit_transaction(file_names)
+	return _commit_transaction(file_names, true)
 
 
 ## 读取纯字典数据。
@@ -1404,9 +1408,9 @@ func _recover_transaction_file(file_name: String) -> void:
 	_transaction_manager._recover_transaction_file(file_name)
 
 
-func _commit_transaction(file_names: Array[String]) -> Error:
+func _commit_transaction(file_names: Array[String], markers_prepared: bool = false) -> Error:
 	_ensure_storage_helpers()
-	return _transaction_manager._commit_transaction(file_names)
+	return _transaction_manager._commit_transaction(file_names, markers_prepared)
 
 
 func _rollback_transaction(file_names: Array[String], transaction_state: Dictionary) -> void:
@@ -2025,7 +2029,7 @@ class _StorageTransactionManager:
 			if marker.is_empty():
 				continue
 
-			var transaction_files: Array[String] = _get_transaction_marker_files(marker, file_name, file_names)
+			var transaction_files: Array[String] = _discover_transaction_marker_files(marker, file_name)
 			_recover_transaction_group(transaction_files)
 			for transaction_file_name: String in transaction_files:
 				recovered_files[transaction_file_name] = true
@@ -2105,14 +2109,19 @@ class _StorageTransactionManager:
 		if has_temp and has_final:
 			_file_ops._remove_file_if_exists(temp_path)
 
-	func _commit_transaction(file_names: Array[String]) -> Error:
+	func _commit_transaction(file_names: Array[String], markers_prepared: bool = false) -> Error:
 		file_names = _unique_file_names(file_names)
 		if file_names.is_empty():
 			return ERR_INVALID_PARAMETER
-		var marker_error: Error = _write_transaction_markers(file_names, false)
-		if marker_error != OK:
-			_cleanup_transaction_files(file_names)
-			return marker_error
+		if markers_prepared:
+			if not _is_transaction_group_in_state(file_names, false):
+				_cleanup_transaction_files(file_names)
+				return ERR_INVALID_DATA
+		else:
+			var marker_error: Error = _write_transaction_markers(file_names, false)
+			if marker_error != OK:
+				_cleanup_transaction_files(file_names)
+				return marker_error
 
 		var transaction_state: Dictionary = {}
 		for file_name: String in file_names:
@@ -2261,8 +2270,45 @@ class _StorageTransactionManager:
 			return fallback_result
 		return result
 
+	func _discover_transaction_marker_files(marker: Dictionary, fallback_file_name: String) -> Array[String]:
+		fallback_file_name = _canonicalize_marker_file_name(fallback_file_name)
+		if fallback_file_name.is_empty():
+			return []
+		var fallback_result: Array[String] = [fallback_file_name]
+		var raw_files: Variant = GFVariantData.get_option_value(marker, "files", [])
+		if not (raw_files is Array):
+			return fallback_result
+		var declared_files: Array[String] = []
+		for raw_file: Variant in raw_files:
+			var file_name: String = _canonicalize_marker_file_name(GFVariantData.to_text(raw_file))
+			if file_name.is_empty() or declared_files.has(file_name):
+				return fallback_result
+			declared_files.append(file_name)
+			if declared_files.size() > _MAX_TRANSACTION_FILES:
+				return fallback_result
+		if declared_files.is_empty() or not declared_files.has(fallback_file_name):
+			return fallback_result
+
+		var transaction_id: String = GFVariantData.get_option_string(marker, "transaction_id")
+		if transaction_id.is_empty():
+			return fallback_result
+		for file_name: String in declared_files:
+			var member_marker: Dictionary = marker if file_name == fallback_file_name else _read_transaction_marker(file_name)
+			if (
+				member_marker.is_empty()
+				or GFVariantData.get_option_string(member_marker, "transaction_id") != transaction_id
+				or _get_transaction_marker_files(member_marker, file_name, declared_files) != declared_files
+			):
+				return fallback_result
+		return declared_files
+
 	func _is_transaction_group_committed(file_names: Array[String]) -> bool:
+		return _is_transaction_group_in_state(file_names, true)
+
+	func _is_transaction_group_in_state(file_names: Array[String], committed: bool) -> bool:
 		file_names = _unique_file_names(file_names)
+		if file_names.is_empty():
+			return false
 		var transaction_id: String = ""
 		for file_name: String in file_names:
 			var marker: Dictionary = _read_transaction_marker(file_name)
@@ -2270,7 +2316,7 @@ class _StorageTransactionManager:
 			var marker_transaction_id: String = GFVariantData.get_option_string(marker, "transaction_id")
 			if (
 				marker.is_empty()
-				or not GFVariantData.get_option_bool(marker, "committed", false)
+				or GFVariantData.get_option_bool(marker, "committed", false) != committed
 				or marker_files != file_names
 				or marker_transaction_id.is_empty()
 			):

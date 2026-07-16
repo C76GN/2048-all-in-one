@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFAssetCatalogEntry
 extends Resource
 
@@ -18,77 +18,77 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var asset_id: StringName = &""
 
 ## 面向工具 UI 的显示标题；为空时可回退到 asset_id 或资源 basename。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var title: String = ""
 
 ## 面向工具 UI 的简短说明或备注。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_multiline var description: String = ""
 
 ## 通用标签。标签只用于检索、筛选和分组，不携带业务含义。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var tags: PackedStringArray = PackedStringArray()
 
 ## 通用分类。项目可自行决定分类体系；GF 只按文本索引。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var category: StringName = &""
 
 ## 主资源路径。用于预览、打开、加载或关联 GFResourceRegistry 条目。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var primary_path: String = ""
 
 ## 主资源类型提示。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var type_hint: String = ""
 
 ## 可选预览资源路径。为空时工具可尝试主资源或 preview provider。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var preview_path: String = ""
 
 ## 关联的 GFResourceRegistry 条目 ID 列表。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var resource_entry_ids: PackedStringArray = PackedStringArray()
 
 ## 资产来源 ID，例如 provider、catalog 文件或项目工具来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var source_id: StringName = &""
 
 ## 项目自定义元数据。GF 复制和序列化该字典，但不解释字段含义。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary with project-defined asset metadata.
 @export var metadata: Dictionary = {}
@@ -100,7 +100,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_asset_id: 资产稳定 ID。
 ## [br]
@@ -136,7 +136,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 条目可被 catalog 使用时返回 true。
 func is_valid_entry() -> bool:
@@ -147,7 +147,7 @@ func is_valid_entry() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 条目副本。
 func duplicate_entry() -> GFAssetCatalogEntry:
@@ -170,7 +170,7 @@ func duplicate_entry() -> GFAssetCatalogEntry:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 主资源身份；主路径为空时仍返回以 asset_id 为后备 cache key 的身份。
 func get_primary_identity() -> GFResourceIdentity:
@@ -181,7 +181,7 @@ func get_primary_identity() -> GFResourceIdentity:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 预览资源身份；预览路径为空时返回 null。
 func get_preview_identity() -> GFResourceIdentity:
@@ -194,7 +194,7 @@ func get_preview_identity() -> GFResourceIdentity:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 主资源身份 cache_key 或 asset_id 后备键。
 func get_cache_key() -> String:
@@ -205,7 +205,7 @@ func get_cache_key() -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 条目字典。
 ## [br]
@@ -235,7 +235,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 条目字典。
 ## [br]
@@ -276,7 +276,7 @@ static func from_dict(data: Dictionary) -> GFAssetCatalogEntry:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param registry_entry: 资源注册表条目。
 ## [br]

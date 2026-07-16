@@ -20,21 +20,21 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_MAZE_CELLS: int = GFGridGenerationMath2D.DEFAULT_MAX_MAZE_CELLS
 
 ## 默认细胞自动机最大格子数，避免误把超大生成任务交给单帧纯 GDScript。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_CELLULAR_AUTOMATA_CELLS: int = GFGridGenerationMath2D.DEFAULT_MAX_CELLULAR_AUTOMATA_CELLS
 
 ## 默认连通区域分析最大格子数，避免误把超大生成后处理交给单帧纯 GDScript。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_CELL_REGION_CELLS: int = GFGridGenerationMath2D.DEFAULT_MAX_CELL_REGION_CELLS
 
 
@@ -44,7 +44,7 @@ const DEFAULT_MAX_CELL_REGION_CELLS: int = GFGridGenerationMath2D.DEFAULT_MAX_CE
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: 2D 网格工具返回的报告或快照字典。
 ## [br]
@@ -91,7 +91,7 @@ static func index_to_cell(index: int, width: int) -> Vector2i:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param world_position: 世界坐标。
 ## [br]
@@ -106,7 +106,7 @@ static func world_to_chunk_cell(world_position: Vector2, chunk_size: Vector2i) -
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param chunk_cell: chunk 坐标。
 ## [br]
@@ -121,7 +121,7 @@ static func chunk_cell_to_world_origin(chunk_cell: Vector2i, chunk_size: Vector2
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param chunk_cell: chunk 坐标。
 ## [br]
@@ -237,7 +237,7 @@ static func get_ring(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param center_chunk: 中心 chunk 坐标。
 ## [br]
@@ -260,7 +260,7 @@ static func get_chunk_window(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param previous_cells: 旧集合。重复项会被去重，removed 按首次出现顺序返回。
 ## [br]
@@ -344,7 +344,7 @@ static func flood_fill(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param grid_size: 网格尺寸。
 ## [br]
@@ -380,7 +380,7 @@ static func generate_rect_maze_backtracker(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param grid_size: 网格尺寸。
 ## [br]
@@ -412,7 +412,7 @@ static func generate_cellular_automata_map(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cells: 待分析格子集合；重复项会被去重。
 ## [br]
@@ -435,7 +435,7 @@ static func find_cell_regions(cells: Array[Vector2i], options: Dictionary = {}) 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cells: 待过滤格子集合；重复项会被去重。
 ## [br]

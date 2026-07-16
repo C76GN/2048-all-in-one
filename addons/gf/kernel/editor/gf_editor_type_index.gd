@@ -228,7 +228,7 @@ func clear_cache() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: live 订阅生命周期 owner。
 ## [br]
@@ -264,7 +264,7 @@ func enable_live_invalidation(owner: Object) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func disable_live_invalidation() -> void:
 	for subscription_token: GFLifetimeSubscription in _live_invalidation_tokens:
 		if subscription_token != null:
@@ -277,7 +277,7 @@ func disable_live_invalidation() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 至少存在一个活动 live 订阅时返回 true。
 func is_live_invalidation_enabled() -> bool:
@@ -289,7 +289,7 @@ func is_live_invalidation_enabled() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 func dispose() -> void:
 	disable_live_invalidation()
 	clear_cache()

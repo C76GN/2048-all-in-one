@@ -72,7 +72,7 @@ func get_global_seed() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 0 到 4294967295 范围内的随机值。
 func next_uint32() -> int:
@@ -84,7 +84,7 @@ func next_uint32() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return [0, 1) 范围内的随机值。
 func next_float() -> float:
@@ -96,7 +96,7 @@ func next_float() -> float:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param from: 最小值。
 ## [br]
@@ -112,7 +112,7 @@ func next_int_range(from: int, to: int) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param from: 最小值。
 ## [br]
@@ -190,7 +190,7 @@ func set_full_state(state: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param text: 参与 seed 派生的文本。
 ## [br]
@@ -204,7 +204,7 @@ static func make_stable_text_seed(text: String) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param parts: 参与 seed 派生的纯数据部件。
 ## [br]
@@ -239,7 +239,7 @@ static func try_make_stable_seed(parts: Array, options: Dictionary = {}) -> Dict
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param parts: 参与 seed 派生的纯数据部件。
 ## [br]
@@ -262,7 +262,7 @@ static func make_stable_seed(parts: Array, options: Dictionary = {}) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cell: 参与派生的网格坐标。
 ## [br]

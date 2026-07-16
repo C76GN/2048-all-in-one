@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFDualMeshTopology2D
 extends RefCounted
 
@@ -18,7 +18,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param points: 输入点集。
 ## [br]
@@ -38,7 +38,7 @@ static func build_from_points(points: PackedVector2Array, options: Dictionary = 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param voronoi_result: GFVoronoi2D.build_voronoi() 返回的结果字典。
 ## [br]
@@ -69,7 +69,7 @@ static func build_from_voronoi(voronoi_result: Dictionary, options: Dictionary =
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param delaunay_result: GFVoronoi2D.build_delaunay() 返回的结果字典。
 ## [br]
@@ -141,7 +141,7 @@ static func build_from_delaunay(delaunay_result: Dictionary, _options: Dictionar
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param a: 第一个点索引。
 ## [br]
@@ -156,7 +156,7 @@ static func make_edge_key(a: int, b: int) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param topology: build_from_* 返回的拓扑报告。
 ## [br]
@@ -176,7 +176,7 @@ static func get_point_neighbors(topology: Dictionary, point_index: int) -> Packe
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param topology: build_from_* 返回的拓扑报告。
 ## [br]

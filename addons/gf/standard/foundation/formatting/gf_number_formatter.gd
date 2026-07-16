@@ -67,7 +67,7 @@ const _FULL_MIN_EXPONENT: int = -6
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 默认紧凑缩写后缀表副本。
 static func get_default_compact_suffixes() -> PackedStringArray:

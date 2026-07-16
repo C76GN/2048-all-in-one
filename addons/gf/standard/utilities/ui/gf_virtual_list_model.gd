@@ -34,7 +34,7 @@ const MIN_ITEM_EXTENT: float = 1.0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const MAX_ITEM_EXTENT: float = 1_000_000_000_000.0
 
 

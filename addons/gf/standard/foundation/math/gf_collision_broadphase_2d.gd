@@ -294,7 +294,7 @@ static func build_pair_report(bodies: Array, options: Dictionary = {}) -> Dictio
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: build_pair_report() 返回的原生报告。
 ## [br]

@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFGridGenerationMath2D
 extends RefCounted
 
@@ -32,21 +32,21 @@ const _DIAGONAL_DIRECTIONS: Array[Vector2i] = [
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_MAZE_CELLS: int = 262144
 
 ## 默认细胞自动机最大格子数，避免误把超大生成任务交给单帧纯 GDScript。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_CELLULAR_AUTOMATA_CELLS: int = 262144
 
 ## 默认连通区域分析最大格子数，避免误把超大生成后处理交给单帧纯 GDScript。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_CELL_REGION_CELLS: int = 262144
 
 
@@ -58,7 +58,7 @@ const DEFAULT_MAX_CELL_REGION_CELLS: int = 262144
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param grid_size: 网格尺寸。
 ## [br]
@@ -167,7 +167,7 @@ static func generate_rect_maze_backtracker(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param grid_size: 网格尺寸。
 ## [br]
@@ -307,7 +307,7 @@ static func generate_cellular_automata_map(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cells: 待分析格子集合；重复项会被去重。
 ## [br]
@@ -391,7 +391,7 @@ static func find_cell_regions(cells: Array[Vector2i], options: Dictionary = {}) 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cells: 待过滤格子集合；重复项会被去重。
 ## [br]

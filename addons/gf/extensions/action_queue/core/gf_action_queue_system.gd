@@ -40,7 +40,7 @@ var is_processing: bool = false
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_immediate_actions_per_slice: int:
 	get:
 		return _max_immediate_actions_per_slice
@@ -51,7 +51,7 @@ var max_immediate_actions_per_slice: int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_debug_named_queue_entries: int:
 	get:
 		return _max_debug_named_queue_entries
@@ -466,7 +466,7 @@ func clear_named_queue(queue_name: StringName, stop_current: bool = false) -> vo
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param stop_current: 兼容参数；命名队列由父队列拥有，清理时总会释放子队列并停止其当前动作。
 func clear_all_named_queues(stop_current: bool = false) -> void:

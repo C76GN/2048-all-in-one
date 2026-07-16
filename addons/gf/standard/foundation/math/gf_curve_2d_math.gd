@@ -95,7 +95,7 @@ static func sample_polyline(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param points: 折线点序列。
 ## [br]
@@ -143,7 +143,7 @@ static func sample_polyline_pose(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param points: 折线点序列。
 ## [br]
@@ -246,7 +246,7 @@ static func sample_curve(curve: Curve2D, ratio: float, cubic: bool = false) -> V
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param points: 折线点序列。
 ## [br]
@@ -267,7 +267,7 @@ static func create_smooth_polyline_curve(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param curve: 要写入的曲线；为空时会创建新曲线。
 ## [br]
@@ -317,7 +317,7 @@ static func set_smooth_polyline_curve(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param points: 原始折线锚点。
 ## [br]
@@ -420,7 +420,7 @@ static func create_meandered_polyline(points: PackedVector2Array, options: Dicti
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param points: 原始折线锚点。
 ## [br]

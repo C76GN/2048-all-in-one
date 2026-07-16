@@ -6,7 +6,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/core
 class_name GFSignalSubscriptionToken
@@ -27,7 +27,7 @@ var _signal_name: StringName = &""
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source_signal: 要连接的 Godot Signal。
 ## [br]
@@ -58,7 +58,7 @@ func _init(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source_signal: 要连接的 Godot Signal。
 ## [br]
@@ -106,7 +106,7 @@ static func connect_owned(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return Signal 来源对象实例 ID。
 func get_source_id() -> int:
@@ -117,7 +117,7 @@ func get_source_id() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return Signal 名称。
 func get_signal_name() -> StringName:

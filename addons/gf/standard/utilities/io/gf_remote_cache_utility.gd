@@ -78,7 +78,7 @@ var max_pending_requests: int = 64
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES:
 	set(value):
 		max_response_bytes = maxi(value, 1)

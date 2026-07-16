@@ -74,7 +74,7 @@ signal task_cancelled(task: GFRuntimeTask)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REJECTION_SCHEDULER_BUSY: StringName = &"scheduler_busy"
 
 

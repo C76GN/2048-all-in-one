@@ -160,7 +160,7 @@ func duplicate_modifier() -> GFModifier:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 最近一次 value 写入有效且当前值有限时返回 true。
 func is_numeric_state_valid() -> bool:

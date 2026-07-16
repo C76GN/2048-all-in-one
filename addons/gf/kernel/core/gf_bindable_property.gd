@@ -138,7 +138,7 @@ func subscribe(callback: Callable, emit_current: bool = false) -> Callable:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param callback: 变化回调，签名应为 func(old_value: Variant, new_value: Variant)。
 ## [br]
@@ -157,7 +157,7 @@ func subscribe_token(callback: Callable, emit_current: bool = false) -> GFSubscr
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 订阅生命周期 owner。
 ## [br]
@@ -181,7 +181,7 @@ func subscribe_owned(owner: Object, callback: Callable, emit_current: bool = fal
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 订阅生命周期 owner，也是方法所属对象。
 ## [br]

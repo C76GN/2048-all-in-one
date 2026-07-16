@@ -28,7 +28,7 @@ const _TRUNCATED_KEY: String = "__gf_snapshot_truncated__"
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待复制值。
 ## [br]
@@ -50,7 +50,7 @@ static func copy_snapshot(value: Variant, options: Dictionary = {}) -> Variant:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待复制字典。
 ## [br]
@@ -77,7 +77,7 @@ static func copy_snapshot_dictionary(value: Dictionary, options: Dictionary = {}
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待复制值。
 ## [br]

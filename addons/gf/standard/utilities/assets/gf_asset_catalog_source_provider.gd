@@ -8,7 +8,7 @@
 ## [br]
 ## @category protocol
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFAssetCatalogSourceProvider
 extends RefCounted
 
@@ -19,14 +19,14 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var source_id: StringName = &""
 
 ## 来源优先级。数值越大越先合并；同 ID 条目默认被高优先级来源覆盖。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var priority: int = 0
 
 
@@ -36,7 +36,7 @@ var priority: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_source_id: 来源稳定 ID。
 ## [br]
@@ -55,7 +55,7 @@ func configure(p_source_id: StringName, options: Dictionary = {}) -> GFAssetCata
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 来源稳定 ID。
 func get_source_id() -> StringName:
@@ -66,7 +66,7 @@ func get_source_id() -> StringName:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 来源优先级。
 func get_priority() -> int:
@@ -77,7 +77,7 @@ func get_priority() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: provider 自定义选项；GF 不解释字段。
 ## [br]
@@ -93,7 +93,7 @@ func build_catalog(options: Dictionary = {}) -> GFAssetCatalog:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 来源诊断字典。
 ## [br]

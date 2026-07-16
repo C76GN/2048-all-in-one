@@ -44,7 +44,7 @@ var _runtime_by_context_id: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param context: 活动 Flow 的上下文；只有一个运行态时可省略。
 func finish(context: GFTurnContext = null) -> void:
@@ -57,7 +57,7 @@ func finish(context: GFTurnContext = null) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param context: 活动 Flow 的上下文。
 ## [br]
@@ -108,7 +108,7 @@ func _exit(_context: GFTurnContext) -> void:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param context: 本次推进持有的回合上下文。
 ## [br]
@@ -132,7 +132,7 @@ func begin_runtime(context: GFTurnContext) -> RuntimeState:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param context: 本次推进持有的回合上下文。
 ## [br]
@@ -188,27 +188,27 @@ func _on_runtime_finished(context_id: int, runtime: RuntimeState) -> void:
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class RuntimeState extends RefCounted:
 	## 当前运行态完成时发出。
 	## [br]
 	## @api framework_internal
 	## [br]
-	## @since unreleased
+	## @since 8.0.0
 	signal finished
 
 	## 当前运行态是否已经完成。
 	## [br]
 	## @api framework_internal
 	## [br]
-	## @since unreleased
+	## @since 8.0.0
 	var is_finished: bool = false
 
 	## 幂等地标记当前运行态完成。
 	## [br]
 	## @api framework_internal
 	## [br]
-	## @since unreleased
+	## @since 8.0.0
 	func finish() -> void:
 		if is_finished:
 			return

@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFSkillTargetingUtility2D
 extends GFUtility
 
@@ -15,7 +15,6 @@ extends GFUtility
 # --- 常量 ---
 
 const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/gf_combat_finite_math.gd")
-const _GF_SKILL_TARGETING_RULE_2D_SCRIPT = preload("res://addons/gf/extensions/combat/skills/gf_skill_targeting_rule_2d.gd")
 
 
 # --- 公共方法 ---
@@ -24,7 +23,7 @@ const _GF_SKILL_TARGETING_RULE_2D_SCRIPT = preload("res://addons/gf/extensions/c
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_center: 索敌中心点。
 ## [br]
@@ -35,7 +34,7 @@ const _GF_SKILL_TARGETING_RULE_2D_SCRIPT = preload("res://addons/gf/extensions/c
 ## @return 最终筛选出的目标数组。
 ## [br]
 ## @schema p_available_entities: Array，元素为候选实体 Object；无效实例会被跳过。
-func find_targets(p_center: Vector2, p_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT, p_available_entities: Array) -> Array[Object]:
+func find_targets(p_center: Vector2, p_rule: GFSkillTargetingRule2D, p_available_entities: Array) -> Array[Object]:
 	if (
 		p_rule == null
 		or not p_rule.is_configuration_valid()
@@ -70,7 +69,7 @@ func find_targets(p_center: Vector2, p_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT,
 
 # --- 私有/辅助方法 ---
 
-func _is_entity_in_shape(p_entity: Object, p_center: Vector2, p_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT) -> bool:
+func _is_entity_in_shape(p_entity: Object, p_center: Vector2, p_rule: GFSkillTargetingRule2D) -> bool:
 	var position_value: Variant = _get_entity_position(p_entity)
 	if not position_value is Vector2:
 		return false
@@ -80,14 +79,14 @@ func _is_entity_in_shape(p_entity: Object, p_center: Vector2, p_rule: _GF_SKILL_
 		return false
 
 	match p_rule.shape:
-		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.Shape.RECTANGLE:
+		GFSkillTargetingRule2D.Shape.RECTANGLE:
 			var half_size: Vector2 = p_rule.rectangle_size * 0.5
 			return absf(offset.x) <= half_size.x and absf(offset.y) <= half_size.y
 
-		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.Shape.CIRCLE, _GF_SKILL_TARGETING_RULE_2D_SCRIPT.Shape.SINGLE:
+		GFSkillTargetingRule2D.Shape.CIRCLE, GFSkillTargetingRule2D.Shape.SINGLE:
 			return _is_within_radius(offset, p_rule.radius)
 
-		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.Shape.SECTOR:
+		GFSkillTargetingRule2D.Shape.SECTOR:
 			if not _is_within_radius(offset, p_rule.radius):
 				return false
 
@@ -108,7 +107,7 @@ func _is_entity_in_shape(p_entity: Object, p_center: Vector2, p_rule: _GF_SKILL_
 
 
 # 检查实体标签是否符合规则。
-func _check_tags(p_entity: Object, p_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT) -> bool:
+func _check_tags(p_entity: Object, p_rule: GFSkillTargetingRule2D) -> bool:
 	if not p_entity.has_method(&"get_tag_component"):
 		return p_rule.require_tags.is_empty()
 
@@ -128,25 +127,25 @@ func _check_tags(p_entity: Object, p_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT) -
 
 
 # 对目标列表进行排序。
-func _sort_targets(p_targets: Array[Object], p_center: Vector2, p_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT) -> void:
+func _sort_targets(p_targets: Array[Object], p_center: Vector2, p_rule: GFSkillTargetingRule2D) -> void:
 	match p_rule.sort_rule:
-		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.SortRule.DISTANCE_CLOSEST:
+		GFSkillTargetingRule2D.SortRule.DISTANCE_CLOSEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
 				return _get_distance_sort_value(p_center, a) < _get_distance_sort_value(p_center, b)
 			)
-		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.SortRule.DISTANCE_FURTHEST:
+		GFSkillTargetingRule2D.SortRule.DISTANCE_FURTHEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
 				return _get_distance_sort_value(p_center, a) > _get_distance_sort_value(p_center, b)
 			)
-		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.SortRule.ATTRIBUTE_LOWEST:
+		GFSkillTargetingRule2D.SortRule.ATTRIBUTE_LOWEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
 				return _get_entity_attribute_value(a, p_rule.sort_attribute_name) < _get_entity_attribute_value(b, p_rule.sort_attribute_name)
 			)
-		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.SortRule.ATTRIBUTE_HIGHEST:
+		GFSkillTargetingRule2D.SortRule.ATTRIBUTE_HIGHEST:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
 				return _get_entity_attribute_value(a, p_rule.sort_attribute_name) > _get_entity_attribute_value(b, p_rule.sort_attribute_name)
 			)
-		_GF_SKILL_TARGETING_RULE_2D_SCRIPT.SortRule.RANDOM:
+		GFSkillTargetingRule2D.SortRule.RANDOM:
 			p_targets.sort_custom(func(a: Object, b: Object) -> bool:
 				var left_key: int = _get_random_sort_key(a, p_rule.random_seed)
 				var right_key: int = _get_random_sort_key(b, p_rule.random_seed)

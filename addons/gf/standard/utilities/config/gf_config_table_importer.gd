@@ -57,7 +57,7 @@ static func parse_json_table(text: String, options: Dictionary = {}) -> Dictiona
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param rows: 已解析的二维文本行。
 ## [br]

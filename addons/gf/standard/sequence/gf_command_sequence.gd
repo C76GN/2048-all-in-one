@@ -88,42 +88,42 @@ const _INSTANCE_GUARD = preload("res://addons/gf/kernel/core/gf_instance_guard.g
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const FAILED_STEP_ROLLBACK_REQUEST_KEY: StringName = &"rollback_required"
 
 ## 本次运行未进入 rollback。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ROLLBACK_STATUS_NOT_RUN: StringName = &"not_run"
 
 ## rollback 已完成。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ROLLBACK_STATUS_COMPLETED: StringName = &"completed"
 
 ## rollback 中至少一个 undo() 报告失败。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ROLLBACK_STATUS_FAILED: StringName = &"failed"
 
 ## rollback 等待异步 undo() 时被取消。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ROLLBACK_STATUS_CANCELLED: StringName = &"cancelled"
 
 ## rollback 等待异步 undo() 时超时。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ROLLBACK_STATUS_TIMEOUT: StringName = &"timeout"
 
 

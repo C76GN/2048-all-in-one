@@ -275,7 +275,7 @@ func apply_zoom_value(value: float, scale: float = 1.0) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试快照。
 ## [br]

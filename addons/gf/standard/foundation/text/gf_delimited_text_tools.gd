@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFDelimitedTextTools
 extends RefCounted
 
@@ -18,35 +18,35 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DELIMITER_MODE_LITERAL: StringName = &"literal"
 
 ## 按连续空白字符扫描分隔符；空白字符包括空格、制表、换行和回车。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DELIMITER_MODE_WHITESPACE: StringName = &"whitespace"
 
 ## 分隔符为空。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ERROR_INVALID_DELIMITER: StringName = &"invalid_delimiter"
 
 ## 遇到没有匹配开启符的关闭符。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ERROR_UNMATCHED_CLOSING: StringName = &"unmatched_closing"
 
 ## 扫描结束时仍有未关闭的引号或括号。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ERROR_UNMATCHED_OPENING: StringName = &"unmatched_opening"
 
 const _DEFAULT_QUOTE_CHARS: String = "\"'"
@@ -67,7 +67,7 @@ const _DEFAULT_PAIRS: Dictionary = {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param text: 要扫描的文本。
 ## [br]
@@ -91,7 +91,7 @@ static func find_top_level_delimiters(text: String, delimiter: String = _DEFAULT
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param text: 要拆分的文本。
 ## [br]

@@ -76,7 +76,7 @@ var _dispatch_trace: Array[Dictionary] = []
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_type: 要监听的脚本类型。
 ## [br]
@@ -110,7 +110,7 @@ func register(event_type: Script, listener: GFEventListener, priority: int = 0) 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听 owner。
 ## [br]
@@ -130,7 +130,7 @@ func register_owned(owner: Object, event_type: Script, listener: GFEventListener
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_type: 要注销的脚本类型。
 ## [br]
@@ -182,7 +182,7 @@ func unregister_owned(owner: Object, event_type: Script, listener: GFEventListen
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param base_event_type: 要监听的基类脚本类型。
 ## [br]
@@ -216,7 +216,7 @@ func register_assignable(base_event_type: Script, listener: GFEventListener, pri
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听 owner。
 ## [br]
@@ -241,7 +241,7 @@ func register_assignable_owned(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param base_event_type: 注册时使用的基类脚本类型。
 ## [br]
@@ -337,7 +337,7 @@ func send(event_instance: Object) -> void:
 ## [br]
 ## @param listener: 简单事件监听器契约。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func register_simple(event_id: StringName, listener: GFEventListener) -> void:
 	if not _validate_simple_event_id(event_id, "register_simple"):
 		return
@@ -364,7 +364,7 @@ func register_simple(event_id: StringName, listener: GFEventListener) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听 owner。
 ## [br]
@@ -382,7 +382,7 @@ func register_simple_owned(owner: Object, event_id: StringName, listener: GFEven
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_id: StringName 事件标识符。
 ## [br]

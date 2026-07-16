@@ -7,7 +7,7 @@
 ## [br]
 ## @category event_contract
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNetworkLobbyInvite
 extends Resource
 
@@ -18,49 +18,49 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var invite_id: String = ""
 
 ## 相关 lobby ID。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var lobby_id: String = ""
 
 ## 提供邀请的 backend 标识。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var backend_id: StringName = &""
 
 ## 邀请发送方身份。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var sender: GFNetworkPeerIdentity = null
 
 ## 邀请目标身份。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var target: GFNetworkPeerIdentity = null
 
 ## 人读说明或平台侧附带消息。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var message: String = ""
 
 ## 调用方自定义元数据。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined invite metadata.
 @export var metadata: Dictionary = {}
@@ -72,7 +72,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 邀请字典。
 ## [br]
@@ -93,7 +93,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 邀请字典。
 ## [br]
@@ -114,7 +114,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新邀请。
 func duplicate_invite() -> GFNetworkLobbyInvite:
@@ -127,7 +127,7 @@ func duplicate_invite() -> GFNetworkLobbyInvite:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 邀请字典。
 ## [br]

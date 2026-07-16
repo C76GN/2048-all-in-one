@@ -109,7 +109,7 @@ func setup(world_bounds: Rect2, depth: int = DEFAULT_MAX_DEPTH, entities_per_nod
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param rect: 待检测的轴对齐包围矩形。
 ## [br]
@@ -387,7 +387,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 报告编码选项，透传给 GFReportValueCodec。
 ## [br]

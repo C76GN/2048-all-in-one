@@ -10,7 +10,7 @@
 ## [br]
 ## @category internal_helper
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/editor
 class_name GFResourcePreviewSourceRegistry

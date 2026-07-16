@@ -69,7 +69,7 @@ const ENVELOPE_KEY: String = "__gf_storage_envelope"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ENVELOPE_VERSION_KEY: String = "__gf_storage_envelope_version"
 
 ## 存储 envelope 内原始用户数据的字段名。
@@ -81,7 +81,7 @@ const ENVELOPE_DATA_KEY: String = "data"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ENVELOPE_VERSION: int = 1
 
 const _COMPRESSION_MODE: int = FileAccess.COMPRESSION_DEFLATE

@@ -325,7 +325,7 @@ func attach_to_debug_overlay(panel_id: StringName = &"gf.runtime_inspector") -> 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 已附加且发布成功时返回 true。
 func refresh_debug_overlay_panel() -> bool:

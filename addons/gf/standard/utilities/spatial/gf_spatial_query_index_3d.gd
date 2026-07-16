@@ -478,7 +478,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 报告编码选项，透传给 GFReportValueCodec。
 ## [br]

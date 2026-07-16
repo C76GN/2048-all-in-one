@@ -7,7 +7,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer standard/input
 class_name GFInputDetectionResult
@@ -20,7 +20,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum FinishReason {
 	## 已检测到可接受输入。
 	SUCCESS,
@@ -39,35 +39,35 @@ enum FinishReason {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var reason: FinishReason = FinishReason.CANCELLED
 
 ## 捕获到的输入事件。只有 reason 为 SUCCESS 时应非空。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var input_event: InputEvent = null
 
 ## 本轮检测经过的秒数。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var elapsed_seconds: float = 0.0
 
 ## 本轮检测使用的动作值类型；-1 表示未限制。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var value_type: int = -1
 
 ## 本轮检测允许的设备类型。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema allowed_device_types: Array[int]，包含 GFInputDetector.DeviceType 枚举值；为空表示未限制。
 var allowed_device_types: Array[int] = []
@@ -79,7 +79,7 @@ var allowed_device_types: Array[int] = []
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param finish_reason: 检测结束原因。
 ## [br]
@@ -114,7 +114,7 @@ static func create(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 成功捕获输入事件时返回 true。
 func is_success() -> bool:
@@ -125,7 +125,7 @@ func is_success() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 包含输入事件时返回 true。
 func has_input_event() -> bool:
@@ -136,7 +136,7 @@ func has_input_event() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 检测结果字典。
 ## [br]
@@ -159,7 +159,7 @@ func to_dictionary() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param finish_reason: 检测结束原因。
 ## [br]

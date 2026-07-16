@@ -70,14 +70,14 @@ const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/g
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var emission_policy: GFProjectileEmissionPolicy = null
 
 ## 单次请求在生成 transform 前不可绕过的硬数量上限。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_range(1, 65536, 1) var hard_projectile_limit_per_request: int = 4096:
 	set(value):
 		hard_projectile_limit_per_request = clampi(value, 1, 65536)

@@ -7,7 +7,7 @@
 ## [br]
 ## @category protocol
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNetworkLobbyBackend
 extends RefCounted
 
@@ -18,7 +18,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param result: 创建结果。
 signal lobby_created(result: GFNetworkLobbyJoinResult)
@@ -27,7 +27,7 @@ signal lobby_created(result: GFNetworkLobbyJoinResult)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobbies: Lobby 快照列表。
 ## [br]
@@ -42,7 +42,7 @@ signal lobbies_queried(lobbies: Array[GFNetworkLobbyDescriptor], metadata: Dicti
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param result: 加入结果。
 signal lobby_joined(result: GFNetworkLobbyJoinResult)
@@ -51,7 +51,7 @@ signal lobby_joined(result: GFNetworkLobbyJoinResult)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -62,7 +62,7 @@ signal lobby_left(lobby_id: String, reason: String)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby: Lobby 快照。
 signal lobby_updated(lobby: GFNetworkLobbyDescriptor)
@@ -71,7 +71,7 @@ signal lobby_updated(lobby: GFNetworkLobbyDescriptor)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -82,7 +82,7 @@ signal member_joined(lobby_id: String, member: GFNetworkLobbyMember)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -95,7 +95,7 @@ signal member_left(lobby_id: String, peer_id: int, reason: String)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param invite: 邀请事件。
 signal invite_received(invite: GFNetworkLobbyInvite)
@@ -104,7 +104,7 @@ signal invite_received(invite: GFNetworkLobbyInvite)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param operation: 操作标识。
 ## [br]
@@ -122,7 +122,7 @@ signal backend_error(operation: StringName, error: StringName, details: Dictiona
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var backend_id: StringName = &""
 
 
@@ -132,7 +132,7 @@ var backend_id: StringName = &""
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _options: 后端选项。
 ## [br]
@@ -149,7 +149,7 @@ func create_lobby(_options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _query: 查询条件。
 ## [br]
@@ -168,7 +168,7 @@ func query_lobbies(_query: GFNetworkLobbyQuery = null, _options: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _lobby_id: Lobby ID。
 ## [br]
@@ -187,7 +187,7 @@ func join_lobby(_lobby_id: String, _options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _lobby_id: Lobby ID；为空时后端可使用当前 lobby。
 ## [br]
@@ -206,7 +206,7 @@ func leave_lobby(_lobby_id: String = "", _options: Dictionary = {}) -> Dictionar
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _lobby_id: Lobby ID。
 ## [br]
@@ -229,7 +229,7 @@ func set_lobby_metadata(_lobby_id: String, _metadata: Dictionary, _options: Dict
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _lobby_id: Lobby ID。
 ## [br]
@@ -259,7 +259,7 @@ func set_member_metadata(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _delta: 帧间隔。
 func poll(_delta: float) -> void:
@@ -270,7 +270,7 @@ func poll(_delta: float) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func close() -> void:
 	pass
 
@@ -279,7 +279,7 @@ func close() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试快照。
 ## [br]
@@ -298,7 +298,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param ok: 请求是否被接受。
 ## [br]
@@ -332,7 +332,7 @@ func _make_request_report(
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param result: 创建结果。
 func _emit_lobby_created(result: GFNetworkLobbyJoinResult) -> void:
@@ -343,7 +343,7 @@ func _emit_lobby_created(result: GFNetworkLobbyJoinResult) -> void:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobbies: Lobby 快照列表。
 ## [br]
@@ -360,7 +360,7 @@ func _emit_lobbies_queried(lobbies: Array[GFNetworkLobbyDescriptor], metadata: D
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param result: 加入结果。
 func _emit_lobby_joined(result: GFNetworkLobbyJoinResult) -> void:
@@ -371,7 +371,7 @@ func _emit_lobby_joined(result: GFNetworkLobbyJoinResult) -> void:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -384,7 +384,7 @@ func _emit_lobby_left(lobby_id: String, reason: String = "left") -> void:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby: Lobby 快照。
 func _emit_lobby_updated(lobby: GFNetworkLobbyDescriptor) -> void:
@@ -395,7 +395,7 @@ func _emit_lobby_updated(lobby: GFNetworkLobbyDescriptor) -> void:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -408,7 +408,7 @@ func _emit_member_joined(lobby_id: String, member: GFNetworkLobbyMember) -> void
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -423,7 +423,7 @@ func _emit_member_left(lobby_id: String, peer_id: int, reason: String = "left") 
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param invite: 邀请事件。
 func _emit_invite_received(invite: GFNetworkLobbyInvite) -> void:
@@ -434,7 +434,7 @@ func _emit_invite_received(invite: GFNetworkLobbyInvite) -> void:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param operation: 操作标识。
 ## [br]

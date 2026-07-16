@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFPlatformBridgeResult
 extends Resource
 
@@ -18,42 +18,42 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var request_id: StringName = &""
 
 ## 桥接契约 ID。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var contract_id: StringName = &""
 
 ## 方法 ID。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var method_id: StringName = &""
 
 ## 是否成功。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var ok: bool = false
 
 ## 状态码。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var status: StringName = &""
 
 ## 返回值。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema value: Adapter-defined result value.
 @export var value: Variant = null
@@ -62,28 +62,28 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var error: String = ""
 
 ## 开始时间戳，单位毫秒。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var started_at_msec: int = 0
 
 ## 完成时间戳，单位毫秒。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var completed_at_msec: int = 0
 
 ## 调用方元数据。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined result metadata.
 @export var metadata: Dictionary = {}
@@ -95,7 +95,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param request: 对应请求。
 ## [br]
@@ -137,7 +137,7 @@ func configure_success(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param request: 对应请求。
 ## [br]
@@ -177,7 +177,7 @@ func configure_failure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 完成时间减开始时间；缺少时间戳时返回 0。
 func get_duration_msec() -> int:
@@ -190,7 +190,7 @@ func get_duration_msec() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 桥接结果字典。
 ## [br]
@@ -214,7 +214,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 桥接结果字典。
 ## [br]
@@ -236,7 +236,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新桥接结果。
 func duplicate_result() -> GFPlatformBridgeResult:
@@ -247,7 +247,7 @@ func duplicate_result() -> GFPlatformBridgeResult:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 桥接结果字典。
 ## [br]

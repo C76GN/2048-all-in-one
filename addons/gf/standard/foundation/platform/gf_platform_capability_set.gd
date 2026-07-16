@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFPlatformCapabilitySet
 extends Resource
 
@@ -18,28 +18,28 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var platform_id: StringName = &""
 
 ## Adapter 标识。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var adapter_id: StringName = &""
 
 ## 能力 ID 列表。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var capabilities: PackedStringArray = PackedStringArray()
 
 ## 能力限制表。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema limits: Dictionary[String, Dictionary]，key 为 capability_id。
 @export var limits: Dictionary = {}
@@ -48,7 +48,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined metadata.
 @export var metadata: Dictionary = {}
@@ -60,7 +60,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_platform_id: 平台标识。
 ## [br]
@@ -91,7 +91,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear() -> void:
 	platform_id = &""
 	adapter_id = &""
@@ -104,7 +104,7 @@ func clear() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param capability_id: 能力 ID。
 ## [br]
@@ -129,7 +129,7 @@ func add_capability(capability_id: StringName, capability_limits: Dictionary = {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param capability_id: 能力 ID。
 ## [br]
@@ -147,7 +147,7 @@ func remove_capability(capability_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param capability_id: 能力 ID。
 ## [br]
@@ -160,7 +160,7 @@ func has_capability(capability_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param required_capabilities: 需要的能力 ID 列表。
 ## [br]
@@ -176,7 +176,7 @@ func has_all(required_capabilities: PackedStringArray) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param candidate_capabilities: 候选能力 ID 列表。
 ## [br]
@@ -192,7 +192,7 @@ func has_any(candidate_capabilities: PackedStringArray) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param capability_id: 能力 ID。
 ## [br]
@@ -219,7 +219,7 @@ func set_limit(capability_id: StringName, key: StringName, value: Variant) -> bo
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param capability_id: 能力 ID。
 ## [br]
@@ -244,7 +244,7 @@ func get_limit(capability_id: StringName, key: StringName, default_value: Varian
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param capability_id: 能力 ID。
 ## [br]
@@ -262,7 +262,7 @@ func get_capability_limits(capability_id: StringName) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param other: 另一个能力集合。
 ## [br]
@@ -294,7 +294,7 @@ func merge_from(other: GFPlatformCapabilitySet, overwrite_existing: bool = true)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 能力集合字典。
 ## [br]
@@ -313,7 +313,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 能力集合字典。
 ## [br]
@@ -330,7 +330,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新能力集合。
 func duplicate_set() -> GFPlatformCapabilitySet:
@@ -341,7 +341,7 @@ func duplicate_set() -> GFPlatformCapabilitySet:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 能力集合字典。
 ## [br]

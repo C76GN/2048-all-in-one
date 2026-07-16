@@ -154,7 +154,7 @@ var input_device_utility: GFInputDeviceUtility = null
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 var haptic_backend: Object = null
 
 ## 可选输出回调。有效时替代默认 Input/GFInputDeviceUtility 路由。

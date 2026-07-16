@@ -50,14 +50,14 @@ const DEFAULT_MAX_STACK_TRACE_CHARS: int = 4000
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_SNAPSHOT_ENTRIES: int = 64
 
 ## 单次批量刷新默认最多调用的 provider 数量。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_PROVIDER_CALLS: int = 32
 
 
@@ -90,7 +90,7 @@ var max_stack_trace_chars: int = DEFAULT_MAX_STACK_TRACE_CHARS:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_snapshot_entries: int = DEFAULT_MAX_SNAPSHOT_ENTRIES:
 	set(value):
 		max_snapshot_entries = maxi(value, 0)
@@ -258,7 +258,7 @@ func check_and_reset_dirty() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param tracking_id: 待刷新的追踪 ID。
 ## [br]
@@ -324,7 +324,7 @@ func refresh_snapshot(tracking_id: int) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param max_provider_calls: 本次最多调用的 provider 数量；小于等于 0 时不调用。
 ## [br]

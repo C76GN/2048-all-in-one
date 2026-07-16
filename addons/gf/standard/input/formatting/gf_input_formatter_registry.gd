@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer standard/input
 class_name GFInputFormatterRegistry
@@ -33,7 +33,7 @@ var _next_order: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 文本 provider。
 ## [br]
@@ -51,7 +51,7 @@ func register_text_provider(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 图标 provider。
 ## [br]
@@ -69,7 +69,7 @@ func register_icon_provider(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 文本 provider。
 ## [br]
@@ -82,7 +82,7 @@ func add_text_provider(provider: GFInputTextProvider, owner: Object = null) -> v
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 图标 provider。
 ## [br]
@@ -95,7 +95,7 @@ func add_icon_provider(provider: GFInputIconProvider, owner: Object = null) -> v
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 文本 provider。
 ## [br]
@@ -108,7 +108,7 @@ func remove_text_provider(provider: GFInputTextProvider) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 图标 provider。
 ## [br]
@@ -121,7 +121,7 @@ func remove_icon_provider(provider: GFInputIconProvider) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear_text_providers() -> void:
 	_clear_entries(_text_entries)
 
@@ -130,7 +130,7 @@ func clear_text_providers() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear_icon_providers() -> void:
 	_clear_entries(_icon_entries)
 
@@ -139,7 +139,7 @@ func clear_icon_providers() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return provider 列表副本，按优先级从高到低排序。
 func get_text_providers() -> Array[GFInputTextProvider]:
@@ -156,7 +156,7 @@ func get_text_providers() -> Array[GFInputTextProvider]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return provider 列表副本，按优先级从高到低排序。
 func get_icon_providers() -> Array[GFInputIconProvider]:
@@ -173,7 +173,7 @@ func get_icon_providers() -> Array[GFInputIconProvider]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 被裁剪的注册数量。
 func prune_invalid_provider_owners() -> int:
@@ -184,7 +184,7 @@ func prune_invalid_provider_owners() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func dispose() -> void:
 	clear_text_providers()
 	clear_icon_providers()

@@ -135,7 +135,7 @@ func render_mesh_texture(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param request: 缩略图渲染请求。
 ## [br]
@@ -151,7 +151,7 @@ func submit_render_request(request: GFThumbnailRenderRequest) -> GFThumbnailRend
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task: 要取消的任务。
 ## [br]

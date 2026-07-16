@@ -179,7 +179,7 @@ func setup(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_min_value: 最小值。
 ## [br]
@@ -270,7 +270,7 @@ func write_value(target: Object, value: Variant) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 输入值。
 ## [br]

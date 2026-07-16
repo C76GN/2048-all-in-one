@@ -14,7 +14,7 @@ const _DEFAULT_MAX_NODES: int = 100000
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 即将进入持久化边界的 Variant。
 ## [br]

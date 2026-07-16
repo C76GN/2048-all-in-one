@@ -7,7 +7,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNetworkLobbyMember
 extends Resource
 
@@ -18,35 +18,35 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var peer_id: int = -1
 
 ## 成员身份描述。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var identity: GFNetworkPeerIdentity = null
 
 ## 是否为 lobby owner。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var is_owner: bool = false
 
 ## 是否为本地成员。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var is_local: bool = false
 
 ## 调用方自定义成员元数据。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined member metadata.
 @export var metadata: Dictionary = {}
@@ -58,7 +58,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_peer_id: 成员传输 peer 标识。
 ## [br]
@@ -93,7 +93,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 展示名称。
 func get_display_name() -> String:
@@ -108,7 +108,7 @@ func get_display_name() -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 成员字典。
 ## [br]
@@ -127,7 +127,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 成员字典。
 ## [br]
@@ -145,7 +145,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新成员。
 func duplicate_member() -> GFNetworkLobbyMember:
@@ -158,7 +158,7 @@ func duplicate_member() -> GFNetworkLobbyMember:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 成员字典。
 ## [br]

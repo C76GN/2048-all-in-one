@@ -55,7 +55,7 @@ func generate(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param contract: 网络契约资源。
 ## [br]
@@ -238,7 +238,7 @@ func save_source(output_path: String, source: String, overwrite_existing: bool =
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param output_path: 输出脚本路径。
 ## [br]

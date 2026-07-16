@@ -86,7 +86,7 @@ func describe_recipe() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 传给 GFReportValueCodec 的编码选项。
 ## [br]

@@ -90,7 +90,7 @@ static func await_signal_payload(result_signal: Signal, options: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param completion: 要等待的完成源。
 ## [br]

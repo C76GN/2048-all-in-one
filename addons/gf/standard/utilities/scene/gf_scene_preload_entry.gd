@@ -94,7 +94,7 @@ func describe_entry() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 资源身份对象。
 func get_resource_identity() -> GFResourceIdentity:
@@ -105,7 +105,7 @@ func get_resource_identity() -> GFResourceIdentity:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 资源身份 cache_key。
 func get_cache_key() -> String:

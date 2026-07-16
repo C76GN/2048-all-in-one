@@ -86,7 +86,7 @@ const _PARENT_CHAIN_TRUNCATED_KEY: String = "truncated"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const SERVICE_COMMAND_HISTORY_STORE: StringName = &"gf.kernel.command_history_store"
 
 ## 声明式依赖聚合 Hook 名称。
@@ -550,7 +550,7 @@ func send_event(event_instance: Object) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_type: 要监听的脚本类型。
 ## [br]
@@ -568,7 +568,7 @@ func register_event(event_type: Script, listener: GFEventListener, priority: int
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听器拥有者。
 ## [br]
@@ -588,7 +588,7 @@ func register_event_owned(owner: Object, event_type: Script, listener: GFEventLi
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param base_event_type: 要监听的基类脚本类型。
 ## [br]
@@ -605,7 +605,7 @@ func register_assignable_event(base_event_type: Script, listener: GFEventListene
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听器拥有者。
 ## [br]
@@ -629,7 +629,7 @@ func register_assignable_event_owned(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_type: 要注销的脚本类型。
 ## [br]
@@ -662,7 +662,7 @@ func unregister_event_owned(owner: Object, event_type: Script, listener: GFEvent
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param base_event_type: 注册时使用的基类脚本类型。
 ## [br]
@@ -694,7 +694,7 @@ func unregister_assignable_event_owned(owner: Object, base_event_type: Script, l
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_id: StringName 事件标识符。
 ## [br]
@@ -709,7 +709,7 @@ func register_simple_event(event_id: StringName, listener: GFEventListener) -> v
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听器拥有者。
 ## [br]
@@ -726,7 +726,7 @@ func register_simple_event_owned(owner: Object, event_id: StringName, listener: 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_id: StringName 事件标识符。
 ## [br]
@@ -1141,7 +1141,7 @@ func has_factory(script_cls: Script) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_key: 稳定服务键。
 ## [br]
@@ -1171,7 +1171,7 @@ func register_service(service_key: StringName, provider: Object) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_key: 稳定服务键。
 ## [br]
@@ -1198,7 +1198,7 @@ func unregister_service(service_key: StringName, provider: Object = null) -> boo
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_key: 稳定服务键。
 ## [br]
@@ -1216,7 +1216,7 @@ func get_service(service_key: StringName, include_parent: bool = true) -> Object
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_key: 稳定服务键。
 ## [br]

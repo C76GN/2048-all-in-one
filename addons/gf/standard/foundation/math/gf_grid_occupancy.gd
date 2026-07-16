@@ -134,7 +134,7 @@ func can_occupy(receiver: Variant, cell: Vector2i) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 被至少一个接收者占用的格子数组，按 y/x 稳定顺序返回。
 func get_occupied_cells() -> Array[Vector2i]:
@@ -146,7 +146,7 @@ func get_occupied_cells() -> Array[Vector2i]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 被接收者预约的格子数组，按 y/x 稳定顺序返回。
 func get_reserved_cells() -> Array[Vector2i]:
@@ -158,7 +158,7 @@ func get_reserved_cells() -> Array[Vector2i]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param receiver: 接收者。
 ## [br]

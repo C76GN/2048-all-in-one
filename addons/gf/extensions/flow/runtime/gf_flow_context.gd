@@ -305,7 +305,7 @@ func clear_node_runtime_state(node_id: StringName = &"") -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 快照选项，支持 metadata、include_condition_handler_ids 和 json_compatible。
 ## [br]
@@ -334,7 +334,7 @@ func create_runtime_snapshot(options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param snapshot: create_runtime_snapshot() 生成的快照。
 ## [br]

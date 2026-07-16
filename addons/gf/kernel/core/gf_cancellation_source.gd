@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/core
 class_name GFCancellationSource
@@ -20,7 +20,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 稳定取消原因。
 ## [br]
@@ -51,7 +51,7 @@ var _timeout_callback: Callable = Callable()
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前 source 持有的取消 token。
 func get_token() -> GFCancellationToken:
@@ -62,7 +62,7 @@ func get_token() -> GFCancellationToken:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 稳定取消原因。
 ## [br]
@@ -87,7 +87,7 @@ func cancel(reason: StringName = &"cancelled", metadata: Dictionary = {}) -> boo
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 已请求取消时返回 true。
 func is_cancel_requested() -> bool:
@@ -98,7 +98,7 @@ func is_cancel_requested() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param token: 上游取消 token。
 ## [br]
@@ -147,7 +147,7 @@ func link_token(token: GFCancellationToken, reason: StringName = &"", metadata: 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param node: 生命周期拥有者节点。
 ## [br]
@@ -195,7 +195,7 @@ func cancel_when_node_exits(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param seconds: 超时时间；小于等于 0 时立即取消。
 ## [br]
@@ -252,7 +252,7 @@ func cancel_after_seconds(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func dispose() -> void:
 	_disconnect_timeout()
 	_disconnect_linked_tokens()
@@ -263,7 +263,7 @@ func dispose() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试快照。
 ## [br]
@@ -280,7 +280,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param tokens: 上游 token 列表。
 ## [br]

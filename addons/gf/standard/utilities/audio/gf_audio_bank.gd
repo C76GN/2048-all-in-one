@@ -217,7 +217,7 @@ func resolve_clip(clip_id: StringName, rng: RandomNumberGenerator = null) -> Dic
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: resolve_clip() 返回的原始报告。
 ## [br]

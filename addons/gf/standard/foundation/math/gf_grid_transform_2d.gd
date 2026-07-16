@@ -212,7 +212,7 @@ static func transform_cells(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param direction: 原始四向单位方向。
 ## [br]

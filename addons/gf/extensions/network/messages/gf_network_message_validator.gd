@@ -45,77 +45,77 @@ var required_payload_keys: PackedStringArray = PackedStringArray()
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var allowed_message_types: PackedStringArray = PackedStringArray()
 
 ## 显式拒绝的 message_type 列表。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var blocked_message_types: PackedStringArray = PackedStringArray()
 
 ## 可选网络契约。设置后可用字段契约校验消息 payload。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var contract: GFNetworkContract = null
 
 ## 是否要求 message_type 必须存在于 contract 中。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var require_contract_message: bool = false
 
 ## 已知逻辑 channel_id 列表。为空时不限制。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var known_channel_ids: PackedStringArray = PackedStringArray()
 
 ## 通过 validate_message_for_peer() 校验时，是否要求 sender_id 与实际 peer_id 一致。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var enforce_sender_id_matches_peer: bool = false
 
 ## 是否要求消息显式携带 sender_id。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var require_sender_id: bool = false
 
 ## 最小允许 sequence。小于 0 表示不限制。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var min_sequence: int = -1
 
 ## 最大允许 sequence。小于 0 表示不限制。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_sequence: int = -1
 
 ## 最小允许 tick。小于 0 表示不限制。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var min_tick: int = -1
 
 ## 最大允许 tick。小于 0 表示不限制。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_tick: int = -1
 
 
@@ -138,7 +138,7 @@ func validate_message(message: GFNetworkMessage) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param message: 消息。
 ## [br]
@@ -155,7 +155,7 @@ func validate_message_for_peer(message: GFNetworkMessage, peer_id: int) -> Dicti
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param message_type: 消息类型。
 ## [br]
@@ -168,7 +168,7 @@ func allow_message_type(message_type: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param channel_id: 通道标识。
 ## [br]
@@ -181,7 +181,7 @@ func register_known_channel(channel_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param network_contract: 网络契约。
 ## [br]

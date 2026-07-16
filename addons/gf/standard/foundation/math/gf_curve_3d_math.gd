@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFCurve3DMath
 extends RefCounted
 
@@ -24,7 +24,7 @@ const _EPSILON_SQUARED: float = _EPSILON * _EPSILON
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param points: 折线点序列。
 ## [br]
@@ -40,7 +40,7 @@ static func get_polyline_length(points: PackedVector3Array) -> float:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param points: 折线点序列。
 ## [br]
@@ -93,7 +93,7 @@ static func sample_polyline(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param points: 折线点序列。
 ## [br]
@@ -145,7 +145,7 @@ static func sample_polyline_pose(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param points: 折线点序列。
 ## [br]
@@ -225,7 +225,7 @@ static func project_point_to_polyline(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param curve: 目标曲线。
 ## [br]
@@ -257,7 +257,7 @@ static func sample_curve(curve: Curve3D, ratio: float, cubic: bool = false) -> V
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param curve: 目标曲线。
 ## [br]

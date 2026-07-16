@@ -161,7 +161,7 @@ func clear() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report_options: 传给 get_report() 的报告选项。
 ## [br]
@@ -365,7 +365,7 @@ static func report_request_handlers(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param adapter_id: 稳定适配器 ID。
 ## [br]
@@ -428,7 +428,7 @@ static func make_object_adapter_entry(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param singleton_name: Engine singleton 名称。
 ## [br]

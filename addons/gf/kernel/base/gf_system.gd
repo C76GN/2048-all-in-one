@@ -264,7 +264,7 @@ func get_system(system_type: Script, require_ready: bool = false) -> Object:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_type: 要监听的脚本类型。
 ## [br]
@@ -281,7 +281,7 @@ func register_event(event_type: Script, listener: GFEventListener, priority: int
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_type: 要注销的脚本类型。
 ## [br]
@@ -296,7 +296,7 @@ func unregister_event(event_type: Script, listener: GFEventListener) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param base_event_type: 要监听的基类脚本类型。
 ## [br]
@@ -313,7 +313,7 @@ func register_assignable_event(base_event_type: Script, listener: GFEventListene
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param base_event_type: 注册时使用的基类脚本类型。
 ## [br]
@@ -339,7 +339,7 @@ func send_event(event_instance: Object) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_id: StringName 事件标识符。
 ## [br]
@@ -354,7 +354,7 @@ func register_simple_event(event_id: StringName, listener: GFEventListener) -> v
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_id: StringName 事件标识符。
 ## [br]

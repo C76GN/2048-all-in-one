@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/core
 class_name GFAsyncScope
@@ -26,7 +26,7 @@ var _completed: bool = false
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前作用域自身，可作为 GFCancellationToken 使用。
 func get_token() -> GFCancellationToken:
@@ -37,7 +37,7 @@ func get_token() -> GFCancellationToken:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 未 complete 且未 cancel 时返回 true。
 func is_active() -> bool:
@@ -48,7 +48,7 @@ func is_active() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return complete() 被调用后返回 true。
 func is_completed() -> bool:
@@ -59,7 +59,7 @@ func is_completed() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cleanup_callback: 取消时执行的无参 Callable。
 ## [br]
@@ -83,7 +83,7 @@ func register_cleanup(cleanup_callback: Callable) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cleanup_callback: 要移除的清理回调。
 func unregister_cleanup(cleanup_callback: Callable) -> void:
@@ -96,7 +96,7 @@ func unregister_cleanup(cleanup_callback: Callable) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 取消原因。
 ## [br]
@@ -119,7 +119,7 @@ func cancel(reason: String = "", metadata: Dictionary = {}) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func complete() -> void:
 	if is_cancel_requested():
 		return

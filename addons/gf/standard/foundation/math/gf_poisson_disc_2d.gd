@@ -158,7 +158,7 @@ static func generate_points(area: Rect2, minimum_distance: float, options: Dicti
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: generate_points() 返回的原生报告。
 ## [br]

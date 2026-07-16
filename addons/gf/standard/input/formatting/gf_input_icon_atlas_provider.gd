@@ -73,21 +73,21 @@ const _INPUT_EVENT_IDENTITY = preload("res://addons/gf/standard/input/common/gf_
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var cache_missing_paths: bool = true
 
 ## 成功加载纹理缓存容量；小于等于 0 表示不缓存新纹理。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var max_cached_textures: int = 128
 
 ## 缺失路径缓存容量；小于等于 0 表示不缓存缺失路径。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var max_cached_missing_paths: int = 256
 
 

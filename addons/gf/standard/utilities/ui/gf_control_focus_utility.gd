@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFControlFocusUtility
 extends RefCounted
 
@@ -18,28 +18,28 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const AXIS_NONE: StringName = &"none"
 
 ## 按顺序写入 focus_neighbor_left / focus_neighbor_right。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const AXIS_HORIZONTAL: StringName = &"horizontal"
 
 ## 按顺序写入 focus_neighbor_top / focus_neighbor_bottom。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const AXIS_VERTICAL: StringName = &"vertical"
 
 ## 同时写入水平和垂直方向邻居。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const AXIS_BOTH: StringName = &"both"
 
 
@@ -49,7 +49,7 @@ const AXIS_BOTH: StringName = &"both"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root: 查询根节点。
 ## [br]
@@ -89,7 +89,7 @@ static func collect_focusable_controls(root: Node, options: Dictionary = {}) -> 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root: 查询根节点。
 ## [br]
@@ -108,7 +108,7 @@ static func apply_focus_order_from_root(root: Node, options: Dictionary = {}) ->
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param controls: 目标控件顺序。
 ## [br]
@@ -185,7 +185,7 @@ static func apply_focus_order(controls: Array[Control], options: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param controls: 目标控件顺序。
 ## [br]
@@ -224,7 +224,7 @@ static func get_next_focus_control(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param controls: 目标控件顺序。
 ## [br]

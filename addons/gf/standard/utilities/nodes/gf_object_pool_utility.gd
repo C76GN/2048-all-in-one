@@ -138,7 +138,7 @@ func dispose() -> void:
 ## [br]
 ## @return 可直接使用的节点实例。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func acquire(scene: PackedScene, parent: Node, before_add: Callable = Callable()) -> Node:
 	if _is_disposed:
 		push_warning("[GFObjectPoolUtility] 对象池已销毁，忽略 acquire。")
@@ -250,7 +250,7 @@ func release(node: Node, scene: PackedScene) -> void:
 ## [br]
 ## @param before_add: 可选入树前回调，签名为 `func(node: Node) -> void`。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func prewarm(scene: PackedScene, parent: Node, count: int, before_add: Callable = Callable()) -> void:
 	if _is_disposed:
 		push_warning("[GFObjectPoolUtility] 对象池已销毁，忽略 prewarm。")
@@ -279,7 +279,7 @@ func prewarm(scene: PackedScene, parent: Node, count: int, before_add: Callable 
 ## [br]
 ## @param before_add: 可选入树前回调，签名为 `func(node: Node) -> void`。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func prewarm_async(
 	scene: PackedScene,
 	parent: Node,
@@ -329,7 +329,7 @@ func prewarm_async(
 ## [br]
 ## @param before_add: 可选入树前回调，签名为 `func(node: Node) -> void`。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func prewarm_async_budget(
 	scene: PackedScene,
 	parent: Node,
@@ -525,7 +525,7 @@ func _queue_free_detached(node: Node) -> void:
 	if not is_instance_valid(node):
 		return
 	var parent: Node = node.get_parent()
-	if parent != null and not GFAutoload.is_tree_shutdown_in_progress():
+	if parent != null and not GFAutoload.is_tree_exit_in_progress():
 		parent.remove_child(node)
 	if not node.is_queued_for_deletion():
 		node.queue_free()

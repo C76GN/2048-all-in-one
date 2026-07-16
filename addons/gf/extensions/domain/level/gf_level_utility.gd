@@ -272,7 +272,7 @@ func start_level(level_id: Variant, level_data_override: Dictionary = {}) -> Dic
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param clear_runtime: 是否执行已注册的运行时清理回调。
 ## [br]
@@ -353,7 +353,7 @@ func lose_current_level() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear_level_runtime() -> void:
 	var _cleanup_report: Dictionary = _runtime_cleanup_scope.run_scope(_LEVEL_CLEANUP_SCOPE_ID)
 
@@ -362,7 +362,7 @@ func clear_level_runtime() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cleanup_id: 清理项唯一标识。
 ## [br]
@@ -394,7 +394,7 @@ func register_runtime_cleanup(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cleanup_id: 清理项唯一标识。
 ## [br]

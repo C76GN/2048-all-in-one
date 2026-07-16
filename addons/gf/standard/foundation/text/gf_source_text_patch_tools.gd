@@ -9,7 +9,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFSourceTextPatchTools
 extends RefCounted
 
@@ -20,28 +20,28 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ERROR_INVALID_EDIT: StringName = &"invalid_edit"
 
 ## edit 范围越过文本行或列边界。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ERROR_RANGE_OUT_OF_BOUNDS: StringName = &"range_out_of_bounds"
 
 ## edit 起点在终点之后。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ERROR_INVALID_RANGE: StringName = &"invalid_range"
 
 ## edit 范围互相重叠或同一位置存在顺序不明确的插入。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ERROR_OVERLAPPING_EDITS: StringName = &"overlapping_edits"
 
 
@@ -53,7 +53,7 @@ const ERROR_OVERLAPPING_EDITS: StringName = &"overlapping_edits"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param start_line: 起始行，零基。
 ## [br]
@@ -88,7 +88,7 @@ static func make_range(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param start_line: 起始行，零基。
 ## [br]
@@ -131,7 +131,7 @@ static func make_replacement_edit(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source_text: 原始文本。
 ## [br]
@@ -173,7 +173,7 @@ static func validate_text_edits(source_text: String, edits: Array, options: Dict
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source_text: 原始文本。
 ## [br]

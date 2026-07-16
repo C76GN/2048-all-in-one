@@ -105,7 +105,7 @@ func register_path(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param resource_key: 稳定资源键。
 ## [br]
@@ -150,7 +150,7 @@ func unregister_path(resource_key: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param registration_id: register_path_for_owner() 返回的注册 token。
 ## [br]
@@ -175,7 +175,7 @@ func unregister_registration(registration_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner_id: register_path_for_owner() 使用的 owner ID。
 ## [br]
@@ -204,7 +204,7 @@ func unregister_owner(owner_id: StringName) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner_id: 注册拥有者 ID。
 ## [br]

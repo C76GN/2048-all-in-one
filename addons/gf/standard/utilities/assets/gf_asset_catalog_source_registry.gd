@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFAssetCatalogSourceRegistry
 extends RefCounted
 
@@ -23,7 +23,7 @@ var _providers: Array[GFAssetCatalogSourceProvider] = []
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 资产来源 provider。
 ## [br]
@@ -56,7 +56,7 @@ func register_source(provider: GFAssetCatalogSourceProvider, options: Dictionary
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 已注册的 provider。
 ## [br]
@@ -73,7 +73,7 @@ func unregister_source(provider: GFAssetCatalogSourceProvider) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear_sources() -> void:
 	_providers.clear()
 
@@ -82,7 +82,7 @@ func clear_sources() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source_id: 来源稳定 ID。
 ## [br]
@@ -98,7 +98,7 @@ func has_source_id(source_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 来源摘要数组。
 ## [br]
@@ -120,7 +120,7 @@ func get_source_records() -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 可选项，支持 provider_options、overwrite 和 source_ids。
 ## [br]
@@ -149,7 +149,7 @@ func build_catalog(options: Dictionary = {}) -> GFAssetCatalog:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 可选项，传给 build_catalog()。
 ## [br]

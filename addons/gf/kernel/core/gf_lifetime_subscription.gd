@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/core
 class_name GFLifetimeSubscription
@@ -27,7 +27,7 @@ var _owner_exit_callable: Callable = Callable()
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 订阅生命周期 owner。
 ## [br]
@@ -45,7 +45,7 @@ func _init(owner: Object = null, cancel_callback: Callable = Callable(), debug_l
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 本次调用是否首次取消了活动订阅。
 func cancel() -> bool:
@@ -57,7 +57,7 @@ func cancel() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return token 未取消且 owner 未释放时返回 true。
 func is_active() -> bool:
@@ -68,7 +68,7 @@ func is_active() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前 owner 或 null。
 func get_owner() -> Object:
@@ -86,7 +86,7 @@ func get_owner() -> Object:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return owner 实例 ID。
 func get_owner_id() -> int:
@@ -97,7 +97,7 @@ func get_owner_id() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return owner 曾经设置且当前已无法解析时返回 true。
 func owner_is_released() -> bool:

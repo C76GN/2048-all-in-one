@@ -147,7 +147,7 @@ var _burst_scope: GFAsyncScope = null
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func dispose() -> void:
 	var _cancelled: bool = cancel_burst("utility_disposed")
 
@@ -158,7 +158,7 @@ func dispose() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 取消原因。
 ## [br]

@@ -268,7 +268,7 @@ func get_entity_count() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func prune_invalid_entities() -> void:
 	var keys_to_remove: Array[String] = []
 	for entity_key: String in _records.keys():
@@ -561,7 +561,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 报告编码选项，透传给 GFReportValueCodec。
 ## [br]

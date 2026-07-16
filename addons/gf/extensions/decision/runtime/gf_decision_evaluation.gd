@@ -7,7 +7,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFDecisionEvaluation
 extends RefCounted
 
@@ -18,14 +18,14 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var decision_set_id: StringName = &""
 
 ## 本次评价的评分结果。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema scores: Array[GFDecisionScore] copied from one score_all() pass.
 var scores: Array[GFDecisionScore] = []
@@ -34,14 +34,14 @@ var scores: Array[GFDecisionScore] = []
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var best_score: GFDecisionScore = null
 
 ## 本次评价的调试快照。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema debug_snapshot: Dictionary copied from GFDecisionSet.get_debug_snapshot().
 var debug_snapshot: Dictionary = {}
@@ -53,7 +53,7 @@ var debug_snapshot: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_decision_set_id: 决策集合标识。
 ## [br]
@@ -85,7 +85,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 评价结果字典。
 ## [br]
@@ -107,7 +107,7 @@ func to_dictionary() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 评价结果调试快照。
 ## [br]
@@ -120,7 +120,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 传给 GFReportValueCodec 的编码选项。
 ## [br]

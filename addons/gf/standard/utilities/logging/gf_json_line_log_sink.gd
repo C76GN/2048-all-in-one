@@ -18,7 +18,7 @@ extends GFLogSink
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum FileOpenMode {
 	## 每次 init() 截断已有文件。
 	TRUNCATE,
@@ -62,7 +62,7 @@ enum FileOpenMode {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var file_open_mode: FileOpenMode = FileOpenMode.TRUNCATE
 
 
@@ -85,7 +85,7 @@ var _is_initialized: bool = false
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return debug profile 名称。
 ## [br]
@@ -182,7 +182,7 @@ func get_file_path() -> String:
 ## [br]
 ## @schema return: Dictionary，包含 file_path、is_open、last_error、last_error_message、write_error_count、cleanup_error_count 和 uses_default_file_path。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func get_debug_snapshot() -> Dictionary:
 	return {
 		"file_path": _effective_file_path,

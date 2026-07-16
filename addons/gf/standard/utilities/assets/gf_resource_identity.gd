@@ -7,7 +7,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFResourceIdentity
 extends RefCounted
 
@@ -18,28 +18,28 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const SCHEME_RES: StringName = &"res"
 
 ## Godot UID 资源路径 scheme。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const SCHEME_UID: StringName = &"uid"
 
 ## 用户数据路径 scheme。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const SCHEME_USER: StringName = &"user"
 
 ## 没有可识别 scheme。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const SCHEME_NONE: StringName = &""
 
 
@@ -49,70 +49,70 @@ const SCHEME_NONE: StringName = &""
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var resource_key: StringName = &""
 
 ## 调用方传入的原始路径文本。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var raw_path: String = ""
 
 ## 规范化路径。`uid://` 可解析时会回解为 Godot 当前记录的资源路径。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var canonical_path: String = ""
 
 ## Godot UID 路径；无法取得 UID 时为空。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var uid_path: String = ""
 
 ## ResourceLoader 类型提示；可为空。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var type_hint: String = ""
 
 ## 路径 scheme，例如 `res`、`uid` 或 `user`。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var scheme: StringName = SCHEME_NONE
 
 ## 规范化路径扩展名，不含点号。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var extension: String = ""
 
 ## 推荐缓存键。优先使用 UID，其次使用规范化路径，最后使用资源键。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var cache_key: String = ""
 
 ## 当前工程中是否能确认该资源存在。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var exists: bool = false
 
 ## 调用方元数据。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary with caller-defined identity metadata.
 var metadata: Dictionary = {}
@@ -124,7 +124,7 @@ var metadata: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_resource_key: 稳定资源键；可为空。
 ## [br]
@@ -160,7 +160,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 有路径或资源键时返回 true。
 func has_identity() -> bool:
@@ -171,7 +171,7 @@ func has_identity() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 资源身份字典。
 ## [br]
@@ -195,7 +195,7 @@ func to_dictionary() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 身份副本。
 func duplicate_identity() -> GFResourceIdentity:
@@ -206,7 +206,7 @@ func duplicate_identity() -> GFResourceIdentity:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 原始资源路径。
 ## [br]
@@ -234,7 +234,7 @@ static func from_path(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: to_dictionary() 兼容字典。
 ## [br]

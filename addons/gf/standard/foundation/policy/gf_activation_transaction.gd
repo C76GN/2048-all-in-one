@@ -53,7 +53,7 @@ const STATE_FAILED: StringName = &"failed"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_ASYNC_CALLBACK_UNSUPPORTED: StringName = &"async_callback_unsupported"
 
 const _DEFAULT_SUBJECT: String = "Activation transaction"

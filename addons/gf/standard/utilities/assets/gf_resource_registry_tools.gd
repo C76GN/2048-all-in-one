@@ -88,7 +88,7 @@ const DEFAULT_MAX_RESOURCE_PATHS: int = 10000
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_SCANNED_ENTRIES: int = 100000
 
 ## 默认路径字段：资源扩展名。

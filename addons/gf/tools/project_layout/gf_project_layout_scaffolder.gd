@@ -8,7 +8,7 @@
 ## [br]
 ## @category tool_api
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFProjectLayoutScaffolder
 extends RefCounted
 
@@ -19,7 +19,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_FEATURE_COHESIVE_PROFILE_PATH: String = "res://addons/gf/tools/project_layout/profiles/feature_cohesive_v1.json"
 const _SCHEMA_VERSION: int = 1
 const _RULE_BUCKET_SIZE: String = "bucket_size"
@@ -84,7 +84,7 @@ const _RULE_ALLOWED_FIELDS: PackedStringArray = [
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 脚手架选项。
 ## [br]
@@ -101,7 +101,7 @@ func scaffold_default_profile(options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param profile_path: JSON profile 路径。
 ## [br]
@@ -141,7 +141,7 @@ func scaffold_profile_path(profile_path: String, options: Dictionary = {}) -> Di
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param profile: 项目结构 profile 字典。
 ## [br]
@@ -178,7 +178,7 @@ func scaffold_profile(profile: Dictionary, options: Dictionary = {}) -> Dictiona
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param profile: 项目结构 profile 字典。
 ## [br]

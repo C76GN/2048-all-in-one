@@ -139,7 +139,7 @@ func finish() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 有效且仍在场景树内的宿主节点；没有宿主时返回 null。
 func get_wait_guard_node() -> Node:

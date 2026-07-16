@@ -7,7 +7,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer standard/input
 class_name GFInputEventIdentity
@@ -20,63 +20,63 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_NONE: StringName = &""
 
 ## Godot InputEventAction。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_ACTION: StringName = &"action"
 
 ## 键盘按键事件。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_KEY: StringName = &"key"
 
 ## 鼠标按钮事件。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_MOUSE_BUTTON: StringName = &"mouse_button"
 
 ## 手柄按钮事件。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_JOY_BUTTON: StringName = &"joy_button"
 
 ## 手柄轴事件。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_JOY_AXIS: StringName = &"joy_axis"
 
 ## 触屏按下事件。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_TOUCH: StringName = &"touch"
 
 ## 触屏拖动事件。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_SCREEN_DRAG: StringName = &"screen_drag"
 
 ## 未专门建模的其他 InputEvent。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_UNKNOWN: StringName = &"unknown"
 
 const _INPUT_EVENT_TOOLS = preload("res://addons/gf/standard/input/common/gf_input_event_tools.gd")
@@ -88,56 +88,56 @@ const _INPUT_EVENT_TOOLS = preload("res://addons/gf/standard/input/common/gf_inp
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var kind: StringName = KIND_NONE
 
 ## 主身份键。用于日志、报告和调试展示中的稳定归类。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var primary_key: String = ""
 
 ## 显示键。用于 UI 或文档层决定如何进一步本地化。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var display_key: String = ""
 
 ## 冲突键。默认不包含设备 ID，设备匹配应使用 get_signature()。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var conflict_key: String = ""
 
 ## 首选图标键。没有稳定图标语义时为空。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var icon_key: StringName = &""
 
 ## 输入事件携带的 Godot device ID。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var device_id: int = -1
 
 ## 轴方向。正向为 1，负向为 -1，未知或不适用为 0。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var axis_sign: int = 0
 
 ## 附加元数据。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary，包含事件类型相关的纯数据字段。
 var metadata: Dictionary = {}
@@ -149,7 +149,7 @@ var metadata: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param input_event: 输入事件。
 ## [br]
@@ -207,7 +207,7 @@ static func from_event(input_event: InputEvent, options: Dictionary = {}) -> GFI
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param input_event: 输入事件。
 ## [br]
@@ -255,7 +255,7 @@ static func get_icon_candidates(input_event: InputEvent, options: Dictionary = {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 空身份返回 true。
 func is_empty() -> bool:
@@ -266,7 +266,7 @@ func is_empty() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param include_device: 是否把 device_id 纳入签名。
 ## [br]
@@ -281,7 +281,7 @@ func get_signature(include_device: bool = false) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param json_compatible: 是否把 metadata 转换为 JSON 兼容值。
 ## [br]
@@ -306,7 +306,7 @@ func to_dictionary(json_compatible: bool = true) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 身份字典。
 ## [br]

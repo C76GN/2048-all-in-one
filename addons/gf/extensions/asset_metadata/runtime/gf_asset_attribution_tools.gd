@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFAssetAttributionTools
 extends RefCounted
 
@@ -29,7 +29,7 @@ const _COPYRIGHT_FIELDS: PackedStringArray = ["copyright", "copyright_notice"]
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 输入归因字典；也可传入 GFAssetMetadataRecord.to_dict() 形状的字典。
 ## [br]
@@ -65,7 +65,7 @@ static func normalize_attribution(data: Dictionary, options: Dictionary = {}) ->
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 要解析的资源路径。
 ## [br]
@@ -92,7 +92,7 @@ static func resolve_attribution(path: String, entries: Array, options: Dictionar
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param entries: 归因条目数组；每项可为 Dictionary 或 GFAssetMetadataRecord。
 ## [br]
@@ -151,7 +151,7 @@ static func build_attribution_report(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: build_attribution_report() 返回的报告字典。
 ## [br]

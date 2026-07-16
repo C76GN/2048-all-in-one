@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNoiseFieldTools
 extends RefCounted
 
@@ -19,14 +19,14 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_GRID_SAMPLES: int = 1048576
 
 ## 未提供 noise 时创建 FastNoiseLite 使用的默认频率。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_NOISE_FREQUENCY: float = 0.01
 
 const _GF_REPORT_VALUE_CODEC_SCRIPT = preload("res://addons/gf/kernel/core/gf_report_value_codec.gd")
@@ -41,7 +41,7 @@ const _GF_REPORT_VALUE_CODEC_SCRIPT = preload("res://addons/gf/kernel/core/gf_re
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param grid_size: 采样网格尺寸，x 为列数，y 为行数。
 ## [br]
@@ -142,7 +142,7 @@ static func sample_grid_2d(grid_size: Vector2i, options: Dictionary = {}) -> Dic
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param samples: 待归一化的浮点样本。
 ## [br]
@@ -208,7 +208,7 @@ static func normalize_samples(samples: PackedFloat32Array, options: Dictionary =
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: sample_grid_2d() 或 normalize_samples() 返回的报告。
 ## [br]

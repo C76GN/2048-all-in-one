@@ -68,8 +68,11 @@ var _installing_architecture_stack: Array[GFArchitecture] = []
 
 # --- Godot 生命周期方法 ---
 
+func _enter_tree() -> void:
+	_GF_AUTOLOAD_SCRIPT.reset_tree_exit_state()
+
+
 func _ready() -> void:
-	_GF_AUTOLOAD_SCRIPT.reset_tree_shutdown_state()
 	process_mode = Node.PROCESS_MODE_ALWAYS as Node.ProcessMode
 
 
@@ -87,11 +90,12 @@ func _physics_process(delta: float) -> void:
 
 # 节点退出树时清理架构。
 func _exit_tree() -> void:
-	_GF_AUTOLOAD_SCRIPT.mark_tree_shutdown_started()
+	_GF_AUTOLOAD_SCRIPT.begin_tree_exit_scope()
 	if _architecture != null:
 		_architecture_assignment_serial += 1
 		_architecture.dispose()
 		_architecture = null
+	_GF_AUTOLOAD_SCRIPT.end_tree_exit_scope()
 
 
 # --- 公共方法 ---
@@ -767,7 +771,7 @@ func clear_event_dispatch_trace() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_type: 要监听或取消监听的事件脚本类型。
 ## [br]
@@ -783,7 +787,7 @@ func listen(event_type: Script, listener: GFEventListener, priority: int = 0) ->
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param listener_owner: 监听回调的拥有者，用于批量注销。
 ## [br]
@@ -801,7 +805,7 @@ func listen_owned(listener_owner: Object, event_type: Script, listener: GFEventL
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param base_event_type: 要监听或取消监听的基类事件脚本类型。
 ## [br]
@@ -817,7 +821,7 @@ func listen_assignable(base_event_type: Script, listener: GFEventListener, prior
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param listener_owner: 监听回调的拥有者，用于批量注销。
 ## [br]
@@ -840,7 +844,7 @@ func listen_assignable_owned(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_type: 要监听或取消监听的事件脚本类型。
 ## [br]
@@ -870,7 +874,7 @@ func unlisten_owned(listener_owner: Object, event_type: Script, listener: GFEven
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param base_event_type: 要监听或取消监听的基类事件脚本类型。
 ## [br]
@@ -900,7 +904,7 @@ func unlisten_assignable_owned(listener_owner: Object, base_event_type: Script, 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_id: 简单事件标识符。
 ## [br]
@@ -914,7 +918,7 @@ func listen_simple(event_id: StringName, listener: GFEventListener) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param listener_owner: 监听回调的拥有者，用于批量注销。
 ## [br]
@@ -930,7 +934,7 @@ func listen_simple_owned(listener_owner: Object, event_id: StringName, listener:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param event_id: 简单事件标识符。
 ## [br]

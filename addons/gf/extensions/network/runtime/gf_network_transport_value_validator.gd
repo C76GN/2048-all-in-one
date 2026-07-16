@@ -14,7 +14,7 @@ const _DEFAULT_MAX_NODES: int = 1024
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待校验值。
 ## [br]

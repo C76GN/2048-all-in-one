@@ -440,7 +440,7 @@ func set_key_max_concurrency(key: Variant, max_concurrency: int) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param key: 并发仲裁 key。
 ## [br]
@@ -463,7 +463,7 @@ func clear_key_max_concurrency(key: Variant) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 被清理的显式配置数量。
 func clear_all_key_max_concurrency() -> int:

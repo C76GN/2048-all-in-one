@@ -54,7 +54,14 @@ const PROTECTED_REASONS: Array[String] = ["bundled", "dev", "preset"]
 ## @api framework_internal
 ## [br]
 ## @layer kernel/package
-const PROJECT_SCAN_EXTENSIONS: Array[String] = [".cfg", ".gd", ".godot", ".json", ".tres", ".tscn"]
+const PROJECT_SCAN_EXTENSIONS: Array[String] = [".cfg", ".gd", ".godot", ".json", ".res", ".scn", ".tres", ".tscn"]
+
+## 必须通过 Godot 依赖图扫描的二进制项目资源扩展名。
+## [br]
+## @api framework_internal
+## [br]
+## @layer kernel/package
+const PROJECT_BINARY_RESOURCE_EXTENSIONS: Array[String] = [".res", ".scn"]
 
 ## 卸载引用扫描会跳过的项目目录前缀。
 ## [br]
@@ -1121,7 +1128,8 @@ static func install_packages(
 		staged_files,
 		resolved_project_root,
 		lockfile_data,
-		issues
+		issues,
+		true
 	)
 	if not issues.is_empty():
 		_remove_path_recursive_absolute(temp_root)
@@ -1605,10 +1613,20 @@ static func scan_project_references(
 	for absolute_path: String in project_files:
 		if _is_cancel_requested(options):
 			return references
+		var relative_path: String = _relative_to_root(absolute_path, resolved_project_root)
+		if _is_binary_project_resource(absolute_path):
+			var binary_symbol: String = _find_binary_project_package_reference(
+				absolute_path,
+				resolved_project_root,
+				tokens,
+				scan_cache
+			)
+			if not binary_symbol.is_empty():
+				references.append({ "path": relative_path, "symbol": binary_symbol })
+			continue
 		var source: String = _get_project_reference_scan_source(absolute_path, scan_cache)
 		if source.is_empty():
 			continue
-		var relative_path: String = _relative_to_root(absolute_path, resolved_project_root)
 		for token: String in tokens:
 			if token.begins_with("GF"):
 				if _source_contains_identifier(source, token):
@@ -3160,9 +3178,15 @@ static func _append_existing_target_ownership_issues(
 	staged_files: Array[Dictionary],
 	project_root: String,
 	current_lockfile: Dictionary,
-	issues: PackedStringArray
+	issues: PackedStringArray,
+	allow_extracted_kernel_bootstrap: bool = false
 ) -> void:
 	var installed: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(current_lockfile, "installed")
+	var adopt_extracted_kernel: bool = allow_extracted_kernel_bootstrap and _extracted_kernel_matches_staged_files(
+		staged_files,
+		project_root,
+		current_lockfile
+	)
 	for item: Dictionary in staged_files:
 		var package_id: String = _GF_VARIANT_ACCESS.get_option_string(item, "package_id")
 		var relative_path: String = _GF_VARIANT_ACCESS.get_option_string(item, "relative_path")
@@ -3174,10 +3198,39 @@ static func _append_existing_target_ownership_issues(
 			continue
 		var owner: String = _installed_file_owner(normalized, installed)
 		if owner.is_empty():
+			if adopt_extracted_kernel and package_id == "gf.kernel":
+				continue
 			var _append_unowned: bool = issues.append("%s: package target already exists but is not owned by the lockfile: %s" % [package_id, normalized])
 			continue
 		if owner != package_id:
 			var _append_other_owner: bool = issues.append("%s: package target is owned by installed package %s: %s" % [package_id, owner, normalized])
+
+
+static func _extracted_kernel_matches_staged_files(
+	staged_files: Array[Dictionary],
+	project_root: String,
+	current_lockfile: Dictionary
+) -> bool:
+	var installed: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(current_lockfile, "installed")
+	if not installed.is_empty():
+		return false
+	var found_kernel_file: bool = false
+	for item: Dictionary in staged_files:
+		if _GF_VARIANT_ACCESS.get_option_string(item, "package_id") != "gf.kernel":
+			continue
+		found_kernel_file = true
+		var relative_path: String = _normalize_archive_name(
+			_GF_VARIANT_ACCESS.get_option_string(item, "relative_path")
+		)
+		if relative_path.is_empty():
+			return false
+		var path_issues: PackedStringArray = PackedStringArray()
+		var target_path: String = _project_target_path(project_root, relative_path, path_issues)
+		if not path_issues.is_empty() or target_path.is_empty() or not FileAccess.file_exists(target_path):
+			return false
+		if not _target_matches_staged_file(target_path, item):
+			return false
+	return found_kernel_file
 
 
 static func _target_matches_staged_file(target_path: String, staged_file: Dictionary) -> bool:
@@ -4802,14 +4855,20 @@ static func _with_project_reference_scan_cache(project_root: String, options: Di
 static func _make_project_reference_scan_cache(project_root: String, options: Dictionary) -> Dictionary:
 	var files: PackedStringArray = _collect_project_scan_files(project_root, options)
 	var sources: Dictionary = {}
+	var binary_dependency_reports: Dictionary = {}
 	for absolute_path: String in files:
 		if _is_cancel_requested(options):
 			break
-		sources[absolute_path] = _read_text_file(absolute_path)
+		if _is_binary_project_resource(absolute_path):
+			sources[absolute_path] = ""
+			binary_dependency_reports[absolute_path] = _make_binary_project_dependency_report(absolute_path)
+		else:
+			sources[absolute_path] = _read_text_file(absolute_path)
 	return {
 		"project_root": project_root,
 		"files": _packed_to_array(files),
 		"sources": sources,
+		"binary_dependency_reports": binary_dependency_reports,
 	}
 
 
@@ -4840,6 +4899,95 @@ static func _get_project_reference_scan_source(absolute_path: String, scan_cache
 	if not sources.has(absolute_path):
 		return _read_text_file(absolute_path)
 	return _GF_VARIANT_ACCESS.to_text(sources.get(absolute_path, ""))
+
+
+static func _find_binary_project_package_reference(
+	absolute_path: String,
+	project_root: String,
+	tokens: PackedStringArray,
+	scan_cache: Dictionary = {}
+) -> String:
+	var dependency_report: Dictionary = {}
+	var cached_reports: Dictionary = _GF_VARIANT_ACCESS.get_option_dictionary(
+		scan_cache,
+		"binary_dependency_reports"
+	)
+	if cached_reports.has(absolute_path):
+		dependency_report = _GF_VARIANT_ACCESS.get_option_dictionary(cached_reports, absolute_path)
+	else:
+		dependency_report = _make_binary_project_dependency_report(absolute_path)
+	if not _GF_VARIANT_ACCESS.get_option_bool(dependency_report, "ok"):
+		return "<binary_resource_audit_unavailable>"
+	for dependency_path: String in _GF_VARIANT_ACCESS.get_option_packed_string_array(
+		dependency_report,
+		"dependencies"
+	):
+		for path_variant: String in _dependency_project_path_variants(dependency_path, project_root):
+			for token: String in tokens:
+				if path_variant.contains(token):
+					return token
+	return ""
+
+
+static func _make_binary_project_dependency_report(absolute_path: String) -> Dictionary:
+	var loader_path: String = _resource_loader_path_for_project_file(absolute_path)
+	if loader_path.is_empty() or not ResourceLoader.exists(loader_path):
+		return { "ok": false, "dependencies": [] }
+	var dependencies: PackedStringArray = PackedStringArray()
+	for dependency_entry: String in ResourceLoader.get_dependencies(loader_path):
+		for dependency_path: String in _dependency_entry_resource_paths(dependency_entry):
+			_append_unique(dependencies, dependency_path)
+	return {
+		"ok": true,
+		"dependencies": _packed_to_array(dependencies),
+	}
+
+
+static func _resource_loader_path_for_project_file(absolute_path: String) -> String:
+	var normalized_path: String = absolute_path.replace("\\", "/").simplify_path()
+	var localized_path: String = ProjectSettings.localize_path(normalized_path).replace("\\", "/")
+	if localized_path.begins_with("res://") or localized_path.begins_with("user://"):
+		return localized_path
+
+	var user_root: String = _trim_trailing_path_separators(
+		ProjectSettings.globalize_path("user://").replace("\\", "/").simplify_path()
+	)
+	if normalized_path.begins_with(user_root + "/"):
+		return "user://" + normalized_path.substr(user_root.length() + 1)
+	return ""
+
+
+static func _dependency_entry_resource_paths(dependency_entry: String) -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	for raw_part: String in dependency_entry.split("::", false):
+		var candidate: String = raw_part.strip_edges().replace("\\", "/")
+		if candidate.begins_with("res://") or candidate.begins_with("user://"):
+			_append_unique(result, candidate)
+		elif candidate.begins_with("uid://"):
+			var resource_id: int = ResourceUID.text_to_id(candidate)
+			if resource_id != ResourceUID.INVALID_ID and ResourceUID.has_id(resource_id):
+				_append_unique(result, ResourceUID.get_id_path(resource_id))
+	return result
+
+
+static func _dependency_project_path_variants(dependency_path: String, project_root: String) -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	var normalized_dependency: String = dependency_path.replace("\\", "/")
+	_append_unique(result, normalized_dependency)
+	if not (normalized_dependency.begins_with("res://") or normalized_dependency.begins_with("user://")):
+		return result
+
+	var absolute_dependency: String = ProjectSettings.globalize_path(normalized_dependency).replace("\\", "/").simplify_path()
+	var relative_dependency: String = _relative_to_root(absolute_dependency, project_root)
+	if relative_dependency == absolute_dependency:
+		return result
+	_append_unique(result, relative_dependency)
+	_append_unique(result, "res://" + relative_dependency)
+	return result
+
+
+static func _is_binary_project_resource(path: String) -> bool:
+	return PROJECT_BINARY_RESOURCE_EXTENSIONS.has("." + path.get_extension().to_lower())
 
 
 static func _collect_project_scan_files(project_root: String, options: Dictionary = {}) -> PackedStringArray:

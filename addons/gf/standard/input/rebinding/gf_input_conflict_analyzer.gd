@@ -109,7 +109,7 @@ static func build_rebind_report(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param contexts: 输入上下文列表。
 ## [br]

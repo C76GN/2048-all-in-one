@@ -62,7 +62,7 @@ var errors: PackedStringArray = PackedStringArray()
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var transaction_participants: Array[GFSaveTransactionParticipant] = []
 
 ## 开始时间。
@@ -194,7 +194,7 @@ func add_error(message: String, payload: Dictionary = {}) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param participant: 参与 prepare / commit / rollback 的事务对象。
 func register_transaction_participant(participant: GFSaveTransactionParticipant) -> void:
@@ -207,7 +207,7 @@ func register_transaction_participant(participant: GFSaveTransactionParticipant)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param participant: 要注销的事务对象。
 func unregister_transaction_participant(participant: GFSaveTransactionParticipant) -> void:
@@ -220,7 +220,7 @@ func unregister_transaction_participant(participant: GFSaveTransactionParticipan
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 事务参与者数组。
 func get_transaction_participants() -> Array[GFSaveTransactionParticipant]:
@@ -235,7 +235,7 @@ func get_transaction_participants() -> Array[GFSaveTransactionParticipant]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear_transaction_participants() -> void:
 	transaction_participants.clear()
 

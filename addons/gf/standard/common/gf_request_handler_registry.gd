@@ -165,7 +165,7 @@ var _invalid_count: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param required_request_types: 必需请求类型列表。
 ## [br]
@@ -382,7 +382,7 @@ func try_invoke(request_type: StringName, payload: Variant = null, context: Dict
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param result: invoke()/try_invoke() 返回的调用结果。
 ## [br]
@@ -467,7 +467,7 @@ func get_recent_events() -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 编码选项，透传给 GFReportValueCodec。
 ## [br]
@@ -539,7 +539,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 编码选项，透传给 GFReportValueCodec。
 ## [br]

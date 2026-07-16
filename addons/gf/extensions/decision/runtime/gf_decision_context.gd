@@ -19,14 +19,14 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_SNAPSHOT_ENTRIES: int = 1024
 
 ## 反射属性捕获的默认最大条目数。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_REFLECTION_PROPERTIES: int = 256
 
 const _HARD_MAX_CAPTURE_ENTRIES: int = 65536
@@ -90,7 +90,7 @@ var metadata: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema capture_options: Dictionary with optional max_snapshot_entries and max_reflection_properties integer fields.
 var capture_options: Dictionary = {}

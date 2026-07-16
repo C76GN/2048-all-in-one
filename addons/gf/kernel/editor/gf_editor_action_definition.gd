@@ -22,42 +22,42 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const INVOCATION_STATUS_READY: StringName = &"ready"
 
 ## 动作被显式禁用。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const INVOCATION_STATUS_DISABLED: StringName = &"disabled"
 
 ## 动作当前未通过可用性回调。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const INVOCATION_STATUS_UNAVAILABLE: StringName = &"unavailable"
 
 ## 动作缺少有效命令工厂。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const INVOCATION_STATUS_FACTORY_MISSING: StringName = &"factory_missing"
 
 ## 命令工厂没有返回有效 GFEditorCommand。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const INVOCATION_STATUS_COMMAND_INVALID: StringName = &"command_invalid"
 
 ## 命令已创建，但命令自身当前不可执行。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const INVOCATION_STATUS_COMMAND_UNAVAILABLE: StringName = &"command_unavailable"
 
 ## 编辑器命令基类脚本。
@@ -227,7 +227,7 @@ func is_available(context: Dictionary = {}) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param context: 调用方传入的编辑器上下文。
 ## [br]
@@ -249,7 +249,7 @@ func can_invoke(context: Dictionary = {}) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param context: 调用方传入的编辑器上下文。
 ## [br]

@@ -133,7 +133,7 @@ var prune_invalid_receivers_per_tick: int = 128:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_capability_tree_nodes: int = 65536:
 	set(value):
 		max_capability_tree_nodes = maxi(value, 1)
@@ -611,7 +611,7 @@ func add_capability_instance(receiver: Object, capability: Object, as_type: Scri
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param receiver: 能力接收对象。
 ## [br]
@@ -2474,9 +2474,11 @@ func _free_capability(capability: Object, detach_node: bool) -> void:
 	if capability is Node:
 		var node: Node = capability
 		var parent: Node = node.get_parent()
+		var tree_exit_in_progress: bool = GFAutoload.is_tree_exit_in_progress()
 		if (
 			detach_node
 			and parent != null
+			and not tree_exit_in_progress
 			and parent.is_inside_tree()
 			and not parent.is_queued_for_deletion()
 			and not node.is_queued_for_deletion()
@@ -2484,6 +2486,8 @@ func _free_capability(capability: Object, detach_node: bool) -> void:
 			_detach_capability_node(parent, node)
 		if not node.is_queued_for_deletion():
 			node.queue_free()
+		if detach_node and tree_exit_in_progress and parent != null:
+			_free_empty_generated_container(parent)
 	elif capability is RefCounted:
 		pass
 	else:
@@ -2508,6 +2512,14 @@ func _free_empty_generated_container(container: Node) -> void:
 	if not GFVariantData.to_bool(container.get_meta(META_CAPABILITY_CONTAINER, false)):
 		return
 	if container.get_child_count(true) > 0:
+		if not GFAutoload.is_tree_exit_in_progress():
+			return
+		for child: Node in container.get_children(true):
+			if not child.is_queued_for_deletion():
+				return
+
+	if GFAutoload.is_tree_exit_in_progress():
+		container.queue_free()
 		return
 
 	var parent: Node = container.get_parent()

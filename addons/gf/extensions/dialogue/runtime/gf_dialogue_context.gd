@@ -180,7 +180,7 @@ func resolve_text(text: String, subject: Variant = null) -> String:
 ## [br]
 ## @return: JSON 兼容值表副本。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema return: values 经过 GFVariantJsonCodec 编码后的深拷贝 Dictionary。
 func serialize_values() -> Dictionary:
@@ -199,7 +199,7 @@ func serialize_values() -> Dictionary:
 ## [br]
 ## @param data: serialize_values() 返回的值表。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema data: serialize_values() 返回的 JSON 兼容 Dictionary。
 func deserialize_values(data: Dictionary) -> void:

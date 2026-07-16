@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFPointerCapture
 extends RefCounted
 
@@ -18,7 +18,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const NO_POINTER_ID: int = -1
 
 
@@ -28,7 +28,7 @@ const NO_POINTER_ID: int = -1
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var active_pointer_id: int = NO_POINTER_ID
 
 
@@ -38,7 +38,7 @@ var active_pointer_id: int = NO_POINTER_ID
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 有活动捕获时返回 true。
 func is_active() -> bool:
@@ -49,7 +49,7 @@ func is_active() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param pointer_id: 要检查的指针 ID。
 ## [br]
@@ -64,7 +64,7 @@ func matches(pointer_id: int) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param pointer_id: 要捕获的指针 ID。
 ## [br]
@@ -82,7 +82,7 @@ func try_capture(pointer_id: int) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param pointer_id: 要释放的指针 ID；-1 表示释放任意当前捕获。
 ## [br]
@@ -100,7 +100,7 @@ func release(pointer_id: int = NO_POINTER_ID) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 实际清空了活动捕获时返回 true。
 func reset() -> bool:
@@ -111,7 +111,7 @@ func reset() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 捕获状态快照。
 ## [br]

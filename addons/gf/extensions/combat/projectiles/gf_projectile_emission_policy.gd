@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFProjectileEmissionPolicy
 extends Resource
 
@@ -23,63 +23,63 @@ const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/g
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var policy_id: StringName = &""
 
 ## 是否启用策略。关闭时所有请求直接通过。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var enabled: bool = true
 
 ## 两次成功发射请求之间的最小间隔秒数。小于等于 0 表示不限制。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var cooldown_seconds: float = 0.0
 
 ## 每次请求最多允许生成的发射体数量。小于等于 0 表示不限制。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var max_projectiles_per_request: int = 0
 
 ## 最大成功发射请求次数。小于等于 0 表示不限制。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var max_emission_count: int = 0
 
 ## 通用 charge 容量。小于等于 0 表示不启用 charge 门控。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var charge_capacity: float = 0.0
 
 ## 每次成功请求消耗的 charge。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var charge_cost_per_request: float = 0.0
 
 ## 每个实际生成发射体额外消耗的 charge。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var charge_cost_per_projectile: float = 0.0
 
 ## 恢复 1 点 charge 需要的秒数。小于等于 0 表示不会自动恢复。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var charge_recovery_seconds: float = 0.0
 
 
@@ -97,7 +97,7 @@ var _emission_count: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param emitter: 发射器节点。
 ## [br]
@@ -166,7 +166,7 @@ func prepare_emission(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param emitter: 发射器节点。
 ## [br]
@@ -205,7 +205,7 @@ func commit_emission(emitter: Node, prepare_report: Dictionary, emitted_count: i
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param now_msec: 可选当前毫秒时间；小于 0 时使用 Time.get_ticks_msec()。
 func reset(now_msec: int = -1) -> void:
@@ -220,7 +220,7 @@ func reset(now_msec: int = -1) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param now_msec: 可选当前毫秒时间；小于 0 时使用 Time.get_ticks_msec()。
 ## [br]
@@ -236,7 +236,7 @@ func get_available_charges(now_msec: int = -1) -> float:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param emit_count: 预计生成数量。
 ## [br]
@@ -254,7 +254,7 @@ func get_required_charges(emit_count: int) -> float:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param now_msec: 可选当前毫秒时间；小于 0 时使用 Time.get_ticks_msec()。
 ## [br]
@@ -271,7 +271,7 @@ func get_remaining_cooldown_seconds(now_msec: int = -1) -> float:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 所有浮点配置有限时返回 true。
 func is_configuration_valid() -> bool:
@@ -288,7 +288,7 @@ func is_configuration_valid() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param now_msec: 可选当前毫秒时间；小于 0 时使用 Time.get_ticks_msec()。
 ## [br]
@@ -321,7 +321,7 @@ func get_debug_snapshot(now_msec: int = -1) -> Dictionary:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _emitter: 发射器节点。
 ## [br]
@@ -342,7 +342,7 @@ func _prepare_emission(_emitter: Node, _projectile_id: StringName, _prepare_repo
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _emitter: 发射器节点。
 ## [br]

@@ -18,7 +18,7 @@ extends GFSystem
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param entity: 原所属实体；实体已释放时可能为 null。
 ## [br]

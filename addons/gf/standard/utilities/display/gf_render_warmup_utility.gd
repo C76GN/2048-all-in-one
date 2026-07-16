@@ -84,21 +84,21 @@ var default_touch_mode: TouchMode = TouchMode.RID_ONLY
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var keep_resources_cached: bool = false
 
 ## 默认缓存分组。按组释放可避免不同预热流程互相持有资源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var default_cache_group: StringName = &"default"
 
 ## 最多保留的预热缓存资源数量。小于 1 时按 1 处理。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_cached_resources: int = 128:
 	set(value):
 		max_cached_resources = maxi(value, 1)
@@ -108,7 +108,7 @@ var max_cached_resources: int = 128:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var instantiate_packed_scenes: bool = false
 
 
@@ -152,7 +152,7 @@ func dispose() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param manifest: 预热清单。
 ## [br]
@@ -187,7 +187,7 @@ func queue_manifest(manifest: GFRenderWarmupManifest, options: Dictionary = {}) 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param manifest: 预热清单。
 ## [br]
@@ -304,7 +304,7 @@ func build_manifest_from_tree(root: Node, options: Dictionary = {}) -> GFRenderW
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scene: 场景资源。
 ## [br]
@@ -334,7 +334,7 @@ func build_manifest_from_scene(scene: PackedScene, options: Dictionary = {}) -> 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scene_path: 场景资源路径。
 ## [br]
@@ -364,7 +364,7 @@ func clear_queue() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cache_group: 为空时释放全部缓存；非空时只释放指定分组。
 func release_cached_resources(cache_group: StringName = &"") -> void:
@@ -398,7 +398,7 @@ func release_temporary_render_nodes() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cache_group: 为空时返回全部缓存数量；非空时只统计指定分组。
 ## [br]
@@ -427,7 +427,7 @@ func get_queue_size() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试信息字典。
 ## [br]

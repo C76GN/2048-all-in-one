@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFGridCoordinateMath2D
 extends RefCounted
 
@@ -35,7 +35,7 @@ const _DIAGONAL_DIRECTIONS: Array[Vector2i] = [
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: 2D 网格工具返回的报告或快照字典。
 ## [br]
@@ -59,7 +59,7 @@ static func to_json_compatible_report(report: Dictionary, options: Dictionary = 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cell: 二维格坐标。
 ## [br]
@@ -77,7 +77,7 @@ static func cell_to_index(cell: Vector2i, width: int) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param index: 一维索引。
 ## [br]
@@ -95,7 +95,7 @@ static func index_to_cell(index: int, width: int) -> Vector2i:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param world_position: 世界坐标。
 ## [br]
@@ -116,7 +116,7 @@ static func world_to_chunk_cell(world_position: Vector2, chunk_size: Vector2i) -
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param chunk_cell: chunk 坐标。
 ## [br]
@@ -134,7 +134,7 @@ static func chunk_cell_to_world_origin(chunk_cell: Vector2i, chunk_size: Vector2
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param chunk_cell: chunk 坐标。
 ## [br]
@@ -152,7 +152,7 @@ static func chunk_cell_to_world_center(chunk_cell: Vector2i, chunk_size: Vector2
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cell: 二维格坐标。
 ## [br]
@@ -174,7 +174,7 @@ static func is_in_bounds(cell: Vector2i, grid_size: Vector2i) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cell: 中心格子。
 ## [br]
@@ -308,7 +308,7 @@ static func get_ring(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param center_chunk: 中心 chunk 坐标。
 ## [br]
@@ -341,7 +341,7 @@ static func get_chunk_window(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param previous_cells: 旧集合。重复项会被去重，removed 按首次出现顺序返回。
 ## [br]
@@ -465,7 +465,7 @@ static func has_line_of_sight(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param grid_size: 网格尺寸。
 ## [br]

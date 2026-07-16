@@ -20,7 +20,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return GFReportValueCodec REDACTION_PROFILE_* 常量之一。
 ## [br]

@@ -40,7 +40,7 @@ enum Mode {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REJECTION_CHILD_SCHEDULED: StringName = &"group_child_scheduled"
 
 ## 并行任务组存在组内 requirement 冲突时的拒绝原因。
@@ -48,7 +48,7 @@ const REJECTION_CHILD_SCHEDULED: StringName = &"group_child_scheduled"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REJECTION_PARALLEL_REQUIREMENT_CONFLICT: StringName = &"group_parallel_requirement_conflict"
 
 
@@ -103,7 +103,7 @@ func _init(p_tasks: Array[GFRuntimeTask] = [], p_mode: Mode = Mode.SEQUENCE) -> 
 ## [br]
 ## @category config
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param next_tasks: 新的子任务列表；不接受空值、重复实例或已调度任务。
 ## [br]
@@ -130,7 +130,7 @@ func set_tasks(next_tasks: Array[GFRuntimeTask]) -> bool:
 ## [br]
 ## @category config
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param next_mode: 新的推进模式。
 ## [br]
@@ -152,7 +152,7 @@ func set_mode(next_mode: Mode) -> bool:
 ## [br]
 ## @category query
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前推进模式。
 func get_mode() -> Mode:
@@ -231,7 +231,7 @@ func rebuild_requirements() -> void:
 ## [br]
 ## @category query
 ## [br]
-## @since 6.0.0
+## @since 8.0.0
 ## [br]
 ## @return 仍然有效的占用对象副本。
 func get_requirements() -> Array[Object]:
@@ -365,7 +365,7 @@ func end(interrupted: bool) -> void:
 ## [br]
 ## @category lifecycle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调度拒绝原因；为空表示可调度。
 func get_schedule_rejection_reason() -> StringName:

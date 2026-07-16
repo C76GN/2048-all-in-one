@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFSaveSlotStorageAdapter
 extends Resource
 
@@ -20,14 +20,14 @@ const _GF_SAVE_PERSISTED_VALUE_VALIDATOR = preload("res://addons/gf/extensions/s
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_DATA_FILE_TEMPLATE: String = "slot_{index}_data.sav"
 
 ## 默认槽位元数据文件模板。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_METADATA_FILE_TEMPLATE: String = "slot_{index}_meta.sav"
 
 
@@ -37,14 +37,14 @@ const DEFAULT_METADATA_FILE_TEMPLATE: String = "slot_{index}_meta.sav"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var data_file_template: String = DEFAULT_DATA_FILE_TEMPLATE
 
 ## 元数据文件模板，支持 `{index}` 占位符。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var metadata_file_template: String = DEFAULT_METADATA_FILE_TEMPLATE
 
 
@@ -59,7 +59,7 @@ var _storage: GFStorageUtility = null
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param storage: 底层 GFStorageUtility。
 ## [br]
@@ -73,7 +73,7 @@ func setup(storage: GFStorageUtility) -> GFSaveSlotStorageAdapter:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前 GFStorageUtility；未配置时返回 null。
 func get_storage() -> GFStorageUtility:
@@ -84,7 +84,7 @@ func get_storage() -> GFStorageUtility:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_index: 槽位索引。
 ## [br]
@@ -97,7 +97,7 @@ func get_data_file_name(slot_index: int) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_index: 槽位索引。
 ## [br]
@@ -110,7 +110,7 @@ func get_metadata_file_name(slot_index: int) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_index: 槽位索引；必须大于等于 0。
 ## [br]
@@ -142,7 +142,7 @@ func save_slot(slot_index: int, data: Dictionary, metadata: Dictionary = {}) -> 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_index: 槽位索引。
 ## [br]
@@ -159,7 +159,7 @@ func load_slot(slot_index: int) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_index: 槽位索引。
 ## [br]
@@ -176,7 +176,7 @@ func load_slot_metadata(slot_index: int) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_index: 槽位索引。
 ## [br]
@@ -194,7 +194,7 @@ func has_slot(slot_index: int) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_index: 槽位索引。
 ## [br]
@@ -217,7 +217,7 @@ func delete_slot(slot_index: int) -> Error:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 槽位摘要数组。
 ## [br]

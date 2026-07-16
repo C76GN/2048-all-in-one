@@ -7,7 +7,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNetworkLobbyJoinResult
 extends RefCounted
 
@@ -18,42 +18,42 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var ok: bool = false
 
 ## 相关 lobby ID。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var lobby_id: String = ""
 
 ## 成功时的 lobby 快照。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var lobby: GFNetworkLobbyDescriptor = null
 
 ## 失败原因标识。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var error: StringName = &""
 
 ## 人读说明。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var message: String = ""
 
 ## 调用方自定义元数据。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined result metadata.
 var metadata: Dictionary = {}
@@ -65,7 +65,7 @@ var metadata: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_lobby: Lobby 快照。
 ## [br]
@@ -88,7 +88,7 @@ func configure_success(p_lobby: GFNetworkLobbyDescriptor, p_metadata: Dictionary
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_lobby_id: 相关 lobby ID。
 ## [br]
@@ -120,7 +120,7 @@ func configure_failure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 结果字典。
 ## [br]
@@ -140,7 +140,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 结果字典。
 ## [br]
@@ -159,7 +159,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新结果。
 func duplicate_result() -> GFNetworkLobbyJoinResult:
@@ -172,7 +172,7 @@ func duplicate_result() -> GFNetworkLobbyJoinResult:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_value: Lobby 快照。
 ## [br]
@@ -189,7 +189,7 @@ static func success(lobby_value: GFNetworkLobbyDescriptor, metadata_value: Dicti
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id_value: 相关 lobby ID。
 ## [br]
@@ -215,7 +215,7 @@ static func failure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 结果字典。
 ## [br]

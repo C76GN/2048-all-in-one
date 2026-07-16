@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/editor
 class_name GFThumbnailRenderTask
@@ -21,7 +21,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task: 当前任务。
 signal completed(task: GFThumbnailRenderTask)
@@ -30,7 +30,7 @@ signal completed(task: GFThumbnailRenderTask)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task: 当前任务。
 ## [br]
@@ -43,7 +43,7 @@ signal succeeded(task: GFThumbnailRenderTask, result: Variant)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task: 当前任务。
 ## [br]
@@ -54,7 +54,7 @@ signal failed(task: GFThumbnailRenderTask, error: String)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task: 当前任务。
 ## [br]
@@ -68,7 +68,7 @@ signal cancelled(task: GFThumbnailRenderTask, reason: StringName)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum State {
 	## 等待执行。
 	PENDING,
@@ -98,7 +98,7 @@ var _completion: GFAsyncCompletion = GFAsyncCompletion.new()
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param request: 要执行的缩略图渲染请求。
 ## [br]
@@ -120,7 +120,7 @@ func _init(request: GFThumbnailRenderRequest = null, task_id: int = 0) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 取消原因。
 ## [br]
@@ -140,7 +140,7 @@ func cancel(reason: StringName = &"cancelled") -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 任务结果；失败时通常为 null，取消的 MeshLibrary 计划任务可返回部分计划。
 ## [br]
@@ -155,7 +155,7 @@ func wait_completed() -> Variant:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 任务 ID。
 func get_task_id() -> int:
@@ -166,7 +166,7 @@ func get_task_id() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 任务请求。
 func get_request() -> GFThumbnailRenderRequest:
@@ -177,7 +177,7 @@ func get_request() -> GFThumbnailRenderRequest:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前任务状态。
 func get_state() -> State:
@@ -196,7 +196,7 @@ func get_state() -> State:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 等待执行时返回 true。
 func is_pending() -> bool:
@@ -207,7 +207,7 @@ func is_pending() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 正在执行时返回 true。
 func is_running() -> bool:
@@ -218,7 +218,7 @@ func is_running() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 已完成、失败或取消时返回 true。
 func is_finished() -> bool:
@@ -229,7 +229,7 @@ func is_finished() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 成功完成时返回 true。
 func is_succeeded() -> bool:
@@ -240,7 +240,7 @@ func is_succeeded() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 失败时返回 true。
 func is_failed() -> bool:
@@ -251,7 +251,7 @@ func is_failed() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 取消完成时返回 true。
 func is_cancelled() -> bool:
@@ -262,7 +262,7 @@ func is_cancelled() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 已请求取消但可能尚未完成时返回 true。
 func is_cancel_requested() -> bool:
@@ -273,7 +273,7 @@ func is_cancel_requested() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 任务结果。
 ## [br]
@@ -286,7 +286,7 @@ func get_result() -> Variant:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 失败说明；非失败状态返回空字符串。
 func get_error() -> String:
@@ -297,7 +297,7 @@ func get_error() -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 取消原因；未取消时返回空 StringName。
 func get_cancel_reason() -> StringName:
@@ -310,7 +310,7 @@ func get_cancel_reason() -> StringName:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前任务的只读取消 token。
 func get_cancel_token() -> GFCancellationToken:
@@ -321,7 +321,7 @@ func get_cancel_token() -> GFCancellationToken:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前任务的完成源。
 func get_completion() -> GFAsyncCompletion:

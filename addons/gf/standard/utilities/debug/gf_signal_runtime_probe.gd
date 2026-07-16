@@ -70,28 +70,28 @@ const DEFAULT_MAX_WATCH_TREE_NODES: int = 4096
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_CONTAINER_ITEMS: int = 64
 
 ## 单次信号事件参数快照默认最多访问的值节点数量。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_SNAPSHOT_NODES: int = 512
 
 ## 单次信号事件参数快照默认最多保留的估算 UTF-8 字节数。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_SNAPSHOT_BYTES: int = 64 * 1024
 
 ## 单次信号事件参数快照默认最大递归深度。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_SNAPSHOT_DEPTH: int = 8
 
 const _INSTANCE_GUARD: Script = preload("res://addons/gf/kernel/core/gf_instance_guard.gd")
@@ -113,7 +113,7 @@ var max_argument_count: int = DEFAULT_MAX_ARGUMENT_COUNT
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_container_items: int = DEFAULT_MAX_CONTAINER_ITEMS:
 	set(value):
 		max_container_items = maxi(value, 0)
@@ -122,7 +122,7 @@ var max_container_items: int = DEFAULT_MAX_CONTAINER_ITEMS:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_snapshot_nodes: int = DEFAULT_MAX_SNAPSHOT_NODES:
 	set(value):
 		max_snapshot_nodes = maxi(value, 0)
@@ -131,7 +131,7 @@ var max_snapshot_nodes: int = DEFAULT_MAX_SNAPSHOT_NODES:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_snapshot_bytes: int = DEFAULT_MAX_SNAPSHOT_BYTES:
 	set(value):
 		max_snapshot_bytes = maxi(value, 0)
@@ -140,7 +140,7 @@ var max_snapshot_bytes: int = DEFAULT_MAX_SNAPSHOT_BYTES:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_snapshot_depth: int = DEFAULT_MAX_SNAPSHOT_DEPTH:
 	set(value):
 		max_snapshot_depth = maxi(value, 0)
@@ -314,7 +314,7 @@ func get_events() -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 传给 GFReportValueCodec 的编码选项；路径字段默认脱敏。
 ## [br]
@@ -366,7 +366,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 传给 GFReportValueCodec 的编码选项；路径字段默认脱敏。
 ## [br]

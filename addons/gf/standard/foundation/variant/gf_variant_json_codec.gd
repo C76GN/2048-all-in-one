@@ -38,14 +38,14 @@ const JSON_VALUE_KEY: String = "value"
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const JSON_CODEC_KEY: String = "codec"
 
 ## 当前 typed marker 的 codec 身份。
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const JSON_CODEC_ID: String = "gf.variant-json"
 
 ## 当前 Variant JSON 标记格式版本。
@@ -113,7 +113,7 @@ static func json_compatible_to_variant(value: Variant, options: Dictionary = {})
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待序列化的 Variant。
 ## [br]
@@ -142,7 +142,7 @@ static func stringify_json_compatible(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param text: JSON 文本。
 ## [br]

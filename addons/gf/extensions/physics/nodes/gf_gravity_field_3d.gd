@@ -240,7 +240,7 @@ func get_gravity_priority() -> int:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 每次影响采样的字段变化后递增的修订号。
 func get_gravity_revision_for_probe() -> int:

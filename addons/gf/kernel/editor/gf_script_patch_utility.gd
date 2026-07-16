@@ -9,7 +9,7 @@
 ## [br]
 ## @category editor_api
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/editor
 class_name GFScriptPatchUtility
@@ -27,7 +27,7 @@ const _GF_VARIANT_ACCESS_SCRIPT = preload("res://addons/gf/kernel/core/gf_varian
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source_code: GDScript 源码。
 ## [br]
@@ -44,7 +44,7 @@ static func get_annotation_insert_index(source_code: String, options: Dictionary
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source_code: GDScript 源码。
 ## [br]
@@ -101,7 +101,7 @@ static func make_annotation_patch(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param script_path: res:// 或 user:// 脚本路径。
 ## [br]

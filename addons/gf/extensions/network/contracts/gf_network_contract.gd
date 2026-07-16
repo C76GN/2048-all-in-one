@@ -35,14 +35,14 @@ const _VERSION_REPORT_SUBJECT: String = "Network contract version"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var contract_version_major: int = 0
 
 ## 契约兼容小版本。小版本只用于日志、排查或构建追踪，不参与默认兼容判断。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var contract_version_minor: int = 0
 
 ## 消息契约列表。
@@ -225,7 +225,7 @@ func describe() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return schema 描述字典。
 ## [br]
@@ -247,7 +247,7 @@ func get_schema_descriptor() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 传给 GFDeterministicVariantSerializer.sha256() 的选项；默认允许有限浮点默认值参与摘要。
 ## [br]
@@ -265,7 +265,7 @@ func get_schema_digest(options: Dictionary = {}) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 契约版本字典。
 ## [br]
@@ -284,7 +284,7 @@ func get_contract_version() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param peer_version: 对端通过 get_contract_version() 或等价结构上报的版本字典。
 ## [br]

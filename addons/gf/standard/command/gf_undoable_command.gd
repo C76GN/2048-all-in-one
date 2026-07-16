@@ -75,7 +75,7 @@ func should_record(_execute_result: Variant) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 任意可序列化的快照数据（如字典、数值、数组）。
 ## [br]

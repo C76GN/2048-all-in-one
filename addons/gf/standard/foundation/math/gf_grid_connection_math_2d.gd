@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFGridConnectionMath2D
 extends RefCounted
 
@@ -28,7 +28,7 @@ const _ORTHOGONAL_DIRECTIONS: Array[Vector2i] = [
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param grid_size: 网格尺寸。
 ## [br]

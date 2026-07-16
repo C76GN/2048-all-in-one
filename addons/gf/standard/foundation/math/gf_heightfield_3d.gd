@@ -118,7 +118,7 @@ static func decode_terrain_rgb_height(color: Color) -> float:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param normal: 表面法线。
 ## [br]
@@ -561,7 +561,7 @@ func sample_normal_grid(grid_position: Vector2, vertical_scale: float = 1.0) -> 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param grid_position: 连续网格坐标。
 ## [br]
@@ -599,7 +599,7 @@ func sample_normal_world(world_x: float, world_z: float, vertical_scale: float =
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param world_x: 世界 X 坐标。
 ## [br]

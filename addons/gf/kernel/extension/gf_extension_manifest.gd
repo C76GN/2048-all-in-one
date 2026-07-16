@@ -364,7 +364,7 @@ func to_dictionary() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @return 与当前 manifest 内容一致的新实例。
 func duplicate_manifest() -> GFExtensionManifest:

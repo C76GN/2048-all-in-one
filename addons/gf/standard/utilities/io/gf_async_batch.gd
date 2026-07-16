@@ -262,7 +262,7 @@ func watch_response(response: GFHttpResponse, key: Variant = null) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param completion: 完成源。
 ## [br]

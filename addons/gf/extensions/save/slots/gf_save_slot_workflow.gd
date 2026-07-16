@@ -14,10 +14,6 @@ extends Resource
 
 # --- 常量 ---
 
-const _GF_SAVE_SLOT_CARD_SCRIPT = preload("res://addons/gf/extensions/save/slots/gf_save_slot_card.gd")
-const _GF_SAVE_SLOT_METADATA_SCRIPT = preload("res://addons/gf/extensions/save/slots/gf_save_slot_metadata.gd")
-
-
 # --- 导出变量 ---
 
 ## 当前选中槽位索引。仅用于构建摘要时标记 active。
@@ -38,12 +34,16 @@ const _GF_SAVE_SLOT_METADATA_SCRIPT = preload("res://addons/gf/extensions/save/s
 ## 可替换的元数据资源脚本，项目层可继承 GFSaveSlotMetadata 扩展。
 ## [br]
 ## @api public
-@export var metadata_script: Script = _GF_SAVE_SLOT_METADATA_SCRIPT
+## [br]
+## @since 8.0.0
+@export var metadata_script: Script = GFSaveSlotMetadata
 
 ## 可替换的卡片资源脚本，项目层可继承 GFSaveSlotCard 扩展。
 ## [br]
 ## @api public
-@export var card_script: Script = _GF_SAVE_SLOT_CARD_SCRIPT
+## [br]
+## @since 8.0.0
+@export var card_script: Script = GFSaveSlotCard
 
 ## 槽位角色。用于区分 autosave/manual/cloud 等抽象类别。
 ## [br]
@@ -268,7 +268,7 @@ func build_cards_for_indices(indices: Array, summaries: Array = []) -> Array[GFS
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_store: 槽位存储适配器。
 ## [br]
@@ -294,7 +294,7 @@ func build_cards_from_slot_store(slot_store: GFSaveSlotStorageAdapter, indices: 
 # --- 私有/辅助方法 ---
 
 func _new_metadata() -> GFSaveSlotMetadata:
-	if not _is_instantiable_subclass(metadata_script, _GF_SAVE_SLOT_METADATA_SCRIPT):
+	if not _is_instantiable_subclass(metadata_script, GFSaveSlotMetadata):
 		push_error("[GFSaveSlotWorkflow] metadata_script 必须继承 GFSaveSlotMetadata 且可实例化。")
 		return GFSaveSlotMetadata.new()
 	var metadata: Variant = metadata_script.call("new")
@@ -305,7 +305,7 @@ func _new_metadata() -> GFSaveSlotMetadata:
 
 
 func _new_card() -> GFSaveSlotCard:
-	if not _is_instantiable_subclass(card_script, _GF_SAVE_SLOT_CARD_SCRIPT):
+	if not _is_instantiable_subclass(card_script, GFSaveSlotCard):
 		push_error("[GFSaveSlotWorkflow] card_script 必须继承 GFSaveSlotCard 且可实例化。")
 		return GFSaveSlotCard.new()
 	var card: Variant = card_script.call("new")

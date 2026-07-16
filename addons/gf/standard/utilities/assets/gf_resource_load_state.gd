@@ -423,7 +423,7 @@ func is_terminal() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 可选项，支持 check_exists。
 ## [br]

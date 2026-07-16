@@ -314,7 +314,7 @@ func advance_phase() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 当前待处理行动数组副本。
 func get_actions() -> Array[GFTurnAction]:
@@ -325,7 +325,7 @@ func get_actions() -> Array[GFTurnAction]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 当前待处理行动数量。
 func get_action_count() -> int:
@@ -336,7 +336,7 @@ func get_action_count() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear_actions() -> void:
 	if _is_resolving_actions:
 		push_warning("[GFTurnFlowSystem] clear_actions 失败：行动正在解析中；请调用 stop(true)。")

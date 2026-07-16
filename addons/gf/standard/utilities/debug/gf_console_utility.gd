@@ -211,7 +211,7 @@ func dispose() -> void:
 
 	if is_instance_valid(_console_gui):
 		var parent: Node = _console_gui.get_parent()
-		if parent != null and not GFAutoload.is_tree_shutdown_in_progress():
+		if parent != null and not GFAutoload.is_tree_exit_in_progress():
 			parent.remove_child(_console_gui)
 		if not _console_gui.is_queued_for_deletion():
 			_console_gui.queue_free()
@@ -372,7 +372,7 @@ func suggest_commands(prefix: String) -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param raw_input: 控制台当前输入。
 ## [br]

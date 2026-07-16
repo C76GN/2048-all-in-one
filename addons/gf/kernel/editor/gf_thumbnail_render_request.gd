@@ -8,7 +8,7 @@
 ## [br]
 ## @category editor_api
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/editor
 class_name GFThumbnailRenderRequest
@@ -21,7 +21,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum Kind {
 	## 空请求。
 	NONE,
@@ -55,7 +55,7 @@ var _overwrite_existing: bool = true
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source: 要渲染的 3D 节点。
 ## [br]
@@ -76,7 +76,7 @@ static func for_node3d_image(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source: 要渲染的 3D 节点。
 ## [br]
@@ -97,7 +97,7 @@ static func for_node3d_texture(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param mesh: 要渲染的 Mesh。
 ## [br]
@@ -118,7 +118,7 @@ static func for_mesh_image(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param mesh: 要渲染的 Mesh。
 ## [br]
@@ -139,7 +139,7 @@ static func for_mesh_texture(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param mesh_library: 目标 MeshLibrary。
 ## [br]
@@ -160,7 +160,7 @@ static func for_mesh_library_preview_plan(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 请求类型。
 func get_kind() -> Kind:
@@ -171,7 +171,7 @@ func get_kind() -> Kind:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return Node3D 来源；非 Node3D 请求时返回 null。
 func get_source_node3d() -> Node3D:
@@ -182,7 +182,7 @@ func get_source_node3d() -> Node3D:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return Mesh 来源；非 Mesh 请求时返回 null。
 func get_mesh() -> Mesh:
@@ -193,7 +193,7 @@ func get_mesh() -> Mesh:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return MeshLibrary 来源；非 MeshLibrary 请求时返回 null。
 func get_mesh_library() -> MeshLibrary:
@@ -204,7 +204,7 @@ func get_mesh_library() -> MeshLibrary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 请求尺寸。
 func get_size() -> Vector2i:
@@ -215,7 +215,7 @@ func get_size() -> Vector2i:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 透明背景时返回 true。
 func is_transparent() -> bool:
@@ -226,7 +226,7 @@ func is_transparent() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 覆盖已有预览时返回 true。
 func should_overwrite_existing() -> bool:
@@ -237,7 +237,7 @@ func should_overwrite_existing() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 请求可执行时返回 true。
 func is_valid() -> bool:

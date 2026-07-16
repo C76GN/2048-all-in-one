@@ -7,7 +7,7 @@
 ## [br]
 ## @category protocol
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFSaveTransactionParticipant
 extends Resource
 
@@ -18,7 +18,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var participant_id: StringName = &""
 
 
@@ -28,7 +28,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param context: apply_scope 调用上下文字典。
 ## [br]
@@ -45,7 +45,7 @@ func prepare(context: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param context: apply_scope 调用上下文字典。
 ## [br]
@@ -62,7 +62,7 @@ func commit(context: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param context: apply_scope 调用上下文字典。
 ## [br]
@@ -79,7 +79,7 @@ func rollback(context: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param ok: 是否成功。
 ## [br]
@@ -104,7 +104,7 @@ func make_result(ok: bool, errors: Array[String] = []) -> Dictionary:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _context: apply_scope 调用上下文字典。
 ## [br]
@@ -121,7 +121,7 @@ func _prepare_transaction(_context: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _context: apply_scope 调用上下文字典。
 ## [br]
@@ -138,7 +138,7 @@ func _commit_transaction(_context: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _context: apply_scope 调用上下文字典。
 ## [br]

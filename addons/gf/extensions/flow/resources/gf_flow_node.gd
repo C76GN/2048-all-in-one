@@ -363,7 +363,7 @@ func deserialize_runtime_state(data: Dictionary) -> void:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 正整数租约 ID；节点正被其他执行占用时返回 -1。
 func acquire_runtime_state_lease() -> int:
@@ -381,7 +381,7 @@ func acquire_runtime_state_lease() -> int:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lease_id: acquire_runtime_state_lease() 返回的租约 ID。
 ## [br]
@@ -397,7 +397,7 @@ func begin_runtime_state_lease_write(lease_id: int) -> bool:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lease_id: 当前租约 ID。
 ## [br]
@@ -417,7 +417,7 @@ func end_runtime_state_lease_write(lease_id: int) -> bool:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lease_id: 当前租约 ID。
 ## [br]
@@ -434,7 +434,7 @@ func release_runtime_state_lease(lease_id: int) -> bool:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 存在活动租约时返回 true。
 func is_runtime_state_leased() -> bool:

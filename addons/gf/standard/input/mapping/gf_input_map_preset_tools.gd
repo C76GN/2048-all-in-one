@@ -142,7 +142,7 @@ static func apply_input_map_preset(preset: Dictionary, options: Dictionary = {})
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param preset: InputMap 预设字典。
 ## [br]

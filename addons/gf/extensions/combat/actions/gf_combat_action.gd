@@ -160,7 +160,7 @@ func with_amount(value: float) -> GFCombatAction:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 最近一次 amount 写入有效且当前值有限时返回 true。
 func is_numeric_state_valid() -> bool:
@@ -230,7 +230,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 传给 GFReportValueCodec 的编码选项。
 ## [br]

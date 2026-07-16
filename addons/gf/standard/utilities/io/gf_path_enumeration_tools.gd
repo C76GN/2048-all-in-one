@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFPathEnumerationTools
 extends RefCounted
 
@@ -20,21 +20,21 @@ const _GF_PATH_TOOLS = preload("res://addons/gf/kernel/core/gf_path_tools.gd")
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_SCAN_DEPTH: int = 32
 
 ## 默认单次枚举文件数量上限。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_FILE_COUNT: int = 10000
 
 ## 默认单次枚举访问的目录项数量上限。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_ENTRY_COUNT: int = 10000
 
 
@@ -44,7 +44,7 @@ const DEFAULT_MAX_ENTRY_COUNT: int = 10000
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root_path: 扫描起点。
 ## [br]
@@ -62,7 +62,7 @@ static func enumerate_files(root_path: String = "res://", options: Dictionary = 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root_path: 扫描起点。
 ## [br]

@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFVirtualListFocusModel
 extends RefCounted
 
@@ -19,7 +19,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param previous_index: 变化前的焦点索引；无焦点时为 NO_FOCUS。
 ## [br]
@@ -33,7 +33,7 @@ signal focused_index_changed(previous_index: int, focused_index: int)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const NO_FOCUS: int = -1
 
 
@@ -43,7 +43,7 @@ const NO_FOCUS: int = -1
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var item_count: int:
 	get:
 		return _item_count
@@ -54,7 +54,7 @@ var item_count: int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var focused_index: int:
 	get:
 		return _focused_index
@@ -65,21 +65,21 @@ var focused_index: int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var wrap_navigation: bool = false
 
 ## 当条目数量变化且当前没有焦点时，是否自动聚焦第一个可聚焦条目。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var auto_focus_on_count_change: bool = false
 
 ## 可选可聚焦判断回调。回调接收 item_index，返回 false 时该索引会被跳过。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema focusable_callback: Callable(item_index: int) -> bool。
 var focusable_callback: Callable:
@@ -103,7 +103,7 @@ var _focusable_callback: Callable = Callable()
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_item_count: 条目数量。
 ## [br]
@@ -140,7 +140,7 @@ func configure(p_item_count: int, options: Dictionary = {}) -> GFVirtualListFocu
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_item_count: 条目数量。
 ## [br]
@@ -158,7 +158,7 @@ func set_item_count(p_item_count: int, repair_focus_enabled: bool = true) -> boo
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param item_index: 目标条目索引；传入 NO_FOCUS 会清空焦点。
 ## [br]
@@ -173,7 +173,7 @@ func set_focused_index(item_index: int) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 焦点发生变化时返回 true。
 func clear_focus() -> bool:
@@ -184,7 +184,7 @@ func clear_focus() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前存在有效焦点时返回 true。
 func has_focus() -> bool:
@@ -195,7 +195,7 @@ func has_focus() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 焦点发生变化时返回 true。
 func focus_first() -> bool:
@@ -209,7 +209,7 @@ func focus_first() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 焦点发生变化时返回 true。
 func focus_last() -> bool:
@@ -226,7 +226,7 @@ func focus_last() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param step: 移动步数。
 ## [br]
@@ -263,7 +263,7 @@ func move_focus(step: int) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 焦点发生变化时返回 true。
 func focus_next() -> bool:
@@ -274,7 +274,7 @@ func focus_next() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 焦点发生变化时返回 true。
 func focus_previous() -> bool:
@@ -285,7 +285,7 @@ func focus_previous() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param preferred_index: 优先尝试的索引；无偏好时传 NO_FOCUS。
 ## [br]
@@ -300,7 +300,7 @@ func repair_focus(preferred_index: int = NO_FOCUS) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param item_index: 条目索引。
 ## [br]
@@ -319,7 +319,7 @@ func is_focusable(item_index: int) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 焦点状态字典。
 ## [br]

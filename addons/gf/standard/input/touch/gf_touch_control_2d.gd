@@ -9,7 +9,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFTouchControl2D
 extends Node2D
 
@@ -47,7 +47,7 @@ func _exit_tree() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func release() -> void:
 	var _released_touch: bool = _release_touch_capture()
 
@@ -56,7 +56,7 @@ func release() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 有活动触点捕获时返回 true。
 func is_touch_active() -> bool:
@@ -67,7 +67,7 @@ func is_touch_active() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前活动触点 index；没有捕获时返回 -1。
 func get_active_touch_index() -> int:

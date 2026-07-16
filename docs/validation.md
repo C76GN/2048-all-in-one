@@ -24,7 +24,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 - `lockfile_verify.ok` 为 `true`
 - 如果 `.gf/packages.lock.json` 存在，`installed_count` 与 lockfile 中的 installed 包数量一致
 
-注意：GF 7 使用 Godot 原生包管理 CLI，入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。不要继续使用旧的 Python `addons/gf/kernel/package_tools/gf_package_installer.py` 命令。
+注意：GF 8 使用 Godot 原生包管理 CLI，入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。不要继续使用旧的 Python `addons/gf/kernel/package_tools/gf_package_installer.py` 命令。
 
 当前仓库是手动更新后的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在。缺失 lockfile 时，包状态命令会把 lockfile 视为空安装状态；这不等价于项目运行失败，但表示当前 GF 源码不是由包管理器重建出来的。若后续恢复包管理器安装流，应先重新生成 lockfile，再恢复对 installed 包数量的强校验。
 
@@ -122,11 +122,11 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 结果：
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
-- GUT：183 个测试全部通过，共 1076 个断言。
-- 当前完整套件：`tests/gut/` 下 22 个测试脚本、183 个 `test_` 用例。
+- GUT：196 个测试全部通过。
+- 当前完整套件：`tests/gut/` 下 28 个测试脚本、196 个 `test_` 用例。
 - Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。运行时系统时间与随机源受路径扫描门禁约束，场景耗时复用 `GFOperationDiagnosticsUtility` 的操作起始 tick。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 259`、`Resources = 116`、RID 类型数 `= 3`。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时 `class_name` 集合；输入集合不变时任何增长都会失败。只有在干净 HEAD 对照证明增量来自经过审计的运行时类集合变化后，才允许带理由重新校准原始计数。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 263`、`Resources = 116`、RID 类型数 `= 3`。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时 `class_name` 集合；输入集合不变时任何增长都会失败。只有在干净 HEAD 对照证明增量来自经过审计的运行时类集合变化后，才允许带理由重新校准原始计数。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。

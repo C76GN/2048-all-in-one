@@ -7,7 +7,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNetworkLobbyQuery
 extends Resource
 
@@ -18,28 +18,28 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var query_id: StringName = &""
 
 ## 可选搜索文本。backend 可用它匹配显示名或平台自定义字段。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var search_text: String = ""
 
 ## 必须同时具备的 tag。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var required_tags: PackedStringArray = PackedStringArray()
 
 ## 必须匹配的 metadata 键值。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema required_metadata: Dictionary metadata key/value filters.
 @export var required_metadata: Dictionary = {}
@@ -48,28 +48,28 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var max_results: int = 0
 
 ## 是否包含已满 lobby。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var include_full_lobbies: bool = false
 
 ## 是否包含不可加入 lobby。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var include_unjoinable_lobbies: bool = false
 
 ## 调用方自定义查询选项。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined query metadata.
 @export var metadata: Dictionary = {}
@@ -81,7 +81,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby: Lobby 快照。
 ## [br]
@@ -109,7 +109,7 @@ func matches(lobby: GFNetworkLobbyDescriptor) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 查询字典。
 ## [br]
@@ -131,7 +131,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 查询字典。
 ## [br]
@@ -151,7 +151,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新查询。
 func duplicate_query() -> GFNetworkLobbyQuery:
@@ -164,7 +164,7 @@ func duplicate_query() -> GFNetworkLobbyQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 查询字典。
 ## [br]

@@ -33,7 +33,7 @@ const GROUP_SOURCE_PATH: StringName = &"path"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const GROUP_SOURCE_CACHE_KEY: StringName = &"cache_key"
 
 ## 按资源路径文件名去扩展名分组。
@@ -237,7 +237,7 @@ func get_entry_type_hint(entry_id: StringName) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param entry_id: 条目稳定 ID。
 ## [br]
@@ -254,7 +254,7 @@ func get_entry_cache_key(entry_id: StringName) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param entry_id: 条目稳定 ID。
 ## [br]

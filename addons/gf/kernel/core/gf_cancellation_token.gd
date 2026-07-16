@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/core
 class_name GFCancellationToken
@@ -21,7 +21,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 稳定取消原因。
 signal cancel_requested(reason: StringName)
@@ -41,7 +41,7 @@ var _cancel_requested_msec: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 已请求取消时返回 true。
 func is_cancel_requested() -> bool:
@@ -52,7 +52,7 @@ func is_cancel_requested() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 首次取消请求提供的原因；未取消时为空 StringName。
 func get_cancel_reason() -> StringName:
@@ -63,7 +63,7 @@ func get_cancel_reason() -> StringName:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 取消元数据副本。
 ## [br]
@@ -76,7 +76,7 @@ func get_cancel_metadata() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 取消请求发生时的毫秒 tick；未取消时为 0。
 func get_cancel_requested_msec() -> int:
@@ -87,7 +87,7 @@ func get_cancel_requested_msec() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 取消状态快照。
 ## [br]

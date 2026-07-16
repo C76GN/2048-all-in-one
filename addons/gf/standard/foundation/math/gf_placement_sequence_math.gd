@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFPlacementSequenceMath
 extends RefCounted
 
@@ -18,21 +18,21 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const MODE_FALLBACK: StringName = &"fallback"
 
 ## 只有一个可用历史点时复用最后一次放置位置。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const MODE_REPEAT_LAST: StringName = &"repeat_last"
 
 ## 至少有两个可用历史点时按 `last + (last - previous)` 推断下一次位置。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const MODE_EXTRAPOLATED: StringName = &"extrapolated"
 
 
@@ -42,7 +42,7 @@ const MODE_EXTRAPOLATED: StringName = &"extrapolated"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param positions: 已确认的放置位置，按时间顺序排列。
 ## [br]
@@ -127,7 +127,7 @@ static func predict_next_position_2d(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param positions: 已确认的放置位置，按时间顺序排列。
 ## [br]
@@ -212,7 +212,7 @@ static func predict_next_position_3d(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cells: 已确认的放置格子，按时间顺序排列。
 ## [br]
@@ -242,7 +242,7 @@ static func predict_next_cell_2d(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cells: 已确认的放置格子，按时间顺序排列。
 ## [br]

@@ -49,7 +49,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_range(1, 4096, 1) var max_event_name_length: int = 128:
 	set(value):
 		max_event_name_length = clampi(value, 1, 4096)
@@ -58,7 +58,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_range(1, 4096, 1) var max_property_count: int = 128:
 	set(value):
 		max_property_count = clampi(value, 1, 4096)
@@ -67,7 +67,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_range(1, 65536, 1) var max_string_length: int = 4096:
 	set(value):
 		max_string_length = clampi(value, 1, 65536)
@@ -76,7 +76,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_range(1, 4096, 1) var max_collection_items: int = 256:
 	set(value):
 		max_collection_items = clampi(value, 1, 4096)
@@ -85,7 +85,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_range(1, 1000000, 1) var max_total_nodes: int = 8192:
 	set(value):
 		max_total_nodes = clampi(value, 1, 1000000)
@@ -94,7 +94,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_range(1024, 16777216, 1024) var max_payload_bytes: int = 256 * 1024:
 	set(value):
 		max_payload_bytes = clampi(value, 1024, 16 * 1024 * 1024)

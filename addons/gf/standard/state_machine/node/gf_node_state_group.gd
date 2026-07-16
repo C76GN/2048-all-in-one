@@ -88,7 +88,7 @@ signal state_event_handled(event_id: StringName, handler_state: GFNodeState, pay
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum StackExitPolicy {
 	## 每个暂停状态都必须通过 can_exit()。
 	REQUIRE_GUARDS,
@@ -696,7 +696,7 @@ func get_state_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 传给 GFReportValueCodec 的编码选项。
 ## [br]
@@ -915,7 +915,7 @@ func detach_machine() -> void:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func begin_machine_restore_guard() -> void:
 	_machine_restore_guard_depth += 1
 
@@ -924,7 +924,7 @@ func begin_machine_restore_guard() -> void:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func end_machine_restore_guard() -> void:
 	_machine_restore_guard_depth = maxi(_machine_restore_guard_depth - 1, 0)
 

@@ -683,7 +683,7 @@ func to_dict(persistent_only: bool = true) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 设置数据。
 ## [br]
@@ -704,7 +704,7 @@ func replace_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 设置数据。
 ## [br]

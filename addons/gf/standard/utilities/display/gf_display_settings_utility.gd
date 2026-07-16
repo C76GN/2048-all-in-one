@@ -83,7 +83,7 @@ var persist_changes: bool = true
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var default_windowed_size: Vector2i = Vector2i.ZERO
 
 ## 音频设置键前缀。

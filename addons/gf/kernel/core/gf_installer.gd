@@ -20,7 +20,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _architecture: 当前即将初始化的架构实例。
 ## [br]
@@ -35,7 +35,7 @@ func install(_architecture: GFArchitecture, _scope: GFAsyncScope) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _binder: 绑定到当前架构的装配器。
 ## [br]

@@ -189,7 +189,7 @@ func restore_runtime_state(state: Dictionary) -> GFInputVirtualCursorModifier:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 始终返回 true。
 func supports_runtime_state() -> bool:
@@ -200,7 +200,7 @@ func supports_runtime_state() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前运行时状态。
 ## [br]
@@ -213,7 +213,7 @@ func get_modifier_runtime_state() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param state: get_modifier_runtime_state() 生成的状态。
 ## [br]
@@ -228,7 +228,7 @@ func restore_modifier_runtime_state(state: Dictionary) -> GFInputModifier:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前修饰器。
 func reset_modifier_runtime_state() -> GFInputModifier:
@@ -239,7 +239,7 @@ func reset_modifier_runtime_state() -> GFInputModifier:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param delta_seconds: 运行时 delta 秒数；小于 0 时按 0 处理。
 ## [br]
@@ -252,7 +252,7 @@ func set_runtime_delta_seconds(delta_seconds: float) -> GFInputModifier:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前修饰器。
 func clear_runtime_delta_seconds() -> GFInputModifier:

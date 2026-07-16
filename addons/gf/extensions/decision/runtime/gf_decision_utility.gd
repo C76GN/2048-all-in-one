@@ -187,7 +187,7 @@ func score_all(decision_set_id: StringName, context: GFDecisionContext) -> Array
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param decision_set_id: 决策集合标识。
 ## [br]

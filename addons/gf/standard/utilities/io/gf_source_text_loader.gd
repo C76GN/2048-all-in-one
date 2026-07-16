@@ -33,7 +33,7 @@ var allow_registered_text: bool = true
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var allow_custom_loaders: bool = true
 
 ## 是否允许文件系统访问。
@@ -184,7 +184,7 @@ func unregister_text(source_key: String) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param loader: 自定义加载回调。
 ## [br]
@@ -209,7 +209,7 @@ func add_custom_loader(loader: Callable, loader_metadata: Dictionary = {}) -> bo
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear_custom_loaders() -> void:
 	_custom_loaders.clear()
 	clear_cache()

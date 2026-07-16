@@ -383,7 +383,7 @@ func diff_cells(other: GFTileMapCache, compare_key: StringName = &"") -> Array[V
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 可保存的 JSON 兼容字典。
 ## [br]
@@ -400,7 +400,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: to_dict() 生成的数据，或旧版原始 Variant 记录。
 ## [br]

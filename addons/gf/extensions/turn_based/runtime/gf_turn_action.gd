@@ -139,7 +139,7 @@ func cancel() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 已离开所属队列且不可再次使用时返回 true。
 func is_sealed() -> bool:
@@ -167,7 +167,7 @@ func _resolve(_context: GFTurnContext) -> Variant:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _architecture: 当前架构。
 func _inject_dependencies(_architecture: GFArchitecture) -> void:
@@ -180,7 +180,7 @@ func _inject_dependencies(_architecture: GFArchitecture) -> void:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param architecture: 当前 Flow 所属架构。
 func inject_dependencies_from_flow(architecture: GFArchitecture) -> void:
@@ -191,7 +191,7 @@ func inject_dependencies_from_flow(architecture: GFArchitecture) -> void:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 首次成功声明时返回 true。
 func claim_for_queue() -> bool:
@@ -207,7 +207,7 @@ func claim_for_queue() -> bool:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_targets: 解析前仍有效的目标数组。
 func replace_runtime_targets(p_targets: Array[Object]) -> void:
@@ -218,7 +218,7 @@ func replace_runtime_targets(p_targets: Array[Object]) -> void:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func seal_after_queue() -> void:
 	_is_sealed = true
 

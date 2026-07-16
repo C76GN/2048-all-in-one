@@ -67,7 +67,7 @@ var max_metric_series: int = 256:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_value_collection_items: int = 32:
 	set(value):
 		max_value_collection_items = maxi(value, 0)
@@ -76,7 +76,7 @@ var max_value_collection_items: int = 32:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_value_snapshot_nodes: int = 256:
 	set(value):
 		max_value_snapshot_nodes = maxi(value, 0)
@@ -85,7 +85,7 @@ var max_value_snapshot_nodes: int = 256:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_panel_content_chars: int = 8192:
 	set(value):
 		max_panel_content_chars = maxi(value, 0)
@@ -148,9 +148,10 @@ func dispose() -> void:
 		_overlay_gui._watch_snapshot_provider = Callable()
 		_overlay_gui._panel_snapshot_provider = Callable()
 		var parent: Node = _overlay_gui.get_parent()
-		if parent != null:
+		if parent != null and not GFAutoload.is_tree_exit_in_progress():
 			parent.remove_child(_overlay_gui)
-		_overlay_gui.queue_free()
+		if not _overlay_gui.is_queued_for_deletion():
+			_overlay_gui.queue_free()
 	_overlay_gui = null
 	clear_watches()
 	clear_panels()
@@ -314,7 +315,7 @@ func get_watch_snapshot(include_hidden: bool = false) -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param panel_id: 面板唯一标识。
 ## [br]

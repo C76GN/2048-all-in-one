@@ -8,7 +8,7 @@
 ## [br]
 ## @category tool_api
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFConfigPipelineArtifactManifest
 extends RefCounted
 
@@ -19,14 +19,14 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const FORMAT: String = "gf.config_pipeline.artifact_manifest"
 
 ## manifest 格式版本。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const FORMAT_VERSION: int = 1
 
 const _ARTIFACT_OWNER: String = "gf.tool.config_pipeline"
@@ -46,7 +46,7 @@ const _GENERATED_ARTIFACT_REPORT_SCRIPT = preload("res://addons/gf/kernel/editor
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param profile_path: Profile 资源路径。
 ## [br]
@@ -101,7 +101,7 @@ func make_manifest(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param manifest_path: manifest JSON 路径。
 ## [br]
@@ -173,7 +173,7 @@ func load_manifest(manifest_path: String) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param manifest_path: manifest JSON 输出路径。
 ## [br]
@@ -257,7 +257,7 @@ func save_manifest(manifest_path: String, manifest: Dictionary, options: Diction
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param manifest_path: 已保存 manifest 路径。
 ## [br]
@@ -320,7 +320,7 @@ func make_freshness_report(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param output_path: 数据库输出路径。
 ## [br]

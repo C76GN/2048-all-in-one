@@ -7,7 +7,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFStorageSectionCache
 extends RefCounted
 
@@ -23,7 +23,7 @@ var _scopes: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -54,7 +54,7 @@ func write_section(scope_id: Variant, section_id: StringName, data: Dictionary, 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -92,7 +92,7 @@ func merge_section(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -120,7 +120,7 @@ func read_section(scope_id: Variant, section_id: StringName, duplicate_value: bo
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -138,7 +138,7 @@ func has_section(scope_id: Variant, section_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -170,7 +170,7 @@ func get_sections(scope_id: Variant, only_dirty: bool = false) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -188,7 +188,7 @@ func get_section_ids(scope_id: Variant) -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -206,7 +206,7 @@ func get_dirty_sections(scope_id: Variant) -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -227,7 +227,7 @@ func is_dirty(scope_id: Variant, section_id: StringName = &"") -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -258,7 +258,7 @@ func mark_clean(scope_id: Variant, section_ids: PackedStringArray = PackedString
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -286,7 +286,7 @@ func apply_payload(scope_id: Variant, payload: Dictionary, mark_dirty: bool = fa
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -324,7 +324,7 @@ func build_payload(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 调用方定义的作用域标识。
 ## [br]
@@ -339,7 +339,7 @@ func evict_scope(scope_id: Variant) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear() -> void:
 	_scopes.clear()
 
@@ -348,7 +348,7 @@ func clear() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试快照。
 ## [br]

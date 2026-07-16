@@ -7,7 +7,7 @@
 ## [br]
 ## @category protocol
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 class_name GFHapticBackend
 extends RefCounted
 
@@ -18,7 +18,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param target_type: GFHapticUtility.TargetType 值。
 ## [br]
@@ -50,7 +50,7 @@ func start_output(
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param target_type: GFHapticUtility.TargetType 值。
 ## [br]
@@ -71,7 +71,7 @@ func stop_output(target_type: int, target_id: int, metadata: Dictionary = {}) ->
 ## [br]
 ## @api protected
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param _target_type: GFHapticUtility.TargetType 值。
 ## [br]
@@ -103,7 +103,7 @@ func _start_output(
 ## [br]
 ## @api protected
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param _target_type: GFHapticUtility.TargetType 值。
 ## [br]

@@ -128,7 +128,7 @@ func get_manifest(package_id: StringName) -> GFContentPackageManifest:
 ## [br]
 ## @return 与当前依赖图和重复 ID 状态一致的新目录。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func duplicate_catalog() -> GFContentPackageCatalog:
 	var result: GFContentPackageCatalog = GFContentPackageCatalog.new()
 	for package_id: StringName in _manifest_order:

@@ -40,7 +40,7 @@ var max_read_byte_count: int = _DEFAULT_MAX_READ_BYTE_COUNT
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_write_byte_count: int = _DEFAULT_MAX_WRITE_BYTE_COUNT
 
 
@@ -465,7 +465,7 @@ func try_read_bytes(byte_count: int) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: try_read_*() 返回的读取报告。
 ## [br]

@@ -133,7 +133,7 @@ func get_source() -> Object:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param json_compatible: 为 true 时返回可直接 JSON.stringify() 的值。
 ## [br]

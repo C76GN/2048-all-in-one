@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFSupportReportWorkflow
 extends GFUtility
 
@@ -18,7 +18,7 @@ extends GFUtility
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: 已构建的支持报告。
 ## [br]
@@ -29,7 +29,7 @@ signal workflow_report_built(report: Dictionary)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: 已提交的支持报告。
 ## [br]
@@ -44,7 +44,7 @@ signal workflow_report_submitted(report: Dictionary, result: Dictionary)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: 已入队的支持报告。
 ## [br]
@@ -57,7 +57,7 @@ signal workflow_report_queued(report: Dictionary, envelope: GFRequestEnvelope)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param result: 重放报告。
 ## [br]
@@ -71,56 +71,56 @@ signal workflow_replay_completed(result: Dictionary)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var support_report_utility: GFSupportReportUtility = null
 
 ## 可选离线请求队列。为空时 workflow 只尝试直接提交。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var request_outbox: GFRequestOutboxUtility = null
 
 ## 直接提交或重放时使用的传输回调，建议签名为 func(report: Dictionary, options: Dictionary) -> Variant。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var transport_callback: Callable = Callable()
 
 ## 离线队列请求目标。它只是逻辑端点，项目可按自己的传输层解释。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var request_url: String = "gf://support-report"
 
 ## 直接提交失败时是否尝试写入 request_outbox。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var queue_on_submit_failure: bool = true
 
 ## 缺少 transport_callback 时是否尝试写入 request_outbox。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var queue_when_transport_missing: bool = true
 
 ## 设置 transport_callback 后是否自动把 request_outbox.transport_callback 指向本工作流。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var auto_wire_outbox_transport: bool = true
 
 ## 每次构建报告都会合并的会话元数据。调用 build_report() 时传入的 metadata 优先生效。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema session_metadata: Dictionary，项目自定义诊断上下文。
 var session_metadata: Dictionary = {}
@@ -140,7 +140,7 @@ var _replay_completed_count: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func dispose() -> void:
 	support_report_utility = null
 	request_outbox = null
@@ -158,7 +158,7 @@ func dispose() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report_utility: 支持报告工具；为空时保持现有值。
 ## [br]
@@ -181,7 +181,7 @@ func setup(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param callback: 传输回调，建议签名为 func(report: Dictionary, options: Dictionary) -> Variant。
 ## [br]
@@ -196,7 +196,7 @@ func set_transport(callback: Callable) -> GFSupportReportWorkflow:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param metadata: 新元数据。
 ## [br]
@@ -217,7 +217,7 @@ func set_session_metadata(metadata: Dictionary, merge_existing: bool = false) ->
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param description: 用户描述或问题摘要。
 ## [br]
@@ -244,7 +244,7 @@ func build_report(description: String = "", options: Dictionary = {}) -> Diction
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param description: 用户描述或问题摘要。
 ## [br]
@@ -264,7 +264,7 @@ func submit_report(description: String = "", options: Dictionary = {}) -> Dictio
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: 支持报告字典。
 ## [br]
@@ -310,7 +310,7 @@ func submit_built_report(report: Dictionary, options: Dictionary = {}) -> Dictio
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: 支持报告字典。
 ## [br]
@@ -360,7 +360,7 @@ func queue_report(report: Dictionary, options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param max_count: 最多处理数量；小于等于 0 表示不限制。
 ## [br]
@@ -391,7 +391,7 @@ func replay_queued(max_count: int = 0) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试快照。
 ## [br]

@@ -9,7 +9,7 @@
 ## [br]
 ## @category editor_api
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNetworkContractAudit
 extends RefCounted
 
@@ -25,7 +25,7 @@ const _GF_VALIDATION_REPORT_DICTIONARY = preload("res://addons/gf/standard/found
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param contract: 网络契约。
 ## [br]
@@ -52,7 +52,7 @@ func audit_contract(contract: GFNetworkContract, options: Dictionary = {}) -> Di
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param contract_paths: 契约资源路径列表。
 ## [br]

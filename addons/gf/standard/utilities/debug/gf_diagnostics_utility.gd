@@ -173,7 +173,7 @@ var default_scene_tree_max_nodes: int = 128
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_contribution_collection_items: int = 64:
 	set(value):
 		max_contribution_collection_items = maxi(value, 0)
@@ -182,7 +182,7 @@ var max_contribution_collection_items: int = 64:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_contribution_nodes: int = 2048:
 	set(value):
 		max_contribution_nodes = maxi(value, 0)
@@ -191,7 +191,7 @@ var max_contribution_nodes: int = 2048:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_contribution_depth: int = 16:
 	set(value):
 		max_contribution_depth = maxi(value, 0)
@@ -202,7 +202,7 @@ var max_contribution_depth: int = 16:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_contribution_bytes: int = 262_144:
 	set(value):
 		max_contribution_bytes = maxi(value, 0)
@@ -508,7 +508,7 @@ func register_monitor(owner: Object, monitor_id: StringName, options: Dictionary
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 当前监控项注册所有者。
 ## [br]
@@ -699,7 +699,7 @@ func get_monitor_preset_ids() -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 分区所有者；同名分区只允许同一 owner 更新。
 ## [br]
@@ -734,7 +734,7 @@ func publish_snapshot_section(owner: Object, section_id: StringName, section: Di
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 当前分区所有者。
 ## [br]
@@ -751,7 +751,7 @@ func remove_snapshot_section(owner: Object, section_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param section_id: 快照顶层字段名。
 ## [br]
@@ -764,7 +764,7 @@ func has_snapshot_section(section_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 快照所有者；同名工具只允许同一 owner 更新。
 ## [br]
@@ -799,7 +799,7 @@ func publish_tool_snapshot(owner: Object, tool_id: StringName, snapshot: Diction
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 当前快照所有者。
 ## [br]
@@ -816,7 +816,7 @@ func remove_tool_snapshot(owner: Object, tool_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param tool_id: tools 内部字段名。
 ## [br]

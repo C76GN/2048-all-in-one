@@ -38,7 +38,7 @@ func get_spawn_transforms(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param emit_count: 调用方请求数量；小于等于 0 时使用模式默认值。
 ## [br]
@@ -78,7 +78,7 @@ func _get_spawn_transforms(
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 默认生成数量。
 func _get_default_spawn_count() -> int:

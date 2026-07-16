@@ -8,7 +8,7 @@
 ## [br]
 ## @category tool_api
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFConfigPipelineCommand
 extends RefCounted
 
@@ -27,7 +27,7 @@ const _DEFAULT_OPERATION: StringName = _OPERATION_EXPORT
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param arguments: Godot `--` 之后的用户参数。
 ## [br]
@@ -100,7 +100,7 @@ func run(arguments: PackedStringArray = PackedStringArray(), base_options: Dicti
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param result: run() 返回的命令报告。
 ## [br]
@@ -127,7 +127,7 @@ func make_output_text(result: Dictionary, pretty: bool = true) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 用法说明文本。
 func get_usage() -> String:

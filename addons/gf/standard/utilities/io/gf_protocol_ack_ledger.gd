@@ -65,7 +65,7 @@ var max_entries: int = 256
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 var max_attempts: int = 0:
 	set(value):
 		max_attempts = maxi(value, 0)
@@ -74,7 +74,7 @@ var max_attempts: int = 0:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 var retry_interval_msec: int = 0:
 	set(value):
 		retry_interval_msec = maxi(value, 0)
@@ -83,7 +83,7 @@ var retry_interval_msec: int = 0:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 var incoming_window_size: int = 256:
 	set(value):
 		incoming_window_size = maxi(value, 0)
@@ -246,7 +246,7 @@ func expire_pending(now_msec: int = -1) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
@@ -291,7 +291,7 @@ func record_packet_attempt(
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param now_msec: 当前时间；小于 0 时使用 Time.get_ticks_msec()。
 ## [br]
@@ -319,7 +319,7 @@ func get_retry_ready_ids(now_msec: int = -1, limit: int = 0) -> Array:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
@@ -336,7 +336,7 @@ func get_attempt_count(packet_id: Variant) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]
@@ -376,7 +376,7 @@ func accept_incoming_packet(
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param packet_id: 协议层稳定 ID。
 ## [br]

@@ -300,7 +300,7 @@ func raycast_from_screen_3d(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param camera: 用于投影的 Camera3D。
 ## [br]
@@ -317,7 +317,7 @@ func world_to_screen_3d(camera: Camera3D, world_position: Vector3) -> Vector2:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param camera: 用于投影的 Camera3D。
 ## [br]
@@ -379,7 +379,7 @@ func screen_to_world_2d(canvas_item: CanvasItem, screen_position: Vector2) -> Ve
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param control_rect: Control 的全局矩形，单位为 Viewport 逻辑坐标。
 ## [br]
@@ -429,7 +429,7 @@ func calculate_control_window_rect(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param control: 目标 Control。
 ## [br]

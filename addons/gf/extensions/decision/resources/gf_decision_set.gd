@@ -159,7 +159,7 @@ func select_best(context: GFDecisionContext) -> GFDecisionScore:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scores: 已计算的候选评分。
 ## [br]
@@ -178,7 +178,7 @@ func select_best_from_scores(scores: Array[GFDecisionScore]) -> GFDecisionScore:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param context: 决策上下文。
 ## [br]
@@ -227,7 +227,7 @@ func get_debug_snapshot(context: GFDecisionContext = null, scores: Variant = nul
 ## [br]
 ## @return GFValidationReportDictionary 兼容报告。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema return: Dictionary with ok, healthy, decision_set_id, issues, summary, and next_action.
 func get_validation_report() -> Dictionary:

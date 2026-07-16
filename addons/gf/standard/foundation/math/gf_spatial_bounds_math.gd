@@ -11,7 +11,7 @@ extends RefCounted
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待检查值。
 ## [br]
@@ -24,7 +24,7 @@ static func is_finite_float(value: float) -> bool:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待检查向量。
 ## [br]
@@ -37,7 +37,7 @@ static func is_finite_vector2(value: Vector2) -> bool:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待检查向量。
 ## [br]
@@ -50,7 +50,7 @@ static func is_finite_vector3(value: Vector3) -> bool:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param rect: 待检查矩形。
 ## [br]
@@ -67,7 +67,7 @@ static func is_finite_rect2(rect: Rect2) -> bool:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param bounds: 待检查包围盒。
 ## [br]
@@ -84,7 +84,7 @@ static func is_finite_aabb(bounds: AABB) -> bool:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param rect: 待归一化矩形。
 ## [br]
@@ -105,7 +105,7 @@ static func normalize_rect2(rect: Rect2) -> Rect2:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param bounds: 待归一化包围盒。
 ## [br]

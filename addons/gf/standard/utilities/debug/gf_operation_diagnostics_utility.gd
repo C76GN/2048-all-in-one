@@ -18,14 +18,14 @@ extends GFUtility
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_COMPLETED_OPERATIONS: int = 100
 
 ## 默认允许同时追踪的活动操作数量。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_ACTIVE_OPERATIONS: int = 100
 
 ## 默认保留的异常事件数量。
@@ -46,14 +46,14 @@ const DEFAULT_MAX_STATE_TRACE_ENTRIES: int = 64
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_SAMPLE_STATS: int = 256
 
 ## 单个 metadata 默认最多保留的唯一业务键数量。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_METADATA_KEYS: int = 64
 
 ## 默认慢操作阈值，单位毫秒。
@@ -150,7 +150,7 @@ const STATE_CANCELLED: StringName = &"cancelled"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_completed_operations: int = DEFAULT_MAX_COMPLETED_OPERATIONS:
 	set(value):
 		max_completed_operations = maxi(value, 0)
@@ -161,7 +161,7 @@ var max_completed_operations: int = DEFAULT_MAX_COMPLETED_OPERATIONS:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_active_operations: int = DEFAULT_MAX_ACTIVE_OPERATIONS:
 	set(value):
 		max_active_operations = maxi(value, 0)
@@ -190,7 +190,7 @@ var max_state_trace_entries: int = DEFAULT_MAX_STATE_TRACE_ENTRIES:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_sample_stats: int = DEFAULT_MAX_SAMPLE_STATS:
 	set(value):
 		max_sample_stats = maxi(value, 0)
@@ -201,7 +201,7 @@ var max_sample_stats: int = DEFAULT_MAX_SAMPLE_STATS:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_metadata_keys: int = DEFAULT_MAX_METADATA_KEYS:
 	set(value):
 		max_metadata_keys = maxi(value, 0)
@@ -676,7 +676,7 @@ func record_async_snapshot(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param sample_id: 采样点 ID，建议使用稳定命名空间标识。
 ## [br]
@@ -734,7 +734,7 @@ func record_sample(sample_id: StringName, duration_ms: float, options: Dictionar
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param sample_id: 采样点 ID。
 ## [br]
@@ -760,7 +760,7 @@ func record_sample_from_ticks(sample_id: StringName, started_ticks_usec: int, op
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param sample_id: 采样点 ID；为空时清空全部采样统计。
 ## [br]
@@ -837,7 +837,7 @@ func get_operation_state_trace(operation_id: StringName, limit: int = 0) -> Arra
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param sample_id: 采样点 ID。
 ## [br]
@@ -854,7 +854,7 @@ func get_sample_stat(sample_id: StringName) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param limit: 最大返回数量；小于等于 0 时返回全部匹配统计。
 ## [br]
@@ -1061,7 +1061,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param record: 操作、异常、健康快照或调试快照。
 ## [br]
@@ -1082,7 +1082,7 @@ func to_json_compatible_record(record: Dictionary, options: Dictionary = {}) -> 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param limit: recent_operations 与 recent_incidents 的最大数量。
 ## [br]
@@ -1101,7 +1101,7 @@ func get_json_compatible_health_snapshot(limit: int = 5, options: Dictionary = {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 传给 GFReportValueCodec 的编码选项。
 ## [br]

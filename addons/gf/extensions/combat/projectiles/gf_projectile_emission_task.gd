@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFProjectileEmissionTask
 extends RefCounted
 
@@ -18,35 +18,35 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const STATE_PENDING: StringName = &"pending"
 
 ## 已通过门控，可进入生成阶段。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const STATE_PREPARED: StringName = &"prepared"
 
 ## 已提交策略状态。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const STATE_COMMITTED: StringName = &"committed"
 
 ## 生成失败或调用方取消后已回滚。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const STATE_ROLLED_BACK: StringName = &"rolled_back"
 
 ## 门控或提交失败。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const STATE_FAILED: StringName = &"failed"
 
 
@@ -56,7 +56,7 @@ const STATE_FAILED: StringName = &"failed"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var state: StringName = STATE_PENDING
 
 
@@ -79,7 +79,7 @@ var _prepare_report: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param emitter: 发射器节点。
 ## [br]
@@ -121,7 +121,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 准备报告。
 ## [br]
@@ -176,7 +176,7 @@ func prepare() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param emitted_count: 实际成功创建的节点数量。
 ## [br]
@@ -213,7 +213,7 @@ func commit(emitted_count: int) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 回滚原因。
 ## [br]
@@ -235,7 +235,7 @@ func rollback(reason: StringName = &"emission_rolled_back") -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 准备成功后返回允许数量，否则返回 0。
 func get_allowed_count() -> int:
@@ -246,7 +246,7 @@ func get_allowed_count() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 发射上下文副本。
 ## [br]

@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFResourceRegistryAssetSourceProvider
 extends GFAssetCatalogSourceProvider
 
@@ -18,14 +18,14 @@ extends GFAssetCatalogSourceProvider
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var registry: GFResourceRegistry = null
 
 ## 转换字段选项，传给 GFAssetCatalogEntry.from_resource_registry_entry()。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema entry_options: Dictionary with optional title_fields, description_fields, tag_fields, category_fields, and preview_path_fields.
 var entry_options: Dictionary = {}
@@ -37,7 +37,7 @@ var entry_options: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_registry: 资源注册表。
 ## [br]
@@ -63,7 +63,7 @@ func configure_registry(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 可选项，支持 asset_ids、entry_ids 和 entry_options。
 ## [br]
@@ -108,7 +108,7 @@ func build_catalog(options: Dictionary = {}) -> GFAssetCatalog:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 来源诊断字典。
 ## [br]

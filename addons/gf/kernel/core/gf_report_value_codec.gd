@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFReportValueCodec
 extends RefCounted
 
@@ -41,28 +41,28 @@ const _COMPACT_TRUNCATION_MARKER: String = "<gf_truncated>"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REDACTION_PROFILE_DEBUG: String = "debug"
 
 ## 支持排障报告配置，保留对象 id 和 Node 名称，但默认隐藏路径。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REDACTION_PROFILE_SUPPORT: String = "support"
 
 ## 对外报告配置，隐藏对象 id、Node 名称和路径，只保留类型和有效性。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REDACTION_PROFILE_PUBLIC: String = "public"
 
 ## 隐私优先报告配置，隐藏对象 id、Node 名称、路径和 Resource 路径。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REDACTION_PROFILE_PRIVACY: String = "privacy"
 
 
@@ -72,7 +72,7 @@ const REDACTION_PROFILE_PRIVACY: String = "privacy"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param profile: REDACTION_PROFILE_* 常量之一。
 ## [br]
@@ -95,7 +95,7 @@ static func make_redaction_options(profile: String, overrides: Dictionary = {}) 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待转换的报告值。
 ## [br]
@@ -126,7 +126,7 @@ static func to_json_compatible(value: Variant, options: Dictionary = {}) -> Vari
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待转换的报告值。
 ## [br]
@@ -151,7 +151,7 @@ static func to_report_dictionary(value: Variant, options: Dictionary = {}) -> Di
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待序列化的报告值。
 ## [br]
@@ -193,7 +193,7 @@ static func stringify_json_compatible(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 待摘要的集合值。
 ## [br]

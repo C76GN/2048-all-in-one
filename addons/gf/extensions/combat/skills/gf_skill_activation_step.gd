@@ -7,7 +7,7 @@
 ## [br]
 ## @category protocol
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFSkillActivationStep
 extends RefCounted
 
@@ -18,14 +18,14 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var step_id: StringName = &""
 
 ## 应用成功后是否必须支持回滚。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var rollback_required: bool = true
 
 
@@ -35,7 +35,7 @@ var rollback_required: bool = true
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_step_id: 步骤 ID。
 ## [br]
@@ -57,7 +57,7 @@ func configure(
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _context: 本次技能激活上下文。
 ## [br]
@@ -72,7 +72,7 @@ func _validate_activation(_context: GFSkillActivationContext) -> Variant:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _context: 本次技能激活上下文。
 ## [br]
@@ -90,7 +90,7 @@ func _apply_activation(_context: GFSkillActivationContext) -> Variant:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _context: 本次技能激活上下文。
 ## [br]

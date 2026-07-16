@@ -10,7 +10,7 @@
 ## [br]
 ## @since 3.17.0
 class_name GFTouchButton
-extends "res://addons/gf/standard/input/touch/gf_touch_control_2d.gd"
+extends GFTouchControl2D
 
 
 # --- 信号 ---

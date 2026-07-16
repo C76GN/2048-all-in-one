@@ -57,7 +57,7 @@ const ENABLED_EXTENSIONS_SETTING: String = "gf/extensions/enabled"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const EXTENSION_SELECTION_MODE_SETTING: String = "gf/extensions/selection_mode"
 
 ## 项目设置：是否自动执行启用扩展 manifest 中声明的 installer_paths。
@@ -98,28 +98,28 @@ const AUTO_INSTALL_ENABLED_INSTALLERS_DEFAULT: bool = true
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const SELECTION_MODE_DEFAULT: String = "default"
 
 ## 显式扩展选择模式：使用 `gf/extensions/enabled` 中保存的扩展 ID。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const SELECTION_MODE_EXPLICIT: String = "explicit"
 
 ## 默认扩展选择模式。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const EXTENSION_SELECTION_MODE_DEFAULT: String = SELECTION_MODE_DEFAULT
 
 ## 默认显式扩展 ID 列表为空。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ENABLED_EXTENSIONS_DEFAULT: Array[String] = []
 
 ## 默认不扫描额外扩展根目录。
@@ -245,7 +245,7 @@ static func get_enabled_extension_ids() -> Array[String]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return `default` 表示按 manifest 默认值派生；`explicit` 表示读取显式启用列表。
 static func get_extension_selection_mode() -> String:
@@ -263,7 +263,7 @@ static func get_extension_selection_mode() -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param selection_mode: 选择模式，必须是 `default` 或 `explicit`。
 ## [br]
@@ -284,7 +284,7 @@ static func set_extension_selection_mode(selection_mode: String) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 static func use_default_extension_selection() -> void:
 	_set_extension_selection_mode_unchecked(SELECTION_MODE_DEFAULT)
 

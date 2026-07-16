@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/core
 class_name GFSubscriptionToken
@@ -27,7 +27,7 @@ var _debug_label: String = ""
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param cancel_callback: 首次取消时执行的无参清理回调。
 ## [br]
@@ -44,7 +44,7 @@ func _init(cancel_callback: Callable = Callable(), debug_label: String = "") -> 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 本次调用是否首次取消了活动订阅。
 func cancel() -> bool:
@@ -63,7 +63,7 @@ func cancel() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 活动时返回 true。
 func is_active() -> bool:
@@ -74,7 +74,7 @@ func is_active() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 创建订阅时传入的诊断标签。
 func get_debug_label() -> String:

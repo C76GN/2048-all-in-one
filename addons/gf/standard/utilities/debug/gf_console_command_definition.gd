@@ -42,7 +42,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema argument_suggester: Callable context -> PackedStringArray 或 Array。
 var argument_suggester: Callable = Callable()

@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 class_name GFObjectCandidateRegistry
 extends RefCounted
 
@@ -18,7 +18,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 var max_candidates: int = 0:
 	set(value):
 		max_candidates = maxi(value, 0)
@@ -27,7 +27,7 @@ var max_candidates: int = 0:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary copied into debug snapshots.
 var metadata: Dictionary = {}
@@ -46,7 +46,7 @@ var _serial: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 func clear() -> void:
 	_records.clear()
 	_order.clear()
@@ -57,7 +57,7 @@ func clear() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param candidate: 候选对象。
 ## [br]
@@ -96,7 +96,7 @@ func register_candidate(candidate: Object, options: Dictionary = {}) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param candidate: 候选对象。
 ## [br]
@@ -111,7 +111,7 @@ func unregister_candidate(candidate: Object) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param candidate_id: 候选对象实例 ID。
 ## [br]
@@ -128,7 +128,7 @@ func unregister_candidate_id(candidate_id: int) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param owner: Object、实例 ID 或文本 owner key。
 ## [br]
@@ -153,7 +153,7 @@ func unregister_owner(owner: Variant) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @return 清理数量。
 func prune_invalid() -> int:
@@ -170,7 +170,7 @@ func prune_invalid() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param options: 查询选项。
 ## [br]
@@ -210,7 +210,7 @@ func get_candidates(options: Dictionary = {}) -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param options: 查询选项，语义同 get_candidates()。
 ## [br]
@@ -233,7 +233,7 @@ func get_candidate_objects(options: Dictionary = {}) -> Array[Object]:
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @return JSON-safe 调试快照。
 ## [br]

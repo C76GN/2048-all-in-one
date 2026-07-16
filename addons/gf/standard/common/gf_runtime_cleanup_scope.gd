@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFRuntimeCleanupScope
 extends RefCounted
 
@@ -24,7 +24,7 @@ var _next_order: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 清理作用域 ID。
 ## [br]
@@ -68,7 +68,7 @@ func register_cleanup(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 清理作用域 ID。
 ## [br]
@@ -93,7 +93,7 @@ func unregister_cleanup(scope_id: StringName, cleanup_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 清理作用域 ID。
 ## [br]
@@ -135,7 +135,7 @@ func run_scope(scope_id: StringName) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 清理作用域 ID。
 func clear_scope(scope_id: StringName) -> void:
@@ -146,7 +146,7 @@ func clear_scope(scope_id: StringName) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear_all() -> void:
 	_records_by_scope.clear()
 	_next_order = 0
@@ -156,7 +156,7 @@ func clear_all() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 清理作用域 ID。
 ## [br]
@@ -174,7 +174,7 @@ func has_cleanup(scope_id: StringName, cleanup_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scope_id: 清理作用域 ID。
 ## [br]
@@ -194,7 +194,7 @@ func get_cleanup_ids(scope_id: StringName) -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 作用域调试快照。
 ## [br]

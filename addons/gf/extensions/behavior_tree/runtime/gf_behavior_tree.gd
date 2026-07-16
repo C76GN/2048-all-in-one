@@ -536,7 +536,7 @@ class BlackboardScope extends RefCounted:
 	## [br]
 	## @api public
 	## [br]
-	## @since unreleased
+	## @since 8.0.0
 	## [br]
 	## @param parent_scope: 新父级作用域；传入 null 表示清空父级。
 	## [br]
@@ -1583,7 +1583,7 @@ class Cooldown extends Decorator:
 	## [br]
 	## @api public
 	## [br]
-	## @since unreleased
+	## @since 8.0.0
 	var clock_msec: Callable = Callable()
 
 	var _cooldown_seconds: float = 0.0
@@ -1686,7 +1686,7 @@ class TimeLimit extends Decorator:
 	## [br]
 	## @api public
 	## [br]
-	## @since unreleased
+	## @since 8.0.0
 	var clock_msec: Callable = Callable()
 
 	var _limit_seconds: float = 1.0

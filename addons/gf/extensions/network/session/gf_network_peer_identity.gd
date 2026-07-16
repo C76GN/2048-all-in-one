@@ -7,7 +7,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNetworkPeerIdentity
 extends Resource
 
@@ -18,49 +18,49 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var peer_id: int = -1
 
 ## 平台标识，例如 steam、wechat、lan 或 custom。GF 不解释具体平台语义。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var platform_id: StringName = &""
 
 ## 平台侧用户标识。动态外部 ID 使用 String 保存，避免把第三方账号体系写入 GF 类型系统。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var platform_user_id: String = ""
 
 ## 面向 UI 的显示名。框架不保证唯一性。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var display_name: String = ""
 
 ## 可选头像或资料图标 URI。由项目或 adapter 解释。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var avatar_uri: String = ""
 
 ## 身份具备的平台能力标识。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var capabilities: PackedStringArray = PackedStringArray()
 
 ## 调用方自定义元数据。框架不解释该字段。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined identity metadata.
 @export var metadata: Dictionary = {}
@@ -72,7 +72,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_peer_id: 传输层 peer 标识。
 ## [br]
@@ -110,7 +110,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param capability_id: 能力标识。
 ## [br]
@@ -129,7 +129,7 @@ func add_capability(capability_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param capability_id: 能力标识。
 ## [br]
@@ -142,7 +142,7 @@ func has_capability(capability_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 身份 key；优先使用 platform_id:platform_user_id，缺失时回退到 peer:<peer_id>。
 func get_stable_key() -> String:
@@ -157,7 +157,7 @@ func get_stable_key() -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 身份字典。
 ## [br]
@@ -178,7 +178,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 身份字典。
 ## [br]
@@ -197,7 +197,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新身份资源。
 func duplicate_identity() -> GFNetworkPeerIdentity:
@@ -210,7 +210,7 @@ func duplicate_identity() -> GFNetworkPeerIdentity:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试快照。
 ## [br]
@@ -223,7 +223,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 身份字典。
 ## [br]

@@ -15,7 +15,7 @@ const _MAX_DECIMAL_PLACES: int = 18
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_NUMERIC_TEXT_LENGTH: int = 4096
 
 
@@ -135,7 +135,7 @@ static func trim_trailing_zeroes(text: String) -> String:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param text: 待校验的十进制或科学计数法文本。
 ## [br]

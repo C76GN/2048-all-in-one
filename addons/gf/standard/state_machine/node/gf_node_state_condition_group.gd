@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNodeStateConditionGroup
 extends GFNodeStateCondition
 
@@ -18,7 +18,7 @@ extends GFNodeStateCondition
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum MatchMode {
 	## 所有有效条件都必须通过。
 	ALL,
@@ -35,14 +35,14 @@ enum MatchMode {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var mode: MatchMode = MatchMode.ALL
 
 ## 子条件资源。null 或没有 evaluate() 方法的资源会被忽略。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema conditions: Array[Resource]，元素为 GFNodeStateCondition 或兼容 evaluate(state, phase, peer_state, args) 的 Resource。
 @export var conditions: Array[Resource] = []
@@ -51,7 +51,7 @@ enum MatchMode {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var empty_result: bool = true
 
 
@@ -61,7 +61,7 @@ enum MatchMode {
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param state: 当前条件所属状态。
 ## [br]

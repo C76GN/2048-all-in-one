@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFVirtualInputBridge
 extends RefCounted
 
@@ -23,7 +23,7 @@ const _ACTION_PRESS_REGISTRY = preload("res://addons/gf/standard/input/common/gf
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param action_id: InputMap action 名。
 ## [br]
@@ -47,7 +47,7 @@ static func press_action(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param action_id: InputMap action 名。
 ## [br]
@@ -68,7 +68,7 @@ static func release_action(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 当前虚拟输入来源对象。
 ## [br]
@@ -81,7 +81,7 @@ static func release_owner(owner: Object) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 static func clear_all_actions() -> void:
 	_ACTION_PRESS_REGISTRY.clear_all()
 
@@ -90,7 +90,7 @@ static func clear_all_actions() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 本次清理的 owner 数量。
 static func prune_released_owners() -> int:
@@ -101,7 +101,7 @@ static func prune_released_owners() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param device_id: 虚拟手柄设备 ID。
 ## [br]
@@ -121,7 +121,7 @@ static func emit_joypad_button(device_id: int, button: JoyButton, pressed: bool)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param device_id: 虚拟手柄设备 ID。
 ## [br]

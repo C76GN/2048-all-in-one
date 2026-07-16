@@ -9,8 +9,8 @@
 ## 技术栈
 
 - Godot 4.7+
-- GF Framework 7.x（版本以 `addons/gf/plugin.cfg` 为准，当前源码为 `7.0.0`）
-- GF Package Manager（GF 7 使用 Godot 原生 CLI；当前仓库为手动更新后的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在）
+- GF Framework 8.x（版本以 `addons/gf/plugin.cfg` 为准，当前源码为 `8.0.1`）
+- GF Package Manager（GF 8 使用 Godot 原生 CLI；当前仓库为由 `.gf/vendor.lock.json` 精确锁定的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在）
 - GDScript，遵循 `docs/coding_style.md`
 
 ## 架构概览
@@ -37,9 +37,12 @@
 
 - `gf.domain`
 - `gf.action_queue`
+- `gf.asset_metadata`
+- `gf.capability`
 - `gf.content_package`
 - `gf.feedback`
 - `gf.save`
+- `gf.turn_based`
 
 当前项目直接依赖的 GF 能力：
 
@@ -47,7 +50,7 @@
 - `gf.action_queue` 提供棋盘视觉动作队列。
 - GF standard utilities 提供输入、状态机、资源注册、存储、设置、场景、UI、对象池、随机种子和诊断等能力。
 
-GF 7 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。如果后续重新使用包管理器安装/更新 GF 包，应让 `.gf/packages.lock.json` 与 `addons/gf/plugin.cfg`、`project.godot` 的扩展启用状态保持一致；`.gf/package_cache/` 是下载缓存，已在 `.gitignore` 中忽略。
+GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。如果后续重新使用包管理器安装/更新 GF 包，应让 `.gf/packages.lock.json` 与 `addons/gf/plugin.cfg`、`project.godot` 的扩展启用状态保持一致；`.gf/package_cache/` 是下载缓存，已在 `.gitignore` 中忽略。
 
 当前重点实践：
 
@@ -72,7 +75,7 @@ GF 7 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 ## 维护路线
 
 - 长期推进计划见 `docs/roadmap.md`。
-- 验证策略见 `docs/validation.md`，GF 7 包状态验证使用 Godot headless 原生包管理 CLI。
+- 验证策略见 `docs/validation.md`，GF 8 包状态验证使用 Godot headless 原生包管理 CLI。
 - 项目结构由 `gf_project_profile.json` 声明，并通过 `GFProjectLayoutValidator` 与 GUT 持续校验。
 - 视觉方向见 `docs/visual_style.md`；背景、方块、菜单、HUD、转场和动效应保持 CMYK 半调纸媒游戏质感。
 - 历史上默认 Godot/GUT 运行曾写出巨大用户目录日志；需要运行 GUT 时，使用 `tools/run_gut_safe.ps1` 这样的隔离脚本，不要直接运行裸 Godot/GUT 命令。

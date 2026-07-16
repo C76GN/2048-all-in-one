@@ -32,7 +32,7 @@ signal value_changed(value: Variant)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 防抖后的值。
 ## [br]
@@ -65,21 +65,21 @@ const _ENUM_ITEMS_META: StringName = &"gf_editor_value_field_enum_items"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var label_text: String = ""
 
 ## 是否显示标签。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var show_label: bool = false
 
 ## 防抖秒数。小于等于 0 时立即发出 debounced_value_changed。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var debounce_seconds: float = 0.0
 
 
@@ -165,7 +165,7 @@ func get_property_info() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param text: 标签文本。
 ## [br]
@@ -180,7 +180,7 @@ func set_label(text: String, label_visible: bool = true) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param seconds: 防抖秒数；小于等于 0 时禁用等待。
 func set_debounce_seconds(seconds: float) -> void:
@@ -196,7 +196,7 @@ func set_debounce_seconds(seconds: float) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value_type: Godot Variant.Type。
 ## [br]
@@ -214,7 +214,7 @@ func register_editor_factory(value_type: Variant.Type, factory: Callable) -> boo
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value_type: Godot Variant.Type。
 ## [br]
@@ -227,7 +227,7 @@ func unregister_editor_factory(value_type: Variant.Type) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear_editor_factories() -> void:
 	_editor_factories.clear()
 
@@ -236,7 +236,7 @@ func clear_editor_factories() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return Variant.Type 数值列表。
 func get_registered_editor_types() -> PackedInt32Array:

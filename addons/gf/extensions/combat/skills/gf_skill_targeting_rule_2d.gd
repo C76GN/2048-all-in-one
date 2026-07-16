@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFSkillTargetingRule2D
 extends Resource
 
@@ -18,7 +18,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum Shape {
 	## 轴对齐矩形范围。
 	RECTANGLE,
@@ -34,7 +34,7 @@ enum Shape {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum SortRule {
 	## 距离最近优先。
 	DISTANCE_CLOSEST,
@@ -62,28 +62,28 @@ const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/g
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var shape: Shape = Shape.CIRCLE
 
 ## 圆形、扇形与单体规则使用的最大半径。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var radius: float = 100.0
 
 ## 矩形范围尺寸，使用轴对齐包围盒判断。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var rectangle_size: Vector2 = Vector2(200.0, 200.0)
 
 ## 最多选中的目标数量。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var max_count: int = 1
 
 @export_group("朝向设置")
@@ -92,14 +92,14 @@ const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/g
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var forward_direction: Vector2 = Vector2.RIGHT
 
 ## 扇形夹角，单位为角度。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_range(0.0, 360.0, 1.0) var sector_angle_degrees: float = 90.0
 
 @export_group("排序规则")
@@ -108,21 +108,21 @@ const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/g
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var sort_rule: SortRule = SortRule.DISTANCE_CLOSEST
 
 ## 按属性排序时使用的属性名。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var sort_attribute_name: StringName = &"HP"
 
 ## RANDOM 排序使用的确定性种子。相同候选集合、相同实例顺序与相同种子会得到相同顺序。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var random_seed: int = 0
 
 @export_group("标签过滤")
@@ -131,14 +131,14 @@ const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/g
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var require_tags: Array[StringName] = []
 
 ## 目标禁止拥有的标签列表。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var ignore_tags: Array[StringName] = []
 
 
@@ -150,7 +150,7 @@ const _GF_COMBAT_FINITE_MATH = preload("res://addons/gf/extensions/combat/core/g
 ## [br]
 ## @return 所有枚举、范围与空间数值均合法时返回 true。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func is_configuration_valid() -> bool:
 	if shape < Shape.RECTANGLE or shape > Shape.SINGLE:
 		return false

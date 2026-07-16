@@ -100,7 +100,7 @@ static func from_float(value: float) -> GFBigNumber:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 原始字符串，如 "12345"、"1.23e8"。
 ## [br]

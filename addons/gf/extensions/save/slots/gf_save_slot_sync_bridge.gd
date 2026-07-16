@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFSaveSlotSyncBridge
 extends RefCounted
 
@@ -18,7 +18,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_index: 槽位索引。
 ## [br]
@@ -31,7 +31,7 @@ signal slot_sync_completed(slot_index: int, result: Dictionary)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_index: 槽位索引。
 ## [br]
@@ -47,7 +47,7 @@ signal slot_sync_failed(slot_index: int, result: Dictionary)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var sync_utility: GFStorageSyncUtility = null
 
 
@@ -63,7 +63,7 @@ func _init(p_sync_utility: GFStorageSyncUtility = null) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param utility: 存储同步工具。
 ## [br]
@@ -77,7 +77,7 @@ func setup(utility: GFStorageSyncUtility) -> GFSaveSlotSyncBridge:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_index: 槽位索引；必须大于等于 0。
 ## [br]
@@ -127,7 +127,7 @@ func sync_slot(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param slot_indices: 槽位索引列表。
 ## [br]

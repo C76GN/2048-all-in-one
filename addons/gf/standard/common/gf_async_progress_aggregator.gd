@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFAsyncProgressAggregator
 extends RefCounted
 
@@ -19,7 +19,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 当前总进度，范围 0 到 1。
 ## [br]
@@ -43,14 +43,14 @@ const _GF_VARIANT_KEY_CODEC_SCRIPT = preload("res://addons/gf/standard/foundatio
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var allow_decrease: bool = false
 
 ## 触发总进度信号的最小数值变化。设为 0 时任意数值变化都会触发。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var min_delta: float:
 	get:
 		return _progress.min_delta
@@ -61,7 +61,7 @@ var min_delta: float:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var min_interval_msec: int:
 	get:
 		return _progress.min_interval_msec
@@ -72,7 +72,7 @@ var min_interval_msec: int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var emit_on_message_change: bool:
 	get:
 		return _progress.emit_on_message_change
@@ -103,7 +103,7 @@ func _init() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task_key: 可选稳定任务 key；传 null 时创建未命名任务。
 ## [br]
@@ -154,7 +154,7 @@ func add_task(task_key: Variant = null, weight: float = 1.0, task_metadata: Dict
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task_key: 任务 key。
 ## [br]
@@ -174,7 +174,7 @@ func has_task(task_key: Variant) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task_key: 任务 key。
 ## [br]
@@ -192,7 +192,7 @@ func get_task_index(task_key: Variant) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task_index: add_task() 返回的任务索引。
 ## [br]
@@ -237,7 +237,7 @@ func set_task_progress(task_index: int, value: float, message: String = "", task
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task_key: 任务 key。
 ## [br]
@@ -262,7 +262,7 @@ func set_task_progress_by_key(task_key: Variant, value: float, message: String =
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task_index: add_task() 返回的任务索引。
 ## [br]
@@ -292,7 +292,7 @@ func set_task_fraction(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task_key: 任务 key。
 ## [br]
@@ -323,7 +323,7 @@ func set_task_fraction_by_key(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task_index: add_task() 返回的任务索引。
 ## [br]
@@ -342,7 +342,7 @@ func complete_task(task_index: int, message: String = "", task_metadata: Diction
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task_key: 任务 key。
 ## [br]
@@ -363,7 +363,7 @@ func complete_task_by_key(task_key: Variant, message: String = "", task_metadata
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param message: 总进度消息。
 ## [br]
@@ -385,7 +385,7 @@ func complete_all(message: String = "", metadata: Dictionary = {}) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param clear_tasks: 为 true 时移除全部任务；否则保留任务并把进度归零。
 func reset(clear_tasks: bool = false) -> void:
@@ -406,7 +406,7 @@ func reset(clear_tasks: bool = false) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前总进度，范围 0 到 1。
 func get_total_progress() -> float:
@@ -427,7 +427,7 @@ func get_total_progress() -> float:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前任务数量。
 func get_task_count() -> int:
@@ -438,7 +438,7 @@ func get_task_count() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 总进度为 1.0 时返回 true。
 func is_complete() -> bool:
@@ -449,7 +449,7 @@ func is_complete() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param task_index: add_task() 返回的任务索引。
 ## [br]
@@ -474,7 +474,7 @@ func get_task_snapshot(task_index: int) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 聚合器状态快照。
 ## [br]

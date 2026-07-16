@@ -205,7 +205,7 @@ static func fold_async(items: Array, reducer: Callable, initial_value: Variant, 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param completions: key -> GFAsyncCompletion 的字典。
 ## [br]
@@ -226,7 +226,7 @@ static func wait_all_completions_async(completions: Dictionary, options: Diction
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param completions: key -> GFAsyncCompletion 的字典。
 ## [br]

@@ -43,7 +43,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_value: 被选择后返回的值。
 ## [br]
@@ -67,7 +67,7 @@ func configure(p_value: Variant, p_weight: float = 1.0, p_metadata: Dictionary =
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 权重为有限正数时返回 true。
 func is_selectable() -> bool:

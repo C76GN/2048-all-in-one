@@ -44,7 +44,7 @@ signal event_applied(event: Dictionary)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param deferred_seconds: 留待后续 tick 无损处理的秒数。
 ## [br]
@@ -58,7 +58,7 @@ signal loop_catch_up_limited(deferred_seconds: float, skipped_cycles: int)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum LoopCatchUpPolicy {
 	## 保留剩余时间，在后续 tick 继续逐事件处理。
 	DEFER_EXCESS,
@@ -98,14 +98,14 @@ var loop: bool = false
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var loop_catch_up_policy: LoopCatchUpPolicy = LoopCatchUpPolicy.DEFER_EXCESS
 
 ## 单次 tick 最多完整推进的循环周期数。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var max_loop_cycles_per_tick: int = 64:
 	set(value):
 		max_loop_cycles_per_tick = maxi(value, 1)

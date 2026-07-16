@@ -336,7 +336,7 @@ func require_package(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param artifact_id: artifact ID。
 ## [br]

@@ -7,7 +7,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNetworkLobbyDescriptor
 extends Resource
 
@@ -18,7 +18,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum Visibility {
 	## 由 backend 或平台默认策略决定。
 	DEFAULT,
@@ -39,63 +39,63 @@ enum Visibility {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var lobby_id: String = ""
 
 ## 提供该 lobby 的 backend 标识。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var backend_id: StringName = &""
 
 ## 编辑器或 UI 可显示名称。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var display_name: String = ""
 
 ## owner 的传输 peer 标识。未知时为 -1。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var owner_peer_id: int = -1
 
 ## owner 的平台用户 ID。用于尚未建立传输连接但平台已返回 owner 的场景。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var owner_platform_user_id: String = ""
 
 ## 最大成员数。小于等于 0 表示 backend 未声明。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var max_members: int = 0
 
 ## 当前是否允许加入。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var joinable: bool = true
 
 ## Lobby 可见性。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var visibility: Visibility = Visibility.DEFAULT
 
 ## 成员列表。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema members: Array[GFNetworkLobbyMember] lobby member snapshots.
 @export var members: Array[GFNetworkLobbyMember] = []
@@ -104,14 +104,14 @@ enum Visibility {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var tags: PackedStringArray = PackedStringArray()
 
 ## 调用方自定义 lobby metadata。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined lobby metadata.
 @export var metadata: Dictionary = {}
@@ -123,7 +123,7 @@ enum Visibility {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_lobby_id: Lobby 外部稳定 ID。
 ## [br]
@@ -151,7 +151,7 @@ func configure(p_lobby_id: String, options: Dictionary = {}) -> GFNetworkLobbyDe
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 展示名称。
 func get_display_name() -> String:
@@ -166,7 +166,7 @@ func get_display_name() -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 成员数量。
 func get_member_count() -> int:
@@ -181,7 +181,7 @@ func get_member_count() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 已满返回 true；未声明 max_members 时返回 false。
 func is_full() -> bool:
@@ -192,7 +192,7 @@ func is_full() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param peer_id: 传输 peer 标识。
 ## [br]
@@ -208,7 +208,7 @@ func get_member(peer_id: int) -> GFNetworkLobbyMember:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param member: 成员。
 func set_member(member: GFNetworkLobbyMember) -> void:
@@ -225,7 +225,7 @@ func set_member(member: GFNetworkLobbyMember) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param peer_id: 传输 peer 标识。
 ## [br]
@@ -242,7 +242,7 @@ func remove_member(peer_id: int) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return Lobby 字典。
 ## [br]
@@ -271,7 +271,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: Lobby 字典。
 ## [br]
@@ -294,7 +294,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新 lobby。
 func duplicate_lobby() -> GFNetworkLobbyDescriptor:
@@ -307,7 +307,7 @@ func duplicate_lobby() -> GFNetworkLobbyDescriptor:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试快照。
 ## [br]
@@ -320,7 +320,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: Lobby 字典。
 ## [br]

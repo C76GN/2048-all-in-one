@@ -179,7 +179,7 @@ func is_executed() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 配置已冻结时返回 true。
 func is_sealed() -> bool:
@@ -246,7 +246,7 @@ func _undo_it() -> Error:
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param field_name: 配置字段名。
 ## [br]

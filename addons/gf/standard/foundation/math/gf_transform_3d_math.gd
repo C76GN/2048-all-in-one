@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFTransform3DMath
 extends RefCounted
 
@@ -18,7 +18,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum ScaleAxisMode {
 	## X/Y/Z 使用同一个权重。
 	UNIFORM,
@@ -44,7 +44,7 @@ const _EPSILON: float = 0.000001
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param plane_normal: 平面法线；函数会归一化。零向量时返回 Transform3D.IDENTITY。
 ## [br]
@@ -67,7 +67,7 @@ static func make_reflection_transform(plane_normal: Vector3, plane_point: Vector
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param point: 待反射的世界点。
 ## [br]
@@ -89,7 +89,7 @@ static func reflect_point(point: Vector3, plane_normal: Vector3, plane_point: Ve
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param direction: 待反射方向；不会被额外归一化。
 ## [br]
@@ -108,7 +108,7 @@ static func reflect_direction(direction: Vector3, plane_normal: Vector3) -> Vect
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param transform: 待反射 Transform3D。
 ## [br]
@@ -142,7 +142,7 @@ static func reflect_transform(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param ray_origin: 射线起点。
 ## [br]
@@ -208,7 +208,7 @@ static func intersect_ray_plane(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param up_axis: 目标局部 Y 轴方向。
 ## [br]
@@ -246,7 +246,7 @@ static func make_basis_from_up_and_z_hint(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param weight: 原始 X/Y/Z 权重。
 ## [br]
@@ -279,7 +279,7 @@ static func apply_scale_axis_mode(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param min_scale: 起始缩放向量。
 ## [br]
@@ -313,7 +313,7 @@ static func interpolate_scale(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param point: 要吸附的世界点。
 ## [br]
@@ -366,7 +366,7 @@ static func snap_point_to_plane_grid(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param transform: 原始世界 Transform3D。
 ## [br]

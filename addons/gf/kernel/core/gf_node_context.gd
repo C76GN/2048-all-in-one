@@ -180,7 +180,7 @@ func _exit_tree() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _architecture_instance: 当前上下文创建的局部架构。
 ## [br]
@@ -197,7 +197,7 @@ func install(_architecture_instance: GFArchitecture, _scope: GFAsyncScope) -> vo
 ## [br]
 ## @schema _binder: GFBindBuilder-compatible binder produced by GFArchitecture.create_binder().
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param _scope: 当前安装流程的可取消异步作用域。
 func install_bindings(_binder: Variant, _scope: GFAsyncScope) -> void:

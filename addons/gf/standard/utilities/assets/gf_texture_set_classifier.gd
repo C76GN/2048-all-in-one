@@ -46,7 +46,7 @@ const ROLE_METALLIC: StringName = &"metallic"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ROLE_ORM: StringName = &"orm"
 
 ## Ambient Occlusion 贴图角色。

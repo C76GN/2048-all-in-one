@@ -21,56 +21,56 @@ const _GF_PROJECT_REFERENCE_SCANNER_SCRIPT = preload("res://addons/gf/kernel/cor
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_STRENGTH_VERIFIED: StringName = &"verified"
 
 ## 静态语义扫描确认的资源或 class_name 引用。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_STRENGTH_STRONG: StringName = &"strong"
 
 ## 仅文本命中的弱引用提示，不会让禁用扩展审计失败。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_STRENGTH_WEAK: StringName = &"weak"
 
 ## GDScript load/preload 等加载表达式来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_SOURCE_GDSCRIPT_LOAD: StringName = &"gdscript_load"
 
 ## GDScript class_name 标识符来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_SOURCE_GDSCRIPT_SYMBOL: StringName = &"gdscript_symbol"
 
 ## Godot 文本资源依赖字段来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_SOURCE_RESOURCE_TEXT: StringName = &"resource_text"
 
 ## Godot ResourceLoader 依赖图来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_SOURCE_GODOT_DEPENDENCY: StringName = &"godot_dependency"
 
 ## 无法确认语义的文本命中来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_SOURCE_TEXT_FALLBACK: StringName = &"text_fallback"
 
 ## 默认扫描根目录。
@@ -98,14 +98,14 @@ const DEFAULT_MAX_SCANNED_FILES: int = 10000
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_FILE_BYTES: int = 4 * 1024 * 1024
 
 ## 默认单次扫描总读取字节上限。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_TOTAL_BYTES: int = 64 * 1024 * 1024
 
 ## 默认忽略的根目录。

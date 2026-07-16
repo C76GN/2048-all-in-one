@@ -462,7 +462,7 @@ func get_group_paths(group_id: StringName) -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param asset_plan: 资源预加载计划。
 ## [br]

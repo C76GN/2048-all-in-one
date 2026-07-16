@@ -445,7 +445,7 @@ func to_dict(additional_fields: Dictionary = {}, options: Dictionary = {}) -> Di
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param additional_fields: 附加到输出中的调用方字段。
 ## [br]

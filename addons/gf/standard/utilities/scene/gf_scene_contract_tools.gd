@@ -10,7 +10,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFSceneContractTools
 extends RefCounted
 
@@ -21,70 +21,70 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const SCENE_EXTENSIONS: PackedStringArray = ["tscn", "scn"]
 
 ## 契约字段：根节点必须是该 Godot 类或其子类。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KEY_BASE_CLASS: StringName = &"base_class"
 
 ## 契约字段：根节点脚本必须等于或继承该脚本。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KEY_BASE_SCRIPT: StringName = &"base_script"
 
 ## 契约字段：根节点必须属于的分组列表。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KEY_REQUIRED_GROUPS: StringName = &"required_groups"
 
 ## 契约字段：根节点不能属于的分组列表。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KEY_FORBIDDEN_GROUPS: StringName = &"forbidden_groups"
 
 ## 契约字段：根节点名称前缀。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KEY_NAME_PREFIX: StringName = &"name_prefix"
 
 ## 契约字段：根节点名称后缀。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KEY_NAME_SUFFIX: StringName = &"name_suffix"
 
 ## 契约字段：场景路径前缀。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KEY_PATH_PREFIX: StringName = &"path_prefix"
 
 ## 契约字段：场景路径后缀。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KEY_PATH_SUFFIX: StringName = &"path_suffix"
 
 ## 契约字段：传给 GFScriptStructureTools.check_script_structure() 的根脚本结构声明。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KEY_SCRIPT_STRUCTURE: StringName = &"script_structure"
 
 
@@ -94,7 +94,7 @@ const KEY_SCRIPT_STRUCTURE: StringName = &"script_structure"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root_path: 扫描起点，通常是 res:// 下的目录。
 ## [br]
@@ -115,7 +115,7 @@ static func scan_scene_paths(root_path: String = "res://", options: Dictionary =
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root: 场景根节点。
 ## [br]
@@ -159,7 +159,7 @@ static func check_node(root: Node, contract: Dictionary = {}, options: Dictionar
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param packed_scene: 待检查场景。
 ## [br]
@@ -218,7 +218,7 @@ static func check_packed_scene(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param scene_path: 待检查场景资源路径。
 ## [br]
@@ -277,7 +277,7 @@ static func check_scene_path(scene_path: String, contract: Dictionary = {}, opti
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param paths: 场景路径列表。
 ## [br]
@@ -316,7 +316,7 @@ static func check_scene_paths(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root_path: 扫描起点，通常是 res:// 下的目录。
 ## [br]
@@ -347,7 +347,7 @@ static func check_scene_directory(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param contract: 契约声明。
 ## [br]

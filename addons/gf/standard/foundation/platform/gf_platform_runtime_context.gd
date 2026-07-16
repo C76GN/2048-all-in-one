@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFPlatformRuntimeContext
 extends Resource
 
@@ -18,77 +18,77 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var platform_id: StringName = &""
 
 ## Adapter 标识。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var adapter_id: StringName = &""
 
 ## 平台展示名。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var display_name: String = ""
 
 ## 能力集合。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var capabilities: GFPlatformCapabilitySet = GFPlatformCapabilitySet.new()
 
 ## Godot locale。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var locale: String = ""
 
 ## fallback Godot locale。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var fallback_locale: String = ""
 
 ## 平台像素比。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var pixel_ratio: float = 1.0
 
 ## 逻辑窗口尺寸。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var window_size: Vector2i = Vector2i.ZERO
 
 ## 物理屏幕尺寸。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var screen_size: Vector2i = Vector2i.ZERO
 
 ## 平台安全区域。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var safe_area: Rect2i = Rect2i()
 
 ## 逻辑存储根映射。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema storage_roots: Dictionary[String, String]，key 为逻辑 root_id。
 @export var storage_roots: Dictionary = {}
@@ -97,7 +97,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema launch_options: Dictionary adapter-defined launch options.
 @export var launch_options: Dictionary = {}
@@ -106,7 +106,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined runtime metadata.
 @export var metadata: Dictionary = {}
@@ -118,7 +118,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_platform_id: 平台标识。
 ## [br]
@@ -148,7 +148,7 @@ func configure(p_platform_id: StringName, options: Dictionary = {}) -> GFPlatfor
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_capabilities: 能力集合。
 ## [br]
@@ -169,7 +169,7 @@ func set_capabilities(p_capabilities: GFPlatformCapabilitySet) -> GFPlatformRunt
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param capability_id: 能力 ID。
 ## [br]
@@ -187,7 +187,7 @@ func add_capability(capability_id: StringName, capability_limits: Dictionary = {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param capability_id: 能力 ID。
 ## [br]
@@ -201,7 +201,7 @@ func has_capability(capability_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_window_size: 逻辑窗口尺寸。
 ## [br]
@@ -229,7 +229,7 @@ func set_window_info(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root_id: 逻辑 root ID。
 ## [br]
@@ -249,7 +249,7 @@ func set_storage_root(root_id: StringName, root_path: String) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root_id: 逻辑 root ID。
 ## [br]
@@ -267,7 +267,7 @@ func get_storage_root(root_id: StringName, default_value: String = "") -> String
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root_id: 逻辑 root ID。
 ## [br]
@@ -284,7 +284,7 @@ func erase_storage_root(root_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param profile_id: Profile ID；为空时使用 platform_id。
 ## [br]
@@ -314,7 +314,7 @@ func make_compatibility_profile(profile_id: StringName = &"") -> GFCompatibility
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 平台上下文字典。
 ## [br]
@@ -342,7 +342,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 平台上下文字典。
 ## [br]
@@ -372,7 +372,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新运行时上下文。
 func duplicate_context() -> GFPlatformRuntimeContext:
@@ -383,7 +383,7 @@ func duplicate_context() -> GFPlatformRuntimeContext:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 平台上下文字典。
 ## [br]

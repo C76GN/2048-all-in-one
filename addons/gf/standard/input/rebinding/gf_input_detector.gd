@@ -31,7 +31,7 @@ signal input_detected(input_event: InputEvent)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param result: 检测结束结果。
 signal detection_finished(result: GFInputDetectionResult)
@@ -343,7 +343,7 @@ func is_detecting() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 最近一次检测结束结果；尚未结束过检测时返回 null。
 func get_last_detection_result() -> GFInputDetectionResult:

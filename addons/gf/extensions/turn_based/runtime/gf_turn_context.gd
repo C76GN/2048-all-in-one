@@ -74,7 +74,7 @@ func remove_actor(actor: Object) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 当前有效性尚未重新校验的参与者数组快照。
 func get_actors() -> Array[Object]:
@@ -85,7 +85,7 @@ func get_actors() -> Array[Object]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 被移除的失效参与者数量。
 ## [br]
@@ -137,7 +137,7 @@ func get_actor_value(actor: Object, key: StringName, fallback: Variant = null) -
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param actor: 当前行动主体；传入失效对象时归一为空。
 func set_current_actor_from_flow(actor: Object) -> void:
@@ -148,7 +148,7 @@ func set_current_actor_from_flow(actor: Object) -> void:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func reset_round_from_flow() -> void:
 	_round_index = 0
 
@@ -157,6 +157,6 @@ func reset_round_from_flow() -> void:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func advance_round_from_flow() -> void:
 	_round_index += 1

@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer standard/input
 class_name GFInputDirectionTools
@@ -20,7 +20,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum SnapMode {
 	## 保留连续模拟向量。
 	ANALOG,
@@ -38,7 +38,7 @@ enum SnapMode {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum Direction2D {
 	## 无方向。
 	NONE,
@@ -106,7 +106,7 @@ const _OPPOSITE_DIRECTIONS: Dictionary = {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param raw_direction: 原始二维输入。
 ## [br]
@@ -137,7 +137,7 @@ static func apply_radial_deadzone(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param raw_direction: 原始二维输入。
 ## [br]
@@ -179,7 +179,7 @@ static func snap_vector(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param direction: 方向枚举。
 ## [br]
@@ -196,7 +196,7 @@ static func get_direction_name(direction: Direction2D) -> StringName:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param direction_name: 方向名称。
 ## [br]
@@ -219,7 +219,7 @@ static func get_direction_from_name(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param direction: 方向枚举。
 ## [br]
@@ -236,7 +236,7 @@ static func get_direction_vector(direction: Direction2D) -> Vector2:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param raw_direction: 原始二维输入。
 ## [br]
@@ -262,7 +262,7 @@ static func get_closest_direction(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param direction_vector: 离散方向向量。
 ## [br]
@@ -293,7 +293,7 @@ static func get_direction_from_vector(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param direction: 方向枚举。
 ## [br]
@@ -307,7 +307,7 @@ static func get_opposite_direction(direction: Direction2D) -> Direction2D:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param direction_vector: 方向向量。
 ## [br]

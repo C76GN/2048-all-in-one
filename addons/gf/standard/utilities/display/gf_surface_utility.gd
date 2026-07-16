@@ -131,7 +131,7 @@ func describe_surface_hit(source: Object, face_index: int) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source: Mesh、MeshInstance3D、CollisionObject3D 或其相邻节点。
 ## [br]

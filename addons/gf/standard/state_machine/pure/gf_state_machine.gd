@@ -400,7 +400,7 @@ func get_state_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 传给 GFReportValueCodec 的编码选项。
 ## [br]
@@ -518,7 +518,7 @@ func send_simple_event(event_id: StringName, payload: Variant = null) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听器拥有者。
 ## [br]
@@ -557,7 +557,7 @@ func unregister_event(event_type: Script, listener: GFEventListener, owner: Obje
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听器拥有者。
 ## [br]
@@ -601,7 +601,7 @@ func unregister_assignable_event(base_event_type: Script, listener: GFEventListe
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听器拥有者。
 ## [br]

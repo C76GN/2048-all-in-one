@@ -204,7 +204,7 @@ func clear_zones() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 本次移除的落点数量。
 func prune_stale_zones() -> int:

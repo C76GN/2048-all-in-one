@@ -63,7 +63,7 @@ const _RESOURCE_PATH_VALIDATION_SESSION_KEY: StringName = &"__gf_config_resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_range(1, 65536, 1) var max_resource_path_checks_per_validation: int = 1024
 
 ## 可选复合索引声明。唯一索引会参与表级校验。

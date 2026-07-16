@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFPlatformBridgeRequest
 extends Resource
 
@@ -18,28 +18,28 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var request_id: StringName = &""
 
 ## 桥接契约 ID。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var contract_id: StringName = &""
 
 ## 方法 ID。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var method_id: StringName = &""
 
 ## 请求载荷。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema payload: Dictionary adapter-defined request payload.
 @export var payload: Dictionary = {}
@@ -48,14 +48,14 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var timeout_msec: int = 0
 
 ## 调用方元数据。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined request metadata.
 @export var metadata: Dictionary = {}
@@ -67,7 +67,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_request_id: 请求 ID。
 ## [br]
@@ -107,7 +107,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 缺少 request_id、contract_id 或 method_id 时返回 true。
 func is_empty() -> bool:
@@ -118,7 +118,7 @@ func is_empty() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 桥接请求字典。
 ## [br]
@@ -138,7 +138,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 桥接请求字典。
 ## [br]
@@ -156,7 +156,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新桥接请求。
 func duplicate_request() -> GFPlatformBridgeRequest:
@@ -167,7 +167,7 @@ func duplicate_request() -> GFPlatformBridgeRequest:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 桥接请求字典。
 ## [br]

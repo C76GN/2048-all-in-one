@@ -278,7 +278,7 @@ static func sample_points(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: sample_heightfield()、sample_heightfield_points()、sample_points() 或 sample() 返回的报告。
 ## [br]

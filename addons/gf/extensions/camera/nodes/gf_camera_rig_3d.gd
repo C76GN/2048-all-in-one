@@ -114,14 +114,14 @@ signal priority_changed(priority: int)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export_node_path("Node") var camera_scope_path: NodePath = NodePath("")
 
 ## 相机选择频道。为空表示默认频道；Director 配置非空频道时只收集同频道 Rig。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var camera_channel: StringName = &""
 
 ## 项目自定义元数据。框架不解释该字段。
@@ -221,7 +221,7 @@ func get_camera_transform() -> Transform3D:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 作用域节点；显式路径为空时返回父节点。
 func get_camera_scope_node() -> Node:

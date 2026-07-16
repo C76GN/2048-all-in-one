@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNodeStateActiveCondition
 extends GFNodeStateCondition
 
@@ -18,7 +18,7 @@ extends GFNodeStateCondition
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum MatchMode {
 	## 任意状态路径处于激活状态即可。
 	ANY,
@@ -35,21 +35,21 @@ enum MatchMode {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var state_paths: PackedStringArray = PackedStringArray()
 
 ## 状态匹配模式。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var mode: MatchMode = MatchMode.ANY
 
 ## 没有有效状态路径时返回的结果。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var empty_result: bool = false
 
 
@@ -59,7 +59,7 @@ enum MatchMode {
 ## [br]
 ## @api protected
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param state: 当前条件所属状态。
 ## [br]

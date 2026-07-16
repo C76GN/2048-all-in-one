@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFAssetPreloadPlan
 extends Resource
 
@@ -18,21 +18,21 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var plan_id: StringName = &""
 
 ## 预加载完成后注册到 GFAssetUtility 的资源分组。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var group_id: StringName = &""
 
 ## 预加载条目列表。禁用或空路径条目会保留在计划中，但不会提交给加载器。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema entries: Array[Dictionary] where each entry contains `path: String`, optional `type_hint: String`, optional `enabled: bool`, and optional `metadata: Dictionary`.
 @export var entries: Array[Dictionary] = []
@@ -41,21 +41,21 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var pin_cache: bool = true
 
 ## 可选加载通道；为空时由 GFAssetUtility 使用分组和并发配置兜底。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var lane_id: StringName = &""
 
 ## 该计划默认最大并发加载数；0 表示不覆盖工具默认值。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var max_concurrent_loads: int = 0:
 	set(value):
 		max_concurrent_loads = maxi(value, 0)
@@ -64,7 +64,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary for caller-defined preload plan metadata.
 @export var metadata: Dictionary = {}
@@ -76,7 +76,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_group_id: 预加载分组标识。
 ## [br]
@@ -108,7 +108,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 资源路径。
 ## [br]
@@ -144,7 +144,7 @@ func add_path(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param entry: 输入条目。
 ## [br]
@@ -160,7 +160,7 @@ func add_entry(entry: Dictionary) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_entries: 新条目数组。
 ## [br]
@@ -189,7 +189,7 @@ func set_entries(p_entries: Array) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear() -> void:
 	entries.clear()
 
@@ -198,7 +198,7 @@ func clear() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 没有启用且路径有效的条目时返回 true。
 func is_empty() -> bool:
@@ -209,7 +209,7 @@ func is_empty() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param include_disabled: 为 true 时统计原始条目，否则只统计启用且路径有效的条目。
 ## [br]
@@ -222,7 +222,7 @@ func get_entry_count(include_disabled: bool = false) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param entry: 输入条目。
 ## [br]
@@ -244,7 +244,7 @@ static func normalize_entry(entry: Dictionary) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 预加载条目数组。
 ## [br]
@@ -269,7 +269,7 @@ func get_entries() -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param extra_options: 调用方覆盖选项。
 ## [br]
@@ -293,7 +293,7 @@ func to_preload_options(extra_options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 校验报告。
 ## [br]
@@ -342,7 +342,7 @@ func validate() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 计划描述。
 ## [br]
@@ -369,7 +369,7 @@ func describe() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 计划副本。
 func duplicate_plan() -> GFAssetPreloadPlan:
@@ -380,7 +380,7 @@ func duplicate_plan() -> GFAssetPreloadPlan:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 计划字典。
 ## [br]
@@ -401,7 +401,7 @@ func to_dictionary() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 计划字典。
 ## [br]

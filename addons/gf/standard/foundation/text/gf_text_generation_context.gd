@@ -321,7 +321,7 @@ func replace_tokens(text: String, options: Dictionary = {}) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param template_text: 模板文本。
 ## [br]

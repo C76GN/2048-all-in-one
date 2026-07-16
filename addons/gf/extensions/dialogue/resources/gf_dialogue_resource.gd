@@ -213,7 +213,7 @@ func to_dictionary() -> Dictionary:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 包含资源及全部行身份字段的原始结构。
 ## [br]
@@ -238,7 +238,7 @@ func create_serialization_source() -> Dictionary:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 可选身份复制预算。
 ## [br]

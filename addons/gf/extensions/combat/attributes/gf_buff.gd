@@ -254,7 +254,7 @@ func get_apply_report(context: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @return 生命周期报告；`ok=false` 时表示应用失败且内置效果已回滚。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema return: Dictionary with ok, reason, event, buff_id, changed, failed_effect_id, metadata, and effect_reports.
 func on_apply() -> Dictionary:
@@ -277,7 +277,7 @@ func on_apply() -> Dictionary:
 ## [br]
 ## @return 生命周期报告；移除会尽力清理内置效果，即使自定义效果报告失败。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema return: Dictionary with ok, reason, event, buff_id, changed, failed_effect_id, metadata, and effect_reports.
 func on_remove() -> Dictionary:
@@ -296,7 +296,7 @@ func on_remove() -> Dictionary:
 ## [br]
 ## @return 生命周期报告；`changed=false` 表示本次刷新未改变运行状态。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema return: Dictionary with ok, reason, event, buff_id, changed, failed_effect_id, metadata, and effect_reports.
 func on_refresh(p_new_duration: float) -> Dictionary:
@@ -332,7 +332,7 @@ func on_refresh(p_new_duration: float) -> Dictionary:
 ## [br]
 ## @return 生命周期报告；`changed=false` 表示本次刷新被策略忽略。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema return: Dictionary with ok, reason, event, buff_id, changed, failed_effect_id, metadata, and effect_reports.
 func refresh_from(source_buff: GFBuff) -> Dictionary:

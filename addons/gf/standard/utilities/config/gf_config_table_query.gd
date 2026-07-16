@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFConfigTableQuery
 extends RefCounted
 
@@ -18,7 +18,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum Operator {
 	## 字段值等于目标值。
 	EQ,
@@ -63,7 +63,7 @@ var _offset: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param table: 配置表资源。
 ## [br]
@@ -81,7 +81,7 @@ static func from_table(table: GFConfigTableResource, duplicate_records: bool = t
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param records: 配置记录数组。
 ## [br]
@@ -100,7 +100,7 @@ static func from_records(records: Array[Dictionary], duplicate_records: bool = t
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param records: 配置记录数组。
 ## [br]
@@ -120,7 +120,7 @@ func set_records(records: Array[Dictionary], duplicate_records: bool = true) -> 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前查询器。
 func clear_query() -> GFConfigTableQuery:
@@ -136,7 +136,7 @@ func clear_query() -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径，支持用 "." 访问嵌套 Dictionary、Array 下标或 Object 属性。
 ## [br]
@@ -153,7 +153,7 @@ func where_eq(path: String, value: Variant) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径，支持用 "." 访问嵌套 Dictionary、Array 下标或 Object 属性。
 ## [br]
@@ -170,7 +170,7 @@ func where_ne(path: String, value: Variant) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径，支持用 "." 访问嵌套 Dictionary、Array 下标或 Object 属性。
 ## [br]
@@ -187,7 +187,7 @@ func where_gt(path: String, value: Variant) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径，支持用 "." 访问嵌套 Dictionary、Array 下标或 Object 属性。
 ## [br]
@@ -204,7 +204,7 @@ func where_gte(path: String, value: Variant) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径，支持用 "." 访问嵌套 Dictionary、Array 下标或 Object 属性。
 ## [br]
@@ -221,7 +221,7 @@ func where_lt(path: String, value: Variant) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径，支持用 "." 访问嵌套 Dictionary、Array 下标或 Object 属性。
 ## [br]
@@ -238,7 +238,7 @@ func where_lte(path: String, value: Variant) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径，支持用 "." 访问嵌套 Dictionary、Array 下标或 Object 属性。
 ## [br]
@@ -255,7 +255,7 @@ func where_in(path: String, candidate_values: Array) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径，支持用 "." 访问嵌套 Dictionary、Array 下标或 Object 属性。
 ## [br]
@@ -272,7 +272,7 @@ func where_contains(path: String, value: Variant) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径，支持用 "." 访问嵌套 Dictionary、Array 下标或 Object 属性。
 ## [br]
@@ -287,7 +287,7 @@ func where_exists(path: String, exists: bool = true) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param predicate: 判断回调，签名为 Callable(record: Dictionary) -> bool。
 ## [br]
@@ -310,7 +310,7 @@ func where_predicate(predicate: Callable, description: StringName = &"") -> GFCo
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param operator: 过滤操作符。
 ## [br]
@@ -343,7 +343,7 @@ static func condition(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param condition_data: 条件字典，通常由 condition() 创建。
 ## [br]
@@ -362,7 +362,7 @@ func where_filter(condition_data: Dictionary) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param conditions: 条件字典数组，任一条件匹配即通过。
 ## [br]
@@ -379,7 +379,7 @@ func where_any(conditions: Array[Dictionary], description: StringName = &"") -> 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param conditions: 条件字典数组，只要其中任一条件匹配即拒绝记录。
 ## [br]
@@ -396,7 +396,7 @@ func where_none(conditions: Array[Dictionary], description: StringName = &"") ->
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径，支持用 "." 访问嵌套 Dictionary、Array 下标或 Object 属性。
 ## [br]
@@ -413,7 +413,7 @@ func order_by(path: String, ascending: bool = true) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param offset: 跳过记录数量。
 ## [br]
@@ -430,7 +430,7 @@ func page(offset: int = 0, limit: int = -1) -> GFConfigTableQuery:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param duplicate_records: 是否复制返回记录。
 ## [br]
@@ -448,7 +448,7 @@ func to_array(duplicate_records: bool = true) -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param duplicate_record: 是否复制返回记录。
 ## [br]
@@ -466,7 +466,7 @@ func first(duplicate_record: bool = true) -> Variant:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 匹配记录数量。
 func count() -> int:
@@ -477,7 +477,7 @@ func count() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param path: 字段路径。为空时使用整条记录。
 ## [br]
@@ -501,7 +501,7 @@ func values(path: String = "") -> Array:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source: 源数据。
 ## [br]
@@ -527,7 +527,7 @@ static func read_path(source: Variant, path: String, default_value: Variant = nu
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 查询描述。
 ## [br]

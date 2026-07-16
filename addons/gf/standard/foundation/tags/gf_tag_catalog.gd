@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFTagCatalog
 extends Resource
 
@@ -18,7 +18,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var catalog_id: StringName = &""
 
 ## 标签定义列表。
@@ -27,7 +27,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema tag_definitions: Array[Dictionary]，每项包含 tag: StringName/String、redirect_to: StringName/String、description: String、metadata: Dictionary。
 @export var tag_definitions: Array[Dictionary] = []
@@ -36,14 +36,14 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var allow_undefined_tags: bool = true
 
 ## 目录元数据。GF 不解释其中业务字段。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined catalog metadata.
 @export var metadata: Dictionary = {}
@@ -62,7 +62,7 @@ var _catalog_signature: String = ""
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_catalog_id: 目录标识。
 ## [br]
@@ -94,7 +94,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param tag: 标签名。
 ## [br]
@@ -122,7 +122,7 @@ func add_tag(tag: StringName, options: Dictionary = {}) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source_tag: 旧标签名。
 ## [br]
@@ -152,7 +152,7 @@ func add_redirect(source_tag: StringName, target_tag: StringName, options: Dicti
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param tag: 标签名。
 ## [br]
@@ -172,7 +172,7 @@ func has_tag(tag: StringName, include_redirects: bool = true) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param tag: 标签名。
 ## [br]
@@ -193,7 +193,7 @@ func get_tag_definition(tag: StringName, include_redirects: bool = true) -> Dict
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 排序后的标签名，不包含重定向源。
 func get_tags() -> PackedStringArray:
@@ -209,7 +209,7 @@ func get_tags() -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 排序后的重定向源标签。
 func get_redirect_tags() -> PackedStringArray:
@@ -227,7 +227,7 @@ func get_redirect_tags() -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param tag: 原始标签。
 ## [br]
@@ -263,7 +263,7 @@ func resolve_tag(tag: StringName, max_depth: int = 16) -> StringName:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source: 标签源。
 ## [br]
@@ -293,7 +293,7 @@ func normalize_tag_source(source: Variant, options: Dictionary = {}) -> GFTagSet
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param source: 标签源。
 ## [br]
@@ -344,7 +344,7 @@ func validate_tag_source(source: Variant, options: Dictionary = {}) -> GFValidat
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 校验选项，支持 subject。
 ## [br]
@@ -388,7 +388,7 @@ func validate_definition(options: Dictionary = {}) -> GFValidationReport:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新标签目录。
 func duplicate_catalog() -> GFTagCatalog:
@@ -405,7 +405,7 @@ func duplicate_catalog() -> GFTagCatalog:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 标签目录字典。
 ## [br]
@@ -426,7 +426,7 @@ func to_dictionary() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 标签目录字典。
 ## [br]

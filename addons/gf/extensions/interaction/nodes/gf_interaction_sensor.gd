@@ -247,7 +247,7 @@ func broadcast_to_group(target_group_name: StringName = &"", max_count: int = 0)
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param candidate_provider: 暴露 get_candidate_objects(options) 的候选 provider。
 ## [br]
@@ -280,7 +280,7 @@ func send_to_best_candidate(
 ## [br]
 ## @api public
 ## [br]
-## @since 7.0.0
+## @since 8.0.0
 ## [br]
 ## @param candidate_provider: 暴露 get_candidate_objects(options) 的候选 provider。
 ## [br]

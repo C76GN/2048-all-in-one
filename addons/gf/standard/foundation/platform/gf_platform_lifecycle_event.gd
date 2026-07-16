@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFPlatformLifecycleEvent
 extends Resource
 
@@ -18,56 +18,56 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const TYPE_FOREGROUND: StringName = &"foreground"
 
 ## 平台进入后台、挂起或不可交互。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const TYPE_BACKGROUND: StringName = &"background"
 
 ## 窗口尺寸或显示区域变化。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const TYPE_WINDOW_RESIZED: StringName = &"window_resized"
 
 ## 安全区域变化。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const TYPE_SAFE_AREA_CHANGED: StringName = &"safe_area_changed"
 
 ## 网络状态变化。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const TYPE_NETWORK_CHANGED: StringName = &"network_changed"
 
 ## 输入法或软键盘显示。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const TYPE_KEYBOARD_SHOWN: StringName = &"keyboard_shown"
 
 ## 输入法或软键盘隐藏。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const TYPE_KEYBOARD_HIDDEN: StringName = &"keyboard_hidden"
 
 ## 平台发出内存压力警告。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const TYPE_MEMORY_WARNING: StringName = &"memory_warning"
 
 
@@ -77,35 +77,35 @@ const TYPE_MEMORY_WARNING: StringName = &"memory_warning"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var event_type: StringName = &""
 
 ## 平台标识。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var platform_id: StringName = &""
 
 ## 单调递增序号。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var sequence: int = 0
 
 ## 事件时间戳，单位毫秒。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var timestamp_msec: int = 0
 
 ## 事件载荷。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema payload: Dictionary adapter-defined event payload.
 @export var payload: Dictionary = {}
@@ -114,7 +114,7 @@ const TYPE_MEMORY_WARNING: StringName = &"memory_warning"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema metadata: Dictionary caller-defined metadata.
 @export var metadata: Dictionary = {}
@@ -126,7 +126,7 @@ const TYPE_MEMORY_WARNING: StringName = &"memory_warning"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_event_type: 事件类型。
 ## [br]
@@ -166,7 +166,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param expected_type: 期望事件类型。
 ## [br]
@@ -179,7 +179,7 @@ func is_type(expected_type: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 生命周期事件字典。
 ## [br]
@@ -199,7 +199,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 生命周期事件字典。
 ## [br]
@@ -217,7 +217,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新生命周期事件。
 func duplicate_event() -> GFPlatformLifecycleEvent:
@@ -228,7 +228,7 @@ func duplicate_event() -> GFPlatformLifecycleEvent:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 生命周期事件字典。
 ## [br]

@@ -118,7 +118,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @return 评分报告字典。
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema options: Dictionary with GFReportValueCodec encoding options.
 ## [br]

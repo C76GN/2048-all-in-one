@@ -209,7 +209,7 @@ func to_dictionary() -> Dictionary:
 ## [br]
 ## @api framework_internal
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 包含行及响应全部身份字段的原始结构。
 ## [br]

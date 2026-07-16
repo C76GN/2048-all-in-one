@@ -127,7 +127,7 @@ func matches(action: GFCombatAction) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 所有数值字段有限时返回 true。
 func is_numeric_state_valid() -> bool:

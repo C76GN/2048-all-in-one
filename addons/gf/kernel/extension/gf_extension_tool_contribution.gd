@@ -6,7 +6,7 @@
 ## [br]
 ## @category protocol
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/extension
 class_name GFExtensionToolContribution
@@ -19,14 +19,14 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const SCHEMA_VERSION: int = 1
 
 ## 所有可声明的工具贡献路径字段。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const PATH_FIELDS: Array[String] = [
 	"access_generator_extension_paths",
 	"editor_action_paths",
@@ -41,7 +41,7 @@ const PATH_FIELDS: Array[String] = [
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const ALLOWED_FIELDS: Array[String] = [
 	"schema_version",
 	"extension_id",
@@ -64,7 +64,7 @@ const _GF_EXTENSION_ID_VALIDATOR_SCRIPT = preload("res://addons/gf/kernel/extens
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 待校验的 JSON object 数据。
 ## [br]

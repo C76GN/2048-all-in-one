@@ -43,8 +43,6 @@ signal activation_committed(skill: GFSkill, context: RefCounted)
 # --- 常量 ---
 
 const _GF_SKILL_ACTIVATION_CONTEXT = preload("res://addons/gf/extensions/combat/skills/gf_skill_activation_context.gd")
-const _GF_SKILL_ACTIVATION_STEP_SCRIPT = preload("res://addons/gf/extensions/combat/skills/gf_skill_activation_step.gd")
-const _GF_SKILL_TARGETING_RULE_2D_SCRIPT = preload("res://addons/gf/extensions/combat/skills/gf_skill_targeting_rule_2d.gd")
 const _GF_SKILL_TARGETING_UTILITY_2D_SCRIPT = preload("res://addons/gf/extensions/combat/skills/gf_skill_targeting_utility_2d.gd")
 
 
@@ -85,7 +83,7 @@ var owner: Object = null
 ## @api public
 ## [br]
 ## @since 3.17.0
-var targeting_rule: _GF_SKILL_TARGETING_RULE_2D_SCRIPT = null
+var targeting_rule: GFSkillTargetingRule2D = null
 
 ## 可选标签查询。为空时使用 require_tags / ignore_tags。
 ## [br]
@@ -103,10 +101,10 @@ var activation_checks: Array[Callable] = []
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema activation_steps: Array[GFSkillActivationStep]，用于项目自定义成本、预留或其他可补偿副作用。
-var activation_steps: Array[_GF_SKILL_ACTIVATION_STEP_SCRIPT] = []
+var activation_steps: Array[GFSkillActivationStep] = []
 
 
 # --- 私有变量 ---
@@ -450,7 +448,7 @@ func _build_activation_transaction(context: RefCounted) -> GFActivationTransacti
 		{ "skill_id": id }
 	)
 	var used_step_ids: Dictionary = {}
-	for step: _GF_SKILL_ACTIVATION_STEP_SCRIPT in activation_steps:
+	for step: GFSkillActivationStep in activation_steps:
 		if step == null or step.step_id == &"" or used_step_ids.has(step.step_id):
 			var _invalid_step_report: Dictionary = _fail_activation_context(context, &"invalid_activation_step", {
 				"step_id": step.step_id if step != null else &"",
@@ -479,7 +477,7 @@ func _build_activation_transaction(context: RefCounted) -> GFActivationTransacti
 
 func _invoke_activation_step(
 	transaction_context: Dictionary,
-	step: _GF_SKILL_ACTIVATION_STEP_SCRIPT,
+	step: GFSkillActivationStep,
 	phase: StringName
 ) -> Variant:
 	var context: GFSkillActivationContext = _get_transaction_activation_context(transaction_context)

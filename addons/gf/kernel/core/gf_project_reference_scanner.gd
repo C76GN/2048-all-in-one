@@ -1,6 +1,6 @@
 ## GFProjectReferenceScanner: 项目资源引用扫描服务。
 ##
-## 面向编辑器、CI 和框架诊断流程扫描项目文本资源，按目标根目录和
+## 面向编辑器、CI 和框架诊断流程扫描项目资源与文本源码，按目标根目录和
 ## class_name 输出 verified、strong 与 weak 分级引用，并在文件数量、
 ## 目录深度和读取字节预算耗尽时返回 fail-closed 诊断。
 ## [br]
@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/core
 class_name GFProjectReferenceScanner
@@ -25,98 +25,98 @@ const _GF_PATH_TOOLS = preload("res://addons/gf/kernel/core/gf_path_tools.gd")
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_STRENGTH_VERIFIED: StringName = &"verified"
 
 ## 静态语义扫描确认的资源或 class_name 引用。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_STRENGTH_STRONG: StringName = &"strong"
 
 ## 仅文本命中的弱引用提示，不会让扫描报告的引用计数阻断。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_STRENGTH_WEAK: StringName = &"weak"
 
 ## GDScript load/preload 等加载表达式来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_SOURCE_GDSCRIPT_LOAD: StringName = &"gdscript_load"
 
 ## GDScript class_name 标识符来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_SOURCE_GDSCRIPT_SYMBOL: StringName = &"gdscript_symbol"
 
 ## Godot 文本资源依赖字段来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_SOURCE_RESOURCE_TEXT: StringName = &"resource_text"
 
 ## Godot ResourceLoader 依赖图来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_SOURCE_GODOT_DEPENDENCY: StringName = &"godot_dependency"
 
 ## 无法确认语义的文本命中来源。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const REFERENCE_SOURCE_TEXT_FALLBACK: StringName = &"text_fallback"
 
 ## 默认扫描根目录。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_SCAN_ROOTS: Array[String] = ["res://"]
 
 ## 默认最大扫描深度。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_SCAN_DEPTH: int = 32
 
 ## 默认最大候选扫描文件数。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_SCANNED_FILES: int = 10000
 
 ## 默认单文件读取字节上限。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_FILE_BYTES: int = 4 * 1024 * 1024
 
 ## 默认单次扫描总读取字节上限。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_TOTAL_BYTES: int = 64 * 1024 * 1024
 
 ## 默认忽略的根目录。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_IGNORED_ROOTS: Array[String] = [
 	"res://.godot",
 	"res://.git",
@@ -131,7 +131,7 @@ const DEFAULT_IGNORED_ROOTS: Array[String] = [
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const TEXT_FILE_EXTENSIONS: Array[String] = [
 	"cfg",
 	"csv",
@@ -145,6 +145,11 @@ const TEXT_FILE_EXTENSIONS: Array[String] = [
 	"tres",
 ]
 
+const _BINARY_RESOURCE_EXTENSIONS: Array[String] = [
+	"res",
+	"scn",
+]
+
 
 # --- 公共方法 ---
 
@@ -152,7 +157,7 @@ const TEXT_FILE_EXTENSIONS: Array[String] = [
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param targets: 扫描目标列表。
 ## [br]
@@ -200,6 +205,9 @@ static func scan_references(targets: Array[Dictionary], options: Dictionary = {}
 		if not _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(source_report, "ok"):
 			continue
 		var source: String = _GF_VARIANT_ACCESS_SCRIPT.get_option_string(source_report, "source")
+		var dependency_paths: PackedStringArray = PackedStringArray()
+		if use_resource_dependencies:
+			dependency_paths = _collect_resource_dependency_paths(path)
 		for index: int in range(scan_targets.size()):
 			var target: Dictionary = scan_targets[index]
 			var references: Array = references_by_target[index]
@@ -216,7 +224,8 @@ static func scan_references(targets: Array[Dictionary], options: Dictionary = {}
 				max_references - references.size(),
 				max_weak_references - weak_references.size(),
 				include_weak_references,
-				use_resource_dependencies
+				use_resource_dependencies,
+				dependency_paths
 			)
 			_append_reference_array_unique(
 				references,
@@ -272,7 +281,7 @@ static func scan_references(targets: Array[Dictionary], options: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root_path: 要匹配的根目录。
 ## [br]
@@ -346,16 +355,22 @@ static func _collect_reference_scan_files(options: Dictionary, scan_state: Dicti
 
 	var max_scan_depth: int = maxi(_GF_VARIANT_ACCESS_SCRIPT.get_option_int(options, "max_scan_depth", DEFAULT_MAX_SCAN_DEPTH), 0)
 	var max_scanned_files: int = maxi(_GF_VARIANT_ACCESS_SCRIPT.get_option_int(options, "max_scanned_files", DEFAULT_MAX_SCANNED_FILES), 0)
+	var include_binary_resources: bool = _GF_VARIANT_ACCESS_SCRIPT.get_option_bool(
+		options,
+		"use_resource_dependencies",
+		true
+	)
 
 	var files: Array[String] = []
 	for scan_root: String in scan_roots:
-		_collect_text_files(
+		_collect_scan_files(
 			scan_root,
 			ignored_roots,
 			files,
 			0,
 			max_scan_depth,
 			max_scanned_files,
+			include_binary_resources,
 			scan_state
 		)
 		if not _can_collect_more_files(files, max_scanned_files):
@@ -365,13 +380,14 @@ static func _collect_reference_scan_files(options: Dictionary, scan_state: Dicti
 	return files
 
 
-static func _collect_text_files(
+static func _collect_scan_files(
 	root_path: String,
 	ignored_roots: PackedStringArray,
 	result: Array[String],
 	depth: int,
 	max_scan_depth: int,
 	max_scanned_files: int,
+	include_binary_resources: bool,
 	scan_state: Dictionary
 ) -> void:
 	if not _can_collect_more_files(result, max_scanned_files):
@@ -395,16 +411,17 @@ static func _collect_text_files(
 		if dir.current_is_dir():
 			if not entry.begins_with("."):
 				if _can_scan_deeper(path, depth, max_scan_depth, scan_state):
-					_collect_text_files(
+					_collect_scan_files(
 						path,
 						ignored_roots,
 						result,
 						depth + 1,
 						max_scan_depth,
 						max_scanned_files,
+						include_binary_resources,
 						scan_state
 					)
-		elif _is_text_resource_file(entry):
+		elif _is_text_resource_file(entry) or (include_binary_resources and _is_binary_resource_file(entry)):
 			result.append(path)
 		entry = dir.get_next()
 	dir.list_dir_end()
@@ -435,7 +452,14 @@ static func _read_scan_source(path: String, options: Dictionary, scan_state: Dic
 		scan_state["stop_scan"] = true
 		return result
 
-	result["source"] = file.get_as_text()
+	if _is_binary_resource_file(path) and not ResourceLoader.exists(path):
+		file.close()
+		_mark_scan_partial(scan_state)
+		_append_skipped_file(path, "resource_dependencies_unavailable", size_bytes, "", 0, scan_state)
+		return result
+
+	if not _is_binary_resource_file(path):
+		result["source"] = file.get_as_text()
 	result["ok"] = true
 	file.close()
 	scan_state["scanned_file_count"] = _GF_VARIANT_ACCESS_SCRIPT.get_option_int(scan_state, "scanned_file_count") + 1
@@ -450,7 +474,8 @@ static func _collect_file_references_for_target(
 	remaining_blocking: int,
 	remaining_weak: int,
 	include_weak_references: bool,
-	use_resource_dependencies: bool
+	use_resource_dependencies: bool,
+	dependency_paths: PackedStringArray
 ) -> Dictionary:
 	var result: Dictionary = _make_file_reference_report()
 	if (
@@ -466,7 +491,7 @@ static func _collect_file_references_for_target(
 	if use_resource_dependencies and remaining_blocking > 0:
 		_append_reference_array_unique(
 			blocking_references,
-			_collect_dependency_references(path, root_path, target_id, remaining_blocking),
+			_collect_dependency_references(path, dependency_paths, root_path, target_id, remaining_blocking),
 			remaining_blocking
 		)
 
@@ -511,17 +536,16 @@ static func _make_file_reference_report() -> Dictionary:
 
 static func _collect_dependency_references(
 	path: String,
+	dependency_paths: PackedStringArray,
 	root_path: String,
 	target_id: StringName,
 	remaining: int
 ) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
-	if remaining <= 0 or not ResourceLoader.exists(path):
+	if remaining <= 0:
 		return result
 
-	var dependencies: PackedStringArray = ResourceLoader.get_dependencies(path)
-	for dependency_entry: String in dependencies:
-		var dependency_path: String = _extract_dependency_resource_path(dependency_entry)
+	for dependency_path: String in dependency_paths:
 		if dependency_path.is_empty() or not _line_references_root(dependency_path, root_path):
 			continue
 		_append_reference_unique(result, _make_reference(
@@ -538,6 +562,17 @@ static func _collect_dependency_references(
 		), remaining)
 		if result.size() >= remaining:
 			break
+	return result
+
+
+static func _collect_resource_dependency_paths(path: String) -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	if not ResourceLoader.exists(path):
+		return result
+	for dependency_entry: String in ResourceLoader.get_dependencies(path):
+		var dependency_path: String = _extract_dependency_resource_path(dependency_entry)
+		if not dependency_path.is_empty() and not result.has(dependency_path):
+			result.append(dependency_path)
 	return result
 
 
@@ -1003,6 +1038,10 @@ static func _is_reference_boundary(character: String) -> bool:
 static func _is_text_resource_file(path: String) -> bool:
 	var extension: String = path.get_extension().to_lower()
 	return TEXT_FILE_EXTENSIONS.has(extension)
+
+
+static func _is_binary_resource_file(path: String) -> bool:
+	return _BINARY_RESOURCE_EXTENSIONS.has(path.get_extension().to_lower())
 
 
 static func _is_resource_text_extension(extension: String) -> bool:

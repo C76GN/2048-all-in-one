@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNetworkLobbyService
 extends GFUtility
 
@@ -18,7 +18,7 @@ extends GFUtility
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param result: 创建结果。
 signal lobby_created(result: GFNetworkLobbyJoinResult)
@@ -27,7 +27,7 @@ signal lobby_created(result: GFNetworkLobbyJoinResult)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobbies: Lobby 快照列表。
 ## [br]
@@ -42,7 +42,7 @@ signal lobbies_queried(lobbies: Array[GFNetworkLobbyDescriptor], metadata: Dicti
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param result: 加入结果。
 signal lobby_joined(result: GFNetworkLobbyJoinResult)
@@ -51,7 +51,7 @@ signal lobby_joined(result: GFNetworkLobbyJoinResult)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -62,7 +62,7 @@ signal lobby_left(lobby_id: String, reason: String)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby: Lobby 快照。
 signal lobby_updated(lobby: GFNetworkLobbyDescriptor)
@@ -71,7 +71,7 @@ signal lobby_updated(lobby: GFNetworkLobbyDescriptor)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -82,7 +82,7 @@ signal member_joined(lobby_id: String, member: GFNetworkLobbyMember)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -95,7 +95,7 @@ signal member_left(lobby_id: String, peer_id: int, reason: String)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param invite: 邀请事件。
 signal invite_received(invite: GFNetworkLobbyInvite)
@@ -104,7 +104,7 @@ signal invite_received(invite: GFNetworkLobbyInvite)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param operation: 操作标识。
 ## [br]
@@ -122,14 +122,14 @@ signal backend_error(operation: StringName, error: StringName, details: Dictiona
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var backend: GFNetworkLobbyBackend = null
 
 ## 当前已加入 lobby。未加入时为 null。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var current_lobby: GFNetworkLobbyDescriptor = null
 
 
@@ -144,7 +144,7 @@ var _known_lobbies: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param delta: 本帧时间增量（秒）。
 func tick(delta: float) -> void:
@@ -156,7 +156,7 @@ func tick(delta: float) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func dispose() -> void:
 	set_backend(null)
 	current_lobby = null
@@ -169,7 +169,7 @@ func dispose() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param next_backend: 新后端。
 func set_backend(next_backend: GFNetworkLobbyBackend) -> void:
@@ -187,7 +187,7 @@ func set_backend(next_backend: GFNetworkLobbyBackend) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 后端选项。
 ## [br]
@@ -206,7 +206,7 @@ func create_lobby(options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param query: 查询条件。
 ## [br]
@@ -227,7 +227,7 @@ func query_lobbies(query: GFNetworkLobbyQuery = null, options: Dictionary = {}) 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -248,7 +248,7 @@ func join_lobby(lobby_id: String, options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID；为空时使用 current_lobby。
 ## [br]
@@ -272,7 +272,7 @@ func leave_lobby(lobby_id: String = "", options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param metadata_patch: Metadata 更新。
 ## [br]
@@ -304,7 +304,7 @@ func set_lobby_metadata(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param peer_id: 成员 peer 标识。
 ## [br]
@@ -339,7 +339,7 @@ func set_member_metadata(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param lobby_id: Lobby ID。
 ## [br]
@@ -356,7 +356,7 @@ func get_lobby(lobby_id: String) -> GFNetworkLobbyDescriptor:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return Lobby 快照列表。
 ## [br]
@@ -374,7 +374,7 @@ func get_lobbies() -> Array[GFNetworkLobbyDescriptor]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试快照。
 ## [br]

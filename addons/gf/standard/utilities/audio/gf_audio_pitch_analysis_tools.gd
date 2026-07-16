@@ -53,21 +53,21 @@ const DEFAULT_CONFIDENCE_THRESHOLD: float = 0.45
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const MAX_SAMPLE_COUNT: int = 16384
 
 ## 单次分析允许扫描的 lag 数量硬上限。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const MAX_LAG_COUNT: int = 4096
 
 ## 单次分析允许的保守自相关乘加工作量硬上限。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const MAX_CORRELATION_OPERATIONS: int = 8_000_000
 
 const _DEFAULT_MAX_SAMPLE_COUNT: int = 8192

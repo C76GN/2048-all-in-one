@@ -104,7 +104,7 @@ func push(value: Variant, priority: float = 0.0, front: bool = false) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param value: 要入队的值。
 ## [br]

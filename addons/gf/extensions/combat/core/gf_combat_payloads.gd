@@ -79,14 +79,14 @@ class GFBuffRemovedPayload extends GFPayload:
 	## [br]
 	## @api public
 	## [br]
-	## @since unreleased
+	## @since 8.0.0
 	var reason: StringName
 
 	## Buff 移除生命周期报告。
 	## [br]
 	## @api public
 	## [br]
-	## @since unreleased
+	## @since 8.0.0
 	## [br]
 	## @schema lifecycle_report: Dictionary，GFBuff.on_remove() 返回报告的深副本。
 	var lifecycle_report: Dictionary

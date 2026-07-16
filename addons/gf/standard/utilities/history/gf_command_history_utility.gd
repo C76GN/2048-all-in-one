@@ -49,7 +49,7 @@ var redo_count: int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var async_stall_warning_seconds: float = 30.0:
 	set(value):
 		if is_finite(value):

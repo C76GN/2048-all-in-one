@@ -8,7 +8,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFAssetCatalog
 extends Resource
 
@@ -19,56 +19,56 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const GROUP_SOURCE_ID: StringName = &"asset_id"
 
 ## 按资产来源分组。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const GROUP_SOURCE_SOURCE_ID: StringName = &"source_id"
 
 ## 按分类分组。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const GROUP_SOURCE_CATEGORY: StringName = &"category"
 
 ## 按标签分组。一个资产可进入多个标签组。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const GROUP_SOURCE_TAGS: StringName = &"tags"
 
 ## 按主资源类型提示分组。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const GROUP_SOURCE_TYPE_HINT: StringName = &"type_hint"
 
 ## 按主资源路径分组。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const GROUP_SOURCE_PRIMARY_PATH: StringName = &"primary_path"
 
 ## 按主资源身份缓存键分组。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const GROUP_SOURCE_CACHE_KEY: StringName = &"cache_key"
 
 ## 按关联资源注册表条目 ID 分组。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const GROUP_SOURCE_RESOURCE_ENTRY_ID: StringName = &"resource_entry_id"
 
 const _DEFAULT_SEARCH_FIELDS: Array[Dictionary] = [
@@ -89,7 +89,7 @@ const _DEFAULT_SEARCH_FIELDS: Array[Dictionary] = [
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema entries: Array[GFAssetCatalogEntry] asset catalog entries.
 @export var entries: Array[GFAssetCatalogEntry] = []
@@ -108,7 +108,7 @@ var _index_dirty: bool = true
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param entry: 要写入的资产条目。
 ## [br]
@@ -132,7 +132,7 @@ func set_entry(entry: GFAssetCatalogEntry) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param asset_id: 资产稳定 ID。
 ## [br]
@@ -151,7 +151,7 @@ func remove_entry(asset_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear() -> void:
 	entries.clear()
 	mark_index_dirty()
@@ -161,7 +161,7 @@ func clear() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func mark_index_dirty() -> void:
 	_index_dirty = true
 
@@ -170,7 +170,7 @@ func mark_index_dirty() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func rebuild_index() -> void:
 	_entry_lookup.clear()
 	_index.clear()
@@ -191,7 +191,7 @@ func rebuild_index() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param asset_id: 资产稳定 ID。
 ## [br]
@@ -205,7 +205,7 @@ func has_entry(asset_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param asset_id: 资产稳定 ID。
 ## [br]
@@ -222,7 +222,7 @@ func get_entry(asset_id: StringName) -> GFAssetCatalogEntry:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 排序后的资产 ID 列表。
 func get_all_ids() -> PackedStringArray:
@@ -238,7 +238,7 @@ func get_all_ids() -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param field_id: 字段标识。
 ## [br]
@@ -256,7 +256,7 @@ func query(field_id: StringName, field_value: Variant) -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param criteria: 字段到值的查询条件。
 ## [br]
@@ -274,7 +274,7 @@ func query_many(criteria: Dictionary, match_all: bool = true) -> PackedStringArr
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param catalog: 要合并的资产目录。
 ## [br]
@@ -324,7 +324,7 @@ func merge_catalog(catalog: GFAssetCatalog, options: Dictionary = {}) -> Diction
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param asset_ids: 要导出的资产 ID；为空时导出全部有效条目。
 ## [br]
@@ -353,7 +353,7 @@ func make_search_candidates(asset_ids: PackedStringArray = PackedStringArray()) 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param query_text: 查询文本。
 ## [br]
@@ -381,7 +381,7 @@ func search(query_text: String, options: Dictionary = {}) -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param asset_id: 资产稳定 ID。
 ## [br]
@@ -431,7 +431,7 @@ func make_asset_summary(asset_id: StringName, options: Dictionary = {}) -> Dicti
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param asset_ids: 要导出的资产 ID；为空时导出全部有效条目。
 ## [br]
@@ -465,7 +465,7 @@ func make_asset_summaries(asset_ids: PackedStringArray = PackedStringArray(), op
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param query_text: 查询文本；为空时默认按资产 ID 列出资产。
 ## [br]
@@ -538,7 +538,7 @@ func search_page(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param group_source: 分组来源。
 ## [br]
@@ -585,7 +585,7 @@ func group_asset_ids(group_source: StringName = GROUP_SOURCE_ID, options: Dictio
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 资产目录诊断信息。
 ## [br]
@@ -603,7 +603,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 资产目录字典。
 ## [br]
@@ -622,7 +622,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 资产目录字典。
 ## [br]
@@ -642,7 +642,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 资产目录字典。
 ## [br]

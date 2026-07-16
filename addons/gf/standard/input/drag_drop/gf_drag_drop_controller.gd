@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFDragDropController
 extends Node
 
@@ -19,7 +19,7 @@ extends Node
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param session_id: 会话 ID。
 ## [br]
@@ -30,7 +30,7 @@ signal drag_started(session_id: int, drag_type: StringName)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param session_id: 会话 ID。
 ## [br]
@@ -45,7 +45,7 @@ signal drag_moved(session_id: int, position: Vector2, delta: Vector2, zone_id: S
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param session_id: 会话 ID。
 ## [br]
@@ -60,7 +60,7 @@ signal drag_dropped(session_id: int, zone_id: StringName, result: Dictionary)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param session_id: 会话 ID。
 ## [br]
@@ -71,7 +71,7 @@ signal drag_drop_rejected(session_id: int, reason: StringName)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param session_id: 会话 ID。
 ## [br]
@@ -82,7 +82,7 @@ signal drag_cancelled(session_id: int, reason: StringName)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param zone_id: 落点 ID。
 signal drop_zone_registered(zone_id: StringName)
@@ -91,7 +91,7 @@ signal drop_zone_registered(zone_id: StringName)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param zone_id: 落点 ID。
 signal drop_zone_unregistered(zone_id: StringName)
@@ -108,14 +108,14 @@ const _NO_POINTER_ID: int = -1
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var cancel_when_source_exits_tree: bool = true
 
 ## source 引用失效时是否自动取消当前拖拽。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var cancel_when_source_freed: bool = true
 
 
@@ -160,7 +160,7 @@ func _exit_tree() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前控制器持有的拖放工具。
 func get_utility() -> GFDragDropUtility:
@@ -171,7 +171,7 @@ func get_utility() -> GFDragDropUtility:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param zone: 落点规则。
 ## [br]
@@ -184,7 +184,7 @@ func register_zone(zone: GFDropZone) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param zone_id: 落点 ID。
 ## [br]
@@ -210,7 +210,7 @@ func register_rect_zone(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param zone_id: 落点 ID。
 ## [br]
@@ -236,7 +236,7 @@ func register_control_zone(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param zone_id: 落点 ID。
 ## [br]
@@ -249,7 +249,7 @@ func unregister_zone(zone_id: StringName) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 本次移除的落点数量。
 func prune_stale_drop_zones() -> int:
@@ -260,7 +260,7 @@ func prune_stale_drop_zones() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func clear_zones() -> void:
 	_utility.clear_zones()
 
@@ -272,7 +272,7 @@ func clear_zones() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param drag_type: 拖拽类型。
 ## [br]
@@ -340,7 +340,7 @@ func start_drag(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param position: 当前指针位置。
 ## [br]
@@ -361,7 +361,7 @@ func update_pointer(position: Vector2, pointer_id: int = 0) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param position: 要检查的位置。
 ## [br]
@@ -378,7 +378,7 @@ func get_active_drop_candidates(position: Vector2, only_accepting: bool = true) 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param position: 要检查的位置。
 ## [br]
@@ -393,7 +393,7 @@ func get_active_best_drop_zone(position: Vector2) -> GFDropZone:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param position: 释放位置。
 ## [br]
@@ -416,7 +416,7 @@ func drop(position: Vector2, pointer_id: int = 0) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 取消原因。
 ## [br]
@@ -435,7 +435,7 @@ func cancel_drag(reason: StringName = &"cancelled") -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 活动会话；没有活动拖拽时返回 null。
 func get_active_session() -> GFDragSession:
@@ -448,7 +448,7 @@ func get_active_session() -> GFDragSession:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 活动会话 ID；没有活动拖拽时返回 -1。
 func get_active_session_id() -> int:
@@ -459,7 +459,7 @@ func get_active_session_id() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 存在活动拖拽时返回 true。
 func has_active_drag() -> bool:
@@ -470,7 +470,7 @@ func has_active_drag() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param json_compatible: 为 true 时返回可直接 JSON.stringify() 的值。
 ## [br]

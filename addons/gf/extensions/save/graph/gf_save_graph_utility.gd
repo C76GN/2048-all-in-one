@@ -29,6 +29,7 @@ const _GF_SAVE_PERSISTED_VALUE_VALIDATOR = preload("res://addons/gf/extensions/s
 const _CREATED_ENTITIES_CONTEXT_KEY: String = "_gf_save_graph_created_entities"
 const _SOURCE_SNAPSHOTS_CONTEXT_KEY: String = "_gf_save_graph_source_snapshots"
 const _TRANSACTION_BOUNDARY_CONTEXT_KEY: String = "_gf_save_graph_transaction_boundary"
+const _AFTER_LOAD_QUEUE_CONTEXT_KEY: String = "_gf_save_graph_after_load_queue"
 
 
 # --- 公共变量 ---
@@ -403,6 +404,7 @@ func apply_scope(
 	var owns_transaction_boundary: bool = not context.has(_TRANSACTION_BOUNDARY_CONTEXT_KEY)
 	if owns_transaction_boundary:
 		context[_TRANSACTION_BOUNDARY_CONTEXT_KEY] = true
+		context[_AFTER_LOAD_QUEUE_CONTEXT_KEY] = []
 	if owns_pipeline_context:
 		_record_pipeline_event(pipeline_context, &"apply_started", scope)
 
@@ -578,12 +580,7 @@ func apply_scope(
 	if errors.is_empty() and owns_transaction_boundary:
 		_append_transaction_participant_errors(pipeline_context, context, &"commit", errors)
 	if errors.is_empty():
-		for loaded_source_entry: Dictionary in loaded_sources:
-			var loaded_source: GFSaveSource = _get_save_source_value(GFVariantData.get_option_value(loaded_source_entry, "source"))
-			if loaded_source == null or not is_instance_valid(loaded_source):
-				continue
-			loaded_source._after_load(GFVariantData.get_option_value(loaded_source_entry, "data"), context)
-		scope._after_load(payload, context)
+		_queue_after_load_callbacks(context, loaded_sources, scope, payload)
 	return _finalize_apply_scope(
 		scope,
 		payload,
@@ -1659,6 +1656,11 @@ func _finalize_apply_scope(
 		_rollback_source_snapshots(context, pipeline_context)
 	if should_rollback and owns_created_entities:
 		_rollback_created_entities(context)
+	if owns_transaction_boundary:
+		if GFVariantData.get_option_bool(result, "ok", false):
+			_dispatch_after_load_callbacks(context)
+		else:
+			_clear_after_load_callbacks(context)
 
 	var final_result: Dictionary = _finish_apply_scope(
 		scope,
@@ -1674,8 +1676,64 @@ func _finalize_apply_scope(
 		_erase_dictionary_key(context, _SOURCE_SNAPSHOTS_CONTEXT_KEY)
 	if owns_transaction_boundary:
 		pipeline_context.clear_transaction_participants()
+		_erase_dictionary_key(context, _AFTER_LOAD_QUEUE_CONTEXT_KEY)
 		_erase_dictionary_key(context, _TRANSACTION_BOUNDARY_CONTEXT_KEY)
 	return final_result
+
+
+func _queue_after_load_callbacks(
+	context: Dictionary,
+	loaded_sources: Array[Dictionary],
+	scope: GFSaveScope,
+	payload: Dictionary
+) -> void:
+	var queue: Array = GFVariantData.get_option_array(context, _AFTER_LOAD_QUEUE_CONTEXT_KEY)
+	for loaded_source_entry: Dictionary in loaded_sources:
+		var loaded_source: GFSaveSource = _get_save_source_value(
+			GFVariantData.get_option_value(loaded_source_entry, "source")
+		)
+		if loaded_source == null or not is_instance_valid(loaded_source):
+			continue
+		queue.append({
+			"kind": &"source",
+			"target": loaded_source,
+			"data": GFVariantData.duplicate_variant(
+				GFVariantData.get_option_value(loaded_source_entry, "data")
+			),
+		})
+	if scope != null and is_instance_valid(scope):
+		queue.append({
+			"kind": &"scope",
+			"target": scope,
+			"data": GFVariantData.duplicate_variant(payload),
+		})
+	context[_AFTER_LOAD_QUEUE_CONTEXT_KEY] = queue
+
+
+func _dispatch_after_load_callbacks(context: Dictionary) -> void:
+	var callbacks: Array = GFVariantData.get_option_array(context, _AFTER_LOAD_QUEUE_CONTEXT_KEY)
+	context[_AFTER_LOAD_QUEUE_CONTEXT_KEY] = []
+	for callback_value: Variant in callbacks:
+		if not callback_value is Dictionary:
+			continue
+		var callback: Dictionary = GFVariantData.as_dictionary(callback_value)
+		var target: Object = GFVariantData.get_option_value(callback, "target") as Object
+		if target == null or not is_instance_valid(target):
+			continue
+		var data: Variant = GFVariantData.get_option_value(callback, "data")
+		match GFVariantData.get_option_string_name(callback, "kind"):
+			&"source":
+				if target is GFSaveSource:
+					var source: GFSaveSource = target
+					source._after_load(data, context)
+			&"scope":
+				if target is GFSaveScope and data is Dictionary:
+					var callback_scope: GFSaveScope = target
+					callback_scope._after_load(GFVariantData.as_dictionary(data), context)
+
+
+func _clear_after_load_callbacks(context: Dictionary) -> void:
+	context[_AFTER_LOAD_QUEUE_CONTEXT_KEY] = []
 
 
 func _append_transaction_participant_errors(

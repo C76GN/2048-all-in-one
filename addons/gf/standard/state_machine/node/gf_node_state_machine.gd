@@ -413,7 +413,7 @@ func remove_state_group(group: GFNodeStateGroup) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return: 已注册状态组节点列表。
 ## [br]
@@ -597,7 +597,7 @@ func get_state_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 传给 GFReportValueCodec 的编码选项。
 ## [br]
@@ -617,7 +617,7 @@ func get_json_compatible_state_snapshot(options: Dictionary = {}) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param snapshot: get_state_snapshot() 返回的状态机快照。
 ## [br]

@@ -174,7 +174,7 @@ func get_custom_data(key: Variant, default_value: Variant = null) -> Variant:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param json_compatible: 为 true 时将 custom_data 转为 JSON 兼容值。
 ## [br]
@@ -218,7 +218,7 @@ func to_dict(json_compatible: bool = true) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 重映射配置字典。
 ## [br]
@@ -307,7 +307,7 @@ func apply_dict(data: Dictionary, json_compatible: bool = true) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 重映射配置字典。
 ## [br]

@@ -31,7 +31,7 @@ const _CAPABILITY_UTILITY_SCRIPT = preload("res://addons/gf/extensions/capabilit
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var receiver: Object:
 	get:
 		return _get_receiver_or_null()

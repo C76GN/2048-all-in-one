@@ -126,7 +126,7 @@ func get_capabilities() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param options: 报告选项，支持 label、metadata、include_data_count、include_data_names。
 ## [br]

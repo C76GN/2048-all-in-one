@@ -126,7 +126,7 @@ func drop(session: GFDragSession, position: Variant) -> Variant:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param json_compatible: 为 true 时返回可直接 JSON.stringify() 的值。
 ## [br]
@@ -156,7 +156,7 @@ func to_dictionary(json_compatible: bool = true) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 引用对象失效时返回 true。
 func is_stale() -> bool:

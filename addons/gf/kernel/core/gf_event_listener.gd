@@ -6,7 +6,7 @@
 ## [br]
 ## @category event_contract
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer kernel/core
 class_name GFEventListener
@@ -28,7 +28,7 @@ var _owner_id: int = 0
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param callback: 事件触发时执行的回调。
 ## [br]
@@ -53,7 +53,7 @@ static func from_callable(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听方法所属对象，同时作为监听 owner。
 ## [br]
@@ -78,7 +78,7 @@ static func from_method(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param owner: 监听器 owner；释放后事件系统会清理该监听器。
 ## [br]
@@ -93,7 +93,7 @@ func with_owner(owner: Object) -> GFEventListener:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前监听器副本。
 func duplicate_listener() -> GFEventListener:
@@ -110,7 +110,7 @@ func duplicate_listener() -> GFEventListener:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 监听回调。
 func get_callback() -> Callable:
@@ -121,7 +121,7 @@ func get_callback() -> Callable:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 监听 owner 或 null。
 func get_owner() -> Object:
@@ -134,7 +134,7 @@ func get_owner() -> Object:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return owner 实例 ID。
 func get_owner_id() -> int:
@@ -145,7 +145,7 @@ func get_owner_id() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 派发参数数量。
 func get_dispatch_argument_count() -> int:
@@ -156,7 +156,7 @@ func get_dispatch_argument_count() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 诊断标签。
 func get_debug_label() -> String:
@@ -169,7 +169,7 @@ func get_debug_label() -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 监听器是否有效。
 func is_valid() -> bool:

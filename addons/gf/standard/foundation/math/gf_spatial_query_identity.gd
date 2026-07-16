@@ -8,7 +8,7 @@
 ## [br]
 ## @category value_object
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFSpatialQueryIdentity
 extends RefCounted
 
@@ -19,28 +19,28 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_OBJECT: StringName = &"object"
 
 ## StringName 身份类型。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_STRING_NAME: StringName = &"string_name"
 
 ## String 身份类型。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_STRING: StringName = &"string"
 
 ## int 身份类型。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const KIND_INT: StringName = &"int"
 
 
@@ -50,35 +50,35 @@ const KIND_INT: StringName = &"int"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var key: String = ""
 
 ## 身份类型。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var kind: StringName = &""
 
 ## int 身份值；非 int 身份时为 0。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var entity_id: int = 0
 
 ## Object 实例 ID；非 Object 身份时为 0。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var object_instance_id: int = 0
 
 ## String 或 StringName 身份文本；其他身份时为空字符串。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var string_value: String = ""
 
 
@@ -94,7 +94,7 @@ var _object_ref: WeakRef = null
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param entity: Object、StringName、String 或 int 实体身份。
 ## [br]
@@ -111,7 +111,7 @@ static func from_value(entity: Variant) -> GFSpatialQueryIdentity:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param entity: Object、StringName、String 或 int 实体身份。
 ## [br]
@@ -126,7 +126,7 @@ static func make_key(entity: Variant) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param entity: 待检测实体身份。
 ## [br]
@@ -141,7 +141,7 @@ static func supports_value(entity: Variant) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param left_key: 左侧 key。
 ## [br]
@@ -160,7 +160,7 @@ static func sort_keys(left_key: String, right_key: String) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param identity_key: 稳定空间身份 key。
 ## [br]
@@ -176,7 +176,7 @@ static func get_key_kind(identity_key: String) -> String:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param identity_key: 稳定空间身份 key。
 ## [br]
@@ -192,7 +192,7 @@ static func get_int_key_value(identity_key: String) -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return key 非空且 Object 身份未释放时返回 true。
 func is_valid() -> bool:
@@ -207,7 +207,7 @@ func is_valid() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return Object 身份返回 live Object；值身份返回保存的值；无效身份返回 null。
 ## [br]
@@ -222,7 +222,7 @@ func get_value() -> Variant:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return Object 身份未释放时返回 Object；否则返回 null。
 func get_object() -> Object:
@@ -235,7 +235,7 @@ func get_object() -> Object:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param include_value: 为 true 时为非 Object 身份附带原始值。
 ## [br]

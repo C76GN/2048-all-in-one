@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNetworkServiceDiscovery
 extends RefCounted
 
@@ -18,7 +18,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_key: 服务发现内部稳定 key。
 ## [br]
@@ -31,7 +31,7 @@ signal service_found(service_key: String, record: Dictionary)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_key: 服务发现内部稳定 key。
 ## [br]
@@ -44,7 +44,7 @@ signal service_updated(service_key: String, record: Dictionary)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_key: 服务发现内部稳定 key。
 ## [br]
@@ -62,14 +62,14 @@ signal service_lost(service_key: String, record: Dictionary, reason: String)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const MESSAGE_KIND: String = "gf.service.discovery"
 
 ## 当前服务广告 schema 版本。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const SCHEMA_VERSION: int = 1
 const _TRANSPORT_VALUE_VALIDATOR = preload("res://addons/gf/extensions/network/runtime/gf_network_transport_value_validator.gd")
 const _DEFAULT_MAX_ADVERTISEMENT_BYTES: int = GFNetworkMessageValidator.DEFAULT_MAX_PACKET_SIZE
@@ -83,7 +83,7 @@ const _DEFAULT_MAX_METADATA_ENTRIES: int = 1024
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var default_ttl_seconds: float = 5.0:
 	set(value):
 		default_ttl_seconds = _normalize_positive_seconds(value, 5.0)
@@ -101,7 +101,7 @@ var _services: Dictionary = {}
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_id: 服务类型或协议标识。
 ## [br]
@@ -146,7 +146,7 @@ func make_advertisement(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param advertisement: 服务广告字典。
 ## [br]
@@ -205,7 +205,7 @@ func accept_advertisement(advertisement: Dictionary, options: Dictionary = {}) -
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param bytes: UTF-8 JSON bytes。
 ## [br]
@@ -241,7 +241,7 @@ func accept_packet(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param delta: 本帧时间增量，单位秒。
 func tick(delta: float) -> void:
@@ -255,7 +255,7 @@ func tick(delta: float) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_key: 服务发现内部稳定 key。
 ## [br]
@@ -272,7 +272,7 @@ func get_service(service_key: String) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 排序后的服务 key。
 func get_service_keys() -> PackedStringArray:
@@ -287,7 +287,7 @@ func get_service_keys() -> PackedStringArray:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_id: 可选服务类型过滤；为空时返回全部。
 ## [br]
@@ -308,7 +308,7 @@ func get_services(service_id: StringName = &"") -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_key: 服务发现内部稳定 key。
 ## [br]
@@ -323,7 +323,7 @@ func remove_service(service_key: String, reason: String = "removed") -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 移除原因。
 func clear_services(reason: String = "cleared") -> void:
@@ -335,7 +335,7 @@ func clear_services(reason: String = "cleared") -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调试状态字典。
 ## [br]
@@ -353,7 +353,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param advertisement: 服务广告字典。
 ## [br]
@@ -394,7 +394,7 @@ static func encode_advertisement(advertisement: Dictionary, options: Dictionary 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param bytes: UTF-8 JSON bytes。
 ## [br]
@@ -432,7 +432,7 @@ static func decode_advertisement(bytes: PackedByteArray, options: Dictionary = {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param advertisement: 服务广告字典。
 ## [br]
@@ -475,7 +475,7 @@ static func validate_advertisement(advertisement: Dictionary, options: Dictionar
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param service_id: 服务类型或协议标识。
 ## [br]

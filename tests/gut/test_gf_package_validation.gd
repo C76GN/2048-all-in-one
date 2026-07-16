@@ -66,9 +66,9 @@ func test_native_package_manager_entrypoints_exist() -> void:
 	var issues: Array[String] = []
 
 	if not ResourceLoader.exists(_GF_PACKAGE_CLI_PATH, "Script"):
-		_append_string(issues, "GF 7 原生包管理 CLI 缺失：%s。" % _GF_PACKAGE_CLI_PATH)
+		_append_string(issues, "GF 原生包管理 CLI 缺失：%s。" % _GF_PACKAGE_CLI_PATH)
 	if not ResourceLoader.exists(_GF_PACKAGE_BACKEND_PATH, "Script"):
-		_append_string(issues, "GF 7 原生包管理后端缺失：%s。" % _GF_PACKAGE_BACKEND_PATH)
+		_append_string(issues, "GF 原生包管理后端缺失：%s。" % _GF_PACKAGE_BACKEND_PATH)
 
 	assert_true(issues.is_empty(), "GF 包管理入口应使用 Godot 原生实现：\n%s" % _join_lines(issues))
 
@@ -195,6 +195,8 @@ func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
 	var hook_text: String = _read_text(_GUT_SHUTDOWN_HOOK_PATH)
 	var baseline: Dictionary = _read_json_dictionary(_GODOT_EXIT_LEAK_BASELINE_PATH)
 	var vendor_lock: Dictionary = _read_json_dictionary(_VENDOR_LOCKFILE_PATH)
+	var plugin_config: ConfigFile = _load_config_file(_GF_PLUGIN_CONFIG_PATH)
+	var plugin_version: String = _get_config_text(plugin_config, "plugin", "version")
 	var issues: Array[String] = []
 
 	if not runner_text.contains("-gpost_run_script=$PostRunScript"):
@@ -209,8 +211,8 @@ func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
 		_append_string(issues, "Godot 退出泄漏基线 schema_version 必须为 1。")
 	if _get_dictionary_text(baseline, "godot_version") != "4.7":
 		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 4.7 运行时。")
-	if _get_dictionary_text(baseline, "gf_version") != "7.0.0":
-		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 GF 7.0.0。")
+	if _get_dictionary_text(baseline, "gf_version") != plugin_version:
+		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 GF %s。" % plugin_version)
 	if _get_dictionary_text(baseline, "gut_version") != "9.7.1":
 		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 GUT 9.7.1。")
 	if (

@@ -40,7 +40,7 @@ const _SUPPORTED_VALUES_INLINE_LIMIT: int = 32
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var require_explicit_key_source: bool = true
 
 ## 是否在非严格模式下尝试通过 TranslationServer 判断 key。

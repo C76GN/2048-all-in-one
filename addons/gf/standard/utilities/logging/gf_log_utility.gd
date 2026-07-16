@@ -588,7 +588,7 @@ func get_entries(offset: int = 0, count: int = -1) -> Array[Dictionary]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 下一条日志将使用的序列号。
 func get_memory_sequence() -> int:
@@ -600,7 +600,7 @@ func get_memory_sequence() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param since_sequence: 调用方上次保存的 next_sequence；表示下一条想读取的日志序列。
 ## [br]

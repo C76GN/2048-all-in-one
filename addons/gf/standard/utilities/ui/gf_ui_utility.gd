@@ -905,7 +905,7 @@ func _clear_layer_without_invalidating_requests(layer: Layer) -> void:
 
 func _detach_node_from_tree(node: Node) -> void:
 	var parent: Node = node.get_parent()
-	if parent != null and not GFAutoload.is_tree_shutdown_in_progress():
+	if parent != null and not GFAutoload.is_tree_exit_in_progress():
 		parent.remove_child(node)
 
 

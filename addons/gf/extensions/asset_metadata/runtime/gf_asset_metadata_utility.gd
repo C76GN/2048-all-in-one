@@ -28,21 +28,21 @@ const META_ASSET_METADATA_SOURCE: StringName = &"gf_asset_metadata_source"
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const METADATA_STATE_ABSENT: StringName = &"absent"
 
 ## 对象带有显式空 GF 资产元数据标记。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const METADATA_STATE_EMPTY: StringName = &"empty"
 
 ## 对象带有非空 GF 资产元数据。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const METADATA_STATE_VALID: StringName = &"valid"
 
 const _CUSTOM_SOURCE_KEY_SEPARATOR: String = "__"
@@ -76,7 +76,7 @@ static func normalize_metadata(value: Variant) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param target: 目标 Object。
 ## [br]
@@ -222,7 +222,7 @@ func validate_object_metadata(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param target: 目标 Object。
 ## [br]
@@ -239,7 +239,7 @@ func has_object_metadata(target: Object, options: Dictionary = {}) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param target: 目标 Object。
 ## [br]
@@ -285,7 +285,7 @@ func clear_object_metadata(target: Object, options: Dictionary = {}) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root: 节点树根节点。
 ## [br]
@@ -303,7 +303,7 @@ func collect_node_tree(root: Node, options: Dictionary = {}) -> Array[GFAssetMet
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root: 节点树根节点。
 ## [br]
@@ -329,7 +329,7 @@ func collect_node_tree_dicts(root: Node, options: Dictionary = {}) -> Array[Dict
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param root: 节点树根节点。
 ## [br]

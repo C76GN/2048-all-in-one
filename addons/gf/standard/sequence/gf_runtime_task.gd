@@ -357,7 +357,7 @@ func get_debug_snapshot() -> Dictionary:
 ## [br]
 ## @category lifecycle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 调度拒绝原因；为空表示可调度。
 func get_schedule_rejection_reason() -> StringName:
@@ -371,7 +371,7 @@ func get_schedule_rejection_reason() -> StringName:
 ## [br]
 ## @category lifecycle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func begin_schedule_resolution() -> void:
 	_schedule_resolution_locked = true
 
@@ -383,7 +383,7 @@ func begin_schedule_resolution() -> void:
 ## [br]
 ## @category lifecycle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func end_schedule_resolution() -> void:
 	_schedule_resolution_locked = false
 
@@ -395,7 +395,7 @@ func end_schedule_resolution() -> void:
 ## [br]
 ## @category query
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 正在调度仲裁或已经进入调度器时返回 true。
 func is_configuration_locked() -> bool:

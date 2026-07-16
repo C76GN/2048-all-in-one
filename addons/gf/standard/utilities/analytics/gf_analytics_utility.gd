@@ -779,6 +779,9 @@ func _attach_shutdown_watcher_to_root(watcher_variant: Variant, attach_serial: i
 func _free_shutdown_watcher(watcher: Node) -> void:
 	if not is_instance_valid(watcher) or watcher.is_queued_for_deletion():
 		return
+	if GFAutoload.is_tree_exit_in_progress():
+		watcher.queue_free()
+		return
 	if watcher.is_inside_tree() and watcher.get_parent() != null:
 		watcher.get_parent().remove_child(watcher)
 	watcher.free()

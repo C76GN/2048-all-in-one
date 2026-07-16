@@ -88,7 +88,7 @@ var _last_error: String = ""
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return privacy profile 名称。
 ## [br]

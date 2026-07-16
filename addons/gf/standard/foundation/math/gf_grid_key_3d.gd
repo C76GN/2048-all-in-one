@@ -170,7 +170,7 @@ static func unpack_key(key: int) -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param position: 世界或局部位置。
 ## [br]
@@ -191,7 +191,7 @@ static func can_quantize_position(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param position: 世界或局部位置。
 ## [br]

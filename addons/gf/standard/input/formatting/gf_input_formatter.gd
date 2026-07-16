@@ -25,7 +25,7 @@ static var _default_registry: GFInputFormatterRegistry = null
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param input_event: 输入事件。
 ## [br]
@@ -73,7 +73,7 @@ static func input_event_as_text(input_event: InputEvent, options: Dictionary = {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param input_event: 输入事件。
 ## [br]
@@ -100,7 +100,7 @@ static func input_event_as_rich_text(input_event: InputEvent, options: Dictionar
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param input_event: 输入事件。
 ## [br]
@@ -211,7 +211,7 @@ static func action_icon(action_name: StringName, options: Dictionary = {}) -> Te
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param binding: 输入绑定。
 ## [br]
@@ -232,7 +232,7 @@ static func binding_as_text(binding: GFInputBinding, options: Dictionary = {}) -
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param binding: 输入绑定。
 ## [br]
@@ -253,7 +253,7 @@ static func binding_as_rich_text(binding: GFInputBinding, options: Dictionary = 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param mapping: 输入映射。
 ## [br]
@@ -294,7 +294,7 @@ static func mapping_as_text(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param mapping: 输入映射。
 ## [br]
@@ -335,7 +335,7 @@ static func mapping_as_rich_text(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 默认 provider registry。
 static func get_default_registry() -> GFInputFormatterRegistry:
@@ -348,7 +348,7 @@ static func get_default_registry() -> GFInputFormatterRegistry:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param registry: 新的默认 provider registry；传入 null 会重建空 registry。
 static func set_default_registry(registry: GFInputFormatterRegistry) -> void:
@@ -359,7 +359,7 @@ static func set_default_registry(registry: GFInputFormatterRegistry) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 文本 provider。
 ## [br]
@@ -377,7 +377,7 @@ static func register_text_provider(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 文本 provider。
 ## [br]
@@ -415,7 +415,7 @@ static func get_text_providers() -> Array[GFInputTextProvider]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 图标 provider。
 ## [br]
@@ -433,7 +433,7 @@ static func register_icon_provider(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param provider: 图标 provider。
 ## [br]

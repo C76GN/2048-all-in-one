@@ -8,7 +8,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFWaveFunctionCollapse2D
 extends RefCounted
 
@@ -19,7 +19,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 enum Heuristic {
 	## 使用加权 Shannon entropy，优先处理信息量最低的未决格。
 	ENTROPY,
@@ -36,42 +36,42 @@ enum Heuristic {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const STATUS_COMPLETE: StringName = &"complete"
 
 ## 规则或固定格导致 domain 为空的状态。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const STATUS_CONTRADICTION: StringName = &"contradiction"
 
 ## 达到 `max_steps` 但仍有未决格的状态。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const STATUS_STEP_LIMIT: StringName = &"step_limit"
 
 ## 输入无效状态。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const STATUS_INVALID_INPUT: StringName = &"invalid_input"
 
 ## 默认最大格子数，避免误把超大 WFC 任务交给单帧纯 GDScript。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_CELLS: int = 4096
 
 ## 默认最大 tile 数。简单 tiled WFC 的传播成本随 tile 数增长。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 const DEFAULT_MAX_TILES: int = 128
 
 const _ALGORITHM: StringName = &"wave_function_collapse_2d"
@@ -100,7 +100,7 @@ const _OPPOSITE_DIRECTIONS: Dictionary = {
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param grid_size: 网格尺寸。
 ## [br]
@@ -342,7 +342,7 @@ static func solve_grid(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param report: solve_grid() 返回的报告。
 ## [br]
@@ -370,7 +370,7 @@ static func to_json_compatible_report(report: Dictionary, options: Dictionary = 
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param adjacency_rules: 基础四向邻接规则数组。
 ## [br]

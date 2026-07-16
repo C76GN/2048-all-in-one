@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_handle
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @layer standard/input
 class_name GFInputProviderRegistration
@@ -20,14 +20,14 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var provider_kind: StringName = &""
 
 ## 已注册 provider。
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var provider: Resource = null
 
 
@@ -43,7 +43,7 @@ var _active: bool = false
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 活动返回 true。
 func is_active() -> bool:
@@ -54,7 +54,7 @@ func is_active() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 本次调用确实释放了注册时返回 true。
 func release() -> bool:

@@ -17,7 +17,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var region_size: Vector3i = Vector3i(32, 32, 32):
 	get:
 		return _region_size

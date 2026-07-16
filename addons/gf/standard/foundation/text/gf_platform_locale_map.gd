@@ -7,7 +7,7 @@
 ## [br]
 ## @category resource_definition
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFPlatformLocaleMap
 extends Resource
 
@@ -18,7 +18,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema entries: Array[Dictionary]，每项包含 platform_id、platform_locale、locale、fallback_locale 和 display_name。
 @export var entries: Array[Dictionary] = []
@@ -27,7 +27,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 @export var default_locale: String = ""
 
 
@@ -37,7 +37,7 @@ extends Resource
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param platform_id: 平台标识。
 ## [br]
@@ -74,7 +74,7 @@ func set_mapping(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param platform_id: 平台标识。
 ## [br]
@@ -94,7 +94,7 @@ func get_mapping(platform_id: StringName, platform_locale: String) -> Dictionary
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param platform_id: 平台标识。
 ## [br]
@@ -116,7 +116,7 @@ func map_locale(platform_id: StringName, platform_locale: String, fallback_value
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param platform_id: 平台标识。
 ## [br]
@@ -141,7 +141,7 @@ func map_fallback_locale(platform_id: StringName, platform_locale: String, fallb
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param platform_id: 平台标识。
 ## [br]
@@ -160,7 +160,7 @@ func erase_mapping(platform_id: StringName, platform_locale: String) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 映射表字典。
 ## [br]
@@ -176,7 +176,7 @@ func to_dict() -> Dictionary:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 映射表字典。
 ## [br]
@@ -190,7 +190,7 @@ func apply_dict(data: Dictionary) -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 新映射表。
 func duplicate_map() -> GFPlatformLocaleMap:
@@ -201,7 +201,7 @@ func duplicate_map() -> GFPlatformLocaleMap:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param platform_id: 平台标识。
 ## [br]
@@ -240,7 +240,7 @@ static func make_entry(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param data: 映射表字典。
 ## [br]

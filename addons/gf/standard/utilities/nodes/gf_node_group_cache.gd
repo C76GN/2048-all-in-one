@@ -7,7 +7,7 @@
 ## [br]
 ## @category runtime_service
 ## [br]
-## @since unreleased
+## @since 8.0.0
 class_name GFNodeGroupCache
 extends RefCounted
 
@@ -18,7 +18,7 @@ extends RefCounted
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 失效原因。
 signal cache_invalidated(reason: StringName)
@@ -30,7 +30,7 @@ signal cache_invalidated(reason: StringName)
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var tree: SceneTree:
 	get:
 		return _tree
@@ -41,7 +41,7 @@ var tree: SceneTree:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 var group_name: StringName:
 	get:
 		return _group_name
@@ -52,7 +52,7 @@ var group_name: StringName:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @schema type_filter: Variant type filter accepted by is_instance_of(), native class name, GDScript class_name, script resource path, or null.
 var type_filter: Variant:
@@ -89,7 +89,7 @@ func _init(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_tree: 查询的 SceneTree。
 ## [br]
@@ -112,7 +112,7 @@ static func from_tree(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param p_tree: 查询的 SceneTree。
 ## [br]
@@ -139,7 +139,7 @@ func configure(
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param reason: 失效原因。
 func invalidate(reason: StringName = &"manual") -> void:
@@ -154,7 +154,7 @@ func invalidate(reason: StringName = &"manual") -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前 group 节点快照。
 func refresh() -> Array[Node]:
@@ -166,7 +166,7 @@ func refresh() -> Array[Node]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 当前 group 节点快照。
 func get_nodes() -> Array[Node]:
@@ -184,7 +184,7 @@ func get_nodes() -> Array[Node]:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 第一个匹配节点；没有匹配时返回 null。
 func get_first() -> Node:
@@ -198,7 +198,7 @@ func get_first() -> Node:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @param node: 目标节点。
 ## [br]
@@ -213,7 +213,7 @@ func has_node(node: Node) -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 匹配节点数量。
 func size() -> int:
@@ -224,7 +224,7 @@ func size() -> int:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 缓存需要重建时返回 true。
 func is_dirty() -> bool:
@@ -235,7 +235,7 @@ func is_dirty() -> bool:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 func dispose() -> void:
 	_disconnect_tree_signals()
 	_tree = null
@@ -247,7 +247,7 @@ func dispose() -> void:
 ## [br]
 ## @api public
 ## [br]
-## @since unreleased
+## @since 8.0.0
 ## [br]
 ## @return 诊断快照。
 ## [br]
