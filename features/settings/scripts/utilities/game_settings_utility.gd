@@ -7,9 +7,6 @@ extends "res://addons/gf/standard/utilities/settings/gf_settings_utility.gd"
 
 const DEFAULT_LOCALE: String = "zh"
 const AUDIO_BUS_MASTER: String = "Master"
-# --- 私有变量 ---
-
-var _last_storage_migration_report: Dictionary = {}
 
 
 # --- 公共方法 ---
@@ -70,35 +67,6 @@ func replace_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
 ## @param emit_changes: 是否派发设置变更通知。
 func merge_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
 	super.merge_from_dict(_without_storage_metadata(data), emit_changes)
-
-
-## 获取最近一次设置存储迁移报告。
-func get_last_storage_migration_report() -> Dictionary:
-	return _last_storage_migration_report.duplicate(true)
-
-
-# --- 可重写钩子 / 虚方法 ---
-
-func _read_persisted_data(file_name: String) -> Dictionary:
-	var storage_value: Variant = get_utility(GFStorageUtility)
-	if storage_value is GFStorageUtility:
-		var storage: GFStorageUtility = storage_value
-		_last_storage_migration_report = GameSettingsStorageMigrationUtility.migrate_legacy_json(
-			storage,
-			file_name
-		)
-		if GFVariantData.get_option_bool(_last_storage_migration_report, "matched"):
-			var migrated: bool = GFVariantData.get_option_bool(_last_storage_migration_report, "migrated")
-			if not migrated:
-				push_error(
-					"[GameSettingsUtility] 旧版设置已读取，但重写为当前格式失败：%s" %
-					GFVariantData.get_option_string(_last_storage_migration_report, "error")
-				)
-			return GFVariantData.get_option_dictionary(_last_storage_migration_report, "data")
-	else:
-		_last_storage_migration_report.clear()
-
-	return super._read_persisted_data(file_name)
 
 
 # --- 私有/辅助方法 ---
