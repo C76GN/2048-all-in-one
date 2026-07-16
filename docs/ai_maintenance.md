@@ -263,7 +263,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 330 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-16 使用 Godot `4.7.stable.steam.5b4e0cb0f` 运行通过。当前完整套件为 22 个 GUT 测试脚本、179 个 `test_` 用例、1044 个断言；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 703 个全局脚本类，项目运行时声明 116 个。回合流接入增加 `GameMoveTurnAction` 与 `GameTurnSystem`，通知迁移移除 `HudMessagePayload`，项目运行时类净增 1；完整套件退出计数仍为 `ObjectDB = 259`、`Resources = 116`、RID 类型数 `= 3`，因此没有放宽既有泄漏上限。GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
+2026-07-16 使用 Godot `4.7.stable.steam.5b4e0cb0f` 运行通过。当前完整套件为 22 个 GUT 测试脚本、183 个 `test_` 用例、1076 个断言；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 703 个全局脚本类，项目运行时声明 116 个。回合流接入增加 `GameMoveTurnAction` 与 `GameTurnSystem`，通知迁移移除 `HudMessagePayload`，项目运行时类净增 1；完整套件退出计数仍为 `ObjectDB = 259`、`Resources = 116`、RID 类型数 `= 3`，因此没有放宽既有泄漏上限。GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
 
 编辑器 GDScript warning 诊断入口：
 

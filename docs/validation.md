@@ -122,9 +122,9 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 结果：
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
-- GUT：181 个测试全部通过，共 1069 个断言。
-- 当前完整套件：`tests/gut/` 下 22 个测试脚本、181 个 `test_` 用例。
-- Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。
+- GUT：183 个测试全部通过，共 1076 个断言。
+- 当前完整套件：`tests/gut/` 下 22 个测试脚本、183 个 `test_` 用例。
+- Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。运行时系统时间与随机源受路径扫描门禁约束，场景耗时复用 `GFOperationDiagnosticsUtility` 的操作起始 tick。
 - 未触发默认 Godot 用户日志增长保护。
 - 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 259`、`Resources = 116`、RID 类型数 `= 3`。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时 `class_name` 集合；输入集合不变时任何增长都会失败。只有在干净 HEAD 对照证明增量来自经过审计的运行时类集合变化后，才允许带理由重新校准原始计数。
 - 临时运行目录已在成功后自动清理。
