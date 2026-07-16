@@ -85,9 +85,9 @@ func test_import_sources_config_tracks_requested_source_packs() -> void:
 
 
 func test_review_catalog_reports_imported_records_without_polluting_runtime_package() -> void:
-	var asset_library: GameAssetLibraryUtility = GameAssetLibraryUtility.new()
-	var runtime_report: Dictionary = asset_library.build_audit_report()
-	var review_report: Dictionary = asset_library.build_review_catalog_report()
+	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
+	var runtime_report: Dictionary = audit.build_audit_report()
+	var review_report: Dictionary = audit.build_review_catalog_report()
 	var kind_counts: Dictionary = GFVariantData.get_option_dictionary(review_report, "kind_counts")
 	var status_counts: Dictionary = GFVariantData.get_option_dictionary(review_report, "status_counts")
 
@@ -98,11 +98,12 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 	assert_true(GFVariantData.get_option_int(kind_counts, "shader") >= 19, "评审目录应包含 shader 候选。")
 	assert_true(GFVariantData.get_option_int(kind_counts, "vfx") >= 3, "评审目录应包含 VFX 候选。")
 	assert_true(GFVariantData.get_option_int(status_counts, "inbox") >= 560, "新导入素材默认应处于 inbox 状态。")
+	audit.dispose()
 
 
 func test_review_catalog_keeps_unknown_license_assets_review_only() -> void:
-	var asset_library: GameAssetLibraryUtility = GameAssetLibraryUtility.new()
-	var report: Dictionary = asset_library.build_review_catalog_report()
+	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
+	var report: Dictionary = audit.build_review_catalog_report()
 	var source_pack_license_counts: Dictionary = GFVariantData.get_option_dictionary(report, "license_counts")
 	var record_license_counts: Dictionary = GFVariantData.get_option_dictionary(report, "record_license_counts")
 
@@ -111,6 +112,7 @@ func test_review_catalog_keeps_unknown_license_assets_review_only() -> void:
 	assert_true(GFVariantData.get_option_int(record_license_counts, "known") == 157, "已知授权候选记录数量应来自 UI Soundpack 音频和已确认 MIT shader。")
 	assert_true(GFVariantData.get_option_int(record_license_counts, "unknown") >= 400, "未知授权素材应保留在评审区，不应自动批准。")
 	assert_true(GFVariantData.get_option_int(report, "error_count") == 0, "未知授权源包只应产生 warning，不能阻断审计。")
+	audit.dispose()
 
 
 func test_manual_coordinate_grid_shader_is_review_candidate_only() -> void:

@@ -861,7 +861,7 @@
 	"package_id": "c76.asset_library.core",
 	"reference_scan_report": {
 		"budget_exceeded": false,
-		"candidate_file_count": 187,
+		"candidate_file_count": 208,
 		"input_target_count": 11,
 		"ok": false,
 		"partial_scan": false,
@@ -1064,8 +1064,8 @@
 			}
 		],
 		"scan_warnings": [],
-		"scanned_bytes": 899348,
-		"scanned_file_count": 187,
+		"scanned_bytes": 967884,
+		"scanned_file_count": 208,
 		"skipped_files": [],
 		"target_count": 9,
 		"targets": {

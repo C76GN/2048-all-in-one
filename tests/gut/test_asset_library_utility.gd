@@ -65,8 +65,8 @@ func test_asset_library_registers_assets_into_gf_resolver() -> void:
 
 
 func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
-	var asset_library: GameAssetLibraryUtility = GameAssetLibraryUtility.new()
-	var report: Dictionary = asset_library.build_audit_report()
+	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
+	var report: Dictionary = audit.build_audit_report()
 	var usage: Dictionary = GFVariantData.get_option_dictionary(report, "usage")
 	var select_usage: Dictionary = GFVariantData.get_option_dictionary(
 		usage,
@@ -168,6 +168,7 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 				"架构启动后的业务 GDScript 必须通过稳定素材键加载：%s -> %s。"
 				% [asset_key, path_user]
 			)
+	audit.dispose()
 
 
 func test_asset_review_provider_uses_gf_catalog_search() -> void:

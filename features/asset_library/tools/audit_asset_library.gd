@@ -7,9 +7,10 @@ extends SceneTree
 
 func _init() -> void:
 	print("Running asset library audit...")
-	var utility: GameAssetLibraryUtility = GameAssetLibraryUtility.new()
-	var report: Dictionary = utility.write_audit_reports()
-	var review_report: Dictionary = utility.write_review_catalog_reports()
+	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
+	var report: Dictionary = audit.write_audit_reports()
+	var review_report: Dictionary = audit.write_review_catalog_reports()
+	audit.dispose()
 	var ok: bool = (
 		GFVariantData.get_option_bool(report, "ok", false)
 		and GFVariantData.get_option_bool(review_report, "ok", false)
