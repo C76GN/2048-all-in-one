@@ -70,7 +70,7 @@ GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 用 `GFController.get_host_as()` 访问 Controller 宿主节点，避免依赖 Godot `owner` 语义。
 - 用 `GFValidationReport` 汇总模式配置校验结果，再由项目层决定如何输出错误。
 - 用 `RuleContext` 给规则注入上下文并收集输出，避免规则资源直接触达全局 `Gf`。
-- 开发构建中由 `GameDiagnosticsUtility` 向 `GFDiagnosticsUtility` 注册项目快照 provider，并注册 `support_report` 控制台命令生成统一支持报告。
+- 开发构建中由 `GameDiagnosticsUtility` 聚合 `GFDiagnosticsUtility`、`GFAssetMetadataUtility`、`GFDebugOverlayUtility`、`GFRuntimeInspectorUtility` 与 `GFScreenshotUtility`；F3 可查看项目运行快照，`support_report` 会同时保存现场截图，`screenshot` 可单独捕获当前 Viewport。
 
 ## 维护路线
 

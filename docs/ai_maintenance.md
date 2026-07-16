@@ -192,6 +192,8 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 修改 gf 时必须遵守：
 
 - 先尝试项目层方案；只有项目层方案会绕开 gf 示例目标、造成重复补丁或无法表达通用能力时，才修改 gf。
+- 项目主线不得直接修改 `addons/gf/**`。发现通用缺陷或能力缺口后，先在 `C76GN/gf-framework` 创建 issue；实现必须位于框架仓库独立分支并通过 PR 合并，随后发布新版本，再以完整 vendor 快照更新本项目。
+- 本项目提交历史只接受明确的 GF vendor 版本更新，不接受混在业务提交里的框架源码补丁；issue、PR 和升级版本必须能相互追溯。
 - 不能引用本项目的 2048 类型、路径、文案、资源或玩法概念。
 - 本仓库已由维护者批准采用破坏性升级优先策略；删除旧 API、双读和隐式降级路径，并同步提升 schema/版本与测试。已发布数据如需保留，只提供显式一次性迁移，不把兼容分支留在运行时主路径。
 - 优先为 gf 增加通用能力、诊断、校验或文档，而不是为示例项目写特例。
@@ -201,6 +203,10 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 当前临时框架补丁：
 
 - gf 节点/Utility 退出清理：`GFUIUtility`、`GFObjectPoolUtility`、`GFConsoleUtility`、`GFDebugOverlayUtility`、`GFScreenTransitionUtility`、`GFNodeStateMachine`、`GFNodeStateGroup` 和 `GFPluginActions` 对话框清理在 `dispose()`、`_exit_tree()` 或销毁辅助函数中避免同步 `remove_child()` 后再 `queue_free()`。问题场景是 Godot 退出时 autoload `_exit_tree()` 触发架构 dispose，此时父节点可能正忙于 children 变更；直接 `queue_free()` 让引擎在安全点释放节点，可避免 `Parent node is busy adding/removing children`。当 gf 上游包含等价修复后删除本记录。
+
+当前上游跟踪：
+
+- `GFDebugOverlayUtility` 在首帧前销毁时，延迟 GUI 挂载可能访问已释放实例：`C76GN/gf-framework#5`。项目测试显式等待首帧，不在 vendor 目录内打补丁。
 
 ### 文档变更
 

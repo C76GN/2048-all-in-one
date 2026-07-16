@@ -15,18 +15,28 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	var console: GFConsoleUtility = GFConsoleUtility.new()
 	var diagnostics: GFDiagnosticsUtility = GFDiagnosticsUtility.new()
 	var support_reports: GFSupportReportUtility = GFSupportReportUtility.new()
+	var asset_metadata: GFAssetMetadataUtility = GFAssetMetadataUtility.new()
+	var debug_overlay: GFDebugOverlayUtility = GFDebugOverlayUtility.new()
+	var runtime_inspector: GFRuntimeInspectorUtility = GFRuntimeInspectorUtility.new()
+	var screenshots: GFScreenshotUtility = GFScreenshotUtility.new()
 	var project_diagnostics: GFUtility = _GAME_DIAGNOSTICS_UTILITY_SCRIPT.new()
 
 	await architecture.register_utility(GFLogUtility, log_utility)
 	await architecture.register_utility(GFConsoleUtility, console)
 	await architecture.register_utility(GFDiagnosticsUtility, diagnostics)
 	await architecture.register_utility(GFSupportReportUtility, support_reports)
+	await architecture.register_utility(GFAssetMetadataUtility, asset_metadata)
+	await architecture.register_utility(GFDebugOverlayUtility, debug_overlay)
+	await architecture.register_utility(GFRuntimeInspectorUtility, runtime_inspector)
+	await architecture.register_utility(GFScreenshotUtility, screenshots)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT, project_diagnostics)
 	await architecture.init()
+	await get_tree().process_frame
 
 	assert_true(console.has_command("diagnostics"), "GFDiagnosticsUtility 应提供标准 diagnostics 命令。")
 	assert_true(console.has_command("support_report"), "项目诊断应提供支持报告落盘命令。")
+	assert_true(console.has_command("screenshot"), "项目诊断应提供 GF Viewport 截图命令。")
 	assert_true(
 		diagnostics.has_tool_snapshot(&"resource_catalog"),
 		"项目资源目录应通过 GF 工具快照扩展诊断。"
@@ -39,15 +49,42 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 		diagnostics.has_tool_snapshot(&"architecture_dependencies"),
 		"GF 声明式依赖图应进入项目诊断快照。"
 	)
+	assert_true(
+		diagnostics.has_tool_snapshot(&"scene_asset_metadata"),
+		"当前场景的 GF 资产元数据报告应进入项目诊断快照。"
+	)
+	assert_true(debug_overlay.has_panel(&"game.project_diagnostics"), "项目状态应进入 GF Debug Overlay。")
+	assert_true(
+		runtime_inspector.has_target(&"game.debug_overlay"),
+		"GF Runtime Inspector 应暴露 Overlay 调试参数。"
+	)
+	assert_true(
+		runtime_inspector.has_target(&"game.screenshots"),
+		"GF Runtime Inspector 应暴露截图参数。"
+	)
+	assert_true(
+		runtime_inspector.set_property_value(
+			&"game.debug_overlay",
+			&"refresh_interval_seconds",
+			0.5
+		),
+		"Runtime Inspector 应能通过显式 schema 调整 Overlay 刷新间隔。"
+	)
+	assert_true(
+		is_equal_approx(debug_overlay.refresh_interval_seconds, 0.5),
+		"Overlay 刷新间隔写入应调用 GF 的公开 setter。"
+	)
 
 	var snapshot: Dictionary = diagnostics.collect_snapshot({"include_recent_logs": false})
 	var tools: Dictionary = GFVariantData.get_option_dictionary(snapshot, "tools")
 	assert_true(tools.has(&"project_diagnostics"), "GF 标准快照应聚合项目诊断状态。")
 	assert_true(tools.has(&"architecture_dependencies"), "GF 标准快照应聚合声明式依赖诊断。")
+	assert_true(tools.has(&"scene_asset_metadata"), "GF 标准快照应聚合场景资产元数据。")
 
 	architecture.dispose()
 	await get_tree().process_frame
 	assert_false(console.has_command("support_report"), "销毁 Architecture 时应注销项目支持报告命令。")
+	assert_false(console.has_command("screenshot"), "销毁 Architecture 时应注销截图命令。")
 	assert_false(
 		diagnostics.has_tool_snapshot(&"project_diagnostics"),
 		"销毁 Architecture 时应移除项目诊断快照。"

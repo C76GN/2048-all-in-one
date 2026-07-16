@@ -50,6 +50,11 @@ const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
 		"owner": "addons/gf/extensions/content_package/extension.gd",
 	},
 	{
+		"symbol": "GFAssetMetadataUtility",
+		"extension": "gf.asset_metadata",
+		"owner": "addons/gf/extensions/asset_metadata/extension.gd",
+	},
+	{
 		"symbol": "GFCapabilityUtility",
 		"extension": "gf.capability",
 		"owner": "addons/gf/extensions/capability/extension.gd",
@@ -129,6 +134,20 @@ func test_project_installer_binds_asset_library_before_ui_consumers() -> void:
 	assert_true(
 		asset_library_position < board_feedback_position,
 		"GameAssetLibraryUtility 必须先于读取稳定素材键的 GameBoardFeedbackUtility 注册。"
+	)
+
+
+func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var settings_source: String = _read_text(PROJECT_SETTINGS_PATH)
+
+	assert_true(settings_source.contains("\"gf.asset_metadata\""), "项目应启用 GF Asset Metadata 扩展。")
+	assert_true(source.contains("bind_utility(GFDebugOverlayUtility)"), "开发构建应绑定 GF Debug Overlay。")
+	assert_true(source.contains("bind_utility(GFRuntimeInspectorUtility)"), "开发构建应绑定 GF Runtime Inspector。")
+	assert_true(source.contains("bind_utility(GFScreenshotUtility)"), "开发构建应绑定 GF Screenshot Utility。")
+	assert_false(
+		_source_binds_symbol(source, "GFAssetMetadataUtility"),
+		"GFAssetMetadataUtility 由 gf.asset_metadata 扩展装配，项目不得重复绑定。"
 	)
 
 

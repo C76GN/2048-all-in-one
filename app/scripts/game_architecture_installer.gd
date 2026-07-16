@@ -87,6 +87,9 @@ func _bind_utilities(binder: GFBinder) -> void:
 		await binder.bind_utility(GFOperationDiagnosticsUtility).as_singleton()
 		await binder.bind_utility(GFDiagnosticsUtility).as_singleton()
 		await binder.bind_utility(GFSupportReportUtility).as_singleton()
+		await binder.bind_utility(GFDebugOverlayUtility).from_instance(_create_debug_overlay_utility()).as_singleton()
+		await binder.bind_utility(GFRuntimeInspectorUtility).from_instance(_create_runtime_inspector_utility()).as_singleton()
+		await binder.bind_utility(GFScreenshotUtility).from_instance(_create_screenshot_utility()).as_singleton()
 		await binder.bind_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT).as_singleton()
 		await binder.bind_utility(TestToolUtility).as_singleton()
 
@@ -173,6 +176,30 @@ func _create_async_tracker_utility() -> GFAsyncTrackerUtility:
 	tracker.tracking_enabled = true
 	tracker.stack_trace_enabled = _is_verbose_logging_enabled()
 	return tracker
+
+
+func _create_debug_overlay_utility() -> GFDebugOverlayUtility:
+	var overlay: GFDebugOverlayUtility = GFDebugOverlayUtility.new()
+	overlay.toggle_key = KEY_F3
+	overlay.refresh_interval_seconds = 0.25
+	overlay.include_diagnostics_monitors = true
+	overlay.include_recent_logs = true
+	return overlay
+
+
+func _create_runtime_inspector_utility() -> GFRuntimeInspectorUtility:
+	var inspector: GFRuntimeInspectorUtility = GFRuntimeInspectorUtility.new()
+	inspector.allow_writes = true
+	inspector.debug_build_writes_only = true
+	return inspector
+
+
+func _create_screenshot_utility() -> GFScreenshotUtility:
+	var screenshots: GFScreenshotUtility = GFScreenshotUtility.new()
+	screenshots.default_save_dir = "user://diagnostics/screenshots"
+	screenshots.default_prefix = "2048"
+	screenshots.default_format = GFScreenshotUtility.FORMAT_PNG
+	return screenshots
 
 
 func _are_dev_tools_enabled() -> bool:

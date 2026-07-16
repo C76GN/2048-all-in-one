@@ -119,6 +119,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 2. `GFSeedUtility` 拥有运行时随机流、全局种子和稳定派生算法；业务代码不得自行创建 `RandomNumberGenerator`，也不得调用 Godot 全局随机函数。
 3. 长流程耗时由 `GFOperationDiagnosticsUtility` 的操作记录拥有。调用方读取同一操作的 `started_ticks_usec` 记录阶段，不再平行缓存一份系统 tick。
 4. 只有 Boot 组合根和 `features/asset_library/tools/` 下的离线素材工具可以直接访问 `Time`；该例外由 GF 合规测试的精确路径 allowlist 约束，不得扩散到运行时 Feature。
+5. 开发构建由 `GameDiagnosticsUtility` 组合 GF Diagnostics、Asset Metadata、Debug Overlay、Runtime Inspector 与 Screenshot；发布构建不安装调试界面。支持报告在同一时点收集项目快照、当前场景资产元数据和 Viewport 截图。
 
 ### 持久化
 

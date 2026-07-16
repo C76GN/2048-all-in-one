@@ -147,7 +147,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-16。结果：扫描 145 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+最近一次 LSP 诊断时间：2026-07-17。结果：扫描 156 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 ### 脚本静态检查
 
@@ -163,5 +163,5 @@ $null = [scriptblock]::Create($script)
 - `tools/run_gut_safe.ps1` 已通过一次隔离 GUT 验证；后续仍建议用当前编辑器一致的 Godot `4.7` 可执行文件复测。
 - Godot 编辑器中的 GDScript warning 已通过 `tools/check_gdscript_lsp_diagnostics.ps1` 建立零诊断基线；后续修改 `.gd` 后应复跑。
 - Godot 退出仍存在已量化的框架/测试对象泄漏债务；当前通过严格基线阻止继续增长，不能把基线当成已经修复。
-- 视觉和响应式布局仍需要 Playwright/截图或 Godot 运行级验证，目前只能依靠资源和脚本静态检查。
+- 开发构建已通过 `GFScreenshotUtility` 提供单张与支持报告现场截图，但尚未建立跨分辨率的视觉基线比较和像素差异门禁。
 - GF 包管理器的独立 lockfile 校验入口已并入原生 CLI `status --json` 的 `lockfile_verify` 字段；若后续 CLI 再次变化，需要先更新本文档再更新自动化命令。
