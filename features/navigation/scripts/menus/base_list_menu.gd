@@ -181,10 +181,14 @@ func _populate_list() -> void:
 			var item_control: Control = node
 			items.append(item_control)
 
-	# 设置循环导航
-	if items.size() > 1:
-		items[0].focus_neighbor_top = items[-1].get_path()
-		items[-1].focus_neighbor_bottom = items[0].get_path()
+	var focus_report: Dictionary = GFControlFocusUtility.apply_focus_order(items, {
+		"axis": GFControlFocusUtility.AXIS_VERTICAL,
+		"wrap": true,
+		"wire_tab_order": true,
+		"preserve_unwired_directional_neighbors": true,
+	})
+	if not GFVariantData.get_option_bool(focus_report, "ok", false):
+		push_error("[BaseListMenu] GF 列表焦点顺序应用失败：%s" % str(focus_report.get("issues", [])))
 
 	if not items.is_empty():
 		items[0].grab_focus()
@@ -202,7 +206,7 @@ func _handle_empty_list() -> void:
 	label.custom_minimum_size.y = 50
 	items_container.add_child(label)
 	_clear_preview()
-	_update_focus_neighbors(null)
+	_update_action_focus_return_target(null)
 	_bind_and_reveal_list_items()
 
 
@@ -244,26 +248,30 @@ func _set_selected_item(data: Resource) -> void:
 		else:
 			list_item.set_selected(false)
 
-	_update_focus_neighbors(target_node)
+	_update_action_focus_return_target(target_node)
 
 
-## 动态更新按钮的导航路径，实现焦点记忆。
-func _update_focus_neighbors(target_node: Control) -> void:
-	var target_path: NodePath = NodePath("")
-
-	if is_instance_valid(target_node):
-		target_path = target_node.get_path()
-	elif items_container.get_child_count() > 0:
+## 让右侧动作完成后返回当前选中项；纵向列表顺序由 GFControlFocusUtility 拥有。
+func _update_action_focus_return_target(target_node: Control) -> void:
+	var target: Control = target_node
+	if not is_instance_valid(target) and items_container.get_child_count() > 0:
 		var first: Node = items_container.get_child(0)
 		if first is Control:
-			target_path = first.get_path()
+			var first_control: Control = first
+			target = first_control
 
-	if is_instance_valid(_primary_button):
-		_primary_button.focus_neighbor_left = target_path
-	if is_instance_valid(_delete_button):
-		_delete_button.focus_neighbor_left = target_path
-	if is_instance_valid(back_button):
-		back_button.focus_neighbor_left = target_path
+	_set_left_focus_target(_primary_button, target)
+	_set_left_focus_target(_delete_button, target)
+	_set_left_focus_target(back_button, target)
+
+
+func _set_left_focus_target(source: Control, target: Control) -> void:
+	if not is_instance_valid(source):
+		return
+	if not is_instance_valid(target):
+		source.focus_neighbor_left = NodePath("")
+		return
+	source.focus_neighbor_left = source.get_path_to(target)
 
 
 ## 更新按钮可用状态。

@@ -60,6 +60,7 @@ GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 用项目级 `GamePauseUtility` 原子同步 `GFTimeUtility` 与 `SceneTree.paused`；暂停期间输入 System 只保留恢复意图，不缓存玩法动作。
 - 用 `GFSceneUtility` 做异步场景切换，`SceneRouterSystem` 负责业务事件、路由意图和半调纸媒转场遮罩。
 - 用项目级 `GameUiRouterUtility` 从 `ui_route_registry.tres` 加载 `GFUIRoute` 路由表，暂停、游戏结束和设置面板通过稳定 route_id 打开。
+- 用 `GFControlFocusUtility` 为模式卡片、书签和回放列表写入稳定的纵向焦点顺序，项目层只表达跨列导航意图。
 - 用项目级 `GameSettingsUtility` 承接 `GFSettingsUtility` / `GFDisplaySettingsUtility`，语言、显示、音量、视觉主题和音效主题通过 `GFFormBinder` 绑定到设置页控件，选项列表用 `GFItemListBinder` 写入。
 - 用项目级 `GameSaveGraphUtility` 组合 `GFSaveGraphUtility` / `GFSaveScope` / `GFSaveDataSource`，把统计、书签和回放作为三个 Feature section 原子保存到类型保真的 Binary 玩家数据图；设置保持独立生命周期。
 - 用 `GFLevelUtility` 把当前一局登记为运行时 session，集中清理命令历史与动作队列等对局残留；项目不把 2048 强行建模为关卡进度。

@@ -21,6 +21,7 @@ const HUD_PATH: String = "res://features/gameplay/scripts/ui/hud.gd"
 const BOOKMARK_DATA_PATH: String = "res://features/bookmarks/scripts/data/bookmark_data.gd"
 const REMOVED_HUD_PAYLOAD_PATH: String = "res://features/gameplay/scripts/events/hud_message_payload.gd"
 const SCENE_ROUTER_SYSTEM_PATH: String = "res://features/navigation/scripts/systems/scene_router_system.gd"
+const BASE_LIST_MENU_PATH: String = "res://features/navigation/scripts/menus/base_list_menu.gd"
 const MODE_SELECTION_PATH: String = "res://features/navigation/scripts/menus/mode_selection.gd"
 const GAME_DIAGNOSTICS_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd"
 const SETTINGS_MENU_PATH: String = "res://features/settings/scripts/menus/settings_menu.gd"
@@ -141,6 +142,70 @@ func test_gameplay_pause_state_has_one_writable_adapter() -> void:
 	assert_false(flow_source.contains(".paused ="), "流程 System 不得旁路统一暂停 Adapter。")
 	assert_true(pause_source.contains("_time_utility.is_paused = paused"), "暂停 Adapter 应同步 GF 逻辑时间。")
 	assert_true(pause_source.contains("tree.paused = paused"), "暂停 Adapter 应同步 Godot 场景树。")
+
+
+func test_navigation_focus_order_uses_gf_control_focus_utility() -> void:
+	var list_source: String = _read_text(BASE_LIST_MENU_PATH)
+	var mode_source: String = _read_text(MODE_SELECTION_PATH)
+
+	assert_true(
+		list_source.contains("GFControlFocusUtility.apply_focus_order"),
+		"通用列表应把纵向循环焦点顺序委托给 GFControlFocusUtility。"
+	)
+	assert_true(
+		mode_source.contains("GFControlFocusUtility.apply_focus_order"),
+		"模式选择应把卡片纵向焦点顺序委托给 GFControlFocusUtility。"
+	)
+	assert_false(
+		list_source.contains("items[0].focus_neighbor_top"),
+		"通用列表不得保留手工首尾循环实现。"
+	)
+	assert_false(
+		mode_source.contains("current_card.focus_neighbor_top"),
+		"模式选择不得逐卡手工计算纵向邻居。"
+	)
+
+
+func test_mode_selection_focus_graph_keeps_vertical_loop_and_cross_column_target() -> void:
+	var menu: ModeSelection = ModeSelection.new()
+	autofree(menu)
+	var root: Control = Control.new()
+	add_child_autofree(root)
+	var list: VBoxContainer = VBoxContainer.new()
+	var pagination: HBoxContainer = HBoxContainer.new()
+	var back: Button = Button.new()
+	var previous_page: Button = Button.new()
+	var next_page: Button = Button.new()
+	var grid_size: OptionButton = OptionButton.new()
+	var first_card: Button = Button.new()
+	var last_card: Button = Button.new()
+	var cards: Array[Control] = [first_card, last_card]
+
+	root.add_child(list)
+	root.add_child(pagination)
+	root.add_child(back)
+	root.add_child(grid_size)
+	pagination.add_child(previous_page)
+	pagination.add_child(next_page)
+	list.add_child(first_card)
+	list.add_child(last_card)
+	menu._mode_list_container = list
+	menu._pagination_container = pagination
+	menu._back_button = back
+	menu._prev_page_button = previous_page
+	menu._next_page_button = next_page
+	menu._grid_size_option_button = grid_size
+	await get_tree().process_frame
+
+	menu._apply_mode_focus_graph(cards)
+
+	assert_true(back.get_node_or_null(back.focus_neighbor_bottom) == first_card, "返回键向下应进入第一张模式卡。")
+	assert_true(first_card.get_node_or_null(first_card.focus_neighbor_top) == back, "第一张模式卡向上应返回。")
+	assert_true(first_card.get_node_or_null(first_card.focus_neighbor_bottom) == last_card, "模式卡应按 GF 顺序向下移动。")
+	assert_true(last_card.get_node_or_null(last_card.focus_neighbor_bottom) == previous_page, "末张模式卡向下应进入分页。")
+	assert_true(previous_page.get_node_or_null(previous_page.focus_neighbor_bottom) == back, "分页向下应闭环到返回键。")
+	assert_true(next_page.get_node_or_null(next_page.focus_neighbor_top) == last_card, "下一页按钮向上应回到末张模式卡。")
+	assert_true(first_card.get_node_or_null(first_card.focus_neighbor_right) == grid_size, "模式卡向右应进入配置列。")
 
 
 func test_project_installer_binds_asset_library_before_ui_consumers() -> void:

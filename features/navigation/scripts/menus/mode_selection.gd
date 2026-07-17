@@ -249,25 +249,38 @@ func _create_field_style(bg_color: Color, border_color: Color, border_width: int
 
 
 func _setup_focus_neighbors() -> void:
-	var cards: Array[ModeCard] = _get_mode_cards()
-	if cards.is_empty():
-		_back_button.focus_neighbor_bottom = _back_button.get_path()
-		_prev_page_button.focus_neighbor_top = _back_button.get_path()
-		_next_page_button.focus_neighbor_top = _back_button.get_path()
-		return
+	var cards: Array[Control] = []
+	for card: ModeCard in _get_mode_cards():
+		cards.append(card)
+	_apply_mode_focus_graph(cards)
 
-	var first_card: ModeCard = cards[0]
-	var last_card: ModeCard = cards[-1]
 
-	for i: int in range(cards.size()):
-		var current_card: ModeCard = cards[i]
-		current_card.focus_neighbor_top = cards[i - 1].get_path() if i > 0 else _back_button.get_path()
-		current_card.focus_neighbor_bottom = cards[i + 1].get_path() if i < cards.size() - 1 else _prev_page_button.get_path()
-		current_card.focus_neighbor_right = _grid_size_option_button.get_path()
+func _apply_mode_focus_graph(cards: Array[Control]) -> void:
+	var vertical_order: Array[Control] = [_back_button]
+	for card: Control in cards:
+		vertical_order.append(card)
+		card.focus_neighbor_right = card.get_path_to(_grid_size_option_button)
 
-	_back_button.focus_neighbor_bottom = first_card.get_path()
-	_prev_page_button.focus_neighbor_top = last_card.get_path()
-	_next_page_button.focus_neighbor_top = last_card.get_path()
+	var uses_pagination: bool = is_instance_valid(_pagination_container) and _pagination_container.visible
+	if uses_pagination:
+		vertical_order.append(_prev_page_button)
+
+	var focus_report: Dictionary = GFControlFocusUtility.apply_focus_order(vertical_order, {
+		"axis": GFControlFocusUtility.AXIS_VERTICAL,
+		"wrap": true,
+		"wire_tab_order": false,
+		"preserve_unwired_directional_neighbors": true,
+	})
+	if not GFVariantData.get_option_bool(focus_report, "ok", false):
+		push_error("[ModeSelection] GF 模式焦点顺序应用失败：%s" % str(focus_report.get("issues", [])))
+
+	if uses_pagination and not cards.is_empty():
+		var last_card: Control = cards[-1]
+		_next_page_button.focus_neighbor_top = _next_page_button.get_path_to(last_card)
+		_next_page_button.focus_neighbor_bottom = _next_page_button.get_path_to(_back_button)
+	else:
+		_next_page_button.focus_neighbor_top = NodePath("")
+		_next_page_button.focus_neighbor_bottom = NodePath("")
 
 
 func _set_selected_mode_by_path(config_path: String) -> void:
