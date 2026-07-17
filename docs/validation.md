@@ -124,6 +124,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 结果：
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
+- GF Framework：官方稳定 tag `8.1.0`，commit `aa8db79810368c469755dd24435ca24afde71330`。
 - GUT：203 个测试全部通过。
 - 当前完整套件：`tests/gut/` 下 24 个顶层测试脚本、203 个 `test_` 用例。
 - Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。运行时系统时间与随机源受路径扫描门禁约束，场景耗时复用 `GFOperationDiagnosticsUtility` 的操作起始 tick。

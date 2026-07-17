@@ -9,7 +9,7 @@
 ## 技术栈
 
 - Godot 4.7+
-- GF Framework 8.x（版本以 `addons/gf/plugin.cfg` 为准，当前源码为 `8.0.1`）
+- GF Framework 8.x（版本以 `addons/gf/plugin.cfg` 为准，当前源码为 `8.1.0`）
 - GF Package Manager（GF 8 使用 Godot 原生 CLI；当前仓库为由 `.gf/vendor.lock.json` 精确锁定的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在）
 - GDScript，遵循 `docs/coding_style.md`
 
