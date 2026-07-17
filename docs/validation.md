@@ -113,7 +113,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 ### 最近一次安全 GUT 验证
 
-验证时间：2026-07-16。
+验证时间：2026-07-18。
 
 命令：
 
@@ -123,13 +123,13 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 结果：
 
-- Godot：`4.7.stable.steam.5b4e0cb0f`。
+- Godot：`4.7.1.stable.official.a13da4feb`。
 - GF Framework：官方稳定 tag `8.1.0`，commit `aa8db79810368c469755dd24435ca24afde71330`。
-- GUT：203 个测试全部通过。
-- 当前完整套件：`tests/gut/` 下 24 个顶层测试脚本、203 个 `test_` 用例。
+- GUT：212 个测试全部通过。
+- 当前完整套件：`tests/gut/` 下 26 个顶层测试脚本、212 个 `test_` 用例。
 - Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。运行时系统时间与随机源受路径扫描门禁约束，场景耗时复用 `GFOperationDiagnosticsUtility` 的操作起始 tick。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 263`、`Resources = 116`、RID 类型数 `= 3`。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时 `class_name` 集合；输入集合不变时任何增长都会失败。只有在干净 HEAD 对照证明增量来自经过审计的运行时类集合变化后，才允许带理由重新校准原始计数。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 267`、`Resources = 118`、RID 类型数 `= 3`。本次新增平台边界使项目运行时 `class_name` 从 128 增至 133；同一 Godot 4.7.1 下的 detached clean-HEAD 对照仍为 203/203、`ObjectDB = 263`、`Resources = 116`，且 RID 上限均未增长。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
@@ -150,7 +150,25 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-17。结果：扫描 158 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+最近一次 LSP 诊断时间：2026-07-18。结果：扫描 166 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+
+## Web / 微信小游戏准备预检
+
+平台准备必须先通过项目契约，再检查本机工具链：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/check_platform_readiness.ps1 -GodotExecutable godot
+```
+
+本地只审查项目配置、允许环境 blocker 时：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/check_platform_readiness.ps1 -GodotExecutable godot -AllowEnvironmentBlockers
+```
+
+第一份报告 `build/platform_readiness_report.json` 由 GFCompatibilityPreflight 和 GFBridgeContractReport 生成；第二份 `build/platform_environment_report.json` 检查 Godot 与导出模板版本一致性及微信开发者工具 CLI。正式导出和 CI 不得忽略环境 blocker。真机矩阵见 `features/platform_runtime/docs/wechat_minigame_readiness.md`。
+
+最近一次项目预检为 `8 checks / 0 issues`。官方 Godot 4.7.1 Web 导出已在 Chromium 的 `390x844` 与 `1280x720` 视口完成 Compatibility 冒烟，控制台 `0 error / 0 warning`，本地存储写入回读通过。环境报告仍因缺少微信开发者工具 CLI 保留 1 个 blocker。
 
 ### 脚本静态检查
 
@@ -163,7 +181,8 @@ $null = [scriptblock]::Create($script)
 
 ## 当前验证缺口
 
-- `tools/run_gut_safe.ps1` 已通过一次隔离 GUT 验证；后续仍建议用当前编辑器一致的 Godot `4.7` 可执行文件复测。
+- 微信开发者工具 CLI、微信导出适配器和微信真机矩阵尚未完成，因此当前只签字标准 Web 兼容性，不签字微信小游戏发布就绪。
+- 当前 vendored GF 8.1.0 的导出插件缺少 `_get_name()`，修复跟踪于 `gf-framework#9` / `gf-framework#10`；更新到包含该修复的正式 GF 版本前，导出日志仍不是零错误。
 - Godot 编辑器中的 GDScript warning 已通过 `tools/check_gdscript_lsp_diagnostics.ps1` 建立零诊断基线；后续修改 `.gd` 后应复跑。
 - Godot 退出仍存在已量化的框架/测试对象泄漏债务；当前通过严格基线阻止继续增长，不能把基线当成已经修复。
 - `GFTextFitter` 的重复字号塑形会放大退出期 `ShapedText` RID 残留；`gf-framework#6` / `gf-framework#7` 发布前，项目方块文本保留单次比例测量，不得提前复制未发布框架代码或放宽泄漏基线。
