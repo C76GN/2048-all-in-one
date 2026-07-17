@@ -7,7 +7,7 @@
 script = ExtResource("2_entry")
 id = &"classic"
 path = "res://features/gameplay/resources/modes/classic_mode_config.tres"
-type_hint = "GameModeConfig"
+type_hint = "Resource"
 fields = {
 "category": &"standard",
 "sort_order": 10
@@ -17,7 +17,7 @@ fields = {
 script = ExtResource("2_entry")
 id = &"fibonacci"
 path = "res://features/gameplay/resources/modes/fibonacci_mode_config.tres"
-type_hint = "GameModeConfig"
+type_hint = "Resource"
 fields = {
 "category": &"sequence",
 "sort_order": 20
@@ -27,7 +27,7 @@ fields = {
 script = ExtResource("2_entry")
 id = &"lucas_fibonacci"
 path = "res://features/gameplay/resources/modes/lucas_fibonacci_mode_config.tres"
-type_hint = "GameModeConfig"
+type_hint = "Resource"
 fields = {
 "category": &"sequence",
 "sort_order": 30
@@ -37,7 +37,7 @@ fields = {
 script = ExtResource("2_entry")
 id = &"progressive"
 path = "res://features/gameplay/resources/modes/progressive_mode_config.tres"
-type_hint = "GameModeConfig"
+type_hint = "Resource"
 fields = {
 "category": &"challenge",
 "sort_order": 40
@@ -47,7 +47,7 @@ fields = {
 script = ExtResource("2_entry")
 id = &"step_by_step"
 path = "res://features/gameplay/resources/modes/step_by_step_mode_config.tres"
-type_hint = "GameModeConfig"
+type_hint = "Resource"
 fields = {
 "category": &"challenge",
 "sort_order": 50
@@ -57,7 +57,7 @@ fields = {
 script = ExtResource("2_entry")
 id = &"ratio"
 path = "res://features/gameplay/resources/modes/ratio_mode_config.tres"
-type_hint = "GameModeConfig"
+type_hint = "Resource"
 fields = {
 "category": &"challenge",
 "sort_order": 60

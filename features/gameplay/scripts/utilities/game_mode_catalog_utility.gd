@@ -12,7 +12,7 @@ const DEFAULT_MODE_REGISTRY: GFResourceRegistry = preload("res://features/gamepl
 const _CATALOG_ID: StringName = &"game_modes"
 const _MODE_CONFIG_GROUP_ID: StringName = &"game_modes"
 const _MODE_RESOURCE_KEY_PREFIX: String = "game.mode_config."
-const _MODE_TYPE_HINT: String = "GameModeConfig"
+const _MODE_TYPE_HINT: String = "Resource"
 
 
 # --- 私有变量 ---

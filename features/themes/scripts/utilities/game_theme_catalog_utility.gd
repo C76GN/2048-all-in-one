@@ -8,8 +8,9 @@ extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 # --- 常量 ---
 
-const VISUAL_THEME_TYPE_HINT: String = "GameTheme"
-const SOUND_THEME_TYPE_HINT: String = "GameAudioTheme"
+const RESOURCE_TYPE_HINT: String = "Resource"
+const VISUAL_THEME_CATALOG_ROLE: String = "visual_theme"
+const SOUND_THEME_CATALOG_ROLE: String = "sound_theme"
 const _VISUAL_THEME_KEY_PREFIX: String = "game.theme."
 const _SOUND_THEME_KEY_PREFIX: String = "game.audio_theme."
 
@@ -95,7 +96,7 @@ func load_visual_theme(theme_id: StringName) -> GameTheme:
 	var descriptor: GameThemeDescriptor = _get_descriptor(_visual_descriptors, theme_id)
 	if descriptor == null:
 		return null
-	var resource: Resource = _load_descriptor_resource(descriptor, VISUAL_THEME_TYPE_HINT)
+	var resource: Resource = _load_descriptor_resource(descriptor)
 	if resource is GameTheme:
 		var theme: GameTheme = resource
 		if theme.theme_id == descriptor.theme_id:
@@ -112,7 +113,7 @@ func load_sound_theme(theme_id: StringName) -> GameAudioTheme:
 	var descriptor: GameThemeDescriptor = _get_descriptor(_sound_descriptors, theme_id)
 	if descriptor == null:
 		return null
-	var resource: Resource = _load_descriptor_resource(descriptor, SOUND_THEME_TYPE_HINT)
+	var resource: Resource = _load_descriptor_resource(descriptor)
 	if resource is GameAudioTheme:
 		var theme: GameAudioTheme = resource
 		if theme.theme_id == descriptor.theme_id:
@@ -211,8 +212,9 @@ func _rebuild_index() -> void:
 
 	_index_entries(
 		_project_content_catalog.query_resources({
-			"type_hint": VISUAL_THEME_TYPE_HINT,
+			"type_hint": RESOURCE_TYPE_HINT,
 			"key_prefix": _VISUAL_THEME_KEY_PREFIX,
+			"metadata": {"catalog_role": VISUAL_THEME_CATALOG_ROLE},
 		}),
 		GameThemeDescriptor.KIND_VISUAL,
 		_visual_descriptors,
@@ -220,8 +222,9 @@ func _rebuild_index() -> void:
 	)
 	_index_entries(
 		_project_content_catalog.query_resources({
-			"type_hint": SOUND_THEME_TYPE_HINT,
+			"type_hint": RESOURCE_TYPE_HINT,
 			"key_prefix": _SOUND_THEME_KEY_PREFIX,
+			"metadata": {"catalog_role": SOUND_THEME_CATALOG_ROLE},
 		}),
 		GameThemeDescriptor.KIND_SOUND,
 		_sound_descriptors,
@@ -324,13 +327,10 @@ func _validate_defaults() -> void:
 		)
 
 
-func _load_descriptor_resource(
-	descriptor: GameThemeDescriptor,
-	type_hint: String
-) -> Resource:
+func _load_descriptor_resource(descriptor: GameThemeDescriptor) -> Resource:
 	if descriptor == null or not is_instance_valid(_project_content_catalog):
 		return null
-	return _project_content_catalog.load_resource(descriptor.resource_key, type_hint)
+	return _project_content_catalog.load_resource(descriptor.resource_key, RESOURCE_TYPE_HINT)
 
 
 func _copy_descriptors(

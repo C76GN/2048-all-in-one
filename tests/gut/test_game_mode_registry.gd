@@ -105,7 +105,7 @@ func test_mode_registry_registers_resolver_resource_keys_when_utility_is_ready()
 			"模式缓存 Utility ready 后应把模式配置注册为 GFResourceResolverUtility 资源键: %s" % resource_key
 		)
 
-	var resource: Resource = resolver.load(&"game.mode_config.classic", "GameModeConfig")
+	var resource: Resource = resolver.load(&"game.mode_config.classic", "Resource")
 	assert_true(resource is GameModeConfig, "应能通过稳定资源键加载经典模式配置。")
 
 	architecture.dispose()

@@ -17,7 +17,7 @@ const ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
 const _CATALOG_ID: StringName = &"ui_routes"
 const _UI_ROUTE_GROUP_ID: StringName = &"ui_routes"
 const _UI_ROUTE_RESOURCE_KEY_PREFIX: String = "game.ui_route."
-const _ROUTE_TYPE_HINT: String = "GFUIRoute"
+const _ROUTE_TYPE_HINT: String = "Resource"
 
 
 # --- 私有变量 ---

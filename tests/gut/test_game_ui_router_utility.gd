@@ -141,7 +141,7 @@ func test_game_ui_router_registers_resolver_resource_keys_when_utility_is_ready(
 			"UI Router Utility ready 后应把路由注册为 GFResourceResolverUtility 资源键: %s" % resource_key
 		)
 
-	var route_resource: Resource = resolver.load(&"game.ui_route.pause_menu", "GFUIRoute")
+	var route_resource: Resource = resolver.load(&"game.ui_route.pause_menu", "Resource")
 	assert_true(route_resource is GFUIRoute, "应能通过稳定资源键加载暂停菜单路由。")
 
 	architecture.dispose()

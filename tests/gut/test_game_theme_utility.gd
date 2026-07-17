@@ -66,11 +66,16 @@ func test_theme_manifest_uses_descriptors_instead_of_central_registry() -> void:
 		var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
 		if not GFVariantData.get_option_bool(metadata, "is_default", false):
 			continue
-		var type_hint: String = GFVariantData.get_option_string(entry, "type_hint")
-		if type_hint == GameThemeCatalogUtility.VISUAL_THEME_TYPE_HINT:
+		var catalog_role: String = GFVariantData.get_option_string(metadata, "catalog_role")
+		if catalog_role == GameThemeCatalogUtility.VISUAL_THEME_CATALOG_ROLE:
 			visual_defaults += 1
-		elif type_hint == GameThemeCatalogUtility.SOUND_THEME_TYPE_HINT:
+		elif catalog_role == GameThemeCatalogUtility.SOUND_THEME_CATALOG_ROLE:
 			sound_defaults += 1
+		assert_true(
+			GFVariantData.get_option_string(entry, "type_hint")
+				== GameThemeCatalogUtility.RESOURCE_TYPE_HINT,
+			"脚本资源必须使用导出稳定的内置 Resource 类型提示。"
+		)
 	assert_true(visual_defaults == 1, "manifest 必须声明且只声明一个默认视觉主题。")
 	assert_true(sound_defaults == 1, "manifest 必须声明且只声明一个默认音效主题。")
 
@@ -184,14 +189,14 @@ func test_theme_content_package_registers_independent_theme_resource_keys() -> v
 
 	var resolve_report: Dictionary = resolver.resolve(
 		&"game.theme.halftone_atlas",
-		GameThemeCatalogUtility.VISUAL_THEME_TYPE_HINT
+		GameThemeCatalogUtility.RESOURCE_TYPE_HINT
 	)
 	var resource: Resource = resolver.load(
 		&"game.theme.halftone_atlas",
-		GameThemeCatalogUtility.VISUAL_THEME_TYPE_HINT
+		GameThemeCatalogUtility.RESOURCE_TYPE_HINT
 	)
-	var blue_scheme_resource: Resource = resolver.load(&"game.tile_scheme.blue", "TileColorScheme")
-	var audio_bank_resource: Resource = resolver.load(&"game.audio_bank.printworks", "GFAudioBank")
+	var blue_scheme_resource: Resource = resolver.load(&"game.tile_scheme.blue", "Resource")
+	var audio_bank_resource: Resource = resolver.load(&"game.audio_bank.printworks", "Resource")
 
 	assert_true(
 		GFVariantData.get_option_bool(resolve_report, "ok", false),

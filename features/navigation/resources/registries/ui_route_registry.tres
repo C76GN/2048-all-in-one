@@ -7,7 +7,7 @@
 script = ExtResource("2_entry")
 id = &"pause_menu"
 path = "res://features/navigation/resources/ui_routes/pause_menu_route.tres"
-type_hint = "GFUIRoute"
+type_hint = "Resource"
 fields = {
 "category": &"popup",
 "sort_order": 10
@@ -17,7 +17,7 @@ fields = {
 script = ExtResource("2_entry")
 id = &"game_over_menu"
 path = "res://features/navigation/resources/ui_routes/game_over_menu_route.tres"
-type_hint = "GFUIRoute"
+type_hint = "Resource"
 fields = {
 "category": &"popup",
 "sort_order": 20
@@ -27,7 +27,7 @@ fields = {
 script = ExtResource("2_entry")
 id = &"target_reached_menu"
 path = "res://features/navigation/resources/ui_routes/target_reached_menu_route.tres"
-type_hint = "GFUIRoute"
+type_hint = "Resource"
 fields = {
 "category": &"popup",
 "sort_order": 25
@@ -37,7 +37,7 @@ fields = {
 script = ExtResource("2_entry")
 id = &"settings_menu"
 path = "res://features/navigation/resources/ui_routes/settings_menu_route.tres"
-type_hint = "GFUIRoute"
+type_hint = "Resource"
 fields = {
 "category": &"popup",
 "sort_order": 30
