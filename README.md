@@ -66,7 +66,6 @@ GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 用 `GameThemeCatalogUtility` 承接 `gf.content_package` 的 `GFContentPackageUtility`，注册内置主题内容包，并通过 `GFResourceResolverUtility` 用稳定资源键加载主题注册表。
 - 用 `GFObjectPoolUtility` 的池化 Hook 清理 Tile 复用状态，并用 `GFRepeaterBinder` 重建书签/回放列表项。
 - 用项目级 `GameUiMotionUtility` 统一菜单、按钮、HUD 和列表刷新动效，避免各 UI 节点重复编写 Tween。
-- 用 `GFTextFitter` 统一方块等动态文本的字号适配，禁止各控件自行测量字体并维护另一套缩放算法。
 - 用项目级 `GameBoardFeedbackUtility` 统一棋盘合并、生成和转化反馈特效，表现触发点跟随 `GFActionQueueSystem` 中的视觉 Action，并通过 `GFShakeUtility` 播放语义化 board channel 反馈。
 - 用 `GFController.get_host_as()` 访问 Controller 宿主节点，避免依赖 Godot `owner` 语义。
 - 用 `GFValidationReport` 汇总模式配置校验结果，再由项目层决定如何输出错误。
@@ -80,6 +79,7 @@ GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 项目结构由 `gf_project_profile.json` 声明，并通过 `GFProjectLayoutValidator` 与 GUT 持续校验。
 - 视觉方向见 `docs/visual_style.md`；背景、方块、菜单、HUD、转场和动效应保持 CMYK 半调纸媒游戏质感。
 - 历史上默认 Godot/GUT 运行曾写出巨大用户目录日志；需要运行 GUT 时，使用 `tools/run_gut_safe.ps1` 这样的隔离脚本，不要直接运行裸 Godot/GUT 命令。
+- `GFTextFitter` 在 Godot 4.7 的重复字号测量存在退出期 `ShapedText` RID 残留，跟踪于 `gf-framework#6`，修复位于 `gf-framework#7`；上游修复发布前，方块数字仅允许使用经过泄漏基线验证的单次比例测量。
 
 ## 新增模式的推荐流程
 

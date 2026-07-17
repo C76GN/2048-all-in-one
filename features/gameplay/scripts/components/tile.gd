@@ -310,13 +310,28 @@ func _play_flash(color: Color, duration: float) -> void:
 	var _label_tweener: PropertyTweener = _active_flash_tween.tween_property(value_label, "scale", Vector2.ONE, duration)
 
 
-## 使用 GF 的统一文本适配算法计算并应用最大可读字号。
+## 以一次字体测量计算并应用最大可读字号。
+## GFTextFitter 的重复候选测量在 Godot 4.7 会放大退出期 ShapedText RID 残留；
+## 上游修复发布前保留这个单次测量边界，禁止改成逐字号循环。
 func _fit_value_text() -> void:
-	var _font_size: int = GFTextFitter.fit_label(value_label, {
-		"min_font_size": _MIN_FONT_SIZE,
-		"max_font_size": _MAX_FONT_SIZE,
-		"available_size": background.size,
-		"content_insets": _TEXT_CONTENT_INSETS,
-		"fit_width": true,
-		"fit_height": true,
-	})
+	var available_size: Vector2 = Vector2(
+		background.size.x - _TEXT_CONTENT_INSETS.x - _TEXT_CONTENT_INSETS.z,
+		background.size.y - _TEXT_CONTENT_INSETS.y - _TEXT_CONTENT_INSETS.w
+	)
+	var font: Font = value_label.get_theme_font("font")
+	var measured_size: Vector2 = font.get_string_size(
+		value_label.text,
+		HORIZONTAL_ALIGNMENT_CENTER,
+		-1.0,
+		_MAX_FONT_SIZE
+	)
+	var scale_factor: float = minf(
+		available_size.x / maxf(measured_size.x, 1.0),
+		available_size.y / maxf(measured_size.y, 1.0)
+	)
+	var font_size: int = clampi(
+		floori(float(_MAX_FONT_SIZE) * minf(scale_factor, 1.0)),
+		_MIN_FONT_SIZE,
+		_MAX_FONT_SIZE
+	)
+	value_label.add_theme_font_size_override("font_size", font_size)
