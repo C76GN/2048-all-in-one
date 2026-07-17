@@ -73,7 +73,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ### 玩家移动
 
 1. `PlayerInputSystem` 从 `GFInputMappingUtility` 消费 `GFInputContext`。
-2. `MoveCommand` 调用棋盘 System 更新 `GridModel`。
+2. `MoveCommand` 调用棋盘 System 更新 `GridModel`；`BoardTopology` 是活跃空间唯一真源，移动方向由连续 lane 表达，空洞会切断 lane。
 3. `MovementRule` 只确定移动和碰撞候选，`TileCompositionUtility` 通过 `GFCapabilityUtility` 解析双方共同 Recipe 能力并仲裁交互提案。
 4. `GameTurnSystem` 将有效 `MoveData` 封装为一次性的 `GameMoveTurnAction`，交给扩展拥有的 `GFTurnFlowSystem`。
 5. GF 为回合 Action 注入 `RuleSystem` 与 `GameFlowSystem`，顺序完成移动统计、生成规则和目标/失败结算；不再派发项目私有 `TURN_FINISHED` 事件。
@@ -83,6 +83,16 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 9. `GFActionQueueSystem` 等待整批移动、合并、生成或撤回 Tween，并拥有暂停、完成与取消生命周期；棋盘 Action 不使用 fire-and-forget。
 
 方块组合详细契约见 `features/gameplay/docs/tile_composition.md`。
+
+### 棋盘拓扑
+
+1. `BoardTopology` 只描述规范化活跃单元，不保存方块；`GridModel` 以坐标到 `TileState` 的稀疏映射保存占用状态，不再维护完整二维空数组。
+2. `BoardTopologyTemplate` 属于模式配置，声明固定拓扑或可变矩形范围。当前模式选择页把原 3x3 至 8x8 选项转换成矩形拓扑，未来玩家编辑器直接提交自定义拓扑。
+3. `GridMovementSystem`、`GridSpawnSystem` 与 `StandardGameOverRule` 只遍历活跃单元和真实相邻关系；任何系统不得按包围盒把空洞实体化，也不得让方块跨越空洞。
+4. 撤销、书签、回放和 GF SaveGraph 共用严格拓扑快照；对局 ID、统计和未来排行榜使用语义 ID 加内容指纹的稳定键。
+5. GF 继续拥有验证报告、确定性随机、命令历史、关卡 Session 和持久化事务；四向稀疏拓扑是 gameplay 领域对象，不误用 GF flow graph 或 hex grid 表达不同语义。
+
+详细契约见 `features/gameplay/docs/board_topology.md`。
 
 ### 主题切换
 
@@ -131,7 +141,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 - `progress`、`bookmarks` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
 - 三个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 负责存储元数据、checksum 和原子文件事务。
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。
-- `bookmarks` section 当前 schema 为 v3；规则统计使用中性的 `ratio_resolutions`，并把目标值与达成状态作为严格语义契约，不提供旧阵营字段推断或兼容分支。
+- `progress`、`bookmarks`、`replays` section 当前分别为 v3、v4、v2；棋盘快照内嵌严格 `BoardTopology`，规则统计使用中性的 `ratio_resolutions`，不提供旧尺寸键、旧阵营字段推断或兼容分支。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
 - 存档 Schema 发生破坏性变化时使用显式迁移工具；运行时代码不长期保留旧字段双读分支。
 

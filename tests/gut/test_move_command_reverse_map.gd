@@ -76,10 +76,20 @@ func test_records_reverse_targets_while_command_runs_inside_simple_event() -> vo
 	var interaction_rule: ClassicInteractionRule = ClassicInteractionRule.new()
 	interaction_rule.tile_definitions = [definition]
 	interaction_rule.default_definition_id = definition.definition_id
-	grid_model.initialize(4, interaction_rule, ClassicMovementRule.new())
-	grid_model.place_tile(
-		composition.create_tile(definition, 2),
-		Vector2i(1, 0)
+	assert_true(
+		grid_model.initialize(
+			BoardTopology.create_rectangle(Vector2i(4, 4)),
+			interaction_rule,
+			ClassicMovementRule.new()
+		),
+		"反向映射测试棋盘应初始化成功。"
+	)
+	assert_true(
+		grid_model.place_tile(
+			composition.create_tile(definition, 2),
+			Vector2i(1, 0)
+		),
+		"反向映射测试方块应放置成功。"
 	)
 	var execute_listener: GFEventListener = GFEventListener.from_callable(
 		func(_payload: Variant) -> void:

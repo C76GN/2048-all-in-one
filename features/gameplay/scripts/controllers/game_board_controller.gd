@@ -137,8 +137,11 @@ func setup(
 	call_deferred(&"_play_board_intro")
 	
 	if is_instance_valid(_pool):
-		var grid_size: int = model.grid_size if is_instance_valid(model) else 0
-		var required_tile_count: int = grid_size * grid_size
+		var required_tile_count: int = (
+			model.topology.get_cell_count()
+			if is_instance_valid(model) and is_instance_valid(model.topology)
+			else 0
+		)
 		var available_tile_count: int = _pool.get_available_count(TileScene)
 		var missing_tile_count: int = max(required_tile_count - available_tile_count, 0)
 		if missing_tile_count > 0:
@@ -196,13 +199,18 @@ func get_max_tile_value() -> int:
 ## 游戏中扩建棋盘。
 ## @param new_size: 新的棋盘尺寸。
 func live_expand(new_size: int) -> void:
-	if not model:
+	if not model or not is_instance_valid(model.topology) or not model.topology.is_rectangle():
 		return
-	var old_size: int = model.grid_size
+	var bounds_size: Vector2i = model.get_bounds_size()
+	if bounds_size.x != bounds_size.y:
+		return
+	var old_size: int = bounds_size.x
 	if new_size <= old_size:
 		return
 
-	model.expand_grid(new_size)
+	var next_topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(new_size, new_size))
+	if not model.replace_topology(next_topology):
+		return
 	_animate_expansion(old_size, new_size)
 	send_simple_event(EventNames.BOARD_RESIZED, new_size)
 
@@ -224,10 +232,14 @@ func get_all_tile_values() -> Array[int]:
 
 
 ## 获取当前棋盘所有方块状态的可序列化快照。
-## @return: 一个字典，包含grid_size和所有方块的数据。
+## @return: 一个字典，包含严格拓扑和所有方块数据。
 func get_state_snapshot() -> Dictionary:
 	if not model:
-		return {"grid_size": 4, "tiles": []}
+		return {
+			&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
+			&"topology": BoardTopology.create_rectangle(Vector2i(4, 4)).to_dict(),
+			&"tiles": [],
+		}
 	return model.get_snapshot()
 
 
@@ -276,14 +288,13 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 	if not model:
 		return animation_tweens
 
-	var grid_size: int = _get_int(snapshot, &"grid_size", 4)
 	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
 	for raw_tile_data_snapshot: Variant in tiles_data:
 		if not raw_tile_data_snapshot is Dictionary:
 			continue
 		var tile_data_snapshot: Dictionary = raw_tile_data_snapshot
 		var pos: Vector2i = _get_vector2i(tile_data_snapshot, &"pos", Vector2i.ZERO)
-		if not _is_grid_pos_in_bounds(pos, grid_size):
+		if not model.is_active_cell(pos):
 			continue
 
 		var tile_data: TileState = _get_model_tile_data(pos)
@@ -488,14 +499,13 @@ func _release_visual_tile_if_valid(tile: Tile, release_token: RefCounted) -> voi
 func _build_reverse_start_tiles_map(snapshot: Dictionary, reverse_target_map: Dictionary) -> Dictionary:
 	var reverse_start_tiles: Dictionary = {}
 	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
-	var snapshot_grid_size: int = _get_int(snapshot, &"grid_size", model.grid_size if model else 0)
 
 	for raw_tile_data_snapshot: Variant in tiles_data:
 		if not raw_tile_data_snapshot is Dictionary:
 			continue
 		var tile_data_snapshot: Dictionary = raw_tile_data_snapshot
 		var pos: Vector2i = _get_vector2i(tile_data_snapshot, &"pos", Vector2i.ZERO)
-		if not _is_grid_pos_in_bounds(pos, snapshot_grid_size):
+		if not is_instance_valid(model) or not model.is_active_cell(pos):
 			continue
 
 		var value: int = _get_int(tile_data_snapshot, &"value", 0)
@@ -541,19 +551,7 @@ func _should_animate_undo_despawn(tile: Tile, reverse_start_tiles: Dictionary) -
 func _get_model_tile_data(grid_pos: Vector2i) -> TileState:
 	if not is_instance_valid(model):
 		return null
-	if not _is_grid_pos_in_bounds(grid_pos, model.grid_size):
-		return null
-	if grid_pos.x >= model.grid.size():
-		return null
-
-	var column: Array = model.grid[grid_pos.x]
-	if grid_pos.y >= column.size():
-		return null
-
-	var tile_data: Variant = column[grid_pos.y]
-	if tile_data is TileState:
-		return tile_data
-	return null
+	return model.get_tile(grid_pos)
 
 
 func _get_tile_colors(value: int, definition_id: StringName) -> Dictionary:
@@ -597,7 +595,7 @@ func _get_tile_level_style(scheme: TileColorScheme, level: int) -> TileLevelStyl
 func _update_board_layout() -> void:
 	if not model:
 		return
-	var layout_params: Dictionary = _calculate_layout_params(model.grid_size)
+	var layout_params: Dictionary = _calculate_layout_params(model.get_bounds_size())
 	if layout_params.is_empty():
 		return
 
@@ -644,26 +642,27 @@ func _draw_board_cells() -> void:
 			_log.error(_LOG_TAG, "未配置 grid_cell_scene。")
 		return
 
-	for x: int in range(model.grid_size):
-		for y: int in range(model.grid_size):
-			var cell_instance: Control = _create_grid_cell()
-			if not is_instance_valid(cell_instance):
-				continue
-			board_container.add_child(cell_instance)
+	if not is_instance_valid(model.topology):
+		return
+	for cell: Vector2i in model.topology.get_active_cells():
+		var cell_instance: Control = _create_grid_cell()
+		if not is_instance_valid(cell_instance):
+			continue
+		board_container.add_child(cell_instance)
 
-			# 设置格子的大小和位置
-			cell_instance.size = Vector2.ONE * CELL_SIZE
-			cell_instance.position = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
+		# 设置格子的大小和位置
+		cell_instance.size = Vector2.ONE * CELL_SIZE
+		cell_instance.position = Vector2(cell) * (CELL_SIZE + SPACING)
 
-			# 当前解析后的 BoardTheme 统一覆盖格子场景模板的默认颜色。
-			if is_instance_valid(board_theme) and cell_instance is Panel:
-				var stylebox: StyleBoxFlat = _duplicate_flat_panel_style(cell_instance)
-				if is_instance_valid(stylebox):
-					_configure_cell_style(stylebox)
-					cell_instance.add_theme_stylebox_override("panel", stylebox)
+		# 当前解析后的 BoardTheme 统一覆盖格子场景模板的默认颜色。
+		if is_instance_valid(board_theme) and cell_instance is Panel:
+			var stylebox: StyleBoxFlat = _duplicate_flat_panel_style(cell_instance)
+			if is_instance_valid(stylebox):
+				_configure_cell_style(stylebox)
+				cell_instance.add_theme_stylebox_override("panel", stylebox)
 
-			# 确保背景格子在最底层
-			board_container.move_child(cell_instance, 0)
+		# 确保背景格子在最底层
+		board_container.move_child(cell_instance, 0)
 
 
 ## 执行棋盘从旧尺寸到新尺寸的扩建动画。
@@ -672,7 +671,7 @@ func _animate_expansion(old_size: int, new_size: int) -> void:
 	if _board_intro_tween and _board_intro_tween.is_valid():
 		_board_intro_tween.kill()
 	var expansion_token: int = _expansion_token
-	var final_layout: Dictionary = _calculate_layout_params(new_size)
+	var final_layout: Dictionary = _calculate_layout_params(Vector2i(new_size, new_size))
 	if final_layout.is_empty():
 		return
 	var main_tween: Tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
@@ -769,7 +768,7 @@ func _play_board_intro() -> void:
 	if _board_intro_tween and _board_intro_tween.is_valid():
 		_board_intro_tween.kill()
 
-	var layout_params: Dictionary = _calculate_layout_params(model.grid_size)
+	var layout_params: Dictionary = _calculate_layout_params(model.get_bounds_size())
 	if layout_params.is_empty():
 		return
 
@@ -802,16 +801,6 @@ func _pixel_center_to_grid(pixel_pos: Vector2) -> Vector2i:
 	return Vector2i(
 		roundi((pixel_pos.x - CELL_SIZE / 2.0) / step),
 		roundi((pixel_pos.y - CELL_SIZE / 2.0) / step)
-	)
-
-
-func _is_grid_pos_in_bounds(grid_pos: Vector2i, grid_size: int) -> bool:
-	return (
-		grid_size > 0
-		and grid_pos.x >= 0
-		and grid_pos.x < grid_size
-		and grid_pos.y >= 0
-		and grid_pos.y < grid_size
 	)
 
 
@@ -880,19 +869,27 @@ static func _get_color(data: Dictionary, key: StringName, default_value: Color) 
 	return default_value
 
 
-## 根据棋盘尺寸和可用空间，计算缩放、尺寸和偏移等布局参数。
+## 根据棋盘包围盒和可用空间，计算缩放、尺寸和偏移等布局参数。
 ## @return: 一个包含布局参数的字典。
-func _calculate_layout_params(p_size: int) -> Dictionary:
-	var grid_area_side: float = float(p_size * CELL_SIZE + (p_size - 1) * SPACING)
-	var logical_board_side: float = grid_area_side + BOARD_PADDING * 2
+func _calculate_layout_params(board_size: Vector2i) -> Dictionary:
+	if board_size.x <= 0 or board_size.y <= 0:
+		return {}
+	var grid_area_size: Vector2 = Vector2(
+		board_size.x * CELL_SIZE + (board_size.x - 1) * SPACING,
+		board_size.y * CELL_SIZE + (board_size.y - 1) * SPACING
+	)
+	var logical_board_size: Vector2 = grid_area_size + Vector2.ONE * BOARD_PADDING * 2.0
 	var host_control: Control = _get_host_control()
 	if not is_instance_valid(host_control):
 		return {}
 	var current_size: Vector2 = host_control.size
 	if current_size.x == 0 or current_size.y == 0:
 		return {}
-	var scale_ratio: float = min(current_size.x / logical_board_side, current_size.y / logical_board_side)
-	var scaled_size: Vector2 = Vector2.ONE * logical_board_side * scale_ratio
+	var scale_ratio: float = min(
+		current_size.x / logical_board_size.x,
+		current_size.y / logical_board_size.y
+	)
+	var scaled_size: Vector2 = logical_board_size * scale_ratio
 	var offset: Vector2 = (current_size - scaled_size) / 2.0
 	return {
 		"scale_ratio": scale_ratio,

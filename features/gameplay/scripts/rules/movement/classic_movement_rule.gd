@@ -46,7 +46,7 @@ func process_line(line: Array[TileState]) -> Dictionary:
 	var result_line: Array[TileState] = []
 	result_line.append_array(merged_line)
 	# 用 null 填充剩余空间，使新行长度与原行一致。
-	# 使用 line.size() 作为目标长度，因为它本身就是 grid_size，且能避免在 line[0] 为 null 时崩溃。
+	# 使用 lane 自身长度作为目标，避免依赖外部棋盘尺寸或 line[0] 的内容。
 	while result_line.size() < line.size():
 		result_line.append(null)
 

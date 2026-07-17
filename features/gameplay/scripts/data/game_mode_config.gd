@@ -36,14 +36,8 @@ extends Resource
 @export var board_theme: BoardTheme
 
 @export_group("棋盘配置")
-## 模式默认的棋盘大小。
-@export var default_grid_size: int = 4
-
-## 此模式支持的最小棋盘大小。
-@export var min_grid_size: int = 3
-
-## 此模式支持的最大棋盘大小。
-@export var max_grid_size: int = 8
+## 本模式允许创建的棋盘空间模板。
+@export var board_topology_template: BoardTopologyTemplate
 
 @export_group("目标配置")
 ## 本模式用于统计目标达成的最高方块值；为 0 表示暂不定义目标。
@@ -126,23 +120,17 @@ func get_validation_report() -> GFValidationReport:
 	if not is_instance_valid(board_theme):
 		_add_config_error(report, &"missing_board_theme", "board_theme 未配置。", &"board_theme")
 
-	if min_grid_size <= 0:
-		_add_config_error(report, &"invalid_min_grid_size", "min_grid_size 必须大于 0。", &"min_grid_size")
-
-	if min_grid_size > max_grid_size:
+	if not is_instance_valid(board_topology_template):
 		_add_config_error(
 			report,
-			&"invalid_grid_size_range",
-			"min_grid_size 不能大于 max_grid_size。",
-			&"min_grid_size"
+			&"missing_board_topology_template",
+			"board_topology_template 未配置。",
+			&"board_topology_template"
 		)
-
-	if default_grid_size < min_grid_size or default_grid_size > max_grid_size:
-		_add_config_error(
-			report,
-			&"invalid_default_grid_size",
-			"default_grid_size 必须位于 [%d, %d] 范围内。" % [min_grid_size, max_grid_size],
-			&"default_grid_size"
+	else:
+		var _merged_topology_report: RefCounted = report.merge(
+			board_topology_template.get_validation_report(),
+			false
 		)
 
 	if target_tile_value < 0:

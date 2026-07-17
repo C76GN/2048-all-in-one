@@ -56,10 +56,10 @@ func _update_display() -> void:
 	if bookmark_data.timestamp > 0:
 		datetime = GameClockUtility.format_datetime_value(bookmark_data.timestamp)
 
-	var grid_size: int = GFVariantData.to_int(
-		bookmark_data.board_snapshot.get(&"grid_size", bookmark_data.board_snapshot.get("grid_size", 0)),
-		0
+	var topology: BoardTopology = BoardTopology.from_dict(
+		GFVariantData.get_option_dictionary(bookmark_data.board_snapshot, &"topology")
 	)
+	var board_size: Vector2i = topology.get_bounds_size() if topology != null else Vector2i.ZERO
 
 	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
 	var size_label: String = tr("SIZE_LABEL")
@@ -71,7 +71,7 @@ func _update_display() -> void:
 			score_label,
 			bookmark_data.score,
 			size_label,
-			grid_size,
-			grid_size,
+			board_size.x,
+			board_size.y,
 		]
 	)

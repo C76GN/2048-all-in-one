@@ -60,21 +60,21 @@ func clear_context() -> void:
 
 ## 初始化面板数据。
 ## @param interaction_rule: 当前的交互规则，用于获取可生成选项。
-## @param grid_size: 当前棋盘尺寸。
-func initialize_panel(interaction_rule: InteractionRule, grid_size: int) -> void:
+## @param bounds_size: 当前棋盘最小包围盒尺寸。
+func initialize_panel(interaction_rule: InteractionRule, bounds_size: Vector2i) -> void:
 	if not is_instance_valid(_test_panel) or not is_instance_valid(interaction_rule):
 		return
 		
 	var spawnable_options: Dictionary = interaction_rule.get_spawnable_options()
 	_test_panel.setup_panel(spawnable_options)
-	_test_panel.update_coordinate_limits(grid_size)
+	_test_panel.update_coordinate_limits(bounds_size)
 
 
 ## 更新坐标限制。
 ## @param new_size: 新的棋盘边长。
 func update_limits(new_size: int) -> void:
 	if is_instance_valid(_test_panel):
-		_test_panel.update_coordinate_limits(new_size)
+		_test_panel.update_coordinate_limits(Vector2i(new_size, new_size))
 
 
 # --- 私有/辅助方法 ---
@@ -103,13 +103,7 @@ func _sync_highest_tile_from_grid() -> void:
 
 
 func _is_grid_pos_in_bounds(grid_model: GridModel, grid_pos: Vector2i) -> bool:
-	return (
-		is_instance_valid(grid_model)
-		and grid_pos.x >= 0
-		and grid_pos.x < grid_model.grid_size
-		and grid_pos.y >= 0
-		and grid_pos.y < grid_model.grid_size
-	)
+	return is_instance_valid(grid_model) and grid_model.is_active_cell(grid_pos)
 
 
 func _get_game_flow_system() -> GameFlowSystem:
@@ -198,24 +192,8 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, option_id: i
 		
 	var interaction_rule: InteractionRule = grid_model.interaction_rule
 	if is_instance_valid(interaction_rule):
-		# 清理旧数据
-		var column: Array = grid_model.grid[grid_pos.x]
-		var old_data_value: Variant = column[grid_pos.y]
-		var old_data: TileState = null
-		if old_data_value is TileState:
-			old_data = old_data_value
-		if old_data != null:
-			var old_tile_composition: TileCompositionUtility = _get_tile_composition_utility()
-			if old_tile_composition != null:
-				old_tile_composition.release_tile(old_data)
-			# 发送移除动画指令
-			var _remove_instruction: Array = [ {
-				&"type": &"REMOVE", # 需要确保 GameBoardController 支持处理这个伪指令或刷新
-				&"tile_data": old_data,
-				&"to_grid_pos": grid_pos
-			}]
-			# 考虑到直接调用删除比较麻烦，这里让 GameBoardController 收到 BOARD_REFRESH_REQUESTED 时全量刷新即可。
-			
+		var _removed_old_tile: bool = grid_model.remove_tile(grid_pos)
+
 		# 创建新数据并放置
 		var composition_utility: TileCompositionUtility = _get_tile_composition_utility()
 		if composition_utility == null:
@@ -224,7 +202,9 @@ func _on_test_panel_spawn_requested(grid_pos: Vector2i, value: int, option_id: i
 		var tile_data: TileState = composition_utility.create_tile(definition, value)
 		if tile_data == null:
 			return
-		grid_model.place_tile(tile_data, grid_pos)
+		if not grid_model.place_tile(tile_data, grid_pos):
+			composition_utility.release_tile(tile_data)
+			return
 		
 		# 通知视图层全量刷新 (比单点刷新更安全，且测试工具不需要关心视图层怎么画)
 		send_simple_event(EventNames.BOARD_REFRESH_REQUESTED, grid_model.get_snapshot())
@@ -261,7 +241,8 @@ func _on_live_expand_requested_event(new_size: int) -> void:
 	
 	var grid_model: GridModel = _get_grid_model()
 	
-	if is_instance_valid(grid_model) and new_size > grid_model.grid_size:
+	var current_size: Vector2i = grid_model.get_bounds_size() if is_instance_valid(grid_model) else Vector2i.ZERO
+	if is_instance_valid(grid_model) and new_size > maxi(current_size.x, current_size.y):
 		send_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, new_size)
 
 
@@ -287,7 +268,9 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	if not is_instance_valid(mode_config):
 		return
 
-	grid_model.initialize(new_size, grid_model.interaction_rule, grid_model.movement_rule)
+	var next_topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(new_size, new_size))
+	if not grid_model.initialize(next_topology, grid_model.interaction_rule, grid_model.movement_rule):
+		return
 	if is_instance_valid(rule_system):
 		var spawn_rules: Array[SpawnRule] = []
 		for rule_resource: SpawnRule in mode_config.spawn_rules:
@@ -297,7 +280,7 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 				spawn_rules.append(spawn_rule)
 		rule_system.register_rules(spawn_rules)
 
-	current_game_model.current_grid_size.set_value(new_size)
+	current_game_model.current_board_topology.set_value(next_topology.duplicate(true))
 	var theme_utility: GameThemeUtility = _get_theme_utility()
 	if not is_instance_valid(theme_utility):
 		push_error("[TestToolUtility] 缺少 GameThemeUtility，无法重建测试棋盘视觉主题。")
@@ -326,7 +309,7 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 		var game_state_system: GameStateSystem = _get_game_state_system()
 		if is_instance_valid(game_state_system):
 			var snapshot_set: bool = init_cmd.set_snapshot(
-				game_state_system.get_full_game_state(new_size)
+				game_state_system.get_full_game_state()
 			)
 			if snapshot_set:
 				command_history.record(init_cmd)

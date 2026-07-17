@@ -12,6 +12,7 @@
 [ext_resource type="Resource" uid="uid://cu7diq7sysqcf" path="res://features/gameplay/resources/rules/spawn/classic_spawn_rule_on_move.tres" id="8_classic_move"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/tiles/definitions/tile_definition.gd" id="9_tile_definition"]
 [ext_resource type="Resource" path="res://features/gameplay/resources/tiles/definitions/classic_numeric_tile.tres" id="10_classic_tile"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/boards/templates/scalable_square_board_template.tres" id="11_board_template"]
 
 [sub_resource type="Resource" id="Resource_wp4bw"]
 script = ExtResource("2_dvc3p")
@@ -36,5 +37,6 @@ color_schemes = {
 1: ExtResource("3_8xxsn")
 }
 board_theme = ExtResource("1_xkyvo")
+board_topology_template = ExtResource("11_board_template")
 target_tile_value = 2048
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

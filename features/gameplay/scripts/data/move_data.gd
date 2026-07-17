@@ -10,8 +10,8 @@ extends "res://addons/gf/kernel/base/gf_payload.gd"
 ## 本次移动的方向向量。
 var direction: Vector2i = Vector2i.ZERO
 
-## 在本次移动中发生位移的行或列的索引列表。
-var moved_lines: Array[int] = []
+## 在本次移动中发生位移的连续拓扑 lane；每条 lane 从移动前沿向后排列。
+var moved_lanes: Array = []
 
 ## 本次移动产生的撤回反向位置映射。
 ##

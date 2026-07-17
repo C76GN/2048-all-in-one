@@ -1,7 +1,4 @@
-## GridMovementSystem: 负责处理网格移动、合并逻辑的核心系统。
-##
-## 该系统监听来自输入层或控制器的移动命令/事件，并执行滑动和合并算法。
-## 执行结果将更新 `GridModel` 并可能触发 `board_changed` 等级事件。
+## GridMovementSystem: 按 BoardTopology 的连续 lane 处理移动与合并。
 class_name GridMovementSystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
@@ -18,7 +15,7 @@ var _log: GFLogUtility
 var _tile_composition_utility: TileCompositionUtility
 
 
-# --- Godot 生命周期方法 ---
+# --- GF 生命周期方法 ---
 
 func get_required_models() -> Array[Script]:
 	return [GridModel]
@@ -28,7 +25,6 @@ func get_required_utilities() -> Array[Script]:
 	return [GFLogUtility, TileCompositionUtility]
 
 
-## 从架构获取必要的层级引用。
 func ready() -> void:
 	_grid_model = _get_grid_model()
 	_log = _get_log_utility()
@@ -45,153 +41,137 @@ func dispose() -> void:
 
 # --- 核心逻辑 ---
 
-## 处理玩家的滑动输入。
-## @param direction: 移动的方向向量 (Vector2i.UP, DOWN, LEFT, RIGHT)
-## @return: 如果发生了有效移动，返回包含方向和受影响行/列的 MoveData；否则返回 null。
+## 处理玩家的四向滑动输入。
+## @param direction: LEFT、RIGHT、UP、DOWN 之一。
 func handle_move(direction: Vector2i) -> MoveData:
 	if not is_instance_valid(_grid_model):
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GridModel 引用不可用。")
 		return null
-		
+
 	var interaction_rule: InteractionRule = _grid_model.interaction_rule
 	var movement_rule: MovementRule = _grid_model.movement_rule
-	
 	if not is_instance_valid(interaction_rule) or not is_instance_valid(movement_rule):
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GridModel 缺少交互规则或移动规则。")
 		return null
+	var topology: BoardTopology = _grid_model.topology
+	if not is_instance_valid(topology):
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "GridModel 缺少 BoardTopology。")
+		return null
+
 	interaction_rule.setup(_tile_composition_utility)
-		
-	var grid_size: int = _grid_model.grid_size
-	var grid: Array = _grid_model.grid
-	
 	movement_rule.setup(interaction_rule)
 
+	var lanes: Array = topology.get_move_lanes(direction)
+	if lanes.is_empty():
+		return null
+
 	var instructions: Array[Dictionary] = []
-	var new_grid: Array = []
-	var _resize_result: Variant = new_grid.resize(grid_size)
-
-	for i: int in range(grid_size):
-		var row: Array = []
-		var _row_resize_result: Variant = row.resize(grid_size)
-		row.fill(null)
-		new_grid[i] = row
-
-	var moved_lines_indices: Array[int] = []
+	var next_tiles_by_cell: Dictionary = {}
+	var moved_lanes: Array = []
 	var score_delta: int = 0
 	var ratio_resolution_count: int = 0
 
-	# 算法核心：按行/列处理
-	for i: int in range(grid_size):
+	# 每个连续 lane 独立处理，拓扑空洞不会被跨越。
+	for lane_value: Variant in lanes:
+		if not lane_value is Array:
+			continue
+		var lane: Array = lane_value
 		var line: Array[TileState] = []
-
-		# 提取当前行/列的 TileData 引用
-		for j: int in range(grid_size):
-			var coords: Vector2i = _get_coords_for_line(i, j, direction, grid_size)
-			var source_column: Array = grid[coords.x]
-			var tile_value: Variant = source_column[coords.y]
-			if tile_value is TileState:
-				line.append(tile_value)
-			else:
+		for coords_value: Variant in lane:
+			if not coords_value is Vector2i:
 				line.append(null)
+				continue
+			var coords: Vector2i = coords_value
+			line.append(_grid_model.get_tile(coords))
 
-		# 调用规则引擎计算合并结果
 		var result: Dictionary = movement_rule.process_line(line)
-		var new_line: Array[TileState] = result.line
-		var merges: Array[Dictionary] = result.merges
+		var new_line: Array[TileState] = _get_tile_line(result, &"line")
+		var merges: Array[Dictionary] = _get_dictionary_array(result, &"merges")
 		var merged_tile_ids: Dictionary = {}
 
-		if result.moved:
-			if not i in moved_lines_indices:
-				moved_lines_indices.append(i)
+		if GFVariantData.get_option_bool(result, &"moved", false):
+			moved_lanes.append(lane.duplicate())
 
-		# 记录合并指令 (用于动画)
 		for merge_info: Dictionary in merges:
-			var consumed: TileState = merge_info.consumed_tile
-			var merged: TileState = merge_info.merged_tile
+			var consumed: TileState = _get_tile_state(merge_info, &"consumed_tile")
+			var merged: TileState = _get_tile_state(merge_info, &"merged_tile")
+			if consumed == null or merged == null:
+				continue
 			merged_tile_ids[merged.get_instance_id()] = true
-			var final_line_pos: int = new_line.find(merged)
-			var final_coords: Vector2i = _get_coords_for_line(i, final_line_pos, direction, grid_size)
 
+			var final_line_pos: int = new_line.find(merged)
 			var orig_consumed_idx: int = line.find(consumed)
 			var orig_merged_idx: int = line.find(merged)
-			var from_coords_consumed: Vector2i = _get_coords_for_line(i, orig_consumed_idx, direction, grid_size)
-			var from_coords_merged: Vector2i = _get_coords_for_line(i, orig_merged_idx, direction, grid_size)
+			if (
+				final_line_pos < 0
+				or final_line_pos >= lane.size()
+				or orig_consumed_idx < 0
+				or orig_merged_idx < 0
+			):
+				continue
 
 			var instruction: Dictionary = {
 				&"type": &"MERGE",
 				&"consumed_data": consumed,
 				&"merged_data": merged,
-				&"to_grid_pos": final_coords,
-				&"from_grid_pos_consumed": from_coords_consumed,
-				&"from_grid_pos_merged": from_coords_merged,
+				&"to_grid_pos": lane[final_line_pos],
+				&"from_grid_pos_consumed": lane[orig_consumed_idx],
+				&"from_grid_pos_merged": lane[orig_merged_idx],
 			}
-			
 			if merge_info.has(&"transform"):
 				instruction[&"transform"] = true
-
 			instructions.append(instruction)
+			score_delta += _get_int(merge_info, &"score", 0)
+			ratio_resolution_count += _get_int(merge_info, &"ratio_resolved", 0)
 
-			if merge_info.has("score"):
-				score_delta += _get_int(merge_info, &"score", 0)
-			if merge_info.has("ratio_resolved"):
-				ratio_resolution_count += _get_int(merge_info, &"ratio_resolved", 0)
-
-		# 记录移动指令 (用于动画)
-		var tiles_in_new_line_ids: Array = []
+		var tiles_in_new_line_ids: Dictionary = {}
 		for tile_data: TileState in new_line:
 			if tile_data != null:
-				tiles_in_new_line_ids.append(tile_data.get_instance_id())
+				tiles_in_new_line_ids[tile_data.get_instance_id()] = true
 
-		for j: int in range(grid_size):
-			var original_data: TileState = line[j]
-			if original_data == null or not original_data.get_instance_id() in tiles_in_new_line_ids:
+		for index: int in range(line.size()):
+			var original_data: TileState = line[index]
+			if original_data == null or not tiles_in_new_line_ids.has(original_data.get_instance_id()):
 				continue
 			if merged_tile_ids.has(original_data.get_instance_id()):
 				continue
-
 			var final_line_pos: int = new_line.find(original_data)
-			if final_line_pos != -1 and final_line_pos != j:
-				var final_coords: Vector2i = _get_coords_for_line(i, final_line_pos, direction, grid_size)
-				var from_coords: Vector2i = _get_coords_for_line(i, j, direction, grid_size)
+			if final_line_pos != -1 and final_line_pos != index:
 				instructions.append({
 					&"type": &"MOVE",
 					&"tile_data": original_data,
-					&"from_grid_pos": from_coords,
-					&"to_grid_pos": final_coords,
+					&"from_grid_pos": lane[index],
+					&"to_grid_pos": lane[final_line_pos],
 				})
 
-		# 更新临时网格数据
-		for j: int in range(grid_size):
-			var coords: Vector2i = _get_coords_for_line(i, j, direction, grid_size)
-			var target_column: Array = new_grid[coords.x]
-			target_column[coords.y] = new_line[j]
+		for index: int in range(mini(lane.size(), new_line.size())):
+			var tile: TileState = new_line[index]
+			if tile != null:
+				next_tiles_by_cell[lane[index]] = tile
 
-	# 如果有任何移动发生
-	if not moved_lines_indices.is_empty():
-		# 1. 更新 Model 数据
-		_grid_model.grid = new_grid
+	if moved_lanes.is_empty():
+		return null
+	if not _grid_model.replace_tiles(next_tiles_by_cell):
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "移动结果不符合当前棋盘拓扑，拒绝提交。")
+		return null
 
-		if score_delta != 0:
-			send_simple_event(EventNames.SCORE_UPDATED, score_delta)
-		if ratio_resolution_count > 0:
-			send_simple_event(EventNames.RATIO_RESOLVED, ratio_resolution_count)
+	if score_delta != 0:
+		send_simple_event(EventNames.SCORE_UPDATED, score_delta)
+	if ratio_resolution_count > 0:
+		send_simple_event(EventNames.RATIO_RESOLVED, ratio_resolution_count)
 
-		var result_move_data: MoveData = MoveData.new()
-		result_move_data.direction = direction
-		result_move_data.moved_lines = moved_lines_indices
-		result_move_data.reverse_target_map = _build_reverse_target_map(instructions)
+	var move_data: MoveData = MoveData.new()
+	move_data.direction = direction
+	move_data.moved_lanes = moved_lanes
+	move_data.reverse_target_map = _build_reverse_target_map(instructions)
 
-		# 2. 发送动画请求事件 (简单事件)
-		send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instructions)
-
-		# 3. 发送移动完成事件 (类型事件，用于触发后续生成逻辑)
-		send_event(result_move_data)
-
-		return result_move_data
-
-	return null
+	send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instructions)
+	send_event(move_data)
+	return move_data
 
 
 # --- 辅助方法 ---
@@ -214,26 +194,40 @@ func _get_log_utility() -> GFLogUtility:
 
 func _build_reverse_target_map(instructions: Array) -> Dictionary:
 	var reverse_target_map: Dictionary = {}
-
-	for raw_instr: Variant in instructions:
-		if not raw_instr is Dictionary:
+	for raw_instruction: Variant in instructions:
+		if not raw_instruction is Dictionary:
 			continue
-		var instr: Dictionary = raw_instr
-		var instruction_type: StringName = _get_instruction_type(instr)
+		var instruction: Dictionary = raw_instruction
+		var instruction_type: StringName = _get_instruction_type(instruction)
 		if instruction_type == &"MOVE":
-			var from_pos: Vector2i = _get_vector2i(instr, &"from_grid_pos", Vector2i.ZERO)
-			reverse_target_map[_grid_pos_key(from_pos)] = _get_vector2i(instr, &"to_grid_pos", from_pos)
+			var from_pos: Vector2i = _get_vector2i(instruction, &"from_grid_pos", Vector2i.ZERO)
+			reverse_target_map[_grid_pos_key(from_pos)] = _get_vector2i(
+				instruction,
+				&"to_grid_pos",
+				from_pos
+			)
 		elif instruction_type == &"MERGE":
-			var from_consumed: Vector2i = _get_vector2i(instr, &"from_grid_pos_consumed", Vector2i.ZERO)
-			var from_merged: Vector2i = _get_vector2i(instr, &"from_grid_pos_merged", Vector2i.ZERO)
-			var to_pos: Vector2i = _get_vector2i(instr, &"to_grid_pos", Vector2i.ZERO)
-			reverse_target_map[_grid_pos_key(from_consumed)] = to_pos
-			reverse_target_map[_grid_pos_key(from_merged)] = to_pos
-
+			var consumed_pos: Vector2i = _get_vector2i(
+				instruction,
+				&"from_grid_pos_consumed",
+				Vector2i.ZERO
+			)
+			var merged_pos: Vector2i = _get_vector2i(
+				instruction,
+				&"from_grid_pos_merged",
+				Vector2i.ZERO
+			)
+			var target_pos: Vector2i = _get_vector2i(
+				instruction,
+				&"to_grid_pos",
+				Vector2i.ZERO
+			)
+			reverse_target_map[_grid_pos_key(consumed_pos)] = target_pos
+			reverse_target_map[_grid_pos_key(merged_pos)] = target_pos
 	return reverse_target_map
 
 
-func _grid_pos_key(grid_pos: Vector2i) -> String:
+static func _grid_pos_key(grid_pos: Vector2i) -> String:
 	return "%d,%d" % [grid_pos.x, grid_pos.y]
 
 
@@ -244,11 +238,13 @@ static func _get_instruction_type(data: Dictionary) -> StringName:
 	return StringName(str(value))
 
 
-static func _get_vector2i(data: Dictionary, key: StringName, default_value: Vector2i) -> Vector2i:
+static func _get_vector2i(
+	data: Dictionary,
+	key: StringName,
+	default_value: Vector2i
+) -> Vector2i:
 	var value: Variant = data.get(key, data.get(String(key), default_value))
-	if value is Vector2i:
-		return value
-	return default_value
+	return value if value is Vector2i else default_value
 
 
 static func _get_int(data: Dictionary, key: StringName, default_value: int) -> int:
@@ -261,10 +257,31 @@ static func _get_int(data: Dictionary, key: StringName, default_value: int) -> i
 	return default_value
 
 
-func _get_coords_for_line(line_index: int, cell_index: int, direction: Vector2i, grid_size: int) -> Vector2i:
-	match direction:
-		Vector2i.LEFT: return Vector2i(cell_index, line_index)
-		Vector2i.RIGHT: return Vector2i(grid_size - 1 - cell_index, line_index)
-		Vector2i.UP: return Vector2i(line_index, cell_index)
-		Vector2i.DOWN: return Vector2i(line_index, grid_size - 1 - cell_index)
-	return Vector2i.ZERO
+static func _get_tile_state(data: Dictionary, key: StringName) -> TileState:
+	var value: Variant = data.get(key, data.get(String(key)))
+	if value is TileState:
+		var tile: TileState = value
+		return tile
+	return null
+
+
+static func _get_tile_line(data: Dictionary, key: StringName) -> Array[TileState]:
+	var result: Array[TileState] = []
+	var value: Variant = data.get(key, data.get(String(key), []))
+	if not value is Array:
+		return result
+	for item: Variant in value:
+		if item == null or item is TileState:
+			result.append(item)
+	return result
+
+
+static func _get_dictionary_array(data: Dictionary, key: StringName) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var value: Variant = data.get(key, data.get(String(key), []))
+	if not value is Array:
+		return result
+	for item: Variant in value:
+		if item is Dictionary:
+			result.append(item)
+	return result

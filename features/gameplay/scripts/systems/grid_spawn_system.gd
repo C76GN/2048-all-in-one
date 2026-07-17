@@ -50,18 +50,12 @@ func _is_auto_position(position: Vector2i) -> bool:
 	return position.x < 0 or position.y < 0
 
 
-func _is_cell_in_bounds(position: Vector2i) -> bool:
-	return (
-		position.x >= 0
-		and position.y >= 0
-		and position.x < _grid_model.grid_size
-		and position.y < _grid_model.grid_size
-	)
+func _is_cell_active(position: Vector2i) -> bool:
+	return is_instance_valid(_grid_model) and _grid_model.is_active_cell(position)
 
 
 func _is_cell_empty(position: Vector2i) -> bool:
-	var column: Array = _grid_model.grid[position.x]
-	return column[position.y] == null
+	return _grid_model.get_tile(position) == null
 
 
 func _get_grid_model() -> GridModel:
@@ -108,17 +102,11 @@ func _handle_priority_spawn(value: int, definition_id: StringName) -> void:
 
 	var recompose_candidates: Array[TileState] = []
 	var same_definition_candidates: Array[TileState] = []
-	for x: int in range(_grid_model.grid_size):
-		var column: Array = _grid_model.grid[x]
-		for y: int in range(_grid_model.grid_size):
-			var raw_data: Variant = column[y]
-			if not raw_data is TileState:
-				continue
-			var data: TileState = raw_data
-			if data.definition_id == next_definition.definition_id:
-				same_definition_candidates.append(data)
-			else:
-				recompose_candidates.append(data)
+	for data: TileState in _grid_model.get_all_tiles():
+		if data.definition_id == next_definition.definition_id:
+			same_definition_candidates.append(data)
+		else:
+			recompose_candidates.append(data)
 
 	if not recompose_candidates.is_empty():
 		var recompose_random: GFDeterministicRandom = _seed_utility.get_branched_deterministic_random(
@@ -201,9 +189,9 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 
 	if not _is_auto_position(spawn_data.position):
 		spawn_pos = spawn_data.position
-		if not _is_cell_in_bounds(spawn_pos):
+		if not _is_cell_active(spawn_pos):
 			if is_instance_valid(_log):
-				_log.warn(_LOG_TAG, "忽略越界生成请求: %s" % spawn_pos)
+				_log.warn(_LOG_TAG, "忽略非活跃单元生成请求: %s" % spawn_pos)
 			return
 		if not _is_cell_empty(spawn_pos):
 			if is_priority:
@@ -237,7 +225,11 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "无法按当前模式的 TileDefinition 创建方块。")
 		return
-	_grid_model.place_tile(tile_data, spawn_pos)
+	if not _grid_model.place_tile(tile_data, spawn_pos):
+		_tile_composition_utility.release_tile(tile_data)
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "方块无法放入目标活跃单元：%s。" % spawn_pos)
+		return
 
 	if is_instance_valid(_log):
 		_log.debug(

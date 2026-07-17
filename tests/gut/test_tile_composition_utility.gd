@@ -193,11 +193,18 @@ func test_grid_snapshot_restores_definition_identity_and_recipe() -> void:
 	var interaction_rule: ClassicInteractionRule = ClassicInteractionRule.new()
 	interaction_rule.tile_definitions = [definition]
 	interaction_rule.default_definition_id = definition.definition_id
-	grid.initialize(4, interaction_rule, ClassicMovementRule.new())
+	assert_true(
+		grid.initialize(
+			BoardTopology.create_rectangle(Vector2i(4, 4)),
+			interaction_rule,
+			ClassicMovementRule.new()
+		),
+		"快照测试棋盘应初始化成功。"
+	)
 
 	var original: TileState = composition.create_tile(definition, 8)
 	original.capability_state[&"tile.recipe.classic_merge"] = {&"merge_count": 3}
-	grid.place_tile(original, Vector2i(1, 2))
+	assert_true(grid.place_tile(original, Vector2i(1, 2)), "原始方块应放置成功。")
 	var original_id: String = original.tile_id
 	var snapshot: Dictionary = grid.get_snapshot()
 	var serialized_tiles: Array = GFVariantData.get_option_array(snapshot, &"tiles")
@@ -209,12 +216,11 @@ func test_grid_snapshot_restores_definition_identity_and_recipe() -> void:
 		GFVariantData.get_option_int(snapshot, &"schema_version") == GridModel.SNAPSHOT_SCHEMA_VERSION,
 		"棋盘快照应声明当前严格 schema。"
 	)
-	grid.restore_from_snapshot(snapshot)
+	assert_true(grid.restore_from_snapshot(snapshot), "当前严格快照应恢复成功。")
 
-	var restored_value: Variant = grid.grid[1][2]
-	assert_true(restored_value is TileState, "严格快照应恢复 TileState。")
-	if restored_value is TileState:
-		var restored: TileState = restored_value
+	var restored: TileState = grid.get_tile(Vector2i(1, 2))
+	assert_true(restored != null, "严格快照应恢复 TileState。")
+	if restored != null:
 		assert_true(restored.tile_id == original_id, "快照恢复应保留稳定 tile_id。")
 		assert_true(restored.definition_id == definition.definition_id, "快照恢复应保留 definition_id。")
 		assert_true(
@@ -244,18 +250,25 @@ func test_grid_snapshot_rejects_legacy_fields_and_duplicate_ids_atomically() -> 
 	var interaction_rule: ClassicInteractionRule = ClassicInteractionRule.new()
 	interaction_rule.tile_definitions = [definition]
 	interaction_rule.default_definition_id = definition.definition_id
-	grid.initialize(4, interaction_rule, ClassicMovementRule.new())
+	assert_true(
+		grid.initialize(
+			BoardTopology.create_rectangle(Vector2i(4, 4)),
+			interaction_rule,
+			ClassicMovementRule.new()
+		),
+		"原子恢复测试棋盘应初始化成功。"
+	)
 
 	var original: TileState = composition.create_tile(definition, 8)
-	grid.place_tile(original, Vector2i(1, 2))
+	assert_true(grid.place_tile(original, Vector2i(1, 2)), "原子恢复测试方块应放置成功。")
 	var baseline: Dictionary = grid.get_snapshot()
 
 	var legacy_snapshot: Dictionary = baseline.duplicate(true)
 	var legacy_tiles: Array = legacy_snapshot[&"tiles"]
 	var legacy_tile: Dictionary = legacy_tiles[0]
 	legacy_tile[&"role"] = 0
-	grid.restore_from_snapshot(legacy_snapshot)
-	assert_push_error("方块快照条目结构无效")
+	assert_false(grid.restore_from_snapshot(legacy_snapshot), "旧字段快照必须被拒绝。")
+	assert_push_error("拒绝恢复不符合当前严格结构")
 	assert_same(_get_grid_tile(grid, Vector2i(1, 2)), original, "拒绝旧字段后原棋盘必须保持不变。")
 
 	var duplicate_snapshot: Dictionary = baseline.duplicate(true)
@@ -264,8 +277,8 @@ func test_grid_snapshot_rejects_legacy_fields_and_duplicate_ids_atomically() -> 
 	var duplicate_tile: Dictionary = duplicate_source.duplicate(true)
 	duplicate_tile[&"pos"] = Vector2i(2, 2)
 	duplicate_tiles.append(duplicate_tile)
-	grid.restore_from_snapshot(duplicate_snapshot)
-	assert_push_error("重复 tile_id")
+	assert_false(grid.restore_from_snapshot(duplicate_snapshot), "重复 UUID 快照必须被拒绝。")
+	assert_push_error("拒绝恢复不符合当前严格结构")
 	assert_same(_get_grid_tile(grid, Vector2i(1, 2)), original, "拒绝重复 UUID 后原棋盘必须保持不变。")
 	assert_null(_get_grid_tile(grid, Vector2i(2, 2)), "失败恢复不得写入部分新棋盘。")
 
@@ -329,11 +342,7 @@ func _get_grid(setup: Dictionary) -> GridModel:
 
 
 func _get_grid_tile(grid: GridModel, pos: Vector2i) -> TileState:
-	var value: Variant = grid.grid[pos.x][pos.y]
-	if value is TileState:
-		var tile: TileState = value
-		return tile
-	return null
+	return grid.get_tile(pos)
 
 
 func _dispose_setup(setup: Dictionary) -> void:

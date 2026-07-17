@@ -34,7 +34,8 @@ const _STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下�
 
 var _selected_mode_config: GameModeConfig = null
 var _mode_config_paths: PackedStringArray = PackedStringArray()
-var _current_grid_size: int = 4
+var _current_board_size: Vector2i = Vector2i(4, 4)
+var _current_board_topology: BoardTopology = null
 var _items_per_page: int = 5
 var _current_page: int = 0
 var _total_pages: int = 0
@@ -318,8 +319,8 @@ func _update_ui_for_selection() -> void:
 		_info_score_label.visible = true
 	_right_panel_container.visible = true
 
-	_populate_left_panel()
 	_populate_right_panel()
+	_populate_left_panel()
 	_reveal_selection_panels()
 
 
@@ -382,23 +383,41 @@ func _populate_right_panel() -> void:
 		return
 	if not is_instance_valid(_grid_size_option_button) or not is_instance_valid(_start_game_button):
 		return
+	_current_board_topology = null
+	_current_board_size = Vector2i.ZERO
+	_start_game_button.disabled = true
 
 	var default_size_index: int = -1
 	var grid_size_items: Array[Dictionary] = []
+	var topology_template: BoardTopologyTemplate = _selected_mode_config.board_topology_template
+	if not is_instance_valid(topology_template):
+		_write_option_items(_grid_size_option_button, grid_size_items)
+		return
 
-	for grid_size: int in range(_selected_mode_config.min_grid_size, _selected_mode_config.max_grid_size + 1):
-		var text: String = "%dx%d" % [grid_size, grid_size]
-		var item_index: int = grid_size_items.size()
-		grid_size_items.append(_make_option_item(text, grid_size, item_index))
-		if grid_size == _selected_mode_config.default_grid_size:
-			default_size_index = item_index
+	var square_sizes: Array[int] = topology_template.get_square_size_options()
+	if not square_sizes.is_empty():
+		for side_length: int in square_sizes:
+			var topology: BoardTopology = topology_template.create_topology(
+				Vector2i(side_length, side_length)
+			)
+			if topology == null:
+				continue
+			var item_index: int = grid_size_items.size()
+			grid_size_items.append(_make_option_item(topology.get_size_label(), topology, item_index))
+			if side_length == topology_template.get_default_square_size():
+				default_size_index = item_index
+	else:
+		var topology: BoardTopology = topology_template.create_topology()
+		if topology != null:
+			grid_size_items.append(_make_option_item(topology.get_size_label(), topology, 0))
+			default_size_index = 0
 
 	_write_option_items(_grid_size_option_button, grid_size_items)
-	if default_size_index != -1:
-		_grid_size_option_button.select(default_size_index)
-		_on_grid_size_selected(default_size_index)
-
-	_start_game_button.disabled = false
+	if default_size_index < 0:
+		return
+	_grid_size_option_button.select(default_size_index)
+	_on_grid_size_selected(default_size_index)
+	_start_game_button.disabled = not is_instance_valid(_current_board_topology)
 
 
 func _update_high_score_label() -> void:
@@ -407,8 +426,9 @@ func _update_high_score_label() -> void:
 
 	var mode_id: String = _selected_mode_config.resource_path.get_file().get_basename()
 	var save_system: SaveSystem = _get_save_system()
-	var high_score: int = save_system.get_high_score(mode_id, _current_grid_size) if is_instance_valid(save_system) else 0
-	var stats: Dictionary = save_system.get_game_stats(mode_id, _current_grid_size) if is_instance_valid(save_system) else {}
+	var board_key: String = _current_board_topology.get_stable_key() if is_instance_valid(_current_board_topology) else ""
+	var high_score: int = save_system.get_high_score(mode_id, board_key) if is_instance_valid(save_system) else 0
+	var stats: Dictionary = save_system.get_game_stats(mode_id, board_key) if is_instance_valid(save_system) else {}
 	_info_score_label.text = _format_stats_text(high_score, stats)
 
 
@@ -441,7 +461,11 @@ func _update_grid_size_and_ui(index: int) -> void:
 	if index < 0 or index >= _grid_size_option_button.item_count:
 		return
 
-	_current_grid_size = GFVariantData.to_int(_grid_size_option_button.get_item_metadata(index), _current_grid_size)
+	var topology_value: Variant = _grid_size_option_button.get_item_metadata(index)
+	if not topology_value is BoardTopology:
+		return
+	_current_board_topology = topology_value
+	_current_board_size = _current_board_topology.get_bounds_size()
 
 	if is_instance_valid(_selected_mode_config):
 		_update_high_score_label()
@@ -516,7 +540,7 @@ func _format_stats_text(high_score: int, stats: Dictionary) -> String:
 		return "\n" + GameTextFormatUtility.format_template(
 			tr("INFO_MODE_STATS_EMPTY"),
 			_STATS_EMPTY_FORMAT_FALLBACK,
-			[_current_grid_size, _current_grid_size, high_score]
+			[_current_board_size.x, _current_board_size.y, high_score]
 		)
 
 	var best_steps: int = GFVariantData.to_int(stats.get("best_steps", 0), 0)
@@ -533,8 +557,8 @@ func _format_stats_text(high_score: int, stats: Dictionary) -> String:
 			tr("INFO_MODE_STATS_SUMMARY_WITH_TARGET"),
 			_STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK,
 			[
-				_current_grid_size,
-				_current_grid_size,
+				_current_board_size.x,
+				_current_board_size.y,
 				high_score,
 				plays,
 				_format_optional_stat(best_steps),
@@ -552,8 +576,8 @@ func _format_stats_text(high_score: int, stats: Dictionary) -> String:
 		tr("INFO_MODE_STATS_SUMMARY"),
 		_STATS_SUMMARY_FORMAT_FALLBACK,
 		[
-			_current_grid_size,
-			_current_grid_size,
+			_current_board_size.x,
+			_current_board_size.y,
 			high_score,
 			plays,
 			_format_optional_stat(best_steps),
@@ -721,6 +745,9 @@ func _on_start_game_button_pressed() -> void:
 	if not is_instance_valid(_selected_mode_config):
 		push_error("[ModeSelection] %s" % tr("ERR_NO_MODE_SELECTED"))
 		return
+	if not is_instance_valid(_current_board_topology):
+		push_error("[ModeSelection] 当前模式没有可用的棋盘拓扑。")
+		return
 	if game_play_scene_path.is_empty():
 		push_error("[ModeSelection] game_play_scene_path 未配置。")
 		return
@@ -736,7 +763,8 @@ func _on_start_game_button_pressed() -> void:
 	var app_config: AppConfigModel = _get_app_config_model()
 	if is_instance_valid(app_config):
 		app_config.selected_mode_config_path.set_value(_selected_mode_config.resource_path)
-		app_config.selected_grid_size.set_value(_current_grid_size)
+		var selected_topology: Resource = _current_board_topology.duplicate(true)
+		app_config.selected_board_topology.set_value(selected_topology)
 		app_config.selected_seed.set_value(seed_value)
 
 	var seed_util: GFSeedUtility = _get_seed_utility()

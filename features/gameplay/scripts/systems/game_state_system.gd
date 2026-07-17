@@ -23,14 +23,12 @@ func get_required_utilities() -> Array[Script]:
 
 
 ## 提取完整快照。
-## @param grid_size_override: 外部指定的棋盘尺寸；小于等于 0 时使用 GridModel 当前尺寸。
 ## @return: 可用于撤销、书签比较和恢复的完整状态字典。
-func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
+func get_full_game_state() -> Dictionary:
 	var rule_sys: RuleSystem = _get_rule_system()
 	var status: GameStatusModel = _get_status_model()
 	var grid: GridModel = _get_grid_model()
 	var seed_util: GFSeedUtility = _get_seed_utility()
-	var grid_size: int = grid_size_override
 	var highest_tile: int = 0
 	var score: int = 0
 	var move_count: int = 0
@@ -39,8 +37,6 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 	var target_reached: bool = false
 	var extra_stats: Dictionary = {}
 
-	if grid_size <= 0 and is_instance_valid(grid):
-		grid_size = grid.grid_size
 	if is_instance_valid(grid):
 		highest_tile = grid.get_max_tile_value()
 
@@ -69,7 +65,7 @@ func get_full_game_state(grid_size_override: int = 0) -> Dictionary:
 				rules_states.append(state)
 
 	return {
-		&"grid_size": grid_size,
+		&"board_key": grid.get_board_key() if is_instance_valid(grid) else "",
 		&"board_snapshot": grid.get_snapshot() if is_instance_valid(grid) else {},
 		&"rng_full_state": seed_util.get_full_state() if is_instance_valid(seed_util) else {},
 		&"score": score,
@@ -118,7 +114,8 @@ func restore_state(state_to_restore: Dictionary) -> void:
 			&"board_snapshot"
 		)
 		if not board_snapshot.is_empty():
-			grid.restore_from_snapshot(board_snapshot)
+			if not grid.restore_from_snapshot(board_snapshot):
+				return
 
 	if is_instance_valid(status):
 		status.score.set_value(GFVariantData.get_option_int(state_to_restore, &"score", 0))

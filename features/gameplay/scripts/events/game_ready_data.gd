@@ -22,8 +22,8 @@ var game_over_rule: GameOverRule
 ## 当前对局注册到 RuleSystem 的生成规则实例列表。
 var all_spawn_rules: Array[SpawnRule] = []
 
-## 当前棋盘尺寸。
-var current_grid_size: int = 4
+## 当前对局使用的完整棋盘拓扑。
+var board_topology: BoardTopology
 
 ## 当前模式与棋盘尺寸对应的历史最高分。
 var initial_high_score: int = 0

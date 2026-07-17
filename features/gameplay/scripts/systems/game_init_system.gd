@@ -287,10 +287,15 @@ func _build_level_session_id(
 	game_ready_data: GameReadyData
 ) -> StringName:
 	var mode_id: String = mode_config.resource_path.get_file().get_basename()
-	return StringName("%s:%s:%d:%d" % [
+	var board_key: String = (
+		game_ready_data.board_topology.get_stable_key()
+		if is_instance_valid(game_ready_data.board_topology)
+		else "invalid"
+	)
+	return StringName("%s:%s:%s:%d" % [
 		String(level_source),
 		mode_id,
-		game_ready_data.current_grid_size,
+		board_key,
 		game_ready_data.initial_seed,
 	])
 
@@ -301,17 +306,58 @@ func _build_level_session_data(
 	game_ready_data: GameReadyData
 ) -> Dictionary:
 	var mode_path: String = mode_config.resource_path
+	var topology: BoardTopology = game_ready_data.board_topology
 	return {
 		"kind": _LEVEL_KIND_GAME_SESSION,
 		"source": level_source,
 		"mode_id": mode_path.get_file().get_basename(),
 		"mode_config_path": mode_path,
-		"grid_size": game_ready_data.current_grid_size,
+		"board_key": topology.get_stable_key() if is_instance_valid(topology) else "",
+		"board_size": topology.get_bounds_size() if is_instance_valid(topology) else Vector2i.ZERO,
+		"board_cell_count": topology.get_cell_count() if is_instance_valid(topology) else 0,
 		"initial_seed": game_ready_data.initial_seed,
 		"is_replay_mode": game_ready_data.is_replay_mode,
 		"has_bookmark": is_instance_valid(game_ready_data.loaded_bookmark_data),
 		"has_replay": is_instance_valid(game_ready_data.replay_data_resource),
 	}
+
+
+func _resolve_session_topology(
+	app_config: AppConfigModel,
+	replay_data: ReplayData,
+	bookmark_data: BookmarkData,
+	mode_config: GameModeConfig
+) -> BoardTopology:
+	var topology: BoardTopology = null
+	if is_instance_valid(replay_data):
+		topology = BoardTopology.from_dict(replay_data.initial_board_topology)
+	elif is_instance_valid(bookmark_data):
+		topology = BoardTopology.from_dict(
+			GFVariantData.get_option_dictionary(bookmark_data.board_snapshot, &"topology")
+		)
+	else:
+		var selected_value: Variant = app_config.selected_board_topology.get_value()
+		if selected_value is BoardTopology:
+			var selected_topology: BoardTopology = selected_value
+			topology = _duplicate_topology(selected_topology)
+		elif is_instance_valid(mode_config.board_topology_template):
+			topology = mode_config.board_topology_template.create_topology()
+
+	if topology == null or not is_instance_valid(mode_config.board_topology_template):
+		return null
+	if not mode_config.board_topology_template.accepts_topology(topology):
+		return null
+	return topology
+
+
+static func _duplicate_topology(source: BoardTopology) -> BoardTopology:
+	if not is_instance_valid(source):
+		return null
+	var duplicated: Resource = source.duplicate(true)
+	if duplicated is BoardTopology:
+		var topology: BoardTopology = duplicated
+		return topology
+	return null
 
 
 # --- 信号处理函数 ---
@@ -346,25 +392,15 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	game_ready_data.replay_data_resource = replay_data
 
 	var config_path: String = GFVariantData.to_text(app_config.selected_mode_config_path.get_value(), "")
-	var grid_size: int = 4
 	var init_seed: int = 0
 
 	if game_ready_data.is_replay_mode:
 		config_path = replay_data.mode_config_path
-		grid_size = replay_data.grid_size
 		init_seed = replay_data.initial_seed
 	elif is_instance_valid(loaded_bookmark_data):
 		config_path = loaded_bookmark_data.mode_config_path
-		grid_size = GFVariantData.to_int(
-			loaded_bookmark_data.board_snapshot.get(
-				&"grid_size",
-				loaded_bookmark_data.board_snapshot.get("grid_size", 4)
-			),
-			4
-		)
 		init_seed = loaded_bookmark_data.initial_seed
 	else:
-		grid_size = GFVariantData.to_int(app_config.selected_grid_size.get_value(), 4)
 		var config_seed: int = GFVariantData.to_int(app_config.selected_seed.get_value(), 0)
 		if is_instance_valid(_log):
 			_log.debug(_LOG_TAG, "普通模式配置种子: %d" % config_seed)
@@ -375,7 +411,6 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		if is_instance_valid(_log):
 			_log.debug(_LOG_TAG, "本局初始种子: %d" % init_seed)
 
-	game_ready_data.current_grid_size = grid_size
 	game_ready_data.initial_seed = init_seed
 
 	if not is_instance_valid(_mode_catalog):
@@ -394,6 +429,18 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GameModeConfig 校验失败: %s" % config_path)
 		return
+
+	var board_topology: BoardTopology = _resolve_session_topology(
+		app_config,
+		replay_data,
+		loaded_bookmark_data,
+		mode_config
+	)
+	if board_topology == null:
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "无法按当前模式契约解析棋盘拓扑: %s" % config_path)
+		return
+	game_ready_data.board_topology = board_topology
 	if (
 		is_instance_valid(loaded_bookmark_data)
 		and not _is_bookmark_mode_contract_valid(loaded_bookmark_data, mode_config)
@@ -427,9 +474,15 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		return
 
 	if is_instance_valid(_grid_model):
-		_grid_model.initialize(grid_size, game_ready_data.interaction_rule, game_ready_data.movement_rule)
+		if not _grid_model.initialize(
+			board_topology,
+			game_ready_data.interaction_rule,
+			game_ready_data.movement_rule
+		):
+			return
 		if is_instance_valid(loaded_bookmark_data):
-			_grid_model.restore_from_snapshot(loaded_bookmark_data.board_snapshot)
+			if not _grid_model.restore_from_snapshot(loaded_bookmark_data.board_snapshot):
+				return
 
 	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "设置全局随机种子: %d" % init_seed)
@@ -440,7 +493,7 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	var mode_id: String = mode_config.resource_path.get_file().get_basename()
 	var high_score: int = 0
 	if is_instance_valid(save_system):
-		high_score = save_system.get_high_score(mode_id, grid_size)
+		high_score = save_system.get_high_score(mode_id, board_topology.get_stable_key())
 
 	var game_status_model: GameStatusModel = _get_game_status_model()
 	if is_instance_valid(loaded_bookmark_data):
@@ -486,7 +539,7 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	var current_game_model: CurrentGameModel = _get_current_game_model()
 	if is_instance_valid(current_game_model):
 		current_game_model.mode_config.set_value(mode_config)
-		current_game_model.current_grid_size.set_value(grid_size)
+		current_game_model.current_board_topology.set_value(_duplicate_topology(board_topology))
 		current_game_model.initial_seed.set_value(init_seed)
 		current_game_model.initial_high_score.set_value(game_ready_data.initial_high_score)
 		current_game_model.is_replay_mode.set_value(game_ready_data.is_replay_mode)

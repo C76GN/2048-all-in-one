@@ -62,15 +62,16 @@ func update_value_options(values: Array[int]) -> void:
 
 ## 更新生成方块坐标选择器的上限值。
 ##
-## @param new_grid_size: 当前棋盘的尺寸。
-func update_coordinate_limits(new_grid_size: int) -> void:
-	var max_coord: int = new_grid_size - 1
-	_pos_x_spinbox.max_value = max_coord
-	_pos_y_spinbox.max_value = max_coord
+## @param bounds_size: 当前棋盘最小包围盒尺寸。
+func update_coordinate_limits(bounds_size: Vector2i) -> void:
+	var max_x: int = maxi(bounds_size.x - 1, 0)
+	var max_y: int = maxi(bounds_size.y - 1, 0)
+	_pos_x_spinbox.max_value = max_x
+	_pos_y_spinbox.max_value = max_y
 
 	# 同时限制当前值，防止因缩小棋盘导致值超出范围。
-	_pos_x_spinbox.value = min(_pos_x_spinbox.value, max_coord)
-	_pos_y_spinbox.value = min(_pos_y_spinbox.value, max_coord)
+	_pos_x_spinbox.value = min(_pos_x_spinbox.value, max_x)
+	_pos_y_spinbox.value = min(_pos_y_spinbox.value, max_y)
 
 
 # --- 私有/辅助方法 ---

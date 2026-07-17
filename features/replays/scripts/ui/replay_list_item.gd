@@ -58,6 +58,8 @@ func _update_display() -> void:
 
 	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
 	var size_label: String = tr("SIZE_LABEL")
+	var topology: BoardTopology = replay_data.get_initial_topology()
+	var board_size: Vector2i = topology.get_bounds_size() if topology != null else Vector2i.ZERO
 	_info_label.text = GameTextFormatUtility.format_template(
 		tr("REPLAY_INFO_FORMAT"),
 		_INFO_FORMAT_FALLBACK,
@@ -66,7 +68,7 @@ func _update_display() -> void:
 			score_label,
 			replay_data.final_score,
 			size_label,
-			replay_data.grid_size,
-			replay_data.grid_size,
+			board_size.x,
+			board_size.y,
 		]
 	)

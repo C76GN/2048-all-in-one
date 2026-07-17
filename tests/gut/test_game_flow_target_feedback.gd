@@ -250,7 +250,14 @@ func test_valid_move_resolves_once_through_gf_turn_flow() -> void:
 		var definition: TileDefinition = definition_resource
 		interaction_rule.tile_definitions = [definition]
 		interaction_rule.default_definition_id = definition.definition_id
-	grid_model.initialize(4, interaction_rule, ClassicMovementRule.new())
+	assert_true(
+		grid_model.initialize(
+			BoardTopology.create_rectangle(Vector2i(4, 4)),
+			interaction_rule,
+			ClassicMovementRule.new()
+		),
+		"回合测试棋盘应初始化成功。"
+	)
 	architecture.send_event(GameReadyData.new())
 
 	var move_data: MoveData = MoveData.new()

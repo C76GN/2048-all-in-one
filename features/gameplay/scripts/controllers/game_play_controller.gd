@@ -269,9 +269,10 @@ func _setup_test_tools_for_current_board() -> void:
 	var grid_model: GridModel = _get_grid_model()
 	if is_instance_valid(grid_model):
 		_test_utility.setup_test_tools(_test_panel_controller, game_board)
+		var board_size: Vector2i = grid_model.get_bounds_size()
 		_test_utility.initialize_panel(
 			grid_model.interaction_rule,
-			GFVariantData.to_int(_current_game_model.current_grid_size.get_value(), grid_model.grid_size)
+			board_size
 		)
 
 
@@ -565,9 +566,7 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 		init_cmd.mark_as_baseline()
 		var game_state_system: GameStateSystem = _get_game_state_system()
 		if is_instance_valid(game_state_system):
-			var snapshot_set: bool = init_cmd.set_snapshot(
-				game_state_system.get_full_game_state(data.current_grid_size)
-			)
+			var snapshot_set: bool = init_cmd.set_snapshot(game_state_system.get_full_game_state())
 			if snapshot_set:
 				_command_history.record(init_cmd)
 			elif is_instance_valid(_log):

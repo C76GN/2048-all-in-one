@@ -46,7 +46,7 @@ func execute() -> Variant:
 		_log_error("GridModel 或 GameStateSystem 不可用。")
 		return null
 
-	if not set_snapshot(game_state_system.get_full_game_state(grid_model.grid_size)):
+	if not set_snapshot(game_state_system.get_full_game_state()):
 		_log_error("移动前状态不符合 GFUndoableCommand 快照契约。")
 		return null
 

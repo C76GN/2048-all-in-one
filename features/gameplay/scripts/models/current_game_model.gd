@@ -10,8 +10,8 @@ extends "res://addons/gf/kernel/base/gf_model.gd"
 ## 当前加载的游戏模式配置。
 var mode_config: GFBindableProperty = GFBindableProperty.new(null)
 
-## 当前棋盘的尺寸。
-var current_grid_size: GFBindableProperty = GFBindableProperty.new(4)
+## 当前棋盘的空间拓扑。
+var current_board_topology: GFBindableProperty = GFBindableProperty.new(null)
 
 ## 本次游戏会话的初始种子。
 var initial_seed: GFBindableProperty = GFBindableProperty.new(0)

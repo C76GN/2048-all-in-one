@@ -12,6 +12,7 @@
 [ext_resource type="Resource" uid="uid://c6s7jklm8wan2" path="res://features/gameplay/resources/rules/movement/classic_movement_rule.tres" id="6_s7tht"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/tiles/definitions/tile_definition.gd" id="7_tile_definition"]
 [ext_resource type="Resource" path="res://features/gameplay/resources/tiles/definitions/fibonacci_numeric_tile.tres" id="8_fibonacci_tile"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/boards/templates/scalable_square_board_template.tres" id="9_board_template"]
 
 [sub_resource type="Resource" id="Resource_4014i"]
 script = ExtResource("1_dtg25")
@@ -36,4 +37,5 @@ color_schemes = {
 1: ExtResource("3_56jyg")
 }
 board_theme = ExtResource("1_6vbk8")
+board_topology_template = ExtResource("9_board_template")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

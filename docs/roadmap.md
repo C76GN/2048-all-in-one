@@ -12,7 +12,7 @@
 - GF 包管理器：GF 8 使用 Godot 原生 CLI，入口为 `res://addons/gf/kernel/package/gf_package_cli.gd`。恢复包管理器安装流时，应重新生成 `.gf/packages.lock.json` 并再启用 installed 包数量强校验。
 - GF 下载缓存、运行日志、本地用户数据和导出产物已由 `.gitignore` 忽略，不应提交。
 - 当前文档：已有 `README.md`、`docs/ai_maintenance.md`、`docs/coding_style.md`、`docs/architecture.md`、`docs/validation.md` 和本文档。
-- 当前测试：`tests/gut/` 静态计数为 28 个 `test_*.gd` 文件，其中 24 个顶层测试脚本、4 个测试替身；共有 203 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
+- 当前测试：`tests/gut/` 静态计数为 31 个 `test_*.gd` 文件，其中 27 个顶层测试脚本、4 个测试替身；共有 219 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
 - 安全测试入口：`tools/run_gut_safe.ps1` 已提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；2026-07-17 已用当前 `godot` 命令在 GF 8.1.0 上完成完整隔离 GUT 验证，完整结果以 `docs/validation.md` 为准。
 - 当前项目脚本中有 46 处显式继承 `res://addons/gf/...`，这是为了规避升级后 Godot class cache 对 `GF...` 类名解析不稳定的风险。
 - 当前脚本已清理掉 `get_model/get_system/get_utility(...) as ...`、显式 class cast、隐式变量类型和缺失返回类型等高频旧写法；维护测试已禁止用 GUT `assert_eq` 对比空数组来判断问题列表，并约束业务脚本中的 `GFBindableProperty.get_value()`、`Dictionary.get()` 自定义对象结果、资源加载/复制结果、`StyleBoxFlat` 专属 API 调用、typed `@onready` / 运行时节点查找收窄、已知高风险返回值调用和项目协程调用。剩余稳定性重点转向更细的 `unsafe_method_access` / `unsafe_property_access`。
@@ -97,7 +97,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 1. 维护“安全运行 Godot/GUT”的本地脚本。
    - 问题：默认 Godot 用户目录曾生成巨大日志文件。
-   - 当前状态：`tools/run_gut_safe.ps1` 已提供临时 user data/log 路径、超时、日志大小上限和默认日志增长上限；Godot 4.7 stable 与 GF 8.1.0 下安全 GUT 已通过 24 个顶层测试脚本、203 个测试。
+   - 当前状态：`tools/run_gut_safe.ps1` 已提供临时 user data/log 路径、超时、日志大小上限和默认日志增长上限；Godot 4.7 stable 与 GF 8.1.0 下安全 GUT 已覆盖 27 个顶层测试脚本、219 个测试。
    - 结果目标：后续默认通过该脚本运行 GUT，且默认用户目录不产生大日志。
    - 验证：切换 Godot 可执行文件或升级版本后，用低上限参数重新运行烟雾测试。
 
@@ -156,20 +156,25 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 目标：从功能样例变成完整小游戏。
 
-1. 核心流程完整化。
+1. 自定义与超大棋盘基础。
+   - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；六个现有模式通过资源化矩形模板保持当前选择体验。
+   - 下一步：实现玩家棋盘编辑器，再把棋盘表现拆为可缩放/平移世界画布与独立 HUD；完成后进入手机手势与响应式布局。
+   - 契约：见 `features/gameplay/docs/board_topology.md`，不得重新引入 `grid_size` 作为逻辑唯一真源。
+
+2. 核心流程完整化。
    - 新游戏、继续、撤销、重做、胜利、失败、重开、返回主菜单。
    - 当前状态：撤销和重做已通过 `GFCommandHistoryUtility` 接入玩家输入、流程事件和不可用反馈；重做使用 redo 栈，不在项目层维护第二套历史。无效移动会给出短暂 HUD 提示但不污染命令历史。目标达成弹层会展示当前目标、分数、步数和最大方块，继续挑战不结束对局。
    - 加入更细的无法移动、胜利继续游玩等反馈。
 
-2. 多模式体验完整化。
+3. 多模式体验完整化。
    - 每个模式显示规则摘要、推荐棋盘大小、最佳成绩、最近成绩。
    - 模式配置校验错误需要面向维护者清晰输出。
 
-3. 统计和成就感。
+4. 统计和成就感。
    - 按模式记录最高分、最大方块、最佳步数、游戏次数。
    - GF `progress` SaveGraph section 保存单一 `stats` 真源并严格校验 schema；普通倍增类模式已定义 2048 目标，目标上下文已写入 `GameStatusModel`、完整状态快照和书签，首次达成目标时会给出 HUD 提示和非强制弹层，结算统计以“本局曾达成目标”为准，模式选择页和游戏结束菜单已展示游玩次数、最佳步数、最大方块、平均表现、目标达成情况和最近一局摘要。
 
-4. 设置体验。
+5. 设置体验。
    - 语言、音量、视觉主题、音效主题、动画强度、视觉效果强度、棋盘辅助显示。
    - 设置页应继续通过 GF 设置 Utility 与 UI 绑定，不直接散落到各菜单；OptionButton 条目写入应复用 `GFItemListBinder`，书签/回放列表刷新应复用 `GFRepeaterBinder`。
    - 当前已接入 `appearance/theme_id` 和 `audio/sound_theme_id`；`ProjectContentCatalogUtility` 统一构建 GF 内容目录，`GameThemeCatalogUtility` 从 manifest 生成轻量描述符，`GameThemeUtility` 按需加载并事务激活。视觉与音效主题是可自由组合的独立设置轴。
@@ -241,9 +246,9 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 优先级最高的下一步：
 
-1. 继续收敛 Godot 4.7 静态警告：优先处理更细的 `unsafe_method_access` / `unsafe_property_access` 和资源类型收窄。
-2. 按 `docs/visual_style.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
-3. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。
-4. 继续试听和打磨 `printworks` 音效主题的音色、响度、随机音高和混音，并在更多主题出现后拆出独立音效主题包。
-5. 以 `GameModeConfig.target_tile_value`、`GameStatusModel.target_reached` 和 `SaveSystem` 目标统计为基础，继续设计真正的胜利状态、胜利继续游玩和胜率。
-6. 用明确的 Godot `4.7` 可执行文件路径再跑一次 `tools/run_gut_safe.ps1`，确认和用户编辑器版本一致。
+1. 基于 `BoardTopology` 实现玩家棋盘编辑器与模板持久化，先完成画笔、橡皮、规范化和实时校验。
+2. 将棋盘表现拆为可缩放/平移世界画布与独立 HUD，并为超大棋盘增加可见区域裁剪。
+3. 接入手机手势与响应式布局，明确滑动方块、拖动画布和 UI 操作的 GF 输入上下文优先级。
+4. 按 `docs/visual_style.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
+5. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。
+6. 在稳定棋盘键和平台 Adapter 基础上推进图鉴、成就与排行榜。

@@ -11,8 +11,8 @@ extends "res://addons/gf/kernel/base/gf_model.gd"
 ## 存储当前已选择的游戏模式配置文件的资源路径。
 var selected_mode_config_path: GFBindableProperty = GFBindableProperty.new("")
 
-## 存储当前已选择的游戏棋盘尺寸。
-var selected_grid_size: GFBindableProperty = GFBindableProperty.new(4)
+## 存储即将启动的新局使用的完整棋盘拓扑。
+var selected_board_topology: GFBindableProperty = GFBindableProperty.new(null)
 
 ## 存储当前正在播放或准备播放的回放数据资源。
 var current_replay_data: GFBindableProperty = GFBindableProperty.new(null)

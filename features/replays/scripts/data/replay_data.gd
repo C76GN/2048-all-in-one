@@ -1,6 +1,6 @@
 ## ReplayData: 定义了单个游戏回放所需全部信息的自定义资源。
 ##
-## 该资源封装了复现一局游戏所需的一切：初始状态（种子、模式、尺寸）、
+## 该资源封装了复现一局游戏所需的一切：初始状态（种子、模式、拓扑）、
 ## 玩家的完整操作序列，以及用于导航的快照标记。
 class_name ReplayData
 extends Resource
@@ -20,8 +20,8 @@ extends Resource
 ## 游戏开始时的初始RNG种子。
 @export var initial_seed: int = 0
 
-## 棋盘尺寸。
-@export var grid_size: int = 4
+## 游戏开始时的严格 BoardTopology 快照。
+@export var initial_board_topology: Dictionary = {}
 
 ## 最终得分。
 @export var final_score: int = 0
@@ -42,11 +42,15 @@ func to_dict() -> Dictionary:
 		"timestamp": timestamp,
 		"mode_config_path": mode_config_path,
 		"initial_seed": initial_seed,
-		"grid_size": grid_size,
+		"initial_board_topology": initial_board_topology.duplicate(true),
 		"final_score": final_score,
 		"actions": actions.duplicate(),
 		"final_board_snapshot": final_board_snapshot.duplicate(true),
 	}
+
+
+func get_initial_topology() -> BoardTopology:
+	return BoardTopology.from_dict(initial_board_topology)
 
 
 ## 从当前严格 schema 构造回放；任何字段缺失、类型错误或 ID 非法时返回 null。
@@ -62,8 +66,12 @@ static func from_dict(data: Dictionary) -> ReplayData:
 	result.timestamp = GFVariantData.get_option_int(data, "timestamp")
 	result.mode_config_path = GFVariantData.get_option_string(data, "mode_config_path")
 	result.initial_seed = GFVariantData.get_option_int(data, "initial_seed")
-	result.grid_size = GFVariantData.get_option_int(data, "grid_size")
-	if result.grid_size <= 0:
+	result.initial_board_topology = GFVariantData.get_option_dictionary(
+		data,
+		"initial_board_topology"
+	).duplicate(true)
+	var initial_topology: BoardTopology = BoardTopology.from_dict(result.initial_board_topology)
+	if initial_topology == null:
 		return null
 	result.final_score = GFVariantData.get_option_int(data, "final_score")
 	for action_value: Variant in GFVariantData.get_option_array(data, "actions"):
@@ -72,6 +80,13 @@ static func from_dict(data: Dictionary) -> ReplayData:
 		var action: Vector2i = action_value
 		result.actions.append(action)
 	result.final_board_snapshot = GFVariantData.get_option_dictionary(data, "final_board_snapshot").duplicate(true)
+	if not GridModel.is_snapshot_envelope_valid(result.final_board_snapshot):
+		return null
+	var final_topology: BoardTopology = BoardTopology.from_dict(
+		GFVariantData.get_option_dictionary(result.final_board_snapshot, &"topology")
+	)
+	if final_topology == null or final_topology.get_stable_key() != initial_topology.get_stable_key():
+		return null
 	return result
 
 
@@ -85,7 +100,7 @@ static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, "timestamp") is int
 		and GFVariantData.get_option_value(data, "mode_config_path") is String
 		and GFVariantData.get_option_value(data, "initial_seed") is int
-		and GFVariantData.get_option_value(data, "grid_size") is int
+		and GFVariantData.get_option_value(data, "initial_board_topology") is Dictionary
 		and GFVariantData.get_option_value(data, "final_score") is int
 		and GFVariantData.get_option_value(data, "actions") is Array
 		and GFVariantData.get_option_value(data, "final_board_snapshot") is Dictionary

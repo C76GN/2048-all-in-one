@@ -33,38 +33,21 @@ func execute(context: RuleContext) -> bool:
 		return false
 
 	var direction: Vector2i = context.move_data.direction
-	var moved_lines: Array[int] = context.move_data.moved_lines
+	var moved_lanes: Array = context.move_data.moved_lanes
 
-	if direction == Vector2i.ZERO or moved_lines.is_empty():
+	if direction == Vector2i.ZERO or moved_lanes.is_empty():
 		return false
 
 	var valid_spawn_points: Array[Vector2i] = []
-	var grid_size: int = context.grid_model.grid_size
-
-	match direction:
-		Vector2i.UP:
-			var target_y: int = grid_size - 1
-			for x: int in moved_lines:
-				if context.grid_model.grid[x][target_y] == null:
-					valid_spawn_points.append(Vector2i(x, target_y))
-
-		Vector2i.DOWN:
-			var target_y: int = 0
-			for x: int in moved_lines:
-				if context.grid_model.grid[x][target_y] == null:
-					valid_spawn_points.append(Vector2i(x, target_y))
-
-		Vector2i.LEFT:
-			var target_x: int = grid_size - 1
-			for y: int in moved_lines:
-				if context.grid_model.grid[target_x][y] == null:
-					valid_spawn_points.append(Vector2i(target_x, y))
-
-		Vector2i.RIGHT:
-			var target_x: int = 0
-			for y: int in moved_lines:
-				if context.grid_model.grid[target_x][y] == null:
-					valid_spawn_points.append(Vector2i(target_x, y))
+	for lane_value: Variant in moved_lanes:
+		if not lane_value is Array:
+			continue
+		var lane: Array = lane_value
+		if lane.is_empty() or not lane.back() is Vector2i:
+			continue
+		var trailing_cell: Vector2i = lane.back()
+		if context.grid_model.get_tile(trailing_cell) == null:
+			valid_spawn_points.append(trailing_cell)
 
 	if not valid_spawn_points.is_empty():
 		var random_stream: GFDeterministicRandom = context.get_random_stream("opposite_edge_spawn_rule")

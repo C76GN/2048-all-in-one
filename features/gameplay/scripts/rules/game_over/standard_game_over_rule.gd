@@ -18,20 +18,20 @@ func is_game_over(grid_model: GridModel, interaction_rule: InteractionRule) -> b
 	if not grid_model.get_empty_cells().is_empty():
 		return false
 
-	for x: int in range(grid_model.grid_size):
-		for y: int in range(grid_model.grid_size):
-			var current_tile: TileState = grid_model.grid[x][y]
-			if current_tile == null:
+	if not is_instance_valid(grid_model.topology):
+		return true
+
+	for cell: Vector2i in grid_model.topology.get_active_cells():
+		var current_tile: TileState = grid_model.get_tile(cell)
+		if current_tile == null:
+			continue
+
+		for direction: Vector2i in [Vector2i.RIGHT, Vector2i.DOWN]:
+			var neighbor_cell: Vector2i = cell + direction
+			if not grid_model.is_active_cell(neighbor_cell):
 				continue
-
-			if x + 1 < grid_model.grid_size:
-				var right_tile: TileState = grid_model.grid[x + 1][y]
-				if interaction_rule.can_interact(current_tile, right_tile):
-					return false
-
-			if y + 1 < grid_model.grid_size:
-				var down_tile: TileState = grid_model.grid[x][y + 1]
-				if interaction_rule.can_interact(current_tile, down_tile):
-					return false
+			var neighbor_tile: TileState = grid_model.get_tile(neighbor_cell)
+			if neighbor_tile != null and interaction_rule.can_interact(current_tile, neighbor_tile):
+				return false
 
 	return true

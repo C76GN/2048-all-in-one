@@ -99,6 +99,8 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	result.extra_stats = GFVariantData.get_option_dictionary(data, "extra_stats").duplicate(true)
 	result.rng_full_state = GFVariantData.get_option_dictionary(data, "rng_full_state").duplicate(true)
 	result.board_snapshot = GFVariantData.get_option_dictionary(data, "board_snapshot").duplicate(true)
+	if not GridModel.is_snapshot_envelope_valid(result.board_snapshot):
+		return null
 	result.rules_states = GFVariantData.get_option_array(data, "rules_states").duplicate(true)
 	result.game_state_history = GFVariantData.get_option_dictionary(data, "game_state_history").duplicate(true)
 	return result

@@ -2,6 +2,12 @@
 extends GutTest
 
 
+# --- 常量 ---
+
+const _BOARD_KEY: String = "board.rectangle.4x4@test"
+const _BOARD_SIZE: Vector2i = Vector2i(4, 4)
+
+
 # --- 测试用例 ---
 
 func test_profile_graph_has_three_feature_sections() -> void:
@@ -31,7 +37,7 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	var replay_system: ReplaySystem = _get_replay_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
 
-	var stats_error: Error = save_system.record_game_result("classic", 4, 2048, 32, 2048, 500, 2048, true)
+	var stats_error: Error = save_system.record_game_result("classic", _BOARD_KEY, 2048, 32, 2048, 500, 2048, true)
 	var bookmark: BookmarkData = _make_bookmark(600, 512)
 	var replay: ReplayData = _make_replay(700, 2048)
 	var bookmark_error: Error = bookmark_system.save_bookmark(bookmark)
@@ -57,7 +63,7 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 		reloaded_graph.is_profile_loaded(),
 		"重载事务应成功：%s" % _describe_load_failure(reloaded_graph)
 	)
-	assert_true(reloaded_save_system.get_high_score("classic", 4) == 2048, "重载后应保留统计。")
+	assert_true(reloaded_save_system.get_high_score("classic", _BOARD_KEY) == 2048, "重载后应保留统计。")
 	var bookmarks: Array[BookmarkData] = reloaded_bookmarks.load_bookmarks()
 	var replays: Array[ReplayData] = reloaded_replays.load_replays()
 	assert_true(bookmarks.size() == 1, "重载后应保留书签目录。")
@@ -85,7 +91,7 @@ func test_late_section_failure_rolls_back_earlier_sections() -> void:
 	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
 
-	var score_error: Error = save_system.set_high_score("classic", 4, 128)
+	var score_error: Error = save_system.set_high_score("classic", _BOARD_KEY, 128)
 	var bookmark_error: Error = bookmark_system.save_bookmark(_make_bookmark(800, 64))
 	assert_true(score_error == OK, "回滚测试前统计应保存成功。")
 	assert_true(bookmark_error == OK, "回滚测试前书签应保存成功。")
@@ -97,7 +103,7 @@ func test_late_section_failure_rolls_back_earlier_sections() -> void:
 		"data": {
 			"stats": {
 				"classic": {
-					"4x4": {
+					_BOARD_KEY: {
 						"best_score": 4096,
 					},
 				},
@@ -123,7 +129,7 @@ func test_late_section_failure_rolls_back_earlier_sections() -> void:
 
 	var load_error: Error = save_graph.load_profile()
 	assert_true(load_error == ERR_INVALID_DATA, "后期 section 业务校验失败时整张图加载应失败。")
-	assert_true(save_system.get_high_score("classic", 4) == 128, "progress 的先行应用必须回滚。")
+	assert_true(save_system.get_high_score("classic", _BOARD_KEY) == 128, "progress 的先行应用必须回滚。")
 	assert_true(bookmark_system.load_bookmarks().size() == 1, "bookmarks 的先行应用必须回滚。")
 	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(save_graph.get_debug_snapshot(), "last_load")
 	assert_false(GFVariantData.get_option_bool(load_snapshot, "ok"), "诊断应记录失败事务。")
@@ -146,7 +152,7 @@ func test_profile_schema_mismatch_is_rejected_without_fallback() -> void:
 	var reloaded: Dictionary = await _create_persistence_architecture(save_dir_name, true)
 	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
 	assert_false(reloaded_graph.is_profile_loaded(), "不匹配 schema 不应进入运行时模型。")
-	assert_true(_get_save_system(reloaded).get_high_score("classic", 4) == 0, "不得保留旧 schema 双读回退。")
+	assert_true(_get_save_system(reloaded).get_high_score("classic", _BOARD_KEY) == 0, "不得保留旧 schema 双读回退。")
 	assert_true(_get_bookmark_system(reloaded).load_bookmarks().is_empty(), "拒绝载荷时书签默认值应保持为空。")
 
 	_dispose_setup(reloaded)
@@ -195,20 +201,33 @@ func test_bookmark_schema_preserves_historical_target_achievement() -> void:
 		assert_true(restored.target_reached, "显式目标达成状态必须原样恢复。")
 
 
+func test_replay_schema_rejects_final_snapshot_with_different_topology() -> void:
+	var replay: ReplayData = _make_replay(903, 2048)
+	replay.replay_id = GFUuid.generate_v7(903000)
+	replay.final_board_snapshot = _make_empty_board_snapshot(
+		BoardTopology.create_rectangle(Vector2i(3, 3))
+	)
+
+	assert_true(
+		ReplayData.from_dict(replay.to_dict()) == null,
+		"方向操作序列无法表达拓扑变化，回放最终快照必须保持初始拓扑。"
+	)
+
+
 func test_save_dependency_failure_rolls_back_replaced_section() -> void:
 	var setup: Dictionary = await _create_persistence_architecture("", true)
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var save_system: SaveSystem = _get_save_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
-	var initial_error: Error = save_system.set_high_score("classic", 4, 128)
+	var initial_error: Error = save_system.set_high_score("classic", _BOARD_KEY, 128)
 	assert_true(initial_error == OK, "故障注入前的统计应保存成功。")
 
 	var cleanup_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
 	assert_true(cleanup_error == OK, "故障注入前应清理测试玩家数据文件。")
 	architecture.unregister_utility(GFStorageUtility)
-	var failed_error: Error = save_system.set_high_score("classic", 4, 4096)
+	var failed_error: Error = save_system.set_high_score("classic", _BOARD_KEY, 4096)
 	assert_true(failed_error == ERR_UNCONFIGURED, "SaveGraph 缺少存储依赖时应返回明确错误。")
-	assert_true(save_system.get_high_score("classic", 4) == 128, "写入失败必须恢复 progress section 内存快照。")
+	assert_true(save_system.get_high_score("classic", _BOARD_KEY) == 128, "写入失败必须恢复 progress section 内存快照。")
 
 	_dispose_setup(setup, false)
 
@@ -284,17 +303,31 @@ func _make_bookmark(timestamp: int, score: int) -> BookmarkData:
 	bookmark.timestamp = timestamp
 	bookmark.mode_config_path = "res://features/gameplay/resources/modes/classic_mode_config.tres"
 	bookmark.score = score
+	bookmark.board_snapshot = _make_empty_board_snapshot()
 	return bookmark
 
 
 func _make_replay(timestamp: int, final_score: int) -> ReplayData:
 	var replay: ReplayData = ReplayData.new()
+	var topology: BoardTopology = BoardTopology.create_rectangle(_BOARD_SIZE)
 	replay.timestamp = timestamp
 	replay.mode_config_path = "res://features/gameplay/resources/modes/classic_mode_config.tres"
-	replay.grid_size = 4
+	replay.initial_board_topology = topology.to_dict()
 	replay.final_score = final_score
 	replay.actions = [Vector2i.RIGHT]
+	replay.final_board_snapshot = _make_empty_board_snapshot(topology)
 	return replay
+
+
+func _make_empty_board_snapshot(topology: BoardTopology = null) -> Dictionary:
+	var resolved_topology: BoardTopology = topology
+	if resolved_topology == null:
+		resolved_topology = BoardTopology.create_rectangle(_BOARD_SIZE)
+	return {
+		&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
+		&"topology": resolved_topology.to_dict(),
+		&"tiles": [],
+	}
 
 
 func _get_section_source(payload: Dictionary, section_id: StringName) -> Dictionary:

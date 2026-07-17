@@ -125,11 +125,11 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 - Godot：`4.7.1.stable.official.a13da4feb`。
 - GF Framework：官方稳定 tag `8.1.0`，commit `aa8db79810368c469755dd24435ca24afde71330`。
-- GUT：212 个测试全部通过。
-- 当前完整套件：`tests/gut/` 下 26 个顶层测试脚本、212 个 `test_` 用例。
+- GUT：219 个测试全部通过。
+- 当前完整套件：`tests/gut/` 下 27 个顶层测试脚本、219 个 `test_` 用例。
 - Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。运行时系统时间与随机源受路径扫描门禁约束，场景耗时复用 `GFOperationDiagnosticsUtility` 的操作起始 tick。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 267`、`Resources = 118`、RID 类型数 `= 3`。本次新增平台边界使项目运行时 `class_name` 从 128 增至 133；同一 Godot 4.7.1 下的 detached clean-HEAD 对照仍为 203/203、`ObjectDB = 263`、`Resources = 116`，且 RID 上限均未增长。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 279`、`Resources = 128`、RID 类型数 `= 3`。稀疏棋盘基础新增两个项目运行时 `class_name`，类数量从 133 增至 135；同一代码下按原目录扫描、临时排除新拓扑测试的 212 项对照为 `ObjectDB = 277`、`Resources = 128`，完整 219 项为 `279/128`，RID 上限仍为 TextureStorage 8、ShapedText 2、Font 3。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
@@ -150,7 +150,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-18。结果：扫描 166 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+最近一次 LSP 诊断时间：2026-07-18。结果：扫描 169 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 ## Web / 微信小游戏准备预检
 

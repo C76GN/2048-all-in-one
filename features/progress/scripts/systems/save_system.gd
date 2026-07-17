@@ -55,57 +55,54 @@ func dispose() -> void:
 
 # --- 公共方法 ---
 
-## 根据模式ID和棋盘大小，获取最高分。
+## 根据模式 ID 和稳定棋盘拓扑键获取最高分。
 ## @param mode_id: 模式资源文件名派生出的模式标识。
-## @param grid_size: 棋盘边长。
-func get_high_score(mode_id: String, grid_size: int) -> int:
-	if mode_id.is_empty() or grid_size <= 0:
+## @param board_key: BoardTopology.get_stable_key() 的结果。
+func get_high_score(mode_id: String, board_key: String) -> int:
+	if mode_id.is_empty() or board_key.is_empty():
 		return 0
 
 	var save_data: Dictionary = _get_save_data()
-	var grid_size_str: String = _get_grid_size_key(grid_size)
-	var stats_entry: Dictionary = _get_stats_entry(save_data, mode_id, grid_size_str)
+	var stats_entry: Dictionary = _get_stats_entry(save_data, mode_id, board_key)
 	return maxi(GFVariantData.get_option_int(stats_entry, _STAT_BEST_SCORE, 0), 0)
 
 
-## 获取某个模式和棋盘大小的轻量统计。
+## 获取某个模式和棋盘拓扑的轻量统计。
 ## @param mode_id: 模式资源文件名派生出的模式标识。
-## @param grid_size: 棋盘边长。
-func get_game_stats(mode_id: String, grid_size: int) -> Dictionary:
-	if mode_id.is_empty() or grid_size <= 0:
+## @param board_key: BoardTopology.get_stable_key() 的结果。
+func get_game_stats(mode_id: String, board_key: String) -> Dictionary:
+	if mode_id.is_empty() or board_key.is_empty():
 		return _make_default_stats()
 
 	var save_data: Dictionary = _get_save_data()
-	var grid_size_str: String = _get_grid_size_key(grid_size)
-	return _normalize_stats_entry(_get_stats_entry(save_data, mode_id, grid_size_str))
+	return _normalize_stats_entry(_get_stats_entry(save_data, mode_id, board_key))
 
 
-## 设置或更新一个模式在特定棋盘大小下的最高分。
+## 设置或更新一个模式在特定棋盘拓扑下的最高分。
 ## @param mode_id: 模式资源文件名派生出的模式标识。
-## @param grid_size: 棋盘边长。
+## @param board_key: BoardTopology.get_stable_key() 的结果。
 ## @param score: 本次尝试写入的分数。
-func set_high_score(mode_id: String, grid_size: int, score: int) -> Error:
-	if mode_id.is_empty() or grid_size <= 0:
+func set_high_score(mode_id: String, board_key: String, score: int) -> Error:
+	if mode_id.is_empty() or board_key.is_empty():
 		return ERR_INVALID_PARAMETER
 
 	var save_data: Dictionary = _get_save_data()
-	var grid_size_str: String = _get_grid_size_key(grid_size)
-	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(save_data, mode_id, grid_size_str))
+	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(save_data, mode_id, board_key))
 	var normalized_score: int = maxi(score, 0)
 	if normalized_score <= GFVariantData.get_option_int(entry, _STAT_BEST_SCORE, 0):
 		return OK
 
 	entry[_STAT_BEST_SCORE] = normalized_score
-	_set_stats_entry(save_data, mode_id, grid_size_str, entry)
+	_set_stats_entry(save_data, mode_id, board_key, entry)
 	var save_error: Error = _save_game_data(save_data)
 	if save_error == OK and is_instance_valid(_log):
-		_log.info(_LOG_TAG, "新纪录: mode=%s, grid=%s, score=%d" % [mode_id, grid_size_str, normalized_score])
+		_log.info(_LOG_TAG, "新纪录: mode=%s, board=%s, score=%d" % [mode_id, board_key, normalized_score])
 	return save_error
 
 
 ## 记录一局完整游戏结果，并维护最高分、最佳步数、最大方块、平均表现和最近一局摘要。
 ## @param mode_id: 模式资源文件名派生出的模式标识。
-## @param grid_size: 棋盘边长。
+## @param board_key: BoardTopology.get_stable_key() 的结果。
 ## @param score: 本局最终分数。
 ## @param steps: 本局有效移动步数。
 ## @param max_tile: 本局达到的最大方块值。
@@ -114,7 +111,7 @@ func set_high_score(mode_id: String, grid_size: int, score: int) -> Error:
 ## @param target_reached: 本局是否达成目标。
 func record_game_result(
 	mode_id: String,
-	grid_size: int,
+	board_key: String,
 	score: int,
 	steps: int,
 	max_tile: int,
@@ -122,17 +119,16 @@ func record_game_result(
 	target_value: int = 0,
 	target_reached: bool = false
 ) -> Error:
-	if mode_id.is_empty() or grid_size <= 0:
+	if mode_id.is_empty() or board_key.is_empty():
 		return ERR_INVALID_PARAMETER
 
 	var save_data: Dictionary = _get_save_data()
-	var grid_size_str: String = _get_grid_size_key(grid_size)
 	var normalized_score: int = max(score, 0)
 	var normalized_steps: int = max(steps, 0)
 	var normalized_max_tile: int = max(max_tile, 0)
 	var normalized_target_value: int = max(target_value, 0)
 	var resolved_played_at: int = played_at if played_at > 0 else _get_unix_timestamp()
-	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(save_data, mode_id, grid_size_str))
+	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(save_data, mode_id, board_key))
 
 	var previous_plays: int = GFVariantData.get_option_int(entry, _STAT_PLAYS, 0)
 	entry[_STAT_PLAYS] = previous_plays + 1
@@ -164,7 +160,7 @@ func record_game_result(
 	_update_average_stats(entry)
 	_update_target_stats(entry)
 
-	_set_stats_entry(save_data, mode_id, grid_size_str, entry)
+	_set_stats_entry(save_data, mode_id, board_key, entry)
 	return _save_game_data(save_data)
 
 
@@ -215,10 +211,10 @@ func _get_mode_stats(stats: Dictionary, mode_id: String) -> Dictionary:
 	return {}
 
 
-func _get_stats_entry(save_data: Dictionary, mode_id: String, grid_size_str: String) -> Dictionary:
+func _get_stats_entry(save_data: Dictionary, mode_id: String, board_key: String) -> Dictionary:
 	var stats: Dictionary = _get_stats(save_data)
 	var mode_stats: Dictionary = _get_mode_stats(stats, mode_id)
-	var entry_value: Variant = mode_stats.get(grid_size_str, {})
+	var entry_value: Variant = mode_stats.get(board_key, {})
 	if entry_value is Dictionary:
 		var entry: Dictionary = entry_value
 		return entry
@@ -229,12 +225,12 @@ func _get_stats_entry(save_data: Dictionary, mode_id: String, grid_size_str: Str
 func _set_stats_entry(
 	save_data: Dictionary,
 	mode_id: String,
-	grid_size_str: String,
+	board_key: String,
 	entry: Dictionary
 ) -> void:
 	var stats: Dictionary = _get_stats(save_data)
 	var mode_stats: Dictionary = _get_mode_stats(stats, mode_id)
-	mode_stats[grid_size_str] = entry
+	mode_stats[board_key] = entry
 	stats[mode_id] = mode_stats
 
 
@@ -324,10 +320,6 @@ static func _rounded_average(total_value: int, sample_count: int) -> int:
 		return 0
 	var normalized_total: int = maxi(total_value, 0)
 	return roundi(float(normalized_total) / float(sample_count))
-
-
-func _get_grid_size_key(grid_size: int) -> String:
-	return "%dx%d" % [grid_size, grid_size]
 
 
 func _get_log_utility() -> GFLogUtility:

@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://features/gameplay/scripts/tiles/definitions/tile_definition.gd" id="10_tile_definition"]
 [ext_resource type="Resource" path="res://features/gameplay/resources/tiles/definitions/ratio_base_tile.tres" id="11_ratio_base"]
 [ext_resource type="Resource" path="res://features/gameplay/resources/tiles/definitions/ratio_factor_tile.tres" id="12_ratio_factor"]
+[ext_resource type="Resource" path="res://features/gameplay/resources/boards/templates/scalable_square_board_template.tres" id="13_board_template"]
 
 [sub_resource type="Resource" id="Resource_8rw1r"]
 script = ExtResource("3_2ldk4")
@@ -38,4 +39,5 @@ color_schemes = {
 1: ExtResource("3_06hy0")
 }
 board_theme = ExtResource("1_ex1hm")
+board_topology_template = ExtResource("13_board_template")
 metadata/_custom_type_script = "uid://cmxpkj6kgwm5k"

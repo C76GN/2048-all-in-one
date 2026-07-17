@@ -91,10 +91,11 @@ func _refresh_summary() -> void:
 	var highest_tile: int = GFVariantData.to_int(status_model.highest_tile.get_value(), 0)
 	var high_score: int = GFVariantData.to_int(status_model.high_score.get_value(), score)
 	var initial_high_score: int = _get_initial_high_score(current_game_model)
-	var grid_size: int = _get_current_grid_size(current_game_model)
+	var topology: BoardTopology = _get_current_topology(current_game_model)
+	var board_size: Vector2i = topology.get_bounds_size() if topology != null else Vector2i(4, 4)
 	var mode_config: GameModeConfig = _get_current_mode_config(current_game_model)
 	var mode_name: String = _get_mode_name(mode_config)
-	var stats: Dictionary = _get_current_stats(mode_config, grid_size)
+	var stats: Dictionary = _get_current_stats(mode_config, topology)
 	var plays: int = GFVariantData.to_int(stats.get("plays", 0), 0)
 	var best_steps: int = GFVariantData.to_int(stats.get("best_steps", 0), 0)
 	var average_score: int = GFVariantData.to_int(stats.get("average_score", 0), 0)
@@ -115,8 +116,8 @@ func _refresh_summary() -> void:
 			_SUMMARY_FORMAT_WITH_TARGET_FALLBACK,
 			[
 				mode_name,
-				grid_size,
-				grid_size,
+				board_size.x,
+				board_size.y,
 				score,
 				move_count,
 				highest_tile,
@@ -138,8 +139,8 @@ func _refresh_summary() -> void:
 		_SUMMARY_FORMAT_FALLBACK,
 		[
 			mode_name,
-			grid_size,
-			grid_size,
+			board_size.x,
+			board_size.y,
 			score,
 			move_count,
 			highest_tile,
@@ -201,10 +202,14 @@ func _play_new_record_celebration_once() -> void:
 		var _played: bool = celebration_vfx.play_new_record_celebration()
 
 
-func _get_current_grid_size(current_game_model: CurrentGameModel) -> int:
+func _get_current_topology(current_game_model: CurrentGameModel) -> BoardTopology:
 	if not is_instance_valid(current_game_model):
-		return 4
-	return GFVariantData.to_int(current_game_model.current_grid_size.get_value(), 4)
+		return null
+	var topology_value: Variant = current_game_model.current_board_topology.get_value()
+	if topology_value is BoardTopology:
+		var topology: BoardTopology = topology_value
+		return topology
+	return null
 
 
 func _get_initial_high_score(current_game_model: CurrentGameModel) -> int:
@@ -230,14 +235,16 @@ func _get_mode_name(mode_config: GameModeConfig) -> String:
 	return tr(mode_config.mode_name)
 
 
-func _get_current_stats(mode_config: GameModeConfig, grid_size: int) -> Dictionary:
+func _get_current_stats(mode_config: GameModeConfig, topology: BoardTopology) -> Dictionary:
 	if not is_instance_valid(mode_config):
+		return {}
+	if not is_instance_valid(topology):
 		return {}
 	var save_system: SaveSystem = _get_save_system()
 	if not is_instance_valid(save_system):
 		return {}
 	var mode_id: String = mode_config.resource_path.get_file().get_basename()
-	return save_system.get_game_stats(mode_id, grid_size)
+	return save_system.get_game_stats(mode_id, topology.get_stable_key())
 
 
 func _format_optional_stat(value: int) -> String:

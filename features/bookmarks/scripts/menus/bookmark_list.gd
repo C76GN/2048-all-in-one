@@ -72,10 +72,10 @@ func _update_preview(data: Resource) -> void:
 		return
 
 	var datetime: String = _format_datetime(bookmark.timestamp)
-	var grid_size: int = GFVariantData.to_int(
-		bookmark.board_snapshot.get(&"grid_size", bookmark.board_snapshot.get("grid_size", 0)),
-		0
+	var topology: BoardTopology = BoardTopology.from_dict(
+		GFVariantData.get_option_dictionary(bookmark.board_snapshot, &"topology")
 	)
+	var board_label: String = topology.get_size_label() if topology != null else tr("UI_NONE")
 
 	var details: String = ""
 	details += "[b]%s[/b] %s\n" % [tr("LABEL_MODE"), tr(mode_config.mode_name)]
@@ -83,7 +83,7 @@ func _update_preview(data: Resource) -> void:
 	details += "[b]%s[/b] %d\n" % [tr("LABEL_SCORE"), bookmark.score]
 	details += "[b]%s[/b] %d\n" % [tr("LABEL_MOVES"), bookmark.move_count]
 	details += "[b]%s[/b] %d\n" % [tr("LABEL_RATIO_RESOLUTIONS"), bookmark.ratio_resolutions]
-	details += "[b]%s[/b] %dx%d\n" % [tr("LABEL_BOARD"), grid_size, grid_size]
+	details += "[b]%s[/b] %s\n" % [tr("LABEL_BOARD"), board_label]
 	details += "[b]%s[/b] %d" % [tr("LABEL_SEED"), bookmark.initial_seed]
 
 	detail_info_label.text = details
@@ -138,7 +138,7 @@ func _on_primary_action_triggered(data: Resource) -> void:
 		app_config.current_replay_data.set_value(null)
 		app_config.selected_bookmark_data.set_value(bookmark)
 		app_config.selected_mode_config_path.set_value("")
-		app_config.selected_grid_size.set_value(0)
+		app_config.selected_board_topology.set_value(null)
 
 	var router: SceneRouterSystem = _get_scene_router_system()
 	if is_instance_valid(router):

@@ -323,7 +323,15 @@ func test_board_preview_uses_current_theme_for_preview_styles() -> void:
 	context.add_child(preview)
 	await get_tree().process_frame
 
-	preview.show_snapshot({"grid_size": 4, "tiles": []}, mode_config)
+	var preview_topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(4, 4))
+	preview.show_snapshot(
+		{
+			&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
+			&"topology": preview_topology.to_dict(),
+			&"tiles": [],
+		},
+		mode_config
+	)
 
 	var panel_value: Node = preview.get_node_or_null("BackgroundPanel")
 	assert_true(panel_value is Panel, "预览应创建可检查的背景面板。")

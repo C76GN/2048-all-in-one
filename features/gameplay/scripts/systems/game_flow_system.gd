@@ -26,7 +26,7 @@ var _is_game_state_tainted: bool = false
 var _mode_config: GameModeConfig
 var _mode_config_path: String = ""
 var _target_reached_notified: bool = false
-var _current_grid_size: int = 4
+var _current_board_topology: BoardTopology = null
 var _initial_seed_of_session: int = 0
 var _last_saved_bookmark_state: Dictionary = {}
 var _player_actions: Array[Vector2i] = []
@@ -116,7 +116,7 @@ func dispose() -> void:
 	_target_reached_notified = false
 	_is_replay_mode = false
 	_is_game_state_tainted = false
-	_current_grid_size = 4
+	_current_board_topology = null
 	_initial_seed_of_session = 0
 
 
@@ -223,16 +223,22 @@ func restart_game() -> void:
 	if not mode_config_value is GameModeConfig:
 		return
 	var mode_config: GameModeConfig = mode_config_value
-	var grid_size: int = GFVariantData.to_int(current_game_model.current_grid_size.get_value(), 4)
+	var topology_value: Variant = current_game_model.current_board_topology.get_value()
+	if not topology_value is BoardTopology:
+		return
+	var board_topology: BoardTopology = topology_value
 	var initial_seed: int = GFVariantData.to_int(current_game_model.initial_seed.get_value(), 0)
 	var log_utility: GFLogUtility = _get_log_utility()
 	if is_instance_valid(log_utility):
-		log_utility.debug(_LOG_TAG, "重新开始本局: initial_seed=%d, grid_size=%d" % [initial_seed, grid_size])
+		log_utility.debug(
+			_LOG_TAG,
+			"重新开始本局: initial_seed=%d, board=%s" % [initial_seed, board_topology.get_stable_key()]
+		)
 
 	var app_config: AppConfigModel = _get_app_config_model()
 	if is_instance_valid(app_config):
 		app_config.selected_mode_config_path.set_value(mode_config.resource_path)
-		app_config.selected_grid_size.set_value(grid_size)
+		app_config.selected_board_topology.set_value(board_topology.duplicate(true))
 		app_config.selected_seed.set_value(initial_seed)
 		if is_instance_valid(log_utility):
 			log_utility.debug(_LOG_TAG, "已写回 AppConfigModel.selected_seed=%d" % initial_seed)
@@ -437,8 +443,10 @@ func _handle_game_over() -> void:
 	replay_data.timestamp = _get_unix_timestamp()
 	replay_data.mode_config_path = _mode_config_path
 	replay_data.initial_seed = _initial_seed_of_session
-	var current_grid_size: int = _get_current_grid_size()
-	replay_data.grid_size = current_grid_size
+	var current_topology: BoardTopology = _get_current_topology()
+	if current_topology == null:
+		return
+	replay_data.initial_board_topology = current_topology.to_dict()
 
 	replay_data.actions = _player_actions.duplicate()
 	replay_data.final_board_snapshot = _grid_model.get_snapshot()
@@ -459,7 +467,7 @@ func _on_game_ready(data: GameReadyData) -> void:
 		_mode_config_path = data.mode_config.resource_path
 	else:
 		_mode_config = null
-	_current_grid_size = data.current_grid_size
+	_current_board_topology = _duplicate_topology(data.board_topology)
 	_initial_seed_of_session = data.initial_seed
 	_player_actions.clear()
 	_last_saved_bookmark_state = {}
@@ -474,23 +482,31 @@ func _on_game_ready(data: GameReadyData) -> void:
 		_rebuild_player_actions_from_history()
 
 
-func _get_current_grid_size() -> int:
-	if is_instance_valid(_grid_model) and _grid_model.grid_size > 0:
-		return _grid_model.grid_size
+func _get_current_topology() -> BoardTopology:
+	if is_instance_valid(_grid_model) and is_instance_valid(_grid_model.topology):
+		return _grid_model.topology
+	return _current_board_topology
 
-	var current_game_model: CurrentGameModel = _get_current_game_model()
-	if is_instance_valid(current_game_model):
-		var grid_size: int = GFVariantData.to_int(current_game_model.current_grid_size.get_value(), 4)
-		if grid_size > 0:
-			return grid_size
 
-	return _current_grid_size
+func _get_current_board_key() -> String:
+	var topology: BoardTopology = _get_current_topology()
+	return topology.get_stable_key() if is_instance_valid(topology) else ""
+
+
+static func _duplicate_topology(source: BoardTopology) -> BoardTopology:
+	if not is_instance_valid(source):
+		return null
+	var duplicated: Resource = source.duplicate(true)
+	if duplicated is BoardTopology:
+		var topology: BoardTopology = duplicated
+		return topology
+	return null
 
 
 func _get_full_game_state() -> Dictionary:
 	var game_state_system: GameStateSystem = _get_game_state_system()
 	if is_instance_valid(game_state_system):
-		return game_state_system.get_full_game_state(_get_current_grid_size())
+		return game_state_system.get_full_game_state()
 	return {}
 
 
@@ -515,9 +531,8 @@ func _persist_current_high_score() -> void:
 		return
 
 	var mode_id: String = _mode_config_path.get_file().get_basename()
-	var current_grid_size: int = _get_current_grid_size()
 	var best_score: int = GFVariantData.to_int(_game_status_model.high_score.get_value(), 0)
-	var save_error: Error = save_system.set_high_score(mode_id, current_grid_size, best_score)
+	var save_error: Error = save_system.set_high_score(mode_id, _get_current_board_key(), best_score)
 	_log_persistence_error("save high score", save_error)
 
 
@@ -533,7 +548,6 @@ func _persist_current_game_result() -> void:
 
 	sync_highest_tile_from_grid()
 	var mode_id: String = _mode_config_path.get_file().get_basename()
-	var current_grid_size: int = _get_current_grid_size()
 	var final_score: int = GFVariantData.to_int(_game_status_model.score.get_value(), 0)
 	var move_count: int = GFVariantData.to_int(_game_status_model.move_count.get_value(), 0)
 	var highest_tile: int = GFVariantData.to_int(_game_status_model.highest_tile.get_value(), 0)
@@ -541,7 +555,7 @@ func _persist_current_game_result() -> void:
 	var target_reached: bool = _has_reached_target_in_session(highest_tile)
 	var save_error: Error = save_system.record_game_result(
 		mode_id,
-		current_grid_size,
+		_get_current_board_key(),
 		final_score,
 		move_count,
 		highest_tile,
@@ -661,15 +675,15 @@ func _on_game_state_tainted(_payload: Variant = null) -> void:
 	_is_game_state_tainted = true
 
 
-func _on_board_resized(new_size: int) -> void:
-	if new_size <= 0:
+func _on_board_resized(_new_size: int) -> void:
+	if not is_instance_valid(_grid_model) or not is_instance_valid(_grid_model.topology):
 		return
 
-	_current_grid_size = new_size
+	_current_board_topology = _duplicate_topology(_grid_model.topology)
 
 	var current_game_model: CurrentGameModel = _get_current_game_model()
 	if is_instance_valid(current_game_model):
-		current_game_model.current_grid_size.set_value(new_size)
+		current_game_model.current_board_topology.set_value(_duplicate_topology(_grid_model.topology))
 
 
 func _on_undo_requested(_payload: Variant = null) -> void:

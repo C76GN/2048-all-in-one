@@ -56,7 +56,7 @@ func _ready() -> void:
 # --- 公共方法 ---
 
 ## 根据快照和配置显示预览。
-## @param snapshot: 包含 "grid_size" 和 "tiles" 的字典。
+## @param snapshot: 包含严格 BoardTopology 和方块列表的字典。
 ## @param mode_config: 游戏模式配置，用于获取配色和规则。
 func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 	_clear_preview_internal()
@@ -66,18 +66,30 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 		show_message(tr("NO_PREVIEW_DATA")) # 本地化
 		return
 
-	var grid_size: int = GFVariantData.to_int(snapshot.get(&"grid_size", snapshot.get("grid_size", 4)), 4)
+	var topology: BoardTopology = BoardTopology.from_dict(
+		GFVariantData.get_option_dictionary(snapshot, &"topology")
+	)
+	if topology == null:
+		show_message(tr("NO_PREVIEW_DATA"))
+		return
+	var board_size: Vector2i = topology.get_bounds_size()
 	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
 	var board_theme: BoardTheme = _resolve_board_theme(mode_config)
 	var color_schemes: Dictionary = _resolve_color_schemes(mode_config)
 
 	# 动态计算尺寸
-	var raw_cell_size: float = MAX_PREVIEW_SIZE / (grid_size + (grid_size + 1) * SPACING_RATIO)
+	var raw_cell_size: float = minf(
+		MAX_PREVIEW_SIZE / (board_size.x + (board_size.x + 1) * SPACING_RATIO),
+		MAX_PREVIEW_SIZE / (board_size.y + (board_size.y + 1) * SPACING_RATIO)
+	)
 	var cell_size: float = floor(raw_cell_size)
 	var spacing: float = floor(cell_size * SPACING_RATIO)
 
-	var total_content_size: float = grid_size * cell_size + (grid_size + 1) * spacing
-	var offset_start: float = (MAX_PREVIEW_SIZE - total_content_size) / 2.0
+	var total_content_size: Vector2 = Vector2(
+		board_size.x * cell_size + (board_size.x + 1) * spacing,
+		board_size.y * cell_size + (board_size.y + 1) * spacing
+	)
+	var offset_start: Vector2 = (Vector2.ONE * MAX_PREVIEW_SIZE - total_content_size) / 2.0
 
 	_apply_background_panel_style(board_theme)
 
@@ -85,26 +97,25 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 	_background_panel.position = Vector2.ZERO
 
 	# 绘制背景格子
-	for x: int in range(grid_size):
-		for y: int in range(grid_size):
-			var cell_instance: Control = _instantiate_control(GRID_CELL_SCENE)
-			if not is_instance_valid(cell_instance):
-				continue
-			_board_container.add_child(cell_instance)
+	for cell: Vector2i in topology.get_active_cells():
+		var cell_instance: Control = _instantiate_control(GRID_CELL_SCENE)
+		if not is_instance_valid(cell_instance):
+			continue
+		_board_container.add_child(cell_instance)
 
-			cell_instance.size = Vector2.ONE * cell_size
-			cell_instance.position = _get_cell_position(x, y, cell_size, spacing, offset_start)
+		cell_instance.size = Vector2.ONE * cell_size
+		cell_instance.position = _get_cell_position(cell, cell_size, spacing, offset_start)
 
-			# 预览使用当前解析后的 BoardTheme 覆盖格子模板默认色。
-			if cell_instance is Panel:
-				var cell_style: StyleBoxFlat = _duplicate_cell_style(cell_instance)
-				if is_instance_valid(board_theme):
-					cell_style.bg_color = board_theme.empty_cell_color
-					cell_style.border_color = board_theme.empty_cell_border_color
-				cell_style.set_border_width_all(2)
-				# 预览图稍微缩小圆角
-				cell_style.set_corner_radius_all(maxi(2, roundi(cell_size * 0.1)))
-				cell_instance.add_theme_stylebox_override("panel", cell_style)
+		# 预览使用当前解析后的 BoardTheme 覆盖格子模板默认色。
+		if cell_instance is Panel:
+			var cell_style: StyleBoxFlat = _duplicate_cell_style(cell_instance)
+			if is_instance_valid(board_theme):
+				cell_style.bg_color = board_theme.empty_cell_color
+				cell_style.border_color = board_theme.empty_cell_border_color
+			cell_style.set_border_width_all(2)
+			# 预览图稍微缩小圆角
+			cell_style.set_corner_radius_all(maxi(2, roundi(cell_size * 0.1)))
+			cell_instance.add_theme_stylebox_override("panel", cell_style)
 
 	# 绘制方块
 	for tile_value: Variant in tiles_data:
@@ -112,7 +123,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 			continue
 		var tile_data: Dictionary = tile_value
 		var pos: Vector2i = _to_vector2i(tile_data.get(&"pos", tile_data.get("pos", Vector2i.ZERO)))
-		if not _is_grid_pos_in_bounds(pos, grid_size):
+		if not topology.contains_cell(pos):
 			continue
 
 		var value: int = GFVariantData.to_int(tile_data.get(&"value", tile_data.get("value", 0)), 0)
@@ -151,7 +162,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 		var scale_factor: float = cell_size / 100.0
 		tile.scale = Vector2.ONE * scale_factor
 
-		var cell_top_left: Vector2 = _get_cell_position(pos.x, pos.y, cell_size, spacing, offset_start)
+		var cell_top_left: Vector2 = _get_cell_position(pos, cell_size, spacing, offset_start)
 		tile.position = cell_top_left + Vector2.ONE * (cell_size / 2.0)
 
 
@@ -228,20 +239,15 @@ func _duplicate_cell_style(cell_instance: Control) -> StyleBoxFlat:
 	return StyleBoxFlat.new()
 
 
-func _get_cell_position(x: int, y: int, cell_size: float, spacing: float, offset: float) -> Vector2:
+func _get_cell_position(
+	cell: Vector2i,
+	cell_size: float,
+	spacing: float,
+	offset: Vector2
+) -> Vector2:
 	return Vector2(
-		offset + spacing + x * (cell_size + spacing),
-		offset + spacing + y * (cell_size + spacing)
-	)
-
-
-func _is_grid_pos_in_bounds(grid_pos: Vector2i, grid_size: int) -> bool:
-	return (
-		grid_size > 0
-		and grid_pos.x >= 0
-		and grid_pos.x < grid_size
-		and grid_pos.y >= 0
-		and grid_pos.y < grid_size
+		offset.x + spacing + cell.x * (cell_size + spacing),
+		offset.y + spacing + cell.y * (cell_size + spacing)
 	)
 
 
