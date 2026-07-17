@@ -144,11 +144,15 @@ func _setup_visual_theme_options() -> void:
 		return
 
 	var items: Array[Dictionary] = []
-	var themes: Array[GameTheme] = theme_utility.get_available_visual_themes()
-	for visual_theme: GameTheme in themes:
-		if not is_instance_valid(visual_theme):
+	var themes: Array[GameThemeDescriptor] = theme_utility.get_visual_theme_descriptors()
+	for descriptor: GameThemeDescriptor in themes:
+		if descriptor == null:
 			continue
-		items.append(_make_option_item(visual_theme.get_display_text(), visual_theme.theme_id, items.size()))
+		items.append(_make_option_item(
+			descriptor.get_display_text(),
+			descriptor.theme_id,
+			items.size()
+		))
 
 	if items.is_empty():
 		items.append(_make_option_item(tr("THEME_HALFTONE_ATLAS"), GameThemeUtility.DEFAULT_THEME_ID, 0))
@@ -164,11 +168,15 @@ func _setup_sound_theme_options() -> void:
 		return
 
 	var items: Array[Dictionary] = []
-	var themes: Array[GameAudioTheme] = theme_utility.get_available_sound_themes()
-	for sound_theme: GameAudioTheme in themes:
-		if not is_instance_valid(sound_theme):
+	var themes: Array[GameThemeDescriptor] = theme_utility.get_sound_theme_descriptors()
+	for descriptor: GameThemeDescriptor in themes:
+		if descriptor == null:
 			continue
-		items.append(_make_option_item(sound_theme.get_display_text(), sound_theme.theme_id, items.size()))
+		items.append(_make_option_item(
+			descriptor.get_display_text(),
+			descriptor.theme_id,
+			items.size()
+		))
 
 	if items.is_empty():
 		items.append(_make_option_item(tr("SOUND_THEME_PRINTWORKS"), GameThemeUtility.DEFAULT_SOUND_THEME_ID, 0))
@@ -413,7 +421,10 @@ func _apply_visual_theme(index: int) -> void:
 		index,
 		GameThemeUtility.DEFAULT_THEME_ID
 	)
-	theme_utility.set_current_visual_theme_id(theme_id)
+	var activation_succeeded: bool = theme_utility.set_current_visual_theme_id(theme_id)
+	if not activation_succeeded:
+		_sync_controls_from_settings()
+		return
 	var tree: SceneTree = get_tree()
 	if is_instance_valid(tree) and is_instance_valid(tree.root):
 		var _apply_count: int = theme_utility.apply_current_theme_to_tree(tree.root)
@@ -431,7 +442,7 @@ func _apply_sound_theme(index: int) -> void:
 		index,
 		GameThemeUtility.DEFAULT_SOUND_THEME_ID
 	)
-	theme_utility.set_current_sound_theme_id(theme_id)
+	var _theme_changed: bool = theme_utility.set_current_sound_theme_id(theme_id)
 	_sync_controls_from_settings()
 
 

@@ -28,6 +28,7 @@ const SETTINGS_MENU_PATH: String = "res://features/settings/scripts/menus/settin
 const GAME_UI_CONTROLLER_PATH: String = "res://features/themes/scripts/ui/game_ui_controller.gd"
 const THEME_CATALOG_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_theme_catalog_utility.gd"
 const THEME_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_theme_utility.gd"
+const PROJECT_CONTENT_CATALOG_UTILITY_PATH: String = "res://shared/scripts/utilities/project_content_catalog_utility.gd"
 const EVENT_NAMES_PATH: String = "res://shared/scripts/contracts/event_names.gd"
 const PROJECT_SETTINGS_PATH: String = "res://project.godot"
 const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
@@ -210,13 +211,19 @@ func test_mode_selection_focus_graph_keeps_vertical_loop_and_cross_column_target
 
 func test_project_installer_binds_asset_library_before_ui_consumers() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var project_catalog_position: int = source.find("bind_utility(_PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT)")
 	var asset_library_position: int = source.find("bind_utility(_GAME_ASSET_LIBRARY_UTILITY_SCRIPT)")
 	var motion_position: int = source.find("bind_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)")
 	var board_feedback_position: int = source.find("bind_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)")
 
+	assert_true(project_catalog_position >= 0, "项目 Installer 应注册唯一内容包目录 Utility。")
 	assert_true(asset_library_position >= 0, "项目 Installer 应注册 GameAssetLibraryUtility。")
 	assert_true(motion_position >= 0, "项目 Installer 应注册 GameUiMotionUtility。")
 	assert_true(board_feedback_position >= 0, "项目 Installer 应注册 GameBoardFeedbackUtility。")
+	assert_true(
+		project_catalog_position < asset_library_position,
+		"ProjectContentCatalogUtility 必须先于所有内容包消费者注册。"
+	)
 	assert_true(
 		asset_library_position < motion_position,
 		"GameAssetLibraryUtility 必须先于读取稳定素材键的 GameUiMotionUtility 注册。"
@@ -322,6 +329,7 @@ func test_required_gf_modules_have_no_manual_runtime_fallbacks() -> void:
 	var ui_controller_source: String = _read_text(GAME_UI_CONTROLLER_PATH)
 	var theme_catalog_source: String = _read_text(THEME_CATALOG_UTILITY_PATH)
 	var theme_source: String = _read_text(THEME_UTILITY_PATH)
+	var project_content_catalog_source: String = _read_text(PROJECT_CONTENT_CATALOG_UTILITY_PATH)
 
 	assert_true(board_source.contains("_has_required_dependencies"), "棋盘控制器应显式校验 GF 必需依赖。")
 	assert_false(board_source.contains("TileScene.instantiate()"), "Tile 只能通过 GFObjectPoolUtility 获取。")
@@ -339,8 +347,11 @@ func test_required_gf_modules_have_no_manual_runtime_fallbacks() -> void:
 	assert_false(settings_source.contains("DisplayServer.window_get_mode("), "设置读取不得绕过 GFDisplaySettingsUtility。")
 	assert_false(settings_source.contains("DisplayServer.window_get_vsync_mode("), "垂直同步读取不得绕过 GFDisplaySettingsUtility。")
 	assert_false(settings_source.contains("func _get_ui_utility"), "设置菜单不得保留 GFUIUtility 兼容入口。")
-	assert_false(theme_catalog_source.contains("GameThemeRegistry.new()"), "主题目录加载失败不得伪造空注册表。")
-	assert_false(theme_source.contains("GameThemeRegistry.new()"), "主题运行时加载失败不得伪造空注册表。")
+	assert_false(theme_catalog_source.contains("register_source_root("), "主题 Feature 不得修改 GF 全局内容包目录。")
+	assert_false(theme_catalog_source.contains("rebuild_catalog("), "主题 Feature 不得重复重建 GF 内容包目录。")
+	assert_false(theme_source.contains("register_audio_bank("), "声音主题应使用 GF 挂载令牌，而不是永久注册银行。")
+	assert_true(theme_source.contains("GFActivationTransaction"), "主题切换应使用 GF 激活事务。")
+	assert_true(project_content_catalog_source.contains("rebuild_catalog("), "项目内容目录 Module 应独占 GF 目录重建职责。")
 	assert_true(mode_selection_source.contains("GFSeedUtility.make_stable_seed("), "模式种子应通过 GF 稳定种子算法派生。")
 	assert_true(mode_selection_source.contains("seed_utility.next_uint32()"), "模式种子应消费 GF 管理的随机流。")
 	assert_true(diagnostics_source.contains("_clock_utility.get_unix_timestamp()"), "支持报告文件名应使用项目 wall-clock Adapter。")

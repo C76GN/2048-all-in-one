@@ -62,6 +62,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 - Model 只表达可观察状态，不操作场景节点。
 - System 编排业务流程，通过明确的 GF 接口访问其他模块。
 - Utility 封装稳定的项目 Adapter；仅转发调用且没有增加约束的浅层 Utility 应删除。
+- 只有 `ProjectContentCatalogUtility` 可以修改项目级 `GFContentPackageUtility` source root 或触发目录重建；Feature 目录 Utility 只能查询目录快照和稳定资源键。
 - Controller 连接场景树与 GF 架构，不实现棋盘算法或存档格式。
 - Command 表达可撤销玩家操作；移动继续由 `GFCommandHistoryUtility` 管理。
 - Rule 是资源化策略，通过 `RuleContext` 获取确定性依赖，不直接访问全局 `Gf`。
@@ -85,15 +86,15 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 主题切换
 
-1. 设置页写入视觉主题和音效主题 ID。
-2. `GameThemeCatalogUtility` 通过 `GFContentPackageUtility` 注册 `features/themes/resources/gf_content_package.json`。
-3. `GFResourceResolverUtility` 通过稳定资源键解析主题资源。
-4. `GFValidationReport` 在主题进入运行时前验证 ID、资源引用、Shader 参数和音频事件。
-5. `GameThemeUtility` 将 Profile 交给 `GFShaderParameterUtility`，将音频银行交给 `GFAudioUtility`。
+1. Composition Root 把内置素材、内置主题和 `user://content_packages` 配置给 `ProjectContentCatalogUtility`。
+2. `ProjectContentCatalogUtility` 是唯一可以注册 source root、重建 `GFContentPackageUtility` 目录并同步 `GFResourceResolverUtility` 的项目 Module。
+3. `GameThemeCatalogUtility` 只读取 manifest metadata，建立 `GameThemeDescriptor` 索引；设置菜单枚举主题时不加载完整资源。
+4. 用户选择主题后，`GameThemeUtility` 才通过稳定资源键加载 `GameTheme` 或 `GameAudioTheme`，并用 `GFActivationTransaction` 完成验证、应用和失败回滚。
+5. 视觉 Profile 交给 `GFShaderParameterUtility`；声音银行通过 `GFAudioUtility.mount_audio_bank()` 获取令牌，切换或释放时明确卸载旧银行。
 
 ### 素材评审
 
-1. `features/asset_library/resources/gf_content_package.json` 只登记已批准运行时素材。
+1. `features/asset_library/resources/gf_content_package.json` 只登记已批准运行时素材，并由统一的 `ProjectContentCatalogUtility` 注册。
 2. 候选素材和备注保存在 `features/asset_library/resources/review/`。
 3. 原始来源保存在隔离的 `source_packs/`，不得被运行时直接依赖。
 4. `GFProjectReferenceScanner`、`GFAssetAttributionTools` 和 `GFAssetCatalog` 生成引用、授权和用途报告。

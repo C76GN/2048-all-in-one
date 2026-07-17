@@ -15,21 +15,15 @@
   "safety_kind": "data_only",
   "resources": [
     {
-      "key": "game.theme_registry",
-      "path": "registries/game_theme_registry.tres",
-      "type_hint": "GameThemeRegistry",
-      "priority": 100,
-      "metadata": {
-        "role": "theme_registry"
-      }
-    },
-    {
       "key": "game.theme.halftone_atlas",
       "path": "themes/game/halftone_atlas_theme.tres",
       "type_hint": "GameTheme",
       "priority": 100,
       "metadata": {
-        "theme_id": "halftone_atlas"
+        "theme_id": "halftone_atlas",
+        "display_name_key": "THEME_HALFTONE_ATLAS",
+        "description_key": "THEME_HALFTONE_ATLAS_DESC",
+        "is_default": true
       }
     },
     {
@@ -47,7 +41,10 @@
       "type_hint": "GameAudioTheme",
       "priority": 100,
       "metadata": {
-        "theme_id": "printworks"
+        "theme_id": "printworks",
+        "display_name_key": "SOUND_THEME_PRINTWORKS",
+        "description_key": "SOUND_THEME_PRINTWORKS_DESC",
+        "is_default": true
       }
     },
     {

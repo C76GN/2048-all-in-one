@@ -172,7 +172,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 4. 设置体验。
    - 语言、音量、视觉主题、音效主题、动画强度、视觉效果强度、棋盘辅助显示。
    - 设置页应继续通过 GF 设置 Utility 与 UI 绑定，不直接散落到各菜单；OptionButton 条目写入应复用 `GFItemListBinder`，书签/回放列表刷新应复用 `GFRepeaterBinder`。
-   - 当前已接入 `appearance/theme_id` 和 `audio/sound_theme_id`，由 `GameThemeCatalogUtility` 通过 `gf.content_package` 和 `GFResourceResolverUtility` 解析并严格校验 `GameThemeRegistry`；视觉与音效主题是可自由组合的独立设置轴。
+   - 当前已接入 `appearance/theme_id` 和 `audio/sound_theme_id`；`ProjectContentCatalogUtility` 统一构建 GF 内容目录，`GameThemeCatalogUtility` 从 manifest 生成轻量描述符，`GameThemeUtility` 按需加载并事务激活。视觉与音效主题是可自由组合的独立设置轴。
 
 ## 第四阶段：视觉与交互打磨
 
@@ -180,7 +180,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 1. 建立视觉规范和主题系统文档。
    - 记录色板、字体、噪点强度、背景层级、方块色阶、按钮状态、动效原则。
-   - 当前状态：`docs/visual_style.md` 已建立；`GameThemeRegistry` 聚合视觉主题、UI 色板、庆祝 VFX、独立音效主题和 `GFAudioBank` 的 `GFValidationReport`，无效主题包不会进入运行时。
+   - 当前状态：`docs/visual_style.md` 已建立；主题包以独立资源键和 manifest 描述符发布，目录校验与资源级 `GFValidationReport` 阻止无效主题进入运行时，声音银行由 GF 挂载令牌管理。
 
 2. 棋盘与方块。
    - 保持方块颜色来自配置资源，不在表现层硬编码覆盖用户预期。
@@ -224,7 +224,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 2. `GameUiMotionUtility` 和视觉测试已经成形，视觉规范已文档化。
    - 问题：资源和场景还没有完全围绕 `docs/visual_style.md` 收敛。
-   - 方向：继续让 `GameThemeRegistry`、背景 shader、tile scheme、菜单场景和视觉测试围绕文档收敛。
+   - 方向：继续让主题内容包描述符、背景 shader、tile scheme、菜单场景和视觉测试围绕文档收敛。
    - 收益：后续 AI 不会反复把风格改歪。
 
 3. SaveGraph 运维体验可以继续加深。

@@ -1,10 +1,10 @@
-## 验证项目主题注册表、设置接入和主题资源解析。
+## 验证内容包主题目录、事务激活、设置接入和主题资源解析。
 extends GutTest
 
 
 # --- 常量 ---
 
-const _THEME_REGISTRY_PATH: String = "res://features/themes/resources/registries/game_theme_registry.tres"
+const _THEME_MANIFEST_PATH: String = "res://features/themes/resources/gf_content_package.json"
 const _BACKGROUND_SHADER_PATH: String = "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
 const _DEFAULT_BOARD_THEME: BoardTheme = preload("res://features/themes/resources/themes/board/default_board_theme.tres")
 const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres")
@@ -12,15 +12,19 @@ const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/reso
 
 # --- 测试用例 ---
 
-func test_theme_registry_loads_default_theme_pack() -> void:
-	var registry: GameThemeRegistry = _load_theme_registry()
+func test_theme_catalog_discovers_and_validates_default_theme_pack() -> void:
+	var setup: Dictionary = await _create_theme_architecture()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var catalog: GameThemeCatalogUtility = _get_theme_catalog(setup)
+	var report: GFValidationReport = catalog.validate_all_theme_resources()
 
-	assert_true(is_instance_valid(registry), "主题注册表应能加载。")
-	assert_true(registry.get_validation_report().is_ok(), "默认主题注册表及全部主题资源应通过 GFValidationReport。")
-	assert_true(registry.default_theme_id == &"halftone_atlas", "默认视觉主题应是当前半调图集主题。")
-	assert_true(registry.default_sound_theme_id == &"printworks", "默认音效主题应是印刷工坊。")
+	assert_true(report.is_ok(), "默认主题内容包及全部主题资源应通过 GFValidationReport。")
+	assert_true(catalog.get_default_visual_theme_id() == &"halftone_atlas", "默认视觉主题应来自 manifest metadata。")
+	assert_true(catalog.get_default_sound_theme_id() == &"printworks", "默认音效主题应来自 manifest metadata。")
+	assert_true(catalog.get_visual_theme_descriptors().size() == 1, "视觉主题列表应由轻量描述符构成。")
+	assert_true(catalog.get_sound_theme_descriptors().size() == 1, "音效主题列表应由轻量描述符构成。")
 
-	var theme: GameTheme = registry.get_default_theme()
+	var theme: GameTheme = catalog.load_visual_theme(catalog.get_default_visual_theme_id())
 	assert_true(is_instance_valid(theme), "默认视觉主题资源应存在。")
 	assert_true(theme.theme_id == &"halftone_atlas", "默认视觉主题 ID 应稳定。")
 	assert_true(is_instance_valid(theme.board_theme), "主题应引用棋盘主题资源。")
@@ -46,32 +50,29 @@ func test_theme_registry_loads_default_theme_pack() -> void:
 	)
 	assert_true(theme.color_schemes.has(0), "主题应覆盖默认方块色阶槽位。")
 
+	await _dispose_architecture(architecture)
 
-func test_theme_registry_validation_rejects_duplicate_ids_and_missing_defaults() -> void:
-	var registry: GameThemeRegistry = GameThemeRegistry.new()
-	registry.default_theme_id = &"missing_visual"
-	registry.default_sound_theme_id = &"missing_sound"
-	registry.themes.append(_load_theme_registry().get_default_theme())
-	var duplicate_theme: GameTheme = GameTheme.new()
-	duplicate_theme.theme_id = &"halftone_atlas"
-	registry.themes.append(duplicate_theme)
 
-	var report: GFValidationReport = registry.get_validation_report()
-	var counts_by_kind: Dictionary = report.get_issue_counts_by_kind()
+func test_theme_manifest_uses_descriptors_instead_of_central_registry() -> void:
+	var manifest: GFContentPackageManifest = GFContentPackageManifest.load_from_path(
+		_THEME_MANIFEST_PATH
+	)
+	assert_true(manifest != null, "主题内容包 manifest 应能加载。")
+	assert_false(manifest.get_resource_keys().has("game.theme_registry"), "主题包不得再登记中央直引用注册表。")
 
-	assert_false(report.is_ok(), "重复主题 ID 和无效默认项必须让注册表校验失败。")
-	assert_true(
-		GFVariantData.get_option_int(counts_by_kind, &"duplicate_visual_theme_id") == 1,
-		"注册表应明确报告重复视觉主题 ID。"
-	)
-	assert_true(
-		GFVariantData.get_option_int(counts_by_kind, &"missing_default_visual_theme") == 1,
-		"注册表应明确报告缺失的默认视觉主题。"
-	)
-	assert_true(
-		GFVariantData.get_option_int(counts_by_kind, &"missing_default_sound_theme") == 1,
-		"注册表应明确报告缺失的默认音效主题。"
-	)
+	var visual_defaults: int = 0
+	var sound_defaults: int = 0
+	for entry: Dictionary in manifest.get_normalized_resources():
+		var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
+		if not GFVariantData.get_option_bool(metadata, "is_default", false):
+			continue
+		var type_hint: String = GFVariantData.get_option_string(entry, "type_hint")
+		if type_hint == GameThemeCatalogUtility.VISUAL_THEME_TYPE_HINT:
+			visual_defaults += 1
+		elif type_hint == GameThemeCatalogUtility.SOUND_THEME_TYPE_HINT:
+			sound_defaults += 1
+	assert_true(visual_defaults == 1, "manifest 必须声明且只声明一个默认视觉主题。")
+	assert_true(sound_defaults == 1, "manifest 必须声明且只声明一个默认音效主题。")
 
 
 func test_audio_theme_validation_requires_registered_semantic_events() -> void:
@@ -176,27 +177,28 @@ func test_theme_utility_tracks_cross_utility_signals_with_gf_signal_utility() ->
 		assert_true(signal_utility.get_connection_count() == 0, "架构释放后 GF 信号连接必须清空。")
 
 
-func test_theme_content_package_registers_theme_registry_resource_key() -> void:
+func test_theme_content_package_registers_independent_theme_resource_keys() -> void:
 	var setup: Dictionary = await _create_theme_architecture()
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var resolver: GFResourceResolverUtility = _get_resource_resolver(setup)
 
 	var resolve_report: Dictionary = resolver.resolve(
-		GameThemeUtility.THEME_REGISTRY_RESOURCE_KEY,
-		"GameThemeRegistry"
+		&"game.theme.halftone_atlas",
+		GameThemeCatalogUtility.VISUAL_THEME_TYPE_HINT
 	)
 	var resource: Resource = resolver.load(
-		GameThemeUtility.THEME_REGISTRY_RESOURCE_KEY,
-		"GameThemeRegistry"
+		&"game.theme.halftone_atlas",
+		GameThemeCatalogUtility.VISUAL_THEME_TYPE_HINT
 	)
 	var blue_scheme_resource: Resource = resolver.load(&"game.tile_scheme.blue", "TileColorScheme")
 	var audio_bank_resource: Resource = resolver.load(&"game.audio_bank.printworks", "GFAudioBank")
 
 	assert_true(
 		GFVariantData.get_option_bool(resolve_report, "ok", false),
-		"主题内容包应把主题注册表资源键注册到 GFResourceResolverUtility。"
+		"主题内容包应把独立主题资源键注册到 GFResourceResolverUtility。"
 	)
-	assert_true(resource is GameThemeRegistry, "主题注册表应能通过资源解析器加载。")
+	assert_true(resource is GameTheme, "视觉主题应能通过独立资源键加载。")
+	assert_false(resolver.has_registered_key(&"game.theme_registry"), "Resolver 不应保留旧中央注册表资源键。")
 	assert_true(blue_scheme_resource is TileColorScheme, "主题内容包应登记完整的内置方块色阶资源。")
 	assert_true(audio_bank_resource is GFAudioBank, "主题内容包应登记 printworks 音频银行。")
 
@@ -210,28 +212,32 @@ func test_theme_debug_snapshot_exposes_content_package_and_resolver_state() -> v
 
 	var snapshot: Dictionary = theme_utility.get_debug_snapshot()
 	var catalog_snapshot: Dictionary = GFVariantData.get_option_dictionary(snapshot, "catalog")
-	var registry_validation: Dictionary = GFVariantData.get_option_dictionary(
+	var catalog_validation: Dictionary = GFVariantData.get_option_dictionary(
 		catalog_snapshot,
-		"registry_validation"
+		"catalog_validation"
 	)
-	var resolver_snapshot: Dictionary = GFVariantData.get_option_dictionary(catalog_snapshot, "resolver")
+	var project_catalog_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		catalog_snapshot,
+		"project_content_catalog"
+	)
+	var resolver_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		project_catalog_snapshot,
+		"resolver"
+	)
 	var registered_keys: PackedStringArray = GFVariantData.get_option_packed_string_array(
 		resolver_snapshot,
 		"registered_keys"
 	)
 
 	assert_true(
-		GFVariantData.to_string_name(snapshot.get("theme_registry_key"), &"") == GameThemeUtility.THEME_REGISTRY_RESOURCE_KEY,
-		"主题诊断快照应暴露稳定主题注册表资源键。"
+		registered_keys.has("game.theme.halftone_atlas"),
+		"主题诊断快照应包含独立视觉主题资源键。"
 	)
 	assert_true(
-		registered_keys.has(String(GameThemeUtility.THEME_REGISTRY_RESOURCE_KEY)),
-		"主题诊断快照应包含 resolver 已注册资源键。"
+		GFVariantData.get_option_bool(catalog_validation, "ok"),
+		"主题诊断快照应公开通过的描述符目录校验报告。"
 	)
-	assert_true(
-		GFVariantData.get_option_bool(registry_validation, "ok"),
-		"主题诊断快照应公开通过的 GF 注册表校验报告。"
-	)
+	assert_true(GFVariantData.get_option_int(snapshot, "active_audio_mount_token") > 0, "声音主题应暴露有效 GF 挂载令牌。")
 	assert_true(
 		GFVariantData.to_int(snapshot.get("available_visual_theme_count"), 0) > 0,
 		"主题诊断快照应暴露可用视觉主题数量。"
@@ -395,6 +401,12 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
 	var content_packages: GFContentPackageUtility = GFContentPackageUtility.new()
+	var project_content_catalog: ProjectContentCatalogUtility = (
+		ProjectContentCatalogUtility.new().configure_source_roots(PackedStringArray([
+			"res://features/asset_library/resources",
+			"res://features/themes/resources",
+		]))
+	)
 	var asset_library: GameAssetLibraryUtility = GameAssetLibraryUtility.new()
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
 	settings.auto_load_on_init = false
@@ -413,6 +425,10 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(GFContentPackageUtility, content_packages)
+	await architecture.register_utility(
+		ProjectContentCatalogUtility,
+		project_content_catalog
+	)
 	await architecture.register_utility(GameAssetLibraryUtility, asset_library)
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFAudioUtility, audio)
@@ -436,6 +452,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 		"architecture": architecture,
 		"resolver": resolver,
 		"content_packages": content_packages,
+		"project_content_catalog": project_content_catalog,
 		"asset_library": asset_library,
 		"settings": settings,
 		"audio": audio,
@@ -454,14 +471,6 @@ func _dispose_architecture(architecture: GFArchitecture) -> void:
 	if architecture != null:
 		architecture.dispose()
 	await get_tree().process_frame
-
-
-func _load_theme_registry() -> GameThemeRegistry:
-	var resource: Resource = load(_THEME_REGISTRY_PATH)
-	if resource is GameThemeRegistry:
-		var registry: GameThemeRegistry = resource
-		return registry
-	return null
 
 
 func _get_architecture(setup: Dictionary) -> GFArchitecture:
@@ -498,6 +507,15 @@ func _get_theme_utility(setup: Dictionary) -> GameThemeUtility:
 		return theme_utility
 	assert_true(false, "测试 setup 缺少 GameThemeUtility。")
 	return GameThemeUtility.new()
+
+
+func _get_theme_catalog(setup: Dictionary) -> GameThemeCatalogUtility:
+	var value: Variant = setup.get("theme_catalog")
+	if value is GameThemeCatalogUtility:
+		var catalog: GameThemeCatalogUtility = value
+		return catalog
+	assert_true(false, "测试 setup 缺少 GameThemeCatalogUtility。")
+	return GameThemeCatalogUtility.new()
 
 
 func _get_screen_transition_utility(setup: Dictionary) -> GFScreenTransitionUtility:

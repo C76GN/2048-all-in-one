@@ -65,7 +65,7 @@ GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 用项目级 `GameSaveGraphUtility` 组合 `GFSaveGraphUtility` / `GFSaveScope` / `GFSaveDataSource`，把统计、书签和回放作为三个 Feature section 原子保存到类型保真的 Binary 玩家数据图；设置保持独立生命周期。
 - 用 `GFLevelUtility` 把当前一局登记为运行时 session，集中清理命令历史与动作队列等对局残留；项目不把 2048 强行建模为关卡进度。
 - 用 `ProjectResourceCatalogUtility` 把 `GFResourceRegistry`、`GFResourceResolverUtility` 和 `GFAssetUtility` 组合成统一资源目录 Adapter，模式目录和 UI 路由目录不重复实现注册、解析和缓存细节。
-- 用 `GameThemeCatalogUtility` 承接 `gf.content_package` 的 `GFContentPackageUtility`，注册内置主题内容包，并通过 `GFResourceResolverUtility` 用稳定资源键加载主题注册表。
+- 用 `ProjectContentCatalogUtility` 统一承接 `gf.content_package` 的目录重建和 Resolver 注册；`GameThemeCatalogUtility` 从 manifest 生成轻量主题描述符，选中后再按稳定资源键加载并事务激活。
 - 用 `GFObjectPoolUtility` 的池化 Hook 清理 Tile 复用状态，并用 `GFRepeaterBinder` 重建书签/回放列表项。
 - 用项目级 `GameUiMotionUtility` 统一菜单、按钮、HUD 和列表刷新动效，避免各 UI 节点重复编写 Tween。
 - 用项目级 `GameBoardFeedbackUtility` 统一棋盘合并、生成和转化反馈特效，表现触发点跟随 `GFActionQueueSystem` 中的视觉 Action，并通过 `GFShakeUtility` 播放语义化 board channel 反馈。
