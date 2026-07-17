@@ -33,6 +33,7 @@ var _action_queue: GFActionQueueSystem
 var _game_flow_system: GameFlowSystem
 var _replay_system: ReplaySystem
 var _level_utility: GFLevelUtility
+var _pause_utility: GamePauseUtility
 var _signal_utility: GFSignalUtility
 var _notification_utility: GFNotificationUtility
 var _test_utility: TestToolUtility
@@ -66,6 +67,7 @@ func _ready() -> void:
 	_game_flow_system = _get_game_flow_system()
 	_replay_system = _get_replay_system()
 	_level_utility = _get_level_utility()
+	_pause_utility = _get_pause_utility()
 	_signal_utility = _get_signal_utility()
 	_notification_utility = _get_notification_utility()
 	_test_utility = _get_test_utility()
@@ -148,6 +150,7 @@ func _cleanup_listeners() -> void:
 		_test_utility.clear_context()
 
 	_level_utility = null
+	_pause_utility = null
 	_celebration_vfx_utility = null
 	_notification_utility = null
 	
@@ -375,6 +378,17 @@ func _get_level_utility() -> GFLevelUtility:
 	return null
 
 
+func _get_pause_utility() -> GamePauseUtility:
+	if is_instance_valid(_pause_utility):
+		return _pause_utility
+	var utility_value: Object = get_utility(GamePauseUtility)
+	if utility_value is GamePauseUtility:
+		var pause_utility: GamePauseUtility = utility_value
+		_pause_utility = pause_utility
+		return pause_utility
+	return null
+
+
 func _get_signal_utility() -> GFSignalUtility:
 	var utility_value: Object = get_utility(GFSignalUtility)
 	if utility_value is GFSignalUtility:
@@ -579,26 +593,33 @@ func _on_visual_theme_changed(_theme: GameTheme) -> void:
 
 
 func _on_toggle_pause_ui(_payload: Variant = null) -> void:
-	var tree: SceneTree = get_tree()
+	var pause_utility: GamePauseUtility = _get_pause_utility()
+	if not is_instance_valid(pause_utility):
+		push_error("[GamePlayController] 缺少 GamePauseUtility，无法切换暂停菜单。")
+		return
+
 	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
 	if not is_instance_valid(ui_router):
 		push_error("[GamePlayController] 缺少 GFUIRouterUtility，无法切换暂停菜单。")
 		return
 
-	if tree.paused:
+	if pause_utility.is_paused():
 		if ui_router.get_current_route_id(GFUIUtility.Layer.POPUP) != _ROUTE_PAUSE_MENU:
 			push_error("[GamePlayController] 当前弹层不是暂停菜单，拒绝恢复游戏。")
 			return
 		if not ui_router.back(GFUIUtility.Layer.POPUP):
 			push_error("[GamePlayController] GF UI 路由未能关闭暂停菜单。")
 			return
-		tree.paused = false
+		if not pause_utility.resume():
+			push_error("[GamePlayController] 暂停菜单已关闭，但无法恢复对局时间。")
 	else:
 		var pause_panel: Node = ui_router.push_route(_ROUTE_PAUSE_MENU)
 		if not is_instance_valid(pause_panel):
 			push_error("[GamePlayController] GF UI 路由未能打开暂停菜单。")
 			return
-		tree.paused = true
+		if not pause_utility.pause():
+			var _rolled_back: bool = ui_router.back(GFUIUtility.Layer.POPUP)
+			push_error("[GamePlayController] 无法暂停对局时间，已回滚暂停菜单。")
 
 
 func _on_replay_progress_changed(_current_step: int, _total_steps: int) -> void:
@@ -630,7 +651,10 @@ func _on_target_reached(_payload: Variant = null) -> void:
 	if not is_instance_valid(target_panel):
 		push_error("[GamePlayController] GF UI 路由未能打开目标达成菜单。")
 		return
-	get_tree().paused = true
+	var pause_utility: GamePauseUtility = _get_pause_utility()
+	if not is_instance_valid(pause_utility) or not pause_utility.pause():
+		var _rolled_back: bool = ui_router.back(GFUIUtility.Layer.POPUP)
+		push_error("[GamePlayController] 无法暂停目标达成弹层后的对局时间，已回滚弹层。")
 
 
 func _on_game_state_changed(new_state: StringName) -> void:

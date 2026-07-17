@@ -11,6 +11,7 @@ const GAME_PLAY_SCENE_PATH: String = "res://features/gameplay/scenes/game/game_p
 const GAME_STATUS_MODEL_PATH: String = "res://features/gameplay/scripts/models/game_status_model.gd"
 const GAME_STATE_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_state_system.gd"
 const GAME_FLOW_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_flow_system.gd"
+const GAME_PAUSE_UTILITY_PATH: String = "res://features/gameplay/scripts/utilities/game_pause_utility.gd"
 const GAME_INIT_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_init_system.gd"
 const GAME_TURN_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_turn_system.gd"
 const GAME_MOVE_TURN_ACTION_PATH: String = "res://features/gameplay/scripts/actions/game_move_turn_action.gd"
@@ -116,6 +117,30 @@ func test_project_installer_binds_input_device_before_input_mapping() -> void:
 		device_position < mapping_position,
 		"GFInputDeviceUtility 必须先于依赖它的 GFInputMappingUtility 注册。"
 	)
+
+
+func test_project_installer_binds_pause_adapter_after_gf_time_provider() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var time_position: int = source.find("bind_utility(GFTimeUtility)")
+	var pause_position: int = source.find("bind_utility(_GAME_PAUSE_UTILITY_SCRIPT)")
+
+	assert_true(time_position >= 0, "项目 Installer 应注册 GFTimeUtility。")
+	assert_true(pause_position >= 0, "项目 Installer 应注册 GamePauseUtility。")
+	assert_true(
+		time_position < pause_position,
+		"GFTimeUtility 必须先于同步逻辑时间的 GamePauseUtility 注册。"
+	)
+
+
+func test_gameplay_pause_state_has_one_writable_adapter() -> void:
+	var controller_source: String = _read_text(GAME_PLAY_CONTROLLER_PATH)
+	var flow_source: String = _read_text(GAME_FLOW_SYSTEM_PATH)
+	var pause_source: String = _read_text(GAME_PAUSE_UTILITY_PATH)
+
+	assert_false(controller_source.contains(".paused ="), "Controller 不得旁路统一暂停 Adapter。")
+	assert_false(flow_source.contains(".paused ="), "流程 System 不得旁路统一暂停 Adapter。")
+	assert_true(pause_source.contains("_time_utility.is_paused = paused"), "暂停 Adapter 应同步 GF 逻辑时间。")
+	assert_true(pause_source.contains("tree.paused = paused"), "暂停 Adapter 应同步 Godot 场景树。")
 
 
 func test_project_installer_binds_asset_library_before_ui_consumers() -> void:

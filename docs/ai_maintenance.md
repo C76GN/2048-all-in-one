@@ -36,6 +36,7 @@
 - 场景控制器：`features/gameplay/scripts/controllers/**` 放置使用 `GFController` 基类能力的游戏场景控制器，类名保留 `Controller` 后缀。
 - 规则资源：`features/gameplay/scripts/rules/**` 定义移动、交互、生成、结束判定；`features/gameplay/resources/modes/*.tres` 组合这些规则形成不同玩法模式。
 - 对局 session：`GameInitSystem` 使用 `GFLevelUtility` 记录当前一局的模式、尺寸、种子和来源；这只是运行时 session 语义，不代表项目引入关卡进度玩法。
+- 对局暂停：业务 Module 只能调用 `GamePauseUtility`；该 Adapter 同步 `GFTimeUtility` 与 `SceneTree.paused`。除它之外不得直接写场景树暂停状态。需要在暂停期间运行的 System 必须显式设置 `ignore_pause`，并自行门控所有非暂停意图。
 - 模式目录：`features/gameplay/resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式列表，项目层通过 `GameModeCatalogUtility` 读取，缓存与分组生命周期由 `GFAssetUtility` 独占管理。
 - UI 路由：`features/navigation/resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 `GFUIRoute` 资源目录；业务 UI 按 route ID 打开，不保留路径调用后备。菜单负责关闭自身路由，System 不得直接调用 `GFUIUtility.pop_panel()` 或 `clear_all()`。
 - 完整 Feature 所有权和依赖方向以 `docs/architecture.md` 为准。
@@ -269,7 +270,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 420 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-17 使用 Godot `4.7.stable.steam.5b4e0cb0f` 与 GF `8.0.1` 运行通过。当前完整套件为 23 个 GUT 测试脚本、196 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 703 个全局脚本类，项目运行时声明 126 个；完整套件退出计数为 `ObjectDB = 263`、`Resources = 116`、RID 类型数 `= 3`。GF 8.0.1 升级未改变两组脚本类数量，也未增加退出计数，因此没有放宽既有泄漏上限；GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
+2026-07-17 使用 Godot `4.7.stable.steam.5b4e0cb0f` 与 GF `8.0.1` 运行通过。当前完整套件为 24 个 GUT 测试脚本、201 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 703 个全局脚本类，项目运行时声明 127 个；完整套件退出计数为 `ObjectDB = 263`、`Resources = 116`、RID 类型数 `= 3`。新增 `GamePauseUtility` 后项目类数量增加 1，但没有放宽任何退出泄漏上限；GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
 
 编辑器 GDScript warning 诊断入口：
 
@@ -277,7 +278,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1
 ```
 
-该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `app`、`features`、`shared`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-16 零诊断基线为 145 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `app`、`features`、`shared`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-17 零诊断基线为 158 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 如果只改了文档，可以不运行 GUT，但应检查链接、路径和项目定位是否准确。只要改了 `.gd`，应优先补充或运行相关测试；无法安全运行时，必须说明未验证风险。
 

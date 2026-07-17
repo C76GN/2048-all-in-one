@@ -36,6 +36,7 @@ var _fsm: GFStateMachine
 
 var _clock: GameClockUtility
 var _notifications: GFNotificationUtility
+var _pause_utility: GamePauseUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -52,6 +53,7 @@ func get_required_utilities() -> Array[Script]:
 	return [
 		_GAME_THEME_UTILITY_SCRIPT,
 		GameClockUtility,
+		GamePauseUtility,
 		GFCommandHistoryUtility,
 		GFLogUtility,
 		GFNotificationUtility,
@@ -73,8 +75,11 @@ func ready() -> void:
 	_game_status_model = _get_game_status_model()
 	_clock = _get_clock_utility()
 	_notifications = _get_notification_utility()
+	_pause_utility = _get_pause_utility()
 	if not is_instance_valid(_notifications):
 		push_error("[GameFlowSystem] 缺少 GFNotificationUtility，玩法反馈不可用。")
+	if not is_instance_valid(_pause_utility):
+		push_error("[GameFlowSystem] 缺少 GamePauseUtility，对局暂停状态不可用。")
 
 	register_simple_event(EventNames.RATIO_RESOLVED, GFEventListener.from_method(self, &"_on_ratio_resolved", 1))
 	register_simple_event(EventNames.SCORE_UPDATED, GFEventListener.from_method(self, &"_on_score_updated", 1))
@@ -103,6 +108,7 @@ func dispose() -> void:
 	_game_over_rule = null
 	_clock = null
 	_notifications = null
+	_pause_utility = null
 	_player_actions.clear()
 	_last_saved_bookmark_state = {}
 	_mode_config = null
@@ -209,7 +215,10 @@ func restart_game() -> void:
 	if not is_instance_valid(tree):
 		return
 
-	tree.paused = false
+	var pause_utility: GamePauseUtility = _get_pause_utility()
+	if not is_instance_valid(pause_utility) or not pause_utility.resume():
+		push_error("[GameFlowSystem] 无法恢复对局时间，拒绝重新开始。")
+		return
 	var mode_config_value: Variant = current_game_model.mode_config.get_value()
 	if not mode_config_value is GameModeConfig:
 		return
@@ -321,6 +330,17 @@ func _get_notification_utility() -> GFNotificationUtility:
 	if utility_value is GFNotificationUtility:
 		var notification_utility: GFNotificationUtility = utility_value
 		return notification_utility
+	return null
+
+
+func _get_pause_utility() -> GamePauseUtility:
+	if is_instance_valid(_pause_utility):
+		return _pause_utility
+	var utility_value: Object = get_utility(GamePauseUtility)
+	if utility_value is GamePauseUtility:
+		var pause_utility: GamePauseUtility = utility_value
+		_pause_utility = pause_utility
+		return pause_utility
 	return null
 
 
@@ -805,9 +825,9 @@ func _on_ui_pause_requested(_payload: Variant = null) -> void:
 
 
 func _on_resume_game_requested(_payload: Variant = null) -> void:
-	var tree: SceneTree = _get_scene_tree()
-	if is_instance_valid(tree):
-		tree.paused = false
+	var pause_utility: GamePauseUtility = _get_pause_utility()
+	if not is_instance_valid(pause_utility) or not pause_utility.resume():
+		push_error("[GameFlowSystem] 无法恢复对局时间。")
 
 
 func _on_restart_game_requested(_payload: Variant = null) -> void:
@@ -815,9 +835,10 @@ func _on_restart_game_requested(_payload: Variant = null) -> void:
 
 
 func _on_return_to_main_menu_from_game(_payload: Variant = null) -> void:
-	var tree: SceneTree = _get_scene_tree()
-	if is_instance_valid(tree):
-		tree.paused = false
+	var pause_utility: GamePauseUtility = _get_pause_utility()
+	if not is_instance_valid(pause_utility) or not pause_utility.resume():
+		push_error("[GameFlowSystem] 无法恢复对局时间，拒绝返回主界面。")
+		return
 	var router: SceneRouterSystem = _get_scene_router_system()
 	if is_instance_valid(router):
 		router.return_to_main_menu()

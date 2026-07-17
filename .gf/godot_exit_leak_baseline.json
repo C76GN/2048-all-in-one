@@ -7,9 +7,9 @@
   "gf_source_commit": "bc8f38f02ddf4498b010f5dc478754472afe1920",
   "gf_vendor_tree_sha256": "04e6a2083382ea4f2320622f853c712115563031e64c1ed798cb004e9a5fb9eb",
   "gf_global_script_class_count": 703,
-  "project_runtime_script_class_count": 126,
+  "project_runtime_script_class_count": 127,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The pinned GF vendor snapshot was upgraded from 7.0.0 to the official 8.0.1 release at bc8f38f. The audited GF global class count remains 703 and the project runtime class count remains 126. The full 196-test audit exited at ObjectDB 263 and Resources 116 with the same three RID types, so all existing limits remain unchanged.",
+  "calibration_reason": "The audited GamePauseUtility runtime class consolidates GFTimeUtility and SceneTree pause writes behind one project Adapter, changing the project runtime class count from 126 to 127. The pinned GF 8.0.1 vendor snapshot remains unchanged; the full 201-test audit must retain the existing ObjectDB, Resource, and RID limits.",
   "max_objectdb_instances": 263,
   "max_resources_in_use": 116,
   "max_rid_allocations_by_type": {

@@ -50,6 +50,8 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
 	await architecture.register_utility(GFCommandHistoryUtility, command_history)
 	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
+	await architecture.register_utility(GFTimeUtility, GFTimeUtility.new())
+	await architecture.register_utility(GamePauseUtility, GamePauseUtility.new())
 	await architecture.register_utility(GFLevelUtility, level_utility)
 	await architecture.register_system(RuleSystem, RuleSystem.new())
 	await architecture.register_system(GameFlowSystem, GameFlowSystem.new())

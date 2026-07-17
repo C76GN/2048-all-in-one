@@ -106,8 +106,9 @@ func test_session_target_reached_requires_mode_target() -> void:
 	)
 
 
-func test_resume_request_only_unpauses_tree() -> void:
+func test_resume_request_synchronizes_gf_time_without_closing_ui_stack() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
+	await _register_pause_utilities(architecture)
 	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var flow_system: GameFlowSystem = GameFlowSystem.new()
 	await architecture.register_utility(GFUIUtility, ui_utility)
@@ -117,21 +118,23 @@ func test_resume_request_only_unpauses_tree() -> void:
 
 	var panel: Control = _make_test_control()
 	ui_utility.push_panel_instance(panel)
-	var tree: SceneTree = get_tree()
-	tree.paused = true
+	var pause_utility: GamePauseUtility = _get_pause_utility(architecture)
+	assert_true(pause_utility.pause(), "测试前应通过统一 Adapter 暂停对局。")
 
 	architecture.send_simple_event(EventNames.RESUME_GAME_REQUESTED)
-	var paused_after_resume: bool = tree.paused
+	var paused_after_resume: bool = pause_utility.is_paused()
+	var synchronized_after_resume: bool = pause_utility.is_synchronized()
 	var open_panel_count: int = ui_utility.get_panel_stack(GFUIUtility.Layer.POPUP).size()
-	tree.paused = false
 	await _dispose_architecture_and_flush(architecture)
 
-	assert_true(not paused_after_resume, "继续挑战应恢复 SceneTree 暂停状态。")
+	assert_true(not paused_after_resume, "继续挑战应恢复 GF 逻辑时间。")
+	assert_true(synchronized_after_resume, "继续挑战后 GF 时间与 SceneTree 必须同步。")
 	assert_true(open_panel_count == 1, "GameFlowSystem 不应越权关闭由 UI 路由拥有的弹层。")
 
 
 func test_restart_request_preserves_ui_stack_and_delegates_restart() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
+	await _register_pause_utilities(architecture)
 	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
 	await architecture.register_utility(GFUIUtility, ui_utility)
@@ -157,6 +160,7 @@ func test_restart_request_preserves_ui_stack_and_delegates_restart() -> void:
 
 func test_return_to_main_menu_request_preserves_ui_stack_unpauses_and_routes() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
+	await _register_pause_utilities(architecture)
 	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var flow_system: GameFlowSystem = GameFlowSystem.new()
 	var router: TestSceneRouterSystemSpy = TestSceneRouterSystemSpy.new()
@@ -170,18 +174,19 @@ func test_return_to_main_menu_request_preserves_ui_stack_unpauses_and_routes() -
 	var top_panel: Control = _make_test_control()
 	ui_utility.push_panel_instance(popup_panel, GFUIUtility.Layer.POPUP)
 	ui_utility.push_panel_instance(top_panel, GFUIUtility.Layer.TOP)
-	var tree: SceneTree = get_tree()
-	tree.paused = true
+	var pause_utility: GamePauseUtility = _get_pause_utility(architecture)
+	assert_true(pause_utility.pause(), "测试前应通过统一 Adapter 暂停对局。")
 
 	architecture.send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
-	var paused_after_return: bool = tree.paused
+	var paused_after_return: bool = pause_utility.is_paused()
+	var synchronized_after_return: bool = pause_utility.is_synchronized()
 	var popup_panel_count: int = ui_utility.get_panel_stack(GFUIUtility.Layer.POPUP).size()
 	var top_panel_count: int = ui_utility.get_panel_stack(GFUIUtility.Layer.TOP).size()
 	var route_count: int = router.return_to_main_menu_count
-	tree.paused = false
 	await _dispose_architecture_and_flush(architecture)
 
-	assert_true(not paused_after_return, "返回主界面应恢复 SceneTree 暂停状态。")
+	assert_true(not paused_after_return, "返回主界面应恢复 GF 逻辑时间。")
+	assert_true(synchronized_after_return, "返回主界面后 GF 时间与 SceneTree 必须同步。")
 	assert_true(popup_panel_count == 1, "GameFlowSystem 不应直接清空 UI 路由拥有的弹层栈。")
 	assert_true(top_panel_count == 1, "GameFlowSystem 不应直接清空无关的顶层提示栈。")
 	assert_true(route_count == 1, "返回主界面应调用 SceneRouterSystem.return_to_main_menu()。")
@@ -214,6 +219,7 @@ func test_game_ready_uses_explicit_bookmark_target_state() -> void:
 
 func test_valid_move_resolves_once_through_gf_turn_flow() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
+	await _register_pause_utilities(architecture)
 	var grid_model: GridModel = GridModel.new()
 	var status_model: GameStatusModel = GameStatusModel.new()
 	var turn_flow: GFTurnFlowSystem = GFTurnFlowSystem.new()
@@ -292,6 +298,19 @@ func _make_test_control() -> Control:
 	var control: Control = Control.new()
 	track_test_node(control)
 	return control
+
+
+func _register_pause_utilities(architecture: GFArchitecture) -> void:
+	await architecture.register_utility(GFTimeUtility, GFTimeUtility.new())
+	await architecture.register_utility(GamePauseUtility, GamePauseUtility.new())
+
+
+func _get_pause_utility(architecture: GFArchitecture) -> GamePauseUtility:
+	var utility_value: Object = architecture.get_utility(GamePauseUtility)
+	if utility_value is GamePauseUtility:
+		var pause_utility: GamePauseUtility = utility_value
+		return pause_utility
+	return null
 
 
 func _dispose_architecture_and_flush(architecture: GFArchitecture) -> void:

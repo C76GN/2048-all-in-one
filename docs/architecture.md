@@ -110,16 +110,18 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 1. 弹层只能通过 `GFUIRouterUtility` 的稳定 route ID 打开和关闭；业务代码不得直接调用 `GFUIUtility.pop_panel()` 或 `clear_all()`。
 2. 菜单控制器拥有自身路由的关闭职责。触发继续、重开或返回等业务事件时，先捕获当前 `GFArchitecture`，校验并关闭自身路由，再由捕获的架构派发事件。
-3. `GameFlowSystem` 只处理暂停状态、重新开始和场景路由等业务结果，不读取或清空 UI 栈。
+3. `GameFlowSystem` 只处理继续、重新开始和返回主界面等业务结果，并把暂停状态变更委托给 `GamePauseUtility`；它不读取或清空 UI 栈。
 4. 路由创建或关闭失败时保持原业务状态并显式报错，不切换暂停状态，也不回退到直接面板操作。
 
 ### 时钟、随机与运行诊断
 
-1. `GFTimeUtility` 只拥有游戏 delta、缩放和暂停；`GameClockUtility` 是业务代码读取 wall-clock、单调 tick 和日期格式的唯一 Adapter。
-2. `GFSeedUtility` 拥有运行时随机流、全局种子和稳定派生算法；业务代码不得自行创建 `RandomNumberGenerator`，也不得调用 Godot 全局随机函数。
-3. 长流程耗时由 `GFOperationDiagnosticsUtility` 的操作记录拥有。调用方读取同一操作的 `started_ticks_usec` 记录阶段，不再平行缓存一份系统 tick。
-4. 只有 Boot 组合根和 `features/asset_library/tools/` 下的离线素材工具可以直接访问 `Time`；该例外由 GF 合规测试的精确路径 allowlist 约束，不得扩散到运行时 Feature。
-5. 开发构建由 `GameDiagnosticsUtility` 组合 GF Diagnostics、Asset Metadata、Debug Overlay、Runtime Inspector 与 Screenshot；发布构建不安装调试界面。支持报告在同一时点收集项目快照、当前场景资产元数据和 Viewport 截图。
+1. `GFTimeUtility` 拥有游戏 delta、缩放和逻辑暂停；`GamePauseUtility` 是唯一可写暂停 Adapter，负责把 GF 时间状态与 `SceneTree.paused` 原子同步。其他运行时 Module 不得直接写 `SceneTree.paused`。
+2. `PlayerInputSystem` 显式忽略 GF 暂停和时间缩放，只为暂停期间继续消费“恢复”意图；检测到暂停后必须清空移动、撤销、重做和书签输入，不能把缓冲延迟到恢复后执行。
+3. `GameClockUtility` 是业务代码读取 wall-clock、单调 tick 和日期格式的唯一 Adapter。
+4. `GFSeedUtility` 拥有运行时随机流、全局种子和稳定派生算法；业务代码不得自行创建 `RandomNumberGenerator`，也不得调用 Godot 全局随机函数。
+5. 长流程耗时由 `GFOperationDiagnosticsUtility` 的操作记录拥有。调用方读取同一操作的 `started_ticks_usec` 记录阶段，不再平行缓存一份系统 tick。
+6. 只有 Boot 组合根和 `features/asset_library/tools/` 下的离线素材工具可以直接访问 `Time`；该例外由 GF 合规测试的精确路径 allowlist 约束，不得扩散到运行时 Feature。
+7. 开发构建由 `GameDiagnosticsUtility` 组合 GF Diagnostics、Asset Metadata、Debug Overlay、Runtime Inspector 与 Screenshot；发布构建不安装调试界面。支持报告在同一时点收集项目快照、当前场景资产元数据和 Viewport 截图。
 
 ### 持久化
 
