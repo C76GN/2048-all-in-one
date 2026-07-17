@@ -385,10 +385,17 @@ func _ensure_catalog_sources() -> void:
 	_catalog_sources = GFAssetCatalogSourceRegistry.new()
 
 	_runtime_catalog_provider = _CONTENT_PACKAGE_CATALOG_SOURCE_SCRIPT.new()
+	var runtime_content_catalog: GFContentPackageCatalog = GFContentPackageCatalog.new()
+	var runtime_manifest: GFContentPackageManifest = GFContentPackageManifest.load_from_path(
+		ASSET_LIBRARY_MANIFEST_PATH
+	)
+	if runtime_manifest != null:
+		var _manifest_added: bool = runtime_content_catalog.add_manifest(runtime_manifest)
 	var _runtime_configured: GFAssetCatalogSourceProvider = (
-		_runtime_catalog_provider.configure_manifest(
-			ASSET_LIBRARY_MANIFEST_PATH,
-			&"content_package"
+		_runtime_catalog_provider.configure_catalog(
+			runtime_content_catalog,
+			&"content_package",
+			"asset_library"
 		)
 	)
 	var _runtime_registered: bool = _catalog_sources.register_source(

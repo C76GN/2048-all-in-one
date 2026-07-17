@@ -7,9 +7,9 @@
   "gf_source_commit": "aa8db79810368c469755dd24435ca24afde71330",
   "gf_vendor_tree_sha256": "1a0b7921bcb56a1f5e16c34a2f37503db840b3e52260f0722d63613792478f2d",
   "gf_global_script_class_count": 705,
-  "project_runtime_script_class_count": 127,
+  "project_runtime_script_class_count": 128,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The audited GF 8.1.0 vendor snapshot adds GFHttpClientUtility and GFUILayerDefinition, changing the GF global script class count from 703 to 705. The project runtime class count remains 127, and the full 203-test audit retains the existing ObjectDB, Resource, and RID limits.",
+  "calibration_reason": "The audited ProjectContentCatalogUtility centralizes project-owned GF content-package discovery, changing the project runtime class count from 127 to 128. The pinned GF 8.1.0 vendor snapshot is unchanged, and the full 203-test audit retains the existing ObjectDB, Resource, and RID limits.",
   "max_objectdb_instances": 263,
   "max_resources_in_use": 116,
   "max_rid_allocations_by_type": {

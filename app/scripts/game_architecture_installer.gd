@@ -7,6 +7,7 @@ extends "res://addons/gf/kernel/core/gf_installer.gd"
 
 const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
 const _COMMAND_HISTORY_LIMIT: int = 1024
+const _PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_content_catalog_utility.gd")
 const _PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_resource_catalog_utility.gd")
 const _GAME_CLOCK_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/game_clock_utility.gd")
 const _GAME_SAVE_GRAPH_UTILITY_SCRIPT: Script = preload("res://features/persistence/scripts/utilities/game_save_graph_utility.gd")
@@ -56,6 +57,13 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFSeedUtility).as_singleton()
 	await binder.bind_utility(GFAssetUtility).as_singleton()
 	await binder.bind_utility(GFResourceResolverUtility).as_singleton()
+	var content_catalog_binding: GFBindBuilder = (
+		binder.bind_utility(_PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT)
+	)
+	content_catalog_binding = content_catalog_binding.from_instance(
+		_create_project_content_catalog_utility()
+	)
+	await content_catalog_binding.as_singleton()
 	await binder.bind_utility(GFShaderParameterUtility).as_singleton()
 	await binder.bind_utility(GFSignalUtility).as_singleton()
 	await binder.bind_utility(GFNotificationUtility).as_singleton()
@@ -143,6 +151,15 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 	if not progress_registered or not bookmarks_registered or not replays_registered:
 		push_error("[GameArchitectureInstaller] 玩家数据 SaveGraph section 注册失败。")
 	return save_graph
+
+
+func _create_project_content_catalog_utility() -> ProjectContentCatalogUtility:
+	var catalog: ProjectContentCatalogUtility = ProjectContentCatalogUtility.new()
+	return catalog.configure_source_roots(PackedStringArray([
+		"res://features/asset_library/resources",
+		"res://features/themes/resources",
+		"user://content_packages",
+	]))
 
 
 func _create_settings_utility() -> GameSettingsUtility:

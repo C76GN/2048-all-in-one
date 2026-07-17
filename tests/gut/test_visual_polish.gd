@@ -782,9 +782,14 @@ func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
 func _register_asset_library_stack(architecture: GFArchitecture) -> void:
 	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
 	var content_packages: GFContentPackageUtility = GFContentPackageUtility.new()
+	var project_catalog: ProjectContentCatalogUtility = ProjectContentCatalogUtility.new()
+	var _configured_project_catalog: ProjectContentCatalogUtility = project_catalog.configure_source_roots(PackedStringArray([
+		GameAssetLibraryUtility.ASSET_LIBRARY_SOURCE_ROOT,
+	]))
 	var asset_library: GameAssetLibraryUtility = GameAssetLibraryUtility.new()
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(GFContentPackageUtility, content_packages)
+	await architecture.register_utility(ProjectContentCatalogUtility, project_catalog)
 	await architecture.register_utility(GameAssetLibraryUtility, asset_library)
 
 

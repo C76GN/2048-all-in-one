@@ -68,7 +68,8 @@ asset.vfx.celebration.confetti_canvas
 ## GF 接入
 
 - `features/asset_library/resources/gf_content_package.json` 是 GF 内容包 manifest。
-- `GameAssetLibraryUtility` 注册 `res://features/asset_library/resources` 到 `GFContentPackageUtility`。
+- Composition Root 将 `res://features/asset_library/resources` 配置给 `ProjectContentCatalogUtility`；只有后者可以重建 `GFContentPackageUtility` 全局目录。
+- `GameAssetLibraryUtility` 消费统一目录快照，将 `asset_library` 内容包适配为 `GFAssetCatalog`，不再重复注册 source root。
 - 素材资源键同步到 `GFResourceResolverUtility`，供项目通过稳定 ID 解析和加载。
 - `GameContentPackageCatalogSourceProvider` 和 `GameAssetReviewCatalogSourceProvider` 通过 `GFAssetCatalogSourceRegistry` 把运行时素材与候选素材映射为统一的 `GFAssetCatalog` 接口。
 - 运行时文件、候选记录、源包资源和外部导入目录统一由 `GFPathEnumerationTools` 枚举；任何 `truncated` 结果都作为审计或导入错误，不允许静默使用半套目录。

@@ -219,10 +219,19 @@ func _create_asset_library_architecture() -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
 	var content_packages: GFContentPackageUtility = GFContentPackageUtility.new()
+	var project_content_catalog: ProjectContentCatalogUtility = (
+		ProjectContentCatalogUtility.new().configure_source_roots(PackedStringArray([
+			GameAssetLibraryUtility.ASSET_LIBRARY_SOURCE_ROOT,
+		]))
+	)
 	var asset_library: GameAssetLibraryUtility = GameAssetLibraryUtility.new()
 
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(GFContentPackageUtility, content_packages)
+	await architecture.register_utility(
+		ProjectContentCatalogUtility,
+		project_content_catalog
+	)
 	await architecture.register_utility(GameAssetLibraryUtility, asset_library)
 	await architecture.init()
 	await get_tree().process_frame
