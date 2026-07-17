@@ -121,6 +121,22 @@ func test_project_installer_binds_input_device_before_input_mapping() -> void:
 	)
 
 
+func test_project_installer_registers_platform_primitives_before_platform_boundary() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var viewport_position: int = source.find("bind_utility(GFViewportUtility)")
+	var http_position: int = source.find("bind_utility(GFHttpClientUtility)")
+	var gesture_position: int = source.find("bind_utility(GFPointerGestureUtility)")
+	var platform_position: int = source.find("bind_utility(_GAME_PLATFORM_UTILITY_SCRIPT)")
+
+	assert_true(viewport_position >= 0, "项目 Installer 应注册 GFViewportUtility。")
+	assert_true(http_position >= 0, "项目 Installer 应注册 GFHttpClientUtility。")
+	assert_true(gesture_position >= 0, "项目 Installer 应注册 GFPointerGestureUtility。")
+	assert_true(platform_position >= 0, "项目 Installer 应注册 GamePlatformUtility。")
+	assert_true(viewport_position < platform_position, "显示能力应先于项目平台边界注册。")
+	assert_true(http_position < platform_position, "HTTP 能力应先于项目平台边界注册。")
+	assert_true(gesture_position < platform_position, "手势能力应先于项目平台边界注册。")
+
+
 func test_project_installer_binds_pause_adapter_after_gf_time_provider() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
 	var time_position: int = source.find("bind_utility(GFTimeUtility)")

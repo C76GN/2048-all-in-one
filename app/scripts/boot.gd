@@ -6,6 +6,8 @@ extends Control
 # --- 常量 ---
 
 const MAIN_MENU_SCENE_PATH: String = "res://features/navigation/scenes/menus/main_menu.tscn"
+const PLATFORM_SMOKE_SCENE_PATH: String = "res://features/platform_runtime/scenes/smoke_test/platform_smoke_test.tscn"
+const _PLATFORM_SMOKE_FEATURE: String = "platform_smoke"
 const _BACKGROUND_SHADER: Shader = preload("res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader")
 const _PROGRESS_SHADER: Shader = preload("res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader")
 const _BACKGROUND_SHADER_PROFILE: GFShaderParameterProfile = preload("res://features/themes/resources/themes/boot/startup_background_profile.tres")
@@ -68,12 +70,12 @@ func _run_startup_sequence() -> void:
 
 	var scene_utility: GFSceneUtility = _get_scene_utility()
 	if is_instance_valid(scene_utility):
-		await _preload_main_menu(scene_utility)
+		await _preload_startup_scene(scene_utility)
 	else:
-		_publish_progress(0.88, "读取主菜单")
+		_publish_progress(0.88, "读取入口场景")
 		await get_tree().process_frame
 
-	_publish_progress(0.96, "整理菜单")
+	_publish_progress(0.96, "整理入口场景")
 	await _wait_for_minimum_duration(started_msec)
 	var _complete_result: bool = _startup_progress.complete("启动完成")
 
@@ -83,35 +85,37 @@ func _run_startup_sequence() -> void:
 	)
 	if not GFVariantData.get_option_bool(finish_wait, "completed"):
 		return
-	_goto_main_menu()
+	_goto_startup_scene()
 
 
-func _preload_main_menu(scene_utility: GFSceneUtility) -> void:
+func _preload_startup_scene(scene_utility: GFSceneUtility) -> void:
 	_preload_failed = false
 	_connect_preload_signals(scene_utility)
-	var error: Error = scene_utility.preload_scene(MAIN_MENU_SCENE_PATH, true)
+	var startup_scene_path: String = _get_startup_scene_path()
+	var error: Error = scene_utility.preload_scene(startup_scene_path, true)
 	if error == OK:
-		await _wait_for_main_menu_preload(scene_utility)
+		await _wait_for_startup_scene_preload(scene_utility)
 	else:
-		_publish_progress(0.86, "主菜单将直接载入")
+		_publish_progress(0.86, "入口场景将直接载入")
 		await get_tree().process_frame
 	_disconnect_preload_signals(scene_utility)
 
 
-func _wait_for_main_menu_preload(scene_utility: GFSceneUtility) -> void:
-	if scene_utility.is_scene_preloaded(MAIN_MENU_SCENE_PATH):
-		_publish_progress(0.92, "主菜单已预热")
+func _wait_for_startup_scene_preload(scene_utility: GFSceneUtility) -> void:
+	var startup_scene_path: String = _get_startup_scene_path()
+	if scene_utility.is_scene_preloaded(startup_scene_path):
+		_publish_progress(0.92, "入口场景已预热")
 		return
 
 	var _preload_wait: Dictionary = await GFAsyncWaitUtility.wait_until(
-		_is_main_menu_preload_finished.bind(scene_utility),
+		_is_startup_scene_preload_finished.bind(scene_utility),
 		_get_boot_wait_options(_PRELOAD_TIMEOUT_SECONDS)
 	)
 
-	if is_instance_valid(scene_utility) and scene_utility.is_scene_preloaded(MAIN_MENU_SCENE_PATH):
-		_publish_progress(0.92, "主菜单已预热")
+	if is_instance_valid(scene_utility) and scene_utility.is_scene_preloaded(startup_scene_path):
+		_publish_progress(0.92, "入口场景已预热")
 	else:
-		_publish_progress(0.86, "主菜单将直接载入")
+		_publish_progress(0.86, "入口场景将直接载入")
 
 
 func _wait_for_minimum_duration(started_msec: int) -> void:
@@ -127,11 +131,12 @@ func _wait_for_minimum_duration(started_msec: int) -> void:
 	)
 
 
-func _is_main_menu_preload_finished(scene_utility: GFSceneUtility) -> bool:
+func _is_startup_scene_preload_finished(scene_utility: GFSceneUtility) -> bool:
+	var startup_scene_path: String = _get_startup_scene_path()
 	return (
 		not is_instance_valid(scene_utility)
-		or scene_utility.is_scene_preloaded(MAIN_MENU_SCENE_PATH)
-		or not scene_utility.is_scene_preloading(MAIN_MENU_SCENE_PATH)
+		or scene_utility.is_scene_preloaded(startup_scene_path)
+		or not scene_utility.is_scene_preloading(startup_scene_path)
 		or _preload_failed
 	)
 
@@ -191,25 +196,31 @@ func _disconnect_preload_signals(scene_utility: GFSceneUtility) -> void:
 
 
 func _on_scene_preload_progress(path: String, progress: float) -> void:
-	if path != MAIN_MENU_SCENE_PATH:
+	if path != _get_startup_scene_path():
 		return
 	var mapped_progress: float = lerpf(0.56, 0.92, clampf(progress, 0.0, 1.0))
-	_publish_progress(mapped_progress, "预热主菜单")
+	_publish_progress(mapped_progress, "预热入口场景")
 
 
 func _on_scene_preload_failed(path: String) -> void:
-	if path != MAIN_MENU_SCENE_PATH:
+	if path != _get_startup_scene_path():
 		return
 	_preload_failed = true
-	_publish_progress(0.84, "主菜单将直接载入")
+	_publish_progress(0.84, "入口场景将直接载入")
 
 
-func _goto_main_menu() -> void:
+func _goto_startup_scene() -> void:
 	var router: SceneRouterSystem = _get_scene_router_system()
 	if not is_instance_valid(router):
-		push_error("[Boot] 缺少 SceneRouterSystem，无法进入主菜单。")
+		push_error("[Boot] 缺少 SceneRouterSystem，无法进入入口场景。")
 		return
-	router.call_deferred("goto_scene", MAIN_MENU_SCENE_PATH)
+	router.call_deferred("goto_scene", _get_startup_scene_path())
+
+
+func _get_startup_scene_path() -> String:
+	if OS.has_feature(_PLATFORM_SMOKE_FEATURE):
+		return PLATFORM_SMOKE_SCENE_PATH
+	return MAIN_MENU_SCENE_PATH
 
 
 func _get_scene_router_system() -> SceneRouterSystem:

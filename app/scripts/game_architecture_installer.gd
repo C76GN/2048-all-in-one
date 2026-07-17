@@ -21,6 +21,7 @@ const _GAME_ASSET_LIBRARY_UTILITY_SCRIPT: Script = preload("res://features/asset
 const _GAME_CELEBRATION_VFX_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_celebration_vfx_utility.gd")
 const _GAME_THEME_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_catalog_utility.gd")
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
+const _GAME_PLATFORM_UTILITY_SCRIPT: Script = preload("res://features/platform_runtime/scripts/utilities/game_platform_utility.gd")
 const _GAME_DIAGNOSTICS_UTILITY_SCRIPT: Script = preload("res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd")
 
 
@@ -53,7 +54,9 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFStorageUtility).from_instance(_create_storage_utility()).as_singleton()
 	await binder.bind_utility(GameSettingsUtility).from_instance(_create_settings_utility()).with_alias(GFSettingsUtility).as_singleton()
 	await binder.bind_utility(GFDisplaySettingsUtility).as_singleton()
+	await binder.bind_utility(GFViewportUtility).as_singleton()
 	await binder.bind_utility(GFAudioUtility).as_singleton()
+	await binder.bind_utility(GFHttpClientUtility).as_singleton()
 	await binder.bind_utility(GFSeedUtility).as_singleton()
 	await binder.bind_utility(GFAssetUtility).as_singleton()
 	await binder.bind_utility(GFResourceResolverUtility).as_singleton()
@@ -89,6 +92,8 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(_GAME_THEME_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFInputDeviceUtility).as_singleton()
 	await binder.bind_utility(GFInputMappingUtility).as_singleton()
+	await binder.bind_utility(GFPointerGestureUtility).as_singleton()
+	await binder.bind_utility(_GAME_PLATFORM_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFObjectPoolUtility).from_instance(_create_object_pool_utility()).as_singleton()
 
 	if _are_dev_tools_enabled():
