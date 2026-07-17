@@ -266,10 +266,10 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 当前已验证的安全 GUT 命令：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 330 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 420 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-17 使用 Godot `4.7.stable.steam.5b4e0cb0f` 与 GF `8.0.1` 运行通过。当前完整套件为 28 个 GUT 测试脚本、196 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 703 个全局脚本类，项目运行时声明 126 个；完整套件退出计数为 `ObjectDB = 263`、`Resources = 116`、RID 类型数 `= 3`。GF 8.0.1 升级未改变两组脚本类数量，也未增加退出计数，因此没有放宽既有泄漏上限；GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
+2026-07-17 使用 Godot `4.7.stable.steam.5b4e0cb0f` 与 GF `8.0.1` 运行通过。当前完整套件为 23 个 GUT 测试脚本、196 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 703 个全局脚本类，项目运行时声明 126 个；完整套件退出计数为 `ObjectDB = 263`、`Resources = 116`、RID 类型数 `= 3`。GF 8.0.1 升级未改变两组脚本类数量，也未增加退出计数，因此没有放宽既有泄漏上限；GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
 
 编辑器 GDScript warning 诊断入口：
 

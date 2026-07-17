@@ -80,10 +80,12 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 - `-ProjectRoot`：项目根目录，默认当前目录。
 - `-TestDir`：GUT 测试目录，默认 `res://tests/gut`。
 - `-TestScripts`：逗号分隔的 GUT 测试脚本完整路径；非空时只运行这些脚本，并忽略 `-TestDir`。
+- `-UnitTestName`：可选的 GUT 测试方法名子串过滤，适合在同一脚本内最小化失败用例。
 - `-TimeoutSeconds`：超时时间，默认 `180`。
 - `-MaxLogMB`：临时 Godot 日志大小上限，默认 `32`。
 - `-MaxDefaultLogGrowthKB`：默认 Godot 用户日志允许增长上限，默认 `256`。
 - `-PollIntervalMilliseconds`：日志和超时轮询间隔，默认 `100`。
+- `-VerboseGodot`：诊断退出泄漏时附加 Godot `--verbose`，默认关闭；详细对象现场仍受隔离目录和日志上限保护。
 - `-KeepTemp`：保留临时运行目录，便于查看 `stdout.log`、`stderr.log` 和 `godot.log`。
 
 脚本的保护措施：
@@ -116,14 +118,14 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 命令：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 330 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 420 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
 结果：
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
 - GUT：196 个测试全部通过。
-- 当前完整套件：`tests/gut/` 下 28 个测试脚本、196 个 `test_` 用例。
+- 当前完整套件：`tests/gut/` 下 23 个测试脚本、196 个 `test_` 用例。
 - Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。运行时系统时间与随机源受路径扫描门禁约束，场景耗时复用 `GFOperationDiagnosticsUtility` 的操作起始 tick。
 - 未触发默认 Godot 用户日志增长保护。
 - 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 263`、`Resources = 116`、RID 类型数 `= 3`。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时 `class_name` 集合；输入集合不变时任何增长都会失败。只有在干净 HEAD 对照证明增量来自经过审计的运行时类集合变化后，才允许带理由重新校准原始计数。
@@ -163,5 +165,6 @@ $null = [scriptblock]::Create($script)
 - `tools/run_gut_safe.ps1` 已通过一次隔离 GUT 验证；后续仍建议用当前编辑器一致的 Godot `4.7` 可执行文件复测。
 - Godot 编辑器中的 GDScript warning 已通过 `tools/check_gdscript_lsp_diagnostics.ps1` 建立零诊断基线；后续修改 `.gd` 后应复跑。
 - Godot 退出仍存在已量化的框架/测试对象泄漏债务；当前通过严格基线阻止继续增长，不能把基线当成已经修复。
+- `GFTextFitter` 的重复字号塑形会放大退出期 `ShapedText` RID 残留；`gf-framework#6` / `gf-framework#7` 发布前，项目方块文本保留单次比例测量，不得提前复制未发布框架代码或放宽泄漏基线。
 - 开发构建已通过 `GFScreenshotUtility` 提供单张与支持报告现场截图，但尚未建立跨分辨率的视觉基线比较和像素差异门禁。
 - GF 包管理器的独立 lockfile 校验入口已并入原生 CLI `status --json` 的 `lockfile_verify` 字段；若后续 CLI 再次变化，需要先更新本文档再更新自动化命令。

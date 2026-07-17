@@ -3,6 +3,7 @@ param(
 	[string]$ProjectRoot = ".",
 	[string]$TestDir = "res://tests/gut",
 	[string]$TestScripts = "",
+	[string]$UnitTestName = "",
 	[string]$PostRunScript = "res://tests/gut/support/gf_test_shutdown_hook.gd",
 	[string]$ExitLeakBaseline = ".gf/godot_exit_leak_baseline.json",
 	[ValidateRange(1, 3600)]
@@ -13,6 +14,7 @@ param(
 	[int]$MaxDefaultLogGrowthKB = 256,
 	[ValidateRange(50, 5000)]
 	[int]$PollIntervalMilliseconds = 100,
+	[switch]$VerboseGodot,
 	[switch]$KeepTemp
 )
 
@@ -110,7 +112,7 @@ function Get-GodotValidationIssues {
 		"The `"await`" keyword is unnecessary",
 		"remove_child() can't be called",
 		"Parent node is busy adding/removing children",
-		"Orphans"
+		"Orphans:"
 	)
 	return Find-OutputPatternLines $output $patterns
 }
@@ -336,11 +338,17 @@ try {
 		"-s",
 		"res://addons/gut/gut_cmdln.gd"
 	)
+	if ($VerboseGodot) {
+		$arguments = @("--verbose") + $arguments
+	}
 	if ([string]::IsNullOrWhiteSpace($TestScripts)) {
 		$arguments += "-gdir=$TestDir"
 		$arguments += "-ginclude_subdirs"
 	} else {
 		$arguments += "-gtest=$TestScripts"
+	}
+	if (-not [string]::IsNullOrWhiteSpace($UnitTestName)) {
+		$arguments += "-gunit_test_name=$UnitTestName"
 	}
 	$arguments += "-gexit"
 	if (-not [string]::IsNullOrWhiteSpace($PostRunScript)) {

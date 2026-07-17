@@ -115,7 +115,7 @@ func test_resume_request_only_unpauses_tree() -> void:
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.init()
 
-	var panel: Control = Control.new()
+	var panel: Control = _make_test_control()
 	ui_utility.push_panel_instance(panel)
 	var tree: SceneTree = get_tree()
 	tree.paused = true
@@ -139,8 +139,8 @@ func test_restart_request_preserves_ui_stack_and_delegates_restart() -> void:
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.init()
 
-	var popup_panel: Control = Control.new()
-	var top_panel: Control = Control.new()
+	var popup_panel: Control = _make_test_control()
+	var top_panel: Control = _make_test_control()
 	ui_utility.push_panel_instance(popup_panel, GFUIUtility.Layer.POPUP)
 	ui_utility.push_panel_instance(top_panel, GFUIUtility.Layer.TOP)
 
@@ -166,8 +166,8 @@ func test_return_to_main_menu_request_preserves_ui_stack_unpauses_and_routes() -
 	await architecture.register_system(SceneRouterSystem, router)
 	await architecture.init()
 
-	var popup_panel: Control = Control.new()
-	var top_panel: Control = Control.new()
+	var popup_panel: Control = _make_test_control()
+	var top_panel: Control = _make_test_control()
 	ui_utility.push_panel_instance(popup_panel, GFUIUtility.Layer.POPUP)
 	ui_utility.push_panel_instance(top_panel, GFUIUtility.Layer.TOP)
 	var tree: SceneTree = get_tree()
@@ -286,6 +286,12 @@ func _make_flow_system() -> GameFlowSystem:
 	var flow_system: GameFlowSystem = GameFlowSystem.new()
 	track_gf_system(flow_system)
 	return flow_system
+
+
+func _make_test_control() -> Control:
+	var control: Control = Control.new()
+	track_test_node(control)
+	return control
 
 
 func _dispose_architecture_and_flush(architecture: GFArchitecture) -> void:
