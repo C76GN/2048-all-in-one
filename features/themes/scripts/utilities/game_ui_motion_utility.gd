@@ -45,6 +45,8 @@ const _FIELD_FOCUS_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.835294
 const _FIELD_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.72)
 const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
 const _PANEL_SURFACE_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.88)
+const _SELECTED_SURFACE_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216, 0.72)
+const _SELECTED_BORDER_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
 const _HOVER_SCALE: float = 1.012
 const _PRESS_SCALE: float = 0.980
 const _HOVER_DURATION: float = 0.11
@@ -74,6 +76,8 @@ var _field_focus_surface_color: Color = _FIELD_FOCUS_SURFACE_COLOR
 var _field_border_color: Color = _FIELD_BORDER_COLOR
 var _field_focus_border_color: Color = _FIELD_FOCUS_BORDER_COLOR
 var _panel_surface_color: Color = _PANEL_SURFACE_COLOR
+var _selected_surface_color: Color = _SELECTED_SURFACE_COLOR
+var _selected_border_color: Color = _SELECTED_BORDER_COLOR
 var _slider_track_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
 var _slider_grabber_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
 var _slider_grabber_highlight_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)
@@ -141,6 +145,8 @@ func apply_palette(palette: GameUiPalette) -> void:
 	_field_border_color = palette.field_border_color
 	_field_focus_border_color = palette.field_focus_border_color
 	_panel_surface_color = palette.panel_surface_color
+	_selected_surface_color = palette.selected_surface_color
+	_selected_border_color = palette.selected_border_color
 	_slider_track_color = palette.slider_track_color
 	_slider_grabber_color = palette.slider_grabber_color
 	_slider_grabber_highlight_color = palette.slider_grabber_highlight_color
@@ -495,6 +501,9 @@ func _apply_support_control_style(control: Control) -> void:
 	elif control is PanelContainer:
 		var panel_container: PanelContainer = control
 		_style_panel_container(panel_container)
+	elif control is ItemList:
+		var item_list: ItemList = control
+		_style_item_list(item_list)
 
 
 func _style_label(label: Label) -> void:
@@ -555,6 +564,27 @@ func _style_panel_container(panel_container: PanelContainer) -> void:
 		"panel",
 		_create_field_style(_panel_surface_color, _field_border_color, 1)
 	)
+
+
+func _style_item_list(item_list: ItemList) -> void:
+	item_list.add_theme_stylebox_override(
+		"panel",
+		_create_field_style(_field_surface_color, _field_border_color, 1)
+	)
+	item_list.add_theme_stylebox_override(
+		"focus",
+		_create_field_style(Color.TRANSPARENT, _field_focus_border_color, 2)
+	)
+	item_list.add_theme_stylebox_override(
+		"selected",
+		_create_field_style(_selected_surface_color, _selected_border_color, 1)
+	)
+	item_list.add_theme_stylebox_override(
+		"selected_focus",
+		_create_field_style(_selected_surface_color, _field_focus_border_color, 2)
+	)
+	item_list.add_theme_color_override("font_color", _text_primary_color)
+	item_list.add_theme_color_override("font_selected_color", _text_primary_color)
 
 
 func _create_field_style(bg_color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
@@ -759,6 +789,8 @@ func _reset_palette() -> void:
 	_field_border_color = _FIELD_BORDER_COLOR
 	_field_focus_border_color = _FIELD_FOCUS_BORDER_COLOR
 	_panel_surface_color = _PANEL_SURFACE_COLOR
+	_selected_surface_color = _SELECTED_SURFACE_COLOR
+	_selected_border_color = _SELECTED_BORDER_COLOR
 	_slider_track_color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
 	_slider_grabber_color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
 	_slider_grabber_highlight_color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)

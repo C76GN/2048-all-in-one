@@ -7,7 +7,7 @@
 - `BoardTopology` 只回答“哪些坐标存在”，不保存方块、阵营、规则或表现。
 - `GridModel` 只在活跃坐标上保存 `TileState`，空洞不是空方块，也不占容量。
 - `BoardTopologyTemplate` 由 `GameModeConfig` 持有，声明模式接受固定拓扑、可变矩形或自定义拓扑。
-- 当前 UI 的尺寸下拉框只是矩形模板的一个编辑器，不是运行时棋盘契约。
+- 当前模式选择页的尺寸下拉框和 `board_editor` Feature 都只是拓扑输入界面，不是运行时棋盘契约。
 
 GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。`GFFlowGraph` 表达流程连接，`GFHexGridMath` 表达六边形网格；复用它们会混淆领域语义。因此拓扑由 gameplay Feature 拥有，同时复用 GF 的 `GFValidationReport`、确定性随机、Command History、Level Session 与 SaveGraph。
 
@@ -44,12 +44,13 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 - 空洞安全的移动、生成、判负、棋盘预览、撤销、书签与回放。
 - 原 3x3 至 8x8 模式选择通过 `scalable_square_board_template.tres` 生成矩形拓扑。
 - 调试扩建仅支持矩形正方形；它不是玩家棋盘编辑器。
+- `board_editor` 已提供画笔、橡皮、矩形与十字预设、位置规范化、连通分量提示、局部 GF 撤销历史和玩家模板目录。
+- 玩家模板使用 `custom_boards` SaveGraph section 和 `board.player.<uuid>` 稳定拓扑 ID。
 
 ## 后续顺序
 
-1. 建立玩家棋盘编辑器：画笔、橡皮、平移规范化、连通性提示、模板保存与预览。
-2. 将棋盘表现拆为世界画布与 HUD，加入相机缩放、平移、聚焦和可见区域裁剪。
-3. 增加响应式手机布局与 GF 输入上下文，区分滑动棋盘、拖动画布和 UI 手势。
-4. 在稳定棋盘键上接入图鉴、成就与平台排行榜 Adapter。
+1. 将棋盘表现拆为世界画布与 HUD，加入相机缩放、平移、聚焦和可见区域裁剪。
+2. 增加响应式手机布局与 GF 输入上下文，区分滑动棋盘、拖动画布和 UI 手势。
+3. 在稳定棋盘键上接入图鉴、成就与平台排行榜 Adapter。
 
 任何后续形状都应先扩展拓扑或规则资源，不得重新引入固定二维数组或以 UI 尺寸推断逻辑空间。

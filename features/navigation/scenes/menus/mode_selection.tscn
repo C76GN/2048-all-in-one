@@ -71,9 +71,17 @@ unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_left = NodePath("../../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
 focus_neighbor_top = NodePath("../../StartGameButton")
-focus_neighbor_bottom = NodePath("../../SeedContainer/SeedLineEdit")
+focus_neighbor_bottom = NodePath("../../EditBoardButton")
 
-[node name="SeedContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/RightColumn" index="3" unique_id=1939648011]
+[node name="EditBoardButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="3"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_neighbor_left = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
+focus_neighbor_top = NodePath("../GridSizeContainer/GridSizeOptionButton")
+focus_neighbor_bottom = NodePath("../SeedContainer/SeedLineEdit")
+text = "自定义棋盘"
+
+[node name="SeedContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/RightColumn" index="4" unique_id=1939648011]
 layout_mode = 2
 
 [node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn/SeedContainer" index="0" unique_id=556242207]
@@ -85,7 +93,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
 focus_neighbor_left = NodePath("../../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
-focus_neighbor_top = NodePath("../../GridSizeContainer/GridSizeOptionButton")
+focus_neighbor_top = NodePath("../../EditBoardButton")
 focus_neighbor_right = NodePath("../RefreshSeedButton")
 focus_neighbor_bottom = NodePath("../../StartGameButton")
 text = "1655834524"
@@ -98,17 +106,17 @@ unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "点击以生成新的随机种子"
 focus_neighbor_left = NodePath("../SeedLineEdit")
-focus_neighbor_top = NodePath("../../GridSizeContainer/GridSizeOptionButton")
+focus_neighbor_top = NodePath("../../EditBoardButton")
 focus_neighbor_right = NodePath("../SeedLineEdit")
 focus_neighbor_bottom = NodePath("../../StartGameButton")
 text = "🎲"
 flat = true
 
-[node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="4" unique_id=360129159]
+[node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="5" unique_id=360129159]
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 
-[node name="StartGameButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="5" unique_id=1679984735]
+[node name="StartGameButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="6" unique_id=1679984735]
 unique_name_in_owner = true
 layout_mode = 2
 focus_neighbor_left = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")

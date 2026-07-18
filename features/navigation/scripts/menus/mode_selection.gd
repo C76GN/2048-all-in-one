@@ -23,8 +23,6 @@ const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216,
 const _STATS_EMPTY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n暂无完整对局统计"
 const _STATS_SUMMARY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
 const _STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n目标 %d：达成 %d 次 · %d%%\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
-
-
 # --- 导出变量 ---
 
 ## 游戏主场景路径。
@@ -36,6 +34,7 @@ var _selected_mode_config: GameModeConfig = null
 var _mode_config_paths: PackedStringArray = PackedStringArray()
 var _current_board_size: Vector2i = Vector2i(4, 4)
 var _current_board_topology: BoardTopology = null
+var _custom_board_option_index: int = -1
 var _items_per_page: int = 5
 var _current_page: int = 0
 var _total_pages: int = 0
@@ -56,6 +55,7 @@ var _info_score_label: Label
 @onready var _back_button: Button = %BackButton
 @onready var _start_game_button: Button = %StartGameButton
 @onready var _grid_size_option_button: OptionButton = %GridSizeOptionButton
+@onready var _edit_board_button: Button = %EditBoardButton
 @onready var _seed_line_edit: LineEdit = %SeedLineEdit
 @onready var _refresh_seed_button: Button = %RefreshSeedButton
 @onready var _prev_page_button: Button = %PrevPageButton
@@ -86,6 +86,7 @@ func _ready() -> void:
 	var _connect_result_81: int = _prev_page_button.pressed.connect(_on_prev_page_button_pressed)
 	var _connect_result_82: int = _next_page_button.pressed.connect(_on_next_page_button_pressed)
 	var _connect_result_83: int = _grid_size_option_button.get_popup().id_focused.connect(_on_grid_size_focused)
+	var _connect_result_84: int = _edit_board_button.pressed.connect(_on_edit_board_button_pressed)
 
 	_generate_and_display_new_seed()
 	_update_ui_text()
@@ -353,6 +354,8 @@ func _update_ui_text() -> void:
 		_back_button.text = tr("UI_BACK")
 	if is_instance_valid(_start_game_button):
 		_start_game_button.text = tr("BTN_START_GAME")
+	if is_instance_valid(_edit_board_button):
+		_edit_board_button.text = tr("BOARD_EDITOR_OPEN")
 	if is_instance_valid(_config_header_label):
 		_config_header_label.text = tr("LABEL_MODE_CONFIG")
 	if is_instance_valid(_grid_size_label):
@@ -385,7 +388,9 @@ func _populate_right_panel() -> void:
 		return
 	_current_board_topology = null
 	_current_board_size = Vector2i.ZERO
+	_custom_board_option_index = -1
 	_start_game_button.disabled = true
+	_edit_board_button.disabled = true
 
 	var default_size_index: int = -1
 	var grid_size_items: Array[Dictionary] = []
@@ -393,6 +398,7 @@ func _populate_right_panel() -> void:
 	if not is_instance_valid(topology_template):
 		_write_option_items(_grid_size_option_button, grid_size_items)
 		return
+	_edit_board_button.disabled = not topology_template.allow_custom_topology
 
 	var square_sizes: Array[int] = topology_template.get_square_size_options()
 	if not square_sizes.is_empty():
@@ -469,6 +475,49 @@ func _update_grid_size_and_ui(index: int) -> void:
 
 	if is_instance_valid(_selected_mode_config):
 		_update_high_score_label()
+
+
+func _configure_board_editor(panel: Node) -> void:
+	if not panel is BoardEditorDialog:
+		push_error("[ModeSelection] 棋盘编辑器路由返回了错误面板类型。")
+		return
+	var editor: BoardEditorDialog = panel
+	editor.configure(_selected_mode_config.board_topology_template, _current_board_topology)
+	var _connect_result: int = editor.topology_applied.connect(_on_custom_board_topology_applied)
+
+
+func _on_custom_board_topology_applied(topology: BoardTopology) -> void:
+	if not is_instance_valid(_selected_mode_config) or not is_instance_valid(topology):
+		return
+	var topology_template: BoardTopologyTemplate = _selected_mode_config.board_topology_template
+	if not is_instance_valid(topology_template) or not topology_template.accepts_topology(topology):
+		push_error("[ModeSelection] 棋盘编辑器返回了当前模式不接受的拓扑。")
+		return
+
+	var topology_copy: BoardTopology = BoardTopology.from_dict(topology.to_dict())
+	if topology_copy == null:
+		return
+	var items: Array[Dictionary] = []
+	for index: int in range(_grid_size_option_button.item_count):
+		items.append(_make_option_item(
+			_grid_size_option_button.get_item_text(index),
+			_grid_size_option_button.get_item_metadata(index),
+			index
+		))
+	var custom_index: int = _custom_board_option_index
+	if custom_index < 0 or custom_index >= items.size():
+		custom_index = items.size()
+		items.append({})
+	items[custom_index] = _make_option_item(
+		tr("BOARD_EDITOR_OPTION_FORMAT") % topology_copy.get_size_label(),
+		topology_copy,
+		custom_index
+	)
+	_custom_board_option_index = custom_index
+	_write_option_items(_grid_size_option_button, items)
+	_grid_size_option_button.select(custom_index)
+	_update_grid_size_and_ui(custom_index)
+	_start_game_button.disabled = false
 
 
 func _write_option_items(option: OptionButton, items: Array[Dictionary]) -> void:
@@ -731,6 +780,26 @@ func _on_grid_size_focused(index: int) -> void:
 
 func _on_grid_size_selected(index: int) -> void:
 	_update_grid_size_and_ui(index)
+
+
+func _on_edit_board_button_pressed() -> void:
+	if not is_instance_valid(_selected_mode_config) or not is_instance_valid(_current_board_topology):
+		return
+	var topology_template: BoardTopologyTemplate = _selected_mode_config.board_topology_template
+	if not is_instance_valid(topology_template) or not topology_template.allow_custom_topology:
+		return
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		push_error("[ModeSelection] 缺少 GFUIRouterUtility，无法打开棋盘编辑器。")
+		return
+	var editor_panel: Node = ui_router.push_route(
+		GameUiRouterUtility.ROUTE_BOARD_EDITOR,
+		{},
+		{},
+		_configure_board_editor
+	)
+	if not is_instance_valid(editor_panel):
+		push_error("[ModeSelection] GF UI 路由未能打开棋盘编辑器。")
 
 
 func _on_prev_page_button_pressed() -> void:

@@ -25,6 +25,7 @@
 | --- | --- |
 | `gameplay` | 棋盘、移动命令、规则、模式、对局状态、HUD 和玩法输入 |
 | `navigation` | 场景路由、主菜单、模式选择、列表菜单导航壳和 UI Route 注册表 |
+| `board_editor` | 玩家棋盘草稿、局部撤销历史、自定义模板目录和 `custom_boards` SaveGraph section |
 | `settings` | 应用设置模型、设置持久化和设置界面 |
 | `bookmarks` | 书签数据、保存流程、列表和预览入口 |
 | `replays` | 回放数据、回放输入、播放流程、列表和继续游戏入口 |
@@ -87,7 +88,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ### 棋盘拓扑
 
 1. `BoardTopology` 只描述规范化活跃单元，不保存方块；`GridModel` 以坐标到 `TileState` 的稀疏映射保存占用状态，不再维护完整二维空数组。
-2. `BoardTopologyTemplate` 属于模式配置，声明固定拓扑或可变矩形范围。当前模式选择页把原 3x3 至 8x8 选项转换成矩形拓扑，未来玩家编辑器直接提交自定义拓扑。
+2. `BoardTopologyTemplate` 属于模式配置，声明固定拓扑或可变矩形范围。模式选择页把原 3x3 至 8x8 选项转换成矩形拓扑，`board_editor` 则提交经过同一模板复核的自定义拓扑。
 3. `GridMovementSystem`、`GridSpawnSystem` 与 `StandardGameOverRule` 只遍历活跃单元和真实相邻关系；任何系统不得按包围盒把空洞实体化，也不得让方块跨越空洞。
 4. 撤销、书签、回放和 GF SaveGraph 共用严格拓扑快照；对局 ID、统计和未来排行榜使用语义 ID 加内容指纹的稳定键。
 5. GF 继续拥有验证报告、确定性随机、命令历史、关卡 Session 和持久化事务；四向稀疏拓扑是 gameplay 领域对象，不误用 GF flow graph 或 hex grid 表达不同语义。
@@ -138,10 +139,10 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ### 持久化
 
 - `persistence` 创建 `player_data` 根 Scope，并通过 `GFSaveGraphUtility` 统一校验、阶段排序、事务应用和诊断。
-- `progress`、`bookmarks` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
-- 三个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 负责存储元数据、checksum 和原子文件事务。
+- `progress`、`bookmarks`、`board_editor` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
+- 四个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 负责存储元数据、checksum 和原子文件事务。
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。
-- `progress`、`bookmarks`、`replays` section 当前分别为 v3、v4、v2；棋盘快照内嵌严格 `BoardTopology`，规则统计使用中性的 `ratio_resolutions`，不提供旧尺寸键、旧阵营字段推断或兼容分支。
+- Profile 当前为 `player_data@2`；`progress`、`bookmarks`、`custom_boards`、`replays` section 当前分别为 v3、v4、v1、v2。棋盘快照与玩家模板都内嵌严格 `BoardTopology`，规则统计使用中性的 `ratio_resolutions`，不提供旧尺寸键、旧阵营字段推断或兼容分支。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
 - 存档 Schema 发生破坏性变化时使用显式迁移工具；运行时代码不长期保留旧字段双读分支。
 

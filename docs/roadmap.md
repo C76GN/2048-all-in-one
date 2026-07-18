@@ -141,9 +141,9 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 验证：模式注册表和 UI 路由注册表测试继续通过，并能捕获缺失路径。
 
 4. 存档 Module 深化。
-   - 涉及：`GameSaveGraphUtility`、`GameSaveSectionData`、`SaveSystem`、`BookmarkSystem`、`ReplaySystem`、`GFSaveGraphUtility`、`GFSaveScope`、`GFSaveDataSource`、`GFStorageUtility`。
-   - 问题：最高分、设置、书签、回放分属不同入口，持久化语义需要更统一。
-   - 当前状态：统计、书签和回放已迁移为三个 Feature-owned section，由项目级 SaveGraph 原子保存；设置保持独立生命周期。旧 SaveSlot Adapter 和时间戳 Resource 集合已删除。
+   - 涉及：`GameSaveGraphUtility`、`GameSaveSectionData`、`SaveSystem`、`BookmarkSystem`、`CustomBoardSystem`、`ReplaySystem`、`GFSaveGraphUtility`、`GFSaveScope`、`GFSaveDataSource`、`GFStorageUtility`。
+   - 问题：最高分、设置、书签、玩家棋盘、回放分属不同入口，持久化语义需要更统一。
+   - 当前状态：统计、书签、玩家棋盘和回放已迁移为四个 Feature-owned section，由项目级 SaveGraph 原子保存；设置保持独立生命周期。旧 SaveSlot Adapter 和时间戳 Resource 集合已删除。
    - 存储契约：Binary Variant 类型保真、GF storage metadata、checksum、严格 Profile/section schema、UUID v7 稳定身份，不提供旧格式运行时双读。
    - 验证：跨架构重载、单文件约束、后期 section 失败全图回滚、schema 拒绝和保存失败内存回滚均有聚焦测试。
 
@@ -157,8 +157,8 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 目标：从功能样例变成完整小游戏。
 
 1. 自定义与超大棋盘基础。
-   - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；六个现有模式通过资源化矩形模板保持当前选择体验。
-   - 下一步：实现玩家棋盘编辑器，再把棋盘表现拆为可缩放/平移世界画布与独立 HUD；完成后进入手机手势与响应式布局。
+   - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；玩家编辑器已支持绘制、擦除、预设、规范化、连通提示、GF 局部撤销历史和 SaveGraph 模板目录。
+   - 下一步：把棋盘表现拆为可缩放/平移世界画布与独立 HUD；完成后进入手机手势与响应式布局。
    - 契约：见 `features/gameplay/docs/board_topology.md`，不得重新引入 `grid_size` 作为逻辑唯一真源。
 
 2. 核心流程完整化。
@@ -233,7 +233,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 收益：后续 AI 不会反复把风格改歪。
 
 3. SaveGraph 运维体验可以继续加深。
-   - 当前状态：统计、书签和回放已统一到 Feature-owned section，GF SaveGraph 负责图级事务，旧并行实现已删除。
+   - 当前状态：统计、书签、玩家棋盘和回放已统一到 Feature-owned section，GF SaveGraph 负责图级事务，旧并行实现已删除。
    - 方向：在不放宽严格 schema 的前提下，为损坏存档增加面向玩家的隔离、导出诊断和显式重置流程。
    - 收益：让 checksum 或未来版本拒绝不只出现在日志中，同时保持运行时无隐式降级。
 
@@ -246,9 +246,8 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 优先级最高的下一步：
 
-1. 基于 `BoardTopology` 实现玩家棋盘编辑器与模板持久化，先完成画笔、橡皮、规范化和实时校验。
-2. 将棋盘表现拆为可缩放/平移世界画布与独立 HUD，并为超大棋盘增加可见区域裁剪。
-3. 接入手机手势与响应式布局，明确滑动方块、拖动画布和 UI 操作的 GF 输入上下文优先级。
-4. 按 `docs/visual_style.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
-5. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。
-6. 在稳定棋盘键和平台 Adapter 基础上推进图鉴、成就与排行榜。
+1. 将棋盘表现拆为可缩放/平移世界画布与独立 HUD，并为超大棋盘增加可见区域裁剪。
+2. 接入手机手势与响应式布局，明确滑动方块、拖动画布和 UI 操作的 GF 输入上下文优先级。
+3. 按 `docs/visual_style.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
+4. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。
+5. 在稳定棋盘键和平台 Adapter 基础上推进图鉴、成就与排行榜。

@@ -316,8 +316,10 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	var root: Control = Control.new()
 	var container: VBoxContainer = VBoxContainer.new()
 	var button: Button = Button.new()
+	var item_list: ItemList = ItemList.new()
 	root.add_child(container)
 	container.add_child(button)
+	container.add_child(item_list)
 	add_child_autoqfree(root)
 	await get_tree().process_frame
 
@@ -349,6 +351,17 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	assert_not_null(button_style, "按钮绑定后应获得统一 StyleBoxFlat。")
 	assert_true(button_style.get_border_width(SIDE_TOP) >= 2, "统一按钮样式应使用像素菜单描边。")
 	assert_true(button_style.shadow_size == 0, "统一按钮样式应保持无阴影。")
+	var selected_style: StyleBoxFlat = _get_stylebox_flat(item_list, &"selected")
+	assert_not_null(selected_style, "列表绑定后应获得主题化选中态。")
+	if selected_style != null:
+		assert_true(
+			selected_style.bg_color == _HALFTONE_UI_PALETTE.selected_surface_color,
+			"列表选中背景应跟随当前 UI 色板。"
+		)
+		assert_true(
+			selected_style.border_color == _HALFTONE_UI_PALETTE.selected_border_color,
+			"列表选中边框应跟随当前 UI 色板。"
+		)
 
 	var ring_node: Node = button.get_node_or_null("ButtonFocusRing")
 	assert_true(ring_node is ColorRect, "按钮绑定后应自动挂载选中态虚线描边 overlay。")

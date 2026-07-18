@@ -114,6 +114,7 @@ func _bind_systems(binder: GFBinder) -> void:
 	await binder.bind_system(SceneRouterSystem).as_singleton()
 	await binder.bind_system(SaveSystem).as_singleton()
 	await binder.bind_system(BookmarkSystem).as_singleton()
+	await binder.bind_system(CustomBoardSystem).as_singleton()
 	await binder.bind_system(ReplaySystem).as_singleton()
 	await binder.bind_system(GameFlowSystem).as_singleton()
 	await binder.bind_system(GridMovementSystem).as_singleton()
@@ -148,12 +149,22 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 		BookmarkCatalogSaveData.new(),
 		GFSaveScope.Phase.NORMAL
 	)
+	var custom_boards_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
+		CustomBoardCatalogSaveData.new(),
+		GFSaveScope.Phase.NORMAL
+	)
 	var replays_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		ReplayCatalogSaveData.new(),
 		GFSaveScope.Phase.LATE
 	)
-	if not progress_registered or not bookmarks_registered or not replays_registered:
+	if (
+		not progress_registered
+		or not bookmarks_registered
+		or not custom_boards_registered
+		or not replays_registered
+	):
 		push_error("[GameArchitectureInstaller] 玩家数据 SaveGraph section 注册失败。")
 	return save_graph
 

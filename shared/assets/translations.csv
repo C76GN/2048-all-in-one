@@ -220,3 +220,41 @@ REPLAY_KEYS_ACTION_HINT,从此继续: C    返回列表: Esc / B,Continue: C    
 FORMAT_RATIO_PROBABILITY,"  - %d (概率: %.1f%%)
 ","  - %d (Chance: %.1f%%)
 "
+BOARD_EDITOR_OPEN,自定义棋盘,Custom Board
+BOARD_EDITOR_OPTION_FORMAT,自定义 · %s,Custom · %s
+BOARD_EDITOR_TITLE,棋盘编辑器,Board Editor
+BOARD_EDITOR_CANVAS_HINT,左键绘制 · 右键擦除,Left draw · Right erase
+BOARD_EDITOR_TOOL_TITLE,绘制工具,Drawing Tools
+BOARD_EDITOR_TOOL_BRUSH,画笔,Brush
+BOARD_EDITOR_TOOL_ERASER,橡皮擦,Eraser
+BOARD_EDITOR_UNDO,撤销,Undo
+BOARD_EDITOR_REDO,重做,Redo
+BOARD_EDITOR_PRESET_RECTANGLE,默认矩形,Default Rectangle
+BOARD_EDITOR_PRESET_CROSS,十字形,Cross
+BOARD_EDITOR_NORMALIZE,移至左上原点,Move to Origin
+BOARD_EDITOR_CLEAR,清空,Clear
+BOARD_EDITOR_COMPONENT_HINT,断开的区域允许保存，移动时会形成独立通道。,Disconnected regions are allowed and form independent movement lanes.
+BOARD_EDITOR_LIBRARY_TITLE,我的棋盘,My Boards
+BOARD_EDITOR_NAME_PLACEHOLDER,棋盘名称,Board name
+BOARD_EDITOR_DEFAULT_NAME,我的棋盘,My Board
+BOARD_EDITOR_SAVE,另存为模板,Save as Template
+BOARD_EDITOR_LOAD,载入,Load
+BOARD_EDITOR_DELETE,删除,Delete
+BOARD_EDITOR_APPLY,使用此棋盘,Use This Board
+BOARD_EDITOR_INVALID_TEMPLATE,当前模式没有有效的棋盘模板。,This mode has no valid board template.
+BOARD_EDITOR_STATUS_EMPTY,至少绘制一个活跃格子。,Draw at least one active cell.
+BOARD_EDITOR_STATUS_REJECTED,当前形状 %dx%d / %d 格不符合模式尺寸限制。,Shape %dx%d / %d cells does not meet this mode's limits.
+BOARD_EDITOR_STATUS_DISCONNECTED,有效：%dx%d / %d 格，共 %d 个独立区域。,Valid: %dx%d / %d cells across %d disconnected regions.
+BOARD_EDITOR_STATUS_VALID,有效：%dx%d / %d 格，单一连通区域。,Valid: %dx%d / %d cells in one connected region.
+BOARD_EDITOR_LIBRARY_EMPTY,尚未选择已保存棋盘。,No saved board selected.
+BOARD_EDITOR_LIBRARY_DETAIL,尺寸 %s · %d 格 · %d 个区域,Size %s · %d cells · %d regions
+BOARD_EDITOR_INCOMPATIBLE_SUFFIX,（当前模式不可用）, (unavailable in this mode)
+BOARD_EDITOR_SAVE_FAILED,保存失败，错误码：%d,Save failed with error %d
+BOARD_EDITOR_DELETE_FAILED,删除失败，错误码：%d,Delete failed with error %d
+BOARD_EDITOR_ACTION_DRAW,绘制格子,Draw Cells
+BOARD_EDITOR_ACTION_ERASE,擦除格子,Erase Cells
+BOARD_EDITOR_ACTION_RECTANGLE,应用矩形预设,Apply Rectangle Preset
+BOARD_EDITOR_ACTION_CROSS,应用十字预设,Apply Cross Preset
+BOARD_EDITOR_ACTION_NORMALIZE,规范化棋盘位置,Normalize Board Position
+BOARD_EDITOR_ACTION_CLEAR,清空棋盘,Clear Board
+BOARD_EDITOR_ACTION_LOAD,载入棋盘模板,Load Board Template

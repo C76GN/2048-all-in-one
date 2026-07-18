@@ -13,6 +13,7 @@ const ROUTE_PAUSE_MENU: StringName = &"pause_menu"
 const ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
 const ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
 const ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
+const ROUTE_BOARD_EDITOR: StringName = &"board_editor"
 
 const _CATALOG_ID: StringName = &"ui_routes"
 const _UI_ROUTE_GROUP_ID: StringName = &"ui_routes"

@@ -1,0 +1,239 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_dialog.gd" id="1_dialog"]
+[ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_canvas.gd" id="2_canvas"]
+
+[node name="BoardEditorDialog" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+process_mode = 3
+script = ExtResource("1_dialog")
+
+[node name="DimBackground" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.101961, 0.082353, 0.109804, 0.72)
+
+[node name="OuterMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="EditorPanel" type="PanelContainer" parent="OuterMargin"]
+layout_mode = 2
+
+[node name="InnerMargin" type="MarginContainer" parent="OuterMargin/EditorPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 18
+
+[node name="RootVBox" type="VBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 30
+text = "棋盘编辑器"
+
+[node name="CanvasHintLabel" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "左键绘制 · 右键擦除"
+vertical_alignment = 1
+
+[node name="HeaderSeparator" type="HSeparator" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox"]
+layout_mode = 2
+
+[node name="Content" type="HBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 18
+
+[node name="Tools" type="VBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content"]
+custom_minimum_size = Vector2(180, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ToolTitle" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "绘制工具"
+
+[node name="ToolModes" type="HBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="BrushButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools/ToolModes"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "画笔"
+
+[node name="EraserButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools/ToolModes"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "橡皮擦"
+
+[node name="History" type="HBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
+layout_mode = 2
+
+[node name="UndoButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools/History"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "撤销"
+
+[node name="RedoButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools/History"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "重做"
+
+[node name="ToolSeparator" type="HSeparator" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
+layout_mode = 2
+
+[node name="RectangleButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "默认矩形"
+
+[node name="CrossButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "十字形"
+
+[node name="NormalizeButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "移至左上原点"
+
+[node name="ClearButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "清空"
+
+[node name="ToolSpacer" type="Control" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ToolInfo" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "断开的区域允许保存，移动时会形成独立通道。"
+autowrap_mode = 2
+
+[node name="BoardEditorCanvas" type="Control" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(480, 420)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("2_canvas")
+
+[node name="Library" type="VBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content"]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LibraryTitleLabel" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "我的棋盘"
+
+[node name="SavedBoardList" type="ItemList" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+
+[node name="SavedBoardDetailLabel" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "尚未选择已保存棋盘"
+autowrap_mode = 2
+
+[node name="BoardNameEdit" type="LineEdit" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library"]
+unique_name_in_owner = true
+layout_mode = 2
+max_length = 64
+placeholder_text = "棋盘名称"
+select_all_on_focus = true
+caret_blink = true
+
+[node name="SaveButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "另存为模板"
+
+[node name="LibraryActions" type="HBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library"]
+layout_mode = 2
+
+[node name="LoadButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library/LibraryActions"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "载入"
+
+[node name="DeleteButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library/LibraryActions"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "删除"
+
+[node name="ValidationLabel" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "等待校验"
+horizontal_alignment = 1
+
+[node name="FooterSeparator" type="HSeparator" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox"]
+layout_mode = 2
+
+[node name="Footer" type="HBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 12
+
+[node name="CancelButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Footer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 48)
+layout_mode = 2
+text = "取消"
+
+[node name="ApplyButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Footer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 48)
+layout_mode = 2
+text = "使用此棋盘"

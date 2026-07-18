@@ -10,7 +10,7 @@ const _BOARD_SIZE: Vector2i = Vector2i(4, 4)
 
 # --- 测试用例 ---
 
-func test_profile_graph_has_three_feature_sections() -> void:
+func test_profile_graph_has_four_feature_sections() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var snapshot: Dictionary = save_graph.get_debug_snapshot()
@@ -18,11 +18,11 @@ func test_profile_graph_has_three_feature_sections() -> void:
 
 	assert_true(save_graph.is_profile_loaded(), "首次运行应完成空档加载决策。")
 	assert_true(GFVariantData.get_option_bool(health, "ok"), "玩家数据图结构应通过 GF 健康检查。")
-	assert_true(GFVariantData.get_option_int(health, "scope_count") == 4, "根图应包含根 Scope 和三个 Feature 子 Scope。")
-	assert_true(GFVariantData.get_option_int(health, "source_count") == 3, "每个 Feature 子 Scope 应有一个严格数据 Source。")
+	assert_true(GFVariantData.get_option_int(health, "scope_count") == 5, "根图应包含根 Scope 和四个 Feature 子 Scope。")
+	assert_true(GFVariantData.get_option_int(health, "source_count") == 4, "每个 Feature 子 Scope 应有一个严格数据 Source。")
 	assert_true(
 		GFVariantData.get_option_packed_string_array(snapshot, "section_ids")
-		== PackedStringArray(["bookmarks", "progress", "replays"]),
+		== PackedStringArray(["bookmarks", "custom_boards", "progress", "replays"]),
 		"诊断应暴露稳定 section 标识。"
 	)
 
@@ -34,23 +34,28 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
 	var save_system: SaveSystem = _get_save_system(setup)
 	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
+	var custom_board_system: CustomBoardSystem = _get_custom_board_system(setup)
 	var replay_system: ReplaySystem = _get_replay_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
 
 	var stats_error: Error = save_system.record_game_result("classic", _BOARD_KEY, 2048, 32, 2048, 500, 2048, true)
 	var bookmark: BookmarkData = _make_bookmark(600, 512)
+	var custom_board: CustomBoardData = _make_custom_board()
 	var replay: ReplayData = _make_replay(700, 2048)
 	var bookmark_error: Error = bookmark_system.save_bookmark(bookmark)
+	var custom_board_error: Error = custom_board_system.save_custom_board(custom_board)
 	var replay_error: Error = replay_system.save_replay(replay)
 	assert_true(stats_error == OK, "统计 section 应保存成功。")
 	assert_true(bookmark_error == OK, "书签 section 应保存成功。")
+	assert_true(custom_board_error == OK, "玩家棋盘 section 应保存成功。")
 	assert_true(replay_error == OK, "回放 section 应保存成功。")
 	assert_true(GFUuid.is_valid(bookmark.bookmark_id, 7), "书签应获得稳定 UUID v7。")
+	assert_true(GFUuid.is_valid(custom_board.custom_board_id, 7), "玩家棋盘应获得稳定 UUID v7。")
 	assert_true(GFUuid.is_valid(replay.replay_id, 7), "回放应获得稳定 UUID v7。")
 	assert_true(
 		storage.list_files("", "save")
 		== PackedStringArray([GameSaveGraphUtility.PROFILE_FILE_NAME]),
-		"三类玩家数据应只落到一个原子 SaveGraph 文件。"
+		"四类玩家数据应只落到一个原子 SaveGraph 文件。"
 	)
 
 	_dispose_setup(setup, false)
@@ -58,6 +63,7 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
 	var reloaded_save_system: SaveSystem = _get_save_system(reloaded)
 	var reloaded_bookmarks: BookmarkSystem = _get_bookmark_system(reloaded)
+	var reloaded_custom_boards: CustomBoardSystem = _get_custom_board_system(reloaded)
 	var reloaded_replays: ReplaySystem = _get_replay_system(reloaded)
 	assert_true(
 		reloaded_graph.is_profile_loaded(),
@@ -65,20 +71,27 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	)
 	assert_true(reloaded_save_system.get_high_score("classic", _BOARD_KEY) == 2048, "重载后应保留统计。")
 	var bookmarks: Array[BookmarkData] = reloaded_bookmarks.load_bookmarks()
+	var custom_boards: Array[CustomBoardData] = reloaded_custom_boards.load_custom_boards()
 	var replays: Array[ReplayData] = reloaded_replays.load_replays()
 	assert_true(bookmarks.size() == 1, "重载后应保留书签目录。")
+	assert_true(custom_boards.size() == 1, "重载后应保留玩家棋盘目录。")
 	assert_true(replays.size() == 1, "重载后应保留回放目录。")
-	if bookmarks.size() == 1 and replays.size() == 1:
+	if bookmarks.size() == 1 and custom_boards.size() == 1 and replays.size() == 1:
 		assert_true(bookmarks[0].bookmark_id == bookmark.bookmark_id, "书签稳定 ID 应跨重载保留。")
+		assert_true(custom_boards[0].custom_board_id == custom_board.custom_board_id, "玩家棋盘稳定 ID 应跨重载保留。")
 		assert_true(replays[0].replay_id == replay.replay_id, "回放稳定 ID 应跨重载保留。")
 		assert_true(bookmarks[0].score == 512, "书签业务数据应完整恢复。")
+		assert_true(custom_boards[0].display_name == "Cross Five", "玩家棋盘业务数据应完整恢复。")
 		assert_true(replays[0].final_score == 2048, "回放业务数据应完整恢复。")
 
 		var delete_bookmark_error: Error = reloaded_bookmarks.delete_bookmark(bookmarks[0].bookmark_id)
+		var delete_custom_board_error: Error = reloaded_custom_boards.delete_custom_board(custom_boards[0].custom_board_id)
 		var delete_replay_error: Error = reloaded_replays.delete_replay(replays[0].replay_id)
 		assert_true(delete_bookmark_error == OK, "应按稳定 ID 删除书签。")
+		assert_true(delete_custom_board_error == OK, "应按稳定 ID 删除玩家棋盘。")
 		assert_true(delete_replay_error == OK, "应按稳定 ID 删除回放。")
 		assert_true(reloaded_bookmarks.load_bookmarks().is_empty(), "书签删除应更新统一图。")
+		assert_true(reloaded_custom_boards.load_custom_boards().is_empty(), "玩家棋盘删除应更新统一图。")
 		assert_true(reloaded_replays.load_replays().is_empty(), "回放删除应更新统一图。")
 
 	_dispose_setup(reloaded)
@@ -244,6 +257,7 @@ func _create_persistence_architecture(
 	var save_graph: GameSaveGraphUtility = _make_game_save_graph()
 	var save_system: SaveSystem = null
 	var bookmark_system: BookmarkSystem = null
+	var custom_board_system: CustomBoardSystem = null
 	var replay_system: ReplaySystem = null
 
 	storage.save_dir_name = save_dir_name if not save_dir_name.is_empty() else "gut_save_graph_%d" % Time.get_ticks_usec()
@@ -261,9 +275,11 @@ func _create_persistence_architecture(
 	if include_systems:
 		save_system = SaveSystem.new()
 		bookmark_system = BookmarkSystem.new()
+		custom_board_system = CustomBoardSystem.new()
 		replay_system = ReplaySystem.new()
 		await architecture.register_system(SaveSystem, save_system)
 		await architecture.register_system(BookmarkSystem, bookmark_system)
+		await architecture.register_system(CustomBoardSystem, custom_board_system)
 		await architecture.register_system(ReplaySystem, replay_system)
 	await architecture.init()
 
@@ -273,6 +289,7 @@ func _create_persistence_architecture(
 		"save_graph": save_graph,
 		"save_system": save_system,
 		"bookmark_system": bookmark_system,
+		"custom_board_system": custom_board_system,
 		"replay_system": replay_system,
 	}
 
@@ -289,12 +306,20 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		BookmarkCatalogSaveData.new(),
 		GFSaveScope.Phase.NORMAL
 	)
+	var custom_boards_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
+		CustomBoardCatalogSaveData.new(),
+		GFSaveScope.Phase.NORMAL
+	)
 	var replays_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		ReplayCatalogSaveData.new(),
 		GFSaveScope.Phase.LATE
 	)
-	assert_true(progress_registered and bookmarks_registered and replays_registered, "测试 SaveGraph section 应完整注册。")
+	assert_true(
+		progress_registered and bookmarks_registered and custom_boards_registered and replays_registered,
+		"测试 SaveGraph section 应完整注册。"
+	)
 	return save_graph
 
 
@@ -317,6 +342,13 @@ func _make_replay(timestamp: int, final_score: int) -> ReplayData:
 	replay.actions = [Vector2i.RIGHT]
 	replay.final_board_snapshot = _make_empty_board_snapshot(topology)
 	return replay
+
+
+func _make_custom_board() -> CustomBoardData:
+	var custom_board: CustomBoardData = CustomBoardData.new()
+	custom_board.display_name = "Cross Five"
+	custom_board.topology = BoardTopology.create_cross(2)
+	return custom_board
 
 
 func _make_empty_board_snapshot(topology: BoardTopology = null) -> Dictionary:
@@ -411,3 +443,12 @@ func _get_replay_system(setup: Dictionary) -> ReplaySystem:
 		return replay_system
 	assert_true(false, "测试 setup 缺少 ReplaySystem。")
 	return ReplaySystem.new()
+
+
+func _get_custom_board_system(setup: Dictionary) -> CustomBoardSystem:
+	var value: Variant = GFVariantData.get_option_value(setup, "custom_board_system")
+	if value is CustomBoardSystem:
+		var custom_board_system: CustomBoardSystem = value
+		return custom_board_system
+	assert_true(false, "测试 setup 缺少 CustomBoardSystem。")
+	return CustomBoardSystem.new()
