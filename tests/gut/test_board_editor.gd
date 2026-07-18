@@ -16,6 +16,9 @@ const _BOARD_EDITOR_SCRIPT_PATH: String = (
 const _BOARD_EDITOR_VIEWPORT_SCRIPT_PATH: String = (
 	"res://features/board_editor/scripts/ui/board_editor_viewport_controller.gd"
 )
+const _BOARD_EDITOR_CONTEXT_SCRIPT_PATH: String = (
+	"res://features/board_editor/scripts/contexts/board_editor_context.gd"
+)
 
 
 # --- 测试用例 ---
@@ -82,6 +85,31 @@ func test_local_gf_command_history_undoes_and_redoes_draft_edits() -> void:
 	assert_true(history.redo(), "局部历史应能重做。")
 	assert_true(draft.get_active_cells() == next_cells, "重做必须再次应用目标单元。")
 	history.dispose()
+
+
+func test_board_editor_context_owns_isolated_gf_command_history() -> void:
+	var parent_architecture: GFArchitecture = GFArchitecture.new()
+	var global_history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()
+	await parent_architecture.register_utility(GFCommandHistoryUtility, global_history)
+	await parent_architecture.init()
+	var parent_context: TestArchitectureContext = TestArchitectureContext.new()
+	parent_context.test_architecture = parent_architecture
+	add_child_autoqfree(parent_context)
+	var editor_context: BoardEditorContext = BoardEditorContext.new()
+	parent_context.add_child(editor_context)
+	var scoped_architecture: GFArchitecture = await editor_context.wait_until_ready()
+	var local_history: GFCommandHistoryUtility = editor_context.get_history()
+
+	assert_not_null(scoped_architecture, "编辑器 scoped 架构应完成初始化。")
+	assert_not_null(local_history, "编辑器 scoped 架构应注册局部命令历史。")
+	assert_ne(local_history, global_history, "编辑器不得复用全局对局命令历史。")
+	if is_instance_valid(local_history):
+		assert_true(local_history.max_history_size == 128, "编辑器应使用独立历史容量。")
+
+	parent_context.remove_child(editor_context)
+	editor_context.free()
+	assert_false(is_instance_valid(editor_context), "编辑器离树后应释放 scoped Context 节点。")
+	parent_architecture.dispose()
 
 
 func test_custom_board_schema_requires_uuid_owned_topology_identity() -> void:
@@ -219,6 +247,11 @@ func test_board_editor_uses_feature_owned_gf_input_and_signal_contracts() -> voi
 	assert_true(action_ids.has(&"board_editor_redo"))
 	assert_true(source.contains("GFInputMappingUtility"))
 	assert_true(source.contains("GFSignalUtility"))
+	assert_true(source.contains("_board_editor_context.get_history()"))
+	assert_false(source.contains("GFCommandHistoryUtility.new()"))
+	var context_source: String = _read_text(_BOARD_EDITOR_CONTEXT_SCRIPT_PATH)
+	assert_true(context_source.contains("GFNodeContext.ScopeMode.SCOPED"))
+	assert_true(context_source.contains("bind_utility(GFCommandHistoryUtility)"))
 	assert_false(source.contains("is_action_pressed(\"undo\")"))
 	assert_false(source.contains("is_action_pressed(\"redo\")"))
 

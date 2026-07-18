@@ -10,7 +10,6 @@ signal topology_applied(topology: BoardTopology)
 
 # --- 常量 ---
 
-const _HISTORY_LIMIT: int = 128
 const _INPUT_CONTEXT: GFInputContext = preload(
 	"res://features/board_editor/resources/input/board_editor_input_context.tres"
 )
@@ -35,6 +34,7 @@ var _configured: bool = false
 # --- @onready 变量 (节点引用) ---
 
 @onready var _title_label: Label = %TitleLabel
+@onready var _board_editor_context: BoardEditorContext = %BoardEditorContext
 @onready var _canvas_hint_label: Label = %CanvasHintLabel
 @onready var _editor_section_button: Button = %EditorSectionButton
 @onready var _library_section_button: Button = %LibrarySectionButton
@@ -64,9 +64,14 @@ var _configured: bool = false
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	_history = GFCommandHistoryUtility.new()
-	_history.max_history_size = _HISTORY_LIMIT
-	_history.init()
+	var scoped_architecture: GFArchitecture = await _board_editor_context.wait_until_ready()
+	if scoped_architecture == null:
+		push_error("[BoardEditorDialog] 局部 GF 架构初始化失败，无法启用编辑历史。")
+		return
+	_history = _board_editor_context.get_history()
+	if not is_instance_valid(_history):
+		push_error("[BoardEditorDialog] 局部 GFCommandHistoryUtility 未注册。")
+		return
 	_custom_board_system = _get_custom_board_system()
 	_input_mapping = _get_input_mapping_utility()
 	_signal_utility = _get_signal_utility()
@@ -84,8 +89,6 @@ func _exit_tree() -> void:
 		_input_mapping.disable_context(_INPUT_CONTEXT)
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
-	if is_instance_valid(_history):
-		_history.dispose()
 	_history = null
 	_custom_board_system = null
 	_input_mapping = null

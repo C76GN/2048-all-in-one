@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_dialog.gd" id="1_dialog"]
 [ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_canvas.gd" id="2_canvas"]
 [ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_viewport_controller.gd" id="3_viewport"]
 [ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_responsive_layout_controller.gd" id="4_responsive"]
+[ext_resource type="Script" path="res://features/board_editor/scripts/contexts/board_editor_context.gd" id="5_context"]
 
 [node name="BoardEditorDialog" type="Control"]
 layout_mode = 3
@@ -14,6 +15,10 @@ grow_horizontal = 2
 grow_vertical = 2
 process_mode = 3
 script = ExtResource("1_dialog")
+
+[node name="BoardEditorContext" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("5_context")
 
 [node name="BoardEditorResponsiveLayoutController" type="Node" parent="."]
 unique_name_in_owner = true
