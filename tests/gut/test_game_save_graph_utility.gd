@@ -150,7 +150,129 @@ func test_late_section_failure_rolls_back_earlier_sections() -> void:
 	_dispose_setup(setup)
 
 
-func test_profile_schema_mismatch_is_rejected_without_fallback() -> void:
+func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> void:
+	var save_dir_name: String = "gut_save_graph_recovery_%d" % Time.get_ticks_usec()
+	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var save_system: SaveSystem = _get_save_system(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var score_error: Error = save_system.set_high_score("classic", _BOARD_KEY, 512)
+	assert_true(score_error == OK, "迁移夹具应先写入当前统计。")
+
+	var legacy_payload: Dictionary = save_graph.preview_profile_payload()
+	var metadata: Dictionary = GFVariantData.get_option_dictionary(
+		legacy_payload,
+		"metadata"
+	)
+	metadata["schema_version"] = 1
+	legacy_payload["metadata"] = metadata
+	var scopes: Dictionary = GFVariantData.get_option_dictionary(
+		legacy_payload,
+		"scopes"
+	)
+	var removed_custom_boards: bool = scopes.erase(
+		String(GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID)
+	)
+	var removed_discoveries: bool = scopes.erase(
+		String(GameSaveGraphUtility.DISCOVERIES_SECTION_ID)
+	)
+	var removed_achievements: bool = scopes.erase(String(
+		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID
+	))
+	legacy_payload["scopes"] = scopes
+	assert_true(
+		removed_custom_boards and removed_discoveries and removed_achievements,
+		"player_data@1 夹具应只保留当时存在的三个 section。"
+	)
+	var seed_error: Error = storage.save_data(
+		GameSaveGraphUtility.PROFILE_FILE_NAME,
+		legacy_payload
+	)
+	assert_true(seed_error == OK, "应能写入合法的旧 Profile。")
+	_dispose_setup(setup, false)
+
+	var reloaded: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true
+	)
+	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
+	var reloaded_storage: GFStorageUtility = _get_storage(reloaded)
+	assert_true(
+		reloaded_graph.is_profile_loaded(),
+		"旧 Profile 备份后应建立当前严格 Profile：%s"
+		% _describe_load_failure(reloaded_graph)
+	)
+	assert_true(
+		_get_save_system(reloaded).get_high_score("classic", _BOARD_KEY) == 0,
+		"运行时不得通过旧业务字段双读恢复统计。"
+	)
+	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		reloaded_graph.get_debug_snapshot(),
+		"last_load"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(
+			load_snapshot,
+			"recovered_obsolete_profile",
+			false
+		),
+		"加载诊断应明确记录旧 Profile 恢复流程。"
+	)
+	var recovery_file: String = GFVariantData.get_option_string(
+		load_snapshot,
+		"recovery_file"
+	)
+	assert_true(
+		recovery_file == "recovery/player_data.schema-1.save",
+		"恢复文件应使用稳定且可审计的版本化路径。"
+	)
+	var recovery_result: Dictionary = reloaded_storage.load_data_result(
+		recovery_file
+	)
+	var recovery_payload: Dictionary = GFVariantData.get_option_dictionary(
+		recovery_result,
+		"data"
+	)
+	var recovery_metadata: Dictionary = GFVariantData.get_option_dictionary(
+		recovery_payload,
+		"metadata"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(recovery_result, "ok", false)
+		and GFVariantData.get_option_int(recovery_metadata, "schema_version", 0) == 1,
+		"恢复备份必须完整保留原 Profile，而不是直接删除。"
+	)
+	var persisted_result: Dictionary = reloaded_storage.load_data_result(
+		GameSaveGraphUtility.PROFILE_FILE_NAME
+	)
+	var persisted_payload: Dictionary = GFVariantData.get_option_dictionary(
+		persisted_result,
+		"data"
+	)
+	var persisted_metadata: Dictionary = GFVariantData.get_option_dictionary(
+		persisted_payload,
+		"metadata"
+	)
+	var persisted_scopes: Dictionary = GFVariantData.get_option_dictionary(
+		persisted_payload,
+		"scopes"
+	)
+	assert_true(
+		GFVariantData.get_option_int(persisted_metadata, "schema_version", 0)
+		== GameSaveGraphUtility.PROFILE_SCHEMA_VERSION,
+		"重建成功后活动 Profile 应立即使用当前版本。"
+	)
+	assert_true(
+		persisted_scopes.has(String(GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID)),
+		"重建后的 Profile 应包含新的严格成就 section。"
+	)
+	var recovery_cleanup_error: Error = reloaded_storage.delete_file(recovery_file)
+	assert_true(recovery_cleanup_error == OK, "测试恢复备份应可清理。")
+
+	_dispose_setup(reloaded)
+
+
+func test_future_profile_schema_mismatch_is_rejected_without_fallback() -> void:
 	var save_dir_name: String = "gut_save_graph_schema_%d" % Time.get_ticks_usec()
 	var setup: Dictionary = await _create_persistence_architecture(save_dir_name)
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)

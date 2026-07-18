@@ -163,7 +163,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。
 - Profile 当前为 `player_data@4`；`progress`、`bookmarks`、`custom_boards`、`discoveries`、`achievements`、`replays` section 当前分别为 v3、v4、v1、v1、v1、v2。棋盘快照与玩家模板都内嵌严格 `BoardTopology`，规则统计使用中性的 `ratio_resolutions`，不提供旧尺寸键、旧阵营字段推断或兼容分支。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
-- 存档 Schema 发生破坏性变化时使用显式迁移工具；运行时代码不长期保留旧字段双读分支。
+- 同源旧 Profile 在启动时只允许由 persistence 通用编排执行“完整备份到 `recovery/` 后按当前默认 section 原子重建”；不解析或迁移历史业务字段。未来/未知/畸形 Profile 继续拒绝，业务数据迁移只能使用显式离线工具，运行时代码不保留旧字段双读分支。
 
 ## GF 扩展
 

@@ -18,6 +18,8 @@ const CUSTOM_BOARDS_SECTION_ID: StringName = &"custom_boards"
 const DISCOVERIES_SECTION_ID: StringName = &"discoveries"
 const ACHIEVEMENTS_SECTION_ID: StringName = &"achievements"
 const REPLAYS_SECTION_ID: StringName = &"replays"
+const _RECOVERY_DIRECTORY: String = "recovery"
+const _STORAGE_METADATA_KEY: String = "_meta"
 const _PROJECT_VERSION_SETTING: String = "application/config/version"
 const _LOG_TAG: String = "GameSaveGraphUtility"
 
@@ -52,6 +54,22 @@ func ready() -> void:
 	var load_error: Error = load_profile()
 	if load_error != OK and is_instance_valid(_log):
 		_log.error(_LOG_TAG, "玩家数据图加载失败，错误码：%d" % load_error)
+	elif (
+		is_instance_valid(_log)
+		and GFVariantData.get_option_bool(
+			_last_load_result,
+			"recovered_obsolete_profile",
+			false
+		)
+	):
+		_log.info(
+			_LOG_TAG,
+			"检测到旧玩家数据；原档已备份到 %s，当前 Profile 已重新建立。"
+			% GFVariantData.get_option_string(
+				_last_load_result,
+				"recovery_file"
+			)
+		)
 
 
 func dispose() -> void:
@@ -232,6 +250,11 @@ func load_profile() -> Error:
 		return ERR_INVALID_DATA
 	var payload: Dictionary = GFVariantData.as_dictionary(payload_value)
 	if not _has_current_profile_metadata(payload):
+		var obsolete_schema_version: int = _get_obsolete_profile_schema_version(
+			payload
+		)
+		if obsolete_schema_version > 0:
+			return _recover_obsolete_profile(payload, obsolete_schema_version)
 		_last_load_result = {
 			"ok": false,
 			"error_code": ERR_INVALID_DATA,
@@ -398,6 +421,77 @@ func _has_current_profile_metadata(payload: Dictionary) -> bool:
 		GFVariantData.get_option_string_name(metadata, "schema_id") == PROFILE_SCHEMA_ID
 		and GFVariantData.get_option_int(metadata, "schema_version") == PROFILE_SCHEMA_VERSION
 	)
+
+
+func _get_obsolete_profile_schema_version(payload: Dictionary) -> int:
+	var metadata_value: Variant = GFVariantData.get_option_value(payload, "metadata")
+	if not (metadata_value is Dictionary):
+		return 0
+	var metadata: Dictionary = GFVariantData.as_dictionary(metadata_value)
+	if (
+		metadata.size() != 3
+		or not (GFVariantData.get_option_value(metadata, "schema_id") is String)
+		or not (GFVariantData.get_option_value(metadata, "schema_version") is int)
+		or not (GFVariantData.get_option_value(metadata, "app_version") is String)
+		or GFVariantData.get_option_string_name(metadata, "schema_id")
+		!= PROFILE_SCHEMA_ID
+	):
+		return 0
+	var schema_version: int = GFVariantData.get_option_int(
+		metadata,
+		"schema_version",
+		0
+	)
+	return schema_version if schema_version > 0 and schema_version < PROFILE_SCHEMA_VERSION else 0
+
+
+func _recover_obsolete_profile(
+	payload: Dictionary,
+	obsolete_schema_version: int
+) -> Error:
+	var recovery_file: String = "%s/player_data.schema-%d.save" % [
+		_RECOVERY_DIRECTORY,
+		obsolete_schema_version,
+	]
+	var recovery_payload: Dictionary = payload.duplicate(true)
+	var _storage_metadata_removed: bool = recovery_payload.erase(
+		_STORAGE_METADATA_KEY
+	)
+	var backup_error: Error = _storage.save_data(recovery_file, recovery_payload)
+	if backup_error != OK:
+		_last_load_result = {
+			"ok": false,
+			"error_code": backup_error,
+			"error": "Obsolete player profile could not be backed up.",
+			"obsolete_schema_version": obsolete_schema_version,
+			"recovery_file": recovery_file,
+		}
+		return backup_error
+
+	var reset_error: Error = save_profile()
+	if reset_error != OK:
+		_last_load_result = {
+			"ok": false,
+			"error_code": reset_error,
+			"error": "Current player profile could not be created after backup.",
+			"obsolete_schema_version": obsolete_schema_version,
+			"recovery_file": recovery_file,
+			"backup_created": true,
+		}
+		return reset_error
+
+	_loaded = true
+	_last_load_result = {
+		"ok": true,
+		"error_code": OK,
+		"first_run": false,
+		"applied": 0,
+		"recovered_obsolete_profile": true,
+		"obsolete_schema_version": obsolete_schema_version,
+		"current_schema_version": PROFILE_SCHEMA_VERSION,
+		"recovery_file": recovery_file,
+	}
+	return OK
 
 
 func _get_registered_section_ids() -> PackedStringArray:
