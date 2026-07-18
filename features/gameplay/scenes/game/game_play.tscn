@@ -6,6 +6,7 @@
 [ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://features/gameplay/scripts/controllers/game_board_controller.gd" id="4_board"]
 [ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://features/diagnostics/scenes/ui/test_panel.tscn" id="5_test_panel"]
 [ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader" id="6_background_shader"]
+[ext_resource type="Script" path="res://features/gameplay/scripts/controllers/board_world_viewport_controller.gd" id="7_board_viewport"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_background"]
 shader = ExtResource("6_background_shader")
@@ -33,6 +34,18 @@ corner_radius_top_left = 6
 corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_view_controls"]
+bg_color = Color(1, 0.972549, 0.9098039, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="GamePlay" unique_id=993855468 instance=ExtResource("1_base")]
 script = ExtResource("2_script")
@@ -75,19 +88,85 @@ autowrap_mode = 3
 visible = false
 text = ""
 
-[node name="GameBoard" type="Control" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0" unique_id=156759848]
+[node name="BoardViewport" type="Control" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0" unique_id=1450272152]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(450, 450)
 layout_mode = 2
-script = ExtResource("4_board")
+size_flags_horizontal = 3
+size_flags_vertical = 3
+clip_contents = true
 
-[node name="BoardBackground" type="Panel" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/GameBoard" index="0" unique_id=169865869]
+[node name="BoardWorldViewportController" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport" index="0" unique_id=200455013]
 unique_name_in_owner = true
+script = ExtResource("7_board_viewport")
+
+[node name="BoardWorld" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport" index="1" unique_id=1153818284]
+unique_name_in_owner = true
+
+[node name="GameBoardHost" type="Control" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld" index="0" unique_id=156759848]
+unique_name_in_owner = true
+mouse_filter = 2
+
+[node name="BoardBackground" type="Panel" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/GameBoardHost" index="0" unique_id=169865869]
+unique_name_in_owner = true
+mouse_filter = 2
 layout_mode = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_0wfyh")
 
-[node name="BoardContainer" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/GameBoard" index="1" unique_id=788591149]
+[node name="BoardContainer" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/GameBoardHost" index="1" unique_id=788591149]
 unique_name_in_owner = true
+
+[node name="GameBoard" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/GameBoardHost" index="2" unique_id=2054564402]
+unique_name_in_owner = true
+script = ExtResource("4_board")
+
+[node name="ViewControls" type="PanelContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport" index="2" unique_id=828732938]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -226.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = 58.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_view_controls")
+
+[node name="Margin" type="MarginContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls" index="0" unique_id=51778164]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 4
+
+[node name="Buttons" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin" index="0" unique_id=1238524070]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ZoomOutButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="0" unique_id=461885615]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+tooltip_text = "缩小棋盘"
+text = "-"
+
+[node name="ZoomLabel" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="1" unique_id=531058721]
+custom_minimum_size = Vector2(52, 34)
+layout_mode = 2
+text = "100%"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FitButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="2" unique_id=1633632445]
+custom_minimum_size = Vector2(56, 34)
+layout_mode = 2
+tooltip_text = "显示完整棋盘"
+text = "适配"
+
+[node name="ZoomInButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="3" unique_id=742923946]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+tooltip_text = "放大棋盘"
+text = "+"
 
 [node name="TestPanel" parent="MarginContainer/ColumnsContainer/RightColumn" index="0" unique_id=1513242499 instance=ExtResource("5_test_panel")]
 unique_name_in_owner = true

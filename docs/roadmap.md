@@ -12,8 +12,8 @@
 - GF 包管理器：GF 8 使用 Godot 原生 CLI，入口为 `res://addons/gf/kernel/package/gf_package_cli.gd`。恢复包管理器安装流时，应重新生成 `.gf/packages.lock.json` 并再启用 installed 包数量强校验。
 - GF 下载缓存、运行日志、本地用户数据和导出产物已由 `.gitignore` 忽略，不应提交。
 - 当前文档：已有 `README.md`、`docs/ai_maintenance.md`、`docs/coding_style.md`、`docs/architecture.md`、`docs/validation.md` 和本文档。
-- 当前测试：`tests/gut/` 静态计数为 31 个 `test_*.gd` 文件，其中 27 个顶层测试脚本、4 个测试替身；共有 219 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
-- 安全测试入口：`tools/run_gut_safe.ps1` 已提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；2026-07-17 已用当前 `godot` 命令在 GF 8.1.0 上完成完整隔离 GUT 验证，完整结果以 `docs/validation.md` 为准。
+- 当前测试：`tests/gut/` 静态计数为 33 个 `test_*.gd` 文件，其中 29 个顶层测试脚本、4 个测试替身；共有 231 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
+- 安全测试入口：`tools/run_gut_safe.ps1` 已提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；2026-07-18 已用 Godot 4.7.1 在 GF 8.1.0 上完成完整隔离 GUT 验证，完整结果以 `docs/validation.md` 为准。
 - 当前项目脚本中有 46 处显式继承 `res://addons/gf/...`，这是为了规避升级后 Godot class cache 对 `GF...` 类名解析不稳定的风险。
 - 当前脚本已清理掉 `get_model/get_system/get_utility(...) as ...`、显式 class cast、隐式变量类型和缺失返回类型等高频旧写法；维护测试已禁止用 GUT `assert_eq` 对比空数组来判断问题列表，并约束业务脚本中的 `GFBindableProperty.get_value()`、`Dictionary.get()` 自定义对象结果、资源加载/复制结果、`StyleBoxFlat` 专属 API 调用、typed `@onready` / 运行时节点查找收窄、已知高风险返回值调用和项目协程调用。剩余稳定性重点转向更细的 `unsafe_method_access` / `unsafe_property_access`。
 
@@ -157,8 +157,8 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 目标：从功能样例变成完整小游戏。
 
 1. 自定义与超大棋盘基础。
-   - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；玩家编辑器已支持绘制、擦除、预设、规范化、连通提示、GF 局部撤销历史和 SaveGraph 模板目录。
-   - 下一步：把棋盘表现拆为可缩放/平移世界画布与独立 HUD；完成后进入手机手势与响应式布局。
+   - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；玩家编辑器已支持绘制、擦除、预设、规范化、连通提示、GF 局部撤销历史和 SaveGraph 模板目录。棋盘表现已拆为独立世界画布与屏幕空间 HUD，支持完整聚焦、鼠标/触控板缩放平移、可见区域查询、GF 对象池窗口化和低缩放细节裁剪。
+   - 下一步：接入手机手势、响应式 HUD 与输入上下文优先级，明确单指移动、拖动画布、双指缩放和 UI 操作之间的仲裁。
    - 契约：见 `features/gameplay/docs/board_topology.md`，不得重新引入 `grid_size` 作为逻辑唯一真源。
 
 2. 核心流程完整化。
@@ -246,8 +246,8 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 优先级最高的下一步：
 
-1. 将棋盘表现拆为可缩放/平移世界画布与独立 HUD，并为超大棋盘增加可见区域裁剪。
-2. 接入手机手势与响应式布局，明确滑动方块、拖动画布和 UI 操作的 GF 输入上下文优先级。
+1. 接入手机手势与响应式布局，明确单指移动、拖动画布、双指缩放和 UI 操作的 GF 输入上下文优先级。
+2. 把测试工具迁移出玩家三栏布局，建立独立调试窗口或编辑器工具入口，并保持正式导出禁用。
 3. 按 `docs/visual_style.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
 4. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。
 5. 在稳定棋盘键和平台 Adapter 基础上推进图鉴、成就与排行榜。

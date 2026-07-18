@@ -102,6 +102,35 @@ func test_gaps_split_movement_lanes() -> void:
 		assert_true(second_lane_matches, "空洞右侧 lane 应从移动前沿向后排列。")
 
 
+func test_sparse_topology_queries_only_cells_inside_visible_rect() -> void:
+	var topology: BoardTopology = BoardTopology.create_custom(
+		[
+			Vector2i(0, 0),
+			Vector2i(4, 0),
+			Vector2i(2, 2),
+			Vector2i(3, 2),
+			Vector2i(8, 5),
+		],
+		&"board.test.visible_window"
+	)
+	var visible_cells: Array[Vector2i] = topology.get_cells_in_rect(
+		Rect2i(Vector2i(2, 1), Vector2i(2, 3))
+	)
+
+	assert_true(
+		visible_cells == [Vector2i(2, 2), Vector2i(3, 2)],
+		"可见窗口查询应只返回矩形内活跃单元，并保持行优先顺序。"
+	)
+	assert_true(
+		topology.get_cells_in_rect(Rect2i(Vector2i(20, 20), Vector2i(3, 3))).is_empty(),
+		"完全位于拓扑之外的可见窗口应返回空数组。"
+	)
+	assert_true(
+		topology.get_cells_in_rect(Rect2i(Vector2i.ZERO, Vector2i.ZERO)).is_empty(),
+		"空尺寸窗口不得返回活跃单元。"
+	)
+
+
 func test_topology_template_applies_bounds_to_custom_shapes() -> void:
 	var template: BoardTopologyTemplate = BoardTopologyTemplate.new()
 	template.template_id = &"board_template.test"

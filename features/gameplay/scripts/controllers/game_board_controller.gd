@@ -6,6 +6,11 @@ class_name GameBoardController
 extends "res://addons/gf/kernel/base/gf_controller.gd"
 
 
+# --- 信号 ---
+
+## 棋盘局部世界包围盒改变后发出，由外层世界视口负责重新聚焦或约束相机。
+signal board_geometry_changed(board_rect: Rect2)
+
 
 
 
@@ -30,6 +35,9 @@ const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 
 const _LOG_TAG: String = "GameBoardController"
 const _BOARD_INTRO_DURATION: float = 0.22
+const _CULL_MARGIN_CELLS: int = 2
+const _MIN_PROJECTED_CELL_DETAIL_SIZE: float = 12.0
+const _MAX_VISIBLE_NODE_COUNT: int = 12288
 
 
 # --- 导出变量 ---
@@ -55,8 +63,16 @@ var board_theme: BoardTheme
 ## 逻辑数据到视觉节点的映射字典 { TileState: Tile }
 var _visual_map: Dictionary = {}
 
-## 防止在窗口大小改变时重复初始化棋盘。
-var _is_initialized: bool = false
+## 当前可见背景格映射 { Vector2i: Control }。
+var _grid_cell_map: Dictionary = {}
+
+## 外层世界视口换算后的棋盘局部可见矩形。
+var _visible_world_rect: Rect2 = Rect2()
+
+var _has_visible_world_rect: bool = false
+var _world_view_scale: float = 1.0
+var _logical_board_size: Vector2 = Vector2.ZERO
+var _is_rebuilding_visuals: bool = false
 
 var _log: GFLogUtility
 var _pool: GFObjectPoolUtility
@@ -86,10 +102,6 @@ func _ready() -> void:
 	_action_queue = _get_action_queue_system()
 	if not _has_required_dependencies():
 		return
-	
-	var parent_control: Control = _get_host_control()
-	if is_instance_valid(parent_control):
-		var _connect_result_87: int = parent_control.resized.connect(_on_resized)
 	
 	# --- 注册 GF 事件监听 ---
 	register_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, GFEventListener.from_method(self, &"_on_board_animation_requested", 1))
@@ -128,20 +140,17 @@ func setup(
 		)
 	
 	_visual_map.clear()
+	_clear_grid_cells()
 	self.color_schemes = p_color_schemes
 	self.board_theme = p_board_theme
 
-	# GridModel 的逻辑初始化由 GameInitSystem 完成，GameBoardController 只同步视觉。
-	call_deferred(&"_update_board_layout")
-	_draw_board_cells()
+	# GridModel 的逻辑初始化由 GameInitSystem 完成，表现层只建立局部世界几何与可见节点。
+	_update_board_layout()
+	_sync_visible_region()
 	call_deferred(&"_play_board_intro")
 	
 	if is_instance_valid(_pool):
-		var required_tile_count: int = (
-			model.topology.get_cell_count()
-			if is_instance_valid(model) and is_instance_valid(model.topology)
-			else 0
-		)
+		var required_tile_count: int = mini(_get_visible_cells().size(), 128)
 		var available_tile_count: int = _pool.get_available_count(TileScene)
 		var missing_tile_count: int = max(required_tile_count - available_tile_count, 0)
 		if missing_tile_count > 0:
@@ -151,8 +160,29 @@ func setup(
 			if child is Tile:
 				var tile_child: Tile = child
 				tile_child.visible = false
-		
-	_is_initialized = true
+
+
+## 返回棋盘在自身局部世界中的完整包围盒。
+func get_board_world_rect() -> Rect2:
+	return Rect2(Vector2.ZERO, _logical_board_size)
+
+
+## 更新外层视口当前可见的棋盘局部矩形，并窗口化背景格与方块节点。
+## @param visible_world_rect: 棋盘自身局部坐标中的可见矩形。
+## @param world_view_scale: 棋盘局部单位到屏幕像素的当前缩放。
+func set_visible_world_rect(
+	visible_world_rect: Rect2,
+	world_view_scale: float
+) -> void:
+	_visible_world_rect = visible_world_rect
+	_world_view_scale = maxf(world_view_scale, 0.0001)
+	_has_visible_world_rect = true
+	_sync_visible_region()
+
+
+## 在动画或模型事务结束后按当前可见区域重建窗口化节点集。
+func sync_visible_region() -> void:
+	_sync_visible_region()
 
 
 ## 清理所有视觉方块节点并重置映射表，通常在撤回动画启动前调用。
@@ -263,6 +293,7 @@ func restore_from_snapshot_with_reverse_animation(
 # --- 私有/辅助方法 ---
 
 func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary) -> Array[Tween]:
+	_is_rebuilding_visuals = true
 	var animation_tweens: Array[Tween] = []
 	var current_tiles: Array[Tile] = []
 	for child: Node in board_container.get_children():
@@ -286,7 +317,14 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 	_visual_map.clear()
 
 	if not model:
+		_is_rebuilding_visuals = false
 		return animation_tweens
+	_update_board_layout()
+	var visible_cells: Array[Vector2i] = _get_visible_cells()
+	_sync_grid_cells(visible_cells)
+	var visible_cell_lookup: Dictionary = {}
+	for visible_cell: Vector2i in visible_cells:
+		visible_cell_lookup[visible_cell] = true
 
 	var tiles_data: Array = GFVariantData.to_array(snapshot.get(&"tiles", snapshot.get("tiles", [])))
 	for raw_tile_data_snapshot: Variant in tiles_data:
@@ -295,6 +333,10 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 		var tile_data_snapshot: Dictionary = raw_tile_data_snapshot
 		var pos: Vector2i = _get_vector2i(tile_data_snapshot, &"pos", Vector2i.ZERO)
 		if not model.is_active_cell(pos):
+			continue
+		var key: String = "%d,%d" % [pos.x, pos.y]
+		var start_grid_pos: Vector2i = _get_vector2i(reverse_target_map, StringName(key), pos)
+		if not visible_cell_lookup.has(pos) and not visible_cell_lookup.has(start_grid_pos):
 			continue
 
 		var tile_data: TileState = _get_model_tile_data(pos)
@@ -307,9 +349,6 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 		if not is_instance_valid(new_tile):
 			continue
 		_visual_map[tile_data] = new_tile
-		
-		var key: String = "%d,%d" % [pos.x, pos.y]
-		var start_grid_pos: Vector2i = _get_vector2i(reverse_target_map, StringName(key), pos)
 		new_tile.position = _grid_to_pixel_center(start_grid_pos)
 		new_tile.scale = Vector2.ONE
 		new_tile.rotation_degrees = 0
@@ -319,6 +358,7 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 			if is_instance_valid(move_tween) and move_tween.is_valid():
 				animation_tweens.append(move_tween)
 
+	_is_rebuilding_visuals = false
 	return animation_tweens
 
 
@@ -392,14 +432,6 @@ func _get_theme_utility() -> GameThemeUtility:
 	if utility_value is GameThemeUtility:
 		var theme_utility: GameThemeUtility = utility_value
 		return theme_utility
-	return null
-
-
-func _get_host_control() -> Control:
-	var host_value: Variant = get_host_as(Control)
-	if host_value is Control:
-		var host_control: Control = host_value
-		return host_control
 	return null
 
 
@@ -591,21 +623,30 @@ func _get_tile_level_style(scheme: TileColorScheme, level: int) -> TileLevelStyl
 	return scheme.styles[level]
 
 
-## 更新棋盘的整体布局以适应其容器大小。
+## 更新棋盘自身的稳定局部世界尺寸；外层视口独占缩放和平移。
 func _update_board_layout() -> void:
-	if not model:
+	if not is_instance_valid(model):
 		return
-	var layout_params: Dictionary = _calculate_layout_params(model.get_bounds_size())
-	if layout_params.is_empty():
+	var board_size: Vector2i = model.get_bounds_size()
+	if board_size.x <= 0 or board_size.y <= 0:
 		return
+	var grid_area_size: Vector2 = Vector2(
+		board_size.x * CELL_SIZE + (board_size.x - 1) * SPACING,
+		board_size.y * CELL_SIZE + (board_size.y - 1) * SPACING
+	)
+	_logical_board_size = grid_area_size + Vector2.ONE * BOARD_PADDING * 2.0
+	var board_control: Control = _get_host_control()
+	if is_instance_valid(board_control):
+		board_control.size = _logical_board_size
 
 	if is_instance_valid(board_theme):
 		_apply_board_background_style()
 
-	board_background.position = layout_params.offset
-	board_background.size = layout_params.scaled_size
-	board_container.position = layout_params.offset + Vector2(BOARD_PADDING, BOARD_PADDING) * layout_params.scale_ratio
-	board_container.scale = Vector2.ONE * layout_params.scale_ratio
+	board_background.position = Vector2.ZERO
+	board_background.size = _logical_board_size
+	board_container.position = Vector2.ONE * BOARD_PADDING
+	board_container.scale = Vector2.ONE
+	board_geometry_changed.emit(get_board_world_rect())
 
 
 func _apply_board_background_style() -> void:
@@ -623,108 +664,146 @@ func _apply_board_background_style() -> void:
 	board_background.add_theme_stylebox_override("panel", panel_style)
 
 
-## 绘制棋盘的静态背景单元格。
-func _draw_board_cells() -> void:
-	if not model:
+func _sync_visible_region() -> void:
+	if _is_rebuilding_visuals:
 		return
-
-	# 清除旧的格子
-	for child: Node in board_container.get_children():
-		# 注意：Tile 也是 Node2D 的子节点，所以这里需要区分
-		# 由于 Tile 是 Node2D 类型 (继承自 features/gameplay/scenes/components/tile.tscn)，
-		# 而我们的格子场景是 Control (Panel)。
-		if child is Control and not child is Tile:
-			child.queue_free()
-
-	# 确保有一个有效的格子场景
-	if not is_instance_valid(grid_cell_scene):
-		if _log:
-			_log.error(_LOG_TAG, "未配置 grid_cell_scene。")
+	if not is_instance_valid(model) or not is_instance_valid(model.topology):
 		return
+	var visible_cells: Array[Vector2i] = _get_visible_cells()
+	_sync_grid_cells(visible_cells)
+	if not is_instance_valid(_action_queue) or not _action_queue.is_processing:
+		_sync_visual_tiles(visible_cells)
 
-	if not is_instance_valid(model.topology):
-		return
-	for cell: Vector2i in model.topology.get_active_cells():
-		var cell_instance: Control = _create_grid_cell()
+
+func _get_visible_cells() -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	if not is_instance_valid(model) or not is_instance_valid(model.topology):
+		return result
+	if _world_view_scale * CELL_SIZE < _MIN_PROJECTED_CELL_DETAIL_SIZE:
+		return result
+
+	var visible_rect: Rect2 = (
+		_visible_world_rect
+		if _has_visible_world_rect
+		else get_board_world_rect()
+	)
+	var step: float = CELL_SIZE + SPACING
+	var container_rect: Rect2 = Rect2(
+		visible_rect.position - board_container.position,
+		visible_rect.size
+	).grow(step * _CULL_MARGIN_CELLS)
+	var query_start: Vector2i = Vector2i(
+		floori(container_rect.position.x / step),
+		floori(container_rect.position.y / step)
+	)
+	var query_end: Vector2i = Vector2i(
+		ceili(container_rect.end.x / step),
+		ceili(container_rect.end.y / step)
+	)
+	result = model.topology.get_cells_in_rect(
+		Rect2i(query_start, query_end - query_start)
+	)
+	if result.size() > _MAX_VISIBLE_NODE_COUNT:
+		result.clear()
+	return result
+
+
+func _sync_grid_cells(visible_cells: Array[Vector2i]) -> void:
+	var desired_cells: Dictionary = {}
+	for cell: Vector2i in visible_cells:
+		desired_cells[cell] = true
+
+	for cell_value: Variant in _grid_cell_map.keys():
+		if not cell_value is Vector2i or desired_cells.has(cell_value):
+			continue
+		var stale_cell: Vector2i = cell_value
+		var stale_control: Control = _get_grid_cell_control(stale_cell)
+		var _cell_erased: bool = _grid_cell_map.erase(stale_cell)
+		_release_grid_cell(stale_control)
+
+	for cell: Vector2i in visible_cells:
+		if _grid_cell_map.has(cell):
+			continue
+		var cell_instance: Control = _acquire_grid_cell()
 		if not is_instance_valid(cell_instance):
 			continue
-		board_container.add_child(cell_instance)
-
-		# 设置格子的大小和位置
 		cell_instance.size = Vector2.ONE * CELL_SIZE
 		cell_instance.position = Vector2(cell) * (CELL_SIZE + SPACING)
+		cell_instance.z_index = -10
+		_style_grid_cell(cell_instance)
+		_grid_cell_map[cell] = cell_instance
 
-		# 当前解析后的 BoardTheme 统一覆盖格子场景模板的默认颜色。
-		if is_instance_valid(board_theme) and cell_instance is Panel:
-			var stylebox: StyleBoxFlat = _duplicate_flat_panel_style(cell_instance)
-			if is_instance_valid(stylebox):
-				_configure_cell_style(stylebox)
-				cell_instance.add_theme_stylebox_override("panel", stylebox)
 
-		# 确保背景格子在最底层
-		board_container.move_child(cell_instance, 0)
+func _sync_visual_tiles(visible_cells: Array[Vector2i]) -> void:
+	var desired_tiles: Dictionary = {}
+	for cell: Vector2i in visible_cells:
+		var tile_data: TileState = model.get_tile(cell)
+		if tile_data != null:
+			desired_tiles[tile_data] = cell
+
+	for tile_data_value: Variant in _visual_map.keys():
+		if desired_tiles.has(tile_data_value):
+			continue
+		if tile_data_value is TileState:
+			var stale_tile_data: TileState = tile_data_value
+			var stale_tile: Tile = _get_visual_tile(stale_tile_data)
+			var _tile_erased: bool = _visual_map.erase(stale_tile_data)
+			_release_visual_tile(stale_tile)
+
+	for tile_data_value: Variant in desired_tiles.keys():
+		if not tile_data_value is TileState:
+			continue
+		var tile_data: TileState = tile_data_value
+		if is_instance_valid(_get_visual_tile(tile_data)):
+			continue
+		var tile: Tile = _create_visual_tile(tile_data)
+		if not is_instance_valid(tile):
+			continue
+		var tile_cell_value: Variant = desired_tiles[tile_data]
+		if not tile_cell_value is Vector2i:
+			_release_visual_tile(tile)
+			continue
+		var tile_cell: Vector2i = tile_cell_value
+		tile.position = _grid_to_pixel_center(tile_cell)
+		_visual_map[tile_data] = tile
+
+
+func _clear_grid_cells() -> void:
+	for cell_value: Variant in _grid_cell_map.keys():
+		if not cell_value is Vector2i:
+			continue
+		var cell: Vector2i = cell_value
+		_release_grid_cell(_get_grid_cell_control(cell))
+	_grid_cell_map.clear()
 
 
 ## 执行棋盘从旧尺寸到新尺寸的扩建动画。
-func _animate_expansion(old_size: int, new_size: int) -> void:
+func _animate_expansion(old_size: int, _new_size: int) -> void:
 	_expansion_token += 1
 	if _board_intro_tween and _board_intro_tween.is_valid():
 		_board_intro_tween.kill()
-	var expansion_token: int = _expansion_token
-	var final_layout: Dictionary = _calculate_layout_params(Vector2i(new_size, new_size))
-	if final_layout.is_empty():
-		return
-	var main_tween: Tween = create_tween().set_parallel(true).set_trans(Tween.TRANS_SINE)
-	var _background_position_tweener: PropertyTweener = main_tween.tween_property(board_background, "position", final_layout.offset, 0.3)
-	var _background_size_tweener: PropertyTweener = main_tween.tween_property(board_background, "size", final_layout.scaled_size, 0.3)
-	var final_container_pos: Vector2 = final_layout.offset + Vector2(BOARD_PADDING, BOARD_PADDING) * final_layout.scale_ratio
-	var _container_position_tweener: PropertyTweener = main_tween.tween_property(board_container, "position", final_container_pos, 0.3)
-	var _container_scale_tweener: PropertyTweener = main_tween.tween_property(board_container, "scale", Vector2.ONE * final_layout.scale_ratio, 0.3)
-	var _connect_result_527: int = main_tween.finished.connect(func() -> void: _draw_expanded_cells(old_size, new_size, expansion_token), CONNECT_ONE_SHOT)
-
-
-func _draw_expanded_cells(old_size: int, new_size: int, expansion_token: int) -> void:
-	if expansion_token != _expansion_token:
-		return
-
-	# 清理旧格子 (非 Tile 节点)
-	for child: Node in board_container.get_children():
-		if child is Control and not child is Tile:
-			child.queue_free()
-
-	if not is_instance_valid(grid_cell_scene):
-		return
-
-	var new_cells_tween: Tween = create_tween().set_parallel(true)
-
-	for x: int in range(new_size):
-		for y: int in range(new_size):
-			var cell_instance: Control = _create_grid_cell()
-			if not is_instance_valid(cell_instance):
-				continue
-			board_container.add_child(cell_instance)
-			board_container.move_child(cell_instance, 0) # 保持在底部
-
-			var final_size: Vector2 = Vector2.ONE * CELL_SIZE
-			var final_pos: Vector2 = Vector2(x * (CELL_SIZE + SPACING), y * (CELL_SIZE + SPACING))
-
-			if is_instance_valid(board_theme) and cell_instance is Panel:
-				var stylebox: StyleBoxFlat = _duplicate_flat_panel_style(cell_instance)
-				if is_instance_valid(stylebox):
-					_configure_cell_style(stylebox)
-					cell_instance.add_theme_stylebox_override("panel", stylebox)
-
-			if x >= old_size or y >= old_size:
-				var center_pos: Vector2 = final_pos + final_size / 2.0
-				cell_instance.size = Vector2.ZERO
-				cell_instance.position = center_pos
-				var size_tweener: PropertyTweener = new_cells_tween.tween_property(cell_instance, "size", final_size, 0.2)
-				var _size_delay_result: Tweener = size_tweener.set_delay(0.05 * (x + y))
-				var position_tweener: PropertyTweener = new_cells_tween.tween_property(cell_instance, "position", final_pos, 0.2)
-				var _position_delay_result: Tweener = position_tweener.set_delay(0.05 * (x + y))
-			else:
-				cell_instance.size = final_size
-				cell_instance.position = final_pos
+	_update_board_layout()
+	_sync_visible_region()
+	var expansion_tween: Tween = create_tween().set_parallel(true)
+	var _transition_result: Tween = expansion_tween.set_trans(Tween.TRANS_BACK)
+	var _ease_result: Tween = expansion_tween.set_ease(Tween.EASE_OUT)
+	for cell_value: Variant in _grid_cell_map.keys():
+		if not cell_value is Vector2i:
+			continue
+		var cell: Vector2i = cell_value
+		if cell.x < old_size and cell.y < old_size:
+			continue
+		var cell_instance: Control = _get_grid_cell_control(cell)
+		if not is_instance_valid(cell_instance):
+			continue
+		cell_instance.pivot_offset = cell_instance.size * 0.5
+		cell_instance.scale = Vector2.ONE * 0.72
+		var _scale_tweener: PropertyTweener = expansion_tween.tween_property(
+			cell_instance,
+			"scale",
+			Vector2.ONE,
+			0.18
+		)
 
 
 func _configure_cell_style(stylebox: StyleBoxFlat) -> void:
@@ -737,15 +816,54 @@ func _configure_cell_style(stylebox: StyleBoxFlat) -> void:
 	stylebox.shadow_offset = Vector2.ZERO
 
 
-func _create_grid_cell() -> Control:
-	var cell_node: Node = grid_cell_scene.instantiate()
+func _style_grid_cell(cell_control: Control) -> void:
+	if not is_instance_valid(board_theme) or not cell_control is Panel:
+		return
+	var stylebox: StyleBoxFlat = _duplicate_flat_panel_style(cell_control)
+	if is_instance_valid(stylebox):
+		_configure_cell_style(stylebox)
+		cell_control.add_theme_stylebox_override("panel", stylebox)
+
+
+func _acquire_grid_cell() -> Control:
+	if not is_instance_valid(_pool) or not is_instance_valid(grid_cell_scene):
+		return null
+	var cell_node: Node = _pool.acquire(grid_cell_scene, board_container)
 	if cell_node is Control:
 		var cell_control: Control = cell_node
+		cell_control.visible = true
+		cell_control.scale = Vector2.ONE
 		return cell_control
 
 	if is_instance_valid(cell_node):
 		push_error("[GameBoardController] 棋盘背景格子场景必须实例化为 Control。")
-		cell_node.queue_free()
+		_pool.release(cell_node, grid_cell_scene)
+	return null
+
+
+func _release_grid_cell(cell_control: Control) -> void:
+	if not is_instance_valid(cell_control):
+		return
+	cell_control.scale = Vector2.ONE
+	if not is_instance_valid(_pool):
+		cell_control.queue_free()
+		return
+	_pool.release(cell_control, grid_cell_scene)
+
+
+func _get_grid_cell_control(cell: Vector2i) -> Control:
+	var cell_value: Variant = _grid_cell_map.get(cell)
+	if cell_value is Control:
+		var cell_control: Control = cell_value
+		return cell_control
+	return null
+
+
+func _get_host_control() -> Control:
+	var host_value: Node = get_host_as(Control)
+	if host_value is Control:
+		var host_control: Control = host_value
+		return host_control
 	return null
 
 
@@ -768,13 +886,9 @@ func _play_board_intro() -> void:
 	if _board_intro_tween and _board_intro_tween.is_valid():
 		_board_intro_tween.kill()
 
-	var layout_params: Dictionary = _calculate_layout_params(model.get_bounds_size())
-	if layout_params.is_empty():
-		return
-
 	board_background.modulate = Color(1.0, 1.0, 1.0, 0.0)
 	board_container.modulate = Color(1.0, 1.0, 1.0, 0.0)
-	board_container.scale = Vector2.ONE * GFVariantData.get_option_float(layout_params, "scale_ratio", 1.0) * 0.98
+	board_container.scale = Vector2.ONE * 0.98
 
 	_board_intro_tween = create_tween().set_parallel(true)
 	var _transition_result: Tween = _board_intro_tween.set_trans(Tween.TRANS_CUBIC)
@@ -784,7 +898,7 @@ func _play_board_intro() -> void:
 	var _container_scale_tweener: PropertyTweener = _board_intro_tween.tween_property(
 		board_container,
 		"scale",
-		Vector2.ONE * GFVariantData.get_option_float(layout_params, "scale_ratio", 1.0),
+		Vector2.ONE,
 		_BOARD_INTRO_DURATION
 	)
 
@@ -869,35 +983,6 @@ static func _get_color(data: Dictionary, key: StringName, default_value: Color) 
 	return default_value
 
 
-## 根据棋盘包围盒和可用空间，计算缩放、尺寸和偏移等布局参数。
-## @return: 一个包含布局参数的字典。
-func _calculate_layout_params(board_size: Vector2i) -> Dictionary:
-	if board_size.x <= 0 or board_size.y <= 0:
-		return {}
-	var grid_area_size: Vector2 = Vector2(
-		board_size.x * CELL_SIZE + (board_size.x - 1) * SPACING,
-		board_size.y * CELL_SIZE + (board_size.y - 1) * SPACING
-	)
-	var logical_board_size: Vector2 = grid_area_size + Vector2.ONE * BOARD_PADDING * 2.0
-	var host_control: Control = _get_host_control()
-	if not is_instance_valid(host_control):
-		return {}
-	var current_size: Vector2 = host_control.size
-	if current_size.x == 0 or current_size.y == 0:
-		return {}
-	var scale_ratio: float = min(
-		current_size.x / logical_board_size.x,
-		current_size.y / logical_board_size.y
-	)
-	var scaled_size: Vector2 = logical_board_size * scale_ratio
-	var offset: Vector2 = (current_size - scaled_size) / 2.0
-	return {
-		"scale_ratio": scale_ratio,
-		"scaled_size": scaled_size,
-		"offset": offset,
-	}
-
-
 func _play_tile_feedback_sound(feedback_type: StringName) -> void:
 	var theme_utility: GameThemeUtility = _get_theme_utility()
 	if not is_instance_valid(theme_utility):
@@ -914,6 +999,41 @@ func _play_tile_move_sound() -> void:
 	var theme_utility: GameThemeUtility = _get_theme_utility()
 	if is_instance_valid(theme_utility):
 		theme_utility.play_tile_move_sound()
+
+
+func _ensure_animation_tile(tile_data: TileState, start_cell: Vector2i) -> Tile:
+	if tile_data == null:
+		return null
+	var existing_tile: Tile = _get_visual_tile(tile_data)
+	if is_instance_valid(existing_tile):
+		return existing_tile
+	var tile: Tile = _create_visual_tile(tile_data)
+	if not is_instance_valid(tile):
+		return null
+	tile.position = _grid_to_pixel_center(start_cell)
+	tile.scale = Vector2.ONE
+	_visual_map[tile_data] = tile
+	return tile
+
+
+func _release_mapped_visual_tile(tile_data: TileState) -> void:
+	if tile_data == null:
+		return
+	var tile: Tile = _get_visual_tile(tile_data)
+	var _erased: bool = _visual_map.erase(tile_data)
+	_release_visual_tile(tile)
+
+
+func _find_tile_cell_in_visible_cells(
+	tile_data: TileState,
+	visible_cells: Array[Vector2i]
+) -> Vector2i:
+	if tile_data == null or not is_instance_valid(model):
+		return Vector2i(-1, -1)
+	for cell: Vector2i in visible_cells:
+		if model.get_tile(cell) == tile_data:
+			return cell
+	return Vector2i(-1, -1)
 
 
 # --- 信号处理函数 ---
@@ -939,6 +1059,10 @@ func _on_board_animation_requested(instructions: Array) -> void:
 	var visual_instructions: Array[Dictionary] = []
 	var needs_visual_resync: bool = false
 	var has_move_sound: bool = false
+	var visible_cells: Array[Vector2i] = _get_visible_cells()
+	var visible_cell_lookup: Dictionary = {}
+	for visible_cell: Vector2i in visible_cells:
+		visible_cell_lookup[visible_cell] = true
 	if _log:
 		_log.debug(_LOG_TAG, "收到棋盘动画请求: instructions=%d, visual_map=%d" % [instructions.size(), _visual_map.size()])
 	
@@ -954,28 +1078,55 @@ func _on_board_animation_requested(instructions: Array) -> void:
 		match instruction_type:
 			&"MOVE":
 				var move_data: TileState = _get_game_tile_data(instr, &"tile_data")
-				var move_tile_node: Tile = _get_visual_tile(move_data)
-				if is_instance_valid(move_tile_node):
-					visual_instr[&"tile"] = move_tile_node
-				else:
+				if move_data == null:
 					needs_visual_resync = true
 					continue
+				var move_from: Vector2i = _get_vector2i(instr, &"from_grid_pos", Vector2i.ZERO)
+				var move_to: Vector2i = _get_vector2i(instr, &"to_grid_pos", move_from)
+				if not visible_cell_lookup.has(move_from) and not visible_cell_lookup.has(move_to):
+					_release_mapped_visual_tile(move_data)
+					continue
+				var move_tile_node: Tile = _ensure_animation_tile(move_data, move_from)
+				if not is_instance_valid(move_tile_node):
+					needs_visual_resync = true
+					continue
+				visual_instr[&"tile"] = move_tile_node
 			&"MERGE":
 				var consumed_data: TileState = _get_game_tile_data(instr, &"consumed_data")
 				var merged_data: TileState = _get_game_tile_data(instr, &"merged_data")
-				
-				var consumed_node: Tile = _get_visual_tile(consumed_data)
-				var merged_node: Tile = _get_visual_tile(merged_data)
-				
-				if not is_instance_valid(consumed_node):
+				if consumed_data == null or merged_data == null:
 					needs_visual_resync = true
 					continue
-				if not is_instance_valid(merged_node):
+				var consumed_from: Vector2i = _get_vector2i(
+					instr,
+					&"from_grid_pos_consumed",
+					Vector2i.ZERO
+				)
+				var merged_from: Vector2i = _get_vector2i(
+					instr,
+					&"from_grid_pos_merged",
+					Vector2i.ZERO
+				)
+				var merge_to: Vector2i = _get_vector2i(instr, &"to_grid_pos", merged_from)
+				var merge_is_visible: bool = (
+					visible_cell_lookup.has(consumed_from)
+					or visible_cell_lookup.has(merged_from)
+					or visible_cell_lookup.has(merge_to)
+				)
+				if not merge_is_visible:
+					_release_mapped_visual_tile(consumed_data)
+					_release_mapped_visual_tile(merged_data)
+					continue
+
+				var consumed_node: Tile = _ensure_animation_tile(consumed_data, consumed_from)
+				var merged_node: Tile = _ensure_animation_tile(merged_data, merged_from)
+				if is_instance_valid(consumed_node):
+					visual_instr[&"consumed_tile"] = consumed_node
+				if is_instance_valid(merged_node):
+					visual_instr[&"merged_tile"] = merged_node
+				if not is_instance_valid(consumed_node) and not is_instance_valid(merged_node):
 					needs_visual_resync = true
 					continue
-				
-				visual_instr[&"consumed_tile"] = consumed_node
-				visual_instr[&"merged_tile"] = merged_node
 				
 				# 延迟更新合并后的视觉状态
 				if is_instance_valid(merged_node):
@@ -1008,12 +1159,15 @@ func _on_board_animation_requested(instructions: Array) -> void:
 				if spawn_data == null:
 					needs_visual_resync = true
 					continue
+				var spawn_cell: Vector2i = _get_vector2i(instr, &"to_grid_pos", Vector2i.ZERO)
+				if not visible_cell_lookup.has(spawn_cell):
+					continue
 				var new_tile: Tile = _create_visual_tile(spawn_data)
 				if not is_instance_valid(new_tile):
 					needs_visual_resync = true
 					continue
 				_visual_map[spawn_data] = new_tile
-				new_tile.position = _grid_to_pixel_center(_get_vector2i(instr, &"to_grid_pos", Vector2i.ZERO))
+				new_tile.position = _grid_to_pixel_center(spawn_cell)
 				new_tile.scale = Vector2.ZERO
 				
 				visual_instr[&"tile"] = new_tile
@@ -1021,8 +1175,16 @@ func _on_board_animation_requested(instructions: Array) -> void:
 				var transform_data: TileState = _get_game_tile_data(instr, &"tile_data")
 				var transform_tile_node: Tile = _get_visual_tile(transform_data)
 				if not is_instance_valid(transform_tile_node):
-					needs_visual_resync = true
-					continue
+					var transform_cell: Vector2i = _find_tile_cell_in_visible_cells(
+						transform_data,
+						visible_cells
+					)
+					if transform_cell.x < 0:
+						continue
+					transform_tile_node = _ensure_animation_tile(transform_data, transform_cell)
+					if not is_instance_valid(transform_tile_node):
+						needs_visual_resync = true
+						continue
 
 				var transform_colors: Dictionary = _get_tile_colors(
 					transform_data.value,
@@ -1058,10 +1220,11 @@ func _on_board_animation_requested(instructions: Array) -> void:
 
 	if needs_visual_resync and model:
 		if _log:
-			_log.debug(_LOG_TAG, "视觉映射缺失动画目标，使用模型快照重同步。")
-		call_deferred(&"restore_from_snapshot", model.get_snapshot())
+			_log.debug(_LOG_TAG, "视觉映射缺失动画目标，按当前可见区域重同步。")
+		call_deferred(&"_sync_visible_region")
 
 	if visual_instructions.is_empty():
+		call_deferred(&"_sync_visible_region")
 		return
 
 	if has_move_sound:
@@ -1090,8 +1253,3 @@ func _on_board_live_expand_requested(new_size: int) -> void:
 ## 当场景即将改变时调用，确保释放旧场景前断开监听
 func _on_scene_will_change(_payload: Variant = null) -> void:
 	_cleanup_listeners()
-
-
-## 当棋盘尺寸改变时，更新布局。
-func _on_resized() -> void:
-	_update_board_layout()

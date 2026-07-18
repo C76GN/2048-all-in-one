@@ -32,3 +32,20 @@ func execute() -> Variant:
 		_reverse_target_map
 	)
 	return _wait_for_tweens(tweens, _game_board)
+
+
+func cancel() -> void:
+	super.cancel()
+	_defer_visible_region_sync()
+
+
+func finish() -> void:
+	super.finish()
+	_defer_visible_region_sync()
+
+
+# --- 私有/辅助方法 ---
+
+func _defer_visible_region_sync() -> void:
+	if is_instance_valid(_game_board):
+		_game_board.call_deferred(&"sync_visible_region")

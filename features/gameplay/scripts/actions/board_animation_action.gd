@@ -108,11 +108,13 @@ func execute() -> Variant:
 func cancel() -> void:
 	super.cancel()
 	_release_all_pending_consumed_tiles()
+	_defer_visible_region_sync()
 
 
 func finish() -> void:
 	super.finish()
 	_release_all_pending_consumed_tiles()
+	_defer_visible_region_sync()
 
 
 # --- 私有/辅助方法 ---
@@ -147,6 +149,11 @@ func _release_all_pending_consumed_tiles() -> void:
 			var release_token: RefCounted = token_value
 			_release_consumed_tile(tile, release_token)
 	_pending_consumed_tiles.clear()
+
+
+func _defer_visible_region_sync() -> void:
+	if is_instance_valid(_game_board):
+		_game_board.call_deferred(&"sync_visible_region")
 
 
 static func _append_tween(tweens: Array[Tween], tween: Tween) -> void:

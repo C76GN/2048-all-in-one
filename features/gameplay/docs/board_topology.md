@@ -42,15 +42,26 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 
 - 任意矩形、十字形和自定义稀疏拓扑。
 - 空洞安全的移动、生成、判负、棋盘预览、撤销、书签与回放。
+- 棋盘表现使用稳定局部世界坐标，外层 `BoardWorldViewportController` 独占缩放、平移和完整聚焦；HUD 与诊断面板保持独立屏幕空间。
+- 鼠标中键拖动、滚轮缩放以及原生触控板平移/缩放由 `GFPointerGestureUtility` 统一归一化，屏幕与棋盘局部坐标通过 `GFViewportUtility` 换算，运行时连接由 `GFSignalUtility` 管理。
+- `BoardTopology.get_cells_in_rect()` 使用行区间缓存与二分边界查询可见活跃单元；`GameBoardController` 只通过 `GFObjectPoolUtility` 挂载当前窗口内的格子和方块节点。完整模型不受裁剪影响，缩放过小时进入仅显示棋盘底板的细节层级。
 - 原 3x3 至 8x8 模式选择通过 `scalable_square_board_template.tres` 生成矩形拓扑。
 - 调试扩建仅支持矩形正方形；它不是玩家棋盘编辑器。
 - `board_editor` 已提供画笔、橡皮、矩形与十字预设、位置规范化、连通分量提示、局部 GF 撤销历史和玩家模板目录。
 - 玩家模板使用 `custom_boards` SaveGraph section 和 `board.player.<uuid>` 稳定拓扑 ID。
 
+## 表现与视口契约
+
+1. `BoardTopology` 和 `GridModel` 坐标不得随窗口尺寸、缩放比例或 HUD 布局变化。
+2. `GameBoardHost` 尺寸等于完整逻辑棋盘包围盒；`BoardWorld` 只改变统一缩放与位置，不修改单格尺寸或动画目标。
+3. 可见格与可见方块节点是可丢弃的表现缓存，不是模型真源；平移、缩放或动画结束后必须从 `GridModel` 重新同步。
+4. `GFActionQueueSystem` 处理动画期间允许更新背景格窗口，但方块节点集在 Action 完成或取消后再同步，避免回收正在 Tween 的节点。
+5. 当前桌面输入只消费棋盘视口内的中键、滚轮和原生 pan/magnify 事件。单指移动方块、双指缩放和拖动画布之间的优先级属于下一阶段 `GFInputContext` 契约，不能在场景脚本里临时猜测。
+
 ## 后续顺序
 
-1. 将棋盘表现拆为世界画布与 HUD，加入相机缩放、平移、聚焦和可见区域裁剪。
-2. 增加响应式手机布局与 GF 输入上下文，区分滑动棋盘、拖动画布和 UI 手势。
+1. 增加响应式手机布局与 GF 输入上下文，区分单指移动、拖动画布、双指缩放和 UI 手势。
+2. 把编辑器内测试工具迁移到独立调试窗口或 Remote Inspector 工作流，不再占用玩家 HUD 空间。
 3. 在稳定棋盘键上接入图鉴、成就与平台排行榜 Adapter。
 
 任何后续形状都应先扩展拓扑或规则资源，不得重新引入固定二维数组或以 UI 尺寸推断逻辑空间。

@@ -25,6 +25,7 @@ const MAX_CELL_COUNT: int = 262144
 		_cached_cell_count = -1
 		_cached_bounds_size = Vector2i(-1, -1)
 		_cached_content_fingerprint = ""
+		_cached_row_range_count = -1
 
 
 # --- 私有变量 ---
@@ -33,6 +34,8 @@ var _cell_lookup: Dictionary = {}
 var _cached_cell_count: int = -1
 var _cached_bounds_size: Vector2i = Vector2i(-1, -1)
 var _cached_content_fingerprint: String = ""
+var _row_ranges: Dictionary = {}
+var _cached_row_range_count: int = -1
 var _active_cells: Array[Vector2i] = []
 
 
@@ -157,6 +160,49 @@ func get_cell_count() -> int:
 func contains_cell(cell: Vector2i) -> bool:
 	_ensure_cell_lookup()
 	return _cell_lookup.has(cell)
+
+
+## 返回与给定单元矩形相交的活跃坐标，结果保持行优先顺序。
+##
+## 该查询使用按行缓存和二分边界，供超大稀疏棋盘的可见区域渲染使用，
+## 不要求调用方遍历全部 active_cells。
+## @param cell_rect: 左闭右开的棋盘单元矩形。
+func get_cells_in_rect(cell_rect: Rect2i) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	if cell_rect.size.x <= 0 or cell_rect.size.y <= 0 or _active_cells.is_empty():
+		return result
+
+	var bounds_size: Vector2i = get_bounds_size()
+	var query_start: Vector2i = Vector2i(
+		clampi(cell_rect.position.x, 0, bounds_size.x),
+		clampi(cell_rect.position.y, 0, bounds_size.y)
+	)
+	var requested_end: Vector2i = cell_rect.position + cell_rect.size
+	var query_end: Vector2i = Vector2i(
+		clampi(requested_end.x, 0, bounds_size.x),
+		clampi(requested_end.y, 0, bounds_size.y)
+	)
+	if query_start.x >= query_end.x or query_start.y >= query_end.y:
+		return result
+
+	_ensure_row_ranges()
+	for y: int in range(query_start.y, query_end.y):
+		var row_range_value: Variant = _row_ranges.get(y)
+		if not row_range_value is Vector2i:
+			continue
+		var row_range: Vector2i = row_range_value
+		var cell_index: int = _lower_bound_row_x(
+			row_range.x,
+			row_range.y,
+			query_start.x
+		)
+		while cell_index < row_range.y:
+			var cell: Vector2i = _active_cells[cell_index]
+			if cell.x >= query_end.x:
+				break
+			result.append(cell)
+			cell_index += 1
+	return result
 
 
 ## 返回以 (0, 0) 为起点的最小包围盒尺寸。
@@ -355,6 +401,33 @@ func _ensure_cell_lookup() -> void:
 	for cell: Vector2i in _active_cells:
 		_cell_lookup[cell] = true
 	_cached_cell_count = _active_cells.size()
+
+
+func _ensure_row_ranges() -> void:
+	if _cached_row_range_count == _active_cells.size():
+		return
+	_row_ranges.clear()
+	var row_start: int = 0
+	while row_start < _active_cells.size():
+		var row_y: int = _active_cells[row_start].y
+		var row_end: int = row_start + 1
+		while row_end < _active_cells.size() and _active_cells[row_end].y == row_y:
+			row_end += 1
+		_row_ranges[row_y] = Vector2i(row_start, row_end)
+		row_start = row_end
+	_cached_row_range_count = _active_cells.size()
+
+
+func _lower_bound_row_x(row_start: int, row_end: int, target_x: int) -> int:
+	var low: int = row_start
+	var high: int = row_end
+	while low < high:
+		var middle: int = low + ((high - low) >> 1)
+		if _active_cells[middle].x < target_x:
+			low = middle + 1
+		else:
+			high = middle
+	return low
 
 
 static func _is_row_major_before(left: Vector2i, right: Vector2i) -> bool:
