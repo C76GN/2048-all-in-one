@@ -1,0 +1,52 @@
+[gd_resource type="Resource" script_class="GFInputContext" format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_context.gd" id="1_context"]
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_action.gd" id="2_action"]
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_binding.gd" id="3_binding"]
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_mapping.gd" id="4_mapping"]
+
+[sub_resource type="Resource" id="Action_undo"]
+script = ExtResource("2_action")
+action_id = &"board_editor_undo"
+display_name = "Undo board edit"
+display_category = "Board Editor"
+
+[sub_resource type="InputEventKey" id="Key_undo"]
+ctrl_pressed = true
+physical_keycode = 90
+
+[sub_resource type="Resource" id="Binding_undo"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_undo")
+display_name = "Ctrl+Z"
+
+[sub_resource type="Resource" id="Mapping_undo"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_undo")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_undo")])
+
+[sub_resource type="Resource" id="Action_redo"]
+script = ExtResource("2_action")
+action_id = &"board_editor_redo"
+display_name = "Redo board edit"
+display_category = "Board Editor"
+
+[sub_resource type="InputEventKey" id="Key_redo"]
+ctrl_pressed = true
+physical_keycode = 89
+
+[sub_resource type="Resource" id="Binding_redo"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_redo")
+display_name = "Ctrl+Y"
+
+[sub_resource type="Resource" id="Mapping_redo"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_redo")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_redo")])
+
+[resource]
+script = ExtResource("1_context")
+context_id = &"board_editor"
+display_name = "Board Editor"
+mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_undo"), SubResource("Mapping_redo")])

@@ -11,6 +11,11 @@ signal topology_applied(topology: BoardTopology)
 # --- 常量 ---
 
 const _HISTORY_LIMIT: int = 128
+const _INPUT_CONTEXT: GFInputContext = preload(
+	"res://features/board_editor/resources/input/board_editor_input_context.tres"
+)
+const _UNDO_ACTION: StringName = &"board_editor_undo"
+const _REDO_ACTION: StringName = &"board_editor_redo"
 
 
 # --- 私有变量 ---
@@ -20,6 +25,8 @@ var _initial_topology: BoardTopology
 var _draft: BoardTopologyDraftModel
 var _history: GFCommandHistoryUtility
 var _custom_board_system: CustomBoardSystem
+var _input_mapping: GFInputMappingUtility
+var _signal_utility: GFSignalUtility
 var _saved_boards: Array[CustomBoardData] = []
 var _selected_saved_board_id: String = ""
 var _configured: bool = false
@@ -59,6 +66,10 @@ func _ready() -> void:
 	_history.max_history_size = _HISTORY_LIMIT
 	_history.init()
 	_custom_board_system = _get_custom_board_system()
+	_input_mapping = _get_input_mapping_utility()
+	_signal_utility = _get_signal_utility()
+	if is_instance_valid(_input_mapping):
+		_input_mapping.enable_context(_INPUT_CONTEXT, 600)
 	_setup_tool_button_group()
 	_connect_signals()
 	_apply_canvas_theme()
@@ -67,22 +78,31 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if is_instance_valid(_input_mapping):
+		_input_mapping.disable_context(_INPUT_CONTEXT)
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	if is_instance_valid(_history):
 		_history.dispose()
 	_history = null
 	_custom_board_system = null
+	_input_mapping = null
+	_signal_utility = null
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("undo"):
-		_on_undo_button_pressed()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("redo"):
-		_on_redo_button_pressed()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("ui_cancel"):
 		_on_cancel_button_pressed()
 		get_viewport().set_input_as_handled()
+
+
+func _process(_delta: float) -> void:
+	if not is_instance_valid(_input_mapping) or _is_text_editing_focused():
+		return
+	if _input_mapping.consume_action(_UNDO_ACTION):
+		_on_undo_button_pressed()
+	elif _input_mapping.consume_action(_REDO_ACTION):
+		_on_redo_button_pressed()
 
 
 # --- 公共方法 ---
@@ -111,7 +131,7 @@ func _initialize_editor() -> void:
 		_apply_button.disabled = true
 		_validation_label.text = tr("BOARD_EDITOR_INVALID_TEMPLATE")
 		return
-	var _changed_connected: int = _draft.changed.connect(_on_draft_changed)
+	_connect_managed_signal(_draft.changed, _on_draft_changed)
 	_history.clear()
 	_canvas.set_grid_size(_draft.get_canvas_size())
 	_canvas.set_active_cells(_draft.get_active_cells())
@@ -133,22 +153,38 @@ func _setup_tool_button_group() -> void:
 
 
 func _connect_signals() -> void:
-	var _connect_result_1: int = _brush_button.pressed.connect(_on_brush_button_pressed)
-	var _connect_result_2: int = _eraser_button.pressed.connect(_on_eraser_button_pressed)
-	var _connect_result_3: int = _undo_button.pressed.connect(_on_undo_button_pressed)
-	var _connect_result_4: int = _redo_button.pressed.connect(_on_redo_button_pressed)
-	var _connect_result_5: int = _rectangle_button.pressed.connect(_on_rectangle_button_pressed)
-	var _connect_result_6: int = _cross_button.pressed.connect(_on_cross_button_pressed)
-	var _connect_result_7: int = _normalize_button.pressed.connect(_on_normalize_button_pressed)
-	var _connect_result_8: int = _clear_button.pressed.connect(_on_clear_button_pressed)
-	var _connect_result_9: int = _canvas.cells_edited.connect(_on_canvas_cells_edited)
-	var _connect_result_10: int = _saved_board_list.item_selected.connect(_on_saved_board_selected)
-	var _connect_result_11: int = _saved_board_list.item_activated.connect(_on_saved_board_activated)
-	var _connect_result_12: int = _save_button.pressed.connect(_on_save_button_pressed)
-	var _connect_result_13: int = _load_button.pressed.connect(_on_load_button_pressed)
-	var _connect_result_14: int = _delete_button.pressed.connect(_on_delete_button_pressed)
-	var _connect_result_15: int = _cancel_button.pressed.connect(_on_cancel_button_pressed)
-	var _connect_result_16: int = _apply_button.pressed.connect(_on_apply_button_pressed)
+	_connect_managed_signal(_brush_button.pressed, _on_brush_button_pressed)
+	_connect_managed_signal(_eraser_button.pressed, _on_eraser_button_pressed)
+	_connect_managed_signal(_undo_button.pressed, _on_undo_button_pressed)
+	_connect_managed_signal(_redo_button.pressed, _on_redo_button_pressed)
+	_connect_managed_signal(_rectangle_button.pressed, _on_rectangle_button_pressed)
+	_connect_managed_signal(_cross_button.pressed, _on_cross_button_pressed)
+	_connect_managed_signal(_normalize_button.pressed, _on_normalize_button_pressed)
+	_connect_managed_signal(_clear_button.pressed, _on_clear_button_pressed)
+	_connect_managed_signal(_canvas.cells_edited, _on_canvas_cells_edited)
+	_connect_managed_signal(_saved_board_list.item_selected, _on_saved_board_selected)
+	_connect_managed_signal(_saved_board_list.item_activated, _on_saved_board_activated)
+	_connect_managed_signal(_save_button.pressed, _on_save_button_pressed)
+	_connect_managed_signal(_load_button.pressed, _on_load_button_pressed)
+	_connect_managed_signal(_delete_button.pressed, _on_delete_button_pressed)
+	_connect_managed_signal(_cancel_button.pressed, _on_cancel_button_pressed)
+	_connect_managed_signal(_apply_button.pressed, _on_apply_button_pressed)
+
+
+func _connect_managed_signal(source_signal: Signal, callback: Callable) -> void:
+	if not is_instance_valid(_signal_utility):
+		push_error("[BoardEditorDialog] 缺少 GFSignalUtility，无法连接编辑器控件。")
+		return
+	var _connection: GFSignalConnection = _signal_utility.connect_signal(
+		source_signal,
+		callback,
+		self
+	)
+
+
+func _is_text_editing_focused() -> bool:
+	var focus_owner: Control = get_viewport().gui_get_focus_owner()
+	return focus_owner is LineEdit or focus_owner is TextEdit
 
 
 func _apply_canvas_theme() -> void:
@@ -343,6 +379,22 @@ func _get_custom_board_system() -> CustomBoardSystem:
 	if system_value is CustomBoardSystem:
 		var system: CustomBoardSystem = system_value
 		return system
+	return null
+
+
+func _get_input_mapping_utility() -> GFInputMappingUtility:
+	var utility_value: Object = get_utility(GFInputMappingUtility)
+	if utility_value is GFInputMappingUtility:
+		var input_mapping: GFInputMappingUtility = utility_value
+		return input_mapping
+	return null
+
+
+func _get_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
 	return null
 
 

@@ -42,14 +42,14 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 
 - 任意矩形、十字形和自定义稀疏拓扑。
 - 空洞安全的移动、生成、判负、棋盘预览、撤销、书签与回放。
-- 棋盘表现使用稳定局部世界坐标，外层 `BoardWorldViewportController` 独占缩放、平移和完整聚焦；HUD 与诊断面板保持独立屏幕空间。
+- 棋盘表现使用稳定局部世界坐标，外层 `BoardWorldViewportController` 独占缩放、平移和完整聚焦；HUD 保持独立屏幕空间，诊断面板由 diagnostics feature 的独立 Window 承载。
 - 鼠标中键拖动、滚轮缩放、原生触控板手势和双指触摸由 `GFPointerGestureUtility` 统一归一化，屏幕与棋盘局部坐标通过 `GFViewportUtility` 换算，运行时连接由 `GFSignalUtility` 管理。
 - 单指短滑只负责棋盘移动，并通过 `GFVirtualInputSource` 写入玩法抽象动作；它不直接调用命令。双指序列一旦成立，本轮触摸只负责画布平移/缩放，不再回落成单指移动。
-- `GameplayResponsiveLayoutController` 在桌面、紧凑横屏和竖屏间切换。竖屏 HUD 位于独立移动宿主并由 GF 安全区边距保护，诊断栏不会占用移动端棋盘空间。
+- `GameplayResponsiveLayoutController` 在桌面、紧凑横屏和竖屏间切换。竖屏 HUD 位于独立移动宿主并由 GF 安全区边距保护，继承布局的右栏在所有玩法断点都关闭。
 - `BoardTopology.get_cells_in_rect()` 使用行区间缓存与二分边界查询可见活跃单元；`GameBoardController` 只通过 `GFObjectPoolUtility` 挂载当前窗口内的格子和方块节点。完整模型不受裁剪影响，缩放过小时进入仅显示棋盘底板的细节层级。
 - 原 3x3 至 8x8 模式选择通过 `scalable_square_board_template.tres` 生成矩形拓扑。
 - 调试扩建仅支持矩形正方形；它不是玩家棋盘编辑器。
-- `board_editor` 已提供画笔、橡皮、矩形与十字预设、位置规范化、连通分量提示、局部 GF 撤销历史和玩家模板目录。
+- `board_editor` 已提供画笔、橡皮、矩形与十字预设、位置规范化、连通分量提示、局部 GF 撤销历史和玩家模板目录；撤销/重做通过 feature 自有 GF 输入上下文消费，控件与草稿信号由 `GFSignalUtility` 管理。
 - 玩家模板使用 `custom_boards` SaveGraph section 和 `board.player.<uuid>` 稳定拓扑 ID。
 
 ## 表现与视口契约
@@ -61,11 +61,11 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 5. 输入优先级固定为：UI `Control` 先消费事件；棋盘视口中的双指序列负责平移/缩放；未进入多指状态的单指短滑在抬起时转换为四向玩法动作；中键、滚轮与原生 pan/magnify 继续只控制视口。
 6. 触控移动必须经 `GameplayInputActions` 和 `GFVirtualInputSource` 进入已启用的 gameplay `GFInputContext`，由 `PlayerInputSystem` 消费并创建 `MoveCommand`。任何 UI 或视口控制器都不得直接执行移动规则。
 7. 方向含糊、距离不足或持续过久的单指轨迹必须拒绝；双指序列释放回单指后，必须等待所有触点结束才能开启下一次移动判定。
+8. 玩法只通过 `GameplayBoardReadyData` 发布棋盘表现上下文；不得引用 diagnostics feature 的 Window、Panel 或 Utility。开发工具需要棋盘上下文时由 diagnostics 订阅该事件。
 
 ## 后续顺序
 
-1. 把编辑器内测试工具迁移到独立调试窗口或 Remote Inspector 工作流，不再占用玩家 HUD 空间。
-2. 为棋盘编辑器增加缩放视口和移动端绘制手势，并复用同一安全区/断点契约。
-3. 在稳定棋盘键上接入图鉴、成就与平台排行榜 Adapter。
+1. 为棋盘编辑器增加缩放视口和移动端绘制手势，并复用同一安全区/断点契约。
+2. 在稳定棋盘键上接入图鉴、成就与平台排行榜 Adapter。
 
 任何后续形状都应先扩展拓扑或规则资源，不得重新引入固定二维数组或以 UI 尺寸推断逻辑空间。

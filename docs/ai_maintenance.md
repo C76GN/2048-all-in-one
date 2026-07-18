@@ -271,7 +271,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 420 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-18 使用 Godot `4.7.1` 与 GF `8.1.0` 运行通过。当前完整套件为 30 个 GUT 测试脚本、237 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 705 个全局脚本类，项目运行时声明 145 个；完整套件退出计数为 `ObjectDB = 288`、`Resources = 128`，RID 为 `TextureStorage = 10`、`ShapedText = 2`、`Font = 3`。新增玩法输入动作契约与响应式布局 Controller 后对象、资源和 RID 均未增长；GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
+2026-07-18 使用 Godot `4.7.1` 与 GF `8.1.0` 运行通过。当前完整套件为 31 个 GUT 测试脚本、242 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 705 个全局脚本类，项目运行时声明 147 个；完整套件退出计数为 `ObjectDB = 288`、`Resources = 128`，RID 为 `TextureStorage = 10`、`ShapedText = 2`、`Font = 3`。新增棋盘就绪事件与独立诊断 Window 后对象、资源和 RID 均未增长；GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
 
 编辑器 GDScript warning 诊断入口：
 
@@ -279,7 +279,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1
 ```
 
-该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `app`、`features`、`shared`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-18 零诊断基线为 182 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `app`、`features`、`shared`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-18 零诊断基线为 185 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 如果只改了文档，可以不运行 GUT，但应检查链接、路径和项目定位是否准确。只要改了 `.gd`，应优先补充或运行相关测试；无法安全运行时，必须说明未验证风险。
 

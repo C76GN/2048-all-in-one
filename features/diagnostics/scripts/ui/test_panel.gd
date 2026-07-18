@@ -7,6 +7,11 @@ class_name TestPanel
 extends "res://addons/gf/kernel/base/gf_controller.gd"
 
 
+# --- 私有变量 ---
+
+var _signal_utility: GFSignalUtility
+
+
 # --- @onready 变量 (节点引用) ---
 
 @onready var _pos_x_spinbox: SpinBox = %PosXSpinBox
@@ -22,10 +27,37 @@ extends "res://addons/gf/kernel/base/gf_controller.gd"
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	var _connect_result_25: int = _spawn_button.pressed.connect(_on_spawn_button_pressed)
-	var _connect_result_26: int = _reset_resize_button.pressed.connect(_on_reset_resize_button_pressed)
-	var _connect_result_27: int = _live_expand_button.pressed.connect(_on_live_expand_button_pressed)
-	var _connect_result_28: int = _definition_option_button.item_selected.connect(_on_definition_selected)
+	_signal_utility = _get_signal_utility()
+	if not is_instance_valid(_signal_utility):
+		push_error("[TestPanel] 缺少 GFSignalUtility，测试控件无法连接。")
+		return
+	var _spawn_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_spawn_button.pressed,
+		_on_spawn_button_pressed,
+		self
+	)
+	var _reset_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_reset_resize_button.pressed,
+		_on_reset_resize_button_pressed,
+		self
+	)
+	var _expand_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_live_expand_button.pressed,
+		_on_live_expand_button_pressed,
+		self
+	)
+	var _definition_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_definition_option_button.item_selected,
+		_on_definition_selected,
+		self
+	)
+
+
+func _exit_tree() -> void:
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
+	_signal_utility = null
+	super._exit_tree()
 
 
 # --- 公共方法 ---
@@ -83,6 +115,14 @@ static func _variant_to_int(value: Variant, default_value: int) -> int:
 		var float_value: float = value
 		return int(float_value)
 	return default_value
+
+
+func _get_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility, true)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
+	return null
 
 
 func _write_option_items(option: OptionButton, items: Array[Dictionary]) -> void:

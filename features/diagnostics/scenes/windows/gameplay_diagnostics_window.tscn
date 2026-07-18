@@ -1,0 +1,41 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://features/diagnostics/scripts/ui/gameplay_diagnostics_window.gd" id="1_window"]
+[ext_resource type="PackedScene" path="res://features/diagnostics/scenes/ui/test_panel.tscn" id="2_test_panel"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_window"]
+bg_color = Color(1, 0.972549, 0.9098039, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="GameplayDiagnosticsWindow" type="Window"]
+size = Vector2i(390, 560)
+min_size = Vector2i(340, 480)
+visible = false
+wrap_controls = true
+script = ExtResource("1_window")
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_window")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="TestPanel" parent="Panel/Margin" instance=ExtResource("2_test_panel")]
+layout_mode = 2

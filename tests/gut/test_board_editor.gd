@@ -7,6 +7,12 @@ extends GutTest
 const _BOARD_EDITOR_SCENE: PackedScene = preload(
 	"res://features/board_editor/scenes/ui/board_editor_dialog.tscn"
 )
+const _BOARD_EDITOR_INPUT_CONTEXT: GFInputContext = preload(
+	"res://features/board_editor/resources/input/board_editor_input_context.tres"
+)
+const _BOARD_EDITOR_SCRIPT_PATH: String = (
+	"res://features/board_editor/scripts/ui/board_editor_dialog.gd"
+)
 
 
 # --- 测试用例 ---
@@ -118,6 +124,8 @@ func test_custom_board_catalog_rejects_duplicate_ids_atomically() -> void:
 
 func test_board_editor_scene_initializes_with_injected_topology_context() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
+	await architecture.register_utility(GFInputMappingUtility, GFInputMappingUtility.new())
+	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.init()
 	var context: TestArchitectureContext = TestArchitectureContext.new()
 	context.test_architecture = architecture
@@ -150,6 +158,21 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 	architecture.dispose()
 
 
+func test_board_editor_uses_feature_owned_gf_input_and_signal_contracts() -> void:
+	var action_ids: Array[StringName] = []
+	for mapping: GFInputMapping in _BOARD_EDITOR_INPUT_CONTEXT.mappings:
+		action_ids.append(mapping.get_action_id())
+	var source: String = _read_text(_BOARD_EDITOR_SCRIPT_PATH)
+
+	assert_true(_BOARD_EDITOR_INPUT_CONTEXT.get_context_id() == &"board_editor")
+	assert_true(action_ids.has(&"board_editor_undo"))
+	assert_true(action_ids.has(&"board_editor_redo"))
+	assert_true(source.contains("GFInputMappingUtility"))
+	assert_true(source.contains("GFSignalUtility"))
+	assert_false(source.contains("is_action_pressed(\"undo\")"))
+	assert_false(source.contains("is_action_pressed(\"redo\")"))
+
+
 # --- 私有/辅助方法 ---
 
 func _make_template() -> BoardTopologyTemplate:
@@ -160,3 +183,12 @@ func _make_template() -> BoardTopologyTemplate:
 	topology_template.max_size = Vector2i(8, 8)
 	topology_template.allow_custom_topology = true
 	return topology_template
+
+
+func _read_text(path: String) -> String:
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return ""
+	var text: String = file.get_as_text()
+	file.close()
+	return text

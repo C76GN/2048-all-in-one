@@ -35,12 +35,9 @@ var _replay_system: ReplaySystem
 var _level_utility: GFLevelUtility
 var _pause_utility: GamePauseUtility
 var _signal_utility: GFSignalUtility
-var _notification_utility: GFNotificationUtility
-var _test_utility: TestToolUtility
 var _log: GFLogUtility
 var _theme_utility: GameThemeUtility
 var _celebration_vfx_utility: GameCelebrationVfxUtility
-var _console_command_subscription: GFLifetimeSubscription
 
 ## 标记是否已完成清理，避免 _exit_tree 重复执行。
 var _is_cleaned_up: bool = false
@@ -49,8 +46,6 @@ var _is_cleaned_up: bool = false
 # --- @onready 变量 (节点引用) ---
 
 @onready var game_board: GameBoardController = %GameBoard
-@onready var test_panel: Node = %TestPanel
-@onready var _test_panel_controller: TestPanel = _get_test_panel_controller()
 @onready var background_color_rect: ColorRect = %Background
 @onready var _page_title: Label = %PageTitle
 @onready var replay_controls_container: VBoxContainer = %ReplayControlsContainer
@@ -69,8 +64,6 @@ func _ready() -> void:
 	_level_utility = _get_level_utility()
 	_pause_utility = _get_pause_utility()
 	_signal_utility = _get_signal_utility()
-	_notification_utility = _get_notification_utility()
-	_test_utility = _get_test_utility()
 	_log = _get_log_utility()
 	_theme_utility = _get_theme_utility()
 	_celebration_vfx_utility = _get_celebration_vfx_utility()
@@ -89,16 +82,6 @@ func _ready() -> void:
 	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
 	send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
 	_update_static_ui_text()
-	
-	var console: GFConsoleUtility = _get_console_utility()
-	if Boot.are_dev_tools_enabled() and is_instance_valid(console):
-		_console_command_subscription = console.register_command(
-			self,
-			"toggle_test_panel",
-			Callable(self, &"_cmd_toggle_test_panel"),
-			"Toggle developer test panel.",
-			{"tier": GFConsoleUtility.CommandTier.INPUT}
-		)
 
 
 func _notification(what: int) -> void:
@@ -133,10 +116,6 @@ func _cleanup_listeners() -> void:
 	
 	_unregister_level_runtime_cleanup()
 
-	if _console_command_subscription != null:
-		var _console_command_cancelled: bool = _console_command_subscription.cancel()
-		_console_command_subscription = null
-	
 	_clear_action_queues()
 
 	var architecture: GFArchitecture = get_architecture_or_null()
@@ -146,13 +125,9 @@ func _cleanup_listeners() -> void:
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 
-	if is_instance_valid(_test_utility):
-		_test_utility.clear_context()
-
 	_level_utility = null
 	_pause_utility = null
 	_celebration_vfx_utility = null
-	_notification_utility = null
 	
 	if is_instance_valid(_log):
 		_log.debug(_LOG_TAG, "已清理 GF 事件监听和原生信号连接。")
@@ -197,7 +172,6 @@ func _connect_signals() -> void:
 		_connect_managed_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
 
 	register_simple_event(EventNames.GAME_STATE_CHANGED, GFEventListener.from_method(self, &"_on_game_state_changed", 1))
-	register_simple_event(EventNames.BOARD_RESIZED, GFEventListener.from_method(self, &"_on_board_resized", 1))
 	register_simple_event(EventNames.TOGGLE_PAUSE_UI, GFEventListener.from_method(self, &"_on_toggle_pause_ui", 1))
 	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, GFEventListener.from_method(self, &"_on_replay_continued_as_game", 1))
 	register_simple_event(EventNames.TARGET_REACHED, GFEventListener.from_method(self, &"_on_target_reached", 1))
@@ -210,8 +184,6 @@ func _configure_ui_for_mode() -> void:
 
 	var is_replay: bool = _is_replay_mode()
 	replay_controls_container.visible = is_replay
-
-	_set_test_panel_visible(not is_replay and Boot.are_dev_tools_enabled())
 
 	_update_replay_ui()
 
@@ -234,46 +206,10 @@ func _update_replay_ui() -> void:
 		)
 
 
-func _cmd_toggle_test_panel(_args: PackedStringArray) -> void:
-	if not Boot.are_dev_tools_enabled():
+func _publish_gameplay_board_ready() -> void:
+	if _is_replay_mode() or not is_instance_valid(game_board):
 		return
-
-	if is_instance_valid(test_panel) and not _is_replay_mode():
-		_set_test_panel_visible(not _is_test_panel_visible())
-		var console: GFConsoleUtility = _get_console_utility()
-		if is_instance_valid(console) and _is_test_panel_visible():
-			var _command_executed: bool = console.execute_command("clear")
-			if is_instance_valid(_notification_utility):
-				var _notification_id: int = _notification_utility.push_notification(
-					"测试面板已切换。",
-					"",
-					GFNotificationUtility.Level.INFO,
-					{
-						"duration_seconds": 2.0,
-						"key": "diagnostics.test_panel_toggled",
-						"metadata": {"surface": "gameplay_hud"},
-					}
-				)
-
-
-func _setup_test_tools_for_current_board() -> void:
-	if (
-		not Boot.are_dev_tools_enabled()
-		or not is_instance_valid(_test_utility)
-		or not is_instance_valid(_current_game_model)
-		or not is_instance_valid(_test_panel_controller)
-		or _is_replay_mode()
-	):
-		return
-
-	var grid_model: GridModel = _get_grid_model()
-	if is_instance_valid(grid_model):
-		_test_utility.setup_test_tools(_test_panel_controller, game_board)
-		var board_size: Vector2i = grid_model.get_bounds_size()
-		_test_utility.initialize_panel(
-			grid_model.interaction_rule,
-			board_size
-		)
+	send_event(GameplayBoardReadyData.new(game_board))
 
 
 func _apply_game_background_theme(theme: BoardTheme) -> void:
@@ -398,35 +334,11 @@ func _get_signal_utility() -> GFSignalUtility:
 	return null
 
 
-func _get_notification_utility() -> GFNotificationUtility:
-	var utility_value: Object = get_utility(GFNotificationUtility)
-	if utility_value is GFNotificationUtility:
-		var notification_utility: GFNotificationUtility = utility_value
-		return notification_utility
-	return null
-
-
-func _get_test_utility() -> TestToolUtility:
-	var utility_value: Object = get_utility(TestToolUtility)
-	if utility_value is TestToolUtility:
-		var test_utility: TestToolUtility = utility_value
-		return test_utility
-	return null
-
-
 func _get_log_utility() -> GFLogUtility:
 	var utility_value: Object = get_utility(GFLogUtility)
 	if utility_value is GFLogUtility:
 		var log_utility: GFLogUtility = utility_value
 		return log_utility
-	return null
-
-
-func _get_console_utility() -> GFConsoleUtility:
-	var utility_value: Object = get_utility(GFConsoleUtility)
-	if utility_value is GFConsoleUtility:
-		var console: GFConsoleUtility = utility_value
-		return console
 	return null
 
 
@@ -484,36 +396,6 @@ func _get_replay_controls_label() -> Label:
 	return null
 
 
-func _get_test_panel_controller() -> TestPanel:
-	if test_panel is TestPanel:
-		var panel: TestPanel = test_panel
-		return panel
-
-	var node_value: Node = get_node_or_null("%TestPanel")
-	if node_value is TestPanel:
-		var panel: TestPanel = node_value
-		return panel
-	return null
-
-
-func _get_test_panel_canvas_item() -> CanvasItem:
-	if test_panel is CanvasItem:
-		var panel_canvas_item: CanvasItem = test_panel
-		return panel_canvas_item
-	return null
-
-
-func _set_test_panel_visible(is_visible: bool) -> void:
-	var panel_canvas_item: CanvasItem = _get_test_panel_canvas_item()
-	if is_instance_valid(panel_canvas_item):
-		panel_canvas_item.visible = is_visible
-
-
-func _is_test_panel_visible() -> bool:
-	var panel_canvas_item: CanvasItem = _get_test_panel_canvas_item()
-	return is_instance_valid(panel_canvas_item) and panel_canvas_item.visible
-
-
 # --- 信号处理函数 ---
 
 func _on_scene_will_change(_payload: Variant = null) -> void:
@@ -559,7 +441,7 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 
 	var is_replay: bool = _is_replay_mode()
 	if not is_replay:
-		_setup_test_tools_for_current_board()
+		_publish_gameplay_board_ready()
 	
 	if not is_instance_valid(_loaded_bookmark_data) and is_instance_valid(_command_history):
 		var init_cmd: MoveCommand = MoveCommand.new(Vector2i.ZERO)
@@ -571,11 +453,6 @@ func _on_game_ready_data_received(data: GameReadyData) -> void:
 				_command_history.record(init_cmd)
 			elif is_instance_valid(_log):
 				_log.error(_LOG_TAG, "初始状态不符合 GFUndoableCommand 快照契约，未写入命令历史。")
-
-
-func _on_board_resized(new_size: int) -> void:
-	if is_instance_valid(_test_utility):
-		_test_utility.update_limits(new_size)
 
 
 func _on_move_count_changed(_old_value: int, _new_value: int) -> void:
@@ -630,7 +507,7 @@ func _on_replay_status_changed(_is_active: bool) -> void:
 
 
 func _on_replay_continued_as_game(_payload: Variant = null) -> void:
-	_setup_test_tools_for_current_board()
+	_publish_gameplay_board_ready()
 	_configure_ui_for_mode()
 
 

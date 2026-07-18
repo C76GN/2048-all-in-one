@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="GFInputContext" format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_context.gd" id="1_context"]
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_action.gd" id="2_action"]
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_binding.gd" id="3_binding"]
+[ext_resource type="Script" path="res://addons/gf/standard/input/mapping/gf_input_mapping.gd" id="4_mapping"]
+
+[sub_resource type="Resource" id="Action_toggle_workspace"]
+script = ExtResource("2_action")
+action_id = &"toggle_diagnostics_workspace"
+display_name = "Toggle diagnostics workspace"
+display_category = "Diagnostics"
+
+[sub_resource type="InputEventKey" id="Key_toggle_workspace"]
+keycode = 4194335
+
+[sub_resource type="Resource" id="Binding_toggle_workspace"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_toggle_workspace")
+display_name = "F4"
+
+[sub_resource type="Resource" id="Mapping_toggle_workspace"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_toggle_workspace")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_toggle_workspace")])
+
+[resource]
+script = ExtResource("1_context")
+context_id = &"diagnostics"
+display_name = "Diagnostics"
+mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_toggle_workspace")])

@@ -44,10 +44,11 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 截至 2026-07-18，本机环境审计结果：
 
 - 项目开发编辑器：`4.7.stable.steam.5b4e0cb0f`；
-- Web 验证工具链：`4.7.1.stable.official.a13da4feb` 与匹配的 `4.7.1.stable` 导出模板；
+- 当前默认 `godot` 环境未找到精确匹配的 `4.7.stable` 导出模板；
+- 已完成 Web 签字的独立工具链：`4.7.1.stable.official.a13da4feb` 与匹配的 `4.7.1.stable` 导出模板；
 - 微信开发者工具 CLI：未检测到。
 
-项目侧兼容契约与标准 Web 浏览器冒烟已经通过，但尚不能签字“微信开发者工具 / 微信真机通过”。下一步必须安装微信开发者工具并配置 CLI 路径，再接入微信导出适配器执行真机矩阵。
+项目侧兼容契约与标准 Web 浏览器冒烟已经通过；当前环境报告有“缺少当前编辑器匹配导出模板”和“缺少微信开发者工具 CLI”两个 blocker，尚不能签字“微信开发者工具 / 微信真机通过”。下一步必须安装匹配当前编辑器的导出模板，安装并配置微信开发者工具 CLI，再接入微信导出适配器执行真机矩阵。
 
 Godot 4.7.1 导出期间，当前 vendored GF 8.1.0 仍会报告 `GFExtensionExportPlugin` 未覆盖 `_get_name()`。导出产物可以生成，但正式发布要求零导出错误。框架修复已按项目规范提交 [gf-framework#9](https://github.com/C76GN/gf-framework/issues/9) 与 [gf-framework#10](https://github.com/C76GN/gf-framework/pull/10)；PR 合并发布后再更新 vendored GF，不在项目主线复制临时补丁。
 
@@ -88,5 +89,5 @@ Godot 4.7.1 导出期间，当前 vendored GF 8.1.0 仍会报告 `GFExtensionExp
 2. 将棋盘数据模型升级为稀疏拓扑，支持矩形、十字形和玩家绘制。
 3. 建立可缩放、平移、裁剪和安全区感知的棋盘视口。
 4. 建立响应式 HUD 与输入上下文，按桌面、触摸和小游戏能力切换布局。
-5. 将开发测试工具迁移到 GF 调试工作区或独立窗口。
+5. 已将开发测试工具迁移到独立 Window，并通过 dev-only GF Module 注册确保微信/正式构建不创建该工作区。
 6. 在平台 bridge 之上实现成就、排行榜与方块图鉴。

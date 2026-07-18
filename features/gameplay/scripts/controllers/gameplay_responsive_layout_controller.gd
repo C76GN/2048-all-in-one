@@ -29,7 +29,7 @@ const _PORTRAIT_MARGIN_BOTTOM: float = 16.0
 const _MOBILE_HUD_TOP_GAP: float = 12.0
 const _MOBILE_HUD_BOARD_GAP: float = 14.0
 const _MOBILE_HUD_MINIMUM_HEIGHT: float = 72.0
-const _DESKTOP_COLUMN_WIDTH: float = 310.0
+const _DESKTOP_LEFT_COLUMN_WIDTH: float = 310.0
 const _COMPACT_LEFT_COLUMN_WIDTH: float = 230.0
 const _DESKTOP_COLUMN_SEPARATION: int = 34
 const _COMPACT_COLUMN_SEPARATION: int = 18
@@ -220,10 +220,9 @@ func _apply_desktop_layout() -> void:
 	_restore_status_to_left_column()
 	_mobile_hud_host.visible = false
 	_left_column.visible = true
-	_right_column.visible = true
+	_right_column.visible = false
 	_columns_container.add_theme_constant_override("separation", _DESKTOP_COLUMN_SEPARATION)
-	_left_column.custom_minimum_size.x = _DESKTOP_COLUMN_WIDTH
-	_right_column.custom_minimum_size.x = _DESKTOP_COLUMN_WIDTH
+	_left_column.custom_minimum_size.x = _DESKTOP_LEFT_COLUMN_WIDTH
 	_board_viewport.custom_minimum_size = _DESKTOP_BOARD_MINIMUM
 	_apply_main_safe_area_margins({
 		"top": _DESKTOP_MARGIN_VERTICAL,

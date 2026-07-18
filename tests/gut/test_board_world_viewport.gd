@@ -141,7 +141,7 @@ func test_gameplay_input_actions_map_only_cardinal_directions() -> void:
 	)
 
 
-func test_game_scene_keeps_hud_and_diagnostics_outside_board_world() -> void:
+func test_game_scene_keeps_hud_outside_board_world_and_excludes_diagnostics_ui() -> void:
 	var scene_root: Node = _GAME_PLAY_SCENE.instantiate()
 	var board_viewport: Control = scene_root.get_node(
 		"MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport"
@@ -150,14 +150,20 @@ func test_game_scene_keeps_hud_and_diagnostics_outside_board_world() -> void:
 	var game_board_host: Control = board_world.get_node("GameBoardHost") as Control
 	var game_board_controller: Node = game_board_host.get_node("GameBoard")
 	var hud: Node = scene_root.get_node("MarginContainer/ColumnsContainer/LeftColumn/HUD")
-	var diagnostics: Node = scene_root.get_node("MarginContainer/ColumnsContainer/RightColumn/TestPanel")
+	var right_column: VBoxContainer = scene_root.get_node(
+		"MarginContainer/ColumnsContainer/RightColumn"
+	) as VBoxContainer
 	var mobile_hud_host: PanelContainer = scene_root.get_node("MobileHudHost") as PanelContainer
 	var responsive_controller: Node = scene_root.get_node("GameplayResponsiveLayoutController")
 
 	assert_true(board_viewport.clip_contents, "棋盘视口必须裁剪移出边界的世界内容。")
 	assert_same(game_board_controller.get_parent(), game_board_host, "GF Controller 应由棋盘表现宿主承载。")
 	assert_false(board_world.is_ancestor_of(hud), "HUD 必须保持在独立屏幕空间。")
-	assert_false(board_world.is_ancestor_of(diagnostics), "诊断工具不得随棋盘世界缩放或平移。")
+	assert_false(right_column.visible, "玩法场景不得为开发诊断工具预留玩家画面栏位。")
+	assert_null(
+		right_column.get_node_or_null("TestPanel"),
+		"TestPanel 必须由 diagnostics feature 的独立 Window 承载。"
+	)
 	assert_false(board_world.is_ancestor_of(mobile_hud_host), "移动 HUD 宿主不得进入棋盘世界。")
 	assert_true(
 		responsive_controller is GameplayResponsiveLayoutController,

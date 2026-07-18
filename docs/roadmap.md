@@ -12,7 +12,7 @@
 - GF 包管理器：GF 8 使用 Godot 原生 CLI，入口为 `res://addons/gf/kernel/package/gf_package_cli.gd`。恢复包管理器安装流时，应重新生成 `.gf/packages.lock.json` 并再启用 installed 包数量强校验。
 - GF 下载缓存、运行日志、本地用户数据和导出产物已由 `.gitignore` 忽略，不应提交。
 - 当前文档：已有 `README.md`、`docs/ai_maintenance.md`、`docs/coding_style.md`、`docs/architecture.md`、`docs/validation.md` 和本文档。
-- 当前测试：`tests/gut/` 静态计数为 34 个 `test_*.gd` 文件，其中 30 个顶层测试脚本、4 个测试替身；共有 237 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
+- 当前测试：`tests/gut/` 静态计数为 35 个 `test_*.gd` 文件，其中 31 个顶层测试脚本、4 个测试替身；共有 242 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
 - 安全测试入口：`tools/run_gut_safe.ps1` 已提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；2026-07-18 已用 Godot 4.7.1 在 GF 8.1.0 上完成完整隔离 GUT 验证，完整结果以 `docs/validation.md` 为准。
 - 当前项目脚本中有 46 处显式继承 `res://addons/gf/...`，这是为了规避升级后 Godot class cache 对 `GF...` 类名解析不稳定的风险。
 - 当前脚本已清理掉 `get_model/get_system/get_utility(...) as ...`、显式 class cast、隐式变量类型和缺失返回类型等高频旧写法；维护测试已禁止用 GUT `assert_eq` 对比空数组来判断问题列表，并约束业务脚本中的 `GFBindableProperty.get_value()`、`Dictionary.get()` 自定义对象结果、资源加载/复制结果、`StyleBoxFlat` 专属 API 调用、typed `@onready` / 运行时节点查找收窄、已知高风险返回值调用和项目协程调用。剩余稳定性重点转向更细的 `unsafe_method_access` / `unsafe_property_access`。
@@ -157,8 +157,8 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 目标：从功能样例变成完整小游戏。
 
 1. 自定义与超大棋盘基础。
-   - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；玩家编辑器已支持绘制、擦除、预设、规范化、连通提示、GF 局部撤销历史和 SaveGraph 模板目录。棋盘表现已拆为独立世界画布与屏幕空间 HUD，支持完整聚焦、鼠标/触控板/双指缩放平移、单指抽象动作移动、可见区域查询、GF 对象池窗口化和低缩放细节裁剪。玩法页已有桌面、紧凑横屏、竖屏三种布局及 GF 物理安全区适配，移动 HUD 默认只显示分数、步数和最大方块。
-   - 下一步：把诊断测试工具迁移到独立调试窗口或编辑器入口，并保持正式导出禁用。
+   - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；玩家编辑器已支持绘制、擦除、预设、规范化、连通提示、GF 局部撤销历史和 SaveGraph 模板目录，并通过独立 GF 输入上下文消费撤销/重做快捷键。棋盘表现已拆为独立世界画布与屏幕空间 HUD，支持完整聚焦、鼠标/触控板/双指缩放平移、单指抽象动作移动、可见区域查询、GF 对象池窗口化和低缩放细节裁剪。玩法页已有桌面、紧凑横屏、竖屏三种布局及 GF 物理安全区适配，移动 HUD 默认只显示分数、步数和最大方块；开发实验台已迁移到 diagnostics feature 拥有的独立 Window。
+   - 下一步：让棋盘编辑器复用可缩放视口、触控仲裁和移动端安全区契约，完成手机端自定义棋盘绘制。
    - 契约：见 `features/gameplay/docs/board_topology.md`，不得重新引入 `grid_size` 作为逻辑唯一真源。
 
 2. 核心流程完整化。
@@ -199,6 +199,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 4. 测试面板隔离。
    - 测试工具只能在编辑器/调试态出现。
    - 正式体验中不要暴露测试控件，也不要让测试工具污染回放。
+   - 当前状态：完成。玩法场景不再实例化 diagnostics 资源或预留右栏；`GameplayBoardReadyData` 建立单向上下文事件，`TestToolUtility` 通过 GF 输入、控制台和信号能力管理独立 `GameplayDiagnosticsWindow`。
 
 ## 第五阶段：文档和示例价值
 
@@ -246,8 +247,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 优先级最高的下一步：
 
-1. 把测试工具迁移出玩家三栏布局，建立独立调试窗口或编辑器工具入口，并保持正式导出禁用。
-2. 让棋盘编辑器复用可缩放视口、触控仲裁与移动端安全区契约，完成手机端自定义棋盘绘制。
-3. 按 `docs/visual_style.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
-4. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。
-5. 在稳定棋盘键和平台 Adapter 基础上推进图鉴、成就与排行榜。
+1. 让棋盘编辑器复用可缩放视口、触控仲裁与移动端安全区契约，完成手机端自定义棋盘绘制。
+2. 按 `docs/visual_style.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
+3. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。
+4. 在稳定棋盘键和平台 Adapter 基础上推进图鉴、成就与排行榜。

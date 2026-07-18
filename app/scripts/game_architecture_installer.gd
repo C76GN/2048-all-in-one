@@ -238,7 +238,7 @@ func _create_screenshot_utility() -> GFScreenshotUtility:
 
 
 func _are_dev_tools_enabled() -> bool:
-	return OS.has_feature("editor") or OS.is_debug_build() or OS.has_feature("with_test_panel")
+	return OS.has_feature("editor") or OS.is_debug_build() or OS.has_feature("with_dev_tools")
 
 
 func _is_verbose_logging_enabled() -> bool:

@@ -46,7 +46,7 @@ func _ready() -> void:
 # --- 公共方法 ---
 
 static func are_dev_tools_enabled() -> bool:
-	return OS.has_feature("editor") or OS.is_debug_build() or OS.has_feature("with_test_panel")
+	return OS.has_feature("editor") or OS.is_debug_build() or OS.has_feature("with_dev_tools")
 
 
 # --- 私有/辅助方法 ---

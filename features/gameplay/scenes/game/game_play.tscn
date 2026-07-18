@@ -4,7 +4,6 @@
 [ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://features/gameplay/scripts/controllers/game_play_controller.gd" id="2_script"]
 [ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://features/gameplay/scenes/ui/hud.tscn" id="3_hud"]
 [ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://features/gameplay/scripts/controllers/game_board_controller.gd" id="4_board"]
-[ext_resource type="PackedScene" uid="uid://cpibgxbfm2p0r" path="res://features/diagnostics/scenes/ui/test_panel.tscn" id="5_test_panel"]
 [ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader" id="6_background_shader"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/controllers/board_world_viewport_controller.gd" id="7_board_viewport"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/controllers/gameplay_responsive_layout_controller.gd" id="8_responsive_layout"]
@@ -127,6 +126,9 @@ layout_mode = 2
 text = "继续: C | 返回: Esc / B"
 autowrap_mode = 3
 
+[node name="RightColumn" parent="MarginContainer/ColumnsContainer" index="2"]
+visible = false
+
 [node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
 visible = false
 text = ""
@@ -210,7 +212,3 @@ custom_minimum_size = Vector2(34, 34)
 layout_mode = 2
 tooltip_text = "放大棋盘"
 text = "+"
-
-[node name="TestPanel" parent="MarginContainer/ColumnsContainer/RightColumn" index="0" unique_id=1513242499 instance=ExtResource("5_test_panel")]
-unique_name_in_owner = true
-layout_mode = 2

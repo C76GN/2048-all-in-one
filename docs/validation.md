@@ -125,11 +125,11 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 - Godot：`4.7.1.stable.official.a13da4feb`。
 - GF Framework：官方稳定 tag `8.1.0`，commit `aa8db79810368c469755dd24435ca24afde71330`。
-- GUT：237 个测试全部通过。
-- 当前完整套件：`tests/gut/` 下 30 个顶层测试脚本、237 个 `test_` 用例。
+- GUT：242 个测试全部通过。
+- 当前完整套件：`tests/gut/` 下 31 个顶层测试脚本、242 个 `test_` 用例。
 - Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。运行时系统时间与随机源受路径扫描门禁约束，场景耗时复用 `GFOperationDiagnosticsUtility` 的操作起始 tick。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 288`、`Resources = 128`、RID 类型数 `= 3`，上限为 TextureStorage 10、ShapedText 2、Font 3。移动输入阶段新增 `GameplayInputActions` 与 `GameplayResponsiveLayoutController`，项目运行时 `class_name` 数量从 143 增至 145；同一完整套件的对象、资源和 RID 计数均未增长。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 288`、`Resources = 128`、RID 类型数 `= 3`，上限为 TextureStorage 10、ShapedText 2、Font 3。独立诊断工作区阶段新增 `GameplayBoardReadyData` 与 `GameplayDiagnosticsWindow`，项目运行时 `class_name` 数量从 145 增至 147；同一完整套件的对象、资源和 RID 计数均未增长。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
@@ -150,7 +150,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-18。结果：扫描 182 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+最近一次 LSP 诊断时间：2026-07-18。结果：扫描 185 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 ## Web / 微信小游戏准备预检
 
@@ -168,7 +168,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_platform_readiness.ps1 -God
 
 第一份报告 `build/platform_readiness_report.json` 由 GFCompatibilityPreflight 和 GFBridgeContractReport 生成；第二份 `build/platform_environment_report.json` 检查 Godot 与导出模板版本一致性及微信开发者工具 CLI。正式导出和 CI 不得忽略环境 blocker。真机矩阵见 `features/platform_runtime/docs/wechat_minigame_readiness.md`。
 
-最近一次项目预检为 `8 checks / 0 issues`。官方 Godot 4.7.1 Web 导出已在 Chromium 的 `390x844` 与 `1280x720` 视口完成 Compatibility 冒烟，控制台 `0 error / 0 warning`，本地存储写入回读通过。环境报告仍因缺少微信开发者工具 CLI 保留 1 个 blocker。
+最近一次项目预检为 `8 checks / 0 issues`。官方 Godot 4.7.1 Web 导出已在 Chromium 的 `390x844` 与 `1280x720` 视口完成 Compatibility 冒烟，控制台 `0 error / 0 warning`，本地存储写入回读通过。当前默认 Steam Godot 4.7 环境报告保留 2 个 blocker：缺少精确匹配的 `4.7.stable` 导出模板，以及未检测到微信开发者工具 CLI。
 
 ### 脚本静态检查
 
@@ -181,7 +181,7 @@ $null = [scriptblock]::Create($script)
 
 ## 当前验证缺口
 
-- 微信开发者工具 CLI、微信导出适配器和微信真机矩阵尚未完成，因此当前只签字标准 Web 兼容性，不签字微信小游戏发布就绪。
+- 当前默认 Steam Godot 4.7 缺少精确匹配的 `4.7.stable` 导出模板；微信开发者工具 CLI、微信导出适配器和微信真机矩阵也尚未完成，因此当前只保留已完成的官方 Godot 4.7.1 标准 Web 兼容性签字，不签字微信小游戏发布就绪。
 - 当前 vendored GF 8.1.0 的导出插件缺少 `_get_name()`，修复跟踪于 `gf-framework#9` / `gf-framework#10`；更新到包含该修复的正式 GF 版本前，导出日志仍不是零错误。
 - Godot 编辑器中的 GDScript warning 已通过 `tools/check_gdscript_lsp_diagnostics.ps1` 建立零诊断基线；后续修改 `.gd` 后应复跑。
 - Godot 退出仍存在已量化的框架/测试对象泄漏债务；当前通过严格基线阻止继续增长，不能把基线当成已经修复。

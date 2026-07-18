@@ -18,6 +18,7 @@ const _CELEBRATION_CONFETTI_SHADER_PATH: String = "res://features/asset_library/
 const _VISUAL_STYLE_DOC_PATH: String = "res://docs/visual_style.md"
 const _BOOT_SCRIPT_PATH: String = "res://app/scripts/boot.gd"
 const _GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_play_controller.gd"
+const _TEST_TOOL_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/test_tool_utility.gd"
 const _HALFTONE_UI_PALETTE: GameUiPalette = preload("res://features/themes/resources/themes/game/halftone_atlas_ui_palette.tres")
 const _HALFTONE_CELEBRATION_VFX_THEME: GameCelebrationVfxTheme = preload("res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres")
 const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres")
@@ -180,16 +181,25 @@ func test_halftone_ui_palette_keeps_text_readable_on_light_surfaces() -> void:
 	)
 
 
-func test_gameplay_controller_applies_theme_to_non_menu_controls() -> void:
-	var source: String = _read_text(_GAME_PLAY_CONTROLLER_PATH)
+func test_non_menu_surfaces_apply_theme_and_motion_in_their_own_feature() -> void:
+	var gameplay_source: String = _read_text(_GAME_PLAY_CONTROLLER_PATH)
+	var diagnostics_source: String = _read_text(_TEST_TOOL_UTILITY_PATH)
 
 	assert_true(
-		source.contains("apply_current_theme_to_tree(self)"),
-		"游戏局内不是 GameUiController，必须主动把主题应用到 HUD / TestPanel。"
+		gameplay_source.contains("apply_current_theme_to_tree(self)"),
+		"游戏局内不是 GameUiController，必须主动把主题应用到 HUD。"
 	)
 	assert_true(
-		source.contains("bind_interactive_controls(self)"),
-		"游戏局内必须主动绑定测试面板等按钮的主题样式。"
+		gameplay_source.contains("bind_interactive_controls(self)"),
+		"游戏局内必须主动绑定 HUD 和棋盘控件的交互动效。"
+	)
+	assert_true(
+		diagnostics_source.contains("apply_current_theme_to_tree(_test_window)"),
+		"独立诊断窗口必须由 diagnostics feature 自行应用当前主题。"
+	)
+	assert_true(
+		diagnostics_source.contains("bind_interactive_controls(_test_window)"),
+		"独立诊断窗口必须自行绑定交互动效。"
 	)
 
 

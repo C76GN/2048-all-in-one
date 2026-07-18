@@ -33,7 +33,7 @@
 | `persistence` | 通用玩家数据 section 协议、GF SaveGraph 事务编排和存储诊断 |
 | `themes` | 视觉主题、音效主题、主题化 UI 宿主与布局、UI 色板、棋盘反馈和主题内容包 |
 | `asset_library` | 可复用素材内容包、候选评审、授权、引用审计和局部导入工具 |
-| `diagnostics` | 项目诊断快照、支持报告和仅开发环境使用的测试面板 |
+| `diagnostics` | 项目诊断快照、支持报告和仅开发环境使用的独立对局实验台 |
 
 Feature 的 `scripts/` 内可以继续使用 `models/`、`systems/`、`utilities/` 等 GF 层目录，但这些目录只表达该 Feature 内部职责。例如 `features/replays/scripts/systems/` 只包含回放系统，不再和存档、路由、棋盘系统混放。
 
@@ -92,14 +92,23 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 3. `GridMovementSystem`、`GridSpawnSystem` 与 `StandardGameOverRule` 只遍历活跃单元和真实相邻关系；任何系统不得按包围盒把空洞实体化，也不得让方块跨越空洞。
 4. 撤销、书签、回放和 GF SaveGraph 共用严格拓扑快照；对局 ID、统计和未来排行榜使用语义 ID 加内容指纹的稳定键。
 5. GF 继续拥有验证报告、确定性随机、命令历史、关卡 Session 和持久化事务；四向稀疏拓扑是 gameplay 领域对象，不误用 GF flow graph 或 hex grid 表达不同语义。
-6. `BoardWorldViewportController` 把棋盘表现放入独立 `BoardWorld`，统一拥有缩放、平移、完整聚焦和边界约束；HUD 与诊断 UI 是视口外的屏幕空间兄弟节点。
+6. `BoardWorldViewportController` 把棋盘表现放入独立 `BoardWorld`，统一拥有缩放、平移、完整聚焦和边界约束；HUD 保持在视口外的屏幕空间，诊断 UI 不进入玩家场景树。
 7. `GFPointerGestureUtility` 负责桌面指针、触摸与原生 pan/magnify 归一化，`GFViewportUtility` 负责屏幕/棋盘局部坐标换算和物理安全区，`GFSignalUtility` 负责宿主生命周期内的连接所有权。项目只保存“本轮触摸是否仍可成为玩法滑动”的领域仲裁状态，不重复维护指针几何或坐标变换工具。
 8. 单指短滑由 `BoardWorldViewportController` 分类后，经 `GFVirtualInputSource` 写入 `GameplayInputActions`；`PlayerInputSystem` 仍是唯一消费 gameplay `GFInputContext` 并创建 `MoveCommand` 的入口。双指序列只控制视口，UI 控件拥有更高事件优先级。
-9. `GameplayResponsiveLayoutController` 只重排玩法场景：桌面保留三栏，紧凑横屏隐藏诊断栏，竖屏将紧凑 HUD 放到棋盘上方。共享 `BaseThreeColumnLayout` 不承担玩法专属断点，避免影响其他 Feature。
+9. `GameplayResponsiveLayoutController` 只重排玩法场景：桌面显示 HUD 与棋盘两栏，紧凑横屏缩窄 HUD，竖屏将紧凑 HUD 放到棋盘上方。继承自共享布局的右栏始终关闭，不再为开发工具预留玩家画面空间；共享 `BaseThreeColumnLayout` 不承担玩法专属断点。
 10. `BoardTopology.get_cells_in_rect()` 是超大稀疏棋盘的可见窗口查询入口；`GameBoardController` 通过 `GFObjectPoolUtility` 仅挂载当前可见格与方块节点，窗口外节点可以回收但模型与快照保持完整。
 11. 棋盘动画仍由 `GFActionQueueSystem` 拥有生命周期；视口变化不得释放正在执行 Tween 的方块，Action 完成或取消后按当前可见区域重建表现缓存。
+12. `board_editor` 拥有独立 GF 输入上下文和 `board_editor_undo`、`board_editor_redo` 抽象动作；编辑器快捷键不得依赖未注册的 Godot `InputMap` 动作。场景控件与草稿信号统一由 `GFSignalUtility` 持有连接生命周期。
 
 详细契约见 `features/gameplay/docs/board_topology.md`。
+
+### 开发诊断工作区
+
+1. `GameArchitectureInstaller` 只在 editor、debug build 或显式 `with_dev_tools` feature 下注册 GF Console、Diagnostics、Debug Overlay 与 `TestToolUtility`；正式导出不注册这些 Module。
+2. `GamePlayController` 只发布 `GameplayBoardReadyData`，不引用 `TestToolUtility`、`TestPanel` 或 diagnostics 资源。diagnostics feature 订阅该类型事件并持有开发上下文，依赖方向保持为 diagnostics -> gameplay。
+3. `TestToolUtility` 按需创建非 transient、非 exclusive 的 `GameplayDiagnosticsWindow`，场景切换时释放窗口和棋盘引用。窗口关闭只隐藏工作区，当前对局内可再次打开。
+4. 工作区使用独立 GF `diagnostics` 输入上下文，`F4` 通过 `GFInputMappingUtility` 切换窗口；`toggle_test_tools` 由 `GFConsoleUtility` 注册；窗口信号由 `GFSignalUtility` 持有生命周期。
+5. 独立窗口不是 `GFUIRouterUtility` 的玩家 UI Route，也不参与回放、截图布局或移动端安全区。它自行通过 `GameThemeUtility` 和 `GameUiMotionUtility` 应用当前主题与交互状态。
 
 ### 主题切换
 
