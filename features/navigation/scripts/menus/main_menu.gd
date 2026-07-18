@@ -26,6 +26,7 @@ extends GameUiController
 @onready var _start_game_button: Button = %StartGameButton
 @onready var _load_bookmark_button: Button = %LoadBookmarkButton
 @onready var _replays_button: Button = %ReplaysButton
+@onready var _tile_catalog_button: Button = %TileCatalogButton
 @onready var _settings_button: Button = %SettingsButton
 @onready var _quit_button: Button = %QuitButton
 
@@ -36,6 +37,7 @@ func _ready() -> void:
 	var _connect_result_36: int = _start_game_button.pressed.connect(_on_start_game_button_pressed)
 	var _connect_result_37: int = _load_bookmark_button.pressed.connect(_on_load_bookmark_button_pressed)
 	var _connect_result_38: int = _replays_button.pressed.connect(_on_replays_button_pressed)
+	var _catalog_connection: int = _tile_catalog_button.pressed.connect(_on_tile_catalog_button_pressed)
 	var _connect_result_39: int = _settings_button.pressed.connect(_on_settings_button_pressed)
 	var _connect_result_40: int = _quit_button.pressed.connect(_on_quit_button_pressed)
 
@@ -62,6 +64,8 @@ func _update_ui_text() -> void:
 		_load_bookmark_button.text = tr("BTN_LOAD_BOOKMARK")
 	if is_instance_valid(_replays_button):
 		_replays_button.text = tr("BTN_REPLAY_LIST")
+	if is_instance_valid(_tile_catalog_button):
+		_tile_catalog_button.text = tr("BTN_TILE_CATALOG")
 	if is_instance_valid(_settings_button):
 		_settings_button.text = tr("SETTINGS_TITLE")
 	if is_instance_valid(_quit_button):
@@ -88,6 +92,14 @@ func _on_load_bookmark_button_pressed() -> void:
 
 func _on_replays_button_pressed() -> void:
 	_goto_scene(replay_list_scene_path, "replay_list_scene_path")
+
+
+func _on_tile_catalog_button_pressed() -> void:
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开方块图鉴。")
+		return
+	var _catalog_panel: Node = ui_router.push_route(GameUiRouterUtility.ROUTE_TILE_CATALOG)
 
 
 func _on_settings_button_pressed() -> void:

@@ -12,7 +12,7 @@
 - GF 包管理器：GF 8 使用 Godot 原生 CLI，入口为 `res://addons/gf/kernel/package/gf_package_cli.gd`。恢复包管理器安装流时，应重新生成 `.gf/packages.lock.json` 并再启用 installed 包数量强校验。
 - GF 下载缓存、运行日志、本地用户数据和导出产物已由 `.gitignore` 忽略，不应提交。
 - 当前文档：已有 `README.md`、`docs/ai_maintenance.md`、`docs/coding_style.md`、`docs/architecture.md`、`docs/validation.md` 和本文档。
-- 当前测试：`tests/gut/` 静态计数为 35 个 `test_*.gd` 文件，其中 31 个顶层测试脚本、4 个测试替身；共有 245 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
+- 当前测试：`tests/gut/` 静态计数为 36 个 `test_*.gd` 文件，其中 32 个顶层测试脚本、4 个测试替身；共有 253 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
 - 安全测试入口：`tools/run_gut_safe.ps1` 已提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；2026-07-18 已用 Godot 4.7.1 在 GF 8.1.0 上完成完整隔离 GUT 验证，完整结果以 `docs/validation.md` 为准。
 - 当前项目脚本中有 46 处显式继承 `res://addons/gf/...`，这是为了规避升级后 Godot class cache 对 `GF...` 类名解析不稳定的风险。
 - 当前脚本已清理掉 `get_model/get_system/get_utility(...) as ...`、显式 class cast、隐式变量类型和缺失返回类型等高频旧写法；维护测试已禁止用 GUT `assert_eq` 对比空数组来判断问题列表，并约束业务脚本中的 `GFBindableProperty.get_value()`、`Dictionary.get()` 自定义对象结果、资源加载/复制结果、`StyleBoxFlat` 专属 API 调用、typed `@onready` / 运行时节点查找收窄、已知高风险返回值调用和项目协程调用。剩余稳定性重点转向更细的 `unsafe_method_access` / `unsafe_property_access`。
@@ -135,15 +135,15 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 验证：session 元数据、命令历史清理、动作队列清理都有聚焦测试。
 
 3. 资源目录 Module 深化。
-   - 涉及：`ProjectResourceCatalogUtility`、`GameModeCatalogUtility`、`GameUiRouterUtility`、`GFResourceRegistry`、`GFResourceResolverUtility`、`GFAssetUtility`。
+   - 涉及：`ProjectResourceCatalogUtility`、`GameModeCatalogUtility`、`TileCatalogUtility`、`GameUiRouterUtility`、`GFResourceRegistry`、`GFResourceResolverUtility`、`GFAssetUtility`。
    - 问题：模式目录和 UI 路由目录相似，容易重复注册、缓存、校验和错误输出。
-   - 当前状态：项目级资源目录 Adapter 已提炼，保留两个业务入口，但共享注册、解析、缓存和 asset group 逻辑。
-   - 验证：模式注册表和 UI 路由注册表测试继续通过，并能捕获缺失路径。
+   - 当前状态：项目级资源目录 Adapter 已提炼；模式、方块定义和 UI 路由保留各自业务入口，但共享注册、解析、缓存和 asset group 逻辑。
+   - 验证：模式、方块定义和 UI 路由注册表测试继续通过，并能捕获缺失路径与重复稳定 ID。
 
 4. 存档 Module 深化。
    - 涉及：`GameSaveGraphUtility`、`GameSaveSectionData`、`SaveSystem`、`BookmarkSystem`、`CustomBoardSystem`、`ReplaySystem`、`GFSaveGraphUtility`、`GFSaveScope`、`GFSaveDataSource`、`GFStorageUtility`。
    - 问题：最高分、设置、书签、玩家棋盘、回放分属不同入口，持久化语义需要更统一。
-   - 当前状态：统计、书签、玩家棋盘和回放已迁移为四个 Feature-owned section，由项目级 SaveGraph 原子保存；设置保持独立生命周期。旧 SaveSlot Adapter 和时间戳 Resource 集合已删除。
+   - 当前状态：统计、书签、玩家棋盘、方块/棋盘发现进度和回放已迁移为五个 Feature-owned section，由项目级 SaveGraph 原子保存；设置保持独立生命周期。旧 SaveSlot Adapter 和时间戳 Resource 集合已删除。
    - 存储契约：Binary Variant 类型保真、GF storage metadata、checksum、严格 Profile/section schema、UUID v7 稳定身份，不提供旧格式运行时双读。
    - 验证：跨架构重载、单文件约束、后期 section 失败全图回滚、schema 拒绝和保存失败内存回滚均有聚焦测试。
 
@@ -158,7 +158,8 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 1. 自定义与超大棋盘基础。
    - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；玩家编辑器已支持绘制、擦除、预设、规范化、连通提示、GF 局部撤销历史和 SaveGraph 模板目录，并通过独立 GF 输入上下文消费撤销/重做快捷键。编辑画布现使用稳定世界尺寸、共享视口变换算法、GF 指针手势与坐标换算，支持桌面缩放平移、单指连续绘制、双指缩放平移以及桌面/紧凑横屏/安全区竖屏布局。棋盘表现已拆为独立世界画布与屏幕空间 HUD，支持完整聚焦、鼠标/触控板/双指缩放平移、单指抽象动作移动、可见区域查询、GF 对象池窗口化和低缩放细节裁剪。移动 HUD 默认只显示分数、步数和最大方块；开发实验台已迁移到 diagnostics feature 拥有的独立 Window。
-   - 下一步：在稳定拓扑键和方块组合身份上建立图鉴发现模型，再接入成就与平台排行榜 Adapter。
+   - 当前进展：稳定拓扑键、规范化方块组合身份、严格发现 section 和响应式图鉴 Route 已完成；目录条目按视觉家族归档并复用正式方块表现。
+   - 下一步：以已验证的发现与对局领域事件接入成就和平台排行榜 Adapter。
    - 契约：见 `features/gameplay/docs/board_topology.md`，不得重新引入 `grid_size` 作为逻辑唯一真源。
 
 2. 核心流程完整化。
@@ -234,7 +235,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 收益：后续 AI 不会反复把风格改歪。
 
 3. SaveGraph 运维体验可以继续加深。
-   - 当前状态：统计、书签、玩家棋盘和回放已统一到 Feature-owned section，GF SaveGraph 负责图级事务，旧并行实现已删除。
+   - 当前状态：统计、书签、玩家棋盘、发现进度和回放已统一到 Feature-owned section，GF SaveGraph 负责图级事务，旧并行实现已删除。
    - 方向：在不放宽严格 schema 的前提下，为损坏存档增加面向玩家的隔离、导出诊断和显式重置流程。
    - 收益：让 checksum 或未来版本拒绝不只出现在日志中，同时保持运行时无隐式降级。
 
@@ -247,7 +248,6 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 优先级最高的下一步：
 
-1. 在稳定棋盘键和方块组合身份上建立图鉴发现模型与展示 Route，确保复合规则方块可以按视觉家族归档。
-2. 以项目领域事件驱动成就进度，再通过平台 Adapter 对接 Steam、微信与本地离线实现；排行榜只上传可验证、未污染的对局结果。
-3. 按 `docs/visual_style.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
-4. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。
+1. 以项目领域事件驱动成就进度，再通过平台 Adapter 对接 Steam、微信与本地离线实现；排行榜只上传可验证、未污染的对局结果。
+2. 按 `docs/visual_style.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
+3. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。

@@ -46,6 +46,14 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 		"项目诊断接入状态应能被 GF 诊断快照观察。"
 	)
 	assert_true(
+		diagnostics.has_tool_snapshot(&"tile_catalog"),
+		"方块资源目录应通过 GF 工具快照扩展诊断。"
+	)
+	assert_true(
+		diagnostics.has_tool_snapshot(&"tile_discoveries"),
+		"方块发现进度应通过 GF 工具快照扩展诊断。"
+	)
+	assert_true(
 		diagnostics.has_tool_snapshot(&"architecture_dependencies"),
 		"GF 声明式依赖图应进入项目诊断快照。"
 	)
@@ -80,6 +88,8 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	assert_true(tools.has(&"project_diagnostics"), "GF 标准快照应聚合项目诊断状态。")
 	assert_true(tools.has(&"architecture_dependencies"), "GF 标准快照应聚合声明式依赖诊断。")
 	assert_true(tools.has(&"scene_asset_metadata"), "GF 标准快照应聚合场景资产元数据。")
+	assert_true(tools.has(&"tile_catalog"), "GF 标准快照应聚合方块资源目录。")
+	assert_true(tools.has(&"tile_discoveries"), "GF 标准快照应聚合方块发现进度。")
 
 	architecture.dispose()
 	await get_tree().process_frame

@@ -16,5 +16,6 @@ entries = Array[ExtResource("2_entry")]([SubResource("Resource_classic_entry")])
 groups = Array[StringName]([&"tile", &"tile.interaction", &"tile.classic"])
 metadata = {
 "audio_layer_id": &"tile.audio_trait.classic_merge",
+"display_name_key": &"TILE_RECIPE_CLASSIC_MERGE",
 "visual_layer_id": &"tile.visual_trait.classic_merge"
 }

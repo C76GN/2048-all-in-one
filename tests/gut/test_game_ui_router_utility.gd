@@ -9,6 +9,7 @@ const EXPECTED_UI_ROUTE_PATHS: Array[String] = [
 	"res://features/navigation/resources/ui_routes/game_over_menu_route.tres",
 	"res://features/navigation/resources/ui_routes/target_reached_menu_route.tres",
 	"res://features/navigation/resources/ui_routes/settings_menu_route.tres",
+	"res://features/navigation/resources/ui_routes/tile_catalog_route.tres",
 	"res://features/navigation/resources/ui_routes/board_editor_route.tres",
 ]
 
@@ -17,6 +18,7 @@ const EXPECTED_UI_ROUTE_RESOURCE_KEYS: Array[String] = [
 	"game.ui_route.game_over_menu",
 	"game.ui_route.target_reached_menu",
 	"game.ui_route.settings_menu",
+	"game.ui_route.tile_catalog",
 	"game.ui_route.board_editor",
 ]
 
@@ -46,6 +48,7 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 		"pause_menu",
 		"settings_menu",
 		"target_reached_menu",
+		"tile_catalog",
 	]
 	assert_true(route_ids == expected_route_ids, "项目 UI 路由应提供稳定 route_id。")
 	assert_true(
@@ -67,6 +70,10 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 	assert_true(
 		ui_router.get_route(&"board_editor").scene_path == "res://features/board_editor/scenes/ui/board_editor_dialog.tscn",
 		"棋盘编辑器路由应指向 board_editor Feature 面板。"
+	)
+	assert_true(
+		ui_router.get_route(&"tile_catalog").scene_path == "res://features/tile_catalog/scenes/ui/tile_catalog_dialog.tscn",
+		"方块图鉴路由应指向 tile_catalog Feature 面板。"
 	)
 
 	architecture.dispose()

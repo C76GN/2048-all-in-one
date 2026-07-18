@@ -201,7 +201,11 @@ func _validate_initial_recipe_ids(report: GFValidationReport) -> void:
 
 
 func _validate_recipe_metadata(report: GFValidationReport, recipe: GFCapabilityRecipe) -> void:
-	for metadata_key: StringName in [&"visual_layer_id", &"audio_layer_id"]:
+	for metadata_key: StringName in [
+		&"display_name_key",
+		&"visual_layer_id",
+		&"audio_layer_id",
+	]:
 		var metadata_value: StringName = GFVariantData.to_string_name(
 			GFVariantData.get_option_value(recipe.metadata, metadata_key)
 		)

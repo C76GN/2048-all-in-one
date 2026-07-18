@@ -16,5 +16,6 @@ entries = Array[ExtResource("2_entry")]([SubResource("Resource_fibonacci_entry")
 groups = Array[StringName]([&"tile", &"tile.interaction", &"tile.fibonacci"])
 metadata = {
 "audio_layer_id": &"tile.audio_trait.fibonacci_merge",
+"display_name_key": &"TILE_RECIPE_FIBONACCI_MERGE",
 "visual_layer_id": &"tile.visual_trait.fibonacci_merge"
 }

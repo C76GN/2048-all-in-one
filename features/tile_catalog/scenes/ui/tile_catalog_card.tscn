@@ -1,0 +1,55 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://features/tile_catalog/scripts/ui/tile_catalog_card.gd" id="1_card"]
+[ext_resource type="PackedScene" path="res://features/gameplay/scenes/components/tile.tscn" id="2_tile"]
+
+[node name="TileCatalogCard" type="Button"]
+custom_minimum_size = Vector2(220, 184)
+toggle_mode = true
+script = ExtResource("1_card")
+
+[node name="ContentMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="ContentMargin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="PreviewHolder" type="Control" parent="ContentMargin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 108)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="PreviewTile" parent="ContentMargin/VBox/PreviewHolder" instance=ExtResource("2_tile")]
+unique_name_in_owner = true
+position = Vector2(98, 54)
+scale = Vector2(0.86, 0.86)
+
+[node name="TitleLabel" type="Label" parent="ContentMargin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 18
+text = "未发现"
+horizontal_alignment = 1
+text_overrun_behavior = 3
+
+[node name="SummaryLabel" type="Label" parent="ContentMargin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+text = "未知规则"
+horizontal_alignment = 1
+text_overrun_behavior = 3

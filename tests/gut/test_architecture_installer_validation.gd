@@ -273,6 +273,19 @@ func test_tile_composition_uses_capability_extension_ownership() -> void:
 		installer_source.contains("bind_utility(_TILE_COMPOSITION_UTILITY_SCRIPT)"),
 		"项目 Installer 应注册项目侧 TileCompositionUtility。"
 	)
+	assert_true(
+		installer_source.contains("bind_utility(_TILE_CATALOG_UTILITY_SCRIPT)"),
+		"项目 Installer 应注册项目侧 TileCatalogUtility。"
+	)
+	assert_true(
+		installer_source.find("bind_utility(_TILE_CATALOG_UTILITY_SCRIPT)")
+		< installer_source.find("bind_utility(_TILE_COMPOSITION_UTILITY_SCRIPT)"),
+		"静态方块目录必须先于运行时组合 Utility 注册。"
+	)
+	assert_true(
+		installer_source.contains("bind_system(TileDiscoverySystem)"),
+		"项目 Installer 应注册方块发现系统。"
+	)
 	assert_false(
 		_source_binds_symbol(installer_source, "GFCapabilityUtility"),
 		"GFCapabilityUtility 应由 gf.capability 扩展拥有，项目不得重复绑定。"

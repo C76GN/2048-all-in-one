@@ -3,6 +3,12 @@ class_name TileCompositionUtility
 extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 
+# --- 信号 ---
+
+## 有效方块被创建、恢复或改变组合后发出，供图鉴等外部 Feature 观察。
+signal tile_composition_observed(tile: TileState)
+
+
 # --- 私有变量 ---
 
 var _capability_utility: GFCapabilityUtility = null
@@ -47,6 +53,7 @@ func create_tile(
 	if not tile.is_valid_state():
 		release_tile(tile)
 		return null
+	_emit_observation(tile)
 	return tile
 
 
@@ -76,6 +83,7 @@ func restore_tile(data: Dictionary, definition: TileDefinition) -> TileState:
 	if not _mount_recipe_ids(tile, definition, recipe_ids) or not tile.is_valid_state():
 		release_tile(tile)
 		return null
+	_emit_observation(tile)
 	return tile
 
 
@@ -106,6 +114,7 @@ func recompose_tile(
 	tile.capability_recipe_ids.clear()
 	tile.capability_state.clear()
 	if _mount_recipe_ids(tile, next_definition, next_definition.initial_recipe_ids):
+		_emit_observation(tile)
 		return true
 
 	release_tile(tile)
@@ -138,6 +147,7 @@ func grant_recipe(
 	if recipe == null or not _apply_recipe(tile, recipe):
 		return false
 	tile.capability_recipe_ids.append(recipe_id)
+	_emit_observation(tile)
 	return true
 
 
@@ -168,6 +178,7 @@ func revoke_recipe(
 	tile.capability_recipe_ids.erase(recipe_id)
 	var _erased_state: bool = tile.capability_state.erase(recipe_id)
 	_sync_receiver_groups(tile, definition)
+	_emit_observation(tile)
 	return true
 
 
@@ -253,6 +264,7 @@ func apply_interaction(source: TileState, target: TileState) -> Dictionary:
 		survivor.capability_state[key] = proposal.state_patch[key]
 	var result: Dictionary = proposal.to_result_dictionary(source, target)
 	release_tile(consumed)
+	_emit_observation(survivor)
 	return result
 
 
@@ -277,6 +289,11 @@ func _apply_recipe(tile: TileState, recipe: GFCapabilityRecipe) -> bool:
 		{&"transactional": true, &"validate_after_apply": true}
 	)
 	return GFVariantData.get_option_bool(result, &"ok")
+
+
+func _emit_observation(tile: TileState) -> void:
+	if tile != null and tile.is_valid_state():
+		tile_composition_observed.emit(tile)
 
 
 func _mount_recipe_ids(

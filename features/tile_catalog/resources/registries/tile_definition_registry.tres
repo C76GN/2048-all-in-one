@@ -1,0 +1,68 @@
+[gd_resource type="Resource" script_class="GFResourceRegistry" format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/assets/gf_resource_registry.gd" id="1_registry"]
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/assets/gf_resource_registry_entry.gd" id="2_entry"]
+
+[sub_resource type="Resource" id="Entry_classic_numeric"]
+script = ExtResource("2_entry")
+id = &"classic_numeric"
+path = "res://features/gameplay/resources/tiles/definitions/classic_numeric_tile.tres"
+type_hint = "Resource"
+fields = {
+"category": &"standard",
+"sort_order": 10
+}
+
+[sub_resource type="Resource" id="Entry_fibonacci_numeric"]
+script = ExtResource("2_entry")
+id = &"fibonacci_numeric"
+path = "res://features/gameplay/resources/tiles/definitions/fibonacci_numeric_tile.tres"
+type_hint = "Resource"
+fields = {
+"category": &"sequence",
+"sort_order": 20
+}
+
+[sub_resource type="Resource" id="Entry_classic_fibonacci_hybrid"]
+script = ExtResource("2_entry")
+id = &"classic_fibonacci_hybrid"
+path = "res://features/gameplay/resources/tiles/definitions/classic_fibonacci_hybrid_tile.tres"
+type_hint = "Resource"
+fields = {
+"category": &"hybrid",
+"sort_order": 30
+}
+
+[sub_resource type="Resource" id="Entry_lucas_fibonacci_hybrid"]
+script = ExtResource("2_entry")
+id = &"lucas_fibonacci_hybrid"
+path = "res://features/gameplay/resources/tiles/definitions/lucas_fibonacci_hybrid_tile.tres"
+type_hint = "Resource"
+fields = {
+"category": &"hybrid",
+"sort_order": 40
+}
+
+[sub_resource type="Resource" id="Entry_ratio_base"]
+script = ExtResource("2_entry")
+id = &"ratio_base"
+path = "res://features/gameplay/resources/tiles/definitions/ratio_base_tile.tres"
+type_hint = "Resource"
+fields = {
+"category": &"ratio",
+"sort_order": 50
+}
+
+[sub_resource type="Resource" id="Entry_ratio_factor"]
+script = ExtResource("2_entry")
+id = &"ratio_factor"
+path = "res://features/gameplay/resources/tiles/definitions/ratio_factor_tile.tres"
+type_hint = "Resource"
+fields = {
+"category": &"ratio",
+"sort_order": 60
+}
+
+[resource]
+script = ExtResource("1_registry")
+entries = Array[ExtResource("2_entry")]([SubResource("Entry_classic_numeric"), SubResource("Entry_fibonacci_numeric"), SubResource("Entry_classic_fibonacci_hybrid"), SubResource("Entry_lucas_fibonacci_hybrid"), SubResource("Entry_ratio_base"), SubResource("Entry_ratio_factor")])

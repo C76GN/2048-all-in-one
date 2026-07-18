@@ -1,0 +1,175 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/tile_catalog/scripts/ui/tile_catalog_dialog.gd" id="1_dialog"]
+
+[node name="TileCatalogDialog" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+process_mode = 3
+script = ExtResource("1_dialog")
+
+[node name="DimBackground" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.101961, 0.082353, 0.109804, 0.72)
+
+[node name="OuterMargin" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="CatalogPanel" type="PanelContainer" parent="OuterMargin"]
+layout_mode = 2
+
+[node name="InnerMargin" type="MarginContainer" parent="OuterMargin/CatalogPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 18
+
+[node name="RootVBox" type="VBoxContainer" parent="OuterMargin/CatalogPanel/InnerMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="BoxContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TitleLabel" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "方块图鉴"
+
+[node name="ProgressLabel" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "已发现 0 / 0"
+vertical_alignment = 1
+
+[node name="BackButton" type="Button" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(112, 42)
+layout_mode = 2
+text = "返回"
+
+[node name="HeaderSeparator" type="HSeparator" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox"]
+layout_mode = 2
+
+[node name="Filters" type="BoxContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SearchInput" type="LineEdit" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Filters"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "搜索方块或规则"
+clear_button_enabled = true
+
+[node name="StateFilter" type="OptionButton" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Filters"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 42)
+layout_mode = 2
+
+[node name="Content" type="BoxContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 24
+
+[node name="CatalogArea" type="VBoxContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="CatalogScroll" type="ScrollContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/CatalogArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="CatalogGrid" type="GridContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/CatalogArea/CatalogScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
+columns = 3
+
+[node name="EmptyLabel" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/CatalogArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "没有符合条件的方块"
+horizontal_alignment = 1
+
+[node name="DetailPane" type="VBoxContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content"]
+custom_minimum_size = Vector2(300, 210)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="DetailTitle" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "选择一个方块"
+autowrap_mode = 2
+
+[node name="DetailState" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+unique_name_in_owner = true
+layout_mode = 2
+text = ""
+autowrap_mode = 2
+
+[node name="DetailSeparator" type="HSeparator" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+layout_mode = 2
+
+[node name="DetailForm" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+unique_name_in_owner = true
+layout_mode = 2
+text = ""
+autowrap_mode = 2
+
+[node name="DetailRecipes" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+unique_name_in_owner = true
+layout_mode = 2
+text = ""
+autowrap_mode = 2
+
+[node name="DetailMaxValue" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+unique_name_in_owner = true
+layout_mode = 2
+text = ""
+autowrap_mode = 2
+
+[node name="DetailDiscoveredAt" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+unique_name_in_owner = true
+layout_mode = 2
+text = ""
+autowrap_mode = 2

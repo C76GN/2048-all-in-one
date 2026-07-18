@@ -45,6 +45,7 @@ func get_required_utilities() -> Array[Script]:
 		GameThemeCatalogUtility,
 		GameThemeUtility,
 		GameUiRouterUtility,
+		TileCatalogUtility,
 		GFConsoleUtility,
 		GFAssetMetadataUtility,
 		GFDebugOverlayUtility,
@@ -55,6 +56,10 @@ func get_required_utilities() -> Array[Script]:
 		GFSupportReportUtility,
 		ProjectResourceCatalogUtility,
 	]
+
+
+func get_required_systems() -> Array[Script]:
+	return [TileDiscoverySystem]
 
 
 func ready() -> void:
@@ -142,6 +147,8 @@ func _refresh_project_tool_snapshots() -> void:
 	_publish_tool_snapshot(&"theme_catalog", _collect_theme_catalog_snapshot())
 	_publish_tool_snapshot(&"themes", _collect_themes_snapshot())
 	_publish_tool_snapshot(&"game_modes", _collect_game_modes_snapshot())
+	_publish_tool_snapshot(&"tile_catalog", _collect_tile_catalog_snapshot())
+	_publish_tool_snapshot(&"tile_discoveries", _collect_tile_discoveries_snapshot())
 	_publish_tool_snapshot(&"ui_routes", _collect_ui_routes_snapshot())
 	_publish_tool_snapshot(&"scene_asset_metadata", _collect_scene_asset_metadata_snapshot())
 	_publish_tool_snapshot(&"debug_overlay", _collect_debug_overlay_snapshot())
@@ -360,6 +367,22 @@ func _collect_game_modes_snapshot() -> Dictionary:
 		var utility: GameModeCatalogUtility = utility_value
 		return utility.get_debug_snapshot()
 	return {}
+
+
+func _collect_tile_catalog_snapshot() -> Dictionary:
+	var utility_value: Object = get_utility(TileCatalogUtility)
+	if utility_value is TileCatalogUtility:
+		var utility: TileCatalogUtility = utility_value
+		return utility.get_debug_snapshot()
+	return _make_unavailable_snapshot("TileCatalogUtility is unavailable.")
+
+
+func _collect_tile_discoveries_snapshot() -> Dictionary:
+	var system_value: Object = get_system(TileDiscoverySystem)
+	if system_value is TileDiscoverySystem:
+		var system: TileDiscoverySystem = system_value
+		return system.get_discovery_summary()
+	return _make_unavailable_snapshot("TileDiscoverySystem is unavailable.")
 
 
 func _collect_ui_routes_snapshot() -> Dictionary:

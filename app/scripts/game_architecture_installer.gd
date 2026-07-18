@@ -12,6 +12,7 @@ const _PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/s
 const _GAME_CLOCK_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/game_clock_utility.gd")
 const _GAME_SAVE_GRAPH_UTILITY_SCRIPT: Script = preload("res://features/persistence/scripts/utilities/game_save_graph_utility.gd")
 const _GAME_MODE_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_mode_catalog_utility.gd")
+const _TILE_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/tile_catalog/scripts/utilities/tile_catalog_utility.gd")
 const _GAME_PAUSE_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_pause_utility.gd")
 const _TILE_COMPOSITION_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/tiles/utilities/tile_composition_utility.gd")
 const _GAME_UI_ROUTER_UTILITY_SCRIPT: Script = preload("res://features/navigation/scripts/utilities/game_ui_router_utility.gd")
@@ -74,6 +75,7 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(_GAME_CLOCK_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_SAVE_GRAPH_UTILITY_SCRIPT).from_instance(_create_game_save_graph_utility()).as_singleton()
 	await binder.bind_utility(_GAME_MODE_CATALOG_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_TILE_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_TILE_COMPOSITION_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFCommandHistoryUtility).from_instance(_create_history_utility()).as_singleton()
 	await binder.bind_utility(GFTimeUtility).as_singleton()
@@ -116,6 +118,7 @@ func _bind_systems(binder: GFBinder) -> void:
 	await binder.bind_system(BookmarkSystem).as_singleton()
 	await binder.bind_system(CustomBoardSystem).as_singleton()
 	await binder.bind_system(ReplaySystem).as_singleton()
+	await binder.bind_system(TileDiscoverySystem).as_singleton()
 	await binder.bind_system(GameFlowSystem).as_singleton()
 	await binder.bind_system(GridMovementSystem).as_singleton()
 	await binder.bind_system(RuleSystem).as_singleton()
@@ -154,6 +157,11 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 		CustomBoardCatalogSaveData.new(),
 		GFSaveScope.Phase.NORMAL
 	)
+	var discoveries_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
+		TileDiscoverySaveData.new(),
+		GFSaveScope.Phase.NORMAL
+	)
 	var replays_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		ReplayCatalogSaveData.new(),
@@ -163,6 +171,7 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 		not progress_registered
 		or not bookmarks_registered
 		or not custom_boards_registered
+		or not discoveries_registered
 		or not replays_registered
 	):
 		push_error("[GameArchitectureInstaller] 玩家数据 SaveGraph section 注册失败。")

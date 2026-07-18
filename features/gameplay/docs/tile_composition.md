@@ -112,4 +112,4 @@ Capability 读取两个方块并返回不可变更状态的 `TileInteractionProp
 
 立方体翻滚、骰子定面和逐方块位移策略不属于 `TileInteractionCapability`。实现时应新增强类型移动提案协议，由方块移动 Capability 描述位移方式、朝向变换和动画语义，再由统一 Resolver 仲裁；不得在 `ClassicMovementRule` 中追加类型判断。
 
-图鉴读取 `TileDefinition.to_descriptor()`、GF Recipe 描述和表现 descriptor。图鉴中的“?”只替代数值等运行时变量，不隐藏定义身份或 Recipe 组合。
+图鉴通过 `TileCatalogUtility` 读取 `TileDefinition.to_descriptor()`、GF Recipe 描述和表现 descriptor。已发现条目中的“?”只替代数值等运行时变量，不隐藏定义身份或 Recipe 组合；未发现条目可隐藏内容详情。完整所有权与存档契约见 `features/tile_catalog/docs/tile_catalog.md`。

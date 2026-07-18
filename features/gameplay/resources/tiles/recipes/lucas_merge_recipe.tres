@@ -16,5 +16,6 @@ entries = Array[ExtResource("2_entry")]([SubResource("Resource_lucas_entry")])
 groups = Array[StringName]([&"tile", &"tile.interaction", &"tile.lucas"])
 metadata = {
 "audio_layer_id": &"tile.audio_trait.lucas_merge",
+"display_name_key": &"TILE_RECIPE_LUCAS_MERGE",
 "visual_layer_id": &"tile.visual_trait.lucas_merge"
 }

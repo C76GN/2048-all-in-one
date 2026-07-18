@@ -239,13 +239,22 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		CustomBoardCatalogSaveData.new(),
 		GFSaveScope.Phase.NORMAL
 	)
+	var discoveries_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
+		TileDiscoverySaveData.new(),
+		GFSaveScope.Phase.NORMAL
+	)
 	var replays_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		ReplayCatalogSaveData.new(),
 		GFSaveScope.Phase.LATE
 	)
 	assert_true(
-		progress_registered and bookmarks_registered and custom_boards_registered and replays_registered,
+		progress_registered
+		and bookmarks_registered
+		and custom_boards_registered
+		and discoveries_registered
+		and replays_registered,
 		"测试 SaveGraph section 应完整注册。"
 	)
 	return save_graph

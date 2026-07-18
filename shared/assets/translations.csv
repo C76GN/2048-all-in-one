@@ -175,6 +175,32 @@ RULE_CLASSIC_FIBONACCI,经典与斐波那契复合方块,Classic/Fibonacci Hybri
 RULE_LUCAS_FIBONACCI_TILE,数列复合方块,Sequence Hybrid Tile
 RULE_RATIO_BASE_TILE,基础方块,Base Tile
 RULE_RATIO_FACTOR_TILE,因子方块,Factor Tile
+TILE_RECIPE_CLASSIC_MERGE,同值倍增,Equal-value Doubling
+TILE_RECIPE_FIBONACCI_MERGE,斐波那契相邻合并,Fibonacci Adjacency
+TILE_RECIPE_LUCAS_MERGE,卢卡斯相邻合并,Lucas Adjacency
+TILE_RECIPE_LUCAS_BRIDGE,数列桥接,Sequence Bridge
+TILE_RECIPE_CROSS_DEFINITION_RATIO,比例换算,Ratio Conversion
+BTN_TILE_CATALOG,方块图鉴,Tile Catalog
+TILE_CATALOG_TITLE,方块图鉴,Tile Catalog
+TILE_CATALOG_SEARCH_PLACEHOLDER,搜索方块或规则,Search tiles or rules
+TILE_CATALOG_FILTER_ALL,全部,All
+TILE_CATALOG_FILTER_DISCOVERED,已发现,Discovered
+TILE_CATALOG_FILTER_UNDISCOVERED,未发现,Undiscovered
+TILE_CATALOG_UNDISCOVERED,未发现,Undiscovered
+TILE_CATALOG_LOCKED_SUMMARY,未知规则,Unknown rules
+TILE_CATALOG_RULE_COUNT,%d 条规则,%d rules
+TILE_CATALOG_PROGRESS,已发现 %d / %d,Discovered %d / %d
+TILE_CATALOG_STATE_DISCOVERED,已记录,Recorded
+TILE_CATALOG_STATE_UNDISCOVERED,尚未发现,Not discovered
+TILE_CATALOG_LOCKED_DETAIL,详情尚未解锁。,Details are locked.
+TILE_CATALOG_FORM,形态：%s,Form: %s
+TILE_CATALOG_FORM_INITIAL,基础组合,Base composition
+TILE_CATALOG_FORM_COMPOSED,复合组合,Composite composition
+TILE_CATALOG_RECIPES,规则：%s,Rules: %s
+TILE_CATALOG_MAX_VALUE,最高记录：%d,Highest observed: %d
+TILE_CATALOG_DISCOVERED_AT,发现时间：%s,Discovered: %s
+TILE_CATALOG_DETAIL_EMPTY,没有可显示的方块,No tiles to display
+TILE_CATALOG_EMPTY,没有符合条件的方块,No matching tiles
 RATIO_RESOLUTIONS_DISPLAY,求商次数: %d,Ratio Resolutions: %d
 RATIO_ALTERNATE_CHANCE,下次移动生成因子方块概率: %.1f%%,Factor Tile Chance: %.1f%%
 RATIO_SPAWN_INFO,可能生成的因子方块:\n,Possible Factor Tiles:\n
