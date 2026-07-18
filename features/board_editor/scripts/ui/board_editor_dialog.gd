@@ -36,6 +36,8 @@ var _configured: bool = false
 
 @onready var _title_label: Label = %TitleLabel
 @onready var _canvas_hint_label: Label = %CanvasHintLabel
+@onready var _editor_section_button: Button = %EditorSectionButton
+@onready var _library_section_button: Button = %LibrarySectionButton
 @onready var _tool_title_label: Label = %ToolTitle
 @onready var _tool_info_label: Label = %ToolInfo
 @onready var _brush_button: Button = %BrushButton
@@ -140,7 +142,6 @@ func _initialize_editor() -> void:
 	_board_name_edit.text = tr("BOARD_EDITOR_DEFAULT_NAME")
 	_refresh_saved_boards()
 	_refresh_draft_state()
-	_canvas.grab_focus()
 
 
 func _setup_tool_button_group() -> void:
@@ -352,6 +353,8 @@ func _update_ui_text() -> void:
 		return
 	_title_label.text = tr("BOARD_EDITOR_TITLE")
 	_canvas_hint_label.text = tr("BOARD_EDITOR_CANVAS_HINT")
+	_editor_section_button.text = tr("BOARD_EDITOR_SECTION_EDIT")
+	_library_section_button.text = tr("BOARD_EDITOR_SECTION_LIBRARY")
 	_tool_title_label.text = tr("BOARD_EDITOR_TOOL_TITLE")
 	_tool_info_label.text = tr("BOARD_EDITOR_COMPONENT_HINT")
 	_brush_button.text = tr("BOARD_EDITOR_TOOL_BRUSH")

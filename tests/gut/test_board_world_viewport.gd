@@ -10,7 +10,7 @@ const _GAME_PLAY_SCENE: PackedScene = preload("res://features/gameplay/scenes/ga
 # --- 测试用例 ---
 
 func test_fit_zoom_uses_tighter_viewport_axis_and_margin() -> void:
-	var fit_zoom: float = BoardWorldViewportController.calculate_fit_zoom(
+	var fit_zoom: float = CanvasViewportMath.calculate_fit_zoom(
 		Vector2(500.0, 400.0),
 		Rect2(Vector2.ZERO, Vector2(1000.0, 500.0)),
 		20.0,
@@ -24,7 +24,7 @@ func test_centered_position_maps_content_center_to_viewport_center() -> void:
 	var viewport_size: Vector2 = Vector2(640.0, 480.0)
 	var content_rect: Rect2 = Rect2(Vector2(50.0, 30.0), Vector2(800.0, 600.0))
 	var zoom: float = 0.5
-	var world_position: Vector2 = BoardWorldViewportController.calculate_centered_world_position(
+	var world_position: Vector2 = CanvasViewportMath.calculate_centered_world_position(
 		viewport_size,
 		content_rect,
 		zoom
@@ -42,7 +42,7 @@ func test_zoomed_position_preserves_world_point_under_anchor() -> void:
 	var anchor: Vector2 = Vector2(200.0, 100.0)
 	var current_zoom: float = 1.0
 	var next_zoom: float = 2.0
-	var next_position: Vector2 = BoardWorldViewportController.calculate_zoomed_world_position(
+	var next_position: Vector2 = CanvasViewportMath.calculate_zoomed_world_position(
 		current_position,
 		anchor,
 		current_zoom,
@@ -59,7 +59,7 @@ func test_zoomed_position_preserves_world_point_under_anchor() -> void:
 
 func test_clamped_position_centers_small_content_and_keeps_large_content_reachable() -> void:
 	var small_rect: Rect2 = Rect2(Vector2.ZERO, Vector2(200.0, 100.0))
-	var centered: Vector2 = BoardWorldViewportController.calculate_clamped_world_position(
+	var centered: Vector2 = CanvasViewportMath.calculate_clamped_world_position(
 		Vector2(500.0, 400.0),
 		small_rect,
 		1.0,
@@ -72,7 +72,7 @@ func test_clamped_position_centers_small_content_and_keeps_large_content_reachab
 	)
 
 	var large_rect: Rect2 = Rect2(Vector2.ZERO, Vector2(1000.0, 800.0))
-	var clamped: Vector2 = BoardWorldViewportController.calculate_clamped_world_position(
+	var clamped: Vector2 = CanvasViewportMath.calculate_clamped_world_position(
 		Vector2(500.0, 400.0),
 		large_rect,
 		1.0,

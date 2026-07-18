@@ -13,6 +13,9 @@ const _BOARD_EDITOR_INPUT_CONTEXT: GFInputContext = preload(
 const _BOARD_EDITOR_SCRIPT_PATH: String = (
 	"res://features/board_editor/scripts/ui/board_editor_dialog.gd"
 )
+const _BOARD_EDITOR_VIEWPORT_SCRIPT_PATH: String = (
+	"res://features/board_editor/scripts/ui/board_editor_viewport_controller.gd"
+)
 
 
 # --- 测试用例 ---
@@ -125,7 +128,9 @@ func test_custom_board_catalog_rejects_duplicate_ids_atomically() -> void:
 func test_board_editor_scene_initializes_with_injected_topology_context() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	await architecture.register_utility(GFInputMappingUtility, GFInputMappingUtility.new())
+	await architecture.register_utility(GFPointerGestureUtility, GFPointerGestureUtility.new())
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
+	await architecture.register_utility(GFViewportUtility, GFViewportUtility.new())
 	await architecture.init()
 	var context: TestArchitectureContext = TestArchitectureContext.new()
 	context.test_architecture = architecture
@@ -142,16 +147,61 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 	await get_tree().process_frame
 
 	var canvas_node: Node = panel.get_node_or_null(
-		"OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/BoardEditorCanvas"
+		"OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/CanvasWorld/BoardEditorCanvas"
+	)
+	var canvas_viewport: Control = panel.get_node_or_null(
+		"OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport"
+	) as Control
+	var viewport_controller: Node = canvas_viewport.get_node_or_null(
+		"BoardEditorViewportController"
+	)
+	var responsive_controller: Node = panel.get_node_or_null(
+		"BoardEditorResponsiveLayoutController"
 	)
 	var apply_node: Node = panel.get_node_or_null(
 		"OuterMargin/EditorPanel/InnerMargin/RootVBox/Footer/ApplyButton"
 	)
 	assert_true(canvas_node is BoardEditorCanvas, "编辑器应包含可绘制的强类型棋盘画布。")
+	assert_true(canvas_viewport.clip_contents, "编辑画布必须由独立裁剪视口承载。")
+	assert_true(
+		canvas_node.get_parent() is Node2D,
+		"编辑画布必须位于可统一缩放平移的稳定世界节点下。"
+	)
+	assert_true(
+		viewport_controller is BoardEditorViewportController,
+		"编辑画布必须使用 GF 手势驱动的专用视口控制器。"
+	)
+	assert_true(
+		responsive_controller is BoardEditorResponsiveLayoutController,
+		"编辑器必须使用专用安全区与断点控制器。"
+	)
 	assert_true(apply_node is Button, "编辑器应包含显式使用命令。")
 	if apply_node is Button:
 		var apply_button: Button = apply_node
 		assert_false(apply_button.disabled, "有效初始拓扑应允许直接使用。")
+	if responsive_controller is BoardEditorResponsiveLayoutController:
+		var responsive: BoardEditorResponsiveLayoutController = responsive_controller
+		panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		panel.size = Vector2(390.0, 844.0)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var content: BoxContainer = panel.get_node(
+			"OuterMargin/EditorPanel/InnerMargin/RootVBox/Content"
+		) as BoxContainer
+		var mobile_sections: HBoxContainer = panel.get_node(
+			"OuterMargin/EditorPanel/InnerMargin/RootVBox/MobileSections"
+		) as HBoxContainer
+		var tools: VBoxContainer = content.get_node("Tools") as VBoxContainer
+		var library: VBoxContainer = content.get_node("Library") as VBoxContainer
+		assert_true(
+			responsive.get_layout_mode()
+			== BoardEditorResponsiveLayoutController.LayoutMode.PORTRAIT
+		)
+		assert_true(content.vertical, "竖屏编辑区必须改为纵向排列。")
+		assert_true(mobile_sections.visible, "竖屏必须显示编辑/模板分区切换。")
+		assert_true(tools.visible and canvas_viewport.visible and not library.visible)
+		responsive.show_library_section()
+		assert_true(not tools.visible and not canvas_viewport.visible and library.visible)
 
 	context.remove_child(panel)
 	panel.free()
@@ -171,6 +221,58 @@ func test_board_editor_uses_feature_owned_gf_input_and_signal_contracts() -> voi
 	assert_true(source.contains("GFSignalUtility"))
 	assert_false(source.contains("is_action_pressed(\"undo\")"))
 	assert_false(source.contains("is_action_pressed(\"redo\")"))
+
+
+func test_editor_canvas_has_stable_large_world_extent_and_continuous_strokes() -> void:
+	var canvas: BoardEditorCanvas = BoardEditorCanvas.new()
+	canvas.cell_size = 32.0
+	canvas.content_padding = 10.0
+	canvas.set_grid_size(Vector2i(64, 48))
+	var content_rect: Rect2 = canvas.get_content_rect()
+	var line: Array[Vector2i] = BoardEditorCanvas.rasterize_grid_line(
+		Vector2i.ZERO,
+		Vector2i(7, 3)
+	)
+	var first_cell: Vector2i = line[0] if not line.is_empty() else Vector2i(-1, -1)
+	var last_cell: Vector2i = line[line.size() - 1] if not line.is_empty() else Vector2i(-1, -1)
+
+	assert_true(
+		content_rect.size.is_equal_approx(Vector2(2068.0, 1556.0)),
+		"超大草稿应扩展稳定世界尺寸，而不是压缩单格命中区域。"
+	)
+	assert_true(first_cell == Vector2i.ZERO)
+	assert_true(last_cell == Vector2i(7, 3))
+	for index: int in range(1, line.size()):
+		var step: Vector2i = line[index] - line[index - 1]
+		assert_true(
+			absi(step.x) <= 1 and absi(step.y) <= 1,
+			"快速拖动的相邻采样之间不得漏格。"
+		)
+	canvas.free()
+
+
+func test_editor_responsive_layout_uses_mobile_sections() -> void:
+	assert_true(
+		BoardEditorResponsiveLayoutController.classify_layout(Vector2(1440.0, 900.0))
+		== BoardEditorResponsiveLayoutController.LayoutMode.DESKTOP
+	)
+	assert_true(
+		BoardEditorResponsiveLayoutController.classify_layout(Vector2(900.0, 560.0))
+		== BoardEditorResponsiveLayoutController.LayoutMode.COMPACT_LANDSCAPE
+	)
+	assert_true(
+		BoardEditorResponsiveLayoutController.classify_layout(Vector2(390.0, 844.0))
+		== BoardEditorResponsiveLayoutController.LayoutMode.PORTRAIT
+	)
+
+
+func test_editor_viewport_reserves_single_touch_for_drawing_and_multitouch_for_gf_gestures() -> void:
+	var source: String = _read_text(_BOARD_EDITOR_VIEWPORT_SCRIPT_PATH)
+
+	assert_true(source.contains("GFPointerGestureUtility"))
+	assert_true(source.contains("GFViewportUtility"))
+	assert_true(source.contains("pointer_count < 2"))
+	assert_true(source.contains("_canvas.cancel_stroke()"))
 
 
 # --- 私有/辅助方法 ---

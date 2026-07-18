@@ -99,6 +99,8 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 10. `BoardTopology.get_cells_in_rect()` 是超大稀疏棋盘的可见窗口查询入口；`GameBoardController` 通过 `GFObjectPoolUtility` 仅挂载当前可见格与方块节点，窗口外节点可以回收但模型与快照保持完整。
 11. 棋盘动画仍由 `GFActionQueueSystem` 拥有生命周期；视口变化不得释放正在执行 Tween 的方块，Action 完成或取消后按当前可见区域重建表现缓存。
 12. `board_editor` 拥有独立 GF 输入上下文和 `board_editor_undo`、`board_editor_redo` 抽象动作；编辑器快捷键不得依赖未注册的 Godot `InputMap` 动作。场景控件与草稿信号统一由 `GFSignalUtility` 持有连接生命周期。
+13. `CanvasViewportMath` 是不引用 Feature 的共享纯算法；gameplay 和 `board_editor` 分别持有业务输入仲裁。编辑器用稳定世界尺寸绘制草稿，`BoardEditorViewportController` 通过 `GFPointerGestureUtility` 和 `GFViewportUtility` 实现左/右键绘制、中键/滚轮视口操作、单指绘制与双指平移缩放；第二根手指出现时必须取消尚未提交的笔画。
+14. `BoardEditorResponsiveLayoutController` 负责桌面三栏、紧凑横屏和竖屏布局。紧凑布局以编辑/模板分区替代被压缩的三栏，竖屏工具栏位于画布上方，所有外边距通过 `GFViewportUtility.apply_display_safe_area_margins()` 叠加物理安全区。
 
 详细契约见 `features/gameplay/docs/board_topology.md`。
 

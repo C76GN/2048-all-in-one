@@ -1,7 +1,9 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_dialog.gd" id="1_dialog"]
 [ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_canvas.gd" id="2_canvas"]
+[ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_viewport_controller.gd" id="3_viewport"]
+[ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_responsive_layout_controller.gd" id="4_responsive"]
 
 [node name="BoardEditorDialog" type="Control"]
 layout_mode = 3
@@ -12,6 +14,10 @@ grow_horizontal = 2
 grow_vertical = 2
 process_mode = 3
 script = ExtResource("1_dialog")
+
+[node name="BoardEditorResponsiveLayoutController" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("4_responsive")
 
 [node name="DimBackground" type="ColorRect" parent="."]
 layout_mode = 1
@@ -68,7 +74,28 @@ vertical_alignment = 1
 [node name="HeaderSeparator" type="HSeparator" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox"]
 layout_mode = 2
 
-[node name="Content" type="HBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox"]
+[node name="MobileSections" type="HBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="EditorSectionButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/MobileSections"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+button_pressed = true
+text = "编辑"
+
+[node name="LibrarySectionButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/MobileSections"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+text = "模板库"
+
+[node name="Content" type="BoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox"]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 18
@@ -150,17 +177,93 @@ layout_mode = 2
 text = "断开的区域允许保存，移动时会形成独立通道。"
 autowrap_mode = 2
 
-[node name="BoardEditorCanvas" type="Control" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content"]
+[node name="CanvasViewport" type="Control" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(480, 420)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+mouse_filter = 1
+clip_contents = true
+focus_mode = 2
+
+[node name="CanvasBackdrop" type="Panel" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="CanvasWorld" type="Node2D" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport"]
+unique_name_in_owner = true
+
+[node name="BoardEditorCanvas" type="Control" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/CanvasWorld"]
+unique_name_in_owner = true
+mouse_filter = 2
 script = ExtResource("2_canvas")
+
+[node name="BoardEditorViewportController" type="Node" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport"]
+unique_name_in_owner = true
+script = ExtResource("3_viewport")
+
+[node name="ViewControls" type="PanelContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -226.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = 56.0
+grow_horizontal = 0
+
+[node name="Margin" type="MarginContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 4
+
+[node name="Buttons" type="HBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ZoomOutButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+tooltip_text = "缩小画布"
+text = "-"
+
+[node name="ZoomLabel" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(52, 34)
+layout_mode = 2
+text = "100%"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FitButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 34)
+layout_mode = 2
+tooltip_text = "显示完整画布"
+text = "适配"
+
+[node name="ZoomInButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+tooltip_text = "放大画布"
+text = "+"
 
 [node name="Library" type="VBoxContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content"]
 custom_minimum_size = Vector2(280, 0)
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 theme_override_constants/separation = 8
 
 [node name="LibraryTitleLabel" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library"]
