@@ -173,6 +173,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 - `features/navigation/resources/registries/ui_route_registry.tres`
 - `features/navigation/resources/ui_routes/*.tres`
 - `features/navigation/scripts/utilities/game_ui_router_utility.gd`
+- `features/themes/scripts/utilities/game_ui_style_utility.gd`
 - `features/themes/scripts/utilities/game_ui_motion_utility.gd`
 - `features/themes/scripts/utilities/game_board_feedback_utility.gd`
 - `features/gameplay/scripts/controllers/game_play_controller.gd`
@@ -181,7 +182,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 - `features/themes/resources/themes/**`
 - `docs/visual_style.md`
 
-表现层应继续通过事件接收业务结果，不要把棋盘算法或存档语义写进 UI 节点。视觉改动必须保持 `docs/visual_style.md` 定义的柔和肌理扁平独立游戏方向，避免刺眼、粗糙或马赛克噪点。
+表现层应继续通过事件接收业务结果，不要把棋盘算法或存档语义写进 UI 节点。静态颜色、StyleBox、文本角色和焦点 Shader 归 `GameUiStyleUtility`，Tween 与交互反馈归 `GameUiMotionUtility`；界面脚本不得复制主题色值。视觉改动必须保持 `docs/visual_style.md` 定义的柔和肌理扁平独立游戏方向，避免刺眼、粗糙或马赛克噪点。
 
 ### gf 框架反哺变更
 
@@ -271,7 +272,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 420 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-18 使用 Godot `4.7` 与 GF `8.1.0` 运行通过。当前完整套件为 32 个 GUT 测试脚本、253 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 705 个全局脚本类，项目运行时声明 157 个；完整套件退出计数为 `ObjectDB = 288`、`Resources = 128`，RID 为 `TextureStorage = 10`、`ShapedText = 2`、`Font = 3`。新增方块目录、严格发现数据、观察系统和响应式图鉴后对象、资源和 RID 均未增长；GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
+2026-07-19 使用 Godot `4.7` 与 GF `8.1.0` 运行通过。当前完整套件为 33 个 GUT 测试脚本、261 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 705 个全局脚本类，项目运行时声明 170 个；完整套件退出计数为 `ObjectDB = 288`、`Resources = 128`，RID 为 `TextureStorage = 10`、`ShapedText = 2`、`Font = 3`。局部棋盘编辑器 Context 与语义 UI Style Utility 增加两个运行时类后，对象、资源和 RID 均未增长；GF vendor tree 与项目运行时类集合均未变化时，退出计数不得继续增长。
 
 编辑器 GDScript warning 诊断入口：
 
@@ -279,7 +280,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1
 ```
 
-该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `app`、`features`、`shared`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-18 零诊断基线为 196 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `app`、`features`、`shared`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-19 零诊断基线为 210 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 如果只改了文档，可以不运行 GUT，但应检查链接、路径和项目定位是否准确。只要改了 `.gd`，应优先补充或运行相关测试；无法安全运行时，必须说明未验证风险。
 

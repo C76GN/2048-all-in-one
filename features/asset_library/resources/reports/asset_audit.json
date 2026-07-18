@@ -190,7 +190,7 @@
 		"version": "0.1.0",
 		"warning_count": 0
 	},
-	"asset_key_reference_count": 17,
+	"asset_key_reference_count": 21,
 	"attribution_notice": "Asset library attributions\n\nCC BY 4.0\n- asset.audio.ui.printworks.select_soft_01 (res://features/asset_library/resources/audio/ui/printworks_select_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.ui.printworks.confirm_soft_01 (res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.spawn_soft_01 (res://features/asset_library/resources/audio/tile/printworks_spawn_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.move_soft_01 (res://features/asset_library/resources/audio/tile/printworks_move_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.merge_soft_01 (res://features/asset_library/resources/audio/tile/printworks_merge_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.game.printworks.game_over_soft_01 (res://features/asset_library/resources/audio/game/printworks_game_over_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n\nproject\n- asset.shader.background.halftone_paper (res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.transition.halftone_wipe (res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.ui.button_focus_dash (res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.ui.startup_progress_bar (res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader)\n  Creator: 2048-all-in-one\n- asset.vfx.celebration.confetti_canvas (res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader)\n  Creator: 2048-all-in-one",
 	"attribution_report": {
 		"covered_path_count": 11,
@@ -861,7 +861,7 @@
 	"package_id": "c76.asset_library.core",
 	"reference_scan_report": {
 		"budget_exceeded": false,
-		"candidate_file_count": 208,
+		"candidate_file_count": 273,
 		"input_target_count": 11,
 		"ok": false,
 		"partial_scan": false,
@@ -961,7 +961,7 @@
 				"blocking": true,
 				"evidence": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 				"kind": "path",
-				"line": 9,
+				"line": 11,
 				"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 				"path": "res://app/scripts/boot.gd",
 				"preview": "path reference: res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
@@ -976,7 +976,7 @@
 				"blocking": true,
 				"evidence": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 				"kind": "path",
-				"line": 8,
+				"line": 7,
 				"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 				"path": "res://features/gameplay/scenes/game/game_play.tscn",
 				"preview": "path reference: res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
@@ -1051,7 +1051,7 @@
 				"blocking": true,
 				"evidence": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
 				"kind": "path",
-				"line": 10,
+				"line": 12,
 				"match": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
 				"path": "res://app/scripts/boot.gd",
 				"preview": "path reference: res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
@@ -1064,8 +1064,8 @@
 			}
 		],
 		"scan_warnings": [],
-		"scanned_bytes": 982140,
-		"scanned_file_count": 208,
+		"scanned_bytes": 1377902,
+		"scanned_file_count": 273,
 		"skipped_files": [],
 		"target_count": 9,
 		"targets": {
@@ -1209,7 +1209,7 @@
 						"blocking": true,
 						"evidence": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 						"kind": "path",
-						"line": 9,
+						"line": 11,
 						"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 						"path": "res://app/scripts/boot.gd",
 						"preview": "path reference: res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
@@ -1224,7 +1224,7 @@
 						"blocking": true,
 						"evidence": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 						"kind": "path",
-						"line": 8,
+						"line": 7,
 						"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 						"path": "res://features/gameplay/scenes/game/game_play.tscn",
 						"preview": "path reference: res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
@@ -1313,7 +1313,7 @@
 						"blocking": true,
 						"evidence": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
 						"kind": "path",
-						"line": 10,
+						"line": 12,
 						"match": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
 						"path": "res://app/scripts/boot.gd",
 						"preview": "path reference: res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
@@ -1328,7 +1328,7 @@
 				"root_path": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader"
 			}
 		},
-		"weak_reference_count": 26,
+		"weak_reference_count": 30,
 		"weak_references": [
 			{
 				"blocking": false,
@@ -1404,6 +1404,36 @@
 				"symbol": "",
 				"target_id": "asset.audio.ui.printworks.confirm_soft_01",
 				"target_path": "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg"
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.audio.ui.printworks.confirm_soft_01",
+				"kind": "class_name",
+				"line": 12,
+				"match": "asset.audio.ui.printworks.confirm_soft_01",
+				"path": "res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd",
+				"preview": "class_name reference: asset.audio.ui.printworks.confirm_soft_01",
+				"root_path": "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.audio.ui.printworks.confirm_soft_01",
+				"target_id": "asset.audio.ui.printworks.confirm_soft_01",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.audio.ui.printworks.confirm_soft_01",
+				"kind": "class_name",
+				"line": 15,
+				"match": "asset.audio.ui.printworks.confirm_soft_01",
+				"path": "res://features/platform_runtime/tools/platform_readiness_check.gd",
+				"preview": "class_name reference: asset.audio.ui.printworks.confirm_soft_01",
+				"root_path": "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.audio.ui.printworks.confirm_soft_01",
+				"target_id": "asset.audio.ui.printworks.confirm_soft_01",
+				"target_path": ""
 			},
 			{
 				"blocking": false,
@@ -1632,6 +1662,36 @@
 			},
 			{
 				"blocking": false,
+				"evidence": "asset.shader.background.halftone_paper",
+				"kind": "class_name",
+				"line": 13,
+				"match": "asset.shader.background.halftone_paper",
+				"path": "res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd",
+				"preview": "class_name reference: asset.shader.background.halftone_paper",
+				"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.shader.background.halftone_paper",
+				"target_id": "asset.shader.background.halftone_paper",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.shader.background.halftone_paper",
+				"kind": "class_name",
+				"line": 14,
+				"match": "asset.shader.background.halftone_paper",
+				"path": "res://features/platform_runtime/tools/platform_readiness_check.gd",
+				"preview": "class_name reference: asset.shader.background.halftone_paper",
+				"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.shader.background.halftone_paper",
+				"target_id": "asset.shader.background.halftone_paper",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
 				"evidence": "asset.shader.transition.halftone_wipe",
 				"kind": "class_name",
 				"line": 530,
@@ -1694,9 +1754,9 @@
 				"blocking": false,
 				"evidence": "asset.shader.ui.button_focus_dash",
 				"kind": "class_name",
-				"line": 28,
+				"line": 40,
 				"match": "asset.shader.ui.button_focus_dash",
-				"path": "res://features/themes/scripts/utilities/game_ui_motion_utility.gd",
+				"path": "res://features/themes/scripts/utilities/game_ui_style_utility.gd",
 				"preview": "class_name reference: asset.shader.ui.button_focus_dash",
 				"root_path": "res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader",
 				"source": "text_fallback",
@@ -1932,7 +1992,7 @@
 			},
 			"asset.audio.ui.printworks.confirm_soft_01": {
 				"id": "asset.audio.ui.printworks.confirm_soft_01",
-				"reference_count": 3,
+				"reference_count": 5,
 				"references": [
 					{
 						"blocking": false,
@@ -1963,6 +2023,36 @@
 						"symbol": "",
 						"target_id": "asset.audio.ui.printworks.confirm_soft_01",
 						"target_path": "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg"
+					},
+					{
+						"blocking": false,
+						"evidence": "asset.audio.ui.printworks.confirm_soft_01",
+						"kind": "class_name",
+						"line": 12,
+						"match": "asset.audio.ui.printworks.confirm_soft_01",
+						"path": "res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd",
+						"preview": "class_name reference: asset.audio.ui.printworks.confirm_soft_01",
+						"root_path": "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.audio.ui.printworks.confirm_soft_01",
+						"target_id": "asset.audio.ui.printworks.confirm_soft_01",
+						"target_path": ""
+					},
+					{
+						"blocking": false,
+						"evidence": "asset.audio.ui.printworks.confirm_soft_01",
+						"kind": "class_name",
+						"line": 15,
+						"match": "asset.audio.ui.printworks.confirm_soft_01",
+						"path": "res://features/platform_runtime/tools/platform_readiness_check.gd",
+						"preview": "class_name reference: asset.audio.ui.printworks.confirm_soft_01",
+						"root_path": "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.audio.ui.printworks.confirm_soft_01",
+						"target_id": "asset.audio.ui.printworks.confirm_soft_01",
+						"target_path": ""
 					},
 					{
 						"blocking": false,
@@ -2036,7 +2126,7 @@
 			},
 			"asset.shader.background.halftone_paper": {
 				"id": "asset.shader.background.halftone_paper",
-				"reference_count": 2,
+				"reference_count": 4,
 				"references": [
 					{
 						"blocking": false,
@@ -2067,6 +2157,36 @@
 						"symbol": "",
 						"target_id": "asset.shader.background.halftone_paper",
 						"target_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
+					},
+					{
+						"blocking": false,
+						"evidence": "asset.shader.background.halftone_paper",
+						"kind": "class_name",
+						"line": 13,
+						"match": "asset.shader.background.halftone_paper",
+						"path": "res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd",
+						"preview": "class_name reference: asset.shader.background.halftone_paper",
+						"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.shader.background.halftone_paper",
+						"target_id": "asset.shader.background.halftone_paper",
+						"target_path": ""
+					},
+					{
+						"blocking": false,
+						"evidence": "asset.shader.background.halftone_paper",
+						"kind": "class_name",
+						"line": 14,
+						"match": "asset.shader.background.halftone_paper",
+						"path": "res://features/platform_runtime/tools/platform_readiness_check.gd",
+						"preview": "class_name reference: asset.shader.background.halftone_paper",
+						"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.shader.background.halftone_paper",
+						"target_id": "asset.shader.background.halftone_paper",
+						"target_path": ""
 					}
 				],
 				"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
@@ -2146,9 +2266,9 @@
 						"blocking": false,
 						"evidence": "asset.shader.ui.button_focus_dash",
 						"kind": "class_name",
-						"line": 28,
+						"line": 40,
 						"match": "asset.shader.ui.button_focus_dash",
-						"path": "res://features/themes/scripts/utilities/game_ui_motion_utility.gd",
+						"path": "res://features/themes/scripts/utilities/game_ui_style_utility.gd",
 						"preview": "class_name reference: asset.shader.ui.button_focus_dash",
 						"root_path": "res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader",
 						"source": "text_fallback",
@@ -2261,6 +2381,8 @@
 		"asset.audio.ui.printworks.confirm_soft_01": {
 			"key_users": [
 				"res://features/asset_library/tools/import_asset_sources.gd",
+				"res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd",
+				"res://features/platform_runtime/tools/platform_readiness_check.gd",
 				"res://features/themes/resources/audio/printworks_audio_bank.tres"
 			],
 			"path": "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg",
@@ -2286,7 +2408,9 @@
 		},
 		"asset.shader.background.halftone_paper": {
 			"key_users": [
-				"res://features/asset_library/tools/import_asset_sources.gd"
+				"res://features/asset_library/tools/import_asset_sources.gd",
+				"res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd",
+				"res://features/platform_runtime/tools/platform_readiness_check.gd"
 			],
 			"path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 			"path_users": [
@@ -2315,7 +2439,7 @@
 		"asset.shader.ui.button_focus_dash": {
 			"key_users": [
 				"res://features/asset_library/tools/import_asset_sources.gd",
-				"res://features/themes/scripts/utilities/game_ui_motion_utility.gd"
+				"res://features/themes/scripts/utilities/game_ui_style_utility.gd"
 			],
 			"path": "res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader",
 			"path_users": [

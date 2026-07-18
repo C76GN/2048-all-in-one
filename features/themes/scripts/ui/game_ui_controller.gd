@@ -11,6 +11,9 @@ extends Control
 const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload(
 	"res://features/themes/scripts/utilities/game_ui_motion_utility.gd"
 )
+const _GAME_UI_STYLE_UTILITY_SCRIPT: Script = preload(
+	"res://features/themes/scripts/utilities/game_ui_style_utility.gd"
+)
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload(
 	"res://features/themes/scripts/utilities/game_theme_utility.gd"
 )
@@ -169,6 +172,14 @@ func _get_ui_motion_utility() -> GameUiMotionUtility:
 	if utility_value is GameUiMotionUtility:
 		var motion_utility: GameUiMotionUtility = utility_value
 		return motion_utility
+	return null
+
+
+func _get_ui_style_utility() -> GameUiStyleUtility:
+	var utility_value: Object = get_utility(_GAME_UI_STYLE_UTILITY_SCRIPT)
+	if utility_value is GameUiStyleUtility:
+		var style_utility: GameUiStyleUtility = utility_value
+		return style_utility
 	return null
 
 

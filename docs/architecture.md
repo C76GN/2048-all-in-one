@@ -112,7 +112,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 2. `GamePlayController` 只发布 `GameplayBoardReadyData`，不引用 `TestToolUtility`、`TestPanel` 或 diagnostics 资源。diagnostics feature 订阅该类型事件并持有开发上下文，依赖方向保持为 diagnostics -> gameplay。
 3. `TestToolUtility` 按需创建非 transient、非 exclusive 的 `GameplayDiagnosticsWindow`，场景切换时释放窗口和棋盘引用。窗口关闭只隐藏工作区，当前对局内可再次打开。
 4. 工作区使用独立 GF `diagnostics` 输入上下文，`F4` 通过 `GFInputMappingUtility` 切换窗口；`toggle_test_tools` 由 `GFConsoleUtility` 注册；窗口信号由 `GFSignalUtility` 持有生命周期。
-5. 独立窗口不是 `GFUIRouterUtility` 的玩家 UI Route，也不参与回放、截图布局或移动端安全区。它自行通过 `GameThemeUtility` 和 `GameUiMotionUtility` 应用当前主题与交互状态。
+5. 独立窗口不是 `GFUIRouterUtility` 的玩家 UI Route，也不参与回放、截图布局或移动端安全区。它自行通过 `GameThemeUtility`、`GameUiStyleUtility` 和 `GameUiMotionUtility` 应用当前主题与交互状态。
 
 ### 主题切换
 
@@ -121,6 +121,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 3. `GameThemeCatalogUtility` 只读取 manifest metadata，建立 `GameThemeDescriptor` 索引；设置菜单枚举主题时不加载完整资源。
 4. 用户选择主题后，`GameThemeUtility` 才通过稳定资源键加载 `GameTheme` 或 `GameAudioTheme`，并用 `GFActivationTransaction` 完成验证、应用和失败回滚。
 5. 视觉 Profile 交给 `GFShaderParameterUtility`；声音银行通过 `GFAudioUtility.mount_audio_bank()` 获取令牌，切换或释放时明确卸载旧银行。
+6. `GameUiStyleUtility` 独占 `GameUiPalette`、静态 StyleBox、语义文本和焦点 Shader；`GameUiMotionUtility` 只拥有交互信号与 Tween。UI 节点声明语义角色，不保存从旧色板生成的样式对象。
 
 ### 素材评审
 

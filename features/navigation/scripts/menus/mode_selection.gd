@@ -12,14 +12,6 @@ const MODE_CARD_SCENE: PackedScene = preload("res://features/navigation/scenes/u
 const _CARD_REVEAL_OFFSET: Vector2 = Vector2(18.0, 0.0)
 const _DETAIL_REVEAL_OFFSET: Vector2 = Vector2(10.0, 0.0)
 const _DETAIL_REVEAL_STAGGER: float = 0.02
-const _TEXT_PRIMARY_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
-const _TEXT_SECONDARY_COLOR: Color = Color(0.46666667, 0.45882353, 0.43529412, 0.96)
-const _TEXT_MUTED_COLOR: Color = Color(0.46666667, 0.45882353, 0.43529412, 0.82)
-const _TEXT_SHADOW_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.52)
-const _FIELD_SURFACE_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.94)
-const _FIELD_FOCUS_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.88)
-const _FIELD_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.72)
-const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
 const _STATS_EMPTY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n暂无完整对局统计"
 const _STATS_SUMMARY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
 const _STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n目标 %d：达成 %d 次 · %d%%\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
@@ -128,7 +120,7 @@ func _update_list_and_focus(is_initial_load: bool = false) -> void:
 			if not is_instance_valid(mode_config):
 				continue
 			_mode_list_container.add_child(card)
-			card.setup(config_path, mode_config)
+			card.setup(config_path, mode_config, _get_ui_style_utility())
 			var _connect_result_121: int = card.card_focused.connect(_set_selected_mode_by_path)
 
 	await get_tree().process_frame
@@ -174,7 +166,6 @@ func _create_persistent_info_panel() -> void:
 		child.queue_free()
 
 	_info_name_label = Label.new()
-	_info_name_label.add_theme_font_size_override("font_size", 24)
 	_left_panel_container.add_child(_info_name_label)
 
 	_info_separator = HSeparator.new()
@@ -190,64 +181,20 @@ func _create_persistent_info_panel() -> void:
 
 
 func _apply_mode_selection_visual_system() -> void:
-	_style_label(_page_title, _TEXT_PRIMARY_COLOR, 44, true)
-	_style_label(_info_name_label, _TEXT_PRIMARY_COLOR, 24, true)
-	_style_label(_info_desc_label, _TEXT_SECONDARY_COLOR, 16, false)
-	_style_label(_info_score_label, _TEXT_MUTED_COLOR, 15, false)
-	_style_label(_config_header_label, _TEXT_PRIMARY_COLOR, 24, true)
-	_style_label(_grid_size_label, _TEXT_SECONDARY_COLOR, 16, false)
-	_style_label(_seed_label, _TEXT_SECONDARY_COLOR, 16, false)
-	_style_line_edit(_seed_line_edit)
-	if is_instance_valid(_info_separator):
-		_info_separator.modulate = Color(0.18431373, 0.1882353, 0.21568628, 0.56)
-
-
-func _style_label(label: Label, color: Color, font_size: int, use_shadow: bool) -> void:
-	if not is_instance_valid(label):
+	var style_utility: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style_utility):
+		push_error("[ModeSelection] 缺少 GameUiStyleUtility，无法应用模式选择语义样式。")
 		return
 
-	label.add_theme_color_override("font_color", color)
-	label.add_theme_font_size_override("font_size", font_size)
-	if use_shadow:
-		label.add_theme_color_override("font_shadow_color", _TEXT_SHADOW_COLOR)
-		label.add_theme_constant_override("shadow_offset_x", 2)
-		label.add_theme_constant_override("shadow_offset_y", 2)
-
-
-func _style_line_edit(line_edit: LineEdit) -> void:
-	if not is_instance_valid(line_edit):
-		return
-
-	line_edit.add_theme_stylebox_override(
-		"normal",
-		_create_field_style(_FIELD_SURFACE_COLOR, _FIELD_BORDER_COLOR, 1)
-	)
-	line_edit.add_theme_stylebox_override(
-		"focus",
-		_create_field_style(_FIELD_FOCUS_SURFACE_COLOR, _FIELD_FOCUS_BORDER_COLOR, 2)
-	)
-	line_edit.add_theme_stylebox_override(
-		"read_only",
-		_create_field_style(_FIELD_SURFACE_COLOR.darkened(0.08), _FIELD_BORDER_COLOR, 1)
-	)
-	line_edit.add_theme_color_override("font_color", _TEXT_PRIMARY_COLOR)
-	line_edit.add_theme_color_override("font_placeholder_color", _TEXT_MUTED_COLOR)
-	line_edit.add_theme_color_override("caret_color", _FIELD_FOCUS_BORDER_COLOR)
-
-
-func _create_field_style(bg_color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = bg_color
-	style.border_color = border_color
-	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(4)
-	style.shadow_color = Color.TRANSPARENT
-	style.shadow_size = 0
-	style.set_content_margin(SIDE_LEFT, 10.0)
-	style.set_content_margin(SIDE_TOP, 7.0)
-	style.set_content_margin(SIDE_RIGHT, 10.0)
-	style.set_content_margin(SIDE_BOTTOM, 7.0)
-	return style
+	style_utility.style_label(_page_title, GameUiStyleUtility.TextRole.PRIMARY, 44, true)
+	style_utility.style_label(_info_name_label, GameUiStyleUtility.TextRole.PRIMARY, 24, true)
+	style_utility.style_label(_info_desc_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
+	style_utility.style_label(_info_score_label, GameUiStyleUtility.TextRole.MUTED, 15)
+	style_utility.style_label(_config_header_label, GameUiStyleUtility.TextRole.PRIMARY, 24, true)
+	style_utility.style_label(_grid_size_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
+	style_utility.style_label(_seed_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
+	style_utility.style_line_edit(_seed_line_edit)
+	style_utility.style_separator(_info_separator)
 
 
 func _setup_focus_neighbors() -> void:

@@ -219,6 +219,7 @@ func test_visual_style_document_records_retro_print_direction() -> void:
 		"halftone_wipe_transition.gdshader",
 		"印刷擦除",
 		"features/themes/resources/themes/tile_schemes",
+		"GameUiStyleUtility",
 		"GameUiMotionUtility",
 	]:
 		if not text.contains(term):
@@ -335,12 +336,14 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
 	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
 	await _register_asset_library_stack(architecture)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
 	await architecture.register_utility(GameUiMotionUtility, motion_utility)
 	await architecture.init()
-	motion_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
 	var emitted_events: Dictionary = {
 		&"selected": 0,
 		&"confirmed": 0,
@@ -405,7 +408,7 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	architecture.dispose()
 
 
-func test_ui_motion_utility_styles_spinbox_as_readable_light_field() -> void:
+func test_ui_style_utility_styles_spinbox_as_readable_light_field() -> void:
 	var root: Control = Control.new()
 	var spin_box: SpinBox = SpinBox.new()
 	root.add_child(spin_box)
@@ -414,12 +417,12 @@ func test_ui_motion_utility_styles_spinbox_as_readable_light_field() -> void:
 
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
-	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
 	await _register_asset_library_stack(architecture)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
-	await architecture.register_utility(GameUiMotionUtility, motion_utility)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
 	await architecture.init()
-	var _applied_count: int = motion_utility.apply_palette_to_tree(root, _HALFTONE_UI_PALETTE)
+	var _applied_count: int = style_utility.apply_palette_to_tree(root, _HALFTONE_UI_PALETTE)
 
 	var line_edit: LineEdit = spin_box.get_line_edit()
 	assert_true(is_instance_valid(line_edit), "SpinBox 应暴露可统一刷色的内部 LineEdit。")
@@ -431,6 +434,59 @@ func test_ui_motion_utility_styles_spinbox_as_readable_light_field() -> void:
 			assert_true(
 				_get_contrast_ratio(font_color, normal_style.bg_color) >= _MIN_UI_TEXT_CONTRAST,
 				"SpinBox 字体在浅色字段上必须保持可读。"
+			)
+	architecture.dispose()
+
+
+func test_ui_style_utility_rebuilds_semantic_styles_after_palette_change() -> void:
+	var root: Control = Control.new()
+	var label: Label = Label.new()
+	var panel: Panel = Panel.new()
+	root.add_child(label)
+	root.add_child(panel)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.init()
+
+	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	style_utility.style_label(label, GameUiStyleUtility.TextRole.SECONDARY)
+	style_utility.style_panel(
+		panel,
+		GameUiStyleUtility.SurfaceRole.SELECTED,
+		GameUiStyleUtility.BorderRole.FOCUS,
+		3
+	)
+
+	var duplicate_resource: Resource = _HALFTONE_UI_PALETTE.duplicate(true)
+	assert_true(duplicate_resource is GameUiPalette, "测试色板必须可深复制。")
+	if duplicate_resource is GameUiPalette:
+		var alternate_palette: GameUiPalette = duplicate_resource
+		alternate_palette.text_secondary_color = Color(0.24, 0.31, 0.38, 1.0)
+		alternate_palette.selected_surface_color = Color(0.78, 0.52, 0.63, 1.0)
+		alternate_palette.field_focus_border_color = Color(0.12, 0.67, 0.61, 1.0)
+		var _refresh_count: int = style_utility.apply_palette_to_tree(root, alternate_palette)
+
+		assert_true(
+			label.get_theme_color("font_color") == alternate_palette.text_secondary_color,
+			"语义文本应在色板切换后保持 SECONDARY 角色。"
+		)
+		var panel_style: StyleBoxFlat = _get_stylebox_flat(panel, &"panel")
+		assert_not_null(panel_style, "语义面板应在色板切换后重建 StyleBox。")
+		if panel_style != null:
+			assert_true(
+				panel_style.border_color == alternate_palette.field_focus_border_color,
+				"语义面板应在色板切换后保持 FOCUS 边框角色。"
+			)
+			assert_true(
+				panel_style.bg_color == alternate_palette.selected_surface_color.lightened(0.035),
+				"语义面板应在色板切换后保持 SELECTED 表面角色。"
 			)
 	architecture.dispose()
 
@@ -513,8 +569,6 @@ func test_ui_motion_utility_does_not_move_container_managed_children() -> void:
 func test_game_over_menu_contains_result_summary_labels() -> void:
 	var panel: Control = _instantiate_control(_GAME_OVER_SCENE)
 	assert_true(is_instance_valid(panel), "游戏结束场景应能实例化为 Control。")
-	add_child_autoqfree(panel)
-	await get_tree().process_frame
 
 	var title_node: Node = panel.get_node_or_null("CenterContainer/VBoxContainer/TitleLabel")
 	var summary_node: Node = panel.get_node_or_null("CenterContainer/VBoxContainer/SummaryLabel")
@@ -526,16 +580,22 @@ func test_game_over_menu_contains_result_summary_labels() -> void:
 			summary_label.autowrap_mode == TextServer.AUTOWRAP_WORD_SMART,
 			"结算摘要应允许自动换行，避免窄屏溢出。"
 		)
+	panel.free()
 
 
 func test_game_over_menu_summary_uses_safe_format_fallback() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var status_model: GameStatusModel = GameStatusModel.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
 	status_model.score.set_value(8192)
 	status_model.move_count.set_value(42)
 	status_model.highest_tile.set_value(2048)
 	status_model.high_score.set_value(16384)
+	await _register_asset_library_stack(architecture)
 	await architecture.register_model(GameStatusModel, status_model)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
 	await architecture.init()
 
 	var context: TestArchitectureContext = TestArchitectureContext.new()

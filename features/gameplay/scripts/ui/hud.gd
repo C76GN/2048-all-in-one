@@ -17,7 +17,6 @@ const _SCORE_FORMAT_FALLBACK: String = "分数: %d"
 const _MOVE_COUNT_FORMAT_FALLBACK: String = "移动次数: %d"
 const _HIGH_SCORE_FORMAT_FALLBACK: String = "最高分: %d"
 const _HIGHEST_TILE_FORMAT_FALLBACK: String = "最大方块: %d"
-const _TEXT_PRIMARY_COLOR: Color = Color(0.34901962, 0.2901961, 0.27058825, 1.0)
 
 
 # --- 私有变量 ---
@@ -30,6 +29,7 @@ var _is_dirty: bool = false
 var _game_status_model: GameStatusModel
 var _notification_utility: GFNotificationUtility
 var _signal_utility: GFSignalUtility
+var _ui_style_utility: GameUiStyleUtility
 var _ui_motion_utility: GameUiMotionUtility
 var _score_value_label: Label
 var _move_count_value_label: Label
@@ -58,7 +58,10 @@ func _ready() -> void:
 	_game_status_model = _get_game_status_model()
 	_notification_utility = _get_notification_utility()
 	_signal_utility = _get_signal_utility()
+	_ui_style_utility = _get_ui_style_utility()
 	_ui_motion_utility = _get_ui_motion_utility()
+	if not is_instance_valid(_ui_style_utility):
+		push_error("[Hud] 缺少 GameUiStyleUtility，无法应用 HUD 语义样式。")
 	if not is_instance_valid(_ui_motion_utility):
 		push_error("[Hud] 缺少 GameUiMotionUtility，无法播放状态反馈动效。")
 	
@@ -287,11 +290,9 @@ func _format_stat_text(template: String, fallback: String, value: int) -> String
 
 
 func _style_dynamic_rich_label(label: RichTextLabel) -> void:
-	if not is_instance_valid(label):
+	if not is_instance_valid(label) or not is_instance_valid(_ui_style_utility):
 		return
-	label.add_theme_color_override("default_color", _TEXT_PRIMARY_COLOR)
-	label.add_theme_color_override("font_selected_color", _TEXT_PRIMARY_COLOR)
-	label.add_theme_color_override("font_outline_color", Color.TRANSPARENT)
+	_ui_style_utility.style_rich_text_label(label, GameUiStyleUtility.TextRole.PRIMARY)
 	label.modulate = Color.WHITE
 
 
@@ -355,6 +356,14 @@ func _get_ui_motion_utility() -> GameUiMotionUtility:
 	if utility_value is GameUiMotionUtility:
 		var motion_utility: GameUiMotionUtility = utility_value
 		return motion_utility
+	return null
+
+
+func _get_ui_style_utility() -> GameUiStyleUtility:
+	var utility_value: Object = get_utility(GameUiStyleUtility)
+	if utility_value is GameUiStyleUtility:
+		var style_utility: GameUiStyleUtility = utility_value
+		return style_utility
 	return null
 
 

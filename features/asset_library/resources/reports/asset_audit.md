@@ -56,6 +56,8 @@
   - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
   - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd`
+  - `res://features/platform_runtime/tools/platform_readiness_check.gd`
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
 
 ### `asset.audio.ui.printworks.select_soft_01`
@@ -79,6 +81,8 @@
   - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
   - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd`
+  - `res://features/platform_runtime/tools/platform_readiness_check.gd`
 
 ### `asset.shader.transition.halftone_wipe`
 - Path: `res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader`
@@ -97,7 +101,7 @@
   - `res://features/asset_library/tools/import_asset_sources.gd`
 - Key users:
   - `res://features/asset_library/tools/import_asset_sources.gd`
-  - `res://features/themes/scripts/utilities/game_ui_motion_utility.gd`
+  - `res://features/themes/scripts/utilities/game_ui_style_utility.gd`
 
 ### `asset.shader.ui.startup_progress_bar`
 - Path: `res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader`

@@ -24,6 +24,7 @@ const DEFAULT_SOUND_THEME_ID: StringName = &"printworks"
 
 var _settings: GFSettingsUtility = null
 var _audio: GFAudioUtility = null
+var _style: GameUiStyleUtility = null
 var _motion: GameUiMotionUtility = null
 var _celebration_vfx: GameCelebrationVfxUtility = null
 var _theme_catalog: GameThemeCatalogUtility = null
@@ -51,6 +52,7 @@ func get_required_utilities() -> Array[Script]:
 	return [
 		GameCelebrationVfxUtility,
 		GameThemeCatalogUtility,
+		GameUiStyleUtility,
 		GameUiMotionUtility,
 		GFAudioUtility,
 		GFSettingsUtility,
@@ -62,6 +64,7 @@ func get_required_utilities() -> Array[Script]:
 func ready() -> void:
 	_settings = _get_settings_utility()
 	_audio = _get_audio_utility()
+	_style = _get_style_utility()
 	_motion = _get_motion_utility()
 	_celebration_vfx = _get_celebration_vfx_utility()
 	_theme_catalog = _get_theme_catalog_utility()
@@ -87,6 +90,7 @@ func dispose() -> void:
 		_signal_utility.disconnect_owner(self)
 	_settings = null
 	_audio = null
+	_style = null
 	_motion = null
 	_celebration_vfx = null
 	_theme_catalog = null
@@ -100,6 +104,7 @@ func release_dependencies() -> void:
 		_signal_utility.disconnect_owner(self)
 	_settings = null
 	_audio = null
+	_style = null
 	_motion = null
 	_celebration_vfx = null
 	_theme_catalog = null
@@ -208,8 +213,8 @@ func apply_current_theme_to_tree(root: Node) -> int:
 	if not is_instance_valid(theme):
 		return 0
 	var applied_count: int = 0
-	if is_instance_valid(_motion) and is_instance_valid(theme.ui_palette):
-		applied_count += _motion.apply_palette_to_tree(root, theme.ui_palette)
+	if is_instance_valid(_style) and is_instance_valid(theme.ui_palette):
+		applied_count += _style.apply_palette_to_tree(root, theme.ui_palette)
 	applied_count += _apply_backgrounds_to_tree(root, theme)
 	return applied_count
 
@@ -385,9 +390,9 @@ func _transaction_validate_visual_theme(
 func _transaction_apply_visual_theme(_context: Dictionary, theme: GameTheme) -> bool:
 	if not is_instance_valid(theme):
 		return true
-	if not is_instance_valid(_motion) or not is_instance_valid(_celebration_vfx):
+	if not is_instance_valid(_style) or not is_instance_valid(_celebration_vfx):
 		return false
-	_motion.apply_palette(theme.ui_palette)
+	_style.apply_palette(theme.ui_palette)
 	return _celebration_vfx.apply_theme(theme.celebration_vfx_theme)
 
 
@@ -627,6 +632,14 @@ func _get_motion_utility() -> GameUiMotionUtility:
 	if utility_value is GameUiMotionUtility:
 		var motion: GameUiMotionUtility = utility_value
 		return motion
+	return null
+
+
+func _get_style_utility() -> GameUiStyleUtility:
+	var utility_value: Object = get_utility(GameUiStyleUtility)
+	if utility_value is GameUiStyleUtility:
+		var style: GameUiStyleUtility = utility_value
+		return style
 	return null
 
 

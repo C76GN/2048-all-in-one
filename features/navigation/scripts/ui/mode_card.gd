@@ -13,27 +13,12 @@ extends Button
 ## @param config_path: 卡片所代表的 GameModeConfig 资源路径。
 signal card_focused(config_path: String)
 
-# --- 常量 ---
-
-const _CARD_RADIUS: int = 4
-const _REST_SURFACE_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.90)
-const _REST_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.72)
-const _FOCUS_BORDER_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
-const _SELECTED_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.96)
-const _SELECTED_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
-const _TEXT_PRIMARY_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
-const _TEXT_SECONDARY_COLOR: Color = Color(0.46666667, 0.45882353, 0.43529412, 0.92)
-const _TEXT_SELECTED_SECONDARY_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.82)
-
 # --- 私有变量 ---
 
 var _config_path: String
 var _mode_config: GameModeConfig = null
 var _is_selected: bool = false
-var _original_stylebox: StyleBox
-var _focused_stylebox: StyleBox
-var _selected_stylebox: StyleBox
-var _selected_focused_stylebox: StyleBox
+var _style_utility: GameUiStyleUtility = null
 
 # --- @onready 变量 (节点引用) ---
 
@@ -45,8 +30,6 @@ var _selected_focused_stylebox: StyleBox
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	_setup_styles()
-
 	var _connect_result_50: int = focus_entered.connect(_on_focus_entered)
 	var _connect_result_51: int = focus_exited.connect(_on_focus_exited)
 	var _connect_result_52: int = pressed.connect(_on_pressed)
@@ -57,10 +40,19 @@ func _ready() -> void:
 ## 初始化卡片内容。
 ## @param config_path: 指向 GameModeConfig 资源文件的路径。
 ## @param mode_config: 已由父控制器通过 GF 架构解析出的模式配置。
-func setup(config_path: String, mode_config: GameModeConfig) -> void:
+## @param style_utility: 父控制器注入的主题静态样式服务。
+func setup(
+	config_path: String,
+	mode_config: GameModeConfig,
+	style_utility: GameUiStyleUtility
+) -> void:
 	_config_path = config_path
 	_mode_config = mode_config
+	_style_utility = style_utility
+	if not is_instance_valid(_style_utility):
+		push_error("[ModeCard] 缺少 GameUiStyleUtility，无法应用卡片语义样式。")
 	update_text()
+	_update_style()
 
 
 ## 更新卡片文本（用于初始化或语言切换）。
@@ -88,44 +80,36 @@ func set_selected(is_selected: bool) -> void:
 
 # --- 私有/辅助方法 ---
 
-func _setup_styles() -> void:
-	_original_stylebox = _create_card_style(_REST_SURFACE_COLOR, _REST_BORDER_COLOR, 2)
-	_focused_stylebox = _create_card_style(_REST_SURFACE_COLOR.lightened(0.035), _FOCUS_BORDER_COLOR, 3)
-	_selected_stylebox = _create_card_style(_SELECTED_SURFACE_COLOR, _SELECTED_BORDER_COLOR, 3)
-	_selected_focused_stylebox = _create_card_style(_SELECTED_SURFACE_COLOR.lightened(0.04), _FOCUS_BORDER_COLOR, 4)
-	_update_label_colors()
-
-
 func _update_style() -> void:
-	if has_focus() and _is_selected:
-		_panel.add_theme_stylebox_override("panel", _selected_focused_stylebox)
-	elif has_focus():
-		_panel.add_theme_stylebox_override("panel", _focused_stylebox)
+	if not is_instance_valid(_style_utility):
+		return
+	var surface_role: GameUiStyleUtility.SurfaceRole = (
+		GameUiStyleUtility.SurfaceRole.SELECTED
+		if _is_selected
+		else GameUiStyleUtility.SurfaceRole.PANEL
+	)
+	var border_role: GameUiStyleUtility.BorderRole = GameUiStyleUtility.BorderRole.DEFAULT
+	var border_width: int = 2
+	if has_focus():
+		border_role = GameUiStyleUtility.BorderRole.FOCUS
+		border_width = 4 if _is_selected else 3
 	elif _is_selected:
-		_panel.add_theme_stylebox_override("panel", _selected_stylebox)
-	else:
-		_panel.add_theme_stylebox_override("panel", _original_stylebox)
+		border_role = GameUiStyleUtility.BorderRole.SELECTED
+		border_width = 3
+	_style_utility.style_panel(_panel, surface_role, border_role, border_width)
 	_update_label_colors()
-
-
-func _create_card_style(bg_color: Color, border_color: Color, border_width: int) -> StyleBoxFlat:
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = bg_color
-	style.border_color = border_color
-	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(_CARD_RADIUS)
-	style.shadow_color = Color.TRANSPARENT
-	style.shadow_size = 0
-	style.shadow_offset = Vector2.ZERO
-	return style
 
 
 func _update_label_colors() -> void:
-	_title_label.add_theme_color_override("font_color", _TEXT_PRIMARY_COLOR)
-	if _is_selected or has_focus():
-		_description_label.add_theme_color_override("font_color", _TEXT_SELECTED_SECONDARY_COLOR)
-	else:
-		_description_label.add_theme_color_override("font_color", _TEXT_SECONDARY_COLOR)
+	if not is_instance_valid(_style_utility):
+		return
+	_style_utility.style_label(_title_label, GameUiStyleUtility.TextRole.PRIMARY)
+	var description_role: GameUiStyleUtility.TextRole = (
+		GameUiStyleUtility.TextRole.PRIMARY
+		if _is_selected or has_focus()
+		else GameUiStyleUtility.TextRole.SECONDARY
+	)
+	_style_utility.style_label(_description_label, description_role)
 
 
 # --- 信号处理函数 ---

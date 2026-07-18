@@ -426,6 +426,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()
 	var audio: GFAudioUtility = GFAudioUtility.new()
+	var style: GameUiStyleUtility = GameUiStyleUtility.new()
 	var motion: GameUiMotionUtility = GameUiMotionUtility.new()
 	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
 	var theme_catalog: GameThemeCatalogUtility = GameThemeCatalogUtility.new()
@@ -447,6 +448,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	await architecture.register_utility(GFAudioUtility, audio)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GFSignalUtility, signal_utility)
+	await architecture.register_utility(GameUiStyleUtility, style)
 	await architecture.register_utility(GameUiMotionUtility, motion)
 	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.register_utility(GameThemeCatalogUtility, theme_catalog)
@@ -469,6 +471,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 		"asset_library": asset_library,
 		"settings": settings,
 		"audio": audio,
+		"style": style,
 		"celebration_vfx": celebration_vfx,
 		"theme_catalog": theme_catalog,
 		"theme_utility": theme_utility,

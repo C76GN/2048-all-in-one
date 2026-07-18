@@ -229,11 +229,13 @@ func test_project_installer_binds_asset_library_before_ui_consumers() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
 	var project_catalog_position: int = source.find("bind_utility(_PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT)")
 	var asset_library_position: int = source.find("bind_utility(_GAME_ASSET_LIBRARY_UTILITY_SCRIPT)")
+	var style_position: int = source.find("bind_utility(_GAME_UI_STYLE_UTILITY_SCRIPT)")
 	var motion_position: int = source.find("bind_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)")
 	var board_feedback_position: int = source.find("bind_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)")
 
 	assert_true(project_catalog_position >= 0, "项目 Installer 应注册唯一内容包目录 Utility。")
 	assert_true(asset_library_position >= 0, "项目 Installer 应注册 GameAssetLibraryUtility。")
+	assert_true(style_position >= 0, "项目 Installer 应注册 GameUiStyleUtility。")
 	assert_true(motion_position >= 0, "项目 Installer 应注册 GameUiMotionUtility。")
 	assert_true(board_feedback_position >= 0, "项目 Installer 应注册 GameBoardFeedbackUtility。")
 	assert_true(
@@ -241,8 +243,12 @@ func test_project_installer_binds_asset_library_before_ui_consumers() -> void:
 		"ProjectContentCatalogUtility 必须先于所有内容包消费者注册。"
 	)
 	assert_true(
-		asset_library_position < motion_position,
-		"GameAssetLibraryUtility 必须先于读取稳定素材键的 GameUiMotionUtility 注册。"
+		asset_library_position < style_position,
+		"GameAssetLibraryUtility 必须先于读取稳定素材键的 GameUiStyleUtility 注册。"
+	)
+	assert_true(
+		style_position < motion_position,
+		"GameUiStyleUtility 必须先于依赖静态样式的 GameUiMotionUtility 注册。"
 	)
 	assert_true(
 		asset_library_position < board_feedback_position,

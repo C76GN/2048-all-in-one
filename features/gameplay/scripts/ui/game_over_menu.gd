@@ -10,9 +10,6 @@ extends GameUiController
 
 const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
 const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
-const _TEXT_PRIMARY_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
-const _TEXT_SECONDARY_COLOR: Color = Color(0.46666667, 0.45882353, 0.43529412, 0.96)
-const _TEXT_SHADOW_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.52)
 const _SUMMARY_FORMAT_FALLBACK: String = "%s · %dx%d\n本局：%d 分 · %d 步 · 最大方块 %d\n历史：最高分 %d · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n完整对局：%d"
 const _SUMMARY_FORMAT_WITH_TARGET_FALLBACK: String = "%s · %dx%d\n本局：%d 分 · %d 步 · 最大方块 %d\n历史：最高分 %d · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n目标 %d：本局%s · 累计 %d 次 · %d%%\n完整对局：%d"
 
@@ -60,20 +57,12 @@ func _update_ui_text() -> void:
 
 
 func _apply_visual_style() -> void:
-	_style_label(_title_label, _TEXT_PRIMARY_COLOR, 34, true)
-	_style_label(_summary_label, _TEXT_SECONDARY_COLOR, 16, false)
-
-
-func _style_label(label: Label, color: Color, font_size: int, use_shadow: bool) -> void:
-	if not is_instance_valid(label):
+	var style_utility: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style_utility):
+		push_error("[GameOverMenu] 缺少 GameUiStyleUtility，无法应用结算语义样式。")
 		return
-
-	label.add_theme_color_override("font_color", color)
-	label.add_theme_font_size_override("font_size", font_size)
-	if use_shadow:
-		label.add_theme_color_override("font_shadow_color", _TEXT_SHADOW_COLOR)
-		label.add_theme_constant_override("shadow_offset_x", 2)
-		label.add_theme_constant_override("shadow_offset_y", 2)
+	style_utility.style_label(_title_label, GameUiStyleUtility.TextRole.PRIMARY, 34, true)
+	style_utility.style_label(_summary_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
 
 
 func _refresh_summary() -> void:
