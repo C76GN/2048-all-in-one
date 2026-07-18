@@ -124,10 +124,10 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 结果：
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
-- GF Framework：官方稳定 tag `8.1.0`，commit `aa8db79810368c469755dd24435ca24afde71330`。
-- GUT：261 个测试全部通过。
-- 当前完整套件：`tests/gut/` 下 33 个顶层测试脚本、261 个 `test_` 用例。
-- Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。运行时系统时间与随机源受路径扫描门禁约束，场景耗时复用 `GFOperationDiagnosticsUtility` 的操作起始 tick。
+- GF Framework：官方稳定 tag `8.1.1`，commit `c0ce09e53edf30c00ba79df27fb9a7625b9f518d`。
+- GUT：262 个测试全部通过。
+- 当前完整套件：`tests/gut/` 下 33 个顶层测试脚本、262 个 `test_` 用例。
+- Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，开发期可选诊断只能通过当前架构的 local lookup 获取。GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。运行时系统时间与随机源受路径扫描门禁约束；开发构建中的场景耗时复用 `GFOperationDiagnosticsUtility` 的操作起始 tick。
 - 未触发默认 Godot 用户日志增长保护。
 - 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 288`、`Resources = 128`、RID 类型数 `= 3`，上限为 TextureStorage 10、ShapedText 2、Font 3。局部棋盘编辑器 Context 与语义 UI Style Utility 使项目运行时 `class_name` 数量从 168 增至 170；同一完整套件的对象、资源和 RID 计数均未增长。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
 - 临时运行目录已在成功后自动清理。
@@ -182,7 +182,7 @@ $null = [scriptblock]::Create($script)
 ## 当前验证缺口
 
 - 当前默认 Steam Godot 4.7 缺少精确匹配的 `4.7.stable` 导出模板；微信开发者工具 CLI、微信导出适配器和微信真机矩阵也尚未完成，因此当前只保留已完成的官方 Godot 4.7.1 标准 Web 兼容性签字，不签字微信小游戏发布就绪。
-- 当前 vendored GF 8.1.0 的导出插件缺少 `_get_name()`，修复跟踪于 `gf-framework#9` / `gf-framework#10`；更新到包含该修复的正式 GF 版本前，导出日志仍不是零错误。
+- 当前 vendored GF 8.1.1 的导出插件缺少 `_get_name()`，修复跟踪于 `gf-framework#9` / `gf-framework#10`；更新到包含该修复的正式 GF 版本前，导出日志仍不是零错误。
 - Godot 编辑器中的 GDScript warning 已通过 `tools/check_gdscript_lsp_diagnostics.ps1` 建立零诊断基线；后续修改 `.gd` 后应复跑。
 - Godot 退出仍存在已量化的框架/测试对象泄漏债务；当前通过严格基线阻止继续增长，不能把基线当成已经修复。
 - `GFTextFitter` 的重复字号塑形会放大退出期 `ShapedText` RID 残留；`gf-framework#6` / `gf-framework#7` 发布前，项目方块文本保留单次比例测量，不得提前复制未发布框架代码或放宽泄漏基线。

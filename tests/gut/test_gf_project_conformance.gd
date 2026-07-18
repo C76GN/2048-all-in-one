@@ -57,9 +57,6 @@ const DECLARED_DEPENDENCY_CONTRACTS: Array[Dictionary] = [
 		"hook_method": "get_required_utilities",
 	},
 ]
-const OPTIONAL_MODULE_DEPENDENCIES: Array[String] = [
-	"res://features/navigation/scripts/systems/scene_router_system.gd|utility:GFOperationDiagnosticsUtility",
-]
 const ASSET_LIBRARY_TOOL_PATHS: Array[String] = [
 	"res://tools/audit_asset_library.ps1",
 	"res://tools/import_asset_sources.ps1",
@@ -200,8 +197,6 @@ func test_gf_modules_declare_static_cross_module_dependencies() -> void:
 			]
 			for dependency_symbol: String in _collect_static_dependency_symbols(source, lookup_method):
 				var dependency_id: String = "%s:%s" % [kind, dependency_symbol]
-				if _is_optional_module_dependency(path, dependency_id):
-					continue
 				if _regex_matches(declarations, "\\b%s\\b" % dependency_symbol):
 					continue
 				_append_string(issues, "%s 未通过 %s() 声明 %s。" % [
@@ -212,7 +207,7 @@ func test_gf_modules_declare_static_cross_module_dependencies() -> void:
 
 	assert_true(
 		issues.is_empty(),
-		"项目 GF Module 的静态跨模块查找必须进入 GF 声明式依赖图；可选诊断依赖必须显式列入 allowlist：\n%s"
+		"项目 GF Module 的静态跨模块查找必须进入 GF 声明式依赖图；可选依赖必须使用本架构 local lookup：\n%s"
 		% _join_lines(issues)
 	)
 
@@ -546,10 +541,6 @@ func _collect_static_dependency_symbols(source: String, lookup_method: String) -
 			result.append(symbol)
 	result.sort()
 	return result
-
-
-func _is_optional_module_dependency(path: String, dependency_id: String) -> bool:
-	return OPTIONAL_MODULE_DEPENDENCIES.has("%s|%s" % [path, dependency_id])
 
 
 func _contains_global_gf_access(code: String) -> bool:

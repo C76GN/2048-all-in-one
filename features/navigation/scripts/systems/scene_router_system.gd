@@ -198,7 +198,10 @@ func _get_signal_utility() -> GFSignalUtility:
 
 
 func _get_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:
-	var utility_value: Object = get_utility(GFOperationDiagnosticsUtility)
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	if architecture == null:
+		return null
+	var utility_value: Object = architecture.get_local_utility(GFOperationDiagnosticsUtility)
 	if utility_value is GFOperationDiagnosticsUtility:
 		var diagnostics: GFOperationDiagnosticsUtility = utility_value
 		return diagnostics

@@ -270,6 +270,33 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 	)
 
 
+func test_release_scene_router_only_uses_local_lookup_for_optional_diagnostics() -> void:
+	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var router_source: String = _read_text(
+		"res://features/navigation/scripts/systems/scene_router_system.gd"
+	)
+
+	var dev_block_position: int = installer_source.find("if _are_dev_tools_enabled():")
+	var diagnostics_position: int = installer_source.find(
+		"bind_utility(GFOperationDiagnosticsUtility)"
+	)
+	assert_true(dev_block_position >= 0, "项目 Installer 应声明开发工具条件块。")
+	assert_true(
+		diagnostics_position > dev_block_position,
+		"GFOperationDiagnosticsUtility 只能在开发工具条件块中注册。"
+	)
+	assert_true(
+		router_source.contains(
+			"architecture.get_local_utility(GFOperationDiagnosticsUtility)"
+		),
+		"发布态可选诊断依赖必须使用 GF 本架构 local lookup。"
+	)
+	assert_false(
+		router_source.contains("get_utility(GFOperationDiagnosticsUtility)"),
+		"SceneRouterSystem 不得把开发期诊断工具当作严格运行时依赖。"
+	)
+
+
 func test_tile_composition_uses_capability_extension_ownership() -> void:
 	var settings_source: String = _read_text(PROJECT_SETTINGS_PATH)
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
