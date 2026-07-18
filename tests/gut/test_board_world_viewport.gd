@@ -85,6 +85,62 @@ func test_clamped_position_centers_small_content_and_keeps_large_content_reachab
 	)
 
 
+func test_swipe_classification_accepts_clear_cardinal_gestures() -> void:
+	assert_true(
+		BoardWorldViewportController.classify_swipe(
+			Vector2(100.0, 100.0),
+			Vector2(174.0, 108.0),
+			0.24
+		) == Vector2i.RIGHT,
+		"短促且主轴明确的右滑应映射为向右移动。"
+	)
+	assert_true(
+		BoardWorldViewportController.classify_swipe(
+			Vector2(100.0, 160.0),
+			Vector2(94.0, 92.0),
+			0.31
+		) == Vector2i.UP,
+		"短促且主轴明确的上滑应映射为向上移动。"
+	)
+
+
+func test_swipe_classification_rejects_short_slow_and_ambiguous_tracks() -> void:
+	assert_true(
+		BoardWorldViewportController.classify_swipe(
+			Vector2.ZERO,
+			Vector2(20.0, 3.0),
+			0.2
+		) == Vector2i.ZERO,
+		"短触摸轨迹不得触发棋盘移动。"
+	)
+	assert_true(
+		BoardWorldViewportController.classify_swipe(
+			Vector2.ZERO,
+			Vector2(80.0, 4.0),
+			1.2
+		) == Vector2i.ZERO,
+		"长按拖动不得误判为棋盘滑动。"
+	)
+	assert_true(
+		BoardWorldViewportController.classify_swipe(
+			Vector2.ZERO,
+			Vector2(70.0, 66.0),
+			0.3
+		) == Vector2i.ZERO,
+		"方向含糊的斜向轨迹必须被拒绝。"
+	)
+
+
+func test_gameplay_input_actions_map_only_cardinal_directions() -> void:
+	assert_true(
+		GameplayInputActions.action_for_direction(Vector2i.LEFT) == GameplayInputActions.MOVE_LEFT
+	)
+	assert_true(
+		GameplayInputActions.action_for_direction(Vector2i(1, 1)) == &"",
+		"触控适配层不得为非四向轨迹伪造玩法动作。"
+	)
+
+
 func test_game_scene_keeps_hud_and_diagnostics_outside_board_world() -> void:
 	var scene_root: Node = _GAME_PLAY_SCENE.instantiate()
 	var board_viewport: Control = scene_root.get_node(
@@ -95,10 +151,17 @@ func test_game_scene_keeps_hud_and_diagnostics_outside_board_world() -> void:
 	var game_board_controller: Node = game_board_host.get_node("GameBoard")
 	var hud: Node = scene_root.get_node("MarginContainer/ColumnsContainer/LeftColumn/HUD")
 	var diagnostics: Node = scene_root.get_node("MarginContainer/ColumnsContainer/RightColumn/TestPanel")
+	var mobile_hud_host: PanelContainer = scene_root.get_node("MobileHudHost") as PanelContainer
+	var responsive_controller: Node = scene_root.get_node("GameplayResponsiveLayoutController")
 
 	assert_true(board_viewport.clip_contents, "棋盘视口必须裁剪移出边界的世界内容。")
 	assert_same(game_board_controller.get_parent(), game_board_host, "GF Controller 应由棋盘表现宿主承载。")
 	assert_false(board_world.is_ancestor_of(hud), "HUD 必须保持在独立屏幕空间。")
 	assert_false(board_world.is_ancestor_of(diagnostics), "诊断工具不得随棋盘世界缩放或平移。")
+	assert_false(board_world.is_ancestor_of(mobile_hud_host), "移动 HUD 宿主不得进入棋盘世界。")
+	assert_true(
+		responsive_controller is GameplayResponsiveLayoutController,
+		"玩法场景必须由专用响应式控制器管理移动布局。"
+	)
 
 	scene_root.free()

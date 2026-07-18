@@ -198,6 +198,8 @@ LABEL_MODE,模式:,Mode:
 LABEL_TIME,时间:,Time:
 LABEL_SCORE,分数:,Score:
 LABEL_MOVES,步数:,Moves:
+HUD_DETAILS_EXPAND,展开详细状态,Expand status details
+HUD_DETAILS_COLLAPSE,收起详细状态,Collapse status details
 LABEL_RATIO_RESOLUTIONS,求商:,Ratios:
 LABEL_BOARD,棋盘:,Board:
 LABEL_SEED,种子:,Seed:

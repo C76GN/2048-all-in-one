@@ -12,9 +12,82 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 script = ExtResource("1_y7dsf")
 
-[node name="TitleLabel" type="Label" parent="." unique_id=727872724]
+[node name="SummaryBar" type="HBoxContainer" parent="." unique_id=2083207301]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 52)
 layout_mode = 2
-text = "游戏状态"
+theme_override_constants/separation = 8
+
+[node name="ScoreMetric" type="VBoxContainer" parent="SummaryBar" unique_id=1967395094]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="ScoreCaptionLabel" type="Label" parent="SummaryBar/ScoreMetric" unique_id=407555314]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
+theme_override_font_sizes/font_size = 13
+text = "分数"
+horizontal_alignment = 1
+
+[node name="ScoreValueLabel" type="Label" parent="SummaryBar/ScoreMetric" unique_id=599829388]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_font_sizes/font_size = 22
+text = "0"
+horizontal_alignment = 1
+
+[node name="MovesMetric" type="VBoxContainer" parent="SummaryBar" unique_id=598768069]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="MovesCaptionLabel" type="Label" parent="SummaryBar/MovesMetric" unique_id=1259069943]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
+theme_override_font_sizes/font_size = 13
+text = "步数"
+horizontal_alignment = 1
+
+[node name="MoveCountValueLabel" type="Label" parent="SummaryBar/MovesMetric" unique_id=1267851983]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_font_sizes/font_size = 22
+text = "0"
+horizontal_alignment = 1
+
+[node name="HighestTileMetric" type="VBoxContainer" parent="SummaryBar" unique_id=1617829490]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="HighestTileCaptionLabel" type="Label" parent="SummaryBar/HighestTileMetric" unique_id=430485981]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
+theme_override_font_sizes/font_size = 13
+text = "最大方块"
+horizontal_alignment = 1
+
+[node name="HighestTileValueLabel" type="Label" parent="SummaryBar/HighestTileMetric" unique_id=527426079]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_font_sizes/font_size = 22
+text = "0"
+horizontal_alignment = 1
+
+[node name="DetailsToggleButton" type="Button" parent="SummaryBar" unique_id=1044614872]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+tooltip_text = "展开详细状态"
+text = "+"
 
 [node name="NotificationLabel" type="RichTextLabel" parent="." unique_id=1723771130]
 unique_name_in_owner = true
@@ -26,6 +99,17 @@ text = ""
 fit_content = true
 scroll_active = false
 autowrap_mode = 3
+theme_override_colors/default_color = Color(0.34901962, 0.2901961, 0.27058825, 1)
 
-[node name="StatsContainer" type="VBoxContainer" parent="." unique_id=1098768363]
+[node name="DetailsPanel" type="VBoxContainer" parent="." unique_id=1606446739]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TitleLabel" type="Label" parent="DetailsPanel" unique_id=727872724]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+text = "游戏状态"
+
+[node name="StatsContainer" type="VBoxContainer" parent="DetailsPanel" unique_id=1098768363]
 layout_mode = 2

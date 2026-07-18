@@ -93,9 +93,11 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 4. 撤销、书签、回放和 GF SaveGraph 共用严格拓扑快照；对局 ID、统计和未来排行榜使用语义 ID 加内容指纹的稳定键。
 5. GF 继续拥有验证报告、确定性随机、命令历史、关卡 Session 和持久化事务；四向稀疏拓扑是 gameplay 领域对象，不误用 GF flow graph 或 hex grid 表达不同语义。
 6. `BoardWorldViewportController` 把棋盘表现放入独立 `BoardWorld`，统一拥有缩放、平移、完整聚焦和边界约束；HUD 与诊断 UI 是视口外的屏幕空间兄弟节点。
-7. `GFPointerGestureUtility` 负责桌面指针与原生 pan/magnify 归一化，`GFViewportUtility` 负责屏幕/棋盘局部坐标换算，`GFSignalUtility` 负责宿主生命周期内的连接所有权。项目不重复维护第二套手势状态机或坐标变换工具。
-8. `BoardTopology.get_cells_in_rect()` 是超大稀疏棋盘的可见窗口查询入口；`GameBoardController` 通过 `GFObjectPoolUtility` 仅挂载当前可见格与方块节点，窗口外节点可以回收但模型与快照保持完整。
-9. 棋盘动画仍由 `GFActionQueueSystem` 拥有生命周期；视口变化不得释放正在执行 Tween 的方块，Action 完成或取消后按当前可见区域重建表现缓存。
+7. `GFPointerGestureUtility` 负责桌面指针、触摸与原生 pan/magnify 归一化，`GFViewportUtility` 负责屏幕/棋盘局部坐标换算和物理安全区，`GFSignalUtility` 负责宿主生命周期内的连接所有权。项目只保存“本轮触摸是否仍可成为玩法滑动”的领域仲裁状态，不重复维护指针几何或坐标变换工具。
+8. 单指短滑由 `BoardWorldViewportController` 分类后，经 `GFVirtualInputSource` 写入 `GameplayInputActions`；`PlayerInputSystem` 仍是唯一消费 gameplay `GFInputContext` 并创建 `MoveCommand` 的入口。双指序列只控制视口，UI 控件拥有更高事件优先级。
+9. `GameplayResponsiveLayoutController` 只重排玩法场景：桌面保留三栏，紧凑横屏隐藏诊断栏，竖屏将紧凑 HUD 放到棋盘上方。共享 `BaseThreeColumnLayout` 不承担玩法专属断点，避免影响其他 Feature。
+10. `BoardTopology.get_cells_in_rect()` 是超大稀疏棋盘的可见窗口查询入口；`GameBoardController` 通过 `GFObjectPoolUtility` 仅挂载当前可见格与方块节点，窗口外节点可以回收但模型与快照保持完整。
+11. 棋盘动画仍由 `GFActionQueueSystem` 拥有生命周期；视口变化不得释放正在执行 Tween 的方块，Action 完成或取消后按当前可见区域重建表现缓存。
 
 详细契约见 `features/gameplay/docs/board_topology.md`。
 

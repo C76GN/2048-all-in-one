@@ -6,14 +6,6 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 # --- 常量 ---
 
 const GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload("res://features/gameplay/resources/input/gameplay_input_context.tres")
-const ACTION_PAUSE: StringName = &"pause"
-const ACTION_UNDO: StringName = &"undo"
-const ACTION_REDO: StringName = &"redo"
-const ACTION_SAVE_BOOKMARK: StringName = &"save_bookmark"
-const ACTION_MOVE_UP: StringName = &"move_up"
-const ACTION_MOVE_DOWN: StringName = &"move_down"
-const ACTION_MOVE_LEFT: StringName = &"move_left"
-const ACTION_MOVE_RIGHT: StringName = &"move_right"
 const _MOVE_FAIL_MESSAGE_FALLBACK: String = "[color=yellow]这个方向无法移动。[/color]"
 const _MOVE_FAIL_MESSAGE_DURATION: float = 1.6
 
@@ -72,7 +64,7 @@ func tick(_delta: float) -> void:
 	if not _is_active or not is_instance_valid(_input_mapping):
 		return
 
-	if _consume_action(ACTION_PAUSE):
+	if _consume_action(GameplayInputActions.PAUSE):
 		send_simple_event(EventNames.UI_PAUSE_REQUESTED)
 		return
 
@@ -83,26 +75,26 @@ func tick(_delta: float) -> void:
 	if not _is_playing:
 		return
 
-	if _consume_action(ACTION_UNDO):
+	if _consume_action(GameplayInputActions.UNDO):
 		send_simple_event(EventNames.UNDO_REQUESTED)
 		return
 
-	if _consume_action(ACTION_REDO):
+	if _consume_action(GameplayInputActions.REDO):
 		send_simple_event(EventNames.REDO_REQUESTED)
 		return
 
-	if _consume_action(ACTION_SAVE_BOOKMARK):
+	if _consume_action(GameplayInputActions.SAVE_BOOKMARK):
 		send_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED)
 		return
 
 	var direction: Vector2i = Vector2i.ZERO
-	if _consume_action(ACTION_MOVE_UP):
+	if _consume_action(GameplayInputActions.MOVE_UP):
 		direction = Vector2i.UP
-	elif _consume_action(ACTION_MOVE_DOWN):
+	elif _consume_action(GameplayInputActions.MOVE_DOWN):
 		direction = Vector2i.DOWN
-	elif _consume_action(ACTION_MOVE_LEFT):
+	elif _consume_action(GameplayInputActions.MOVE_LEFT):
 		direction = Vector2i.LEFT
-	elif _consume_action(ACTION_MOVE_RIGHT):
+	elif _consume_action(GameplayInputActions.MOVE_RIGHT):
 		direction = Vector2i.RIGHT
 
 	if direction != Vector2i.ZERO:

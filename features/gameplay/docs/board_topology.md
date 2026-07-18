@@ -43,7 +43,9 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 - 任意矩形、十字形和自定义稀疏拓扑。
 - 空洞安全的移动、生成、判负、棋盘预览、撤销、书签与回放。
 - 棋盘表现使用稳定局部世界坐标，外层 `BoardWorldViewportController` 独占缩放、平移和完整聚焦；HUD 与诊断面板保持独立屏幕空间。
-- 鼠标中键拖动、滚轮缩放以及原生触控板平移/缩放由 `GFPointerGestureUtility` 统一归一化，屏幕与棋盘局部坐标通过 `GFViewportUtility` 换算，运行时连接由 `GFSignalUtility` 管理。
+- 鼠标中键拖动、滚轮缩放、原生触控板手势和双指触摸由 `GFPointerGestureUtility` 统一归一化，屏幕与棋盘局部坐标通过 `GFViewportUtility` 换算，运行时连接由 `GFSignalUtility` 管理。
+- 单指短滑只负责棋盘移动，并通过 `GFVirtualInputSource` 写入玩法抽象动作；它不直接调用命令。双指序列一旦成立，本轮触摸只负责画布平移/缩放，不再回落成单指移动。
+- `GameplayResponsiveLayoutController` 在桌面、紧凑横屏和竖屏间切换。竖屏 HUD 位于独立移动宿主并由 GF 安全区边距保护，诊断栏不会占用移动端棋盘空间。
 - `BoardTopology.get_cells_in_rect()` 使用行区间缓存与二分边界查询可见活跃单元；`GameBoardController` 只通过 `GFObjectPoolUtility` 挂载当前窗口内的格子和方块节点。完整模型不受裁剪影响，缩放过小时进入仅显示棋盘底板的细节层级。
 - 原 3x3 至 8x8 模式选择通过 `scalable_square_board_template.tres` 生成矩形拓扑。
 - 调试扩建仅支持矩形正方形；它不是玩家棋盘编辑器。
@@ -56,12 +58,14 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 2. `GameBoardHost` 尺寸等于完整逻辑棋盘包围盒；`BoardWorld` 只改变统一缩放与位置，不修改单格尺寸或动画目标。
 3. 可见格与可见方块节点是可丢弃的表现缓存，不是模型真源；平移、缩放或动画结束后必须从 `GridModel` 重新同步。
 4. `GFActionQueueSystem` 处理动画期间允许更新背景格窗口，但方块节点集在 Action 完成或取消后再同步，避免回收正在 Tween 的节点。
-5. 当前桌面输入只消费棋盘视口内的中键、滚轮和原生 pan/magnify 事件。单指移动方块、双指缩放和拖动画布之间的优先级属于下一阶段 `GFInputContext` 契约，不能在场景脚本里临时猜测。
+5. 输入优先级固定为：UI `Control` 先消费事件；棋盘视口中的双指序列负责平移/缩放；未进入多指状态的单指短滑在抬起时转换为四向玩法动作；中键、滚轮与原生 pan/magnify 继续只控制视口。
+6. 触控移动必须经 `GameplayInputActions` 和 `GFVirtualInputSource` 进入已启用的 gameplay `GFInputContext`，由 `PlayerInputSystem` 消费并创建 `MoveCommand`。任何 UI 或视口控制器都不得直接执行移动规则。
+7. 方向含糊、距离不足或持续过久的单指轨迹必须拒绝；双指序列释放回单指后，必须等待所有触点结束才能开启下一次移动判定。
 
 ## 后续顺序
 
-1. 增加响应式手机布局与 GF 输入上下文，区分单指移动、拖动画布、双指缩放和 UI 手势。
-2. 把编辑器内测试工具迁移到独立调试窗口或 Remote Inspector 工作流，不再占用玩家 HUD 空间。
+1. 把编辑器内测试工具迁移到独立调试窗口或 Remote Inspector 工作流，不再占用玩家 HUD 空间。
+2. 为棋盘编辑器增加缩放视口和移动端绘制手势，并复用同一安全区/断点契约。
 3. 在稳定棋盘键上接入图鉴、成就与平台排行榜 Adapter。
 
 任何后续形状都应先扩展拓扑或规则资源，不得重新引入固定二维数组或以 UI 尺寸推断逻辑空间。

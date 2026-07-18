@@ -33,15 +33,23 @@ var _signal_utility: GFSignalUtility
 var _ui_motion_utility: GameUiMotionUtility
 var _score_value_label: Label
 var _move_count_value_label: Label
+var _highest_tile_value_label: Label
+var _score_caption_label: Label
+var _moves_caption_label: Label
+var _highest_tile_caption_label: Label
 var _notification_label: RichTextLabel
+var _details_panel: VBoxContainer
+var _details_toggle_button: Button
 var _active_notification_id: int = 0
 var _last_display_values: Dictionary = {}
+var _is_compact_mode: bool = false
+var _details_expanded: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
 
-@onready var _stats_container: VBoxContainer = $StatsContainer
-@onready var _title_label: Label = $TitleLabel
+@onready var _stats_container: VBoxContainer = $DetailsPanel/StatsContainer
+@onready var _title_label: Label = $DetailsPanel/TitleLabel
 
 
 # --- Godot 生命周期方法 ---
@@ -56,7 +64,13 @@ func _ready() -> void:
 	
 	_score_value_label = _get_label_node("%ScoreValueLabel")
 	_move_count_value_label = _get_label_node("%MoveCountValueLabel")
+	_highest_tile_value_label = _get_label_node("%HighestTileValueLabel")
+	_score_caption_label = _get_label_node("%ScoreCaptionLabel")
+	_moves_caption_label = _get_label_node("%MovesCaptionLabel")
+	_highest_tile_caption_label = _get_label_node("%HighestTileCaptionLabel")
 	_notification_label = _get_rich_text_label_node("%NotificationLabel")
+	_details_panel = _get_vbox_container_node("%DetailsPanel")
+	_details_toggle_button = _get_button_node("%DetailsToggleButton")
 	if not is_instance_valid(_notification_label):
 		push_error("[Hud] 缺少 NotificationLabel，无法呈现 GF 通知。")
 	
@@ -71,9 +85,11 @@ func _ready() -> void:
 		_refresh_all()
 
 	_connect_notification_signals()
+	_connect_compact_hud_signals()
 	_sync_active_notification()
 	register_simple_event(EventNames.HUD_UPDATE_REQUESTED, GFEventListener.from_method(self, &"_on_hud_update_requested", 1))
 	_update_ui_text()
+	_apply_details_visibility()
 
 
 func _exit_tree() -> void:
@@ -85,6 +101,17 @@ func _exit_tree() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
 		_update_ui_text()
+
+
+# --- 公共方法 ---
+
+## 切换移动端紧凑状态；紧凑状态默认折叠低频详情。
+## @param enabled: 是否启用紧凑状态。
+func set_compact_mode(enabled: bool) -> void:
+	if enabled and not _is_compact_mode:
+		_details_expanded = false
+	_is_compact_mode = enabled
+	_apply_details_visibility()
 
 
 # --- 私有/辅助方法 ---
@@ -105,6 +132,9 @@ func _refresh_all() -> void:
 	
 	if is_instance_valid(_move_count_value_label):
 		_move_count_value_label.text = str(move_count_value)
+
+	if is_instance_valid(_highest_tile_value_label):
+		_highest_tile_value_label.text = str(highest_tile_value)
 	
 	var local_dict: Dictionary = {}
 	
@@ -133,11 +163,12 @@ func _refresh_all() -> void:
 		_HIGH_SCORE_FORMAT_FALLBACK,
 		[high_score_value]
 	)
-	local_dict[&"highest_tile"] = GameTextFormatUtility.format_template(
-		tr("HIGHEST_TILE_LABEL"),
-		_HIGHEST_TILE_FORMAT_FALLBACK,
-		[highest_tile_value]
-	)
+	if not is_instance_valid(_highest_tile_value_label):
+		local_dict[&"highest_tile"] = GameTextFormatUtility.format_template(
+			tr("HIGHEST_TILE_LABEL"),
+			_HIGHEST_TILE_FORMAT_FALLBACK,
+			[highest_tile_value]
+		)
 	
 	var query_result: Variant = send_query(GetHudStatsQuery.new())
 	if query_result is Dictionary:
@@ -225,6 +256,28 @@ func _update_dynamic_list(dict: Dictionary) -> void:
 func _update_ui_text() -> void:
 	if is_instance_valid(_title_label):
 		_title_label.text = tr("TITLE_GAME_STATUS")
+	if is_instance_valid(_score_caption_label):
+		_score_caption_label.text = _extract_caption(tr("LABEL_SCORE"), "分数", "LABEL_SCORE")
+	if is_instance_valid(_moves_caption_label):
+		_moves_caption_label.text = _extract_caption(tr("LABEL_MOVES"), "步数", "LABEL_MOVES")
+	if is_instance_valid(_highest_tile_caption_label):
+		_highest_tile_caption_label.text = _extract_caption(
+			tr("HIGHEST_TILE_LABEL"),
+			"最大方块",
+			"HIGHEST_TILE_LABEL"
+		)
+	_update_details_toggle_button()
+
+
+func _extract_caption(template: String, fallback: String, missing_key: String) -> String:
+	if template.is_empty() or template == missing_key:
+		return fallback
+	var result: String = template
+	var placeholder_index: int = result.find("%")
+	if placeholder_index >= 0:
+		result = result.left(placeholder_index)
+	result = result.strip_edges().trim_suffix(":").trim_suffix("：").strip_edges()
+	return result if not result.is_empty() else fallback
 
 
 func _format_stat_text(template: String, fallback: String, value: int) -> String:
@@ -321,6 +374,22 @@ func _get_rich_text_label_node(path: NodePath) -> RichTextLabel:
 	return null
 
 
+func _get_vbox_container_node(path: NodePath) -> VBoxContainer:
+	var node_value: Node = get_node_or_null(path)
+	if node_value is VBoxContainer:
+		var container: VBoxContainer = node_value
+		return container
+	return null
+
+
+func _get_button_node(path: NodePath) -> Button:
+	var node_value: Node = get_node_or_null(path)
+	if node_value is Button:
+		var button: Button = node_value
+		return button
+	return null
+
+
 func _connect_notification_signals() -> void:
 	if not is_instance_valid(_notification_utility):
 		push_error("[Hud] 缺少 GFNotificationUtility，无法读取通知队列。")
@@ -338,6 +407,36 @@ func _connect_notification_signals() -> void:
 		_notification_utility.notification_finished,
 		_on_notification_finished,
 		self
+	)
+
+
+func _connect_compact_hud_signals() -> void:
+	if not is_instance_valid(_signal_utility) or not is_instance_valid(_details_toggle_button):
+		return
+	var _toggle_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_details_toggle_button.pressed,
+		_on_details_toggle_pressed,
+		self
+	)
+
+
+func _apply_details_visibility() -> void:
+	if is_instance_valid(_details_panel):
+		_details_panel.visible = not _is_compact_mode or _details_expanded
+	if is_instance_valid(_details_toggle_button):
+		_details_toggle_button.visible = _is_compact_mode
+	_update_details_toggle_button()
+
+
+func _update_details_toggle_button() -> void:
+	if not is_instance_valid(_details_toggle_button):
+		return
+	_details_toggle_button.text = "-" if _details_expanded else "+"
+	var tooltip_key: String = "HUD_DETAILS_COLLAPSE" if _details_expanded else "HUD_DETAILS_EXPAND"
+	var fallback: String = "收起详细状态" if _details_expanded else "展开详细状态"
+	var translated_tooltip: String = tr(tooltip_key)
+	_details_toggle_button.tooltip_text = (
+		fallback if translated_tooltip == tooltip_key else translated_tooltip
 	)
 
 
@@ -399,7 +498,15 @@ func _on_high_score_changed(_old: int, _new_value: int) -> void:
 
 
 func _on_highest_tile_changed(_old: int, _new_value: int) -> void:
+	_pulse_control(_highest_tile_value_label)
 	_mark_dirty()
+
+
+func _on_details_toggle_pressed() -> void:
+	if not _is_compact_mode:
+		return
+	_details_expanded = not _details_expanded
+	_apply_details_visibility()
 
 
 func _on_notification_started(notification_record: Dictionary) -> void:

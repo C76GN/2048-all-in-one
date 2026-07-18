@@ -7,9 +7,9 @@
   "gf_source_commit": "aa8db79810368c469755dd24435ca24afde71330",
   "gf_vendor_tree_sha256": "1a0b7921bcb56a1f5e16c34a2f37503db840b3e52260f0722d63613792478f2d",
   "gf_global_script_class_count": 705,
-  "project_runtime_script_class_count": 143,
+  "project_runtime_script_class_count": 145,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The audited scalable-board viewport phase adds BoardWorldViewportController, changing the project runtime class count from 142 to 143. The complete 231-test suite retains the same reviewed Godot 4.7/GUT exit counts as the prior board-editor phase: ObjectDB=288, Resources=128, TextureStorage=10, ShapedText=2, and Font=3. The pinned GF 8.1.0 vendor tree is unchanged.",
+  "calibration_reason": "The audited mobile-input phase adds GameplayInputActions and GameplayResponsiveLayoutController, changing the project runtime class count from 143 to 145. The complete 237-test suite retains the reviewed Godot 4.7/GUT exit counts from the scalable-board phase: ObjectDB=288, Resources=128, TextureStorage=10, ShapedText=2, and Font=3. The pinned GF 8.1.0 vendor tree is unchanged.",
   "max_objectdb_instances": 288,
   "max_resources_in_use": 128,
   "max_rid_allocations_by_type": {

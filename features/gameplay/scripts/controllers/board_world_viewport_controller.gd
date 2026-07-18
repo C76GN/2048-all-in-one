@@ -23,6 +23,9 @@ const _DEFAULT_MINIMUM_ZOOM: float = 0.02
 const _DEFAULT_MAXIMUM_ZOOM: float = 3.0
 const _FIT_MARGIN: float = 18.0
 const _PAN_EDGE_MARGIN: float = 36.0
+const _TOUCH_INPUT_SOURCE_ID: StringName = &"gameplay.touch_swipe"
+const _TOUCH_ACTION_HOLD_SECONDS: float = 0.08
+const _NO_TOUCH_POINTER: int = -1
 
 
 # --- 导出变量 ---
@@ -54,6 +57,15 @@ const _PAN_EDGE_MARGIN: float = 36.0
 ## 用户缩放上限。
 @export_range(1.0, 8.0, 0.05) var maximum_zoom: float = _DEFAULT_MAXIMUM_ZOOM
 
+## 单指滑动被识别为棋盘移动所需的最短屏幕距离。
+@export_range(8.0, 160.0, 1.0) var swipe_minimum_distance: float = 48.0
+
+## 单指滑动允许的最长持续时间；长按拖动不会误触发棋盘移动。
+@export_range(0.1, 2.0, 0.05) var swipe_maximum_duration: float = 0.75
+
+## 主轴长度相对副轴的最小比例；用于拒绝方向含糊的斜向滑动。
+@export_range(1.0, 3.0, 0.05) var swipe_axis_dominance_ratio: float = 1.15
+
 
 # --- 私有变量 ---
 
@@ -68,7 +80,10 @@ var _zoom_label: Label
 
 var _viewport_utility: GFViewportUtility
 var _gesture_utility: GFPointerGestureUtility
+var _input_mapping: GFInputMappingUtility
 var _signal_utility: GFSignalUtility
+var _clock_utility: GameClockUtility
+var _touch_input_source: GFVirtualInputSource
 
 var _content_rect: Rect2 = Rect2()
 var _visible_world_rect: Rect2 = Rect2()
@@ -79,6 +94,12 @@ var _is_handling_gesture_event: bool = false
 var _last_viewport_size: Vector2 = Vector2.ZERO
 var _previous_mouse_button_index: MouseButton = MOUSE_BUTTON_LEFT
 var _previous_wheel_zoom_factor: float = 1.1
+var _touch_sequence_primary_id: int = _NO_TOUCH_POINTER
+var _touch_sequence_start: Vector2 = Vector2.ZERO
+var _touch_sequence_last: Vector2 = Vector2.ZERO
+var _touch_sequence_started_msec: int = 0
+var _touch_sequence_cancelled: bool = false
+var _touch_action_tokens: Dictionary = {}
 
 
 # --- Godot 生命周期方法 ---
@@ -86,6 +107,8 @@ var _previous_wheel_zoom_factor: float = 1.1
 func _ready() -> void:
 	_resolve_nodes()
 	_resolve_utilities()
+	if is_instance_valid(_input_mapping):
+		_touch_input_source = _input_mapping.create_virtual_source(_TOUCH_INPUT_SOURCE_ID)
 	if not _has_required_dependencies():
 		return
 
@@ -98,6 +121,11 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if is_instance_valid(_touch_input_source):
+		_touch_input_source.clear_all()
+	_touch_input_source = null
+	_touch_action_tokens.clear()
+	_reset_touch_sequence()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	if is_instance_valid(_gesture_utility):
@@ -250,6 +278,45 @@ static func calculate_clamped_world_position(
 	return result
 
 
+## 将一次单指轨迹分类为四向棋盘移动；无效轨迹返回 Vector2i.ZERO。
+## @param start_position: 轨迹起点的屏幕坐标。
+## @param end_position: 轨迹终点的屏幕坐标。
+## @param duration_seconds: 轨迹持续秒数。
+## @param minimum_distance: 有效滑动的最短屏幕距离。
+## @param maximum_duration: 有效滑动允许的最长秒数。
+## @param axis_dominance_ratio: 主轴相对副轴的最小长度比例。
+## @return 四向单位方向或 Vector2i.ZERO。
+static func classify_swipe(
+	start_position: Vector2,
+	end_position: Vector2,
+	duration_seconds: float,
+	minimum_distance: float = 48.0,
+	maximum_duration: float = 0.75,
+	axis_dominance_ratio: float = 1.15
+) -> Vector2i:
+	if duration_seconds < 0.0 or duration_seconds > maxf(maximum_duration, 0.0):
+		return Vector2i.ZERO
+
+	var delta: Vector2 = end_position - start_position
+	var absolute_delta: Vector2 = delta.abs()
+	var safe_minimum_distance: float = maxf(minimum_distance, 0.0)
+	var safe_dominance_ratio: float = maxf(axis_dominance_ratio, 1.0)
+	if delta.length() < safe_minimum_distance:
+		return Vector2i.ZERO
+
+	if (
+		absolute_delta.x >= safe_minimum_distance
+		and absolute_delta.x >= absolute_delta.y * safe_dominance_ratio
+	):
+		return Vector2i.RIGHT if delta.x > 0.0 else Vector2i.LEFT
+	if (
+		absolute_delta.y >= safe_minimum_distance
+		and absolute_delta.y >= absolute_delta.x * safe_dominance_ratio
+	):
+		return Vector2i.DOWN if delta.y > 0.0 else Vector2i.UP
+	return Vector2i.ZERO
+
+
 # --- 私有/辅助方法 ---
 
 func _resolve_nodes() -> void:
@@ -266,7 +333,9 @@ func _resolve_nodes() -> void:
 func _resolve_utilities() -> void:
 	_viewport_utility = _get_viewport_utility()
 	_gesture_utility = _get_gesture_utility()
+	_input_mapping = _get_input_mapping_utility()
 	_signal_utility = _get_signal_utility()
+	_clock_utility = _get_clock_utility()
 
 
 func _has_required_dependencies() -> bool:
@@ -283,8 +352,12 @@ func _has_required_dependencies() -> bool:
 		var _viewport_appended: bool = missing.append("GFViewportUtility")
 	if not is_instance_valid(_gesture_utility):
 		var _gesture_appended: bool = missing.append("GFPointerGestureUtility")
+	if not is_instance_valid(_input_mapping):
+		var _input_appended: bool = missing.append("GFInputMappingUtility")
 	if not is_instance_valid(_signal_utility):
 		var _signal_appended: bool = missing.append("GFSignalUtility")
+	if not is_instance_valid(_clock_utility):
+		var _clock_appended: bool = missing.append("GameClockUtility")
 	if missing.is_empty():
 		return true
 	push_error("[BoardWorldViewportController] 缺少必需依赖：%s。" % ", ".join(missing))
@@ -427,6 +500,8 @@ func _update_zoom_label() -> void:
 
 
 func _should_handle_gesture_event(event: InputEvent) -> bool:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		return true
 	if event is InputEventMagnifyGesture or event is InputEventPanGesture:
 		return true
 	if event is InputEventMouseButton:
@@ -505,12 +580,116 @@ func _get_gesture_utility() -> GFPointerGestureUtility:
 	return null
 
 
+func _get_input_mapping_utility() -> GFInputMappingUtility:
+	var utility_value: Object = get_utility(GFInputMappingUtility, true)
+	if utility_value is GFInputMappingUtility:
+		var input_mapping: GFInputMappingUtility = utility_value
+		return input_mapping
+	return null
+
+
 func _get_signal_utility() -> GFSignalUtility:
 	var utility_value: Object = get_utility(GFSignalUtility, true)
 	if utility_value is GFSignalUtility:
 		var signal_utility: GFSignalUtility = utility_value
 		return signal_utility
 	return null
+
+
+func _get_clock_utility() -> GameClockUtility:
+	var utility_value: Object = get_utility(GameClockUtility, true)
+	if utility_value is GameClockUtility:
+		var clock_utility: GameClockUtility = utility_value
+		return clock_utility
+	return null
+
+
+func _prepare_touch_action(event: InputEvent) -> StringName:
+	var pointer_count_before: int = _gesture_utility.get_active_pointer_count()
+	if event is InputEventScreenTouch:
+		var touch: InputEventScreenTouch = event
+		if touch.pressed:
+			if pointer_count_before == 0 and _touch_sequence_primary_id == _NO_TOUCH_POINTER:
+				_touch_sequence_primary_id = touch.index
+				_touch_sequence_start = touch.position
+				_touch_sequence_last = touch.position
+				_touch_sequence_started_msec = _clock_utility.get_tick_msec()
+				_touch_sequence_cancelled = false
+			else:
+				_touch_sequence_cancelled = true
+			return &""
+
+		if touch.index == _touch_sequence_primary_id:
+			_touch_sequence_last = touch.position
+			if pointer_count_before == 1 and not _touch_sequence_cancelled:
+				var duration_seconds: float = maxf(
+					float(_clock_utility.get_tick_msec() - _touch_sequence_started_msec) / 1000.0,
+					0.0
+				)
+				var direction: Vector2i = classify_swipe(
+					_touch_sequence_start,
+					_touch_sequence_last,
+					duration_seconds,
+					swipe_minimum_distance,
+					swipe_maximum_duration,
+					swipe_axis_dominance_ratio
+				)
+				return GameplayInputActions.action_for_direction(direction)
+		_touch_sequence_cancelled = true
+		return &""
+
+	if event is InputEventScreenDrag:
+		var drag: InputEventScreenDrag = event
+		if drag.index == _touch_sequence_primary_id:
+			_touch_sequence_last = drag.position
+		if pointer_count_before >= 2:
+			_touch_sequence_cancelled = true
+	return &""
+
+
+func _finish_touch_event(event: InputEvent) -> void:
+	if not event is InputEventScreenTouch:
+		return
+	var touch: InputEventScreenTouch = event
+	if not touch.pressed and _gesture_utility.get_active_pointer_count() == 0:
+		_reset_touch_sequence()
+
+
+func _reset_touch_sequence() -> void:
+	_touch_sequence_primary_id = _NO_TOUCH_POINTER
+	_touch_sequence_start = Vector2.ZERO
+	_touch_sequence_last = Vector2.ZERO
+	_touch_sequence_started_msec = 0
+	_touch_sequence_cancelled = false
+
+
+func _inject_touch_action(action_id: StringName) -> void:
+	if action_id == &"" or not is_instance_valid(_touch_input_source):
+		return
+	var next_token: int = GFVariantData.get_option_int(_touch_action_tokens, action_id) + 1
+	_touch_action_tokens[action_id] = next_token
+	if not _touch_input_source.press(action_id):
+		push_warning("[BoardWorldViewportController] 无法注入触控动作：%s。" % action_id)
+		return
+	var release_timer: SceneTreeTimer = get_tree().create_timer(
+		_TOUCH_ACTION_HOLD_SECONDS,
+		true,
+		false,
+		true
+	)
+	var _release_connection: GFSignalConnection = _signal_utility.connect_once(
+		release_timer.timeout,
+		_release_touch_action.bind(action_id, next_token),
+		self
+	)
+
+
+func _release_touch_action(action_id: StringName, token: int) -> void:
+	if GFVariantData.get_option_int(_touch_action_tokens, action_id) != token:
+		return
+	if is_instance_valid(_touch_input_source):
+		var _released: bool = _touch_input_source.release(action_id)
+	var _erased_token: bool = _touch_action_tokens.erase(action_id)
 
 
 static func _clamp_world_axis(
@@ -569,16 +748,27 @@ func _on_board_geometry_changed(board_rect: Rect2) -> void:
 func _on_gui_input(event: InputEvent) -> void:
 	if not _should_handle_gesture_event(event):
 		return
+	var pending_touch_action: StringName = &""
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		pending_touch_action = _prepare_touch_action(event)
 	_is_handling_gesture_event = true
 	var handled: bool = _gesture_utility.handle_input_event(event)
 	_is_handling_gesture_event = false
+	_finish_touch_event(event)
 	if handled:
 		_host_control.accept_event()
+	if pending_touch_action != &"":
+		_inject_touch_action(pending_touch_action)
 
 
-func _on_gesture_updated(snapshot: Dictionary, _event: InputEvent) -> void:
+func _on_gesture_updated(snapshot: Dictionary, event: InputEvent) -> void:
 	if not _is_handling_gesture_event or not _has_valid_geometry():
 		return
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		var pointer_count: int = GFVariantData.get_option_int(snapshot, &"pointer_count")
+		if pointer_count < 2:
+			return
+		_touch_sequence_cancelled = true
 	var center_screen: Vector2 = GFVariantData.get_option_vector2(
 		snapshot,
 		&"center",
