@@ -181,6 +181,7 @@ TILE_RECIPE_LUCAS_MERGE,卢卡斯相邻合并,Lucas Adjacency
 TILE_RECIPE_LUCAS_BRIDGE,数列桥接,Sequence Bridge
 TILE_RECIPE_CROSS_DEFINITION_RATIO,比例换算,Ratio Conversion
 BTN_TILE_CATALOG,方块图鉴,Tile Catalog
+BTN_ACHIEVEMENTS,成就,Achievements
 TILE_CATALOG_TITLE,方块图鉴,Tile Catalog
 TILE_CATALOG_SEARCH_PLACEHOLDER,搜索方块或规则,Search tiles or rules
 TILE_CATALOG_FILTER_ALL,全部,All
@@ -201,6 +202,30 @@ TILE_CATALOG_MAX_VALUE,最高记录：%d,Highest observed: %d
 TILE_CATALOG_DISCOVERED_AT,发现时间：%s,Discovered: %s
 TILE_CATALOG_DETAIL_EMPTY,没有可显示的方块,No tiles to display
 TILE_CATALOG_EMPTY,没有符合条件的方块,No matching tiles
+ACHIEVEMENTS_TITLE,成就,Achievements
+ACHIEVEMENTS_SEARCH_PLACEHOLDER,搜索成就,Search achievements
+ACHIEVEMENTS_FILTER_ALL,全部,All
+ACHIEVEMENTS_FILTER_UNLOCKED,已解锁,Unlocked
+ACHIEVEMENTS_FILTER_IN_PROGRESS,进行中,In Progress
+ACHIEVEMENTS_PROGRESS,已解锁 %d / %d,Unlocked %d / %d
+ACHIEVEMENTS_EMPTY,没有符合条件的成就,No matching achievements
+ACHIEVEMENT_STATUS_UNLOCKED,已解锁,Unlocked
+ACHIEVEMENT_STATUS_IN_PROGRESS,进行中,In Progress
+ACHIEVEMENT_HIDDEN_DESC,继续探索以揭示这个成就。,Keep exploring to reveal this achievement.
+ACHIEVEMENT_FIRST_GAME_TITLE,初次收官,First Finish
+ACHIEVEMENT_FIRST_GAME_DESC,完成第一局未受调试污染的游戏。,Complete your first untainted game.
+ACHIEVEMENT_TEN_GAMES_TITLE,渐入佳境,Warming Up
+ACHIEVEMENT_TEN_GAMES_DESC,完成 10 局未受调试污染的游戏。,Complete 10 untainted games.
+ACHIEVEMENT_FIRST_TARGET_TITLE,抵达目标,Target Acquired
+ACHIEVEMENT_FIRST_TARGET_DESC,第一次达成当前模式设定的目标。,Reach a mode target for the first time.
+ACHIEVEMENT_REACH_2048_TITLE,名副其实,The 2048
+ACHIEVEMENT_REACH_2048_DESC,在任意有效对局中达到 2048 方块。,Reach a 2048 tile in any valid game.
+ACHIEVEMENT_SCORE_10000_TITLE,五位数,Five Digits
+ACHIEVEMENT_SCORE_10000_DESC,单局最高分达到 10000。,Reach a best single-game score of 10000.
+ACHIEVEMENT_TILE_COLLECTOR_TITLE,规则采集者,Rule Collector
+ACHIEVEMENT_TILE_COLLECTOR_DESC,发现 3 种不同的方块组合。,Discover 3 distinct tile compositions.
+ACHIEVEMENT_BOARD_EXPLORER_TITLE,拓扑漫游者,Topology Wanderer
+ACHIEVEMENT_BOARD_EXPLORER_DESC,在 3 种不同棋盘拓扑上开始游戏。,Start games on 3 distinct board topologies.
 RATIO_RESOLUTIONS_DISPLAY,求商次数: %d,Ratio Resolutions: %d
 RATIO_ALTERNATE_CHANCE,下次移动生成因子方块概率: %.1f%%,Factor Tile Chance: %.1f%%
 RATIO_SPAWN_INFO,可能生成的因子方块:\n,Possible Factor Tiles:\n

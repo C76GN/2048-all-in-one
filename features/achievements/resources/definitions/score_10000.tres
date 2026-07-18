@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="AchievementDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/achievements/scripts/data/achievement_definition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+achievement_id = &"achievement.score_10000"
+title_key = &"ACHIEVEMENT_SCORE_10000_TITLE"
+description_key = &"ACHIEVEMENT_SCORE_10000_DESC"
+category_id = &"mastery"
+metric_id = &"game.best_score"
+target_value = 10000
+sort_order = 50
+icon_asset_slot = &"slot.texture.achievement.score_10000"
+platform_ids = {
+"steam": "ACH_SCORE_10000"
+}

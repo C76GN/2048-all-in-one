@@ -161,7 +161,19 @@ func record_game_result(
 	_update_target_stats(entry)
 
 	_set_stats_entry(save_data, mode_id, board_key, entry)
-	return _save_game_data(save_data)
+	var save_error: Error = _save_game_data(save_data)
+	if save_error == OK:
+		send_event(GameResultRecordedData.new(
+			StringName(mode_id),
+			board_key,
+			normalized_score,
+			normalized_steps,
+			normalized_max_tile,
+			resolved_played_at,
+			normalized_target_value,
+			target_reached
+		))
+	return save_error
 
 
 # --- 私有方法 ---

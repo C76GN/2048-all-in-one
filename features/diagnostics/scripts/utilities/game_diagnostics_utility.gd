@@ -38,6 +38,7 @@ var _command_subscriptions: Array[GFLifetimeSubscription] = []
 ## 注册项目诊断 provider 和支持报告命令。
 func get_required_utilities() -> Array[Script]:
 	return [
+		AchievementCatalogUtility,
 		GameAssetLibraryUtility,
 		GameClockUtility,
 		GameModeCatalogUtility,
@@ -59,7 +60,7 @@ func get_required_utilities() -> Array[Script]:
 
 
 func get_required_systems() -> Array[Script]:
-	return [TileDiscoverySystem]
+	return [AchievementSystem, TileDiscoverySystem]
 
 
 func ready() -> void:
@@ -149,6 +150,8 @@ func _refresh_project_tool_snapshots() -> void:
 	_publish_tool_snapshot(&"game_modes", _collect_game_modes_snapshot())
 	_publish_tool_snapshot(&"tile_catalog", _collect_tile_catalog_snapshot())
 	_publish_tool_snapshot(&"tile_discoveries", _collect_tile_discoveries_snapshot())
+	_publish_tool_snapshot(&"achievement_catalog", _collect_achievement_catalog_snapshot())
+	_publish_tool_snapshot(&"achievements", _collect_achievements_snapshot())
 	_publish_tool_snapshot(&"ui_routes", _collect_ui_routes_snapshot())
 	_publish_tool_snapshot(&"scene_asset_metadata", _collect_scene_asset_metadata_snapshot())
 	_publish_tool_snapshot(&"debug_overlay", _collect_debug_overlay_snapshot())
@@ -383,6 +386,22 @@ func _collect_tile_discoveries_snapshot() -> Dictionary:
 		var system: TileDiscoverySystem = system_value
 		return system.get_discovery_summary()
 	return _make_unavailable_snapshot("TileDiscoverySystem is unavailable.")
+
+
+func _collect_achievement_catalog_snapshot() -> Dictionary:
+	var utility_value: Object = get_utility(AchievementCatalogUtility)
+	if utility_value is AchievementCatalogUtility:
+		var utility: AchievementCatalogUtility = utility_value
+		return utility.get_debug_snapshot()
+	return _make_unavailable_snapshot("AchievementCatalogUtility is unavailable.")
+
+
+func _collect_achievements_snapshot() -> Dictionary:
+	var system_value: Object = get_system(AchievementSystem)
+	if system_value is AchievementSystem:
+		var system: AchievementSystem = system_value
+		return system.get_debug_snapshot()
+	return _make_unavailable_snapshot("AchievementSystem is unavailable.")
 
 
 func _collect_ui_routes_snapshot() -> Dictionary:

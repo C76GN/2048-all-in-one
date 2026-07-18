@@ -1,0 +1,57 @@
+[gd_resource type="Resource" script_class="GFResourceRegistry" format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/assets/gf_resource_registry.gd" id="1_registry"]
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/assets/gf_resource_registry_entry.gd" id="2_entry"]
+
+[sub_resource type="Resource" id="Entry_first_game"]
+script = ExtResource("2_entry")
+id = &"first_game"
+path = "res://features/achievements/resources/definitions/first_game.tres"
+type_hint = "Resource"
+fields = {"category": &"journey", "sort_order": 10}
+
+[sub_resource type="Resource" id="Entry_ten_games"]
+script = ExtResource("2_entry")
+id = &"ten_games"
+path = "res://features/achievements/resources/definitions/ten_games.tres"
+type_hint = "Resource"
+fields = {"category": &"journey", "sort_order": 20}
+
+[sub_resource type="Resource" id="Entry_first_target"]
+script = ExtResource("2_entry")
+id = &"first_target"
+path = "res://features/achievements/resources/definitions/first_target.tres"
+type_hint = "Resource"
+fields = {"category": &"mastery", "sort_order": 30}
+
+[sub_resource type="Resource" id="Entry_reach_2048"]
+script = ExtResource("2_entry")
+id = &"reach_2048"
+path = "res://features/achievements/resources/definitions/reach_2048.tres"
+type_hint = "Resource"
+fields = {"category": &"mastery", "sort_order": 40}
+
+[sub_resource type="Resource" id="Entry_score_10000"]
+script = ExtResource("2_entry")
+id = &"score_10000"
+path = "res://features/achievements/resources/definitions/score_10000.tres"
+type_hint = "Resource"
+fields = {"category": &"mastery", "sort_order": 50}
+
+[sub_resource type="Resource" id="Entry_tile_collector"]
+script = ExtResource("2_entry")
+id = &"tile_collector"
+path = "res://features/achievements/resources/definitions/tile_collector.tres"
+type_hint = "Resource"
+fields = {"category": &"discovery", "sort_order": 60}
+
+[sub_resource type="Resource" id="Entry_board_explorer"]
+script = ExtResource("2_entry")
+id = &"board_explorer"
+path = "res://features/achievements/resources/definitions/board_explorer.tres"
+type_hint = "Resource"
+fields = {"category": &"discovery", "sort_order": 70}
+
+[resource]
+script = ExtResource("1_registry")
+entries = Array[ExtResource("2_entry")]([SubResource("Entry_first_game"), SubResource("Entry_ten_games"), SubResource("Entry_first_target"), SubResource("Entry_reach_2048"), SubResource("Entry_score_10000"), SubResource("Entry_tile_collector"), SubResource("Entry_board_explorer")])

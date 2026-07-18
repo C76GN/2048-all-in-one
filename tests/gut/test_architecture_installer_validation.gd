@@ -286,6 +286,18 @@ func test_tile_composition_uses_capability_extension_ownership() -> void:
 		installer_source.contains("bind_system(TileDiscoverySystem)"),
 		"项目 Installer 应注册方块发现系统。"
 	)
+	assert_true(
+		installer_source.contains("bind_utility(_ACHIEVEMENT_CATALOG_UTILITY_SCRIPT)"),
+		"项目 Installer 应注册项目侧 AchievementCatalogUtility。"
+	)
+	assert_true(
+		installer_source.contains("bind_system(AchievementSystem)"),
+		"项目 Installer 应注册成就进度系统。"
+	)
+	assert_false(
+		_source_binds_symbol(installer_source, "GFQuestUtility"),
+		"GFQuestUtility 应由 gf.domain 扩展拥有，项目不得重复绑定。"
+	)
 	assert_false(
 		_source_binds_symbol(installer_source, "GFCapabilityUtility"),
 		"GFCapabilityUtility 应由 gf.capability 扩展拥有，项目不得重复绑定。"

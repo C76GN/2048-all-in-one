@@ -59,12 +59,13 @@ GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 用 `GFInputMappingUtility` 管理资源化输入上下文。
 - 用项目级 `GamePauseUtility` 原子同步 `GFTimeUtility` 与 `SceneTree.paused`；暂停期间输入 System 只保留恢复意图，不缓存玩法动作。
 - 用 `GFSceneUtility` 做异步场景切换，`SceneRouterSystem` 负责业务事件、路由意图和半调纸媒转场遮罩。
-- 用项目级 `GameUiRouterUtility` 从 `ui_route_registry.tres` 加载 `GFUIRoute` 路由表，暂停、游戏结束和设置面板通过稳定 route_id 打开。
+- 用项目级 `GameUiRouterUtility` 从 `ui_route_registry.tres` 加载 `GFUIRoute` 路由表，暂停、游戏结束、设置、图鉴和成就面板通过稳定 route_id 打开。
 - 用 `GFControlFocusUtility` 为模式卡片、书签和回放列表写入稳定的纵向焦点顺序，项目层只表达跨列导航意图。
 - 用项目级 `GameSettingsUtility` 承接 `GFSettingsUtility` / `GFDisplaySettingsUtility`，语言、显示、音量、视觉主题和音效主题通过 `GFFormBinder` 绑定到设置页控件，选项列表用 `GFItemListBinder` 写入。
-- 用项目级 `GameSaveGraphUtility` 组合 `GFSaveGraphUtility` / `GFSaveScope` / `GFSaveDataSource`，把统计、书签和回放作为三个 Feature section 原子保存到类型保真的 Binary 玩家数据图；设置保持独立生命周期。
+- 用项目级 `GameSaveGraphUtility` 组合 `GFSaveGraphUtility` / `GFSaveScope` / `GFSaveDataSource`，把统计、书签、玩家棋盘、发现、成就和回放作为六个 Feature section 原子保存到类型保真的 Binary 玩家数据图；设置保持独立生命周期。
 - 用 `GFLevelUtility` 把当前一局登记为运行时 session，集中清理命令历史与动作队列等对局残留；项目不把 2048 强行建模为关卡进度。
 - 用 `ProjectResourceCatalogUtility` 把 `GFResourceRegistry`、`GFResourceResolverUtility` 和 `GFAssetUtility` 组合成统一资源目录 Adapter，模式目录和 UI 路由目录不重复实现注册、解析和缓存细节。
+- 用 `AchievementCatalogUtility` 管理数据驱动成就定义，并由 `AchievementSystem` 从规范统计/发现高水位回填进度；持久化成功后再投影到扩展拥有的 `GFQuestUtility`，平台 SDK 不作为真源。
 - 用 `ProjectContentCatalogUtility` 统一承接 `gf.content_package` 的目录重建和 Resolver 注册；`GameThemeCatalogUtility` 从 manifest 生成轻量主题描述符，选中后再按稳定资源键加载并事务激活。
 - 用 `GFObjectPoolUtility` 的池化 Hook 清理 Tile 复用状态，并用 `GFRepeaterBinder` 重建书签/回放列表项。
 - 用项目级 `GameUiMotionUtility` 统一菜单、按钮、HUD 和列表刷新动效，避免各 UI 节点重复编写 Tween。

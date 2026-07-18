@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="AchievementDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/achievements/scripts/data/achievement_definition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+achievement_id = &"achievement.ten_games"
+title_key = &"ACHIEVEMENT_TEN_GAMES_TITLE"
+description_key = &"ACHIEVEMENT_TEN_GAMES_DESC"
+category_id = &"journey"
+metric_id = &"game.completed_count"
+target_value = 10
+sort_order = 20
+icon_asset_slot = &"slot.texture.achievement.ten_games"
+platform_ids = {
+"steam": "ACH_TEN_GAMES"
+}

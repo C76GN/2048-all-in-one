@@ -27,7 +27,7 @@
 - `CustomBoardData` 使用 UUID v7 稳定身份，显示名限制 64 字符，保存创建和更新时间，并内嵌严格 `BoardTopology`。
 - 玩家模板的 `topology_id` 必须为 `board.player.<uuid>`；统计键仍附加内容指纹，因此同一模板修改形状后不会错误复用旧成绩。
 - `CustomBoardSystem` 只通过 `GameSaveGraphUtility.replace_section_data()` 写入统一 `player_data.save`，不创建旁路文件。
-- Profile 已升为 `player_data@2`。本阶段不保留 `player_data@1` 双读分支；发布迁移应使用独立工具。
+- 当前统一 Profile 为 `player_data@4`。运行时不保留旧 Profile 双读分支；发布迁移应使用独立工具。
 
 ## 后续演进
 

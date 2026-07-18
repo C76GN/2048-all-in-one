@@ -1,0 +1,113 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/achievements/scripts/ui/achievement_list_dialog.gd" id="1_dialog"]
+
+[node name="AchievementListDialog" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+process_mode = 3
+script = ExtResource("1_dialog")
+
+[node name="DimBackground" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.101961, 0.082353, 0.109804, 0.72)
+
+[node name="OuterMargin" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="Surface" type="PanelContainer" parent="OuterMargin"]
+layout_mode = 2
+
+[node name="InnerMargin" type="MarginContainer" parent="OuterMargin/Surface"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 18
+
+[node name="RootVBox" type="VBoxContainer" parent="OuterMargin/Surface/InnerMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="BoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TitleLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "成就"
+
+[node name="SummaryLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "已解锁 0 / 0"
+vertical_alignment = 1
+
+[node name="BackButton" type="Button" parent="OuterMargin/Surface/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(112, 42)
+layout_mode = 2
+text = "返回"
+
+[node name="Separator" type="HSeparator" parent="OuterMargin/Surface/InnerMargin/RootVBox"]
+layout_mode = 2
+
+[node name="Filters" type="BoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SearchInput" type="LineEdit" parent="OuterMargin/Surface/InnerMargin/RootVBox/Filters"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "搜索成就"
+clear_button_enabled = true
+
+[node name="StateFilter" type="OptionButton" parent="OuterMargin/Surface/InnerMargin/RootVBox/Filters"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 42)
+layout_mode = 2
+
+[node name="AchievementScroll" type="ScrollContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="AchievementList" type="VBoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/AchievementScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="EmptyLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "没有符合条件的成就"
+horizontal_alignment = 1

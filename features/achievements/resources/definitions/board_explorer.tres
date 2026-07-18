@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="AchievementDefinition" format=3]
+
+[ext_resource type="Script" path="res://features/achievements/scripts/data/achievement_definition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+achievement_id = &"achievement.board_explorer"
+title_key = &"ACHIEVEMENT_BOARD_EXPLORER_TITLE"
+description_key = &"ACHIEVEMENT_BOARD_EXPLORER_DESC"
+category_id = &"discovery"
+metric_id = &"catalog.board_topology_count"
+target_value = 3
+sort_order = 70
+hidden_until_unlocked = true
+icon_asset_slot = &"slot.texture.achievement.board_explorer"
+platform_ids = {
+"steam": "ACH_BOARD_EXPLORER"
+}

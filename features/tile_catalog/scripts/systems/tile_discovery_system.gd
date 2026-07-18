@@ -104,6 +104,10 @@ func observe_tile(tile: TileState) -> Error:
 	var save_error: Error = _save_discoveries(records, get_board_discoveries())
 	if save_error == OK:
 		tile_discovery_changed.emit(composition_key)
+		_publish_discovery_progress(
+			DiscoveryProgressChangedData.KIND_TILE,
+			composition_key
+		)
 	return save_error
 
 
@@ -130,6 +134,10 @@ func observe_board(topology: BoardTopology) -> Error:
 	var save_error: Error = _save_discoveries(get_tile_discoveries(), records)
 	if save_error == OK:
 		board_discovery_changed.emit(board_key)
+		_publish_discovery_progress(
+			DiscoveryProgressChangedData.KIND_BOARD,
+			board_key
+		)
 	return save_error
 
 
@@ -218,13 +226,23 @@ func is_tile_discovered(composition_key: String) -> bool:
 func get_discovery_summary() -> Dictionary:
 	var entries: Array[Dictionary] = get_catalog_entries()
 	var discovered_count: int = 0
+	var max_observed_tile_value: int = 0
 	for entry: Dictionary in entries:
 		if GFVariantData.get_option_bool(entry, &"discovered"):
 			discovered_count += 1
+			max_observed_tile_value = maxi(
+				max_observed_tile_value,
+				GFVariantData.get_option_int(
+					GFVariantData.get_option_dictionary(entry, &"discovery"),
+					&"max_observed_value",
+					0
+				)
+			)
 	return {
 		"known_tile_composition_count": entries.size(),
 		"discovered_tile_composition_count": discovered_count,
 		"discovered_board_count": get_board_discoveries().size(),
+		"max_observed_tile_value": max_observed_tile_value,
 	}
 
 
@@ -285,6 +303,17 @@ func _get_discovery_section_data() -> Dictionary:
 	if save_graph == null:
 		return {}
 	return save_graph.get_section_data(GameSaveGraphUtility.DISCOVERIES_SECTION_ID)
+
+
+func _publish_discovery_progress(changed_kind: StringName, changed_key: String) -> void:
+	var summary: Dictionary = get_discovery_summary()
+	send_event(DiscoveryProgressChangedData.new(
+		changed_kind,
+		changed_key,
+		GFVariantData.get_option_int(summary, "discovered_tile_composition_count", 0),
+		GFVariantData.get_option_int(summary, "discovered_board_count", 0),
+		GFVariantData.get_option_int(summary, "max_observed_tile_value", 0)
+	))
 
 
 func _get_catalog() -> TileCatalogUtility:

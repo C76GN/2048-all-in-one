@@ -1,0 +1,88 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://features/achievements/scripts/ui/achievement_card.gd" id="1_card"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_card"]
+bg_color = Color(1, 0.972549, 0.909804, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.34902, 0.290196, 0.270588, 0.72)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="AchievementCard" type="PanelContainer"]
+custom_minimum_size = Vector2(0, 118)
+theme_override_styles/panel = SubResource("StyleBox_card")
+script = ExtResource("1_card")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="Row" type="HBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Marker" type="Label" parent="Margin/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.266667, 0.317647, 0.384314, 1)
+theme_override_font_sizes/font_size = 34
+text = "·"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Body" type="VBoxContainer" parent="Margin/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Margin/Row/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.34902, 0.290196, 0.270588, 1)
+theme_override_font_sizes/font_size = 20
+text = "Achievement"
+autowrap_mode = 2
+
+[node name="Description" type="Label" parent="Margin/Row/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.533333, 0.486275, 0.337255, 1)
+text = "Description"
+autowrap_mode = 2
+
+[node name="ProgressRow" type="HBoxContainer" parent="Margin/Row/Body"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ProgressBar" type="ProgressBar" parent="Margin/Row/Body/ProgressRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 18)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="ProgressLabel" type="Label" parent="Margin/Row/Body/ProgressRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+text = "0 / 1"
+horizontal_alignment = 2
+
+[node name="Status" type="Label" parent="Margin/Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(112, 0)
+layout_mode = 2
+text = "In progress"
+horizontal_alignment = 2
+vertical_alignment = 1
+autowrap_mode = 2

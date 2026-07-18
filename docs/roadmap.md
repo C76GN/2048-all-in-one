@@ -135,15 +135,15 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 验证：session 元数据、命令历史清理、动作队列清理都有聚焦测试。
 
 3. 资源目录 Module 深化。
-   - 涉及：`ProjectResourceCatalogUtility`、`GameModeCatalogUtility`、`TileCatalogUtility`、`GameUiRouterUtility`、`GFResourceRegistry`、`GFResourceResolverUtility`、`GFAssetUtility`。
+   - 涉及：`ProjectResourceCatalogUtility`、`GameModeCatalogUtility`、`TileCatalogUtility`、`AchievementCatalogUtility`、`GameUiRouterUtility`、`GFResourceRegistry`、`GFResourceResolverUtility`、`GFAssetUtility`。
    - 问题：模式目录和 UI 路由目录相似，容易重复注册、缓存、校验和错误输出。
-   - 当前状态：项目级资源目录 Adapter 已提炼；模式、方块定义和 UI 路由保留各自业务入口，但共享注册、解析、缓存和 asset group 逻辑。
-   - 验证：模式、方块定义和 UI 路由注册表测试继续通过，并能捕获缺失路径与重复稳定 ID。
+   - 当前状态：项目级资源目录 Adapter 已提炼；模式、方块定义、成就定义和 UI 路由保留各自业务入口，但共享注册、解析、缓存和 asset group 逻辑。
+   - 验证：模式、方块定义、成就定义和 UI 路由注册表测试继续通过，并能捕获缺失路径与重复稳定 ID。
 
 4. 存档 Module 深化。
-   - 涉及：`GameSaveGraphUtility`、`GameSaveSectionData`、`SaveSystem`、`BookmarkSystem`、`CustomBoardSystem`、`ReplaySystem`、`GFSaveGraphUtility`、`GFSaveScope`、`GFSaveDataSource`、`GFStorageUtility`。
+   - 涉及：`GameSaveGraphUtility`、`GameSaveSectionData`、`SaveSystem`、`BookmarkSystem`、`CustomBoardSystem`、`AchievementSystem`、`ReplaySystem`、`GFSaveGraphUtility`、`GFSaveScope`、`GFSaveDataSource`、`GFStorageUtility`。
    - 问题：最高分、设置、书签、玩家棋盘、回放分属不同入口，持久化语义需要更统一。
-   - 当前状态：统计、书签、玩家棋盘、方块/棋盘发现进度和回放已迁移为五个 Feature-owned section，由项目级 SaveGraph 原子保存；设置保持独立生命周期。旧 SaveSlot Adapter 和时间戳 Resource 集合已删除。
+   - 当前状态：统计、书签、玩家棋盘、方块/棋盘发现进度、成就和回放已迁移为六个 Feature-owned section，由项目级 SaveGraph 原子保存；设置保持独立生命周期。旧 SaveSlot Adapter 和时间戳 Resource 集合已删除。
    - 存储契约：Binary Variant 类型保真、GF storage metadata、checksum、严格 Profile/section schema、UUID v7 稳定身份，不提供旧格式运行时双读。
    - 验证：跨架构重载、单文件约束、后期 section 失败全图回滚、schema 拒绝和保存失败内存回滚均有聚焦测试。
 
@@ -158,8 +158,8 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 1. 自定义与超大棋盘基础。
    - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；玩家编辑器已支持绘制、擦除、预设、规范化、连通提示、GF 局部撤销历史和 SaveGraph 模板目录，并通过独立 GF 输入上下文消费撤销/重做快捷键。编辑画布现使用稳定世界尺寸、共享视口变换算法、GF 指针手势与坐标换算，支持桌面缩放平移、单指连续绘制、双指缩放平移以及桌面/紧凑横屏/安全区竖屏布局。棋盘表现已拆为独立世界画布与屏幕空间 HUD，支持完整聚焦、鼠标/触控板/双指缩放平移、单指抽象动作移动、可见区域查询、GF 对象池窗口化和低缩放细节裁剪。移动 HUD 默认只显示分数、步数和最大方块；开发实验台已迁移到 diagnostics feature 拥有的独立 Window。
-   - 当前进展：稳定拓扑键、规范化方块组合身份、严格发现 section 和响应式图鉴 Route 已完成；目录条目按视觉家族归档并复用正式方块表现。
-   - 下一步：以已验证的发现与对局领域事件接入成就和平台排行榜 Adapter。
+   - 当前进展：稳定拓扑键、规范化方块组合身份、严格发现 section 和响应式图鉴 Route 已完成；目录条目按视觉家族归档并复用正式方块表现。成就已通过资源目录、类型化领域事件、GF Quest 运行时投影和独立 SaveGraph section 接入，并能从历史统计与发现高水位回填。
+   - 下一步：建立只接收 `GameResultRecordedData` 的本地排行榜真源，再通过显式平台 bridge contract 接入 Steam 与微信 Adapter。
    - 契约：见 `features/gameplay/docs/board_topology.md`，不得重新引入 `grid_size` 作为逻辑唯一真源。
 
 2. 核心流程完整化。
@@ -174,6 +174,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 4. 统计和成就感。
    - 按模式记录最高分、最大方块、最佳步数、游戏次数。
    - GF `progress` SaveGraph section 保存单一 `stats` 真源并严格校验 schema；普通倍增类模式已定义 2048 目标，目标上下文已写入 `GameStatusModel`、完整状态快照和书签，首次达成目标时会给出 HUD 提示和非强制弹层，结算统计以“本局曾达成目标”为准，模式选择页和游戏结束菜单已展示游玩次数、最佳步数、最大方块、平均表现、目标达成情况和最近一局摘要。
+   - `AchievementCatalogUtility` 通过 GF Resource Registry 管理定义，`AchievementSystem` 从规范统计/发现 section 计算幂等高水位，先保存 `achievements` section 再投影到 `GFQuestUtility`；主菜单已提供响应式成就 Route。平台同步尚未接入，不能把 Steam 或微信状态当成本地真源。
 
 5. 设置体验。
    - 语言、音量、视觉主题、音效主题、动画强度、视觉效果强度、棋盘辅助显示。
@@ -235,7 +236,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 收益：后续 AI 不会反复把风格改歪。
 
 3. SaveGraph 运维体验可以继续加深。
-   - 当前状态：统计、书签、玩家棋盘、发现进度和回放已统一到 Feature-owned section，GF SaveGraph 负责图级事务，旧并行实现已删除。
+   - 当前状态：统计、书签、玩家棋盘、发现进度、成就和回放已统一到 Feature-owned section，GF SaveGraph 负责图级事务，旧并行实现已删除。
    - 方向：在不放宽严格 schema 的前提下，为损坏存档增加面向玩家的隔离、导出诊断和显式重置流程。
    - 收益：让 checksum 或未来版本拒绝不只出现在日志中，同时保持运行时无隐式降级。
 
@@ -248,6 +249,6 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 优先级最高的下一步：
 
-1. 以项目领域事件驱动成就进度，再通过平台 Adapter 对接 Steam、微信与本地离线实现；排行榜只上传可验证、未污染的对局结果。
+1. 建立本地排行榜 Feature，只接受已持久化的 `GameResultRecordedData`；随后定义平台成就/排行榜 bridge contract，并分别实现 Steam 与微信 Adapter。排行榜只上传可验证、未污染的对局结果。
 2. 按 `docs/visual_style.md` 审计背景 shader、tile scheme 和菜单场景，把散落颜色逐步收敛成资源化规则。
 3. 持续完善 `asset_library`：新增素材必须登记稳定 `asset.*` key、授权元数据和审计报告，再接入主题或玩法。

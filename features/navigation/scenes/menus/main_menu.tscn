@@ -128,15 +128,24 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 focus_neighbor_top = NodePath("../ReplaysButton")
-focus_neighbor_bottom = NodePath("../SettingsButton")
+focus_neighbor_bottom = NodePath("../AchievementsButton")
 theme_override_font_sizes/font_size = 24
 text = "方块图鉴"
+
+[node name="AchievementsButton" type="Button" parent="VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+focus_neighbor_top = NodePath("../TileCatalogButton")
+focus_neighbor_bottom = NodePath("../SettingsButton")
+theme_override_font_sizes/font_size = 24
+text = "成就"
 
 [node name="SettingsButton" type="Button" parent="VBoxContainer" unique_id=230653]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-focus_neighbor_top = NodePath("../TileCatalogButton")
+focus_neighbor_top = NodePath("../AchievementsButton")
 focus_neighbor_bottom = NodePath("../QuitButton")
 theme_override_font_sizes/font_size = 24
 text = "设置"

@@ -27,6 +27,7 @@ extends GameUiController
 @onready var _load_bookmark_button: Button = %LoadBookmarkButton
 @onready var _replays_button: Button = %ReplaysButton
 @onready var _tile_catalog_button: Button = %TileCatalogButton
+@onready var _achievements_button: Button = %AchievementsButton
 @onready var _settings_button: Button = %SettingsButton
 @onready var _quit_button: Button = %QuitButton
 
@@ -38,6 +39,7 @@ func _ready() -> void:
 	var _connect_result_37: int = _load_bookmark_button.pressed.connect(_on_load_bookmark_button_pressed)
 	var _connect_result_38: int = _replays_button.pressed.connect(_on_replays_button_pressed)
 	var _catalog_connection: int = _tile_catalog_button.pressed.connect(_on_tile_catalog_button_pressed)
+	var _achievements_connection: int = _achievements_button.pressed.connect(_on_achievements_button_pressed)
 	var _connect_result_39: int = _settings_button.pressed.connect(_on_settings_button_pressed)
 	var _connect_result_40: int = _quit_button.pressed.connect(_on_quit_button_pressed)
 
@@ -66,6 +68,8 @@ func _update_ui_text() -> void:
 		_replays_button.text = tr("BTN_REPLAY_LIST")
 	if is_instance_valid(_tile_catalog_button):
 		_tile_catalog_button.text = tr("BTN_TILE_CATALOG")
+	if is_instance_valid(_achievements_button):
+		_achievements_button.text = tr("BTN_ACHIEVEMENTS")
 	if is_instance_valid(_settings_button):
 		_settings_button.text = tr("SETTINGS_TITLE")
 	if is_instance_valid(_quit_button):
@@ -100,6 +104,16 @@ func _on_tile_catalog_button_pressed() -> void:
 		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开方块图鉴。")
 		return
 	var _catalog_panel: Node = ui_router.push_route(GameUiRouterUtility.ROUTE_TILE_CATALOG)
+
+
+func _on_achievements_button_pressed() -> void:
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开成就列表。")
+		return
+	var _achievements_panel: Node = ui_router.push_route(
+		GameUiRouterUtility.ROUTE_ACHIEVEMENTS
+	)
 
 
 func _on_settings_button_pressed() -> void:

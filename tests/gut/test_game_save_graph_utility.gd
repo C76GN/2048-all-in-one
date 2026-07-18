@@ -10,7 +10,7 @@ const _BOARD_SIZE: Vector2i = Vector2i(4, 4)
 
 # --- 测试用例 ---
 
-func test_profile_graph_has_five_feature_sections() -> void:
+func test_profile_graph_has_six_feature_sections() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var snapshot: Dictionary = save_graph.get_debug_snapshot()
@@ -18,11 +18,11 @@ func test_profile_graph_has_five_feature_sections() -> void:
 
 	assert_true(save_graph.is_profile_loaded(), "首次运行应完成空档加载决策。")
 	assert_true(GFVariantData.get_option_bool(health, "ok"), "玩家数据图结构应通过 GF 健康检查。")
-	assert_true(GFVariantData.get_option_int(health, "scope_count") == 6, "根图应包含根 Scope 和五个 Feature 子 Scope。")
-	assert_true(GFVariantData.get_option_int(health, "source_count") == 5, "每个 Feature 子 Scope 应有一个严格数据 Source。")
+	assert_true(GFVariantData.get_option_int(health, "scope_count") == 7, "根图应包含根 Scope 和六个 Feature 子 Scope。")
+	assert_true(GFVariantData.get_option_int(health, "source_count") == 6, "每个 Feature 子 Scope 应有一个严格数据 Source。")
 	assert_true(
 		GFVariantData.get_option_packed_string_array(snapshot, "section_ids")
-		== PackedStringArray(["bookmarks", "custom_boards", "discoveries", "progress", "replays"]),
+		== PackedStringArray(["achievements", "bookmarks", "custom_boards", "discoveries", "progress", "replays"]),
 		"诊断应暴露稳定 section 标识。"
 	)
 
@@ -55,7 +55,7 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	assert_true(
 		storage.list_files("", "save")
 		== PackedStringArray([GameSaveGraphUtility.PROFILE_FILE_NAME]),
-		"五类玩家数据应只落到一个原子 SaveGraph 文件。"
+		"六类玩家数据应只落到一个原子 SaveGraph 文件。"
 	)
 
 	_dispose_setup(setup, false)
@@ -316,6 +316,11 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		TileDiscoverySaveData.new(),
 		GFSaveScope.Phase.NORMAL
 	)
+	var achievements_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID,
+		AchievementSaveData.new(),
+		GFSaveScope.Phase.LATE
+	)
 	var replays_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		ReplayCatalogSaveData.new(),
@@ -326,6 +331,7 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		and bookmarks_registered
 		and custom_boards_registered
 		and discoveries_registered
+		and achievements_registered
 		and replays_registered,
 		"测试 SaveGraph section 应完整注册。"
 	)
