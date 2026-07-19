@@ -10,6 +10,7 @@ enum TextRole {
 	PRIMARY,
 	SECONDARY,
 	MUTED,
+	FEEDBACK,
 }
 
 ## 面板表面的语义角色。
@@ -162,6 +163,12 @@ func apply_palette(palette: GameUiPalette) -> void:
 func apply_palette_to_tree(root: Node, palette: GameUiPalette) -> int:
 	apply_palette(palette)
 	return refresh_tree(root)
+
+
+## 返回数值变化反馈色；正向变化使用选中强调色，负向变化使用焦点边框色。
+## @param is_increase: 是否为正向数值变化。
+func get_value_change_color(is_increase: bool) -> Color:
+	return _selected_border_color if is_increase else _field_focus_border_color
 
 
 ## 使用当前色板刷新整个 UI 子树。
@@ -346,6 +353,9 @@ func _apply_label_style(label: Label) -> void:
 		_get_control_meta(label, _TEXT_ROLE_META, TextRole.PRIMARY)
 	)
 	label.add_theme_color_override("font_color", _get_text_color(role))
+	if role == TextRole.FEEDBACK:
+		label.add_theme_color_override("font_outline_color", _text_primary_color)
+		label.add_theme_constant_override("outline_size", 2)
 	var font_size: int = GFVariantData.to_int(
 		_get_control_meta(label, _TEXT_FONT_SIZE_META, 0)
 	)
@@ -365,6 +375,8 @@ func _apply_label_style(label: Label) -> void:
 
 
 func _get_text_color(role: int) -> Color:
+	if role == TextRole.FEEDBACK:
+		return Color.WHITE
 	if role == TextRole.SECONDARY:
 		return _text_secondary_color
 	if role == TextRole.MUTED:

@@ -23,6 +23,7 @@ const _CONTROL_BASE_POSITION_META: StringName = &"_game_ui_motion_control_base_p
 const _CONTROL_BASE_SCALE_META: StringName = &"_game_ui_motion_control_base_scale"
 const _CONTROL_BASE_MODULATE_META: StringName = &"_game_ui_motion_control_base_modulate"
 const _CONTROL_TWEEN_META: StringName = &"_game_ui_motion_control_tween"
+const _NUMERIC_TWEEN_META: StringName = &"_game_ui_motion_numeric_tween"
 const _REST_MODULATE: Color = Color.WHITE
 const _HOVER_MODULATE: Color = Color(0.98, 1.0, 0.99, 1.0)
 const _FOCUS_MODULATE: Color = Color(1.0, 0.98, 1.0, 1.0)
@@ -37,6 +38,12 @@ const _PANEL_INTRO_DURATION: float = 0.18
 const _CHILD_REVEAL_OFFSET: Vector2 = Vector2(8.0, 0.0)
 const _CHILD_REVEAL_DURATION: float = 0.14
 const _CHILD_REVEAL_STAGGER: float = 0.025
+const _NUMERIC_CHANGE_DURATION: float = 0.22
+const _NUMERIC_DELTA_DURATION: float = 0.36
+const _NUMERIC_GAIN_COLOR: Color = Color(0.82, 0.69, 0.34, 1.0)
+const _NUMERIC_LOSS_COLOR: Color = Color(0.58, 0.27, 0.19, 1.0)
+const _NUMERIC_DELTA_START_OFFSET: Vector2 = Vector2(-3.0, 3.0)
+const _NUMERIC_DELTA_END_OFFSET: Vector2 = Vector2(10.0, -26.0)
 
 
 # --- 私有变量 ---
@@ -182,6 +189,116 @@ func play_control_pulse(
 		safe_duration
 	)
 	control.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
+
+
+## 播放整数值变化反馈：主标签短促计数，增量标签向上离场。
+## @param value_label: 展示最终数值的标签。
+## @param old_value: 变化前数值。
+## @param new_value: 变化后数值。
+## @param delta_label: 可选的增量飘字标签。
+## @return: 创建成功时返回 Tween，否则返回 null。
+func play_numeric_change(
+	value_label: Label,
+	old_value: int,
+	new_value: int,
+	delta_label: Label = null
+) -> Tween:
+	if not is_instance_valid(value_label):
+		return null
+
+	_store_control_base_state(value_label, false)
+	_kill_control_tween(value_label)
+	_kill_numeric_tween(value_label)
+	_restore_control_base_state(value_label, false)
+	value_label.text = str(old_value)
+
+	if is_instance_valid(delta_label):
+		_store_control_base_state(delta_label, true)
+		_restore_control_base_state(delta_label, true)
+		delta_label.visible = false
+
+	if old_value == new_value or not value_label.is_inside_tree():
+		value_label.text = str(new_value)
+		return null
+
+	var feedback_color: Color = _get_numeric_feedback_color(new_value > old_value)
+	var base_scale: Vector2 = _get_control_vector2_meta(
+		value_label,
+		_CONTROL_BASE_SCALE_META,
+		value_label.scale
+	)
+	var base_modulate: Color = _get_control_color_meta(
+		value_label,
+		_CONTROL_BASE_MODULATE_META,
+		value_label.modulate
+	)
+	value_label.pivot_offset = value_label.size * 0.5
+	value_label.scale = base_scale * 1.08
+	value_label.modulate = base_modulate.lerp(feedback_color, 0.22)
+
+	var tween: Tween = value_label.create_tween()
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
+	var _number_tweener: MethodTweener = tween.tween_method(
+		_set_numeric_label_progress.bind(value_label, old_value, new_value),
+		0.0,
+		1.0,
+		_NUMERIC_CHANGE_DURATION
+	)
+	var _scale_tweener: PropertyTweener = tween.tween_property(
+		value_label,
+		"scale",
+		base_scale,
+		_NUMERIC_CHANGE_DURATION
+	)
+	var _modulate_tweener: PropertyTweener = tween.tween_property(
+		value_label,
+		"modulate",
+		base_modulate,
+		_NUMERIC_CHANGE_DURATION
+	)
+
+	if is_instance_valid(delta_label):
+		_prepare_numeric_delta_label(delta_label, new_value - old_value, feedback_color)
+		var delta_base_position: Vector2 = _get_control_vector2_meta(
+			delta_label,
+			_CONTROL_BASE_POSITION_META,
+			delta_label.position
+		)
+		var delta_base_scale: Vector2 = _get_control_vector2_meta(
+			delta_label,
+			_CONTROL_BASE_SCALE_META,
+			delta_label.scale
+		)
+		var _delta_position_tweener: PropertyTweener = tween.tween_property(
+			delta_label,
+			"position",
+			delta_base_position + _NUMERIC_DELTA_END_OFFSET,
+			_NUMERIC_DELTA_DURATION
+		)
+		var _delta_scale_tweener: PropertyTweener = tween.tween_property(
+			delta_label,
+			"scale",
+			delta_base_scale,
+			_NUMERIC_CHANGE_DURATION
+		)
+		var delta_fade_tweener: PropertyTweener = tween.tween_property(
+			delta_label,
+			"modulate:a",
+			0.0,
+			_NUMERIC_DELTA_DURATION * 0.72
+		)
+		var _delta_fade_delay: Tweener = delta_fade_tweener.set_delay(
+			_NUMERIC_DELTA_DURATION * 0.28
+		)
+
+	value_label.set_meta(_NUMERIC_TWEEN_META, tween)
+	var _finished_connection: int = tween.finished.connect(
+		_finish_numeric_change.bind(value_label, delta_label, new_value, tween),
+		CONNECT_ONE_SHOT
+	)
 	return tween
 
 
@@ -398,6 +515,91 @@ func _store_control_base_state(control: Control, store_position: bool) -> void:
 		control.set_meta(_CONTROL_BASE_SCALE_META, control.scale)
 	if not control.has_meta(_CONTROL_BASE_MODULATE_META):
 		control.set_meta(_CONTROL_BASE_MODULATE_META, control.modulate)
+
+
+func _restore_control_base_state(control: Control, restore_position: bool) -> void:
+	if not is_instance_valid(control):
+		return
+	if restore_position:
+		control.position = _get_control_vector2_meta(
+			control,
+			_CONTROL_BASE_POSITION_META,
+			control.position
+		)
+	control.scale = _get_control_vector2_meta(
+		control,
+		_CONTROL_BASE_SCALE_META,
+		control.scale
+	)
+	control.modulate = _get_control_color_meta(
+		control,
+		_CONTROL_BASE_MODULATE_META,
+		control.modulate
+	)
+
+
+func _kill_numeric_tween(value_label: Label) -> void:
+	var tween: Tween = _get_tween_value(_get_control_meta(value_label, _NUMERIC_TWEEN_META, null))
+	if tween != null and tween.is_valid():
+		tween.kill()
+	value_label.set_meta(_NUMERIC_TWEEN_META, null)
+
+
+func _prepare_numeric_delta_label(delta_label: Label, delta: int, color: Color) -> void:
+	var base_position: Vector2 = _get_control_vector2_meta(
+		delta_label,
+		_CONTROL_BASE_POSITION_META,
+		delta_label.position
+	)
+	var base_scale: Vector2 = _get_control_vector2_meta(
+		delta_label,
+		_CONTROL_BASE_SCALE_META,
+		delta_label.scale
+	)
+	delta_label.text = ("+%d" % delta) if delta > 0 else str(delta)
+	delta_label.position = base_position + _NUMERIC_DELTA_START_OFFSET
+	delta_label.pivot_offset = delta_label.size * 0.5
+	delta_label.scale = base_scale * 0.78
+	delta_label.modulate = color
+	delta_label.visible = true
+
+
+func _get_numeric_feedback_color(is_increase: bool) -> Color:
+	if is_instance_valid(_style):
+		return _style.get_value_change_color(is_increase)
+	return _NUMERIC_GAIN_COLOR if is_increase else _NUMERIC_LOSS_COLOR
+
+
+func _set_numeric_label_progress(
+	progress: float,
+	value_label: Label,
+	old_value: int,
+	new_value: int
+) -> void:
+	if not is_instance_valid(value_label):
+		return
+	value_label.text = str(roundi(lerpf(float(old_value), float(new_value), progress)))
+
+
+func _finish_numeric_change(
+	value_label: Label,
+	delta_label: Label,
+	new_value: int,
+	tween: Tween
+) -> void:
+	if not is_instance_valid(value_label):
+		return
+	var active_tween: Tween = _get_tween_value(
+		_get_control_meta(value_label, _NUMERIC_TWEEN_META, null)
+	)
+	if active_tween != tween:
+		return
+	value_label.text = str(new_value)
+	_restore_control_base_state(value_label, false)
+	value_label.set_meta(_NUMERIC_TWEEN_META, null)
+	if is_instance_valid(delta_label):
+		_restore_control_base_state(delta_label, true)
+		delta_label.visible = false
 
 
 func _kill_control_tween(control: Control) -> void:

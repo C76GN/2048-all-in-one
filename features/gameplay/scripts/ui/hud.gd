@@ -10,6 +10,9 @@ extends "res://addons/gf/kernel/base/gf_controller.gd"
 
 ## 动态流程标签列表场景。
 const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://shared/scenes/ui/flow_label_list.tscn")
+const _SCORE_DELTA_LABEL_SCENE: PackedScene = preload(
+	"res://features/gameplay/scenes/ui/score_delta_label.tscn"
+)
 const _FEEDBACK_SCALE: float = 1.035
 const _FEEDBACK_DURATION: float = 0.22
 const _FEEDBACK_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
@@ -34,6 +37,7 @@ var _signal_utility: GFSignalUtility
 var _ui_style_utility: GameUiStyleUtility
 var _ui_motion_utility: GameUiMotionUtility
 var _score_value_label: Label
+var _score_gain_label: Label
 var _move_count_value_label: Label
 var _highest_tile_value_label: Label
 var _score_caption_label: Label
@@ -589,16 +593,52 @@ func _make_display_signature(value: Variant) -> String:
 	return var_to_str(value)
 
 
+func _ensure_score_gain_label() -> Label:
+	if is_instance_valid(_score_gain_label):
+		return _score_gain_label
+	if not is_instance_valid(_score_value_label):
+		return null
+
+	var node: Node = _SCORE_DELTA_LABEL_SCENE.instantiate()
+	if not node is Label:
+		node.free()
+		return null
+	_score_gain_label = node
+	_score_value_label.add_child(_score_gain_label)
+	if is_instance_valid(_ui_style_utility):
+		_ui_style_utility.style_label(
+			_score_gain_label,
+			GameUiStyleUtility.TextRole.FEEDBACK,
+			16
+		)
+	return _score_gain_label
+
+
+func _play_score_change_feedback(old_value: int, new_value: int) -> void:
+	if not is_instance_valid(_score_value_label) or not is_instance_valid(_ui_motion_utility):
+		return
+	var score_gain_label: Label = _ensure_score_gain_label()
+	var _score_tween: Tween = _ui_motion_utility.play_numeric_change(
+		_score_value_label,
+		old_value,
+		new_value,
+		score_gain_label
+	)
+
+
 # --- 信号处理函数 ---
 
 func _on_hud_update_requested(_p: Variant = null) -> void:
 	_mark_dirty()
 
 
-func _on_score_changed(_old_value: int, _new_value: int) -> void:
-	_pulse_control(_score_value_label)
+func _on_score_changed(old_value: int, new_value: int) -> void:
 	_mark_dirty()
-
+	var _deferred_call: Variant = call_deferred(
+		&"_play_score_change_feedback",
+		old_value,
+		new_value
+	)
 
 func _on_move_count_changed(_old_value: int, _new_value: int) -> void:
 	_pulse_control(_move_count_value_label)

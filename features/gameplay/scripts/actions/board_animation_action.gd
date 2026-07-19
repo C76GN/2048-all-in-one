@@ -71,15 +71,30 @@ func execute() -> Variant:
 					# merged 方块可能在同一帧收到了 MOVE 指令（已在上面处理）
 					# 如果它的目标位置已经改变，或者尚未开始移动动画，则触发移动。
 					# animate_move 内部自带了 is_equal_approx 检查，所以这里直接调用是安全的。
-					_append_tween(tweens, merged.animate_move(target_pos))
+					var merged_move_tween: Tween = merged.animate_move(target_pos)
+					_append_tween(tweens, merged_move_tween)
 					
 					if not target_data.is_empty():
-						_apply_target_setup_data(merged, target_data)
-						_append_tween(tweens, merged.animate_merge())
-						_play_tile_feedback(merged, &"merge", str(_get_int(target_data, &"value", merged.value)))
+						var impact_delay: float = (
+							Tile.get_move_animation_duration()
+							if is_instance_valid(merged_move_tween) and merged_move_tween.is_valid()
+							else 0.0
+						)
+						_append_tween(
+							tweens,
+							merged.animate_merge(
+								_apply_merge_impact.bind(merged, target_data),
+								impact_delay
+							)
+						)
 						if _get_bool(target_data, &"do_transform", false):
-							_append_tween(tweens, merged.animate_transform())
-							_play_tile_feedback(merged, &"transform")
+							_append_tween(
+								tweens,
+								merged.animate_transform(
+									_play_tile_feedback.bind(merged, &"transform", ""),
+									impact_delay + Tile.get_merge_animation_duration()
+								)
+							)
 			
 			&"SPAWN":
 				var spawn_tile: Tile = _get_tile(instruction, &"tile")
@@ -92,12 +107,27 @@ func execute() -> Variant:
 				var transform_data: Dictionary = _get_dictionary(instruction, &"target_setup_data")
 				if is_instance_valid(tile) and not transform_data.is_empty():
 					_apply_target_setup_data(tile, transform_data)
+					var transform_delay: float = 0.0
 					if _get_bool(transform_data, &"do_merge", false):
-						_append_tween(tweens, tile.animate_merge())
-						_play_tile_feedback(tile, &"merge", str(_get_int(transform_data, &"value", tile.value)))
+						_append_tween(
+							tweens,
+							tile.animate_merge(
+								_play_tile_feedback.bind(
+									tile,
+									&"merge",
+									_get_score_delta_label(transform_data)
+								)
+							)
+						)
+						transform_delay = Tile.get_merge_animation_duration()
 					if _get_bool(transform_data, &"do_transform", false):
-						_append_tween(tweens, tile.animate_transform())
-						_play_tile_feedback(tile, &"transform")
+						_append_tween(
+							tweens,
+							tile.animate_transform(
+								_play_tile_feedback.bind(tile, &"transform", ""),
+								transform_delay
+							)
+						)
 
 			_:
 				continue
@@ -166,6 +196,18 @@ func _play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Stri
 		return
 
 	_game_board.play_tile_feedback(tile, feedback_type, label_text)
+
+
+func _apply_merge_impact(tile: Tile, target_data: Dictionary) -> void:
+	if not is_instance_valid(tile):
+		return
+	_apply_target_setup_data(tile, target_data)
+	_play_tile_feedback(tile, &"merge", _get_score_delta_label(target_data))
+
+
+static func _get_score_delta_label(target_data: Dictionary) -> String:
+	var score_delta: int = _get_int(target_data, &"score_delta", 0)
+	return str(score_delta) if score_delta != 0 else ""
 
 
 static func _get_instruction_type(instruction: Dictionary) -> StringName:

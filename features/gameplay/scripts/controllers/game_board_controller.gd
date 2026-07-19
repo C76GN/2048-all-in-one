@@ -222,7 +222,13 @@ func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Strin
 
 	var feedback_utility: GameBoardFeedbackUtility = _get_board_feedback_utility()
 	if is_instance_valid(feedback_utility):
-		var _feedback_count: int = feedback_utility.play_feedback(board_container, tile.position, feedback_type, label_text)
+		var _feedback_count: int = feedback_utility.play_feedback(
+			board_container,
+			tile.position,
+			feedback_type,
+			label_text,
+			tile.get_feedback_color()
+		)
 
 	_play_tile_feedback_sound(feedback_type)
 
@@ -1158,6 +1164,7 @@ func _on_board_animation_requested(instructions: Array) -> void:
 							merge_presentation,
 							&"visual_layer_ids"
 						),
+						&"score_delta": GFVariantData.get_option_int(instr, &"score_delta"),
 						&"do_transform": instr.has(&"transform")
 					}
 						

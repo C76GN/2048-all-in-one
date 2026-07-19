@@ -179,17 +179,42 @@ func animate_move(new_position: Vector2) -> Tween:
 
 
 ## 播放方块合并或增强时的脉冲动画（放大后复原）。
+## @param on_impact: 到达碰撞时刻后、脉冲开始前执行的表现更新。
+## @param delay_seconds: 合并冲击开始前的等待时间，通常与移动动画时长一致。
 ## @return: 返回控制该动画的 Tween 对象。
-func animate_merge() -> Tween:
+func animate_merge(
+	on_impact: Callable = Callable(),
+	delay_seconds: float = 0.0
+) -> Tween:
 	if is_instance_valid(_active_scale_tween) and _active_scale_tween.is_valid():
 		_active_scale_tween.kill()
 
 	_active_scale_tween = create_tween()
-	var _transition_result: Tween = _active_scale_tween.set_trans(Tween.TRANS_BACK)
-	var _ease_result: Tween = _active_scale_tween.set_ease(Tween.EASE_OUT)
-	var _scale_up_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "scale", Vector2.ONE * 1.12, _MERGE_PULSE_DURATION)
-	var _scale_down_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "scale", Vector2.ONE, _MERGE_PULSE_DURATION)
-	_play_flash(_FLASH_MERGE_COLOR, _MERGE_PULSE_DURATION * 2.0)
+	if delay_seconds > 0.0:
+		var _delay_tweener: IntervalTweener = _active_scale_tween.tween_interval(delay_seconds)
+	if on_impact.is_valid():
+		var _impact_tweener: CallbackTweener = _active_scale_tween.tween_callback(on_impact)
+	var _flash_tweener: CallbackTweener = _active_scale_tween.tween_callback(
+		_play_flash.bind(_FLASH_MERGE_COLOR, _MERGE_PULSE_DURATION * 2.0)
+	)
+	var scale_up_tweener: PropertyTweener = _active_scale_tween.tween_property(
+		self,
+		"scale",
+		Vector2.ONE * 1.12,
+		_MERGE_PULSE_DURATION
+	)
+	var _scale_up_transition: Tweener = scale_up_tweener.set_trans(Tween.TRANS_BACK).set_ease(
+		Tween.EASE_OUT
+	)
+	var scale_down_tweener: PropertyTweener = _active_scale_tween.tween_property(
+		self,
+		"scale",
+		Vector2.ONE,
+		_MERGE_PULSE_DURATION
+	)
+	var _scale_down_transition: Tweener = scale_down_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
+		Tween.EASE_OUT
+	)
 	return _active_scale_tween
 
 
@@ -208,20 +233,52 @@ func animate_despawn() -> Tween:
 
 
 ## 播放方块被强制转变类型时的“抖动”动画。
+## @param on_impact: 转化反馈开始时执行的回调。
+## @param delay_seconds: 转化反馈开始前的等待时间。
 ## @return: 返回控制该动画的 Tween 对象。
-func animate_transform() -> Tween:
+func animate_transform(
+	on_impact: Callable = Callable(),
+	delay_seconds: float = 0.0
+) -> Tween:
 	if is_instance_valid(_active_rotation_tween) and _active_rotation_tween.is_valid():
 		_active_rotation_tween.kill()
 
 	_active_rotation_tween = create_tween()
 	var _transition_result: Tween = _active_rotation_tween.set_trans(Tween.TRANS_SINE)
 	var _ease_result: Tween = _active_rotation_tween.set_ease(Tween.EASE_IN_OUT)
+	if delay_seconds > 0.0:
+		var _delay_tweener: IntervalTweener = _active_rotation_tween.tween_interval(delay_seconds)
+	if on_impact.is_valid():
+		var _impact_tweener: CallbackTweener = _active_rotation_tween.tween_callback(on_impact)
+	var _flash_tweener: CallbackTweener = _active_rotation_tween.tween_callback(
+		_play_flash.bind(_FLASH_TRANSFORM_COLOR, 0.14)
+	)
 	var _rotate_left_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", -4.0, 0.04)
 	var _rotate_right_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 4.0, 0.05)
 	var _rotate_settle_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", -2.0, 0.04)
 	var _rotate_home_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 0.0, 0.05)
-	_play_flash(_FLASH_TRANSFORM_COLOR, 0.14)
 	return _active_rotation_tween
+
+
+## 返回移动反馈的标准时长，供批量表现动作安排冲击时刻。
+static func get_move_animation_duration() -> float:
+	return _MOVE_DURATION
+
+
+## 返回合并脉冲的完整时长，供后续表现动作顺序衔接。
+static func get_merge_animation_duration() -> float:
+	return _MERGE_PULSE_DURATION * 2.0
+
+
+## 返回当前方块主题背景色，供粒子和浮动文字继承视觉语义。
+func get_feedback_color() -> Color:
+	if not is_instance_valid(background):
+		return Color.WHITE
+	var panel_style: StyleBox = background.get_theme_stylebox("panel")
+	if panel_style is StyleBoxFlat:
+		var flat_style: StyleBoxFlat = panel_style
+		return flat_style.bg_color
+	return Color.WHITE
 
 
 # --- 私有/辅助方法 ---

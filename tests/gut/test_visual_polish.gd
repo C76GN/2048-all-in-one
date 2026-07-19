@@ -420,10 +420,35 @@ func test_tile_visual_animations_return_live_tweens() -> void:
 	assert_true(is_instance_valid(merge_tween) and merge_tween.is_valid(), "合并动画应返回有效 Tween。")
 
 	tile.reset_animation_state()
+	var delayed_merge_tween: Tween = tile.animate_merge(
+		tile.set_meta.bind(&"_test_merge_impact", true),
+		Tile.get_move_animation_duration()
+	)
+	assert_false(
+		GFVariantData.to_bool(tile.get_meta(&"_test_merge_impact", false)),
+		"移动尚未结束时不得提前触发合并冲击。"
+	)
+	var _partial_step_active: bool = delayed_merge_tween.custom_step(
+		Tile.get_move_animation_duration() * 0.5
+	)
+	assert_false(
+		GFVariantData.to_bool(tile.get_meta(&"_test_merge_impact", false)),
+		"合并冲击回调必须等待移动动画完成。"
+	)
+	var _impact_step_active: bool = delayed_merge_tween.custom_step(
+		Tile.get_move_animation_duration() * 0.6
+	)
+	assert_true(
+		GFVariantData.to_bool(tile.get_meta(&"_test_merge_impact", false)),
+		"移动完成后应立即触发合并冲击。"
+	)
+
+	tile.reset_animation_state()
 	var transform_tween: Tween = tile.animate_transform()
 	assert_true(is_instance_valid(transform_tween) and transform_tween.is_valid(), "转化动画应返回有效 Tween。")
 
 	tile.reset_animation_state()
+
 
 func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	var root: Control = Control.new()
@@ -508,6 +533,28 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	assert_true(_get_event_count(emitted_events, &"selected") == 1, "hover/focus 应发出 UI 选择音效语义信号。")
 	assert_true(_get_event_count(emitted_events, &"confirmed") == 1, "button down 应发出 UI 确认音效语义信号。")
 	architecture.dispose()
+
+
+func test_ui_motion_utility_animates_numeric_change_with_delta_label() -> void:
+	var root: Control = Control.new()
+	var value_label: Label = Label.new()
+	var delta_label: Label = Label.new()
+	root.add_child(value_label)
+	value_label.add_child(delta_label)
+	add_child(root)
+	await get_tree().process_frame
+
+	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var tween: Tween = motion_utility.play_numeric_change(value_label, 16, 48, delta_label)
+
+	assert_true(is_instance_valid(tween) and tween.is_valid(), "整数变化反馈应返回有效 Tween。")
+	assert_true(value_label.text == "16", "计数反馈应从旧值开始。")
+	assert_true(delta_label.visible and delta_label.text == "+32", "正向变化应显示可读的增量飘字。")
+	var _finished_step_active: bool = tween.custom_step(1.0)
+	assert_true(value_label.text == "48", "计数反馈结束后必须落在模型最终值。")
+	assert_false(delta_label.visible, "增量飘字完成后应恢复隐藏状态。")
+	tween.kill()
+	root.free()
 
 
 func test_ui_style_utility_styles_spinbox_as_readable_light_field() -> void:
@@ -983,7 +1030,7 @@ func _create_tile() -> Tile:
 	if not is_instance_valid(tile):
 		assert_true(false, "Tile 场景应能实例化为 Tile。")
 		return null
-	add_child_autoqfree(tile)
+	add_child_autofree(tile)
 	await get_tree().process_frame
 	return tile
 

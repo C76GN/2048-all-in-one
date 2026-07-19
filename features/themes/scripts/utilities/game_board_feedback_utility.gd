@@ -59,12 +59,14 @@ func dispose() -> void:
 ## @param local_position: 特效出现的局部坐标。
 ## @param feedback_type: 反馈类型，如 merge、spawn、transform。
 ## @param label_text: 可选浮动文字。
+## @param source_color: 可选的方块主题色；提供时会与语义反馈色混合。
 ## @return: 本次创建的可见反馈子节点数量。
 func play_feedback(
 	parent: Node2D,
 	local_position: Vector2,
 	feedback_type: StringName,
-	label_text: String = ""
+	label_text: String = "",
+	source_color: Color = Color.TRANSPARENT
 ) -> int:
 	if not is_instance_valid(parent) or not parent.is_inside_tree():
 		return 0
@@ -75,7 +77,7 @@ func play_feedback(
 	effect_root.z_index = _FEEDBACK_Z_INDEX
 	parent.add_child(effect_root)
 
-	var color: Color = _get_feedback_color(feedback_type)
+	var color: Color = _resolve_feedback_color(feedback_type, source_color)
 	var particle_count: int = _get_particle_count(feedback_type)
 	var duration: float = _get_particle_duration(feedback_type)
 	var created_count: int = 0
@@ -106,7 +108,12 @@ func _create_spark(
 ) -> void:
 	var spark: Panel = Panel.new()
 	var spark_size: float = _SPARK_BASE_SIZE + float(index % 3)
-	spark.size = Vector2.ONE * spark_size
+	var is_print_chip: bool = index % 2 == 0
+	spark.size = (
+		Vector2(spark_size * 1.45, maxf(spark_size * 0.52, 2.0))
+		if is_print_chip
+		else Vector2.ONE * spark_size
+	)
 	spark.pivot_offset = spark.size * 0.5
 	spark.position = -spark.size * 0.5
 	spark.modulate = color
@@ -117,6 +124,7 @@ func _create_spark(
 
 	var angle: float = _get_particle_phase(feedback_type) + TAU * float(index) / maxf(float(count), 1.0)
 	var direction: Vector2 = Vector2.RIGHT.rotated(angle)
+	spark.rotation = angle + (PI * 0.25 if is_print_chip else 0.0)
 	var distance: float = _get_particle_distance(feedback_type) * (0.78 + float(index % 4) * 0.08)
 	var tween: Tween = spark.create_tween()
 	var _parallel_result: Tween = tween.set_parallel(true)
@@ -124,6 +132,12 @@ func _create_spark(
 	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
 	var _position_tweener: PropertyTweener = tween.tween_property(spark, "position", direction * distance - spark.size * 0.5, duration)
 	var _scale_tweener: PropertyTweener = tween.tween_property(spark, "scale", Vector2.ONE * 0.22, duration)
+	var _rotation_tweener: PropertyTweener = tween.tween_property(
+		spark,
+		"rotation",
+		spark.rotation + (0.65 if index % 2 == 0 else -0.65),
+		duration
+	)
 	var _fade_tweener: PropertyTweener = tween.tween_property(spark, "modulate:a", 0.0, duration)
 
 
@@ -182,6 +196,15 @@ func _get_feedback_color(feedback_type: StringName) -> Color:
 			return _DEFAULT_COLOR
 
 
+func _resolve_feedback_color(feedback_type: StringName, source_color: Color) -> Color:
+	var semantic_color: Color = _get_feedback_color(feedback_type)
+	if source_color.a <= 0.0:
+		return semantic_color
+	var resolved: Color = source_color.lerp(semantic_color, 0.24)
+	resolved.a = 1.0
+	return resolved
+
+
 func _get_particle_count(feedback_type: StringName) -> int:
 	match feedback_type:
 		&"merge":
@@ -231,7 +254,7 @@ func _get_particle_phase(feedback_type: StringName) -> float:
 func _get_label_text(feedback_type: StringName, label_text: String) -> String:
 	if not label_text.is_empty():
 		if feedback_type == &"merge":
-			return "+" + label_text
+			return label_text if label_text.begins_with("-") or label_text.begins_with("+") else "+" + label_text
 		return label_text
 	if feedback_type == &"transform":
 		return "!"

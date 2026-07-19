@@ -230,6 +230,61 @@ func test_sparse_gameplay_systems_respect_active_cells_and_gaps() -> void:
 	architecture.dispose()
 
 
+func test_merge_animation_instruction_preserves_rule_score_delta() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var grid: GridModel = GridModel.new()
+	var composition: TileCompositionUtility = TileCompositionUtility.new()
+	var movement_system: GridMovementSystem = GridMovementSystem.new()
+	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
+	await architecture.register_utility(GFCapabilityUtility, GFCapabilityUtility.new())
+	await architecture.register_utility(TileCompositionUtility, composition)
+	await architecture.register_model(GridModel, grid)
+	await architecture.register_system(GridMovementSystem, movement_system)
+	await architecture.init()
+
+	var definition: TileDefinition = _load_classic_definition()
+	var interaction_rule: ClassicInteractionRule = ClassicInteractionRule.new()
+	interaction_rule.tile_definitions = [definition]
+	interaction_rule.default_definition_id = definition.definition_id
+	assert_true(
+		grid.initialize(
+			BoardTopology.create_rectangle(Vector2i(2, 1)),
+			interaction_rule,
+			ClassicMovementRule.new()
+		),
+		"合并反馈测试棋盘应初始化成功。"
+	)
+	assert_true(
+		grid.place_tile(composition.create_tile(definition, 2), Vector2i(0, 0)),
+		"第一个经典方块应放置成功。"
+	)
+	assert_true(
+		grid.place_tile(composition.create_tile(definition, 2), Vector2i(1, 0)),
+		"第二个经典方块应放置成功。"
+	)
+
+	var captured: Dictionary = {}
+	architecture.register_simple_event(
+		EventNames.BOARD_ANIMATION_REQUESTED,
+		GFEventListener.from_callable(
+			func(payload: Variant) -> void: captured[&"instructions"] = payload,
+			1
+		)
+	)
+	var move_data: MoveData = movement_system.handle_move(Vector2i.LEFT)
+	assert_true(move_data != null, "同值方块应生成有效合并移动。")
+
+	var instructions: Array = GFVariantData.to_array(captured.get(&"instructions", []))
+	assert_true(instructions.size() == 1, "单次双方块合并应生成一条表现指令。")
+	if instructions.size() == 1 and instructions[0] is Dictionary:
+		var instruction: Dictionary = instructions[0]
+		assert_true(
+			GFVariantData.get_option_int(instruction, &"score_delta") == 4,
+			"合并表现必须携带规则返回的真实 score_delta。"
+		)
+	architecture.dispose()
+
+
 # --- 私有/辅助方法 ---
 
 func _load_classic_definition() -> TileDefinition:

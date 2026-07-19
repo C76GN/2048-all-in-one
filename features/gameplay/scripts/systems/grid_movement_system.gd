@@ -113,6 +113,7 @@ func handle_move(direction: Vector2i) -> MoveData:
 			):
 				continue
 
+			var merge_score_delta: int = _get_int(merge_info, &"score", 0)
 			var instruction: Dictionary = {
 				&"type": &"MERGE",
 				&"consumed_data": consumed,
@@ -120,11 +121,12 @@ func handle_move(direction: Vector2i) -> MoveData:
 				&"to_grid_pos": lane[final_line_pos],
 				&"from_grid_pos_consumed": lane[orig_consumed_idx],
 				&"from_grid_pos_merged": lane[orig_merged_idx],
+				&"score_delta": merge_score_delta,
 			}
 			if merge_info.has(&"transform"):
 				instruction[&"transform"] = true
 			instructions.append(instruction)
-			score_delta += _get_int(merge_info, &"score", 0)
+			score_delta += merge_score_delta
 			ratio_resolution_count += _get_int(merge_info, &"ratio_resolved", 0)
 
 		var tiles_in_new_line_ids: Dictionary = {}
