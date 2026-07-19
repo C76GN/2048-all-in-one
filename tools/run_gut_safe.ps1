@@ -98,6 +98,17 @@ function Get-GodotValidationIssues {
 	param([string[]]$OutputPaths)
 
 	$output = Get-CombinedOutputText $OutputPaths
+	$validationLines = New-Object System.Collections.Generic.List[string]
+	foreach ($line in ($output -split "`r?`n")) {
+		# Godot --verbose inventories every retained StringName at shutdown. Those entries may
+		# contain warning-like method names (for example `_is_unsafe_json_integer`) without
+		# representing a GDScript diagnostic.
+		if ($line.TrimStart().StartsWith("Orphan StringName:", [System.StringComparison]::Ordinal)) {
+			continue
+		}
+		$validationLines.Add($line)
+	}
+	$output = [string]::Join("`n", $validationLines)
 	$patterns = @(
 		"SCRIPT ERROR",
 		"Parse Error:",

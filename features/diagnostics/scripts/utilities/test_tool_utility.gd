@@ -19,7 +19,7 @@ const _CONSOLE_COMMAND: String = "toggle_test_tools"
 # --- 公共变量 ---
 
 ## 收到普通对局棋盘上下文后是否自动打开独立工作区。
-var open_on_gameplay_context: bool = true
+var open_on_gameplay_context: bool = false
 
 
 # --- 私有变量 ---

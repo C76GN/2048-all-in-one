@@ -14,6 +14,8 @@ enum PatternType {
 	SCALES,
 	HALFTONE,
 	DIAGONAL_HATCH,
+	SPLIT_DIAGONAL,
+	CONCENTRIC,
 }
 
 
@@ -57,6 +59,10 @@ func _draw() -> void:
 				_draw_halftone_pattern()
 			PatternType.DIAGONAL_HATCH:
 				_draw_diagonal_hatch_pattern()
+			PatternType.SPLIT_DIAGONAL:
+				_draw_split_diagonal_pattern()
+			PatternType.CONCENTRIC:
+				_draw_concentric_pattern()
 			_:
 				pass
 
@@ -90,11 +96,11 @@ func _resolve_pattern_colors(base_color: Color) -> void:
 		+ base_color.b * 0.114
 	)
 	if luminance > 0.58:
-		_pattern_color = Color(_INK_COLOR.r, _INK_COLOR.g, _INK_COLOR.b, 0.12)
+		_pattern_color = Color(_INK_COLOR.r, _INK_COLOR.g, _INK_COLOR.b, 0.22)
 		_highlight_color = Color(_CYAN_REGISTER_COLOR.r, _CYAN_REGISTER_COLOR.g, _CYAN_REGISTER_COLOR.b, 0.20)
 		_registration_shadow_color = Color(_MAGENTA_REGISTER_COLOR.r, _MAGENTA_REGISTER_COLOR.g, _MAGENTA_REGISTER_COLOR.b, 0.16)
 	else:
-		_pattern_color = Color(_PAPER_COLOR.r, _PAPER_COLOR.g, _PAPER_COLOR.b, 0.15)
+		_pattern_color = Color(_PAPER_COLOR.r, _PAPER_COLOR.g, _PAPER_COLOR.b, 0.25)
 		_highlight_color = Color(_CYAN_REGISTER_COLOR.r, _CYAN_REGISTER_COLOR.g, _CYAN_REGISTER_COLOR.b, 0.24)
 		_registration_shadow_color = Color(_MAGENTA_REGISTER_COLOR.r, _MAGENTA_REGISTER_COLOR.g, _MAGENTA_REGISTER_COLOR.b, 0.18)
 
@@ -148,10 +154,10 @@ func _draw_scales_pattern() -> void:
 	var row_spacing: float = 10.0
 	var y: float = _INNER_MARGIN + radius
 	var row: int = 0
-	while y < size.y - _INNER_MARGIN + radius:
+	while y <= size.y - _INNER_MARGIN - radius:
 		var x_offset: float = 0.0 if row % 2 == 0 else radius
-		var x: float = _INNER_MARGIN - radius + x_offset
-		while x < size.x - _INNER_MARGIN + radius:
+		var x: float = _INNER_MARGIN + radius + x_offset
+		while x <= size.x - _INNER_MARGIN - radius:
 			draw_arc(
 				Vector2(x, y),
 				radius,
@@ -184,14 +190,66 @@ func _draw_halftone_pattern() -> void:
 
 func _draw_diagonal_hatch_pattern() -> void:
 	var spacing: float = 13.0
-	var start: float = -size.y
-	var end: float = size.x + size.y
+	var inner_rect: Rect2 = Rect2(
+		Vector2.ONE * _INNER_MARGIN,
+		size - Vector2.ONE * _INNER_MARGIN * 2.0
+	)
+	var start: float = inner_rect.position.x - inner_rect.size.y
+	var end: float = inner_rect.end.x
 	var position_value: float = start
 	while position_value < end:
-		var from_point: Vector2 = Vector2(position_value, size.y - _INNER_MARGIN)
-		var to_point: Vector2 = Vector2(position_value + size.y, _INNER_MARGIN)
-		draw_line(from_point, to_point, _pattern_color, 2.0)
+		var clipped_start_x: float = maxf(position_value, inner_rect.position.x)
+		var clipped_end_x: float = minf(
+			position_value + inner_rect.size.y,
+			inner_rect.end.x
+		)
+		if clipped_start_x <= clipped_end_x:
+			var from_point: Vector2 = Vector2(
+				clipped_start_x,
+				inner_rect.end.y - (clipped_start_x - position_value)
+			)
+			var to_point: Vector2 = Vector2(
+				clipped_end_x,
+				inner_rect.end.y - (clipped_end_x - position_value)
+			)
+			draw_line(from_point, to_point, _pattern_color, 2.0)
 		position_value += spacing
+
+
+func _draw_split_diagonal_pattern() -> void:
+	var inner_rect: Rect2 = Rect2(
+		Vector2.ONE * _INNER_MARGIN,
+		size - Vector2.ONE * _INNER_MARGIN * 2.0
+	)
+	var split_fill: PackedVector2Array = PackedVector2Array([
+		inner_rect.position,
+		Vector2(inner_rect.end.x, inner_rect.position.y),
+		Vector2(inner_rect.position.x, inner_rect.end.y),
+	])
+	draw_colored_polygon(split_fill, _pattern_color)
+	var diagonal_color: Color = _registration_shadow_color
+	draw_line(
+		inner_rect.position + Vector2(0.0, inner_rect.size.y),
+		inner_rect.position + Vector2(inner_rect.size.x, 0.0),
+		diagonal_color,
+		4.0
+	)
+
+
+func _draw_concentric_pattern() -> void:
+	var center: Vector2 = size * 0.5
+	var half_extent: float = minf(size.x, size.y) * 0.5 - _INNER_MARGIN
+	var inset: float = 3.0
+	var ring_index: int = 0
+	while inset < half_extent:
+		var extent: float = half_extent - inset
+		var ring_rect: Rect2 = Rect2(
+			center - Vector2.ONE * extent,
+			Vector2.ONE * extent * 2.0
+		)
+		draw_rect(ring_rect, _pattern_color, false, 2.0)
+		inset += 10.0 + float(ring_index % 2) * 3.0
+		ring_index += 1
 
 
 func _draw_inner_highlight() -> void:

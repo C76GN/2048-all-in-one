@@ -12,6 +12,8 @@ const GAME_STATUS_MODEL_PATH: String = "res://features/gameplay/scripts/models/g
 const GAME_STATE_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_state_system.gd"
 const GAME_FLOW_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_flow_system.gd"
 const GAME_PAUSE_UTILITY_PATH: String = "res://features/gameplay/scripts/utilities/game_pause_utility.gd"
+const GAME_BOARD_ANIMATION_UTILITY_PATH: String = "res://features/gameplay/scripts/utilities/game_board_animation_utility.gd"
+const GAME_INPUT_PROFILE_UTILITY_PATH: String = "res://features/settings/scripts/utilities/game_input_profile_utility.gd"
 const GAME_INIT_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_init_system.gd"
 const GAME_TURN_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_turn_system.gd"
 const GAME_MOVE_TURN_ACTION_PATH: String = "res://features/gameplay/scripts/actions/game_move_turn_action.gd"
@@ -118,6 +120,30 @@ func test_project_installer_binds_input_device_before_input_mapping() -> void:
 	assert_true(
 		device_position < mapping_position,
 		"GFInputDeviceUtility 必须先于依赖它的 GFInputMappingUtility 注册。"
+	)
+
+
+func test_project_installer_orders_input_profile_and_board_animation_adapters() -> void:
+	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var input_mapping_position: int = installer_source.find("bind_utility(GFInputMappingUtility)")
+	var input_profile_position: int = installer_source.find(
+		"bind_utility(_GAME_INPUT_PROFILE_UTILITY_SCRIPT)"
+	)
+	var board_animation_position: int = installer_source.find(
+		"bind_utility(_GAME_BOARD_ANIMATION_UTILITY_SCRIPT)"
+	)
+	var input_profile_source: String = _read_text(GAME_INPUT_PROFILE_UTILITY_PATH)
+	var board_animation_source: String = _read_text(GAME_BOARD_ANIMATION_UTILITY_PATH)
+
+	assert_true(input_profile_position > input_mapping_position, "输入覆盖 Adapter 必须在 GF 映射工具之后注册。")
+	assert_true(board_animation_position > input_profile_position, "棋盘动画 Adapter 必须在输入策略之后注册。")
+	assert_true(
+		input_profile_source.contains("GFInputConflictAnalyzer.build_rebind_report"),
+		"按键重映射必须复用 GF 冲突分析器。"
+	)
+	assert_true(
+		board_animation_source.contains("get_linked_queue(BOARD_QUEUE_NAME, board)"),
+		"棋盘动画必须使用绑定棋盘生命周期的 GF 命名队列。"
 	)
 
 

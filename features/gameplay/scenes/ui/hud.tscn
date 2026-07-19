@@ -1,29 +1,82 @@
-[gd_scene format=3 uid="uid://cjq41cf2jqg1h"]
+[gd_scene load_steps=4 format=3 uid="uid://cjq41cf2jqg1h"]
 
-[ext_resource type="Script" uid="uid://c3xlbn570oc40" path="res://features/gameplay/scripts/ui/hud.gd" id="1_y7dsf"]
+[ext_resource type="Script" uid="uid://c3xlbn570oc40" path="res://features/gameplay/scripts/ui/hud.gd" id="1_hud"]
 
-[node name="VBoxContainer" type="VBoxContainer" unique_id=2136437495]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hud_panel"]
+bg_color = Color(1, 0.972549, 0.9098039, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.88)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hint_panel"]
+bg_color = Color(1, 0.972549, 0.9098039, 0.82)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.34901962, 0.2901961, 0.27058825, 0.68)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[node name="Hud" type="Control"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-script = ExtResource("1_y7dsf")
+mouse_filter = 2
+script = ExtResource("1_hud")
 
-[node name="SummaryBar" type="HBoxContainer" parent="." unique_id=2083207301]
+[node name="SafeArea" type="Control" parent="."]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 52)
-layout_mode = 2
-theme_override_constants/separation = 8
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 
-[node name="ScoreMetric" type="VBoxContainer" parent="SummaryBar" unique_id=1967395094]
+[node name="TopScorePanel" type="PanelContainer" parent="SafeArea"]
+layout_mode = 1
+anchors_preset = 10
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -224.0
+offset_top = 14.0
+offset_right = 224.0
+offset_bottom = 82.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_hud_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/TopScorePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 7
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 7
+
+[node name="SummaryBar" type="HBoxContainer" parent="SafeArea/TopScorePanel/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="ScoreMetric" type="VBoxContainer" parent="SafeArea/TopScorePanel/Margin/SummaryBar"]
+custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="ScoreCaptionLabel" type="Label" parent="SummaryBar/ScoreMetric" unique_id=407555314]
+[node name="ScoreCaptionLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/ScoreMetric"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
@@ -31,7 +84,7 @@ theme_override_font_sizes/font_size = 13
 text = "分数"
 horizontal_alignment = 1
 
-[node name="ScoreValueLabel" type="Label" parent="SummaryBar/ScoreMetric" unique_id=599829388]
+[node name="ScoreValueLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/ScoreMetric"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
@@ -39,12 +92,13 @@ theme_override_font_sizes/font_size = 22
 text = "0"
 horizontal_alignment = 1
 
-[node name="MovesMetric" type="VBoxContainer" parent="SummaryBar" unique_id=598768069]
+[node name="MovesMetric" type="VBoxContainer" parent="SafeArea/TopScorePanel/Margin/SummaryBar"]
+custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="MovesCaptionLabel" type="Label" parent="SummaryBar/MovesMetric" unique_id=1259069943]
+[node name="MovesCaptionLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/MovesMetric"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
@@ -52,7 +106,7 @@ theme_override_font_sizes/font_size = 13
 text = "步数"
 horizontal_alignment = 1
 
-[node name="MoveCountValueLabel" type="Label" parent="SummaryBar/MovesMetric" unique_id=1267851983]
+[node name="MoveCountValueLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/MovesMetric"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
@@ -60,12 +114,13 @@ theme_override_font_sizes/font_size = 22
 text = "0"
 horizontal_alignment = 1
 
-[node name="HighestTileMetric" type="VBoxContainer" parent="SummaryBar" unique_id=1617829490]
+[node name="HighestTileMetric" type="VBoxContainer" parent="SafeArea/TopScorePanel/Margin/SummaryBar"]
+custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 0
 
-[node name="HighestTileCaptionLabel" type="Label" parent="SummaryBar/HighestTileMetric" unique_id=430485981]
+[node name="HighestTileCaptionLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/HighestTileMetric"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
@@ -73,7 +128,7 @@ theme_override_font_sizes/font_size = 13
 text = "最大方块"
 horizontal_alignment = 1
 
-[node name="HighestTileValueLabel" type="Label" parent="SummaryBar/HighestTileMetric" unique_id=527426079]
+[node name="HighestTileValueLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/HighestTileMetric"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
@@ -81,35 +136,201 @@ theme_override_font_sizes/font_size = 22
 text = "0"
 horizontal_alignment = 1
 
-[node name="DetailsToggleButton" type="Button" parent="SummaryBar" unique_id=1044614872]
+[node name="NotificationLabel" type="RichTextLabel" parent="SafeArea"]
 unique_name_in_owner = true
 visible = false
-custom_minimum_size = Vector2(36, 36)
-layout_mode = 2
-tooltip_text = "展开详细状态"
-text = "+"
-
-[node name="NotificationLabel" type="RichTextLabel" parent="." unique_id=1723771130]
-unique_name_in_owner = true
-visible = false
-custom_minimum_size = Vector2(0, 40)
-layout_mode = 2
+layout_mode = 1
+anchors_preset = 10
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -280.0
+offset_top = 90.0
+offset_right = 280.0
+offset_bottom = 132.0
+grow_horizontal = 2
+mouse_filter = 2
 bbcode_enabled = true
-text = ""
 fit_content = true
 scroll_active = false
 autowrap_mode = 3
-theme_override_colors/default_color = Color(0.34901962, 0.2901961, 0.27058825, 1)
+theme_override_colors/default_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+horizontal_alignment = 1
 
-[node name="DetailsPanel" type="VBoxContainer" parent="." unique_id=1606446739]
+[node name="DetailsToggleButton" type="Button" parent="SafeArea"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 1
+offset_left = 18.0
+offset_top = 18.0
+offset_right = 62.0
+offset_bottom = 62.0
+tooltip_text = "展开详细状态"
+text = "i"
+
+[node name="DetailsPanel" type="PanelContainer" parent="SafeArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+offset_left = 18.0
+offset_top = 66.0
+offset_right = 318.0
+offset_bottom = 350.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_hud_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/DetailsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="DetailsContent" type="VBoxContainer" parent="SafeArea/DetailsPanel/Margin"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="TitleLabel" type="Label" parent="DetailsPanel" unique_id=727872724]
+[node name="TitleLabel" type="Label" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 text = "游戏状态"
 
-[node name="StatsContainer" type="VBoxContainer" parent="DetailsPanel" unique_id=1098768363]
+[node name="StatsContainer" type="VBoxContainer" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+unique_name_in_owner = true
 layout_mode = 2
+
+[node name="ControlHintPanel" type="PanelContainer" parent="SafeArea"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = -172.0
+offset_right = 318.0
+offset_bottom = -18.0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/ControlHintPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="Content" type="VBoxContainer" parent="SafeArea/ControlHintPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Hints" type="VBoxContainer" parent="SafeArea/ControlHintPanel/Margin/Content"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MoveHintLabel" type="Label" parent="SafeArea/ControlHintPanel/Margin/Content/Hints"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "移动: WASD / 方向键 / 十字键 / 滑动"
+autowrap_mode = 3
+
+[node name="ActionHintLabel" type="Label" parent="SafeArea/ControlHintPanel/Margin/Content/Hints"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "撤销 Z · 重做 Y · 书签 B · 暂停 Esc"
+autowrap_mode = 3
+
+[node name="DPad" type="GridContainer" parent="SafeArea/ControlHintPanel/Margin/Content"]
+layout_mode = 2
+size_flags_horizontal = 4
+columns = 3
+
+[node name="SpacerTopLeft" type="Control" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+
+[node name="MoveUpButton" type="Button" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+tooltip_text = "向上移动"
+text = "↑"
+
+[node name="SpacerTopRight" type="Control" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+
+[node name="MoveLeftButton" type="Button" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+tooltip_text = "向左移动"
+text = "←"
+
+[node name="MoveDownButton" type="Button" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+tooltip_text = "向下移动"
+text = "↓"
+
+[node name="MoveRightButton" type="Button" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+tooltip_text = "向右移动"
+text = "→"
+
+[node name="ActionPanel" type="PanelContainer" parent="SafeArea"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -282.0
+offset_top = -78.0
+offset_right = -18.0
+offset_bottom = -18.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/ActionPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 7
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 7
+
+[node name="Buttons" type="HBoxContainer" parent="SafeArea/ActionPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PauseButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+tooltip_text = "暂停"
+text = "Ⅱ"
+
+[node name="UndoButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+tooltip_text = "撤销"
+text = "↶"
+
+[node name="RedoButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+tooltip_text = "重做"
+text = "↷"
+
+[node name="BookmarkButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+tooltip_text = "保存书签"
+text = "☆"

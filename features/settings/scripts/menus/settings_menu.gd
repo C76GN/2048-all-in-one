@@ -13,10 +13,26 @@ const _FIELD_VSYNC_INDEX: StringName = &"vsync_index"
 const _FIELD_VISUAL_THEME_INDEX: StringName = &"visual_theme_index"
 const _FIELD_SOUND_THEME_INDEX: StringName = &"sound_theme_index"
 const _FIELD_MASTER_VOLUME: StringName = &"master_volume"
+const _FIELD_INPUT_TIMING_INDEX: StringName = &"input_timing_index"
 const _LOCALE_EN: String = "en"
 const _LOCALE_ZH: String = "zh"
 const _AUDIO_BUS_MASTER: String = "Master"
 const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
+const _COMPACT_LAYOUT_MAX_WIDTH: float = 920.0
+const _DESKTOP_MARGIN_HORIZONTAL: int = 34
+const _DESKTOP_MARGIN_VERTICAL: int = 28
+const _COMPACT_MARGIN_HORIZONTAL: int = 12
+const _COMPACT_MARGIN_VERTICAL: int = 14
+const _DESKTOP_CONTENT_WIDTH: float = 560.0
+const _COMPACT_FIELD_LABEL_WIDTH: float = 112.0
+const _DESKTOP_FIELD_LABEL_WIDTH: float = 150.0
+const _COMPACT_BINDING_LABEL_WIDTH: float = 124.0
+const _DESKTOP_BINDING_LABEL_WIDTH: float = 185.0
+const _DESKTOP_BINDING_BUTTON_WIDTH: float = 250.0
+const _COMPACT_CONTROL_HEIGHT: float = 44.0
+const _DESKTOP_CONTROL_HEIGHT: float = 38.0
+const _COMPACT_BINDING_ROW_HEIGHT: float = 44.0
+const _DESKTOP_BINDING_ROW_HEIGHT: float = 34.0
 
 
 # --- 公共变量 ---
@@ -28,11 +44,21 @@ var return_to_main_menu_on_back: bool = true
 # --- 私有变量 ---
 
 var _form_binder: GFFormBinder
+var _input_profile: GameInputProfileUtility
+var _input_detector: GFInputDetector
+var _pending_binding: Dictionary = {}
+var _is_compact_layout: bool = false
+var _responsive_layout_update_queued: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
 
 @onready var _page_title: Label = %PageTitle
+@onready var _margin_container: MarginContainer = $MarginContainer
+@onready var _columns_container: HBoxContainer = $MarginContainer/ColumnsContainer
+@onready var _center_content_holder: CenterContainer = %CenterContentHolder
+@onready var _center_content_vbox: VBoxContainer = %CenterContentVBox
+@onready var _right_column: VBoxContainer = %RightColumn
 @onready var _language_option: OptionButton = %LanguageOptionButton
 @onready var _window_mode_option: OptionButton = %WindowModeOptionButton
 @onready var _vsync_option: OptionButton = %VSyncOptionButton
@@ -41,6 +67,12 @@ var _form_binder: GFFormBinder
 @onready var _master_volume_slider: HSlider = %MasterVolumeSlider
 @onready var _volume_value_label: Label = %VolumeValueLabel
 @onready var _back_button: Button = %BackButton
+@onready var _compact_back_button: Button = %CompactBackButton
+@onready var _input_timing_option: OptionButton = %InputTimingOptionButton
+@onready var _input_bindings_header: Label = %InputBindingsHeader
+@onready var _input_bindings_container: VBoxContainer = %InputBindingsContainer
+@onready var _reset_bindings_button: Button = %ResetBindingsButton
+@onready var _input_binding_status_label: Label = %InputBindingStatusLabel
 
 ## 语言选项标签。
 @onready var _language_label: Label = _get_sibling_label(_language_option)
@@ -67,27 +99,145 @@ var _form_binder: GFFormBinder
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	_input_profile = _get_input_profile_utility()
+	_setup_input_detector()
 	_setup_setting_options()
 	_sync_controls_from_settings()
 	_setup_form_binder()
 	var _connect_result_62: int = _back_button.pressed.connect(_on_back_button_pressed)
+	var _compact_back_connection: int = _compact_back_button.pressed.connect(
+		_on_back_button_pressed
+	)
+	var _reset_connect_result: int = _reset_bindings_button.pressed.connect(
+		_on_reset_bindings_pressed
+	)
+	if is_instance_valid(_input_profile):
+		var _bindings_changed_connection: int = _input_profile.bindings_changed.connect(
+			_rebuild_input_binding_rows
+		)
 
+	_apply_responsive_layout()
 	_update_ui_text()
+	_rebuild_input_binding_rows()
 	_language_option.grab_focus()
 
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
 		_update_ui_text()
+	elif what == NOTIFICATION_RESIZED and is_node_ready():
+		_queue_responsive_layout_update()
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if is_instance_valid(_input_detector) and _input_detector.is_detecting():
+		return
 	if event.is_action_pressed("ui_cancel"):
 		_on_back_button_pressed()
 		get_viewport().set_input_as_handled()
 
 
+# --- 公共方法 ---
+
+## 返回设置页是否应采用移动端单列布局。
+## @param viewport_size: 当前逻辑视口尺寸。
+## @return 宽度低于移动端断点时返回 true。
+static func is_compact_layout(viewport_size: Vector2) -> bool:
+	return viewport_size.x > 0.0 and viewport_size.x < _COMPACT_LAYOUT_MAX_WIDTH
+
+
 # --- 私有/辅助方法 ---
+
+func _queue_responsive_layout_update() -> void:
+	if _responsive_layout_update_queued:
+		return
+	_responsive_layout_update_queued = true
+	call_deferred(&"_apply_responsive_layout")
+
+
+func _apply_responsive_layout() -> void:
+	_responsive_layout_update_queued = false
+	if not is_inside_tree():
+		return
+	_is_compact_layout = is_compact_layout(size)
+	_right_column.visible = not _is_compact_layout
+	_compact_back_button.visible = _is_compact_layout
+	_columns_container.add_theme_constant_override(
+		"separation",
+		0 if _is_compact_layout else 34
+	)
+	_margin_container.add_theme_constant_override(
+		"margin_left",
+		_COMPACT_MARGIN_HORIZONTAL if _is_compact_layout else _DESKTOP_MARGIN_HORIZONTAL
+	)
+	_margin_container.add_theme_constant_override(
+		"margin_right",
+		_COMPACT_MARGIN_HORIZONTAL if _is_compact_layout else _DESKTOP_MARGIN_HORIZONTAL
+	)
+	_margin_container.add_theme_constant_override(
+		"margin_top",
+		_COMPACT_MARGIN_VERTICAL if _is_compact_layout else _DESKTOP_MARGIN_VERTICAL
+	)
+	_margin_container.add_theme_constant_override(
+		"margin_bottom",
+		_COMPACT_MARGIN_VERTICAL if _is_compact_layout else _DESKTOP_MARGIN_VERTICAL
+	)
+	_center_content_vbox.custom_minimum_size.x = (
+		0.0 if _is_compact_layout else _DESKTOP_CONTENT_WIDTH
+	)
+	_center_content_holder.size_flags_vertical = (
+		Control.SIZE_SHRINK_BEGIN if _is_compact_layout else Control.SIZE_EXPAND_FILL
+	)
+	_center_content_vbox.size_flags_horizontal = (
+		Control.SIZE_EXPAND_FILL if _is_compact_layout else Control.SIZE_SHRINK_CENTER
+	)
+	_center_content_vbox.size_flags_vertical = (
+		Control.SIZE_EXPAND_FILL if _is_compact_layout else Control.SIZE_SHRINK_CENTER
+	)
+	_page_title.add_theme_font_size_override("font_size", 36 if _is_compact_layout else 44)
+	_apply_field_widths()
+	_rebuild_input_binding_rows()
+
+
+func _apply_field_widths() -> void:
+	var labels: Array[Label] = [
+		_language_label,
+		_window_mode_label,
+		_vsync_label,
+		_visual_theme_label,
+		_sound_theme_label,
+		_master_volume_label,
+		_get_sibling_label(_input_timing_option),
+	]
+	for label: Label in labels:
+		if is_instance_valid(label):
+			label.custom_minimum_size.x = (
+				_COMPACT_FIELD_LABEL_WIDTH
+				if _is_compact_layout
+				else _DESKTOP_FIELD_LABEL_WIDTH
+			)
+	var option_controls: Array[Control] = [
+		_language_option,
+		_window_mode_option,
+		_vsync_option,
+		_visual_theme_option,
+		_sound_theme_option,
+		_input_timing_option,
+	]
+	for option_control: Control in option_controls:
+		option_control.custom_minimum_size.x = 0.0 if _is_compact_layout else 200.0
+		option_control.custom_minimum_size.y = (
+			_COMPACT_CONTROL_HEIGHT if _is_compact_layout else _DESKTOP_CONTROL_HEIGHT
+		)
+	_master_volume_slider.custom_minimum_size.x = 0.0 if _is_compact_layout else 200.0
+	_master_volume_slider.custom_minimum_size.y = (
+		_COMPACT_CONTROL_HEIGHT if _is_compact_layout else _DESKTOP_CONTROL_HEIGHT
+	)
+	_volume_value_label.custom_minimum_size.x = 54.0 if _is_compact_layout else 64.0
+	_reset_bindings_button.custom_minimum_size.y = (
+		_COMPACT_CONTROL_HEIGHT if _is_compact_layout else 36.0
+	)
+	_compact_back_button.custom_minimum_size.y = _COMPACT_CONTROL_HEIGHT
 
 func _setup_setting_options() -> void:
 	_setup_language_options()
@@ -95,6 +245,27 @@ func _setup_setting_options() -> void:
 	_setup_vsync_options()
 	_setup_visual_theme_options()
 	_setup_sound_theme_options()
+	_setup_input_timing_options()
+
+
+func _setup_input_timing_options() -> void:
+	_write_option_items(_input_timing_option, [
+		_make_option_item(
+			tr("INPUT_TIMING_BUFFERED"),
+			GameInputProfileUtility.InputTimingMode.BUFFERED,
+			0
+		),
+		_make_option_item(
+			tr("INPUT_TIMING_BLOCK"),
+			GameInputProfileUtility.InputTimingMode.BLOCK_WHILE_ANIMATING,
+			1
+		),
+		_make_option_item(
+			tr("INPUT_TIMING_REALTIME"),
+			GameInputProfileUtility.InputTimingMode.REALTIME_RETARGET,
+			2
+		),
+	])
 
 
 func _get_sibling_label(control: Control) -> Label:
@@ -207,6 +378,7 @@ func _setup_form_binder() -> void:
 	_form_binder.bind_field(_FIELD_VISUAL_THEME_INDEX, _visual_theme_option, 0)
 	_form_binder.bind_field(_FIELD_SOUND_THEME_INDEX, _sound_theme_option, 0)
 	_form_binder.bind_field(_FIELD_MASTER_VOLUME, _master_volume_slider, 1.0)
+	_form_binder.bind_field(_FIELD_INPUT_TIMING_INDEX, _input_timing_option, 2)
 	var _connect_result_121: int = _form_binder.field_changed.connect(_on_form_field_changed)
 
 
@@ -233,6 +405,11 @@ func _sync_controls_from_settings() -> void:
 	if is_instance_valid(_master_volume_slider):
 		_master_volume_slider.value = _get_current_master_volume()
 		_update_volume_value_label(_master_volume_slider.value)
+	if is_instance_valid(_input_timing_option):
+		_input_timing_option.select(_get_option_index_for_metadata(
+			_input_timing_option,
+			int(_get_current_input_timing_mode())
+		))
 
 
 func _get_current_locale() -> String:
@@ -281,6 +458,12 @@ func _get_current_sound_theme_id() -> StringName:
 		push_error("[SettingsMenu] 缺少 GameThemeUtility，无法读取音效主题。")
 		return GameThemeUtility.DEFAULT_SOUND_THEME_ID
 	return theme_utility.get_current_sound_theme_id()
+
+
+func _get_current_input_timing_mode() -> GameInputProfileUtility.InputTimingMode:
+	if not is_instance_valid(_input_profile):
+		return GameInputProfileUtility.InputTimingMode.REALTIME_RETARGET
+	return _input_profile.get_input_timing_mode()
 
 
 func _get_locale_index(locale: String) -> int:
@@ -343,6 +526,8 @@ func _update_ui_text() -> void:
 		_page_title.text = tr("SETTINGS_TITLE")
 	if is_instance_valid(_back_button):
 		_back_button.text = tr("BACK_BUTTON")
+	if is_instance_valid(_compact_back_button):
+		_compact_back_button.text = tr("BACK_BUTTON")
 	if is_instance_valid(_language_option) and _language_option.item_count >= 2:
 		_language_option.set_item_text(0, tr("LANG_ZH"))
 		_language_option.set_item_text(1, tr("LANG_EN"))
@@ -371,6 +556,18 @@ func _update_ui_text() -> void:
 		_controls_header_label.text = tr("CONTROLS_TITLE")
 	if is_instance_valid(_master_volume_slider):
 		_update_volume_value_label(_master_volume_slider.value)
+	if is_instance_valid(_input_timing_option) and _input_timing_option.item_count >= 3:
+		_input_timing_option.set_item_text(0, tr("INPUT_TIMING_BUFFERED"))
+		_input_timing_option.set_item_text(1, tr("INPUT_TIMING_BLOCK"))
+		_input_timing_option.set_item_text(2, tr("INPUT_TIMING_REALTIME"))
+	var input_timing_label: Label = _get_sibling_label(_input_timing_option)
+	if is_instance_valid(input_timing_label):
+		input_timing_label.text = tr("INPUT_TIMING_MODE_LABEL")
+	if is_instance_valid(_input_bindings_header):
+		_input_bindings_header.text = tr("INPUT_BINDINGS_TITLE")
+	if is_instance_valid(_reset_bindings_button):
+		_reset_bindings_button.text = tr("INPUT_BINDINGS_RESET_ALL")
+	_rebuild_input_binding_rows()
 
 
 func _apply_locale(index: int) -> void:
@@ -446,6 +643,156 @@ func _apply_sound_theme(index: int) -> void:
 	_sync_controls_from_settings()
 
 
+func _apply_input_timing_mode(index: int) -> void:
+	if not is_instance_valid(_input_profile):
+		return
+	var mode_value: int = GFVariantData.to_int(
+		_get_option_metadata(
+			_input_timing_option,
+			index,
+			GameInputProfileUtility.InputTimingMode.REALTIME_RETARGET
+		),
+		GameInputProfileUtility.InputTimingMode.REALTIME_RETARGET
+	)
+	_input_profile.set_input_timing_mode(mode_value)
+
+
+func _setup_input_detector() -> void:
+	_input_detector = GFInputDetector.new()
+	_input_detector.name = "InputDetector"
+	_input_detector.countdown_seconds = 0.18
+	_input_detector.timeout_seconds = 10.0
+	var escape_event: InputEventKey = InputEventKey.new()
+	escape_event.keycode = KEY_ESCAPE
+	_input_detector.abort_events = [escape_event]
+	add_child(_input_detector)
+	var _detected_connection: int = _input_detector.input_detected.connect(
+		_on_binding_input_detected
+	)
+
+
+func _rebuild_input_binding_rows() -> void:
+	if not is_instance_valid(_input_bindings_container):
+		return
+	for child: Node in _input_bindings_container.get_children():
+		_input_bindings_container.remove_child(child)
+		child.queue_free()
+	if not is_instance_valid(_input_profile):
+		_set_input_binding_status(tr("INPUT_BINDINGS_UNAVAILABLE"))
+		return
+
+	var items: Array[Dictionary] = _input_profile.get_gameplay_binding_items()
+	for item: Dictionary in items:
+		var row: HBoxContainer = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		var action_id: StringName = GFVariantData.get_option_string_name(item, "action_id")
+		var binding_index: int = GFVariantData.get_option_int(item, "binding_index")
+		var action_label: Label = Label.new()
+		action_label.custom_minimum_size.x = (
+			_COMPACT_BINDING_LABEL_WIDTH
+			if _is_compact_layout
+			else _DESKTOP_BINDING_LABEL_WIDTH
+		)
+		action_label.text = "%s %d" % [_get_input_action_text(action_id, item), binding_index + 1]
+		action_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		action_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		action_label.tooltip_text = action_label.text
+		row.add_child(action_label)
+
+		var binding_button: Button = Button.new()
+		binding_button.custom_minimum_size = Vector2(
+			0.0 if _is_compact_layout else _DESKTOP_BINDING_BUTTON_WIDTH,
+			_COMPACT_BINDING_ROW_HEIGHT
+			if _is_compact_layout
+			else _DESKTOP_BINDING_ROW_HEIGHT
+		)
+		binding_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		binding_button.text = GFVariantData.get_option_string(item, "event_text", tr("INPUT_BINDING_UNBOUND"))
+		binding_button.tooltip_text = tr("INPUT_BINDING_CHANGE_HINT")
+		var _binding_connection: int = binding_button.pressed.connect(
+			_on_binding_button_pressed.bind(item)
+		)
+		row.add_child(binding_button)
+
+		var reset_button: Button = Button.new()
+		reset_button.custom_minimum_size = Vector2(
+			44.0 if _is_compact_layout else 36.0,
+			_COMPACT_BINDING_ROW_HEIGHT
+			if _is_compact_layout
+			else _DESKTOP_BINDING_ROW_HEIGHT
+		)
+		reset_button.text = "↺"
+		reset_button.tooltip_text = tr("INPUT_BINDING_RESET_ONE")
+		var _reset_connection: int = reset_button.pressed.connect(
+			_on_reset_binding_pressed.bind(action_id, binding_index)
+		)
+		row.add_child(reset_button)
+		_input_bindings_container.add_child(row)
+
+
+func _get_input_action_text(action_id: StringName, item: Dictionary) -> String:
+	var translation_key: String = "INPUT_ACTION_%s" % String(action_id).to_upper()
+	var translated: String = tr(translation_key)
+	if translated != translation_key:
+		return translated
+	return GFVariantData.get_option_string(item, "action_name", String(action_id))
+
+
+func _on_binding_button_pressed(item: Dictionary) -> void:
+	if not is_instance_valid(_input_detector) or _input_detector.is_detecting():
+		return
+	_pending_binding = item.duplicate(true)
+	_set_input_binding_status(tr("INPUT_BINDING_LISTENING"))
+	var device_types: Array[int] = [
+		GFInputDetector.DeviceType.KEYBOARD,
+		GFInputDetector.DeviceType.MOUSE,
+		GFInputDetector.DeviceType.JOYPAD,
+	]
+	_input_detector.begin_detection(device_types)
+
+
+func _on_binding_input_detected(input_event: InputEvent) -> void:
+	if _pending_binding.is_empty():
+		return
+	if input_event == null:
+		_set_input_binding_status(tr("INPUT_BINDING_CANCELLED"))
+		_pending_binding.clear()
+		return
+	var report: Dictionary = _input_profile.try_set_binding(
+		GFVariantData.get_option_string_name(_pending_binding, "context_id"),
+		GFVariantData.get_option_string_name(_pending_binding, "action_id"),
+		GFVariantData.get_option_int(_pending_binding, "binding_index"),
+		input_event
+	)
+	_pending_binding.clear()
+	if not GFVariantData.get_option_bool(report, "ok"):
+		_set_input_binding_status(tr("INPUT_BINDING_CONFLICT"))
+		return
+	_set_input_binding_status(tr("INPUT_BINDING_SAVED"))
+	_rebuild_input_binding_rows()
+
+
+func _on_reset_binding_pressed(action_id: StringName, binding_index: int) -> void:
+	if not is_instance_valid(_input_profile):
+		return
+	_input_profile.reset_binding(GameInputProfileUtility.GAMEPLAY_INPUT_CONTEXT.context_id, action_id, binding_index)
+	_set_input_binding_status(tr("INPUT_BINDING_RESET_DONE"))
+	_rebuild_input_binding_rows()
+
+
+func _on_reset_bindings_pressed() -> void:
+	if not is_instance_valid(_input_profile):
+		return
+	_input_profile.reset_all_bindings()
+	_set_input_binding_status(tr("INPUT_BINDING_RESET_DONE"))
+	_rebuild_input_binding_rows()
+
+
+func _set_input_binding_status(message: String) -> void:
+	if is_instance_valid(_input_binding_status_label):
+		_input_binding_status_label.text = message
+
+
 func _refresh_theme_option_texts() -> void:
 	_refresh_visual_theme_option_texts()
 	_refresh_sound_theme_option_texts()
@@ -490,6 +837,14 @@ func _get_display_settings_utility() -> GFDisplaySettingsUtility:
 	if utility_value is GFDisplaySettingsUtility:
 		var display_settings: GFDisplaySettingsUtility = utility_value
 		return display_settings
+	return null
+
+
+func _get_input_profile_utility() -> GameInputProfileUtility:
+	var utility_value: Object = get_utility(GameInputProfileUtility)
+	if utility_value is GameInputProfileUtility:
+		var input_profile: GameInputProfileUtility = utility_value
+		return input_profile
 	return null
 
 
@@ -543,6 +898,8 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 			_apply_sound_theme(GFVariantData.to_int(value, 0))
 		_FIELD_MASTER_VOLUME:
 			_apply_master_volume(GFVariantData.to_float(value, 1.0))
+		_FIELD_INPUT_TIMING_INDEX:
+			_apply_input_timing_mode(GFVariantData.to_int(value, 2))
 
 
 func _on_back_button_pressed() -> void:

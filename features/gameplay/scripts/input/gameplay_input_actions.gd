@@ -16,6 +16,13 @@ const MOVE_UP: StringName = &"move_up"
 const MOVE_DOWN: StringName = &"move_down"
 const MOVE_LEFT: StringName = &"move_left"
 const MOVE_RIGHT: StringName = &"move_right"
+const VIEW_ZOOM_IN: StringName = &"view_zoom_in"
+const VIEW_ZOOM_OUT: StringName = &"view_zoom_out"
+const VIEW_FIT: StringName = &"view_fit"
+const VIEW_PAN_UP: StringName = &"view_pan_up"
+const VIEW_PAN_DOWN: StringName = &"view_pan_down"
+const VIEW_PAN_LEFT: StringName = &"view_pan_left"
+const VIEW_PAN_RIGHT: StringName = &"view_pan_right"
 
 
 # --- 公共方法 ---

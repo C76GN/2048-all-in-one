@@ -251,6 +251,108 @@ func test_tile_setup_applies_pixel_textured_style() -> void:
 	assert_between(font_size, 12, 48, "方块字号应保持在明确的可读范围内。")
 	assert_lt(font_size, 48, "大数值文本应触发字号收缩。")
 
+	tile.setup(
+		2,
+		&"tile.classic.numeric",
+		Color("#f0d696"),
+		Color("#594a45"),
+		&"tile.visual.classic_numeric"
+	)
+	var classic_style: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
+	var classic_signature: Array = [
+		classic_style.border_color,
+		classic_style.get_border_width(SIDE_LEFT),
+		classic_style.get_corner_radius(CORNER_TOP_LEFT),
+		tile._get_pattern_type(),
+	]
+
+	tile.setup(
+		3,
+		&"tile.fibonacci.numeric",
+		Color("#c0977a"),
+		Color("#594a45"),
+		&"tile.visual.fibonacci_numeric"
+	)
+	var fibonacci_style: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
+	var fibonacci_signature: Array = [
+		fibonacci_style.border_color,
+		fibonacci_style.get_border_width(SIDE_LEFT),
+		fibonacci_style.get_corner_radius(CORNER_TOP_LEFT),
+		tile._get_pattern_type(),
+	]
+	assert_ne(
+		fibonacci_signature,
+		classic_signature,
+		"不同方块家族必须从轮廓和纹理上一眼可区分。"
+	)
+	assert_ne(
+		fibonacci_signature.slice(0, 3),
+		classic_signature.slice(0, 3),
+		"纹理之外还应有稳定的家族轮廓，避免低分辨率下全部看成同一种方块。"
+	)
+
+	tile.setup(
+		13,
+		&"tile.fibonacci.numeric",
+		Color("#944431"),
+		Color.WHITE,
+		&"tile.visual.fibonacci_numeric"
+	)
+	var same_family_style: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
+	var same_family_signature: Array = [
+		same_family_style.border_color,
+		same_family_style.get_border_width(SIDE_LEFT),
+		same_family_style.get_corner_radius(CORNER_TOP_LEFT),
+		tile._get_pattern_type(),
+	]
+	assert_true(
+		same_family_signature == fibonacci_signature,
+		"同一家族改变数值与颜色时不得改变识别轮廓。"
+	)
+
+
+func test_all_tile_visual_families_have_unique_base_signatures() -> void:
+	var tile: Tile = await _create_tile()
+	var visual_family_ids: Array[StringName] = [
+		&"tile.visual.classic_numeric",
+		&"tile.visual.fibonacci_numeric",
+		&"tile.visual.classic_fibonacci_hybrid",
+		&"tile.visual.lucas_fibonacci_hybrid",
+		&"tile.visual.ratio_base",
+		&"tile.visual.ratio_factor",
+	]
+	var signatures: Dictionary = {}
+	for visual_family_id: StringName in visual_family_ids:
+		tile.setup(
+			2,
+			StringName(String(visual_family_id).replace("visual", "definition")),
+			Color("#f0d696"),
+			Color("#594a45"),
+			visual_family_id
+		)
+		var style: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
+		var signature: String = "%s|%d,%d,%d,%d|%d,%d,%d,%d|%d" % [
+			style.border_color.to_html(true),
+			style.get_border_width(SIDE_LEFT),
+			style.get_border_width(SIDE_TOP),
+			style.get_border_width(SIDE_RIGHT),
+			style.get_border_width(SIDE_BOTTOM),
+			style.get_corner_radius(CORNER_TOP_LEFT),
+			style.get_corner_radius(CORNER_TOP_RIGHT),
+			style.get_corner_radius(CORNER_BOTTOM_RIGHT),
+			style.get_corner_radius(CORNER_BOTTOM_LEFT),
+			tile._get_pattern_type(),
+		]
+		assert_false(
+			signatures.has(signature),
+			"%s 与 %s 的轮廓和纹理签名重复。" % [
+				visual_family_id,
+				signatures.get(signature, &""),
+			]
+		)
+		signatures[signature] = visual_family_id
+	assert_true(signatures.size() == visual_family_ids.size())
+
 
 func test_game_board_controller_uses_configured_tile_scheme_colors() -> void:
 	var controller: GameBoardController = GameBoardController.new()

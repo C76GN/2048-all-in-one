@@ -7,14 +7,14 @@
   "gf_source_commit": "c0ce09e53edf30c00ba79df27fb9a7625b9f518d",
   "gf_vendor_tree_sha256": "55c8c728421528d147dd3833874919148ab4204e5ef921d51a38540494e41b92",
   "gf_global_script_class_count": 705,
-  "project_runtime_script_class_count": 170,
+  "project_runtime_script_class_count": 172,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The pinned GF 8.1.1 update changes only plugin and extension manifest version metadata, with no runtime script or global class changes. The complete 262-test suite retains the reviewed Godot 4.7/GUT exit limits: ObjectDB=288, Resources=128, TextureStorage=10, ShapedText=2, and Font=3.",
+  "calibration_reason": "The project runtime class set adds GameInputProfileUtility and GameBoardAnimationUtility and the gameplay HUD now keeps additional score and control labels resident. Two complete Godot 4.7/GUT runs held ShapedText at 4 while TextureStorage and Font did not grow; the final 275-test suite passed with 1685 assertions before this audited recalibration.",
   "max_objectdb_instances": 288,
   "max_resources_in_use": 128,
   "max_rid_allocations_by_type": {
     "PN13RendererDummy14TextureStorage12DummyTextureE": 10,
-    "PN18TextServerAdvanced22ShapedTextDataAdvancedE": 2,
+    "PN18TextServerAdvanced22ShapedTextDataAdvancedE": 4,
     "PN18TextServerAdvanced12FontAdvancedE": 3
   },
   "allowed_paged_allocator_types": [

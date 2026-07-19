@@ -12,8 +12,8 @@ HIGHEST_TILE_LABEL,最大方块: %d,Max Tile: %d
 MOVE_COUNT_LABEL,移动次数: %d,Moves: %d
 STEP_INFO_FORMAT,步骤: %d / %d,Step: %d / %d
 CONTROLS_TITLE,操作,Controls
-CONTROLS_MOVE_HINT,移动: W/A/S/D 或 方向键,Move: W/A/S/D or Arrows
-CONTROLS_ACTION_HINT,撤回: Z | 重做: Y | 保存: B | 暂停: Esc,Undo: Z | Redo: Y | Save: B | Pause: Esc
+CONTROLS_MOVE_HINT,移动: WASD / 方向键 / 十字键 / 滑动,Move: WASD / Arrows / D-pad / Swipe
+CONTROLS_ACTION_HINT,撤销 Z · 重做 Y · 书签 B · 暂停 Esc,Undo Z · Redo Y · Bookmark B · Pause Esc
 SEED_INFO_LABEL,游戏种子: %d,Seed: %d
 DEBUG_TAINT_WARNING,[color=orange]警告: 调试工具已使用，回放将被禁用。[/color],[color=orange]Warning: Debug tools used. Replay disabled.[/color]
 UNDO_FAIL_MSG,[color=yellow]无法撤回: 已在最初状态。[/color],[color=yellow]Undo failed: At initial state.[/color]
@@ -27,6 +27,36 @@ REPLAY_CONTINUE_SUCCESS,[color=green]已从当前回放进度继续游戏。[/co
 TARGET_REACHED_MESSAGE,[color=green]已达成目标 %d！可以继续挑战更高方块。[/color],[color=green]Target %d reached! Keep going for a higher tile.[/color]
 SIZE_LABEL,尺寸,Size
 SETTINGS_TITLE,设置,Settings
+INPUT_TIMING_MODE_LABEL,操作响应,Input Response
+INPUT_TIMING_BUFFERED,缓冲队列,Buffered Queue
+INPUT_TIMING_BLOCK,动画期间阻断,Block During Animation
+INPUT_TIMING_REALTIME,实时重定向,Realtime Retarget
+INPUT_BINDINGS_TITLE,按键映射,Input Bindings
+INPUT_BINDINGS_RESET_ALL,恢复默认按键,Reset All Bindings
+INPUT_BINDINGS_UNAVAILABLE,输入配置服务不可用,Input profile service unavailable
+INPUT_BINDING_UNBOUND,未绑定,Unbound
+INPUT_BINDING_CHANGE_HINT,点击后输入新的键位或手柄操作,Press then enter a new key mouse or controller input
+INPUT_BINDING_RESET_ONE,恢复此项默认绑定,Reset this binding
+INPUT_BINDING_LISTENING,等待输入...按 Esc 取消,Waiting for input... Press Esc to cancel
+INPUT_BINDING_CANCELLED,已取消改键,Binding cancelled
+INPUT_BINDING_CONFLICT,该输入已被其他操作占用,That input is already assigned
+INPUT_BINDING_SAVED,按键映射已保存,Binding saved
+INPUT_BINDING_RESET_DONE,已恢复默认绑定,Default binding restored
+INPUT_ACTION_PAUSE,暂停,Pause
+INPUT_ACTION_UNDO,撤销,Undo
+INPUT_ACTION_REDO,重做,Redo
+INPUT_ACTION_SAVE_BOOKMARK,保存书签,Save Bookmark
+INPUT_ACTION_MOVE_UP,向上移动,Move Up
+INPUT_ACTION_MOVE_DOWN,向下移动,Move Down
+INPUT_ACTION_MOVE_LEFT,向左移动,Move Left
+INPUT_ACTION_MOVE_RIGHT,向右移动,Move Right
+INPUT_ACTION_VIEW_ZOOM_IN,放大视图,Zoom In
+INPUT_ACTION_VIEW_ZOOM_OUT,缩小视图,Zoom Out
+INPUT_ACTION_VIEW_FIT,适配棋盘,Fit Board
+INPUT_ACTION_VIEW_PAN_UP,视图上移,Pan Up
+INPUT_ACTION_VIEW_PAN_DOWN,视图下移,Pan Down
+INPUT_ACTION_VIEW_PAN_LEFT,视图左移,Pan Left
+INPUT_ACTION_VIEW_PAN_RIGHT,视图右移,Pan Right
 LANGUAGE_LABEL,语言,Language
 WINDOW_MODE_LABEL,窗口模式,Window
 WINDOW_MODE_WINDOWED,窗口,Windowed

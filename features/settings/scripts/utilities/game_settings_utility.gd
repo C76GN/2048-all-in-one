@@ -45,6 +45,23 @@ func register_project_defaults() -> void:
 		true,
 		{"group": "audio", "label": "SOUND_THEME_LABEL"}
 	)
+	var _input_remap_setting: GFSettingDefinition = register_setting(
+		GameInputProfileUtility.INPUT_REMAP_SETTING_KEY,
+		{
+			"remapped_events": {},
+			"custom_data": {},
+		},
+		GFSettingDefinition.ValueType.DICTIONARY,
+		true,
+		{"group": "input", "label": "INPUT_BINDINGS_TITLE"}
+	)
+	var _input_timing_setting: GFSettingDefinition = register_setting(
+		GameInputProfileUtility.INPUT_TIMING_SETTING_KEY,
+		GameInputProfileUtility.InputTimingMode.REALTIME_RETARGET,
+		GFSettingDefinition.ValueType.INT,
+		true,
+		{"group": "input", "label": "INPUT_TIMING_MODE_LABEL"}
+	)
 
 
 ## 将设置导出为字典，并移除存储层元信息。

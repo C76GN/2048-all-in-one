@@ -60,6 +60,10 @@ func test_gameplay_publishes_context_while_diagnostics_owns_window_lifecycle() -
 	assert_true(diagnostics_source.contains("GFInputMappingUtility"))
 	assert_true(diagnostics_source.contains("GFSignalUtility"))
 	assert_true(diagnostics_source.contains("GFConsoleUtility"))
+	assert_true(
+		diagnostics_source.contains("var open_on_gameplay_context: bool = false"),
+		"开发诊断窗口必须按需打开，不得在每次进入对局时遮挡玩家画面。"
+	)
 
 
 # --- 私有/辅助方法 ---

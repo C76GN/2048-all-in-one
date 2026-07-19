@@ -30,7 +30,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 - 所有权：`features/settings/scripts/utilities/game_settings_utility.gd`
 - 能力：`GFSettingsUtility`、`GFDisplaySettingsUtility` 和 `GFStorageUtility`
 
-设置是全局偏好，不参与玩家数据图事务。语言、显示、主音量、视觉主题和音效主题不随书签或回放恢复。
+设置是全局偏好，不参与玩家数据图事务。语言、显示、主音量、视觉主题、音效主题、GF 输入覆盖和棋盘动画响应策略不随书签或回放恢复。
 
 GF 存储格式升级后，项目只对已知的旧版 `XOR + Base64 JSON` 设置载荷执行一次性迁移，成功后立即以当前 Binary codec 原子覆写。该迁移不构成长期双读：未命中精确旧格式时仍由当前 GF codec 严格处理，未知损坏载荷不得猜测。
 

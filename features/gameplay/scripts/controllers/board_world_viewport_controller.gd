@@ -26,6 +26,13 @@ const _PAN_EDGE_MARGIN: float = 36.0
 const _TOUCH_INPUT_SOURCE_ID: StringName = &"gameplay.touch_swipe"
 const _TOUCH_ACTION_HOLD_SECONDS: float = 0.08
 const _NO_TOUCH_POINTER: int = -1
+const _KEYBOARD_PAN_STEP: float = 52.0
+const _VIEW_CONTROLS_DESKTOP_LEFT_OFFSET: float = -226.0
+const _VIEW_CONTROLS_COMPACT_LEFT_OFFSET: float = -80.0
+const _VIEW_CONTROLS_DESKTOP_BOTTOM_OFFSET: float = 58.0
+const _VIEW_CONTROLS_COMPACT_BOTTOM_OFFSET: float = 68.0
+const _FIT_BUTTON_DESKTOP_MINIMUM: Vector2 = Vector2(56.0, 34.0)
+const _FIT_BUTTON_COMPACT_MINIMUM: Vector2 = Vector2(64.0, 44.0)
 
 
 # --- 导出变量 ---
@@ -38,6 +45,9 @@ const _NO_TOUCH_POINTER: int = -1
 
 ## 用于 GF 屏幕/世界坐标换算的棋盘 CanvasItem 宿主。
 @export var game_board_canvas_item_path: NodePath = NodePath("../BoardWorld/GameBoardHost")
+
+## 棋盘视图控制条路径。
+@export var view_controls_path: NodePath = NodePath("../ViewControls")
 
 ## 缩小按钮路径。
 @export var zoom_out_button_path: NodePath = NodePath("../ViewControls/Margin/Buttons/ZoomOutButton")
@@ -73,6 +83,7 @@ var _host_control: Control
 var _world_root: Node2D
 var _game_board: GameBoardController
 var _game_board_canvas_item: CanvasItem
+var _view_controls: PanelContainer
 var _zoom_out_button: Button
 var _fit_button: Button
 var _zoom_in_button: Button
@@ -87,6 +98,7 @@ var _touch_input_source: GFVirtualInputSource
 
 var _content_rect: Rect2 = Rect2()
 var _visible_world_rect: Rect2 = Rect2()
+var _fit_insets: Dictionary = {}
 var _zoom: float = 1.0
 var _follow_fit: bool = true
 var _is_initialized: bool = false
@@ -135,20 +147,48 @@ func _exit_tree() -> void:
 	super._exit_tree()
 
 
+func _process(_delta: float) -> void:
+	if not _is_initialized or not is_instance_valid(_input_mapping):
+		return
+	if _input_mapping.consume_action(GameplayInputActions.VIEW_FIT):
+		fit_to_content()
+		return
+	if _input_mapping.consume_action(GameplayInputActions.VIEW_ZOOM_IN):
+		zoom_in()
+		return
+	if _input_mapping.consume_action(GameplayInputActions.VIEW_ZOOM_OUT):
+		zoom_out()
+		return
+
+	var pan_delta: Vector2 = Vector2.ZERO
+	if _input_mapping.consume_action(GameplayInputActions.VIEW_PAN_UP):
+		pan_delta.y = _KEYBOARD_PAN_STEP
+	elif _input_mapping.consume_action(GameplayInputActions.VIEW_PAN_DOWN):
+		pan_delta.y = -_KEYBOARD_PAN_STEP
+	elif _input_mapping.consume_action(GameplayInputActions.VIEW_PAN_LEFT):
+		pan_delta.x = _KEYBOARD_PAN_STEP
+	elif _input_mapping.consume_action(GameplayInputActions.VIEW_PAN_RIGHT):
+		pan_delta.x = -_KEYBOARD_PAN_STEP
+	if pan_delta != Vector2.ZERO:
+		_follow_fit = false
+		_set_view_transform(_zoom, _world_root.position + pan_delta)
+
+
 # --- 公共方法 ---
 
 ## 将完整棋盘聚焦到当前视口，并恢复自动跟随完整聚焦。
 func fit_to_content() -> void:
 	if not _has_valid_geometry():
 		return
+	var fit_viewport_rect: Rect2 = _get_fit_viewport_rect()
 	var fit_zoom: float = CanvasViewportMath.calculate_fit_zoom(
-		_host_control.size,
+		fit_viewport_rect.size,
 		_content_rect,
 		_FIT_MARGIN,
 		maximum_zoom
 	)
-	var centered_position: Vector2 = CanvasViewportMath.calculate_centered_world_position(
-		_host_control.size,
+	var centered_position: Vector2 = fit_viewport_rect.position + CanvasViewportMath.calculate_centered_world_position(
+		fit_viewport_rect.size,
 		_content_rect,
 		fit_zoom
 	)
@@ -158,12 +198,85 @@ func fit_to_content() -> void:
 
 ## 以视口中心为锚点放大一级。
 func zoom_in() -> void:
-	_zoom_at(_host_control.size * 0.5, _zoom * _ZOOM_STEP)
+	_zoom_at(_get_fit_viewport_rect().get_center(), _zoom * _ZOOM_STEP)
 
 
 ## 以视口中心为锚点缩小一级。
 func zoom_out() -> void:
-	_zoom_at(_host_control.size * 0.5, _zoom / _ZOOM_STEP)
+	_zoom_at(_get_fit_viewport_rect().get_center(), _zoom / _ZOOM_STEP)
+
+
+## 设置完整聚焦时需要避开的屏幕空间 HUD 边距。
+## @param insets: 包含 top、left、bottom、right 的局部视口内缩字典。
+func set_fit_insets(insets: Dictionary) -> void:
+	var normalized: Dictionary = _normalize_fit_insets(insets)
+	if _fit_insets == normalized:
+		return
+	_fit_insets = normalized
+	if not _is_initialized or not _has_valid_geometry():
+		return
+	if _follow_fit:
+		fit_to_content()
+	else:
+		_set_view_transform(_zoom, _world_root.position)
+
+
+## 在窄竖屏只保留完整聚焦按钮；缩放仍可通过手势、键盘、鼠标滚轮和手柄完成。
+## @param compact: 是否启用窄竖屏视图控件布局。
+func set_compact_view_controls(compact: bool) -> void:
+	if is_instance_valid(_zoom_out_button):
+		_zoom_out_button.visible = not compact
+	if is_instance_valid(_zoom_label):
+		_zoom_label.visible = not compact
+	if is_instance_valid(_zoom_in_button):
+		_zoom_in_button.visible = not compact
+	if is_instance_valid(_fit_button):
+		_fit_button.custom_minimum_size = (
+			_FIT_BUTTON_COMPACT_MINIMUM if compact else _FIT_BUTTON_DESKTOP_MINIMUM
+		)
+	if is_instance_valid(_view_controls):
+		_view_controls.offset_left = (
+			_VIEW_CONTROLS_COMPACT_LEFT_OFFSET
+			if compact
+			else _VIEW_CONTROLS_DESKTOP_LEFT_OFFSET
+		)
+		_view_controls.offset_bottom = (
+			_VIEW_CONTROLS_COMPACT_BOTTOM_OFFSET
+			if compact
+			else _VIEW_CONTROLS_DESKTOP_BOTTOM_OFFSET
+		)
+
+
+## 计算应用 HUD 边距后的稳定聚焦矩形。
+## @param viewport_size: 当前逻辑视口尺寸。
+## @param insets: HUD 在四个方向占用的屏幕边距。
+## @return 可用于棋盘完整聚焦的逻辑视口矩形。
+static func calculate_fit_viewport_rect(
+	viewport_size: Vector2,
+	insets: Dictionary
+) -> Rect2:
+	var safe_size: Vector2 = Vector2(maxf(viewport_size.x, 1.0), maxf(viewport_size.y, 1.0))
+	var left: float = maxf(GFVariantData.get_option_float(insets, "left"), 0.0)
+	var right: float = maxf(GFVariantData.get_option_float(insets, "right"), 0.0)
+	var top: float = maxf(GFVariantData.get_option_float(insets, "top"), 0.0)
+	var bottom: float = maxf(GFVariantData.get_option_float(insets, "bottom"), 0.0)
+	var horizontal_total: float = left + right
+	var vertical_total: float = top + bottom
+	if horizontal_total > safe_size.x - 1.0 and horizontal_total > 0.0:
+		var horizontal_scale: float = (safe_size.x - 1.0) / horizontal_total
+		left *= horizontal_scale
+		right *= horizontal_scale
+	if vertical_total > safe_size.y - 1.0 and vertical_total > 0.0:
+		var vertical_scale: float = (safe_size.y - 1.0) / vertical_total
+		top *= vertical_scale
+		bottom *= vertical_scale
+	return Rect2(
+		Vector2(left, top),
+		Vector2(
+			maxf(safe_size.x - left - right, 1.0),
+			maxf(safe_size.y - top - bottom, 1.0)
+		)
+	)
 
 
 ## 让棋盘世界按屏幕像素增量平移。
@@ -231,6 +344,7 @@ func _resolve_nodes() -> void:
 	_world_root = _get_node_2d(world_root_path)
 	_game_board = _get_game_board(game_board_path)
 	_game_board_canvas_item = _get_canvas_item(game_board_canvas_item_path)
+	_view_controls = _get_panel_container(view_controls_path)
 	_zoom_out_button = _get_button(zoom_out_button_path)
 	_fit_button = _get_button(fit_button_path)
 	_zoom_in_button = _get_button(zoom_in_button_path)
@@ -336,8 +450,9 @@ func _has_valid_geometry() -> bool:
 func _zoom_at(anchor: Vector2, requested_zoom: float) -> void:
 	if not _has_valid_geometry():
 		return
+	var fit_viewport_rect: Rect2 = _get_fit_viewport_rect()
 	var fit_zoom: float = CanvasViewportMath.calculate_fit_zoom(
-		_host_control.size,
+		fit_viewport_rect.size,
 		_content_rect,
 		_FIT_MARGIN,
 		maximum_zoom
@@ -361,11 +476,12 @@ func _set_view_transform(next_zoom: float, desired_position: Vector2) -> void:
 		return
 	_zoom = maxf(next_zoom, 0.0001)
 	_world_root.scale = Vector2.ONE * _zoom
-	_world_root.position = CanvasViewportMath.calculate_clamped_world_position(
-		_host_control.size,
+	var fit_viewport_rect: Rect2 = _get_fit_viewport_rect()
+	_world_root.position = fit_viewport_rect.position + CanvasViewportMath.calculate_clamped_world_position(
+		fit_viewport_rect.size,
 		_content_rect,
 		_zoom,
-		desired_position,
+		desired_position - fit_viewport_rect.position,
 		_PAN_EDGE_MARGIN
 	)
 	_update_zoom_label()
@@ -404,6 +520,21 @@ func _sync_visible_world_rect() -> void:
 func _update_zoom_label() -> void:
 	if is_instance_valid(_zoom_label):
 		_zoom_label.text = "%d%%" % roundi(_zoom * 100.0)
+
+
+func _get_fit_viewport_rect() -> Rect2:
+	if not is_instance_valid(_host_control):
+		return Rect2(Vector2.ZERO, Vector2.ONE)
+	return calculate_fit_viewport_rect(_host_control.size, _fit_insets)
+
+
+func _normalize_fit_insets(insets: Dictionary) -> Dictionary:
+	return {
+		"top": maxf(GFVariantData.get_option_float(insets, "top"), 0.0),
+		"left": maxf(GFVariantData.get_option_float(insets, "left"), 0.0),
+		"bottom": maxf(GFVariantData.get_option_float(insets, "bottom"), 0.0),
+		"right": maxf(GFVariantData.get_option_float(insets, "right"), 0.0),
+	}
 
 
 func _should_handle_gesture_event(event: InputEvent) -> bool:
@@ -460,6 +591,14 @@ func _get_button(path: NodePath) -> Button:
 	if node_value is Button:
 		var button: Button = node_value
 		return button
+	return null
+
+
+func _get_panel_container(path: NodePath) -> PanelContainer:
+	var node_value: Node = get_node_or_null(path)
+	if node_value is PanelContainer:
+		var panel: PanelContainer = node_value
+		return panel
 	return null
 
 
@@ -609,12 +748,14 @@ func _on_host_resized() -> void:
 	if _follow_fit or previous_size.x <= 0.0 or previous_size.y <= 0.0:
 		fit_to_content()
 		return
-	var previous_center: Vector2 = previous_size * 0.5
+	var previous_fit_rect: Rect2 = calculate_fit_viewport_rect(previous_size, _fit_insets)
+	var current_fit_rect: Rect2 = _get_fit_viewport_rect()
+	var previous_center: Vector2 = previous_fit_rect.get_center()
 	var world_center: Vector2 = (
 		(previous_center - _world_root.position)
 		/ maxf(_zoom, 0.0001)
 	)
-	var desired_position: Vector2 = _host_control.size * 0.5 - world_center * _zoom
+	var desired_position: Vector2 = current_fit_rect.get_center() - world_center * _zoom
 	_set_view_transform(_zoom, desired_position)
 
 
@@ -668,8 +809,9 @@ func _on_gesture_updated(snapshot: Dictionary, event: InputEvent) -> void:
 		Vector2.ZERO
 	)
 	var requested_zoom: float = _zoom * maxf(scale_factor, 0.0001)
+	var fit_viewport_rect: Rect2 = _get_fit_viewport_rect()
 	var fit_zoom: float = CanvasViewportMath.calculate_fit_zoom(
-		_host_control.size,
+		fit_viewport_rect.size,
 		_content_rect,
 		_FIT_MARGIN,
 		maximum_zoom

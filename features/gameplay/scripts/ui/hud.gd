@@ -17,6 +17,8 @@ const _SCORE_FORMAT_FALLBACK: String = "分数: %d"
 const _MOVE_COUNT_FORMAT_FALLBACK: String = "移动次数: %d"
 const _HIGH_SCORE_FORMAT_FALLBACK: String = "最高分: %d"
 const _HIGHEST_TILE_FORMAT_FALLBACK: String = "最大方块: %d"
+const _HUD_INPUT_SOURCE_ID: StringName = &"gameplay.hud_controls"
+const _HUD_ACTION_HOLD_SECONDS: float = 0.08
 
 
 # --- 私有变量 ---
@@ -38,18 +40,24 @@ var _score_caption_label: Label
 var _moves_caption_label: Label
 var _highest_tile_caption_label: Label
 var _notification_label: RichTextLabel
-var _details_panel: VBoxContainer
+var _details_panel: Control
 var _details_toggle_button: Button
 var _active_notification_id: int = 0
 var _last_display_values: Dictionary = {}
 var _is_compact_mode: bool = false
 var _details_expanded: bool = false
+var _input_mapping: GFInputMappingUtility
+var _hud_input_source: GFVirtualInputSource
+var _hud_action_tokens: Dictionary = {}
+var _safe_area: Control
+var _move_hint_label: Label
+var _action_hint_label: Label
 
 
 # --- @onready 变量 (节点引用) ---
 
-@onready var _stats_container: VBoxContainer = $DetailsPanel/StatsContainer
-@onready var _title_label: Label = $DetailsPanel/TitleLabel
+@onready var _stats_container: VBoxContainer = %StatsContainer
+@onready var _title_label: Label = %TitleLabel
 
 
 # --- Godot 生命周期方法 ---
@@ -60,6 +68,9 @@ func _ready() -> void:
 	_signal_utility = _get_signal_utility()
 	_ui_style_utility = _get_ui_style_utility()
 	_ui_motion_utility = _get_ui_motion_utility()
+	_input_mapping = _get_input_mapping_utility()
+	if is_instance_valid(_input_mapping):
+		_hud_input_source = _input_mapping.create_virtual_source(_HUD_INPUT_SOURCE_ID)
 	if not is_instance_valid(_ui_style_utility):
 		push_error("[Hud] 缺少 GameUiStyleUtility，无法应用 HUD 语义样式。")
 	if not is_instance_valid(_ui_motion_utility):
@@ -72,8 +83,11 @@ func _ready() -> void:
 	_moves_caption_label = _get_label_node("%MovesCaptionLabel")
 	_highest_tile_caption_label = _get_label_node("%HighestTileCaptionLabel")
 	_notification_label = _get_rich_text_label_node("%NotificationLabel")
-	_details_panel = _get_vbox_container_node("%DetailsPanel")
+	_details_panel = _get_control_node("%DetailsPanel")
 	_details_toggle_button = _get_button_node("%DetailsToggleButton")
+	_safe_area = _get_control_node("%SafeArea")
+	_move_hint_label = _get_label_node("%MoveHintLabel")
+	_action_hint_label = _get_label_node("%ActionHintLabel")
 	if not is_instance_valid(_notification_label):
 		push_error("[Hud] 缺少 NotificationLabel，无法呈现 GF 通知。")
 	
@@ -89,6 +103,7 @@ func _ready() -> void:
 
 	_connect_notification_signals()
 	_connect_compact_hud_signals()
+	_connect_hud_action_signals()
 	_sync_active_notification()
 	register_simple_event(EventNames.HUD_UPDATE_REQUESTED, GFEventListener.from_method(self, &"_on_hud_update_requested", 1))
 	_update_ui_text()
@@ -96,6 +111,10 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if is_instance_valid(_hud_input_source):
+		_hud_input_source.clear_all()
+	_hud_input_source = null
+	_hud_action_tokens.clear()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	super._exit_tree()
@@ -115,6 +134,17 @@ func set_compact_mode(enabled: bool) -> void:
 		_details_expanded = false
 	_is_compact_mode = enabled
 	_apply_details_visibility()
+
+
+## 应用屏幕安全区；HUD 保持一个父节点，只调整可用屏幕边界。
+## @param insets: 包含 top、left、bottom、right 的屏幕内缩字典。
+func apply_screen_insets(insets: Dictionary) -> void:
+	if not is_instance_valid(_safe_area):
+		return
+	_safe_area.offset_left = GFVariantData.get_option_float(insets, "left")
+	_safe_area.offset_top = GFVariantData.get_option_float(insets, "top")
+	_safe_area.offset_right = -GFVariantData.get_option_float(insets, "right")
+	_safe_area.offset_bottom = -GFVariantData.get_option_float(insets, "bottom")
 
 
 # --- 私有/辅助方法 ---
@@ -269,6 +299,10 @@ func _update_ui_text() -> void:
 			"最大方块",
 			"HIGHEST_TILE_LABEL"
 		)
+	if is_instance_valid(_move_hint_label):
+		_move_hint_label.text = tr("CONTROLS_MOVE_HINT")
+	if is_instance_valid(_action_hint_label):
+		_action_hint_label.text = tr("CONTROLS_ACTION_HINT")
 	_update_details_toggle_button()
 
 
@@ -391,11 +425,27 @@ func _get_vbox_container_node(path: NodePath) -> VBoxContainer:
 	return null
 
 
+func _get_control_node(path: NodePath) -> Control:
+	var node_value: Node = get_node_or_null(path)
+	if node_value is Control:
+		var control: Control = node_value
+		return control
+	return null
+
+
 func _get_button_node(path: NodePath) -> Button:
 	var node_value: Node = get_node_or_null(path)
 	if node_value is Button:
 		var button: Button = node_value
 		return button
+	return null
+
+
+func _get_input_mapping_utility() -> GFInputMappingUtility:
+	var utility_value: Object = get_utility(GFInputMappingUtility)
+	if utility_value is GFInputMappingUtility:
+		var input_mapping: GFInputMappingUtility = utility_value
+		return input_mapping
 	return null
 
 
@@ -429,11 +479,64 @@ func _connect_compact_hud_signals() -> void:
 	)
 
 
+func _connect_hud_action_signals() -> void:
+	if not is_instance_valid(_signal_utility):
+		return
+	var button_actions: Dictionary = {
+		_get_button_node("%MoveUpButton"): GameplayInputActions.MOVE_UP,
+		_get_button_node("%MoveDownButton"): GameplayInputActions.MOVE_DOWN,
+		_get_button_node("%MoveLeftButton"): GameplayInputActions.MOVE_LEFT,
+		_get_button_node("%MoveRightButton"): GameplayInputActions.MOVE_RIGHT,
+		_get_button_node("%PauseButton"): GameplayInputActions.PAUSE,
+		_get_button_node("%UndoButton"): GameplayInputActions.UNDO,
+		_get_button_node("%RedoButton"): GameplayInputActions.REDO,
+		_get_button_node("%BookmarkButton"): GameplayInputActions.SAVE_BOOKMARK,
+	}
+	for button_value: Variant in button_actions.keys():
+		if not button_value is Button:
+			continue
+		var button: Button = button_value
+		var action_id: StringName = GFVariantData.to_string_name(button_actions[button])
+		var _pressed_connection: GFSignalConnection = _signal_utility.connect_signal(
+			button.pressed,
+			_inject_hud_action.bind(action_id),
+			self
+		)
+
+
+func _inject_hud_action(action_id: StringName) -> void:
+	if action_id == &"" or not is_instance_valid(_hud_input_source):
+		return
+	var token: int = GFVariantData.get_option_int(_hud_action_tokens, action_id) + 1
+	_hud_action_tokens[action_id] = token
+	if not _hud_input_source.press(action_id):
+		return
+	var release_timer: SceneTreeTimer = get_tree().create_timer(
+		_HUD_ACTION_HOLD_SECONDS,
+		true,
+		false,
+		true
+	)
+	var _release_connection: GFSignalConnection = _signal_utility.connect_once(
+		release_timer.timeout,
+		_release_hud_action.bind(action_id, token),
+		self
+	)
+
+
+func _release_hud_action(action_id: StringName, token: int) -> void:
+	if GFVariantData.get_option_int(_hud_action_tokens, action_id) != token:
+		return
+	if is_instance_valid(_hud_input_source):
+		var _released: bool = _hud_input_source.release(action_id)
+	var _erased: bool = _hud_action_tokens.erase(action_id)
+
+
 func _apply_details_visibility() -> void:
 	if is_instance_valid(_details_panel):
-		_details_panel.visible = not _is_compact_mode or _details_expanded
+		_details_panel.visible = _details_expanded
 	if is_instance_valid(_details_toggle_button):
-		_details_toggle_button.visible = _is_compact_mode
+		_details_toggle_button.visible = true
 	_update_details_toggle_button()
 
 
@@ -512,8 +615,6 @@ func _on_highest_tile_changed(_old: int, _new_value: int) -> void:
 
 
 func _on_details_toggle_pressed() -> void:
-	if not _is_compact_mode:
-		return
 	_details_expanded = not _details_expanded
 	_apply_details_visibility()
 

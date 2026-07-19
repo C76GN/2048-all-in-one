@@ -37,6 +37,19 @@ func test_centered_position_maps_content_center_to_viewport_center() -> void:
 	)
 
 
+func test_fit_viewport_rect_reserves_hud_space_without_shrinking_board_host() -> void:
+	var fit_rect: Rect2 = BoardWorldViewportController.calculate_fit_viewport_rect(
+		Vector2(1280.0, 720.0),
+		{"top": 92.0, "left": 10.0, "bottom": 10.0, "right": 10.0}
+	)
+
+	assert_true(fit_rect == Rect2(Vector2(10.0, 92.0), Vector2(1260.0, 618.0)))
+	assert_true(
+		fit_rect.get_center().y > Vector2(1280.0, 720.0).y * 0.5,
+		"顶部计分栏应只移动镜头构图中心，不得重新引入占位侧栏。"
+	)
+
+
 func test_zoomed_position_preserves_world_point_under_anchor() -> void:
 	var current_position: Vector2 = Vector2(50.0, 30.0)
 	var anchor: Vector2 = Vector2(200.0, 100.0)
@@ -149,25 +162,56 @@ func test_game_scene_keeps_hud_outside_board_world_and_excludes_diagnostics_ui()
 	var board_world: Node2D = board_viewport.get_node("BoardWorld") as Node2D
 	var game_board_host: Control = board_world.get_node("GameBoardHost") as Control
 	var game_board_controller: Node = game_board_host.get_node("GameBoard")
-	var hud: Node = scene_root.get_node("MarginContainer/ColumnsContainer/LeftColumn/HUD")
+	var hud: Node = scene_root.get_node_or_null("HUD")
+	var left_column: VBoxContainer = scene_root.get_node(
+		"MarginContainer/ColumnsContainer/LeftColumn"
+	) as VBoxContainer
 	var right_column: VBoxContainer = scene_root.get_node(
 		"MarginContainer/ColumnsContainer/RightColumn"
 	) as VBoxContainer
-	var mobile_hud_host: PanelContainer = scene_root.get_node("MobileHudHost") as PanelContainer
 	var responsive_controller: Node = scene_root.get_node("GameplayResponsiveLayoutController")
 
 	assert_true(board_viewport.clip_contents, "棋盘视口必须裁剪移出边界的世界内容。")
 	assert_same(game_board_controller.get_parent(), game_board_host, "GF Controller 应由棋盘表现宿主承载。")
+	assert_not_null(hud, "HUD 应直接挂在玩法场景的屏幕空间，不得塞入固定宽度侧栏。")
 	assert_false(board_world.is_ancestor_of(hud), "HUD 必须保持在独立屏幕空间。")
+	assert_false(left_column.visible, "玩法场景不得用左栏挤占棋盘空间。")
 	assert_false(right_column.visible, "玩法场景不得为开发诊断工具预留玩家画面栏位。")
 	assert_null(
 		right_column.get_node_or_null("TestPanel"),
 		"TestPanel 必须由 diagnostics feature 的独立 Window 承载。"
 	)
-	assert_false(board_world.is_ancestor_of(mobile_hud_host), "移动 HUD 宿主不得进入棋盘世界。")
+	assert_null(scene_root.get_node_or_null("MobileHudHost"), "HUD 不应通过设备分支反复改挂父节点。")
 	assert_true(
 		responsive_controller is GameplayResponsiveLayoutController,
 		"玩法场景必须由专用响应式控制器管理移动布局。"
 	)
 
+	scene_root.free()
+
+
+func test_board_layers_keep_empty_cells_above_opaque_background() -> void:
+	assert_true(
+		GameBoardController.BOARD_BACKGROUND_Z_INDEX >= 0,
+		"棋盘内部绘制层不得落到全屏场景背景之后。"
+	)
+	assert_lt(
+		GameBoardController.BOARD_BACKGROUND_Z_INDEX,
+		GameBoardController.GRID_CELL_Z_INDEX,
+		"棋盘底板必须位于空格之下，否则空格会被完整遮挡。"
+	)
+	assert_lt(
+		GameBoardController.GRID_CELL_Z_INDEX,
+		GameBoardController.TILE_Z_INDEX,
+		"方块必须位于空格之上。"
+	)
+
+	var scene_root: Node = _GAME_PLAY_SCENE.instantiate()
+	var board_background: Panel = scene_root.get_node(
+		"MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/GameBoardHost/BoardBackground"
+	) as Panel
+	assert_true(
+		board_background.z_index == GameBoardController.BOARD_BACKGROUND_Z_INDEX,
+		"场景中的底板层级必须和控制器契约一致。"
+	)
 	scene_root.free()

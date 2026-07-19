@@ -263,8 +263,210 @@ script = ExtResource("4_mapping")
 action = SubResource("Action_move_right")
 bindings = Array[ExtResource("3_binding")]([SubResource("Binding_move_right_d"), SubResource("Binding_move_right_arrow"), SubResource("Binding_move_right_joy")])
 
+[sub_resource type="Resource" id="Action_view_zoom_in"]
+script = ExtResource("2_action")
+action_id = &"view_zoom_in"
+display_name = "View Zoom In"
+display_category = "View"
+
+[sub_resource type="InputEventKey" id="Key_view_zoom_in"]
+physical_keycode = 69
+
+[sub_resource type="Resource" id="Binding_view_zoom_in_key"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_view_zoom_in")
+display_name = "E"
+
+[sub_resource type="InputEventJoypadMotion" id="Joy_view_zoom_in"]
+device = -1
+axis = 5
+axis_value = 1.0
+
+[sub_resource type="Resource" id="Binding_view_zoom_in_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_view_zoom_in")
+display_name = "Right Trigger"
+
+[sub_resource type="Resource" id="Mapping_view_zoom_in"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_view_zoom_in")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_view_zoom_in_key"), SubResource("Binding_view_zoom_in_joy")])
+
+[sub_resource type="Resource" id="Action_view_zoom_out"]
+script = ExtResource("2_action")
+action_id = &"view_zoom_out"
+display_name = "View Zoom Out"
+display_category = "View"
+
+[sub_resource type="InputEventKey" id="Key_view_zoom_out"]
+physical_keycode = 81
+
+[sub_resource type="Resource" id="Binding_view_zoom_out_key"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_view_zoom_out")
+display_name = "Q"
+
+[sub_resource type="InputEventJoypadMotion" id="Joy_view_zoom_out"]
+device = -1
+axis = 4
+axis_value = 1.0
+
+[sub_resource type="Resource" id="Binding_view_zoom_out_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_view_zoom_out")
+display_name = "Left Trigger"
+
+[sub_resource type="Resource" id="Mapping_view_zoom_out"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_view_zoom_out")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_view_zoom_out_key"), SubResource("Binding_view_zoom_out_joy")])
+
+[sub_resource type="Resource" id="Action_view_fit"]
+script = ExtResource("2_action")
+action_id = &"view_fit"
+display_name = "Fit Board"
+display_category = "View"
+
+[sub_resource type="InputEventKey" id="Key_view_fit"]
+physical_keycode = 70
+
+[sub_resource type="Resource" id="Binding_view_fit_key"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_view_fit")
+display_name = "F"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_view_fit"]
+device = -1
+button_index = 8
+
+[sub_resource type="Resource" id="Binding_view_fit_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_view_fit")
+display_name = "Right Stick"
+
+[sub_resource type="Resource" id="Mapping_view_fit"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_view_fit")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_view_fit_key"), SubResource("Binding_view_fit_joy")])
+
+[sub_resource type="Resource" id="Action_view_pan_up"]
+script = ExtResource("2_action")
+action_id = &"view_pan_up"
+display_name = "Pan View Up"
+display_category = "View"
+
+[sub_resource type="InputEventKey" id="Key_view_pan_up"]
+physical_keycode = 73
+
+[sub_resource type="Resource" id="Binding_view_pan_up_key"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_view_pan_up")
+display_name = "I"
+
+[sub_resource type="InputEventJoypadMotion" id="Joy_view_pan_up"]
+device = -1
+axis = 3
+axis_value = -1.0
+
+[sub_resource type="Resource" id="Binding_view_pan_up_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_view_pan_up")
+display_name = "Right Stick Up"
+
+[sub_resource type="Resource" id="Mapping_view_pan_up"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_view_pan_up")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_view_pan_up_key"), SubResource("Binding_view_pan_up_joy")])
+
+[sub_resource type="Resource" id="Action_view_pan_down"]
+script = ExtResource("2_action")
+action_id = &"view_pan_down"
+display_name = "Pan View Down"
+display_category = "View"
+
+[sub_resource type="InputEventKey" id="Key_view_pan_down"]
+physical_keycode = 75
+
+[sub_resource type="Resource" id="Binding_view_pan_down_key"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_view_pan_down")
+display_name = "K"
+
+[sub_resource type="InputEventJoypadMotion" id="Joy_view_pan_down"]
+device = -1
+axis = 3
+axis_value = 1.0
+
+[sub_resource type="Resource" id="Binding_view_pan_down_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_view_pan_down")
+display_name = "Right Stick Down"
+
+[sub_resource type="Resource" id="Mapping_view_pan_down"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_view_pan_down")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_view_pan_down_key"), SubResource("Binding_view_pan_down_joy")])
+
+[sub_resource type="Resource" id="Action_view_pan_left"]
+script = ExtResource("2_action")
+action_id = &"view_pan_left"
+display_name = "Pan View Left"
+display_category = "View"
+
+[sub_resource type="InputEventKey" id="Key_view_pan_left"]
+physical_keycode = 74
+
+[sub_resource type="Resource" id="Binding_view_pan_left_key"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_view_pan_left")
+display_name = "J"
+
+[sub_resource type="InputEventJoypadMotion" id="Joy_view_pan_left"]
+device = -1
+axis = 2
+axis_value = -1.0
+
+[sub_resource type="Resource" id="Binding_view_pan_left_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_view_pan_left")
+display_name = "Right Stick Left"
+
+[sub_resource type="Resource" id="Mapping_view_pan_left"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_view_pan_left")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_view_pan_left_key"), SubResource("Binding_view_pan_left_joy")])
+
+[sub_resource type="Resource" id="Action_view_pan_right"]
+script = ExtResource("2_action")
+action_id = &"view_pan_right"
+display_name = "Pan View Right"
+display_category = "View"
+
+[sub_resource type="InputEventKey" id="Key_view_pan_right"]
+physical_keycode = 76
+
+[sub_resource type="Resource" id="Binding_view_pan_right_key"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_view_pan_right")
+display_name = "L"
+
+[sub_resource type="InputEventJoypadMotion" id="Joy_view_pan_right"]
+device = -1
+axis = 2
+axis_value = 1.0
+
+[sub_resource type="Resource" id="Binding_view_pan_right_joy"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_view_pan_right")
+display_name = "Right Stick Right"
+
+[sub_resource type="Resource" id="Mapping_view_pan_right"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_view_pan_right")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_view_pan_right_key"), SubResource("Binding_view_pan_right_joy")])
+
 [resource]
 script = ExtResource("1_context")
 context_id = &"gameplay"
 display_name = "Gameplay"
-mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_pause"), SubResource("Mapping_undo"), SubResource("Mapping_redo"), SubResource("Mapping_save_bookmark"), SubResource("Mapping_move_up"), SubResource("Mapping_move_down"), SubResource("Mapping_move_left"), SubResource("Mapping_move_right")])
+mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_pause"), SubResource("Mapping_undo"), SubResource("Mapping_redo"), SubResource("Mapping_save_bookmark"), SubResource("Mapping_move_up"), SubResource("Mapping_move_down"), SubResource("Mapping_move_left"), SubResource("Mapping_move_right"), SubResource("Mapping_view_zoom_in"), SubResource("Mapping_view_zoom_out"), SubResource("Mapping_view_fit"), SubResource("Mapping_view_pan_up"), SubResource("Mapping_view_pan_down"), SubResource("Mapping_view_pan_left"), SubResource("Mapping_view_pan_right")])

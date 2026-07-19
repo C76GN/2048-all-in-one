@@ -21,6 +21,11 @@ const _DESPAWN_DURATION: float = 0.12
 const _STYLE_CORNER_RADIUS: int = 4
 const _STYLE_BORDER_WIDTH: int = 4
 const _STYLE_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _STYLE_FIBONACCI_BORDER_COLOR: Color = Color("#886243")
+const _STYLE_CLASSIC_FIBONACCI_BORDER_COLOR: Color = Color("#944431")
+const _STYLE_LUCAS_BORDER_COLOR: Color = Color("#445162")
+const _STYLE_RATIO_BASE_BORDER_COLOR: Color = Color("#887c56")
+const _STYLE_RATIO_FACTOR_BORDER_COLOR: Color = Color("#000000")
 const _STYLE_OUTLINE_LIGHT: Color = Color(1.0, 0.972549, 0.9098039, 0.66)
 const _STYLE_OUTLINE_DARK: Color = Color(0.0, 0.0, 0.0, 0.35)
 const _FLASH_MERGE_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
@@ -255,12 +260,49 @@ func _apply_background_style(bg_color: Color) -> void:
 	var stylebox: StyleBoxFlat = _get_background_stylebox_flat()
 
 	stylebox.bg_color = bg_color
-	stylebox.border_color = _STYLE_BORDER_COLOR
-	stylebox.set_border_width_all(_STYLE_BORDER_WIDTH)
-	stylebox.set_corner_radius_all(_STYLE_CORNER_RADIUS)
+	_apply_visual_family_outline(stylebox)
 	stylebox.shadow_color = Color.TRANSPARENT
 	stylebox.shadow_size = 0
 	stylebox.shadow_offset = Vector2.ZERO
+
+
+func _apply_visual_family_outline(stylebox: StyleBoxFlat) -> void:
+	stylebox.border_color = _STYLE_BORDER_COLOR
+	stylebox.set_border_width_all(_STYLE_BORDER_WIDTH)
+	stylebox.set_corner_radius_all(_STYLE_CORNER_RADIUS)
+	match visual_family_id:
+		&"tile.visual.fibonacci_numeric":
+			stylebox.border_color = _STYLE_FIBONACCI_BORDER_COLOR
+			stylebox.border_width_left = 6
+			stylebox.border_width_top = 3
+			stylebox.border_width_right = 3
+			stylebox.border_width_bottom = 6
+			stylebox.corner_radius_top_left = 8
+			stylebox.corner_radius_top_right = 2
+			stylebox.corner_radius_bottom_right = 8
+			stylebox.corner_radius_bottom_left = 2
+		&"tile.visual.classic_fibonacci_hybrid":
+			stylebox.border_color = _STYLE_CLASSIC_FIBONACCI_BORDER_COLOR
+			stylebox.set_border_width_all(5)
+			stylebox.set_corner_radius_all(0)
+		&"tile.visual.lucas_fibonacci_hybrid":
+			stylebox.border_color = _STYLE_LUCAS_BORDER_COLOR
+			stylebox.set_border_width_all(5)
+			stylebox.set_corner_radius_all(8)
+		&"tile.visual.ratio_base":
+			stylebox.border_color = _STYLE_RATIO_BASE_BORDER_COLOR
+			stylebox.border_width_left = 3
+			stylebox.border_width_top = 6
+			stylebox.border_width_right = 3
+			stylebox.border_width_bottom = 6
+			stylebox.set_corner_radius_all(6)
+		&"tile.visual.ratio_factor":
+			stylebox.border_color = _STYLE_RATIO_FACTOR_BORDER_COLOR
+			stylebox.border_width_left = 6
+			stylebox.border_width_top = 2
+			stylebox.border_width_right = 6
+			stylebox.border_width_bottom = 2
+			stylebox.set_corner_radius_all(2)
 
 
 func _apply_pattern_style(bg_color: Color) -> void:
@@ -277,11 +319,11 @@ func _get_pattern_type() -> TilePatternOverlay.PatternType:
 		&"tile.visual.fibonacci_numeric":
 			return TilePatternOverlay.PatternType.SCALES
 		&"tile.visual.classic_fibonacci_hybrid":
-			return TilePatternOverlay.PatternType.CHECKER
+			return TilePatternOverlay.PatternType.SPLIT_DIAGONAL
 		&"tile.visual.lucas_fibonacci_hybrid":
 			return TilePatternOverlay.PatternType.DIAMOND
 		&"tile.visual.ratio_base":
-			return TilePatternOverlay.PatternType.CHECKER
+			return TilePatternOverlay.PatternType.CONCENTRIC
 		&"tile.visual.ratio_factor":
 			return TilePatternOverlay.PatternType.DIAGONAL_HATCH
 	return TilePatternOverlay.PatternType.NONE

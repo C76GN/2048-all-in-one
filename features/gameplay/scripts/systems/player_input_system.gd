@@ -15,6 +15,7 @@ const _MOVE_FAIL_MESSAGE_DURATION: float = 1.6
 var _input_mapping: GFInputMappingUtility
 var _notifications: GFNotificationUtility
 var _pause_utility: GamePauseUtility
+var _board_animation_utility: GameBoardAnimationUtility
 var _is_playing: bool = false
 var _is_active: bool = false
 
@@ -22,7 +23,13 @@ var _is_active: bool = false
 # --- Godot 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GamePauseUtility, GFCommandHistoryUtility, GFInputMappingUtility, GFNotificationUtility]
+	return [
+		GamePauseUtility,
+		GameBoardAnimationUtility,
+		GFCommandHistoryUtility,
+		GFInputMappingUtility,
+		GFNotificationUtility,
+	]
 
 
 func init() -> void:
@@ -35,6 +42,7 @@ func ready() -> void:
 	_input_mapping = _get_input_mapping_utility()
 	_notifications = _get_notification_utility()
 	_pause_utility = _get_pause_utility()
+	_board_animation_utility = _get_board_animation_utility()
 	if is_instance_valid(_input_mapping):
 		_input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
 	else:
@@ -43,6 +51,8 @@ func ready() -> void:
 		push_error("[PlayerInputSystem] 缺少 GFNotificationUtility，玩法反馈不可用。")
 	if not is_instance_valid(_pause_utility):
 		push_error("[PlayerInputSystem] 缺少 GamePauseUtility，暂停输入门控不可用。")
+	if not is_instance_valid(_board_animation_utility):
+		push_error("[PlayerInputSystem] 缺少 GameBoardAnimationUtility，动画输入策略不可用。")
 
 	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready", 1))
 	register_simple_event(EventNames.GAME_STATE_CHANGED, GFEventListener.from_method(self, &"_on_game_state_changed", 1))
@@ -56,6 +66,7 @@ func dispose() -> void:
 	_input_mapping = null
 	_notifications = null
 	_pause_utility = null
+	_board_animation_utility = null
 
 
 ## 轮询玩法输入上下文并派发对应游戏命令。
@@ -98,6 +109,11 @@ func tick(_delta: float) -> void:
 		direction = Vector2i.RIGHT
 
 	if direction != Vector2i.ZERO:
+		if (
+			is_instance_valid(_board_animation_utility)
+			and not _board_animation_utility.prepare_for_move()
+		):
+			return
 		call_deferred(&"_execute_move_command", direction)
 
 
@@ -175,6 +191,14 @@ func _get_pause_utility() -> GamePauseUtility:
 	if utility_value is GamePauseUtility:
 		var pause_utility: GamePauseUtility = utility_value
 		return pause_utility
+	return null
+
+
+func _get_board_animation_utility() -> GameBoardAnimationUtility:
+	var utility_value: Object = get_utility(GameBoardAnimationUtility)
+	if utility_value is GameBoardAnimationUtility:
+		var animation_utility: GameBoardAnimationUtility = utility_value
+		return animation_utility
 	return null
 
 

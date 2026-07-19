@@ -157,7 +157,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 目标：从功能样例变成完整小游戏。
 
 1. 自定义与超大棋盘基础。
-   - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；玩家编辑器已支持绘制、擦除、预设、规范化、连通提示、GF 局部撤销历史和 SaveGraph 模板目录，并通过独立 GF 输入上下文消费撤销/重做快捷键。编辑画布现使用稳定世界尺寸、共享视口变换算法、GF 指针手势与坐标换算，支持桌面缩放平移、单指连续绘制、双指缩放平移以及桌面/紧凑横屏/安全区竖屏布局。棋盘表现已拆为独立世界画布与屏幕空间 HUD，支持完整聚焦、鼠标/触控板/双指缩放平移、单指抽象动作移动、可见区域查询、GF 对象池窗口化和低缩放细节裁剪。移动 HUD 默认只显示分数、步数和最大方块；开发实验台已迁移到 diagnostics feature 拥有的独立 Window。
+   - 当前状态：`BoardTopology` 已取代固定二维数组，矩形、十字和带空洞自定义棋盘共用稀疏状态、连续 lane、生成、判负、预览、撤销、书签、回放和统计键；玩家编辑器已支持绘制、擦除、预设、规范化、连通提示、GF 局部撤销历史和 SaveGraph 模板目录，并通过独立 GF 输入上下文消费撤销/重做快捷键。编辑画布现使用稳定世界尺寸、共享视口变换算法、GF 指针手势与坐标换算，支持桌面缩放平移、单指连续绘制、双指缩放平移以及桌面/紧凑横屏/安全区竖屏布局。棋盘表现已拆为独立世界画布与全屏 HUD 覆盖层，支持完整聚焦、鼠标/触控板/双指以及键盘/手柄缩放平移、单指或屏幕方向键抽象动作移动、可见区域查询、GF 对象池窗口化和低缩放细节裁剪。分数、提示和动作分布在屏幕边缘；开发实验台已迁移到 diagnostics feature 拥有的独立 Window。
    - 当前进展：稳定拓扑键、规范化方块组合身份、严格发现 section 和响应式图鉴 Route 已完成；目录条目按视觉家族归档并复用正式方块表现。成就已通过资源目录、类型化领域事件、GF Quest 运行时投影和独立 SaveGraph section 接入，并能从历史统计与发现高水位回填。
    - 下一步：建立只接收 `GameResultRecordedData` 的本地排行榜真源，再通过显式平台 bridge contract 接入 Steam 与微信 Adapter。
    - 契约：见 `features/gameplay/docs/board_topology.md`，不得重新引入 `grid_size` 作为逻辑唯一真源。
@@ -191,7 +191,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 2. 棋盘与方块。
    - 保持方块颜色来自配置资源，不在表现层硬编码覆盖用户预期。
-   - 统一生成、移动、合并、转化动效，现有 Tween 通过 `BoardTweenBatchAction` 进入 `GFActionQueueSystem` 的等待、暂停、完成与取消生命周期，再由 `GameBoardFeedbackUtility` 和 `GFShakeUtility` 协调附加反馈。
+   - 统一生成、移动、合并、转化动效，现有 Tween 通过 `BoardTweenBatchAction` 进入 `GameBoardAnimationUtility` 管理的 GF 命名队列，并提供缓冲、动画期间阻断、实时重定向三种设置，再由 `GameBoardFeedbackUtility` 和 `GFShakeUtility` 协调附加反馈。
    - 方块基础纹理由 `TileDefinition.visual_family_id` 固定身份家族，Recipe 能力只增加边缘小标记；禁止按数值轮换身份纹理或叠加多张全幅图案。
 
 3. 菜单和弹层。

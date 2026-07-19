@@ -30,6 +30,11 @@ const SPACING: int = 15
 ## 棋盘背景的内边距。
 const BOARD_PADDING: int = 15
 
+## 棋盘画布的稳定层级契约：底板 < 空格 < 方块。
+const BOARD_BACKGROUND_Z_INDEX: int = 0
+const GRID_CELL_Z_INDEX: int = 1
+const TILE_Z_INDEX: int = 2
+
 ## 用于让旧动画回调识别节点是否已被复用。
 const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 
@@ -76,7 +81,7 @@ var _is_rebuilding_visuals: bool = false
 
 var _log: GFLogUtility
 var _pool: GFObjectPoolUtility
-var _action_queue: GFActionQueueSystem
+var _animation_utility: GameBoardAnimationUtility
 
 ## 标记是否已完成清理。
 var _is_cleaned_up: bool = false
@@ -99,9 +104,11 @@ func _ready() -> void:
 	model = _get_grid_model()
 	_log = _get_log_utility()
 	_pool = _get_object_pool_utility()
-	_action_queue = _get_action_queue_system()
+	_animation_utility = _get_board_animation_utility()
 	if not _has_required_dependencies():
 		return
+	board_background.z_index = BOARD_BACKGROUND_Z_INDEX
+	var _board_bound: bool = _animation_utility.bind_board(self)
 	
 	# --- 注册 GF 事件监听 ---
 	register_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, GFEventListener.from_method(self, &"_on_board_animation_requested", 1))
@@ -112,6 +119,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if is_instance_valid(_animation_utility):
+		_animation_utility.unbind_board(self, false)
 	_cleanup_listeners()
 	super._exit_tree()
 
@@ -397,11 +406,11 @@ func _get_object_pool_utility() -> GFObjectPoolUtility:
 	return null
 
 
-func _get_action_queue_system() -> GFActionQueueSystem:
-	var system_value: Object = get_system(GFActionQueueSystem)
-	if system_value is GFActionQueueSystem:
-		var action_queue: GFActionQueueSystem = system_value
-		return action_queue
+func _get_board_animation_utility() -> GameBoardAnimationUtility:
+	var utility_value: Object = get_utility(GameBoardAnimationUtility)
+	if utility_value is GameBoardAnimationUtility:
+		var animation_utility: GameBoardAnimationUtility = utility_value
+		return animation_utility
 	return null
 
 
@@ -411,8 +420,8 @@ func _has_required_dependencies() -> bool:
 		var _model_appended: bool = missing.append("GridModel")
 	if not is_instance_valid(_pool):
 		var _pool_appended: bool = missing.append("GFObjectPoolUtility")
-	if not is_instance_valid(_action_queue):
-		var _queue_appended: bool = missing.append("GFActionQueueSystem")
+	if not is_instance_valid(_animation_utility):
+		var _queue_appended: bool = missing.append("GameBoardAnimationUtility")
 	if missing.is_empty():
 		return true
 	push_error("[GameBoardController] 缺少必需架构依赖：%s。" % ", ".join(missing))
@@ -444,6 +453,7 @@ func _create_visual_tile(tile_data: TileState) -> Tile:
 		return null
 	
 	new_tile.reset_animation_state()
+	new_tile.z_index = TILE_Z_INDEX
 	new_tile.set_meta(RELEASE_TOKEN_META, 0)
 	var colors: Dictionary = _get_tile_colors(tile_data.value, tile_data.definition_id)
 	var presentation: Dictionary = _get_tile_presentation_descriptor(tile_data)
@@ -671,7 +681,7 @@ func _sync_visible_region() -> void:
 		return
 	var visible_cells: Array[Vector2i] = _get_visible_cells()
 	_sync_grid_cells(visible_cells)
-	if not is_instance_valid(_action_queue) or not _action_queue.is_processing:
+	if not is_instance_valid(_animation_utility) or not _animation_utility.is_busy():
 		_sync_visual_tiles(visible_cells)
 
 
@@ -729,7 +739,7 @@ func _sync_grid_cells(visible_cells: Array[Vector2i]) -> void:
 			continue
 		cell_instance.size = Vector2.ONE * CELL_SIZE
 		cell_instance.position = Vector2(cell) * (CELL_SIZE + SPACING)
-		cell_instance.z_index = -10
+		cell_instance.z_index = GRID_CELL_Z_INDEX
 		_style_grid_cell(cell_instance)
 		_grid_cell_map[cell] = cell_instance
 
@@ -1049,10 +1059,10 @@ func _on_board_undo_animation_requested(payload: Array) -> void:
 		_log.debug(_LOG_TAG, "收到撤回动画请求。")
 	
 	var undo_action: BoardUndoAnimationAction = BoardUndoAnimationAction.new(snapshot, reverse_map, self)
-	if not is_instance_valid(_action_queue):
-		push_error("[GameBoardController] GFActionQueueSystem 不可用，撤回动画被拒绝。")
+	if not is_instance_valid(_animation_utility):
+		push_error("[GameBoardController] GameBoardAnimationUtility 不可用，撤回动画被拒绝。")
 		return
-	_action_queue.enqueue(undo_action)
+	var _undo_enqueued: bool = _animation_utility.enqueue(undo_action)
 
 ## 接收到逻辑层的动画请求，将其包装为 Action 推入动画队列。
 func _on_board_animation_requested(instructions: Array) -> void:
@@ -1234,10 +1244,10 @@ func _on_board_animation_requested(instructions: Array) -> void:
 	var action: BoardAnimationAction = BoardAnimationAction.new(visual_instructions, self)
 	
 	# 3. 推入 GFActionQueueSystem 执行
-	if not is_instance_valid(_action_queue):
-		push_error("[GameBoardController] GFActionQueueSystem 不可用，棋盘动画被拒绝。")
+	if not is_instance_valid(_animation_utility):
+		push_error("[GameBoardController] GameBoardAnimationUtility 不可用，棋盘动画被拒绝。")
 		return
-	_action_queue.enqueue(action)
+	var _animation_enqueued: bool = _animation_utility.enqueue(action)
 
 
 ## 接收到全量刷新请求（如撤回操作），直接重置棋盘视觉状态。
@@ -1252,4 +1262,6 @@ func _on_board_live_expand_requested(new_size: int) -> void:
 
 ## 当场景即将改变时调用，确保释放旧场景前断开监听
 func _on_scene_will_change(_payload: Variant = null) -> void:
+	if is_instance_valid(_animation_utility):
+		_animation_utility.unbind_board(self, true)
 	_cleanup_listeners()

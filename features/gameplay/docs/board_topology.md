@@ -45,7 +45,7 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 - 棋盘表现使用稳定局部世界坐标，外层 `BoardWorldViewportController` 独占缩放、平移和完整聚焦；HUD 保持独立屏幕空间，诊断面板由 diagnostics feature 的独立 Window 承载。
 - 鼠标中键拖动、滚轮缩放、原生触控板手势和双指触摸由 `GFPointerGestureUtility` 统一归一化，屏幕与棋盘局部坐标通过 `GFViewportUtility` 换算，运行时连接由 `GFSignalUtility` 管理。
 - 单指短滑只负责棋盘移动，并通过 `GFVirtualInputSource` 写入玩法抽象动作；它不直接调用命令。双指序列一旦成立，本轮触摸只负责画布平移/缩放，不再回落成单指移动。
-- `GameplayResponsiveLayoutController` 在桌面、紧凑横屏和竖屏间切换。竖屏 HUD 位于独立移动宿主并由 GF 安全区边距保护，继承布局的右栏在所有玩法断点都关闭。
+- `GameplayResponsiveLayoutController` 在桌面、紧凑横屏和竖屏间调整棋盘留白；HUD 始终是由 GF 安全区保护的全屏覆盖层，摘要、提示和动作分散在屏幕边缘，继承布局的左右栏在所有玩法断点都关闭。
 - `BoardTopology.get_cells_in_rect()` 使用行区间缓存与二分边界查询可见活跃单元；`GameBoardController` 只通过 `GFObjectPoolUtility` 挂载当前窗口内的格子和方块节点。完整模型不受裁剪影响，缩放过小时进入仅显示棋盘底板的细节层级。
 - 原 3x3 至 8x8 模式选择通过 `scalable_square_board_template.tres` 生成矩形拓扑。
 - 调试扩建仅支持矩形正方形；它不是玩家棋盘编辑器。
@@ -58,11 +58,13 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 1. `BoardTopology` 和 `GridModel` 坐标不得随窗口尺寸、缩放比例或 HUD 布局变化。
 2. `GameBoardHost` 尺寸等于完整逻辑棋盘包围盒；`BoardWorld` 只改变统一缩放与位置，不修改单格尺寸或动画目标。
 3. 可见格与可见方块节点是可丢弃的表现缓存，不是模型真源；平移、缩放或动画结束后必须从 `GridModel` 重新同步。
-4. `GFActionQueueSystem` 处理动画期间允许更新背景格窗口，但方块节点集在 Action 完成或取消后再同步，避免回收正在 Tween 的节点。
+4. `GameBoardAnimationUtility` 使用绑定棋盘节点的 GF 命名队列处理动画。动画期间允许更新背景格窗口，但方块节点集在 Action 完成或取消后再同步，避免回收正在 Tween 的节点。
 5. 输入优先级固定为：UI `Control` 先消费事件；棋盘视口中的双指序列负责平移/缩放；未进入多指状态的单指短滑在抬起时转换为四向玩法动作；中键、滚轮与原生 pan/magnify 继续只控制视口。
-6. 触控移动必须经 `GameplayInputActions` 和 `GFVirtualInputSource` 进入已启用的 gameplay `GFInputContext`，由 `PlayerInputSystem` 消费并创建 `MoveCommand`。任何 UI 或视口控制器都不得直接执行移动规则。
-7. 方向含糊、距离不足或持续过久的单指轨迹必须拒绝；双指序列释放回单指后，必须等待所有触点结束才能开启下一次移动判定。
-8. 玩法只通过 `GameplayBoardReadyData` 发布棋盘表现上下文；不得引用 diagnostics feature 的 Window、Panel 或 Utility。开发工具需要棋盘上下文时由 diagnostics 订阅该事件。
+6. 触控滑动与 HUD 方向键必须经 `GameplayInputActions` 和 `GFVirtualInputSource` 进入已启用的 gameplay `GFInputContext`，由 `PlayerInputSystem` 消费并创建 `MoveCommand`。键盘、鼠标按钮、手柄和触摸只提供不同物理来源，任何 UI 或视口控制器都不得直接执行移动规则。
+7. 视口的键盘/手柄缩放、平移、完整聚焦与鼠标滚轮/中键、触控双指操作映射到同一组 `view_*` 抽象动作；任何设备都不得成为唯一可达路径。
+8. 输入动画策略固定为缓冲、动画期间阻断和实时重定向三种。实时重定向取消当前 GF Action 后必须按当前 `GridModel` 快照恢复视觉节点，禁止继续播放已经失效的目标轨迹。
+9. 方向含糊、距离不足或持续过久的单指轨迹必须拒绝；双指序列释放回单指后，必须等待所有触点结束才能开启下一次移动判定。
+10. 玩法只通过 `GameplayBoardReadyData` 发布棋盘表现上下文；不得引用 diagnostics feature 的 Window、Panel 或 Utility。开发工具需要棋盘上下文时由 diagnostics 订阅该事件。
 
 ## 后续顺序
 
