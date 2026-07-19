@@ -11,6 +11,16 @@ enum TextRole {
 	SECONDARY,
 	MUTED,
 	FEEDBACK,
+	DISPLAY,
+	NUMERIC,
+}
+
+## 按钮在页面任务层级中的语义角色。
+enum ButtonRole {
+	SECONDARY,
+	PRIMARY,
+	QUIET,
+	ICON,
 }
 
 ## 面板表面的语义角色。
@@ -34,6 +44,7 @@ const _STATIC_STYLE_META: StringName = &"_game_ui_style_applied"
 const _TEXT_ROLE_META: StringName = &"_game_ui_style_text_role"
 const _TEXT_FONT_SIZE_META: StringName = &"_game_ui_style_text_font_size"
 const _TEXT_SHADOW_META: StringName = &"_game_ui_style_text_shadow"
+const _BUTTON_ROLE_META: StringName = &"_game_ui_style_button_role"
 const _SURFACE_ROLE_META: StringName = &"_game_ui_style_surface_role"
 const _BORDER_ROLE_META: StringName = &"_game_ui_style_border_role"
 const _BORDER_WIDTH_META: StringName = &"_game_ui_style_border_width"
@@ -69,6 +80,10 @@ var _button_focus_border_color: Color = _BUTTON_FOCUS_BORDER_COLOR
 var _button_disabled_color: Color = _BUTTON_DISABLED_COLOR
 var _button_font_color: Color = _BUTTON_FONT_COLOR
 var _button_font_disabled_color: Color = _BUTTON_FONT_DISABLED_COLOR
+var _primary_button_color: Color = Color(0.49411765, 0.79607844, 0.827451, 1.0)
+var _primary_button_hover_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
+var _primary_button_pressed_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+var _quiet_button_hover_color: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.08)
 var _text_primary_color: Color = _TEXT_PRIMARY_COLOR
 var _text_secondary_color: Color = _TEXT_SECONDARY_COLOR
 var _text_shadow_color: Color = _TEXT_SHADOW_COLOR
@@ -82,6 +97,9 @@ var _selected_border_color: Color = _SELECTED_BORDER_COLOR
 var _slider_track_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
 var _slider_grabber_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
 var _slider_grabber_highlight_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)
+var _body_font: Font
+var _display_font: Font
+var _numeric_font: Font
 var _button_focus_shader_profile: GFShaderParameterProfile
 var _asset_library: GameAssetLibraryUtility
 var _button_focus_ring_shader: Shader
@@ -110,7 +128,7 @@ func ready() -> void:
 
 
 func dispose() -> void:
-	_button_focus_shader_profile = null
+	_reset_palette()
 	_asset_library = null
 	_button_focus_ring_shader = null
 	_shader_parameters = null
@@ -139,9 +157,13 @@ func apply_palette(palette: GameUiPalette) -> void:
 	_button_disabled_color = palette.button_disabled_color
 	_button_font_color = palette.button_font_color
 	_button_font_disabled_color = palette.button_font_disabled_color
+	_primary_button_color = palette.primary_button_color
+	_primary_button_hover_color = palette.primary_button_hover_color
+	_primary_button_pressed_color = palette.primary_button_pressed_color
+	_quiet_button_hover_color = palette.quiet_button_hover_color
 	_text_primary_color = palette.text_primary_color
 	_text_secondary_color = palette.text_secondary_color
-	_text_shadow_color = palette.button_hover_color
+	_text_shadow_color = palette.text_shadow_color
 	_text_shadow_color.a = 0.52
 	_field_surface_color = palette.field_surface_color
 	_field_focus_surface_color = palette.field_focus_surface_color
@@ -153,6 +175,9 @@ func apply_palette(palette: GameUiPalette) -> void:
 	_slider_track_color = palette.slider_track_color
 	_slider_grabber_color = palette.slider_grabber_color
 	_slider_grabber_highlight_color = palette.slider_grabber_highlight_color
+	_body_font = palette.body_font
+	_display_font = palette.display_font
+	_numeric_font = palette.numeric_font
 	_button_focus_shader_profile = palette.button_focus_shader_profile
 
 
@@ -310,6 +335,7 @@ func style_line_edit(line_edit: LineEdit) -> void:
 	line_edit.add_theme_color_override("font_color", _text_primary_color)
 	line_edit.add_theme_color_override("font_placeholder_color", _get_text_color(TextRole.MUTED))
 	line_edit.add_theme_color_override("caret_color", _field_focus_border_color)
+	_apply_font_override(line_edit, _body_font)
 
 
 ## 为分隔线应用当前主题的弱边框颜色。
@@ -329,6 +355,16 @@ func prepare_button(button: BaseButton) -> void:
 		return
 	_apply_button_visual_style(button)
 	var _focus_ring: ColorRect = _ensure_button_focus_ring(button)
+
+
+## 为按钮保存任务层级角色并立即刷新样式。
+## @param button: 目标按钮。
+## @param role: 主操作、普通操作、弱操作或图标操作。
+func style_button(button: BaseButton, role: ButtonRole = ButtonRole.SECONDARY) -> void:
+	if not is_instance_valid(button):
+		return
+	button.set_meta(_BUTTON_ROLE_META, int(role))
+	prepare_button(button)
 
 
 ## 更新按钮焦点 Shader 的尺寸和当前色板参数。
@@ -353,6 +389,7 @@ func _apply_label_style(label: Label) -> void:
 		_get_control_meta(label, _TEXT_ROLE_META, TextRole.PRIMARY)
 	)
 	label.add_theme_color_override("font_color", _get_text_color(role))
+	_apply_font_override(label, _get_text_font(role))
 	if role == TextRole.FEEDBACK:
 		label.add_theme_color_override("font_outline_color", _text_primary_color)
 		label.add_theme_constant_override("outline_size", 2)
@@ -386,6 +423,16 @@ func _get_text_color(role: int) -> Color:
 	return _text_primary_color
 
 
+func _get_text_font(role: int) -> Font:
+	if role == TextRole.DISPLAY:
+		return _display_font if _display_font != null else _body_font
+	if role == TextRole.NUMERIC:
+		if _numeric_font != null:
+			return _numeric_font
+		return _display_font if _display_font != null else _body_font
+	return _body_font
+
+
 func _apply_rich_text_label_style(label: RichTextLabel) -> void:
 	var role: int = GFVariantData.to_int(
 		_get_control_meta(label, _TEXT_ROLE_META, TextRole.SECONDARY)
@@ -393,6 +440,7 @@ func _apply_rich_text_label_style(label: RichTextLabel) -> void:
 	label.add_theme_color_override("default_color", _get_text_color(role))
 	label.add_theme_color_override("font_selected_color", _text_primary_color)
 	label.add_theme_color_override("font_outline_color", Color.TRANSPARENT)
+	_apply_font_override(label, _get_text_font(role))
 
 
 func _apply_semantic_panel_style(panel: Panel) -> void:
@@ -423,6 +471,7 @@ func _style_spin_box(spin_box: SpinBox) -> void:
 	spin_box.add_theme_color_override("font_disabled_color", _text_secondary_color)
 	spin_box.add_theme_color_override("font_hover_color", _text_primary_color)
 	spin_box.add_theme_color_override("font_focus_color", _text_primary_color)
+	_apply_font_override(spin_box, _body_font)
 	var line_edit: LineEdit = spin_box.get_line_edit()
 	if is_instance_valid(line_edit):
 		style_line_edit(line_edit)
@@ -469,20 +518,45 @@ func _style_item_list(item_list: ItemList) -> void:
 	)
 	item_list.add_theme_color_override("font_color", _text_primary_color)
 	item_list.add_theme_color_override("font_selected_color", _text_primary_color)
+	_apply_font_override(item_list, _body_font)
 
 
 func _apply_button_visual_style(button: BaseButton) -> void:
+	var role: int = GFVariantData.to_int(
+		_get_control_meta(button, _BUTTON_ROLE_META, ButtonRole.SECONDARY)
+	)
+	var normal_color: Color = _button_normal_color
+	var hover_color: Color = _button_hover_color
+	var pressed_color: Color = _button_pressed_color
+	var border_color: Color = _button_focus_border_color
+	var normal_border_width: int = 2
+	if role == ButtonRole.PRIMARY:
+		normal_color = _primary_button_color
+		hover_color = _primary_button_hover_color
+		pressed_color = _primary_button_pressed_color
+		normal_border_width = 3
+	elif role == ButtonRole.QUIET:
+		normal_color = Color.TRANSPARENT
+		hover_color = _quiet_button_hover_color
+		pressed_color = _button_pressed_color.lightened(0.12)
+		border_color = Color.TRANSPARENT
+		normal_border_width = 0
+	elif role == ButtonRole.ICON:
+		normal_color = _panel_surface_color
+		hover_color = _button_hover_color
+		pressed_color = _button_pressed_color
+		normal_border_width = 1
 	button.add_theme_stylebox_override(
 		"normal",
-		_create_button_style(_button_normal_color, _button_focus_border_color, 2)
+		_create_button_style(normal_color, border_color, normal_border_width)
 	)
 	button.add_theme_stylebox_override(
 		"hover",
-		_create_button_style(_button_hover_color, _button_focus_border_color, 2)
+		_create_button_style(hover_color, _button_focus_border_color, maxi(normal_border_width, 1))
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_create_button_style(_button_pressed_color, _button_focus_border_color, 3)
+		_create_button_style(pressed_color, _button_focus_border_color, 3)
 	)
 	button.add_theme_stylebox_override(
 		"focus",
@@ -497,6 +571,10 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 	button.add_theme_color_override("font_pressed_color", _button_font_color)
 	button.add_theme_color_override("font_focus_color", _button_font_color)
 	button.add_theme_color_override("font_disabled_color", _button_font_disabled_color)
+	_apply_font_override(
+		button,
+		_display_font if role == ButtonRole.PRIMARY and _display_font != null else _body_font
+	)
 	_apply_button_focus_ring_style(button)
 
 
@@ -640,6 +718,10 @@ func _reset_palette() -> void:
 	_button_disabled_color = _BUTTON_DISABLED_COLOR
 	_button_font_color = _BUTTON_FONT_COLOR
 	_button_font_disabled_color = _BUTTON_FONT_DISABLED_COLOR
+	_primary_button_color = Color(0.49411765, 0.79607844, 0.827451, 1.0)
+	_primary_button_hover_color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
+	_primary_button_pressed_color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+	_quiet_button_hover_color = Color(0.18431373, 0.1882353, 0.21568628, 0.08)
 	_text_primary_color = _TEXT_PRIMARY_COLOR
 	_text_secondary_color = _TEXT_SECONDARY_COLOR
 	_text_shadow_color = _TEXT_SHADOW_COLOR
@@ -653,7 +735,17 @@ func _reset_palette() -> void:
 	_slider_track_color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
 	_slider_grabber_color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
 	_slider_grabber_highlight_color = Color(0.8745098, 0.29411766, 0.6039216, 0.88)
+	_body_font = null
+	_display_font = null
+	_numeric_font = null
 	_button_focus_shader_profile = null
+
+
+func _apply_font_override(control: Control, font: Font) -> void:
+	if font == null:
+		control.remove_theme_font_override("font")
+		return
+	control.add_theme_font_override("font", font)
 
 
 func _get_control_meta(control: Control, key: StringName, default_value: Variant) -> Variant:

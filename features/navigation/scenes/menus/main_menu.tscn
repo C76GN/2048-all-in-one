@@ -1,7 +1,8 @@
-[gd_scene format=3 uid="uid://d3caufbu1axub"]
+[gd_scene load_steps=6 format=3 uid="uid://d3caufbu1axub"]
 
-[ext_resource type="Script" uid="uid://hybxd0keci4i" path="res://features/navigation/scripts/menus/main_menu.gd" id="1_l6cm7"]
+[ext_resource type="Script" uid="uid://hybxd0keci4i" path="res://features/navigation/scripts/menus/main_menu.gd" id="1_menu"]
 [ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader" id="2_background_shader"]
+[ext_resource type="Script" path="res://features/navigation/scripts/ui/main_menu_board_motif.gd" id="3_motif"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_main_background"]
 shader = ExtResource("2_background_shader")
@@ -18,17 +19,20 @@ shader_parameter/stipple_strength = 0.006
 shader_parameter/flow_scale = 1.35
 shader_parameter/scanline_strength = 0.0
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_menu_surface"]
-bg_color = Color(1, 0.972549, 0.9098039, 0.94)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_preview"]
+bg_color = Color(0.9843137, 0.9764706, 0.9529412, 0.58)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.13725491, 0.15294118, 0.16862746, 0.78)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rule"]
+bg_color = Color(0.8745098, 0.29411766, 0.6039216, 1)
 
 [node name="MainMenu" type="Control" unique_id=1415483157]
 layout_mode = 3
@@ -37,13 +41,13 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_l6cm7")
+script = ExtResource("1_menu")
 mode_selection_scene_path = "res://features/navigation/scenes/menus/mode_selection.tscn"
 replay_list_scene_path = "res://features/replays/scenes/menus/replay_list.tscn"
 bookmark_list_scene_path = "res://features/bookmarks/scenes/menus/bookmark_list.tscn"
 settings_scene_path = "res://features/settings/scenes/menus/settings_menu.tscn"
 
-[node name="Background" type="ColorRect" parent="." unique_id=2127579856]
+[node name="Background" type="ColorRect" parent="."]
 material = SubResource("ShaderMaterial_main_background")
 layout_mode = 1
 anchors_preset = 15
@@ -53,108 +57,176 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.95686275, 0.92941177, 0.8666667, 1)
 
-[node name="MenuSurface" type="Panel" parent="." unique_id=1183524233]
+[node name="RegistrationRule" type="Panel" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -205.0
-offset_top = -300.0
-offset_right = 205.0
-offset_bottom = 300.0
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 8.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_rule")
+
+[node name="SafeMargin" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 56
+theme_override_constants/margin_top = 44
+theme_override_constants/margin_right = 56
+theme_override_constants/margin_bottom = 42
+
+[node name="Content" type="BoxContainer" parent="SafeMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 56
+
+[node name="Showcase" type="VBoxContainer" parent="SafeMargin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="KickerLabel" type="Label" parent="SafeMargin/Content/Showcase"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "无限合并实验室"
+
+[node name="BrandRow" type="HBoxContainer" parent="SafeMargin/Content/Showcase"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="TitleLabel" type="Label" parent="SafeMargin/Content/Showcase/BrandRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 104
+text = "2048"
+vertical_alignment = 1
+
+[node name="EditionStack" type="VBoxContainer" parent="SafeMargin/Content/Showcase/BrandRow"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 2
+
+[node name="EditionLabel" type="Label" parent="SafeMargin/Content/Showcase/BrandRow/EditionStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "ALL IN ONE"
+
+[node name="SubtitleLabel" type="Label" parent="SafeMargin/Content/Showcase/BrandRow/EditionStack"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "规则会组合，棋盘会生长"
+autowrap_mode = 3
+
+[node name="BoardPreviewFrame" type="Panel" parent="SafeMargin/Content/Showcase"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(440, 378)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_preview")
+
+[node name="BoardMotif" type="Control" parent="SafeMargin/Content/Showcase/BoardPreviewFrame"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = 18.0
+offset_right = -18.0
+offset_bottom = -18.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_menu_surface")
+script = ExtResource("3_motif")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1123332017]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -160.0
-offset_top = -250.0
-offset_right = 160.0
-offset_bottom = 250.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 16
-alignment = 1
-
-[node name="Title" type="Label" parent="VBoxContainer" unique_id=82367243]
+[node name="MenuColumn" type="VBoxContainer" parent="SafeMargin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 0)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
-theme_override_colors/font_shadow_color = Color(0.61960787, 0.85882354, 0.8352941, 0.58)
-theme_override_constants/shadow_offset_x = 2
-theme_override_constants/shadow_offset_y = 2
-theme_override_font_sizes/font_size = 72
-text = "2048"
-horizontal_alignment = 1
-vertical_alignment = 1
+size_flags_vertical = 4
+theme_override_constants/separation = 10
 
-[node name="StartGameButton" type="Button" parent="VBoxContainer" unique_id=1465396621]
+[node name="MenuKickerLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 3
-focus_neighbor_top = NodePath("../QuitButton")
-focus_neighbor_bottom = NodePath("../LoadBookmarkButton")
+theme_override_font_sizes/font_size = 14
+text = "PLAY"
+
+[node name="StartGameButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "开始游戏"
 
-[node name="LoadBookmarkButton" type="Button" parent="VBoxContainer" unique_id=1711491704]
+[node name="LoadBookmarkButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 54)
 layout_mode = 2
-size_flags_vertical = 3
-focus_neighbor_top = NodePath("../StartGameButton")
-focus_neighbor_bottom = NodePath("../ReplaysButton")
-theme_override_font_sizes/font_size = 24
-text = "读取书签（存档）"
+theme_override_font_sizes/font_size = 18
+text = "继续游戏"
 
-[node name="ReplaysButton" type="Button" parent="VBoxContainer" unique_id=1429260757]
+[node name="CollectionLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 3
-focus_neighbor_top = NodePath("../LoadBookmarkButton")
-focus_neighbor_bottom = NodePath("../TileCatalogButton")
-theme_override_font_sizes/font_size = 24
-text = "回放列表"
+theme_override_font_sizes/font_size = 14
+text = "收藏与记录"
 
-[node name="TileCatalogButton" type="Button" parent="VBoxContainer"]
-unique_name_in_owner = true
+[node name="CollectionRow" type="HBoxContainer" parent="SafeMargin/Content/MenuColumn"]
 layout_mode = 2
-size_flags_vertical = 3
-focus_neighbor_top = NodePath("../ReplaysButton")
-focus_neighbor_bottom = NodePath("../AchievementsButton")
-theme_override_font_sizes/font_size = 24
-text = "方块图鉴"
+theme_override_constants/separation = 10
 
-[node name="AchievementsButton" type="Button" parent="VBoxContainer"]
+[node name="ReplaysButton" type="Button" parent="SafeMargin/Content/MenuColumn/CollectionRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
-size_flags_vertical = 3
-focus_neighbor_top = NodePath("../TileCatalogButton")
-focus_neighbor_bottom = NodePath("../SettingsButton")
-theme_override_font_sizes/font_size = 24
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 17
+text = "回放"
+
+[node name="TileCatalogButton" type="Button" parent="SafeMargin/Content/MenuColumn/CollectionRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 17
+text = "图鉴"
+
+[node name="AchievementsButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
 text = "成就"
 
-[node name="SettingsButton" type="Button" parent="VBoxContainer" unique_id=230653]
+[node name="SystemLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 3
-focus_neighbor_top = NodePath("../AchievementsButton")
-focus_neighbor_bottom = NodePath("../QuitButton")
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 14
+text = "系统"
+
+[node name="SettingsButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
 text = "设置"
 
-[node name="QuitButton" type="Button" parent="VBoxContainer" unique_id=1241985496]
+[node name="QuitButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
-size_flags_vertical = 3
-focus_neighbor_top = NodePath("../SettingsButton")
-focus_neighbor_bottom = NodePath("../StartGameButton")
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 15
 text = "退出"

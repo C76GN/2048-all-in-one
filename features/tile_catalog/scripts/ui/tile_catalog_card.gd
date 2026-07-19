@@ -102,7 +102,7 @@ func _apply_entry() -> void:
 func _center_preview() -> void:
 	if not is_instance_valid(_preview_tile) or not is_instance_valid(_preview_holder):
 		return
-	_preview_tile.position = Vector2(_preview_holder.size.x * 0.5, 54.0)
+	_preview_tile.position = Vector2(_preview_holder.size.x * 0.5, 44.0)
 
 
 func _to_string_name_array(values: Array) -> Array[StringName]:

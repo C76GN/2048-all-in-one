@@ -29,6 +29,24 @@ func test_theme_catalog_discovers_and_validates_default_theme_pack() -> void:
 	assert_true(theme.theme_id == &"halftone_atlas", "默认视觉主题 ID 应稳定。")
 	assert_true(is_instance_valid(theme.board_theme), "主题应引用棋盘主题资源。")
 	assert_true(is_instance_valid(theme.ui_palette), "主题应引用 UI 色板资源。")
+	assert_false(theme.ui_palette.body_font is SystemFont, "跨平台主题不得依赖 Web/小游戏不可控的系统字体。")
+	assert_true(theme.ui_palette.body_font.has_char("中".unicode_at(0)), "正文主题字体必须随包提供中文字形。")
+	assert_true(theme.ui_palette.numeric_font.has_char("2".unicode_at(0)), "数字主题字体必须随包提供基础数字字形。")
+	assert_true(theme.ui_palette.body_font is FontVariation, "正文主题应使用可审计的打包字体变体。")
+	assert_true(theme.ui_palette.display_font is FontVariation, "展示主题应使用可审计的打包字体变体。")
+	var weight_tag: int = TextServerManager.get_primary_interface().name_to_tag("wght")
+	if theme.ui_palette.body_font is FontVariation:
+		var body_variation: FontVariation = theme.ui_palette.body_font
+		assert_true(
+			body_variation.variation_opentype.has(weight_tag),
+			"正文可变字体必须使用 TextServer OpenType tag 配置字重。"
+		)
+	if theme.ui_palette.display_font is FontVariation:
+		var display_variation: FontVariation = theme.ui_palette.display_font
+		assert_true(
+			display_variation.variation_opentype.has(weight_tag),
+			"展示可变字体必须使用 TextServer OpenType tag 配置字重。"
+		)
 	assert_true(is_instance_valid(theme.ui_palette.button_focus_shader_profile), "UI 色板应引用按钮焦点 GF Profile。")
 	assert_true(theme.ui_palette.button_focus_shader_profile.get_parameter_names().size() == 5, "按钮焦点 Profile 应声明 5 个静态样式参数。")
 	assert_true(is_instance_valid(theme.background_shader_profile), "主题应引用 GF 背景 Shader 参数 Profile。")

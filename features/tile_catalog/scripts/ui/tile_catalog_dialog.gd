@@ -11,6 +11,8 @@ const TILE_CATALOG_CARD_SCENE: PackedScene = preload(
 const _COMPACT_BREAKPOINT: float = 900.0
 const _ONE_COLUMN_BREAKPOINT: float = 560.0
 const _DESKTOP_CATALOG_MINIMUM_WIDTH: float = 520.0
+const _DESKTOP_MAXIMUM_WIDTH: float = 1120.0
+const _DESKTOP_MAXIMUM_HEIGHT: float = 680.0
 const _FALLBACK_BACKGROUND: Color = Color("#f0d696")
 const _FALLBACK_FONT: Color = Color("#594a45")
 
@@ -39,8 +41,10 @@ var _layout_update_queued: bool = false
 @onready var _state_filter: OptionButton = %StateFilter
 @onready var _content: BoxContainer = %Content
 @onready var _catalog_area: VBoxContainer = %CatalogArea
+@onready var _catalog_scroll: ScrollContainer = $OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/CatalogArea/CatalogScroll
 @onready var _catalog_grid: GridContainer = %CatalogGrid
 @onready var _empty_label: Label = %EmptyLabel
+@onready var _detail_pane: PanelContainer = %DetailPane
 @onready var _detail_title: Label = %DetailTitle
 @onready var _detail_state: Label = %DetailState
 @onready var _detail_form: Label = %DetailForm
@@ -55,6 +59,7 @@ func _ready() -> void:
 	_resolve_dependencies()
 	_setup_state_filter()
 	_bind_runtime_signals()
+	_apply_semantic_styles()
 	_update_ui_text()
 	_queue_layout_update()
 	_search_input.grab_focus()
@@ -102,6 +107,17 @@ func _resolve_dependencies() -> void:
 	var viewport_value: Object = get_utility(GFViewportUtility)
 	if viewport_value is GFViewportUtility:
 		_viewport_utility = viewport_value
+
+
+func _apply_semantic_styles() -> void:
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style):
+		return
+	style.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY)
+	style.style_label(_progress_label, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_detail_title, GameUiStyleUtility.TextRole.DISPLAY)
+	style.style_label(_detail_state, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_button(_back_button, GameUiStyleUtility.ButtonRole.ICON)
 
 
 func _bind_runtime_signals() -> void:
@@ -163,6 +179,7 @@ func _rebuild_catalog() -> void:
 		return
 
 	var entries: Array[Dictionary] = _discovery_system.get_catalog_entries()
+	var ui_motion: GameUiMotionUtility = _get_ui_motion_utility()
 	var visible_count: int = 0
 	var first_visible_entry: Dictionary = {}
 	for entry: Dictionary in entries:
@@ -176,6 +193,10 @@ func _rebuild_catalog() -> void:
 		_catalog_grid.add_child(card)
 		var colors: Array[Color] = _resolve_tile_colors(entry)
 		card.configure(entry, colors[0], colors[1])
+		if is_instance_valid(_theme_utility):
+			var _theme_apply_count: int = _theme_utility.apply_current_theme_to_tree(card)
+		if is_instance_valid(ui_motion):
+			var _bound_count: int = ui_motion.bind_interactive_controls(card)
 		var _card_connection: GFSignalConnection = _signal_utility.connect_signal(
 			card.entry_selected,
 			_on_entry_selected,
@@ -349,24 +370,40 @@ func _apply_responsive_layout() -> void:
 		return
 	var width: float = size.x
 	var compact: bool = width < _COMPACT_BREAKPOINT
-	_header.vertical = compact
+	_header.vertical = width < _ONE_COLUMN_BREAKPOINT
 	_filters.vertical = compact
 	_content.vertical = compact
+	_catalog_area.size_flags_vertical = (
+		Control.SIZE_SHRINK_BEGIN if compact else Control.SIZE_EXPAND_FILL
+	)
 	_catalog_area.custom_minimum_size = (
 		Vector2.ZERO
 		if compact
 		else Vector2(_DESKTOP_CATALOG_MINIMUM_WIDTH, 0.0)
 	)
+	_catalog_scroll.custom_minimum_size.y = (
+		clampf(size.y * 0.38, 250.0, 340.0) if compact else 0.0
+	)
+	_detail_pane.custom_minimum_size = (
+		Vector2(0.0, 190.0) if compact else Vector2(320.0, 220.0)
+	)
 	_catalog_grid.columns = (
 		1 if width < _ONE_COLUMN_BREAKPOINT
-		else 2 if width < 1360.0
+		else 2 if width < 1180.0
 		else 3
 	)
-	var extra_margins: Dictionary = (
-		{"top": 10.0, "left": 10.0, "bottom": 10.0, "right": 10.0}
-		if width < _COMPACT_BREAKPOINT
-		else {"top": 24.0, "left": 28.0, "bottom": 24.0, "right": 28.0}
+	var horizontal_margin: float = 10.0 if compact else maxf((width - _DESKTOP_MAXIMUM_WIDTH) * 0.5, 28.0)
+	var vertical_margin: float = (
+		10.0
+		if compact
+		else maxf((size.y - _DESKTOP_MAXIMUM_HEIGHT) * 0.5, 20.0)
 	)
+	var extra_margins: Dictionary = {
+		"top": vertical_margin,
+		"left": horizontal_margin,
+		"bottom": vertical_margin,
+		"right": horizontal_margin,
+	}
 	if is_instance_valid(_viewport_utility):
 		var _safe_area_report: Dictionary = _viewport_utility.apply_display_safe_area_margins(
 			_outer_margin,

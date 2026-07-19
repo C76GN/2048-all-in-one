@@ -27,6 +27,13 @@ REPLAY_CONTINUE_SUCCESS,[color=green]已从当前回放进度继续游戏。[/co
 TARGET_REACHED_MESSAGE,[color=green]已达成目标 %d！可以继续挑战更高方块。[/color],[color=green]Target %d reached! Keep going for a higher tile.[/color]
 SIZE_LABEL,尺寸,Size
 SETTINGS_TITLE,设置,Settings
+SETTINGS_TAB_GENERAL,通用,General
+SETTINGS_TAB_AUDIO,声音,Audio
+SETTINGS_TAB_CONTROLS,操作,Controls
+SETTINGS_SECTION_GENERAL,通用设置,General
+SETTINGS_SECTION_AUDIO,声音,Audio
+SETTINGS_SECTION_CONTROLS,操作,Controls
+SETTINGS_AUTO_SAVE_HINT,更改会自动保存,Changes save automatically
 INPUT_TIMING_MODE_LABEL,操作响应,Input Response
 INPUT_TIMING_BUFFERED,缓冲队列,Buffered Queue
 INPUT_TIMING_BLOCK,动画期间阻断,Block During Animation
@@ -101,6 +108,12 @@ LABEL_GAME_SEED,游戏种子：,Game Seed:
 HINT_SEED_PLACEHOLDER,留空则随机,Empty for random
 BTN_START_GAME,开始游戏,Start Game
 BTN_LOAD_BOOKMARK,读取书签（存档）,Load Bookmark
+BTN_CONTINUE_GAME,继续游戏,Continue
+MAIN_MENU_KICKER,无限合并实验室,INFINITE MERGE LAB
+MAIN_MENU_SUBTITLE,规则会组合，棋盘会生长,"Rules combine. Boards evolve."
+MAIN_MENU_PLAY,开始,PLAY
+MAIN_MENU_COLLECTION,收藏与记录,COLLECTION
+MAIN_MENU_SYSTEM,系统,SYSTEM
 BTN_REFRESH_SEED,点击以生成新的随机种子,Generate new seed
 DESC_SELECT_MODE_PREFIX,"选择 ","Select "
 INFO_HIGH_SCORE_AT_SIZE,在 %dx%d 尺寸下的最高分：%d,High Score at %dx%d: %d

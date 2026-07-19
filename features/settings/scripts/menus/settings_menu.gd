@@ -5,6 +5,15 @@ class_name SettingsMenu
 extends GameUiController
 
 
+# --- 枚举 ---
+
+enum SettingsSection {
+	GENERAL,
+	AUDIO,
+	CONTROLS,
+}
+
+
 # --- 常量 ---
 
 const _FIELD_LANGUAGE_INDEX: StringName = &"language_index"
@@ -18,12 +27,11 @@ const _LOCALE_EN: String = "en"
 const _LOCALE_ZH: String = "zh"
 const _AUDIO_BUS_MASTER: String = "Master"
 const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
-const _COMPACT_LAYOUT_MAX_WIDTH: float = 920.0
-const _DESKTOP_MARGIN_HORIZONTAL: int = 34
-const _DESKTOP_MARGIN_VERTICAL: int = 28
+const _COMPACT_LAYOUT_MAX_WIDTH: float = 760.0
+const _DESKTOP_MARGIN_HORIZONTAL: int = 48
+const _DESKTOP_MARGIN_VERTICAL: int = 34
 const _COMPACT_MARGIN_HORIZONTAL: int = 12
 const _COMPACT_MARGIN_VERTICAL: int = 14
-const _DESKTOP_CONTENT_WIDTH: float = 560.0
 const _COMPACT_FIELD_LABEL_WIDTH: float = 112.0
 const _DESKTOP_FIELD_LABEL_WIDTH: float = 150.0
 const _COMPACT_BINDING_LABEL_WIDTH: float = 124.0
@@ -49,16 +57,26 @@ var _input_detector: GFInputDetector
 var _pending_binding: Dictionary = {}
 var _is_compact_layout: bool = false
 var _responsive_layout_update_queued: bool = false
+var _active_section: SettingsSection = SettingsSection.GENERAL
 
 
 # --- @onready 变量 (节点引用) ---
 
 @onready var _page_title: Label = %PageTitle
-@onready var _margin_container: MarginContainer = $MarginContainer
-@onready var _columns_container: HBoxContainer = $MarginContainer/ColumnsContainer
-@onready var _center_content_holder: CenterContainer = %CenterContentHolder
-@onready var _center_content_vbox: VBoxContainer = %CenterContentVBox
-@onready var _right_column: VBoxContainer = %RightColumn
+@onready var _margin_container: MarginContainer = %SafeMargin
+@onready var _body: BoxContainer = %Body
+@onready var _category_rail: BoxContainer = %CategoryRail
+@onready var _content_panel: MarginContainer = %ContentPanel
+@onready var _general_tab_button: Button = %GeneralTabButton
+@onready var _audio_tab_button: Button = %AudioTabButton
+@onready var _controls_tab_button: Button = %ControlsTabButton
+@onready var _general_section: VBoxContainer = %GeneralSection
+@onready var _audio_section: VBoxContainer = %AudioSection
+@onready var _controls_section: VBoxContainer = %ControlsSection
+@onready var _general_section_title: Label = %GeneralSectionTitle
+@onready var _audio_section_title: Label = %AudioSectionTitle
+@onready var _controls_section_title: Label = %ControlsSectionTitle
+@onready var _auto_save_label: Label = %AutoSaveLabel
 @onready var _language_option: OptionButton = %LanguageOptionButton
 @onready var _window_mode_option: OptionButton = %WindowModeOptionButton
 @onready var _vsync_option: OptionButton = %VSyncOptionButton
@@ -67,7 +85,6 @@ var _responsive_layout_update_queued: bool = false
 @onready var _master_volume_slider: HSlider = %MasterVolumeSlider
 @onready var _volume_value_label: Label = %VolumeValueLabel
 @onready var _back_button: Button = %BackButton
-@onready var _compact_back_button: Button = %CompactBackButton
 @onready var _input_timing_option: OptionButton = %InputTimingOptionButton
 @onready var _input_bindings_header: Label = %InputBindingsHeader
 @onready var _input_bindings_container: VBoxContainer = %InputBindingsContainer
@@ -92,8 +109,8 @@ var _responsive_layout_update_queued: bool = false
 ## 主音量标签。
 @onready var _master_volume_label: Label = _get_sibling_label(_master_volume_slider)
 
-## 操作面板标题标签。
-@onready var _controls_header_label: Label = _get_sibling_label(_back_button)
+## 操作页标题标签。
+@onready var _controls_header_label: Label = %ControlsSectionTitle
 
 
 # --- Godot 生命周期方法 ---
@@ -105,8 +122,14 @@ func _ready() -> void:
 	_sync_controls_from_settings()
 	_setup_form_binder()
 	var _connect_result_62: int = _back_button.pressed.connect(_on_back_button_pressed)
-	var _compact_back_connection: int = _compact_back_button.pressed.connect(
-		_on_back_button_pressed
+	var _general_tab_connection: int = _general_tab_button.pressed.connect(
+		_set_active_section.bind(SettingsSection.GENERAL)
+	)
+	var _audio_tab_connection: int = _audio_tab_button.pressed.connect(
+		_set_active_section.bind(SettingsSection.AUDIO)
+	)
+	var _controls_tab_connection: int = _controls_tab_button.pressed.connect(
+		_set_active_section.bind(SettingsSection.CONTROLS)
 	)
 	var _reset_connect_result: int = _reset_bindings_button.pressed.connect(
 		_on_reset_bindings_pressed
@@ -116,6 +139,8 @@ func _ready() -> void:
 			_rebuild_input_binding_rows
 		)
 
+	_apply_semantic_styles()
+	_set_active_section(SettingsSection.GENERAL)
 	_apply_responsive_layout()
 	_update_ui_text()
 	_rebuild_input_binding_rows()
@@ -123,9 +148,7 @@ func _ready() -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_TRANSLATION_CHANGED:
-		_update_ui_text()
-	elif what == NOTIFICATION_RESIZED and is_node_ready():
+	if what == NOTIFICATION_RESIZED and is_node_ready():
 		_queue_responsive_layout_update()
 
 
@@ -160,12 +183,12 @@ func _apply_responsive_layout() -> void:
 	if not is_inside_tree():
 		return
 	_is_compact_layout = is_compact_layout(size)
-	_right_column.visible = not _is_compact_layout
-	_compact_back_button.visible = _is_compact_layout
-	_columns_container.add_theme_constant_override(
-		"separation",
-		0 if _is_compact_layout else 34
-	)
+	_body.vertical = _is_compact_layout
+	_category_rail.vertical = not _is_compact_layout
+	_category_rail.custom_minimum_size.x = 0.0 if _is_compact_layout else 210.0
+	_content_panel.custom_minimum_size.x = 0.0 if _is_compact_layout else 620.0
+	_body.add_theme_constant_override("separation", 12 if _is_compact_layout else 20)
+	_category_rail.add_theme_constant_override("separation", 6 if _is_compact_layout else 8)
 	_margin_container.add_theme_constant_override(
 		"margin_left",
 		_COMPACT_MARGIN_HORIZONTAL if _is_compact_layout else _DESKTOP_MARGIN_HORIZONTAL
@@ -182,19 +205,18 @@ func _apply_responsive_layout() -> void:
 		"margin_bottom",
 		_COMPACT_MARGIN_VERTICAL if _is_compact_layout else _DESKTOP_MARGIN_VERTICAL
 	)
-	_center_content_vbox.custom_minimum_size.x = (
-		0.0 if _is_compact_layout else _DESKTOP_CONTENT_WIDTH
-	)
-	_center_content_holder.size_flags_vertical = (
-		Control.SIZE_SHRINK_BEGIN if _is_compact_layout else Control.SIZE_EXPAND_FILL
-	)
-	_center_content_vbox.size_flags_horizontal = (
-		Control.SIZE_EXPAND_FILL if _is_compact_layout else Control.SIZE_SHRINK_CENTER
-	)
-	_center_content_vbox.size_flags_vertical = (
-		Control.SIZE_EXPAND_FILL if _is_compact_layout else Control.SIZE_SHRINK_CENTER
-	)
-	_page_title.add_theme_font_size_override("font_size", 36 if _is_compact_layout else 44)
+	_page_title.add_theme_font_size_override("font_size", 30 if _is_compact_layout else 38)
+	_auto_save_label.visible = not _is_compact_layout
+	for tab_button: Button in [
+		_general_tab_button,
+		_audio_tab_button,
+		_controls_tab_button,
+	]:
+		tab_button.custom_minimum_size = Vector2(
+			0.0 if _is_compact_layout else 210.0,
+			44.0 if _is_compact_layout else 50.0
+		)
+		tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_apply_field_widths()
 	_rebuild_input_binding_rows()
 
@@ -237,7 +259,41 @@ func _apply_field_widths() -> void:
 	_reset_bindings_button.custom_minimum_size.y = (
 		_COMPACT_CONTROL_HEIGHT if _is_compact_layout else 36.0
 	)
-	_compact_back_button.custom_minimum_size.y = _COMPACT_CONTROL_HEIGHT
+
+
+func _set_active_section(section: SettingsSection) -> void:
+	_active_section = section
+	_general_section.visible = section == SettingsSection.GENERAL
+	_audio_section.visible = section == SettingsSection.AUDIO
+	_controls_section.visible = section == SettingsSection.CONTROLS
+	_general_tab_button.set_pressed_no_signal(section == SettingsSection.GENERAL)
+	_audio_tab_button.set_pressed_no_signal(section == SettingsSection.AUDIO)
+	_controls_tab_button.set_pressed_no_signal(section == SettingsSection.CONTROLS)
+	match section:
+		SettingsSection.AUDIO:
+			_sound_theme_option.grab_focus()
+		SettingsSection.CONTROLS:
+			_input_timing_option.grab_focus()
+		_:
+			_language_option.grab_focus()
+
+
+func _apply_semantic_styles() -> void:
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style):
+		return
+	style.style_label(_page_title, GameUiStyleUtility.TextRole.DISPLAY)
+	style.style_label(_general_section_title, GameUiStyleUtility.TextRole.DISPLAY)
+	style.style_label(_audio_section_title, GameUiStyleUtility.TextRole.DISPLAY)
+	style.style_label(_controls_section_title, GameUiStyleUtility.TextRole.DISPLAY)
+	style.style_label(_auto_save_label, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_input_bindings_header, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_volume_value_label, GameUiStyleUtility.TextRole.NUMERIC)
+	style.style_button(_back_button, GameUiStyleUtility.ButtonRole.ICON)
+	style.style_button(_general_tab_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_audio_tab_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_controls_tab_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_reset_bindings_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 
 func _setup_setting_options() -> void:
 	_setup_language_options()
@@ -522,12 +578,19 @@ func _update_volume_value_label(value: float) -> void:
 
 
 func _update_ui_text() -> void:
+	if not is_node_ready():
+		return
 	if is_instance_valid(_page_title):
 		_page_title.text = tr("SETTINGS_TITLE")
 	if is_instance_valid(_back_button):
 		_back_button.text = tr("BACK_BUTTON")
-	if is_instance_valid(_compact_back_button):
-		_compact_back_button.text = tr("BACK_BUTTON")
+	_general_tab_button.text = tr("SETTINGS_TAB_GENERAL")
+	_audio_tab_button.text = tr("SETTINGS_TAB_AUDIO")
+	_controls_tab_button.text = tr("SETTINGS_TAB_CONTROLS")
+	_general_section_title.text = tr("SETTINGS_SECTION_GENERAL")
+	_audio_section_title.text = tr("SETTINGS_SECTION_AUDIO")
+	_controls_section_title.text = tr("SETTINGS_SECTION_CONTROLS")
+	_auto_save_label.text = tr("SETTINGS_AUTO_SAVE_HINT")
 	if is_instance_valid(_language_option) and _language_option.item_count >= 2:
 		_language_option.set_item_text(0, tr("LANG_ZH"))
 		_language_option.set_item_text(1, tr("LANG_EN"))
@@ -681,6 +744,7 @@ func _rebuild_input_binding_rows() -> void:
 		_set_input_binding_status(tr("INPUT_BINDINGS_UNAVAILABLE"))
 		return
 
+	var ui_style: GameUiStyleUtility = _get_ui_style_utility()
 	var items: Array[Dictionary] = _input_profile.get_gameplay_binding_items()
 	for item: Dictionary in items:
 		var row: HBoxContainer = HBoxContainer.new()
@@ -697,6 +761,8 @@ func _rebuild_input_binding_rows() -> void:
 		action_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		action_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		action_label.tooltip_text = action_label.text
+		if is_instance_valid(ui_style):
+			ui_style.style_label(action_label, GameUiStyleUtility.TextRole.PRIMARY)
 		row.add_child(action_label)
 
 		var binding_button: Button = Button.new()
@@ -709,6 +775,8 @@ func _rebuild_input_binding_rows() -> void:
 		binding_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		binding_button.text = GFVariantData.get_option_string(item, "event_text", tr("INPUT_BINDING_UNBOUND"))
 		binding_button.tooltip_text = tr("INPUT_BINDING_CHANGE_HINT")
+		if is_instance_valid(ui_style):
+			ui_style.style_button(binding_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 		var _binding_connection: int = binding_button.pressed.connect(
 			_on_binding_button_pressed.bind(item)
 		)
@@ -723,11 +791,16 @@ func _rebuild_input_binding_rows() -> void:
 		)
 		reset_button.text = "↺"
 		reset_button.tooltip_text = tr("INPUT_BINDING_RESET_ONE")
+		if is_instance_valid(ui_style):
+			ui_style.style_button(reset_button, GameUiStyleUtility.ButtonRole.ICON)
 		var _reset_connection: int = reset_button.pressed.connect(
 			_on_reset_binding_pressed.bind(action_id, binding_index)
 		)
 		row.add_child(reset_button)
 		_input_bindings_container.add_child(row)
+	var ui_motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(ui_motion):
+		var _bound_count: int = ui_motion.bind_interactive_controls(_input_bindings_container)
 
 
 func _get_input_action_text(action_id: StringName, item: Dictionary) -> String:

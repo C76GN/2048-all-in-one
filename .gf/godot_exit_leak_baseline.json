@@ -7,15 +7,15 @@
   "gf_source_commit": "c0ce09e53edf30c00ba79df27fb9a7625b9f518d",
   "gf_vendor_tree_sha256": "55c8c728421528d147dd3833874919148ab4204e5ef921d51a38540494e41b92",
   "gf_global_script_class_count": 705,
-  "project_runtime_script_class_count": 172,
+  "project_runtime_script_class_count": 173,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The project runtime class set adds GameInputProfileUtility and GameBoardAnimationUtility and the gameplay HUD now keeps additional score and control labels resident. Two complete Godot 4.7/GUT runs held ShapedText at 4 while TextureStorage and Font did not grow; the final 275-test suite passed with 1685 assertions before this audited recalibration.",
+  "calibration_reason": "The audited responsive UI overhaul adds MainMenuBoardMotif and replaces the implicit system font with one packaged Noto Sans SC variable font exposed through regular and display FontVariation resources. Two consecutive 278-test Godot 4.7/GUT runs kept ObjectDB and ShapedText at the previous limits while the two intentional font variants consistently accounted for two additional FontAdvanced RIDs and one cached Resource.",
   "max_objectdb_instances": 288,
-  "max_resources_in_use": 128,
+  "max_resources_in_use": 129,
   "max_rid_allocations_by_type": {
     "PN13RendererDummy14TextureStorage12DummyTextureE": 10,
     "PN18TextServerAdvanced22ShapedTextDataAdvancedE": 4,
-    "PN18TextServerAdvanced12FontAdvancedE": 3
+    "PN18TextServerAdvanced12FontAdvancedE": 5
   },
   "allowed_paged_allocator_types": [
     "N12VariantPools11BucketLargeE",

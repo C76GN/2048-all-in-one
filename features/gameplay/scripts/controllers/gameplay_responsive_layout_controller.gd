@@ -247,6 +247,7 @@ func _apply_current_layout() -> void:
 		"right": GFVariantData.get_option_float(safe_area, "right") + gutter,
 	})
 	_hud.set_compact_mode(_current_layout_mode != LayoutMode.DESKTOP)
+	_hud.set_portrait_mode(_current_layout_mode == LayoutMode.PORTRAIT)
 	_board_world_viewport_controller.set_fit_insets(get_board_fit_insets(_current_layout_mode))
 	_board_world_viewport_controller.set_compact_view_controls(
 		_current_layout_mode == LayoutMode.PORTRAIT

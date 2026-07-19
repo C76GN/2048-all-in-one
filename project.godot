@@ -60,7 +60,7 @@ extensions/export_fail_on_disabled_references=true
 
 [gui]
 
-theme/custom_font="res://shared/assets/fonts/zcool_kuaile_regular.ttf"
+theme/custom_font="res://shared/assets/fonts/ui_sans_regular.tres"
 
 [input]
 

@@ -29,8 +29,10 @@ const _NO_TOUCH_POINTER: int = -1
 const _KEYBOARD_PAN_STEP: float = 52.0
 const _VIEW_CONTROLS_DESKTOP_LEFT_OFFSET: float = -226.0
 const _VIEW_CONTROLS_COMPACT_LEFT_OFFSET: float = -80.0
+const _VIEW_CONTROLS_DESKTOP_TOP_OFFSET: float = 12.0
+const _VIEW_CONTROLS_COMPACT_TOP_OFFSET: float = 92.0
 const _VIEW_CONTROLS_DESKTOP_BOTTOM_OFFSET: float = 58.0
-const _VIEW_CONTROLS_COMPACT_BOTTOM_OFFSET: float = 68.0
+const _VIEW_CONTROLS_COMPACT_BOTTOM_OFFSET: float = 148.0
 const _FIT_BUTTON_DESKTOP_MINIMUM: Vector2 = Vector2(56.0, 34.0)
 const _FIT_BUTTON_COMPACT_MINIMUM: Vector2 = Vector2(64.0, 44.0)
 
@@ -239,6 +241,11 @@ func set_compact_view_controls(compact: bool) -> void:
 			_VIEW_CONTROLS_COMPACT_LEFT_OFFSET
 			if compact
 			else _VIEW_CONTROLS_DESKTOP_LEFT_OFFSET
+		)
+		_view_controls.offset_top = (
+			_VIEW_CONTROLS_COMPACT_TOP_OFFSET
+			if compact
+			else _VIEW_CONTROLS_DESKTOP_TOP_OFFSET
 		)
 		_view_controls.offset_bottom = (
 			_VIEW_CONTROLS_COMPACT_BOTTOM_OFFSET

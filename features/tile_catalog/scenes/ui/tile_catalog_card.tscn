@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" path="res://features/gameplay/scenes/components/tile.tscn" id="2_tile"]
 
 [node name="TileCatalogCard" type="Button"]
-custom_minimum_size = Vector2(220, 184)
+custom_minimum_size = Vector2(184, 158)
 toggle_mode = true
 script = ExtResource("1_card")
 
@@ -28,20 +28,20 @@ theme_override_constants/separation = 5
 
 [node name="PreviewHolder" type="Control" parent="ContentMargin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 108)
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
 mouse_filter = 2
 
 [node name="PreviewTile" parent="ContentMargin/VBox/PreviewHolder" instance=ExtResource("2_tile")]
 unique_name_in_owner = true
-position = Vector2(98, 54)
-scale = Vector2(0.86, 0.86)
+position = Vector2(80, 44)
+scale = Vector2(0.7, 0.7)
 
 [node name="TitleLabel" type="Label" parent="ContentMargin/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 16
 text = "未发现"
 horizontal_alignment = 1
 text_overrun_behavior = 3

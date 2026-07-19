@@ -246,18 +246,22 @@ func test_board_animation_utility_reacquires_queue_after_level_cleanup() -> void
 
 func test_settings_scene_exposes_timing_and_binding_controls() -> void:
 	var scene_root: Node = _SETTINGS_SCENE.instantiate()
-	assert_not_null(scene_root.get_node_or_null(
-		"MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/InputTimingContainer/InputTimingOptionButton"
-	))
-	assert_not_null(scene_root.get_node_or_null(
-		"MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/InputBindingsScroll/InputBindingsContainer"
-	))
-	assert_not_null(scene_root.get_node_or_null(
-		"MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/ResetBindingsButton"
-	))
-	assert_not_null(scene_root.get_node_or_null(
-		"MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/CompactBackButton"
-	))
+	assert_not_null(scene_root.get_node_or_null("%GeneralSection"))
+	assert_not_null(scene_root.get_node_or_null("%AudioSection"))
+	assert_not_null(scene_root.get_node_or_null("%ControlsSection"))
+	assert_not_null(scene_root.get_node_or_null("%InputTimingOptionButton"))
+	assert_not_null(scene_root.get_node_or_null("%InputBindingsContainer"))
+	assert_not_null(scene_root.get_node_or_null("%ResetBindingsButton"))
+	assert_not_null(scene_root.get_node_or_null("%BackButton"))
+	scene_root.free()
+
+
+func test_settings_scene_ignores_translation_refresh_before_ready() -> void:
+	var scene_root: Node = _SETTINGS_SCENE.instantiate()
+
+	scene_root.notification(Node.NOTIFICATION_TRANSLATION_CHANGED)
+
+	assert_false(scene_root.is_node_ready(), "翻译通知不应要求设置页已进入场景树。")
 	scene_root.free()
 
 

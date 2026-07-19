@@ -1,146 +1,258 @@
-[gd_scene format=3 uid="uid://c8j6k4m2n5qax"]
+[gd_scene load_steps=4 format=3 uid="uid://c8j6k4m2n5qax"]
 
-[ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://features/themes/scenes/layouts/base_three_column_layout.tscn" id="1_base"]
-[ext_resource type="Script" uid="uid://cgipf2t7wpn1v" path="res://features/settings/scripts/menus/settings_menu.gd" id="2_script"]
+[ext_resource type="Script" uid="uid://cgipf2t7wpn1v" path="res://features/settings/scripts/menus/settings_menu.gd" id="1_script"]
+[ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader" id="2_background_shader"]
 
-[node name="SettingsMenu" unique_id=1376416444 instance=ExtResource("1_base")]
-script = ExtResource("2_script")
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_settings_background"]
+shader = ExtResource("2_background_shader")
+shader_parameter/base_color = Color(0.95686275, 0.92941177, 0.8666667, 1)
+shader_parameter/accent_color = Color(0.61960787, 0.85882354, 0.8352941, 1)
+shader_parameter/secondary_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
+shader_parameter/warm_color = Color(0.9607843, 0.6392157, 0.7882353, 1)
 
-[node name="MarginContainer" parent="." index="1"]
-theme_override_constants/margin_left = 34
-theme_override_constants/margin_top = 28
-theme_override_constants/margin_right = 34
-theme_override_constants/margin_bottom = 28
+[node name="SettingsMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
 
-[node name="LeftColumn" parent="MarginContainer/ColumnsContainer" index="0"]
-visible = false
+[node name="Background" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_settings_background")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.95686275, 0.92941177, 0.8666667, 1)
 
-[node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
-text = "设置"
-
-[node name="CenterContentVBox" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0" unique_id=492780704]
+[node name="SafeMargin" type="MarginContainer" parent="."]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(560, 0)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 48
+theme_override_constants/margin_top = 34
+theme_override_constants/margin_right = 48
+theme_override_constants/margin_bottom = 34
+
+[node name="Page" type="VBoxContainer" parent="SafeMargin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Header" type="HBoxContainer" parent="SafeMargin/Page"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="BackButton" type="Button" parent="SafeMargin/Page/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 44)
+layout_mode = 2
+text = "返回"
+
+[node name="PageTitle" type="Label" parent="SafeMargin/Page/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 38
+text = "设置"
+vertical_alignment = 1
+
+[node name="AutoSaveLabel" type="Label" parent="SafeMargin/Page/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "更改会自动保存"
+vertical_alignment = 1
+
+[node name="Body" type="BoxContainer" parent="SafeMargin/Page"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="CategoryRail" type="BoxContainer" parent="SafeMargin/Page/Body"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(210, 0)
 layout_mode = 2
 theme_override_constants/separation = 8
+vertical = true
 
-[node name="LanguageContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="0" unique_id=1676184673]
+[node name="GeneralTabButton" type="Button" parent="SafeMargin/Page/Body/CategoryRail"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
-alignment = 1
+toggle_mode = true
+button_pressed = true
+text = "外观"
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/LanguageContainer" index="0" unique_id=1711101231]
-custom_minimum_size = Vector2(100, 0)
+[node name="AudioTabButton" type="Button" parent="SafeMargin/Page/Body/CategoryRail"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
+toggle_mode = true
+text = "声音"
+
+[node name="ControlsTabButton" type="Button" parent="SafeMargin/Page/Body/CategoryRail"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+toggle_mode = true
+text = "操作"
+
+[node name="ContentPanel" type="MarginContainer" parent="SafeMargin/Page/Body"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(620, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ContentMargin" type="MarginContainer" parent="SafeMargin/Page/Body/ContentPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 24
+
+[node name="Sections" type="VBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="GeneralSection" type="VBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="GeneralSectionTitle" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "外观与显示"
+
+[node name="GeneralSeparator" type="HSeparator" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+
+[node name="LanguageContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/LanguageContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
 text = "语言"
 vertical_alignment = 1
 
-[node name="LanguageOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/LanguageContainer" index="1" unique_id=1011940556]
+[node name="LanguageOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/LanguageContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 38)
+custom_minimum_size = Vector2(220, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_bottom = NodePath("../../WindowModeContainer/WindowModeOptionButton")
 
-[node name="WindowModeContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="1" unique_id=302916957]
+[node name="WindowModeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
 layout_mode = 2
-alignment = 1
+theme_override_constants/separation = 12
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/WindowModeContainer" index="0" unique_id=985065542]
-custom_minimum_size = Vector2(100, 0)
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/WindowModeContainer"]
+custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "窗口"
+text = "窗口模式"
 vertical_alignment = 1
 
-[node name="WindowModeOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/WindowModeContainer" index="1" unique_id=650284941]
+[node name="WindowModeOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/WindowModeContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 38)
+custom_minimum_size = Vector2(220, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../LanguageContainer/LanguageOptionButton")
-focus_neighbor_bottom = NodePath("../../VSyncContainer/VSyncOptionButton")
 
-[node name="VSyncContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="2" unique_id=58986041]
+[node name="VSyncContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
 layout_mode = 2
-alignment = 1
+theme_override_constants/separation = 12
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/VSyncContainer" index="0" unique_id=133794137]
-custom_minimum_size = Vector2(100, 0)
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VSyncContainer"]
+custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
 text = "垂直同步"
 vertical_alignment = 1
 
-[node name="VSyncOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/VSyncContainer" index="1" unique_id=645269816]
+[node name="VSyncOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VSyncContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 38)
+custom_minimum_size = Vector2(220, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../WindowModeContainer/WindowModeOptionButton")
-focus_neighbor_bottom = NodePath("../../VisualThemeContainer/VisualThemeOptionButton")
 
-[node name="VisualThemeContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="3"]
+[node name="VisualThemeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
 layout_mode = 2
-alignment = 1
+theme_override_constants/separation = 12
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/VisualThemeContainer" index="0"]
-custom_minimum_size = Vector2(100, 0)
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VisualThemeContainer"]
+custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
 text = "视觉主题"
 vertical_alignment = 1
 
-[node name="VisualThemeOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/VisualThemeContainer" index="1"]
+[node name="VisualThemeOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VisualThemeContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 38)
+custom_minimum_size = Vector2(220, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../VSyncContainer/VSyncOptionButton")
-focus_neighbor_bottom = NodePath("../../SoundThemeContainer/SoundThemeOptionButton")
 
-[node name="SoundThemeContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="4"]
+[node name="AudioSection" type="VBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections"]
+unique_name_in_owner = true
+visible = false
 layout_mode = 2
-alignment = 1
+theme_override_constants/separation = 14
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/SoundThemeContainer" index="0"]
-custom_minimum_size = Vector2(100, 0)
+[node name="AudioSectionTitle" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 26
+text = "声音"
+
+[node name="AudioSeparator" type="HSeparator" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection"]
+layout_mode = 2
+
+[node name="SoundThemeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/SoundThemeContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
 text = "音效主题"
 vertical_alignment = 1
 
-[node name="SoundThemeOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/SoundThemeContainer" index="1"]
+[node name="SoundThemeOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/SoundThemeContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 38)
+custom_minimum_size = Vector2(220, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../VisualThemeContainer/VisualThemeOptionButton")
-focus_neighbor_bottom = NodePath("../../MasterVolumeContainer/MasterVolumeSlider")
 
-[node name="MasterVolumeContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="5" unique_id=1810698091]
+[node name="MasterVolumeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection"]
 layout_mode = 2
-alignment = 1
+theme_override_constants/separation = 12
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/MasterVolumeContainer" index="0" unique_id=1319847824]
-custom_minimum_size = Vector2(100, 0)
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/MasterVolumeContainer"]
+custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
 text = "主音量"
 vertical_alignment = 1
 
-[node name="MasterVolumeSlider" type="HSlider" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/MasterVolumeContainer" index="1" unique_id=160772683]
+[node name="MasterVolumeSlider" type="HSlider" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/MasterVolumeContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 38)
+custom_minimum_size = Vector2(220, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../SoundThemeContainer/SoundThemeOptionButton")
-focus_neighbor_bottom = NodePath("../../InputTimingContainer/InputTimingOptionButton")
 max_value = 1.0
 step = 0.05
 value = 1.0
 
-[node name="VolumeValueLabel" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/MasterVolumeContainer" index="2" unique_id=1357895397]
+[node name="VolumeValueLabel" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/MasterVolumeContainer"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
@@ -148,77 +260,66 @@ text = "100%"
 horizontal_alignment = 2
 vertical_alignment = 1
 
-[node name="InputTimingContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="6"]
+[node name="ControlsSection" type="VBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections"]
+unique_name_in_owner = true
+visible = false
 layout_mode = 2
-alignment = 1
+size_flags_vertical = 3
+theme_override_constants/separation = 10
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/InputTimingContainer" index="0"]
+[node name="ControlsSectionTitle" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "操作"
+
+[node name="ControlsSeparator" type="HSeparator" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection"]
+layout_mode = 2
+
+[node name="InputTimingContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection/InputTimingContainer"]
 custom_minimum_size = Vector2(150, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
 text = "输入响应"
 vertical_alignment = 1
 
-[node name="InputTimingOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/InputTimingContainer" index="1"]
+[node name="InputTimingOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection/InputTimingContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 38)
+custom_minimum_size = Vector2(260, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-focus_neighbor_top = NodePath("../../MasterVolumeContainer/MasterVolumeSlider")
 
-[node name="InputBindingsHeader" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="7"]
+[node name="InputBindingsHeader" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 18
 text = "按键映射"
 
-[node name="InputBindingsScroll" type="ScrollContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="8"]
-custom_minimum_size = Vector2(0, 220)
+[node name="InputBindingsScroll" type="ScrollContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection"]
+custom_minimum_size = Vector2(0, 250)
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="InputBindingsContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/InputBindingsScroll" index="0"]
+[node name="InputBindingsContainer" type="VBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection/InputBindingsScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 4
+theme_override_constants/separation = 6
 
-[node name="ResetBindingsButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="9"]
+[node name="ResetBindingsButton" type="Button" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 36)
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 text = "恢复默认按键"
 
-[node name="InputBindingStatusLabel" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="10"]
+[node name="InputBindingStatusLabel" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = ""
 autowrap_mode = 3
-
-[node name="CompactBackButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="11"]
-unique_name_in_owner = true
-visible = false
-custom_minimum_size = Vector2(0, 38)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "返回主菜单"
-
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="0" unique_id=609012590]
-layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "操作"
-
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/RightColumn" index="1" unique_id=1897907748]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="BackButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="2" unique_id=1570400543]
-unique_name_in_owner = true
-layout_mode = 2
-focus_neighbor_left = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/MasterVolumeContainer/MasterVolumeSlider")
-focus_neighbor_top = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/MasterVolumeContainer/MasterVolumeSlider")
-theme_override_font_sizes/font_size = 20
-text = "返回主菜单"

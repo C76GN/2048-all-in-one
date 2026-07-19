@@ -20,7 +20,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.101961, 0.082353, 0.109804, 0.72)
+color = Color(0.101961, 0.082353, 0.109804, 0.42)
 
 [node name="OuterMargin" type="MarginContainer" parent="."]
 unique_name_in_owner = true
@@ -36,6 +36,7 @@ theme_override_constants/margin_right = 28
 theme_override_constants/margin_bottom = 24
 
 [node name="CatalogPanel" type="PanelContainer" parent="OuterMargin"]
+unique_name_in_owner = true
 layout_mode = 2
 
 [node name="InnerMargin" type="MarginContainer" parent="OuterMargin/CatalogPanel"]
@@ -128,47 +129,58 @@ layout_mode = 2
 text = "没有符合条件的方块"
 horizontal_alignment = 1
 
-[node name="DetailPane" type="VBoxContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content"]
-custom_minimum_size = Vector2(300, 210)
+[node name="DetailPane" type="PanelContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(320, 220)
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="DetailMargin" type="MarginContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+
+[node name="DetailContent" type="VBoxContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane/DetailMargin"]
+layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="DetailTitle" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+[node name="DetailTitle" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane/DetailMargin/DetailContent"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "选择一个方块"
 autowrap_mode = 2
 
-[node name="DetailState" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+[node name="DetailState" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane/DetailMargin/DetailContent"]
 unique_name_in_owner = true
 layout_mode = 2
 text = ""
 autowrap_mode = 2
 
-[node name="DetailSeparator" type="HSeparator" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+[node name="DetailSeparator" type="HSeparator" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane/DetailMargin/DetailContent"]
 layout_mode = 2
 
-[node name="DetailForm" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+[node name="DetailForm" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane/DetailMargin/DetailContent"]
 unique_name_in_owner = true
 layout_mode = 2
 text = ""
 autowrap_mode = 2
 
-[node name="DetailRecipes" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+[node name="DetailRecipes" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane/DetailMargin/DetailContent"]
 unique_name_in_owner = true
 layout_mode = 2
 text = ""
 autowrap_mode = 2
 
-[node name="DetailMaxValue" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+[node name="DetailMaxValue" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane/DetailMargin/DetailContent"]
 unique_name_in_owner = true
 layout_mode = 2
 text = ""
 autowrap_mode = 2
 
-[node name="DetailDiscoveredAt" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane"]
+[node name="DetailDiscoveredAt" type="Label" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Content/DetailPane/DetailMargin/DetailContent"]
 unique_name_in_owner = true
 layout_mode = 2
 text = ""

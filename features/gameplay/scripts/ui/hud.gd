@@ -49,6 +49,7 @@ var _details_toggle_button: Button
 var _active_notification_id: int = 0
 var _last_display_values: Dictionary = {}
 var _is_compact_mode: bool = false
+var _is_portrait_mode: bool = false
 var _details_expanded: bool = false
 var _input_mapping: GFInputMappingUtility
 var _hud_input_source: GFVirtualInputSource
@@ -56,6 +57,11 @@ var _hud_action_tokens: Dictionary = {}
 var _safe_area: Control
 var _move_hint_label: Label
 var _action_hint_label: Label
+var _top_score_panel: PanelContainer
+var _control_hint_panel: PanelContainer
+var _hints: VBoxContainer
+var _d_pad: GridContainer
+var _action_panel: PanelContainer
 
 
 # --- @onready 变量 (节点引用) ---
@@ -92,6 +98,11 @@ func _ready() -> void:
 	_safe_area = _get_control_node("%SafeArea")
 	_move_hint_label = _get_label_node("%MoveHintLabel")
 	_action_hint_label = _get_label_node("%ActionHintLabel")
+	_top_score_panel = _get_panel_container_node("%TopScorePanel")
+	_control_hint_panel = _get_panel_container_node("%ControlHintPanel")
+	_hints = _get_vbox_container_node("%Hints")
+	_d_pad = _get_grid_container_node("%DPad")
+	_action_panel = _get_panel_container_node("%ActionPanel")
 	if not is_instance_valid(_notification_label):
 		push_error("[Hud] 缺少 NotificationLabel，无法呈现 GF 通知。")
 	
@@ -111,6 +122,8 @@ func _ready() -> void:
 	_sync_active_notification()
 	register_simple_event(EventNames.HUD_UPDATE_REQUESTED, GFEventListener.from_method(self, &"_on_hud_update_requested", 1))
 	_update_ui_text()
+	_apply_semantic_styles()
+	_apply_hud_layout()
 	_apply_details_visibility()
 
 
@@ -137,7 +150,15 @@ func set_compact_mode(enabled: bool) -> void:
 	if enabled and not _is_compact_mode:
 		_details_expanded = false
 	_is_compact_mode = enabled
+	_apply_hud_layout()
 	_apply_details_visibility()
+
+
+## 切换竖屏触控布局；方向区只在该布局常驻。
+## @param enabled: 是否为竖屏玩法布局。
+func set_portrait_mode(enabled: bool) -> void:
+	_is_portrait_mode = enabled
+	_apply_hud_layout()
 
 
 ## 应用屏幕安全区；HUD 保持一个父节点，只调整可用屏幕边界。
@@ -310,6 +331,86 @@ func _update_ui_text() -> void:
 	_update_details_toggle_button()
 
 
+func _apply_semantic_styles() -> void:
+	if not is_instance_valid(_ui_style_utility):
+		return
+	_ui_style_utility.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY)
+	for caption: Label in [
+		_score_caption_label,
+		_moves_caption_label,
+		_highest_tile_caption_label,
+	]:
+		_ui_style_utility.style_label(caption, GameUiStyleUtility.TextRole.SECONDARY)
+	for value_label: Label in [
+		_score_value_label,
+		_move_count_value_label,
+		_highest_tile_value_label,
+	]:
+		_ui_style_utility.style_label(value_label, GameUiStyleUtility.TextRole.NUMERIC)
+	for action_name: String in [
+		"%DetailsToggleButton",
+		"%MoveUpButton",
+		"%MoveDownButton",
+		"%MoveLeftButton",
+		"%MoveRightButton",
+		"%PauseButton",
+		"%UndoButton",
+		"%RedoButton",
+		"%BookmarkButton",
+	]:
+		var button: Button = _get_button_node(NodePath(action_name))
+		if is_instance_valid(button):
+			_ui_style_utility.style_button(button, GameUiStyleUtility.ButtonRole.ICON)
+
+
+func _apply_hud_layout() -> void:
+	if not is_node_ready():
+		return
+	if is_instance_valid(_control_hint_panel):
+		_control_hint_panel.visible = _is_portrait_mode
+	if is_instance_valid(_hints):
+		_hints.visible = false
+	if is_instance_valid(_d_pad):
+		_d_pad.visible = _is_portrait_mode
+
+	if is_instance_valid(_top_score_panel):
+		_top_score_panel.offset_left = -174.0 if _is_portrait_mode else -194.0
+		_top_score_panel.offset_top = 8.0 if _is_portrait_mode else 12.0
+		_top_score_panel.offset_right = 174.0 if _is_portrait_mode else 194.0
+		_top_score_panel.offset_bottom = 68.0 if _is_portrait_mode else 72.0
+
+	if is_instance_valid(_details_toggle_button):
+		_details_toggle_button.offset_left = 0.0 if _is_portrait_mode else 18.0
+		_details_toggle_button.offset_top = 76.0 if _is_portrait_mode else 18.0
+		_details_toggle_button.offset_right = 44.0 if _is_portrait_mode else 62.0
+		_details_toggle_button.offset_bottom = 120.0 if _is_portrait_mode else 62.0
+	if is_instance_valid(_details_panel):
+		_details_panel.offset_left = 0.0 if _is_portrait_mode else 18.0
+		_details_panel.offset_top = 124.0 if _is_portrait_mode else 66.0
+		_details_panel.offset_right = 300.0 if _is_portrait_mode else 318.0
+		_details_panel.offset_bottom = 392.0 if _is_portrait_mode else 350.0
+
+	if is_instance_valid(_control_hint_panel) and _is_portrait_mode:
+		_control_hint_panel.offset_left = 0.0
+		_control_hint_panel.offset_top = -108.0
+		_control_hint_panel.offset_right = 152.0
+		_control_hint_panel.offset_bottom = 0.0
+	if is_instance_valid(_action_panel):
+		_action_panel.offset_left = -214.0 if _is_portrait_mode else -282.0
+		_action_panel.offset_top = -60.0 if _is_portrait_mode else -78.0
+		_action_panel.offset_right = 0.0 if _is_portrait_mode else -18.0
+		_action_panel.offset_bottom = 0.0 if _is_portrait_mode else -18.0
+	for action_name: String in [
+		"%PauseButton",
+		"%UndoButton",
+		"%RedoButton",
+		"%BookmarkButton",
+	]:
+		var action_button: Button = _get_button_node(NodePath(action_name))
+		if is_instance_valid(action_button):
+			action_button.custom_minimum_size.x = 44.0 if _is_portrait_mode else 54.0
+
+
 func _extract_caption(template: String, fallback: String, missing_key: String) -> String:
 	if template.is_empty() or template == missing_key:
 		return fallback
@@ -426,6 +527,22 @@ func _get_vbox_container_node(path: NodePath) -> VBoxContainer:
 	if node_value is VBoxContainer:
 		var container: VBoxContainer = node_value
 		return container
+	return null
+
+
+func _get_grid_container_node(path: NodePath) -> GridContainer:
+	var node_value: Node = get_node_or_null(path)
+	if node_value is GridContainer:
+		var container: GridContainer = node_value
+		return container
+	return null
+
+
+func _get_panel_container_node(path: NodePath) -> PanelContainer:
+	var node_value: Node = get_node_or_null(path)
+	if node_value is PanelContainer:
+		var panel: PanelContainer = node_value
+		return panel
 	return null
 
 
