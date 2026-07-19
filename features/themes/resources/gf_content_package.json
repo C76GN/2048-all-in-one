@@ -37,6 +37,16 @@
       }
     },
     {
+      "key": "game.tile_visual_theme.halftone_atlas",
+      "path": "themes/game/halftone_atlas_tile_visual_theme.tres",
+      "type_hint": "Resource",
+      "priority": 100,
+      "metadata": {
+        "theme_id": "halftone_atlas",
+        "catalog_role": "tile_visual_theme"
+      }
+    },
+    {
       "key": "game.audio_theme.printworks",
       "path": "themes/game/printworks_audio_theme.tres",
       "type_hint": "Resource",

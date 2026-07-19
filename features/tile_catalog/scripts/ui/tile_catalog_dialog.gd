@@ -192,7 +192,16 @@ func _rebuild_catalog() -> void:
 		var card: TileCatalogCard = card_node
 		_catalog_grid.add_child(card)
 		var colors: Array[Color] = _resolve_tile_colors(entry)
-		card.configure(entry, colors[0], colors[1])
+		var family_id: StringName = GFVariantData.get_option_string_name(
+			entry,
+			&"visual_family_id"
+		)
+		var visual_style: TileVisualFamilyStyle = (
+			_theme_utility.resolve_tile_visual_style(family_id)
+			if is_instance_valid(_theme_utility)
+			else null
+		)
+		card.configure(entry, colors[0], colors[1], visual_style)
 		if is_instance_valid(_theme_utility):
 			var _theme_apply_count: int = _theme_utility.apply_current_theme_to_tree(card)
 		if is_instance_valid(ui_motion):

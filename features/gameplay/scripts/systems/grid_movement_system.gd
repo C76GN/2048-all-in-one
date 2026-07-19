@@ -73,6 +73,8 @@ func handle_move(direction: Vector2i) -> MoveData:
 	var moved_lanes: Array = []
 	var score_delta: int = 0
 	var ratio_resolution_count: int = 0
+	var merge_count: int = 0
+	var max_merge_value: int = 0
 
 	# 每个连续 lane 独立处理，拓扑空洞不会被跨越。
 	for lane_value: Variant in lanes:
@@ -127,6 +129,8 @@ func handle_move(direction: Vector2i) -> MoveData:
 				instruction[&"transform"] = true
 			instructions.append(instruction)
 			score_delta += merge_score_delta
+			merge_count += 1
+			max_merge_value = maxi(max_merge_value, merged.value)
 			ratio_resolution_count += _get_int(merge_info, &"ratio_resolved", 0)
 
 		var tiles_in_new_line_ids: Dictionary = {}
@@ -160,6 +164,13 @@ func handle_move(direction: Vector2i) -> MoveData:
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "移动结果不符合当前棋盘拓扑，拒绝提交。")
 		return null
+
+	# 同一事务的表现元数据写入每条指令，动画队列只需读取首条即可编排整屏反馈。
+	for instruction: Dictionary in instructions:
+		instruction[&"move_direction"] = direction
+		instruction[&"turn_merge_count"] = merge_count
+		instruction[&"turn_max_merge_value"] = max_merge_value
+		instruction[&"turn_score_delta"] = score_delta
 
 	if score_delta != 0:
 		send_simple_event(EventNames.SCORE_UPDATED, score_delta)

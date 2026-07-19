@@ -150,13 +150,18 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 		)
 		var tile_bg_color: Color = _get_color(colors, &"bg", Color.WHITE)
 		var tile_font_color: Color = _get_color(colors, &"font", Color.BLACK)
+		var family_id: StringName = GFVariantData.get_option_string_name(
+			presentation,
+			&"visual_family_id"
+		)
 		tile.setup(
 			value,
 			definition_id,
 			tile_bg_color,
 			tile_font_color,
-			GFVariantData.get_option_string_name(presentation, &"visual_family_id"),
-			_get_string_name_array(presentation, &"visual_layer_ids")
+			family_id,
+			_get_string_name_array(presentation, &"visual_layer_ids"),
+			_theme_utility.resolve_tile_visual_style(family_id) if is_instance_valid(_theme_utility) else null
 		)
 
 		var scale_factor: float = cell_size / 100.0

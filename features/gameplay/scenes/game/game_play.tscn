@@ -7,6 +7,7 @@
 [ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader" id="6_background_shader"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/controllers/board_world_viewport_controller.gd" id="7_board_viewport"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/controllers/gameplay_responsive_layout_controller.gd" id="8_responsive_layout"]
+[ext_resource type="Script" path="res://addons/gf/extensions/feedback/nodes/gf_shake_receiver_2d.gd" id="9_shake_receiver"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_background"]
 shader = ExtResource("6_background_shader")
@@ -22,6 +23,9 @@ shader_parameter/grain_strength = 0.018
 shader_parameter/stipple_strength = 0.006
 shader_parameter/flow_scale = 1.35
 shader_parameter/scanline_strength = 0.0
+shader_parameter/interaction_offset = Vector2(0, 0)
+shader_parameter/interaction_direction = Vector2(0, 0)
+shader_parameter/interaction_energy = 0.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
 bg_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
@@ -124,23 +128,37 @@ script = ExtResource("7_board_viewport")
 [node name="BoardWorld" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport" index="1" unique_id=1153818284]
 unique_name_in_owner = true
 
-[node name="GameBoardHost" type="Control" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld" index="0" unique_id=156759848]
+[node name="BoardFeedbackRoot" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld" index="0"]
+unique_name_in_owner = true
+
+[node name="BoardShakeRoot" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="0"]
+unique_name_in_owner = true
+
+[node name="GameBoardHost" type="Control" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot/BoardShakeRoot" index="0" unique_id=156759848]
 unique_name_in_owner = true
 mouse_filter = 2
 
-[node name="BoardBackground" type="Panel" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/GameBoardHost" index="0" unique_id=169865869]
+[node name="BoardBackground" type="Panel" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost" index="0" unique_id=169865869]
 unique_name_in_owner = true
 z_index = 0
 mouse_filter = 2
 layout_mode = 1
 theme_override_styles/panel = SubResource("StyleBoxFlat_0wfyh")
 
-[node name="BoardContainer" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/GameBoardHost" index="1" unique_id=788591149]
+[node name="BoardContainer" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost" index="1" unique_id=788591149]
 unique_name_in_owner = true
 
-[node name="GameBoard" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/GameBoardHost" index="2" unique_id=2054564402]
+[node name="GameBoard" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost" index="2" unique_id=2054564402]
 unique_name_in_owner = true
 script = ExtResource("4_board")
+
+[node name="BoardShakeReceiver" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="1"]
+script = ExtResource("9_shake_receiver")
+target_path = NodePath("../BoardShakeRoot")
+channel = &"board"
+apply_position = true
+apply_rotation = true
+apply_scale = false
 
 [node name="ViewControls" type="PanelContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport" index="2" unique_id=828732938]
 layout_mode = 1

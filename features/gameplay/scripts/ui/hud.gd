@@ -22,6 +22,7 @@ const _HIGH_SCORE_FORMAT_FALLBACK: String = "最高分: %d"
 const _HIGHEST_TILE_FORMAT_FALLBACK: String = "最大方块: %d"
 const _HUD_INPUT_SOURCE_ID: StringName = &"gameplay.hud_controls"
 const _HUD_ACTION_HOLD_SECONDS: float = 0.08
+const _SCORE_FEEDBACK_DELAY_SECONDS: float = 0.055
 
 
 # --- 私有变量 ---
@@ -743,6 +744,18 @@ func _play_score_change_feedback(old_value: int, new_value: int) -> void:
 	)
 
 
+func _play_delayed_score_change_feedback(old_value: int, new_value: int) -> void:
+	var wait_result: Dictionary = await GFAsyncWaitUtility.delay_seconds(
+		_SCORE_FEEDBACK_DELAY_SECONDS,
+		{
+			"guard_node": self,
+			"respect_time_scale": false,
+		}
+	)
+	if GFVariantData.get_option_bool(wait_result, "completed"):
+		_play_score_change_feedback(old_value, new_value)
+
+
 # --- 信号处理函数 ---
 
 func _on_hud_update_requested(_p: Variant = null) -> void:
@@ -752,7 +765,7 @@ func _on_hud_update_requested(_p: Variant = null) -> void:
 func _on_score_changed(old_value: int, new_value: int) -> void:
 	_mark_dirty()
 	var _deferred_call: Variant = call_deferred(
-		&"_play_score_change_feedback",
+		&"_play_delayed_score_change_feedback",
 		old_value,
 		new_value
 	)

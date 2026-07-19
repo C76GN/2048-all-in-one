@@ -160,8 +160,11 @@ func test_game_scene_keeps_hud_outside_board_world_and_excludes_diagnostics_ui()
 		"MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport"
 	) as Control
 	var board_world: Node2D = board_viewport.get_node("BoardWorld") as Node2D
-	var game_board_host: Control = board_world.get_node("GameBoardHost") as Control
+	var feedback_root: Node2D = board_world.get_node("BoardFeedbackRoot") as Node2D
+	var shake_root: Node2D = feedback_root.get_node("BoardShakeRoot") as Node2D
+	var game_board_host: Control = shake_root.get_node("GameBoardHost") as Control
 	var game_board_controller: Node = game_board_host.get_node("GameBoard")
+	var shake_receiver: Node = feedback_root.get_node("BoardShakeReceiver")
 	var hud: Node = scene_root.get_node_or_null("HUD")
 	var left_column: VBoxContainer = scene_root.get_node(
 		"MarginContainer/ColumnsContainer/LeftColumn"
@@ -173,6 +176,7 @@ func test_game_scene_keeps_hud_outside_board_world_and_excludes_diagnostics_ui()
 
 	assert_true(board_viewport.clip_contents, "棋盘视口必须裁剪移出边界的世界内容。")
 	assert_same(game_board_controller.get_parent(), game_board_host, "GF Controller 应由棋盘表现宿主承载。")
+	assert_true(shake_receiver is GFShakeReceiver2D, "棋盘应通过 GFShakeReceiver2D 接收分级反馈。")
 	assert_not_null(hud, "HUD 应直接挂在玩法场景的屏幕空间，不得塞入固定宽度侧栏。")
 	assert_false(board_world.is_ancestor_of(hud), "HUD 必须保持在独立屏幕空间。")
 	assert_false(left_column.visible, "玩法场景不得用左栏挤占棋盘空间。")
@@ -208,7 +212,7 @@ func test_board_layers_keep_empty_cells_above_opaque_background() -> void:
 
 	var scene_root: Node = _GAME_PLAY_SCENE.instantiate()
 	var board_background: Panel = scene_root.get_node(
-		"MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/GameBoardHost/BoardBackground"
+		"MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost/BoardBackground"
 	) as Panel
 	assert_true(
 		board_background.z_index == GameBoardController.BOARD_BACKGROUND_Z_INDEX,

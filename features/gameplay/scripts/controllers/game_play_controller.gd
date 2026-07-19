@@ -232,9 +232,18 @@ func _apply_mode_visual_theme(mode_config: GameModeConfig, refresh_snapshot: boo
 
 	var resolved_board_theme: BoardTheme = _theme_utility.resolve_board_theme(mode_config.board_theme)
 	var resolved_color_schemes: Dictionary = _theme_utility.resolve_color_schemes(mode_config.color_schemes)
+	var resolved_tile_visual_theme: TileVisualTheme = _theme_utility.resolve_tile_visual_theme()
+	if not is_instance_valid(resolved_tile_visual_theme):
+		push_error("[GamePlayController] 当前主题缺少 TileVisualTheme，无法建立方块身份视觉。")
+		return
 
 	_apply_game_background_theme(resolved_board_theme)
-	game_board.setup(resolved_color_schemes, resolved_board_theme)
+	game_board.setup(
+		resolved_color_schemes,
+		resolved_board_theme,
+		resolved_tile_visual_theme,
+		background_color_rect
+	)
 
 	if refresh_snapshot:
 		var grid_model: GridModel = _get_grid_model()

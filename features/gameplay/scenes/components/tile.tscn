@@ -1,29 +1,19 @@
-[gd_scene format=3 uid="uid://rjwnauxjodw8"]
+[gd_scene load_steps=4 format=3 uid="uid://rjwnauxjodw8"]
 
 [ext_resource type="Script" uid="uid://caysggyfw3ps7" path="res://features/gameplay/scripts/components/tile.gd" id="1_3dk36"]
 [ext_resource type="Script" uid="uid://b7ksu6loea2rv" path="res://features/gameplay/scripts/ui/tile_pattern_overlay.gd" id="2_pattern"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_3dk36"]
-bg_color = Color(1, 0.972549, 0.9098039, 1)
-border_width_left = 4
-border_width_top = 4
-border_width_right = 4
-border_width_bottom = 4
-border_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+[ext_resource type="Script" path="res://features/gameplay/scripts/ui/tile_shape_surface.gd" id="3_surface"]
 
 [node name="Tile" type="Node2D" unique_id=1060939717]
 script = ExtResource("1_3dk36")
 
-[node name="Background" type="Panel" parent="." unique_id=530941927]
+[node name="Background" type="Control" parent="." unique_id=530941927]
 offset_left = -50.0
 offset_top = -50.0
 offset_right = 50.0
 offset_bottom = 50.0
-theme_override_styles/panel = SubResource("StyleBoxFlat_3dk36")
+mouse_filter = 2
+script = ExtResource("3_surface")
 
 [node name="PatternOverlay" type="Control" parent="." unique_id=1840065201]
 offset_left = -50.0

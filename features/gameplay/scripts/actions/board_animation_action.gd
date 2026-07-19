@@ -34,6 +34,7 @@ func execute() -> Variant:
 		return null
 
 	_pending_consumed_tiles.clear()
+	_play_turn_feedback(_instructions[0])
 	var tweens: Array[Tween] = []
 	for instruction: Dictionary in _instructions:
 		var tile: Tile
@@ -198,10 +199,32 @@ func _play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Stri
 	_game_board.play_tile_feedback(tile, feedback_type, label_text)
 
 
+func _play_turn_feedback(batch_instruction: Dictionary) -> void:
+	if not is_instance_valid(_game_board):
+		return
+	_game_board.play_turn_feedback(
+		_get_vector2i(batch_instruction, &"move_direction", Vector2i.ZERO),
+		_get_int(batch_instruction, &"turn_merge_count", 0),
+		_get_int(batch_instruction, &"turn_max_merge_value", 0),
+		_get_int(batch_instruction, &"turn_score_delta", 0)
+	)
+
+
 func _apply_merge_impact(tile: Tile, target_data: Dictionary) -> void:
 	if not is_instance_valid(tile):
 		return
+	var old_value: int = tile.value
+	var old_background_color: Color = tile.background.get_fill_color()
+	var old_font_color: Color = tile.value_label.get_theme_color("font_color")
 	_apply_target_setup_data(tile, target_data)
+	var _growth_tween: Tween = tile.animate_value_growth(
+		old_value,
+		tile.value,
+		old_background_color,
+		tile.background.get_fill_color(),
+		old_font_color,
+		tile.value_label.get_theme_color("font_color")
+	)
 	_play_tile_feedback(tile, &"merge", _get_score_delta_label(target_data))
 
 
@@ -225,6 +248,20 @@ static func _get_vector2(instruction: Dictionary, key: StringName, default_value
 	return GFVariantData.get_option_vector2(instruction, key, default_value)
 
 
+static func _get_vector2i(
+	instruction: Dictionary,
+	key: StringName,
+	default_value: Vector2i
+) -> Vector2i:
+	var value: Variant = instruction.get(key, instruction.get(String(key), default_value))
+	if value is Vector2i:
+		return value
+	if value is Vector2:
+		var vector_value: Vector2 = value
+		return Vector2i(roundi(vector_value.x), roundi(vector_value.y))
+	return default_value
+
+
 static func _get_dictionary(instruction: Dictionary, key: StringName) -> Dictionary:
 	return GFVariantData.get_option_dictionary(instruction, key)
 
@@ -240,7 +277,8 @@ static func _apply_target_setup_data(tile: Tile, target_data: Dictionary) -> voi
 		_get_color(target_data, &"bg", Color.WHITE),
 		_get_color(target_data, &"font", Color.BLACK),
 		GFVariantData.get_option_string_name(target_data, &"visual_family_id"),
-		_get_string_name_array(target_data, &"visual_layer_ids")
+		_get_string_name_array(target_data, &"visual_layer_ids"),
+		_get_tile_visual_style(target_data, &"visual_style")
 	)
 
 
@@ -264,3 +302,13 @@ static func _get_color(data: Dictionary, key: StringName, default_value: Color) 
 	if value is Color:
 		return value
 	return default_value
+
+
+static func _get_tile_visual_style(
+	data: Dictionary,
+	key: StringName
+) -> TileVisualFamilyStyle:
+	var value: Variant = data.get(key, data.get(String(key), null))
+	if value is TileVisualFamilyStyle:
+		return value
+	return null

@@ -193,6 +193,23 @@ func resolve_color_schemes(fallback: Dictionary) -> Dictionary:
 	return fallback
 
 
+## 返回当前主题的方块家族视觉目录。
+func resolve_tile_visual_theme() -> TileVisualTheme:
+	var theme: GameTheme = get_current_visual_theme()
+	if is_instance_valid(theme):
+		return theme.get_tile_visual_theme()
+	return null
+
+
+## 按稳定家族 ID 返回当前主题中的方块视觉配置。
+## @param family_id: `TileDefinition` 提供的稳定视觉家族 ID。
+func resolve_tile_visual_style(family_id: StringName) -> TileVisualFamilyStyle:
+	var visual_theme: TileVisualTheme = resolve_tile_visual_theme()
+	if is_instance_valid(visual_theme):
+		return visual_theme.get_family_style(family_id)
+	return null
+
+
 ## @param rect: 接收当前主题背景的目标 ColorRect。
 ## @param fallback_board_theme: 当前主题不可用时使用的棋盘主题。
 func apply_background_to_color_rect(

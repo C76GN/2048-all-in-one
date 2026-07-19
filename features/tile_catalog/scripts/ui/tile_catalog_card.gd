@@ -13,6 +13,7 @@ signal entry_selected(entry: Dictionary)
 var _entry: Dictionary = {}
 var _background_color: Color = Color("#f0d696")
 var _font_color: Color = Color("#594a45")
+var _visual_style: TileVisualFamilyStyle
 
 
 # --- @onready 变量 (节点引用) ---
@@ -38,10 +39,17 @@ func _ready() -> void:
 ## @param entry: TileDiscoverySystem 生成的图鉴条目。
 ## @param background_color: 方块预览背景色。
 ## @param font_color: 方块预览文字色。
-func configure(entry: Dictionary, background_color: Color, font_color: Color) -> void:
+## @param visual_style: 当前主题中与条目家族对应的视觉配置。
+func configure(
+	entry: Dictionary,
+	background_color: Color,
+	font_color: Color,
+	visual_style: TileVisualFamilyStyle
+) -> void:
 	_entry = entry.duplicate(true)
 	_background_color = background_color
 	_font_color = font_color
+	_visual_style = visual_style
 	if is_node_ready():
 		_apply_entry()
 
@@ -82,7 +90,8 @@ func _apply_entry() -> void:
 		preview_background,
 		preview_font,
 		GFVariantData.get_option_string_name(_entry, &"visual_family_id"),
-		visual_layers
+		visual_layers,
+		_visual_style
 	)
 	_preview_tile.value_label.text = "?"
 	_preview_tile.modulate.a = 1.0 if discovered else 0.62

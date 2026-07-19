@@ -43,10 +43,10 @@ const _FIT_BUTTON_COMPACT_MINIMUM: Vector2 = Vector2(64.0, 44.0)
 @export var world_root_path: NodePath = NodePath("../BoardWorld")
 
 ## 受视口控制的棋盘表现节点，相对当前 Controller。
-@export var game_board_path: NodePath = NodePath("../BoardWorld/GameBoardHost/GameBoard")
+@export var game_board_path: NodePath = NodePath("../BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost/GameBoard")
 
 ## 用于 GF 屏幕/世界坐标换算的棋盘 CanvasItem 宿主。
-@export var game_board_canvas_item_path: NodePath = NodePath("../BoardWorld/GameBoardHost")
+@export var game_board_canvas_item_path: NodePath = NodePath("../BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost")
 
 ## 棋盘视图控制条路径。
 @export var view_controls_path: NodePath = NodePath("../ViewControls")

@@ -11,6 +11,7 @@ extends Resource
 
 @export var board_theme: BoardTheme
 @export var color_schemes: Dictionary = {}
+@export var tile_visual_theme: TileVisualTheme
 @export var ui_palette: GameUiPalette
 @export var background_shader_profile: GFShaderParameterProfile
 @export var celebration_vfx_theme: GameCelebrationVfxTheme
@@ -42,6 +43,18 @@ func get_validation_report() -> GFValidationReport:
 	if not is_instance_valid(board_theme):
 		_add_error(report, &"missing_board_theme", "board_theme 未配置。", &"board_theme")
 	_validate_color_schemes(report)
+	if not is_instance_valid(tile_visual_theme):
+		_add_error(
+			report,
+			&"missing_tile_visual_theme",
+			"tile_visual_theme 未配置。",
+			&"tile_visual_theme"
+		)
+	else:
+		var _tile_visual_report: RefCounted = report.merge(
+			tile_visual_theme.get_validation_report(),
+			false
+		)
 	if not is_instance_valid(ui_palette):
 		_add_error(report, &"missing_ui_palette", "ui_palette 未配置。", &"ui_palette")
 	else:
@@ -106,6 +119,11 @@ func get_color_schemes_with_fallback(fallback: Dictionary) -> Dictionary:
 		if scheme_value is TileColorScheme:
 			resolved_schemes[key] = scheme_value
 	return resolved_schemes
+
+
+## 获取当前主题完整的方块身份视觉目录。
+func get_tile_visual_theme() -> TileVisualTheme:
+	return tile_visual_theme
 
 
 ## 获取背景 Profile 中声明的基础颜色。

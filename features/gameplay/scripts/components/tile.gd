@@ -17,15 +17,8 @@ const _MAX_FONT_SIZE: int = 48
 const _MOVE_DURATION: float = 0.10
 const _SPAWN_DURATION: float = 0.12
 const _MERGE_PULSE_DURATION: float = 0.07
+const _VALUE_GROWTH_DURATION: float = 0.13
 const _DESPAWN_DURATION: float = 0.12
-const _STYLE_CORNER_RADIUS: int = 4
-const _STYLE_BORDER_WIDTH: int = 4
-const _STYLE_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
-const _STYLE_FIBONACCI_BORDER_COLOR: Color = Color("#886243")
-const _STYLE_CLASSIC_FIBONACCI_BORDER_COLOR: Color = Color("#944431")
-const _STYLE_LUCAS_BORDER_COLOR: Color = Color("#445162")
-const _STYLE_RATIO_BASE_BORDER_COLOR: Color = Color("#887c56")
-const _STYLE_RATIO_FACTOR_BORDER_COLOR: Color = Color("#000000")
 const _STYLE_OUTLINE_LIGHT: Color = Color(1.0, 0.972549, 0.9098039, 0.66)
 const _STYLE_OUTLINE_DARK: Color = Color(0.0, 0.0, 0.0, 0.35)
 const _FLASH_MERGE_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
@@ -46,6 +39,9 @@ var visual_family_id: StringName = &""
 ## 当前 GF Recipe 组合提供的视觉标记层。
 var visual_layer_ids: Array[StringName] = []
 
+## 当前主题注入的家族视觉配置。
+var visual_style: TileVisualFamilyStyle
+
 # --- 私有变量 ---
 
 ## 追踪当前正在执行的移动 Tween，并在重定向时打断。
@@ -60,10 +56,13 @@ var _active_rotation_tween: Tween
 ## 追踪当前正在执行的高光 Tween。
 var _active_flash_tween: Tween
 
+## 追踪合并数值与色阶的成长 Tween。
+var _active_value_tween: Tween
+
 
 # --- @onready 变量 (节点引用) ---
 
-@onready var background: Panel = $Background
+@onready var background: TileShapeSurface = $Background
 @onready var pattern_overlay: TilePatternOverlay = $PatternOverlay
 @onready var value_label: Label = $ValueLabel
 
@@ -71,9 +70,6 @@ var _active_flash_tween: Tween
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	var panel_stylebox: StyleBox = _duplicate_panel_style()
-	if panel_stylebox != null:
-		background.add_theme_stylebox_override("panel", panel_stylebox)
 	_configure_pivots()
 
 
@@ -88,18 +84,21 @@ func _ready() -> void:
 ## @param font_color: 字体颜色。
 ## @param new_visual_family_id: 方块定义提供的稳定视觉家族 ID。
 ## @param new_visual_layer_ids: 当前 Recipe 组合提供的视觉标记层。
+## @param new_visual_style: 当前主题中对应视觉家族的配置。
 func setup(
 	new_value: int,
 	new_definition_id: StringName,
 	bg_color: Color,
 	font_color: Color,
-	new_visual_family_id: StringName = &"",
-	new_visual_layer_ids: Array[StringName] = []
+	new_visual_family_id: StringName,
+	new_visual_layer_ids: Array[StringName],
+	new_visual_style: TileVisualFamilyStyle
 ) -> void:
 	self.value = new_value
 	definition_id = new_definition_id
 	visual_family_id = new_visual_family_id
 	visual_layer_ids = new_visual_layer_ids.duplicate()
+	visual_style = new_visual_style
 	
 	value_label.text = str(int(value))
 	_apply_background_style(bg_color)
@@ -120,15 +119,19 @@ func reset_animation_state() -> void:
 		_active_rotation_tween.kill()
 	if is_instance_valid(_active_flash_tween) and _active_flash_tween.is_valid():
 		_active_flash_tween.kill()
+	if is_instance_valid(_active_value_tween) and _active_value_tween.is_valid():
+		_active_value_tween.kill()
 
 	_active_move_tween = null
 	_active_scale_tween = null
 	_active_rotation_tween = null
 	_active_flash_tween = null
+	_active_value_tween = null
 	scale = Vector2.ONE
 	rotation_degrees = 0
 	modulate = Color.WHITE
 	background.modulate = Color.WHITE
+	pattern_overlay.modulate = Color.WHITE
 	value_label.modulate = Color.WHITE
 	value_label.scale = Vector2.ONE
 
@@ -274,11 +277,60 @@ static func get_merge_animation_duration() -> float:
 func get_feedback_color() -> Color:
 	if not is_instance_valid(background):
 		return Color.WHITE
-	var panel_style: StyleBox = background.get_theme_stylebox("panel")
-	if panel_style is StyleBoxFlat:
-		var flat_style: StyleBoxFlat = panel_style
-		return flat_style.bg_color
-	return Color.WHITE
+	return background.get_fill_color()
+
+
+## 合并冲击后让数字与色阶共同经历一次短促成长，而不是瞬间跳值。
+## @param from_value: 合并前显示的数值。
+## @param to_value: 合并后显示的数值。
+## @param from_background_color: 合并前的方块底色。
+## @param to_background_color: 合并后的方块底色。
+## @param from_font_color: 合并前的数字颜色。
+## @param to_font_color: 合并后的数字颜色。
+func animate_value_growth(
+	from_value: int,
+	to_value: int,
+	from_background_color: Color,
+	to_background_color: Color,
+	from_font_color: Color,
+	to_font_color: Color
+) -> Tween:
+	if is_instance_valid(_active_value_tween) and _active_value_tween.is_valid():
+		_active_value_tween.kill()
+	if from_value == to_value:
+		return null
+
+	_set_value_growth_progress(
+		0.0,
+		from_value,
+		to_value,
+		from_background_color,
+		to_background_color,
+		from_font_color,
+		to_font_color
+	)
+	_active_value_tween = create_tween()
+	var growth_tweener: MethodTweener = _active_value_tween.tween_method(
+		_set_value_growth_progress.bind(
+			from_value,
+			to_value,
+			from_background_color,
+			to_background_color,
+			from_font_color,
+			to_font_color
+		),
+		0.0,
+		1.0,
+		_VALUE_GROWTH_DURATION
+	)
+	var _growth_curve: Tweener = growth_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
+		Tween.EASE_OUT
+	)
+	var _finished_connection: int = _active_value_tween.finished.connect(
+		_finish_value_growth.bind(to_value, to_background_color, to_font_color),
+		CONNECT_ONE_SHOT
+	)
+	return _active_value_tween
 
 
 # --- 私有/辅助方法 ---
@@ -290,100 +342,48 @@ func _configure_pivots() -> void:
 		value_label.pivot_offset = value_label.size * 0.5
 
 
-func _duplicate_panel_style() -> StyleBox:
-	var base_style: StyleBox = background.get_theme_stylebox("panel")
-	if not is_instance_valid(base_style):
-		return null
-
-	var duplicated_style: Resource = base_style.duplicate()
-	if duplicated_style is StyleBox:
-		var stylebox: StyleBox = duplicated_style
-		return stylebox
-	return null
-
-
-func _get_background_stylebox_flat() -> StyleBoxFlat:
-	var base_style: StyleBox = background.get_theme_stylebox("panel")
-	if base_style is StyleBoxFlat:
-		var flat_style: StyleBoxFlat = base_style
-		return flat_style
-
-	var fallback_style: StyleBoxFlat = StyleBoxFlat.new()
-	background.add_theme_stylebox_override("panel", fallback_style)
-	return fallback_style
-
-
 func _apply_background_style(bg_color: Color) -> void:
-	var stylebox: StyleBoxFlat = _get_background_stylebox_flat()
-
-	stylebox.bg_color = bg_color
-	_apply_visual_family_outline(stylebox)
-	stylebox.shadow_color = Color.TRANSPARENT
-	stylebox.shadow_size = 0
-	stylebox.shadow_offset = Vector2.ZERO
-
-
-func _apply_visual_family_outline(stylebox: StyleBoxFlat) -> void:
-	stylebox.border_color = _STYLE_BORDER_COLOR
-	stylebox.set_border_width_all(_STYLE_BORDER_WIDTH)
-	stylebox.set_corner_radius_all(_STYLE_CORNER_RADIUS)
-	match visual_family_id:
-		&"tile.visual.fibonacci_numeric":
-			stylebox.border_color = _STYLE_FIBONACCI_BORDER_COLOR
-			stylebox.border_width_left = 6
-			stylebox.border_width_top = 3
-			stylebox.border_width_right = 3
-			stylebox.border_width_bottom = 6
-			stylebox.corner_radius_top_left = 8
-			stylebox.corner_radius_top_right = 2
-			stylebox.corner_radius_bottom_right = 8
-			stylebox.corner_radius_bottom_left = 2
-		&"tile.visual.classic_fibonacci_hybrid":
-			stylebox.border_color = _STYLE_CLASSIC_FIBONACCI_BORDER_COLOR
-			stylebox.set_border_width_all(5)
-			stylebox.set_corner_radius_all(0)
-		&"tile.visual.lucas_fibonacci_hybrid":
-			stylebox.border_color = _STYLE_LUCAS_BORDER_COLOR
-			stylebox.set_border_width_all(5)
-			stylebox.set_corner_radius_all(8)
-		&"tile.visual.ratio_base":
-			stylebox.border_color = _STYLE_RATIO_BASE_BORDER_COLOR
-			stylebox.border_width_left = 3
-			stylebox.border_width_top = 6
-			stylebox.border_width_right = 3
-			stylebox.border_width_bottom = 6
-			stylebox.set_corner_radius_all(6)
-		&"tile.visual.ratio_factor":
-			stylebox.border_color = _STYLE_RATIO_FACTOR_BORDER_COLOR
-			stylebox.border_width_left = 6
-			stylebox.border_width_top = 2
-			stylebox.border_width_right = 6
-			stylebox.border_width_bottom = 2
-			stylebox.set_corner_radius_all(2)
+	background.setup(visual_style, bg_color)
 
 
 func _apply_pattern_style(bg_color: Color) -> void:
 	if not is_instance_valid(pattern_overlay):
 		return
 
-	pattern_overlay.setup(_get_pattern_type(), bg_color, visual_layer_ids)
+	pattern_overlay.setup(visual_style, bg_color, visual_layer_ids)
 
 
 func _get_pattern_type() -> TilePatternOverlay.PatternType:
-	match visual_family_id:
-		&"tile.visual.classic_numeric":
-			return TilePatternOverlay.PatternType.HALFTONE
-		&"tile.visual.fibonacci_numeric":
-			return TilePatternOverlay.PatternType.SCALES
-		&"tile.visual.classic_fibonacci_hybrid":
-			return TilePatternOverlay.PatternType.SPLIT_DIAGONAL
-		&"tile.visual.lucas_fibonacci_hybrid":
-			return TilePatternOverlay.PatternType.DIAMOND
-		&"tile.visual.ratio_base":
-			return TilePatternOverlay.PatternType.CONCENTRIC
-		&"tile.visual.ratio_factor":
-			return TilePatternOverlay.PatternType.DIAGONAL_HATCH
-	return TilePatternOverlay.PatternType.NONE
+	return pattern_overlay.get_pattern_type() if is_instance_valid(pattern_overlay) else TilePatternOverlay.PatternType.NONE
+
+
+func _set_value_growth_progress(
+	progress: float,
+	from_value: int,
+	to_value: int,
+	from_background_color: Color,
+	to_background_color: Color,
+	from_font_color: Color,
+	to_font_color: Color
+) -> void:
+	var safe_progress: float = clampf(progress, 0.0, 1.0)
+	value_label.text = str(roundi(lerpf(float(from_value), float(to_value), safe_progress)))
+	background.set_fill_color(from_background_color.lerp(to_background_color, safe_progress))
+	value_label.add_theme_color_override(
+		"font_color",
+		from_font_color.lerp(to_font_color, safe_progress)
+	)
+
+
+func _finish_value_growth(
+	to_value: int,
+	to_background_color: Color,
+	to_font_color: Color
+) -> void:
+	value_label.text = str(to_value)
+	background.set_fill_color(to_background_color)
+	value_label.add_theme_color_override("font_color", to_font_color)
+	_active_value_tween = null
 
 
 func _get_label_outline_color(bg_color: Color) -> Color:

@@ -28,6 +28,9 @@ uniform vec2 cloud_scroll_speed_2 = vec2(-0.0032, -0.0009);
 uniform vec2 cloud_center_pos = vec2(0.5, 0.08);
 uniform float cloud_position_impact : hint_range(0.0, 1.0) = 0.58;
 uniform float cloud_strength : hint_range(0.0, 0.16) = 0.024;
+uniform vec2 interaction_offset = vec2(0.0);
+uniform vec2 interaction_direction = vec2(0.0);
+uniform float interaction_energy : hint_range(0.0, 1.0) = 0.0;
 
 varying vec2 world_pos;
 
@@ -110,7 +113,7 @@ float pixel_cloud_mask(vec2 uv) {
 }
 
 void fragment() {
-	vec2 uv = UV;
+	vec2 uv = clamp(UV + interaction_offset, vec2(0.0), vec2(1.0));
 	vec2 centered_uv = uv - vec2(0.5);
 
 	float paper_grain = hash(floor(FRAGCOORD.xy * 0.55));
@@ -148,6 +151,17 @@ void fragment() {
 	vec3 cloud_highlight = mix(vec3(1.0, 0.976, 0.925), secondary_color.rgb, 0.12);
 	vec3 cloud_color = mix(cloud_shadow, cloud_highlight, cloud_mask);
 	color = mix(color, cloud_color, cloud_strength * (0.35 + cloud_mask * 0.65));
+	float direction_length = length(interaction_direction);
+	vec2 safe_direction = direction_length > 0.001
+		? interaction_direction / direction_length
+		: vec2(0.0);
+	float directional_front = clamp(dot(centered_uv, safe_direction) + 0.5, 0.0, 1.0);
+	vec3 interaction_color = mix(accent_color.rgb, warm_color.rgb, step(0.72, interaction_energy));
+	color = mix(
+		color,
+		interaction_color,
+		interaction_energy * (0.035 + directional_front * 0.075)
+	);
 	color = mix(color, band_color, band_mask * side_mask * (0.30 + hatch * 0.24) * grid_strength * 5.0);
 	color = mix(color, warm_color.rgb, dots * side_mask * 0.10);
 	color = mix(color, secondary_color.rgb, registration_edge * side_mask * 0.035);

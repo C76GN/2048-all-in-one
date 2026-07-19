@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-07-19",
+  "reviewed_at": "2026-07-20",
   "godot_version": "4.7",
   "gf_version": "8.1.1",
   "gut_version": "9.7.1",
   "gf_source_commit": "c0ce09e53edf30c00ba79df27fb9a7625b9f518d",
   "gf_vendor_tree_sha256": "55c8c728421528d147dd3833874919148ab4204e5ef921d51a38540494e41b92",
   "gf_global_script_class_count": 705,
-  "project_runtime_script_class_count": 173,
+  "project_runtime_script_class_count": 176,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The audited responsive UI overhaul adds MainMenuBoardMotif and replaces the implicit system font with one packaged Noto Sans SC variable font exposed through regular and display FontVariation resources. Two consecutive 278-test Godot 4.7/GUT runs kept ObjectDB and ShapedText at the previous limits while the two intentional font variants consistently accounted for two additional FontAdvanced RIDs and one cached Resource.",
+  "calibration_reason": "The audited tile-identity overhaul adds TileShapeSurface, TileVisualFamilyStyle, and TileVisualTheme as three intentional project runtime script classes. The complete 278-test Godot 4.7/GUT run remained within the reviewed ObjectDB, Resource, and RID limits, so only the declared project class-set count changes from 173 to 176.",
   "max_objectdb_instances": 288,
   "max_resources_in_use": 129,
   "max_rid_allocations_by_type": {

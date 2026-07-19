@@ -21,6 +21,7 @@ const _GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/cont
 const _TEST_TOOL_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/test_tool_utility.gd"
 const _HALFTONE_UI_PALETTE: GameUiPalette = preload("res://features/themes/resources/themes/game/halftone_atlas_ui_palette.tres")
 const _HALFTONE_CELEBRATION_VFX_THEME: GameCelebrationVfxTheme = preload("res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres")
+const _HALFTONE_TILE_VISUAL_THEME: TileVisualTheme = preload("res://features/themes/resources/themes/game/halftone_atlas_tile_visual_theme.tres")
 const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres")
 const _FIBONACCI_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/fibonacci_tile_theme.tres")
 const _LUCAS_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/lucas_tile_theme.tres")
@@ -231,19 +232,29 @@ func test_visual_style_document_records_retro_print_direction() -> void:
 	)
 
 
-func test_tile_setup_applies_pixel_textured_style() -> void:
+func test_tile_setup_applies_sparse_theme_driven_identity_style() -> void:
 	var tile: Tile = await _create_tile()
+	var no_layers: Array[StringName] = []
+	var classic_style: TileVisualFamilyStyle = _HALFTONE_TILE_VISUAL_THEME.get_family_style(
+		&"tile.visual.classic_numeric"
+	)
 
-	tile.setup(2147483647, &"tile.classic.numeric", Color(0.8, 0.5, 0.2, 1.0), Color.WHITE)
+	tile.setup(
+		2147483647,
+		&"tile.classic.numeric",
+		Color(0.8, 0.5, 0.2, 1.0),
+		Color.WHITE,
+		classic_style.family_id,
+		no_layers,
+		classic_style
+	)
 
-	var stylebox: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
-	assert_not_null(stylebox, "Tile 背景应使用 StyleBoxFlat。")
-	assert_true(stylebox.shadow_size == 0, "Tile 背景应保持无阴影的平面色块。")
-	assert_true(stylebox.get_border_width(SIDE_TOP) >= 3, "Tile 背景应使用粗像素描边。")
-	assert_true(stylebox.bg_color == Color(0.8, 0.5, 0.2, 1.0), "Tile 背景应直接使用实心色块。")
+	assert_true(tile.background.get_fill_color() == Color(0.8, 0.5, 0.2, 1.0))
+	assert_true(tile.background.get_silhouette_id() == &"soft_square")
+	assert_gt(tile.background.get_shape_points().size(), 3, "方块应有可绘制的稳定轮廓。")
 
 	var pattern_node: Node = tile.get_node_or_null("PatternOverlay")
-	assert_true(pattern_node is Control, "Tile 应包含低对比度纹理叠层。")
+	assert_true(pattern_node is Control, "Tile 应包含稀疏身份母题叠层。")
 	if pattern_node is Control:
 		var pattern_control: Control = pattern_node
 		assert_true(pattern_control.mouse_filter == Control.MOUSE_FILTER_IGNORE, "纹理叠层不应阻挡输入。")
@@ -251,68 +262,39 @@ func test_tile_setup_applies_pixel_textured_style() -> void:
 	assert_between(font_size, 12, 48, "方块字号应保持在明确的可读范围内。")
 	assert_lt(font_size, 48, "大数值文本应触发字号收缩。")
 
-	tile.setup(
-		2,
-		&"tile.classic.numeric",
-		Color("#f0d696"),
-		Color("#594a45"),
-		&"tile.visual.classic_numeric"
+	var fibonacci_style: TileVisualFamilyStyle = _HALFTONE_TILE_VISUAL_THEME.get_family_style(
+		&"tile.visual.fibonacci_numeric"
 	)
-	var classic_style: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
-	var classic_signature: Array = [
-		classic_style.border_color,
-		classic_style.get_border_width(SIDE_LEFT),
-		classic_style.get_corner_radius(CORNER_TOP_LEFT),
-		tile._get_pattern_type(),
-	]
-
 	tile.setup(
 		3,
 		&"tile.fibonacci.numeric",
 		Color("#c0977a"),
 		Color("#594a45"),
-		&"tile.visual.fibonacci_numeric"
-	)
-	var fibonacci_style: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
-	var fibonacci_signature: Array = [
-		fibonacci_style.border_color,
-		fibonacci_style.get_border_width(SIDE_LEFT),
-		fibonacci_style.get_corner_radius(CORNER_TOP_LEFT),
-		tile._get_pattern_type(),
-	]
-	assert_ne(
-		fibonacci_signature,
-		classic_signature,
-		"不同方块家族必须从轮廓和纹理上一眼可区分。"
+		fibonacci_style.family_id,
+		no_layers,
+		fibonacci_style
 	)
 	assert_ne(
-		fibonacci_signature.slice(0, 3),
-		classic_signature.slice(0, 3),
+		tile.background.get_silhouette_id(),
+		classic_style.silhouette_id,
 		"纹理之外还应有稳定的家族轮廓，避免低分辨率下全部看成同一种方块。"
 	)
+	var fibonacci_pattern: TilePatternOverlay.PatternType = tile._get_pattern_type()
 
 	tile.setup(
 		13,
 		&"tile.fibonacci.numeric",
 		Color("#944431"),
 		Color.WHITE,
-		&"tile.visual.fibonacci_numeric"
+		fibonacci_style.family_id,
+		no_layers,
+		fibonacci_style
 	)
-	var same_family_style: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
-	var same_family_signature: Array = [
-		same_family_style.border_color,
-		same_family_style.get_border_width(SIDE_LEFT),
-		same_family_style.get_corner_radius(CORNER_TOP_LEFT),
-		tile._get_pattern_type(),
-	]
-	assert_true(
-		same_family_signature == fibonacci_signature,
-		"同一家族改变数值与颜色时不得改变识别轮廓。"
-	)
+	assert_true(tile.background.get_silhouette_id() == fibonacci_style.silhouette_id)
+	assert_true(tile._get_pattern_type() == fibonacci_pattern)
 
 
 func test_all_tile_visual_families_have_unique_base_signatures() -> void:
-	var tile: Tile = await _create_tile()
 	var visual_family_ids: Array[StringName] = [
 		&"tile.visual.classic_numeric",
 		&"tile.visual.fibonacci_numeric",
@@ -323,25 +305,19 @@ func test_all_tile_visual_families_have_unique_base_signatures() -> void:
 	]
 	var signatures: Dictionary = {}
 	for visual_family_id: StringName in visual_family_ids:
-		tile.setup(
-			2,
-			StringName(String(visual_family_id).replace("visual", "definition")),
-			Color("#f0d696"),
-			Color("#594a45"),
+		var style: TileVisualFamilyStyle = _HALFTONE_TILE_VISUAL_THEME.get_family_style(
 			visual_family_id
 		)
-		var style: StyleBoxFlat = _get_stylebox_flat(tile.background, &"panel")
-		var signature: String = "%s|%d,%d,%d,%d|%d,%d,%d,%d|%d" % [
+		assert_not_null(style, "%s 必须在主题中注册。" % visual_family_id)
+		if style == null:
+			continue
+		var signature: String = "%s|%s|%s|%.2f,%.2f|%.1f" % [
+			style.silhouette_id,
+			style.motif_id,
 			style.border_color.to_html(true),
-			style.get_border_width(SIDE_LEFT),
-			style.get_border_width(SIDE_TOP),
-			style.get_border_width(SIDE_RIGHT),
-			style.get_border_width(SIDE_BOTTOM),
-			style.get_corner_radius(CORNER_TOP_LEFT),
-			style.get_corner_radius(CORNER_TOP_RIGHT),
-			style.get_corner_radius(CORNER_BOTTOM_RIGHT),
-			style.get_corner_radius(CORNER_BOTTOM_LEFT),
-			tile._get_pattern_type(),
+			style.shape_scale.x,
+			style.shape_scale.y,
+			style.shape_rotation_degrees,
 		]
 		assert_false(
 			signatures.has(signature),
@@ -406,7 +382,19 @@ func test_tile_color_schemes_keep_large_number_text_readable() -> void:
 
 func test_tile_visual_animations_return_live_tweens() -> void:
 	var tile: Tile = await _create_tile()
-	tile.setup(2, &"tile.classic.numeric", Color(0.9, 0.75, 0.45, 1.0), Color.BLACK)
+	var style: TileVisualFamilyStyle = _HALFTONE_TILE_VISUAL_THEME.get_family_style(
+		&"tile.visual.classic_numeric"
+	)
+	var no_layers: Array[StringName] = []
+	tile.setup(
+		2,
+		&"tile.classic.numeric",
+		Color(0.9, 0.75, 0.45, 1.0),
+		Color.BLACK,
+		style.family_id,
+		no_layers,
+		style
+	)
 
 	var spawn_tween: Tween = tile.animate_spawn()
 	assert_true(is_instance_valid(spawn_tween) and spawn_tween.is_valid(), "生成动画应返回有效 Tween。")
@@ -943,24 +931,52 @@ func test_board_feedback_utility_spawns_effect_nodes() -> void:
 	assert_true(feedback_root.get_child_count() == created_count, "反馈子节点数量应与返回值一致。")
 
 
-func test_board_feedback_utility_plays_gf_shake_feedback() -> void:
+func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shake_utility: GFShakeUtility = GFShakeUtility.new()
+	var shader_parameter_utility: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var feedback_utility: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
 	await architecture.register_utility(GFShakeUtility, shake_utility)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameter_utility)
 	await architecture.register_utility(GameBoardFeedbackUtility, feedback_utility)
 	await architecture.init()
 
-	var board_container: Node2D = Node2D.new()
-	add_child_autoqfree(board_container)
+	var feedback_root: Node2D = Node2D.new()
+	feedback_root.set_meta(&"feedback_base_position", Vector2(200.0, 200.0))
+	feedback_root.position = Vector2(200.0, 200.0)
+	add_child_autoqfree(feedback_root)
+	var background: ColorRect = ColorRect.new()
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = _load_shader(_BACKGROUND_SHADER_PATH)
+	background.material = material
+	add_child_autoqfree(background)
 	await get_tree().process_frame
 
-	var _created_count: int = feedback_utility.play_feedback(board_container, Vector2(24.0, 36.0), &"merge", "8")
+	var tier: GameBoardFeedbackUtility.FeedbackTier = feedback_utility.classify_turn(2, 64, 128)
+	var created_count: int = feedback_utility.play_turn_feedback(
+		feedback_root,
+		background,
+		Vector2i.RIGHT,
+		tier,
+		Rect2(Vector2(-200.0, -200.0), Vector2(400.0, 400.0)),
+		Color("#9ed2ce")
+	)
 
+	assert_true(tier == GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE)
+	assert_true(created_count == 8, "高价值合并应提升边缘碎片数量。")
 	assert_true(
 		shake_utility.get_active_shake_count(&"board") == 1,
-		"棋盘反馈应同时通过 GFShakeUtility 播放语义化 board channel 反馈。"
+		"整批操作反馈应通过 GFShakeUtility 播放一次 board channel 反馈。"
 	)
+	var energy_value: Variant = material.get_shader_parameter("interaction_energy")
+	assert_true(energy_value is float, "背景操作能量 uniform 应保持 float 类型。")
+	if energy_value is float:
+		var interaction_energy: float = energy_value
+		assert_gt(
+			interaction_energy,
+			0.0,
+			"背景应在操作当帧收到方向性能量。"
+		)
 	architecture.dispose()
 
 

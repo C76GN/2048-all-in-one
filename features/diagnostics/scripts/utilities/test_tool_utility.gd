@@ -501,7 +501,16 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 	var resolved_board_theme: BoardTheme = _theme_utility.resolve_board_theme(
 		mode_config.board_theme
 	)
-	game_board.setup(resolved_color_schemes, resolved_board_theme)
+	var resolved_tile_visual_theme: TileVisualTheme = _theme_utility.resolve_tile_visual_theme()
+	if not is_instance_valid(resolved_tile_visual_theme):
+		push_error("[TestToolUtility] 当前主题缺少 TileVisualTheme，无法重建测试棋盘。")
+		return
+	game_board.setup(
+		resolved_color_schemes,
+		resolved_board_theme,
+		resolved_tile_visual_theme,
+		game_board.game_background
+	)
 
 	if is_instance_valid(status_model):
 		status_model.score.set_value(0)

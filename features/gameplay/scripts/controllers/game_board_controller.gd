@@ -62,6 +62,12 @@ var color_schemes: Dictionary
 ## 外部注入的棋盘与背景主题。
 var board_theme: BoardTheme
 
+## 外部注入的方块身份视觉目录。
+var tile_visual_theme: TileVisualTheme
+
+## 承接当前主题背景操作反馈的全屏节点。
+var game_background: ColorRect
+
 
 # --- 私有变量 ---
 
@@ -96,6 +102,7 @@ var _board_intro_tween: Tween
 
 @onready var board_background: Panel = %BoardBackground
 @onready var board_container: Node2D = %BoardContainer
+@onready var board_feedback_root: Node2D = %BoardFeedbackRoot
 
 
 # --- Godot 生命周期方法 ---
@@ -130,9 +137,13 @@ func _exit_tree() -> void:
 ## 设置并同步棋盘视觉。
 ## @param p_color_schemes: 配色方案字典。
 ## @param p_board_theme: 棋盘主题。
+## @param p_tile_visual_theme: 当前游戏主题的方块视觉目录。
+## @param p_game_background: 承接方向性 shader 反馈的全屏背景。
 func setup(
 	p_color_schemes: Dictionary,
-	p_board_theme: BoardTheme
+	p_board_theme: BoardTheme,
+	p_tile_visual_theme: TileVisualTheme,
+	p_game_background: ColorRect
 ) -> void:
 	# 清理上一局遗留的方块节点和映射，防止幽灵方块
 	var old_tile_count: int = 0
@@ -152,6 +163,8 @@ func setup(
 	_clear_grid_cells()
 	self.color_schemes = p_color_schemes
 	self.board_theme = p_board_theme
+	self.tile_visual_theme = p_tile_visual_theme
+	self.game_background = p_game_background
 
 	# GridModel 的逻辑初始化由 GameInitSystem 完成，表现层只建立局部世界几何与可见节点。
 	_update_board_layout()
@@ -231,6 +244,41 @@ func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Strin
 		)
 
 	_play_tile_feedback_sound(feedback_type)
+
+
+## 为一次有效操作播放统一的方向冲量、GF 震动、边缘碎片和背景响应。
+## @param direction: 本次有效移动的棋盘方向。
+## @param merge_count: 本次操作产生的合并数量。
+## @param max_merge_value: 本次操作产生的最大合并结果值。
+## @param score_delta: 本次操作增加的分数。
+func play_turn_feedback(
+	direction: Vector2i,
+	merge_count: int,
+	max_merge_value: int,
+	score_delta: int
+) -> void:
+	var feedback_utility: GameBoardFeedbackUtility = _get_board_feedback_utility()
+	if not is_instance_valid(feedback_utility) or not is_instance_valid(board_feedback_root):
+		return
+	var tier: GameBoardFeedbackUtility.FeedbackTier = feedback_utility.classify_turn(
+		merge_count,
+		max_merge_value,
+		score_delta
+	)
+	var accent_color: Color = (
+		board_theme.board_highlight_color
+		if is_instance_valid(board_theme)
+		else Color.WHITE
+	)
+	var centered_rect: Rect2 = Rect2(-_logical_board_size * 0.5, _logical_board_size)
+	var _created_count: int = feedback_utility.play_turn_feedback(
+		board_feedback_root,
+		game_background,
+		direction,
+		tier,
+		centered_rect,
+		accent_color
+	)
 
 
 ## 获取当前棋盘上的最高方块值。
@@ -463,15 +511,18 @@ func _create_visual_tile(tile_data: TileState) -> Tile:
 	new_tile.set_meta(RELEASE_TOKEN_META, 0)
 	var colors: Dictionary = _get_tile_colors(tile_data.value, tile_data.definition_id)
 	var presentation: Dictionary = _get_tile_presentation_descriptor(tile_data)
+	var family_id: StringName = GFVariantData.get_option_string_name(
+		presentation,
+		&"visual_family_id"
+	)
 	new_tile.setup(
 		tile_data.value,
 		tile_data.definition_id,
 		_get_color(colors, &"bg", Color.WHITE),
 		_get_color(colors, &"font", Color.BLACK),
-		GFVariantData.to_string_name(
-			GFVariantData.get_option_value(presentation, &"visual_family_id")
-		),
-		_get_string_name_array(presentation, &"visual_layer_ids")
+		family_id,
+		_get_string_name_array(presentation, &"visual_layer_ids"),
+		_get_tile_visual_style(family_id)
 	)
 	return new_tile
 
@@ -483,6 +534,12 @@ func _get_tile_presentation_descriptor(tile_data: TileState) -> Dictionary:
 	if definition == null:
 		return {}
 	return definition.get_presentation_descriptor(tile_data.capability_recipe_ids)
+
+
+func _get_tile_visual_style(family_id: StringName) -> TileVisualFamilyStyle:
+	if not is_instance_valid(tile_visual_theme):
+		return null
+	return tile_visual_theme.get_family_style(family_id)
 
 
 func _acquire_visual_tile() -> Tile:
@@ -654,6 +711,12 @@ func _update_board_layout() -> void:
 	var board_control: Control = _get_host_control()
 	if is_instance_valid(board_control):
 		board_control.size = _logical_board_size
+		board_control.position = -_logical_board_size * 0.5
+	if is_instance_valid(board_feedback_root):
+		board_feedback_root.position = _logical_board_size * 0.5
+		board_feedback_root.rotation = 0.0
+		board_feedback_root.scale = Vector2.ONE
+		board_feedback_root.set_meta(&"feedback_base_position", board_feedback_root.position)
 
 	if is_instance_valid(board_theme):
 		_apply_board_background_style()
@@ -1151,19 +1214,21 @@ func _on_board_animation_requested(instructions: Array) -> void:
 						merged_data.definition_id
 					)
 					var merge_presentation: Dictionary = _get_tile_presentation_descriptor(merged_data)
+					var merge_family_id: StringName = GFVariantData.get_option_string_name(
+						merge_presentation,
+						&"visual_family_id"
+					)
 					visual_instr[&"target_setup_data"] = {
 						&"value": merged_data.value,
 						&"definition_id": merged_data.definition_id,
 						&"bg": merge_colors.bg,
 						&"font": merge_colors.font,
-						&"visual_family_id": GFVariantData.get_option_value(
-							merge_presentation,
-							&"visual_family_id"
-						),
+						&"visual_family_id": merge_family_id,
 						&"visual_layer_ids": GFVariantData.get_option_array(
 							merge_presentation,
 							&"visual_layer_ids"
 						),
+						&"visual_style": _get_tile_visual_style(merge_family_id),
 						&"score_delta": GFVariantData.get_option_int(instr, &"score_delta"),
 						&"do_transform": instr.has(&"transform")
 					}
@@ -1208,20 +1273,22 @@ func _on_board_animation_requested(instructions: Array) -> void:
 					transform_data.definition_id
 				)
 				var transform_presentation: Dictionary = _get_tile_presentation_descriptor(transform_data)
+				var transform_family_id: StringName = GFVariantData.get_option_string_name(
+					transform_presentation,
+					&"visual_family_id"
+				)
 				visual_instr[&"tile"] = transform_tile_node
 				visual_instr[&"target_setup_data"] = {
 					&"value": transform_data.value,
 					&"definition_id": transform_data.definition_id,
 					&"bg": transform_colors.bg,
 					&"font": transform_colors.font,
-					&"visual_family_id": GFVariantData.get_option_value(
-						transform_presentation,
-						&"visual_family_id"
-					),
+					&"visual_family_id": transform_family_id,
 					&"visual_layer_ids": GFVariantData.get_option_array(
 						transform_presentation,
 						&"visual_layer_ids"
 					),
+					&"visual_style": _get_tile_visual_style(transform_family_id),
 					&"do_merge": _get_bool(instr, &"do_merge", false),
 					&"do_transform": _get_bool(instr, &"do_transform", false),
 				}

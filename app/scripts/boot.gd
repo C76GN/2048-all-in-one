@@ -16,6 +16,8 @@ const _PROGRESS_SHADER_PROFILE: GFShaderParameterProfile = preload("res://featur
 const _MIN_SPLASH_SECONDS: float = 1.05
 const _PRELOAD_TIMEOUT_SECONDS: float = 8.0
 const _FINISH_DELAY_SECONDS: float = 0.14
+const _INTRO_DURATION_SECONDS: float = 0.28
+const _OUTRO_DURATION_SECONDS: float = 0.18
 const _PROGRESS_BAR_ASPECT_FALLBACK: float = 8.0
 const _PAPER_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.94)
 const _INK_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
@@ -31,6 +33,7 @@ var _progress_bar: ColorRect
 var _progress_bar_material: ShaderMaterial
 var _status_label: Label
 var _percent_label: Label
+var _startup_panel: PanelContainer
 var _preload_failed: bool = false
 var _shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 
@@ -39,6 +42,7 @@ var _shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new(
 
 func _ready() -> void:
 	_setup_startup_screen()
+	var _intro_call: Variant = call_deferred(&"_play_startup_intro")
 	_setup_progress()
 	await _run_startup_sequence()
 
@@ -85,6 +89,7 @@ func _run_startup_sequence() -> void:
 	)
 	if not GFVariantData.get_option_bool(finish_wait, "completed"):
 		return
+	await _play_startup_outro()
 	_goto_startup_scene()
 
 
@@ -264,11 +269,11 @@ func _setup_startup_screen() -> void:
 	_set_full_rect(center)
 	add_child(center)
 
-	var panel: PanelContainer = PanelContainer.new()
-	panel.name = "StartupPanel"
-	panel.custom_minimum_size = Vector2(560.0, 360.0)
-	panel.add_theme_stylebox_override("panel", _create_panel_style())
-	center.add_child(panel)
+	_startup_panel = PanelContainer.new()
+	_startup_panel.name = "StartupPanel"
+	_startup_panel.custom_minimum_size = Vector2(560.0, 360.0)
+	_startup_panel.add_theme_stylebox_override("panel", _create_panel_style())
+	center.add_child(_startup_panel)
 
 	var margin: MarginContainer = MarginContainer.new()
 	margin.name = "PanelMargin"
@@ -276,7 +281,7 @@ func _setup_startup_screen() -> void:
 	margin.add_theme_constant_override("margin_top", 26)
 	margin.add_theme_constant_override("margin_right", 28)
 	margin.add_theme_constant_override("margin_bottom", 24)
-	panel.add_child(margin)
+	_startup_panel.add_child(margin)
 
 	var content: VBoxContainer = VBoxContainer.new()
 	content.name = "StartupContent"
@@ -291,6 +296,53 @@ func _setup_startup_screen() -> void:
 	_progress_bar = _create_progress_bar()
 	content.add_child(_progress_bar)
 	content.add_child(_create_footer_label("GF Framework / Scene Preload"))
+
+
+func _play_startup_intro() -> void:
+	if not is_instance_valid(_startup_panel):
+		return
+	_startup_panel.pivot_offset = _startup_panel.size * 0.5
+	_startup_panel.modulate.a = 0.0
+	_startup_panel.scale = Vector2.ONE * 0.965
+	var tween: Tween = _startup_panel.create_tween()
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
+	var _fade_tweener: PropertyTweener = tween.tween_property(
+		_startup_panel,
+		"modulate:a",
+		1.0,
+		_INTRO_DURATION_SECONDS * 0.72
+	)
+	var _scale_tweener: PropertyTweener = tween.tween_property(
+		_startup_panel,
+		"scale",
+		Vector2.ONE,
+		_INTRO_DURATION_SECONDS
+	)
+
+
+func _play_startup_outro() -> void:
+	if not is_instance_valid(_startup_panel):
+		await get_tree().process_frame
+		return
+	var tween: Tween = _startup_panel.create_tween()
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tween = tween.set_ease(Tween.EASE_IN)
+	var _fade_tweener: PropertyTweener = tween.tween_property(
+		_startup_panel,
+		"modulate:a",
+		0.0,
+		_OUTRO_DURATION_SECONDS
+	)
+	var _scale_tweener: PropertyTweener = tween.tween_property(
+		_startup_panel,
+		"scale",
+		Vector2.ONE * 1.025,
+		_OUTRO_DURATION_SECONDS
+	)
+	await tween.finished
 
 
 func _create_title_label(text: String) -> Label:
