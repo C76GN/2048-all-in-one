@@ -155,6 +155,8 @@ func test_custom_board_catalog_rejects_duplicate_ids_atomically() -> void:
 
 func test_board_editor_scene_initializes_with_injected_topology_context() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
+	await architecture.register_utility(GFPlatformRuntime, GFPlatformRuntime.new())
+	await architecture.register_utility(GamePlatformUtility, GamePlatformUtility.new())
 	await architecture.register_utility(GFInputMappingUtility, GFInputMappingUtility.new())
 	await architecture.register_utility(GFPointerGestureUtility, GFPointerGestureUtility.new())
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
@@ -234,6 +236,7 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 	context.remove_child(panel)
 	panel.free()
 	architecture.dispose()
+	await get_tree().process_frame
 
 
 func test_board_editor_uses_feature_owned_gf_input_and_signal_contracts() -> void:

@@ -24,6 +24,10 @@ const DIRECT_TIME_AND_RANDOM_ALLOWLIST: Array[String] = [
 	"res://shared/scripts/utilities/game_clock_utility.gd",
 ]
 const BOOT_RUNTIME_SCRIPT_PATH: String = "res://app/scripts/boot_runtime.gd"
+const PLATFORM_CONTEXT_CONSUMER_PATHS: Array[String] = [
+	"res://features/gameplay/scripts/controllers/gameplay_responsive_layout_controller.gd",
+	"res://features/board_editor/scripts/ui/board_editor_responsive_layout_controller.gd",
+]
 const GF_MODULE_BASE_PATHS: Array[String] = [
 	"res://addons/gf/kernel/base/gf_model.gd",
 	"res://addons/gf/kernel/base/gf_system.gd",
@@ -179,6 +183,28 @@ func test_boot_enables_strict_architecture_dependency_contracts() -> void:
 		"根架构必须在生命周期开始前拒绝缺失的声明式依赖。"
 	)
 	assert_true(source.contains("architecture_ready: bool = await Gf.init()"), "Boot 必须检查 GF 严格初始化结果。")
+
+
+func test_responsive_layouts_consume_gf_platform_capabilities() -> void:
+	var issues: Array[String] = []
+	for path: String in PLATFORM_CONTEXT_CONSUMER_PATHS:
+		var source: String = _read_text(path)
+		var probes_host_directly: bool = (
+			source.contains("OS.has_feature")
+			or source.contains("DisplayServer.is_touchscreen_available")
+		)
+		if probes_host_directly:
+			_append_string(issues, "%s 不得自行探测宿主平台或触摸设备。" % path)
+		if not source.contains("get_utility(GamePlatformUtility"):
+			_append_string(issues, "%s 必须从架构获取 GamePlatformUtility。" % path)
+		if not source.contains("GamePlatformUtility.CAPABILITY_TOUCH"):
+			_append_string(issues, "%s 必须通过 GF 平台能力选择触屏布局。" % path)
+
+	assert_true(
+		issues.is_empty(),
+		"响应式布局只消费 GFPlatformRuntime 投影，宿主探测必须集中在平台 Adapter：\n%s"
+		% _join_lines(issues)
+	)
 
 
 func test_gf_modules_declare_static_cross_module_dependencies() -> void:

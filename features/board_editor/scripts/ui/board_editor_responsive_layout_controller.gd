@@ -83,7 +83,7 @@ const _DESKTOP_APPLY_MINIMUM: Vector2 = Vector2(220.0, 48.0)
 @export var viewport_controller_path: NodePath = NodePath(
 	"../OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/BoardEditorViewportController"
 )
-@export var prefer_compact_layout_on_mobile: bool = true
+@export var prefer_compact_layout_on_touch: bool = true
 
 
 # --- 私有变量 ---
@@ -107,6 +107,7 @@ var _apply_button: Button
 var _viewport_controller: BoardEditorViewportController
 var _signal_utility: GFSignalUtility
 var _viewport_utility: GFViewportUtility
+var _platform_utility: GamePlatformUtility
 var _current_layout_mode: LayoutMode = LayoutMode.DESKTOP
 var _current_mobile_section: MobileSection = MobileSection.EDITOR
 var _layout_update_queued: bool = false
@@ -199,6 +200,7 @@ func _resolve_nodes() -> void:
 func _resolve_utilities() -> void:
 	_signal_utility = _get_signal_utility()
 	_viewport_utility = _get_viewport_utility()
+	_platform_utility = _get_platform_utility()
 
 
 func _has_required_dependencies() -> bool:
@@ -231,6 +233,8 @@ func _has_required_dependencies() -> bool:
 		var _signal_appended: bool = missing.append("GFSignalUtility")
 	if not is_instance_valid(_viewport_utility):
 		var _viewport_appended: bool = missing.append("GFViewportUtility")
+	if not is_instance_valid(_platform_utility):
+		var _platform_appended: bool = missing.append("GamePlatformUtility")
 	if missing.is_empty():
 		return true
 	push_error("[BoardEditorResponsiveLayoutController] 缺少必需依赖：%s。" % ", ".join(missing))
@@ -251,6 +255,11 @@ func _bind_runtime_signals() -> void:
 	var _resize_connection: GFSignalConnection = _signal_utility.connect_signal(
 		_root_control.resized,
 		_queue_layout_update,
+		self
+	)
+	var _platform_context_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_platform_utility.context_changed,
+		_on_platform_context_changed,
 		self
 	)
 	var _editor_connection: GFSignalConnection = _signal_utility.connect_signal(
@@ -276,7 +285,7 @@ func _apply_current_layout() -> void:
 	_layout_update_queued = false
 	if not is_inside_tree() or not _has_required_dependencies():
 		return
-	var prefer_compact: bool = prefer_compact_layout_on_mobile and _is_mobile_runtime()
+	var prefer_compact: bool = prefer_compact_layout_on_touch and _has_touch_capability()
 	_current_layout_mode = classify_layout(_root_control.size, prefer_compact)
 	match _current_layout_mode:
 		LayoutMode.DESKTOP:
@@ -374,12 +383,14 @@ func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
 	)
 
 
-func _is_mobile_runtime() -> bool:
+func _on_platform_context_changed(_context: GFPlatformRuntimeContext) -> void:
+	_queue_layout_update()
+
+
+func _has_touch_capability() -> bool:
 	return (
-		OS.has_feature("mobile")
-		or OS.has_feature("android")
-		or OS.has_feature("ios")
-		or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
+		is_instance_valid(_platform_utility)
+		and _platform_utility.has_capability(GamePlatformUtility.CAPABILITY_TOUCH)
 	)
 
 
@@ -468,4 +479,12 @@ func _get_viewport_utility() -> GFViewportUtility:
 	if utility_value is GFViewportUtility:
 		var viewport_utility: GFViewportUtility = utility_value
 		return viewport_utility
+	return null
+
+
+func _get_platform_utility() -> GamePlatformUtility:
+	var utility_value: Object = get_utility(GamePlatformUtility, true)
+	if utility_value is GamePlatformUtility:
+		var platform_utility: GamePlatformUtility = utility_value
+		return platform_utility
 	return null

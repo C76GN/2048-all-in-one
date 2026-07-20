@@ -58,7 +58,7 @@ const _PORTRAIT_BOARD_FIT_INSETS: Dictionary = {
 @export var hud_path: NodePath = NodePath("../HUD")
 
 ## 触屏运行时即使横屏尺寸足够，也采用紧凑信息密度。
-@export var prefer_compact_layout_on_mobile: bool = true
+@export var prefer_compact_layout_on_touch: bool = true
 
 
 # --- 私有变量 ---
@@ -73,6 +73,7 @@ var _board_world_viewport_controller: BoardWorldViewportController
 var _hud: Hud
 var _signal_utility: GFSignalUtility
 var _viewport_utility: GFViewportUtility
+var _platform_utility: GamePlatformUtility
 var _current_layout_mode: LayoutMode = LayoutMode.DESKTOP
 var _layout_update_queued: bool = false
 
@@ -83,11 +84,17 @@ func _ready() -> void:
 	_resolve_nodes()
 	_signal_utility = _get_signal_utility()
 	_viewport_utility = _get_viewport_utility()
+	_platform_utility = _get_platform_utility()
 	if not _has_required_dependencies():
 		return
 	var _resize_connection: GFSignalConnection = _signal_utility.connect_signal(
 		_root_control.resized,
 		_queue_layout_update,
+		self
+	)
+	var _platform_context_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_platform_utility.context_changed,
+		_on_platform_context_changed,
 		self
 	)
 	_queue_layout_update()
@@ -194,6 +201,7 @@ func _has_required_dependencies() -> bool:
 		_hud,
 		_signal_utility,
 		_viewport_utility,
+		_platform_utility,
 	]
 	for dependency: Object in dependencies:
 		if not is_instance_valid(dependency):
@@ -215,7 +223,7 @@ func _apply_current_layout() -> void:
 		return
 	_current_layout_mode = classify_layout(
 		_root_control.size,
-		prefer_compact_layout_on_mobile and _is_mobile_runtime()
+		prefer_compact_layout_on_touch and _has_touch_capability()
 	)
 	_left_column.visible = false
 	_right_column.visible = false
@@ -264,12 +272,14 @@ static func _get_layout_gutter(mode: LayoutMode) -> float:
 			return _DESKTOP_GUTTER
 
 
-func _is_mobile_runtime() -> bool:
+func _on_platform_context_changed(_context: GFPlatformRuntimeContext) -> void:
+	_queue_layout_update()
+
+
+func _has_touch_capability() -> bool:
 	return (
-		OS.has_feature("mobile")
-		or OS.has_feature("android")
-		or OS.has_feature("ios")
-		or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
+		is_instance_valid(_platform_utility)
+		and _platform_utility.has_capability(GamePlatformUtility.CAPABILITY_TOUCH)
 	)
 
 
@@ -286,6 +296,14 @@ func _get_viewport_utility() -> GFViewportUtility:
 	if utility_value is GFViewportUtility:
 		var viewport_utility: GFViewportUtility = utility_value
 		return viewport_utility
+	return null
+
+
+func _get_platform_utility() -> GamePlatformUtility:
+	var utility_value: Object = get_utility(GamePlatformUtility, true)
+	if utility_value is GamePlatformUtility:
+		var platform_utility: GamePlatformUtility = utility_value
+		return platform_utility
 	return null
 
 

@@ -155,7 +155,8 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 1. `GFPlatformRuntime` 是平台 Adapter 注册、初始化、能力契约路由、请求句柄、超时与生命周期序列的唯一所有者；业务 Feature 不得绕过 Runtime 直接调用 Adapter。
 2. `GamePlatformUtility` 只负责选择项目 Adapter、把 Godot 窗口与应用通知转成 GF 生命周期事件，并投影只读 `GFPlatformRuntimeContext`；它不重复维护请求表、超时器或平台能力集合。
 3. `GamePlatformAdapter` 继承 `GFPlatformAdapter`，负责冻结项目身份与能力契约；具体 Adapter 只实现支持的 SDK dispatch 和平台上下文刷新。
-4. 平台请求统一返回 `GFPlatformRequestHandle`。调用方通过句柄读取终态 `GFPlatformBridgeResult`，不得另建项目私有异步请求协议。
+4. 只有具体平台 Adapter 可以使用 `OS.has_feature()`、`DisplayServer` 或供应商 SDK 探测玩家设备与平台能力；Gameplay、Board Editor 和其他 Feature 必须通过 `GamePlatformUtility` 查询 `GFPlatformRuntimeContext` 与能力 ID，平台上下文变化时重新投影布局。Composition Root 的构建 feature 开关、开发诊断的 headless 判定以及 `GFDisplaySettingsUtility` 所需的枚举类型不属于玩家平台能力探测。
+5. 平台请求统一返回 `GFPlatformRequestHandle`。调用方通过句柄读取终态 `GFPlatformBridgeResult`，不得另建项目私有异步请求协议。
 
 ### 时钟、随机与运行诊断
 
