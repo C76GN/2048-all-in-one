@@ -12,8 +12,8 @@
 - GF 包管理器：GF 8 使用 Godot 原生 CLI，入口为 `res://addons/gf/kernel/package/gf_package_cli.gd`。恢复包管理器安装流时，应重新生成 `.gf/packages.lock.json` 并再启用 installed 包数量强校验。
 - GF 下载缓存、运行日志、本地用户数据和导出产物已由 `.gitignore` 忽略，不应提交。
 - 当前文档：已有 `README.md`、`docs/ai_maintenance.md`、`docs/coding_style.md`、`docs/architecture.md`、`docs/validation.md` 和本文档。
-- 当前测试：`tests/gut/` 静态计数为 37 个 `test_*.gd` 文件，其中 33 个顶层测试脚本、4 个测试替身；共有 262 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
-- 安全测试入口：`tools/run_gut_safe.ps1` 已提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；2026-07-19 已用 Godot 4.7 stable 在 GF 8.1.1 上完成完整隔离 GUT 验证，完整结果以 `docs/validation.md` 为准。
+- 当前测试：`tests/gut/` 静态计数为 37 个 `test_*.gd` 文件，其中 33 个顶层测试脚本、4 个测试替身；共有 287 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
+- 安全测试入口：`tools/run_gut_safe.ps1` 已提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；2026-07-20 已用 Godot 4.7 stable 在 GF 8.1.1 上完成完整隔离 GUT 验证，完整结果以 `docs/validation.md` 为准。
 - 当前项目脚本中有 46 处显式继承 `res://addons/gf/...`，这是为了规避升级后 Godot class cache 对 `GF...` 类名解析不稳定的风险。
 - 当前脚本已清理掉 `get_model/get_system/get_utility(...) as ...`、显式 class cast、隐式变量类型和缺失返回类型等高频旧写法；维护测试已禁止用 GUT `assert_eq` 对比空数组来判断问题列表，并约束业务脚本中的 `GFBindableProperty.get_value()`、`Dictionary.get()` 自定义对象结果、资源加载/复制结果、`StyleBoxFlat` 专属 API 调用、typed `@onready` / 运行时节点查找收窄、已知高风险返回值调用和项目协程调用。剩余稳定性重点转向更细的 `unsafe_method_access` / `unsafe_property_access`。
 
@@ -97,7 +97,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 1. 维护“安全运行 Godot/GUT”的本地脚本。
    - 问题：默认 Godot 用户目录曾生成巨大日志文件。
-   - 当前状态：`tools/run_gut_safe.ps1` 已提供临时 user data/log 路径、超时、日志大小上限和默认日志增长上限；Godot 4.7 stable 与 GF 8.1.1 下安全 GUT 已覆盖 33 个顶层测试脚本、262 个测试。
+   - 当前状态：`tools/run_gut_safe.ps1` 已提供临时 user data/log 路径、超时、日志大小上限和默认日志增长上限；Godot 4.7 stable 与 GF 8.1.1 下安全 GUT 已覆盖 33 个顶层测试脚本、287 个测试。
    - 结果目标：后续默认通过该脚本运行 GUT，且默认用户目录不产生大日志。
    - 验证：切换 Godot 可执行文件或升级版本后，用低上限参数重新运行烟雾测试。
 
@@ -141,7 +141,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 验证：模式、方块定义、成就定义和 UI 路由注册表测试继续通过，并能捕获缺失路径与重复稳定 ID。
 
 4. 存档 Module 深化。
-   - 涉及：`GameSaveGraphUtility`、`GameSaveSectionData`、`SaveSystem`、`BookmarkSystem`、`CustomBoardSystem`、`AchievementSystem`、`ReplaySystem`、`GFSaveGraphUtility`、`GFSaveScope`、`GFSaveDataSource`、`GFStorageUtility`。
+   - 涉及：`GameSaveGraphUtility`、`GameSaveSectionData`、`ProgressStatsSystem`、`BookmarkSystem`、`CustomBoardSystem`、`AchievementSystem`、`ReplaySystem`、`GFSaveGraphUtility`、`GFSaveScope`、`GFSaveDataSource`、`GFStorageUtility`。
    - 问题：最高分、设置、书签、玩家棋盘、回放分属不同入口，持久化语义需要更统一。
    - 当前状态：统计、书签、玩家棋盘、方块/棋盘发现进度、成就和回放已迁移为六个 Feature-owned section，由项目级 SaveGraph 原子保存；设置保持独立生命周期。旧 SaveSlot Adapter 和时间戳 Resource 集合已删除。
    - 存储契约：Binary Variant 类型保真、GF storage metadata、checksum、严格 Profile/section schema、UUID v7 稳定身份，不提供旧格式运行时双读。
@@ -225,10 +225,9 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 ## 深化机会清单
 
-1. `GameArchitectureInstaller` 仍是高耦合装配点。
-   - 问题：注册顺序、dev 工具、项目 Utility 实例化集中在一个文件，接口偏宽。
-   - 方向：按“运行时基础设施 / UI / 玩法 / 调试”分组内部函数，或提取小的装配 Module，但不要增加额外外部接口。
-   - 收益：提高 locality，后续接入 debug 包或 save graph 时风险更低。
+1. `GameArchitectureInstaller` 已按运行时基础、内容与玩法、表现、输入平台、状态导航、进度和玩法系统完成内部装配分组。
+   - 约束：外部仍只暴露 `install_bindings()`，各组保持严格依赖注册顺序，dev 工具仍由显式构建 feature 最后安装。
+   - 后续只有在某组能够独立删除、测试和复用时才提取 Feature Installer，禁止为缩短文件而增加浅层接口。
 
 2. `GameUiMotionUtility` 和视觉测试已经成形，视觉规范已文档化。
    - 问题：资源和场景还没有完全围绕 `docs/visual_style.md` 收敛。

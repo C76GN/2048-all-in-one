@@ -166,11 +166,11 @@ func _get_current_game_model() -> CurrentGameModel:
 	return null
 
 
-func _get_save_system() -> SaveSystem:
-	var system_value: Object = get_system(SaveSystem)
-	if system_value is SaveSystem:
-		var save_system: SaveSystem = system_value
-		return save_system
+func _get_progress_stats_system() -> ProgressStatsSystem:
+	var system_value: Object = get_system(ProgressStatsSystem)
+	if system_value is ProgressStatsSystem:
+		var progress_stats_system: ProgressStatsSystem = system_value
+		return progress_stats_system
 	return null
 
 
@@ -229,11 +229,11 @@ func _get_current_stats(mode_config: GameModeConfig, topology: BoardTopology) ->
 		return {}
 	if not is_instance_valid(topology):
 		return {}
-	var save_system: SaveSystem = _get_save_system()
-	if not is_instance_valid(save_system):
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system()
+	if not is_instance_valid(progress_stats_system):
 		return {}
 	var mode_id: String = mode_config.resource_path.get_file().get_basename()
-	return save_system.get_game_stats(mode_id, topology.get_stable_key())
+	return progress_stats_system.get_game_stats(mode_id, topology.get_stable_key())
 
 
 func _format_optional_stat(value: int) -> String:

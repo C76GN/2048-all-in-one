@@ -71,13 +71,13 @@ func test_high_frequency_sections_coalesce_into_one_async_profile_write() -> voi
 func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	var save_dir_name: String = "gut_save_graph_%d" % Time.get_ticks_usec()
 	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
-	var save_system: SaveSystem = _get_save_system(setup)
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
 	var custom_board_system: CustomBoardSystem = _get_custom_board_system(setup)
 	var replay_system: ReplaySystem = _get_replay_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
 
-	var stats_error: Error = save_system.record_game_result("classic", _BOARD_KEY, 2048, 32, 2048, 500, 2048, true)
+	var stats_error: Error = progress_stats_system.record_game_result("classic", _BOARD_KEY, 2048, 32, 2048, 500, 2048, true)
 	var bookmark: BookmarkData = _make_bookmark(600, 512)
 	var custom_board: CustomBoardData = _make_custom_board()
 	var replay: ReplayData = _make_replay(700, 2048)
@@ -100,7 +100,7 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	_dispose_setup(setup, false)
 	var reloaded: Dictionary = await _create_persistence_architecture(save_dir_name, true)
 	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
-	var reloaded_save_system: SaveSystem = _get_save_system(reloaded)
+	var reloaded_progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(reloaded)
 	var reloaded_bookmarks: BookmarkSystem = _get_bookmark_system(reloaded)
 	var reloaded_custom_boards: CustomBoardSystem = _get_custom_board_system(reloaded)
 	var reloaded_replays: ReplaySystem = _get_replay_system(reloaded)
@@ -108,7 +108,7 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 		reloaded_graph.is_profile_loaded(),
 		"重载事务应成功：%s" % _describe_load_failure(reloaded_graph)
 	)
-	assert_true(reloaded_save_system.get_high_score("classic", _BOARD_KEY) == 2048, "重载后应保留统计。")
+	assert_true(reloaded_progress_stats_system.get_high_score("classic", _BOARD_KEY) == 2048, "重载后应保留统计。")
 	var bookmarks: Array[BookmarkData] = reloaded_bookmarks.load_bookmarks()
 	var custom_boards: Array[CustomBoardData] = reloaded_custom_boards.load_custom_boards()
 	var replays: Array[ReplayData] = reloaded_replays.load_replays()
@@ -139,11 +139,11 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 func test_late_section_failure_rolls_back_earlier_sections() -> void:
 	var setup: Dictionary = await _create_persistence_architecture("", true)
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var save_system: SaveSystem = _get_save_system(setup)
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
 
-	var score_error: Error = save_system.set_high_score("classic", _BOARD_KEY, 128)
+	var score_error: Error = progress_stats_system.set_high_score("classic", _BOARD_KEY, 128)
 	var bookmark_error: Error = bookmark_system.save_bookmark(_make_bookmark(800, 64))
 	assert_true(score_error == OK, "回滚测试前统计应保存成功。")
 	assert_true(bookmark_error == OK, "回滚测试前书签应保存成功。")
@@ -181,7 +181,7 @@ func test_late_section_failure_rolls_back_earlier_sections() -> void:
 
 	var load_error: Error = save_graph.load_profile()
 	assert_true(load_error == ERR_INVALID_DATA, "后期 section 业务校验失败时整张图加载应失败。")
-	assert_true(save_system.get_high_score("classic", _BOARD_KEY) == 128, "progress 的先行应用必须回滚。")
+	assert_true(progress_stats_system.get_high_score("classic", _BOARD_KEY) == 128, "progress 的先行应用必须回滚。")
 	assert_true(bookmark_system.load_bookmarks().size() == 1, "bookmarks 的先行应用必须回滚。")
 	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(save_graph.get_debug_snapshot(), "last_load")
 	assert_false(GFVariantData.get_option_bool(load_snapshot, "ok"), "诊断应记录失败事务。")
@@ -193,9 +193,9 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 	var save_dir_name: String = "gut_save_graph_recovery_%d" % Time.get_ticks_usec()
 	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var save_system: SaveSystem = _get_save_system(setup)
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
-	var score_error: Error = save_system.set_high_score("classic", _BOARD_KEY, 512)
+	var score_error: Error = progress_stats_system.set_high_score("classic", _BOARD_KEY, 512)
 	assert_true(score_error == OK, "迁移夹具应先写入当前统计。")
 	assert_true(
 		save_graph.flush_pending_save() == OK,
@@ -246,7 +246,7 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 		% _describe_load_failure(reloaded_graph)
 	)
 	assert_true(
-		_get_save_system(reloaded).get_high_score("classic", _BOARD_KEY) == 0,
+		_get_progress_stats_system(reloaded).get_high_score("classic", _BOARD_KEY) == 0,
 		"运行时不得通过旧业务字段双读恢复统计。"
 	)
 	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(
@@ -330,7 +330,7 @@ func test_future_profile_schema_mismatch_is_rejected_without_fallback() -> void:
 	var reloaded: Dictionary = await _create_persistence_architecture(save_dir_name, true)
 	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
 	assert_false(reloaded_graph.is_profile_loaded(), "不匹配 schema 不应进入运行时模型。")
-	assert_true(_get_save_system(reloaded).get_high_score("classic", _BOARD_KEY) == 0, "不得保留旧 schema 双读回退。")
+	assert_true(_get_progress_stats_system(reloaded).get_high_score("classic", _BOARD_KEY) == 0, "不得保留旧 schema 双读回退。")
 	assert_true(_get_bookmark_system(reloaded).load_bookmarks().is_empty(), "拒绝载荷时书签默认值应保持为空。")
 
 	_dispose_setup(reloaded)
@@ -396,18 +396,18 @@ func test_save_dependency_failure_rolls_back_replaced_section() -> void:
 	var setup: Dictionary = await _create_persistence_architecture("", true)
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var save_system: SaveSystem = _get_save_system(setup)
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
-	var initial_error: Error = save_system.set_high_score("classic", _BOARD_KEY, 128)
+	var initial_error: Error = progress_stats_system.set_high_score("classic", _BOARD_KEY, 128)
 	assert_true(initial_error == OK, "故障注入前的统计应保存成功。")
 	assert_true(save_graph.flush_pending_save() == OK, "故障注入前应冲刷排队统计。")
 
 	var cleanup_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
 	assert_true(cleanup_error == OK, "故障注入前应清理测试玩家数据文件。")
 	architecture.unregister_utility(GFStorageUtility)
-	var failed_error: Error = save_system.set_high_score("classic", _BOARD_KEY, 4096)
+	var failed_error: Error = progress_stats_system.set_high_score("classic", _BOARD_KEY, 4096)
 	assert_true(failed_error == ERR_UNCONFIGURED, "SaveGraph 缺少存储依赖时应返回明确错误。")
-	assert_true(save_system.get_high_score("classic", _BOARD_KEY) == 128, "写入失败必须恢复 progress section 内存快照。")
+	assert_true(progress_stats_system.get_high_score("classic", _BOARD_KEY) == 128, "写入失败必须恢复 progress section 内存快照。")
 
 	_dispose_setup(setup, false)
 
@@ -422,7 +422,7 @@ func _create_persistence_architecture(
 	var storage: GFStorageUtility = GFStorageUtility.new()
 	var framework_save_graph: GFSaveGraphUtility = GFSaveGraphUtility.new()
 	var save_graph: GameSaveGraphUtility = _make_game_save_graph()
-	var save_system: SaveSystem = null
+	var progress_stats_system: ProgressStatsSystem = null
 	var bookmark_system: BookmarkSystem = null
 	var custom_board_system: CustomBoardSystem = null
 	var replay_system: ReplaySystem = null
@@ -440,11 +440,11 @@ func _create_persistence_architecture(
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(GFCommandHistoryUtility, GFCommandHistoryUtility.new())
 	if include_systems:
-		save_system = SaveSystem.new()
+		progress_stats_system = ProgressStatsSystem.new()
 		bookmark_system = BookmarkSystem.new()
 		custom_board_system = CustomBoardSystem.new()
 		replay_system = ReplaySystem.new()
-		await architecture.register_system(SaveSystem, save_system)
+		await architecture.register_system(ProgressStatsSystem, progress_stats_system)
 		await architecture.register_system(BookmarkSystem, bookmark_system)
 		await architecture.register_system(CustomBoardSystem, custom_board_system)
 		await architecture.register_system(ReplaySystem, replay_system)
@@ -454,7 +454,7 @@ func _create_persistence_architecture(
 		"architecture": architecture,
 		"storage": storage,
 		"save_graph": save_graph,
-		"save_system": save_system,
+		"progress_stats_system": progress_stats_system,
 		"bookmark_system": bookmark_system,
 		"custom_board_system": custom_board_system,
 		"replay_system": replay_system,
@@ -603,13 +603,13 @@ func _get_save_graph(setup: Dictionary) -> GameSaveGraphUtility:
 	return GameSaveGraphUtility.new()
 
 
-func _get_save_system(setup: Dictionary) -> SaveSystem:
-	var value: Variant = GFVariantData.get_option_value(setup, "save_system")
-	if value is SaveSystem:
-		var save_system: SaveSystem = value
-		return save_system
-	assert_true(false, "测试 setup 缺少 SaveSystem。")
-	return SaveSystem.new()
+func _get_progress_stats_system(setup: Dictionary) -> ProgressStatsSystem:
+	var value: Variant = GFVariantData.get_option_value(setup, "progress_stats_system")
+	if value is ProgressStatsSystem:
+		var progress_stats_system: ProgressStatsSystem = value
+		return progress_stats_system
+	assert_true(false, "测试 setup 缺少 ProgressStatsSystem。")
+	return ProgressStatsSystem.new()
 
 
 func _get_bookmark_system(setup: Dictionary) -> BookmarkSystem:

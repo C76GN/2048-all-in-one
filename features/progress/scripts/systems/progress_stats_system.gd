@@ -1,13 +1,13 @@
-## SaveSystem: 负责处理游戏最高分与轻量统计数据持久化的系统。
+## ProgressStatsSystem: 负责处理游戏最高分与轻量统计数据持久化的系统。
 ##
 ## 最高分和统计作为 progress section 参与统一玩家数据 SaveGraph，设置交给 GFSettingsUtility 管理。
-class_name SaveSystem
+class_name ProgressStatsSystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
 
 # --- 常量 ---
 
-const _LOG_TAG: String = "SaveSystem"
+const _LOG_TAG: String = "ProgressStatsSystem"
 const _KEY_STATS: String = "stats"
 const _STAT_PLAYS: String = "plays"
 const _STAT_BEST_SCORE: String = "best_score"
@@ -386,5 +386,5 @@ func _get_unix_timestamp() -> int:
 	if is_instance_valid(_clock):
 		return _clock.get_unix_timestamp()
 
-	push_error("[SaveSystem] 缺少 GameClockUtility，无法记录游戏结果时间戳。")
+	push_error("[ProgressStatsSystem] 缺少 GameClockUtility，无法记录游戏结果时间戳。")
 	return 0

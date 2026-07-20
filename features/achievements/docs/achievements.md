@@ -13,7 +13,7 @@
 
 ## 数据流
 
-1. `SaveSystem` 先原子提交 `progress` section，成功后发送 `GameResultRecordedData`。
+1. `ProgressStatsSystem` 先原子提交 `progress` section，成功后发送 `GameResultRecordedData`。
 2. `TileDiscoverySystem` 先提交 `discoveries` section，成功后发送 `DiscoveryProgressChangedData`。
 3. `AchievementSystem` 从两个规范 section 重新计算单调高水位，而不是盲目累计事件次数。
 4. 提议进度先写入 `achievements` section；保存成功后才用每个成就独立的 simple event 推进 `GFQuestUtility`。

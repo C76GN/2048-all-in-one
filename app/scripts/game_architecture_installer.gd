@@ -62,6 +62,16 @@ func _bind_models(binder: GFBinder) -> void:
 
 
 func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
+	await _bind_runtime_foundation_utilities(binder)
+	await _bind_content_and_gameplay_utilities(binder)
+	await _bind_presentation_utilities(binder)
+	await _bind_input_and_platform_utilities(binder)
+
+	if _are_dev_tools_enabled():
+		await _install_dev_tools(binder, scope)
+
+
+func _bind_runtime_foundation_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFStorageUtility).from_instance(_create_storage_utility()).as_singleton()
 	await binder.bind_utility(GameSettingsUtility).from_instance(_create_settings_utility()).with_alias(GFSettingsUtility).as_singleton()
 	await binder.bind_utility(GFDisplaySettingsUtility).as_singleton()
@@ -71,6 +81,9 @@ func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_utility(GFSeedUtility).as_singleton()
 	await binder.bind_utility(GFAssetUtility).as_singleton()
 	await binder.bind_utility(GFResourceResolverUtility).as_singleton()
+
+
+func _bind_content_and_gameplay_utilities(binder: GFBinder) -> void:
 	var content_catalog_binding: GFBindBuilder = (
 		binder.bind_utility(_PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT)
 	)
@@ -96,6 +109,9 @@ func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_utility(GFTimeUtility).as_singleton()
 	await binder.bind_utility(_GAME_PAUSE_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFLogUtility).from_instance(_create_log_utility()).as_singleton()
+
+
+func _bind_presentation_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFBuildInfoUtility).as_singleton()
 	await binder.bind_utility(GFSceneUtility).as_singleton()
 	await binder.bind_utility(GFRenderWarmupUtility).as_singleton()
@@ -109,6 +125,9 @@ func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_utility(_GAME_CELEBRATION_VFX_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_THEME_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_THEME_UTILITY_SCRIPT).as_singleton()
+
+
+func _bind_input_and_platform_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFInputDeviceUtility).as_singleton()
 	await binder.bind_utility(GFInputMappingUtility).as_singleton()
 	await binder.bind_utility(_GAME_INPUT_PROFILE_UTILITY_SCRIPT).as_singleton()
@@ -117,19 +136,28 @@ func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_utility(_GAME_PLATFORM_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFObjectPoolUtility).from_instance(_create_object_pool_utility()).as_singleton()
 
-	if _are_dev_tools_enabled():
-		await _install_dev_tools(binder, scope)
-
 
 func _bind_systems(binder: GFBinder) -> void:
+	await _bind_state_and_navigation_systems(binder)
+	await _bind_progression_systems(binder)
+	await _bind_gameplay_systems(binder)
+
+
+func _bind_state_and_navigation_systems(binder: GFBinder) -> void:
 	await binder.bind_system(GameStateSystem).as_singleton()
 	await binder.bind_system(SceneRouterSystem).as_singleton()
-	await binder.bind_system(SaveSystem).as_singleton()
+
+
+func _bind_progression_systems(binder: GFBinder) -> void:
+	await binder.bind_system(ProgressStatsSystem).as_singleton()
 	await binder.bind_system(BookmarkSystem).as_singleton()
 	await binder.bind_system(CustomBoardSystem).as_singleton()
 	await binder.bind_system(ReplaySystem).as_singleton()
 	await binder.bind_system(TileDiscoverySystem).as_singleton()
 	await binder.bind_system(AchievementSystem).as_singleton()
+
+
+func _bind_gameplay_systems(binder: GFBinder) -> void:
 	await binder.bind_system(GameFlowSystem).as_singleton()
 	await binder.bind_system(GridMovementSystem).as_singleton()
 	await binder.bind_system(RuleSystem).as_singleton()

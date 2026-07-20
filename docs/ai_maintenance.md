@@ -147,7 +147,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 检查并按需更新：
 
-- `features/progress/scripts/systems/save_system.gd`
+- `features/progress/scripts/systems/progress_stats_system.gd`
 - `features/bookmarks/scripts/systems/bookmark_system.gd`
 - `features/gameplay/scripts/systems/game_state_system.gd`
 - `features/bookmarks/scripts/data/bookmark_data.gd`
@@ -269,10 +269,10 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 当前已验证的安全 GUT 命令：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 420 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 900 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-19 使用 Godot `4.7` 与 GF `8.1.1` 运行通过。当前完整套件为 33 个 GUT 测试脚本、262 个 `test_` 用例；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 705 个全局脚本类，项目运行时声明 170 个；完整套件退出计数为 `ObjectDB = 288`、`Resources = 128`，RID 为 `TextureStorage = 10`、`ShapedText = 2`、`Font = 3`。GF 8.1.1 只更新插件和扩展 manifest 版本元数据，运行时类集合未变化；同一输入集合下退出计数不得继续增长。
+2026-07-20 使用 Godot `4.7` 与 GF `8.1.1` 运行通过。当前完整套件为 33 个 GUT 测试脚本、287 个 `test_` 用例、1837 个断言；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 705 个全局脚本类，项目运行时声明 182 个；完整套件退出计数为 `ObjectDB = 301`、`Resources = 129`，RID 为 `TextureStorage = 11`、`ShapedText = 9`、`Font = 5`。同一输入集合下退出计数不得继续增长。
 
 编辑器 GDScript warning 诊断入口：
 
@@ -280,7 +280,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1
 ```
 
-该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `app`、`features`、`shared`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-19 零诊断基线为 210 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+该命令参考 GF 维护项目的 LSP 诊断方式，默认扫描 `app`、`features`、`shared`、`tests/gut` 和 `tools`，并把报告写入 `build/gdscript_lsp_diagnostics.json`。2026-07-20 零诊断基线为 224 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 如果只改了文档，可以不运行 GUT，但应检查链接、路径和项目定位是否准确。只要改了 `.gd`，应优先补充或运行相关测试；无法安全运行时，必须说明未验证风险。
 

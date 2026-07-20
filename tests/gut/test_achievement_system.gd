@@ -69,11 +69,11 @@ func test_persisted_game_result_advances_gf_quest_once() -> void:
 	var setup: Dictionary = await _create_setup(
 		"gut_achievement_progress_%d" % Time.get_ticks_usec()
 	)
-	var save_system: SaveSystem = _get_save_system(setup)
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var achievement_system: AchievementSystem = _get_achievement_system(setup)
 	var quest: GFQuestUtility = _get_quest(setup)
 
-	var save_error: Error = save_system.record_game_result(
+	var save_error: Error = progress_stats_system.record_game_result(
 		"classic",
 		_BOARD_KEY,
 		4096,
@@ -122,7 +122,7 @@ func test_persisted_game_result_advances_gf_quest_once() -> void:
 func test_achievement_system_backfills_from_canonical_sections() -> void:
 	var save_dir_name: String = "gut_achievement_backfill_%d" % Time.get_ticks_usec()
 	var seed_setup: Dictionary = await _create_setup(save_dir_name, false)
-	var seed_error: Error = _get_save_system(seed_setup).record_game_result(
+	var seed_error: Error = _get_progress_stats_system(seed_setup).record_game_result(
 		"classic",
 		_BOARD_KEY,
 		12000,
@@ -212,7 +212,7 @@ func _create_setup(
 	var save_graph: GameSaveGraphUtility = _make_save_graph()
 	var catalog: AchievementCatalogUtility = AchievementCatalogUtility.new()
 	var quest: GFQuestUtility = GFQuestUtility.new()
-	var save_system: SaveSystem = SaveSystem.new()
+	var progress_stats_system: ProgressStatsSystem = ProgressStatsSystem.new()
 	var achievement_system: AchievementSystem = null
 
 	storage.save_dir_name = save_dir_name
@@ -240,7 +240,7 @@ func _create_setup(
 	)
 	await architecture.register_utility(AchievementCatalogUtility, catalog)
 	await architecture.register_utility(GFQuestUtility, quest)
-	await architecture.register_system(SaveSystem, save_system)
+	await architecture.register_system(ProgressStatsSystem, progress_stats_system)
 	if include_achievement_system:
 		achievement_system = AchievementSystem.new()
 		await architecture.register_system(AchievementSystem, achievement_system)
@@ -251,7 +251,7 @@ func _create_setup(
 		"save_graph": save_graph,
 		"catalog": catalog,
 		"quest": quest,
-		"save_system": save_system,
+		"progress_stats_system": progress_stats_system,
 		"achievement_system": achievement_system,
 	}
 
@@ -316,13 +316,13 @@ func _get_catalog(setup: Dictionary) -> AchievementCatalogUtility:
 	return AchievementCatalogUtility.new()
 
 
-func _get_save_system(setup: Dictionary) -> SaveSystem:
-	var value: Variant = setup.get("save_system")
-	if value is SaveSystem:
-		var system: SaveSystem = value
+func _get_progress_stats_system(setup: Dictionary) -> ProgressStatsSystem:
+	var value: Variant = setup.get("progress_stats_system")
+	if value is ProgressStatsSystem:
+		var system: ProgressStatsSystem = value
 		return system
-	assert_true(false, "测试 setup 缺少 SaveSystem。")
-	return SaveSystem.new()
+	assert_true(false, "测试 setup 缺少 ProgressStatsSystem。")
+	return ProgressStatsSystem.new()
 
 
 func _get_achievement_system(setup: Dictionary) -> AchievementSystem:

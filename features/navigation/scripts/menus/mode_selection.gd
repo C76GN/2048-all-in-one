@@ -388,10 +388,10 @@ func _update_high_score_label() -> void:
 		return
 
 	var mode_id: String = _selected_mode_config.resource_path.get_file().get_basename()
-	var save_system: SaveSystem = _get_save_system()
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system()
 	var board_key: String = _current_board_topology.get_stable_key() if is_instance_valid(_current_board_topology) else ""
-	var high_score: int = save_system.get_high_score(mode_id, board_key) if is_instance_valid(save_system) else 0
-	var stats: Dictionary = save_system.get_game_stats(mode_id, board_key) if is_instance_valid(save_system) else {}
+	var high_score: int = progress_stats_system.get_high_score(mode_id, board_key) if is_instance_valid(progress_stats_system) else 0
+	var stats: Dictionary = progress_stats_system.get_game_stats(mode_id, board_key) if is_instance_valid(progress_stats_system) else {}
 	_info_score_label.text = _format_stats_text(high_score, stats)
 
 
@@ -645,11 +645,11 @@ func _get_game_ui_motion_utility() -> GameUiMotionUtility:
 	return null
 
 
-func _get_save_system() -> SaveSystem:
-	var system_value: Object = get_system(SaveSystem)
-	if system_value is SaveSystem:
-		var save_system: SaveSystem = system_value
-		return save_system
+func _get_progress_stats_system() -> ProgressStatsSystem:
+	var system_value: Object = get_system(ProgressStatsSystem)
+	if system_value is ProgressStatsSystem:
+		var progress_stats_system: ProgressStatsSystem = system_value
+		return progress_stats_system
 	return null
 
 

@@ -127,11 +127,11 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
 - GF Framework：官方稳定 tag `8.1.1`，commit `c0ce09e53edf30c00ba79df27fb9a7625b9f518d`。
-- GUT：285 个测试全部通过，共 1813 个断言。
-- 当前完整套件：`tests/gut/` 下 33 个顶层测试脚本、285 个 `test_` 用例。
-- Boot 首帧壳与 Godot 原生启动图共用同一构图；正式 `BootRuntime` 由线程加载，随后通过 `GFAsyncProgress`、`GFScenePreloadMap` 和 `GFSceneUtility` 预热稳定场景流与首轮游戏视觉资源。Boot 继续启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束。高频进度写入由 `GameSaveGraphUtility` 合并后调用 GFStorage 异步接口，关键完成事务仍同步落盘。
+- GUT：287 个测试全部通过，共 1837 个断言。
+- 当前完整套件：`tests/gut/` 下 33 个顶层测试脚本、287 个 `test_` 用例。
+- Boot 首帧壳与 Godot 原生启动图共用同一构图；正式 `BootRuntime` 由线程加载，随后通过 `GFAsyncProgress`、`GFScenePreloadMap`、`GFSceneUtility` 和 `GFRenderWarmupUtility` 预热稳定场景流、主题 shader 与首轮游戏视觉资源。Boot 继续启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束。高频进度写入由 `GameSaveGraphUtility` 合并后调用 GFStorage 异步接口，关键完成事务仍同步落盘。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 301`、`Resources = 129`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。本轮 5 个明确的运行时 `class_name` 使项目类集合从 176 增至 181；三次完整运行得到相同计数，剔除重型素材评审后的产品测试子集保持在旧上限内，评审记录也通过 `CACHE_MODE_IGNORE` 与缓存断言验证。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 301`、`Resources = 129`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。当前项目运行时声明 182 个 `class_name`；本轮引入资源驱动的棋盘反馈配置后，完整套件退出计数仍未增长。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
@@ -152,7 +152,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-20。结果：扫描 223 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+最近一次 LSP 诊断时间：2026-07-20。结果：扫描 224 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 ## 视觉与操作回放
 

@@ -32,7 +32,7 @@ func get_required_models() -> Array[Script]:
 
 
 func get_required_systems() -> Array[Script]:
-	return [GameFlowSystem, RuleSystem, SaveSystem]
+	return [GameFlowSystem, RuleSystem, ProgressStatsSystem]
 
 
 func get_required_utilities() -> Array[Script]:
@@ -150,11 +150,11 @@ func _get_game_flow_system() -> GameFlowSystem:
 	return null
 
 
-func _get_save_system() -> SaveSystem:
-	var system_value: Object = get_system(SaveSystem)
-	if system_value is SaveSystem:
-		var save_system: SaveSystem = system_value
-		return save_system
+func _get_progress_stats_system() -> ProgressStatsSystem:
+	var system_value: Object = get_system(ProgressStatsSystem)
+	if system_value is ProgressStatsSystem:
+		var progress_stats_system: ProgressStatsSystem = system_value
+		return progress_stats_system
 	return null
 
 
@@ -489,11 +489,11 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	if is_instance_valid(_seed_utility):
 		_seed_utility.set_global_seed(init_seed)
 
-	var save_system: SaveSystem = _get_save_system()
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system()
 	var mode_id: String = mode_config.resource_path.get_file().get_basename()
 	var high_score: int = 0
-	if is_instance_valid(save_system):
-		high_score = save_system.get_high_score(mode_id, board_topology.get_stable_key())
+	if is_instance_valid(progress_stats_system):
+		high_score = progress_stats_system.get_high_score(mode_id, board_topology.get_stable_key())
 
 	var game_status_model: GameStatusModel = _get_game_status_model()
 	if is_instance_valid(loaded_bookmark_data):

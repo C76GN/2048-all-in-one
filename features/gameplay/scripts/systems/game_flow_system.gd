@@ -46,7 +46,7 @@ func get_required_models() -> Array[Script]:
 
 
 func get_required_systems() -> Array[Script]:
-	return [BookmarkSystem, GameStateSystem, ReplaySystem, SaveSystem, SceneRouterSystem]
+	return [BookmarkSystem, GameStateSystem, ReplaySystem, ProgressStatsSystem, SceneRouterSystem]
 
 
 func get_required_utilities() -> Array[Script]:
@@ -403,11 +403,11 @@ func _get_game_state_system() -> GameStateSystem:
 	return null
 
 
-func _get_save_system() -> SaveSystem:
-	var system_value: Object = get_system(SaveSystem)
-	if system_value is SaveSystem:
-		var save_system: SaveSystem = system_value
-		return save_system
+func _get_progress_stats_system() -> ProgressStatsSystem:
+	var system_value: Object = get_system(ProgressStatsSystem)
+	if system_value is ProgressStatsSystem:
+		var progress_stats_system: ProgressStatsSystem = system_value
+		return progress_stats_system
 	return null
 
 
@@ -526,13 +526,13 @@ func _persist_current_high_score() -> void:
 	if _mode_config_path.is_empty() or not is_instance_valid(_game_status_model):
 		return
 
-	var save_system: SaveSystem = _get_save_system()
-	if not is_instance_valid(save_system):
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system()
+	if not is_instance_valid(progress_stats_system):
 		return
 
 	var mode_id: String = _mode_config_path.get_file().get_basename()
 	var best_score: int = GFVariantData.to_int(_game_status_model.high_score.get_value(), 0)
-	var save_error: Error = save_system.set_high_score(mode_id, _get_current_board_key(), best_score)
+	var save_error: Error = progress_stats_system.set_high_score(mode_id, _get_current_board_key(), best_score)
 	_log_persistence_error("save high score", save_error)
 
 
@@ -542,8 +542,8 @@ func _persist_current_game_result() -> void:
 	if _mode_config_path.is_empty() or not is_instance_valid(_game_status_model):
 		return
 
-	var save_system: SaveSystem = _get_save_system()
-	if not is_instance_valid(save_system):
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system()
+	if not is_instance_valid(progress_stats_system):
 		return
 
 	sync_highest_tile_from_grid()
@@ -553,7 +553,7 @@ func _persist_current_game_result() -> void:
 	var highest_tile: int = GFVariantData.to_int(_game_status_model.highest_tile.get_value(), 0)
 	var target_value: int = _get_target_tile_value()
 	var target_reached: bool = _has_reached_target_in_session(highest_tile)
-	var save_error: Error = save_system.record_game_result(
+	var save_error: Error = progress_stats_system.record_game_result(
 		mode_id,
 		_get_current_board_key(),
 		final_score,

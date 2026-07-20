@@ -125,6 +125,32 @@ func test_project_installer_binds_signal_utility_before_theme_consumers() -> voi
 	)
 
 
+func test_project_installer_groups_internal_bindings_by_runtime_ownership() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var helper_names: Array[String] = [
+		"_bind_runtime_foundation_utilities",
+		"_bind_content_and_gameplay_utilities",
+		"_bind_presentation_utilities",
+		"_bind_input_and_platform_utilities",
+		"_bind_state_and_navigation_systems",
+		"_bind_progression_systems",
+		"_bind_gameplay_systems",
+	]
+	for helper_name: String in helper_names:
+		assert_true(
+			source.contains("func %s(" % helper_name),
+			"Composition Root 应保留内部装配分组：%s。" % helper_name
+		)
+	assert_true(
+		source.contains("bind_system(ProgressStatsSystem)"),
+		"进度统计所有者必须以 ProgressStatsSystem 的准确语义注册。"
+	)
+	assert_false(
+		source.contains("bind_system(SaveSystem)"),
+		"Composition Root 不得再暗示项目存在第二个通用存档 System。"
+	)
+
+
 func test_project_installer_binds_input_device_before_input_mapping() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
 	var device_position: int = source.find("bind_utility(GFInputDeviceUtility)")
