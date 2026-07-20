@@ -1,0 +1,437 @@
+{
+  "schema_version": 1,
+  "project": {
+    "id": "project_2048_all_in_one",
+    "summary": "基于 GF Framework 的可扩展 2048 规则组合示例游戏，面向 Steam、移动端、Web 与微信小游戏，支持确定性回放、可组合方块、主题内容包和自定义棋盘。",
+    "stage": "production",
+    "quality_priorities": [
+      "correctness",
+      "maintainability",
+      "clear ownership",
+      "deterministic gameplay",
+      "responsive performance",
+      "platform portability",
+      "content scalability",
+      "polished user experience"
+    ],
+    "out_of_scope": [
+      "在运行时主路径保留旧业务 schema、旧 API 或隐式降级兼容分支。",
+      "在项目主线直接修改 res://addons/gf；通用框架改动必须经 gf-framework issue、独立分支、PR 和版本升级回流。",
+      "当前阶段实现实时多人对局或由客户端直接裁决线上排行榜。"
+    ]
+  },
+  "framework": {
+    "required_packages": [
+      "gf.kernel",
+      "gf.standard.assets",
+      "gf.standard.audio",
+      "gf.standard.base",
+      "gf.standard.deterministic",
+      "gf.standard.diagnostics",
+      "gf.standard.display",
+      "gf.standard.display.settings",
+      "gf.standard.input",
+      "gf.standard.platform",
+      "gf.standard.settings",
+      "gf.standard.state_machine",
+      "gf.standard.storage",
+      "gf.standard.ui",
+      "gf.standard.ui.navigation",
+      "gf.extension.action_queue",
+      "gf.extension.asset_metadata",
+      "gf.extension.capability",
+      "gf.extension.content_package",
+      "gf.extension.domain",
+      "gf.extension.feedback",
+      "gf.extension.save",
+      "gf.extension.turn_based",
+      "gf.tool.ai_developer",
+      "gf.tool.project_layout"
+    ],
+    "optional_packages": [
+      "gf.standard.config",
+      "gf.tool.config_pipeline"
+    ],
+    "forbidden_packages": [],
+    "required_capabilities": [
+      "architecture",
+      "async-lifecycle",
+      "assets-content",
+      "storage-save",
+      "input",
+      "ui-navigation",
+      "audio",
+      "state-flow",
+      "diagnostics",
+      "determinism",
+      "platform-adapters",
+      "domain-components",
+      "project-tooling"
+    ],
+    "adapter_boundaries": []
+  },
+  "architecture": {
+    "modules": [
+      {
+        "id": "shared_foundation",
+        "responsibility": "拥有跨 Feature 的稳定契约、资源目录、UI 原语和无业务偏向的项目 Utility；不得反向依赖 application。",
+        "roots": [
+          "res://shared"
+        ],
+        "allowed_dependencies": [],
+        "forbidden_dependencies": [
+          "application",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "application",
+        "responsibility": "拥有 Composition Root 与全部 Feature-Cohesive 业务切片；Feature 目录提供 Locality，跨 Feature 调用由 docs/architecture.md 的 System、Utility、事件和 route 规则约束。",
+        "roots": [
+          "res://app",
+          "res://features"
+        ],
+        "allowed_dependencies": [
+          "shared_foundation"
+        ],
+        "forbidden_dependencies": [
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "verification",
+        "responsibility": "拥有跨 Feature 合同测试、项目维护测试和显式人工调用的验证脚本；不进入发布运行时。",
+        "roots": [
+          "res://tests",
+          "res://tools"
+        ],
+        "allowed_dependencies": [
+          "shared_foundation",
+          "application"
+        ],
+        "forbidden_dependencies": [],
+        "ownership": "project"
+      }
+    ],
+    "global_rules": [
+      "项目业务代码必须位于严格 Feature-Cohesive 目录，目录真相来源是 gf_project_profile.json。",
+      "项目代码不得直接修改 res://addons/gf；通用缺陷经 gf-framework issue、独立分支、PR、发布版本和 vendor 更新回流。",
+      "跨模块依赖必须由 GF Composition Root 声明并注入；只有 app 启动链可以访问全局 Gf。",
+      "业务随机数使用 GFSeedUtility，共享时间使用 GFClock；回放、撤销和书签必须保持确定性。",
+      "UI 导航使用 GFUIRouterUtility，跨生命周期信号使用 GFSignalUtility，玩家输入使用 GFInputMappingUtility。",
+      "资源身份由 ProjectContentCatalogUtility 和 ProjectResourceCatalogUtility 统一管理；业务代码不保留路径后备。",
+      "玩家设备与平台能力探测只允许位于 platform_runtime Adapter；其他 Feature 消费 GFPlatformRuntimeContext 和能力集合。Composition Root 的构建 feature 开关与开发诊断的 headless 判定不属于玩家平台能力。",
+      "玩家长期数据通过 GameSaveGraphUtility section Provider 进入统一 Profile；业务 System 不直接写文件。",
+      "开发诊断只在 with_dev_tools feature 下安装，不得进入玩家首屏依赖链。",
+      "不为旧 API、旧业务 schema 或未知损坏数据保留运行时兼容分支；必要迁移使用显式一次性工具。"
+    ],
+    "project_profile_path": "gf_project_profile.json"
+  },
+  "constraints": {
+    "platforms": [
+      "Windows and Steam",
+      "Godot Web",
+      "WeChat Mini Game",
+      "Android and iOS responsive layouts"
+    ],
+    "determinism": {
+      "mode": "required",
+      "scope": [
+        "board topology and move resolution",
+        "tile spawning and seeded randomness",
+        "command undo and redo",
+        "bookmark restore",
+        "replay recording and playback"
+      ],
+      "notes": "玩法结果不得依赖系统时钟、原生随机数或渲染帧率；表现动画可以非确定，但不能反向影响业务状态。"
+    },
+    "persistence": {
+      "mode": "hybrid",
+      "compatibility": "reset_allowed",
+      "notes": "当前以本地 GFSaveGraph Profile 和独立 GFSettingsUtility 设置为准，未来平台云存储通过 Adapter 接入。破坏性开发阶段允许重置；不保留运行时旧格式双读。"
+    },
+    "networking": {
+      "mode": "client_server",
+      "authority": "server",
+      "notes": "核心单机玩法离线可用；多人排行榜和成就同步必须由平台或服务端裁决，客户端提交视为不可信。"
+    },
+    "performance_budgets": [
+      {
+        "metric": "player_visible_frame_time",
+        "target": 16.667,
+        "unit": "milliseconds",
+        "scope": "桌面正常棋盘操作和 UI 动画以 60 FPS 为目标，不允许同步资源加载进入每回合热路径。"
+      },
+      {
+        "metric": "input_to_primary_feedback",
+        "target": 50,
+        "unit": "milliseconds",
+        "scope": "有效移动输入到棋盘开始位移、背景脉冲或音效等首个主要反馈。"
+      }
+    ],
+    "security_boundaries": [
+      {
+        "source": "下载并导入的音频、Shader、纹理和第三方素材包",
+        "trust": "untrusted",
+        "required_controls": [
+          "进入 asset_library source pack 后再审阅",
+          "保留来源和许可证元数据",
+          "运行导入与引用审计后才进入正式主题"
+        ]
+      },
+      {
+        "source": "本地存档、平台云存档和设置文件",
+        "trust": "mixed",
+        "required_controls": [
+          "使用当前 GF codec、schema version 和 checksum",
+          "拒绝未知损坏载荷",
+          "跨 section 应用失败时事务回滚"
+        ]
+      },
+      {
+        "source": "Steam、微信小游戏和排行榜平台桥接结果",
+        "trust": "untrusted",
+        "required_controls": [
+          "经 GFPlatformRuntime 请求句柄和超时终态返回",
+          "验证 payload schema 和 capability contract",
+          "线上排名与成就采用平台或服务端权威结果"
+        ]
+      }
+    ],
+    "lifecycle_rules": [
+      "GF 根架构完成严格 init 后才能进入业务首场景。",
+      "GF Module 只在 ready 阶段解析跨模块依赖，并通过 get_required_* 声明静态依赖。",
+      "退出时由架构反序 dispose；统一 Profile 必须等待在途写入并冲刷最新内存图。",
+      "平台通知只通过 GamePlatformUtility 转交当前 Adapter，再由 GFPlatformRuntime 发布规范事件。",
+      "内容资源必须拥有明确资源组或挂载令牌；切换主题成功后再释放旧组。"
+    ],
+    "async_rules": [
+      "异步操作必须有单一所有者，并且成功、失败、取消或超时只能完成一次。",
+      "主题和声音主题资源应先通过 GFAssetLoadSession 完整预加载，再事务激活。",
+      "存档异步写入必须串行化，失败显式重试，退出边界提供同步 flush。",
+      "异步回调不得在 owner dispose 后访问节点、Utility 或平台 Adapter。"
+    ]
+  },
+  "decisions": [
+    {
+      "id": "strict_feature_cohesive_layout",
+      "status": "accepted",
+      "statement": "项目严格采用 GF 内置 Feature-Cohesive 目录契约。",
+      "rationale": "Feature 自带脚本、场景、资源、文档与局部工具，shared 只承载真实跨 Feature 契约，从而提高 Locality 并阻止旧式类型分桶回流。",
+      "evidence": [
+        "gf_project_profile.json",
+        "docs/architecture.md",
+        "tests/gut/test_project_layout_profile.gd"
+      ]
+    },
+    {
+      "id": "exact_vendored_gf",
+      "status": "accepted",
+      "statement": "项目使用完整、精确哈希锁定的 GF vendor 快照。",
+      "rationale": "当前环境中的远程包管理受 SSL 限制；vendor lock 在恢复 GF Package Manager 前提供可复现来源、commit、tree 和内容哈希。",
+      "evidence": [
+        ".gf/vendor.lock.json",
+        "tools/verify_gf_vendor.ps1",
+        "tests/gut/test_gf_package_validation.gd"
+      ]
+    },
+    {
+      "id": "framework_changes_through_upstream",
+      "status": "accepted",
+      "statement": "项目主线不直接承载 GF 源码补丁。",
+      "rationale": "通用缺陷和能力必须先在 gf-framework 建 issue，在框架仓库独立分支通过 PR、测试和版本发布，再以可追溯 vendor 更新采用。",
+      "evidence": [
+        "docs/ai_maintenance.md"
+      ]
+    },
+    {
+      "id": "unified_player_profile",
+      "status": "accepted",
+      "statement": "统计、书签、回放、成就、图鉴和自定义棋盘进入同一 GFSaveGraph Profile。",
+      "rationale": "统一 section 顺序、事务回滚、恢复报告和退出冲刷，避免多个 Feature 重复实现文件存储和跨文档一致性。",
+      "evidence": [
+        "features/persistence/scripts/utilities/game_save_graph_utility.gd",
+        "docs/save_model.md"
+      ]
+    },
+    {
+      "id": "deterministic_gameplay_core",
+      "status": "accepted",
+      "statement": "棋盘业务状态由 GFSeedUtility、GFClock、命令历史和确定性回合管线驱动。",
+      "rationale": "撤销、书签和回放必须共享一致状态语义；帧率、动画和系统时间不得改变玩法结果。",
+      "evidence": [
+        "docs/architecture.md",
+        "tests/gut/test_deterministic_gameplay.gd"
+      ]
+    },
+    {
+      "id": "platform_runtime_single_owner",
+      "status": "accepted",
+      "statement": "GFPlatformRuntime 是平台 Adapter、能力、生命周期、请求句柄和超时的唯一运行时所有者。",
+      "rationale": "Steam、微信和本地 Godot 平台差异集中在可替换 Adapter，业务 Feature 只消费规范上下文。",
+      "evidence": [
+        "features/platform_runtime",
+        "docs/architecture.md"
+      ]
+    },
+    {
+      "id": "breaking_upgrade_first",
+      "status": "accepted",
+      "statement": "开发阶段优先采用破坏性升级和显式一次性迁移，不保留旧接口兼容层。",
+      "rationale": "项目目标是建立长期可扩展示例底座；长期双读、隐式 fallback 和旧 API 包装会扩大测试矩阵并形成技术债。",
+      "evidence": [
+        "docs/ai_maintenance.md",
+        "docs/save_model.md"
+      ]
+    }
+  ],
+  "verification": {
+    "execution_policy": "review_required",
+    "checks": [
+      {
+        "id": "gf_ai_contract",
+        "description": "校验 GF 项目契约及声明与观察快照漂移。",
+        "argv": [
+          "python",
+          "addons/gf/tools/ai_developer/gf_ai_project.py",
+          "validate",
+          "--project-root",
+          "."
+        ],
+        "working_directory": ".",
+        "timeout_seconds": 60,
+        "network_access": "forbidden",
+        "writes_project": false,
+        "required": true
+      },
+      {
+        "id": "gf_vendor",
+        "description": "验证 vendored GF 版本、文件集合和内容哈希。",
+        "argv": [
+          "powershell",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/verify_gf_vendor.ps1"
+        ],
+        "working_directory": ".",
+        "timeout_seconds": 180,
+        "network_access": "forbidden",
+        "writes_project": false,
+        "required": true
+      },
+      {
+        "id": "feature_cohesive_layout",
+        "description": "按项目 Profile 验证 Feature-Cohesive 目录、命名和资源引用。",
+        "argv": [
+          "powershell",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/validate_project_layout.ps1",
+          "-GodotExecutable",
+          "godot"
+        ],
+        "working_directory": ".",
+        "timeout_seconds": 300,
+        "network_access": "forbidden",
+        "writes_project": true,
+        "required": true
+      },
+      {
+        "id": "platform_readiness",
+        "description": "验证桌面、Web 和微信小游戏项目配置契约。",
+        "argv": [
+          "powershell",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/check_platform_readiness.ps1",
+          "-GodotExecutable",
+          "godot"
+        ],
+        "working_directory": ".",
+        "timeout_seconds": 300,
+        "network_access": "forbidden",
+        "writes_project": true,
+        "required": true
+      },
+      {
+        "id": "gdscript_lsp",
+        "description": "使用 Godot LSP 扫描项目 GDScript error 和 warning。",
+        "argv": [
+          "powershell",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/check_gdscript_lsp_diagnostics.ps1"
+        ],
+        "working_directory": ".",
+        "timeout_seconds": 600,
+        "network_access": "forbidden",
+        "writes_project": true,
+        "required": true
+      },
+      {
+        "id": "gut_full",
+        "description": "在隔离用户目录中运行完整 GUT 契约、集成和维护测试。",
+        "argv": [
+          "powershell",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/run_gut_safe.ps1",
+          "-GodotExecutable",
+          "godot",
+          "-TimeoutSeconds",
+          "900",
+          "-MaxLogMB",
+          "32",
+          "-MaxDefaultLogGrowthKB",
+          "256"
+        ],
+        "working_directory": ".",
+        "timeout_seconds": 960,
+        "network_access": "forbidden",
+        "writes_project": true,
+        "required": true
+      }
+    ],
+    "required_paths": [
+      "project.godot",
+      "gf_project_profile.json",
+      ".gf/vendor.lock.json",
+      ".gf/godot_exit_leak_baseline.json",
+      "app/scripts/game_architecture_installer.gd",
+      "docs/architecture.md",
+      "docs/ai_maintenance.md",
+      "docs/save_model.md",
+      "features/platform_runtime",
+      "features/persistence",
+      "tests/gut",
+      "tools/run_gut_safe.ps1"
+    ]
+  },
+  "feedback": {
+    "repository": "C76GN/gf-framework",
+    "submission_policy": "approval_required",
+    "allow_network_submission": true,
+    "allow_source_snippets": false,
+    "allow_log_excerpt": false,
+    "extra_redaction_literals": []
+  },
+  "unknowns": [
+    {
+      "id": "leaderboard_provider",
+      "question": "Steam 与微信之外是否需要独立的跨平台排行榜服务，以及账户合并由谁权威裁决？",
+      "blocking": false
+    },
+    {
+      "id": "wechat_export_toolchain",
+      "question": "最终微信小游戏导出插件、SDK 版本和 CI 发布环境尚未锁定。",
+      "blocking": false
+    }
+  ]
+}

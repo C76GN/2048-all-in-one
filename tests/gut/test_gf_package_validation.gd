@@ -15,6 +15,8 @@ const _GITIGNORE_PATH: String = "res://.gitignore"
 const _GUT_RUNNER_PATH: String = "res://tools/run_gut_safe.ps1"
 const _GUT_SHUTDOWN_HOOK_PATH: String = "res://tests/gut/support/gf_test_shutdown_hook.gd"
 const _GODOT_EXIT_LEAK_BASELINE_PATH: String = "res://.gf/godot_exit_leak_baseline.json"
+const _GF_PROJECT_CONTRACT_PATH: String = "res://.gf/project_contract.json"
+const _GF_CODEX_SKILL_PATH: String = "res://.codex/skills/gf-project-development/SKILL.md"
 
 
 # --- 测试用例 ---
@@ -30,6 +32,37 @@ func test_gf_plugin_version_is_recorded_as_semver() -> void:
 		_append_string(issues, "addons/gf/plugin.cfg 的 plugin/version 应为 SemVer：%s。" % plugin_version)
 
 	assert_true(issues.is_empty(), "GF 插件版本应可作为包管理和文档事实来源：\n%s" % _join_lines(issues))
+
+
+func test_ai_developer_contract_and_codex_skill_are_committed() -> void:
+	var required_paths: Array[String] = [
+		_GF_PROJECT_CONTRACT_PATH,
+		_GF_CODEX_SKILL_PATH,
+	]
+	var issues: Array[String] = []
+	for path: String in required_paths:
+		if not FileAccess.file_exists(path):
+			_append_string(issues, "GF AI Developer 项目治理文件缺失：%s。" % path)
+	if not issues.is_empty():
+		assert_true(false, _join_lines(issues))
+		return
+
+	var contract: Dictionary = _read_json_dictionary(_GF_PROJECT_CONTRACT_PATH)
+	var architecture: Dictionary = GFVariantData.get_option_dictionary(contract, "architecture")
+	var framework: Dictionary = GFVariantData.get_option_dictionary(contract, "framework")
+	var required_packages: Array = GFVariantData.get_option_array(framework, "required_packages")
+	if GFVariantData.get_option_int(contract, "schema_version") != 1:
+		_append_string(issues, "GF 项目契约 schema_version 必须为 1。")
+	if GFVariantData.get_option_string(architecture, "project_profile_path") != "gf_project_profile.json":
+		_append_string(issues, "GF 项目契约必须引用严格 Feature-Cohesive Profile。")
+	if not required_packages.has("gf.tool.ai_developer"):
+		_append_string(issues, "GF 项目契约必须声明 gf.tool.ai_developer。")
+
+	assert_true(
+		issues.is_empty(),
+		"GF AI Developer 契约和 Codex 指令必须保持为项目治理入口：\n%s"
+		% _join_lines(issues)
+	)
 
 
 func test_vendored_gf_source_is_pinned() -> void:
