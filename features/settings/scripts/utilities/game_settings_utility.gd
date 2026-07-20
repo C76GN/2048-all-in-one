@@ -1,4 +1,4 @@
-## GameSettingsUtility: 项目设置工具，过滤存储层保留元信息。
+## GameSettingsUtility: 项目设置定义入口。
 class_name GameSettingsUtility
 extends "res://addons/gf/standard/utilities/settings/gf_settings_utility.gd"
 
@@ -62,33 +62,3 @@ func register_project_defaults() -> void:
 		true,
 		{"group": "input", "label": "INPUT_TIMING_MODE_LABEL"}
 	)
-
-
-## 将设置导出为字典，并移除存储层元信息。
-## @param persistent_only: 是否只导出持久化设置。
-func to_dict(persistent_only: bool = true) -> Dictionary:
-	var data: Dictionary = super.to_dict(persistent_only)
-	var _erase_result: bool = data.erase(GFStorageCodec.META_KEY)
-	return data
-
-
-## 从字典完整恢复设置，并忽略存储层元信息。
-## @param data: 设置字典。
-## @param emit_changes: 是否派发设置变更通知。
-func replace_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
-	super.replace_from_dict(_without_storage_metadata(data), emit_changes)
-
-
-## 将字典合并到当前设置，并忽略存储层元信息。
-## @param data: 设置字典。
-## @param emit_changes: 是否派发设置变更通知。
-func merge_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
-	super.merge_from_dict(_without_storage_metadata(data), emit_changes)
-
-
-# --- 私有/辅助方法 ---
-
-func _without_storage_metadata(data: Dictionary) -> Dictionary:
-	var clean_data: Dictionary = data.duplicate(true)
-	var _erase_result: bool = clean_data.erase(GFStorageCodec.META_KEY)
-	return clean_data

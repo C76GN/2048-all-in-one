@@ -190,15 +190,18 @@ func test_project_installer_orders_input_profile_and_board_animation_adapters() 
 
 func test_project_installer_registers_platform_primitives_before_platform_boundary() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var runtime_position: int = source.find("bind_utility(GFPlatformRuntime)")
 	var viewport_position: int = source.find("bind_utility(GFViewportUtility)")
 	var http_position: int = source.find("bind_utility(GFHttpClientUtility)")
 	var gesture_position: int = source.find("bind_utility(GFPointerGestureUtility)")
 	var platform_position: int = source.find("bind_utility(_GAME_PLATFORM_UTILITY_SCRIPT)")
 
+	assert_true(runtime_position >= 0, "项目 Installer 应注册 GFPlatformRuntime。")
 	assert_true(viewport_position >= 0, "项目 Installer 应注册 GFViewportUtility。")
 	assert_true(http_position >= 0, "项目 Installer 应注册 GFHttpClientUtility。")
 	assert_true(gesture_position >= 0, "项目 Installer 应注册 GFPointerGestureUtility。")
 	assert_true(platform_position >= 0, "项目 Installer 应注册 GamePlatformUtility。")
+	assert_true(runtime_position < platform_position, "GF 平台运行时必须先于项目平台选择边界注册。")
 	assert_true(viewport_position < platform_position, "显示能力应先于项目平台边界注册。")
 	assert_true(http_position < platform_position, "HTTP 能力应先于项目平台边界注册。")
 	assert_true(gesture_position < platform_position, "手势能力应先于项目平台边界注册。")
@@ -214,6 +217,21 @@ func test_project_installer_binds_pause_adapter_after_gf_time_provider() -> void
 	assert_true(
 		time_position < pause_position,
 		"GFTimeUtility 必须先于同步逻辑时间的 GamePauseUtility 注册。"
+	)
+
+
+func test_project_clock_adapts_one_shared_gf_clock() -> void:
+	var manual_clock: GFManualClock = GFManualClock.new(1_234_000, 9_876_000)
+	var game_clock: GameClockUtility = GameClockUtility.new()
+	var clock_set: bool = game_clock.set_clock(manual_clock)
+	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+
+	assert_true(clock_set, "项目时钟 Adapter 应接受 GFClock 注入。")
+	assert_true(game_clock.get_tick_msec() == 1234, "单调 tick 必须委托给 GFClock。")
+	assert_true(game_clock.get_unix_timestamp() == 9876, "Unix 时间必须委托给 GFClock。")
+	assert_true(
+		installer_source.count("set_clock(_clock)") == 2,
+		"Composition Root 必须向 GFTimeUtility 与 GameClockUtility 注入同一 GFClock。"
 	)
 
 

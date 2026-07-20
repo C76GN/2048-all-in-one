@@ -15,7 +15,7 @@ const _FALLBACK_LOCALE: String = "en"
 
 # --- 私有变量 ---
 
-var _platform_id: StringName = &""
+var _detected_platform_id: StringName = &""
 var _backgrounded: bool = false
 var _last_window_size: Vector2i = Vector2i.ZERO
 var _last_safe_area: Rect2i = Rect2i()
@@ -25,7 +25,7 @@ var _last_safe_area: Rect2i = Rect2i()
 
 func _init() -> void:
 	adapter_id = ADAPTER_ID
-	_platform_id = _detect_platform_id()
+	_detected_platform_id = _detect_platform_id()
 	_last_window_size = _get_window_size()
 	_last_safe_area = _get_safe_area()
 
@@ -37,14 +37,14 @@ func is_available() -> bool:
 
 
 func create_runtime_context() -> GFPlatformRuntimeContext:
-	_platform_id = _detect_platform_id()
+	_detected_platform_id = _detect_platform_id()
 	_last_window_size = _get_window_size()
 	_last_safe_area = _get_safe_area()
 	var context: GFPlatformRuntimeContext = GFPlatformRuntimeContext.new().configure(
-		_platform_id,
+		_detected_platform_id,
 		{
 			"adapter_id": adapter_id,
-			"display_name": _get_platform_display_name(_platform_id),
+			"display_name": _get_platform_display_name(_detected_platform_id),
 			"locale": OS.get_locale(),
 			"fallback_locale": _FALLBACK_LOCALE,
 			"pixel_ratio": _get_pixel_ratio(),
@@ -92,31 +92,36 @@ func _set_backgrounded(value: bool) -> void:
 		if value
 		else GFPlatformLifecycleEvent.TYPE_FOREGROUND
 	)
-	emit_lifecycle_event(GFPlatformLifecycleEvent.new().configure(
+	var _event_published: bool = emit_lifecycle_event(GFPlatformLifecycleEvent.new().configure(
 		event_type,
-		_platform_id,
+		_detected_platform_id,
 		{"backgrounded": value}
 	))
 
 
 func _emit_display_changes() -> void:
+	var display_context_changed: bool = false
 	var next_window_size: Vector2i = _get_window_size()
 	if next_window_size != _last_window_size:
 		_last_window_size = next_window_size
-		emit_lifecycle_event(GFPlatformLifecycleEvent.new().configure(
+		display_context_changed = true
+		var _resize_published: bool = emit_lifecycle_event(GFPlatformLifecycleEvent.new().configure(
 			GFPlatformLifecycleEvent.TYPE_WINDOW_RESIZED,
-			_platform_id,
+			_detected_platform_id,
 			{"window_size": next_window_size}
 		))
 
 	var next_safe_area: Rect2i = _get_safe_area()
 	if next_safe_area != _last_safe_area:
 		_last_safe_area = next_safe_area
-		emit_lifecycle_event(GFPlatformLifecycleEvent.new().configure(
+		display_context_changed = true
+		var _safe_area_published: bool = emit_lifecycle_event(GFPlatformLifecycleEvent.new().configure(
 			GFPlatformLifecycleEvent.TYPE_SAFE_AREA_CHANGED,
-			_platform_id,
+			_detected_platform_id,
 			{"safe_area": next_safe_area}
 		))
+	if display_context_changed:
+		var _context_published: bool = refresh_context()
 
 
 func _get_capability_ids() -> PackedStringArray:

@@ -43,7 +43,9 @@ func _init() -> void:
 	_require_artifacts(preflight)
 
 	var platform_utility: GamePlatformUtility = GamePlatformUtility.new()
-	platform_utility.init()
+	var _adapter_configured: bool = platform_utility.configure_adapter(
+		LocalPlatformAdapter.new()
+	)
 	var bridge_report: Dictionary = platform_utility.get_bridge_contract_report()
 	var _merged_preflight: GFCompatibilityPreflight = preflight.merge_report(
 		bridge_report,
@@ -61,8 +63,6 @@ func _init() -> void:
 			"check_id": &"export_safe_dynamic_resources",
 		}
 	)
-	platform_utility.dispose()
-
 	var report: Dictionary = preflight.get_report({
 		"fallback_action": "Fix the first project compatibility issue before exporting.",
 		"no_action": "Project-side Web compatibility contract is ready for export validation.",

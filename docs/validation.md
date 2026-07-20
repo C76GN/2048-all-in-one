@@ -24,7 +24,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 - `lockfile_verify.ok` 为 `true`
 - 如果 `.gf/packages.lock.json` 存在，`installed_count` 与 lockfile 中的 installed 包数量一致
 
-注意：GF 8 使用 Godot 原生包管理 CLI，入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。不要继续使用旧的 Python `addons/gf/kernel/package_tools/gf_package_installer.py` 命令。
+注意：GF 9 使用 Godot 原生包管理 CLI，入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。不要继续使用旧的 Python `addons/gf/kernel/package_tools/gf_package_installer.py` 命令。
 
 当前仓库是手动更新后的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在。缺失 lockfile 时，包状态命令会把 lockfile 视为空安装状态；这不等价于项目运行失败，但表示当前 GF 源码不是由包管理器重建出来的。若后续恢复包管理器安装流，应先重新生成 lockfile，再恢复对 installed 包数量的强校验。
 
@@ -36,7 +36,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1
 
 该命令校验 `addons/gf/` 的版本、文件数和内容哈希是否与 `.gf/vendor.lock.json` 一致。更新 GF 后必须同步锁文件；不要把 package lockfile 和 vendor lockfile 混为一谈。
 
-2026-07-20 的本机复核中，Steam Godot 4.7 因 SSL 模块初始化失败而无法连接远程 registry，`status --json` 因此报告 1 个环境 issue；同一工作树的离线 vendor 校验通过，版本为 `8.1.1`、文件数为 `1596`，哈希与 commit 均和 `.gf/vendor.lock.json` 一致。远程 registry 可用性与本地 vendored 源码完整性必须分别报告。
+2026-07-20 的本机复核中，Steam Godot 4.7 因 SSL 模块初始化失败而无法连接远程 registry，`status --json` 因此报告 1 个环境 issue；同一工作树的离线 vendor 校验通过，版本为 `9.0.1`、文件数为 `1684`，SHA-256 为 `c2d921861f7d0afe8d8de343be4f07001e62016f88c4d5de576c36d6e71a994e`，commit 为 `5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28`。远程 registry 可用性与本地 vendored 源码完整性必须分别报告。
 
 ## Godot / GUT 运行策略
 
@@ -126,12 +126,12 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 结果：
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
-- GF Framework：官方稳定 tag `8.1.1`，commit `c0ce09e53edf30c00ba79df27fb9a7625b9f518d`。
-- GUT：287 个测试全部通过，共 1837 个断言。
-- 当前完整套件：`tests/gut/` 下 33 个顶层测试脚本、287 个 `test_` 用例。
+- GF Framework：官方稳定 tag `9.0.1`，commit `5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28`。
+- GUT：288 个测试全部通过，共 1846 个断言。
+- 当前完整套件：`tests/gut/` 下 33 个顶层测试脚本、288 个 `test_` 用例。
 - Boot 首帧壳与 Godot 原生启动图共用同一构图；正式 `BootRuntime` 由线程加载，随后通过 `GFAsyncProgress`、`GFScenePreloadMap`、`GFSceneUtility` 和 `GFRenderWarmupUtility` 预热稳定场景流、主题 shader 与首轮游戏视觉资源。Boot 继续启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束。高频进度写入由 `GameSaveGraphUtility` 合并后调用 GFStorage 异步接口，关键完成事务仍同步落盘。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 301`、`Resources = 129`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。当前项目运行时声明 182 个 `class_name`；本轮引入资源驱动的棋盘反馈配置后，完整套件退出计数仍未增长。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 303`、`Resources = 131`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。GF 9.0.1 声明 732 个全局脚本类，当前项目运行时声明 182 个 `class_name`。verbose 全量审计确认相较 GF 8.1.1 的两个固定增量是项目新采用的 `GFClock` 与 `GFPlatformAdapter` GDScript 资源，不是未释放的运行实例；其余 RID 上限完全不变。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
@@ -194,9 +194,9 @@ $null = [scriptblock]::Create($script)
 ## 当前验证缺口
 
 - 当前默认 Steam Godot 4.7 缺少精确匹配的 `4.7.stable` 导出模板；微信开发者工具 CLI、微信导出适配器和微信真机矩阵也尚未完成，因此当前只保留已完成的官方 Godot 4.7.1 标准 Web 兼容性签字，不签字微信小游戏发布就绪。
-- 当前 vendored GF 8.1.1 的导出插件缺少 `_get_name()`，修复跟踪于 `gf-framework#9` / `gf-framework#10`；更新到包含该修复的正式 GF 版本前，导出日志仍不是零错误。
+- GF 9.0.1 已包含 `gf-framework#9` / `gf-framework#10` 的导出插件 `_get_name()` 修复；安装与当前 Godot 4.7 精确匹配的导出模板后，仍需重新执行正式零错误导出签字。
 - Godot 编辑器中的 GDScript warning 已通过 `tools/check_gdscript_lsp_diagnostics.ps1` 建立零诊断基线；后续修改 `.gd` 后应复跑。
 - Godot 退出仍存在已量化的框架/测试对象泄漏债务；当前通过严格基线阻止继续增长，不能把基线当成已经修复。
-- `GFTextFitter` 的重复字号塑形会放大退出期 `ShapedText` RID 残留；`gf-framework#6` / `gf-framework#7` 发布前，项目方块文本保留单次比例测量，不得提前复制未发布框架代码或放宽泄漏基线。
+- GF 9.0.1 已包含 `gf-framework#6` / `gf-framework#7` 的文本测量修复；项目方块文本已迁移到 `GFTextFitter.MeasurementMode.SINGLE_LINE`，完整 GUT 仍必须维持 `ShapedText` / `Font` RID 零增长门禁。
 - 开发构建已通过 `GFScreenshotUtility` 提供单张与支持报告现场截图，但尚未建立跨分辨率的视觉基线比较和像素差异门禁。
 - GF 包管理器的独立 lockfile 校验入口已并入原生 CLI `status --json` 的 `lockfile_verify` 字段；若后续 CLI 再次变化，需要先更新本文档再更新自动化命令。

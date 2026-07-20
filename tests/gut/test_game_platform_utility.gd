@@ -6,9 +6,9 @@ extends GutTest
 
 func test_runtime_context_is_defensive_copy_with_capabilities() -> void:
 	var adapter: FakePlatformAdapter = FakePlatformAdapter.new()
-	var utility: GamePlatformUtility = GamePlatformUtility.new()
-	assert_true(utility.configure_adapter(adapter), "init 前应允许注入平台适配器。")
-	utility.init()
+	var setup: Dictionary = await _create_platform_architecture(adapter)
+	var utility: GamePlatformUtility = _get_platform_utility(setup)
+	assert_true(GFVariantData.get_option_bool(setup, "configured"), "init 前应允许注入平台适配器。")
 
 	var first: GFPlatformRuntimeContext = utility.get_runtime_context()
 	assert_not_null(first)
@@ -20,16 +20,14 @@ func test_runtime_context_is_defensive_copy_with_capabilities() -> void:
 		"外部修改不得污染内部上下文。"
 	)
 
-	utility.dispose()
-	await get_tree().process_frame
+	await _dispose_platform_architecture(setup)
 
 
 func test_lifecycle_events_receive_monotonic_sequence() -> void:
 	var adapter: FakePlatformAdapter = FakePlatformAdapter.new()
-	var utility: GamePlatformUtility = GamePlatformUtility.new()
+	var setup: Dictionary = await _create_platform_architecture(adapter)
+	var utility: GamePlatformUtility = _get_platform_utility(setup)
 	var sink: EventSink = EventSink.new()
-	var _configured: bool = utility.configure_adapter(adapter)
-	utility.init()
 	var _connected: int = utility.lifecycle_event_received.connect(sink.capture)
 
 	adapter.publish(GFPlatformLifecycleEvent.TYPE_BACKGROUND)
@@ -47,15 +45,13 @@ func test_lifecycle_events_receive_monotonic_sequence() -> void:
 		"第二个事件应回到前台。"
 	)
 
-	utility.dispose()
-	await get_tree().process_frame
+	await _dispose_platform_architecture(setup)
 
 
 func test_bridge_contract_is_covered_and_unknown_sdk_call_fails_explicitly() -> void:
 	var adapter: FakePlatformAdapter = FakePlatformAdapter.new()
-	var utility: GamePlatformUtility = GamePlatformUtility.new()
-	var _configured: bool = utility.configure_adapter(adapter)
-	utility.init()
+	var setup: Dictionary = await _create_platform_architecture(adapter)
+	var utility: GamePlatformUtility = _get_platform_utility(setup)
 
 	var report: Dictionary = utility.get_bridge_contract_report()
 	assert_true(GFVariantData.get_option_bool(report, "ok"), str(report))
@@ -65,12 +61,54 @@ func test_bridge_contract_is_covered_and_unknown_sdk_call_fails_explicitly() -> 
 		GamePlatformUtility.CONTRACT_SDK_BRIDGE,
 		&"login"
 	)
-	var result: GFPlatformBridgeResult = utility.execute_bridge(request)
+	var handle: GFPlatformRequestHandle = utility.invoke_bridge(request)
+	assert_not_null(handle, "平台请求必须返回 GF 终态句柄。")
+	var result: GFPlatformBridgeResult = handle.get_result()
+	assert_not_null(result, "同步拒绝请求应立即生成终态结果。")
 	assert_false(result.ok)
 	assert_true(result.status == &"unsupported", "未知 bridge 操作应明确返回 unsupported。")
 	assert_true(result.request_id == &"request.test", "bridge 结果应保留请求 ID。")
 
-	utility.dispose()
+	await _dispose_platform_architecture(setup)
+
+
+# --- 私有/辅助方法 ---
+
+func _create_platform_architecture(adapter: GamePlatformAdapter) -> Dictionary:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var runtime: GFPlatformRuntime = GFPlatformRuntime.new()
+	var utility: GamePlatformUtility = GamePlatformUtility.new()
+	var configured: bool = utility.configure_adapter(adapter)
+	await architecture.register_utility(GFPlatformRuntime, runtime)
+	await architecture.register_utility(GamePlatformUtility, utility)
+	await architecture.init()
+	return {
+		"architecture": architecture,
+		"configured": configured,
+		"utility": utility,
+	}
+
+
+func _get_platform_utility(setup: Dictionary) -> GamePlatformUtility:
+	var value: Variant = GFVariantData.get_option_value(setup, "utility")
+	if value is GamePlatformUtility:
+		var utility: GamePlatformUtility = value
+		return utility
+	return null
+
+
+func _get_architecture(setup: Dictionary) -> GFArchitecture:
+	var value: Variant = GFVariantData.get_option_value(setup, "architecture")
+	if value is GFArchitecture:
+		var architecture: GFArchitecture = value
+		return architecture
+	return null
+
+
+func _dispose_platform_architecture(setup: Dictionary) -> void:
+	var architecture: GFArchitecture = _get_architecture(setup)
+	if architecture != null:
+		architecture.dispose()
 	await get_tree().process_frame
 
 
@@ -100,7 +138,7 @@ class FakePlatformAdapter extends GamePlatformAdapter:
 	## 发布测试生命周期事件。
 	## @param event_type: 生命周期事件类型。
 	func publish(event_type: StringName) -> void:
-		emit_lifecycle_event(GFPlatformLifecycleEvent.new().configure(
+		var _published: bool = emit_lifecycle_event(GFPlatformLifecycleEvent.new().configure(
 			event_type,
 			&"test_platform"
 		))

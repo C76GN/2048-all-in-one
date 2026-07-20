@@ -15,11 +15,18 @@ func test_profile_graph_has_six_feature_sections() -> void:
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var snapshot: Dictionary = save_graph.get_debug_snapshot()
 	var health: Dictionary = GFVariantData.get_option_dictionary(snapshot, "graph_health")
+	var document_inspection: Dictionary = GFSaveDocument.inspect_dict(
+		save_graph.preview_profile_payload()
+	)
 
 	assert_true(save_graph.is_profile_loaded(), "首次运行应完成空档加载决策。")
 	assert_true(GFVariantData.get_option_bool(health, "ok"), "玩家数据图结构应通过 GF 健康检查。")
 	assert_true(GFVariantData.get_option_int(health, "scope_count") == 7, "根图应包含根 Scope 和六个 Feature 子 Scope。")
 	assert_true(GFVariantData.get_option_int(health, "source_count") == 6, "每个 Feature 子 Scope 应有一个严格数据 Source。")
+	assert_true(
+		GFVariantData.get_option_bool(document_inspection, "ok"),
+		"Profile 预览必须是规范 GFSaveDocument，禁止保存裸 SaveGraph 字典。"
+	)
 	assert_true(
 		GFVariantData.get_option_packed_string_array(snapshot, "section_ids")
 		== PackedStringArray(["achievements", "bookmarks", "custom_boards", "discoveries", "progress", "replays"]),
@@ -209,8 +216,9 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 	)
 	metadata["schema_version"] = 1
 	legacy_payload["metadata"] = metadata
+	var legacy_graph_payload: Dictionary = _get_save_graph_payload(legacy_payload)
 	var scopes: Dictionary = GFVariantData.get_option_dictionary(
-		legacy_payload,
+		legacy_graph_payload,
 		"scopes"
 	)
 	var removed_custom_boards: bool = scopes.erase(
@@ -222,7 +230,7 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 	var removed_achievements: bool = scopes.erase(String(
 		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID
 	))
-	legacy_payload["scopes"] = scopes
+	legacy_graph_payload["scopes"] = scopes
 	assert_true(
 		removed_custom_boards and removed_discoveries and removed_achievements,
 		"player_data@1 夹具应只保留当时存在的三个 section。"
@@ -269,35 +277,30 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 		recovery_file == "recovery/player_data.schema-1.save",
 		"恢复文件应使用稳定且可审计的版本化路径。"
 	)
-	var recovery_result: Dictionary = reloaded_storage.load_data_result(
+	var recovery_result: GFStorageReadResult = reloaded_storage.load_data(
 		recovery_file
 	)
-	var recovery_payload: Dictionary = GFVariantData.get_option_dictionary(
-		recovery_result,
-		"data"
-	)
+	var recovery_payload: Dictionary = recovery_result.payload
 	var recovery_metadata: Dictionary = GFVariantData.get_option_dictionary(
 		recovery_payload,
 		"metadata"
 	)
 	assert_true(
-		GFVariantData.get_option_bool(recovery_result, "ok", false)
+		recovery_result.ok
 		and GFVariantData.get_option_int(recovery_metadata, "schema_version", 0) == 1,
 		"恢复备份必须完整保留原 Profile，而不是直接删除。"
 	)
-	var persisted_result: Dictionary = reloaded_storage.load_data_result(
+	var persisted_result: GFStorageReadResult = reloaded_storage.load_data(
 		GameSaveGraphUtility.PROFILE_FILE_NAME
 	)
-	var persisted_payload: Dictionary = GFVariantData.get_option_dictionary(
-		persisted_result,
-		"data"
-	)
+	var persisted_payload: Dictionary = persisted_result.payload
 	var persisted_metadata: Dictionary = GFVariantData.get_option_dictionary(
 		persisted_payload,
 		"metadata"
 	)
+	var persisted_graph_payload: Dictionary = _get_save_graph_payload(persisted_payload)
 	var persisted_scopes: Dictionary = GFVariantData.get_option_dictionary(
-		persisted_payload,
+		persisted_graph_payload,
 		"scopes"
 	)
 	assert_true(
@@ -545,12 +548,28 @@ func _make_empty_board_snapshot(topology: BoardTopology = null) -> Dictionary:
 
 
 func _get_section_source(payload: Dictionary, section_id: StringName) -> Dictionary:
-	var scopes: Dictionary = GFVariantData.as_dictionary(GFVariantData.get_option_value(payload, "scopes"))
+	var graph_payload: Dictionary = _get_save_graph_payload(payload)
+	var scopes: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(graph_payload, "scopes")
+	)
 	var section_payload: Dictionary = GFVariantData.as_dictionary(
 		GFVariantData.get_option_value(scopes, String(section_id))
 	)
 	var sources: Dictionary = GFVariantData.as_dictionary(GFVariantData.get_option_value(section_payload, "sources"))
 	return GFVariantData.as_dictionary(GFVariantData.get_option_value(sources, "state"))
+
+
+func _get_save_graph_payload(document_payload: Dictionary) -> Dictionary:
+	var sections: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(document_payload, "sections")
+	)
+	var section: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(
+			sections,
+			String(GFSaveGraphUtility.DOCUMENT_SECTION_ID)
+		)
+	)
+	return GFVariantData.as_dictionary(GFVariantData.get_option_value(section, "payload"))
 
 
 func _describe_load_failure(save_graph: GameSaveGraphUtility) -> String:

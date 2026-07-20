@@ -9,8 +9,8 @@
 ## 技术栈
 
 - Godot 4.7+
-- GF Framework 8.x（版本以 `addons/gf/plugin.cfg` 为准，当前源码为 `8.1.1`）
-- GF Package Manager（GF 8 使用 Godot 原生 CLI；当前仓库为由 `.gf/vendor.lock.json` 精确锁定的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在）
+- GF Framework 9.x（版本以 `addons/gf/plugin.cfg` 为准，当前源码为 `9.0.1`）
+- GF Package Manager（GF 9 使用 Godot 原生 CLI；当前仓库为由 `.gf/vendor.lock.json` 精确锁定的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在）
 - GDScript，遵循 `docs/coding_style.md`
 
 ## 架构概览
@@ -48,9 +48,9 @@
 
 - `gf.domain` 提供运行时 session、领域模型与通用进度语义。
 - `gf.action_queue` 提供棋盘视觉动作队列。
-- GF standard utilities 提供输入、状态机、资源注册、存储、设置、场景、UI、对象池、随机种子和诊断等能力。
+- GF standard utilities 提供输入、状态机、资源注册、规范存档文档、平台运行时、共享时钟、存储、设置、场景、UI、对象池、随机种子和诊断等能力。
 
-GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。如果后续重新使用包管理器安装/更新 GF 包，应让 `.gf/packages.lock.json` 与 `addons/gf/plugin.cfg`、`project.godot` 的扩展启用状态保持一致；`.gf/package_cache/` 是下载缓存，已在 `.gitignore` 中忽略。
+GF 9 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。如果后续重新使用包管理器安装/更新 GF 包，应让 `.gf/packages.lock.json` 与 `addons/gf/plugin.cfg`、`project.godot` 的扩展启用状态保持一致；`.gf/package_cache/` 是下载缓存，已在 `.gitignore` 中忽略。
 
 当前重点实践：
 
@@ -58,11 +58,13 @@ GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 - 用 `GFCommandHistoryUtility.execute_command()`、`undo_last_async()` 和 `redo_async()` 管理移动命令、撤销与重做。
 - 用 `GFInputMappingUtility` 管理资源化输入上下文。
 - 用项目级 `GamePauseUtility` 原子同步 `GFTimeUtility` 与 `SceneTree.paused`；暂停期间输入 System 只保留恢复意图，不缓存玩法动作。
+- 用 Composition Root 创建单一 `GFClock`，同时注入 `GFTimeUtility` 与项目级 `GameClockUtility`；测试通过 `GFManualClock` 确定性控制 wall-clock 与单调时间。
 - 用 `GFSceneUtility` 做异步场景切换，`SceneRouterSystem` 负责业务事件、路由意图和半调纸媒转场遮罩。
 - 用项目级 `GameUiRouterUtility` 从 `ui_route_registry.tres` 加载 `GFUIRoute` 路由表，暂停、游戏结束、设置、图鉴和成就面板通过稳定 route_id 打开。
 - 用 `GFControlFocusUtility` 为模式卡片、书签和回放列表写入稳定的纵向焦点顺序，项目层只表达跨列导航意图。
 - 用项目级 `GameSettingsUtility` 承接 `GFSettingsUtility` / `GFDisplaySettingsUtility`，语言、显示、音量、视觉主题和音效主题通过 `GFFormBinder` 绑定到设置页控件，选项列表用 `GFItemListBinder` 写入。
-- 用项目级 `GameSaveGraphUtility` 组合 `GFSaveGraphUtility` / `GFSaveScope` / `GFSaveDataSource`，把统计、书签、玩家棋盘、发现、成就和回放作为六个 Feature section 原子保存到类型保真的 Binary 玩家数据图；同源旧 Profile 先备份再按当前契约重建，设置保持独立生命周期。
+- 用项目级 `GameSaveGraphUtility` 组合 `GFSaveGraphUtility` / `GFSaveDocument` / `GFSaveScope` / `GFSaveDataSource`，把统计、书签、玩家棋盘、发现、成就和回放作为六个 Feature section 原子保存到类型保真的 Binary 玩家数据图；磁盘根始终是 GF 规范文档，同源旧 Profile 先备份再按当前契约重建，设置保持独立生命周期。
+- 用 `GFPlatformRuntime` 统一拥有平台 Adapter 注册、契约路由、请求句柄、超时和生命周期序列；项目级 `GamePlatformUtility` 只负责 Adapter 选择、Godot 通知桥接和项目上下文投影。
 - 用 `GFLevelUtility` 把当前一局登记为运行时 session，集中清理命令历史与动作队列等对局残留；项目不把 2048 强行建模为关卡进度。
 - 用 `ProjectResourceCatalogUtility` 把 `GFResourceRegistry`、`GFResourceResolverUtility` 和 `GFAssetUtility` 组合成统一资源目录 Adapter，模式目录和 UI 路由目录不重复实现注册、解析和缓存细节。
 - 用 `AchievementCatalogUtility` 管理数据驱动成就定义，并由 `AchievementSystem` 从规范统计/发现高水位回填进度；持久化成功后再投影到扩展拥有的 `GFQuestUtility`，平台 SDK 不作为真源。
@@ -78,11 +80,11 @@ GF 8 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 ## 维护路线
 
 - 长期推进计划见 `docs/roadmap.md`。
-- 验证策略见 `docs/validation.md`，GF 8 包状态验证使用 Godot headless 原生包管理 CLI。
+- 验证策略见 `docs/validation.md`，GF 9 包状态验证使用 Godot headless 原生包管理 CLI。
 - 项目结构由 `gf_project_profile.json` 声明，并通过 `GFProjectLayoutValidator` 与 GUT 持续校验。
 - 视觉方向见 `docs/visual_style.md`；背景、方块、菜单、HUD、转场和动效应保持 CMYK 半调纸媒游戏质感。
 - 历史上默认 Godot/GUT 运行曾写出巨大用户目录日志；需要运行 GUT 时，使用 `tools/run_gut_safe.ps1` 这样的隔离脚本，不要直接运行裸 Godot/GUT 命令。
-- `GFTextFitter` 在 Godot 4.7 的重复字号测量存在退出期 `ShapedText` RID 残留，跟踪于 `gf-framework#6`，修复位于 `gf-framework#7`；上游修复发布前，方块数字仅允许使用经过泄漏基线验证的单次比例测量。
+- 方块数字使用 GF 9 `GFTextFitter.MeasurementMode.SINGLE_LINE` 统一适配字号；该路径必须继续受完整 GUT 退出泄漏基线约束。
 
 ## 新增模式的推荐流程
 

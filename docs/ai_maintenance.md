@@ -6,7 +6,7 @@
 
 - 本项目是 Godot 4.7+ 与 gf 的 2048 实战示例，不是一个脱离框架的普通小游戏仓库。
 - gf 当前版本以 `addons/gf/plugin.cfg` 中的 `version` 字段为唯一来源。维护文档、README 和测试说明不应硬编码具体 gf 版本号；只有框架升级提交本身需要修改 `plugin.cfg`。
-- 当前 GF 源码是由 `.gf/vendor.lock.json` 精确锁定的 vendored GF 8 状态。若 `.gf/packages.lock.json` 存在，GF Package Manager 的安装状态以它为准；若不存在，不要把旧 lockfile 假设当作当前事实。`.gf/package_cache/` 是下载缓存，不应提交。
+- 当前 GF 源码是由 `.gf/vendor.lock.json` 精确锁定的 vendored GF 9 状态。若 `.gf/packages.lock.json` 存在，GF Package Manager 的安装状态以它为准；若不存在，不要把旧 lockfile 假设当作当前事实。`.gf/package_cache/` 是下载缓存，不应提交。
 - 业务代码应尽量展示 gf 的核心能力：`GFInstaller`、`GFModel`、`GFSystem`、`GFController`、`GFUtility`、事件系统、命令历史、资源化输入、资源化规则、存储、场景工具、对象池、动作队列和设置绑定。
 - 当发现 gf 难以表达项目需求时，先判断问题属于示例项目建模不足、框架 API 可用性不足，还是框架缺陷。只有后两者才考虑修改 `addons/gf/**`。
 - 如果需要改 `addons/gf/**`，改动必须保持通用性和抽象性，不能把 2048 的玩法、UI、存档字段或资源路径写进 gf 框架。
@@ -54,7 +54,7 @@
 
 ## GF 包管理
 
-当前项目使用精确锁定的 vendored GF 8 源码。GF 8 提供 Godot 原生 Package Manager；恢复包管理器安装流后，正式安装状态记录在 `.gf/packages.lock.json`。
+当前项目使用精确锁定的 vendored GF 9 源码。GF 9 提供 Godot 原生 Package Manager；恢复包管理器安装流后，正式安装状态记录在 `.gf/packages.lock.json`。
 
 当前实际使用的 GF 能力：
 
@@ -98,7 +98,7 @@ powershell -ExecutionPolicy Bypass -File tools/validate_project_layout.ps1 -Godo
 godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli.gd -- status --json
 ```
 
-检查 `status --json` 输出中的 `ok`、`issue_count`、`orphan_packages` 和 `lockfile_verify.ok`。如果 `.gf/packages.lock.json` 不存在，`installed_count` 可能为 `0`，只表示当前是手动 vendored 源码状态。GF 8 包管理器没有 Python `package_tools` 入口，不要沿用旧命令。
+检查 `status --json` 输出中的 `ok`、`issue_count`、`orphan_packages` 和 `lockfile_verify.ok`。如果 `.gf/packages.lock.json` 不存在，`installed_count` 可能为 `0`，只表示当前是手动 vendored 源码状态。GF 9 包管理器没有 Python `package_tools` 入口，不要沿用旧命令。
 
 新增或移除 GF 包时必须同步检查：
 
@@ -272,7 +272,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 900 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-20 使用 Godot `4.7` 与 GF `8.1.1` 运行通过。当前完整套件为 33 个 GUT 测试脚本、287 个 `test_` 用例、1837 个断言；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 705 个全局脚本类，项目运行时声明 182 个；完整套件退出计数为 `ObjectDB = 301`、`Resources = 129`，RID 为 `TextureStorage = 11`、`ShapedText = 9`、`Font = 5`。同一输入集合下退出计数不得继续增长。
+2026-07-20 使用 Godot `4.7` 与 GF `9.0.1` 运行通过。当前完整套件为 33 个 GUT 测试脚本、288 个 `test_` 用例、1846 个断言；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 732 个全局脚本类，项目运行时声明 182 个；完整套件退出计数为 `ObjectDB = 303`、`Resources = 131`，RID 为 `TextureStorage = 11`、`ShapedText = 9`、`Font = 5`。相较 GF 8.1.1 的两个固定增量经 verbose 审计为项目新采用的 `GFClock` 与 `GFPlatformAdapter` 脚本资源；同一输入集合下退出计数不得继续增长。
 
 编辑器 GDScript warning 诊断入口：
 

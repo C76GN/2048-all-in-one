@@ -166,7 +166,13 @@ func test_persisted_progress_payload_has_strict_section_schema() -> void:
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var save_error: Error = progress_stats_system.set_high_score(_MODE_ID, _BOARD_KEY, 2048)
 	var payload: Dictionary = save_graph.preview_profile_payload()
-	var scopes: Dictionary = GFVariantData.get_option_dictionary(payload, "scopes")
+	var document_sections: Dictionary = GFVariantData.get_option_dictionary(payload, "sections")
+	var graph_section: Dictionary = GFVariantData.get_option_dictionary(
+		document_sections,
+		String(GFSaveGraphUtility.DOCUMENT_SECTION_ID)
+	)
+	var graph_payload: Dictionary = GFVariantData.get_option_dictionary(graph_section, "payload")
+	var scopes: Dictionary = GFVariantData.get_option_dictionary(graph_payload, "scopes")
 	var progress_scope: Dictionary = GFVariantData.get_option_dictionary(scopes, "progress")
 	var sources: Dictionary = GFVariantData.get_option_dictionary(progress_scope, "sources")
 	var source: Dictionary = GFVariantData.get_option_dictionary(sources, "state")

@@ -36,6 +36,11 @@ const _RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT: Script = preload(
 )
 
 
+# --- 私有变量 ---
+
+var _clock: GFClock = GFClock.new()
+
+
 # --- 公共方法 ---
 
 ## 使用声明式 Binder 注册项目级 Model、Utility 和 System。
@@ -99,14 +104,19 @@ func _bind_content_and_gameplay_utilities(binder: GFBinder) -> void:
 	).with_alias(GFDiagnosticsUtility)
 	await diagnostics_binding.as_singleton()
 	await binder.bind_utility(_PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT).as_singleton()
-	await binder.bind_utility(_GAME_CLOCK_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(GFTimeUtility).from_instance(_create_time_utility()).as_singleton()
+	var game_clock_binding: GFBindBuilder = binder.bind_utility(
+		_GAME_CLOCK_UTILITY_SCRIPT
+	).from_instance(
+		_create_game_clock_utility()
+	)
+	await game_clock_binding.as_singleton()
 	await binder.bind_utility(_GAME_SAVE_GRAPH_UTILITY_SCRIPT).from_instance(_create_game_save_graph_utility()).as_singleton()
 	await binder.bind_utility(_GAME_MODE_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_TILE_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_ACHIEVEMENT_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_TILE_COMPOSITION_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFCommandHistoryUtility).from_instance(_create_history_utility()).as_singleton()
-	await binder.bind_utility(GFTimeUtility).as_singleton()
 	await binder.bind_utility(_GAME_PAUSE_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(GFLogUtility).from_instance(_create_log_utility()).as_singleton()
 
@@ -128,6 +138,10 @@ func _bind_presentation_utilities(binder: GFBinder) -> void:
 
 
 func _bind_input_and_platform_utilities(binder: GFBinder) -> void:
+	var platform_runtime_binding: GFBindBuilder = binder.bind_utility(GFPlatformRuntime).from_instance(
+		_create_platform_runtime()
+	)
+	await platform_runtime_binding.as_singleton()
 	await binder.bind_utility(GFInputDeviceUtility).as_singleton()
 	await binder.bind_utility(GFInputMappingUtility).as_singleton()
 	await binder.bind_utility(_GAME_INPUT_PROFILE_UTILITY_SCRIPT).as_singleton()
@@ -177,6 +191,22 @@ func _create_storage_utility() -> GFStorageUtility:
 	storage.use_integrity_checksum = true
 	storage.save_version = 1
 	return storage
+
+
+func _create_time_utility() -> GFTimeUtility:
+	var time_utility: GFTimeUtility = GFTimeUtility.new()
+	var _clock_set: bool = time_utility.set_clock(_clock)
+	return time_utility
+
+
+func _create_game_clock_utility() -> GameClockUtility:
+	var clock_utility: GameClockUtility = GameClockUtility.new()
+	var _clock_set: bool = clock_utility.set_clock(_clock)
+	return clock_utility
+
+
+func _create_platform_runtime() -> GFPlatformRuntime:
+	return GFPlatformRuntime.new(_clock)
 
 
 func _create_game_save_graph_utility() -> GameSaveGraphUtility:

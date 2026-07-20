@@ -25,7 +25,6 @@ const DISCOVERIES_SECTION_ID: StringName = &"discoveries"
 const ACHIEVEMENTS_SECTION_ID: StringName = &"achievements"
 const REPLAYS_SECTION_ID: StringName = &"replays"
 const _RECOVERY_DIRECTORY: String = "recovery"
-const _STORAGE_METADATA_KEY: String = "_meta"
 const _PROJECT_VERSION_SETTING: String = "application/config/version"
 const _LOG_TAG: String = "GameSaveGraphUtility"
 const _ASYNC_SAVE_DEBOUNCE_SECONDS: float = 0.16
@@ -236,19 +235,22 @@ func flush_pending_save() -> Error:
 	return error
 
 
-## 生成带项目 metadata 的当前 SaveGraph 预览载荷。
+## 生成带项目 metadata 的当前规范 SaveGraph 文档。
 func preview_profile_payload() -> Dictionary:
 	if not _is_configured():
 		return {}
 	var pipeline_context: GFSavePipelineContext = _save_graph.create_pipeline_context(&"gather", _root_scope)
-	var payload: Dictionary = _save_graph.gather_scope(_root_scope, {
-		"pipeline_context": pipeline_context,
-	})
+	var document: GFSaveDocument = _save_graph.gather_document(
+		_root_scope,
+		_build_profile_metadata(),
+		{
+			"pipeline_context": pipeline_context,
+		}
+	)
 	pipeline_context.finish()
-	if payload.is_empty() or not pipeline_context.errors.is_empty():
+	if document == null or not pipeline_context.errors.is_empty():
 		return {}
-	payload["metadata"] = _build_profile_metadata()
-	return payload
+	return document.to_dict()
 
 
 ## 保存完整玩家数据图。
@@ -287,10 +289,9 @@ func load_profile() -> Error:
 		}
 		return ERR_UNCONFIGURED
 
-	var storage_result: Dictionary = _storage.load_data_result(PROFILE_FILE_NAME)
-	if not GFVariantData.get_option_bool(storage_result, "ok", false):
-		var storage_error: String = GFVariantData.get_option_string(storage_result, "error")
-		if storage_error == "File not found":
+	var storage_result: GFStorageReadResult = _storage.load_data(PROFILE_FILE_NAME)
+	if not storage_result.ok:
+		if storage_result.error_code == ERR_FILE_NOT_FOUND:
 			_loaded = true
 			_last_load_result = {
 				"ok": true,
@@ -298,29 +299,63 @@ func load_profile() -> Error:
 				"applied": 0,
 			}
 			return OK
+		var storage_error_code: Error = storage_result.error_code
+		if storage_error_code == OK:
+			storage_error_code = ERR_FILE_CORRUPT
 		_last_load_result = {
 			"ok": false,
-			"error_code": ERR_FILE_CORRUPT,
-			"error": storage_error,
-			"integrity_valid": GFVariantData.get_option_bool(storage_result, "integrity_valid", true),
+			"error_code": storage_error_code,
+			"error": storage_result.error,
+			"storage": storage_result.to_dict(),
 		}
-		return ERR_FILE_CORRUPT
+		return storage_error_code
 
-	var payload_value: Variant = GFVariantData.get_option_value(storage_result, "data")
-	if not (payload_value is Dictionary):
+	var document_payload: Dictionary = storage_result.payload
+	var document_inspection: Dictionary = GFSaveDocument.inspect_dict(document_payload)
+	if not GFVariantData.get_option_bool(document_inspection, "ok", false):
 		_last_load_result = {
 			"ok": false,
 			"error_code": ERR_INVALID_DATA,
-			"error": "Player data payload must be a Dictionary.",
+			"error": GFVariantData.get_option_string(
+				document_inspection,
+				"summary",
+				"Player data must be a canonical GFSaveDocument."
+			),
+			"validation": document_inspection,
 		}
 		return ERR_INVALID_DATA
-	var payload: Dictionary = GFVariantData.as_dictionary(payload_value)
-	if not _has_current_profile_metadata(payload):
+	var document: GFSaveDocument = GFSaveDocument.from_dict(document_payload)
+	if document == null:
+		_last_load_result = {
+			"ok": false,
+			"error_code": ERR_INVALID_DATA,
+			"error": "Player data document could not be parsed.",
+		}
+		return ERR_INVALID_DATA
+	var document_validation: Dictionary = _save_graph.create_document_schema().validate_document(
+		document,
+		true
+	)
+	if not GFVariantData.get_option_bool(document_validation, "ok", false):
+		_last_load_result = {
+			"ok": false,
+			"error_code": ERR_INVALID_DATA,
+			"error": GFVariantData.get_option_string(
+				document_validation,
+				"summary",
+				"SaveGraph document validation failed."
+			),
+			"validation": document_validation,
+		}
+		return ERR_INVALID_DATA
+
+	var profile_metadata: Dictionary = document.get_metadata()
+	if not _has_current_profile_metadata(profile_metadata):
 		var obsolete_schema_version: int = _get_obsolete_profile_schema_version(
-			payload
+			profile_metadata
 		)
 		if obsolete_schema_version > 0:
-			return _recover_obsolete_profile(payload, obsolete_schema_version)
+			return _recover_obsolete_profile(document_payload, obsolete_schema_version)
 		_last_load_result = {
 			"ok": false,
 			"error_code": ERR_INVALID_DATA,
@@ -328,7 +363,23 @@ func load_profile() -> Error:
 		}
 		return ERR_INVALID_DATA
 
-	var validation: Dictionary = _save_graph.validate_payload_for_scope(_root_scope, payload, true)
+	var graph_section: GFSaveSection = document.get_section(
+		GFSaveGraphUtility.DOCUMENT_SECTION_ID
+	)
+	var graph_payload_value: Variant = graph_section.get_payload() if graph_section != null else null
+	if not (graph_payload_value is Dictionary):
+		_last_load_result = {
+			"ok": false,
+			"error_code": ERR_INVALID_DATA,
+			"error": "SaveGraph document section payload must be a Dictionary.",
+		}
+		return ERR_INVALID_DATA
+	var graph_payload: Dictionary = GFVariantData.as_dictionary(graph_payload_value)
+	var validation: Dictionary = _save_graph.validate_payload_for_scope(
+		_root_scope,
+		graph_payload,
+		true
+	)
 	if not GFVariantData.get_option_bool(validation, "ok", false):
 		_last_load_result = {
 			"ok": false,
@@ -339,9 +390,9 @@ func load_profile() -> Error:
 		return ERR_INVALID_DATA
 
 	var pipeline_context: GFSavePipelineContext = _save_graph.create_pipeline_context(&"apply", _root_scope)
-	var apply_result: Dictionary = _save_graph.apply_scope(
+	var apply_result: Dictionary = _save_graph.apply_document(
 		_root_scope,
-		payload,
+		document,
 		{
 			"pipeline_context": pipeline_context,
 			"transactional_apply": true,
@@ -352,6 +403,7 @@ func load_profile() -> Error:
 	var ok: bool = GFVariantData.get_option_bool(apply_result, "ok", false)
 	_last_load_result = apply_result.duplicate(true)
 	_last_load_result["pipeline"] = pipeline_context.to_dict(true)
+	_last_load_result["storage"] = storage_result.to_dict()
 	_last_load_result["first_run"] = false
 	_last_load_result["error_code"] = OK if ok else ERR_INVALID_DATA
 	_loaded = ok
@@ -571,22 +623,14 @@ func _build_profile_metadata() -> Dictionary:
 	}
 
 
-func _has_current_profile_metadata(payload: Dictionary) -> bool:
-	var metadata_value: Variant = GFVariantData.get_option_value(payload, "metadata")
-	if not (metadata_value is Dictionary):
-		return false
-	var metadata: Dictionary = GFVariantData.as_dictionary(metadata_value)
+func _has_current_profile_metadata(metadata: Dictionary) -> bool:
 	return (
 		GFVariantData.get_option_string_name(metadata, "schema_id") == PROFILE_SCHEMA_ID
 		and GFVariantData.get_option_int(metadata, "schema_version") == PROFILE_SCHEMA_VERSION
 	)
 
 
-func _get_obsolete_profile_schema_version(payload: Dictionary) -> int:
-	var metadata_value: Variant = GFVariantData.get_option_value(payload, "metadata")
-	if not (metadata_value is Dictionary):
-		return 0
-	var metadata: Dictionary = GFVariantData.as_dictionary(metadata_value)
+func _get_obsolete_profile_schema_version(metadata: Dictionary) -> int:
 	if (
 		metadata.size() != 3
 		or not (GFVariantData.get_option_value(metadata, "schema_id") is String)
@@ -612,11 +656,7 @@ func _recover_obsolete_profile(
 		_RECOVERY_DIRECTORY,
 		obsolete_schema_version,
 	]
-	var recovery_payload: Dictionary = payload.duplicate(true)
-	var _storage_metadata_removed: bool = recovery_payload.erase(
-		_STORAGE_METADATA_KEY
-	)
-	var backup_error: Error = _storage.save_data(recovery_file, recovery_payload)
+	var backup_error: Error = _storage.save_data(recovery_file, payload)
 	if backup_error != OK:
 		_last_load_result = {
 			"ok": false,

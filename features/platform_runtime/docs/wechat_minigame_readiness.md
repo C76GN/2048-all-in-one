@@ -2,7 +2,7 @@
 
 ## 当前边界
 
-项目已建立 `GamePlatformUtility -> GamePlatformAdapter -> 平台 SDK` 单向边界。业务 Feature 只能读取 `GFPlatformRuntimeContext`、查询 `GFPlatformCapabilitySet`、订阅 `GFPlatformLifecycleEvent` 或发送 `GFPlatformBridgeRequest`，不得直接读取微信全局对象或散落判断 `OS.has_feature()`。
+项目已建立 `GamePlatformUtility -> GFPlatformRuntime -> GamePlatformAdapter -> 平台 SDK` 单向边界。`GFPlatformRuntime` 拥有 Adapter 注册、契约路由、请求句柄、超时和生命周期序列；项目 Utility 只做 Adapter 选择与 Godot 通知桥接。业务 Feature 只能读取 `GFPlatformRuntimeContext`、查询 `GFPlatformCapabilitySet`、订阅 `GFPlatformLifecycleEvent` 或发送 `GFPlatformBridgeRequest`，不得直接读取微信全局对象或散落判断 `OS.has_feature()`。
 
 当前 `LocalPlatformAdapter` 覆盖 Godot 桌面、移动端和 Web 的共同能力：
 
@@ -50,7 +50,7 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 
 项目侧兼容契约与标准 Web 浏览器冒烟已经通过；当前环境报告有“缺少当前编辑器匹配导出模板”和“缺少微信开发者工具 CLI”两个 blocker，尚不能签字“微信开发者工具 / 微信真机通过”。下一步必须安装匹配当前编辑器的导出模板，安装并配置微信开发者工具 CLI，再接入微信导出适配器执行真机矩阵。
 
-Godot 4.7.1 导出期间，当前 vendored GF 8.1.1 仍会报告 `GFExtensionExportPlugin` 未覆盖 `_get_name()`。导出产物可以生成，但正式发布要求零导出错误。框架修复已按项目规范提交 [gf-framework#9](https://github.com/C76GN/gf-framework/issues/9) 与 [gf-framework#10](https://github.com/C76GN/gf-framework/pull/10)；包含该修复的稳定版本发布后再更新 vendored GF，不在项目主线复制临时补丁。
+GF 9.0.1 已包含 [gf-framework#9](https://github.com/C76GN/gf-framework/issues/9) / [gf-framework#10](https://github.com/C76GN/gf-framework/pull/10) 的 `GFExtensionExportPlugin._get_name()` 修复，项目没有复制临时框架补丁。更新后的正式零错误导出仍需在安装与 Godot 4.7 精确匹配的模板后重新签字。
 
 ## 已完成的 Web 签字
 

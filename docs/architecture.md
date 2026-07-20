@@ -1,6 +1,6 @@
 # 架构说明
 
-本项目是 Godot 4.7 与 GF Framework 8.x 的 2048 示例项目。目录严格采用 GF 内置 `Feature-Cohesive` 契约：业务能力优先内聚在 Feature 内，GF 的 Model、System、Utility、Controller 等是 Feature 内部的逻辑层，不再作为项目根目录的类型桶。
+本项目是 Godot 4.7 与 GF Framework 9.x 的 2048 示例项目。目录严格采用 GF 内置 `Feature-Cohesive` 契约：业务能力优先内聚在 Feature 内，GF 的 Model、System、Utility、Controller 等是 Feature 内部的逻辑层，不再作为项目根目录的类型桶。
 
 ## 目录契约
 
@@ -33,6 +33,7 @@
 | `tile_catalog` | 方块定义目录、组合/拓扑发现、响应式图鉴和 discoveries SaveGraph section |
 | `achievements` | 数据驱动成就目录、GF Quest 运行时投影、成就列表和 achievements SaveGraph section |
 | `persistence` | 通用玩家数据 section 协议、GF SaveGraph 事务编排和存储诊断 |
+| `platform_runtime` | 平台 Adapter 选择、Godot 生命周期桥接、Web/微信准备契约和平台冒烟入口 |
 | `themes` | 视觉主题、音效主题、主题化 UI 宿主与布局、UI 色板、棋盘反馈和主题内容包 |
 | `asset_library` | 可复用素材内容包、候选评审、授权、引用审计和局部导入工具 |
 | `diagnostics` | 项目诊断快照、支持报告和仅开发环境使用的独立对局实验台 |
@@ -149,11 +150,18 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 4. 路由创建或关闭失败时保持原业务状态并显式报错，不切换暂停状态，也不回退到直接面板操作。
 5. 动态列表和模式卡片的纵向焦点顺序由 `GFControlFocusUtility` 写入；项目代码只保留跨列跳转等界面特有语义，不逐项重复计算首尾循环。
 
+### 平台运行时
+
+1. `GFPlatformRuntime` 是平台 Adapter 注册、初始化、能力契约路由、请求句柄、超时与生命周期序列的唯一所有者；业务 Feature 不得绕过 Runtime 直接调用 Adapter。
+2. `GamePlatformUtility` 只负责选择项目 Adapter、把 Godot 窗口与应用通知转成 GF 生命周期事件，并投影只读 `GFPlatformRuntimeContext`；它不重复维护请求表、超时器或平台能力集合。
+3. `GamePlatformAdapter` 继承 `GFPlatformAdapter`，负责冻结项目身份与能力契约；具体 Adapter 只实现支持的 SDK dispatch 和平台上下文刷新。
+4. 平台请求统一返回 `GFPlatformRequestHandle`。调用方通过句柄读取终态 `GFPlatformBridgeResult`，不得另建项目私有异步请求协议。
+
 ### 时钟、随机与运行诊断
 
 1. `GFTimeUtility` 拥有游戏 delta、缩放和逻辑暂停；`GamePauseUtility` 是唯一可写暂停 Adapter，负责把 GF 时间状态与 `SceneTree.paused` 原子同步。其他运行时 Module 不得直接写 `SceneTree.paused`。
 2. `PlayerInputSystem` 显式忽略 GF 暂停和时间缩放，只为暂停期间继续消费“恢复”意图；检测到暂停后必须清空移动、撤销、重做和书签输入，不能把缓冲延迟到恢复后执行。
-3. `GameClockUtility` 是业务代码读取 wall-clock、单调 tick 和日期格式的唯一 Adapter。
+3. Composition Root 创建单一 `GFClock` 并同时注入 `GFTimeUtility` 与 `GameClockUtility`；后者是业务代码读取 wall-clock、单调 tick 和日期格式的唯一 Adapter，测试使用 `GFManualClock` 控制同一时间源。
 4. `GFSeedUtility` 拥有运行时随机流、全局种子和稳定派生算法；业务代码不得自行创建 `RandomNumberGenerator`，也不得调用 Godot 全局随机函数。
 5. 开发构建的长流程耗时由 `GFOperationDiagnosticsUtility` 的操作记录拥有。调用方读取同一操作的 `started_ticks_usec` 记录阶段，不再平行缓存一份系统 tick；发布路径只能通过当前 Architecture 的 local lookup 可选读取该 Utility，且在未安装开发诊断模块时必须保持完整功能。
 6. 只有 Boot 组合根和 `features/asset_library/tools/` 下的离线素材工具可以直接访问 `Time`；该例外由 GF 合规测试的精确路径 allowlist 约束，不得扩散到运行时 Feature。
@@ -161,9 +169,9 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 持久化
 
-- `persistence` 创建 `player_data` 根 Scope，并通过 `GFSaveGraphUtility` 统一校验、阶段排序、事务应用和诊断。
+- `persistence` 创建 `player_data` 根 Scope，并通过 `GFSaveGraphUtility` 统一生成、校验和应用规范 `GFSaveDocument`，不再把裸 Scope payload 当作磁盘根协议。
 - `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
-- 六个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 负责存储元数据、checksum 和原子文件事务。
+- 六个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 返回类型化 `GFStorageReadResult`，并负责存储元数据、checksum 和原子文件事务。
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。
 - Profile 当前为 `player_data@4`；`progress`、`bookmarks`、`custom_boards`、`discoveries`、`achievements`、`replays` section 当前分别为 v3、v4、v1、v1、v1、v2。棋盘快照与玩家模板都内嵌严格 `BoardTopology`，规则统计使用中性的 `ratio_resolutions`，不提供旧尺寸键、旧阵营字段推断或兼容分支。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。

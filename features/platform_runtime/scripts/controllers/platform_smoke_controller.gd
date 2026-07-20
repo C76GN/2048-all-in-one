@@ -459,8 +459,8 @@ func _on_storage_test_pressed() -> void:
 	if _storage == null:
 		_set_status(_storage_label, "GFStorageUtility 未注册", false)
 		return
-	var previous_result: Dictionary = _storage.load_data_result(_STORAGE_FILE)
-	var previous_data: Dictionary = GFVariantData.get_option_dictionary(previous_result, "data")
+	var previous_result: GFStorageReadResult = _storage.load_data(_STORAGE_FILE)
+	var previous_data: Dictionary = previous_result.payload if previous_result.ok else {}
 	var run_count: int = GFVariantData.get_option_int(previous_data, "run_count") + 1
 	var save_error: Error = _storage.save_data(_STORAGE_FILE, {
 		"run_count": run_count,
@@ -469,10 +469,10 @@ func _on_storage_test_pressed() -> void:
 	if save_error != OK:
 		_set_status(_storage_label, "写入失败：%s" % error_string(save_error), false)
 		return
-	var verify_result: Dictionary = _storage.load_data_result(_STORAGE_FILE)
-	var verify_data: Dictionary = GFVariantData.get_option_dictionary(verify_result, "data")
+	var verify_result: GFStorageReadResult = _storage.load_data(_STORAGE_FILE)
+	var verify_data: Dictionary = verify_result.payload if verify_result.ok else {}
 	var verified: bool = (
-		GFVariantData.get_option_bool(verify_result, "ok")
+		verify_result.ok
 		and GFVariantData.get_option_int(verify_data, "run_count") == run_count
 	)
 	_set_status(

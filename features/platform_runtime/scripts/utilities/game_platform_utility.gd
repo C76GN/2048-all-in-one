@@ -1,9 +1,9 @@
-## GamePlatformUtility: 项目统一平台运行时边界。
+## GamePlatformUtility: 项目平台选择与 Godot 通知边界。
 ##
-## 对外提供稳定的平台上下文、能力查询、生命周期事件和 SDK bridge。平台差异由
-## GamePlatformAdapter 隔离，业务代码不读取 OS feature 或直接调用平台 SDK。
+## GFPlatformRuntime 拥有 adapter 注册、契约路由、请求终态、超时和生命周期序号；
+## 本 Utility 只选择项目默认 adapter，并把 Godot 通知转交给它。
 class_name GamePlatformUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 信号 ---
@@ -32,8 +32,8 @@ const CAPABILITY_COMPATIBILITY_RENDERER: StringName = GamePlatformAdapter.CAPABI
 # --- 私有变量 ---
 
 var _adapter: GamePlatformAdapter = null
+var _runtime: GFPlatformRuntime = null
 var _context: GFPlatformRuntimeContext = null
-var _lifecycle_sequence: int = 0
 var _relay: _GamePlatformLifecycleRelay = null
 var _relay_attach_serial: int = 0
 var _initialized: bool = false
@@ -41,29 +41,52 @@ var _initialized: bool = false
 
 # --- GF 生命周期方法 ---
 
+func get_required_utilities() -> Array[Script]:
+	return [GFPlatformRuntime]
+
+
 func init() -> void:
 	ignore_pause = true
 	ignore_time_scale = true
 	_initialized = true
 	if _adapter == null:
 		_adapter = LocalPlatformAdapter.new()
-	_bind_adapter()
-	var _initial_context: GFPlatformRuntimeContext = refresh_runtime_context()
-	_ensure_lifecycle_relay()
 
 
 func ready() -> void:
+	if not _adapter.prepare():
+		push_error("[GamePlatformUtility] 默认平台 adapter 配置失败。")
+		return
+	_runtime = _resolve_platform_runtime()
+	if _runtime == null:
+		push_error("[GamePlatformUtility] GFPlatformRuntime 未注册。")
+		return
+	_bind_runtime_signals()
+	if not _runtime.register_adapter(_adapter):
+		push_error("[GamePlatformUtility] 平台 adapter 注册失败：%s。" % _adapter.adapter_id)
+		return
+	var completion: GFAsyncCompletion = _runtime.initialize_adapter(_adapter.adapter_id)
+	if completion.is_pending():
+		var _completion_connected: int = completion.completed.connect(
+			_on_adapter_initialization_completed,
+			CONNECT_ONE_SHOT
+		)
+	else:
+		_on_adapter_initialization_completed(completion)
 	_ensure_lifecycle_relay()
 
 
 func dispose() -> void:
 	_relay_attach_serial += 1
-	_unbind_adapter()
-	if _adapter != null:
-		_adapter.close()
+	_unbind_runtime_signals()
+	if _runtime != null and _adapter != null:
+		var _adapter_removed: bool = _runtime.unregister_adapter(
+			_adapter.adapter_id,
+			true
+		)
 	_adapter = null
+	_runtime = null
 	_context = null
-	_lifecycle_sequence = 0
 	_initialized = false
 	if is_instance_valid(_relay):
 		_relay.queue_free()
@@ -73,7 +96,7 @@ func dispose() -> void:
 # --- 公共方法 ---
 
 ## 仅允许在 init() 前注入平台适配器，供平台启动层和测试使用。
-## @param adapter: 待注入的平台适配器。
+## @param adapter: 项目选择的平台适配器。
 func configure_adapter(adapter: GamePlatformAdapter) -> bool:
 	if _initialized:
 		push_error("[GamePlatformUtility] 平台适配器只能在 init() 前配置。")
@@ -85,33 +108,31 @@ func configure_adapter(adapter: GamePlatformAdapter) -> bool:
 
 
 func get_runtime_context() -> GFPlatformRuntimeContext:
-	if _context == null:
-		return null
-	return _context.duplicate_context()
+	return _context.duplicate_context() if _context != null else null
 
 
 func refresh_runtime_context() -> GFPlatformRuntimeContext:
-	if _adapter == null:
-		_context = null
+	if _adapter == null or not _adapter.refresh_context():
 		return null
-	_context = _adapter.create_runtime_context()
-	if _context != null:
-		context_changed.emit(_context.duplicate_context())
 	return get_runtime_context()
 
 
 ## 查询当前平台是否声明指定能力。
-## @param capability_id: 平台能力标识。
+## @param capability_id: 待查询的稳定能力 ID。
 func has_capability(capability_id: StringName) -> bool:
-	return _context != null and _context.has_capability(capability_id)
+	return (
+		_runtime != null
+		and _adapter != null
+		and _runtime.has_capability(capability_id, _adapter.adapter_id)
+	)
 
 
-## 通过当前适配器执行平台 SDK bridge 请求。
-## @param request: 平台无关的 bridge 请求。
-func execute_bridge(request: GFPlatformBridgeRequest) -> GFPlatformBridgeResult:
-	if _adapter != null:
-		return _adapter.execute_bridge(request)
-	return GamePlatformAdapter.new().execute_bridge(request)
+## 通过 GFPlatformRuntime 发起平台 SDK bridge 请求。
+## @param request: 规范平台桥接请求。
+func invoke_bridge(request: GFPlatformBridgeRequest) -> GFPlatformRequestHandle:
+	if _runtime == null or _adapter == null:
+		return null
+	return _runtime.invoke(request, _adapter.adapter_id)
 
 
 func get_bridge_contract_report() -> Dictionary:
@@ -126,10 +147,13 @@ func get_bridge_contract_report() -> Dictionary:
 		"required": true,
 		"capabilities": PackedStringArray([String(CAPABILITY_LIFECYCLE)]),
 	})
+	var _sdk_bridge_contract: Dictionary = builder.add_contract(CONTRACT_SDK_BRIDGE, {
+		"required": false,
+	})
 	if _adapter != null:
 		var descriptor: Dictionary = _adapter.get_contract_descriptor()
 		var _adapter_entry: Dictionary = builder.add_adapter(
-			GFVariantData.get_option_string_name(descriptor, "adapter_id"),
+			_adapter.adapter_id,
 			&"",
 			descriptor
 		)
@@ -139,14 +163,14 @@ func get_bridge_contract_report() -> Dictionary:
 func get_debug_snapshot() -> Dictionary:
 	return {
 		"context": _context.to_dict() if _context != null else {},
-		"lifecycle_sequence": _lifecycle_sequence,
 		"relay_attached": is_instance_valid(_relay) and _relay.is_inside_tree(),
 		"bridge_contract": get_bridge_contract_report(),
+		"runtime": _runtime.get_debug_snapshot() if _runtime != null else {},
 	}
 
 
-## 供无场景树测试和平台宿主主动转发生命周期通知。
-## @param what: Godot 通知标识。
+## 供平台宿主主动转发 Godot 生命周期通知。
+## @param what: Godot 通知常量。
 func forward_platform_notification(what: int) -> void:
 	if _adapter != null:
 		_adapter.handle_notification(what)
@@ -154,34 +178,70 @@ func forward_platform_notification(what: int) -> void:
 
 # --- 私有/辅助方法 ---
 
-func _bind_adapter() -> void:
-	if _adapter == null:
+func _resolve_platform_runtime() -> GFPlatformRuntime:
+	var value: Object = get_utility(GFPlatformRuntime)
+	if value is GFPlatformRuntime:
+		var runtime: GFPlatformRuntime = value
+		return runtime
+	return null
+
+
+func _bind_runtime_signals() -> void:
+	if _runtime == null:
 		return
-	if not _adapter.lifecycle_event_emitted.is_connected(_on_adapter_lifecycle_event):
-		var _connect_result: int = _adapter.lifecycle_event_emitted.connect(
-			_on_adapter_lifecycle_event
+	if not _runtime.context_changed.is_connected(_on_runtime_context_changed):
+		var _context_connected: int = _runtime.context_changed.connect(
+			_on_runtime_context_changed
+		)
+	if not _runtime.lifecycle_event.is_connected(_on_runtime_lifecycle_event):
+		var _lifecycle_connected: int = _runtime.lifecycle_event.connect(
+			_on_runtime_lifecycle_event
 		)
 
 
-func _unbind_adapter() -> void:
-	if _adapter == null:
+func _unbind_runtime_signals() -> void:
+	if _runtime == null:
 		return
-	if _adapter.lifecycle_event_emitted.is_connected(_on_adapter_lifecycle_event):
-		_adapter.lifecycle_event_emitted.disconnect(_on_adapter_lifecycle_event)
+	if _runtime.context_changed.is_connected(_on_runtime_context_changed):
+		_runtime.context_changed.disconnect(_on_runtime_context_changed)
+	if _runtime.lifecycle_event.is_connected(_on_runtime_lifecycle_event):
+		_runtime.lifecycle_event.disconnect(_on_runtime_lifecycle_event)
 
 
-func _on_adapter_lifecycle_event(event: GFPlatformLifecycleEvent) -> void:
-	if event == null:
+func _on_adapter_initialization_completed(completion: GFAsyncCompletion) -> void:
+	if completion == null or not completion.is_successful():
+		var error: String = completion.get_error() if completion != null else "missing completion"
+		push_error("[GamePlatformUtility] 平台 adapter 初始化失败：%s。" % error)
 		return
-	_lifecycle_sequence += 1
-	var published_event: GFPlatformLifecycleEvent = event.duplicate_event()
-	published_event.sequence = _lifecycle_sequence
-	if (
-		published_event.is_type(GFPlatformLifecycleEvent.TYPE_WINDOW_RESIZED)
-		or published_event.is_type(GFPlatformLifecycleEvent.TYPE_SAFE_AREA_CHANGED)
-	):
-		var _refreshed_context: GFPlatformRuntimeContext = refresh_runtime_context()
-	lifecycle_event_received.emit(published_event)
+	_publish_current_context()
+
+
+func _publish_current_context() -> void:
+	if _runtime == null or _adapter == null:
+		_context = null
+		return
+	_context = _runtime.get_context(_adapter.adapter_id)
+	if _context != null:
+		context_changed.emit(_context.duplicate_context())
+
+
+func _on_runtime_context_changed(
+	adapter_id: StringName,
+	context: GFPlatformRuntimeContext
+) -> void:
+	if _adapter == null or adapter_id != _adapter.adapter_id or context == null:
+		return
+	_context = context.duplicate_context()
+	context_changed.emit(_context.duplicate_context())
+
+
+func _on_runtime_lifecycle_event(
+	adapter_id: StringName,
+	event: GFPlatformLifecycleEvent
+) -> void:
+	if _adapter == null or adapter_id != _adapter.adapter_id or event == null:
+		return
+	lifecycle_event_received.emit(event.duplicate_event())
 
 
 func _ensure_lifecycle_relay() -> void:
@@ -198,9 +258,7 @@ func _ensure_lifecycle_relay() -> void:
 
 
 func _attach_relay_to_root(relay_variant: Variant, attach_serial: int) -> void:
-	if not is_instance_valid(relay_variant):
-		return
-	if not relay_variant is Node:
+	if not is_instance_valid(relay_variant) or not relay_variant is Node:
 		return
 	var relay: Node = relay_variant
 	if attach_serial != _relay_attach_serial or relay != _relay:
