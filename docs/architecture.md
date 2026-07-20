@@ -56,14 +56,14 @@ Feature 的 `scripts/` 内可以继续使用 `models/`、`systems/`、`utilities
 4. GF 根据 `project.godot` 的 `gf/project/installers` 执行 `GameArchitectureInstaller`。
 5. `app/scripts/game_architecture_installer.gd` 声明项目 Model、System、Utility；GF 扩展拥有的模块由扩展 Installer 自动装配。
 6. BootRuntime 通过 `GFSceneUtility` 预热主菜单，并配置 Feature-Cohesive 的 `features/navigation/resources/scene_preload_map.tres`；场景图只预热最高频相邻路径，随后由 `SceneRouterSystem` 接管场景流转。
-7. BootRuntime 在不透明启动页背后提交 `GameplayVisualWarmup` 首绘，提前准备方块轮廓、母题和反馈画布的 2D pipeline；该节点在 GF 初始化完成后立即释放。
+7. BootRuntime 使用 `GFRenderWarmupUtility` 执行 `startup_render_warmup_manifest.tres`，统一加载并触碰首轮背景、转场、焦点和庆祝 Shader；随后在不透明启动页背后提交 `GameplayVisualWarmup` 首绘，补足 GF 通用资源预热无法表达的方块轮廓、母题和反馈画布自绘 pipeline。缓存和预绘节点在首帧提交后按组释放。
 
 Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_scene_to_file()` 等旁路。
 
 ## GF 模块约束
 
 - `init()` 只初始化模块自己的内部状态；`async_init()` 只执行该模块自己的异步准备；跨模块 Model、System、Utility 和 Architecture 必须在 `ready()` 获取。
-- 只有 `app/scripts/boot.gd` 作为 Composition Root 可以直接访问全局 `Gf`；其他业务脚本必须使用 GF Module 注入、`GFController` 或项目的 `GameUiController`。
+- 只有 `app/scripts/boot.gd` 与其线程加载的 `app/scripts/boot_runtime.gd` 组成应用 Composition Root，可以直接访问全局 `Gf`；其他业务脚本必须使用 GF Module 注入、`GFController` 或项目的 `GameUiController`。
 - Model 只表达可观察状态，不操作场景节点。
 - System 编排业务流程，通过明确的 GF 接口访问其他模块。
 - Utility 封装稳定的项目 Adapter；仅转发调用且没有增加约束的浅层 Utility 应删除。
@@ -123,7 +123,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 2. `ProjectContentCatalogUtility` 是唯一可以注册 source root、重建 `GFContentPackageUtility` 目录并同步 `GFResourceResolverUtility` 的项目 Module。
 3. `GameThemeCatalogUtility` 只读取 manifest metadata，建立 `GameThemeDescriptor` 索引；设置菜单枚举主题时不加载完整资源。
 4. 用户选择主题后，`GameThemeUtility` 才通过稳定资源键加载 `GameTheme` 或 `GameAudioTheme`，并用 `GFActivationTransaction` 完成验证、应用和失败回滚。
-5. 视觉 Profile 交给 `GFShaderParameterUtility`；声音银行通过 `GFAudioUtility.mount_audio_bank()` 获取令牌，切换或释放时明确卸载旧银行。
+5. 视觉 Profile 交给 `GFShaderParameterUtility`；`GameBoardFeedbackProfile` 把每个反馈等级的 `GFShakePreset` 与 `GFHapticPreset` 注入 `GameBoardFeedbackUtility`；声音银行通过 `GFAudioUtility.mount_audio_bank()` 获取令牌，切换或释放时明确卸载旧银行。
 6. `GameUiStyleUtility` 独占 `GameUiPalette`、静态 StyleBox、语义文本和焦点 Shader；`GameUiMotionUtility` 只拥有交互信号与 Tween。UI 节点声明语义角色，不保存从旧色板生成的样式对象。
 
 ### 素材评审

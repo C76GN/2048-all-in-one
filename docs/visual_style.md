@@ -44,7 +44,7 @@
    - 设置菜单只枚举描述符；完整主题在激活时按稳定键加载，并通过 `GFActivationTransaction` 切换。
    - 背景 uniform 参数来自 `features/themes/resources/themes/game/backgrounds/*_profile.tres` 的 `GFShaderParameterProfile`，由 `GFShaderParameterUtility` 校验并应用。
    - 方块轮廓与母题来自 `GameTheme.tile_visual_theme`；`TileVisualTheme` 按稳定家族 ID 返回 `TileVisualFamilyStyle`，主棋盘、图鉴与历史预览共享同一来源。
-   - 按钮焦点参数来自 `GameUiPalette.button_focus_shader_profile`；庆祝特效来自 `GameTheme.celebration_vfx_theme`，包含素材键、基础 Profile 和事件 preset。
+   - 按钮焦点参数来自 `GameUiPalette.button_focus_shader_profile`；棋盘冲击与手柄震动来自 `GameTheme.board_feedback_profile` 中成对的 `GFShakePreset` / `GFHapticPreset`；庆祝特效来自 `GameTheme.celebration_vfx_theme`，包含素材键、基础 Profile 和事件 preset。
    - 方块颜色来自 `features/themes/resources/themes/tile_schemes/*.tres`。
    - 棋盘色来自 `features/themes/resources/themes/board/*.tres`。
    - UI 色板来自 `GameUiPalette`，由 `GameThemeUtility` 应用到 `GameUiStyleUtility`。
@@ -143,7 +143,7 @@
 - 进度必须由真实启动流程驱动，至少覆盖 GF 初始化和主菜单预热，不使用纯假进度。
 - 预加载条件、超时和最短停留延迟统一使用 `GFAsyncWaitUtility`，不自行维护 deadline 或 `SceneTreeTimer`。
 - `GFScenePreloadMap` 只预热最高频相邻路径：启动期准备主菜单与模式选择，模式选择期再准备玩法场景；不得在原生首屏阶段并发预载所有低频菜单。
-- 首次玩法需要的方块轮廓、稀疏母题和常驻反馈画布必须在不透明加载页后完成首绘提交，避免第一次操作临时编译 2D pipeline。
+- 首轮背景、转场、焦点与庆祝 Shader 由 `GFRenderWarmupUtility` 按 `startup_render_warmup_manifest.tres` 统一触碰；方块轮廓、稀疏母题和常驻反馈画布仍必须在不透明加载页后完成真实首绘，避免第一次操作临时编译自绘 2D pipeline。
 - 启动画面停留时间要短，默认只用于避免启动期空白和突然跳转。
 - 动态加载页首帧必须直接承接原生静态构图，只在结束时使用约 `0.16s` 淡出收束；主场景仍由 GF 场景转场接管，二者不能产生黑帧或重复长动画。
 

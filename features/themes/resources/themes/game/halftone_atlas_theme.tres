@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GameTheme" load_steps=11 format=3]
+[gd_resource type="Resource" script_class="GameTheme" load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://features/themes/scripts/data/game_theme.gd" id="1_theme"]
 [ext_resource type="Resource" path="res://features/themes/resources/themes/board/default_board_theme.tres" id="2_board"]
@@ -10,6 +10,7 @@
 [ext_resource type="Resource" path="res://features/themes/resources/themes/game/backgrounds/halftone_atlas_background_profile.tres" id="9_background"]
 [ext_resource type="Resource" path="res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres" id="10_celebration"]
 [ext_resource type="Resource" path="res://features/themes/resources/themes/game/halftone_atlas_tile_visual_theme.tres" id="11_tile_visuals"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/feedback/halftone_atlas_board_feedback_profile.tres" id="12_feedback"]
 
 [resource]
 script = ExtResource("1_theme")
@@ -24,6 +25,7 @@ color_schemes = {
 tile_visual_theme = ExtResource("11_tile_visuals")
 ui_palette = ExtResource("5_palette")
 background_shader_profile = ExtResource("9_background")
+board_feedback_profile = ExtResource("12_feedback")
 celebration_vfx_theme = ExtResource("10_celebration")
 scene_transition_cover_effect = ExtResource("7_cover")
 scene_transition_reveal_effect = ExtResource("8_reveal")

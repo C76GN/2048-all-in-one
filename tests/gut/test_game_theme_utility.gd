@@ -51,6 +51,8 @@ func test_theme_catalog_discovers_and_validates_default_theme_pack() -> void:
 	assert_true(theme.ui_palette.button_focus_shader_profile.get_parameter_names().size() == 5, "按钮焦点 Profile 应声明 5 个静态样式参数。")
 	assert_true(is_instance_valid(theme.background_shader_profile), "主题应引用 GF 背景 Shader 参数 Profile。")
 	assert_true(theme.background_shader_profile.get_parameter_names().size() == 32, "背景 Profile 应完整声明当前 shader 的 32 个主题与操作反馈参数。")
+	assert_true(is_instance_valid(theme.board_feedback_profile), "主题应引用棋盘反馈 Profile。")
+	assert_true(theme.board_feedback_profile.get_validation_report().is_ok(), "棋盘反馈 Profile 应完整声明 GF Shake 与 Haptic 预设。")
 	assert_true(is_instance_valid(theme.celebration_vfx_theme), "主题应引用庆祝 VFX 主题资源。")
 	assert_true(theme.celebration_vfx_theme.get_validation_report().is_ok(), "庆祝 VFX 主题应通过 GFValidationReport。")
 	assert_true(theme.celebration_vfx_theme.shader_parameter_profile.get_parameter_names().size() == 11, "庆祝 VFX Profile 应声明 11 个基础视觉参数。")
@@ -273,6 +275,10 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 	var setup: Dictionary = await _create_theme_architecture()
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var theme_utility: GameThemeUtility = _get_theme_utility(setup)
+	var board_feedback_value: Variant = setup.get("board_feedback")
+	var board_feedback: GameBoardFeedbackUtility = null
+	if board_feedback_value is GameBoardFeedbackUtility:
+		board_feedback = board_feedback_value
 	var celebration_value: Variant = setup.get("celebration_vfx")
 	var celebration_vfx: GameCelebrationVfxUtility = null
 	if celebration_value is GameCelebrationVfxUtility:
@@ -300,6 +306,12 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 	assert_true(
 		resolved_default_scheme == _CLASSIC_TILE_THEME,
 		"当前主题应覆盖默认方块色阶槽位。"
+	)
+	assert_true(
+		is_instance_valid(board_feedback)
+		and board_feedback.get_profile()
+			== theme_utility.get_current_visual_theme().board_feedback_profile,
+		"GameThemeUtility 应把当前棋盘反馈 Profile 注入运行时 Utility。"
 	)
 	assert_true(
 		is_instance_valid(celebration_vfx) and celebration_vfx.get_theme() == theme_utility.get_current_visual_theme().celebration_vfx_theme,
@@ -446,6 +458,9 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	var audio: GFAudioUtility = GFAudioUtility.new()
 	var style: GameUiStyleUtility = GameUiStyleUtility.new()
 	var motion: GameUiMotionUtility = GameUiMotionUtility.new()
+	var shake: GFShakeUtility = GFShakeUtility.new()
+	var haptic: GFHapticUtility = GFHapticUtility.new()
+	var board_feedback: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
 	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
 	var theme_catalog: GameThemeCatalogUtility = GameThemeCatalogUtility.new()
 	var theme_utility: GameThemeUtility = GameThemeUtility.new()
@@ -468,6 +483,9 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	await architecture.register_utility(GFSignalUtility, signal_utility)
 	await architecture.register_utility(GameUiStyleUtility, style)
 	await architecture.register_utility(GameUiMotionUtility, motion)
+	await architecture.register_utility(GFShakeUtility, shake)
+	await architecture.register_utility(GFHapticUtility, haptic)
+	await architecture.register_utility(GameBoardFeedbackUtility, board_feedback)
 	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.register_utility(GameThemeCatalogUtility, theme_catalog)
 	await architecture.register_utility(GameThemeUtility, theme_utility)
@@ -490,6 +508,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 		"settings": settings,
 		"audio": audio,
 		"style": style,
+		"board_feedback": board_feedback,
 		"celebration_vfx": celebration_vfx,
 		"theme_catalog": theme_catalog,
 		"theme_utility": theme_utility,

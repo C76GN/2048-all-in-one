@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="GFRenderWarmupManifest" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/display/gf_render_warmup_manifest.gd" id="1_manifest"]
+
+[resource]
+script = ExtResource("1_manifest")
+manifest_id = &"startup.gameplay_visuals"
+entries = Array[Dictionary]([{
+"kind": &"shader",
+"metadata": {
+"role": &"background"
+},
+"resource": null,
+"resource_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+"type_hint": "Shader"
+}, {
+"kind": &"shader",
+"metadata": {
+"role": &"scene_transition"
+},
+"resource": null,
+"resource_path": "res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader",
+"type_hint": "Shader"
+}, {
+"kind": &"shader",
+"metadata": {
+"role": &"ui_focus"
+},
+"resource": null,
+"resource_path": "res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader",
+"type_hint": "Shader"
+}, {
+"kind": &"shader",
+"metadata": {
+"role": &"celebration"
+},
+"resource": null,
+"resource_path": "res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader",
+"type_hint": "Shader"
+}])
+metadata = {
+"owner": &"app.boot_runtime",
+"purpose": &"first_interaction"
+}

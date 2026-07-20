@@ -13,6 +13,10 @@ const PLATFORM_SMOKE_SCENE_PATH: String = "res://features/platform_runtime/scene
 const _PLATFORM_SMOKE_FEATURE: String = "platform_smoke"
 const _SCENE_PRELOAD_MAP: GFScenePreloadMap = preload("res://features/navigation/resources/scene_preload_map.tres")
 const _GAMEPLAY_VISUAL_WARMUP_SCRIPT: GDScript = preload("res://features/gameplay/scripts/ui/gameplay_visual_warmup.gd")
+const _STARTUP_RENDER_WARMUP_MANIFEST: GFRenderWarmupManifest = preload(
+	"res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres"
+)
+const _STARTUP_RENDER_CACHE_GROUP: StringName = &"startup.gameplay_visuals"
 const _MIN_SPLASH_SECONDS: float = 0.30
 const _PRELOAD_TIMEOUT_SECONDS: float = 8.0
 const _FINISH_DELAY_SECONDS: float = 0.04
@@ -92,6 +96,7 @@ func _prime_gameplay_visuals() -> void:
 	_visual_warmup.name = "GameplayVisualWarmup"
 	add_child(_visual_warmup)
 	_visual_warmup.prime()
+	_prime_render_resources(_visual_warmup)
 	await RenderingServer.frame_post_draw
 	_release_visual_warmup()
 
@@ -215,9 +220,42 @@ func _on_scene_preload_failed(path: String) -> void:
 
 
 func _release_visual_warmup() -> void:
+	var render_warmup: GFRenderWarmupUtility = _get_render_warmup_utility()
+	if is_instance_valid(render_warmup):
+		render_warmup.release_cached_resources(_STARTUP_RENDER_CACHE_GROUP)
+		render_warmup.release_temporary_render_nodes()
 	if is_instance_valid(_visual_warmup):
 		_visual_warmup.queue_free()
 	_visual_warmup = null
+
+
+func _prime_render_resources(warmup_root: Node) -> void:
+	var render_warmup: GFRenderWarmupUtility = _get_render_warmup_utility()
+	if not is_instance_valid(render_warmup):
+		push_error("[Boot] 缺少 GFRenderWarmupUtility，无法执行启动渲染预热。")
+		return
+
+	var manifest: GFRenderWarmupManifest = render_warmup.build_manifest_from_tree(
+		warmup_root,
+		{
+			"manifest_id": _STARTUP_RENDER_WARMUP_MANIFEST.manifest_id,
+			"include_materials": true,
+			"include_meshes": true,
+			"include_textures": true,
+		}
+	)
+	var _appended_entries: int = manifest.append_manifest(_STARTUP_RENDER_WARMUP_MANIFEST)
+	var summary: Dictionary = render_warmup.warmup_manifest_now(
+		manifest,
+		{
+			"touch_mode": GFRenderWarmupUtility.TouchMode.RID_ONLY,
+			"keep_cached": true,
+			"cache_group": _STARTUP_RENDER_CACHE_GROUP,
+			"max_cached_resources": 32,
+		}
+	)
+	if not GFVariantData.get_option_bool(summary, "ok", false):
+		push_error("[Boot] 启动渲染预热存在失败条目：%s" % summary)
 
 
 func _play_startup_outro() -> void:
@@ -253,6 +291,14 @@ func _get_scene_utility() -> GFSceneUtility:
 	var utility_value: Object = Gf.get_utility(GFSceneUtility)
 	if utility_value is GFSceneUtility:
 		var utility: GFSceneUtility = utility_value
+		return utility
+	return null
+
+
+func _get_render_warmup_utility() -> GFRenderWarmupUtility:
+	var utility_value: Object = Gf.get_utility(GFRenderWarmupUtility)
+	if utility_value is GFRenderWarmupUtility:
+		var utility: GFRenderWarmupUtility = utility_value
 		return utility
 	return null
 

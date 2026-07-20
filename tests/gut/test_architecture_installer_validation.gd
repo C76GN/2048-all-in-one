@@ -5,6 +5,10 @@ extends GutTest
 # --- 常量 ---
 
 const PROJECT_INSTALLER_PATH: String = "res://app/scripts/game_architecture_installer.gd"
+const BOOT_RUNTIME_PATH: String = "res://app/scripts/boot_runtime.gd"
+const STARTUP_RENDER_WARMUP_MANIFEST: GFRenderWarmupManifest = preload(
+	"res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres"
+)
 const GAME_BOARD_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_board_controller.gd"
 const GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_play_controller.gd"
 const GAME_PLAY_SCENE_PATH: String = "res://features/gameplay/scenes/game/game_play.tscn"
@@ -69,6 +73,16 @@ const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
 		"symbol": "GFTurnFlowSystem",
 		"extension": "gf.turn_based",
 		"owner": "addons/gf/extensions/turn_based/extension.gd",
+	},
+	{
+		"symbol": "GFShakeUtility",
+		"extension": "gf.feedback",
+		"owner": "addons/gf/extensions/feedback/extension.gd",
+	},
+	{
+		"symbol": "GFHapticUtility",
+		"extension": "gf.feedback",
+		"owner": "addons/gf/extensions/feedback/extension.gd",
 	},
 ]
 
@@ -175,6 +189,34 @@ func test_project_installer_binds_pause_adapter_after_gf_time_provider() -> void
 		time_position < pause_position,
 		"GFTimeUtility 必须先于同步逻辑时间的 GamePauseUtility 注册。"
 	)
+
+
+func test_startup_render_warmup_uses_gf_manifest_and_utility() -> void:
+	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var boot_source: String = _read_text(BOOT_RUNTIME_PATH)
+
+	assert_true(
+		installer_source.contains("bind_utility(GFRenderWarmupUtility)"),
+		"项目 Installer 应注册 GFRenderWarmupUtility。"
+	)
+	assert_true(
+		boot_source.contains("build_manifest_from_tree("),
+		"启动链应让 GF 收集预热节点树中的渲染资源。"
+	)
+	assert_true(
+		boot_source.contains("warmup_manifest_now("),
+		"启动链应通过 GFRenderWarmupUtility 执行清单预热。"
+	)
+	assert_true(
+		STARTUP_RENDER_WARMUP_MANIFEST.get_entry_count() == 4,
+		"启动渲染清单应覆盖背景、转场、焦点和庆祝四类首轮 Shader。"
+	)
+	for entry: Dictionary in STARTUP_RENDER_WARMUP_MANIFEST.get_entries():
+		var resource_path: String = GFVariantData.get_option_string(entry, "resource_path")
+		assert_true(
+			ResourceLoader.exists(resource_path, "Shader"),
+			"启动渲染清单条目必须解析为 Shader：%s" % resource_path
+		)
 
 
 func test_gameplay_pause_state_has_one_writable_adapter() -> void:

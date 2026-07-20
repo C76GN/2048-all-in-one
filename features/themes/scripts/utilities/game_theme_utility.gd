@@ -26,6 +26,7 @@ var _settings: GFSettingsUtility = null
 var _audio: GFAudioUtility = null
 var _style: GameUiStyleUtility = null
 var _motion: GameUiMotionUtility = null
+var _board_feedback: GameBoardFeedbackUtility = null
 var _celebration_vfx: GameCelebrationVfxUtility = null
 var _theme_catalog: GameThemeCatalogUtility = null
 var _shader_parameters: GFShaderParameterUtility = null
@@ -50,6 +51,7 @@ func init() -> void:
 
 func get_required_utilities() -> Array[Script]:
 	return [
+		GameBoardFeedbackUtility,
 		GameCelebrationVfxUtility,
 		GameThemeCatalogUtility,
 		GameUiStyleUtility,
@@ -66,6 +68,7 @@ func ready() -> void:
 	_audio = _get_audio_utility()
 	_style = _get_style_utility()
 	_motion = _get_motion_utility()
+	_board_feedback = _get_board_feedback_utility()
 	_celebration_vfx = _get_celebration_vfx_utility()
 	_theme_catalog = _get_theme_catalog_utility()
 	_shader_parameters = _get_shader_parameter_utility()
@@ -92,6 +95,7 @@ func dispose() -> void:
 	_audio = null
 	_style = null
 	_motion = null
+	_board_feedback = null
 	_celebration_vfx = null
 	_theme_catalog = null
 	_shader_parameters = null
@@ -106,6 +110,7 @@ func release_dependencies() -> void:
 	_audio = null
 	_style = null
 	_motion = null
+	_board_feedback = null
 	_celebration_vfx = null
 	_theme_catalog = null
 	_shader_parameters = null
@@ -407,9 +412,15 @@ func _transaction_validate_visual_theme(
 func _transaction_apply_visual_theme(_context: Dictionary, theme: GameTheme) -> bool:
 	if not is_instance_valid(theme):
 		return true
-	if not is_instance_valid(_style) or not is_instance_valid(_celebration_vfx):
+	if (
+		not is_instance_valid(_style)
+		or not is_instance_valid(_board_feedback)
+		or not is_instance_valid(_celebration_vfx)
+	):
 		return false
 	_style.apply_palette(theme.ui_palette)
+	if not _board_feedback.apply_profile(theme.board_feedback_profile):
+		return false
 	return _celebration_vfx.apply_theme(theme.celebration_vfx_theme)
 
 
@@ -657,6 +668,13 @@ func _get_style_utility() -> GameUiStyleUtility:
 	if utility_value is GameUiStyleUtility:
 		var style: GameUiStyleUtility = utility_value
 		return style
+	return null
+
+
+func _get_board_feedback_utility() -> GameBoardFeedbackUtility:
+	var utility_value: Object = get_utility(GameBoardFeedbackUtility)
+	if utility_value is GameBoardFeedbackUtility:
+		return utility_value
 	return null
 
 

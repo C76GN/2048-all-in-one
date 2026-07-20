@@ -14,6 +14,7 @@ extends Resource
 @export var tile_visual_theme: TileVisualTheme
 @export var ui_palette: GameUiPalette
 @export var background_shader_profile: GFShaderParameterProfile
+@export var board_feedback_profile: GameBoardFeedbackProfile
 @export var celebration_vfx_theme: GameCelebrationVfxTheme
 @export var scene_transition_cover_effect: GFScreenTransitionEffect
 @export var scene_transition_reveal_effect: GFScreenTransitionEffect
@@ -72,6 +73,18 @@ func get_validation_report() -> GFValidationReport:
 			&"empty_background_shader_profile",
 			"background_shader_profile 未声明任何参数。",
 			&"background_shader_profile"
+		)
+	if not is_instance_valid(board_feedback_profile):
+		_add_error(
+			report,
+			&"missing_board_feedback_profile",
+			"board_feedback_profile 未配置。",
+			&"board_feedback_profile"
+		)
+	else:
+		var _feedback_report: RefCounted = report.merge(
+			board_feedback_profile.get_validation_report(),
+			false
 		)
 	if not is_instance_valid(celebration_vfx_theme):
 		_add_error(

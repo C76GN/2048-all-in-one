@@ -24,11 +24,11 @@
 - Godot 编辑器中的 GDScript warning 不能只靠 GUT 判断。修改 `.gd` 后，尤其涉及 Variant、返回值、Signal 连接、`append()`、`erase()`、局部变量命名或 tool 脚本时，应运行 `tools/check_gdscript_lsp_diagnostics.ps1`。
 - 不要提交临时分析、调试报告、AI 会话记录或一次性生成文件。
 - 不要把框架限制绕到业务层长期堆积；如果确认为 gf 能力缺口，应在实现中保留清晰边界，并在回复中说明反哺建议。
-- GF Module 的 `init()` / `async_init()` 不得直接或经 helper 获取跨模块依赖；统一在 `ready()` 解析。除 `app/scripts/boot.gd` 外，项目脚本不得直接访问全局 `Gf` 或 `GFAutoload`。
+- GF Module 的 `init()` / `async_init()` 不得直接或经 helper 获取跨模块依赖；统一在 `ready()` 解析。除组成应用 Composition Root 的 `app/scripts/boot.gd` 与 `app/scripts/boot_runtime.gd` 外，项目脚本不得直接访问全局 `Gf` 或 `GFAutoload`。
 
 ## 架构速览
 
-- 启动入口：`app/scenes/boot.tscn` 挂载 `app/scripts/boot.gd`，启用 GF 根架构的严格依赖查询与声明校验，调用 `await Gf.init()` 后交给 `SceneRouterSystem` 切到主菜单。
+- 启动入口：`app/scenes/boot.tscn` 挂载极轻 `app/scripts/boot.gd`，线程加载 `app/scripts/boot_runtime.gd`；后者启用 GF 根架构的严格依赖查询与声明校验，调用 `await Gf.init()`、执行 `GFRenderWarmupUtility` 清单预热后交给 `SceneRouterSystem` 切到主菜单。
 - GF 上游治理：`addons/gf/**` 是只读 vendor 快照。框架缺陷必须在 `C76GN/gf-framework` 先建 issue，再从干净 worktree 的非 `main` 分支提交 PR；合并后才允许更新项目 vendor lock，禁止把 GF 本体修改直接提交到任一仓库主线。
 - gf 装配入口：`app/scripts/game_architecture_installer.gd` 注册项目 Model、System、Utility，并通过 Project Settings 的 `gf/project/installers` 接入。
 - Feature：`features/<feature_id>/` 内聚脚本、场景、资源、文档和局部工具；GF 层目录只在所属 Feature 内出现。

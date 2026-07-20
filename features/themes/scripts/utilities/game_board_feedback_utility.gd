@@ -1,7 +1,7 @@
 ## GameBoardFeedbackUtility: 编排方块、棋盘与背景的统一操作反馈。
 ##
 ## 表现数据交给常驻 BoardFeedbackCanvas 批量绘制；本 Utility 只负责编排 GF 震动、
-## 棋盘方向形变和主题背景 uniform，避免在每次操作时构建临时场景节点。
+## GF 触觉、棋盘方向形变和主题背景 uniform，避免在每次操作时构建临时场景节点。
 class_name GameBoardFeedbackUtility
 extends "res://addons/gf/kernel/base/gf_utility.gd"
 
@@ -23,35 +23,29 @@ const _SPAWN_COLOR: Color = Color(0.36078432, 0.7176471, 0.7254902, 1.0)
 const _TRANSFORM_COLOR: Color = Color(0.827451, 0.38431373, 0.29411766, 1.0)
 const _DEFAULT_COLOR: Color = Color(0.19215687, 0.2, 0.21568628, 1.0)
 const _SHAKE_CHANNEL: StringName = &"board"
+const _HAPTIC_CHANNEL: StringName = &"board"
 const _BASE_POSITION_META: StringName = &"feedback_base_position"
 
 
 # --- 私有变量 ---
 
 var _shake_utility: GFShakeUtility = null
+var _haptic_utility: GFHapticUtility = null
 var _shader_parameter_utility: GFShaderParameterUtility = null
-var _shake_presets: Dictionary = {}
+var _profile: GameBoardFeedbackProfile = null
 var _root_tweens: Dictionary = {}
 var _background_tweens: Dictionary = {}
 
 
 # --- GF 生命周期方法 ---
 
-func init() -> void:
-	_shake_presets = {
-		FeedbackTier.MOVE: _make_shake_preset(0.12, 0.46, 24.0, 0.08),
-		FeedbackTier.MERGE: _make_shake_preset(0.16, 0.92, 28.0, 0.16),
-		FeedbackTier.HIGH_MERGE: _make_shake_preset(0.20, 1.44, 31.0, 0.24),
-		FeedbackTier.RECORD: _make_shake_preset(0.24, 1.90, 34.0, 0.34),
-	}
-
-
 func get_required_utilities() -> Array[Script]:
-	return [GFShakeUtility, GFShaderParameterUtility]
+	return [GFShakeUtility, GFHapticUtility, GFShaderParameterUtility]
 
 
 func ready() -> void:
 	_shake_utility = _get_shake_utility()
+	_haptic_utility = _get_haptic_utility()
 	_shader_parameter_utility = _get_shader_parameter_utility()
 
 
@@ -59,11 +53,24 @@ func dispose() -> void:
 	_kill_tweens(_root_tweens)
 	_kill_tweens(_background_tweens)
 	_shake_utility = null
+	_haptic_utility = null
 	_shader_parameter_utility = null
-	_shake_presets.clear()
+	_profile = null
 
 
 # --- 公共方法 ---
+
+## 应用当前视觉主题提供的棋盘反馈 Profile。
+## @param profile: 已通过资源校验的主题反馈 Profile。
+func apply_profile(profile: GameBoardFeedbackProfile) -> bool:
+	if profile == null or not profile.get_validation_report().is_ok():
+		return false
+	_profile = profile
+	return true
+
+
+func get_profile() -> GameBoardFeedbackProfile:
+	return _profile
 
 ## 根据一次有效操作的结果返回稳定反馈等级。
 ## @param merge_count: 本回合发生的合并次数。
@@ -114,6 +121,7 @@ func play_turn_feedback(
 	_play_root_impulse(root, direction_vector, tier)
 	_play_background_impulse(background, direction_vector, tier)
 	_play_turn_shake(tier, direction)
+	_play_turn_haptic(tier, direction)
 	return canvas.play_turn_impact(
 		board_rect,
 		direction_vector,
@@ -336,6 +344,26 @@ func _play_turn_shake(tier: FeedbackTier, direction: Vector2i) -> void:
 	)
 
 
+func _play_turn_haptic(tier: FeedbackTier, direction: Vector2i) -> void:
+	var haptic: GFHapticUtility = _get_cached_haptic_utility()
+	if not is_instance_valid(haptic):
+		return
+	var preset: GFHapticPreset = _get_haptic_preset(tier)
+	if preset == null:
+		return
+	var _stopped_count: int = haptic.stop_channel(_HAPTIC_CHANNEL)
+	var _haptic_id: int = haptic.play_haptic(
+		_HAPTIC_CHANNEL,
+		preset,
+		-1,
+		1.0,
+		{
+			"feedback_tier": tier,
+			"direction": direction,
+		}
+	)
+
+
 func _resolve_feedback_color(feedback_type: StringName, source_color: Color) -> Color:
 	var semantic_color: Color = _get_feedback_color(feedback_type)
 	if source_color.a <= 0.0:
@@ -437,6 +465,13 @@ func _get_cached_shake_utility() -> GFShakeUtility:
 	return _shake_utility
 
 
+func _get_cached_haptic_utility() -> GFHapticUtility:
+	if is_instance_valid(_haptic_utility):
+		return _haptic_utility
+	_haptic_utility = _get_haptic_utility()
+	return _haptic_utility
+
+
 func _get_cached_shader_parameter_utility() -> GFShaderParameterUtility:
 	if is_instance_valid(_shader_parameter_utility):
 		return _shader_parameter_utility
@@ -451,6 +486,13 @@ func _get_shake_utility() -> GFShakeUtility:
 	return null
 
 
+func _get_haptic_utility() -> GFHapticUtility:
+	var utility_value: Object = get_utility(GFHapticUtility)
+	if utility_value is GFHapticUtility:
+		return utility_value
+	return null
+
+
 func _get_shader_parameter_utility() -> GFShaderParameterUtility:
 	var utility_value: Object = get_utility(GFShaderParameterUtility)
 	if utility_value is GFShaderParameterUtility:
@@ -459,26 +501,27 @@ func _get_shader_parameter_utility() -> GFShaderParameterUtility:
 
 
 func _get_shake_preset(tier: FeedbackTier) -> GFShakePreset:
-	var preset_value: Variant = _shake_presets.get(tier)
-	if preset_value is GFShakePreset:
-		return preset_value
-	return null
+	if _profile == null:
+		return null
+	return _profile.get_shake_preset(_get_tier_id(tier))
 
 
-func _make_shake_preset(
-	duration: float,
-	amplitude: float,
-	frequency: float,
-	rotation_degrees: float
-) -> GFShakePreset:
-	var preset: GFShakePreset = GFShakePreset.new()
-	preset.duration_seconds = duration
-	preset.amplitude = amplitude
-	preset.frequency = frequency
-	preset.waveform = GFShakePreset.Waveform.NOISE
-	preset.position_axis = Vector3(1.0, 0.55, 0.0)
-	preset.rotation_axis_degrees = Vector3(0.0, 0.0, rotation_degrees)
-	return preset
+func _get_haptic_preset(tier: FeedbackTier) -> GFHapticPreset:
+	if _profile == null:
+		return null
+	return _profile.get_haptic_preset(_get_tier_id(tier))
+
+
+func _get_tier_id(tier: FeedbackTier) -> StringName:
+	match tier:
+		FeedbackTier.MERGE:
+			return GameBoardFeedbackProfile.TIER_MERGE
+		FeedbackTier.HIGH_MERGE:
+			return GameBoardFeedbackProfile.TIER_HIGH_MERGE
+		FeedbackTier.RECORD:
+			return GameBoardFeedbackProfile.TIER_RECORD
+		_:
+			return GameBoardFeedbackProfile.TIER_MOVE
 
 
 func _get_shader_apply_options() -> Dictionary:

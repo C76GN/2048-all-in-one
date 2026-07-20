@@ -98,6 +98,7 @@ func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_utility(GFLogUtility).from_instance(_create_log_utility()).as_singleton()
 	await binder.bind_utility(GFBuildInfoUtility).as_singleton()
 	await binder.bind_utility(GFSceneUtility).as_singleton()
+	await binder.bind_utility(GFRenderWarmupUtility).as_singleton()
 	await binder.bind_utility(GFScreenTransitionUtility).as_singleton()
 	await binder.bind_utility(GFUIUtility).as_singleton()
 	await binder.bind_utility(_GAME_UI_ROUTER_UTILITY_SCRIPT).with_alias(GFUIRouterUtility).as_singleton()

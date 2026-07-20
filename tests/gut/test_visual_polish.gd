@@ -30,6 +30,9 @@ const _GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/cont
 const _TEST_TOOL_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/test_tool_utility.gd"
 const _HALFTONE_UI_PALETTE: GameUiPalette = preload("res://features/themes/resources/themes/game/halftone_atlas_ui_palette.tres")
 const _HALFTONE_CELEBRATION_VFX_THEME: GameCelebrationVfxTheme = preload("res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres")
+const _HALFTONE_BOARD_FEEDBACK_PROFILE: GameBoardFeedbackProfile = preload(
+	"res://features/themes/resources/themes/game/feedback/halftone_atlas_board_feedback_profile.tres"
+)
 const _HALFTONE_TILE_VISUAL_THEME: TileVisualTheme = preload("res://features/themes/resources/themes/game/halftone_atlas_tile_visual_theme.tres")
 const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres")
 const _FIBONACCI_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/fibonacci_tile_theme.tres")
@@ -1151,12 +1154,18 @@ func test_board_feedback_utility_reuses_persistent_canvas_without_child_growth()
 func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shake_utility: GFShakeUtility = GFShakeUtility.new()
+	var haptic_utility: GFHapticUtility = GFHapticUtility.new()
 	var shader_parameter_utility: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var feedback_utility: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
 	await architecture.register_utility(GFShakeUtility, shake_utility)
+	await architecture.register_utility(GFHapticUtility, haptic_utility)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameter_utility)
 	await architecture.register_utility(GameBoardFeedbackUtility, feedback_utility)
 	await architecture.init()
+	assert_true(
+		feedback_utility.apply_profile(_HALFTONE_BOARD_FEEDBACK_PROFILE),
+		"棋盘反馈 Utility 应接受主题化 GF 反馈 Profile。"
+	)
 
 	var feedback_root: Node2D = Node2D.new()
 	feedback_root.set_meta(&"feedback_base_position", Vector2(200.0, 200.0))
@@ -1187,6 +1196,10 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	assert_true(
 		shake_utility.get_active_shake_count(&"board") == 1,
 		"整批操作反馈应通过 GFShakeUtility 播放一次 board channel 反馈。"
+	)
+	assert_true(
+		haptic_utility.get_active_haptic_count(&"board") == 1,
+		"整批操作反馈应通过 GFHapticUtility 播放一次 board channel 反馈。"
 	)
 	var energy_value: Variant = material.get_shader_parameter("interaction_energy")
 	assert_true(energy_value is float, "背景操作能量 uniform 应保持 float 类型。")

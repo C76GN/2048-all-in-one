@@ -1,0 +1,80 @@
+[gd_resource type="Resource" script_class="GameBoardFeedbackProfile" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_board_feedback_profile.gd" id="1_profile"]
+[ext_resource type="Script" path="res://addons/gf/extensions/feedback/resources/gf_shake_preset.gd" id="2_shake"]
+[ext_resource type="Script" path="res://addons/gf/extensions/feedback/resources/gf_haptic_preset.gd" id="3_haptic"]
+
+[sub_resource type="Resource" id="Resource_move_shake"]
+script = ExtResource("2_shake")
+duration_seconds = 0.12
+amplitude = 0.46
+frequency = 24.0
+waveform = 2
+position_axis = Vector3(1, 0.55, 0)
+rotation_axis_degrees = Vector3(0, 0, 0.08)
+
+[sub_resource type="Resource" id="Resource_merge_shake"]
+script = ExtResource("2_shake")
+duration_seconds = 0.16
+amplitude = 0.92
+frequency = 28.0
+waveform = 2
+position_axis = Vector3(1, 0.55, 0)
+rotation_axis_degrees = Vector3(0, 0, 0.16)
+
+[sub_resource type="Resource" id="Resource_high_merge_shake"]
+script = ExtResource("2_shake")
+duration_seconds = 0.2
+amplitude = 1.44
+frequency = 31.0
+waveform = 2
+position_axis = Vector3(1, 0.55, 0)
+rotation_axis_degrees = Vector3(0, 0, 0.24)
+
+[sub_resource type="Resource" id="Resource_record_shake"]
+script = ExtResource("2_shake")
+duration_seconds = 0.24
+amplitude = 1.9
+frequency = 34.0
+waveform = 2
+position_axis = Vector3(1, 0.55, 0)
+rotation_axis_degrees = Vector3(0, 0, 0.34)
+
+[sub_resource type="Resource" id="Resource_move_haptic"]
+script = ExtResource("3_haptic")
+duration_seconds = 0.045
+weak_magnitude = 0.08
+strong_magnitude = 0.02
+intensity = 0.7
+
+[sub_resource type="Resource" id="Resource_merge_haptic"]
+script = ExtResource("3_haptic")
+duration_seconds = 0.075
+weak_magnitude = 0.18
+strong_magnitude = 0.28
+intensity = 1.0
+
+[sub_resource type="Resource" id="Resource_high_merge_haptic"]
+script = ExtResource("3_haptic")
+duration_seconds = 0.11
+weak_magnitude = 0.3
+strong_magnitude = 0.55
+intensity = 1.0
+
+[sub_resource type="Resource" id="Resource_record_haptic"]
+script = ExtResource("3_haptic")
+duration_seconds = 0.18
+weak_magnitude = 0.5
+strong_magnitude = 0.8
+intensity = 1.0
+
+[resource]
+script = ExtResource("1_profile")
+move_shake = SubResource("Resource_move_shake")
+merge_shake = SubResource("Resource_merge_shake")
+high_merge_shake = SubResource("Resource_high_merge_shake")
+record_shake = SubResource("Resource_record_shake")
+move_haptic = SubResource("Resource_move_haptic")
+merge_haptic = SubResource("Resource_merge_haptic")
+high_merge_haptic = SubResource("Resource_high_merge_haptic")
+record_haptic = SubResource("Resource_record_haptic")
