@@ -18,6 +18,11 @@ config/name="2048-all-in-one"
 run/main_scene="res://app/scenes/boot.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
+boot_splash/bg_color=Color(0.9137255, 0.90588236, 0.8745098, 1)
+boot_splash/image="res://features/asset_library/resources/textures/branding/printworks_boot_splash.png"
+boot_splash/stretch_mode=4
+boot_splash/use_filter=true
+boot_splash/minimum_display_time=0
 
 [autoload]
 

@@ -36,6 +36,8 @@ powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1
 
 该命令校验 `addons/gf/` 的版本、文件数和内容哈希是否与 `.gf/vendor.lock.json` 一致。更新 GF 后必须同步锁文件；不要把 package lockfile 和 vendor lockfile 混为一谈。
 
+2026-07-20 的本机复核中，Steam Godot 4.7 因 SSL 模块初始化失败而无法连接远程 registry，`status --json` 因此报告 1 个环境 issue；同一工作树的离线 vendor 校验通过，版本为 `8.1.1`、文件数为 `1596`，哈希与 commit 均和 `.gf/vendor.lock.json` 一致。远程 registry 可用性与本地 vendored 源码完整性必须分别报告。
+
 ## Godot / GUT 运行策略
 
 ### GF 项目布局
@@ -113,23 +115,23 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 ### 最近一次安全 GUT 验证
 
-验证时间：2026-07-19。
+验证时间：2026-07-20。
 
 命令：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 420 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 900 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
 结果：
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
 - GF Framework：官方稳定 tag `8.1.1`，commit `c0ce09e53edf30c00ba79df27fb9a7625b9f518d`。
-- GUT：262 个测试全部通过。
-- 当前完整套件：`tests/gut/` 下 33 个顶层测试脚本、262 个 `test_` 用例。
-- Boot 已启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束，开发期可选诊断只能通过当前架构的 local lookup 获取。GF 依赖诊断同时进入支持报告工具快照。弹层退出统一验证 `GFUIRouterUtility` 路由所有权，System 不再直接清空 `GFUIUtility` 栈。运行时系统时间与随机源受路径扫描门禁约束；开发构建中的场景耗时复用 `GFOperationDiagnosticsUtility` 的操作起始 tick。
+- GUT：285 个测试全部通过，共 1813 个断言。
+- 当前完整套件：`tests/gut/` 下 33 个顶层测试脚本、285 个 `test_` 用例。
+- Boot 首帧壳与 Godot 原生启动图共用同一构图；正式 `BootRuntime` 由线程加载，随后通过 `GFAsyncProgress`、`GFScenePreloadMap` 和 `GFSceneUtility` 预热稳定场景流与首轮游戏视觉资源。Boot 继续启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束。高频进度写入由 `GameSaveGraphUtility` 合并后调用 GFStorage 异步接口，关键完成事务仍同步落盘。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 288`、`Resources = 128`、RID 类型数 `= 3`，上限为 TextureStorage 10、ShapedText 2、Font 3。局部棋盘编辑器 Context 与语义 UI Style Utility 使项目运行时 `class_name` 数量从 168 增至 170；同一完整套件的对象、资源和 RID 计数均未增长。基线同时绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 301`、`Resources = 129`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。本轮 5 个明确的运行时 `class_name` 使项目类集合从 176 增至 181；三次完整运行得到相同计数，剔除重型素材评审后的产品测试子集保持在旧上限内，评审记录也通过 `CACHE_MODE_IGNORE` 与缓存断言验证。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
@@ -150,7 +152,17 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-19。结果：扫描 210 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+最近一次 LSP 诊断时间：2026-07-20。结果：扫描 223 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+
+## 视觉与操作回放
+
+真实场景流截图由项目内回放工具生成，不使用手工拼接的测试节点：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -ScriptPath res://tools/capture_visual_review.gd -ExpectedOutputPattern "[VisualReview] slowest_command_usec=" -TimeoutSeconds 180
+```
+
+输出位于忽略提交的 `build/visual_review/`，覆盖主菜单、场景遮罩、模式选择、主题化下拉菜单、稳定游戏帧和实际 `MoveCommand` 合并帧。最近一次 1280x720 回放中，最慢命令样本为 `6165 us`；截图确认方块身份图案被裁切在安全区，合并反馈包含冲击环、碎片和多方向分数飘字。
 
 ## Web / 微信小游戏准备预检
 

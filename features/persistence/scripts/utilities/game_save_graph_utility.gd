@@ -6,6 +6,12 @@ class_name GameSaveGraphUtility
 extends GFUtility
 
 
+# --- 信号 ---
+
+signal profile_save_queued()
+signal profile_save_completed(error: Error)
+
+
 # --- 常量 ---
 
 const PROFILE_FILE_NAME: String = "player_data.save"
@@ -22,6 +28,8 @@ const _RECOVERY_DIRECTORY: String = "recovery"
 const _STORAGE_METADATA_KEY: String = "_meta"
 const _PROJECT_VERSION_SETTING: String = "application/config/version"
 const _LOG_TAG: String = "GameSaveGraphUtility"
+const _ASYNC_SAVE_DEBOUNCE_SECONDS: float = 0.16
+const _ASYNC_SAVE_RETRY_SECONDS: float = 2.0
 
 
 # --- 私有变量 ---
@@ -35,11 +43,16 @@ var _log: GFLogUtility = null
 var _loaded: bool = false
 var _last_load_result: Dictionary = {}
 var _last_save_result: Dictionary = {}
+var _profile_save_pending: bool = false
+var _profile_save_in_flight: bool = false
+var _profile_save_wait_seconds: float = 0.0
 
 
 # --- GF 生命周期方法 ---
 
 func init() -> void:
+	ignore_pause = true
+	ignore_time_scale = true
 	_build_scope_graph()
 
 
@@ -51,6 +64,13 @@ func ready() -> void:
 	_save_graph = _resolve_save_graph_utility()
 	_storage = _resolve_storage_utility()
 	_log = _resolve_log_utility()
+	if (
+		is_instance_valid(_storage)
+		and not _storage.save_completed.is_connected(_on_storage_save_completed)
+	):
+		var _save_connection: int = _storage.save_completed.connect(
+			_on_storage_save_completed
+		)
 	var load_error: Error = load_profile()
 	if load_error != OK and is_instance_valid(_log):
 		_log.error(_LOG_TAG, "玩家数据图加载失败，错误码：%d" % load_error)
@@ -72,7 +92,25 @@ func ready() -> void:
 		)
 
 
+## 驱动合并写入的静默窗口，避免每次方块操作同步触盘。
+## @param delta: 本帧经过的秒数。
+func tick(delta: float = 0.0) -> void:
+	if not _profile_save_pending or _profile_save_in_flight:
+		return
+	_profile_save_wait_seconds += maxf(delta, 0.0)
+	if _profile_save_wait_seconds >= _ASYNC_SAVE_DEBOUNCE_SECONDS:
+		_start_async_profile_save()
+
+
 func dispose() -> void:
+	var flush_error: Error = flush_pending_save()
+	if flush_error != OK and is_instance_valid(_log):
+		_log.error(_LOG_TAG, "退出前冲刷玩家数据失败，错误码：%d。" % flush_error)
+	if (
+		is_instance_valid(_storage)
+		and _storage.save_completed.is_connected(_on_storage_save_completed)
+	):
+		_storage.save_completed.disconnect(_on_storage_save_completed)
 	if is_instance_valid(_root_scope):
 		_root_scope.free()
 	_root_scope = null
@@ -80,6 +118,9 @@ func dispose() -> void:
 	_section_definitions.clear()
 	_last_load_result.clear()
 	_last_save_result.clear()
+	_profile_save_pending = false
+	_profile_save_in_flight = false
+	_profile_save_wait_seconds = 0.0
 	_loaded = false
 	_save_graph = null
 	_storage = null
@@ -136,41 +177,63 @@ func replace_section_data(section_id: StringName, data: Dictionary) -> Error:
 ## 原子替换多个 section；任一校验或保存失败都会恢复所有内存快照。
 ## @param sections: 以 section ID 为 key、完整业务数据字典为 value 的替换集合。
 func replace_sections_data(sections: Dictionary) -> Error:
-	if not _is_configured() or not _loaded:
-		return ERR_UNCONFIGURED
-	if sections.is_empty():
-		return ERR_INVALID_PARAMETER
-
-	var section_keys: Array[String] = []
-	var replacements_by_key: Dictionary = {}
-	for key_variant: Variant in sections.keys():
-		var key: String = GFVariantData.to_text(key_variant).strip_edges()
-		if key.is_empty() or section_keys.has(key):
-			return ERR_INVALID_PARAMETER
-		if _get_section_provider(StringName(key)) == null:
-			return ERR_DOES_NOT_EXIST
-		if not (sections[key_variant] is Dictionary):
-			return ERR_INVALID_DATA
-		section_keys.append(key)
-		replacements_by_key[key] = GFVariantData.as_dictionary(sections[key_variant])
-	section_keys.sort()
-
 	var snapshots: Dictionary = {}
 	var applied_keys: Array[String] = []
-	for key: String in section_keys:
-		var provider: GameSaveSectionData = _get_section_provider(StringName(key))
-		snapshots[key] = provider.to_dict()
-		var replacement: Dictionary = GFVariantData.get_option_dictionary(replacements_by_key, key)
-		var replace_error: Error = provider.replace_section_data(replacement)
-		if replace_error != OK:
-			_rollback_sections(applied_keys, snapshots)
-			return replace_error
-		applied_keys.append(key)
+	var apply_error: Error = _apply_sections_to_memory(
+		sections,
+		snapshots,
+		applied_keys
+	)
+	if apply_error != OK:
+		return apply_error
 
 	var save_error: Error = save_profile()
 	if save_error != OK:
 		_rollback_sections(applied_keys, snapshots)
 	return save_error
+
+
+## 严格校验并原子更新一个 section，然后把完整 Profile 合并到异步事务写入。
+## 高频进度使用此入口；内存状态立即可见，磁盘写入会在短暂静默窗口后由 GFStorageUtility 执行。
+## @param section_id: 要更新的稳定 section 标识。
+## @param data: 当前版本的完整 section 业务数据。
+func queue_section_data(section_id: StringName, data: Dictionary) -> Error:
+	return queue_sections_data({String(section_id): data})
+
+
+## 合并多个高频 section 更新；同一帧内的图鉴、成就和最高分只生成一个磁盘快照。
+## @param sections: 以 section ID 为 key、完整业务数据字典为 value 的更新集合。
+func queue_sections_data(sections: Dictionary) -> Error:
+	if _resolve_storage_utility() == null:
+		return ERR_UNCONFIGURED
+	var snapshots: Dictionary = {}
+	var applied_keys: Array[String] = []
+	var apply_error: Error = _apply_sections_to_memory(
+		sections,
+		snapshots,
+		applied_keys
+	)
+	if apply_error != OK:
+		return apply_error
+	_profile_save_pending = true
+	_profile_save_wait_seconds = 0.0
+	profile_save_queued.emit()
+	return OK
+
+
+## 等待在途异步写入并同步提交最新内存图，供退出和显式持久化边界调用。
+func flush_pending_save() -> Error:
+	if not is_instance_valid(_storage) or not _is_configured():
+		return OK if not _loaded else ERR_UNCONFIGURED
+	if _profile_save_in_flight:
+		_storage.wait_for_async_tasks()
+	if not _profile_save_pending:
+		return OK
+	var error: Error = save_profile()
+	if error == OK:
+		_profile_save_pending = false
+		_profile_save_wait_seconds = 0.0
+	return error
 
 
 ## 生成带项目 metadata 的当前 SaveGraph 预览载荷。
@@ -207,6 +270,9 @@ func save_profile() -> Error:
 		"error_code": error,
 		"pipeline": pipeline_context.to_dict(true),
 	}
+	if error == OK:
+		_profile_save_pending = false
+		_profile_save_wait_seconds = 0.0
 	return error
 
 
@@ -311,10 +377,103 @@ func get_debug_snapshot() -> Dictionary:
 		"graph_health": health,
 		"last_load": _last_load_result.duplicate(true),
 		"last_save": _last_save_result.duplicate(true),
+		"save_pending": _profile_save_pending,
+		"save_in_flight": _profile_save_in_flight,
 	}
 
 
 # --- 私有/辅助方法 ---
+
+func _apply_sections_to_memory(
+	sections: Dictionary,
+	snapshots: Dictionary,
+	applied_keys: Array[String]
+) -> Error:
+	if not _is_configured() or not _loaded:
+		return ERR_UNCONFIGURED
+	if sections.is_empty():
+		return ERR_INVALID_PARAMETER
+
+	var section_keys: Array[String] = []
+	var replacements_by_key: Dictionary = {}
+	for key_variant: Variant in sections.keys():
+		var key: String = GFVariantData.to_text(key_variant).strip_edges()
+		if key.is_empty() or section_keys.has(key):
+			return ERR_INVALID_PARAMETER
+		if _get_section_provider(StringName(key)) == null:
+			return ERR_DOES_NOT_EXIST
+		if not (sections[key_variant] is Dictionary):
+			return ERR_INVALID_DATA
+		section_keys.append(key)
+		replacements_by_key[key] = GFVariantData.as_dictionary(sections[key_variant])
+	section_keys.sort()
+
+	for key: String in section_keys:
+		var provider: GameSaveSectionData = _get_section_provider(StringName(key))
+		snapshots[key] = provider.to_dict()
+		var replacement: Dictionary = GFVariantData.get_option_dictionary(
+			replacements_by_key,
+			key
+		)
+		var replace_error: Error = provider.replace_section_data(replacement)
+		if replace_error != OK:
+			_rollback_sections(applied_keys, snapshots)
+			return replace_error
+		applied_keys.append(key)
+	return OK
+
+
+func _start_async_profile_save() -> void:
+	if not _profile_save_pending or _profile_save_in_flight:
+		return
+	var payload: Dictionary = preview_profile_payload()
+	if payload.is_empty():
+		_schedule_async_save_retry(ERR_INVALID_DATA)
+		return
+
+	_profile_save_pending = false
+	_profile_save_wait_seconds = 0.0
+	var start_error: Error = _storage.save_data_async(PROFILE_FILE_NAME, payload)
+	if start_error != OK:
+		_schedule_async_save_retry(start_error)
+		return
+	_profile_save_in_flight = true
+	_last_save_result = {
+		"ok": false,
+		"pending": true,
+		"error_code": OK,
+	}
+
+
+func _on_storage_save_completed(file_name: String, error: Error) -> void:
+	if file_name != PROFILE_FILE_NAME:
+		return
+	_profile_save_in_flight = false
+	_last_save_result = {
+		"ok": error == OK,
+		"pending": false,
+		"error_code": error,
+		"async": true,
+	}
+	if error != OK:
+		_schedule_async_save_retry(error)
+	elif _profile_save_pending:
+		_profile_save_wait_seconds = 0.0
+	profile_save_completed.emit(error)
+
+
+func _schedule_async_save_retry(error: Error) -> void:
+	_profile_save_pending = true
+	_profile_save_in_flight = false
+	_profile_save_wait_seconds = -_ASYNC_SAVE_RETRY_SECONDS
+	_last_save_result = {
+		"ok": false,
+		"pending": true,
+		"error_code": error,
+		"async": true,
+	}
+	if is_instance_valid(_log):
+		_log.error(_LOG_TAG, "异步玩家数据写入失败，错误码：%d；稍后重试。" % error)
 
 func _build_scope_graph() -> void:
 	_root_scope = GFSaveScope.new()

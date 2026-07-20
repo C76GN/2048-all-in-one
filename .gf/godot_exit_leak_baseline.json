@@ -7,14 +7,14 @@
   "gf_source_commit": "c0ce09e53edf30c00ba79df27fb9a7625b9f518d",
   "gf_vendor_tree_sha256": "55c8c728421528d147dd3833874919148ab4204e5ef921d51a38540494e41b92",
   "gf_global_script_class_count": 705,
-  "project_runtime_script_class_count": 176,
+  "project_runtime_script_class_count": 181,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The audited tile-identity overhaul adds TileShapeSurface, TileVisualFamilyStyle, and TileVisualTheme as three intentional project runtime script classes. The complete 278-test Godot 4.7/GUT run remained within the reviewed ObjectDB, Resource, and RID limits, so only the declared project class-set count changes from 173 to 176.",
-  "max_objectdb_instances": 288,
+  "calibration_reason": "The audited startup and feedback overhaul adds BootRuntime, GameDiagnosticsInstaller, RuntimeDiagnosticsUtility, BoardFeedbackCanvas, and GameplayVisualWarmup as five intentional project runtime script classes. Three complete 285-test runs produced the same Godot 4.7/GUT shutdown counts; the product-only subset exited below the previous limits, and review-only records now load with CACHE_MODE_IGNORE. The expanded script and headless UI assertion set therefore recalibrates only ObjectDB, dummy texture, and shaped-text debt; resource and font limits remain unchanged.",
+  "max_objectdb_instances": 301,
   "max_resources_in_use": 129,
   "max_rid_allocations_by_type": {
-    "PN13RendererDummy14TextureStorage12DummyTextureE": 10,
-    "PN18TextServerAdvanced22ShapedTextDataAdvancedE": 4,
+    "PN13RendererDummy14TextureStorage12DummyTextureE": 11,
+    "PN18TextServerAdvanced22ShapedTextDataAdvancedE": 9,
     "PN18TextServerAdvanced12FontAdvancedE": 5
   },
   "allowed_paged_allocator_types": [

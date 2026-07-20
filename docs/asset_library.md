@@ -61,7 +61,8 @@ asset.vfx.celebration.confetti_canvas
 - `domain` 对应使用语义：`ui`、`tile`、`game`、`background`、`transition`。
 - 文件可以移动，但资源键不应随意改名。
 - 架构完成初始化后的业务 GDScript 必须通过 `GameAssetLibraryUtility` 和稳定 key 加载正式素材。
-- `app/scripts/boot.gd` 在 GF 架构启动前运行，可直接预载启动画面所需的最小 shader 集合。
+- `app/scripts/boot.gd` 在 GF 架构启动前运行，只能依赖序列化到启动场景的最小贴图与纯色节点；可选 shader 不得进入静态首帧编译链。
+- 正式素材默认使用 `metadata.usage_policy = "required"`；已批准、可一键替换但当前主题未启用的候选使用 `"optional"`。审计仍列出可选未使用项，但只把未使用的 required 素材视为问题。
 - `.tscn`、`.tres` 等 Godot 序列化资源可以声明包内路径；需要运行时替换的资源仍须同时暴露稳定 key。
 - 素材导入与审计工具可以记录包内路径，但不得成为业务运行时加载入口。
 

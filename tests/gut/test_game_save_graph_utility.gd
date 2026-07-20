@@ -29,6 +29,45 @@ func test_profile_graph_has_six_feature_sections() -> void:
 	_dispose_setup(setup)
 
 
+func test_high_frequency_sections_coalesce_into_one_async_profile_write() -> void:
+	var setup: Dictionary = await _create_persistence_architecture()
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var completion_counter: Dictionary = {"value": 0}
+	var _completion_connection: int = save_graph.profile_save_completed.connect(
+		func(_error: Error) -> void:
+			completion_counter["value"] = GFVariantData.get_option_int(
+				completion_counter,
+				"value"
+			) + 1
+	)
+
+	var progress_error: Error = save_graph.queue_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		{"stats": {}}
+	)
+	var discovery_error: Error = save_graph.queue_section_data(
+		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
+		{"tile_compositions": [], "board_topologies": []}
+	)
+	var queued_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	assert_true(progress_error == OK and discovery_error == OK, "合法高频 section 应先原子更新内存图。")
+	assert_true(GFVariantData.get_option_bool(queued_snapshot, "save_pending"), "同帧更新后应只留下一个待写 Profile。")
+	assert_false(GFVariantData.get_option_bool(queued_snapshot, "save_in_flight"), "静默窗口内不应立即占用输入帧写盘。")
+
+	save_graph.tick(1.0)
+	storage.wait_for_async_tasks()
+	var completed_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	assert_true(
+		GFVariantData.get_option_int(completion_counter, "value") == 1,
+		"多个高频 section 必须合并成一次 GFStorageUtility 异步事务。"
+	)
+	assert_false(GFVariantData.get_option_bool(completed_snapshot, "save_pending"), "异步写入完成后不应残留待写状态。")
+	assert_false(GFVariantData.get_option_bool(completed_snapshot, "save_in_flight"), "异步写入完成后不应残留在途状态。")
+
+	_dispose_setup(setup)
+
+
 func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	var save_dir_name: String = "gut_save_graph_%d" % Time.get_ticks_usec()
 	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
@@ -158,6 +197,10 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 	var storage: GFStorageUtility = _get_storage(setup)
 	var score_error: Error = save_system.set_high_score("classic", _BOARD_KEY, 512)
 	assert_true(score_error == OK, "迁移夹具应先写入当前统计。")
+	assert_true(
+		save_graph.flush_pending_save() == OK,
+		"构造旧版本夹具前应先收敛当前异步写入。"
+	)
 
 	var legacy_payload: Dictionary = save_graph.preview_profile_payload()
 	var metadata: Dictionary = GFVariantData.get_option_dictionary(
@@ -352,10 +395,12 @@ func test_replay_schema_rejects_final_snapshot_with_different_topology() -> void
 func test_save_dependency_failure_rolls_back_replaced_section() -> void:
 	var setup: Dictionary = await _create_persistence_architecture("", true)
 	var architecture: GFArchitecture = _get_architecture(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var save_system: SaveSystem = _get_save_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
 	var initial_error: Error = save_system.set_high_score("classic", _BOARD_KEY, 128)
 	assert_true(initial_error == OK, "故障注入前的统计应保存成功。")
+	assert_true(save_graph.flush_pending_save() == OK, "故障注入前应冲刷排队统计。")
 
 	var cleanup_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
 	assert_true(cleanup_error == OK, "故障注入前应清理测试玩家数据文件。")
@@ -520,6 +565,9 @@ func _describe_load_failure(save_graph: GameSaveGraphUtility) -> String:
 
 func _dispose_setup(setup: Dictionary, delete_profile: bool = true) -> void:
 	var storage: GFStorageUtility = _get_storage(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var flush_error: Error = save_graph.flush_pending_save()
+	assert_true(flush_error == OK, "测试结束前应冲刷排队玩家数据。")
 	if delete_profile:
 		var delete_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
 		assert_true(delete_error == OK or delete_error == ERR_FILE_NOT_FOUND, "测试玩家数据清理应返回可预期结果。")

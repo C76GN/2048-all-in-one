@@ -50,11 +50,13 @@ Feature 的 `scripts/` 内可以继续使用 `models/`、`systems/`、`utilities
 
 ## 启动与装配
 
-1. `app/scenes/boot.tscn` 加载 `app/scripts/boot.gd`，显示启动画面并发布 `GFAsyncProgress`。
-2. Boot 创建根 `GFArchitecture`，启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`，再调用 `await Gf.init()`。
-3. GF 根据 `project.godot` 的 `gf/project/installers` 执行 `GameArchitectureInstaller`。
-4. `app/scripts/game_architecture_installer.gd` 声明项目 Model、System、Utility；GF 扩展拥有的模块由扩展 Installer 自动装配。
-5. Boot 通过 `GFSceneUtility` 预热主菜单，随后由 `SceneRouterSystem` 接管场景流转。
+1. `app/scenes/boot.tscn` 加载不引用 GF 或玩法资源的极轻 `app/scripts/boot.gd`，立即承接原生静态首帧并显示低成本扫条。
+2. 轻量 Boot 通过 `ResourceLoader.load_threaded_request()` 加载 `app/scripts/boot_runtime.gd`；正式编排器就绪后才创建动态纸面、发布 `GFAsyncProgress` 并加载完整依赖链。
+3. BootRuntime 创建根 `GFArchitecture`，启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`，再调用 `await Gf.init()`。
+4. GF 根据 `project.godot` 的 `gf/project/installers` 执行 `GameArchitectureInstaller`。
+5. `app/scripts/game_architecture_installer.gd` 声明项目 Model、System、Utility；GF 扩展拥有的模块由扩展 Installer 自动装配。
+6. BootRuntime 通过 `GFSceneUtility` 预热主菜单，并配置 Feature-Cohesive 的 `features/navigation/resources/scene_preload_map.tres`；场景图只预热最高频相邻路径，随后由 `SceneRouterSystem` 接管场景流转。
+7. BootRuntime 在不透明启动页背后提交 `GameplayVisualWarmup` 首绘，提前准备方块轮廓、母题和反馈画布的 2D pipeline；该节点在 GF 初始化完成后立即释放。
 
 Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_scene_to_file()` 等旁路。
 
@@ -108,11 +110,12 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 开发诊断工作区
 
-1. `GameArchitectureInstaller` 只在 editor、debug build 或显式 `with_dev_tools` feature 下注册 GF Console、Diagnostics、Debug Overlay 与 `TestToolUtility`；正式导出不注册这些 Module。
+1. `RuntimeDiagnosticsUtility` 作为无 UI 的 `GFDiagnosticsUtility` 别名常驻，用于接收 `gf.action_queue` 等扩展的运行时贡献；普通运行不查询或创建 Console GUI。`GameArchitectureInstaller` 只在显式 `with_dev_tools` feature 下按路径加载 `features/diagnostics/scripts/installers/game_diagnostics_installer.gd`，再补齐 Console、Debug Overlay、Inspector、Screenshot 与 `TestToolUtility`，避免开发界面进入玩家首屏依赖链。
 2. `GamePlayController` 只发布 `GameplayBoardReadyData`，不引用 `TestToolUtility`、`TestPanel` 或 diagnostics 资源。diagnostics feature 订阅该类型事件并持有开发上下文，依赖方向保持为 diagnostics -> gameplay。
 3. `TestToolUtility` 默认不自动弹窗；仅在 `F4` 或控制台显式请求时按需创建非 transient、非 exclusive 的 `GameplayDiagnosticsWindow`，场景切换时释放窗口和棋盘引用。窗口关闭只隐藏工作区，当前对局内可再次打开。
 4. 工作区使用独立 GF `diagnostics` 输入上下文，`F4` 通过 `GFInputMappingUtility` 切换窗口；`toggle_test_tools` 由 `GFConsoleUtility` 注册；窗口信号由 `GFSignalUtility` 持有生命周期。
 5. 独立窗口不是 `GFUIRouterUtility` 的玩家 UI Route，也不参与回放、截图布局或移动端安全区。它自行通过 `GameThemeUtility`、`GameUiStyleUtility` 和 `GameUiMotionUtility` 应用当前主题与交互状态。
+6. 需要工作区的专用开发导出必须声明 `with_dev_tools` custom feature；不得通过 `OS.is_debug_build()` 或 `editor` 自动开启，以免普通调试运行掩盖真实启动性能。
 
 ### 主题切换
 

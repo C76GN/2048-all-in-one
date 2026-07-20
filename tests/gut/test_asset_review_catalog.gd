@@ -5,6 +5,7 @@ extends GutTest
 # --- 常量 ---
 
 const IMPORT_SOURCES_PATH: String = "res://features/asset_library/resources/import_sources.json"
+const CONTENT_PACKAGE_PATH: String = "res://features/asset_library/resources/gf_content_package.json"
 const SLOT_MAP_PATH: String = "res://features/asset_library/resources/review/asset_slot_map.tres"
 const COORDINATE_GRID_RECORD_PATH: String = "res://features/asset_library/resources/review/records/manual_shader_notes/world_space_coordinate_grid_1e36eed0.tres"
 const COORDINATE_GRID_SHADER_PATH: String = "res://features/asset_library/resources/source_packs/manual_shader_notes/files/world_space_coordinate_grid.gdshader"
@@ -88,10 +89,19 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
 	var runtime_report: Dictionary = audit.build_audit_report()
 	var review_report: Dictionary = audit.build_review_catalog_report()
+	var content_package: Dictionary = _read_json(CONTENT_PACKAGE_PATH)
+	var approved_resources: Array = GFVariantData.get_option_array(
+		content_package,
+		"resources"
+	)
 	var kind_counts: Dictionary = GFVariantData.get_option_dictionary(review_report, "kind_counts")
 	var status_counts: Dictionary = GFVariantData.get_option_dictionary(review_report, "status_counts")
 
-	assert_true(GFVariantData.get_option_int(runtime_report, "resource_count") == 11, "运行时素材包仍应只包含已批准资源。")
+	assert_true(
+		GFVariantData.get_option_int(runtime_report, "resource_count")
+		== approved_resources.size(),
+		"运行时目录必须与内容包中已批准资源一一对应。"
+	)
 	assert_true(GFVariantData.get_option_int(runtime_report, "issue_count") == 0, "源素材包不应触发运行时未登记文件警告。")
 	assert_true(GFVariantData.get_option_int(review_report, "review_record_count") >= 560, "评审目录应包含全量候选素材。")
 	assert_true(GFVariantData.get_option_int(kind_counts, "audio") >= 560, "评审目录应包含音频候选。")
@@ -99,6 +109,10 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 	assert_true(GFVariantData.get_option_int(kind_counts, "vfx") >= 3, "评审目录应包含 VFX 候选。")
 	assert_true(GFVariantData.get_option_int(status_counts, "inbox") >= 560, "新导入素材默认应处于 inbox 状态。")
 	audit.dispose()
+	assert_false(
+		ResourceLoader.has_cached(COORDINATE_GRID_RECORD_PATH),
+		"离线评审审计不得把候选记录留在全局 ResourceLoader 缓存。"
+	)
 
 
 func test_review_catalog_keeps_unknown_license_assets_review_only() -> void:

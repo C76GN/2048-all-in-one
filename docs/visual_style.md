@@ -12,11 +12,11 @@
 - CMYK halftone print
 - zine-like paper interface
 - side repeat print bands
-- low-resolution registration offset
+- restrained paper-card depth
 
-这不是深色玻璃 UI，也不是上一版单纯暖色像素棋盘。画面应像一张可玩的独立游戏宣传页：灰白纸面、侧边重复印刷条纹、青黄粉黑的 CMYK 色块、半调网点、轻微错版边缘、硬边框和清楚可读的数字。背景和纹理要有纸媒气质，但不能喧宾夺主。
+这不是深色玻璃 UI，也不是上一版单纯暖色像素棋盘。画面应像一张可玩的独立游戏宣传页：灰白纸面、低对比印刷条纹、克制的暖色块、疏朗半调网点、硬边框和清楚可读的数字。背景和纹理要有纸媒气质，但不能喧宾夺主。
 
-当前第一套主题是 `halftone_atlas`：灰白印刷纸面、局部青黄侧边版纹、深蓝绿墨色棋盘、奶油/黄/粉棕/草绿/深蓝方块，以及按身份家族固定的低对比纹理。主题是长期产品卖点，不是一次性换皮；视觉资源、UI 色板和音效主题都必须能通过设置一键切换。
+当前第一套主题是 `halftone_atlas`：灰白印刷纸面、局部低对比版纹、中性灰墨棋盘、奶油/芥黄/陶土/灰青方块，以及按身份家族固定的稀疏母题。主题是长期产品卖点，不是一次性换皮；视觉资源、UI 色板和音效主题都必须能通过设置一键切换。
 
 ## 总体原则
 
@@ -109,19 +109,19 @@
 
 默认主题使用 `features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader`。覆盖与揭示分别配置为 `features/themes/resources/themes/game/transitions/halftone_cover_transition.tres` 和 `halftone_reveal_transition.tres`，由 `GFScreenTransitionUtility` 统一管理根视口覆盖层。`SceneRouterSystem` 只从当前 `GameTheme` 解析 `GFScreenTransitionEffect`，不创建节点或 Tween。
 
-该 shader 来自外部 2D 遮罩转场思路，但项目版不依赖外部 gradient 或 shape texture，改为程序化斜向印刷擦除、形状遮罩推进、半调网点、轻纸纹、半透明铺墨和青/品红错版移动边。`reverse_progress` 允许同一 shader 由主题资源声明覆盖和揭示方向。
+该 shader 来自外部 2D 遮罩转场思路，但项目版不依赖外部 gradient 或 shape texture，改为程序化斜向纸张擦除、稀疏形状扰边、半调网点、轻纸纹和青/品红错版移动边。已覆盖区域必须不透底，避免新旧场景在中间帧重影；印刷图案只允许出现在移动边缘。`reverse_progress` 允许同一 shader 由主题资源声明覆盖和揭示方向。
 
 约束：
 
 - 转场只承担场景切换的方向感，不作为常驻背景特效。
 - 新主题必须同时提供 cover/reveal 两个 `GFScreenTransitionEffect`，并通过 `GameTheme` 引用；禁止在路由系统内增加主题分支。
 - 转场层级、时长、输入阻断、ShaderMaterial 和进度参数属于主题资源配置；节点生命周期、取消和完成回调属于 GF Utility。
-- 默认 `width` 应保持在 `0.20` 到 `0.36`，边缘足够柔和但不能变成长雾化淡入。
+- 默认 `width` 应保持在 `0.10` 到 `0.18`，形成短促清楚的纸张移动边，不能变成长雾化淡入。
 - 默认 `shape_tiling` 应保持在 `12` 到 `28`，形状块应像纸媒印刷遮罩，而不是大块马赛克或细碎噪点。
-- 默认 `shape_influence` 应保持在 `0.32` 到 `0.58`，只扰动擦除边缘，转场结束时必须完整覆盖画面。
+- 默认 `shape_influence` 应保持在 `0.08` 到 `0.20`，只轻微扰动擦除边缘，不能生成铺满全屏的形状拼贴。
 - 默认 `grain_strength` 应保持在 `0.008` 到 `0.020`，和背景纸纹同一量级。
 - 默认 `band_strength` 应保持在 `0.04` 到 `0.16`，只给擦除边缘一点青色印刷纹理。
-- 默认 `fill_opacity` 应低于全不透明，让转场看起来像铺墨经过，不像贴一张静态图。
+- 默认 `fill_opacity` 应接近或等于全不透明，保证覆盖阶段不出现两个场景叠影。
 - 默认 `edge_opacity` 和 `edge_strength` 应高于铺墨层，保证玩家能看见明确移动边。
 - `registration_offset` 只用于青/品红错版边缘，不能变成霓虹描边。
 - 动画时长应控制在约 `0.24s` 到 `0.30s`，覆盖阶段需要足够可见，但整体不能拖沓。
@@ -130,18 +130,22 @@
 
 ## 启动画面
 
-启动画面由 `app/scenes/boot.tscn` 和 `app/scripts/boot.gd` 创建，负责承载 GF 初始化、素材注册和主菜单预热状态。它应当像一张小型印刷机状态卡，而不是系统默认 loading 或空白黑屏。
+启动画面分为极轻 `app/scripts/boot.gd` 与正式 `app/scripts/boot_runtime.gd` 两级：前者立即承接原生首帧并在线程中加载后者，后者负责 GF 初始化、素材注册和主菜单预热状态。它应当像一张小型印刷机状态卡，而不是系统默认 loading 或空白黑屏。
 
 约束：
 
 - 背景复用当前纸媒背景 shader，保持浅灰白纸面、轻噪点和低对比图案。
 - 中央内容可以有品牌标题、微型棋盘和状态文字，但不能变成营销页。
+- Godot 原生启动阶段使用 `printworks_boot_splash.png` 提前显示完整静态首帧；项目加载页继续使用同尺寸、同位置的微型棋盘和进度槽，禁止先显示孤立 Logo 再重排整个构图。
+- 轻量 Boot 禁止 preload GF、主题、玩法脚本或 shader；这些依赖必须由 BootRuntime 在线程资源加载完成后再进入场景树。
 - 进度条使用 `features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader`，保留粗墨边、颗粒空槽和星纹填充。
 - 启动背景和进度条静态参数由 `features/themes/resources/themes/boot/*.tres` 的 GF Profile 声明；Boot 初始化 GF 架构前只使用无状态 `GFShaderParameterUtility` 写入参数。
 - 进度必须由真实启动流程驱动，至少覆盖 GF 初始化和主菜单预热，不使用纯假进度。
 - 预加载条件、超时和最短停留延迟统一使用 `GFAsyncWaitUtility`，不自行维护 deadline 或 `SceneTreeTimer`。
+- `GFScenePreloadMap` 只预热最高频相邻路径：启动期准备主菜单与模式选择，模式选择期再准备玩法场景；不得在原生首屏阶段并发预载所有低频菜单。
+- 首次玩法需要的方块轮廓、稀疏母题和常驻反馈画布必须在不透明加载页后完成首绘提交，避免第一次操作临时编译 2D pipeline。
 - 启动画面停留时间要短，默认只用于避免启动期空白和突然跳转。
-- 中央启动卡使用约 `0.28s` 的轻缩放淡入和 `0.18s` 的淡出收束；主场景仍由 GF 场景转场接管，二者不能产生黑帧或重复长动画。
+- 动态加载页首帧必须直接承接原生静态构图，只在结束时使用约 `0.16s` 淡出收束；主场景仍由 GF 场景转场接管，二者不能产生黑帧或重复长动画。
 
 ## 方块与棋盘
 
@@ -149,13 +153,13 @@
 
 规则：
 
-- 方块使用实心底色、深墨粗描边、轻微错版高光、可识别轮廓和低密度母题。
+- 方块使用实心底色、深墨粗描边、统一短投影、同色亮边、可识别轮廓和低密度母题。
 - 默认描边使用深墨色或黑色，边框宽度通常为 3px 到 6px。
 - `TilePatternOverlay` 负责绘制低对比度身份纹理和 Recipe 边缘标记；中央数字区域必须保持安静。
 - 数字必须始终清晰。必要时使用深墨色或纸色文字，不为了色板统一牺牲对比度。
-- 棋盘底板使用深蓝绿墨色，空格子使用更深一阶的蓝绿墨色，让棋盘像一块印刷套版。
+- 棋盘底板使用中性灰墨色，空格子使用低对比暖灰，让棋盘像一件稳定的实体游戏物件。
 - `TileDefinition.visual_family_id` 先解析 `TileVisualFamilyStyle`，同一身份的不同数值必须保持同一家族；数值只改变色阶和字号。
-- 身份家族同时决定剪角、缺口、比例、轻微角度、描边色与一个稀疏母题：经典为柔和方框和星点，斐波那契为不对称剪角和角落螺旋，复合家族为对角剪角和分栏，卢卡斯为八边形和轨道，比值基础与因子分别为侧缺口、上下票口。轮廓变化应控制在单元格内，数字本身不得旋转或偏离中心。
+- 身份家族同时决定剪角、缺口、比例、描边色与一个稀疏母题：经典为安静的柔和方框，斐波那契为不对称剪角和角落弧线，复合家族为对角剪角，卢卡斯为八边形和成对角括号，比值基础与因子分别为侧缺口、上下票口。轮廓变化应控制在单元格内，数字本身不得旋转或偏离中心。
 - GF Recipe 的 `visual_layer_id` 只投影为边缘小标记。复合方块不得叠加多张全幅纹理，也不得让标记遮挡数字。
 - 方块颜色不得在 `GameBoardController`、`Tile` 或动画 Action 中随意覆盖主题资源。
 

@@ -158,6 +158,16 @@ func build_audit_report(options: Dictionary = {}) -> Dictionary:
 	var library_scan_report: Dictionary = _scan_asset_library_files()
 	var unregistered_files: PackedStringArray = _collect_unregistered_asset_files(entries, library_scan_report)
 	var unused_keys: PackedStringArray = _collect_unused_keys(entries, usage)
+	var optional_unused_keys: PackedStringArray = _filter_unused_keys_by_policy(
+		entries,
+		unused_keys,
+		true
+	)
+	var required_unused_keys: PackedStringArray = _filter_unused_keys_by_policy(
+		entries,
+		unused_keys,
+		false
+	)
 	var attribution_report: Dictionary = _build_manifest_attribution_report(entries)
 
 	report["package_id"] = String(manifest.package_id)
@@ -176,6 +186,8 @@ func build_audit_report(options: Dictionary = {}) -> Dictionary:
 	)
 	report["usage"] = usage
 	report["unused_keys"] = unused_keys
+	report["optional_unused_keys"] = optional_unused_keys
+	report["required_unused_keys"] = required_unused_keys
 	report["unregistered_library_files"] = unregistered_files
 	report["metadata_issues"] = metadata_issues
 	report["used_count"] = GFVariantData.get_option_int(usage_summary, "used_count")
@@ -230,7 +242,7 @@ func build_audit_report(options: Dictionary = {}) -> Dictionary:
 			"path": path,
 		})
 
-	for key_text: String in unused_keys:
+	for key_text: String in required_unused_keys:
 		_add_audit_issue(report, "warning", "unused_asset", "素材未被项目资源引用：%s。" % key_text, {
 			"asset_key": key_text,
 		})
@@ -528,6 +540,29 @@ func _collect_unused_keys(entries: Array[Dictionary], usage: Dictionary) -> Pack
 	return result
 
 
+func _filter_unused_keys_by_policy(
+	entries: Array[Dictionary],
+	unused_keys: PackedStringArray,
+	optional: bool
+) -> PackedStringArray:
+	var optional_by_key: Dictionary = {}
+	for entry: Dictionary in entries:
+		var key_text: String = String(GFVariantData.get_option_string_name(entry, "key"))
+		var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
+		optional_by_key[key_text] = (
+			GFVariantData.get_option_string(metadata, "usage_policy", "required")
+			== "optional"
+		)
+
+	var result: PackedStringArray = PackedStringArray()
+	for key_text: String in unused_keys:
+		if GFVariantData.get_option_bool(optional_by_key, key_text) != optional:
+			continue
+		var _append_result: bool = result.append(key_text)
+	result.sort()
+	return result
+
+
 func _collect_metadata_issues(entries: Array[Dictionary], package_metadata: Dictionary) -> Array[Dictionary]:
 	var issues: Array[Dictionary] = []
 	var required_fields: PackedStringArray = GFVariantData.get_option_packed_string_array(
@@ -546,6 +581,17 @@ func _collect_metadata_issues(entries: Array[Dictionary], package_metadata: Dict
 		for field: String in required_fields:
 			if not _metadata_has_text(metadata, field):
 				issues.append(_make_metadata_issue(key_text, field, "missing_metadata"))
+		var usage_policy: String = GFVariantData.get_option_string(
+			metadata,
+			"usage_policy",
+			"required"
+		)
+		if usage_policy not in ["required", "optional"]:
+			issues.append(_make_metadata_issue(
+				key_text,
+				"usage_policy",
+				"invalid_metadata"
+			))
 		if GFVariantData.get_option_string(metadata, "origin") != "third_party":
 			continue
 		for field: String in third_party_required_fields:
@@ -780,7 +826,7 @@ func _collect_review_records() -> Array[Resource]:
 		if entry == null:
 			continue
 		var record_path: String = GFVariantData.get_option_string(entry.metadata, "record_path")
-		var loaded: Resource = ResourceLoader.load(record_path, "", ResourceLoader.CACHE_MODE_REUSE)
+		var loaded: Resource = ResourceLoader.load(record_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		if _resource_uses_script(loaded, _ASSET_REVIEW_RECORD_SCRIPT):
 			_append_resource(records, loaded)
 	return records
@@ -907,11 +953,14 @@ func _append_markdown_line(lines: PackedStringArray, line: String) -> void:
 
 
 func _make_metadata_issue(asset_key: String, field: String, kind: String) -> Dictionary:
+	var message: String = "素材 `%s` 缺少元数据字段 `%s`。" % [asset_key, field]
+	if kind == "invalid_metadata":
+		message = "素材 `%s` 的元数据字段 `%s` 取值无效。" % [asset_key, field]
 	return {
 		"kind": kind,
 		"asset_key": asset_key,
 		"field": field,
-		"message": "素材 `%s` 缺少元数据字段 `%s`。" % [asset_key, field],
+		"message": message,
 	}
 
 
@@ -967,6 +1016,8 @@ func _make_audit_report() -> Dictionary:
 		"attribution_notice": "",
 		"usage": {},
 		"unused_keys": PackedStringArray(),
+		"optional_unused_keys": PackedStringArray(),
+		"required_unused_keys": PackedStringArray(),
 		"unregistered_library_files": PackedStringArray(),
 		"metadata_issues": [],
 		"issues": [],

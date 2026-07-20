@@ -23,6 +23,12 @@ const _HIGHEST_TILE_FORMAT_FALLBACK: String = "最大方块: %d"
 const _HUD_INPUT_SOURCE_ID: StringName = &"gameplay.hud_controls"
 const _HUD_ACTION_HOLD_SECONDS: float = 0.08
 const _SCORE_FEEDBACK_DELAY_SECONDS: float = 0.055
+const _ACTION_ICON_ASSET_KEYS: Dictionary = {
+	"%PauseButton": &"asset.texture.icon.pause",
+	"%UndoButton": &"asset.texture.icon.undo_2",
+	"%RedoButton": &"asset.texture.icon.redo_2",
+	"%BookmarkButton": &"asset.texture.icon.bookmark_plus",
+}
 
 
 # --- 私有变量 ---
@@ -362,6 +368,15 @@ func _apply_semantic_styles() -> void:
 		var button: Button = _get_button_node(NodePath(action_name))
 		if is_instance_valid(button):
 			_ui_style_utility.style_button(button, GameUiStyleUtility.ButtonRole.ICON)
+			if _ACTION_ICON_ASSET_KEYS.has(action_name):
+				var icon_key: StringName = GFVariantData.to_string_name(
+					_ACTION_ICON_ASSET_KEYS[action_name]
+				)
+				var _icon_applied: bool = _ui_style_utility.set_button_icon_from_asset(
+					button,
+					icon_key,
+					19
+				)
 
 
 func _apply_hud_layout() -> void:

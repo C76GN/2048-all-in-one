@@ -1,17 +1,17 @@
 {
 	"artifact_report": {
-		"artifact_count": 12,
+		"artifact_count": 23,
 		"artifacts": [
 			{
 				"archive_path": "gf_content_package.json",
 				"entry_index": 0,
 				"exists": true,
-				"modified_time": 1784126288,
+				"modified_time": 1784532951,
 				"package_id": "c76.asset_library.core",
 				"resource_key": "",
 				"role": "manifest",
-				"sha256": "f8e53af2f7a30aae70172c077bf384a2e0364df8f297847ca1af9935fd386c43",
-				"size_bytes": 6924,
+				"sha256": "2f1d43cc2fe49add7b0693e0f055a078e2fc5c3a3c95cbd3ace9996f1c06ec0f",
+				"size_bytes": 13153,
 				"source_path": "res://features/asset_library/resources/gf_content_package.json",
 				"type_hint": "JSON",
 				"unreadable": false
@@ -104,12 +104,12 @@
 				"archive_path": "shaders/background/halftone_paper_background.gdshader",
 				"entry_index": 7,
 				"exists": true,
-				"modified_time": 1783617472,
+				"modified_time": 1784509077,
 				"package_id": "c76.asset_library.core",
 				"resource_key": "asset.shader.background.halftone_paper",
 				"role": "resource",
-				"sha256": "326b3bab4319c7551e9b76fc171d92093c49f5e308e80184973abb0aef5e863e",
-				"size_bytes": 7167,
+				"sha256": "989331d47db4d9ed0f5c06abd7fd1b9a65c14de513d834835bd3303232a81a55",
+				"size_bytes": 8446,
 				"source_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 				"type_hint": "Shader",
 				"unreadable": false
@@ -118,12 +118,12 @@
 				"archive_path": "shaders/transition/halftone_wipe_transition.gdshader",
 				"entry_index": 8,
 				"exists": true,
-				"modified_time": 1784079135,
+				"modified_time": 1784527838,
 				"package_id": "c76.asset_library.core",
 				"resource_key": "asset.shader.transition.halftone_wipe",
 				"role": "resource",
-				"sha256": "672cf92dce475e18c0bcedb184302b467af95b2665f6e89a22255c9422ff0d9d",
-				"size_bytes": 6102,
+				"sha256": "2f021a16e2c3530fe3718b32a73485e5cec81e17d10ddb4e307112d9f5c0e853",
+				"size_bytes": 4648,
 				"source_path": "res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader",
 				"type_hint": "Shader",
 				"unreadable": false
@@ -157,8 +157,162 @@
 				"unreadable": false
 			},
 			{
-				"archive_path": "vfx/celebration_confetti_canvas.gdshader",
+				"archive_path": "textures/icons/dices.svg",
 				"entry_index": 11,
+				"exists": true,
+				"modified_time": 1784525356,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.randomize",
+				"role": "resource",
+				"sha256": "c6bbe10614754a4f185ed9762f305e3a50e929e99e041c7b574f36464e7f12f3",
+				"size_bytes": 630,
+				"source_path": "res://features/asset_library/resources/textures/icons/dices.svg",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "textures/icons/dice_5.svg",
+				"entry_index": 12,
+				"exists": true,
+				"modified_time": 1784509354,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.dice_5",
+				"role": "resource",
+				"sha256": "c26fba5c845f24f2fb9ab401b11d4447c32a432ba3551b7a14f46c65a0a18d76",
+				"size_bytes": 364,
+				"source_path": "res://features/asset_library/resources/textures/icons/dice_5.svg",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "textures/icons/chevron_down.svg",
+				"entry_index": 13,
+				"exists": true,
+				"modified_time": 1784509354,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.chevron_down",
+				"role": "resource",
+				"sha256": "beccfac3f2aff246de50a1cfb8f3faebb259e0b1a46e494c437fce0b2e825b05",
+				"size_bytes": 211,
+				"source_path": "res://features/asset_library/resources/textures/icons/chevron_down.svg",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "textures/icons/pause.svg",
+				"entry_index": 14,
+				"exists": true,
+				"modified_time": 1784515985,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.pause",
+				"role": "resource",
+				"sha256": "6f7f393541c4e9e6855d06893b707a63c24f240fc9501052c483df898d8b0d73",
+				"size_bytes": 289,
+				"source_path": "res://features/asset_library/resources/textures/icons/pause.svg",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "textures/icons/undo_2.svg",
+				"entry_index": 15,
+				"exists": true,
+				"modified_time": 1784515985,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.undo_2",
+				"role": "resource",
+				"sha256": "c451b5572c3a363004bcf8d17a1ced3ebb8d26f6feafb6f531187500b9b256fe",
+				"size_bytes": 260,
+				"source_path": "res://features/asset_library/resources/textures/icons/undo_2.svg",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "textures/icons/redo_2.svg",
+				"entry_index": 16,
+				"exists": true,
+				"modified_time": 1784515985,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.redo_2",
+				"role": "resource",
+				"sha256": "255a41a33933d76a204bb68145fcdbd9bc28682029c4600af9a8cf4534e1f3a6",
+				"size_bytes": 261,
+				"source_path": "res://features/asset_library/resources/textures/icons/redo_2.svg",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "textures/icons/bookmark_plus.svg",
+				"entry_index": 17,
+				"exists": true,
+				"modified_time": 1784515985,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.bookmark_plus",
+				"role": "resource",
+				"sha256": "4ea9686e4057758e23dab8736f9864e8e157b5035d5fa4a59fbac7616ae296bb",
+				"size_bytes": 296,
+				"source_path": "res://features/asset_library/resources/textures/icons/bookmark_plus.svg",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "textures/branding/printworks_boot_mark.png",
+				"entry_index": 18,
+				"exists": true,
+				"modified_time": 1784516203,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.branding.printworks_boot_mark",
+				"role": "resource",
+				"sha256": "6924900832e1fdc5643a7886288d31fb617916482b4f5debd047812e2d0976ef",
+				"size_bytes": 2751,
+				"source_path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.png",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "textures/branding/printworks_boot_mark.svg",
+				"entry_index": 19,
+				"exists": true,
+				"modified_time": 1784510604,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.branding.printworks_boot_mark_source",
+				"role": "resource",
+				"sha256": "f9c95ce5f215e8f26980fe6aeeb338f9e9c9b3aca6d003fd70e03f8a4ddce521",
+				"size_bytes": 1277,
+				"source_path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.svg",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "textures/branding/printworks_boot_splash.png",
+				"entry_index": 20,
+				"exists": true,
+				"modified_time": 1784516203,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.branding.printworks_boot_splash",
+				"role": "resource",
+				"sha256": "6835ecb23704f818209fc920e0dffc7a774f3afce2be1bf1bdca4e2e22c0e02c",
+				"size_bytes": 7784,
+				"source_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "textures/branding/printworks_boot_splash.svg",
+				"entry_index": 21,
+				"exists": true,
+				"modified_time": 1784515985,
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.branding.printworks_boot_splash_source",
+				"role": "resource",
+				"sha256": "73fc4b44f22ac36af34d3e0e7861d6678648270ed35e8c435dc24824e0bcd50f",
+				"size_bytes": 2886,
+				"source_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.svg",
+				"type_hint": "Texture2D",
+				"unreadable": false
+			},
+			{
+				"archive_path": "vfx/celebration_confetti_canvas.gdshader",
+				"entry_index": 22,
 				"exists": true,
 				"modified_time": 1783604467,
 				"package_id": "c76.asset_library.core",
@@ -171,9 +325,9 @@
 				"unreadable": false
 			}
 		],
-		"entry_count": 12,
+		"entry_count": 23,
 		"error_count": 0,
-		"existing_count": 12,
+		"existing_count": 23,
 		"healthy": true,
 		"issue_count": 0,
 		"issue_counts_by_kind": {},
@@ -185,15 +339,15 @@
 		"root_path": "res://features/asset_library/resources",
 		"subject": "Content package artifact report",
 		"summary": "Content package artifact report is healthy.",
-		"total_size_bytes": 113984,
+		"total_size_bytes": 137047,
 		"unreadable_count": 0,
 		"version": "0.1.0",
 		"warning_count": 0
 	},
-	"asset_key_reference_count": 21,
-	"attribution_notice": "Asset library attributions\n\nCC BY 4.0\n- asset.audio.ui.printworks.select_soft_01 (res://features/asset_library/resources/audio/ui/printworks_select_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.ui.printworks.confirm_soft_01 (res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.spawn_soft_01 (res://features/asset_library/resources/audio/tile/printworks_spawn_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.move_soft_01 (res://features/asset_library/resources/audio/tile/printworks_move_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.merge_soft_01 (res://features/asset_library/resources/audio/tile/printworks_merge_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.game.printworks.game_over_soft_01 (res://features/asset_library/resources/audio/game/printworks_game_over_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n\nproject\n- asset.shader.background.halftone_paper (res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.transition.halftone_wipe (res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.ui.button_focus_dash (res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.ui.startup_progress_bar (res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader)\n  Creator: 2048-all-in-one\n- asset.vfx.celebration.confetti_canvas (res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader)\n  Creator: 2048-all-in-one",
+	"asset_key_reference_count": 27,
+	"attribution_notice": "Asset library attributions\n\nCC BY 4.0\n- asset.audio.ui.printworks.select_soft_01 (res://features/asset_library/resources/audio/ui/printworks_select_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.ui.printworks.confirm_soft_01 (res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.spawn_soft_01 (res://features/asset_library/resources/audio/tile/printworks_spawn_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.move_soft_01 (res://features/asset_library/resources/audio/tile/printworks_move_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.tile.printworks.merge_soft_01 (res://features/asset_library/resources/audio/tile/printworks_merge_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n- asset.audio.game.printworks.game_over_soft_01 (res://features/asset_library/resources/audio/game/printworks_game_over_soft_01.ogg)\n  Creator: Nathan Gibson\n  Source: https://nathangibson.myportfolio.com\n\nISC\n- asset.texture.icon.dice_5 (res://features/asset_library/resources/textures/icons/dice_5.svg)\n  Creator: Lucide Contributors\n  Source: https://lucide.dev/icons/dice-5\n- asset.texture.icon.chevron_down (res://features/asset_library/resources/textures/icons/chevron_down.svg)\n  Creator: Lucide Contributors\n  Source: https://lucide.dev/icons/chevron-down\n- asset.texture.icon.pause (res://features/asset_library/resources/textures/icons/pause.svg)\n  Creator: Lucide Contributors\n  Source: https://lucide.dev/icons/pause\n- asset.texture.icon.undo_2 (res://features/asset_library/resources/textures/icons/undo_2.svg)\n  Creator: Lucide Contributors\n  Source: https://lucide.dev/icons/undo-2\n- asset.texture.icon.redo_2 (res://features/asset_library/resources/textures/icons/redo_2.svg)\n  Creator: Lucide Contributors\n  Source: https://lucide.dev/icons/redo-2\n- asset.texture.icon.bookmark_plus (res://features/asset_library/resources/textures/icons/bookmark_plus.svg)\n  Creator: Lucide Contributors\n  Source: https://lucide.dev/icons/bookmark-plus\n\nproject\n- asset.shader.background.halftone_paper (res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.transition.halftone_wipe (res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.ui.button_focus_dash (res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader)\n  Creator: 2048-all-in-one\n- asset.shader.ui.startup_progress_bar (res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader)\n  Creator: 2048-all-in-one\n- asset.texture.icon.randomize (res://features/asset_library/resources/textures/icons/dices.svg)\n  Creator: 2048-all-in-one\n- asset.texture.branding.printworks_boot_mark (res://features/asset_library/resources/textures/branding/printworks_boot_mark.png)\n  Creator: 2048-all-in-one\n- asset.texture.branding.printworks_boot_mark_source (res://features/asset_library/resources/textures/branding/printworks_boot_mark.svg)\n  Creator: 2048-all-in-one\n- asset.texture.branding.printworks_boot_splash (res://features/asset_library/resources/textures/branding/printworks_boot_splash.png)\n  Creator: 2048-all-in-one\n- asset.texture.branding.printworks_boot_splash_source (res://features/asset_library/resources/textures/branding/printworks_boot_splash.svg)\n  Creator: 2048-all-in-one\n- asset.vfx.celebration.confetti_canvas (res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader)\n  Creator: 2048-all-in-one",
 	"attribution_report": {
-		"covered_path_count": 11,
+		"covered_path_count": 22,
 		"covered_paths": [
 			{
 				"attribution_path": "res://features/asset_library/resources/audio/ui/printworks_select_soft_01.ogg",
@@ -254,6 +408,72 @@
 				"inherited": false,
 				"inherited_from": "",
 				"path": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/icons/dices.svg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/icons/dices.svg"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/icons/dice_5.svg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/icons/dice_5.svg"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/icons/chevron_down.svg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/icons/chevron_down.svg"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/icons/pause.svg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/icons/pause.svg"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/icons/undo_2.svg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/icons/undo_2.svg"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/icons/redo_2.svg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/icons/redo_2.svg"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/icons/bookmark_plus.svg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/icons/bookmark_plus.svg"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.png",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.png"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.svg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.svg"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png"
+			},
+			{
+				"attribution_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.svg",
+				"inherited": false,
+				"inherited_from": "",
+				"path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.svg"
 			},
 			{
 				"attribution_path": "res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader",
@@ -400,6 +620,149 @@
 				"license_id": "project",
 				"metadata": {},
 				"notice": "",
+				"path": "res://features/asset_library/resources/textures/icons/dices.svg",
+				"source_url": "",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.icon.randomize",
+				"title": "asset.texture.icon.randomize"
+			},
+			{
+				"copyright": "",
+				"creator": "Lucide Contributors",
+				"index": 11,
+				"license_id": "ISC",
+				"metadata": {},
+				"notice": "",
+				"path": "res://features/asset_library/resources/textures/icons/dice_5.svg",
+				"source_url": "https://lucide.dev/icons/dice-5",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.icon.dice_5",
+				"title": "asset.texture.icon.dice_5"
+			},
+			{
+				"copyright": "",
+				"creator": "Lucide Contributors",
+				"index": 12,
+				"license_id": "ISC",
+				"metadata": {},
+				"notice": "",
+				"path": "res://features/asset_library/resources/textures/icons/chevron_down.svg",
+				"source_url": "https://lucide.dev/icons/chevron-down",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.icon.chevron_down",
+				"title": "asset.texture.icon.chevron_down"
+			},
+			{
+				"copyright": "",
+				"creator": "Lucide Contributors",
+				"index": 13,
+				"license_id": "ISC",
+				"metadata": {},
+				"notice": "",
+				"path": "res://features/asset_library/resources/textures/icons/pause.svg",
+				"source_url": "https://lucide.dev/icons/pause",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.icon.pause",
+				"title": "asset.texture.icon.pause"
+			},
+			{
+				"copyright": "",
+				"creator": "Lucide Contributors",
+				"index": 14,
+				"license_id": "ISC",
+				"metadata": {},
+				"notice": "",
+				"path": "res://features/asset_library/resources/textures/icons/undo_2.svg",
+				"source_url": "https://lucide.dev/icons/undo-2",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.icon.undo_2",
+				"title": "asset.texture.icon.undo_2"
+			},
+			{
+				"copyright": "",
+				"creator": "Lucide Contributors",
+				"index": 15,
+				"license_id": "ISC",
+				"metadata": {},
+				"notice": "",
+				"path": "res://features/asset_library/resources/textures/icons/redo_2.svg",
+				"source_url": "https://lucide.dev/icons/redo-2",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.icon.redo_2",
+				"title": "asset.texture.icon.redo_2"
+			},
+			{
+				"copyright": "",
+				"creator": "Lucide Contributors",
+				"index": 16,
+				"license_id": "ISC",
+				"metadata": {},
+				"notice": "",
+				"path": "res://features/asset_library/resources/textures/icons/bookmark_plus.svg",
+				"source_url": "https://lucide.dev/icons/bookmark-plus",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.icon.bookmark_plus",
+				"title": "asset.texture.icon.bookmark_plus"
+			},
+			{
+				"copyright": "",
+				"creator": "2048-all-in-one",
+				"index": 17,
+				"license_id": "project",
+				"metadata": {},
+				"notice": "",
+				"path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.png",
+				"source_url": "",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.branding.printworks_boot_mark",
+				"title": "asset.texture.branding.printworks_boot_mark"
+			},
+			{
+				"copyright": "",
+				"creator": "2048-all-in-one",
+				"index": 18,
+				"license_id": "project",
+				"metadata": {},
+				"notice": "",
+				"path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.svg",
+				"source_url": "",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.branding.printworks_boot_mark_source",
+				"title": "asset.texture.branding.printworks_boot_mark_source"
+			},
+			{
+				"copyright": "",
+				"creator": "2048-all-in-one",
+				"index": 19,
+				"license_id": "project",
+				"metadata": {},
+				"notice": "",
+				"path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+				"source_url": "",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.branding.printworks_boot_splash",
+				"title": "asset.texture.branding.printworks_boot_splash"
+			},
+			{
+				"copyright": "",
+				"creator": "2048-all-in-one",
+				"index": 20,
+				"license_id": "project",
+				"metadata": {},
+				"notice": "",
+				"path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.svg",
+				"source_url": "",
+				"subject_kind": "texture",
+				"subject_path": "asset.texture.branding.printworks_boot_splash_source",
+				"title": "asset.texture.branding.printworks_boot_splash_source"
+			},
+			{
+				"copyright": "",
+				"creator": "2048-all-in-one",
+				"index": 21,
+				"license_id": "project",
+				"metadata": {},
+				"notice": "",
 				"path": "res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader",
 				"source_url": "",
 				"subject_kind": "shader",
@@ -407,7 +770,7 @@
 				"title": "asset.vfx.celebration.confetti_canvas"
 			}
 		],
-		"entry_count": 11,
+		"entry_count": 22,
 		"error_count": 0,
 		"healthy": true,
 		"info_count": 0,
@@ -416,11 +779,12 @@
 		"issues": [],
 		"license_ids": [
 			"CC BY 4.0",
+			"ISC",
 			"project"
 		],
 		"next_action": "No action required.",
 		"ok": true,
-		"resource_path_count": 11,
+		"resource_path_count": 22,
 		"subject": "Asset attribution",
 		"summary": "Asset attribution is healthy.",
 		"uncovered_path_count": 0,
@@ -768,13 +1132,387 @@
 						"startup",
 						"progress"
 					],
-					"type_hint": "Shader"
+					"type_hint": "Shader",
+					"usage_policy": "optional"
 				},
 				"package_id": "c76.asset_library.core",
 				"resource_key": "asset.shader.ui.startup_progress_bar",
 				"role": "resource",
 				"source_path": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
 				"type_hint": "Shader"
+			},
+			{
+				"archive_path": "textures/icons/dices.svg",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "2048-all-in-one",
+					"category": "ui/icon",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "project",
+					"origin": "project",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.icon.randomize",
+					"source": "Project double-dice randomize icon",
+					"tags": [
+						"texture",
+						"icon",
+						"ui",
+						"random"
+					],
+					"type_hint": "Texture2D"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.randomize",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/icons/dices.svg",
+				"type_hint": "Texture2D"
+			},
+			{
+				"archive_path": "textures/icons/dice_5.svg",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "Lucide Contributors",
+					"category": "ui/icon",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "ISC",
+					"origin": "third_party",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.icon.dice_5",
+					"source": "Lucide dice-5 icon",
+					"source_url": "https://lucide.dev/icons/dice-5",
+					"tags": [
+						"texture",
+						"icon",
+						"ui",
+						"random"
+					],
+					"type_hint": "Texture2D",
+					"usage_policy": "optional"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.dice_5",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/icons/dice_5.svg",
+				"type_hint": "Texture2D"
+			},
+			{
+				"archive_path": "textures/icons/chevron_down.svg",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "Lucide Contributors",
+					"category": "ui/icon",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "ISC",
+					"origin": "third_party",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.icon.chevron_down",
+					"source": "Lucide chevron-down icon",
+					"source_url": "https://lucide.dev/icons/chevron-down",
+					"tags": [
+						"texture",
+						"icon",
+						"ui",
+						"dropdown"
+					],
+					"type_hint": "Texture2D"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.chevron_down",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/icons/chevron_down.svg",
+				"type_hint": "Texture2D"
+			},
+			{
+				"archive_path": "textures/icons/pause.svg",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "Lucide Contributors",
+					"category": "ui/icon",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "ISC",
+					"origin": "third_party",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.icon.pause",
+					"source": "Lucide pause icon",
+					"source_url": "https://lucide.dev/icons/pause",
+					"tags": [
+						"texture",
+						"icon",
+						"ui",
+						"pause"
+					],
+					"type_hint": "Texture2D"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.pause",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/icons/pause.svg",
+				"type_hint": "Texture2D"
+			},
+			{
+				"archive_path": "textures/icons/undo_2.svg",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "Lucide Contributors",
+					"category": "ui/icon",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "ISC",
+					"origin": "third_party",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.icon.undo_2",
+					"source": "Lucide undo-2 icon",
+					"source_url": "https://lucide.dev/icons/undo-2",
+					"tags": [
+						"texture",
+						"icon",
+						"ui",
+						"undo"
+					],
+					"type_hint": "Texture2D"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.undo_2",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/icons/undo_2.svg",
+				"type_hint": "Texture2D"
+			},
+			{
+				"archive_path": "textures/icons/redo_2.svg",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "Lucide Contributors",
+					"category": "ui/icon",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "ISC",
+					"origin": "third_party",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.icon.redo_2",
+					"source": "Lucide redo-2 icon",
+					"source_url": "https://lucide.dev/icons/redo-2",
+					"tags": [
+						"texture",
+						"icon",
+						"ui",
+						"redo"
+					],
+					"type_hint": "Texture2D"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.redo_2",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/icons/redo_2.svg",
+				"type_hint": "Texture2D"
+			},
+			{
+				"archive_path": "textures/icons/bookmark_plus.svg",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "Lucide Contributors",
+					"category": "ui/icon",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "ISC",
+					"origin": "third_party",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.icon.bookmark_plus",
+					"source": "Lucide bookmark-plus icon",
+					"source_url": "https://lucide.dev/icons/bookmark-plus",
+					"tags": [
+						"texture",
+						"icon",
+						"ui",
+						"bookmark"
+					],
+					"type_hint": "Texture2D"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.icon.bookmark_plus",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/icons/bookmark_plus.svg",
+				"type_hint": "Texture2D"
+			},
+			{
+				"archive_path": "textures/branding/printworks_boot_mark.png",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "2048-all-in-one",
+					"category": "branding",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "project",
+					"origin": "project",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.branding.printworks_boot_mark",
+					"source": "Project boot mark",
+					"tags": [
+						"texture",
+						"branding",
+						"startup",
+						"printworks"
+					],
+					"type_hint": "Texture2D",
+					"usage_policy": "optional"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.branding.printworks_boot_mark",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.png",
+				"type_hint": "Texture2D"
+			},
+			{
+				"archive_path": "textures/branding/printworks_boot_mark.svg",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "2048-all-in-one",
+					"category": "branding/source",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "project",
+					"origin": "project",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.branding.printworks_boot_mark_source",
+					"source": "Editable vector source for project boot mark",
+					"tags": [
+						"texture",
+						"branding",
+						"startup",
+						"source"
+					],
+					"type_hint": "Texture2D",
+					"usage_policy": "optional"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.branding.printworks_boot_mark_source",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.svg",
+				"type_hint": "Texture2D"
+			},
+			{
+				"archive_path": "textures/branding/printworks_boot_splash.png",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "2048-all-in-one",
+					"category": "branding",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "project",
+					"origin": "project",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.branding.printworks_boot_splash",
+					"source": "Project full-frame native boot splash",
+					"tags": [
+						"texture",
+						"branding",
+						"startup",
+						"printworks"
+					],
+					"type_hint": "Texture2D"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.branding.printworks_boot_splash",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+				"type_hint": "Texture2D"
+			},
+			{
+				"archive_path": "textures/branding/printworks_boot_splash.svg",
+				"metadata": {
+					"asset_kind": "texture",
+					"author": "2048-all-in-one",
+					"category": "branding/source",
+					"content_types": [
+						"asset_library",
+						"audio",
+						"shader",
+						"texture",
+						"vfx"
+					],
+					"license": "project",
+					"origin": "project",
+					"package_id": "c76.asset_library.core",
+					"package_version": "0.1.0",
+					"resource_key": "asset.texture.branding.printworks_boot_splash_source",
+					"source": "Editable vector source for project full-frame boot splash",
+					"tags": [
+						"texture",
+						"branding",
+						"startup",
+						"source"
+					],
+					"type_hint": "Texture2D",
+					"usage_policy": "optional"
+				},
+				"package_id": "c76.asset_library.core",
+				"resource_key": "asset.texture.branding.printworks_boot_splash_source",
+				"role": "resource",
+				"source_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.svg",
+				"type_hint": "Texture2D"
 			},
 			{
 				"archive_path": "vfx/celebration_confetti_canvas.gdshader",
@@ -810,7 +1548,7 @@
 				"type_hint": "Shader"
 			}
 		],
-		"entry_count": 12,
+		"entry_count": 23,
 		"error_count": 0,
 		"healthy": true,
 		"issue_count": 0,
@@ -835,9 +1573,9 @@
 		"limit_value": 0,
 		"ok": true,
 		"root_path": "res://features/asset_library/resources",
-		"scanned_count": 11,
+		"scanned_count": 22,
 		"truncated": false,
-		"visited_entry_count": 50
+		"visited_entry_count": 75
 	},
 	"manifest_path": "res://features/asset_library/resources/gf_content_package.json",
 	"manifest_report": {
@@ -849,7 +1587,7 @@
 		"next_action": "Content package manifest is valid.",
 		"ok": true,
 		"package_id": "c76.asset_library.core",
-		"resource_count": 11,
+		"resource_count": 22,
 		"schema_version": 1,
 		"source_path": "res://features/asset_library/resources/gf_content_package.json",
 		"subject": "Content package manifest",
@@ -858,11 +1596,18 @@
 	},
 	"metadata_issues": [],
 	"ok": true,
+	"optional_unused_keys": [
+		"asset.shader.ui.startup_progress_bar",
+		"asset.texture.branding.printworks_boot_mark",
+		"asset.texture.branding.printworks_boot_mark_source",
+		"asset.texture.branding.printworks_boot_splash_source",
+		"asset.texture.icon.dice_5"
+	],
 	"package_id": "c76.asset_library.core",
 	"reference_scan_report": {
 		"budget_exceeded": false,
-		"candidate_file_count": 273,
-		"input_target_count": 11,
+		"candidate_file_count": 290,
+		"input_target_count": 22,
 		"ok": false,
 		"partial_scan": false,
 		"reference_count": 13,
@@ -961,21 +1706,6 @@
 				"blocking": true,
 				"evidence": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 				"kind": "path",
-				"line": 11,
-				"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
-				"path": "res://app/scripts/boot.gd",
-				"preview": "path reference: res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
-				"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
-				"source": "gdscript_load",
-				"strength": "strong",
-				"symbol": "",
-				"target_id": "asset.shader.background.halftone_paper",
-				"target_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
-			},
-			{
-				"blocking": true,
-				"evidence": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
-				"kind": "path",
 				"line": 7,
 				"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 				"path": "res://features/gameplay/scenes/game/game_play.tscn",
@@ -994,6 +1724,21 @@
 				"line": 4,
 				"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 				"path": "res://features/navigation/scenes/menus/main_menu.tscn",
+				"preview": "path reference: res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+				"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+				"source": "resource_text",
+				"strength": "strong",
+				"symbol": "",
+				"target_id": "asset.shader.background.halftone_paper",
+				"target_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
+			},
+			{
+				"blocking": true,
+				"evidence": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+				"kind": "path",
+				"line": 4,
+				"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+				"path": "res://features/settings/scenes/menus/settings_menu.tscn",
 				"preview": "path reference: res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 				"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 				"source": "resource_text",
@@ -1049,23 +1794,23 @@
 			},
 			{
 				"blocking": true,
-				"evidence": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
+				"evidence": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
 				"kind": "path",
-				"line": 12,
-				"match": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
-				"path": "res://app/scripts/boot.gd",
-				"preview": "path reference: res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
-				"root_path": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
-				"source": "gdscript_load",
-				"strength": "strong",
+				"line": 0,
+				"match": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+				"path": "res://app/scenes/boot.tscn",
+				"preview": "path reference: res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+				"root_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+				"source": "godot_dependency",
+				"strength": "verified",
 				"symbol": "",
-				"target_id": "asset.shader.ui.startup_progress_bar",
-				"target_path": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader"
+				"target_id": "asset.texture.branding.printworks_boot_splash",
+				"target_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png"
 			}
 		],
 		"scan_warnings": [],
-		"scanned_bytes": 1377902,
-		"scanned_file_count": 273,
+		"scanned_bytes": 1536131,
+		"scanned_file_count": 290,
 		"skipped_files": [],
 		"target_count": 9,
 		"targets": {
@@ -1209,21 +1954,6 @@
 						"blocking": true,
 						"evidence": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 						"kind": "path",
-						"line": 11,
-						"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
-						"path": "res://app/scripts/boot.gd",
-						"preview": "path reference: res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
-						"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
-						"source": "gdscript_load",
-						"strength": "strong",
-						"symbol": "",
-						"target_id": "asset.shader.background.halftone_paper",
-						"target_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
-					},
-					{
-						"blocking": true,
-						"evidence": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
-						"kind": "path",
 						"line": 7,
 						"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 						"path": "res://features/gameplay/scenes/game/game_play.tscn",
@@ -1242,6 +1972,21 @@
 						"line": 4,
 						"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 						"path": "res://features/navigation/scenes/menus/main_menu.tscn",
+						"preview": "path reference: res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+						"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+						"source": "resource_text",
+						"strength": "strong",
+						"symbol": "",
+						"target_id": "asset.shader.background.halftone_paper",
+						"target_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
+					},
+					{
+						"blocking": true,
+						"evidence": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+						"kind": "path",
+						"line": 4,
+						"match": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
+						"path": "res://features/settings/scenes/menus/settings_menu.tscn",
 						"preview": "path reference: res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 						"root_path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 						"source": "resource_text",
@@ -1305,30 +2050,30 @@
 				],
 				"root_path": "res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader"
 			},
-			"asset.shader.ui.startup_progress_bar": {
-				"id": "asset.shader.ui.startup_progress_bar",
+			"asset.texture.branding.printworks_boot_splash": {
+				"id": "asset.texture.branding.printworks_boot_splash",
 				"reference_count": 1,
 				"references": [
 					{
 						"blocking": true,
-						"evidence": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
+						"evidence": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
 						"kind": "path",
-						"line": 12,
-						"match": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
-						"path": "res://app/scripts/boot.gd",
-						"preview": "path reference: res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
-						"root_path": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
-						"source": "gdscript_load",
-						"strength": "strong",
+						"line": 0,
+						"match": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+						"path": "res://app/scenes/boot.tscn",
+						"preview": "path reference: res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+						"root_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+						"source": "godot_dependency",
+						"strength": "verified",
 						"symbol": "",
-						"target_id": "asset.shader.ui.startup_progress_bar",
-						"target_path": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader"
+						"target_id": "asset.texture.branding.printworks_boot_splash",
+						"target_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png"
 					}
 				],
-				"root_path": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader"
+				"root_path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png"
 			}
 		},
-		"weak_reference_count": 30,
+		"weak_reference_count": 36,
 		"weak_references": [
 			{
 				"blocking": false,
@@ -1754,7 +2499,7 @@
 				"blocking": false,
 				"evidence": "asset.shader.ui.button_focus_dash",
 				"kind": "class_name",
-				"line": 40,
+				"line": 52,
 				"match": "asset.shader.ui.button_focus_dash",
 				"path": "res://features/themes/scripts/utilities/game_ui_style_utility.gd",
 				"preview": "class_name reference: asset.shader.ui.button_focus_dash",
@@ -1763,6 +2508,96 @@
 				"strength": "weak",
 				"symbol": "asset.shader.ui.button_focus_dash",
 				"target_id": "asset.shader.ui.button_focus_dash",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.texture.icon.randomize",
+				"kind": "class_name",
+				"line": 204,
+				"match": "asset.texture.icon.randomize",
+				"path": "res://features/navigation/scripts/menus/mode_selection.gd",
+				"preview": "class_name reference: asset.texture.icon.randomize",
+				"root_path": "res://features/asset_library/resources/textures/icons/dices.svg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.texture.icon.randomize",
+				"target_id": "asset.texture.icon.randomize",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.texture.icon.chevron_down",
+				"kind": "class_name",
+				"line": 53,
+				"match": "asset.texture.icon.chevron_down",
+				"path": "res://features/themes/scripts/utilities/game_ui_style_utility.gd",
+				"preview": "class_name reference: asset.texture.icon.chevron_down",
+				"root_path": "res://features/asset_library/resources/textures/icons/chevron_down.svg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.texture.icon.chevron_down",
+				"target_id": "asset.texture.icon.chevron_down",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.texture.icon.pause",
+				"kind": "class_name",
+				"line": 27,
+				"match": "asset.texture.icon.pause",
+				"path": "res://features/gameplay/scripts/ui/hud.gd",
+				"preview": "class_name reference: asset.texture.icon.pause",
+				"root_path": "res://features/asset_library/resources/textures/icons/pause.svg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.texture.icon.pause",
+				"target_id": "asset.texture.icon.pause",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.texture.icon.undo_2",
+				"kind": "class_name",
+				"line": 28,
+				"match": "asset.texture.icon.undo_2",
+				"path": "res://features/gameplay/scripts/ui/hud.gd",
+				"preview": "class_name reference: asset.texture.icon.undo_2",
+				"root_path": "res://features/asset_library/resources/textures/icons/undo_2.svg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.texture.icon.undo_2",
+				"target_id": "asset.texture.icon.undo_2",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.texture.icon.redo_2",
+				"kind": "class_name",
+				"line": 29,
+				"match": "asset.texture.icon.redo_2",
+				"path": "res://features/gameplay/scripts/ui/hud.gd",
+				"preview": "class_name reference: asset.texture.icon.redo_2",
+				"root_path": "res://features/asset_library/resources/textures/icons/redo_2.svg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.texture.icon.redo_2",
+				"target_id": "asset.texture.icon.redo_2",
+				"target_path": ""
+			},
+			{
+				"blocking": false,
+				"evidence": "asset.texture.icon.bookmark_plus",
+				"kind": "class_name",
+				"line": 30,
+				"match": "asset.texture.icon.bookmark_plus",
+				"path": "res://features/gameplay/scripts/ui/hud.gd",
+				"preview": "class_name reference: asset.texture.icon.bookmark_plus",
+				"root_path": "res://features/asset_library/resources/textures/icons/bookmark_plus.svg",
+				"source": "text_fallback",
+				"strength": "weak",
+				"symbol": "asset.texture.icon.bookmark_plus",
+				"target_id": "asset.texture.icon.bookmark_plus",
 				"target_path": ""
 			},
 			{
@@ -2266,7 +3101,7 @@
 						"blocking": false,
 						"evidence": "asset.shader.ui.button_focus_dash",
 						"kind": "class_name",
-						"line": 40,
+						"line": 52,
 						"match": "asset.shader.ui.button_focus_dash",
 						"path": "res://features/themes/scripts/utilities/game_ui_style_utility.gd",
 						"preview": "class_name reference: asset.shader.ui.button_focus_dash",
@@ -2279,6 +3114,138 @@
 					}
 				],
 				"root_path": "res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader"
+			},
+			"asset.texture.icon.bookmark_plus": {
+				"id": "asset.texture.icon.bookmark_plus",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.texture.icon.bookmark_plus",
+						"kind": "class_name",
+						"line": 30,
+						"match": "asset.texture.icon.bookmark_plus",
+						"path": "res://features/gameplay/scripts/ui/hud.gd",
+						"preview": "class_name reference: asset.texture.icon.bookmark_plus",
+						"root_path": "res://features/asset_library/resources/textures/icons/bookmark_plus.svg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.texture.icon.bookmark_plus",
+						"target_id": "asset.texture.icon.bookmark_plus",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://features/asset_library/resources/textures/icons/bookmark_plus.svg"
+			},
+			"asset.texture.icon.chevron_down": {
+				"id": "asset.texture.icon.chevron_down",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.texture.icon.chevron_down",
+						"kind": "class_name",
+						"line": 53,
+						"match": "asset.texture.icon.chevron_down",
+						"path": "res://features/themes/scripts/utilities/game_ui_style_utility.gd",
+						"preview": "class_name reference: asset.texture.icon.chevron_down",
+						"root_path": "res://features/asset_library/resources/textures/icons/chevron_down.svg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.texture.icon.chevron_down",
+						"target_id": "asset.texture.icon.chevron_down",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://features/asset_library/resources/textures/icons/chevron_down.svg"
+			},
+			"asset.texture.icon.pause": {
+				"id": "asset.texture.icon.pause",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.texture.icon.pause",
+						"kind": "class_name",
+						"line": 27,
+						"match": "asset.texture.icon.pause",
+						"path": "res://features/gameplay/scripts/ui/hud.gd",
+						"preview": "class_name reference: asset.texture.icon.pause",
+						"root_path": "res://features/asset_library/resources/textures/icons/pause.svg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.texture.icon.pause",
+						"target_id": "asset.texture.icon.pause",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://features/asset_library/resources/textures/icons/pause.svg"
+			},
+			"asset.texture.icon.randomize": {
+				"id": "asset.texture.icon.randomize",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.texture.icon.randomize",
+						"kind": "class_name",
+						"line": 204,
+						"match": "asset.texture.icon.randomize",
+						"path": "res://features/navigation/scripts/menus/mode_selection.gd",
+						"preview": "class_name reference: asset.texture.icon.randomize",
+						"root_path": "res://features/asset_library/resources/textures/icons/dices.svg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.texture.icon.randomize",
+						"target_id": "asset.texture.icon.randomize",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://features/asset_library/resources/textures/icons/dices.svg"
+			},
+			"asset.texture.icon.redo_2": {
+				"id": "asset.texture.icon.redo_2",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.texture.icon.redo_2",
+						"kind": "class_name",
+						"line": 29,
+						"match": "asset.texture.icon.redo_2",
+						"path": "res://features/gameplay/scripts/ui/hud.gd",
+						"preview": "class_name reference: asset.texture.icon.redo_2",
+						"root_path": "res://features/asset_library/resources/textures/icons/redo_2.svg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.texture.icon.redo_2",
+						"target_id": "asset.texture.icon.redo_2",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://features/asset_library/resources/textures/icons/redo_2.svg"
+			},
+			"asset.texture.icon.undo_2": {
+				"id": "asset.texture.icon.undo_2",
+				"reference_count": 1,
+				"references": [
+					{
+						"blocking": false,
+						"evidence": "asset.texture.icon.undo_2",
+						"kind": "class_name",
+						"line": 28,
+						"match": "asset.texture.icon.undo_2",
+						"path": "res://features/gameplay/scripts/ui/hud.gd",
+						"preview": "class_name reference: asset.texture.icon.undo_2",
+						"root_path": "res://features/asset_library/resources/textures/icons/undo_2.svg",
+						"source": "text_fallback",
+						"strength": "weak",
+						"symbol": "asset.texture.icon.undo_2",
+						"target_id": "asset.texture.icon.undo_2",
+						"target_path": ""
+					}
+				],
+				"root_path": "res://features/asset_library/resources/textures/icons/undo_2.svg"
 			},
 			"asset.vfx.celebration.confetti_canvas": {
 				"id": "asset.vfx.celebration.confetti_canvas",
@@ -2305,9 +3272,10 @@
 		}
 	},
 	"report_id": "asset_library_audit",
-	"resource_count": 11,
+	"required_unused_keys": [],
+	"resource_count": 22,
 	"runtime_catalog": {
-		"asset_count": 11,
+		"asset_count": 22,
 		"ids": [
 			"asset.audio.game.printworks.game_over_soft_01",
 			"asset.audio.tile.printworks.merge_soft_01",
@@ -2319,12 +3287,29 @@
 			"asset.shader.transition.halftone_wipe",
 			"asset.shader.ui.button_focus_dash",
 			"asset.shader.ui.startup_progress_bar",
+			"asset.texture.branding.printworks_boot_mark",
+			"asset.texture.branding.printworks_boot_mark_source",
+			"asset.texture.branding.printworks_boot_splash",
+			"asset.texture.branding.printworks_boot_splash_source",
+			"asset.texture.icon.bookmark_plus",
+			"asset.texture.icon.chevron_down",
+			"asset.texture.icon.dice_5",
+			"asset.texture.icon.pause",
+			"asset.texture.icon.randomize",
+			"asset.texture.icon.redo_2",
+			"asset.texture.icon.undo_2",
 			"asset.vfx.celebration.confetti_canvas"
 		],
 		"indexed_field_count": 8
 	},
 	"unregistered_library_files": [],
-	"unused_keys": [],
+	"unused_keys": [
+		"asset.shader.ui.startup_progress_bar",
+		"asset.texture.branding.printworks_boot_mark",
+		"asset.texture.branding.printworks_boot_mark_source",
+		"asset.texture.branding.printworks_boot_splash_source",
+		"asset.texture.icon.dice_5"
+	],
 	"usage": {
 		"asset.audio.game.printworks.game_over_soft_01": {
 			"key_users": [
@@ -2414,9 +3399,9 @@
 			],
 			"path": "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader",
 			"path_users": [
-				"res://app/scripts/boot.gd",
 				"res://features/gameplay/scenes/game/game_play.tscn",
 				"res://features/navigation/scenes/menus/main_menu.tscn",
+				"res://features/settings/scenes/menus/settings_menu.tscn",
 				"res://features/themes/scenes/layouts/base_three_column_layout.tscn",
 				"res://features/asset_library/tools/import_asset_sources.gd"
 			],
@@ -2451,10 +3436,99 @@
 		"asset.shader.ui.startup_progress_bar": {
 			"key_users": [],
 			"path": "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader",
-			"path_users": [
-				"res://app/scripts/boot.gd"
-			],
+			"path_users": [],
 			"type_hint": "Shader",
+			"used": false
+		},
+		"asset.texture.branding.printworks_boot_mark": {
+			"key_users": [],
+			"path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.png",
+			"path_users": [],
+			"type_hint": "Texture2D",
+			"used": false
+		},
+		"asset.texture.branding.printworks_boot_mark_source": {
+			"key_users": [],
+			"path": "res://features/asset_library/resources/textures/branding/printworks_boot_mark.svg",
+			"path_users": [],
+			"type_hint": "Texture2D",
+			"used": false
+		},
+		"asset.texture.branding.printworks_boot_splash": {
+			"key_users": [],
+			"path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png",
+			"path_users": [
+				"res://app/scenes/boot.tscn"
+			],
+			"type_hint": "Texture2D",
+			"used": true
+		},
+		"asset.texture.branding.printworks_boot_splash_source": {
+			"key_users": [],
+			"path": "res://features/asset_library/resources/textures/branding/printworks_boot_splash.svg",
+			"path_users": [],
+			"type_hint": "Texture2D",
+			"used": false
+		},
+		"asset.texture.icon.bookmark_plus": {
+			"key_users": [
+				"res://features/gameplay/scripts/ui/hud.gd"
+			],
+			"path": "res://features/asset_library/resources/textures/icons/bookmark_plus.svg",
+			"path_users": [],
+			"type_hint": "Texture2D",
+			"used": true
+		},
+		"asset.texture.icon.chevron_down": {
+			"key_users": [
+				"res://features/themes/scripts/utilities/game_ui_style_utility.gd"
+			],
+			"path": "res://features/asset_library/resources/textures/icons/chevron_down.svg",
+			"path_users": [],
+			"type_hint": "Texture2D",
+			"used": true
+		},
+		"asset.texture.icon.dice_5": {
+			"key_users": [],
+			"path": "res://features/asset_library/resources/textures/icons/dice_5.svg",
+			"path_users": [],
+			"type_hint": "Texture2D",
+			"used": false
+		},
+		"asset.texture.icon.pause": {
+			"key_users": [
+				"res://features/gameplay/scripts/ui/hud.gd"
+			],
+			"path": "res://features/asset_library/resources/textures/icons/pause.svg",
+			"path_users": [],
+			"type_hint": "Texture2D",
+			"used": true
+		},
+		"asset.texture.icon.randomize": {
+			"key_users": [
+				"res://features/navigation/scripts/menus/mode_selection.gd"
+			],
+			"path": "res://features/asset_library/resources/textures/icons/dices.svg",
+			"path_users": [],
+			"type_hint": "Texture2D",
+			"used": true
+		},
+		"asset.texture.icon.redo_2": {
+			"key_users": [
+				"res://features/gameplay/scripts/ui/hud.gd"
+			],
+			"path": "res://features/asset_library/resources/textures/icons/redo_2.svg",
+			"path_users": [],
+			"type_hint": "Texture2D",
+			"used": true
+		},
+		"asset.texture.icon.undo_2": {
+			"key_users": [
+				"res://features/gameplay/scripts/ui/hud.gd"
+			],
+			"path": "res://features/asset_library/resources/textures/icons/undo_2.svg",
+			"path_users": [],
+			"type_hint": "Texture2D",
 			"used": true
 		},
 		"asset.vfx.celebration.confetti_canvas": {
@@ -2467,7 +3541,7 @@
 			"used": true
 		}
 	},
-	"used_count": 11,
+	"used_count": 17,
 	"version": "0.1.0",
 	"warning_count": 0
 }

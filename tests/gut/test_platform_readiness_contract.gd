@@ -6,7 +6,7 @@ extends GutTest
 
 const _EXPORT_CONFIG_PATH: String = "res://export_presets.cfg"
 const _WEB_PRESET_NAME: String = "Web Compatibility Smoke"
-const _BOOT_SCRIPT_PATH: String = "res://app/scripts/boot.gd"
+const _BOOT_RUNTIME_SCRIPT_PATH: String = "res://app/scripts/boot_runtime.gd"
 const _SMOKE_SCENE_PATH: String = "res://features/platform_runtime/scenes/smoke_test/platform_smoke_test.tscn"
 const _MODE_REGISTRY_PATH: String = "res://features/gameplay/resources/registries/game_mode_registry.tres"
 const _UI_ROUTE_REGISTRY_PATH: String = "res://features/navigation/resources/registries/ui_route_registry.tres"
@@ -56,7 +56,7 @@ func test_web_smoke_preset_is_single_threaded_and_mobile_texture_ready() -> void
 
 
 func test_boot_routes_platform_smoke_exports_to_dedicated_scene() -> void:
-	var file: FileAccess = FileAccess.open(_BOOT_SCRIPT_PATH, FileAccess.READ)
+	var file: FileAccess = FileAccess.open(_BOOT_RUNTIME_SCRIPT_PATH, FileAccess.READ)
 	assert_not_null(file)
 	if file == null:
 		return

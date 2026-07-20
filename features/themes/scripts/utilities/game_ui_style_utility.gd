@@ -50,6 +50,8 @@ const _BORDER_ROLE_META: StringName = &"_game_ui_style_border_role"
 const _BORDER_WIDTH_META: StringName = &"_game_ui_style_border_width"
 const _BUTTON_FOCUS_RING_NODE_NAME: String = "ButtonFocusRing"
 const _BUTTON_FOCUS_RING_SHADER_ASSET_KEY: StringName = &"asset.shader.ui.button_focus_dash"
+const _OPTION_ARROW_ICON_ASSET_KEY: StringName = &"asset.texture.icon.chevron_down"
+const _OPTION_POPUP_BOUND_META: StringName = &"_game_ui_option_popup_bound"
 
 const _BUTTON_NORMAL_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.96)
 const _BUTTON_HOVER_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
@@ -103,6 +105,7 @@ var _numeric_font: Font
 var _button_focus_shader_profile: GFShaderParameterProfile
 var _asset_library: GameAssetLibraryUtility
 var _button_focus_ring_shader: Shader
+var _option_arrow_icon: Texture2D
 var _shader_parameters: GFShaderParameterUtility
 
 
@@ -116,6 +119,7 @@ func ready() -> void:
 	_asset_library = _get_asset_library_utility()
 	_shader_parameters = _get_shader_parameter_utility()
 	_button_focus_ring_shader = _load_button_focus_ring_shader()
+	_option_arrow_icon = _load_texture_asset(_OPTION_ARROW_ICON_ASSET_KEY)
 	if not is_instance_valid(_asset_library):
 		push_error("[GameUiStyleUtility] 缺少 GameAssetLibraryUtility。")
 	if not is_instance_valid(_shader_parameters):
@@ -131,12 +135,14 @@ func dispose() -> void:
 	_reset_palette()
 	_asset_library = null
 	_button_focus_ring_shader = null
+	_option_arrow_icon = null
 	_shader_parameters = null
 
 
 func release_dependencies() -> void:
 	_asset_library = null
 	_button_focus_ring_shader = null
+	_option_arrow_icon = null
 	_shader_parameters = null
 	super.release_dependencies()
 
@@ -354,6 +360,9 @@ func prepare_button(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
 	_apply_button_visual_style(button)
+	if button is OptionButton:
+		var option_button: OptionButton = button
+		_style_option_button(option_button)
 	var _focus_ring: ColorRect = _ensure_button_focus_ring(button)
 
 
@@ -365,6 +374,30 @@ func style_button(button: BaseButton, role: ButtonRole = ButtonRole.SECONDARY) -
 		return
 	button.set_meta(_BUTTON_ROLE_META, int(role))
 	prepare_button(button)
+
+
+## 从项目素材库解析图标并应用到按钮，避免业务场景持有具体资源路径。
+## @param button: 目标按钮。
+## @param asset_key: 已在内容包中登记的 Texture2D 素材键。
+## @param max_width: 图标最大显示宽度。
+## @return: 素材存在且应用成功时为 true。
+func set_button_icon_from_asset(
+	button: Button,
+	asset_key: StringName,
+	max_width: int = 20
+) -> bool:
+	if not is_instance_valid(button) or asset_key == &"":
+		return false
+	var icon_texture: Texture2D = _load_texture_asset(asset_key)
+	if not is_instance_valid(icon_texture):
+		push_error("[GameUiStyleUtility] 无法加载按钮图标素材：%s。" % String(asset_key))
+		return false
+	button.icon = icon_texture
+	button.set(&"icon_max_width", maxi(max_width, 1))
+	button.expand_icon = true
+	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.text = ""
+	return true
 
 
 ## 更新按钮焦点 Shader 的尺寸和当前色板参数。
@@ -521,6 +554,86 @@ func _style_item_list(item_list: ItemList) -> void:
 	_apply_font_override(item_list, _body_font)
 
 
+func _style_option_button(option_button: OptionButton) -> void:
+	option_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	option_button.add_theme_stylebox_override(
+		"normal",
+		_create_option_style(_field_surface_color, _field_border_color, 1)
+	)
+	option_button.add_theme_stylebox_override(
+		"hover",
+		_create_option_style(_field_surface_color.lightened(0.018), _button_focus_border_color, 2)
+	)
+	option_button.add_theme_stylebox_override(
+		"pressed",
+		_create_option_style(_field_focus_surface_color, _field_focus_border_color, 2)
+	)
+	option_button.add_theme_stylebox_override(
+		"focus",
+		_create_option_style(Color.TRANSPARENT, _field_focus_border_color, 2)
+	)
+	option_button.add_theme_stylebox_override(
+		"disabled",
+		_create_option_style(_button_disabled_color, _field_border_color, 1)
+	)
+	option_button.add_theme_color_override("font_color", _text_primary_color)
+	option_button.add_theme_color_override("font_hover_color", _text_primary_color)
+	option_button.add_theme_color_override("font_pressed_color", _text_primary_color)
+	option_button.add_theme_color_override("font_focus_color", _text_primary_color)
+	option_button.add_theme_color_override("font_disabled_color", _button_font_disabled_color)
+	if is_instance_valid(_option_arrow_icon):
+		option_button.add_theme_icon_override("arrow", _option_arrow_icon)
+	_apply_font_override(option_button, _body_font)
+	var popup: PopupMenu = option_button.get_popup()
+	_style_popup_menu(popup)
+	if (
+		is_instance_valid(popup)
+		and not GFVariantData.to_bool(popup.get_meta(_OPTION_POPUP_BOUND_META, false))
+	):
+		popup.set_meta(_OPTION_POPUP_BOUND_META, true)
+		var _popup_connect: int = popup.about_to_popup.connect(
+			_on_option_popup_about_to_show.bind(popup)
+		)
+
+
+func _style_popup_menu(popup: PopupMenu) -> void:
+	if not is_instance_valid(popup):
+		return
+	popup.prefer_native_menu = false
+	popup.transparent_bg = true
+	popup.add_theme_stylebox_override(
+		"panel",
+		_create_popup_panel_style()
+	)
+	popup.add_theme_stylebox_override(
+		"hover",
+		_create_popup_item_style(_field_focus_surface_color, _field_focus_border_color)
+	)
+	popup.add_theme_stylebox_override("separator", _create_popup_separator_style())
+	popup.add_theme_stylebox_override(
+		"labeled_separator_left",
+		_create_popup_separator_style()
+	)
+	popup.add_theme_stylebox_override(
+		"labeled_separator_right",
+		_create_popup_separator_style()
+	)
+	popup.add_theme_color_override("font_color", _text_primary_color)
+	popup.add_theme_color_override("font_hover_color", _text_primary_color)
+	popup.add_theme_color_override("font_disabled_color", _button_font_disabled_color)
+	popup.add_theme_color_override("font_separator_color", _text_secondary_color)
+	popup.add_theme_color_override("font_accelerator_color", _text_secondary_color)
+	popup.add_theme_constant_override("v_separation", 7)
+	popup.add_theme_constant_override("item_start_padding", 12)
+	popup.add_theme_constant_override("item_end_padding", 12)
+	if _body_font != null:
+		popup.add_theme_font_override("font", _body_font)
+
+
+func _on_option_popup_about_to_show(popup: PopupMenu) -> void:
+	_style_popup_menu(popup)
+
+
 func _apply_button_visual_style(button: BaseButton) -> void:
 	var role: int = GFVariantData.to_int(
 		_get_control_meta(button, _BUTTON_ROLE_META, ButtonRole.SECONDARY)
@@ -594,6 +707,49 @@ func _create_button_style(
 	style.set_content_margin(SIDE_TOP, 8.0)
 	style.set_content_margin(SIDE_RIGHT, 12.0)
 	style.set_content_margin(SIDE_BOTTOM, 8.0)
+	return style
+
+
+func _create_option_style(
+	color: Color,
+	border_color: Color,
+	border_width: int
+) -> StyleBoxFlat:
+	var style: StyleBoxFlat = _create_field_style(color, border_color, border_width)
+	style.set_content_margin(SIDE_RIGHT, 38.0)
+	return style
+
+
+func _create_popup_panel_style() -> StyleBoxFlat:
+	var style: StyleBoxFlat = _create_field_style(
+		_panel_surface_color,
+		_button_focus_border_color,
+		2
+	)
+	style.set_content_margin(SIDE_LEFT, 5.0)
+	style.set_content_margin(SIDE_TOP, 5.0)
+	style.set_content_margin(SIDE_RIGHT, 5.0)
+	style.set_content_margin(SIDE_BOTTOM, 5.0)
+	return style
+
+
+func _create_popup_item_style(bg_color: Color, border_color: Color) -> StyleBoxFlat:
+	var style: StyleBoxFlat = _create_field_style(bg_color, border_color, 1)
+	style.set_corner_radius_all(2)
+	style.set_content_margin(SIDE_LEFT, 7.0)
+	style.set_content_margin(SIDE_TOP, 5.0)
+	style.set_content_margin(SIDE_RIGHT, 7.0)
+	style.set_content_margin(SIDE_BOTTOM, 5.0)
+	return style
+
+
+func _create_popup_separator_style() -> StyleBoxLine:
+	var style: StyleBoxLine = StyleBoxLine.new()
+	style.color = _field_border_color
+	style.color.a *= 0.48
+	style.thickness = 1
+	style.grow_begin = 8.0
+	style.grow_end = 8.0
 	return style
 
 
@@ -789,6 +945,15 @@ func _load_button_focus_ring_shader() -> Shader:
 	if resource is Shader:
 		var shader: Shader = resource
 		return shader
+	return null
+
+
+func _load_texture_asset(asset_key: StringName) -> Texture2D:
+	if not is_instance_valid(_asset_library):
+		return null
+	var resource: Resource = _asset_library.load_asset(asset_key, "Texture2D")
+	if resource is Texture2D:
+		return resource
 	return null
 
 

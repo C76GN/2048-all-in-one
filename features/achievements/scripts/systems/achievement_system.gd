@@ -1,7 +1,7 @@
 ## AchievementSystem: 把项目领域高水位指标投影到 GFQuestUtility。
 ##
-## SaveGraph 是玩家成就进度真源，GFQuestUtility 是运行时状态机。系统先原子保存
-## 提议进度，再推进 GF Quest，避免持久化失败后运行时状态领先于真源。
+## SaveGraph 内存图是玩家成就进度真源，GFQuestUtility 是运行时状态机。系统先原子
+## 校验并更新 SaveGraph，再把磁盘快照交给 GFStorageUtility 合并异步写入。
 class_name AchievementSystem
 extends GFSystem
 
@@ -336,7 +336,7 @@ func _save_records(records_by_id: Dictionary) -> Error:
 	var payload: Array[Dictionary] = []
 	for record: AchievementProgressRecord in records:
 		payload.append(record.to_dict())
-	return _save_graph.replace_section_data(
+	return _save_graph.queue_section_data(
 		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID,
 		{"records": payload}
 	)

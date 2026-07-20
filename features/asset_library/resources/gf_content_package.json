@@ -212,7 +212,238 @@
         "origin": "project",
         "author": "2048-all-in-one",
         "source": "Project shader adapted from user-provided startup progress concept",
+        "license": "project",
+        "usage_policy": "optional"
+      }
+    },
+    {
+      "key": "asset.texture.icon.randomize",
+      "path": "textures/icons/dices.svg",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "icon",
+          "ui",
+          "random"
+        ],
+        "asset_kind": "texture",
+        "category": "ui/icon",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Project double-dice randomize icon",
         "license": "project"
+      }
+    },
+    {
+      "key": "asset.texture.icon.dice_5",
+      "path": "textures/icons/dice_5.svg",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "icon",
+          "ui",
+          "random"
+        ],
+        "asset_kind": "texture",
+        "category": "ui/icon",
+        "origin": "third_party",
+        "author": "Lucide Contributors",
+        "source": "Lucide dice-5 icon",
+        "source_url": "https://lucide.dev/icons/dice-5",
+        "license": "ISC",
+        "usage_policy": "optional"
+      }
+    },
+    {
+      "key": "asset.texture.icon.chevron_down",
+      "path": "textures/icons/chevron_down.svg",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "icon",
+          "ui",
+          "dropdown"
+        ],
+        "asset_kind": "texture",
+        "category": "ui/icon",
+        "origin": "third_party",
+        "author": "Lucide Contributors",
+        "source": "Lucide chevron-down icon",
+        "source_url": "https://lucide.dev/icons/chevron-down",
+        "license": "ISC"
+      }
+    },
+    {
+      "key": "asset.texture.icon.pause",
+      "path": "textures/icons/pause.svg",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "icon",
+          "ui",
+          "pause"
+        ],
+        "asset_kind": "texture",
+        "category": "ui/icon",
+        "origin": "third_party",
+        "author": "Lucide Contributors",
+        "source": "Lucide pause icon",
+        "source_url": "https://lucide.dev/icons/pause",
+        "license": "ISC"
+      }
+    },
+    {
+      "key": "asset.texture.icon.undo_2",
+      "path": "textures/icons/undo_2.svg",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "icon",
+          "ui",
+          "undo"
+        ],
+        "asset_kind": "texture",
+        "category": "ui/icon",
+        "origin": "third_party",
+        "author": "Lucide Contributors",
+        "source": "Lucide undo-2 icon",
+        "source_url": "https://lucide.dev/icons/undo-2",
+        "license": "ISC"
+      }
+    },
+    {
+      "key": "asset.texture.icon.redo_2",
+      "path": "textures/icons/redo_2.svg",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "icon",
+          "ui",
+          "redo"
+        ],
+        "asset_kind": "texture",
+        "category": "ui/icon",
+        "origin": "third_party",
+        "author": "Lucide Contributors",
+        "source": "Lucide redo-2 icon",
+        "source_url": "https://lucide.dev/icons/redo-2",
+        "license": "ISC"
+      }
+    },
+    {
+      "key": "asset.texture.icon.bookmark_plus",
+      "path": "textures/icons/bookmark_plus.svg",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "icon",
+          "ui",
+          "bookmark"
+        ],
+        "asset_kind": "texture",
+        "category": "ui/icon",
+        "origin": "third_party",
+        "author": "Lucide Contributors",
+        "source": "Lucide bookmark-plus icon",
+        "source_url": "https://lucide.dev/icons/bookmark-plus",
+        "license": "ISC"
+      }
+    },
+    {
+      "key": "asset.texture.branding.printworks_boot_mark",
+      "path": "textures/branding/printworks_boot_mark.png",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "branding",
+          "startup",
+          "printworks"
+        ],
+        "asset_kind": "texture",
+        "category": "branding",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Project boot mark",
+        "license": "project",
+        "usage_policy": "optional"
+      }
+    },
+    {
+      "key": "asset.texture.branding.printworks_boot_mark_source",
+      "path": "textures/branding/printworks_boot_mark.svg",
+      "type_hint": "Texture2D",
+      "priority": 90,
+      "metadata": {
+        "tags": [
+          "texture",
+          "branding",
+          "startup",
+          "source"
+        ],
+        "asset_kind": "texture",
+        "category": "branding/source",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Editable vector source for project boot mark",
+        "license": "project",
+        "usage_policy": "optional"
+      }
+    },
+    {
+      "key": "asset.texture.branding.printworks_boot_splash",
+      "path": "textures/branding/printworks_boot_splash.png",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "branding",
+          "startup",
+          "printworks"
+        ],
+        "asset_kind": "texture",
+        "category": "branding",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Project full-frame native boot splash",
+        "license": "project"
+      }
+    },
+    {
+      "key": "asset.texture.branding.printworks_boot_splash_source",
+      "path": "textures/branding/printworks_boot_splash.svg",
+      "type_hint": "Texture2D",
+      "priority": 90,
+      "metadata": {
+        "tags": [
+          "texture",
+          "branding",
+          "startup",
+          "source"
+        ],
+        "asset_kind": "texture",
+        "category": "branding/source",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Editable vector source for project full-frame boot splash",
+        "license": "project",
+        "usage_policy": "optional"
       }
     },
     {

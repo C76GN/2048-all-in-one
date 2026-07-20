@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <pattern id="paper" width="180" height="160" patternUnits="userSpaceOnUse">
+      <path d="M0 36h180M0 118h180" stroke="#d7c98e" stroke-width="8" opacity="0.07"/>
+      <path d="M0 78h180" stroke="#7bc3c7" stroke-width="7" opacity="0.06"/>
+      <g fill="#c66a61" opacity="0.09">
+        <circle cx="18" cy="18" r="2"/><circle cx="34" cy="22" r="1.5"/><circle cx="160" cy="138" r="2"/>
+      </g>
+    </pattern>
+    <pattern id="bar_hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
+      <rect width="6" height="12" fill="#e8cf86" opacity="0.48"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="720" fill="#e9e7df"/>
+  <rect width="1280" height="720" fill="url(#paper)"/>
+
+  <text x="640" y="258" text-anchor="middle" fill="#2f3037" font-family="Arial, sans-serif" font-size="60" font-weight="600">2048</text>
+  <text x="640" y="291" text-anchor="middle" fill="#665b52" font-family="Arial, sans-serif" font-size="17" letter-spacing="1">PRINTWORKS ATLAS</text>
+
+  <g transform="translate(560 310)">
+    <rect x="7" y="7" width="146" height="146" rx="5" fill="#8d8981" stroke="#404248" stroke-width="5"/>
+    <g stroke="#404248" stroke-width="3">
+      <rect x="17" y="17" width="27" height="27" fill="#f4f1e8"/><rect x="50" y="17" width="27" height="27" fill="#b0cec7"/><rect x="83" y="17" width="27" height="27" fill="#b9b5ac"/><rect x="116" y="17" width="27" height="27" fill="#e6c27d"/>
+      <rect x="17" y="50" width="27" height="27" fill="#b9b5ac"/><rect x="50" y="50" width="27" height="27" fill="#e3a36f"/><rect x="83" y="50" width="27" height="27" fill="#f4f1e8"/><rect x="116" y="50" width="27" height="27" fill="#b9b5ac"/>
+      <rect x="17" y="83" width="27" height="27" fill="#f4f1e8"/><rect x="50" y="83" width="27" height="27" fill="#b9b5ac"/><rect x="83" y="83" width="27" height="27" fill="#d9825e"/><rect x="116" y="83" width="27" height="27" fill="#e6decb"/>
+      <rect x="17" y="116" width="27" height="27" fill="#c85f4b"/><rect x="50" y="116" width="27" height="27" fill="#e6c27d"/><rect x="83" y="116" width="27" height="27" fill="#b9b5ac"/><rect x="116" y="116" width="27" height="27" fill="#4d555b"/>
+    </g>
+  </g>
+
+  <text x="400" y="493" fill="#2f3037" font-family="Microsoft YaHei, Noto Sans CJK SC, sans-serif" font-size="18">准备纸面</text>
+  <text x="880" y="493" text-anchor="end" fill="#b77a75" font-family="Arial, sans-serif" font-size="18">0%</text>
+  <rect x="399" y="506" width="482" height="34" rx="4" fill="#f4f1e8" stroke="#2f3037" stroke-width="3"/>
+  <rect x="403" y="510" width="474" height="26" fill="url(#bar_hatch)" opacity="0.55"/>
+  <text x="640" y="564" text-anchor="middle" fill="#665b52" font-family="Arial, sans-serif" font-size="14">GF Framework / Scene Preload</text>
+</svg>

@@ -1,7 +1,7 @@
 ## TileVisualFamilyStyle: 单个方块视觉家族在某套主题中的稳定表现配置。
 ##
 ## 数值色阶仍由 TileColorScheme 管理；这里仅声明不随数值变化的身份特征，
-## 包括轮廓、稀疏符号、比例、轻微错版和家族描边。
+## 包括轮廓、稀疏符号、比例、短投影和家族描边。
 class_name TileVisualFamilyStyle
 extends Resource
 
@@ -17,7 +17,7 @@ extends Resource
 @export var border_color: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
 @export var accent_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
 @export_range(0.0, 0.5, 0.01) var motif_opacity: float = 0.14
-@export var registration_offset: Vector2 = Vector2(2.0, 2.0)
+@export var shadow_offset: Vector2 = Vector2(2.0, 2.0)
 
 
 # --- 公共方法 ---
@@ -45,6 +45,8 @@ func get_validation_report() -> GFValidationReport:
 		)
 	if border_width <= 0.0:
 		_add_error(report, &"invalid_border_width", "border_width 必须大于 0。", &"border_width")
+	if absf(shadow_offset.x) > 4.0 or absf(shadow_offset.y) > 4.0:
+		_add_error(report, &"invalid_shadow_offset", "shadow_offset 必须限制在 4px 内。", &"shadow_offset")
 	return report
 
 

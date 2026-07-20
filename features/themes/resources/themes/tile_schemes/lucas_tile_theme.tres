@@ -5,52 +5,52 @@
 
 [sub_resource type="Resource" id="Resource_kkn1i"]
 script = ExtResource("2_i87hp")
-background_color = Color(1, 0.972549, 0.9098039, 1)
+background_color = Color(0.95686275, 0.94509804, 0.9098039, 1)
 font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 
 [sub_resource type="Resource" id="Resource_i87hp"]
 script = ExtResource("2_i87hp")
-background_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
+background_color = Color(0.7882353, 0.8666667, 0.84705883, 1)
 font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 
 [sub_resource type="Resource" id="Resource_vw7d5"]
 script = ExtResource("2_i87hp")
-background_color = Color(0.9607843, 0.6392157, 0.7882353, 1)
+background_color = Color(0.6, 0.7607843, 0.7294118, 1)
 font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 
 [sub_resource type="Resource" id="Resource_ilcwh"]
 script = ExtResource("2_i87hp")
-background_color = Color(0.61960787, 0.85882354, 0.8352941, 1)
+background_color = Color(0.8862745, 0.7607843, 0.4509804, 1)
 font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 
 [sub_resource type="Resource" id="Resource_tiojq"]
 script = ExtResource("2_i87hp")
-background_color = Color(0.6117647, 0.7647059, 0.41568628, 1)
+background_color = Color(0.8509804, 0.627451, 0.42745098, 1)
 font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 
 [sub_resource type="Resource" id="Resource_oq8d3"]
 script = ExtResource("2_i87hp")
-background_color = Color(0.23921569, 0.6431373, 0.7411765, 1)
-font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+background_color = Color(0.7607843, 0.40392157, 0.29411766, 1)
+font_color = Color(0.95686275, 0.94509804, 0.9098039, 1)
 
 [sub_resource type="Resource" id="Resource_7lh5w"]
 script = ExtResource("2_i87hp")
-background_color = Color(0.9372549, 0.41960785, 0.34117648, 1)
-font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+background_color = Color(0.7137255, 0.36862746, 0.29411766, 1)
+font_color = Color(0.95686275, 0.94509804, 0.9098039, 1)
 
 [sub_resource type="Resource" id="Resource_tla55"]
 script = ExtResource("2_i87hp")
-background_color = Color(0.8745098, 0.29411766, 0.6039216, 1)
-font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+background_color = Color(0.49803922, 0.38431373, 0.34509805, 1)
+font_color = Color(0.95686275, 0.94509804, 0.9098039, 1)
 
 [sub_resource type="Resource" id="Resource_wo4s1"]
 script = ExtResource("2_i87hp")
-background_color = Color(0.39215687, 0.24313726, 0.4509804, 1)
+background_color = Color(0.3019608, 0.36078432, 0.3647059, 1)
 font_color = Color(1, 0.972549, 0.9098039, 1)
 
 [sub_resource type="Resource" id="Resource_yik37"]
 script = ExtResource("2_i87hp")
-background_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+background_color = Color(0.18431373, 0.19215687, 0.21176471, 1)
 font_color = Color(1, 0.972549, 0.9098039, 1)
 
 [resource]

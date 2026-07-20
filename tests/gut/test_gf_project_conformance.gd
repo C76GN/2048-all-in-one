@@ -14,14 +14,16 @@ const SOURCE_EXCLUDED_ROOTS: Array[String] = [
 ]
 const GLOBAL_GF_ACCESS_ALLOWLIST: Array[String] = [
 	"res://app/scripts/boot.gd",
+	"res://app/scripts/boot_runtime.gd",
 ]
 const DIRECT_TIME_AND_RANDOM_ALLOWLIST: Array[String] = [
 	"res://app/scripts/boot.gd",
+	"res://app/scripts/boot_runtime.gd",
 	"res://features/asset_library/tools/asset_review_browser.gd",
 	"res://features/asset_library/tools/import_asset_sources.gd",
 	"res://shared/scripts/utilities/game_clock_utility.gd",
 ]
-const BOOT_SCRIPT_PATH: String = "res://app/scripts/boot.gd"
+const BOOT_RUNTIME_SCRIPT_PATH: String = "res://app/scripts/boot_runtime.gd"
 const GF_MODULE_BASE_PATHS: Array[String] = [
 	"res://addons/gf/kernel/base/gf_model.gd",
 	"res://addons/gf/kernel/base/gf_system.gd",
@@ -168,7 +170,7 @@ func test_gf_modules_only_resolve_cross_module_dependencies_in_ready() -> void:
 
 
 func test_boot_enables_strict_architecture_dependency_contracts() -> void:
-	var source: String = _read_text(BOOT_SCRIPT_PATH)
+	var source: String = _read_text(BOOT_RUNTIME_SCRIPT_PATH)
 
 	assert_true(source.contains("Gf.create_architecture()"), "Boot 应显式配置 GF 根架构。")
 	assert_true(source.contains("architecture.strict_dependency_lookup = true"), "根架构必须禁用隐式父级依赖回退。")

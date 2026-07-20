@@ -289,7 +289,7 @@ func _save_discoveries(
 	for record: BoardDiscoveryRecord in board_records:
 		if record != null:
 			board_items.append(record.to_dict())
-	return save_graph.replace_section_data(
+	return save_graph.queue_section_data(
 		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
 		{
 			"tile_compositions": tile_items,

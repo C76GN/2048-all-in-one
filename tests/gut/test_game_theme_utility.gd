@@ -50,7 +50,7 @@ func test_theme_catalog_discovers_and_validates_default_theme_pack() -> void:
 	assert_true(is_instance_valid(theme.ui_palette.button_focus_shader_profile), "UI 色板应引用按钮焦点 GF Profile。")
 	assert_true(theme.ui_palette.button_focus_shader_profile.get_parameter_names().size() == 5, "按钮焦点 Profile 应声明 5 个静态样式参数。")
 	assert_true(is_instance_valid(theme.background_shader_profile), "主题应引用 GF 背景 Shader 参数 Profile。")
-	assert_true(theme.background_shader_profile.get_parameter_names().size() == 31, "背景 Profile 应完整声明当前 shader 的 31 个主题与操作反馈参数。")
+	assert_true(theme.background_shader_profile.get_parameter_names().size() == 32, "背景 Profile 应完整声明当前 shader 的 32 个主题与操作反馈参数。")
 	assert_true(is_instance_valid(theme.celebration_vfx_theme), "主题应引用庆祝 VFX 主题资源。")
 	assert_true(theme.celebration_vfx_theme.get_validation_report().is_ok(), "庆祝 VFX 主题应通过 GFValidationReport。")
 	assert_true(theme.celebration_vfx_theme.shader_parameter_profile.get_parameter_names().size() == 11, "庆祝 VFX Profile 应声明 11 个基础视觉参数。")

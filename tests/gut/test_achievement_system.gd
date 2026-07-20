@@ -248,6 +248,7 @@ func _create_setup(
 	return {
 		"architecture": architecture,
 		"storage": storage,
+		"save_graph": save_graph,
 		"catalog": catalog,
 		"quest": quest,
 		"save_system": save_system,
@@ -276,6 +277,13 @@ func _make_save_graph() -> GameSaveGraphUtility:
 
 
 func _dispose_setup(setup: Dictionary, delete_profile: bool = true) -> void:
+	var save_graph_value: Variant = setup.get("save_graph")
+	if save_graph_value is GameSaveGraphUtility:
+		var save_graph: GameSaveGraphUtility = save_graph_value
+		assert_true(
+			save_graph.flush_pending_save() == OK,
+			"成就测试结束前应收敛排队玩家数据。"
+		)
 	var storage_value: Variant = setup.get("storage")
 	if delete_profile and storage_value is GFStorageUtility:
 		var storage: GFStorageUtility = storage_value

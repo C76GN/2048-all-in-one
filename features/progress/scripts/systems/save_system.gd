@@ -94,7 +94,7 @@ func set_high_score(mode_id: String, board_key: String, score: int) -> Error:
 
 	entry[_STAT_BEST_SCORE] = normalized_score
 	_set_stats_entry(save_data, mode_id, board_key, entry)
-	var save_error: Error = _save_game_data(save_data)
+	var save_error: Error = _queue_game_data(save_data)
 	if save_error == OK and is_instance_valid(_log):
 		_log.info(_LOG_TAG, "新纪录: mode=%s, board=%s, score=%d" % [mode_id, board_key, normalized_score])
 	return save_error
@@ -188,6 +188,19 @@ func _save_game_data(save_data: Dictionary) -> Error:
 	)
 	if error != OK and is_instance_valid(_log):
 		_log.error(_LOG_TAG, "保存统计 SaveGraph section 失败，错误码: %d" % error)
+	return error
+
+
+func _queue_game_data(save_data: Dictionary) -> Error:
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return ERR_UNCONFIGURED
+	var error: Error = save_graph.queue_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		save_data
+	)
+	if error != OK and is_instance_valid(_log):
+		_log.error(_LOG_TAG, "排队统计 SaveGraph section 失败，错误码: %d" % error)
 	return error
 
 

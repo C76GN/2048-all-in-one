@@ -161,7 +161,6 @@ func test_discovery_save_data_rejects_duplicate_and_unknown_fields() -> void:
 func test_composition_observation_persists_and_reloads_discovery_progress() -> void:
 	var save_dir_name: String = "gut_tile_discovery_%d" % Time.get_ticks_usec()
 	var setup: Dictionary = await _create_discovery_setup(save_dir_name)
-	var architecture: GFArchitecture = _get_architecture(setup)
 	var catalog: TileCatalogUtility = _get_catalog(setup)
 	var composition: TileCompositionUtility = _get_composition(setup)
 	var discovery: TileDiscoverySystem = _get_discovery_system(setup)
@@ -182,7 +181,7 @@ func test_composition_observation_persists_and_reloads_discovery_progress() -> v
 
 	composition.release_tile(low_tile)
 	composition.release_tile(high_tile)
-	architecture.dispose()
+	_dispose_discovery_setup(setup, false)
 
 	var reloaded: Dictionary = await _create_discovery_setup(save_dir_name)
 	var reloaded_discovery: TileDiscoverySystem = _get_discovery_system(reloaded)
@@ -311,15 +310,26 @@ func _create_discovery_setup(save_dir_name: String) -> Dictionary:
 	return {
 		"architecture": architecture,
 		"storage": storage,
+		"save_graph": save_graph,
 		"catalog": tile_catalog,
 		"composition": composition,
 		"discovery": discovery,
 	}
 
 
-func _dispose_discovery_setup(setup: Dictionary) -> void:
+func _dispose_discovery_setup(
+	setup: Dictionary,
+	delete_profile: bool = true
+) -> void:
+	var save_graph_value: Variant = setup.get("save_graph")
+	if save_graph_value is GameSaveGraphUtility:
+		var save_graph: GameSaveGraphUtility = save_graph_value
+		assert_true(
+			save_graph.flush_pending_save() == OK,
+			"发现系统测试结束前应收敛排队玩家数据。"
+		)
 	var storage_value: Variant = setup.get("storage")
-	if storage_value is GFStorageUtility:
+	if delete_profile and storage_value is GFStorageUtility:
 		var storage: GFStorageUtility = storage_value
 		var delete_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
 		assert_true(

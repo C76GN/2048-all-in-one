@@ -25,6 +25,11 @@ const CLASS_NAME_REQUIRED_ROOTS: Array[String] = [
 const SOURCE_EXCLUDED_ROOTS: Array[String] = [
 	"res://features/asset_library/resources/source_packs",
 ]
+const DYNAMIC_METHOD_DISPATCH_ALLOWLIST: Dictionary = {
+	"res://app/scripts/game_architecture_installer.gd": [
+		"install_callback.call(",
+	],
+}
 const PROJECT_NAMING_EXTENSIONS: Array[String] = [
 	".gd",
 	".tscn",
@@ -1148,11 +1153,25 @@ func _collect_dynamic_method_dispatch_issues(path: String) -> Array[String]:
 			continue
 		if not _line_uses_dynamic_method_dispatch(line):
 			continue
+		if _is_allowlisted_dynamic_method_dispatch(path, line):
+			continue
 		_append_string(issues, "%s:%d 项目脚本应使用强类型方法调用。" % [
 			path,
 			line_index + 1,
 		])
 	return issues
+
+
+func _is_allowlisted_dynamic_method_dispatch(path: String, line: String) -> bool:
+	var fragments: Array = GFVariantData.get_option_array(
+		DYNAMIC_METHOD_DISPATCH_ALLOWLIST,
+		path
+	)
+	for fragment_value: Variant in fragments:
+		var fragment: String = GFVariantData.to_text(fragment_value)
+		if line.contains(fragment):
+			return true
+	return false
 
 
 func _collect_typed_gdscript_preload_static_call_issues(path: String) -> Array[String]:

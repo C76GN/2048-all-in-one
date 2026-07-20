@@ -37,6 +37,8 @@ func _ready() -> void:
 	_board_container = Control.new()
 	_board_container.name = "BoardContainer"
 	_board_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_board_container.size = Vector2.ONE * MAX_PREVIEW_SIZE
+	_board_container.clip_contents = true
 	add_child(_board_container)
 
 	_message_label = Label.new()

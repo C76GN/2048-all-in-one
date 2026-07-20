@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://features/gameplay/scripts/controllers/board_world_viewport_controller.gd" id="7_board_viewport"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/controllers/gameplay_responsive_layout_controller.gd" id="8_responsive_layout"]
 [ext_resource type="Script" path="res://addons/gf/extensions/feedback/nodes/gf_shake_receiver_2d.gd" id="9_shake_receiver"]
+[ext_resource type="Script" path="res://features/gameplay/scripts/ui/board_feedback_canvas.gd" id="10_feedback_canvas"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_background"]
 shader = ExtResource("6_background_shader")
@@ -26,6 +27,7 @@ shader_parameter/scanline_strength = 0.0
 shader_parameter/interaction_offset = Vector2(0, 0)
 shader_parameter/interaction_direction = Vector2(0, 0)
 shader_parameter/interaction_energy = 0.0
+shader_parameter/interaction_phase = 1.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
 bg_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
@@ -152,7 +154,11 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 script = ExtResource("4_board")
 
-[node name="BoardShakeReceiver" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="1"]
+[node name="BoardFeedbackCanvas" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="1"]
+unique_name_in_owner = true
+script = ExtResource("10_feedback_canvas")
+
+[node name="BoardShakeReceiver" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="2"]
 script = ExtResource("9_shake_receiver")
 target_path = NodePath("../BoardShakeRoot")
 channel = &"board"

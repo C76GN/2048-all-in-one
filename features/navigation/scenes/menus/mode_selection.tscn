@@ -103,14 +103,13 @@ caret_blink = true
 
 [node name="RefreshSeedButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn/SeedContainer" index="2" unique_id=1216658248]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(46, 42)
 layout_mode = 2
 tooltip_text = "点击以生成新的随机种子"
 focus_neighbor_left = NodePath("../SeedLineEdit")
 focus_neighbor_top = NodePath("../../EditBoardButton")
 focus_neighbor_right = NodePath("../SeedLineEdit")
 focus_neighbor_bottom = NodePath("../../StartGameButton")
-text = "🎲"
-flat = true
 
 [node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="5" unique_id=360129159]
 custom_minimum_size = Vector2(0, 20)

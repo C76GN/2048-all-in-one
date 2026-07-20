@@ -7,77 +7,77 @@
 script = ExtResource("2_style")
 family_id = &"tile.visual.classic_numeric"
 silhouette_id = &"soft_square"
-motif_id = &"constellation"
+motif_id = &"none"
 shape_scale = Vector2(0.94, 0.94)
-border_width = 4.0
-border_color = Color(0.34901962, 0.2901961, 0.27058825, 1)
-accent_color = Color(0.61960787, 0.8235294, 0.80784315, 1)
-motif_opacity = 0.12
-registration_offset = Vector2(2, 2)
+border_width = 2.5
+border_color = Color(0.28627452, 0.2901961, 0.30588236, 1)
+accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
+motif_opacity = 0.08
+shadow_offset = Vector2(1.5, 1.5)
 
 [sub_resource type="Resource" id="Style_fibonacci"]
 script = ExtResource("2_style")
 family_id = &"tile.visual.fibonacci_numeric"
 silhouette_id = &"leaf_cut"
-motif_id = &"spiral_arc"
-shape_scale = Vector2(0.9, 0.96)
-shape_rotation_degrees = -0.8
-border_width = 4.5
-border_color = Color(0.53333336, 0.38431373, 0.2627451, 1)
-accent_color = Color(0.83137256, 0.7529412, 0.48235294, 1)
-motif_opacity = 0.15
-registration_offset = Vector2(-2, 2)
+motif_id = &"fibonacci_corner"
+shape_scale = Vector2(0.92, 0.95)
+shape_rotation_degrees = 0.0
+border_width = 3.0
+border_color = Color(0.3882353, 0.3372549, 0.27058825, 1)
+accent_color = Color(0.8745098, 0.6901961, 0.3019608, 1)
+motif_opacity = 0.18
+shadow_offset = Vector2(1.5, 1.5)
 
 [sub_resource type="Resource" id="Style_classic_fibonacci"]
 script = ExtResource("2_style")
 family_id = &"tile.visual.classic_fibonacci_hybrid"
 silhouette_id = &"diagonal_cut"
-motif_id = &"split_tabs"
+motif_id = &"diagonal_fold"
 shape_scale = Vector2(0.93, 0.93)
-border_width = 5.0
-border_color = Color(0.5803922, 0.26666668, 0.19215687, 1)
-accent_color = Color(0.9607843, 0.6392157, 0.7882353, 1)
-motif_opacity = 0.13
-registration_offset = Vector2(2, -2)
+border_width = 3.0
+border_color = Color(0.4745098, 0.27058825, 0.23137255, 1)
+accent_color = Color(0.827451, 0.38431373, 0.29411766, 1)
+motif_opacity = 0.17
+shadow_offset = Vector2(1.5, 1.5)
 
 [sub_resource type="Resource" id="Style_lucas"]
 script = ExtResource("2_style")
 family_id = &"tile.visual.lucas_fibonacci_hybrid"
 silhouette_id = &"octagon"
-motif_id = &"orbit"
-shape_scale = Vector2(0.93, 0.93)
-shape_rotation_degrees = 0.7
-border_width = 4.5
-border_color = Color(0.26666668, 0.31764707, 0.38431373, 1)
-accent_color = Color(0.61960787, 0.8235294, 0.80784315, 1)
-motif_opacity = 0.14
-registration_offset = Vector2(-2, -2)
+motif_id = &"paired_brackets"
+shape_scale = Vector2(0.92, 0.92)
+shape_rotation_degrees = 0.0
+border_width = 3.0
+border_color = Color(0.25882354, 0.3372549, 0.34509805, 1)
+accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
+motif_opacity = 0.17
+shadow_offset = Vector2(1.5, 1.5)
 
 [sub_resource type="Resource" id="Style_ratio_base"]
 script = ExtResource("2_style")
 family_id = &"tile.visual.ratio_base"
 silhouette_id = &"bracket"
-motif_id = &"quotient_bars"
-shape_scale = Vector2(0.9, 0.96)
-shape_rotation_degrees = -0.5
-border_width = 4.5
-border_color = Color(0.53333336, 0.4862745, 0.3372549, 1)
-accent_color = Color(0.83137256, 0.7529412, 0.48235294, 1)
-motif_opacity = 0.15
-registration_offset = Vector2(2, 1)
+motif_id = &"division_mark"
+shape_scale = Vector2(0.92, 0.95)
+shape_rotation_degrees = 0.0
+border_width = 3.0
+border_color = Color(0.33333334, 0.34509805, 0.3647059, 1)
+accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
+motif_opacity = 0.18
+shadow_offset = Vector2(1.5, 1.5)
 
 [sub_resource type="Resource" id="Style_ratio_factor"]
 script = ExtResource("2_style")
 family_id = &"tile.visual.ratio_factor"
 silhouette_id = &"ticket"
-motif_id = &"factor_cross"
-shape_scale = Vector2(0.96, 0.86)
-shape_rotation_degrees = 0.6
-border_width = 5.0
-border_color = Color(0, 0, 0, 1)
-accent_color = Color(0.7176471, 0.47843137, 0.45882353, 1)
-motif_opacity = 0.14
-registration_offset = Vector2(-2, 2)
+motif_id = &"factor_mark"
+shape_scale = Vector2(0.95, 0.91)
+shape_rotation_degrees = 0.0
+border_width = 3.0
+border_color = Color(0.39215687, 0.2509804, 0.22352941, 1)
+accent_color = Color(0.827451, 0.38431373, 0.29411766, 1)
+motif_opacity = 0.18
+shadow_offset = Vector2(1.5, 1.5)
 
 [resource]
 script = ExtResource("1_theme")

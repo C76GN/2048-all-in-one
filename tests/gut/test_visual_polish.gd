@@ -10,6 +10,7 @@ const _TARGET_REACHED_SCENE: PackedScene = preload("res://features/gameplay/scen
 const _BOOKMARK_ITEM_SCENE: PackedScene = preload("res://features/bookmarks/scenes/ui/bookmark_list_item.tscn")
 const _REPLAY_ITEM_SCENE: PackedScene = preload("res://features/replays/scenes/ui/replay_list_item.tscn")
 const _BOOT_SCENE: PackedScene = preload("res://app/scenes/boot.tscn")
+const _MODE_SELECTION_SCENE_PATH: String = "res://features/navigation/scenes/menus/mode_selection.tscn"
 const _BACKGROUND_SHADER_PATH: String = "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
 const _SCENE_TRANSITION_SHADER_PATH: String = "res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader"
 const _BUTTON_FOCUS_RING_SHADER_PATH: String = "res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader"
@@ -17,6 +18,14 @@ const _STARTUP_PROGRESS_SHADER_PATH: String = "res://features/asset_library/reso
 const _CELEBRATION_CONFETTI_SHADER_PATH: String = "res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader"
 const _VISUAL_STYLE_DOC_PATH: String = "res://docs/visual_style.md"
 const _BOOT_SCRIPT_PATH: String = "res://app/scripts/boot.gd"
+const _BOOT_RUNTIME_SCRIPT_PATH: String = "res://app/scripts/boot_runtime.gd"
+const _BOOT_MARK_TEXTURE_PATH: String = "res://features/asset_library/resources/textures/branding/printworks_boot_mark.png"
+const _BOOT_SPLASH_TEXTURE_PATH: String = "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png"
+const _UI_STYLE_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_ui_style_utility.gd"
+const _HUD_SCRIPT_PATH: String = "res://features/gameplay/scripts/ui/hud.gd"
+const _MAIN_MENU_BOARD_MOTIF_PATH: String = "res://features/navigation/scripts/ui/main_menu_board_motif.gd"
+const _SCENE_PRELOAD_MAP: GFScenePreloadMap = preload("res://features/navigation/resources/scene_preload_map.tres")
+const _GAMEPLAY_VISUAL_WARMUP_SCRIPT: GDScript = preload("res://features/gameplay/scripts/ui/gameplay_visual_warmup.gd")
 const _GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_play_controller.gd"
 const _TEST_TOOL_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/test_tool_utility.gd"
 const _HALFTONE_UI_PALETTE: GameUiPalette = preload("res://features/themes/resources/themes/game/halftone_atlas_ui_palette.tres")
@@ -69,20 +78,20 @@ func test_scene_transition_shader_loads_and_keeps_print_defaults() -> void:
 	assert_true(shader_text.contains("dot_pattern"), "场景转场应使用程序化半调点，不依赖外部形状贴图。")
 	assert_true(shader_text.contains("hatch_pattern"), "场景转场应保留印刷斜线纹理。")
 	assert_true(shader_text.contains("leading_edge"), "场景转场应有明确移动边缘，而不是静态全屏贴图。")
-	assert_true(shader_text.contains("combined_alpha"), "场景转场应组合半透明铺墨和边缘遮罩。")
+	assert_true(shader_text.contains("combined_alpha"), "场景转场应组合不透明纸面和边缘遮罩。")
 	assert_true(shader_text.contains("shape_mask_pattern"), "场景转场应使用程序化形状遮罩推进，不依赖外部 shape texture。")
 	assert_true(shader_text.contains("shaped_gradient"), "场景转场应由形状扰动擦除边缘，而不是单纯线性淡入。")
 	assert_true(shader_text.contains("node_resolution"), "场景转场应按视口比例修正遮罩方向。")
 	assert_true(shader_text.contains("reverse_progress"), "同一转场 shader 应支持由主题资源配置覆盖与揭示方向。")
-	_assert_shader_float_default_in_range(shader_text, "width", 0.20, 0.36)
+	_assert_shader_float_default_in_range(shader_text, "width", 0.10, 0.18)
 	_assert_shader_float_default_in_range(shader_text, "dot_tiling", 24.0, 48.0)
 	_assert_shader_float_default_in_range(shader_text, "shape_tiling", 12.0, 28.0)
 	_assert_shader_float_default_in_range(shader_text, "shape_feathering", 0.08, 0.20)
 	_assert_shader_float_default_in_range(shader_text, "shape_threshold", 0.45, 0.62)
-	_assert_shader_float_default_in_range(shader_text, "shape_influence", 0.32, 0.58)
+	_assert_shader_float_default_in_range(shader_text, "shape_influence", 0.08, 0.20)
 	_assert_shader_float_default_in_range(shader_text, "grain_strength", 0.008, 0.020)
 	_assert_shader_float_default_in_range(shader_text, "band_strength", 0.04, 0.16)
-	_assert_shader_float_default_in_range(shader_text, "fill_opacity", 0.70, 0.92)
+	_assert_shader_float_default_in_range(shader_text, "fill_opacity", 0.98, 1.0)
 	_assert_shader_float_default_in_range(shader_text, "edge_opacity", 0.88, 1.0)
 	_assert_shader_float_default_in_range(shader_text, "edge_strength", 0.60, 0.95)
 	_assert_shader_float_default_in_range(shader_text, "registration_offset", 0.008, 0.030)
@@ -117,17 +126,128 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 	assert_true(boot_node is Boot, "启动场景根节点应为 Boot。")
 	assert_true(boot_node is Control, "启动场景根节点应是可绘制全屏 UI 的 Control。")
 	if is_instance_valid(boot_node):
+		assert_true(boot_node.get_node_or_null("PulseClip/ProgressFill") is ColorRect, "静态启动壳应直接承载进度填充。")
 		boot_node.free()
 
 	var boot_source: String = _read_text(_BOOT_SCRIPT_PATH)
-	assert_true(boot_source.contains("GFAsyncProgress"), "Boot 应使用 GFAsyncProgress 统一启动进度。")
-	assert_true(boot_source.contains("GFAsyncWaitUtility.wait_until"), "Boot 应使用 GFAsyncWaitUtility 统一预加载条件与超时。")
-	assert_true(boot_source.contains("GFAsyncWaitUtility.delay_seconds"), "Boot 启动画面延迟应受 GF 生命周期保护。")
-	assert_true(boot_source.contains("preload_scene(startup_scene_path, true)"), "Boot 应通过 GFSceneUtility 预热实际入口场景。")
-	assert_true(boot_source.contains("_get_scene_router_system"), "Boot 应把最终场景切换交给 SceneRouterSystem。")
-	assert_false(boot_source.contains("change_scene_to_file"), "GF 初始化后不应保留绕过 SceneRouterSystem 的场景切换旁路。")
-	assert_true(boot_source.contains(_STARTUP_PROGRESS_SHADER_PATH), "Boot 应使用正式登记的启动进度条 shader。")
-	assert_true(boot_source.contains("_setup_startup_screen"), "Boot 应创建启动画面内容，而不是空白等待。")
+	var runtime_source: String = _read_text(_BOOT_RUNTIME_SCRIPT_PATH)
+	assert_true(boot_source.contains("load_threaded_request"), "首帧 Boot 应在线程中加载正式启动编排器。")
+	assert_true(boot_source.contains(_BOOT_RUNTIME_SCRIPT_PATH), "首帧 Boot 应持有唯一启动编排器路径。")
+	assert_false(boot_source.contains("GFAsyncProgress"), "首帧 Boot 不得静态引用 GF 依赖链。")
+	assert_true(
+		boot_source.contains("DisplayServer.get_name() == \"headless\""),
+		"无头审计应跳过仅为可见首帧服务的线程轮询。"
+	)
+	assert_true(runtime_source.contains("GFAsyncProgress"), "启动编排器应使用 GFAsyncProgress 统一启动进度。")
+	assert_true(runtime_source.contains("GFAsyncWaitUtility.wait_until"), "启动编排器应使用 GFAsyncWaitUtility 统一预加载条件与超时。")
+	assert_true(runtime_source.contains("GFAsyncWaitUtility.delay_seconds"), "启动画面延迟应受 GF 生命周期保护。")
+	assert_true(runtime_source.contains("preload_scene(startup_scene_path, true)"), "启动编排器应通过 GFSceneUtility 预热实际入口场景。")
+	assert_true(runtime_source.contains("_get_scene_router_system"), "启动编排器应把最终场景切换交给 SceneRouterSystem。")
+	assert_false(runtime_source.contains("change_scene_to_file"), "GF 初始化后不应保留绕过 SceneRouterSystem 的场景切换旁路。")
+	assert_true(boot_source.contains("set_runtime_progress"), "正式编排器应只更新同一个静态启动壳。")
+	assert_true(boot_source.contains("ProgressFill"), "首帧壳应直接驱动进度条，不等待 GF 资源。")
+	assert_false(runtime_source.contains("_setup_startup_screen"), "启动运行时不得再创建第二套加载页面。")
+	assert_false(runtime_source.contains("StartupPanel"), "启动运行时不得用动态面板替换原生启动构图。")
+	assert_false(runtime_source.contains("_PROGRESS_SHADER"), "首帧进度不得依赖二次加载 shader 后才出现。")
+	assert_true(runtime_source.contains("configure_scene_preload_map"), "启动编排器应使用 GFScenePreloadMap 描述稳定场景流。")
+	assert_true(runtime_source.contains("preload_scene_map_for"), "启动编排器应通过 GFSceneUtility 预热入口场景的相邻页面。")
+	assert_true(runtime_source.contains("_prime_gameplay_visuals"), "启动编排器应在 GF 初始化后、静态遮罩下预绘制首轮反馈管线。")
+	assert_true(
+		runtime_source.contains("DisplayServer.get_name() != \"headless\""),
+		"无头审计不得等待永远不会到达的 frame_post_draw。"
+	)
+	assert_true(
+		str(ProjectSettings.get_setting("application/boot_splash/image", ""))
+		== _BOOT_SPLASH_TEXTURE_PATH,
+		"Godot 原生启动阶段应直接显示与项目加载页同构的完整首帧。"
+	)
+	assert_true(ResourceLoader.exists(_BOOT_MARK_TEXTURE_PATH), "项目加载页使用的微型棋盘标记必须存在。")
+	assert_true(ResourceLoader.exists(_BOOT_SPLASH_TEXTURE_PATH), "原生完整启动首帧必须存在。")
+	var stretch_mode_value: Variant = ProjectSettings.get_setting(
+		"application/boot_splash/stretch_mode",
+		-1
+	)
+	assert_true(stretch_mode_value is int, "Godot 4.7 原生启动图拉伸模式应保持 int 类型。")
+	if stretch_mode_value is int:
+		var stretch_mode: int = stretch_mode_value
+		assert_true(
+			stretch_mode == RenderingServer.SPLASH_STRETCH_MODE_COVER,
+			"完整启动首帧应覆盖项目视口，同时保持原始宽高比。"
+		)
+	var minimum_display_time_value: Variant = ProjectSettings.get_setting(
+		"application/boot_splash/minimum_display_time",
+		-1
+	)
+	assert_true(minimum_display_time_value is int, "原生启动图最短显示时间应使用整数毫秒。")
+	if minimum_display_time_value is int:
+		var minimum_display_time: int = minimum_display_time_value
+		assert_true(minimum_display_time == 0, "原生启动图不应额外占用固定等待时间。")
+
+
+func test_main_menu_board_motif_uses_neutral_palette_without_dense_patterns() -> void:
+	var motif_source: String = _read_text(_MAIN_MENU_BOARD_MOTIF_PATH)
+
+	assert_false(motif_source.contains("_PINK_COLOR"), "主菜单棋盘不应继续使用品红错版底板。")
+	assert_false(motif_source.contains("_CYAN_COLOR"), "主菜单棋盘不应继续使用高饱和青色底板。")
+	assert_false(motif_source.contains("_draw_tile_pattern"), "经典数字方块不应叠加无语义的密集点阵或斜纹。")
+	assert_true(motif_source.contains("_draw_tile_surface"), "主菜单方块应通过统一表面绘制保留克制的层次。")
+
+
+func test_navigation_scene_preload_map_is_valid_and_primes_gameplay_route() -> void:
+	var report: Dictionary = _SCENE_PRELOAD_MAP.validate_map({"check_exists": true})
+	assert_true(GFVariantData.get_option_int(report, &"error_count") == 0, "场景预载图不应包含阻断错误。")
+	assert_true(GFVariantData.get_option_int(report, &"warning_count") == 0, "场景预载图不应包含缺失或重复路径。")
+
+	var plan: Dictionary = _SCENE_PRELOAD_MAP.get_preload_plan(
+		"res://features/navigation/scenes/menus/mode_selection.tscn",
+		1,
+		true
+	)
+	var planned_paths_value: Variant = plan.get(&"paths", PackedStringArray())
+	assert_true(planned_paths_value is PackedStringArray, "GFScenePreloadMap 计划应返回 PackedStringArray 路径。")
+	var planned_paths: PackedStringArray = PackedStringArray()
+	if planned_paths_value is PackedStringArray:
+		planned_paths = planned_paths_value
+	assert_has(
+		planned_paths,
+		"res://features/gameplay/scenes/game/game_play.tscn",
+		"进入模式选择时应提前准备正式游戏场景。"
+	)
+	assert_lte(_SCENE_PRELOAD_MAP.max_scheduled_scenes, 2, "启动预载图不得并发调度所有低频菜单。")
+
+
+func test_hud_action_icons_resolve_through_asset_library_keys() -> void:
+	var style_source: String = _read_text(_UI_STYLE_UTILITY_PATH)
+	var hud_source: String = _read_text(_HUD_SCRIPT_PATH)
+	assert_true(
+		style_source.contains("set_button_icon_from_asset"),
+		"UI 样式 Utility 应负责把稳定素材键解析为按钮图标。"
+	)
+	for asset_key: String in [
+		"asset.texture.icon.pause",
+		"asset.texture.icon.undo_2",
+		"asset.texture.icon.redo_2",
+		"asset.texture.icon.bookmark_plus",
+	]:
+		assert_true(hud_source.contains(asset_key), "HUD 应使用素材键而不是缺字风险较高的 Unicode 符号：%s" % asset_key)
+
+
+func test_gameplay_visual_warmup_primes_tiles_and_feedback_without_runtime_assets() -> void:
+	var warmup_value: Object = _GAMEPLAY_VISUAL_WARMUP_SCRIPT.new()
+	assert_true(warmup_value is Node2D, "视觉预热脚本应实例化为 Node2D。")
+	if not warmup_value is Node2D:
+		return
+	var warmup: Node2D = warmup_value
+	add_child_autofree(warmup)
+	warmup.call(&"prime")
+	await get_tree().process_frame
+
+	var primed_value: Variant = warmup.call(&"is_primed")
+	assert_true(primed_value is bool, "视觉预热完成状态应返回 bool。")
+	if primed_value is bool:
+		var primed: bool = primed_value
+		assert_true(primed, "游戏视觉预热节点应记录完成状态。")
+	assert_gt(warmup.get_child_count(), 1, "视觉预热应覆盖方块轮廓和常驻反馈绘制。")
 
 
 func test_celebration_confetti_shader_loads_and_keeps_print_defaults() -> void:
@@ -258,6 +378,9 @@ func test_tile_setup_applies_sparse_theme_driven_identity_style() -> void:
 	if pattern_node is Control:
 		var pattern_control: Control = pattern_node
 		assert_true(pattern_control.mouse_filter == Control.MOUSE_FILTER_IGNORE, "纹理叠层不应阻挡输入。")
+		assert_true(pattern_control.clip_contents, "身份母题必须裁切在方块安全区内。")
+		assert_lte(pattern_control.size.x, 84.0, "身份母题绘制层必须缩进到方块轮廓内。")
+		assert_lte(pattern_control.size.y, 84.0, "身份母题绘制层必须缩进到方块轮廓内。")
 	var font_size: int = tile.value_label.get_theme_font_size("font_size")
 	assert_between(font_size, 12, 48, "方块字号应保持在明确的可读范围内。")
 	assert_lt(font_size, 48, "大数值文本应触发字号收缩。")
@@ -292,6 +415,7 @@ func test_tile_setup_applies_sparse_theme_driven_identity_style() -> void:
 	)
 	assert_true(tile.background.get_silhouette_id() == fibonacci_style.silhouette_id)
 	assert_true(tile._get_pattern_type() == fibonacci_pattern)
+	assert_true(fibonacci_style.shadow_offset == Vector2(1.5, 1.5), "方块只应保留统一短投影，不使用彩色错版偏移。")
 
 
 func test_all_tile_visual_families_have_unique_base_signatures() -> void:
@@ -628,6 +752,80 @@ func test_ui_style_utility_rebuilds_semantic_styles_after_palette_change() -> vo
 	architecture.dispose()
 
 
+func test_ui_style_utility_styles_option_button_popup_as_light_surface() -> void:
+	var option: OptionButton = OptionButton.new()
+	option.add_item("关闭")
+	option.add_item("开启")
+	add_child(option)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.init()
+	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	style_utility.prepare_button(option)
+
+	var popup: PopupMenu = option.get_popup()
+	popup.about_to_popup.emit()
+	var popup_panel: StyleBoxFlat = null
+	var popup_stylebox: StyleBox = popup.get_theme_stylebox(&"panel")
+	if popup_stylebox is StyleBoxFlat:
+		popup_panel = popup_stylebox
+	assert_not_null(popup_panel, "OptionButton 的 PopupMenu 应获得统一浅色面板样式。")
+	if popup_panel != null:
+		assert_gt(
+			popup_panel.bg_color.get_luminance(),
+			0.70,
+			"浅色纸面主题不应弹出 Godot 默认深色菜单。"
+		)
+		assert_true(
+			_get_contrast_ratio(popup.get_theme_color("font_color"), popup_panel.bg_color)
+			>= _MIN_UI_TEXT_CONTRAST,
+			"下拉项文字必须在弹层表面保持可读。"
+		)
+	assert_true(popup.transparent_bg, "嵌入式 PopupMenu 应让项目面板样式完整接管背景。")
+	assert_false(popup.prefer_native_menu, "主题化下拉菜单不得回退到不可控的原生菜单。")
+	architecture.dispose()
+	option.free()
+	await get_tree().process_frame
+
+
+func test_mode_selection_seed_action_uses_packaged_icon_instead_of_emoji() -> void:
+	var scene_resource: Resource = ResourceLoader.load(
+		_MODE_SELECTION_SCENE_PATH,
+		"PackedScene",
+		ResourceLoader.CACHE_MODE_IGNORE
+	)
+	assert_true(scene_resource is PackedScene, "模式选择场景资源应能以无缓存模式加载。")
+	if not scene_resource is PackedScene:
+		return
+	var mode_scene: PackedScene = scene_resource
+	var scene_root: Control = _instantiate_control(mode_scene)
+	assert_not_null(scene_root, "模式选择场景应能实例化。")
+	if scene_root == null:
+		return
+	var seed_button_node: Node = scene_root.get_node_or_null(
+		"MarginContainer/ColumnsContainer/RightColumn/SeedContainer/RefreshSeedButton"
+	)
+	assert_true(seed_button_node is Button, "模式配置应保留独立的随机种子按钮。")
+	if seed_button_node is Button:
+		var seed_button: Button = seed_button_node
+		assert_true(seed_button.text.is_empty(), "随机种子按钮不应依赖平台 emoji 字形。")
+	var mode_source: String = _read_text(
+		"res://features/navigation/scripts/menus/mode_selection.gd"
+	)
+	assert_true(
+		mode_source.contains("asset.texture.icon.randomize"),
+		"随机种子按钮应通过素材键使用项目内可审计图标。"
+	)
+	scene_root.free()
+	await get_tree().process_frame
+
+
 func test_ui_motion_utility_reveals_panel_with_tween() -> void:
 	var panel: Control = Control.new()
 	panel.position = Vector2(12.0, 20.0)
@@ -914,21 +1112,40 @@ func test_target_reached_menu_buttons_emit_flow_events() -> void:
 	architecture.dispose()
 
 
-func test_board_feedback_utility_spawns_effect_nodes() -> void:
-	var board_container: Node2D = Node2D.new()
-	add_child_autoqfree(board_container)
+func test_board_feedback_utility_reuses_persistent_canvas_without_child_growth() -> void:
+	var feedback_canvas: BoardFeedbackCanvas = BoardFeedbackCanvas.new()
+	add_child_autoqfree(feedback_canvas)
 	await get_tree().process_frame
 
 	var feedback_utility: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
-	var created_count: int = feedback_utility.play_feedback(board_container, Vector2(64.0, 72.0), &"merge", "4")
+	var initial_child_count: int = feedback_canvas.get_child_count()
+	for index: int in range(12):
+		var created_count: int = feedback_utility.play_feedback(
+			feedback_canvas,
+			Vector2(64.0 + float(index), 72.0),
+			&"merge",
+			"4"
+		)
+		assert_gt(created_count, 1, "棋盘反馈应包含碎片和多方向飘字。")
 
-	assert_gt(created_count, 1, "棋盘反馈应创建粒子和浮动文字。")
-	assert_true(board_container.get_child_count() == 1, "反馈节点应挂到棋盘容器下。")
-
-	var feedback_root: Node2D = _get_node2d_child(board_container, 0)
-	assert_true(is_instance_valid(feedback_root), "反馈根节点应为 Node2D。")
-	assert_true(feedback_root.position == Vector2(64.0, 72.0), "反馈根节点应使用传入局部坐标。")
-	assert_true(feedback_root.get_child_count() == created_count, "反馈子节点数量应与返回值一致。")
+	assert_true(
+		feedback_canvas.get_child_count() == initial_child_count,
+		"高频操作反馈必须复用常驻绘制层，不能为每次操作追加 Control、StyleBox 和 Tween 节点。"
+	)
+	var directions: PackedVector2Array = feedback_canvas.get_score_particle_directions()
+	var has_left: bool = false
+	var has_right: bool = false
+	var has_up: bool = false
+	var has_down: bool = false
+	for direction: Vector2 in directions:
+		has_left = has_left or direction.x < -0.5
+		has_right = has_right or direction.x > 0.5
+		has_up = has_up or direction.y < -0.5
+		has_down = has_down or direction.y > 0.5
+	assert_true(
+		has_left and has_right and has_up and has_down,
+		"合并数字必须覆盖四面八方，不能只沿单一方向漂浮。"
+	)
 
 
 func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback() -> void:
@@ -945,6 +1162,8 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	feedback_root.set_meta(&"feedback_base_position", Vector2(200.0, 200.0))
 	feedback_root.position = Vector2(200.0, 200.0)
 	add_child_autoqfree(feedback_root)
+	var feedback_canvas: BoardFeedbackCanvas = BoardFeedbackCanvas.new()
+	feedback_root.add_child(feedback_canvas)
 	var background: ColorRect = ColorRect.new()
 	var material: ShaderMaterial = ShaderMaterial.new()
 	material.shader = _load_shader(_BACKGROUND_SHADER_PATH)
@@ -955,6 +1174,7 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	var tier: GameBoardFeedbackUtility.FeedbackTier = feedback_utility.classify_turn(2, 64, 128)
 	var created_count: int = feedback_utility.play_turn_feedback(
 		feedback_root,
+		feedback_canvas,
 		background,
 		Vector2i.RIGHT,
 		tier,
@@ -963,7 +1183,7 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	)
 
 	assert_true(tier == GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE)
-	assert_true(created_count == 8, "高价值合并应提升边缘碎片数量。")
+	assert_true(created_count == 13, "高价值合并应提升边缘碎片数量。")
 	assert_true(
 		shake_utility.get_active_shake_count(&"board") == 1,
 		"整批操作反馈应通过 GFShakeUtility 播放一次 board channel 反馈。"

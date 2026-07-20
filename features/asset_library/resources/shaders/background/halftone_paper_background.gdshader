@@ -31,6 +31,7 @@ uniform float cloud_strength : hint_range(0.0, 0.16) = 0.024;
 uniform vec2 interaction_offset = vec2(0.0);
 uniform vec2 interaction_direction = vec2(0.0);
 uniform float interaction_energy : hint_range(0.0, 1.0) = 0.0;
+uniform float interaction_phase : hint_range(0.0, 1.0) = 1.0;
 
 varying vec2 world_pos;
 
@@ -157,10 +158,25 @@ void fragment() {
 		: vec2(0.0);
 	float directional_front = clamp(dot(centered_uv, safe_direction) + 0.5, 0.0, 1.0);
 	vec3 interaction_color = mix(accent_color.rgb, warm_color.rgb, step(0.72, interaction_energy));
+	vec2 interaction_tangent = vec2(-safe_direction.y, safe_direction.x);
+	float impact_axis = dot(centered_uv, safe_direction);
+	float impact_cross_axis = abs(dot(centered_uv, interaction_tangent));
+	float impact_wave_position = mix(-0.62, 0.62, interaction_phase);
+	float impact_wave = 1.0 - smoothstep(
+		0.018,
+		0.095,
+		abs(impact_axis - impact_wave_position)
+	);
+	impact_wave *= 1.0 - smoothstep(0.34, 0.78, impact_cross_axis);
 	color = mix(
 		color,
 		interaction_color,
 		interaction_energy * (0.035 + directional_front * 0.075)
+	);
+	color = mix(
+		color,
+		mix(interaction_color, vec3(1.0, 0.976, 0.925), 0.42),
+		impact_wave * interaction_energy * 0.24
 	);
 	color = mix(color, band_color, band_mask * side_mask * (0.30 + hatch * 0.24) * grid_strength * 5.0);
 	color = mix(color, warm_color.rgb, dots * side_mask * 0.10);

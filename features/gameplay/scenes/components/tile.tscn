@@ -13,14 +13,16 @@ offset_top = -50.0
 offset_right = 50.0
 offset_bottom = 50.0
 mouse_filter = 2
+clip_contents = true
 script = ExtResource("3_surface")
 
 [node name="PatternOverlay" type="Control" parent="." unique_id=1840065201]
-offset_left = -50.0
-offset_top = -50.0
-offset_right = 50.0
-offset_bottom = 50.0
+offset_left = -42.0
+offset_top = -42.0
+offset_right = 42.0
+offset_bottom = 42.0
 mouse_filter = 2
+clip_contents = true
 script = ExtResource("2_pattern")
 
 [node name="ValueLabel" type="Label" parent="." unique_id=1616873056]

@@ -26,6 +26,7 @@ const SCENE_ROUTER_SYSTEM_PATH: String = "res://features/navigation/scripts/syst
 const BASE_LIST_MENU_PATH: String = "res://features/navigation/scripts/menus/base_list_menu.gd"
 const MODE_SELECTION_PATH: String = "res://features/navigation/scripts/menus/mode_selection.gd"
 const GAME_DIAGNOSTICS_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd"
+const GAME_DIAGNOSTICS_INSTALLER_PATH: String = "res://features/diagnostics/scripts/installers/game_diagnostics_installer.gd"
 const SETTINGS_MENU_PATH: String = "res://features/settings/scripts/menus/settings_menu.gd"
 const GAME_UI_CONTROLLER_PATH: String = "res://features/themes/scripts/ui/game_ui_controller.gd"
 const THEME_CATALOG_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_theme_catalog_utility.gd"
@@ -284,12 +285,25 @@ func test_project_installer_binds_asset_library_before_ui_consumers() -> void:
 
 func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var diagnostics_source: String = _read_text(GAME_DIAGNOSTICS_INSTALLER_PATH)
 	var settings_source: String = _read_text(PROJECT_SETTINGS_PATH)
 
 	assert_true(settings_source.contains("\"gf.asset_metadata\""), "项目应启用 GF Asset Metadata 扩展。")
-	assert_true(source.contains("bind_utility(GFDebugOverlayUtility)"), "开发构建应绑定 GF Debug Overlay。")
-	assert_true(source.contains("bind_utility(GFRuntimeInspectorUtility)"), "开发构建应绑定 GF Runtime Inspector。")
-	assert_true(source.contains("bind_utility(GFScreenshotUtility)"), "开发构建应绑定 GF Screenshot Utility。")
+	assert_true(source.contains("OS.has_feature(_DEV_TOOLS_FEATURE)"), "开发工具必须由显式构建 feature 启用。")
+	assert_false(source.contains("OS.is_debug_build()"), "普通 debug 运行不得自动承担 diagnostics 启动成本。")
+	assert_true(source.contains("_DEV_TOOLS_INSTALLER_PATH"), "Composition Root 应按需加载 diagnostics Installer。")
+	assert_true(
+		source.contains("_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT")
+		and source.contains("GFDiagnosticsUtility"),
+		"运行时应以轻量适配器满足 GF Action Queue 的诊断聚合契约。"
+	)
+	assert_true(diagnostics_source.contains("bind_utility(GFDebugOverlayUtility)"), "开发构建应绑定 GF Debug Overlay。")
+	assert_true(diagnostics_source.contains("bind_utility(GFRuntimeInspectorUtility)"), "开发构建应绑定 GF Runtime Inspector。")
+	assert_true(diagnostics_source.contains("bind_utility(GFScreenshotUtility)"), "开发构建应绑定 GF Screenshot Utility。")
+	assert_false(
+		diagnostics_source.contains("bind_utility(GFDiagnosticsUtility)"),
+		"开发包不得重复注册运行时已提供的 GF Diagnostics 别名。"
+	)
 	assert_false(
 		_source_binds_symbol(source, "GFAssetMetadataUtility"),
 		"GFAssetMetadataUtility 由 gf.asset_metadata 扩展装配，项目不得重复绑定。"
@@ -298,18 +312,23 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 
 func test_release_scene_router_only_uses_local_lookup_for_optional_diagnostics() -> void:
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var diagnostics_installer_source: String = _read_text(GAME_DIAGNOSTICS_INSTALLER_PATH)
 	var router_source: String = _read_text(
 		"res://features/navigation/scripts/systems/scene_router_system.gd"
 	)
 
 	var dev_block_position: int = installer_source.find("if _are_dev_tools_enabled():")
-	var diagnostics_position: int = installer_source.find(
+	var diagnostics_position: int = diagnostics_installer_source.find(
 		"bind_utility(GFOperationDiagnosticsUtility)"
 	)
 	assert_true(dev_block_position >= 0, "项目 Installer 应声明开发工具条件块。")
 	assert_true(
-		diagnostics_position > dev_block_position,
-		"GFOperationDiagnosticsUtility 只能在开发工具条件块中注册。"
+		diagnostics_position >= 0,
+		"GFOperationDiagnosticsUtility 只能由 diagnostics Feature Installer 注册。"
+	)
+	assert_false(
+		installer_source.contains("bind_utility(GFOperationDiagnosticsUtility)"),
+		"Composition Root 不得直接持有 diagnostics 实现类型。"
 	)
 	assert_true(
 		router_source.contains(

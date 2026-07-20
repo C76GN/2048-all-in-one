@@ -6,6 +6,10 @@ extends "res://addons/gf/kernel/core/gf_installer.gd"
 # --- 常量 ---
 
 const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
+const _DEV_TOOLS_FEATURE: String = "with_dev_tools"
+const _DEV_TOOLS_INSTALLER_PATH: String = (
+	"res://features/diagnostics/scripts/installers/game_diagnostics_installer.gd"
+)
 const _COMMAND_HISTORY_LIMIT: int = 1024
 const _PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_content_catalog_utility.gd")
 const _PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_resource_catalog_utility.gd")
@@ -27,22 +31,24 @@ const _GAME_CELEBRATION_VFX_UTILITY_SCRIPT: Script = preload("res://features/the
 const _GAME_THEME_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_catalog_utility.gd")
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
 const _GAME_PLATFORM_UTILITY_SCRIPT: Script = preload("res://features/platform_runtime/scripts/utilities/game_platform_utility.gd")
-const _GAME_DIAGNOSTICS_UTILITY_SCRIPT: Script = preload("res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd")
+const _RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT: Script = preload(
+	"res://features/diagnostics/scripts/utilities/runtime_diagnostics_utility.gd"
+)
 
 
 # --- 公共方法 ---
 
 ## 使用声明式 Binder 注册项目级 Model、Utility 和 System。
 ## @param binder: GF 传入的绑定器实例。
-## @param _scope: GF 为本次安装创建的可取消异步作用域。
-func install_bindings(binder: Variant, _scope: GFAsyncScope) -> void:
+## @param scope: GF 为本次安装创建的可取消异步作用域。
+func install_bindings(binder: Variant, scope: GFAsyncScope) -> void:
 	if not binder is GFBinder:
 		push_error("[GameArchitectureInstaller] install_bindings 失败：binder 为空或类型错误。")
 		return
 	var gf_binder: GFBinder = binder
 
 	await _bind_models(gf_binder)
-	await _bind_utilities(gf_binder)
+	await _bind_utilities(gf_binder, scope)
 	await _bind_systems(gf_binder)
 
 
@@ -55,7 +61,7 @@ func _bind_models(binder: GFBinder) -> void:
 	await binder.bind_model(CurrentGameModel).as_singleton()
 
 
-func _bind_utilities(binder: GFBinder) -> void:
+func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_utility(GFStorageUtility).from_instance(_create_storage_utility()).as_singleton()
 	await binder.bind_utility(GameSettingsUtility).from_instance(_create_settings_utility()).with_alias(GFSettingsUtility).as_singleton()
 	await binder.bind_utility(GFDisplaySettingsUtility).as_singleton()
@@ -75,6 +81,10 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFShaderParameterUtility).as_singleton()
 	await binder.bind_utility(GFSignalUtility).as_singleton()
 	await binder.bind_utility(GFNotificationUtility).as_singleton()
+	var diagnostics_binding: GFBindBuilder = binder.bind_utility(
+		_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT
+	).with_alias(GFDiagnosticsUtility)
+	await diagnostics_binding.as_singleton()
 	await binder.bind_utility(_PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_CLOCK_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_SAVE_GRAPH_UTILITY_SCRIPT).from_instance(_create_game_save_graph_utility()).as_singleton()
@@ -107,16 +117,7 @@ func _bind_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFObjectPoolUtility).from_instance(_create_object_pool_utility()).as_singleton()
 
 	if _are_dev_tools_enabled():
-		await binder.bind_utility(GFConsoleUtility).as_singleton()
-		await binder.bind_utility(GFAsyncTrackerUtility).from_instance(_create_async_tracker_utility()).as_singleton()
-		await binder.bind_utility(GFOperationDiagnosticsUtility).as_singleton()
-		await binder.bind_utility(GFDiagnosticsUtility).as_singleton()
-		await binder.bind_utility(GFSupportReportUtility).as_singleton()
-		await binder.bind_utility(GFDebugOverlayUtility).from_instance(_create_debug_overlay_utility()).as_singleton()
-		await binder.bind_utility(GFRuntimeInspectorUtility).from_instance(_create_runtime_inspector_utility()).as_singleton()
-		await binder.bind_utility(GFScreenshotUtility).from_instance(_create_screenshot_utility()).as_singleton()
-		await binder.bind_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT).as_singleton()
-		await binder.bind_utility(TestToolUtility).as_singleton()
+		await _install_dev_tools(binder, scope)
 
 
 func _bind_systems(binder: GFBinder) -> void:
@@ -230,39 +231,31 @@ func _create_object_pool_utility() -> GFObjectPoolUtility:
 	return object_pool
 
 
-func _create_async_tracker_utility() -> GFAsyncTrackerUtility:
-	var tracker: GFAsyncTrackerUtility = GFAsyncTrackerUtility.new()
-	tracker.tracking_enabled = true
-	tracker.stack_trace_enabled = _is_verbose_logging_enabled()
-	return tracker
-
-
-func _create_debug_overlay_utility() -> GFDebugOverlayUtility:
-	var overlay: GFDebugOverlayUtility = GFDebugOverlayUtility.new()
-	overlay.toggle_key = KEY_F3
-	overlay.refresh_interval_seconds = 0.25
-	overlay.include_diagnostics_monitors = true
-	overlay.include_recent_logs = true
-	return overlay
-
-
-func _create_runtime_inspector_utility() -> GFRuntimeInspectorUtility:
-	var inspector: GFRuntimeInspectorUtility = GFRuntimeInspectorUtility.new()
-	inspector.allow_writes = true
-	inspector.debug_build_writes_only = true
-	return inspector
-
-
-func _create_screenshot_utility() -> GFScreenshotUtility:
-	var screenshots: GFScreenshotUtility = GFScreenshotUtility.new()
-	screenshots.default_save_dir = "user://diagnostics/screenshots"
-	screenshots.default_prefix = "2048"
-	screenshots.default_format = GFScreenshotUtility.FORMAT_PNG
-	return screenshots
-
-
 func _are_dev_tools_enabled() -> bool:
-	return OS.has_feature("editor") or OS.is_debug_build() or OS.has_feature("with_dev_tools")
+	return OS.has_feature(_DEV_TOOLS_FEATURE)
+
+
+func _install_dev_tools(binder: GFBinder, scope: GFAsyncScope) -> void:
+	var installer_resource: Resource = ResourceLoader.load(
+		_DEV_TOOLS_INSTALLER_PATH,
+		"GDScript",
+		ResourceLoader.CACHE_MODE_REUSE
+	)
+	if not installer_resource is GDScript:
+		push_error(
+			"[GameArchitectureInstaller] diagnostics Installer 加载失败：%s。"
+			% _DEV_TOOLS_INSTALLER_PATH
+		)
+		return
+	var installer_script: GDScript = installer_resource
+	var installer_value: Variant = installer_script.new()
+	if not installer_value is GFInstaller:
+		push_error("[GameArchitectureInstaller] diagnostics Installer 无法实例化。")
+		return
+	var installer: GFInstaller = installer_value
+	# 唯一反射边界：保持 diagnostics 脚本在 with_dev_tools 之外不进入解析依赖链。
+	var install_callback: Callable = Callable(installer, &"install_bindings")
+	await install_callback.call(binder, scope)
 
 
 func _is_verbose_logging_enabled() -> bool:

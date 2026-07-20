@@ -1,7 +1,7 @@
-## TilePatternOverlay: 绘制方块家族的低密度识别符号与能力组合标记。
+## TilePatternOverlay: 绘制克制、可解释的方块家族识别符号。
 ##
-## 家族符号只占用边缘和角部，中央数字区保持安静；Recipe 标记沿左侧形成可拆卸
-## 的能力轨道，避免把多个规则直接叠成一张复杂纹理。
+## 母题只占角部或边缘安全区，中央数字区保持完全安静。组合规则只在底边显示细分色段，
+## 不再用散点、轨道或全卡面斜纹堆叠信息。
 class_name TilePatternOverlay
 extends Control
 
@@ -10,24 +10,22 @@ extends Control
 
 enum PatternType {
 	NONE,
-	CONSTELLATION,
-	SPIRAL_ARC,
-	SPLIT_TABS,
-	ORBIT,
-	QUOTIENT_BARS,
-	FACTOR_CROSS,
+	FIBONACCI_CORNER,
+	DIAGONAL_FOLD,
+	PAIRED_BRACKETS,
+	DIVISION_MARK,
+	FACTOR_MARK,
 }
 
 
 # --- 常量 ---
 
-const _INK_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
-const _PAPER_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 1.0)
-const _CYAN_COLOR: Color = Color(0.61960787, 0.8235294, 0.80784315, 1.0)
-const _GOLD_COLOR: Color = Color(0.83137256, 0.7529412, 0.48235294, 1.0)
-const _CORAL_COLOR: Color = Color(0.7176471, 0.47843137, 0.45882353, 1.0)
-const _MAGENTA_COLOR: Color = Color(0.9607843, 0.6392157, 0.7882353, 1.0)
-const _INNER_MARGIN: float = 12.0
+const _INK_COLOR: Color = Color(0.19215687, 0.2, 0.21568628, 1.0)
+const _PAPER_COLOR: Color = Color(0.95686275, 0.94509804, 0.9098039, 1.0)
+const _CYAN_COLOR: Color = Color(0.36078432, 0.7176471, 0.7254902, 1.0)
+const _GOLD_COLOR: Color = Color(0.8745098, 0.6901961, 0.3019608, 1.0)
+const _CORAL_COLOR: Color = Color(0.827451, 0.38431373, 0.29411766, 1.0)
+const _INNER_MARGIN: float = 8.0
 
 
 # --- 私有变量 ---
@@ -36,49 +34,49 @@ var _pattern_type: PatternType = PatternType.NONE
 var _pattern_color: Color = Color.TRANSPARENT
 var _accent_color: Color = Color.TRANSPARENT
 var _visual_layer_ids: Array[StringName] = []
-var _motif_opacity: float = 0.14
+var _motif_opacity: float = 0.10
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	clip_contents = true
 
 
 func _draw() -> void:
 	match _pattern_type:
-		PatternType.CONSTELLATION:
-			_draw_constellation()
-		PatternType.SPIRAL_ARC:
-			_draw_spiral_arc()
-		PatternType.SPLIT_TABS:
-			_draw_split_tabs()
-		PatternType.ORBIT:
-			_draw_orbit()
-		PatternType.QUOTIENT_BARS:
-			_draw_quotient_bars()
-		PatternType.FACTOR_CROSS:
-			_draw_factor_cross()
+		PatternType.FIBONACCI_CORNER:
+			_draw_fibonacci_corner()
+		PatternType.DIAGONAL_FOLD:
+			_draw_diagonal_fold()
+		PatternType.PAIRED_BRACKETS:
+			_draw_paired_brackets()
+		PatternType.DIVISION_MARK:
+			_draw_division_mark()
+		PatternType.FACTOR_MARK:
+			_draw_factor_mark()
 		_:
 			pass
-	_draw_capability_rail()
+	_draw_composition_edge()
 
 
 # --- 公共方法 ---
 
-## @param visual_style: 当前主题为方块家族声明的视觉配置。
-## @param base_color: 当前数值色阶的方块底色。
-## @param visual_layer_ids: Recipe 组合投影出的能力标记层。
+## 配置当前方块的稀疏家族母题与组合边缘标记。
+## @param visual_style: 主题为方块家族提供的稳定视觉配置。
+## @param base_color: 方块底色，用于计算可读的母题颜色。
+## @param visual_layer_ids: 规则组合提供的语义视觉层。
 func setup(
 	visual_style: TileVisualFamilyStyle,
 	base_color: Color,
 	visual_layer_ids: Array[StringName]
 ) -> void:
-	_visual_layer_ids = visual_layer_ids.duplicate()
+	_visual_layer_ids = _get_unique_layers(visual_layer_ids)
 	_pattern_type = _resolve_pattern_type(
 		visual_style.motif_id if visual_style != null else &""
 	)
-	_motif_opacity = visual_style.motif_opacity if visual_style != null else 0.12
+	_motif_opacity = visual_style.motif_opacity if visual_style != null else 0.10
 	_accent_color = visual_style.accent_color if visual_style != null else _CYAN_COLOR
 	_resolve_pattern_color(base_color)
 	queue_redraw()
@@ -88,154 +86,124 @@ func get_pattern_type() -> PatternType:
 	return _pattern_type
 
 
+func get_safe_rect() -> Rect2:
+	return Rect2(
+		Vector2.ONE * _INNER_MARGIN,
+		size - Vector2.ONE * _INNER_MARGIN * 2.0
+	)
+
+
+func has_composition_edge() -> bool:
+	return _visual_layer_ids.size() > 1
+
+
 # --- 私有/辅助方法 ---
 
-# 家族符号
+func _draw_fibonacci_corner() -> void:
+	var corner: Vector2 = Vector2(size.x - _INNER_MARGIN - 1.0, _INNER_MARGIN + 1.0)
+	draw_arc(corner, 18.0, PI * 0.50, PI, 14, _pattern_color, 2.0, true)
+	draw_arc(corner - Vector2(10.5, 10.5), 7.5, 0.0, PI * 0.50, 10, _accent_color, 2.0, true)
 
-func _draw_constellation() -> void:
-	var points: PackedVector2Array = PackedVector2Array([
-		Vector2(_INNER_MARGIN + 3.0, _INNER_MARGIN + 5.0),
-		Vector2(_INNER_MARGIN + 18.0, _INNER_MARGIN + 10.0),
-		Vector2(size.x - _INNER_MARGIN - 7.0, _INNER_MARGIN + 5.0),
-		Vector2(size.x - _INNER_MARGIN - 15.0, size.y - _INNER_MARGIN - 8.0),
-		Vector2(_INNER_MARGIN + 8.0, size.y - _INNER_MARGIN - 6.0),
+
+func _draw_diagonal_fold() -> void:
+	var top_right: Vector2 = Vector2(size.x - _INNER_MARGIN, _INNER_MARGIN)
+	var fold_size: float = 18.0
+	var fold: PackedVector2Array = PackedVector2Array([
+		top_right,
+		top_right + Vector2(-fold_size, 0.0),
+		top_right + Vector2(0.0, fold_size),
 	])
-	draw_line(points[0], points[1], _pattern_color, 1.5, true)
-	for index: int in range(points.size()):
-		var radius: float = 2.4 if index == 1 else 1.7
-		draw_circle(points[index], radius, _pattern_color)
-
-
-func _draw_spiral_arc() -> void:
-	var center: Vector2 = Vector2(_INNER_MARGIN + 12.0, size.y - _INNER_MARGIN - 11.0)
-	for index: int in range(3):
-		var radius: float = 7.0 + float(index) * 6.5
-		draw_arc(
-			center,
-			radius,
-			-PI * 0.42,
-			PI * (0.72 + float(index) * 0.12),
-			18,
-			_pattern_color,
-			1.8,
-			true
-		)
-	draw_arc(
-		Vector2(size.x - _INNER_MARGIN - 7.0, _INNER_MARGIN + 7.0),
-		7.0,
-		PI * 0.55,
-		PI * 1.45,
-		10,
-		_accent_color,
+	var fill_color: Color = _accent_color
+	fill_color.a *= 0.72
+	draw_colored_polygon(fold, fill_color)
+	draw_line(
+		top_right + Vector2(-fold_size, 0.0),
+		top_right + Vector2(0.0, fold_size),
+		_pattern_color,
+		2.0,
+		true
+	)
+	var bottom_left: Vector2 = Vector2(_INNER_MARGIN, size.y - _INNER_MARGIN)
+	draw_line(
+		bottom_left,
+		bottom_left + Vector2(15.0, -15.0),
+		_pattern_color,
 		2.0,
 		true
 	)
 
 
-func _draw_split_tabs() -> void:
-	var top_tab: PackedVector2Array = PackedVector2Array([
-		Vector2(size.x - 34.0, _INNER_MARGIN),
-		Vector2(size.x - _INNER_MARGIN, _INNER_MARGIN),
-		Vector2(size.x - _INNER_MARGIN, 36.0),
-	])
-	var bottom_tab: PackedVector2Array = PackedVector2Array([
-		Vector2(_INNER_MARGIN, size.y - 34.0),
-		Vector2(34.0, size.y - _INNER_MARGIN),
-		Vector2(_INNER_MARGIN, size.y - _INNER_MARGIN),
-	])
-	draw_colored_polygon(top_tab, _pattern_color)
-	var bottom_outline: PackedVector2Array = bottom_tab.duplicate()
-	var _outline_append_result: bool = bottom_outline.append(bottom_tab[0])
-	draw_polyline(bottom_outline, _accent_color, 2.0, true)
+func _draw_paired_brackets() -> void:
+	var arm: float = 15.0
+	var top_left: Vector2 = Vector2(_INNER_MARGIN, _INNER_MARGIN)
+	_draw_corner_bracket(top_left, Vector2.RIGHT, Vector2.DOWN, arm, _pattern_color)
+	var bottom_right: Vector2 = Vector2(size.x - _INNER_MARGIN, size.y - _INNER_MARGIN)
+	_draw_corner_bracket(bottom_right, Vector2.LEFT, Vector2.UP, arm, _accent_color)
 
 
-func _draw_orbit() -> void:
-	var top_center: Vector2 = Vector2(size.x * 0.5, _INNER_MARGIN + 2.0)
-	var bottom_center: Vector2 = Vector2(size.x * 0.5, size.y - _INNER_MARGIN - 2.0)
-	draw_arc(top_center, 26.0, 0.12, PI - 0.12, 24, _pattern_color, 2.0, true)
-	draw_arc(bottom_center, 26.0, PI + 0.12, TAU - 0.12, 24, _pattern_color, 2.0, true)
-	draw_circle(Vector2(size.x - _INNER_MARGIN - 5.0, size.y * 0.5), 3.0, _accent_color)
+func _draw_division_mark() -> void:
+	var start: Vector2 = Vector2(_INNER_MARGIN, _INNER_MARGIN + 6.0)
+	var mark_color: Color = _pattern_color
+	draw_line(start, start + Vector2(19.0, 0.0), mark_color, 2.5, true)
+	draw_line(start + Vector2(5.0, -6.0), start + Vector2(13.0, -6.0), _accent_color, 2.0, true)
+	draw_line(start + Vector2(5.0, 6.0), start + Vector2(13.0, 6.0), _accent_color, 2.0, true)
 
 
-func _draw_quotient_bars() -> void:
-	var center_y: float = size.y * 0.5
+func _draw_factor_mark() -> void:
+	var center: Vector2 = Vector2(size.x - _INNER_MARGIN - 7.0, _INNER_MARGIN + 7.0)
+	var radius: float = 7.0
 	draw_line(
-		Vector2(_INNER_MARGIN, center_y - 14.0),
-		Vector2(_INNER_MARGIN + 15.0, center_y - 14.0),
+		center - Vector2(radius, radius),
+		center + Vector2(radius, radius),
 		_pattern_color,
-		3.0,
+		2.6,
 		true
 	)
 	draw_line(
-		Vector2(size.x - _INNER_MARGIN - 15.0, center_y + 14.0),
-		Vector2(size.x - _INNER_MARGIN, center_y + 14.0),
-		_pattern_color,
-		3.0,
+		center + Vector2(radius, -radius),
+		center - Vector2(radius, -radius),
+		_accent_color,
+		2.6,
 		true
 	)
-	draw_circle(Vector2(_INNER_MARGIN + 4.0, center_y + 13.0), 2.2, _accent_color)
-	draw_circle(Vector2(size.x - _INNER_MARGIN - 4.0, center_y - 13.0), 2.2, _accent_color)
 
 
-func _draw_factor_cross() -> void:
-	for center: Vector2 in [
-		Vector2(_INNER_MARGIN + 5.0, _INNER_MARGIN + 5.0),
-		Vector2(size.x - _INNER_MARGIN - 5.0, _INNER_MARGIN + 5.0),
-		Vector2(size.x - _INNER_MARGIN - 5.0, size.y - _INNER_MARGIN - 5.0),
-		Vector2(_INNER_MARGIN + 5.0, size.y - _INNER_MARGIN - 5.0),
-	]:
-		draw_line(center - Vector2(4.0, 0.0), center + Vector2(4.0, 0.0), _pattern_color, 2.0, true)
-		draw_line(center - Vector2(0.0, 4.0), center + Vector2(0.0, 4.0), _pattern_color, 2.0, true)
+func _draw_corner_bracket(
+	corner: Vector2,
+	horizontal_direction: Vector2,
+	vertical_direction: Vector2,
+	arm: float,
+	color: Color
+) -> void:
+	draw_line(corner, corner + horizontal_direction * arm, color, 2.2, true)
+	draw_line(corner, corner + vertical_direction * arm, color, 2.2, true)
 
 
-# 能力组合标记
-
-func _draw_capability_rail() -> void:
-	var marker_count: int = mini(_visual_layer_ids.size(), 3)
-	if marker_count <= 0:
+func _draw_composition_edge() -> void:
+	if not has_composition_edge():
 		return
-	var spacing: float = 13.0
-	var start_y: float = size.y * 0.5 - float(marker_count - 1) * spacing * 0.5
-	for index: int in range(marker_count):
-		_draw_capability_marker(
-			_visual_layer_ids[index],
-			Vector2(_INNER_MARGIN - 3.0, start_y + float(index) * spacing)
+	var segment_count: int = mini(_visual_layer_ids.size(), 3)
+	var available_width: float = size.x - _INNER_MARGIN * 2.0
+	var segment_width: float = available_width / float(segment_count)
+	for index: int in range(segment_count):
+		var color: Color = _get_capability_color(_visual_layer_ids[index])
+		color.a = 0.68
+		var start_x: float = _INNER_MARGIN + float(index) * segment_width
+		draw_line(
+			Vector2(start_x + 2.0, size.y - _INNER_MARGIN),
+			Vector2(start_x + segment_width - 2.0, size.y - _INNER_MARGIN),
+			color,
+			2.0,
+			true
 		)
 
 
-func _draw_capability_marker(layer_id: StringName, center: Vector2) -> void:
-	var marker_color: Color = _get_capability_color(layer_id)
-	marker_color.a = maxf(marker_color.a, 0.68)
-	match layer_id:
-		&"tile.visual_trait.classic_merge":
-			draw_rect(Rect2(center - Vector2(3.0, 3.0), Vector2(6.0, 6.0)), marker_color, false, 1.8)
-		&"tile.visual_trait.fibonacci_merge":
-			_draw_diamond(center, 4.0, marker_color)
-		&"tile.visual_trait.lucas_merge":
-			draw_arc(center, 4.0, 0.0, TAU, 12, marker_color, 1.8, true)
-		&"tile.visual_trait.lucas_bridge":
-			draw_line(center - Vector2(4.0, 0.0), center + Vector2(4.0, 0.0), marker_color, 1.8, true)
-		&"tile.visual_trait.ratio":
-			var triangle: PackedVector2Array = PackedVector2Array([
-				center + Vector2(0.0, -4.0),
-				center + Vector2(4.0, 3.0),
-				center + Vector2(-4.0, 3.0),
-				center + Vector2(0.0, -4.0),
-			])
-			draw_polyline(triangle, marker_color, 1.8, true)
-		_:
-			draw_circle(center, 2.4, marker_color)
-
-
-func _draw_diamond(center: Vector2, radius: float, color: Color) -> void:
-	var points: PackedVector2Array = PackedVector2Array([
-		center + Vector2(0.0, -radius),
-		center + Vector2(radius, 0.0),
-		center + Vector2(0.0, radius),
-		center + Vector2(-radius, 0.0),
-		center + Vector2(0.0, -radius),
-	])
-	draw_polyline(points, color, 1.8, true)
+func _get_unique_layers(layer_ids: Array[StringName]) -> Array[StringName]:
+	var result: Array[StringName] = []
+	for layer_id: StringName in layer_ids:
+		if not result.has(layer_id):
+			result.append(layer_id)
+	return result
 
 
 func _get_capability_color(layer_id: StringName) -> Color:
@@ -245,32 +213,29 @@ func _get_capability_color(layer_id: StringName) -> Color:
 		&"tile.visual_trait.fibonacci_merge":
 			return _GOLD_COLOR
 		&"tile.visual_trait.lucas_merge", &"tile.visual_trait.lucas_bridge":
-			return _MAGENTA_COLOR
-		&"tile.visual_trait.ratio":
 			return _CORAL_COLOR
+		&"tile.visual_trait.ratio":
+			return _INK_COLOR
 		_:
 			return _accent_color
 
 
 func _resolve_pattern_color(base_color: Color) -> void:
-	var luminance: float = base_color.get_luminance()
-	var source: Color = _INK_COLOR if luminance > 0.52 else _PAPER_COLOR
+	var source: Color = _INK_COLOR if base_color.get_luminance() > 0.50 else _PAPER_COLOR
 	_pattern_color = Color(source.r, source.g, source.b, _motif_opacity)
-	_accent_color.a = clampf(_motif_opacity * 1.55, 0.16, 0.30)
+	_accent_color.a = clampf(_motif_opacity * 1.32, 0.12, 0.22)
 
 
 func _resolve_pattern_type(motif_id: StringName) -> PatternType:
 	match motif_id:
-		&"constellation":
-			return PatternType.CONSTELLATION
-		&"spiral_arc":
-			return PatternType.SPIRAL_ARC
-		&"split_tabs":
-			return PatternType.SPLIT_TABS
-		&"orbit":
-			return PatternType.ORBIT
-		&"quotient_bars":
-			return PatternType.QUOTIENT_BARS
-		&"factor_cross":
-			return PatternType.FACTOR_CROSS
+		&"fibonacci_corner":
+			return PatternType.FIBONACCI_CORNER
+		&"diagonal_fold":
+			return PatternType.DIAGONAL_FOLD
+		&"paired_brackets":
+			return PatternType.PAIRED_BRACKETS
+		&"division_mark":
+			return PatternType.DIVISION_MARK
+		&"factor_mark":
+			return PatternType.FACTOR_MARK
 	return PatternType.NONE

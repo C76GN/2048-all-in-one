@@ -103,6 +103,7 @@ var _board_intro_tween: Tween
 @onready var board_background: Panel = %BoardBackground
 @onready var board_container: Node2D = %BoardContainer
 @onready var board_feedback_root: Node2D = %BoardFeedbackRoot
+@onready var board_feedback_canvas: BoardFeedbackCanvas = %BoardFeedbackCanvas
 
 
 # --- Godot 生命周期方法 ---
@@ -165,6 +166,8 @@ func setup(
 	self.board_theme = p_board_theme
 	self.tile_visual_theme = p_tile_visual_theme
 	self.game_background = p_game_background
+	if is_instance_valid(board_feedback_canvas):
+		board_feedback_canvas.reset_feedback()
 
 	# GridModel 的逻辑初始化由 GameInitSystem 完成，表现层只建立局部世界几何与可见节点。
 	_update_board_layout()
@@ -234,10 +237,10 @@ func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Strin
 		return
 
 	var feedback_utility: GameBoardFeedbackUtility = _get_board_feedback_utility()
-	if is_instance_valid(feedback_utility):
+	if is_instance_valid(feedback_utility) and is_instance_valid(board_feedback_canvas):
 		var _feedback_count: int = feedback_utility.play_feedback(
-			board_container,
-			tile.position,
+			board_feedback_canvas,
+			board_feedback_canvas.to_local(tile.global_position),
 			feedback_type,
 			label_text,
 			tile.get_feedback_color()
@@ -258,7 +261,11 @@ func play_turn_feedback(
 	score_delta: int
 ) -> void:
 	var feedback_utility: GameBoardFeedbackUtility = _get_board_feedback_utility()
-	if not is_instance_valid(feedback_utility) or not is_instance_valid(board_feedback_root):
+	if (
+		not is_instance_valid(feedback_utility)
+		or not is_instance_valid(board_feedback_root)
+		or not is_instance_valid(board_feedback_canvas)
+	):
 		return
 	var tier: GameBoardFeedbackUtility.FeedbackTier = feedback_utility.classify_turn(
 		merge_count,
@@ -273,6 +280,7 @@ func play_turn_feedback(
 	var centered_rect: Rect2 = Rect2(-_logical_board_size * 0.5, _logical_board_size)
 	var _created_count: int = feedback_utility.play_turn_feedback(
 		board_feedback_root,
+		board_feedback_canvas,
 		game_background,
 		direction,
 		tier,
@@ -716,6 +724,7 @@ func _update_board_layout() -> void:
 		board_feedback_root.position = _logical_board_size * 0.5
 		board_feedback_root.rotation = 0.0
 		board_feedback_root.scale = Vector2.ONE
+		board_feedback_root.skew = 0.0
 		board_feedback_root.set_meta(&"feedback_base_position", board_feedback_root.position)
 
 	if is_instance_valid(board_theme):

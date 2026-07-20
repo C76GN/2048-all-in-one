@@ -148,13 +148,26 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 		GFVariantData.get_option_packed_string_array(celebration_vfx_usage, "key_users").has("res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres"),
 		"审计报告应能说明庆祝 VFX shader 资源键由当前庆祝主题声明。"
 	)
+	assert_false(
+		GFVariantData.get_option_bool(startup_progress_usage, "used"),
+		"静态首帧不应为可选进度 shader 支付编译成本。"
+	)
 	assert_true(
-		GFVariantData.get_option_packed_string_array(startup_progress_usage, "path_users").has("res://app/scripts/boot.gd"),
-		"审计报告应能说明启动进度条 shader 被 Boot 使用。"
+		GFVariantData.get_option_packed_string_array(
+			report,
+			"optional_unused_keys"
+		).has("asset.shader.ui.startup_progress_bar"),
+		"已批准的可替换启动 shader 应保留在素材库，但不得被误报为死资源。"
+	)
+	assert_true(
+		GFVariantData.get_option_packed_string_array(
+			report,
+			"required_unused_keys"
+		).is_empty(),
+		"当前主题要求的正式素材必须都有实际消费者。"
 	)
 
 	var allowed_direct_script_users: PackedStringArray = [
-		"res://app/scripts/boot.gd",
 		"res://features/asset_library/tools/import_asset_sources.gd",
 	]
 	for asset_key_value: Variant in usage:

@@ -194,6 +194,16 @@ func _apply_mode_selection_visual_system() -> void:
 	style_utility.style_label(_grid_size_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
 	style_utility.style_label(_seed_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
 	style_utility.style_line_edit(_seed_line_edit)
+	style_utility.prepare_button(_grid_size_option_button)
+	style_utility.style_button(
+		_refresh_seed_button,
+		GameUiStyleUtility.ButtonRole.ICON
+	)
+	var _dice_icon_applied: bool = style_utility.set_button_icon_from_asset(
+		_refresh_seed_button,
+		&"asset.texture.icon.randomize",
+		24
+	)
 	style_utility.style_separator(_info_separator)
 
 

@@ -1,4 +1,4 @@
-## TileShapeSurface: 绘制可主题化的方块轮廓与印刷错版边缘。
+## TileShapeSurface: 绘制可主题化的方块轮廓与克制纸片层次。
 ##
 ## 数字保持水平稳定，只有承载数字的实体表面发生轻微形变，确保身份差异清晰且
 ## 不牺牲读数速度。
@@ -9,10 +9,9 @@ extends Control
 # --- 常量 ---
 
 const _DEFAULT_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
-const _DEFAULT_ACCENT_COLOR: Color = Color(0.61960787, 0.8235294, 0.80784315, 1.0)
 const _DEFAULT_SCALE: Vector2 = Vector2(0.94, 0.94)
-const _HIGHLIGHT_ALPHA: float = 0.34
-const _REGISTRATION_ALPHA: float = 0.20
+const _DEFAULT_SHADOW_OFFSET: Vector2 = Vector2(1.5, 1.5)
+const _SHADOW_ALPHA: float = 0.14
 
 
 # --- 私有变量 ---
@@ -34,27 +33,20 @@ func _draw() -> void:
 	if _shape_points.size() < 3:
 		return
 
-	var registration_color: Color = _get_accent_color()
-	registration_color.a = _REGISTRATION_ALPHA
-	var registration_points: PackedVector2Array = PackedVector2Array()
-	var registration_offset: Vector2 = _get_registration_offset()
+	var shadow_color: Color = _get_border_color()
+	shadow_color.a = _SHADOW_ALPHA
+	var shadow_points: PackedVector2Array = PackedVector2Array()
+	var shadow_offset: Vector2 = _get_shadow_offset()
 	for point: Vector2 in _shape_points:
-		var _registration_append_result: bool = registration_points.append(
-			point + registration_offset
+		var _shadow_append_result: bool = shadow_points.append(
+			point + shadow_offset
 		)
-	draw_colored_polygon(registration_points, registration_color)
+	draw_colored_polygon(shadow_points, shadow_color)
 
 	draw_colored_polygon(_shape_points, _fill_color)
 	var outline: PackedVector2Array = _shape_points.duplicate()
 	var _outline_append_result: bool = outline.append(_shape_points[0])
 	draw_polyline(outline, _get_border_color(), _get_border_width(), true)
-
-	var highlight_color: Color = _get_accent_color()
-	highlight_color.a = _HIGHLIGHT_ALPHA
-	if _shape_points.size() >= 4:
-		draw_line(_shape_points[0], _shape_points[1], highlight_color, 2.0, true)
-		draw_line(_shape_points[1], _shape_points[2], highlight_color, 2.0, true)
-
 
 # --- 公共方法 ---
 
@@ -114,17 +106,17 @@ func _build_local_shape_points(
 ) -> PackedVector2Array:
 	match silhouette_id:
 		&"leaf_cut":
-			return _build_asymmetric_cut_shape(half_size, 0.25, 0.08, 0.25, 0.08)
+			return _build_asymmetric_cut_shape(half_size, 0.12, 0.04, 0.07, 0.04)
 		&"diagonal_cut":
-			return _build_asymmetric_cut_shape(half_size, 0.08, 0.30, 0.08, 0.30)
+			return _build_asymmetric_cut_shape(half_size, 0.04, 0.12, 0.04, 0.12)
 		&"octagon":
-			return _build_asymmetric_cut_shape(half_size, 0.22, 0.22, 0.22, 0.22)
+			return _build_asymmetric_cut_shape(half_size, 0.09, 0.09, 0.09, 0.09)
 		&"bracket":
 			return _build_bracket_shape(half_size)
 		&"ticket":
 			return _build_ticket_shape(half_size)
 		_:
-			return _build_asymmetric_cut_shape(half_size, 0.09, 0.09, 0.09, 0.09)
+			return _build_asymmetric_cut_shape(half_size, 0.035, 0.035, 0.035, 0.035)
 
 
 func _build_asymmetric_cut_shape(
@@ -152,9 +144,9 @@ func _build_asymmetric_cut_shape(
 
 
 func _build_bracket_shape(half_size: Vector2) -> PackedVector2Array:
-	var cut: float = minf(half_size.x, half_size.y) * 0.12
-	var notch_depth: float = half_size.x * 0.10
-	var notch_half_height: float = half_size.y * 0.12
+	var cut: float = minf(half_size.x, half_size.y) * 0.05
+	var notch_depth: float = half_size.x * 0.055
+	var notch_half_height: float = half_size.y * 0.08
 	return PackedVector2Array([
 		Vector2(-half_size.x + cut, -half_size.y),
 		Vector2(half_size.x - cut, -half_size.y),
@@ -174,9 +166,9 @@ func _build_bracket_shape(half_size: Vector2) -> PackedVector2Array:
 
 
 func _build_ticket_shape(half_size: Vector2) -> PackedVector2Array:
-	var cut: float = minf(half_size.x, half_size.y) * 0.16
-	var notch_depth: float = half_size.y * 0.12
-	var notch_half_width: float = half_size.x * 0.10
+	var cut: float = minf(half_size.x, half_size.y) * 0.06
+	var notch_depth: float = half_size.y * 0.055
+	var notch_half_width: float = half_size.x * 0.075
 	return PackedVector2Array([
 		Vector2(-half_size.x + cut, -half_size.y),
 		Vector2(-notch_half_width, -half_size.y),
@@ -199,16 +191,12 @@ func _get_border_color() -> Color:
 	return _visual_style.border_color if _visual_style != null else _DEFAULT_BORDER_COLOR
 
 
-func _get_accent_color() -> Color:
-	return _visual_style.accent_color if _visual_style != null else _DEFAULT_ACCENT_COLOR
-
-
 func _get_border_width() -> float:
 	return _visual_style.border_width if _visual_style != null else 4.0
 
 
-func _get_registration_offset() -> Vector2:
-	return _visual_style.registration_offset if _visual_style != null else Vector2(2.0, 2.0)
+func _get_shadow_offset() -> Vector2:
+	return _visual_style.shadow_offset if _visual_style != null else _DEFAULT_SHADOW_OFFSET
 
 
 func _on_resized() -> void:

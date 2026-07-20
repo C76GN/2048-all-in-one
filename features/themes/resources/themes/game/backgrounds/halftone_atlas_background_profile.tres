@@ -25,6 +25,7 @@ parameters = {
 "interaction_direction": Vector2(0, 0),
 "interaction_energy": 0.0,
 "interaction_offset": Vector2(0, 0),
+"interaction_phase": 1.0,
 "line_thickness": 0.0,
 "pulse_speed": 0.0,
 "scanline_strength": 0.004,

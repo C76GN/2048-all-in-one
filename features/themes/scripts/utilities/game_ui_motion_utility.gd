@@ -42,13 +42,15 @@ const _NUMERIC_CHANGE_DURATION: float = 0.22
 const _NUMERIC_DELTA_DURATION: float = 0.36
 const _NUMERIC_GAIN_COLOR: Color = Color(0.82, 0.69, 0.34, 1.0)
 const _NUMERIC_LOSS_COLOR: Color = Color(0.58, 0.27, 0.19, 1.0)
-const _NUMERIC_DELTA_START_OFFSET: Vector2 = Vector2(-3.0, 3.0)
-const _NUMERIC_DELTA_END_OFFSET: Vector2 = Vector2(10.0, -26.0)
+const _NUMERIC_DELTA_START_DISTANCE: float = 5.0
+const _NUMERIC_DELTA_END_DISTANCE: float = 38.0
+const _NUMERIC_GOLDEN_ANGLE_RADIANS: float = 2.39996323
 
 
 # --- 私有变量 ---
 
 var _style: GameUiStyleUtility
+var _numeric_scatter_sequence: int = 0
 
 
 # --- GF 生命周期方法 ---
@@ -261,7 +263,13 @@ func play_numeric_change(
 	)
 
 	if is_instance_valid(delta_label):
-		_prepare_numeric_delta_label(delta_label, new_value - old_value, feedback_color)
+		var delta_direction: Vector2 = _next_numeric_delta_direction()
+		_prepare_numeric_delta_label(
+			delta_label,
+			new_value - old_value,
+			feedback_color,
+			delta_direction
+		)
 		var delta_base_position: Vector2 = _get_control_vector2_meta(
 			delta_label,
 			_CONTROL_BASE_POSITION_META,
@@ -275,7 +283,7 @@ func play_numeric_change(
 		var _delta_position_tweener: PropertyTweener = tween.tween_property(
 			delta_label,
 			"position",
-			delta_base_position + _NUMERIC_DELTA_END_OFFSET,
+			delta_base_position + delta_direction * _NUMERIC_DELTA_END_DISTANCE,
 			_NUMERIC_DELTA_DURATION
 		)
 		var _delta_scale_tweener: PropertyTweener = tween.tween_property(
@@ -545,7 +553,12 @@ func _kill_numeric_tween(value_label: Label) -> void:
 	value_label.set_meta(_NUMERIC_TWEEN_META, null)
 
 
-func _prepare_numeric_delta_label(delta_label: Label, delta: int, color: Color) -> void:
+func _prepare_numeric_delta_label(
+	delta_label: Label,
+	delta: int,
+	color: Color,
+	direction: Vector2
+) -> void:
 	var base_position: Vector2 = _get_control_vector2_meta(
 		delta_label,
 		_CONTROL_BASE_POSITION_META,
@@ -557,11 +570,19 @@ func _prepare_numeric_delta_label(delta_label: Label, delta: int, color: Color) 
 		delta_label.scale
 	)
 	delta_label.text = ("+%d" % delta) if delta > 0 else str(delta)
-	delta_label.position = base_position + _NUMERIC_DELTA_START_OFFSET
+	delta_label.position = base_position + direction * _NUMERIC_DELTA_START_DISTANCE
 	delta_label.pivot_offset = delta_label.size * 0.5
 	delta_label.scale = base_scale * 0.78
 	delta_label.modulate = color
 	delta_label.visible = true
+
+
+func _next_numeric_delta_direction() -> Vector2:
+	var direction: Vector2 = Vector2.RIGHT.rotated(
+		float(_numeric_scatter_sequence) * _NUMERIC_GOLDEN_ANGLE_RADIANS
+	)
+	_numeric_scatter_sequence = (_numeric_scatter_sequence + 1) % 64
+	return direction
 
 
 func _get_numeric_feedback_color(is_increase: bool) -> Color:

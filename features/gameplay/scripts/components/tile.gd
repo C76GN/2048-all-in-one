@@ -15,8 +15,8 @@ const _MIN_FONT_SIZE: int = 12
 const _MAX_FONT_SIZE: int = 48
 
 const _MOVE_DURATION: float = 0.10
-const _SPAWN_DURATION: float = 0.12
-const _MERGE_PULSE_DURATION: float = 0.07
+const _SPAWN_DURATION: float = 0.14
+const _MERGE_PULSE_DURATION: float = 0.085
 const _VALUE_GROWTH_DURATION: float = 0.13
 const _DESPAWN_DURATION: float = 0.12
 const _STYLE_OUTLINE_LIGHT: Color = Color(1.0, 0.972549, 0.9098039, 0.66)
@@ -152,7 +152,7 @@ func animate_spawn() -> Tween:
 	if is_instance_valid(_active_rotation_tween) and _active_rotation_tween.is_valid():
 		_active_rotation_tween.kill()
 
-	scale = Vector2.ONE * 0.72
+	scale = Vector2.ONE * 0.64
 	rotation_degrees = 0.0
 	modulate = Color(1.0, 1.0, 1.0, 0.0)
 	_active_rotation_tween = create_tween()
@@ -203,7 +203,7 @@ func animate_merge(
 	var scale_up_tweener: PropertyTweener = _active_scale_tween.tween_property(
 		self,
 		"scale",
-		Vector2.ONE * 1.12,
+		Vector2.ONE * 1.19,
 		_MERGE_PULSE_DURATION
 	)
 	var _scale_up_transition: Tweener = scale_up_tweener.set_trans(Tween.TRANS_BACK).set_ease(
@@ -400,7 +400,7 @@ func _play_flash(color: Color, duration: float) -> void:
 		_active_flash_tween.kill()
 
 	background.modulate = color
-	value_label.scale = Vector2.ONE * 1.08
+	value_label.scale = Vector2.ONE * 1.15
 	_active_flash_tween = create_tween()
 	var _parallel_result: Tween = _active_flash_tween.set_parallel(true)
 	var _transition_result: Tween = _active_flash_tween.set_trans(Tween.TRANS_SINE)

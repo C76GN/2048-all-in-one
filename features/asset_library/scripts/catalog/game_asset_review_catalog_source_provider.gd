@@ -45,7 +45,9 @@ func build_catalog(_options: Dictionary = {}) -> GFAssetCatalog:
 		return catalog
 
 	for record_path: String in GFVariantData.get_option_packed_string_array(_last_scan_report, "paths"):
-		var record: Resource = ResourceLoader.load(record_path, "", ResourceLoader.CACHE_MODE_REUSE)
+		# Catalog audits can traverse hundreds of review-only records. Keeping them in the
+		# global loader cache makes headless audits retain unrelated preview resources.
+		var record: Resource = ResourceLoader.load(record_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		if record == null or record.get_script() != _ASSET_REVIEW_RECORD_SCRIPT:
 			continue
 		var entry: GFAssetCatalogEntry = _make_catalog_entry(record, record_path)

@@ -1,6 +1,7 @@
-[gd_scene format=3 uid="uid://dbx1x77w8mpy"]
+[gd_scene load_steps=3 format=3 uid="uid://dbx1x77w8mpy"]
 
 [ext_resource type="Script" uid="uid://xsm8a5pdgww1" path="res://app/scripts/boot.gd" id="1_h6s1v"]
+[ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/branding/printworks_boot_splash.png" id="2_splash"]
 
 [node name="Boot" type="Control" unique_id=420649007]
 layout_mode = 3
@@ -9,4 +10,53 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 script = ExtResource("1_h6s1v")
+
+[node name="StaticSplash" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_splash")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="PulseClip" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -237.0
+offset_top = 150.0
+offset_right = 237.0
+offset_bottom = 176.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+clip_contents = true
+
+[node name="ProgressFill" type="ColorRect" parent="PulseClip"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = 2.0
+offset_bottom = 24.0
+mouse_filter = 2
+color = Color(0.360784, 0.717647, 0.72549, 0.9)
+
+[node name="StartupPulse" type="ColorRect" parent="PulseClip"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(56, 26)
+layout_mode = 0
+offset_left = -56.0
+offset_right = 0.0
+offset_bottom = 26.0
+mouse_filter = 2
+color = Color(0.360784, 0.717647, 0.72549, 0.72)
