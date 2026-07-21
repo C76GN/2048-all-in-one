@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-07-21",
+  "reviewed_at": "2026-07-22",
   "godot_version": "4.7",
   "gf_version": "9.0.1",
   "gut_version": "9.7.1",
   "gf_source_commit": "5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28",
   "gf_vendor_tree_sha256": "c2d921861f7d0afe8d8de343be4f07001e62016f88c4d5de576c36d6e71a994e",
   "gf_global_script_class_count": 732,
-  "project_runtime_script_class_count": 183,
+  "project_runtime_script_class_count": 185,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The audited storage-recovery change adds ProjectStorageRecoveryPolicy to the project runtime class set and adds one GUT script, expanding the complete suite from 33/288 to 34/294 scripts/tests. Repeated complete runs stabilize at ObjectDB 309 while Resources remain 131 and TextureStorage, ShapedText, and Font RID allocations remain unchanged at 11/9/5. Verbose shutdown auditing shows the increment is confined to the expanded script/test discovery set, with no new retained Node, Resource, or RID category.",
+  "calibration_reason": "The audited asset-review workflow adds AssetSourceExclusionIndex and PurgeRejectedAssets to the project script class set and adds two GUT scripts, expanding the complete suite from 34/294 to 36/302 scripts/tests. The complete run remains stable at ObjectDB 309, Resources 131, and TextureStorage, ShapedText, and Font RID allocations 11/9/5. The class-count increase is confined to the expanded script and test discovery set, with no new retained Node, Resource, or RID category.",
   "max_objectdb_instances": 309,
   "max_resources_in_use": 131,
   "max_rid_allocations_by_type": {
