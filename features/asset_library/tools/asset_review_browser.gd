@@ -49,7 +49,84 @@ func _ready() -> void:
 		return
 	_build_ui()
 	_load_records()
-	_refresh_list()
+	_refresh_list("", 0, true)
+
+
+func _shortcut_input(event: InputEvent) -> void:
+	var focus_owner: Control = get_viewport().gui_get_focus_owner()
+	var text_input_active: bool = focus_owner is LineEdit or focus_owner is TextEdit
+	var command: StringName = get_review_shortcut_command(event, text_input_active)
+	if command.is_empty():
+		return
+
+	match command:
+		&"toggle_preview":
+			_toggle_audio_preview()
+		&"candidate":
+			_set_selected_status("candidate")
+		&"approved":
+			_set_selected_status("approved")
+		&"rejected":
+			_set_selected_status("rejected")
+		&"next":
+			_move_selection(1)
+		&"previous":
+			_move_selection(-1)
+		&"save":
+			_save_selected_record()
+	get_viewport().set_input_as_handled()
+
+
+# --- 公共方法 ---
+
+## 返回列表重建后的连续评审目标索引。
+## @param asset_ids: 列表重建后仍可见的素材 ID。
+## @param preferred_asset_id: 应优先恢复的当前素材 ID。
+## @param fallback_index: 当前素材消失时使用的原列表位置。
+static func choose_continuation_index(
+	asset_ids: PackedStringArray,
+	preferred_asset_id: String,
+	fallback_index: int
+) -> int:
+	if asset_ids.is_empty():
+		return -1
+	if not preferred_asset_id.is_empty():
+		var preferred_index: int = asset_ids.find(preferred_asset_id)
+		if preferred_index >= 0:
+			return preferred_index
+	return clampi(fallback_index, 0, asset_ids.size() - 1)
+
+
+## 把键盘事件转换成评审命令；文本输入期间只保留显式组合键。
+## @param event: 待解析的输入事件。
+## @param text_input_active: 当前是否正在编辑文本。
+static func get_review_shortcut_command(
+	event: InputEvent,
+	text_input_active: bool = false
+) -> StringName:
+	if not (event is InputEventKey):
+		return &""
+	var key_event: InputEventKey = event
+	if not key_event.pressed or key_event.echo:
+		return &""
+	if key_event.ctrl_pressed and key_event.keycode == KEY_S:
+		return &"save"
+	if text_input_active or key_event.ctrl_pressed or key_event.alt_pressed or key_event.meta_pressed:
+		return &""
+	match key_event.keycode:
+		KEY_SPACE:
+			return &"toggle_preview"
+		KEY_1:
+			return &"candidate"
+		KEY_2:
+			return &"approved"
+		KEY_3:
+			return &"rejected"
+		KEY_J:
+			return &"next"
+		KEY_K:
+			return &"previous"
+	return &""
 
 
 # --- 私有/辅助方法 ---
@@ -152,11 +229,11 @@ func _build_ui() -> void:
 
 	var action_row: HBoxContainer = HBoxContainer.new()
 	right_panel.add_child(action_row)
-	_add_button(action_row, "播放", _on_play_pressed)
-	_add_button(action_row, "停止", _on_stop_pressed)
-	_add_button(action_row, "候选", _on_candidate_pressed)
-	_add_button(action_row, "批准", _on_approved_pressed)
-	_add_button(action_row, "拒绝", _on_rejected_pressed)
+	_add_button(action_row, "播放", _on_play_pressed, "播放音频预览（Space）")
+	_add_button(action_row, "停止", _on_stop_pressed, "停止音频预览（Space）")
+	_add_button(action_row, "候选", _on_candidate_pressed, "标记为候选并继续下一项（1）")
+	_add_button(action_row, "批准", _on_approved_pressed, "批准并继续下一项（2）")
+	_add_button(action_row, "拒绝", _on_rejected_pressed, "拒绝并继续下一项（3）")
 
 	var form_grid: GridContainer = GridContainer.new()
 	form_grid.columns = 2
@@ -199,7 +276,7 @@ func _build_ui() -> void:
 
 	var bottom_row: HBoxContainer = HBoxContainer.new()
 	right_panel.add_child(bottom_row)
-	_add_button(bottom_row, "保存评审", _on_save_pressed)
+	_add_button(bottom_row, "保存评审", _on_save_pressed, "保存当前评审（Ctrl+S）")
 	var save_status_label: Label = Label.new()
 	save_status_label.text = ""
 	save_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -207,9 +284,15 @@ func _build_ui() -> void:
 	_save_status_label = save_status_label
 
 
-func _add_button(parent: Control, label: String, callback: Callable) -> void:
+func _add_button(
+	parent: Control,
+	label: String,
+	callback: Callable,
+	tooltip: String = ""
+) -> void:
 	var button: Button = Button.new()
 	button.text = label
+	button.tooltip_text = tooltip
 	button.custom_minimum_size = Vector2(92, 36)
 	parent.add_child(button)
 	if button.pressed.connect(callback) != OK:
@@ -249,9 +332,14 @@ func _load_records() -> void:
 		_records_by_asset_id[asset_id] = loaded
 
 
-func _refresh_list() -> void:
+func _refresh_list(
+	preferred_asset_id: String = "",
+	fallback_index: int = 0,
+	focus_list: bool = false
+) -> void:
 	_filtered_records.clear()
 	_record_list.clear()
+	var visible_asset_ids: PackedStringArray = PackedStringArray()
 	var query: String = _search_input.text.strip_edges()
 	var status_filter: String = _get_selected_option_metadata(_status_filter, "all")
 	var candidate_ids: PackedStringArray = _get_search_candidate_ids(query)
@@ -269,10 +357,21 @@ func _refresh_list() -> void:
 			continue
 		var record: Resource = record_value
 		_append_resource(_filtered_records, record)
+		var _append_id_result: bool = visible_asset_ids.append(
+			_get_resource_string(record, "asset_id")
+		)
 		var item_index: int = _record_list.item_count
 		var _add_item_result: int = _record_list.add_item(_make_record_list_text(record))
 		_record_list.set_item_metadata(item_index, _filtered_records.size() - 1)
-	_update_empty_state()
+	var continuation_index: int = choose_continuation_index(
+		visible_asset_ids,
+		preferred_asset_id,
+		fallback_index
+	)
+	if continuation_index >= 0:
+		_select_record_at_list_index(continuation_index, focus_list)
+	else:
+		_update_empty_state()
 
 
 func _get_search_candidate_ids(query: String) -> PackedStringArray:
@@ -300,8 +399,49 @@ func _make_record_list_text(record: Resource) -> String:
 
 func _update_empty_state() -> void:
 	if _filtered_records.is_empty():
+		_selected_record = null
+		_audio_player.stop()
+		_audio_player.stream = null
 		_title_label.text = "没有匹配的素材"
 		_meta_label.text = ""
+		_clear_preview()
+		_set_preview_label("预览区域")
+		_rating_editor.value = 0
+		_tags_editor.text = ""
+		_notes_editor.text = ""
+		_save_status_label.text = ""
+
+
+func _select_record_at_list_index(index: int, focus_list: bool) -> void:
+	if index < 0 or index >= _record_list.item_count:
+		return
+	_record_list.select(index)
+	_record_list.ensure_current_is_visible()
+	_on_record_selected(index)
+	if focus_list:
+		_record_list.grab_focus()
+
+
+func _get_selected_list_index() -> int:
+	var selected_items: PackedInt32Array = _record_list.get_selected_items()
+	if selected_items.is_empty():
+		return -1
+	return selected_items[0]
+
+
+func _get_selected_asset_id() -> String:
+	return _get_resource_string(_selected_record, "asset_id")
+
+
+func _move_selection(offset: int) -> void:
+	if _filtered_records.is_empty():
+		return
+	var selected_index: int = _get_selected_list_index()
+	if selected_index < 0:
+		selected_index = 0
+	else:
+		selected_index = clampi(selected_index + offset, 0, _filtered_records.size() - 1)
+	_select_record_at_list_index(selected_index, true)
 
 
 func _show_record(record: Resource) -> void:
@@ -410,9 +550,19 @@ func _play_selected_audio() -> void:
 	_save_status_label.text = "正在播放。"
 
 
+func _toggle_audio_preview() -> void:
+	if _audio_player.playing:
+		_audio_player.stop()
+		_save_status_label.text = "已停止。"
+		return
+	_play_selected_audio()
+
+
 func _save_selected_record() -> void:
 	if _selected_record == null:
 		return
+	var previous_list_index: int = _get_selected_list_index()
+	var selected_asset_id: String = _get_selected_asset_id()
 	_selected_record.set("review_status", StringName(_get_selected_option_metadata(_status_editor, "inbox")))
 	_selected_record.set("rating", int(_rating_editor.value))
 	_selected_record.set("tags", _parse_tags(_tags_editor.text))
@@ -426,13 +576,9 @@ func _save_selected_record() -> void:
 	if save_result != OK:
 		_save_status_label.text = "保存失败：%d" % save_result
 		return
-	var selected_asset_id: String = _get_resource_string(_selected_record, "asset_id")
 	_load_records()
-	var reloaded_value: Variant = GFVariantData.get_option_value(_records_by_asset_id, selected_asset_id)
-	if reloaded_value is Resource:
-		_selected_record = reloaded_value
+	_refresh_list(selected_asset_id, previous_list_index, true)
 	_save_status_label.text = "已保存。"
-	_refresh_list()
 
 
 func _set_selected_status(status: String) -> void:
@@ -494,11 +640,11 @@ func _get_resource_packed_string_array(resource: Resource, property_name: String
 # --- 信号处理函数 ---
 
 func _on_filter_changed(_text: String) -> void:
-	_refresh_list()
+	_refresh_list(_get_selected_asset_id(), _get_selected_list_index())
 
 
 func _on_status_filter_selected(_index: int) -> void:
-	_refresh_list()
+	_refresh_list(_get_selected_asset_id(), _get_selected_list_index())
 
 
 func _on_record_selected(index: int) -> void:
