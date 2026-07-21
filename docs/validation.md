@@ -115,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 ### 最近一次安全 GUT 验证
 
-验证时间：2026-07-20。
+验证时间：2026-07-21。
 
 命令：
 
@@ -127,11 +127,11 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
 - GF Framework：官方稳定 tag `9.0.1`，commit `5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28`。
-- GUT：288 个测试全部通过，共 1846 个断言。
-- 当前完整套件：`tests/gut/` 下 33 个顶层测试脚本、288 个 `test_` 用例。
+- GUT：294 个测试全部通过，共 1874 个断言。
+- 当前完整套件：`tests/gut/` 下 34 个顶层测试脚本、294 个 `test_` 用例。
 - Boot 首帧壳与 Godot 原生启动图共用同一构图；正式 `BootRuntime` 由线程加载，随后通过 `GFAsyncProgress`、`GFScenePreloadMap`、`GFSceneUtility` 和 `GFRenderWarmupUtility` 预热稳定场景流、主题 shader 与首轮游戏视觉资源。Boot 继续启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束。高频进度写入由 `GameSaveGraphUtility` 合并后调用 GFStorage 异步接口，关键完成事务仍同步落盘。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 303`、`Resources = 131`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。GF 9.0.1 声明 732 个全局脚本类，当前项目运行时声明 182 个 `class_name`。verbose 全量审计确认相较 GF 8.1.1 的两个固定增量是项目新采用的 `GFClock` 与 `GFPlatformAdapter` GDScript 资源，不是未释放的运行实例；其余 RID 上限完全不变。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 309`、`Resources = 131`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。GF 9.0.1 声明 732 个全局脚本类，当前项目运行时声明 183 个 `class_name`。新增 `ProjectStorageRecoveryPolicy` 和一份持久化回归测试后，verbose 全量审计确认固定增量局限于扩展后的脚本/测试发现集合，没有新增 retained Node、Resource 或 RID 类别。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。

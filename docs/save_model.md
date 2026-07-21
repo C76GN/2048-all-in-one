@@ -6,7 +6,7 @@
 
 1. 玩家数据以一个原子文件保存，不出现统计成功但书签或回放失败的部分状态。
 2. 每个 Feature 拥有自己的业务 Schema，持久化 Feature 不解释业务字段。
-3. 加载前严格校验 Profile、Scope、Source 和 Feature Schema；已过时的同源 Profile 只允许先备份再重建，未知或未来版本直接拒绝。
+3. 加载前严格校验 GFStorage 物理文档、Profile、Scope、Source 和 Feature Schema；不可解析的物理载荷只允许丢弃并重建，同源旧 Profile 只允许先备份再重建，未来版本或业务 Schema 错误直接拒绝并保留原档。
 4. 复用 `GFSaveGraphUtility`、`GFSaveDocument`、`GFSaveScope`、`GFSaveDataSource` 和 `GFStorageUtility`，不在项目层重复实现对象图遍历、阶段排序、文档封装、快照回滚和原子文件提交。
 5. 不保留旧 SaveSlot 或时间戳 Resource 集合的运行时双读分支。
 
@@ -23,7 +23,9 @@
 
 Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vector2i` 和嵌套 Variant；JSON 不能稳定保留普通数字的原始类型。不得仅为可读性切回 JSON，除非同步设计显式类型编码并重写回归测试。
 
-当文档 metadata 精确标识为同一 `player_data` schema、版本为历史正整数且低于当前版本时，启动流程先把完整规范文档保存到 `recovery/player_data.schema-<version>.save`，确认备份成功后再通过当前六个 section 的默认值原子重建活动文件。该流程不读取、转换或合并任何历史业务字段；备份失败时不得覆盖原活动文件。未来版本、未知 schema ID、畸形文档、checksum 失败和当前 section 校验失败仍直接拒绝。
+当文档 metadata 精确标识为同一 `player_data` schema、版本为历史正整数且低于当前版本时，启动流程先把完整规范文档保存到 `recovery/player_data.schema-<version>.save`，确认备份成功后再通过当前六个 section 的默认值原子重建活动文件。该流程不读取、转换或合并任何历史业务字段；备份失败时不得覆盖原活动文件。
+
+`ProjectStorageRecoveryPolicy` 只把 `ERR_PARSE_ERROR`、`ERR_FILE_UNRECOGNIZED` 和 `ERR_FILE_CORRUPT` 视为可重置的物理载荷失败。项目绝不消费其中的字段；先由 GF 拒绝读取，再通过 `GFStorageUtility.delete_file()` 清理主文件及事务伴生文件，最后以当前默认 section 写回新 Profile。未来 GFStorage 版本、未来 Profile 版本、未知 schema ID、畸形业务文档和当前 section 校验失败必须保留原档并显式失败。
 
 ### 设置
 
@@ -33,7 +35,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 设置是全局偏好，不参与玩家数据图事务。语言、显示、主音量、视觉主题、音效主题、GF 输入覆盖和棋盘动画响应策略不随书签或回放恢复。
 
-设置只接受当前 GF Storage codec 和当前设置定义。项目不再在运行时识别旧版 `XOR + Base64 JSON` 载荷；解码失败由 GF 明确报告并回到当前默认设置，未知损坏载荷不得猜测。发布后若存在必须保留的数据，只提供显式一次性迁移工具，不把旧格式双读留在主路径。
+设置只接受当前 GF Storage codec 和当前设置定义。项目不再在运行时识别旧版 `XOR + Base64 JSON` 载荷；物理解析、envelope 或 checksum 失败时由 GF 明确拒绝，再按同一 `ProjectStorageRecoveryPolicy` 删除并写回当前默认设置，未知载荷中的字段不得猜测。未来存储版本和设置业务错误不自动删除，并阻断本次运行中的后续设置写入，防止旧程序覆盖新版本文件。发布后若存在必须保留的数据，只提供显式一次性迁移工具，不把旧格式双读留在主路径。
 
 ## SaveGraph 结构
 
@@ -83,7 +85,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 4. `GFSaveGraphUtility.apply_document(..., transactional_apply = true)` 按 `EARLY -> NORMAL -> LATE` 应用。
 5. 任一后期 section 失败时，先前已应用 section 必须回滚，运行时不得暴露部分加载状态。
 
-首次运行没有文件是正常状态；损坏文件、未来版本或业务 Schema 错误不是首次运行，必须明确失败。
+首次运行没有文件是正常状态。物理格式损坏不是首次运行，必须记录拒绝原因并按 `reset_allowed` 重建；未来版本或业务 Schema 错误必须明确失败且保留原档。
 
 ## Feature 数据
 
@@ -158,6 +160,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 - Binary 往返后严格类型与稳定 UUID 保留。
 - 后期 section 应用失败时早期 section 回滚。
 - 同源旧 Profile 先完整备份再以当前默认 section 重建，且运行时不双读旧业务字段。
+- 不可解析的 GFStorage 物理文档只重建当前默认值；未来存储版本不得自动删除。
 - 未来 Profile、未知 schema、畸形 metadata 和当前 section Schema 不匹配时拒绝载荷。
 - 保存失败时内存 section 回滚。
 - 回放继续游玩清理 redo 历史，设置恢复不污染玩家数据。

@@ -77,6 +77,18 @@ func ready() -> void:
 		is_instance_valid(_log)
 		and GFVariantData.get_option_bool(
 			_last_load_result,
+			"recovered_unreadable_profile",
+			false
+		)
+	):
+		_log.info(
+			_LOG_TAG,
+			"检测到无法解码的玩家数据；已按当前 GFStorage 格式重建 Profile。"
+		)
+	elif (
+		is_instance_valid(_log)
+		and GFVariantData.get_option_bool(
+			_last_load_result,
 			"recovered_obsolete_profile",
 			false
 		)
@@ -299,6 +311,8 @@ func load_profile() -> Error:
 				"applied": 0,
 			}
 			return OK
+		if ProjectStorageRecoveryPolicy.should_reset_failed_read(storage_result):
+			return _recover_unreadable_profile(storage_result)
 		var storage_error_code: Error = storage_result.error_code
 		if storage_error_code == OK:
 			storage_error_code = ERR_FILE_CORRUPT
@@ -689,6 +703,46 @@ func _recover_obsolete_profile(
 		"obsolete_schema_version": obsolete_schema_version,
 		"current_schema_version": PROFILE_SCHEMA_VERSION,
 		"recovery_file": recovery_file,
+	}
+	return OK
+
+
+func _recover_unreadable_profile(storage_result: GFStorageReadResult) -> Error:
+	var reset_error: Error = ProjectStorageRecoveryPolicy.reset_failed_file(
+		_storage,
+		PROFILE_FILE_NAME,
+		storage_result
+	)
+	if reset_error != OK:
+		_last_load_result = {
+			"ok": false,
+			"error_code": reset_error,
+			"error": "Unreadable player profile could not be removed.",
+			"storage": storage_result.to_dict(),
+		}
+		return reset_error
+
+	var recreate_error: Error = save_profile()
+	if recreate_error != OK:
+		_last_load_result = {
+			"ok": false,
+			"error_code": recreate_error,
+			"error": "Current player profile could not be created after reset.",
+			"storage": storage_result.to_dict(),
+			"unreadable_profile_removed": true,
+		}
+		return recreate_error
+
+	_loaded = true
+	_last_load_result = {
+		"ok": true,
+		"error_code": OK,
+		"first_run": false,
+		"applied": 0,
+		"recovered_unreadable_profile": true,
+		"discarded_error_code": storage_result.error_code,
+		"discarded_error": storage_result.error,
+		"current_schema_version": PROFILE_SCHEMA_VERSION,
 	}
 	return OK
 

@@ -318,6 +318,53 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 	_dispose_setup(reloaded)
 
 
+func test_unreadable_storage_profile_is_reset_to_current_format() -> void:
+	var save_dir_name: String = "gut_save_graph_unreadable_%d" % Time.get_ticks_usec()
+	var legacy_bytes: PackedByteArray = _make_legacy_storage_bytes({
+		"legacy_profile": true,
+	})
+	var setup: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true,
+		legacy_bytes
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	assert_push_error(
+		"Storage document envelope missing or malformed",
+		"GFStorage 应明确拒绝旧物理文档。"
+	)
+	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		save_graph.get_debug_snapshot(),
+		"last_load"
+	)
+
+	assert_true(
+		save_graph.is_profile_loaded(),
+		"无法按当前 codec 解码的 Profile 应按项目 reset_allowed 策略重建。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(
+			load_snapshot,
+			"recovered_unreadable_profile",
+			false
+		),
+		"加载诊断应明确记录物理存储格式重建。"
+	)
+	assert_true(
+		progress_stats_system.set_high_score("classic", _BOARD_KEY, 1024) == OK,
+		"重建后业务 section 必须可以立即排队写入。"
+	)
+	assert_true(save_graph.flush_pending_save() == OK, "重建后的 Profile 应可完成同步冲刷。")
+	var persisted_result: GFStorageReadResult = storage.load_data(
+		GameSaveGraphUtility.PROFILE_FILE_NAME
+	)
+	assert_true(persisted_result.ok, "活动 Profile 必须已改写为当前 GFStorage 文档格式。")
+
+	_dispose_setup(setup)
+
+
 func test_future_profile_schema_mismatch_is_rejected_without_fallback() -> void:
 	var save_dir_name: String = "gut_save_graph_schema_%d" % Time.get_ticks_usec()
 	var setup: Dictionary = await _create_persistence_architecture(save_dir_name)
@@ -419,7 +466,8 @@ func test_save_dependency_failure_rolls_back_replaced_section() -> void:
 
 func _create_persistence_architecture(
 	save_dir_name: String = "",
-	include_systems: bool = false
+	include_systems: bool = false,
+	raw_profile_bytes: PackedByteArray = PackedByteArray()
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = GFStorageUtility.new()
@@ -436,6 +484,13 @@ func _create_persistence_architecture(
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true
+	if not raw_profile_bytes.is_empty():
+		var fixture_error: Error = _write_raw_storage_file(
+			storage,
+			GameSaveGraphUtility.PROFILE_FILE_NAME,
+			raw_profile_bytes
+		)
+		assert_true(fixture_error == OK, "无法写入不可读 Profile 回归夹具。")
 
 	await architecture.register_utility(GFStorageUtility, storage)
 	await architecture.register_utility(GFSaveGraphUtility, framework_save_graph)
@@ -506,6 +561,31 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		"测试 SaveGraph section 应完整注册。"
 	)
 	return save_graph
+
+
+func _write_raw_storage_file(
+	storage: GFStorageUtility,
+	file_name: String,
+	bytes: PackedByteArray
+) -> Error:
+	var directory_error: Error = storage.ensure_directory()
+	if directory_error != OK:
+		return directory_error
+	var path: String = storage.get_storage_directory_path().path_join(file_name)
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return FileAccess.get_open_error()
+	var _store_result: Variant = file.store_buffer(bytes)
+	file.close()
+	return OK
+
+
+func _make_legacy_storage_bytes(data: Dictionary, obfuscation_key: int = 42) -> PackedByteArray:
+	var bytes: PackedByteArray = var_to_bytes(data)
+	var key_byte: int = obfuscation_key & 0xff
+	for index: int in range(bytes.size()):
+		bytes[index] = bytes[index] ^ key_byte
+	return Marshalls.raw_to_base64(bytes).to_utf8_buffer()
 
 
 func _make_bookmark(timestamp: int, score: int) -> BookmarkData:
