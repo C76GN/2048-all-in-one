@@ -21,6 +21,9 @@ $records = [System.Collections.Generic.List[string]]::new()
 
 foreach ($file in Get-ChildItem -LiteralPath $vendorRoot -Recurse -File) {
 	$relativePath = $file.FullName.Substring($vendorRoot.Length + 1).Replace("\", "/")
+	if ($relativePath -match '(^|/)__pycache__/' -or $relativePath -match '\.py[cod]$') {
+		continue
+	}
 	$fileHash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 	$records.Add("$relativePath`t$fileHash")
 }

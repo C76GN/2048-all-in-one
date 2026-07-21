@@ -12,6 +12,7 @@ const _GF_PACKAGE_CLI_PATH: String = "res://addons/gf/kernel/package/gf_package_
 const _GF_PACKAGE_BACKEND_PATH: String = "res://addons/gf/kernel/package/gf_package_manager_backend.gd"
 const _GF_EXTENSION_ROOT_PATH: String = "res://addons/gf/extensions"
 const _GITIGNORE_PATH: String = "res://.gitignore"
+const _GF_VENDOR_VERIFY_PATH: String = "res://tools/verify_gf_vendor.ps1"
 const _GUT_RUNNER_PATH: String = "res://tools/run_gut_safe.ps1"
 const _GUT_SHUTDOWN_HOOK_PATH: String = "res://tests/gut/support/gf_test_shutdown_hook.gd"
 const _GODOT_EXIT_LEAK_BASELINE_PATH: String = "res://.gf/godot_exit_leak_baseline.json"
@@ -287,12 +288,19 @@ func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
 
 func test_gf_package_cache_is_ignored_without_ignoring_lockfile() -> void:
 	var gitignore_text: String = _read_text(_GITIGNORE_PATH)
+	var vendor_verify_text: String = _read_text(_GF_VENDOR_VERIFY_PATH)
 	var issues: Array[String] = []
 
 	if not _gitignore_has_entry(gitignore_text, ".gf/package_cache/"):
 		_append_string(issues, ".gitignore 应忽略 .gf/package_cache/，避免提交 GF 下载缓存。")
 	if _gitignore_has_entry(gitignore_text, ".gf/"):
 		_append_string(issues, ".gitignore 不应忽略整个 .gf/，否则 packages.lock.json 容易被漏提交。")
+	if not _gitignore_has_entry(gitignore_text, "__pycache__/"):
+		_append_string(issues, ".gitignore 应忽略 GF Python 工具生成的 __pycache__/。")
+	if not _gitignore_has_entry(gitignore_text, "*.py[cod]"):
+		_append_string(issues, ".gitignore 应忽略 Python 字节码缓存。")
+	if not vendor_verify_text.contains("__pycache__") or not vendor_verify_text.contains(".py[cod]"):
+		_append_string(issues, "GF vendor 校验必须排除明确的 Python 缓存，不得把临时字节码计入快照。")
 
 	assert_true(issues.is_empty(), "GF 包管理相关忽略规则应只忽略缓存、不隐藏 lockfile：\n%s" % _join_lines(issues))
 

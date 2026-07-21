@@ -24,6 +24,10 @@ repomix.config.json
 # GF package manager cache
 .gf/package_cache/
 
+# Python tooling caches
+__pycache__/
+*.py[cod]
+
 # Runtime logs and local user data
 *.log
 logs/
