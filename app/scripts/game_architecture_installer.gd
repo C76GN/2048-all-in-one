@@ -7,10 +7,13 @@ extends "res://addons/gf/kernel/core/gf_installer.gd"
 
 const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
 const _DEV_TOOLS_FEATURE: String = "with_dev_tools"
+const _PLATFORM_SMOKE_FEATURE: String = "platform_smoke"
 const _DEV_TOOLS_INSTALLER_PATH: String = (
 	"res://features/diagnostics/scripts/installers/game_diagnostics_installer.gd"
 )
 const _COMMAND_HISTORY_LIMIT: int = 1024
+const _ASSET_CACHE_CAPACITY: int = 256
+const _ASSET_MAX_CONCURRENT_LOADS: int = 4
 const _PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_content_catalog_utility.gd")
 const _PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_resource_catalog_utility.gd")
 const _GAME_CLOCK_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/game_clock_utility.gd")
@@ -82,9 +85,10 @@ func _bind_runtime_foundation_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(GFDisplaySettingsUtility).as_singleton()
 	await binder.bind_utility(GFViewportUtility).as_singleton()
 	await binder.bind_utility(GFAudioUtility).as_singleton()
-	await binder.bind_utility(GFHttpClientUtility).as_singleton()
+	if OS.has_feature(_PLATFORM_SMOKE_FEATURE):
+		await binder.bind_utility(GFHttpClientUtility).as_singleton()
 	await binder.bind_utility(GFSeedUtility).as_singleton()
-	await binder.bind_utility(GFAssetUtility).as_singleton()
+	await binder.bind_utility(GFAssetUtility).from_instance(_create_asset_utility()).as_singleton()
 	await binder.bind_utility(GFResourceResolverUtility).as_singleton()
 
 
@@ -197,6 +201,13 @@ func _create_time_utility() -> GFTimeUtility:
 	var time_utility: GFTimeUtility = GFTimeUtility.new()
 	var _clock_set: bool = time_utility.set_clock(_clock)
 	return time_utility
+
+
+func _create_asset_utility() -> GFAssetUtility:
+	var asset_utility: GFAssetUtility = GFAssetUtility.new()
+	asset_utility.max_cache_size = _ASSET_CACHE_CAPACITY
+	asset_utility.default_max_concurrent_loads = _ASSET_MAX_CONCURRENT_LOADS
+	return asset_utility
 
 
 func _create_game_clock_utility() -> GameClockUtility:

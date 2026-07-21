@@ -123,9 +123,11 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 1. Composition Root 把内置素材、内置主题和 `user://content_packages` 配置给 `ProjectContentCatalogUtility`。
 2. `ProjectContentCatalogUtility` 是唯一可以注册 source root、重建 `GFContentPackageUtility` 目录并同步 `GFResourceResolverUtility` 的项目 Module。
 3. `GameThemeCatalogUtility` 只读取 manifest metadata，建立 `GameThemeDescriptor` 索引；设置菜单枚举主题时不加载完整资源。
-4. 用户选择主题后，`GameThemeUtility` 才通过稳定资源键加载 `GameTheme` 或 `GameAudioTheme`，并用 `GFActivationTransaction` 完成验证、应用和失败回滚。
-5. 视觉 Profile 交给 `GFShaderParameterUtility`；`GameBoardFeedbackProfile` 把每个反馈等级的 `GFShakePreset` 与 `GFHapticPreset` 注入 `GameBoardFeedbackUtility`；声音银行通过 `GFAudioUtility.mount_audio_bank()` 获取令牌，切换或释放时明确卸载旧银行。
-6. `GameUiStyleUtility` 独占 `GameUiPalette`、静态 StyleBox、语义文本和焦点 Shader；`GameUiMotionUtility` 只拥有交互信号与 Tween。UI 节点声明语义角色，不保存从旧色板生成的样式对象。
+4. 用户选择主题后，`GameThemeUtility` 先让 `GameThemeCatalogUtility` 只解析根资源路径，再由 `GFResourceRegistryTools` 收集完整依赖图并创建手动提交的 `GFAssetLoadSession`；业务代码不得在激活路径同步 `load()` 主题资源。
+5. 会话在 staging group 全量成功后校验资源类型、稳定主题 ID 和业务报告，随后提交唯一目标资源组并用 `GFActivationTransaction` 应用主题。只有事务成功才替换当前组并通过 `GFAssetUtility.unload_group(..., true)` 释放旧组；失败保留旧主题、旧银行和设置。
+6. `BootRuntime` 在 `Gf.init()` 后显式等待视觉与声音主题均完成首次提交，再执行渲染预热和入口场景预加载。设置页等待真实激活结果并在会话期间禁用对应选择器，连续请求由主题 Utility 取消旧会话并以序列号拒绝迟到回调。
+7. 视觉 Profile 交给 `GFShaderParameterUtility`；`GameBoardFeedbackProfile` 把每个反馈等级的 `GFShakePreset` 与 `GFHapticPreset` 注入 `GameBoardFeedbackUtility`；声音银行通过 `GFAudioUtility.mount_audio_bank()` 获取令牌，切换或释放时明确卸载旧银行。
+8. `GameUiStyleUtility` 独占 `GameUiPalette`、静态 StyleBox、语义文本和焦点 Shader；`GameUiMotionUtility` 只拥有交互信号与 Tween。UI 节点声明语义角色，不保存从旧色板生成的样式对象。
 
 ### 素材评审
 
@@ -157,6 +159,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 3. `GamePlatformAdapter` 继承 `GFPlatformAdapter`，负责冻结项目身份与能力契约；具体 Adapter 只实现支持的 SDK dispatch 和平台上下文刷新。
 4. 只有具体平台 Adapter 可以使用 `OS.has_feature()`、`DisplayServer` 或供应商 SDK 探测玩家设备与平台能力；Gameplay、Board Editor 和其他 Feature 必须通过 `GamePlatformUtility` 查询 `GFPlatformRuntimeContext` 与能力 ID，平台上下文变化时重新投影布局。Composition Root 的构建 feature 开关、开发诊断的 headless 判定以及 `GFDisplaySettingsUtility` 所需的枚举类型不属于玩家平台能力探测。
 5. 平台请求统一返回 `GFPlatformRequestHandle`。调用方通过句柄读取终态 `GFPlatformBridgeResult`，不得另建项目私有异步请求协议。
+6. `GFHttpClientUtility` 目前只服务 `platform_smoke` 的网络兼容性验证，因此 Composition Root 仅在该导出 feature 下注册它。正式 Steam、Android、Web 与微信构建不得为未实现的在线业务常驻 HTTP 模块；未来排行榜联网应由平台 Adapter 或独立后端 Feature 明确拥有请求和重试边界。
 
 ### 时钟、随机与运行诊断
 

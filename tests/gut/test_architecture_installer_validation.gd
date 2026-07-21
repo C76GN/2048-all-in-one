@@ -198,7 +198,11 @@ func test_project_installer_registers_platform_primitives_before_platform_bounda
 
 	assert_true(runtime_position >= 0, "项目 Installer 应注册 GFPlatformRuntime。")
 	assert_true(viewport_position >= 0, "项目 Installer 应注册 GFViewportUtility。")
-	assert_true(http_position >= 0, "项目 Installer 应注册 GFHttpClientUtility。")
+	assert_true(http_position >= 0, "平台冒烟构建应注册 GFHttpClientUtility。")
+	assert_true(
+		source.contains("if OS.has_feature(_PLATFORM_SMOKE_FEATURE):"),
+		"GFHttpClientUtility 只能在 platform_smoke 构建边界注册。"
+	)
 	assert_true(gesture_position >= 0, "项目 Installer 应注册 GFPointerGestureUtility。")
 	assert_true(platform_position >= 0, "项目 Installer 应注册 GamePlatformUtility。")
 	assert_true(runtime_position < platform_position, "GF 平台运行时必须先于项目平台选择边界注册。")

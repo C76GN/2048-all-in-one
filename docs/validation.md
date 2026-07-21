@@ -34,7 +34,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1
 ```
 
-该命令校验 `addons/gf/` 的版本、文件数和内容哈希是否与 `.gf/vendor.lock.json` 一致。更新 GF 后必须同步锁文件；不要把 package lockfile 和 vendor lockfile 混为一谈。
+该命令校验 `addons/gf/` 的版本、文件数和内容哈希是否与 `.gf/vendor.lock.json` 一致。GF Python 工具运行时生成的 `__pycache__` / `*.pyc` 不属于 vendor 快照，校验和 Git 均明确排除；除此之外的额外文件仍会导致校验失败。更新 GF 后必须同步锁文件；不要把 package lockfile 和 vendor lockfile 混为一谈。
 
 2026-07-20 的本机复核中，Steam Godot 4.7 因 SSL 模块初始化失败而无法连接远程 registry，`status --json` 因此报告 1 个环境 issue；同一工作树的离线 vendor 校验通过，版本为 `9.0.1`、文件数为 `1684`，SHA-256 为 `c2d921861f7d0afe8d8de343be4f07001e62016f88c4d5de576c36d6e71a994e`，commit 为 `5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28`。远程 registry 可用性与本地 vendored 源码完整性必须分别报告。
 
@@ -115,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 ### 最近一次安全 GUT 验证
 
-验证时间：2026-07-21。
+验证时间：2026-07-22。
 
 命令：
 
@@ -127,11 +127,11 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
 - GF Framework：官方稳定 tag `9.0.1`，commit `5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28`。
-- GUT：294 个测试全部通过，共 1874 个断言。
-- 当前完整套件：`tests/gut/` 下 34 个顶层测试脚本、294 个 `test_` 用例。
-- Boot 首帧壳与 Godot 原生启动图共用同一构图；正式 `BootRuntime` 由线程加载，随后通过 `GFAsyncProgress`、`GFScenePreloadMap`、`GFSceneUtility` 和 `GFRenderWarmupUtility` 预热稳定场景流、主题 shader 与首轮游戏视觉资源。Boot 继续启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束。高频进度写入由 `GameSaveGraphUtility` 合并后调用 GFStorage 异步接口，关键完成事务仍同步落盘。
+- GUT：302 个测试全部通过，共 1916 个断言。
+- 当前完整套件：`tests/gut/` 下 36 个顶层测试脚本、302 个 `test_` 用例。
+- Boot 首帧壳与 Godot 原生启动图共用同一构图；正式 `BootRuntime` 由线程加载，在严格 `Gf.init()` 后等待视觉与声音主题通过 `GFAssetLoadSession` 完整预载、提交资源组并事务激活，随后再由 `GFScenePreloadMap`、`GFSceneUtility` 和 `GFRenderWarmupUtility` 预热稳定场景流与首轮游戏视觉资源。Boot 继续启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束。高频进度写入由 `GameSaveGraphUtility` 合并后调用 GFStorage 异步接口，关键完成事务仍同步落盘。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 309`、`Resources = 131`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。GF 9.0.1 声明 732 个全局脚本类，当前项目运行时声明 183 个 `class_name`。新增 `ProjectStorageRecoveryPolicy` 和一份持久化回归测试后，verbose 全量审计确认固定增量局限于扩展后的脚本/测试发现集合，没有新增 retained Node、Resource 或 RID 类别。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 309`、`Resources = 131`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。GF 9.0.1 声明 732 个全局脚本类，当前项目运行时声明 185 个 `class_name`。素材拒绝清理工作流新增 2 个项目类并把完整套件扩展到 36/302；本轮主题资源组生命周期接入没有增加 retained Node、Resource 或 RID 类别。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
@@ -152,7 +152,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-20。结果：扫描 224 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+最近一次 LSP 诊断时间：2026-07-22。结果：扫描 230 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
 
 ## 视觉与操作回放
 
