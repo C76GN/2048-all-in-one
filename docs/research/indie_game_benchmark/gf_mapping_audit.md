@@ -36,6 +36,22 @@
 
 建议先加研究驱动的回归用例：连续触发两次扩建和一次实时重定向后，所有格子 scale 回到 `Vector2.ONE`，池中节点无动画残留，命名棋盘队列空闲。若失败，修复应在项目 `GameBoardAnimationUtility` 或 Controller 的显式句柄所有权内完成，不修改 GF。
 
+## 研究建议去重核对
+
+在把竞品发现转为行动项前，又针对高频方向做了一轮静态反查。以下能力不能写成“从零实现”；正确建议是扩展、补齐或增加回归。
+
+| 方向 | 已存在的项目证据 | 真正缺口与正确动作 |
+| --- | --- | --- |
+| 动作语义 | [`MoveData`](../../../features/gameplay/scripts/data/move_data.gd) 已含 direction、moved lanes、reverse target map；[`GridMovementSystem`](../../../features/gameplay/scripts/systems/grid_movement_system.gd) 还以字符串 Dictionary 传 merge count/max/score/type | 扩展现有 `MoveData` 为 typed transitions/汇总，不另建平行 `MoveOutcome`；无效移动已通知且不入历史，应保留 |
+| 反馈层级 | [`GameBoardFeedbackUtility`](../../../features/themes/scripts/utilities/game_board_feedback_utility.gd) 已分 `MOVE/MERGE/HIGH_MERGE/RECORD`，无效移动也已有通知 | 补全 recipe 表与冲突预算；Controller 当前没有传 `is_record`，先用回归证明并接通不可达的 RECORD 路径 |
+| custom / daily seed | [`mode_selection.gd`](../../../features/navigation/scripts/menus/mode_selection.gd) 已支持手动输入、刷新和稳定 hash；[`ReplayData`](../../../features/replays/scripts/data/replay_data.gd) 保存初始 seed | custom seed 已完成；新增的是可注入 UTC 日期 + schema/rule/mode/topology 的 daily challenge、离线一致性和资格模型 |
+| 响应式布局 | [`GameplayResponsiveLayoutController`](../../../features/gameplay/scripts/controllers/gameplay_responsive_layout_controller.gd) 已对 desktop/compact/portrait、safe area、HUD/D-pad/board 做真实重排，编辑器也有独立 Controller 和测试 | 补 1280×720、960×540、390×844 截图/实例化回归、44 px 触控目标、safe area 和完整控制器焦点路径；不重建布局系统 |
+| 快速输入 | [`GameInputProfileUtility`](../../../features/settings/scripts/utilities/game_input_profile_utility.gd) 已定义 buffered/block/realtime-retarget，[`GameBoardAnimationUtility`](../../../features/gameplay/scripts/utilities/game_board_animation_utility.gd) 经 GF action queue 清队列/重同步 | 补 10–20 ms burst 的端到端回归，分别验证接收/丢弃/重定向数量、旧 completion、池化 tile 和最终 GridModel；GF 无缺口 |
+| 音频 | [`GameAudioTheme`](../../../features/themes/scripts/data/game_audio_theme.gd) 与正式 audio bank 已有六类语义 SFX、音量/音高变化，播放统一走 `GFAudioUtility` | 新增 BGM/ambient/自适应 state、独立音量、并发/ducking/overflow 与 Web 解锁验收；不建平行音频管理器 |
+| 排行资格 | `GameFlowSystem` 已阻止 tainted/replay 的部分结果和回放写入，但只保存单一 taint 布尔；结果记录不含 seed/资格/reason/hash/challenge | 建不可变 eligibility snapshot + reason codes；无障碍永不失格；平台/服务端是线上权威，SaveGraph 只保存本地状态 |
+
+这轮核对同时确认：正式性能 budget、预热和对象池已存在，但没有 P50/P95/P99 benchmark harness；完整 snapshot/equality 已存在，但没有只读 AI hint；回放有 seed/actions/final snapshot 和逐步播放，但没有 step hash、首个 OOS、simulation/content fingerprint 或固定 seed corpus。
+
 ## GF 发现性反馈候选
 
 能力目录查询结果与精确 API 查询存在落差：

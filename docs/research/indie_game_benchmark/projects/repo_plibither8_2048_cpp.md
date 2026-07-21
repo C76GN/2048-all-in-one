@@ -29,7 +29,7 @@
 
 ## 持久化、性能与风险
 
-存档把棋盘等信息写入自定义文本文件，[写入流程](https://github.com/plibither8/2048.cpp/blob/ad931d991e27819463dbd3d27a05411ea3cee061/src/saveresource.cpp#L23-L59)，读档依靠逐段解析和 `stoi`，尺寸上限与格式校验分散，还留有 TODO。[读档解析](https://github.com/plibither8/2048.cpp/blob/ad931d991e27819463dbd3d27a05411ea3cee061/src/loadresource.cpp#L27-L125)。先删除旧文件再写新文件没有事务保障，文件名路径也需要更严格的信任边界。
+存档把棋盘等信息写入自定义文本文件，[写入流程](https://github.com/plibither8/2048.cpp/blob/ad931d991e27819463dbd3d27a05411ea3cee061/src/saveresource.cpp#L23-L59)，读档依靠逐段解析和 `stoi`，尺寸上限与格式校验分散，还留有未完成标记。[读档解析](https://github.com/plibither8/2048.cpp/blob/ad931d991e27819463dbd3d27a05411ea3cee061/src/loadresource.cpp#L27-L125)。先删除旧文件再写新文件没有事务保障，文件名路径也需要更严格的信任边界。
 
 性能上，终端刷新和小棋盘成本很低；真正风险是按值传递棋盘、四方向重复循环、随机设备散落以及缺少可重复 benchmark。随机生成和“移除 tile”使用非持久 seed，无法重放。没有发现系统性的领域单测。
 

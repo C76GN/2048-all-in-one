@@ -18,13 +18,13 @@ GF：9.0.1，vendor commit `5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28`
 | --- | --- | --- | --- |
 | 规则变体 | Classic、Fibonacci、Lucas/Fibonacci、Progressive、Step-by-step、Ratio 共 6 个注册模式 | [模式注册表](../../../features/gameplay/resources/registries/game_mode_registry.tres) | 变体广度已高于普通 2048；更缺“局内目标、风险、奖励、事件”形成的纵向深度 |
 | 棋盘 | 稀疏拓扑、3×3 至 8×8、玩家自定义棋盘与独立编辑撤销 | [架构说明](../../architecture.md) | 拓扑底座强，适合承载障碍、区域规则和关卡谜题，但这些内容语义仍需项目实现 |
-| 历史与确定性 | 命令历史、撤销/重做、书签、逐步回放、从回放继续 | [README](../../../README.md) | 可直接复用为挑战分享、失败复盘和提示验证的基础，不应再建第二套时间线 |
+| 历史与确定性 | 命令历史、撤销/重做、书签、逐步回放、从回放继续；模式页支持手动 seed、刷新和稳定 hash，回放保存初始 seed/RNG | [README](../../../README.md)、[模式选择](../../../features/navigation/scripts/menus/mode_selection.gd)、[回放数据](../../../features/replays/scripts/data/replay_data.gd) | 可直接复用为 daily challenge、失败复盘和提示验证的基础，不应再建第二套时间线或 custom-seed 功能 |
 | 进度 | 统计、7 项数据驱动成就、方块/规则发现图鉴 | [Feature 所有权](../../architecture.md) | 有“记录”，但尚缺短局目标、任务节奏、每日挑战和有意义的解锁选择 |
 | 主题与 Shader | 纸媒半调背景、场景擦除、按钮焦点、启动进度、庆祝 VFX；参数 Profile 与启动预热 | [视觉规范](../../visual_style.md) | 表现技术底座完整；应增加操作事件层级、局势可读性与降级模式，而非堆更多常驻噪声 |
 | 方块表现 | 家族轮廓、稀疏母题、Recipe 边缘标记、颜色/字号主题化 | [方块规范](../../visual_style.md#方块与棋盘) | 身份编码丰富；需要验证高压局面、特殊状态和色觉差异下是否仍能快速读懂 |
-| 动效 | 移动/生成/合并批次进入 GF 命名视觉队列，具备缓冲、阻断、实时重定向策略；棋盘冲击、Shake、Haptic、背景响应协同 | [核心数据流](../../architecture.md#玩家移动) | 生命周期和一致性强；缺少用户可选的减少动态/关闭震动与压力状态下的节奏分层 |
+| 动效 | 移动/生成/合并批次进入 GF 命名视觉队列，具备 `BUFFERED/BLOCK/REALTIME_RETARGET` 三种快速输入策略；棋盘冲击、Shake、Haptic、背景响应协同 | [核心数据流](../../architecture.md#玩家移动)、[输入 Profile](../../../features/settings/scripts/utilities/game_input_profile_utility.gd) | 生命周期和策略强；缺 burst 端到端回归、用户可选的减少动态/关闭震动与压力状态下的节奏分层 |
 | 音效 | 6 个正式短音效：UI 选择/确认、生成/移动/合并、失败；通过 `GFAudioBank` 与主题事件播放 | [音频主题代码](../../../features/themes/scripts/data/game_audio_theme.gd) | 语义事件已资源化，但音色变化、连锁层级、成功/危险提示、环境或音乐层仍浅 |
-| UI/UX | 响应式主菜单、模式选择、设置、成就、图鉴、书签、回放；键盘/手柄焦点与中英文本 | [README](../../../README.md)、[视觉规范](../../visual_style.md#UI-面板与控件) | 信息架构基础完整；回放/书签/模式页仍被项目文档明确列为需去除等权卡片和过量说明 |
+| UI/UX | 响应式主菜单、模式选择、设置、成就、图鉴、书签、回放；gameplay/编辑器已按 desktop/compact/portrait、safe area、HUD/D-pad/棋盘做真实重排；键盘/手柄焦点与中英文本 | [README](../../../README.md)、[gameplay 响应式 Controller](../../../features/gameplay/scripts/controllers/gameplay_responsive_layout_controller.gd)、[视觉规范](../../visual_style.md#UI-面板与控件) | 不是“只有缩放”；信息架构基础完整，仍缺跨分辨率/输入的端到端矩阵，回放/书签/模式页也需消除等权卡片和过量说明 |
 | 性能 | Shader 预热、相邻场景预载、对象池、可等待动画队列、稀疏棋盘、隔离 QA/GUT | [启动与装配](../../architecture.md#启动与装配) | 有机制与预算，但缺玩家设备上的输入延迟/帧尖峰基准表和内容规模压力门槛 |
 | 平台 | `GFPlatformRuntime` + 项目 Adapter，Web/微信准备检查，Steam/微信边界已定义 | [项目契约](../../../.gf/project_contract.json) | 本地能力完整；平台排行榜、成就同步和云存档仍未接入，权威性必须留在平台/服务端 |
 
@@ -33,9 +33,9 @@ GF：9.0.1，vendor commit `5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28`
 这些是代码/文档检索可以确认的基线，不依赖竞品推断：
 
 1. **无完整首次上手流程。** HUD 有固定操作提示，但未发现教程状态、分步教学、情境提示或“已掌握”持久化；固定提示不等同于 onboarding。
-2. **无每日/每周种子挑战。** 已有确定性种子、回放和统计，但未发现 daily challenge、挑战签名、轮换规则或赛季记录。
-3. **无排行榜实现。** [roadmap](../../roadmap.md) 仍把本地排行榜和平台 bridge 列为下一步；契约同时明确客户端不能裁决线上排名。
-4. **无完整可访问性设置。** 项目具备焦点、响应式布局、统一字体和输入映射，但运行时资源/代码未发现减少动态、禁用震动、色觉安全/高对比模式或屏幕阅读语义。`project.godot` 的空 `[accessibility]` 段不是产品能力。
+2. **无每日/每周种子挑战。** 手动 custom seed、稳定 hash、完整 RNG 恢复和回放初始 seed 已存在；真正未发现的是 daily challenge、日期/规则版本、轮换、挑战资格或赛季记录。
+3. **无排行榜实现和统一资格模型。** replay/tainted 已能门控部分本地记录，但只有单一布尔 taint，undo/redo、bookmark、manual seed、custom board、replay continuation 等没有统一 reason codes；[roadmap](../../roadmap.md) 仍把本地排行榜和平台 bridge 列为下一步，且契约明确客户端不能裁决线上排名。
+4. **无完整可访问性设置。** 项目具备焦点、真实响应式布局、统一字体、输入映射和 3.0/4.5 的静态对比测试，但运行时资源/代码未发现减少动态、禁用震动、色觉安全/高对比产品模式或屏幕阅读语义。`project.godot` 的空 `[accessibility]` 段不是产品能力。
 5. **无音乐或自适应音景。** 正式运行时只发现 6 个短 SFX 事件，未发现 BGM/音乐状态或随合并层级变化的混音规则。
 6. **内容缺少局内“选择”。** 现有 6 模式主要组合移动、生成、交互与结束规则；未发现网格肉鸽式的局内升级、分叉事件、代价交换或 build 形成机制。
 7. **缺少正式性能证据表。** 已声明 16.667 ms 帧预算和 50 ms 首反馈预算，也有预热/池化机制，但尚无按平台、棋盘规模、动画策略记录的基准矩阵。
