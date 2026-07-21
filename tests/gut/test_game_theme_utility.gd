@@ -10,6 +10,18 @@ const _DEFAULT_BOARD_THEME: BoardTheme = preload("res://features/themes/resource
 const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres")
 
 
+# --- 私有变量 ---
+
+var _asset_tick_architecture: GFArchitecture = null
+
+
+# --- Godot 生命周期方法 ---
+
+func _process(delta: float) -> void:
+	if is_instance_valid(_asset_tick_architecture):
+		_asset_tick_architecture.tick(delta)
+
+
 # --- 测试用例 ---
 
 func test_theme_catalog_discovers_and_validates_default_theme_pack() -> void:
@@ -231,9 +243,11 @@ func test_theme_content_package_registers_independent_theme_resource_keys() -> v
 
 
 func test_theme_debug_snapshot_exposes_content_package_and_resolver_state() -> void:
-	var setup: Dictionary = await _create_theme_architecture()
+	var setup: Dictionary = await _create_theme_architecture(false, false)
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var theme_utility: GameThemeUtility = _get_theme_utility(setup)
+	var theme_catalog: GameThemeCatalogUtility = _get_theme_catalog(setup)
+	var asset_utility: GFAssetUtility = _get_asset_utility(setup)
 
 	var snapshot: Dictionary = theme_utility.get_debug_snapshot()
 	var catalog_snapshot: Dictionary = GFVariantData.get_option_dictionary(snapshot, "catalog")
@@ -266,6 +280,32 @@ func test_theme_debug_snapshot_exposes_content_package_and_resolver_state() -> v
 	assert_true(
 		GFVariantData.to_int(snapshot.get("available_visual_theme_count"), 0) > 0,
 		"主题诊断快照应暴露可用视觉主题数量。"
+	)
+	var visual_group_id: StringName = GFVariantData.get_option_string_name(
+		snapshot,
+		"active_visual_asset_group_id"
+	)
+	var sound_group_id: StringName = GFVariantData.get_option_string_name(
+		snapshot,
+		"active_sound_asset_group_id"
+	)
+	assert_false(visual_group_id == &"", "视觉主题应持有已提交的 GF 资源组。")
+	assert_false(sound_group_id == &"", "声音主题应持有独立的 GF 资源组。")
+	assert_true(
+		asset_utility.get_group_paths(visual_group_id).has(
+			theme_catalog.get_visual_theme_resource_path(&"halftone_atlas")
+		),
+		"视觉主题资源组必须包含 manifest 解析出的主题根资源。"
+	)
+	assert_true(
+		asset_utility.get_group_paths(sound_group_id).has(
+			theme_catalog.get_sound_theme_resource_path(&"printworks")
+		),
+		"声音主题资源组必须包含 manifest 解析出的主题根资源。"
+	)
+	assert_true(
+		asset_utility.get_active_preload_session_count() == 0,
+		"主题激活完成后不得遗留 GFAssetLoadSession。"
 	)
 
 	await _dispose_architecture(architecture)
@@ -440,9 +480,14 @@ func test_theme_utility_plays_semantic_sound_events_through_gf_audio() -> void:
 
 # --- 私有/辅助方法 ---
 
-func _create_theme_architecture(include_scene_router: bool = false) -> Dictionary:
+func _create_theme_architecture(
+	include_scene_router: bool = false,
+	prime_asset_cache: bool = true
+) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
+	var assets: GFAssetUtility = GFAssetUtility.new()
+	assets.max_cache_size = 256
 	var content_packages: GFContentPackageUtility = GFContentPackageUtility.new()
 	var project_content_catalog: ProjectContentCatalogUtility = (
 		ProjectContentCatalogUtility.new().configure_source_roots(PackedStringArray([
@@ -470,6 +515,7 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 	var screen_transition: GFScreenTransitionUtility = null
 	var scene_router: SceneRouterSystem = null
 
+	await architecture.register_utility(GFAssetUtility, assets)
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(GFContentPackageUtility, content_packages)
 	await architecture.register_utility(
@@ -497,10 +543,19 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 		await architecture.register_utility(GFScreenTransitionUtility, screen_transition)
 		await architecture.register_system(SceneRouterSystem, scene_router)
 	await architecture.init()
+	if prime_asset_cache:
+		_prime_theme_asset_cache(assets, theme_catalog)
+	else:
+		_asset_tick_architecture = architecture
+	var initial_themes_ready: bool = await theme_utility.ensure_initial_themes_ready()
+	if _asset_tick_architecture == architecture:
+		_asset_tick_architecture = null
+	assert_true(initial_themes_ready, "测试主题必须通过 GFAssetLoadSession 完成初始激活。")
 	await get_tree().process_frame
 
 	return {
 		"architecture": architecture,
+		"assets": assets,
 		"resolver": resolver,
 		"content_packages": content_packages,
 		"project_content_catalog": project_content_catalog,
@@ -521,6 +576,8 @@ func _create_theme_architecture(include_scene_router: bool = false) -> Dictionar
 
 
 func _dispose_architecture(architecture: GFArchitecture) -> void:
+	if _asset_tick_architecture == architecture:
+		_asset_tick_architecture = null
 	if architecture != null:
 		architecture.dispose()
 	await get_tree().process_frame
@@ -551,6 +608,15 @@ func _get_resource_resolver(setup: Dictionary) -> GFResourceResolverUtility:
 		return resolver
 	assert_true(false, "测试 setup 缺少 GFResourceResolverUtility。")
 	return GFResourceResolverUtility.new()
+
+
+func _get_asset_utility(setup: Dictionary) -> GFAssetUtility:
+	var value: Variant = setup.get("assets")
+	if value is GFAssetUtility:
+		var asset_utility: GFAssetUtility = value
+		return asset_utility
+	assert_true(false, "测试 setup 缺少 GFAssetUtility。")
+	return GFAssetUtility.new()
 
 
 func _get_theme_utility(setup: Dictionary) -> GameThemeUtility:
@@ -596,3 +662,31 @@ func _get_audio_utility(setup: Dictionary) -> GFAudioUtility:
 		return audio
 	assert_true(false, "测试 setup 缺少 GFAudioUtility。")
 	return GFAudioUtility.new()
+
+
+func _prime_theme_asset_cache(
+	asset_utility: GFAssetUtility,
+	theme_catalog: GameThemeCatalogUtility
+) -> void:
+	_prime_asset_dependency_tree(
+		asset_utility,
+		theme_catalog.get_visual_theme_resource_path(&"halftone_atlas")
+	)
+	_prime_asset_dependency_tree(
+		asset_utility,
+		theme_catalog.get_sound_theme_resource_path(&"printworks")
+	)
+
+
+func _prime_asset_dependency_tree(asset_utility: GFAssetUtility, root_path: String) -> void:
+	var paths: PackedStringArray = GFResourceRegistryTools.collect_dependency_paths(
+		root_path,
+		{
+			"recursive": true,
+			"include_root": true,
+		}
+	)
+	for path: String in paths:
+		var resource: Resource = ResourceLoader.load(path)
+		if resource != null:
+			asset_utility.put_cache(path, resource)

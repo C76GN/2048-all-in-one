@@ -91,6 +91,18 @@ func get_sound_theme_descriptor(theme_id: StringName) -> GameThemeDescriptor:
 	return _copy_descriptor(_sound_descriptors.get(theme_id))
 
 
+## 返回视觉主题根资源的已解析路径，不触发同步加载。
+## @param theme_id: 待解析的视觉主题 ID。
+func get_visual_theme_resource_path(theme_id: StringName) -> String:
+	return _get_descriptor_resource_path(_get_descriptor(_visual_descriptors, theme_id))
+
+
+## 返回声音主题根资源的已解析路径，不触发同步加载。
+## @param theme_id: 待解析的声音主题 ID。
+func get_sound_theme_resource_path(theme_id: StringName) -> String:
+	return _get_descriptor_resource_path(_get_descriptor(_sound_descriptors, theme_id))
+
+
 ## @param theme_id: 待按需加载的视觉主题 ID。
 func load_visual_theme(theme_id: StringName) -> GameTheme:
 	var descriptor: GameThemeDescriptor = _get_descriptor(_visual_descriptors, theme_id)
@@ -331,6 +343,18 @@ func _load_descriptor_resource(descriptor: GameThemeDescriptor) -> Resource:
 	if descriptor == null or not is_instance_valid(_project_content_catalog):
 		return null
 	return _project_content_catalog.load_resource(descriptor.resource_key, RESOURCE_TYPE_HINT)
+
+
+func _get_descriptor_resource_path(descriptor: GameThemeDescriptor) -> String:
+	if descriptor == null or not is_instance_valid(_project_content_catalog):
+		return ""
+	var resolve_report: Dictionary = _project_content_catalog.resolve_resource(
+		descriptor.resource_key,
+		RESOURCE_TYPE_HINT
+	)
+	if not GFVariantData.get_option_bool(resolve_report, "ok", false):
+		return ""
+	return GFVariantData.get_option_string(resolve_report, "path").strip_edges()
 
 
 func _copy_descriptors(

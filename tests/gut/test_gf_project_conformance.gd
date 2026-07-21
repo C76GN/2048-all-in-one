@@ -183,6 +183,10 @@ func test_boot_enables_strict_architecture_dependency_contracts() -> void:
 		"根架构必须在生命周期开始前拒绝缺失的声明式依赖。"
 	)
 	assert_true(source.contains("architecture_ready: bool = await Gf.init()"), "Boot 必须检查 GF 严格初始化结果。")
+	assert_true(
+		source.contains("themes_ready: bool = await _prepare_initial_themes()"),
+		"Boot 必须等待 GF 主题资源会话完成后再进入首场景。"
+	)
 
 
 func test_responsive_layouts_consume_gf_platform_capabilities() -> void:

@@ -179,7 +179,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 5. 设置体验。
    - 语言、音量、视觉主题、音效主题、动画强度、视觉效果强度、棋盘辅助显示。
    - 设置页应继续通过 GF 设置 Utility 与 UI 绑定，不直接散落到各菜单；OptionButton 条目写入应复用 `GFItemListBinder`，书签/回放列表刷新应复用 `GFRepeaterBinder`。
-   - 当前已接入 `appearance/theme_id` 和 `audio/sound_theme_id`；`ProjectContentCatalogUtility` 统一构建 GF 内容目录，`GameThemeCatalogUtility` 从 manifest 生成轻量描述符，`GameThemeUtility` 按需加载并事务激活。视觉与音效主题是可自由组合的独立设置轴。
+   - 当前已接入 `appearance/theme_id` 和 `audio/sound_theme_id`；`ProjectContentCatalogUtility` 统一构建 GF 内容目录，`GameThemeCatalogUtility` 从 manifest 生成轻量描述符，`GameThemeUtility` 通过 `GFAssetLoadSession` 完整预加载、提交独立资源组并事务激活。视觉与音效主题是可自由组合的独立设置轴。
 
 ## 第四阶段：视觉与交互打磨
 

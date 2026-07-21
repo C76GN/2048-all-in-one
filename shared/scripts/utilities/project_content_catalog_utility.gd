@@ -186,6 +186,20 @@ func query_resources(options: Dictionary = {}) -> Array[Dictionary]:
 	return result
 
 
+## 通过稳定资源键解析资源身份，但不触发资源加载。
+## @param resource_key: 内容包中声明的稳定资源键。
+## @param type_hint: 可选的资源类型约束。
+## @param options: 透传给 GFResourceResolverUtility 的解析选项。
+func resolve_resource(
+	resource_key: StringName,
+	type_hint: String = "",
+	options: Dictionary = {}
+) -> Dictionary:
+	if resource_key == &"" or not is_instance_valid(_resolver):
+		return {}
+	return _resolver.resolve(resource_key, type_hint, options)
+
+
 ## 通过稳定资源键加载已注册内容包资源。
 ## @param resource_key: 内容包中声明的稳定资源键。
 ## @param type_hint: 可选的资源类型约束。

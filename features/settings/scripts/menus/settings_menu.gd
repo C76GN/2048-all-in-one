@@ -681,7 +681,11 @@ func _apply_visual_theme(index: int) -> void:
 		index,
 		GameThemeUtility.DEFAULT_THEME_ID
 	)
-	var activation_succeeded: bool = theme_utility.set_current_visual_theme_id(theme_id)
+	_visual_theme_option.disabled = true
+	var activation_succeeded: bool = await theme_utility.set_current_visual_theme_id(theme_id)
+	if not is_inside_tree():
+		return
+	_visual_theme_option.disabled = false
 	if not activation_succeeded:
 		_sync_controls_from_settings()
 		return
@@ -702,7 +706,11 @@ func _apply_sound_theme(index: int) -> void:
 		index,
 		GameThemeUtility.DEFAULT_SOUND_THEME_ID
 	)
-	var _theme_changed: bool = theme_utility.set_current_sound_theme_id(theme_id)
+	_sound_theme_option.disabled = true
+	var _theme_changed: bool = await theme_utility.set_current_sound_theme_id(theme_id)
+	if not is_inside_tree():
+		return
+	_sound_theme_option.disabled = false
 	_sync_controls_from_settings()
 
 
@@ -966,9 +974,9 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 		_FIELD_VSYNC_INDEX:
 			_apply_vsync_mode(GFVariantData.to_int(value, int(DisplayServer.VSYNC_ENABLED)))
 		_FIELD_VISUAL_THEME_INDEX:
-			_apply_visual_theme(GFVariantData.to_int(value, 0))
+			await _apply_visual_theme(GFVariantData.to_int(value, 0))
 		_FIELD_SOUND_THEME_INDEX:
-			_apply_sound_theme(GFVariantData.to_int(value, 0))
+			await _apply_sound_theme(GFVariantData.to_int(value, 0))
 		_FIELD_MASTER_VOLUME:
 			_apply_master_volume(GFVariantData.to_float(value, 1.0))
 		_FIELD_INPUT_TIMING_INDEX:

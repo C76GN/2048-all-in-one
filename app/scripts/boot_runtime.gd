@@ -57,7 +57,14 @@ func _run_startup_sequence() -> void:
 		_publish_progress(1.0, "架构初始化失败")
 		return
 
-	_publish_progress(0.54, "准备视觉资源")
+	_publish_progress(0.42, "加载主题资源")
+	var themes_ready: bool = await _prepare_initial_themes()
+	if not themes_ready:
+		push_error("[Boot] 初始视觉或声音主题激活失败。")
+		_publish_progress(1.0, "主题资源初始化失败")
+		return
+
+	_publish_progress(0.58, "准备视觉资源")
 	await _prime_gameplay_visuals()
 
 	var scene_utility: GFSceneUtility = _get_scene_utility()
@@ -78,6 +85,14 @@ func _run_startup_sequence() -> void:
 		return
 	await _play_startup_outro()
 	_goto_startup_scene()
+
+
+func _prepare_initial_themes() -> bool:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if not is_instance_valid(theme_utility):
+		return false
+	var activated: bool = await theme_utility.ensure_initial_themes_ready()
+	return activated and is_inside_tree()
 
 
 func _prime_gameplay_visuals() -> void:
@@ -300,6 +315,14 @@ func _get_render_warmup_utility() -> GFRenderWarmupUtility:
 	if utility_value is GFRenderWarmupUtility:
 		var utility: GFRenderWarmupUtility = utility_value
 		return utility
+	return null
+
+
+func _get_theme_utility() -> GameThemeUtility:
+	var utility_value: Object = Gf.get_utility(GameThemeUtility)
+	if utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = utility_value
+		return theme_utility
 	return null
 
 
