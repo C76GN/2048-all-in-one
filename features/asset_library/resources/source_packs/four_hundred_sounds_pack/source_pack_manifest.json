@@ -10,15 +10,16 @@
 		"copied_count": 0,
 		"display_name": "400 Sounds Pack",
 		"error_count": 0,
+		"excluded_count": 41,
 		"file_count": 400,
 		"kind_counts": {
-			"audio": 400
+			"audio": 359
 		},
 		"license_counts": {
-			"unknown": 400
+			"unknown": 359
 		},
 		"non_review_file_count": 0,
-		"review_record_count": 400,
+		"review_record_count": 359,
 		"source_pack_id": "four_hundred_sounds_pack",
 		"source_scan_report": {
 			"limit_kind": "",
@@ -27,12 +28,13 @@
 			"ok": true,
 			"root_path": "E:/_inbox/Downloads/400 Sounds Pack",
 			"scanned_count": 400,
-			"truncated": false
+			"truncated": false,
+			"visited_entry_count": 415
 		},
 		"status_counts": {
-			"inbox": 400
+			"inbox": 359
 		},
-		"unchanged_count": 400
+		"unchanged_count": 359
 	},
 	"schema_version": 1,
 	"source_pack_id": "four_hundred_sounds_pack",

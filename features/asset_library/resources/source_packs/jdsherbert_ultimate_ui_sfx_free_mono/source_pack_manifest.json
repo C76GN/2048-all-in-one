@@ -10,6 +10,7 @@
 		"copied_count": 0,
 		"display_name": "JDSherbert Ultimate UI SFX Pack FREE Mono",
 		"error_count": 0,
+		"excluded_count": 0,
 		"file_count": 5,
 		"kind_counts": {
 			"audio": 5
@@ -27,7 +28,8 @@
 			"ok": true,
 			"root_path": "E:/_inbox/Downloads/JDSherbert - Ultimate UI SFX Pack (FREE)/Mono",
 			"scanned_count": 5,
-			"truncated": false
+			"truncated": false,
+			"visited_entry_count": 10
 		},
 		"status_counts": {
 			"inbox": 5

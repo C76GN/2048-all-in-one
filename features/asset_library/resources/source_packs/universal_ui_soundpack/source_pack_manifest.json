@@ -10,6 +10,7 @@
 		"copied_count": 0,
 		"display_name": "Universal UI Soundpack",
 		"error_count": 0,
+		"excluded_count": 0,
 		"file_count": 157,
 		"kind_counts": {
 			"audio": 156
@@ -27,7 +28,8 @@
 			"ok": true,
 			"root_path": "E:/_inbox/Downloads/UI Soundpack",
 			"scanned_count": 157,
-			"truncated": false
+			"truncated": false,
+			"visited_entry_count": 160
 		},
 		"status_counts": {
 			"inbox": 156

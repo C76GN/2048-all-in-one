@@ -5,6 +5,8 @@ extends GutTest
 # --- 常量 ---
 
 const IMPORT_SOURCES_PATH: String = "res://features/asset_library/resources/import_sources.json"
+const SOURCE_EXCLUSIONS_PATH: String = "res://features/asset_library/resources/source_exclusions.json"
+const SOURCE_IMPORT_REPORT_PATH: String = "res://features/asset_library/resources/reports/source_import_report.json"
 const CONTENT_PACKAGE_PATH: String = "res://features/asset_library/resources/gf_content_package.json"
 const SLOT_MAP_PATH: String = "res://features/asset_library/resources/review/asset_slot_map.tres"
 const COORDINATE_GRID_RECORD_PATH: String = "res://features/asset_library/resources/review/records/manual_shader_notes/world_space_coordinate_grid_1e36eed0.tres"
@@ -89,6 +91,7 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
 	var runtime_report: Dictionary = audit.build_audit_report()
 	var review_report: Dictionary = audit.build_review_catalog_report()
+	var import_report: Dictionary = _read_json(SOURCE_IMPORT_REPORT_PATH)
 	var content_package: Dictionary = _read_json(CONTENT_PACKAGE_PATH)
 	var approved_resources: Array = GFVariantData.get_option_array(
 		content_package,
@@ -96,6 +99,14 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 	)
 	var kind_counts: Dictionary = GFVariantData.get_option_dictionary(review_report, "kind_counts")
 	var status_counts: Dictionary = GFVariantData.get_option_dictionary(review_report, "status_counts")
+	var imported_kind_counts: Dictionary = GFVariantData.get_option_dictionary(
+		import_report,
+		"kind_counts"
+	)
+	var imported_status_counts: Dictionary = GFVariantData.get_option_dictionary(
+		import_report,
+		"status_counts"
+	)
 
 	assert_true(
 		GFVariantData.get_option_int(runtime_report, "resource_count")
@@ -103,11 +114,23 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 		"运行时目录必须与内容包中已批准资源一一对应。"
 	)
 	assert_true(GFVariantData.get_option_int(runtime_report, "issue_count") == 0, "源素材包不应触发运行时未登记文件警告。")
-	assert_true(GFVariantData.get_option_int(review_report, "review_record_count") >= 560, "评审目录应包含全量候选素材。")
-	assert_true(GFVariantData.get_option_int(kind_counts, "audio") >= 560, "评审目录应包含音频候选。")
+	assert_true(
+		GFVariantData.get_option_int(review_report, "review_record_count")
+			>= GFVariantData.get_option_int(import_report, "review_record_count"),
+		"评审目录应包含所有未排除的导入候选和手动候选。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(kind_counts, "audio")
+			>= GFVariantData.get_option_int(imported_kind_counts, "audio"),
+		"评审目录应包含所有未排除的音频候选。"
+	)
 	assert_true(GFVariantData.get_option_int(kind_counts, "shader") >= 19, "评审目录应包含 shader 候选。")
 	assert_true(GFVariantData.get_option_int(kind_counts, "vfx") >= 3, "评审目录应包含 VFX 候选。")
-	assert_true(GFVariantData.get_option_int(status_counts, "inbox") >= 560, "新导入素材默认应处于 inbox 状态。")
+	assert_true(
+		GFVariantData.get_option_int(status_counts, "inbox")
+			>= GFVariantData.get_option_int(imported_status_counts, "inbox"),
+		"未排除的新导入素材默认应处于 inbox 状态。"
+	)
 	audit.dispose()
 	assert_false(
 		ResourceLoader.has_cached(COORDINATE_GRID_RECORD_PATH),
@@ -118,14 +141,47 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 func test_review_catalog_keeps_unknown_license_assets_review_only() -> void:
 	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
 	var report: Dictionary = audit.build_review_catalog_report()
+	var import_report: Dictionary = _read_json(SOURCE_IMPORT_REPORT_PATH)
 	var source_pack_license_counts: Dictionary = GFVariantData.get_option_dictionary(report, "license_counts")
 	var record_license_counts: Dictionary = GFVariantData.get_option_dictionary(report, "record_license_counts")
+	var imported_license_counts: Dictionary = GFVariantData.get_option_dictionary(
+		import_report,
+		"license_counts"
+	)
 
 	assert_true(GFVariantData.get_option_int(source_pack_license_counts, "known") == 1, "当前只有 Universal UI Soundpack 授权已确认。")
 	assert_true(GFVariantData.get_option_int(source_pack_license_counts, "unknown") == 6, "其余源包应保持授权待确认。")
 	assert_true(GFVariantData.get_option_int(record_license_counts, "known") == 157, "已知授权候选记录数量应来自 UI Soundpack 音频和已确认 MIT shader。")
-	assert_true(GFVariantData.get_option_int(record_license_counts, "unknown") >= 400, "未知授权素材应保留在评审区，不应自动批准。")
+	assert_true(
+		GFVariantData.get_option_int(record_license_counts, "unknown")
+			>= GFVariantData.get_option_int(imported_license_counts, "unknown"),
+		"未排除的未知授权素材应保留在评审区，不应自动批准。"
+	)
 	assert_true(GFVariantData.get_option_int(report, "error_count") == 0, "未知授权源包只应产生 warning，不能阻断审计。")
+	audit.dispose()
+
+
+func test_rejected_sources_are_excluded_without_review_records() -> void:
+	var exclusions: Dictionary = _read_json(SOURCE_EXCLUSIONS_PATH)
+	var exclusion_entries: Array = GFVariantData.get_option_array(exclusions, "entries")
+	var import_report: Dictionary = _read_json(SOURCE_IMPORT_REPORT_PATH)
+	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
+	var review_report: Dictionary = audit.build_review_catalog_report()
+	var status_counts: Dictionary = GFVariantData.get_option_dictionary(
+		review_report,
+		"status_counts"
+	)
+
+	assert_true(
+		exclusion_entries.size()
+			== GFVariantData.get_option_int(import_report, "excluded_count"),
+		"导入排除数应与最小源素材排除表一致。"
+	)
+	assert_true(exclusion_entries.size() > 0, "当前应记录已经清除的源素材身份。")
+	assert_true(
+		GFVariantData.get_option_int(status_counts, "rejected") == 0,
+		"拒绝素材不应继续保留评审记录。"
+	)
 	audit.dispose()
 
 

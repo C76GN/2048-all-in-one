@@ -23,7 +23,7 @@
 	},
 	"bound_slot_count": 10,
 	"catalog": {
-		"asset_count": 586,
+		"asset_count": 545,
 		"ids": [
 			"asset.review.downloaded.shader.pack.stylized.5f03e231",
 			"asset.review.downloaded.shader.pack.transition.7737143f",
@@ -51,48 +51,7 @@
 			"asset.review.four.hundred.sounds.pack.card.and.board.dice.shake.2.415ad3d1",
 			"asset.review.four.hundred.sounds.pack.card.and.board.dice.shake.3.65a17d96",
 			"asset.review.four.hundred.sounds.pack.card.and.board.dice.shake.4.5b791270",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.bone.snap.6ee1ea9c",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.crunch.c52ce1c8",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.crunch.quick.5e31c93e",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.crunch.splat.2.21876234",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.crunch.splat.987f31ee",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.kick.9a312cf4",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.punch.2.5822120f",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.punch.3.ade1715f",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.punch.58151f74",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.slap.93ad2de1",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.splat.double.quick.11aaf7c9",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.splat.quick.b2a0c484",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.squelching.1.9a382223",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.squelching.2.e7d025d0",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.squelching.3.bda5750c",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.squelching.4.28535aab",
-			"asset.review.four.hundred.sounds.pack.combat.and.gore.swipe.753d8057",
-			"asset.review.four.hundred.sounds.pack.environment.air.burst.1d356c49",
-			"asset.review.four.hundred.sounds.pack.environment.ambient.wind.1baa0f00",
-			"asset.review.four.hundred.sounds.pack.environment.clock.tick.only.cd941c1b",
-			"asset.review.four.hundred.sounds.pack.environment.clock.ticking.7b7078c0",
-			"asset.review.four.hundred.sounds.pack.environment.clock.tock.only.8dbf7c60",
-			"asset.review.four.hundred.sounds.pack.environment.creaky.door.long.b581f6c4",
-			"asset.review.four.hundred.sounds.pack.environment.creaky.door.short.dee8ddb6",
-			"asset.review.four.hundred.sounds.pack.environment.door.close.97beba7a",
-			"asset.review.four.hundred.sounds.pack.environment.door.knock.ff06b659",
-			"asset.review.four.hundred.sounds.pack.environment.door.open.4bf9fa40",
-			"asset.review.four.hundred.sounds.pack.environment.fire.lighting.254ea560",
-			"asset.review.four.hundred.sounds.pack.environment.gurgling.75c9e518",
-			"asset.review.four.hundred.sounds.pack.environment.ice.in.water.d4fc2b8d",
-			"asset.review.four.hundred.sounds.pack.environment.lock.lock.5bfa3254",
-			"asset.review.four.hundred.sounds.pack.environment.lock.quick.a635d16a",
-			"asset.review.four.hundred.sounds.pack.environment.lock.unlock.3cc116b1",
-			"asset.review.four.hundred.sounds.pack.environment.water.babbling.loop.5b6888c9",
-			"asset.review.four.hundred.sounds.pack.environment.water.boiling.loop.55567231",
-			"asset.review.four.hundred.sounds.pack.environment.water.dripping.20757581",
-			"asset.review.four.hundred.sounds.pack.environment.water.drop.medium.4cccb74e",
 			"asset.review.four.hundred.sounds.pack.environment.water.drop.synthetic.3658fe3a",
-			"asset.review.four.hundred.sounds.pack.environment.water.splashing.b33a203a",
-			"asset.review.four.hundred.sounds.pack.environment.zipper.down.c9bce4fd",
-			"asset.review.four.hundred.sounds.pack.environment.zipper.up.383b802a",
-			"asset.review.four.hundred.sounds.pack.footsteps.digital.digital.footstep.grass.1.3406b7ce",
 			"asset.review.four.hundred.sounds.pack.footsteps.digital.digital.footstep.grass.2.65a5f82b",
 			"asset.review.four.hundred.sounds.pack.footsteps.digital.digital.footstep.grass.3.fe35874d",
 			"asset.review.four.hundred.sounds.pack.footsteps.digital.digital.footstep.grass.4.33070655",
@@ -662,7 +621,7 @@
 		}
 	],
 	"kind_counts": {
-		"audio": 561,
+		"audio": 520,
 		"shader": 22,
 		"vfx": 3
 	},
@@ -673,25 +632,25 @@
 	"ok": true,
 	"record_license_counts": {
 		"known": 157,
-		"unknown": 429
+		"unknown": 388
 	},
 	"report_id": "asset_review_catalog_audit",
-	"review_record_count": 586,
+	"review_record_count": 545,
 	"review_record_scan_report": {
 		"limit_kind": "",
 		"limit_path": "",
 		"limit_value": 0,
 		"ok": true,
 		"root_path": "res://features/asset_library/resources/review/records",
-		"scanned_count": 586,
+		"scanned_count": 545,
 		"truncated": false,
-		"visited_entry_count": 593
+		"visited_entry_count": 552
 	},
 	"review_root": "res://features/asset_library/resources/review",
 	"slot_candidate_counts": {
-		"slot.audio.game.over": 11,
+		"slot.audio.game.over": 10,
 		"slot.audio.tile.merge": 21,
-		"slot.audio.tile.move": 3,
+		"slot.audio.tile.move": 2,
 		"slot.audio.tile.spawn": 4,
 		"slot.audio.ui.confirm": 14,
 		"slot.audio.ui.select": 22,
@@ -756,7 +715,7 @@
 	},
 	"status_counts": {
 		"candidate": 22,
-		"inbox": 564
+		"inbox": 523
 	},
 	"warning_count": 6
 }

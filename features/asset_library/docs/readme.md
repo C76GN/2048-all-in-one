@@ -14,3 +14,5 @@ Rules:
 - Treat a partial `GFProjectReferenceScanner` result as an audit failure, and keep GF attribution coverage complete for runtime assets.
 - Run `tools/import_asset_sources.ps1` to refresh source-pack copies and review records.
 - Open `features/asset_library/scenes/asset_review_browser.tscn` to preview, listen, tag, rate, and annotate candidate assets.
+- Run `tools/purge_rejected_assets.ps1` after a review batch to remove rejected copies and records; a complete `GFProjectReferenceScanner` pass blocks deletion of referenced assets, and `source_exclusions.json` prevents exact source identities from being re-imported.
+- Use `Space`, `1`/`2`/`3`, `J`/`K`, and `Ctrl+S` for continuous keyboard review; text inputs suppress bare-key actions.

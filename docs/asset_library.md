@@ -139,9 +139,10 @@ tools\import_asset_sources.ps1
 
 导入规则：
 
-- 全量复制源文件，保留原始目录结构。
+- 默认复制源文件并保留原始目录结构；命中 `source_exclusions.json` 精确身份的文件不会复制。
 - 为音频、shader、贴图、场景/资源候选生成 `AssetReviewRecord`。
 - 重复导入不会覆盖人工评审状态、评分、标签和备注。
+- 已清理素材以 `源包 + 相对路径 + SHA-256` 排除；源文件内容变化后会作为新素材重新进入评审。
 - 授权未知的源包只进入评审区，不会自动进入 `gf_content_package.json`。
 - 导入报告输出到 `features/asset_library/resources/reports/source_import_report.json` 和 `.md`。
 
@@ -161,8 +162,28 @@ features/asset_library/scenes/asset_review_browser.tscn
 - 预览 shader 和图片。
 - 修改状态、评分、标签和备注。
 - 保存回对应的 `review/records/*.tres`。
+- 保存后优先保持当前选择；当前项离开筛选结果时，自动选择同位置的下一项并恢复列表焦点。
 
 浏览器的搜索和状态过滤以 `GFAssetCatalog` 为真相来源；保存评审记录后会重建目录，不维护第二套手写索引。
+
+连续评审快捷键：
+
+- `Space`：播放或停止音频预览。
+- `1` / `2` / `3`：标记为候选 / 批准 / 拒绝，并继续评审。
+- `J` / `K`：下一项 / 上一项。
+- `Ctrl+S`：保存表单中的状态、评分、标签和备注。
+
+搜索、标签或备注输入框获得焦点时，裸键快捷键会暂停，避免干扰文本输入。
+
+## 清理拒绝素材
+
+完成一批评审后运行：
+
+```powershell
+tools\purge_rejected_assets.ps1
+```
+
+清理前会通过 `GFProjectReferenceScanner` 完整扫描正式项目引用；扫描不完整或素材仍被引用时会中止。随后工具先把拒绝项的最小源身份写入 `features/asset_library/resources/source_exclusions.json`，确认写入成功后再删除项目内素材、Godot `.import` 副文件和 `AssetReviewRecord`。排除表不属于运行时内容包，也不保留评分、备注等评审信息；它只用于防止下一次全量导入恢复已经淘汰的相同文件。
 
 ## 批准素材流程
 

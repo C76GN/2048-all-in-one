@@ -11,6 +11,7 @@ const REVIEW_ROOT: String = "res://features/asset_library/resources/review"
 const REVIEW_RECORD_ROOT: String = "res://features/asset_library/resources/review/records"
 const SOURCE_PACK_RESOURCE_ROOT: String = "res://features/asset_library/resources/review/source_packs"
 const SLOT_MAP_PATH: String = "res://features/asset_library/resources/review/asset_slot_map.tres"
+const SOURCE_EXCLUSION_PATH: String = "res://features/asset_library/resources/source_exclusions.json"
 const REPORT_JSON_PATH: String = "res://features/asset_library/resources/reports/source_import_report.json"
 const REPORT_MARKDOWN_PATH: String = "res://features/asset_library/resources/reports/source_import_report.md"
 const COPY_BUFFER_SIZE: int = 1_048_576
@@ -19,6 +20,9 @@ const ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/scripts
 const ASSET_SOURCE_PACK_SCRIPT = preload("res://features/asset_library/scripts/data/asset_source_pack.gd")
 const ASSET_SLOT_BINDING_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_binding.gd")
 const ASSET_SLOT_MAP_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_map.gd")
+const SOURCE_EXCLUSION_INDEX_SCRIPT = preload(
+	"res://features/asset_library/scripts/data/asset_source_exclusion_index.gd"
+)
 
 const AUDIO_EXTENSIONS: Array[String] = ["wav", "ogg", "mp3", "opus", "m4a"]
 const SHADER_EXTENSIONS: Array[String] = ["gdshader", "shader"]
@@ -89,6 +93,11 @@ const KIND_VFX: StringName = &"vfx"
 const KIND_OTHER: StringName = &"other"
 
 
+# --- 私有变量 ---
+
+var _source_exclusions: AssetSourceExclusionIndex = SOURCE_EXCLUSION_INDEX_SCRIPT.new()
+
+
 # --- Godot 生命周期方法 ---
 
 func _init() -> void:
@@ -96,12 +105,13 @@ func _init() -> void:
 	var report: Dictionary = run_import()
 	var ok: bool = GFVariantData.get_option_int(report, "error_count", 0) == 0
 	var summary_prefix: String = "Asset source import:" if ok else "Asset source import failed:"
-	print("%s %d packs, %d files, %d review records, %d copied, %d issues" % [
+	print("%s %d packs, %d files, %d review records, %d copied, %d excluded, %d issues" % [
 		summary_prefix,
 		GFVariantData.get_option_int(report, "source_pack_count"),
 		GFVariantData.get_option_int(report, "file_count"),
 		GFVariantData.get_option_int(report, "review_record_count"),
 		GFVariantData.get_option_int(report, "copied_count"),
+		GFVariantData.get_option_int(report, "excluded_count"),
 		GFVariantData.get_option_int(report, "issue_count"),
 	])
 	quit(0 if ok else 1)
@@ -111,6 +121,17 @@ func _init() -> void:
 
 func run_import() -> Dictionary:
 	var report: Dictionary = _make_report()
+	var exclusion_load_result: Error = _source_exclusions.load_from_path(
+		SOURCE_EXCLUSION_PATH
+	)
+	if exclusion_load_result != OK:
+		_add_issue(report, "error", "invalid_source_exclusions", "Source exclusion index could not be loaded.", {
+			"path": SOURCE_EXCLUSION_PATH,
+			"error": exclusion_load_result,
+		})
+		_finalize_report(report)
+		_write_reports(report)
+		return report
 	var config: Dictionary = _read_json(CONFIG_PATH)
 	if config.is_empty():
 		_add_issue(report, "error", "missing_config", "Asset import config could not be loaded.", {
@@ -242,6 +263,21 @@ func _import_file(
 	pack_report: Dictionary,
 	report: Dictionary
 ) -> void:
+	var pack_id: String = GFVariantData.get_option_string(
+		source_pack_config,
+		"source_pack_id"
+	)
+	var extension: String = source_file.get_extension().to_lower()
+	var record_path: String = ""
+	if REVIEW_EXTENSIONS.has(extension):
+		record_path = _make_record_resource_path(pack_id, relative_path, sha256)
+	if _source_exclusions.is_excluded(pack_id, relative_path, sha256):
+		pack_report["excluded_count"] = (
+			GFVariantData.get_option_int(pack_report, "excluded_count") + 1
+		)
+		_remove_excluded_import_artifacts(target_path, record_path, pack_report, report)
+		return
+
 	var copy_result: String = _copy_file_if_changed(source_file, target_path, sha256)
 	if copy_result == "copied":
 		pack_report["copied_count"] = GFVariantData.get_option_int(pack_report, "copied_count") + 1
@@ -256,16 +292,10 @@ func _import_file(
 		})
 		return
 
-	var extension: String = source_file.get_extension().to_lower()
 	if not REVIEW_EXTENSIONS.has(extension):
 		pack_report["non_review_file_count"] = GFVariantData.get_option_int(pack_report, "non_review_file_count") + 1
 		return
 
-	var record_path: String = _make_record_resource_path(
-		GFVariantData.get_option_string(source_pack_config, "source_pack_id"),
-		relative_path,
-		sha256
-	)
 	var existing_record: Resource = _load_review_record(record_path)
 	var record: Resource = _make_review_record(
 		source_pack_config,
@@ -708,6 +738,36 @@ func _copy_file_if_changed(source_path: String, target_path: String, source_sha2
 	return "copied"
 
 
+func _remove_excluded_import_artifacts(
+	target_path: String,
+	record_path: String,
+	pack_report: Dictionary,
+	report: Dictionary
+) -> void:
+	var paths: PackedStringArray = PackedStringArray([
+		target_path,
+		target_path + ".import",
+		target_path + ".uid",
+	])
+	if not record_path.is_empty():
+		var _append_record_result: bool = paths.append(record_path)
+	for path: String in paths:
+		if not FileAccess.file_exists(path):
+			continue
+		var remove_result: Error = DirAccess.remove_absolute(
+			ProjectSettings.globalize_path(path)
+		)
+		if remove_result == OK:
+			continue
+		pack_report["error_count"] = (
+			GFVariantData.get_option_int(pack_report, "error_count") + 1
+		)
+		_add_issue(report, "error", "excluded_artifact_remove_failed", "Excluded source artifact could not be removed.", {
+			"path": path,
+			"error": remove_result,
+		})
+
+
 func _copy_file(source_path: String, target_path: String) -> Error:
 	var source_file: FileAccess = FileAccess.open(source_path, FileAccess.READ)
 	if source_file == null:
@@ -743,6 +803,7 @@ func _make_pack_report(pack_id: String, source_pack_config: Dictionary, file_cou
 		"non_review_file_count": 0,
 		"copied_count": 0,
 		"unchanged_count": 0,
+		"excluded_count": 0,
 		"error_count": 0,
 		"byte_count": 0,
 		"kind_counts": {},
@@ -762,6 +823,7 @@ func _accumulate_pack_report(report: Dictionary, pack_report: Dictionary) -> voi
 	)
 	report["copied_count"] = GFVariantData.get_option_int(report, "copied_count") + GFVariantData.get_option_int(pack_report, "copied_count")
 	report["unchanged_count"] = GFVariantData.get_option_int(report, "unchanged_count") + GFVariantData.get_option_int(pack_report, "unchanged_count")
+	report["excluded_count"] = GFVariantData.get_option_int(report, "excluded_count") + GFVariantData.get_option_int(pack_report, "excluded_count")
 	report["byte_count"] = GFVariantData.get_option_int(report, "byte_count") + GFVariantData.get_option_int(pack_report, "byte_count")
 	_merge_nested_counts(report, "kind_counts", GFVariantData.get_option_dictionary(pack_report, "kind_counts"))
 	_merge_nested_counts(report, "status_counts", GFVariantData.get_option_dictionary(pack_report, "status_counts"))
@@ -792,6 +854,7 @@ func _make_report() -> Dictionary:
 		"review_record_count": 0,
 		"copied_count": 0,
 		"unchanged_count": 0,
+		"excluded_count": 0,
 		"byte_count": 0,
 		"slot_count": 0,
 		"bound_slot_count": 0,
@@ -851,6 +914,7 @@ func _format_report_markdown(report: Dictionary) -> String:
 	_append_markdown_line(lines, "- Review records: `%d`" % GFVariantData.get_option_int(report, "review_record_count"))
 	_append_markdown_line(lines, "- Copied: `%d`" % GFVariantData.get_option_int(report, "copied_count"))
 	_append_markdown_line(lines, "- Unchanged: `%d`" % GFVariantData.get_option_int(report, "unchanged_count"))
+	_append_markdown_line(lines, "- Excluded: `%d`" % GFVariantData.get_option_int(report, "excluded_count"))
 	_append_markdown_line(lines, "- Slot bindings: `%d / %d`" % [
 		GFVariantData.get_option_int(report, "bound_slot_count"),
 		GFVariantData.get_option_int(report, "slot_count"),
@@ -866,6 +930,7 @@ func _format_report_markdown(report: Dictionary) -> String:
 		_append_markdown_line(lines, "- Review records: `%d`" % GFVariantData.get_option_int(pack_report, "review_record_count"))
 		_append_markdown_line(lines, "- Copied: `%d`" % GFVariantData.get_option_int(pack_report, "copied_count"))
 		_append_markdown_line(lines, "- Unchanged: `%d`" % GFVariantData.get_option_int(pack_report, "unchanged_count"))
+		_append_markdown_line(lines, "- Excluded: `%d`" % GFVariantData.get_option_int(pack_report, "excluded_count"))
 		_append_markdown_line(lines, "- Bytes: `%d`" % GFVariantData.get_option_int(pack_report, "byte_count"))
 	_append_markdown_line(lines, "")
 	_append_markdown_line(lines, "## Issues")

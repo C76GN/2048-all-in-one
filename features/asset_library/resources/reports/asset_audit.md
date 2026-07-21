@@ -79,6 +79,7 @@
   - `res://features/settings/scenes/menus/settings_menu.tscn`
   - `res://features/themes/scenes/layouts/base_three_column_layout.tscn`
   - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres`
 - Key users:
   - `res://features/asset_library/tools/import_asset_sources.gd`
   - `res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd`
@@ -91,6 +92,7 @@
   - `res://features/themes/resources/themes/game/transitions/halftone_cover_transition.tres`
   - `res://features/themes/resources/themes/game/transitions/halftone_reveal_transition.tres`
   - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres`
 - Key users:
   - `res://features/asset_library/tools/import_asset_sources.gd`
 
@@ -99,6 +101,7 @@
 - Used: `yes`
 - Path users:
   - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres`
 - Key users:
   - `res://features/asset_library/tools/import_asset_sources.gd`
   - `res://features/themes/scripts/utilities/game_ui_style_utility.gd`
@@ -185,7 +188,8 @@
 ### `asset.vfx.celebration.confetti_canvas`
 - Path: `res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader`
 - Used: `yes`
-- Path users: none
+- Path users:
+  - `res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres`
 - Key users:
   - `res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres`
 

@@ -1,19 +1,19 @@
 # Asset Review Catalog Audit
 
 - Source packs: `7`
-- Review records: `586`
+- Review records: `545`
 - Slot bindings: `10 / 20`
 - Issue count: `6`
 
 
 ## Kinds
-- `audio`: `561`
+- `audio`: `520`
 - `shader`: `22`
 - `vfx`: `3`
 
 ## Statuses
 - `candidate`: `22`
-- `inbox`: `564`
+- `inbox`: `523`
 
 ## Source Pack Licenses
 - `known`: `1`
@@ -21,12 +21,12 @@
 
 ## Record Licenses
 - `known`: `157`
-- `unknown`: `429`
+- `unknown`: `388`
 
 ## Suggested Slots
-- `slot.audio.game.over`: `11`
+- `slot.audio.game.over`: `10`
 - `slot.audio.tile.merge`: `21`
-- `slot.audio.tile.move`: `3`
+- `slot.audio.tile.move`: `2`
 - `slot.audio.tile.spawn`: `4`
 - `slot.audio.ui.confirm`: `14`
 - `slot.audio.ui.select`: `22`

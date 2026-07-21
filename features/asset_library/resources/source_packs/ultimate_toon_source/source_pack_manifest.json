@@ -10,6 +10,7 @@
 		"copied_count": 0,
 		"display_name": "Ultimate Toon Source",
 		"error_count": 0,
+		"excluded_count": 0,
 		"file_count": 1,
 		"kind_counts": {
 			"shader": 1
@@ -27,7 +28,8 @@
 			"ok": true,
 			"root_path": "E:/_inbox/Downloads/UltimateToonSource",
 			"scanned_count": 1,
-			"truncated": false
+			"truncated": false,
+			"visited_entry_count": 2
 		},
 		"status_counts": {
 			"inbox": 1
