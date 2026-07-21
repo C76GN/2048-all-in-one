@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "fingerprint": "2bedde8efefa91fef7bc936b7382740f8a28804339a7b4e2a3106679cfc754b2",
+  "classification": "framework_bug",
+  "eligible_for_official_issue": true,
+  "contract_sha256": "81a3ce7cce429ff0d457c41e4bab3256edb13fa219b897ac5b8fda061058d392",
+  "payload": {
+    "repository": "C76GN/gf-framework",
+    "title": "[Bug] AI project snapshot rejects bare res:// literals emitted by dependency scanner",
+    "body": "## Summary\n\nThe GF AI Developer dependency scanner treats a GDScript guard literal equal to res:// as an unowned resource reference. Its normalizer preserves the bare root path, while the project snapshot schema rejects that value, so the snapshot command cannot write an otherwise valid project snapshot.\n\n## Boundary Triage\n\n- Classification: `framework_bug`\n- Suspected scope: `framework`\n- This report contains no automatic file attachment or private source upload.\n\n## Expected\n\nGuard literals that name only the resource root should not be emitted as concrete resource references, and every snapshot produced by the bundled scanner should validate against the bundled snapshot schema.\n\n## Actual\n\nThe dependency analysis emits target_path res:// for root-prefix checks. Snapshot schema validation rejects those records and aborts the snapshot command before writing output.\n\n## Reproduction\n\n1. Use a valid GF project contract with a declared module root.\n2. Add a GDScript under that root containing a resource-path guard whose string literal is exactly res://.\n3. Run the bundled GF AI Developer snapshot command.\n4. Observe that generated unowned reference target_path res:// violates the bundled project snapshot schema.\n\n## Requested Change\n\nTreat bare res:// as a non-reference during dependency normalization (or otherwise make scanner output and schema consistent), and add a regression test proving snapshot generation succeeds when source code contains root-prefix guard literals.\n\n## Evidence\n\n- `minimal_reproduction`: A single GDScript string literal equal to the resource root is sufficient; no project-specific asset or source excerpt is required.\n- `observation`: The same bundled tool returns the bare root from resource-path normalization and later validates that output against a schema pattern that requires a non-empty path.\n\n## Environment\n\n- Godot: `4.7.stable`\n- GF: `9.0.1`\n- Platform: `Windows`\n- Packages: `gf.tool.ai_developer`\n- Impact: `medium`\n- Workaround: Avoiding the literal or skipping snapshot generation is possible, but it weakens normal resource-path validation or project governance and is not a durable project-level fix.\n\n<!-- gf-ai-fingerprint: 2bedde8efefa91fef7bc936b7382740f8a28804339a7b4e2a3106679cfc754b2 -->\n",
+    "labels": []
+  },
+  "submission_sha256": "d13682a2baffc489b7b9a3db389b358695ed8fd7ac7b3d8f2886150cabce4974"
+}
