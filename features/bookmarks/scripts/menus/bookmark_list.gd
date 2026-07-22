@@ -109,13 +109,6 @@ func _update_ui_text() -> void:
 	if is_instance_valid(back_button):
 		back_button.text = tr("BTN_RETURN_MAIN")
 
-	var right_column: Node = get_node_or_null("MarginContainer/ColumnsContainer/RightColumn")
-	if right_column and right_column.get_child_count() > 0:
-		var operations_label: Label = _get_first_label_child(right_column)
-		if is_instance_valid(operations_label):
-			operations_label.text = tr("CONTROLS_TITLE")
-
-
 func _do_delete_logic(data: Resource) -> void:
 	if not data is BookmarkData:
 		return

@@ -49,14 +49,15 @@ offset_top = 2.0
 offset_right = 2.0
 offset_bottom = 24.0
 mouse_filter = 2
+clip_contents = true
 color = Color(0.360784, 0.717647, 0.72549, 0.9)
 
-[node name="StartupPulse" type="ColorRect" parent="PulseClip"]
+[node name="StartupPulse" type="ColorRect" parent="PulseClip/ProgressFill"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(56, 26)
+custom_minimum_size = Vector2(56, 22)
 layout_mode = 0
 offset_left = -56.0
 offset_right = 0.0
-offset_bottom = 26.0
+offset_bottom = 22.0
 mouse_filter = 2
 color = Color(0.360784, 0.717647, 0.72549, 0.72)

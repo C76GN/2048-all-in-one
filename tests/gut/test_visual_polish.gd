@@ -27,6 +27,7 @@ const _MAIN_MENU_BOARD_MOTIF_PATH: String = "res://features/navigation/scripts/u
 const _SCENE_PRELOAD_MAP: GFScenePreloadMap = preload("res://features/navigation/resources/scene_preload_map.tres")
 const _GAMEPLAY_VISUAL_WARMUP_SCRIPT: GDScript = preload("res://features/gameplay/scripts/ui/gameplay_visual_warmup.gd")
 const _GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_play_controller.gd"
+const _SCENE_ROUTER_SCRIPT_PATH: String = "res://features/navigation/scripts/systems/scene_router_system.gd"
 const _TEST_TOOL_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/test_tool_utility.gd"
 const _HALFTONE_UI_PALETTE: GameUiPalette = preload("res://features/themes/resources/themes/game/halftone_atlas_ui_palette.tres")
 const _HALFTONE_CELEBRATION_VFX_THEME: GameCelebrationVfxTheme = preload("res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres")
@@ -57,6 +58,8 @@ func test_game_background_shader_keeps_light_paper_texture_defaults() -> void:
 	assert_true(shader_text.contains("grid_mask"), "背景 shader 应融合低对比虚线网格纸纹。")
 	assert_true(shader_text.contains("cell_color_1"), "背景 shader 应支持棋盘式纸面色块。")
 	assert_true(shader_text.contains("sub_grid_size"), "背景 shader 应支持细分副网格。")
+	assert_true(shader_text.contains("grid_scroll_speed"), "背景网格应有独立的低速滚动参数。")
+	assert_true(shader_text.contains("moving_grid_pos"), "主网格和副网格应共享连续移动坐标。")
 	assert_true(shader_text.contains("pixel_cloud_mask"), "背景 shader 应支持程序化像素云/墨流层。")
 	assert_true(shader_text.contains("cloud_scroll_speed_1"), "背景墨流层应暴露第一层滚动速度。")
 	assert_true(shader_text.contains("cloud_scroll_speed_2"), "背景墨流层应暴露第二层滚动速度。")
@@ -66,7 +69,7 @@ func test_game_background_shader_keeps_light_paper_texture_defaults() -> void:
 	_assert_shader_float_default_in_range(shader_text, "scanline_strength", 0.000, 0.008)
 	_assert_shader_float_default_in_range(shader_text, "glow_strength", 0.000, 0.100)
 	_assert_shader_float_default_in_range(shader_text, "pulse_speed", 0.000, 0.080)
-	_assert_shader_float_default_in_range(shader_text, "line_thickness", 0.000, 0.100)
+	_assert_shader_float_default_in_range(shader_text, "line_thickness", 0.650, 1.250)
 	_assert_shader_float_default_in_range(shader_text, "sub_line_thickness", 0.40, 1.20)
 	_assert_shader_float_default_in_range(shader_text, "sub_dash_length", 4.0, 12.0)
 	_assert_shader_float_default_in_range(shader_text, "cloud_position_impact", 0.45, 0.70)
@@ -100,6 +103,22 @@ func test_scene_transition_shader_loads_and_keeps_print_defaults() -> void:
 	_assert_shader_float_default_in_range(shader_text, "registration_offset", 0.008, 0.030)
 
 
+func test_scene_router_sequences_cover_load_and_inverse_reveal() -> void:
+	var router_source: String = _read_text(_SCENE_ROUTER_SCRIPT_PATH)
+	var cover_index: int = router_source.find("var cover_error: Error = _play_scene_transition_cover()")
+	var load_index: int = router_source.find("_scene_utility.load_scene_with_transition(config)")
+	var reveal_index: int = router_source.find("var reveal_error: Error = _play_scene_transition_reveal()")
+
+	assert_gte(cover_index, 0, "场景路由应先播放覆盖旧页面的阶段。")
+	assert_gt(load_index, cover_index, "目标场景只能在旧页面完全覆盖后切换。")
+	assert_gt(reveal_index, load_index, "目标场景完成后应播放反向揭示阶段。")
+	assert_gte(
+		router_source.count("await _await_screen_transition()"),
+		2,
+		"覆盖与揭示两个阶段都必须等待 GFScreenTransitionUtility 完成。"
+	)
+
+
 func test_button_focus_ring_shader_loads_and_uses_dashed_rounded_path() -> void:
 	var shader: Shader = _load_shader(_BUTTON_FOCUS_RING_SHADER_PATH)
 	var shader_text: String = _read_text(_BUTTON_FOCUS_RING_SHADER_PATH)
@@ -128,8 +147,22 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 	var boot_node: Node = _BOOT_SCENE.instantiate()
 	assert_true(boot_node is Boot, "启动场景根节点应为 Boot。")
 	assert_true(boot_node is Control, "启动场景根节点应是可绘制全屏 UI 的 Control。")
-	if is_instance_valid(boot_node):
-		assert_true(boot_node.get_node_or_null("PulseClip/ProgressFill") is ColorRect, "静态启动壳应直接承载进度填充。")
+	if boot_node is Boot:
+		var boot: Boot = boot_node
+		var progress_fill_node: Node = boot.get_node_or_null("PulseClip/ProgressFill")
+		var startup_pulse_node: Node = boot.get_node_or_null("PulseClip/ProgressFill/StartupPulse")
+		assert_true(progress_fill_node is ColorRect, "静态启动壳应直接承载进度填充。")
+		assert_true(startup_pulse_node is ColorRect, "进度脉冲应裁切在真实填充区域内。")
+		if progress_fill_node is ColorRect and startup_pulse_node is ColorRect:
+			var progress_fill: ColorRect = progress_fill_node
+			var startup_pulse: ColorRect = startup_pulse_node
+			boot._progress_fill = progress_fill
+			boot._startup_pulse = startup_pulse
+			boot.set_runtime_progress(0.5)
+			boot._update_progress_fill(0.1)
+			boot._update_startup_pulse()
+			assert_true(progress_fill.size.x == 235.0, "启动进度应按真实归一化值填充，而不是显示固定装饰块。")
+			assert_true(progress_fill.clip_contents, "进度脉冲不得越过当前已完成进度。")
 		boot_node.free()
 
 	var boot_source: String = _read_text(_BOOT_SCRIPT_PATH)
@@ -261,10 +294,34 @@ func test_celebration_confetti_shader_loads_and_keeps_print_defaults() -> void:
 	assert_true(shader_text.contains("PARTICLE_COUNT = 88"), "庆祝纸屑数量应克制，避免廉价全屏彩纸噪音。")
 	assert_true(shader_text.contains("palette_color"), "庆祝纸屑应使用主题化 CMYK 色板。")
 	assert_true(shader_text.contains("rotate2d"), "庆祝纸屑应有轻量旋转，而不是静态贴片。")
+	assert_true(shader_text.contains("drain_started_at"), "庆祝纸屑应支持停止循环后自然落出画面。")
+	assert_true(shader_text.contains("cycle_visibility"), "纸屑退场不得直接隐藏半空中的当前周期。")
 	_assert_shader_float_default_in_range(shader_text, "speed", 80.0, 130.0)
 	_assert_shader_float_default_in_range(shader_text, "sway_strength", 24.0, 54.0)
 	_assert_shader_float_default_in_range(shader_text, "spin_speed", 1.8, 3.4)
 	_assert_shader_float_default_in_range(shader_text, "piece_size", 5.0, 9.0)
+
+
+func test_list_items_do_not_leak_resource_debug_text_into_button_content() -> void:
+	var replay_item_node: Node = _REPLAY_ITEM_SCENE.instantiate()
+	assert_true(replay_item_node is ReplayListItem, "回放列表项场景应实例化为 ReplayListItem。")
+	if replay_item_node is ReplayListItem:
+		var replay_item: ReplayListItem = replay_item_node
+		replay_item.text = "<Resource#123>"
+		replay_item.set_repeater_item(null, 0)
+		assert_true(replay_item.text.is_empty(), "GFRepeaterBinder 不应把 Resource 调试字符串写进回放按钮正文。")
+		replay_item.free()
+
+	var bookmark_item_node: Node = _BOOKMARK_ITEM_SCENE.instantiate()
+	assert_true(bookmark_item_node is BookmarkListItem, "存档列表项场景应实例化为 BookmarkListItem。")
+	if bookmark_item_node is BookmarkListItem:
+		var bookmark_item: BookmarkListItem = bookmark_item_node
+		bookmark_item.text = "<Resource#456>"
+		bookmark_item.set_repeater_item(null, 0)
+		assert_true(bookmark_item.text.is_empty(), "GFRepeaterBinder 不应把 Resource 调试字符串写进存档按钮正文。")
+		bookmark_item.free()
+
+	assert_no_new_orphans("列表项 binder 回归测试不得把 UI 节点留到 GUT 退出阶段。")
 
 
 func test_halftone_ui_palette_keeps_text_readable_on_light_surfaces() -> void:
@@ -1216,8 +1273,10 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var clock_utility: GameClockUtility = GameClockUtility.new()
 	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
 	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GameClockUtility, clock_utility)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.init()

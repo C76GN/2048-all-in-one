@@ -11,9 +11,9 @@ extends Control
 const _RUNTIME_SCRIPT_PATH: String = "res://app/scripts/boot_runtime.gd"
 const _PULSE_WIDTH: float = 56.0
 const _PROGRESS_WIDTH: float = 470.0
-const _PULSE_TRAVEL: float = _PROGRESS_WIDTH + _PULSE_WIDTH
 const _PULSE_SPEED: float = 150.0
-const _PROGRESS_FOLLOW_SPEED: float = 1.85
+const _PROGRESS_FOLLOW_SPEED: float = 5.0
+const _PROGRESS_FINISH_SECONDS: float = 0.10
 
 
 # --- 私有变量 ---
@@ -51,8 +51,8 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_elapsed_seconds += delta
-	_update_startup_pulse()
 	_update_progress_fill(delta)
+	_update_startup_pulse()
 	if _runtime_started or _load_failed:
 		return
 
@@ -89,7 +89,15 @@ func set_runtime_progress(value: float, _message: String = "") -> void:
 ## 返回整张启动壳的退出 Tween，供 BootRuntime 在入口场景已预热后等待。
 ## @param duration_seconds: 启动壳淡出的持续时间。
 func create_runtime_outro(duration_seconds: float) -> Tween:
+	_target_progress = 1.0
 	var tween: Tween = create_tween()
+	var progress: MethodTweener = tween.tween_method(
+		_set_display_progress,
+		_display_progress,
+		1.0,
+		_PROGRESS_FINISH_SECONDS
+	)
+	var _progress_curve: Tweener = progress.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	var fade: PropertyTweener = tween.tween_property(
 		self,
 		"modulate:a",
@@ -119,9 +127,14 @@ func _start_runtime(loaded_resource: Resource = null) -> void:
 
 
 func _update_startup_pulse() -> void:
-	if not is_instance_valid(_startup_pulse):
+	if not is_instance_valid(_startup_pulse) or not is_instance_valid(_progress_fill):
 		return
-	var travel: float = fposmod(_elapsed_seconds * _PULSE_SPEED, _PULSE_TRAVEL)
+	var fill_width: float = _progress_fill.size.x
+	_startup_pulse.visible = fill_width > 1.0
+	if fill_width <= 1.0:
+		return
+	var travel_distance: float = fill_width + _PULSE_WIDTH
+	var travel: float = fposmod(_elapsed_seconds * _PULSE_SPEED, travel_distance)
 	_startup_pulse.position.x = travel - _PULSE_WIDTH
 	_startup_pulse.modulate.a = 0.28 + sin(_elapsed_seconds * 4.0) * 0.08
 
@@ -129,11 +142,17 @@ func _update_startup_pulse() -> void:
 func _update_progress_fill(delta: float) -> void:
 	if not is_instance_valid(_progress_fill):
 		return
-	_display_progress = move_toward(
+	_set_display_progress(move_toward(
 		_display_progress,
 		_target_progress,
 		delta * _PROGRESS_FOLLOW_SPEED
-	)
+	))
+
+
+func _set_display_progress(value: float) -> void:
+	_display_progress = clampf(value, 0.0, 1.0)
+	if not is_instance_valid(_progress_fill):
+		return
 	_progress_fill.size.x = floorf(_PROGRESS_WIDTH * _display_progress)
 
 

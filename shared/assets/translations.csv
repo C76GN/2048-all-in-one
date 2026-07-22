@@ -5,6 +5,8 @@ TIME_PARSE_ERROR,无法解析时间,Invalid Time
 NO_PREVIEW_DATA,暂无预览数据,No Preview Data
 BOOKMARK_INFO_FORMAT,"%s | %s %d | %s %dx%d","%s | %s %d | %s %dx%d"
 REPLAY_INFO_FORMAT,"%s | %s %d | %s %dx%d","%s | %s %d | %s %dx%d"
+LIST_RECORD_META_FORMAT,%s · %dx%d · %d 步,%s · %dx%d · %d moves
+LIST_RECORD_SCORE_FORMAT,%d 分,%d pts
 SCORE_LABEL,分数: %d,Score: %d
 NEW_HIGH_SCORE_FORMAT,最高分: %d [color=yellow](新纪录!)[/color],High Score: %d [color=yellow](New!)[/color]
 HIGH_SCORE_LABEL,最高分: %d,High Score: %d
@@ -313,6 +315,10 @@ LABEL_REPLAY_CONTROLS,回放控制,Replay Controls
 LABEL_REPLAY_PROGRESS,回放进度: %d / %d,Replay Step: %d / %d
 REPLAY_KEYS_STEP_HINT,上一步: A / ←    下一步: D / → / Space / Enter,Prev: A / ←    Next: D / → / Space / Enter
 REPLAY_KEYS_ACTION_HINT,从此继续: C    返回列表: Esc / B,Continue: C    Back: Esc / B
+BTN_REPLAY_PREV,上一步,Previous
+BTN_REPLAY_NEXT,下一步,Next
+BTN_REPLAY_CONTINUE_FROM_HERE,从此继续,Continue Here
+BTN_REPLAY_EXIT,退出回放,Exit Replay
 FORMAT_RATIO_PROBABILITY,"  - %d (概率: %.1f%%)
 ","  - %d (Chance: %.1f%%)
 "

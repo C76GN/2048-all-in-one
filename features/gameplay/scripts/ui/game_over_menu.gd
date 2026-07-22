@@ -191,6 +191,12 @@ func _play_new_record_celebration_once() -> void:
 		var _played: bool = celebration_vfx.play_new_record_celebration()
 
 
+func _drain_celebration() -> void:
+	var celebration_vfx: GameCelebrationVfxUtility = _get_celebration_vfx_utility()
+	if is_instance_valid(celebration_vfx):
+		celebration_vfx.drain_active_celebrations()
+
+
 func _get_current_topology(current_game_model: CurrentGameModel) -> BoardTopology:
 	if not is_instance_valid(current_game_model):
 		return null
@@ -250,6 +256,7 @@ func _format_target_reached(value: bool) -> String:
 
 ## 响应"重来"按钮的点击事件。
 func _on_restart_button_pressed() -> void:
+	_drain_celebration()
 	var _sent: bool = _close_current_popup_route_and_send_event(
 		_ROUTE_GAME_OVER_MENU,
 		EventNames.RESTART_GAME_REQUESTED
@@ -258,6 +265,7 @@ func _on_restart_button_pressed() -> void:
 
 ## 响应"返回主界面"按钮的点击事件。
 func _on_main_menu_button_pressed() -> void:
+	_drain_celebration()
 	var _sent: bool = _close_current_popup_route_and_send_event(
 		_ROUTE_GAME_OVER_MENU,
 		EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED
@@ -265,6 +273,7 @@ func _on_main_menu_button_pressed() -> void:
 
 
 func _on_settings_button_pressed() -> void:
+	_drain_celebration()
 	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
 	if not is_instance_valid(ui_router):
 		push_error("[GameOverMenu] 缺少 GFUIRouterUtility，无法打开设置菜单。")

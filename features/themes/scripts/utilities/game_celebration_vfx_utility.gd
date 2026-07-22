@@ -8,12 +8,15 @@ extends "res://addons/gf/kernel/base/gf_utility.gd"
 const _LAYER_NAME: String = "GameCelebrationVfxLayer"
 const _RECT_NAME_PREFIX: String = "CelebrationConfetti"
 const _LAYER_INDEX: int = 960
-const _FADE_OUT_SECONDS: float = 0.34
+const _DRAINING_META: StringName = &"celebration_draining"
+const _MIN_DRAIN_SECONDS: float = 1.5
+const _MAX_DRAIN_SECONDS: float = 14.0
 
 
 # --- 私有变量 ---
 
 var _asset_library: GameAssetLibraryUtility = null
+var _clock_utility: GameClockUtility = null
 var _shader_parameters: GFShaderParameterUtility = null
 var _theme: GameCelebrationVfxTheme = null
 var _layer: CanvasLayer = null
@@ -22,14 +25,17 @@ var _layer: CanvasLayer = null
 # --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GameAssetLibraryUtility, GFShaderParameterUtility]
+	return [GameAssetLibraryUtility, GameClockUtility, GFShaderParameterUtility]
 
 
 func ready() -> void:
 	_asset_library = _get_asset_library_utility()
+	_clock_utility = _get_clock_utility()
 	_shader_parameters = _get_shader_parameter_utility()
 	if not is_instance_valid(_asset_library):
 		push_error("[GameCelebrationVfxUtility] 缺少 GameAssetLibraryUtility。")
+	if not is_instance_valid(_clock_utility):
+		push_error("[GameCelebrationVfxUtility] 缺少 GameClockUtility。")
 	if not is_instance_valid(_shader_parameters):
 		push_error("[GameCelebrationVfxUtility] 缺少 GFShaderParameterUtility。")
 
@@ -39,12 +45,14 @@ func dispose() -> void:
 		_layer.queue_free()
 	_layer = null
 	_asset_library = null
+	_clock_utility = null
 	_shader_parameters = null
 	_theme = null
 
 
 func release_dependencies() -> void:
 	_asset_library = null
+	_clock_utility = null
 	_shader_parameters = null
 	super.release_dependencies()
 
@@ -78,6 +86,20 @@ func play_target_reached_celebration() -> bool:
 
 func play_new_record_celebration() -> bool:
 	return _play_confetti(GameCelebrationVfxTheme.EVENT_NEW_RECORD)
+
+
+## 停止产生新的纸屑周期，并让当前纸屑自然落出屏幕后回收。
+func drain_active_celebrations() -> void:
+	if not is_instance_valid(_layer):
+		return
+	for child: Node in _layer.get_children():
+		if not child is ColorRect or not child.name.begins_with(_RECT_NAME_PREFIX):
+			continue
+		var rect: ColorRect = child
+		if GFVariantData.to_bool(rect.get_meta(_DRAINING_META, false), false):
+			continue
+		_begin_rect_drain(rect)
+		_queue_rect_cleanup(rect, _get_rect_drain_seconds(rect))
 
 
 # --- 私有/辅助方法 ---
@@ -135,6 +157,7 @@ func _play_confetti(event_id: StringName) -> bool:
 
 	var event_parameters: Dictionary = preset.get_shader_parameters()
 	event_parameters[&"resolution"] = viewport_size
+	event_parameters[&"drain_started_at"] = -1.0
 	var event_parameter_count: int = _shader_parameters.apply_parameters(
 		material,
 		event_parameters,
@@ -144,7 +167,8 @@ func _play_confetti(event_id: StringName) -> bool:
 		rect.queue_free()
 		return false
 
-	_queue_rect_fade_out(rect, preset.duration)
+	if not preset.loop_until_dismissed:
+		_queue_rect_drain(rect, preset.duration)
 	return true
 
 
@@ -178,12 +202,55 @@ func _sync_rect_to_viewport(rect: ColorRect) -> Vector2:
 	return viewport_size
 
 
-func _queue_rect_fade_out(rect: ColorRect, duration: float) -> void:
+func _queue_rect_drain(rect: ColorRect, duration: float) -> void:
 	var tween: Tween = rect.create_tween()
-	var _parallel_result: Tween = tween.set_parallel(false)
-	var _interval_tweener: IntervalTweener = tween.tween_interval(maxf(duration - _FADE_OUT_SECONDS, 0.0))
-	var _fade_tweener: PropertyTweener = tween.tween_property(rect, "modulate:a", 0.0, _FADE_OUT_SECONDS)
+	var _interval_tweener: IntervalTweener = tween.tween_interval(maxf(duration, 0.0))
+	var _drain_callback: CallbackTweener = tween.tween_callback(_begin_rect_drain.bind(rect))
+	var _drain_interval: IntervalTweener = tween.tween_interval(_get_rect_drain_seconds(rect))
 	var _callback_tweener: CallbackTweener = tween.tween_callback(rect.queue_free)
+
+
+func _begin_rect_drain(rect: ColorRect) -> void:
+	if not is_instance_valid(rect):
+		return
+	if GFVariantData.to_bool(rect.get_meta(_DRAINING_META, false), false):
+		return
+	if not is_instance_valid(_clock_utility):
+		_clock_utility = _get_clock_utility()
+	if not is_instance_valid(_clock_utility):
+		push_error("[GameCelebrationVfxUtility] 缺少 GameClockUtility，无法开始纸屑清退。")
+		return
+	rect.set_meta(_DRAINING_META, true)
+	if rect.material is ShaderMaterial:
+		var material: ShaderMaterial = rect.material
+		material.set_shader_parameter(
+			&"drain_started_at",
+			float(_clock_utility.get_tick_msec()) / 1000.0
+		)
+
+
+func _queue_rect_cleanup(rect: ColorRect, delay_seconds: float) -> void:
+	if not is_instance_valid(rect):
+		return
+	var tween: Tween = rect.create_tween()
+	var _interval_tweener: IntervalTweener = tween.tween_interval(delay_seconds)
+	var _callback_tweener: CallbackTweener = tween.tween_callback(rect.queue_free)
+
+
+func _get_rect_drain_seconds(rect: ColorRect) -> float:
+	var viewport_height: float = _sync_rect_to_viewport(rect).y
+	var speed: float = 105.0
+	var piece_size: float = 7.0
+	if is_instance_valid(rect) and rect.material is ShaderMaterial:
+		var material: ShaderMaterial = rect.material
+		speed = GFVariantData.to_float(material.get_shader_parameter(&"speed"), speed)
+		piece_size = GFVariantData.to_float(
+			material.get_shader_parameter(&"piece_size"),
+			piece_size
+		)
+	var slowest_particle_speed: float = maxf(speed * 0.5, 1.0)
+	var drain_seconds: float = (viewport_height + piece_size * 4.0) / slowest_particle_speed
+	return clampf(drain_seconds + 0.25, _MIN_DRAIN_SECONDS, _MAX_DRAIN_SECONDS)
 
 
 func _load_confetti_shader(asset_key: StringName) -> Shader:
@@ -209,6 +276,14 @@ func _get_asset_library_utility() -> GameAssetLibraryUtility:
 	if utility_value is GameAssetLibraryUtility:
 		var asset_library: GameAssetLibraryUtility = utility_value
 		return asset_library
+	return null
+
+
+func _get_clock_utility() -> GameClockUtility:
+	var utility_value: Object = get_utility(GameClockUtility)
+	if utility_value is GameClockUtility:
+		var clock_utility: GameClockUtility = utility_value
+		return clock_utility
 	return null
 
 

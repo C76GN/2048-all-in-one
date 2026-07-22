@@ -115,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 ### 最近一次安全 GUT 验证
 
-验证时间：2026-07-22。
+验证时间：2026-07-23。
 
 命令：
 
@@ -127,11 +127,11 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 - Godot：`4.7.stable.steam.5b4e0cb0f`。
 - GF Framework：官方稳定 tag `9.0.1`，commit `5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28`。
-- GUT：302 个测试全部通过，共 1916 个断言。
-- 当前完整套件：`tests/gut/` 下 36 个顶层测试脚本、302 个 `test_` 用例。
+- GUT：305 个测试全部通过，共 1943 个断言。
+- 当前完整套件：`tests/gut/` 下 36 个顶层测试脚本、305 个 `test_` 用例。
 - Boot 首帧壳与 Godot 原生启动图共用同一构图；正式 `BootRuntime` 由线程加载，在严格 `Gf.init()` 后等待视觉与声音主题通过 `GFAssetLoadSession` 完整预载、提交资源组并事务激活，随后再由 `GFScenePreloadMap`、`GFSceneUtility` 和 `GFRenderWarmupUtility` 预热稳定场景流与首轮游戏视觉资源。Boot 继续启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束。高频进度写入由 `GameSaveGraphUtility` 合并后调用 GFStorage 异步接口，关键完成事务仍同步落盘。
 - 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 309`、`Resources = 131`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。GF 9.0.1 声明 732 个全局脚本类，当前项目运行时声明 185 个 `class_name`。素材拒绝清理工作流新增 2 个项目类并把完整套件扩展到 36/302；本轮主题资源组生命周期接入没有增加 retained Node、Resource 或 RID 类别。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
+- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 309`、`Resources = 131`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。GF 9.0.1 声明 732 个全局脚本类，当前项目运行时声明 185 个 `class_name`。本轮导航、回放、列表与庆祝效果测试扩展到 36/305，未增加 retained Node、Resource 或 RID 类别。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
 - 临时运行目录已在成功后自动清理。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
@@ -159,7 +159,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 真实场景流截图由项目内回放工具生成，不使用手工拼接的测试节点：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -ScriptPath res://tools/capture_visual_review.gd -ExpectedOutputPattern "[VisualReview] slowest_command_usec=" -TimeoutSeconds 180
+powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -ScriptPath res://tools/capture_visual_review.gd -Rendering -ExpectedOutputPattern "[VisualReview] slowest_command_usec=" -TimeoutSeconds 240
 ```
 
 输出位于忽略提交的 `build/visual_review/`，覆盖主菜单、场景遮罩、模式选择、主题化下拉菜单、稳定游戏帧和实际 `MoveCommand` 合并帧。最近一次 1280x720 回放中，最慢命令样本为 `6165 us`；截图确认方块身份图案被裁切在安全区，合并反馈包含冲击环、碎片和多方向分数飘字。

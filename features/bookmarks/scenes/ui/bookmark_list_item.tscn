@@ -15,10 +15,10 @@ corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [node name="BookmarkListItem" type="Button" unique_id=169103514]
-custom_minimum_size = Vector2(0, 60)
+custom_minimum_size = Vector2(0, 88)
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 60.0
+offset_bottom = 88.0
 grow_horizontal = 2
 text = " "
 alignment = 0
@@ -43,15 +43,15 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
 
 [node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer" unique_id=930925225]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 18
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/HBoxContainer" unique_id=607154414]
 layout_mode = 2
@@ -63,12 +63,22 @@ alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 20
 text = "Mode Name"
 
 [node name="InfoLabel" type="Label" parent="MarginContainer/HBoxContainer/VBoxContainer" unique_id=1197231734]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.46666667, 0.45882353, 0.43529412, 0.92)
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 15
 text = "Info"
+
+[node name="ScoreLabel" type="Label" parent="MarginContainer/HBoxContainer" unique_id=169103515]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5803922, 0.26666668, 0.19215687, 1)
+theme_override_font_sizes/font_size = 22
+text = "0 pts"
+horizontal_alignment = 2
+vertical_alignment = 1

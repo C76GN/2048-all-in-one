@@ -11,6 +11,7 @@ const ACTION_REDO: StringName = &"redo"
 const _SETTINGS_SCENE: PackedScene = preload(
 	"res://features/settings/scenes/menus/settings_menu.tscn"
 )
+const _SETTINGS_SCRIPT_PATH: String = "res://features/settings/scripts/menus/settings_menu.gd"
 
 
 # --- 测试用例 ---
@@ -253,6 +254,16 @@ func test_settings_scene_exposes_timing_and_binding_controls() -> void:
 	assert_not_null(scene_root.get_node_or_null("%InputBindingsContainer"))
 	assert_not_null(scene_root.get_node_or_null("%ResetBindingsButton"))
 	assert_not_null(scene_root.get_node_or_null("%BackButton"))
+	assert_null(scene_root.get_node_or_null("%VisualThemeOptionButton"))
+	assert_null(scene_root.get_node_or_null("%SoundThemeOptionButton"))
+	assert_null(scene_root.find_child("VisualThemeContainer", true, false))
+	assert_null(scene_root.find_child("SoundThemeContainer", true, false))
+	var settings_source: String = FileAccess.get_file_as_string(_SETTINGS_SCRIPT_PATH)
+	assert_true(
+		settings_source.contains("asset.texture.icon.undo_2"),
+		"单项键位重置应使用可审计素材图标。"
+	)
+	assert_false(settings_source.contains("↺"), "键位重置不应依赖缺字风险较高的 Unicode 符号。")
 	scene_root.free()
 
 

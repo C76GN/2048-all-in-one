@@ -38,6 +38,35 @@ func test_continue_from_current_step_clears_redo_history() -> void:
 	assert_false(replay_system.is_replay_active(), "继续游玩后应退出回放模式。")
 
 
+func test_replay_progress_is_published_after_a_step_settles() -> void:
+	var command_history: GFCommandHistoryUtility = _make_history([
+		_make_move_command_data(Vector2i.ZERO, true),
+		_make_move_command_data(Vector2i.RIGHT, false),
+	])
+	var replay_data: ReplayData = ReplayData.new()
+	replay_data.actions = [Vector2i.RIGHT, Vector2i.DOWN]
+	var replay_system: ReplaySystem = ReplaySystem.new()
+	replay_system._command_history = command_history
+	replay_system.activate_replay_mode(replay_data)
+
+	var progress: Dictionary = {
+		&"current": -1,
+		&"total": -1,
+	}
+	var _progress_connection: int = replay_system.playback_progress_changed.connect(
+		func(current_step: int, total_steps: int) -> void:
+			progress[&"current"] = current_step
+			progress[&"total"] = total_steps
+	)
+	replay_system.notify_playback_step_settled()
+
+	assert_true(
+		GFVariantData.get_option_int(progress, &"current", -1) == 1
+		and GFVariantData.get_option_int(progress, &"total", -1) == 2,
+		"回放命令落定后应发布基于 GF 命令历史的准确进度。"
+	)
+
+
 func test_game_flow_rejects_baseline_only_undo_history() -> void:
 	var flow_system: GameFlowSystem = _make_flow_system()
 	var command_history: GFCommandHistoryUtility = _make_history([

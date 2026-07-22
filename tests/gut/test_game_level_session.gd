@@ -62,8 +62,11 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	app_config.selected_mode_config_path.set_value(_CLASSIC_MODE_CONFIG_PATH)
 	app_config.selected_board_topology.set_value(selected_topology)
 	app_config.selected_seed.set_value(12345)
+	command_history.record(MoveCommand.new(Vector2i.LEFT))
+	assert_true(command_history.undo_count == 1, "测试前置历史应模拟上一局残留命令。")
 
 	architecture.send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
+	assert_true(command_history.undo_count == 0, "新关卡事务必须清空上一局 GF 命令历史。")
 
 	var level_data: Dictionary = level_utility.current_level_data
 	var expected_level_id: StringName = StringName(

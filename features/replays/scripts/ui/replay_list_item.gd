@@ -8,7 +8,8 @@ extends BaseListMenuItem
 
 # --- 常量 ---
 
-const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
+const _META_FORMAT_FALLBACK: String = "%s · %dx%d · %d moves"
+const _SCORE_FORMAT_FALLBACK: String = "%d pts"
 
 
 # --- 私有变量 ---
@@ -20,6 +21,7 @@ var _mode_display_name: String = ""
 
 @onready var _mode_name_label: Label = %ModeNameLabel
 @onready var _info_label: Label = %InfoLabel
+@onready var _score_label: Label = %ScoreLabel
 
 
 # --- 公共方法 ---
@@ -56,19 +58,20 @@ func _update_display() -> void:
 	if replay_data.timestamp > 0:
 		datetime = GameClockUtility.format_datetime_value(replay_data.timestamp)
 
-	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
-	var size_label: String = tr("SIZE_LABEL")
 	var topology: BoardTopology = replay_data.get_initial_topology()
 	var board_size: Vector2i = topology.get_bounds_size() if topology != null else Vector2i.ZERO
 	_info_label.text = GameTextFormatUtility.format_template(
-		tr("REPLAY_INFO_FORMAT"),
-		_INFO_FORMAT_FALLBACK,
+		tr("LIST_RECORD_META_FORMAT"),
+		_META_FORMAT_FALLBACK,
 		[
 			datetime,
-			score_label,
-			replay_data.final_score,
-			size_label,
 			board_size.x,
 			board_size.y,
+			replay_data.actions.size(),
 		]
+	)
+	_score_label.text = GameTextFormatUtility.format_template(
+		tr("LIST_RECORD_SCORE_FORMAT"),
+		_SCORE_FORMAT_FALLBACK,
+		[replay_data.final_score]
 	)

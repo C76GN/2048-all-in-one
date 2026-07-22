@@ -56,6 +56,7 @@ const _PORTRAIT_BOARD_FIT_INSETS: Dictionary = {
 	"../MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorldViewportController"
 )
 @export var hud_path: NodePath = NodePath("../HUD")
+@export var replay_controls_path: NodePath = NodePath("../ReplayControlsContainer")
 
 ## 触屏运行时即使横屏尺寸足够，也采用紧凑信息密度。
 @export var prefer_compact_layout_on_touch: bool = true
@@ -71,11 +72,13 @@ var _right_column: VBoxContainer
 var _board_viewport: Control
 var _board_world_viewport_controller: BoardWorldViewportController
 var _hud: Hud
+var _replay_controls: PanelContainer
 var _signal_utility: GFSignalUtility
 var _viewport_utility: GFViewportUtility
 var _platform_utility: GamePlatformUtility
 var _current_layout_mode: LayoutMode = LayoutMode.DESKTOP
 var _layout_update_queued: bool = false
+var _replay_mode_active: bool = false
 
 
 # --- Godot 生命周期方法 ---
@@ -133,6 +136,15 @@ func get_layout_mode() -> LayoutMode:
 	return _current_layout_mode
 
 
+## 通知布局控制器回放运输控件是否参与当前安全区计算。
+## @param is_active: true 表示当前为回放模式，需要为运输控件预留棋盘安全区。
+func set_replay_mode_active(is_active: bool) -> void:
+	if _replay_mode_active == is_active:
+		return
+	_replay_mode_active = is_active
+	_queue_layout_update()
+
+
 ## 返回当前布局用于棋盘完整聚焦的 HUD 屏幕边距。
 ## @param mode: 要查询的响应式布局模式。
 ## @return 对应布局的四向 HUD 屏幕边距。
@@ -187,6 +199,9 @@ func _resolve_nodes() -> void:
 		board_world_viewport_controller_path
 	)
 	_hud = _get_hud(hud_path)
+	var replay_controls_value: Node = get_node_or_null(replay_controls_path)
+	if replay_controls_value is PanelContainer:
+		_replay_controls = replay_controls_value
 
 
 func _has_required_dependencies() -> bool:
@@ -199,6 +214,7 @@ func _has_required_dependencies() -> bool:
 		_board_viewport,
 		_board_world_viewport_controller,
 		_hud,
+		_replay_controls,
 		_signal_utility,
 		_viewport_utility,
 		_platform_utility,
@@ -256,10 +272,40 @@ func _apply_current_layout() -> void:
 	})
 	_hud.set_compact_mode(_current_layout_mode != LayoutMode.DESKTOP)
 	_hud.set_portrait_mode(_current_layout_mode == LayoutMode.PORTRAIT)
-	_board_world_viewport_controller.set_fit_insets(get_board_fit_insets(_current_layout_mode))
+	_apply_replay_controls_layout(_current_layout_mode)
+	var board_fit_insets: Dictionary = get_board_fit_insets(_current_layout_mode)
+	if _replay_mode_active and _current_layout_mode != LayoutMode.DESKTOP:
+		board_fit_insets["bottom"] = maxf(
+			GFVariantData.get_option_float(board_fit_insets, "bottom"),
+			176.0
+		)
+	_board_world_viewport_controller.set_fit_insets(board_fit_insets)
 	_board_world_viewport_controller.set_compact_view_controls(
 		_current_layout_mode == LayoutMode.PORTRAIT
 	)
+
+
+func _apply_replay_controls_layout(mode: LayoutMode) -> void:
+	if not is_instance_valid(_replay_controls):
+		return
+	if mode == LayoutMode.DESKTOP:
+		_replay_controls.anchor_left = 0.0
+		_replay_controls.anchor_top = 0.5
+		_replay_controls.anchor_right = 0.0
+		_replay_controls.anchor_bottom = 0.5
+		_replay_controls.offset_left = 28.0
+		_replay_controls.offset_top = -74.0
+		_replay_controls.offset_right = 328.0
+		_replay_controls.offset_bottom = 74.0
+		return
+	_replay_controls.anchor_left = 0.5
+	_replay_controls.anchor_top = 1.0
+	_replay_controls.anchor_right = 0.5
+	_replay_controls.anchor_bottom = 1.0
+	_replay_controls.offset_left = -150.0
+	_replay_controls.offset_top = -172.0
+	_replay_controls.offset_right = 150.0
+	_replay_controls.offset_bottom = -24.0
 
 
 static func _get_layout_gutter(mode: LayoutMode) -> float:

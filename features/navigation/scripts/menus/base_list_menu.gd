@@ -203,7 +203,11 @@ func _handle_empty_list() -> void:
 	var label: Label = Label.new()
 	label.text = _get_empty_message()
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.custom_minimum_size.y = 50
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.custom_minimum_size.y = 180
+	var style_utility: GameUiStyleUtility = _get_ui_style_utility()
+	if is_instance_valid(style_utility):
+		style_utility.style_label(label, GameUiStyleUtility.TextRole.MUTED, 18)
 	items_container.add_child(label)
 	_clear_preview()
 	_update_action_focus_return_target(null)

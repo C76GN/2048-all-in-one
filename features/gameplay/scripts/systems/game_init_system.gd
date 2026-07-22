@@ -385,6 +385,8 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		push_error("[GameInitSystem] 缺少 GFLevelUtility，无法清理上一局运行时状态。")
 		return
 	_level_utility.clear_level_runtime()
+	if is_instance_valid(_command_history):
+		_command_history.clear()
 
 	var game_ready_data: GameReadyData = GameReadyData.new()
 	game_ready_data.is_replay_mode = is_instance_valid(replay_data)

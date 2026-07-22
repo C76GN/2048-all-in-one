@@ -73,37 +73,64 @@ grow_vertical = 2
 unique_name_in_owner = true
 script = ExtResource("8_responsive_layout")
 
-[node name="ReplayControlsContainer" type="VBoxContainer" parent="." index="4" unique_id=1861338845]
+[node name="ReplayControlsContainer" type="PanelContainer" parent="." index="4" unique_id=1861338845]
 unique_name_in_owner = true
 visible = false
 z_index = 21
 layout_mode = 1
-offset_left = 76.0
-offset_top = 84.0
-offset_right = 356.0
-offset_bottom = 220.0
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 28.0
+offset_top = -74.0
+offset_right = 328.0
+offset_bottom = 74.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_view_controls")
 
-[node name="Label" type="Label" parent="ReplayControlsContainer" index="0" unique_id=79560195]
+[node name="MarginContainer" type="MarginContainer" parent="ReplayControlsContainer" index="0"]
 layout_mode = 2
-text = "回放控制"
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 10
 
-[node name="ReplayProgressLabel" type="Label" parent="ReplayControlsContainer" index="1" unique_id=1478657253]
+[node name="VBoxContainer" type="VBoxContainer" parent="ReplayControlsContainer/MarginContainer" index="0"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ReplayProgressLabel" type="Label" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="0" unique_id=1478657253]
 unique_name_in_owner = true
 layout_mode = 2
 text = "0 / 0"
 horizontal_alignment = 1
 
-[node name="ReplayStepHintLabel" type="Label" parent="ReplayControlsContainer" index="2" unique_id=2035225653]
-unique_name_in_owner = true
+[node name="Transport" type="GridContainer" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="1"]
 layout_mode = 2
-text = "上一步: A / ← | 下一步: D / → / Space"
-autowrap_mode = 3
+theme_override_constants/separation = 8
+columns = 2
 
-[node name="ReplayActionHintLabel" type="Label" parent="ReplayControlsContainer" index="3" unique_id=2034687879]
+[node name="ReplayPrevButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="0"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 38)
 layout_mode = 2
-text = "继续: C | 返回: Esc / B"
-autowrap_mode = 3
+text = "上一步"
+
+[node name="ReplayNextButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="1"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 38)
+layout_mode = 2
+text = "下一步"
+
+[node name="ReplayContinueButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="2"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 38)
+layout_mode = 2
+text = "从此继续"
+
+[node name="ReplayExitButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="3"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 38)
+layout_mode = 2
+text = "退出回放"
 
 [node name="LeftColumn" parent="MarginContainer/ColumnsContainer" index="0"]
 visible = false

@@ -49,9 +49,17 @@ func _ready() -> void:
 ## @param new_data: 关联的数据资源。
 func setup_item(new_data: Resource) -> void:
 	_item_data = new_data
+	text = ""
 	button_pressed = false
 	set_selected(false)
 	_update_display()
+
+
+## 接管 GFRepeaterBinder 的默认条目写入，避免 Resource 被转换成按钮正文。
+## @param _item: GFRepeaterBinder 当前绑定的数据；具体内容由 setup_item 消费。
+## @param _index: GFRepeaterBinder 当前绑定的列表索引。
+func set_repeater_item(_item: Variant, _index: int) -> void:
+	text = ""
 
 
 ## 设置显式的选中状态（通过 SelectionHighlight 节点表示）。

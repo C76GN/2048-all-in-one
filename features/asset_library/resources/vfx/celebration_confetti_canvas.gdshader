@@ -9,6 +9,7 @@ uniform float spin_speed : hint_range(0.0, 10.0) = 2.8;
 uniform float piece_size : hint_range(2.0, 30.0) = 7.0;
 uniform float aspect_ratio : hint_range(0.2, 3.0) = 1.85;
 uniform vec2 resolution = vec2(1280.0, 720.0);
+uniform float drain_started_at = -1.0;
 
 uniform vec4 col0 : source_color = vec4(0.6196, 0.8588, 0.8353, 1.0);
 uniform vec4 col1 : source_color = vec4(0.9373, 0.8196, 0.3647, 1.0);
@@ -63,10 +64,6 @@ void fragment() {
 		float fi = float(i);
 
 		float start_x = rand(fi * 1.234) * resolution.x;
-		float start_y = -(rand(fi * 5.678) * resolution.y);
-		float travel_time = (resolution.y + piece_size * 2.0) / max(speed, 0.001);
-		float time_offset = rand(fi * 9.101) * travel_time;
-
 		float my_speed = speed * (0.5 + rand(fi * 2.222));
 		float my_sway_strength = sway_strength * (0.3 + rand(fi * 3.333) * 1.4);
 		float my_sway_speed = sway_speed * (0.5 + rand(fi * 4.444) * 1.5);
@@ -74,19 +71,29 @@ void fragment() {
 		float my_spin = spin_speed * (0.5 + rand(fi * 7.777) * 1.5) * (step(0.5, rand(fi * 8.888)) * 2.0 - 1.0);
 		float my_size = piece_size * (0.55 + rand(fi * 0.123) * 0.85);
 		float my_aspect_ratio = aspect_ratio * (0.72 + rand(fi * 0.456) * 0.56);
+		float travel_distance = resolution.y + my_size * 4.0;
+		float travel_time = travel_distance / max(my_speed, 0.001);
+		float time_offset = rand(fi * 9.101) * travel_time;
+		float particle_time = TIME + time_offset;
+		float cycle = floor(particle_time / travel_time);
+		float phase = fract(particle_time / travel_time);
+		float cycle_visibility = 1.0;
+		if (drain_started_at >= 0.0) {
+			float drain_cycle = floor((drain_started_at + time_offset) / travel_time);
+			cycle_visibility = 1.0 - step(drain_cycle + 0.5, cycle);
+		}
 
-		float t = mod(TIME + time_offset, (resolution.y + my_size * 2.0) / my_speed);
-		float center_y = start_y + t * my_speed;
-		float center_x = start_x + my_sway_strength * sin(t * my_sway_speed + my_sway_phase);
-		float angle = t * my_spin;
+		float center_y = mix(-my_size * 2.0, resolution.y + my_size * 2.0, phase);
+		float center_x = start_x + my_sway_strength * sin(particle_time * my_sway_speed + my_sway_phase);
+		float angle = particle_time * my_spin;
 
 		vec2 delta = px - vec2(center_x, center_y);
 		delta = rotate2d(delta, -angle);
 		vec2 local = delta / vec2(my_size * my_aspect_ratio, my_size);
-		float inside = step(max(abs(local.x), abs(local.y)), 1.0);
+		float inside = step(max(abs(local.x), abs(local.y)), 1.0) * cycle_visibility;
 
 		if (inside > 0.5) {
-			float shimmer = 0.5 + 0.5 * sin(t * my_spin * 2.0);
+			float shimmer = 0.5 + 0.5 * sin(particle_time * my_spin * 2.0);
 			vec4 base_color = palette_color(rand(fi * 0.321));
 			vec4 lit_color = mix(base_color * 0.58, base_color, shimmer);
 			lit_color.a = 0.92;

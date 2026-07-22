@@ -6,9 +6,9 @@
 script = ExtResource("1_preset")
 duration = 2.05
 opacity = 0.86
+loop_until_dismissed = true
 shader_parameters = {
 "piece_size": 7.5,
 "speed": 118.0,
 "sway_strength": 46.0
 }
-

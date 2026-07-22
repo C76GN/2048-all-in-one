@@ -146,8 +146,6 @@ func step_forward() -> void:
 	var step_index: int = get_current_step()
 	if step_index < _current_replay.actions.size():
 		send_simple_event(EventNames.REPLAY_NEXT_STEP)
-		# 进度更新通常由 ReplayInputSystem 处理后的事件触发，或者在这里手动触发
-		call_deferred("_emit_progress")
 
 
 ## 回放上一步。
@@ -160,7 +158,12 @@ func step_backward() -> void:
 		return
 	
 	send_simple_event(EventNames.REPLAY_PREV_STEP)
-	call_deferred("_emit_progress")
+
+
+## 在回放命令完成执行或撤销后发布准确进度。
+func notify_playback_step_settled() -> void:
+	if _is_replay_active:
+		_emit_progress()
 
 
 ## 从当前回放步数恢复成普通对局继续游玩。

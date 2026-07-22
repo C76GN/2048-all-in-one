@@ -62,7 +62,17 @@ func test_theme_catalog_discovers_and_validates_default_theme_pack() -> void:
 	assert_true(is_instance_valid(theme.ui_palette.button_focus_shader_profile), "UI 色板应引用按钮焦点 GF Profile。")
 	assert_true(theme.ui_palette.button_focus_shader_profile.get_parameter_names().size() == 5, "按钮焦点 Profile 应声明 5 个静态样式参数。")
 	assert_true(is_instance_valid(theme.background_shader_profile), "主题应引用 GF 背景 Shader 参数 Profile。")
-	assert_true(theme.background_shader_profile.get_parameter_names().size() == 32, "背景 Profile 应完整声明当前 shader 的 32 个主题与操作反馈参数。")
+	var background_parameter_names: PackedStringArray = (
+		theme.background_shader_profile.get_parameter_names()
+	)
+	assert_true(
+		background_parameter_names.has("grid_scroll_speed"),
+		"背景 Profile 应显式声明移动网格速度。"
+	)
+	assert_true(
+		background_parameter_names.size() == 33,
+		"背景 Profile 应完整声明当前 shader 的 33 个主题、网格与操作反馈参数。"
+	)
 	assert_true(is_instance_valid(theme.board_feedback_profile), "主题应引用棋盘反馈 Profile。")
 	assert_true(theme.board_feedback_profile.get_validation_report().is_ok(), "棋盘反馈 Profile 应完整声明 GF Shake 与 Haptic 预设。")
 	assert_true(is_instance_valid(theme.celebration_vfx_theme), "主题应引用庆祝 VFX 主题资源。")
@@ -507,6 +517,7 @@ func _create_theme_architecture(
 	var haptic: GFHapticUtility = GFHapticUtility.new()
 	var board_feedback: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
 	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
+	var clock_utility: GameClockUtility = GameClockUtility.new()
 	var theme_catalog: GameThemeCatalogUtility = GameThemeCatalogUtility.new()
 	var theme_utility: GameThemeUtility = GameThemeUtility.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
@@ -532,6 +543,7 @@ func _create_theme_architecture(
 	await architecture.register_utility(GFShakeUtility, shake)
 	await architecture.register_utility(GFHapticUtility, haptic)
 	await architecture.register_utility(GameBoardFeedbackUtility, board_feedback)
+	await architecture.register_utility(GameClockUtility, clock_utility)
 	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.register_utility(GameThemeCatalogUtility, theme_catalog)
 	await architecture.register_utility(GameThemeUtility, theme_utility)

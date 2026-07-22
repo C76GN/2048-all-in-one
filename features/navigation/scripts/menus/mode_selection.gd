@@ -40,7 +40,7 @@ var _info_score_label: Label
 
 # --- @onready 变量 (节点引用) ---
 
-@onready var _left_panel_container: VBoxContainer = %LeftColumn
+@onready var _info_panel_container: VBoxContainer = %ModeInfoContainer
 @onready var _right_panel_container: VBoxContainer = %RightColumn
 @onready var _page_title: Label = %PageTitle
 @onready var _mode_list_container: VBoxContainer = %ModeListContainer
@@ -162,22 +162,23 @@ func _load_mode_config_paths() -> void:
 
 
 func _create_persistent_info_panel() -> void:
-	for child: Node in _left_panel_container.get_children():
+	for child: Node in _info_panel_container.get_children():
 		child.queue_free()
 
 	_info_name_label = Label.new()
-	_left_panel_container.add_child(_info_name_label)
+	_info_panel_container.add_child(_info_name_label)
 
 	_info_separator = HSeparator.new()
-	_left_panel_container.add_child(_info_separator)
+	_info_panel_container.add_child(_info_separator)
 
 	_info_desc_label = Label.new()
 	_info_desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_info_desc_label.size_flags_horizontal = Control.SIZE_FILL
-	_left_panel_container.add_child(_info_desc_label)
+	_info_panel_container.add_child(_info_desc_label)
 
 	_info_score_label = Label.new()
-	_left_panel_container.add_child(_info_score_label)
+	_info_score_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_info_panel_container.add_child(_info_score_label)
 
 
 func _apply_mode_selection_visual_system() -> void:
@@ -607,7 +608,7 @@ func _reveal_selection_panels() -> void:
 	if not is_instance_valid(motion_utility):
 		return
 
-	var _left_reveal_count: int = motion_utility.play_children_reveal(_left_panel_container, _DETAIL_REVEAL_OFFSET, _DETAIL_REVEAL_STAGGER)
+	var _detail_reveal_count: int = motion_utility.play_children_reveal(_info_panel_container, _DETAIL_REVEAL_OFFSET, _DETAIL_REVEAL_STAGGER)
 	var _right_reveal_count: int = motion_utility.play_children_reveal(_right_panel_container, _DETAIL_REVEAL_OFFSET, _DETAIL_REVEAL_STAGGER)
 
 

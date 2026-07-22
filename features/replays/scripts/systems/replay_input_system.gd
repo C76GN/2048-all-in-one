@@ -114,6 +114,9 @@ func _execute_replay_step(direction: Vector2i) -> void:
 		return
 
 	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+	var replay_system: ReplaySystem = _get_replay_system()
+	if is_instance_valid(replay_system):
+		replay_system.notify_playback_step_settled()
 
 
 func _get_input_mapping_utility() -> GFInputMappingUtility:
@@ -199,6 +202,9 @@ func _on_prev_step(_payload: Variant = null) -> void:
 		_is_step_processing = true
 		if await history.undo_last_async():
 			send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+			var replay_system: ReplaySystem = _get_replay_system()
+			if is_instance_valid(replay_system):
+				replay_system.notify_playback_step_settled()
 		_is_step_processing = false
 
 

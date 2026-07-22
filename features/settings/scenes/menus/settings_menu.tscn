@@ -186,22 +186,6 @@ custom_minimum_size = Vector2(220, 42)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="VisualThemeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VisualThemeContainer"]
-custom_minimum_size = Vector2(150, 0)
-layout_mode = 2
-text = "视觉主题"
-vertical_alignment = 1
-
-[node name="VisualThemeOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VisualThemeContainer"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 42)
-layout_mode = 2
-size_flags_horizontal = 3
-
 [node name="AudioSection" type="VBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections"]
 unique_name_in_owner = true
 visible = false
@@ -216,22 +200,6 @@ text = "声音"
 
 [node name="AudioSeparator" type="HSeparator" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection"]
 layout_mode = 2
-
-[node name="SoundThemeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection"]
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/SoundThemeContainer"]
-custom_minimum_size = Vector2(150, 0)
-layout_mode = 2
-text = "音效主题"
-vertical_alignment = 1
-
-[node name="SoundThemeOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/SoundThemeContainer"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 42)
-layout_mode = 2
-size_flags_horizontal = 3
 
 [node name="MasterVolumeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection"]
 layout_mode = 2

@@ -4,6 +4,7 @@ param(
 	[string]$GodotExecutable = "godot",
 	[string]$ProjectRoot = ".",
 	[string]$ExpectedOutputPattern = "",
+	[switch]$Rendering,
 	[ValidateRange(1, 3600)]
 	[int]$TimeoutSeconds = 300,
 	[ValidateRange(50, 5000)]
@@ -88,8 +89,11 @@ try {
 	$env:TEMP = $tempDirectory
 	$env:TMP = $tempDirectory
 
-	$arguments = @(
-		"--headless",
+	$arguments = @()
+	if (-not $Rendering) {
+		$arguments += "--headless"
+	}
+	$arguments += @(
 		"--log-file", $logFile,
 		"--path", $resolvedProjectRoot,
 		"--script", $ScriptPath

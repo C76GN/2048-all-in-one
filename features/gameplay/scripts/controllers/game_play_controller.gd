@@ -48,10 +48,15 @@ var _is_cleaned_up: bool = false
 @onready var game_board: GameBoardController = %GameBoard
 @onready var background_color_rect: ColorRect = %Background
 @onready var _page_title: Label = %PageTitle
-@onready var replay_controls_container: VBoxContainer = %ReplayControlsContainer
+@onready var replay_controls_container: PanelContainer = %ReplayControlsContainer
 @onready var replay_progress_label: Label = %ReplayProgressLabel
-@onready var replay_step_hint_label: Label = %ReplayStepHintLabel
-@onready var replay_action_hint_label: Label = %ReplayActionHintLabel
+@onready var replay_prev_button: Button = %ReplayPrevButton
+@onready var replay_next_button: Button = %ReplayNextButton
+@onready var replay_continue_button: Button = %ReplayContinueButton
+@onready var replay_exit_button: Button = %ReplayExitButton
+@onready var _responsive_layout_controller: GameplayResponsiveLayoutController = (
+	%GameplayResponsiveLayoutController
+)
 
 
 # --- Godot 生命周期方法 ---
@@ -69,6 +74,7 @@ func _ready() -> void:
 	_celebration_vfx_utility = _get_celebration_vfx_utility()
 	_apply_current_ui_theme()
 	_register_level_runtime_cleanup()
+	_connect_replay_control_signals()
 	
 	if _page_title:
 		_page_title.visible = false
@@ -103,10 +109,21 @@ func _update_static_ui_text() -> void:
 		var label: Label = _get_replay_controls_label()
 		if is_instance_valid(label):
 			label.text = tr("LABEL_REPLAY_CONTROLS")
-	if is_instance_valid(replay_step_hint_label):
-		replay_step_hint_label.text = tr("REPLAY_KEYS_STEP_HINT")
-	if is_instance_valid(replay_action_hint_label):
-		replay_action_hint_label.text = tr("REPLAY_KEYS_ACTION_HINT")
+	if is_instance_valid(replay_prev_button):
+		replay_prev_button.text = tr("BTN_REPLAY_PREV")
+	if is_instance_valid(replay_next_button):
+		replay_next_button.text = tr("BTN_REPLAY_NEXT")
+	if is_instance_valid(replay_continue_button):
+		replay_continue_button.text = tr("BTN_REPLAY_CONTINUE_FROM_HERE")
+	if is_instance_valid(replay_exit_button):
+		replay_exit_button.text = tr("BTN_REPLAY_EXIT")
+
+
+func _connect_replay_control_signals() -> void:
+	var _prev_connection: int = replay_prev_button.pressed.connect(_on_replay_prev_pressed)
+	var _next_connection: int = replay_next_button.pressed.connect(_on_replay_next_pressed)
+	var _continue_connection: int = replay_continue_button.pressed.connect(_on_replay_continue_pressed)
+	var _exit_connection: int = replay_exit_button.pressed.connect(_on_replay_exit_pressed)
 
 
 func _cleanup_listeners() -> void:
@@ -184,6 +201,8 @@ func _configure_ui_for_mode() -> void:
 
 	var is_replay: bool = _is_replay_mode()
 	replay_controls_container.visible = is_replay
+	if is_instance_valid(_responsive_layout_controller):
+		_responsive_layout_controller.set_replay_mode_active(is_replay)
 
 	_update_replay_ui()
 
@@ -204,6 +223,12 @@ func _update_replay_ui() -> void:
 			_REPLAY_PROGRESS_FORMAT_FALLBACK,
 			[current_step, total_steps]
 		)
+	if is_instance_valid(replay_prev_button):
+		replay_prev_button.disabled = current_step <= 0
+	if is_instance_valid(replay_next_button):
+		replay_next_button.disabled = current_step >= total_steps
+	if is_instance_valid(replay_continue_button):
+		replay_continue_button.disabled = not _replay_system.can_continue_from_current_step()
 
 
 func _publish_gameplay_board_ready() -> void:
@@ -513,6 +538,25 @@ func _on_replay_progress_changed(_current_step: int, _total_steps: int) -> void:
 
 func _on_replay_status_changed(_is_active: bool) -> void:
 	_configure_ui_for_mode()
+
+
+func _on_replay_prev_pressed() -> void:
+	if is_instance_valid(_replay_system):
+		_replay_system.step_backward()
+
+
+func _on_replay_next_pressed() -> void:
+	if is_instance_valid(_replay_system):
+		_replay_system.step_forward()
+
+
+func _on_replay_continue_pressed() -> void:
+	if is_instance_valid(_replay_system):
+		_replay_system.continue_from_current_step()
+
+
+func _on_replay_exit_pressed() -> void:
+	send_simple_event(EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED)
 
 
 func _on_replay_continued_as_game(_payload: Variant = null) -> void:

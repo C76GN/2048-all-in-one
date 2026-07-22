@@ -59,11 +59,10 @@ func setup(
 func update_text() -> void:
 	if is_instance_valid(_mode_config):
 		_title_label.text = tr(_mode_config.mode_name)
-		_description_label.text = tr("DESC_SELECT_MODE_PREFIX") + tr(_mode_config.mode_name)
+		_description_label.text = _get_summary_line(tr(_mode_config.mode_description))
 	else:
 		_title_label.text = tr("UI_ERROR")
 		_description_label.text = tr("ERR_LOAD_CONFIG")
-
 
 ## 获取此卡片关联的配置路径。
 ## @return: GameModeConfig 资源的路径字符串。
@@ -79,6 +78,14 @@ func set_selected(is_selected: bool) -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _get_summary_line(description: String) -> String:
+	for raw_line: String in description.split("\n", false):
+		var line: String = raw_line.strip_edges()
+		if line.is_empty() or line.ends_with(":") or line.ends_with("："):
+			continue
+		return line
+	return tr("DESC_SELECT_MODE_PREFIX") + tr(_mode_config.mode_name)
 
 func _update_style() -> void:
 	if not is_instance_valid(_style_utility):

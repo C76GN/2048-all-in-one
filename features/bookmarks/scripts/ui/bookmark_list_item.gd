@@ -8,7 +8,8 @@ extends BaseListMenuItem
 
 # --- 常量 ---
 
-const _INFO_FORMAT_FALLBACK: String = "%s | %s %d | %s %dx%d"
+const _META_FORMAT_FALLBACK: String = "%s · %dx%d · %d moves"
+const _SCORE_FORMAT_FALLBACK: String = "%d pts"
 
 
 # --- 私有变量 ---
@@ -20,6 +21,7 @@ var _mode_display_name: String = ""
 
 @onready var _mode_name_label: Label = %ModeNameLabel
 @onready var _info_label: Label = %InfoLabel
+@onready var _score_label: Label = %ScoreLabel
 
 
 # --- 公共方法 ---
@@ -61,17 +63,18 @@ func _update_display() -> void:
 	)
 	var board_size: Vector2i = topology.get_bounds_size() if topology != null else Vector2i.ZERO
 
-	var score_label: String = tr("SCORE_LABEL").replace(": %d", "").strip_edges()
-	var size_label: String = tr("SIZE_LABEL")
 	_info_label.text = GameTextFormatUtility.format_template(
-		tr("BOOKMARK_INFO_FORMAT"),
-		_INFO_FORMAT_FALLBACK,
+		tr("LIST_RECORD_META_FORMAT"),
+		_META_FORMAT_FALLBACK,
 		[
 			datetime,
-			score_label,
-			bookmark_data.score,
-			size_label,
 			board_size.x,
 			board_size.y,
+			bookmark_data.move_count,
 		]
+	)
+	_score_label.text = GameTextFormatUtility.format_template(
+		tr("LIST_RECORD_SCORE_FORMAT"),
+		_SCORE_FORMAT_FALLBACK,
+		[bookmark_data.score]
 	)

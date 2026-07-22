@@ -27,6 +27,9 @@ var _scene_switch_started_connection: GFSignalConnection
 var _scene_load_completed_connection: GFSignalConnection
 var _scene_load_failed_connection: GFSignalConnection
 var _scene_change_operation_id: StringName = &""
+var _scene_change_in_progress: bool = false
+var _scene_completion_queued: bool = false
+var _pending_scene_path: String = ""
 
 
 # --- GF 生命周期方法 ---
@@ -60,6 +63,9 @@ func ready() -> void:
 
 func dispose() -> void:
 	_finish_scene_change_operation(false, {"reason": "system_disposed"})
+	_scene_change_in_progress = false
+	_scene_completion_queued = false
+	_pending_scene_path = ""
 	_disconnect_scene_utility_signals()
 	_scene_utility = null
 	_screen_transition = null
@@ -107,17 +113,15 @@ func goto_scene(path: String) -> void:
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
 		return
 
-	_begin_scene_change_operation(path)
-	var config: GFSceneTransitionConfig = _make_scene_transition_config(path)
-	var error: Error = _scene_utility.load_scene_with_transition(config)
-	if error == OK:
+	if _scene_change_in_progress:
+		push_warning("[SceneRouterSystem] 场景切换尚未完成，忽略重复请求：%s。" % path)
 		return
 
-	_finish_scene_change_operation(false, {"path": path, "error": error})
-	if is_instance_valid(_log):
-		_log.error(_LOG_TAG, "GFSceneUtility 拒绝场景切换，错误码: %d，路径: %s" % [error, path])
-	send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
-
+	_scene_change_in_progress = true
+	_scene_completion_queued = false
+	_pending_scene_path = path
+	_begin_scene_change_operation(path)
+	call_deferred(&"_run_scene_change", path)
 
 ## 快速返回到主菜单。
 func return_to_main_menu() -> void:
@@ -137,7 +141,7 @@ func quit_game() -> void:
 func get_debug_snapshot() -> Dictionary:
 	return {
 		"main_menu_scene_path": _main_menu_scene_path,
-		"scene_change_active": _scene_change_operation_id != &"",
+		"scene_change_active": _scene_change_in_progress,
 		"scene_change_started_usec": _get_scene_change_started_usec(),
 		"screen_transition": (
 			_screen_transition.get_debug_snapshot()
@@ -148,6 +152,23 @@ func get_debug_snapshot() -> Dictionary:
 
 
 # --- 私有/辅助方法 ---
+
+func _run_scene_change(path: String) -> void:
+	var cover_error: Error = _play_scene_transition_cover()
+	if cover_error == OK:
+		await _await_screen_transition()
+	if not _scene_change_in_progress or path != _pending_scene_path:
+		return
+
+	send_simple_event(EventNames.SCENE_WILL_CHANGE)
+	var config: GFSceneTransitionConfig = _make_scene_transition_config(path)
+	var error: Error = _scene_utility.load_scene_with_transition(config)
+	if error == OK:
+		return
+
+	if is_instance_valid(_log):
+		_log.error(_LOG_TAG, "GFSceneUtility 拒绝场景切换，错误码: %d，路径: %s" % [error, path])
+	_queue_scene_change_completion(path, false, error)
 
 func _get_log_utility() -> GFLogUtility:
 	var utility_value: Object = get_utility(GFLogUtility)
@@ -280,23 +301,23 @@ func _make_scene_transition_config(path: String) -> GFSceneTransitionConfig:
 	return config
 
 
-func _play_scene_transition_cover() -> void:
-	_play_scene_transition(&"cover")
+func _play_scene_transition_cover() -> Error:
+	return _play_scene_transition(&"cover")
 
 
-func _play_scene_transition_reveal() -> void:
-	_play_scene_transition(&"reveal")
+func _play_scene_transition_reveal() -> Error:
+	return _play_scene_transition(&"reveal")
 
 
-func _play_scene_transition(phase: StringName) -> void:
+func _play_scene_transition(phase: StringName) -> Error:
 	if not is_instance_valid(_screen_transition):
 		_log_transition_error("GFScreenTransitionUtility 未注册，无法播放 %s 转场。" % phase)
-		return
+		return ERR_UNCONFIGURED
 
 	var effect: GFScreenTransitionEffect = _resolve_scene_transition_effect(phase)
 	if effect == null:
 		_log_transition_error("当前主题未配置 %s 场景转场。" % phase)
-		return
+		return ERR_DOES_NOT_EXIST
 
 	var on_finished: Callable = Callable()
 	if phase == &"reveal":
@@ -304,6 +325,52 @@ func _play_scene_transition(phase: StringName) -> void:
 	var error: Error = _screen_transition.play(effect, on_finished)
 	if error != OK:
 		_log_transition_error("GFScreenTransitionUtility 启动 %s 转场失败，错误码: %d。" % [phase, error])
+	return error
+
+
+func _await_screen_transition() -> void:
+	var tree: SceneTree = _get_scene_tree()
+	while (
+		is_instance_valid(tree)
+		and is_instance_valid(_screen_transition)
+		and _screen_transition.is_transition_active()
+	):
+		await tree.process_frame
+
+
+func _queue_scene_change_completion(path: String, success: bool, error: Error = OK) -> void:
+	if _scene_completion_queued or path != _pending_scene_path:
+		return
+	_scene_completion_queued = true
+	call_deferred(&"_complete_scene_change", path, success, error)
+
+
+func _complete_scene_change(path: String, success: bool, error: Error) -> void:
+	var tree: SceneTree = _get_scene_tree()
+	if success and is_instance_valid(tree):
+		await tree.process_frame
+		if DisplayServer.get_name() != "headless":
+			await RenderingServer.frame_post_draw
+
+	var reveal_error: Error = _play_scene_transition_reveal()
+	if reveal_error == OK:
+		await _await_screen_transition()
+
+	if success:
+		if is_instance_valid(_log):
+			_log.debug(_LOG_TAG, "已完成异步场景加载与揭示: %s" % path)
+		_finish_scene_change_operation(true, {"path": path})
+	else:
+		_finish_scene_change_operation(false, {
+			"path": path,
+			"reason": "load_failed",
+			"error": error,
+		})
+		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
+
+	_scene_change_in_progress = false
+	_scene_completion_queued = false
+	_pending_scene_path = ""
 
 
 func _resolve_scene_transition_effect(phase: StringName) -> GFScreenTransitionEffect:
@@ -403,13 +470,9 @@ func _on_scene_switch_started(path: String, previous_path: String) -> void:
 			GFOperationDiagnosticsUtility.STATE_RUNNING,
 			{"progress": 0.1, "metadata": {"path": path, "previous_path": previous_path}}
 		)
-	_play_scene_transition_cover()
-	send_simple_event(EventNames.SCENE_WILL_CHANGE)
 
 
 func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
-	if is_instance_valid(_log):
-		_log.debug(_LOG_TAG, "已完成异步场景加载: %s" % path)
 	var started_ticks_usec: int = _get_scene_change_started_usec()
 	if started_ticks_usec > 0:
 		var _phase: Dictionary = _operation_diagnostics.record_phase_from_ticks(
@@ -418,8 +481,7 @@ func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
 			started_ticks_usec,
 			{"metadata": {"path": path}}
 		)
-	_finish_scene_change_operation(true, {"path": path})
-	_play_scene_transition_reveal()
+	_queue_scene_change_completion(path, true)
 
 
 func _on_scene_load_failed(path: String) -> void:
@@ -437,6 +499,4 @@ func _on_scene_load_failed(path: String) -> void:
 				"metadata": {"path": path},
 			}
 		)
-	_finish_scene_change_operation(false, {"path": path, "reason": "load_failed"})
-	_play_scene_transition_reveal()
-	send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
+	_queue_scene_change_completion(path, false, ERR_CANT_OPEN)
