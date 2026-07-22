@@ -27,7 +27,7 @@ func _ready() -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED:
+	if what == NOTIFICATION_RESIZED or what == NOTIFICATION_SORT_CHILDREN:
 		queue_redraw()
 
 

@@ -78,13 +78,25 @@ func _update_preview(data: Resource) -> void:
 	var board_label: String = topology.get_size_label() if topology != null else tr("UI_NONE")
 
 	var details: String = ""
-	details += "[b]%s[/b] %s\n" % [tr("LABEL_MODE"), tr(mode_config.mode_name)]
+	details += "[b]%s[/b] %s   [b]%s[/b] %s\n" % [
+		tr("LABEL_MODE"),
+		tr(mode_config.mode_name),
+		tr("LABEL_BOARD"),
+		board_label,
+	]
 	details += "[b]%s[/b] %s\n" % [tr("LABEL_TIME"), datetime]
-	details += "[b]%s[/b] %d\n" % [tr("LABEL_SCORE"), bookmark.score]
-	details += "[b]%s[/b] %d\n" % [tr("LABEL_MOVES"), bookmark.move_count]
-	details += "[b]%s[/b] %d\n" % [tr("LABEL_RATIO_RESOLUTIONS"), bookmark.ratio_resolutions]
-	details += "[b]%s[/b] %s\n" % [tr("LABEL_BOARD"), board_label]
-	details += "[b]%s[/b] %d" % [tr("LABEL_SEED"), bookmark.initial_seed]
+	details += "[b]%s[/b] %d   [b]%s[/b] %d\n" % [
+		tr("LABEL_SCORE"),
+		bookmark.score,
+		tr("LABEL_MOVES"),
+		bookmark.move_count,
+	]
+	details += "[b]%s[/b] %d   [b]%s[/b] %d" % [
+		tr("LABEL_RATIO_RESOLUTIONS"),
+		bookmark.ratio_resolutions,
+		tr("LABEL_SEED"),
+		bookmark.initial_seed,
+	]
 
 	detail_info_label.text = details
 

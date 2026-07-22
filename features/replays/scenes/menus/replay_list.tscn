@@ -48,7 +48,7 @@ text = "回放预览"
 horizontal_alignment = 1
 
 [node name="PreviewContainer" type="PanelContainer" parent="MarginContainer/ColumnsContainer/LeftColumn" index="1" unique_id=1031328243]
-custom_minimum_size = Vector2(0, 268)
+custom_minimum_size = Vector2(0, 248)
 layout_mode = 2
 size_flags_vertical = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_preview_bg")
@@ -59,17 +59,19 @@ layout_mode = 2
 [node name="BoardPreview" type="Control" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer/CenterContainer" index="0" unique_id=1891961887]
 layout_mode = 2
 script = ExtResource("3_preview")
+preview_size = 232.0
 
 [node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/LeftColumn" index="2" unique_id=45804508]
 layout_mode = 2
 theme_override_constants/separation = 20
 
 [node name="DetailInfoLabel" type="RichTextLabel" parent="MarginContainer/ColumnsContainer/LeftColumn" index="3" unique_id=1501115283]
-custom_minimum_size = Vector2(0, 150)
+custom_minimum_size = Vector2(0, 106)
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
 text = "请选择一个回放以查看详情..."
+scroll_active = false
 
 [node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
 theme_override_font_sizes/font_size = 40

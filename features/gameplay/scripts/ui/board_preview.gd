@@ -11,11 +11,17 @@ const TILE_SCENE: PackedScene = preload("res://features/gameplay/scenes/componen
 ## 用于生成预览背景格子的场景。
 const GRID_CELL_SCENE: PackedScene = preload("res://features/gameplay/scenes/components/board_grid_cell.tscn")
 
-## 预览区域的最大显示尺寸（像素）。
-const MAX_PREVIEW_SIZE: float = 300.0
+## 默认预览区域边长（像素）。
+const DEFAULT_PREVIEW_SIZE: float = 300.0
 
 ## 单元格之间的间距比例（相对于单元格大小）。
 const SPACING_RATIO: float = 0.1
+
+
+# --- 导出变量 ---
+
+## 预览棋盘边长；承载页面应按可用空间显式配置。
+@export_range(160.0, 360.0, 1.0) var preview_size: float = DEFAULT_PREVIEW_SIZE
 
 
 # --- 私有变量 ---
@@ -37,7 +43,7 @@ func _ready() -> void:
 	_board_container = Control.new()
 	_board_container.name = "BoardContainer"
 	_board_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_board_container.size = Vector2.ONE * MAX_PREVIEW_SIZE
+	_board_container.size = Vector2.ONE * preview_size
 	_board_container.clip_contents = true
 	add_child(_board_container)
 
@@ -51,7 +57,7 @@ func _ready() -> void:
 	add_child(_message_label)
 
 	# 设置自身大小限制
-	custom_minimum_size = Vector2(MAX_PREVIEW_SIZE, MAX_PREVIEW_SIZE)
+	custom_minimum_size = Vector2(preview_size, preview_size)
 	_theme_utility = _get_theme_utility()
 
 
@@ -81,8 +87,8 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 
 	# 动态计算尺寸
 	var raw_cell_size: float = minf(
-		MAX_PREVIEW_SIZE / (board_size.x + (board_size.x + 1) * SPACING_RATIO),
-		MAX_PREVIEW_SIZE / (board_size.y + (board_size.y + 1) * SPACING_RATIO)
+		preview_size / (board_size.x + (board_size.x + 1) * SPACING_RATIO),
+		preview_size / (board_size.y + (board_size.y + 1) * SPACING_RATIO)
 	)
 	var cell_size: float = floor(raw_cell_size)
 	var spacing: float = floor(cell_size * SPACING_RATIO)
@@ -91,11 +97,11 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 		board_size.x * cell_size + (board_size.x + 1) * spacing,
 		board_size.y * cell_size + (board_size.y + 1) * spacing
 	)
-	var offset_start: Vector2 = (Vector2.ONE * MAX_PREVIEW_SIZE - total_content_size) / 2.0
+	var offset_start: Vector2 = (Vector2.ONE * preview_size - total_content_size) / 2.0
 
 	_apply_background_panel_style(board_theme)
 
-	_background_panel.size = Vector2(MAX_PREVIEW_SIZE, MAX_PREVIEW_SIZE)
+	_background_panel.size = Vector2(preview_size, preview_size)
 	_background_panel.position = Vector2.ZERO
 
 	# 绘制背景格子
@@ -179,7 +185,7 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 func show_message(text: String) -> void:
 	_clear_preview_internal()
 	_apply_background_panel_style(_resolve_board_theme(null))
-	_background_panel.size = Vector2(MAX_PREVIEW_SIZE, MAX_PREVIEW_SIZE)
+	_background_panel.size = Vector2(preview_size, preview_size)
 
 	_message_label.text = text
 	_message_label.visible = true

@@ -76,11 +76,19 @@ func _update_preview(data: Resource) -> void:
 	var board_label: String = topology.get_size_label() if topology != null else tr("UI_NONE")
 
 	var details: String = ""
-	details += "[b]%s[/b] %s\n" % [tr("LABEL_MODE"), tr(mode_config.mode_name)]
+	details += "[b]%s[/b] %s   [b]%s[/b] %s\n" % [
+		tr("LABEL_MODE"),
+		tr(mode_config.mode_name),
+		tr("LABEL_BOARD"),
+		board_label,
+	]
 	details += "[b]%s[/b] %s\n" % [tr("LABEL_TIME"), datetime]
-	details += "[b]%s[/b] %d\n" % [tr("LABEL_FINAL_SCORE"), replay.final_score]
-	details += "[b]%s[/b] %d\n" % [tr("LABEL_TOTAL_MOVES"), replay.actions.size()]
-	details += "[b]%s[/b] %s\n" % [tr("LABEL_BOARD"), board_label]
+	details += "[b]%s[/b] %d   [b]%s[/b] %d\n" % [
+		tr("LABEL_FINAL_SCORE"),
+		replay.final_score,
+		tr("LABEL_TOTAL_MOVES"),
+		replay.actions.size(),
+	]
 	details += "[b]%s[/b] %d" % [tr("LABEL_SEED"), replay.initial_seed]
 
 	detail_info_label.text = details

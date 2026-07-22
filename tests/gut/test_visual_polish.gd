@@ -9,6 +9,8 @@ const _GAME_OVER_SCENE: PackedScene = preload("res://features/gameplay/scenes/ui
 const _TARGET_REACHED_SCENE: PackedScene = preload("res://features/gameplay/scenes/ui/target_reached_menu.tscn")
 const _BOOKMARK_ITEM_SCENE: PackedScene = preload("res://features/bookmarks/scenes/ui/bookmark_list_item.tscn")
 const _REPLAY_ITEM_SCENE: PackedScene = preload("res://features/replays/scenes/ui/replay_list_item.tscn")
+const _BOOKMARK_LIST_SCENE: PackedScene = preload("res://features/bookmarks/scenes/menus/bookmark_list.tscn")
+const _REPLAY_LIST_SCENE: PackedScene = preload("res://features/replays/scenes/menus/replay_list.tscn")
 const _BOOT_SCENE: PackedScene = preload("res://app/scenes/boot.tscn")
 const _MODE_SELECTION_SCENE_PATH: String = "res://features/navigation/scenes/menus/mode_selection.tscn"
 const _BACKGROUND_SHADER_PATH: String = "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
@@ -322,6 +324,34 @@ func test_list_items_do_not_leak_resource_debug_text_into_button_content() -> vo
 		bookmark_item.free()
 
 	assert_no_new_orphans("列表项 binder 回归测试不得把 UI 节点留到 GUT 退出阶段。")
+
+
+func test_record_list_previews_fit_inside_their_sidebar_surfaces() -> void:
+	for packed_scene: PackedScene in [_BOOKMARK_LIST_SCENE, _REPLAY_LIST_SCENE]:
+		var page: Node = packed_scene.instantiate()
+		var preview_node: Node = page.find_child("BoardPreview", true, false)
+		var preview_surface_node: Node = page.find_child("PreviewContainer", true, false)
+		assert_true(preview_node is BoardPreview, "记录页应包含 BoardPreview。")
+		assert_true(preview_surface_node is PanelContainer, "记录页应包含预览面板。")
+		if preview_node is BoardPreview and preview_surface_node is PanelContainer:
+			var preview: BoardPreview = preview_node
+			var preview_surface: PanelContainer = preview_surface_node
+			var has_preview_size: bool = false
+			for property: Dictionary in preview.get_property_list():
+				if GFVariantData.get_option_string_name(property, &"name") == &"preview_size":
+					has_preview_size = true
+					break
+			assert_true(has_preview_size, "BoardPreview 应暴露可由承载页面约束的预览尺寸。")
+			if has_preview_size:
+				var preview_size: float = GFVariantData.to_float(preview.get(&"preview_size"), 0.0)
+				assert_lte(
+					preview_size + 12.0,
+					preview_surface.custom_minimum_size.y,
+					"预览棋盘必须完整留在侧栏面板内，并保留至少 6px 四周留白。"
+				)
+		page.free()
+
+	assert_no_new_orphans("记录页预览布局测试不得残留 UI 节点。")
 
 
 func test_halftone_ui_palette_keeps_text_readable_on_light_surfaces() -> void:
@@ -1311,6 +1341,36 @@ func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
 				assert_true(
 					primary_color == Color(0.61960787, 0.85882354, 0.8352941, 1.0),
 					"庆祝纸屑色板应来自主题 GFShaderParameterProfile。"
+				)
+
+	var persistent_played: bool = celebration_vfx.play_new_record_celebration()
+	await get_tree().process_frame
+	assert_true(persistent_played, "新纪录庆祝应能创建持续播放的纸屑层。")
+	if layer_node is CanvasLayer:
+		var layer: CanvasLayer = layer_node
+		var persistent_rect_node: Node = layer.get_child(layer.get_child_count() - 1)
+		assert_true(persistent_rect_node is ColorRect, "持续纸屑实例应是全屏 ColorRect。")
+		if persistent_rect_node is ColorRect:
+			var persistent_rect: ColorRect = persistent_rect_node
+			celebration_vfx.drain_active_celebrations()
+			await get_tree().process_frame
+			assert_true(is_instance_valid(persistent_rect), "纸屑清退不能在玩家选择当帧直接消失。")
+			assert_true(
+				GFVariantData.to_bool(
+					persistent_rect.get_meta(&"celebration_draining", false),
+					false
+				),
+				"纸屑清退应进入停止新周期的 draining 状态。"
+			)
+			if persistent_rect.material is ShaderMaterial:
+				var persistent_material: ShaderMaterial = persistent_rect.material
+				assert_gte(
+					GFVariantData.to_float(
+						persistent_material.get_shader_parameter(&"drain_started_at"),
+						-1.0
+					),
+					0.0,
+					"清退必须把准确开始时间传给纸屑 shader。"
 				)
 
 	architecture.dispose()
