@@ -15,12 +15,12 @@
 - **归属 / GF**：扩展项目现有 `MoveData`，不另造平行 `MoveOutcome`；`GFTurnFlowSystem` 和 `GFActionQueueSystem` 只负责阶段与表现消费，不把业务语义上移 GF。
 - **验收**：六模式、矩形和稀疏棋盘的有效命令稳定产出 typed transitions、merge count/max、score delta、生成和终态；无效命令保留现有“不入历史 + 明确 reason”；headless、快进和正常表现得到相同 canonical hash。
 
-### P0-02 固定 tile 表现身份并补方向不变量
+### P0-02 固定 tile 表现身份、方向与参照系不变量
 
-- **证据**：[2048-in-react](./projects/repo_mateuszsokola_2048_react.md)显示稳定 tile ID 对合并动画重要，其四方向重复实现也提供了反面测试样本。
-- **当前差距**：未见移动、撤销/重做、回放全过程的稳定表现 identity，以及旋转/镜像等价的完整黄金测试。
-- **归属 / GF**：项目 `gameplay`、presentation 和 tests；无需新增 GF API。
-- **验收**：覆盖旋转/镜像等价、数值总量守恒、单回合不可二次合并、无效移动不生成；非合并 tile 的稳定 ID 能跨移动、撤销、重做和回放对应到同一语义实体。
+- **证据**：[2048-in-react](./projects/repo_mateuszsokola_2048_react.md)显示稳定 tile ID 对合并动画重要，其四方向重复实现也提供了反面测试样本；[GUNCHO](./projects/game_r3_guncho.md)开发复盘明确记录相机旋转曾影响弹巢方向理解，最终改回显式左右控制。
+- **当前差距**：模型坐标、视口和输入已经分层，但未见移动、撤销/重做、回放全过程的稳定表现 identity，以及相机/布局变化、旋转/镜像、HUD 指向与输入方向的联合黄金测试。
+- **归属 / GF**：项目 `gameplay`、presentation 和 tests；复用现有 viewport/input 设施，不静默引入未声明的 `gf.standard.spatial`，也不新增平行坐标真源。
+- **验收**：覆盖旋转/镜像等价、数值总量守恒、单回合不可二次合并、无效移动不生成；非合并 tile 的稳定 ID 能跨移动、撤销、重做和回放对应同一语义实体；相机缩放/平移与响应式布局变化不改变 canonical 方向、HUD 指示或同一抽象输入的结果。
 
 ### P0-03 固化快速输入与手势拥塞策略
 
@@ -80,14 +80,14 @@
 
 ### P0-11 实现可跳过、可恢复的分步首次上手
 
-- **证据**：[danqing/2048](./projects/repo_danqing_2048.md)把规则差异放在选择流程中解释；[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)以渐进内容降低复杂系统的首次负担；[Freshly Frosted](./projects/game_r2_freshly_frosted.md)用 144 个手工谜题逐步引入设备，[Wilmot Works It Out](./projects/game_r2_wilmot_works_it_out.md)的开发反思则说明应先删除不服务核心的升级与角色机制。
+- **证据**：[danqing/2048](./projects/repo_danqing_2048.md)把规则差异放在选择流程中解释；[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)以渐进内容降低复杂系统的首次负担；[Freshly Frosted](./projects/game_r2_freshly_frosted.md)用 144 个手工谜题逐步引入设备，[Dungeons of Dreadrock](./projects/game_r3_dungeons_of_dreadrock.md)把 100 个手工单屏局面组织成真实规则课程，[Wilmot Works It Out](./projects/game_r2_wilmot_works_it_out.md)的开发反思则说明应先删除不服务核心的升级与角色机制。
 - **当前差距**：[项目基线](./project_baseline.md)只找到固定 HUD 提示，没有教程状态、情境步骤或“已掌握”持久化。
 - **归属 / GF**：项目 tutorial/progress/navigation；复用 UI router、SaveGraph 与输入映射。
 - **验收**：首次流程至少覆盖移动、有效合并、无效动作和当前模式目标，步骤尽量嵌入真实局面；可跳过、重看、断点恢复；键盘、触摸、手柄分别通过；完成后不再遮挡熟练玩家主循环，且教程不额外引入与核心无关的升级层。
 
 ### P0-12 落地跨平台、规模与表现档位的性能矩阵
 
-- **证据**：[nneonneo/2048-ai](./projects/repo_nneonneo_2048_ai.md)展示节点数、深度与缓存的可测预算；[BrogueCE](./projects/repo_brogue_ce.md)用局部刷新降低固定网格更新，但也说明优化须有负载前提。
+- **证据**：[nneonneo/2048-ai](./projects/repo_nneonneo_2048_ai.md)展示节点数、深度与缓存的可测预算；[BrogueCE](./projects/repo_brogue_ce.md)用局部刷新降低固定网格更新，但也说明优化须有负载前提；[R3-B 搜寻台账](./round_03_search.md)只把 Gun Rounds 开发者明确披露的性能与内存泄漏修复计为性能线索，同时拒绝用像素风代替数据。
 - **当前差距**：已声明 16.667 ms 帧预算和 50 ms 首反馈目标，也有预热/对象池，但没有设备、棋盘规模和动画策略的正式实测表。
 - **归属 / GF**：项目 QA/diagnostics；复用 `GFOperationDiagnosticsUtility`、构建信息和支持报告。
 - **验收**：桌面/Web/目标移动平台 × 3×3/4×4/6×6/8×8 × 正常/减少动态/低端档记录 P50/P95 帧时、首反馈和帧尖峰，保存设备/构建信息并给出达标结论。
@@ -101,10 +101,10 @@
 
 ### P0-14 让行动后果与失败原因在执行前后都可见
 
-- **证据**：[Pawnbarian](./projects/game_pawnbarian.md)预铺全局危险格，[Into the Breach](./projects/game_into_the_breach.md)公开敌方行动/作用格，[Shotgun King](./projects/game_shotgun_king.md)在行动前显示射程与散布；[Dorfromantik](./projects/game_r2_dorfromantik.md)又把合法边界、下一地块与局部任务留在同一视野。它们都把“为什么可行或危险”变成棋盘数据。
+- **证据**：[Pawnbarian](./projects/game_pawnbarian.md)预铺全局危险格，[Into the Breach](./projects/game_into_the_breach.md)公开敌方行动/作用格，[Shotgun King](./projects/game_shotgun_king.md)在行动前显示射程与散布；[Dorfromantik](./projects/game_r2_dorfromantik.md)把合法边界、下一地块与局部任务留在同一视野；[GUNCHO](./projects/game_r3_guncho.md)公开敌人次序，[Card Crawl Adventure](./projects/game_r3_card_crawl_adventure.md)则把多格路径本身变成提交前草稿。它们都把“为什么可行或危险”变成棋盘数据。
 - **当前差距**：当前已有无效移动通知和回放，但普通反馈偏执行后；若新增敌人、障碍、特殊格或连锁范围，尚无统一的无副作用 preview/reason 契约。
 - **归属 / GF**：项目 gameplay 提供纯查询，board feedback/UI 画 overlay 与原因；复用 BoardTopology、turn flow、Shader 参数工具，不让预览修改 Board/RNG/history。
-- **验收**：同一 snapshot 的预览稳定列出受影响格、原因和次序；执行结果与预览一致；取消/状态变化立即清除；高对比、减少动态和手柄焦点下仍可读；经典模式可关闭额外提示。
+- **验收**：同一 snapshot 的预览稳定列出受影响格、原因和次序；多格草稿每次增删都更新投影；执行结果与预览一致；取消必须零副作用，状态变化立即清除；高对比、减少动态和手柄焦点下仍可读；经典模式可关闭额外提示。
 
 ### P0-15 建立屏幕阅读与字幕共享的 canonical 状态摘要
 
@@ -138,10 +138,10 @@
 
 ### P1-04 在完整 custom seed 之上新增 daily challenge
 
-- **证据**：[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)提供 custom/daily run；[BrogueCE](./projects/repo_brogue_ce.md)让 seed 可指定、显示和复现。
+- **证据**：[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)提供 custom/daily run；[BrogueCE](./projects/repo_brogue_ce.md)让 seed 可指定、显示和复现；[Card Crawl Adventure](./projects/game_r3_card_crawl_adventure.md)用 weekly crawl 证明轮换周期可以变化，但仍需同一版本与资格契约。
 - **当前差距**：模式选择已经支持手动输入、刷新与稳定 hash，初始化/回放也保存完整 seed/RNG；真正缺失的是日期挑战、挑战版本和正式成绩资格，不能把 custom seed 写成待实现。
 - **归属 / GF**：项目 challenge/progress/navigation；复用 GF seed/clock、SaveGraph 和平台 Adapter。
-- **验收**：可注入时钟下，UTC date + schema/rule version + mode/topology 在支持平台派生同一 daily seed，次日稳定变化；离线重进一致；daily 与手动 seed 明确区分，记录资格且不破坏现有 custom seed/回放。
+- **验收**：可注入时钟下，UTC date/明确周期 + schema/rule version + mode/topology 在支持平台派生同一挑战 seed，到期稳定变化；离线重进一致；daily/weekly 与手动 seed 明确区分，记录资格且不破坏现有 custom seed/回放。
 
 ### P1-05 增加正交 challenge modifiers
 
@@ -166,14 +166,14 @@
 
 ### P1-08 建立高频动作带与多输入等价审计
 
-- **证据**：[Pixel Dungeon](./projects/repo_watabou_pixel_dungeon.md)和[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)将高频动作放入快捷栏，并为手柄提供完整导航/虚拟指针。
+- **证据**：[Pixel Dungeon](./projects/repo_watabou_pixel_dungeon.md)和[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)将高频动作放入快捷栏，并为手柄提供完整导航/虚拟指针；[R3-B 搜寻台账](./round_03_search.md)中的 Gun Rounds 与 FORWARD 又提供 one-button / 单输入压缩的作者证据。
 - **当前差距**：撤销、提示、目标、书签、回放的触达和键鼠/触屏/手柄等价尚未形成正式矩阵。
 - **归属 / GF**：项目 HUD/input/platform adapter；复用 Input Mapping、Pointer Gesture、焦点和 UI router。
 - **验收**：每个高频动作都有等价命令；长按只提供解释或次级操作；焦点不会陷入死区；仅触控手势必须有可见的键盘/手柄替代入口。
 
 ### P1-09 实现按配置分组的本地榜与可解释结果页
 
-- **证据**：[2048.cpp](./projects/repo_plibither8_2048_cpp.md)记录移动数、最佳局面与救援；[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)区分 run seed/challenge，提供资格语义参照。
+- **证据**：[2048.cpp](./projects/repo_plibither8_2048_cpp.md)记录移动数、最佳局面与救援；[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)区分 run seed/challenge；[Card Crawl Adventure](./projects/game_r3_card_crawl_adventure.md)把 weekly crawl 与排行榜并列，进一步说明轮换题必须按版本和资格分组。
 - **当前差距**：现有 replay/tainted 门控会阻止部分本地结果与回放写入，但只有单一 taint 布尔；undo/redo、bookmark、manual seed、custom board、replay continuation 等没有统一 reason codes，真实排行榜仍未实现，结果记录也缺 seed/资格/hash/challenge。
 - **归属 / GF**：项目 progress/result；复用 SaveGraph。线上排行权威留给服务端/平台 Adapter，不由客户端或 GF 裁决。
 - **验收**：不可变资格 snapshot + reason codes 覆盖 debug、replay continuation、bookmark、undo/redo、custom board、manual seed、daily；无障碍设置永不失格；按模式/拓扑/版本分榜，结果含 seed/hash/challenge，任何不合格结果都不调用平台提交。
@@ -187,35 +187,35 @@
 
 ### P1-11 增加低端 / Shaderless 兼容档
 
-- **证据**：[BrogueCE](./projects/repo_brogue_ce.md)与多个 2048 样本在没有复杂 Shader 的条件下仍靠颜色、字符和节拍清晰表达状态。
+- **证据**：[BrogueCE](./projects/repo_brogue_ce.md)与多个 2048 样本在没有复杂 Shader 的条件下仍靠颜色、字符和节拍清晰表达状态；[Tinyfolks](./projects/game_r3_tinyfolks.md)用近单色稳定版式承载职业与战斗，但也提醒“极简画风”不能替代真实帧时、内存和小字号验收。
 - **当前差距**：项目有预热和丰富 Shader，但没有玩家可选的正式低端/无 Shader 路径。
 - **归属 / GF**：项目 settings/themes/diagnostics；复用 Shader Parameter Utility 与 Render Warmup，不另建渲染框架。
 - **验收**：关闭高成本背景/后处理后，数值、危险、目标和焦点仍清楚，领域结果不变；性能矩阵证明目标设备上 P95 帧尖峰或内存有实质改善。
 
 ### P1-12 用有限步关卡包验证目标层与提示预算
 
-- **证据**：[Six Match](./projects/game_six_match.md)让同一核心规则支持 survival/puzzle，明确“六步内完成”、提示资源、死局检测和 puzzle undo/redo；[Wilmot Works It Out](./projects/game_r2_wilmot_works_it_out.md)用 60+ 拼图形成内容进度，[Freshly Frosted](./projects/game_r2_freshly_frosted.md)用 144 个手工谜题逐步扩展设备语法。
+- **证据**：[Six Match](./projects/game_six_match.md)让同一核心规则支持 survival/puzzle，明确“六步内完成”、提示资源、死局检测和 puzzle undo/redo；[Wilmot Works It Out](./projects/game_r2_wilmot_works_it_out.md)用 60+ 拼图形成内容进度，[Freshly Frosted](./projects/game_r2_freshly_frosted.md)用 144 个手工谜题逐步扩展设备语法，[Dungeons of Dreadrock](./projects/game_r3_dungeons_of_dreadrock.md)再以 100 个单屏关卡证明少量规则可以靠课程顺序持续深化。
 - **当前差距**：当前有六模式、自定义棋盘、结束判定和完整 history，但没有策划关卡、步数预算、显式目标或有限提示经济。
 - **归属 / GF**：项目 challenge/gameplay/content；复用 BoardTopology、turn flow、command history 和 SaveGraph。`GFLevelCatalog` 只在不制造平行内容真源时用于 pack、排序与 next/previous；关卡目标、解锁、完成、提示和奖励不进入 GF。
 - **验收**：首包至少 10 个可版本化原创关卡，声明初始棋盘、规则、目标、步数和允许动作，并有稳定 pack/order/next/previous；可证明成功/失败/死局；提示不直接改状态且消耗可见；undo/redo/replay 保持确定性。
 
 ### P1-13 增加短局主目标、奖励目标与常驻进度节奏
 
-- **证据**：[Into the Breach](./projects/game_into_the_breach.md)把主目标、bonus objective 和剩余回合常驻；[Luck be a Landlord](./projects/game_luck_be_a_landlord.md)用周期房租形成中期压力；[Twinfold](./projects/game_twinfold.md)常驻显示下一成长阈值。
+- **证据**：[Into the Breach](./projects/game_into_the_breach.md)把主目标、bonus objective 和剩余回合常驻；[Luck be a Landlord](./projects/game_luck_be_a_landlord.md)用周期房租形成中期压力；[Twinfold](./projects/game_twinfold.md)常驻显示下一成长阈值；[Tinyfolks](./projects/game_r3_tinyfolks.md)用稳定的城镇—出征—回收资源循环连接短期战斗与长期建设。
 - **当前差距**：当前核心目标主要是继续合并/达到数值，成就和图鉴属于局外记录，缺单局内每几步可判断的目标节奏。
 - **归属 / GF**：项目 goals/challenge/progress；复用 turn flow、通知、HUD 和 SaveGraph，目标内容/奖励归项目。
 - **验收**：至少三类原创目标（阈值、步数、布局/区域）能数据驱动组合；HUD 始终显示当前进度和失败原因；回放可重建目标状态；奖励不破坏正式榜资格定义。
 
 ### P1-14 做最小局内 build 选择层，而非先建通用卡牌框架
 
-- **证据**：[Twinfold](./projects/game_twinfold.md)用 40+ 技能改变网格决策，[Luck be a Landlord](./projects/game_luck_be_a_landlord.md)用符号/物品形成组合，[Shotgun King](./projects/game_shotgun_king.md)让双方卡牌带来代价，[Cobalt Core](./projects/game_cobalt_core.md)用分叉升级塑造 run；[Stacklands](./projects/game_r2_stacklands.md)又证明少量配方发现就能把空间组织转为 build。
+- **证据**：[Twinfold](./projects/game_twinfold.md)用 40+ 技能改变网格决策，[Luck be a Landlord](./projects/game_luck_be_a_landlord.md)用符号/物品形成组合，[Shotgun King](./projects/game_shotgun_king.md)让双方卡牌带来代价，[Cobalt Core](./projects/game_cobalt_core.md)用分叉升级塑造 run；[Stacklands](./projects/game_r2_stacklands.md)证明空间配方能形成 build，[Tinyfolks](./projects/game_r3_tinyfolks.md)则用职业、装备和建筑说明选择层必须先限制范围。
 - **当前差距**：模式/主题/图鉴广度很高，但一次 run 中没有离散选择、代价交换或 build 身份。
 - **归属 / GF**：项目 gameplay/content/progress；复用 Recipe/Capability、turn flow、seed 和 SaveGraph。不得因这批样本新增 GF 卡牌/遗物业务系统。
 - **验收**：首个切片只含 3 个原创升级，每次二选一且效果完全数据化；选择进入命令历史/回放；组合顺序明确；同 seed/命令可重现；每项都可单独禁用并有平衡指标。
 
 ### P1-15 做单敌人、单障碍的可回放战术垂直切片
 
-- **证据**：[Twinfold](./projects/game_twinfold.md)让敌人与合并物共享棋盘，[Pawnbarian](./projects/game_pawnbarian.md)以威胁格表达敌方范围，[Into the Breach](./projects/game_into_the_breach.md)要求敌方意图完全公开。
+- **证据**：[Twinfold](./projects/game_twinfold.md)让敌人与合并物共享棋盘，[Pawnbarian](./projects/game_pawnbarian.md)以威胁格表达敌方范围，[Into the Breach](./projects/game_into_the_breach.md)要求敌方意图完全公开；[GUNCHO](./projects/game_r3_guncho.md)用小盘、单一弹巢资源和公开敌人次序给出更窄的验证切片。
 - **当前差距**：可变/稀疏拓扑和确定性回合很适合承载障碍，但当前没有敌人、攻击、代价或意图数据。
 - **归属 / GF**：项目新 gameplay mode/Feature；复用 turn flow、BoardTopology、seed、action queue 和 SaveGraph，敌人 AI/平衡不进入 GF。
 - **验收**：仅一种敌人和一种静态障碍；行动次序、目标与受影响格在提交前可见；撤销、书签、回放、快进、无表现路径一致；AI 决策只消费业务 RNG；关闭该模式不影响现有六模式。
@@ -273,14 +273,14 @@
 
 ### P2-06 定义隐私明确的本地产品诊断
 
-- **证据**：[nneonneo/2048-ai](./projects/repo_nneonneo_2048_ai.md)用节点、深度、缓存命中证明可测量才可调优；[项目基线](./project_baseline.md)确认首次完成率、无效滑动、撤销使用和动画偏好尚未闭环。
+- **证据**：[nneonneo/2048-ai](./projects/repo_nneonneo_2048_ai.md)用节点、深度、缓存命中证明可测量才可调优；[项目基线](./project_baseline.md)确认首次完成率、无效滑动、撤销使用和动画偏好尚未闭环；[Tinyfolks](./projects/game_r3_tinyfolks.md)的 Google Play 开发者声明不收集或共享数据，而 [Dungeons of Dreadrock](./projects/game_r3_dungeons_of_dreadrock.md)官方隐私页明确披露移动广告/分析边界，二者都要求产品公开自己的选择。
 - **当前差距**：有通用 diagnostics，但没有产品事件 schema、留存期或隐私边界。
 - **归属 / GF**：项目 diagnostics/progress；GF 只提供有界诊断机制，产品指标和隐私归项目。
-- **验收**：先发布事件 schema 与留存期限；默认不联网，不含棋盘原始内容或身份信息；可关闭/清除；能回答教程完成、无效输入、撤销偏好和性能预算四类问题。
+- **验收**：先发布人可读隐私摘要、事件 schema 与留存期限；默认不联网，不含棋盘原始内容或身份信息；可关闭/清除；任何平台分析必须经 Adapter 并与本地核心分离；能回答教程完成、无效输入、撤销偏好和性能预算四类问题。
 
 ### P2-07 补齐 GF 能力目录发现性
 
-- **证据**：[GF 审计](./gf_mapping_audit.md)确认 `shader`、`haptic`、`virtual list` 等 capability 搜索未命中已经安装的精确 API；仓库研究还发现 object pool、command history 和 execution budget 的关键词入口偏弱。
+- **证据**：[GF 审计](./gf_mapping_audit.md)确认 `shader`、`haptic`、`virtual list` 和 `grid path preview` 等 capability 搜索未命中已经安装的精确 API；仓库研究还发现 object pool、command history 和 execution budget 的关键词入口偏弱。
 - **当前差距**：这是目录/`primary_classes` 缺口，不是游戏运行时缺口；重复实现会破坏框架边界。
 - **归属 / GF**：形成独立 GF 文档/目录反馈，不在本研究批次改 `addons/gf`。accessibility 继续由项目先组合验证。
 - **验收**：目录更新后 capability search 能定位 Shader/Render Warmup、Haptic、Virtual List、Object Pool、Command History 和 Execution Budget；每项说明项目仍应拥有的业务边界。

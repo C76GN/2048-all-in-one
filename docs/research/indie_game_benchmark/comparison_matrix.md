@@ -1,4 +1,4 @@
-# 24 项深度样本对比矩阵
+# 28 项深度样本对比矩阵
 
 更新时间：2026-07-22（Asia/Shanghai）
 
@@ -47,21 +47,32 @@
 | [Wilmot Works It Out](./projects/game_r2_wilmot_works_it_out.md) | 60+ 拼图、7 个房间、20+ 装饰与 Marathon 形成“解题—陈列”进度；开发反思主动删除不服务核心的升级和角色机制 | 当前自定义棋盘、历史和图鉴完整，但没有策划关卡课程、顺序目录或以空间陈列表达完成度 | `GFLevelCatalog` 可评估用于 pack、排序和前后关卡；谜题状态、解锁、完成条件、陈列和进度归项目并进入 SaveGraph | **P1 内容深化**：优先验证原创关卡包和清晰课程，不额外叠加升级系统 |
 | [Freshly Frosted](./projects/game_r2_freshly_frosted.md) | 144 个手工谜题逐步引入分流、推送、合并、复制、随机和传送；正向语音引导与柔和视听共同降低压力 | 当前模式广度和表现机制更强，但没有手工课程、设备链顺序验收或语音—字幕共享的教学语义 | Turn Flow/Action Queue 只编排确定性步骤，`GFLevelCatalog` 只组织目录；设备逻辑、课程和旁白内容归项目 | **P0 教学 / P1 关卡**：借渐进课程、因果时序和多通道引导，不复制设备、声音或视觉 |
 
+## 追加轮次 B：小网格战术、紧凑肉鸽与克制表现（4 项）
+
+本组的画面判断同时链接 [R3-B 官方视频台账](./videos_round_03.md)；同一创作者谱系只用于比较设计演化，不当作独立来源多样性。
+
+| 深度样本 | 最强一手证据与可借鉴模式 | 相对当前项目 | GF 与项目边界 | 综合判断 |
+| --- | --- | --- | --- | --- |
+| [GUNCHO](./projects/game_r3_guncho.md) | 弹巢格与战场方向一一对应；开发者曾让相机旋转连带改变弹巢理解，随后收敛为明确左右旋转，证明玩法参照系必须稳定 | 项目已有模型坐标、独立 HUD 和视口变换；真正缺的是方向、预览与 UI 指示跨相机/布局的联合回归，不是新坐标系统 | 玩法方向、资源语义和相机映射归项目；复用输入、Viewport 与 Turn Flow。未声明的 `GFGridTransform2D` 不能静默成为依赖 | **P0 回归证据 / P1 战术**：补强参照系不变量和单敌人切片，不新增平行空间层 |
+| [Card Crawl Adventure](./projects/game_r3_card_crawl_adventure.md) | 路径式卡牌选择、短局 roguelite 和 weekly competition 把“草拟路径—查看后果—确认”与轮换挑战结合 | 当前每回合是一条已提交移动命令；已有历史/回放但没有多格草稿事务，daily/资格也仍是缺口 | 路径合法性、投影增量和原子提交归项目；拖动会话可复用 `GFDragDropUtility`。`gf.standard.spatial` 未声明，先用 `BoardTopology` 邻接纯查询 | **P0 预演 / P1 挑战补证**：补强后果预览、daily/weekly 与资格，不另立“路径系统”建议 |
+| [Dungeons of Dreadrock](./projects/game_r3_dungeons_of_dreadrock.md) | 100 个手工关卡、短时段和俯视单屏把复杂度放进关卡顺序，而非常驻 HUD 或系统堆叠 | 当前拓扑、历史和编辑基础适合谜题，但没有正式课程、关卡选择或已掌握进度 | `GFLevelCatalog` 只负责 pack、排序和 next/previous；目标、死局、教学、解锁和完成记录归项目 | **P0 上手 / P1 内容**：直接补强有限步关卡包与渐进教程，不复制机关或关卡 |
+| [Tinyfolks](./projects/game_r3_tinyfolks.md) | 职业、武器、遗物、城镇建筑、生物群系和怪物用稳定小型界面形成短局 build；Google Play 的开发者声明不收集或共享数据 | 当前缺局内选择和短局目标，但已有 Recipe、内容目录和统一 Profile；本地诊断尚缺公开隐私契约 | GF domain 组件不能替代项目职业、经济、城镇和平衡；SaveGraph 只承载严格 section，诊断默认本地、可关闭/清除 | **P1 build / P2 隐私补证**：先做 3 个原创选择，不建通用 RPG 系统，不用极简画风代替性能数据 |
+
 ## 跨样本结论
 
 | 决策主题 | 多源证据 | 当前项目判断 | 下一层验证 |
 | --- | --- | --- | --- |
-| 动作与表现边界 | 原版 2048、statico、Pixel Dungeon | action queue 与 `MoveData` 已有；应扩展现有数据，替换字符串合并字典并补全反馈所需语义，而不是新建平行 DTO | 同一命令在正常、无表现、快进三种消费者下 canonical state 一致 |
-| 随机与回放 | BrogueCE、两套 2048 AI、Shattered Pixel Dungeon | 确定性底座强，缺 gameplay/cosmetic RNG 隔离审计、OOS 首点和 seed catalog | 改 cosmetic seed/关闭表现不改 canonical hash；CI 可报告首个分歧命令 |
-| 变体与内容 | danqing、Shattered Pixel Dungeon、statico | 模式和拓扑已经资源化；局内选择、挑战组合、关卡目标与兼容性说明不足 | 新增 modifier 不改移动控制器；冲突组合在开局前可解释地阻止 |
-| 反馈品质 | 原版 2048、Pixel Dungeon、Shattered Pixel Dungeon、BrogueCE | Shader/队列机制强，语义层级、音频层次、减少动态和低端降级不足 | 移动、合并、里程碑、危险、无效、失败在各设置下都可区分 |
-| 多端 UX | 原版 2048、2048-in-react、Pixel Dungeon、Shattered Pixel Dungeon | 输入抽象、三种快速输入策略、焦点和真实布局重排均已存在；缺的是 burst、safe area、触控尺寸与完整控制器路径的统一端到端矩阵 | 窄屏/横屏/键鼠/触屏/手柄完成同一任务，主操作无需滚动或隐含触控动作 |
-| 提示与自动化 | nneonneo、ovolve | 状态与命令底座可复用；分析服务、解释、deadline/cancel 和新鲜度是项目缺口 | 提示只读、超时有界、旧 snapshot 丢弃；自动演示仍走标准命令入口 |
-| 性能 | BrogueCE、Pixel Dungeon 系列、statico | 预热、对象池和预算已声明；缺按平台/规模/表现档位的实测矩阵 | 记录 P50/P95 首反馈与帧尖峰；池耗尽/Shaderless/无表现路径安全退化 |
+| 动作与表现边界 | 原版 2048、statico、Pixel Dungeon、Freshly Frosted | action queue 与 `MoveData` 已有；应扩展现有数据并声明链式语义次序，而不是新建平行 DTO 或让表现反推模拟 | 同一命令在正常、无表现、快进三种消费者下 canonical state 一致；链式预览与结算次序一致 |
+| 随机与回放 | BrogueCE、两套 2048 AI、Shattered Pixel Dungeon、Dorfromantik | 确定性底座强，缺 gameplay/cosmetic RNG 隔离审计、OOS 首点、seed catalog 与公开有限资源 queue | 改 cosmetic seed/关闭表现不改 canonical hash；queue/cursor 可撤销、回放；CI 报告首个分歧命令 |
+| 变体与内容 | danqing、Shattered Pixel Dungeon、Dreadrock、Tinyfolks | 模式和拓扑已资源化；局内选择、挑战组合、手工课程、关卡目标与兼容性说明不足 | 新增 modifier 不改移动控制器；首包关卡有稳定目录/掌握状态；冲突组合开局前可解释地阻止 |
+| 反馈品质 | 原版 2048、Pixel Dungeon 系列、GUNCHO、Freshly Frosted | Shader/队列机制强，语义层级、音频层次、旁白等价通道、减少动态和低端降级不足 | 移动、合并、里程碑、危险、无效、失败在各设置下可区分；短反馈后回到静态可判断局面 |
+| 多端 UX | 原版 2048、2048-in-react、Stacklands、Tinyfolks | 输入抽象、三种快速输入策略、焦点和真实布局重排均已存在；缺 burst、safe area、拖放替代、触控尺寸与完整控制器路径的统一端到端矩阵 | 窄屏/横屏/键鼠/触屏/手柄完成同一任务；拖放有取消/焦点等价；主操作无需滚动或隐含手势 |
+| 提示与自动化 | nneonneo、ovolve、Dorfromantik、Card Crawl Adventure | 状态与命令底座可复用；分析服务、解释、deadline/cancel、新鲜度和多格草稿投影是项目缺口 | 提示/路径草稿只读、取消零副作用、超时有界、旧 snapshot 丢弃；自动演示仍走标准命令入口 |
+| 性能 | BrogueCE、Pixel Dungeon 系列、statico、Tinyfolks | 预热、对象池和预算已声明；缺按平台/规模/表现档位的实测矩阵，像素/极简风不能替代数据 | 记录 P50/P95 首反馈、帧时与内存；池耗尽/Shaderless/无表现路径安全退化 |
 
 ## GF 总结
 
 - **已有且应优先复用**：turn flow、命名 action queue、确定性 seed/clock、command history、SaveGraph、Shader 参数校验、渲染预热、对象池、语义音频、输入映射、手势、异步预算与 diagnostics。
-- **项目级缺口**：现有 `MoveData` 的语义扩展、反馈词汇和 Profile、教程、可访问性策略、daily/资格、挑战内容、提示模型、响应式端到端验收、性能采样矩阵。
-- **GF 反馈候选仅限发现性**：若能力目录搜不到 object pool、Shader、command history、execution budget、virtual list 或 haptic，应补关键词/`primary_classes`，不能据此重造运行时 API。accessibility 先在项目组合并验证稳定契约。
+- **项目级缺口**：现有 `MoveData` 的语义扩展、反馈词汇和 Profile、参照系回归、教程/手工课程、有限资源队列、可访问性策略、daily/资格、挑战内容、提示模型、响应式端到端验收、性能采样矩阵。
+- **GF 反馈候选仅限发现性**：若能力目录搜不到 object pool、Shader、command history、execution budget、virtual list、haptic 或 grid path preview，应补关键词/`primary_classes` 与包选择信息，不能据此重造运行时 API。`gf.standard.spatial` 当前未声明；accessibility 先在项目组合并验证稳定契约。
 - **明确不采用**：第三方全局状态、直接平台 SDK、裸文件存档、非确定随机、表现层反写规则、因单个游戏内容而向 GF 添加业务模型，以及任何许可证不兼容或来源不明的代码/素材。

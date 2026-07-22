@@ -63,7 +63,7 @@
 | 路径 / 坐标变换 | `GFGridPathMath2D` 提供 BFS、A*、分步 A*、视线简化和 flow field；`GFGridTransform2D` 提供旋转、镜像和方向纯映射 | `gf.standard.spatial` 已安装但未在 required/optional packages 声明，当前项目代码也未使用 | 不能写成“当前可直接复用”；先由项目 `BoardTopology` 邻接纯查询承载。出现跨模式稳定需求后，才显式评估 package、contract 与 composition root |
 | 目录发现性 | capability search `grid path preview` 无结果，但精确 API 存在 | 不影响当前运行时 | 这是关键词和 package 发现性问题；既不要求当前项目采用 spatial，也不构成重造路径 API 的理由 |
 
-当前 [`BoardTopology`](../../../features/gameplay/scripts/data/board_topology.gd) 仍是四向、可含空洞且按连续 lane 结算的项目领域真源；视口缩放/平移、HUD、输入动作和模型方向已经分层。后续应补“相机或布局变化不改变 canonical 方向”的回归，而不是新增平行坐标系统。`GFGridTransform2D` 即使未来被声明，也只负责纯变换，不拥有相机、HUD、输入或玩法参照系。
+当前 [`BoardTopology`](../../../features/gameplay/scripts/data/board_topology.gd) 仍是四向、可含空洞且按连续 lane 结算的项目领域真源；视口缩放/平移、HUD、输入动作和模型方向已经分层。[GUNCHO](./projects/game_r3_guncho.md) 的开发者复盘提供了直接反例：让 3D 相机旋转影响方向资源理解后，团队改回显式左右控制。后续应补“相机或布局变化不改变 canonical 方向”的回归，而不是新增平行坐标系统。`GFGridTransform2D` 即使未来被声明，也只负责纯变换，不拥有相机、HUD、输入或玩法参照系。
 
 ## GF 发现性反馈候选
 
