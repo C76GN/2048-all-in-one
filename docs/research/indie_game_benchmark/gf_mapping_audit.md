@@ -52,6 +52,19 @@
 
 这轮核对同时确认：正式性能 budget、预热和对象池已存在，但没有 P50/P95/P99 benchmark harness；完整 snapshot/equality 已存在，但没有只读 AI hint；回放有 seed/actions/final snapshot 和逐步播放，但没有 step hash、首个 OOS、simulation/content fingerprint 或固定 seed corpus。
 
+## 追加轮次 API 边界复核
+
+摆放、路径与手工关卡样本容易诱发“看到相似名词就接入框架”的误判。本轮按精确 API、项目 contract 和当前静态使用三层复核：
+
+| 研究方向 | 已安装事实 | contract / 当前使用 | 正确判断 |
+| --- | --- | --- | --- |
+| 拖放 / 堆叠 | `GFDragDropUtility` 位于 `gf.standard.input`，管理拖拽会话、落点注册、命中排序、drop/reject/cancel 和调试快照 | `gf.standard.input` 已声明 required；当前游戏代码未使用该 Utility | 未来若验证拖放玩法，可复用会话生命周期；它不读取输入、不移动 Node、不保存历史，也不拥有放置、堆叠、配方或计分语义 |
+| 关卡包 | `GFLevelCatalog` 位于 `gf.extension.domain`，提供 entry、pack、排序及 next/previous 查询 | `gf.extension.domain` 已声明 required；当前内容/进度没有使用该 Catalog | 只有在不制造平行内容真源时才评估采用；目标、步数、解锁、完成、提示、资格与 SaveGraph section 仍归项目 |
+| 路径 / 坐标变换 | `GFGridPathMath2D` 提供 BFS、A*、分步 A*、视线简化和 flow field；`GFGridTransform2D` 提供旋转、镜像和方向纯映射 | `gf.standard.spatial` 已安装但未在 required/optional packages 声明，当前项目代码也未使用 | 不能写成“当前可直接复用”；先由项目 `BoardTopology` 邻接纯查询承载。出现跨模式稳定需求后，才显式评估 package、contract 与 composition root |
+| 目录发现性 | capability search `grid path preview` 无结果，但精确 API 存在 | 不影响当前运行时 | 这是关键词和 package 发现性问题；既不要求当前项目采用 spatial，也不构成重造路径 API 的理由 |
+
+当前 [`BoardTopology`](../../../features/gameplay/scripts/data/board_topology.gd) 仍是四向、可含空洞且按连续 lane 结算的项目领域真源；视口缩放/平移、HUD、输入动作和模型方向已经分层。后续应补“相机或布局变化不改变 canonical 方向”的回归，而不是新增平行坐标系统。`GFGridTransform2D` 即使未来被声明，也只负责纯变换，不拥有相机、HUD、输入或玩法参照系。
+
 ## GF 发现性反馈候选
 
 能力目录查询结果与精确 API 查询存在落差：
@@ -61,6 +74,7 @@
 | `shader` | 无结果 | `GFShaderParameterUtility`、`GFRenderWarmupUtility` 位于 `gf.standard.display` | 目录关键词/主类缺口，不是运行时缺口 |
 | `haptic` | 无结果 | `GFHapticUtility`、`GFHapticPreset`、`GFHapticBackend` 位于 `gf.extension.feedback` | 目录关键词/跨包发现性缺口 |
 | `virtual list` | 无结果 | `GFVirtualListModel` 位于 `gf.standard.ui` | UI capability 的关键词/主类覆盖不足 |
+| `grid path preview` | 无结果 | `GFGridPathMath2D` / `GFGridTransform2D` 位于未声明的 `gf.standard.spatial` | 目录关键词/包选择信息不足；不代表当前项目应立即接入 |
 | `accessibility` / `reduced motion` / `colorblind` | 无结果 | 输入、焦点、文本适配、主题和设置机制分别存在，但没有一个声明式产品策略 API | 先由项目组合；待至少两个项目出现相同稳定契约再判断框架能力 |
 | `leaderboard` | 命中 `platform-adapters` | `GFInstaller`、存储/网络 backend、异步终态 | 正确：GF 只提供边界，线上权威与排行规则属于项目/服务端 |
 

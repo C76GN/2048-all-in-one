@@ -1,4 +1,4 @@
-# 20 项深度样本对比矩阵
+# 24 项深度样本对比矩阵
 
 更新时间：2026-07-22（Asia/Shanghai）
 
@@ -35,6 +35,17 @@
 | [Shogun Showdown](./projects/game_shogun_showdown.md) | 单轴站位、朝向和“先编排攻击牌、后按顺序执行”把时机变成核心；舞台式局部光效保持焦点 | 当前稀疏拓扑/action queue 是技术基础，但 action queue 不是玩家卡牌系统；缺朝向、敌方节奏和局内解锁 | turn flow/action queue/SaveGraph/Shader Utility 可复用；队列内容、合法性、平衡和意图 UI 归项目 | **P1 原型**：只做可回放的两槽计划队列，避免把业务卡牌上移 GF |
 | [Backpack Hero](./projects/game_backpack_hero.md) | 位置、邻接和朝向本身就是 build；背包构筑与敌方意图同屏；官方页声明拖放/旋转、互动教程和字幕 | 当前可变/自定义棋盘可承载空间配方，但缺局内物品选择、敌方意图和完整 tutorial/subtitle 验收 | board editor、input、UI/text、SaveGraph 可复用；物品索引、邻接配方、教程和城镇进度归项目 | **P1 空间实验**：先用 3–5 个独立原创配方验证邻接，不复制物品、图标或文字 |
 | [Cobalt Core](./projects/game_cobalt_core.md) | 单轴横移同时承担规避和对准；三船员混合牌组、分叉升级、daily challenge 与可调难度形成 run 身份；横移母题贯穿 UI/战斗转场 | 当前方向滑动与 custom seed 很强，但没有 daily、局内 build 或分叉升级；音频机制强而 BGM/ambient 内容浅 | turn/seed/SaveGraph/action queue/audio state/switch/crossfade 可复用；卡组、升级、daily 资格和音乐语义归项目 | **P1 产品参考**：先做 daily + 单次升级选择，避免先建通用卡牌框架 |
+
+## 追加轮次 A：合并、摆放与空间构筑（4 项）
+
+本组的画面判断同时链接 [R2-A 官方视频台账](./videos_round_02.md)，产品与设计动机以各报告中的开发者/发行商页面为准。
+
+| 深度样本 | 最强一手证据与可借鉴模式 | 相对当前项目 | GF 与项目边界 | 综合判断 |
+| --- | --- | --- | --- | --- |
+| [Dorfromantik](./projects/game_r2_dorfromantik.md) | 有限六角地块、边缘相容、任务和分数把“下一块放哪里”变成公开的空间预算；Quick/Hard/Custom 说明同一核心可用资源量与压力调档 | 当前确定性、历史和可变拓扑更强，但没有放置型回合、有限生成队列或边缘相容/得分预演 | 有限队列、边缘语义、任务和计分归项目；先在现有正交 `BoardTopology` 做原创切片，不能暗引未声明的 `gf.standard.spatial` | **P1 规则实验**：借有限资源、公开下一项和落点预演，不复制六角内容、美术或任务 |
+| [Stacklands](./projects/game_r2_stacklands.md) | 拖放、堆叠与配方把内容组织、生产和 build 压缩到同一桌面，单次拖动同时表达选择与组合 | 当前 Recipe/Capability、SaveGraph 和确定性基础更强，但没有局内拖放堆叠或生产经济；不值得先建通用卡牌框架 | `GFDragDropUtility` 只拥有拖拽会话、落点和命中结果；堆叠合法性、配方、计时、经济、历史和 UI 均归项目 | **P1/P2 空间构筑证据**：补强最小 build 与空间配方，不复制卡牌、配方和经济 |
+| [Wilmot Works It Out](./projects/game_r2_wilmot_works_it_out.md) | 60+ 拼图、7 个房间、20+ 装饰与 Marathon 形成“解题—陈列”进度；开发反思主动删除不服务核心的升级和角色机制 | 当前自定义棋盘、历史和图鉴完整，但没有策划关卡课程、顺序目录或以空间陈列表达完成度 | `GFLevelCatalog` 可评估用于 pack、排序和前后关卡；谜题状态、解锁、完成条件、陈列和进度归项目并进入 SaveGraph | **P1 内容深化**：优先验证原创关卡包和清晰课程，不额外叠加升级系统 |
+| [Freshly Frosted](./projects/game_r2_freshly_frosted.md) | 144 个手工谜题逐步引入分流、推送、合并、复制、随机和传送；正向语音引导与柔和视听共同降低压力 | 当前模式广度和表现机制更强，但没有手工课程、设备链顺序验收或语音—字幕共享的教学语义 | Turn Flow/Action Queue 只编排确定性步骤，`GFLevelCatalog` 只组织目录；设备逻辑、课程和旁白内容归项目 | **P0 教学 / P1 关卡**：借渐进课程、因果时序和多通道引导，不复制设备、声音或视觉 |
 
 ## 跨样本结论
 

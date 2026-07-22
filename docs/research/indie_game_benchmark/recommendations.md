@@ -80,10 +80,10 @@
 
 ### P0-11 实现可跳过、可恢复的分步首次上手
 
-- **证据**：[danqing/2048](./projects/repo_danqing_2048.md)把规则差异放在选择流程中解释；[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)以渐进内容降低复杂系统的首次负担。
+- **证据**：[danqing/2048](./projects/repo_danqing_2048.md)把规则差异放在选择流程中解释；[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)以渐进内容降低复杂系统的首次负担；[Freshly Frosted](./projects/game_r2_freshly_frosted.md)用 144 个手工谜题逐步引入设备，[Wilmot Works It Out](./projects/game_r2_wilmot_works_it_out.md)的开发反思则说明应先删除不服务核心的升级与角色机制。
 - **当前差距**：[项目基线](./project_baseline.md)只找到固定 HUD 提示，没有教程状态、情境步骤或“已掌握”持久化。
 - **归属 / GF**：项目 tutorial/progress/navigation；复用 UI router、SaveGraph 与输入映射。
-- **验收**：首次流程至少覆盖移动、有效合并、无效动作和当前模式目标，可跳过、重看、断点恢复；键盘、触摸、手柄分别通过；完成后不再遮挡熟练玩家主循环。
+- **验收**：首次流程至少覆盖移动、有效合并、无效动作和当前模式目标，步骤尽量嵌入真实局面；可跳过、重看、断点恢复；键盘、触摸、手柄分别通过；完成后不再遮挡熟练玩家主循环，且教程不额外引入与核心无关的升级层。
 
 ### P0-12 落地跨平台、规模与表现档位的性能矩阵
 
@@ -101,17 +101,17 @@
 
 ### P0-14 让行动后果与失败原因在执行前后都可见
 
-- **证据**：[Pawnbarian](./projects/game_pawnbarian.md)预铺全局危险格，[Into the Breach](./projects/game_into_the_breach.md)公开敌方行动/作用格，[Shotgun King](./projects/game_shotgun_king.md)在行动前显示射程与散布；三者都把“为何危险”变成棋盘数据。
+- **证据**：[Pawnbarian](./projects/game_pawnbarian.md)预铺全局危险格，[Into the Breach](./projects/game_into_the_breach.md)公开敌方行动/作用格，[Shotgun King](./projects/game_shotgun_king.md)在行动前显示射程与散布；[Dorfromantik](./projects/game_r2_dorfromantik.md)又把合法边界、下一地块与局部任务留在同一视野。它们都把“为什么可行或危险”变成棋盘数据。
 - **当前差距**：当前已有无效移动通知和回放，但普通反馈偏执行后；若新增敌人、障碍、特殊格或连锁范围，尚无统一的无副作用 preview/reason 契约。
 - **归属 / GF**：项目 gameplay 提供纯查询，board feedback/UI 画 overlay 与原因；复用 BoardTopology、turn flow、Shader 参数工具，不让预览修改 Board/RNG/history。
 - **验收**：同一 snapshot 的预览稳定列出受影响格、原因和次序；执行结果与预览一致；取消/状态变化立即清除；高对比、减少动态和手柄焦点下仍可读；经典模式可关闭额外提示。
 
 ### P0-15 建立屏幕阅读与字幕共享的 canonical 状态摘要
 
-- **证据**：[Luck be a Landlord](./projects/game_luck_be_a_landlord.md)官方声明屏幕阅读器剪贴板输出和色盲支持；[Backpack Hero](./projects/game_backpack_hero.md)官方页列出互动教程、字幕与多输入。
+- **证据**：[Luck be a Landlord](./projects/game_luck_be_a_landlord.md)官方声明屏幕阅读器剪贴板输出和色盲支持；[Backpack Hero](./projects/game_backpack_hero.md)官方页列出互动教程、字幕与多输入；[Freshly Frosted](./projects/game_r2_freshly_frosted.md)把正向语音引导作为产品特征，说明旁白也必须有等价的静态通道。
 - **当前差距**：已有焦点、统一文本、翻译和输入映射，但没有棋盘/移动结果的屏幕阅读语义、字幕事件或读取顺序产品契约。
 - **归属 / GF**：项目 accessibility/UI/gameplay 定义语义摘要；复用现有文本、焦点、通知、设置和平台 Adapter。是否用 live region、剪贴板或原生辅助技术由平台 Adapter 决定。
-- **验收**：摘要至少包含棋盘尺寸/占用、当前焦点、一次移动的合并/分数/生成、目标、危险和可用动作；字幕与屏幕阅读消费同一语义事件；开关持久化且不改变回放、资格或时序。
+- **验收**：摘要至少包含棋盘尺寸/占用、当前焦点、一次移动的合并/分数/生成、目标、危险和可用动作；字幕、教学旁白和屏幕阅读消费同一语义事件；语音可静音且有等价静态提示；开关持久化且不改变回放、资格或时序。
 
 ## P1：把确定性底座转化为内容深度与长期价值
 
@@ -124,10 +124,10 @@
 
 ### P1-02 为多阶段合并定义可读时序
 
-- **证据**：[danqing/2048](./projects/repo_danqing_2048.md)的三合一反馈和[原版 2048](./projects/repo_gabrielecirulli_2048.md)的经典节拍共同说明“先发生什么”必须可见。
+- **证据**：[danqing/2048](./projects/repo_danqing_2048.md)的三合一反馈和[原版 2048](./projects/repo_gabrielecirulli_2048.md)的经典节拍共同说明“先发生什么”必须可见；[Freshly Frosted](./projects/game_r2_freshly_frosted.md)的方向格、设备链和连续输送进一步要求预览与结算共享同一因果次序。
 - **当前差距**：Fibonacci、Progressive 等复杂结果在快速输入和减少动态下的因果可读性没有正式验收。
 - **归属 / GF**：项目 board presentation；`GFActionQueueSystem` 只执行已排序语义步骤。
-- **验收**：统一靠拢→吸附/合并→成长→生成的事件顺序；快进和减少动态可以缩短/跳过表现，但顺序、声音提示和最终状态不变。
+- **验收**：统一靠拢→吸附/合并→成长→生成的事件顺序；链式设备或路径模式额外声明每步输入、处理与输出；快进和减少动态可以缩短/跳过表现，但预览顺序、声音提示和最终状态不变。
 
 ### P1-03 扩展语义音频和自适应音景
 
@@ -194,10 +194,10 @@
 
 ### P1-12 用有限步关卡包验证目标层与提示预算
 
-- **证据**：[Six Match](./projects/game_six_match.md)让同一核心规则支持 survival/puzzle，明确“六步内完成”、提示资源、死局检测和 puzzle undo/redo。
+- **证据**：[Six Match](./projects/game_six_match.md)让同一核心规则支持 survival/puzzle，明确“六步内完成”、提示资源、死局检测和 puzzle undo/redo；[Wilmot Works It Out](./projects/game_r2_wilmot_works_it_out.md)用 60+ 拼图形成内容进度，[Freshly Frosted](./projects/game_r2_freshly_frosted.md)用 144 个手工谜题逐步扩展设备语法。
 - **当前差距**：当前有六模式、自定义棋盘、结束判定和完整 history，但没有策划关卡、步数预算、显式目标或有限提示经济。
-- **归属 / GF**：项目 challenge/gameplay/content；复用 BoardTopology、turn flow、command history 和 SaveGraph。关卡目标、提示搜索和奖励不进入 GF。
-- **验收**：首包至少 10 个可版本化原创关卡，声明初始棋盘、规则、目标、步数和允许动作；可证明成功/失败/死局；提示不直接改状态且消耗可见；undo/redo/replay 保持确定性。
+- **归属 / GF**：项目 challenge/gameplay/content；复用 BoardTopology、turn flow、command history 和 SaveGraph。`GFLevelCatalog` 只在不制造平行内容真源时用于 pack、排序与 next/previous；关卡目标、解锁、完成、提示和奖励不进入 GF。
+- **验收**：首包至少 10 个可版本化原创关卡，声明初始棋盘、规则、目标、步数和允许动作，并有稳定 pack/order/next/previous；可证明成功/失败/死局；提示不直接改状态且消耗可见；undo/redo/replay 保持确定性。
 
 ### P1-13 增加短局主目标、奖励目标与常驻进度节奏
 
@@ -208,7 +208,7 @@
 
 ### P1-14 做最小局内 build 选择层，而非先建通用卡牌框架
 
-- **证据**：[Twinfold](./projects/game_twinfold.md)用 40+ 技能改变网格决策，[Luck be a Landlord](./projects/game_luck_be_a_landlord.md)用符号/物品形成组合，[Shotgun King](./projects/game_shotgun_king.md)让双方卡牌带来代价，[Cobalt Core](./projects/game_cobalt_core.md)用分叉升级塑造 run。
+- **证据**：[Twinfold](./projects/game_twinfold.md)用 40+ 技能改变网格决策，[Luck be a Landlord](./projects/game_luck_be_a_landlord.md)用符号/物品形成组合，[Shotgun King](./projects/game_shotgun_king.md)让双方卡牌带来代价，[Cobalt Core](./projects/game_cobalt_core.md)用分叉升级塑造 run；[Stacklands](./projects/game_r2_stacklands.md)又证明少量配方发现就能把空间组织转为 build。
 - **当前差距**：模式/主题/图鉴广度很高，但一次 run 中没有离散选择、代价交换或 build 身份。
 - **归属 / GF**：项目 gameplay/content/progress；复用 Recipe/Capability、turn flow、seed 和 SaveGraph。不得因这批样本新增 GF 卡牌/遗物业务系统。
 - **验收**：首个切片只含 3 个原创升级，每次二选一且效果完全数据化；选择进入命令历史/回放；组合顺序明确；同 seed/命令可重现；每项都可单独禁用并有平衡指标。
@@ -226,6 +226,13 @@
 - **当前差距**：现有命名 action queue 是生命周期/表现机制，不是玩家可编辑的计划；把两者混为一谈会污染 GF 所有权。
 - **归属 / GF**：项目 gameplay 维护可序列化 plan slots/合法性；`GFActionQueueSystem` 只执行确认后的结果表现，turn flow 编排阶段。
 - **验收**：两槽原创动作可交换、取消和确认；提交前显示次序/目标；计划写入命令历史并可确定回放；减少动态/快进只改变表现；无合法计划时原因明确。
+
+### P1-17 将未来生成公开为可回放的有限资源队列
+
+- **证据**：[Dorfromantik](./projects/game_r2_dorfromantik.md)把有限地块、下一块预告和空间任务并列；既有候选 [Threes!](./candidates.md)也公开下一张牌。两者说明“将来会来什么、还剩多少”本身可以成为玩家规则，而不只是调试信息。
+- **当前差距**：项目已有稳定 seed、撤销和回放，但未见玩家可见的下一生成项、剩余数量或持久化队列；读取预告若临时推进 RNG 还会破坏确定性边界。
+- **归属 / GF**：项目 gameplay/challenge；复用 GF seed、Turn Flow、Command History 和 SaveGraph。队列内容、公开规则和计分属于项目，读取预告不得推进权威 RNG。
+- **验收**：只在独立模式或 modifier 启用；至少显示当前/下一资源与剩余量；queue/cursor 进入 snapshot、撤销和回放；提交后的生成与预告一致；同 seed/命令完全复现；经典模式零变化；预告同时具备高对比和非色彩编码。
 
 ## P2：在数据与基线允许后推进实验和维护深化
 
@@ -287,9 +294,9 @@
 
 ### P2-09 用原创空间配方试验“位置即构筑”
 
-- **证据**：[Backpack Hero](./projects/game_backpack_hero.md)让位置、邻接和朝向共同决定物品效果，空间本身成为 build 资源。
+- **证据**：[Backpack Hero](./projects/game_backpack_hero.md)让位置、邻接和朝向共同决定物品效果；[Stacklands](./projects/game_r2_stacklands.md)用堆叠直接触发配方；[Dorfromantik](./projects/game_r2_dorfromantik.md)用边缘相容与任务让落点产生长期价值。三者都让空间本身成为 build 资源。
 - **当前差距**：当前自定义/稀疏棋盘和 Recipe 基础强，但格子邻接主要服务移动/合并，没有 project-owned 的空间配方层。
-- **归属 / GF**：项目 gameplay/board editor/content；复用 topology 与 Recipe/Capability，不因单个灵感新增 GF inventory 模型。
+- **归属 / GF**：项目 gameplay/board editor/content；复用 topology 与 Recipe/Capability。拖放若进入原型，可复用 `GFDragDropUtility` 的会话/落点生命周期，但邻接、堆叠、得分、历史和 UI 仍归项目；不因单个灵感新增 GF inventory 模型。
 - **验收**：只做 3–5 个原创配方，支持正交邻接/区域/朝向至少两类条件；编辑器能预览来源与作用格；规则可序列化、撤销和回放；关闭实验包后核心模式零分支变化。
 
 ## 许可证与采用边界
