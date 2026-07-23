@@ -9,6 +9,7 @@ const _LAYER_NAME: String = "GameCelebrationVfxLayer"
 const _RECT_NAME_PREFIX: String = "CelebrationConfetti"
 const _LAYER_INDEX: int = 960
 const _DRAINING_META: StringName = &"celebration_draining"
+const _STATIC_FALLBACK_META: StringName = &"celebration_static_fallback"
 const _MIN_DRAIN_SECONDS: float = 1.5
 const _MAX_DRAIN_SECONDS: float = 14.0
 
@@ -18,6 +19,7 @@ const _MAX_DRAIN_SECONDS: float = 14.0
 var _asset_library: GameAssetLibraryUtility = null
 var _clock_utility: GameClockUtility = null
 var _shader_parameters: GFShaderParameterUtility = null
+var _accessibility: GameAccessibilityUtility = null
 var _theme: GameCelebrationVfxTheme = null
 var _layer: CanvasLayer = null
 
@@ -25,13 +27,19 @@ var _layer: CanvasLayer = null
 # --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GameAssetLibraryUtility, GameClockUtility, GFShaderParameterUtility]
+	return [
+		GameAssetLibraryUtility,
+		GameClockUtility,
+		GFShaderParameterUtility,
+		GameAccessibilityUtility,
+	]
 
 
 func ready() -> void:
 	_asset_library = _get_asset_library_utility()
 	_clock_utility = _get_clock_utility()
 	_shader_parameters = _get_shader_parameter_utility()
+	_accessibility = _get_accessibility_utility()
 	if not is_instance_valid(_asset_library):
 		push_error("[GameCelebrationVfxUtility] 缺少 GameAssetLibraryUtility。")
 	if not is_instance_valid(_clock_utility):
@@ -47,6 +55,7 @@ func dispose() -> void:
 	_asset_library = null
 	_clock_utility = null
 	_shader_parameters = null
+	_accessibility = null
 	_theme = null
 
 
@@ -54,6 +63,7 @@ func release_dependencies() -> void:
 	_asset_library = null
 	_clock_utility = null
 	_shader_parameters = null
+	_accessibility = null
 	super.release_dependencies()
 
 
@@ -112,6 +122,13 @@ func _play_confetti(event_id: StringName) -> bool:
 	if not is_instance_valid(preset):
 		push_error("[GameCelebrationVfxUtility] 主题缺少庆祝事件 preset：%s。" % String(event_id))
 		return false
+	var state: GameAccessibilityState = _get_accessibility_state()
+	var budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(state)
+	var layer: CanvasLayer = _ensure_layer()
+	if not is_instance_valid(layer):
+		return false
+	if not budget.celebration_shader_enabled:
+		return _play_static_celebration(layer, preset)
 	if not is_instance_valid(_shader_parameters):
 		_shader_parameters = _get_shader_parameter_utility()
 	if not is_instance_valid(_shader_parameters):
@@ -125,22 +142,14 @@ func _play_confetti(event_id: StringName) -> bool:
 		)
 		return false
 
-	var layer: CanvasLayer = _ensure_layer()
-	if not is_instance_valid(layer):
-		return false
-
-	var rect: ColorRect = ColorRect.new()
-	rect.name = "%s%d" % [_RECT_NAME_PREFIX, layer.get_child_count()]
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.process_mode = Node.PROCESS_MODE_ALWAYS
-	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-	rect.offset_left = 0.0
-	rect.offset_top = 0.0
-	rect.offset_right = 0.0
-	rect.offset_bottom = 0.0
+	var rect: ColorRect = _create_overlay_rect(layer)
 	rect.color = Color.WHITE
-	rect.modulate = Color(1.0, 1.0, 1.0, preset.opacity)
-	layer.add_child(rect)
+	rect.modulate = Color(
+		1.0,
+		1.0,
+		1.0,
+		preset.opacity * maxf(budget.particle_scale, 0.35)
+	)
 
 	var viewport_size: Vector2 = _sync_rect_to_viewport(rect)
 	var material: ShaderMaterial = ShaderMaterial.new()
@@ -156,6 +165,7 @@ func _play_confetti(event_id: StringName) -> bool:
 		return false
 
 	var event_parameters: Dictionary = preset.get_shader_parameters()
+	event_parameters[&"active_count"] = budget.celebration_particle_count
 	event_parameters[&"resolution"] = viewport_size
 	event_parameters[&"drain_started_at"] = -1.0
 	var event_parameter_count: int = _shader_parameters.apply_parameters(
@@ -170,6 +180,33 @@ func _play_confetti(event_id: StringName) -> bool:
 	if not preset.loop_until_dismissed:
 		_queue_rect_drain(rect, preset.duration)
 	return true
+
+
+func _play_static_celebration(
+	layer: CanvasLayer,
+	preset: GameCelebrationVfxPreset
+) -> bool:
+	var rect: ColorRect = _create_overlay_rect(layer)
+	rect.set_meta(_STATIC_FALLBACK_META, true)
+	rect.color = preset.fallback_color
+	rect.modulate = Color(1.0, 1.0, 1.0, preset.opacity)
+	if not preset.loop_until_dismissed:
+		_queue_rect_drain(rect, minf(preset.duration, 0.45))
+	return true
+
+
+func _create_overlay_rect(layer: CanvasLayer) -> ColorRect:
+	var rect: ColorRect = ColorRect.new()
+	rect.name = "%s%d" % [_RECT_NAME_PREFIX, layer.get_child_count()]
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.process_mode = Node.PROCESS_MODE_ALWAYS
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.offset_left = 0.0
+	rect.offset_top = 0.0
+	rect.offset_right = 0.0
+	rect.offset_bottom = 0.0
+	layer.add_child(rect)
+	return rect
 
 
 func _ensure_layer() -> CanvasLayer:
@@ -215,12 +252,24 @@ func _begin_rect_drain(rect: ColorRect) -> void:
 		return
 	if GFVariantData.to_bool(rect.get_meta(_DRAINING_META, false), false):
 		return
+	rect.set_meta(_DRAINING_META, true)
+	if GFVariantData.to_bool(rect.get_meta(_STATIC_FALLBACK_META, false), false):
+		var fade: Tween = rect.create_tween()
+		var fade_tweener: PropertyTweener = fade.tween_property(
+			rect,
+			"modulate:a",
+			0.0,
+			0.30
+		)
+		var _fade_curve: Tweener = fade_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
+			Tween.EASE_OUT
+		)
+		return
 	if not is_instance_valid(_clock_utility):
 		_clock_utility = _get_clock_utility()
 	if not is_instance_valid(_clock_utility):
 		push_error("[GameCelebrationVfxUtility] 缺少 GameClockUtility，无法开始纸屑清退。")
 		return
-	rect.set_meta(_DRAINING_META, true)
 	if rect.material is ShaderMaterial:
 		var material: ShaderMaterial = rect.material
 		material.set_shader_parameter(
@@ -238,6 +287,11 @@ func _queue_rect_cleanup(rect: ColorRect, delay_seconds: float) -> void:
 
 
 func _get_rect_drain_seconds(rect: ColorRect) -> float:
+	if (
+		is_instance_valid(rect)
+		and GFVariantData.to_bool(rect.get_meta(_STATIC_FALLBACK_META, false), false)
+	):
+		return 0.35
 	var viewport_height: float = _sync_rect_to_viewport(rect).y
 	var speed: float = 105.0
 	var piece_size: float = 7.0
@@ -292,6 +346,24 @@ func _get_shader_parameter_utility() -> GFShaderParameterUtility:
 	if utility_value is GFShaderParameterUtility:
 		var shader_utility: GFShaderParameterUtility = utility_value
 		return shader_utility
+	return null
+
+
+func _get_accessibility_state() -> GameAccessibilityState:
+	if not is_instance_valid(_accessibility):
+		_accessibility = _get_accessibility_utility()
+	return (
+		_accessibility.get_state()
+		if is_instance_valid(_accessibility)
+		else GameAccessibilityState.new()
+	)
+
+
+func _get_accessibility_utility() -> GameAccessibilityUtility:
+	var utility_value: Object = get_utility(GameAccessibilityUtility)
+	if utility_value is GameAccessibilityUtility:
+		var utility: GameAccessibilityUtility = utility_value
+		return utility
 	return null
 
 

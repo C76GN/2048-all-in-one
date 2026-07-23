@@ -65,11 +65,11 @@ func clear_rules() -> void:
 
 
 ## 执行一次移动回合对应的生成规则。
-## @param move_data: 已完成的有效棋盘移动。
-func execute_move_rules(move_data: MoveData) -> void:
-	if not is_instance_valid(move_data):
+## @param turn_result: 已完成的有效棋盘移动结果。
+func execute_move_rules(turn_result: TurnResult) -> void:
+	if not is_instance_valid(turn_result):
 		return
-	_execute_rules(SpawnRule.TriggerType.ON_MOVE, move_data)
+	_execute_rules(SpawnRule.TriggerType.ON_MOVE, turn_result)
 
 
 # --- 私有/辅助方法 ---
@@ -90,10 +90,13 @@ func _get_seed_utility() -> GFSeedUtility:
 	return null
 
 
-func _execute_rules(trigger_type: SpawnRule.TriggerType, move_data: MoveData = null) -> void:
+func _execute_rules(
+	trigger_type: SpawnRule.TriggerType,
+	turn_result: TurnResult = null
+) -> void:
 	var context: RuleContext = RuleContext.new()
 	context.grid_model = _grid_model
-	context.move_data = move_data
+	context.turn_result = turn_result
 	context.seed_utility = _seed_utility
 
 	var active_rules: Array[SpawnRule] = []
@@ -111,6 +114,8 @@ func _execute_rules(trigger_type: SpawnRule.TriggerType, move_data: MoveData = n
 
 func _dispatch_context_outputs(context: RuleContext) -> void:
 	for spawn_data: Variant in context.spawn_requests:
+		if spawn_data is SpawnData:
+			spawn_data.turn_result = context.turn_result
 		send_simple_event(EventNames.SPAWN_TILE_REQUESTED, spawn_data)
 
 	if context.score_delta != 0:

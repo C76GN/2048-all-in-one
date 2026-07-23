@@ -30,6 +30,7 @@ var _current_board_topology: BoardTopology = null
 var _initial_seed_of_session: int = 0
 var _last_saved_bookmark_state: Dictionary = {}
 var _player_actions: Array[Vector2i] = []
+var _turn_checkpoints: Array[ReplayCheckpoint] = []
 
 ## 核心状态机。
 var _fsm: GFStateMachine
@@ -37,6 +38,7 @@ var _fsm: GFStateMachine
 var _clock: GameClockUtility
 var _notifications: GFNotificationUtility
 var _pause_utility: GamePauseUtility
+var _determinism: GameDeterminismUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -53,6 +55,7 @@ func get_required_utilities() -> Array[Script]:
 	return [
 		_GAME_THEME_UTILITY_SCRIPT,
 		GameClockUtility,
+		GameDeterminismUtility,
 		GamePauseUtility,
 		GFCommandHistoryUtility,
 		GFLogUtility,
@@ -76,6 +79,7 @@ func ready() -> void:
 	_clock = _get_clock_utility()
 	_notifications = _get_notification_utility()
 	_pause_utility = _get_pause_utility()
+	_determinism = _get_determinism_utility()
 	if not is_instance_valid(_notifications):
 		push_error("[GameFlowSystem] 缺少 GFNotificationUtility，玩法反馈不可用。")
 	if not is_instance_valid(_pause_utility):
@@ -109,7 +113,9 @@ func dispose() -> void:
 	_clock = null
 	_notifications = null
 	_pause_utility = null
+	_determinism = null
 	_player_actions.clear()
+	_turn_checkpoints.clear()
 	_last_saved_bookmark_state = {}
 	_mode_config = null
 	_mode_config_path = ""
@@ -167,15 +173,67 @@ func trigger_initial_rules() -> void:
 
 
 ## 应用一次有效移动产生的局内统计变化。
-## @param move_data: 当前 GF 回合行动携带的移动结果。
-func apply_move_turn(move_data: MoveData) -> void:
-	if not is_instance_valid(move_data):
+## @param turn_result: 当前 GF 回合行动携带的强类型结果。
+func apply_move_turn(turn_result: TurnResult) -> void:
+	if not is_instance_valid(turn_result):
 		return
-	if not _is_replay_mode and move_data.direction != Vector2i.ZERO:
-		_player_actions.append(move_data.direction)
+	if not _is_replay_mode and turn_result.direction != Vector2i.ZERO:
+		_player_actions.append(turn_result.direction)
 	if is_instance_valid(_game_status_model):
 		_game_status_model.increment_move_count()
 	sync_highest_tile_from_grid()
+
+
+## 在生成规则完成后固化确定性检查点；回放模式下立即比较首个 OOS。
+## @param turn_result: 当前已完成规则链的强类型回合结果。
+func finalize_turn_result(turn_result: TurnResult) -> void:
+	if (
+		not is_instance_valid(turn_result)
+		or not is_instance_valid(_determinism)
+		or not is_instance_valid(_mode_config)
+	):
+		return
+	var replay_system: ReplaySystem = _get_replay_system()
+	var step_index: int = _player_actions.size()
+	if _is_replay_mode and is_instance_valid(replay_system):
+		step_index = replay_system.get_current_step() + 1
+	var checkpoint: ReplayCheckpoint = _determinism.create_checkpoint(
+		step_index,
+		_get_full_game_state(),
+		_mode_config
+	)
+	if checkpoint == null:
+		push_error("[GameFlowSystem] 无法生成第 %d 步确定性检查点。" % step_index)
+		return
+	if not _is_replay_mode:
+		_turn_checkpoints.append(checkpoint)
+		return
+	if not is_instance_valid(replay_system):
+		return
+	var replay: ReplayData = replay_system.get_current_replay()
+	if replay == null or step_index <= 0 or step_index > replay.checkpoints.size():
+		var _missing_checkpoint_oos_recorded: bool = replay_system.report_oos({
+			&"kind": &"missing_checkpoint",
+			&"step_index": step_index,
+			&"direction": turn_result.direction,
+		})
+		return
+	var expected: ReplayCheckpoint = replay.checkpoints[step_index - 1]
+	if expected.state_checksum == checkpoint.state_checksum:
+		return
+	var _checksum_oos_recorded: bool = replay_system.report_oos({
+		&"kind": &"state_checksum_mismatch",
+		&"step_index": step_index,
+		&"direction": turn_result.direction,
+		&"expected_state_checksum": expected.state_checksum,
+		&"actual_state_checksum": checkpoint.state_checksum,
+		&"expected_board_checksum": expected.board_checksum,
+		&"actual_board_checksum": checkpoint.board_checksum,
+		&"expected_rng_checksum": expected.rng_checksum,
+		&"actual_rng_checksum": checkpoint.rng_checksum,
+		&"expected_score": expected.score,
+		&"actual_score": checkpoint.score,
+	})
 
 
 ## 完成当前 GF 移动回合的目标与失败结算。
@@ -350,6 +408,13 @@ func _get_pause_utility() -> GamePauseUtility:
 	return null
 
 
+func _get_determinism_utility() -> GameDeterminismUtility:
+	var utility_value: Object = get_utility(GameDeterminismUtility)
+	if utility_value is GameDeterminismUtility:
+		return utility_value
+	return null
+
+
 func _push_gameplay_notification(
 	message: String,
 	duration_seconds: float,
@@ -442,6 +507,8 @@ func _handle_game_over() -> void:
 	var replay_data: ReplayData = ReplayData.new()
 	replay_data.timestamp = _get_unix_timestamp()
 	replay_data.mode_config_path = _mode_config_path
+	if not replay_data.configure_ruleset(_mode_config, _determinism):
+		return
 	replay_data.initial_seed = _initial_seed_of_session
 	var current_topology: BoardTopology = _get_current_topology()
 	if current_topology == null:
@@ -449,6 +516,7 @@ func _handle_game_over() -> void:
 	replay_data.initial_board_topology = current_topology.to_dict()
 
 	replay_data.actions = _player_actions.duplicate()
+	replay_data.checkpoints = _turn_checkpoints.duplicate()
 	replay_data.final_board_snapshot = _grid_model.get_snapshot()
 	replay_data.final_score = GFVariantData.to_int(_game_status_model.score.get_value(), 0)
 
@@ -470,6 +538,7 @@ func _on_game_ready(data: GameReadyData) -> void:
 	_current_board_topology = _duplicate_topology(data.board_topology)
 	_initial_seed_of_session = data.initial_seed
 	_player_actions.clear()
+	_turn_checkpoints.clear()
 	_last_saved_bookmark_state = {}
 	var initial_target_reached: bool = false
 	if is_instance_valid(data.loaded_bookmark_data):
@@ -479,7 +548,7 @@ func _on_game_ready(data: GameReadyData) -> void:
 	_sync_target_state(initial_target_reached)
 	_target_reached_notified = initial_target_reached
 	if is_instance_valid(data.loaded_bookmark_data):
-		_rebuild_player_actions_from_history()
+		_restore_replay_trace_from_bookmark(data.loaded_bookmark_data)
 
 
 func _get_current_topology() -> BoardTopology:
@@ -656,19 +725,11 @@ func _are_game_states_equal(left: Dictionary, right: Dictionary) -> bool:
 	return game_state_system.are_states_equal(left, right)
 
 
-func _rebuild_player_actions_from_history() -> void:
-	var command_history: GFCommandHistoryUtility = _get_command_history_utility()
-	if not is_instance_valid(command_history):
+func _restore_replay_trace_from_bookmark(bookmark: BookmarkData) -> void:
+	if not is_instance_valid(bookmark):
 		return
-
-	for cmd_value: Variant in command_history.get_undo_history():
-		if cmd_value is MoveCommand:
-			var move_cmd: MoveCommand = cmd_value
-			if move_cmd.is_baseline():
-				continue
-			var direction: Vector2i = move_cmd.get_direction()
-			if direction != Vector2i.ZERO:
-				_player_actions.append(direction)
+	_player_actions = bookmark.replay_actions.duplicate()
+	_turn_checkpoints = bookmark.replay_checkpoints.duplicate()
 
 
 func _on_game_state_tainted(_payload: Variant = null) -> void:
@@ -703,6 +764,8 @@ func _on_undo_requested(_payload: Variant = null) -> void:
 	if await command_history.undo_last_async():
 		if not _player_actions.is_empty():
 			_player_actions.pop_back()
+		if not _turn_checkpoints.is_empty():
+			_turn_checkpoints.pop_back()
 	else:
 		_push_gameplay_notification(
 			tr("UNDO_FAIL_MSG"),
@@ -810,6 +873,8 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	var command_history: GFCommandHistoryUtility = _get_command_history_utility()
 	if is_instance_valid(command_history):
 		new_bookmark.game_state_history = command_history.serialize_full_history()
+	new_bookmark.replay_actions = _player_actions.duplicate()
+	new_bookmark.replay_checkpoints = _turn_checkpoints.duplicate()
 
 	var bookmark_system: BookmarkSystem = _get_bookmark_system()
 	if not is_instance_valid(bookmark_system):
@@ -869,6 +934,12 @@ func _on_replay_continue_requested(payload: Variant = null) -> void:
 			continued_actions.append(action)
 
 	_player_actions = continued_actions
+	_turn_checkpoints.clear()
+	if payload is ReplayContinueData:
+		var continued_replay: ReplayData = payload.replay_data
+		if is_instance_valid(continued_replay):
+			for index: int in range(mini(continued_actions.size(), continued_replay.checkpoints.size())):
+				_turn_checkpoints.append(continued_replay.checkpoints[index])
 	_is_replay_mode = false
 	_is_game_state_tainted = false
 	_last_saved_bookmark_state = {}

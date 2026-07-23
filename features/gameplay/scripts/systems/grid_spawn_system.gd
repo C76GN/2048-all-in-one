@@ -90,15 +90,19 @@ func _get_tile_composition_utility() -> TileCompositionUtility:
 	return null
 
 
-func _handle_priority_spawn(value: int, definition_id: StringName) -> void:
+func _handle_priority_spawn(
+	value: int,
+	definition_id: StringName,
+	turn_result: TurnResult = null
+) -> TileTransformResult:
 	var interaction_rule: InteractionRule = _grid_model.interaction_rule
 	if interaction_rule == null:
-		return
+		return null
 	var next_definition: TileDefinition = interaction_rule.get_tile_definition(definition_id)
 	if next_definition == null:
 		next_definition = interaction_rule.get_default_tile_definition()
 	if next_definition == null:
-		return
+		return null
 
 	var recompose_candidates: Array[TileState] = []
 	var same_definition_candidates: Array[TileState] = []
@@ -127,32 +131,34 @@ func _handle_priority_spawn(value: int, definition_id: StringName) -> void:
 		):
 			if is_instance_valid(_log):
 				_log.error(_LOG_TAG, "优先生成无法重组为目标方块定义。")
-			return
+			return null
 
 		data_to_transform.value = value
-		var instruction: Array = [{
-			&"type": &"TRANSFORM",
-			&"tile_data": data_to_transform,
-			&"do_transform": true,
-		}]
-		send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
-		return
+		var recompose_result: TileTransformResult = TileTransformResult.new(
+			data_to_transform,
+			TileTransformResult.Kind.RECOMPOSE
+		)
+		if is_instance_valid(turn_result):
+			turn_result.add_transform(recompose_result)
+		send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, recompose_result)
+		return recompose_result
 
 	if same_definition_candidates.is_empty():
-		return
+		return null
 	var empower_random: GFDeterministicRandom = _seed_utility.get_branched_deterministic_random(
 		"game_board_priority_empower"
 	)
 	var empower_index: int = empower_random.next_int_range(0, same_definition_candidates.size() - 1)
 	var data_to_empower: TileState = same_definition_candidates[empower_index]
 	data_to_empower.value = maxi(value, data_to_empower.value * 2)
-	var empower_instruction: Array = [{
-		&"type": &"TRANSFORM",
-		&"tile_data": data_to_empower,
-		&"do_merge": true,
-		&"do_transform": false,
-	}]
-	send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, empower_instruction)
+	var empower_result: TileTransformResult = TileTransformResult.new(
+		data_to_empower,
+		TileTransformResult.Kind.EMPOWER
+	)
+	if is_instance_valid(turn_result):
+		turn_result.add_transform(empower_result)
+	send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, empower_result)
+	return empower_result
 
 
 # --- 信号处理函数 ---
@@ -195,7 +201,11 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 			return
 		if not _is_cell_empty(spawn_pos):
 			if is_priority:
-				_handle_priority_spawn(value, definition_id)
+				var _transform_result: TileTransformResult = _handle_priority_spawn(
+					value,
+					definition_id,
+					spawn_data.turn_result
+				)
 			elif is_instance_valid(_log):
 				_log.warn(_LOG_TAG, "忽略被占用的生成位置: %s" % spawn_pos)
 			return
@@ -208,7 +218,11 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 			spawn_pos = empty_cells[spawn_random.next_int_range(0, empty_cells.size() - 1)]
 		else:
 			if is_priority:
-				_handle_priority_spawn(value, definition_id)
+				var _transform_result: TileTransformResult = _handle_priority_spawn(
+					value,
+					definition_id,
+					spawn_data.turn_result
+				)
 			return
 
 	# 2. 写入数据模型
@@ -242,10 +256,8 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 			]
 		)
 
-	# 3. 发送视觉指令
-	var instruction: Array = [ {
-		&"type": &"SPAWN",
-		&"tile_data": tile_data,
-		&"to_grid_pos": spawn_pos,
-	}]
-	send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, instruction)
+	# 3. 记录强类型结果并发送到表现边界。
+	var spawn_result: TileSpawnResult = TileSpawnResult.new(tile_data, spawn_pos)
+	if is_instance_valid(spawn_data.turn_result):
+		spawn_data.turn_result.add_spawn(spawn_result)
+	send_simple_event(EventNames.BOARD_ANIMATION_REQUESTED, spawn_result)

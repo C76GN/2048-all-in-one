@@ -21,6 +21,11 @@ const _FIELD_WINDOW_MODE_INDEX: StringName = &"window_mode_index"
 const _FIELD_VSYNC_INDEX: StringName = &"vsync_index"
 const _FIELD_MASTER_VOLUME: StringName = &"master_volume"
 const _FIELD_INPUT_TIMING_INDEX: StringName = &"input_timing_index"
+const _FIELD_VFX_QUALITY_INDEX: StringName = &"vfx_quality_index"
+const _FIELD_REDUCED_MOTION: StringName = &"reduced_motion"
+const _FIELD_HIGH_CONTRAST_FEEDBACK: StringName = &"high_contrast_feedback"
+const _FIELD_HAPTICS_ENABLED: StringName = &"haptics_enabled"
+const _FIELD_SHADER_EFFECTS_ENABLED: StringName = &"shader_effects_enabled"
 const _LOCALE_EN: String = "en"
 const _LOCALE_ZH: String = "zh"
 const _AUDIO_BUS_MASTER: String = "Master"
@@ -51,6 +56,7 @@ var return_to_main_menu_on_back: bool = true
 
 var _form_binder: GFFormBinder
 var _input_profile: GameInputProfileUtility
+var _accessibility: GameAccessibilityUtility
 var _input_detector: GFInputDetector
 var _pending_binding: Dictionary = {}
 var _is_compact_layout: bool = false
@@ -75,9 +81,15 @@ var _active_section: SettingsSection = SettingsSection.GENERAL
 @onready var _audio_section_title: Label = %AudioSectionTitle
 @onready var _controls_section_title: Label = %ControlsSectionTitle
 @onready var _auto_save_label: Label = %AutoSaveLabel
+@onready var _accessibility_title: Label = %AccessibilityTitle
 @onready var _language_option: OptionButton = %LanguageOptionButton
 @onready var _window_mode_option: OptionButton = %WindowModeOptionButton
 @onready var _vsync_option: OptionButton = %VSyncOptionButton
+@onready var _vfx_quality_option: OptionButton = %VfxQualityOptionButton
+@onready var _reduced_motion_toggle: CheckButton = %ReducedMotionToggle
+@onready var _high_contrast_toggle: CheckButton = %HighContrastFeedbackToggle
+@onready var _haptics_toggle: CheckButton = %HapticsToggle
+@onready var _shader_effects_toggle: CheckButton = %ShaderEffectsToggle
 @onready var _master_volume_slider: HSlider = %MasterVolumeSlider
 @onready var _volume_value_label: Label = %VolumeValueLabel
 @onready var _back_button: Button = %BackButton
@@ -96,6 +108,21 @@ var _active_section: SettingsSection = SettingsSection.GENERAL
 ## 垂直同步标签。
 @onready var _vsync_label: Label = _get_sibling_label(_vsync_option)
 
+## VFX 质量标签。
+@onready var _vfx_quality_label: Label = _get_sibling_label(_vfx_quality_option)
+
+## 减少动态效果标签。
+@onready var _reduced_motion_label: Label = _get_sibling_label(_reduced_motion_toggle)
+
+## 高对比反馈标签。
+@onready var _high_contrast_label: Label = _get_sibling_label(_high_contrast_toggle)
+
+## 触觉反馈标签。
+@onready var _haptics_label: Label = _get_sibling_label(_haptics_toggle)
+
+## Shader 特效标签。
+@onready var _shader_effects_label: Label = _get_sibling_label(_shader_effects_toggle)
+
 ## 主音量标签。
 @onready var _master_volume_label: Label = _get_sibling_label(_master_volume_slider)
 
@@ -107,6 +134,7 @@ var _active_section: SettingsSection = SettingsSection.GENERAL
 
 func _ready() -> void:
 	_input_profile = _get_input_profile_utility()
+	_accessibility = _get_accessibility_utility()
 	_setup_input_detector()
 	_setup_setting_options()
 	_sync_controls_from_settings()
@@ -217,6 +245,11 @@ func _apply_field_widths() -> void:
 		_window_mode_label,
 		_vsync_label,
 		_master_volume_label,
+		_vfx_quality_label,
+		_reduced_motion_label,
+		_high_contrast_label,
+		_haptics_label,
+		_shader_effects_label,
 		_get_sibling_label(_input_timing_option),
 	]
 	for label: Label in labels:
@@ -230,11 +263,21 @@ func _apply_field_widths() -> void:
 		_language_option,
 		_window_mode_option,
 		_vsync_option,
+		_vfx_quality_option,
 		_input_timing_option,
 	]
 	for option_control: Control in option_controls:
 		option_control.custom_minimum_size.x = 0.0 if _is_compact_layout else 200.0
 		option_control.custom_minimum_size.y = (
+			_COMPACT_CONTROL_HEIGHT if _is_compact_layout else _DESKTOP_CONTROL_HEIGHT
+		)
+	for toggle: CheckButton in [
+		_reduced_motion_toggle,
+		_high_contrast_toggle,
+		_haptics_toggle,
+		_shader_effects_toggle,
+	]:
+		toggle.custom_minimum_size.y = (
 			_COMPACT_CONTROL_HEIGHT if _is_compact_layout else _DESKTOP_CONTROL_HEIGHT
 		)
 	_master_volume_slider.custom_minimum_size.x = 0.0 if _is_compact_layout else 200.0
@@ -273,6 +316,7 @@ func _apply_semantic_styles() -> void:
 	style.style_label(_audio_section_title, GameUiStyleUtility.TextRole.DISPLAY)
 	style.style_label(_controls_section_title, GameUiStyleUtility.TextRole.DISPLAY)
 	style.style_label(_auto_save_label, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_accessibility_title, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_label(_input_bindings_header, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_label(_volume_value_label, GameUiStyleUtility.TextRole.NUMERIC)
 	style.style_button(_back_button, GameUiStyleUtility.ButtonRole.ICON)
@@ -285,7 +329,28 @@ func _setup_setting_options() -> void:
 	_setup_language_options()
 	_setup_window_mode_options()
 	_setup_vsync_options()
+	_setup_vfx_quality_options()
 	_setup_input_timing_options()
+
+
+func _setup_vfx_quality_options() -> void:
+	_write_option_items(_vfx_quality_option, [
+		_make_option_item(
+			tr("VFX_QUALITY_MINIMAL"),
+			GameAccessibilityState.VfxQuality.MINIMAL,
+			0
+		),
+		_make_option_item(
+			tr("VFX_QUALITY_REDUCED"),
+			GameAccessibilityState.VfxQuality.REDUCED,
+			1
+		),
+		_make_option_item(
+			tr("VFX_QUALITY_FULL"),
+			GameAccessibilityState.VfxQuality.FULL,
+			2
+		),
+	])
 
 
 func _setup_input_timing_options() -> void:
@@ -369,6 +434,15 @@ func _setup_form_binder() -> void:
 	_form_binder.bind_field(_FIELD_VSYNC_INDEX, _vsync_option, 1)
 	_form_binder.bind_field(_FIELD_MASTER_VOLUME, _master_volume_slider, 1.0)
 	_form_binder.bind_field(_FIELD_INPUT_TIMING_INDEX, _input_timing_option, 2)
+	_form_binder.bind_field(_FIELD_VFX_QUALITY_INDEX, _vfx_quality_option, 2)
+	_form_binder.bind_field(_FIELD_REDUCED_MOTION, _reduced_motion_toggle, false)
+	_form_binder.bind_field(
+		_FIELD_HIGH_CONTRAST_FEEDBACK,
+		_high_contrast_toggle,
+		false
+	)
+	_form_binder.bind_field(_FIELD_HAPTICS_ENABLED, _haptics_toggle, true)
+	_form_binder.bind_field(_FIELD_SHADER_EFFECTS_ENABLED, _shader_effects_toggle, true)
 	var _connect_result_121: int = _form_binder.field_changed.connect(_on_form_field_changed)
 
 
@@ -390,6 +464,20 @@ func _sync_controls_from_settings() -> void:
 			_input_timing_option,
 			int(_get_current_input_timing_mode())
 		))
+	if is_instance_valid(_accessibility):
+		var accessibility_state: GameAccessibilityState = _accessibility.get_state()
+		_vfx_quality_option.select(_get_option_index_for_metadata(
+			_vfx_quality_option,
+			accessibility_state.vfx_quality
+		))
+		_reduced_motion_toggle.set_pressed_no_signal(accessibility_state.reduced_motion)
+		_high_contrast_toggle.set_pressed_no_signal(
+			accessibility_state.high_contrast_feedback
+		)
+		_haptics_toggle.set_pressed_no_signal(accessibility_state.haptics_enabled)
+		_shader_effects_toggle.set_pressed_no_signal(
+			accessibility_state.shader_effects_enabled
+		)
 
 
 func _get_current_locale() -> String:
@@ -499,6 +587,7 @@ func _update_ui_text() -> void:
 	_audio_section_title.text = tr("SETTINGS_SECTION_AUDIO")
 	_controls_section_title.text = tr("SETTINGS_SECTION_CONTROLS")
 	_auto_save_label.text = tr("SETTINGS_AUTO_SAVE_HINT")
+	_accessibility_title.text = tr("ACCESSIBILITY_SECTION_TITLE")
 	if is_instance_valid(_language_option) and _language_option.item_count >= 2:
 		_language_option.set_item_text(0, tr("LANG_ZH"))
 		_language_option.set_item_text(1, tr("LANG_EN"))
@@ -510,12 +599,26 @@ func _update_ui_text() -> void:
 		_vsync_option.set_item_text(0, tr("VSYNC_DISABLED"))
 		_vsync_option.set_item_text(1, tr("VSYNC_ENABLED"))
 		_vsync_option.set_item_text(2, tr("VSYNC_ADAPTIVE"))
+	if is_instance_valid(_vfx_quality_option) and _vfx_quality_option.item_count >= 3:
+		_vfx_quality_option.set_item_text(0, tr("VFX_QUALITY_MINIMAL"))
+		_vfx_quality_option.set_item_text(1, tr("VFX_QUALITY_REDUCED"))
+		_vfx_quality_option.set_item_text(2, tr("VFX_QUALITY_FULL"))
 	if is_instance_valid(_language_label):
 		_language_label.text = tr("LANGUAGE_LABEL")
 	if is_instance_valid(_window_mode_label):
 		_window_mode_label.text = tr("WINDOW_MODE_LABEL")
 	if is_instance_valid(_vsync_label):
 		_vsync_label.text = tr("VSYNC_LABEL")
+	if is_instance_valid(_vfx_quality_label):
+		_vfx_quality_label.text = tr("VFX_QUALITY_LABEL")
+	if is_instance_valid(_reduced_motion_label):
+		_reduced_motion_label.text = tr("REDUCED_MOTION_LABEL")
+	if is_instance_valid(_high_contrast_label):
+		_high_contrast_label.text = tr("HIGH_CONTRAST_FEEDBACK_LABEL")
+	if is_instance_valid(_haptics_label):
+		_haptics_label.text = tr("HAPTICS_ENABLED_LABEL")
+	if is_instance_valid(_shader_effects_label):
+		_shader_effects_label.text = tr("SHADER_EFFECTS_LABEL")
 	if is_instance_valid(_master_volume_label):
 		_master_volume_label.text = tr("MASTER_VOLUME_LABEL")
 	if is_instance_valid(_controls_header_label):
@@ -585,6 +688,20 @@ func _apply_input_timing_mode(index: int) -> void:
 		GameInputProfileUtility.InputTimingMode.REALTIME_RETARGET
 	)
 	_input_profile.set_input_timing_mode(mode_value)
+
+
+func _apply_vfx_quality(index: int) -> void:
+	if not is_instance_valid(_accessibility):
+		return
+	var quality: int = GFVariantData.to_int(
+		_get_option_metadata(
+			_vfx_quality_option,
+			index,
+			GameAccessibilityState.VfxQuality.FULL
+		),
+		GameAccessibilityState.VfxQuality.FULL
+	)
+	_accessibility.set_vfx_quality(quality)
 
 
 func _setup_input_detector() -> void:
@@ -754,6 +871,14 @@ func _get_input_profile_utility() -> GameInputProfileUtility:
 	return null
 
 
+func _get_accessibility_utility() -> GameAccessibilityUtility:
+	var utility_value: Object = get_utility(GameAccessibilityUtility)
+	if utility_value is GameAccessibilityUtility:
+		var accessibility: GameAccessibilityUtility = utility_value
+		return accessibility
+	return null
+
+
 func _get_scene_router_system() -> SceneRouterSystem:
 	var system_value: Object = get_system(SceneRouterSystem)
 	if system_value is SceneRouterSystem:
@@ -802,6 +927,24 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 			_apply_master_volume(GFVariantData.to_float(value, 1.0))
 		_FIELD_INPUT_TIMING_INDEX:
 			_apply_input_timing_mode(GFVariantData.to_int(value, 2))
+		_FIELD_VFX_QUALITY_INDEX:
+			_apply_vfx_quality(GFVariantData.to_int(value, 2))
+		_FIELD_REDUCED_MOTION:
+			if is_instance_valid(_accessibility):
+				_accessibility.set_reduced_motion(GFVariantData.to_bool(value, false))
+		_FIELD_HIGH_CONTRAST_FEEDBACK:
+			if is_instance_valid(_accessibility):
+				_accessibility.set_high_contrast_feedback(
+					GFVariantData.to_bool(value, false)
+				)
+		_FIELD_HAPTICS_ENABLED:
+			if is_instance_valid(_accessibility):
+				_accessibility.set_haptics_enabled(GFVariantData.to_bool(value, true))
+		_FIELD_SHADER_EFFECTS_ENABLED:
+			if is_instance_valid(_accessibility):
+				_accessibility.set_shader_effects_enabled(
+					GFVariantData.to_bool(value, true)
+				)
 
 
 func _on_back_button_pressed() -> void:

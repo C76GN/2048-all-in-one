@@ -27,6 +27,8 @@ metadata/_custom_type_script = "uid://bi0d681ctpalu"
 [resource]
 script = ExtResource("1_bibj5")
 mode_name = "MODE_LUCAS_NAME"
+ruleset_id = &"gameplay.lucas_fibonacci"
+ruleset_version = 1
 mode_description = "MODE_LUCAS_DESC"
 interaction_rule = SubResource("Resource_qvxyt")
 movement_rule = ExtResource("6_waqm1")

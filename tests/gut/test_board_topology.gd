@@ -199,8 +199,8 @@ func test_sparse_gameplay_systems_respect_active_cells_and_gaps() -> void:
 	var spawned_tile: TileState = grid.get_tile(Vector2i(3, 0))
 	assert_true(spawned_tile != null, "生成系统应允许在活跃单元创建方块。")
 
-	var move_data: MoveData = movement_system.handle_move(Vector2i.LEFT)
-	assert_true(move_data != null, "右侧 lane 中的方块应产生有效移动。")
+	var turn_result: TurnResult = movement_system.handle_move(Vector2i.LEFT)
+	assert_true(turn_result != null, "右侧 lane 中的方块应产生有效移动。")
 	assert_same(grid.get_tile(Vector2i(2, 0)), spawned_tile, "方块应移动到所属连续 lane 的前沿。")
 	assert_null(grid.get_tile(Vector2i(0, 0)), "方块不得跨越空洞跳到另一条 lane。")
 
@@ -271,15 +271,18 @@ func test_merge_animation_instruction_preserves_rule_score_delta() -> void:
 			1
 		)
 	)
-	var move_data: MoveData = movement_system.handle_move(Vector2i.LEFT)
-	assert_true(move_data != null, "同值方块应生成有效合并移动。")
+	var turn_result: TurnResult = movement_system.handle_move(Vector2i.LEFT)
+	assert_true(turn_result != null, "同值方块应生成有效合并移动。")
 
-	var instructions: Array = GFVariantData.to_array(captured.get(&"instructions", []))
-	assert_true(instructions.size() == 1, "单次双方块合并应生成一条表现指令。")
-	if instructions.size() == 1 and instructions[0] is Dictionary:
-		var instruction: Dictionary = instructions[0]
+	var captured_result: Variant = captured.get(&"instructions")
+	var emitted_result: TurnResult = null
+	if captured_result is TurnResult:
+		emitted_result = captured_result
+	assert_same(emitted_result, turn_result, "表现边界应直接收到本回合唯一 TurnResult。")
+	assert_true(turn_result.merges.size() == 1, "单次双方块合并应生成一个强类型合并结果。")
+	if turn_result.merges.size() == 1:
 		assert_true(
-			GFVariantData.get_option_int(instruction, &"score_delta") == 4,
+			turn_result.merges[0].interaction.score_delta == 4,
 			"合并表现必须携带规则返回的真实 score_delta。"
 		)
 	architecture.dispose()

@@ -186,6 +186,97 @@ custom_minimum_size = Vector2(220, 42)
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="AccessibilitySeparator" type="HSeparator" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+
+[node name="AccessibilityTitle" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "无障碍与性能"
+
+[node name="VfxQualityContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VfxQualityContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "特效质量"
+vertical_alignment = 1
+
+[node name="VfxQualityOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VfxQualityContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ReducedMotionContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/ReducedMotionContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "减少动态效果"
+vertical_alignment = 1
+
+[node name="ReducedMotionToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/ReducedMotionContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HighContrastContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/HighContrastContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "高对比反馈"
+vertical_alignment = 1
+
+[node name="HighContrastFeedbackToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/HighContrastContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HapticsContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/HapticsContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "触觉反馈"
+vertical_alignment = 1
+
+[node name="HapticsToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/HapticsContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+button_pressed = true
+
+[node name="ShaderEffectsContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/ShaderEffectsContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "动态 Shader"
+vertical_alignment = 1
+
+[node name="ShaderEffectsToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/ShaderEffectsContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+button_pressed = true
+
 [node name="AudioSection" type="VBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections"]
 unique_name_in_owner = true
 visible = false

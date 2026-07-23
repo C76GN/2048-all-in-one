@@ -8,7 +8,7 @@
 
 | 深度样本 | 最强一手证据与可借鉴模式 | 相对当前项目 | GF 与项目边界 | 综合判断 |
 | --- | --- | --- | --- | --- |
-| [gabrielecirulli/2048](./projects/repo_gabrielecirulli_2048.md) | `previousPosition`、`mergedFrom`、新生状态与 `score_delta` 让表现消费一次移动的语义结果；100–200 ms 的位移/pop 构成经典手感基线 | 当前规则、拓扑、确定性、回放和主题均为超集；现有 `MoveData` 仍只含方向/移动 lane/反向目标，合并汇总仍是字符串字典，经典节奏也缺回归 | `GFTurnFlowSystem` 提交规则，`GFActionQueueSystem` 消费表现；项目扩展现有 `MoveData` 和节奏 Profile | **P0 基线**：借动作结果和因果节拍，不借 DOM 重建、裸 JSON 存档或 `Math.random()` |
+| [gabrielecirulli/2048](./projects/repo_gabrielecirulli_2048.md) | `previousPosition`、`mergedFrom`、新生状态与 `score_delta` 让表现消费一次移动的语义结果；100–200 ms 的位移/pop 构成经典手感基线 | 当前规则、拓扑、确定性、回放和主题均为超集；`TurnResult` 已类型化移动、合并、生成、转化与汇总，经典节奏仍需持续做跨档位回归 | `GFTurnFlowSystem` 提交规则，`GFActionQueueSystem` 消费表现；项目拥有 `TurnResult` 和节奏 Profile | **P0 基线已采用**：借动作结果和因果节拍，不借 DOM 重建、裸 JSON 存档或 `Math.random()` |
 | [danqing/2048](./projects/repo_danqing_2048.md) | 尺寸、合并规则、主题正交选择；三合一/Fibonacci 把变体规则和分阶段动画显式表达 | 当前已有 6 模式和 3×3–8×8/稀疏拓扑，广度更强；组合兼容性解释和资源化测试仍可深化 | 内容资源、UI route、turn/action queue 已足够；组合规则和平衡归项目 | **P1 深化**：做模式×尺寸×主题兼容矩阵，不在控制器继续堆分支 |
 | [2048-in-react](./projects/repo_mateuszsokola_2048_react.md) | 稳定 tile ID 暴露表现身份的重要性；重复 reducer、timer 和事件边界反向证明方向不变量与快速输入测试的必要性 | 当前已有命名视觉队列和输入策略，但未见稳定身份、buffer/block/retarget 与 reduced-motion 的联合回归矩阵 | `GFInputMappingUtility`、`GFPointerGestureUtility`、`GFActionQueueSystem` 提供机制；项目定义手势死区和拥塞策略 | **P0 测试证据**：借稳定身份与不变量，不借重复方向逻辑、深拷贝或表现 timer 驱动领域 |
 | [2048.cpp](./projects/repo_plibither8_2048_cpp.md) | 移动数、最佳局面、救援和文本模式提供不依赖颜色的状态表达 | 当前统计、历史和 UI 更完整；仍缺救援资格语义和单色/非色彩冗余的端到端验收 | SaveGraph、信号和 turn flow 可复用；救援规则、资格与文案归项目 | **P1/P2 产品点**：统计与冗余编码可借；直接终端 IO、全局状态和非确定随机不可借 |
@@ -62,8 +62,8 @@
 
 | 决策主题 | 多源证据 | 当前项目判断 | 下一层验证 |
 | --- | --- | --- | --- |
-| 动作与表现边界 | 原版 2048、statico、Pixel Dungeon、Freshly Frosted | action queue 与 `MoveData` 已有；应扩展现有数据并声明链式语义次序，而不是新建平行 DTO 或让表现反推模拟 | 同一命令在正常、无表现、快进三种消费者下 canonical state 一致；链式预览与结算次序一致 |
-| 随机与回放 | BrogueCE、两套 2048 AI、Shattered Pixel Dungeon、Dorfromantik | 确定性底座强，缺 gameplay/cosmetic RNG 隔离审计、OOS 首点、seed catalog 与公开有限资源 queue | 改 cosmetic seed/关闭表现不改 canonical hash；queue/cursor 可撤销、回放；CI 报告首个分歧命令 |
+| 动作与表现边界 | 原版 2048、statico、Pixel Dungeon、Freshly Frosted | action queue 与 typed `TurnResult` 已落地；后续只扩展同一结果模型并声明链式语义次序，不新建平行 DTO，也不让表现反推模拟 | 同一命令在正常、无表现、快进三种消费者下 canonical state 一致；链式预览与结算次序一致 |
+| 随机与回放 | BrogueCE、两套 2048 AI、Shattered Pixel Dungeon、Dorfromantik | gameplay branch、规则指纹、逐回合 checkpoint 和首个 OOS 已落地；缺完整多平台 seed catalog、cosmetic 多配置等价矩阵与公开有限资源 queue | 改 cosmetic seed/关闭表现不改 canonical hash；queue/cursor 可撤销、回放；CI 报告首个分歧命令 |
 | 变体与内容 | danqing、Shattered Pixel Dungeon、Dreadrock、Tinyfolks | 模式和拓扑已资源化；局内选择、挑战组合、手工课程、关卡目标与兼容性说明不足 | 新增 modifier 不改移动控制器；首包关卡有稳定目录/掌握状态；冲突组合开局前可解释地阻止 |
 | 反馈品质 | 原版 2048、Pixel Dungeon 系列、GUNCHO、Freshly Frosted | Shader/队列机制强，语义层级、音频层次、旁白等价通道、减少动态和低端降级不足 | 移动、合并、里程碑、危险、无效、失败在各设置下可区分；短反馈后回到静态可判断局面 |
 | 多端 UX | 原版 2048、2048-in-react、Stacklands、Tinyfolks | 输入抽象、三种快速输入策略、焦点和真实布局重排均已存在；缺 burst、safe area、拖放替代、触控尺寸与完整控制器路径的统一端到端矩阵 | 窄屏/横屏/键鼠/触屏/手柄完成同一任务；拖放有取消/焦点等价；主操作无需滚动或隐含手势 |
@@ -73,6 +73,6 @@
 ## GF 总结
 
 - **已有且应优先复用**：turn flow、命名 action queue、确定性 seed/clock、command history、SaveGraph、Shader 参数校验、渲染预热、对象池、语义音频、输入映射、手势、异步预算与 diagnostics。
-- **项目级缺口**：现有 `MoveData` 的语义扩展、反馈词汇和 Profile、参照系回归、教程/手工课程、有限资源队列、可访问性策略、daily/资格、挑战内容、提示模型、响应式端到端验收、性能采样矩阵。
+- **项目级缺口**：快速输入与参照系回归、教程/手工课程、有限资源队列、daily/资格、挑战内容、提示模型、屏幕阅读语义、响应式端到端验收，以及跨平台性能实测矩阵。`TurnResult`、逐回合 OOS、基础 seed corpus、反馈 recipe、减少动态和 VFX 档位已落地。
 - **GF 反馈候选仅限发现性**：若能力目录搜不到 object pool、Shader、command history、execution budget、virtual list、haptic 或 grid path preview，应补关键词/`primary_classes` 与包选择信息，不能据此重造运行时 API。`gf.standard.spatial` 当前未声明；accessibility 先在项目组合并验证稳定契约。
 - **明确不采用**：第三方全局状态、直接平台 SDK、裸文件存档、非确定随机、表现层反写规则、因单个游戏内容而向 GF 添加业务模型，以及任何许可证不兼容或来源不明的代码/素材。

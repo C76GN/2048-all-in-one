@@ -243,10 +243,13 @@ func can_interact(source: TileState, target: TileState) -> bool:
 ## 应用仲裁后的提案并释放被消费方块的能力。
 ## @param source: 发起移动的方块。
 ## @param target: 移动目标位置上的方块。
-func apply_interaction(source: TileState, target: TileState) -> Dictionary:
+func apply_interaction(
+	source: TileState,
+	target: TileState
+) -> TileInteractionResult:
 	var proposal: TileInteractionProposal = evaluate_interaction(source, target)
 	if proposal == null:
-		return {}
+		return null
 	var survivor: TileState = (
 		source
 		if proposal.survivor_side == TileInteractionProposal.SurvivorSide.SOURCE
@@ -258,11 +261,11 @@ func apply_interaction(source: TileState, target: TileState) -> Dictionary:
 			push_error(
 				"[TileCompositionUtility] 交互状态补丁必须写入已挂载 Recipe 的命名空间。"
 			)
-			return {}
+			return null
 	survivor.value = proposal.result_value
 	for key: Variant in proposal.state_patch:
 		survivor.capability_state[key] = proposal.state_patch[key]
-	var result: Dictionary = proposal.to_result_dictionary(source, target)
+	var result: TileInteractionResult = proposal.to_interaction_result(source, target)
 	release_tile(consumed)
 	_emit_observation(survivor)
 	return result

@@ -2,6 +2,7 @@ shader_type canvas_item;
 
 const int PARTICLE_COUNT = 88;
 
+uniform int active_count : hint_range(0, 88) = 88;
 uniform float speed : hint_range(20.0, 500.0) = 105.0;
 uniform float sway_strength : hint_range(0.0, 200.0) = 38.0;
 uniform float sway_speed : hint_range(0.1, 5.0) = 1.15;
@@ -61,6 +62,9 @@ void fragment() {
 	vec4 out_color = vec4(0.0);
 
 	for (int i = 0; i < PARTICLE_COUNT; i++) {
+		if (i >= active_count) {
+			continue;
+		}
 		float fi = float(i);
 
 		float start_x = rand(fi * 1.234) * resolution.x;

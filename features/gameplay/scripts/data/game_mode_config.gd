@@ -12,6 +12,12 @@ extends Resource
 ## 在UI上显示的模式名称。
 @export var mode_name: String = "未命名模式"
 
+## 只描述玩法语义的稳定规则集 ID，不随显示名称或主题变化。
+@export var ruleset_id: StringName = &""
+
+## 任意会改变确定性结算结果的规则修改都必须递增该版本。
+@export_range(1, 2147483647, 1) var ruleset_version: int = 1
+
 ## 在模式选择界面和游戏HUD中显示的玩法说明。
 @export_multiline var mode_description: String = ""
 
@@ -70,6 +76,15 @@ func get_validation_report() -> GFValidationReport:
 			"resource_path": resource_path,
 		}
 	)
+	if ruleset_id == &"":
+		_add_config_error(report, &"missing_ruleset_id", "ruleset_id 不能为空。", &"ruleset_id")
+	if ruleset_version <= 0:
+		_add_config_error(
+			report,
+			&"invalid_ruleset_version",
+			"ruleset_version 必须大于 0。",
+			&"ruleset_version"
+		)
 
 	if not is_instance_valid(interaction_rule):
 		_add_config_error(report, &"missing_interaction_rule", "interaction_rule 未配置。", &"interaction_rule")

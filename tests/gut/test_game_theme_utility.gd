@@ -77,7 +77,10 @@ func test_theme_catalog_discovers_and_validates_default_theme_pack() -> void:
 	assert_true(theme.board_feedback_profile.get_validation_report().is_ok(), "棋盘反馈 Profile 应完整声明 GF Shake 与 Haptic 预设。")
 	assert_true(is_instance_valid(theme.celebration_vfx_theme), "主题应引用庆祝 VFX 主题资源。")
 	assert_true(theme.celebration_vfx_theme.get_validation_report().is_ok(), "庆祝 VFX 主题应通过 GFValidationReport。")
-	assert_true(theme.celebration_vfx_theme.shader_parameter_profile.get_parameter_names().size() == 11, "庆祝 VFX Profile 应声明 11 个基础视觉参数。")
+	assert_true(
+		theme.celebration_vfx_theme.shader_parameter_profile.get_parameter_names().size() == 12,
+		"庆祝 VFX Profile 应声明 12 个基础视觉与粒子预算参数。"
+	)
 	assert_true(is_instance_valid(theme.scene_transition_cover_effect), "主题应声明覆盖旧场景的 GF 转场效果。")
 	assert_true(is_instance_valid(theme.scene_transition_reveal_effect), "主题应声明揭示新场景的 GF 转场效果。")
 	assert_true(theme.scene_transition_cover_effect.shader_material != null, "覆盖转场应由主题提供 ShaderMaterial。")
@@ -133,8 +136,8 @@ func test_audio_theme_validation_requires_registered_semantic_events() -> void:
 
 	assert_false(report.is_ok(), "缺少语义事件音频的主题必须校验失败。")
 	assert_true(
-		GFVariantData.get_option_int(counts_by_kind, &"unresolved_audio_event") == 6,
-		"音效主题应逐项校验六个运行时语义事件。"
+		GFVariantData.get_option_int(counts_by_kind, &"unresolved_audio_event") == 11,
+		"音效主题应逐项校验基础事件和层级语义事件。"
 	)
 
 
@@ -168,6 +171,31 @@ func test_scene_router_delegates_theme_transitions_to_gf_utility() -> void:
 		GFVariantData.get_option_bool(transition_utility.get_debug_snapshot(), "overlay_visible"),
 		"揭示完成后应通过 GF 完成回调隐藏覆盖层。"
 	)
+
+	await _dispose_architecture(architecture)
+
+
+func test_scene_router_reduced_motion_uses_instant_shaderless_transition() -> void:
+	var setup: Dictionary = await _create_theme_architecture(true)
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var settings: GFSettingsUtility = _get_settings(setup)
+	var router: SceneRouterSystem = _get_scene_router_system(setup)
+	settings.set_value(GameAccessibilityState.REDUCED_MOTION_SETTING_KEY, true)
+
+	var effect_value: Variant = router.call("_resolve_scene_transition_effect", &"cover")
+	assert_true(effect_value is GFScreenTransitionEffect, "减少动态仍需保留场景覆盖语义。")
+	if effect_value is GFScreenTransitionEffect:
+		var effect: GFScreenTransitionEffect = effect_value
+		assert_true(effect.duration_seconds == 0.0, "减少动态的场景转场必须立即完成。")
+		assert_null(effect.shader_material, "减少动态不得运行图案擦除 Shader。")
+	var config_value: Variant = router.call(
+		"_make_scene_transition_config",
+		"res://features/navigation/scenes/menus/main_menu.tscn"
+	)
+	assert_true(config_value is GFSceneTransitionConfig)
+	if config_value is GFSceneTransitionConfig:
+		var config: GFSceneTransitionConfig = config_value
+		assert_true(config.minimum_duration_seconds == 0.0, "减少动态不得人为延长加载等待。")
 
 	await _dispose_architecture(architecture)
 
@@ -215,8 +243,8 @@ func test_theme_utility_tracks_cross_utility_signals_with_gf_signal_utility() ->
 	assert_true(is_instance_valid(signal_utility), "主题测试架构应注册 GFSignalUtility。")
 	if is_instance_valid(signal_utility):
 		assert_true(
-			signal_utility.get_connection_count() == 3,
-			"主题 Utility 应由 GFSignalUtility 追踪设置变更与两个 UI 音效信号。"
+			signal_utility.get_connection_count() == 4,
+			"主题与无障碍 Utility 应由 GFSignalUtility 追踪两类设置变更与两个 UI 音效信号。"
 		)
 
 	await _dispose_architecture(architecture)
@@ -453,6 +481,20 @@ func test_current_audio_theme_defines_stable_event_ids() -> void:
 	assert_true(audio_theme.audio_bank.has_clip(audio_theme.tile_merge_event), "音频银行应提供方块合并音效。")
 	assert_true(audio_theme.audio_bank.has_clip(audio_theme.game_over_event), "音频银行应提供游戏结束音效。")
 	assert_true(
+		GFVariantData.get_option_bool(
+			audio_theme.audio_bank.resolve_clip(audio_theme.tile_merge_chain_event),
+			&"ok"
+		),
+		"连续合并事件应通过 GFAudioBank 层级回退解析。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(
+			audio_theme.audio_bank.resolve_clip(audio_theme.tile_move_blocked_event),
+			&"ok"
+		),
+		"受阻移动事件应通过 GFAudioBank 层级回退解析。"
+	)
+	assert_true(
 		audio_utility.get_audio_bank(audio_theme.get_resolved_bank_id()) == audio_theme.audio_bank,
 		"主题 Utility ready 后应把当前音效主题注册到 GFAudioUtility。"
 	)
@@ -474,8 +516,13 @@ func test_theme_utility_plays_semantic_sound_events_through_gf_audio() -> void:
 	theme_utility.play_tile_move_sound()
 	theme_utility.play_tile_merge_sound()
 	theme_utility.play_game_over_sound()
+	var audio_theme: GameAudioTheme = theme_utility.get_current_sound_theme()
+	theme_utility.play_current_sound_event(
+		audio_theme.tile_merge_chain_event,
+		{&"merge_count": 2}
+	)
 
-	assert_true(backend.sfx_clip_count == 6, "主题语义音效应全部通过 GFAudioUtility 播放。")
+	assert_true(backend.sfx_clip_count == 7, "主题语义音效应全部通过 GFAudioUtility 播放。")
 	assert_true(
 		backend.paths.has("res://features/asset_library/resources/audio/ui/printworks_select_soft_01.ogg"),
 		"UI 选择音效应来自当前音效主题音频银行。"
@@ -488,7 +535,54 @@ func test_theme_utility_plays_semantic_sound_events_through_gf_audio() -> void:
 	await _dispose_architecture(architecture)
 
 
+func test_audio_theme_selects_one_primary_event_from_typed_turn_result() -> void:
+	var audio_theme: GameAudioTheme = preload(
+		"res://features/themes/resources/themes/game/printworks_audio_theme.tres"
+	)
+	var movement_turn: TurnResult = TurnResult.new()
+	movement_turn.direction = Vector2i.RIGHT
+	movement_turn.movements.append(
+		TileMovementResult.new(TileState.new(2), Vector2i.ZERO, Vector2i.RIGHT)
+	)
+	assert_true(
+		audio_theme.resolve_turn_event(movement_turn) == audio_theme.tile_move_event,
+		"纯移动回合应只选择移动主事件。"
+	)
+
+	var first_merge: TileMergeResult = _make_audio_merge_result(2, 4)
+	var second_merge: TileMergeResult = _make_audio_merge_result(4, 8)
+	movement_turn.add_merge(first_merge)
+	assert_true(
+		audio_theme.resolve_turn_event(movement_turn) == audio_theme.tile_merge_event,
+		"单次合并应覆盖普通移动事件。"
+	)
+	movement_turn.add_merge(second_merge)
+	assert_true(
+		audio_theme.resolve_turn_event(movement_turn) == audio_theme.tile_merge_chain_event,
+		"多次合并应选择连续合并事件。"
+	)
+	movement_turn.add_transform(TileTransformResult.new(TileState.new(8)))
+	assert_true(
+		audio_theme.resolve_turn_event(movement_turn) == audio_theme.tile_transform_event,
+		"转化语义应优先于连续合并。"
+	)
+	assert_true(
+		audio_theme.resolve_turn_event(movement_turn, true) == audio_theme.target_reached_event,
+		"里程碑事件应成为当前回合唯一最高优先级事件。"
+	)
+
+
 # --- 私有/辅助方法 ---
+
+func _make_audio_merge_result(consumed_value: int, survivor_value: int) -> TileMergeResult:
+	var interaction: TileInteractionResult = TileInteractionResult.new()
+	interaction.consumed = TileState.new(consumed_value)
+	interaction.survivor = TileState.new(survivor_value)
+	interaction.interaction_rule_id = &"test.audio.merge"
+	var merge: TileMergeResult = TileMergeResult.new()
+	merge.interaction = interaction
+	return merge
+
 
 func _create_theme_architecture(
 	include_scene_router: bool = false,
@@ -510,6 +604,7 @@ func _create_theme_architecture(
 	settings.auto_load_on_init = false
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()
+	var storage: GFStorageUtility = GFStorageUtility.new()
 	var audio: GFAudioUtility = GFAudioUtility.new()
 	var style: GameUiStyleUtility = GameUiStyleUtility.new()
 	var motion: GameUiMotionUtility = GameUiMotionUtility.new()
@@ -522,6 +617,7 @@ func _create_theme_architecture(
 	var theme_utility: GameThemeUtility = GameThemeUtility.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var signal_utility: GFSignalUtility = GFSignalUtility.new()
+	var accessibility: GameAccessibilityUtility = GameAccessibilityUtility.new()
 	var scene_utility: GFSceneUtility = null
 	var screen_transition: GFScreenTransitionUtility = null
 	var scene_router: SceneRouterSystem = null
@@ -534,10 +630,12 @@ func _create_theme_architecture(
 		project_content_catalog
 	)
 	await architecture.register_utility(GameAssetLibraryUtility, asset_library)
+	await architecture.register_utility(GFStorageUtility, storage)
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFAudioUtility, audio)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GFSignalUtility, signal_utility)
+	await architecture.register_utility(GameAccessibilityUtility, accessibility)
 	await architecture.register_utility(GameUiStyleUtility, style)
 	await architecture.register_utility(GameUiMotionUtility, motion)
 	await architecture.register_utility(GFShakeUtility, shake)
@@ -581,6 +679,7 @@ func _create_theme_architecture(
 		"theme_utility": theme_utility,
 		"shader_parameters": shader_parameters,
 		"signal_utility": signal_utility,
+		"accessibility": accessibility,
 		"scene_utility": scene_utility,
 		"screen_transition": screen_transition,
 		"scene_router": scene_router,

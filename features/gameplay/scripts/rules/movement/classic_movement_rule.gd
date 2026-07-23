@@ -11,30 +11,28 @@ extends MovementRule
 ## 处理单行/列的移动与交互，采用经典滑动逻辑。
 ##
 ## @param line: 一个包含TileState节点或null的一维数组，代表棋盘的一行或一列。
-## @return: 一个字典，包含 {"line": Array, "moved": bool, "merges": Array}。
-func process_line(line: Array[TileState]) -> Dictionary:
+## @return: 单条 lane 的强类型结果。
+func process_line(line: Array[TileState]) -> MovementLineResult:
 	var slid_line: Array[TileState] = []
 	for tile: TileState in line:
 		if tile != null:
 			slid_line.append(tile)
 
 	var merged_line: Array[TileState] = []
-	var merge_results: Array[Dictionary] = []
+	var merge_results: Array[TileInteractionResult] = []
 	var i: int = 0
 	while i < slid_line.size():
 		var current_tile: TileState = slid_line[i]
 		if i + 1 < slid_line.size():
 			var next_tile: TileState = slid_line[i + 1]
 
-			var result: Dictionary = interaction_rule.process_interaction(current_tile, next_tile, interaction_rule)
-			if not result.is_empty():
-				var merged_value: Variant = result.get("merged_tile")
-				var merged: TileState = null
-				if merged_value is TileState:
-					merged = merged_value
-				if merged != null:
-					merged_line.append(merged)
-
+			var result: TileInteractionResult = interaction_rule.process_interaction(
+				current_tile,
+				next_tile,
+				interaction_rule
+			)
+			if result != null and result.is_valid_result():
+				merged_line.append(result.survivor)
 				merge_results.append(result)
 
 				i += 2
@@ -63,4 +61,4 @@ func process_line(line: Array[TileState]) -> Dictionary:
 				has_moved = true
 				break
 
-	return {"line": result_line, "moved": has_moved, "merges": merge_results}
+	return MovementLineResult.new(result_line, has_moved, merge_results)

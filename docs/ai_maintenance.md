@@ -303,7 +303,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 900 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-2026-07-21 使用 Godot `4.7` 与 GF `9.0.1` 运行通过。当前完整套件为 34 个 GUT 测试脚本、294 个 `test_` 用例、1874 个断言；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 732 个全局脚本类，项目运行时声明 183 个；完整套件退出计数为 `ObjectDB = 309`、`Resources = 131`，RID 为 `TextureStorage = 11`、`ShapedText = 9`、`Font = 5`。本次新增 `ProjectStorageRecoveryPolicy` 和一份持久化回归测试后，verbose 全量审计确认固定增量局限于扩展后的脚本/测试发现集合，没有新增 retained Node、Resource 或 RID 类别；同一输入集合下退出计数不得继续增长。
+2026-07-24 使用 Godot `4.7` 与 GF `9.0.1` 运行通过。当前完整套件为 39 个 GUT 测试脚本、325 个 `test_` 用例、2061 个断言；退出泄漏受 `.gf/godot_exit_leak_baseline.json` 严格约束，并同时绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与 `app/`、`features/`、`shared/` 的运行时 `class_name` 数量。当前 GF 快照声明 732 个全局脚本类，项目运行时声明 199 个；完整套件退出计数为 `ObjectDB = 319`、`Resources = 141`，RID 为 `TextureStorage = 11`、`ShapedText = 9`、`Font = 5`。本轮以 `TurnResult` 替换 `MoveData`，加入确定性回放检查点、自适应反馈类型和可执行验收矩阵后，审计确认固定增量来自净增 14 个运行时脚本类与扩展后的测试发现集合，没有新增 retained Node、Resource 或 RID 类别；同一输入集合下退出计数不得继续增长。
 
 编辑器 GDScript warning 诊断入口：
 

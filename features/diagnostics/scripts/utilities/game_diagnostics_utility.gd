@@ -153,6 +153,10 @@ func _refresh_project_tool_snapshots() -> void:
 	_publish_tool_snapshot(&"achievement_catalog", _collect_achievement_catalog_snapshot())
 	_publish_tool_snapshot(&"achievements", _collect_achievements_snapshot())
 	_publish_tool_snapshot(&"ui_routes", _collect_ui_routes_snapshot())
+	_publish_tool_snapshot(
+		&"gameplay_acceptance_matrix",
+		_collect_gameplay_acceptance_matrix_snapshot()
+	)
 	_publish_tool_snapshot(&"scene_asset_metadata", _collect_scene_asset_metadata_snapshot())
 	_publish_tool_snapshot(&"debug_overlay", _collect_debug_overlay_snapshot())
 	_publish_tool_snapshot(&"runtime_inspector", _collect_runtime_inspector_snapshot())
@@ -410,6 +414,17 @@ func _collect_ui_routes_snapshot() -> Dictionary:
 		var utility: GameUiRouterUtility = utility_value
 		return utility.get_debug_snapshot()
 	return {}
+
+
+func _collect_gameplay_acceptance_matrix_snapshot() -> Dictionary:
+	var validation_report: GFValidationReport = GameplayAcceptanceMatrix.get_validation_report()
+	return {
+		&"ok": validation_report.is_ok(),
+		&"validation": validation_report.to_dict(),
+		&"cases": GameplayAcceptanceMatrix.get_cases(),
+		&"measured_results": [],
+		&"measurement_status": &"not_measured",
+	}
 
 
 func _collect_scene_asset_metadata_snapshot() -> Dictionary:

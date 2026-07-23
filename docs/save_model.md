@@ -45,7 +45,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 | --- | --- | --- | --- |
 | `player_data` | `NORMAL` | 根作用域，无业务 Source | Profile `4` |
 | `progress` | `EARLY` | `GameStatsSaveData` | `3` |
-| `bookmarks` | `NORMAL` | `BookmarkCatalogSaveData` | `4` |
+| `bookmarks` | `NORMAL` | `BookmarkCatalogSaveData` | `5` |
 | `custom_boards` | `NORMAL` | `CustomBoardCatalogSaveData` | `1` |
 | `discoveries` | `NORMAL` | `TileDiscoverySaveData` | `1` |
 | `achievements` | `LATE` | `AchievementSaveData` | `1` |
@@ -104,7 +104,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 `BookmarkCatalogSaveData` 的业务根只有 `items`。每个 `BookmarkData` 使用 `bookmark_id` UUID v7 作为稳定身份，删除和替换不得依赖时间戳或文件路径。
 
-书签是可继续游玩的完整局面快照，包括模式、种子、棋盘、规则状态、命令历史、分数、步数、跨定义求商次数和目标状态。视觉主题、音效主题和全局设置不属于书签。`BookmarkCatalogSaveData` 当前为 schema v4；`ratio_resolutions` 只表示规则执行次数，不携带阵营或击杀语义。
+书签是可继续游玩的完整局面快照，包括模式、种子、棋盘、规则状态、命令历史、分数、步数、跨定义求商次数和目标状态。它还严格保存从初始种子到书签位置的 typed replay actions/checkpoints 前缀，保证续玩后的完整对局仍能产出逐回合可验证回放，不允许从命令历史再次推断回放语义。视觉主题、音效主题和全局设置不属于书签。`BookmarkCatalogSaveData` 当前为 schema v5；`ratio_resolutions` 只表示规则执行次数，不携带阵营或击杀语义。
 
 棋盘快照使用 `GridModel.SNAPSHOT_SCHEMA_VERSION`，其根字段严格为 `schema_version`、`topology` 和 `tiles`。`topology` 使用 `BoardTopology.SERIALIZATION_SCHEMA_VERSION` 保存规范化活跃坐标；方块只能位于活跃单元，空洞不得以空方块伪装。每个方块使用 `TileState.SERIALIZATION_SCHEMA_VERSION`，并显式保存 UUID v7、`definition_id`、当前实际 `capability_recipe_ids` 以及按 Recipe ID 隔离的 `capability_state`。恢复时由 `TileCompositionUtility` 通过 GF Recipe 重建能力实例；不得仅按定义的初始 Recipe 猜测运行时组合。
 
@@ -132,7 +132,9 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 `ReplayCatalogSaveData` 的业务根只有 `items`。每个 `ReplayData` 使用 `replay_id` UUID v7 作为稳定身份。
 
-回放保存“初始条件 + 有效玩家操作序列 + 结束预览”，不是逐帧录像。`ReplayCatalogSaveData` 当前为 schema v2；`initial_board_topology` 是初始空间契约，`final_board_snapshot` 是结束预览，两者都必须通过当前严格校验。`actions` 使用 `Array[Vector2i]`，必须与 `MoveCommand` 和 `GFCommandHistoryUtility` 的方向语义一致。
+回放保存“初始条件 + 有效玩家操作序列 + 逐回合确定性 checkpoint + 结束预览”，不是逐帧录像。`ReplayCatalogSaveData` 当前为 schema v2；`initial_board_topology` 是初始空间契约，`final_board_snapshot` 是结束预览，两者都必须通过当前严格校验。`actions` 使用 `Array[Vector2i]`，必须与 `MoveCommand` 和 `GFCommandHistoryUtility` 的方向语义一致。
+
+每个 `ReplayData` 必须保存 `ruleset_id`、`ruleset_version`、`ruleset_fingerprint` 和与有效命令一一对应的 `ReplayCheckpoint`。Checkpoint 分别保存 board、gameplay RNG、规则集和完整 state checksum；运行时 UUID 与表现状态不得进入摘要。回放发现首个 OOS 后必须停止步进，并禁止从该回合继续普通对局，不得用结束预览掩盖中途偏离。
 
 ## Schema 规则
 

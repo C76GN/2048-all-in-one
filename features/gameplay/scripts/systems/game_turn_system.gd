@@ -27,7 +27,7 @@ func ready() -> void:
 	_grid_model = _get_grid_model()
 
 	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready", 1))
-	register_event(MoveData, GFEventListener.from_method(self, &"_on_move_made", 1))
+	register_event(TurnResult, GFEventListener.from_method(self, &"_on_turn_resolved", 1))
 	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
 
 	if not is_instance_valid(_turn_flow):
@@ -104,11 +104,11 @@ func _on_game_ready(data: GameReadyData) -> void:
 		_start_session(data)
 
 
-func _on_move_made(move_data: MoveData) -> void:
-	if not _is_session_active or not is_instance_valid(move_data):
+func _on_turn_resolved(turn_result: TurnResult) -> void:
+	if not _is_session_active or not is_instance_valid(turn_result):
 		return
 
-	_turn_flow.enqueue_action(GameMoveTurnAction.new(_grid_model, move_data))
+	_turn_flow.enqueue_action(GameMoveTurnAction.new(_grid_model, turn_result))
 	await _drain_pending_actions()
 
 

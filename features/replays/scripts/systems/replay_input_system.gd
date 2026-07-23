@@ -110,7 +110,10 @@ func _execute_replay_step(direction: Vector2i) -> void:
 	_is_step_processing = true
 	var result: Variant = await history.execute_command(MoveCommand.new(direction))
 	_is_step_processing = false
-	if result == null:
+	if not result is TurnResult:
+		var failed_replay_system: ReplaySystem = _get_replay_system()
+		if is_instance_valid(failed_replay_system):
+			var _oos_recorded: bool = failed_replay_system.report_ineffective_action(direction)
 		return
 
 	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)

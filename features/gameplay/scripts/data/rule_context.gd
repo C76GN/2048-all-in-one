@@ -10,8 +10,8 @@ extends RefCounted
 ## 当前棋盘的逻辑数据模型。
 var grid_model: GridModel
 
-## 本次移动的数据。仅在移动触发的规则中有效，其他触发器中为 null。
-var move_data: MoveData
+## 本次回合结果。仅在移动触发的规则中有效，其他触发器中为 null。
+var turn_result: TurnResult
 
 ## 随机数工具，由 RuleSystem 注入。
 var seed_utility: GFSeedUtility

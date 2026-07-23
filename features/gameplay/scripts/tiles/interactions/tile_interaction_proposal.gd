@@ -43,20 +43,23 @@ func has_same_effect(other: TileInteractionProposal) -> bool:
 	)
 
 
-## 将提案投影为移动系统消费的交互结果。
+## 将提案投影为移动系统消费的强类型交互结果。
 ## @param source: 发起移动的方块。
 ## @param target: 移动目标位置上的方块。
-func to_result_dictionary(source: TileState, target: TileState) -> Dictionary:
+func to_interaction_result(source: TileState, target: TileState) -> TileInteractionResult:
 	var survivor: TileState = source if survivor_side == SurvivorSide.SOURCE else target
 	var consumed: TileState = target if survivor_side == SurvivorSide.SOURCE else source
-	var result: Dictionary = {
-		&"merged_tile": survivor,
-		&"consumed_tile": consumed,
-		&"interaction_rule_id": rule_id,
-		&"feedback_cue_id": feedback_cue_id,
-	}
-	if score_delta != 0:
-		result[&"score"] = score_delta
-	for key: Variant in metadata:
-		result[key] = metadata[key]
+	var result: TileInteractionResult = TileInteractionResult.new()
+	result.survivor = survivor
+	result.consumed = consumed
+	result.interaction_rule_id = rule_id
+	result.feedback_cue_id = feedback_cue_id
+	result.score_delta = score_delta
+	result.ratio_resolution_count = GFVariantData.get_option_int(
+		metadata,
+		&"ratio_resolved",
+		0
+	)
+	result.transformed = GFVariantData.get_option_bool(metadata, &"transform", false)
+	result.metadata = metadata.duplicate(true)
 	return result

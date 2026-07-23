@@ -14,6 +14,7 @@ const _ROUTE_PAUSE_MENU: StringName = &"pause_menu"
 const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
 const _ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
 const _REPLAY_PROGRESS_FORMAT_FALLBACK: String = "回放进度: %d / %d"
+const _REPLAY_OOS_FORMAT_FALLBACK: String = "回放在第 %d 步失去同步"
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
 const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_ui_motion_utility.gd")
 
@@ -187,6 +188,10 @@ func _connect_signals() -> void:
 	if is_instance_valid(_replay_system):
 		_connect_managed_signal(_replay_system.playback_progress_changed, _on_replay_progress_changed)
 		_connect_managed_signal(_replay_system.playback_status_changed, _on_replay_status_changed)
+		_connect_managed_signal(
+			_replay_system.playback_desynchronized,
+			_on_replay_desynchronized
+		)
 
 	register_simple_event(EventNames.GAME_STATE_CHANGED, GFEventListener.from_method(self, &"_on_game_state_changed", 1))
 	register_simple_event(EventNames.TOGGLE_PAUSE_UI, GFEventListener.from_method(self, &"_on_toggle_pause_ui", 1))
@@ -217,16 +222,25 @@ func _update_replay_ui() -> void:
 
 	var current_step: int = _replay_system.get_current_step()
 	var total_steps: int = _replay_system.get_total_steps()
+	var is_desynchronized: bool = _replay_system.is_playback_desynchronized()
 	if is_instance_valid(replay_progress_label):
-		replay_progress_label.text = GameTextFormatUtility.format_template(
-			tr("LABEL_REPLAY_PROGRESS"),
-			_REPLAY_PROGRESS_FORMAT_FALLBACK,
-			[current_step, total_steps]
-		)
+		if is_desynchronized:
+			var oos_report: Dictionary = _replay_system.get_oos_report()
+			replay_progress_label.text = GameTextFormatUtility.format_template(
+				tr("LABEL_REPLAY_OOS"),
+				_REPLAY_OOS_FORMAT_FALLBACK,
+				[GFVariantData.get_option_int(oos_report, &"step_index", current_step + 1)]
+			)
+		else:
+			replay_progress_label.text = GameTextFormatUtility.format_template(
+				tr("LABEL_REPLAY_PROGRESS"),
+				_REPLAY_PROGRESS_FORMAT_FALLBACK,
+				[current_step, total_steps]
+			)
 	if is_instance_valid(replay_prev_button):
-		replay_prev_button.disabled = current_step <= 0
+		replay_prev_button.disabled = is_desynchronized or current_step <= 0
 	if is_instance_valid(replay_next_button):
-		replay_next_button.disabled = current_step >= total_steps
+		replay_next_button.disabled = is_desynchronized or current_step >= total_steps
 	if is_instance_valid(replay_continue_button):
 		replay_continue_button.disabled = not _replay_system.can_continue_from_current_step()
 
@@ -538,6 +552,12 @@ func _on_replay_progress_changed(_current_step: int, _total_steps: int) -> void:
 
 func _on_replay_status_changed(_is_active: bool) -> void:
 	_configure_ui_for_mode()
+
+
+func _on_replay_desynchronized(report: Dictionary) -> void:
+	_update_replay_ui()
+	if is_instance_valid(_log):
+		_log.warn(_LOG_TAG, "回放检测到 OOS，已冻结控制。", report)
 
 
 func _on_replay_prev_pressed() -> void:

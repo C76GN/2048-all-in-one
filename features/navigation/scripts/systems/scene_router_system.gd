@@ -21,6 +21,7 @@ var _scene_utility: GFSceneUtility
 var _screen_transition: GFScreenTransitionUtility
 var _shader_parameters: GFShaderParameterUtility
 var _theme_utility: GameThemeUtility
+var _accessibility: GameAccessibilityUtility
 var _signal_utility: GFSignalUtility
 var _operation_diagnostics: GFOperationDiagnosticsUtility
 var _scene_switch_started_connection: GFSignalConnection
@@ -37,6 +38,7 @@ var _pending_scene_path: String = ""
 func get_required_utilities() -> Array[Script]:
 	return [
 		GameThemeUtility,
+		GameAccessibilityUtility,
 		GFLogUtility,
 		GFSceneUtility,
 		GFScreenTransitionUtility,
@@ -51,6 +53,7 @@ func ready() -> void:
 	_screen_transition = _get_screen_transition_utility()
 	_shader_parameters = _get_shader_parameter_utility()
 	_theme_utility = _get_theme_utility()
+	_accessibility = _get_accessibility_utility()
 	_signal_utility = _get_signal_utility()
 	_operation_diagnostics = _get_operation_diagnostics_utility()
 	if not _has_required_dependencies():
@@ -71,6 +74,7 @@ func dispose() -> void:
 	_screen_transition = null
 	_shader_parameters = null
 	_theme_utility = null
+	_accessibility = null
 	_signal_utility = null
 	_operation_diagnostics = null
 	_log = null
@@ -210,6 +214,14 @@ func _get_theme_utility() -> GameThemeUtility:
 	return null
 
 
+func _get_accessibility_utility() -> GameAccessibilityUtility:
+	var utility_value: Object = get_utility(GameAccessibilityUtility)
+	if utility_value is GameAccessibilityUtility:
+		var accessibility: GameAccessibilityUtility = utility_value
+		return accessibility
+	return null
+
+
 func _get_signal_utility() -> GFSignalUtility:
 	var utility_value: Object = get_utility(GFSignalUtility)
 	if utility_value is GFSignalUtility:
@@ -239,6 +251,8 @@ func _has_required_dependencies() -> bool:
 		var _shader_appended: bool = missing.append("GFShaderParameterUtility")
 	if not is_instance_valid(_theme_utility):
 		var _theme_appended: bool = missing.append("GameThemeUtility")
+	if not is_instance_valid(_accessibility):
+		var _accessibility_appended: bool = missing.append("GameAccessibilityUtility")
 	if not is_instance_valid(_signal_utility):
 		var _signal_appended: bool = missing.append("GFSignalUtility")
 	if missing.is_empty():
@@ -293,7 +307,9 @@ func _make_scene_transition_config(path: String) -> GFSceneTransitionConfig:
 	var config: GFSceneTransitionConfig = GFSceneTransitionConfig.new()
 	config.target_scene_path = path
 	config.cache_loaded_scene = true
-	config.minimum_duration_seconds = _TRANSITION_MINIMUM_SECONDS
+	config.minimum_duration_seconds = (
+		0.0 if _is_reduced_motion() else _TRANSITION_MINIMUM_SECONDS
+	)
 	config.metadata = {
 		"source": &"scene_router",
 		"path": path,
@@ -386,6 +402,10 @@ func _resolve_scene_transition_effect(phase: StringName) -> GFScreenTransitionEf
 	var effect: GFScreenTransitionEffect = configured_effect.duplicate_effect()
 	effect.metadata["phase"] = phase
 	effect.metadata["theme_id"] = theme.theme_id
+	if _is_reduced_motion():
+		effect.duration_seconds = 0.0
+		effect.shader_material = null
+		return effect
 	if effect.shader_material != null:
 		if not is_instance_valid(_shader_parameters):
 			_shader_parameters = _get_shader_parameter_utility()
@@ -415,6 +435,15 @@ func _get_transition_resolution() -> Vector2:
 		if viewport_size.x > 0.0 and viewport_size.y > 0.0:
 			return viewport_size
 	return Vector2(1280.0, 720.0)
+
+
+func _is_reduced_motion() -> bool:
+	if not is_instance_valid(_accessibility):
+		_accessibility = _get_accessibility_utility()
+	return (
+		is_instance_valid(_accessibility)
+		and _accessibility.get_state().reduced_motion
+	)
 
 
 func _log_transition_error(message: String) -> void:

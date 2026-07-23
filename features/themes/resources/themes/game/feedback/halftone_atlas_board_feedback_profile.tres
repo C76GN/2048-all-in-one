@@ -1,11 +1,12 @@
-[gd_resource type="Resource" script_class="GameBoardFeedbackProfile" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="GameBoardFeedbackProfile" load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://features/themes/scripts/data/game_board_feedback_profile.gd" id="1_profile"]
-[ext_resource type="Script" path="res://addons/gf/extensions/feedback/resources/gf_shake_preset.gd" id="2_shake"]
-[ext_resource type="Script" path="res://addons/gf/extensions/feedback/resources/gf_haptic_preset.gd" id="3_haptic"]
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_feedback_recipe.gd" id="2_recipe"]
+[ext_resource type="Script" path="res://addons/gf/extensions/feedback/resources/gf_shake_preset.gd" id="3_shake"]
+[ext_resource type="Script" path="res://addons/gf/extensions/feedback/resources/gf_haptic_preset.gd" id="4_haptic"]
 
 [sub_resource type="Resource" id="Resource_move_shake"]
-script = ExtResource("2_shake")
+script = ExtResource("3_shake")
 duration_seconds = 0.12
 amplitude = 0.46
 frequency = 24.0
@@ -14,7 +15,7 @@ position_axis = Vector3(1, 0.55, 0)
 rotation_axis_degrees = Vector3(0, 0, 0.08)
 
 [sub_resource type="Resource" id="Resource_merge_shake"]
-script = ExtResource("2_shake")
+script = ExtResource("3_shake")
 duration_seconds = 0.16
 amplitude = 0.92
 frequency = 28.0
@@ -23,7 +24,7 @@ position_axis = Vector3(1, 0.55, 0)
 rotation_axis_degrees = Vector3(0, 0, 0.16)
 
 [sub_resource type="Resource" id="Resource_high_merge_shake"]
-script = ExtResource("2_shake")
+script = ExtResource("3_shake")
 duration_seconds = 0.2
 amplitude = 1.44
 frequency = 31.0
@@ -32,7 +33,7 @@ position_axis = Vector3(1, 0.55, 0)
 rotation_axis_degrees = Vector3(0, 0, 0.24)
 
 [sub_resource type="Resource" id="Resource_record_shake"]
-script = ExtResource("2_shake")
+script = ExtResource("3_shake")
 duration_seconds = 0.24
 amplitude = 1.9
 frequency = 34.0
@@ -41,40 +42,120 @@ position_axis = Vector3(1, 0.55, 0)
 rotation_axis_degrees = Vector3(0, 0, 0.34)
 
 [sub_resource type="Resource" id="Resource_move_haptic"]
-script = ExtResource("3_haptic")
+script = ExtResource("4_haptic")
 duration_seconds = 0.045
 weak_magnitude = 0.08
 strong_magnitude = 0.02
 intensity = 0.7
 
 [sub_resource type="Resource" id="Resource_merge_haptic"]
-script = ExtResource("3_haptic")
+script = ExtResource("4_haptic")
 duration_seconds = 0.075
 weak_magnitude = 0.18
 strong_magnitude = 0.28
 intensity = 1.0
 
 [sub_resource type="Resource" id="Resource_high_merge_haptic"]
-script = ExtResource("3_haptic")
+script = ExtResource("4_haptic")
 duration_seconds = 0.11
 weak_magnitude = 0.3
 strong_magnitude = 0.55
 intensity = 1.0
 
 [sub_resource type="Resource" id="Resource_record_haptic"]
-script = ExtResource("3_haptic")
+script = ExtResource("4_haptic")
 duration_seconds = 0.18
 weak_magnitude = 0.5
 strong_magnitude = 0.8
 intensity = 1.0
 
+[sub_resource type="Resource" id="Recipe_turn_move"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.turn.move"
+accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
+shake_preset = SubResource("Resource_move_shake")
+haptic_preset = SubResource("Resource_move_haptic")
+root_impulse = 8.0
+root_rotation_degrees = 1.6
+root_compression = 0.025
+impact_duration = 0.055
+settle_duration = 0.15
+background_duration = 0.325
+background_energy = 0.38
+edge_fragment_count = 5
+
+[sub_resource type="Resource" id="Recipe_turn_merge"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.turn.merge"
+accent_color = Color(0.8745098, 0.6901961, 0.3019608, 1)
+shake_preset = SubResource("Resource_merge_shake")
+haptic_preset = SubResource("Resource_merge_haptic")
+root_impulse = 14.0
+root_rotation_degrees = 2.6
+root_compression = 0.036
+impact_duration = 0.061
+settle_duration = 0.168
+background_duration = 0.349
+background_energy = 0.62
+edge_fragment_count = 8
+
+[sub_resource type="Resource" id="Recipe_turn_high_merge"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.turn.high_merge"
+accent_color = Color(0.827451, 0.38431373, 0.29411766, 1)
+shake_preset = SubResource("Resource_high_merge_shake")
+haptic_preset = SubResource("Resource_high_merge_haptic")
+root_impulse = 20.0
+root_rotation_degrees = 4.0
+root_compression = 0.047
+impact_duration = 0.067
+settle_duration = 0.186
+background_duration = 0.373
+background_energy = 0.84
+edge_fragment_count = 13
+
+[sub_resource type="Resource" id="Recipe_turn_record"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.turn.record"
+accent_color = Color(0.8745098, 0.29411766, 0.6039216, 1)
+shake_preset = SubResource("Resource_record_shake")
+haptic_preset = SubResource("Resource_record_haptic")
+root_impulse = 26.0
+root_rotation_degrees = 5.2
+root_compression = 0.058
+impact_duration = 0.073
+settle_duration = 0.204
+background_duration = 0.397
+background_energy = 1.0
+edge_fragment_count = 18
+
+[sub_resource type="Resource" id="Recipe_tile_spawn"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.tile.spawn"
+accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
+tile_burst_duration = 0.30
+tile_shard_count = 4
+
+[sub_resource type="Resource" id="Recipe_tile_merge"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.tile.merge"
+accent_color = Color(0.8745098, 0.6901961, 0.3019608, 1)
+tile_burst_duration = 0.46
+tile_shard_count = 8
+
+[sub_resource type="Resource" id="Recipe_tile_transform"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.tile.transform"
+accent_color = Color(0.827451, 0.38431373, 0.29411766, 1)
+tile_burst_duration = 0.40
+tile_shard_count = 7
+
 [resource]
 script = ExtResource("1_profile")
-move_shake = SubResource("Resource_move_shake")
-merge_shake = SubResource("Resource_merge_shake")
-high_merge_shake = SubResource("Resource_high_merge_shake")
-record_shake = SubResource("Resource_record_shake")
-move_haptic = SubResource("Resource_move_haptic")
-merge_haptic = SubResource("Resource_merge_haptic")
-high_merge_haptic = SubResource("Resource_high_merge_haptic")
-record_haptic = SubResource("Resource_record_haptic")
+move_recipe = SubResource("Recipe_turn_move")
+turn_merge_recipe = SubResource("Recipe_turn_merge")
+high_merge_recipe = SubResource("Recipe_turn_high_merge")
+record_recipe = SubResource("Recipe_turn_record")
+spawn_recipe = SubResource("Recipe_tile_spawn")
+tile_merge_recipe = SubResource("Recipe_tile_merge")
+transform_recipe = SubResource("Recipe_tile_transform")

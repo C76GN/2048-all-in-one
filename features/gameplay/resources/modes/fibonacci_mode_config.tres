@@ -27,6 +27,8 @@ metadata/_custom_type_script = "uid://cjyusdv36u0s6"
 [resource]
 script = ExtResource("1_i6mjw")
 mode_name = "MODE_FIBONACCI_NAME"
+ruleset_id = &"gameplay.fibonacci"
+ruleset_version = 1
 mode_description = "MODE_FIBONACCI_DESC"
 interaction_rule = SubResource("Resource_n5c15")
 movement_rule = ExtResource("6_s7tht")

@@ -667,9 +667,13 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
 	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var accessibility: GameAccessibilityUtility = await _register_accessibility_stack(
+		architecture
+	)
 	await _register_asset_library_stack(architecture)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.register_utility(GameAccessibilityUtility, accessibility)
 	await architecture.register_utility(GameUiMotionUtility, motion_utility)
 	await architecture.init()
 	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
@@ -757,6 +761,49 @@ func test_ui_motion_utility_animates_numeric_change_with_delta_label() -> void:
 	assert_false(delta_label.visible, "增量飘字完成后应恢复隐藏状态。")
 	tween.kill()
 	root.free()
+
+
+func test_ui_motion_utility_reduced_motion_commits_final_state_without_tweens() -> void:
+	var root: Control = Control.new()
+	var panel: Control = Control.new()
+	var value_label: Label = Label.new()
+	var delta_label: Label = Label.new()
+	root.add_child(panel)
+	root.add_child(value_label)
+	value_label.add_child(delta_label)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var accessibility: GameAccessibilityUtility = await _register_accessibility_stack(
+		architecture
+	)
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.register_utility(GameAccessibilityUtility, accessibility)
+	await architecture.register_utility(GameUiMotionUtility, motion_utility)
+	await architecture.init()
+	accessibility.set_reduced_motion(true)
+
+	var panel_base_position: Vector2 = panel.position
+	var reveal_tween: Tween = motion_utility.play_control_reveal(panel, Vector2(48.0, 0.0))
+	var numeric_tween: Tween = motion_utility.play_numeric_change(
+		value_label,
+		16,
+		48,
+		delta_label
+	)
+	assert_null(reveal_tween, "减少动态时 UI 入场不得创建位移 Tween。")
+	assert_null(numeric_tween, "减少动态时数值变化不得创建计数或漂字 Tween。")
+	assert_true(panel.position == panel_base_position, "面板应直接落在最终布局位置。")
+	assert_true(panel.scale == Vector2.ONE, "面板应保持基础缩放。")
+	assert_true(value_label.text == "48", "数值应立即显示模型最终值。")
+	assert_false(delta_label.visible, "减少动态时不得显示移动中的增量飘字。")
+	architecture.dispose()
 
 
 func test_ui_style_utility_styles_spinbox_as_readable_light_field() -> void:
@@ -1208,6 +1255,10 @@ func test_board_feedback_utility_reuses_persistent_canvas_without_child_growth()
 	await get_tree().process_frame
 
 	var feedback_utility: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
+	assert_true(
+		feedback_utility.apply_profile(_HALFTONE_BOARD_FEEDBACK_PROFILE),
+		"直接反馈测试也必须使用正式主题 Profile。"
+	)
 	var initial_child_count: int = feedback_canvas.get_child_count()
 	for index: int in range(12):
 		var created_count: int = feedback_utility.play_feedback(
@@ -1243,10 +1294,14 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	var shake_utility: GFShakeUtility = GFShakeUtility.new()
 	var haptic_utility: GFHapticUtility = GFHapticUtility.new()
 	var shader_parameter_utility: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var accessibility_utility: GameAccessibilityUtility = await _register_accessibility_stack(
+		architecture
+	)
 	var feedback_utility: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
 	await architecture.register_utility(GFShakeUtility, shake_utility)
 	await architecture.register_utility(GFHapticUtility, haptic_utility)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameter_utility)
+	await architecture.register_utility(GameAccessibilityUtility, accessibility_utility)
 	await architecture.register_utility(GameBoardFeedbackUtility, feedback_utility)
 	await architecture.init()
 	assert_true(
@@ -1304,10 +1359,14 @@ func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var clock_utility: GameClockUtility = GameClockUtility.new()
+	var accessibility_utility: GameAccessibilityUtility = await _register_accessibility_stack(
+		architecture
+	)
 	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
 	await _register_asset_library_stack(architecture)
 	await architecture.register_utility(GameClockUtility, clock_utility)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameAccessibilityUtility, accessibility_utility)
 	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.init()
 	assert_true(celebration_vfx.apply_theme(_HALFTONE_CELEBRATION_VFX_THEME), "庆祝 VFX 应接受完整主题资源。")
@@ -1391,6 +1450,22 @@ func _register_asset_library_stack(architecture: GFArchitecture) -> void:
 	await architecture.register_utility(GFContentPackageUtility, content_packages)
 	await architecture.register_utility(ProjectContentCatalogUtility, project_catalog)
 	await architecture.register_utility(GameAssetLibraryUtility, asset_library)
+
+
+func _register_accessibility_stack(
+	architecture: GFArchitecture
+) -> GameAccessibilityUtility:
+	var storage: GFStorageUtility = GFStorageUtility.new()
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.auto_load_on_init = false
+	settings.auto_save_on_change = false
+	settings.register_project_defaults()
+	var signal_utility: GFSignalUtility = GFSignalUtility.new()
+	var accessibility: GameAccessibilityUtility = GameAccessibilityUtility.new()
+	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(GFSettingsUtility, settings)
+	await architecture.register_utility(GFSignalUtility, signal_utility)
+	return accessibility
 
 
 func _create_tile() -> Tile:

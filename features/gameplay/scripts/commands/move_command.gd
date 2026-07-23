@@ -55,9 +55,9 @@ func execute() -> Variant:
 	var result: Variant = null
 	if is_instance_valid(move_sys):
 		result = move_sys.handle_move(_direction)
-		if result is MoveData:
-			var move_data: MoveData = result
-			_reverse_target_map = move_data.reverse_target_map.duplicate()
+		if result is TurnResult:
+			var turn_result: TurnResult = result
+			_reverse_target_map = turn_result.get_reverse_target_map()
 	return result
 
 
@@ -89,7 +89,7 @@ func undo() -> Variant:
 ## 判断命令执行结果是否应该写入历史。
 ## @param execute_result: execute() 返回的执行结果。
 func should_record(execute_result: Variant) -> bool:
-	return execute_result is MoveData
+	return execute_result is TurnResult
 
 
 func serialize() -> Dictionary:

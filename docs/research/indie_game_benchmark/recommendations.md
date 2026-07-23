@@ -1,6 +1,6 @@
 # 有证据的行动建议
 
-更新时间：2026-07-22（Asia/Shanghai）
+更新时间：2026-07-23（Asia/Shanghai）
 
 本文件只列能够同时回答“外部证据是什么、当前项目缺什么、谁来拥有、怎样算完成”的建议。证据以[方法](./methodology.md)定义的一手来源为准，当前差距以[项目基线](./project_baseline.md)和[GF 审计](./gf_mapping_audit.md)为准。所有建议均为独立重实现的产品/工程思想；不复制第三方代码、文字、Shader、音频或素材，也不要求修改 `addons/gf`。
 
@@ -8,11 +8,11 @@
 
 ## P0：先建立可信的核心体验与验收底座
 
-### P0-01 扩展现有无 Node 的 `MoveData`
+### P0-01 已采用：以强类型 `TurnResult` 表达完整回合结果
 
 - **证据**：[原版 2048](./projects/repo_gabrielecirulli_2048.md)用前一位置、合并来源、新生和分数增量驱动表现；[Godot roguelike 样例](./projects/repo_statico_godot_roguelike.md)以 `ActionResult` 分离状态变化、效果、消息和时间成本。
-- **当前差距**：[`MoveData`](../../../features/gameplay/scripts/data/move_data.gd) 已有方向、移动 lane 和反向目标，但 merge count/max/score/type 仍通过字符串字典传递，反馈层再从首项提取汇总；不能把这误报成“完全没有动作结果”。
-- **归属 / GF**：扩展项目现有 `MoveData`，不另造平行 `MoveOutcome`；`GFTurnFlowSystem` 和 `GFActionQueueSystem` 只负责阶段与表现消费，不把业务语义上移 GF。
+- **当前状态**：[`TurnResult`](../../../features/gameplay/scripts/data/turn_result.gd) 已取代 `MoveData`，并通过 typed movement、merge、spawn、transform 和 interaction result 保存方向、目标、来源、分数、最大合并值及规则统计。表现层只将这些 transition 投影为动画指令。
+- **归属 / GF**：结果模型归项目 gameplay；`GFTurnFlowSystem` 和 `GFActionQueueSystem` 只负责阶段与表现消费，不把业务语义上移 GF，也不保留平行 `MoveOutcome`。
 - **验收**：六模式、矩形和稀疏棋盘的有效命令稳定产出 typed transitions、merge count/max、score delta、生成和终态；无效命令保留现有“不入历史 + 明确 reason”；headless、快进和正常表现得到相同 canonical hash。
 
 ### P0-02 固定 tile 表现身份、方向与参照系不变量
@@ -29,10 +29,10 @@
 - **归属 / GF**：项目 input/gameplay；复用 `GFInputMappingUtility`、`GFPointerGestureUtility` 和命名 action queue。
 - **验收**：自动注入 10–20 ms 间隔连滑，逐策略验证排队、丢弃、重定向符合规格；有效输入到首个主要反馈 P95 小于 50 ms，最终 hash 可重现，手势死区可配置。
 
-### P0-04 统一棋盘 motion/feedback Profile 并提供减少动态
+### P0-04 部分采用：统一反馈 Profile、无障碍状态与减少动态
 
 - **证据**：[GF 审计 A1](./gf_mapping_audit.md)确认时长、色彩和幅度散落；[2048-in-react](./projects/repo_mateuszsokola_2048_react.md)的 timer 生命周期反例说明表现策略需要单一所有权。
-- **当前差距**：现有 `GameBoardFeedbackProfile` 只覆盖 Shake/Haptic，尚无完整 motion profile 或 reduced-motion 产品设置。
+- **当前状态**：`GameBoardFeedbackProfile` 已用 `GameFeedbackRecipe` 统一事件色彩、冲击、碎片、Shake/Haptic 和时长，`GameAccessibilityUtility` 已持久化减少动态、高对比、震动、Shader 与 VFX 档位；棋盘反馈、庆祝、UI Tween 和场景转场均消费同一状态。Tile 位移/形变本身的全部节拍尚未完全资源化，因此本项仍是部分采用。
 - **归属 / GF**：项目 themes/settings；继续复用 GF action queue、Shader 参数、Shake、Haptic，不建第二套表现管理器。
 - **验收**：单一资源控制移动、生成、合并、扩建、冲击、颜色、时长、幅度和启用开关；减少动态设置持久化；切换档位不改变领域结果且队列最终空闲。
 
@@ -43,31 +43,31 @@
 - **归属 / GF**：项目 themes/settings/UI；复用字体、焦点、输入映射和设置存储，不创建大而全 accessibility Utility。
 - **验收**：数值、可合并、危险、目标和失效状态均由文字、轮廓、图标或纹理至少一种非颜色通道表达；关键文字/控件通过既定对比度检查；目标分辨率截图不存在只靠色相区分的状态。
 
-### P0-06 建立领域事件到多通道 feedback recipe 的词表
+### P0-06 已采用：建立领域事件到多通道 feedback recipe 的词表
 
 - **证据**：[Pixel Dungeon](./projects/repo_watabou_pixel_dungeon.md)与[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)以粒子、漂字、闪光、震动、音效和文案的组合表达不同语义，而不是依赖重 Shader。
-- **当前差距**：已有 `MOVE/MERGE/HIGH_MERGE/RECORD` 分级和无效移动通知；但事件覆盖、冲突预算与降级表不完整，Controller 当前未传 `is_record`，使 RECORD recipe 静态上不可达。
+- **当前状态**：移动、合并、高合并、生成、方块合并和转化已映射到完整 recipe；`GameFeedbackPerformanceMatrix` 统一同帧 burst、粒子和 Shader 预算，并在减少动态、关闭震动或关闭 Shader 时保留静态语义反馈。`RECORD` recipe 暂作为未来实时破纪录语义的保留项，当前破纪录庆祝仍由结算事件拥有，不伪造不可达调用。
 - **归属 / GF**：项目 themes/feedback；复用 `GFAudioUtility`、Shader/Shake/Haptic、action queue 和对象池。
 - **验收**：每类领域事件映射唯一 recipe 与优先级；同帧事件按预算合并或降级；缺素材、减少动态或关闭震动时仍能靠声音、文字或静态视觉辨认。
 
-### P0-07 彻底分离 gameplay RNG 与 cosmetic RNG
+### P0-07 已采用基线：隔离 gameplay RNG 与 cosmetic 表现
 
 - **证据**：[BrogueCE](./projects/repo_brogue_ce.md)在固定提交中明确分流业务与表现 RNG，并只让业务流进入回放校验。
-- **当前差距**：已有确定性 seed/回放，但尚无系统证据证明粒子、音高、闪烁和主题装饰永不推进业务随机流。
+- **当前状态**：规则只能通过 `RuleContext.get_random_stream()` 获取按语义 ID 派生的 `GFDeterministicRandom`；运行时静态审计未发现业务代码创建 `RandomNumberGenerator` 或调用全局 `rand*`。当前粒子、闪烁和装饰由 Shader/表现参数计算，不读取或推进 gameplay branch。仍需补三套反馈档位与独立 cosmetic seed 的端到端 canonical 等价矩阵。
 - **归属 / GF**：项目 gameplay/feedback；复用 `GFSeedUtility` 派生独立流，canonical state 只持业务随机状态。
 - **验收**：同一 seed/命令序列在三套反馈 Profile、不同 cosmetic seed 和关闭全部表现时产生相同生成、分数、结束条件及 canonical hash。
 
-### P0-08 升级回放封套并定位首个 OOS
+### P0-08 已采用：升级回放封套并定位首个 OOS
 
 - **证据**：[BrogueCE](./projects/repo_brogue_ce.md)保存 recording 版本、seed、命令并按回合校验 RNG，能拒绝不兼容版本。
-- **当前差距**：当前回放/书签功能强，但尚未证实 schema/规则版本、周期摘要与第一次 divergence 的诊断格式。
+- **当前状态**：`ReplayData` schema v2 已保存规则 ID、版本、内容指纹、seed、拓扑、命令和每个 settled turn 的 `ReplayCheckpoint`。`GameDeterminismUtility` 分别生成 board/RNG/ruleset/state checksum；首次不一致会保留 expected/actual 摘要、阻断后续步进并禁止从回放继续。
 - **归属 / GF**：项目 replays/diagnostics；复用 `GFCommandHistoryUtility`、SaveGraph、GF clock 和确定性序列化。
 - **验收**：封套包含 schema、规则/拓扑版本、seed、命令和 checkpoint hash；篡改一条命令后精确报告首个回合、命令、expected/actual 摘要；不兼容版本明确拒绝而非静默播放。
 
-### P0-09 建立固定 seed catalog 的确定性 CI
+### P0-09 部分采用：建立固定 seed catalog 的确定性 CI
 
 - **证据**：[BrogueCE](./projects/repo_brogue_ce.md)以固定 seed catalog 比较生成结果；[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)把 custom/daily seed 变成玩家可见产品。
-- **当前差距**：没有覆盖模式、拓扑和支持平台的黄金 seed 目录。
+- **当前状态**：已固定 GF gameplay branch 的黄金输出，并验证完整 seed 状态恢复、Dictionary 插入顺序与运行时 tile UUID 不影响 canonical checksum。六模式 × 三类拓扑 × 支持平台的完整黄金目录仍待扩充。
 - **归属 / GF**：项目 gameplay tests/diagnostics；复用 GF seed 与 canonical serializer。
 - **验收**：六模式覆盖至少三类拓扑，记录开局与固定命令后的 hash；重复运行、正常/无表现运行和支持平台结果一致；有意规则变更必须显式提升规则版本和更新基线。
 
@@ -85,10 +85,10 @@
 - **归属 / GF**：项目 tutorial/progress/navigation；复用 UI router、SaveGraph 与输入映射。
 - **验收**：首次流程至少覆盖移动、有效合并、无效动作和当前模式目标，步骤尽量嵌入真实局面；可跳过、重看、断点恢复；键盘、触摸、手柄分别通过；完成后不再遮挡熟练玩家主循环，且教程不额外引入与核心无关的升级层。
 
-### P0-12 落地跨平台、规模与表现档位的性能矩阵
+### P0-12 部分采用：落地跨平台、规模与表现档位的性能矩阵
 
 - **证据**：[nneonneo/2048-ai](./projects/repo_nneonneo_2048_ai.md)展示节点数、深度与缓存的可测预算；[BrogueCE](./projects/repo_brogue_ce.md)用局部刷新降低固定网格更新，但也说明优化须有负载前提；[R3-B 搜寻台账](./round_03_search.md)只把 Gun Rounds 开发者明确披露的性能与内存泄漏修复计为性能线索，同时拒绝用像素风代替数据。
-- **当前差距**：已声明 16.667 ms 帧预算和 50 ms 首反馈目标，也有预热/对象池，但没有设备、棋盘规模和动画策略的正式实测表。
+- **当前状态**：[`feedback_performance_matrix.md`](../../../features/themes/docs/feedback_performance_matrix.md) 已把 `FULL/REDUCED/MINIMAL` 的运行时粒子、burst、Shader 和动效上限写成可测试硬预算，也定义桌面/Web/微信与低端移动目标。当前仍缺目标设备 P50/P95/P99、首反馈、池峰值和帧尖峰的正式实测报告，目标表不得冒充测量结果。
 - **归属 / GF**：项目 QA/diagnostics；复用 `GFOperationDiagnosticsUtility`、构建信息和支持报告。
 - **验收**：桌面/Web/目标移动平台 × 3×3/4×4/6×6/8×8 × 正常/减少动态/低端档记录 P50/P95 帧时、首反馈和帧尖峰，保存设备/构建信息并给出达标结论。
 

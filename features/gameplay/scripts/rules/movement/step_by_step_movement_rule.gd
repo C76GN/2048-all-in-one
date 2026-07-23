@@ -10,10 +10,10 @@ extends MovementRule
 ## 处理单行/列的移动与交互，采用步进式逻辑。
 ##
 ## @param line: 一个包含TileState节点或null的一维数组，代表棋盘的一行或一列。
-## @return: 一个字典，包含 {"line": Array, "moved": bool, "merges": Array}。
-func process_line(line: Array[TileState]) -> Dictionary:
+## @return: 单条 lane 的强类型结果。
+func process_line(line: Array[TileState]) -> MovementLineResult:
 	var new_line: Array[TileState] = line.duplicate(false)
-	var merge_results: Array[Dictionary] = []
+	var merge_results: Array[TileInteractionResult] = []
 	var moved_in_this_line: bool = false
 	# 记录本轮已合并的方块，防止二次合并
 	var merged_in_this_turn: Dictionary = {}
@@ -38,16 +38,14 @@ func process_line(line: Array[TileState]) -> Dictionary:
 				not merged_in_this_turn.has(current_tile.get_instance_id())
 				and not merged_in_this_turn.has(target_tile.get_instance_id())
 			):
-				var result: Dictionary = interaction_rule.process_interaction(current_tile, target_tile, interaction_rule)
-				if not result.is_empty():
-					var merged_value: Variant = result.get("merged_tile")
-					var consumed_value: Variant = result.get("consumed_tile")
-					var merged_tile: TileState = null
-					var consumed_tile: TileState = null
-					if merged_value is TileState:
-						merged_tile = merged_value
-					if consumed_value is TileState:
-						consumed_tile = consumed_value
+				var result: TileInteractionResult = interaction_rule.process_interaction(
+					current_tile,
+					target_tile,
+					interaction_rule
+				)
+				if result != null and result.is_valid_result():
+					var merged_tile: TileState = result.survivor
+					var consumed_tile: TileState = result.consumed
 
 					# 更新逻辑位置
 					if merged_tile == target_tile:
@@ -66,4 +64,4 @@ func process_line(line: Array[TileState]) -> Dictionary:
 
 					moved_in_this_line = true
 
-	return {"line": new_line, "moved": moved_in_this_line, "merges": merge_results}
+	return MovementLineResult.new(new_line, moved_in_this_line, merge_results)

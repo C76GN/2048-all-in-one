@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1_profile")
 parameters = {
+"active_count": 88,
 "aspect_ratio": 1.85,
 "col0": Color(0.61960787, 0.85882354, 0.8352941, 1),
 "col1": Color(0.9372549, 0.81960785, 0.3647059, 1),
@@ -21,4 +22,3 @@ metadata = {
 "profile_id": &"halftone_atlas.vfx.celebration",
 "role": &"celebration_vfx"
 }
-

@@ -429,6 +429,37 @@ func test_bookmark_schema_preserves_historical_target_achievement() -> void:
 		assert_true(restored.target_reached, "显式目标达成状态必须原样恢复。")
 
 
+func test_bookmark_schema_preserves_strict_replay_trace_prefix() -> void:
+	var bookmark: BookmarkData = _make_bookmark(903, 64)
+	bookmark.bookmark_id = GFUuid.generate_v7(903000)
+	bookmark.replay_actions = [Vector2i.RIGHT, Vector2i.DOWN]
+	bookmark.replay_checkpoints = [
+		_make_replay_checkpoint(1, 16),
+		_make_replay_checkpoint(2, 64),
+	]
+
+	var restored: BookmarkData = BookmarkData.from_dict(bookmark.to_dict())
+
+	assert_true(restored != null, "书签必须接受与操作一一对应的严格回放前缀。")
+	if restored != null:
+		assert_true(restored.replay_actions == bookmark.replay_actions, "操作前缀必须原样恢复。")
+		assert_true(restored.replay_checkpoints.size() == 2, "每个操作必须恢复一个 checkpoint。")
+		var last_checkpoint: ReplayCheckpoint = restored.replay_checkpoints.back()
+		assert_true(last_checkpoint.score == 64, "末尾 checkpoint 必须对应书签分数。")
+
+	var incomplete_payload: Dictionary = bookmark.to_dict()
+	var incomplete_checkpoints: Array = GFVariantData.get_option_array(
+		incomplete_payload,
+		"replay_checkpoints"
+	)
+	incomplete_checkpoints.pop_back()
+	incomplete_payload["replay_checkpoints"] = incomplete_checkpoints
+	assert_true(
+		BookmarkData.from_dict(incomplete_payload) == null,
+		"actions/checkpoints 数量不一致的书签必须被当前严格 schema 拒绝。"
+	)
+
+
 func test_replay_schema_rejects_final_snapshot_with_different_topology() -> void:
 	var replay: ReplayData = _make_replay(903, 2048)
 	replay.replay_id = GFUuid.generate_v7(903000)
@@ -439,6 +470,17 @@ func test_replay_schema_rejects_final_snapshot_with_different_topology() -> void
 	assert_true(
 		ReplayData.from_dict(replay.to_dict()) == null,
 		"方向操作序列无法表达拓扑变化，回放最终快照必须保持初始拓扑。"
+	)
+
+
+func test_replay_schema_rejects_non_cardinal_action() -> void:
+	var replay: ReplayData = _make_replay(904, 2048)
+	replay.replay_id = GFUuid.generate_v7(904000)
+	replay.actions = [Vector2i.ZERO]
+
+	assert_true(
+		ReplayData.from_dict(replay.to_dict()) == null,
+		"严格回放不得接受零向量或斜向动作。"
 	)
 
 
@@ -602,11 +644,26 @@ func _make_replay(timestamp: int, final_score: int) -> ReplayData:
 	var topology: BoardTopology = BoardTopology.create_rectangle(_BOARD_SIZE)
 	replay.timestamp = timestamp
 	replay.mode_config_path = "res://features/gameplay/resources/modes/classic_mode_config.tres"
+	replay.ruleset_id = &"gameplay.classic"
+	replay.ruleset_version = 1
+	replay.ruleset_fingerprint = "a".repeat(64)
+	replay.initial_seed = 2048
 	replay.initial_board_topology = topology.to_dict()
 	replay.final_score = final_score
 	replay.actions = [Vector2i.RIGHT]
+	replay.checkpoints = [_make_replay_checkpoint(1, final_score)]
 	replay.final_board_snapshot = _make_empty_board_snapshot(topology)
 	return replay
+
+
+func _make_replay_checkpoint(step_index: int, score: int) -> ReplayCheckpoint:
+	var checkpoint: ReplayCheckpoint = ReplayCheckpoint.new()
+	checkpoint.step_index = step_index
+	checkpoint.state_checksum = "b".repeat(64)
+	checkpoint.board_checksum = "c".repeat(64)
+	checkpoint.rng_checksum = "d".repeat(64)
+	checkpoint.score = score
+	return checkpoint
 
 
 func _make_custom_board() -> CustomBoardData:

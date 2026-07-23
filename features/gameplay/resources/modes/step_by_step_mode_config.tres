@@ -27,6 +27,8 @@ metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 [resource]
 script = ExtResource("7_4vg7y")
 mode_name = "MODE_STEP_NAME"
+ruleset_id = &"gameplay.step_by_step"
+ruleset_version = 1
 mode_description = "MODE_STEP_DESC"
 interaction_rule = SubResource("Resource_jk0ep")
 movement_rule = ExtResource("6_6tj6m")

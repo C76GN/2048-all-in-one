@@ -23,17 +23,17 @@ extends SpawnRule
 # --- 公共方法 ---
 
 ## 执行生成逻辑。
-## @param context: 包含 grid_model 和 move_data 的上下文。
+## @param context: 包含 grid_model 和 turn_result 的上下文。
 ## @return: 返回 'true' 表示事件被"消费"，应中断处理链。否则返回 'false'。
 func execute(context: RuleContext) -> bool:
 	if not is_instance_valid(context) or not is_instance_valid(context.grid_model):
 		return false
 
-	if not is_instance_valid(context.move_data):
+	if not is_instance_valid(context.turn_result):
 		return false
 
-	var direction: Vector2i = context.move_data.direction
-	var moved_lanes: Array = context.move_data.moved_lanes
+	var direction: Vector2i = context.turn_result.direction
+	var moved_lanes: Array = context.turn_result.moved_lanes
 
 	if direction == Vector2i.ZERO or moved_lanes.is_empty():
 		return false

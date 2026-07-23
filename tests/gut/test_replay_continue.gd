@@ -67,6 +67,66 @@ func test_replay_progress_is_published_after_a_step_settles() -> void:
 	)
 
 
+func test_first_replay_oos_is_retained_and_blocks_progression() -> void:
+	var replay_system: ReplaySystem = ReplaySystem.new()
+	var replay_data: ReplayData = ReplayData.new()
+	replay_data.actions = [Vector2i.RIGHT]
+	replay_system.activate_replay_mode(replay_data)
+	watch_signals(replay_system)
+
+	assert_true(
+		replay_system.report_oos({&"step_index": 1, &"actual": "first"}),
+		"首个回放差异必须进入 OOS 状态。"
+	)
+	assert_false(
+		replay_system.report_oos({&"step_index": 2, &"actual": "later"}),
+		"后续差异不得覆盖首个根因。"
+	)
+	assert_true(replay_system.is_playback_desynchronized(), "OOS 状态必须可查询。")
+	assert_true(
+		GFVariantData.get_option_int(replay_system.get_oos_report(), &"step_index") == 1,
+		"诊断报告必须保留首个偏离回合。"
+	)
+	assert_false(
+		replay_system.can_continue_from_current_step(),
+		"已 OOS 的回放不得恢复为普通对局。"
+	)
+	assert_signal_emit_count(replay_system, "playback_desynchronized", 1)
+
+
+func test_ineffective_replay_action_records_expected_checkpoint_context() -> void:
+	var replay_system: ReplaySystem = ReplaySystem.new()
+	var replay_data: ReplayData = ReplayData.new()
+	var checkpoint: ReplayCheckpoint = ReplayCheckpoint.new()
+	checkpoint.step_index = 1
+	checkpoint.state_checksum = "a".repeat(64)
+	checkpoint.board_checksum = "b".repeat(64)
+	checkpoint.rng_checksum = "c".repeat(64)
+	checkpoint.score = 32
+	replay_data.actions = [Vector2i.RIGHT]
+	replay_data.checkpoints = [checkpoint]
+	replay_system.activate_replay_mode(replay_data)
+
+	assert_true(
+		replay_system.report_ineffective_action(Vector2i.RIGHT),
+		"预期有效却未产生 TurnResult 的动作必须立即记录 OOS。"
+	)
+	var report: Dictionary = replay_system.get_oos_report()
+	assert_true(
+		GFVariantData.get_option_string_name(report, &"kind") == &"ineffective_action",
+		"OOS 报告必须区分无效动作与 checksum 差异。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(report, &"step_index") == 1,
+		"无效动作 OOS 必须记录首次偏离回合。"
+	)
+	assert_true(
+		GFVariantData.get_option_string(report, &"expected_state_checksum")
+		== checkpoint.state_checksum,
+		"无效动作报告必须携带预期 checkpoint 上下文。"
+	)
+
+
 func test_game_flow_rejects_baseline_only_undo_history() -> void:
 	var flow_system: GameFlowSystem = _make_flow_system()
 	var command_history: GFCommandHistoryUtility = _make_history([

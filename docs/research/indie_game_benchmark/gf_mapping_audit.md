@@ -1,6 +1,6 @@
 # GF 能力映射与项目使用审计
 
-审计日期：2026-07-22  
+审计日期：2026-07-23
 依据：GF 9.0.1 固定 vendor、`.gf/project_contract.json`、运行时代码静态检索与 `gf_ai_project.py` API/能力目录查询。此审计只记录研究发现，不修改 `addons/gf` 或游戏代码。
 
 ## 已正确复用的机制
@@ -18,11 +18,11 @@
 
 ## 项目级深化点
 
-### A1：棋盘表现参数仍分散在脚本常量中
+### A1：已部分收敛为统一反馈配方与预算
 
-[Tile](../../../features/gameplay/scripts/components/tile.gd) 固定保存移动、生成、合并、成长和退场时长，以及合并/转化闪色；[GameBoardController](../../../features/gameplay/scripts/controllers/game_board_controller.gd) 固定保存棋盘 intro 时长；[GameBoardFeedbackUtility](../../../features/themes/scripts/utilities/game_board_feedback_utility.gd) 固定保存生成、合并、转化色和多组冲击时长/强度，而现有 [GameBoardFeedbackProfile](../../../features/themes/scripts/data/game_board_feedback_profile.gd) 只资源化 Shake 与 Haptic。
+[GameBoardFeedbackProfile](../../../features/themes/scripts/data/game_board_feedback_profile.gd) 现已通过 `GameFeedbackRecipe` 资源化 turn/tile 的色彩、冲击、碎片、时长、Shake 与 Haptic；`GameFeedbackPerformanceMatrix` 统一 VFX 档位和减少动态降级。`GameAccessibilityUtility` 同时驱动棋盘、庆祝、UI Tween 和场景转场。
 
-这不构成 GF 误用，但造成三项真实成本：主题无法完整改变反馈语言；减少动态只能在多个脚本分支处理；竞品研究得到的节奏参数难以 A/B 或做低端设备降级。建议由项目新增单一棋盘 motion/feedback Profile，主题持有颜色、时长、幅度和启用开关；现有 `GFActionQueueSystem`、`GFShaderParameterUtility`、`GFShakeUtility` 与 `GFHapticUtility` 继续拥有机制。
+剩余缺口是 [Tile](../../../features/gameplay/scripts/components/tile.gd) 的位移、生成、合并、成长和退场节拍，以及棋盘 intro 尚未全部进入同一 motion 资源。它不构成 GF 缺口；后续应继续由项目 Profile 收敛，现有 `GFActionQueueSystem`、`GFShaderParameterUtility`、`GFShakeUtility` 与 `GFHapticUtility` 保持机制所有权。
 
 ### A2：虚拟动作“按下—延迟—释放”重复两次
 
@@ -42,15 +42,15 @@
 
 | 方向 | 已存在的项目证据 | 真正缺口与正确动作 |
 | --- | --- | --- |
-| 动作语义 | [`MoveData`](../../../features/gameplay/scripts/data/move_data.gd) 已含 direction、moved lanes、reverse target map；[`GridMovementSystem`](../../../features/gameplay/scripts/systems/grid_movement_system.gd) 还以字符串 Dictionary 传 merge count/max/score/type | 扩展现有 `MoveData` 为 typed transitions/汇总，不另建平行 `MoveOutcome`；无效移动已通知且不入历史，应保留 |
-| 反馈层级 | [`GameBoardFeedbackUtility`](../../../features/themes/scripts/utilities/game_board_feedback_utility.gd) 已分 `MOVE/MERGE/HIGH_MERGE/RECORD`，无效移动也已有通知 | 补全 recipe 表与冲突预算；Controller 当前没有传 `is_record`，先用回归证明并接通不可达的 RECORD 路径 |
+| 动作语义 | [`TurnResult`](../../../features/gameplay/scripts/data/turn_result.gd) 已类型化 direction、movement/merge/spawn/transform transition 与 score/max/rule 汇总 | 已采用；后续扩展同一结果模型，不建平行 DTO；无效移动仍不入历史并保留明确 reason |
+| 反馈层级 | [`GameBoardFeedbackUtility`](../../../features/themes/scripts/utilities/game_board_feedback_utility.gd) 已消费完整 recipe 与统一性能预算，无效移动继续走通知 | 已采用 turn/tile 词表和降级；`RECORD` 保留给未来实时记录语义，当前结算庆祝不重复接线 |
 | custom / daily seed | [`mode_selection.gd`](../../../features/navigation/scripts/menus/mode_selection.gd) 已支持手动输入、刷新和稳定 hash；[`ReplayData`](../../../features/replays/scripts/data/replay_data.gd) 保存初始 seed | custom seed 已完成；新增的是可注入 UTC 日期 + schema/rule/mode/topology 的 daily challenge、离线一致性和资格模型 |
 | 响应式布局 | [`GameplayResponsiveLayoutController`](../../../features/gameplay/scripts/controllers/gameplay_responsive_layout_controller.gd) 已对 desktop/compact/portrait、safe area、HUD/D-pad/board 做真实重排，编辑器也有独立 Controller 和测试 | 补 1280×720、960×540、390×844 截图/实例化回归、44 px 触控目标、safe area 和完整控制器焦点路径；不重建布局系统 |
 | 快速输入 | [`GameInputProfileUtility`](../../../features/settings/scripts/utilities/game_input_profile_utility.gd) 已定义 buffered/block/realtime-retarget，[`GameBoardAnimationUtility`](../../../features/gameplay/scripts/utilities/game_board_animation_utility.gd) 经 GF action queue 清队列/重同步 | 补 10–20 ms burst 的端到端回归，分别验证接收/丢弃/重定向数量、旧 completion、池化 tile 和最终 GridModel；GF 无缺口 |
 | 音频 | [`GameAudioTheme`](../../../features/themes/scripts/data/game_audio_theme.gd) 与正式 audio bank 已有六类语义 SFX、音量/音高变化，播放统一走 `GFAudioUtility` | 新增 BGM/ambient/自适应 state、独立音量、并发/ducking/overflow 与 Web 解锁验收；不建平行音频管理器 |
 | 排行资格 | `GameFlowSystem` 已阻止 tainted/replay 的部分结果和回放写入，但只保存单一 taint 布尔；结果记录不含 seed/资格/reason/hash/challenge | 建不可变 eligibility snapshot + reason codes；无障碍永不失格；平台/服务端是线上权威，SaveGraph 只保存本地状态 |
 
-这轮核对同时确认：正式性能 budget、预热和对象池已存在，但没有 P50/P95/P99 benchmark harness；完整 snapshot/equality 已存在，但没有只读 AI hint；回放有 seed/actions/final snapshot 和逐步播放，但没有 step hash、首个 OOS、simulation/content fingerprint 或固定 seed corpus。
+这轮落地后确认：正式运行时性能 budget、预热和对象池已存在，但仍没有目标设备 P50/P95/P99 benchmark harness；完整 snapshot/equality 已存在，但没有只读 AI hint；回放现已包含 seed/actions/final snapshot、规则指纹、逐回合 checkpoint 和首个 OOS，固定 seed corpus 已有算法基线但尚未覆盖完整模式 × 拓扑 × 平台矩阵。
 
 ## 追加轮次 API 边界复核
 

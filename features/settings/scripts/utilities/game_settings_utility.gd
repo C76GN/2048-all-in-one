@@ -94,6 +94,41 @@ func register_project_defaults() -> void:
 		true,
 		{"group": "input", "label": "INPUT_TIMING_MODE_LABEL"}
 	)
+	var _reduced_motion_setting: GFSettingDefinition = register_setting(
+		GameAccessibilityState.REDUCED_MOTION_SETTING_KEY,
+		false,
+		GFSettingDefinition.ValueType.BOOL,
+		true,
+		{"group": "accessibility", "label": "REDUCED_MOTION_LABEL"}
+	)
+	var _high_contrast_setting: GFSettingDefinition = register_setting(
+		GameAccessibilityState.HIGH_CONTRAST_FEEDBACK_SETTING_KEY,
+		false,
+		GFSettingDefinition.ValueType.BOOL,
+		true,
+		{"group": "accessibility", "label": "HIGH_CONTRAST_FEEDBACK_LABEL"}
+	)
+	var _haptics_setting: GFSettingDefinition = register_setting(
+		GameAccessibilityState.HAPTICS_ENABLED_SETTING_KEY,
+		true,
+		GFSettingDefinition.ValueType.BOOL,
+		true,
+		{"group": "accessibility", "label": "HAPTICS_ENABLED_LABEL"}
+	)
+	var _shader_effects_setting: GFSettingDefinition = register_setting(
+		GameAccessibilityState.SHADER_EFFECTS_ENABLED_SETTING_KEY,
+		true,
+		GFSettingDefinition.ValueType.BOOL,
+		true,
+		{"group": "accessibility", "label": "SHADER_EFFECTS_LABEL"}
+	)
+	var _vfx_quality_setting: GFSettingDefinition = register_setting(
+		GameAccessibilityState.VFX_QUALITY_SETTING_KEY,
+		GameAccessibilityState.VfxQuality.FULL,
+		GFSettingDefinition.ValueType.INT,
+		true,
+		{"group": "accessibility", "label": "VFX_QUALITY_LABEL"}
+	)
 
 
 # --- 可重写钩子 ---

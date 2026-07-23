@@ -16,7 +16,7 @@ signal profile_save_completed(error: Error)
 
 const PROFILE_FILE_NAME: String = "player_data.save"
 const PROFILE_SCHEMA_ID: StringName = &"player_data"
-const PROFILE_SCHEMA_VERSION: int = 4
+const PROFILE_SCHEMA_VERSION: int = 5
 const ROOT_SCOPE_ID: StringName = &"player_data"
 const PROGRESS_SECTION_ID: StringName = &"progress"
 const BOOKMARKS_SECTION_ID: StringName = &"bookmarks"

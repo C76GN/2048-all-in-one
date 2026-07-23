@@ -16,10 +16,10 @@ var _game_flow_system: GameFlowSystem
 
 # --- Godot 生命周期方法 ---
 
-func _init(board_actor: Object = null, move_data: MoveData = null) -> void:
+func _init(board_actor: Object = null, turn_result: TurnResult = null) -> void:
 	action_id = ACTION_ID
 	actor = board_actor
-	payload = move_data
+	payload = turn_result
 
 
 # --- 可重写钩子 ---
@@ -35,19 +35,20 @@ func _inject_dependencies(architecture: GFArchitecture) -> void:
 
 
 func _resolve(context: GFTurnContext) -> Variant:
-	var move_data: MoveData = _get_move_data()
-	if not is_instance_valid(move_data):
-		push_error("[GameMoveTurnAction] 缺少 MoveData，无法解析回合。")
+	var turn_result: TurnResult = _get_turn_result()
+	if not is_instance_valid(turn_result):
+		push_error("[GameMoveTurnAction] 缺少 TurnResult，无法解析回合。")
 		return null
 	if not is_instance_valid(_rule_system) or not is_instance_valid(_game_flow_system):
 		push_error("[GameMoveTurnAction] GF 未注入 RuleSystem 或 GameFlowSystem。")
 		return null
 
-	_game_flow_system.apply_move_turn(move_data)
-	_rule_system.execute_move_rules(move_data)
+	_game_flow_system.apply_move_turn(turn_result)
+	_rule_system.execute_move_rules(turn_result)
+	_game_flow_system.finalize_turn_result(turn_result)
 	_game_flow_system.settle_move_turn()
 
-	context.metadata[&"last_move_direction"] = move_data.direction
+	context.metadata[&"last_move_direction"] = turn_result.direction
 	context.metadata[&"resolved_turn_count"] = (
 		GFVariantData.get_option_int(context.metadata, &"resolved_turn_count", 0) + 1
 	)
@@ -56,9 +57,8 @@ func _resolve(context: GFTurnContext) -> Variant:
 
 # --- 私有/辅助方法 ---
 
-func _get_move_data() -> MoveData:
+func _get_turn_result() -> TurnResult:
 	var payload_value: Variant = payload
-	if payload_value is MoveData:
-		var move_data: MoveData = payload_value
-		return move_data
+	if payload_value is TurnResult:
+		return payload_value
 	return null

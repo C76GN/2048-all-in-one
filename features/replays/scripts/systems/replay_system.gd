@@ -14,6 +14,9 @@ signal playback_progress_changed(current_step: int, total_steps: int)
 ## 当回放开始或停止时发出。
 signal playback_status_changed(is_playing: bool)
 
+## 首次检测到回放越界同步时发出；后续差异不会覆盖首个根因。
+signal playback_desynchronized(report: Dictionary)
+
 
 # --- 私有变量 ---
 
@@ -21,6 +24,7 @@ var _current_replay: ReplayData = null
 var _is_replay_active: bool = false
 var _command_history: GFCommandHistoryUtility = null
 var _save_graph: GameSaveGraphUtility = null
+var _oos_report: Dictionary = {}
 
 
 # --- Godot 生命周期方法 ---
@@ -39,6 +43,7 @@ func dispose() -> void:
 	_save_graph = null
 	_current_replay = null
 	_is_replay_active = false
+	_oos_report.clear()
 
 
 # --- 公共方法 ---
@@ -124,6 +129,7 @@ func delete_replay(replay_id: String) -> Error:
 ## 激活回放模式。
 ## @param data: 要播放的回放资源。
 func activate_replay_mode(data: ReplayData) -> void:
+	_oos_report.clear()
 	_current_replay = data
 	_is_replay_active = (data != null)
 	playback_status_changed.emit(_is_replay_active)
@@ -134,13 +140,14 @@ func activate_replay_mode(data: ReplayData) -> void:
 func deactivate_replay_mode() -> void:
 	_current_replay = null
 	_is_replay_active = false
+	_oos_report.clear()
 	playback_status_changed.emit(false)
 	_emit_progress()
 
 
 ## 回放下一步。
 func step_forward() -> void:
-	if not _is_replay_active or _current_replay == null:
+	if not _is_replay_active or _current_replay == null or is_playback_desynchronized():
 		return
 		
 	var step_index: int = get_current_step()
@@ -150,7 +157,7 @@ func step_forward() -> void:
 
 ## 回放上一步。
 func step_backward() -> void:
-	if not _is_replay_active:
+	if not _is_replay_active or is_playback_desynchronized():
 		return
 
 	if get_current_step() <= 0:
@@ -204,9 +211,55 @@ func is_replay_active() -> bool:
 	return _is_replay_active
 
 
+func get_current_replay() -> ReplayData:
+	return _current_replay
+
+
+func is_playback_desynchronized() -> bool:
+	return not _oos_report.is_empty()
+
+
+func get_oos_report() -> Dictionary:
+	return _oos_report.duplicate(true)
+
+
+## 记录首个回放 OOS 并阻止后续前进。
+## @param report: 包含首个偏离回合与 expected/actual 摘要的诊断字典。
+func report_oos(report: Dictionary) -> bool:
+	if not _is_replay_active or report.is_empty() or is_playback_desynchronized():
+		return false
+	_oos_report = report.duplicate(true)
+	playback_desynchronized.emit(get_oos_report())
+	return true
+
+
+## 将预期有效但未产生 TurnResult 的回放动作记录为首个 OOS。
+## @param direction: 当前回放步骤声明的四向动作。
+func report_ineffective_action(direction: Vector2i) -> bool:
+	if not _is_replay_active or not is_instance_valid(_current_replay):
+		return false
+	var step_index: int = get_current_step() + 1
+	var report: Dictionary = {
+		&"kind": &"ineffective_action",
+		&"step_index": step_index,
+		&"direction": direction,
+	}
+	if step_index > 0 and step_index <= _current_replay.checkpoints.size():
+		var expected: ReplayCheckpoint = _current_replay.checkpoints[step_index - 1]
+		report[&"expected_state_checksum"] = expected.state_checksum
+		report[&"expected_board_checksum"] = expected.board_checksum
+		report[&"expected_rng_checksum"] = expected.rng_checksum
+		report[&"expected_score"] = expected.score
+	return report_oos(report)
+
+
 ## 当前回放位置是否可以恢复为可游玩的普通对局。
 func can_continue_from_current_step() -> bool:
-	if not _is_replay_active or not is_instance_valid(_current_replay):
+	if (
+		not _is_replay_active
+		or not is_instance_valid(_current_replay)
+		or is_playback_desynchronized()
+	):
 		return false
 	return get_total_steps() > 0 and get_current_step() < get_total_steps()
 

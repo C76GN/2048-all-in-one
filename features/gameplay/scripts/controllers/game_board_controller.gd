@@ -232,7 +232,13 @@ func release_visual_tile(tile: Tile) -> void:
 ## @param tile: 作为反馈定位来源的视觉方块。
 ## @param feedback_type: 反馈类型，如 merge、spawn、transform。
 ## @param label_text: 可选浮动文字。
-func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: String = "") -> void:
+## @param play_sound: false 时仅播放局部视觉反馈，由 TurnResult 统一发布主音频事件。
+func play_tile_feedback(
+	tile: Tile,
+	feedback_type: StringName,
+	label_text: String = "",
+	play_sound: bool = true
+) -> void:
 	if not is_instance_valid(tile) or not is_instance_valid(board_container):
 		return
 
@@ -246,20 +252,18 @@ func play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Strin
 			tile.get_feedback_color()
 		)
 
-	_play_tile_feedback_sound(feedback_type)
+	if play_sound:
+		_play_tile_feedback_sound(feedback_type)
 
 
 ## 为一次有效操作播放统一的方向冲量、GF 震动、边缘碎片和背景响应。
-## @param direction: 本次有效移动的棋盘方向。
-## @param merge_count: 本次操作产生的合并数量。
-## @param max_merge_value: 本次操作产生的最大合并结果值。
-## @param score_delta: 本次操作增加的分数。
-func play_turn_feedback(
-	direction: Vector2i,
-	merge_count: int,
-	max_merge_value: int,
-	score_delta: int
-) -> void:
+## @param turn_result: 已提交的唯一强类型回合结果。
+func play_turn_feedback(turn_result: TurnResult) -> void:
+	if not is_instance_valid(turn_result):
+		return
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		theme_utility.play_turn_sound(turn_result)
 	var feedback_utility: GameBoardFeedbackUtility = _get_board_feedback_utility()
 	if (
 		not is_instance_valid(feedback_utility)
@@ -268,9 +272,9 @@ func play_turn_feedback(
 	):
 		return
 	var tier: GameBoardFeedbackUtility.FeedbackTier = feedback_utility.classify_turn(
-		merge_count,
-		max_merge_value,
-		score_delta
+		turn_result.merges.size(),
+		turn_result.max_merge_value,
+		turn_result.score_delta
 	)
 	var accent_color: Color = (
 		board_theme.board_highlight_color
@@ -282,7 +286,7 @@ func play_turn_feedback(
 		board_feedback_root,
 		board_feedback_canvas,
 		game_background,
-		direction,
+		turn_result.direction,
 		tier,
 		centered_rect,
 		accent_color
@@ -1083,12 +1087,6 @@ func _play_tile_feedback_sound(feedback_type: StringName) -> void:
 			theme_utility.play_tile_merge_sound()
 
 
-func _play_tile_move_sound() -> void:
-	var theme_utility: GameThemeUtility = _get_theme_utility()
-	if is_instance_valid(theme_utility):
-		theme_utility.play_tile_move_sound()
-
-
 func _ensure_animation_tile(tile_data: TileState, start_cell: Vector2i) -> Tile:
 	if tile_data == null:
 		return null
@@ -1124,6 +1122,53 @@ func _find_tile_cell_in_visible_cells(
 	return Vector2i(-1, -1)
 
 
+func _build_animation_instructions(payload: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if payload is TurnResult:
+		var turn_result: TurnResult = payload
+		for movement: TileMovementResult in turn_result.movements:
+			if movement != null and movement.is_valid_result():
+				result.append({
+					&"type": &"MOVE",
+					&"tile_data": movement.tile,
+					&"from_grid_pos": movement.from_cell,
+					&"to_grid_pos": movement.to_cell,
+				})
+		for merge: TileMergeResult in turn_result.merges:
+			if merge == null or not merge.is_valid_result():
+				continue
+			result.append({
+				&"type": &"MERGE",
+				&"consumed_data": merge.interaction.consumed,
+				&"merged_data": merge.interaction.survivor,
+				&"to_grid_pos": merge.to_cell,
+				&"from_grid_pos_consumed": merge.consumed_from_cell,
+				&"from_grid_pos_merged": merge.survivor_from_cell,
+				&"score_delta": merge.interaction.score_delta,
+				&"transform": merge.interaction.transformed,
+			})
+		return result
+	if payload is TileSpawnResult:
+		var spawn_result: TileSpawnResult = payload
+		if spawn_result.is_valid_result():
+			result.append({
+				&"type": &"SPAWN",
+				&"tile_data": spawn_result.tile,
+				&"to_grid_pos": spawn_result.to_cell,
+			})
+		return result
+	if payload is TileTransformResult:
+		var transform_result: TileTransformResult = payload
+		if transform_result.is_valid_result():
+			result.append({
+				&"type": &"TRANSFORM",
+				&"tile_data": transform_result.tile,
+				&"do_merge": transform_result.kind == TileTransformResult.Kind.EMPOWER,
+				&"do_transform": transform_result.kind == TileTransformResult.Kind.RECOMPOSE,
+			})
+	return result
+
+
 # --- 信号处理函数 ---
 
 ## 接收撤回动画请求，播放平滑动画。
@@ -1143,10 +1188,13 @@ func _on_board_undo_animation_requested(payload: Array) -> void:
 	var _undo_enqueued: bool = _animation_utility.enqueue(undo_action)
 
 ## 接收到逻辑层的动画请求，将其包装为 Action 推入动画队列。
-func _on_board_animation_requested(instructions: Array) -> void:
+func _on_board_animation_requested(payload: Variant) -> void:
+	var turn_result: TurnResult = payload if payload is TurnResult else null
+	var instructions: Array[Dictionary] = _build_animation_instructions(payload)
+	if instructions.is_empty():
+		return
 	var visual_instructions: Array[Dictionary] = []
 	var needs_visual_resync: bool = false
-	var has_move_sound: bool = false
 	var visible_cells: Array[Vector2i] = _get_visible_cells()
 	var visible_cell_lookup: Dictionary = {}
 	for visible_cell: Vector2i in visible_cells:
@@ -1306,9 +1354,6 @@ func _on_board_animation_requested(instructions: Array) -> void:
 		if visual_instr.has(&"to_grid_pos"):
 			visual_instr[&"to_pos"] = _grid_to_pixel_center(_get_vector2i(visual_instr, &"to_grid_pos", Vector2i.ZERO))
 
-		if instruction_type == &"MOVE" or instruction_type == &"MERGE":
-			has_move_sound = true
-			
 		visual_instructions.append(visual_instr)
 
 	if needs_visual_resync and model:
@@ -1320,19 +1365,18 @@ func _on_board_animation_requested(instructions: Array) -> void:
 		call_deferred(&"_sync_visible_region")
 		return
 
-	if has_move_sound:
-		_play_tile_move_sound()
-			
 	# 2. 实例化视觉动作
-	var action: BoardAnimationAction = BoardAnimationAction.new(visual_instructions, self)
+	var action: BoardAnimationAction = BoardAnimationAction.new(
+		visual_instructions,
+		self,
+		turn_result
+	)
 	
 	# 3. 推入 GFActionQueueSystem 执行
 	if not is_instance_valid(_animation_utility):
 		push_error("[GameBoardController] GameBoardAnimationUtility 不可用，棋盘动画被拒绝。")
 		return
 	var _animation_enqueued: bool = _animation_utility.enqueue(action)
-
-
 ## 接收到全量刷新请求（如撤回操作），直接重置棋盘视觉状态。
 func _on_board_refresh_requested(board_snapshot: Dictionary) -> void:
 	restore_from_snapshot(board_snapshot)

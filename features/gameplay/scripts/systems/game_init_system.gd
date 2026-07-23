@@ -23,6 +23,7 @@ var _mode_catalog: GameModeCatalogUtility
 var _grid_model: GridModel
 var _log: GFLogUtility
 var _clock: GameClockUtility
+var _determinism: GameDeterminismUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -32,12 +33,13 @@ func get_required_models() -> Array[Script]:
 
 
 func get_required_systems() -> Array[Script]:
-	return [GameFlowSystem, RuleSystem, ProgressStatsSystem]
+	return [GameFlowSystem, ReplaySystem, RuleSystem, ProgressStatsSystem]
 
 
 func get_required_utilities() -> Array[Script]:
 	return [
 		GameClockUtility,
+		GameDeterminismUtility,
 		GameModeCatalogUtility,
 		GFCommandHistoryUtility,
 		GFLevelUtility,
@@ -53,6 +55,7 @@ func ready() -> void:
 	_mode_catalog = _get_mode_catalog_utility()
 	_log = _get_log_utility()
 	_clock = _get_clock_utility()
+	_determinism = _get_determinism_utility()
 	_rule_system = _get_rule_system()
 	_game_flow_system = _get_game_flow_system()
 	_grid_model = _get_grid_model()
@@ -70,6 +73,7 @@ func dispose() -> void:
 	_grid_model = null
 	_log = null
 	_clock = null
+	_determinism = null
 
 
 # --- 私有/辅助方法 ---
@@ -122,6 +126,13 @@ func _get_clock_utility() -> GameClockUtility:
 	return null
 
 
+func _get_determinism_utility() -> GameDeterminismUtility:
+	var utility_value: Object = get_utility(GameDeterminismUtility)
+	if utility_value is GameDeterminismUtility:
+		return utility_value
+	return null
+
+
 func _get_unix_timestamp() -> int:
 	if is_instance_valid(_clock):
 		return _clock.get_unix_timestamp()
@@ -155,6 +166,13 @@ func _get_progress_stats_system() -> ProgressStatsSystem:
 	if system_value is ProgressStatsSystem:
 		var progress_stats_system: ProgressStatsSystem = system_value
 		return progress_stats_system
+	return null
+
+
+func _get_replay_system() -> ReplaySystem:
+	var system_value: Object = get_system(ReplaySystem)
+	if system_value is ReplaySystem:
+		return system_value
 	return null
 
 
@@ -430,6 +448,34 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	if not mode_config.validate():
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GameModeConfig 校验失败: %s" % config_path)
+		return
+	if (
+		is_instance_valid(replay_data)
+		and (
+			not is_instance_valid(_determinism)
+			or not replay_data.matches_ruleset(mode_config, _determinism)
+		)
+	):
+		var actual_fingerprint: String = (
+			_determinism.calculate_ruleset_fingerprint(mode_config)
+			if is_instance_valid(_determinism)
+			else ""
+		)
+		var report: Dictionary = {
+			&"kind": &"ruleset_mismatch",
+			&"step_index": 0,
+			&"expected_ruleset_id": replay_data.ruleset_id,
+			&"actual_ruleset_id": mode_config.ruleset_id,
+			&"expected_ruleset_version": replay_data.ruleset_version,
+			&"actual_ruleset_version": mode_config.ruleset_version,
+			&"expected_ruleset_fingerprint": replay_data.ruleset_fingerprint,
+			&"actual_ruleset_fingerprint": actual_fingerprint,
+		}
+		var replay_system: ReplaySystem = _get_replay_system()
+		if is_instance_valid(replay_system):
+			var _oos_recorded: bool = replay_system.report_oos(report)
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "回放规则集与当前模式不一致，拒绝初始化。", report)
 		return
 
 	var board_topology: BoardTopology = _resolve_session_topology(

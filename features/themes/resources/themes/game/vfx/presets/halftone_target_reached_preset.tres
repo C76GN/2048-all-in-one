@@ -6,9 +6,9 @@
 script = ExtResource("1_preset")
 duration = 1.45
 opacity = 0.74
+fallback_color = Color(0.36078432, 0.7176471, 0.7254902, 0.16)
 shader_parameters = {
 "piece_size": 6.2,
 "speed": 94.0,
 "sway_strength": 34.0
 }
-

@@ -86,7 +86,7 @@ const SPAWN_TILE_REQUESTED: StringName = &"spawn_tile_requested"
 
 # --- 棋盘 ---
 
-## 请求棋盘播放动画序列，payload 为动画指令数组。
+## 请求棋盘播放动画，payload 为 TurnResult、TileSpawnResult 或 TileTransformResult。
 const BOARD_ANIMATION_REQUESTED: StringName = &"board_animation_requested"
 
 ## 请求棋盘播放撤销逆向动画，payload 为快照与反向目标映射。

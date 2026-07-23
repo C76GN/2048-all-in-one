@@ -27,6 +27,8 @@ metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 [resource]
 script = ExtResource("1_o4y40")
 mode_name = "MODE_PROGRESSIVE_NAME"
+ruleset_id = &"gameplay.progressive"
+ruleset_version = 1
 mode_description = "MODE_PROGRESSIVE_DESC"
 interaction_rule = SubResource("Resource_cubgt")
 movement_rule = ExtResource("6_vrvml")

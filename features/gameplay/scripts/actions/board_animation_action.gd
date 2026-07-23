@@ -16,15 +16,21 @@ const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 var _instructions: Array[Dictionary] = []
 var _game_board: GameBoardController
 var _pending_consumed_tiles: Dictionary = {}
+var _turn_result: TurnResult
 
 
 # --- Godot 生命周期方法 ---
 
-func _init(instructions: Array, game_board: GameBoardController) -> void:
+func _init(
+	instructions: Array,
+	game_board: GameBoardController,
+	turn_result: TurnResult = null
+) -> void:
 	for instruction: Variant in instructions:
 		if instruction is Dictionary:
 			_instructions.append(instruction)
 	_game_board = game_board
+	_turn_result = turn_result
 
 
 # --- 公共方法 ---
@@ -34,7 +40,7 @@ func execute() -> Variant:
 		return null
 
 	_pending_consumed_tiles.clear()
-	_play_turn_feedback(_instructions[0])
+	_play_turn_feedback()
 	var tweens: Array[Tween] = []
 	for instruction: Dictionary in _instructions:
 		var tile: Tile
@@ -196,18 +202,18 @@ func _play_tile_feedback(tile: Tile, feedback_type: StringName, label_text: Stri
 	if not is_instance_valid(_game_board):
 		return
 
-	_game_board.play_tile_feedback(tile, feedback_type, label_text)
-
-
-func _play_turn_feedback(batch_instruction: Dictionary) -> void:
-	if not is_instance_valid(_game_board):
-		return
-	_game_board.play_turn_feedback(
-		_get_vector2i(batch_instruction, &"move_direction", Vector2i.ZERO),
-		_get_int(batch_instruction, &"turn_merge_count", 0),
-		_get_int(batch_instruction, &"turn_max_merge_value", 0),
-		_get_int(batch_instruction, &"turn_score_delta", 0)
+	_game_board.play_tile_feedback(
+		tile,
+		feedback_type,
+		label_text,
+		not is_instance_valid(_turn_result)
 	)
+
+
+func _play_turn_feedback() -> void:
+	if not is_instance_valid(_game_board) or not is_instance_valid(_turn_result):
+		return
+	_game_board.play_turn_feedback(_turn_result)
 
 
 func _apply_merge_impact(tile: Tile, target_data: Dictionary) -> void:

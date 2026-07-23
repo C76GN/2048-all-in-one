@@ -10,6 +10,9 @@ extends Node2D
 
 const _TILE_SCENE: PackedScene = preload("res://features/gameplay/scenes/components/tile.tscn")
 const _TILE_VISUAL_THEME: TileVisualTheme = preload("res://features/themes/resources/themes/game/halftone_atlas_tile_visual_theme.tres")
+const _FEEDBACK_PROFILE: GameBoardFeedbackProfile = preload(
+	"res://features/themes/resources/themes/game/feedback/halftone_atlas_board_feedback_profile.tres"
+)
 const _INK_COLOR: Color = Color(0.19215687, 0.2, 0.21568628, 1.0)
 const _PAPER_COLOR: Color = Color(0.95686275, 0.94509804, 0.9098039, 1.0)
 const _WARMUP_COLORS: Array[Color] = [
@@ -64,18 +67,30 @@ func prime() -> void:
 	var feedback_canvas: BoardFeedbackCanvas = BoardFeedbackCanvas.new()
 	feedback_canvas.name = "FeedbackWarmup"
 	add_child(feedback_canvas)
+	var budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(
+		GameAccessibilityState.new()
+	)
+	var turn_recipe: GameFeedbackRecipe = _FEEDBACK_PROFILE.high_merge_recipe
 	var _turn_primitives: int = feedback_canvas.play_turn_impact(
 		Rect2(Vector2.ZERO, Vector2(312.0, 208.0)),
 		Vector2.RIGHT,
 		3,
-		18,
-		Color(0.827451, 0.38431373, 0.29411766, 1.0)
+		mini(turn_recipe.edge_fragment_count, budget.max_edge_fragments),
+		turn_recipe.accent_color,
+		(turn_recipe.impact_duration + turn_recipe.settle_duration + 0.07)
+		* budget.duration_scale,
+		budget.motion_scale
 	)
+	var tile_recipe: GameFeedbackRecipe = _FEEDBACK_PROFILE.tile_merge_recipe
 	var _burst_primitives: int = feedback_canvas.play_tile_burst(
 		Vector2(156.0, 104.0),
 		&"merge",
 		"128",
-		Color(0.8745098, 0.6901961, 0.3019608, 1.0)
+		tile_recipe.accent_color,
+		mini(tile_recipe.tile_shard_count, budget.max_tile_shards),
+		tile_recipe.tile_burst_duration * budget.duration_scale,
+		budget.motion_scale,
+		budget.max_active_bursts
 	)
 
 

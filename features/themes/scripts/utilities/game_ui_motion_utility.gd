@@ -50,27 +50,33 @@ const _NUMERIC_GOLDEN_ANGLE_RADIANS: float = 2.39996323
 # --- 私有变量 ---
 
 var _style: GameUiStyleUtility
+var _accessibility: GameAccessibilityUtility
 var _numeric_scatter_sequence: int = 0
 
 
 # --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GameUiStyleUtility]
+	return [GameUiStyleUtility, GameAccessibilityUtility]
 
 
 func ready() -> void:
 	_style = _get_style_utility()
+	_accessibility = _get_accessibility_utility()
 	if not is_instance_valid(_style):
 		push_error("[GameUiMotionUtility] 缺少 GameUiStyleUtility。")
+	if not is_instance_valid(_accessibility):
+		push_error("[GameUiMotionUtility] 缺少 GameAccessibilityUtility。")
 
 
 func dispose() -> void:
 	_style = null
+	_accessibility = null
 
 
 func release_dependencies() -> void:
 	_style = null
+	_accessibility = null
 	super.release_dependencies()
 
 
@@ -164,6 +170,10 @@ func play_control_pulse(
 		_CONTROL_BASE_MODULATE_META,
 		control.modulate
 	)
+	if _is_reduced_motion():
+		control.scale = base_scale
+		control.modulate = base_modulate
+		return null
 	control.pivot_offset = control.size * 0.5
 	control.scale = base_scale * maxf(scale_multiplier, 0.0)
 	control.modulate = start_modulate
@@ -222,6 +232,13 @@ func play_numeric_change(
 
 	if old_value == new_value or not value_label.is_inside_tree():
 		value_label.text = str(new_value)
+		return null
+	if _is_reduced_motion():
+		value_label.text = str(new_value)
+		_restore_control_base_state(value_label, false)
+		if is_instance_valid(delta_label):
+			_restore_control_base_state(delta_label, true)
+			delta_label.visible = false
 		return null
 
 	var feedback_color: Color = _get_numeric_feedback_color(new_value > old_value)
@@ -411,6 +428,12 @@ func _play_control_reveal(
 		_CONTROL_BASE_MODULATE_META,
 		control.modulate
 	)
+	if _is_reduced_motion():
+		if animate_position:
+			control.position = base_position
+		control.scale = base_scale
+		control.modulate = base_modulate
+		return null
 	var start_modulate: Color = base_modulate
 	start_modulate.a = 0.0
 
@@ -453,6 +476,10 @@ func _animate_button(
 	_kill_button_tween(button)
 
 	var base_scale: Vector2 = _get_button_base_scale(button)
+	if _is_reduced_motion():
+		button.scale = base_scale
+		button.modulate = modulate
+		return
 	if not button.is_inside_tree():
 		button.scale = base_scale * scale_multiplier
 		button.modulate = modulate
@@ -656,6 +683,23 @@ func _get_style_utility() -> GameUiStyleUtility:
 		var style_utility: GameUiStyleUtility = utility_value
 		return style_utility
 	return null
+
+
+func _get_accessibility_utility() -> GameAccessibilityUtility:
+	var utility_value: Object = get_utility(GameAccessibilityUtility)
+	if utility_value is GameAccessibilityUtility:
+		var accessibility: GameAccessibilityUtility = utility_value
+		return accessibility
+	return null
+
+
+func _is_reduced_motion() -> bool:
+	if not is_instance_valid(_accessibility):
+		_accessibility = _get_accessibility_utility()
+	return (
+		is_instance_valid(_accessibility)
+		and _accessibility.get_state().reduced_motion
+	)
 
 
 # --- 信号处理函数 ---

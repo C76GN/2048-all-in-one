@@ -217,6 +217,29 @@ func test_game_ready_uses_explicit_bookmark_target_state() -> void:
 	)
 
 
+func test_game_ready_restores_bookmark_replay_trace_prefix() -> void:
+	var flow_system: GameFlowSystem = _make_flow_system()
+	var ready_data: GameReadyData = GameReadyData.new()
+	var bookmark: BookmarkData = BookmarkData.new()
+	var checkpoint: ReplayCheckpoint = ReplayCheckpoint.new()
+	checkpoint.step_index = 1
+	checkpoint.state_checksum = "a".repeat(64)
+	checkpoint.board_checksum = "b".repeat(64)
+	checkpoint.rng_checksum = "c".repeat(64)
+	bookmark.replay_actions = [Vector2i.LEFT]
+	bookmark.replay_checkpoints = [checkpoint]
+	ready_data.loaded_bookmark_data = bookmark
+
+	flow_system._on_game_ready(ready_data)
+
+	assert_true(flow_system._player_actions == [Vector2i.LEFT], "书签操作前缀必须直接恢复。")
+	assert_true(flow_system._turn_checkpoints.size() == 1, "书签 checkpoint 前缀必须直接恢复。")
+	assert_true(
+		flow_system._turn_checkpoints[0].state_checksum == checkpoint.state_checksum,
+		"恢复后的 checkpoint 必须保留确定性摘要。"
+	)
+
+
 func test_valid_move_resolves_once_through_gf_turn_flow() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	await _register_pause_utilities(architecture)
@@ -260,14 +283,17 @@ func test_valid_move_resolves_once_through_gf_turn_flow() -> void:
 	)
 	architecture.send_event(GameReadyData.new())
 
-	var move_data: MoveData = MoveData.new()
-	move_data.direction = Vector2i.RIGHT
-	architecture.send_event(move_data)
+	var turn_result: TurnResult = TurnResult.new()
+	turn_result.direction = Vector2i.RIGHT
+	turn_result.movements.append(
+		TileMovementResult.new(TileState.new(), Vector2i.ZERO, Vector2i.RIGHT)
+	)
+	architecture.send_event(turn_result)
 	await get_tree().process_frame
 
 	assert_true(
 		GFVariantData.to_int(status_model.move_count.get_value(), 0) == 1,
-		"一次 MoveData 应且只应结算一个移动回合。"
+		"一次 TurnResult 应且只应结算一个移动回合。"
 	)
 	assert_true(resolved_actions.size() == 1, "GF 应发出一次 action_resolved 生命周期信号。")
 	if resolved_actions.size() == 1:

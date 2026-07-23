@@ -25,6 +25,6 @@ func setup(p_interaction_rule: InteractionRule) -> void:
 ##
 ## 这是所有移动规则的核心，子类必须重写此方法以实现具体的移动逻辑。
 ## @param line: 一个包含TileState数据对象或null的一维数组，代表棋盘的一行或一列。
-## @return: 一个字典，包含 {"line": Array, "moved": bool, "merges": Array}。
-func process_line(line: Array[TileState]) -> Dictionary:
-	return {"line": line, "moved": false, "merges": []}
+## @return: 单条 lane 的强类型结果。
+func process_line(line: Array[TileState]) -> MovementLineResult:
+	return MovementLineResult.new(line, false, [])

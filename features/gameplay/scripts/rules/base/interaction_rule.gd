@@ -33,10 +33,14 @@ func setup(tile_composition_utility: TileCompositionUtility) -> void:
 ## @param tile_a: 参与交互的第一个方块。
 ## @param tile_b: 参与交互的第二个方块（通常是移动的目标方块）。
 ## @param _p_rule: 对当前交互规则实例的引用，用于更新新方块的状态。
-## @return: 一个描述交互结果的字典，可能包含 "merged_tile" 和 "consumed_tile"。
-func process_interaction(tile_a: TileState, tile_b: TileState, _p_rule: InteractionRule) -> Dictionary:
+## @return: 强类型交互结果；无法交互时返回 null。
+func process_interaction(
+	tile_a: TileState,
+	tile_b: TileState,
+	_p_rule: InteractionRule
+) -> TileInteractionResult:
 	if _tile_composition_utility == null:
-		return {}
+		return null
 	return _tile_composition_utility.apply_interaction(tile_a, tile_b)
 
 

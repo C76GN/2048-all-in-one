@@ -32,12 +32,11 @@ func test_classic_recipe_creates_capabilities_and_resolves_merge() -> void:
 	assert_true(capabilities.has_capability(source, ClassicMergeCapability), "经典 Recipe 应挂载 ClassicMergeCapability。")
 	assert_true(composition.can_interact(source, target), "同值经典方块应可合并。")
 
-	var result: Dictionary = composition.apply_interaction(source, target)
-	var merged_value: Variant = GFVariantData.get_option_value(result, &"merged_tile")
-	var merged_tile: TileState = merged_value if merged_value is TileState else null
+	var result: TileInteractionResult = composition.apply_interaction(source, target)
 	assert_true(target.value == 4, "经典能力应将目标数值翻倍。")
-	assert_same(merged_tile, target, "经典合并应保留目标方块。")
-	assert_true(GFVariantData.get_option_int(result, &"score") == 4, "经典合并应产生新值等额分数。")
+	assert_same(result.survivor, target, "经典合并应保留目标方块。")
+	assert_same(result.consumed, source, "经典合并应明确记录被消耗方块。")
+	assert_true(result.score_delta == 4, "经典合并应产生新值等额分数。")
 	assert_false(capabilities.has_capability(source, ClassicMergeCapability), "被消耗方块应从 GF Capability 注册表释放。")
 
 	_dispose_setup(setup)
@@ -72,14 +71,14 @@ func test_hybrid_tile_interacts_through_each_shared_capability_only() -> void:
 	)
 	var classic_target: TileState = composition.create_tile(classic, 2)
 	assert_true(composition.can_interact(hybrid_classic, classic_target), "混合方块应通过共享经典能力交互。")
-	var classic_result: Dictionary = composition.apply_interaction(hybrid_classic, classic_target)
-	assert_true(GFVariantData.get_option_int(classic_result, &"score") == 4, "混合方块的经典路径应生成 4。")
+	var classic_result: TileInteractionResult = composition.apply_interaction(hybrid_classic, classic_target)
+	assert_true(classic_result.score_delta == 4, "混合方块的经典路径应生成 4。")
 
 	var hybrid_fibonacci: TileState = composition.create_tile(hybrid, 2)
 	var fibonacci_target: TileState = composition.create_tile(fibonacci, 3)
 	assert_true(composition.can_interact(hybrid_fibonacci, fibonacci_target), "混合方块应通过共享斐波那契能力交互。")
-	var fibonacci_result: Dictionary = composition.apply_interaction(hybrid_fibonacci, fibonacci_target)
-	assert_true(GFVariantData.get_option_int(fibonacci_result, &"score") == 5, "混合方块的斐波那契路径应生成 5。")
+	var fibonacci_result: TileInteractionResult = composition.apply_interaction(hybrid_fibonacci, fibonacci_target)
+	assert_true(fibonacci_result.score_delta == 5, "混合方块的斐波那契路径应生成 5。")
 
 	composition.release_tile(classic_tile)
 	composition.release_tile(fibonacci_tile)
@@ -103,13 +102,11 @@ func test_lucas_and_ratio_definitions_mount_their_composed_rules() -> void:
 
 	var base_tile: TileState = composition.create_tile(ratio_base, 8)
 	var factor_tile: TileState = composition.create_tile(ratio_factor, 2)
-	var ratio_result: Dictionary = composition.apply_interaction(base_tile, factor_tile)
-	var ratio_merged_value: Variant = GFVariantData.get_option_value(ratio_result, &"merged_tile")
-	var ratio_merged_tile: TileState = ratio_merged_value if ratio_merged_value is TileState else null
-	assert_same(ratio_merged_tile, base_tile, "较大数所在方块应承载求商结果。")
+	var ratio_result: TileInteractionResult = composition.apply_interaction(base_tile, factor_tile)
+	assert_same(ratio_result.survivor, base_tile, "较大数所在方块应承载求商结果。")
 	assert_true(base_tile.value == 4, "跨定义规则应按 8 / 2 得到 4。")
 	assert_true(base_tile.definition_id == ratio_base.definition_id, "求商不得改写结果方块的定义身份。")
-	assert_true(GFVariantData.get_option_int(ratio_result, &"ratio_resolved") == 1, "求商结果应保留中性统计元数据。")
+	assert_true(ratio_result.ratio_resolution_count == 1, "求商结果应保留中性统计元数据。")
 	assert_false(
 		capabilities.has_capability(factor_tile, CrossDefinitionRatioCapability),
 		"被消费方块的求商能力应从 GF 注册表释放。"
@@ -128,21 +125,21 @@ func test_ratio_definitions_are_rules_not_factions() -> void:
 
 	var same_definition_source: TileState = composition.create_tile(ratio_base, 2)
 	var same_definition_target: TileState = composition.create_tile(ratio_base, 2)
-	var addition_result: Dictionary = composition.apply_interaction(
+	var addition_result: TileInteractionResult = composition.apply_interaction(
 		same_definition_source,
 		same_definition_target
 	)
 	assert_true(same_definition_target.value == 4, "同定义方块应通过经典能力执行 2 + 2 = 4。")
-	assert_false(addition_result.has(&"ratio_resolved"), "普通相加不应计入求商次数。")
+	assert_true(addition_result.ratio_resolution_count == 0, "普通相加不应计入求商次数。")
 
 	var cross_definition_source: TileState = composition.create_tile(ratio_base, 2)
 	var cross_definition_target: TileState = composition.create_tile(ratio_factor, 2)
-	var division_result: Dictionary = composition.apply_interaction(
+	var division_result: TileInteractionResult = composition.apply_interaction(
 		cross_definition_source,
 		cross_definition_target
 	)
 	assert_true(cross_definition_target.value == 1, "跨定义方块应通过求商能力执行 2 / 2 = 1。")
-	assert_true(GFVariantData.get_option_int(division_result, &"ratio_resolved") == 1, "跨定义求商应记录一次结算。")
+	assert_true(division_result.ratio_resolution_count == 1, "跨定义求商应记录一次结算。")
 
 	composition.release_tile(same_definition_target)
 	composition.release_tile(cross_definition_target)

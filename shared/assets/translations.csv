@@ -36,6 +36,15 @@ SETTINGS_SECTION_GENERAL,通用设置,General
 SETTINGS_SECTION_AUDIO,声音,Audio
 SETTINGS_SECTION_CONTROLS,操作,Controls
 SETTINGS_AUTO_SAVE_HINT,更改会自动保存,Changes save automatically
+ACCESSIBILITY_SECTION_TITLE,无障碍与性能,Accessibility & Performance
+VFX_QUALITY_LABEL,特效质量,VFX Quality
+VFX_QUALITY_MINIMAL,最低,Minimal
+VFX_QUALITY_REDUCED,降低,Reduced
+VFX_QUALITY_FULL,完整,Full
+REDUCED_MOTION_LABEL,减少动态效果,Reduce Motion
+HIGH_CONTRAST_FEEDBACK_LABEL,高对比反馈,High Contrast Feedback
+HAPTICS_ENABLED_LABEL,触觉反馈,Haptics
+SHADER_EFFECTS_LABEL,动态 Shader,Animated Shaders
 INPUT_TIMING_MODE_LABEL,操作响应,Input Response
 INPUT_TIMING_BUFFERED,缓冲队列,Buffered Queue
 INPUT_TIMING_BLOCK,动画期间阻断,Block During Animation
@@ -313,6 +322,7 @@ BTN_RETURN_MAIN,返回主菜单,Return to Main Menu
 TITLE_GAME_STATUS,游戏状态,Game Status
 LABEL_REPLAY_CONTROLS,回放控制,Replay Controls
 LABEL_REPLAY_PROGRESS,回放进度: %d / %d,Replay Step: %d / %d
+LABEL_REPLAY_OOS,回放在第 %d 步失去同步,Replay desynchronized at step %d
 REPLAY_KEYS_STEP_HINT,上一步: A / ←    下一步: D / → / Space / Enter,Prev: A / ←    Next: D / → / Space / Enter
 REPLAY_KEYS_ACTION_HINT,从此继续: C    返回列表: Esc / B,Continue: C    Back: Esc / B
 BTN_REPLAY_PREV,上一步,Previous

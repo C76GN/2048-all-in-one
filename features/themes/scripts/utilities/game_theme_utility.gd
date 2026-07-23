@@ -293,12 +293,18 @@ func apply_current_theme_to_tree(root: Node) -> int:
 
 
 ## @param event_id: 当前声音主题银行中的语义事件 ID。
-func play_current_sound_event(event_id: StringName) -> void:
+## @param metadata: 交给 GFAudioEvent 和可选音频后端的业务上下文。
+func play_current_sound_event(event_id: StringName, metadata: Dictionary = {}) -> void:
 	if event_id == &"" or not is_instance_valid(_audio):
 		return
 	if not is_instance_valid(_current_sound_theme) or _active_audio_mount_token <= 0:
 		return
-	_audio.play_sfx_event(event_id, _active_audio_bank_id)
+	var audio_event: GFAudioEvent = GFAudioEvent.new()
+	audio_event.event_id = event_id
+	audio_event.channel = &"sfx"
+	audio_event.bank_id = _active_audio_bank_id
+	audio_event.metadata = metadata.duplicate(true)
+	var _handle: GFAudioEmitterHandle = _audio.post_audio_event(audio_event)
 
 
 func play_ui_select_sound() -> void:
@@ -311,6 +317,11 @@ func play_ui_confirm_sound() -> void:
 		play_current_sound_event(_current_sound_theme.ui_confirm_event)
 
 
+func play_ui_cancel_sound() -> void:
+	if is_instance_valid(_current_sound_theme):
+		play_current_sound_event(_current_sound_theme.ui_cancel_event)
+
+
 func play_tile_spawn_sound() -> void:
 	if is_instance_valid(_current_sound_theme):
 		play_current_sound_event(_current_sound_theme.tile_spawn_event)
@@ -321,9 +332,50 @@ func play_tile_move_sound() -> void:
 		play_current_sound_event(_current_sound_theme.tile_move_event)
 
 
+func play_tile_move_blocked_sound() -> void:
+	if is_instance_valid(_current_sound_theme):
+		play_current_sound_event(_current_sound_theme.tile_move_blocked_event)
+
+
 func play_tile_merge_sound() -> void:
 	if is_instance_valid(_current_sound_theme):
 		play_current_sound_event(_current_sound_theme.tile_merge_event)
+
+
+func play_tile_transform_sound() -> void:
+	if is_instance_valid(_current_sound_theme):
+		play_current_sound_event(_current_sound_theme.tile_transform_event)
+
+
+func play_target_reached_sound() -> void:
+	if is_instance_valid(_current_sound_theme):
+		play_current_sound_event(_current_sound_theme.target_reached_event)
+
+
+## 一次回合只发布一个主音频事件。事件携带可供 GF 音频后端使用的语义参数。
+## @param turn_result: 已提交的强类型回合结果。
+## @param milestone_reached: 当前回合是否首次达成模式目标。
+func play_turn_sound(turn_result: TurnResult, milestone_reached: bool = false) -> void:
+	if not is_instance_valid(_current_sound_theme) or turn_result == null:
+		return
+	var event_id: StringName = _current_sound_theme.resolve_turn_event(
+		turn_result,
+		milestone_reached
+	)
+	if event_id == &"":
+		return
+	play_current_sound_event(
+		event_id,
+		{
+			&"direction": turn_result.direction,
+			&"merge_count": turn_result.merges.size(),
+			&"spawn_count": turn_result.spawns.size(),
+			&"transform_count": turn_result.transforms.size(),
+			&"score_delta": turn_result.score_delta,
+			&"max_merge_value": turn_result.max_merge_value,
+			&"milestone_reached": milestone_reached,
+		}
+	)
 
 
 func play_game_over_sound() -> void:

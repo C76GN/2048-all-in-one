@@ -13,9 +13,14 @@ extends Resource
 
 @export var ui_select_event: StringName = &"ui/select"
 @export var ui_confirm_event: StringName = &"ui/confirm"
+@export var ui_cancel_event: StringName = &"ui/confirm/cancel"
 @export var tile_spawn_event: StringName = &"tile/spawn"
 @export var tile_move_event: StringName = &"tile/move"
+@export var tile_move_blocked_event: StringName = &"tile/move/blocked"
 @export var tile_merge_event: StringName = &"tile/merge"
+@export var tile_merge_chain_event: StringName = &"tile/merge/chain"
+@export var tile_transform_event: StringName = &"tile/merge/transform"
+@export var target_reached_event: StringName = &"tile/merge/milestone"
 @export var game_over_event: StringName = &"game/over"
 
 
@@ -33,6 +38,31 @@ func get_resolved_bank_id() -> StringName:
 	if audio_bank_id != &"":
 		return audio_bank_id
 	return theme_id
+
+
+## 将强类型回合结果归约为一个主音频事件，避免移动、合并与生成音效叠加。
+## 细分事件可通过 GFAudioBank 的层级回退复用基础音频。
+## @param turn_result: 已提交的强类型回合结果。
+## @param milestone_reached: 当前回合是否首次达成模式目标。
+func resolve_turn_event(
+	turn_result: TurnResult,
+	milestone_reached: bool = false
+) -> StringName:
+	if turn_result == null:
+		return &""
+	if milestone_reached:
+		return target_reached_event
+	if not turn_result.transforms.is_empty():
+		return tile_transform_event
+	if turn_result.merges.size() > 1:
+		return tile_merge_chain_event
+	if turn_result.merges.size() == 1:
+		return tile_merge_event
+	if turn_result.is_effective():
+		return tile_move_event
+	if turn_result.direction != Vector2i.ZERO:
+		return tile_move_blocked_event
+	return &""
 
 
 ## 生成音效主题及其 GF 音频银行校验报告。
@@ -68,7 +98,7 @@ func get_validation_report() -> GFValidationReport:
 		var event_id: StringName = GFVariantData.to_string_name(required_events[raw_event_field])
 		if event_id == &"":
 			_add_error(report, &"missing_audio_event_id", "音效事件 ID 未配置。", event_field)
-		elif not audio_bank.has_clip(event_id):
+		elif not GFVariantData.get_option_bool(audio_bank.resolve_clip(event_id), "ok", false):
 			_add_error(
 				report,
 				&"unresolved_audio_event",
@@ -84,9 +114,14 @@ func _get_required_events() -> Dictionary:
 	return {
 		&"ui_select_event": ui_select_event,
 		&"ui_confirm_event": ui_confirm_event,
+		&"ui_cancel_event": ui_cancel_event,
 		&"tile_spawn_event": tile_spawn_event,
 		&"tile_move_event": tile_move_event,
+		&"tile_move_blocked_event": tile_move_blocked_event,
 		&"tile_merge_event": tile_merge_event,
+		&"tile_merge_chain_event": tile_merge_chain_event,
+		&"tile_transform_event": tile_transform_event,
+		&"target_reached_event": target_reached_event,
 		&"game_over_event": game_over_event,
 	}
 

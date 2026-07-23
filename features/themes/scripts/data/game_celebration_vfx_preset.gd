@@ -8,6 +8,7 @@ extends Resource
 @export_range(0.05, 10.0, 0.01) var duration: float = 1.5
 @export_range(0.0, 1.0, 0.01) var opacity: float = 0.8
 @export var loop_until_dismissed: bool = false
+@export var fallback_color: Color = Color(0.8745, 0.6902, 0.3020, 0.16)
 @export var shader_parameters: Dictionary = {}
 
 

@@ -19,3 +19,6 @@ var definition_id: StringName = &""
 
 ## 若为 true，棋盘满时将重组一个其他定义方块，或强化同定义方块。
 var is_priority: bool = false
+
+## 由移动规则触发时指向所属回合，初始生成和诊断生成时为 null。
+var turn_result: TurnResult

@@ -29,6 +29,8 @@ metadata/_custom_type_script = "uid://dg4uoygc0uq8m"
 [resource]
 script = ExtResource("1_vuygr")
 mode_name = "MODE_RATIO_NAME"
+ruleset_id = &"gameplay.ratio"
+ruleset_version = 1
 mode_description = "MODE_RATIO_DESC"
 interaction_rule = SubResource("Resource_8wciv")
 movement_rule = ExtResource("6_2ldk4")

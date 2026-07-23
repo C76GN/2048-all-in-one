@@ -27,6 +27,8 @@ metadata/_custom_type_script = "uid://bdsn1pa4fjc01"
 [resource]
 script = ExtResource("4_y7c41")
 mode_name = "MODE_CLASSIC_NAME"
+ruleset_id = &"gameplay.classic"
+ruleset_version = 1
 mode_description = "MODE_CLASSIC_DESC"
 interaction_rule = SubResource("Resource_jk0ep")
 movement_rule = ExtResource("6_y7c41")

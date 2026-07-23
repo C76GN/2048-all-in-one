@@ -9,22 +9,26 @@ const _CLASSIC_DEFINITION_PATH: String = "res://features/gameplay/resources/tile
 
 # --- 测试用例 ---
 
-func test_grid_movement_system_builds_reverse_targets_from_animation_instructions() -> void:
-	var movement_system: GridMovementSystem = GridMovementSystem.new()
-	var instructions: Array = []
-	_append_dictionary(instructions, {
-		&"type": &"MOVE",
-		&"from_grid_pos": Vector2i(2, 0),
-		&"to_grid_pos": Vector2i(0, 0),
-	})
-	_append_dictionary(instructions, {
-		&"type": &"MERGE",
-		&"from_grid_pos_consumed": Vector2i(3, 1),
-		&"from_grid_pos_merged": Vector2i(2, 1),
-		&"to_grid_pos": Vector2i(0, 1),
-	})
+func test_turn_result_builds_reverse_targets_from_typed_transitions() -> void:
+	var result: TurnResult = TurnResult.new()
+	var moved_tile: TileState = TileState.new(2, &"tile.classic.numeric")
+	result.movements.append(
+		TileMovementResult.new(moved_tile, Vector2i(2, 0), Vector2i(0, 0))
+	)
+	var consumed: TileState = TileState.new(2, &"tile.classic.numeric")
+	var survivor: TileState = TileState.new(4, &"tile.classic.numeric")
+	var interaction: TileInteractionResult = TileInteractionResult.new()
+	interaction.consumed = consumed
+	interaction.survivor = survivor
+	interaction.interaction_rule_id = &"classic_merge"
+	var merge: TileMergeResult = TileMergeResult.new()
+	merge.interaction = interaction
+	merge.consumed_from_cell = Vector2i(3, 1)
+	merge.survivor_from_cell = Vector2i(2, 1)
+	merge.to_cell = Vector2i(0, 1)
+	result.add_merge(merge)
 
-	var reverse_map: Dictionary = movement_system._build_reverse_target_map(instructions)
+	var reverse_map: Dictionary = result.get_reverse_target_map()
 
 	assert_true(_get_vector2i(reverse_map, "2,0") == Vector2i(0, 0), "普通移动应记录旧位置到移动后位置。")
 	assert_true(_get_vector2i(reverse_map, "3,1") == Vector2i(0, 1), "合并中被消耗的方块应记录到合并后位置。")
@@ -112,10 +116,6 @@ func test_records_reverse_targets_while_command_runs_inside_simple_event() -> vo
 
 
 # --- 私有/辅助方法 ---
-
-func _append_dictionary(target: Array, value: Dictionary) -> void:
-	target.append(value)
-
 
 func _get_vector2i(source: Dictionary, key: String) -> Vector2i:
 	var value: Variant = source.get(key, Vector2i.ZERO)

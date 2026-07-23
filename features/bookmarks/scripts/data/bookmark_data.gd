@@ -53,11 +53,21 @@ extends Resource
 ## 保存完整的撤回历史记录。
 @export var game_state_history: Dictionary = {}
 
+## 从初始种子到当前书签位置的有效玩家操作。
+@export var replay_actions: Array[Vector2i] = []
+
+## 与 replay_actions 一一对应的确定性回放检查点。
+@export var replay_checkpoints: Array[ReplayCheckpoint] = []
+
 
 # --- 公共方法 ---
 
 ## 转换为 SaveGraph 可持久化字典。
 func to_dict() -> Dictionary:
+	var checkpoint_data: Array[Dictionary] = []
+	for checkpoint: ReplayCheckpoint in replay_checkpoints:
+		if checkpoint != null:
+			checkpoint_data.append(checkpoint.to_dict())
 	return {
 		"bookmark_id": bookmark_id,
 		"timestamp": timestamp,
@@ -74,6 +84,8 @@ func to_dict() -> Dictionary:
 		"board_snapshot": board_snapshot.duplicate(true),
 		"rules_states": rules_states.duplicate(true),
 		"game_state_history": game_state_history.duplicate(true),
+		"replay_actions": replay_actions.duplicate(),
+		"replay_checkpoints": checkpoint_data,
 	}
 
 
@@ -103,13 +115,27 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 		return null
 	result.rules_states = GFVariantData.get_option_array(data, "rules_states").duplicate(true)
 	result.game_state_history = GFVariantData.get_option_dictionary(data, "game_state_history").duplicate(true)
+	for action_value: Variant in GFVariantData.get_option_array(data, "replay_actions"):
+		if not action_value is Vector2i:
+			return null
+		result.replay_actions.append(action_value)
+	for checkpoint_value: Variant in GFVariantData.get_option_array(data, "replay_checkpoints"):
+		if not checkpoint_value is Dictionary:
+			return null
+		var checkpoint_data: Dictionary = checkpoint_value
+		var checkpoint: ReplayCheckpoint = ReplayCheckpoint.from_dict(checkpoint_data)
+		if checkpoint == null:
+			return null
+		result.replay_checkpoints.append(checkpoint)
+	if not result._has_valid_replay_trace():
+		return null
 	return result
 
 
 # --- 私有/辅助方法 ---
 
 static func _has_valid_persisted_shape(data: Dictionary) -> bool:
-	if data.size() != 15:
+	if data.size() != 17:
 		return false
 	var has_expected_types: bool = (
 		GFVariantData.get_option_value(data, "bookmark_id") is String
@@ -127,6 +153,8 @@ static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, "board_snapshot") is Dictionary
 		and GFVariantData.get_option_value(data, "rules_states") is Array
 		and GFVariantData.get_option_value(data, "game_state_history") is Dictionary
+		and GFVariantData.get_option_value(data, "replay_actions") is Array
+		and GFVariantData.get_option_value(data, "replay_checkpoints") is Array
 	)
 	if not has_expected_types:
 		return false
@@ -142,3 +170,18 @@ static func _has_valid_target_state(data: Dictionary) -> bool:
 	if target_value == 0:
 		return not reached
 	return reached or highest_tile_value < target_value
+
+
+func _has_valid_replay_trace() -> bool:
+	if replay_actions.size() != replay_checkpoints.size():
+		return false
+	for index: int in range(replay_actions.size()):
+		var direction: Vector2i = replay_actions[index]
+		if absi(direction.x) + absi(direction.y) != 1:
+			return false
+		var checkpoint: ReplayCheckpoint = replay_checkpoints[index]
+		if checkpoint == null or checkpoint.step_index != index + 1:
+			return false
+	if not replay_checkpoints.is_empty() and replay_checkpoints.back().score != score:
+		return false
+	return true
