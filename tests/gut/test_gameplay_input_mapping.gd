@@ -217,6 +217,61 @@ func test_board_animation_utility_applies_all_three_input_timing_policies() -> v
 	settings.dispose()
 
 
+func test_realtime_retarget_avoids_full_board_rebuild_under_rapid_input() -> void:
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.auto_load_on_init = false
+	settings.auto_save_on_change = false
+	settings.register_project_defaults()
+	settings.init()
+	var profile: GameInputProfileUtility = GameInputProfileUtility.new()
+	profile._settings = settings
+	profile.set_input_timing_mode(GameInputProfileUtility.InputTimingMode.REALTIME_RETARGET)
+	var queue: GFActionQueueSystem = GFActionQueueSystem.new()
+	queue.init()
+	var board: GameBoardController = GameBoardController.new()
+	var animation_utility: GameBoardAnimationUtility = GameBoardAnimationUtility.new()
+	animation_utility._input_profile = profile
+	animation_utility._board_queue = queue
+	animation_utility._board = board
+
+	for _index: int in range(120):
+		queue.is_processing = true
+		assert_true(animation_utility.prepare_for_move())
+
+	assert_true(
+		not queue.is_processing,
+		"每次重定向后都必须结束旧 GF 命名队列动作，不得留下积压状态。"
+	)
+
+	board.free()
+	queue.dispose()
+	settings.dispose()
+
+
+func test_hud_coalesces_rapid_score_changes_into_one_feedback_wait() -> void:
+	var hud: Hud = Hud.new()
+	var scheduled_wait_count: int = 0
+
+	for score: int in range(1, 121):
+		if hud._queue_score_change_feedback(score - 1, score):
+			scheduled_wait_count += 1
+	var score_values: PackedInt32Array = hud._take_pending_score_change_feedback()
+
+	assert_true(
+		scheduled_wait_count == 1,
+		"快速连续加分应共享一个 GF 异步等待，不得为每次变化堆积反馈协程。"
+	)
+	assert_true(
+		score_values == PackedInt32Array([0, 120]),
+		"合并后的分数反馈应保留窗口起点并落到最新模型值。"
+	)
+	assert_true(
+		hud._take_pending_score_change_feedback().is_empty(),
+		"消费合并结果后不得残留下一帧会重复播放的分数反馈。"
+	)
+	hud.free()
+
+
 func test_board_animation_utility_reacquires_queue_after_level_cleanup() -> void:
 	var queue_root: GFActionQueueSystem = GFActionQueueSystem.new()
 	queue_root.init()

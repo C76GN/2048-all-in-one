@@ -101,7 +101,7 @@ func prepare_for_move() -> bool:
 			if is_busy():
 				clear(true)
 				if is_instance_valid(_board):
-					_board.restore_from_snapshot(_board.get_state_snapshot())
+					_board.snap_visuals_to_model_state()
 			return true
 		_:
 			return true

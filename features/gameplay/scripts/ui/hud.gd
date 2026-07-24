@@ -69,6 +69,10 @@ var _control_hint_panel: PanelContainer
 var _hints: VBoxContainer
 var _d_pad: GridContainer
 var _action_panel: PanelContainer
+var _score_feedback_delay_active: bool = false
+var _score_feedback_pending: bool = false
+var _pending_score_feedback_old: int = 0
+var _pending_score_feedback_new: int = 0
 
 
 # --- @onready 变量 (节点引用) ---
@@ -135,6 +139,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_score_feedback_delay_active = false
+	_score_feedback_pending = false
 	if is_instance_valid(_hud_input_source):
 		_hud_input_source.clear_all()
 	_hud_input_source = null
@@ -759,7 +765,30 @@ func _play_score_change_feedback(old_value: int, new_value: int) -> void:
 	)
 
 
-func _play_delayed_score_change_feedback(old_value: int, new_value: int) -> void:
+func _queue_score_change_feedback(old_value: int, new_value: int) -> bool:
+	if not _score_feedback_pending:
+		_pending_score_feedback_old = old_value
+	_score_feedback_pending = true
+	_pending_score_feedback_new = new_value
+	if _score_feedback_delay_active:
+		return false
+	_score_feedback_delay_active = true
+	return true
+
+
+func _take_pending_score_change_feedback() -> PackedInt32Array:
+	_score_feedback_delay_active = false
+	if not _score_feedback_pending:
+		return PackedInt32Array()
+	var values: PackedInt32Array = PackedInt32Array([
+		_pending_score_feedback_old,
+		_pending_score_feedback_new,
+	])
+	_score_feedback_pending = false
+	return values
+
+
+func _play_delayed_score_change_feedback() -> void:
 	var wait_result: Dictionary = await GFAsyncWaitUtility.delay_seconds(
 		_SCORE_FEEDBACK_DELAY_SECONDS,
 		{
@@ -767,8 +796,13 @@ func _play_delayed_score_change_feedback(old_value: int, new_value: int) -> void
 			"respect_time_scale": false,
 		}
 	)
-	if GFVariantData.get_option_bool(wait_result, "completed"):
-		_play_score_change_feedback(old_value, new_value)
+	if not GFVariantData.get_option_bool(wait_result, "completed"):
+		_score_feedback_delay_active = false
+		return
+	var score_values: PackedInt32Array = _take_pending_score_change_feedback()
+	if score_values.size() != 2:
+		return
+	_play_score_change_feedback(score_values[0], score_values[1])
 
 
 # --- 信号处理函数 ---
@@ -779,10 +813,10 @@ func _on_hud_update_requested(_p: Variant = null) -> void:
 
 func _on_score_changed(old_value: int, new_value: int) -> void:
 	_mark_dirty()
+	if not _queue_score_change_feedback(old_value, new_value):
+		return
 	var _deferred_call: Variant = call_deferred(
-		&"_play_delayed_score_change_feedback",
-		old_value,
-		new_value
+		&"_play_delayed_score_change_feedback"
 	)
 
 func _on_move_count_changed(_old_value: int, _new_value: int) -> void:

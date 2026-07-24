@@ -178,16 +178,6 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 			_log.error(_LOG_TAG, "拒绝生成非正数方块。")
 		return
 
-	if is_instance_valid(_log):
-		_log.debug(
-			_LOG_TAG,
-			"收到生成请求: value=%d, definition_id=%s, position=%s" % [
-				spawn_data.value,
-				spawn_data.definition_id,
-				spawn_data.position,
-			]
-		)
-
 	var value: int = spawn_data.value
 	var definition_id: StringName = spawn_data.definition_id
 	var is_priority: bool = spawn_data.is_priority
@@ -244,17 +234,6 @@ func _on_spawn_tile_requested(spawn_data: SpawnData) -> void:
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "方块无法放入目标活跃单元：%s。" % spawn_pos)
 		return
-
-	if is_instance_valid(_log):
-		_log.debug(
-			_LOG_TAG,
-			"已生成方块: value=%d, definition_id=%s, position=%s, empty_cells=%d" % [
-				value,
-				definition.definition_id,
-				spawn_pos,
-				_grid_model.get_empty_cells().size(),
-			]
-		)
 
 	# 3. 记录强类型结果并发送到表现边界。
 	var spawn_result: TileSpawnResult = TileSpawnResult.new(tile_data, spawn_pos)

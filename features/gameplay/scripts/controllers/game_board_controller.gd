@@ -210,6 +210,21 @@ func sync_visible_region() -> void:
 	_sync_visible_region()
 
 
+## 取消旧动画后原地校准可见方块，不经过整盘释放与重新获取。
+##
+## 该入口只用于实时输入重定向：模型已经提交，表现节点需要立即吸附到模型事实。
+func snap_visuals_to_model_state() -> void:
+	if _is_rebuilding_visuals:
+		return
+	if not is_instance_valid(model) or not is_instance_valid(model.topology):
+		return
+	_is_rebuilding_visuals = true
+	var visible_cells: Array[Vector2i] = _get_visible_cells()
+	_sync_grid_cells(visible_cells)
+	_sync_visual_tiles(visible_cells, true)
+	_is_rebuilding_visuals = false
+
+
 ## 清理所有视觉方块节点并重置映射表，通常在撤回动画启动前调用。
 func clear_visual_tiles() -> void:
 	for child: Node in board_container.get_children():
@@ -517,26 +532,50 @@ func _create_visual_tile(tile_data: TileState) -> Tile:
 	if not is_instance_valid(new_tile):
 		push_error("[GameBoardController] 方块场景必须实例化为 Tile。")
 		return null
-	
-	new_tile.reset_animation_state()
-	new_tile.z_index = TILE_Z_INDEX
-	new_tile.set_meta(RELEASE_TOKEN_META, 0)
-	var colors: Dictionary = _get_tile_colors(tile_data.value, tile_data.definition_id)
+
+	_apply_visual_tile_state(new_tile, tile_data, true)
+	return new_tile
+
+
+func _apply_visual_tile_state(
+	tile: Tile,
+	tile_data: TileState,
+	force_setup: bool = false
+) -> void:
+	if not is_instance_valid(tile) or tile_data == null:
+		return
+	tile.reset_animation_state()
+	tile.z_index = TILE_Z_INDEX
+	tile.set_meta(RELEASE_TOKEN_META, 0)
 	var presentation: Dictionary = _get_tile_presentation_descriptor(tile_data)
 	var family_id: StringName = GFVariantData.get_option_string_name(
 		presentation,
 		&"visual_family_id"
 	)
-	new_tile.setup(
+	var layer_ids: Array[StringName] = _get_string_name_array(
+		presentation,
+		&"visual_layer_ids"
+	)
+	var visual_style: TileVisualFamilyStyle = _get_tile_visual_style(family_id)
+	if (
+		not force_setup
+		and tile.value == tile_data.value
+		and tile.definition_id == tile_data.definition_id
+		and tile.visual_family_id == family_id
+		and tile.visual_layer_ids == layer_ids
+		and tile.visual_style == visual_style
+	):
+		return
+	var colors: Dictionary = _get_tile_colors(tile_data.value, tile_data.definition_id)
+	tile.setup(
 		tile_data.value,
 		tile_data.definition_id,
 		_get_color(colors, &"bg", Color.WHITE),
 		_get_color(colors, &"font", Color.BLACK),
 		family_id,
-		_get_string_name_array(presentation, &"visual_layer_ids"),
-		_get_tile_visual_style(family_id)
+		layer_ids,
+		visual_style
 	)
-	return new_tile
 
 
 func _get_tile_presentation_descriptor(tile_data: TileState) -> Dictionary:
@@ -826,7 +865,10 @@ func _sync_grid_cells(visible_cells: Array[Vector2i]) -> void:
 		_grid_cell_map[cell] = cell_instance
 
 
-func _sync_visual_tiles(visible_cells: Array[Vector2i]) -> void:
+func _sync_visual_tiles(
+	visible_cells: Array[Vector2i],
+	snap_existing: bool = false
+) -> void:
 	var desired_tiles: Dictionary = {}
 	for cell: Vector2i in visible_cells:
 		var tile_data: TileState = model.get_tile(cell)
@@ -846,16 +888,19 @@ func _sync_visual_tiles(visible_cells: Array[Vector2i]) -> void:
 		if not tile_data_value is TileState:
 			continue
 		var tile_data: TileState = tile_data_value
-		if is_instance_valid(_get_visual_tile(tile_data)):
+		var tile_cell_value: Variant = desired_tiles[tile_data]
+		if not tile_cell_value is Vector2i:
+			continue
+		var tile_cell: Vector2i = tile_cell_value
+		var existing_tile: Tile = _get_visual_tile(tile_data)
+		if is_instance_valid(existing_tile):
+			if snap_existing:
+				_apply_visual_tile_state(existing_tile, tile_data)
+				existing_tile.position = _grid_to_pixel_center(tile_cell)
 			continue
 		var tile: Tile = _create_visual_tile(tile_data)
 		if not is_instance_valid(tile):
 			continue
-		var tile_cell_value: Variant = desired_tiles[tile_data]
-		if not tile_cell_value is Vector2i:
-			_release_visual_tile(tile)
-			continue
-		var tile_cell: Vector2i = tile_cell_value
 		tile.position = _grid_to_pixel_center(tile_cell)
 		_visual_map[tile_data] = tile
 
@@ -1199,9 +1244,6 @@ func _on_board_animation_requested(payload: Variant) -> void:
 	var visible_cell_lookup: Dictionary = {}
 	for visible_cell: Vector2i in visible_cells:
 		visible_cell_lookup[visible_cell] = true
-	if _log:
-		_log.debug(_LOG_TAG, "收到棋盘动画请求: instructions=%d, visual_map=%d" % [instructions.size(), _visual_map.size()])
-	
 	for raw_instr: Variant in instructions:
 		if not raw_instr is Dictionary:
 			needs_visual_resync = true
