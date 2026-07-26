@@ -20,6 +20,21 @@ const _BOOKMARK_LIST_SCENE: PackedScene = preload(
 const _REPLAY_LIST_SCENE: PackedScene = preload(
 	"res://features/replays/scenes/menus/replay_list.tscn"
 )
+const _BOARD_EDITOR_SCENE: PackedScene = preload(
+	"res://features/board_editor/scenes/ui/board_editor_dialog.tscn"
+)
+const _GAMEPLAY_SCENE: PackedScene = preload(
+	"res://features/gameplay/scenes/game/game_play.tscn"
+)
+const _PAUSE_MENU_SCENE: PackedScene = preload(
+	"res://features/gameplay/scenes/ui/pause_menu.tscn"
+)
+const _TARGET_REACHED_MENU_SCENE: PackedScene = preload(
+	"res://features/gameplay/scenes/ui/target_reached_menu.tscn"
+)
+const _GAME_OVER_MENU_SCENE: PackedScene = preload(
+	"res://features/gameplay/scenes/ui/game_over_menu.tscn"
+)
 
 
 # --- 测试用例 ---
@@ -267,6 +282,114 @@ func test_capture_matrix_preserves_project_logical_viewport_contract() -> void:
 	)
 
 
+func test_capture_matrix_exercises_real_player_gameplay_route_chain() -> void:
+	var source: String = FileAccess.get_file_as_string(_CAPTURE_MATRIX_PATH)
+	assert_false(source.is_empty(), "视觉验收脚本必须可读取。")
+	for required_fragment: String in [
+		"_capture_board_editor_player_flow",
+		"&\"EditBoardButton\"",
+		"&\"StartGameButton\"",
+		"_wait_for_gameplay_ready",
+		"\"PauseButton\"",
+		"GameUiRouterUtility.ROUTE_TARGET_REACHED_MENU",
+		"game_flow.check_game_over()",
+		"_make_no_moves_snapshot",
+		"_is_no_moves_fixture",
+		"GAME_OVER_END_REASON_NO_MOVES",
+		"_validate_initial_focus",
+		"_validate_visible_touch_targets",
+		"_move_mode_selection_to_first_page",
+		"_mode_selection_has_visible_ratio_card",
+		"settings_controls_bindings",
+		"_validate_leaderboard_filter_label",
+		"label.contains(\"board_template.\")",
+		"cancel_button.text == \"UI_CANCEL\"",
+	]:
+		assert_true(
+			source.contains(required_fragment),
+			"真实玩家链路截图缺少验收片段：%s。" % required_fragment
+		)
+	for resolution_literal: String in [
+		"Vector2i(1280, 720)",
+		"Vector2i(960, 540)",
+		"Vector2i(720, 960)",
+	]:
+		assert_true(
+			source.contains(resolution_literal),
+			"真实玩家链路必须覆盖关键尺寸：%s。" % resolution_literal
+		)
+	assert_true(
+		source.contains("invoke_godot_project_tool.ps1 放入隔离的 user://"),
+		"结算弹层截图必须明确使用隔离 user://，不得污染玩家存档。"
+	)
+
+
+func test_player_flow_surfaces_preserve_44px_interaction_contract() -> void:
+	_assert_scene_named_touch_targets(
+		_BOARD_EDITOR_SCENE,
+		[
+			&"EditorSectionButton",
+			&"LibrarySectionButton",
+			&"BrushButton",
+			&"EraserButton",
+			&"UndoButton",
+			&"RedoButton",
+			&"RectangleButton",
+			&"CrossButton",
+			&"NormalizeButton",
+			&"ClearButton",
+			&"ZoomOutButton",
+			&"FitButton",
+			&"ZoomInButton",
+			&"BoardNameEdit",
+			&"SaveButton",
+			&"LoadButton",
+			&"DeleteButton",
+			&"CancelButton",
+			&"ApplyButton",
+		]
+	)
+	_assert_scene_named_touch_targets(
+		_GAMEPLAY_SCENE,
+		[
+			&"ZoomOutButton",
+			&"FitButton",
+			&"ZoomInButton",
+			&"DetailsToggleButton",
+			&"PauseButton",
+			&"UndoButton",
+			&"RedoButton",
+			&"BookmarkButton",
+			&"HintButton",
+		]
+	)
+	_assert_scene_named_touch_targets(
+		_PAUSE_MENU_SCENE,
+		[
+			&"ContinueButton",
+			&"RestartButton",
+			&"SettingsButton",
+			&"MainMenuButton",
+		]
+	)
+	_assert_scene_named_touch_targets(
+		_TARGET_REACHED_MENU_SCENE,
+		[
+			&"ContinueButton",
+			&"RestartButton",
+			&"MainMenuButton",
+		]
+	)
+	_assert_scene_named_touch_targets(
+		_GAME_OVER_MENU_SCENE,
+		[
+			&"RestartButton",
+			&"SettingsButton",
+			&"MainMenuButton",
+		]
+	)
+
+
 func _assert_history_list_touch_targets_and_axis(
 	scene: PackedScene,
 	page_label: String,
@@ -333,3 +456,30 @@ func _assert_history_list_empty_state(
 
 	menu.queue_free()
 	await get_tree().process_frame
+
+
+func _assert_scene_named_touch_targets(
+	scene: PackedScene,
+	control_names: Array[StringName]
+) -> void:
+	var instance: Node = scene.instantiate()
+	autofree(instance)
+	for control_name: StringName in control_names:
+		var node: Node = instance.find_child(String(control_name), true, false)
+		assert_true(
+			node is Control,
+			"玩家链路界面缺少交互控件：%s。" % control_name
+		)
+		if not node is Control:
+			continue
+		var control: Control = node
+		assert_gte(
+			control.custom_minimum_size.x,
+			44.0,
+			"%s 必须保留至少 44px 的触控宽度。" % control_name
+		)
+		assert_gte(
+			control.custom_minimum_size.y,
+			44.0,
+			"%s 必须保留至少 44px 的触控高度。" % control_name
+		)
