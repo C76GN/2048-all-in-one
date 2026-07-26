@@ -197,6 +197,7 @@ func _rebuild_profile() -> void:
 	if active == null or not is_instance_valid(_progress_system):
 		_account_summary_label.text = tr("PLAYER_PROFILE_UNAVAILABLE")
 		_mode_empty_label.visible = true
+		_mode_list.visible = false
 		return
 
 	var summaries: Array[Dictionary] = (
@@ -219,6 +220,7 @@ func _rebuild_profile() -> void:
 	]
 	_mode_empty_label.visible = summaries.is_empty()
 	_mode_empty_label.text = tr("PLAYER_MODE_STATS_EMPTY")
+	_mode_list.visible = not summaries.is_empty()
 
 
 func _make_mode_summary_row(summary: Dictionary) -> Control:
@@ -282,6 +284,7 @@ func _rebuild_leaderboard_groups() -> void:
 	_leaderboard_group_option.clear()
 	_leaderboard_identities.clear()
 	if not is_instance_valid(_progress_system):
+		_set_empty_leaderboard_group_option()
 		return
 	_leaderboard_identities = (
 		_progress_system.get_device_leaderboard_identities()
@@ -297,7 +300,9 @@ func _rebuild_leaderboard_groups() -> void:
 			selected_index = index
 	if not _leaderboard_identities.is_empty():
 		_leaderboard_group_option.select(selected_index)
-	_leaderboard_group_option.disabled = _leaderboard_identities.is_empty()
+		_leaderboard_group_option.disabled = false
+	else:
+		_set_empty_leaderboard_group_option()
 
 
 func _rebuild_leaderboard() -> void:
@@ -308,6 +313,7 @@ func _rebuild_leaderboard() -> void:
 	):
 		_leaderboard_empty_label.visible = true
 		_leaderboard_empty_label.text = tr("LOCAL_LEADERBOARD_EMPTY")
+		_leaderboard_list.visible = false
 		return
 	var selected_index: int = clampi(
 		_leaderboard_group_option.selected,
@@ -321,6 +327,13 @@ func _rebuild_leaderboard() -> void:
 		_leaderboard_list.add_child(_make_leaderboard_row(row))
 	_leaderboard_empty_label.visible = rows.is_empty()
 	_leaderboard_empty_label.text = tr("LOCAL_LEADERBOARD_EMPTY")
+	_leaderboard_list.visible = not rows.is_empty()
+
+
+func _set_empty_leaderboard_group_option() -> void:
+	_leaderboard_group_option.add_item(tr("LOCAL_LEADERBOARD_ALL_MODES"))
+	_leaderboard_group_option.select(0)
+	_leaderboard_group_option.disabled = true
 
 
 func _make_leaderboard_row(row: Dictionary) -> Control:

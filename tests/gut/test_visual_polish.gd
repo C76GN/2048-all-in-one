@@ -1470,6 +1470,48 @@ func test_game_over_menu_summary_uses_safe_format_fallback() -> void:
 		assert_true(summary_label.text.contains("42"), "结算摘要应显示本局步数。")
 		assert_true(summary_label.text.contains("2048"), "结算摘要应显示本局最大方块。")
 		assert_true(summary_label.text.contains("16384"), "结算摘要应显示历史最高分。")
+		assert_false(
+			summary_label.text.contains(tr("GAME_OVER_END_REASON_NO_MOVES")),
+			"缺少流程结束上下文时不得伪造结束原因。"
+		)
+	architecture.dispose()
+
+
+func test_game_over_menu_summary_uses_authoritative_no_moves_reason() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var status_model: GameStatusModel = GameStatusModel.new()
+	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_model(GameStatusModel, status_model)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
+	await architecture.register_utility(GFTimeUtility, GFTimeUtility.new())
+	await architecture.register_utility(GamePauseUtility, GamePauseUtility.new())
+	await architecture.register_system(GameFlowSystem, flow_system)
+	await architecture.init()
+	flow_system.enter_playing_state()
+	flow_system._fsm.change_state(EventNames.STATE_GAME_OVER)
+
+	var context: TestArchitectureContext = TestArchitectureContext.new()
+	context.test_architecture = architecture
+	add_child_autoqfree(context)
+	var panel: Control = _instantiate_control(_GAME_OVER_SCENE)
+	assert_true(is_instance_valid(panel), "游戏结束场景应能实例化为 Control。")
+	context.add_child(panel)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var summary_node: Node = panel.get_node_or_null("CenterContainer/VBoxContainer/SummaryLabel")
+	assert_true(summary_node is Label, "游戏结束菜单应包含结算摘要 Label。")
+	if summary_node is Label:
+		var summary_label: Label = summary_node
+		assert_true(
+			summary_label.text.contains(tr("GAME_OVER_END_REASON_NO_MOVES")),
+			"结算摘要应显示 GameFlowSystem 发布的无可用移动结束原因。"
+		)
 	architecture.dispose()
 
 

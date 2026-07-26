@@ -149,7 +149,10 @@ func _refresh_summary() -> void:
 	var result_explanation: String = _format_result_explanation(
 		_get_last_game_result(current_game_model)
 	)
+	var end_reason_explanation: String = _get_end_reason_explanation()
 	_summary_label.text = prefix + summary_text
+	if not end_reason_explanation.is_empty():
+		_summary_label.text += "\n" + end_reason_explanation
 	if not result_explanation.is_empty():
 		_summary_label.text += "\n" + result_explanation
 
@@ -183,6 +186,29 @@ func _get_progress_stats_system() -> ProgressStatsSystem:
 		var progress_stats_system: ProgressStatsSystem = system_value
 		return progress_stats_system
 	return null
+
+
+## 读取流程系统发布的权威结束上下文；状态模型不持有结束原因。
+func _get_game_flow_system() -> GameFlowSystem:
+	var system_value: Object = get_system(GameFlowSystem)
+	if system_value is GameFlowSystem:
+		var game_flow_system: GameFlowSystem = system_value
+		return game_flow_system
+	return null
+
+
+func _get_end_reason_explanation() -> String:
+	var game_flow_system: GameFlowSystem = _get_game_flow_system()
+	if not is_instance_valid(game_flow_system):
+		return ""
+	var session_context: Dictionary = game_flow_system.get_accessibility_context()
+	var end_reason: StringName = GFVariantData.get_option_string_name(
+		session_context,
+		&"end_reason"
+	)
+	if end_reason == &"no_moves":
+		return tr("GAME_OVER_END_REASON_NO_MOVES")
+	return ""
 
 
 func _get_celebration_vfx_utility() -> GameCelebrationVfxUtility:

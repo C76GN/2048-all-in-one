@@ -266,6 +266,66 @@ func test_player_profile_delete_confirmation_buttons_meet_touch_contract() -> vo
 	architecture.dispose()
 
 
+func test_player_profile_empty_states_center_inside_scroll_content() -> void:
+	var architecture: GFArchitecture = await _make_ui_architecture()
+	var context: TestArchitectureContext = _make_context(architecture)
+	var dialog_node: Node = _PLAYER_PROFILE_SCENE.instantiate()
+	assert_true(dialog_node is PlayerProfileDialog)
+	if not dialog_node is PlayerProfileDialog:
+		dialog_node.free()
+		architecture.dispose()
+		return
+	var dialog: PlayerProfileDialog = dialog_node
+	context.add_child(dialog)
+	await get_tree().process_frame
+
+	var mode_empty: Node = dialog.find_child("ModeEmptyLabel", true, false)
+	var leaderboard_empty: Node = dialog.find_child(
+		"LeaderboardEmptyLabel",
+		true,
+		false
+	)
+	assert_true(mode_empty is Label)
+	assert_true(leaderboard_empty is Label)
+	if mode_empty is Label:
+		assert_true(mode_empty.visible)
+		assert_true(
+			mode_empty.get_parent() is CenterContainer,
+			"个人信息空态必须位于滚动内容区的居中容器内。"
+		)
+		assert_eq(
+			String(mode_empty.get_parent().get_parent().name),
+			"ModeContent"
+		)
+	if leaderboard_empty is Label:
+		assert_true(leaderboard_empty.visible)
+		assert_true(
+			leaderboard_empty.get_parent() is CenterContainer,
+			"排行榜空态必须位于滚动内容区的居中容器内。"
+		)
+		assert_eq(
+			String(leaderboard_empty.get_parent().get_parent().name),
+			"LeaderboardContent"
+		)
+
+	var leaderboard_filter: Node = dialog.find_child(
+		"LeaderboardGroupOption",
+		true,
+		false
+	)
+	assert_true(leaderboard_filter is OptionButton)
+	if leaderboard_filter is OptionButton:
+		assert_eq(leaderboard_filter.item_count, 1)
+		assert_eq(leaderboard_filter.selected, 0)
+		assert_eq(
+			leaderboard_filter.get_item_text(0),
+			tr("LOCAL_LEADERBOARD_ALL_MODES"),
+			"无成绩时的模式筛选必须明确显示“全部模式”。"
+		)
+		assert_true(leaderboard_filter.disabled)
+	architecture.dispose()
+
+
 func test_declared_player_controls_meet_touch_target_contract() -> void:
 	for scene_path: String in _PLAYER_VISIBLE_SCENE_PATHS:
 		var scene_resource: Resource = load(scene_path)

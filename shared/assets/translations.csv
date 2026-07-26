@@ -99,6 +99,7 @@ LANG_EN,English,English
 LANG_ZH,简体中文,Chinese
 BACK_BUTTON,返回,Back
 UI_BACK,返回,Back
+UI_CANCEL,取消,Cancel
 UI_PREV_PAGE,上一页,Prev
 UI_NEXT_PAGE,下一页,Next
 UI_UNKNOWN,未知,Unknown
@@ -214,6 +215,7 @@ Run: %d pts · %d moves · Max %d"
 GAME_OVER_SUMMARY_LOADING,正在整理结算...,Preparing summary...
 GAME_OVER_SUMMARY_UNAVAILABLE,暂无结算数据,Summary unavailable
 GAME_OVER_NEW_RECORD_PREFIX,新纪录！,New Record!
+GAME_OVER_END_REASON_NO_MOVES,结束原因：无可用移动,End reason: no valid moves
 GAME_OVER_SUMMARY_FORMAT,"%s · %dx%d
 本局：%d 分 · %d 步 · 最大方块 %d
 历史：最高分 %d · 最佳步数 %s · 最大方块 %s
@@ -458,6 +460,7 @@ PLAYER_MODE_METRICS,%d 局 · 最高分 %d · 最大方块 %d,%d games · Best s
 PLAYER_MODE_TIMING,最短单局 %s · 平均单局 %s,Shortest run %s · Average run %s
 PLAYER_TIME_NONE,--,--
 LOCAL_LEADERBOARD_EMPTY,还没有符合当前规则配置的本地成绩。,No local result matches this rules configuration yet.
+LOCAL_LEADERBOARD_ALL_MODES,全部模式,All Modes
 LOCAL_LEADERBOARD_GROUP,%s · %s · 规则 v%d,%s · %s · Rules v%d
 LOCAL_LEADERBOARD_SCORE,%d 分 · 最大 %d · %d 步,%d pts · Max %d · %d moves
 PLAYER_SWITCH_FAILED,切换玩家失败（错误码 %d）。,Could not switch player (error %d).
