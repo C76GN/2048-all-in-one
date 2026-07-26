@@ -258,6 +258,9 @@ func style_control(control: Control) -> void:
 	elif control is ScrollBar:
 		var scroll_bar: ScrollBar = control
 		_style_scroll_bar(scroll_bar)
+	elif control is ProgressBar:
+		var progress_bar: ProgressBar = control
+		_style_progress_bar(progress_bar)
 	elif control is Range:
 		var range_control: Range = control
 		_style_range(range_control)
@@ -649,47 +652,72 @@ func _style_range(range_control: Range) -> void:
 	)
 
 
+func _style_progress_bar(progress_bar: ProgressBar) -> void:
+	var background_color: Color = _slider_track_color
+	background_color.a = minf(background_color.a, 0.38)
+	progress_bar.add_theme_stylebox_override(
+		"background",
+		_create_progress_style(background_color)
+	)
+	progress_bar.add_theme_stylebox_override(
+		"fill",
+		_create_progress_style(_slider_grabber_color)
+	)
+	progress_bar.add_theme_color_override("font_color", _text_primary_color)
+	progress_bar.add_theme_color_override(
+		"font_outline_color",
+		_panel_surface_color
+	)
+	progress_bar.add_theme_constant_override("outline_size", 1)
+	_apply_font_override(progress_bar, _numeric_font)
+
+
 func _style_tab_container(tab_container: TabContainer) -> void:
 	tab_container.add_theme_stylebox_override(
 		"panel",
 		_create_field_style(_panel_surface_color, _field_border_color, 1)
 	)
+	_apply_tab_strip_style(tab_container)
 	var tab_bar: TabBar = tab_container.get_tab_bar()
 	if is_instance_valid(tab_bar):
 		_style_tab_bar(tab_bar)
 
 
 func _style_tab_bar(tab_bar: TabBar) -> void:
-	tab_bar.add_theme_stylebox_override(
+	_apply_tab_strip_style(tab_bar)
+	tab_bar.set_meta(_STATIC_STYLE_META, true)
+
+
+func _apply_tab_strip_style(control: Control) -> void:
+	control.add_theme_stylebox_override(
 		"tab_unselected",
 		_create_tab_style(_field_surface_color, _field_border_color, 1)
 	)
-	tab_bar.add_theme_stylebox_override(
+	control.add_theme_stylebox_override(
 		"tab_hovered",
 		_create_tab_style(_button_hover_color, _button_focus_border_color, 1)
 	)
-	tab_bar.add_theme_stylebox_override(
+	control.add_theme_stylebox_override(
 		"tab_selected",
 		_create_tab_style(_selected_surface_color, _selected_border_color, 2)
 	)
-	tab_bar.add_theme_stylebox_override(
+	control.add_theme_stylebox_override(
 		"tab_focus",
 		_create_tab_style(Color.TRANSPARENT, _field_focus_border_color, 2)
 	)
-	tab_bar.add_theme_stylebox_override(
+	control.add_theme_stylebox_override(
 		"tab_disabled",
 		_create_tab_style(_button_disabled_color, _field_border_color, 1)
 	)
-	tab_bar.add_theme_color_override("font_unselected_color", _text_secondary_color)
-	tab_bar.add_theme_color_override("font_hovered_color", _text_primary_color)
-	tab_bar.add_theme_color_override("font_selected_color", _text_primary_color)
-	tab_bar.add_theme_color_override(
+	control.add_theme_color_override("font_unselected_color", _text_secondary_color)
+	control.add_theme_color_override("font_hovered_color", _text_primary_color)
+	control.add_theme_color_override("font_selected_color", _text_primary_color)
+	control.add_theme_color_override(
 		"font_disabled_color",
 		_button_font_disabled_color
 	)
-	tab_bar.add_theme_constant_override("h_separation", 4)
-	_apply_font_override(tab_bar, _body_font)
-	tab_bar.set_meta(_STATIC_STYLE_META, true)
+	control.add_theme_constant_override("h_separation", 4)
+	_apply_font_override(control, _body_font)
 
 
 func _style_panel_container(panel_container: PanelContainer) -> void:
@@ -1004,6 +1032,12 @@ func _create_tab_style(
 	style.set_content_margin(SIDE_TOP, 7.0)
 	style.set_content_margin(SIDE_RIGHT, 12.0)
 	style.set_content_margin(SIDE_BOTTOM, 7.0)
+	return style
+
+
+func _create_progress_style(bg_color: Color) -> StyleBoxFlat:
+	var style: StyleBoxFlat = _create_solid_style(bg_color)
+	style.set_corner_radius_all(4)
 	return style
 
 

@@ -1071,6 +1071,17 @@ func test_ui_style_utility_replaces_default_tab_surfaces() -> void:
 		tabs.has_theme_stylebox_override("panel"),
 		"TabContainer 内容表面必须覆盖 Godot 默认灰色面板。"
 	)
+	for style_name: StringName in [
+		&"tab_unselected",
+		&"tab_hovered",
+		&"tab_selected",
+		&"tab_focus",
+		&"tab_disabled",
+	]:
+		assert_true(
+			tabs.has_theme_stylebox_override(style_name),
+			"TabContainer 自身缺少 %s，内部标签不会消费普通 TabBar 覆盖。" % style_name
+		)
 	var tab_bar: TabBar = tabs.get_tab_bar()
 	assert_true(is_instance_valid(tab_bar), "TabContainer 应暴露内部 TabBar。")
 	if is_instance_valid(tab_bar):
@@ -1085,6 +1096,44 @@ func test_ui_style_utility_replaces_default_tab_surfaces() -> void:
 				tab_bar.has_theme_stylebox_override(style_name),
 				"TabBar 缺少 %s 状态的项目主题覆盖。" % style_name
 			)
+	architecture.dispose()
+
+
+func test_ui_style_utility_replaces_default_progress_bar_surfaces() -> void:
+	var root: Control = Control.new()
+	var progress_bar: ProgressBar = ProgressBar.new()
+	root.add_child(progress_bar)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.init()
+	var _applied_count: int = style_utility.apply_palette_to_tree(
+		root,
+		_HALFTONE_UI_PALETTE
+	)
+
+	assert_true(
+		progress_bar.has_theme_stylebox_override("background"),
+		"ProgressBar 轨道必须使用项目色板。"
+	)
+	assert_true(
+		progress_bar.has_theme_stylebox_override("fill"),
+		"ProgressBar 填充必须使用项目强调色。"
+	)
+	var fill_style: StyleBoxFlat = _get_stylebox_flat(progress_bar, &"fill")
+	assert_not_null(fill_style)
+	if is_instance_valid(fill_style):
+		assert_eq(
+			fill_style.bg_color,
+			_HALFTONE_UI_PALETTE.slider_grabber_color,
+			"ProgressBar 填充颜色应与当前色板同步。"
+		)
 	architecture.dispose()
 
 
