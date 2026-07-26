@@ -6,7 +6,7 @@ extends GutTest
 
 const _BOARD_KEY: String = "board.rectangle.4x4@test"
 const _BOARD_SIZE: Vector2i = Vector2i(4, 4)
-const _TEST_PLATFORM_STUB_SCRIPT: Script = preload(
+const _TEST_PLATFORM_STUB_SCRIPT: GDScript = preload(
 	"res://tests/gut/fixtures/test_game_platform_utility_stub.gd"
 )
 
@@ -1285,17 +1285,19 @@ class _ScriptedStorage extends GFStorageUtility:
 	## @param _data: 本替身不读取的保存数据。
 	func save_data_async(file_name: String, _data: Dictionary) -> Error:
 		async_save_call_count += 1
-		var completion_error: Error = (
-			async_completion_errors.pop_front() as Error
+		var completion_error_code: int = (
+			GFVariantData.to_int(async_completion_errors.pop_front(), ERR_INVALID_DATA)
 			if not async_completion_errors.is_empty()
 			else OK
 		)
+		var completion_error: Error = completion_error_code as Error
 		save_completed.emit(file_name, completion_error)
-		return (
-			async_start_errors.pop_front() as Error
+		var start_error_code: int = (
+			GFVariantData.to_int(async_start_errors.pop_front(), ERR_INVALID_DATA)
 			if not async_start_errors.is_empty()
 			else OK
 		)
+		return start_error_code as Error
 
 
 	## 执行一次可脚本化失败结果的同步保存测试替身调用。
@@ -1304,7 +1306,11 @@ class _ScriptedStorage extends GFStorageUtility:
 	func save_data(file_name: String, data: Dictionary) -> Error:
 		sync_save_call_count += 1
 		if not sync_save_errors.is_empty():
-			var scripted_error: Error = sync_save_errors.pop_front() as Error
+			var scripted_error_code: int = GFVariantData.to_int(
+				sync_save_errors.pop_front(),
+				ERR_INVALID_DATA
+			)
+			var scripted_error: Error = scripted_error_code as Error
 			if scripted_error != OK:
 				return scripted_error
 		return super.save_data(file_name, data)

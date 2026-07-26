@@ -318,8 +318,12 @@ func test_settings_scene_exposes_timing_and_binding_controls() -> void:
 		true,
 		false
 	)
+	var bgm_volume_hidden: bool = false
+	if bgm_volume_row is Control:
+		var bgm_volume_control: Control = bgm_volume_row
+		bgm_volume_hidden = not bgm_volume_control.visible
 	assert_true(
-		bgm_volume_row is Control and not bgm_volume_row.visible,
+		bgm_volume_hidden,
 		"生产路径没有 BGM/ambient 消费者时，不应展示无效的音乐音量控件。"
 	)
 	var settings_source: String = FileAccess.get_file_as_string(_SETTINGS_SCRIPT_PATH)

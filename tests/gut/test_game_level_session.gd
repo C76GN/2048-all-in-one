@@ -42,6 +42,8 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	var mode_catalog: GameModeCatalogUtility = GameModeCatalogUtility.new()
 	var level_utility: GFLevelUtility = GFLevelUtility.new()
 	var command_history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()
+	var current_game: CurrentGameModel = CurrentGameModel.new()
+	var determinism: GameDeterminismUtility = GameDeterminismUtility.new()
 	var state_system: GameStateSystem = GameStateSystem.new()
 
 	await architecture.register_utility(GFCapabilityUtility, GFCapabilityUtility.new())
@@ -49,12 +51,12 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	await architecture.register_model(AppConfigModel, app_config)
 	await architecture.register_model(GridModel, GridModel.new())
 	await architecture.register_model(GameStatusModel, GameStatusModel.new())
-	await architecture.register_model(CurrentGameModel, CurrentGameModel.new())
+	await architecture.register_model(CurrentGameModel, current_game)
 	await architecture.register_utility(GFAssetUtility, asset_utility)
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
 	await architecture.register_utility(GameModeCatalogUtility, mode_catalog)
-	await architecture.register_utility(GameDeterminismUtility, GameDeterminismUtility.new())
+	await architecture.register_utility(GameDeterminismUtility, determinism)
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
 	await architecture.register_utility(GFCommandHistoryUtility, command_history)
 	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
@@ -85,8 +87,10 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	var _previous_level: Dictionary = level_utility.start_level(&"previous-session", previous_level_data)
 	architecture.send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
 	assert_push_error("书签规则集或目标契约与模式不一致")
+	var rejected_selection: Variant = app_config.selected_bookmark_data.get_value()
+	var rejected_bookmark_preserved: bool = is_same(rejected_selection, rejected_bookmark)
 	assert_true(
-		app_config.selected_bookmark_data.get_value() == rejected_bookmark,
+		rejected_bookmark_preserved,
 		"书签初始化预验证失败时必须保留用户选择。"
 	)
 	assert_true(
@@ -121,14 +125,14 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	var current_state: Dictionary = state_system.get_full_game_state()
 	var invalid_history_bookmark: BookmarkData = BookmarkData.new()
 	invalid_history_bookmark.mode_config_path = _CLASSIC_MODE_CONFIG_PATH
-	var current_mode_value: Variant = architecture.get_model(CurrentGameModel).mode_config.get_value()
+	var current_mode_value: Variant = current_game.mode_config.get_value()
 	assert_true(current_mode_value is GameModeConfig, "初始化后应暴露当前模式。")
 	if current_mode_value is GameModeConfig:
 		var current_mode: GameModeConfig = current_mode_value
 		assert_true(
 			invalid_history_bookmark.configure_ruleset(
 				current_mode,
-				architecture.get_utility(GameDeterminismUtility)
+				determinism
 			),
 			"历史失败夹具应冻结当前规则集。"
 		)
@@ -190,8 +194,13 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	var committed_level_id: StringName = level_utility.current_level_id
 	app_config.selected_bookmark_data.set_value(invalid_history_bookmark)
 	architecture.send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
+	var invalid_history_selection: Variant = app_config.selected_bookmark_data.get_value()
+	var invalid_history_bookmark_preserved: bool = is_same(
+		invalid_history_selection,
+		invalid_history_bookmark
+	)
 	assert_true(
-		app_config.selected_bookmark_data.get_value() == invalid_history_bookmark,
+		invalid_history_bookmark_preserved,
 		"含无效 undo 快照的书签必须保留选择并允许修复或删除。"
 	)
 	assert_true(

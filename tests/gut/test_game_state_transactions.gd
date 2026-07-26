@@ -155,11 +155,13 @@ class RejectingSpawnRule extends SpawnRule:
 	## 校验测试规则的单值状态。
 	## @param state: 待校验的测试规则状态。
 	func is_state_valid(state: Variant) -> bool:
+		if not state is Dictionary:
+			return false
+		var state_dictionary: Dictionary = state
 		return (
-			state is Dictionary
-			and state.size() == 1
-			and GFVariantData.get_option_value(state, &"value") is int
-			and GFVariantData.get_option_int(state, &"value", 0) > 0
+			state_dictionary.size() == 1
+			and GFVariantData.get_option_value(state_dictionary, &"value") is int
+			and GFVariantData.get_option_int(state_dictionary, &"value", 0) > 0
 		)
 
 	## 应用测试规则状态，并可按脚本拒绝下一次提交。
@@ -167,8 +169,11 @@ class RejectingSpawnRule extends SpawnRule:
 	func set_state(state: Variant) -> bool:
 		if not is_state_valid(state):
 			return false
+		if not state is Dictionary:
+			return false
+		var state_dictionary: Dictionary = state
 		if reject_next_apply:
 			reject_next_apply = false
 			return false
-		value = GFVariantData.get_option_int(state, &"value", 1)
+		value = GFVariantData.get_option_int(state_dictionary, &"value", 1)
 		return true

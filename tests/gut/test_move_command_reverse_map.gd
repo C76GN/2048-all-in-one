@@ -152,7 +152,9 @@ func test_failed_undo_does_not_emit_board_animation_or_hud_refresh() -> void:
 	var command: MoveCommand = MoveCommand.new(Vector2i.LEFT)
 	command.inject_dependencies(architecture)
 	assert_true(command.set_snapshot(_make_empty_game_state()), "撤销失败测试快照应可注入。")
-	assert_false(command.undo(), "逻辑状态恢复失败时 MoveCommand.undo 应明确返回 false。")
+	var undo_result: Variant = command.undo()
+	var undo_succeeded: bool = GFVariantData.to_bool(undo_result, true)
+	assert_false(undo_succeeded, "逻辑状态恢复失败时 MoveCommand.undo 应明确返回 false。")
 	assert_push_error("撤销快照恢复失败")
 	assert_true(
 		GFVariantData.get_option_int(event_counts, &"board", 0) == 0,
