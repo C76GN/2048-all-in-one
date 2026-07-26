@@ -5,7 +5,7 @@ extends Resource
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 3
+const SCHEMA_VERSION: int = 4
 
 
 # --- 导出变量 ---
@@ -173,24 +173,6 @@ func _is_valid_contract(initial_topology: BoardTopology) -> bool:
 	return (
 		final_topology != null
 		and final_topology.get_stable_key() == initial_topology.get_stable_key()
-		and _does_session_metadata_match_replay(metadata, initial_topology)
-	)
-
-
-func _does_session_metadata_match_replay(
-	metadata: GameSessionMetadata,
-	initial_topology: BoardTopology
-) -> bool:
-	var challenge: GameChallengeMetadata = metadata.get_challenge()
-	if metadata.get_seed_source() != GameSessionMetadata.SEED_SOURCE_DAILY:
-		return challenge == null
-	return (
-		challenge != null
-		and challenge.get_ruleset_id() == ruleset_id
-		and challenge.get_ruleset_version() == ruleset_version
-		and challenge.get_ruleset_fingerprint() == ruleset_fingerprint
-		and challenge.get_topology_key() == initial_topology.get_stable_key()
-		and challenge.get_seed() == initial_seed
 	)
 
 

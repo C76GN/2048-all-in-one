@@ -1,6 +1,6 @@
 ## GameCompetitionEligibility: 对局比赛资格的不可变快照。
 ##
-## reason code 同时承载可解释的会话上下文（例如 daily）与失格原因。
+## reason code 承载可解释的会话上下文与失格原因。
 ## 所有变更都会返回新实例，已经进入结果、书签或回放的快照不会被后续操作改写。
 class_name GameCompetitionEligibility
 extends RefCounted
@@ -8,7 +8,7 @@ extends RefCounted
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 1
+const SCHEMA_VERSION: int = 2
 
 const REASON_DEBUG: StringName = &"debug"
 const REASON_REPLAY_CONTINUATION: StringName = &"replay_continuation"
@@ -16,7 +16,6 @@ const REASON_BOOKMARK: StringName = &"bookmark"
 const REASON_UNDO_REDO: StringName = &"undo_redo"
 const REASON_CUSTOM_BOARD: StringName = &"custom_board"
 const REASON_MANUAL_SEED: StringName = &"manual_seed"
-const REASON_DAILY: StringName = &"daily"
 
 const _KNOWN_REASON_CODES: Array[StringName] = [
 	REASON_DEBUG,
@@ -25,7 +24,6 @@ const _KNOWN_REASON_CODES: Array[StringName] = [
 	REASON_UNDO_REDO,
 	REASON_CUSTOM_BOARD,
 	REASON_MANUAL_SEED,
-	REASON_DAILY,
 ]
 const _DISQUALIFYING_REASON_CODES: Array[StringName] = [
 	REASON_DEBUG,

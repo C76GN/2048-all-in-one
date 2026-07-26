@@ -8,7 +8,7 @@ extends Resource
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 3
+const SCHEMA_VERSION: int = 4
 
 
 # --- 导出变量 ---
@@ -36,7 +36,7 @@ const SCHEMA_VERSION: int = 3
 ## 游戏状态的游戏种子。
 @export var initial_seed: int = 0
 
-## 保存时冻结的 seed 来源、挑战和比赛资格上下文。
+## 保存时冻结的 seed 来源和比赛资格上下文。
 @export var session_metadata: Dictionary = GameSessionMetadata.make_default_dict()
 
 ## 书签保存时的分数。
@@ -281,7 +281,7 @@ func _has_valid_game_state_payload() -> bool:
 	if topology == null:
 		return false
 	var metadata: GameSessionMetadata = get_session_metadata()
-	if metadata == null or not _does_session_metadata_match_bookmark(metadata, topology):
+	if metadata == null:
 		return false
 	return GameStateSystem.is_state_envelope_valid({
 		&"schema_version": GameStateSystem.STATE_SCHEMA_VERSION,
@@ -297,23 +297,6 @@ func _has_valid_game_state_payload() -> bool:
 		&"extra_stats": extra_stats,
 		&"rules_states": rules_states,
 	})
-
-
-func _does_session_metadata_match_bookmark(
-	metadata: GameSessionMetadata,
-	topology: BoardTopology
-) -> bool:
-	var challenge: GameChallengeMetadata = metadata.get_challenge()
-	if metadata.get_seed_source() != GameSessionMetadata.SEED_SOURCE_DAILY:
-		return challenge == null
-	return (
-		challenge != null
-		and challenge.get_ruleset_id() == ruleset_id
-		and challenge.get_ruleset_version() == ruleset_version
-		and challenge.get_ruleset_fingerprint() == ruleset_fingerprint
-		and challenge.get_topology_key() == topology.get_stable_key()
-		and challenge.get_seed() == initial_seed
-	)
 
 
 static func _is_valid_history(history: Dictionary) -> bool:

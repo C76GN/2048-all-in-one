@@ -387,17 +387,10 @@ BOARD_EDITOR_ACTION_CROSS,应用十字预设,Apply Cross Preset
 BOARD_EDITOR_ACTION_NORMALIZE,规范化棋盘位置,Normalize Board Position
 BOARD_EDITOR_ACTION_CLEAR,清空棋盘,Clear Board
 BOARD_EDITOR_ACTION_LOAD,载入棋盘模板,Load Board Template
-BTN_DAILY_CHALLENGE,今日挑战,Daily Challenge
-DAILY_CHALLENGE_PREVIEW_FORMAT,%s · 种子 %d · 本地最佳 %s,%s · Seed %d · Local best %s
-DAILY_CHALLENGE_UNAVAILABLE,选择模式和棋盘后可查看今日挑战。,Select a mode and board to view today's challenge.
-DAILY_CHALLENGE_CUSTOM_SUFFIX,"
-自定义棋盘可游玩，但不计入本地比赛榜。","
-Custom boards are playable but do not enter the local competitive board."
-MANUAL_SEED_COMPETITION_WARNING,"
-当前为手动种子：成绩不计入本地比赛榜。","
-Manual seed selected: this result will not enter the local competitive board."
+COMPETITION_CONFIG_STATUS_FORMAT,本地比赛榜：%s · 当前配置最佳 %s,Local competitive board: %s · Current configuration best %s
+COMPETITION_STATUS_ELIGIBLE,合格,Eligible
+COMPETITION_STATUS_INELIGIBLE_FORMAT,不计入（%s）,Ineligible (%s)
 GAME_OVER_RESULT_IDENTITY_FORMAT,种子 %d · 状态校验 %s,Seed %d · State hash %s
-GAME_OVER_DAILY_RESULT_FORMAT,今日挑战 %s · 挑战校验 %s,Daily challenge %s · Challenge hash %s
 GAME_OVER_COMPETITION_ELIGIBLE,本地比赛榜：合格,Local competitive board: Eligible
 GAME_OVER_COMPETITION_RANK_FORMAT,本地比赛榜：合格 · 第 %d 名,Local competitive board: Eligible · Rank %d
 GAME_OVER_COMPETITION_INELIGIBLE_FORMAT,本地比赛榜：不计入 · %s,Local competitive board: Ineligible · %s

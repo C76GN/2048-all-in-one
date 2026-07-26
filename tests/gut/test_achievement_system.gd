@@ -205,7 +205,6 @@ func _make_game_result(
 		"a".repeat(64),
 		2048,
 		("%d|%d|%d|%d" % [score, steps, max_tile, played_at]).sha256_text(),
-		null,
 		GameCompetitionEligibility.create(),
 		score,
 		steps,

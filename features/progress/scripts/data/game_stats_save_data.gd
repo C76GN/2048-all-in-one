@@ -5,7 +5,7 @@ extends GameSaveSectionData
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 4
+const SCHEMA_VERSION: int = 5
 const MAX_RECENT_RESULTS: int = 128
 const MAX_LEADERBOARD_ENTRIES: int = 50
 const MAX_LEADERBOARD_GROUPS: int = 256

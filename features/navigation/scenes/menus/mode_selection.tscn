@@ -108,7 +108,7 @@ layout_mode = 2
 focus_neighbor_left = NodePath("../../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
 focus_neighbor_top = NodePath("../../EditBoardButton")
 focus_neighbor_right = NodePath("../RefreshSeedButton")
-focus_neighbor_bottom = NodePath("../../DailyChallengeButton")
+focus_neighbor_bottom = NodePath("../../StartGameButton")
 text = "1655834524"
 placeholder_text = "留空则随机"
 select_all_on_focus = true
@@ -122,34 +122,24 @@ tooltip_text = "点击以生成新的随机种子"
 focus_neighbor_left = NodePath("../SeedLineEdit")
 focus_neighbor_top = NodePath("../../EditBoardButton")
 focus_neighbor_right = NodePath("../SeedLineEdit")
-focus_neighbor_bottom = NodePath("../../DailyChallengeButton")
+focus_neighbor_bottom = NodePath("../../StartGameButton")
 
 [node name="CompetitionStatusLabel" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="6"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "今日挑战"
+text = "本地比赛榜"
 autowrap_mode = 3
 
-[node name="DailyChallengeButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="7"]
+[node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="7" unique_id=360129159]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="StartGameButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="8" unique_id=1679984735]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 focus_neighbor_left = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
 focus_neighbor_top = NodePath("../SeedContainer/SeedLineEdit")
-focus_neighbor_bottom = NodePath("../StartGameButton")
-disabled = true
-text = "今日挑战"
-
-[node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="8" unique_id=360129159]
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-
-[node name="StartGameButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="9" unique_id=1679984735]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 48)
-layout_mode = 2
-focus_neighbor_left = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
-focus_neighbor_top = NodePath("../DailyChallengeButton")
 focus_neighbor_bottom = NodePath("../GridSizeContainer/GridSizeOptionButton")
 disabled = true
 text = "开始游戏"

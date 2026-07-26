@@ -1,6 +1,6 @@
 ## GameResultRecordedData: 写入统一 Profile 后发布的规范对局结果。
 ##
-## 结果冻结 seed、最终状态 hash、挑战身份和不可变比赛资格快照。客户端本地榜
+## 结果冻结 seed、最终状态 hash 和不可变比赛资格快照。客户端本地榜
 ## 只消费 is_competition_eligible() 为 true 的记录；它不代表线上权威证明。
 class_name GameResultRecordedData
 extends RefCounted
@@ -8,8 +8,7 @@ extends RefCounted
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 1
-const STANDARD_CHALLENGE_GROUP_KEY: String = "standard"
+const SCHEMA_VERSION: int = 2
 
 
 # --- 公共变量 ---
@@ -23,7 +22,6 @@ var ruleset_version: int = 0
 var ruleset_fingerprint: String = ""
 var initial_seed: int = 0
 var final_state_hash: String = ""
-var challenge_metadata: GameChallengeMetadata = null
 var competition_eligibility: GameCompetitionEligibility = null
 var score: int = 0
 var steps: int = 0
@@ -43,7 +41,6 @@ static func create(
 	p_ruleset_fingerprint: String,
 	p_initial_seed: int,
 	p_final_state_hash: String,
-	p_challenge_metadata: GameChallengeMetadata,
 	p_competition_eligibility: GameCompetitionEligibility,
 	p_score: int,
 	p_steps: int,
@@ -60,7 +57,6 @@ static func create(
 	result.ruleset_fingerprint = p_ruleset_fingerprint
 	result.initial_seed = p_initial_seed
 	result.final_state_hash = p_final_state_hash
-	result.challenge_metadata = p_challenge_metadata
 	result.competition_eligibility = p_competition_eligibility
 	result.score = p_score
 	result.steps = p_steps
@@ -78,12 +74,6 @@ static func from_dict(data: Dictionary) -> GameResultRecordedData:
 	if GFVariantData.get_option_int(data, &"schema_version", 0) != SCHEMA_VERSION:
 		return null
 
-	var challenge_data: Dictionary = GFVariantData.get_option_dictionary(data, &"challenge")
-	var challenge: GameChallengeMetadata = null
-	if not challenge_data.is_empty():
-		challenge = GameChallengeMetadata.from_dict(challenge_data)
-		if challenge == null:
-			return null
 	var eligibility: GameCompetitionEligibility = GameCompetitionEligibility.from_dict(
 		GFVariantData.get_option_dictionary(data, &"eligibility")
 	)
@@ -97,7 +87,6 @@ static func from_dict(data: Dictionary) -> GameResultRecordedData:
 		GFVariantData.get_option_string(data, &"ruleset_fingerprint"),
 		GFVariantData.get_option_int(data, &"initial_seed"),
 		GFVariantData.get_option_string(data, &"final_state_hash"),
-		challenge,
 		eligibility,
 		GFVariantData.get_option_int(data, &"score"),
 		GFVariantData.get_option_int(data, &"steps"),
@@ -128,7 +117,6 @@ func is_valid() -> bool:
 		or played_at <= 0
 		or target_value < 0
 		or (target_value <= 0 and target_reached)
-		or not _does_challenge_match_result()
 	):
 		return false
 	return _is_sha256_text(result_hash) and result_hash == _calculate_result_hash()
@@ -148,14 +136,6 @@ func counts_toward_progress() -> bool:
 	)
 
 
-func get_challenge_group_key() -> String:
-	return (
-		challenge_metadata.get_group_key()
-		if challenge_metadata != null
-		else STANDARD_CHALLENGE_GROUP_KEY
-	)
-
-
 func get_leaderboard_identity() -> Dictionary:
 	return {
 		&"mode_id": String(mode_id),
@@ -163,7 +143,6 @@ func get_leaderboard_identity() -> Dictionary:
 		&"ruleset_id": String(ruleset_id),
 		&"ruleset_version": ruleset_version,
 		&"ruleset_fingerprint": ruleset_fingerprint,
-		&"challenge_key": get_challenge_group_key(),
 	}
 
 
@@ -182,13 +161,12 @@ static func calculate_leaderboard_group_key(identity: Dictionary) -> String:
 
 static func is_leaderboard_identity_valid(identity: Dictionary) -> bool:
 	return (
-		identity.size() == 6
+		identity.size() == 5
 		and GFVariantData.get_option_value(identity, &"mode_id") is String
 		and GFVariantData.get_option_value(identity, &"board_key") is String
 		and GFVariantData.get_option_value(identity, &"ruleset_id") is String
 		and GFVariantData.get_option_value(identity, &"ruleset_version") is int
 		and GFVariantData.get_option_value(identity, &"ruleset_fingerprint") is String
-		and GFVariantData.get_option_value(identity, &"challenge_key") is String
 		and not GFVariantData.get_option_string(identity, &"mode_id").is_empty()
 		and not GFVariantData.get_option_string(identity, &"board_key").is_empty()
 		and not GFVariantData.get_option_string(identity, &"ruleset_id").is_empty()
@@ -196,10 +174,6 @@ static func is_leaderboard_identity_valid(identity: Dictionary) -> bool:
 		and _is_sha256_text(
 			GFVariantData.get_option_string(identity, &"ruleset_fingerprint")
 		)
-		and not GFVariantData.get_option_string(
-			identity,
-			&"challenge_key"
-		).is_empty()
 	)
 
 
@@ -214,11 +188,6 @@ func to_dict() -> Dictionary:
 		&"ruleset_fingerprint": ruleset_fingerprint,
 		&"initial_seed": initial_seed,
 		&"final_state_hash": final_state_hash,
-		&"challenge": (
-			challenge_metadata.to_dict()
-			if challenge_metadata != null
-			else {}
-		),
 		&"eligibility": (
 			competition_eligibility.to_dict()
 			if competition_eligibility != null
@@ -235,22 +204,6 @@ func to_dict() -> Dictionary:
 
 # --- 私有/辅助方法 ---
 
-func _does_challenge_match_result() -> bool:
-	var has_daily_reason: bool = competition_eligibility.has_reason(
-		GameCompetitionEligibility.REASON_DAILY
-	)
-	if challenge_metadata == null:
-		return not has_daily_reason
-	return (
-		has_daily_reason
-		and challenge_metadata.is_valid()
-		and challenge_metadata.get_ruleset_id() == ruleset_id
-		and challenge_metadata.get_ruleset_version() == ruleset_version
-		and challenge_metadata.get_ruleset_fingerprint() == ruleset_fingerprint
-		and challenge_metadata.get_topology_key() == board_key
-		and challenge_metadata.get_seed() == initial_seed
-	)
-
 
 func _calculate_result_hash() -> String:
 	var hash_payload: Dictionary = {
@@ -261,11 +214,6 @@ func _calculate_result_hash() -> String:
 		&"ruleset_fingerprint": ruleset_fingerprint,
 		&"initial_seed": initial_seed,
 		&"final_state_hash": final_state_hash,
-		&"challenge": (
-			challenge_metadata.to_dict()
-			if challenge_metadata != null
-			else {}
-		),
 		&"eligibility": (
 			competition_eligibility.to_dict()
 			if competition_eligibility != null
@@ -286,7 +234,7 @@ func _calculate_result_hash() -> String:
 
 static func _has_strict_shape(data: Dictionary) -> bool:
 	return (
-		data.size() == 17
+		data.size() == 16
 		and GFVariantData.get_option_value(data, &"schema_version") is int
 		and GFVariantData.get_option_value(data, &"result_hash") is String
 		and GFVariantData.get_option_value(data, &"mode_id") is String
@@ -296,7 +244,6 @@ static func _has_strict_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, &"ruleset_fingerprint") is String
 		and GFVariantData.get_option_value(data, &"initial_seed") is int
 		and GFVariantData.get_option_value(data, &"final_state_hash") is String
-		and GFVariantData.get_option_value(data, &"challenge") is Dictionary
 		and GFVariantData.get_option_value(data, &"eligibility") is Dictionary
 		and GFVariantData.get_option_value(data, &"score") is int
 		and GFVariantData.get_option_value(data, &"steps") is int

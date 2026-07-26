@@ -371,7 +371,7 @@ func test_late_section_failure_rolls_back_earlier_sections() -> void:
 	_dispose_setup(setup)
 
 
-func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> void:
+func test_profile_v7_is_backed_up_and_reset_without_compatibility() -> void:
 	var save_dir_name: String = "gut_save_graph_recovery_%d" % Time.get_ticks_usec()
 	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
@@ -389,27 +389,8 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 		legacy_payload,
 		"metadata"
 	)
-	metadata["schema_version"] = 1
+	metadata["schema_version"] = 7
 	legacy_payload["metadata"] = metadata
-	var legacy_graph_payload: Dictionary = _get_save_graph_payload(legacy_payload)
-	var scopes: Dictionary = GFVariantData.get_option_dictionary(
-		legacy_graph_payload,
-		"scopes"
-	)
-	var removed_custom_boards: bool = scopes.erase(
-		String(GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID)
-	)
-	var removed_discoveries: bool = scopes.erase(
-		String(GameSaveGraphUtility.DISCOVERIES_SECTION_ID)
-	)
-	var removed_achievements: bool = scopes.erase(String(
-		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID
-	))
-	legacy_graph_payload["scopes"] = scopes
-	assert_true(
-		removed_custom_boards and removed_discoveries and removed_achievements,
-		"player_data@1 夹具应只保留当时存在的三个 section。"
-	)
 	var seed_error: Error = storage.save_data(
 		GameSaveGraphUtility.PROFILE_FILE_NAME,
 		legacy_payload
@@ -449,7 +430,7 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 		"recovery_file"
 	)
 	assert_true(
-		recovery_file == "recovery/player_data.schema-1.save",
+		recovery_file == "recovery/player_data.schema-7.save",
 		"恢复文件应使用稳定且可审计的版本化路径。"
 	)
 	var recovery_result: GFStorageReadResult = reloaded_storage.load_data(
@@ -462,7 +443,7 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 	)
 	assert_true(
 		recovery_result.ok
-		and GFVariantData.get_option_int(recovery_metadata, "schema_version", 0) == 1,
+		and GFVariantData.get_option_int(recovery_metadata, "schema_version", 0) == 7,
 		"恢复备份必须完整保留原 Profile，而不是直接删除。"
 	)
 	var persisted_result: GFStorageReadResult = reloaded_storage.load_data(
@@ -490,6 +471,78 @@ func test_obsolete_profile_is_backed_up_and_reset_without_compatibility() -> voi
 	var recovery_cleanup_error: Error = reloaded_storage.delete_file(recovery_file)
 	assert_true(recovery_cleanup_error == OK, "测试恢复备份应可清理。")
 
+	_dispose_setup(reloaded)
+
+
+func test_profile_v8_is_backed_up_before_v9_rebuild() -> void:
+	var save_dir_name: String = "gut_save_graph_profile_v8_%d" % Time.get_ticks_usec()
+	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var payload: Dictionary = save_graph.preview_profile_payload()
+	var metadata: Dictionary = GFVariantData.get_option_dictionary(payload, "metadata")
+	metadata["schema_version"] = 8
+	payload["metadata"] = metadata
+	assert_true(
+		storage.save_data(GameSaveGraphUtility.PROFILE_FILE_NAME, payload) == OK
+	)
+	_dispose_setup(setup, false)
+
+	var reloaded: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true
+	)
+	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
+	var reloaded_storage: GFStorageUtility = _get_storage(reloaded)
+	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		reloaded_graph.get_debug_snapshot(),
+		"last_load"
+	)
+	var recovery_file: String = GFVariantData.get_option_string(
+		load_snapshot,
+		"recovery_file"
+	)
+	assert_true(reloaded_graph.is_profile_loaded())
+	assert_true(
+		GFVariantData.get_option_bool(
+			load_snapshot,
+			"recovered_obsolete_profile",
+			false
+		)
+	)
+	assert_true(
+		recovery_file == "recovery/player_data.schema-8.save",
+		"曾由 limited-level 写出的 Profile v8 也必须先备份，再按 v9 重建。"
+	)
+	var recovery_result: GFStorageReadResult = reloaded_storage.load_data(
+		recovery_file
+	)
+	assert_true(recovery_result.ok, "Profile v8 恢复备份必须可读取。")
+	assert_true(
+		GFVariantData.get_option_int(
+			GFVariantData.get_option_dictionary(
+				recovery_result.payload,
+				"metadata"
+			),
+			"schema_version",
+			0
+		) == 8
+	)
+	var active_result: GFStorageReadResult = reloaded_storage.load_data(
+		GameSaveGraphUtility.PROFILE_FILE_NAME
+	)
+	assert_true(active_result.ok)
+	assert_true(
+		GFVariantData.get_option_int(
+			GFVariantData.get_option_dictionary(
+				active_result.payload,
+				"metadata"
+			),
+			"schema_version",
+			0
+		) == 9
+	)
+	assert_true(reloaded_storage.delete_file(recovery_file) == OK)
 	_dispose_setup(reloaded)
 
 
@@ -559,6 +612,65 @@ func test_future_profile_schema_mismatch_is_rejected_without_fallback() -> void:
 	assert_true(_get_bookmark_system(reloaded).load_bookmarks().is_empty(), "拒绝载荷时书签默认值应保持为空。")
 
 	_dispose_setup(reloaded)
+
+
+func test_removed_feature_section_versions_are_rejected_strictly() -> void:
+	var cases: Array[Dictionary] = [
+		{
+			"section_id": String(GameSaveGraphUtility.PROGRESS_SECTION_ID),
+			"schema_version": 4,
+		},
+		{
+			"section_id": String(GameSaveGraphUtility.BOOKMARKS_SECTION_ID),
+			"schema_version": 7,
+		},
+		{
+			"section_id": String(GameSaveGraphUtility.REPLAYS_SECTION_ID),
+			"schema_version": 4,
+		},
+	]
+	for case_data: Dictionary in cases:
+		var section_id: StringName = StringName(
+			GFVariantData.get_option_string(case_data, "section_id")
+		)
+		var old_schema_version: int = GFVariantData.get_option_int(
+			case_data,
+			"schema_version"
+		)
+		var save_dir_name: String = (
+			"gut_removed_section_schema_%s_%d"
+			% [section_id, Time.get_ticks_usec()]
+		)
+		var setup: Dictionary = await _create_persistence_architecture(
+			save_dir_name,
+			true
+		)
+		var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+		var storage: GFStorageUtility = _get_storage(setup)
+		var payload: Dictionary = save_graph.preview_profile_payload()
+		var source: Dictionary = _get_section_source(payload, section_id)
+		var envelope: Dictionary = GFVariantData.get_option_dictionary(
+			source,
+			"data"
+		)
+		envelope["schema_version"] = old_schema_version
+		source["data"] = envelope
+		assert_true(
+			storage.save_data(GameSaveGraphUtility.PROFILE_FILE_NAME, payload)
+			== OK
+		)
+		_dispose_setup(setup, false)
+
+		var reloaded: Dictionary = await _create_persistence_architecture(
+			save_dir_name,
+			true
+		)
+		assert_false(
+			_get_save_graph(reloaded).is_profile_loaded(),
+			"%s 旧 section schema %d 必须被当前严格图拒绝。"
+			% [section_id, old_schema_version]
+		)
+		_dispose_setup(reloaded)
 
 
 func test_bookmark_schema_rejects_removed_transient_status_field() -> void:
@@ -659,26 +771,22 @@ func test_bookmark_schema_requires_strict_ruleset_identity() -> void:
 	)
 
 
-func test_bookmark_and_replay_preserve_daily_session_metadata() -> void:
+func test_bookmark_and_replay_preserve_generic_session_metadata() -> void:
 	var bookmark: BookmarkData = _make_bookmark(905, 256)
 	bookmark.bookmark_id = GFUuid.generate_v7(905000)
-	var bookmark_topology: BoardTopology = BoardTopology.from_dict(
-		GFVariantData.get_option_dictionary(bookmark.board_snapshot, &"topology")
+	var manual_metadata: GameSessionMetadata = GameSessionMetadata.create(
+		GameSessionMetadata.SEED_SOURCE_MANUAL,
+		GameCompetitionEligibility.create([
+			GameCompetitionEligibility.REASON_MANUAL_SEED,
+		])
 	)
-	assert_not_null(bookmark_topology)
-	bookmark.session_metadata = _make_daily_session_metadata(
-		bookmark.ruleset_id,
-		bookmark.ruleset_version,
-		bookmark.ruleset_fingerprint,
-		bookmark_topology,
-		bookmark.initial_seed,
-		"2026-07-25"
-	).to_dict()
+	assert_not_null(manual_metadata)
+	bookmark.session_metadata = manual_metadata.to_dict()
 
 	var restored_bookmark: BookmarkData = BookmarkData.from_dict(
 		bookmark.to_dict()
 	)
-	assert_not_null(restored_bookmark, "书签必须往返保存 Daily Challenge 身份。")
+	assert_not_null(restored_bookmark, "书签必须往返保存手动 seed 与资格。")
 	if restored_bookmark != null:
 		var bookmark_metadata: GameSessionMetadata = (
 			restored_bookmark.get_session_metadata()
@@ -686,46 +794,58 @@ func test_bookmark_and_replay_preserve_daily_session_metadata() -> void:
 		assert_not_null(bookmark_metadata)
 		assert_true(
 			bookmark_metadata.get_seed_source()
-			== GameSessionMetadata.SEED_SOURCE_DAILY
+			== GameSessionMetadata.SEED_SOURCE_MANUAL
 		)
 		assert_true(
-			bookmark_metadata.get_challenge().get_seed()
-			== bookmark.initial_seed
+			bookmark_metadata.get_eligibility().has_reason(
+				GameCompetitionEligibility.REASON_MANUAL_SEED
+			)
 		)
 
 	var replay: ReplayData = _make_replay(906, 512)
 	replay.replay_id = GFUuid.generate_v7(906000)
-	var replay_topology: BoardTopology = replay.get_initial_topology()
-	assert_not_null(replay_topology)
-	replay.session_metadata = _make_daily_session_metadata(
-		replay.ruleset_id,
-		replay.ruleset_version,
-		replay.ruleset_fingerprint,
-		replay_topology,
-		replay.initial_seed,
-		"2026-07-26"
-	).to_dict()
+	replay.session_metadata = GameSessionMetadata.make_default_dict()
 
 	var restored_replay: ReplayData = ReplayData.from_dict(replay.to_dict())
-	assert_not_null(restored_replay, "回放必须往返保存 Daily Challenge 身份。")
+	assert_not_null(restored_replay, "回放必须往返保存随机 seed 与资格。")
 	if restored_replay != null:
 		var replay_metadata: GameSessionMetadata = restored_replay.get_session_metadata()
 		assert_not_null(replay_metadata)
 		assert_true(
 			replay_metadata.get_seed_source()
-			== GameSessionMetadata.SEED_SOURCE_DAILY
+			== GameSessionMetadata.SEED_SOURCE_RANDOM
 		)
-		assert_true(
-			replay_metadata.get_challenge().get_challenge_hash()
-			== _make_daily_session_metadata(
-				replay.ruleset_id,
-				replay.ruleset_version,
-				replay.ruleset_fingerprint,
-				replay_topology,
-				replay.initial_seed,
-				"2026-07-26"
-			).get_challenge().get_challenge_hash()
-		)
+		assert_true(replay_metadata.get_eligibility().is_eligible())
+
+
+func test_bookmark_and_replay_reject_removed_nested_contracts() -> void:
+	var bookmark: BookmarkData = _make_bookmark(907, 256)
+	bookmark.bookmark_id = GFUuid.generate_v7(907000)
+	var legacy_bookmark: Dictionary = bookmark.to_dict()
+	legacy_bookmark["schema_version"] = 3
+	assert_null(BookmarkData.from_dict(legacy_bookmark))
+	var bookmark_with_challenge: Dictionary = bookmark.to_dict()
+	var bookmark_session: Dictionary = GFVariantData.get_option_dictionary(
+		bookmark_with_challenge,
+		"session_metadata"
+	)
+	bookmark_session["challenge"] = {}
+	bookmark_with_challenge["session_metadata"] = bookmark_session
+	assert_null(BookmarkData.from_dict(bookmark_with_challenge))
+
+	var replay: ReplayData = _make_replay(907, 512)
+	replay.replay_id = GFUuid.generate_v7(907001)
+	var legacy_replay: Dictionary = replay.to_dict()
+	legacy_replay["schema_version"] = 3
+	assert_null(ReplayData.from_dict(legacy_replay))
+	var replay_with_challenge: Dictionary = replay.to_dict()
+	var replay_session: Dictionary = GFVariantData.get_option_dictionary(
+		replay_with_challenge,
+		"session_metadata"
+	)
+	replay_session["challenge"] = {}
+	replay_with_challenge["session_metadata"] = replay_session
+	assert_null(ReplayData.from_dict(replay_with_challenge))
 
 
 func test_replay_schema_rejects_final_snapshot_with_different_topology() -> void:
@@ -930,7 +1050,6 @@ func _make_game_result(
 		"a".repeat(64),
 		2048,
 		("%d|%d|%d|%d" % [score, steps, max_tile, played_at]).sha256_text(),
-		null,
 		GameCompetitionEligibility.create(),
 		score,
 		steps,
@@ -941,46 +1060,6 @@ func _make_game_result(
 	)
 	assert_not_null(result, "SaveGraph 结果 fixture 必须满足严格契约。")
 	return result
-
-
-func _make_daily_session_metadata(
-	ruleset_id: StringName,
-	ruleset_version: int,
-	ruleset_fingerprint: String,
-	topology: BoardTopology,
-	seed_value: int,
-	utc_date: String
-) -> GameSessionMetadata:
-	var challenge: GameChallengeMetadata = GameChallengeMetadata.create_daily(
-		GameChallengeUtility.DAILY_CHALLENGE_SCHEMA_VERSION,
-		utc_date,
-		ruleset_id,
-		ruleset_version,
-		ruleset_fingerprint,
-		topology.get_stable_key(),
-		seed_value,
-		(
-			"%s|%s|%d|%s|%s|%d"
-			% [
-				utc_date,
-				ruleset_id,
-				ruleset_version,
-				ruleset_fingerprint,
-				topology.get_stable_key(),
-				seed_value,
-			]
-		).sha256_text()
-	)
-	assert_not_null(challenge, "Daily session fixture 必须满足挑战契约。")
-	var metadata: GameSessionMetadata = GameSessionMetadata.create(
-		GameSessionMetadata.SEED_SOURCE_DAILY,
-		challenge,
-		GameCompetitionEligibility.create([
-			GameCompetitionEligibility.REASON_DAILY,
-		])
-	)
-	assert_not_null(metadata, "Daily session fixture 必须满足会话契约。")
-	return metadata
 
 
 func _make_bookmark(timestamp: int, score: int) -> BookmarkData:

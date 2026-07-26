@@ -166,14 +166,13 @@ func get_local_rank(reference_result: GameResultRecordedData) -> int:
 	return 0
 
 
-## 查询指定模式、拓扑、规则版本与挑战分组的本地榜。
+## 查询指定模式、拓扑与规则版本的本地榜。
 func get_local_leaderboard(
 	mode_id: String,
 	board_key: String,
 	ruleset_id: StringName,
 	ruleset_version: int,
-	ruleset_fingerprint: String,
-	challenge: GameChallengeMetadata = null
+	ruleset_fingerprint: String
 ) -> Array[GameResultRecordedData]:
 	var identity: Dictionary = {
 		&"mode_id": mode_id,
@@ -181,11 +180,6 @@ func get_local_leaderboard(
 		&"ruleset_id": String(ruleset_id),
 		&"ruleset_version": ruleset_version,
 		&"ruleset_fingerprint": ruleset_fingerprint,
-		&"challenge_key": (
-			challenge.get_group_key()
-			if challenge != null
-			else GameResultRecordedData.STANDARD_CHALLENGE_GROUP_KEY
-		),
 	}
 	return _get_local_leaderboard_by_identity(identity)
 

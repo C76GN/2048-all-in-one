@@ -301,15 +301,10 @@ func restart_game() -> void:
 		app_config.selected_mode_config_path.set_value(mode_config.resource_path)
 		app_config.selected_board_topology.set_value(board_topology.duplicate(true))
 		app_config.selected_seed.set_value(initial_seed)
-		var restart_seed_source: StringName = GameSessionMetadata.SEED_SOURCE_MANUAL
 		var current_metadata: GameSessionMetadata = _get_current_session_metadata()
-		if (
-			current_metadata != null
-			and current_metadata.get_seed_source()
-			== GameSessionMetadata.SEED_SOURCE_DAILY
-		):
-			restart_seed_source = GameSessionMetadata.SEED_SOURCE_DAILY
-		app_config.selected_seed_source.set_value(restart_seed_source)
+		app_config.selected_seed_source.set_value(
+			GameSessionMetadata.SEED_SOURCE_MANUAL
+		)
 		app_config.selected_board_is_custom.set_value(
 			current_metadata != null
 			and current_metadata.get_eligibility().has_reason(
@@ -698,7 +693,6 @@ func _persist_current_game_result() -> GameResultRecordedData:
 		_determinism.calculate_ruleset_fingerprint(_mode_config),
 		_initial_seed_of_session,
 		final_state_hash,
-		_session_metadata.get_challenge(),
 		_session_metadata.get_eligibility(),
 		final_score,
 		move_count,

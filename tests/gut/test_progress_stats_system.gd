@@ -249,7 +249,7 @@ func test_debug_result_is_explained_without_polluting_progress_or_leaderboard() 
 	_dispose_setup(setup)
 
 
-func test_leaderboards_are_grouped_by_topology_ruleset_and_challenge() -> void:
+func test_leaderboards_are_grouped_by_topology_and_ruleset_configuration() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var progress: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var standard: GameResultRecordedData = _make_result(100, 20, 64, 100)
@@ -261,7 +261,6 @@ func test_leaderboards_are_grouped_by_topology_ruleset_and_challenge() -> void:
 		0,
 		false,
 		GameCompetitionEligibility.create(),
-		null,
 		_BOARD_KEY,
 		2
 	)
@@ -273,27 +272,16 @@ func test_leaderboards_are_grouped_by_topology_ruleset_and_challenge() -> void:
 		0,
 		false,
 		GameCompetitionEligibility.create(),
-		null,
 		"board.rectangle.5x5@test"
 	)
-	var daily_challenge: GameChallengeMetadata = _make_daily_challenge(
-		"2026-07-26",
-		777
-	)
-	var daily_eligibility: GameCompetitionEligibility = (
-		GameCompetitionEligibility.create([
-			GameCompetitionEligibility.REASON_DAILY,
-		])
-	)
-	var daily: GameResultRecordedData = _make_result(
+	var same_configuration_different_seed: GameResultRecordedData = _make_result(
 		400,
 		20,
 		64,
 		400,
 		0,
 		false,
-		daily_eligibility,
-		daily_challenge,
+		GameCompetitionEligibility.create(),
 		_BOARD_KEY,
 		1,
 		777
@@ -303,13 +291,18 @@ func test_leaderboards_are_grouped_by_topology_ruleset_and_challenge() -> void:
 		standard,
 		changed_ruleset,
 		changed_board,
-		daily,
+		same_configuration_different_seed,
 	]:
 		assert_true(progress.record_game_result(result) == OK)
-	assert_true(progress.get_local_leaderboard_for_result(standard).size() == 1)
+	assert_true(progress.get_local_leaderboard_for_result(standard).size() == 2)
 	assert_true(progress.get_local_leaderboard_for_result(changed_ruleset).size() == 1)
 	assert_true(progress.get_local_leaderboard_for_result(changed_board).size() == 1)
-	assert_true(progress.get_local_leaderboard_for_result(daily).size() == 1)
+	assert_true(
+		progress.get_local_leaderboard_for_result(
+			same_configuration_different_seed
+		).size() == 2,
+		"初始 seed 不属于榜单分组身份；相同配置应进入同一榜单。"
+	)
 	assert_false(
 		standard.get_leaderboard_group_key()
 		== changed_ruleset.get_leaderboard_group_key()
@@ -318,8 +311,9 @@ func test_leaderboards_are_grouped_by_topology_ruleset_and_challenge() -> void:
 		standard.get_leaderboard_group_key()
 		== changed_board.get_leaderboard_group_key()
 	)
-	assert_false(
-		standard.get_leaderboard_group_key() == daily.get_leaderboard_group_key()
+	assert_true(
+		standard.get_leaderboard_group_key()
+		== same_configuration_different_seed.get_leaderboard_group_key()
 	)
 	_dispose_setup(setup)
 
@@ -390,7 +384,6 @@ func _make_result(
 	target_value: int = 0,
 	target_reached: bool = false,
 	eligibility: GameCompetitionEligibility = null,
-	challenge: GameChallengeMetadata = null,
 	board_key: String = _BOARD_KEY,
 	ruleset_version: int = 1,
 	initial_seed: int = 2048
@@ -410,7 +403,6 @@ func _make_result(
 		_RULESET_FINGERPRINT,
 		initial_seed,
 		final_state_hash,
-		challenge,
 		resolved_eligibility,
 		score,
 		steps,
@@ -421,35 +413,6 @@ func _make_result(
 	)
 	assert_not_null(result, "测试结果 fixture 必须满足严格契约。")
 	return result
-
-
-func _make_daily_challenge(
-	utc_date: String,
-	seed_value: int
-) -> GameChallengeMetadata:
-	var identity_text: String = (
-		"%s|%s|%d|%s|%s|%d"
-		% [
-			utc_date,
-			_RULESET_ID,
-			1,
-			_RULESET_FINGERPRINT,
-			_BOARD_KEY,
-			seed_value,
-		]
-	)
-	var challenge: GameChallengeMetadata = GameChallengeMetadata.create_daily(
-		GameChallengeUtility.DAILY_CHALLENGE_SCHEMA_VERSION,
-		utc_date,
-		_RULESET_ID,
-		1,
-		_RULESET_FINGERPRINT,
-		_BOARD_KEY,
-		seed_value,
-		identity_text.sha256_text()
-	)
-	assert_not_null(challenge, "Daily Challenge fixture 必须满足严格契约。")
-	return challenge
 
 
 func _create_save_architecture(

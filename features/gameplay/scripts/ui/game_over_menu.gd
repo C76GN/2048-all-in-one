@@ -13,7 +13,6 @@ const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
 const _SUMMARY_FORMAT_FALLBACK: String = "%s · %dx%d\n本局：%d 分 · %d 步 · 最大方块 %d\n历史：最高分 %d · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n完整对局：%d"
 const _SUMMARY_FORMAT_WITH_TARGET_FALLBACK: String = "%s · %dx%d\n本局：%d 分 · %d 步 · 最大方块 %d\n历史：最高分 %d · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n目标 %d：本局%s · 累计 %d 次 · %d%%\n完整对局：%d"
 const _RESULT_IDENTITY_FORMAT_FALLBACK: String = "种子 %d · 状态校验 %s"
-const _DAILY_RESULT_FORMAT_FALLBACK: String = "今日挑战 %s · 挑战校验 %s"
 const _COMPETITION_ELIGIBLE_FALLBACK: String = "本地比赛榜：合格"
 const _COMPETITION_RANK_FORMAT_FALLBACK: String = "本地比赛榜：合格 · 第 %d 名"
 const _COMPETITION_INELIGIBLE_FORMAT_FALLBACK: String = "本地比赛榜：不计入 · %s"
@@ -275,15 +274,6 @@ func _format_result_explanation(result: GameResultRecordedData) -> String:
 			result.final_state_hash.substr(0, 12),
 		]
 	))
-	if result.challenge_metadata != null:
-		lines.append(GameTextFormatUtility.format_template(
-			tr("GAME_OVER_DAILY_RESULT_FORMAT"),
-			_DAILY_RESULT_FORMAT_FALLBACK,
-			[
-				result.challenge_metadata.get_utc_date(),
-				result.challenge_metadata.get_challenge_hash().substr(0, 12),
-			]
-		))
 	if result.is_competition_eligible():
 		var progress_stats: ProgressStatsSystem = _get_progress_stats_system()
 		var rank: int = (

@@ -29,6 +29,7 @@ const REMOVED_HUD_PAYLOAD_PATH: String = "res://features/gameplay/scripts/events
 const SCENE_ROUTER_SYSTEM_PATH: String = "res://features/navigation/scripts/systems/scene_router_system.gd"
 const BASE_LIST_MENU_PATH: String = "res://features/navigation/scripts/menus/base_list_menu.gd"
 const MODE_SELECTION_PATH: String = "res://features/navigation/scripts/menus/mode_selection.gd"
+const MODE_SELECTION_SCENE_PATH: String = "res://features/navigation/scenes/menus/mode_selection.tscn"
 const GAME_DIAGNOSTICS_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd"
 const GAME_DIAGNOSTICS_INSTALLER_PATH: String = "res://features/diagnostics/scripts/installers/game_diagnostics_installer.gd"
 const SETTINGS_MENU_PATH: String = "res://features/settings/scripts/menus/settings_menu.gd"
@@ -340,6 +341,59 @@ func test_mode_selection_focus_graph_keeps_vertical_loop_and_cross_column_target
 	assert_true(previous_page.get_node_or_null(previous_page.focus_neighbor_bottom) == back, "分页向下应闭环到返回键。")
 	assert_true(next_page.get_node_or_null(next_page.focus_neighbor_top) == last_card, "下一页按钮向上应回到末张模式卡。")
 	assert_true(first_card.get_node_or_null(first_card.focus_neighbor_right) == grid_size, "模式卡向右应进入配置列。")
+
+
+func test_mode_selection_exposes_configuration_leaderboard_without_daily_control() -> void:
+	var scene_source: String = _read_text(MODE_SELECTION_SCENE_PATH)
+	var script_source: String = _read_text(MODE_SELECTION_PATH)
+
+	assert_false(
+		scene_source.contains("DailyChallengeButton"),
+		"模式选择场景不得保留已删除的 Daily Challenge 控件。"
+	)
+	assert_true(scene_source.contains("CompetitionStatusLabel"))
+	assert_true(
+		scene_source.contains(
+			"focus_neighbor_bottom = NodePath(\"../../StartGameButton\")"
+		),
+		"seed 控件应直接把向下焦点交给开始游戏。"
+	)
+	assert_true(
+		scene_source.contains(
+			"focus_neighbor_top = NodePath(\"../SeedContainer/SeedLineEdit\")"
+		),
+		"开始游戏应向上回到 seed 输入。"
+	)
+	assert_true(
+		script_source.contains("get_local_leaderboard(")
+		and script_source.contains("COMPETITION_CONFIG_STATUS_FORMAT"),
+		"模式选择应继续展示当前规则集与拓扑配置的本地榜状态。"
+	)
+
+
+func test_removed_daily_challenge_types_cannot_reenter_composition_root() -> void:
+	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var init_source: String = _read_text(GAME_INIT_SYSTEM_PATH)
+	var mode_source: String = _read_text(MODE_SELECTION_PATH)
+
+	assert_false(
+		FileAccess.file_exists(
+			"res://features/gameplay/scripts/data/game_challenge_metadata.gd"
+		)
+	)
+	assert_false(
+		FileAccess.file_exists(
+			"res://features/gameplay/scripts/utilities/game_challenge_utility.gd"
+		)
+	)
+	for removed_symbol: String in [
+		"GameChallengeMetadata",
+		"GameChallengeUtility",
+		"SEED_SOURCE_DAILY",
+	]:
+		assert_false(installer_source.contains(removed_symbol))
+		assert_false(init_source.contains(removed_symbol))
+		assert_false(mode_source.contains(removed_symbol))
 
 
 func test_project_installer_binds_asset_library_before_ui_consumers() -> void:

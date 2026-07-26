@@ -25,7 +25,6 @@ var _grid_model: GridModel
 var _log: GFLogUtility
 var _clock: GameClockUtility
 var _determinism: GameDeterminismUtility
-var _challenge: GameChallengeUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -47,7 +46,6 @@ func get_required_systems() -> Array[Script]:
 func get_required_utilities() -> Array[Script]:
 	return [
 		GameClockUtility,
-		GameChallengeUtility,
 		GameDeterminismUtility,
 		GameModeCatalogUtility,
 		GFCommandHistoryUtility,
@@ -64,7 +62,6 @@ func ready() -> void:
 	_mode_catalog = _get_mode_catalog_utility()
 	_log = _get_log_utility()
 	_clock = _get_clock_utility()
-	_challenge = _get_challenge_utility()
 	_determinism = _get_determinism_utility()
 	_rule_system = _get_rule_system()
 	_game_flow_system = _get_game_flow_system()
@@ -85,7 +82,6 @@ func dispose() -> void:
 	_grid_model = null
 	_log = null
 	_clock = null
-	_challenge = null
 	_determinism = null
 
 
@@ -142,13 +138,6 @@ func _get_clock_utility() -> GameClockUtility:
 func _get_determinism_utility() -> GameDeterminismUtility:
 	var utility_value: Object = get_utility(GameDeterminismUtility)
 	if utility_value is GameDeterminismUtility:
-		return utility_value
-	return null
-
-
-func _get_challenge_utility() -> GameChallengeUtility:
-	var utility_value: Object = get_utility(GameChallengeUtility)
-	if utility_value is GameChallengeUtility:
 		return utility_value
 	return null
 
@@ -513,7 +502,6 @@ func _resolve_session_metadata(
 	level_source: StringName,
 	replay_data: ReplayData,
 	bookmark_data: BookmarkData,
-	mode_config: GameModeConfig,
 	topology: BoardTopology,
 	requested_seed_source: StringName,
 	selected_board_is_custom: bool
@@ -529,19 +517,7 @@ func _resolve_session_metadata(
 			)
 	else:
 		var reason_codes: Array[StringName] = []
-		var challenge_metadata: GameChallengeMetadata = null
-		if requested_seed_source == GameSessionMetadata.SEED_SOURCE_DAILY:
-			if not is_instance_valid(_challenge):
-				_challenge = _get_challenge_utility()
-			if is_instance_valid(_challenge):
-				challenge_metadata = _challenge.get_current_daily_challenge(
-					mode_config,
-					topology
-				)
-			if challenge_metadata == null:
-				return null
-			reason_codes.append(GameCompetitionEligibility.REASON_DAILY)
-		elif requested_seed_source == GameSessionMetadata.SEED_SOURCE_MANUAL:
+		if requested_seed_source == GameSessionMetadata.SEED_SOURCE_MANUAL:
 			reason_codes.append(GameCompetitionEligibility.REASON_MANUAL_SEED)
 		elif requested_seed_source != GameSessionMetadata.SEED_SOURCE_RANDOM:
 			return null
@@ -550,7 +526,6 @@ func _resolve_session_metadata(
 		)
 		metadata = GameSessionMetadata.create(
 			requested_seed_source,
-			challenge_metadata,
 			eligibility
 		)
 
@@ -564,26 +539,9 @@ func _resolve_session_metadata(
 
 
 func _does_session_metadata_match_contract(
-	metadata: GameSessionMetadata,
-	mode_config: GameModeConfig,
-	topology: BoardTopology,
-	initial_seed: int
+	metadata: GameSessionMetadata
 ) -> bool:
-	if metadata == null or not metadata.is_valid():
-		return false
-	var challenge_metadata: GameChallengeMetadata = metadata.get_challenge()
-	if metadata.get_seed_source() != GameSessionMetadata.SEED_SOURCE_DAILY:
-		return challenge_metadata == null
-	return (
-		challenge_metadata != null
-		and challenge_metadata.get_ruleset_id() == mode_config.ruleset_id
-		and challenge_metadata.get_ruleset_version() == mode_config.ruleset_version
-		and is_instance_valid(_determinism)
-		and challenge_metadata.get_ruleset_fingerprint()
-		== _determinism.calculate_ruleset_fingerprint(mode_config)
-		and challenge_metadata.get_topology_key() == topology.get_stable_key()
-		and challenge_metadata.get_seed() == initial_seed
-	)
+	return metadata != null and metadata.is_valid()
 
 
 func _make_random_seed() -> int:
@@ -751,7 +709,6 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		level_source,
 		replay_data,
 		loaded_bookmark_data,
-		mode_config,
 		board_topology,
 		requested_seed_source,
 		selected_board_is_custom
@@ -762,24 +719,13 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		return
 	if (
 		level_source == _LEVEL_SOURCE_NEW_GAME
-		and session_metadata.get_seed_source() == GameSessionMetadata.SEED_SOURCE_DAILY
-	):
-		var daily_challenge: GameChallengeMetadata = session_metadata.get_challenge()
-		init_seed = daily_challenge.get_seed() if daily_challenge != null else 0
-	elif (
-		level_source == _LEVEL_SOURCE_NEW_GAME
 		and session_metadata.get_seed_source() == GameSessionMetadata.SEED_SOURCE_RANDOM
 		and init_seed == 0
 	):
 		init_seed = _make_random_seed()
-	if not _does_session_metadata_match_contract(
-		session_metadata,
-		mode_config,
-		board_topology,
-		init_seed
-	):
+	if not _does_session_metadata_match_contract(session_metadata):
 		if is_instance_valid(_log):
-			_log.error(_LOG_TAG, "对局元数据与 seed、规则集或拓扑契约不一致。")
+			_log.error(_LOG_TAG, "对局元数据不满足当前严格契约。")
 		return
 	game_ready_data.initial_seed = init_seed
 	game_ready_data.session_metadata = session_metadata

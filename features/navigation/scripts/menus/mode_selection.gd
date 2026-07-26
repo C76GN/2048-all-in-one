@@ -15,9 +15,9 @@ const _DETAIL_REVEAL_STAGGER: float = 0.02
 const _STATS_EMPTY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n暂无完整对局统计"
 const _STATS_SUMMARY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
 const _STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n目标 %d：达成 %d 次 · %d%%\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
-const _DAILY_PREVIEW_FORMAT_FALLBACK: String = "今日挑战 %s · 种子 %d · 本地最佳 %s"
-const _DAILY_PREVIEW_CUSTOM_SUFFIX_FALLBACK: String = "\n自定义棋盘可游玩，但不计入本地比赛榜。"
-const _MANUAL_SEED_WARNING_FALLBACK: String = "\n当前为手动种子：成绩不计入本地比赛榜。"
+const _COMPETITION_CONFIG_STATUS_FORMAT_FALLBACK: String = "本地比赛榜：%s · 当前配置最佳 %s"
+const _COMPETITION_STATUS_ELIGIBLE_FALLBACK: String = "合格"
+const _COMPETITION_STATUS_INELIGIBLE_FORMAT_FALLBACK: String = "不计入（%s）"
 const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 	"top": 54.0,
 	"left": 56.0,
@@ -79,7 +79,6 @@ var _info_score_label: Label
 @onready var _edit_board_button: Button = %EditBoardButton
 @onready var _seed_line_edit: LineEdit = %SeedLineEdit
 @onready var _refresh_seed_button: Button = %RefreshSeedButton
-@onready var _daily_challenge_button: Button = %DailyChallengeButton
 @onready var _competition_status_label: Label = %CompetitionStatusLabel
 @onready var _prev_page_button: Button = %PrevPageButton
 @onready var _next_page_button: Button = %NextPageButton
@@ -113,9 +112,6 @@ func _ready() -> void:
 	var _connect_result_78: int = _grid_size_option_button.item_selected.connect(_on_grid_size_selected)
 	var _connect_result_79: int = _start_game_button.pressed.connect(_on_start_game_button_pressed)
 	var _connect_result_80: int = _refresh_seed_button.pressed.connect(_on_refresh_seed_button_pressed)
-	var _connect_result_80a: int = _daily_challenge_button.pressed.connect(
-		_on_daily_challenge_button_pressed
-	)
 	var _connect_result_80b: int = _seed_line_edit.text_changed.connect(
 		_on_seed_text_changed
 	)
@@ -321,7 +317,6 @@ func _apply_mode_selection_visual_system() -> void:
 	)
 	style_utility.style_line_edit(_seed_line_edit)
 	style_utility.prepare_button(_grid_size_option_button)
-	style_utility.prepare_button(_daily_challenge_button)
 	style_utility.style_button(
 		_refresh_seed_button,
 		GameUiStyleUtility.ButtonRole.ICON
@@ -363,7 +358,6 @@ func _apply_mode_focus_graph(cards: Array[Control]) -> void:
 			_edit_board_button,
 			_seed_line_edit,
 			_refresh_seed_button,
-			_daily_challenge_button,
 			_start_game_button,
 		]:
 			if not is_instance_valid(detail_control):
@@ -376,7 +370,6 @@ func _apply_mode_focus_graph(cards: Array[Control]) -> void:
 			_grid_size_option_button,
 			_edit_board_button,
 			_seed_line_edit,
-			_daily_challenge_button,
 			_start_game_button,
 		]:
 			if not is_instance_valid(detail_control):
@@ -456,8 +449,6 @@ func _show_default_info() -> void:
 	_right_panel_container.visible = false
 	if is_instance_valid(_start_game_button):
 		_start_game_button.disabled = true
-	if is_instance_valid(_daily_challenge_button):
-		_daily_challenge_button.disabled = true
 
 
 func _update_ui_text() -> void:
@@ -473,8 +464,6 @@ func _update_ui_text() -> void:
 		_back_button.text = tr("UI_BACK")
 	if is_instance_valid(_start_game_button):
 		_start_game_button.text = tr("BTN_START_GAME")
-	if is_instance_valid(_daily_challenge_button):
-		_daily_challenge_button.text = tr("BTN_DAILY_CHALLENGE")
 	if is_instance_valid(_edit_board_button):
 		_edit_board_button.text = tr("BOARD_EDITOR_OPEN")
 	if is_instance_valid(_config_header_label):
@@ -546,9 +535,6 @@ func _populate_right_panel() -> void:
 	_grid_size_option_button.select(default_size_index)
 	_on_grid_size_selected(default_size_index)
 	_start_game_button.disabled = not is_instance_valid(_current_board_topology)
-	_daily_challenge_button.disabled = not is_instance_valid(
-		_current_board_topology
-	)
 
 
 func _update_high_score_label() -> void:
@@ -862,9 +848,9 @@ func _get_clock_utility() -> GameClockUtility:
 	return null
 
 
-func _get_challenge_utility() -> GameChallengeUtility:
-	var utility_value: Object = get_utility(GameChallengeUtility)
-	if utility_value is GameChallengeUtility:
+func _get_determinism_utility() -> GameDeterminismUtility:
+	var utility_value: Object = get_utility(GameDeterminismUtility)
+	if utility_value is GameDeterminismUtility:
 		return utility_value
 	return null
 
@@ -921,23 +907,11 @@ func _update_competition_status() -> void:
 		not is_instance_valid(_selected_mode_config)
 		or not is_instance_valid(_current_board_topology)
 	):
-		_competition_status_label.text = tr("DAILY_CHALLENGE_UNAVAILABLE")
-		if is_instance_valid(_daily_challenge_button):
-			_daily_challenge_button.disabled = true
+		_competition_status_label.text = ""
 		return
-	var challenge_utility: GameChallengeUtility = _get_challenge_utility()
-	var daily_challenge: GameChallengeMetadata = (
-		challenge_utility.get_current_daily_challenge(
-			_selected_mode_config,
-			_current_board_topology
-		)
-		if is_instance_valid(challenge_utility)
-		else null
-	)
-	if daily_challenge == null:
-		_competition_status_label.text = tr("DAILY_CHALLENGE_UNAVAILABLE")
-		if is_instance_valid(_daily_challenge_button):
-			_daily_challenge_button.disabled = true
+	var determinism: GameDeterminismUtility = _get_determinism_utility()
+	if not is_instance_valid(determinism):
+		_competition_status_label.text = ""
 		return
 
 	var local_best_text: String = tr("UI_NONE")
@@ -948,38 +922,42 @@ func _update_competition_status() -> void:
 			progress_stats.get_local_leaderboard(
 				mode_id,
 				_current_board_topology.get_stable_key(),
-				daily_challenge.get_ruleset_id(),
-				daily_challenge.get_ruleset_version(),
-				daily_challenge.get_ruleset_fingerprint(),
-				daily_challenge
+				_selected_mode_config.ruleset_id,
+				_selected_mode_config.ruleset_version,
+				determinism.calculate_ruleset_fingerprint(_selected_mode_config)
 			)
 		)
 		if not leaderboard.is_empty():
 			local_best_text = str(leaderboard[0].score)
-	var status_text: String = GameTextFormatUtility.format_template(
-		tr("DAILY_CHALLENGE_PREVIEW_FORMAT"),
-		_DAILY_PREVIEW_FORMAT_FALLBACK,
-		[
-			daily_challenge.get_utc_date(),
-			daily_challenge.get_seed(),
-			local_best_text,
-		]
-	)
+
+	var reason_labels: PackedStringArray = PackedStringArray()
 	if _current_board_is_custom:
-		status_text += GameTextFormatUtility.format_template(
-			tr("DAILY_CHALLENGE_CUSTOM_SUFFIX"),
-			_DAILY_PREVIEW_CUSTOM_SUFFIX_FALLBACK,
-			[]
+		var _custom_reason_appended: bool = reason_labels.append(
+			tr("ELIGIBILITY_REASON_CUSTOM_BOARD")
 		)
 	if _seed_source == GameSessionMetadata.SEED_SOURCE_MANUAL:
-		status_text += GameTextFormatUtility.format_template(
-			tr("MANUAL_SEED_COMPETITION_WARNING"),
-			_MANUAL_SEED_WARNING_FALLBACK,
-			[]
+		var _manual_reason_appended: bool = reason_labels.append(
+			tr("ELIGIBILITY_REASON_MANUAL_SEED")
 		)
-	_competition_status_label.text = status_text
-	if is_instance_valid(_daily_challenge_button):
-		_daily_challenge_button.disabled = false
+	var eligibility_text: String = GameTextFormatUtility.format_template(
+		tr("COMPETITION_STATUS_ELIGIBLE"),
+		_COMPETITION_STATUS_ELIGIBLE_FALLBACK,
+		[]
+	)
+	if not reason_labels.is_empty():
+		var separator: String = tr("ELIGIBILITY_REASON_SEPARATOR")
+		if separator == "ELIGIBILITY_REASON_SEPARATOR":
+			separator = "、"
+		eligibility_text = GameTextFormatUtility.format_template(
+			tr("COMPETITION_STATUS_INELIGIBLE_FORMAT"),
+			_COMPETITION_STATUS_INELIGIBLE_FORMAT_FALLBACK,
+			[separator.join(reason_labels)]
+		)
+	_competition_status_label.text = GameTextFormatUtility.format_template(
+		tr("COMPETITION_CONFIG_STATUS_FORMAT"),
+		_COMPETITION_CONFIG_STATUS_FORMAT_FALLBACK,
+		[eligibility_text, local_best_text]
+	)
 
 
 func _parse_seed_text(seed_text: String) -> int:
@@ -999,28 +977,12 @@ func _start_selected_game(seed_source: StringName) -> void:
 		push_error("[ModeSelection] game_play_scene_path 未配置。")
 		return
 
-	var seed_value: int = 0
-	if seed_source == GameSessionMetadata.SEED_SOURCE_DAILY:
-		var challenge_utility: GameChallengeUtility = _get_challenge_utility()
-		var challenge: GameChallengeMetadata = (
-			challenge_utility.get_current_daily_challenge(
-				_selected_mode_config,
-				_current_board_topology
-			)
-			if is_instance_valid(challenge_utility)
-			else null
-		)
-		if challenge == null:
-			push_error("[ModeSelection] Daily Challenge 身份派生失败。")
-			return
-		seed_value = challenge.get_seed()
-	else:
-		var seed_text: String = _seed_line_edit.text.strip_edges()
-		if seed_text.is_empty():
-			_generate_and_display_new_seed()
-			seed_text = _seed_line_edit.text
-			seed_source = GameSessionMetadata.SEED_SOURCE_RANDOM
-		seed_value = _parse_seed_text(seed_text)
+	var seed_text: String = _seed_line_edit.text.strip_edges()
+	if seed_text.is_empty():
+		_generate_and_display_new_seed()
+		seed_text = _seed_line_edit.text
+		seed_source = GameSessionMetadata.SEED_SOURCE_RANDOM
+	var seed_value: int = _parse_seed_text(seed_text)
 
 	var app_config: AppConfigModel = _get_app_config_model()
 	if is_instance_valid(app_config):
@@ -1093,10 +1055,6 @@ func _on_start_game_button_pressed() -> void:
 
 func _on_refresh_seed_button_pressed() -> void:
 	_generate_and_display_new_seed()
-
-
-func _on_daily_challenge_button_pressed() -> void:
-	_start_selected_game(GameSessionMetadata.SEED_SOURCE_DAILY)
 
 
 func _on_seed_text_changed(_new_text: String) -> void:
