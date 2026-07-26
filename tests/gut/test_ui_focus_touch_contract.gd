@@ -13,6 +13,27 @@ const _PLAYER_PROFILE_SCENE: PackedScene = preload(
 const _RECIPE_ID: StringName = &"tile.recipe.test.focus"
 const _CONFLICT_RECIPE_ID: StringName = &"tile.recipe.test.conflict"
 const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
+const _PLAYER_VISIBLE_SCENE_PATHS: Array[String] = [
+	"res://features/achievements/scenes/ui/achievement_list_dialog.tscn",
+	"res://features/board_editor/scenes/ui/board_editor_dialog.tscn",
+	"res://features/bookmarks/scenes/menus/bookmark_list.tscn",
+	"res://features/bookmarks/scenes/ui/bookmark_list_item.tscn",
+	"res://features/gameplay/scenes/game/game_play.tscn",
+	"res://features/gameplay/scenes/ui/game_over_menu.tscn",
+	"res://features/gameplay/scenes/ui/hud.tscn",
+	"res://features/gameplay/scenes/ui/pause_menu.tscn",
+	"res://features/gameplay/scenes/ui/target_reached_menu.tscn",
+	"res://features/navigation/scenes/menus/main_menu.tscn",
+	"res://features/navigation/scenes/menus/mode_selection.tscn",
+	"res://features/navigation/scenes/ui/mode_card.tscn",
+	"res://features/player_profiles/scenes/ui/player_profile_dialog.tscn",
+	"res://features/replays/scenes/menus/replay_list.tscn",
+	"res://features/replays/scenes/ui/replay_list_item.tscn",
+	"res://features/settings/scenes/menus/settings_menu.tscn",
+	"res://features/tile_catalog/scenes/ui/tile_catalog_card.tscn",
+	"res://features/tile_catalog/scenes/ui/tile_catalog_dialog.tscn",
+	"res://features/tile_lab/scenes/ui/tile_lab_dialog.tscn",
+]
 
 
 # --- 测试用例 ---
@@ -245,6 +266,58 @@ func test_player_profile_delete_confirmation_buttons_meet_touch_contract() -> vo
 	architecture.dispose()
 
 
+func test_declared_player_controls_meet_touch_target_contract() -> void:
+	for scene_path: String in _PLAYER_VISIBLE_SCENE_PATHS:
+		var scene_resource: Resource = load(scene_path)
+		assert_true(
+			scene_resource is PackedScene,
+			"玩家场景必须可以加载：%s。" % scene_path
+		)
+		if not scene_resource is PackedScene:
+			continue
+		var packed_scene: PackedScene = scene_resource
+		var scene_root: Node = packed_scene.instantiate()
+		_assert_touch_targets_in_tree(
+			scene_root,
+			scene_path,
+			String(scene_root.name)
+		)
+		scene_root.free()
+
+
+func test_responsive_runtime_control_sizes_never_drop_below_touch_contract() -> void:
+	assert_gte(
+		SettingsMenu._COMPACT_CONTROL_HEIGHT,
+		_MINIMUM_TOUCH_TARGET_SIZE,
+		"设置页紧凑布局控件高度不得低于 44px。"
+	)
+	assert_gte(
+		SettingsMenu._DESKTOP_CONTROL_HEIGHT,
+		_MINIMUM_TOUCH_TARGET_SIZE,
+		"设置页桌面布局也必须遵守 44px 触控契约。"
+	)
+	assert_gte(
+		SettingsMenu._COMPACT_BINDING_ROW_HEIGHT,
+		_MINIMUM_TOUCH_TARGET_SIZE,
+		"设置页紧凑按键映射行不得低于 44px。"
+	)
+	assert_gte(
+		SettingsMenu._DESKTOP_BINDING_ROW_HEIGHT,
+		_MINIMUM_TOUCH_TARGET_SIZE,
+		"设置页桌面按键映射行也不得低于 44px。"
+	)
+	assert_gte(
+		BoardWorldViewportController._FIT_BUTTON_DESKTOP_MINIMUM.y,
+		_MINIMUM_TOUCH_TARGET_SIZE,
+		"棋盘桌面视图适配按钮不得回退到 34px。"
+	)
+	assert_gte(
+		BoardWorldViewportController._FIT_BUTTON_COMPACT_MINIMUM.y,
+		_MINIMUM_TOUCH_TARGET_SIZE,
+		"棋盘紧凑视图适配按钮不得低于 44px。"
+	)
+
+
 # --- 私有/辅助方法 ---
 
 func _make_ui_architecture() -> GFArchitecture:
@@ -278,6 +351,40 @@ func _find_recipe_button(
 			var button: CheckButton = child
 			return button
 	return null
+
+
+func _assert_touch_targets_in_tree(
+	node: Node,
+	scene_path: String,
+	node_path: String
+) -> void:
+	if _is_direct_touch_control(node):
+		var control: Control = node
+		assert_gte(
+			control.custom_minimum_size.y,
+			_MINIMUM_TOUCH_TARGET_SIZE,
+			"%s 中的 %s 必须保留至少 44px 的触控高度。"
+			% [scene_path, node_path]
+		)
+	for child: Node in node.get_children():
+		_assert_touch_targets_in_tree(
+			child,
+			scene_path,
+			"%s/%s" % [node_path, child.name]
+		)
+
+
+func _is_direct_touch_control(node: Node) -> bool:
+	return (
+		node is BaseButton
+		or node is LineEdit
+		or node is TextEdit
+		or node is ItemList
+		or node is Tree
+		or node is Slider
+		or node is SpinBox
+		or node is TabBar
+	)
 
 
 # --- 内部类 ---

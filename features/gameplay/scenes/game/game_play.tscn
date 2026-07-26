@@ -246,10 +246,10 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -226.0
+offset_left = -240.0
 offset_top = 12.0
 offset_right = -12.0
-offset_bottom = 58.0
+offset_bottom = 64.0
 grow_horizontal = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_view_controls")
 
@@ -265,26 +265,26 @@ layout_mode = 2
 theme_override_constants/separation = 4
 
 [node name="ZoomOutButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="0" unique_id=461885615]
-custom_minimum_size = Vector2(34, 34)
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 tooltip_text = "缩小棋盘"
 text = "-"
 
 [node name="ZoomLabel" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="1" unique_id=531058721]
-custom_minimum_size = Vector2(52, 34)
+custom_minimum_size = Vector2(52, 44)
 layout_mode = 2
 text = "100%"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="FitButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="2" unique_id=1633632445]
-custom_minimum_size = Vector2(56, 34)
+custom_minimum_size = Vector2(64, 44)
 layout_mode = 2
 tooltip_text = "显示完整棋盘"
 text = "适配"
 
 [node name="ZoomInButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="3" unique_id=742923946]
-custom_minimum_size = Vector2(34, 34)
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 tooltip_text = "放大棋盘"
 text = "+"

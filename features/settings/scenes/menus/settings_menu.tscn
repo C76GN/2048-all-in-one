@@ -150,7 +150,7 @@ vertical_alignment = 1
 
 [node name="LanguageOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/LanguageContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 42)
+custom_minimum_size = Vector2(220, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -166,7 +166,7 @@ vertical_alignment = 1
 
 [node name="WindowModeOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/WindowModeContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 42)
+custom_minimum_size = Vector2(220, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -182,7 +182,7 @@ vertical_alignment = 1
 
 [node name="VSyncOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VSyncContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 42)
+custom_minimum_size = Vector2(220, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -207,7 +207,7 @@ vertical_alignment = 1
 
 [node name="VfxQualityOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VfxQualityContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 42)
+custom_minimum_size = Vector2(220, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -223,7 +223,7 @@ vertical_alignment = 1
 
 [node name="ReducedMotionToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/ReducedMotionContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 38)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -239,7 +239,7 @@ vertical_alignment = 1
 
 [node name="HighContrastFeedbackToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/HighContrastContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 38)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -255,7 +255,7 @@ vertical_alignment = 1
 
 [node name="HapticsToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/HapticsContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 38)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 button_pressed = true
@@ -272,7 +272,7 @@ vertical_alignment = 1
 
 [node name="ShaderEffectsToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/ShaderEffectsContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 38)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 button_pressed = true
@@ -289,7 +289,7 @@ vertical_alignment = 1
 
 [node name="TurnSubtitlesToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/TurnSubtitlesContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 38)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 button_pressed = true
@@ -321,7 +321,7 @@ vertical_alignment = 1
 
 [node name="MasterVolumeSlider" type="HSlider" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/MasterVolumeContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 42)
+custom_minimum_size = Vector2(220, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 1.0
@@ -349,7 +349,7 @@ vertical_alignment = 1
 
 [node name="BgmVolumeSlider" type="HSlider" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/BgmVolumeContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 42)
+custom_minimum_size = Vector2(220, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 1.0
@@ -376,7 +376,7 @@ vertical_alignment = 1
 
 [node name="SfxVolumeSlider" type="HSlider" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/SfxVolumeContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 42)
+custom_minimum_size = Vector2(220, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 1.0
@@ -419,7 +419,7 @@ vertical_alignment = 1
 
 [node name="InputTimingOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection/InputTimingContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 42)
+custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -443,7 +443,7 @@ theme_override_constants/separation = 6
 
 [node name="ResetBindingsButton" type="Button" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/ControlsSection"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 42)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 text = "恢复默认按键"
 

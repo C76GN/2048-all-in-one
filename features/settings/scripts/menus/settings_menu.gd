@@ -47,9 +47,9 @@ const _COMPACT_BINDING_LABEL_WIDTH: float = 124.0
 const _DESKTOP_BINDING_LABEL_WIDTH: float = 185.0
 const _DESKTOP_BINDING_BUTTON_WIDTH: float = 250.0
 const _COMPACT_CONTROL_HEIGHT: float = 44.0
-const _DESKTOP_CONTROL_HEIGHT: float = 38.0
+const _DESKTOP_CONTROL_HEIGHT: float = 44.0
 const _COMPACT_BINDING_ROW_HEIGHT: float = 44.0
-const _DESKTOP_BINDING_ROW_HEIGHT: float = 34.0
+const _DESKTOP_BINDING_ROW_HEIGHT: float = 44.0
 const _PERSISTENCE_ERROR_COLOR: Color = Color(0.68, 0.10, 0.27, 1.0)
 
 
@@ -367,7 +367,7 @@ func _apply_field_widths() -> void:
 	]:
 		volume_label.custom_minimum_size.x = 54.0 if _is_compact_layout else 64.0
 	_reset_bindings_button.custom_minimum_size.y = (
-		_COMPACT_CONTROL_HEIGHT if _is_compact_layout else 36.0
+		_COMPACT_CONTROL_HEIGHT if _is_compact_layout else _DESKTOP_CONTROL_HEIGHT
 	)
 
 
@@ -913,7 +913,7 @@ func _rebuild_input_binding_rows() -> void:
 
 		var reset_button: Button = Button.new()
 		reset_button.custom_minimum_size = Vector2(
-			44.0 if _is_compact_layout else 36.0,
+			44.0,
 			_COMPACT_BINDING_ROW_HEIGHT
 			if _is_compact_layout
 			else _DESKTOP_BINDING_ROW_HEIGHT

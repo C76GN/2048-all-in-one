@@ -214,7 +214,7 @@ text = "展开后显示当前棋盘摘要。"
 
 [node name="CopyBoardSummaryButton" type="Button" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 40)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 text = "复制棋盘摘要"
 
