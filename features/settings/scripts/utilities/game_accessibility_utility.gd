@@ -15,6 +15,7 @@ const HIGH_CONTRAST_FEEDBACK_SETTING_KEY: StringName = GameAccessibilityState.HI
 const HAPTICS_ENABLED_SETTING_KEY: StringName = GameAccessibilityState.HAPTICS_ENABLED_SETTING_KEY
 const SHADER_EFFECTS_ENABLED_SETTING_KEY: StringName = GameAccessibilityState.SHADER_EFFECTS_ENABLED_SETTING_KEY
 const VFX_QUALITY_SETTING_KEY: StringName = GameAccessibilityState.VFX_QUALITY_SETTING_KEY
+const TURN_SUBTITLES_ENABLED_SETTING_KEY: StringName = GameAccessibilityState.TURN_SUBTITLES_ENABLED_SETTING_KEY
 
 
 # --- 私有变量 ---
@@ -89,6 +90,12 @@ func set_vfx_quality(quality: int) -> void:
 	)
 
 
+## 设置有效移动后的文字字幕是否显示。
+## @param enabled: `true` 时 HUD 显示规范回合摘要。
+func set_turn_subtitles_enabled(enabled: bool) -> void:
+	_set_value(TURN_SUBTITLES_ENABLED_SETTING_KEY, enabled)
+
+
 # --- 私有/辅助方法 ---
 
 func _set_value(key: StringName, value: Variant) -> void:
@@ -131,6 +138,10 @@ func _refresh_state(emit_change: bool) -> void:
 				GameAccessibilityState.VfxQuality.FULL
 			)
 		)
+		next_state.turn_subtitles_enabled = GFVariantData.to_bool(
+			_settings.get_value(TURN_SUBTITLES_ENABLED_SETTING_KEY, true),
+			true
+		)
 	_state = next_state
 	if emit_change:
 		state_changed.emit(get_state())
@@ -143,6 +154,7 @@ func _is_accessibility_key(key: StringName) -> bool:
 		HAPTICS_ENABLED_SETTING_KEY,
 		SHADER_EFFECTS_ENABLED_SETTING_KEY,
 		VFX_QUALITY_SETTING_KEY,
+		TURN_SUBTITLES_ENABLED_SETTING_KEY,
 	]
 
 

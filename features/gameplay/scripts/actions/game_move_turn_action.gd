@@ -12,6 +12,7 @@ const ACTION_ID: StringName = &"gameplay.move"
 
 var _rule_system: RuleSystem
 var _game_flow_system: GameFlowSystem
+var _accessibility_summary_utility: GameAccessibilitySummaryUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -33,6 +34,12 @@ func _inject_dependencies(architecture: GFArchitecture) -> void:
 	if flow_value is GameFlowSystem:
 		_game_flow_system = flow_value
 
+	var summary_value: Object = architecture.get_utility(
+		GameAccessibilitySummaryUtility
+	)
+	if summary_value is GameAccessibilitySummaryUtility:
+		_accessibility_summary_utility = summary_value
+
 
 func _resolve(context: GFTurnContext) -> Variant:
 	var turn_result: TurnResult = _get_turn_result()
@@ -47,6 +54,18 @@ func _resolve(context: GFTurnContext) -> Variant:
 	_rule_system.execute_move_rules(turn_result)
 	_game_flow_system.finalize_turn_result(turn_result)
 	_game_flow_system.settle_move_turn()
+	var board_actor: Object = actor
+	if (
+		is_instance_valid(_accessibility_summary_utility)
+		and board_actor is GridModel
+	):
+		var grid_model: GridModel = board_actor
+		var _summary: GameAccessibilitySummary = (
+			_accessibility_summary_utility.publish_turn_summary(
+				turn_result,
+				grid_model.get_snapshot()
+			)
+		)
 
 	context.metadata[&"last_move_direction"] = turn_result.direction
 	context.metadata[&"resolved_turn_count"] = (

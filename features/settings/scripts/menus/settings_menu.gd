@@ -28,6 +28,7 @@ const _FIELD_REDUCED_MOTION: StringName = &"reduced_motion"
 const _FIELD_HIGH_CONTRAST_FEEDBACK: StringName = &"high_contrast_feedback"
 const _FIELD_HAPTICS_ENABLED: StringName = &"haptics_enabled"
 const _FIELD_SHADER_EFFECTS_ENABLED: StringName = &"shader_effects_enabled"
+const _FIELD_TURN_SUBTITLES_ENABLED: StringName = &"turn_subtitles_enabled"
 const _LOCALE_EN: String = "en"
 const _LOCALE_ZH: String = "zh"
 const _AUDIO_BUS_MASTER: String = "Master"
@@ -101,6 +102,7 @@ var _section_scroll: ScrollContainer = null
 @onready var _high_contrast_toggle: CheckButton = %HighContrastFeedbackToggle
 @onready var _haptics_toggle: CheckButton = %HapticsToggle
 @onready var _shader_effects_toggle: CheckButton = %ShaderEffectsToggle
+@onready var _turn_subtitles_toggle: CheckButton = %TurnSubtitlesToggle
 @onready var _master_volume_slider: HSlider = %MasterVolumeSlider
 @onready var _master_volume_value_label: Label = %MasterVolumeValueLabel
 @onready var _bgm_volume_slider: HSlider = %BgmVolumeSlider
@@ -137,6 +139,9 @@ var _section_scroll: ScrollContainer = null
 
 ## Shader 特效标签。
 @onready var _shader_effects_label: Label = _get_sibling_label(_shader_effects_toggle)
+
+## 回合字幕标签。
+@onready var _turn_subtitles_label: Label = _get_sibling_label(_turn_subtitles_toggle)
 
 ## 主音量标签。
 @onready var _master_volume_label: Label = _get_sibling_label(_master_volume_slider)
@@ -300,6 +305,7 @@ func _apply_field_widths() -> void:
 		_high_contrast_label,
 		_haptics_label,
 		_shader_effects_label,
+		_turn_subtitles_label,
 		_get_sibling_label(_input_timing_option),
 	]
 	for label: Label in labels:
@@ -326,6 +332,7 @@ func _apply_field_widths() -> void:
 		_high_contrast_toggle,
 		_haptics_toggle,
 		_shader_effects_toggle,
+		_turn_subtitles_toggle,
 	]:
 		toggle.custom_minimum_size.y = (
 			_COMPACT_CONTROL_HEIGHT if _is_compact_layout else _DESKTOP_CONTROL_HEIGHT
@@ -512,6 +519,11 @@ func _setup_form_binder() -> void:
 	)
 	_form_binder.bind_field(_FIELD_HAPTICS_ENABLED, _haptics_toggle, true)
 	_form_binder.bind_field(_FIELD_SHADER_EFFECTS_ENABLED, _shader_effects_toggle, true)
+	_form_binder.bind_field(
+		_FIELD_TURN_SUBTITLES_ENABLED,
+		_turn_subtitles_toggle,
+		true
+	)
 	var _connect_result_121: int = _form_binder.field_changed.connect(_on_form_field_changed)
 
 
@@ -561,6 +573,9 @@ func _sync_controls_from_settings() -> void:
 		_haptics_toggle.set_pressed_no_signal(accessibility_state.haptics_enabled)
 		_shader_effects_toggle.set_pressed_no_signal(
 			accessibility_state.shader_effects_enabled
+		)
+		_turn_subtitles_toggle.set_pressed_no_signal(
+			accessibility_state.turn_subtitles_enabled
 		)
 
 
@@ -715,6 +730,8 @@ func _update_ui_text() -> void:
 		_haptics_label.text = tr("HAPTICS_ENABLED_LABEL")
 	if is_instance_valid(_shader_effects_label):
 		_shader_effects_label.text = tr("SHADER_EFFECTS_LABEL")
+	if is_instance_valid(_turn_subtitles_label):
+		_turn_subtitles_label.text = tr("TURN_SUBTITLES_LABEL")
 	if is_instance_valid(_master_volume_label):
 		_master_volume_label.text = tr("MASTER_VOLUME_LABEL")
 	if is_instance_valid(_bgm_volume_label):
@@ -1081,6 +1098,11 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 		_FIELD_SHADER_EFFECTS_ENABLED:
 			if is_instance_valid(_accessibility):
 				_accessibility.set_shader_effects_enabled(
+					GFVariantData.to_bool(value, true)
+				)
+		_FIELD_TURN_SUBTITLES_ENABLED:
+			if is_instance_valid(_accessibility):
+				_accessibility.set_turn_subtitles_enabled(
 					GFVariantData.to_bool(value, true)
 				)
 

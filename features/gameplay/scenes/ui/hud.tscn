@@ -198,6 +198,58 @@ text = "游戏状态"
 unique_name_in_owner = true
 layout_mode = 2
 
+[node name="BoardSummarySeparator" type="HSeparator" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+layout_mode = 2
+
+[node name="BoardSummaryLabel" type="RichTextLabel" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(264, 112)
+layout_mode = 2
+mouse_filter = 2
+bbcode_enabled = false
+fit_content = true
+scroll_active = false
+autowrap_mode = 3
+text = "展开后显示当前棋盘摘要。"
+
+[node name="CopyBoardSummaryButton" type="Button" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "复制棋盘摘要"
+
+[node name="AccessibilitySubtitlePanel" type="PanelContainer" parent="SafeArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 10
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -300.0
+offset_top = 126.0
+offset_right = 300.0
+offset_bottom = 184.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/AccessibilitySubtitlePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 9
+
+[node name="AccessibilitySubtitleLabel" type="Label" parent="SafeArea/AccessibilitySubtitlePanel/Margin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(560, 36)
+layout_mode = 2
+mouse_filter = 2
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
 [node name="ControlHintPanel" type="PanelContainer" parent="SafeArea"]
 unique_name_in_owner = true
 visible = false

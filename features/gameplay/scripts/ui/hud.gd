@@ -32,6 +32,7 @@ const _SCORE_FEEDBACK_DELAY_SECONDS: float = 0.055
 const _HINT_MAX_STEPS: int = 12000
 const _HINT_MAX_ELAPSED_MSEC: int = 12
 const _HINT_UNAVAILABLE_FALLBACK: String = "[color=yellow]当前棋盘无法生成提示。[/color]"
+const _ACCESSIBILITY_SUBTITLE_DURATION_SECONDS: float = 3.6
 const _ACTION_ICON_ASSET_KEYS: Dictionary = {
 	"%PauseButton": &"asset.texture.icon.pause",
 	"%UndoButton": &"asset.texture.icon.undo_2",
@@ -54,6 +55,8 @@ var _notification_utility: GFNotificationUtility
 var _signal_utility: GFSignalUtility
 var _ui_style_utility: GameUiStyleUtility
 var _ui_motion_utility: GameUiMotionUtility
+var _accessibility_utility: GameAccessibilityUtility
+var _accessibility_summary_utility: GameAccessibilitySummaryUtility
 var _score_value_label: Label
 var _score_gain_label: Label
 var _move_count_value_label: Label
@@ -85,6 +88,11 @@ var _hint_result_panel: PanelContainer
 var _hint_result_label: RichTextLabel
 var _hint_snapshot_id: String = ""
 var _hint_cancel_source: GFCancellationSource
+var _accessibility_subtitle_panel: PanelContainer
+var _accessibility_subtitle_label: Label
+var _board_summary_label: RichTextLabel
+var _copy_board_summary_button: Button
+var _accessibility_subtitle_serial: int = 0
 var _score_feedback_delay_active: bool = false
 var _score_feedback_pending: bool = false
 var _pending_score_feedback_old: int = 0
@@ -107,6 +115,8 @@ func _ready() -> void:
 	_signal_utility = _get_signal_utility()
 	_ui_style_utility = _get_ui_style_utility()
 	_ui_motion_utility = _get_ui_motion_utility()
+	_accessibility_utility = _get_accessibility_utility()
+	_accessibility_summary_utility = _get_accessibility_summary_utility()
 	_input_mapping = _get_input_mapping_utility()
 	if is_instance_valid(_input_mapping):
 		_hud_input_source = _input_mapping.create_virtual_source(_HUD_INPUT_SOURCE_ID)
@@ -136,6 +146,14 @@ func _ready() -> void:
 	_hint_button = _get_button_node("%HintButton")
 	_hint_result_panel = _get_panel_container_node("%HintResultPanel")
 	_hint_result_label = _get_rich_text_label_node("%HintResultLabel")
+	_accessibility_subtitle_panel = _get_panel_container_node(
+		"%AccessibilitySubtitlePanel"
+	)
+	_accessibility_subtitle_label = _get_label_node(
+		"%AccessibilitySubtitleLabel"
+	)
+	_board_summary_label = _get_rich_text_label_node("%BoardSummaryLabel")
+	_copy_board_summary_button = _get_button_node("%CopyBoardSummaryButton")
 	if not is_instance_valid(_notification_label):
 		push_error("[Hud] 缺少 NotificationLabel，无法呈现 GF 通知。")
 	if not is_instance_valid(_grid_model) or not is_instance_valid(_determinism_utility):
@@ -154,6 +172,7 @@ func _ready() -> void:
 	_connect_notification_signals()
 	_connect_compact_hud_signals()
 	_connect_hud_action_signals()
+	_connect_accessibility_summary_signals()
 	_sync_active_notification()
 	register_simple_event(EventNames.HUD_UPDATE_REQUESTED, GFEventListener.from_method(self, &"_on_hud_update_requested", 1))
 	register_simple_event(EventNames.HINT_REQUESTED, GFEventListener.from_method(self, &"_on_hint_requested", 1))
@@ -169,6 +188,8 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	_score_feedback_delay_active = false
 	_score_feedback_pending = false
+	_accessibility_subtitle_serial += 1
+	_hide_accessibility_subtitle()
 	_cancel_hint_query(&"hud_exited")
 	_hide_hint_result()
 	if is_instance_valid(_hud_action_pulse):
@@ -376,6 +397,19 @@ func _update_ui_text() -> void:
 			"HINT_BUTTON_TOOLTIP",
 			"分析当前棋盘"
 		)
+	if is_instance_valid(_copy_board_summary_button):
+		_copy_board_summary_button.text = _translate_with_fallback(
+			"ACCESSIBILITY_COPY_BOARD_SUMMARY",
+			"复制棋盘摘要"
+		)
+	if (
+		is_instance_valid(_board_summary_label)
+		and _board_summary_label.text.is_empty()
+	):
+		_board_summary_label.text = _translate_with_fallback(
+			"ACCESSIBILITY_BOARD_SUMMARY_LOADING",
+			"展开后显示当前棋盘摘要。"
+		)
 	_update_details_toggle_button()
 
 
@@ -393,8 +427,17 @@ func _apply_semantic_styles() -> void:
 		_score_value_label,
 		_move_count_value_label,
 		_highest_tile_value_label,
+		_accessibility_subtitle_label,
 	]:
 		_ui_style_utility.style_label(value_label, GameUiStyleUtility.TextRole.NUMERIC)
+	_ui_style_utility.style_rich_text_label(
+		_board_summary_label,
+		GameUiStyleUtility.TextRole.SECONDARY
+	)
+	_ui_style_utility.style_button(
+		_copy_board_summary_button,
+		GameUiStyleUtility.ButtonRole.SECONDARY
+	)
 	for action_name: String in [
 		"%DetailsToggleButton",
 		"%MoveUpButton",
@@ -446,7 +489,18 @@ func _apply_hud_layout() -> void:
 		_details_panel.offset_left = 0.0 if _is_portrait_mode else 18.0
 		_details_panel.offset_top = 124.0 if _is_portrait_mode else 66.0
 		_details_panel.offset_right = 300.0 if _is_portrait_mode else 318.0
-		_details_panel.offset_bottom = 392.0 if _is_portrait_mode else 350.0
+		_details_panel.offset_bottom = 532.0 if _is_portrait_mode else 490.0
+	if is_instance_valid(_accessibility_subtitle_panel):
+		_accessibility_subtitle_panel.offset_left = (
+			-250.0 if _is_portrait_mode else -300.0
+		)
+		_accessibility_subtitle_panel.offset_right = (
+			250.0 if _is_portrait_mode else 300.0
+		)
+	if is_instance_valid(_accessibility_subtitle_label):
+		_accessibility_subtitle_label.custom_minimum_size.x = (
+			460.0 if _is_portrait_mode else 560.0
+		)
 
 	if is_instance_valid(_control_hint_panel) and _is_portrait_mode:
 		_control_hint_panel.offset_left = 0.0
@@ -588,6 +642,20 @@ func _get_ui_style_utility() -> GameUiStyleUtility:
 	return null
 
 
+func _get_accessibility_utility() -> GameAccessibilityUtility:
+	var utility_value: Object = get_utility(GameAccessibilityUtility)
+	if utility_value is GameAccessibilityUtility:
+		return utility_value
+	return null
+
+
+func _get_accessibility_summary_utility() -> GameAccessibilitySummaryUtility:
+	var utility_value: Object = get_utility(GameAccessibilitySummaryUtility)
+	if utility_value is GameAccessibilitySummaryUtility:
+		return utility_value
+	return null
+
+
 func _get_label_node(path: NodePath) -> Label:
 	var node_value: Node = get_node_or_null(path)
 	if node_value is Label:
@@ -680,6 +748,35 @@ func _connect_compact_hud_signals() -> void:
 		_on_details_toggle_pressed,
 		self
 	)
+
+
+func _connect_accessibility_summary_signals() -> void:
+	if not is_instance_valid(_signal_utility):
+		return
+	if is_instance_valid(_accessibility_summary_utility):
+		var _summary_connection: GFSignalConnection = (
+			_signal_utility.connect_signal(
+				_accessibility_summary_utility.summary_published,
+				_on_accessibility_summary_published,
+				self
+			)
+		)
+	if is_instance_valid(_accessibility_utility):
+		var _state_connection: GFSignalConnection = (
+			_signal_utility.connect_signal(
+				_accessibility_utility.state_changed,
+				_on_accessibility_state_changed,
+				self
+			)
+		)
+	if is_instance_valid(_copy_board_summary_button):
+		var _copy_connection: GFSignalConnection = (
+			_signal_utility.connect_signal(
+				_copy_board_summary_button.pressed,
+				_on_copy_board_summary_pressed,
+				self
+			)
+		)
 
 
 func _connect_hud_action_signals() -> void:
@@ -907,6 +1004,98 @@ func _translate_with_fallback(key: String, fallback: String) -> String:
 	return fallback if translated == key or translated.is_empty() else translated
 
 
+func _refresh_accessibility_board_summary() -> GameAccessibilitySummary:
+	if (
+		not is_instance_valid(_accessibility_summary_utility)
+		or not is_instance_valid(_grid_model)
+	):
+		return null
+	return _accessibility_summary_utility.publish_board_summary(
+		_grid_model.get_snapshot()
+	)
+
+
+func _are_turn_subtitles_enabled() -> bool:
+	if not is_instance_valid(_accessibility_utility):
+		return true
+	var state: GameAccessibilityState = _accessibility_utility.get_state()
+	return state.turn_subtitles_enabled
+
+
+func _show_accessibility_summary(summary: GameAccessibilitySummary) -> void:
+	if not is_instance_valid(summary) or not summary.is_valid_summary():
+		return
+	if is_instance_valid(_board_summary_label):
+		_board_summary_label.text = summary.board_text
+	if (
+		not _are_turn_subtitles_enabled()
+		or not is_instance_valid(_accessibility_subtitle_panel)
+		or not is_instance_valid(_accessibility_subtitle_label)
+	):
+		_hide_accessibility_subtitle()
+		return
+
+	_accessibility_subtitle_serial += 1
+	var current_serial: int = _accessibility_subtitle_serial
+	_accessibility_subtitle_label.text = summary.subtitle_text
+	_accessibility_subtitle_panel.visible = true
+	_pulse_control(_accessibility_subtitle_panel)
+	var _deferred_hide: Variant = call_deferred(
+		&"_hide_accessibility_subtitle_after_delay",
+		current_serial
+	)
+
+
+func _hide_accessibility_subtitle_after_delay(serial: int) -> void:
+	var wait_result: Dictionary = await GFAsyncWaitUtility.delay_seconds(
+		_ACCESSIBILITY_SUBTITLE_DURATION_SECONDS,
+		{
+			&"guard_node": self,
+			&"respect_time_scale": false,
+		}
+	)
+	if (
+		not GFVariantData.get_option_bool(wait_result, &"completed")
+		or serial != _accessibility_subtitle_serial
+	):
+		return
+	_hide_accessibility_subtitle()
+
+
+func _hide_accessibility_subtitle() -> void:
+	if is_instance_valid(_accessibility_subtitle_label):
+		_accessibility_subtitle_label.text = ""
+	if is_instance_valid(_accessibility_subtitle_panel):
+		_accessibility_subtitle_panel.visible = false
+
+
+func _notify_board_summary_copy_result(copied: bool) -> void:
+	if not is_instance_valid(_notification_utility):
+		return
+	var message: String = _translate_with_fallback(
+		(
+			"ACCESSIBILITY_BOARD_SUMMARY_COPIED"
+			if copied
+			else "ACCESSIBILITY_BOARD_SUMMARY_COPY_FAILED"
+		),
+		"棋盘摘要已复制。" if copied else "无法复制棋盘摘要。"
+	)
+	var _notification_id: int = _notification_utility.push_notification(
+		message,
+		"",
+		(
+			GFNotificationUtility.Level.SUCCESS
+			if copied
+			else GFNotificationUtility.Level.WARNING
+		),
+		{
+			&"duration_seconds": 1.8,
+			&"key": "accessibility.board_summary_copy",
+			&"metadata": {&"surface": &"gameplay_hud"},
+		}
+	)
+
+
 func _sync_active_notification() -> void:
 	if not is_instance_valid(_notification_utility):
 		_set_notification_message(0, "")
@@ -1058,7 +1247,34 @@ func _on_highest_tile_changed(_old: int, _new_value: int) -> void:
 
 func _on_details_toggle_pressed() -> void:
 	_details_expanded = not _details_expanded
+	if _details_expanded:
+		var _summary: GameAccessibilitySummary = (
+			_refresh_accessibility_board_summary()
+		)
 	_apply_details_visibility()
+
+
+func _on_accessibility_summary_published(
+	summary: GameAccessibilitySummary
+) -> void:
+	_show_accessibility_summary(summary)
+
+
+func _on_accessibility_state_changed(state: GameAccessibilityState) -> void:
+	if not is_instance_valid(state) or not state.turn_subtitles_enabled:
+		_accessibility_subtitle_serial += 1
+		_hide_accessibility_subtitle()
+
+
+func _on_copy_board_summary_pressed() -> void:
+	var _summary: GameAccessibilitySummary = (
+		_refresh_accessibility_board_summary()
+	)
+	var copied: bool = (
+		is_instance_valid(_accessibility_summary_utility)
+		and _accessibility_summary_utility.copy_latest_board_text()
+	)
+	_notify_board_summary_copy_result(copied)
 
 
 func _on_notification_started(notification_record: Dictionary) -> void:

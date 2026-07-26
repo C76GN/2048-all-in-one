@@ -19,6 +19,7 @@ const HIGH_CONTRAST_FEEDBACK_SETTING_KEY: StringName = &"accessibility/high_cont
 const HAPTICS_ENABLED_SETTING_KEY: StringName = &"accessibility/haptics_enabled"
 const SHADER_EFFECTS_ENABLED_SETTING_KEY: StringName = &"accessibility/shader_effects_enabled"
 const VFX_QUALITY_SETTING_KEY: StringName = &"accessibility/vfx_quality"
+const TURN_SUBTITLES_ENABLED_SETTING_KEY: StringName = &"accessibility/turn_subtitles_enabled"
 
 
 # --- 公共变量 ---
@@ -28,6 +29,7 @@ var high_contrast_feedback: bool = false
 var haptics_enabled: bool = true
 var shader_effects_enabled: bool = true
 var vfx_quality: VfxQuality = VfxQuality.FULL
+var turn_subtitles_enabled: bool = true
 
 
 # --- 公共方法 ---
@@ -39,6 +41,7 @@ func duplicate_state() -> GameAccessibilityState:
 	result.haptics_enabled = haptics_enabled
 	result.shader_effects_enabled = shader_effects_enabled
 	result.vfx_quality = vfx_quality
+	result.turn_subtitles_enabled = turn_subtitles_enabled
 	return result
 
 

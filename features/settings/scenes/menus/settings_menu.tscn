@@ -277,6 +277,23 @@ layout_mode = 2
 size_flags_horizontal = 3
 button_pressed = true
 
+[node name="TurnSubtitlesContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/TurnSubtitlesContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "回合字幕"
+vertical_alignment = 1
+
+[node name="TurnSubtitlesToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/TurnSubtitlesContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+button_pressed = true
+
 [node name="AudioSection" type="VBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections"]
 unique_name_in_owner = true
 visible = false

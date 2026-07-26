@@ -20,6 +20,7 @@ func test_accessibility_state_is_persisted_through_gf_settings() -> void:
 	assert_false(defaults.reduced_motion, "默认不应强制减少动态效果。")
 	assert_true(defaults.haptics_enabled, "默认应允许设备触觉。")
 	assert_true(defaults.shader_effects_enabled, "默认应启用 Shader 表现。")
+	assert_true(defaults.turn_subtitles_enabled, "默认应显示规范回合字幕。")
 	assert_true(
 		defaults.vfx_quality == GameAccessibilityState.VfxQuality.FULL,
 		"默认应使用完整 VFX 档位。"
@@ -29,15 +30,17 @@ func test_accessibility_state_is_persisted_through_gf_settings() -> void:
 	accessibility.set_haptics_enabled(false)
 	accessibility.set_shader_effects_enabled(false)
 	accessibility.set_vfx_quality(GameAccessibilityState.VfxQuality.REDUCED)
+	accessibility.set_turn_subtitles_enabled(false)
 	var changed: GameAccessibilityState = accessibility.get_state()
 	assert_true(changed.reduced_motion, "减少动态效果应立即进入运行时快照。")
 	assert_false(changed.haptics_enabled, "触觉关闭应立即进入运行时快照。")
 	assert_false(changed.shader_effects_enabled, "Shader 关闭应立即进入运行时快照。")
+	assert_false(changed.turn_subtitles_enabled, "回合字幕偏好应立即进入运行时快照。")
 	assert_true(
 		changed.vfx_quality == GameAccessibilityState.VfxQuality.REDUCED,
 		"VFX 档位应由 GFSettingsUtility 统一持有。"
 	)
-	assert_signal_emit_count(accessibility, "state_changed", 4)
+	assert_signal_emit_count(accessibility, "state_changed", 5)
 	var architecture_value: Variant = setup[&"architecture"]
 	if architecture_value is GFArchitecture:
 		var architecture: GFArchitecture = architecture_value

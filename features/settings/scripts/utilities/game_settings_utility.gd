@@ -145,6 +145,13 @@ func register_project_defaults() -> void:
 		true,
 		{"group": "accessibility", "label": "VFX_QUALITY_LABEL"}
 	)
+	var _turn_subtitles_setting: GFSettingDefinition = register_setting(
+		GameAccessibilityState.TURN_SUBTITLES_ENABLED_SETTING_KEY,
+		true,
+		GFSettingDefinition.ValueType.BOOL,
+		true,
+		{"group": "accessibility", "label": "TURN_SUBTITLES_LABEL"}
+	)
 
 
 # --- 可重写钩子 ---
