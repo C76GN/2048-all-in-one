@@ -60,7 +60,7 @@ var _is_portrait_mode: bool = false
 var _details_expanded: bool = false
 var _input_mapping: GFInputMappingUtility
 var _hud_input_source: GFVirtualInputSource
-var _hud_action_tokens: Dictionary = {}
+var _hud_action_pulse: GameVirtualActionPulseUtility
 var _safe_area: Control
 var _move_hint_label: Label
 var _action_hint_label: Label
@@ -92,6 +92,7 @@ func _ready() -> void:
 	_input_mapping = _get_input_mapping_utility()
 	if is_instance_valid(_input_mapping):
 		_hud_input_source = _input_mapping.create_virtual_source(_HUD_INPUT_SOURCE_ID)
+		_hud_action_pulse = GameVirtualActionPulseUtility.new().configure(_hud_input_source)
 	if not is_instance_valid(_ui_style_utility):
 		push_error("[Hud] 缺少 GameUiStyleUtility，无法应用 HUD 语义样式。")
 	if not is_instance_valid(_ui_motion_utility):
@@ -141,10 +142,10 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	_score_feedback_delay_active = false
 	_score_feedback_pending = false
-	if is_instance_valid(_hud_input_source):
-		_hud_input_source.clear_all()
+	if is_instance_valid(_hud_action_pulse):
+		_hud_action_pulse.dispose()
+	_hud_action_pulse = null
 	_hud_input_source = null
-	_hud_action_tokens.clear()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	super._exit_tree()
@@ -648,31 +649,13 @@ func _connect_hud_action_signals() -> void:
 
 
 func _inject_hud_action(action_id: StringName) -> void:
-	if action_id == &"" or not is_instance_valid(_hud_input_source):
+	if action_id == &"" or not is_instance_valid(_hud_action_pulse):
 		return
-	var token: int = GFVariantData.get_option_int(_hud_action_tokens, action_id) + 1
-	_hud_action_tokens[action_id] = token
-	if not _hud_input_source.press(action_id):
-		return
-	var release_timer: SceneTreeTimer = get_tree().create_timer(
-		_HUD_ACTION_HOLD_SECONDS,
-		true,
-		false,
-		true
+	var _injected: bool = _hud_action_pulse.pulse(
+		action_id,
+		get_tree(),
+		_HUD_ACTION_HOLD_SECONDS
 	)
-	var _release_connection: GFSignalConnection = _signal_utility.connect_once(
-		release_timer.timeout,
-		_release_hud_action.bind(action_id, token),
-		self
-	)
-
-
-func _release_hud_action(action_id: StringName, token: int) -> void:
-	if GFVariantData.get_option_int(_hud_action_tokens, action_id) != token:
-		return
-	if is_instance_valid(_hud_input_source):
-		var _released: bool = _hud_input_source.release(action_id)
-	var _erased: bool = _hud_action_tokens.erase(action_id)
 
 
 func _apply_details_visibility() -> void:

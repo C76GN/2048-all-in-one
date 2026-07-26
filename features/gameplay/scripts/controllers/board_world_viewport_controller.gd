@@ -97,6 +97,7 @@ var _input_mapping: GFInputMappingUtility
 var _signal_utility: GFSignalUtility
 var _clock_utility: GameClockUtility
 var _touch_input_source: GFVirtualInputSource
+var _touch_action_pulse: GameVirtualActionPulseUtility
 
 var _content_rect: Rect2 = Rect2()
 var _visible_world_rect: Rect2 = Rect2()
@@ -113,7 +114,6 @@ var _touch_sequence_start: Vector2 = Vector2.ZERO
 var _touch_sequence_last: Vector2 = Vector2.ZERO
 var _touch_sequence_started_msec: int = 0
 var _touch_sequence_cancelled: bool = false
-var _touch_action_tokens: Dictionary = {}
 
 
 # --- Godot 生命周期方法 ---
@@ -123,6 +123,7 @@ func _ready() -> void:
 	_resolve_utilities()
 	if is_instance_valid(_input_mapping):
 		_touch_input_source = _input_mapping.create_virtual_source(_TOUCH_INPUT_SOURCE_ID)
+		_touch_action_pulse = GameVirtualActionPulseUtility.new().configure(_touch_input_source)
 	if not _has_required_dependencies():
 		return
 
@@ -135,10 +136,10 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if is_instance_valid(_touch_input_source):
-		_touch_input_source.clear_all()
+	if is_instance_valid(_touch_action_pulse):
+		_touch_action_pulse.dispose()
+	_touch_action_pulse = null
 	_touch_input_source = null
-	_touch_action_tokens.clear()
 	_reset_touch_sequence()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
@@ -717,32 +718,10 @@ func _reset_touch_sequence() -> void:
 
 
 func _inject_touch_action(action_id: StringName) -> void:
-	if action_id == &"" or not is_instance_valid(_touch_input_source):
+	if action_id == &"" or not is_instance_valid(_touch_action_pulse):
 		return
-	var next_token: int = GFVariantData.get_option_int(_touch_action_tokens, action_id) + 1
-	_touch_action_tokens[action_id] = next_token
-	if not _touch_input_source.press(action_id):
+	if not _touch_action_pulse.pulse(action_id, get_tree(), _TOUCH_ACTION_HOLD_SECONDS):
 		push_warning("[BoardWorldViewportController] 无法注入触控动作：%s。" % action_id)
-		return
-	var release_timer: SceneTreeTimer = get_tree().create_timer(
-		_TOUCH_ACTION_HOLD_SECONDS,
-		true,
-		false,
-		true
-	)
-	var _release_connection: GFSignalConnection = _signal_utility.connect_once(
-		release_timer.timeout,
-		_release_touch_action.bind(action_id, next_token),
-		self
-	)
-
-
-func _release_touch_action(action_id: StringName, token: int) -> void:
-	if GFVariantData.get_option_int(_touch_action_tokens, action_id) != token:
-		return
-	if is_instance_valid(_touch_input_source):
-		var _released: bool = _touch_input_source.release(action_id)
-	var _erased_token: bool = _touch_action_tokens.erase(action_id)
 
 
 # --- 信号处理函数 ---
