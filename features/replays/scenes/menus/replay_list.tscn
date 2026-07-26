@@ -2,7 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://features/themes/scenes/layouts/base_three_column_layout.tscn" id="1_base"]
 [ext_resource type="Script" uid="uid://cuo7wbgu6ycmi" path="res://features/replays/scripts/menus/replay_list.gd" id="2_script"]
-[ext_resource type="Script" uid="uid://d3udmbuw4bj40" path="res://features/gameplay/scripts/ui/board_preview.gd" id="3_preview"]
+[ext_resource type="PackedScene" uid="uid://c4av5x6smv12h" path="res://features/gameplay/scenes/ui/board_preview.tscn" id="3_preview"]
 [ext_resource type="PackedScene" uid="uid://dpea6wwlgpa1p" path="res://features/replays/scenes/ui/replay_list_item.tscn" id="4_d2d40"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_preview_bg"]
@@ -56,9 +56,8 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_preview_bg")
 [node name="CenterContainer" type="CenterContainer" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer" index="0" unique_id=1583595694]
 layout_mode = 2
 
-[node name="BoardPreview" type="Control" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer/CenterContainer" index="0" unique_id=1891961887]
+[node name="BoardPreview" parent="MarginContainer/ColumnsContainer/LeftColumn/PreviewContainer/CenterContainer" index="0" unique_id=1891961887 instance=ExtResource("3_preview")]
 layout_mode = 2
-script = ExtResource("3_preview")
 preview_size = 232.0
 
 [node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/LeftColumn" index="2" unique_id=45804508]

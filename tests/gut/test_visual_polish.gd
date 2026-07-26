@@ -11,6 +11,7 @@ const _BOOKMARK_ITEM_SCENE: PackedScene = preload("res://features/bookmarks/scen
 const _REPLAY_ITEM_SCENE: PackedScene = preload("res://features/replays/scenes/ui/replay_list_item.tscn")
 const _BOOKMARK_LIST_SCENE: PackedScene = preload("res://features/bookmarks/scenes/menus/bookmark_list.tscn")
 const _REPLAY_LIST_SCENE: PackedScene = preload("res://features/replays/scenes/menus/replay_list.tscn")
+const _BOARD_PREVIEW_SCENE_PATH: String = "res://features/gameplay/scenes/ui/board_preview.tscn"
 const _BOOT_SCENE: PackedScene = preload("res://app/scenes/boot.tscn")
 const _MODE_SELECTION_SCENE_PATH: String = "res://features/navigation/scenes/menus/mode_selection.tscn"
 const _BACKGROUND_SHADER_PATH: String = "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
@@ -398,6 +399,11 @@ func test_record_list_previews_fit_inside_their_sidebar_surfaces() -> void:
 		if preview_node is BoardPreview and preview_surface_node is PanelContainer:
 			var preview: BoardPreview = preview_node
 			var preview_surface: PanelContainer = preview_surface_node
+			assert_eq(
+				preview.scene_file_path,
+				_BOARD_PREVIEW_SCENE_PATH,
+				"书签与回放页必须实例化共享的 BoardPreview 场景，而不是内联重复脚本配置。"
+			)
 			var has_preview_size: bool = false
 			for property: Dictionary in preview.get_property_list():
 				if GFVariantData.get_option_string_name(property, &"name") == &"preview_size":
