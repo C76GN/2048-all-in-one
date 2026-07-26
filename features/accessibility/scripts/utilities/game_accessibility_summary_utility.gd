@@ -14,10 +14,10 @@ signal summary_published(summary: GameAccessibilitySummary)
 # --- 常量 ---
 
 const _DIRECTION_KEYS: Dictionary = {
-	Vector2i.LEFT: &"DIRECTION_LEFT",
-	Vector2i.RIGHT: &"DIRECTION_RIGHT",
-	Vector2i.UP: &"DIRECTION_UP",
-	Vector2i.DOWN: &"DIRECTION_DOWN",
+	Vector2i.LEFT: &"HINT_DIRECTION_LEFT",
+	Vector2i.RIGHT: &"HINT_DIRECTION_RIGHT",
+	Vector2i.UP: &"HINT_DIRECTION_UP",
+	Vector2i.DOWN: &"HINT_DIRECTION_DOWN",
 }
 const _DIRECTION_FALLBACKS: Dictionary = {
 	Vector2i.LEFT: "左",

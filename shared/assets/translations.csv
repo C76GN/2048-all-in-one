@@ -422,3 +422,13 @@ REPLAY_MARKER_FAILURE_FORMAT,第 %d 步 · 对局失败,Step %d · Defeat
 REPLAY_MARKER_OOS_FORMAT,第 %d 步 · OOS,Step %d · OOS
 REPLAY_CONTINUE_ELIGIBILITY_NOTE,从此继续会退出回放，并标记为不参与竞赛成绩。,Continuing exits replay and marks the run ineligible for competitive results.
 REPLAY_CONTINUE_OOS_NOTE,回放已 OOS，不能从当前状态继续。,Replay is OOS; continuing from this state is blocked.
+TURN_SUBTITLES_LABEL,回合字幕,Turn Subtitles
+ACCESSIBILITY_CELL_EMPTY,空,Empty
+ACCESSIBILITY_CELL_INACTIVE,不可用,Inactive
+ACCESSIBILITY_BOARD_ROW_FORMAT,"第 %d 行：%s。","Row %d: %s."
+ACCESSIBILITY_BOARD_HEADER_FORMAT,"棋盘 %d×%d，%d 个有效格，%d 个方块，最大方块 %d。","Board %d×%d with %d active cells, %d tiles, and highest tile %d."
+ACCESSIBILITY_TURN_FORMAT,"向%s移动：%d 个方块位移，合并 %d 次，生成 %d 个，变化 %d 个，得分 %+d。","Move %s: %d tiles moved, %d merges, %d spawns, %d transforms, score %+d."
+ACCESSIBILITY_COPY_BOARD_SUMMARY,复制棋盘说明,Copy Board Description
+ACCESSIBILITY_BOARD_SUMMARY_LOADING,正在生成棋盘说明……,Preparing board description…
+ACCESSIBILITY_BOARD_SUMMARY_COPIED,棋盘说明已复制。,Board description copied.
+ACCESSIBILITY_BOARD_SUMMARY_COPY_FAILED,暂时无法复制棋盘说明。,Board description could not be copied.

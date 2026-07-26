@@ -26,6 +26,9 @@ const _ACHIEVEMENT_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/achi
 const _GAME_PAUSE_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_pause_utility.gd")
 const _GAME_INPUT_PROFILE_UTILITY_SCRIPT: Script = preload("res://features/settings/scripts/utilities/game_input_profile_utility.gd")
 const _GAME_ACCESSIBILITY_UTILITY_SCRIPT: Script = preload("res://features/settings/scripts/utilities/game_accessibility_utility.gd")
+const _GAME_ACCESSIBILITY_SUMMARY_UTILITY_SCRIPT: Script = preload(
+	"res://features/accessibility/scripts/utilities/game_accessibility_summary_utility.gd"
+)
 const _GAME_BOARD_ANIMATION_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_board_animation_utility.gd")
 const _TILE_COMPOSITION_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/tiles/utilities/tile_composition_utility.gd")
 const _GAME_UI_ROUTER_UTILITY_SCRIPT: Script = preload("res://features/navigation/scripts/utilities/game_ui_router_utility.gd")
@@ -139,6 +142,7 @@ func _bind_presentation_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(_GAME_UI_ROUTER_UTILITY_SCRIPT).with_alias(GFUIRouterUtility).as_singleton()
 	await binder.bind_utility(_GAME_ASSET_LIBRARY_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_ACCESSIBILITY_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_GAME_ACCESSIBILITY_SUMMARY_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_UI_STYLE_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_UI_MOTION_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT).as_singleton()
