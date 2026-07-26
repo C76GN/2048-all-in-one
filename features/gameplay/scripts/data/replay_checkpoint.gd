@@ -6,7 +6,6 @@ extends Resource
 # --- 常量 ---
 
 const SCHEMA_VERSION: int = 2
-const LEGACY_SCHEMA_VERSION: int = 1
 
 
 # --- 导出变量 ---
@@ -60,15 +59,9 @@ func is_valid_checkpoint() -> bool:
 	)
 
 
-## 从严格持久化字典恢复回放校验点。
-##
-## schema v1 只包含确定性摘要；读取后使用 score 差值生成稳定降级标记。
-## schema v2 额外冻结强类型 TurnResult 摘要，供回放浏览器精确生成事件标记。
-## @param data: schema v1 或 v2 的完整 checkpoint 字典。
+## 从当前严格 schema 的持久化字典恢复回放校验点。
+## @param data: schema v2 的完整 checkpoint 字典。
 static func from_dict(data: Dictionary) -> ReplayCheckpoint:
-	var schema_version: int = GFVariantData.get_option_int(data, &"schema_version", 0)
-	if schema_version == LEGACY_SCHEMA_VERSION:
-		return _from_legacy_dict(data)
 	if not _has_current_shape(data):
 		return null
 	var result: ReplayCheckpoint = ReplayCheckpoint.new()
@@ -96,26 +89,6 @@ static func from_dict(data: Dictionary) -> ReplayCheckpoint:
 
 
 # --- 私有/辅助方法 ---
-
-static func _from_legacy_dict(data: Dictionary) -> ReplayCheckpoint:
-	if not (
-		data.size() == 6
-		and GFVariantData.get_option_value(data, &"schema_version") is int
-		and GFVariantData.get_option_value(data, &"step_index") is int
-		and GFVariantData.get_option_value(data, &"state_checksum") is String
-		and GFVariantData.get_option_value(data, &"board_checksum") is String
-		and GFVariantData.get_option_value(data, &"rng_checksum") is String
-		and GFVariantData.get_option_value(data, &"score") is int
-	):
-		return null
-	var result: ReplayCheckpoint = ReplayCheckpoint.new()
-	result.step_index = GFVariantData.get_option_int(data, &"step_index", 0)
-	result.state_checksum = GFVariantData.get_option_string(data, &"state_checksum")
-	result.board_checksum = GFVariantData.get_option_string(data, &"board_checksum")
-	result.rng_checksum = GFVariantData.get_option_string(data, &"rng_checksum")
-	result.score = GFVariantData.get_option_int(data, &"score", 0)
-	result.metadata_available = false
-	return result if result.is_valid_checkpoint() else null
 
 
 static func _has_current_shape(data: Dictionary) -> bool:

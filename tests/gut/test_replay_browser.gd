@@ -41,21 +41,18 @@ func test_checkpoint_v2_round_trip_preserves_turn_metadata() -> void:
 	assert_true(restored.target_reached, "目标达成状态必须持久化。")
 
 
-func test_checkpoint_v1_remains_readable_for_stable_marker_fallback() -> void:
-	var legacy: Dictionary = {
-		&"schema_version": ReplayCheckpoint.LEGACY_SCHEMA_VERSION,
-		&"step_index": 1,
-		&"state_checksum": "a".repeat(64),
-		&"board_checksum": "b".repeat(64),
-		&"rng_checksum": "c".repeat(64),
-		&"score": 4,
-	}
+func test_checkpoint_rejects_obsolete_and_unknown_schemas_atomically() -> void:
+	var current: Dictionary = _make_checkpoint(1, 4).to_dict()
+	var obsolete: Dictionary = current.duplicate(true)
+	obsolete[&"schema_version"] = ReplayCheckpoint.SCHEMA_VERSION - 1
+	var unknown: Dictionary = current.duplicate(true)
+	unknown[&"schema_version"] = ReplayCheckpoint.SCHEMA_VERSION + 1
 
-	var restored: ReplayCheckpoint = ReplayCheckpoint.from_dict(legacy)
+	var obsolete_result: ReplayCheckpoint = ReplayCheckpoint.from_dict(obsolete)
+	var unknown_result: ReplayCheckpoint = ReplayCheckpoint.from_dict(unknown)
 
-	assert_not_null(restored, "旧回放 checkpoint v1 必须保持可读。")
-	if restored != null:
-		assert_false(restored.metadata_available, "旧 checkpoint 应明确使用降级标记推导。")
+	assert_null(obsolete_result, "旧 checkpoint schema 必须整体拒绝，不得构造降级对象。")
+	assert_null(unknown_result, "未知 checkpoint schema 必须整体拒绝，不得构造部分对象。")
 
 
 func test_marker_catalog_generates_merge_chain_milestone_and_failure_stably() -> void:
@@ -104,25 +101,27 @@ func test_marker_catalog_generates_merge_chain_milestone_and_failure_stably() ->
 	assert_true(markers[3].milestone_value == 2048, "里程碑必须保留达成值。")
 
 
-func test_legacy_marker_catalog_uses_score_delta_and_milestone_bucket() -> void:
+func test_marker_catalog_does_not_infer_events_without_current_metadata() -> void:
 	var replay: ReplayData = ReplayData.new()
 	replay.actions = [Vector2i.LEFT, Vector2i.RIGHT]
-	replay.checkpoints = [
-		_make_checkpoint(1, 4),
-		_make_checkpoint(2, 1004),
-	]
+	var first: ReplayCheckpoint = _make_checkpoint(1, 4)
+	first.metadata_available = false
+	var second: ReplayCheckpoint = _make_checkpoint(2, 1004)
+	second.metadata_available = false
+	replay.checkpoints = [first, second]
 
 	var markers: Array[ReplayMarker] = ReplayMarker.build_catalog(replay)
 
 	assert_true(
-		ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.MERGE) == 2,
-		"旧回放应从正 score delta 稳定推导合并标记。"
+		ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.MERGE) == 0,
+		"缺少当前强类型摘要时不得从 score delta 猜测合并语义。"
 	)
 	assert_true(
-		ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.MILESTONE) == 1,
-		"旧回放跨越稳定得分桶时应生成降级里程碑。"
+		ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.MILESTONE) == 0,
+		"缺少当前强类型摘要时不得生成降级里程碑。"
 	)
-	assert_true(markers.back().kind == ReplayMarker.Kind.FAILURE, "已保存回放末步必须有失败标记。")
+	var last_marker: ReplayMarker = markers.back()
+	assert_true(last_marker.kind == ReplayMarker.Kind.FAILURE, "已保存回放末步必须有失败标记。")
 
 
 func test_replay_marker_navigation_obeys_boundaries_and_oos_blocking() -> void:
@@ -281,36 +280,36 @@ func test_command_history_presentation_skip_reaches_same_canonical_hash() -> voi
 
 func test_replay_scene_and_input_expose_complete_marker_focus_controls() -> void:
 	var scene: Node = _GAME_SCENE.instantiate()
-	var picker: Node = scene.get_node_or_null(
+	var picker: OptionButton = scene.get_node_or_null(
 		"ReplayControlsContainer/MarginContainer/VBoxContainer/ReplayMarkerPicker"
-	)
-	var previous_marker: Node = scene.get_node_or_null(
+	) as OptionButton
+	var previous_marker: Button = scene.get_node_or_null(
 		"ReplayControlsContainer/MarginContainer/VBoxContainer/MarkerTransport/ReplayPrevMarkerButton"
-	)
-	var next_marker: Node = scene.get_node_or_null(
+	) as Button
+	var next_marker: Button = scene.get_node_or_null(
 		"ReplayControlsContainer/MarginContainer/VBoxContainer/MarkerTransport/ReplayNextMarkerButton"
-	)
-	var eligibility_note: Node = scene.get_node_or_null(
+	) as Button
+	var eligibility_note: Label = scene.get_node_or_null(
 		"ReplayControlsContainer/MarginContainer/VBoxContainer/ReplayEligibilityLabel"
-	)
+	) as Label
 
 	assert_true(picker is OptionButton, "播放页必须提供可聚焦的标记选择器。")
 	assert_true(previous_marker is Button, "播放页必须提供上一标记按钮。")
 	assert_true(next_marker is Button, "播放页必须提供下一标记按钮。")
 	assert_true(eligibility_note is Label, "播放页必须明确展示继续游玩的资格语义。")
-	if picker is OptionButton:
+	if is_instance_valid(picker):
 		assert_false(picker.focus_neighbor_bottom.is_empty(), "标记选择器必须接入手柄/键盘焦点链。")
 		assert_true(
 			picker.custom_minimum_size.y >= 44.0,
 			"标记选择器必须满足触控目标最小高度。"
 		)
-	if previous_marker is Button:
+	if is_instance_valid(previous_marker):
 		assert_false(previous_marker.focus_neighbor_top.is_empty(), "上一标记按钮必须接入焦点链。")
 		assert_true(
 			previous_marker.custom_minimum_size.y >= 44.0,
 			"上一标记按钮必须满足触控目标最小高度。"
 		)
-	if next_marker is Button:
+	if is_instance_valid(next_marker):
 		assert_false(next_marker.focus_neighbor_bottom.is_empty(), "下一标记按钮必须接入焦点链。")
 		assert_true(
 			next_marker.custom_minimum_size.y >= 44.0,
