@@ -5,7 +5,8 @@ extends GameUiController
 
 # --- 常量 ---
 
-const _COMPACT_BREAKPOINT: float = 720.0
+## 720px 竖屏不能再挤压横向标题栏；在常见紧凑平板宽度前改为纵向分区。
+const _COMPACT_BREAKPOINT: float = 800.0
 const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
 
 
@@ -382,14 +383,16 @@ func _make_group_label(identity: Dictionary) -> String:
 		_resolve_mode_name(
 			GFVariantData.get_option_string(identity, &"mode_id")
 		),
-		GFVariantData.get_option_string(identity, &"board_key"),
+		_resolve_board_display_name(
+			GFVariantData.get_option_string(identity, &"board_key")
+		),
 		GFVariantData.get_option_int(identity, &"ruleset_version", 0),
 	]
 
 
 func _resolve_mode_name(mode_id: String) -> String:
 	if _mode_names.has(mode_id):
-		return GFVariantData.get_option_string(_mode_names, mode_id, mode_id)
+		return tr(GFVariantData.get_option_string(_mode_names, mode_id))
 	if is_instance_valid(_mode_catalog):
 		for config_path: String in _mode_catalog.get_registered_config_paths():
 			if config_path.get_file().get_basename() != mode_id:
@@ -397,9 +400,34 @@ func _resolve_mode_name(mode_id: String) -> String:
 			var config: GameModeConfig = _mode_catalog.get_config(config_path)
 			if config != null:
 				_mode_names[mode_id] = config.mode_name
-				return config.mode_name
-	_mode_names[mode_id] = mode_id
-	return mode_id
+				return tr(config.mode_name)
+	return tr("UNKNOWN_MODE")
+
+
+## 把用于严格分组的稳定棋盘键转换为玩家可读文案，绝不把资源 ID 或指纹带到 UI。
+func _resolve_board_display_name(board_key: String) -> String:
+	var topology_id: String = board_key.get_slice("@", 0)
+	if topology_id.begins_with("board.player."):
+		return tr("BOARD_EDITOR_OPEN")
+	var dimensions: String = _extract_board_dimensions(topology_id)
+	if not dimensions.is_empty():
+		return "%s %s" % [dimensions, tr("LOCAL_LEADERBOARD_BOARD_GENERIC")]
+	return tr("LOCAL_LEADERBOARD_BOARD_GENERIC")
+
+
+func _extract_board_dimensions(topology_id: String) -> String:
+	var segments: PackedStringArray = topology_id.split(".")
+	if segments.is_empty():
+		return ""
+	var candidate: String = segments[segments.size() - 1]
+	var axes: PackedStringArray = candidate.split("x")
+	if axes.size() != 2 or not axes[0].is_valid_int() or not axes[1].is_valid_int():
+		return ""
+	var width: int = axes[0].to_int()
+	var height: int = axes[1].to_int()
+	if width <= 0 or height <= 0:
+		return ""
+	return "%d×%d" % [width, height]
 
 
 func _format_duration(duration_msec: int) -> String:

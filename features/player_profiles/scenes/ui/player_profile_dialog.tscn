@@ -163,6 +163,8 @@ theme_override_constants/separation = 8
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
+fit_to_longest_item = false
+text_overrun_behavior = 3
 
 [node name="LeaderboardScroll" type="ScrollContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/Tabs/LeaderboardTab"]
 layout_mode = 2

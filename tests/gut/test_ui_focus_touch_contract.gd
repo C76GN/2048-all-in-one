@@ -326,6 +326,123 @@ func test_player_profile_empty_states_center_inside_scroll_content() -> void:
 	architecture.dispose()
 
 
+func test_player_profile_portrait_leaderboard_keeps_header_controls_inside_surface() -> void:
+	var architecture: GFArchitecture = await _make_ui_architecture()
+	var context: TestArchitectureContext = _make_context(architecture)
+	var dialog_node: Node = _PLAYER_PROFILE_SCENE.instantiate()
+	assert_true(dialog_node is PlayerProfileDialog)
+	if not dialog_node is PlayerProfileDialog:
+		dialog_node.free()
+		architecture.dispose()
+		return
+	var dialog: PlayerProfileDialog = dialog_node
+	dialog.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	dialog.position = Vector2.ZERO
+	dialog.size = Vector2(720.0, 960.0)
+	context.add_child(dialog)
+	await get_tree().process_frame
+
+	# 使用真实稳定身份的长键，确保展示层不会把资源路径/指纹反向撑宽布局。
+	dialog._mode_names["classic"] = "MODE_CLASSIC_NAME"
+	var long_identity: Dictionary = {
+		&"mode_id": "classic",
+		&"board_key": "board_template.square.4x4@c9dcaa7fbd0d4a0dbb81d9d5ad1e2a3b",
+		&"ruleset_id": "gameplay.classic",
+		&"ruleset_version": 1,
+		&"ruleset_fingerprint": "f".repeat(64),
+	}
+	var leaderboard_filter: OptionButton = dialog._leaderboard_group_option
+	leaderboard_filter.clear()
+	leaderboard_filter.add_item(dialog._make_group_label(long_identity))
+	leaderboard_filter.select(0)
+	dialog._apply_responsive_layout()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	assert_true(dialog._header.vertical, "720px 竖屏头部必须改为纵向重排。")
+	assert_true(dialog._account_tools.vertical, "720px 竖屏账号管理必须改为纵向重排。")
+	assert_false(
+		leaderboard_filter.fit_to_longest_item,
+		"排行榜分组不得按最长稳定身份文本扩大页面最小宽度。"
+	)
+	assert_eq(
+		leaderboard_filter.text_overrun_behavior,
+		TextServer.OVERRUN_TRIM_ELLIPSIS,
+		"分组筛选在必要时必须以省略号裁切，而非向右溢出。"
+	)
+	assert_false(
+		leaderboard_filter.get_item_text(0).contains("board_template"),
+		"排行榜分组不得显示内部棋盘模板 ID。"
+	)
+	assert_false(
+		leaderboard_filter.get_item_text(0).contains("@"),
+		"排行榜分组不得显示内容指纹。"
+	)
+	assert_true(
+		leaderboard_filter.get_item_text(0).contains("4×4"),
+		"标准棋盘应以玩家可读尺寸显示。"
+	)
+
+	var surface_node: Node = dialog.find_child("Surface", true, false)
+	assert_true(surface_node is Control)
+	if surface_node is Control:
+		var surface: Control = surface_node
+		_assert_controls_inside_horizontal_bounds(
+			surface.get_global_rect(),
+			[
+				dialog._account_option,
+				dialog._back_button,
+				dialog._name_input,
+				dialog._create_button,
+				dialog._rename_button,
+				dialog._delete_button,
+				leaderboard_filter,
+			],
+			"720×960 玩家档案"
+		)
+	architecture.dispose()
+
+
+func test_player_profile_wide_headers_keep_horizontal_composition() -> void:
+	var architecture: GFArchitecture = await _make_ui_architecture()
+	var context: TestArchitectureContext = _make_context(architecture)
+	var dialog_node: Node = _PLAYER_PROFILE_SCENE.instantiate()
+	assert_true(dialog_node is PlayerProfileDialog)
+	if not dialog_node is PlayerProfileDialog:
+		dialog_node.free()
+		architecture.dispose()
+		return
+	var dialog: PlayerProfileDialog = dialog_node
+	dialog.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	dialog.position = Vector2.ZERO
+	dialog.size = Vector2(960.0, 540.0)
+	context.add_child(dialog)
+	await get_tree().process_frame
+	dialog._apply_responsive_layout()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	assert_false(dialog._header.vertical, "960×540 应保留桌面横向头部构图。")
+	assert_false(dialog._account_tools.vertical, "960×540 应保留横向账号管理构图。")
+	var surface_node: Node = dialog.find_child("Surface", true, false)
+	assert_true(surface_node is Control)
+	if surface_node is Control:
+		var surface: Control = surface_node
+		_assert_controls_inside_horizontal_bounds(
+			surface.get_global_rect(),
+			[
+				dialog._account_option,
+				dialog._back_button,
+				dialog._name_input,
+				dialog._create_button,
+				dialog._rename_button,
+				dialog._delete_button,
+			],
+			"960×540 玩家档案"
+		)
+	architecture.dispose()
+
+
 func test_declared_player_controls_meet_touch_target_contract() -> void:
 	for scene_path: String in _PLAYER_VISIBLE_SCENE_PATHS:
 		var scene_resource: Resource = load(scene_path)
@@ -431,6 +548,32 @@ func _assert_touch_targets_in_tree(
 			child,
 			scene_path,
 			"%s/%s" % [node_path, child.name]
+		)
+
+
+func _assert_controls_inside_horizontal_bounds(
+	bounds: Rect2,
+	controls: Array[Control],
+	page_label: String
+) -> void:
+	for control: Control in controls:
+		assert_true(control.visible, "%s 中的 %s 必须可见。" % [page_label, control.name])
+		assert_gte(
+			control.size.y,
+			_MINIMUM_TOUCH_TARGET_SIZE,
+			"%s 中的 %s 必须保留至少 44px 的实际触控高度。"
+			% [page_label, control.name]
+		)
+		var rect: Rect2 = control.get_global_rect()
+		assert_gte(
+			rect.position.x + 0.5,
+			bounds.position.x,
+			"%s 中的 %s 不得越过左侧安全边界。" % [page_label, control.name]
+		)
+		assert_lte(
+			rect.end.x,
+			bounds.end.x + 0.5,
+			"%s 中的 %s 不得越过右侧安全边界。" % [page_label, control.name]
 		)
 
 

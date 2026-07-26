@@ -462,6 +462,7 @@ PLAYER_TIME_NONE,--,--
 LOCAL_LEADERBOARD_EMPTY,还没有符合当前规则配置的本地成绩。,No local result matches this rules configuration yet.
 LOCAL_LEADERBOARD_ALL_MODES,全部模式,All Modes
 LOCAL_LEADERBOARD_GROUP,%s · %s · 规则 v%d,%s · %s · Rules v%d
+LOCAL_LEADERBOARD_BOARD_GENERIC,棋盘,Board
 LOCAL_LEADERBOARD_SCORE,%d 分 · 最大 %d · %d 步,%d pts · Max %d · %d moves
 PLAYER_SWITCH_FAILED,切换玩家失败（错误码 %d）。,Could not switch player (error %d).
 PLAYER_SWITCHED,已切换玩家。,Player switched.
