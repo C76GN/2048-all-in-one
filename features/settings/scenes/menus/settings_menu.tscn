@@ -311,7 +311,61 @@ max_value = 1.0
 step = 0.05
 value = 1.0
 
-[node name="VolumeValueLabel" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/MasterVolumeContainer"]
+[node name="MasterVolumeValueLabel" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/MasterVolumeContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+text = "100%"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="BgmVolumeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/BgmVolumeContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "音乐音量"
+vertical_alignment = 1
+
+[node name="BgmVolumeSlider" type="HSlider" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/BgmVolumeContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="BgmVolumeValueLabel" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/BgmVolumeContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+text = "100%"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="SfxVolumeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/SfxVolumeContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "音效音量"
+vertical_alignment = 1
+
+[node name="SfxVolumeSlider" type="HSlider" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/SfxVolumeContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="SfxVolumeValueLabel" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/AudioSection/SfxVolumeContainer"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(64, 0)
 layout_mode = 2

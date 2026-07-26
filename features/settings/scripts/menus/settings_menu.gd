@@ -20,6 +20,8 @@ const _FIELD_LANGUAGE_INDEX: StringName = &"language_index"
 const _FIELD_WINDOW_MODE_INDEX: StringName = &"window_mode_index"
 const _FIELD_VSYNC_INDEX: StringName = &"vsync_index"
 const _FIELD_MASTER_VOLUME: StringName = &"master_volume"
+const _FIELD_BGM_VOLUME: StringName = &"bgm_volume"
+const _FIELD_SFX_VOLUME: StringName = &"sfx_volume"
 const _FIELD_INPUT_TIMING_INDEX: StringName = &"input_timing_index"
 const _FIELD_VFX_QUALITY_INDEX: StringName = &"vfx_quality_index"
 const _FIELD_REDUCED_MOTION: StringName = &"reduced_motion"
@@ -29,6 +31,8 @@ const _FIELD_SHADER_EFFECTS_ENABLED: StringName = &"shader_effects_enabled"
 const _LOCALE_EN: String = "en"
 const _LOCALE_ZH: String = "zh"
 const _AUDIO_BUS_MASTER: String = "Master"
+const _AUDIO_BUS_BGM: String = "BGM"
+const _AUDIO_BUS_SFX: String = "SFX"
 const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
 const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 	"top": 34.0,
@@ -98,7 +102,11 @@ var _section_scroll: ScrollContainer = null
 @onready var _haptics_toggle: CheckButton = %HapticsToggle
 @onready var _shader_effects_toggle: CheckButton = %ShaderEffectsToggle
 @onready var _master_volume_slider: HSlider = %MasterVolumeSlider
-@onready var _volume_value_label: Label = %VolumeValueLabel
+@onready var _master_volume_value_label: Label = %MasterVolumeValueLabel
+@onready var _bgm_volume_slider: HSlider = %BgmVolumeSlider
+@onready var _bgm_volume_value_label: Label = %BgmVolumeValueLabel
+@onready var _sfx_volume_slider: HSlider = %SfxVolumeSlider
+@onready var _sfx_volume_value_label: Label = %SfxVolumeValueLabel
 @onready var _back_button: Button = %BackButton
 @onready var _input_timing_option: OptionButton = %InputTimingOptionButton
 @onready var _input_bindings_header: Label = %InputBindingsHeader
@@ -132,6 +140,12 @@ var _section_scroll: ScrollContainer = null
 
 ## 主音量标签。
 @onready var _master_volume_label: Label = _get_sibling_label(_master_volume_slider)
+
+## 音乐音量标签。
+@onready var _bgm_volume_label: Label = _get_sibling_label(_bgm_volume_slider)
+
+## 音效音量标签。
+@onready var _sfx_volume_label: Label = _get_sibling_label(_sfx_volume_slider)
 
 ## 操作页标题标签。
 @onready var _controls_header_label: Label = %ControlsSectionTitle
@@ -279,6 +293,8 @@ func _apply_field_widths() -> void:
 		_window_mode_label,
 		_vsync_label,
 		_master_volume_label,
+		_bgm_volume_label,
+		_sfx_volume_label,
 		_vfx_quality_label,
 		_reduced_motion_label,
 		_high_contrast_label,
@@ -314,11 +330,21 @@ func _apply_field_widths() -> void:
 		toggle.custom_minimum_size.y = (
 			_COMPACT_CONTROL_HEIGHT if _is_compact_layout else _DESKTOP_CONTROL_HEIGHT
 		)
-	_master_volume_slider.custom_minimum_size.x = 0.0 if _is_compact_layout else 200.0
-	_master_volume_slider.custom_minimum_size.y = (
-		_COMPACT_CONTROL_HEIGHT if _is_compact_layout else _DESKTOP_CONTROL_HEIGHT
-	)
-	_volume_value_label.custom_minimum_size.x = 54.0 if _is_compact_layout else 64.0
+	for volume_slider: HSlider in [
+		_master_volume_slider,
+		_bgm_volume_slider,
+		_sfx_volume_slider,
+	]:
+		volume_slider.custom_minimum_size.x = 0.0 if _is_compact_layout else 200.0
+		volume_slider.custom_minimum_size.y = (
+			_COMPACT_CONTROL_HEIGHT if _is_compact_layout else _DESKTOP_CONTROL_HEIGHT
+		)
+	for volume_label: Label in [
+		_master_volume_value_label,
+		_bgm_volume_value_label,
+		_sfx_volume_value_label,
+	]:
+		volume_label.custom_minimum_size.x = 54.0 if _is_compact_layout else 64.0
 	_reset_bindings_button.custom_minimum_size.y = (
 		_COMPACT_CONTROL_HEIGHT if _is_compact_layout else 36.0
 	)
@@ -354,7 +380,12 @@ func _apply_semantic_styles() -> void:
 	style.style_label(_auto_save_label, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_label(_accessibility_title, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_label(_input_bindings_header, GameUiStyleUtility.TextRole.SECONDARY)
-	style.style_label(_volume_value_label, GameUiStyleUtility.TextRole.NUMERIC)
+	for volume_label: Label in [
+		_master_volume_value_label,
+		_bgm_volume_value_label,
+		_sfx_volume_value_label,
+	]:
+		style.style_label(volume_label, GameUiStyleUtility.TextRole.NUMERIC)
 	style.style_button(_back_button, GameUiStyleUtility.ButtonRole.ICON)
 	style.style_button(_general_tab_button, GameUiStyleUtility.ButtonRole.QUIET)
 	style.style_button(_audio_tab_button, GameUiStyleUtility.ButtonRole.QUIET)
@@ -469,6 +500,8 @@ func _setup_form_binder() -> void:
 	_form_binder.bind_field(_FIELD_WINDOW_MODE_INDEX, _window_mode_option, 0)
 	_form_binder.bind_field(_FIELD_VSYNC_INDEX, _vsync_option, 1)
 	_form_binder.bind_field(_FIELD_MASTER_VOLUME, _master_volume_slider, 1.0)
+	_form_binder.bind_field(_FIELD_BGM_VOLUME, _bgm_volume_slider, 1.0)
+	_form_binder.bind_field(_FIELD_SFX_VOLUME, _sfx_volume_slider, 1.0)
 	_form_binder.bind_field(_FIELD_INPUT_TIMING_INDEX, _input_timing_option, 2)
 	_form_binder.bind_field(_FIELD_VFX_QUALITY_INDEX, _vfx_quality_option, 2)
 	_form_binder.bind_field(_FIELD_REDUCED_MOTION, _reduced_motion_toggle, false)
@@ -493,8 +526,23 @@ func _sync_controls_from_settings() -> void:
 	if is_instance_valid(_vsync_option):
 		_vsync_option.select(_get_option_index_for_metadata(_vsync_option, int(_get_current_vsync_mode())))
 	if is_instance_valid(_master_volume_slider):
-		_master_volume_slider.value = _get_current_master_volume()
-		_update_volume_value_label(_master_volume_slider.value)
+		_sync_audio_bus_control(
+			_AUDIO_BUS_MASTER,
+			_master_volume_slider,
+			_master_volume_value_label
+		)
+	if is_instance_valid(_bgm_volume_slider):
+		_sync_audio_bus_control(
+			_AUDIO_BUS_BGM,
+			_bgm_volume_slider,
+			_bgm_volume_value_label
+		)
+	if is_instance_valid(_sfx_volume_slider):
+		_sync_audio_bus_control(
+			_AUDIO_BUS_SFX,
+			_sfx_volume_slider,
+			_sfx_volume_value_label
+		)
 	if is_instance_valid(_input_timing_option):
 		_input_timing_option.select(_get_option_index_for_metadata(
 			_input_timing_option,
@@ -540,12 +588,15 @@ func _get_current_vsync_mode() -> DisplayServer.VSyncMode:
 	return display_settings.get_vsync_mode()
 
 
-func _get_current_master_volume() -> float:
+func _get_current_audio_bus_volume(bus_name: String) -> float:
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
 	if not is_instance_valid(display_settings):
-		push_error("[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法读取主音量。")
+		push_error(
+			"[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法读取 %s 音量。"
+			% bus_name
+		)
 		return 1.0
-	return display_settings.get_audio_bus_volume(_AUDIO_BUS_MASTER, 1.0)
+	return display_settings.get_audio_bus_volume(bus_name, 1.0)
 
 
 func _get_current_input_timing_mode() -> GameInputProfileUtility.InputTimingMode:
@@ -604,9 +655,18 @@ func _get_string_name_for_index(option: OptionButton, index: int, fallback: Stri
 	return GFVariantData.to_string_name(_get_option_metadata(option, index, fallback), fallback)
 
 
-func _update_volume_value_label(value: float) -> void:
-	if is_instance_valid(_volume_value_label):
-		_volume_value_label.text = str(roundi(clampf(value, 0.0, 1.0) * 100.0)) + "%"
+func _sync_audio_bus_control(
+	bus_name: String,
+	slider: HSlider,
+	value_label: Label
+) -> void:
+	slider.value = _get_current_audio_bus_volume(bus_name)
+	_update_volume_value_label(value_label, slider.value)
+
+
+func _update_volume_value_label(value_label: Label, value: float) -> void:
+	if is_instance_valid(value_label):
+		value_label.text = str(roundi(clampf(value, 0.0, 1.0) * 100.0)) + "%"
 
 
 func _update_ui_text() -> void:
@@ -657,10 +717,21 @@ func _update_ui_text() -> void:
 		_shader_effects_label.text = tr("SHADER_EFFECTS_LABEL")
 	if is_instance_valid(_master_volume_label):
 		_master_volume_label.text = tr("MASTER_VOLUME_LABEL")
+	if is_instance_valid(_bgm_volume_label):
+		_bgm_volume_label.text = tr("BGM_VOLUME_LABEL")
+	if is_instance_valid(_sfx_volume_label):
+		_sfx_volume_label.text = tr("SFX_VOLUME_LABEL")
 	if is_instance_valid(_controls_header_label):
 		_controls_header_label.text = tr("CONTROLS_TITLE")
 	if is_instance_valid(_master_volume_slider):
-		_update_volume_value_label(_master_volume_slider.value)
+		_update_volume_value_label(
+			_master_volume_value_label,
+			_master_volume_slider.value
+		)
+	if is_instance_valid(_bgm_volume_slider):
+		_update_volume_value_label(_bgm_volume_value_label, _bgm_volume_slider.value)
+	if is_instance_valid(_sfx_volume_slider):
+		_update_volume_value_label(_sfx_volume_value_label, _sfx_volume_slider.value)
 	if is_instance_valid(_input_timing_option) and _input_timing_option.item_count >= 3:
 		_input_timing_option.set_item_text(0, tr("INPUT_TIMING_BUFFERED"))
 		_input_timing_option.set_item_text(1, tr("INPUT_TIMING_BLOCK"))
@@ -703,13 +774,20 @@ func _apply_vsync_mode(index: int) -> void:
 	display_settings.set_vsync_mode(_get_vsync_mode_for_index(index))
 
 
-func _apply_master_volume(value: float) -> void:
+func _apply_audio_bus_volume(
+	bus_name: String,
+	value: float,
+	value_label: Label
+) -> void:
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
 	if not is_instance_valid(display_settings):
-		push_error("[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法写入主音量。")
+		push_error(
+			"[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法写入 %s 音量。"
+			% bus_name
+		)
 		return
-	display_settings.set_audio_bus_volume(_AUDIO_BUS_MASTER, value)
-	_update_volume_value_label(value)
+	display_settings.set_audio_bus_volume(bus_name, value)
+	_update_volume_value_label(value_label, value)
 
 
 func _apply_input_timing_mode(index: int) -> void:
@@ -968,7 +1046,23 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 		_FIELD_VSYNC_INDEX:
 			_apply_vsync_mode(GFVariantData.to_int(value, int(DisplayServer.VSYNC_ENABLED)))
 		_FIELD_MASTER_VOLUME:
-			_apply_master_volume(GFVariantData.to_float(value, 1.0))
+			_apply_audio_bus_volume(
+				_AUDIO_BUS_MASTER,
+				GFVariantData.to_float(value, 1.0),
+				_master_volume_value_label
+			)
+		_FIELD_BGM_VOLUME:
+			_apply_audio_bus_volume(
+				_AUDIO_BUS_BGM,
+				GFVariantData.to_float(value, 1.0),
+				_bgm_volume_value_label
+			)
+		_FIELD_SFX_VOLUME:
+			_apply_audio_bus_volume(
+				_AUDIO_BUS_SFX,
+				GFVariantData.to_float(value, 1.0),
+				_sfx_volume_value_label
+			)
 		_FIELD_INPUT_TIMING_INDEX:
 			_apply_input_timing_mode(GFVariantData.to_int(value, 2))
 		_FIELD_VFX_QUALITY_INDEX:

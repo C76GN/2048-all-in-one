@@ -27,6 +27,18 @@ candidate_asset_ids = PackedStringArray()
 tags = PackedStringArray("audio", "ui", "confirm")
 notes = "Default menu activation sound."
 
+[sub_resource type="Resource" id="Resource_cancel"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.ui.cancel"
+display_name = "UI Cancel"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.ui.printworks.cancel_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/ui/printworks_cancel_soft_01.ogg"
+fallback_asset_key = &"asset.audio.ui.printworks.cancel_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "ui", "cancel")
+notes = "Default menu cancellation sound."
+
 [sub_resource type="Resource" id="Resource_ebadd"]
 script = ExtResource("1_qu3yw")
 slot_id = &"slot.audio.tile.spawn"
@@ -51,6 +63,18 @@ candidate_asset_ids = PackedStringArray()
 tags = PackedStringArray("audio", "tile", "move")
 notes = "Default tile slide sound."
 
+[sub_resource type="Resource" id="Resource_move_blocked"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.tile.move_blocked"
+display_name = "Tile Move Blocked"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.tile.printworks.move_blocked_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/tile/printworks_move_blocked_soft_01.ogg"
+fallback_asset_key = &"asset.audio.tile.printworks.move_blocked_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "tile", "move", "blocked")
+notes = "Default invalid movement sound."
+
 [sub_resource type="Resource" id="Resource_0f4y4"]
 script = ExtResource("1_qu3yw")
 slot_id = &"slot.audio.tile.merge"
@@ -63,6 +87,30 @@ candidate_asset_ids = PackedStringArray()
 tags = PackedStringArray("audio", "tile", "merge")
 notes = "Default tile merge sound."
 
+[sub_resource type="Resource" id="Resource_merge_chain"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.tile.merge_chain"
+display_name = "Tile Merge Chain"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.tile.printworks.merge_chain_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/tile/printworks_merge_chain_soft_01.ogg"
+fallback_asset_key = &"asset.audio.tile.printworks.merge_chain_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "tile", "merge", "chain")
+notes = "Default multi-merge chain sound."
+
+[sub_resource type="Resource" id="Resource_transform"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.tile.transform"
+display_name = "Tile Transform"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.tile.printworks.transform_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/tile/printworks_transform_soft_01.ogg"
+fallback_asset_key = &"asset.audio.tile.printworks.transform_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "tile", "merge", "transform")
+notes = "Default transformed-merge sound."
+
 [sub_resource type="Resource" id="Resource_66jv2"]
 script = ExtResource("1_qu3yw")
 slot_id = &"slot.audio.game.over"
@@ -74,6 +122,18 @@ fallback_asset_key = &"asset.audio.game.printworks.game_over_soft_01"
 candidate_asset_ids = PackedStringArray()
 tags = PackedStringArray("audio", "game", "over")
 notes = "Default game over sound."
+
+[sub_resource type="Resource" id="Resource_milestone"]
+script = ExtResource("1_qu3yw")
+slot_id = &"slot.audio.game.milestone"
+display_name = "Game Milestone"
+expected_kind = &"audio"
+current_asset_key = &"asset.audio.game.printworks.milestone_soft_01"
+current_library_path = "res://features/asset_library/resources/audio/game/printworks_milestone_soft_01.ogg"
+fallback_asset_key = &"asset.audio.game.printworks.milestone_soft_01"
+candidate_asset_ids = PackedStringArray()
+tags = PackedStringArray("audio", "game", "milestone")
+notes = "Default target or milestone completion sound."
 
 [sub_resource type="Resource" id="Resource_a18lh"]
 script = ExtResource("1_qu3yw")
@@ -233,5 +293,5 @@ notes = "Candidate reusable VFX controller for pooled shader-driven drops or dec
 
 [resource]
 script = ExtResource("2_anet3")
-bindings = Array[Resource]([SubResource("Resource_qu3yw"), SubResource("Resource_anet3"), SubResource("Resource_ebadd"), SubResource("Resource_4072c"), SubResource("Resource_0f4y4"), SubResource("Resource_66jv2"), SubResource("Resource_a18lh"), SubResource("Resource_ytxpy"), SubResource("Resource_kdkxu"), SubResource("Resource_4pb9r"), SubResource("Resource_2683b"), SubResource("Resource_93f9a"), SubResource("Resource_51301"), SubResource("Resource_c807c"), SubResource("Resource_4ccdc"), SubResource("Resource_a7a2d"), SubResource("Resource_58c15"), SubResource("Resource_293de"), SubResource("Resource_8a5fa"), SubResource("Resource_54f89")])
-updated_at = "2026-07-10 03:43:00"
+bindings = Array[Resource]([SubResource("Resource_qu3yw"), SubResource("Resource_anet3"), SubResource("Resource_cancel"), SubResource("Resource_ebadd"), SubResource("Resource_4072c"), SubResource("Resource_move_blocked"), SubResource("Resource_0f4y4"), SubResource("Resource_merge_chain"), SubResource("Resource_transform"), SubResource("Resource_66jv2"), SubResource("Resource_milestone"), SubResource("Resource_a18lh"), SubResource("Resource_ytxpy"), SubResource("Resource_kdkxu"), SubResource("Resource_4pb9r"), SubResource("Resource_2683b"), SubResource("Resource_93f9a"), SubResource("Resource_51301"), SubResource("Resource_c807c"), SubResource("Resource_4ccdc"), SubResource("Resource_a7a2d"), SubResource("Resource_58c15"), SubResource("Resource_293de"), SubResource("Resource_8a5fa"), SubResource("Resource_54f89")])
+updated_at = "2026-07-26 12:45:00"

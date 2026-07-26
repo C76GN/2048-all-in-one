@@ -4,6 +4,28 @@ extends GutTest
 
 # --- 测试用例 ---
 
+func test_project_defaults_register_independent_audio_bus_volumes() -> void:
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.register_project_defaults()
+
+	for bus_name: String in [
+		GameSettingsUtility.AUDIO_BUS_MASTER,
+		GameSettingsUtility.AUDIO_BUS_BGM,
+		GameSettingsUtility.AUDIO_BUS_SFX,
+	]:
+		var setting_key: StringName = StringName("audio/%s/volume" % bus_name)
+		assert_true(
+			settings.has_setting(setting_key),
+			"%s 音频总线必须注册持久化音量设置。" % bus_name
+		)
+		assert_almost_eq(
+			GFVariantData.to_float(settings.get_value(setting_key), -1.0),
+			1.0,
+			0.001,
+			"%s 音频总线默认音量应为 100%%。" % bus_name
+		)
+
+
 func test_storage_recovery_policy_only_resets_physical_format_failures() -> void:
 	var envelope_failure: GFStorageReadResult = GFStorageReadResult.new().configure_failure(
 		"Storage document envelope missing or malformed",

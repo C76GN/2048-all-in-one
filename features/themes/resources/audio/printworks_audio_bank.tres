@@ -14,6 +14,18 @@ metadata = {
 "source": &"universal_ui_soundpack_retro10"
 }
 
+[sub_resource type="Resource" id="Clip_game_milestone"]
+script = ExtResource("2_clip")
+path = "res://features/asset_library/resources/audio/game/printworks_milestone_soft_01.ogg"
+bus_name = "SFX"
+volume_db = -10.0
+metadata = {
+"asset_key": &"asset.audio.game.printworks.milestone_soft_01",
+"kind": &"game",
+"review_asset_id": &"asset.review.universal.ui.soundpack.ogg.retro7.5fd73182",
+"source": &"universal_ui_soundpack_retro7"
+}
+
 [sub_resource type="Resource" id="Clip_tile_merge"]
 script = ExtResource("2_clip")
 path = "res://features/asset_library/resources/audio/tile/printworks_merge_soft_01.ogg"
@@ -25,6 +37,20 @@ metadata = {
 "asset_key": &"asset.audio.tile.printworks.merge_soft_01",
 "kind": &"tile",
 "source": &"universal_ui_soundpack_coffee1"
+}
+
+[sub_resource type="Resource" id="Clip_tile_merge_chain"]
+script = ExtResource("2_clip")
+path = "res://features/asset_library/resources/audio/tile/printworks_merge_chain_soft_01.ogg"
+bus_name = "SFX"
+volume_db = -14.0
+pitch_random_min = 0.99
+pitch_random_max = 1.01
+metadata = {
+"asset_key": &"asset.audio.tile.printworks.merge_chain_soft_01",
+"kind": &"tile",
+"review_asset_id": &"asset.review.universal.ui.soundpack.ogg.coffee2.38a2d7f9",
+"source": &"universal_ui_soundpack_coffee2"
 }
 
 [sub_resource type="Resource" id="Clip_tile_move"]
@@ -40,6 +66,18 @@ metadata = {
 "source": &"universal_ui_soundpack_modern10"
 }
 
+[sub_resource type="Resource" id="Clip_tile_move_blocked"]
+script = ExtResource("2_clip")
+path = "res://features/asset_library/resources/audio/tile/printworks_move_blocked_soft_01.ogg"
+bus_name = "SFX"
+volume_db = -16.0
+metadata = {
+"asset_key": &"asset.audio.tile.printworks.move_blocked_soft_01",
+"kind": &"tile",
+"review_asset_id": &"asset.review.universal.ui.soundpack.ogg.modern11.d862ad50",
+"source": &"universal_ui_soundpack_modern11"
+}
+
 [sub_resource type="Resource" id="Clip_tile_spawn"]
 script = ExtResource("2_clip")
 path = "res://features/asset_library/resources/audio/tile/printworks_spawn_soft_01.ogg"
@@ -53,6 +91,20 @@ metadata = {
 "source": &"universal_ui_soundpack_minimalist1"
 }
 
+[sub_resource type="Resource" id="Clip_tile_transform"]
+script = ExtResource("2_clip")
+path = "res://features/asset_library/resources/audio/tile/printworks_transform_soft_01.ogg"
+bus_name = "SFX"
+volume_db = -14.0
+pitch_random_min = 0.99
+pitch_random_max = 1.01
+metadata = {
+"asset_key": &"asset.audio.tile.printworks.transform_soft_01",
+"kind": &"tile",
+"review_asset_id": &"asset.review.universal.ui.soundpack.ogg.abstract1.94a0fcfb",
+"source": &"universal_ui_soundpack_abstract1"
+}
+
 [sub_resource type="Resource" id="Clip_ui_confirm"]
 script = ExtResource("2_clip")
 path = "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg"
@@ -64,6 +116,18 @@ metadata = {
 "asset_key": &"asset.audio.ui.printworks.confirm_soft_01",
 "kind": &"ui",
 "source": &"universal_ui_soundpack_modern4"
+}
+
+[sub_resource type="Resource" id="Clip_ui_cancel"]
+script = ExtResource("2_clip")
+path = "res://features/asset_library/resources/audio/ui/printworks_cancel_soft_01.ogg"
+bus_name = "SFX"
+volume_db = -13.0
+metadata = {
+"asset_key": &"asset.audio.ui.printworks.cancel_soft_01",
+"kind": &"ui",
+"review_asset_id": &"asset.review.universal.ui.soundpack.ogg.minimalist2.502e782f",
+"source": &"universal_ui_soundpack_minimalist2"
 }
 
 [sub_resource type="Resource" id="Clip_ui_select"]
@@ -83,10 +147,15 @@ metadata = {
 script = ExtResource("1_bank")
 clips = {
 &"game/over": SubResource("Clip_game_over"),
+&"tile/merge/milestone": SubResource("Clip_game_milestone"),
 &"tile/merge": SubResource("Clip_tile_merge"),
+&"tile/merge/chain": SubResource("Clip_tile_merge_chain"),
+&"tile/merge/transform": SubResource("Clip_tile_transform"),
 &"tile/move": SubResource("Clip_tile_move"),
+&"tile/move/blocked": SubResource("Clip_tile_move_blocked"),
 &"tile/spawn": SubResource("Clip_tile_spawn"),
 &"ui/confirm": SubResource("Clip_ui_confirm"),
+&"ui/confirm/cancel": SubResource("Clip_ui_cancel"),
 &"ui/select": SubResource("Clip_ui_select")
 }
 fallback_separator = "/"

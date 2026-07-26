@@ -91,6 +91,8 @@ THEME_HALFTONE_ATLAS_DESC,青蓝纸面、深色墨盘和多纹理方块的印刷
 SOUND_THEME_PRINTWORKS,印刷工坊,Printworks
 SOUND_THEME_PRINTWORKS_DESC,为纸媒印刷主题预留的柔和短音效包。,"A softer short-sound pack reserved for the print theme."
 MASTER_VOLUME_LABEL,主音量,Master Volume
+BGM_VOLUME_LABEL,音乐音量,Music Volume
+SFX_VOLUME_LABEL,音效音量,Sound Effects Volume
 LANG_EN,English,English
 LANG_ZH,简体中文,Chinese
 BACK_BUTTON,返回,Back

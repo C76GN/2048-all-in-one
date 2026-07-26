@@ -7,6 +7,8 @@ extends "res://addons/gf/standard/utilities/settings/gf_settings_utility.gd"
 
 const DEFAULT_LOCALE: String = "zh"
 const AUDIO_BUS_MASTER: String = "Master"
+const AUDIO_BUS_BGM: String = "BGM"
+const AUDIO_BUS_SFX: String = "SFX"
 
 
 # --- 私有变量 ---
@@ -62,6 +64,20 @@ func register_project_defaults() -> void:
 		GFSettingDefinition.ValueType.FLOAT,
 		true,
 		{"group": "audio", "label": "MASTER_VOLUME_LABEL"}
+	)
+	var _bgm_volume_setting: GFSettingDefinition = register_setting(
+		StringName("audio/%s/volume" % AUDIO_BUS_BGM),
+		1.0,
+		GFSettingDefinition.ValueType.FLOAT,
+		true,
+		{"group": "audio", "label": "BGM_VOLUME_LABEL"}
+	)
+	var _sfx_volume_setting: GFSettingDefinition = register_setting(
+		StringName("audio/%s/volume" % AUDIO_BUS_SFX),
+		1.0,
+		GFSettingDefinition.ValueType.FLOAT,
+		true,
+		{"group": "audio", "label": "SFX_VOLUME_LABEL"}
 	)
 	var _visual_theme_setting: GFSettingDefinition = register_setting(
 		GameThemeUtility.VISUAL_THEME_SETTING_KEY,
