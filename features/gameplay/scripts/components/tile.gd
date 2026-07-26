@@ -147,6 +147,8 @@ func on_gf_pool_release() -> void:
 
 
 ## 播放方块生成时的动画（短促放大出现）。
+## @param motion_profile: 可选的主题方块动效节拍；省略时使用内置默认值。
+## @param feedback_budget: 当前无障碍反馈预算快照。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_spawn(
 	motion_profile: GameTileMotionProfile = null,
@@ -187,6 +189,8 @@ func animate_spawn(
 
 ## 播放方块在棋盘上移动时的动画。
 ## @param new_position: 移动的目标位置。
+## @param motion_profile: 可选的主题方块动效节拍；省略时使用内置默认值。
+## @param feedback_budget: 当前无障碍反馈预算快照。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_move(
 	new_position: Vector2,
@@ -220,6 +224,8 @@ func animate_move(
 ## 播放方块合并或增强时的脉冲动画（放大后复原）。
 ## @param on_impact: 到达碰撞时刻后、脉冲开始前执行的表现更新。
 ## @param delay_seconds: 合并冲击开始前的等待时间，通常与移动动画时长一致。
+## @param motion_profile: 可选的主题方块动效节拍；省略时使用内置默认值。
+## @param feedback_budget: 当前无障碍反馈预算快照。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_merge(
 	on_impact: Callable = Callable(),
@@ -274,6 +280,8 @@ func animate_merge(
 
 
 ## 播放方块离场时的缩小淡出动画。
+## @param motion_profile: 可选的主题方块动效节拍；省略时使用内置默认值。
+## @param feedback_budget: 当前无障碍反馈预算快照。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_despawn(
 	motion_profile: GameTileMotionProfile = null,
@@ -309,6 +317,8 @@ func animate_despawn(
 ## 播放方块被强制转变类型时的“抖动”动画。
 ## @param on_impact: 转化反馈开始时执行的回调。
 ## @param delay_seconds: 转化反馈开始前的等待时间。
+## @param motion_profile: 可选的主题方块动效节拍；省略时使用内置默认值。
+## @param feedback_budget: 当前无障碍反馈预算快照。
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_transform(
 	on_impact: Callable = Callable(),
@@ -371,6 +381,8 @@ func animate_transform(
 
 
 ## 返回移动反馈的标准时长，供批量表现动作安排冲击时刻。
+## @param motion_profile: 可选的主题方块动效节拍；省略时使用内置默认值。
+## @param feedback_budget: 当前无障碍反馈预算快照。
 static func get_move_animation_duration(
 	motion_profile: GameTileMotionProfile = null,
 	feedback_budget: GameFeedbackBudget = null
@@ -379,6 +391,8 @@ static func get_move_animation_duration(
 
 
 ## 返回合并脉冲的完整时长，供后续表现动作顺序衔接。
+## @param motion_profile: 可选的主题方块动效节拍；省略时使用内置默认值。
+## @param feedback_budget: 当前无障碍反馈预算快照。
 static func get_merge_animation_duration(
 	motion_profile: GameTileMotionProfile = null,
 	feedback_budget: GameFeedbackBudget = null
@@ -400,6 +414,8 @@ func get_feedback_color() -> Color:
 ## @param to_background_color: 合并后的方块底色。
 ## @param from_font_color: 合并前的数字颜色。
 ## @param to_font_color: 合并后的数字颜色。
+## @param motion_profile: 可选的主题方块动效节拍；省略时使用内置默认值。
+## @param feedback_budget: 当前无障碍反馈预算快照。
 func animate_value_growth(
 	from_value: int,
 	to_value: int,
