@@ -347,7 +347,8 @@ try {
 		"--path",
 		$resolvedProjectRoot,
 		"-s",
-		"res://addons/gut/gut_cmdln.gd"
+		"res://addons/gut/gut_cmdln.gd",
+		"-gconfig="
 	)
 	if ($VerboseGodot) {
 		$arguments = @("--verbose") + $arguments

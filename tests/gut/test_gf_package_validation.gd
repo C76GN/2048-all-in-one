@@ -14,6 +14,8 @@ const _GF_EXTENSION_ROOT_PATH: String = "res://addons/gf/extensions"
 const _GITIGNORE_PATH: String = "res://.gitignore"
 const _GF_VENDOR_VERIFY_PATH: String = "res://tools/verify_gf_vendor.ps1"
 const _GUT_RUNNER_PATH: String = "res://tools/run_gut_safe.ps1"
+const _GUT_PLUGIN_CONFIG_PATH: String = "res://addons/gut/plugin.cfg"
+const _GUT_PROJECT_CONFIG_PATH: String = "res://.gutconfig.json"
 const _GUT_SHUTDOWN_HOOK_PATH: String = "res://tests/gut/support/gf_test_shutdown_hook.gd"
 const _GODOT_EXIT_LEAK_BASELINE_PATH: String = "res://.gf/godot_exit_leak_baseline.json"
 const _GF_PROJECT_CONTRACT_PATH: String = "res://.gf/project_contract.json"
@@ -231,8 +233,13 @@ func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
 	var vendor_lock: Dictionary = _read_json_dictionary(_VENDOR_LOCKFILE_PATH)
 	var plugin_config: ConfigFile = _load_config_file(_GF_PLUGIN_CONFIG_PATH)
 	var plugin_version: String = _get_config_text(plugin_config, "plugin", "version")
+	var gut_plugin_config: ConfigFile = _load_config_file(_GUT_PLUGIN_CONFIG_PATH)
+	var gut_plugin_version: String = _get_config_text(gut_plugin_config, "plugin", "version")
+	var baseline_gut_version: String = _get_dictionary_text(baseline, "gut_version")
 	var issues: Array[String] = []
 
+	if not runner_text.contains("\"-gconfig=\""):
+		_append_string(issues, "GUT 安全运行器必须忽略共享配置，只执行显式目录或脚本范围。")
 	if not runner_text.contains("-gpost_run_script=$PostRunScript"):
 		_append_string(issues, "GUT 安全运行器必须安装 post-run 清理 hook。")
 	if not runner_text.contains(_GUT_SHUTDOWN_HOOK_PATH.trim_prefix("res://")):
@@ -247,8 +254,16 @@ func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
 		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 4.7 运行时。")
 	if _get_dictionary_text(baseline, "gf_version") != plugin_version:
 		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 GF %s。" % plugin_version)
-	if _get_dictionary_text(baseline, "gut_version") != "9.7.1":
+	if baseline_gut_version != "9.7.1":
 		_append_string(issues, "Godot 退出泄漏基线必须绑定当前 GUT 9.7.1。")
+	if gut_plugin_version != baseline_gut_version:
+		_append_string(
+			issues,
+			"GUT plugin.cfg version=%s 应与退出泄漏基线 version=%s 一致。" % [
+				gut_plugin_version,
+				baseline_gut_version,
+			]
+		)
 	if (
 		_get_dictionary_text(baseline, "gf_source_commit")
 		!= _get_dictionary_text(vendor_lock, "source_commit")
@@ -284,6 +299,30 @@ func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
 		_append_string(issues, "Godot 退出泄漏基线必须记录已审查的 Resource 上限。")
 
 	assert_true(issues.is_empty(), "GUT 退出必须释放可控缓存，并禁止已知上游清理债务增长：\n%s" % _join_lines(issues))
+
+
+func test_gut_project_config_discovers_the_full_test_tree() -> void:
+	var config: Dictionary = _read_json_dictionary(_GUT_PROJECT_CONFIG_PATH)
+	var configured_dirs: Array = GFVariantData.get_option_array(config, "configured_dirs")
+	var dirs: Array = GFVariantData.get_option_array(config, "dirs")
+	var issues: Array[String] = []
+
+	if config.is_empty():
+		_append_string(issues, "项目必须提交 .gutconfig.json，避免编辑器或裸 CLI 运行零个测试。")
+	if not configured_dirs.has("res://tests/gut"):
+		_append_string(issues, "GUT configured_dirs 必须包含 res://tests/gut。")
+	if not dirs.has("res://tests/gut"):
+		_append_string(issues, "GUT dirs 必须包含 res://tests/gut。")
+	if not GFVariantData.get_option_bool(config, "include_subdirs"):
+		_append_string(issues, "GUT 必须递归发现 tests/gut 下的测试支持切片。")
+	if _get_dictionary_text(config, "post_run_script") != _GUT_SHUTDOWN_HOOK_PATH:
+		_append_string(issues, "GUT 项目配置必须安装统一 post-run 清理 hook。")
+	if _get_dictionary_text(config, "prefix") != "test_":
+		_append_string(issues, "GUT 项目配置必须使用 test_ 前缀。")
+	if _get_dictionary_text(config, "suffix") != ".gd":
+		_append_string(issues, "GUT 项目配置必须只发现 .gd 测试脚本。")
+
+	assert_true(issues.is_empty(), "GUT 默认配置必须发现完整项目测试树：\n%s" % _join_lines(issues))
 
 
 func test_gf_package_cache_is_ignored_without_ignoring_lockfile() -> void:

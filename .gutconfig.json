@@ -1,0 +1,12 @@
+{
+  "configured_dirs": [
+    "res://tests/gut"
+  ],
+  "dirs": [
+    "res://tests/gut"
+  ],
+  "include_subdirs": true,
+  "post_run_script": "res://tests/gut/support/gf_test_shutdown_hook.gd",
+  "prefix": "test_",
+  "suffix": ".gd"
+}
