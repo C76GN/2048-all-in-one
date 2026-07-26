@@ -78,11 +78,11 @@ func tick(_delta: float) -> void:
 		return
 
 	if _consume_action(ACTION_REPLAY_PREV_MARKER):
-		replay_system.jump_to_previous_marker()
+		var _ignored_jump_started: bool = replay_system.jump_to_previous_marker()
 		return
 
 	if _consume_action(ACTION_REPLAY_NEXT_MARKER):
-		replay_system.jump_to_next_marker()
+		var _ignored_jump_started: bool = replay_system.jump_to_next_marker()
 		return
 
 	if _consume_action(ACTION_REPLAY_PREV_STEP):
@@ -226,7 +226,7 @@ func _jump_to_step(request: ReplayJumpRequestData) -> void:
 		or _is_step_processing
 	):
 		if is_instance_valid(replay_system) and is_instance_valid(request):
-			replay_system.notify_jump_completed(
+			var _ignored_invalid_request_completed: bool = replay_system.notify_jump_completed(
 				request.request_id,
 				request.target_step,
 				false
@@ -235,7 +235,11 @@ func _jump_to_step(request: ReplayJumpRequestData) -> void:
 
 	var history: GFCommandHistoryUtility = _get_command_history_utility()
 	if not is_instance_valid(history):
-		replay_system.notify_jump_completed(request.request_id, request.target_step, false)
+		var _ignored_missing_history_completed: bool = replay_system.notify_jump_completed(
+			request.request_id,
+			request.target_step,
+			false
+		)
 		return
 
 	_is_step_processing = true
@@ -253,7 +257,7 @@ func _jump_to_step(request: ReplayJumpRequestData) -> void:
 		animation_utility.end_presentation_suppression()
 	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
 	_is_step_processing = false
-	replay_system.notify_jump_completed(
+	var _ignored_jump_completed: bool = replay_system.notify_jump_completed(
 		request.request_id,
 		request.target_step,
 		succeeded

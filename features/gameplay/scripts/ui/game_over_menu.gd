@@ -266,7 +266,7 @@ func _format_result_explanation(result: GameResultRecordedData) -> String:
 	if result == null or not result.is_valid():
 		return ""
 	var lines: PackedStringArray = PackedStringArray()
-	lines.append(GameTextFormatUtility.format_template(
+	var _ignored_identity_appended: bool = lines.append(GameTextFormatUtility.format_template(
 		tr("GAME_OVER_RESULT_IDENTITY_FORMAT"),
 		_RESULT_IDENTITY_FORMAT_FALLBACK,
 		[
@@ -281,7 +281,7 @@ func _format_result_explanation(result: GameResultRecordedData) -> String:
 			if is_instance_valid(progress_stats)
 			else 0
 		)
-		lines.append(
+		var _ignored_rank_appended: bool = lines.append(
 			GameTextFormatUtility.format_template(
 				tr("GAME_OVER_COMPETITION_RANK_FORMAT"),
 				_COMPETITION_RANK_FORMAT_FALLBACK,
@@ -299,11 +299,13 @@ func _format_result_explanation(result: GameResultRecordedData) -> String:
 		for reason_code: StringName in (
 			result.competition_eligibility.get_disqualifying_reason_codes()
 		):
-			reason_labels.append(_get_eligibility_reason_label(reason_code))
+			var _ignored_reason_appended: bool = reason_labels.append(
+				_get_eligibility_reason_label(reason_code)
+			)
 		var reason_separator: String = tr("ELIGIBILITY_REASON_SEPARATOR")
 		if reason_separator == "ELIGIBILITY_REASON_SEPARATOR":
 			reason_separator = "、"
-		lines.append(GameTextFormatUtility.format_template(
+		var _ignored_ineligible_appended: bool = lines.append(GameTextFormatUtility.format_template(
 			tr("GAME_OVER_COMPETITION_INELIGIBLE_FORMAT"),
 			_COMPETITION_INELIGIBLE_FORMAT_FALLBACK,
 			[reason_separator.join(reason_labels)]

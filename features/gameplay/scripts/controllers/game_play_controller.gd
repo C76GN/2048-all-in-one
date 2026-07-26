@@ -778,12 +778,12 @@ func _on_replay_next_pressed() -> void:
 
 func _on_replay_prev_marker_pressed() -> void:
 	if is_instance_valid(_replay_system):
-		_replay_system.jump_to_previous_marker()
+		var _ignored_jump_started: bool = _replay_system.jump_to_previous_marker()
 
 
 func _on_replay_next_marker_pressed() -> void:
 	if is_instance_valid(_replay_system):
-		_replay_system.jump_to_next_marker()
+		var _ignored_jump_started: bool = _replay_system.jump_to_next_marker()
 
 
 func _on_replay_marker_selected(marker_index: int) -> void:

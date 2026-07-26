@@ -488,7 +488,7 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 			if duplicated_rule is SpawnRule:
 				var spawn_rule: SpawnRule = duplicated_rule
 				spawn_rules.append(spawn_rule)
-		rule_system.register_rules(spawn_rules)
+		var _ignored_rules_registered: bool = rule_system.register_rules(spawn_rules)
 
 	current_game_model.current_board_topology.set_value(next_topology.duplicate(true))
 	if not is_instance_valid(_theme_utility):
