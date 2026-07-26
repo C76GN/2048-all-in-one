@@ -93,6 +93,30 @@ func test_board_checksum_ignores_runtime_tile_ids_and_input_order() -> void:
 	)
 
 
+func test_ruleset_fingerprint_includes_deterministic_rule_parameters() -> void:
+	var determinism: GameDeterminismUtility = GameDeterminismUtility.new()
+	var first_mode: GameModeConfig = _make_ruleset_fixture(0.9)
+	var same_mode: GameModeConfig = _make_ruleset_fixture(0.9)
+	var changed_mode: GameModeConfig = _make_ruleset_fixture(0.5)
+
+	var first_fingerprint: String = determinism.calculate_ruleset_fingerprint(first_mode)
+	assert_true(first_fingerprint.length() == 64, "规则集指纹应使用稳定的 64 位十六进制摘要。")
+	assert_true(
+		first_fingerprint == determinism.calculate_ruleset_fingerprint(same_mode),
+		"相同规则内容不得因 Resource 实例 ID 不同产生不同指纹。"
+	)
+	assert_false(
+		first_fingerprint == determinism.calculate_ruleset_fingerprint(changed_mode),
+		"会改变生成结果的概率参数即使漏升 ruleset_version，也必须改变指纹。"
+	)
+	same_mode.mode_name = "只改变展示名称"
+	same_mode.mode_description = "展示文案不属于确定性结算规则。"
+	assert_true(
+		first_fingerprint == determinism.calculate_ruleset_fingerprint(same_mode),
+		"展示文案变化不应使确定性回放失效。"
+	)
+
+
 # --- 私有/辅助方法 ---
 
 func _make_seed_utility(seed_value: int) -> GFSeedUtility:
@@ -116,6 +140,17 @@ func _collect_branch_samples(context: RuleContext, branch_id: String, count: int
 		if random_stream != null:
 			samples.append(random_stream.next_u32())
 	return samples
+
+
+func _make_ruleset_fixture(probability_of_2: float) -> GameModeConfig:
+	var mode: GameModeConfig = GameModeConfig.new()
+	mode.ruleset_id = &"gameplay.fingerprint_fixture"
+	mode.ruleset_version = 1
+	mode.target_tile_value = 2048
+	var spawn_rule: ClassicSpawnRule = ClassicSpawnRule.new()
+	spawn_rule.probability_of_2 = probability_of_2
+	mode.spawn_rules = [spawn_rule]
+	return mode
 
 
 func _make_board_snapshot(tiles: Array[Dictionary]) -> Dictionary:

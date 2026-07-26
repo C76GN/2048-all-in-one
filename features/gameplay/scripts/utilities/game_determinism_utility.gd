@@ -18,6 +18,15 @@ func calculate_ruleset_fingerprint(mode_config: GameModeConfig) -> String:
 	return _checksum({
 		&"ruleset_id": String(mode_config.ruleset_id),
 		&"ruleset_version": mode_config.ruleset_version,
+		&"interaction_rule": _normalize_ruleset_value(mode_config.interaction_rule, {}),
+		&"movement_rule": _normalize_ruleset_value(mode_config.movement_rule, {}),
+		&"spawn_rules": _normalize_ruleset_value(mode_config.spawn_rules, {}),
+		&"game_over_rule": _normalize_ruleset_value(mode_config.game_over_rule, {}),
+		&"board_topology_template": _normalize_ruleset_value(
+			mode_config.board_topology_template,
+			{}
+		),
+		&"target_tile_value": mode_config.target_tile_value,
 	})
 
 
@@ -153,3 +162,68 @@ func normalize_board_snapshot(board_snapshot: Dictionary) -> Dictionary:
 
 func _checksum(data: Dictionary) -> String:
 	return _codec.calculate_checksum(data, GFStorageCodec.Format.JSON)
+
+
+func _normalize_ruleset_value(value: Variant, visited_resources: Dictionary) -> Variant:
+	if value is Resource:
+		var resource: Resource = value
+		var instance_id: int = resource.get_instance_id()
+		if visited_resources.has(instance_id):
+			return {
+				&"resource_ref": GFVariantData.get_option_int(
+					visited_resources,
+					instance_id,
+					0
+				),
+			}
+
+		var reference_index: int = visited_resources.size()
+		visited_resources[instance_id] = reference_index
+		var properties: Dictionary = {}
+		for property_value: Variant in resource.get_property_list():
+			if not property_value is Dictionary:
+				continue
+			var property_info: Dictionary = property_value
+			var usage: int = GFVariantData.get_option_int(property_info, &"usage", 0)
+			if (usage & PROPERTY_USAGE_STORAGE) == 0:
+				continue
+			var property_name: StringName = GFVariantData.get_option_string_name(
+				property_info,
+				&"name"
+			)
+			if property_name in [&"script", &"resource_name", &"resource_local_to_scene"]:
+				continue
+			properties[property_name] = _normalize_ruleset_value(
+				resource.get(property_name),
+				visited_resources
+			)
+
+		var script_path: String = ""
+		var script_value: Variant = resource.get_script()
+		if script_value is Script:
+			var resource_script: Script = script_value
+			script_path = resource_script.resource_path
+		return {
+			&"resource_ref": reference_index,
+			&"class": resource.get_class(),
+			&"script_path": script_path,
+			&"properties": properties,
+		}
+
+	if value is Array:
+		var normalized_array: Array = []
+		for item: Variant in value:
+			normalized_array.append(_normalize_ruleset_value(item, visited_resources))
+		return normalized_array
+
+	if value is Dictionary:
+		var normalized_dictionary: Dictionary = {}
+		var source_dictionary: Dictionary = value
+		for key: Variant in source_dictionary:
+			normalized_dictionary[key] = _normalize_ruleset_value(
+				source_dictionary[key],
+				visited_resources
+			)
+		return normalized_dictionary
+
+	return GFVariantData.duplicate_variant(value, true, false)
