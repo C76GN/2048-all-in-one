@@ -378,14 +378,26 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 ## @return: 本次恢复启动的全部 Tween，由 GF ActionQueue 跟踪完成状态。
 func restore_from_snapshot_with_reverse_animation(
 	snapshot: Dictionary,
-	reverse_target_map: Dictionary
+	reverse_target_map: Dictionary,
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
 ) -> Array[Tween]:
-	return _restore_from_snapshot(snapshot, reverse_target_map)
+	return _restore_from_snapshot(
+		snapshot,
+		reverse_target_map,
+		motion_profile,
+		feedback_budget
+	)
 
 
 # --- 私有/辅助方法 ---
 
-func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary) -> Array[Tween]:
+func _restore_from_snapshot(
+	snapshot: Dictionary,
+	reverse_target_map: Dictionary,
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
+) -> Array[Tween]:
 	_is_rebuilding_visuals = true
 	var animation_tweens: Array[Tween] = []
 	var current_tiles: Array[Tile] = []
@@ -401,7 +413,11 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 		var reverse_start_tiles: Dictionary = _build_reverse_start_tiles_map(snapshot, reverse_target_map)
 		for tile: Tile in current_tiles:
 			if _should_animate_undo_despawn(tile, reverse_start_tiles):
-				var despawn_tween: Tween = _animate_release_visual_tile(tile)
+				var despawn_tween: Tween = _animate_release_visual_tile(
+					tile,
+					motion_profile,
+					feedback_budget
+				)
 				if is_instance_valid(despawn_tween) and despawn_tween.is_valid():
 					animation_tweens.append(despawn_tween)
 			else:
@@ -447,7 +463,11 @@ func _restore_from_snapshot(snapshot: Dictionary, reverse_target_map: Dictionary
 		new_tile.rotation_degrees = 0
 
 		if start_grid_pos != pos:
-			var move_tween: Tween = new_tile.animate_move(_grid_to_pixel_center(pos))
+			var move_tween: Tween = new_tile.animate_move(
+				_grid_to_pixel_center(pos),
+				motion_profile,
+				feedback_budget
+			)
 			if is_instance_valid(move_tween) and move_tween.is_valid():
 				animation_tweens.append(move_tween)
 
@@ -626,7 +646,11 @@ func _release_visual_tile(tile: Tile) -> void:
 	tile.visible = false
 
 
-func _animate_release_visual_tile(tile: Tile) -> Tween:
+func _animate_release_visual_tile(
+	tile: Tile,
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
+) -> Tween:
 	if not is_instance_valid(tile):
 		return null
 
@@ -634,7 +658,7 @@ func _animate_release_visual_tile(tile: Tile) -> Tween:
 	tile.set_meta(RELEASE_TOKEN_META, release_token)
 	tile.move_to_front()
 
-	var despawn_tween: Tween = tile.animate_despawn()
+	var despawn_tween: Tween = tile.animate_despawn(motion_profile, feedback_budget)
 	if is_instance_valid(despawn_tween) and despawn_tween.is_valid():
 		var _release_connected: int = despawn_tween.finished.connect(
 			_release_visual_tile_if_valid.bind(tile, release_token)
@@ -971,7 +995,8 @@ func _normalize_grid_cell_scales() -> void:
 	for cell_value: Variant in _grid_cell_map.keys():
 		if not cell_value is Vector2i:
 			continue
-		var cell_instance: Control = _get_grid_cell_control(cell_value)
+		var cell: Vector2i = cell_value
+		var cell_instance: Control = _get_grid_cell_control(cell)
 		if is_instance_valid(cell_instance):
 			cell_instance.scale = Vector2.ONE
 

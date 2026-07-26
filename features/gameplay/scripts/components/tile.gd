@@ -14,15 +14,15 @@ const _TEXT_CONTENT_INSETS: Vector4 = Vector4(10.0, 6.0, 10.0, 6.0)
 const _MIN_FONT_SIZE: int = 12
 const _MAX_FONT_SIZE: int = 48
 
-const _MOVE_DURATION: float = 0.10
-const _SPAWN_DURATION: float = 0.14
-const _MERGE_PULSE_DURATION: float = 0.085
-const _VALUE_GROWTH_DURATION: float = 0.13
-const _DESPAWN_DURATION: float = 0.12
 const _STYLE_OUTLINE_LIGHT: Color = Color(1.0, 0.972549, 0.9098039, 0.66)
 const _STYLE_OUTLINE_DARK: Color = Color(0.0, 0.0, 0.0, 0.35)
 const _FLASH_MERGE_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
 const _FLASH_TRANSFORM_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
+
+
+# --- 静态变量 ---
+
+static var _default_motion_profile: GameTileMotionProfile = GameTileMotionProfile.new()
 
 
 # --- 公共变量 ---
@@ -148,36 +148,72 @@ func on_gf_pool_release() -> void:
 
 ## 播放方块生成时的动画（短促放大出现）。
 ## @return: 返回控制该动画的 Tween 对象。
-func animate_spawn() -> Tween:
+func animate_spawn(
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
+) -> Tween:
 	if is_instance_valid(_active_rotation_tween) and _active_rotation_tween.is_valid():
 		_active_rotation_tween.kill()
+	_active_rotation_tween = null
 
-	scale = Vector2.ONE * 0.64
+	var profile: GameTileMotionProfile = _resolve_motion_profile(motion_profile)
 	rotation_degrees = 0.0
+	if not profile.is_motion_enabled(feedback_budget):
+		scale = Vector2.ONE
+		modulate = Color.WHITE
+		return null
+
+	scale = Vector2.ONE * profile.get_spawn_start_scale(feedback_budget)
 	modulate = Color(1.0, 1.0, 1.0, 0.0)
 	_active_rotation_tween = create_tween()
 	var _parallel_result: Tween = _active_rotation_tween.set_parallel(true)
 	var _transition_result: Tween = _active_rotation_tween.set_trans(Tween.TRANS_BACK)
 	var _ease_result: Tween = _active_rotation_tween.set_ease(Tween.EASE_OUT)
-	var _scale_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "scale", Vector2.ONE, _SPAWN_DURATION)
-	var _fade_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "modulate:a", 1.0, _SPAWN_DURATION * 0.75)
+	var spawn_duration: float = profile.get_spawn_duration(feedback_budget)
+	var _scale_tweener: PropertyTweener = _active_rotation_tween.tween_property(
+		self,
+		"scale",
+		Vector2.ONE,
+		spawn_duration
+	)
+	var _fade_tweener: PropertyTweener = _active_rotation_tween.tween_property(
+		self,
+		"modulate:a",
+		1.0,
+		spawn_duration * profile.spawn_fade_ratio
+	)
 	return _active_rotation_tween
 
 
 ## 播放方块在棋盘上移动时的动画。
 ## @param new_position: 移动的目标位置。
 ## @return: 返回控制该动画的 Tween 对象。
-func animate_move(new_position: Vector2) -> Tween:
+func animate_move(
+	new_position: Vector2,
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
+) -> Tween:
 	if position.is_equal_approx(new_position):
 		return null
 
 	if is_instance_valid(_active_move_tween) and _active_move_tween.is_valid():
 		_active_move_tween.kill()
+	_active_move_tween = null
+
+	var profile: GameTileMotionProfile = _resolve_motion_profile(motion_profile)
+	if not profile.is_motion_enabled(feedback_budget):
+		position = new_position
+		return null
 
 	_active_move_tween = create_tween()
 	var _transition_result: Tween = _active_move_tween.set_trans(Tween.TRANS_CUBIC)
 	var _ease_result: Tween = _active_move_tween.set_ease(Tween.EASE_OUT)
-	var _position_tweener: PropertyTweener = _active_move_tween.tween_property(self, "position", new_position, _MOVE_DURATION)
+	var _position_tweener: PropertyTweener = _active_move_tween.tween_property(
+		self,
+		"position",
+		new_position,
+		profile.get_move_duration(feedback_budget)
+	)
 	return _active_move_tween
 
 
@@ -187,24 +223,40 @@ func animate_move(new_position: Vector2) -> Tween:
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_merge(
 	on_impact: Callable = Callable(),
-	delay_seconds: float = 0.0
+	delay_seconds: float = 0.0,
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
 ) -> Tween:
 	if is_instance_valid(_active_scale_tween) and _active_scale_tween.is_valid():
 		_active_scale_tween.kill()
+	_active_scale_tween = null
 
+	var profile: GameTileMotionProfile = _resolve_motion_profile(motion_profile)
+	if not profile.is_motion_enabled(feedback_budget):
+		scale = Vector2.ONE
+		_snap_flash_to_rest()
+		if on_impact.is_valid():
+			on_impact.call()
+		return null
+
+	var pulse_duration: float = profile.get_merge_pulse_duration(feedback_budget)
 	_active_scale_tween = create_tween()
 	if delay_seconds > 0.0:
 		var _delay_tweener: IntervalTweener = _active_scale_tween.tween_interval(delay_seconds)
 	if on_impact.is_valid():
 		var _impact_tweener: CallbackTweener = _active_scale_tween.tween_callback(on_impact)
 	var _flash_tweener: CallbackTweener = _active_scale_tween.tween_callback(
-		_play_flash.bind(_FLASH_MERGE_COLOR, _MERGE_PULSE_DURATION * 2.0)
+		_play_flash.bind(
+			profile.get_flash_color(_FLASH_MERGE_COLOR, feedback_budget),
+			pulse_duration * 2.0,
+			profile.get_flash_label_peak_scale(feedback_budget)
+		)
 	)
 	var scale_up_tweener: PropertyTweener = _active_scale_tween.tween_property(
 		self,
 		"scale",
-		Vector2.ONE * 1.19,
-		_MERGE_PULSE_DURATION
+		Vector2.ONE * profile.get_merge_peak_scale(feedback_budget),
+		pulse_duration
 	)
 	var _scale_up_transition: Tweener = scale_up_tweener.set_trans(Tween.TRANS_BACK).set_ease(
 		Tween.EASE_OUT
@@ -213,7 +265,7 @@ func animate_merge(
 		self,
 		"scale",
 		Vector2.ONE,
-		_MERGE_PULSE_DURATION
+		pulse_duration
 	)
 	var _scale_down_transition: Tweener = scale_down_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
 		Tween.EASE_OUT
@@ -223,15 +275,34 @@ func animate_merge(
 
 ## 播放方块离场时的缩小淡出动画。
 ## @return: 返回控制该动画的 Tween 对象。
-func animate_despawn() -> Tween:
+func animate_despawn(
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
+) -> Tween:
 	reset_animation_state()
 
+	var profile: GameTileMotionProfile = _resolve_motion_profile(motion_profile)
+	if not profile.is_motion_enabled(feedback_budget):
+		modulate.a = 0.0
+		return null
+
+	var despawn_duration: float = profile.get_despawn_duration(feedback_budget)
 	_active_scale_tween = create_tween()
 	var _parallel_result: Tween = _active_scale_tween.set_parallel(true)
 	var _transition_result: Tween = _active_scale_tween.set_trans(Tween.TRANS_BACK)
 	var _ease_result: Tween = _active_scale_tween.set_ease(Tween.EASE_IN)
-	var _scale_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "scale", Vector2.ONE * 0.28, _DESPAWN_DURATION)
-	var _fade_tweener: PropertyTweener = _active_scale_tween.tween_property(self, "modulate:a", 0.0, _DESPAWN_DURATION)
+	var _scale_tweener: PropertyTweener = _active_scale_tween.tween_property(
+		self,
+		"scale",
+		Vector2.ONE * profile.get_despawn_end_scale(feedback_budget),
+		despawn_duration
+	)
+	var _fade_tweener: PropertyTweener = _active_scale_tween.tween_property(
+		self,
+		"modulate:a",
+		0.0,
+		despawn_duration
+	)
 	return _active_scale_tween
 
 
@@ -241,10 +312,21 @@ func animate_despawn() -> Tween:
 ## @return: 返回控制该动画的 Tween 对象。
 func animate_transform(
 	on_impact: Callable = Callable(),
-	delay_seconds: float = 0.0
+	delay_seconds: float = 0.0,
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
 ) -> Tween:
 	if is_instance_valid(_active_rotation_tween) and _active_rotation_tween.is_valid():
 		_active_rotation_tween.kill()
+	_active_rotation_tween = null
+
+	var profile: GameTileMotionProfile = _resolve_motion_profile(motion_profile)
+	if not profile.is_motion_enabled(feedback_budget):
+		rotation_degrees = 0.0
+		_snap_flash_to_rest()
+		if on_impact.is_valid():
+			on_impact.call()
+		return null
 
 	_active_rotation_tween = create_tween()
 	var _transition_result: Tween = _active_rotation_tween.set_trans(Tween.TRANS_SINE)
@@ -254,23 +336,54 @@ func animate_transform(
 	if on_impact.is_valid():
 		var _impact_tweener: CallbackTweener = _active_rotation_tween.tween_callback(on_impact)
 	var _flash_tweener: CallbackTweener = _active_rotation_tween.tween_callback(
-		_play_flash.bind(_FLASH_TRANSFORM_COLOR, 0.14)
+		_play_flash.bind(
+			profile.get_flash_color(_FLASH_TRANSFORM_COLOR, feedback_budget),
+			profile.get_transform_flash_duration(feedback_budget),
+			profile.get_flash_label_peak_scale(feedback_budget)
+		)
 	)
-	var _rotate_left_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", -4.0, 0.04)
-	var _rotate_right_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 4.0, 0.05)
-	var _rotate_settle_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", -2.0, 0.04)
-	var _rotate_home_tweener: PropertyTweener = _active_rotation_tween.tween_property(self, "rotation_degrees", 0.0, 0.05)
+	var peak_rotation: float = profile.get_transform_peak_rotation_degrees(feedback_budget)
+	var _rotate_left_tweener: PropertyTweener = _active_rotation_tween.tween_property(
+		self,
+		"rotation_degrees",
+		-peak_rotation,
+		profile.get_transform_left_duration(feedback_budget)
+	)
+	var _rotate_right_tweener: PropertyTweener = _active_rotation_tween.tween_property(
+		self,
+		"rotation_degrees",
+		peak_rotation,
+		profile.get_transform_right_duration(feedback_budget)
+	)
+	var _rotate_settle_tweener: PropertyTweener = _active_rotation_tween.tween_property(
+		self,
+		"rotation_degrees",
+		profile.get_transform_settle_rotation_degrees(feedback_budget),
+		profile.get_transform_settle_duration(feedback_budget)
+	)
+	var _rotate_home_tweener: PropertyTweener = _active_rotation_tween.tween_property(
+		self,
+		"rotation_degrees",
+		0.0,
+		profile.get_transform_home_duration(feedback_budget)
+	)
 	return _active_rotation_tween
 
 
 ## 返回移动反馈的标准时长，供批量表现动作安排冲击时刻。
-static func get_move_animation_duration() -> float:
-	return _MOVE_DURATION
+static func get_move_animation_duration(
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
+) -> float:
+	return _resolve_motion_profile(motion_profile).get_move_duration(feedback_budget)
 
 
 ## 返回合并脉冲的完整时长，供后续表现动作顺序衔接。
-static func get_merge_animation_duration() -> float:
-	return _MERGE_PULSE_DURATION * 2.0
+static func get_merge_animation_duration(
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
+) -> float:
+	return _resolve_motion_profile(motion_profile).get_merge_duration(feedback_budget)
 
 
 ## 返回当前方块主题背景色，供粒子和浮动文字继承视觉语义。
@@ -293,11 +406,19 @@ func animate_value_growth(
 	from_background_color: Color,
 	to_background_color: Color,
 	from_font_color: Color,
-	to_font_color: Color
+	to_font_color: Color,
+	motion_profile: GameTileMotionProfile = null,
+	feedback_budget: GameFeedbackBudget = null
 ) -> Tween:
 	if is_instance_valid(_active_value_tween) and _active_value_tween.is_valid():
 		_active_value_tween.kill()
+	_active_value_tween = null
 	if from_value == to_value:
+		return null
+
+	var profile: GameTileMotionProfile = _resolve_motion_profile(motion_profile)
+	if not profile.is_motion_enabled(feedback_budget):
+		_finish_value_growth(to_value, to_background_color, to_font_color)
 		return null
 
 	_set_value_growth_progress(
@@ -321,7 +442,7 @@ func animate_value_growth(
 		),
 		0.0,
 		1.0,
-		_VALUE_GROWTH_DURATION
+		profile.get_value_growth_duration(feedback_budget)
 	)
 	var _growth_curve: Tweener = growth_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
 		Tween.EASE_OUT
@@ -386,6 +507,12 @@ func _finish_value_growth(
 	_active_value_tween = null
 
 
+static func _resolve_motion_profile(
+	motion_profile: GameTileMotionProfile
+) -> GameTileMotionProfile:
+	return motion_profile if motion_profile != null else _default_motion_profile
+
+
 func _get_label_outline_color(bg_color: Color) -> Color:
 	var luminance: float = (
 		bg_color.r * 0.299
@@ -395,18 +522,26 @@ func _get_label_outline_color(bg_color: Color) -> Color:
 	return _STYLE_OUTLINE_LIGHT if luminance < 0.50 else _STYLE_OUTLINE_DARK
 
 
-func _play_flash(color: Color, duration: float) -> void:
+func _play_flash(color: Color, duration: float, label_peak_scale: float) -> void:
 	if is_instance_valid(_active_flash_tween) and _active_flash_tween.is_valid():
 		_active_flash_tween.kill()
 
 	background.modulate = color
-	value_label.scale = Vector2.ONE * 1.15
+	value_label.scale = Vector2.ONE * label_peak_scale
 	_active_flash_tween = create_tween()
 	var _parallel_result: Tween = _active_flash_tween.set_parallel(true)
 	var _transition_result: Tween = _active_flash_tween.set_trans(Tween.TRANS_SINE)
 	var _ease_result: Tween = _active_flash_tween.set_ease(Tween.EASE_OUT)
 	var _background_tweener: PropertyTweener = _active_flash_tween.tween_property(background, "modulate", Color.WHITE, duration)
 	var _label_tweener: PropertyTweener = _active_flash_tween.tween_property(value_label, "scale", Vector2.ONE, duration)
+
+
+func _snap_flash_to_rest() -> void:
+	if is_instance_valid(_active_flash_tween) and _active_flash_tween.is_valid():
+		_active_flash_tween.kill()
+	_active_flash_tween = null
+	background.modulate = Color.WHITE
+	value_label.scale = Vector2.ONE
 
 
 ## 使用 GF 的单行一次测量路径计算并应用最大可读字号。

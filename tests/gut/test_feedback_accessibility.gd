@@ -7,6 +7,9 @@ extends GutTest
 const _PROFILE: GameBoardFeedbackProfile = preload(
 	"res://features/themes/resources/themes/game/feedback/halftone_atlas_board_feedback_profile.tres"
 )
+const _TILE_SCENE: PackedScene = preload(
+	"res://features/gameplay/scenes/components/tile.tscn"
+)
 
 
 # --- 测试用例 ---
@@ -79,6 +82,133 @@ func test_vfx_performance_matrix_is_monotonic_and_reduced_motion_is_strict() -> 
 	assert_false(motion_safe.celebration_shader_enabled, "减少动态效果必须改用静态庆祝反馈。")
 
 
+func test_minimal_budget_shortens_and_softens_core_tile_motion() -> void:
+	var motion_profile: GameTileMotionProfile = _PROFILE.tile_motion_profile
+	assert_not_null(motion_profile, "棋盘反馈 Profile 必须拥有统一的 Tile 动画节拍。")
+	assert_true(motion_profile.is_valid_profile(), "正式 Tile 动画节拍必须完整有效。")
+	assert_true(
+		is_equal_approx(motion_profile.move_duration, 0.10)
+		and is_equal_approx(motion_profile.spawn_duration, 0.14)
+		and is_equal_approx(motion_profile.merge_pulse_duration, 0.085),
+		"完整档必须保持迁移前的核心动画节拍。"
+	)
+
+	var minimal_state: GameAccessibilityState = GameAccessibilityState.new()
+	minimal_state.vfx_quality = GameAccessibilityState.VfxQuality.MINIMAL
+	var minimal_budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(minimal_state)
+	assert_true(
+		Tile.get_move_animation_duration(motion_profile, minimal_budget)
+		< Tile.get_move_animation_duration(motion_profile),
+		"MINIMAL 必须缩短方块移动时长。"
+	)
+	assert_true(
+		Tile.get_merge_animation_duration(motion_profile, minimal_budget)
+		< Tile.get_merge_animation_duration(motion_profile),
+		"MINIMAL 必须缩短方块合并脉冲时长。"
+	)
+
+	var tile: Tile = await _create_tile()
+	var spawn_tween: Tween = tile.animate_spawn(motion_profile, minimal_budget)
+	assert_true(
+		is_instance_valid(spawn_tween) and spawn_tween.is_valid(),
+		"MINIMAL 仍应保留短促且可排队等待的核心动画。"
+	)
+	assert_true(
+		tile.scale.x > motion_profile.spawn_start_scale and tile.scale.x < 1.0,
+		"MINIMAL 的生成缩放幅度必须比完整档更接近静止状态。"
+	)
+	tile.reset_animation_state()
+
+	var merge_tween: Tween = tile.animate_merge(
+		Callable(),
+		0.0,
+		motion_profile,
+		minimal_budget
+	)
+	var _merge_step_active: bool = merge_tween.custom_step(
+		motion_profile.get_merge_pulse_duration(minimal_budget)
+	)
+	assert_true(
+		tile.scale.x > 1.0 and tile.scale.x < motion_profile.merge_peak_scale,
+		"MINIMAL 的合并峰值必须保留辨识度但降低幅度。"
+	)
+	tile.reset_animation_state()
+
+
+func test_reduced_motion_snaps_core_tile_animation_and_preserves_impacts() -> void:
+	var motion_profile: GameTileMotionProfile = _PROFILE.tile_motion_profile
+	var reduced_motion_state: GameAccessibilityState = GameAccessibilityState.new()
+	reduced_motion_state.reduced_motion = true
+	var budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(
+		reduced_motion_state
+	)
+	var tile: Tile = await _create_tile()
+
+	assert_null(
+		tile.animate_move(Vector2(96.0, 48.0), motion_profile, budget),
+		"减少动态时移动不得创建 Tween。"
+	)
+	assert_true(
+		tile.position.is_equal_approx(Vector2(96.0, 48.0)),
+		"减少动态时移动必须同步落到准确目标。"
+	)
+	assert_null(
+		tile.animate_spawn(motion_profile, budget),
+		"减少动态时生成不得创建 Tween。"
+	)
+	assert_true(
+		tile.scale.is_equal_approx(Vector2.ONE) and is_equal_approx(tile.modulate.a, 1.0),
+		"减少动态时生成必须直接显示最终状态。"
+	)
+
+	assert_null(
+		tile.animate_merge(
+			tile.set_meta.bind(&"_test_merge_impact", true),
+			0.5,
+			motion_profile,
+			budget
+		),
+		"减少动态时合并不得保留延迟 Tween。"
+	)
+	assert_true(
+		GFVariantData.to_bool(tile.get_meta(&"_test_merge_impact", false)),
+		"减少动态仍必须同步执行合并冲击回调。"
+	)
+	assert_null(
+		tile.animate_transform(
+			tile.set_meta.bind(&"_test_transform_impact", true),
+			0.5,
+			motion_profile,
+			budget
+		),
+		"减少动态时变换不得保留延迟 Tween。"
+	)
+	assert_true(
+		GFVariantData.to_bool(tile.get_meta(&"_test_transform_impact", false)),
+		"减少动态仍必须同步执行变换冲击回调。"
+	)
+
+	assert_null(
+		tile.animate_value_growth(
+			2,
+			4,
+			Color.DARK_GRAY,
+			Color.WHITE,
+			Color.WHITE,
+			Color.BLACK,
+			motion_profile,
+			budget
+		),
+		"减少动态时数值成长不得创建 Tween。"
+	)
+	assert_true(tile.value_label.text == "4", "减少动态时数值必须直接落到合并结果。")
+	assert_null(
+		tile.animate_despawn(motion_profile, budget),
+		"减少动态时离场不得创建 Tween。"
+	)
+	assert_true(is_zero_approx(tile.modulate.a), "减少动态时离场必须同步隐藏。")
+
+
 func test_reduced_motion_disables_shake_haptics_and_background_impulse() -> void:
 	var setup: Dictionary = await _make_accessibility_architecture(true)
 	var architecture: GFArchitecture = setup[&"architecture"]
@@ -127,6 +257,19 @@ func test_reduced_motion_disables_shake_haptics_and_background_impulse() -> void
 
 
 # --- 私有/辅助方法 ---
+
+func _create_tile() -> Tile:
+	var node: Node = _TILE_SCENE.instantiate()
+	if not node is Tile:
+		if is_instance_valid(node):
+			node.queue_free()
+		assert_true(false, "Tile 场景必须实例化为 Tile。")
+		return null
+	var tile: Tile = node
+	add_child_autofree(tile)
+	await get_tree().process_frame
+	return tile
+
 
 func _make_accessibility_architecture(include_feedback: bool = false) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()

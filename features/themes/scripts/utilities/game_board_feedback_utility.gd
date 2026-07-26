@@ -72,6 +72,10 @@ func get_profile() -> GameBoardFeedbackProfile:
 	return _profile
 
 
+func get_tile_motion_profile() -> GameTileMotionProfile:
+	return _profile.tile_motion_profile if _profile != null else null
+
+
 func get_current_budget() -> GameFeedbackBudget:
 	return GameFeedbackPerformanceMatrix.resolve(_get_accessibility_state())
 

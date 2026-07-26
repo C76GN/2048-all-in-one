@@ -29,7 +29,9 @@ func execute() -> Variant:
 
 	var tweens: Array[Tween] = _game_board.restore_from_snapshot_with_reverse_animation(
 		_snapshot,
-		_reverse_target_map
+		_reverse_target_map,
+		_tile_motion_profile,
+		_feedback_budget
 	)
 	return _wait_for_tweens(tweens, _game_board)
 

@@ -23,6 +23,7 @@ const TILE_TRANSFORM: StringName = &"transform"
 @export var spawn_recipe: GameFeedbackRecipe
 @export var tile_merge_recipe: GameFeedbackRecipe
 @export var transform_recipe: GameFeedbackRecipe
+@export var tile_motion_profile: GameTileMotionProfile
 
 
 # --- 公共方法 ---
@@ -69,6 +70,10 @@ func get_validation_report() -> GFValidationReport:
 	_validate_tile_recipe(report, TILE_SPAWN, spawn_recipe)
 	_validate_tile_recipe(report, TILE_MERGE, tile_merge_recipe)
 	_validate_tile_recipe(report, TILE_TRANSFORM, transform_recipe)
+	if tile_motion_profile == null:
+		_add_error(report, &"missing_tile_motion_profile", &"tile_motion")
+	elif not tile_motion_profile.is_valid_profile():
+		_add_error(report, &"invalid_tile_motion_profile", &"tile_motion")
 	return report
 
 

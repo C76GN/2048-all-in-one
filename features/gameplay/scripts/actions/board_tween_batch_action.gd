@@ -7,6 +7,8 @@ extends "res://addons/gf/extensions/action_queue/actions/gf_visual_action.gd"
 
 var _active_tweens: Array[Tween] = []
 var _wait_guard_node: Node
+var _tile_motion_profile: GameTileMotionProfile
+var _feedback_budget: GameFeedbackBudget
 
 
 # --- 公共方法 ---
@@ -39,6 +41,15 @@ func finish() -> void:
 
 func get_wait_guard_node() -> Node:
 	return _wait_guard_node if is_instance_valid(_wait_guard_node) else null
+
+
+## 固化动作入队时的主题节拍与无障碍预算，避免执行途中设置变化重排当前批次。
+func configure_tile_motion(
+	motion_profile: GameTileMotionProfile,
+	feedback_budget: GameFeedbackBudget
+) -> void:
+	_tile_motion_profile = motion_profile
+	_feedback_budget = feedback_budget
 
 
 # --- 受保护的辅助方法 ---

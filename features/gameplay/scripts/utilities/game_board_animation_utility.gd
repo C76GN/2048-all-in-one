@@ -16,6 +16,7 @@ const BOARD_QUEUE_NAME: StringName = &"gameplay.board_animation"
 var _action_queue_system: GFActionQueueSystem
 var _board_queue: GFActionQueueSystem
 var _input_profile: GameInputProfileUtility
+var _feedback_utility: GameBoardFeedbackUtility
 var _board: GameBoardController
 var _presentation_suppression_depth: int = 0
 
@@ -27,14 +28,19 @@ func get_required_systems() -> Array[Script]:
 
 
 func get_required_utilities() -> Array[Script]:
-	return [GameInputProfileUtility]
+	return [GameInputProfileUtility, GameBoardFeedbackUtility]
 
 
 func ready() -> void:
 	_action_queue_system = _get_action_queue_system()
 	_input_profile = _get_input_profile_utility()
-	if not is_instance_valid(_action_queue_system) or not is_instance_valid(_input_profile):
-		push_error("[GameBoardAnimationUtility] 缺少动作队列或输入配置依赖。")
+	_feedback_utility = _get_feedback_utility()
+	if (
+		not is_instance_valid(_action_queue_system)
+		or not is_instance_valid(_input_profile)
+		or not is_instance_valid(_feedback_utility)
+	):
+		push_error("[GameBoardAnimationUtility] 缺少动作队列、输入配置或棋盘反馈依赖。")
 
 
 func dispose() -> void:
@@ -43,6 +49,7 @@ func dispose() -> void:
 	_board = null
 	_action_queue_system = null
 	_input_profile = null
+	_feedback_utility = null
 	_presentation_suppression_depth = 0
 
 
@@ -81,6 +88,16 @@ func enqueue(action: Object) -> bool:
 		or not _ensure_board_queue()
 	):
 		return false
+	if action is BoardTweenBatchAction:
+		var board_action: BoardTweenBatchAction = action
+		board_action.configure_tile_motion(
+			_feedback_utility.get_tile_motion_profile()
+			if is_instance_valid(_feedback_utility)
+			else null,
+			_feedback_utility.get_current_budget()
+			if is_instance_valid(_feedback_utility)
+			else null
+		)
 	_board_queue.enqueue(action)
 	return true
 
@@ -159,4 +176,12 @@ func _get_input_profile_utility() -> GameInputProfileUtility:
 	if utility_value is GameInputProfileUtility:
 		var input_profile: GameInputProfileUtility = utility_value
 		return input_profile
+	return null
+
+
+func _get_feedback_utility() -> GameBoardFeedbackUtility:
+	var utility_value: Object = get_utility(GameBoardFeedbackUtility)
+	if utility_value is GameBoardFeedbackUtility:
+		var feedback_utility: GameBoardFeedbackUtility = utility_value
+		return feedback_utility
 	return null

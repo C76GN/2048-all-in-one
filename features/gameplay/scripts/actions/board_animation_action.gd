@@ -52,7 +52,14 @@ func execute() -> Variant:
 				
 				target_pos = _get_vector2(instruction, &"to_pos", Vector2.ZERO)
 				if is_instance_valid(tile):
-					_append_tween(tweens, tile.animate_move(target_pos))
+					_append_tween(
+						tweens,
+						tile.animate_move(
+							target_pos,
+							_tile_motion_profile,
+							_feedback_budget
+						)
+					)
 			
 			&"MERGE":
 				var consumed: Tile = _get_tile(instruction, &"consumed_tile")
@@ -65,7 +72,11 @@ func execute() -> Variant:
 					var release_token: RefCounted = RefCounted.new()
 					consumed.set_meta(RELEASE_TOKEN_META, release_token)
 					_pending_consumed_tiles[consumed] = release_token
-					var consumed_tween: Tween = consumed.animate_move(target_pos)
+					var consumed_tween: Tween = consumed.animate_move(
+						target_pos,
+						_tile_motion_profile,
+						_feedback_budget
+					)
 					if is_instance_valid(consumed_tween) and consumed_tween.is_valid():
 						_append_tween(tweens, consumed_tween)
 						var _release_connected: int = consumed_tween.finished.connect(
@@ -78,12 +89,19 @@ func execute() -> Variant:
 					# merged 方块可能在同一帧收到了 MOVE 指令（已在上面处理）
 					# 如果它的目标位置已经改变，或者尚未开始移动动画，则触发移动。
 					# animate_move 内部自带了 is_equal_approx 检查，所以这里直接调用是安全的。
-					var merged_move_tween: Tween = merged.animate_move(target_pos)
+					var merged_move_tween: Tween = merged.animate_move(
+						target_pos,
+						_tile_motion_profile,
+						_feedback_budget
+					)
 					_append_tween(tweens, merged_move_tween)
 					
 					if not target_data.is_empty():
 						var impact_delay: float = (
-							Tile.get_move_animation_duration()
+							Tile.get_move_animation_duration(
+								_tile_motion_profile,
+								_feedback_budget
+							)
 							if is_instance_valid(merged_move_tween) and merged_move_tween.is_valid()
 							else 0.0
 						)
@@ -91,7 +109,9 @@ func execute() -> Variant:
 							tweens,
 							merged.animate_merge(
 								_apply_merge_impact.bind(merged, target_data),
-								impact_delay
+								impact_delay,
+								_tile_motion_profile,
+								_feedback_budget
 							)
 						)
 						if _get_bool(target_data, &"do_transform", false):
@@ -99,14 +119,22 @@ func execute() -> Variant:
 								tweens,
 								merged.animate_transform(
 									_play_tile_feedback.bind(merged, &"transform", ""),
-									impact_delay + Tile.get_merge_animation_duration()
+									impact_delay + Tile.get_merge_animation_duration(
+										_tile_motion_profile,
+										_feedback_budget
+									),
+									_tile_motion_profile,
+									_feedback_budget
 								)
 							)
 			
 			&"SPAWN":
 				var spawn_tile: Tile = _get_tile(instruction, &"tile")
 				if is_instance_valid(spawn_tile):
-					_append_tween(tweens, spawn_tile.animate_spawn())
+					_append_tween(
+						tweens,
+						spawn_tile.animate_spawn(_tile_motion_profile, _feedback_budget)
+					)
 					_play_tile_feedback(spawn_tile, &"spawn")
 
 			&"TRANSFORM":
@@ -123,16 +151,24 @@ func execute() -> Variant:
 									tile,
 									&"merge",
 									_get_score_delta_label(transform_data)
-								)
+								),
+								0.0,
+								_tile_motion_profile,
+								_feedback_budget
 							)
 						)
-						transform_delay = Tile.get_merge_animation_duration()
+						transform_delay = Tile.get_merge_animation_duration(
+							_tile_motion_profile,
+							_feedback_budget
+						)
 					if _get_bool(transform_data, &"do_transform", false):
 						_append_tween(
 							tweens,
 							tile.animate_transform(
 								_play_tile_feedback.bind(tile, &"transform", ""),
-								transform_delay
+								transform_delay,
+								_tile_motion_profile,
+								_feedback_budget
 							)
 						)
 
@@ -229,7 +265,9 @@ func _apply_merge_impact(tile: Tile, target_data: Dictionary) -> void:
 		old_background_color,
 		tile.background.get_fill_color(),
 		old_font_color,
-		tile.value_label.get_theme_color("font_color")
+		tile.value_label.get_theme_color("font_color"),
+		_tile_motion_profile,
+		_feedback_budget
 	)
 	_play_tile_feedback(tile, &"merge", _get_score_delta_label(target_data))
 

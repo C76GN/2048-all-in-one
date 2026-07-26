@@ -1,9 +1,10 @@
-[gd_resource type="Resource" script_class="GameBoardFeedbackProfile" load_steps=20 format=3]
+[gd_resource type="Resource" script_class="GameBoardFeedbackProfile" load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://features/themes/scripts/data/game_board_feedback_profile.gd" id="1_profile"]
 [ext_resource type="Script" path="res://features/themes/scripts/data/game_feedback_recipe.gd" id="2_recipe"]
 [ext_resource type="Script" path="res://addons/gf/extensions/feedback/resources/gf_shake_preset.gd" id="3_shake"]
 [ext_resource type="Script" path="res://addons/gf/extensions/feedback/resources/gf_haptic_preset.gd" id="4_haptic"]
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_tile_motion_profile.gd" id="5_motion"]
 
 [sub_resource type="Resource" id="Resource_move_shake"]
 script = ExtResource("3_shake")
@@ -150,6 +151,26 @@ accent_color = Color(0.827451, 0.38431373, 0.29411766, 1)
 tile_burst_duration = 0.40
 tile_shard_count = 7
 
+[sub_resource type="Resource" id="Motion_tile"]
+script = ExtResource("5_motion")
+move_duration = 0.1
+spawn_duration = 0.14
+spawn_fade_ratio = 0.75
+merge_pulse_duration = 0.085
+value_growth_duration = 0.13
+despawn_duration = 0.12
+transform_left_duration = 0.04
+transform_right_duration = 0.05
+transform_settle_duration = 0.04
+transform_home_duration = 0.05
+transform_flash_duration = 0.14
+spawn_start_scale = 0.64
+merge_peak_scale = 1.19
+despawn_end_scale = 0.28
+transform_peak_rotation_degrees = 4.0
+transform_settle_rotation_degrees = -2.0
+flash_label_peak_scale = 1.15
+
 [resource]
 script = ExtResource("1_profile")
 move_recipe = SubResource("Recipe_turn_move")
@@ -159,3 +180,4 @@ record_recipe = SubResource("Recipe_turn_record")
 spawn_recipe = SubResource("Recipe_tile_spawn")
 tile_merge_recipe = SubResource("Recipe_tile_merge")
 transform_recipe = SubResource("Recipe_tile_transform")
+tile_motion_profile = SubResource("Motion_tile")
