@@ -30,7 +30,7 @@
 | `settings` | 应用设置模型、设置持久化和设置界面 |
 | `bookmarks` | 书签数据、保存流程、列表和预览入口 |
 | `replays` | 回放数据、回放输入、播放流程、列表和继续游戏入口 |
-| `progress` | 最高分、统计和 progress SaveGraph section |
+| `progress` | 最高分、规范结果、资格过滤后的本地排行榜和 progress SaveGraph section |
 | `tile_catalog` | 方块定义目录、组合/拓扑发现、响应式图鉴和 discoveries SaveGraph section |
 | `achievements` | 数据驱动成就目录、GF Quest 运行时投影、成就列表和 achievements SaveGraph section |
 | `persistence` | 通用玩家数据 section 协议、GF SaveGraph 事务编排和存储诊断 |
@@ -96,7 +96,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 1. `BoardTopology` 只描述规范化活跃单元，不保存方块；`GridModel` 以坐标到 `TileState` 的稀疏映射保存占用状态，不再维护完整二维空数组。
 2. `BoardTopologyTemplate` 属于模式配置，声明固定拓扑或可变矩形范围。模式选择页把原 3x3 至 8x8 选项转换成矩形拓扑，`board_editor` 则提交经过同一模板复核的自定义拓扑。
 3. `GridMovementSystem`、`GridSpawnSystem` 与 `StandardGameOverRule` 只遍历活跃单元和真实相邻关系；任何系统不得按包围盒把空洞实体化，也不得让方块跨越空洞。
-4. 撤销、书签、回放和 GF SaveGraph 共用严格拓扑快照；对局 ID、统计和未来排行榜使用语义 ID 加内容指纹的稳定键。
+4. 撤销、书签、回放和 GF SaveGraph 共用严格拓扑快照；对局 ID、统计和本地排行榜分组使用语义 ID 加内容指纹的稳定键。
 5. GF 继续拥有验证报告、确定性随机、命令历史、关卡 Session 和持久化事务；四向稀疏拓扑是 gameplay 领域对象，不误用 GF flow graph 或 hex grid 表达不同语义。
 6. `BoardWorldViewportController` 把棋盘表现放入独立 `BoardWorld`，统一拥有缩放、平移、完整聚焦和边界约束；HUD 保持在视口外的屏幕空间，诊断 UI 不进入玩家场景树。
 7. `GFPointerGestureUtility` 负责桌面指针、触摸与原生 pan/magnify 归一化，`GFViewportUtility` 负责屏幕/棋盘局部坐标换算和物理安全区，`GFSignalUtility` 负责宿主生命周期内的连接所有权。项目只保存“本轮触摸是否仍可成为玩法滑动”的领域仲裁状态，不重复维护指针几何或坐标变换工具。
@@ -117,6 +117,13 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 3. 评分只使用连续 lane 的压缩空间、可比较相邻结构和移动前沿稳定性，不承诺模式专用合并结果；任意 `BoardTopology` 和全部正式模式共享同一算法及固定四向 tie-break，缺少强信号时显式返回通用降级解释。
 4. `Hud` 在捕获边界使用 `GameDeterminismUtility` 计算摘要，并在展示前重新读取当前快照复核；移动、刷新、尺寸或状态事件会立即清除旧结果。摘要不一致、取消或无效快照不得显示。
 5. 键盘、手柄和触摸按钮统一写入 gameplay `GFInputContext` 的 `request_hint` 动作，再由 `PlayerInputSystem` 发布只读请求事件；任何输入表面都不得直接执行建议方向。
+
+### 对局资格与本地排行榜
+
+1. `GameSessionMetadata` 冻结本局 seed 来源和 `GameCompetitionEligibility`。资格快照不可变；调试改写、回放续玩、书签恢复、撤销/重做、自定义棋盘和手动 seed 都是显式失格原因，普通随机对局只有在没有这些原因时才合格。
+2. `GameResultRecordedData` 冻结模式、拓扑、规则集 ID/版本/指纹、初始 seed、最终 canonical state hash、资格快照和结算指标，并以严格 hash 拒绝字段漂移。结果只在成功写入 `progress` section 后成为规范事实。
+3. `ProgressStatsSystem` 把严格结果写入有界最近结果；调试改写不推进统计或成就。只有 `is_competition_eligible()` 为真的结果进入本地排行榜，分组身份固定为 `mode_id`、`board_key`、`ruleset_id`、`ruleset_version` 和 `ruleset_fingerprint`。
+4. 本地排行榜由项目 `progress` Feature 拥有，只是离线设备内参考，不是平台或服务端权威证明。未来 Steam、微信或独立后端接入必须通过显式 bridge contract 重新定义上传、校验和裁决边界，不能把本地 SaveGraph 直接冒充线上真源。
 
 ### 开发诊断工作区
 
@@ -169,7 +176,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 1. `GFPlatformRuntime` 是平台 Adapter 注册、初始化、能力契约路由、请求句柄、超时与生命周期序列的唯一所有者；业务 Feature 不得绕过 Runtime 直接调用 Adapter。
 2. `GamePlatformUtility` 只负责选择项目 Adapter、把 Godot 窗口与应用通知转成 GF 生命周期事件，并投影只读 `GFPlatformRuntimeContext`；它不重复维护请求表、超时器或平台能力集合。
 3. `GamePlatformAdapter` 继承 `GFPlatformAdapter`，负责冻结项目身份与能力契约；具体 Adapter 只实现支持的 SDK dispatch 和平台上下文刷新。
-4. 当前唯一生产实现是 `LocalPlatformAdapter`：它投影 Godot 桌面、移动端和 Web 的本地存储、HTTP、音频、输入、显示与生命周期事实，不宣称微信登录、开放数据域、排行榜、支付、分享或云存档。其项目所有权由 `.gf/project_contract.json` 的 `godot_local_platform_adapter` boundary 声明。
+4. 当前唯一生产实现是 `LocalPlatformAdapter`：它投影 Godot 桌面、移动端和 Web 的本地存储、HTTP、音频、输入、显示与生命周期事实，不宣称微信登录、开放数据域、平台/线上排行榜、支付、分享或云存档。`progress` Feature 的本地排行榜不属于平台能力。Adapter 的项目所有权由 `.gf/project_contract.json` 的 `godot_local_platform_adapter` boundary 声明。
 5. 只有具体平台 Adapter 可以使用 `OS.has_feature()`、`DisplayServer` 或供应商 SDK 探测玩家设备与平台能力；Gameplay、Board Editor 和其他 Feature 必须通过 `GamePlatformUtility` 查询 `GFPlatformRuntimeContext` 与能力 ID，平台上下文变化时重新投影布局。Composition Root 的构建 feature 开关、开发诊断的 headless 判定以及 `GFDisplaySettingsUtility` 所需的枚举类型不属于玩家平台能力探测。
 6. 平台请求统一返回 `GFPlatformRequestHandle`。调用方通过句柄读取终态 `GFPlatformBridgeResult`，不得另建项目私有异步请求协议。
 7. `GFHttpClientUtility` 目前只服务 `platform_smoke` 的网络兼容性验证，因此 Composition Root 仅在该导出 feature 下注册它。正式 Steam、Android、Web 与微信构建不得为未实现的在线业务常驻 HTTP 模块；未来排行榜联网应由平台 Adapter 或独立后端 Feature 明确拥有请求和重试边界。
@@ -181,7 +188,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 3. Composition Root 创建单一 `GFClock` 并同时注入 `GFTimeUtility` 与 `GameClockUtility`；后者是业务代码读取 wall-clock、单调 tick 和日期格式的唯一 Adapter，测试使用 `GFManualClock` 控制同一时间源。
 4. `GFSeedUtility` 拥有运行时随机流、全局种子和稳定派生算法；业务代码不得自行创建 `RandomNumberGenerator`，也不得调用 Godot 全局随机函数。生成规则只能消费以规则语义 ID 派生的 gameplay branch；粒子、音高、装饰闪烁等 cosmetic 随机不得消费 gameplay branch，也不得进入领域快照。
 5. `GameDeterminismUtility` 是 canonical turn state 的唯一摘要入口：它按拓扑坐标排序方块、排除运行时 UUID，并分别计算 board、gameplay RNG、规则集和完整 state checksum。规则资源必须声明稳定 `ruleset_id` 与 `ruleset_version`，内容变化必须显式提升版本或指纹。
-6. `ReplayData` schema v2 保存初始 seed/拓扑、规则集身份与指纹、有效命令，以及每个 settled turn 的 `ReplayCheckpoint`。回放在应用命令后立即比较 checkpoint；第一次不一致生成包含回合、命令及 expected/actual board/RNG/state 的 OOS 报告，并阻断继续步进和“从回放继续”。
+6. `ReplayData` schema v4 保存初始 seed/拓扑、规则集身份与指纹、会话资格元数据、有效命令，以及每个 settled turn 的 `ReplayCheckpoint`。回放在应用命令后立即比较 checkpoint；第一次不一致生成包含回合、命令及 expected/actual board/RNG/state 的 OOS 报告，并阻断继续步进和“从回放继续”。事件标记从 checkpoint 元数据确定性派生，前后标记跳转仍通过现有命令历史重建并复核目标 checksum；当前没有回放倍速控制。
 7. 固定 seed 测试语料必须覆盖全部正式模式和多种拓扑，验证重复执行、UUID/插入顺序变化与序列化往返不改变 canonical checksum。表现档位与无障碍设置的切换也不得改变同一 seed/命令序列的领域结果。
 8. 开发构建的长流程耗时由 `GFOperationDiagnosticsUtility` 的操作记录拥有。调用方读取同一操作的 `started_ticks_usec` 记录阶段，不再平行缓存一份系统 tick；发布路径只能通过当前 Architecture 的 local lookup 可选读取该 Utility，且在未安装开发诊断模块时必须保持完整功能。
 9. 只有 Boot 组合根和 `features/asset_library/tools/` 下的离线素材工具可以直接访问 `Time`；该例外由 GF 合规测试的精确路径 allowlist 约束，不得扩散到运行时 Feature。
@@ -193,9 +200,9 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 - `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
 - 六个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 返回类型化 `GFStorageReadResult`，并负责存储元数据、checksum 和原子文件事务。
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。UUID 只用于持久身份，不参与 canonical board checksum。
-- Profile 当前为 `player_data@6`；`progress`、`bookmarks`、`custom_boards`、`discoveries`、`achievements`、`replays` section 当前分别为 v3、v6、v1、v1、v1、v3。单条 `BookmarkData` 与 `ReplayData` 的 item schema 均独立为 v2，不得与各自目录 section 版本混淆；书签 v2 还冻结规则集身份，并使用 GridModel snapshot v3、GameState v2 与 MoveCommand v2 保存内部状态和命令历史。棋盘快照与玩家模板都内嵌严格 `BoardTopology`，规则统计使用中性的 `ratio_resolutions`，不提供旧尺寸键、旧阵营字段推断或兼容分支。
+- Profile 当前为 `player_data@9`；`progress`、`bookmarks`、`custom_boards`、`discoveries`、`achievements`、`replays` section 当前分别为 v5、v8、v1、v1、v1、v5。单条 `BookmarkData` 与 `ReplayData` 的 item schema 均独立为 v4，不得与各自目录 section 版本混淆；两者都冻结规则集身份和 `GameSessionMetadata` v2 资格上下文。书签还使用 GridModel snapshot v3、GameState v2 与 MoveCommand v2 保存内部状态和命令历史。棋盘快照与玩家模板都内嵌严格 `BoardTopology`，规则统计使用中性的 `ratio_resolutions`，不提供旧尺寸键、旧阵营字段推断或兼容分支。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
-- 同源旧 Profile 在启动时只允许由 persistence 通用编排执行“完整备份到 `recovery/` 后按当前默认 section 原子重建”；不解析或迁移历史业务字段。未来/未知/畸形 Profile 继续拒绝，业务数据迁移只能使用显式离线工具，运行时代码不保留旧字段双读分支。
+- 同源旧 Profile（包括已废止的 v7 与 v8）在启动时只允许由 persistence 通用编排执行“完整备份到 `recovery/` 后按 v9 默认 section 原子重建”；不解析或迁移历史业务字段。未来/未知/畸形 Profile 继续拒绝，业务数据迁移只能使用显式离线工具，运行时代码不保留旧字段双读分支。
 
 ## GF 扩展
 

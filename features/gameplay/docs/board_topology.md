@@ -34,7 +34,7 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 
 - `topology_id` 表达语义来源，例如矩形模板或玩家棋盘 ID。
 - `get_content_fingerprint()` 只对规范化活跃坐标计算 SHA-256 截断指纹。
-- `get_stable_key()` 组合语义 ID 与内容指纹，供统计、排行榜和 GF Level Session 使用。
+- `get_stable_key()` 组合语义 ID 与内容指纹，供统计、本地排行榜分组和 GF Level Session 使用。
 - `GridModel` 快照严格保存 `schema_version`、`topology` 和 `tiles`；方块位置必须属于快照拓扑。
 - 书签与回放不保留旧 `grid_size` 双读分支。发布后若需要迁移，使用独立的一次性迁移工具。
 
@@ -66,9 +66,10 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 9. 方向含糊、距离不足或持续过久的单指轨迹必须拒绝；双指序列释放回单指后，必须等待所有触点结束才能开启下一次移动判定。
 10. 玩法只通过 `GameplayBoardReadyData` 发布棋盘表现上下文；不得引用 diagnostics feature 的 Window、Panel 或 Utility。开发工具需要棋盘上下文时由 diagnostics 订阅该事件。
 
-## 后续顺序
+## 当前接入与后续边界
 
 1. 已通过 `TileDiscoverySystem` 将稳定棋盘键接入严格图鉴发现模型。
-2. 下一步以领域事件驱动成就，并通过平台 Adapter 接入排行榜。
+2. 成就已消费规范统计与发现事件；`ProgressStatsSystem` 已用稳定棋盘键、模式和规则集身份隔离本地排行榜，只接收比赛合格的严格结果。
+3. Steam、微信或服务端排行榜仍是后续平台能力，必须经显式 bridge contract 重新校验与裁决；本地榜和拓扑键本身不构成线上权威证明。
 
 任何后续形状都应先扩展拓扑或规则资源，不得重新引入固定二维数组或以 UI 尺寸推断逻辑空间。
