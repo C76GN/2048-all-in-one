@@ -87,7 +87,7 @@ GF 包与 vendor 治理已经成为维护契约，不再列作待决 Roadmap：�
 4. 存档 Module 深化。
    - 涉及：`GameSaveGraphUtility`、`GameSaveSectionData`、`ProgressStatsSystem`、`BookmarkSystem`、`CustomBoardSystem`、`AchievementSystem`、`ReplaySystem`、`GFSaveGraphUtility`、`GFSaveScope`、`GFSaveDataSource`、`GFStorageUtility`。
    - 问题：最高分、设置、书签、玩家棋盘、回放分属不同入口，持久化语义需要更统一。
-   - 当前状态：统计、书签、玩家棋盘、方块/棋盘发现进度、成就、回放和原创限步关卡进度已迁移为七个 Feature-owned section，由项目级 SaveGraph 原子保存；设置保持独立生命周期。旧 SaveSlot Adapter 和时间戳 Resource 集合已删除。
+   - 当前状态：统计、书签、玩家棋盘、方块/棋盘发现进度、成就和回放已迁移为六个 Feature-owned section，由项目级 SaveGraph 原子保存；设置保持独立生命周期。旧 SaveSlot Adapter 和时间戳 Resource 集合已删除。
    - 存储契约：Binary Variant 类型保真、GF storage metadata、checksum、严格 Profile/section schema、UUID v7 稳定身份，不提供旧格式运行时双读。
    - 验证：跨架构重载、单文件约束、后期 section 失败全图回滚、schema 拒绝和保存失败内存回滚均有聚焦测试。
 

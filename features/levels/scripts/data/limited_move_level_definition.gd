@@ -183,29 +183,6 @@ func to_level_data() -> Dictionary:
 	}
 
 
-## 生成对局、书签与回放共享的严格稳定身份。
-func to_session_identity() -> Dictionary:
-	return {
-		"level_id": String(level_id),
-		"pack_id": String(PACK_ID),
-		"pack_version": pack_version,
-		"content_fingerprint": get_content_fingerprint(),
-		"board_key": (
-			board_topology.get_stable_key()
-			if is_instance_valid(board_topology)
-			else ""
-		),
-		"target_tile_value": target_tile_value,
-		"move_limit": move_limit,
-		"fixed_seed": fixed_seed,
-	}
-
-
-## 判断持久化身份是否仍精确对应当前目录资产。
-func matches_session_identity(identity: Dictionary) -> bool:
-	return identity == to_session_identity()
-
-
 ## 返回完整 GF 校验报告。
 func get_validation_report() -> GFValidationReport:
 	var report: GFValidationReport = GFValidationReport.new(

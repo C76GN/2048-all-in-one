@@ -1,6 +1,6 @@
 # 存档模型说明
 
-本文档定义 `2048-all-in-one` 当前的玩家数据与设置持久化契约。项目使用 GF SaveGraph 统一最高分、统计、玩家棋盘、书签、发现、成就、回放和原创限步关卡进度事务；设置保持独立文件与独立生命周期。
+本文档定义 `2048-all-in-one` 当前的玩家数据与设置持久化契约。项目使用 GF SaveGraph 统一最高分、统计、玩家棋盘、书签、发现、成就和回放事务；设置保持独立文件与独立生命周期。
 
 ## 设计目标
 
@@ -18,12 +18,12 @@
 - 格式：`GFStorageCodec.Format.BINARY`
 - 完整性：启用 GF 存储元数据和 SHA-256 checksum，校验失败时拒绝读取。
 - 磁盘根：规范 `GFSaveDocument`；项目 Profile metadata 与 SaveGraph payload 分别位于文档契约定义的位置。
-- Profile Schema：`player_data@8`
+- Profile Schema：`player_data@6`
 - 所有权：`features/persistence/scripts/utilities/game_save_graph_utility.gd`
 
 Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vector2i` 和嵌套 Variant；JSON 不能稳定保留普通数字的原始类型。不得仅为可读性切回 JSON，除非同步设计显式类型编码并重写回归测试。
 
-当文档 metadata 精确标识为同一 `player_data` schema、版本为历史正整数且低于当前版本时，启动流程先把完整规范文档保存到 `recovery/player_data.schema-<version>.save`，确认备份成功后再通过当前七个 section 的默认值原子重建活动文件。v7 升 v8 新增原创限步关卡进度时也遵循同一备份后重建策略。该流程不读取、转换或合并任何历史业务字段；备份失败时不得覆盖原活动文件。
+当文档 metadata 精确标识为同一 `player_data` schema、版本为历史正整数且低于当前版本时，启动流程先把完整规范文档保存到 `recovery/player_data.schema-<version>.save`，确认备份成功后再通过当前六个 section 的默认值原子重建活动文件。该流程不读取、转换或合并任何历史业务字段；备份失败时不得覆盖原活动文件。
 
 `ProjectStorageRecoveryPolicy` 只把 `ERR_PARSE_ERROR`、`ERR_FILE_UNRECOGNIZED` 和 `ERR_FILE_CORRUPT` 视为可重置的物理载荷失败。项目绝不消费其中的字段；先由 GF 拒绝读取，再通过 `GFStorageUtility.delete_file()` 清理主文件及事务伴生文件，最后以当前默认 section 写回新 Profile。未来 GFStorage 版本、未来 Profile 版本、未知 schema ID、畸形业务文档和当前 section 校验失败必须保留原档并显式失败。
 
@@ -39,18 +39,17 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 ## SaveGraph 结构
 
-`GameSaveGraphUtility` 创建一个根 Scope，并由 `app/scripts/game_architecture_installer.gd` 在 GF `init()` 前登记七个 Feature section：
+`GameSaveGraphUtility` 创建一个根 Scope，并由 `app/scripts/game_architecture_installer.gd` 在 GF `init()` 前登记六个 Feature section：
 
 | Scope | Phase | Provider | Schema |
 | --- | --- | --- | --- |
-| `player_data` | `NORMAL` | 根作用域，无业务 Source | Profile `8` |
-| `progress` | `EARLY` | `GameStatsSaveData` | `4` |
-| `bookmarks` | `NORMAL` | `BookmarkCatalogSaveData` | `7` |
+| `player_data` | `NORMAL` | 根作用域，无业务 Source | Profile `6` |
+| `progress` | `EARLY` | `GameStatsSaveData` | `3` |
+| `bookmarks` | `NORMAL` | `BookmarkCatalogSaveData` | `6` |
 | `custom_boards` | `NORMAL` | `CustomBoardCatalogSaveData` | `1` |
 | `discoveries` | `NORMAL` | `TileDiscoverySaveData` | `1` |
 | `achievements` | `LATE` | `AchievementSaveData` | `1` |
-| `replays` | `LATE` | `ReplayCatalogSaveData` | `4` |
-| `limited_levels` | `LATE` | `LimitedMoveLevelProgressSaveData` | `1` |
+| `replays` | `LATE` | `ReplayCatalogSaveData` | `3` |
 
 每个子 Scope 只有一个稳定 Source：`state`。Source 的数据 Provider 必须实现统一 envelope：
 
@@ -64,7 +63,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 }
 ```
 
-`features/persistence/scripts/data/game_save_section_data.gd` 只定义该协议。具体字段校验分别位于 `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements`、`replays` 和 `levels` Feature，禁止把业务 Schema 下沉到 persistence 或 shared。
+`features/persistence/scripts/data/game_save_section_data.gd` 只定义该协议。具体字段校验分别位于 `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements` 和 `replays` Feature，禁止把业务 Schema 下沉到 persistence 或 shared。
 
 ## 事务语义
 
@@ -81,7 +80,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 ### 加载
 
 1. `GFStorageUtility.load_data()` 返回 `GFStorageReadResult`，并在成功前校验存储 envelope 与 checksum。
-2. `GFSaveDocument.inspect_dict()` / `from_dict()` 严格解析规范文档，项目层再校验 `player_data@8` Profile metadata；精确识别到同源旧 Profile 时执行“备份后重建”，不进入业务加载管线。
+2. `GFSaveDocument.inspect_dict()` / `from_dict()` 严格解析规范文档，项目层再校验 `player_data@6` Profile metadata；精确识别到同源旧 Profile 时执行“备份后重建”，不进入业务加载管线。
 3. `GFSaveGraphUtility.create_document_schema().validate_document()` 严格校验 Scope 和 Source 图。
 4. `GFSaveGraphUtility.apply_document(..., transactional_apply = true)` 按 `EARLY -> NORMAL -> LATE` 应用。
 5. 任一后期 section 失败时，先前已应用 section 必须回滚，运行时不得暴露部分加载状态。
@@ -160,8 +159,8 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 回归测试必须覆盖：
 
-- 七个 Feature section 的图健康检查与 phase。
-- 统计、书签、玩家棋盘、发现进度、成就、回放和原创限步关卡进度只生成一个玩家数据文件。
+- 六个 Feature section 的图健康检查与 phase。
+- 统计、书签、玩家棋盘、发现进度、成就和回放只生成一个玩家数据文件。
 - Binary 往返后严格类型与稳定 UUID 保留。
 - 后期 section 应用失败时早期 section 回滚。
 - 同源旧 Profile 先完整备份再以当前默认 section 重建，且运行时不双读旧业务字段。
