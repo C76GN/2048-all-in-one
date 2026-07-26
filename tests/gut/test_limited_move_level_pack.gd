@@ -101,6 +101,75 @@ func test_initial_snapshots_are_strict_and_semantically_deterministic() -> void:
 		)
 
 
+func test_content_fingerprint_encodes_each_completed_row_once() -> void:
+	var definition: LimitedMoveLevelDefinition = _load_level(1)
+	assert_not_null(definition, "指纹测试必须能加载第一关。")
+	if not is_instance_valid(definition):
+		return
+	var row_parts: PackedStringArray = []
+	for row: PackedInt32Array in definition.initial_rows:
+		var values: PackedStringArray = []
+		for value: int in row:
+			values.append(str(value))
+		row_parts.append(",".join(values))
+	var expected: String = "|".join([
+		str(LimitedMoveLevelDefinition.SCHEMA_VERSION),
+		String(definition.level_id),
+		String(LimitedMoveLevelDefinition.PACK_ID),
+		str(definition.pack_version),
+		definition.mode_config_path,
+		definition.board_topology.get_stable_key(),
+		str(definition.target_tile_value),
+		str(definition.move_limit),
+		str(definition.fixed_seed),
+		str(definition.spawn_after_move),
+		";".join(row_parts),
+	]).sha256_text()
+	assert_eq(
+		definition.get_content_fingerprint(),
+		expected,
+		"内容指纹必须恰好编码每个完整行一次，不得追加逐值前缀。"
+	)
+
+
+func test_limited_progress_section_rejects_unlock_gaps_and_stale_results() -> void:
+	var provider: LimitedMoveLevelProgressSaveData = (
+		LimitedMoveLevelProgressSaveData.new()
+	)
+	var first_only: Dictionary = (
+		LimitedMoveLevelProgressSaveData.make_empty_section_data()
+	)
+	first_only["progress"]["unlocked_levels"] = {
+		"level.limited.01": true,
+	}
+	assert_eq(
+		provider.replace_section_data(first_only),
+		OK,
+		"首次解锁首关必须是合法严格进度。"
+	)
+
+	var gap: Dictionary = first_only.duplicate(true)
+	gap["progress"]["unlocked_levels"]["level.limited.03"] = true
+	assert_eq(
+		provider.replace_section_data(gap),
+		ERR_INVALID_DATA,
+		"解锁链存在空洞时必须拒绝整个 section。"
+	)
+
+	var completed_without_result: Dictionary = first_only.duplicate(true)
+	completed_without_result["progress"]["completed_levels"] = {
+		"level.limited.01": true,
+	}
+	completed_without_result["progress"]["unlocked_levels"][
+		"level.limited.02"
+	] = true
+	assert_eq(
+		provider.replace_section_data(completed_without_result),
+		ERR_INVALID_DATA,
+		"完成集合和严格结果集合不一致时必须拒绝。"
+	)
+
+
 func test_all_golden_solutions_finish_within_declared_move_limits() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var grid: GridModel = GridModel.new()
@@ -186,10 +255,7 @@ func test_gf_level_progress_unlocks_the_next_original_level() -> void:
 		level_utility.get_catalog() is GFLevelCatalog,
 		"项目目录工具必须把原创关卡目录交给 GFLevelUtility。"
 	)
-	assert_true(
-		progress.is_level_unlocked(&"level.limited.01"),
-		"目录初始化时必须解锁首关。"
-	)
+	level_utility.unlock_level(&"level.limited.01")
 	var level_data: Dictionary = level_utility.start_level(&"level.limited.01")
 	assert_false(level_data.is_empty(), "GFLevelUtility 必须能从目录加载首关元数据。")
 	level_utility.complete_current_level({

@@ -21,6 +21,7 @@ const _GAME_SAVE_GRAPH_UTILITY_SCRIPT: Script = preload("res://features/persiste
 const _GAME_MODE_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_mode_catalog_utility.gd")
 const _GAME_DETERMINISM_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_determinism_utility.gd")
 const _GAME_CHALLENGE_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_challenge_utility.gd")
+const _LIMITED_MOVE_LEVEL_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/levels/scripts/utilities/limited_move_level_catalog_utility.gd")
 const _TILE_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/tile_catalog/scripts/utilities/tile_catalog_utility.gd")
 const _ACHIEVEMENT_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/achievements/scripts/utilities/achievement_catalog_utility.gd")
 const _GAME_PAUSE_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_pause_utility.gd")
@@ -73,6 +74,7 @@ func _bind_models(binder: GFBinder) -> void:
 	await binder.bind_model(GridModel).as_singleton()
 	await binder.bind_model(GameStatusModel).as_singleton()
 	await binder.bind_model(CurrentGameModel).as_singleton()
+	await binder.bind_model(GFLevelProgressModel).as_singleton()
 
 
 func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
@@ -125,6 +127,7 @@ func _bind_content_and_gameplay_utilities(binder: GFBinder) -> void:
 	await binder.bind_utility(_GAME_MODE_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_DETERMINISM_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_CHALLENGE_UTILITY_SCRIPT).as_singleton()
+	await binder.bind_utility(_LIMITED_MOVE_LEVEL_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_TILE_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_ACHIEVEMENT_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_TILE_COMPOSITION_UTILITY_SCRIPT).as_singleton()
@@ -183,6 +186,7 @@ func _bind_progression_systems(binder: GFBinder) -> void:
 	await binder.bind_system(ReplaySystem).as_singleton()
 	await binder.bind_system(TileDiscoverySystem).as_singleton()
 	await binder.bind_system(AchievementSystem).as_singleton()
+	await binder.bind_system(LimitedMoveLevelProgressSystem).as_singleton()
 
 
 func _bind_gameplay_systems(binder: GFBinder) -> void:
@@ -262,6 +266,11 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 		ReplayCatalogSaveData.new(),
 		GFSaveScope.Phase.LATE
 	)
+	var limited_levels_registered: bool = save_graph.register_section(
+		GameSaveGraphUtility.LIMITED_LEVELS_SECTION_ID,
+		LimitedMoveLevelProgressSaveData.new(),
+		GFSaveScope.Phase.LATE
+	)
 	if (
 		not progress_registered
 		or not bookmarks_registered
@@ -269,6 +278,7 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 		or not discoveries_registered
 		or not achievements_registered
 		or not replays_registered
+		or not limited_levels_registered
 	):
 		push_error("[GameArchitectureInstaller] 玩家数据 SaveGraph section 注册失败。")
 	return save_graph

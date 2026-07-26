@@ -16,7 +16,7 @@ signal profile_save_completed(error: Error)
 
 const PROFILE_FILE_NAME: String = "player_data.save"
 const PROFILE_SCHEMA_ID: StringName = &"player_data"
-const PROFILE_SCHEMA_VERSION: int = 7
+const PROFILE_SCHEMA_VERSION: int = 8
 const ROOT_SCOPE_ID: StringName = &"player_data"
 const PROGRESS_SECTION_ID: StringName = &"progress"
 const BOOKMARKS_SECTION_ID: StringName = &"bookmarks"
@@ -24,6 +24,7 @@ const CUSTOM_BOARDS_SECTION_ID: StringName = &"custom_boards"
 const DISCOVERIES_SECTION_ID: StringName = &"discoveries"
 const ACHIEVEMENTS_SECTION_ID: StringName = &"achievements"
 const REPLAYS_SECTION_ID: StringName = &"replays"
+const LIMITED_LEVELS_SECTION_ID: StringName = &"limited_levels"
 const _RECOVERY_DIRECTORY: String = "recovery"
 const _PROJECT_VERSION_SETTING: String = "application/config/version"
 const _LOG_TAG: String = "GameSaveGraphUtility"

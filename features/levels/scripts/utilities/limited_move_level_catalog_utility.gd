@@ -37,7 +37,6 @@ func ready() -> void:
 		push_error("[LimitedMoveLevelCatalogUtility] GFLevelUtility 未注册。")
 		return
 	level_utility.set_catalog(_catalog)
-	level_utility.unlock_level(get_first_level_id())
 
 
 func dispose() -> void:

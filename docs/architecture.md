@@ -190,7 +190,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 - `persistence` 创建 `player_data` 根 Scope，并通过 `GFSaveGraphUtility` 统一生成、校验和应用规范 `GFSaveDocument`，不再把裸 Scope payload 当作磁盘根协议。
 - `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
-- 六个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 返回类型化 `GFStorageReadResult`，并负责存储元数据、checksum 和原子文件事务。
+- 七个 section（含原创限步关卡进度）按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 返回类型化 `GFStorageReadResult`，并负责存储元数据、checksum 和原子文件事务。
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。UUID 只用于持久身份，不参与 canonical board checksum。
 - Profile 当前为 `player_data@6`；`progress`、`bookmarks`、`custom_boards`、`discoveries`、`achievements`、`replays` section 当前分别为 v3、v6、v1、v1、v1、v3。单条 `BookmarkData` 与 `ReplayData` 的 item schema 均独立为 v2，不得与各自目录 section 版本混淆；书签 v2 还冻结规则集身份，并使用 GridModel snapshot v3、GameState v2 与 MoveCommand v2 保存内部状态和命令历史。棋盘快照与玩家模板都内嵌严格 `BoardTopology`，规则统计使用中性的 `ratio_resolutions`，不提供旧尺寸键、旧阵营字段推断或兼容分支。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
