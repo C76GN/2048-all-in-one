@@ -148,8 +148,8 @@ static func is_serialized_data_valid(data: Dictionary) -> bool:
 		GFVariantData.get_option_int(data, &"direction_x", 0),
 		GFVariantData.get_option_int(data, &"direction_y", 0)
 	)
-	var is_baseline: bool = GFVariantData.get_option_bool(data, &"is_baseline", false)
-	if is_baseline:
+	var baseline_flag: bool = GFVariantData.get_option_bool(data, &"is_baseline", false)
+	if baseline_flag:
 		if direction != Vector2i.ZERO:
 			return false
 	elif absi(direction.x) + absi(direction.y) != 1:

@@ -135,8 +135,9 @@ func get_recent_results() -> Array[GameResultRecordedData]:
 	for result_value: Variant in _get_results(_get_save_data()):
 		if not result_value is Dictionary:
 			continue
+		var result_data: Dictionary = result_value
 		var item: GameResultRecordedData = GameResultRecordedData.from_dict(
-			result_value
+			result_data
 		)
 		if item != null:
 			result.append(item)
@@ -264,7 +265,7 @@ func _append_recent_result(
 	if results.size() > GameStatsSaveData.MAX_RECENT_RESULTS:
 		var _resize_error: Error = results.resize(
 			GameStatsSaveData.MAX_RECENT_RESULTS
-		)
+		) as Error
 
 
 func _append_local_leaderboard_result(
@@ -291,12 +292,12 @@ func _append_local_leaderboard_result(
 	var entries: Array = GFVariantData.get_option_array(bucket, &"entries")
 	for index: int in range(entries.size() - 1, -1, -1):
 		var entry_value: Variant = entries[index]
+		if not entry_value is Dictionary:
+			continue
+		var entry_data: Dictionary = entry_value
 		if (
-			entry_value is Dictionary
-			and GFVariantData.get_option_string(
-				entry_value,
-				&"result_hash"
-			) == result.result_hash
+			GFVariantData.get_option_string(entry_data, &"result_hash")
+			== result.result_hash
 		):
 			entries.remove_at(index)
 	entries.append(result.to_dict())
@@ -306,7 +307,7 @@ func _append_local_leaderboard_result(
 	if entries.size() > GameStatsSaveData.MAX_LEADERBOARD_ENTRIES:
 		var _resize_error: Error = entries.resize(
 			GameStatsSaveData.MAX_LEADERBOARD_ENTRIES
-		)
+		) as Error
 	bucket[&"entries"] = entries
 	leaderboards[group_key] = bucket
 	_prune_leaderboard_groups(leaderboards)
@@ -331,8 +332,9 @@ func _get_local_leaderboard_by_identity(
 	for entry_value: Variant in GFVariantData.get_option_array(bucket, &"entries"):
 		if not entry_value is Dictionary:
 			continue
+		var entry_data: Dictionary = entry_value
 		var item: GameResultRecordedData = GameResultRecordedData.from_dict(
-			entry_value
+			entry_data
 		)
 		if item != null and item.is_competition_eligible():
 			result.append(item)
@@ -341,12 +343,12 @@ func _get_local_leaderboard_by_identity(
 
 func _has_recorded_result(save_data: Dictionary, result_hash: String) -> bool:
 	for result_value: Variant in _get_results(save_data):
+		if not result_value is Dictionary:
+			continue
+		var result_data: Dictionary = result_value
 		if (
-			result_value is Dictionary
-			and GFVariantData.get_option_string(
-				result_value,
-				&"result_hash"
-			) == result_hash
+			GFVariantData.get_option_string(result_data, &"result_hash")
+			== result_hash
 		):
 			return true
 	return false
@@ -385,16 +387,17 @@ static func _prune_leaderboard_groups(leaderboards: Dictionary) -> void:
 		GameStatsSaveData.MAX_LEADERBOARD_GROUPS,
 		group_keys.size()
 	):
-		leaderboards.erase(group_keys[index])
+		var _was_erased: bool = leaderboards.erase(group_keys[index])
 
 
 static func _get_bucket_latest_timestamp(bucket: Dictionary) -> int:
 	var latest_timestamp: int = 0
 	for entry_value: Variant in GFVariantData.get_option_array(bucket, &"entries"):
 		if entry_value is Dictionary:
+			var entry_data: Dictionary = entry_value
 			latest_timestamp = maxi(
 				latest_timestamp,
-				GFVariantData.get_option_int(entry_value, &"played_at", 0)
+				GFVariantData.get_option_int(entry_data, &"played_at", 0)
 			)
 	return latest_timestamp
 

@@ -148,7 +148,7 @@ func is_state_valid(state: Variant) -> bool:
 	var probability_value: Variant = state_dict["current_probability"]
 	if not (probability_value is float or probability_value is int):
 		return false
-	var probability: float = float(probability_value)
+	var probability: float = GFVariantData.to_float(probability_value)
 	return (
 		not is_nan(probability)
 		and not is_inf(probability)
@@ -163,7 +163,10 @@ func set_state(state: Variant) -> bool:
 	if not is_state_valid(state):
 		return false
 	var state_dict: Dictionary = state
-	_current_probability = float(state_dict["current_probability"])
+	_current_probability = GFVariantData.get_option_float(
+		state_dict,
+		&"current_probability"
+	)
 	return true
 
 

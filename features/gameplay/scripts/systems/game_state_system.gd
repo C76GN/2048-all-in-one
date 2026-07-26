@@ -296,9 +296,12 @@ func _apply_validated_state(
 
 static func _is_rules_state_envelope_valid(rules_states: Dictionary) -> bool:
 	for state_key: Variant in rules_states.keys():
-		if not state_key is String or String(state_key).is_empty():
+		if not state_key is String:
 			return false
-		var entry_value: Variant = rules_states[state_key]
+		var typed_state_key: String = state_key
+		if typed_state_key.is_empty():
+			return false
+		var entry_value: Variant = rules_states[typed_state_key]
 		if not entry_value is Dictionary:
 			return false
 		var entry: Dictionary = entry_value
@@ -311,7 +314,7 @@ static func _is_rules_state_envelope_valid(rules_states: Dictionary) -> bool:
 			return false
 		if (
 			String(GFVariantData.get_option_string_name(entry, &"rule_state_id"))
-			!= String(state_key)
+			!= typed_state_key
 			or GFVariantData.get_option_int(entry, &"schema_version", 0) <= 0
 		):
 			return false
@@ -361,11 +364,10 @@ static func _are_rng_counters_valid(counters: Dictionary) -> bool:
 		if not counter_key is String:
 			return false
 		var counter_value: Variant = counters[counter_key]
-		if (
-			not counter_value is String
-			or not String(counter_value).is_valid_int()
-			or String(counter_value).begins_with("-")
-		):
+		if not counter_value is String:
+			return false
+		var counter_text: String = counter_value
+		if not counter_text.is_valid_int() or counter_text.begins_with("-"):
 			return false
 	return true
 
@@ -374,9 +376,10 @@ static func _get_snapshot_max_tile_value(board_snapshot: Dictionary) -> int:
 	var result: int = 0
 	for tile_value: Variant in GFVariantData.get_option_array(board_snapshot, &"tiles"):
 		if tile_value is Dictionary:
+			var tile_data: Dictionary = tile_value
 			result = maxi(
 				result,
-				GFVariantData.get_option_int(tile_value, &"value", 0)
+				GFVariantData.get_option_int(tile_data, &"value", 0)
 			)
 	return result
 
