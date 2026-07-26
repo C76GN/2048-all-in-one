@@ -155,6 +155,23 @@ powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -Sc
 
 输出位于忽略提交的 `build/visual_review/`，覆盖主菜单、场景遮罩、模式选择、主题化下拉菜单、稳定游戏帧和实际 `MoveCommand` 合并帧。每次评审必须同时检查截图、命令耗时输出和运行日志；文档中的视觉目标不能替代当次证据。
 
+玩家 UI 的跨视口结构验收使用独立矩阵工具：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -ScriptPath res://tools/capture_ui_vfx_matrix.gd -Rendering -ExpectedOutputPattern "[UiVfxMatrix] completed captures=" -TimeoutSeconds 300
+```
+
+输出位于 `build/ui_vfx_matrix/`，同时生成：
+
+- 各玩家页面在 `1280×720`、`1906×943`、`850×838`、`960×540` 和 `720×960` 的真实渲染截图。
+- 需要滚动才能完成主要任务的页面末端截图。
+- `geometry_report.json` 控件几何记录。
+- `validation_report.json` 结构、首屏、焦点、触控目标和单滚动所有权错误清单。
+
+验收时必须确认 `validation_report.json` 为 `[]`，并逐页查看截图。Windows 桌面会把高于工作区的实体窗口限制在任务栏上方；不得通过手动放大根节点伪造 `720×1558` 截图，因为那只会拉高渲染背景，Container 仍按受限窗口高度布局。桌面自动化矩阵使用可真实承载的 `720×960` 竖屏；更高设备比例仍需在目标设备或可控离屏渲染环境中复验。
+
+`capture_visual_review.gd` 负责实际移动命令、稳定帧和耗时证据；`capture_ui_vfx_matrix.gd` 负责页面与状态矩阵。两者用途不同，不以其中一个替代另一个。
+
 ## Web / 微信小游戏准备预检
 
 平台准备必须先通过项目契约，再检查本机工具链：
