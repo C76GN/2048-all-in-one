@@ -604,9 +604,14 @@ func test_slot_map_tracks_default_runtime_replacement_slots() -> void:
 	var bindings: Array[Resource] = _get_slot_bindings(loaded)
 	var slot_ids: PackedStringArray = _collect_slot_ids(bindings)
 
-	assert_true(bindings.size() == 20, "默认槽位映射应覆盖 UI 音效、棋盘音效、shader 和 VFX。")
+	assert_true(bindings.size() == 25, "默认槽位映射应覆盖语义音效、shader 和 VFX。")
 	assert_true(slot_ids.has("slot.audio.ui.select"), "应存在 UI 选择音效槽位。")
+	assert_true(slot_ids.has("slot.audio.ui.cancel"), "应存在 UI 取消音效槽位。")
 	assert_true(slot_ids.has("slot.audio.tile.merge"), "应存在方块合并音效槽位。")
+	assert_true(slot_ids.has("slot.audio.tile.move_blocked"), "应存在无效移动音效槽位。")
+	assert_true(slot_ids.has("slot.audio.tile.merge_chain"), "应存在连续合并音效槽位。")
+	assert_true(slot_ids.has("slot.audio.tile.transform"), "应存在方块变换音效槽位。")
+	assert_true(slot_ids.has("slot.audio.game.milestone"), "应存在游戏里程碑音效槽位。")
 	assert_true(slot_ids.has("slot.shader.background.main"), "应存在主背景 shader 槽位。")
 	assert_true(slot_ids.has("slot.shader.transition.scene_wipe"), "应存在场景切换 shader 槽位。")
 	assert_true(slot_ids.has("slot.shader.ui.startup_progress_bar"), "应存在启动进度条 shader 槽位。")
@@ -709,6 +714,31 @@ func test_slot_map_tracks_default_runtime_replacement_slots() -> void:
 	assert_true(
 		_find_slot_asset_key(bindings, "slot.audio.ui.select") == "asset.audio.ui.printworks.select_soft_01",
 		"UI 选择槽位应绑定当前运行时默认素材。"
+	)
+	assert_true(
+		_find_slot_asset_key(bindings, "slot.audio.ui.cancel")
+		== "asset.audio.ui.printworks.cancel_soft_01",
+		"UI 取消槽位应绑定独立的当前运行时素材。"
+	)
+	assert_true(
+		_find_slot_asset_key(bindings, "slot.audio.tile.move_blocked")
+		== "asset.audio.tile.printworks.move_blocked_soft_01",
+		"无效移动槽位应绑定独立的当前运行时素材。"
+	)
+	assert_true(
+		_find_slot_asset_key(bindings, "slot.audio.tile.merge_chain")
+		== "asset.audio.tile.printworks.merge_chain_soft_01",
+		"连续合并槽位应绑定独立的当前运行时素材。"
+	)
+	assert_true(
+		_find_slot_asset_key(bindings, "slot.audio.tile.transform")
+		== "asset.audio.tile.printworks.transform_soft_01",
+		"方块变换槽位应绑定独立的当前运行时素材。"
+	)
+	assert_true(
+		_find_slot_asset_key(bindings, "slot.audio.game.milestone")
+		== "asset.audio.game.printworks.milestone_soft_01",
+		"里程碑槽位应绑定独立的当前运行时素材。"
 	)
 	assert_true(
 		_find_slot_asset_key(bindings, "slot.shader.ui.startup_progress_bar") == "asset.shader.ui.startup_progress_bar",
