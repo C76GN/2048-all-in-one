@@ -200,6 +200,47 @@ func test_scene_router_reduced_motion_uses_instant_shaderless_transition() -> vo
 	await _dispose_architecture(architecture)
 
 
+func test_scene_router_transition_wait_has_timeout_and_clears_overlay() -> void:
+	var setup: Dictionary = await _create_theme_architecture(true)
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var transition_utility: GFScreenTransitionUtility = _get_screen_transition_utility(setup)
+	var router: SceneRouterSystem = _get_scene_router_system(setup)
+	router._transition_timeout_seconds = 0.02
+
+	assert_true(router.call("_play_scene_transition_cover") == OK)
+	var completed: bool = await router.call("_await_screen_transition")
+
+	assert_false(completed, "失去 tick 的屏幕转场应在项目时限内退出等待。")
+	assert_false(transition_utility.is_transition_active(), "超时后必须取消仍在运行的转场。")
+	assert_false(
+		GFVariantData.get_option_bool(
+			transition_utility.get_debug_snapshot(),
+			"overlay_visible"
+		),
+		"超时降级路径必须解除覆盖层，避免界面永久被遮挡。"
+	)
+	await _dispose_architecture(architecture)
+
+
+func test_theme_asset_session_wait_has_timeout() -> void:
+	var theme_utility: GameThemeUtility = GameThemeUtility.new()
+	theme_utility._asset_session_timeout_seconds = 0.02
+	var never_started_session: GFAssetLoadSession = GFAssetLoadSession.new()
+	var started_msec: int = Time.get_ticks_msec()
+
+	var ready: bool = await theme_utility.call(
+		"_wait_for_asset_session_ready",
+		never_started_session
+	)
+
+	assert_false(ready, "没有进入终态的主题资源会话必须按时失败。")
+	assert_lt(
+		Time.get_ticks_msec() - started_msec,
+		1000,
+		"主题资源等待不得无限锁住设置或启动流程。"
+	)
+
+
 func test_game_settings_utility_registers_theme_settings_and_theme_utility_resolves_defaults() -> void:
 	var setup: Dictionary = await _create_theme_architecture()
 	var architecture: GFArchitecture = _get_architecture(setup)

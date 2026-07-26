@@ -10,6 +10,7 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 
 const _LOG_TAG: String = "SceneRouterSystem"
 const _TRANSITION_MINIMUM_SECONDS: float = 0.30
+const _DEFAULT_TRANSITION_TIMEOUT_SECONDS: float = 5.0
 
 
 # --- 私有变量 ---
@@ -31,6 +32,7 @@ var _scene_change_operation_id: StringName = &""
 var _scene_change_in_progress: bool = false
 var _scene_completion_queued: bool = false
 var _pending_scene_path: String = ""
+var _transition_timeout_seconds: float = _DEFAULT_TRANSITION_TIMEOUT_SECONDS
 
 
 # --- GF 生命周期方法 ---
@@ -344,14 +346,31 @@ func _play_scene_transition(phase: StringName) -> Error:
 	return error
 
 
-func _await_screen_transition() -> void:
+func _await_screen_transition() -> bool:
+	if not is_instance_valid(_screen_transition):
+		return false
+	if not _screen_transition.is_transition_active():
+		return true
 	var tree: SceneTree = _get_scene_tree()
-	while (
-		is_instance_valid(tree)
-		and is_instance_valid(_screen_transition)
-		and _screen_transition.is_transition_active()
-	):
-		await tree.process_frame
+	var wait_result: Dictionary = await GFAsyncWaitUtility.wait_while(
+		Callable(_screen_transition, &"is_transition_active"),
+		{
+			"tree": tree,
+			"timeout_seconds": _transition_timeout_seconds,
+			"respect_time_scale": false,
+			"timeout_warning": "[SceneRouterSystem] 屏幕转场等待超时。",
+		}
+	)
+	if GFVariantData.get_option_bool(wait_result, "completed", false):
+		return true
+	if is_instance_valid(_screen_transition):
+		var _cancelled: bool = _screen_transition.cancel_transition()
+		_screen_transition.hide_overlay()
+	_log_transition_warning(
+		"屏幕转场未进入终态，已解除覆盖层。status=%s"
+		% String(GFVariantData.get_option_string_name(wait_result, "status"))
+	)
+	return false
 
 
 func _queue_scene_change_completion(path: String, success: bool, error: Error = OK) -> void:
@@ -451,6 +470,13 @@ func _log_transition_error(message: String) -> void:
 		_log.error(_LOG_TAG, message)
 		return
 	push_error("[%s] %s" % [_LOG_TAG, message])
+
+
+func _log_transition_warning(message: String) -> void:
+	if is_instance_valid(_log):
+		_log.warn(_LOG_TAG, message)
+		return
+	push_warning("[%s] %s" % [_LOG_TAG, message])
 
 
 func _begin_scene_change_operation(path: String) -> void:

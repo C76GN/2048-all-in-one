@@ -26,6 +26,7 @@ const DEFAULT_SOUND_THEME_ID: StringName = &"printworks"
 const _VISUAL_ASSET_LANE_ID: StringName = &"game.theme.visual"
 const _SOUND_ASSET_LANE_ID: StringName = &"game.theme.sound"
 const _ASSET_LOAD_CONCURRENCY: int = 4
+const _DEFAULT_ASSET_SESSION_TIMEOUT_SECONDS: float = 15.0
 
 
 # --- 私有变量 ---
@@ -59,6 +60,7 @@ var _pending_audio_mount_token: int = 0
 var _previous_sound_theme: GameAudioTheme = null
 var _last_visual_activation_report: Dictionary = {}
 var _last_sound_activation_report: Dictionary = {}
+var _asset_session_timeout_seconds: float = _DEFAULT_ASSET_SESSION_TIMEOUT_SECONDS
 
 
 # --- GF 生命周期方法 ---
@@ -872,13 +874,37 @@ func _build_theme_asset_plan(
 func _wait_for_asset_session_ready(session: GFAssetLoadSession) -> bool:
 	if not is_instance_valid(session):
 		return false
-	while session.get_state() in [
-		GFAssetLoadSession.State.CREATED,
-		GFAssetLoadSession.State.LOADING,
-		GFAssetLoadSession.State.ROLLBACK_PENDING,
-	]:
-		var _state_change: Variant = await session.state_changed
+	if session.get_state() == GFAssetLoadSession.State.READY:
+		return true
+	var wait_result: Dictionary = await GFAsyncWaitUtility.wait_until(
+		func() -> bool:
+			return (
+				not is_instance_valid(session)
+				or session.get_state() not in [
+					GFAssetLoadSession.State.CREATED,
+					GFAssetLoadSession.State.LOADING,
+					GFAssetLoadSession.State.ROLLBACK_PENDING,
+				]
+			),
+		{
+			"tree": _get_scene_tree(),
+			"timeout_seconds": _asset_session_timeout_seconds,
+			"respect_time_scale": false,
+			"timeout_warning": "[GameThemeUtility] 主题资源会话等待超时。",
+		}
+	)
+	if not GFVariantData.get_option_bool(wait_result, "completed", false):
+		_cancel_asset_session(session, &"asset_session_timeout")
+		return false
 	return session.get_state() == GFAssetLoadSession.State.READY
+
+
+func _get_scene_tree() -> SceneTree:
+	var loop_value: MainLoop = Engine.get_main_loop()
+	if loop_value is SceneTree:
+		var tree: SceneTree = loop_value
+		return tree
+	return null
 
 
 func _cancel_asset_session(session: GFAssetLoadSession, reason: StringName) -> void:
