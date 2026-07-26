@@ -29,6 +29,7 @@ const _PROJECT_VERSION_SETTING: String = "application/config/version"
 const _LOG_TAG: String = "GameSaveGraphUtility"
 const _ASYNC_SAVE_DEBOUNCE_SECONDS: float = 0.16
 const _ASYNC_SAVE_RETRY_SECONDS: float = 2.0
+const _LIFECYCLE_PRIORITY: int = -100
 
 
 # --- 私有变量 ---
@@ -39,12 +40,14 @@ var _root_scope: GFSaveScope = null
 var _save_graph: GFSaveGraphUtility = null
 var _storage: GFStorageUtility = null
 var _log: GFLogUtility = null
+var _platform: GamePlatformUtility = null
 var _loaded: bool = false
 var _last_load_result: Dictionary = {}
 var _last_save_result: Dictionary = {}
 var _profile_save_pending: bool = false
 var _profile_save_in_flight: bool = false
 var _profile_save_wait_seconds: float = 0.0
+var _platform_backgrounded: bool = false
 
 
 # --- GF 生命周期方法 ---
@@ -52,23 +55,40 @@ var _profile_save_wait_seconds: float = 0.0
 func init() -> void:
 	ignore_pause = true
 	ignore_time_scale = true
+	# 持久化依赖应先 ready，并在本 Utility 完成最终同步冲刷后再 dispose。
+	lifecycle_priority = _LIFECYCLE_PRIORITY
 	_build_scope_graph()
 
 
 func get_required_utilities() -> Array[Script]:
-	return [GFLogUtility, GFSaveGraphUtility, GFStorageUtility]
+	return [
+		GFLogUtility,
+		GFSaveGraphUtility,
+		GFStorageUtility,
+		GamePlatformUtility,
+	]
 
 
 func ready() -> void:
 	_save_graph = _resolve_save_graph_utility()
 	_storage = _resolve_storage_utility()
 	_log = _resolve_log_utility()
+	_platform = _resolve_platform_utility()
 	if (
 		is_instance_valid(_storage)
 		and not _storage.save_completed.is_connected(_on_storage_save_completed)
 	):
 		var _save_connection: int = _storage.save_completed.connect(
 			_on_storage_save_completed
+		)
+	if (
+		is_instance_valid(_platform)
+		and not _platform.lifecycle_event_received.is_connected(
+			_on_platform_lifecycle_event_received
+		)
+	):
+		var _lifecycle_connection: int = _platform.lifecycle_event_received.connect(
+			_on_platform_lifecycle_event_received
 		)
 	var load_error: Error = load_profile()
 	if load_error != OK and is_instance_valid(_log):
@@ -118,6 +138,15 @@ func dispose() -> void:
 	if flush_error != OK and is_instance_valid(_log):
 		_log.error(_LOG_TAG, "退出前冲刷玩家数据失败，错误码：%d。" % flush_error)
 	if (
+		is_instance_valid(_platform)
+		and _platform.lifecycle_event_received.is_connected(
+			_on_platform_lifecycle_event_received
+		)
+	):
+		_platform.lifecycle_event_received.disconnect(
+			_on_platform_lifecycle_event_received
+		)
+	if (
 		is_instance_valid(_storage)
 		and _storage.save_completed.is_connected(_on_storage_save_completed)
 	):
@@ -132,10 +161,12 @@ func dispose() -> void:
 	_profile_save_pending = false
 	_profile_save_in_flight = false
 	_profile_save_wait_seconds = 0.0
+	_platform_backgrounded = false
 	_loaded = false
 	_save_graph = null
 	_storage = null
 	_log = null
+	_platform = null
 
 
 # --- 公共方法 ---
@@ -240,7 +271,9 @@ func flush_pending_save() -> Error:
 		_storage.wait_for_async_tasks()
 	if not _profile_save_pending:
 		return OK
-	var error: Error = save_profile()
+	# architecture.dispose() 已进入 disposing 状态时，GFSaveGraphUtility 无法再通过
+	# 架构动态解析 GFStorageUtility；退出边界必须使用 ready 阶段缓存的存储引用。
+	var error: Error = _save_current_profile_payload_sync()
 	if error == OK:
 		_profile_save_pending = false
 		_profile_save_wait_seconds = 0.0
@@ -489,6 +522,24 @@ func _apply_sections_to_memory(
 	return OK
 
 
+func _save_current_profile_payload_sync() -> Error:
+	var payload: Dictionary = preview_profile_payload()
+	if payload.is_empty():
+		_last_save_result = {
+			"ok": false,
+			"error_code": ERR_INVALID_DATA,
+			"sync_boundary": true,
+		}
+		return ERR_INVALID_DATA
+	var error: Error = _storage.save_data(PROFILE_FILE_NAME, payload)
+	_last_save_result = {
+		"ok": error == OK,
+		"error_code": error,
+		"sync_boundary": true,
+	}
+	return error
+
+
 func _start_async_profile_save() -> void:
 	if not _profile_save_pending or _profile_save_in_flight:
 		return
@@ -499,16 +550,19 @@ func _start_async_profile_save() -> void:
 
 	_profile_save_pending = false
 	_profile_save_wait_seconds = 0.0
-	var start_error: Error = _storage.save_data_async(PROFILE_FILE_NAME, payload)
-	if start_error != OK:
-		_schedule_async_save_retry(start_error)
-		return
 	_profile_save_in_flight = true
 	_last_save_result = {
 		"ok": false,
 		"pending": true,
 		"error_code": OK,
 	}
+	var start_error: Error = _storage.save_data_async(PROFILE_FILE_NAME, payload)
+	if start_error != OK:
+		# GFStorageUtility may emit save_completed synchronously when a worker thread
+		# cannot start. In that case the callback already owns the terminal state.
+		if _profile_save_in_flight:
+			_schedule_async_save_retry(start_error)
+		return
 
 
 func _on_storage_save_completed(file_name: String, error: Error) -> void:
@@ -540,6 +594,45 @@ func _schedule_async_save_retry(error: Error) -> void:
 	}
 	if is_instance_valid(_log):
 		_log.error(_LOG_TAG, "异步玩家数据写入失败，错误码：%d；稍后重试。" % error)
+
+
+func _on_platform_lifecycle_event_received(
+	event: GFPlatformLifecycleEvent
+) -> void:
+	if event == null:
+		return
+	if event.is_type(GFPlatformLifecycleEvent.TYPE_FOREGROUND):
+		_platform_backgrounded = false
+		return
+	if (
+		not event.is_type(GFPlatformLifecycleEvent.TYPE_BACKGROUND)
+		or _platform_backgrounded
+	):
+		return
+
+	# pause 与 focus-out 可能描述同一次后台切换；一个前台周期只冲刷一次。
+	_platform_backgrounded = true
+	_flush_pending_save_at_boundary("进入后台")
+
+
+func _flush_pending_save_at_boundary(boundary_name: String) -> void:
+	if not _profile_save_pending and not _profile_save_in_flight:
+		return
+	var flush_error: Error = flush_pending_save()
+	if flush_error == OK:
+		return
+
+	# 同步冲刷失败时保留最新内存图，并沿用异步退避重试策略。
+	_profile_save_pending = true
+	_profile_save_in_flight = false
+	_profile_save_wait_seconds = -_ASYNC_SAVE_RETRY_SECONDS
+	if is_instance_valid(_log):
+		_log.error(
+			_LOG_TAG,
+			"%s冲刷玩家数据失败，错误码：%d；已保留待写状态。"
+			% [boundary_name, flush_error]
+		)
+
 
 func _build_scope_graph() -> void:
 	_root_scope = GFSaveScope.new()
@@ -775,5 +868,13 @@ func _resolve_log_utility() -> GFLogUtility:
 	var utility_value: Object = get_utility(GFLogUtility)
 	if utility_value is GFLogUtility:
 		var utility: GFLogUtility = utility_value
+		return utility
+	return null
+
+
+func _resolve_platform_utility() -> GamePlatformUtility:
+	var utility_value: Object = get_utility(GamePlatformUtility)
+	if utility_value is GamePlatformUtility:
+		var utility: GamePlatformUtility = utility_value
 		return utility
 	return null

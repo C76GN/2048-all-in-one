@@ -6,6 +6,9 @@ extends GutTest
 
 const _BOARD_KEY: String = "board.rectangle.4x4@test"
 const _BOARD_SIZE: Vector2i = Vector2i(4, 4)
+const _TEST_PLATFORM_STUB_SCRIPT: Script = preload(
+	"res://tests/gut/fixtures/test_game_platform_utility_stub.gd"
+)
 
 
 # --- 测试用例 ---
@@ -73,6 +76,174 @@ func test_high_frequency_sections_coalesce_into_one_async_profile_write() -> voi
 	assert_false(GFVariantData.get_option_bool(completed_snapshot, "save_in_flight"), "异步写入完成后不应残留在途状态。")
 
 	_dispose_setup(setup)
+
+
+func test_synchronous_async_completion_does_not_leave_save_in_flight() -> void:
+	var storage: _ScriptedStorage = _ScriptedStorage.new()
+	storage.async_completion_errors = [OK]
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+
+	var queue_error: Error = save_graph.queue_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		{"stats": {}}
+	)
+	save_graph.tick(1.0)
+	var snapshot: Dictionary = save_graph.get_debug_snapshot()
+
+	assert_true(queue_error == OK, "同步完成回归夹具应成功排队。")
+	assert_true(storage.async_save_call_count == 1, "静默窗口后应只启动一次异步保存。")
+	assert_false(
+		GFVariantData.get_option_bool(snapshot, "save_pending"),
+		"save_data_async 内同步完成后不应残留待写状态。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(snapshot, "save_in_flight"),
+		"同步完成回调不得被调用后的 in-flight 赋值覆盖。"
+	)
+
+	_dispose_setup(setup)
+
+
+func test_synchronous_thread_start_failure_retries_without_stuck_in_flight() -> void:
+	var storage: _ScriptedStorage = _ScriptedStorage.new()
+	# 等价于 Web 单线程下 GFStorageUtility 在线程启动失败时同步发出完成信号，
+	# 但公共 save_data_async() 仍返回 OK 的路径。
+	storage.async_completion_errors = [ERR_CANT_CREATE, OK]
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+
+	var queue_error: Error = save_graph.queue_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		{"stats": {}}
+	)
+	save_graph.tick(1.0)
+	var failed_snapshot: Dictionary = save_graph.get_debug_snapshot()
+
+	assert_true(queue_error == OK, "线程失败回归夹具应成功排队。")
+	assert_true(storage.async_save_call_count == 1, "第一次异步启动应到达存储边界。")
+	assert_true(
+		GFVariantData.get_option_bool(failed_snapshot, "save_pending"),
+		"线程启动失败必须保留最新 Profile 待重试。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(failed_snapshot, "save_in_flight"),
+		"同步失败回调后不得永久残留 in-flight。"
+	)
+
+	save_graph.tick(3.0)
+	var retried_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	assert_true(storage.async_save_call_count == 2, "退避窗口结束后应重新尝试保存。")
+	assert_false(
+		GFVariantData.get_option_bool(retried_snapshot, "save_pending"),
+		"后续成功回调应收敛待写状态。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(retried_snapshot, "save_in_flight"),
+		"同步重试成功后不应残留在途状态。"
+	)
+
+	_dispose_setup(setup)
+
+
+func test_background_flush_deduplicates_events_and_retries_after_foreground() -> void:
+	var storage: _ScriptedStorage = _ScriptedStorage.new()
+	storage.sync_save_errors = [ERR_CANT_OPEN, OK]
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var platform: GamePlatformUtility = _get_platform_stub(setup)
+	var queue_error: Error = save_graph.queue_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		{"stats": {}}
+	)
+
+	platform.call(
+		&"publish_lifecycle_event",
+		GFPlatformLifecycleEvent.TYPE_BACKGROUND,
+		1
+	)
+	var failed_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	assert_true(queue_error == OK, "后台冲刷夹具应成功排队。")
+	assert_true(storage.sync_save_call_count == 1, "首次后台事件应立即同步冲刷。")
+	assert_true(
+		GFVariantData.get_option_bool(failed_snapshot, "save_pending"),
+		"后台同步冲刷失败必须保留待写状态。"
+	)
+
+	platform.call(
+		&"publish_lifecycle_event",
+		GFPlatformLifecycleEvent.TYPE_BACKGROUND,
+		2
+	)
+	assert_true(
+		storage.sync_save_call_count == 1,
+		"同一前台周期的 pause/focus-out 重复后台事件不得重复冲刷。"
+	)
+
+	platform.call(
+		&"publish_lifecycle_event",
+		GFPlatformLifecycleEvent.TYPE_FOREGROUND,
+		3
+	)
+	platform.call(
+		&"publish_lifecycle_event",
+		GFPlatformLifecycleEvent.TYPE_BACKGROUND,
+		4
+	)
+	var recovered_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	assert_true(storage.sync_save_call_count == 2, "重新进入后台时应重试先前失败的待写 Profile。")
+	assert_false(
+		GFVariantData.get_option_bool(recovered_snapshot, "save_pending"),
+		"后台重试成功后应清除待写状态。"
+	)
+
+	_dispose_setup(setup)
+
+
+func test_architecture_dispose_flushes_pending_profile_before_exit() -> void:
+	var storage: _ScriptedStorage = _ScriptedStorage.new()
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var queue_error: Error = save_graph.queue_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		{"stats": {}}
+	)
+
+	architecture.dispose()
+
+	assert_true(queue_error == OK, "退出冲刷夹具应成功排队。")
+	assert_true(
+		storage.sync_save_call_count == 1,
+		"架构退出必须在存储释放前同步冲刷 Profile；实际调用：%d。"
+		% storage.sync_save_call_count
+	)
+	var cleanup_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
+	assert_true(
+		cleanup_error == OK or cleanup_error == ERR_FILE_NOT_FOUND,
+		"退出冲刷测试数据应可清理。"
+	)
+	setup.clear()
 
 
 func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
@@ -509,12 +680,18 @@ func test_save_dependency_failure_rolls_back_replaced_section() -> void:
 func _create_persistence_architecture(
 	save_dir_name: String = "",
 	include_systems: bool = false,
-	raw_profile_bytes: PackedByteArray = PackedByteArray()
+	raw_profile_bytes: PackedByteArray = PackedByteArray(),
+	storage_override: GFStorageUtility = null
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
-	var storage: GFStorageUtility = GFStorageUtility.new()
+	var storage: GFStorageUtility = (
+		storage_override
+		if storage_override != null
+		else GFStorageUtility.new()
+	)
 	var framework_save_graph: GFSaveGraphUtility = GFSaveGraphUtility.new()
 	var save_graph: GameSaveGraphUtility = _make_game_save_graph()
+	var platform: GamePlatformUtility = _TEST_PLATFORM_STUB_SCRIPT.new()
 	var progress_stats_system: ProgressStatsSystem = null
 	var bookmark_system: BookmarkSystem = null
 	var custom_board_system: CustomBoardSystem = null
@@ -536,6 +713,7 @@ func _create_persistence_architecture(
 
 	await architecture.register_utility(GFStorageUtility, storage)
 	await architecture.register_utility(GFSaveGraphUtility, framework_save_graph)
+	await architecture.register_utility(GamePlatformUtility, platform)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(GFCommandHistoryUtility, GFCommandHistoryUtility.new())
@@ -554,6 +732,7 @@ func _create_persistence_architecture(
 		"architecture": architecture,
 		"storage": storage,
 		"save_graph": save_graph,
+		"platform": platform,
 		"progress_stats_system": progress_stats_system,
 		"bookmark_system": bookmark_system,
 		"custom_board_system": custom_board_system,
@@ -759,6 +938,15 @@ func _get_save_graph(setup: Dictionary) -> GameSaveGraphUtility:
 	return GameSaveGraphUtility.new()
 
 
+func _get_platform_stub(setup: Dictionary) -> GamePlatformUtility:
+	var value: Variant = GFVariantData.get_option_value(setup, "platform")
+	if value is GamePlatformUtility:
+		var platform: GamePlatformUtility = value
+		return platform
+	assert_true(false, "测试 setup 缺少 TestGamePlatformUtilityStub。")
+	return _TEST_PLATFORM_STUB_SCRIPT.new()
+
+
 func _get_progress_stats_system(setup: Dictionary) -> ProgressStatsSystem:
 	var value: Variant = GFVariantData.get_option_value(setup, "progress_stats_system")
 	if value is ProgressStatsSystem:
@@ -793,3 +981,37 @@ func _get_custom_board_system(setup: Dictionary) -> CustomBoardSystem:
 		return custom_board_system
 	assert_true(false, "测试 setup 缺少 CustomBoardSystem。")
 	return CustomBoardSystem.new()
+
+
+# --- 内部类 ---
+
+class _ScriptedStorage extends GFStorageUtility:
+	var async_completion_errors: Array[int] = []
+	var async_start_errors: Array[int] = []
+	var sync_save_errors: Array[int] = []
+	var async_save_call_count: int = 0
+	var sync_save_call_count: int = 0
+
+
+	func save_data_async(file_name: String, _data: Dictionary) -> Error:
+		async_save_call_count += 1
+		var completion_error: Error = (
+			async_completion_errors.pop_front() as Error
+			if not async_completion_errors.is_empty()
+			else OK
+		)
+		save_completed.emit(file_name, completion_error)
+		return (
+			async_start_errors.pop_front() as Error
+			if not async_start_errors.is_empty()
+			else OK
+		)
+
+
+	func save_data(file_name: String, data: Dictionary) -> Error:
+		sync_save_call_count += 1
+		if not sync_save_errors.is_empty():
+			var scripted_error: Error = sync_save_errors.pop_front() as Error
+			if scripted_error != OK:
+				return scripted_error
+		return super.save_data(file_name, data)
