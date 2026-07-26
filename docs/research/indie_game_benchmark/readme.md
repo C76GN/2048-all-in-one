@@ -42,7 +42,7 @@
 - 第三方仓库只位于 `E:\_workspace\Godot Project\_research\2048-benchmark`，均以 detached HEAD 固定完整 SHA；未构建、运行、安装依赖或初始化 submodule。
 - 本项目只提交研究 Markdown；没有提交第三方仓库、缓存、截图、视频、代码、Shader、音频或美术素材。
 - MIT 等宽松代码许可证不自动覆盖素材、字体、商标与依赖。GPL/AGPL/CC-BY-SA 或未公开源码样本只用于观察机制、分类语言与测试方法。
-- 本批研究不修改游戏代码或 `addons/gf`。任何落地项都应另开 issue/分支/PR，并以行动建议中的验收条件为边界。
+- 本批研究不修改游戏代码或 `addons/gf`。任何落地项都应另开 GitHub issue 和独立实现分支，并以行动建议中的验收条件为边界；GF 改动以 issue 作为唯一协作与验收记录，只允许在独立 `gf-pr` 工作区的非 `main` 分支完成，经过 GF 测试与发布后再做项目 vendor 回流，用户自有 `gf` 工作区始终只读。
 
 ## 后续增量规则
 

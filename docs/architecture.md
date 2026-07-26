@@ -23,6 +23,8 @@
 
 | Feature | 所有权 |
 | --- | --- |
+| `accessibility` | 棋盘与回合的规范无障碍语义摘要、字幕同源文本、复制入口和未来平台辅助技术投影 |
+| `levels` | 原创限步关卡定义与目录、固定初始棋盘、顺序解锁和 `limited_levels` SaveGraph section |
 | `gameplay` | 棋盘、移动命令、规则、模式、对局状态、HUD 和玩法输入 |
 | `navigation` | 场景路由、主菜单、模式选择、列表菜单导航壳和 UI Route 注册表 |
 | `board_editor` | 玩家棋盘草稿、局部撤销历史、自定义模板目录和 `custom_boards` SaveGraph section |
@@ -217,10 +219,10 @@ Installer 不得重复绑定这些扩展拥有的模块。启用扩展但不使�
 
 - `addons/gf/**` 是由 `.gf/vendor.lock.json` 锁定的上游快照，项目开发中视为只读；不得在项目功能提交中直接修补、格式化或重构 GF 源码。
 - 发现 GF 缺陷或通用能力缺口时，必须先在 `C76GN/gf-framework` 创建可复现的 GitHub issue，明确影响版本、最小复现、期望契约和验证标准。
-- GF 实现只能在独立的干净 worktree 和非 `main` 分支完成，通过对应 issue 的 PR、GF 自身测试与维护门禁合并；禁止直接向 GF `main` 提交或推送框架改动。
-- 项目与 GF 的改动不得混在同一提交或 PR。项目可以先提交不依赖框架修改的调用侧改进；必须等待 GF PR 合并后，才能通过正式 vendor 更新流程同步新的上游提交。
-- 同步 GF 时必须更新 `.gf/vendor.lock.json`，运行 vendor 完整性、GUT、LSP、Feature-Cohesive 和退出泄漏验证，并在项目提交中引用上游 issue、PR 与精确 source commit。
-- GF 工作区存在未提交改动时只允许只读分析；不得代替所有者整理、覆盖、提交或推送这些改动。需要开发框架修复时另建干净 worktree。
+- GF 实现只能在独立 `gf-pr` 工作区的非 `main` 分支完成，并通过 GF 自身测试与维护门禁；对应 GitHub issue 是协作与验收的唯一记录，禁止直接向 GF `main` 提交或推送框架改动。
+- 项目与 GF 的改动不得混在同一提交或实施批次。项目可以先提交不依赖框架修改的调用侧改进；只有 GF 变更完成测试并由维护者发布后，项目才能通过正式 vendor 更新流程同步精确的上游 source commit。
+- 同步 GF 时必须更新 `.gf/vendor.lock.json`，运行 vendor 完整性、GUT、LSP、Feature-Cohesive 和退出泄漏验证，并在项目提交中引用上游 issue、发布版本与精确 source commit。
+- 用户自有 `gf` 工作区始终只允许只读分析；不得代替所有者整理、覆盖、提交或推送其中改动。需要开发框架修复时只使用独立 `gf-pr` 工作区。
 
 ## 验证门禁
 

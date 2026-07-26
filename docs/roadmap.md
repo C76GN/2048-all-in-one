@@ -157,7 +157,7 @@ GF 包与 vendor 治理已经成为维护契约，不再列作待决 Roadmap：�
 
 2. 更新 `docs/ai_maintenance.md`。
    - 加入 GF package manager 工作流。
-   - 保持 `addons/gf` 只读；上游问题只记录 issue、PR、发布版本和本项目采用结果。
+   - 保持 `addons/gf` 只读；上游问题先进入 GitHub issue，并以 issue 作为唯一协作与验收记录。经授权的实现只在独立 `gf-pr` 工作区的非 `main` 分支完成并通过 GF 测试；发布后记录精确 source commit、发布版本和本项目 vendor 采用结果。
 
 3. 新增架构文档。
    - 建议：`docs/architecture.md`。

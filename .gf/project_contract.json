@@ -16,7 +16,7 @@
     ],
     "out_of_scope": [
       "在运行时主路径保留旧业务 schema、旧 API 或隐式降级兼容分支。",
-      "在项目主线直接修改 res://addons/gf；通用框架改动必须经 gf-framework issue、独立分支、PR 和版本升级回流。",
+      "在项目主线直接修改 res://addons/gf；通用框架改动必须以 gf-framework GitHub issue 作为唯一协作与验收记录，只在独立 gf-pr 工作区的非 main 分支实现，用户自有 gf 工作区保持只读；通过 GF 测试与发布后再按精确 source commit 回流 vendor。",
       "当前阶段实现实时多人对局或由客户端直接裁决线上排行榜。"
     ]
   },
@@ -97,19 +97,20 @@
         "responsibility": "拥有 Composition Root 与全部 Feature-Cohesive 业务切片；Feature 目录提供 Locality，跨 Feature 调用由 docs/architecture.md 的 System、Utility、事件和 route 规则约束。",
         "roots": [
           "res://app",
+          "res://features/accessibility",
           "res://features/achievements",
           "res://features/asset_library",
           "res://features/board_editor",
           "res://features/bookmarks",
           "res://features/diagnostics",
           "res://features/gameplay",
+          "res://features/levels",
           "res://features/navigation",
           "res://features/persistence",
           "res://features/platform_runtime/docs",
           "res://features/platform_runtime/scenes",
           "res://features/platform_runtime/scripts/controllers",
           "res://features/platform_runtime/scripts/utilities",
-          "res://features/platform_runtime/tools",
           "res://features/progress",
           "res://features/replays",
           "res://features/settings",
@@ -130,7 +131,8 @@
         "responsibility": "拥有跨 Feature 合同测试、项目维护测试和显式人工调用的验证脚本；不进入发布运行时。",
         "roots": [
           "res://tests",
-          "res://tools"
+          "res://tools",
+          "res://features/platform_runtime/tools"
         ],
         "allowed_dependencies": [
           "shared_foundation",
@@ -143,7 +145,7 @@
     ],
     "global_rules": [
       "项目业务代码必须位于严格 Feature-Cohesive 目录，目录真相来源是 gf_project_profile.json。",
-      "项目代码不得直接修改 res://addons/gf；通用缺陷经 gf-framework issue、独立分支、PR、发布版本和 vendor 更新回流。",
+      "项目代码不得直接修改 res://addons/gf；通用缺陷先进入 gf-framework GitHub issue，授权实现只在独立 gf-pr 工作区的非 main 分支完成并通过 GF 测试，用户自有 gf 工作区保持只读；维护者发布后再按精确 source commit 更新 vendor。",
       "跨模块依赖必须由 GF Composition Root 声明并注入；只有 app 启动链可以访问全局 Gf。",
       "业务随机数使用 GFSeedUtility，共享时间使用 GFClock；回放、撤销和书签必须保持确定性。",
       "UI 导航使用 GFUIRouterUtility，跨生命周期信号使用 GFSignalUtility，玩家输入使用 GFInputMappingUtility。",
@@ -267,7 +269,7 @@
       "id": "framework_changes_through_upstream",
       "status": "accepted",
       "statement": "项目主线不直接承载 GF 源码补丁。",
-      "rationale": "通用缺陷和能力必须先在 gf-framework 建 issue，在框架仓库独立分支通过 PR、测试和版本发布，再以可追溯 vendor 更新采用。",
+      "rationale": "通用缺陷和能力必须先在 gf-framework 建 GitHub issue，并以 issue 作为唯一协作与验收记录；授权实现只在独立 gf-pr 工作区的非 main 分支完成，用户自有 gf 工作区保持只读。GF 测试通过并由维护者发布后，再按发布版本和精确 source commit 做可追溯 vendor 更新。",
       "evidence": [
         "docs/ai_maintenance.md"
       ]

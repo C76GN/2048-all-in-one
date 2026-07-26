@@ -4,7 +4,7 @@
 
 > **GF vendor 边界**
 >
-> 本项目是 **GF Framework** 的实践示例，但当前工作区中的 `addons/gf/` 是只读 vendor 快照。项目开发不得直接修改它。通用框架问题必须先进入独立的 `gf-framework` issue、分支和 PR，发布后再通过可追溯的 vendor 升级回流；2048 规则、内容、文案和视觉始终留在项目 Feature。
+> 本项目是 **GF Framework** 的实践示例，但当前工作区中的 `addons/gf/` 是只读 vendor 快照。项目开发不得直接修改它。通用框架问题先在 `C76GN/gf-framework` 建立 GitHub issue，并以 issue 作为唯一协作与验收记录；经授权的实现只能在独立 `gf-pr` 工作区的非 `main` 分支完成，用户自有 `gf` 工作区始终只读。GF 测试通过并发布后，再通过可追溯的 vendor 升级回流。2048 规则、内容、文案和视觉始终留在项目 Feature。
 
 ## 技术栈
 
@@ -17,7 +17,7 @@
 
 - 项目严格采用 GF 内置的 Feature-Cohesive 目录契约，`gf_project_profile.json` 是可执行的结构真相来源。
 - `app/` 只包含启动、Composition Root 和跨 Feature 装配；`app/scripts/game_architecture_installer.gd` 声明项目 Model、System、Utility。
-- `features/` 当前包含 gameplay、navigation、board_editor、settings、bookmarks、replays、progress、tile_catalog、achievements、persistence、platform_runtime、themes、asset_library 和 diagnostics；所有权表以 `docs/architecture.md` 为准。
+- `features/` 当前包含 accessibility、achievements、asset_library、board_editor、bookmarks、diagnostics、gameplay、levels、navigation、persistence、platform_runtime、progress、replays、settings、themes 和 tile_catalog；所有权表以 `docs/architecture.md` 为准。
 - 每个 Feature 在自己的 `scripts/`、`scenes/`、`resources/`、`docs/` 或 `tools/` 内拥有完整实现；GF 的 Model/System/Utility/Controller 是 Feature 内部逻辑层。
 - `shared/` 只保存跨 Feature 复用的契约、基础算法、UI 原语、素材和 Utility，不得引用具体 Feature。
 - 旧的全局 `scripts/`、`scenes/`、`resources/`、`assets/` 和 `asset_library/` 类型桶不再使用，也不提供旧路径兼容。

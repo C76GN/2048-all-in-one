@@ -8,9 +8,9 @@
 - gf 当前版本以 `addons/gf/plugin.cfg` 中的 `version` 字段为唯一来源。规范文档只描述 GF 9.x 契约；带日期的验证证据可以记录当次精确版本、commit 和 vendor hash，但不能冒充持续更新的“当前版本”。
 - 当前 GF 源码是由 `.gf/vendor.lock.json` 精确锁定的 vendored GF 9 状态。若 `.gf/packages.lock.json` 存在，GF Package Manager 的安装状态以它为准；若不存在，不要把旧 lockfile 假设当作当前事实。`.gf/package_cache/` 是下载缓存，不应提交。
 - 业务代码应尽量展示 gf 的核心能力：`GFInstaller`、`GFModel`、`GFSystem`、`GFController`、`GFUtility`、事件系统、命令历史、资源化输入、资源化规则、存储、场景工具、对象池、动作队列和设置绑定。
-- 当发现 gf 难以表达项目需求时，先判断问题属于示例项目建模不足、框架 API 可用性不足，还是框架缺陷。项目层先保持清晰边界；框架能力或缺陷进入独立 `gf-framework` issue、分支和 PR。
-- 当前工作区的 `addons/gf/**` 始终只读。即使任务要求反哺框架，也必须在独立 GF 仓库或干净 worktree 实现，发布后再以完整 vendor 快照和锁文件更新本项目。
-- 上游记录只保存 issue、PR、发布版本和采用结果，不在项目文档中维护“当前临时 vendor 补丁”。
+- 当发现 gf 难以表达项目需求时，先判断问题属于示例项目建模不足、框架 API 可用性不足，还是框架缺陷。项目层先保持清晰边界；框架能力或缺陷必须先进入 `C76GN/gf-framework` GitHub issue，issue 是协作、复现和验收的唯一记录。
+- 当前工作区的 `addons/gf/**` 始终只读。即使任务要求反哺框架，经授权的 GF 实现也只能在独立 `gf-pr` 工作区的非 `main` 分支完成；用户自有 `gf` 工作区始终只读，任何自动化或协作者都不得修改、整理、提交或推送其中内容。
+- 上游记录只保存 issue、测试结果、发布版本、精确 source commit 和采用结果，不在项目文档中维护“当前临时 vendor 补丁”。
 - `addons/gut/**` 是测试插件代码，除非任务明确要求处理 GUT，否则不要修改。
 
 ## 核心规则
@@ -29,7 +29,7 @@
 ## 架构速览
 
 - 启动入口：`app/scenes/boot.tscn` 挂载极轻 `app/scripts/boot.gd`，线程加载 `app/scripts/boot_runtime.gd`；后者启用 GF 根架构的严格依赖查询与声明校验，调用 `await Gf.init()`、执行 `GFRenderWarmupUtility` 清单预热后交给 `SceneRouterSystem` 切到主菜单。
-- GF 上游治理：`addons/gf/**` 是只读 vendor 快照。框架缺陷必须在 `C76GN/gf-framework` 先建 issue，再从干净 worktree 的非 `main` 分支提交 PR；合并后才允许更新项目 vendor lock，禁止把 GF 本体修改直接提交到任一仓库主线。
+- GF 上游治理：`addons/gf/**` 是只读 vendor 快照。框架缺陷必须在 `C76GN/gf-framework` 先建 issue，并以 issue 作为唯一协作与验收记录；实现只允许位于独立 `gf-pr` 工作区的非 `main` 分支，并完成 GF 自身测试与维护门禁。由维护者发布可采用版本后才允许更新项目 vendor lock；用户自有 `gf` 工作区只读，禁止把 GF 本体修改直接提交到任一仓库主线。
 - gf 装配入口：`app/scripts/game_architecture_installer.gd` 注册项目 Model、System、Utility，并通过 Project Settings 的 `gf/project/installers` 接入。
 - Feature：`features/<feature_id>/` 内聚脚本、场景、资源、文档和局部工具；GF 层目录只在所属 Feature 内出现。
 - Shared：`shared/**` 只保存跨 Feature 契约、基础算法、UI 原语、素材和 Utility，禁止引用具体 Feature。
@@ -107,7 +107,7 @@ python addons/gf/tools/ai_developer/gf_ai_project.py snapshot --project-root .
 
 完成后再次运行 `validate`，并检查 `agent-status` 中不存在 `drifted`。项目提交 `.gf/project_contract.json`、由当前 vendored GF 成功生成的 `.gf/ai/project_snapshot.json` 和 `.codex/skills/gf-project-development/**`；Python `__pycache__` 不是项目产物，不得提交。
 
-若当前 vendor 的 `snapshot` 仍因合法裸资源根 `res://` 被自身 schema 拒绝，不得伪造或手改输出；该历史缺陷见 [gf-framework#16](https://github.com/C76GN/gf-framework/issues/16) 与 [gf-framework#17](https://github.com/C76GN/gf-framework/pull/17)。是否已修复必须以 `addons/gf/plugin.cfg` 对应的当前 vendor 实跑结果为准，不能沿用文档中的旧补丁版本判断。
+若当前 vendor 的 `snapshot` 仍因合法裸资源根 `res://` 被自身 schema 拒绝，不得伪造或手改输出；该历史缺陷见 [gf-framework#16](https://github.com/C76GN/gf-framework/issues/16)。是否已修复必须以 `addons/gf/plugin.cfg` 对应的当前 vendor 实跑结果为准，不能沿用文档中的旧补丁版本判断。
 
 `validate` 可能对模块根之外的治理文件或仅用于扫描的宽根路径给出 `unowned_project_resource_reference` advisory warning。该设计缺口见 [gf-framework#18](https://github.com/C76GN/gf-framework/issues/18)；每次应读取报告中的实际 evidence，不得通过拆分资源路径字符串、虚假目录或放宽项目 Module 边界来隐藏 warning。
 
@@ -222,7 +222,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 - 项目侧 Adapter、验证和可复现的反馈证据，且不得复制或修改 GF vendor 源码。
 - 已发布 GF 版本的完整 vendor 升级，同时更新 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json`、必要的包状态与验证证据。
 
-发现通用缺陷或能力缺口后，先排除项目建模和调用错误，再在 `C76GN/gf-framework` 创建 issue；实现位于框架仓库独立分支并经 PR 合并。框架实现不能引用本项目的 2048 类型、路径、文案、资源或玩法概念。本项目提交历史不接受混在业务提交中的 GF 源码补丁。
+发现通用缺陷或能力缺口后，先排除项目建模和调用错误，再在 `C76GN/gf-framework` 创建 issue，并以 issue 协调复现、范围和验收。经授权的实现只位于独立 `gf-pr` 工作区的非 `main` 分支；用户自有 `gf` 工作区始终只读。完成 GF 自身测试与维护门禁并发布后，本项目才按精确 source commit 更新完整 vendor 快照和锁文件。框架实现不能引用本项目的 2048 类型、路径、文案、资源或玩法概念。本项目提交历史不接受混在业务提交中的 GF 源码补丁。
 
 当前上游跟踪：
 
@@ -235,7 +235,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 - `README.md`：项目定位、技术栈、架构概览、gf 使用方式、新模式流程。
 - `docs/coding_style.md`：只有团队规范变化时更新。
 - `docs/ai_maintenance.md`：只有 AI 工作流程或维护边界变化时更新。
-- `addons/gf/README.md`：仅当修改了可复用 gf 框架能力时更新。
+- GF 自身文档：只随 `gf-pr` 工作区中的框架实现更新；项目 vendor 升级不得在本仓库单独编辑 `addons/gf/README.md`。
 
 ## 公开 API 与注释
 
