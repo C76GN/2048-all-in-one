@@ -85,7 +85,7 @@ func test_clipboard_write_uses_declared_platform_capability() -> void:
 		utility.copy_text_to_clipboard("棋盘摘要"),
 		"用户主动复制应由项目平台边界转交 adapter。"
 	)
-	assert_eq(adapter.clipboard_text, "棋盘摘要")
+	assert_true(adapter.clipboard_text == "棋盘摘要")
 	assert_false(
 		utility.copy_text_to_clipboard(""),
 		"空文本不得进入平台剪贴板。"

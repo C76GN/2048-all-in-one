@@ -236,7 +236,7 @@ func animate_merge(
 		scale = Vector2.ONE
 		_snap_flash_to_rest()
 		if on_impact.is_valid():
-			on_impact.call()
+			var _impact_result: Variant = GFCallableAction.new(on_impact).execute()
 		return null
 
 	var pulse_duration: float = profile.get_merge_pulse_duration(feedback_budget)
@@ -325,7 +325,7 @@ func animate_transform(
 		rotation_degrees = 0.0
 		_snap_flash_to_rest()
 		if on_impact.is_valid():
-			on_impact.call()
+			var _impact_result: Variant = GFCallableAction.new(on_impact).execute()
 		return null
 
 	_active_rotation_tween = create_tween()

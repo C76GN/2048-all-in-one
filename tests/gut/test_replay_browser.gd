@@ -387,25 +387,6 @@ func _make_history(player_step_count: int) -> GFCommandHistoryUtility:
 	return history
 
 
-class ReplayInputHarness extends ReplayInputSystem:
-	var replay_system_ref: ReplaySystem
-	var determinism_ref: GameDeterminismUtility
-	var state_system_ref: GameStateSystem
-	var current_game_ref: CurrentGameModel
-
-	func _get_replay_system() -> ReplaySystem:
-		return replay_system_ref
-
-	func _get_determinism_utility() -> GameDeterminismUtility:
-		return determinism_ref
-
-	func _get_game_state_system() -> GameStateSystem:
-		return state_system_ref
-
-	func _get_current_game_model() -> CurrentGameModel:
-		return current_game_ref
-
-
 func _make_move_command_data(direction: Vector2i, is_baseline: bool) -> Dictionary:
 	return {
 		&"schema_version": MoveCommand.SERIALIZATION_SCHEMA_VERSION,
@@ -439,3 +420,24 @@ func _make_empty_game_state() -> Dictionary:
 		&"extra_stats": {},
 		&"rules_states": {},
 	}
+
+
+# --- 内部类 ---
+
+class ReplayInputHarness extends ReplayInputSystem:
+	var replay_system_ref: ReplaySystem
+	var determinism_ref: GameDeterminismUtility
+	var state_system_ref: GameStateSystem
+	var current_game_ref: CurrentGameModel
+
+	func _get_replay_system() -> ReplaySystem:
+		return replay_system_ref
+
+	func _get_determinism_utility() -> GameDeterminismUtility:
+		return determinism_ref
+
+	func _get_game_state_system() -> GameStateSystem:
+		return state_system_ref
+
+	func _get_current_game_model() -> CurrentGameModel:
+		return current_game_ref

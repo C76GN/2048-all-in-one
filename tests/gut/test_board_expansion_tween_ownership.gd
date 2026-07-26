@@ -19,7 +19,7 @@ func test_cancelled_expansion_kills_owned_tween_and_normalizes_cells() -> void:
 
 	controller._cancel_expansion_animation()
 
-	assert_eq(controller._expansion_token, previous_token + 1)
+	assert_true(controller._expansion_token == previous_token + 1)
 	assert_null(controller._expansion_tween)
 	assert_true(cell.scale.is_equal_approx(Vector2.ONE))
 

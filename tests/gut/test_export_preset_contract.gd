@@ -44,9 +44,8 @@ func test_every_release_preset_uses_the_project_export_filters() -> void:
 
 	for section: String in preset_sections:
 		var preset_name: String = str(config.get_value(section, "name", section))
-		assert_eq(
-			str(config.get_value(section, "export_filter", "")),
-			"all_resources",
+		assert_true(
+			str(config.get_value(section, "export_filter", "")) == "all_resources",
 			"%s 应从完整运行时资源集合开始过滤。" % preset_name
 		)
 		var include_filters: PackedStringArray = _parse_filter_list(
@@ -99,7 +98,7 @@ func test_runtime_content_manifests_and_entries_survive_every_release_filter() -
 
 func _load_export_config() -> ConfigFile:
 	var config: ConfigFile = ConfigFile.new()
-	assert_eq(config.load(_EXPORT_CONFIG_PATH), OK, "应能读取导出预设。")
+	assert_true(config.load(_EXPORT_CONFIG_PATH) == OK, "应能读取导出预设。")
 	return config
 
 
