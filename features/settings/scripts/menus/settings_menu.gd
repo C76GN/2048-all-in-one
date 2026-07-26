@@ -30,11 +30,12 @@ const _LOCALE_EN: String = "en"
 const _LOCALE_ZH: String = "zh"
 const _AUDIO_BUS_MASTER: String = "Master"
 const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
-const _COMPACT_LAYOUT_MAX_WIDTH: float = 760.0
-const _DESKTOP_MARGIN_HORIZONTAL: int = 48
-const _DESKTOP_MARGIN_VERTICAL: int = 34
-const _COMPACT_MARGIN_HORIZONTAL: int = 12
-const _COMPACT_MARGIN_VERTICAL: int = 14
+const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
+	"top": 34.0,
+	"left": 48.0,
+	"bottom": 34.0,
+	"right": 48.0,
+}
 const _COMPACT_FIELD_LABEL_WIDTH: float = 112.0
 const _DESKTOP_FIELD_LABEL_WIDTH: float = 150.0
 const _COMPACT_BINDING_LABEL_WIDTH: float = 124.0
@@ -58,10 +59,12 @@ var _form_binder: GFFormBinder
 var _input_profile: GameInputProfileUtility
 var _accessibility: GameAccessibilityUtility
 var _input_detector: GFInputDetector
+var _viewport_utility: GFViewportUtility = null
 var _pending_binding: Dictionary = {}
 var _is_compact_layout: bool = false
 var _responsive_layout_update_queued: bool = false
 var _active_section: SettingsSection = SettingsSection.GENERAL
+var _section_scroll: ScrollContainer = null
 
 
 # --- @onready 变量 (节点引用) ---
@@ -71,6 +74,10 @@ var _active_section: SettingsSection = SettingsSection.GENERAL
 @onready var _body: BoxContainer = %Body
 @onready var _category_rail: BoxContainer = %CategoryRail
 @onready var _content_panel: MarginContainer = %ContentPanel
+@onready var _content_margin: MarginContainer = GameTaskPageLayoutUtility.get_margin_container(
+	self,
+	NodePath("SafeMargin/Page/Body/ContentPanel/ContentMargin")
+)
 @onready var _general_tab_button: Button = %GeneralTabButton
 @onready var _audio_tab_button: Button = %AudioTabButton
 @onready var _controls_tab_button: Button = %ControlsTabButton
@@ -135,6 +142,11 @@ var _active_section: SettingsSection = SettingsSection.GENERAL
 func _ready() -> void:
 	_input_profile = _get_input_profile_utility()
 	_accessibility = _get_accessibility_utility()
+	_viewport_utility = _get_viewport_utility()
+	_section_scroll = GameTaskPageLayoutUtility.ensure_vertical_scroll_parent(
+		_content_margin,
+		&"SettingsSectionScroll"
+	)
 	_setup_input_detector()
 	_setup_setting_options()
 	_sync_controls_from_settings()
@@ -184,7 +196,7 @@ func _unhandled_input(event: InputEvent) -> void:
 ## @param viewport_size: 当前逻辑视口尺寸。
 ## @return 宽度低于移动端断点时返回 true。
 static func is_compact_layout(viewport_size: Vector2) -> bool:
-	return viewport_size.x > 0.0 and viewport_size.x < _COMPACT_LAYOUT_MAX_WIDTH
+	return GameTaskPageLayoutUtility.is_compact_layout(viewport_size)
 
 
 # --- 私有/辅助方法 ---
@@ -200,28 +212,37 @@ func _apply_responsive_layout() -> void:
 	_responsive_layout_update_queued = false
 	if not is_inside_tree():
 		return
-	_is_compact_layout = is_compact_layout(size)
+	var task_layout_mode: int = GameTaskPageLayoutUtility.classify_layout(size)
+	_is_compact_layout = (
+		task_layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	)
 	_body.vertical = _is_compact_layout
 	_category_rail.vertical = not _is_compact_layout
 	_category_rail.custom_minimum_size.x = 0.0 if _is_compact_layout else 210.0
 	_content_panel.custom_minimum_size.x = 0.0 if _is_compact_layout else 620.0
 	_body.add_theme_constant_override("separation", 12 if _is_compact_layout else 20)
 	_category_rail.add_theme_constant_override("separation", 6 if _is_compact_layout else 8)
-	_margin_container.add_theme_constant_override(
+	_apply_safe_area_margins(
+		GameTaskPageLayoutUtility.get_safe_area_extra_margins(
+			task_layout_mode,
+			_DESKTOP_SAFE_AREA_MARGINS
+		)
+	)
+	_content_margin.add_theme_constant_override(
 		"margin_left",
-		_COMPACT_MARGIN_HORIZONTAL if _is_compact_layout else _DESKTOP_MARGIN_HORIZONTAL
+		14 if _is_compact_layout else 28
 	)
-	_margin_container.add_theme_constant_override(
+	_content_margin.add_theme_constant_override(
 		"margin_right",
-		_COMPACT_MARGIN_HORIZONTAL if _is_compact_layout else _DESKTOP_MARGIN_HORIZONTAL
+		14 if _is_compact_layout else 28
 	)
-	_margin_container.add_theme_constant_override(
+	_content_margin.add_theme_constant_override(
 		"margin_top",
-		_COMPACT_MARGIN_VERTICAL if _is_compact_layout else _DESKTOP_MARGIN_VERTICAL
+		12 if _is_compact_layout else 24
 	)
-	_margin_container.add_theme_constant_override(
+	_content_margin.add_theme_constant_override(
 		"margin_bottom",
-		_COMPACT_MARGIN_VERTICAL if _is_compact_layout else _DESKTOP_MARGIN_VERTICAL
+		12 if _is_compact_layout else 24
 	)
 	_page_title.add_theme_font_size_override("font_size", 30 if _is_compact_layout else 38)
 	_auto_save_label.visible = not _is_compact_layout
@@ -237,6 +258,19 @@ func _apply_responsive_layout() -> void:
 		tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_apply_field_widths()
 	_rebuild_input_binding_rows()
+	if is_instance_valid(_section_scroll) and not _is_compact_layout:
+		_section_scroll.scroll_vertical = 0
+
+
+func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
+	if is_instance_valid(_viewport_utility):
+		var _safe_area_report: Dictionary = _viewport_utility.apply_display_safe_area_margins(
+			_margin_container,
+			get_viewport(),
+			extra_margins
+		)
+		return
+	GameTaskPageLayoutUtility.apply_margin_fallback(_margin_container, extra_margins)
 
 
 func _apply_field_widths() -> void:
@@ -298,6 +332,8 @@ func _set_active_section(section: SettingsSection) -> void:
 	_general_tab_button.set_pressed_no_signal(section == SettingsSection.GENERAL)
 	_audio_tab_button.set_pressed_no_signal(section == SettingsSection.AUDIO)
 	_controls_tab_button.set_pressed_no_signal(section == SettingsSection.CONTROLS)
+	if is_instance_valid(_section_scroll):
+		_section_scroll.scroll_vertical = 0
 	match section:
 		SettingsSection.AUDIO:
 			_master_volume_slider.grab_focus()
@@ -876,6 +912,14 @@ func _get_accessibility_utility() -> GameAccessibilityUtility:
 	if utility_value is GameAccessibilityUtility:
 		var accessibility: GameAccessibilityUtility = utility_value
 		return accessibility
+	return null
+
+
+func _get_viewport_utility() -> GFViewportUtility:
+	var utility_value: Object = get_utility(GFViewportUtility)
+	if utility_value is GFViewportUtility:
+		var viewport_utility: GFViewportUtility = utility_value
+		return viewport_utility
 	return null
 
 

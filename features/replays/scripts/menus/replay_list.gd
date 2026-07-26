@@ -28,12 +28,11 @@ func _ready() -> void:
 	_primary_button = %PlayButton
 	_delete_button = %DeleteButton
 
+	super._ready()
 	_setup_base_signals()
 	_update_ui_text()
 	_update_action_buttons()
 	await _populate_list()
-
-	super._ready()
 
 
 # --- 虚方法覆写 ---
@@ -104,7 +103,7 @@ func _update_ui_text() -> void:
 	if is_instance_valid(page_title):
 		page_title.text = tr("TITLE_REPLAY_LIST")
 
-	var left_column: Node = get_node_or_null("MarginContainer/ColumnsContainer/LeftColumn")
+	var left_column: Node = get_node_or_null("%LeftColumn")
 	if left_column and left_column.get_child_count() > 0:
 		var preview_label: Label = _get_first_label_child(left_column)
 		if is_instance_valid(preview_label):

@@ -16,6 +16,17 @@ const _LIST_ITEM_DUPLICATE_FLAGS: int = (
 	| Node.DUPLICATE_SCRIPTS
 	| Node.DUPLICATE_USE_INSTANTIATION
 )
+const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
+	"top": 54.0,
+	"left": 56.0,
+	"bottom": 54.0,
+	"right": 56.0,
+}
+const _DESKTOP_LIST_SURFACE_MINIMUM: Vector2 = Vector2(580.0, 540.0)
+const _COMPACT_LIST_SURFACE_HEIGHT: float = 300.0
+const _PORTRAIT_LIST_SURFACE_HEIGHT: float = 440.0
+const _DESKTOP_PREVIEW_HEIGHT: float = 248.0
+const _COMPACT_PREVIEW_HEIGHT: float = 210.0
 
 
 # --- 私有变量 ---
@@ -34,6 +45,10 @@ var _delete_button: Button
 
 ## GFRepeaterBinder 使用的离树模板节点。
 var _repeater_template: Control = null
+var _viewport_utility: GFViewportUtility = null
+var _page_scroll: ScrollContainer = null
+var _layout_mode: int = GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+var _layout_update_queued: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -43,11 +58,30 @@ var _repeater_template: Control = null
 @onready var detail_info_label: RichTextLabel = _find_detail_info_label()
 @onready var back_button: Button = %BackButton
 @onready var page_title: Label = %PageTitle
+@onready var _margin_container: MarginContainer = GameTaskPageLayoutUtility.get_margin_container(
+	self,
+	NodePath("MarginContainer")
+)
+@onready var _columns_container: HBoxContainer = GameTaskPageLayoutUtility.get_hbox_container(
+	self,
+	NodePath("MarginContainer/ColumnsContainer")
+)
+@onready var _left_column: VBoxContainer = %LeftColumn
+@onready var _center_column: VBoxContainer = %CenterColumn
+@onready var _center_content_holder: CenterContainer = %CenterContentHolder
+@onready var _list_surface: PanelContainer = _find_panel_container("ListSurface")
+@onready var _preview_container: PanelContainer = _find_panel_container("PreviewContainer")
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	_viewport_utility = _get_viewport_utility()
+	_page_scroll = GameTaskPageLayoutUtility.ensure_vertical_scroll_parent(
+		_columns_container,
+		&"HistoryListPageScroll"
+	)
+	_apply_responsive_layout()
 	if is_instance_valid(back_button):
 		var _connect_result_43: int = back_button.pressed.connect(_on_back_button_pressed)
 
@@ -55,12 +89,21 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
 		_update_ui_text()
+	elif what == NOTIFICATION_RESIZED and is_node_ready():
+		_queue_layout_update()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		_on_back_button_pressed()
 		get_viewport().set_input_as_handled()
+
+
+# --- 公共方法 ---
+
+## 返回历史任务页是否应采用紧凑单列布局。
+static func is_compact_layout(viewport_size: Vector2) -> bool:
+	return GameTaskPageLayoutUtility.is_compact_layout(viewport_size)
 
 
 # --- 虚方法 (需子类覆写) ---
@@ -144,6 +187,123 @@ func _find_detail_info_label() -> RichTextLabel:
 	return null
 
 
+func _find_panel_container(node_name: String) -> PanelContainer:
+	var node_value: Node = find_child(node_name, true, false)
+	if node_value is PanelContainer:
+		var panel_container: PanelContainer = node_value
+		return panel_container
+	return null
+
+
+func _queue_layout_update() -> void:
+	if _layout_update_queued:
+		return
+	_layout_update_queued = true
+	call_deferred(&"_apply_responsive_layout")
+
+
+func _apply_responsive_layout() -> void:
+	_layout_update_queued = false
+	if not is_inside_tree():
+		return
+	_layout_mode = GameTaskPageLayoutUtility.classify_layout(size)
+	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	_set_preview_column_compact(compact)
+	_columns_container.add_theme_constant_override("separation", 0 if compact else 34)
+	_center_column.add_theme_constant_override("separation", 12 if compact else 5)
+	_left_column.custom_minimum_size.x = 0.0 if compact else 380.0
+	_left_column.size_flags_horizontal = (
+		Control.SIZE_EXPAND_FILL if compact else Control.SIZE_FILL
+	)
+	_center_content_holder.size_flags_vertical = (
+		Control.SIZE_FILL if compact else Control.SIZE_EXPAND_FILL
+	)
+	if is_instance_valid(_list_surface):
+		var list_height: float = (
+			_PORTRAIT_LIST_SURFACE_HEIGHT
+			if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+			else _COMPACT_LIST_SURFACE_HEIGHT
+		)
+		_list_surface.custom_minimum_size = (
+			Vector2(0.0, list_height)
+			if compact
+			else _DESKTOP_LIST_SURFACE_MINIMUM
+		)
+	if is_instance_valid(_preview_container):
+		_preview_container.custom_minimum_size.y = (
+			_COMPACT_PREVIEW_HEIGHT if compact else _DESKTOP_PREVIEW_HEIGHT
+		)
+	if is_instance_valid(board_preview_node):
+		board_preview_node.preview_size = 194.0 if compact else 232.0
+	if is_instance_valid(detail_info_label):
+		detail_info_label.custom_minimum_size.y = 90.0 if compact else 106.0
+	if is_instance_valid(page_title):
+		page_title.add_theme_font_size_override("font_size", 32 if compact else 40)
+	var extra_margins: Dictionary = GameTaskPageLayoutUtility.get_safe_area_extra_margins(
+		_layout_mode,
+		_DESKTOP_SAFE_AREA_MARGINS
+	)
+	_apply_safe_area_margins(extra_margins)
+	if is_instance_valid(_page_scroll) and not compact:
+		_page_scroll.scroll_vertical = 0
+	_apply_list_focus_order(_get_list_item_controls())
+
+
+func _set_preview_column_compact(compact: bool) -> void:
+	if compact:
+		if _left_column.get_parent() != _center_column:
+			_left_column.reparent(_center_column)
+		_center_column.move_child(
+			_left_column,
+			_center_content_holder.get_index() + 1
+		)
+		return
+	if _left_column.get_parent() != _columns_container:
+		_left_column.reparent(_columns_container)
+	_columns_container.move_child(_left_column, 0)
+
+
+func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
+	if is_instance_valid(_viewport_utility):
+		var _safe_area_report: Dictionary = _viewport_utility.apply_display_safe_area_margins(
+			_margin_container,
+			get_viewport(),
+			extra_margins
+		)
+		return
+	GameTaskPageLayoutUtility.apply_margin_fallback(_margin_container, extra_margins)
+
+
+func _get_list_item_controls() -> Array[Control]:
+	var items: Array[Control] = []
+	if not is_instance_valid(items_container):
+		return items
+	for child: Node in items_container.get_children():
+		if child is BaseListMenuItem:
+			var item_control: Control = child
+			items.append(item_control)
+	return items
+
+
+func _apply_list_focus_order(items: Array[Control]) -> void:
+	if items.is_empty():
+		return
+	var focus_order: Array[Control] = items.duplicate()
+	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	if compact:
+		for action_control: Control in [_primary_button, _delete_button, back_button]:
+			if is_instance_valid(action_control):
+				focus_order.append(action_control)
+	var focus_report: Dictionary = GFControlFocusUtility.apply_focus_order(focus_order, {
+		"axis": GFControlFocusUtility.AXIS_VERTICAL,
+		"wrap": true,
+		"wire_tab_order": true,
+		"preserve_unwired_directional_neighbors": true,
+	})
+	if not GFVariantData.get_option_bool(focus_report, "ok", false):
+		push_error("[BaseListMenu] GF 列表焦点顺序应用失败：%s" % str(focus_report.get("issues", [])))
+
+
 ## 重新填充列表内容。
 func _populate_list() -> void:
 	if not _item_scene:
@@ -181,14 +341,7 @@ func _populate_list() -> void:
 			var item_control: Control = node
 			items.append(item_control)
 
-	var focus_report: Dictionary = GFControlFocusUtility.apply_focus_order(items, {
-		"axis": GFControlFocusUtility.AXIS_VERTICAL,
-		"wrap": true,
-		"wire_tab_order": true,
-		"preserve_unwired_directional_neighbors": true,
-	})
-	if not GFVariantData.get_option_bool(focus_report, "ok", false):
-		push_error("[BaseListMenu] GF 列表焦点顺序应用失败：%s" % str(focus_report.get("issues", [])))
+	_apply_list_focus_order(items)
 
 	if not items.is_empty():
 		items[0].grab_focus()
@@ -317,6 +470,14 @@ func _get_clock_utility() -> GameClockUtility:
 	if utility_value is GameClockUtility:
 		var clock: GameClockUtility = utility_value
 		return clock
+	return null
+
+
+func _get_viewport_utility() -> GFViewportUtility:
+	var utility_value: Object = get_utility(GFViewportUtility)
+	if utility_value is GFViewportUtility:
+		var viewport_utility: GFViewportUtility = utility_value
+		return viewport_utility
 	return null
 
 

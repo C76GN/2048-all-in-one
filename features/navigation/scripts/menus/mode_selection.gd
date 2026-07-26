@@ -15,6 +15,14 @@ const _DETAIL_REVEAL_STAGGER: float = 0.02
 const _STATS_EMPTY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n暂无完整对局统计"
 const _STATS_SUMMARY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
 const _STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n目标 %d：达成 %d 次 · %d%%\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
+const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
+	"top": 54.0,
+	"left": 56.0,
+	"bottom": 54.0,
+	"right": 56.0,
+}
+
+
 # --- 导出变量 ---
 
 ## 游戏主场景路径。
@@ -31,6 +39,10 @@ var _items_per_page: int = 5
 var _current_page: int = 0
 var _total_pages: int = 0
 var _mode_catalog: GameModeCatalogUtility = null
+var _viewport_utility: GFViewportUtility = null
+var _page_scroll: ScrollContainer = null
+var _layout_mode: int = GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+var _layout_update_queued: bool = false
 
 var _info_name_label: Label
 var _info_separator: HSeparator
@@ -42,6 +54,17 @@ var _info_score_label: Label
 
 @onready var _info_panel_container: VBoxContainer = %ModeInfoContainer
 @onready var _right_panel_container: VBoxContainer = %RightColumn
+@onready var _margin_container: MarginContainer = GameTaskPageLayoutUtility.get_margin_container(
+	self,
+	NodePath("MarginContainer")
+)
+@onready var _columns_container: HBoxContainer = GameTaskPageLayoutUtility.get_hbox_container(
+	self,
+	NodePath("MarginContainer/ColumnsContainer")
+)
+@onready var _center_column: VBoxContainer = %CenterColumn
+@onready var _center_content_holder: CenterContainer = %CenterContentHolder
+@onready var _center_content_vbox: VBoxContainer = %CenterContentVBox
 @onready var _page_title: Label = %PageTitle
 @onready var _mode_list_container: VBoxContainer = %ModeListContainer
 @onready var _back_button: Button = %BackButton
@@ -62,6 +85,13 @@ var _info_score_label: Label
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	_viewport_utility = _get_viewport_utility()
+	_page_scroll = GameTaskPageLayoutUtility.ensure_vertical_scroll_parent(
+		_columns_container,
+		&"ModeSelectionScroll"
+	)
+	var _resize_connection: int = resized.connect(_queue_layout_update)
+	_apply_responsive_layout()
 	if is_instance_valid(_seed_line_edit):
 		_seed_line_edit.placeholder_text = tr("HINT_SEED_PLACEHOLDER")
 
@@ -92,12 +122,76 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event.is_action_pressed("ui_left"):
 		var focused_control: Control = get_viewport().gui_get_focus_owner()
-		if is_instance_valid(focused_control) and _right_panel_container.is_ancestor_of(focused_control):
+		if (
+			_layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+			and is_instance_valid(focused_control)
+			and _right_panel_container.is_ancestor_of(focused_control)
+		):
 			_focus_last_selected_card()
 			get_viewport().set_input_as_handled()
 
 
 # --- 私有/辅助方法 ---
+
+func _queue_layout_update() -> void:
+	if _layout_update_queued:
+		return
+	_layout_update_queued = true
+	call_deferred(&"_apply_responsive_layout")
+
+
+func _apply_responsive_layout() -> void:
+	_layout_update_queued = false
+	if not is_inside_tree():
+		return
+	_layout_mode = GameTaskPageLayoutUtility.classify_layout(size)
+	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	_set_right_panel_compact(compact)
+	_columns_container.add_theme_constant_override("separation", 0 if compact else 34)
+	_center_column.add_theme_constant_override("separation", 12 if compact else 5)
+	_center_content_vbox.custom_minimum_size.x = 0.0 if compact else 560.0
+	_right_panel_container.custom_minimum_size.x = 0.0 if compact else 390.0
+	_right_panel_container.size_flags_horizontal = (
+		Control.SIZE_EXPAND_FILL if compact else Control.SIZE_FILL
+	)
+	_page_title.add_theme_font_size_override("font_size", 32 if compact else 44)
+	var extra_margins: Dictionary = GameTaskPageLayoutUtility.get_safe_area_extra_margins(
+		_layout_mode,
+		_DESKTOP_SAFE_AREA_MARGINS
+	)
+	_apply_safe_area_margins(extra_margins)
+	if is_instance_valid(_page_scroll) and not compact:
+		_page_scroll.scroll_vertical = 0
+	_setup_focus_neighbors()
+
+
+func _set_right_panel_compact(compact: bool) -> void:
+	if compact:
+		if _right_panel_container.get_parent() != _center_column:
+			_right_panel_container.reparent(_center_column)
+		_center_column.move_child(
+			_right_panel_container,
+			_center_content_holder.get_index() + 1
+		)
+		return
+	if _right_panel_container.get_parent() != _columns_container:
+		_right_panel_container.reparent(_columns_container)
+	_columns_container.move_child(
+		_right_panel_container,
+		_columns_container.get_child_count() - 1
+	)
+
+
+func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
+	if is_instance_valid(_viewport_utility):
+		var _safe_area_report: Dictionary = _viewport_utility.apply_display_safe_area_margins(
+			_margin_container,
+			get_viewport(),
+			extra_margins
+		)
+		return
+	GameTaskPageLayoutUtility.apply_margin_fallback(_margin_container, extra_margins)
+
 
 func _update_list_and_focus(is_initial_load: bool = false) -> void:
 	for child: Node in _mode_list_container.get_children():
@@ -217,18 +311,48 @@ func _setup_focus_neighbors() -> void:
 
 func _apply_mode_focus_graph(cards: Array[Control]) -> void:
 	var vertical_order: Array[Control] = [_back_button]
+	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 	for card: Control in cards:
 		vertical_order.append(card)
-		card.focus_neighbor_right = card.get_path_to(_grid_size_option_button)
+		card.focus_neighbor_right = (
+			NodePath("")
+			if compact
+			else card.get_path_to(_grid_size_option_button)
+		)
 
 	var uses_pagination: bool = is_instance_valid(_pagination_container) and _pagination_container.visible
 	if uses_pagination:
 		vertical_order.append(_prev_page_button)
+		if compact:
+			vertical_order.append(_next_page_button)
+	if compact:
+		for detail_control: Control in [
+			_grid_size_option_button,
+			_edit_board_button,
+			_seed_line_edit,
+			_refresh_seed_button,
+			_start_game_button,
+		]:
+			if not is_instance_valid(detail_control):
+				continue
+			vertical_order.append(detail_control)
+			detail_control.focus_neighbor_left = NodePath("")
+	elif not cards.is_empty():
+		var first_card: Control = cards[0]
+		for detail_control: Control in [
+			_grid_size_option_button,
+			_edit_board_button,
+			_seed_line_edit,
+			_start_game_button,
+		]:
+			if not is_instance_valid(detail_control):
+				continue
+			detail_control.focus_neighbor_left = detail_control.get_path_to(first_card)
 
 	var focus_report: Dictionary = GFControlFocusUtility.apply_focus_order(vertical_order, {
 		"axis": GFControlFocusUtility.AXIS_VERTICAL,
 		"wrap": true,
-		"wire_tab_order": false,
+		"wire_tab_order": compact,
 		"preserve_unwired_directional_neighbors": true,
 	})
 	if not GFVariantData.get_option_bool(focus_report, "ok", false):
@@ -683,6 +807,14 @@ func _get_clock_utility() -> GameClockUtility:
 	if utility_value is GameClockUtility:
 		var clock: GameClockUtility = utility_value
 		return clock
+	return null
+
+
+func _get_viewport_utility() -> GFViewportUtility:
+	var utility_value: Object = get_utility(GFViewportUtility)
+	if utility_value is GFViewportUtility:
+		var viewport_utility: GFViewportUtility = utility_value
+		return viewport_utility
 	return null
 
 

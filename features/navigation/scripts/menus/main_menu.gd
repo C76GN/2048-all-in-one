@@ -8,8 +8,12 @@ extends GameUiController
 
 # --- 常量 ---
 
-const _COMPACT_BREAKPOINT: float = 900.0
-const _COMPACT_HEIGHT_BREAKPOINT: float = 620.0
+const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
+	"top": 44.0,
+	"left": 56.0,
+	"bottom": 42.0,
+	"right": 56.0,
+}
 
 
 # --- 导出变量 ---
@@ -30,6 +34,8 @@ const _COMPACT_HEIGHT_BREAKPOINT: float = 620.0
 # --- 私有变量 ---
 
 var _layout_update_queued: bool = false
+var _viewport_utility: GFViewportUtility = null
+var _content_scroll: ScrollContainer = null
 
 
 # --- @onready 变量 (节点引用) ---
@@ -58,6 +64,11 @@ var _layout_update_queued: bool = false
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	_viewport_utility = _get_viewport_utility()
+	_content_scroll = GameTaskPageLayoutUtility.ensure_vertical_scroll_parent(
+		_content,
+		&"MainMenuScroll"
+	)
 	var _connect_result_36: int = _start_game_button.pressed.connect(_on_start_game_button_pressed)
 	var _connect_result_37: int = _load_bookmark_button.pressed.connect(_on_load_bookmark_button_pressed)
 	var _connect_result_38: int = _replays_button.pressed.connect(_on_replays_button_pressed)
@@ -143,7 +154,11 @@ func _apply_responsive_layout() -> void:
 	_layout_update_queued = false
 	if not is_inside_tree():
 		return
-	var compact: bool = size.x < _COMPACT_BREAKPOINT or size.y < _COMPACT_HEIGHT_BREAKPOINT
+	var task_layout_mode: int = GameTaskPageLayoutUtility.classify_layout(size)
+	var compact: bool = task_layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	var compact_landscape: bool = (
+		task_layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
+	)
 	_content.vertical = compact
 	_board_preview_frame.visible = not compact
 	_showcase.size_flags_vertical = (
@@ -154,18 +169,52 @@ func _apply_responsive_layout() -> void:
 	)
 	_showcase.custom_minimum_size.x = 0.0 if compact else 520.0
 	_menu_column.custom_minimum_size.x = 0.0 if compact else 360.0
-	_content.add_theme_constant_override("separation", 18 if compact else 56)
-	_menu_column.add_theme_constant_override("separation", 8 if compact else 10)
-	_safe_margin.add_theme_constant_override("margin_left", 20 if compact else 56)
-	_safe_margin.add_theme_constant_override("margin_right", 20 if compact else 56)
-	_safe_margin.add_theme_constant_override("margin_top", 26 if compact else 44)
-	_safe_margin.add_theme_constant_override("margin_bottom", 22 if compact else 42)
-	_title_label.add_theme_font_size_override("font_size", 56 if compact else 104)
-	_edition_label.add_theme_font_size_override("font_size", 18 if compact else 24)
-	_subtitle_label.add_theme_font_size_override("font_size", 13 if compact else 16)
+	_content.add_theme_constant_override(
+		"separation",
+		12 if compact_landscape else (18 if compact else 56)
+	)
+	_menu_column.add_theme_constant_override(
+		"separation",
+		6 if compact_landscape else (8 if compact else 10)
+	)
+	_apply_safe_area_margins(
+		GameTaskPageLayoutUtility.get_safe_area_extra_margins(
+			task_layout_mode,
+			_DESKTOP_SAFE_AREA_MARGINS
+		)
+	)
+	_title_label.add_theme_font_size_override(
+		"font_size",
+		44 if compact_landscape else (56 if compact else 104)
+	)
+	_edition_label.add_theme_font_size_override(
+		"font_size",
+		16 if compact_landscape else (18 if compact else 24)
+	)
+	_subtitle_label.add_theme_font_size_override(
+		"font_size",
+		12 if compact_landscape else (13 if compact else 16)
+	)
 	_subtitle_label.custom_minimum_size.x = 180.0 if compact else 220.0
-	_start_game_button.custom_minimum_size.y = 58.0 if compact else 68.0
-	_load_bookmark_button.custom_minimum_size.y = 48.0 if compact else 54.0
+	_start_game_button.custom_minimum_size.y = (
+		52.0 if compact_landscape else (58.0 if compact else 68.0)
+	)
+	_load_bookmark_button.custom_minimum_size.y = (
+		44.0 if compact_landscape else (48.0 if compact else 54.0)
+	)
+	if is_instance_valid(_content_scroll) and not compact:
+		_content_scroll.scroll_vertical = 0
+
+
+func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
+	if is_instance_valid(_viewport_utility):
+		var _safe_area_report: Dictionary = _viewport_utility.apply_display_safe_area_margins(
+			_safe_margin,
+			get_viewport(),
+			extra_margins
+		)
+		return
+	GameTaskPageLayoutUtility.apply_margin_fallback(_safe_margin, extra_margins)
 
 
 func _get_scene_router_system() -> SceneRouterSystem:
@@ -173,6 +222,14 @@ func _get_scene_router_system() -> SceneRouterSystem:
 	if system_value is SceneRouterSystem:
 		var scene_router: SceneRouterSystem = system_value
 		return scene_router
+	return null
+
+
+func _get_viewport_utility() -> GFViewportUtility:
+	var utility_value: Object = get_utility(GFViewportUtility)
+	if utility_value is GFViewportUtility:
+		var viewport_utility: GFViewportUtility = utility_value
+		return viewport_utility
 	return null
 
 
