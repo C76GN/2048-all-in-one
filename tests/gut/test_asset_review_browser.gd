@@ -508,6 +508,35 @@ func test_previous_candidate_sync_cohort_can_advance_to_approved() -> void:
 	)
 
 
+func test_asset_review_record_is_available_to_editor_tools() -> void:
+	var record: AssetReviewRecord = AssetReviewRecord.new()
+	var record_script_value: Variant = record.get_script()
+
+	assert_true(record_script_value is Script, "素材评审记录应保留可检查的项目脚本。")
+	if record_script_value is Script:
+		var record_script: Script = record_script_value
+		assert_true(record_script.is_tool(), "素材评审记录必须能在编辑器工具场景中执行方法。")
+
+
+func test_record_metadata_formats_every_declared_field() -> void:
+	var browser: AssetReviewBrowser = AssetReviewBrowser.new()
+	autofree(browser)
+	var record: AssetReviewRecord = AssetReviewRecord.new()
+	record.library_path = "res://candidate.ogg"
+	record.source_pack_id = &"audio_pack"
+	record.license_status = &"known"
+	record.license = "CC0"
+	record.suggested_slots = PackedStringArray(["ui.confirm"])
+
+	var metadata_text: String = browser._format_record_meta(record)
+
+	assert_true(metadata_text.contains("res://candidate.ogg"), "元数据摘要应包含素材路径。")
+	assert_true(metadata_text.contains("audio_pack"), "元数据摘要应包含来源包。")
+	assert_true(metadata_text.contains("known / CC0"), "元数据摘要应包含授权结论。")
+	assert_true(metadata_text.contains("ui.confirm"), "元数据摘要应包含建议用途。")
+	assert_true(metadata_text.contains("格式组"), "元数据摘要应包含格式组说明。")
+
+
 # --- 私有/辅助方法 ---
 
 func _make_group_record(

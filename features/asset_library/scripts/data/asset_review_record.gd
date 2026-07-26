@@ -1,3 +1,4 @@
+@tool
 ## AssetReviewRecord: 单个候选素材的评审、授权和用途备注记录。
 class_name AssetReviewRecord
 extends Resource

@@ -479,8 +479,10 @@ func _show_record(record: Resource) -> void:
 
 func _format_record_meta(record: Resource) -> String:
 	return (
-		"[b]路径[/b] %s\n[b]来源[/b] %s\n[b]授权[/b] %s / %s\n"
-		+ "[b]用途建议[/b] %s\n[b]格式组[/b] %s"
+		(
+			"[b]路径[/b] %s\n[b]来源[/b] %s\n[b]授权[/b] %s / %s\n"
+			+ "[b]用途建议[/b] %s\n[b]格式组[/b] %s"
+		)
 		% [
 			_get_resource_string(record, "library_path"),
 			_get_resource_string(record, "source_pack_id"),
