@@ -187,11 +187,38 @@ func _get_first_label_child(parent: Node) -> Label:
 
 
 func _get_empty_message() -> String:
-	return tr("MSG_NO_BOOKMARKS")
+	return tr("MSG_NO_SAVES")
 
 
 func _get_select_hint_message() -> String:
 	return tr("MSG_SELECT_SAVE")
+
+
+func _get_empty_detail_message() -> String:
+	return tr("MSG_EMPTY_SAVE_GUIDANCE")
+
+
+func _on_empty_state_changed(is_empty: bool) -> void:
+	var preview_heading: Label = _get_first_label_child(_left_column)
+	if is_instance_valid(preview_heading):
+		preview_heading.visible = not is_empty
+	if is_instance_valid(_preview_container):
+		_preview_container.visible = not is_empty
+	var preview_separator: Node = _left_column.get_node_or_null("HSeparator")
+	if is_instance_valid(preview_separator):
+		preview_separator.visible = not is_empty
+	if is_instance_valid(detail_info_label):
+		detail_info_label.vertical_alignment = (
+			VERTICAL_ALIGNMENT_CENTER if is_empty else VERTICAL_ALIGNMENT_TOP
+		)
+		if is_empty:
+			detail_info_label.text = "[center]%s[/center]" % tr(
+				"MSG_EMPTY_SAVE_GUIDANCE"
+			)
+	if is_instance_valid(_primary_button):
+		_primary_button.visible = not is_empty
+	if is_instance_valid(_delete_button):
+		_delete_button.visible = not is_empty
 
 
 func _get_delete_confirmation_message(_data: Resource) -> String:

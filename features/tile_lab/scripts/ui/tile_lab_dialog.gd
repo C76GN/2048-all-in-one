@@ -11,6 +11,9 @@ const _ONE_COLUMN_BREAKPOINT: float = 540.0
 const _DESKTOP_MAXIMUM_WIDTH: float = 1120.0
 const _DESKTOP_MAXIMUM_HEIGHT: float = 720.0
 const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
+const _DESKTOP_RECIPE_LIST_MINIMUM_HEIGHT: float = 112.0
+const _DESKTOP_RECIPE_LIST_MAXIMUM_HEIGHT: float = 180.0
+const _DESKTOP_RECIPE_LIST_HEIGHT_BUDGET: float = 608.0
 
 
 # --- 私有变量 ---
@@ -33,6 +36,7 @@ var _layout_update_queued: bool = false
 @onready var _title_label: Label = %TitleLabel
 @onready var _summary_label: Label = %SummaryLabel
 @onready var _back_button: Button = %BackButton
+@onready var _body_scroll: ScrollContainer = %BodyScroll
 @onready var _workspace: BoxContainer = %Workspace
 @onready var _blueprint_pane: PanelContainer = %BlueprintPane
 @onready var _blueprint_title: Label = %BlueprintTitle
@@ -45,6 +49,7 @@ var _layout_update_queued: bool = false
 @onready var _base_label: Label = %BaseLabel
 @onready var _base_definition_option: OptionButton = %BaseDefinitionOption
 @onready var _recipes_label: Label = %RecipesLabel
+@onready var _recipes_scroll: ScrollContainer = %RecipesScroll
 @onready var _recipe_list: VBoxContainer = %RecipeList
 @onready var _selection_status_label: Label = %SelectionStatusLabel
 @onready var _simulation_title: Label = %SimulationTitle
@@ -255,6 +260,7 @@ func _apply_semantic_styles() -> void:
 		_run_simulation_button,
 		GameUiStyleUtility.ButtonRole.PRIMARY
 	)
+	_refresh_recipe_button_styles()
 
 
 func _refresh_from_system(preferred_blueprint_id: String = "") -> void:
@@ -333,9 +339,11 @@ func _rebuild_recipe_buttons() -> void:
 		child.queue_free()
 	if not is_instance_valid(_tile_lab):
 		return
-	for entry: Dictionary in _tile_lab.get_recipe_entries(
+	var entries: Array[Dictionary] = _tile_lab.get_recipe_entries(
 		_selected_recipe_ids
-	):
+	)
+	var display_names: Dictionary = _get_recipe_display_names(entries)
+	for entry: Dictionary in entries:
 		var recipe_id: StringName = GFVariantData.get_option_string_name(
 			entry,
 			&"recipe_id"
@@ -348,11 +356,8 @@ func _rebuild_recipe_buttons() -> void:
 			_MINIMUM_TOUCH_TARGET_SIZE
 		)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.text = tr(GFVariantData.get_option_string_name(
-			entry,
-			&"display_name_key"
-		))
-		button.tooltip_text = String(recipe_id)
+		button.text = GFVariantData.to_text(display_names.get(recipe_id, ""))
+		button.tooltip_text = _get_recipe_tooltip(entry, display_names)
 		button.button_pressed = GFVariantData.get_option_bool(
 			entry,
 			&"selected"
@@ -362,9 +367,110 @@ func _rebuild_recipe_buttons() -> void:
 			&"compatible"
 		)
 		_recipe_list.add_child(button)
+		_apply_recipe_button_style(button)
 		var _toggle_connection: int = button.toggled.connect(
 			_on_recipe_toggled.bind(recipe_id)
 		)
+
+
+func _get_recipe_display_names(entries: Array[Dictionary]) -> Dictionary:
+	var result: Dictionary = {}
+	for entry: Dictionary in entries:
+		var recipe_id: StringName = GFVariantData.get_option_string_name(
+			entry,
+			&"recipe_id"
+		)
+		var display_name_key: StringName = (
+			GFVariantData.get_option_string_name(
+				entry,
+				&"display_name_key"
+			)
+		)
+		var display_name: String = tr(display_name_key)
+		if display_name_key == &"" or display_name == String(display_name_key):
+			display_name = _localized_text(
+				"TILE_LAB_RECIPES",
+				"能力配方"
+			)
+		result[recipe_id] = display_name
+	return result
+
+
+func _get_recipe_tooltip(
+	entry: Dictionary,
+	display_names: Dictionary
+) -> String:
+	var recipe_id: StringName = GFVariantData.get_option_string_name(
+		entry,
+		&"recipe_id"
+	)
+	var display_name: String = GFVariantData.to_text(
+		display_names.get(recipe_id, "")
+	)
+	if GFVariantData.get_option_bool(entry, &"selected"):
+		return _localized_format(
+			"TILE_LAB_RECIPE_ENABLED_HINT",
+			"已启用“%s”。",
+			display_name
+		)
+	if GFVariantData.get_option_bool(entry, &"compatible"):
+		return _localized_format(
+			"TILE_LAB_RECIPE_AVAILABLE_HINT",
+			"选择“%s”加入当前组合。",
+			display_name
+		)
+	var conflict: Dictionary = GFVariantData.get_option_dictionary(
+		entry,
+		&"conflict"
+	)
+	var owner_recipe_id: StringName = GFVariantData.get_option_string_name(
+		conflict,
+		&"owner_recipe_id"
+	)
+	var owner_display_name: String = GFVariantData.to_text(
+		display_names.get(owner_recipe_id, "")
+	)
+	if not owner_display_name.is_empty():
+		return _localized_format(
+			"TILE_LAB_RECIPE_CONFLICT_HINT",
+			"无法选择“%s”：与“%s”存在能力冲突。",
+			[display_name, owner_display_name]
+		)
+	return _localized_format(
+		"TILE_LAB_RECIPE_UNAVAILABLE_HINT",
+		"当前组合无法使用“%s”。",
+		display_name
+	)
+
+
+func _refresh_recipe_button_styles() -> void:
+	if not is_instance_valid(_recipe_list):
+		return
+	for child: Node in _recipe_list.get_children():
+		if child is CheckButton:
+			var button: CheckButton = child
+			_apply_recipe_button_style(button)
+
+
+func _apply_recipe_button_style(button: CheckButton) -> void:
+	if not is_instance_valid(button):
+		return
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if is_instance_valid(style):
+		style.style_button(
+			button,
+			GameUiStyleUtility.ButtonRole.SECONDARY
+		)
+	var pressed_color: Color = button.get_theme_color(
+		"font_pressed_color"
+	)
+	button.add_theme_color_override(
+		"font_hover_pressed_color",
+		pressed_color
+	)
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion):
+		var _bound: bool = motion.bind_button(button)
 
 
 func _focus_recipe_button(recipe_id: StringName) -> void:
@@ -574,6 +680,27 @@ func _apply_responsive_layout() -> void:
 	_workspace.vertical = compact
 	_blueprint_actions.vertical = width < 440.0
 	_value_row.vertical = width < _ONE_COLUMN_BREAKPOINT
+	_body_scroll.vertical_scroll_mode = (
+		ScrollContainer.SCROLL_MODE_AUTO
+		if compact
+		else ScrollContainer.SCROLL_MODE_DISABLED
+	)
+	_body_scroll.follow_focus = compact
+	_recipes_scroll.vertical_scroll_mode = (
+		ScrollContainer.SCROLL_MODE_DISABLED
+		if compact
+		else ScrollContainer.SCROLL_MODE_AUTO
+	)
+	_recipes_scroll.follow_focus = not compact
+	_recipes_scroll.custom_minimum_size.y = (
+		0.0
+		if compact
+		else clampf(
+			size.y - _DESKTOP_RECIPE_LIST_HEIGHT_BUDGET,
+			_DESKTOP_RECIPE_LIST_MINIMUM_HEIGHT,
+			_DESKTOP_RECIPE_LIST_MAXIMUM_HEIGHT
+		)
+	)
 	_blueprint_pane.custom_minimum_size = (
 		Vector2(0.0, 390.0) if compact else Vector2(420.0, 0.0)
 	)

@@ -108,7 +108,10 @@ UI_NONE,无,None
 UI_TARGET_REACHED,已达成,Reached
 UI_TARGET_NOT_REACHED,未达成,Not Reached
 MSG_NO_BOOKMARKS,没有找到任何书签记录。,No bookmarks found.
+MSG_NO_SAVES,还没有可读取的存档。,No saved games are available yet.
+MSG_EMPTY_SAVE_GUIDANCE,开始一局游戏并保存后，存档会显示在这里。,Start a game and save it to see the save here.
 MSG_NO_REPLAYS,没有找到任何回放记录。,No replays found.
+MSG_EMPTY_REPLAY_GUIDANCE,完成一局游戏后，回放会显示在这里。,Finish a game and its replay will appear here.
 DELETE_CONFIRM_TITLE,确认删除,Confirm Deletion
 DELETE_CONFIRM_ACTION,删除,Delete
 DELETE_CANCEL_ACTION,取消,Cancel
@@ -500,6 +503,10 @@ TILE_LAB_NEW_BLUEPRINT_OPTION,新蓝图,New Blueprint
 TILE_LAB_RESULT_WAITING,等待运行,Ready to run
 TILE_LAB_SELECTION_VALID,当前组合可用：%d 个能力配方。,Composition valid: %d capability recipes.
 TILE_LAB_SELECTION_INVALID,当前组合不可用：%s,Composition invalid: %s
+TILE_LAB_RECIPE_ENABLED_HINT,已启用“%s”。,“%s” is enabled.
+TILE_LAB_RECIPE_AVAILABLE_HINT,选择“%s”加入当前组合。,Select “%s” to add it to the current composition.
+TILE_LAB_RECIPE_CONFLICT_HINT,无法选择“%s”：与“%s”存在能力冲突。,Cannot select “%s”: it conflicts with “%s”.
+TILE_LAB_RECIPE_UNAVAILABLE_HINT,当前组合无法使用“%s”。,“%s” is unavailable for the current composition.
 TILE_LAB_UNAVAILABLE,试验台系统不可用。,Tile Lab is unavailable.
 TILE_LAB_SUMMARY,%d 份蓝图 · 上限 %d,Blueprints: %d · Limit: %d
 TILE_LAB_SAVE_FAILED,保存蓝图失败（错误码 %d）。,Could not save blueprint (error %d).

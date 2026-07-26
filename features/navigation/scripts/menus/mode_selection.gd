@@ -31,6 +31,15 @@ const _COMPACT_TWO_PANE_SCROLLBAR_RESERVE: float = 14.0
 const _COMPACT_RIGHT_COLUMN_RATIO: float = 0.38
 const _COMPACT_RIGHT_COLUMN_MINIMUM_WIDTH: float = 300.0
 const _COMPACT_RIGHT_COLUMN_MAXIMUM_WIDTH: float = 340.0
+const _MODE_CARD_MINIMUM_HEIGHT: float = 92.0
+const _MODE_CARD_SEPARATION: float = 12.0
+const _CENTER_SECTION_SEPARATION: float = 14.0
+const _PAGINATION_MINIMUM_HEIGHT: float = 44.0
+const _BACK_BUTTON_MINIMUM_HEIGHT: float = 46.0
+const _DESKTOP_TITLE_HEIGHT_RESERVE: float = 50.0
+const _COMPACT_TITLE_HEIGHT_RESERVE: float = 40.0
+const _MINIMUM_ITEMS_PER_PAGE: int = 1
+const _MAXIMUM_ITEMS_PER_PAGE: int = 5
 
 
 # --- 导出变量 ---
@@ -56,6 +65,7 @@ var _viewport_utility: GFViewportUtility = null
 var _page_scroll: ScrollContainer = null
 var _layout_mode: int = GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 var _layout_update_queued: bool = false
+var _mode_list_rebuild_queued: bool = false
 
 var _info_name_label: Label
 var _info_separator: HSeparator
@@ -164,6 +174,8 @@ func _apply_responsive_layout() -> void:
 	_layout_mode = GameTaskPageLayoutUtility.classify_layout(size)
 	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 	var side_by_side: bool = _uses_side_by_side_layout(size)
+	_set_page_scroll_enabled(not side_by_side)
+	var page_size_changed: bool = _update_items_per_page(size)
 	var compact_horizontal_margins: float = (
 		32.0
 		if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
@@ -189,6 +201,14 @@ func _apply_responsive_layout() -> void:
 		column_separation = roundi(_COMPACT_TWO_PANE_SEPARATION)
 	_columns_container.add_theme_constant_override("separation", column_separation)
 	_center_column.add_theme_constant_override("separation", 12 if compact else 5)
+	_center_content_vbox.add_theme_constant_override(
+		"separation",
+		12 if compact else roundi(_CENTER_SECTION_SEPARATION)
+	)
+	_mode_list_container.add_theme_constant_override(
+		"separation",
+		10 if compact else roundi(_MODE_CARD_SEPARATION)
+	)
 	_center_content_vbox.custom_minimum_size.x = center_content_width
 	_right_panel_container.custom_minimum_size.x = right_panel_width
 	_right_panel_container.size_flags_horizontal = (
@@ -212,6 +232,88 @@ func _apply_responsive_layout() -> void:
 	if is_instance_valid(_page_scroll) and not compact:
 		_page_scroll.scroll_vertical = 0
 	_setup_focus_neighbors()
+	if page_size_changed and not _mode_config_paths.is_empty():
+		_queue_mode_list_rebuild()
+
+
+## 双栏高度已经由分页预算约束，不再让整页滚动条与分页同时出现。
+## 只有真正堆叠的窄屏布局保留页面级纵向滚动。
+func _set_page_scroll_enabled(enabled: bool) -> void:
+	if not is_instance_valid(_page_scroll) or not is_instance_valid(_margin_container):
+		return
+	if enabled:
+		if _columns_container.get_parent() != _page_scroll:
+			_columns_container.reparent(_page_scroll)
+		_page_scroll.visible = true
+		_page_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		_page_scroll.follow_focus = true
+		return
+
+	if _columns_container.get_parent() == _page_scroll:
+		var scroll_index: int = _page_scroll.get_index()
+		_columns_container.reparent(_margin_container)
+		_margin_container.move_child(_columns_container, scroll_index)
+	_page_scroll.visible = false
+	_page_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_page_scroll.follow_focus = false
+
+
+## 根据首屏中标题、分页和返回按钮的固定预算计算可容纳卡片数。
+static func _get_items_per_page_for_viewport(viewport_size: Vector2) -> int:
+	var layout_mode: int = GameTaskPageLayoutUtility.classify_layout(viewport_size)
+	var vertical_margins: float = 108.0
+	var title_height: float = _DESKTOP_TITLE_HEIGHT_RESERVE
+	if layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE:
+		vertical_margins = 20.0
+		title_height = _COMPACT_TITLE_HEIGHT_RESERVE
+	elif layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT:
+		vertical_margins = 32.0
+		title_height = _COMPACT_TITLE_HEIGHT_RESERVE
+	var available_center_height: float = maxf(
+		viewport_size.y - vertical_margins - title_height,
+		0.0
+	)
+	var fixed_footer_height: float = (
+		_PAGINATION_MINIMUM_HEIGHT
+		+ _BACK_BUTTON_MINIMUM_HEIGHT
+		+ _CENTER_SECTION_SEPARATION * 2.0
+	)
+	var card_budget: float = maxf(available_center_height - fixed_footer_height, 0.0)
+	var capacity: int = floori(
+		(card_budget + _MODE_CARD_SEPARATION)
+		/ (_MODE_CARD_MINIMUM_HEIGHT + _MODE_CARD_SEPARATION)
+	)
+	return clampi(capacity, _MINIMUM_ITEMS_PER_PAGE, _MAXIMUM_ITEMS_PER_PAGE)
+
+
+func _update_items_per_page(viewport_size: Vector2) -> bool:
+	var next_items_per_page: int = _get_items_per_page_for_viewport(viewport_size)
+	if next_items_per_page == _items_per_page:
+		return false
+	var selected_index: int = -1
+	if is_instance_valid(_selected_mode_config):
+		selected_index = _mode_config_paths.find(_selected_mode_config.resource_path)
+	_items_per_page = next_items_per_page
+	_update_pagination_buttons_visibility()
+	if selected_index >= 0:
+		_current_page = floori(float(selected_index) / float(_items_per_page))
+	else:
+		_current_page = mini(_current_page, maxi(_total_pages - 1, 0))
+	return true
+
+
+func _queue_mode_list_rebuild() -> void:
+	if _mode_list_rebuild_queued:
+		return
+	_mode_list_rebuild_queued = true
+	call_deferred(&"_rebuild_mode_list_after_layout")
+
+
+func _rebuild_mode_list_after_layout() -> void:
+	_mode_list_rebuild_queued = false
+	if not is_inside_tree():
+		return
+	await _update_list_and_focus()
 
 
 func _set_right_panel_stacked(stacked: bool) -> void:
@@ -268,7 +370,7 @@ func _apply_responsive_typography() -> void:
 	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 	var compact_two_pane: bool = _is_compact_two_pane_layout()
 	if is_instance_valid(_page_title):
-		_page_title.add_theme_font_size_override("font_size", 32 if compact else 44)
+		_page_title.add_theme_font_size_override("font_size", 32 if compact else 40)
 	if is_instance_valid(_info_name_label):
 		_info_name_label.add_theme_font_size_override(
 			"font_size",
@@ -307,6 +409,19 @@ func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
 
 
 func _update_list_and_focus(is_initial_load: bool = false) -> void:
+	var preferred_config_path: String = (
+		_selected_mode_config.resource_path
+		if is_instance_valid(_selected_mode_config)
+		else ""
+	)
+	var focused_control: Control = get_viewport().gui_get_focus_owner()
+	var restore_card_focus: bool = (
+		is_initial_load
+		or (
+			is_instance_valid(focused_control)
+			and _mode_list_container.is_ancestor_of(focused_control)
+		)
+	)
 	for child: Node in _mode_list_container.get_children():
 		child.queue_free()
 
@@ -341,10 +456,22 @@ func _update_list_and_focus(is_initial_load: bool = false) -> void:
 		_start_game_button.disabled = true
 		return
 
-	var first_card: ModeCard = cards[0]
-	_set_selected_mode_by_path(first_card.get_config_path())
-	if is_initial_load:
-		first_card.grab_focus()
+	var target_card: ModeCard = cards[0]
+	if not preferred_config_path.is_empty():
+		for card: ModeCard in cards:
+			if card.get_config_path() == preferred_config_path:
+				target_card = card
+				break
+	if (
+		is_instance_valid(_selected_mode_config)
+		and target_card.get_config_path() == _selected_mode_config.resource_path
+	):
+		for card: ModeCard in cards:
+			card.set_selected(card == target_card)
+	else:
+		_set_selected_mode_by_path(target_card.get_config_path())
+	if restore_card_focus:
+		target_card.grab_focus()
 	_bind_and_reveal_mode_cards()
 
 
@@ -399,7 +526,7 @@ func _apply_mode_selection_visual_system() -> void:
 	style_utility.style_label(
 		_page_title,
 		GameUiStyleUtility.TextRole.PRIMARY,
-		32 if compact else 44,
+		32 if compact else 40,
 		true
 	)
 	style_utility.style_label(

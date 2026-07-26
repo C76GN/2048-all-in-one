@@ -76,7 +76,7 @@ scroll_active = false
 [node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
 theme_override_font_sizes/font_size = 40
 text = "读取存档"
-horizontal_alignment = 0
+horizontal_alignment = 1
 
 [node name="ListSurface" type="PanelContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0"]
 custom_minimum_size = Vector2(580, 540)
@@ -117,7 +117,7 @@ text = "读取存档"
 
 [node name="DeleteButton" type="Button" parent="MarginContainer/ColumnsContainer/LeftColumn" index="5" unique_id=276992591]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 42)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 focus_neighbor_top = NodePath("../LoadButton")
 focus_neighbor_bottom = NodePath("../BackButton")
@@ -127,7 +127,7 @@ text = "删除存档"
 
 [node name="BackButton" type="Button" parent="MarginContainer/ColumnsContainer/LeftColumn" index="6" unique_id=747636571]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 42)
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
 focus_neighbor_top = NodePath("../DeleteButton")
 focus_neighbor_bottom = NodePath("../LoadButton")

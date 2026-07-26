@@ -14,6 +14,7 @@ visible = false
 custom_minimum_size = Vector2(390, 0)
 
 [node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
+theme_override_font_sizes/font_size = 40
 text = "模式选择"
 horizontal_alignment = 0
 
@@ -21,7 +22,7 @@ horizontal_alignment = 0
 unique_name_in_owner = true
 custom_minimum_size = Vector2(560, 0)
 layout_mode = 2
-theme_override_constants/separation = 20
+theme_override_constants/separation = 14
 
 [node name="ModeListContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="0" unique_id=1460570638]
 unique_name_in_owner = true

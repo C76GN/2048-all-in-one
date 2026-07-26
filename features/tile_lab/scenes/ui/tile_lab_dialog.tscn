@@ -77,9 +77,11 @@ text = "返回"
 layout_mode = 2
 
 [node name="BodyScroll" type="ScrollContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
+vertical_scroll_mode = 0
 
 [node name="Workspace" type="BoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll"]
 unique_name_in_owner = true
@@ -168,10 +170,12 @@ layout_mode = 2
 text = "能力配方"
 
 [node name="RecipesScroll" type="ScrollContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 180)
 layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
+follow_focus = true
 
 [node name="RecipeList" type="VBoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content/RecipesScroll"]
 unique_name_in_owner = true

@@ -13,6 +13,13 @@ const _SAFE_AREA_PAGE_SCRIPTS: Array[String] = [
 const _MODE_SELECTION_SCENE: PackedScene = preload(
 	"res://features/navigation/scenes/menus/mode_selection.tscn"
 )
+const _CAPTURE_MATRIX_PATH: String = "res://tools/capture_ui_vfx_matrix.gd"
+const _BOOKMARK_LIST_SCENE: PackedScene = preload(
+	"res://features/bookmarks/scenes/menus/bookmark_list.tscn"
+)
+const _REPLAY_LIST_SCENE: PackedScene = preload(
+	"res://features/replays/scenes/menus/replay_list.tscn"
+)
 
 
 # --- 测试用例 ---
@@ -50,6 +57,24 @@ func test_mode_selection_keeps_960x540_as_actionable_two_pane_layout() -> void:
 	)
 
 
+func test_mode_selection_paginates_from_available_first_screen_height() -> void:
+	assert_eq(
+		ModeSelection._get_items_per_page_for_viewport(Vector2(1280.0, 720.0)),
+		4,
+		"720px 高桌面页只能放四张模式卡，必须为分页和返回按钮保留首屏空间。"
+	)
+	assert_eq(
+		ModeSelection._get_items_per_page_for_viewport(Vector2(960.0, 540.0)),
+		3,
+		"540px 高紧凑横屏只能放三张模式卡，右侧开始操作和左侧分页都应保持可见。"
+	)
+	assert_eq(
+		ModeSelection._get_items_per_page_for_viewport(Vector2(720.0, 1558.0)),
+		5,
+		"高竖屏可以使用完整的五项分页上限。"
+	)
+
+
 func test_mode_selection_key_controls_preserve_touch_target_contract() -> void:
 	var menu: Node = _MODE_SELECTION_SCENE.instantiate()
 	autofree(menu)
@@ -73,6 +98,49 @@ func test_mode_selection_key_controls_preserve_touch_target_contract() -> void:
 			44.0,
 			"%s 必须保留至少 44px 的触控高度。" % control_name
 		)
+
+
+func test_history_list_pages_preserve_touch_target_and_centered_axis() -> void:
+	_assert_history_list_touch_targets_and_axis(
+		_BOOKMARK_LIST_SCENE,
+		"读取存档",
+		[&"LoadButton", &"DeleteButton", &"BackButton"]
+	)
+	_assert_history_list_touch_targets_and_axis(
+		_REPLAY_LIST_SCENE,
+		"回放列表",
+		[&"PlayButton", &"DeleteButton", &"BackButton"]
+	)
+
+
+func test_history_list_compact_surface_width_reserves_safe_area_and_page_scrollbar() -> void:
+	assert_eq(
+		BaseListMenu._get_compact_list_surface_width(
+			730.0,
+			GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
+		),
+		692.0,
+		"850×838 真实拉伸得到的 730px 逻辑宽度不得把列表压成文字最小宽度。"
+	)
+	assert_eq(
+		BaseListMenu._get_compact_list_surface_width(
+			720.0,
+			GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+		),
+		674.0,
+		"720px 竖屏应为安全区和页面滚动条留出空间，并保留完整列表宽度。"
+	)
+
+
+func test_history_list_empty_state_removes_dead_actions_and_focuses_back() -> void:
+	await _assert_history_list_empty_state(
+		_BOOKMARK_LIST_SCENE,
+		[&"LoadButton", &"DeleteButton"]
+	)
+	await _assert_history_list_empty_state(
+		_REPLAY_LIST_SCENE,
+		[&"PlayButton", &"DeleteButton"]
+	)
 
 
 func test_compact_margins_preserve_page_specific_desktop_composition() -> void:
@@ -125,6 +193,37 @@ func test_scroll_wrapper_keeps_content_full_width_and_disables_horizontal_scroll
 	assert_true(content.size_flags_horizontal == Control.SIZE_EXPAND_FILL)
 
 
+func test_scroll_wrapper_fills_real_portrait_safe_area() -> void:
+	var margin: MarginContainer = MarginContainer.new()
+	margin.size = Vector2(720.0, 960.0)
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	add_child_autoqfree(margin)
+	var content: VBoxContainer = VBoxContainer.new()
+	content.custom_minimum_size.y = 1170.0
+	margin.add_child(content)
+
+	var scroll: ScrollContainer = GameTaskPageLayoutUtility.ensure_vertical_scroll_parent(
+		content,
+		&"PortraitScroll"
+	)
+	margin.queue_sort()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	assert_eq(
+		scroll.size,
+		Vector2(688.0, 928.0),
+		"可真实创建的 720×960 竖屏应让唯一滚动视口占满扣除 16px 安全留白后的区域。"
+	)
+	assert_true(
+		scroll.get_v_scroll_bar().max_value > scroll.get_v_scroll_bar().page,
+		"高于首屏的内容必须由该页面滚动容器完整承接。"
+	)
+
+
 func test_target_task_pages_delegate_safe_area_to_gf_viewport_utility() -> void:
 	for script_path: String in _SAFE_AREA_PAGE_SCRIPTS:
 		var source: String = FileAccess.get_file_as_string(script_path)
@@ -137,3 +236,100 @@ func test_target_task_pages_delegate_safe_area_to_gf_viewport_utility() -> void:
 			source.contains("ensure_vertical_scroll_parent"),
 			"任务页必须提供矮屏可达的纵向滚动内容：%s" % script_path
 		)
+
+
+func test_capture_matrix_preserves_project_logical_viewport_contract() -> void:
+	var source: String = FileAccess.get_file_as_string(_CAPTURE_MATRIX_PATH)
+	assert_false(source.is_empty(), "视觉验收脚本必须可读取。")
+	assert_true(
+		source.contains("const _LOGICAL_DESIGN_SIZE: Vector2i = Vector2i(720, 720)"),
+		"截图矩阵应显式复用项目 720×720 逻辑设计尺寸。"
+	)
+	assert_true(
+		source.contains("Window.CONTENT_SCALE_ASPECT_EXPAND"),
+		"截图矩阵应模拟项目真实 expand 拉伸策略。"
+	)
+	assert_true(
+		source.contains("Vector2i(720, 960)"),
+		"竖屏截图应使用桌面工作区可真实承载的 720×960 视口。"
+	)
+	assert_false(
+		source.contains("Vector2i(720, 1558)"),
+		"截图矩阵不得手动扩张被 Windows 截短的超高窗口并制造伪布局。"
+	)
+	assert_true(
+		source.contains("root.size = resolution"),
+		"截图矩阵应让 Root Window 与请求的物理渲染目标一致。"
+	)
+	assert_false(
+		source.contains("root.content_scale_size = resolution"),
+		"截图矩阵不得绕过项目逻辑视口。"
+	)
+
+
+func _assert_history_list_touch_targets_and_axis(
+	scene: PackedScene,
+	page_label: String,
+	action_names: Array[StringName]
+) -> void:
+	var menu: Node = scene.instantiate()
+	autofree(menu)
+	for control_name: StringName in action_names:
+		var node: Node = menu.find_child(String(control_name), true, false)
+		assert_true(
+			node is Control,
+			"%s页应包含交互控件：%s。" % [page_label, control_name]
+		)
+		if not node is Control:
+			continue
+		var control: Control = node
+		assert_gte(
+			control.custom_minimum_size.y,
+			44.0,
+			"%s 必须保留至少 44px 的触控高度。" % control_name
+		)
+	var title: Node = menu.find_child("PageTitle", true, false)
+	assert_true(title is Label, "%s页应包含标题。" % page_label)
+	if title is Label:
+		var title_label: Label = title
+		assert_eq(
+			title_label.horizontal_alignment,
+			HORIZONTAL_ALIGNMENT_CENTER,
+			"%s标题应与列表面板共享稳定的中央轴线。" % page_label
+		)
+
+
+func _assert_history_list_empty_state(
+	scene: PackedScene,
+	dead_action_names: Array[StringName]
+) -> void:
+	var menu: BaseListMenu = scene.instantiate() as BaseListMenu
+	add_child(menu)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var empty_state: Node = menu.find_child("EmptyStateLabel", true, false)
+	assert_true(empty_state is Label, "空记录页应显示居中的空态说明。")
+	var preview: Node = menu.find_child("PreviewContainer", true, false)
+	assert_true(preview is Control, "历史记录页应保留可恢复的预览容器。")
+	if preview is Control:
+		var preview_control: Control = preview
+		assert_false(preview_control.visible, "空态不应继续显示无内容的棋盘预览。")
+	for action_name: StringName in dead_action_names:
+		var action: Node = menu.find_child(String(action_name), true, false)
+		assert_true(action is Control, "历史记录页应包含动作：%s。" % action_name)
+		if action is Control:
+			var action_control: Control = action
+			assert_false(action_control.visible, "空态不应保留无效动作：%s。" % action_name)
+	var back: Node = menu.find_child("BackButton", true, false)
+	assert_true(back is Button, "空记录页必须保留返回按钮。")
+	if back is Button:
+		var back_button: Button = back
+		assert_true(back_button.visible)
+		assert_true(
+			get_viewport().gui_get_focus_owner() == back_button,
+			"空记录页应把键盘/手柄初始焦点交给返回按钮。"
+		)
+
+	menu.queue_free()
+	await get_tree().process_frame

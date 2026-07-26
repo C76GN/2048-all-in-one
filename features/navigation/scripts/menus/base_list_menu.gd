@@ -27,6 +27,9 @@ const _COMPACT_LIST_SURFACE_HEIGHT: float = 300.0
 const _PORTRAIT_LIST_SURFACE_HEIGHT: float = 440.0
 const _DESKTOP_PREVIEW_HEIGHT: float = 248.0
 const _COMPACT_PREVIEW_HEIGHT: float = 210.0
+const _COMPACT_HORIZONTAL_MARGINS: float = 24.0
+const _PORTRAIT_HORIZONTAL_MARGINS: float = 32.0
+const _COMPACT_SCROLLBAR_RESERVE: float = 14.0
 
 
 # --- 私有变量 ---
@@ -47,6 +50,7 @@ var _delete_button: Button
 var _repeater_template: Control = null
 var _viewport_utility: GFViewportUtility = null
 var _page_scroll: ScrollContainer = null
+var _list_scroll: ScrollContainer = null
 var _layout_mode: int = GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 var _layout_update_queued: bool = false
 var _delete_confirmation_dialog: ConfirmationDialog = null
@@ -85,6 +89,7 @@ func _ready() -> void:
 		_columns_container,
 		&"HistoryListPageScroll"
 	)
+	_list_scroll = _find_scroll_container("ScrollContainer")
 	_apply_responsive_layout()
 	if is_instance_valid(back_button):
 		var _connect_result_43: int = back_button.pressed.connect(_on_back_button_pressed)
@@ -110,6 +115,25 @@ func _unhandled_input(event: InputEvent) -> void:
 ## @param viewport_size: 当前逻辑视口尺寸。
 static func is_compact_layout(viewport_size: Vector2) -> bool:
 	return GameTaskPageLayoutUtility.is_compact_layout(viewport_size)
+
+
+## 返回紧凑布局中列表面板应占用的稳定宽度。
+##
+## 页面级滚动条由当前页拥有，因此宽度预算需要同时扣除安全区留白和滚动条，
+## 避免 CenterContainer 在重排瞬间把列表压缩成仅剩文字最小宽度。
+static func _get_compact_list_surface_width(
+	viewport_width: float,
+	layout_mode: int
+) -> float:
+	var horizontal_margins: float = (
+		_PORTRAIT_HORIZONTAL_MARGINS
+		if layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+		else _COMPACT_HORIZONTAL_MARGINS
+	)
+	return maxf(
+		viewport_width - horizontal_margins - _COMPACT_SCROLLBAR_RESERVE,
+		320.0
+	)
 
 
 # --- 虚方法 (需子类覆写) ---
@@ -165,6 +189,16 @@ func _get_empty_message() -> String:
 ## 获取未选中时的提示。
 func _get_select_hint_message() -> String:
 	return tr("MSG_SELECT_ITEM")
+
+
+## 获取列表为空时显示在预览说明区的引导。
+func _get_empty_detail_message() -> String:
+	return _get_empty_message()
+
+
+## 允许具体列表切换仅在有数据时才有意义的视觉元素。
+func _on_empty_state_changed(_is_empty: bool) -> void:
+	pass
 
 
 ## 获取删除确认提示。
@@ -243,6 +277,14 @@ func _find_panel_container(node_name: String) -> PanelContainer:
 	return null
 
 
+func _find_scroll_container(node_name: String) -> ScrollContainer:
+	var node_value: Node = find_child(node_name, true, false)
+	if node_value is ScrollContainer:
+		var scroll_container: ScrollContainer = node_value
+		return scroll_container
+	return null
+
+
 func _queue_layout_update() -> void:
 	if _layout_update_queued:
 		return
@@ -256,6 +298,14 @@ func _apply_responsive_layout() -> void:
 		return
 	_layout_mode = GameTaskPageLayoutUtility.classify_layout(size)
 	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	_set_page_scroll_enabled(compact)
+	if is_instance_valid(_list_scroll):
+		_list_scroll.vertical_scroll_mode = (
+			ScrollContainer.SCROLL_MODE_DISABLED
+			if compact
+			else ScrollContainer.SCROLL_MODE_AUTO
+		)
+		_list_scroll.follow_focus = not compact
 	_set_preview_column_compact(compact)
 	_columns_container.add_theme_constant_override("separation", 0 if compact else 34)
 	_center_column.add_theme_constant_override("separation", 12 if compact else 5)
@@ -272,8 +322,13 @@ func _apply_responsive_layout() -> void:
 			if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
 			else _COMPACT_LIST_SURFACE_HEIGHT
 		)
+		var compact_list_width: float = _get_compact_list_surface_width(
+			size.x,
+			_layout_mode
+		)
+		_list_surface.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_list_surface.custom_minimum_size = (
-			Vector2(0.0, list_height)
+			Vector2(compact_list_width, list_height)
 			if compact
 			else _DESKTOP_LIST_SURFACE_MINIMUM
 		)
@@ -295,6 +350,28 @@ func _apply_responsive_layout() -> void:
 	if is_instance_valid(_page_scroll) and not compact:
 		_page_scroll.scroll_vertical = 0
 	_apply_list_focus_order(_get_list_item_controls())
+
+
+## 桌面双栏由内部记录列表独占滚动；紧凑单栏则由整页滚动独占。
+## 这样同一轴线上不会同时出现页面和列表两根滚动条。
+func _set_page_scroll_enabled(enabled: bool) -> void:
+	if not is_instance_valid(_page_scroll) or not is_instance_valid(_margin_container):
+		return
+	if enabled:
+		if _columns_container.get_parent() != _page_scroll:
+			_columns_container.reparent(_page_scroll)
+		_page_scroll.visible = true
+		_page_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		_page_scroll.follow_focus = true
+		return
+
+	if _columns_container.get_parent() == _page_scroll:
+		var scroll_index: int = _page_scroll.get_index()
+		_columns_container.reparent(_margin_container)
+		_margin_container.move_child(_columns_container, scroll_index)
+	_page_scroll.visible = false
+	_page_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_page_scroll.follow_focus = false
 
 
 func _set_preview_column_compact(compact: bool) -> void:
@@ -369,6 +446,7 @@ func _populate_list() -> void:
 	if data_list.is_empty():
 		_handle_empty_list()
 		return
+	_on_empty_state_changed(false)
 
 	var template: Control = _get_repeater_template()
 	if not is_instance_valid(template):
@@ -402,15 +480,20 @@ func _populate_list() -> void:
 ## 处理列表为空的情况。
 func _handle_empty_list() -> void:
 	var label: Label = Label.new()
+	label.name = "EmptyStateLabel"
 	label.text = _get_empty_message()
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.custom_minimum_size.y = 180
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var style_utility: GameUiStyleUtility = _get_ui_style_utility()
 	if is_instance_valid(style_utility):
 		style_utility.style_label(label, GameUiStyleUtility.TextRole.MUTED, 18)
 	items_container.add_child(label)
-	_clear_preview()
+	_clear_preview(false)
+	_on_empty_state_changed(true)
 	_update_action_focus_return_target(null)
 	_bind_and_reveal_list_items()
 	if is_instance_valid(back_button):
@@ -575,8 +658,13 @@ func _get_repeater_template() -> Control:
 
 
 ## 清空预览区域。
-func _clear_preview() -> void:
-	detail_info_label.text = _get_select_hint_message()
+## @param show_selection_hint: true 显示“请选择”提示；空列表时改用空态引导。
+func _clear_preview(show_selection_hint: bool = true) -> void:
+	detail_info_label.text = (
+		_get_select_hint_message()
+		if show_selection_hint
+		else _get_empty_detail_message()
+	)
 	if is_instance_valid(board_preview_node):
 		board_preview_node.clear()
 	_selected_resource = null
