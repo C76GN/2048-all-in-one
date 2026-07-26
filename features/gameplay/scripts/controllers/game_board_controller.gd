@@ -95,6 +95,9 @@ var _is_cleaned_up: bool = false
 ## 棋盘扩展动画版本号，用于丢弃旧 Tween 的延迟回调。
 var _expansion_token: int = 0
 
+## 当前棋盘扩展 Tween；连续扩建或场景退出时由本控制器显式终止。
+var _expansion_tween: Tween
+
 var _board_intro_tween: Tween
 
 
@@ -456,6 +459,7 @@ func _cleanup_listeners() -> void:
 	if _is_cleaned_up:
 		return
 	_is_cleaned_up = true
+	_cancel_expansion_animation()
 	var architecture: GFArchitecture = get_architecture_or_null()
 	if architecture != null:
 		architecture.unregister_owner_events(self)
@@ -916,14 +920,15 @@ func _clear_grid_cells() -> void:
 
 ## 执行棋盘从旧尺寸到新尺寸的扩建动画。
 func _animate_expansion(old_size: int, _new_size: int) -> void:
-	_expansion_token += 1
+	_cancel_expansion_animation()
+	var active_token: int = _expansion_token
 	if _board_intro_tween and _board_intro_tween.is_valid():
 		_board_intro_tween.kill()
 	_update_board_layout()
 	_sync_visible_region()
-	var expansion_tween: Tween = create_tween().set_parallel(true)
-	var _transition_result: Tween = expansion_tween.set_trans(Tween.TRANS_BACK)
-	var _ease_result: Tween = expansion_tween.set_ease(Tween.EASE_OUT)
+	_expansion_tween = create_tween().set_parallel(true)
+	var _transition_result: Tween = _expansion_tween.set_trans(Tween.TRANS_BACK)
+	var _ease_result: Tween = _expansion_tween.set_ease(Tween.EASE_OUT)
 	for cell_value: Variant in _grid_cell_map.keys():
 		if not cell_value is Vector2i:
 			continue
@@ -935,12 +940,40 @@ func _animate_expansion(old_size: int, _new_size: int) -> void:
 			continue
 		cell_instance.pivot_offset = cell_instance.size * 0.5
 		cell_instance.scale = Vector2.ONE * 0.72
-		var _scale_tweener: PropertyTweener = expansion_tween.tween_property(
+		var _scale_tweener: PropertyTweener = _expansion_tween.tween_property(
 			cell_instance,
 			"scale",
 			Vector2.ONE,
 			0.18
 		)
+	var _finished_connection: int = _expansion_tween.finished.connect(
+		_on_expansion_animation_finished.bind(active_token),
+		CONNECT_ONE_SHOT
+	)
+
+
+func _cancel_expansion_animation() -> void:
+	_expansion_token += 1
+	if is_instance_valid(_expansion_tween) and _expansion_tween.is_valid():
+		_expansion_tween.kill()
+	_expansion_tween = null
+	_normalize_grid_cell_scales()
+
+
+func _on_expansion_animation_finished(token: int) -> void:
+	if token != _expansion_token:
+		return
+	_normalize_grid_cell_scales()
+	_expansion_tween = null
+
+
+func _normalize_grid_cell_scales() -> void:
+	for cell_value: Variant in _grid_cell_map.keys():
+		if not cell_value is Vector2i:
+			continue
+		var cell_instance: Control = _get_grid_cell_control(cell_value)
+		if is_instance_valid(cell_instance):
+			cell_instance.scale = Vector2.ONE
 
 
 func _configure_cell_style(stylebox: StyleBoxFlat) -> void:
