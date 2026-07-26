@@ -754,28 +754,22 @@ func _connect_accessibility_summary_signals() -> void:
 	if not is_instance_valid(_signal_utility):
 		return
 	if is_instance_valid(_accessibility_summary_utility):
-		var _summary_connection: GFSignalConnection = (
-			_signal_utility.connect_signal(
-				_accessibility_summary_utility.summary_published,
-				_on_accessibility_summary_published,
-				self
-			)
+		var _summary_connection: GFSignalConnection = _signal_utility.connect_signal(
+			_accessibility_summary_utility.summary_published,
+			_on_accessibility_summary_published,
+			self
 		)
 	if is_instance_valid(_accessibility_utility):
-		var _state_connection: GFSignalConnection = (
-			_signal_utility.connect_signal(
-				_accessibility_utility.state_changed,
-				_on_accessibility_state_changed,
-				self
-			)
+		var _state_connection: GFSignalConnection = _signal_utility.connect_signal(
+			_accessibility_utility.state_changed,
+			_on_accessibility_state_changed,
+			self
 		)
 	if is_instance_valid(_copy_board_summary_button):
-		var _copy_connection: GFSignalConnection = (
-			_signal_utility.connect_signal(
-				_copy_board_summary_button.pressed,
-				_on_copy_board_summary_pressed,
-				self
-			)
+		var _copy_connection: GFSignalConnection = _signal_utility.connect_signal(
+			_copy_board_summary_button.pressed,
+			_on_copy_board_summary_pressed,
+			self
 		)
 
 
