@@ -135,6 +135,28 @@ func test_mode_validation_rejects_unknown_spawn_definition_reference() -> void:
 	)
 
 
+func test_mode_validation_rejects_unimplemented_timer_spawn_trigger() -> void:
+	var resource: Resource = load("res://features/gameplay/resources/modes/classic_mode_config.tres")
+	assert_true(resource is GameModeConfig, "应加载经典模式配置。")
+	if not resource is GameModeConfig:
+		return
+	var mode_config: GameModeConfig = resource.duplicate(true)
+	assert_false(mode_config.spawn_rules.is_empty(), "经典模式应包含生成规则。")
+	if mode_config.spawn_rules.is_empty():
+		return
+	mode_config.spawn_rules[0].trigger = SpawnRule.TriggerType.ON_TIMER
+
+	var report: GFValidationReport = mode_config.get_validation_report()
+	assert_false(report.is_ok(), "没有确定性调度入口的 ON_TIMER 规则必须在加载前被拒绝。")
+	assert_true(
+		GFVariantData.get_option_int(
+			report.get_issue_counts_by_kind(),
+			&"unsupported_timer_trigger"
+		) == 1,
+		"模式校验应明确报告未实现的计时生成触发器。"
+	)
+
+
 # --- 私有/辅助方法 ---
 
 func _create_mode_catalog_setup() -> Dictionary:

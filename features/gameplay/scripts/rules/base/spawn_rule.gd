@@ -68,10 +68,18 @@ func get_hud_stats(_context: RuleContext, _stats: Dictionary) -> void:
 
 ## 生成规则自身的 GF 校验报告。
 func get_validation_report() -> GFValidationReport:
-	return GFValidationReport.new(
+	var report: GFValidationReport = GFValidationReport.new(
 		"SpawnRule:%s" % get_class(),
 		{&"resource_path": resource_path}
 	)
+	if trigger == TriggerType.ON_TIMER:
+		var _unsupported_trigger_issue: RefCounted = report.add_error(
+			&"unsupported_timer_trigger",
+			"ON_TIMER 尚未接入确定性调度生命周期，不允许进入模式配置。",
+			&"trigger",
+			resource_path
+		)
+	return report
 
 
 ## 返回此规则引用的稳定方块定义 ID，供模式配置做跨资源校验。
