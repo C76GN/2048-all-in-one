@@ -59,6 +59,9 @@ const _DESKTOP_APPLY_MINIMUM: Vector2 = Vector2(220.0, 48.0)
 @export var library_section_button_path: NodePath = NodePath(
 	"../OuterMargin/EditorPanel/InnerMargin/RootVBox/MobileSections/LibrarySectionButton"
 )
+@export var brush_button_path: NodePath = NodePath(
+	"../OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools/ToolModes/BrushButton"
+)
 @export var canvas_hint_path: NodePath = NodePath(
 	"../OuterMargin/EditorPanel/InnerMargin/RootVBox/Header/CanvasHintLabel"
 )
@@ -97,6 +100,7 @@ var _library: VBoxContainer
 var _mobile_sections: HBoxContainer
 var _editor_section_button: Button
 var _library_section_button: Button
+var _brush_button: Button
 var _canvas_hint: CanvasItem
 var _tool_title: CanvasItem
 var _tool_separator: CanvasItem
@@ -111,6 +115,7 @@ var _platform_utility: GamePlatformUtility
 var _current_layout_mode: LayoutMode = LayoutMode.DESKTOP
 var _current_mobile_section: MobileSection = MobileSection.EDITOR
 var _layout_update_queued: bool = false
+var _initial_focus_applied: bool = false
 
 
 # --- Godot 生命周期方法 ---
@@ -187,6 +192,7 @@ func _resolve_nodes() -> void:
 	_mobile_sections = _get_hbox_container(mobile_sections_path)
 	_editor_section_button = _get_button(editor_section_button_path)
 	_library_section_button = _get_button(library_section_button_path)
+	_brush_button = _get_button(brush_button_path)
 	_canvas_hint = _get_canvas_item(canvas_hint_path)
 	_tool_title = _get_canvas_item(tool_title_path)
 	_tool_separator = _get_canvas_item(tool_separator_path)
@@ -223,6 +229,8 @@ func _has_required_dependencies() -> bool:
 		var _editor_button_appended: bool = missing.append("EditorSectionButton")
 	if not is_instance_valid(_library_section_button):
 		var _library_button_appended: bool = missing.append("LibrarySectionButton")
+	if not is_instance_valid(_brush_button):
+		var _brush_button_appended: bool = missing.append("BrushButton")
 	if not is_instance_valid(_cancel_button):
 		var _cancel_appended: bool = missing.append("CancelButton")
 	if not is_instance_valid(_apply_button):
@@ -295,6 +303,7 @@ func _apply_current_layout() -> void:
 		LayoutMode.PORTRAIT:
 			_apply_portrait_layout()
 	_apply_section_visibility()
+	_apply_initial_focus_after_layout()
 
 
 func _apply_desktop_layout() -> void:
@@ -355,6 +364,23 @@ func _apply_section_visibility() -> void:
 	_library.visible = not show_editor
 	if show_editor:
 		_queue_canvas_fit()
+
+
+## GF 会在面板入栈时按场景树顺序分配焦点；此时移动分区尚未完成布局，桌面
+## 会错误命中随后隐藏的 EditorSectionButton。布局稳定后只修正一次，
+## 既保证首焦点可见，也不在窗口缩放时抢走玩家当前焦点。
+func _apply_initial_focus_after_layout() -> void:
+	if _initial_focus_applied:
+		return
+	var target: Button = (
+		_brush_button
+		if _current_layout_mode == LayoutMode.DESKTOP
+		else _editor_section_button
+	)
+	if not is_instance_valid(target) or not target.is_visible_in_tree() or target.disabled:
+		return
+	target.grab_focus()
+	_initial_focus_applied = true
 
 
 func _set_tool_support_visible(is_visible: bool) -> void:

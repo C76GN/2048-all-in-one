@@ -240,6 +240,24 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 	await get_tree().process_frame
 
 
+func test_board_editor_initial_focus_matches_the_visible_responsive_section() -> void:
+	await _assert_board_editor_initial_focus(
+		Vector2(1440.0, 900.0),
+		BoardEditorResponsiveLayoutController.LayoutMode.DESKTOP,
+		&"BrushButton"
+	)
+	await _assert_board_editor_initial_focus(
+		Vector2(900.0, 560.0),
+		BoardEditorResponsiveLayoutController.LayoutMode.COMPACT_LANDSCAPE,
+		&"EditorSectionButton"
+	)
+	await _assert_board_editor_initial_focus(
+		Vector2(390.0, 844.0),
+		BoardEditorResponsiveLayoutController.LayoutMode.PORTRAIT,
+		&"EditorSectionButton"
+	)
+
+
 func test_board_editor_uses_feature_owned_gf_input_and_signal_contracts() -> void:
 	var action_ids: Array[StringName] = []
 	for mapping: GFInputMapping in _BOARD_EDITOR_INPUT_CONTEXT.mappings:
@@ -345,6 +363,68 @@ func _make_template() -> BoardTopologyTemplate:
 	topology_template.max_size = Vector2i(8, 8)
 	topology_template.allow_custom_topology = true
 	return topology_template
+
+
+func _assert_board_editor_initial_focus(
+	viewport_size: Vector2,
+	expected_layout: BoardEditorResponsiveLayoutController.LayoutMode,
+	expected_focus_name: StringName
+) -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	await architecture.register_utility(GFPlatformRuntime, GFPlatformRuntime.new())
+	await architecture.register_utility(GamePlatformUtility, GamePlatformUtility.new())
+	await architecture.register_utility(GFInputMappingUtility, GFInputMappingUtility.new())
+	await architecture.register_utility(GFPointerGestureUtility, GFPointerGestureUtility.new())
+	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
+	await architecture.register_utility(GFViewportUtility, GFViewportUtility.new())
+	await architecture.init()
+	var context: TestArchitectureContext = TestArchitectureContext.new()
+	context.test_architecture = architecture
+	add_child_autoqfree(context)
+	var panel: BoardEditorDialog = _BOARD_EDITOR_SCENE.instantiate() as BoardEditorDialog
+	assert_not_null(panel)
+	if panel == null:
+		architecture.dispose()
+		return
+	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	panel.size = viewport_size
+	panel.configure(_make_template(), BoardTopology.create_rectangle(Vector2i(4, 4)))
+	context.add_child(panel)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var responsive: BoardEditorResponsiveLayoutController = panel.get_node_or_null(
+		"BoardEditorResponsiveLayoutController"
+	) as BoardEditorResponsiveLayoutController
+	var expected_focus: Control = panel.find_child(String(expected_focus_name), true, false) as Control
+	var focus_owner: Control = get_viewport().gui_get_focus_owner()
+	assert_not_null(responsive)
+	if responsive != null:
+		assert_eq(
+			responsive.get_layout_mode(),
+			expected_layout,
+			"%s 应进入预期响应式布局。" % expected_focus_name
+		)
+	assert_not_null(expected_focus)
+	if expected_focus != null:
+		assert_true(
+			expected_focus.is_visible_in_tree(),
+			"%s 必须在首焦点分配后保持可见。" % expected_focus_name
+		)
+		assert_true(
+			focus_owner == expected_focus,
+			"%s 应成为该布局的键盘/手柄首焦点。" % expected_focus_name
+		)
+	assert_true(
+		focus_owner != null and panel.is_ancestor_of(focus_owner),
+		"首焦点必须属于棋盘编辑器对话框。"
+	)
+
+	context.remove_child(panel)
+	panel.free()
+	architecture.dispose()
+	await get_tree().process_frame
 
 
 func _read_text(path: String) -> String:
