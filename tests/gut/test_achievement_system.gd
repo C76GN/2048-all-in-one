@@ -74,14 +74,7 @@ func test_persisted_game_result_advances_gf_quest_once() -> void:
 	var quest: GFQuestUtility = _get_quest(setup)
 
 	var save_error: Error = progress_stats_system.record_game_result(
-		"classic",
-		_BOARD_KEY,
-		4096,
-		40,
-		2048,
-		100,
-		2048,
-		true
+		_make_game_result(4096, 40, 2048, 100, 2048, true)
 	)
 	assert_true(save_error == OK, "对局结果应先成功提交统计 section。")
 	assert_true(
@@ -123,14 +116,7 @@ func test_achievement_system_backfills_from_canonical_sections() -> void:
 	var save_dir_name: String = "gut_achievement_backfill_%d" % Time.get_ticks_usec()
 	var seed_setup: Dictionary = await _create_setup(save_dir_name, false)
 	var seed_error: Error = _get_progress_stats_system(seed_setup).record_game_result(
-		"classic",
-		_BOARD_KEY,
-		12000,
-		55,
-		4096,
-		200,
-		2048,
-		true
+		_make_game_result(12000, 55, 4096, 200, 2048, true)
 	)
 	assert_true(seed_error == OK, "回填测试应先写入规范统计真源。")
 	_dispose_setup(seed_setup, false)
@@ -202,6 +188,35 @@ func test_achievement_dialog_renders_and_adapts_layout() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _make_game_result(
+	score: int,
+	steps: int,
+	max_tile: int,
+	played_at: int,
+	target_value: int,
+	target_reached: bool
+) -> GameResultRecordedData:
+	var result: GameResultRecordedData = GameResultRecordedData.create(
+		&"classic",
+		_BOARD_KEY,
+		&"gameplay.classic",
+		1,
+		"a".repeat(64),
+		2048,
+		("%d|%d|%d|%d" % [score, steps, max_tile, played_at]).sha256_text(),
+		null,
+		GameCompetitionEligibility.create(),
+		score,
+		steps,
+		max_tile,
+		played_at,
+		target_value,
+		target_reached
+	)
+	assert_not_null(result, "成就测试结果 fixture 必须满足严格契约。")
+	return result
+
 
 func _create_setup(
 	save_dir_name: String,

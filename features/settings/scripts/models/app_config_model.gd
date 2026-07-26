@@ -23,6 +23,14 @@ var selected_bookmark_data: GFBindableProperty = GFBindableProperty.new(null)
 ## 存储开局时产生的或者用户输入的固定种子，用于重玩同一局。
 var selected_seed: GFBindableProperty = GFBindableProperty.new(0)
 
+## 存储待启动对局的 seed 来源；random、manual、daily 语义不可互换。
+var selected_seed_source: GFBindableProperty = GFBindableProperty.new(
+	GameSessionMetadata.SEED_SOURCE_RANDOM
+)
+
+## 标记待启动棋盘是否来自玩家棋盘编辑器。
+var selected_board_is_custom: GFBindableProperty = GFBindableProperty.new(false)
+
 
 # --- Godot 生命周期方法 ---
 

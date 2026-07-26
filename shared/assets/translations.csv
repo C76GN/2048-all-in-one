@@ -387,3 +387,38 @@ BOARD_EDITOR_ACTION_CROSS,应用十字预设,Apply Cross Preset
 BOARD_EDITOR_ACTION_NORMALIZE,规范化棋盘位置,Normalize Board Position
 BOARD_EDITOR_ACTION_CLEAR,清空棋盘,Clear Board
 BOARD_EDITOR_ACTION_LOAD,载入棋盘模板,Load Board Template
+BTN_DAILY_CHALLENGE,今日挑战,Daily Challenge
+DAILY_CHALLENGE_PREVIEW_FORMAT,%s · 种子 %d · 本地最佳 %s,%s · Seed %d · Local best %s
+DAILY_CHALLENGE_UNAVAILABLE,选择模式和棋盘后可查看今日挑战。,Select a mode and board to view today's challenge.
+DAILY_CHALLENGE_CUSTOM_SUFFIX,"
+自定义棋盘可游玩，但不计入本地比赛榜。","
+Custom boards are playable but do not enter the local competitive board."
+MANUAL_SEED_COMPETITION_WARNING,"
+当前为手动种子：成绩不计入本地比赛榜。","
+Manual seed selected: this result will not enter the local competitive board."
+GAME_OVER_RESULT_IDENTITY_FORMAT,种子 %d · 状态校验 %s,Seed %d · State hash %s
+GAME_OVER_DAILY_RESULT_FORMAT,今日挑战 %s · 挑战校验 %s,Daily challenge %s · Challenge hash %s
+GAME_OVER_COMPETITION_ELIGIBLE,本地比赛榜：合格,Local competitive board: Eligible
+GAME_OVER_COMPETITION_RANK_FORMAT,本地比赛榜：合格 · 第 %d 名,Local competitive board: Eligible · Rank %d
+GAME_OVER_COMPETITION_INELIGIBLE_FORMAT,本地比赛榜：不计入 · %s,Local competitive board: Ineligible · %s
+ELIGIBILITY_REASON_DEBUG,使用了调试改写,Debug modification used
+ELIGIBILITY_REASON_REPLAY_CONTINUATION,从回放继续,Continued from replay
+ELIGIBILITY_REASON_BOOKMARK,从书签恢复,Restored from bookmark
+ELIGIBILITY_REASON_UNDO_REDO,使用了撤销或重做,Undo or redo used
+ELIGIBILITY_REASON_CUSTOM_BOARD,使用了自定义棋盘,Custom board used
+ELIGIBILITY_REASON_MANUAL_SEED,使用了手动种子,Manual seed used
+ELIGIBILITY_REASON_SEPARATOR,、,", "
+LIST_REPLAY_RECORD_META_FORMAT,%s · %dx%d · %d 步 · %d 个标记,%s · %dx%d · %d moves · %d markers
+LABEL_REPLAY_MARKERS,事件标记,Event Markers
+REPLAY_MARKER_SUMMARY_FORMAT,%d 个标记 · %d 次合并 · %d 个关键事件,%d markers · %d merges · %d key events
+BTN_REPLAY_PREV_MARKER,上一标记,Previous Marker
+BTN_REPLAY_NEXT_MARKER,下一标记,Next Marker
+LABEL_REPLAY_JUMPING,正在跳转: %d / %d,Jumping: %d / %d
+REPLAY_NO_MARKERS,没有事件标记,No event markers
+REPLAY_MARKER_MERGE_FORMAT,第 %d 步 · 合并 ×%d · +%d,Step %d · Merge ×%d · +%d
+REPLAY_MARKER_CHAIN_FORMAT,第 %d 步 · 连锁/变换,Step %d · Chain/Transform
+REPLAY_MARKER_MILESTONE_FORMAT,第 %d 步 · 里程碑 %d,Step %d · Milestone %d
+REPLAY_MARKER_FAILURE_FORMAT,第 %d 步 · 对局失败,Step %d · Defeat
+REPLAY_MARKER_OOS_FORMAT,第 %d 步 · OOS,Step %d · OOS
+REPLAY_CONTINUE_ELIGIBILITY_NOTE,从此继续会退出回放，并标记为不参与竞赛成绩。,Continuing exits replay and marks the run ineligible for competitive results.
+REPLAY_CONTINUE_OOS_NOTE,回放已 OOS，不能从当前状态继续。,Replay is OOS; continuing from this state is blocked.

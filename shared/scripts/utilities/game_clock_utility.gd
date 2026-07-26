@@ -34,6 +34,11 @@ func get_tick_msec() -> int:
 	return _clock.get_monotonic_msec()
 
 
+## 返回当前注入墙上时钟对应的 UTC 日期（YYYY-MM-DD）。
+func get_utc_date() -> String:
+	return format_utc_date_value(get_unix_timestamp())
+
+
 ## @param timestamp: Unix 时间戳，秒。
 func format_datetime(timestamp: int) -> String:
 	return format_datetime_value(timestamp)
@@ -44,3 +49,10 @@ static func format_datetime_value(timestamp: int) -> String:
 	if timestamp <= 0:
 		return ""
 	return Time.get_datetime_string_from_unix_time(timestamp).replace("T", " ")
+
+
+## @param timestamp: Unix 时间戳，秒。
+static func format_utc_date_value(timestamp: int) -> String:
+	if timestamp <= 0:
+		return ""
+	return Time.get_date_string_from_unix_time(timestamp)

@@ -9,6 +9,8 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 
 const _LOG_TAG: String = "ProgressStatsSystem"
 const _KEY_STATS: String = "stats"
+const _KEY_RESULTS: String = "results"
+const _KEY_LEADERBOARDS: String = "leaderboards"
 const _STAT_PLAYS: String = "plays"
 const _STAT_BEST_SCORE: String = "best_score"
 const _STAT_BEST_STEPS: String = "best_steps"
@@ -100,83 +102,351 @@ func set_high_score(mode_id: String, board_key: String, score: int) -> Error:
 	return save_error
 
 
-## 记录一局完整游戏结果，并维护最高分、最佳步数、最大方块、平均表现和最近一局摘要。
-## @param mode_id: 模式资源文件名派生出的模式标识。
-## @param board_key: BoardTopology.get_stable_key() 的结果。
-## @param score: 本局最终分数。
-## @param steps: 本局有效移动步数。
-## @param max_tile: 本局达到的最大方块值。
-## @param played_at: 本局结束时间戳；为 0 时使用当前系统时间。
-## @param target_value: 当前模式配置的目标方块值；为 0 表示此模式未定义目标。
-## @param target_reached: 本局是否达成目标。
-func record_game_result(
-	mode_id: String,
-	board_key: String,
-	score: int,
-	steps: int,
-	max_tile: int,
-	played_at: int = 0,
-	target_value: int = 0,
-	target_reached: bool = false
-) -> Error:
-	if mode_id.is_empty() or board_key.is_empty():
-		return ERR_INVALID_PARAMETER
+## 事务记录规范结果。所有结果进入有界 recent results；只有比赛合格结果进入本地榜。
+## Debug 改写结果不投影到既有进度统计或成就。
+func record_game_result(result: GameResultRecordedData) -> Error:
+	if result == null or not result.is_valid():
+		return ERR_INVALID_DATA
+	var strict_result: GameResultRecordedData = GameResultRecordedData.from_dict(
+		result.to_dict()
+	)
+	if strict_result == null:
+		return ERR_INVALID_DATA
 
 	var save_data: Dictionary = _get_save_data()
-	var normalized_score: int = max(score, 0)
-	var normalized_steps: int = max(steps, 0)
-	var normalized_max_tile: int = max(max_tile, 0)
-	var normalized_target_value: int = max(target_value, 0)
-	var resolved_played_at: int = played_at if played_at > 0 else _get_unix_timestamp()
-	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(save_data, mode_id, board_key))
+	if _has_recorded_result(save_data, strict_result.result_hash):
+		return OK
+	if strict_result.counts_toward_progress():
+		_apply_result_to_stats(save_data, strict_result)
+	_append_recent_result(save_data, strict_result)
+	if strict_result.is_competition_eligible():
+		_append_local_leaderboard_result(save_data, strict_result)
 
+	var save_error: Error = _save_game_data(save_data)
+	if save_error == OK and strict_result.counts_toward_progress():
+		send_event(strict_result)
+	return save_error
+
+
+## 返回最近规范结果的只读副本，按结束时间降序、result hash 升序稳定排列。
+func get_recent_results() -> Array[GameResultRecordedData]:
+	var result: Array[GameResultRecordedData] = []
+	for result_value: Variant in _get_results(_get_save_data()):
+		if not result_value is Dictionary:
+			continue
+		var item: GameResultRecordedData = GameResultRecordedData.from_dict(
+			result_value
+		)
+		if item != null:
+			result.append(item)
+	return result
+
+
+## 查询与给定结果完全同组的本地榜。
+func get_local_leaderboard_for_result(
+	reference_result: GameResultRecordedData
+) -> Array[GameResultRecordedData]:
+	if reference_result == null or not reference_result.is_valid():
+		return []
+	return _get_local_leaderboard_by_identity(
+		reference_result.get_leaderboard_identity()
+	)
+
+
+## 返回给定规范结果在本地榜中的 1-based 名次；未上榜返回 0。
+func get_local_rank(reference_result: GameResultRecordedData) -> int:
+	if reference_result == null:
+		return 0
+	var leaderboard: Array[GameResultRecordedData] = get_local_leaderboard_for_result(
+		reference_result
+	)
+	for index: int in range(leaderboard.size()):
+		if leaderboard[index].result_hash == reference_result.result_hash:
+			return index + 1
+	return 0
+
+
+## 查询指定模式、拓扑、规则版本与挑战分组的本地榜。
+func get_local_leaderboard(
+	mode_id: String,
+	board_key: String,
+	ruleset_id: StringName,
+	ruleset_version: int,
+	ruleset_fingerprint: String,
+	challenge: GameChallengeMetadata = null
+) -> Array[GameResultRecordedData]:
+	var identity: Dictionary = {
+		&"mode_id": mode_id,
+		&"board_key": board_key,
+		&"ruleset_id": String(ruleset_id),
+		&"ruleset_version": ruleset_version,
+		&"ruleset_fingerprint": ruleset_fingerprint,
+		&"challenge_key": (
+			challenge.get_group_key()
+			if challenge != null
+			else GameResultRecordedData.STANDARD_CHALLENGE_GROUP_KEY
+		),
+	}
+	return _get_local_leaderboard_by_identity(identity)
+
+
+# --- 私有方法 ---
+
+func _apply_result_to_stats(
+	save_data: Dictionary,
+	result: GameResultRecordedData
+) -> void:
+	var entry: Dictionary = _normalize_stats_entry(
+		_get_stats_entry(save_data, String(result.mode_id), result.board_key)
+	)
 	var previous_plays: int = GFVariantData.get_option_int(entry, _STAT_PLAYS, 0)
 	entry[_STAT_PLAYS] = previous_plays + 1
 	entry[_STAT_BEST_SCORE] = maxi(
 		GFVariantData.get_option_int(entry, _STAT_BEST_SCORE, 0),
-		normalized_score
+		result.score
 	)
-	entry[_STAT_TOTAL_SCORE] = GFVariantData.get_option_int(entry, _STAT_TOTAL_SCORE, 0) + normalized_score
-	if normalized_steps > 0:
-		var best_steps: int = GFVariantData.get_option_int(entry, _STAT_BEST_STEPS, 0)
-		if best_steps <= 0 or normalized_steps < best_steps:
-			entry[_STAT_BEST_STEPS] = normalized_steps
-		entry[_STAT_TOTAL_STEPS] = GFVariantData.get_option_int(entry, _STAT_TOTAL_STEPS, 0) + normalized_steps
-		entry[_STAT_STEP_SAMPLES] = GFVariantData.get_option_int(entry, _STAT_STEP_SAMPLES, 0) + 1
-	entry[_STAT_MAX_TILE] = maxi(GFVariantData.get_option_int(entry, _STAT_MAX_TILE, 0), normalized_max_tile)
-	entry[_STAT_LAST_SCORE] = normalized_score
-	entry[_STAT_LAST_STEPS] = normalized_steps
-	entry[_STAT_LAST_MAX_TILE] = normalized_max_tile
-	entry[_STAT_LAST_PLAYED_AT] = resolved_played_at
-	if normalized_target_value > 0:
-		entry[_STAT_TARGET_VALUE] = normalized_target_value
-		if target_reached:
-			entry[_STAT_TARGET_REACHED_COUNT] = GFVariantData.get_option_int(
-				entry,
-				_STAT_TARGET_REACHED_COUNT,
-				0
-			) + 1
-		entry[_STAT_LAST_TARGET_REACHED] = target_reached
+	entry[_STAT_TOTAL_SCORE] = (
+		GFVariantData.get_option_int(entry, _STAT_TOTAL_SCORE, 0)
+		+ result.score
+	)
+	if result.steps > 0:
+		var best_steps: int = GFVariantData.get_option_int(
+			entry,
+			_STAT_BEST_STEPS,
+			0
+		)
+		if best_steps <= 0 or result.steps < best_steps:
+			entry[_STAT_BEST_STEPS] = result.steps
+		entry[_STAT_TOTAL_STEPS] = (
+			GFVariantData.get_option_int(entry, _STAT_TOTAL_STEPS, 0)
+			+ result.steps
+		)
+		entry[_STAT_STEP_SAMPLES] = (
+			GFVariantData.get_option_int(entry, _STAT_STEP_SAMPLES, 0)
+			+ 1
+		)
+	entry[_STAT_MAX_TILE] = maxi(
+		GFVariantData.get_option_int(entry, _STAT_MAX_TILE, 0),
+		result.max_tile
+	)
+	entry[_STAT_LAST_SCORE] = result.score
+	entry[_STAT_LAST_STEPS] = result.steps
+	entry[_STAT_LAST_MAX_TILE] = result.max_tile
+	entry[_STAT_LAST_PLAYED_AT] = result.played_at
+	if result.target_value > 0:
+		entry[_STAT_TARGET_VALUE] = result.target_value
+		if result.target_reached:
+			entry[_STAT_TARGET_REACHED_COUNT] = (
+				GFVariantData.get_option_int(
+					entry,
+					_STAT_TARGET_REACHED_COUNT,
+					0
+				)
+				+ 1
+			)
+		entry[_STAT_LAST_TARGET_REACHED] = result.target_reached
 	_update_average_stats(entry)
 	_update_target_stats(entry)
-
-	_set_stats_entry(save_data, mode_id, board_key, entry)
-	var save_error: Error = _save_game_data(save_data)
-	if save_error == OK:
-		send_event(GameResultRecordedData.new(
-			StringName(mode_id),
-			board_key,
-			normalized_score,
-			normalized_steps,
-			normalized_max_tile,
-			resolved_played_at,
-			normalized_target_value,
-			target_reached
-		))
-	return save_error
+	_set_stats_entry(save_data, String(result.mode_id), result.board_key, entry)
 
 
-# --- 私有方法 ---
+func _append_recent_result(
+	save_data: Dictionary,
+	result: GameResultRecordedData
+) -> void:
+	var results: Array = _get_results(save_data)
+	results.append(result.to_dict())
+	results.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
+		return _is_newer_result_data(left, right)
+	)
+	if results.size() > GameStatsSaveData.MAX_RECENT_RESULTS:
+		var _resize_error: Error = results.resize(
+			GameStatsSaveData.MAX_RECENT_RESULTS
+		)
+
+
+func _append_local_leaderboard_result(
+	save_data: Dictionary,
+	result: GameResultRecordedData
+) -> void:
+	var group_key: String = result.get_leaderboard_group_key()
+	if group_key.is_empty():
+		return
+	var leaderboards: Dictionary = _get_leaderboards(save_data)
+	var bucket: Dictionary = {}
+	var bucket_value: Variant = leaderboards.get(group_key, {})
+	if bucket_value is Dictionary:
+		bucket = bucket_value
+	var identity: Dictionary = result.get_leaderboard_identity()
+	if (
+		bucket.is_empty()
+		or GFVariantData.get_option_dictionary(bucket, &"identity") != identity
+	):
+		bucket = {
+			&"identity": identity,
+			&"entries": [],
+		}
+	var entries: Array = GFVariantData.get_option_array(bucket, &"entries")
+	for index: int in range(entries.size() - 1, -1, -1):
+		var entry_value: Variant = entries[index]
+		if (
+			entry_value is Dictionary
+			and GFVariantData.get_option_string(
+				entry_value,
+				&"result_hash"
+			) == result.result_hash
+		):
+			entries.remove_at(index)
+	entries.append(result.to_dict())
+	entries.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
+		return _is_better_leaderboard_result_data(left, right)
+	)
+	if entries.size() > GameStatsSaveData.MAX_LEADERBOARD_ENTRIES:
+		var _resize_error: Error = entries.resize(
+			GameStatsSaveData.MAX_LEADERBOARD_ENTRIES
+		)
+	bucket[&"entries"] = entries
+	leaderboards[group_key] = bucket
+	_prune_leaderboard_groups(leaderboards)
+
+
+func _get_local_leaderboard_by_identity(
+	identity: Dictionary
+) -> Array[GameResultRecordedData]:
+	var result: Array[GameResultRecordedData] = []
+	var group_key: String = GameResultRecordedData.calculate_leaderboard_group_key(
+		identity
+	)
+	if group_key.is_empty():
+		return result
+	var leaderboards: Dictionary = _get_leaderboards(_get_save_data())
+	var bucket_value: Variant = leaderboards.get(group_key, {})
+	if not bucket_value is Dictionary:
+		return result
+	var bucket: Dictionary = bucket_value
+	if GFVariantData.get_option_dictionary(bucket, &"identity") != identity:
+		return result
+	for entry_value: Variant in GFVariantData.get_option_array(bucket, &"entries"):
+		if not entry_value is Dictionary:
+			continue
+		var item: GameResultRecordedData = GameResultRecordedData.from_dict(
+			entry_value
+		)
+		if item != null and item.is_competition_eligible():
+			result.append(item)
+	return result
+
+
+func _has_recorded_result(save_data: Dictionary, result_hash: String) -> bool:
+	for result_value: Variant in _get_results(save_data):
+		if (
+			result_value is Dictionary
+			and GFVariantData.get_option_string(
+				result_value,
+				&"result_hash"
+			) == result_hash
+		):
+			return true
+	return false
+
+
+func _get_results(save_data: Dictionary) -> Array:
+	_ensure_game_data_defaults(save_data)
+	var results_value: Variant = save_data[_KEY_RESULTS]
+	return results_value if results_value is Array else []
+
+
+func _get_leaderboards(save_data: Dictionary) -> Dictionary:
+	_ensure_game_data_defaults(save_data)
+	var leaderboards_value: Variant = save_data[_KEY_LEADERBOARDS]
+	return leaderboards_value if leaderboards_value is Dictionary else {}
+
+
+static func _prune_leaderboard_groups(leaderboards: Dictionary) -> void:
+	if leaderboards.size() <= GameStatsSaveData.MAX_LEADERBOARD_GROUPS:
+		return
+	var group_keys: Array[String] = []
+	for group_key_value: Variant in leaderboards.keys():
+		group_keys.append(str(group_key_value))
+	group_keys.sort_custom(func(left: String, right: String) -> bool:
+		var left_time: int = _get_bucket_latest_timestamp(
+			GFVariantData.get_option_dictionary(leaderboards, left)
+		)
+		var right_time: int = _get_bucket_latest_timestamp(
+			GFVariantData.get_option_dictionary(leaderboards, right)
+		)
+		if left_time != right_time:
+			return left_time > right_time
+		return left < right
+	)
+	for index: int in range(
+		GameStatsSaveData.MAX_LEADERBOARD_GROUPS,
+		group_keys.size()
+	):
+		leaderboards.erase(group_keys[index])
+
+
+static func _get_bucket_latest_timestamp(bucket: Dictionary) -> int:
+	var latest_timestamp: int = 0
+	for entry_value: Variant in GFVariantData.get_option_array(bucket, &"entries"):
+		if entry_value is Dictionary:
+			latest_timestamp = maxi(
+				latest_timestamp,
+				GFVariantData.get_option_int(entry_value, &"played_at", 0)
+			)
+	return latest_timestamp
+
+
+static func _is_newer_result_data(left: Dictionary, right: Dictionary) -> bool:
+	var left_time: int = GFVariantData.get_option_int(left, &"played_at", 0)
+	var right_time: int = GFVariantData.get_option_int(right, &"played_at", 0)
+	if left_time != right_time:
+		return left_time > right_time
+	return GFVariantData.get_option_string(
+		left,
+		&"result_hash"
+	) < GFVariantData.get_option_string(right, &"result_hash")
+
+
+static func _is_better_leaderboard_result_data(
+	left: Dictionary,
+	right: Dictionary
+) -> bool:
+	var left_score: int = GFVariantData.get_option_int(left, &"score", 0)
+	var right_score: int = GFVariantData.get_option_int(right, &"score", 0)
+	if left_score != right_score:
+		return left_score > right_score
+	var left_max_tile: int = GFVariantData.get_option_int(left, &"max_tile", 0)
+	var right_max_tile: int = GFVariantData.get_option_int(right, &"max_tile", 0)
+	if left_max_tile != right_max_tile:
+		return left_max_tile > right_max_tile
+	var left_target: bool = GFVariantData.get_option_bool(
+		left,
+		&"target_reached",
+		false
+	)
+	var right_target: bool = GFVariantData.get_option_bool(
+		right,
+		&"target_reached",
+		false
+	)
+	if left_target != right_target:
+		return left_target
+	var left_steps: int = GFVariantData.get_option_int(left, &"steps", 0)
+	var right_steps: int = GFVariantData.get_option_int(right, &"steps", 0)
+	var left_step_rank: int = left_steps if left_steps > 0 else 2_147_483_647
+	var right_step_rank: int = right_steps if right_steps > 0 else 2_147_483_647
+	if left_step_rank != right_step_rank:
+		return left_step_rank < right_step_rank
+	var left_time: int = GFVariantData.get_option_int(left, &"played_at", 0)
+	var right_time: int = GFVariantData.get_option_int(right, &"played_at", 0)
+	if left_time != right_time:
+		return left_time < right_time
+	return GFVariantData.get_option_string(
+		left,
+		&"result_hash"
+	) < GFVariantData.get_option_string(right, &"result_hash")
+
 
 func _save_game_data(save_data: Dictionary) -> Error:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
@@ -216,6 +486,13 @@ func _get_save_data() -> Dictionary:
 func _ensure_game_data_defaults(save_data: Dictionary) -> void:
 	if not save_data.has(_KEY_STATS) or not (save_data[_KEY_STATS] is Dictionary):
 		save_data[_KEY_STATS] = {}
+	if not save_data.has(_KEY_RESULTS) or not (save_data[_KEY_RESULTS] is Array):
+		save_data[_KEY_RESULTS] = []
+	if (
+		not save_data.has(_KEY_LEADERBOARDS)
+		or not (save_data[_KEY_LEADERBOARDS] is Dictionary)
+	):
+		save_data[_KEY_LEADERBOARDS] = {}
 
 
 func _get_stats(save_data: Dictionary) -> Dictionary:

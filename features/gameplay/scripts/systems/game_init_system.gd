@@ -25,6 +25,7 @@ var _grid_model: GridModel
 var _log: GFLogUtility
 var _clock: GameClockUtility
 var _determinism: GameDeterminismUtility
+var _challenge: GameChallengeUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -46,6 +47,7 @@ func get_required_systems() -> Array[Script]:
 func get_required_utilities() -> Array[Script]:
 	return [
 		GameClockUtility,
+		GameChallengeUtility,
 		GameDeterminismUtility,
 		GameModeCatalogUtility,
 		GFCommandHistoryUtility,
@@ -62,6 +64,7 @@ func ready() -> void:
 	_mode_catalog = _get_mode_catalog_utility()
 	_log = _get_log_utility()
 	_clock = _get_clock_utility()
+	_challenge = _get_challenge_utility()
 	_determinism = _get_determinism_utility()
 	_rule_system = _get_rule_system()
 	_game_flow_system = _get_game_flow_system()
@@ -82,6 +85,7 @@ func dispose() -> void:
 	_grid_model = null
 	_log = null
 	_clock = null
+	_challenge = null
 	_determinism = null
 
 
@@ -138,6 +142,13 @@ func _get_clock_utility() -> GameClockUtility:
 func _get_determinism_utility() -> GameDeterminismUtility:
 	var utility_value: Object = get_utility(GameDeterminismUtility)
 	if utility_value is GameDeterminismUtility:
+		return utility_value
+	return null
+
+
+func _get_challenge_utility() -> GameChallengeUtility:
+	var utility_value: Object = get_utility(GameChallengeUtility)
+	if utility_value is GameChallengeUtility:
 		return utility_value
 	return null
 
@@ -452,6 +463,11 @@ func _build_level_session_data(
 		"is_replay_mode": game_ready_data.is_replay_mode,
 		"has_bookmark": is_instance_valid(game_ready_data.loaded_bookmark_data),
 		"has_replay": is_instance_valid(game_ready_data.replay_data_resource),
+		"session_metadata": (
+			game_ready_data.session_metadata.to_dict()
+			if game_ready_data.session_metadata != null
+			else {}
+		),
 	}
 
 
@@ -493,6 +509,103 @@ static func _duplicate_topology(source: BoardTopology) -> BoardTopology:
 	return null
 
 
+func _resolve_session_metadata(
+	level_source: StringName,
+	replay_data: ReplayData,
+	bookmark_data: BookmarkData,
+	mode_config: GameModeConfig,
+	topology: BoardTopology,
+	requested_seed_source: StringName,
+	selected_board_is_custom: bool
+) -> GameSessionMetadata:
+	var metadata: GameSessionMetadata = null
+	if level_source == _LEVEL_SOURCE_REPLAY and is_instance_valid(replay_data):
+		metadata = replay_data.get_session_metadata()
+	elif level_source == _LEVEL_SOURCE_BOOKMARK and is_instance_valid(bookmark_data):
+		metadata = bookmark_data.get_session_metadata()
+		if metadata != null:
+			metadata = metadata.with_eligibility_reason(
+				GameCompetitionEligibility.REASON_BOOKMARK
+			)
+	else:
+		var reason_codes: Array[StringName] = []
+		var challenge_metadata: GameChallengeMetadata = null
+		if requested_seed_source == GameSessionMetadata.SEED_SOURCE_DAILY:
+			if not is_instance_valid(_challenge):
+				_challenge = _get_challenge_utility()
+			if is_instance_valid(_challenge):
+				challenge_metadata = _challenge.get_current_daily_challenge(
+					mode_config,
+					topology
+				)
+			if challenge_metadata == null:
+				return null
+			reason_codes.append(GameCompetitionEligibility.REASON_DAILY)
+		elif requested_seed_source == GameSessionMetadata.SEED_SOURCE_MANUAL:
+			reason_codes.append(GameCompetitionEligibility.REASON_MANUAL_SEED)
+		elif requested_seed_source != GameSessionMetadata.SEED_SOURCE_RANDOM:
+			return null
+		var eligibility: GameCompetitionEligibility = GameCompetitionEligibility.create(
+			reason_codes
+		)
+		metadata = GameSessionMetadata.create(
+			requested_seed_source,
+			challenge_metadata,
+			eligibility
+		)
+
+	if metadata == null:
+		return null
+	if selected_board_is_custom or _is_custom_topology(topology):
+		metadata = metadata.with_eligibility_reason(
+			GameCompetitionEligibility.REASON_CUSTOM_BOARD
+		)
+	return metadata
+
+
+func _does_session_metadata_match_contract(
+	metadata: GameSessionMetadata,
+	mode_config: GameModeConfig,
+	topology: BoardTopology,
+	initial_seed: int
+) -> bool:
+	if metadata == null or not metadata.is_valid():
+		return false
+	var challenge_metadata: GameChallengeMetadata = metadata.get_challenge()
+	if metadata.get_seed_source() != GameSessionMetadata.SEED_SOURCE_DAILY:
+		return challenge_metadata == null
+	return (
+		challenge_metadata != null
+		and challenge_metadata.get_ruleset_id() == mode_config.ruleset_id
+		and challenge_metadata.get_ruleset_version() == mode_config.ruleset_version
+		and is_instance_valid(_determinism)
+		and challenge_metadata.get_ruleset_fingerprint()
+		== _determinism.calculate_ruleset_fingerprint(mode_config)
+		and challenge_metadata.get_topology_key() == topology.get_stable_key()
+		and challenge_metadata.get_seed() == initial_seed
+	)
+
+
+func _make_random_seed() -> int:
+	if not is_instance_valid(_seed_utility):
+		return 0
+	var timestamp: int = _get_unix_timestamp()
+	var tick_msec: int = _clock.get_tick_msec() if is_instance_valid(_clock) else 0
+	return GFSeedUtility.make_stable_seed([
+		"game_init.random",
+		timestamp,
+		tick_msec,
+		_seed_utility.next_uint32(),
+	])
+
+
+static func _is_custom_topology(topology: BoardTopology) -> bool:
+	return (
+		is_instance_valid(topology)
+		and String(topology.topology_id).begins_with("board.custom.")
+	)
+
+
 # --- 信号处理函数 ---
 
 func _on_request_initialization(_payload: Variant = null) -> void:
@@ -518,6 +631,10 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 
 	var config_path: String = GFVariantData.to_text(app_config.selected_mode_config_path.get_value(), "")
 	var init_seed: int = 0
+	var requested_seed_source: StringName = GFVariantData.to_string_name(
+		app_config.selected_seed_source.get_value(),
+		GameSessionMetadata.SEED_SOURCE_RANDOM
+	)
 
 	if game_ready_data.is_replay_mode:
 		config_path = replay_data.mode_config_path
@@ -528,15 +645,12 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	else:
 		var config_seed: int = GFVariantData.to_int(app_config.selected_seed.get_value(), 0)
 		if is_instance_valid(_log):
-			_log.debug(_LOG_TAG, "普通模式配置种子: %d" % config_seed)
-		if config_seed != 0:
-			init_seed = config_seed
-		else:
-			init_seed = _get_unix_timestamp()
-		if is_instance_valid(_log):
-			_log.debug(_LOG_TAG, "本局初始种子: %d" % init_seed)
-
-	game_ready_data.initial_seed = init_seed
+			_log.debug(
+				_LOG_TAG,
+				"新对局配置 seed: source=%s, value=%d"
+				% [requested_seed_source, config_seed]
+			)
+		init_seed = config_seed
 
 	if not is_instance_valid(_mode_catalog):
 		_mode_catalog = _get_mode_catalog_utility()
@@ -626,6 +740,50 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		return
 	game_ready_data.board_topology = board_topology
 
+	var selected_board_is_custom: bool = (
+		level_source == _LEVEL_SOURCE_NEW_GAME
+		and GFVariantData.to_bool(
+			app_config.selected_board_is_custom.get_value(),
+			false
+		)
+	)
+	var session_metadata: GameSessionMetadata = _resolve_session_metadata(
+		level_source,
+		replay_data,
+		loaded_bookmark_data,
+		mode_config,
+		board_topology,
+		requested_seed_source,
+		selected_board_is_custom
+	)
+	if session_metadata == null:
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "无法构造严格对局元数据，拒绝初始化。")
+		return
+	if (
+		level_source == _LEVEL_SOURCE_NEW_GAME
+		and session_metadata.get_seed_source() == GameSessionMetadata.SEED_SOURCE_DAILY
+	):
+		var daily_challenge: GameChallengeMetadata = session_metadata.get_challenge()
+		init_seed = daily_challenge.get_seed() if daily_challenge != null else 0
+	elif (
+		level_source == _LEVEL_SOURCE_NEW_GAME
+		and session_metadata.get_seed_source() == GameSessionMetadata.SEED_SOURCE_RANDOM
+		and init_seed == 0
+	):
+		init_seed = _make_random_seed()
+	if not _does_session_metadata_match_contract(
+		session_metadata,
+		mode_config,
+		board_topology,
+		init_seed
+	):
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "对局元数据与 seed、规则集或拓扑契约不一致。")
+		return
+	game_ready_data.initial_seed = init_seed
+	game_ready_data.session_metadata = session_metadata
+
 	game_ready_data.mode_config = mode_config
 	game_ready_data.interaction_rule = _duplicate_interaction_rule(mode_config.interaction_rule)
 	game_ready_data.movement_rule = _duplicate_movement_rule(mode_config.movement_rule)
@@ -650,6 +808,7 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		or not is_instance_valid(_seed_utility)
 		or not is_instance_valid(_rule_system)
 		or not is_instance_valid(_game_state_system)
+		or game_ready_data.session_metadata == null
 		or not is_instance_valid(game_status_model)
 	):
 		push_error("[GameInitSystem] 对局事务依赖不完整，拒绝初始化。")
@@ -732,6 +891,8 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		current_game_model.initial_seed.set_value(init_seed)
 		current_game_model.initial_high_score.set_value(game_ready_data.initial_high_score)
 		current_game_model.is_replay_mode.set_value(game_ready_data.is_replay_mode)
+		current_game_model.session_metadata.set_value(game_ready_data.session_metadata)
+		current_game_model.last_game_result.set_value(null)
 
 	app_config.current_replay_data.set_value(null)
 	app_config.selected_bookmark_data.set_value(null)

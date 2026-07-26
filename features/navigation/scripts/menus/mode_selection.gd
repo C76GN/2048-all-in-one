@@ -15,6 +15,9 @@ const _DETAIL_REVEAL_STAGGER: float = 0.02
 const _STATS_EMPTY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n暂无完整对局统计"
 const _STATS_SUMMARY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
 const _STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n目标 %d：达成 %d 次 · %d%%\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
+const _DAILY_PREVIEW_FORMAT_FALLBACK: String = "今日挑战 %s · 种子 %d · 本地最佳 %s"
+const _DAILY_PREVIEW_CUSTOM_SUFFIX_FALLBACK: String = "\n自定义棋盘可游玩，但不计入本地比赛榜。"
+const _MANUAL_SEED_WARNING_FALLBACK: String = "\n当前为手动种子：成绩不计入本地比赛榜。"
 const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 	"top": 54.0,
 	"left": 56.0,
@@ -34,6 +37,9 @@ var _selected_mode_config: GameModeConfig = null
 var _mode_config_paths: PackedStringArray = PackedStringArray()
 var _current_board_size: Vector2i = Vector2i(4, 4)
 var _current_board_topology: BoardTopology = null
+var _current_board_is_custom: bool = false
+var _seed_source: StringName = GameSessionMetadata.SEED_SOURCE_RANDOM
+var _is_updating_seed_text: bool = false
 var _custom_board_option_index: int = -1
 var _items_per_page: int = 5
 var _current_page: int = 0
@@ -73,6 +79,8 @@ var _info_score_label: Label
 @onready var _edit_board_button: Button = %EditBoardButton
 @onready var _seed_line_edit: LineEdit = %SeedLineEdit
 @onready var _refresh_seed_button: Button = %RefreshSeedButton
+@onready var _daily_challenge_button: Button = %DailyChallengeButton
+@onready var _competition_status_label: Label = %CompetitionStatusLabel
 @onready var _prev_page_button: Button = %PrevPageButton
 @onready var _next_page_button: Button = %NextPageButton
 @onready var _pagination_container: HBoxContainer = _get_parent_hbox(_prev_page_button)
@@ -105,6 +113,12 @@ func _ready() -> void:
 	var _connect_result_78: int = _grid_size_option_button.item_selected.connect(_on_grid_size_selected)
 	var _connect_result_79: int = _start_game_button.pressed.connect(_on_start_game_button_pressed)
 	var _connect_result_80: int = _refresh_seed_button.pressed.connect(_on_refresh_seed_button_pressed)
+	var _connect_result_80a: int = _daily_challenge_button.pressed.connect(
+		_on_daily_challenge_button_pressed
+	)
+	var _connect_result_80b: int = _seed_line_edit.text_changed.connect(
+		_on_seed_text_changed
+	)
 	var _connect_result_81: int = _prev_page_button.pressed.connect(_on_prev_page_button_pressed)
 	var _connect_result_82: int = _next_page_button.pressed.connect(_on_next_page_button_pressed)
 	var _connect_result_83: int = _grid_size_option_button.get_popup().id_focused.connect(_on_grid_size_focused)
@@ -300,8 +314,14 @@ func _apply_mode_selection_visual_system() -> void:
 	style_utility.style_label(_config_header_label, GameUiStyleUtility.TextRole.PRIMARY, 24, true)
 	style_utility.style_label(_grid_size_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
 	style_utility.style_label(_seed_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
+	style_utility.style_label(
+		_competition_status_label,
+		GameUiStyleUtility.TextRole.MUTED,
+		14
+	)
 	style_utility.style_line_edit(_seed_line_edit)
 	style_utility.prepare_button(_grid_size_option_button)
+	style_utility.prepare_button(_daily_challenge_button)
 	style_utility.style_button(
 		_refresh_seed_button,
 		GameUiStyleUtility.ButtonRole.ICON
@@ -343,6 +363,7 @@ func _apply_mode_focus_graph(cards: Array[Control]) -> void:
 			_edit_board_button,
 			_seed_line_edit,
 			_refresh_seed_button,
+			_daily_challenge_button,
 			_start_game_button,
 		]:
 			if not is_instance_valid(detail_control):
@@ -355,6 +376,7 @@ func _apply_mode_focus_graph(cards: Array[Control]) -> void:
 			_grid_size_option_button,
 			_edit_board_button,
 			_seed_line_edit,
+			_daily_challenge_button,
 			_start_game_button,
 		]:
 			if not is_instance_valid(detail_control):
@@ -417,6 +439,7 @@ func _update_ui_for_selection() -> void:
 	_populate_right_panel()
 	_populate_left_panel()
 	_reveal_selection_panels()
+	_update_competition_status()
 
 
 func _show_default_info() -> void:
@@ -433,6 +456,8 @@ func _show_default_info() -> void:
 	_right_panel_container.visible = false
 	if is_instance_valid(_start_game_button):
 		_start_game_button.disabled = true
+	if is_instance_valid(_daily_challenge_button):
+		_daily_challenge_button.disabled = true
 
 
 func _update_ui_text() -> void:
@@ -448,6 +473,8 @@ func _update_ui_text() -> void:
 		_back_button.text = tr("UI_BACK")
 	if is_instance_valid(_start_game_button):
 		_start_game_button.text = tr("BTN_START_GAME")
+	if is_instance_valid(_daily_challenge_button):
+		_daily_challenge_button.text = tr("BTN_DAILY_CHALLENGE")
 	if is_instance_valid(_edit_board_button):
 		_edit_board_button.text = tr("BOARD_EDITOR_OPEN")
 	if is_instance_valid(_config_header_label):
@@ -482,6 +509,7 @@ func _populate_right_panel() -> void:
 		return
 	_current_board_topology = null
 	_current_board_size = Vector2i.ZERO
+	_current_board_is_custom = false
 	_custom_board_option_index = -1
 	_start_game_button.disabled = true
 	_edit_board_button.disabled = true
@@ -518,6 +546,9 @@ func _populate_right_panel() -> void:
 	_grid_size_option_button.select(default_size_index)
 	_on_grid_size_selected(default_size_index)
 	_start_game_button.disabled = not is_instance_valid(_current_board_topology)
+	_daily_challenge_button.disabled = not is_instance_valid(
+		_current_board_topology
+	)
 
 
 func _update_high_score_label() -> void:
@@ -554,7 +585,11 @@ func _generate_and_display_new_seed() -> void:
 		clock_utility.get_tick_msec(),
 		seed_utility.next_uint32(),
 	])
+	_is_updating_seed_text = true
 	_seed_line_edit.text = str(seed_value)
+	_is_updating_seed_text = false
+	_seed_source = GameSessionMetadata.SEED_SOURCE_RANDOM
+	_update_competition_status()
 
 
 func _update_grid_size_and_ui(index: int) -> void:
@@ -566,9 +601,14 @@ func _update_grid_size_and_ui(index: int) -> void:
 		return
 	_current_board_topology = topology_value
 	_current_board_size = _current_board_topology.get_bounds_size()
+	_current_board_is_custom = (
+		_custom_board_option_index >= 0
+		and index == _custom_board_option_index
+	)
 
 	if is_instance_valid(_selected_mode_config):
 		_update_high_score_label()
+		_update_competition_status()
 
 
 func _configure_board_editor(panel: Node) -> void:
@@ -822,6 +862,13 @@ func _get_clock_utility() -> GameClockUtility:
 	return null
 
 
+func _get_challenge_utility() -> GameChallengeUtility:
+	var utility_value: Object = get_utility(GameChallengeUtility)
+	if utility_value is GameChallengeUtility:
+		return utility_value
+	return null
+
+
 func _get_viewport_utility() -> GFViewportUtility:
 	var utility_value: Object = get_utility(GFViewportUtility)
 	if utility_value is GFViewportUtility:
@@ -865,6 +912,134 @@ func _get_mode_config(config_path: String) -> GameModeConfig:
 		return null
 
 	return mode_catalog.get_config(config_path)
+
+
+func _update_competition_status() -> void:
+	if not is_instance_valid(_competition_status_label):
+		return
+	if (
+		not is_instance_valid(_selected_mode_config)
+		or not is_instance_valid(_current_board_topology)
+	):
+		_competition_status_label.text = tr("DAILY_CHALLENGE_UNAVAILABLE")
+		if is_instance_valid(_daily_challenge_button):
+			_daily_challenge_button.disabled = true
+		return
+	var challenge_utility: GameChallengeUtility = _get_challenge_utility()
+	var daily_challenge: GameChallengeMetadata = (
+		challenge_utility.get_current_daily_challenge(
+			_selected_mode_config,
+			_current_board_topology
+		)
+		if is_instance_valid(challenge_utility)
+		else null
+	)
+	if daily_challenge == null:
+		_competition_status_label.text = tr("DAILY_CHALLENGE_UNAVAILABLE")
+		if is_instance_valid(_daily_challenge_button):
+			_daily_challenge_button.disabled = true
+		return
+
+	var local_best_text: String = tr("UI_NONE")
+	var progress_stats: ProgressStatsSystem = _get_progress_stats_system()
+	if is_instance_valid(progress_stats):
+		var mode_id: String = _selected_mode_config.resource_path.get_file().get_basename()
+		var leaderboard: Array[GameResultRecordedData] = (
+			progress_stats.get_local_leaderboard(
+				mode_id,
+				_current_board_topology.get_stable_key(),
+				daily_challenge.get_ruleset_id(),
+				daily_challenge.get_ruleset_version(),
+				daily_challenge.get_ruleset_fingerprint(),
+				daily_challenge
+			)
+		)
+		if not leaderboard.is_empty():
+			local_best_text = str(leaderboard[0].score)
+	var status_text: String = GameTextFormatUtility.format_template(
+		tr("DAILY_CHALLENGE_PREVIEW_FORMAT"),
+		_DAILY_PREVIEW_FORMAT_FALLBACK,
+		[
+			daily_challenge.get_utc_date(),
+			daily_challenge.get_seed(),
+			local_best_text,
+		]
+	)
+	if _current_board_is_custom:
+		status_text += GameTextFormatUtility.format_template(
+			tr("DAILY_CHALLENGE_CUSTOM_SUFFIX"),
+			_DAILY_PREVIEW_CUSTOM_SUFFIX_FALLBACK,
+			[]
+		)
+	if _seed_source == GameSessionMetadata.SEED_SOURCE_MANUAL:
+		status_text += GameTextFormatUtility.format_template(
+			tr("MANUAL_SEED_COMPETITION_WARNING"),
+			_MANUAL_SEED_WARNING_FALLBACK,
+			[]
+		)
+	_competition_status_label.text = status_text
+	if is_instance_valid(_daily_challenge_button):
+		_daily_challenge_button.disabled = false
+
+
+func _parse_seed_text(seed_text: String) -> int:
+	if seed_text.is_valid_int():
+		return seed_text.to_int()
+	return GFSeedUtility.make_stable_text_seed(seed_text)
+
+
+func _start_selected_game(seed_source: StringName) -> void:
+	if not is_instance_valid(_selected_mode_config):
+		push_error("[ModeSelection] %s" % tr("ERR_NO_MODE_SELECTED"))
+		return
+	if not is_instance_valid(_current_board_topology):
+		push_error("[ModeSelection] 当前模式没有可用的棋盘拓扑。")
+		return
+	if game_play_scene_path.is_empty():
+		push_error("[ModeSelection] game_play_scene_path 未配置。")
+		return
+
+	var seed_value: int = 0
+	if seed_source == GameSessionMetadata.SEED_SOURCE_DAILY:
+		var challenge_utility: GameChallengeUtility = _get_challenge_utility()
+		var challenge: GameChallengeMetadata = (
+			challenge_utility.get_current_daily_challenge(
+				_selected_mode_config,
+				_current_board_topology
+			)
+			if is_instance_valid(challenge_utility)
+			else null
+		)
+		if challenge == null:
+			push_error("[ModeSelection] Daily Challenge 身份派生失败。")
+			return
+		seed_value = challenge.get_seed()
+	else:
+		var seed_text: String = _seed_line_edit.text.strip_edges()
+		if seed_text.is_empty():
+			_generate_and_display_new_seed()
+			seed_text = _seed_line_edit.text
+			seed_source = GameSessionMetadata.SEED_SOURCE_RANDOM
+		seed_value = _parse_seed_text(seed_text)
+
+	var app_config: AppConfigModel = _get_app_config_model()
+	if is_instance_valid(app_config):
+		app_config.selected_mode_config_path.set_value(
+			_selected_mode_config.resource_path
+		)
+		var selected_topology: Resource = _current_board_topology.duplicate(true)
+		app_config.selected_board_topology.set_value(selected_topology)
+		app_config.selected_board_is_custom.set_value(_current_board_is_custom)
+		app_config.selected_seed_source.set_value(seed_source)
+		app_config.selected_seed.set_value(seed_value)
+
+	var seed_util: GFSeedUtility = _get_seed_utility()
+	if is_instance_valid(seed_util):
+		seed_util.set_global_seed(seed_value)
+
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
+		router.goto_scene(game_play_scene_path)
 
 
 # --- 信号处理函数 ---
@@ -913,39 +1088,19 @@ func _on_next_page_button_pressed() -> void:
 
 
 func _on_start_game_button_pressed() -> void:
-	if not is_instance_valid(_selected_mode_config):
-		push_error("[ModeSelection] %s" % tr("ERR_NO_MODE_SELECTED"))
-		return
-	if not is_instance_valid(_current_board_topology):
-		push_error("[ModeSelection] 当前模式没有可用的棋盘拓扑。")
-		return
-	if game_play_scene_path.is_empty():
-		push_error("[ModeSelection] game_play_scene_path 未配置。")
-		return
-
-	var seed_text: String = _seed_line_edit.text
-	var seed_value: int = 0
-
-	if seed_text.is_empty():
-		seed_value = _get_unix_timestamp()
-	else:
-		seed_value = seed_text.to_int() if seed_text.is_valid_int() else seed_text.hash()
-
-	var app_config: AppConfigModel = _get_app_config_model()
-	if is_instance_valid(app_config):
-		app_config.selected_mode_config_path.set_value(_selected_mode_config.resource_path)
-		var selected_topology: Resource = _current_board_topology.duplicate(true)
-		app_config.selected_board_topology.set_value(selected_topology)
-		app_config.selected_seed.set_value(seed_value)
-
-	var seed_util: GFSeedUtility = _get_seed_utility()
-	if is_instance_valid(seed_util):
-		seed_util.set_global_seed(seed_value)
-
-	var router: SceneRouterSystem = _get_scene_router_system()
-	if is_instance_valid(router):
-		router.goto_scene(game_play_scene_path)
+	_start_selected_game(_seed_source)
 
 
 func _on_refresh_seed_button_pressed() -> void:
 	_generate_and_display_new_seed()
+
+
+func _on_daily_challenge_button_pressed() -> void:
+	_start_selected_game(GameSessionMetadata.SEED_SOURCE_DAILY)
+
+
+func _on_seed_text_changed(_new_text: String) -> void:
+	if _is_updating_seed_text:
+		return
+	_seed_source = GameSessionMetadata.SEED_SOURCE_MANUAL
+	_update_competition_status()

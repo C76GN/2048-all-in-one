@@ -39,3 +39,6 @@ var loaded_bookmark_data: BookmarkData = null
 
 ## 回放模式下携带的回放数据资源。
 var replay_data_resource: ReplayData = null
+
+## 当前对局冻结的 seed 来源、挑战和比赛资格上下文。
+var session_metadata: GameSessionMetadata = GameSessionMetadata.create_default()

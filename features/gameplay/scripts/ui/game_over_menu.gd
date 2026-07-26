@@ -12,6 +12,11 @@ const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
 const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
 const _SUMMARY_FORMAT_FALLBACK: String = "%s · %dx%d\n本局：%d 分 · %d 步 · 最大方块 %d\n历史：最高分 %d · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n完整对局：%d"
 const _SUMMARY_FORMAT_WITH_TARGET_FALLBACK: String = "%s · %dx%d\n本局：%d 分 · %d 步 · 最大方块 %d\n历史：最高分 %d · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n目标 %d：本局%s · 累计 %d 次 · %d%%\n完整对局：%d"
+const _RESULT_IDENTITY_FORMAT_FALLBACK: String = "种子 %d · 状态校验 %s"
+const _DAILY_RESULT_FORMAT_FALLBACK: String = "今日挑战 %s · 挑战校验 %s"
+const _COMPETITION_ELIGIBLE_FALLBACK: String = "本地比赛榜：合格"
+const _COMPETITION_RANK_FORMAT_FALLBACK: String = "本地比赛榜：合格 · 第 %d 名"
+const _COMPETITION_INELIGIBLE_FORMAT_FALLBACK: String = "本地比赛榜：不计入 · %s"
 
 
 # --- 私有变量 ---
@@ -99,8 +104,9 @@ func _refresh_summary() -> void:
 	if score > initial_high_score:
 		prefix = tr("GAME_OVER_NEW_RECORD_PREFIX") + "\n"
 		_play_new_record_celebration_once()
+	var summary_text: String = ""
 	if target_value > 0:
-		_summary_label.text = prefix + GameTextFormatUtility.format_template(
+		summary_text = GameTextFormatUtility.format_template(
 			tr("GAME_OVER_SUMMARY_FORMAT_WITH_TARGET"),
 			_SUMMARY_FORMAT_WITH_TARGET_FALLBACK,
 			[
@@ -122,25 +128,31 @@ func _refresh_summary() -> void:
 				plays,
 			]
 		)
-		return
-	_summary_label.text = prefix + GameTextFormatUtility.format_template(
-		tr("GAME_OVER_SUMMARY_FORMAT"),
-		_SUMMARY_FORMAT_FALLBACK,
-		[
-			mode_name,
-			board_size.x,
-			board_size.y,
-			score,
-			move_count,
-			highest_tile,
-			high_score,
-			_format_optional_stat(best_steps),
-			_format_optional_stat(history_max_tile),
-			_format_optional_stat(average_score),
-			_format_optional_stat(average_steps),
-			plays,
-		]
+	else:
+		summary_text = GameTextFormatUtility.format_template(
+			tr("GAME_OVER_SUMMARY_FORMAT"),
+			_SUMMARY_FORMAT_FALLBACK,
+			[
+				mode_name,
+				board_size.x,
+				board_size.y,
+				score,
+				move_count,
+				highest_tile,
+				high_score,
+				_format_optional_stat(best_steps),
+				_format_optional_stat(history_max_tile),
+				_format_optional_stat(average_score),
+				_format_optional_stat(average_steps),
+				plays,
+			]
+		)
+	var result_explanation: String = _format_result_explanation(
+		_get_last_game_result(current_game_model)
 	)
+	_summary_label.text = prefix + summary_text
+	if not result_explanation.is_empty():
+		_summary_label.text += "\n" + result_explanation
 
 
 func _configure_settings_panel(panel: Node) -> void:
@@ -240,6 +252,90 @@ func _get_current_stats(mode_config: GameModeConfig, topology: BoardTopology) ->
 		return {}
 	var mode_id: String = mode_config.resource_path.get_file().get_basename()
 	return progress_stats_system.get_game_stats(mode_id, topology.get_stable_key())
+
+
+func _get_last_game_result(
+	current_game_model: CurrentGameModel
+) -> GameResultRecordedData:
+	if not is_instance_valid(current_game_model):
+		return null
+	var result_value: Variant = current_game_model.last_game_result.get_value()
+	return result_value if result_value is GameResultRecordedData else null
+
+
+func _format_result_explanation(result: GameResultRecordedData) -> String:
+	if result == null or not result.is_valid():
+		return ""
+	var lines: PackedStringArray = PackedStringArray()
+	lines.append(GameTextFormatUtility.format_template(
+		tr("GAME_OVER_RESULT_IDENTITY_FORMAT"),
+		_RESULT_IDENTITY_FORMAT_FALLBACK,
+		[
+			result.initial_seed,
+			result.final_state_hash.substr(0, 12),
+		]
+	))
+	if result.challenge_metadata != null:
+		lines.append(GameTextFormatUtility.format_template(
+			tr("GAME_OVER_DAILY_RESULT_FORMAT"),
+			_DAILY_RESULT_FORMAT_FALLBACK,
+			[
+				result.challenge_metadata.get_utc_date(),
+				result.challenge_metadata.get_challenge_hash().substr(0, 12),
+			]
+		))
+	if result.is_competition_eligible():
+		var progress_stats: ProgressStatsSystem = _get_progress_stats_system()
+		var rank: int = (
+			progress_stats.get_local_rank(result)
+			if is_instance_valid(progress_stats)
+			else 0
+		)
+		lines.append(
+			GameTextFormatUtility.format_template(
+				tr("GAME_OVER_COMPETITION_RANK_FORMAT"),
+				_COMPETITION_RANK_FORMAT_FALLBACK,
+				[rank]
+			)
+			if rank > 0
+			else GameTextFormatUtility.format_template(
+				tr("GAME_OVER_COMPETITION_ELIGIBLE"),
+				_COMPETITION_ELIGIBLE_FALLBACK,
+				[]
+			)
+		)
+	else:
+		var reason_labels: PackedStringArray = PackedStringArray()
+		for reason_code: StringName in (
+			result.competition_eligibility.get_disqualifying_reason_codes()
+		):
+			reason_labels.append(_get_eligibility_reason_label(reason_code))
+		var reason_separator: String = tr("ELIGIBILITY_REASON_SEPARATOR")
+		if reason_separator == "ELIGIBILITY_REASON_SEPARATOR":
+			reason_separator = "、"
+		lines.append(GameTextFormatUtility.format_template(
+			tr("GAME_OVER_COMPETITION_INELIGIBLE_FORMAT"),
+			_COMPETITION_INELIGIBLE_FORMAT_FALLBACK,
+			[reason_separator.join(reason_labels)]
+		))
+	return "\n".join(lines)
+
+
+func _get_eligibility_reason_label(reason_code: StringName) -> String:
+	match reason_code:
+		GameCompetitionEligibility.REASON_DEBUG:
+			return tr("ELIGIBILITY_REASON_DEBUG")
+		GameCompetitionEligibility.REASON_REPLAY_CONTINUATION:
+			return tr("ELIGIBILITY_REASON_REPLAY_CONTINUATION")
+		GameCompetitionEligibility.REASON_BOOKMARK:
+			return tr("ELIGIBILITY_REASON_BOOKMARK")
+		GameCompetitionEligibility.REASON_UNDO_REDO:
+			return tr("ELIGIBILITY_REASON_UNDO_REDO")
+		GameCompetitionEligibility.REASON_CUSTOM_BOARD:
+			return tr("ELIGIBILITY_REASON_CUSTOM_BOARD")
+		GameCompetitionEligibility.REASON_MANUAL_SEED:
+			return tr("ELIGIBILITY_REASON_MANUAL_SEED")
+	return String(reason_code)
 
 
 func _format_optional_stat(value: int) -> String:

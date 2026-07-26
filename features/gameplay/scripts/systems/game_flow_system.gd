@@ -31,6 +31,7 @@ var _initial_seed_of_session: int = 0
 var _last_saved_bookmark_state: Dictionary = {}
 var _player_actions: Array[Vector2i] = []
 var _turn_checkpoints: Array[ReplayCheckpoint] = []
+var _session_metadata: GameSessionMetadata = null
 
 ## 核心状态机。
 var _fsm: GFStateMachine
@@ -124,6 +125,7 @@ func dispose() -> void:
 	_is_game_state_tainted = false
 	_current_board_topology = null
 	_initial_seed_of_session = 0
+	_session_metadata = null
 
 
 ## 更新游戏流程状态机。
@@ -200,7 +202,8 @@ func finalize_turn_result(turn_result: TurnResult) -> void:
 	var checkpoint: ReplayCheckpoint = _determinism.create_checkpoint(
 		step_index,
 		_get_full_game_state(),
-		_mode_config
+		_mode_config,
+		turn_result
 	)
 	if checkpoint == null:
 		push_error("[GameFlowSystem] 无法生成第 %d 步确定性检查点。" % step_index)
@@ -298,6 +301,21 @@ func restart_game() -> void:
 		app_config.selected_mode_config_path.set_value(mode_config.resource_path)
 		app_config.selected_board_topology.set_value(board_topology.duplicate(true))
 		app_config.selected_seed.set_value(initial_seed)
+		var restart_seed_source: StringName = GameSessionMetadata.SEED_SOURCE_MANUAL
+		var current_metadata: GameSessionMetadata = _get_current_session_metadata()
+		if (
+			current_metadata != null
+			and current_metadata.get_seed_source()
+			== GameSessionMetadata.SEED_SOURCE_DAILY
+		):
+			restart_seed_source = GameSessionMetadata.SEED_SOURCE_DAILY
+		app_config.selected_seed_source.set_value(restart_seed_source)
+		app_config.selected_board_is_custom.set_value(
+			current_metadata != null
+			and current_metadata.get_eligibility().has_reason(
+				GameCompetitionEligibility.REASON_CUSTOM_BOARD
+			)
+		)
 		if is_instance_valid(log_utility):
 			log_utility.debug(_LOG_TAG, "已写回 AppConfigModel.selected_seed=%d" % initial_seed)
 
@@ -499,7 +517,7 @@ func _handle_game_over() -> void:
 		return
 
 	_play_game_over_sound()
-	_persist_current_game_result()
+	var _recorded_result: GameResultRecordedData = _persist_current_game_result()
 
 	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_status_model):
 		return
@@ -510,6 +528,9 @@ func _handle_game_over() -> void:
 	if not replay_data.configure_ruleset(_mode_config, _determinism):
 		return
 	replay_data.initial_seed = _initial_seed_of_session
+	if _session_metadata == null:
+		return
+	replay_data.session_metadata = _session_metadata.to_dict()
 	var current_topology: BoardTopology = _get_current_topology()
 	if current_topology == null:
 		return
@@ -530,6 +551,11 @@ func _handle_game_over() -> void:
 func _on_game_ready(data: GameReadyData) -> void:
 	_is_replay_mode = data.is_replay_mode
 	_is_game_state_tainted = false
+	_session_metadata = (
+		GameSessionMetadata.from_dict(data.session_metadata.to_dict())
+		if data.session_metadata != null
+		else null
+	)
 	if is_instance_valid(data.mode_config):
 		_mode_config = data.mode_config
 		_mode_config_path = data.mode_config.resource_path
@@ -540,6 +566,10 @@ func _on_game_ready(data: GameReadyData) -> void:
 	_player_actions.clear()
 	_turn_checkpoints.clear()
 	_last_saved_bookmark_state = {}
+	var current_game_model: CurrentGameModel = _get_current_game_model()
+	if is_instance_valid(current_game_model):
+		current_game_model.session_metadata.set_value(_session_metadata)
+		current_game_model.last_game_result.set_value(null)
 	var initial_target_reached: bool = false
 	if is_instance_valid(data.loaded_bookmark_data):
 		initial_target_reached = data.loaded_bookmark_data.target_reached
@@ -560,6 +590,34 @@ func _get_current_topology() -> BoardTopology:
 func _get_current_board_key() -> String:
 	var topology: BoardTopology = _get_current_topology()
 	return topology.get_stable_key() if is_instance_valid(topology) else ""
+
+
+func _get_current_session_metadata() -> GameSessionMetadata:
+	if _session_metadata != null:
+		return _session_metadata
+	var current_game_model: CurrentGameModel = _get_current_game_model()
+	if not is_instance_valid(current_game_model):
+		return null
+	var metadata_value: Variant = current_game_model.session_metadata.get_value()
+	if metadata_value is GameSessionMetadata:
+		_session_metadata = metadata_value
+	return _session_metadata
+
+
+func _add_eligibility_reason(reason_code: StringName) -> bool:
+	var current_metadata: GameSessionMetadata = _get_current_session_metadata()
+	if current_metadata == null:
+		return false
+	var next_metadata: GameSessionMetadata = current_metadata.with_eligibility_reason(
+		reason_code
+	)
+	if next_metadata == null:
+		return false
+	_session_metadata = next_metadata
+	var current_game_model: CurrentGameModel = _get_current_game_model()
+	if is_instance_valid(current_game_model):
+		current_game_model.session_metadata.set_value(next_metadata)
+	return true
 
 
 static func _duplicate_topology(source: BoardTopology) -> BoardTopology:
@@ -605,15 +663,21 @@ func _persist_current_high_score() -> void:
 	_log_persistence_error("save high score", save_error)
 
 
-func _persist_current_game_result() -> void:
-	if _is_replay_mode or _is_game_state_tainted:
-		return
-	if _mode_config_path.is_empty() or not is_instance_valid(_game_status_model):
-		return
+func _persist_current_game_result() -> GameResultRecordedData:
+	if _is_replay_mode:
+		return null
+	if (
+		_mode_config_path.is_empty()
+		or not is_instance_valid(_game_status_model)
+		or not is_instance_valid(_mode_config)
+		or not is_instance_valid(_determinism)
+		or _session_metadata == null
+	):
+		return null
 
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system()
 	if not is_instance_valid(progress_stats_system):
-		return
+		return null
 
 	sync_highest_tile_from_grid()
 	var mode_id: String = _mode_config_path.get_file().get_basename()
@@ -622,17 +686,36 @@ func _persist_current_game_result() -> void:
 	var highest_tile: int = GFVariantData.to_int(_game_status_model.highest_tile.get_value(), 0)
 	var target_value: int = _get_target_tile_value()
 	var target_reached: bool = _has_reached_target_in_session(highest_tile)
-	var save_error: Error = progress_stats_system.record_game_result(
-		mode_id,
+	var final_state_hash: String = _determinism.calculate_state_checksum(
+		_get_full_game_state(),
+		_mode_config
+	)
+	var result: GameResultRecordedData = GameResultRecordedData.create(
+		StringName(mode_id),
 		_get_current_board_key(),
+		_mode_config.ruleset_id,
+		_mode_config.ruleset_version,
+		_determinism.calculate_ruleset_fingerprint(_mode_config),
+		_initial_seed_of_session,
+		final_state_hash,
+		_session_metadata.get_challenge(),
+		_session_metadata.get_eligibility(),
 		final_score,
 		move_count,
 		highest_tile,
-		0,
+		_get_unix_timestamp(),
 		target_value,
 		target_reached
 	)
+	if result == null:
+		_log_persistence_error("build game result", ERR_INVALID_DATA)
+		return null
+	var current_game_model: CurrentGameModel = _get_current_game_model()
+	if is_instance_valid(current_game_model):
+		current_game_model.last_game_result.set_value(result)
+	var save_error: Error = progress_stats_system.record_game_result(result)
 	_log_persistence_error("save game result", save_error)
+	return result if save_error == OK else null
 
 
 func _play_game_over_sound() -> void:
@@ -734,6 +817,9 @@ func _restore_replay_trace_from_bookmark(bookmark: BookmarkData) -> void:
 
 func _on_game_state_tainted(_payload: Variant = null) -> void:
 	_is_game_state_tainted = true
+	var _reason_added: bool = _add_eligibility_reason(
+		GameCompetitionEligibility.REASON_DEBUG
+	)
 
 
 func _on_board_resized(_new_size: int) -> void:
@@ -762,6 +848,9 @@ func _on_undo_requested(_payload: Variant = null) -> void:
 		return
 
 	if await command_history.undo_last_async():
+		var _reason_added: bool = _add_eligibility_reason(
+			GameCompetitionEligibility.REASON_UNDO_REDO
+		)
 		if not _player_actions.is_empty():
 			_player_actions.pop_back()
 		if not _turn_checkpoints.is_empty():
@@ -803,6 +892,9 @@ func _on_redo_requested(_payload: Variant = null) -> void:
 		return
 
 	if await command_history.redo_async():
+		var _reason_added: bool = _add_eligibility_reason(
+			GameCompetitionEligibility.REASON_UNDO_REDO
+		)
 		send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
 	else:
 		_push_gameplay_notification(
@@ -860,6 +952,10 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	var seed_utility: GFSeedUtility = _get_seed_utility()
 	if is_instance_valid(seed_utility):
 		new_bookmark.initial_seed = seed_utility.get_global_seed()
+	if _session_metadata == null:
+		_log_persistence_error("freeze bookmark session metadata", ERR_INVALID_DATA)
+		return
+	new_bookmark.session_metadata = _session_metadata.to_dict()
 
 	new_bookmark.score = GFVariantData.to_int(current_state_for_comparison.get(&"score", 0), 0)
 	new_bookmark.move_count = GFVariantData.to_int(current_state_for_comparison.get(&"move_count", 0), 0)
@@ -948,6 +1044,9 @@ func _on_replay_continue_requested(payload: Variant = null) -> void:
 	_is_replay_mode = false
 	_is_game_state_tainted = false
 	_last_saved_bookmark_state = {}
+	var _reason_added: bool = _add_eligibility_reason(
+		GameCompetitionEligibility.REASON_REPLAY_CONTINUATION
+	)
 
 	var current_game_model: CurrentGameModel = _get_current_game_model()
 	if is_instance_valid(current_game_model):

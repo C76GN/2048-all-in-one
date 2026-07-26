@@ -5,7 +5,7 @@ extends Resource
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 2
+const SCHEMA_VERSION: int = 3
 
 
 # --- 导出变量 ---
@@ -18,6 +18,7 @@ const SCHEMA_VERSION: int = 2
 @export var ruleset_version: int = 0
 @export var ruleset_fingerprint: String = ""
 @export var initial_seed: int = 0
+@export var session_metadata: Dictionary = GameSessionMetadata.make_default_dict()
 @export var initial_board_topology: Dictionary = {}
 @export var final_score: int = 0
 @export var actions: Array[Vector2i] = []
@@ -72,6 +73,7 @@ func to_dict() -> Dictionary:
 		&"ruleset_version": ruleset_version,
 		&"ruleset_fingerprint": ruleset_fingerprint,
 		&"initial_seed": initial_seed,
+		&"session_metadata": session_metadata.duplicate(true),
 		&"initial_board_topology": initial_board_topology.duplicate(true),
 		&"final_score": final_score,
 		&"actions": actions.duplicate(),
@@ -85,7 +87,7 @@ func get_initial_topology() -> BoardTopology:
 
 
 ## 从当前严格 schema 恢复回放资源。
-## @param data: ReplayData schema v2 的完整字典。
+## @param data: ReplayData 当前严格 schema 的完整字典。
 static func from_dict(data: Dictionary) -> ReplayData:
 	if not _has_valid_persisted_shape(data):
 		return null
@@ -103,6 +105,12 @@ static func from_dict(data: Dictionary) -> ReplayData:
 		&"ruleset_fingerprint"
 	)
 	result.initial_seed = GFVariantData.get_option_int(data, &"initial_seed")
+	result.session_metadata = GFVariantData.get_option_dictionary(
+		data,
+		&"session_metadata"
+	).duplicate(true)
+	if result.get_session_metadata() == null:
+		return null
 	result.initial_board_topology = GFVariantData.get_option_dictionary(
 		data,
 		&"initial_board_topology"
@@ -132,15 +140,21 @@ static func from_dict(data: Dictionary) -> ReplayData:
 	return result
 
 
+func get_session_metadata() -> GameSessionMetadata:
+	return GameSessionMetadata.from_dict(session_metadata)
+
+
 # --- 私有/辅助方法 ---
 
 func _is_valid_contract(initial_topology: BoardTopology) -> bool:
+	var metadata: GameSessionMetadata = get_session_metadata()
 	if (
 		schema_version != SCHEMA_VERSION
 		or mode_config_path.is_empty()
 		or ruleset_id == &""
 		or ruleset_version <= 0
 		or ruleset_fingerprint.length() != 64
+		or metadata == null
 		or checkpoints.size() != actions.size()
 		or not GridModel.is_snapshot_envelope_valid(final_board_snapshot)
 	):
@@ -159,11 +173,29 @@ func _is_valid_contract(initial_topology: BoardTopology) -> bool:
 	return (
 		final_topology != null
 		and final_topology.get_stable_key() == initial_topology.get_stable_key()
+		and _does_session_metadata_match_replay(metadata, initial_topology)
+	)
+
+
+func _does_session_metadata_match_replay(
+	metadata: GameSessionMetadata,
+	initial_topology: BoardTopology
+) -> bool:
+	var challenge: GameChallengeMetadata = metadata.get_challenge()
+	if metadata.get_seed_source() != GameSessionMetadata.SEED_SOURCE_DAILY:
+		return challenge == null
+	return (
+		challenge != null
+		and challenge.get_ruleset_id() == ruleset_id
+		and challenge.get_ruleset_version() == ruleset_version
+		and challenge.get_ruleset_fingerprint() == ruleset_fingerprint
+		and challenge.get_topology_key() == initial_topology.get_stable_key()
+		and challenge.get_seed() == initial_seed
 	)
 
 
 static func _has_valid_persisted_shape(data: Dictionary) -> bool:
-	if data.size() != 13:
+	if data.size() != 14:
 		return false
 	return (
 		GFVariantData.get_option_value(data, &"schema_version") is int
@@ -174,6 +206,7 @@ static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, &"ruleset_version") is int
 		and GFVariantData.get_option_value(data, &"ruleset_fingerprint") is String
 		and GFVariantData.get_option_value(data, &"initial_seed") is int
+		and GFVariantData.get_option_value(data, &"session_metadata") is Dictionary
 		and GFVariantData.get_option_value(data, &"initial_board_topology") is Dictionary
 		and GFVariantData.get_option_value(data, &"final_score") is int
 		and GFVariantData.get_option_value(data, &"actions") is Array

@@ -5,7 +5,7 @@ extends GameSaveSectionData
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 6
+const SCHEMA_VERSION: int = 7
 
 
 # --- 私有变量 ---

@@ -8,7 +8,7 @@ extends Resource
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 2
+const SCHEMA_VERSION: int = 3
 
 
 # --- 导出变量 ---
@@ -35,6 +35,9 @@ const SCHEMA_VERSION: int = 2
 
 ## 游戏状态的游戏种子。
 @export var initial_seed: int = 0
+
+## 保存时冻结的 seed 来源、挑战和比赛资格上下文。
+@export var session_metadata: Dictionary = GameSessionMetadata.make_default_dict()
 
 ## 书签保存时的分数。
 @export var score: int = 0
@@ -120,6 +123,7 @@ func to_dict() -> Dictionary:
 		"ruleset_version": ruleset_version,
 		"ruleset_fingerprint": ruleset_fingerprint,
 		"initial_seed": initial_seed,
+		"session_metadata": session_metadata.duplicate(true),
 		"score": score,
 		"move_count": move_count,
 		"ratio_resolutions": ratio_resolutions,
@@ -153,6 +157,12 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	result.ruleset_version = GFVariantData.get_option_int(data, "ruleset_version", 0)
 	result.ruleset_fingerprint = GFVariantData.get_option_string(data, "ruleset_fingerprint")
 	result.initial_seed = GFVariantData.get_option_int(data, "initial_seed")
+	result.session_metadata = GFVariantData.get_option_dictionary(
+		data,
+		"session_metadata"
+	).duplicate(true)
+	if result.get_session_metadata() == null:
+		return null
 	result.score = GFVariantData.get_option_int(data, "score")
 	result.move_count = GFVariantData.get_option_int(data, "move_count")
 	result.ratio_resolutions = GFVariantData.get_option_int(data, "ratio_resolutions")
@@ -187,10 +197,14 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	return result
 
 
+func get_session_metadata() -> GameSessionMetadata:
+	return GameSessionMetadata.from_dict(session_metadata)
+
+
 # --- 私有/辅助方法 ---
 
 static func _has_valid_persisted_shape(data: Dictionary) -> bool:
-	if data.size() != 21:
+	if data.size() != 22:
 		return false
 	var has_expected_types: bool = (
 		GFVariantData.get_option_value(data, "schema_version") is int
@@ -201,6 +215,7 @@ static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, "ruleset_version") is int
 		and GFVariantData.get_option_value(data, "ruleset_fingerprint") is String
 		and GFVariantData.get_option_value(data, "initial_seed") is int
+		and GFVariantData.get_option_value(data, "session_metadata") is Dictionary
 		and GFVariantData.get_option_value(data, "score") is int
 		and GFVariantData.get_option_value(data, "move_count") is int
 		and GFVariantData.get_option_value(data, "ratio_resolutions") is int
@@ -265,6 +280,9 @@ func _has_valid_game_state_payload() -> bool:
 	)
 	if topology == null:
 		return false
+	var metadata: GameSessionMetadata = get_session_metadata()
+	if metadata == null or not _does_session_metadata_match_bookmark(metadata, topology):
+		return false
 	return GameStateSystem.is_state_envelope_valid({
 		&"schema_version": GameStateSystem.STATE_SCHEMA_VERSION,
 		&"board_key": topology.get_stable_key(),
@@ -279,6 +297,23 @@ func _has_valid_game_state_payload() -> bool:
 		&"extra_stats": extra_stats,
 		&"rules_states": rules_states,
 	})
+
+
+func _does_session_metadata_match_bookmark(
+	metadata: GameSessionMetadata,
+	topology: BoardTopology
+) -> bool:
+	var challenge: GameChallengeMetadata = metadata.get_challenge()
+	if metadata.get_seed_source() != GameSessionMetadata.SEED_SOURCE_DAILY:
+		return challenge == null
+	return (
+		challenge != null
+		and challenge.get_ruleset_id() == ruleset_id
+		and challenge.get_ruleset_version() == ruleset_version
+		and challenge.get_ruleset_fingerprint() == ruleset_fingerprint
+		and challenge.get_topology_key() == topology.get_stable_key()
+		and challenge.get_seed() == initial_seed
+	)
 
 
 static func _is_valid_history(history: Dictionary) -> bool:

@@ -54,7 +54,7 @@ func test_high_frequency_sections_coalesce_into_one_async_profile_write() -> voi
 
 	var progress_error: Error = save_graph.queue_section_data(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		{"stats": {}}
+		_make_empty_progress_data()
 	)
 	var discovery_error: Error = save_graph.queue_section_data(
 		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
@@ -91,7 +91,7 @@ func test_synchronous_async_completion_does_not_leave_save_in_flight() -> void:
 
 	var queue_error: Error = save_graph.queue_section_data(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		{"stats": {}}
+		_make_empty_progress_data()
 	)
 	save_graph.tick(1.0)
 	var snapshot: Dictionary = save_graph.get_debug_snapshot()
@@ -125,7 +125,7 @@ func test_synchronous_thread_start_failure_retries_without_stuck_in_flight() -> 
 
 	var queue_error: Error = save_graph.queue_section_data(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		{"stats": {}}
+		_make_empty_progress_data()
 	)
 	save_graph.tick(1.0)
 	var failed_snapshot: Dictionary = save_graph.get_debug_snapshot()
@@ -169,7 +169,7 @@ func test_background_flush_deduplicates_events_and_retries_after_foreground() ->
 	var platform: GamePlatformUtility = _get_platform_stub(setup)
 	var queue_error: Error = save_graph.queue_section_data(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		{"stats": {}}
+		_make_empty_progress_data()
 	)
 
 	platform.call(
@@ -227,7 +227,7 @@ func test_architecture_dispose_flushes_pending_profile_before_exit() -> void:
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var queue_error: Error = save_graph.queue_section_data(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		{"stats": {}}
+		_make_empty_progress_data()
 	)
 
 	architecture.dispose()
@@ -255,7 +255,9 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	var replay_system: ReplaySystem = _get_replay_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
 
-	var stats_error: Error = progress_stats_system.record_game_result("classic", _BOARD_KEY, 2048, 32, 2048, 500, 2048, true)
+	var stats_error: Error = progress_stats_system.record_game_result(
+		_make_game_result(2048, 32, 2048, 500, 2048, true)
+	)
 	var bookmark: BookmarkData = _make_bookmark(600, 512)
 	var custom_board: CustomBoardData = _make_custom_board()
 	var replay: ReplayData = _make_replay(700, 2048)
@@ -338,6 +340,8 @@ func test_late_section_failure_rolls_back_earlier_sections() -> void:
 					},
 				},
 			},
+			"results": [],
+			"leaderboards": {},
 		},
 	}
 	var bookmarks_source: Dictionary = _get_section_source(payload, GameSaveGraphUtility.BOOKMARKS_SECTION_ID)
@@ -655,6 +659,75 @@ func test_bookmark_schema_requires_strict_ruleset_identity() -> void:
 	)
 
 
+func test_bookmark_and_replay_preserve_daily_session_metadata() -> void:
+	var bookmark: BookmarkData = _make_bookmark(905, 256)
+	bookmark.bookmark_id = GFUuid.generate_v7(905000)
+	var bookmark_topology: BoardTopology = BoardTopology.from_dict(
+		GFVariantData.get_option_dictionary(bookmark.board_snapshot, &"topology")
+	)
+	assert_not_null(bookmark_topology)
+	bookmark.session_metadata = _make_daily_session_metadata(
+		bookmark.ruleset_id,
+		bookmark.ruleset_version,
+		bookmark.ruleset_fingerprint,
+		bookmark_topology,
+		bookmark.initial_seed,
+		"2026-07-25"
+	).to_dict()
+
+	var restored_bookmark: BookmarkData = BookmarkData.from_dict(
+		bookmark.to_dict()
+	)
+	assert_not_null(restored_bookmark, "书签必须往返保存 Daily Challenge 身份。")
+	if restored_bookmark != null:
+		var bookmark_metadata: GameSessionMetadata = (
+			restored_bookmark.get_session_metadata()
+		)
+		assert_not_null(bookmark_metadata)
+		assert_true(
+			bookmark_metadata.get_seed_source()
+			== GameSessionMetadata.SEED_SOURCE_DAILY
+		)
+		assert_true(
+			bookmark_metadata.get_challenge().get_seed()
+			== bookmark.initial_seed
+		)
+
+	var replay: ReplayData = _make_replay(906, 512)
+	replay.replay_id = GFUuid.generate_v7(906000)
+	var replay_topology: BoardTopology = replay.get_initial_topology()
+	assert_not_null(replay_topology)
+	replay.session_metadata = _make_daily_session_metadata(
+		replay.ruleset_id,
+		replay.ruleset_version,
+		replay.ruleset_fingerprint,
+		replay_topology,
+		replay.initial_seed,
+		"2026-07-26"
+	).to_dict()
+
+	var restored_replay: ReplayData = ReplayData.from_dict(replay.to_dict())
+	assert_not_null(restored_replay, "回放必须往返保存 Daily Challenge 身份。")
+	if restored_replay != null:
+		var replay_metadata: GameSessionMetadata = restored_replay.get_session_metadata()
+		assert_not_null(replay_metadata)
+		assert_true(
+			replay_metadata.get_seed_source()
+			== GameSessionMetadata.SEED_SOURCE_DAILY
+		)
+		assert_true(
+			replay_metadata.get_challenge().get_challenge_hash()
+			== _make_daily_session_metadata(
+				replay.ruleset_id,
+				replay.ruleset_version,
+				replay.ruleset_fingerprint,
+				replay_topology,
+				replay.initial_seed,
+				"2026-07-26"
+			).get_challenge().get_challenge_hash()
+		)
+
+
 func test_replay_schema_rejects_final_snapshot_with_different_topology() -> void:
 	var replay: ReplayData = _make_replay(903, 2048)
 	replay.replay_id = GFUuid.generate_v7(903000)
@@ -831,6 +904,83 @@ func _make_legacy_storage_bytes(data: Dictionary, obfuscation_key: int = 42) -> 
 	for index: int in range(bytes.size()):
 		bytes[index] = bytes[index] ^ key_byte
 	return Marshalls.raw_to_base64(bytes).to_utf8_buffer()
+
+
+func _make_empty_progress_data() -> Dictionary:
+	return {
+		"stats": {},
+		"results": [],
+		"leaderboards": {},
+	}
+
+
+func _make_game_result(
+	score: int,
+	steps: int,
+	max_tile: int,
+	played_at: int,
+	target_value: int = 0,
+	target_reached: bool = false
+) -> GameResultRecordedData:
+	var result: GameResultRecordedData = GameResultRecordedData.create(
+		&"classic",
+		_BOARD_KEY,
+		&"gameplay.classic",
+		1,
+		"a".repeat(64),
+		2048,
+		("%d|%d|%d|%d" % [score, steps, max_tile, played_at]).sha256_text(),
+		null,
+		GameCompetitionEligibility.create(),
+		score,
+		steps,
+		max_tile,
+		played_at,
+		target_value,
+		target_reached
+	)
+	assert_not_null(result, "SaveGraph 结果 fixture 必须满足严格契约。")
+	return result
+
+
+func _make_daily_session_metadata(
+	ruleset_id: StringName,
+	ruleset_version: int,
+	ruleset_fingerprint: String,
+	topology: BoardTopology,
+	seed_value: int,
+	utc_date: String
+) -> GameSessionMetadata:
+	var challenge: GameChallengeMetadata = GameChallengeMetadata.create_daily(
+		GameChallengeUtility.DAILY_CHALLENGE_SCHEMA_VERSION,
+		utc_date,
+		ruleset_id,
+		ruleset_version,
+		ruleset_fingerprint,
+		topology.get_stable_key(),
+		seed_value,
+		(
+			"%s|%s|%d|%s|%s|%d"
+			% [
+				utc_date,
+				ruleset_id,
+				ruleset_version,
+				ruleset_fingerprint,
+				topology.get_stable_key(),
+				seed_value,
+			]
+		).sha256_text()
+	)
+	assert_not_null(challenge, "Daily session fixture 必须满足挑战契约。")
+	var metadata: GameSessionMetadata = GameSessionMetadata.create(
+		GameSessionMetadata.SEED_SOURCE_DAILY,
+		challenge,
+		GameCompetitionEligibility.create([
+			GameCompetitionEligibility.REASON_DAILY,
+		])
+	)
+	assert_not_null(metadata, "Daily session fixture 必须满足会话契约。")
+	return metadata
 
 
 func _make_bookmark(timestamp: int, score: int) -> BookmarkData:

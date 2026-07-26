@@ -6,6 +6,8 @@ extends GutTest
 
 const _MODE_ID: String = "classic_mode_config"
 const _BOARD_KEY: String = "board.rectangle.4x4@test"
+const _RULESET_ID: StringName = &"rules.classic"
+const _RULESET_FINGERPRINT: String = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 
 # --- 测试用例 ---
@@ -30,8 +32,12 @@ func test_set_high_score_updates_stats_without_recording_play() -> void:
 func test_record_game_result_updates_stats() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
-	var first_error: Error = progress_stats_system.record_game_result(_MODE_ID, _BOARD_KEY, 512, 20, 128, 100)
-	var second_error: Error = progress_stats_system.record_game_result(_MODE_ID, _BOARD_KEY, 256, 18, 256, 200)
+	var first_error: Error = progress_stats_system.record_game_result(
+		_make_result(512, 20, 128, 100)
+	)
+	var second_error: Error = progress_stats_system.record_game_result(
+		_make_result(256, 18, 256, 200)
+	)
 
 	var stats: Dictionary = progress_stats_system.get_game_stats(_MODE_ID, _BOARD_KEY)
 	assert_true(first_error == OK, "第一局统计应保存成功。")
@@ -74,8 +80,12 @@ func test_target_rate_is_bounded_by_play_count() -> void:
 func test_zero_step_results_do_not_pollute_step_averages() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
-	var zero_step_error: Error = progress_stats_system.record_game_result(_MODE_ID, _BOARD_KEY, 64, 0, 64, 100)
-	var normal_error: Error = progress_stats_system.record_game_result(_MODE_ID, _BOARD_KEY, 128, 10, 128, 200)
+	var zero_step_error: Error = progress_stats_system.record_game_result(
+		_make_result(64, 0, 64, 100)
+	)
+	var normal_error: Error = progress_stats_system.record_game_result(
+		_make_result(128, 10, 128, 200)
+	)
 	var stats: Dictionary = progress_stats_system.get_game_stats(_MODE_ID, _BOARD_KEY)
 
 	assert_true(zero_step_error == OK, "零步结果应保存成功。")
@@ -93,8 +103,12 @@ func test_zero_step_results_do_not_pollute_step_averages() -> void:
 func test_record_game_result_tracks_target_reach_stats() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
-	var missed_error: Error = progress_stats_system.record_game_result(_MODE_ID, _BOARD_KEY, 1024, 26, 1024, 100, 2048, false)
-	var reached_error: Error = progress_stats_system.record_game_result(_MODE_ID, _BOARD_KEY, 2048, 35, 2048, 200, 2048, true)
+	var missed_error: Error = progress_stats_system.record_game_result(
+		_make_result(1024, 26, 1024, 100, 2048, false)
+	)
+	var reached_error: Error = progress_stats_system.record_game_result(
+		_make_result(2048, 35, 2048, 200, 2048, true)
+	)
 	var stats: Dictionary = progress_stats_system.get_game_stats(_MODE_ID, _BOARD_KEY)
 
 	assert_true(missed_error == OK, "未达成局应保存成功。")
@@ -112,7 +126,9 @@ func test_record_game_result_preserves_existing_higher_score() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var high_score_error: Error = progress_stats_system.set_high_score(_MODE_ID, _BOARD_KEY, 4096)
-	var result_error: Error = progress_stats_system.record_game_result(_MODE_ID, _BOARD_KEY, 1024, 30, 512, 300)
+	var result_error: Error = progress_stats_system.record_game_result(
+		_make_result(1024, 30, 512, 300)
+	)
 	var stats: Dictionary = progress_stats_system.get_game_stats(_MODE_ID, _BOARD_KEY)
 
 	assert_true(high_score_error == OK, "已有最高分应保存成功。")
@@ -128,7 +144,9 @@ func test_record_game_result_preserves_existing_higher_score() -> void:
 func test_stats_persist_through_gf_save_graph() -> void:
 	var save_dir_name: String = "gut_progress_stats_system_%d" % Time.get_ticks_usec()
 	var setup: Dictionary = await _create_save_architecture({}, save_dir_name)
-	var save_error: Error = _get_progress_stats_system(setup).record_game_result(_MODE_ID, _BOARD_KEY, 1024, 24, 512, 400)
+	var save_error: Error = _get_progress_stats_system(setup).record_game_result(
+		_make_result(1024, 24, 512, 400)
+	)
 	assert_true(save_error == OK, "统计应写入 SaveGraph。")
 	_dispose_setup(setup, false)
 
@@ -143,6 +161,169 @@ func test_stats_persist_through_gf_save_graph() -> void:
 	_dispose_setup(reloaded_setup)
 
 
+func test_local_leaderboard_only_records_eligible_results_with_stable_sort() -> void:
+	var setup: Dictionary = await _create_save_architecture()
+	var progress: ProgressStatsSystem = _get_progress_stats_system(setup)
+	var eligible: GameCompetitionEligibility = GameCompetitionEligibility.create()
+	var manual: GameCompetitionEligibility = eligible.with_reason(
+		GameCompetitionEligibility.REASON_MANUAL_SEED
+	)
+	var later_tie: GameResultRecordedData = _make_result(
+		900,
+		20,
+		512,
+		300,
+		0,
+		false,
+		eligible
+	)
+	var earlier_tie: GameResultRecordedData = _make_result(
+		900,
+		20,
+		512,
+		200,
+		0,
+		false,
+		eligible
+	)
+	var ineligible_high_score: GameResultRecordedData = _make_result(
+		9_999,
+		1,
+		8192,
+		100,
+		0,
+		false,
+		manual
+	)
+
+	assert_true(progress.record_game_result(later_tie) == OK)
+	assert_true(progress.record_game_result(earlier_tie) == OK)
+	assert_true(progress.record_game_result(ineligible_high_score) == OK)
+	var leaderboard: Array[GameResultRecordedData] = (
+		progress.get_local_leaderboard_for_result(earlier_tie)
+	)
+	assert_true(leaderboard.size() == 2, "本地榜只能包含比赛合格结果。")
+	assert_true(
+		leaderboard[0].result_hash == earlier_tie.result_hash,
+		"同分、同方块、同步数时应由较早完成时间稳定决胜。"
+	)
+	assert_true(progress.get_local_rank(earlier_tie) == 1)
+	assert_true(progress.get_local_rank(later_tie) == 2)
+	assert_true(progress.get_local_rank(ineligible_high_score) == 0)
+	assert_true(progress.get_recent_results().size() == 3, "失格结果仍应保留可解释审计记录。")
+	assert_true(
+		_get_stat_int(progress.get_game_stats(_MODE_ID, _BOARD_KEY), "plays") == 3,
+		"手动 seed 仍是普通进度，只是不进入比赛榜。"
+	)
+	_dispose_setup(setup)
+
+
+func test_debug_result_is_explained_without_polluting_progress_or_leaderboard() -> void:
+	var setup: Dictionary = await _create_save_architecture()
+	var progress: ProgressStatsSystem = _get_progress_stats_system(setup)
+	var debug_eligibility: GameCompetitionEligibility = (
+		GameCompetitionEligibility.create().with_reason(
+			GameCompetitionEligibility.REASON_DEBUG
+		)
+	)
+	var debug_result: GameResultRecordedData = _make_result(
+		99_999,
+		1,
+		65_536,
+		500,
+		0,
+		false,
+		debug_eligibility
+	)
+
+	assert_true(progress.record_game_result(debug_result) == OK)
+	assert_true(progress.get_recent_results().size() == 1)
+	assert_true(
+		_get_stat_int(progress.get_game_stats(_MODE_ID, _BOARD_KEY), "plays") == 0,
+		"调试改写结果不得投影到普通进度。"
+	)
+	assert_true(
+		progress.get_local_leaderboard_for_result(debug_result).is_empty(),
+		"调试改写结果不得进入本地榜。"
+	)
+	_dispose_setup(setup)
+
+
+func test_leaderboards_are_grouped_by_topology_ruleset_and_challenge() -> void:
+	var setup: Dictionary = await _create_save_architecture()
+	var progress: ProgressStatsSystem = _get_progress_stats_system(setup)
+	var standard: GameResultRecordedData = _make_result(100, 20, 64, 100)
+	var changed_ruleset: GameResultRecordedData = _make_result(
+		200,
+		20,
+		64,
+		200,
+		0,
+		false,
+		GameCompetitionEligibility.create(),
+		null,
+		_BOARD_KEY,
+		2
+	)
+	var changed_board: GameResultRecordedData = _make_result(
+		300,
+		20,
+		64,
+		300,
+		0,
+		false,
+		GameCompetitionEligibility.create(),
+		null,
+		"board.rectangle.5x5@test"
+	)
+	var daily_challenge: GameChallengeMetadata = _make_daily_challenge(
+		"2026-07-26",
+		777
+	)
+	var daily_eligibility: GameCompetitionEligibility = (
+		GameCompetitionEligibility.create([
+			GameCompetitionEligibility.REASON_DAILY,
+		])
+	)
+	var daily: GameResultRecordedData = _make_result(
+		400,
+		20,
+		64,
+		400,
+		0,
+		false,
+		daily_eligibility,
+		daily_challenge,
+		_BOARD_KEY,
+		1,
+		777
+	)
+
+	for result: GameResultRecordedData in [
+		standard,
+		changed_ruleset,
+		changed_board,
+		daily,
+	]:
+		assert_true(progress.record_game_result(result) == OK)
+	assert_true(progress.get_local_leaderboard_for_result(standard).size() == 1)
+	assert_true(progress.get_local_leaderboard_for_result(changed_ruleset).size() == 1)
+	assert_true(progress.get_local_leaderboard_for_result(changed_board).size() == 1)
+	assert_true(progress.get_local_leaderboard_for_result(daily).size() == 1)
+	assert_false(
+		standard.get_leaderboard_group_key()
+		== changed_ruleset.get_leaderboard_group_key()
+	)
+	assert_false(
+		standard.get_leaderboard_group_key()
+		== changed_board.get_leaderboard_group_key()
+	)
+	assert_false(
+		standard.get_leaderboard_group_key() == daily.get_leaderboard_group_key()
+	)
+	_dispose_setup(setup)
+
+
 func test_progress_section_rejects_multiple_business_roots() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
@@ -155,7 +336,15 @@ func test_progress_section_rejects_multiple_business_roots() -> void:
 	)
 
 	assert_true(invalid_error == ERR_INVALID_DATA, "progress schema 应拒绝多真源载荷。")
-	assert_true(save_graph.get_section_data(GameSaveGraphUtility.PROGRESS_SECTION_ID) == {"stats": {}}, "非法替换不得改变内存 section。")
+	assert_true(
+		save_graph.get_section_data(GameSaveGraphUtility.PROGRESS_SECTION_ID)
+		== {
+			"stats": {},
+			"results": [],
+			"leaderboards": {},
+		},
+		"非法替换不得改变内存 section。"
+	)
 
 	_dispose_setup(setup)
 
@@ -184,12 +373,84 @@ func test_persisted_progress_payload_has_strict_section_schema() -> void:
 	assert_true(GFVariantData.get_option_int(envelope, "schema_version") == GameStatsSaveData.SCHEMA_VERSION, "Source 应声明严格 schema 版本。")
 	assert_true(data.has("stats"), "progress 数据必须包含 stats 根字段。")
 	assert_false(data.has("scores"), "progress 数据不得保留第二套 scores 真源。")
-	assert_true(data.size() == 1, "progress 业务根字段应保持单一。")
+	assert_true(data.has("results"), "progress 数据必须包含规范结果记录。")
+	assert_true(data.has("leaderboards"), "progress 数据必须包含本地榜投影。")
+	assert_true(data.size() == 3, "progress 业务根字段必须保持严格。")
 
 	_dispose_setup(setup)
 
 
 # --- 私有/辅助方法 ---
+
+func _make_result(
+	score: int,
+	steps: int,
+	max_tile: int,
+	played_at: int,
+	target_value: int = 0,
+	target_reached: bool = false,
+	eligibility: GameCompetitionEligibility = null,
+	challenge: GameChallengeMetadata = null,
+	board_key: String = _BOARD_KEY,
+	ruleset_version: int = 1,
+	initial_seed: int = 2048
+) -> GameResultRecordedData:
+	var resolved_eligibility: GameCompetitionEligibility = eligibility
+	if resolved_eligibility == null:
+		resolved_eligibility = GameCompetitionEligibility.create()
+	var final_state_hash: String = (
+		"%s|%d|%d|%d|%d|%d"
+		% [board_key, score, steps, max_tile, played_at, initial_seed]
+	).sha256_text()
+	var result: GameResultRecordedData = GameResultRecordedData.create(
+		StringName(_MODE_ID),
+		board_key,
+		_RULESET_ID,
+		ruleset_version,
+		_RULESET_FINGERPRINT,
+		initial_seed,
+		final_state_hash,
+		challenge,
+		resolved_eligibility,
+		score,
+		steps,
+		max_tile,
+		played_at,
+		target_value,
+		target_reached
+	)
+	assert_not_null(result, "测试结果 fixture 必须满足严格契约。")
+	return result
+
+
+func _make_daily_challenge(
+	utc_date: String,
+	seed_value: int
+) -> GameChallengeMetadata:
+	var identity_text: String = (
+		"%s|%s|%d|%s|%s|%d"
+		% [
+			utc_date,
+			_RULESET_ID,
+			1,
+			_RULESET_FINGERPRINT,
+			_BOARD_KEY,
+			seed_value,
+		]
+	)
+	var challenge: GameChallengeMetadata = GameChallengeMetadata.create_daily(
+		GameChallengeUtility.DAILY_CHALLENGE_SCHEMA_VERSION,
+		utc_date,
+		_RULESET_ID,
+		1,
+		_RULESET_FINGERPRINT,
+		_BOARD_KEY,
+		seed_value,
+		identity_text.sha256_text()
+	)
+	assert_not_null(challenge, "Daily Challenge fixture 必须满足严格契约。")
+	return challenge
+
 
 func _create_save_architecture(
 	initial_save_data: Dictionary = {},
@@ -214,9 +475,23 @@ func _create_save_architecture(
 	await architecture.register_system(ProgressStatsSystem, progress_stats_system)
 	await architecture.init()
 	if not initial_save_data.is_empty():
+		var normalized_initial_data: Dictionary = {
+			"stats": GFVariantData.get_option_dictionary(
+				initial_save_data,
+				"stats"
+			).duplicate(true),
+			"results": GFVariantData.get_option_array(
+				initial_save_data,
+				"results"
+			).duplicate(true),
+			"leaderboards": GFVariantData.get_option_dictionary(
+				initial_save_data,
+				"leaderboards"
+			).duplicate(true),
+		}
 		var seed_error: Error = save_graph.replace_section_data(
 			GameSaveGraphUtility.PROGRESS_SECTION_ID,
-			initial_save_data
+			normalized_initial_data
 		)
 		assert_true(seed_error == OK, "测试统计初始数据应写入 progress section。")
 

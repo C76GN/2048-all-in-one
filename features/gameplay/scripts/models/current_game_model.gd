@@ -22,6 +22,12 @@ var initial_high_score: GFBindableProperty = GFBindableProperty.new(0)
 ## 标记当前是否为回放模式。
 var is_replay_mode: GFBindableProperty = GFBindableProperty.new(false)
 
+## 当前对局的不可变 seed 来源、挑战和比赛资格上下文。
+var session_metadata: GFBindableProperty = GFBindableProperty.new(null)
+
+## 本局结束后写入统一 Profile 的规范结果记录。
+var last_game_result: GFBindableProperty = GFBindableProperty.new(null)
+
 
 # --- Godot 生命周期方法 ---
 
