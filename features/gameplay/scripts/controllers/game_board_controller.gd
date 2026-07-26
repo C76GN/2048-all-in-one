@@ -1106,6 +1106,10 @@ static func _get_bool(data: Dictionary, key: StringName, default_value: bool) ->
 	return default_value
 
 
+static func _get_merge_transform_feedback(instruction: Dictionary) -> bool:
+	return _get_bool(instruction, &"transform", false)
+
+
 static func _get_string_name_array(data: Dictionary, key: StringName) -> Array[StringName]:
 	var result: Array[StringName] = []
 	for value: Variant in GFVariantData.get_option_array(data, key):
@@ -1329,7 +1333,7 @@ func _on_board_animation_requested(payload: Variant) -> void:
 						),
 						&"visual_style": _get_tile_visual_style(merge_family_id),
 						&"score_delta": GFVariantData.get_option_int(instr, &"score_delta"),
-						&"do_transform": instr.has(&"transform")
+						&"do_transform": _get_merge_transform_feedback(instr)
 					}
 						
 				# 从映射中移除被消耗的节点

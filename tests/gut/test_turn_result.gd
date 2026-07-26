@@ -49,6 +49,21 @@ func test_turn_result_rejects_untyped_or_invalid_children() -> void:
 	assert_true(result.transforms.is_empty(), "无效变换不得进入结果集合。")
 
 
+func test_merge_transform_feedback_reads_boolean_value() -> void:
+	assert_false(
+		GameBoardController._get_merge_transform_feedback({&"transform": false}),
+		"普通合并即使携带 transform 键，也不得播放跨定义变换反馈。"
+	)
+	assert_true(
+		GameBoardController._get_merge_transform_feedback({&"transform": true}),
+		"跨定义合并应保留变换反馈。"
+	)
+	assert_false(
+		GameBoardController._get_merge_transform_feedback({}),
+		"缺少 transform 语义时应采用普通合并反馈。"
+	)
+
+
 # --- 私有/辅助方法 ---
 
 func _get_cell(source: Dictionary, key: String) -> Vector2i:
