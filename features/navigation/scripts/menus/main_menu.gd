@@ -40,12 +40,14 @@ var _layout_update_queued: bool = false
 var _viewport_utility: GFViewportUtility = null
 var _content_scroll: ScrollContainer = null
 var _latest_valid_bookmark: BookmarkData = null
+var _initial_scroll_restored: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
 
 @onready var _start_game_button: Button = %StartGameButton
 @onready var _continue_game_button: Button = %ContinueGameButton
+@onready var _continue_hint_label: Label = %ContinueHintLabel
 @onready var _load_bookmark_button: Button = %LoadBookmarkButton
 @onready var _replays_button: Button = %ReplaysButton
 @onready var _tile_catalog_button: Button = %TileCatalogButton
@@ -133,6 +135,8 @@ func _update_ui_text() -> void:
 			if not _continue_game_button.disabled
 			else tr("CONTINUE_GAME_UNAVAILABLE_HINT")
 		)
+	if is_instance_valid(_continue_hint_label):
+		_continue_hint_label.text = tr("CONTINUE_GAME_UNAVAILABLE_HINT")
 	if is_instance_valid(_load_bookmark_button):
 		_load_bookmark_button.text = tr("BTN_LOAD_SAVE")
 	if is_instance_valid(_replays_button):
@@ -162,6 +166,7 @@ func _apply_semantic_styles() -> void:
 	style.style_label(_menu_kicker_label, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_label(_collection_label, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_label(_system_label, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_continue_hint_label, GameUiStyleUtility.TextRole.MUTED)
 	style.style_button(_start_game_button, GameUiStyleUtility.ButtonRole.PRIMARY)
 	style.style_button(_continue_game_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_load_bookmark_button, GameUiStyleUtility.ButtonRole.SECONDARY)
@@ -171,7 +176,7 @@ func _apply_semantic_styles() -> void:
 	style.style_button(_player_profile_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_achievements_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_settings_button, GameUiStyleUtility.ButtonRole.SECONDARY)
-	style.style_button(_quit_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_quit_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 
 
 func _queue_layout_update() -> void:
@@ -236,8 +241,15 @@ func _apply_responsive_layout() -> void:
 	_load_bookmark_button.custom_minimum_size.y = (
 		44.0 if compact_landscape else (48.0 if compact else 54.0)
 	)
-	if is_instance_valid(_content_scroll) and not compact:
-		_content_scroll.scroll_vertical = 0
+	if is_instance_valid(_content_scroll) and not _initial_scroll_restored:
+		_initial_scroll_restored = true
+		call_deferred(&"_restore_initial_scroll_position")
+
+
+func _restore_initial_scroll_position() -> void:
+	if not is_instance_valid(_content_scroll):
+		return
+	_content_scroll.scroll_vertical = 0
 
 
 func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
@@ -304,6 +316,8 @@ func _refresh_continue_game_state() -> void:
 	if not is_instance_valid(_continue_game_button):
 		return
 	_continue_game_button.disabled = not is_instance_valid(_latest_valid_bookmark)
+	if is_instance_valid(_continue_hint_label):
+		_continue_hint_label.visible = _continue_game_button.disabled
 	_continue_game_button.tooltip_text = (
 		tr("CONTINUE_GAME_HINT")
 		if not _continue_game_button.disabled

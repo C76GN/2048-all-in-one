@@ -242,6 +242,7 @@ func style_control(control: Control) -> void:
 		return
 
 	control.set_meta(_STATIC_STYLE_META, true)
+	_style_embedded_scroll_bars(control)
 	if control is Label:
 		var label: Label = control
 		_apply_label_style(label)
@@ -254,9 +255,18 @@ func style_control(control: Control) -> void:
 	elif control is LineEdit:
 		var line_edit: LineEdit = control
 		style_line_edit(line_edit)
+	elif control is ScrollBar:
+		var scroll_bar: ScrollBar = control
+		_style_scroll_bar(scroll_bar)
 	elif control is Range:
 		var range_control: Range = control
 		_style_range(range_control)
+	elif control is TabContainer:
+		var tab_container: TabContainer = control
+		_style_tab_container(tab_container)
+	elif control is TabBar:
+		var tab_bar: TabBar = control
+		_style_tab_bar(tab_bar)
 	elif control is PanelContainer:
 		var panel_container: PanelContainer = control
 		_style_panel_container(panel_container)
@@ -430,7 +440,12 @@ func is_static_visuals_enabled() -> bool:
 func set_button_focus_visible(button: BaseButton, is_visible: bool) -> void:
 	var ring: ColorRect = _get_button_focus_ring(button)
 	if is_instance_valid(ring):
-		ring.visible = is_visible and not _static_visuals_enabled
+		ring.visible = (
+			is_visible
+			and not button.disabled
+			and not _static_visuals_enabled
+			and not _button_uses_embedded_focus_visual(button)
+		)
 
 
 # --- 私有/辅助方法 ---
@@ -518,14 +533,105 @@ func _apply_semantic_panel_style(panel: Panel) -> void:
 
 
 func _style_spin_box(spin_box: SpinBox) -> void:
-	spin_box.add_theme_color_override("font_color", _text_primary_color)
-	spin_box.add_theme_color_override("font_disabled_color", _text_secondary_color)
-	spin_box.add_theme_color_override("font_hover_color", _text_primary_color)
-	spin_box.add_theme_color_override("font_focus_color", _text_primary_color)
-	_apply_font_override(spin_box, _body_font)
+	for direction: StringName in [&"up", &"down"]:
+		spin_box.add_theme_color_override(
+			"%s_icon_modulate" % direction,
+			_text_primary_color
+		)
+		spin_box.add_theme_color_override(
+			"%s_hover_icon_modulate" % direction,
+			_text_primary_color
+		)
+		spin_box.add_theme_color_override(
+			"%s_pressed_icon_modulate" % direction,
+			_text_primary_color
+		)
+		spin_box.add_theme_color_override(
+			"%s_disabled_icon_modulate" % direction,
+			_button_font_disabled_color
+		)
+		spin_box.add_theme_stylebox_override(
+			"%s_background" % direction,
+			_create_spin_button_style(_field_surface_color, direction == &"up")
+		)
+		spin_box.add_theme_stylebox_override(
+			"%s_background_hovered" % direction,
+			_create_spin_button_style(_button_hover_color, direction == &"up")
+		)
+		spin_box.add_theme_stylebox_override(
+			"%s_background_pressed" % direction,
+			_create_spin_button_style(_button_pressed_color, direction == &"up")
+		)
+		spin_box.add_theme_stylebox_override(
+			"%s_background_disabled" % direction,
+			_create_spin_button_style(
+				_button_disabled_color,
+				direction == &"up"
+			)
+		)
+	spin_box.add_theme_stylebox_override(
+		"field_and_buttons_separator",
+		_create_solid_style(_field_border_color)
+	)
+	spin_box.add_theme_stylebox_override(
+		"up_down_buttons_separator",
+		_create_solid_style(_field_border_color)
+	)
+	spin_box.add_theme_constant_override("buttons_width", 30)
+	spin_box.add_theme_constant_override("field_and_buttons_separation", 1)
+	spin_box.add_theme_constant_override("buttons_vertical_separation", 1)
 	var line_edit: LineEdit = spin_box.get_line_edit()
 	if is_instance_valid(line_edit):
 		style_line_edit(line_edit)
+
+
+func _style_embedded_scroll_bars(control: Control) -> void:
+	for method_name: StringName in [&"get_v_scroll_bar", &"get_h_scroll_bar"]:
+		if not control.has_method(method_name):
+			continue
+		var scroll_bar_value: Variant = control.call(method_name)
+		if scroll_bar_value is ScrollBar:
+			var scroll_bar: ScrollBar = scroll_bar_value
+			_style_scroll_bar(scroll_bar)
+
+
+func _style_scroll_bar(scroll_bar: ScrollBar) -> void:
+	var track_color: Color = _slider_track_color
+	track_color.a = minf(track_color.a, 0.34)
+	var focus_track_color: Color = track_color
+	focus_track_color.a = minf(track_color.a + 0.12, 1.0)
+	var pressed_color: Color = _button_pressed_color
+	scroll_bar.add_theme_stylebox_override(
+		"scroll",
+		_create_scroll_bar_style(track_color)
+	)
+	scroll_bar.add_theme_stylebox_override(
+		"scroll_focus",
+		_create_scroll_bar_style(focus_track_color, _field_focus_border_color, 1)
+	)
+	scroll_bar.add_theme_stylebox_override(
+		"grabber",
+		_create_scroll_bar_style(_slider_grabber_color)
+	)
+	scroll_bar.add_theme_stylebox_override(
+		"grabber_highlight",
+		_create_scroll_bar_style(_slider_grabber_highlight_color)
+	)
+	scroll_bar.add_theme_stylebox_override(
+		"grabber_pressed",
+		_create_scroll_bar_style(pressed_color)
+	)
+	if scroll_bar is VScrollBar:
+		scroll_bar.custom_minimum_size.x = maxf(
+			scroll_bar.custom_minimum_size.x,
+			12.0
+		)
+	elif scroll_bar is HScrollBar:
+		scroll_bar.custom_minimum_size.y = maxf(
+			scroll_bar.custom_minimum_size.y,
+			12.0
+		)
+	scroll_bar.set_meta(_STATIC_STYLE_META, true)
 
 
 func _style_range(range_control: Range) -> void:
@@ -541,6 +647,49 @@ func _style_range(range_control: Range) -> void:
 		"grabber_area_highlight",
 		_create_field_style(_slider_grabber_highlight_color, Color.TRANSPARENT, 0)
 	)
+
+
+func _style_tab_container(tab_container: TabContainer) -> void:
+	tab_container.add_theme_stylebox_override(
+		"panel",
+		_create_field_style(_panel_surface_color, _field_border_color, 1)
+	)
+	var tab_bar: TabBar = tab_container.get_tab_bar()
+	if is_instance_valid(tab_bar):
+		_style_tab_bar(tab_bar)
+
+
+func _style_tab_bar(tab_bar: TabBar) -> void:
+	tab_bar.add_theme_stylebox_override(
+		"tab_unselected",
+		_create_tab_style(_field_surface_color, _field_border_color, 1)
+	)
+	tab_bar.add_theme_stylebox_override(
+		"tab_hovered",
+		_create_tab_style(_button_hover_color, _button_focus_border_color, 1)
+	)
+	tab_bar.add_theme_stylebox_override(
+		"tab_selected",
+		_create_tab_style(_selected_surface_color, _selected_border_color, 2)
+	)
+	tab_bar.add_theme_stylebox_override(
+		"tab_focus",
+		_create_tab_style(Color.TRANSPARENT, _field_focus_border_color, 2)
+	)
+	tab_bar.add_theme_stylebox_override(
+		"tab_disabled",
+		_create_tab_style(_button_disabled_color, _field_border_color, 1)
+	)
+	tab_bar.add_theme_color_override("font_unselected_color", _text_secondary_color)
+	tab_bar.add_theme_color_override("font_hovered_color", _text_primary_color)
+	tab_bar.add_theme_color_override("font_selected_color", _text_primary_color)
+	tab_bar.add_theme_color_override(
+		"font_disabled_color",
+		_button_font_disabled_color
+	)
+	tab_bar.add_theme_constant_override("h_separation", 4)
+	_apply_font_override(tab_bar, _body_font)
+	tab_bar.set_meta(_STATIC_STYLE_META, true)
 
 
 func _style_panel_container(panel_container: PanelContainer) -> void:
@@ -587,8 +736,12 @@ func _style_option_button(option_button: OptionButton) -> void:
 		_create_option_style(_field_focus_surface_color, _field_focus_border_color, 2)
 	)
 	option_button.add_theme_stylebox_override(
+		"hover_pressed",
+		_create_option_style(_field_focus_surface_color.lightened(0.025), _field_focus_border_color, 2)
+	)
+	option_button.add_theme_stylebox_override(
 		"focus",
-		_create_option_style(Color.TRANSPARENT, _field_focus_border_color, 2)
+		_create_button_focus_style(option_button, true)
 	)
 	option_button.add_theme_stylebox_override(
 		"disabled",
@@ -597,6 +750,7 @@ func _style_option_button(option_button: OptionButton) -> void:
 	option_button.add_theme_color_override("font_color", _text_primary_color)
 	option_button.add_theme_color_override("font_hover_color", _text_primary_color)
 	option_button.add_theme_color_override("font_pressed_color", _text_primary_color)
+	option_button.add_theme_color_override("font_hover_pressed_color", _text_primary_color)
 	option_button.add_theme_color_override("font_focus_color", _text_primary_color)
 	option_button.add_theme_color_override("font_disabled_color", _button_font_disabled_color)
 	if is_instance_valid(_option_arrow_icon):
@@ -659,6 +813,8 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 	var normal_color: Color = _button_normal_color
 	var hover_color: Color = _button_hover_color
 	var pressed_color: Color = _button_pressed_color
+	var pressed_border_color: Color = _button_focus_border_color
+	var pressed_border_width: int = 3
 	var border_color: Color = _button_focus_border_color
 	var normal_border_width: int = 2
 	if role == ButtonRole.PRIMARY:
@@ -677,6 +833,10 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 		hover_color = _button_hover_color
 		pressed_color = _button_pressed_color
 		normal_border_width = 1
+	if button.toggle_mode:
+		pressed_color = _selected_surface_color
+		pressed_border_color = _selected_border_color
+		pressed_border_width = 2
 	button.add_theme_stylebox_override(
 		"normal",
 		_create_button_style(normal_color, border_color, normal_border_width)
@@ -687,11 +847,19 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_create_button_style(pressed_color, _button_focus_border_color, 3)
+		_create_button_style(pressed_color, pressed_border_color, pressed_border_width)
+	)
+	button.add_theme_stylebox_override(
+		"hover_pressed",
+		_create_button_style(
+			pressed_color.lightened(0.025),
+			pressed_border_color,
+			pressed_border_width
+		)
 	)
 	button.add_theme_stylebox_override(
 		"focus",
-		_create_button_style(Color.TRANSPARENT, _button_focus_border_color, 3)
+		_create_button_focus_style(button)
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
@@ -700,6 +868,7 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 	button.add_theme_color_override("font_color", _button_font_color)
 	button.add_theme_color_override("font_hover_color", _button_font_color)
 	button.add_theme_color_override("font_pressed_color", _button_font_color)
+	button.add_theme_color_override("font_hover_pressed_color", _button_font_color)
 	button.add_theme_color_override("font_focus_color", _button_font_color)
 	button.add_theme_color_override("font_disabled_color", _button_font_disabled_color)
 	_apply_font_override(
@@ -726,6 +895,24 @@ func _create_button_style(
 	style.set_content_margin(SIDE_RIGHT, 12.0)
 	style.set_content_margin(SIDE_BOTTOM, 8.0)
 	return style
+
+
+func _create_button_focus_style(
+	button: BaseButton,
+	is_option_button: bool = false
+) -> StyleBox:
+	if _button_uses_embedded_focus_visual(button):
+		return StyleBoxEmpty.new()
+	var can_use_external_ring: bool = (
+		not _static_visuals_enabled
+		and is_instance_valid(_get_button_focus_ring_shader())
+		and is_instance_valid(_shader_parameters)
+	)
+	if can_use_external_ring:
+		return StyleBoxEmpty.new()
+	if is_option_button:
+		return _create_option_style(Color.TRANSPARENT, _button_focus_border_color, 3)
+	return _create_button_style(Color.TRANSPARENT, _button_focus_border_color, 3)
 
 
 func _create_option_style(
@@ -790,6 +977,60 @@ func _create_field_style(
 	return style
 
 
+func _create_spin_button_style(
+	bg_color: Color,
+	is_top_button: bool
+) -> StyleBoxFlat:
+	var style: StyleBoxFlat = _create_solid_style(bg_color)
+	if is_top_button:
+		style.corner_radius_top_right = 4
+	else:
+		style.corner_radius_bottom_right = 4
+	return style
+
+
+func _create_tab_style(
+	bg_color: Color,
+	border_color: Color,
+	border_width: int
+) -> StyleBoxFlat:
+	var style: StyleBoxFlat = _create_field_style(
+		bg_color,
+		border_color,
+		border_width
+	)
+	style.set_corner_radius_all(2)
+	style.set_content_margin(SIDE_LEFT, 12.0)
+	style.set_content_margin(SIDE_TOP, 7.0)
+	style.set_content_margin(SIDE_RIGHT, 12.0)
+	style.set_content_margin(SIDE_BOTTOM, 7.0)
+	return style
+
+
+func _create_scroll_bar_style(
+	bg_color: Color,
+	border_color: Color = Color.TRANSPARENT,
+	border_width: int = 0
+) -> StyleBoxFlat:
+	var style: StyleBoxFlat = _create_solid_style(bg_color)
+	style.border_color = border_color
+	style.set_border_width_all(border_width)
+	style.set_corner_radius_all(5)
+	style.set_content_margin(SIDE_LEFT, 2.0)
+	style.set_content_margin(SIDE_TOP, 2.0)
+	style.set_content_margin(SIDE_RIGHT, 2.0)
+	style.set_content_margin(SIDE_BOTTOM, 2.0)
+	return style
+
+
+func _create_solid_style(bg_color: Color) -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = bg_color
+	style.shadow_color = Color.TRANSPARENT
+	style.shadow_size = 0
+	return style
+
+
 func _create_panel_surface_style(
 	bg_color: Color,
 	border_color: Color,
@@ -824,6 +1065,11 @@ func _get_border_color(role: int) -> Color:
 
 func _ensure_button_focus_ring(button: BaseButton) -> ColorRect:
 	if not is_instance_valid(button):
+		return null
+	if _button_uses_embedded_focus_visual(button):
+		var embedded_ring: ColorRect = _get_button_focus_ring(button)
+		if is_instance_valid(embedded_ring):
+			embedded_ring.visible = false
 		return null
 
 	var existing_node: Node = button.get_node_or_null(_BUTTON_FOCUS_RING_NODE_NAME)
@@ -892,7 +1138,11 @@ func _apply_button_focus_ring_style(button: BaseButton) -> void:
 	if is_instance_valid(driver):
 		var _captured_material: ShaderMaterial = driver.capture_current_material()
 		driver.set_animation_enabled(true, true)
-	ring.visible = button.has_focus()
+	ring.visible = (
+		button.has_focus()
+		and not button.disabled
+		and not _button_uses_embedded_focus_visual(button)
+	)
 
 
 func _ensure_focus_ring_animation_driver(
@@ -919,6 +1169,10 @@ func _refresh_focus_ring_policy_to_tree(root: Node) -> void:
 		return
 	if root is BaseButton:
 		var button: BaseButton = root
+		_apply_button_visual_style(button)
+		if button is OptionButton:
+			var option_button: OptionButton = button
+			_style_option_button(option_button)
 		if _static_visuals_enabled:
 			_apply_button_focus_ring_style(button)
 		else:
@@ -935,6 +1189,23 @@ func _get_button_focus_ring(button: BaseButton) -> ColorRect:
 		var ring: ColorRect = node
 		return ring
 	return null
+
+
+## 复合按钮可以用内部语义 Panel 同时表达选中和焦点。
+## 这类控件不再叠加通用 Shader 环，避免 ModeCard 等出现双重焦点。
+func _button_uses_embedded_focus_visual(button: BaseButton) -> bool:
+	if not is_instance_valid(button):
+		return false
+	return _node_contains_semantic_panel(button)
+
+
+func _node_contains_semantic_panel(node: Node) -> bool:
+	for child: Node in node.get_children():
+		if child is Panel and child.has_meta(_SURFACE_ROLE_META):
+			return true
+		if _node_contains_semantic_panel(child):
+			return true
+	return false
 
 
 func _reset_palette() -> void:

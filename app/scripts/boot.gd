@@ -10,10 +10,16 @@ extends Control
 
 const _RUNTIME_SCRIPT_PATH: String = "res://app/scripts/boot_runtime.gd"
 const _PULSE_WIDTH: float = 56.0
-const _PROGRESS_WIDTH: float = 470.0
 const _PULSE_SPEED: float = 150.0
 const _PROGRESS_FOLLOW_SPEED: float = 5.0
 const _PROGRESS_FINISH_SECONDS: float = 0.10
+const _DEFAULT_STAGE_MESSAGE: String = "准备启动"
+
+
+# --- 导出变量 ---
+
+## 视觉验收工具可关闭正式启动编排，仅保留可控的静态进度壳。
+@export var auto_start_runtime: bool = true
 
 
 # --- 私有变量 ---
@@ -23,18 +29,28 @@ var _runtime_started: bool = false
 var _load_failed: bool = false
 var _target_progress: float = 0.0
 var _display_progress: float = 0.0
+var _stage_message: String = _DEFAULT_STAGE_MESSAGE
 
 
 # --- @onready 变量 ---
 
 @onready var _startup_pulse: ColorRect = %StartupPulse
 @onready var _progress_fill: ColorRect = %ProgressFill
+@onready var _progress_clip: Control = %PulseClip
+@onready var _stage_label: Label = %StageLabel
+@onready var _progress_percent_label: Label = %ProgressPercentLabel
 
 
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_update_progress_text()
+	if not auto_start_runtime:
+		set_process(false)
+		set_runtime_progress(0.62, "准备视觉资源")
+		call_deferred(&"_set_display_progress", 0.62)
+		return
 	if DisplayServer.get_name() == "headless":
 		_start_runtime(ResourceLoader.load(_RUNTIME_SCRIPT_PATH, "GDScript"))
 		return
@@ -81,9 +97,12 @@ static func are_dev_tools_enabled() -> bool:
 
 ## 接收正式启动编排器进度；静态启动壳始终保留，不发生页面替换。
 ## @param value: 正式启动流程的归一化目标进度。
-## @param _message: 当前阶段文案；静态壳保持无文案布局，因此只保留协议参数。
-func set_runtime_progress(value: float, _message: String = "") -> void:
+## @param message: 当前阶段文案；空字符串保留上一阶段，避免快速回退为默认文案。
+func set_runtime_progress(value: float, message: String = "") -> void:
 	_target_progress = maxf(_target_progress, clampf(value, 0.0, 1.0))
+	if not message.strip_edges().is_empty():
+		_stage_message = message.strip_edges()
+	_update_progress_text()
 
 
 ## 返回整张启动壳的退出 Tween，供 BootRuntime 在入口场景已预热后等待。
@@ -153,17 +172,30 @@ func _set_display_progress(value: float) -> void:
 	_display_progress = clampf(value, 0.0, 1.0)
 	if not is_instance_valid(_progress_fill):
 		return
-	_progress_fill.size.x = floorf(_PROGRESS_WIDTH * _display_progress)
+	var available_width: float = 0.0
+	if is_instance_valid(_progress_clip):
+		available_width = maxf(_progress_clip.size.x, 0.0)
+	_progress_fill.size.x = floorf(available_width * _display_progress)
+	_update_progress_text()
 
 
 func _fail_runtime_load(message: String) -> void:
 	_load_failed = true
 	_target_progress = 1.0
+	_stage_message = "启动失败"
+	_update_progress_text()
 	if is_instance_valid(_startup_pulse):
 		_startup_pulse.color = Color(0.72, 0.28, 0.24, 0.72)
 	if is_instance_valid(_progress_fill):
 		_progress_fill.color = Color(0.72, 0.28, 0.24, 0.86)
 	push_error("[Boot] %s" % message)
+
+
+func _update_progress_text() -> void:
+	if is_instance_valid(_stage_label):
+		_stage_label.text = _stage_message
+	if is_instance_valid(_progress_percent_label):
+		_progress_percent_label.text = "%d%%" % roundi(_display_progress * 100.0)
 
 
 func _set_full_rect(control: Control) -> void:

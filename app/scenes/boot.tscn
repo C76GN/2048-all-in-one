@@ -1,7 +1,19 @@
-[gd_scene load_steps=3 format=3 uid="uid://dbx1x77w8mpy"]
+[gd_scene load_steps=4 format=3 uid="uid://dbx1x77w8mpy"]
 
-[ext_resource type="Script" uid="uid://xsm8a5pdgww1" path="res://app/scripts/boot.gd" id="1_h6s1v"]
-[ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/branding/printworks_boot_splash.png" id="2_splash"]
+[ext_resource type="Script" uid="uid://xsm8a5pdgww1" path="res://app/scripts/boot.gd" id="1_boot"]
+[ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/branding/printworks_boot_mark.png" id="2_mark"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_progress_track"]
+bg_color = Color(0.956863, 0.945098, 0.909804, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.184314, 0.188235, 0.215686, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="Boot" type="Control" unique_id=420649007]
 layout_mode = 3
@@ -11,9 +23,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-script = ExtResource("1_h6s1v")
+script = ExtResource("1_boot")
 
-[node name="StaticSplash" type="TextureRect" parent="."]
+[node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -21,43 +33,128 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-texture = ExtResource("2_splash")
-expand_mode = 1
-stretch_mode = 6
+color = Color(0.913725, 0.905882, 0.87451, 1)
 
-[node name="PulseClip" type="Control" parent="."]
+[node name="RegistrationRule" type="ColorRect" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -237.0
-offset_top = 150.0
-offset_right = 237.0
-offset_bottom = 176.0
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 6.0
+grow_horizontal = 2
+mouse_filter = 2
+color = Color(0.87451, 0.294118, 0.603922, 0.72)
+
+[node name="SafeMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Center" type="CenterContainer" parent="SafeMargin"]
+layout_mode = 2
+
+[node name="BootStack" type="VBoxContainer" parent="SafeMargin/Center"]
+custom_minimum_size = Vector2(480, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BrandTitle" type="Label" parent="SafeMargin/Center/BootStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.184314, 0.188235, 0.215686, 1)
+theme_override_font_sizes/font_size = 54
+text = "2048"
+horizontal_alignment = 1
+
+[node name="BrandSubtitle" type="Label" parent="SafeMargin/Center/BootStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.356863, 0.321569, 1)
+theme_override_font_sizes/font_size = 16
+text = "PRINTWORKS ATLAS"
+horizontal_alignment = 1
+
+[node name="MarkCenter" type="CenterContainer" parent="SafeMargin/Center/BootStack"]
+custom_minimum_size = Vector2(0, 176)
+layout_mode = 2
+
+[node name="BrandMark" type="TextureRect" parent="SafeMargin/Center/BootStack/MarkCenter"]
+custom_minimum_size = Vector2(160, 160)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("2_mark")
+expand_mode = 3
+stretch_mode = 5
+
+[node name="StatusRow" type="HBoxContainer" parent="SafeMargin/Center/BootStack"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StageLabel" type="Label" parent="SafeMargin/Center/BootStack/StatusRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.184314, 0.188235, 0.215686, 1)
+theme_override_font_sizes/font_size = 16
+text = "准备启动"
+
+[node name="StatusSpacer" type="Control" parent="SafeMargin/Center/BootStack/StatusRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="ProgressPercentLabel" type="Label" parent="SafeMargin/Center/BootStack/StatusRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.717647, 0.478431, 0.458824, 1)
+theme_override_font_sizes/font_size = 16
+text = "0%"
+
+[node name="ProgressTrack" type="Panel" parent="SafeMargin/Center/BootStack"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_progress_track")
+
+[node name="PulseClip" type="Control" parent="SafeMargin/Center/BootStack/ProgressTrack"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = -4.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 clip_contents = true
 
-[node name="ProgressFill" type="ColorRect" parent="PulseClip"]
+[node name="ProgressFill" type="ColorRect" parent="SafeMargin/Center/BootStack/ProgressTrack/PulseClip"]
 unique_name_in_owner = true
 layout_mode = 0
-offset_left = 2.0
-offset_top = 2.0
-offset_right = 2.0
-offset_bottom = 24.0
+offset_bottom = 26.0
 mouse_filter = 2
 clip_contents = true
 color = Color(0.360784, 0.717647, 0.72549, 0.9)
 
-[node name="StartupPulse" type="ColorRect" parent="PulseClip/ProgressFill"]
+[node name="StartupPulse" type="ColorRect" parent="SafeMargin/Center/BootStack/ProgressTrack/PulseClip/ProgressFill"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(56, 22)
+custom_minimum_size = Vector2(56, 26)
 layout_mode = 0
 offset_left = -56.0
 offset_right = 0.0
-offset_bottom = 22.0
+offset_bottom = 26.0
 mouse_filter = 2
 color = Color(0.360784, 0.717647, 0.72549, 0.72)
+
+[node name="FooterLabel" type="Label" parent="SafeMargin/Center/BootStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.356863, 0.321569, 0.82)
+theme_override_font_sizes/font_size = 13
+text = "GF Framework  /  Scene Preload"
+horizontal_alignment = 1

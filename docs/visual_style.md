@@ -135,7 +135,7 @@
 
 约束：
 
-- Godot 原生启动阶段与项目轻量壳共同使用 `printworks_boot_splash.png` 承接同一张静态首帧；`boot.tscn` 只序列化这张贴图、纯色 `ColorRect` 进度槽和轻量脚本，不在 GF 初始化前加载背景 shader、主题 Profile 或玩法资源。
+- Godot 原生启动阶段使用只含几何品牌和微型棋盘的 `printworks_boot_splash.png`；项目轻量壳以同一品牌构图补上阶段文案、百分比和真实进度槽。槽体、裁切区与动态填充必须位于同一个响应式 `Control` 层级，不得再把空槽烘焙进按比例裁切的图片后另行叠加固定坐标填充。
 - 中央构图可以包含品牌标题、微型棋盘和进度槽，但不能变成营销页，也不能在动态加载开始后重新排版。
 - 轻量 `Boot` 禁止 preload GF、主题、玩法脚本或 shader；它只通过 `ResourceLoader` 在线程中加载 `BootRuntime`，后者进入场景树后才创建 GF 架构。
 - `features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader` 是素材目录中的可选 Shader，`features/themes/resources/themes/boot/*_profile.tres` 是保留的设计 Profile；当前启动代码均未消费它们，也不能把它们描述为轻量壳依赖。未来若启用，只能在 GF 初始化完成后的正式启动编排或主题场景中应用，并应补真实截图验证。

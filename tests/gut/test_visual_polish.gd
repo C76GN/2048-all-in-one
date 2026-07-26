@@ -185,20 +185,42 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 	assert_true(boot_node is Control, "启动场景根节点应是可绘制全屏 UI 的 Control。")
 	if boot_node is Boot:
 		var boot: Boot = boot_node
-		var progress_fill_node: Node = boot.get_node_or_null("PulseClip/ProgressFill")
-		var startup_pulse_node: Node = boot.get_node_or_null("PulseClip/ProgressFill/StartupPulse")
+		var progress_clip_node: Node = boot.find_child("PulseClip", true, false)
+		var progress_fill_node: Node = boot.find_child("ProgressFill", true, false)
+		var startup_pulse_node: Node = boot.find_child("StartupPulse", true, false)
+		var stage_label_node: Node = boot.find_child("StageLabel", true, false)
+		var percent_label_node: Node = boot.find_child("ProgressPercentLabel", true, false)
+		assert_true(progress_clip_node is Control, "进度槽和动态填充应共享同一个响应式 Control 坐标系。")
 		assert_true(progress_fill_node is ColorRect, "静态启动壳应直接承载进度填充。")
 		assert_true(startup_pulse_node is ColorRect, "进度脉冲应裁切在真实填充区域内。")
-		if progress_fill_node is ColorRect and startup_pulse_node is ColorRect:
+		assert_true(stage_label_node is Label, "启动壳应显示真实阶段文案。")
+		assert_true(percent_label_node is Label, "启动壳应显示真实进度百分比。")
+		if (
+			progress_clip_node is Control
+			and progress_fill_node is ColorRect
+			and startup_pulse_node is ColorRect
+			and stage_label_node is Label
+			and percent_label_node is Label
+		):
+			var progress_clip: Control = progress_clip_node
 			var progress_fill: ColorRect = progress_fill_node
 			var startup_pulse: ColorRect = startup_pulse_node
+			var stage_label: Label = stage_label_node
+			var percent_label: Label = percent_label_node
+			progress_clip.set_anchors_preset(Control.PRESET_TOP_LEFT)
+			progress_clip.size = Vector2(472.0, 26.0)
+			boot._progress_clip = progress_clip
 			boot._progress_fill = progress_fill
 			boot._startup_pulse = startup_pulse
-			boot.set_runtime_progress(0.5)
+			boot._stage_label = stage_label
+			boot._progress_percent_label = percent_label
+			boot.set_runtime_progress(0.5, "加载测试")
 			boot._update_progress_fill(0.1)
 			boot._update_startup_pulse()
-			assert_true(progress_fill.size.x == 235.0, "启动进度应按真实归一化值填充，而不是显示固定装饰块。")
+			assert_true(progress_fill.size.x == 236.0, "启动进度应按响应式内槽宽度填充，而不是依赖固定像素宽度。")
 			assert_true(progress_fill.clip_contents, "进度脉冲不得越过当前已完成进度。")
+			assert_true(stage_label.text == "加载测试", "启动阶段文案应来自 GFAsyncProgress。")
+			assert_true(percent_label.text == "50%", "启动百分比应与显示进度一致。")
 		boot_node.free()
 
 	var boot_source: String = _read_text(_BOOT_SCRIPT_PATH)
@@ -731,7 +753,14 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	assert_true(motion_utility.bind_interactive_controls(root) == 1, "UI 动效 Utility 应递归绑定按钮。")
 	assert_true(motion_utility.bind_interactive_controls(root) == 0, "重复绑定不应重复连接同一按钮。")
 	button.mouse_entered.emit()
-	button.button_down.emit()
+	var hover_tween_value: Variant = button.get_meta(&"_game_ui_motion_tween", null)
+	if hover_tween_value is Tween:
+		var hover_tween: Tween = hover_tween_value
+		var _hover_step_active: bool = hover_tween.custom_step(1.0)
+	assert_true(
+		button.scale.is_equal_approx(Vector2.ONE),
+		"hover 只应调整色调，不得放大密集或滚动区域中的按钮。"
+	)
 
 	var button_style: StyleBoxFlat = _get_stylebox_flat(button, &"normal")
 	assert_not_null(button_style, "按钮绑定后应获得统一 StyleBoxFlat。")
@@ -750,12 +779,12 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 		)
 
 	var ring_node: Node = button.get_node_or_null("ButtonFocusRing")
-	assert_true(ring_node is ColorRect, "按钮绑定后应自动挂载选中态虚线描边 overlay。")
+	assert_true(ring_node is ColorRect, "按钮绑定后应自动挂载键盘/手柄焦点描边 overlay。")
 	if ring_node is ColorRect:
 		var ring: ColorRect = ring_node
-		assert_true(ring.mouse_filter == Control.MOUSE_FILTER_IGNORE, "选中态描边不应阻挡按钮输入。")
-		assert_true(ring.material is ShaderMaterial, "选中态描边应使用共享 shader 材质。")
-		assert_true(ring.visible, "hover 后选中态描边应可见。")
+		assert_true(ring.mouse_filter == Control.MOUSE_FILTER_IGNORE, "焦点描边不应阻挡按钮输入。")
+		assert_true(ring.material is ShaderMaterial, "焦点描边应使用共享 shader 材质。")
+		assert_false(ring.visible, "鼠标 hover 不得冒充键盘/手柄焦点。")
 		if ring.material is ShaderMaterial:
 			var ring_material: ShaderMaterial = ring.material
 			var ring_color_value: Variant = ring_material.get_shader_parameter(&"color")
@@ -771,12 +800,40 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 				"按钮焦点描边颜色应跟随当前 UI 色板。"
 			)
 
+	var focus_style: StyleBox = button.get_theme_stylebox(&"focus")
+	assert_true(focus_style is StyleBoxEmpty, "动态焦点环启用时不得再叠加内部 focus 边框。")
+	button.grab_focus()
+	if ring_node is ColorRect:
+		var focused_ring: ColorRect = ring_node
+		assert_true(focused_ring.visible, "键盘/手柄焦点应显示唯一的外部焦点环。")
+	button.button_down.emit()
+	var press_tween_value: Variant = button.get_meta(&"_game_ui_motion_tween", null)
+	if press_tween_value is Tween:
+		var press_tween: Tween = press_tween_value
+		var _press_step_active: bool = press_tween.custom_step(1.0)
+	assert_true(
+		button.scale.x < 1.0 and button.scale.y < 1.0,
+		"按压仍应保留向内压缩的机械反馈。"
+	)
+	button.button_up.emit()
+	var restore_tween_value: Variant = button.get_meta(&"_game_ui_motion_tween", null)
+	if restore_tween_value is Tween:
+		var restore_tween: Tween = restore_tween_value
+		var _restore_step_active: bool = restore_tween.custom_step(1.0)
+	assert_true(button.scale.is_equal_approx(Vector2.ONE), "松开后按钮必须恢复基础缩放。")
+	button.release_focus()
+	if ring_node is ColorRect:
+		var unfocused_ring: ColorRect = ring_node
+		assert_false(unfocused_ring.visible, "焦点离开后外部焦点环应立即隐藏。")
 	button.mouse_exited.emit()
 	if ring_node is ColorRect:
 		var hidden_ring: ColorRect = ring_node
-		assert_false(hidden_ring.visible, "hover 结束后选中态描边应隐藏。")
+		assert_false(hidden_ring.visible, "hover 结束后焦点描边仍应保持隐藏。")
 
-	assert_true(_get_event_count(emitted_events, &"selected") == 1, "hover/focus 应发出 UI 选择音效语义信号。")
+	assert_true(
+		_get_event_count(emitted_events, &"selected") == 1,
+		"鼠标已经 hover 时获得焦点不应重复播放选择音效。"
+	)
 	assert_true(_get_event_count(emitted_events, &"confirmed") == 1, "button down 应发出 UI 确认音效语义信号。")
 	architecture.dispose()
 
@@ -873,6 +930,161 @@ func test_ui_style_utility_styles_spinbox_as_readable_light_field() -> void:
 				_get_contrast_ratio(font_color, normal_style.bg_color) >= _MIN_UI_TEXT_CONTRAST,
 				"SpinBox 字体在浅色字段上必须保持可读。"
 			)
+	assert_eq(
+		spin_box.get_theme_constant("buttons_width"),
+		30,
+		"SpinBox 的增减按钮应保留清晰且可点击的固定宽度。"
+	)
+	assert_true(spin_box.has_theme_constant_override("buttons_width"))
+	assert_true(spin_box.has_theme_constant_override("field_and_buttons_separation"))
+	assert_true(spin_box.has_theme_constant_override("buttons_vertical_separation"))
+	for direction: StringName in [&"up", &"down"]:
+		var arrow_icon: Texture2D = spin_box.get_theme_icon(direction)
+		assert_true(
+			is_instance_valid(arrow_icon) and not arrow_icon.get_size().is_zero_approx(),
+			"SpinBox %s 箭头必须保持可见。" % direction
+		)
+		for state_suffix: String in ["", "_hover", "_pressed", "_disabled"]:
+			var color_name: StringName = (
+				"%s%s_icon_modulate" % [direction, state_suffix]
+			)
+			assert_true(
+				spin_box.has_theme_color_override(color_name),
+				"SpinBox 缺少 %s 箭头色板覆盖。" % color_name
+			)
+		for style_suffix: String in [
+			"",
+			"_hovered",
+			"_pressed",
+			"_disabled",
+		]:
+			var style_name: StringName = (
+				"%s_background%s" % [direction, style_suffix]
+			)
+			assert_true(
+				spin_box.has_theme_stylebox_override(style_name),
+				"SpinBox 缺少 %s 状态表面。" % style_name
+			)
+	architecture.dispose()
+
+
+func test_ui_style_utility_styles_embedded_scrollbars_with_palette_states() -> void:
+	var root: Control = Control.new()
+	var scroll_container: ScrollContainer = ScrollContainer.new()
+	root.add_child(scroll_container)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.init()
+	var _applied_count: int = style_utility.apply_palette_to_tree(
+		root,
+		_HALFTONE_UI_PALETTE
+	)
+
+	var scroll_bars: Array[ScrollBar] = [
+		scroll_container.get_v_scroll_bar(),
+		scroll_container.get_h_scroll_bar(),
+	]
+	for scroll_bar: ScrollBar in scroll_bars:
+		assert_true(is_instance_valid(scroll_bar), "ScrollContainer 应暴露内部滚动条。")
+		if not is_instance_valid(scroll_bar):
+			continue
+		if scroll_bar is VScrollBar:
+			assert_gte(
+				scroll_bar.custom_minimum_size.x,
+				12.0,
+				"纵向滚动条应保留可辨识的最小宽度。"
+			)
+		else:
+			assert_gte(
+				scroll_bar.custom_minimum_size.y,
+				12.0,
+				"横向滚动条应保留可辨识的最小高度。"
+			)
+		for style_name: StringName in [
+			&"scroll",
+			&"scroll_focus",
+			&"grabber",
+			&"grabber_highlight",
+			&"grabber_pressed",
+		]:
+			assert_true(
+				scroll_bar.has_theme_stylebox_override(style_name),
+				"内部滚动条必须显式覆盖 %s，不能依赖 Godot 默认主题。" % style_name
+			)
+			assert_not_null(
+				_get_stylebox_flat(scroll_bar, style_name),
+				"内部滚动条缺少 %s 状态样式。" % style_name
+			)
+
+	var alternate_palette_value: Resource = _HALFTONE_UI_PALETTE.duplicate(true)
+	assert_true(alternate_palette_value is GameUiPalette)
+	if alternate_palette_value is GameUiPalette:
+		var alternate_palette: GameUiPalette = alternate_palette_value
+		var alternate_grabber_color: Color = Color(0.22, 0.48, 0.76, 0.81)
+		alternate_palette.slider_grabber_color = alternate_grabber_color
+		var _refresh_count: int = style_utility.apply_palette_to_tree(
+			root,
+			alternate_palette
+		)
+		for scroll_bar: ScrollBar in scroll_bars:
+			var grabber: StyleBoxFlat = _get_stylebox_flat(scroll_bar, &"grabber")
+			assert_not_null(grabber)
+			if is_instance_valid(grabber):
+				assert_eq(
+					grabber.bg_color,
+					alternate_grabber_color,
+					"色板切换后内部滚动条抓手必须同步刷新。"
+				)
+	architecture.dispose()
+
+
+func test_ui_style_utility_replaces_default_tab_surfaces() -> void:
+	var root: Control = Control.new()
+	var tabs: TabContainer = TabContainer.new()
+	var tab_content: VBoxContainer = VBoxContainer.new()
+	tab_content.name = "Overview"
+	tabs.add_child(tab_content)
+	root.add_child(tabs)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.init()
+	var _applied_count: int = style_utility.apply_palette_to_tree(
+		root,
+		_HALFTONE_UI_PALETTE
+	)
+
+	assert_true(
+		tabs.has_theme_stylebox_override("panel"),
+		"TabContainer 内容表面必须覆盖 Godot 默认灰色面板。"
+	)
+	var tab_bar: TabBar = tabs.get_tab_bar()
+	assert_true(is_instance_valid(tab_bar), "TabContainer 应暴露内部 TabBar。")
+	if is_instance_valid(tab_bar):
+		for style_name: StringName in [
+			&"tab_unselected",
+			&"tab_hovered",
+			&"tab_selected",
+			&"tab_focus",
+			&"tab_disabled",
+		]:
+			assert_true(
+				tab_bar.has_theme_stylebox_override(style_name),
+				"TabBar 缺少 %s 状态的项目主题覆盖。" % style_name
+			)
 	architecture.dispose()
 
 
@@ -966,9 +1178,85 @@ func test_ui_style_utility_styles_option_button_popup_as_light_surface() -> void
 		)
 	assert_true(popup.transparent_bg, "嵌入式 PopupMenu 应让项目面板样式完整接管背景。")
 	assert_false(popup.prefer_native_menu, "主题化下拉菜单不得回退到不可控的原生菜单。")
+	assert_true(
+		option.get_theme_stylebox(&"focus") is StyleBoxEmpty,
+		"OptionButton 应使用通用外部焦点环，不得再叠加字段内部焦点框。"
+	)
+	assert_true(
+		option.get_theme_color(&"font_hover_pressed_color")
+		== _HALFTONE_UI_PALETTE.text_primary_color,
+		"OptionButton 展开且 hover 时文字必须保持可读。"
+	)
 	architecture.dispose()
 	option.free()
 	await get_tree().process_frame
+
+
+func test_ui_style_utility_keeps_toggle_selection_distinct_and_readable() -> void:
+	var check_button: CheckButton = CheckButton.new()
+	check_button.text = "同值倍增"
+	add_child_autoqfree(check_button)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.init()
+	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	style_utility.prepare_button(check_button)
+
+	var selected_style: StyleBoxFlat = _get_stylebox_flat(check_button, &"pressed")
+	var selected_hover_style: StyleBoxFlat = _get_stylebox_flat(check_button, &"hover_pressed")
+	assert_not_null(selected_style, "CheckButton 选中态应获得明确的持久表面。")
+	assert_not_null(selected_hover_style, "CheckButton 选中且 hover 时不应泄漏 Godot 默认样式。")
+	if selected_style != null:
+		assert_true(
+			selected_style.bg_color == _HALFTONE_UI_PALETTE.selected_surface_color,
+			"toggle 选中态应使用选中色，而不是瞬时按压色。"
+		)
+	assert_true(
+		check_button.get_theme_color(&"font_hover_pressed_color")
+		== _HALFTONE_UI_PALETTE.button_font_color,
+		"CheckButton 选中且 hover 时文字必须保持可读。"
+	)
+	architecture.dispose()
+
+
+func test_ui_style_utility_does_not_stack_focus_ring_on_compound_button() -> void:
+	var compound_button: Button = Button.new()
+	var semantic_panel: Panel = Panel.new()
+	compound_button.add_child(semantic_panel)
+	add_child_autoqfree(compound_button)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.init()
+	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	style_utility.style_panel(
+		semantic_panel,
+		GameUiStyleUtility.SurfaceRole.PANEL,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		2
+	)
+	style_utility.prepare_button(compound_button)
+
+	assert_null(
+		compound_button.get_node_or_null("ButtonFocusRing"),
+		"ModeCard 一类自带语义 Panel 的复合按钮不得再叠加通用焦点环。"
+	)
+	assert_true(
+		compound_button.get_theme_stylebox(&"focus") is StyleBoxEmpty,
+		"复合按钮应由内部语义 Panel 独占焦点表现。"
+	)
+	architecture.dispose()
 
 
 func test_mode_selection_seed_action_uses_packaged_icon_instead_of_emoji() -> void:

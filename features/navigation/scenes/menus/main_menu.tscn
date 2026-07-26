@@ -180,6 +180,14 @@ theme_override_font_sizes/font_size = 18
 disabled = true
 text = "继续游戏"
 
+[node name="ContinueHintLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "没有可继续的有效存档"
+horizontal_alignment = 1
+autowrap_mode = 2
+
 [node name="LoadBookmarkButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 54)
@@ -247,16 +255,22 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = "系统"
 
-[node name="SettingsButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
+[node name="SystemRow" type="HBoxContainer" parent="SafeMargin/Content/MenuColumn"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SettingsButton" type="Button" parent="SafeMargin/Content/MenuColumn/SystemRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 17
 text = "设置"
 
-[node name="QuitButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
+[node name="QuitButton" type="Button" parent="SafeMargin/Content/MenuColumn/SystemRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 44)
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 17
 text = "退出"

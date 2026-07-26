@@ -28,7 +28,9 @@ const _REST_MODULATE: Color = Color.WHITE
 const _HOVER_MODULATE: Color = Color(0.98, 1.0, 0.99, 1.0)
 const _FOCUS_MODULATE: Color = Color(1.0, 0.98, 1.0, 1.0)
 const _PRESS_MODULATE: Color = Color(0.96, 0.94, 0.84, 1.0)
-const _HOVER_SCALE: float = 1.012
+## Hover / focus 保持控件几何稳定；仅按压使用向内压缩反馈。
+## 这也避免 ScrollContainer 与密集按钮组裁切放大后的控件。
+const _ACTIVE_SCALE: float = 1.0
 const _PRESS_SCALE: float = 0.980
 const _HOVER_DURATION: float = 0.11
 const _PRESS_DURATION: float = 0.055
@@ -371,11 +373,12 @@ func _bind_button(button: BaseButton) -> bool:
 
 	button.set_meta(_BOUND_META, true)
 	button.set_meta(_HOVERED_META, false)
-	button.set_meta(_FOCUSED_META, false)
+	button.set_meta(_FOCUSED_META, button.has_focus())
 	button.set_meta(_BASE_SCALE_META, button.scale)
 	button.call_deferred("set", "pivot_offset", button.size * 0.5)
 	if is_instance_valid(_style):
 		_style.prepare_button(button)
+		_update_button_focus_ring_visibility(button)
 
 	var _connect_result_157: int = button.mouse_entered.connect(_on_button_mouse_entered.bind(button))
 	var _connect_result_158: int = button.mouse_exited.connect(_on_button_mouse_exited.bind(button))
@@ -394,7 +397,10 @@ func _update_button_focus_ring_visibility(button: BaseButton) -> void:
 	if not is_instance_valid(button) or button.disabled:
 		_style.set_button_focus_visible(button, false)
 		return
-	_style.set_button_focus_visible(button, _is_button_active(button))
+	_style.set_button_focus_visible(
+		button,
+		GFVariantData.to_bool(_get_button_meta(button, _FOCUSED_META, false))
+	)
 
 
 func _play_control_reveal(
@@ -498,7 +504,7 @@ func _restore_button(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
 	if _is_button_active(button):
-		_animate_button(button, _HOVER_SCALE, _get_active_modulate(button), _HOVER_DURATION)
+		_animate_button(button, _ACTIVE_SCALE, _get_active_modulate(button), _HOVER_DURATION)
 	else:
 		_animate_button(button, 1.0, _REST_MODULATE, _HOVER_DURATION)
 
@@ -710,7 +716,7 @@ func _on_button_mouse_entered(button: BaseButton) -> void:
 	button.set_meta(_HOVERED_META, true)
 	_update_button_focus_ring_visibility(button)
 	interactive_control_selected.emit(button)
-	_animate_button(button, _HOVER_SCALE, _HOVER_MODULATE, _HOVER_DURATION)
+	_animate_button(button, _ACTIVE_SCALE, _HOVER_MODULATE, _HOVER_DURATION)
 
 
 func _on_button_mouse_exited(button: BaseButton) -> void:
@@ -726,8 +732,9 @@ func _on_button_focus_entered(button: BaseButton) -> void:
 		return
 	button.set_meta(_FOCUSED_META, true)
 	_update_button_focus_ring_visibility(button)
-	interactive_control_selected.emit(button)
-	_animate_button(button, _HOVER_SCALE, _FOCUS_MODULATE, _HOVER_DURATION)
+	if not GFVariantData.to_bool(_get_button_meta(button, _HOVERED_META, false)):
+		interactive_control_selected.emit(button)
+	_animate_button(button, _ACTIVE_SCALE, _FOCUS_MODULATE, _HOVER_DURATION)
 
 
 func _on_button_focus_exited(button: BaseButton) -> void:
@@ -741,8 +748,7 @@ func _on_button_focus_exited(button: BaseButton) -> void:
 func _on_button_down(button: BaseButton) -> void:
 	if not is_instance_valid(button) or button.disabled:
 		return
-	if is_instance_valid(_style):
-		_style.set_button_focus_visible(button, true)
+	_update_button_focus_ring_visibility(button)
 	interactive_control_confirmed.emit(button)
 	_animate_button(button, _PRESS_SCALE, _PRESS_MODULATE, _PRESS_DURATION)
 
