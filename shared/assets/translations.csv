@@ -64,6 +64,7 @@ INPUT_ACTION_PAUSE,暂停,Pause
 INPUT_ACTION_UNDO,撤销,Undo
 INPUT_ACTION_REDO,重做,Redo
 INPUT_ACTION_SAVE_BOOKMARK,保存书签,Save Bookmark
+INPUT_ACTION_REQUEST_HINT,提示,Hint
 INPUT_ACTION_MOVE_UP,向上移动,Move Up
 INPUT_ACTION_MOVE_DOWN,向下移动,Move Down
 INPUT_ACTION_MOVE_LEFT,向左移动,Move Left
@@ -307,6 +308,18 @@ LABEL_SCORE,分数:,Score:
 LABEL_MOVES,步数:,Moves:
 HUD_DETAILS_EXPAND,展开详细状态,Expand status details
 HUD_DETAILS_COLLAPSE,收起详细状态,Collapse status details
+HINT_BUTTON_TOOLTIP,分析当前棋盘,Analyze current board
+HINT_RESULT_HEADING,提示：%s %s,Hint: %s %s
+HINT_RESULT_METRICS,%d 节点 · %d ms · %s,%d nodes · %d ms · %s
+HINT_DIRECTION_UP,向上,Up
+HINT_DIRECTION_DOWN,向下,Down
+HINT_DIRECTION_LEFT,向左,Left
+HINT_DIRECTION_RIGHT,向右,Right
+HINT_DIRECTION_UNKNOWN,未知方向,Unknown
+HINT_REASON_COMPLETED,分析完成,Completed
+HINT_REASON_TIME_LIMIT,达到时间上限,Time limit reached
+HINT_REASON_STEP_LIMIT,达到步数上限,Step limit reached
+HINT_UNAVAILABLE_MSG,[color=yellow]当前棋盘无法生成提示。[/color],[color=yellow]A hint is unavailable for the current board.[/color]
 LABEL_RATIO_RESOLUTIONS,求商:,Ratios:
 LABEL_BOARD,棋盘:,Board:
 LABEL_SEED,种子:,Seed:

@@ -285,6 +285,42 @@ layout_mode = 2
 tooltip_text = "向右移动"
 text = "→"
 
+[node name="HintResultPanel" type="PanelContainer" parent="SafeArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -378.0
+offset_top = -190.0
+offset_right = -18.0
+offset_bottom = -86.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/HintResultPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 9
+
+[node name="HintResultLabel" type="RichTextLabel" parent="SafeArea/HintResultPanel/Margin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(336, 74)
+layout_mode = 2
+mouse_filter = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+autowrap_mode = 3
+theme_override_colors/default_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+
 [node name="ActionPanel" type="PanelContainer" parent="SafeArea"]
 unique_name_in_owner = true
 layout_mode = 1
@@ -293,7 +329,7 @@ anchor_left = 1.0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -282.0
+offset_left = -342.0
 offset_top = -78.0
 offset_right = -18.0
 offset_bottom = -18.0
@@ -339,3 +375,10 @@ custom_minimum_size = Vector2(54, 44)
 layout_mode = 2
 tooltip_text = "保存书签"
 text = "☆"
+
+[node name="HintButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+tooltip_text = "分析当前棋盘"
+text = "?"

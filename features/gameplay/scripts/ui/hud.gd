@@ -10,6 +10,12 @@ extends "res://addons/gf/kernel/base/gf_controller.gd"
 
 ## 动态流程标签列表场景。
 const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://shared/scenes/ui/flow_label_list.tscn")
+const GameHintResultType = preload(
+	"res://features/gameplay/scripts/data/game_hint_result.gd"
+)
+const DeterministicHintQueryType = preload(
+	"res://features/gameplay/scripts/queries/deterministic_hint_query.gd"
+)
 const _SCORE_DELTA_LABEL_SCENE: PackedScene = preload(
 	"res://features/gameplay/scenes/ui/score_delta_label.tscn"
 )
@@ -23,6 +29,9 @@ const _HIGHEST_TILE_FORMAT_FALLBACK: String = "最大方块: %d"
 const _HUD_INPUT_SOURCE_ID: StringName = &"gameplay.hud_controls"
 const _HUD_ACTION_HOLD_SECONDS: float = 0.08
 const _SCORE_FEEDBACK_DELAY_SECONDS: float = 0.055
+const _HINT_MAX_STEPS: int = 12000
+const _HINT_MAX_ELAPSED_MSEC: int = 12
+const _HINT_UNAVAILABLE_FALLBACK: String = "[color=yellow]当前棋盘无法生成提示。[/color]"
 const _ACTION_ICON_ASSET_KEYS: Dictionary = {
 	"%PauseButton": &"asset.texture.icon.pause",
 	"%UndoButton": &"asset.texture.icon.undo_2",
@@ -39,6 +48,8 @@ var _stat_labels: Dictionary = {}
 
 var _is_dirty: bool = false
 var _game_status_model: GameStatusModel
+var _grid_model: GridModel
+var _determinism_utility: GameDeterminismUtility
 var _notification_utility: GFNotificationUtility
 var _signal_utility: GFSignalUtility
 var _ui_style_utility: GameUiStyleUtility
@@ -69,6 +80,11 @@ var _control_hint_panel: PanelContainer
 var _hints: VBoxContainer
 var _d_pad: GridContainer
 var _action_panel: PanelContainer
+var _hint_button: Button
+var _hint_result_panel: PanelContainer
+var _hint_result_label: RichTextLabel
+var _hint_snapshot_id: String = ""
+var _hint_cancel_source: GFCancellationSource
 var _score_feedback_delay_active: bool = false
 var _score_feedback_pending: bool = false
 var _pending_score_feedback_old: int = 0
@@ -85,6 +101,8 @@ var _pending_score_feedback_new: int = 0
 
 func _ready() -> void:
 	_game_status_model = _get_game_status_model()
+	_grid_model = _get_grid_model()
+	_determinism_utility = _get_determinism_utility()
 	_notification_utility = _get_notification_utility()
 	_signal_utility = _get_signal_utility()
 	_ui_style_utility = _get_ui_style_utility()
@@ -115,8 +133,13 @@ func _ready() -> void:
 	_hints = _get_vbox_container_node("%Hints")
 	_d_pad = _get_grid_container_node("%DPad")
 	_action_panel = _get_panel_container_node("%ActionPanel")
+	_hint_button = _get_button_node("%HintButton")
+	_hint_result_panel = _get_panel_container_node("%HintResultPanel")
+	_hint_result_label = _get_rich_text_label_node("%HintResultLabel")
 	if not is_instance_valid(_notification_label):
 		push_error("[Hud] 缺少 NotificationLabel，无法呈现 GF 通知。")
+	if not is_instance_valid(_grid_model) or not is_instance_valid(_determinism_utility):
+		push_error("[Hud] 缺少棋盘或确定性工具，提示功能不可用。")
 	
 	if is_instance_valid(_game_status_model):
 		_game_status_model.score.bind_to(self, _on_score_changed)
@@ -133,6 +156,10 @@ func _ready() -> void:
 	_connect_hud_action_signals()
 	_sync_active_notification()
 	register_simple_event(EventNames.HUD_UPDATE_REQUESTED, GFEventListener.from_method(self, &"_on_hud_update_requested", 1))
+	register_simple_event(EventNames.HINT_REQUESTED, GFEventListener.from_method(self, &"_on_hint_requested", 1))
+	register_simple_event(EventNames.BOARD_REFRESH_REQUESTED, GFEventListener.from_method(self, &"_on_hint_invalidated", 1))
+	register_simple_event(EventNames.BOARD_RESIZED, GFEventListener.from_method(self, &"_on_hint_invalidated", 1))
+	register_simple_event(EventNames.GAME_STATE_CHANGED, GFEventListener.from_method(self, &"_on_hint_invalidated", 1))
 	_update_ui_text()
 	_apply_semantic_styles()
 	_apply_hud_layout()
@@ -142,6 +169,8 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	_score_feedback_delay_active = false
 	_score_feedback_pending = false
+	_cancel_hint_query(&"hud_exited")
+	_hide_hint_result()
 	if is_instance_valid(_hud_action_pulse):
 		_hud_action_pulse.dispose()
 	_hud_action_pulse = null
@@ -342,6 +371,11 @@ func _update_ui_text() -> void:
 		_move_hint_label.text = tr("CONTROLS_MOVE_HINT")
 	if is_instance_valid(_action_hint_label):
 		_action_hint_label.text = tr("CONTROLS_ACTION_HINT")
+	if is_instance_valid(_hint_button):
+		_hint_button.tooltip_text = _translate_with_fallback(
+			"HINT_BUTTON_TOOLTIP",
+			"分析当前棋盘"
+		)
 	_update_details_toggle_button()
 
 
@@ -371,6 +405,7 @@ func _apply_semantic_styles() -> void:
 		"%UndoButton",
 		"%RedoButton",
 		"%BookmarkButton",
+		"%HintButton",
 	]:
 		var button: Button = _get_button_node(NodePath(action_name))
 		if is_instance_valid(button):
@@ -419,15 +454,23 @@ func _apply_hud_layout() -> void:
 		_control_hint_panel.offset_right = 152.0
 		_control_hint_panel.offset_bottom = 0.0
 	if is_instance_valid(_action_panel):
-		_action_panel.offset_left = -214.0 if _is_portrait_mode else -282.0
+		_action_panel.offset_left = -264.0 if _is_portrait_mode else -342.0
 		_action_panel.offset_top = -60.0 if _is_portrait_mode else -78.0
 		_action_panel.offset_right = 0.0 if _is_portrait_mode else -18.0
 		_action_panel.offset_bottom = 0.0 if _is_portrait_mode else -18.0
+	if is_instance_valid(_hint_result_panel):
+		_hint_result_panel.offset_left = -320.0 if _is_portrait_mode else -378.0
+		_hint_result_panel.offset_top = -174.0 if _is_portrait_mode else -190.0
+		_hint_result_panel.offset_right = 0.0 if _is_portrait_mode else -18.0
+		_hint_result_panel.offset_bottom = -68.0 if _is_portrait_mode else -86.0
+	if is_instance_valid(_hint_result_label):
+		_hint_result_label.custom_minimum_size.x = 296.0 if _is_portrait_mode else 336.0
 	for action_name: String in [
 		"%PauseButton",
 		"%UndoButton",
 		"%RedoButton",
 		"%BookmarkButton",
+		"%HintButton",
 	]:
 		var action_button: Button = _get_button_node(NodePath(action_name))
 		if is_instance_valid(action_button):
@@ -494,6 +537,22 @@ func _get_game_status_model() -> GameStatusModel:
 	if model_value is GameStatusModel:
 		var status_model: GameStatusModel = model_value
 		return status_model
+	return null
+
+
+func _get_grid_model() -> GridModel:
+	var model_value: Object = get_model(GridModel)
+	if model_value is GridModel:
+		var grid_model: GridModel = model_value
+		return grid_model
+	return null
+
+
+func _get_determinism_utility() -> GameDeterminismUtility:
+	var utility_value: Object = get_utility(GameDeterminismUtility)
+	if utility_value is GameDeterminismUtility:
+		var determinism_utility: GameDeterminismUtility = utility_value
+		return determinism_utility
 	return null
 
 
@@ -635,6 +694,7 @@ func _connect_hud_action_signals() -> void:
 		_get_button_node("%UndoButton"): GameplayInputActions.UNDO,
 		_get_button_node("%RedoButton"): GameplayInputActions.REDO,
 		_get_button_node("%BookmarkButton"): GameplayInputActions.SAVE_BOOKMARK,
+		_get_button_node("%HintButton"): GameplayInputActions.REQUEST_HINT,
 	}
 	for button_value: Variant in button_actions.keys():
 		if not button_value is Button:
@@ -676,6 +736,175 @@ func _update_details_toggle_button() -> void:
 	_details_toggle_button.tooltip_text = (
 		fallback if translated_tooltip == tooltip_key else translated_tooltip
 	)
+
+
+func _run_hint_query() -> void:
+	_hide_hint_result()
+	_cancel_hint_query(&"superseded")
+	if not is_instance_valid(_grid_model) or not is_instance_valid(_determinism_utility):
+		_show_hint_unavailable()
+		return
+
+	var board_snapshot: Dictionary = _grid_model.get_snapshot()
+	var snapshot_id: String = _determinism_utility.calculate_board_checksum(board_snapshot)
+	if snapshot_id.is_empty():
+		_show_hint_unavailable()
+		return
+
+	_hint_cancel_source = GFCancellationSource.new()
+	var _lifetime_bound: bool = _hint_cancel_source.cancel_when_node_exits(
+		self,
+		&"hud_exited",
+		{&"operation": &"deterministic_game_hint"}
+	)
+	var budget: GFExecutionBudget = GFExecutionBudget.new({
+		&"max_steps": _HINT_MAX_STEPS,
+		&"max_elapsed_msec": _HINT_MAX_ELAPSED_MSEC,
+		&"cancel_token": _hint_cancel_source.get_token(),
+		&"metadata": {
+			&"operation": &"deterministic_game_hint",
+			&"snapshot_id": snapshot_id,
+		},
+	})
+	var result: GameHintResultType = DeterministicHintQueryType.new().evaluate(
+		board_snapshot,
+		snapshot_id,
+		budget
+	)
+	_hint_cancel_source.dispose()
+	_hint_cancel_source = null
+
+	var current_snapshot_id: String = _calculate_current_snapshot_id()
+	if not result.can_display_for(current_snapshot_id):
+		if result.termination_reason == GameHintResultType.TERMINATION_INVALID_SNAPSHOT:
+			_show_hint_unavailable()
+		return
+	_show_hint_result(result)
+
+
+func _show_hint_result(result: GameHintResultType) -> void:
+	if (
+		result == null
+		or not is_instance_valid(_hint_result_panel)
+		or not is_instance_valid(_hint_result_label)
+	):
+		return
+	var current_snapshot_id: String = _calculate_current_snapshot_id()
+	if not result.can_display_for(current_snapshot_id):
+		_hide_hint_result()
+		return
+	_hint_snapshot_id = result.snapshot_id
+	_hint_result_label.text = _format_hint_result(result)
+	_hint_result_panel.visible = true
+	_pulse_control(_hint_result_panel)
+
+
+func _hide_hint_result() -> void:
+	_hint_snapshot_id = ""
+	if is_instance_valid(_hint_result_label):
+		_hint_result_label.text = ""
+	if is_instance_valid(_hint_result_panel):
+		_hint_result_panel.visible = false
+
+
+func _cancel_hint_query(reason: StringName) -> void:
+	if _hint_cancel_source == null:
+		return
+	var _cancelled: bool = _hint_cancel_source.cancel(
+		reason,
+		{&"operation": &"deterministic_game_hint"}
+	)
+	_hint_cancel_source.dispose()
+	_hint_cancel_source = null
+
+
+func _calculate_current_snapshot_id() -> String:
+	if not is_instance_valid(_grid_model) or not is_instance_valid(_determinism_utility):
+		return ""
+	return _determinism_utility.calculate_board_checksum(_grid_model.get_snapshot())
+
+
+func _format_hint_result(result: GameHintResultType) -> String:
+	var direction_label: String = _hint_direction_label(result.suggested_direction)
+	var heading: String = GameTextFormatUtility.format_template(
+		tr("HINT_RESULT_HEADING"),
+		"提示：%s %s",
+		[_hint_direction_arrow(result.suggested_direction), direction_label]
+	)
+	var metrics: String = GameTextFormatUtility.format_template(
+		tr("HINT_RESULT_METRICS"),
+		"%d 节点 · %d ms · %s",
+		[
+			result.nodes_evaluated,
+			result.elapsed_msec,
+			_hint_termination_label(result.termination_reason),
+		]
+	)
+	return "[b]%s[/b]\n%s\n[color=#695752]%s[/color]" % [
+		heading,
+		result.explanation,
+		metrics,
+	]
+
+
+func _hint_direction_arrow(direction: Vector2i) -> String:
+	match direction:
+		Vector2i.UP:
+			return "↑"
+		Vector2i.DOWN:
+			return "↓"
+		Vector2i.LEFT:
+			return "←"
+		Vector2i.RIGHT:
+			return "→"
+		_:
+			return "?"
+
+
+func _hint_direction_label(direction: Vector2i) -> String:
+	match direction:
+		Vector2i.UP:
+			return _translate_with_fallback("HINT_DIRECTION_UP", "向上")
+		Vector2i.DOWN:
+			return _translate_with_fallback("HINT_DIRECTION_DOWN", "向下")
+		Vector2i.LEFT:
+			return _translate_with_fallback("HINT_DIRECTION_LEFT", "向左")
+		Vector2i.RIGHT:
+			return _translate_with_fallback("HINT_DIRECTION_RIGHT", "向右")
+		_:
+			return _translate_with_fallback("HINT_DIRECTION_UNKNOWN", "未知方向")
+
+
+func _hint_termination_label(reason: StringName) -> String:
+	match reason:
+		GameHintResultType.TERMINATION_COMPLETED:
+			return _translate_with_fallback("HINT_REASON_COMPLETED", "分析完成")
+		GameHintResultType.TERMINATION_TIME_LIMIT:
+			return _translate_with_fallback("HINT_REASON_TIME_LIMIT", "达到时间上限")
+		GameHintResultType.TERMINATION_STEP_LIMIT:
+			return _translate_with_fallback("HINT_REASON_STEP_LIMIT", "达到步数上限")
+		_:
+			return String(reason)
+
+
+func _show_hint_unavailable() -> void:
+	if not is_instance_valid(_notification_utility):
+		return
+	var _notification_id: int = _notification_utility.push_notification(
+		_translate_with_fallback("HINT_UNAVAILABLE_MSG", _HINT_UNAVAILABLE_FALLBACK),
+		"",
+		GFNotificationUtility.Level.WARNING,
+		{
+			"duration_seconds": 1.8,
+			"key": "gameplay.hint_unavailable",
+			"metadata": {"surface": "gameplay_hud"},
+		}
+	)
+
+
+func _translate_with_fallback(key: String, fallback: String) -> String:
+	var translated: String = tr(key)
+	return fallback if translated == key or translated.is_empty() else translated
 
 
 func _sync_active_notification() -> void:
@@ -791,7 +1020,17 @@ func _play_delayed_score_change_feedback() -> void:
 # --- 信号处理函数 ---
 
 func _on_hud_update_requested(_p: Variant = null) -> void:
+	_hide_hint_result()
 	_mark_dirty()
+
+
+func _on_hint_requested(_payload: Variant = null) -> void:
+	_run_hint_query()
+
+
+func _on_hint_invalidated(_payload: Variant = null) -> void:
+	_cancel_hint_query(&"snapshot_changed")
+	_hide_hint_result()
 
 
 func _on_score_changed(old_value: int, new_value: int) -> void:
@@ -803,6 +1042,7 @@ func _on_score_changed(old_value: int, new_value: int) -> void:
 	)
 
 func _on_move_count_changed(_old_value: int, _new_value: int) -> void:
+	_hide_hint_result()
 	_pulse_control(_move_count_value_label)
 	_mark_dirty()
 

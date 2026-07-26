@@ -65,6 +65,9 @@ const REDO_REQUESTED: StringName = &"redo_requested"
 ## 请求保存当前游戏书签。
 const SAVE_BOOKMARK_REQUESTED: StringName = &"save_bookmark_requested"
 
+## 请求为当前棋盘生成只读方向提示。
+const HINT_REQUESTED: StringName = &"hint_requested"
+
 ## 请求打开暂停 UI。
 const UI_PAUSE_REQUESTED: StringName = &"ui_pause_requested"
 

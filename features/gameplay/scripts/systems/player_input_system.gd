@@ -98,6 +98,10 @@ func tick(_delta: float) -> void:
 		send_simple_event(EventNames.SAVE_BOOKMARK_REQUESTED)
 		return
 
+	if _consume_action(GameplayInputActions.REQUEST_HINT):
+		send_simple_event(EventNames.HINT_REQUESTED)
+		return
+
 	var direction: Vector2i = Vector2i.ZERO
 	if _consume_action(GameplayInputActions.MOVE_UP):
 		direction = Vector2i.UP

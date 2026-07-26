@@ -100,7 +100,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 6. `BoardWorldViewportController` 把棋盘表现放入独立 `BoardWorld`，统一拥有缩放、平移、完整聚焦和边界约束；HUD 保持在视口外的屏幕空间，诊断 UI 不进入玩家场景树。
 7. `GFPointerGestureUtility` 负责桌面指针、触摸与原生 pan/magnify 归一化，`GFViewportUtility` 负责屏幕/棋盘局部坐标换算和物理安全区，`GFSignalUtility` 负责宿主生命周期内的连接所有权。项目只保存“本轮触摸是否仍可成为玩法滑动”的领域仲裁状态，不重复维护指针几何或坐标变换工具。
 8. 单指短滑由 `BoardWorldViewportController` 分类后，经 `GFVirtualInputSource` 写入 `GameplayInputActions`；`PlayerInputSystem` 仍是唯一消费 gameplay `GFInputContext` 并创建 `MoveCommand` 的入口。双指序列只控制视口，UI 控件拥有更高事件优先级。
-9. `GameplayResponsiveLayoutController` 让棋盘占满玩法内容区，并把 HUD 保持为覆盖全屏的独立安全区层：分数位于顶部中间，操作提示位于左下，暂停/撤销/重做/书签位于右下，详细状态按需展开。继承布局的左右栏始终关闭，不再用信息面板挤占棋盘。
+9. `GameplayResponsiveLayoutController` 让棋盘占满玩法内容区，并把 HUD 保持为覆盖全屏的独立安全区层：分数位于顶部中间，操作提示位于左下，暂停/撤销/重做/书签/只读提示位于右下，详细状态按需展开。继承布局的左右栏始终关闭，不再用信息面板挤占棋盘。
 10. `BoardTopology.get_cells_in_rect()` 是超大稀疏棋盘的可见窗口查询入口；`GameBoardController` 通过 `GFObjectPoolUtility` 仅挂载当前可见格与方块节点，窗口外节点可以回收但模型与快照保持完整。
 11. 棋盘动画由 `GameBoardAnimationUtility` 的 GF 命名队列拥有生命周期；视口变化不得释放正在执行 Tween 的方块，Action 完成或取消后按当前可见区域重建表现缓存。实时响应模式取消旧 Tween 后必须先从当前模型快照恢复表现，再执行新命令。
 12. `board_editor` 拥有独立 GF 输入上下文和 `board_editor_undo`、`board_editor_redo` 抽象动作；编辑器快捷键不得依赖未注册的 Godot `InputMap` 动作。场景控件与草稿信号统一由 `GFSignalUtility` 持有连接生命周期。
@@ -108,6 +108,14 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 14. `BoardEditorResponsiveLayoutController` 负责桌面三栏、紧凑横屏和竖屏布局。紧凑布局以编辑/模板分区替代被压缩的三栏，竖屏工具栏位于画布上方，所有外边距通过 `GFViewportUtility.apply_display_safe_area_margins()` 叠加物理安全区。
 
 详细契约见 `features/gameplay/docs/board_topology.md`。
+
+### 确定性提示
+
+1. `DeterministicHintQuery` 只接受调用方捕获的棋盘快照和 `snapshot_id`，不持有 Architecture，也不调用 `GridModel`、规则、命令历史或随机流。提示结果没有执行入口，不属于教程、回放命令或 canonical gameplay state。
+2. 查询的结构校验、拓扑遍历和四向评分逐步消费 `GFExecutionBudget`；调用方可以同时设置 `max_steps`、`max_elapsed_msec` 和 `GFCancellationToken`。预算终止返回稳定 reason 和已有部分结果，不绕过 deadline 继续求精。
+3. 评分只使用连续 lane 的压缩空间、可比较相邻结构和移动前沿稳定性，不承诺模式专用合并结果；任意 `BoardTopology` 和全部正式模式共享同一算法及固定四向 tie-break，缺少强信号时显式返回通用降级解释。
+4. `Hud` 在捕获边界使用 `GameDeterminismUtility` 计算摘要，并在展示前重新读取当前快照复核；移动、刷新、尺寸或状态事件会立即清除旧结果。摘要不一致、取消或无效快照不得显示。
+5. 键盘、手柄和触摸按钮统一写入 gameplay `GFInputContext` 的 `request_hint` 动作，再由 `PlayerInputSystem` 发布只读请求事件；任何输入表面都不得直接执行建议方向。
 
 ### 开发诊断工作区
 
@@ -168,7 +176,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ### 时钟、随机与运行诊断
 
 1. `GFTimeUtility` 拥有游戏 delta、缩放和逻辑暂停；`GamePauseUtility` 是唯一可写暂停 Adapter，负责把 GF 时间状态与 `SceneTree.paused` 原子同步。其他运行时 Module 不得直接写 `SceneTree.paused`。
-2. `PlayerInputSystem` 显式忽略 GF 暂停和时间缩放，只为暂停期间继续消费“恢复”意图；检测到暂停后必须清空移动、撤销、重做和书签输入，不能把缓冲延迟到恢复后执行。
+2. `PlayerInputSystem` 显式忽略 GF 暂停和时间缩放，只为暂停期间继续消费“恢复”意图；检测到暂停后必须清空移动、撤销、重做、书签和提示输入，不能把缓冲延迟到恢复后执行。
 3. Composition Root 创建单一 `GFClock` 并同时注入 `GFTimeUtility` 与 `GameClockUtility`；后者是业务代码读取 wall-clock、单调 tick 和日期格式的唯一 Adapter，测试使用 `GFManualClock` 控制同一时间源。
 4. `GFSeedUtility` 拥有运行时随机流、全局种子和稳定派生算法；业务代码不得自行创建 `RandomNumberGenerator`，也不得调用 Godot 全局随机函数。生成规则只能消费以规则语义 ID 派生的 gameplay branch；粒子、音高、装饰闪烁等 cosmetic 随机不得消费 gameplay branch，也不得进入领域快照。
 5. `GameDeterminismUtility` 是 canonical turn state 的唯一摘要入口：它按拓扑坐标排序方块、排除运行时 UUID，并分别计算 board、gameplay RNG、规则集和完整 state checksum。规则资源必须声明稳定 `ruleset_id` 与 `ruleset_version`，内容变化必须显式提升版本或指纹。

@@ -119,6 +119,34 @@ script = ExtResource("4_mapping")
 action = SubResource("Action_save_bookmark")
 bindings = Array[ExtResource("3_binding")]([SubResource("Binding_save_bookmark_b"), SubResource("Binding_save_bookmark_x")])
 
+[sub_resource type="Resource" id="Action_request_hint"]
+script = ExtResource("2_action")
+action_id = &"request_hint"
+display_name = "Hint"
+display_category = "Gameplay"
+
+[sub_resource type="InputEventKey" id="Key_request_hint_h"]
+physical_keycode = 72
+
+[sub_resource type="Resource" id="Binding_request_hint_h"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_request_hint_h")
+display_name = "H"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_request_hint_left_shoulder"]
+device = -1
+button_index = 9
+
+[sub_resource type="Resource" id="Binding_request_hint_left_shoulder"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_request_hint_left_shoulder")
+display_name = "Left Shoulder"
+
+[sub_resource type="Resource" id="Mapping_request_hint"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_request_hint")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_request_hint_h"), SubResource("Binding_request_hint_left_shoulder")])
+
 [sub_resource type="Resource" id="Action_move_up"]
 script = ExtResource("2_action")
 action_id = &"move_up"
@@ -469,4 +497,4 @@ bindings = Array[ExtResource("3_binding")]([SubResource("Binding_view_pan_right_
 script = ExtResource("1_context")
 context_id = &"gameplay"
 display_name = "Gameplay"
-mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_pause"), SubResource("Mapping_undo"), SubResource("Mapping_redo"), SubResource("Mapping_save_bookmark"), SubResource("Mapping_move_up"), SubResource("Mapping_move_down"), SubResource("Mapping_move_left"), SubResource("Mapping_move_right"), SubResource("Mapping_view_zoom_in"), SubResource("Mapping_view_zoom_out"), SubResource("Mapping_view_fit"), SubResource("Mapping_view_pan_up"), SubResource("Mapping_view_pan_down"), SubResource("Mapping_view_pan_left"), SubResource("Mapping_view_pan_right")])
+mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_pause"), SubResource("Mapping_undo"), SubResource("Mapping_redo"), SubResource("Mapping_save_bookmark"), SubResource("Mapping_request_hint"), SubResource("Mapping_move_up"), SubResource("Mapping_move_down"), SubResource("Mapping_move_left"), SubResource("Mapping_move_right"), SubResource("Mapping_view_zoom_in"), SubResource("Mapping_view_zoom_out"), SubResource("Mapping_view_fit"), SubResource("Mapping_view_pan_up"), SubResource("Mapping_view_pan_down"), SubResource("Mapping_view_pan_left"), SubResource("Mapping_view_pan_right")])
