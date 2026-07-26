@@ -1255,6 +1255,11 @@ func _build_animation_instructions(payload: Variant) -> Array[Dictionary]:
 
 ## 接收撤回动画请求，播放平滑动画。
 func _on_board_undo_animation_requested(payload: Array) -> void:
+	if (
+		is_instance_valid(_animation_utility)
+		and _animation_utility.is_presentation_suppressed()
+	):
+		return
 	if payload.size() < 2:
 		return
 	var snapshot: Dictionary = GFVariantData.to_dictionary(payload[0])
@@ -1271,6 +1276,11 @@ func _on_board_undo_animation_requested(payload: Array) -> void:
 
 ## 接收到逻辑层的动画请求，将其包装为 Action 推入动画队列。
 func _on_board_animation_requested(payload: Variant) -> void:
+	if (
+		is_instance_valid(_animation_utility)
+		and _animation_utility.is_presentation_suppressed()
+	):
+		return
 	var turn_result: TurnResult = payload if payload is TurnResult else null
 	var instructions: Array[Dictionary] = _build_animation_instructions(payload)
 	if instructions.is_empty():

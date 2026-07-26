@@ -8,6 +8,8 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 const REPLAY_INPUT_CONTEXT: GFInputContext = preload("res://features/replays/resources/input/replay_input_context.tres")
 const ACTION_REPLAY_PREV_STEP: StringName = &"replay_prev_step"
 const ACTION_REPLAY_NEXT_STEP: StringName = &"replay_next_step"
+const ACTION_REPLAY_PREV_MARKER: StringName = &"replay_prev_marker"
+const ACTION_REPLAY_NEXT_MARKER: StringName = &"replay_next_marker"
 const ACTION_REPLAY_CONTINUE: StringName = &"replay_continue"
 const ACTION_REPLAY_BACK: StringName = &"replay_back"
 const _REPLAY_INPUT_PRIORITY: int = 200
@@ -24,12 +26,21 @@ var _is_step_processing: bool = false
 
 # --- Godot 生命周期方法 ---
 
+func get_required_models() -> Array[Script]:
+	return [CurrentGameModel]
+
+
 func get_required_systems() -> Array[Script]:
-	return [ReplaySystem]
+	return [GameStateSystem, ReplaySystem]
 
 
 func get_required_utilities() -> Array[Script]:
-	return [GFCommandHistoryUtility, GFInputMappingUtility]
+	return [
+		GameBoardAnimationUtility,
+		GameDeterminismUtility,
+		GFCommandHistoryUtility,
+		GFInputMappingUtility,
+	]
 
 
 func ready() -> void:
@@ -40,6 +51,7 @@ func ready() -> void:
 	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
 	register_simple_event(EventNames.REPLAY_NEXT_STEP, GFEventListener.from_method(self, &"_on_next_step", 1))
 	register_simple_event(EventNames.REPLAY_PREV_STEP, GFEventListener.from_method(self, &"_on_prev_step", 1))
+	register_simple_event(EventNames.REPLAY_JUMP_TO_STEP, GFEventListener.from_method(self, &"_on_jump_to_step", 1))
 	register_simple_event(EventNames.REPLAY_CONTINUED_AS_GAME, GFEventListener.from_method(self, &"_on_replay_continued_as_game", 1))
 
 
@@ -63,6 +75,14 @@ func tick(_delta: float) -> void:
 
 	var replay_system: ReplaySystem = _get_replay_system()
 	if not is_instance_valid(replay_system):
+		return
+
+	if _consume_action(ACTION_REPLAY_PREV_MARKER):
+		replay_system.jump_to_previous_marker()
+		return
+
+	if _consume_action(ACTION_REPLAY_NEXT_MARKER):
+		replay_system.jump_to_next_marker()
 		return
 
 	if _consume_action(ACTION_REPLAY_PREV_STEP):
@@ -146,6 +166,38 @@ func _get_command_history_utility() -> GFCommandHistoryUtility:
 	return null
 
 
+func _get_animation_utility() -> GameBoardAnimationUtility:
+	var utility_value: Object = get_utility(GameBoardAnimationUtility)
+	if utility_value is GameBoardAnimationUtility:
+		var animation_utility: GameBoardAnimationUtility = utility_value
+		return animation_utility
+	return null
+
+
+func _get_determinism_utility() -> GameDeterminismUtility:
+	var utility_value: Object = get_utility(GameDeterminismUtility)
+	if utility_value is GameDeterminismUtility:
+		var determinism: GameDeterminismUtility = utility_value
+		return determinism
+	return null
+
+
+func _get_game_state_system() -> GameStateSystem:
+	var system_value: Object = get_system(GameStateSystem)
+	if system_value is GameStateSystem:
+		var state_system: GameStateSystem = system_value
+		return state_system
+	return null
+
+
+func _get_current_game_model() -> CurrentGameModel:
+	var model_value: Object = get_model(CurrentGameModel)
+	if model_value is CurrentGameModel:
+		var current_game: CurrentGameModel = model_value
+		return current_game
+	return null
+
+
 func _get_replay_action_direction(step_index: int) -> Vector2i:
 	if not is_instance_valid(_replay_data):
 		return Vector2i.ZERO
@@ -157,6 +209,151 @@ func _get_replay_action_direction(step_index: int) -> Vector2i:
 		var direction: Vector2i = action_value
 		return direction
 	return Vector2i.ZERO
+
+
+func _jump_to_step(request: ReplayJumpRequestData) -> void:
+	var replay_system: ReplaySystem = _get_replay_system()
+	if (
+		not is_instance_valid(request)
+		or not is_instance_valid(replay_system)
+		or not replay_system.is_jump_request_current(
+			request.request_id,
+			request.target_step
+		)
+		or not _is_active
+		or not _is_playing
+		or not is_instance_valid(_replay_data)
+		or _is_step_processing
+	):
+		if is_instance_valid(replay_system) and is_instance_valid(request):
+			replay_system.notify_jump_completed(
+				request.request_id,
+				request.target_step,
+				false
+			)
+		return
+
+	var history: GFCommandHistoryUtility = _get_command_history_utility()
+	if not is_instance_valid(history):
+		replay_system.notify_jump_completed(request.request_id, request.target_step, false)
+		return
+
+	_is_step_processing = true
+	var animation_utility: GameBoardAnimationUtility = _get_animation_utility()
+	if is_instance_valid(animation_utility):
+		animation_utility.begin_presentation_suppression()
+
+	var succeeded: bool = await _rebuild_command_history_to_step(
+		request,
+		history,
+		replay_system
+	)
+
+	if is_instance_valid(animation_utility):
+		animation_utility.end_presentation_suppression()
+	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
+	_is_step_processing = false
+	replay_system.notify_jump_completed(
+		request.request_id,
+		request.target_step,
+		succeeded
+	)
+
+
+func _rebuild_command_history_to_step(
+	request: ReplayJumpRequestData,
+	history: GFCommandHistoryUtility,
+	replay_system: ReplaySystem
+) -> bool:
+	while replay_system.get_current_step() > request.target_step:
+		if not replay_system.is_jump_request_current(
+			request.request_id,
+			request.target_step
+		):
+			return false
+		if not await history.undo_last_async():
+			return false
+
+	while replay_system.get_current_step() < request.target_step:
+		if (
+			not replay_system.is_jump_request_current(
+				request.request_id,
+				request.target_step
+			)
+			or replay_system.is_playback_desynchronized()
+		):
+			return false
+		var step_index: int = replay_system.get_current_step()
+		var direction: Vector2i = _get_replay_action_direction(step_index)
+		if direction == Vector2i.ZERO:
+			var _invalid_action_oos_recorded: bool = replay_system.report_ineffective_action(
+				direction
+			)
+			return false
+		var result: Variant = await history.execute_command(MoveCommand.new(direction))
+		if not result is TurnResult:
+			var _ineffective_oos_recorded: bool = replay_system.report_ineffective_action(
+				direction
+			)
+			return false
+
+	if replay_system.is_playback_desynchronized():
+		return false
+	return _verify_jump_target_checksum(request.target_step, replay_system)
+
+
+func _verify_jump_target_checksum(
+	target_step: int,
+	replay_system: ReplaySystem
+) -> bool:
+	if target_step == 0:
+		return true
+	if (
+		not is_instance_valid(_replay_data)
+		or target_step > _replay_data.checkpoints.size()
+	):
+		var _missing_checkpoint_oos_recorded: bool = replay_system.report_oos({
+			&"kind": &"jump_target_missing_checkpoint",
+			&"step_index": target_step,
+		})
+		return false
+
+	var determinism: GameDeterminismUtility = _get_determinism_utility()
+	var state_system: GameStateSystem = _get_game_state_system()
+	var current_game: CurrentGameModel = _get_current_game_model()
+	if (
+		not is_instance_valid(determinism)
+		or not is_instance_valid(state_system)
+		or not is_instance_valid(current_game)
+	):
+		return false
+	var mode_value: Variant = current_game.mode_config.get_value()
+	if not mode_value is GameModeConfig:
+		return false
+	var mode_config: GameModeConfig = mode_value
+	var actual: ReplayCheckpoint = determinism.create_checkpoint(
+		target_step,
+		state_system.get_full_game_state(),
+		mode_config
+	)
+	if not is_instance_valid(actual):
+		return false
+	var expected: ReplayCheckpoint = _replay_data.checkpoints[target_step - 1]
+	if expected.state_checksum == actual.state_checksum:
+		return true
+	var _checksum_oos_recorded: bool = replay_system.report_oos({
+		&"kind": &"jump_target_checksum_mismatch",
+		&"step_index": target_step,
+		&"expected_state_checksum": expected.state_checksum,
+		&"actual_state_checksum": actual.state_checksum,
+		&"expected_board_checksum": expected.board_checksum,
+		&"actual_board_checksum": actual.board_checksum,
+		&"expected_rng_checksum": expected.rng_checksum,
+		&"actual_rng_checksum": actual.rng_checksum,
+		&"expected_score": expected.score,
+		&"actual_score": actual.score,
+	})
+	return false
 
 
 # --- 信号处理函数 ---
@@ -209,6 +406,13 @@ func _on_prev_step(_payload: Variant = null) -> void:
 			if is_instance_valid(replay_system):
 				replay_system.notify_playback_step_settled()
 		_is_step_processing = false
+
+
+func _on_jump_to_step(payload: Variant = null) -> void:
+	if not payload is ReplayJumpRequestData:
+		return
+	var request: ReplayJumpRequestData = payload
+	call_deferred(&"_jump_to_step", request)
 
 
 func _on_replay_continued_as_game(_payload: Variant = null) -> void:

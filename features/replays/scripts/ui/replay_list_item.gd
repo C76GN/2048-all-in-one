@@ -8,7 +8,7 @@ extends BaseListMenuItem
 
 # --- 常量 ---
 
-const _META_FORMAT_FALLBACK: String = "%s · %dx%d · %d moves"
+const _META_FORMAT_FALLBACK: String = "%s · %dx%d · %d moves · %d markers"
 const _SCORE_FORMAT_FALLBACK: String = "%d pts"
 
 
@@ -60,14 +60,16 @@ func _update_display() -> void:
 
 	var topology: BoardTopology = replay_data.get_initial_topology()
 	var board_size: Vector2i = topology.get_bounds_size() if topology != null else Vector2i.ZERO
+	var markers: Array[ReplayMarker] = ReplayMarker.build_catalog(replay_data)
 	_info_label.text = GameTextFormatUtility.format_template(
-		tr("LIST_RECORD_META_FORMAT"),
+		tr("LIST_REPLAY_RECORD_META_FORMAT"),
 		_META_FORMAT_FALLBACK,
 		[
 			datetime,
 			board_size.x,
 			board_size.y,
 			replay_data.actions.size(),
+			markers.size(),
 		]
 	)
 	_score_label.text = GameTextFormatUtility.format_template(

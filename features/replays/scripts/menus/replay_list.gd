@@ -7,6 +7,7 @@ extends BaseListMenu
 
 # --- 常量 ---
 
+const _MARKER_SUMMARY_FORMAT_FALLBACK: String = "%d markers · %d merges · %d key events"
 
 
 # --- 导出变量 ---
@@ -87,6 +88,21 @@ func _update_preview(data: Resource) -> void:
 		replay.final_score,
 		tr("LABEL_TOTAL_MOVES"),
 		replay.actions.size(),
+	]
+	var markers: Array[ReplayMarker] = ReplayMarker.build_catalog(replay)
+	var merge_markers: int = ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.MERGE)
+	var key_event_markers: int = (
+		ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.CHAIN_OR_TRANSFORM)
+		+ ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.MILESTONE)
+		+ ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.FAILURE)
+	)
+	details += "[b]%s[/b] %s\n" % [
+		tr("LABEL_REPLAY_MARKERS"),
+		GameTextFormatUtility.format_template(
+			tr("REPLAY_MARKER_SUMMARY_FORMAT"),
+			_MARKER_SUMMARY_FORMAT_FALLBACK,
+			[markers.size(), merge_markers, key_event_markers]
+		),
 	]
 	details += "[b]%s[/b] %d" % [tr("LABEL_SEED"), replay.initial_seed]
 

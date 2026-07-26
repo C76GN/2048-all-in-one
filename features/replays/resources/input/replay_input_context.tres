@@ -125,6 +125,62 @@ script = ExtResource("4_mapping")
 action = SubResource("Action_replay_next_step")
 bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_next_d"), SubResource("Binding_replay_next_right"), SubResource("Binding_replay_next_space"), SubResource("Binding_replay_next_enter"), SubResource("Binding_replay_next_dpad"), SubResource("Binding_replay_next_a"), SubResource("Binding_replay_next_axis")])
 
+[sub_resource type="Resource" id="Action_replay_prev_marker"]
+script = ExtResource("2_action")
+action_id = &"replay_prev_marker"
+display_name = "Replay Previous Marker"
+display_category = "Replay"
+
+[sub_resource type="InputEventKey" id="Key_replay_prev_marker_q"]
+physical_keycode = 81
+
+[sub_resource type="Resource" id="Binding_replay_prev_marker_q"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_prev_marker_q")
+display_name = "Q"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_replay_prev_marker_lb"]
+device = -1
+button_index = 9
+
+[sub_resource type="Resource" id="Binding_replay_prev_marker_lb"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_replay_prev_marker_lb")
+display_name = "Left Shoulder"
+
+[sub_resource type="Resource" id="Mapping_replay_prev_marker"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_replay_prev_marker")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_prev_marker_q"), SubResource("Binding_replay_prev_marker_lb")])
+
+[sub_resource type="Resource" id="Action_replay_next_marker"]
+script = ExtResource("2_action")
+action_id = &"replay_next_marker"
+display_name = "Replay Next Marker"
+display_category = "Replay"
+
+[sub_resource type="InputEventKey" id="Key_replay_next_marker_e"]
+physical_keycode = 69
+
+[sub_resource type="Resource" id="Binding_replay_next_marker_e"]
+script = ExtResource("3_binding")
+input_event = SubResource("Key_replay_next_marker_e")
+display_name = "E"
+
+[sub_resource type="InputEventJoypadButton" id="Joy_replay_next_marker_rb"]
+device = -1
+button_index = 10
+
+[sub_resource type="Resource" id="Binding_replay_next_marker_rb"]
+script = ExtResource("3_binding")
+input_event = SubResource("Joy_replay_next_marker_rb")
+display_name = "Right Shoulder"
+
+[sub_resource type="Resource" id="Mapping_replay_next_marker"]
+script = ExtResource("4_mapping")
+action = SubResource("Action_replay_next_marker")
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_next_marker_e"), SubResource("Binding_replay_next_marker_rb")])
+
 [sub_resource type="Resource" id="Action_replay_continue"]
 script = ExtResource("2_action")
 action_id = &"replay_continue"
@@ -193,4 +249,4 @@ bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_back_esc
 script = ExtResource("1_context")
 context_id = &"replay"
 display_name = "Replay"
-mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_replay_prev_step"), SubResource("Mapping_replay_next_step"), SubResource("Mapping_replay_continue"), SubResource("Mapping_replay_back")])
+mappings = Array[ExtResource("4_mapping")]([SubResource("Mapping_replay_prev_step"), SubResource("Mapping_replay_next_step"), SubResource("Mapping_replay_prev_marker"), SubResource("Mapping_replay_next_marker"), SubResource("Mapping_replay_continue"), SubResource("Mapping_replay_back")])

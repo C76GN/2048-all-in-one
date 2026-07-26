@@ -81,9 +81,9 @@ layout_mode = 1
 anchor_top = 0.5
 anchor_bottom = 0.5
 offset_left = 28.0
-offset_top = -74.0
+offset_top = -160.0
 offset_right = 328.0
-offset_bottom = 74.0
+offset_bottom = 160.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_view_controls")
 
 [node name="MarginContainer" type="MarginContainer" parent="ReplayControlsContainer" index="0"]
@@ -103,34 +103,82 @@ layout_mode = 2
 text = "0 / 0"
 horizontal_alignment = 1
 
-[node name="Transport" type="GridContainer" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="1"]
+[node name="ReplayMarkerPicker" type="OptionButton" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="1"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../Transport/ReplayExitButton")
+focus_neighbor_bottom = NodePath("../MarkerTransport/ReplayPrevMarkerButton")
+fit_to_longest_item = false
+allow_reselect = true
+text_overrun_behavior = 3
+
+[node name="MarkerTransport" type="GridContainer" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="2"]
+layout_mode = 2
+theme_override_constants/separation = 8
+columns = 2
+
+[node name="ReplayPrevMarkerButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/MarkerTransport" index="0"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../../ReplayMarkerPicker")
+focus_neighbor_bottom = NodePath("../../Transport/ReplayPrevButton")
+text = "上一标记"
+
+[node name="ReplayNextMarkerButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/MarkerTransport" index="1"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../../ReplayMarkerPicker")
+focus_neighbor_bottom = NodePath("../../Transport/ReplayNextButton")
+text = "下一标记"
+
+[node name="Transport" type="GridContainer" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="3"]
 layout_mode = 2
 theme_override_constants/separation = 8
 columns = 2
 
 [node name="ReplayPrevButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="0"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(128, 38)
+custom_minimum_size = Vector2(128, 44)
 layout_mode = 2
+focus_neighbor_top = NodePath("../../MarkerTransport/ReplayPrevMarkerButton")
+focus_neighbor_bottom = NodePath("../ReplayContinueButton")
 text = "上一步"
 
 [node name="ReplayNextButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="1"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(128, 38)
+custom_minimum_size = Vector2(128, 44)
 layout_mode = 2
+focus_neighbor_top = NodePath("../../MarkerTransport/ReplayNextMarkerButton")
+focus_neighbor_bottom = NodePath("../ReplayExitButton")
 text = "下一步"
 
 [node name="ReplayContinueButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="2"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(128, 38)
+custom_minimum_size = Vector2(128, 44)
 layout_mode = 2
+focus_neighbor_top = NodePath("../ReplayPrevButton")
+focus_neighbor_bottom = NodePath("../../ReplayMarkerPicker")
 text = "从此继续"
 
 [node name="ReplayExitButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="3"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(128, 38)
+custom_minimum_size = Vector2(128, 44)
 layout_mode = 2
+focus_neighbor_top = NodePath("../ReplayNextButton")
+focus_neighbor_bottom = NodePath("../../ReplayMarkerPicker")
 text = "退出回放"
+
+[node name="ReplayEligibilityLabel" type="Label" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="4"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.46666667, 0.45882353, 0.43529412, 1)
+theme_override_font_sizes/font_size = 12
+text = "从此继续会退出回放，并标记为不参与竞赛成绩。"
+autowrap_mode = 2
 
 [node name="LeftColumn" parent="MarginContainer/ColumnsContainer" index="0"]
 visible = false

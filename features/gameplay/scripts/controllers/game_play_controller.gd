@@ -15,6 +15,14 @@ const _ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
 const _ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
 const _REPLAY_PROGRESS_FORMAT_FALLBACK: String = "回放进度: %d / %d"
 const _REPLAY_OOS_FORMAT_FALLBACK: String = "回放在第 %d 步失去同步"
+const _REPLAY_JUMP_FORMAT_FALLBACK: String = "正在跳转: %d / %d"
+const _REPLAY_MARKER_MERGE_FORMAT_FALLBACK: String = "第 %d 步 · 合并 ×%d · +%d"
+const _REPLAY_MARKER_CHAIN_FORMAT_FALLBACK: String = "第 %d 步 · 连锁/变换"
+const _REPLAY_MARKER_MILESTONE_FORMAT_FALLBACK: String = "第 %d 步 · 里程碑 %d"
+const _REPLAY_MARKER_FAILURE_FORMAT_FALLBACK: String = "第 %d 步 · 对局失败"
+const _REPLAY_MARKER_OOS_FORMAT_FALLBACK: String = "第 %d 步 · OOS"
+const _REPLAY_CONTINUE_NOTE_FALLBACK: String = "从此继续会退出回放，并标记为不参与竞赛成绩。"
+const _REPLAY_CONTINUE_OOS_NOTE_FALLBACK: String = "回放已 OOS，不能从当前状态继续。"
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
 const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_ui_motion_utility.gd")
 
@@ -39,6 +47,8 @@ var _signal_utility: GFSignalUtility
 var _log: GFLogUtility
 var _theme_utility: GameThemeUtility
 var _celebration_vfx_utility: GameCelebrationVfxUtility
+var _replay_markers: Array[ReplayMarker] = []
+var _is_syncing_marker_picker: bool = false
 
 ## 标记是否已完成清理，避免 _exit_tree 重复执行。
 var _is_cleaned_up: bool = false
@@ -53,8 +63,12 @@ var _is_cleaned_up: bool = false
 @onready var replay_progress_label: Label = %ReplayProgressLabel
 @onready var replay_prev_button: Button = %ReplayPrevButton
 @onready var replay_next_button: Button = %ReplayNextButton
+@onready var replay_marker_picker: OptionButton = %ReplayMarkerPicker
+@onready var replay_prev_marker_button: Button = %ReplayPrevMarkerButton
+@onready var replay_next_marker_button: Button = %ReplayNextMarkerButton
 @onready var replay_continue_button: Button = %ReplayContinueButton
 @onready var replay_exit_button: Button = %ReplayExitButton
+@onready var replay_eligibility_label: Label = %ReplayEligibilityLabel
 @onready var _responsive_layout_controller: GameplayResponsiveLayoutController = (
 	%GameplayResponsiveLayoutController
 )
@@ -114,15 +128,30 @@ func _update_static_ui_text() -> void:
 		replay_prev_button.text = tr("BTN_REPLAY_PREV")
 	if is_instance_valid(replay_next_button):
 		replay_next_button.text = tr("BTN_REPLAY_NEXT")
+	if is_instance_valid(replay_prev_marker_button):
+		replay_prev_marker_button.text = tr("BTN_REPLAY_PREV_MARKER")
+	if is_instance_valid(replay_next_marker_button):
+		replay_next_marker_button.text = tr("BTN_REPLAY_NEXT_MARKER")
 	if is_instance_valid(replay_continue_button):
 		replay_continue_button.text = tr("BTN_REPLAY_CONTINUE_FROM_HERE")
 	if is_instance_valid(replay_exit_button):
 		replay_exit_button.text = tr("BTN_REPLAY_EXIT")
+	_refresh_replay_marker_picker()
+	_update_replay_eligibility_note()
 
 
 func _connect_replay_control_signals() -> void:
 	var _prev_connection: int = replay_prev_button.pressed.connect(_on_replay_prev_pressed)
 	var _next_connection: int = replay_next_button.pressed.connect(_on_replay_next_pressed)
+	var _prev_marker_connection: int = replay_prev_marker_button.pressed.connect(
+		_on_replay_prev_marker_pressed
+	)
+	var _next_marker_connection: int = replay_next_marker_button.pressed.connect(
+		_on_replay_next_marker_pressed
+	)
+	var _marker_selected_connection: int = replay_marker_picker.item_selected.connect(
+		_on_replay_marker_selected
+	)
 	var _continue_connection: int = replay_continue_button.pressed.connect(_on_replay_continue_pressed)
 	var _exit_connection: int = replay_exit_button.pressed.connect(_on_replay_exit_pressed)
 
@@ -192,6 +221,14 @@ func _connect_signals() -> void:
 			_replay_system.playback_desynchronized,
 			_on_replay_desynchronized
 		)
+		_connect_managed_signal(
+			_replay_system.playback_markers_changed,
+			_on_replay_markers_changed
+		)
+		_connect_managed_signal(
+			_replay_system.playback_jump_status_changed,
+			_on_replay_jump_status_changed
+		)
 
 	register_simple_event(EventNames.GAME_STATE_CHANGED, GFEventListener.from_method(self, &"_on_game_state_changed", 1))
 	register_simple_event(EventNames.TOGGLE_PAUSE_UI, GFEventListener.from_method(self, &"_on_toggle_pause_ui", 1))
@@ -209,6 +246,10 @@ func _configure_ui_for_mode() -> void:
 	if is_instance_valid(_responsive_layout_controller):
 		_responsive_layout_controller.set_replay_mode_active(is_replay)
 
+	if is_replay and is_instance_valid(_replay_system):
+		_replay_markers = _replay_system.get_markers()
+		_refresh_replay_marker_picker()
+		call_deferred(&"_focus_replay_controls")
 	_update_replay_ui()
 
 
@@ -223,6 +264,7 @@ func _update_replay_ui() -> void:
 	var current_step: int = _replay_system.get_current_step()
 	var total_steps: int = _replay_system.get_total_steps()
 	var is_desynchronized: bool = _replay_system.is_playback_desynchronized()
+	var is_jumping: bool = _replay_system.is_jump_in_progress()
 	if is_instance_valid(replay_progress_label):
 		if is_desynchronized:
 			var oos_report: Dictionary = _replay_system.get_oos_report()
@@ -231,6 +273,12 @@ func _update_replay_ui() -> void:
 				_REPLAY_OOS_FORMAT_FALLBACK,
 				[GFVariantData.get_option_int(oos_report, &"step_index", current_step + 1)]
 			)
+		elif is_jumping:
+			replay_progress_label.text = GameTextFormatUtility.format_template(
+				tr("LABEL_REPLAY_JUMPING"),
+				_REPLAY_JUMP_FORMAT_FALLBACK,
+				[current_step, total_steps]
+			)
 		else:
 			replay_progress_label.text = GameTextFormatUtility.format_template(
 				tr("LABEL_REPLAY_PROGRESS"),
@@ -238,11 +286,155 @@ func _update_replay_ui() -> void:
 				[current_step, total_steps]
 			)
 	if is_instance_valid(replay_prev_button):
-		replay_prev_button.disabled = is_desynchronized or current_step <= 0
+		replay_prev_button.disabled = is_desynchronized or is_jumping or current_step <= 0
 	if is_instance_valid(replay_next_button):
-		replay_next_button.disabled = is_desynchronized or current_step >= total_steps
+		replay_next_button.disabled = (
+			is_desynchronized
+			or is_jumping
+			or current_step >= total_steps
+		)
+	if is_instance_valid(replay_prev_marker_button):
+		replay_prev_marker_button.disabled = (
+			is_desynchronized
+			or is_jumping
+			or _replay_system.find_previous_marker_index(current_step) < 0
+		)
+	if is_instance_valid(replay_next_marker_button):
+		replay_next_marker_button.disabled = (
+			is_desynchronized
+			or is_jumping
+			or _replay_system.find_next_marker_index(current_step) < 0
+		)
+	if is_instance_valid(replay_marker_picker):
+		replay_marker_picker.disabled = (
+			is_desynchronized
+			or is_jumping
+			or _replay_markers.is_empty()
+		)
 	if is_instance_valid(replay_continue_button):
 		replay_continue_button.disabled = not _replay_system.can_continue_from_current_step()
+	_sync_marker_picker_to_step(current_step)
+	_update_replay_eligibility_note()
+
+
+func _refresh_replay_marker_picker() -> void:
+	if not is_instance_valid(replay_marker_picker):
+		return
+	_is_syncing_marker_picker = true
+	replay_marker_picker.clear()
+	for marker: ReplayMarker in _replay_markers:
+		if not is_instance_valid(marker):
+			continue
+		replay_marker_picker.add_item(_format_replay_marker(marker))
+		replay_marker_picker.set_item_metadata(
+			replay_marker_picker.item_count - 1,
+			marker.marker_id
+		)
+	if replay_marker_picker.item_count == 0:
+		replay_marker_picker.add_item(tr("REPLAY_NO_MARKERS"))
+		replay_marker_picker.set_item_disabled(0, true)
+	replay_marker_picker.select(-1)
+	_is_syncing_marker_picker = false
+
+
+func _format_replay_marker(marker: ReplayMarker) -> String:
+	match marker.kind:
+		ReplayMarker.Kind.MERGE:
+			return GameTextFormatUtility.format_template(
+				tr("REPLAY_MARKER_MERGE_FORMAT"),
+				_REPLAY_MARKER_MERGE_FORMAT_FALLBACK,
+				[marker.step_index, marker.merge_count, marker.score_delta]
+			)
+		ReplayMarker.Kind.CHAIN_OR_TRANSFORM:
+			return GameTextFormatUtility.format_template(
+				tr("REPLAY_MARKER_CHAIN_FORMAT"),
+				_REPLAY_MARKER_CHAIN_FORMAT_FALLBACK,
+				[marker.step_index]
+			)
+		ReplayMarker.Kind.MILESTONE:
+			return GameTextFormatUtility.format_template(
+				tr("REPLAY_MARKER_MILESTONE_FORMAT"),
+				_REPLAY_MARKER_MILESTONE_FORMAT_FALLBACK,
+				[marker.step_index, marker.milestone_value]
+			)
+		ReplayMarker.Kind.FAILURE:
+			return GameTextFormatUtility.format_template(
+				tr("REPLAY_MARKER_FAILURE_FORMAT"),
+				_REPLAY_MARKER_FAILURE_FORMAT_FALLBACK,
+				[marker.step_index]
+			)
+		ReplayMarker.Kind.OOS:
+			return GameTextFormatUtility.format_template(
+				tr("REPLAY_MARKER_OOS_FORMAT"),
+				_REPLAY_MARKER_OOS_FORMAT_FALLBACK,
+				[marker.step_index]
+			)
+		_:
+			return str(marker.step_index)
+
+
+func _sync_marker_picker_to_step(current_step: int) -> void:
+	if (
+		not is_instance_valid(replay_marker_picker)
+		or _is_syncing_marker_picker
+		or replay_marker_picker.item_count == 0
+	):
+		return
+	var selected_index: int = replay_marker_picker.selected
+	if selected_index >= 0 and selected_index < _replay_markers.size():
+		var selected_marker: ReplayMarker = _replay_markers[selected_index]
+		if is_instance_valid(selected_marker) and selected_marker.step_index == current_step:
+			return
+	for index: int in range(_replay_markers.size()):
+		var marker: ReplayMarker = _replay_markers[index]
+		if is_instance_valid(marker) and marker.step_index == current_step:
+			_is_syncing_marker_picker = true
+			replay_marker_picker.select(index)
+			_is_syncing_marker_picker = false
+			return
+	_is_syncing_marker_picker = true
+	replay_marker_picker.select(-1)
+	_is_syncing_marker_picker = false
+
+
+func _update_replay_eligibility_note() -> void:
+	if not is_instance_valid(replay_eligibility_label):
+		return
+	var is_oos: bool = (
+		is_instance_valid(_replay_system)
+		and _replay_system.is_playback_desynchronized()
+	)
+	var note: String = (
+		_resolve_replay_text(
+			"REPLAY_CONTINUE_OOS_NOTE",
+			_REPLAY_CONTINUE_OOS_NOTE_FALLBACK
+		)
+		if is_oos
+		else _resolve_replay_text(
+			"REPLAY_CONTINUE_ELIGIBILITY_NOTE",
+			_REPLAY_CONTINUE_NOTE_FALLBACK
+		)
+	)
+	replay_eligibility_label.text = note
+	if is_instance_valid(replay_continue_button):
+		replay_continue_button.tooltip_text = note
+
+
+func _focus_replay_controls() -> void:
+	if not replay_controls_container.visible:
+		return
+	var viewport: Viewport = get_viewport()
+	if is_instance_valid(viewport) and is_instance_valid(viewport.gui_get_focus_owner()):
+		return
+	if is_instance_valid(replay_next_button) and not replay_next_button.disabled:
+		replay_next_button.grab_focus()
+	elif is_instance_valid(replay_marker_picker) and not replay_marker_picker.disabled:
+		replay_marker_picker.grab_focus()
+
+
+func _resolve_replay_text(key: String, fallback: String) -> String:
+	var translated: String = tr(key)
+	return fallback if translated == key or translated.is_empty() else translated
 
 
 func _publish_gameplay_board_ready() -> void:
@@ -554,6 +746,20 @@ func _on_replay_status_changed(_is_active: bool) -> void:
 	_configure_ui_for_mode()
 
 
+func _on_replay_markers_changed(markers: Array) -> void:
+	_replay_markers.clear()
+	for marker_value: Variant in markers:
+		if marker_value is ReplayMarker:
+			var marker: ReplayMarker = marker_value
+			_replay_markers.append(marker)
+	_refresh_replay_marker_picker()
+	_update_replay_ui()
+
+
+func _on_replay_jump_status_changed(_is_jumping: bool, _target_step: int) -> void:
+	_update_replay_ui()
+
+
 func _on_replay_desynchronized(report: Dictionary) -> void:
 	_update_replay_ui()
 	if is_instance_valid(_log):
@@ -568,6 +774,25 @@ func _on_replay_prev_pressed() -> void:
 func _on_replay_next_pressed() -> void:
 	if is_instance_valid(_replay_system):
 		_replay_system.step_forward()
+
+
+func _on_replay_prev_marker_pressed() -> void:
+	if is_instance_valid(_replay_system):
+		_replay_system.jump_to_previous_marker()
+
+
+func _on_replay_next_marker_pressed() -> void:
+	if is_instance_valid(_replay_system):
+		_replay_system.jump_to_next_marker()
+
+
+func _on_replay_marker_selected(marker_index: int) -> void:
+	if _is_syncing_marker_picker or not is_instance_valid(_replay_system):
+		return
+	if marker_index < 0 or marker_index >= _replay_markers.size():
+		return
+	if not _replay_system.jump_to_marker(marker_index):
+		_sync_marker_picker_to_step(_replay_system.get_current_step())
 
 
 func _on_replay_continue_pressed() -> void:

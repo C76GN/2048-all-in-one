@@ -37,7 +37,8 @@ func calculate_ruleset_fingerprint(mode_config: GameModeConfig) -> String:
 func create_checkpoint(
 	step_index: int,
 	full_state: Dictionary,
-	mode_config: GameModeConfig
+	mode_config: GameModeConfig,
+	turn_result: TurnResult = null
 ) -> ReplayCheckpoint:
 	if step_index <= 0 or full_state.is_empty() or not is_instance_valid(mode_config):
 		return null
@@ -55,6 +56,25 @@ func create_checkpoint(
 	result.rng_checksum = _checksum(rng_state)
 	result.score = GFVariantData.get_option_int(full_state, &"score", 0)
 	result.state_checksum = calculate_state_checksum(full_state, mode_config)
+	result.highest_tile = GFVariantData.get_option_int(full_state, &"highest_tile", 0)
+	var target_tile_value: int = GFVariantData.get_option_int(
+		full_state,
+		&"target_tile_value",
+		0
+	)
+	result.target_reached = (
+		GFVariantData.get_option_bool(full_state, &"target_reached", false)
+		or (
+			target_tile_value > 0
+			and result.highest_tile >= target_tile_value
+		)
+	)
+	if is_instance_valid(turn_result):
+		result.metadata_available = true
+		result.merge_count = turn_result.merges.size()
+		result.transform_count = turn_result.transforms.size()
+		result.ratio_resolution_count = turn_result.ratio_resolution_count
+		result.max_merge_value = turn_result.max_merge_value
 	return result if result.is_valid_checkpoint() else null
 
 

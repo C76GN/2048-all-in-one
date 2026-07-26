@@ -17,6 +17,12 @@ signal playback_status_changed(is_playing: bool)
 ## 首次检测到回放越界同步时发出；后续差异不会覆盖首个根因。
 signal playback_desynchronized(report: Dictionary)
 
+## 标记目录发生变化时发出；只读数组元素为 ReplayMarker。
+signal playback_markers_changed(markers: Array)
+
+## 确定性跳转开始或结束时发出。
+signal playback_jump_status_changed(is_jumping: bool, target_step: int)
+
 
 # --- 私有变量 ---
 
@@ -25,6 +31,10 @@ var _is_replay_active: bool = false
 var _command_history: GFCommandHistoryUtility = null
 var _save_graph: GameSaveGraphUtility = null
 var _oos_report: Dictionary = {}
+var _markers: Array[ReplayMarker] = []
+var _is_jump_active: bool = false
+var _jump_target_step: int = 0
+var _jump_request_id: int = 0
 
 
 # --- Godot 生命周期方法 ---
@@ -44,6 +54,10 @@ func dispose() -> void:
 	_current_replay = null
 	_is_replay_active = false
 	_oos_report.clear()
+	_markers.clear()
+	_is_jump_active = false
+	_jump_target_step = 0
+	_jump_request_id = 0
 
 
 # --- 公共方法 ---
@@ -132,6 +146,9 @@ func activate_replay_mode(data: ReplayData) -> void:
 	_oos_report.clear()
 	_current_replay = data
 	_is_replay_active = (data != null)
+	_is_jump_active = false
+	_jump_target_step = 0
+	_rebuild_markers()
 	playback_status_changed.emit(_is_replay_active)
 	_emit_progress()
 
@@ -141,13 +158,21 @@ func deactivate_replay_mode() -> void:
 	_current_replay = null
 	_is_replay_active = false
 	_oos_report.clear()
+	_markers.clear()
+	_cancel_active_jump()
+	playback_markers_changed.emit([])
 	playback_status_changed.emit(false)
 	_emit_progress()
 
 
 ## 回放下一步。
 func step_forward() -> void:
-	if not _is_replay_active or _current_replay == null or is_playback_desynchronized():
+	if (
+		not _is_replay_active
+		or _current_replay == null
+		or is_playback_desynchronized()
+		or _is_jump_active
+	):
 		return
 		
 	var step_index: int = get_current_step()
@@ -157,7 +182,7 @@ func step_forward() -> void:
 
 ## 回放上一步。
 func step_backward() -> void:
-	if not _is_replay_active or is_playback_desynchronized():
+	if not _is_replay_active or is_playback_desynchronized() or _is_jump_active:
 		return
 
 	if get_current_step() <= 0:
@@ -171,6 +196,69 @@ func step_backward() -> void:
 func notify_playback_step_settled() -> void:
 	if _is_replay_active:
 		_emit_progress()
+
+
+## 请求通过现有 MoveCommand/GFCommandHistoryUtility 重建到目标步。
+##
+## 本 System 只验证并发布请求；实际命令执行由 ReplayInputSystem 单一拥有。
+func jump_to_step(target_step: int) -> bool:
+	if (
+		not _is_replay_active
+		or not is_instance_valid(_current_replay)
+		or is_playback_desynchronized()
+		or _is_jump_active
+		or target_step < 0
+		or target_step > get_total_steps()
+	):
+		return false
+	if target_step == get_current_step():
+		_emit_progress()
+		return true
+
+	_jump_request_id += 1
+	_is_jump_active = true
+	_jump_target_step = target_step
+	playback_jump_status_changed.emit(true, target_step)
+	send_simple_event(
+		EventNames.REPLAY_JUMP_TO_STEP,
+		ReplayJumpRequestData.new(_jump_request_id, target_step)
+	)
+	return true
+
+
+func jump_to_marker(marker_index: int) -> bool:
+	var marker: ReplayMarker = get_marker(marker_index)
+	return jump_to_step(marker.step_index) if is_instance_valid(marker) else false
+
+
+func jump_to_previous_marker() -> bool:
+	var marker_index: int = find_previous_marker_index(get_current_step())
+	return jump_to_marker(marker_index) if marker_index >= 0 else false
+
+
+func jump_to_next_marker() -> bool:
+	var marker_index: int = find_next_marker_index(get_current_step())
+	return jump_to_marker(marker_index) if marker_index >= 0 else false
+
+
+## ReplayInputSystem 在命令历史达到目标或首次失败后关闭请求。
+func notify_jump_completed(request_id: int, target_step: int, succeeded: bool) -> bool:
+	if (
+		not _is_jump_active
+		or request_id != _jump_request_id
+		or target_step != _jump_target_step
+	):
+		return false
+	var final_success: bool = (
+		succeeded
+		and not is_playback_desynchronized()
+		and get_current_step() == target_step
+	)
+	_is_jump_active = false
+	_jump_target_step = get_current_step()
+	playback_jump_status_changed.emit(false, _jump_target_step)
+	_emit_progress()
+	return final_success
 
 
 ## 从当前回放步数恢复成普通对局继续游玩。
@@ -223,12 +311,56 @@ func get_oos_report() -> Dictionary:
 	return _oos_report.duplicate(true)
 
 
+func get_markers() -> Array[ReplayMarker]:
+	return _markers.duplicate()
+
+
+func get_marker(marker_index: int) -> ReplayMarker:
+	if marker_index < 0 or marker_index >= _markers.size():
+		return null
+	return _markers[marker_index]
+
+
+func get_marker_count() -> int:
+	return _markers.size()
+
+
+func find_previous_marker_index(from_step: int) -> int:
+	for index: int in range(_markers.size() - 1, -1, -1):
+		var marker: ReplayMarker = _markers[index]
+		if is_instance_valid(marker) and marker.step_index < from_step:
+			return index
+	return -1
+
+
+func find_next_marker_index(from_step: int) -> int:
+	for index: int in range(_markers.size()):
+		var marker: ReplayMarker = _markers[index]
+		if is_instance_valid(marker) and marker.step_index > from_step:
+			return index
+	return -1
+
+
+func is_jump_in_progress() -> bool:
+	return _is_jump_active
+
+
+func is_jump_request_current(request_id: int, target_step: int) -> bool:
+	return (
+		_is_jump_active
+		and request_id == _jump_request_id
+		and target_step == _jump_target_step
+	)
+
+
 ## 记录首个回放 OOS 并阻止后续前进。
 ## @param report: 包含首个偏离回合与 expected/actual 摘要的诊断字典。
 func report_oos(report: Dictionary) -> bool:
 	if not _is_replay_active or report.is_empty() or is_playback_desynchronized():
 		return false
 	_oos_report = report.duplicate(true)
+	_rebuild_markers()
+	_cancel_active_jump()
 	playback_desynchronized.emit(get_oos_report())
 	return true
 
@@ -259,6 +391,7 @@ func can_continue_from_current_step() -> bool:
 		not _is_replay_active
 		or not is_instance_valid(_current_replay)
 		or is_playback_desynchronized()
+		or _is_jump_active
 	):
 		return false
 	return get_total_steps() > 0 and get_current_step() < get_total_steps()
@@ -278,6 +411,19 @@ func _clear_command_history_redo_stack() -> void:
 
 func _emit_progress() -> void:
 	playback_progress_changed.emit(get_current_step(), get_total_steps())
+
+
+func _rebuild_markers() -> void:
+	_markers = ReplayMarker.build_catalog(_current_replay, _oos_report)
+	playback_markers_changed.emit(get_markers())
+
+
+func _cancel_active_jump() -> void:
+	if not _is_jump_active:
+		return
+	_is_jump_active = false
+	_jump_target_step = get_current_step()
+	playback_jump_status_changed.emit(false, _jump_target_step)
 
 
 func _get_actions_prefix(step_count: int) -> Array[Vector2i]:

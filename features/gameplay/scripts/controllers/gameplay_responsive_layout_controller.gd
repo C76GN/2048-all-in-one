@@ -38,9 +38,10 @@ const _COMPACT_BOARD_FIT_INSETS: Dictionary = {
 const _PORTRAIT_BOARD_FIT_INSETS: Dictionary = {
 	"top": 92.0,
 	"left": 8.0,
-	"bottom": 176.0,
+	"bottom": 328.0,
 	"right": 8.0,
 }
+const _REPLAY_CONTROLS_HEIGHT: float = 320.0
 
 
 # --- 导出变量 ---
@@ -277,7 +278,7 @@ func _apply_current_layout() -> void:
 	if _replay_mode_active and _current_layout_mode != LayoutMode.DESKTOP:
 		board_fit_insets["bottom"] = maxf(
 			GFVariantData.get_option_float(board_fit_insets, "bottom"),
-			176.0
+			_REPLAY_CONTROLS_HEIGHT + 28.0
 		)
 	_board_world_viewport_controller.set_fit_insets(board_fit_insets)
 	_board_world_viewport_controller.set_compact_view_controls(
@@ -294,16 +295,16 @@ func _apply_replay_controls_layout(mode: LayoutMode) -> void:
 		_replay_controls.anchor_right = 0.0
 		_replay_controls.anchor_bottom = 0.5
 		_replay_controls.offset_left = 28.0
-		_replay_controls.offset_top = -74.0
+		_replay_controls.offset_top = -_REPLAY_CONTROLS_HEIGHT * 0.5
 		_replay_controls.offset_right = 328.0
-		_replay_controls.offset_bottom = 74.0
+		_replay_controls.offset_bottom = _REPLAY_CONTROLS_HEIGHT * 0.5
 		return
 	_replay_controls.anchor_left = 0.5
 	_replay_controls.anchor_top = 1.0
 	_replay_controls.anchor_right = 0.5
 	_replay_controls.anchor_bottom = 1.0
 	_replay_controls.offset_left = -150.0
-	_replay_controls.offset_top = -172.0
+	_replay_controls.offset_top = -_REPLAY_CONTROLS_HEIGHT - 24.0
 	_replay_controls.offset_right = 150.0
 	_replay_controls.offset_bottom = -24.0
 

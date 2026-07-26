@@ -17,6 +17,7 @@ var _action_queue_system: GFActionQueueSystem
 var _board_queue: GFActionQueueSystem
 var _input_profile: GameInputProfileUtility
 var _board: GameBoardController
+var _presentation_suppression_depth: int = 0
 
 
 # --- GF 生命周期方法 ---
@@ -42,6 +43,7 @@ func dispose() -> void:
 	_board = null
 	_action_queue_system = null
 	_input_profile = null
+	_presentation_suppression_depth = 0
 
 
 # --- 公共方法 ---
@@ -73,7 +75,11 @@ func unbind_board(board: GameBoardController, stop_actions: bool = true) -> void
 ## @param action: 实现 GF 动作协议的对象。
 ## @return 入队成功时返回 true。
 func enqueue(action: Object) -> bool:
-	if action == null or not _ensure_board_queue():
+	if (
+		action == null
+		or is_presentation_suppressed()
+		or not _ensure_board_queue()
+	):
 		return false
 	_board_queue.enqueue(action)
 	return true
@@ -88,6 +94,28 @@ func is_busy() -> bool:
 func clear(stop_current: bool = true) -> void:
 	if is_instance_valid(_board_queue):
 		_board_queue.clear_queue(stop_current)
+
+
+## 开始一段只推进确定性逻辑、不播放逐回合表现的批处理。
+##
+## 支持嵌套调用；首次进入时取消仍在播放的旧动作。
+func begin_presentation_suppression() -> void:
+	if _presentation_suppression_depth == 0:
+		clear(true)
+	_presentation_suppression_depth += 1
+
+
+## 结束表现抑制，并在最外层结束时一次性同步最终模型状态。
+func end_presentation_suppression() -> void:
+	if _presentation_suppression_depth <= 0:
+		return
+	_presentation_suppression_depth -= 1
+	if _presentation_suppression_depth == 0 and is_instance_valid(_board):
+		_board.snap_visuals_to_model_state()
+
+
+func is_presentation_suppressed() -> bool:
+	return _presentation_suppression_depth > 0
 
 
 ## 在逻辑移动前应用用户选择的动画响应策略。
