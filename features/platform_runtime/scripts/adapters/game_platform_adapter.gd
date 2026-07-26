@@ -21,6 +21,7 @@ const CAPABILITY_WINDOW_RESIZE: StringName = &"display.window_resize"
 const CAPABILITY_POINTER: StringName = &"input.pointer"
 const CAPABILITY_TOUCH: StringName = &"input.touch"
 const CAPABILITY_COMPATIBILITY_RENDERER: StringName = &"renderer.gl_compatibility"
+const CAPABILITY_CLIPBOARD_WRITE: StringName = &"platform.clipboard.write"
 
 
 # --- 公共变量 ---
@@ -98,6 +99,13 @@ func get_contract_descriptor() -> Dictionary:
 			"platform_id": context.platform_id if context != null else &"unknown",
 		},
 	}
+
+
+## 把玩家主动请求的文本写入平台剪贴板。
+## @param _text: 已本地化、可直接复制的纯文本。
+## @return: 平台确认写入成功时返回 true；不支持或失败时返回 false。
+func copy_text_to_clipboard(_text: String) -> bool:
+	return false
 
 
 # --- 可重写钩子 / 虚方法 ---

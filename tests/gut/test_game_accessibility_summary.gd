@@ -134,6 +134,30 @@ func test_invalid_or_ineffective_inputs_publish_nothing() -> void:
 	assert_null(utility.get_latest_summary(), "失败构建不得覆盖最后有效摘要。")
 
 
+func test_copy_board_text_uses_platform_boundary_and_reports_failure() -> void:
+	var utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	var platform: TestGamePlatformUtilityStub = TestGamePlatformUtilityStub.new()
+	utility._platform = platform
+	var summary: GameAccessibilitySummary = utility.publish_board_summary(
+		_build_sparse_snapshot()
+	)
+	assert_not_null(summary)
+	assert_true(utility.copy_latest_board_text(), "复制必须由平台边界确认成功。")
+	assert_eq(
+		platform.clipboard_text,
+		summary.board_text,
+		"平台收到的文本必须与 canonical 棋盘说明完全同源。"
+	)
+
+	platform.clipboard_write_succeeds = false
+	assert_false(
+		utility.copy_latest_board_text(),
+		"平台拒绝写入时 UI 必须收到明确失败，不能误报已复制。"
+	)
+
+
 # --- 私有/辅助方法 ---
 
 func _build_sparse_snapshot() -> Dictionary:

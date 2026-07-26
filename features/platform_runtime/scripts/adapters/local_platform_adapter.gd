@@ -69,6 +69,19 @@ func create_runtime_context() -> GFPlatformRuntimeContext:
 	return context
 
 
+## 通过 Godot DisplayServer 执行一次用户发起的剪贴板写入。
+## @param text: 要写入的非空纯文本。
+## @return: 写入后能够读回相同文本时返回 true。
+func copy_text_to_clipboard(text: String) -> bool:
+	if (
+		text.is_empty()
+		or not DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD)
+	):
+		return false
+	DisplayServer.clipboard_set(text)
+	return DisplayServer.clipboard_get() == text
+
+
 ## 接收并转换 Godot 平台通知。
 ## @param what: Godot 通知标识。
 func handle_notification(what: int) -> void:
@@ -138,6 +151,8 @@ func _get_capability_ids() -> PackedStringArray:
 		var _touch_added: bool = result.append(String(CAPABILITY_TOUCH))
 	if _get_renderer_method() == "gl_compatibility":
 		var _renderer_added: bool = result.append(String(CAPABILITY_COMPATIBILITY_RENDERER))
+	if DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD):
+		var _clipboard_added: bool = result.append(String(CAPABILITY_CLIPBOARD_WRITE))
 	return result
 
 

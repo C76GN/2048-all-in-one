@@ -27,6 +27,7 @@ const CAPABILITY_WINDOW_RESIZE: StringName = GamePlatformAdapter.CAPABILITY_WIND
 const CAPABILITY_POINTER: StringName = GamePlatformAdapter.CAPABILITY_POINTER
 const CAPABILITY_TOUCH: StringName = GamePlatformAdapter.CAPABILITY_TOUCH
 const CAPABILITY_COMPATIBILITY_RENDERER: StringName = GamePlatformAdapter.CAPABILITY_COMPATIBILITY_RENDERER
+const CAPABILITY_CLIPBOARD_WRITE: StringName = GamePlatformAdapter.CAPABILITY_CLIPBOARD_WRITE
 
 
 # --- 私有变量 ---
@@ -133,6 +134,19 @@ func invoke_bridge(request: GFPlatformBridgeRequest) -> GFPlatformRequestHandle:
 	if _runtime == null or _adapter == null:
 		return null
 	return _runtime.invoke(request, _adapter.adapter_id)
+
+
+## 通过当前平台适配器执行用户主动请求的剪贴板写入。
+## @param text: 已本地化、可直接复制的非空纯文本。
+## @return: 当前平台声明能力且确认写入时返回 true。
+func copy_text_to_clipboard(text: String) -> bool:
+	if (
+		text.is_empty()
+		or _adapter == null
+		or not has_capability(CAPABILITY_CLIPBOARD_WRITE)
+	):
+		return false
+	return _adapter.copy_text_to_clipboard(text)
 
 
 func get_bridge_contract_report() -> Dictionary:

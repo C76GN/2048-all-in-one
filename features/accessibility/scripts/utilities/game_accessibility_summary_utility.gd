@@ -37,6 +37,7 @@ const _TURN_FALLBACK: String = (
 # --- 私有变量 ---
 
 var _determinism: GameDeterminismUtility = null
+var _platform: GamePlatformUtility = null
 var _latest_summary: GameAccessibilitySummary = null
 var _sequence: int = 0
 
@@ -44,17 +45,24 @@ var _sequence: int = 0
 # --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GameDeterminismUtility]
+	return [
+		GameDeterminismUtility,
+		GamePlatformUtility,
+	]
 
 
 func ready() -> void:
 	var utility_value: Object = get_utility(GameDeterminismUtility)
 	if utility_value is GameDeterminismUtility:
 		_determinism = utility_value
+	var platform_value: Object = get_utility(GamePlatformUtility)
+	if platform_value is GamePlatformUtility:
+		_platform = platform_value
 
 
 func dispose() -> void:
 	_determinism = null
+	_platform = null
 	_latest_summary = null
 	_sequence = 0
 
@@ -126,10 +134,10 @@ func copy_latest_board_text() -> bool:
 	if (
 		not is_instance_valid(_latest_summary)
 		or _latest_summary.board_text.is_empty()
+		or not is_instance_valid(_platform)
 	):
 		return false
-	DisplayServer.clipboard_set(_latest_summary.board_text)
-	return true
+	return _platform.copy_text_to_clipboard(_latest_summary.board_text)
 
 
 # --- 私有/辅助方法 ---

@@ -72,6 +72,28 @@ func test_bridge_contract_is_covered_and_unknown_sdk_call_fails_explicitly() -> 
 	await _dispose_platform_architecture(setup)
 
 
+func test_clipboard_write_uses_declared_platform_capability() -> void:
+	var adapter: FakePlatformAdapter = FakePlatformAdapter.new()
+	var setup: Dictionary = await _create_platform_architecture(adapter)
+	var utility: GamePlatformUtility = _get_platform_utility(setup)
+
+	assert_true(
+		utility.has_capability(GamePlatformUtility.CAPABILITY_CLIPBOARD_WRITE),
+		"平台必须先声明剪贴板写入能力。"
+	)
+	assert_true(
+		utility.copy_text_to_clipboard("棋盘摘要"),
+		"用户主动复制应由项目平台边界转交 adapter。"
+	)
+	assert_eq(adapter.clipboard_text, "棋盘摘要")
+	assert_false(
+		utility.copy_text_to_clipboard(""),
+		"空文本不得进入平台剪贴板。"
+	)
+
+	await _dispose_platform_architecture(setup)
+
+
 # --- 私有/辅助方法 ---
 
 func _create_platform_architecture(adapter: GamePlatformAdapter) -> Dictionary:
@@ -115,6 +137,9 @@ func _dispose_platform_architecture(setup: Dictionary) -> void:
 # --- 内部类 ---
 
 class FakePlatformAdapter extends GamePlatformAdapter:
+	var clipboard_text: String = ""
+
+
 	func _init() -> void:
 		adapter_id = &"platform.adapter.test"
 
@@ -130,9 +155,20 @@ class FakePlatformAdapter extends GamePlatformAdapter:
 			"capability_ids": PackedStringArray([
 				String(CAPABILITY_LIFECYCLE),
 				String(CAPABILITY_STORAGE_LOCAL),
+				String(CAPABILITY_CLIPBOARD_WRITE),
 			]),
 			"window_size": Vector2i(800, 600),
 		})
+
+
+	## 记录测试剪贴板请求。
+	## @param text: 要写入的纯文本。
+	## @return: 非空文本返回 true。
+	func copy_text_to_clipboard(text: String) -> bool:
+		if text.is_empty():
+			return false
+		clipboard_text = text
+		return true
 
 
 	## 发布测试生命周期事件。

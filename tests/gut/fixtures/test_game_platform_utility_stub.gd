@@ -3,6 +3,10 @@ class_name TestGamePlatformUtilityStub
 extends GamePlatformUtility
 
 
+var clipboard_text: String = ""
+var clipboard_write_succeeds: bool = true
+
+
 func get_required_utilities() -> Array[Script]:
 	return []
 
@@ -17,7 +21,17 @@ func ready() -> void:
 
 
 func dispose() -> void:
-	pass
+	clipboard_text = ""
+
+
+## 记录测试中的平台剪贴板写入。
+## @param text: 要写入的纯文本。
+## @return: 由 clipboard_write_succeeds 控制的确定性结果。
+func copy_text_to_clipboard(text: String) -> bool:
+	if text.is_empty() or not clipboard_write_succeeds:
+		return false
+	clipboard_text = text
+	return true
 
 
 ## 发布一个已经规范化的平台生命周期事件。
