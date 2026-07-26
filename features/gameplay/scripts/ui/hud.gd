@@ -88,6 +88,7 @@ var _hint_result_panel: PanelContainer
 var _hint_result_label: RichTextLabel
 var _hint_snapshot_id: String = ""
 var _hint_cancel_source: GFCancellationSource
+var _lifetime_cancel_source: GFCancellationSource
 var _accessibility_subtitle_panel: PanelContainer
 var _accessibility_subtitle_label: Label
 var _board_summary_label: RichTextLabel
@@ -108,6 +109,7 @@ var _pending_score_feedback_new: int = 0
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	_lifetime_cancel_source = GFCancellationSource.new()
 	_game_status_model = _get_game_status_model()
 	_grid_model = _get_grid_model()
 	_determinism_utility = _get_determinism_utility()
@@ -186,6 +188,13 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if _lifetime_cancel_source != null:
+		var _cancelled: bool = _lifetime_cancel_source.cancel(
+			&"hud_exited",
+			{&"operation": &"hud_delayed_feedback"}
+		)
+		_lifetime_cancel_source.dispose()
+		_lifetime_cancel_source = null
 	_score_feedback_delay_active = false
 	_score_feedback_pending = false
 	_accessibility_subtitle_serial += 1
@@ -1044,7 +1053,7 @@ func _hide_accessibility_subtitle_after_delay(serial: int) -> void:
 	var wait_result: Dictionary = await GFAsyncWaitUtility.delay_seconds(
 		_ACCESSIBILITY_SUBTITLE_DURATION_SECONDS,
 		{
-			&"guard_node": self,
+			&"cancel_token": _lifetime_cancel_source.get_token(),
 			&"respect_time_scale": false,
 		}
 	)
@@ -1187,8 +1196,8 @@ func _play_delayed_score_change_feedback() -> void:
 	var wait_result: Dictionary = await GFAsyncWaitUtility.delay_seconds(
 		_SCORE_FEEDBACK_DELAY_SECONDS,
 		{
-			"guard_node": self,
-			"respect_time_scale": false,
+			&"cancel_token": _lifetime_cancel_source.get_token(),
+			&"respect_time_scale": false,
 		}
 	)
 	if not GFVariantData.get_option_bool(wait_result, "completed"):

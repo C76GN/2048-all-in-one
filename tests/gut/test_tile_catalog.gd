@@ -15,6 +15,7 @@ const EXPECTED_DEFINITION_IDS: Array[StringName] = [
 const TILE_CATALOG_DIALOG_SCENE: PackedScene = preload(
 	"res://features/tile_catalog/scenes/ui/tile_catalog_dialog.tscn"
 )
+const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
 
 
 # --- 测试用例 ---
@@ -244,6 +245,32 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 	panel.queue_free()
 	await get_tree().process_frame
 	_dispose_discovery_setup(setup)
+
+
+func test_tile_catalog_filters_preserve_touch_target_contract() -> void:
+	var panel: Node = TILE_CATALOG_DIALOG_SCENE.instantiate()
+	autofree(panel)
+
+	for control_name: StringName in [
+		&"BackButton",
+		&"SearchInput",
+		&"StateFilter",
+	]:
+		var node: Node = panel.find_child(String(control_name), true, false)
+		assert_true(node is Control, "图鉴应包含交互控件：%s。" % control_name)
+		if not node is Control:
+			continue
+		var control: Control = node
+		assert_gte(
+			control.custom_minimum_size.x,
+			_MINIMUM_TOUCH_TARGET_SIZE,
+			"%s 必须保留至少 44px 的触控宽度。" % control_name
+		)
+		assert_gte(
+			control.custom_minimum_size.y,
+			_MINIMUM_TOUCH_TARGET_SIZE,
+			"%s 必须保留至少 44px 的触控高度。" % control_name
+		)
 
 
 # --- 私有/辅助方法 ---

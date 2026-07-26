@@ -8,7 +8,8 @@ extends RefCounted
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 2
+const SCHEMA_VERSION: int = 3
+const LEGACY_SCHEMA_VERSION: int = 2
 
 
 # --- 公共变量 ---
@@ -29,6 +30,7 @@ var max_tile: int = 0
 var played_at: int = 0
 var target_value: int = 0
 var target_reached: bool = false
+var duration_msec: int = 0
 
 
 # --- 公共方法 ---
@@ -48,6 +50,7 @@ var target_reached: bool = false
 ## @param p_played_at: 对局结束时的 Unix 时间戳。
 ## @param p_target_value: 当前模式的目标方块值；无目标时为 0。
 ## @param p_target_reached: 对局是否达到目标方块值。
+## @param p_duration_msec: 本次对局处于可操作状态的累计毫秒数。
 static func create(
 	p_mode_id: StringName,
 	p_board_key: String,
@@ -62,7 +65,8 @@ static func create(
 	p_max_tile: int,
 	p_played_at: int,
 	p_target_value: int = 0,
-	p_target_reached: bool = false
+	p_target_reached: bool = false,
+	p_duration_msec: int = 0
 ) -> GameResultRecordedData:
 	var result: GameResultRecordedData = GameResultRecordedData.new()
 	result.mode_id = p_mode_id
@@ -79,6 +83,7 @@ static func create(
 	result.played_at = p_played_at
 	result.target_value = p_target_value
 	result.target_reached = p_target_reached
+	result.duration_msec = p_duration_msec
 	result.result_hash = result._calculate_result_hash()
 	return result if result.is_valid() else null
 
@@ -86,9 +91,17 @@ static func create(
 ## 从当前严格持久化结构恢复规范对局结果。
 ## @param data: 当前版本的完整结果字典。
 static func from_dict(data: Dictionary) -> GameResultRecordedData:
-	if not _has_strict_shape(data):
+	var persisted_schema_version: int = GFVariantData.get_option_int(
+		data,
+		&"schema_version",
+		0
+	)
+	if not _has_strict_shape(data, persisted_schema_version):
 		return null
-	if GFVariantData.get_option_int(data, &"schema_version", 0) != SCHEMA_VERSION:
+	if (
+		persisted_schema_version != SCHEMA_VERSION
+		and persisted_schema_version != LEGACY_SCHEMA_VERSION
+	):
 		return null
 
 	var eligibility: GameCompetitionEligibility = GameCompetitionEligibility.from_dict(
@@ -110,11 +123,18 @@ static func from_dict(data: Dictionary) -> GameResultRecordedData:
 		GFVariantData.get_option_int(data, &"max_tile"),
 		GFVariantData.get_option_int(data, &"played_at"),
 		GFVariantData.get_option_int(data, &"target_value"),
-		GFVariantData.get_option_bool(data, &"target_reached")
+		GFVariantData.get_option_bool(data, &"target_reached"),
+		(
+			GFVariantData.get_option_int(data, &"duration_msec")
+			if persisted_schema_version == SCHEMA_VERSION
+			else 0
+		)
 	)
 	if result == null:
 		return null
 	var persisted_hash: String = GFVariantData.get_option_string(data, &"result_hash")
+	if persisted_schema_version == LEGACY_SCHEMA_VERSION:
+		return result if result._calculate_result_hash(false) == persisted_hash else null
 	return result if result.result_hash == persisted_hash else null
 
 
@@ -134,6 +154,7 @@ func is_valid() -> bool:
 		or played_at <= 0
 		or target_value < 0
 		or (target_value <= 0 and target_reached)
+		or duration_msec < 0
 	):
 		return false
 	return _is_sha256_text(result_hash) and result_hash == _calculate_result_hash()
@@ -220,13 +241,14 @@ func to_dict() -> Dictionary:
 		&"played_at": played_at,
 		&"target_value": target_value,
 		&"target_reached": target_reached,
+		&"duration_msec": duration_msec,
 	}
 
 
 # --- 私有/辅助方法 ---
 
 
-func _calculate_result_hash() -> String:
+func _calculate_result_hash(include_duration: bool = true) -> String:
 	var hash_payload: Dictionary = {
 		&"mode_id": String(mode_id),
 		&"board_key": board_key,
@@ -247,15 +269,21 @@ func _calculate_result_hash() -> String:
 		&"target_value": target_value,
 		&"target_reached": target_reached,
 	}
+	if include_duration:
+		hash_payload[&"duration_msec"] = duration_msec
 	var canonical_json: String = GFDeterministicVariantSerializer.to_canonical_json(
 		hash_payload
 	)
 	return canonical_json.sha256_text() if not canonical_json.is_empty() else ""
 
 
-static func _has_strict_shape(data: Dictionary) -> bool:
+static func _has_strict_shape(
+	data: Dictionary,
+	persisted_schema_version: int
+) -> bool:
+	var expected_size: int = 17 if persisted_schema_version == SCHEMA_VERSION else 16
 	return (
-		data.size() == 16
+		data.size() == expected_size
 		and GFVariantData.get_option_value(data, &"schema_version") is int
 		and GFVariantData.get_option_value(data, &"result_hash") is String
 		and GFVariantData.get_option_value(data, &"mode_id") is String
@@ -272,6 +300,10 @@ static func _has_strict_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, &"played_at") is int
 		and GFVariantData.get_option_value(data, &"target_value") is int
 		and GFVariantData.get_option_value(data, &"target_reached") is bool
+		and (
+			persisted_schema_version == LEGACY_SCHEMA_VERSION
+			or GFVariantData.get_option_value(data, &"duration_msec") is int
+		)
 	)
 
 

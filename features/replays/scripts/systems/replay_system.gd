@@ -85,9 +85,7 @@ func save_replay(replay_data: ReplayData) -> Error:
 		if existing.replay_id == candidate.replay_id:
 			return ERR_ALREADY_EXISTS
 	replays.append(candidate)
-	replays.sort_custom(func(left: ReplayData, right: ReplayData) -> bool:
-		return left.replay_id > right.replay_id
-	)
+	replays = _retain_newest_replays(replays)
 	return save_graph.replace_section_data(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		_serialize_replays(replays)
@@ -103,7 +101,10 @@ func load_replays() -> Array[ReplayData]:
 		return replays
 
 	var section_data: Dictionary = save_graph.get_section_data(GameSaveGraphUtility.REPLAYS_SECTION_ID)
-	for item_value: Variant in GFVariantData.get_option_array(section_data, "items"):
+	var item_values: Array = GFVariantData.get_option_array(section_data, "items")
+	if item_values.size() > ReplayCatalogSaveData.MAX_REPLAY_COUNT:
+		return replays
+	for item_value: Variant in item_values:
 		if not (item_value is Dictionary):
 			continue
 		var replay: ReplayData = ReplayData.from_dict(GFVariantData.as_dictionary(item_value))
@@ -466,12 +467,23 @@ func _get_command_history_utility() -> GFCommandHistoryUtility:
 
 func _serialize_replays(replays: Array[ReplayData]) -> Dictionary:
 	var items: Array[Dictionary] = []
-	for replay: ReplayData in replays:
+	for replay: ReplayData in _retain_newest_replays(replays):
 		if replay != null:
 			items.append(replay.to_dict())
 	return {
 		"items": items,
 	}
+
+
+## 按 UUID v7 的时间有序身份确定性保留最新目录，避免依赖数组插入顺序。
+func _retain_newest_replays(replays: Array[ReplayData]) -> Array[ReplayData]:
+	var retained: Array[ReplayData] = replays.duplicate()
+	retained.sort_custom(func(left: ReplayData, right: ReplayData) -> bool:
+		return left.replay_id > right.replay_id
+	)
+	if retained.size() > ReplayCatalogSaveData.MAX_REPLAY_COUNT:
+		retained.resize(ReplayCatalogSaveData.MAX_REPLAY_COUNT)
+	return retained
 
 
 func _get_save_graph() -> GameSaveGraphUtility:

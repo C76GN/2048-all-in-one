@@ -1,0 +1,145 @@
+## 验证回放不可信载荷上限与最新优先的确定性目录淘汰。
+extends GutTest
+
+
+# --- 测试用例 ---
+
+func test_replay_rejects_oversized_arrays_before_resource_construction() -> void:
+	var replay_data: Dictionary = _make_replay(1_700_000_000_001, 4).to_dict()
+	var oversized_actions: Array = []
+	oversized_actions.resize(ReplayData.MAX_STEP_COUNT + 1)
+	oversized_actions.fill(Vector2i.RIGHT)
+	replay_data[&"actions"] = oversized_actions
+
+	assert_null(
+		ReplayData.from_dict(replay_data),
+		"超过业务上限的 actions 必须在构造 ReplayData 前拒绝。"
+	)
+
+	replay_data = _make_replay(1_700_000_000_002, 4).to_dict()
+	var oversized_checkpoints: Array = []
+	oversized_checkpoints.resize(ReplayData.MAX_STEP_COUNT + 1)
+	oversized_checkpoints.fill(_make_checkpoint(1, 4).to_dict())
+	replay_data[&"checkpoints"] = oversized_checkpoints
+	assert_null(
+		ReplayData.from_dict(replay_data),
+		"超过业务上限的 checkpoints 必须在逐项反序列化前拒绝。"
+	)
+
+
+func test_replay_catalog_rejects_oversized_persisted_array_atomically() -> void:
+	var provider: ReplayCatalogSaveData = ReplayCatalogSaveData.new()
+	var oversized_items: Array = []
+	oversized_items.resize(ReplayCatalogSaveData.MAX_REPLAY_COUNT + 1)
+	oversized_items.fill({})
+
+	assert_true(
+		provider.replace_section_data({"items": oversized_items}) == ERR_INVALID_DATA,
+		"超过目录上限的不可信 section 必须在逐项恢复前整体拒绝。"
+	)
+	assert_true(
+		GFVariantData.get_option_array(
+			provider.get_section_data(),
+			"items"
+		).is_empty(),
+		"拒绝超限 section 后必须保留原目录。"
+	)
+
+
+func test_saving_replays_deterministically_retains_newest_uuid_v7_items() -> void:
+	var save_graph: ReplaySaveGraphStub = ReplaySaveGraphStub.new()
+	var replay_system: ReplaySystem = ReplaySystem.new()
+	replay_system._save_graph = save_graph
+	var replay_ids: PackedStringArray = PackedStringArray()
+
+	for index: int in range(ReplayCatalogSaveData.MAX_REPLAY_COUNT + 3):
+		var replay: ReplayData = _make_replay(
+			1_700_000_000_000 + index,
+			index + 4
+		)
+		replay_ids.append(replay.replay_id)
+		assert_true(
+			replay_system.save_replay(replay) == OK,
+			"目录到达上限后仍应保存新回放并淘汰最旧项。"
+		)
+
+	var retained: Array[ReplayData] = replay_system.load_replays()
+	assert_true(
+		retained.size() == ReplayCatalogSaveData.MAX_REPLAY_COUNT,
+		"回放目录必须稳定保持业务数量上限。"
+	)
+	if retained.is_empty():
+		return
+	assert_true(
+		retained.front().replay_id == replay_ids[replay_ids.size() - 1],
+		"目录首项必须是 UUID v7 最新回放。"
+	)
+	assert_true(
+		retained.back().replay_id == replay_ids[3],
+		"新增三项后必须确定性淘汰最旧三项。"
+	)
+	for replay_id: String in replay_ids.slice(0, 3):
+		assert_false(
+			_has_replay_id(retained, replay_id),
+			"被淘汰的最旧回放不得残留在目录中。"
+		)
+
+
+# --- 私有/辅助方法 ---
+
+func _make_replay(timestamp_msec: int, final_score: int) -> ReplayData:
+	var topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(2, 2))
+	var replay: ReplayData = ReplayData.new()
+	replay.replay_id = GFUuid.generate_v7(timestamp_msec)
+	replay.timestamp = timestamp_msec / 1000
+	replay.mode_config_path = (
+		"res://features/gameplay/resources/modes/classic_mode_config.tres"
+	)
+	replay.ruleset_id = &"gameplay.classic"
+	replay.ruleset_version = 1
+	replay.ruleset_fingerprint = "a".repeat(64)
+	replay.initial_seed = 2048
+	replay.session_metadata = GameSessionMetadata.make_default_dict()
+	replay.initial_board_topology = topology.to_dict()
+	replay.final_score = final_score
+	replay.actions = [Vector2i.RIGHT]
+	replay.checkpoints = [_make_checkpoint(1, final_score)]
+	replay.final_board_snapshot = {
+		&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
+		&"topology": topology.to_dict(),
+		&"tiles": [],
+	}
+	return replay
+
+
+func _make_checkpoint(step_index: int, score: int) -> ReplayCheckpoint:
+	var checkpoint: ReplayCheckpoint = ReplayCheckpoint.new()
+	checkpoint.step_index = step_index
+	checkpoint.state_checksum = "b".repeat(64)
+	checkpoint.board_checksum = "c".repeat(64)
+	checkpoint.rng_checksum = "d".repeat(64)
+	checkpoint.score = score
+	return checkpoint
+
+
+func _has_replay_id(replays: Array[ReplayData], replay_id: String) -> bool:
+	for replay: ReplayData in replays:
+		if replay.replay_id == replay_id:
+			return true
+	return false
+
+
+# --- 内部类 ---
+
+class ReplaySaveGraphStub extends GameSaveGraphUtility:
+	var provider: ReplayCatalogSaveData = ReplayCatalogSaveData.new()
+
+	func get_section_data(section_id: StringName) -> Dictionary:
+		if section_id != GameSaveGraphUtility.REPLAYS_SECTION_ID:
+			return {}
+		return provider.get_section_data()
+
+	func replace_section_data(section_id: StringName, data: Dictionary) -> Error:
+		if section_id != GameSaveGraphUtility.REPLAYS_SECTION_ID:
+			return ERR_INVALID_PARAMETER
+		return provider.replace_section_data(data)

@@ -73,6 +73,16 @@ fields = {
 "sort_order": 34
 }
 
+[sub_resource type="Resource" id="Entry_player_profile"]
+script = ExtResource("2_entry")
+id = &"player_profile"
+path = "res://features/navigation/resources/ui_routes/player_profile_route.tres"
+type_hint = "Resource"
+fields = {
+"category": &"popup",
+"sort_order": 33
+}
+
 [resource]
 script = ExtResource("1_registry")
-entries = Array[ExtResource("2_entry")]([SubResource("Entry_pause_menu"), SubResource("Entry_game_over_menu"), SubResource("Entry_target_reached_menu"), SubResource("Entry_settings_menu"), SubResource("Entry_tile_catalog"), SubResource("Entry_achievements"), SubResource("Entry_board_editor")])
+entries = Array[ExtResource("2_entry")]([SubResource("Entry_pause_menu"), SubResource("Entry_game_over_menu"), SubResource("Entry_target_reached_menu"), SubResource("Entry_settings_menu"), SubResource("Entry_tile_catalog"), SubResource("Entry_player_profile"), SubResource("Entry_achievements"), SubResource("Entry_board_editor")])

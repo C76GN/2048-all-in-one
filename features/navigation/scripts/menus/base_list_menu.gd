@@ -49,6 +49,9 @@ var _viewport_utility: GFViewportUtility = null
 var _page_scroll: ScrollContainer = null
 var _layout_mode: int = GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 var _layout_update_queued: bool = false
+var _delete_confirmation_dialog: ConfirmationDialog = null
+var _delete_error_dialog: AcceptDialog = null
+var _pending_delete_resource: Resource = null
 
 
 # --- @onready 变量 (节点引用) ---
@@ -77,6 +80,7 @@ var _layout_update_queued: bool = false
 
 func _ready() -> void:
 	_viewport_utility = _get_viewport_utility()
+	_setup_delete_dialogs()
 	_page_scroll = GameTaskPageLayoutUtility.ensure_vertical_scroll_parent(
 		_columns_container,
 		&"HistoryListPageScroll"
@@ -88,6 +92,7 @@ func _ready() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		_update_delete_dialog_text()
 		_update_ui_text()
 	elif what == NOTIFICATION_RESIZED and is_node_ready():
 		_queue_layout_update()
@@ -142,9 +147,9 @@ func _update_ui_text() -> void:
 	pass
 
 
-## 执行具体的删除逻辑。
-func _do_delete_logic(_data: Resource) -> void:
-	pass
+## 执行具体的删除逻辑并返回持久化结果。
+func _do_delete_logic(_data: Resource) -> Error:
+	return ERR_UNAVAILABLE
 
 
 ## 执行主按钮逻辑。
@@ -162,6 +167,16 @@ func _get_select_hint_message() -> String:
 	return tr("MSG_SELECT_ITEM")
 
 
+## 获取删除确认提示。
+func _get_delete_confirmation_message(_data: Resource) -> String:
+	return tr("DELETE_ITEM_CONFIRMATION")
+
+
+## 获取删除失败提示。
+func _get_delete_failure_message(error: Error) -> String:
+	return tr("DELETE_ITEM_FAILED") % int(error)
+
+
 # --- 私有/辅助方法 ---
 
 ## 统一连接基础按钮信号。子类在设置完按钮引用后应调用此方法。
@@ -170,6 +185,38 @@ func _setup_base_signals() -> void:
 		var _connect_result_109: int = _primary_button.pressed.connect(_on_primary_button_pressed)
 	if is_instance_valid(_delete_button):
 		var _connect_result_111: int = _delete_button.pressed.connect(_on_delete_button_pressed)
+
+
+func _setup_delete_dialogs() -> void:
+	_delete_confirmation_dialog = ConfirmationDialog.new()
+	_delete_confirmation_dialog.name = "DeleteConfirmationDialog"
+	_delete_confirmation_dialog.exclusive = true
+	add_child(_delete_confirmation_dialog)
+	var _confirmed_connection: int = _delete_confirmation_dialog.confirmed.connect(
+		_on_delete_confirmed
+	)
+	var _canceled_connection: int = _delete_confirmation_dialog.canceled.connect(
+		_on_delete_canceled
+	)
+
+	_delete_error_dialog = AcceptDialog.new()
+	_delete_error_dialog.name = "DeleteErrorDialog"
+	_delete_error_dialog.exclusive = true
+	add_child(_delete_error_dialog)
+	_update_delete_dialog_text()
+
+
+func _update_delete_dialog_text() -> void:
+	if is_instance_valid(_delete_confirmation_dialog):
+		_delete_confirmation_dialog.title = tr("DELETE_CONFIRM_TITLE")
+		_delete_confirmation_dialog.ok_button_text = tr("DELETE_CONFIRM_ACTION")
+		_delete_confirmation_dialog.cancel_button_text = tr("DELETE_CANCEL_ACTION")
+		if is_instance_valid(_pending_delete_resource):
+			_delete_confirmation_dialog.dialog_text = (
+				_get_delete_confirmation_message(_pending_delete_resource)
+			)
+	if is_instance_valid(_delete_error_dialog):
+		_delete_error_dialog.title = tr("DELETE_FAILED_TITLE")
 
 
 func _find_board_preview_node() -> BoardPreview:
@@ -366,6 +413,8 @@ func _handle_empty_list() -> void:
 	_clear_preview()
 	_update_action_focus_return_target(null)
 	_bind_and_reveal_list_items()
+	if is_instance_valid(back_button):
+		back_button.grab_focus()
 
 
 func _clear_list_content() -> void:
@@ -534,6 +583,13 @@ func _clear_preview() -> void:
 	_update_action_buttons()
 
 
+func _show_delete_error(error: Error) -> void:
+	if not is_instance_valid(_delete_error_dialog):
+		return
+	_delete_error_dialog.dialog_text = _get_delete_failure_message(error)
+	_delete_error_dialog.popup_centered_clamped(Vector2i(520, 220), 0.9)
+
+
 # --- 信号处理函数 ---
 
 func _on_item_focused(data: Resource) -> void:
@@ -551,10 +607,33 @@ func _on_primary_button_pressed() -> void:
 
 
 func _on_delete_button_pressed() -> void:
-	if _selected_resource:
-		_do_delete_logic(_selected_resource)
-		_selected_resource = null
-		await _populate_list()
+	if not is_instance_valid(_selected_resource):
+		return
+	if not is_instance_valid(_delete_confirmation_dialog):
+		return
+	_pending_delete_resource = _selected_resource
+	_delete_confirmation_dialog.dialog_text = _get_delete_confirmation_message(
+		_pending_delete_resource
+	)
+	_delete_confirmation_dialog.popup_centered_clamped(Vector2i(520, 220), 0.9)
+
+
+func _on_delete_confirmed() -> void:
+	var resource_to_delete: Resource = _pending_delete_resource
+	_pending_delete_resource = null
+	if not is_instance_valid(resource_to_delete):
+		return
+	var delete_error: Error = _do_delete_logic(resource_to_delete)
+	if delete_error != OK:
+		push_error("[BaseListMenu] 删除操作失败，错误码：%d。" % int(delete_error))
+		_show_delete_error(delete_error)
+		return
+	_selected_resource = null
+	await _populate_list()
+
+
+func _on_delete_canceled() -> void:
+	_pending_delete_resource = null
 
 
 func _on_back_button_pressed() -> void:

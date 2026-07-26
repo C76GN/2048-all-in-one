@@ -69,9 +69,22 @@ func test_future_settings_storage_version_is_preserved_and_blocks_writes() -> vo
 	)
 
 	var recovery: Dictionary = settings.get_storage_recovery_snapshot()
+	var persistence_health: Dictionary = settings.get_persistence_health_snapshot()
 	assert_false(
 		GFVariantData.get_option_bool(recovery, "recovered", false),
 		"未来存储版本不能进入破坏性恢复。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(persistence_health, "healthy", true),
+		"未来存储版本阻断写入后必须公开不健康持久化状态。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(persistence_health, "error_code") == ERR_INVALID_DATA,
+		"持久化健康快照必须保留阻断写入的错误码。"
+	)
+	assert_false(
+		settings.is_persistence_healthy(),
+		"设置 UI 不得把已阻断的物理存储描述为可自动保存。"
 	)
 	assert_true(
 		settings.save_settings() == ERR_INVALID_DATA,
@@ -91,6 +104,26 @@ func test_future_settings_storage_version_is_preserved_and_blocks_writes() -> vo
 	var cleanup_error: Error = storage.delete_file(settings.storage_file_name)
 	assert_true(cleanup_error == OK, "未来设置测试文件应可清理。")
 	architecture.dispose()
+
+
+func test_settings_menu_exposes_blocked_storage_in_compact_layout() -> void:
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings._persistence_blocked_error = ERR_INVALID_DATA
+	var menu: SettingsMenu = SettingsMenu.new()
+	var status_label: Label = Label.new()
+	menu.add_child(status_label)
+	menu._settings_utility = settings
+	menu._auto_save_label = status_label
+	menu._is_compact_layout = true
+
+	menu._update_persistence_status()
+
+	assert_true(
+		status_label.text == menu.tr("SETTINGS_SAVE_FAILED_HINT") % int(ERR_INVALID_DATA),
+		"设置持久化失败时不得继续显示自动保存成功语义。"
+	)
+	assert_true(status_label.visible, "紧凑布局也必须展示设置持久化失败。")
+	menu.free()
 
 
 func test_unreadable_settings_file_is_reset_to_current_format() -> void:

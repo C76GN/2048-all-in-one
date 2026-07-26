@@ -24,6 +24,13 @@ const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 	"bottom": 54.0,
 	"right": 56.0,
 }
+const _COMPACT_TWO_PANE_MINIMUM_WIDTH: float = 720.0
+const _COMPACT_TWO_PANE_HORIZONTAL_MARGIN: float = 24.0
+const _COMPACT_TWO_PANE_SEPARATION: float = 18.0
+const _COMPACT_TWO_PANE_SCROLLBAR_RESERVE: float = 14.0
+const _COMPACT_RIGHT_COLUMN_RATIO: float = 0.38
+const _COMPACT_RIGHT_COLUMN_MINIMUM_WIDTH: float = 300.0
+const _COMPACT_RIGHT_COLUMN_MAXIMUM_WIDTH: float = 340.0
 
 
 # --- 导出变量 ---
@@ -156,6 +163,7 @@ func _apply_responsive_layout() -> void:
 		return
 	_layout_mode = GameTaskPageLayoutUtility.classify_layout(size)
 	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	var side_by_side: bool = _uses_side_by_side_layout(size)
 	var compact_horizontal_margins: float = (
 		32.0
 		if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
@@ -166,17 +174,36 @@ func _apply_responsive_layout() -> void:
 		320.0,
 		760.0
 	)
-	_set_right_panel_compact(compact)
-	_columns_container.add_theme_constant_override("separation", 0 if compact else 34)
+	_set_right_panel_stacked(not side_by_side)
+	var center_content_width: float = compact_content_width
+	var right_panel_width: float = 0.0
+	var column_separation: int = 0
+	if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP:
+		center_content_width = 560.0
+		right_panel_width = 390.0
+		column_separation = 34
+	elif side_by_side:
+		var compact_widths: Vector2 = _get_compact_two_pane_widths(size.x)
+		center_content_width = compact_widths.x
+		right_panel_width = compact_widths.y
+		column_separation = roundi(_COMPACT_TWO_PANE_SEPARATION)
+	_columns_container.add_theme_constant_override("separation", column_separation)
 	_center_column.add_theme_constant_override("separation", 12 if compact else 5)
-	_center_content_vbox.custom_minimum_size.x = (
-		compact_content_width if compact else 560.0
-	)
-	_right_panel_container.custom_minimum_size.x = 0.0 if compact else 390.0
+	_center_content_vbox.custom_minimum_size.x = center_content_width
+	_right_panel_container.custom_minimum_size.x = right_panel_width
 	_right_panel_container.size_flags_horizontal = (
-		Control.SIZE_EXPAND_FILL if compact else Control.SIZE_FILL
+		Control.SIZE_FILL if side_by_side else Control.SIZE_EXPAND_FILL
 	)
-	_page_title.add_theme_font_size_override("font_size", 32 if compact else 44)
+	_right_panel_container.add_theme_constant_override(
+		"separation",
+		6 if _is_compact_two_pane_layout() else 10
+	)
+	_info_panel_container.add_theme_constant_override(
+		"separation",
+		6 if _is_compact_two_pane_layout() else 9
+	)
+	_apply_responsive_typography()
+	_apply_selection_detail_visibility()
 	var extra_margins: Dictionary = GameTaskPageLayoutUtility.get_safe_area_extra_margins(
 		_layout_mode,
 		_DESKTOP_SAFE_AREA_MARGINS
@@ -187,8 +214,8 @@ func _apply_responsive_layout() -> void:
 	_setup_focus_neighbors()
 
 
-func _set_right_panel_compact(compact: bool) -> void:
-	if compact:
+func _set_right_panel_stacked(stacked: bool) -> void:
+	if stacked:
 		if _right_panel_container.get_parent() != _center_column:
 			_right_panel_container.reparent(_center_column)
 		_center_column.move_child(
@@ -202,6 +229,70 @@ func _set_right_panel_compact(compact: bool) -> void:
 		_right_panel_container,
 		_columns_container.get_child_count() - 1
 	)
+
+
+static func _uses_side_by_side_layout(viewport_size: Vector2) -> bool:
+	var mode: int = GameTaskPageLayoutUtility.classify_layout(viewport_size)
+	if mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP:
+		return true
+	return (
+		mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
+		and viewport_size.x >= _COMPACT_TWO_PANE_MINIMUM_WIDTH
+	)
+
+
+static func _get_compact_two_pane_widths(viewport_width: float) -> Vector2:
+	var available_width: float = maxf(
+		viewport_width
+		- _COMPACT_TWO_PANE_HORIZONTAL_MARGIN
+		- _COMPACT_TWO_PANE_SEPARATION
+		- _COMPACT_TWO_PANE_SCROLLBAR_RESERVE,
+		0.0
+	)
+	var right_width: float = clampf(
+		available_width * _COMPACT_RIGHT_COLUMN_RATIO,
+		_COMPACT_RIGHT_COLUMN_MINIMUM_WIDTH,
+		_COMPACT_RIGHT_COLUMN_MAXIMUM_WIDTH
+	)
+	return Vector2(maxf(available_width - right_width, 0.0), right_width)
+
+
+func _is_compact_two_pane_layout() -> bool:
+	return (
+		_layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
+		and _uses_side_by_side_layout(size)
+	)
+
+
+func _apply_responsive_typography() -> void:
+	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	var compact_two_pane: bool = _is_compact_two_pane_layout()
+	if is_instance_valid(_page_title):
+		_page_title.add_theme_font_size_override("font_size", 32 if compact else 44)
+	if is_instance_valid(_info_name_label):
+		_info_name_label.add_theme_font_size_override(
+			"font_size",
+			20 if compact_two_pane else 24
+		)
+	if is_instance_valid(_config_header_label):
+		_config_header_label.add_theme_font_size_override(
+			"font_size",
+			20 if compact_two_pane else 24
+		)
+
+
+func _apply_selection_detail_visibility() -> void:
+	if not is_instance_valid(_info_name_label):
+		return
+	var has_selection: bool = is_instance_valid(_selected_mode_config)
+	var show_extended_detail: bool = has_selection and not _is_compact_two_pane_layout()
+	_info_name_label.visible = has_selection
+	if is_instance_valid(_info_separator):
+		_info_separator.visible = show_extended_detail
+	if is_instance_valid(_info_desc_label):
+		_info_desc_label.visible = show_extended_detail
+	if is_instance_valid(_info_score_label):
+		_info_score_label.visible = show_extended_detail
 
 
 func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
@@ -303,11 +394,28 @@ func _apply_mode_selection_visual_system() -> void:
 		push_error("[ModeSelection] 缺少 GameUiStyleUtility，无法应用模式选择语义样式。")
 		return
 
-	style_utility.style_label(_page_title, GameUiStyleUtility.TextRole.PRIMARY, 44, true)
-	style_utility.style_label(_info_name_label, GameUiStyleUtility.TextRole.PRIMARY, 24, true)
+	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	var compact_two_pane: bool = _is_compact_two_pane_layout()
+	style_utility.style_label(
+		_page_title,
+		GameUiStyleUtility.TextRole.PRIMARY,
+		32 if compact else 44,
+		true
+	)
+	style_utility.style_label(
+		_info_name_label,
+		GameUiStyleUtility.TextRole.PRIMARY,
+		20 if compact_two_pane else 24,
+		true
+	)
 	style_utility.style_label(_info_desc_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
 	style_utility.style_label(_info_score_label, GameUiStyleUtility.TextRole.MUTED, 15)
-	style_utility.style_label(_config_header_label, GameUiStyleUtility.TextRole.PRIMARY, 24, true)
+	style_utility.style_label(
+		_config_header_label,
+		GameUiStyleUtility.TextRole.PRIMARY,
+		20 if compact_two_pane else 24,
+		true
+	)
 	style_utility.style_label(_grid_size_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
 	style_utility.style_label(_seed_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
 	style_utility.style_label(
@@ -327,6 +435,7 @@ func _apply_mode_selection_visual_system() -> void:
 		24
 	)
 	style_utility.style_separator(_info_separator)
+	_apply_selection_detail_visibility()
 
 
 func _setup_focus_neighbors() -> void:
@@ -338,21 +447,21 @@ func _setup_focus_neighbors() -> void:
 
 func _apply_mode_focus_graph(cards: Array[Control]) -> void:
 	var vertical_order: Array[Control] = [_back_button]
-	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	var stacked: bool = not _uses_side_by_side_layout(size)
 	for card: Control in cards:
 		vertical_order.append(card)
 		card.focus_neighbor_right = (
 			NodePath("")
-			if compact
+			if stacked
 			else card.get_path_to(_grid_size_option_button)
 		)
 
 	var uses_pagination: bool = is_instance_valid(_pagination_container) and _pagination_container.visible
 	if uses_pagination:
 		vertical_order.append(_prev_page_button)
-		if compact:
+		if stacked:
 			vertical_order.append(_next_page_button)
-	if compact:
+	if stacked:
 		for detail_control: Control in [
 			_grid_size_option_button,
 			_edit_board_button,
@@ -379,7 +488,7 @@ func _apply_mode_focus_graph(cards: Array[Control]) -> void:
 	var focus_report: Dictionary = GFControlFocusUtility.apply_focus_order(vertical_order, {
 		"axis": GFControlFocusUtility.AXIS_VERTICAL,
 		"wrap": true,
-		"wire_tab_order": compact,
+		"wire_tab_order": stacked,
 		"preserve_unwired_directional_neighbors": true,
 	})
 	if not GFVariantData.get_option_bool(focus_report, "ok", false):
@@ -420,14 +529,8 @@ func _update_ui_for_selection() -> void:
 	if not is_instance_valid(_info_name_label) or not is_instance_valid(_right_panel_container):
 		return
 
-	_info_name_label.visible = true
-	if is_instance_valid(_info_separator):
-		_info_separator.visible = true
-	if is_instance_valid(_info_desc_label):
-		_info_desc_label.visible = true
-	if is_instance_valid(_info_score_label):
-		_info_score_label.visible = true
 	_right_panel_container.visible = true
+	_apply_selection_detail_visibility()
 
 	_populate_right_panel()
 	_populate_left_panel()

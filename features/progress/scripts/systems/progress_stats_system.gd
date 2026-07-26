@@ -28,6 +28,11 @@ const _STAT_LAST_SCORE: String = "last_score"
 const _STAT_LAST_STEPS: String = "last_steps"
 const _STAT_LAST_MAX_TILE: String = "last_max_tile"
 const _STAT_LAST_PLAYED_AT: String = "last_played_at"
+const _STAT_TOTAL_DURATION_MSEC: String = "total_duration_msec"
+const _STAT_DURATION_SAMPLES: String = "duration_samples"
+const _STAT_BEST_DURATION_MSEC: String = "best_duration_msec"
+const _STAT_AVERAGE_DURATION_MSEC: String = "average_duration_msec"
+const _STAT_LAST_DURATION_MSEC: String = "last_duration_msec"
 
 
 # --- 私有变量 ---
@@ -35,6 +40,7 @@ const _STAT_LAST_PLAYED_AT: String = "last_played_at"
 var _log: GFLogUtility
 var _clock: GameClockUtility
 var _save_graph: GameSaveGraphUtility
+var _account_catalog: LocalAccountCatalogUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -47,12 +53,14 @@ func ready() -> void:
 	_log = _get_log_utility()
 	_clock = _get_clock_utility()
 	_save_graph = _get_save_graph_utility()
+	_account_catalog = _get_account_catalog_utility()
 
 
 func dispose() -> void:
 	_log = null
 	_clock = null
 	_save_graph = null
+	_account_catalog = null
 
 
 # --- 公共方法 ---
@@ -193,7 +201,299 @@ func get_local_leaderboard(
 	return _get_local_leaderboard_by_identity(identity)
 
 
+## 返回指定本地账号按模式聚合的个人统计；空 ID 表示当前账号。
+func get_profile_mode_summaries(
+	account_id: String = ""
+) -> Array[Dictionary]:
+	var save_data: Dictionary = _get_profile_save_data(account_id)
+	if save_data.is_empty():
+		return []
+	return _build_mode_summaries(save_data)
+
+
+## 返回此设备全部本地账号可用的榜单分组身份。
+func get_device_leaderboard_identities() -> Array[Dictionary]:
+	var identities_by_key: Dictionary = {}
+	for account: LocalPlayerAccount in _get_local_accounts():
+		var save_data: Dictionary = _get_profile_save_data(account.account_id)
+		var leaderboards: Dictionary = _get_leaderboards(save_data)
+		for group_key_value: Variant in leaderboards.keys():
+			var group_key: String = GFVariantData.to_text(group_key_value)
+			var bucket: Dictionary = GFVariantData.get_option_dictionary(
+				leaderboards,
+				group_key
+			)
+			var identity: Dictionary = GFVariantData.get_option_dictionary(
+				bucket,
+				&"identity"
+			)
+			if (
+				GameResultRecordedData.is_leaderboard_identity_valid(identity)
+				and GameResultRecordedData.calculate_leaderboard_group_key(
+					identity
+				) == group_key
+			):
+				identities_by_key[group_key] = identity.duplicate(true)
+
+	var result: Array[Dictionary] = []
+	for identity_value: Variant in identities_by_key.values():
+		if identity_value is Dictionary:
+			result.append(GFVariantData.as_dictionary(identity_value))
+	result.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
+		var left_label: String = "%s|%s|%s|%010d" % [
+			GFVariantData.get_option_string(left, &"mode_id"),
+			GFVariantData.get_option_string(left, &"board_key"),
+			GFVariantData.get_option_string(left, &"ruleset_id"),
+			GFVariantData.get_option_int(left, &"ruleset_version", 0),
+		]
+		var right_label: String = "%s|%s|%s|%010d" % [
+			GFVariantData.get_option_string(right, &"mode_id"),
+			GFVariantData.get_option_string(right, &"board_key"),
+			GFVariantData.get_option_string(right, &"ruleset_id"),
+			GFVariantData.get_option_int(right, &"ruleset_version", 0),
+		]
+		return left_label < right_label
+	)
+	return result
+
+
+## 聚合此设备全部本地账号在同一严格规则分组下的最佳成绩。
+##
+## 每个账号最多占一个名次，避免同一玩家用多局结果填满设备榜。
+func get_device_local_leaderboard(
+	identity: Dictionary
+) -> Array[Dictionary]:
+	if not GameResultRecordedData.is_leaderboard_identity_valid(identity):
+		return []
+	var group_key: String = GameResultRecordedData.calculate_leaderboard_group_key(
+		identity
+	)
+	if group_key.is_empty():
+		return []
+
+	var rows: Array[Dictionary] = []
+	for account: LocalPlayerAccount in _get_local_accounts():
+		var save_data: Dictionary = _get_profile_save_data(account.account_id)
+		var bucket: Dictionary = GFVariantData.get_option_dictionary(
+			_get_leaderboards(save_data),
+			group_key
+		)
+		if GFVariantData.get_option_dictionary(bucket, &"identity") != identity:
+			continue
+		var best_result: GameResultRecordedData = null
+		for entry_value: Variant in GFVariantData.get_option_array(
+			bucket,
+			&"entries"
+		):
+			if not entry_value is Dictionary:
+				continue
+			var candidate: GameResultRecordedData = (
+				GameResultRecordedData.from_dict(
+					GFVariantData.as_dictionary(entry_value)
+				)
+			)
+			if candidate != null and candidate.is_competition_eligible():
+				best_result = candidate
+				break
+		if best_result != null:
+			rows.append({
+				&"rank": 0,
+				&"account_id": account.account_id,
+				&"display_name": account.display_name,
+				&"result": best_result,
+			})
+
+	rows.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
+		return _is_device_leaderboard_row_better(left, right)
+	)
+	for index: int in range(rows.size()):
+		rows[index][&"rank"] = index + 1
+	return rows
+
+
 # --- 私有方法 ---
+
+func _get_profile_save_data(account_id: String) -> Dictionary:
+	if account_id.is_empty():
+		return _get_save_data()
+	if not is_instance_valid(_account_catalog):
+		_account_catalog = _get_account_catalog_utility()
+	if not is_instance_valid(_account_catalog):
+		return {}
+	if _account_catalog.get_account(account_id) == null:
+		return {}
+	if account_id == _account_catalog.get_active_account_id():
+		return _get_save_data()
+
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return {}
+	var envelope: Dictionary = save_graph.read_profile_section_envelope(
+		LocalAccountCatalogUtility.make_profile_file_name(account_id),
+		GameSaveGraphUtility.PROGRESS_SECTION_ID
+	)
+	if envelope.is_empty():
+		return {}
+	var provider: GameStatsSaveData = GameStatsSaveData.new()
+	if provider.replace_from_dict(envelope) != OK:
+		return {}
+	return provider.get_section_data()
+
+
+func _get_local_accounts() -> Array[LocalPlayerAccount]:
+	if not is_instance_valid(_account_catalog):
+		_account_catalog = _get_account_catalog_utility()
+	if not is_instance_valid(_account_catalog):
+		return []
+	return _account_catalog.get_accounts()
+
+
+func _build_mode_summaries(save_data: Dictionary) -> Array[Dictionary]:
+	var summaries: Array[Dictionary] = []
+	var stats: Dictionary = _get_stats(save_data)
+	var mode_ids: Array[String] = []
+	for mode_key: Variant in stats.keys():
+		if mode_key is String:
+			mode_ids.append(mode_key)
+	mode_ids.sort()
+
+	for mode_id: String in mode_ids:
+		var mode_stats: Dictionary = _get_mode_stats(stats, mode_id)
+		var summary: Dictionary = {
+			&"mode_id": mode_id,
+			&"board_count": 0,
+			&"plays": 0,
+			&"best_score": 0,
+			&"best_steps": 0,
+			&"max_tile": 0,
+			&"total_score": 0,
+			&"total_steps": 0,
+			&"step_samples": 0,
+			&"average_score": 0,
+			&"average_steps": 0,
+			&"target_reached_count": 0,
+			&"target_reached_rate": 0,
+			&"total_duration_msec": 0,
+			&"duration_samples": 0,
+			&"best_duration_msec": 0,
+			&"average_duration_msec": 0,
+			&"last_played_at": 0,
+		}
+		for entry_value: Variant in mode_stats.values():
+			if not entry_value is Dictionary:
+				continue
+			var entry: Dictionary = _normalize_stats_entry(
+				GFVariantData.as_dictionary(entry_value)
+			)
+			summary[&"board_count"] = (
+				GFVariantData.get_option_int(summary, &"board_count", 0) + 1
+			)
+			summary[&"plays"] = (
+				GFVariantData.get_option_int(summary, &"plays", 0)
+				+ GFVariantData.get_option_int(entry, _STAT_PLAYS, 0)
+			)
+			summary[&"best_score"] = maxi(
+				GFVariantData.get_option_int(summary, &"best_score", 0),
+				GFVariantData.get_option_int(entry, _STAT_BEST_SCORE, 0)
+			)
+			summary[&"best_steps"] = _minimum_positive(
+				GFVariantData.get_option_int(summary, &"best_steps", 0),
+				GFVariantData.get_option_int(entry, _STAT_BEST_STEPS, 0)
+			)
+			summary[&"max_tile"] = maxi(
+				GFVariantData.get_option_int(summary, &"max_tile", 0),
+				GFVariantData.get_option_int(entry, _STAT_MAX_TILE, 0)
+			)
+			for key: StringName in [
+				&"total_score",
+				&"total_steps",
+				&"step_samples",
+				&"target_reached_count",
+				&"total_duration_msec",
+				&"duration_samples",
+			]:
+				summary[key] = (
+					GFVariantData.get_option_int(summary, key, 0)
+					+ GFVariantData.get_option_int(entry, String(key), 0)
+				)
+			summary[&"best_duration_msec"] = _minimum_positive(
+				GFVariantData.get_option_int(
+					summary,
+					&"best_duration_msec",
+					0
+				),
+				GFVariantData.get_option_int(
+					entry,
+					_STAT_BEST_DURATION_MSEC,
+					0
+				)
+			)
+			summary[&"last_played_at"] = maxi(
+				GFVariantData.get_option_int(summary, &"last_played_at", 0),
+				GFVariantData.get_option_int(entry, _STAT_LAST_PLAYED_AT, 0)
+			)
+
+		var plays: int = GFVariantData.get_option_int(summary, &"plays", 0)
+		summary[&"average_score"] = _rounded_average(
+			GFVariantData.get_option_int(summary, &"total_score", 0),
+			plays
+		)
+		summary[&"average_steps"] = _rounded_average(
+			GFVariantData.get_option_int(summary, &"total_steps", 0),
+			GFVariantData.get_option_int(summary, &"step_samples", 0)
+		)
+		summary[&"average_duration_msec"] = _rounded_average(
+			GFVariantData.get_option_int(
+				summary,
+				&"total_duration_msec",
+				0
+			),
+			GFVariantData.get_option_int(summary, &"duration_samples", 0)
+		)
+		summary[&"target_reached_rate"] = _rounded_average(
+			GFVariantData.get_option_int(
+				summary,
+				&"target_reached_count",
+				0
+			) * 100,
+			plays
+		)
+		summaries.append(summary)
+	return summaries
+
+
+static func _minimum_positive(left: int, right: int) -> int:
+	if left <= 0:
+		return maxi(right, 0)
+	if right <= 0:
+		return left
+	return mini(left, right)
+
+
+static func _is_device_leaderboard_row_better(
+	left: Dictionary,
+	right: Dictionary
+) -> bool:
+	var left_value: Variant = GFVariantData.get_option_value(left, &"result")
+	var right_value: Variant = GFVariantData.get_option_value(right, &"result")
+	if not (left_value is GameResultRecordedData and right_value is GameResultRecordedData):
+		return (
+			GFVariantData.get_option_string(left, &"account_id")
+			< GFVariantData.get_option_string(right, &"account_id")
+		)
+	var left_result: GameResultRecordedData = left_value
+	var right_result: GameResultRecordedData = right_value
+	var left_data: Dictionary = left_result.to_dict()
+	var right_data: Dictionary = right_result.to_dict()
+	if _is_better_leaderboard_result_data(left_data, right_data):
+		return true
+	if _is_better_leaderboard_result_data(right_data, left_data):
+		return false
+	return (
+		GFVariantData.get_option_string(left, &"account_id")
+		< GFVariantData.get_option_string(right, &"account_id")
+	)
+
 
 func _apply_result_to_stats(
 	save_data: Dictionary,
@@ -236,6 +536,27 @@ func _apply_result_to_stats(
 	entry[_STAT_LAST_STEPS] = result.steps
 	entry[_STAT_LAST_MAX_TILE] = result.max_tile
 	entry[_STAT_LAST_PLAYED_AT] = result.played_at
+	if result.duration_msec > 0:
+		var best_duration_msec: int = GFVariantData.get_option_int(
+			entry,
+			_STAT_BEST_DURATION_MSEC,
+			0
+		)
+		if best_duration_msec <= 0 or result.duration_msec < best_duration_msec:
+			entry[_STAT_BEST_DURATION_MSEC] = result.duration_msec
+		entry[_STAT_TOTAL_DURATION_MSEC] = (
+			GFVariantData.get_option_int(
+				entry,
+				_STAT_TOTAL_DURATION_MSEC,
+				0
+			)
+			+ result.duration_msec
+		)
+		entry[_STAT_DURATION_SAMPLES] = (
+			GFVariantData.get_option_int(entry, _STAT_DURATION_SAMPLES, 0)
+			+ 1
+		)
+		entry[_STAT_LAST_DURATION_MSEC] = result.duration_msec
 	if result.target_value > 0:
 		entry[_STAT_TARGET_VALUE] = result.target_value
 		if result.target_reached:
@@ -554,6 +875,34 @@ func _normalize_stats_entry(entry: Dictionary) -> Dictionary:
 	normalized[_STAT_LAST_STEPS] = maxi(GFVariantData.get_option_int(normalized, _STAT_LAST_STEPS, 0), 0)
 	normalized[_STAT_LAST_MAX_TILE] = maxi(GFVariantData.get_option_int(normalized, _STAT_LAST_MAX_TILE, 0), 0)
 	normalized[_STAT_LAST_PLAYED_AT] = maxi(GFVariantData.get_option_int(normalized, _STAT_LAST_PLAYED_AT, 0), 0)
+	normalized[_STAT_TOTAL_DURATION_MSEC] = maxi(
+		GFVariantData.get_option_int(
+			normalized,
+			_STAT_TOTAL_DURATION_MSEC,
+			0
+		),
+		0
+	)
+	normalized[_STAT_DURATION_SAMPLES] = maxi(
+		GFVariantData.get_option_int(normalized, _STAT_DURATION_SAMPLES, 0),
+		0
+	)
+	normalized[_STAT_BEST_DURATION_MSEC] = maxi(
+		GFVariantData.get_option_int(
+			normalized,
+			_STAT_BEST_DURATION_MSEC,
+			0
+		),
+		0
+	)
+	normalized[_STAT_LAST_DURATION_MSEC] = maxi(
+		GFVariantData.get_option_int(
+			normalized,
+			_STAT_LAST_DURATION_MSEC,
+			0
+		),
+		0
+	)
 	normalized[_STAT_TOTAL_SCORE] = maxi(GFVariantData.get_option_int(normalized, _STAT_TOTAL_SCORE, 0), 0)
 	normalized[_STAT_TOTAL_STEPS] = maxi(GFVariantData.get_option_int(normalized, _STAT_TOTAL_STEPS, 0), 0)
 	normalized[_STAT_STEP_SAMPLES] = maxi(GFVariantData.get_option_int(normalized, _STAT_STEP_SAMPLES, 0), 0)
@@ -590,6 +939,11 @@ func _make_default_stats() -> Dictionary:
 		_STAT_LAST_STEPS: 0,
 		_STAT_LAST_MAX_TILE: 0,
 		_STAT_LAST_PLAYED_AT: 0,
+		_STAT_TOTAL_DURATION_MSEC: 0,
+		_STAT_DURATION_SAMPLES: 0,
+		_STAT_BEST_DURATION_MSEC: 0,
+		_STAT_AVERAGE_DURATION_MSEC: 0,
+		_STAT_LAST_DURATION_MSEC: 0,
 	}
 
 
@@ -600,6 +954,10 @@ static func _update_average_stats(entry: Dictionary) -> void:
 	var total_steps: int = GFVariantData.get_option_int(entry, _STAT_TOTAL_STEPS, 0)
 	entry[_STAT_AVERAGE_SCORE] = _rounded_average(total_score, plays)
 	entry[_STAT_AVERAGE_STEPS] = _rounded_average(total_steps, step_samples)
+	entry[_STAT_AVERAGE_DURATION_MSEC] = _rounded_average(
+		GFVariantData.get_option_int(entry, _STAT_TOTAL_DURATION_MSEC, 0),
+		GFVariantData.get_option_int(entry, _STAT_DURATION_SAMPLES, 0)
+	)
 
 
 static func _update_target_stats(entry: Dictionary) -> void:
@@ -657,6 +1015,14 @@ func _get_save_graph_utility() -> GameSaveGraphUtility:
 	if utility_value is GameSaveGraphUtility:
 		var save_graph: GameSaveGraphUtility = utility_value
 		return save_graph
+	return null
+
+
+func _get_account_catalog_utility() -> LocalAccountCatalogUtility:
+	var utility_value: Object = get_utility(LocalAccountCatalogUtility)
+	if utility_value is LocalAccountCatalogUtility:
+		var account_catalog: LocalAccountCatalogUtility = utility_value
+		return account_catalog
 	return null
 
 

@@ -36,6 +36,7 @@ SETTINGS_SECTION_GENERAL,通用设置,General
 SETTINGS_SECTION_AUDIO,声音,Audio
 SETTINGS_SECTION_CONTROLS,操作,Controls
 SETTINGS_AUTO_SAVE_HINT,更改会自动保存,Changes save automatically
+SETTINGS_SAVE_FAILED_HINT,设置未保存：存储错误 %d,Settings not saved: storage error %d
 ACCESSIBILITY_SECTION_TITLE,无障碍与性能,Accessibility & Performance
 VFX_QUALITY_LABEL,特效质量,VFX Quality
 VFX_QUALITY_MINIMAL,最低,Minimal
@@ -108,6 +109,16 @@ UI_TARGET_REACHED,已达成,Reached
 UI_TARGET_NOT_REACHED,未达成,Not Reached
 MSG_NO_BOOKMARKS,没有找到任何书签记录。,No bookmarks found.
 MSG_NO_REPLAYS,没有找到任何回放记录。,No replays found.
+DELETE_CONFIRM_TITLE,确认删除,Confirm Deletion
+DELETE_CONFIRM_ACTION,删除,Delete
+DELETE_CANCEL_ACTION,取消,Cancel
+DELETE_ITEM_CONFIRMATION,确定永久删除这个项目吗？此操作无法撤销。,Permanently delete this item? This cannot be undone.
+DELETE_SAVE_CONFIRMATION,确定永久删除这个存档吗？此操作无法撤销。,Permanently delete this save? This cannot be undone.
+DELETE_REPLAY_CONFIRMATION,确定永久删除这个回放吗？此操作无法撤销。,Permanently delete this replay? This cannot be undone.
+DELETE_FAILED_TITLE,删除失败,Deletion Failed
+DELETE_ITEM_FAILED,删除失败（错误码：%d）。,Deletion failed (error %d).
+DELETE_SAVE_FAILED,存档删除失败（错误码：%d）。,Failed to delete save (error %d).
+DELETE_REPLAY_FAILED,回放删除失败（错误码：%d）。,Failed to delete replay (error %d).
 MSG_NO_DATA,暂无数据。,No data.
 MSG_SELECT_ITEM,请选择一个项目...,Select an item...
 MSG_SELECT_SAVE,请选择一个存档...,Select a save file...
@@ -123,6 +134,8 @@ HINT_SEED_PLACEHOLDER,留空则随机,Empty for random
 BTN_START_GAME,开始游戏,Start Game
 BTN_LOAD_BOOKMARK,读取书签（存档）,Load Bookmark
 BTN_CONTINUE_GAME,继续游戏,Continue
+CONTINUE_GAME_HINT,继续最近一个有效存档,Resume the latest valid save
+CONTINUE_GAME_UNAVAILABLE_HINT,没有可继续的有效存档,No valid save is available to resume
 MAIN_MENU_KICKER,无限合并实验室,INFINITE MERGE LAB
 MAIN_MENU_SUBTITLE,规则会组合，棋盘会生长,"Rules combine. Boards evolve."
 MAIN_MENU_PLAY,开始,PLAY
@@ -425,3 +438,31 @@ ACCESSIBILITY_COPY_BOARD_SUMMARY,复制棋盘说明,Copy Board Description
 ACCESSIBILITY_BOARD_SUMMARY_LOADING,正在生成棋盘说明……,Preparing board description…
 ACCESSIBILITY_BOARD_SUMMARY_COPIED,棋盘说明已复制。,Board description copied.
 ACCESSIBILITY_BOARD_SUMMARY_COPY_FAILED,暂时无法复制棋盘说明。,Board description could not be copied.
+PLAYER_DEFAULT_NAME,玩家 1,Player 1
+PLAYER_PROFILE_TITLE,玩家档案,Player Profile
+PLAYER_PROFILE_TAB,个人信息,Profile
+LOCAL_LEADERBOARD_TAB,本地排行榜,Local Leaderboard
+PLAYER_NAME_PLACEHOLDER,输入玩家名称,Enter player name
+PLAYER_CREATE,新建玩家,Create Player
+PLAYER_RENAME,重命名,Rename
+PLAYER_DELETE,删除玩家,Delete Player
+PLAYER_DELETE_CONFIRM_TITLE,删除本地玩家,Delete Local Player
+PLAYER_DELETE_CONFIRM,确认删除“%s”及其独立存档吗？,Delete “%s” and its independent save data?
+PLAYER_PROFILE_UNAVAILABLE,玩家档案暂不可用。,Player profile is unavailable.
+PLAYER_ACCOUNT_SUMMARY,%s · %d 局 · 最高 %d · 最近 %s,%s · %d games · Best %d · Last active %s
+PLAYER_MODE_STATS_EMPTY,完成一局后会在这里显示各模式统计。,Mode statistics appear here after a completed game.
+PLAYER_MODE_METRICS,%d 局 · 最高分 %d · 最大方块 %d,%d games · Best score %d · Highest tile %d
+PLAYER_MODE_TIMING,最佳用时 %s · 平均用时 %s,Best time %s · Average time %s
+PLAYER_TIME_NONE,--,--
+LOCAL_LEADERBOARD_EMPTY,还没有符合当前规则配置的本地成绩。,No local result matches this rules configuration yet.
+LOCAL_LEADERBOARD_GROUP,%s · %s · 规则 v%d,%s · %s · Rules v%d
+LOCAL_LEADERBOARD_SCORE,%d 分 · 最大 %d · %s,%d pts · Max %d · %s
+PLAYER_SWITCH_FAILED,切换玩家失败（错误码 %d）。,Could not switch player (error %d).
+PLAYER_SWITCHED,已切换玩家。,Player switched.
+PLAYER_CREATE_FAILED,新建玩家失败（错误码 %d）。,Could not create player (error %d).
+PLAYER_CREATED,玩家已创建并切换。,Player created and activated.
+PLAYER_RENAME_FAILED,重命名失败（错误码 %d）。,Could not rename player (error %d).
+PLAYER_RENAMED,玩家名称已更新。,Player name updated.
+PLAYER_DELETE_FAILED,删除玩家失败（错误码 %d）。,Could not delete player (error %d).
+PLAYER_DELETED,玩家及其独立存档已删除。,Player and independent save data deleted.
+BTN_PLAYER_PROFILE,玩家档案,Player Profile

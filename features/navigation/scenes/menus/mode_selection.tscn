@@ -36,6 +36,7 @@ alignment = 1
 
 [node name="PrevPageButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/PaginationContainer" index="0" unique_id=2087096899]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 focus_neighbor_left = NodePath("../NextPageButton")
@@ -45,6 +46,7 @@ text = "上一页"
 
 [node name="NextPageButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox/PaginationContainer" index="1" unique_id=1715288385]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 focus_neighbor_left = NodePath("../PrevPageButton")
@@ -81,6 +83,7 @@ text = "棋盘大小："
 
 [node name="GridSizeOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/RightColumn/GridSizeContainer" index="1" unique_id=1362999551]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 focus_neighbor_left = NodePath("../../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
 focus_neighbor_top = NodePath("../../StartGameButton")
@@ -88,6 +91,7 @@ focus_neighbor_bottom = NodePath("../../EditBoardButton")
 
 [node name="EditBoardButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="4"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 focus_neighbor_left = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
 focus_neighbor_top = NodePath("../GridSizeContainer/GridSizeOptionButton")
@@ -103,7 +107,7 @@ text = "游戏种子："
 
 [node name="SeedLineEdit" type="LineEdit" parent="MarginContainer/ColumnsContainer/RightColumn/SeedContainer" index="1" unique_id=244994606]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 0)
+custom_minimum_size = Vector2(150, 44)
 layout_mode = 2
 focus_neighbor_left = NodePath("../../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
 focus_neighbor_top = NodePath("../../EditBoardButton")
@@ -116,7 +120,7 @@ caret_blink = true
 
 [node name="RefreshSeedButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn/SeedContainer" index="2" unique_id=1216658248]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(46, 42)
+custom_minimum_size = Vector2(46, 44)
 layout_mode = 2
 tooltip_text = "点击以生成新的随机种子"
 focus_neighbor_left = NodePath("../SeedLineEdit")

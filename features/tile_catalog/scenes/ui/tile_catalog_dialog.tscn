@@ -70,7 +70,7 @@ vertical_alignment = 1
 
 [node name="BackButton" type="Button" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Header"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(112, 42)
+custom_minimum_size = Vector2(112, 44)
 layout_mode = 2
 text = "返回"
 
@@ -84,7 +84,7 @@ theme_override_constants/separation = 10
 
 [node name="SearchInput" type="LineEdit" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Filters"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 42)
+custom_minimum_size = Vector2(220, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "搜索方块或规则"
@@ -92,7 +92,7 @@ clear_button_enabled = true
 
 [node name="StateFilter" type="OptionButton" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox/Filters"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(180, 42)
+custom_minimum_size = Vector2(180, 44)
 layout_mode = 2
 
 [node name="Content" type="BoxContainer" parent="OuterMargin/CatalogPanel/InnerMargin/RootVBox"]

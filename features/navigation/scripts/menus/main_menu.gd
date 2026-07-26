@@ -30,20 +30,26 @@ const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 ## 设置场景路径。
 @export_file("*.tscn") var settings_scene_path: String = ""
 
+## 游戏主场景路径。
+@export_file("*.tscn") var game_scene_path: String = ""
+
 
 # --- 私有变量 ---
 
 var _layout_update_queued: bool = false
 var _viewport_utility: GFViewportUtility = null
 var _content_scroll: ScrollContainer = null
+var _latest_valid_bookmark: BookmarkData = null
 
 
 # --- @onready 变量 (节点引用) ---
 
 @onready var _start_game_button: Button = %StartGameButton
+@onready var _continue_game_button: Button = %ContinueGameButton
 @onready var _load_bookmark_button: Button = %LoadBookmarkButton
 @onready var _replays_button: Button = %ReplaysButton
 @onready var _tile_catalog_button: Button = %TileCatalogButton
+@onready var _player_profile_button: Button = %PlayerProfileButton
 @onready var _achievements_button: Button = %AchievementsButton
 @onready var _settings_button: Button = %SettingsButton
 @onready var _quit_button: Button = %QuitButton
@@ -70,9 +76,15 @@ func _ready() -> void:
 		&"MainMenuScroll"
 	)
 	var _connect_result_36: int = _start_game_button.pressed.connect(_on_start_game_button_pressed)
+	var _continue_connection: int = _continue_game_button.pressed.connect(
+		_on_continue_game_button_pressed
+	)
 	var _connect_result_37: int = _load_bookmark_button.pressed.connect(_on_load_bookmark_button_pressed)
 	var _connect_result_38: int = _replays_button.pressed.connect(_on_replays_button_pressed)
 	var _catalog_connection: int = _tile_catalog_button.pressed.connect(_on_tile_catalog_button_pressed)
+	var _profile_connection: int = _player_profile_button.pressed.connect(
+		_on_player_profile_button_pressed
+	)
 	var _achievements_connection: int = _achievements_button.pressed.connect(_on_achievements_button_pressed)
 	var _connect_result_39: int = _settings_button.pressed.connect(_on_settings_button_pressed)
 	var _connect_result_40: int = _quit_button.pressed.connect(_on_quit_button_pressed)
@@ -82,6 +94,7 @@ func _ready() -> void:
 	_queue_layout_update()
 	_start_game_button.grab_focus()
 	_update_ui_text()
+	_refresh_continue_game_state()
 
 
 # --- 私有/辅助方法 ---
@@ -109,12 +122,21 @@ func _update_ui_text() -> void:
 		_system_label.text = tr("MAIN_MENU_SYSTEM")
 	if is_instance_valid(_start_game_button):
 		_start_game_button.text = tr("BTN_START_GAME")
+	if is_instance_valid(_continue_game_button):
+		_continue_game_button.text = tr("BTN_CONTINUE_GAME")
+		_continue_game_button.tooltip_text = (
+			tr("CONTINUE_GAME_HINT")
+			if not _continue_game_button.disabled
+			else tr("CONTINUE_GAME_UNAVAILABLE_HINT")
+		)
 	if is_instance_valid(_load_bookmark_button):
-		_load_bookmark_button.text = tr("BTN_CONTINUE_GAME")
+		_load_bookmark_button.text = tr("BTN_LOAD_SAVE")
 	if is_instance_valid(_replays_button):
 		_replays_button.text = tr("BTN_REPLAY_LIST")
 	if is_instance_valid(_tile_catalog_button):
 		_tile_catalog_button.text = tr("BTN_TILE_CATALOG")
+	if is_instance_valid(_player_profile_button):
+		_player_profile_button.text = tr("BTN_PLAYER_PROFILE")
 	if is_instance_valid(_achievements_button):
 		_achievements_button.text = tr("BTN_ACHIEVEMENTS")
 	if is_instance_valid(_settings_button):
@@ -135,9 +157,11 @@ func _apply_semantic_styles() -> void:
 	style.style_label(_collection_label, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_label(_system_label, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_button(_start_game_button, GameUiStyleUtility.ButtonRole.PRIMARY)
+	style.style_button(_continue_game_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_load_bookmark_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_replays_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_tile_catalog_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_player_profile_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_achievements_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_settings_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_quit_button, GameUiStyleUtility.ButtonRole.QUIET)
@@ -199,6 +223,9 @@ func _apply_responsive_layout() -> void:
 	_start_game_button.custom_minimum_size.y = (
 		52.0 if compact_landscape else (58.0 if compact else 68.0)
 	)
+	_continue_game_button.custom_minimum_size.y = (
+		44.0 if compact_landscape else (48.0 if compact else 54.0)
+	)
 	_load_bookmark_button.custom_minimum_size.y = (
 		44.0 if compact_landscape else (48.0 if compact else 54.0)
 	)
@@ -233,10 +260,111 @@ func _get_viewport_utility() -> GFViewportUtility:
 	return null
 
 
+func _get_bookmark_system() -> BookmarkSystem:
+	var system_value: Object = get_system(BookmarkSystem)
+	if system_value is BookmarkSystem:
+		var bookmark_system: BookmarkSystem = system_value
+		return bookmark_system
+	return null
+
+
+func _get_app_config_model() -> AppConfigModel:
+	var model_value: Object = get_model(AppConfigModel)
+	if model_value is AppConfigModel:
+		var app_config: AppConfigModel = model_value
+		return app_config
+	return null
+
+
+func _get_mode_catalog_utility() -> GameModeCatalogUtility:
+	var utility_value: Object = get_utility(GameModeCatalogUtility)
+	if utility_value is GameModeCatalogUtility:
+		var mode_catalog: GameModeCatalogUtility = utility_value
+		return mode_catalog
+	return null
+
+
+func _get_determinism_utility() -> GameDeterminismUtility:
+	var utility_value: Object = get_utility(GameDeterminismUtility)
+	if utility_value is GameDeterminismUtility:
+		var determinism: GameDeterminismUtility = utility_value
+		return determinism
+	return null
+
+
+func _refresh_continue_game_state() -> void:
+	_latest_valid_bookmark = _find_latest_valid_bookmark()
+	if not is_instance_valid(_continue_game_button):
+		return
+	_continue_game_button.disabled = not is_instance_valid(_latest_valid_bookmark)
+	_continue_game_button.tooltip_text = (
+		tr("CONTINUE_GAME_HINT")
+		if not _continue_game_button.disabled
+		else tr("CONTINUE_GAME_UNAVAILABLE_HINT")
+	)
+
+
+func _find_latest_valid_bookmark() -> BookmarkData:
+	var bookmark_system: BookmarkSystem = _get_bookmark_system()
+	var mode_catalog: GameModeCatalogUtility = _get_mode_catalog_utility()
+	var determinism: GameDeterminismUtility = _get_determinism_utility()
+	if (
+		not is_instance_valid(bookmark_system)
+		or not is_instance_valid(mode_catalog)
+		or not is_instance_valid(determinism)
+	):
+		return null
+
+	var registered_paths: PackedStringArray = mode_catalog.get_registered_config_paths()
+	for bookmark: BookmarkData in bookmark_system.load_bookmarks():
+		if not registered_paths.has(bookmark.mode_config_path):
+			continue
+		var mode_config: GameModeConfig = mode_catalog.get_config(bookmark.mode_config_path)
+		if not _is_bookmark_valid_for_resume(bookmark, mode_config, determinism):
+			continue
+		return bookmark
+	return null
+
+
+static func _is_bookmark_valid_for_resume(
+	bookmark: BookmarkData,
+	mode_config: GameModeConfig,
+	determinism: GameDeterminismUtility
+) -> bool:
+	return (
+		is_instance_valid(bookmark)
+		and is_instance_valid(mode_config)
+		and is_instance_valid(determinism)
+		and mode_config.validate()
+		and bookmark.target_tile_value == maxi(mode_config.target_tile_value, 0)
+		and bookmark.matches_ruleset(mode_config, determinism)
+	)
+
+
+func _resume_bookmark(bookmark: BookmarkData) -> void:
+	if not is_instance_valid(bookmark):
+		return
+	var app_config: AppConfigModel = _get_app_config_model()
+	if not is_instance_valid(app_config):
+		push_error("[MainMenu] 缺少 AppConfigModel，无法继续存档。")
+		return
+	app_config.current_replay_data.set_value(null)
+	app_config.selected_bookmark_data.set_value(bookmark)
+	app_config.selected_mode_config_path.set_value("")
+	app_config.selected_board_topology.set_value(null)
+	_goto_scene(game_scene_path, "game_scene_path")
+
+
 # --- 信号处理函数 ---
 
 func _on_start_game_button_pressed() -> void:
 	_goto_scene(mode_selection_scene_path, "mode_selection_scene_path")
+
+
+func _on_continue_game_button_pressed() -> void:
+	_refresh_continue_game_state()
+	if is_instance_valid(_latest_valid_bookmark):
+		_resume_bookmark(_latest_valid_bookmark)
 
 
 func _on_load_bookmark_button_pressed() -> void:
@@ -253,6 +381,16 @@ func _on_tile_catalog_button_pressed() -> void:
 		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开方块图鉴。")
 		return
 	var _catalog_panel: Node = ui_router.push_route(GameUiRouterUtility.ROUTE_TILE_CATALOG)
+
+
+func _on_player_profile_button_pressed() -> void:
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开玩家档案。")
+		return
+	var _profile_panel: Node = ui_router.push_route(
+		GameUiRouterUtility.ROUTE_PLAYER_PROFILE
+	)
 
 
 func _on_achievements_button_pressed() -> void:

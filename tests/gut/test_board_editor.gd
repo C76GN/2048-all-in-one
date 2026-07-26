@@ -19,6 +19,7 @@ const _BOARD_EDITOR_VIEWPORT_SCRIPT_PATH: String = (
 const _BOARD_EDITOR_CONTEXT_SCRIPT_PATH: String = (
 	"res://features/board_editor/scripts/contexts/board_editor_context.gd"
 )
+const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
 
 
 # --- 测试用例 ---
@@ -300,6 +301,29 @@ func test_editor_responsive_layout_uses_mobile_sections() -> void:
 		BoardEditorResponsiveLayoutController.classify_layout(Vector2(390.0, 844.0))
 		== BoardEditorResponsiveLayoutController.LayoutMode.PORTRAIT
 	)
+
+
+func test_editor_focusable_controls_preserve_touch_target_contract() -> void:
+	var panel: Node = _BOARD_EDITOR_SCENE.instantiate()
+	autofree(panel)
+
+	var focusable_count: int = 0
+	for node: Node in panel.find_children("*", "Control", true, true):
+		var control: Control = node as Control
+		if control == null or control.focus_mode == Control.FOCUS_NONE:
+			continue
+		focusable_count += 1
+		assert_gte(
+			control.custom_minimum_size.x,
+			_MINIMUM_TOUCH_TARGET_SIZE,
+			"%s 必须保留至少 44px 的触控宽度。" % control.name
+		)
+		assert_gte(
+			control.custom_minimum_size.y,
+			_MINIMUM_TOUCH_TARGET_SIZE,
+			"%s 必须保留至少 44px 的触控高度。" % control.name
+		)
+	assert_gt(focusable_count, 0, "棋盘编辑器场景应包含可聚焦交互控件。")
 
 
 func test_editor_viewport_reserves_single_touch_for_drawing_and_multitouch_for_gf_gestures() -> void:

@@ -120,16 +120,15 @@ func _update_ui_text() -> void:
 	if is_instance_valid(back_button):
 		back_button.text = tr("BTN_RETURN_MAIN")
 
-func _do_delete_logic(data: Resource) -> void:
+func _do_delete_logic(data: Resource) -> Error:
 	if not data is BookmarkData:
-		return
+		return ERR_INVALID_PARAMETER
 
 	var bookmark: BookmarkData = data
 	var bookmark_system: BookmarkSystem = _get_bookmark_system()
-	if is_instance_valid(bookmark_system):
-		var delete_error: Error = bookmark_system.delete_bookmark(bookmark.bookmark_id)
-		if delete_error != OK:
-			push_error("[BookmarkList] 删除书签失败，错误码：%d。" % delete_error)
+	if not is_instance_valid(bookmark_system):
+		return ERR_UNCONFIGURED
+	return bookmark_system.delete_bookmark(bookmark.bookmark_id)
 
 
 func _on_primary_action_triggered(data: Resource) -> void:
@@ -193,3 +192,11 @@ func _get_empty_message() -> String:
 
 func _get_select_hint_message() -> String:
 	return tr("MSG_SELECT_SAVE")
+
+
+func _get_delete_confirmation_message(_data: Resource) -> String:
+	return tr("DELETE_SAVE_CONFIRMATION")
+
+
+func _get_delete_failure_message(error: Error) -> String:
+	return tr("DELETE_SAVE_FAILED") % int(error)

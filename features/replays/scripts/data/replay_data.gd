@@ -6,6 +6,10 @@ extends Resource
 # --- 常量 ---
 
 const SCHEMA_VERSION: int = 4
+## 单局回放的业务步数上限；同时约束动作和逐回合检查点。
+##
+## 该上限在构造 Resource 前检查持久化数组，避免不可信存档先触发无界复制。
+const MAX_STEP_COUNT: int = 8192
 
 
 # --- 导出变量 ---
@@ -155,6 +159,8 @@ func _is_valid_contract(initial_topology: BoardTopology) -> bool:
 		or ruleset_version <= 0
 		or ruleset_fingerprint.length() != 64
 		or metadata == null
+		or actions.size() > MAX_STEP_COUNT
+		or checkpoints.size() > MAX_STEP_COUNT
 		or checkpoints.size() != actions.size()
 		or not GridModel.is_snapshot_envelope_valid(final_board_snapshot)
 	):
@@ -179,7 +185,7 @@ func _is_valid_contract(initial_topology: BoardTopology) -> bool:
 static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 	if data.size() != 14:
 		return false
-	return (
+	if not (
 		GFVariantData.get_option_value(data, &"schema_version") is int
 		and GFVariantData.get_option_value(data, &"replay_id") is String
 		and GFVariantData.get_option_value(data, &"timestamp") is int
@@ -194,4 +200,11 @@ static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, &"actions") is Array
 		and GFVariantData.get_option_value(data, &"checkpoints") is Array
 		and GFVariantData.get_option_value(data, &"final_board_snapshot") is Dictionary
+	):
+		return false
+	var action_values: Array = GFVariantData.get_option_array(data, &"actions")
+	var checkpoint_values: Array = GFVariantData.get_option_array(data, &"checkpoints")
+	return (
+		action_values.size() <= MAX_STEP_COUNT
+		and checkpoint_values.size() <= MAX_STEP_COUNT
 	)

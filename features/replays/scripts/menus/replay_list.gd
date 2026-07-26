@@ -132,16 +132,15 @@ func _update_ui_text() -> void:
 	if is_instance_valid(back_button):
 		back_button.text = tr("BTN_RETURN_MAIN")
 
-func _do_delete_logic(data: Resource) -> void:
+func _do_delete_logic(data: Resource) -> Error:
 	if not data is ReplayData:
-		return
+		return ERR_INVALID_PARAMETER
 
 	var replay: ReplayData = data
 	var replay_system: ReplaySystem = _get_replay_system()
-	if is_instance_valid(replay_system):
-		var delete_error: Error = replay_system.delete_replay(replay.replay_id)
-		if delete_error != OK:
-			push_error("[ReplayList] 删除回放失败，错误码：%d。" % delete_error)
+	if not is_instance_valid(replay_system):
+		return ERR_UNCONFIGURED
+	return replay_system.delete_replay(replay.replay_id)
 
 
 func _on_primary_action_triggered(data: Resource) -> void:
@@ -203,3 +202,11 @@ func _get_empty_message() -> String:
 
 func _get_select_hint_message() -> String:
 	return tr("MSG_SELECT_REPLAY")
+
+
+func _get_delete_confirmation_message(_data: Resource) -> String:
+	return tr("DELETE_REPLAY_CONFIRMATION")
+
+
+func _get_delete_failure_message(error: Error) -> String:
+	return tr("DELETE_REPLAY_FAILED") % int(error)

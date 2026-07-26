@@ -87,6 +87,7 @@ theme_override_constants/separation = 0
 
 [node name="EditorSectionButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/MobileSections"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 toggle_mode = true
@@ -95,6 +96,7 @@ text = "编辑"
 
 [node name="LibrarySectionButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/MobileSections"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 toggle_mode = true
@@ -122,12 +124,14 @@ theme_override_constants/separation = 0
 
 [node name="BrushButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools/ToolModes"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "画笔"
 
 [node name="EraserButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools/ToolModes"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "橡皮擦"
@@ -137,6 +141,7 @@ layout_mode = 2
 
 [node name="UndoButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools/History"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 disabled = true
@@ -144,6 +149,7 @@ text = "撤销"
 
 [node name="RedoButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools/History"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 disabled = true
@@ -154,21 +160,25 @@ layout_mode = 2
 
 [node name="RectangleButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 text = "默认矩形"
 
 [node name="CrossButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 text = "十字形"
 
 [node name="NormalizeButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 text = "移至左上原点"
 
 [node name="ClearButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Tools"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 text = "清空"
 
@@ -218,10 +228,10 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -226.0
+offset_left = -242.0
 offset_top = 10.0
 offset_right = -10.0
-offset_bottom = 56.0
+offset_bottom = 62.0
 grow_horizontal = 0
 
 [node name="Margin" type="MarginContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls"]
@@ -237,14 +247,14 @@ theme_override_constants/separation = 4
 
 [node name="ZoomOutButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin/Buttons"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(34, 34)
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 tooltip_text = "缩小画布"
 text = "-"
 
 [node name="ZoomLabel" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin/Buttons"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(52, 34)
+custom_minimum_size = Vector2(52, 44)
 layout_mode = 2
 text = "100%"
 horizontal_alignment = 1
@@ -252,14 +262,14 @@ vertical_alignment = 1
 
 [node name="FitButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin/Buttons"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(56, 34)
+custom_minimum_size = Vector2(56, 44)
 layout_mode = 2
 tooltip_text = "显示完整画布"
 text = "适配"
 
 [node name="ZoomInButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin/Buttons"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(34, 34)
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 tooltip_text = "放大画布"
 text = "+"
@@ -279,7 +289,7 @@ text = "我的棋盘"
 
 [node name="SavedBoardList" type="ItemList" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 220)
+custom_minimum_size = Vector2(44, 220)
 layout_mode = 2
 size_flags_vertical = 3
 allow_reselect = true
@@ -292,6 +302,7 @@ autowrap_mode = 2
 
 [node name="BoardNameEdit" type="LineEdit" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 max_length = 64
 placeholder_text = "棋盘名称"
@@ -300,6 +311,7 @@ caret_blink = true
 
 [node name="SaveButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 text = "另存为模板"
 
@@ -308,6 +320,7 @@ layout_mode = 2
 
 [node name="LoadButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library/LibraryActions"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 disabled = true
@@ -315,6 +328,7 @@ text = "载入"
 
 [node name="DeleteButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/Library/LibraryActions"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 disabled = true

@@ -32,6 +32,7 @@ var _last_saved_bookmark_state: Dictionary = {}
 var _player_actions: Array[Vector2i] = []
 var _turn_checkpoints: Array[ReplayCheckpoint] = []
 var _session_metadata: GameSessionMetadata = null
+var _session_duration_msec: int = 0
 
 ## 核心状态机。
 var _fsm: GFStateMachine
@@ -126,6 +127,7 @@ func dispose() -> void:
 	_current_board_topology = null
 	_initial_seed_of_session = 0
 	_session_metadata = null
+	_session_duration_msec = 0
 
 
 ## 更新游戏流程状态机。
@@ -133,6 +135,12 @@ func dispose() -> void:
 func tick(delta: float) -> void:
 	if _fsm != null:
 		_fsm.update(delta)
+		if (
+			not _is_replay_mode
+			and _fsm.current_state_name == EventNames.STATE_PLAYING
+			and delta > 0.0
+		):
+			_session_duration_msec += maxi(roundi(delta * 1000.0), 0)
 
 
 # --- 公共方法 ---
@@ -558,6 +566,7 @@ func _on_game_ready(data: GameReadyData) -> void:
 		_mode_config = null
 	_current_board_topology = _duplicate_topology(data.board_topology)
 	_initial_seed_of_session = data.initial_seed
+	_session_duration_msec = 0
 	_player_actions.clear()
 	_turn_checkpoints.clear()
 	_last_saved_bookmark_state = {}
@@ -699,7 +708,8 @@ func _persist_current_game_result() -> GameResultRecordedData:
 		highest_tile,
 		_get_unix_timestamp(),
 		target_value,
-		target_reached
+		target_reached,
+		_session_duration_msec
 	)
 	if result == null:
 		_log_persistence_error("build game result", ERR_INVALID_DATA)

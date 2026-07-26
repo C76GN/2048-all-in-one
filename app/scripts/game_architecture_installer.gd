@@ -17,6 +17,12 @@ const _ASSET_MAX_CONCURRENT_LOADS: int = 4
 const _PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_content_catalog_utility.gd")
 const _PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_resource_catalog_utility.gd")
 const _GAME_CLOCK_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/game_clock_utility.gd")
+const _LOCAL_ACCOUNT_CATALOG_UTILITY_SCRIPT: Script = preload(
+	"res://features/player_profiles/scripts/utilities/local_account_catalog_utility.gd"
+)
+const _LOCAL_ACCOUNT_SYSTEM_SCRIPT: Script = preload(
+	"res://features/player_profiles/scripts/systems/local_account_system.gd"
+)
 const _GAME_SAVE_GRAPH_UTILITY_SCRIPT: Script = preload("res://features/persistence/scripts/utilities/game_save_graph_utility.gd")
 const _GAME_MODE_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_mode_catalog_utility.gd")
 const _GAME_DETERMINISM_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_determinism_utility.gd")
@@ -120,6 +126,7 @@ func _bind_content_and_gameplay_utilities(binder: GFBinder) -> void:
 		_create_game_clock_utility()
 	)
 	await game_clock_binding.as_singleton()
+	await binder.bind_utility(_LOCAL_ACCOUNT_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_SAVE_GRAPH_UTILITY_SCRIPT).from_instance(_create_game_save_graph_utility()).as_singleton()
 	await binder.bind_utility(_GAME_MODE_CATALOG_UTILITY_SCRIPT).as_singleton()
 	await binder.bind_utility(_GAME_DETERMINISM_UTILITY_SCRIPT).as_singleton()
@@ -175,6 +182,7 @@ func _bind_state_and_navigation_systems(binder: GFBinder) -> void:
 
 
 func _bind_progression_systems(binder: GFBinder) -> void:
+	await binder.bind_system(_LOCAL_ACCOUNT_SYSTEM_SCRIPT).as_singleton()
 	await binder.bind_system(ProgressStatsSystem).as_singleton()
 	await binder.bind_system(BookmarkSystem).as_singleton()
 	await binder.bind_system(CustomBoardSystem).as_singleton()

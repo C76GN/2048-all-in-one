@@ -41,7 +41,7 @@ func get_resolved_bank_id() -> StringName:
 
 
 ## 将强类型回合结果归约为一个主音频事件，避免移动、合并与生成音效叠加。
-## 细分事件可通过 GFAudioBank 的层级回退复用基础音频。
+## 核心运行时事件必须在主题银行中直接且唯一映射，不能通过层级回退复用听感。
 ## @param turn_result: 已提交的强类型回合结果。
 ## @param milestone_reached: 当前回合是否首次达成模式目标。
 func resolve_turn_event(
@@ -93,18 +93,63 @@ func get_validation_report() -> GFValidationReport:
 			&"audio_bank"
 		)
 	var required_events: Dictionary = _get_required_events()
+	var resolved_paths: Dictionary = {}
 	for raw_event_field: Variant in required_events.keys():
 		var event_field: StringName = GFVariantData.to_string_name(raw_event_field)
 		var event_id: StringName = GFVariantData.to_string_name(required_events[raw_event_field])
 		if event_id == &"":
 			_add_error(report, &"missing_audio_event_id", "音效事件 ID 未配置。", event_field)
-		elif not GFVariantData.get_option_bool(audio_bank.resolve_clip(event_id), "ok", false):
+			continue
+		var resolution: Dictionary = audio_bank.resolve_clip(event_id)
+		if not GFVariantData.get_option_bool(resolution, "ok", false):
 			_add_error(
 				report,
 				&"unresolved_audio_event",
 				"音频银行缺少主题事件：%s。" % String(event_id),
 				event_field
 			)
+			continue
+		if GFVariantData.get_option_bool(resolution, &"fallback_used", false):
+			_add_error(
+				report,
+				&"fallback_audio_event",
+				"核心音效事件必须直接映射，不能回退到父事件：%s。" % String(event_id),
+				event_field
+			)
+			continue
+		var clip_value: Variant = GFVariantData.get_option_value(resolution, &"clip")
+		if not clip_value is GFAudioClip:
+			_add_error(
+				report,
+				&"invalid_audio_event_clip",
+				"核心音效事件未解析为 GFAudioClip：%s。" % String(event_id),
+				event_field
+			)
+			continue
+		var clip: GFAudioClip = clip_value
+		if clip.path.is_empty():
+			_add_error(
+				report,
+				&"empty_audio_event_path",
+				"核心音效事件的音频路径不能为空：%s。" % String(event_id),
+				event_field
+			)
+			continue
+		if resolved_paths.has(clip.path):
+			_add_error(
+				report,
+				&"duplicate_semantic_audio_clip",
+				"核心音效事件 %s 与 %s 不能复用同一音频文件。" % [
+					String(event_id),
+					String(GFVariantData.get_option_string_name(
+						resolved_paths,
+						clip.path
+					)),
+				],
+				event_field
+			)
+			continue
+		resolved_paths[clip.path] = event_id
 	return report
 
 

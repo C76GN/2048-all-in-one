@@ -141,7 +141,10 @@ try {
 	}
 	if (
 		-not [string]::IsNullOrWhiteSpace($ExpectedOutputPattern) `
-		-and $combinedOutput -notmatch $ExpectedOutputPattern
+		-and $combinedOutput.IndexOf(
+			$ExpectedOutputPattern,
+			[System.StringComparison]::Ordinal
+		) -lt 0
 	) {
 		throw "Godot project tool did not emit its completion marker '$ExpectedOutputPattern'. Logs kept at: $runRoot"
 	}

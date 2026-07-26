@@ -97,6 +97,9 @@ func _run_capture() -> void:
 		return
 	await _settle_frames(12)
 	var replay_preview: ReplayData = await _inject_replay_preview(replay_list)
+	if not is_instance_valid(replay_preview):
+		_request_exit(7)
+		return
 	await _settle_frames(12)
 	_save_viewport("replay_list.png")
 
@@ -214,19 +217,33 @@ func _return_to_main_menu(source: Node) -> Node:
 
 func _inject_replay_preview(page: Node) -> ReplayData:
 	var topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(4, 4))
+	var mode_value: Resource = load(_CLASSIC_MODE_CONFIG_PATH)
+	var determinism_value: Variant = _get_gf_member(&"get_utility", GameDeterminismUtility)
+	if (
+		not mode_value is GameModeConfig
+		or not determinism_value is GameDeterminismUtility
+	):
+		push_error("[VisualReview] Cannot build the strict replay preview contract.")
+		return null
+	var mode_config: GameModeConfig = mode_value
+	var determinism: GameDeterminismUtility = determinism_value
 	var replay: ReplayData = ReplayData.new()
+	replay.replay_id = GFUuid.generate_v7(1_784_761_200_000)
 	replay.timestamp = 1_784_761_200
 	replay.mode_config_path = _CLASSIC_MODE_CONFIG_PATH
+	if not replay.configure_ruleset(mode_config, determinism):
+		push_error("[VisualReview] Cannot freeze the replay ruleset.")
+		return null
 	replay.initial_seed = 35_941_119
+	replay.session_metadata = GameSessionMetadata.make_default_dict()
 	replay.initial_board_topology = topology.to_dict()
 	replay.final_score = 2700
-	replay.actions = [
-		Vector2i.LEFT,
-		Vector2i.DOWN,
-		Vector2i.RIGHT,
-		Vector2i.UP,
-	]
+	replay.actions = [Vector2i.LEFT]
+	replay.checkpoints = [_make_preview_checkpoint(1, replay.final_score)]
 	replay.final_board_snapshot = _make_preview_snapshot(topology)
+	if ReplayData.from_dict(replay.to_dict()) == null:
+		push_error("[VisualReview] Generated replay preview does not satisfy schema v4.")
+		return null
 	await _inject_list_item(page, _REPLAY_ITEM_SCENE, replay, "经典模式")
 	return replay
 
@@ -276,11 +293,11 @@ func _make_preview_snapshot(topology: BoardTopology) -> Dictionary:
 		&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
 		&"topology": topology.to_dict(),
 		&"tiles": [
-			{&"pos": Vector2i(0, 0), &"value": 2, &"definition_id": &"tile.classic.numeric"},
-			{&"pos": Vector2i(1, 0), &"value": 4, &"definition_id": &"tile.classic.numeric"},
-			{&"pos": Vector2i(2, 1), &"value": 16, &"definition_id": &"tile.classic.numeric"},
-			{&"pos": Vector2i(3, 2), &"value": 64, &"definition_id": &"tile.classic.numeric"},
-			{&"pos": Vector2i(1, 3), &"value": 128, &"definition_id": &"tile.classic.numeric"},
+			_make_preview_tile(Vector2i(0, 0), 2, 1_784_761_200_001),
+			_make_preview_tile(Vector2i(1, 0), 4, 1_784_761_200_002),
+			_make_preview_tile(Vector2i(2, 1), 16, 1_784_761_200_003),
+			_make_preview_tile(Vector2i(3, 2), 64, 1_784_761_200_004),
+			_make_preview_tile(Vector2i(1, 3), 128, 1_784_761_200_005),
 		],
 	}
 
@@ -288,10 +305,8 @@ func _make_preview_snapshot(topology: BoardTopology) -> Dictionary:
 func _advance_replay_once(game_play: Node, replay: ReplayData) -> bool:
 	if not is_instance_valid(game_play) or not is_instance_valid(replay):
 		return false
-	var direction: Vector2i = _find_available_move_direction()
-	if direction == Vector2i.ZERO or replay.actions.is_empty():
+	if not await _prepare_replay_preview_step(replay):
 		return false
-	replay.actions[0] = direction
 
 	var next_node: Node = game_play.find_child("ReplayNextButton", true, false)
 	if not next_node is Button:
@@ -301,6 +316,114 @@ func _advance_replay_once(game_play: Node, replay: ReplayData) -> bool:
 		return false
 	next_button.pressed.emit()
 	return await _wait_for_replay_step(1, 5.0)
+
+
+## 在当前真实玩法状态中预演并撤销一步，生成与运行时完全一致的 v4 checkpoint。
+func _prepare_replay_preview_step(replay: ReplayData) -> bool:
+	var replay_value: Variant = _get_gf_member(&"get_system", ReplaySystem)
+	var history_value: Variant = _get_gf_member(&"get_utility", GFCommandHistoryUtility)
+	var animation_value: Variant = _get_gf_member(&"get_utility", GameBoardAnimationUtility)
+	var determinism_value: Variant = _get_gf_member(&"get_utility", GameDeterminismUtility)
+	var state_value: Variant = _get_gf_member(&"get_system", GameStateSystem)
+	var current_game_value: Variant = _get_gf_member(&"get_model", CurrentGameModel)
+	var grid_value: Variant = _get_gf_member(&"get_model", GridModel)
+	if (
+		not replay_value is ReplaySystem
+		or not history_value is GFCommandHistoryUtility
+		or not determinism_value is GameDeterminismUtility
+		or not state_value is GameStateSystem
+		or not current_game_value is CurrentGameModel
+		or not grid_value is GridModel
+	):
+		return false
+	var replay_system: ReplaySystem = replay_value
+	var history: GFCommandHistoryUtility = history_value
+	var determinism: GameDeterminismUtility = determinism_value
+	var state_system: GameStateSystem = state_value
+	var current_game: CurrentGameModel = current_game_value
+	var grid: GridModel = grid_value
+	var mode_value: Variant = current_game.mode_config.get_value()
+	if not mode_value is GameModeConfig:
+		return false
+	var mode_config: GameModeConfig = mode_value
+	var direction: Vector2i = _find_available_move_direction()
+	if direction == Vector2i.ZERO:
+		return false
+
+	var animation_utility: GameBoardAnimationUtility = (
+		animation_value
+		if animation_value is GameBoardAnimationUtility
+		else null
+	)
+	if is_instance_valid(animation_utility):
+		animation_utility.begin_presentation_suppression()
+	replay_system.deactivate_replay_mode()
+	var turn_value: Variant = await history.execute_command(MoveCommand.new(direction))
+	if not turn_value is TurnResult:
+		if is_instance_valid(animation_utility):
+			animation_utility.end_presentation_suppression()
+		replay_system.activate_replay_mode(replay)
+		return false
+	var turn_result: TurnResult = turn_value
+	await _settle_frames(2)
+	var checkpoint: ReplayCheckpoint = determinism.create_checkpoint(
+		1,
+		state_system.get_full_game_state(),
+		mode_config,
+		turn_result
+	)
+	var final_snapshot: Dictionary = grid.get_snapshot()
+	var undo_succeeded: bool = await history.undo_last_async()
+	await _settle_frames(1)
+	if is_instance_valid(animation_utility):
+		animation_utility.end_presentation_suppression()
+	if not undo_succeeded or not is_instance_valid(checkpoint):
+		replay_system.activate_replay_mode(replay)
+		return false
+
+	replay.actions = [direction]
+	replay.checkpoints = [checkpoint]
+	replay.final_score = checkpoint.score
+	replay.final_board_snapshot = final_snapshot
+	if ReplayData.from_dict(replay.to_dict()) == null:
+		replay_system.activate_replay_mode(replay)
+		return false
+	replay_system.activate_replay_mode(replay)
+	await _settle_frames(1)
+	return replay_system.get_current_step() == 0
+
+
+func _make_preview_checkpoint(step_index: int, score: int) -> ReplayCheckpoint:
+	var checkpoint: ReplayCheckpoint = ReplayCheckpoint.new()
+	checkpoint.step_index = step_index
+	checkpoint.state_checksum = "0".repeat(64)
+	checkpoint.board_checksum = "0".repeat(64)
+	checkpoint.rng_checksum = "0".repeat(64)
+	checkpoint.score = score
+	return checkpoint
+
+
+func _make_preview_tile(
+	position: Vector2i,
+	value: int,
+	timestamp_msec: int
+) -> Dictionary:
+	var tile: TileState = TileState.new(
+		value,
+		&"tile.classic.numeric",
+		GFUuid.generate_v7(timestamp_msec)
+	)
+	tile.capability_recipe_ids = [&"tile.recipe.classic_merge"]
+	var result: Dictionary = tile.to_dict()
+	result[&"pos"] = position
+	return result
+
+
+func _get_gf_member(method: StringName, type_script: Script) -> Variant:
+	var gf_node: Node = root.get_node_or_null("Gf")
+	if not is_instance_valid(gf_node):
+		return null
+	return gf_node.call(method, type_script)
 
 
 func _find_available_move_direction() -> Vector2i:

@@ -10,6 +10,9 @@ const _SAFE_AREA_PAGE_SCRIPTS: Array[String] = [
 	"res://features/navigation/scripts/menus/mode_selection.gd",
 	"res://features/navigation/scripts/menus/base_list_menu.gd",
 ]
+const _MODE_SELECTION_SCENE: PackedScene = preload(
+	"res://features/navigation/scenes/menus/mode_selection.tscn"
+)
 
 
 # --- 测试用例 ---
@@ -27,6 +30,49 @@ func test_task_page_classifier_covers_desktop_compact_and_portrait_targets() -> 
 		GameTaskPageLayoutUtility.classify_layout(Vector2(720.0, 1558.0))
 		== GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
 	)
+
+
+func test_mode_selection_keeps_960x540_as_actionable_two_pane_layout() -> void:
+	assert_true(
+		ModeSelection._uses_side_by_side_layout(Vector2(960.0, 540.0)),
+		"960×540 应保留模式列表与关键配置双栏，而不是把开始操作压到列表末尾。"
+	)
+	assert_false(
+		ModeSelection._uses_side_by_side_layout(Vector2(720.0, 1558.0)),
+		"竖屏仍应采用可滚动单列。"
+	)
+	var column_widths: Vector2 = ModeSelection._get_compact_two_pane_widths(960.0)
+	assert_gte(column_widths.x, 500.0, "紧凑横屏模式列表仍应保持可读宽度。")
+	assert_gte(column_widths.y, 300.0, "紧凑横屏配置栏应容纳完整关键操作。")
+	assert_true(
+		is_equal_approx(column_widths.x + column_widths.y + 56.0, 960.0),
+		"双栏、栏距和安全留白不得产生横向溢出。"
+	)
+
+
+func test_mode_selection_key_controls_preserve_touch_target_contract() -> void:
+	var menu: Node = _MODE_SELECTION_SCENE.instantiate()
+	autofree(menu)
+	for control_name: StringName in [
+		&"PrevPageButton",
+		&"NextPageButton",
+		&"BackButton",
+		&"GridSizeOptionButton",
+		&"EditBoardButton",
+		&"SeedLineEdit",
+		&"RefreshSeedButton",
+		&"StartGameButton",
+	]:
+		var node: Node = menu.find_child(String(control_name), true, false)
+		assert_true(node is Control, "模式选择应包含交互控件：%s。" % control_name)
+		if not node is Control:
+			continue
+		var control: Control = node
+		assert_gte(
+			control.custom_minimum_size.y,
+			44.0,
+			"%s 必须保留至少 44px 的触控高度。" % control_name
+		)
 
 
 func test_compact_margins_preserve_page_specific_desktop_composition() -> void:

@@ -26,6 +26,7 @@ const METRIC_TILE_COMPOSITIONS: StringName = &"catalog.tile_composition_count"
 const METRIC_BOARD_TOPOLOGIES: StringName = &"catalog.board_topology_count"
 
 const _QUEST_EVENT_PREFIX: String = "achievement.progress."
+const _QUEST_ID_PREFIX: String = "achievement.profile."
 const _KEY_STATS: String = "stats"
 const _STAT_PLAYS: String = "plays"
 const _STAT_BEST_SCORE: String = "best_score"
@@ -42,6 +43,7 @@ var _quest: GFQuestUtility = null
 var _save_graph: GameSaveGraphUtility = null
 var _records_by_id: Dictionary = {}
 var _needs_save_cleanup: bool = false
+var _quest_scope_id: String = ""
 
 
 # --- GF 生命周期方法 ---
@@ -68,6 +70,11 @@ func ready() -> void:
 		DiscoveryProgressChangedData,
 		GFEventListener.from_method(self, &"_on_discovery_progress_changed", 1)
 	)
+	register_event(
+		ActiveLocalAccountChangedData,
+		GFEventListener.from_method(self, &"_on_active_local_account_changed", 1)
+	)
+	_quest_scope_id = _derive_quest_scope_id()
 	_initialize_quest_projection()
 	var reconciliation_error: Error = reconcile_progress()
 	if reconciliation_error != OK:
@@ -84,6 +91,7 @@ func dispose() -> void:
 	_save_graph = null
 	_records_by_id.clear()
 	_needs_save_cleanup = false
+	_quest_scope_id = ""
 
 
 # --- 公共方法 ---
@@ -201,7 +209,9 @@ func get_debug_snapshot() -> Dictionary:
 	var quest_reports: Dictionary = {}
 	if is_instance_valid(_quest) and is_instance_valid(_catalog):
 		for achievement_id: StringName in _catalog.get_definition_ids():
-			quest_reports[String(achievement_id)] = _quest.get_quest_report(achievement_id)
+			quest_reports[String(achievement_id)] = _quest.get_quest_report(
+				_make_runtime_quest_id(achievement_id)
+			)
 	return {
 		"summary": get_summary(),
 		"record_count": _records_by_id.size(),
@@ -237,11 +247,6 @@ func _initialize_quest_projection() -> void:
 		_records_by_id[record.achievement_id] = record
 
 	for definition: AchievementDefinition in _catalog.get_definitions():
-		_quest.start_quest(
-			definition.achievement_id,
-			_make_quest_event_id(definition.achievement_id),
-			definition.target_value
-		)
 		var record: AchievementProgressRecord = _get_record(definition.achievement_id)
 		if record == null:
 			record = AchievementProgressRecord.create(
@@ -249,10 +254,26 @@ func _initialize_quest_projection() -> void:
 				definition.get_criteria_fingerprint()
 			)
 			_records_by_id[definition.achievement_id] = record
-		if record != null and record.current_value > 0:
+		var runtime_quest_id: StringName = _make_runtime_quest_id(
+			definition.achievement_id
+		)
+		var quest_report: Dictionary = _quest.get_quest_report(runtime_quest_id)
+		if quest_report.is_empty():
+			_quest.start_quest(
+				runtime_quest_id,
+				_make_quest_event_id(definition.achievement_id),
+				definition.target_value
+			)
+			quest_report = _quest.get_quest_report(runtime_quest_id)
+		var projected_value: int = GFVariantData.get_option_int(
+			quest_report,
+			&"current_count",
+			0
+		)
+		if record != null and record.current_value > projected_value:
 			_quest.emit_quest_event(
 				_make_quest_event_id(definition.achievement_id),
-				record.current_value
+				record.current_value - projected_value
 			)
 
 
@@ -426,11 +447,34 @@ func _is_configured() -> bool:
 		and is_instance_valid(_quest)
 		and is_instance_valid(_save_graph)
 		and _save_graph.is_profile_loaded()
+		and not _quest_scope_id.is_empty()
 	)
 
 
 func _make_quest_event_id(achievement_id: StringName) -> StringName:
-	return StringName(_QUEST_EVENT_PREFIX + String(achievement_id))
+	return StringName(
+		_QUEST_EVENT_PREFIX
+		+ _quest_scope_id
+		+ "."
+		+ String(achievement_id)
+	)
+
+
+func _make_runtime_quest_id(achievement_id: StringName) -> StringName:
+	return StringName(
+		_QUEST_ID_PREFIX
+		+ _quest_scope_id
+		+ "."
+		+ String(achievement_id)
+	)
+
+
+func _derive_quest_scope_id() -> String:
+	if not is_instance_valid(_save_graph):
+		return ""
+	var profile_file_name: String = _save_graph.get_profile_file_name()
+	var base_name: String = profile_file_name.get_file().get_basename()
+	return base_name if not base_name.is_empty() else "legacy"
 
 
 static func _add_nonnegative_saturated(left: int, right: int) -> int:
@@ -483,3 +527,18 @@ func _on_game_result_recorded(payload: GameResultRecordedData) -> void:
 func _on_discovery_progress_changed(payload: DiscoveryProgressChangedData) -> void:
 	if payload != null and payload.is_valid():
 		var _reconciliation_error: Error = reconcile_progress()
+
+
+func _on_active_local_account_changed(
+	payload: ActiveLocalAccountChangedData
+) -> void:
+	if payload == null or payload.account == null or not payload.account.is_valid():
+		return
+	_quest_scope_id = payload.account.account_id
+	_initialize_quest_projection()
+	var reconciliation_error: Error = reconcile_progress()
+	if reconciliation_error != OK:
+		push_error(
+			"[AchievementSystem] 账号切换后的成就进度协调失败，错误码：%d。"
+			% reconciliation_error
+		)

@@ -50,6 +50,7 @@ const _COMPACT_CONTROL_HEIGHT: float = 44.0
 const _DESKTOP_CONTROL_HEIGHT: float = 38.0
 const _COMPACT_BINDING_ROW_HEIGHT: float = 44.0
 const _DESKTOP_BINDING_ROW_HEIGHT: float = 34.0
+const _PERSISTENCE_ERROR_COLOR: Color = Color(0.68, 0.10, 0.27, 1.0)
 
 
 # --- 公共变量 ---
@@ -61,6 +62,7 @@ var return_to_main_menu_on_back: bool = true
 # --- 私有变量 ---
 
 var _form_binder: GFFormBinder
+var _settings_utility: GameSettingsUtility
 var _input_profile: GameInputProfileUtility
 var _accessibility: GameAccessibilityUtility
 var _input_detector: GFInputDetector
@@ -159,9 +161,19 @@ var _section_scroll: ScrollContainer = null
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	_settings_utility = _get_settings_utility()
 	_input_profile = _get_input_profile_utility()
 	_accessibility = _get_accessibility_utility()
 	_viewport_utility = _get_viewport_utility()
+	if (
+		is_instance_valid(_settings_utility)
+		and not _settings_utility.persistence_health_changed.is_connected(
+			_on_persistence_health_changed
+		)
+	):
+		var _persistence_connection: int = _settings_utility.persistence_health_changed.connect(
+			_on_persistence_health_changed
+		)
 	_section_scroll = GameTaskPageLayoutUtility.ensure_vertical_scroll_parent(
 		_content_margin,
 		&"SettingsSectionScroll"
@@ -197,7 +209,9 @@ func _ready() -> void:
 
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED and is_node_ready():
+	if what == NOTIFICATION_TRANSLATION_CHANGED and is_node_ready():
+		_update_ui_text()
+	elif what == NOTIFICATION_RESIZED and is_node_ready():
 		_queue_responsive_layout_update()
 
 
@@ -264,7 +278,7 @@ func _apply_responsive_layout() -> void:
 		12 if _is_compact_layout else 24
 	)
 	_page_title.add_theme_font_size_override("font_size", 30 if _is_compact_layout else 38)
-	_auto_save_label.visible = not _is_compact_layout
+	_update_persistence_status()
 	for tab_button: Button in [
 		_general_tab_button,
 		_audio_tab_button,
@@ -697,7 +711,7 @@ func _update_ui_text() -> void:
 	_general_section_title.text = tr("SETTINGS_SECTION_GENERAL")
 	_audio_section_title.text = tr("SETTINGS_SECTION_AUDIO")
 	_controls_section_title.text = tr("SETTINGS_SECTION_CONTROLS")
-	_auto_save_label.text = tr("SETTINGS_AUTO_SAVE_HINT")
+	_update_persistence_status()
 	_accessibility_title.text = tr("ACCESSIBILITY_SECTION_TITLE")
 	if is_instance_valid(_language_option) and _language_option.item_count >= 2:
 		_language_option.set_item_text(0, tr("LANG_ZH"))
@@ -994,6 +1008,14 @@ func _get_display_settings_utility() -> GFDisplaySettingsUtility:
 	return null
 
 
+func _get_settings_utility() -> GameSettingsUtility:
+	var utility_value: Object = get_utility(GameSettingsUtility)
+	if utility_value is GameSettingsUtility:
+		var settings: GameSettingsUtility = utility_value
+		return settings
+	return null
+
+
 func _get_input_profile_utility() -> GameInputProfileUtility:
 	var utility_value: Object = get_utility(GameInputProfileUtility)
 	if utility_value is GameInputProfileUtility:
@@ -1052,6 +1074,38 @@ static func _to_vsync_mode(value: int) -> DisplayServer.VSyncMode:
 			return DisplayServer.VSYNC_ENABLED
 
 
+func _update_persistence_status() -> void:
+	if not is_instance_valid(_auto_save_label):
+		return
+	var healthy: bool = (
+		is_instance_valid(_settings_utility)
+		and _settings_utility.is_persistence_healthy()
+	)
+	var error_code: int = ERR_UNCONFIGURED
+	if is_instance_valid(_settings_utility):
+		var snapshot: Dictionary = _settings_utility.get_persistence_health_snapshot()
+		error_code = GFVariantData.to_int(
+			snapshot.get("error_code", ERR_UNCONFIGURED),
+			ERR_UNCONFIGURED
+		)
+	_auto_save_label.text = (
+		tr("SETTINGS_AUTO_SAVE_HINT")
+		if healthy
+		else tr("SETTINGS_SAVE_FAILED_HINT") % error_code
+	)
+	_auto_save_label.tooltip_text = _auto_save_label.text
+	_auto_save_label.visible = not _is_compact_layout or not healthy
+	_auto_save_label.remove_theme_color_override("font_color")
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if is_instance_valid(style):
+		style.style_label(_auto_save_label, GameUiStyleUtility.TextRole.SECONDARY)
+	if not healthy:
+		_auto_save_label.add_theme_color_override(
+			"font_color",
+			_PERSISTENCE_ERROR_COLOR
+		)
+
+
 # --- 信号处理函数 ---
 
 func _on_form_field_changed(key: StringName, value: Variant) -> void:
@@ -1105,6 +1159,10 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 				_accessibility.set_turn_subtitles_enabled(
 					GFVariantData.to_bool(value, true)
 				)
+
+
+func _on_persistence_health_changed(_snapshot: Dictionary) -> void:
+	_update_persistence_status()
 
 
 func _on_back_button_pressed() -> void:

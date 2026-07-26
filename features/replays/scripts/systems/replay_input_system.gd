@@ -13,6 +13,8 @@ const ACTION_REPLAY_NEXT_MARKER: StringName = &"replay_next_marker"
 const ACTION_REPLAY_CONTINUE: StringName = &"replay_continue"
 const ACTION_REPLAY_BACK: StringName = &"replay_back"
 const _REPLAY_INPUT_PRIORITY: int = 200
+## 单帧最多重建的命令数；长回放通过 GFExecutionBudget 自动让出后续帧。
+const _JUMP_STEPS_PER_FRAME: int = 8
 
 
 # --- 私有变量 ---
@@ -22,6 +24,7 @@ var _is_playing: bool = false
 var _is_active: bool = false
 var _replay_data: ReplayData = null
 var _is_step_processing: bool = false
+var _scene_serial: int = 0
 
 
 # --- Godot 生命周期方法 ---
@@ -56,6 +59,7 @@ func ready() -> void:
 
 
 func dispose() -> void:
+	_scene_serial += 1
 	_set_replay_input_enabled(false)
 	_input_mapping = null
 
@@ -242,6 +246,7 @@ func _jump_to_step(request: ReplayJumpRequestData) -> void:
 		)
 		return
 
+	var request_scene_serial: int = _scene_serial
 	_is_step_processing = true
 	var animation_utility: GameBoardAnimationUtility = _get_animation_utility()
 	if is_instance_valid(animation_utility):
@@ -250,11 +255,14 @@ func _jump_to_step(request: ReplayJumpRequestData) -> void:
 	var succeeded: bool = await _rebuild_command_history_to_step(
 		request,
 		history,
-		replay_system
+		replay_system,
+		request_scene_serial
 	)
 
 	if is_instance_valid(animation_utility):
 		animation_utility.end_presentation_suppression()
+	if request_scene_serial != _scene_serial:
+		return
 	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
 	_is_step_processing = false
 	var _ignored_jump_completed: bool = replay_system.notify_jump_completed(
@@ -267,26 +275,53 @@ func _jump_to_step(request: ReplayJumpRequestData) -> void:
 func _rebuild_command_history_to_step(
 	request: ReplayJumpRequestData,
 	history: GFCommandHistoryUtility,
-	replay_system: ReplaySystem
+	replay_system: ReplaySystem,
+	request_scene_serial: int = -1
 ) -> bool:
+	if (
+		not is_instance_valid(request)
+		or not is_instance_valid(history)
+		or not is_instance_valid(replay_system)
+	):
+		return false
+	var scene_serial: int = (
+		_scene_serial
+		if request_scene_serial < 0
+		else request_scene_serial
+	)
+	var slice_budget: GFExecutionBudget = GFExecutionBudget.new({
+		&"max_steps": _JUMP_STEPS_PER_FRAME,
+		&"metadata": {
+			&"feature": &"replays",
+			&"request_id": request.request_id,
+		},
+	})
 	while replay_system.get_current_step() > request.target_step:
-		if not replay_system.is_jump_request_current(
-			request.request_id,
-			request.target_step
-		):
+		if not _is_jump_context_current(request, replay_system, scene_serial):
 			return false
-		if not await history.undo_last_async():
+		if not slice_budget.consume_steps():
+			await _await_next_jump_frame()
+			if not _is_jump_context_current(request, replay_system, scene_serial):
+				return false
+			slice_budget.reset()
+			if not slice_budget.consume_steps():
+				return false
+		var undo_succeeded: bool = await history.undo_last_async()
+		if not _is_jump_context_current(request, replay_system, scene_serial):
+			return false
+		if not undo_succeeded:
 			return false
 
 	while replay_system.get_current_step() < request.target_step:
-		if (
-			not replay_system.is_jump_request_current(
-				request.request_id,
-				request.target_step
-			)
-			or replay_system.is_playback_desynchronized()
-		):
+		if not _is_jump_context_current(request, replay_system, scene_serial):
 			return false
+		if not slice_budget.consume_steps():
+			await _await_next_jump_frame()
+			if not _is_jump_context_current(request, replay_system, scene_serial):
+				return false
+			slice_budget.reset()
+			if not slice_budget.consume_steps():
+				return false
 		var step_index: int = replay_system.get_current_step()
 		var direction: Vector2i = _get_replay_action_direction(step_index)
 		if direction == Vector2i.ZERO:
@@ -295,15 +330,45 @@ func _rebuild_command_history_to_step(
 			)
 			return false
 		var result: Variant = await history.execute_command(MoveCommand.new(direction))
+		if not _is_jump_context_current(request, replay_system, scene_serial):
+			return false
 		if not result is TurnResult:
 			var _ineffective_oos_recorded: bool = replay_system.report_ineffective_action(
 				direction
 			)
 			return false
 
-	if replay_system.is_playback_desynchronized():
+	if not _is_jump_context_current(request, replay_system, scene_serial):
 		return false
 	return _verify_jump_target_checksum(request.target_step, replay_system)
+
+
+func _is_jump_context_current(
+	request: ReplayJumpRequestData,
+	replay_system: ReplaySystem,
+	scene_serial: int
+) -> bool:
+	return (
+		is_instance_valid(request)
+		and is_instance_valid(replay_system)
+		and scene_serial == _scene_serial
+		and _is_active
+		and _is_playing
+		and is_instance_valid(_replay_data)
+		and replay_system.is_jump_request_current(
+			request.request_id,
+			request.target_step
+		)
+		and not replay_system.is_playback_desynchronized()
+	)
+
+
+## 独立钩子让测试可观测跨帧切片，同时由当前 SceneTree 拥有实际调度。
+func _await_next_jump_frame() -> void:
+	var main_loop: MainLoop = Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var scene_tree: SceneTree = main_loop
+		await scene_tree.process_frame
 
 
 func _verify_jump_target_checksum(
@@ -363,6 +428,8 @@ func _verify_jump_target_checksum(
 # --- 信号处理函数 ---
 
 func _on_game_ready(data: GameReadyData) -> void:
+	_scene_serial += 1
+	_is_step_processing = false
 	_is_active = data.is_replay_mode
 	if _is_active:
 		_replay_data = data.replay_data_resource
@@ -376,6 +443,7 @@ func _on_game_state_changed(state: Variant) -> void:
 
 
 func _on_scene_will_change(_payload: Variant = null) -> void:
+	_scene_serial += 1
 	_is_active = false
 	_is_playing = false
 	_is_step_processing = false
@@ -420,6 +488,7 @@ func _on_jump_to_step(payload: Variant = null) -> void:
 
 
 func _on_replay_continued_as_game(_payload: Variant = null) -> void:
+	_scene_serial += 1
 	_is_active = false
 	_is_playing = false
 	_is_step_processing = false

@@ -71,7 +71,6 @@ func test_persisted_game_result_advances_gf_quest_once() -> void:
 	)
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var achievement_system: AchievementSystem = _get_achievement_system(setup)
-	var quest: GFQuestUtility = _get_quest(setup)
 
 	var save_error: Error = progress_stats_system.record_game_result(
 		_make_game_result(4096, 40, 2048, 100, 2048, true)
@@ -94,7 +93,14 @@ func test_persisted_game_result_advances_gf_quest_once() -> void:
 		GFVariantData.get_option_int(ten_games, &"current_value") == 1,
 		"累计十局成就应推进到 1。"
 	)
-	var quest_report: Dictionary = quest.get_quest_report(&"achievement.ten_games")
+	var quest_reports: Dictionary = GFVariantData.get_option_dictionary(
+		achievement_system.get_debug_snapshot(),
+		&"quest_reports"
+	)
+	var quest_report: Dictionary = GFVariantData.get_option_dictionary(
+		quest_reports,
+		&"achievement.ten_games"
+	)
 	assert_true(
 		GFVariantData.get_option_int(quest_report, "current_count") == 1,
 		"项目进度应投影到 GFQuestUtility。"

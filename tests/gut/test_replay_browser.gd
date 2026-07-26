@@ -210,7 +210,18 @@ func test_command_history_presentation_skip_reaches_same_canonical_hash() -> voi
 	mode.movement_rule = ClassicMovementRule.new()
 	mode.target_tile_value = 2048
 	current_game.mode_config.set_value(mode)
-	var actions: Array[Vector2i] = [Vector2i.LEFT, Vector2i.RIGHT]
+	var actions: Array[Vector2i] = [
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+	]
 	var state_system: GameStateSystem = architecture.get_system(GameStateSystem)
 	var baseline: MoveCommand = MoveCommand.new(Vector2i.ZERO)
 	baseline.mark_as_baseline()
@@ -243,19 +254,24 @@ func test_command_history_presentation_skip_reaches_same_canonical_hash() -> voi
 		mode
 	)
 
-	assert_true(await history.undo_last_async(), "应能撤销到第 1 步。")
-	assert_true(await history.undo_last_async(), "应能撤销到初始步。")
+	for _action: Vector2i in actions:
+		assert_true(await history.undo_last_async(), "应能逐步撤销到初始状态。")
 	var replay_system: ReplaySystem = ReplaySystem.new()
 	replay_system._command_history = history
 	replay_system.activate_replay_mode(replay)
-	assert_true(replay_system.jump_to_step(2), "应接受目标 checkpoint 的跳转请求。")
+	assert_true(
+		replay_system.jump_to_step(actions.size()),
+		"应接受目标 checkpoint 的跳转请求。"
+	)
 	var input_harness: ReplayInputHarness = ReplayInputHarness.new()
 	input_harness.replay_system_ref = replay_system
 	input_harness.determinism_ref = determinism
 	input_harness.state_system_ref = state_system
 	input_harness.current_game_ref = current_game
 	input_harness._replay_data = replay
-	var request: ReplayJumpRequestData = ReplayJumpRequestData.new(1, 2)
+	input_harness._is_active = true
+	input_harness._is_playing = true
+	var request: ReplayJumpRequestData = ReplayJumpRequestData.new(1, actions.size())
 	var animation_utility: GameBoardAnimationUtility = GameBoardAnimationUtility.new()
 	animation_utility.begin_presentation_suppression()
 	var jump_succeeded: bool = await input_harness._rebuild_command_history_to_step(
@@ -266,8 +282,12 @@ func test_command_history_presentation_skip_reaches_same_canonical_hash() -> voi
 	animation_utility.end_presentation_suppression()
 	assert_true(jump_succeeded, "ReplayInputSystem 应通过同一 MoveCommand 历史重建目标步。")
 	assert_true(
-		replay_system.notify_jump_completed(1, 2, jump_succeeded),
+		replay_system.notify_jump_completed(1, actions.size(), jump_succeeded),
 		"达到目标步且 hash 匹配时跳转应成功结算。"
+	)
+	assert_true(
+		input_harness.jump_frame_yield_count >= 1,
+		"超过 GFExecutionBudget 单帧步数后必须让出至少一个 process frame。"
 	)
 	var jumped_hash: String = determinism.calculate_state_checksum(
 		state_system.get_full_game_state(),
@@ -275,6 +295,21 @@ func test_command_history_presentation_skip_reaches_same_canonical_hash() -> voi
 	)
 
 	assert_true(jumped_hash == stepped_hash, "跳过表现与逐步播放到同一步的 canonical hash 必须相同。")
+
+	assert_true(replay_system.jump_to_step(0), "应能开始返回初始步的长跳转。")
+	input_harness.cancel_on_next_jump_frame = true
+	var cancelled_request: ReplayJumpRequestData = ReplayJumpRequestData.new(2, 0)
+	var cancelled: bool = await input_harness._rebuild_command_history_to_step(
+		cancelled_request,
+		history,
+		replay_system
+	)
+	assert_false(cancelled, "场景 serial 变化必须取消旧回放跳转任务。")
+	assert_true(
+		replay_system.get_current_step() > 0,
+		"取消后不得继续执行当前帧预算之外的剩余命令。"
+	)
+	var _cancelled_jump_closed: bool = replay_system.notify_jump_completed(2, 0, false)
 	architecture.dispose()
 
 
@@ -429,6 +464,8 @@ class ReplayInputHarness extends ReplayInputSystem:
 	var determinism_ref: GameDeterminismUtility
 	var state_system_ref: GameStateSystem
 	var current_game_ref: CurrentGameModel
+	var jump_frame_yield_count: int = 0
+	var cancel_on_next_jump_frame: bool = false
 
 	func _get_replay_system() -> ReplaySystem:
 		return replay_system_ref
@@ -441,3 +478,13 @@ class ReplayInputHarness extends ReplayInputSystem:
 
 	func _get_current_game_model() -> CurrentGameModel:
 		return current_game_ref
+
+	func _await_next_jump_frame() -> void:
+		jump_frame_yield_count += 1
+		if cancel_on_next_jump_frame:
+			cancel_on_next_jump_frame = false
+			_on_scene_will_change()
+		var main_loop: MainLoop = Engine.get_main_loop()
+		if main_loop is SceneTree:
+			var scene_tree: SceneTree = main_loop
+			await scene_tree.process_frame

@@ -36,6 +36,7 @@ const _LIFECYCLE_PRIORITY: int = -100
 
 var _section_definitions: Dictionary = {}
 var _section_providers: Dictionary = {}
+var _default_section_payloads: Dictionary = {}
 var _root_scope: GFSaveScope = null
 var _save_graph: GFSaveGraphUtility = null
 var _storage: GFStorageUtility = null
@@ -48,6 +49,7 @@ var _profile_save_pending: bool = false
 var _profile_save_in_flight: bool = false
 var _profile_save_wait_seconds: float = 0.0
 var _platform_backgrounded: bool = false
+var _profile_file_name: String = PROFILE_FILE_NAME
 
 
 # --- GF 生命周期方法 ---
@@ -156,12 +158,14 @@ func dispose() -> void:
 	_root_scope = null
 	_section_providers.clear()
 	_section_definitions.clear()
+	_default_section_payloads.clear()
 	_last_load_result.clear()
 	_last_save_result.clear()
 	_profile_save_pending = false
 	_profile_save_in_flight = false
 	_profile_save_wait_seconds = 0.0
 	_platform_backgrounded = false
+	_profile_file_name = PROFILE_FILE_NAME
 	_loaded = false
 	_save_graph = null
 	_storage = null
@@ -197,6 +201,7 @@ func register_section(
 		"provider": provider,
 		"phase": phase,
 	}
+	_default_section_payloads[key] = provider.to_dict()
 	return true
 
 
@@ -205,6 +210,156 @@ func register_section(
 func get_section_data(section_id: StringName) -> Dictionary:
 	var provider: GameSaveSectionData = _get_section_provider(section_id)
 	return provider.get_section_data() if provider != null else {}
+
+
+## 返回当前玩家 Profile 的存储相对路径。
+func get_profile_file_name() -> String:
+	return _profile_file_name
+
+
+## 原子切换到另一个账号的独立 Profile。
+##
+## 目标不存在时创建空 Profile；首次引入本地账号时可把当前 legacy Profile
+## 原样采用为第一个账号的数据。切换失败会恢复原路径及全部 section 内存状态。
+## @param profile_file_name: LocalAccountCatalogUtility 生成的账号 Profile 路径。
+## @param adopt_current_if_missing: 目标不存在时是否采用当前 legacy Profile。
+func activate_profile(
+	profile_file_name: String,
+	adopt_current_if_missing: bool = false
+) -> Error:
+	if not _is_account_profile_file_name_valid(profile_file_name):
+		return ERR_INVALID_PARAMETER
+	if profile_file_name == _profile_file_name:
+		return OK
+	if not _is_configured() or not _loaded:
+		return ERR_UNCONFIGURED
+
+	var flush_error: Error = flush_pending_save()
+	if flush_error != OK:
+		return flush_error
+	var target_read: GFStorageReadResult = _storage.load_data(profile_file_name)
+	var target_missing: bool = (
+		not target_read.ok
+		and target_read.error_code == ERR_FILE_NOT_FOUND
+	)
+	if (
+		target_missing
+		and adopt_current_if_missing
+		and _profile_file_name == PROFILE_FILE_NAME
+	):
+		return _adopt_current_profile(profile_file_name)
+
+	var previous_file_name: String = _profile_file_name
+	var previous_loaded: bool = _loaded
+	var previous_load_result: Dictionary = _last_load_result.duplicate(true)
+	var previous_save_result: Dictionary = _last_save_result.duplicate(true)
+	var section_snapshots: Dictionary = _snapshot_all_sections()
+	var reset_error: Error = _reset_sections_to_defaults()
+	if reset_error != OK:
+		return reset_error
+
+	_profile_file_name = profile_file_name
+	_loaded = false
+	var load_error: Error = load_profile()
+	if load_error == OK and target_missing:
+		load_error = save_profile()
+	if load_error == OK:
+		return OK
+
+	_profile_file_name = previous_file_name
+	_loaded = previous_loaded
+	_last_load_result = previous_load_result
+	_last_save_result = previous_save_result
+	var restore_error: Error = _restore_all_sections(section_snapshots)
+	return load_error if restore_error == OK else restore_error
+
+
+## 删除一个非当前账号的 Profile 文件。
+func delete_inactive_profile(profile_file_name: String) -> Error:
+	if (
+		not _is_account_profile_file_name_valid(profile_file_name)
+		or profile_file_name == _profile_file_name
+		or not is_instance_valid(_storage)
+	):
+		return ERR_INVALID_PARAMETER
+	var delete_error: Error = _storage.delete_file(profile_file_name)
+	return OK if delete_error == OK or delete_error == ERR_FILE_NOT_FOUND else delete_error
+
+
+## 只读提取任一当前 schema Profile 中的 section envelope。
+func read_profile_section_envelope(
+	profile_file_name: String,
+	section_id: StringName
+) -> Dictionary:
+	if (
+		not _is_account_profile_file_name_valid(profile_file_name)
+		or section_id == &""
+		or not is_instance_valid(_storage)
+	):
+		return {}
+	var read_result: GFStorageReadResult = _storage.load_data(profile_file_name)
+	if not read_result.ok:
+		return {}
+	return extract_profile_section_envelope(read_result.payload, section_id)
+
+
+## 从已解码的当前 schema Profile 提取 section envelope，不应用到运行时状态。
+static func extract_profile_section_envelope(
+	profile_payload: Dictionary,
+	section_id: StringName
+) -> Dictionary:
+	if section_id == &"":
+		return {}
+	var inspection: Dictionary = GFSaveDocument.inspect_dict(profile_payload)
+	if not GFVariantData.get_option_bool(inspection, &"ok", false):
+		return {}
+	var document: GFSaveDocument = GFSaveDocument.from_dict(profile_payload)
+	if document == null:
+		return {}
+	var metadata: Dictionary = document.get_metadata()
+	if (
+		GFVariantData.get_option_string_name(metadata, &"schema_id")
+		!= PROFILE_SCHEMA_ID
+		or GFVariantData.get_option_int(metadata, &"schema_version", 0)
+		!= PROFILE_SCHEMA_VERSION
+	):
+		return {}
+
+	var sections: Dictionary = GFVariantData.get_option_dictionary(
+		profile_payload,
+		&"sections"
+	)
+	var graph_section: Dictionary = GFVariantData.get_option_dictionary(
+		sections,
+		String(GFSaveGraphUtility.DOCUMENT_SECTION_ID)
+	)
+	var graph_payload: Dictionary = GFVariantData.get_option_dictionary(
+		graph_section,
+		&"payload"
+	)
+	var scopes: Dictionary = GFVariantData.get_option_dictionary(
+		graph_payload,
+		&"scopes"
+	)
+	var section_scope: Dictionary = GFVariantData.get_option_dictionary(
+		scopes,
+		String(section_id)
+	)
+	var sources: Dictionary = GFVariantData.get_option_dictionary(
+		section_scope,
+		&"sources"
+	)
+	var state_source: Dictionary = GFVariantData.get_option_dictionary(
+		sources,
+		&"state"
+	)
+	var envelope: Dictionary = GFVariantData.get_option_dictionary(
+		state_source,
+		&"data"
+	)
+	if GFVariantData.get_option_string_name(envelope, &"section_id") != section_id:
+		return {}
+	return envelope.duplicate(true)
 
 
 ## 原子替换一个 section，并把完整玩家数据图保存到同一事务文件。
@@ -304,7 +459,7 @@ func save_profile() -> Error:
 		return ERR_UNCONFIGURED
 	var pipeline_context: GFSavePipelineContext = _save_graph.create_pipeline_context(&"gather", _root_scope)
 	var error: Error = _save_graph.save_scope(
-		PROFILE_FILE_NAME,
+		_profile_file_name,
 		_root_scope,
 		_build_profile_metadata(),
 		{
@@ -334,7 +489,7 @@ func load_profile() -> Error:
 		}
 		return ERR_UNCONFIGURED
 
-	var storage_result: GFStorageReadResult = _storage.load_data(PROFILE_FILE_NAME)
+	var storage_result: GFStorageReadResult = _storage.load_data(_profile_file_name)
 	if not storage_result.ok:
 		if storage_result.error_code == ERR_FILE_NOT_FOUND:
 			_loaded = true
@@ -468,7 +623,7 @@ func get_debug_snapshot() -> Dictionary:
 	if _save_graph != null and is_instance_valid(_root_scope):
 		health = _save_graph.build_scope_health_report(_root_scope)
 	return {
-		"profile_file": PROFILE_FILE_NAME,
+		"profile_file": _profile_file_name,
 		"schema_id": String(PROFILE_SCHEMA_ID),
 		"schema_version": PROFILE_SCHEMA_VERSION,
 		"loaded": _loaded,
@@ -482,6 +637,90 @@ func get_debug_snapshot() -> Dictionary:
 
 
 # --- 私有/辅助方法 ---
+
+func _adopt_current_profile(profile_file_name: String) -> Error:
+	var payload: Dictionary = preview_profile_payload()
+	if payload.is_empty():
+		return ERR_INVALID_DATA
+	var save_error: Error = _storage.save_data(profile_file_name, payload)
+	if save_error != OK:
+		return save_error
+
+	var previous_file_name: String = _profile_file_name
+	_profile_file_name = profile_file_name
+	_last_load_result = {
+		&"ok": true,
+		&"error_code": OK,
+		&"adopted_current_profile": true,
+		&"previous_profile_file": previous_file_name,
+		&"profile_file": profile_file_name,
+	}
+	var delete_error: Error = _storage.delete_file(previous_file_name)
+	if (
+		delete_error != OK
+		and delete_error != ERR_FILE_NOT_FOUND
+		and is_instance_valid(_log)
+	):
+		_log.warn(
+			_LOG_TAG,
+			"首个本地账号已采用现有 Profile，但旧文件清理失败，错误码：%d。"
+			% delete_error
+		)
+	return OK
+
+
+func _snapshot_all_sections() -> Dictionary:
+	var snapshots: Dictionary = {}
+	for key_variant: Variant in _section_providers.keys():
+		var key: String = GFVariantData.to_text(key_variant)
+		var provider: GameSaveSectionData = _get_section_provider(
+			StringName(key)
+		)
+		if provider != null:
+			snapshots[key] = provider.to_dict()
+	return snapshots
+
+
+func _restore_all_sections(snapshots: Dictionary) -> Error:
+	var keys: Array[String] = []
+	for key_variant: Variant in snapshots.keys():
+		keys.append(GFVariantData.to_text(key_variant))
+	keys.sort()
+	for key: String in keys:
+		var provider: GameSaveSectionData = _get_section_provider(
+			StringName(key)
+		)
+		if provider == null:
+			return ERR_DOES_NOT_EXIST
+		var envelope: Dictionary = GFVariantData.get_option_dictionary(
+			snapshots,
+			key
+		)
+		var restore_error: Error = provider.replace_from_dict(envelope)
+		if restore_error != OK:
+			return restore_error
+	return OK
+
+
+func _reset_sections_to_defaults() -> Error:
+	return _restore_all_sections(_default_section_payloads)
+
+
+static func _is_account_profile_file_name_valid(
+	profile_file_name: String
+) -> bool:
+	if (
+		profile_file_name.is_empty()
+		or profile_file_name.is_absolute_path()
+		or profile_file_name.contains("\\")
+		or profile_file_name.simplify_path() != profile_file_name
+		or profile_file_name.get_base_dir() != "profiles"
+		or profile_file_name.get_extension() != "save"
+	):
+		return false
+	var account_id: String = profile_file_name.get_file().get_basename()
+	return GFUuid.is_valid(account_id, 7)
+
 
 func _apply_sections_to_memory(
 	sections: Dictionary,
@@ -531,7 +770,7 @@ func _save_current_profile_payload_sync() -> Error:
 			"sync_boundary": true,
 		}
 		return ERR_INVALID_DATA
-	var error: Error = _storage.save_data(PROFILE_FILE_NAME, payload)
+	var error: Error = _storage.save_data(_profile_file_name, payload)
 	_last_save_result = {
 		"ok": error == OK,
 		"error_code": error,
@@ -556,7 +795,7 @@ func _start_async_profile_save() -> void:
 		"pending": true,
 		"error_code": OK,
 	}
-	var start_error: Error = _storage.save_data_async(PROFILE_FILE_NAME, payload)
+	var start_error: Error = _storage.save_data_async(_profile_file_name, payload)
 	if start_error != OK:
 		# GFStorageUtility may emit save_completed synchronously when a worker thread
 		# cannot start. In that case the callback already owns the terminal state.
@@ -566,7 +805,7 @@ func _start_async_profile_save() -> void:
 
 
 func _on_storage_save_completed(file_name: String, error: Error) -> void:
-	if file_name != PROFILE_FILE_NAME:
+	if file_name != _profile_file_name:
 		return
 	_profile_save_in_flight = false
 	_last_save_result = {
@@ -803,7 +1042,7 @@ func _recover_obsolete_profile(
 func _recover_unreadable_profile(storage_result: GFStorageReadResult) -> Error:
 	var reset_error: Error = ProjectStorageRecoveryPolicy.reset_failed_file(
 		_storage,
-		PROFILE_FILE_NAME,
+		_profile_file_name,
 		storage_result
 	)
 	if reset_error != OK:

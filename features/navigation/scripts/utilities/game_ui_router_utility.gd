@@ -16,6 +16,7 @@ const ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
 const ROUTE_TILE_CATALOG: StringName = &"tile_catalog"
 const ROUTE_ACHIEVEMENTS: StringName = &"achievements"
 const ROUTE_BOARD_EDITOR: StringName = &"board_editor"
+const ROUTE_PLAYER_PROFILE: StringName = &"player_profile"
 
 const _CATALOG_ID: StringName = &"ui_routes"
 const _UI_ROUTE_GROUP_ID: StringName = &"ui_routes"

@@ -6,6 +6,8 @@ extends GameSaveSectionData
 # --- 常量 ---
 
 const SCHEMA_VERSION: int = 5
+## 玩家 Profile 中最多保留的回放数；最新 UUID v7 优先。
+const MAX_REPLAY_COUNT: int = 128
 
 
 # --- 私有变量 ---
@@ -38,10 +40,13 @@ func _replace_section_data(data: Dictionary) -> Error:
 	var items_value: Variant = GFVariantData.get_option_value(data, "items")
 	if not (items_value is Array):
 		return ERR_INVALID_DATA
+	var item_values: Array = GFVariantData.as_array(items_value)
+	if item_values.size() > MAX_REPLAY_COUNT:
+		return ERR_INVALID_DATA
 
 	var next_items: Array[ReplayData] = []
 	var seen_ids: Dictionary = {}
-	for item_value: Variant in GFVariantData.as_array(items_value):
+	for item_value: Variant in item_values:
 		if not (item_value is Dictionary):
 			return ERR_INVALID_DATA
 		var item: ReplayData = ReplayData.from_dict(GFVariantData.as_dictionary(item_value))

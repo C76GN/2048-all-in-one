@@ -167,18 +167,48 @@ func _validate_page_structure(
 			var right: Node = page.find_child("RightColumn", true, false)
 			var center: Node = page.find_child("CenterColumn", true, false)
 			var columns: Node = page.find_child("ColumnsContainer", true, false)
+			var start_node: Node = page.find_child("StartGameButton", true, false)
 			var content_node: Node = page.find_child(
 				"CenterContentVBox",
 				true,
 				false
 			)
-			var expected_parent: Node = center if compact else columns
+			var layout_mode: int = GameTaskPageLayoutUtility.classify_layout(
+				Vector2(resolution)
+			)
+			var side_by_side: bool = ModeSelection._uses_side_by_side_layout(
+				Vector2(resolution)
+			)
+			var expected_parent: Node = columns if side_by_side else center
 			if not is_instance_valid(right) or right.get_parent() != expected_parent:
 				_record_error("mode_selection @ %s 右栏响应式归属错误。" % resolution)
-			if compact and content_node is Control:
+			if (
+				layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+				and content_node is Control
+			):
 				var content: Control = content_node
 				if content.size.x < minf(float(resolution.x) * 0.75, 600.0):
 					_record_error("mode_selection @ %s 模式列表宽度不足。" % resolution)
+			if (
+				layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
+				and side_by_side
+			):
+				if not start_node is Control:
+					_record_error("mode_selection @ %s 缺少开始游戏按钮。" % resolution)
+				else:
+					var start_control: Control = start_node
+					var start_rect: Rect2 = start_control.get_global_rect()
+					if (
+						not start_control.is_visible_in_tree()
+						or start_rect.position.y < 0.0
+						or start_rect.position.x < 0.0
+						or start_rect.end.y > float(resolution.y)
+						or start_rect.end.x > float(resolution.x)
+					):
+						_record_error(
+							"mode_selection @ %s 开始游戏未处于首屏可达区域。"
+							% resolution
+						)
 		&"settings":
 			var body_node: Node = page.find_child("Body", true, false)
 			var rail_node: Node = page.find_child("CategoryRail", true, false)

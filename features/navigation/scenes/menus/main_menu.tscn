@@ -46,6 +46,7 @@ mode_selection_scene_path = "res://features/navigation/scenes/menus/mode_selecti
 replay_list_scene_path = "res://features/replays/scenes/menus/replay_list.tscn"
 bookmark_list_scene_path = "res://features/bookmarks/scenes/menus/bookmark_list.tscn"
 settings_scene_path = "res://features/settings/scenes/menus/settings_menu.tscn"
+game_scene_path = "res://features/gameplay/scenes/game/game_play.tscn"
 
 [node name="Background" type="ColorRect" parent="."]
 material = SubResource("ShaderMaterial_main_background")
@@ -171,12 +172,20 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "开始游戏"
 
+[node name="ContinueGameButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 54)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+disabled = true
+text = "继续游戏"
+
 [node name="LoadBookmarkButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 54)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "继续游戏"
+text = "读取存档"
 
 [node name="CollectionLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
@@ -204,10 +213,23 @@ size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 17
 text = "图鉴"
 
-[node name="AchievementsButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
+[node name="ProfileRow" type="HBoxContainer" parent="SafeMargin/Content/MenuColumn"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PlayerProfileButton" type="Button" parent="SafeMargin/Content/MenuColumn/ProfileRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 17
+text = "玩家档案"
+
+[node name="AchievementsButton" type="Button" parent="SafeMargin/Content/MenuColumn/ProfileRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 17
 text = "成就"
 

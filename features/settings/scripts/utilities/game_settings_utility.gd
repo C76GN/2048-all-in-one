@@ -3,6 +3,13 @@ class_name GameSettingsUtility
 extends "res://addons/gf/standard/utilities/settings/gf_settings_utility.gd"
 
 
+# --- 信号 ---
+
+## 设置持久化健康状态发生变化时发出。
+## @param snapshot: 由 get_persistence_health_snapshot() 返回的只读快照。
+signal persistence_health_changed(snapshot: Dictionary)
+
+
 # --- 常量 ---
 
 const DEFAULT_LOCALE: String = "zh"
@@ -16,6 +23,7 @@ const AUDIO_BUS_SFX: String = "SFX"
 var _storage_recovery_pending: bool = false
 var _last_storage_recovery: Dictionary = {}
 var _persistence_blocked_error: Error = OK
+var _last_persistence_error: Error = OK
 
 
 # --- GF 生命周期方法 ---
@@ -31,6 +39,8 @@ func init() -> void:
 	_last_storage_recovery["persistence_blocked"] = recreate_error != OK
 	_storage_recovery_pending = false
 	_persistence_blocked_error = recreate_error
+	_last_persistence_error = recreate_error
+	_emit_persistence_health_changed()
 	if recreate_error != OK:
 		push_error(
 			"[GameSettingsUtility] 无法按当前 GFStorage 格式重建设置，错误码：%d。"
@@ -47,6 +57,23 @@ func get_required_utilities() -> Array[Script]:
 ## 返回最近一次设置物理存储恢复诊断。
 func get_storage_recovery_snapshot() -> Dictionary:
 	return _last_storage_recovery.duplicate(true)
+
+
+## 返回设置物理存储当前是否可以正常写入。
+func is_persistence_healthy() -> bool:
+	return _get_effective_persistence_error() == OK
+
+
+## 返回设置持久化健康快照，供 UI 和支持报告展示。
+func get_persistence_health_snapshot() -> Dictionary:
+	var error: Error = _get_effective_persistence_error()
+	return {
+		"healthy": error == OK,
+		"error_code": error,
+		"persistence_blocked": _persistence_blocked_error != OK,
+		"blocked_error_code": _persistence_blocked_error,
+		"last_write_error_code": _last_persistence_error,
+	}
 
 
 ## 注册项目设置定义。
@@ -165,10 +192,14 @@ func _read_persisted_data(file_name: String) -> Dictionary:
 	if read_result.ok:
 		_last_storage_recovery.clear()
 		_persistence_blocked_error = OK
+		_last_persistence_error = OK
+		_emit_persistence_health_changed()
 		return read_result.payload.duplicate(true)
 	if read_result.error_code == ERR_FILE_NOT_FOUND:
 		_last_storage_recovery.clear()
 		_persistence_blocked_error = OK
+		_last_persistence_error = OK
+		_emit_persistence_health_changed()
 		return {}
 	if not ProjectStorageRecoveryPolicy.should_reset_failed_read(read_result):
 		_persistence_blocked_error = (
@@ -184,6 +215,8 @@ func _read_persisted_data(file_name: String) -> Dictionary:
 			"error_code": _persistence_blocked_error,
 			"error": read_result.error,
 		}
+		_last_persistence_error = _persistence_blocked_error
+		_emit_persistence_health_changed()
 		return {}
 
 	var reset_error: Error = ProjectStorageRecoveryPolicy.reset_failed_file(
@@ -202,10 +235,29 @@ func _read_persisted_data(file_name: String) -> Dictionary:
 	}
 	_storage_recovery_pending = reset_error == OK
 	_persistence_blocked_error = OK if reset_error == OK else reset_error
+	_last_persistence_error = _persistence_blocked_error
+	_emit_persistence_health_changed()
 	return {}
 
 
 func _write_persisted_data(file_name: String, data: Dictionary) -> Error:
+	var error: Error = OK
+	if _persistence_blocked_error != OK:
+		error = _persistence_blocked_error
+	else:
+		error = super._write_persisted_data(file_name, data)
+	_last_persistence_error = error
+	_emit_persistence_health_changed()
+	return error
+
+
+# --- 私有/辅助方法 ---
+
+func _get_effective_persistence_error() -> Error:
 	if _persistence_blocked_error != OK:
 		return _persistence_blocked_error
-	return super._write_persisted_data(file_name, data)
+	return _last_persistence_error
+
+
+func _emit_persistence_health_changed() -> void:
+	persistence_health_changed.emit(get_persistence_health_snapshot())
