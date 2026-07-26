@@ -1,0 +1,108 @@
+[gd_resource type="Resource" script_class="GFLevelCatalog" load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://addons/gf/extensions/domain/level/gf_level_catalog.gd" id="1_catalog"]
+[ext_resource type="Script" path="res://addons/gf/extensions/domain/level/gf_level_entry.gd" id="2_entry"]
+
+[sub_resource type="Resource" id="LevelEntry_01"]
+script = ExtResource("2_entry")
+level_id = &"level.limited.01"
+pack_id = &"gameplay.limited_moves"
+sort_order = 10
+metadata = {
+&"definition_path": "res://features/levels/resources/definitions/limited_level_01.tres"
+}
+unlocks_on_complete = Array[StringName]([&"level.limited.02"])
+
+[sub_resource type="Resource" id="LevelEntry_02"]
+script = ExtResource("2_entry")
+level_id = &"level.limited.02"
+pack_id = &"gameplay.limited_moves"
+sort_order = 20
+metadata = {
+&"definition_path": "res://features/levels/resources/definitions/limited_level_02.tres"
+}
+unlocks_on_complete = Array[StringName]([&"level.limited.03"])
+
+[sub_resource type="Resource" id="LevelEntry_03"]
+script = ExtResource("2_entry")
+level_id = &"level.limited.03"
+pack_id = &"gameplay.limited_moves"
+sort_order = 30
+metadata = {
+&"definition_path": "res://features/levels/resources/definitions/limited_level_03.tres"
+}
+unlocks_on_complete = Array[StringName]([&"level.limited.04"])
+
+[sub_resource type="Resource" id="LevelEntry_04"]
+script = ExtResource("2_entry")
+level_id = &"level.limited.04"
+pack_id = &"gameplay.limited_moves"
+sort_order = 40
+metadata = {
+&"definition_path": "res://features/levels/resources/definitions/limited_level_04.tres"
+}
+unlocks_on_complete = Array[StringName]([&"level.limited.05"])
+
+[sub_resource type="Resource" id="LevelEntry_05"]
+script = ExtResource("2_entry")
+level_id = &"level.limited.05"
+pack_id = &"gameplay.limited_moves"
+sort_order = 50
+metadata = {
+&"definition_path": "res://features/levels/resources/definitions/limited_level_05.tres"
+}
+unlocks_on_complete = Array[StringName]([&"level.limited.06"])
+
+[sub_resource type="Resource" id="LevelEntry_06"]
+script = ExtResource("2_entry")
+level_id = &"level.limited.06"
+pack_id = &"gameplay.limited_moves"
+sort_order = 60
+metadata = {
+&"definition_path": "res://features/levels/resources/definitions/limited_level_06.tres"
+}
+unlocks_on_complete = Array[StringName]([&"level.limited.07"])
+
+[sub_resource type="Resource" id="LevelEntry_07"]
+script = ExtResource("2_entry")
+level_id = &"level.limited.07"
+pack_id = &"gameplay.limited_moves"
+sort_order = 70
+metadata = {
+&"definition_path": "res://features/levels/resources/definitions/limited_level_07.tres"
+}
+unlocks_on_complete = Array[StringName]([&"level.limited.08"])
+
+[sub_resource type="Resource" id="LevelEntry_08"]
+script = ExtResource("2_entry")
+level_id = &"level.limited.08"
+pack_id = &"gameplay.limited_moves"
+sort_order = 80
+metadata = {
+&"definition_path": "res://features/levels/resources/definitions/limited_level_08.tres"
+}
+unlocks_on_complete = Array[StringName]([&"level.limited.09"])
+
+[sub_resource type="Resource" id="LevelEntry_09"]
+script = ExtResource("2_entry")
+level_id = &"level.limited.09"
+pack_id = &"gameplay.limited_moves"
+sort_order = 90
+metadata = {
+&"definition_path": "res://features/levels/resources/definitions/limited_level_09.tres"
+}
+unlocks_on_complete = Array[StringName]([&"level.limited.10"])
+
+[sub_resource type="Resource" id="LevelEntry_10"]
+script = ExtResource("2_entry")
+level_id = &"level.limited.10"
+pack_id = &"gameplay.limited_moves"
+sort_order = 100
+metadata = {
+&"definition_path": "res://features/levels/resources/definitions/limited_level_10.tres"
+}
+unlocks_on_complete = Array[StringName]([])
+
+[resource]
+script = ExtResource("1_catalog")
+entries = Array[ExtResource("2_entry")]([SubResource("LevelEntry_01"), SubResource("LevelEntry_02"), SubResource("LevelEntry_03"), SubResource("LevelEntry_04"), SubResource("LevelEntry_05"), SubResource("LevelEntry_06"), SubResource("LevelEntry_07"), SubResource("LevelEntry_08"), SubResource("LevelEntry_09"), SubResource("LevelEntry_10")])
