@@ -263,9 +263,9 @@ func _append_recent_result(
 		return _is_newer_result_data(left, right)
 	)
 	if results.size() > GameStatsSaveData.MAX_RECENT_RESULTS:
-		var _resize_error: Error = results.resize(
+		var _resize_error_code: int = results.resize(
 			GameStatsSaveData.MAX_RECENT_RESULTS
-		) as Error
+		)
 
 
 func _append_local_leaderboard_result(
@@ -305,9 +305,9 @@ func _append_local_leaderboard_result(
 		return _is_better_leaderboard_result_data(left, right)
 	)
 	if entries.size() > GameStatsSaveData.MAX_LEADERBOARD_ENTRIES:
-		var _resize_error: Error = entries.resize(
+		var _resize_error_code: int = entries.resize(
 			GameStatsSaveData.MAX_LEADERBOARD_ENTRIES
-		) as Error
+		)
 	bucket[&"entries"] = entries
 	leaderboards[group_key] = bucket
 	_prune_leaderboard_groups(leaderboards)
