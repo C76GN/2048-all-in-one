@@ -24,7 +24,6 @@
 | Feature | 所有权 |
 | --- | --- |
 | `accessibility` | 棋盘与回合的规范无障碍语义摘要、字幕同源文本、复制入口和未来平台辅助技术投影 |
-| `levels` | 原创限步关卡定义与目录、固定初始棋盘、顺序解锁和 `limited_levels` SaveGraph section |
 | `gameplay` | 棋盘、移动命令、规则、模式、对局状态、HUD 和玩法输入 |
 | `navigation` | 场景路由、主菜单、模式选择、列表菜单导航壳和 UI Route 注册表 |
 | `board_editor` | 玩家棋盘草稿、局部撤销历史、自定义模板目录和 `custom_boards` SaveGraph section |

@@ -104,7 +104,6 @@
           "res://features/bookmarks",
           "res://features/diagnostics",
           "res://features/gameplay",
-          "res://features/levels",
           "res://features/navigation",
           "res://features/persistence",
           "res://features/platform_runtime/docs",
