@@ -1,13 +1,13 @@
 # 验证指南
 
-本文档记录不启动 Godot 的安全验证，以及未来运行 Godot/GUT 前必须满足的约束。
+本文档记录安全验证顺序，并区分纯文本检查、隔离的 headless Godot/GUT 运行和需要人工签字的视觉/平台验证。
 
 ## 默认验证顺序
 
 ### 1. 空白与路径检查
 
 ```powershell
-git diff --check -- .gitignore .gf project.godot gf_project_profile.json addons/gf app features shared tests README.md docs tools
+git diff --check -- .gitignore .gf project.godot export_presets.cfg gf_project_profile.json addons/gf app features shared tests README.md docs tools
 ```
 
 ### 2. GF 包状态
@@ -36,7 +36,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1
 
 该命令校验 `addons/gf/` 的版本、文件数和内容哈希是否与 `.gf/vendor.lock.json` 一致。GF Python 工具运行时生成的 `__pycache__` / `*.pyc` 不属于 vendor 快照，校验和 Git 均明确排除；除此之外的额外文件仍会导致校验失败。更新 GF 后必须同步锁文件；不要把 package lockfile 和 vendor lockfile 混为一谈。
 
-2026-07-20 的本机复核中，Steam Godot 4.7 因 SSL 模块初始化失败而无法连接远程 registry，`status --json` 因此报告 1 个环境 issue；同一工作树的离线 vendor 校验通过，版本为 `9.0.1`、文件数为 `1684`，SHA-256 为 `c2d921861f7d0afe8d8de343be4f07001e62016f88c4d5de576c36d6e71a994e`，commit 为 `5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28`。远程 registry 可用性与本地 vendored 源码完整性必须分别报告。
+远程 registry 可用性与本地 vendored 源码完整性必须分别报告。精确版本、文件数、commit 和内容哈希直接读取当次 CLI 输出与 `.gf/vendor.lock.json`，不在本指南中复制易过期的验证结果。
 
 ## Godot / GUT 运行策略
 
@@ -113,9 +113,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TestScripts "res://tests/gut/test_deterministic_gameplay.gd,res://tests/gut/test_move_command_reverse_map.gd" -TimeoutSeconds 120
 ```
 
-### 最近一次安全 GUT 验证
-
-验证时间：2026-07-24。
+### 安全 GUT 结果记录
 
 命令：
 
@@ -123,16 +121,9 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TimeoutSeconds 900 -MaxLogMB 32 -MaxDefaultLogGrowthKB 256
 ```
 
-结果：
+验收结果只以本次命令输出为准。测试脚本数、用例数、断言数、运行时 `class_name` 集合、ObjectDB/Resource/RID 计数和具体引擎版本都会随工作树变化，不在规范文档中复制。
 
-- Godot：`4.7.stable.steam.5b4e0cb0f`。
-- GF Framework：官方稳定 tag `9.0.1`，commit `5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28`。
-- GUT：327 个测试全部通过，共 2185 个断言。
-- 当前完整套件：`tests/gut/` 下 39 个顶层测试脚本、327 个 `test_` 用例。
-- Boot 首帧壳与 Godot 原生启动图共用同一构图；正式 `BootRuntime` 由线程加载，在严格 `Gf.init()` 后等待视觉与声音主题通过 `GFAssetLoadSession` 完整预载、提交资源组并事务激活，随后再由 `GFScenePreloadMap`、`GFSceneUtility` 和 `GFRenderWarmupUtility` 预热稳定场景流与首轮游戏视觉资源。Boot 继续启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`；项目 Module 的静态跨模块查找均受声明覆盖门禁约束。高频进度写入由 `GameSaveGraphUtility` 合并后调用 GFStorage 异步接口，关键完成事务仍同步落盘。
-- 未触发默认 Godot 用户日志增长保护。
-- 退出泄漏与 `.gf/godot_exit_leak_baseline.json` 一致：`ObjectDB = 319`、`Resources = 141`、RID 类型数 `= 3`，上限为 TextureStorage 11、ShapedText 9、Font 5。GF 9.0.1 声明 732 个全局脚本类，当前项目运行时声明 199 个 `class_name`。此前以 `TurnResult` 替换 `MoveData`，并加入确定性、回放检查点、无障碍、反馈预算与可执行验收矩阵类型，运行时类净增 14 个，完整套件扩展到 39/325；本次加入动画重定向和 HUD 分数反馈两项快速输入回归后扩展到 39/327，未新增运行时类，也未改变 ObjectDB、Resource 或 RID 基线。基线绑定 `.gf/vendor.lock.json` 的精确 GF commit、vendor tree 和项目运行时类集合；输入集合不变时任何增长都会失败。
-- 临时运行目录已在成功后自动清理。
+退出门禁读取 `.gf/godot_exit_leak_baseline.json`，并绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与当次项目运行时类集合。输入集合变化时必须先解释差异，再走显式校准流程；不得只修改数字使测试通过。
 
 注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
 
@@ -152,7 +143,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1 -AllowDiagnostics
 ```
 
-最近一次 LSP 诊断时间：2026-07-22。结果：扫描 230 个 `.gd` 文件，`diagnostic_count = 0`、`timeout_count = 0`。
+扫描文件数、诊断数和 timeout 数直接读取当次 `build/gdscript_lsp_diagnostics.json`。该报告位于忽略提交的 `build/`，长期文档不保存“最近一次”副本。
 
 ## 视觉与操作回放
 
@@ -162,7 +153,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -ScriptPath res://tools/capture_visual_review.gd -Rendering -ExpectedOutputPattern "[VisualReview] slowest_command_usec=" -TimeoutSeconds 240
 ```
 
-输出位于忽略提交的 `build/visual_review/`，覆盖主菜单、场景遮罩、模式选择、主题化下拉菜单、稳定游戏帧和实际 `MoveCommand` 合并帧。最近一次 1280x720 回放中，最慢命令样本为 `6165 us`；截图确认方块身份图案被裁切在安全区，合并反馈包含冲击环、碎片和多方向分数飘字。
+输出位于忽略提交的 `build/visual_review/`，覆盖主菜单、场景遮罩、模式选择、主题化下拉菜单、稳定游戏帧和实际 `MoveCommand` 合并帧。每次评审必须同时检查截图、命令耗时输出和运行日志；文档中的视觉目标不能替代当次证据。
 
 ## Web / 微信小游戏准备预检
 
@@ -180,7 +171,7 @@ powershell -ExecutionPolicy Bypass -File tools/check_platform_readiness.ps1 -God
 
 第一份报告 `build/platform_readiness_report.json` 由 GFCompatibilityPreflight 和 GFBridgeContractReport 生成；第二份 `build/platform_environment_report.json` 检查 Godot 与导出模板版本一致性及微信开发者工具 CLI。正式导出和 CI 不得忽略环境 blocker。真机矩阵见 `features/platform_runtime/docs/wechat_minigame_readiness.md`。
 
-最近一次项目预检为 `8 checks / 0 issues`。官方 Godot 4.7.1 Web 导出已在 Chromium 的 `390x844` 与 `1280x720` 视口完成 Compatibility 冒烟，控制台 `0 error / 0 warning`，本地存储写入回读通过。当前默认 Steam Godot 4.7 环境报告保留 2 个 blocker：缺少精确匹配的 `4.7.stable` 导出模板，以及未检测到微信开发者工具 CLI。
+预检数量、issue 数和本机 blocker 直接读取上述两份生成报告。已签字的历史 Web 证据与尚未完成的微信矩阵统一记录在 `features/platform_runtime/docs/wechat_minigame_readiness.md`，本指南不复制其当前状态。
 
 ### 脚本静态检查
 
@@ -193,10 +184,10 @@ $null = [scriptblock]::Create($script)
 
 ## 当前验证缺口
 
-- 当前默认 Steam Godot 4.7 缺少精确匹配的 `4.7.stable` 导出模板；微信开发者工具 CLI、微信导出适配器和微信真机矩阵也尚未完成，因此当前只保留已完成的官方 Godot 4.7.1 标准 Web 兼容性签字，不签字微信小游戏发布就绪。
-- GF 9.0.1 已包含 `gf-framework#9` / `gf-framework#10` 的导出插件 `_get_name()` 修复；安装与当前 Godot 4.7 精确匹配的导出模板后，仍需重新执行正式零错误导出签字。
-- Godot 编辑器中的 GDScript warning 已通过 `tools/check_gdscript_lsp_diagnostics.ps1` 建立零诊断基线；后续修改 `.gd` 后应复跑。
+- 微信开发者工具 CLI、微信导出适配器与微信真机矩阵尚未完成；匹配模板是否存在必须读取本次环境报告，因此不签字微信小游戏发布就绪。
+- 导出插件相关上游修复是否已进入当前项目，只能由 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json` 和当前 vendor 源码确认；工具链匹配后仍需重新执行正式零错误导出签字。
+- GDScript LSP 的门禁目标是零 error、零 warning；当前是否满足只读取本次 `build/gdscript_lsp_diagnostics.json`，修改 `.gd` 后应复跑。
 - Godot 退出仍存在已量化的框架/测试对象泄漏债务；当前通过严格基线阻止继续增长，不能把基线当成已经修复。
-- GF 9.0.1 已包含 `gf-framework#6` / `gf-framework#7` 的文本测量修复；项目方块文本已迁移到 `GFTextFitter.MeasurementMode.SINGLE_LINE`，完整 GUT 仍必须维持 `ShapedText` / `Font` RID 零增长门禁。
+- 项目方块文本使用 `GFTextFitter.MeasurementMode.SINGLE_LINE`；当前 vendor 的文本测量实现仍必须由完整 GUT 维持 `ShapedText` / `Font` RID 零增长门禁，不能按文档中的旧版本号推断修复存在。
 - 开发构建已通过 `GFScreenshotUtility` 提供单张与支持报告现场截图，但尚未建立跨分辨率的视觉基线比较和像素差异门禁。
 - GF 包管理器的独立 lockfile 校验入口已并入原生 CLI `status --json` 的 `lockfile_verify` 字段；若后续 CLI 再次变化，需要先更新本文档再更新自动化命令。

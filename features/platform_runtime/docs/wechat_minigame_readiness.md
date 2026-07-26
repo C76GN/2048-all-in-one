@@ -39,22 +39,15 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 
 该预设会由 Boot 路由到 `platform_smoke_test.tscn`，验证安全区、生命周期、手势、本地存储、HTTPS、音频用户手势和代表性 Shader。
 
-## 当前环境阻塞
+## 环境状态与签字边界
 
-截至 2026-07-18，本机环境审计结果：
+编辑器版本、导出模板和微信开发者工具 CLI 都是工作站易变状态，只以当次 `build/platform_environment_report.json` 为准，不在长期文档中复制为“当前环境”。报告出现 blocker 时，可以继续做项目侧静态审查，但不能签字微信开发者工具或真机通过。
 
-- 项目开发编辑器：`4.7.stable.steam.5b4e0cb0f`；
-- 当前默认 `godot` 环境未找到精确匹配的 `4.7.stable` 导出模板；
-- 已完成 Web 签字的独立工具链：`4.7.1.stable.official.a13da4feb` 与匹配的 `4.7.1.stable` 导出模板；
-- 微信开发者工具 CLI：未检测到。
+匹配的 Godot 导出工具链与微信开发者工具 CLI 就绪后，还必须接入实际微信导出适配器并执行下方真机矩阵。GF vendor 版本与上游修复状态以 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json` 和当前 vendor 源码为准；本项目不得保留临时 GF 补丁。
 
-项目侧兼容契约与标准 Web 浏览器冒烟已经通过；当前环境报告有“缺少当前编辑器匹配导出模板”和“缺少微信开发者工具 CLI”两个 blocker，尚不能签字“微信开发者工具 / 微信真机通过”。下一步必须安装匹配当前编辑器的导出模板，安装并配置微信开发者工具 CLI，再接入微信导出适配器执行真机矩阵。
+## 历史 Web 签字证据
 
-GF 9.0.1 已包含 [gf-framework#9](https://github.com/C76GN/gf-framework/issues/9) / [gf-framework#10](https://github.com/C76GN/gf-framework/pull/10) 的 `GFExtensionExportPlugin._get_name()` 修复，项目没有复制临时框架补丁。更新后的正式零错误导出仍需在安装与 Godot 4.7 精确匹配的模板后重新签字。
-
-## 已完成的 Web 签字
-
-2026-07-18 使用官方 Godot 4.7.1 重新导出 `Web Compatibility Smoke`，并在 Chromium WebGL 2 环境验证：
+以下是 2026-07-18 使用官方 Godot 4.7.1 对 `Web Compatibility Smoke` 的一次历史验证，不自动代表当前工作树或微信运行时已经签字：
 
 - 构建为 Compatibility、single-threaded、no GDExtension；
 - `390x844` 竖屏与 `1280x720` 横屏均使用 `720x720 + canvas_items + expand` 契约，无固定比例黑边；
@@ -64,6 +57,15 @@ GF 9.0.1 已包含 [gf-framework#9](https://github.com/C76GN/gf-framework/issues
 - 项目预检 `8 checks / 0 issues`，环境报告仅保留“缺少微信开发者工具 CLI”一个 blocker。
 
 动态加载的脚本资源必须在 GF 注册表或内容包中使用内置 `Resource` 作为 `ResourceLoader` type hint，再以 `is` 收窄到业务资源类型。Godot Web 导出不能依赖编辑器侧 `class_name` 名称作为动态加载 type hint；该规则已进入自动预检和 GUT 回归测试。
+
+## 已完成的项目侧准备
+
+- 稀疏、矩形与玩家绘制拓扑已经进入统一棋盘模型，不再是微信后续任务。
+- gameplay 与棋盘编辑器已具备可缩放/平移视口、安全区投影和 desktop/compact/portrait 响应式布局。
+- HUD、触摸 D-pad、指针手势和抽象输入上下文已按设备能力分层。
+- diagnostics 工作区由 `with_dev_tools` Feature 与独立 Window 隔离，普通玩家构建不创建该工作区。
+- 本地成就、方块图鉴及其 SaveGraph section 已实现；它们尚未等同于微信开放数据域或平台同步。
+- `GamePlatformAdapter` / `LocalPlatformAdapter` 已实现 Godot 本地、移动端和 Web 的共同能力投影；尚无 `WeChatMinigamePlatformAdapter`。
 
 ## 真机签字矩阵
 
@@ -85,9 +87,7 @@ GF 9.0.1 已包含 [gf-framework#9](https://github.com/C76GN/gf-framework/issues
 
 ## 后续实施顺序
 
-1. 完成匹配工具链、Web 导出和微信真机冒烟签字。
-2. 将棋盘数据模型升级为稀疏拓扑，支持矩形、十字形和玩家绘制。
-3. 建立可缩放、平移、裁剪和安全区感知的棋盘视口。
-4. 建立响应式 HUD 与输入上下文，按桌面、触摸和小游戏能力切换布局。
-5. 已将开发测试工具迁移到独立 Window，并通过 dev-only GF Module 注册确保微信/正式构建不创建该工作区。
-6. 在平台 bridge 之上实现成就、排行榜与方块图鉴。
+1. 准备与当前项目匹配的导出工具链、微信开发者工具 CLI 和实际微信导出适配器，完成开发者工具与真机冒烟签字。
+2. 根据产品范围先定义登录、存储、分享、支付和开放数据域中真正需要的 capability / bridge contract，再实现并注册 `WeChatMinigamePlatformAdapter`；未选择的能力不得被 UI 假定存在。
+3. 将现有本地成就、图鉴与未来排行榜分别接到平台 bridge；线上排行榜和平台成就同步由平台或服务端裁决，本地 SaveGraph 只保留离线状态与待同步事实。
+4. 在每次 Godot、GF、微信导出适配器或关键 Shader 更新后重跑项目预检、环境检查和真机矩阵，不沿用历史 Web 报告代替新签字。

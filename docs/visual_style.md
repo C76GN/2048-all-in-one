@@ -90,6 +90,7 @@
 - `sub_dash_length` 建议保持在 `4.0` 到 `12.0`；不要做连续强线。
 - `cloud_pixelation` 控制像素墨流的低分辨率采样，当前主题使用宽屏比例，不依赖外部 noise texture。
 - `cloud_scroll_speed_1` / `cloud_scroll_speed_2` 控制两层程序化噪声的缓慢漂移；速度必须低，避免背景像动态天空或水波。
+- `animation_time` 不是主题 Profile 的静态参数，只由 `GameShaderAnimationDriver` 在目标可见、应用聚焦且动效启用时推进；失焦、隐藏、减少动态或关闭 Shader 时必须停止推进，静态策略可卸载材质以避免持续片元开销。
 - `cloud_center_pos` / `cloud_position_impact` 控制墨流围绕画面上方轻微弯曲。它只负责纸面活性，不负责主视觉叙事。
 - `cloud_strength` 建议保持在 `0.010` 到 `0.050`；再高会回到深色云雾背景的问题。
 - `interaction_offset`、`interaction_direction`、`interaction_energy` 只由 `GameBoardFeedbackUtility` 在有效操作后短时驱动；主题 Profile 的静态值必须为零。
@@ -134,12 +135,10 @@
 
 约束：
 
-- 背景复用当前纸媒背景 shader，保持浅灰白纸面、轻噪点和低对比图案。
-- 中央内容可以有品牌标题、微型棋盘和状态文字，但不能变成营销页。
-- Godot 原生启动阶段使用 `printworks_boot_splash.png` 提前显示完整静态首帧；项目加载页继续使用同尺寸、同位置的微型棋盘和进度槽，禁止先显示孤立 Logo 再重排整个构图。
-- 轻量 Boot 禁止 preload GF、主题、玩法脚本或 shader；这些依赖必须由 BootRuntime 在线程资源加载完成后再进入场景树。
-- 进度条使用 `features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader`，保留粗墨边、颗粒空槽和星纹填充。
-- 启动背景和进度条静态参数由 `features/themes/resources/themes/boot/*.tres` 的 GF Profile 声明；Boot 初始化 GF 架构前只使用无状态 `GFShaderParameterUtility` 写入参数。
+- Godot 原生启动阶段与项目轻量壳共同使用 `printworks_boot_splash.png` 承接同一张静态首帧；`boot.tscn` 只序列化这张贴图、纯色 `ColorRect` 进度槽和轻量脚本，不在 GF 初始化前加载背景 shader、主题 Profile 或玩法资源。
+- 中央构图可以包含品牌标题、微型棋盘和进度槽，但不能变成营销页，也不能在动态加载开始后重新排版。
+- 轻量 `Boot` 禁止 preload GF、主题、玩法脚本或 shader；它只通过 `ResourceLoader` 在线程中加载 `BootRuntime`，后者进入场景树后才创建 GF 架构。
+- `features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader` 是素材目录中的可选 Shader，`features/themes/resources/themes/boot/*_profile.tres` 是保留的设计 Profile；当前启动代码均未消费它们，也不能把它们描述为轻量壳依赖。未来若启用，只能在 GF 初始化完成后的正式启动编排或主题场景中应用，并应补真实截图验证。
 - 进度必须由真实启动流程驱动，至少覆盖 GF 初始化和主菜单预热，不使用纯假进度。
 - 预加载条件、超时和最短停留延迟统一使用 `GFAsyncWaitUtility`，不自行维护 deadline 或 `SceneTreeTimer`。
 - `GFScenePreloadMap` 只预热最高频相邻路径：启动期准备主菜单与模式选择，模式选择期再准备玩法场景；不得在原生首屏阶段并发预载所有低频菜单。
@@ -212,7 +211,7 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 
 动效要像轻量印刷游戏界面：短、清楚、机械感强。
 
-目标达成和新纪录使用主题化庆祝 VFX。`GameCelebrationVfxTheme` 决定 shader 素材键与基础印刷色板，`GameCelebrationVfxPreset` 决定单个事件的时长、透明度和动态参数；新增主题不得在 `GameCelebrationVfxUtility` 中增加新的硬编码颜色或速度常量。
+目标达成和新纪录使用主题化庆祝 VFX。运行时由 `GameCelebrationConfettiEmitter` 以有界 `GPUParticles2D` 发射彩带：`GameCelebrationVfxTheme` 选择单片绘制 shader 与参数 Profile，Profile 只定义 `col0..col7`、`edge_strength` 和 `grain_strength`；`GameCelebrationVfxPreset` 定义事件时长、透明度以及粒子速度、摆动、旋转、尺寸和宽高比。单片 canvas shader 必须保持常数级绘制，不得使用内建 `TIME` 或在 fragment 中模拟整场粒子运动；运动由粒子系统负责。`FULL`、`REDUCED`、`MINIMAL` 的彩带上限分别为 88、44、0，减少动态或关闭 Shader 时也为 0，权威规则见 `features/themes/docs/feedback_performance_matrix.md`。新增主题不得在 `GameCelebrationVfxUtility` 中增加新的硬编码颜色、速度或数量常量。
 
 时间范围：
 
@@ -238,7 +237,7 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 
 已存在的视觉相关测试：
 
-- `test_visual_polish.gd` 验证背景 shader、启动 GF 等待流程、半调场景转场、主题化 Tile 轮廓与稀疏母题、文字对比度、按钮焦点 Profile、庆祝事件 preset，以及 GF 震动与背景联动反馈。
+- `test_visual_polish.gd` 验证背景 shader、静态启动壳与线程加载边界、半调场景转场、主题化 Tile 轮廓与稀疏母题、文字对比度、按钮焦点 Profile、庆祝事件 preset，以及 GF 震动与背景联动反馈。
 - `test_game_theme_utility.gd` 验证内容包描述符、默认主题约束、按键加载、GF 激活事务、GF settings、背景/UI/VFX Profile、`GFSignalUtility` owner 连接、场景转场、语义音效事件和音频银行挂载令牌。
 
 后续视觉改动至少检查：
@@ -246,7 +245,7 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 - `docs/visual_style.md` 是否仍描述当前方向。
 - `features/asset_library/resources/shaders/background/halftone_paper_background.gdshader` 的颗粒、点纹、细网格、像素墨流、扫描线和 glow 参数是否保持克制。
 - `features/themes/resources/themes/game/backgrounds/*_profile.tres` 是否完整覆盖背景 shader 需要由主题控制的 uniform，且不在 `GameTheme` 脚本中重新声明同名字段。
-- `GameUiPalette.button_focus_shader_profile` 与 `GameTheme.celebration_vfx_theme` 是否完整，且项目脚本中没有重新出现直接 `set_shader_parameter()`。
+- `GameUiPalette.button_focus_shader_profile` 与 `GameTheme.celebration_vfx_theme` 是否完整。主题静态 uniform 必须经 `GFShaderParameterUtility` / Profile 应用；只有拥有该材质生命周期的反馈/转场 Utility，或专用 `GameShaderAnimationDriver`，才能在先完成 uniform 合同校验后直接驱动每帧动态参数，普通表现节点不得散落调用 `set_shader_parameter()`。
 - `features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader` 的印刷擦除、半调网点和纸纹强度是否仍短促、低对比。
 - `features/themes/resources/gf_content_package.json` 是否为每个主题登记独立资源键、完整描述符 metadata 和唯一默认项，且没有重新引入中央主题注册表。
 - 视觉 `GameTheme` 是否完整引用棋盘、方块色阶、UI 色板、庆祝 VFX 和 cover/reveal GF 转场；独立 `GameAudioTheme` 是否完整解析全部语义事件。
@@ -254,6 +253,7 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 - `TileVisualTheme` 的家族签名是否唯一，`TilePatternOverlay` 的母题是否稀疏、中央留白且不会影响数字识别。
 - `GameUiStyleUtility` 的默认、选中、字段与文本语义是否能在色板切换后正确重建。
 - `GameUiMotionUtility` 的 hover、focus、pressed 动画反馈是否仍有明确区别。
+- 除自动测试外，是否在 `1280×720`、`960×540`、`390×844` 至少三类视口保存本次真实截图与运行日志，并人工核对裁切、层级、触控安全区、文字对比、首帧承接和动效降级；测试通过不能替代视觉签字。
 - 安全 GUT 是否通过。
 
 ## 当前待改进

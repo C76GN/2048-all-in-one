@@ -2,6 +2,8 @@
 
 更新时间：2026-07-23（Asia/Shanghai）
 
+> **历史建议快照。** 优先级与“当前差距”冻结于更新时间，不能直接当作现行 Roadmap 或完成状态；落地前必须按 [`docs/README.md`](../../README.md) 指向的权威来源重新核对。
+
 本文件只列能够同时回答“外部证据是什么、当前项目缺什么、谁来拥有、怎样算完成”的建议。证据以[方法](./methodology.md)定义的一手来源为准，当前差距以[项目基线](./project_baseline.md)和[GF 审计](./gf_mapping_audit.md)为准。所有建议均为独立重实现的产品/工程思想；不复制第三方代码、文字、Shader、音频或素材，也不要求修改 `addons/gf`。
 
 优先级含义：P0 是核心操作、可读性、首次体验、确定性和预算基线；P1 是内容深度、留存、复盘和完整跨端体验；P2 是基线稳定后的实验、工具或长尾优化。
@@ -133,7 +135,7 @@
 
 - **证据**：[Pixel Dungeon](./projects/repo_watabou_pixel_dungeon.md)与[Shattered Pixel Dungeon](./projects/repo_shattered_pixel_dungeon.md)按区域、动作和强度组织声音，形成视觉之外的状态通道。
 - **当前差距**：当前只有 6 个正式 SFX，未发现 BGM、ambient、连锁/危险状态或并发混音层。
-- **归属 / GF**：项目 themes/audio；直接复用 `GFAudioUtility` 的 bank、state/switch、crossfade、parameter 和 SFX 并发限制，GF 不缺运行时机制。
+- **归属 / GF**：项目 themes/audio。`GFAudioUtility` 的 Godot 内置路径已经拥有 bank、BGM/ambient、crossfade、总线混音、ducking、播放池与 SFX 并发/溢出控制；`parameter`、`state`、`switch` 只会委派给显式安装的 `GFAudioBackend`。当前项目没有安装生产后端，基础 backend 对这三类请求返回 `false`，因此自适应状态机必须先选择“项目内消费状态并调用内置播放/混音 API”或“实现并注册具体 backend”，不能把协议入口写成现成功能。
 - **验收**：移动、合并、连锁、里程碑、危险和失败可听觉区分；多事件不削波/轰鸣；缺 bank 时安静降级；cosmetic pitch/variation 不影响业务 RNG 或回放。
 
 ### P1-04 在完整 custom seed 之上新增 daily challenge

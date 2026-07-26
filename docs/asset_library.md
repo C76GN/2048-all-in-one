@@ -1,6 +1,6 @@
 # 素材库规范
 
-`features/asset_library/` 是当前项目内的通用素材库 Feature。它暂时随项目提交，后续成熟后可以整体迁移到 `addons/c76_asset_library/` 或独立仓库。
+本文只说明项目级素材治理原则；命令、评审快捷键和当前工具行为以 [`features/asset_library/docs/readme.md`](../features/asset_library/docs/readme.md) 为权威操作说明。`features/asset_library/` 是当前项目内的通用素材库 Feature，暂时随项目提交，后续成熟后可以整体迁移到独立仓库；不能直接移入 `addons/gf`。
 
 ## 目标
 
@@ -33,6 +33,8 @@ features/asset_library/resources/
 - `review/records/<pack_id>/*.tres` 保存每个候选素材的状态、评分、标签、备注、哈希和授权信息。
 - `review/source_packs/*.tres` 保存源包级授权和来源信息。
 - `review/asset_slot_map.tres` 保存“用途槽位”到当前运行时素材的映射，方便后续替换。
+
+运行时区与候选区必须保持单向晋升关系：候选内容不会因为被导入、试听或标为 approved 就自动进入玩家构建；只有复制/转码到正式分类目录、登记稳定 key、补齐授权并通过审计后才是运行时素材。默认导出规则应排除 `source_packs/`、`review/`、评审报告和作者工具。
 
 空目录只表示未来分类方向。没有可用素材时，不要在运行时 manifest 中创建占位条目。
 
@@ -125,13 +127,14 @@ features/asset_library/resources/import_sources.json
 tools\import_asset_sources.ps1
 ```
 
-当前导入会复制这些源包：
+`import_sources.json` 的 `source_path` 是作者工具在当前工作站上的执行输入，可以是 Godot 能读取的绝对目录，但它不是素材身份、运行时路径或跨机器事实。可移植身份由 `source_pack_id + relative_path + SHA-256` 组成，来源与授权由 pack metadata 和导入后的 source-pack 资源保存。
 
-- `E:/_inbox/Downloads/UI Soundpack`
-- `E:/_inbox/Downloads/JDSherbert - Ultimate UI SFX Pack (FREE)/Mono`
-- `E:/_inbox/Downloads/shader`
-- `E:/_inbox/Downloads/400 Sounds Pack`
-- `E:/_inbox/Downloads/UltimateToonSource`
+绝对路径策略：
+
+- 规范、评审结论、归因文档和运行时 manifest 不复制某台机器的下载目录。
+- 换工作站时只解析或更新各 pack 的 `source_path`；仅路径变化不代表素材变化，也不应单独进入共享提交。
+- 当前导入器会把 `source_path` / `original_source_path` 保留在作者用评审记录和生成报告中，便于回查原包；这些字段是非可移植的审计证据，候选区也会被玩家导出排除。共享或发布报告时必须按需要脱敏，任何运行时加载、去重和晋升判断都不得依赖该绝对根。
+- 若未来需要多人共享同一导入配置，应先为工具增加忽略提交的本机 override，再迁移现有 `source_path`；在实现该机制前，不伪造环境变量或相对路径支持。
 
 此外，`features/asset_library/resources/source_packs/manual_shader_notes/` 用于保存从对话、实验或临时笔记中手动收集的候选 shader，例如 2.5D foliage/billboard、world-space coordinate grid、luminance texture-mask transition、shine sweep overlay、surface-masked shine sweep、space cloud starfield background、flicker noise background、gyroid FBM background、rain/snow weather overlay、Brian Smith MIT rain/snow overlay、chromatic aberration glitch、screen lens aberration shockwave、hand-drawn hatch tile pattern、animated checker tile pattern、angled stripe tile pattern、sine wave stripe pattern、square wave tile pattern、noise node-link tile pattern、new item radial shine 等。它不由 `import_sources.json` 刷新，默认只进入评审目录，授权和用途明确后再晋升到正式运行时分类目录。
 

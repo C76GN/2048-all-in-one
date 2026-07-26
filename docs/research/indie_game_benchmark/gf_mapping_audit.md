@@ -3,6 +3,8 @@
 审计日期：2026-07-23
 依据：GF 9.0.1 固定 vendor、`.gf/project_contract.json`、运行时代码静态检索与 `gf_ai_project.py` API/能力目录查询。此审计只记录研究发现，不修改 `addons/gf` 或游戏代码。
 
+> **历史审计快照。** 本文件只描述审计日的 vendor 与工作树；其中“当前”和能力缺口不自动随项目演进更新。现行边界以 [`docs/README.md`](../../README.md)、项目合同、当前 vendor API 和实际调用点为准。
+
 ## 已正确复用的机制
 
 | 边界 | 静态证据 | 结论 |
@@ -10,7 +12,7 @@
 | 输入 | 运行时代码未发现直接 `Input.is_action_*`；HUD 与触摸手势通过 `GFVirtualInputSource` 写入抽象动作，主输入由 `GFInputMappingUtility` 消费 | 合规；新增教程、AI 提示或自动回放继续走抽象动作，不注入 Godot `InputMap` 旁路 |
 | 场景 | 运行时代码未发现 `change_scene_to_*` 或 `reload_current_scene`；路由由 `SceneRouterSystem`/`GFSceneUtility` 承担 | 合规；新挑战页和结果页应注册 UI route 或场景意图 |
 | Shader | 运行时代码未发现直接调用 `set_shader_parameter()`；[棋盘反馈](../../../features/themes/scripts/utilities/game_board_feedback_utility.gd) 先经 `GFShaderParameterUtility` 校验契约，再让 Tween 改变已经确认的材质属性 | 合规；竞品中的冲击、危险或连锁 Shader 可作为主题 Profile，不需要新全局 Shader 管理器 |
-| 音频 | 正式运行时未直接创建 `AudioStreamPlayer`；[主题 Utility](../../../features/themes/scripts/utilities/game_theme_utility.gd) 通过 `GFAudioBank` 与语义事件播放 | 合规；GF 已支持 BGM、ambient、SFX 上限、crossfade、parameter/state/switch，自适应音频应先用现有 API |
+| 音频 | 正式运行时未直接创建 `AudioStreamPlayer`；[主题 Utility](../../../features/themes/scripts/utilities/game_theme_utility.gd) 通过 `GFAudioBank` 与语义事件播放 | 合规；内置 Godot 路径支持 BGM、ambient、crossfade、总线混音、ducking 和 SFX 并发/溢出控制。`parameter/state/switch` 仅委派给可选 `GFAudioBackend`，项目当前未安装生产后端，不能把三者视为开箱即用的自适应状态机 |
 | 玩家存档 | 玩家统计、书签、回放、图鉴、成就和自定义棋盘进入统一 SaveGraph | 合规；每日挑战和局内构筑应新增严格 section/provider，而非直接 `FileAccess` |
 | 时间与随机 | 玩法层使用 `GameClockUtility`/GF clock 和确定性 seed；直接 `Time.get_ticks_*` 只在 Boot/显式 QA 工具中出现 | 合规；每日挑战可由日期解析出公开 seed，但回合结果仍只消费冻结后的 seed |
 | 表现生命周期 | 单方块 Tween 由 [Tile](../../../features/gameplay/scripts/components/tile.gd) 返回，移动批次由 [GameBoardAnimationUtility](../../../features/gameplay/scripts/utilities/game_board_animation_utility.gd) 接入 GF 命名 Action Queue | 不是重复造队列；保留现有取消、阻断与实时重定向语义 |

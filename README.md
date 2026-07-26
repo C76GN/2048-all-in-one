@@ -2,14 +2,14 @@
 
 一个基于 Godot 4 和 gf 的可扩展 2048 规则实验项目。项目把棋盘数据、规则、输入、存档、设置、回放和 UI 流程拆成独立模块，目标是作为 gf 框架在中小型游戏中的最佳实践示例。
 
-> **⚠️ 重要提示：作为 gf 框架实例项目的定位**
+> **GF vendor 边界**
 >
-> 本项目主要作为 **gf 框架** 的最佳实践和实例展示。如果在开发或使用过程中发现问题，**允许修改和优化以反哺 gf 框架**。但在进行修改时，**务必严格遵循 gf 框架的规范**，保持代码的**通用性和抽象性**，绝对避免让 gf 框架去实现特定于任何项目的具体业务逻辑。
+> 本项目是 **GF Framework** 的实践示例，但当前工作区中的 `addons/gf/` 是只读 vendor 快照。项目开发不得直接修改它。通用框架问题必须先进入独立的 `gf-framework` issue、分支和 PR，发布后再通过可追溯的 vendor 升级回流；2048 规则、内容、文案和视觉始终留在项目 Feature。
 
 ## 技术栈
 
 - Godot 4.7+
-- GF Framework 9.x（版本以 `addons/gf/plugin.cfg` 为准，当前源码为 `9.0.1`）
+- GF Framework 9.x（精确运行版本以 `addons/gf/plugin.cfg` 为唯一真值）
 - GF Package Manager（GF 9 使用 Godot 原生 CLI；当前仓库为由 `.gf/vendor.lock.json` 精确锁定的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在）
 - GDScript，遵循 `docs/coding_style.md`
 
@@ -17,7 +17,7 @@
 
 - 项目严格采用 GF 内置的 Feature-Cohesive 目录契约，`gf_project_profile.json` 是可执行的结构真相来源。
 - `app/` 只包含启动、Composition Root 和跨 Feature 装配；`app/scripts/game_architecture_installer.gd` 声明项目 Model、System、Utility。
-- `features/` 按业务能力划分为 gameplay、navigation、settings、bookmarks、replays、progress、themes、asset_library 和 diagnostics。
+- `features/` 当前包含 gameplay、navigation、board_editor、settings、bookmarks、replays、progress、tile_catalog、achievements、persistence、platform_runtime、themes、asset_library 和 diagnostics；所有权表以 `docs/architecture.md` 为准。
 - 每个 Feature 在自己的 `scripts/`、`scenes/`、`resources/`、`docs/` 或 `tools/` 内拥有完整实现；GF 的 Model/System/Utility/Controller 是 Feature 内部逻辑层。
 - `shared/` 只保存跨 Feature 复用的契约、基础算法、UI 原语、素材和 Utility，不得引用具体 Feature。
 - 旧的全局 `scripts/`、`scenes/`、`resources/`、`assets/` 和 `asset_library/` 类型桶不再使用，也不提供旧路径兼容。
@@ -27,22 +27,13 @@
 - `features/navigation/resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 UI 路由目录，`features/navigation/resources/ui_routes/*.tres` 用 `GFUIRoute` 描述弹层面板，并通过 `ProjectResourceCatalogUtility` 注册到资源解析器。
 - `shared/assets/translations.csv` 提供中文和英文 UI 文案。
 
-完整 Feature 所有权和依赖方向见 `docs/architecture.md`。
+文档权威层级与完整索引见 `docs/README.md`；Feature 所有权和依赖方向见 `docs/architecture.md`。
 
 ## gf 使用方式
 
-项目启动入口是 `app/scenes/boot.tscn`。`boot.gd` 调用 `await Gf.init()`，gf 会执行项目级 installer 并完成三阶段生命周期。业务模块内部优先使用 `GFSystem` / `GFController` 的基类方法访问 Model、System、Utility 和事件总线。
+项目启动入口是 `app/scenes/boot.tscn`。极轻的 `boot.gd` 只承接原生静态首帧，并通过 `ResourceLoader` 在线程中加载 `boot_runtime.gd`；`BootRuntime` 就绪后才创建根架构、调用 `await Gf.init()`、等待主题提交并执行场景/渲染预热。业务模块内部优先使用 `GFSystem` / `GFController` 的基类方法访问 Model、System、Utility 和事件总线。
 
-当前启用的 GF 扩展：
-
-- `gf.domain`
-- `gf.action_queue`
-- `gf.asset_metadata`
-- `gf.capability`
-- `gf.content_package`
-- `gf.feedback`
-- `gf.save`
-- `gf.turn_based`
+实际启用的 GF 扩展以 `project.godot` 的 `gf/extensions/enabled` 为准，所需与可选包以 `.gf/project_contract.json` 为准；README 不维护重复清单。
 
 当前项目直接依赖的 GF 能力：
 
@@ -79,6 +70,7 @@ GF 9 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 
 ## 维护路线
 
+- 文档权威顺序与索引见 `docs/README.md`。
 - 长期推进计划见 `docs/roadmap.md`。
 - 验证策略见 `docs/validation.md`，GF 9 包状态验证使用 Godot headless 原生包管理 CLI。
 - 项目结构由 `gf_project_profile.json` 声明，并通过 `GFProjectLayoutValidator` 与 GUT 持续校验。

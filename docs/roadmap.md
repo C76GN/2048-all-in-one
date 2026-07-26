@@ -5,83 +5,37 @@
 ## 当前事实
 
 - Godot 版本目标：`project.godot` 声明 `config/features=PackedStringArray("4.7", "Forward Plus")`。
-- GF Framework 版本：`addons/gf/plugin.cfg` 为 `9.0.1`。
+- GF Framework 精确版本：运行时只读取 `addons/gf/plugin.cfg`；路线图不复制补丁版本。
 - GF AutoLoad：`project.godot` 中 `Gf="*uid://dftf1eh06apl0"`，与 `addons/gf/kernel/core/gf.gd.uid` 匹配。
-- GF 扩展启用：`gf.action_queue`、`gf.asset_metadata`、`gf.capability`、`gf.content_package`、`gf.domain`、`gf.feedback`、`gf.save`、`gf.turn_based`。
+- GF 扩展启用集合以 `project.godot` 的 `gf/extensions/enabled` 为准，路线图不维护副本。
 - GF 源码状态：当前仓库为 `.gf/vendor.lock.json` 精确锁定的 vendored GF 9 源码状态；`.gf/packages.lock.json` 可能暂时不存在，不再把旧 GF 5.1 lockfile 状态当作当前事实。
 - GF 包管理器：GF 9 使用 Godot 原生 CLI，入口为 `res://addons/gf/kernel/package/gf_package_cli.gd`。恢复包管理器安装流时，应重新生成 `.gf/packages.lock.json` 并再启用 installed 包数量强校验。
 - GF 下载缓存、运行日志、本地用户数据和导出产物已由 `.gitignore` 忽略，不应提交。
-- 当前文档：已有 `README.md`、`docs/ai_maintenance.md`、`docs/coding_style.md`、`docs/architecture.md`、`docs/validation.md` 和本文档。
-- 当前测试：`tests/gut/` 完整发现集合为 39 个顶层测试脚本、327 个 `test_` 用例。由于历史上 Godot/GUT 可能写出巨大用户目录日志，默认不直接运行裸 Godot 或 GUT。
-- 安全测试入口：`tools/run_gut_safe.ps1` 已提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；2026-07-20 已用 Godot 4.7 stable 在 GF 9.0.1 上完成完整隔离 GUT 验证，完整结果以 `docs/validation.md` 为准。
-- 当前项目脚本中有 46 处显式继承 `res://addons/gf/...`，这是为了规避升级后 Godot class cache 对 `GF...` 类名解析不稳定的风险。
+- 文档入口与权威层级见 `docs/README.md`；本路线图不复制 Feature 清单、包清单或最近验证数字。
+- 测试脚本数、用例数、断言数、LSP 文件数和运行时类数是易变生成状态，以 `tools/run_gut_safe.ps1`、`build/gdscript_lsp_diagnostics.json` 和 `.gf/godot_exit_leak_baseline.json` 的实际输出为准。
+- 安全测试入口 `tools/run_gut_safe.ps1` 提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；不要直接运行裸 Godot/GUT。
+- 项目脚本可以按当前代码规范显式路径继承 GF 基类；具体引用数量不是架构契约，不在路线图中维护。
 - 当前脚本已清理掉 `get_model/get_system/get_utility(...) as ...`、显式 class cast、隐式变量类型和缺失返回类型等高频旧写法；维护测试已禁止用 GUT `assert_eq` 对比空数组来判断问题列表，并约束业务脚本中的 `GFBindableProperty.get_value()`、`Dictionary.get()` 自定义对象结果、资源加载/复制结果、`StyleBoxFlat` 专属 API 调用、typed `@onready` / 运行时节点查找收窄、已知高风险返回值调用和项目协程调用。剩余稳定性重点转向更细的 `unsafe_method_access` / `unsafe_property_access`。
 
-## 长期自动推进目标提示词
+## 权威事实来源
 
-如果需要让 AI 长时间持续推进本项目，可以直接使用下面这段目标：
+- 所需与可选 GF 包以 `.gf/project_contract.json` 为准。
+- 实际启用扩展以 `project.godot` 为准。
+- 精确 GF 版本以 `addons/gf/plugin.cfg` 为准，vendor 完整性以 `.gf/vendor.lock.json` 为准。
+- 包管理器安装状态只在 `.gf/packages.lock.json` 存在时由原生 CLI 校验。
+- 项目结构与 Feature 所有权分别以 `gf_project_profile.json` 和 `docs/architecture.md` 为准。
 
-```text
-请把当前仓库持续推进成一个高完成度、稳定、审美统一、能展示 GF Framework 9.x 能力的 Godot 4.7 2048 独立小游戏示例。你需要一轮接一轮地自主选择最高价值的小切片推进，不要只停留在分析。
-
-总体原则：
-1. 优先遵守项目文档：docs/ai_maintenance.md、docs/coding_style.md、docs/roadmap.md、docs/architecture.md、docs/validation.md、docs/visual_style.md、docs/save_model.md。
-2. 优先利用当前 vendored GF 9 源码和已启用扩展能力，减少项目重复实现。新增或恢复包管理器安装流前先说明价值、检查 `.gf/packages.lock.json`、`project.godot`、`README.md` 和 `docs/roadmap.md` 是否需要同步。
-3. 不直接运行裸 Godot/GUT；如需测试，只能使用 tools/run_gut_safe.ps1，并设置较短超时和日志上限，避免默认用户目录生成巨大日志。
-4. 每个小切片都要保持可回滚、可验证、可解释。不要大范围机械改写，不要修改无关文件，不要提交临时分析文件。
-5. 改 .gd 时同步考虑测试；改存档、回放、书签、设置时同步 docs/save_model.md；改 UI/视觉时同步 docs/visual_style.md；改 GF 包状态时同步包锁、README 和路线图。
-
-持续推进优先级：
-1. 工程稳定性：清理 Godot 4.7 静态警告、维护安全 GUT、固定 GF 9 源码/包状态、避免巨大日志和解析错误。
-2. GF 利用率：输入、命令历史、状态机、UI 路由、动作队列、存储、设置、资源注册和未来 save/content/debug 包的合理接入。
-3. 游戏完成度：新游戏、继续、撤销/重做、胜利/失败、书签、回放、统计、设置、模式说明、错误反馈、正式/调试面板隔离。
-4. 视觉与交互：严格围绕 CMYK 半调纸媒游戏风格，修正背景、方块、菜单、弹层、响应式布局、焦点状态、动效节奏和可读性；主题和音效主题必须资源化并能在设置页一键切换。
-5. 文档与示例价值：让 README、维护文档、架构文档、验证文档和测试共同解释这个项目如何作为 GF 示例。
-
-执行方式：
-- 先快速读取当前 git status 和相关文档，确认最近改动和风险。
-- 选择一个最小可完成的小切片，给出简短计划后直接实现。
-- 修改前先说明将改哪些文件；修改后运行不启动 Godot的静态检查和 GF package status。需要 GUT 时使用安全脚本。
-- 如果一个方向完成，就继续挑下一个最高价值方向，不要等待用户继续下令。
-- 最终只在目标真实完成或连续多轮遇到同一个外部阻塞时才停止；否则持续推进。
-```
-
-## 已安装 GF 包
-
-根包：
-
-- `gf.extension.action_queue`
-- `gf.extension.content_package`
-- `gf.extension.domain`
-- `gf.standard.deterministic`
-- `gf.standard.input`
-- `gf.standard.state_machine`
-- `gf.standard.ui`
-
-依赖包：
-
-- `gf.kernel`
-- `gf.standard.base`
-- `gf.standard.assets`
-- `gf.standard.audio`
-- `gf.standard.config`
-- `gf.standard.diagnostics`
-- `gf.standard.state`
-- `gf.standard.storage`
-
-暂不作为核心示例深用：
-
-- `gf.standard.debug`
-
-原因：debug 包需要保持接入边界清晰，避免只是为了“装更多包”而增加维护面。`gf.save` 已通过 `GameSaveGraphUtility` 深入接入统计、书签和回放的统一事务图，边界以 `docs/save_model.md` 为准。
+路线图只记录尚未完成的产品与工程目标；AI 工作方式由 `docs/ai_maintenance.md` 约束，不在这里复制提示词。
 
 ## 安全验证命令
 
-这些命令不启动 Godot，适合每轮改动后优先运行：
+先运行不启动 Godot 的文本检查：
 
 ```powershell
-git diff --check -- .gitignore .gf/packages.lock.json project.godot addons/gf scripts resources scenes tests README.md docs/ai_maintenance.md docs/coding_style.md docs tools
+git diff --check -- .gitignore .gf project.godot export_presets.cfg gf_project_profile.json addons/gf app features shared tests README.md docs tools
 ```
+
+GF 包状态命令会启动 headless Godot，应与纯文本检查分开执行：
 
 ```powershell
 godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli.gd -- status --json
@@ -97,7 +51,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 1. 维护“安全运行 Godot/GUT”的本地脚本。
    - 问题：默认 Godot 用户目录曾生成巨大日志文件。
-   - 当前状态：`tools/run_gut_safe.ps1` 已提供临时 user data/log 路径、超时、日志大小上限和默认日志增长上限；Godot 4.7 stable 与 GF 9.0.1 下安全 GUT 已覆盖 33 个顶层测试脚本，准确测试数以 `docs/validation.md` 最近一次完整验证为准。
+   - 当前状态：`tools/run_gut_safe.ps1` 已提供临时 user data/log 路径、超时、日志大小上限和默认日志增长上限；最近一次结果必须读取命令输出，不在路线图复制测试数量。
    - 结果目标：后续默认通过该脚本运行 GUT，且默认用户目录不产生大日志。
    - 验证：切换 Godot 可执行文件或升级版本后，用低上限参数重新运行烟雾测试。
 
@@ -106,17 +60,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
    - 做法：按文件逐个处理，不用大范围机械改写。
    - 验证：Godot 编辑器警告数量下降；若不能启动 Godot，则记录待验证项。
 
-3. 固化 GF 包状态。
-	- 检查 `.gf/packages.lock.json`、`project.godot` 的 `gf/extensions/enabled`、项目实际 GF 引用是否一致。
-	- 当前已知：`gf.action_queue` 已启用，匹配 lockfile 的 `enable_extension`。
-	- 验证：package status `ok=true`、`issue_count=0`、`lockfile_verify.ok=true`、`orphan_packages=[]`；`test_gf_package_validation.gd` 静态检查 lockfile、`project.godot`、`.gitignore` 的 GF 包管理和本地生成产物约束。
-
-4. 决定 GF addon 物理目录策略。
-	- 当前状态：`addons/gf/**` 是由 `.gf/vendor.lock.json` 精确锁定的完整 GF 9 源码，package lockfile 可能暂时不存在。
-	- 当前状态补充：项目运行依赖 vendored 源码和 `project.godot` 启用扩展；包管理器状态需要等恢复 lockfile 后再作为强约束。
-	- 选项 A：保留完整源码，便于示例项目探索 GF 能力。
-	- 选项 B：按 lockfile 精简，只提交实际安装包文件，体现包管理器最小依赖。
-	- 建议：先保留完整源码，等安全测试和 README 更新完成后再评估精简。
+GF 包与 vendor 治理已经成为维护契约，不再列作待决 Roadmap：项目保留 `.gf/vendor.lock.json` 锁定的只读 vendor，通用修改经上游发布后回流；若未来恢复 Package Manager 安装流，再生成 `.gf/packages.lock.json` 并启用对应强校验。
 
 ## 第二阶段：GF 利用率提升
 
@@ -213,7 +157,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 
 2. 更新 `docs/ai_maintenance.md`。
    - 加入 GF package manager 工作流。
-   - 清理或复核“当前临时框架补丁”记录，确认 GF 9 是否已经包含对应修复。
+   - 保持 `addons/gf` 只读；上游问题只记录 issue、PR、发布版本和本项目采用结果。
 
 3. 新增架构文档。
    - 建议：`docs/architecture.md`。

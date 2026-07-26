@@ -68,7 +68,14 @@
       "domain-components",
       "project-tooling"
     ],
-    "adapter_boundaries": []
+    "adapter_boundaries": [
+      {
+        "id": "godot_local_platform_adapter",
+        "provider": "Godot local runtime",
+        "project_root": "res://features/platform_runtime/scripts/adapters",
+        "responsibility": "拥有项目中已实现的 GamePlatformAdapter 基类与 LocalPlatformAdapter，将 Godot OS/DisplayServer 的本地存储、HTTP、音频、输入、显示安全区和生命周期事实投影为 GFPlatformRuntime 契约；不宣称微信 SDK 能力。"
+      }
+    ]
   },
   "architecture": {
     "modules": [
@@ -90,10 +97,28 @@
         "responsibility": "拥有 Composition Root 与全部 Feature-Cohesive 业务切片；Feature 目录提供 Locality，跨 Feature 调用由 docs/architecture.md 的 System、Utility、事件和 route 规则约束。",
         "roots": [
           "res://app",
-          "res://features"
+          "res://features/achievements",
+          "res://features/asset_library",
+          "res://features/board_editor",
+          "res://features/bookmarks",
+          "res://features/diagnostics",
+          "res://features/gameplay",
+          "res://features/navigation",
+          "res://features/persistence",
+          "res://features/platform_runtime/docs",
+          "res://features/platform_runtime/scenes",
+          "res://features/platform_runtime/scripts/controllers",
+          "res://features/platform_runtime/scripts/utilities",
+          "res://features/platform_runtime/tools",
+          "res://features/progress",
+          "res://features/replays",
+          "res://features/settings",
+          "res://features/themes",
+          "res://features/tile_catalog"
         ],
         "allowed_dependencies": [
-          "shared_foundation"
+          "shared_foundation",
+          "godot_local_platform_adapter"
         ],
         "forbidden_dependencies": [
           "verification"
@@ -109,7 +134,8 @@
         ],
         "allowed_dependencies": [
           "shared_foundation",
-          "application"
+          "application",
+          "godot_local_platform_adapter"
         ],
         "forbidden_dependencies": [],
         "ownership": "project"
@@ -405,6 +431,7 @@
       ".gf/vendor.lock.json",
       ".gf/godot_exit_leak_baseline.json",
       "app/scripts/game_architecture_installer.gd",
+      "docs/README.md",
       "docs/architecture.md",
       "docs/ai_maintenance.md",
       "docs/save_model.md",

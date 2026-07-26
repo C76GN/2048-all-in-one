@@ -1,8 +1,10 @@
 # C76 Common Asset Library
 
-This package is the project-local staging area for reusable assets. Keep runtime assets self-contained under this directory and register them in `gf_content_package.json` with a stable `asset.*` key.
+This is the authoritative operational guide for the project-local asset-library feature. Project-wide policy and ownership rationale live in [`docs/asset_library.md`](../../../docs/asset_library.md).
 
-Candidate assets live under `source_packs/` and `review/`. They are intentionally excluded from the runtime manifest until reviewed, licensed, and promoted.
+Keep runtime assets self-contained under this directory and register them in `gf_content_package.json` with a stable `asset.*` key.
+
+Candidate assets live under `source_packs/` and `review/`. They are intentionally excluded from the runtime manifest and player exports until reviewed, licensed, copied or transcoded into a runtime directory, registered, and audited.
 
 Rules:
 
@@ -13,6 +15,7 @@ Rules:
 - Run `tools/audit_asset_library.ps1` after adding, moving, or removing assets.
 - Treat a partial `GFProjectReferenceScanner` result as an audit failure, and keep GF attribution coverage complete for runtime assets.
 - Run `tools/import_asset_sources.ps1` to refresh source-pack copies and review records.
+- Treat each `resources/import_sources.json` `source_path` as a workstation-specific tool input, not a portable asset identity. Authoring records and generated reports currently retain the original path for traceability, so redact it before sharing outside the repository and never use it as a runtime or review identity; identity is `source_pack_id + relative_path + SHA-256`. A path-only local adjustment is not a semantic asset change.
 - Open `features/asset_library/scenes/asset_review_browser.tscn` to preview, listen, tag, rate, and annotate candidate assets.
 - The review browser synchronizes `review_status` and `reviewed_at` by default across playable encodings in an explicitly verified audio group. Ratings, notes, tags, paths, hashes, and license metadata remain format-specific.
 - Audio format groups are declared per source pack in `resources/import_sources.json` only after same-content verification; filenames are never matched globally or fuzzily across packs.
