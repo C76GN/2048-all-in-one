@@ -8,6 +8,8 @@ const IMPORT_SOURCES_PATH: String = "res://features/asset_library/resources/impo
 const SOURCE_EXCLUSIONS_PATH: String = "res://features/asset_library/resources/source_exclusions.json"
 const SOURCE_IMPORT_REPORT_PATH: String = "res://features/asset_library/resources/reports/source_import_report.json"
 const CONTENT_PACKAGE_PATH: String = "res://features/asset_library/resources/gf_content_package.json"
+const REVIEW_RECORD_ROOT: String = "res://features/asset_library/resources/review/records"
+const MAX_REVIEW_RECORD_COUNT: int = 20000
 const SLOT_MAP_PATH: String = "res://features/asset_library/resources/review/asset_slot_map.tres"
 const COORDINATE_GRID_RECORD_PATH: String = "res://features/asset_library/resources/review/records/manual_shader_notes/world_space_coordinate_grid_1e36eed0.tres"
 const COORDINATE_GRID_SHADER_PATH: String = "res://features/asset_library/resources/source_packs/manual_shader_notes/files/world_space_coordinate_grid.gdshader"
@@ -127,9 +129,14 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 	assert_true(GFVariantData.get_option_int(kind_counts, "shader") >= 19, "评审目录应包含 shader 候选。")
 	assert_true(GFVariantData.get_option_int(kind_counts, "vfx") >= 3, "评审目录应包含 VFX 候选。")
 	assert_true(
-		GFVariantData.get_option_int(status_counts, "inbox")
-			>= GFVariantData.get_option_int(imported_status_counts, "inbox"),
-		"未排除的新导入素材默认应处于 inbox 状态。"
+		_sum_integer_values(status_counts)
+			== GFVariantData.get_option_int(review_report, "review_record_count"),
+		"评审状态计数之和应与当前评审记录总数一致。"
+	)
+	assert_true(
+		_sum_integer_values(imported_status_counts)
+			== GFVariantData.get_option_int(import_report, "review_record_count"),
+		"导入报告中的状态计数之和应与导入记录总数一致。"
 	)
 	audit.dispose()
 	assert_false(
@@ -144,6 +151,10 @@ func test_review_catalog_keeps_unknown_license_assets_review_only() -> void:
 	var import_report: Dictionary = _read_json(SOURCE_IMPORT_REPORT_PATH)
 	var source_pack_license_counts: Dictionary = GFVariantData.get_option_dictionary(report, "license_counts")
 	var record_license_counts: Dictionary = GFVariantData.get_option_dictionary(report, "record_license_counts")
+	var approved_attribution_report: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		"approved_attribution_report"
+	)
 	var imported_license_counts: Dictionary = GFVariantData.get_option_dictionary(
 		import_report,
 		"license_counts"
@@ -157,7 +168,11 @@ func test_review_catalog_keeps_unknown_license_assets_review_only() -> void:
 			>= GFVariantData.get_option_int(imported_license_counts, "unknown"),
 		"未排除的未知授权素材应保留在评审区，不应自动批准。"
 	)
-	assert_true(GFVariantData.get_option_int(report, "error_count") == 0, "未知授权源包只应产生 warning，不能阻断审计。")
+	assert_true(
+		_report_has_issue_kind(report, "invalid_approved_asset_attribution")
+			== not GFVariantData.get_option_bool(approved_attribution_report, "ok"),
+		"质量评审标记为 approved 也不能绕过未知授权素材的署名与推广门禁。"
+	)
 	audit.dispose()
 
 
@@ -165,11 +180,18 @@ func test_rejected_sources_are_excluded_without_review_records() -> void:
 	var exclusions: Dictionary = _read_json(SOURCE_EXCLUSIONS_PATH)
 	var exclusion_entries: Array = GFVariantData.get_option_array(exclusions, "entries")
 	var import_report: Dictionary = _read_json(SOURCE_IMPORT_REPORT_PATH)
-	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
-	var review_report: Dictionary = audit.build_review_catalog_report()
-	var status_counts: Dictionary = GFVariantData.get_option_dictionary(
-		review_report,
-		"status_counts"
+	var scan_report: Dictionary = GFPathEnumerationTools.scan_files(
+		REVIEW_RECORD_ROOT,
+		{
+			"recursive": true,
+			"include_hidden": false,
+			"extensions": PackedStringArray(["tres"]),
+			"max_file_count": MAX_REVIEW_RECORD_COUNT,
+			"sort": true,
+		}
+	)
+	var review_source_identities: Dictionary = _collect_review_source_identities(
+		scan_report
 	)
 
 	assert_true(
@@ -179,10 +201,21 @@ func test_rejected_sources_are_excluded_without_review_records() -> void:
 	)
 	assert_true(exclusion_entries.size() > 0, "当前应记录已经清除的源素材身份。")
 	assert_true(
-		GFVariantData.get_option_int(status_counts, "rejected") == 0,
-		"拒绝素材不应继续保留评审记录。"
+		GFVariantData.get_option_bool(scan_report, "ok")
+			and not GFVariantData.get_option_bool(scan_report, "truncated"),
+		"排除项回归检查必须基于完整的 GF 评审记录路径枚举。"
 	)
-	audit.dispose()
+	for exclusion_value: Variant in exclusion_entries:
+		var exclusion: Dictionary = GFVariantData.as_dictionary(exclusion_value)
+		var identity: String = _make_review_source_identity(
+			GFVariantData.get_option_string(exclusion, "source_pack_id"),
+			GFVariantData.get_option_string(exclusion, "relative_path"),
+			GFVariantData.get_option_string(exclusion, "sha256")
+		)
+		assert_false(
+			review_source_identities.has(identity),
+			"已清除并排除的精确源素材身份不应重新生成评审记录：%s。" % identity
+		)
 
 
 func test_manual_coordinate_grid_shader_is_review_candidate_only() -> void:
@@ -684,6 +717,59 @@ func test_slot_map_tracks_default_runtime_replacement_slots() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _sum_integer_values(values: Dictionary) -> int:
+	var total: int = 0
+	for value: Variant in values.values():
+		total += GFVariantData.to_int(value)
+	return total
+
+
+func _report_has_issue_kind(report: Dictionary, kind: String) -> bool:
+	for issue_value: Variant in GFVariantData.get_option_array(report, "issues"):
+		var issue: Dictionary = GFVariantData.as_dictionary(issue_value)
+		if GFVariantData.get_option_string(issue, "kind") == kind:
+			return true
+	return false
+
+
+func _collect_review_source_identities(scan_report: Dictionary) -> Dictionary:
+	var identities: Dictionary = {}
+	if (
+		not GFVariantData.get_option_bool(scan_report, "ok")
+		or GFVariantData.get_option_bool(scan_report, "truncated")
+	):
+		return identities
+	for record_path: String in GFVariantData.get_option_packed_string_array(
+		scan_report,
+		"paths"
+	):
+		var record: Resource = ResourceLoader.load(
+			record_path,
+			"",
+			ResourceLoader.CACHE_MODE_IGNORE
+		)
+		if record == null:
+			continue
+		var identity: String = _make_review_source_identity(
+			GFVariantData.to_text(record.get("source_pack_id")),
+			GFVariantData.to_text(record.get("relative_path")),
+			GFVariantData.to_text(record.get("sha256"))
+		)
+		if not identity.is_empty():
+			identities[identity] = true
+	return identities
+
+
+func _make_review_source_identity(
+	source_pack_id: String,
+	relative_path: String,
+	sha256: String
+) -> String:
+	if source_pack_id.is_empty() or relative_path.is_empty() or sha256.is_empty():
+		return ""
+	return "%s|%s|%s" % [source_pack_id, relative_path, sha256]
+
 
 func _read_json(path: String) -> Dictionary:
 	var file: FileAccess = FileAccess.open(path, FileAccess.READ)

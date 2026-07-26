@@ -8,6 +8,7 @@ asset_id = &"asset.review.universal.ui.soundpack.wav.african2.2b040a31"
 source_pack_id = &"universal_ui_soundpack"
 display_name = "WAV/African2"
 asset_kind = &"audio"
+review_group_id = &"review.group.universal.ui.soundpack.african2.ce8f2651764f"
 tags = PackedStringArray("audio", "ui", "known_license", "wav", "african2")
 source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/African2.wav"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/WAV/African2.wav"

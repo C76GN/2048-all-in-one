@@ -8,6 +8,7 @@ asset_id = &"asset.review.jdsherbert.ultimate.ui.sfx.free.mono.wav.sd.jdsherbert
 source_pack_id = &"jdsherbert_ultimate_ui_sfx_free_mono"
 display_name = "wav (SD)/JDSherbert - Ultimate UI SFX Pack - Cursor - 1"
 asset_kind = &"audio"
+review_group_id = &"review.group.jdsherbert.ultimate.ui.sfx.free.mono.jdsherbert.ultimate.ui.sfx.pack.cursor.1.406aa9b4cf31"
 tags = PackedStringArray("audio", "ui", "license_review_needed", "wav", "sd", "jdsherbert", "ultimate", "sfx", "pack", "cursor", "1")
 source_path = "E:/_inbox/Downloads/JDSherbert - Ultimate UI SFX Pack (FREE)/Mono/wav (SD)/JDSherbert - Ultimate UI SFX Pack - Cursor - 1.wav"
 library_path = "res://features/asset_library/resources/source_packs/jdsherbert_ultimate_ui_sfx_free_mono/files/wav (SD)/JDSherbert - Ultimate UI SFX Pack - Cursor - 1.wav"

@@ -8,6 +8,7 @@ asset_id = &"asset.review.universal.ui.soundpack.wav.modern6.23b34d16"
 source_pack_id = &"universal_ui_soundpack"
 display_name = "WAV/Modern6"
 asset_kind = &"audio"
+review_group_id = &"review.group.universal.ui.soundpack.modern6.9346c32bdb46"
 tags = PackedStringArray("audio", "ui", "known_license", "wav", "modern6")
 source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/Modern6.wav"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/WAV/Modern6.wav"

@@ -49,7 +49,9 @@
 				"visited_entry_count": 160
 			},
 			"status_counts": {
-				"inbox": 156
+				"approved": 105,
+				"inbox": 36,
+				"rejected": 15
 			},
 			"unchanged_count": 157
 		},
@@ -80,7 +82,8 @@
 				"visited_entry_count": 10
 			},
 			"status_counts": {
-				"inbox": 5
+				"inbox": 4,
+				"rejected": 1
 			},
 			"unchanged_count": 5
 		},
@@ -142,7 +145,9 @@
 				"visited_entry_count": 415
 			},
 			"status_counts": {
-				"inbox": 359
+				"approved": 9,
+				"inbox": 177,
+				"rejected": 173
 			},
 			"unchanged_count": 359
 		},
@@ -179,7 +184,9 @@
 		}
 	],
 	"status_counts": {
-		"inbox": 523
+		"approved": 114,
+		"inbox": 220,
+		"rejected": 189
 	},
 	"unchanged_count": 524,
 	"warning_count": 0

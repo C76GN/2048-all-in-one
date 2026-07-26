@@ -14,5 +14,8 @@ Rules:
 - Treat a partial `GFProjectReferenceScanner` result as an audit failure, and keep GF attribution coverage complete for runtime assets.
 - Run `tools/import_asset_sources.ps1` to refresh source-pack copies and review records.
 - Open `features/asset_library/scenes/asset_review_browser.tscn` to preview, listen, tag, rate, and annotate candidate assets.
+- The review browser synchronizes `review_status` and `reviewed_at` by default across playable encodings in an explicitly verified audio group. Ratings, notes, tags, paths, hashes, and license metadata remain format-specific.
+- Audio format groups are declared per source pack in `resources/import_sources.json` only after same-content verification; filenames are never matched globally or fuzzily across packs.
+- Run Godot headlessly with `res://features/asset_library/tools/sync_audio_review_variants.gd` after importing to backfill inbox records from an unambiguous playable consensus. Conflicting decisions and decisions that exist only on an unplayable format are reported without writes.
 - Run `tools/purge_rejected_assets.ps1` after a review batch to remove rejected copies and records; a complete `GFProjectReferenceScanner` pass blocks deletion of referenced assets, and `source_exclusions.json` prevents exact source identities from being re-imported.
 - Use `Space`, `1`/`2`/`3`, `J`/`K`, and `Ctrl+S` for continuous keyboard review; text inputs suppress bare-key actions.

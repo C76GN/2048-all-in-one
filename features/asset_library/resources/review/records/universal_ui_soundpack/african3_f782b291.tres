@@ -8,6 +8,7 @@ asset_id = &"asset.review.universal.ui.soundpack.ogg.african3.f782b291"
 source_pack_id = &"universal_ui_soundpack"
 display_name = "OGG/African3"
 asset_kind = &"audio"
+review_group_id = &"review.group.universal.ui.soundpack.african3.6ad3bb0b803c"
 tags = PackedStringArray("audio", "ui", "known_license", "ogg", "african3")
 source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/African3.ogg"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/African3.ogg"

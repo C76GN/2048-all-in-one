@@ -9,6 +9,9 @@ extends Control
 const REVIEW_CATALOG_PROVIDER_SCRIPT = preload(
 	"res://features/asset_library/scripts/catalog/game_asset_review_catalog_source_provider.gd"
 )
+const REVIEW_SYNC_POLICY_SCRIPT = preload(
+	"res://features/asset_library/scripts/data/asset_review_sync_policy.gd"
+)
 const REVIEW_RECORD_ROOT: String = "res://features/asset_library/resources/review/records"
 const STATUS_OPTIONS: Array[String] = [
 	"inbox",
@@ -37,6 +40,7 @@ var _preview_host: PanelContainer
 var _status_editor: OptionButton
 var _rating_editor: SpinBox
 var _tags_editor: LineEdit
+var _sync_audio_variants_editor: CheckBox
 var _notes_editor: TextEdit
 var _save_status_label: Label
 var _audio_player: AudioStreamPlayer
@@ -264,6 +268,15 @@ func _build_ui() -> void:
 	form_grid.add_child(tags_editor)
 	_tags_editor = tags_editor
 
+	_add_form_label(form_grid, "格式同步")
+	var sync_audio_variants_editor: CheckBox = CheckBox.new()
+	sync_audio_variants_editor.text = "同步相同声音的其他可试听格式"
+	sync_audio_variants_editor.button_pressed = true
+	sync_audio_variants_editor.disabled = true
+	sync_audio_variants_editor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	form_grid.add_child(sync_audio_variants_editor)
+	_sync_audio_variants_editor = sync_audio_variants_editor
+
 	var notes_label: Label = Label.new()
 	notes_label.text = "备注"
 	notes_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
@@ -312,7 +325,7 @@ func _add_status_item(option: OptionButton, label: String, status: String) -> vo
 	option.set_item_metadata(index, status)
 
 
-func _load_records() -> void:
+func _load_records(ignore_cache: bool = false) -> void:
 	_records_by_asset_id.clear()
 	_review_catalog = GFAssetCatalog.new()
 	var provider: GameAssetReviewCatalogSourceProvider = REVIEW_CATALOG_PROVIDER_SCRIPT.new()
@@ -326,7 +339,12 @@ func _load_records() -> void:
 		if entry == null:
 			continue
 		var record_path: String = GFVariantData.get_option_string(entry.metadata, "record_path")
-		var loaded: Resource = ResourceLoader.load(record_path, "", ResourceLoader.CACHE_MODE_REUSE)
+		var cache_mode: ResourceLoader.CacheMode = (
+			ResourceLoader.CACHE_MODE_IGNORE
+			if ignore_cache
+			else ResourceLoader.CACHE_MODE_REUSE
+		)
+		var loaded: Resource = ResourceLoader.load(record_path, "", cache_mode)
 		if loaded == null:
 			continue
 		_records_by_asset_id[asset_id] = loaded
@@ -409,6 +427,8 @@ func _update_empty_state() -> void:
 		_rating_editor.value = 0
 		_tags_editor.text = ""
 		_notes_editor.text = ""
+		_sync_audio_variants_editor.disabled = true
+		_sync_audio_variants_editor.text = "当前素材没有可同步的格式变体"
 		_save_status_label.text = ""
 
 
@@ -452,19 +472,22 @@ func _show_record(record: Resource) -> void:
 	_rating_editor.value = _get_resource_int(record, "rating")
 	_tags_editor.text = ", ".join(_get_resource_packed_string_array(record, "tags"))
 	_notes_editor.text = _get_resource_string(record, "notes")
+	_update_audio_variant_sync_editor(record)
 	_save_status_label.text = ""
 	_refresh_preview(record)
 
 
 func _format_record_meta(record: Resource) -> String:
 	return (
-		"[b]路径[/b] %s\n[b]来源[/b] %s\n[b]授权[/b] %s / %s\n[b]用途建议[/b] %s"
+		"[b]路径[/b] %s\n[b]来源[/b] %s\n[b]授权[/b] %s / %s\n"
+		+ "[b]用途建议[/b] %s\n[b]格式组[/b] %s"
 		% [
 			_get_resource_string(record, "library_path"),
 			_get_resource_string(record, "source_pack_id"),
 			_get_resource_string(record, "license_status"),
 			_get_resource_string(record, "license"),
 			", ".join(_get_resource_packed_string_array(record, "suggested_slots")),
+			_format_audio_variant_group(record),
 		]
 	)
 
@@ -563,11 +586,20 @@ func _save_selected_record() -> void:
 		return
 	var previous_list_index: int = _get_selected_list_index()
 	var selected_asset_id: String = _get_selected_asset_id()
+	var previous_status: StringName = GFVariantData.to_string_name(
+		_selected_record.get("review_status"),
+		AssetReviewRecord.STATUS_INBOX
+	)
+	var previous_reviewed_at: String = _get_resource_string(
+		_selected_record,
+		"reviewed_at"
+	)
+	var reviewed_at: String = Time.get_datetime_string_from_system(false, true)
 	_selected_record.set("review_status", StringName(_get_selected_option_metadata(_status_editor, "inbox")))
 	_selected_record.set("rating", int(_rating_editor.value))
 	_selected_record.set("tags", _parse_tags(_tags_editor.text))
 	_selected_record.set("notes", _notes_editor.text)
-	_selected_record.set("reviewed_at", Time.get_datetime_string_from_system(false, true))
+	_selected_record.set("reviewed_at", reviewed_at)
 	var path: String = _selected_record.resource_path
 	if path.is_empty():
 		_save_status_label.text = "保存失败：记录没有 resource_path。"
@@ -576,9 +608,88 @@ func _save_selected_record() -> void:
 	if save_result != OK:
 		_save_status_label.text = "保存失败：%d" % save_result
 		return
-	_load_records()
+
+	var synchronized_count: int = 0
+	var synchronization_failure_count: int = 0
+	var synchronization_rollback_failure_count: int = 0
+	var synchronization_conflict: bool = false
+	if (
+		_sync_audio_variants_editor.button_pressed
+		and not _sync_audio_variants_editor.disabled
+		and _selected_record is AssetReviewRecord
+	):
+		var selected_record: AssetReviewRecord = _selected_record
+		var group_records: Array[AssetReviewRecord] = _to_asset_review_records(
+			_get_audio_variant_records(selected_record, true)
+		)
+		var sync_plan: Dictionary = REVIEW_SYNC_POLICY_SCRIPT.plan_from_source(
+			selected_record,
+			group_records,
+			previous_status,
+			previous_reviewed_at
+		)
+		var plan_result: StringName = GFVariantData.to_string_name(
+			sync_plan.get("result")
+		)
+		synchronization_conflict = (
+			plan_result == REVIEW_SYNC_POLICY_SCRIPT.RESULT_CONFLICT
+		)
+		if plan_result == REVIEW_SYNC_POLICY_SCRIPT.RESULT_READY:
+			var application: Dictionary = REVIEW_SYNC_POLICY_SCRIPT.apply_plan(
+				sync_plan
+			)
+			if GFVariantData.get_option_bool(application, "ok"):
+				var updated_records: Array = GFVariantData.get_option_array(
+					application,
+					"updated_records"
+				)
+				var saved_records: Array[AssetReviewRecord] = []
+				for updated_value: Variant in updated_records:
+					if not (updated_value is AssetReviewRecord):
+						synchronization_failure_count += 1
+						break
+					var audio_variant: AssetReviewRecord = updated_value
+					var variant_path: String = audio_variant.resource_path
+					if (
+						variant_path.is_empty()
+						or ResourceSaver.save(audio_variant, variant_path) != OK
+					):
+						synchronization_failure_count += 1
+						break
+					else:
+						synchronized_count += 1
+						saved_records.append(audio_variant)
+				if synchronization_failure_count > 0:
+					REVIEW_SYNC_POLICY_SCRIPT.revert_application(application)
+					for saved_record: AssetReviewRecord in saved_records:
+						if (
+							saved_record.resource_path.is_empty()
+							or ResourceSaver.save(
+								saved_record,
+								saved_record.resource_path
+							) != OK
+						):
+							synchronization_rollback_failure_count += 1
+					synchronized_count = 0
+			else:
+				synchronization_failure_count = 1
+	_load_records(synchronization_rollback_failure_count > 0)
 	_refresh_list(selected_asset_id, previous_list_index, true)
-	_save_status_label.text = "已保存。"
+	if synchronization_rollback_failure_count > 0:
+		_save_status_label.text = "当前项已保存；格式同步失败，且 %d 项回滚失败。已按磁盘状态重新加载。" % (
+			synchronization_rollback_failure_count
+		)
+	elif synchronization_failure_count > 0:
+		_save_status_label.text = "已保存；同步 %d 项，%d 项失败。" % [
+			synchronized_count,
+			synchronization_failure_count,
+		]
+	elif synchronization_conflict:
+		_save_status_label.text = "已保存当前项；格式组已有不同结论，未自动覆盖。"
+	elif synchronized_count > 0:
+		_save_status_label.text = "已保存，并同步 %d 个可试听格式。" % synchronized_count
+	else:
+		_save_status_label.text = "已保存。"
 
 
 func _set_selected_status(status: String) -> void:
@@ -603,6 +714,95 @@ func _parse_tags(text: String) -> PackedStringArray:
 		if not tag.is_empty() and not tags.has(tag):
 			var _append_result: bool = tags.append(tag)
 	return tags
+
+
+func _update_audio_variant_sync_editor(record: Resource) -> void:
+	var group_records: Array[Resource] = _get_audio_variant_records(record, true)
+	var review_record: AssetReviewRecord = null
+	if record is AssetReviewRecord:
+		review_record = record
+	var selected_can_drive: bool = (
+		review_record != null
+		and review_record.is_audio()
+		and review_record.preview_supported
+		and review_record.review_group_id != &""
+	)
+	var sibling_count: int = maxi(group_records.size() - 1, 0)
+	_sync_audio_variants_editor.disabled = not selected_can_drive or sibling_count == 0
+	if not selected_can_drive:
+		if (
+			review_record != null
+			and review_record.review_group_id != &""
+		):
+			_sync_audio_variants_editor.text = "当前格式不可试听，不作为同步来源"
+		else:
+			_sync_audio_variants_editor.text = "当前素材没有已声明的格式组"
+	elif sibling_count == 0:
+		_sync_audio_variants_editor.text = "格式组中没有其他可试听版本"
+	else:
+		_sync_audio_variants_editor.text = "同步相同声音的其他可试听格式（%d 项）" % sibling_count
+	_sync_audio_variants_editor.tooltip_text = (
+		"只同步状态与评审时间；不会覆盖各编码版本的评分、标签或备注。"
+	)
+
+
+func _format_audio_variant_group(record: Resource) -> String:
+	var group_records: Array[Resource] = _get_audio_variant_records(record, false)
+	if group_records.size() <= 1:
+		return "无"
+	var rendition_names: PackedStringArray = PackedStringArray()
+	for group_record: Resource in group_records:
+		var relative_path: String = _get_resource_string(group_record, "relative_path")
+		var rendition_name: String = relative_path.get_slice("/", 0)
+		if rendition_name.is_empty():
+			rendition_name = _get_resource_string(group_record, "extension").to_upper()
+		if not rendition_name.is_empty() and not rendition_names.has(rendition_name):
+			var _append_result: bool = rendition_names.append(rendition_name)
+	rendition_names.sort()
+	return "%d 项（%s）" % [
+		group_records.size(),
+		" / ".join(rendition_names),
+	]
+
+
+func _get_audio_variant_records(
+	record: Resource,
+	require_preview_supported: bool
+) -> Array[Resource]:
+	var result: Array[Resource] = []
+	if not (record is AssetReviewRecord):
+		return result
+	var review_record: AssetReviewRecord = record
+	if review_record.review_group_id == &"":
+		return result
+	var group_tag: String = "review_group:%s" % String(review_record.review_group_id)
+	for asset_id: String in _review_catalog.query(
+		GFAssetCatalog.GROUP_SOURCE_TAGS,
+		group_tag
+	):
+		var record_value: Variant = GFVariantData.get_option_value(
+			_records_by_asset_id,
+			asset_id
+		)
+		if not (record_value is AssetReviewRecord):
+			continue
+		var candidate: AssetReviewRecord = record_value
+		if candidate.review_group_id != review_record.review_group_id:
+			continue
+		if require_preview_supported and not candidate.preview_supported:
+			continue
+		_append_resource(result, candidate)
+	return result
+
+
+func _to_asset_review_records(
+	records: Array[Resource]
+) -> Array[AssetReviewRecord]:
+	var result: Array[AssetReviewRecord] = []
+	for record: Resource in records:
+		if record is AssetReviewRecord:
+			result.append(record)
+	return result
 
 
 func _get_selected_option_metadata(option: OptionButton, fallback: String) -> String:

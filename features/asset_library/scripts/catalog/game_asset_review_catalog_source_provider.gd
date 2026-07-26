@@ -93,10 +93,14 @@ func _make_catalog_entry(record: Resource, record_path: String) -> GFAssetCatalo
 	var source_pack_id: StringName = _get_string_name(record, "source_pack_id")
 	if source_pack_id != &"":
 		_append_tag(tags, "source:%s" % String(source_pack_id))
+	var review_group_id: StringName = _get_string_name(record, "review_group_id")
+	if review_group_id != &"":
+		_append_tag(tags, "review_group:%s" % String(review_group_id))
 
 	var metadata: Dictionary = {
 		"record_path": record_path,
 		"review_status": String(status),
+		"review_group_id": String(review_group_id),
 		"rating": _get_int(record, "rating"),
 		"source_pack_id": String(source_pack_id),
 		"source_path": _get_text(record, "source_path"),

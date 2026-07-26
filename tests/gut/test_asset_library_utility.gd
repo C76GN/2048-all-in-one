@@ -196,6 +196,7 @@ func test_asset_review_provider_uses_gf_catalog_search() -> void:
 	)
 	record.set("display_name", "Positive Chime")
 	record.set("asset_kind", &"audio")
+	record.set("review_group_id", &"review.group.fixture.positive_chime")
 	record.set("review_status", &"candidate")
 	record.set("tags", PackedStringArray(["audio", "positive", "ui"]))
 	record.set("library_path", "res://features/asset_library/resources/audio/ui/printworks_confirm_soft_01.ogg")
@@ -210,11 +211,29 @@ func test_asset_review_provider_uses_gf_catalog_search() -> void:
 	)
 	var catalog: GFAssetCatalog = provider.build_catalog()
 	var search_reports: Array[Dictionary] = catalog.search("positive chime", {"limit": 5})
+	var review_group_ids: PackedStringArray = catalog.query(
+		GFAssetCatalog.GROUP_SOURCE_TAGS,
+		"review_group:review.group.fixture.positive_chime"
+	)
 	var scan_report: Dictionary = provider.get_scan_report()
+	var entry: GFAssetCatalogEntry = catalog.get_entry(
+		&"asset.review.fixture.audio.positive_chime"
+	)
 
 	assert_true(catalog.get_all_ids().size() == 1, "GF 候选素材目录应覆盖 fixture 记录。")
 	assert_true(GFVariantData.get_option_bool(scan_report, "ok"), "候选目录应使用 GF 路径枚举并成功完成。")
 	assert_false(GFVariantData.get_option_bool(scan_report, "truncated"), "候选目录路径枚举不应达到安全上限。")
+	assert_true(
+		review_group_ids.has("asset.review.fixture.audio.positive_chime"),
+		"GF 标签索引应支持按稳定 review_group_id 查找同音频变体。"
+	)
+	assert_not_null(entry, "GF 候选素材目录应保留 fixture 条目。")
+	if entry != null:
+		assert_true(
+			GFVariantData.get_option_string(entry.metadata, "review_group_id")
+				== "review.group.fixture.positive_chime",
+			"候选条目 metadata 应保留稳定 review_group_id。"
+		)
 	assert_false(search_reports.is_empty(), "GFAssetCatalog 搜索应命中已导入的候选音频。")
 	if not search_reports.is_empty():
 		var candidate: Dictionary = GFVariantData.get_option_dictionary(search_reports[0], "candidate")

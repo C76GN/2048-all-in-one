@@ -15,6 +15,10 @@
 			"license_status": "known",
 			"source_url": "https://nathangibson.myportfolio.com",
 			"tags": ["audio", "ui", "known_license"],
+			"review_grouping": {
+				"mode": "verified_audio_format_variants",
+				"variant_roots": ["MP3", "OGG", "WAV"]
+			},
 			"notes": "Readme states Universal UI Soundpack by Nathan Gibson under CC BY 4.0."
 		},
 		{
@@ -26,6 +30,10 @@
 			"license_status": "unknown",
 			"source_url": "",
 			"tags": ["audio", "ui", "license_review_needed"],
+			"review_grouping": {
+				"mode": "verified_audio_format_variants",
+				"variant_roots": ["m4a", "mp3", "ogg", "wav (HD)", "wav (SD)"]
+			},
 			"notes": "No local license file was found during the first scan. Keep as review-only until license is confirmed."
 		},
 		{

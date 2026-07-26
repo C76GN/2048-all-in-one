@@ -49,6 +49,7 @@ const REVIEW_RECORD_PERSISTED_PROPERTIES: Array[String] = [
 	"source_pack_id",
 	"display_name",
 	"asset_kind",
+	"review_group_id",
 	"review_status",
 	"tags",
 	"notes",
@@ -342,6 +343,10 @@ func _make_review_record(
 	record.set("source_pack_id", StringName(pack_id))
 	record.set("display_name", _make_display_name(source_file, relative_path, audio_entry_lookup))
 	record.set("asset_kind", inferred_kind)
+	record.set(
+		"review_group_id",
+		_make_review_group_id(source_pack_config, relative_path, inferred_kind)
+	)
 	record.set("review_status", STATUS_INBOX)
 	record.set("tags", _make_record_tags(source_pack_config, relative_path, inferred_kind, existing_record))
 	record.set("notes", "")
@@ -618,6 +623,36 @@ func _make_record_tags(
 		for existing_tag: String in _get_resource_packed_string_array(existing_record, "tags"):
 			_append_unique_tag(tags, existing_tag)
 	return tags
+
+
+func _make_review_group_id(
+	source_pack_config: Dictionary,
+	relative_path: String,
+	asset_kind: StringName
+) -> StringName:
+	if asset_kind != KIND_AUDIO:
+		return &""
+	var grouping: Dictionary = GFVariantData.get_option_dictionary(
+		source_pack_config,
+		"review_grouping"
+	)
+	if (
+		GFVariantData.get_option_string(grouping, "mode")
+		!= "verified_audio_format_variants"
+	):
+		return &""
+	var source_pack_id: StringName = StringName(
+		GFVariantData.get_option_string(source_pack_config, "source_pack_id")
+	)
+	var variant_roots: PackedStringArray = GFVariantData.get_option_packed_string_array(
+		grouping,
+		"variant_roots"
+	)
+	return AssetReviewRecord.make_audio_variant_group_id(
+		source_pack_id,
+		relative_path,
+		variant_roots
+	)
 
 
 func _make_suggested_slots(

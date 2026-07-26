@@ -8,6 +8,7 @@ asset_id = &"asset.review.universal.ui.soundpack.ogg.modern7.aa81fa82"
 source_pack_id = &"universal_ui_soundpack"
 display_name = "OGG/Modern7"
 asset_kind = &"audio"
+review_group_id = &"review.group.universal.ui.soundpack.modern7.dc6f22686e90"
 tags = PackedStringArray("audio", "ui", "known_license", "ogg", "modern7")
 source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Modern7.ogg"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/Modern7.ogg"

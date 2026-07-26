@@ -32,7 +32,9 @@
 			"visited_entry_count": 160
 		},
 		"status_counts": {
-			"inbox": 156
+			"approved": 105,
+			"inbox": 36,
+			"rejected": 15
 		},
 		"unchanged_count": 157
 	},

@@ -8,6 +8,7 @@ asset_id = &"asset.review.universal.ui.soundpack.mp3.modern9.56c932b0"
 source_pack_id = &"universal_ui_soundpack"
 display_name = "MP3/Modern9"
 asset_kind = &"audio"
+review_group_id = &"review.group.universal.ui.soundpack.modern9.23197ab2f609"
 tags = PackedStringArray("audio", "ui", "known_license", "mp3", "modern9")
 source_path = "E:/_inbox/Downloads/UI Soundpack/MP3/Modern9.mp3"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/MP3/Modern9.mp3"
