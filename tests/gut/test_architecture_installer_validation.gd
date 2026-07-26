@@ -146,6 +146,14 @@ func test_project_installer_groups_internal_bindings_by_runtime_ownership() -> v
 		source.contains("bind_system(ProgressStatsSystem)"),
 		"进度统计所有者必须以 ProgressStatsSystem 的准确语义注册。"
 	)
+	assert_true(
+		source.contains("bind_system(TileLabSystem)"),
+		"方块试验台必须由项目 Composition Root 注册为独立 System。"
+	)
+	assert_true(
+		source.contains("TileLabSaveData.SECTION_ID"),
+		"方块蓝图必须进入统一玩家 SaveGraph。"
+	)
 	assert_false(
 		source.contains("bind_system(SaveSystem)"),
 		"Composition Root 不得再暗示项目存在第二个通用存档 System。"

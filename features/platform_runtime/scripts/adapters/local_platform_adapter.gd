@@ -71,15 +71,12 @@ func create_runtime_context() -> GFPlatformRuntimeContext:
 
 ## 通过 Godot DisplayServer 执行一次用户发起的剪贴板写入。
 ## @param text: 要写入的非空纯文本。
-## @return: 写入后能够读回相同文本时返回 true。
+## @return: 当前平台接受写入请求时返回 true；不依赖受限平台的同步读回能力。
 func copy_text_to_clipboard(text: String) -> bool:
-	if (
-		text.is_empty()
-		or not DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD)
-	):
+	if text.is_empty() or not _has_clipboard_write_support():
 		return false
-	DisplayServer.clipboard_set(text)
-	return DisplayServer.clipboard_get() == text
+	_set_clipboard_text(text)
+	return true
 
 
 ## 接收并转换 Godot 平台通知。
@@ -151,9 +148,22 @@ func _get_capability_ids() -> PackedStringArray:
 		var _touch_added: bool = result.append(String(CAPABILITY_TOUCH))
 	if _get_renderer_method() == "gl_compatibility":
 		var _renderer_added: bool = result.append(String(CAPABILITY_COMPATIBILITY_RENDERER))
-	if DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD):
+	if _has_clipboard_write_support():
 		var _clipboard_added: bool = result.append(String(CAPABILITY_CLIPBOARD_WRITE))
 	return result
+
+
+## 返回当前 DisplayServer 是否明确声明剪贴板支持。
+##
+## Web 与移动端是否暴露该能力完全服从运行时 feature，不按平台名称乐观推断。
+func _has_clipboard_write_support() -> bool:
+	return DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD)
+
+
+## 提交剪贴板写入；独立 seam 允许测试受限平台的“可写但不可同步读回”语义。
+## @param text: 已校验的非空文本。
+func _set_clipboard_text(text: String) -> void:
+	DisplayServer.clipboard_set(text)
 
 
 func _detect_platform_id() -> StringName:

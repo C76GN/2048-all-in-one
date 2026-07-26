@@ -69,6 +69,12 @@ Capability 读取两个方块并返回不可变更状态的 `TileInteractionProp
 - `revoke_recipe()` 拆卸 Capability、清理对应状态命名空间并重建 GF group。
 - `recompose_tile()` 用于身份整体变化，并在失败时恢复原定义、Recipe 和状态。
 
+隔离沙盒：
+
+- 正常玩法只能使用 `create_tile()` 与 `apply_interaction()`；它们会发布 `tile_composition_observed`，供图鉴、Profile 与成就链观察。
+- 方块试验台预览只能使用 `create_sandbox_tile()` 与 `apply_sandbox_interaction()`；它们复用相同的 Recipe 挂载、仲裁、状态应用和释放逻辑，但不发布玩家进度事件。
+- 沙盒交互结果是临时解释数据，不得写入 `discoveries`、成就或其它玩家长期 section。
+
 ## 无阵营契约
 
 方块定义描述身份和允许组合的能力，不表示玩家、敌人、怪物或任何阵营。一次碰撞的结果只由双方共同挂载的交互能力、定义和值决定：

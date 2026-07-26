@@ -144,7 +144,15 @@ func test_mode_validation_rejects_unimplemented_timer_spawn_trigger() -> void:
 	assert_false(mode_config.spawn_rules.is_empty(), "经典模式应包含生成规则。")
 	if mode_config.spawn_rules.is_empty():
 		return
-	mode_config.spawn_rules[0].trigger = SpawnRule.TriggerType.ON_TIMER
+	var isolated_spawn_rules: Array[SpawnRule] = mode_config.spawn_rules.duplicate()
+	var isolated_rule_value: Resource = isolated_spawn_rules[0].duplicate(true)
+	assert_true(isolated_rule_value is SpawnRule, "负例必须使用独立的 SpawnRule 副本。")
+	if not isolated_rule_value is SpawnRule:
+		return
+	var isolated_rule: SpawnRule = isolated_rule_value
+	isolated_spawn_rules[0] = isolated_rule
+	mode_config.spawn_rules = isolated_spawn_rules
+	isolated_rule.trigger = SpawnRule.TriggerType.ON_TIMER
 
 	var report: GFValidationReport = mode_config.get_validation_report()
 	assert_false(report.is_ok(), "没有确定性调度入口的 ON_TIMER 规则必须在加载前被拒绝。")

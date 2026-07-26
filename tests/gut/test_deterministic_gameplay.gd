@@ -117,6 +117,56 @@ func test_ruleset_fingerprint_includes_deterministic_rule_parameters() -> void:
 	)
 
 
+func test_checkpoint_compatibility_and_session_paths_preserve_exact_hashes() -> void:
+	var determinism: GameDeterminismUtility = GameDeterminismUtility.new()
+	var mode_config: GameModeConfig = _make_ruleset_fixture(0.9)
+	var full_state: Dictionary = _make_full_state()
+	var ruleset_fingerprint: String = determinism.calculate_ruleset_fingerprint(
+		mode_config
+	)
+
+	var compatibility_checkpoint: ReplayCheckpoint = determinism.create_checkpoint(
+		1,
+		full_state,
+		mode_config
+	)
+	var session_checkpoint: ReplayCheckpoint = (
+		determinism.create_checkpoint_for_session(
+			1,
+			full_state,
+			ruleset_fingerprint
+		)
+	)
+
+	assert_not_null(compatibility_checkpoint)
+	assert_not_null(session_checkpoint)
+	if compatibility_checkpoint == null or session_checkpoint == null:
+		return
+	assert_true(
+		compatibility_checkpoint.to_dict() == session_checkpoint.to_dict(),
+		"冻结规则集热路径必须逐字段保持现有回放 checkpoint 哈希与元数据。"
+	)
+
+
+func test_checkpoint_normalizes_board_and_fingerprints_ruleset_once() -> void:
+	var determinism: CountingDeterminismUtility = CountingDeterminismUtility.new()
+	var checkpoint: ReplayCheckpoint = determinism.create_checkpoint(
+		1,
+		_make_full_state(),
+		_make_ruleset_fixture(0.9)
+	)
+
+	assert_not_null(checkpoint)
+	assert_true(
+		determinism.ruleset_fingerprint_calls == 1,
+		"兼容入口每个 checkpoint 只应递归计算一次规则集指纹。"
+	)
+	assert_true(
+		determinism.board_normalization_calls == 1,
+		"同一棋盘快照不得为 board/state checksum 重复规范化。"
+	)
+
+
 # --- 私有/辅助方法 ---
 
 func _make_seed_utility(seed_value: int) -> GFSeedUtility:
@@ -161,6 +211,27 @@ func _make_board_snapshot(tiles: Array[Dictionary]) -> Dictionary:
 	}
 
 
+func _make_full_state() -> Dictionary:
+	return {
+		&"board_snapshot": _make_board_snapshot([
+			_make_tile_snapshot(Vector2i(0, 0), 2, 3000),
+			_make_tile_snapshot(Vector2i(1, 0), 4, 3001),
+		]),
+		&"rng_full_state": {
+			&"root_seed": 2048,
+			&"branch_counters": {&"game_board_spawn": 2},
+		},
+		&"score": 4,
+		&"move_count": 1,
+		&"highest_tile": 4,
+		&"ratio_resolutions": 0,
+		&"target_tile_value": 2048,
+		&"target_reached": false,
+		&"extra_stats": {},
+		&"rules_states": {},
+	}
+
+
 func _make_tile_snapshot(position: Vector2i, value: int, timestamp_msec: int) -> Dictionary:
 	return {
 		&"schema_version": TileState.SERIALIZATION_SCHEMA_VERSION,
@@ -171,3 +242,24 @@ func _make_tile_snapshot(position: Vector2i, value: int, timestamp_msec: int) ->
 		&"capability_state": {},
 		&"pos": position,
 	}
+
+
+# --- 内部类 ---
+
+class CountingDeterminismUtility extends GameDeterminismUtility:
+	var ruleset_fingerprint_calls: int = 0
+	var board_normalization_calls: int = 0
+
+
+	## 记录规则集指纹计算次数并委托真实实现。
+	## @param mode_config: 要生成规则集指纹的模式配置。
+	func calculate_ruleset_fingerprint(mode_config: GameModeConfig) -> String:
+		ruleset_fingerprint_calls += 1
+		return super.calculate_ruleset_fingerprint(mode_config)
+
+
+	## 记录棋盘快照规范化次数并委托真实实现。
+	## @param board_snapshot: 要规范化的严格棋盘快照。
+	func normalize_board_snapshot(board_snapshot: Dictionary) -> Dictionary:
+		board_normalization_calls += 1
+		return super.normalize_board_snapshot(board_snapshot)

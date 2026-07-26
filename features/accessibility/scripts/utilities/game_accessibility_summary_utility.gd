@@ -32,6 +32,33 @@ const _BOARD_ROW_FALLBACK: String = "第 %d 行：%s。"
 const _TURN_FALLBACK: String = (
 	"向%s移动：%d 个方块位移，合并 %d 次，生成 %d 个，变化 %d 个，得分 %+d。"
 )
+const _GOAL_OPEN_FALLBACK: String = "目标：继续合成更高方块；当前最大方块 %d。"
+const _GOAL_PENDING_FALLBACK: String = "目标：合成 %d；当前最大方块 %d。"
+const _GOAL_REACHED_FALLBACK: String = "目标 %d 已达成；当前最大方块 %d。"
+const _ACTIONS_FALLBACK: String = "可用操作：%s。"
+const _END_NO_MOVES_FALLBACK: String = "对局结束：没有可继续执行的有效移动。"
+const _ACTION_KEYS: Dictionary = {
+	&"move": &"ACCESSIBILITY_ACTION_MOVE",
+	&"pause": &"ACCESSIBILITY_ACTION_PAUSE",
+	&"hint": &"ACCESSIBILITY_ACTION_HINT",
+	&"undo": &"ACCESSIBILITY_ACTION_UNDO",
+	&"redo": &"ACCESSIBILITY_ACTION_REDO",
+	&"save_bookmark": &"ACCESSIBILITY_ACTION_SAVE",
+	&"restart": &"ACCESSIBILITY_ACTION_RESTART",
+	&"return": &"ACCESSIBILITY_ACTION_RETURN",
+	&"replay_controls": &"ACCESSIBILITY_ACTION_REPLAY_CONTROLS",
+}
+const _ACTION_FALLBACKS: Dictionary = {
+	&"move": "四向移动",
+	&"pause": "暂停",
+	&"hint": "提示",
+	&"undo": "撤销",
+	&"redo": "重做",
+	&"save_bookmark": "保存书签",
+	&"restart": "重新开始",
+	&"return": "返回主菜单",
+	&"replay_controls": "回放控制",
+}
 
 
 # --- 私有变量 ---
@@ -71,8 +98,15 @@ func dispose() -> void:
 
 ## 只构建棋盘摘要，不发布信号或修改序号。
 ## @param board_snapshot: 当前严格棋盘快照。
-func build_board_summary(board_snapshot: Dictionary) -> GameAccessibilitySummary:
-	var board_payload: Dictionary = _build_board_payload(board_snapshot)
+## @param session_context: 当前对局阶段、目标、结束原因与可用操作上下文。
+func build_board_summary(
+	board_snapshot: Dictionary,
+	session_context: Dictionary = {}
+) -> GameAccessibilitySummary:
+	var board_payload: Dictionary = _build_board_payload(
+		board_snapshot,
+		session_context
+	)
 	if board_payload.is_empty():
 		return null
 	return _compose_summary(
@@ -86,13 +120,18 @@ func build_board_summary(board_snapshot: Dictionary) -> GameAccessibilitySummary
 ## 只构建回合摘要，不发布信号或修改序号。
 ## @param turn_result: 已完成回合的权威结算结果。
 ## @param board_snapshot: 结算后的当前严格棋盘快照。
+## @param session_context: 当前对局阶段、目标、结束原因与可用操作上下文。
 func build_turn_summary(
 	turn_result: TurnResult,
-	board_snapshot: Dictionary
+	board_snapshot: Dictionary,
+	session_context: Dictionary = {}
 ) -> GameAccessibilitySummary:
 	if not is_instance_valid(turn_result) or not turn_result.is_effective():
 		return null
-	var board_payload: Dictionary = _build_board_payload(board_snapshot)
+	var board_payload: Dictionary = _build_board_payload(
+		board_snapshot,
+		session_context
+	)
 	if board_payload.is_empty():
 		return null
 	var turn_payload: Dictionary = _build_turn_payload(turn_result)
@@ -108,21 +147,31 @@ func build_turn_summary(
 
 ## 构建并发布当前棋盘摘要。
 ## @param board_snapshot: 当前严格棋盘快照。
-func publish_board_summary(board_snapshot: Dictionary) -> GameAccessibilitySummary:
-	var summary: GameAccessibilitySummary = build_board_summary(board_snapshot)
+## @param session_context: 当前对局阶段、目标、结束原因与可用操作上下文。
+func publish_board_summary(
+	board_snapshot: Dictionary,
+	session_context: Dictionary = {}
+) -> GameAccessibilitySummary:
+	var summary: GameAccessibilitySummary = build_board_summary(
+		board_snapshot,
+		session_context
+	)
 	return _publish(summary)
 
 
 ## 构建并发布已完成回合的摘要。
 ## @param turn_result: 已完成回合的权威结算结果。
 ## @param board_snapshot: 结算后的当前严格棋盘快照。
+## @param session_context: 当前对局阶段、目标、结束原因与可用操作上下文。
 func publish_turn_summary(
 	turn_result: TurnResult,
-	board_snapshot: Dictionary
+	board_snapshot: Dictionary,
+	session_context: Dictionary = {}
 ) -> GameAccessibilitySummary:
 	var summary: GameAccessibilitySummary = build_turn_summary(
 		turn_result,
-		board_snapshot
+		board_snapshot,
+		session_context
 	)
 	return _publish(summary)
 
@@ -148,7 +197,10 @@ func copy_latest_board_text() -> bool:
 
 # --- 私有/辅助方法 ---
 
-func _build_board_payload(board_snapshot: Dictionary) -> Dictionary:
+func _build_board_payload(
+	board_snapshot: Dictionary,
+	session_context: Dictionary
+) -> Dictionary:
 	if not GridModel.is_snapshot_envelope_valid(board_snapshot):
 		return {}
 	var topology: BoardTopology = BoardTopology.from_dict(
@@ -209,6 +261,10 @@ func _build_board_payload(board_snapshot: Dictionary) -> Dictionary:
 		&"occupied_tile_count": tiles_by_cell.size(),
 		&"highest_tile": highest_tile,
 		&"rows": rows,
+		&"session": _normalize_session_context(
+			session_context,
+			highest_tile
+		),
 	}
 
 
@@ -286,7 +342,7 @@ func _compose_summary(
 		summary.subtitle_text = _format_turn_text(turn_payload)
 		summary.announcement_text = "%s %s" % [
 			summary.subtitle_text,
-			_format_board_header(board_payload),
+			_format_board_status(board_payload),
 		]
 	else:
 		summary.subtitle_text = _format_board_header(board_payload)
@@ -310,6 +366,8 @@ func _publish(
 
 func _format_board_text(board_payload: Dictionary) -> String:
 	var lines: PackedStringArray = [_format_board_header(board_payload)]
+	for status_line: String in _format_session_lines(board_payload, true):
+		var _status_added: bool = lines.append(status_line)
 	for row_value: Variant in GFVariantData.get_option_array(board_payload, &"rows"):
 		if not row_value is Dictionary:
 			continue
@@ -398,6 +456,166 @@ func _format_turn_text(turn_payload: Dictionary) -> String:
 			GFVariantData.get_option_int(turn_payload, &"score_delta", 0),
 		]
 	)
+
+
+func _format_board_status(board_payload: Dictionary) -> String:
+	var parts: PackedStringArray = [_format_board_header(board_payload)]
+	for status_line: String in _format_session_lines(board_payload, false):
+		var _status_added: bool = parts.append(status_line)
+	return " ".join(parts)
+
+
+func _format_session_lines(
+	board_payload: Dictionary,
+	include_actions: bool
+) -> PackedStringArray:
+	var result: PackedStringArray = PackedStringArray()
+	var session: Dictionary = GFVariantData.get_option_dictionary(
+		board_payload,
+		&"session"
+	)
+	var target_value: int = GFVariantData.get_option_int(
+		session,
+		&"target_value",
+		0
+	)
+	var highest_tile: int = GFVariantData.get_option_int(
+		board_payload,
+		&"highest_tile",
+		0
+	)
+	var target_reached: bool = GFVariantData.get_option_bool(
+		session,
+		&"target_reached",
+		false
+	)
+	var goal_text: String
+	if target_value <= 0:
+		goal_text = GameTextFormatUtility.format_template(
+			_translated(
+				&"ACCESSIBILITY_GOAL_OPEN_FORMAT",
+				_GOAL_OPEN_FALLBACK
+			),
+			_GOAL_OPEN_FALLBACK,
+			[highest_tile]
+		)
+	elif target_reached:
+		goal_text = GameTextFormatUtility.format_template(
+			_translated(
+				&"ACCESSIBILITY_GOAL_REACHED_FORMAT",
+				_GOAL_REACHED_FALLBACK
+			),
+			_GOAL_REACHED_FALLBACK,
+			[target_value, highest_tile]
+		)
+	else:
+		goal_text = GameTextFormatUtility.format_template(
+			_translated(
+				&"ACCESSIBILITY_GOAL_PENDING_FORMAT",
+				_GOAL_PENDING_FALLBACK
+			),
+			_GOAL_PENDING_FALLBACK,
+			[target_value, highest_tile]
+		)
+	var _goal_added: bool = result.append(goal_text)
+
+	var end_reason: StringName = GFVariantData.get_option_string_name(
+		session,
+		&"end_reason"
+	)
+	if end_reason == &"no_moves":
+		var _end_added: bool = result.append(
+			_translated(
+				&"ACCESSIBILITY_END_NO_MOVES",
+				_END_NO_MOVES_FALLBACK
+			)
+		)
+	if include_actions:
+		var action_names: PackedStringArray = PackedStringArray()
+		for action_value: Variant in GFVariantData.get_option_array(
+			session,
+			&"available_actions"
+		):
+			var action_id: StringName = GFVariantData.to_string_name(
+				action_value
+			)
+			var translation_key: StringName = (
+				GFVariantData.to_string_name(_ACTION_KEYS.get(action_id, &""))
+			)
+			var fallback: String = GFVariantData.to_text(
+				_ACTION_FALLBACKS.get(action_id, String(action_id))
+			)
+			if translation_key != &"":
+				var _action_added: bool = action_names.append(
+					_translated(translation_key, fallback)
+				)
+		if not action_names.is_empty():
+			var actions_text: String = GameTextFormatUtility.format_template(
+				_translated(
+					&"ACCESSIBILITY_AVAILABLE_ACTIONS_FORMAT",
+					_ACTIONS_FALLBACK
+				),
+				_ACTIONS_FALLBACK,
+				["、".join(action_names)]
+			)
+			var _actions_added: bool = result.append(actions_text)
+	return result
+
+
+func _normalize_session_context(
+	session_context: Dictionary,
+	highest_tile: int
+) -> Dictionary:
+	var phase: StringName = GFVariantData.get_option_string_name(
+		session_context,
+		&"phase",
+		&"unknown"
+	)
+	if phase not in [&"unknown", &"ready", &"playing", &"game_over"]:
+		phase = &"unknown"
+	var target_value: int = maxi(
+		GFVariantData.get_option_int(
+			session_context,
+			&"target_value",
+			0
+		),
+		0
+	)
+	var target_reached: bool = (
+		target_value > 0
+		and (
+			GFVariantData.get_option_bool(
+				session_context,
+				&"target_reached",
+				false
+			)
+			or highest_tile >= target_value
+		)
+	)
+	var end_reason: StringName = GFVariantData.get_option_string_name(
+		session_context,
+		&"end_reason"
+	)
+	if end_reason not in [&"", &"no_moves"]:
+		end_reason = &""
+	var available_actions: Array[StringName] = []
+	for action_value: Variant in GFVariantData.get_option_array(
+		session_context,
+		&"available_actions"
+	):
+		var action_id: StringName = GFVariantData.to_string_name(action_value)
+		if (
+			_ACTION_KEYS.has(action_id)
+			and not available_actions.has(action_id)
+		):
+			available_actions.append(action_id)
+	return {
+		&"phase": phase,
+		&"target_value": target_value,
+		&"target_reached": target_reached,
+		&"end_reason": end_reason,
+		&"available_actions": available_actions,
+	}
 
 
 func _calculate_board_checksum(board_snapshot: Dictionary) -> String:

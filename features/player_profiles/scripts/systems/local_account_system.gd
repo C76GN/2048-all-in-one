@@ -71,6 +71,7 @@ func get_last_cleanup_error() -> Error:
 
 
 ## 创建账号并立即切换到其独立空 Profile。
+## @param display_name: 新账号在此设备上的显示名称。
 func create_account(display_name: String) -> Error:
 	if not _is_configured():
 		return ERR_UNCONFIGURED
@@ -127,6 +128,7 @@ func create_account(display_name: String) -> Error:
 
 
 ## 切换到一个既有账号的独立 Profile。
+## @param account_id: 要激活的本地账号稳定 ID。
 func switch_account(account_id: String) -> Error:
 	if not _is_configured():
 		return ERR_UNCONFIGURED
@@ -162,6 +164,8 @@ func switch_account(account_id: String) -> Error:
 
 
 ## 修改账号显示名称。
+## @param account_id: 要重命名的本地账号稳定 ID。
+## @param display_name: 账号的新显示名称。
 func rename_account(account_id: String, display_name: String) -> Error:
 	if not is_instance_valid(_catalog):
 		return ERR_UNCONFIGURED
@@ -177,7 +181,8 @@ func rename_account(account_id: String, display_name: String) -> Error:
 	return rename_error
 
 
-## 删除账号；删除当前账号时先原子切换到最近使用的其他账号。
+## 删除账号；删除当前账号时原子切换到最近使用的其他账号。
+## @param account_id: 要删除的本地账号稳定 ID。
 func delete_account(account_id: String) -> Error:
 	if not _is_configured():
 		return ERR_UNCONFIGURED
@@ -189,20 +194,49 @@ func delete_account(account_id: String) -> Error:
 		return ERR_DOES_NOT_EXIST
 
 	var active_account: LocalPlayerAccount = _catalog.get_active_account()
-	if active_account != null and active_account.account_id == account_id:
-		var fallback: LocalPlayerAccount = null
+	var fallback: LocalPlayerAccount = null
+	var deleted_active_account: bool = (
+		active_account != null
+		and active_account.account_id == account_id
+	)
+	if deleted_active_account:
 		for candidate: LocalPlayerAccount in accounts:
 			if candidate.account_id != account_id:
 				fallback = candidate
 				break
 		if fallback == null:
 			return ERR_BUSY
-		var switch_error: Error = switch_account(fallback.account_id)
-		if switch_error != OK:
-			return switch_error
+		var profile_switch_error: Error = _save_graph.activate_profile(
+			LocalAccountCatalogUtility.make_profile_file_name(
+				fallback.account_id
+			),
+			false
+		)
+		if profile_switch_error != OK:
+			return profile_switch_error
 
-	var delete_error: Error = _catalog.delete_account(account_id)
+	var delete_error: Error = (
+		_catalog.delete_active_account_with_fallback(
+			account_id,
+			fallback.account_id
+		)
+		if deleted_active_account
+		else _catalog.delete_account(account_id)
+	)
 	if delete_error != OK:
+		if deleted_active_account and active_account != null:
+			var profile_rollback_error: Error = _save_graph.activate_profile(
+				LocalAccountCatalogUtility.make_profile_file_name(
+					active_account.account_id
+				),
+				false
+			)
+			if profile_rollback_error != OK:
+				push_error(
+					"[LocalAccountSystem] 删除当前账号失败后 Profile 回滚也失败，错误码：%d。"
+					% profile_rollback_error
+				)
+				return profile_rollback_error
 		return delete_error
 	_last_cleanup_error = _save_graph.delete_inactive_profile(
 		LocalAccountCatalogUtility.make_profile_file_name(account_id)
@@ -212,7 +246,10 @@ func delete_account(account_id: String) -> Error:
 			"[LocalAccountSystem] 账号已移除，但孤立 Profile 清理失败，错误码：%d。"
 			% _last_cleanup_error
 		)
-	account_catalog_changed.emit()
+	if deleted_active_account and fallback != null and active_account != null:
+		_publish_account_change(active_account.account_id, fallback)
+	else:
+		account_catalog_changed.emit()
 	return OK
 
 

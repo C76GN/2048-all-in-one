@@ -1,10 +1,10 @@
 # 存档模型说明
 
-本文档定义 `2048-all-in-one` 当前的玩家数据与设置持久化契约。项目使用 GF SaveGraph 统一最高分、统计、玩家棋盘、书签、发现、成就和回放事务；设置保持独立文件与独立生命周期。
+本文档定义 `2048-all-in-one` 当前的设备账号、玩家 Profile 与设置持久化契约。每个本地账号映射到一个独立 GF SaveGraph Profile，统一最高分、统计、玩家棋盘、书签、发现、成就、回放和方块试验台蓝图；设备账号目录和全局设置保持独立文件与独立生命周期。
 
 ## 设计目标
 
-1. 玩家数据以一个原子文件保存，不出现统计成功但书签或回放失败的部分状态。
+1. 每个账号的玩家数据以一个原子文件保存，不出现统计成功但书签、回放或蓝图失败的部分状态。
 2. 每个 Feature 拥有自己的业务 Schema，持久化 Feature 不解释业务字段。
 3. 加载前严格校验 GFStorage 物理文档、Profile、Scope、Source 和 Feature Schema；不可解析的物理载荷只允许丢弃并重建，同源旧 Profile 只允许先备份再重建，未来版本或业务 Schema 错误直接拒绝并保留原档。
 4. 复用 `GFSaveGraphUtility`、`GFSaveDocument`、`GFSaveScope`、`GFSaveDataSource` 和 `GFStorageUtility`，不在项目层重复实现对象图遍历、阶段排序、文档封装、快照回滚和原子文件提交。
@@ -12,18 +12,28 @@
 
 ## 文件边界
 
+### 设备账号目录
+
+- 文件：`local_accounts.save`
+- 内容：有界本地账号 ID、显示名、创建时间、最近使用时间和当前账号 ID。
+- 所有权：`features/player_profiles/scripts/utilities/local_account_catalog_utility.gd`
+
+账号目录是设备身份元数据，不是玩家业务 Profile。它不得保存统计、书签、回放、成就、发现、自定义棋盘或试验台蓝图。账号切换由 `LocalAccountSystem` 编排：先冲刷当前 Profile，再事务加载目标 Profile，失败时保持原账号和原内存图。
+
 ### 玩家数据
 
-- 文件：`player_data.save`
+- 文件：`profiles/<account_id>.save`；`account_id` 必须来自已校验的设备账号目录，业务 Feature 不自行拼接路径。
 - 格式：`GFStorageCodec.Format.BINARY`
 - 完整性：启用 GF 存储元数据和 SHA-256 checksum，校验失败时拒绝读取。
 - 磁盘根：规范 `GFSaveDocument`；项目 Profile metadata 与 SaveGraph payload 分别位于文档契约定义的位置。
-- Profile Schema：`player_data@9`
+- Profile Schema：`GameSaveGraphUtility.PROFILE_SCHEMA_ID` 与 `PROFILE_SCHEMA_VERSION` 是可执行真源。
 - 所有权：`features/persistence/scripts/utilities/game_save_graph_utility.gd`
 
 Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vector2i` 和嵌套 Variant；JSON 不能稳定保留普通数字的原始类型。不得仅为可读性切回 JSON，除非同步设计显式类型编码并重写回归测试。
 
-当文档 metadata 精确标识为同一 `player_data` schema、版本为历史正整数且低于当前版本时，启动流程先把完整规范文档保存到 `recovery/player_data.schema-<version>.save`，确认备份成功后再通过当前六个 section 的 v9 默认值原子重建活动文件。已废止的 Profile v7 与 v8 也严格走此流程，不读取、转换或合并其中任何历史业务字段；备份失败时不得覆盖原活动文件。
+首次启用本地账号时，唯一的旧默认 `player_data.save` 可以被一次性收养为首个账号 Profile；目标 Profile 写入成功后才删除旧文件，不保留运行时双读。此后每个账号只使用自己的路径。
+
+当文档 metadata 精确标识为同一 Profile schema、版本为历史正整数且低于当前版本时，启动流程先把完整规范文档保存到带账号身份和旧版本的 `recovery/` 路径，确认备份成功后再通过当前 section 默认值原子重建活动文件。不读取、转换或合并历史业务字段；备份失败时不得覆盖原活动文件。
 
 `ProjectStorageRecoveryPolicy` 只把 `ERR_PARSE_ERROR`、`ERR_FILE_UNRECOGNIZED` 和 `ERR_FILE_CORRUPT` 视为可重置的物理载荷失败。项目绝不消费其中的字段；先由 GF 拒绝读取，再通过 `GFStorageUtility.delete_file()` 清理主文件及事务伴生文件，最后以当前默认 section 写回新 Profile。未来 GFStorage 版本、未来 Profile 版本、未知 schema ID、畸形业务文档和当前 section 校验失败必须保留原档并显式失败。
 
@@ -39,17 +49,18 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 ## SaveGraph 结构
 
-`GameSaveGraphUtility` 创建一个根 Scope，并由 `app/scripts/game_architecture_installer.gd` 在 GF `init()` 前登记六个 Feature section：
+`GameSaveGraphUtility` 创建一个根 Scope，并由 `app/scripts/game_architecture_installer.gd` 在 GF `init()` 前登记 Feature section。下表记录所有权和 apply phase；精确 schema 数字只从各数据类常量读取，不在架构文档复制：
 
-| Scope | Phase | Provider | Schema |
-| --- | --- | --- | --- |
-| `player_data` | `NORMAL` | 根作用域，无业务 Source | Profile `9` |
-| `progress` | `EARLY` | `GameStatsSaveData` | `5` |
-| `bookmarks` | `NORMAL` | `BookmarkCatalogSaveData` | `8` |
-| `custom_boards` | `NORMAL` | `CustomBoardCatalogSaveData` | `1` |
-| `discoveries` | `NORMAL` | `TileDiscoverySaveData` | `1` |
-| `achievements` | `LATE` | `AchievementSaveData` | `1` |
-| `replays` | `LATE` | `ReplayCatalogSaveData` | `5` |
+| Scope | Phase | Provider |
+| --- | --- | --- |
+| `player_data` | `NORMAL` | 根作用域，无业务 Source |
+| `progress` | `EARLY` | `GameStatsSaveData` |
+| `bookmarks` | `NORMAL` | `BookmarkCatalogSaveData` |
+| `custom_boards` | `NORMAL` | `CustomBoardCatalogSaveData` |
+| `discoveries` | `NORMAL` | `TileDiscoverySaveData` |
+| `tile_blueprints` | `NORMAL` | `TileLabSaveData` |
+| `achievements` | `LATE` | `AchievementSaveData` |
+| `replays` | `LATE` | `ReplayCatalogSaveData` |
 
 每个子 Scope 只有一个稳定 Source：`state`。Source 的数据 Provider 必须实现统一 envelope：
 
@@ -63,7 +74,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 }
 ```
 
-`features/persistence/scripts/data/game_save_section_data.gd` 只定义该协议。具体字段校验分别位于 `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements` 和 `replays` Feature，禁止把业务 Schema 下沉到 persistence 或 shared。
+`features/persistence/scripts/data/game_save_section_data.gd` 只定义该协议。具体字段校验分别位于 `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`tile_lab`、`achievements` 和 `replays` Feature，禁止把业务 Schema 下沉到 persistence 或 shared。
 
 ## 事务语义
 
@@ -72,7 +83,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 1. System 取得当前 section 副本并构造完整替换值。
 2. `GameSaveGraphUtility.replace_section_data()` 严格校验 Feature 数据。
 3. `GFSaveGraphUtility.gather_document()` 按 Scope phase 收集整张图并生成规范 `GFSaveDocument`。
-4. `GFStorageUtility` 把文档字典通过临时文件、事务标记和原子提交写入 `player_data.save`。
+4. `GFStorageUtility` 把文档字典通过临时文件、事务标记和原子提交写入当前账号 Profile。
 5. 校验或写入失败时，项目层恢复本次涉及的所有 section 内存快照。
 
 业务 System 不得直接调用 `FileAccess`、枚举存档目录或生成旁路文件。
@@ -80,7 +91,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 ### 加载
 
 1. `GFStorageUtility.load_data()` 返回 `GFStorageReadResult`，并在成功前校验存储 envelope 与 checksum。
-2. `GFSaveDocument.inspect_dict()` / `from_dict()` 严格解析规范文档，项目层再校验 `player_data@9` Profile metadata；精确识别到同源旧 Profile（包括 v7/v8）时执行“备份后重建”，不进入业务加载管线。
+2. `GFSaveDocument.inspect_dict()` / `from_dict()` 严格解析规范文档，项目层再按当前常量校验 Profile metadata；精确识别到同源旧 Profile 时执行“备份后重建”，不进入业务加载管线。
 3. `GFSaveGraphUtility.create_document_schema().validate_document()` 严格校验 Scope 和 Source 图。
 4. `GFSaveGraphUtility.apply_document(..., transactional_apply = true)` 按 `EARLY -> NORMAL -> LATE` 应用。
 5. 任一后期 section 失败时，先前已应用 section 必须回滚，运行时不得暴露部分加载状态。
@@ -95,14 +106,17 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 - 游玩次数、最佳步数和历史最大方块。
 - 总分、总步数、有效步数样本和平均值。
+- 累计对局时长、有效时长样本、最近时长、最短单局时长和平均单局时长。
 - 目标值、达成次数、达成率与最近一局是否达成。
 - 最近一局分数、步数、最大方块和时间戳。
 
 统计按稳定 `mode_id` 和 `BoardTopology.get_stable_key()` 二级 key 组织。棋盘键由语义 ID 与规范化活跃单元内容指纹共同组成，因此相同包围盒但形状不同的棋盘不会共享成绩。`ProgressStatsSystem` 负责数值归一化和统计计算，Provider 负责 section 结构边界。
 
-`results` 最多保存 128 条严格 `GameResultRecordedData` v2，按结束时间降序稳定排列。每条结果冻结模式、棋盘键、规则集 ID/版本/指纹、初始 seed、最终 canonical state hash、`GameCompetitionEligibility` v2 快照和结算指标，并用 `result_hash` 拒绝字段篡改。调试结果仍可作为可解释的最近记录保留，但不推进统计或成就。
+`results` 保存有界的严格 `GameResultRecordedData`，按结束时间降序稳定排列。每条结果冻结模式、棋盘键、规则集 ID/版本/指纹、初始 seed、最终 canonical state hash、`GameCompetitionEligibility` 快照和结算指标，并用 `result_hash` 拒绝字段篡改。精确容量与 schema 版本由数据类常量拥有。调试结果仍可作为可解释的最近记录保留，但不推进统计或成就。
 
-`leaderboards` 最多保存 256 个分组，每组最多 50 条结果；分组身份严格为 `mode_id`、`board_key`、`ruleset_id`、`ruleset_version` 和 `ruleset_fingerprint`。只有 `is_competition_eligible()` 为真的结果可以进入本地榜。调试改写、回放续玩、书签恢复、撤销/重做、自定义棋盘和手动 seed 都会在不可变资格快照中留下失格 reason code。本地榜只是在同一设备上的离线参考，不是 Steam、微信或服务端的线上权威证明。
+对局时长由 `GameFlowSystem` 只在可操作阶段累计，并在同一次 `ProgressStatsSystem.record_game_result()` 调用中投影到当前账号的统计摘要；它不是 `GameResultRecordedData` 字段，也不参与 `result_hash`。这样可保持现行严格结果 schema 不变，同时让个人信息页展示累计、最近、最短与平均单局时长。暂停期间不累计；书签恢复和回放续玩遵循各自既有资格规则，回放播放本身不写入进度。
+
+`leaderboards` 保存有界分组与结果；分组身份严格为 `mode_id`、`board_key`、`ruleset_id`、`ruleset_version` 和 `ruleset_fingerprint`。只有 `is_competition_eligible()` 为真的结果可以进入本地榜。调试改写、回放续玩、书签恢复、撤销/重做、自定义棋盘和手动 seed 都会在不可变资格快照中留下失格 reason code。`player_profiles` 可以只读聚合各账号的严格 progress section，但不得改写其他账号 Profile。本地榜只是在同一设备上的离线参考，不是 Steam、微信或服务端的线上权威证明。
 
 ### Bookmarks
 
@@ -110,9 +124,9 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 书签是可继续游玩的完整局面快照，包括模式、种子、棋盘、规则状态、命令历史、分数、步数、跨定义求商次数和目标状态。它还严格保存从初始种子到书签位置的 typed replay actions/checkpoints 前缀，保证续玩后的完整对局仍能产出逐回合可验证回放，不允许从命令历史再次推断回放语义。视觉主题、音效主题和全局设置不属于书签。
 
-`BookmarkCatalogSaveData` 当前为 section schema v8，目录中的单条 `BookmarkData` 为 item schema v4。item v4 冻结 `ruleset_id`、`ruleset_version`、64 字符十六进制 `ruleset_fingerprint` 和 `GameSessionMetadata` v2 资格上下文，恢复前必须与当前模式严格匹配；书签恢复会保留并增加 `bookmark` 失格原因。`rules_states` 是按稳定规则状态键保存的 `Dictionary`。其中命令历史条目使用 `MoveCommand` serialization schema v2，状态 envelope 使用 `GameStateSystem.STATE_SCHEMA_VERSION = 2`；这些嵌套版本不得与目录 section 版本混淆。`ratio_resolutions` 只表示规则执行次数，不携带阵营或击杀语义。
+目录 section、单条 `BookmarkData`、命令历史、状态 envelope 和 `GameSessionMetadata` 各自拥有独立 schema 常量，不得混淆。书签冻结 `ruleset_id`、`ruleset_version`、64 字符十六进制 `ruleset_fingerprint` 和资格上下文，恢复前必须与当前模式严格匹配；书签恢复会保留并增加 `bookmark` 失格原因。`rules_states` 是按稳定规则状态键保存的 `Dictionary`；`ratio_resolutions` 只表示规则执行次数，不携带阵营或击杀语义。
 
-棋盘快照使用 `GridModel.SNAPSHOT_SCHEMA_VERSION`（当前 v3），其根字段严格为 `schema_version`、`topology` 和 `tiles`。`topology` 使用 `BoardTopology.SERIALIZATION_SCHEMA_VERSION`（当前 v1）保存规范化活跃坐标；方块只能位于活跃单元，空洞不得以空方块伪装。每个方块使用 `TileState.SERIALIZATION_SCHEMA_VERSION`（当前 v1），并显式保存 UUID v7、`definition_id`、当前实际 `capability_recipe_ids` 以及按 Recipe ID 隔离的 `capability_state`。恢复时由 `TileCompositionUtility` 通过 GF Recipe 重建能力实例；不得仅按定义的初始 Recipe 猜测运行时组合。
+棋盘快照的根字段严格为 `schema_version`、`topology` 和 `tiles`，精确版本分别由 `GridModel.SNAPSHOT_SCHEMA_VERSION`、`BoardTopology.SERIALIZATION_SCHEMA_VERSION` 和 `TileState.SERIALIZATION_SCHEMA_VERSION` 拥有。拓扑保存规范化活跃坐标；方块只能位于活跃单元，空洞不得以空方块伪装。每个方块显式保存 UUID v7、`definition_id`、当前实际 `capability_recipe_ids` 以及按 Recipe ID 隔离的 `capability_state`。恢复时由 `TileCompositionUtility` 通过 GF Recipe 重建能力实例；不得仅按定义的初始 Recipe 猜测运行时组合。
 
 `target_tile_value` 与 `target_reached` 是当前 schema 的显式契约。恢复时不允许从最高方块猜测缺失状态；目标值必须与当前模式一致。若当前最高方块已达到目标却声明 `target_reached=false`，载荷无效；`target_reached=true` 且当前最高方块较低仍可表示本局曾经达成过目标。
 
@@ -128,6 +142,12 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 静态名称、标签、颜色、纹理、Shader 和音频路径不进入玩家数据，运行时始终从资源目录与当前主题投影。`TileDiscoverySystem` 只在首次发现、最高值提升或新拓扑出现时写入，UI 不得直接修改 section。
 
+### Tile Lab
+
+`TileLabSaveData` 的业务根保存有界方块蓝图。每个蓝图使用 UUID v7 稳定身份，保存显示名、基础 `TileDefinition` 稳定 ID、选中的 `GFCapabilityRecipe` 稳定 ID、预览参数和时间字段。
+
+蓝图不保存运行时能力实例、场景节点、资源路径或普通对局状态。加载后由 `TileCatalogUtility` 和 `TileCompositionUtility` 解析当前目录并重新验证 Recipe 冲突；缺失定义、重复 Recipe、能力覆盖冲突或非法参数必须拒绝，不能通过 fallback 猜测。试验沙盒状态不进入该 section，也不推进 progress、成就或排行。
+
 ### Achievements
 
 `AchievementSaveData` 的业务根只有 `records`。每条 `AchievementProgressRecord` 保存稳定成就 ID、达成条件指纹、当前值、最后进度时间和完成时间；静态标题、说明、目标、图标与平台 ID 始终来自 `AchievementDefinition` 资源。
@@ -138,7 +158,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 `ReplayCatalogSaveData` 的业务根只有 `items`。每个 `ReplayData` 使用 `replay_id` UUID v7 作为稳定身份。
 
-回放保存“初始条件 + 有效玩家操作序列 + 逐回合确定性 checkpoint + 结束预览”，不是逐帧录像。回放 section 的 `ReplayCatalogSaveData` 当前为 schema v5；目录中的单条 `ReplayData` 当前为 item schema v4。item v4 同样冻结 `GameSessionMetadata` v2 资格上下文；从回放继续普通对局会增加 `replay_continuation` 失格原因。`initial_board_topology` 是初始空间契约，`final_board_snapshot` 是结束预览，两者都必须通过当前严格校验。`actions` 使用 `Array[Vector2i]`，必须与 `MoveCommand` 和 `GFCommandHistoryUtility` 的方向语义一致。
+回放保存“初始条件 + 有效玩家操作序列 + 逐回合确定性 checkpoint + 结束预览”，不是逐帧录像。section、单条 `ReplayData` 和嵌套资格上下文各自拥有独立 schema 常量。从回放继续普通对局会增加 `replay_continuation` 失格原因。`initial_board_topology` 是初始空间契约，`final_board_snapshot` 是结束预览，两者都必须通过当前严格校验。`actions` 使用 `Array[Vector2i]`，必须与 `MoveCommand` 和 `GFCommandHistoryUtility` 的方向语义一致，并受目录、命令数和 checkpoint 的有界容量约束。
 
 每个 `ReplayData` 必须保存 `ruleset_id`、`ruleset_version`、`ruleset_fingerprint` 和与有效命令一一对应的 `ReplayCheckpoint`。Checkpoint 分别保存 board、gameplay RNG、规则集和完整 state checksum；运行时 UUID 与表现状态不得进入摘要。回放发现首个 OOS 后必须停止步进，并禁止从该回合继续普通对局，不得用结束预览掩盖中途偏离。
 
@@ -163,7 +183,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 回归测试必须覆盖：
 
-- 六个 Feature section 的图健康检查与 phase。
+- 所有已登记 Feature section 的图健康检查与 phase。
 - 统计、书签、玩家棋盘、发现进度、成就和回放只生成一个玩家数据文件。
 - Binary 往返后严格类型与稳定 UUID 保留。
 - 后期 section 应用失败时早期 section 回滚。

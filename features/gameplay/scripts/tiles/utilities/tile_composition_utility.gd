@@ -43,18 +43,33 @@ func create_tile(
 	tile_id: String = "",
 	capability_state: Dictionary = {}
 ) -> TileState:
-	if not _is_definition_valid(definition) or value <= 0:
-		return null
-	var tile: TileState = TileState.new(value, definition.definition_id, tile_id)
-	tile.capability_state = capability_state.duplicate(true)
-	if not _mount_recipe_ids(tile, definition, definition.initial_recipe_ids):
-		release_tile(tile)
-		return null
-	if not tile.is_valid_state():
-		release_tile(tile)
-		return null
-	_emit_observation(tile)
-	return tile
+	return _create_tile_state(
+		definition,
+		value,
+		tile_id,
+		capability_state,
+		true
+	)
+
+
+## 为隔离沙盒创建方块，不发布玩家进度可观察的组合事件。
+## @param definition: 方块的稳定资产定义。
+## @param value: 方块初始数值。
+## @param tile_id: 可选的既有 UUID v7；为空时生成新 ID。
+## @param capability_state: 需要随方块持久化的能力状态。
+func create_sandbox_tile(
+	definition: TileDefinition,
+	value: int,
+	tile_id: String = "",
+	capability_state: Dictionary = {}
+) -> TileState:
+	return _create_tile_state(
+		definition,
+		value,
+		tile_id,
+		capability_state,
+		false
+	)
 
 
 ## 从严格快照恢复方块并重新挂载能力配方。
@@ -247,28 +262,17 @@ func apply_interaction(
 	source: TileState,
 	target: TileState
 ) -> TileInteractionResult:
-	var proposal: TileInteractionProposal = evaluate_interaction(source, target)
-	if proposal == null:
-		return null
-	var survivor: TileState = (
-		source
-		if proposal.survivor_side == TileInteractionProposal.SurvivorSide.SOURCE
-		else target
-	)
-	var consumed: TileState = target if survivor == source else source
-	for state_key: Variant in proposal.state_patch:
-		if not survivor.capability_recipe_ids.has(GFVariantData.to_string_name(state_key)):
-			push_error(
-				"[TileCompositionUtility] 交互状态补丁必须写入已挂载 Recipe 的命名空间。"
-			)
-			return null
-	survivor.value = proposal.result_value
-	for key: Variant in proposal.state_patch:
-		survivor.capability_state[key] = proposal.state_patch[key]
-	var result: TileInteractionResult = proposal.to_interaction_result(source, target)
-	release_tile(consumed)
-	_emit_observation(survivor)
-	return result
+	return _apply_interaction(source, target, true)
+
+
+## 在隔离沙盒中应用交互，不发布玩家进度可观察的组合事件。
+## @param source: 发起移动的方块。
+## @param target: 移动目标位置上的方块。
+func apply_sandbox_interaction(
+	source: TileState,
+	target: TileState
+) -> TileInteractionResult:
+	return _apply_interaction(source, target, false)
 
 
 ## 获取方块状态及 GF Capability 挂载报告。
@@ -282,6 +286,63 @@ func inspect_tile(tile: TileState) -> Dictionary:
 
 
 # --- 私有/辅助方法 ---
+
+func _create_tile_state(
+	definition: TileDefinition,
+	value: int,
+	tile_id: String,
+	capability_state: Dictionary,
+	notify_observers: bool
+) -> TileState:
+	if not _is_definition_valid(definition) or value <= 0:
+		return null
+	var tile: TileState = TileState.new(value, definition.definition_id, tile_id)
+	tile.capability_state = capability_state.duplicate(true)
+	if not _mount_recipe_ids(tile, definition, definition.initial_recipe_ids):
+		release_tile(tile)
+		return null
+	if not tile.is_valid_state():
+		release_tile(tile)
+		return null
+	if notify_observers:
+		_emit_observation(tile)
+	return tile
+
+
+func _apply_interaction(
+	source: TileState,
+	target: TileState,
+	notify_observers: bool
+) -> TileInteractionResult:
+	var proposal: TileInteractionProposal = evaluate_interaction(source, target)
+	if proposal == null:
+		return null
+	var survivor: TileState = (
+		source
+		if proposal.survivor_side == TileInteractionProposal.SurvivorSide.SOURCE
+		else target
+	)
+	var consumed: TileState = target if survivor == source else source
+	for state_key: Variant in proposal.state_patch:
+		if not survivor.capability_recipe_ids.has(
+			GFVariantData.to_string_name(state_key)
+		):
+			push_error(
+				"[TileCompositionUtility] 交互状态补丁必须写入已挂载 Recipe 的命名空间。"
+			)
+			return null
+	survivor.value = proposal.result_value
+	for key: Variant in proposal.state_patch:
+		survivor.capability_state[key] = proposal.state_patch[key]
+	var result: TileInteractionResult = proposal.to_interaction_result(
+		source,
+		target
+	)
+	release_tile(consumed)
+	if notify_observers:
+		_emit_observation(survivor)
+	return result
+
 
 func _apply_recipe(tile: TileState, recipe: GFCapabilityRecipe) -> bool:
 	if _capability_utility == null:

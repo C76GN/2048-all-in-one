@@ -56,7 +56,7 @@ var _pending_delete_resource: Resource = null
 
 # --- @onready 变量 (节点引用) ---
 
-@onready var items_container: VBoxContainer = %ReplayItemsContainer
+@onready var items_container: VBoxContainer = %ItemsContainer
 @onready var board_preview_node: BoardPreview = _find_board_preview_node()
 @onready var detail_info_label: RichTextLabel = _find_detail_info_label()
 @onready var back_button: Button = %BackButton

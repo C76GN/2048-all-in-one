@@ -488,6 +488,11 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		TileDiscoverySaveData.new(),
 		GFSaveScope.Phase.NORMAL
 	)
+	var tile_blueprints_registered: bool = save_graph.register_section(
+		TileLabSaveData.SECTION_ID,
+		TileLabSaveData.new(),
+		GFSaveScope.Phase.NORMAL
+	)
 	var achievements_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID,
 		AchievementSaveData.new(),
@@ -503,6 +508,7 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		and bookmarks_registered
 		and custom_boards_registered
 		and discoveries_registered
+		and tile_blueprints_registered
 		and achievements_registered
 		and replays_registered,
 		"测试 SaveGraph section 应完整注册。"

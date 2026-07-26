@@ -16,8 +16,11 @@
     ],
     "out_of_scope": [
       "在运行时主路径保留旧业务 schema、旧 API 或隐式降级兼容分支。",
-      "在项目主线直接修改 res://addons/gf；通用框架改动必须以 gf-framework GitHub issue 作为唯一协作与验收记录，只在独立 gf-pr 工作区的非 main 分支实现，用户自有 gf 工作区保持只读；通过 GF 测试与发布后再按精确 source commit 回流 vendor。",
-      "当前阶段实现实时多人对局或由客户端直接裁决线上排行榜。"
+      "在项目主线直接修改 res://addons/gf；通用框架改动必须以 gf-framework GitHub issue 作为唯一协作与验收记录，只在独立 gf-pr 工作区的非 main 分支实现；用户自有 gf 工作区只对本项目自动化与协作者只读，不限制用户本人继续维护；gf-pr 是隔离工作区名称，不代表授权创建 GitHub PR；通过 GF 测试与发布后再按精确 source commit 回流 vendor。",
+      "当前阶段实现实时多人对局或由客户端直接裁决线上排行榜。",
+      "产品化关卡、每日或今日挑战。",
+      "交互式教学或教程流程。",
+      "回放倍速控制。"
     ]
   },
   "framework": {
@@ -72,8 +75,8 @@
       {
         "id": "godot_local_platform_adapter",
         "provider": "Godot local runtime",
-        "project_root": "res://features/platform_runtime/scripts/adapters",
-        "responsibility": "拥有项目中已实现的 GamePlatformAdapter 基类与 LocalPlatformAdapter，将 Godot OS/DisplayServer 的本地存储、HTTP、音频、输入、显示安全区和生命周期事实投影为 GFPlatformRuntime 契约；不宣称微信 SDK 能力。"
+        "project_root": "res://features/platform_runtime",
+        "responsibility": "拥有完整平台运行时 Adapter Seam：GamePlatformAdapter、LocalPlatformAdapter、GamePlatformUtility、生命周期桥接、平台 smoke 场景/工具与局部文档；把 Godot OS/DisplayServer 的本地存储、HTTP、音频、输入、显示安全区和生命周期事实投影为 GFPlatformRuntime 契约，不宣称微信 SDK 能力。"
       }
     ]
   },
@@ -94,7 +97,7 @@
       },
       {
         "id": "application",
-        "responsibility": "拥有 Composition Root 与全部 Feature-Cohesive 业务切片；Feature 目录提供 Locality，跨 Feature 调用由 docs/architecture.md 的 System、Utility、事件和 route 规则约束。",
+        "responsibility": "拥有 Composition Root 与全部非平台 Feature-Cohesive 业务切片；Feature 目录提供 Locality，跨 Feature 调用由 docs/architecture.md 的 System、Utility、事件和 route 规则约束。",
         "roots": [
           "res://app",
           "res://features/accessibility",
@@ -106,14 +109,12 @@
           "res://features/gameplay",
           "res://features/navigation",
           "res://features/persistence",
-          "res://features/platform_runtime/docs",
-          "res://features/platform_runtime/scenes",
-          "res://features/platform_runtime/scripts/controllers",
-          "res://features/platform_runtime/scripts/utilities",
+          "res://features/player_profiles",
           "res://features/progress",
           "res://features/replays",
           "res://features/settings",
           "res://features/themes",
+          "res://features/tile_lab",
           "res://features/tile_catalog"
         ],
         "allowed_dependencies": [
@@ -130,8 +131,7 @@
         "responsibility": "拥有跨 Feature 合同测试、项目维护测试和显式人工调用的验证脚本；不进入发布运行时。",
         "roots": [
           "res://tests",
-          "res://tools",
-          "res://features/platform_runtime/tools"
+          "res://tools"
         ],
         "allowed_dependencies": [
           "shared_foundation",
@@ -144,13 +144,13 @@
     ],
     "global_rules": [
       "项目业务代码必须位于严格 Feature-Cohesive 目录，目录真相来源是 gf_project_profile.json。",
-      "项目代码不得直接修改 res://addons/gf；通用缺陷先进入 gf-framework GitHub issue，授权实现只在独立 gf-pr 工作区的非 main 分支完成并通过 GF 测试，用户自有 gf 工作区保持只读；维护者发布后再按精确 source commit 更新 vendor。",
+      "项目代码不得直接修改 res://addons/gf；通用缺陷先进入 gf-framework GitHub issue，issue 是唯一协作与验收记录，不转为 PR；授权实现只在独立 gf-pr 工作区的非 main 分支完成并通过 GF 测试，gf-pr 仅表示隔离工作区；用户自有 gf 工作区只对本项目自动化与协作者只读，不限制用户本人继续维护；维护者发布后再按精确 source commit 更新 vendor。",
       "跨模块依赖必须由 GF Composition Root 声明并注入；只有 app 启动链可以访问全局 Gf。",
       "业务随机数使用 GFSeedUtility，共享时间使用 GFClock；回放、撤销和书签必须保持确定性。",
       "UI 导航使用 GFUIRouterUtility，跨生命周期信号使用 GFSignalUtility，玩家输入使用 GFInputMappingUtility。",
       "资源身份由 ProjectContentCatalogUtility 和 ProjectResourceCatalogUtility 统一管理；业务代码不保留路径后备。",
       "玩家设备与平台能力探测只允许位于 platform_runtime Adapter；其他 Feature 消费 GFPlatformRuntimeContext 和能力集合。Composition Root 的构建 feature 开关与开发诊断的 headless 判定不属于玩家平台能力。",
-      "玩家长期数据通过 GameSaveGraphUtility section Provider 进入统一 Profile；业务 System 不直接写文件。",
+      "玩家长期数据通过 GameSaveGraphUtility section Provider 进入当前账号的独立统一 Profile；业务 System 不直接写文件。",
       "开发诊断只在 with_dev_tools feature 下安装，不得进入玩家首屏依赖链。",
       "不为旧 API、旧业务 schema 或未知损坏数据保留运行时兼容分支；必要迁移使用显式一次性工具。"
     ],
@@ -230,7 +230,7 @@
     "lifecycle_rules": [
       "GF 根架构完成严格 init 后才能进入业务首场景。",
       "GF Module 只在 ready 阶段解析跨模块依赖，并通过 get_required_* 声明静态依赖。",
-      "退出时由架构反序 dispose；统一 Profile 必须等待在途写入并冲刷最新内存图。",
+      "退出或切换账号时，当前账号 Profile 必须等待在途写入并冲刷最新内存图；退出仍由架构反序 dispose。",
       "平台通知只通过 GamePlatformUtility 转交当前 Adapter，再由 GFPlatformRuntime 发布规范事件。",
       "内容资源必须拥有明确资源组或挂载令牌；切换主题成功后再释放旧组。"
     ],
@@ -267,8 +267,8 @@
     {
       "id": "framework_changes_through_upstream",
       "status": "accepted",
-      "statement": "项目主线不直接承载 GF 源码补丁。",
-      "rationale": "通用缺陷和能力必须先在 gf-framework 建 GitHub issue，并以 issue 作为唯一协作与验收记录；授权实现只在独立 gf-pr 工作区的非 main 分支完成，用户自有 gf 工作区保持只读。GF 测试通过并由维护者发布后，再按发布版本和精确 source commit 做可追溯 vendor 更新。",
+      "statement": "项目主线不直接承载 GF 源码补丁，GF 官方协作只以 issue 为入口和交付记录。",
+      "rationale": "通用缺陷和能力必须先在 gf-framework 建 GitHub issue，并以 issue 作为唯一协作与验收记录；不得把 issue 转成 PR，也不得以 PR 代替问题记录。获授权的实现只在独立 gf-pr 工作区的非 main 分支完成；gf-pr 是隔离工作区名称，不代表授权创建 GitHub PR。用户自有 gf 工作区只对本项目自动化与协作者只读，不限制用户本人继续维护。GF 测试通过并由维护者发布后，再按发布版本和精确 source commit 做可追溯 vendor 更新。",
       "evidence": [
         "docs/ai_maintenance.md"
       ]
@@ -276,11 +276,44 @@
     {
       "id": "unified_player_profile",
       "status": "accepted",
-      "statement": "统计、书签、回放、成就、图鉴和自定义棋盘进入同一 GFSaveGraph Profile。",
+      "statement": "每个本地账号拥有独立的完整 GFSaveGraph Profile；统计、书签、回放、成就、图鉴、自定义棋盘和试验台蓝图不跨账号共享。",
       "rationale": "统一 section 顺序、事务回滚、恢复报告和退出冲刷，避免多个 Feature 重复实现文件存储和跨文档一致性。",
       "evidence": [
         "features/persistence/scripts/utilities/game_save_graph_utility.gd",
         "docs/save_model.md"
+      ]
+    },
+    {
+      "id": "account_isolated_local_profiles",
+      "status": "accepted",
+      "statement": "设备账号目录只管理本地身份元数据，激活账号映射到一个独立玩家 Profile。",
+      "rationale": "账号切换必须形成明确的持久化 Seam：先冲刷旧 Profile，再事务切换并加载目标 Profile；账号显示名等设备身份元数据不混入玩家业务 section，也不允许书签、回放、成就或发现进度泄漏到其他账号。",
+      "evidence": [
+        "features/player_profiles",
+        "features/persistence/scripts/utilities/game_save_graph_utility.gd",
+        "docs/architecture.md"
+      ]
+    },
+    {
+      "id": "device_local_multi_account_leaderboard",
+      "status": "accepted",
+      "statement": "本地排行榜可以聚合同一设备的多个本地账号，但只提供离线参考，不构成线上权威证明。",
+      "rationale": "排行榜读取各账号的严格 progress section，并保留模式、拓扑和规则集分组；未来线上排行必须经平台 Adapter 或服务端重新验证和裁决，不直接上传本地 SaveGraph 排名。",
+      "evidence": [
+        "features/player_profiles",
+        "features/progress",
+        "docs/architecture.md"
+      ]
+    },
+    {
+      "id": "tile_lab_recipe_composition",
+      "status": "accepted",
+      "statement": "方块试验台通过 TileDefinition 与 GFCapabilityRecipe 的显式组合创建和保存方块蓝图。",
+      "rationale": "试验台复用现有组合 Interface 与能力仲裁以获得 Leverage；蓝图、配方选择、冲突解释和沙盒交互归项目 tile_lab Feature，不能靠硬编码新方块类或修改 GF 表达单个游戏的内容规则。",
+      "evidence": [
+        "features/tile_lab",
+        "features/gameplay/docs/tile_composition.md",
+        "docs/architecture.md"
       ]
     },
     {
@@ -319,7 +352,7 @@
     "checks": [
       {
         "id": "gf_ai_contract",
-        "description": "校验 GF 项目契约及声明与观察快照漂移。",
+        "description": "校验人工所有的 GF 项目契约；本地观察快照仅在存在时提供可选漂移证据。",
         "argv": [
           "python",
           "addons/gf/tools/ai_developer/gf_ai_project.py",

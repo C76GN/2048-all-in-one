@@ -49,6 +49,7 @@ var _latest_valid_bookmark: BookmarkData = null
 @onready var _load_bookmark_button: Button = %LoadBookmarkButton
 @onready var _replays_button: Button = %ReplaysButton
 @onready var _tile_catalog_button: Button = %TileCatalogButton
+@onready var _tile_lab_button: Button = %TileLabButton
 @onready var _player_profile_button: Button = %PlayerProfileButton
 @onready var _achievements_button: Button = %AchievementsButton
 @onready var _settings_button: Button = %SettingsButton
@@ -82,6 +83,9 @@ func _ready() -> void:
 	var _connect_result_37: int = _load_bookmark_button.pressed.connect(_on_load_bookmark_button_pressed)
 	var _connect_result_38: int = _replays_button.pressed.connect(_on_replays_button_pressed)
 	var _catalog_connection: int = _tile_catalog_button.pressed.connect(_on_tile_catalog_button_pressed)
+	var _tile_lab_connection: int = _tile_lab_button.pressed.connect(
+		_on_tile_lab_button_pressed
+	)
 	var _profile_connection: int = _player_profile_button.pressed.connect(
 		_on_player_profile_button_pressed
 	)
@@ -135,6 +139,8 @@ func _update_ui_text() -> void:
 		_replays_button.text = tr("BTN_REPLAY_LIST")
 	if is_instance_valid(_tile_catalog_button):
 		_tile_catalog_button.text = tr("BTN_TILE_CATALOG")
+	if is_instance_valid(_tile_lab_button):
+		_tile_lab_button.text = tr("BTN_TILE_LAB")
 	if is_instance_valid(_player_profile_button):
 		_player_profile_button.text = tr("BTN_PLAYER_PROFILE")
 	if is_instance_valid(_achievements_button):
@@ -161,6 +167,7 @@ func _apply_semantic_styles() -> void:
 	style.style_button(_load_bookmark_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_replays_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_tile_catalog_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_tile_lab_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_player_profile_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_achievements_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_settings_button, GameUiStyleUtility.ButtonRole.SECONDARY)
@@ -381,6 +388,16 @@ func _on_tile_catalog_button_pressed() -> void:
 		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开方块图鉴。")
 		return
 	var _catalog_panel: Node = ui_router.push_route(GameUiRouterUtility.ROUTE_TILE_CATALOG)
+
+
+func _on_tile_lab_button_pressed() -> void:
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开方块试验台。")
+		return
+	var _tile_lab_panel: Node = ui_router.push_route(
+		GameUiRouterUtility.ROUTE_TILE_LAB
+	)
 
 
 func _on_player_profile_button_pressed() -> void:

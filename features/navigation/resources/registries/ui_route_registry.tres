@@ -50,7 +50,7 @@ path = "res://features/navigation/resources/ui_routes/board_editor_route.tres"
 type_hint = "Resource"
 fields = {
 "category": &"popup",
-"sort_order": 35
+"sort_order": 36
 }
 
 [sub_resource type="Resource" id="Entry_tile_catalog"]
@@ -70,7 +70,7 @@ path = "res://features/navigation/resources/ui_routes/achievements_route.tres"
 type_hint = "Resource"
 fields = {
 "category": &"popup",
-"sort_order": 34
+"sort_order": 35
 }
 
 [sub_resource type="Resource" id="Entry_player_profile"]
@@ -80,9 +80,19 @@ path = "res://features/navigation/resources/ui_routes/player_profile_route.tres"
 type_hint = "Resource"
 fields = {
 "category": &"popup",
+"sort_order": 34
+}
+
+[sub_resource type="Resource" id="Entry_tile_lab"]
+script = ExtResource("2_entry")
+id = &"tile_lab"
+path = "res://features/navigation/resources/ui_routes/tile_lab_route.tres"
+type_hint = "Resource"
+fields = {
+"category": &"popup",
 "sort_order": 33
 }
 
 [resource]
 script = ExtResource("1_registry")
-entries = Array[ExtResource("2_entry")]([SubResource("Entry_pause_menu"), SubResource("Entry_game_over_menu"), SubResource("Entry_target_reached_menu"), SubResource("Entry_settings_menu"), SubResource("Entry_tile_catalog"), SubResource("Entry_player_profile"), SubResource("Entry_achievements"), SubResource("Entry_board_editor")])
+entries = Array[ExtResource("2_entry")]([SubResource("Entry_pause_menu"), SubResource("Entry_game_over_menu"), SubResource("Entry_target_reached_menu"), SubResource("Entry_settings_menu"), SubResource("Entry_tile_catalog"), SubResource("Entry_tile_lab"), SubResource("Entry_player_profile"), SubResource("Entry_achievements"), SubResource("Entry_board_editor")])

@@ -33,6 +33,7 @@ var _player_actions: Array[Vector2i] = []
 var _turn_checkpoints: Array[ReplayCheckpoint] = []
 var _session_metadata: GameSessionMetadata = null
 var _session_duration_msec: int = 0
+var _session_ruleset_fingerprint: String = ""
 
 ## 核心状态机。
 var _fsm: GFStateMachine
@@ -128,6 +129,7 @@ func dispose() -> void:
 	_initial_seed_of_session = 0
 	_session_metadata = null
 	_session_duration_msec = 0
+	_session_ruleset_fingerprint = ""
 
 
 ## 更新游戏流程状态机。
@@ -144,6 +146,70 @@ func tick(delta: float) -> void:
 
 
 # --- 公共方法 ---
+
+## 返回棋盘无障碍摘要消费的当前流程、目标与可操作项。
+func get_accessibility_context() -> Dictionary:
+	var phase: StringName = (
+		_fsm.current_state_name
+		if _fsm != null and _fsm.current_state_name != &""
+		else &"ready"
+	)
+	var normalized_phase: StringName = &"ready"
+	if phase == EventNames.STATE_PLAYING:
+		normalized_phase = &"playing"
+	elif phase == EventNames.STATE_GAME_OVER:
+		normalized_phase = &"game_over"
+	var available_actions: Array[StringName] = []
+	if normalized_phase == &"playing":
+		if _is_replay_mode:
+			available_actions.append(&"replay_controls")
+			available_actions.append(&"pause")
+			available_actions.append(&"return")
+		else:
+			available_actions.append(&"move")
+			available_actions.append(&"pause")
+			available_actions.append(&"hint")
+			available_actions.append(&"save_bookmark")
+			var command_history: GFCommandHistoryUtility = (
+				_get_command_history_utility()
+			)
+			if (
+				is_instance_valid(command_history)
+				and _can_undo_player_move(command_history)
+			):
+				available_actions.append(&"undo")
+			if (
+				is_instance_valid(command_history)
+				and _can_redo_player_move(command_history)
+			):
+				available_actions.append(&"redo")
+	elif normalized_phase == &"game_over":
+		available_actions.append(&"restart")
+		available_actions.append(&"return")
+	return {
+		&"phase": normalized_phase,
+		&"target_value": (
+			GFVariantData.to_int(
+				_game_status_model.target_tile_value.get_value(),
+				0
+			)
+			if is_instance_valid(_game_status_model)
+			else 0
+		),
+		&"target_reached": (
+			GFVariantData.to_bool(
+				_game_status_model.target_reached.get_value(),
+				false
+			)
+			if is_instance_valid(_game_status_model)
+			else false
+		),
+		&"end_reason": (
+			&"no_moves" if normalized_phase == &"game_over" else &""
+		),
+		&"available_actions": available_actions,
+	}
+
 
 ## 注入当前游戏的规则环境。
 ## @param rule_system: 负责执行生成规则的系统。
@@ -207,10 +273,14 @@ func finalize_turn_result(turn_result: TurnResult) -> void:
 	var step_index: int = _player_actions.size()
 	if _is_replay_mode and is_instance_valid(replay_system):
 		step_index = replay_system.get_current_step() + 1
-	var checkpoint: ReplayCheckpoint = _determinism.create_checkpoint(
+	var ruleset_fingerprint: String = _get_session_ruleset_fingerprint()
+	if ruleset_fingerprint.is_empty():
+		push_error("[GameFlowSystem] 当前对局缺少冻结规则集指纹。")
+		return
+	var checkpoint: ReplayCheckpoint = _determinism.create_checkpoint_for_session(
 		step_index,
 		_get_full_game_state(),
-		_mode_config,
+		ruleset_fingerprint,
 		turn_result
 	)
 	if checkpoint == null:
@@ -564,6 +634,8 @@ func _on_game_ready(data: GameReadyData) -> void:
 		_mode_config_path = data.mode_config.resource_path
 	else:
 		_mode_config = null
+	_session_ruleset_fingerprint = ""
+	var _frozen_ruleset_fingerprint: String = _get_session_ruleset_fingerprint()
 	_current_board_topology = _duplicate_topology(data.board_topology)
 	_initial_seed_of_session = data.initial_seed
 	_session_duration_msec = 0
@@ -606,6 +678,18 @@ func _get_current_session_metadata() -> GameSessionMetadata:
 	if metadata_value is GameSessionMetadata:
 		_session_metadata = metadata_value
 	return _session_metadata
+
+
+func _get_session_ruleset_fingerprint() -> String:
+	if (
+		_session_ruleset_fingerprint.is_empty()
+		and is_instance_valid(_determinism)
+		and is_instance_valid(_mode_config)
+	):
+		_session_ruleset_fingerprint = _determinism.calculate_ruleset_fingerprint(
+			_mode_config
+		)
+	return _session_ruleset_fingerprint
 
 
 func _add_eligibility_reason(reason_code: StringName) -> bool:
@@ -690,16 +774,20 @@ func _persist_current_game_result() -> GameResultRecordedData:
 	var highest_tile: int = GFVariantData.to_int(_game_status_model.highest_tile.get_value(), 0)
 	var target_value: int = _get_target_tile_value()
 	var target_reached: bool = _has_reached_target_in_session(highest_tile)
-	var final_state_hash: String = _determinism.calculate_state_checksum(
+	var ruleset_fingerprint: String = _get_session_ruleset_fingerprint()
+	if ruleset_fingerprint.is_empty():
+		_log_persistence_error("resolve frozen ruleset fingerprint", ERR_INVALID_DATA)
+		return null
+	var final_state_hash: String = _determinism.calculate_state_checksum_for_session(
 		_get_full_game_state(),
-		_mode_config
+		ruleset_fingerprint
 	)
 	var result: GameResultRecordedData = GameResultRecordedData.create(
 		StringName(mode_id),
 		_get_current_board_key(),
 		_mode_config.ruleset_id,
 		_mode_config.ruleset_version,
-		_determinism.calculate_ruleset_fingerprint(_mode_config),
+		ruleset_fingerprint,
 		_initial_seed_of_session,
 		final_state_hash,
 		_session_metadata.get_eligibility(),
@@ -708,8 +796,7 @@ func _persist_current_game_result() -> GameResultRecordedData:
 		highest_tile,
 		_get_unix_timestamp(),
 		target_value,
-		target_reached,
-		_session_duration_msec
+		target_reached
 	)
 	if result == null:
 		_log_persistence_error("build game result", ERR_INVALID_DATA)
@@ -717,7 +804,10 @@ func _persist_current_game_result() -> GameResultRecordedData:
 	var current_game_model: CurrentGameModel = _get_current_game_model()
 	if is_instance_valid(current_game_model):
 		current_game_model.last_game_result.set_value(result)
-	var save_error: Error = progress_stats_system.record_game_result(result)
+	var save_error: Error = progress_stats_system.record_game_result(
+		result,
+		_session_duration_msec
+	)
 	_log_persistence_error("save game result", save_error)
 	return result if save_error == OK else null
 

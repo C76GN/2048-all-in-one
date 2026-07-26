@@ -6,7 +6,7 @@
 
 本知识库服务于 `2048-all-in-one` 的产品、表现与 GF Framework 使用决策。研究对象覆盖 2048、合并解谜、网格肉鸽、回合制小型策略与具有突出表现设计的精品独立游戏。研究只提炼机制、设计模式与可验证事实，不复制第三方代码、Shader、音频、图像或其他素材。
 
-默认只改动 `docs/research/indie_game_benchmark/`。游戏代码与 `addons/gf` 不在研究批次的修改范围内。若证据指向 GF 缺口，先记录反馈候选并创建 GitHub issue，以 issue 作为唯一协作与验收记录；经授权的框架实现只能在独立 `gf-pr` 工作区的非 `main` 分支完成，用户自有 `gf` 工作区始终只读。GF 测试和发布完成后，再以精确 source commit 走项目 vendor 回流。
+默认只改动 `docs/research/indie_game_benchmark/`。游戏代码与 `addons/gf` 不在研究批次的修改范围内。若证据指向 GF 缺口，先记录反馈候选并创建 GitHub issue，以 issue 作为唯一协作与验收记录，不把 issue 转为 PR；经授权的框架实现只能在独立 `gf-pr` 工作区的非 `main` 分支完成，`gf-pr` 只是隔离工作区名称。用户自有 `gf` 工作区只对本项目自动化与协作者只读，不限制用户本人继续维护。GF 测试和维护者发布完成后，再以精确 source commit 走项目 vendor 回流。
 
 ## 来源优先级
 

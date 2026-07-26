@@ -63,7 +63,8 @@ func _resolve(context: GFTurnContext) -> Variant:
 		var _summary: GameAccessibilitySummary = (
 			_accessibility_summary_utility.publish_turn_summary(
 				turn_result,
-				grid_model.get_snapshot()
+				grid_model.get_snapshot(),
+				_game_flow_system.get_accessibility_context()
 			)
 		)
 

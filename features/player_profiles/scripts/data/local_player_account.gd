@@ -47,6 +47,7 @@ static func create(
 
 
 ## 从严格字典恢复本地玩家账号。
+## @param data: 当前 schema 的完整账号持久化字典。
 static func from_dict(data: Dictionary) -> LocalPlayerAccount:
 	if not (
 		data.size() == 5
@@ -92,6 +93,7 @@ func to_dict() -> Dictionary:
 
 
 ## 返回不超过长度上限且不含控制字符的显示名称。
+## @param value: 玩家输入的原始显示名称。
 static func normalize_display_name(value: String) -> String:
 	var stripped: String = value.strip_edges()
 	var normalized: String = ""

@@ -16,7 +16,7 @@ signal profile_save_completed(error: Error)
 
 const PROFILE_FILE_NAME: String = "player_data.save"
 const PROFILE_SCHEMA_ID: StringName = &"player_data"
-const PROFILE_SCHEMA_VERSION: int = 9
+const PROFILE_SCHEMA_VERSION: int = 10
 const ROOT_SCOPE_ID: StringName = &"player_data"
 const PROGRESS_SECTION_ID: StringName = &"progress"
 const BOOKMARKS_SECTION_ID: StringName = &"bookmarks"
@@ -275,6 +275,7 @@ func activate_profile(
 
 
 ## 删除一个非当前账号的 Profile 文件。
+## @param profile_file_name: 要删除的账号独立 Profile 存储相对路径。
 func delete_inactive_profile(profile_file_name: String) -> Error:
 	if (
 		not _is_account_profile_file_name_valid(profile_file_name)
@@ -287,6 +288,8 @@ func delete_inactive_profile(profile_file_name: String) -> Error:
 
 
 ## 只读提取任一当前 schema Profile 中的 section envelope。
+## @param profile_file_name: 要读取的账号独立 Profile 存储相对路径。
+## @param section_id: 要提取的稳定 section 标识。
 func read_profile_section_envelope(
 	profile_file_name: String,
 	section_id: StringName
@@ -304,6 +307,8 @@ func read_profile_section_envelope(
 
 
 ## 从已解码的当前 schema Profile 提取 section envelope，不应用到运行时状态。
+## @param profile_payload: 已由 GFStorage 解码的当前 schema Profile 根字典。
+## @param section_id: 要提取的稳定 section 标识。
 static func extract_profile_section_envelope(
 	profile_payload: Dictionary,
 	section_id: StringName
@@ -534,6 +539,20 @@ func load_profile() -> Error:
 			"error": "Player data document could not be parsed.",
 		}
 		return ERR_INVALID_DATA
+	var profile_metadata: Dictionary = document.get_metadata()
+	if not _has_current_profile_metadata(profile_metadata):
+		var obsolete_schema_version: int = _get_obsolete_profile_schema_version(
+			profile_metadata
+		)
+		if obsolete_schema_version > 0:
+			return _recover_obsolete_profile(document_payload, obsolete_schema_version)
+		_last_load_result = {
+			"ok": false,
+			"error_code": ERR_INVALID_DATA,
+			"error": "Player data schema does not match the current profile schema.",
+		}
+		return ERR_INVALID_DATA
+
 	var document_validation: Dictionary = _save_graph.create_document_schema().validate_document(
 		document,
 		true
@@ -548,20 +567,6 @@ func load_profile() -> Error:
 				"SaveGraph document validation failed."
 			),
 			"validation": document_validation,
-		}
-		return ERR_INVALID_DATA
-
-	var profile_metadata: Dictionary = document.get_metadata()
-	if not _has_current_profile_metadata(profile_metadata):
-		var obsolete_schema_version: int = _get_obsolete_profile_schema_version(
-			profile_metadata
-		)
-		if obsolete_schema_version > 0:
-			return _recover_obsolete_profile(document_payload, obsolete_schema_version)
-		_last_load_result = {
-			"ok": false,
-			"error_code": ERR_INVALID_DATA,
-			"error": "Player data schema does not match the current profile schema.",
 		}
 		return ERR_INVALID_DATA
 
@@ -998,8 +1003,12 @@ func _recover_obsolete_profile(
 	payload: Dictionary,
 	obsolete_schema_version: int
 ) -> Error:
-	var recovery_file: String = "%s/player_data.schema-%d.save" % [
+	var profile_key: String = _profile_file_name.get_file().get_basename()
+	if profile_key.is_empty():
+		profile_key = PROFILE_FILE_NAME.get_basename()
+	var recovery_file: String = "%s/%s.schema-%d.save" % [
 		_RECOVERY_DIRECTORY,
+		profile_key,
 		obsolete_schema_version,
 	]
 	var backup_error: Error = _storage.save_data(recovery_file, payload)

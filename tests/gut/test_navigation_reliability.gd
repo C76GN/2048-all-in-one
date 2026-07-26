@@ -184,6 +184,8 @@ class _RouteSpy extends SceneRouterSystem:
 	func ready() -> void:
 		pass
 
+	## 记录最后一次场景导航目标。
+	## @param path: 要导航到的 Godot 资源路径。
 	func goto_scene(path: String) -> void:
 		last_scene_path = path
 

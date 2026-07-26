@@ -2,6 +2,17 @@
 
 本文只说明项目级素材治理原则；命令、评审快捷键和当前工具行为以 [`features/asset_library/docs/readme.md`](../features/asset_library/docs/readme.md) 为权威操作说明。`features/asset_library/` 是当前项目内的通用素材库 Feature，暂时随项目提交，后续成熟后可以整体迁移到独立仓库；不能直接移入 `addons/gf`。
 
+## 权威分层
+
+| 内容 | 权威来源 | 不应承担的职责 |
+| --- | --- | --- |
+| 所有权、信任边界、晋升和发布规则 | 本文 | 不复制快捷键或工具实现细节 |
+| 命令、参数、快捷键和当前工具行为 | [`features/asset_library/docs/readme.md`](../features/asset_library/docs/readme.md) | 不重新定义项目级安全策略 |
+| 已批准运行时素材与稳定资源键 | `features/asset_library/resources/gf_content_package.json` | 不登记候选或仅评审素材 |
+| 单个候选的状态、评分、标签、备注和身份 | `features/asset_library/resources/review/records/` | 不代表素材已进入玩家构建 |
+| 同源音频编码分组 | `features/asset_library/resources/import_sources.json` 中对应源包的显式声明 | 不做跨源包或文件名模糊匹配 |
+| 某次审计或导入结果 | `features/asset_library/resources/reports/` | 不覆盖规范、manifest 或评审记录 |
+
 ## 目标
 
 - 音频、shader、贴图、特效等素材先进入统一库，不再散落在业务目录。
@@ -177,6 +188,16 @@ features/asset_library/scenes/asset_review_browser.tscn
 - `Ctrl+S`：保存表单中的状态、评分、标签和备注。
 
 搜索、标签或备注输入框获得焦点时，裸键快捷键会暂停，避免干扰文本输入。
+
+### 同源多格式音频
+
+WAV、OGG、MP3 等编码如果来自同一个声音内容，语义评审不应因容器或编码格式重复进行。同步仍必须满足严格边界：
+
+- 只有 `import_sources.json` 在具体源包内显式声明、并经过试听或来源元数据验证的同源组可以同步；文件名相似不能自动成组，跨源包不做模糊匹配。
+- 默认只同步 `review_status` 与 `reviewed_at`，表示“这个声音内容是否采用”的共同决定。
+- 评分、标签、备注、相对路径、内容哈希、可播放性和许可证元数据保持编码级独立，因为编码质量、来源与授权证据可能不同。
+- 组内已有冲突决定，或决定只来自当前不可播放的编码时，批处理必须报告且不写入；不能用多数票覆盖人工判断。
+- 浏览器保存单项决定时与批量回填使用同一分组契约，重复运行必须幂等。
 
 ## 清理拒绝素材
 

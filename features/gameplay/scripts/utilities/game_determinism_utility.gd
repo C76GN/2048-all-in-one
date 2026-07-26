@@ -43,20 +43,54 @@ func create_checkpoint(
 ) -> ReplayCheckpoint:
 	if step_index <= 0 or full_state.is_empty() or not is_instance_valid(mode_config):
 		return null
+	return create_checkpoint_for_session(
+		step_index,
+		full_state,
+		calculate_ruleset_fingerprint(mode_config),
+		turn_result
+	)
+
+
+## 使用对局开始时冻结的规则集指纹生成 checkpoint。
+##
+## 该入口是运行时热路径：同一份棋盘快照只规范化一次，且不会递归重算规则资源指纹。
+## @param step_index: 从 1 开始的有效回合序号。
+## @param full_state: 当前完整玩法状态快照。
+## @param ruleset_fingerprint: 对局开始时冻结的规则集内容指纹。
+## @param turn_result: 可选的当前回合结算结果。
+func create_checkpoint_for_session(
+	step_index: int,
+	full_state: Dictionary,
+	ruleset_fingerprint: String,
+	turn_result: TurnResult = null
+) -> ReplayCheckpoint:
+	if (
+		step_index <= 0
+		or full_state.is_empty()
+		or ruleset_fingerprint.is_empty()
+	):
+		return null
 	var board_snapshot: Dictionary = GFVariantData.get_option_dictionary(
 		full_state,
 		&"board_snapshot"
 	)
+	var normalized_board: Dictionary = normalize_board_snapshot(board_snapshot)
+	if normalized_board.is_empty():
+		return null
 	var rng_state: Dictionary = GFVariantData.get_option_dictionary(
 		full_state,
 		&"rng_full_state"
 	)
 	var result: ReplayCheckpoint = ReplayCheckpoint.new()
 	result.step_index = step_index
-	result.board_checksum = calculate_board_checksum(board_snapshot)
+	result.board_checksum = _checksum(normalized_board)
 	result.rng_checksum = _checksum(rng_state)
 	result.score = GFVariantData.get_option_int(full_state, &"score", 0)
-	result.state_checksum = calculate_state_checksum(full_state, mode_config)
+	result.state_checksum = _calculate_state_checksum_from_normalized(
+		full_state,
+		ruleset_fingerprint,
+		normalized_board
+	)
 	result.highest_tile = GFVariantData.get_option_int(full_state, &"highest_tile", 0)
 	var target_tile_value: int = GFVariantData.get_option_int(
 		full_state,
@@ -88,33 +122,29 @@ func calculate_state_checksum(
 ) -> String:
 	if full_state.is_empty() or not is_instance_valid(mode_config):
 		return ""
-	return _checksum({
-		&"ruleset_fingerprint": calculate_ruleset_fingerprint(mode_config),
-		&"board": normalize_board_snapshot(
-			GFVariantData.get_option_dictionary(full_state, &"board_snapshot")
-		),
-		&"rng": GFVariantData.get_option_dictionary(full_state, &"rng_full_state"),
-		&"score": GFVariantData.get_option_int(full_state, &"score", 0),
-		&"move_count": GFVariantData.get_option_int(full_state, &"move_count", 0),
-		&"highest_tile": GFVariantData.get_option_int(full_state, &"highest_tile", 0),
-		&"ratio_resolutions": GFVariantData.get_option_int(
-			full_state,
-			&"ratio_resolutions",
-			0
-		),
-		&"target_tile_value": GFVariantData.get_option_int(
-			full_state,
-			&"target_tile_value",
-			0
-		),
-		&"target_reached": GFVariantData.get_option_bool(
-			full_state,
-			&"target_reached",
-			false
-		),
-		&"extra_stats": GFVariantData.get_option_dictionary(full_state, &"extra_stats"),
-		&"rules_states": GFVariantData.get_option_dictionary(full_state, &"rules_states"),
-	})
+	return calculate_state_checksum_for_session(
+		full_state,
+		calculate_ruleset_fingerprint(mode_config)
+	)
+
+
+## 使用对局冻结的规则集指纹计算完整状态摘要。
+## @param full_state: 当前完整玩法状态快照。
+## @param ruleset_fingerprint: 对局开始时冻结的规则集内容指纹。
+func calculate_state_checksum_for_session(
+	full_state: Dictionary,
+	ruleset_fingerprint: String
+) -> String:
+	if full_state.is_empty() or ruleset_fingerprint.is_empty():
+		return ""
+	var normalized_board: Dictionary = normalize_board_snapshot(
+		GFVariantData.get_option_dictionary(full_state, &"board_snapshot")
+	)
+	return _calculate_state_checksum_from_normalized(
+		full_state,
+		ruleset_fingerprint,
+		normalized_board
+	)
 
 
 ## 计算排除运行时方块 UUID 的棋盘语义摘要。
@@ -180,6 +210,38 @@ func normalize_board_snapshot(board_snapshot: Dictionary) -> Dictionary:
 
 
 # --- 私有/辅助方法 ---
+
+func _calculate_state_checksum_from_normalized(
+	full_state: Dictionary,
+	ruleset_fingerprint: String,
+	normalized_board: Dictionary
+) -> String:
+	return _checksum({
+		&"ruleset_fingerprint": ruleset_fingerprint,
+		&"board": normalized_board,
+		&"rng": GFVariantData.get_option_dictionary(full_state, &"rng_full_state"),
+		&"score": GFVariantData.get_option_int(full_state, &"score", 0),
+		&"move_count": GFVariantData.get_option_int(full_state, &"move_count", 0),
+		&"highest_tile": GFVariantData.get_option_int(full_state, &"highest_tile", 0),
+		&"ratio_resolutions": GFVariantData.get_option_int(
+			full_state,
+			&"ratio_resolutions",
+			0
+		),
+		&"target_tile_value": GFVariantData.get_option_int(
+			full_state,
+			&"target_tile_value",
+			0
+		),
+		&"target_reached": GFVariantData.get_option_bool(
+			full_state,
+			&"target_reached",
+			false
+		),
+		&"extra_stats": GFVariantData.get_option_dictionary(full_state, &"extra_stats"),
+		&"rules_states": GFVariantData.get_option_dictionary(full_state, &"rules_states"),
+	})
+
 
 func _checksum(data: Dictionary) -> String:
 	return _codec.calculate_checksum(data, GFStorageCodec.Format.JSON)

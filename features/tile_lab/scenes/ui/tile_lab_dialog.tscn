@@ -1,0 +1,298 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/tile_lab/scripts/ui/tile_lab_dialog.gd" id="1_dialog"]
+
+[node name="TileLabDialog" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+process_mode = 3
+script = ExtResource("1_dialog")
+
+[node name="DimBackground" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.101961, 0.082353, 0.109804, 0.72)
+
+[node name="OuterMargin" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 22
+
+[node name="Surface" type="PanelContainer" parent="OuterMargin"]
+layout_mode = 2
+
+[node name="InnerMargin" type="MarginContainer" parent="OuterMargin/Surface"]
+layout_mode = 2
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 18
+
+[node name="RootVBox" type="VBoxContainer" parent="OuterMargin/Surface/InnerMargin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="BoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="TitleLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "方块试验台"
+
+[node name="SummaryLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "已保存 0 / 32"
+vertical_alignment = 1
+
+[node name="BackButton" type="Button" parent="OuterMargin/Surface/InnerMargin/RootVBox/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(112, 44)
+layout_mode = 2
+text = "返回"
+
+[node name="HeaderSeparator" type="HSeparator" parent="OuterMargin/Surface/InnerMargin/RootVBox"]
+layout_mode = 2
+
+[node name="BodyScroll" type="ScrollContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Workspace" type="BoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 14
+
+[node name="BlueprintPane" type="PanelContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Margin" type="MarginContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="Content" type="VBoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 9
+
+[node name="BlueprintTitle" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "蓝图组合"
+
+[node name="BlueprintOption" type="OptionButton" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="NameInput" type="LineEdit" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 44)
+layout_mode = 2
+placeholder_text = "蓝图名称"
+max_length = 48
+
+[node name="BlueprintActions" type="BoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NewButton" type="Button" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content/BlueprintActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "新建"
+
+[node name="SaveButton" type="Button" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content/BlueprintActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "保存"
+
+[node name="DeleteButton" type="Button" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content/BlueprintActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "删除"
+
+[node name="BaseLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "外观基底"
+
+[node name="BaseDefinitionOption" type="OptionButton" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RecipesLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "能力配方"
+
+[node name="RecipesScroll" type="ScrollContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="RecipeList" type="VBoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content/RecipesScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="SelectionStatusLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/BlueprintPane/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = ""
+autowrap_mode = 2
+
+[node name="SimulationPane" type="PanelContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace"]
+custom_minimum_size = Vector2(360, 280)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Margin" type="MarginContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="Content" type="VBoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SimulationTitle" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "双块交互沙盒"
+
+[node name="SimulationDescription" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "设置左右数值，使用当前组合执行一次真实能力交互。"
+autowrap_mode = 2
+
+[node name="ValueRow" type="BoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LeftValueGroup" type="VBoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content/ValueRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LeftValueLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content/ValueRow/LeftValueGroup"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "左侧数值"
+
+[node name="LeftValueSpin" type="SpinBox" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content/ValueRow/LeftValueGroup"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 44)
+layout_mode = 2
+min_value = 1.0
+max_value = 536870912.0
+value = 2.0
+allow_greater = false
+allow_lesser = false
+
+[node name="RightValueGroup" type="VBoxContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content/ValueRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RightValueLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content/ValueRow/RightValueGroup"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "右侧数值"
+
+[node name="RightValueSpin" type="SpinBox" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content/ValueRow/RightValueGroup"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 44)
+layout_mode = 2
+min_value = 1.0
+max_value = 536870912.0
+value = 2.0
+allow_greater = false
+allow_lesser = false
+
+[node name="RunSimulationButton" type="Button" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 48)
+layout_mode = 2
+text = "运行交互"
+
+[node name="ResultPanel" type="PanelContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content"]
+custom_minimum_size = Vector2(0, 150)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ResultMargin" type="MarginContainer" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content/ResultPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="ResultLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content/ResultPanel/ResultMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "等待运行"
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="StatusLabel" type="Label" parent="OuterMargin/Surface/InnerMargin/RootVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="DeleteConfirmation" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+title = "删除蓝图"
+dialog_text = "确定删除这份蓝图吗？"
+ok_button_text = "删除"
+cancel_button_text = "取消"
+exclusive = true

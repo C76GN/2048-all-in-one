@@ -68,24 +68,111 @@ func test_accounts_keep_independent_profiles_and_mode_summaries() -> void:
 	_dispose_setup(setup)
 
 
+func test_deleting_active_account_rolls_back_without_transient_signals() -> void:
+	var storage: _FailingCatalogStorage = _FailingCatalogStorage.new()
+	var setup: Dictionary = await _create_setup(storage)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var catalog: LocalAccountCatalogUtility = _get_account_catalog(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var progress: ProgressStatsSystem = _get_progress_system(setup)
+	var first: LocalPlayerAccount = accounts.get_active_account()
+	assert_not_null(first)
+	assert_true(progress.set_high_score(_MODE_ID, _BOARD_KEY, 1024) == OK)
+	assert_true(accounts.create_account("删除回滚账号") == OK)
+	var deleted_candidate: LocalPlayerAccount = accounts.get_active_account()
+	assert_not_null(deleted_candidate)
+	assert_true(deleted_candidate.account_id != first.account_id)
+	assert_true(progress.set_high_score(_MODE_ID, _BOARD_KEY, 2048) == OK)
+
+	var accounts_before: Array[Dictionary] = _snapshot_accounts(accounts)
+	var profile_before: String = save_graph.get_profile_file_name()
+	var catalog_save_attempts_before: int = (
+		storage.catalog_save_attempt_count
+	)
+	watch_signals(accounts)
+	watch_signals(catalog)
+	storage.next_catalog_save_error = ERR_CANT_CREATE
+
+	assert_true(
+		accounts.delete_account(deleted_candidate.account_id)
+		== ERR_CANT_CREATE
+	)
+	assert_true(
+		accounts.get_active_account().account_id
+		== deleted_candidate.account_id,
+		"目录删除失败后必须恢复原当前账号。"
+	)
+	assert_true(
+		catalog.get_active_account_id() == deleted_candidate.account_id
+	)
+	assert_true(save_graph.get_profile_file_name() == profile_before)
+	assert_true(
+		progress.get_high_score(_MODE_ID, _BOARD_KEY) == 2048,
+		"Profile 回滚后必须恢复原当前账号的 section 内存状态。"
+	)
+	assert_true(
+		storage.catalog_save_attempt_count
+		== catalog_save_attempts_before + 1,
+		"删除当前账号应只提交一次原子目录写入。"
+	)
+	assert_true(
+		GFVariantData.get_option_string(
+			storage.last_failed_catalog_payload,
+			&"active_account_id"
+		) == first.account_id,
+		"故障必须发生在已切换回退账号并移除目标账号的目录提交阶段。"
+	)
+	var attempted_accounts: Array = GFVariantData.get_option_array(
+		storage.last_failed_catalog_payload,
+		&"accounts"
+	)
+	assert_true(attempted_accounts.size() == 1)
+	if attempted_accounts.size() == 1:
+		assert_true(
+			GFVariantData.get_option_string(
+				GFVariantData.as_dictionary(attempted_accounts[0]),
+				&"account_id"
+			) == first.account_id
+		)
+	assert_true(
+		_snapshot_accounts(accounts) == accounts_before,
+		"账号集合、排序和时间戳必须完整回滚。"
+	)
+	assert_signal_emit_count(accounts, "active_account_changed", 0)
+	assert_signal_emit_count(accounts, "account_catalog_changed", 0)
+	assert_signal_emit_count(catalog, "active_account_changed", 0)
+	assert_signal_emit_count(catalog, "account_catalog_changed", 0)
+
+	_dispose_setup(setup)
+
+
 func test_device_leaderboard_uses_each_accounts_best_result() -> void:
 	var setup: Dictionary = await _create_setup()
 	var accounts: LocalAccountSystem = _get_account_system(setup)
 	var progress: ProgressStatsSystem = _get_progress_system(setup)
 	var first: LocalPlayerAccount = accounts.get_active_account()
 	assert_true(
-		progress.record_game_result(_make_result(4096, 40, 2048, 100, 61_000))
+		progress.record_game_result(
+			_make_result(4096, 40, 2048, 100, 61_000),
+			61_000
+		)
 		== OK
 	)
 	assert_true(
-		progress.record_game_result(_make_result(2048, 30, 1024, 101, 42_000))
+		progress.record_game_result(
+			_make_result(2048, 30, 1024, 101, 42_000),
+			42_000
+		)
 		== OK
 	)
 
 	assert_true(accounts.create_account("榜单二号") == OK)
 	var second: LocalPlayerAccount = accounts.get_active_account()
 	assert_true(
-		progress.record_game_result(_make_result(8192, 50, 4096, 102, 75_000))
+		progress.record_game_result(
+			_make_result(8192, 50, 4096, 102, 75_000),
+			75_000
+		)
 		== OK
 	)
 
@@ -120,31 +207,54 @@ func test_device_leaderboard_uses_each_accounts_best_result() -> void:
 	_dispose_setup(setup)
 
 
-func test_result_duration_round_trip_and_legacy_migration() -> void:
-	var result: GameResultRecordedData = _make_result(
-		4096,
-		40,
-		2048,
-		100,
+func test_duration_stats_are_profile_scoped_and_persisted() -> void:
+	var setup: Dictionary = await _create_setup()
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var progress: ProgressStatsSystem = _get_progress_system(setup)
+	var first: LocalPlayerAccount = accounts.get_active_account()
+	assert_true(progress.record_game_result(
+		_make_result(4096, 40, 2048, 100, 61_000),
 		61_000
+	) == OK)
+	assert_true(progress.record_game_result(
+		_make_result(2048, 30, 1024, 101, 42_000),
+		42_000
+	) == OK)
+	var summaries: Array[Dictionary] = progress.get_profile_mode_summaries(
+		first.account_id
 	)
-	var restored: GameResultRecordedData = GameResultRecordedData.from_dict(
-		result.to_dict()
-	)
-	assert_not_null(restored)
-	assert_true(restored.duration_msec == 61_000)
-
-	var legacy: Dictionary = result.to_dict()
-	legacy.erase(&"duration_msec")
-	legacy[&"schema_version"] = GameResultRecordedData.LEGACY_SCHEMA_VERSION
-	legacy[&"result_hash"] = result._calculate_result_hash(false)
-	var migrated: GameResultRecordedData = GameResultRecordedData.from_dict(legacy)
-	assert_not_null(migrated)
-	assert_true(migrated.duration_msec == 0)
+	assert_true(summaries.size() == 1)
 	assert_true(
-		migrated.schema_version == GameResultRecordedData.SCHEMA_VERSION
+		GFVariantData.get_option_int(
+			summaries[0],
+			&"best_duration_msec",
+			0
+		) == 42_000
 	)
+	assert_true(
+		GFVariantData.get_option_int(
+			summaries[0],
+			&"average_duration_msec",
+			0
+		) == 51_500
+	)
+	assert_true(accounts.create_account("时长隔离账号") == OK)
+	assert_true(accounts.switch_account(first.account_id) == OK)
+	var restored_summaries: Array[Dictionary] = (
+		progress.get_profile_mode_summaries(first.account_id)
+	)
+	assert_true(restored_summaries.size() == 1)
+	assert_true(
+		GFVariantData.get_option_int(
+			restored_summaries[0],
+			&"total_duration_msec",
+			0
+		) == 103_000
+	)
+	_dispose_setup(setup)
 
+
+# --- 私有/辅助方法 ---
 
 func _make_result(
 	score: int,
@@ -167,16 +277,21 @@ func _make_result(
 		max_tile,
 		played_at,
 		2048,
-		max_tile >= 2048,
-		duration_msec
+		max_tile >= 2048
 	)
 	assert_not_null(result)
 	return result
 
 
-func _create_setup() -> Dictionary:
+func _create_setup(
+	storage_override: GFStorageUtility = null
+) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
-	var storage: GFStorageUtility = GFStorageUtility.new()
+	var storage: GFStorageUtility = (
+		storage_override
+		if storage_override != null
+		else GFStorageUtility.new()
+	)
 	storage.save_dir_name = "gut_local_profiles_%d" % Time.get_ticks_usec()
 	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
@@ -198,13 +313,17 @@ func _create_setup() -> Dictionary:
 	))
 	var account_system: LocalAccountSystem = LocalAccountSystem.new()
 	var progress_system: ProgressStatsSystem = ProgressStatsSystem.new()
+	var platform_stub: GamePlatformUtility = (
+		_TEST_PLATFORM_STUB_SCRIPT.new()
+	)
+	assert_not_null(platform_stub)
 
 	await architecture.register_utility(GFStorageUtility, storage)
 	await architecture.register_utility(GFSaveGraphUtility, GFSaveGraphUtility.new())
 	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
 	await architecture.register_utility(
 		GamePlatformUtility,
-		_TEST_PLATFORM_STUB_SCRIPT.new()
+		platform_stub
 	)
 	await architecture.register_utility(GameClockUtility, clock)
 	await architecture.register_utility(
@@ -265,3 +384,55 @@ func _get_progress_system(setup: Dictionary) -> ProgressStatsSystem:
 		return value
 	assert_true(false, "测试 setup 缺少 ProgressStatsSystem。")
 	return ProgressStatsSystem.new()
+
+
+func _get_account_catalog(
+	setup: Dictionary
+) -> LocalAccountCatalogUtility:
+	var value: Variant = setup.get(&"account_catalog")
+	if value is LocalAccountCatalogUtility:
+		return value
+	assert_true(false, "测试 setup 缺少 LocalAccountCatalogUtility。")
+	return LocalAccountCatalogUtility.new()
+
+
+func _get_save_graph(setup: Dictionary) -> GameSaveGraphUtility:
+	var value: Variant = setup.get(&"save_graph")
+	if value is GameSaveGraphUtility:
+		return value
+	assert_true(false, "测试 setup 缺少 GameSaveGraphUtility。")
+	return GameSaveGraphUtility.new()
+
+
+func _snapshot_accounts(
+	accounts: LocalAccountSystem
+) -> Array[Dictionary]:
+	var snapshots: Array[Dictionary] = []
+	for account: LocalPlayerAccount in accounts.get_accounts():
+		snapshots.append(account.to_dict())
+	return snapshots
+
+
+# --- 内部类 ---
+
+class _FailingCatalogStorage extends GFStorageUtility:
+	var next_catalog_save_error: Error = OK
+	var catalog_save_attempt_count: int = 0
+	var last_failed_catalog_payload: Dictionary = {}
+
+
+	## 为账号目录写入注入一次性失败，并委托其余存储写入。
+	## @param file_name: GFStorage 相对文件名。
+	## @param data: 要持久化的完整数据字典。
+	func save_data(file_name: String, data: Dictionary) -> Error:
+		if file_name == LocalAccountCatalogUtility.CATALOG_FILE_NAME:
+			catalog_save_attempt_count += 1
+		if (
+			file_name == LocalAccountCatalogUtility.CATALOG_FILE_NAME
+			and next_catalog_save_error != OK
+		):
+			var scripted_error: Error = next_catalog_save_error
+			next_catalog_save_error = OK
+			last_failed_catalog_payload = data.duplicate(true)
+			return scripted_error
+		return super.save_data(file_name, data)

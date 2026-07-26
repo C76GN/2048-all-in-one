@@ -5,7 +5,7 @@ extends RefCounted
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 1
+const SCHEMA_VERSION: int = 2
 const KIND_BOARD: StringName = &"board"
 const KIND_TURN: StringName = &"turn"
 

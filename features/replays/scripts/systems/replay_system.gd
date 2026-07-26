@@ -482,7 +482,9 @@ func _retain_newest_replays(replays: Array[ReplayData]) -> Array[ReplayData]:
 		return left.replay_id > right.replay_id
 	)
 	if retained.size() > ReplayCatalogSaveData.MAX_REPLAY_COUNT:
-		retained.resize(ReplayCatalogSaveData.MAX_REPLAY_COUNT)
+		var _resize_error_code: int = retained.resize(
+			ReplayCatalogSaveData.MAX_REPLAY_COUNT
+		)
 	return retained
 
 

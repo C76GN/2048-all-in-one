@@ -12,6 +12,8 @@ var account: LocalPlayerAccount = null
 # --- 公共方法 ---
 
 ## 创建一个账号切换完成事件。
+## @param p_previous_account_id: 切换前的账号稳定 ID；首次激活时为空。
+## @param p_account: 已成功激活的新账号快照。
 static func create(
 	p_previous_account_id: String,
 	p_account: LocalPlayerAccount

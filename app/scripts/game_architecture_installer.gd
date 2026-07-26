@@ -188,6 +188,7 @@ func _bind_progression_systems(binder: GFBinder) -> void:
 	await binder.bind_system(CustomBoardSystem).as_singleton()
 	await binder.bind_system(ReplaySystem).as_singleton()
 	await binder.bind_system(TileDiscoverySystem).as_singleton()
+	await binder.bind_system(TileLabSystem).as_singleton()
 	await binder.bind_system(AchievementSystem).as_singleton()
 
 
@@ -258,6 +259,11 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 		TileDiscoverySaveData.new(),
 		GFSaveScope.Phase.NORMAL
 	)
+	var tile_blueprints_registered: bool = save_graph.register_section(
+		TileLabSaveData.SECTION_ID,
+		TileLabSaveData.new(),
+		GFSaveScope.Phase.NORMAL
+	)
 	var achievements_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID,
 		AchievementSaveData.new(),
@@ -273,6 +279,7 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 		or not bookmarks_registered
 		or not custom_boards_registered
 		or not discoveries_registered
+		or not tile_blueprints_registered
 		or not achievements_registered
 		or not replays_registered
 	):

@@ -13,7 +13,7 @@ const _TEST_PLATFORM_STUB_SCRIPT: GDScript = preload(
 
 # --- 测试用例 ---
 
-func test_profile_graph_has_six_feature_sections() -> void:
+func test_profile_graph_has_seven_feature_sections() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var snapshot: Dictionary = save_graph.get_debug_snapshot()
@@ -24,15 +24,15 @@ func test_profile_graph_has_six_feature_sections() -> void:
 
 	assert_true(save_graph.is_profile_loaded(), "首次运行应完成空档加载决策。")
 	assert_true(GFVariantData.get_option_bool(health, "ok"), "玩家数据图结构应通过 GF 健康检查。")
-	assert_true(GFVariantData.get_option_int(health, "scope_count") == 7, "根图应包含根 Scope 和六个 Feature 子 Scope。")
-	assert_true(GFVariantData.get_option_int(health, "source_count") == 6, "每个 Feature 子 Scope 应有一个严格数据 Source。")
+	assert_true(GFVariantData.get_option_int(health, "scope_count") == 8, "根图应包含根 Scope 和七个 Feature 子 Scope。")
+	assert_true(GFVariantData.get_option_int(health, "source_count") == 7, "每个 Feature 子 Scope 应有一个严格数据 Source。")
 	assert_true(
 		GFVariantData.get_option_bool(document_inspection, "ok"),
 		"Profile 预览必须是规范 GFSaveDocument，禁止保存裸 SaveGraph 字典。"
 	)
 	assert_true(
 		GFVariantData.get_option_packed_string_array(snapshot, "section_ids")
-		== PackedStringArray(["achievements", "bookmarks", "custom_boards", "discoveries", "progress", "replays"]),
+		== PackedStringArray(["achievements", "bookmarks", "custom_boards", "discoveries", "progress", "replays", "tile_blueprints"]),
 		"诊断应暴露稳定 section 标识。"
 	)
 
@@ -468,13 +468,17 @@ func test_profile_v7_is_backed_up_and_reset_without_compatibility() -> void:
 		persisted_scopes.has(String(GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID)),
 		"重建后的 Profile 应包含新的严格成就 section。"
 	)
+	assert_true(
+		persisted_scopes.has(String(TileLabSaveData.SECTION_ID)),
+		"重建后的 Profile 应包含新的严格试验台蓝图 section。"
+	)
 	var recovery_cleanup_error: Error = reloaded_storage.delete_file(recovery_file)
 	assert_true(recovery_cleanup_error == OK, "测试恢复备份应可清理。")
 
 	_dispose_setup(reloaded)
 
 
-func test_profile_v8_is_backed_up_before_v9_rebuild() -> void:
+func test_profile_v8_is_backed_up_before_current_rebuild() -> void:
 	var save_dir_name: String = "gut_save_graph_profile_v8_%d" % Time.get_ticks_usec()
 	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
@@ -512,7 +516,7 @@ func test_profile_v8_is_backed_up_before_v9_rebuild() -> void:
 	)
 	assert_true(
 		recovery_file == "recovery/player_data.schema-8.save",
-		"曾由 limited-level 写出的 Profile v8 也必须先备份，再按 v9 重建。"
+		"历史 Profile v8 必须先备份，再按当前 schema 重建。"
 	)
 	var recovery_result: GFStorageReadResult = reloaded_storage.load_data(
 		recovery_file
@@ -540,8 +544,76 @@ func test_profile_v8_is_backed_up_before_v9_rebuild() -> void:
 			),
 			"schema_version",
 			0
-		) == 9
+		) == GameSaveGraphUtility.PROFILE_SCHEMA_VERSION
 	)
+	assert_true(reloaded_storage.delete_file(recovery_file) == OK)
+	_dispose_setup(reloaded)
+
+
+func test_profile_v9_without_tile_blueprints_is_backed_up_before_v10_rebuild() -> void:
+	var save_dir_name: String = (
+		"gut_save_graph_profile_v9_missing_tile_lab_%d"
+		% Time.get_ticks_usec()
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var payload: Dictionary = save_graph.preview_profile_payload()
+	var metadata: Dictionary = GFVariantData.get_option_dictionary(
+		payload,
+		"metadata"
+	)
+	metadata["schema_version"] = 9
+	payload["metadata"] = metadata
+	var graph_payload: Dictionary = _get_save_graph_payload(payload)
+	var scopes: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(graph_payload, "scopes")
+	)
+	var _tile_section_removed: bool = scopes.erase(
+		String(TileLabSaveData.SECTION_ID)
+	)
+	assert_true(
+		storage.save_data(GameSaveGraphUtility.PROFILE_FILE_NAME, payload) == OK
+	)
+	_dispose_setup(setup, false)
+
+	var reloaded: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true
+	)
+	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
+	var reloaded_storage: GFStorageUtility = _get_storage(reloaded)
+	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		reloaded_graph.get_debug_snapshot(),
+		"last_load"
+	)
+	var recovery_file: String = GFVariantData.get_option_string(
+		load_snapshot,
+		"recovery_file"
+	)
+	assert_true(
+		reloaded_graph.is_profile_loaded(),
+		"缺少新 section 的同源旧 Profile 应在消费业务图前备份并重建。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(
+			load_snapshot,
+			"recovered_obsolete_profile",
+			false
+		)
+	)
+	assert_true(recovery_file == "recovery/player_data.schema-9.save")
+	var current_result: GFStorageReadResult = reloaded_storage.load_data(
+		GameSaveGraphUtility.PROFILE_FILE_NAME
+	)
+	var current_scopes: Dictionary = GFVariantData.get_option_dictionary(
+		_get_save_graph_payload(current_result.payload),
+		"scopes"
+	)
+	assert_true(current_scopes.has(String(TileLabSaveData.SECTION_ID)))
 	assert_true(reloaded_storage.delete_file(recovery_file) == OK)
 	_dispose_setup(reloaded)
 
@@ -979,6 +1051,11 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		TileDiscoverySaveData.new(),
 		GFSaveScope.Phase.NORMAL
 	)
+	var tile_blueprints_registered: bool = save_graph.register_section(
+		TileLabSaveData.SECTION_ID,
+		TileLabSaveData.new(),
+		GFSaveScope.Phase.NORMAL
+	)
 	var achievements_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID,
 		AchievementSaveData.new(),
@@ -994,6 +1071,7 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		and bookmarks_registered
 		and custom_boards_registered
 		and discoveries_registered
+		and tile_blueprints_registered
 		and achievements_registered
 		and replays_registered,
 		"测试 SaveGraph section 应完整注册。"

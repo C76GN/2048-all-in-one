@@ -452,11 +452,11 @@ PLAYER_PROFILE_UNAVAILABLE,玩家档案暂不可用。,Player profile is unavail
 PLAYER_ACCOUNT_SUMMARY,%s · %d 局 · 最高 %d · 最近 %s,%s · %d games · Best %d · Last active %s
 PLAYER_MODE_STATS_EMPTY,完成一局后会在这里显示各模式统计。,Mode statistics appear here after a completed game.
 PLAYER_MODE_METRICS,%d 局 · 最高分 %d · 最大方块 %d,%d games · Best score %d · Highest tile %d
-PLAYER_MODE_TIMING,最佳用时 %s · 平均用时 %s,Best time %s · Average time %s
+PLAYER_MODE_TIMING,最短单局 %s · 平均单局 %s,Shortest run %s · Average run %s
 PLAYER_TIME_NONE,--,--
 LOCAL_LEADERBOARD_EMPTY,还没有符合当前规则配置的本地成绩。,No local result matches this rules configuration yet.
 LOCAL_LEADERBOARD_GROUP,%s · %s · 规则 v%d,%s · %s · Rules v%d
-LOCAL_LEADERBOARD_SCORE,%d 分 · 最大 %d · %s,%d pts · Max %d · %s
+LOCAL_LEADERBOARD_SCORE,%d 分 · 最大 %d · %d 步,%d pts · Max %d · %d moves
 PLAYER_SWITCH_FAILED,切换玩家失败（错误码 %d）。,Could not switch player (error %d).
 PLAYER_SWITCHED,已切换玩家。,Player switched.
 PLAYER_CREATE_FAILED,新建玩家失败（错误码 %d）。,Could not create player (error %d).
@@ -466,3 +466,48 @@ PLAYER_RENAMED,玩家名称已更新。,Player name updated.
 PLAYER_DELETE_FAILED,删除玩家失败（错误码 %d）。,Could not delete player (error %d).
 PLAYER_DELETED,玩家及其独立存档已删除。,Player and independent save data deleted.
 BTN_PLAYER_PROFILE,玩家档案,Player Profile
+ACCESSIBILITY_GOAL_OPEN_FORMAT,目标：继续合成更高方块；当前最大方块 %d。,Goal: keep combining higher tiles; current highest tile %d.
+ACCESSIBILITY_GOAL_PENDING_FORMAT,目标：合成 %d；当前最大方块 %d。,Goal: make %d; current highest tile %d.
+ACCESSIBILITY_GOAL_REACHED_FORMAT,目标 %d 已达成；当前最大方块 %d。,Goal %d reached; current highest tile %d.
+ACCESSIBILITY_AVAILABLE_ACTIONS_FORMAT,可用操作：%s。,Available actions: %s.
+ACCESSIBILITY_END_NO_MOVES,对局结束：没有可继续执行的有效移动。,Game over: no valid moves remain.
+ACCESSIBILITY_ACTION_MOVE,四向移动,move in four directions
+ACCESSIBILITY_ACTION_PAUSE,暂停,pause
+ACCESSIBILITY_ACTION_HINT,提示,hint
+ACCESSIBILITY_ACTION_UNDO,撤销,undo
+ACCESSIBILITY_ACTION_REDO,重做,redo
+ACCESSIBILITY_ACTION_SAVE,保存书签,save bookmark
+ACCESSIBILITY_ACTION_RESTART,重新开始,restart
+ACCESSIBILITY_ACTION_RETURN,返回主菜单,return to main menu
+ACCESSIBILITY_ACTION_REPLAY_CONTROLS,回放控制,replay controls
+BTN_TILE_LAB,方块试验台,Tile Lab
+TILE_LAB_TITLE,方块试验台,Tile Lab
+TILE_LAB_BLUEPRINT_SECTION,蓝图,Blueprint
+TILE_LAB_NAME_PLACEHOLDER,输入蓝图名称,Enter blueprint name
+TILE_LAB_NEW,新建,New
+TILE_LAB_SAVE,保存,Save
+TILE_LAB_DELETE,删除,Delete
+TILE_LAB_BASE_DEFINITION,外观基底,Visual Base
+TILE_LAB_RECIPES,能力配方,Capability Recipes
+TILE_LAB_SIMULATION_SECTION,双块交互沙盒,Two-Tile Sandbox
+TILE_LAB_SIMULATION_DESCRIPTION,设置左右数值，使用当前组合执行一次真实能力交互。,Set two values and run one real capability interaction with the current composition.
+TILE_LAB_LEFT_VALUE,左侧数值,Left Value
+TILE_LAB_RIGHT_VALUE,右侧数值,Right Value
+TILE_LAB_RUN,运行交互,Run Interaction
+TILE_LAB_DELETE_CONFIRM_TITLE,删除蓝图,Delete Blueprint
+TILE_LAB_DELETE_CONFIRM,确认删除“%s”吗？,Delete “%s”?
+TILE_LAB_NEW_BLUEPRINT_OPTION,新蓝图,New Blueprint
+TILE_LAB_RESULT_WAITING,等待运行,Ready to run
+TILE_LAB_SELECTION_VALID,当前组合可用：%d 个能力配方。,Composition valid: %d capability recipes.
+TILE_LAB_SELECTION_INVALID,当前组合不可用：%s,Composition invalid: %s
+TILE_LAB_UNAVAILABLE,试验台系统不可用。,Tile Lab is unavailable.
+TILE_LAB_SUMMARY,%d 份蓝图 · 上限 %d,Blueprints: %d · Limit: %d
+TILE_LAB_SAVE_FAILED,保存蓝图失败（错误码 %d）。,Could not save blueprint (error %d).
+TILE_LAB_DELETE_FAILED,删除蓝图失败（错误码 %d）。,Could not delete blueprint (error %d).
+TILE_LAB_SAVE_SUCCEEDED,蓝图已保存。,Blueprint saved.
+TILE_LAB_DELETE_SUCCEEDED,蓝图已删除。,Blueprint deleted.
+TILE_LAB_RESULT_INVALID,无法运行当前组合：%s,Cannot run this composition: %s
+TILE_LAB_RESULT_NO_INTERACTION,%d 与 %d 没有触发交互。,No interaction occurred between %d and %d.
+TILE_LAB_RESULT_INTERACTED,%s方存活，结果 %d，得分 %+d，规则 %s。,%s tile survived; result %d; score %+d; rule %s.
+TILE_LAB_SURVIVOR_LEFT,左,Left
+TILE_LAB_SURVIVOR_RIGHT,右,Right

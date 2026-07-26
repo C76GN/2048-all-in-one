@@ -46,7 +46,12 @@ var _account_catalog: LocalAccountCatalogUtility
 # --- Godot 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GameClockUtility, GameSaveGraphUtility, GFLogUtility]
+	return [
+		GameClockUtility,
+		GameSaveGraphUtility,
+		GFLogUtility,
+		LocalAccountCatalogUtility,
+	]
 
 
 func ready() -> void:
@@ -113,8 +118,12 @@ func set_high_score(mode_id: String, board_key: String, score: int) -> Error:
 ## 事务记录规范结果。所有结果进入有界 recent results；只有比赛合格结果进入本地榜。
 ## Debug 改写结果不投影到既有进度统计或成就。
 ## @param result: 已冻结并通过当前 schema 校验的规范对局结果。
-func record_game_result(result: GameResultRecordedData) -> Error:
-	if result == null or not result.is_valid():
+## @param duration_msec: 本局从可操作开始到结束的持续时间，单位为毫秒。
+func record_game_result(
+	result: GameResultRecordedData,
+	duration_msec: int = 0
+) -> Error:
+	if result == null or not result.is_valid() or duration_msec < 0:
 		return ERR_INVALID_DATA
 	var strict_result: GameResultRecordedData = GameResultRecordedData.from_dict(
 		result.to_dict()
@@ -126,7 +135,7 @@ func record_game_result(result: GameResultRecordedData) -> Error:
 	if _has_recorded_result(save_data, strict_result.result_hash):
 		return OK
 	if strict_result.counts_toward_progress():
-		_apply_result_to_stats(save_data, strict_result)
+		_apply_result_to_stats(save_data, strict_result, duration_msec)
 	_append_recent_result(save_data, strict_result)
 	if strict_result.is_competition_eligible():
 		_append_local_leaderboard_result(save_data, strict_result)
@@ -202,6 +211,7 @@ func get_local_leaderboard(
 
 
 ## 返回指定本地账号按模式聚合的个人统计；空 ID 表示当前账号。
+## @param account_id: 要读取的本地账号 ID；空字符串表示当前账号。
 func get_profile_mode_summaries(
 	account_id: String = ""
 ) -> Array[Dictionary]:
@@ -260,6 +270,7 @@ func get_device_leaderboard_identities() -> Array[Dictionary]:
 ## 聚合此设备全部本地账号在同一严格规则分组下的最佳成绩。
 ##
 ## 每个账号最多占一个名次，避免同一玩家用多局结果填满设备榜。
+## @param identity: 模式、棋盘与规则集组成的严格排行榜分组身份。
 func get_device_local_leaderboard(
 	identity: Dictionary
 ) -> Array[Dictionary]:
@@ -497,7 +508,8 @@ static func _is_device_leaderboard_row_better(
 
 func _apply_result_to_stats(
 	save_data: Dictionary,
-	result: GameResultRecordedData
+	result: GameResultRecordedData,
+	duration_msec: int
 ) -> void:
 	var entry: Dictionary = _normalize_stats_entry(
 		_get_stats_entry(save_data, String(result.mode_id), result.board_key)
@@ -536,27 +548,27 @@ func _apply_result_to_stats(
 	entry[_STAT_LAST_STEPS] = result.steps
 	entry[_STAT_LAST_MAX_TILE] = result.max_tile
 	entry[_STAT_LAST_PLAYED_AT] = result.played_at
-	if result.duration_msec > 0:
+	if duration_msec > 0:
 		var best_duration_msec: int = GFVariantData.get_option_int(
 			entry,
 			_STAT_BEST_DURATION_MSEC,
 			0
 		)
-		if best_duration_msec <= 0 or result.duration_msec < best_duration_msec:
-			entry[_STAT_BEST_DURATION_MSEC] = result.duration_msec
+		if best_duration_msec <= 0 or duration_msec < best_duration_msec:
+			entry[_STAT_BEST_DURATION_MSEC] = duration_msec
 		entry[_STAT_TOTAL_DURATION_MSEC] = (
 			GFVariantData.get_option_int(
 				entry,
 				_STAT_TOTAL_DURATION_MSEC,
 				0
 			)
-			+ result.duration_msec
+			+ duration_msec
 		)
 		entry[_STAT_DURATION_SAMPLES] = (
 			GFVariantData.get_option_int(entry, _STAT_DURATION_SAMPLES, 0)
 			+ 1
 		)
-		entry[_STAT_LAST_DURATION_MSEC] = result.duration_msec
+		entry[_STAT_LAST_DURATION_MSEC] = duration_msec
 	if result.target_value > 0:
 		entry[_STAT_TARGET_VALUE] = result.target_value
 		if result.target_reached:

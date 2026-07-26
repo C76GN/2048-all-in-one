@@ -94,6 +94,38 @@ func test_clipboard_write_uses_declared_platform_capability() -> void:
 	await _dispose_platform_architecture(setup)
 
 
+func test_local_clipboard_write_accepts_request_without_immediate_readback() -> void:
+	var adapter: DelayedClipboardLocalAdapter = DelayedClipboardLocalAdapter.new()
+
+	assert_true(
+		adapter.create_runtime_context().has_capability(
+			GamePlatformAdapter.CAPABILITY_CLIPBOARD_WRITE
+		),
+		"运行时明确支持写入时，本地 adapter 必须如实声明能力。"
+	)
+	assert_true(
+		adapter.copy_text_to_clipboard("延迟可见文本"),
+		"写入请求已被平台接受时，不得再要求同步读回相同文本。"
+	)
+	assert_true(adapter.clipboard_text == "延迟可见文本")
+	assert_true(adapter.write_count == 1, "每次复制请求只应提交一次平台写入。")
+
+
+func test_local_clipboard_capability_is_absent_when_runtime_does_not_support_it() -> void:
+	var adapter: UnsupportedClipboardLocalAdapter = (
+		UnsupportedClipboardLocalAdapter.new()
+	)
+
+	assert_false(
+		adapter.create_runtime_context().has_capability(
+			GamePlatformAdapter.CAPABILITY_CLIPBOARD_WRITE
+		),
+		"Web/移动运行时未声明 feature 时不得乐观暴露剪贴板能力。"
+	)
+	assert_false(adapter.copy_text_to_clipboard("不可写文本"))
+	assert_true(adapter.write_count == 0, "无能力时不得向 DisplayServer 提交写入。")
+
+
 # --- 私有/辅助方法 ---
 
 func _create_platform_architecture(adapter: GamePlatformAdapter) -> Dictionary:
@@ -188,3 +220,22 @@ class EventSink extends RefCounted:
 	## @param event: 待收集的平台生命周期事件。
 	func capture(event: GFPlatformLifecycleEvent) -> void:
 		events.append(event)
+
+
+class DelayedClipboardLocalAdapter extends LocalPlatformAdapter:
+	var clipboard_text: String = ""
+	var write_count: int = 0
+
+
+	func _has_clipboard_write_support() -> bool:
+		return true
+
+
+	func _set_clipboard_text(text: String) -> void:
+		clipboard_text = text
+		write_count += 1
+
+
+class UnsupportedClipboardLocalAdapter extends DelayedClipboardLocalAdapter:
+	func _has_clipboard_write_support() -> bool:
+		return false

@@ -6,6 +6,7 @@ extends GameUiController
 # --- 常量 ---
 
 const _COMPACT_BREAKPOINT: float = 720.0
+const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
 
 
 # --- 私有变量 ---
@@ -33,7 +34,6 @@ var _layout_update_queued: bool = false
 @onready var _rename_button: Button = %RenameButton
 @onready var _delete_button: Button = %DeleteButton
 @onready var _status_label: Label = %StatusLabel
-@onready var _tabs: TabContainer = %Tabs
 @onready var _profile_tab: VBoxContainer = %ProfileTab
 @onready var _leaderboard_tab: VBoxContainer = %LeaderboardTab
 @onready var _account_summary_label: Label = %AccountSummaryLabel
@@ -50,6 +50,7 @@ var _layout_update_queued: bool = false
 func _ready() -> void:
 	_resolve_dependencies()
 	_bind_signals()
+	_configure_confirmation_touch_targets()
 	_update_static_text()
 	_rebuild_all()
 	_queue_layout_update()
@@ -116,12 +117,10 @@ func _bind_signals() -> void:
 		_on_delete_pressed,
 		self
 	)
-	var _delete_confirmed_connection: GFSignalConnection = (
-		_signal_utility.connect_signal(
-			_delete_confirmation.confirmed,
-			_on_delete_confirmed,
-			self
-		)
+	var _delete_confirmed_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_delete_confirmation.confirmed,
+		_on_delete_confirmed,
+		self
 	)
 	var _group_connection: GFSignalConnection = _signal_utility.connect_signal(
 		_leaderboard_group_option.item_selected,
@@ -134,19 +133,15 @@ func _bind_signals() -> void:
 		self
 	)
 	if is_instance_valid(_account_system):
-		var _active_connection: GFSignalConnection = (
-			_signal_utility.connect_signal(
-				_account_system.active_account_changed,
-				_on_account_changed,
-				self
-			)
+		var _active_connection: GFSignalConnection = _signal_utility.connect_signal(
+			_account_system.active_account_changed,
+			_on_account_changed,
+			self
 		)
-		var _catalog_connection: GFSignalConnection = (
-			_signal_utility.connect_signal(
-				_account_system.account_catalog_changed,
-				_on_account_catalog_changed,
-				self
-			)
+		var _catalog_connection: GFSignalConnection = _signal_utility.connect_signal(
+			_account_system.account_catalog_changed,
+			_on_account_catalog_changed,
+			self
 		)
 
 
@@ -360,7 +355,7 @@ func _make_leaderboard_row(row: Dictionary) -> Control:
 		tr("LOCAL_LEADERBOARD_SCORE") % [
 			result.score,
 			result.max_tile,
-			_format_duration(result.duration_msec),
+			result.steps,
 		]
 		if result != null
 		else "-"
@@ -397,9 +392,9 @@ func _resolve_mode_name(mode_id: String) -> String:
 func _format_duration(duration_msec: int) -> String:
 	if duration_msec <= 0:
 		return tr("PLAYER_TIME_NONE")
-	var total_seconds: int = duration_msec / 1000
-	var hours: int = total_seconds / 3600
-	var minutes: int = (total_seconds % 3600) / 60
+	var total_seconds: int = int(duration_msec / 1000.0)
+	var hours: int = int(total_seconds / 3600.0)
+	var minutes: int = int((total_seconds % 3600) / 60.0)
 	var seconds: int = total_seconds % 60
 	if hours > 0:
 		return "%d:%02d:%02d" % [hours, minutes, seconds]
@@ -409,6 +404,21 @@ func _format_duration(duration_msec: int) -> String:
 func _clear_container(container: Node) -> void:
 	for child: Node in container.get_children():
 		child.queue_free()
+
+
+func _configure_confirmation_touch_targets() -> void:
+	var ok_button: Button = _delete_confirmation.get_ok_button()
+	var cancel_button: Button = _delete_confirmation.get_cancel_button()
+	if is_instance_valid(ok_button):
+		ok_button.custom_minimum_size = Vector2(
+			112.0,
+			_MINIMUM_TOUCH_TARGET_SIZE
+		)
+	if is_instance_valid(cancel_button):
+		cancel_button.custom_minimum_size = Vector2(
+			112.0,
+			_MINIMUM_TOUCH_TARGET_SIZE
+		)
 
 
 func _set_status(message: String, is_error: bool = false) -> void:
@@ -471,7 +481,8 @@ func _on_account_selected(index: int) -> void:
 	var value: Variant = _account_option.get_item_metadata(index)
 	if not value is String:
 		return
-	var error: Error = _account_system.switch_account(value)
+	var account_id: String = GFVariantData.to_text(value)
+	var error: Error = _account_system.switch_account(account_id)
 	if error != OK:
 		_set_status(tr("PLAYER_SWITCH_FAILED") % error, true)
 		_rebuild_account_selector()

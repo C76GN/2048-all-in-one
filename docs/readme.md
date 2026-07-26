@@ -31,6 +31,7 @@
 - [方块组合规则](../features/gameplay/docs/tile_composition.md)
 - [微信小游戏准备基线](../features/platform_runtime/docs/wechat_minigame_readiness.md)
 - [反馈性能矩阵](../features/themes/docs/feedback_performance_matrix.md)
+- [方块试验台](../features/tile_lab/docs/tile_lab.md)
 - [方块图鉴](../features/tile_catalog/docs/tile_catalog.md)
 
 ## 计划、研究与当前验证状态

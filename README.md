@@ -4,7 +4,7 @@
 
 > **GF vendor 边界**
 >
-> 本项目是 **GF Framework** 的实践示例，但当前工作区中的 `addons/gf/` 是只读 vendor 快照。项目开发不得直接修改它。通用框架问题先在 `C76GN/gf-framework` 建立 GitHub issue，并以 issue 作为唯一协作与验收记录；经授权的实现只能在独立 `gf-pr` 工作区的非 `main` 分支完成，用户自有 `gf` 工作区始终只读。GF 测试通过并发布后，再通过可追溯的 vendor 升级回流。2048 规则、内容、文案和视觉始终留在项目 Feature。
+> 本项目是 **GF Framework** 的实践示例，但当前工作区中的 `addons/gf/` 是只读 vendor 快照。项目开发不得直接修改它。通用框架问题先在 `C76GN/gf-framework` 建立 GitHub issue，并以 issue 作为唯一协作与验收记录；不得把 issue 转成 PR。经授权的实现只能在独立 `gf-pr` 工作区的非 `main` 分支完成，`gf-pr` 只是隔离工作区名称，并不代表授权创建 GitHub PR；用户自有 `gf` 工作区只对本项目自动化与协作者保持只读，不限制用户本人继续维护。GF 测试通过并由维护者发布后，再通过可追溯的 vendor 升级回流。2048 规则、内容、文案和视觉始终留在项目 Feature。
 
 ## 技术栈
 

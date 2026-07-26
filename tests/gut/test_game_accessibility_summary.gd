@@ -36,6 +36,47 @@ func test_sparse_board_summary_preserves_inactive_empty_and_tile_cells() -> void
 			0
 		) == 2
 	)
+	assert_true(
+		summary.board_text.contains("目标"),
+		"完整棋盘文本必须明确当前目标语义。"
+	)
+
+
+func test_session_context_exposes_goal_actions_and_end_reason() -> void:
+	var utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	var summary: GameAccessibilitySummary = utility.build_board_summary(
+		_build_sparse_snapshot(),
+		{
+			&"phase": &"game_over",
+			&"target_value": 4,
+			&"target_reached": true,
+			&"end_reason": &"no_moves",
+			&"available_actions": [&"restart", &"return"],
+		}
+	)
+	assert_not_null(summary)
+	if not is_instance_valid(summary):
+		return
+	var session: Dictionary = GFVariantData.get_option_dictionary(
+		summary.canonical_payload,
+		&"session"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(session, &"phase")
+		== &"game_over"
+	)
+	assert_true(GFVariantData.get_option_bool(session, &"target_reached"))
+	assert_true(
+		GFVariantData.get_option_array(
+			session,
+			&"available_actions"
+		).size() == 2
+	)
+	assert_true(summary.board_text.contains("目标 4 已达成"))
+	assert_true(summary.board_text.contains("重新开始"))
+	assert_true(summary.board_text.contains("对局结束"))
 
 
 func test_runtime_tile_ids_do_not_change_accessibility_board_identity() -> void:

@@ -311,61 +311,6 @@ func play_turn_feedback(turn_result: TurnResult) -> void:
 	)
 
 
-## 获取当前棋盘上的最高方块值。
-## @return: 最大方块数值。
-func get_max_tile_value() -> int:
-	if not model:
-		return 0
-	return model.get_max_tile_value()
-
-
-## 游戏中扩建棋盘。
-## @param new_size: 新的棋盘尺寸。
-func live_expand(new_size: int) -> void:
-	if not model or not is_instance_valid(model.topology) or not model.topology.is_rectangle():
-		return
-	var bounds_size: Vector2i = model.get_bounds_size()
-	if bounds_size.x != bounds_size.y:
-		return
-	var old_size: int = bounds_size.x
-	if new_size <= old_size:
-		return
-
-	var next_topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(new_size, new_size))
-	if not model.replace_topology(next_topology):
-		return
-	_animate_expansion(old_size, new_size)
-	send_simple_event(EventNames.BOARD_RESIZED, new_size)
-
-
-## 遍历整个网格，返回所有空格子坐标的数组。
-## @return: 一个包含所有空单元格 Vector2i 坐标的数组。
-func get_empty_cells() -> Array[Vector2i]:
-	if not model:
-		return []
-	return model.get_empty_cells()
-
-
-## 遍历整个网格，返回所有方块数值的数组。
-## @return: 一个已排序的方块数值数组。
-func get_all_tile_values() -> Array[int]:
-	if not model:
-		return []
-	return model.get_all_tile_values()
-
-
-## 获取当前棋盘所有方块状态的可序列化快照。
-## @return: 一个字典，包含严格拓扑和所有方块数据。
-func get_state_snapshot() -> Dictionary:
-	if not model:
-		return {
-			&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
-			&"topology": BoardTopology.create_rectangle(Vector2i(4, 4)).to_dict(),
-			&"tiles": [],
-		}
-	return model.get_snapshot()
-
-
 ## 从快照恢复。
 ## @param snapshot: 包含棋盘状态的字典。
 func restore_from_snapshot(snapshot: Dictionary) -> void:
@@ -393,6 +338,25 @@ func restore_from_snapshot_with_reverse_animation(
 
 
 # --- 私有/辅助方法 ---
+
+## 游戏中扩建棋盘。
+## @param new_size: 新的棋盘尺寸。
+func _live_expand(new_size: int) -> void:
+	if not model or not is_instance_valid(model.topology) or not model.topology.is_rectangle():
+		return
+	var bounds_size: Vector2i = model.get_bounds_size()
+	if bounds_size.x != bounds_size.y:
+		return
+	var old_size: int = bounds_size.x
+	if new_size <= old_size:
+		return
+
+	var next_topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(new_size, new_size))
+	if not model.replace_topology(next_topology):
+		return
+	_animate_expansion(old_size, new_size)
+	send_simple_event(EventNames.BOARD_RESIZED, new_size)
+
 
 func _restore_from_snapshot(
 	snapshot: Dictionary,
@@ -1500,7 +1464,7 @@ func _on_board_refresh_requested(board_snapshot: Dictionary) -> void:
 
 ## 接收到棋盘动态扩建请求。
 func _on_board_live_expand_requested(new_size: int) -> void:
-	live_expand(new_size)
+	_live_expand(new_size)
 
 
 ## 当场景即将改变时调用，确保释放旧场景前断开监听

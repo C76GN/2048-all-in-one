@@ -25,19 +25,21 @@
 | --- | --- |
 | `accessibility` | 棋盘与回合的规范无障碍语义摘要、字幕同源文本、复制入口和未来平台辅助技术投影 |
 | `gameplay` | 棋盘、移动命令、规则、模式、对局状态、HUD 和玩法输入 |
-| `navigation` | 场景路由、主菜单、模式选择、列表菜单导航壳和 UI Route 注册表 |
+| `navigation` | 场景路由、主菜单、真正的“继续游戏”与“读取存档”入口、模式选择、列表菜单导航壳和 UI Route 注册表 |
 | `board_editor` | 玩家棋盘草稿、局部撤销历史、自定义模板目录和 `custom_boards` SaveGraph section |
 | `settings` | 应用设置模型、设置持久化和设置界面 |
-| `bookmarks` | 书签数据、保存流程、列表和预览入口 |
-| `replays` | 回放数据、回放输入、播放流程、列表和继续游戏入口 |
-| `progress` | 最高分、规范结果、资格过滤后的本地排行榜和 progress SaveGraph section |
+| `bookmarks` | 书签数据、保存流程、最近可继续书签查询、读取存档列表和预览入口 |
+| `replays` | 回放数据、回放输入、播放/定位流程和回放列表 |
+| `player_profiles` | 设备内本地账号目录、账号切换事务、个人信息页和跨账号本地榜查询入口 |
+| `progress` | 按账号隔离的最高分、模式摘要、规范结果、资格过滤排行榜和 progress SaveGraph section |
+| `tile_lab` | 玩家方块蓝图、`TileDefinition` + `GFCapabilityRecipe` 组合、冲突解释和隔离沙盒试验 |
 | `tile_catalog` | 方块定义目录、组合/拓扑发现、响应式图鉴和 discoveries SaveGraph section |
 | `achievements` | 数据驱动成就目录、GF Quest 运行时投影、成就列表和 achievements SaveGraph section |
 | `persistence` | 通用玩家数据 section 协议、GF SaveGraph 事务编排和存储诊断 |
 | `platform_runtime` | 平台 Adapter 选择、Godot 生命周期桥接、Web/微信准备契约和平台冒烟入口 |
 | `themes` | 视觉主题、音效主题、主题化 UI 宿主与布局、UI 色板、棋盘反馈和主题内容包 |
 | `asset_library` | 可复用素材内容包、候选评审、授权、引用审计和局部导入工具 |
-| `diagnostics` | 项目诊断快照、支持报告和仅开发环境使用的独立对局实验台 |
+| `diagnostics` | 项目诊断快照、支持报告和仅开发环境使用的独立诊断工作区 |
 
 Feature 的 `scripts/` 内可以继续使用 `models/`、`systems/`、`utilities/` 等 GF 层目录，但这些目录只表达该 Feature 内部职责。例如 `features/replays/scripts/systems/` 只包含回放系统，不再和存档、路由、棋盘系统混放。
 
@@ -49,6 +51,16 @@ Feature 的 `scripts/` 内可以继续使用 `models/`、`systems/`、`utilities
 4. 跨 Feature 协作优先使用 GF Model、System、Utility、Command、Query、事件或资源键，不使用跨场景 NodePath 形成隐式依赖。
 5. Feature 私有资源路径不得成为其他 Feature 的持久化数据格式；跨 Feature 资源使用稳定资源键或公开 Resource 类型。
 6. 新文件先确定所有权，再选择 GF 层。禁止为了方便重新创建全局类型桶。
+
+## Module 深度与公开 Seam
+
+- **Module** 是拥有明确生命周期和删除边界的 Feature 内能力；目录本身不自动构成 Module，只有被 Composition Root 装配并提供稳定 **Interface** 的能力才算 Module。
+- **Interface** 是其他 Feature 可以依赖的最小公开面，包括强类型数据、System/Utility 查询、领域事件、稳定资源键和 route ID。具体节点、文件路径、缓存结构与序列化细节属于 **Implementation**，不得穿透边界。
+- **Depth** 来自“小 Interface 隐藏足够多的校验、事务、生命周期与恢复策略”，不是通过增加一层同名转发类制造抽象。只转发调用且不增加约束的浅层包装应删除。
+- **Seam** 必须落在真实可替换或可独立验证的位置：例如本地账号目录与玩家 Profile 切换、设备内排行榜与未来线上榜、项目方块蓝图与 GF Recipe 仲裁、Godot 平台事实与 `GFPlatformRuntime`。
+- **Adapter** 只在 Seam 上翻译两个已存在的契约；不得拥有被适配领域的规则，也不得把供应商 API、场景 NodePath 或存储路径泄漏给调用方。
+- **Leverage** 优先来自复用 GF 已安装能力处理生命周期、预算、目录、事务、输入与导航；产品身份、资格、排行分组、方块内容与冲突文案仍由项目拥有。
+- **Locality** 要求一次业务变更主要停留在所属 Feature。若修改一个产品概念必须同时了解多个 Feature 的私有 Implementation，应先收紧公开 Interface，而不是把代码搬进 `shared`。
 
 ## 启动与装配
 
@@ -122,8 +134,24 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 1. `GameSessionMetadata` 冻结本局 seed 来源和 `GameCompetitionEligibility`。资格快照不可变；调试改写、回放续玩、书签恢复、撤销/重做、自定义棋盘和手动 seed 都是显式失格原因，普通随机对局只有在没有这些原因时才合格。
 2. `GameResultRecordedData` 冻结模式、拓扑、规则集 ID/版本/指纹、初始 seed、最终 canonical state hash、资格快照和结算指标，并以严格 hash 拒绝字段漂移。结果只在成功写入 `progress` section 后成为规范事实。
-3. `ProgressStatsSystem` 把严格结果写入有界最近结果；调试改写不推进统计或成就。只有 `is_competition_eligible()` 为真的结果进入本地排行榜，分组身份固定为 `mode_id`、`board_key`、`ruleset_id`、`ruleset_version` 和 `ruleset_fingerprint`。
-4. 本地排行榜由项目 `progress` Feature 拥有，只是离线设备内参考，不是平台或服务端权威证明。未来 Steam、微信或独立后端接入必须通过显式 bridge contract 重新定义上传、校验和裁决边界，不能把本地 SaveGraph 直接冒充线上真源。
+3. `ProgressStatsSystem` 把严格结果写入当前账号的有界最近结果；调试改写不推进统计或成就。只有 `is_competition_eligible()` 为真的结果进入本地排行榜，分组身份固定为 `mode_id`、`board_key`、`ruleset_id`、`ruleset_version` 和 `ruleset_fingerprint`。
+4. `player_profiles` 可以只读聚合同一设备各账号的严格 `progress` section，并按账号展示个人模式摘要与本地榜名次；聚合不能改写其他账号 Profile，也不能放宽单条结果校验。
+5. 本地排行榜只是离线设备内参考，不是平台或服务端权威证明。未来 Steam、微信或独立后端接入必须通过显式 bridge contract 重新定义上传、校验和裁决边界，不能把本地 SaveGraph 直接冒充线上真源。
+
+### 本地账号与玩家 Profile
+
+1. `LocalAccountCatalogUtility` 拥有设备级账号身份目录，只保存账号 ID、显示名、创建时间、最近使用时间和当前账号；它不保存统计、书签、回放、成就、图鉴或试验台蓝图。
+2. 每个账号映射到独立的 `GameSaveGraphUtility` Profile。切换账号必须先冲刷当前 Profile，再加载并完整应用目标 Profile；任一步失败都保持原账号和原内存图，不发布半完成切换。
+3. `LocalAccountSystem` 是账号创建、重命名、切换和删除的唯一业务 Interface。其他 Feature 订阅强类型账号变更事件或查询当前账号，不读取设备目录文件，也不拼接 Profile 路径。
+4. 首次启用本地账号时可以把唯一的旧默认 Profile 一次性收养为首个账号；完成后不保留旧路径双读。删除非当前账号时同时删除其 Profile，失败必须向用户显式报告。
+5. 个人信息页只投影当前账号的资料和各模式汇总；账号管理与排行榜 UI 通过 `GFUIRouterUtility` 进入，不让页面节点拥有存档事务。
+
+### 方块试验台
+
+1. `tile_lab` 保存的是项目拥有的方块蓝图：稳定蓝图 ID、显示名、基础 `TileDefinition` 身份、选中的 `GFCapabilityRecipe` 身份和预览参数；不序列化运行时对象或硬编码新方块子类。
+2. `TileCompositionUtility` 仍是 Recipe 能力匹配与交互仲裁的唯一 Interface。试验台只组合目录中可用的定义与 Recipe，并把冲突、缺少共同能力或不合法参数解释给玩家。
+3. 沙盒从蓝图构造临时 `TileState`，允许玩家实际尝试生成、配对和交互；临时状态与普通对局的 canonical state、命令历史、回放、统计和排行资格隔离。
+4. 保存蓝图进入当前账号的独立 SaveGraph section。若未来让蓝图进入正式模式，必须先为内容身份、规则指纹、回放和书签定义新的稳定 Seam，不能让编辑器资源路径成为持久化真源。
 
 ### 开发诊断工作区
 
@@ -150,11 +178,11 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 素材评审
 
-1. `features/asset_library/resources/gf_content_package.json` 只登记已批准运行时素材，并由统一的 `ProjectContentCatalogUtility` 注册。
-2. 候选素材和备注保存在 `features/asset_library/resources/review/`。
-3. 原始来源保存在隔离的 `source_packs/`，不得被运行时直接依赖。
-4. `GFProjectReferenceScanner`、`GFAssetAttributionTools` 和 `GFAssetCatalog` 生成引用、授权和用途报告。
-5. Feature 局部浏览器和导入脚本位于 `features/asset_library/scenes/` 与 `features/asset_library/tools/`。
+1. 项目级治理、所有权、晋升与安全边界以 [`docs/asset_library.md`](./asset_library.md) 为权威；具体命令、快捷键和当前工具行为以 [`features/asset_library/docs/readme.md`](../features/asset_library/docs/readme.md) 为权威。生成报告只证明一次运行，不覆盖这两层规范。
+2. `features/asset_library/resources/gf_content_package.json` 只登记已批准运行时素材，并由统一的 `ProjectContentCatalogUtility` 注册。
+3. 候选素材和备注保存在 `features/asset_library/resources/review/`；原始来源保存在隔离的 `source_packs/`，不得被运行时直接依赖。
+4. 同一声音的 WAV、OGG、MP3 等编码只有在源包声明了经过验证的同源分组后，才同步 `review_status` 与 `reviewed_at`。评分、标签、备注、路径、哈希和许可证仍属于具体编码；文件名相似、跨源包模糊匹配或冲突决定都不得自动同步。
+5. `GFProjectReferenceScanner`、`GFAssetAttributionTools` 和 `GFAssetCatalog` 生成引用、授权和用途报告；Feature 局部浏览器和导入脚本位于 `features/asset_library/scenes/` 与 `features/asset_library/tools/`。
 
 ### 运行时通知
 
@@ -188,7 +216,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 3. Composition Root 创建单一 `GFClock` 并同时注入 `GFTimeUtility` 与 `GameClockUtility`；后者是业务代码读取 wall-clock、单调 tick 和日期格式的唯一 Adapter，测试使用 `GFManualClock` 控制同一时间源。
 4. `GFSeedUtility` 拥有运行时随机流、全局种子和稳定派生算法；业务代码不得自行创建 `RandomNumberGenerator`，也不得调用 Godot 全局随机函数。生成规则只能消费以规则语义 ID 派生的 gameplay branch；粒子、音高、装饰闪烁等 cosmetic 随机不得消费 gameplay branch，也不得进入领域快照。
 5. `GameDeterminismUtility` 是 canonical turn state 的唯一摘要入口：它按拓扑坐标排序方块、排除运行时 UUID，并分别计算 board、gameplay RNG、规则集和完整 state checksum。规则资源必须声明稳定 `ruleset_id` 与 `ruleset_version`，内容变化必须显式提升版本或指纹。
-6. `ReplayData` schema v4 保存初始 seed/拓扑、规则集身份与指纹、会话资格元数据、有效命令，以及每个 settled turn 的 `ReplayCheckpoint`。回放在应用命令后立即比较 checkpoint；第一次不一致生成包含回合、命令及 expected/actual board/RNG/state 的 OOS 报告，并阻断继续步进和“从回放继续”。事件标记从 checkpoint 元数据确定性派生，前后标记跳转仍通过现有命令历史重建并复核目标 checksum；当前没有回放倍速控制。
+6. `ReplayData` 保存初始 seed/拓扑、规则集身份与指纹、会话资格元数据、有效命令，以及每个 settled turn 的 `ReplayCheckpoint`。回放在应用命令后立即比较 checkpoint；第一次不一致生成包含回合、命令及 expected/actual board/RNG/state 的 OOS 报告，并阻断继续步进和“从回放继续”。事件标记从 checkpoint 元数据确定性派生，前后标记定位仍通过有界命令历史重建并复核目标 checksum。
 7. 固定 seed 测试语料必须覆盖全部正式模式和多种拓扑，验证重复执行、UUID/插入顺序变化与序列化往返不改变 canonical checksum。表现档位与无障碍设置的切换也不得改变同一 seed/命令序列的领域结果。
 8. 开发构建的长流程耗时由 `GFOperationDiagnosticsUtility` 的操作记录拥有。调用方读取同一操作的 `started_ticks_usec` 记录阶段，不再平行缓存一份系统 tick；发布路径只能通过当前 Architecture 的 local lookup 可选读取该 Utility，且在未安装开发诊断模块时必须保持完整功能。
 9. 只有 Boot 组合根和 `features/asset_library/tools/` 下的离线素材工具可以直接访问 `Time`；该例外由 GF 合规测试的精确路径 allowlist 约束，不得扩散到运行时 Feature。
@@ -196,13 +224,13 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 持久化
 
-- `persistence` 创建 `player_data` 根 Scope，并通过 `GFSaveGraphUtility` 统一生成、校验和应用规范 `GFSaveDocument`，不再把裸 Scope payload 当作磁盘根协议。
-- `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements` 与 `replays` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
-- 六个 section 按 `EARLY`、`NORMAL`、`LATE` 写入同一个 Binary `player_data.save`；`GFStorageUtility` 返回类型化 `GFStorageReadResult`，并负责存储元数据、checksum 和原子文件事务。
+- `persistence` 创建玩家根 Scope，并通过 `GFSaveGraphUtility` 统一生成、校验和应用规范 `GFSaveDocument`，不再把裸 Scope payload 当作磁盘根协议。
+- `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements`、`replays` 与 `tile_lab` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
+- section 按声明的 apply phase 写入当前账号的单一 Binary Profile；`GFStorageUtility` 返回类型化 `GFStorageReadResult`，并负责存储元数据、checksum 和原子文件事务。账号目录是设备身份元数据，不是第二份玩家业务存档。
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。UUID 只用于持久身份，不参与 canonical board checksum。
-- Profile 当前为 `player_data@9`；`progress`、`bookmarks`、`custom_boards`、`discoveries`、`achievements`、`replays` section 当前分别为 v5、v8、v1、v1、v1、v5。单条 `BookmarkData` 与 `ReplayData` 的 item schema 均独立为 v4，不得与各自目录 section 版本混淆；两者都冻结规则集身份和 `GameSessionMetadata` v2 资格上下文。书签还使用 GridModel snapshot v3、GameState v2 与 MoveCommand v2 保存内部状态和命令历史。棋盘快照与玩家模板都内嵌严格 `BoardTopology`，规则统计使用中性的 `ratio_resolutions`，不提供旧尺寸键、旧阵营字段推断或兼容分支。
+- Profile、section 和 item 的当前 schema 版本以数据类型与 [`docs/save_model.md`](./save_model.md) 为准，本架构文档不复制易漂移数字。书签与回放冻结规则集身份和资格上下文；棋盘快照与玩家模板内嵌严格 `BoardTopology`，不提供旧尺寸键或旧业务字段推断。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
-- 同源旧 Profile（包括已废止的 v7 与 v8）在启动时只允许由 persistence 通用编排执行“完整备份到 `recovery/` 后按 v9 默认 section 原子重建”；不解析或迁移历史业务字段。未来/未知/畸形 Profile 继续拒绝，业务数据迁移只能使用显式离线工具，运行时代码不保留旧字段双读分支。
+- 旧 Profile 只允许由 persistence 通用编排执行显式一次性收养、备份或重建；未来/未知/畸形 Profile 继续拒绝，业务数据迁移只能使用显式离线工具，运行时代码不保留旧字段双读分支。
 
 ## GF 扩展
 
@@ -225,10 +253,10 @@ Installer 不得重复绑定这些扩展拥有的模块。启用扩展但不使�
 
 - `addons/gf/**` 是由 `.gf/vendor.lock.json` 锁定的上游快照，项目开发中视为只读；不得在项目功能提交中直接修补、格式化或重构 GF 源码。
 - 发现 GF 缺陷或通用能力缺口时，必须先在 `C76GN/gf-framework` 创建可复现的 GitHub issue，明确影响版本、最小复现、期望契约和验证标准。
-- GF 实现只能在独立 `gf-pr` 工作区的非 `main` 分支完成，并通过 GF 自身测试与维护门禁；对应 GitHub issue 是协作与验收的唯一记录，禁止直接向 GF `main` 提交或推送框架改动。
+- GF 实现只能在独立 `gf-pr` 工作区的非 `main` 分支完成，并通过 GF 自身测试与维护门禁；`gf-pr` 只是隔离工作区名称，不代表授权创建 GitHub PR。对应 GitHub issue 是协作与验收的唯一记录，不得把 issue 转成 PR，也禁止直接向 GF `main` 提交或推送框架改动。
 - 项目与 GF 的改动不得混在同一提交或实施批次。项目可以先提交不依赖框架修改的调用侧改进；只有 GF 变更完成测试并由维护者发布后，项目才能通过正式 vendor 更新流程同步精确的上游 source commit。
 - 同步 GF 时必须更新 `.gf/vendor.lock.json`，运行 vendor 完整性、GUT、LSP、Feature-Cohesive 和退出泄漏验证，并在项目提交中引用上游 issue、发布版本与精确 source commit。
-- 用户自有 `gf` 工作区始终只允许只读分析；不得代替所有者整理、覆盖、提交或推送其中改动。需要开发框架修复时只使用独立 `gf-pr` 工作区。
+- 用户自有 `gf` 工作区只对本项目自动化与协作者开放只读分析；不得代替所有者整理、覆盖、提交或推送其中改动，但不限制用户本人继续维护。需要开发框架修复时只使用独立 `gf-pr` 工作区。
 
 ## 验证门禁
 

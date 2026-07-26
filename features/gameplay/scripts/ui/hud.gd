@@ -1013,8 +1013,14 @@ func _refresh_accessibility_board_summary() -> GameAccessibilitySummary:
 		or not is_instance_valid(_grid_model)
 	):
 		return null
+	var session_context: Dictionary = {}
+	var game_flow_value: Object = get_system(GameFlowSystem)
+	if game_flow_value is GameFlowSystem:
+		var game_flow: GameFlowSystem = game_flow_value
+		session_context = game_flow.get_accessibility_context()
 	return _accessibility_summary_utility.publish_board_summary(
-		_grid_model.get_snapshot()
+		_grid_model.get_snapshot(),
+		session_context
 	)
 
 

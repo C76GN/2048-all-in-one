@@ -83,6 +83,7 @@ func get_active_account_id() -> String:
 
 
 ## 按稳定 ID 返回账号只读副本。
+## @param account_id: 要查找的本地账号稳定 ID。
 func get_account(account_id: String) -> LocalPlayerAccount:
 	var account: LocalPlayerAccount = _find_account(account_id)
 	return (
@@ -93,6 +94,7 @@ func get_account(account_id: String) -> LocalPlayerAccount:
 
 
 ## 创建但不自动激活一个账号。
+## @param display_name: 新账号在此设备上的显示名称。
 func create_account(display_name: String) -> LocalPlayerAccount:
 	if not _is_configured():
 		_last_error = ERR_UNCONFIGURED
@@ -128,6 +130,8 @@ func create_account(display_name: String) -> LocalPlayerAccount:
 
 
 ## 修改账号显示名称。
+## @param account_id: 要重命名的本地账号稳定 ID。
+## @param display_name: 账号的新显示名称。
 func rename_account(account_id: String, display_name: String) -> Error:
 	var account: LocalPlayerAccount = _find_account(account_id)
 	var normalized_name: String = LocalPlayerAccount.normalize_display_name(
@@ -157,6 +161,7 @@ func rename_account(account_id: String, display_name: String) -> Error:
 
 
 ## 激活一个已存在的账号并持久化最近使用时间。
+## @param account_id: 要激活的本地账号稳定 ID。
 func set_active_account(account_id: String) -> Error:
 	var account: LocalPlayerAccount = _find_account(account_id)
 	if account == null:
@@ -185,6 +190,7 @@ func set_active_account(account_id: String) -> Error:
 
 
 ## 删除一个非当前账号；必须始终保留至少一个账号。
+## @param account_id: 要删除的非当前账号稳定 ID。
 func delete_account(account_id: String) -> Error:
 	if (
 		_accounts.size() <= 1
@@ -202,7 +208,17 @@ func delete_account(account_id: String) -> Error:
 	_accounts.remove_at(index)
 	var save_error: Error = _save_catalog()
 	if save_error != OK:
-		_accounts.insert(index, removed)
+		var rollback_error_code: int = _accounts.insert(index, removed)
+		if rollback_error_code != OK:
+			push_error(
+				(
+					"[LocalAccountCatalogUtility] 删除账号写入失败后恢复内存目录失败，"
+					+ "错误码：%d。"
+				)
+				% rollback_error_code
+			)
+			_last_error = ERR_INVALID_PARAMETER
+			return ERR_INVALID_PARAMETER
 		_last_error = save_error
 		return save_error
 
@@ -211,7 +227,68 @@ func delete_account(account_id: String) -> Error:
 	return OK
 
 
+## 删除当前账号并原子激活一个既有回退账号。
+##
+## 账号移除、当前账号 ID 和回退账号最近使用时间只执行一次持久化；
+## 写入失败时会完整恢复内存快照，且不会发布任何目录变更信号。
+## @param account_id: 要删除的当前账号稳定 ID。
+## @param fallback_account_id: 删除成功后要激活的既有回退账号稳定 ID。
+func delete_active_account_with_fallback(
+	account_id: String,
+	fallback_account_id: String
+) -> Error:
+	if not _is_configured():
+		_last_error = ERR_UNCONFIGURED
+		return _last_error
+	if (
+		_accounts.size() <= 1
+		or account_id.is_empty()
+		or fallback_account_id.is_empty()
+		or account_id == fallback_account_id
+		or account_id != _active_account_id
+	):
+		_last_error = ERR_INVALID_PARAMETER
+		return _last_error
+
+	var removed_index: int = _find_account_index(account_id)
+	var fallback: LocalPlayerAccount = _find_account(fallback_account_id)
+	if removed_index < 0 or fallback == null:
+		_last_error = ERR_DOES_NOT_EXIST
+		return _last_error
+
+	var removed: LocalPlayerAccount = _accounts[removed_index]
+	var previous_active_account_id: String = _active_account_id
+	var previous_fallback_active_at: int = fallback.last_active_at
+	_accounts.remove_at(removed_index)
+	_active_account_id = fallback_account_id
+	fallback.last_active_at = maxi(_get_unix_timestamp(), fallback.created_at)
+	var save_error: Error = _save_catalog()
+	if save_error != OK:
+		_active_account_id = previous_active_account_id
+		fallback.last_active_at = previous_fallback_active_at
+		var rollback_error_code: int = _accounts.insert(removed_index, removed)
+		if rollback_error_code != OK:
+			push_error(
+				(
+					"[LocalAccountCatalogUtility] 删除当前账号写入失败后恢复内存目录失败，"
+					+ "错误码：%d。"
+				)
+				% rollback_error_code
+			)
+			_last_error = ERR_INVALID_PARAMETER
+			return ERR_INVALID_PARAMETER
+		_last_error = save_error
+		return save_error
+
+	_last_error = OK
+	_sort_accounts()
+	active_account_changed.emit(fallback_account_id)
+	account_catalog_changed.emit()
+	return OK
+
+
 ## 返回账号独立 SaveGraph Profile 的存储相对路径。
+## @param account_id: 用于构造文件名的有效 UUID v7 账号 ID。
 static func make_profile_file_name(account_id: String) -> String:
 	if not GFUuid.is_valid(account_id, 7):
 		return ""

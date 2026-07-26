@@ -213,6 +213,14 @@ size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 17
 text = "图鉴"
 
+[node name="TileLabButton" type="Button" parent="SafeMargin/Content/MenuColumn/CollectionRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 17
+text = "试验台"
+
 [node name="ProfileRow" type="HBoxContainer" parent="SafeMargin/Content/MenuColumn"]
 layout_mode = 2
 theme_override_constants/separation = 10
@@ -248,7 +256,7 @@ text = "设置"
 
 [node name="QuitButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 42)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
 text = "退出"
