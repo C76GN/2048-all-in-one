@@ -40,7 +40,7 @@ const _DISQUALIFYING_REASON_CODES: Array[StringName] = [
 var _reason_codes: Array[StringName] = []
 
 
-# --- 构造方法 ---
+# --- Godot 生命周期方法 ---
 
 func _init(reason_codes: Array = []) -> void:
 	_reason_codes = _normalize_reason_codes(reason_codes)
