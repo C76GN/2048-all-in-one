@@ -7,7 +7,9 @@ extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 const _LAYER_NAME: String = "GameCelebrationVfxLayer"
 const _NODE_NAME_PREFIX: String = "CelebrationConfetti"
-const _LAYER_INDEX: int = 960
+# GF UI 的默认 HUD/POPUP CanvasLayer 分别为 50/60。庆祝反馈应覆盖 HUD，
+# 但绝不能遮挡结算、暂停等 POPUP 的摘要与操作按钮。
+const _LAYER_INDEX: int = 55
 const _STATIC_FALLBACK_META: StringName = &"celebration_static_fallback"
 const _CLEANUP_QUEUED_META: StringName = &"celebration_cleanup_queued"
 

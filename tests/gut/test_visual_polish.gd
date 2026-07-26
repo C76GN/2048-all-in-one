@@ -1782,6 +1782,7 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 
 func test_celebration_vfx_utility_spawns_bounded_confetti_emitter() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
+	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var clock_utility: GameClockUtility = GameClockUtility.new()
 	var accessibility_utility: GameAccessibilityUtility = await _register_accessibility_stack(
@@ -1789,11 +1790,22 @@ func test_celebration_vfx_utility_spawns_bounded_confetti_emitter() -> void:
 	)
 	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
 	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFUIUtility, ui_utility)
 	await architecture.register_utility(GameClockUtility, clock_utility)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GameAccessibilityUtility, accessibility_utility)
 	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.init()
+	var hud_layer: CanvasLayer = ui_utility.get_layer_root(GFUIUtility.Layer.HUD)
+	var popup_layer: CanvasLayer = ui_utility.get_layer_root(GFUIUtility.Layer.POPUP)
+	assert_true(is_instance_valid(hud_layer), "GF HUD 逻辑层应提供 CanvasLayer 根节点。")
+	assert_true(is_instance_valid(popup_layer), "GF POPUP 逻辑层应提供 CanvasLayer 根节点。")
+	if is_instance_valid(hud_layer) and is_instance_valid(popup_layer):
+		assert_lt(
+			hud_layer.layer,
+			popup_layer.layer,
+			"GF POPUP 必须位于 HUD 之上，才能承载暂停、结算等可操作弹层。"
+		)
 	assert_true(celebration_vfx.apply_theme(_HALFTONE_CELEBRATION_VFX_THEME), "庆祝 VFX 应接受完整主题资源。")
 	var played: bool = celebration_vfx.play_target_reached_celebration()
 	await get_tree().process_frame
@@ -1803,6 +1815,17 @@ func test_celebration_vfx_utility_spawns_bounded_confetti_emitter() -> void:
 	assert_true(layer_node is CanvasLayer, "庆祝 VFX 应创建全局 CanvasLayer。")
 	if layer_node is CanvasLayer:
 		var layer: CanvasLayer = layer_node
+		if is_instance_valid(hud_layer) and is_instance_valid(popup_layer):
+			assert_gt(
+				layer.layer,
+				hud_layer.layer,
+				"庆祝层应高于 HUD，保证游戏内达成反馈可见。"
+			)
+			assert_lt(
+				layer.layer,
+				popup_layer.layer,
+				"庆祝层必须低于 GF POPUP，不能遮挡结算弹窗的摘要和按钮。"
+			)
 		assert_true(layer.process_mode == Node.PROCESS_MODE_PAUSABLE, "庆祝 VFX 层应尊重场景暂停策略。")
 		assert_true(layer.get_child_count() == 1, "一次庆祝播放应创建一个有界发射器。")
 		var emitter_node: Node = layer.get_child(0)
