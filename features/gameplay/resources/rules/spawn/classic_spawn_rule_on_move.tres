@@ -4,6 +4,8 @@
 
 [resource]
 script = ExtResource("1_yoh4d")
+rule_state_id = &"spawn.classic.move"
+rule_state_schema_version = 1
 consumes_event_on_success = false
 priority = 10
 metadata/_custom_type_script = "uid://rtyr5upmnau6"

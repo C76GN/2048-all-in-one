@@ -8,7 +8,7 @@ extends "res://addons/gf/standard/command/gf_undoable_command.gd"
 # --- 常量 ---
 
 const _LOG_TAG: String = "MoveCommand"
-const SERIALIZATION_SCHEMA_VERSION: int = 1
+const SERIALIZATION_SCHEMA_VERSION: int = 2
 
 
 # --- 私有变量 ---
@@ -75,7 +75,9 @@ func undo() -> Variant:
 		_log_error("GameStateSystem 不可用，无法撤销。")
 		return null
 
-	game_state_system.restore_state(snapshot)
+	if not game_state_system.restore_state(snapshot):
+		_log_error("撤销快照恢复失败；已取消棋盘动画与 HUD 刷新。")
+		return false
 
 	var board_snapshot: Dictionary = GFVariantData.get_option_dictionary(snapshot, &"board_snapshot")
 	send_simple_event(
@@ -83,7 +85,7 @@ func undo() -> Variant:
 		[board_snapshot, _reverse_target_map]
 	)
 	send_simple_event(EventNames.HUD_UPDATE_REQUESTED)
-	return null
+	return true
 
 
 ## 判断命令执行结果是否应该写入历史。
@@ -106,9 +108,8 @@ func serialize() -> Dictionary:
 ## 从序列化字典恢复移动命令。
 ## @param data: serialize() 产生的命令数据。
 static func deserialize(data: Dictionary) -> MoveCommand:
-	var schema_version: int = GFVariantData.get_option_int(data, &"schema_version", -1)
-	if schema_version != SERIALIZATION_SCHEMA_VERSION:
-		push_error("[MoveCommand] 不支持的序列化 schema 版本：%d。" % schema_version)
+	if not is_serialized_data_valid(data):
+		push_error("[MoveCommand] 拒绝反序列化无效命令或不可恢复快照。")
 		return null
 
 	var direction: Vector2i = Vector2i(
@@ -122,6 +123,50 @@ static func deserialize(data: Dictionary) -> MoveCommand:
 	cmd._reverse_target_map = GFVariantData.get_option_dictionary(data, &"reverse_map")
 	cmd._is_baseline = GFVariantData.get_option_bool(data, &"is_baseline", false)
 	return cmd
+
+
+## 在命令进入 GF 历史栈前校验完整当前 schema 与游戏状态快照。
+static func is_serialized_data_valid(data: Dictionary) -> bool:
+	if not (
+		data.size() == 6
+		and GFVariantData.get_option_value(data, &"schema_version") is int
+		and GFVariantData.get_option_value(data, &"direction_x") is int
+		and GFVariantData.get_option_value(data, &"direction_y") is int
+		and GFVariantData.get_option_value(data, &"snapshot") is Dictionary
+		and GFVariantData.get_option_value(data, &"reverse_map") is Dictionary
+		and GFVariantData.get_option_value(data, &"is_baseline") is bool
+	):
+		return false
+	if (
+		GFVariantData.get_option_int(data, &"schema_version", -1)
+		!= SERIALIZATION_SCHEMA_VERSION
+	):
+		return false
+
+	var direction: Vector2i = Vector2i(
+		GFVariantData.get_option_int(data, &"direction_x", 0),
+		GFVariantData.get_option_int(data, &"direction_y", 0)
+	)
+	var is_baseline: bool = GFVariantData.get_option_bool(data, &"is_baseline", false)
+	if is_baseline:
+		if direction != Vector2i.ZERO:
+			return false
+	elif absi(direction.x) + absi(direction.y) != 1:
+		return false
+
+	for source_key: Variant in GFVariantData.get_option_dictionary(
+		data,
+		&"reverse_map"
+	).keys():
+		if (
+			not source_key is String
+			or not GFVariantData.get_option_dictionary(data, &"reverse_map")[source_key]
+			is Vector2i
+		):
+			return false
+	return GameStateSystem.is_state_envelope_valid(
+		GFVariantData.get_option_dictionary(data, &"snapshot")
+	)
 
 
 # --- 私有/辅助方法 ---

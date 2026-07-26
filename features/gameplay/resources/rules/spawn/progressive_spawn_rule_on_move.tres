@@ -4,5 +4,7 @@
 
 [resource]
 script = ExtResource("1_5w6je")
+rule_state_id = &"spawn.progressive.move"
+rule_state_schema_version = 1
 priority = 10
 metadata/_custom_type_script = "uid://blmpobi7dgeot"

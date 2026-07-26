@@ -853,6 +853,9 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	var new_bookmark: BookmarkData = BookmarkData.new()
 	new_bookmark.timestamp = _get_unix_timestamp()
 	new_bookmark.mode_config_path = _mode_config_path
+	if not new_bookmark.configure_ruleset(_mode_config, _get_determinism_utility()):
+		_log_persistence_error("freeze bookmark ruleset", ERR_INVALID_DATA)
+		return
 
 	var seed_utility: GFSeedUtility = _get_seed_utility()
 	if is_instance_valid(seed_utility):
@@ -868,7 +871,9 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	new_bookmark.extra_stats = extra_stats.duplicate(true)
 	new_bookmark.rng_full_state = GFVariantData.to_dictionary(current_state_for_comparison.get(&"rng_full_state", {}))
 	new_bookmark.board_snapshot = GFVariantData.to_dictionary(current_state_for_comparison.get(&"board_snapshot", {}))
-	new_bookmark.rules_states = GFVariantData.to_array(current_state_for_comparison.get(&"rules_states", []))
+	new_bookmark.rules_states = GFVariantData.to_dictionary(
+		current_state_for_comparison.get(&"rules_states", {})
+	)
 
 	var command_history: GFCommandHistoryUtility = _get_command_history_utility()
 	if is_instance_valid(command_history):

@@ -43,18 +43,117 @@ func dispose() -> void:
 
 ## 注册一个规则列表到管理器中。
 ## @param p_rules: 包含所有 SpawnRule 实例的数组。
-func register_rules(p_rules: Array[SpawnRule]) -> void:
+## @return: 规则状态身份完整且唯一时返回 true；失败时保留原规则。
+func register_rules(p_rules: Array[SpawnRule]) -> bool:
+	if not are_rules_state_compatible(p_rules):
+		push_error("[RuleSystem] 拒绝注册缺少稳定状态 ID、schema 无效或 ID 重复的规则列表。")
+		return false
+
 	var next_rules: Array[SpawnRule] = p_rules.duplicate()
 	clear_rules()
 	_rules = next_rules
 
 	for rule: SpawnRule in _rules:
 		rule.setup()
+	return true
 
 
 ## 获取所有的生成规则，用于序列化。
 func get_all_spawn_rules() -> Array[SpawnRule]:
 	return _rules
+
+
+## 按稳定 rule_state_id 捕获规则状态，数组重排不会改变恢复语义。
+static func capture_rule_states(rules: Array[SpawnRule]) -> Dictionary:
+	if not are_rules_state_compatible(rules):
+		return {}
+	var result: Dictionary = {}
+	for rule: SpawnRule in rules:
+		var state_id: String = String(rule.rule_state_id)
+		result[state_id] = {
+			&"rule_state_id": rule.rule_state_id,
+			&"schema_version": rule.rule_state_schema_version,
+			&"state": GFVariantData.duplicate_variant(rule.get_state(), true, false),
+		}
+	return result
+
+
+## 校验规则状态字典是否与目标规则集合完全一致。
+static func are_rule_states_valid(
+	rules_states: Dictionary,
+	rules: Array[SpawnRule]
+) -> bool:
+	if not are_rules_state_compatible(rules) or rules_states.size() != rules.size():
+		return false
+
+	for state_key: Variant in rules_states.keys():
+		if not state_key is String:
+			return false
+
+	for rule: SpawnRule in rules:
+		var state_id: String = String(rule.rule_state_id)
+		if not rules_states.has(state_id):
+			return false
+		var entry_value: Variant = rules_states[state_id]
+		if not entry_value is Dictionary:
+			return false
+		var entry: Dictionary = entry_value
+		if not (
+			entry.size() == 3
+			and GFVariantData.get_option_value(entry, &"rule_state_id") is StringName
+			and GFVariantData.get_option_value(entry, &"schema_version") is int
+			and entry.has(&"state")
+		):
+			return false
+		if (
+			GFVariantData.get_option_string_name(entry, &"rule_state_id")
+			!= rule.rule_state_id
+			or GFVariantData.get_option_int(entry, &"schema_version", 0)
+			!= rule.rule_state_schema_version
+			or not rule.is_state_valid(entry[&"state"])
+		):
+			return false
+	return true
+
+
+## 原子应用一组已经按稳定 ID 键控的规则状态。
+static func restore_rule_states(
+	rules_states: Dictionary,
+	rules: Array[SpawnRule]
+) -> bool:
+	if not are_rule_states_valid(rules_states, rules):
+		return false
+
+	var previous_states: Dictionary = capture_rule_states(rules)
+	for rule: SpawnRule in rules:
+		var state_id: String = String(rule.rule_state_id)
+		var entry: Dictionary = rules_states[state_id]
+		if rule.set_state(GFVariantData.duplicate_variant(entry[&"state"], true, false)):
+			continue
+
+		for rollback_rule: SpawnRule in rules:
+			var rollback_id: String = String(rollback_rule.rule_state_id)
+			var rollback_entry: Dictionary = previous_states[rollback_id]
+			var _rolled_back: bool = rollback_rule.set_state(
+				GFVariantData.duplicate_variant(rollback_entry[&"state"], true, false)
+			)
+		return false
+	return true
+
+
+## 判断规则集合是否具备稳定且唯一的状态身份。
+static func are_rules_state_compatible(rules: Array[SpawnRule]) -> bool:
+	var seen_ids: Dictionary = {}
+	for rule: SpawnRule in rules:
+		if (
+			not is_instance_valid(rule)
+			or rule.rule_state_id == &""
+			or rule.rule_state_schema_version <= 0
+			or seen_ids.has(rule.rule_state_id)
+		):
+			return false
+		seen_ids[rule.rule_state_id] = true
+	return true
 
 
 ## 清除所有规则。

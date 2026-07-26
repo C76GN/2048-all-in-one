@@ -92,7 +92,7 @@ func calculate_state_checksum(
 			false
 		),
 		&"extra_stats": GFVariantData.get_option_dictionary(full_state, &"extra_stats"),
-		&"rules_states": GFVariantData.get_option_array(full_state, &"rules_states"),
+		&"rules_states": GFVariantData.get_option_dictionary(full_state, &"rules_states"),
 	})
 
 

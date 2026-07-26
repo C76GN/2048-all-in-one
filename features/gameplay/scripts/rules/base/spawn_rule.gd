@@ -25,6 +25,13 @@ enum TriggerType {
 
 # --- 导出变量 ---
 
+## 用于书签、撤销与回放恢复的稳定规则状态标识。
+## 同一模式中的每条生成规则必须唯一，且不得依赖数组位置。
+@export var rule_state_id: StringName = &""
+
+## 当前规则状态载荷的严格 schema 版本。
+@export_range(1, 2147483647, 1) var rule_state_schema_version: int = 1
+
 ## 规则的触发条件。
 @export var trigger: TriggerType = TriggerType.ON_MOVE
 
@@ -72,6 +79,20 @@ func get_validation_report() -> GFValidationReport:
 		"SpawnRule:%s" % get_class(),
 		{&"resource_path": resource_path}
 	)
+	if rule_state_id == &"":
+		var _missing_state_id_issue: RefCounted = report.add_error(
+			&"missing_rule_state_id",
+			"rule_state_id 不能为空。",
+			&"rule_state_id",
+			resource_path
+		)
+	if rule_state_schema_version <= 0:
+		var _invalid_state_schema_issue: RefCounted = report.add_error(
+			&"invalid_rule_state_schema_version",
+			"rule_state_schema_version 必须大于 0。",
+			&"rule_state_schema_version",
+			resource_path
+		)
 	if trigger == TriggerType.ON_TIMER:
 		var _unsupported_trigger_issue: RefCounted = report.add_error(
 			&"unsupported_timer_trigger",
@@ -94,8 +115,15 @@ func get_state() -> Variant:
 	return null
 
 
+## 判断一个反序列化状态是否符合当前规则版本。
+## 无内部状态的基类只接受 null。
+func is_state_valid(state: Variant) -> bool:
+	return state == null
+
+
 ## 从一个状态值恢复规则的内部状态。
 ##
 ## @param _state: 从历史记录中加载的状态值。
-func set_state(_state: Variant) -> void:
-	pass
+## @return: 状态被完整接受并应用时返回 true。
+func set_state(state: Variant) -> bool:
+	return is_state_valid(state)

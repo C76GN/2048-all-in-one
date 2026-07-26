@@ -102,6 +102,7 @@ func get_validation_report() -> GFValidationReport:
 	if spawn_rules.is_empty():
 		_add_config_error(report, &"empty_spawn_rules", "spawn_rules 为空，游戏将无法生成方块。", &"spawn_rules")
 
+	var seen_rule_state_ids: Dictionary = {}
 	for i: int in range(spawn_rules.size()):
 		if not is_instance_valid(spawn_rules[i]):
 			_add_config_error(
@@ -116,6 +117,17 @@ func get_validation_report() -> GFValidationReport:
 			spawn_rule.get_validation_report(),
 			false
 		)
+		if spawn_rule.rule_state_id != &"":
+			if seen_rule_state_ids.has(spawn_rule.rule_state_id):
+				_add_config_error(
+					report,
+					&"duplicate_rule_state_id",
+					"spawn_rules[%d] 的 rule_state_id 与同模式中的其他规则重复：%s。"
+					% [i, spawn_rule.rule_state_id],
+					"spawn_rules/%d/rule_state_id" % i
+				)
+			else:
+				seen_rule_state_ids[spawn_rule.rule_state_id] = true
 		if is_instance_valid(interaction_rule):
 			for definition_id: StringName in spawn_rule.get_referenced_definition_ids():
 				if interaction_rule.get_tile_definition(definition_id) == null:

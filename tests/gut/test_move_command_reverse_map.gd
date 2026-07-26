@@ -40,7 +40,7 @@ func test_deserialize_preserves_reverse_targets() -> void:
 		&"schema_version": MoveCommand.SERIALIZATION_SCHEMA_VERSION,
 		&"direction_x": -1,
 		&"direction_y": 0,
-		&"snapshot": {},
+		&"snapshot": _make_empty_game_state(),
 		&"reverse_map": {
 			"1,2": Vector2i(0, 2),
 		},
@@ -115,6 +115,57 @@ func test_records_reverse_targets_while_command_runs_inside_simple_event() -> vo
 	architecture.dispose()
 
 
+func test_failed_undo_does_not_emit_board_animation_or_hud_refresh() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var rejecting_state_system: RejectingGameStateSystem = RejectingGameStateSystem.new()
+	await architecture.register_system(GameStateSystem, rejecting_state_system)
+	var event_counts: Dictionary = {
+		&"board": 0,
+		&"hud": 0,
+	}
+	architecture.register_simple_event(
+		EventNames.BOARD_UNDO_ANIMATION_REQUESTED,
+		GFEventListener.from_callable(
+			func(_payload: Variant) -> void:
+				event_counts[&"board"] = GFVariantData.get_option_int(
+					event_counts,
+					&"board",
+					0
+				) + 1,
+			1
+		)
+	)
+	architecture.register_simple_event(
+		EventNames.HUD_UPDATE_REQUESTED,
+		GFEventListener.from_callable(
+			func(_payload: Variant) -> void:
+				event_counts[&"hud"] = GFVariantData.get_option_int(
+					event_counts,
+					&"hud",
+					0
+				) + 1,
+			1
+		)
+	)
+	await architecture.init()
+
+	var command: MoveCommand = MoveCommand.new(Vector2i.LEFT)
+	command.inject_dependencies(architecture)
+	assert_true(command.set_snapshot(_make_empty_game_state()), "撤销失败测试快照应可注入。")
+	assert_false(command.undo(), "逻辑状态恢复失败时 MoveCommand.undo 应明确返回 false。")
+	assert_push_error("撤销快照恢复失败")
+	assert_true(
+		GFVariantData.get_option_int(event_counts, &"board", 0) == 0,
+		"恢复失败时不得请求棋盘撤销动画。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(event_counts, &"hud", 0) == 0,
+		"恢复失败时不得请求 HUD 刷新。"
+	)
+
+	architecture.dispose()
+
+
 # --- 私有/辅助方法 ---
 
 func _get_vector2i(source: Dictionary, key: String) -> Vector2i:
@@ -137,3 +188,34 @@ func _load_classic_definition() -> TileDefinition:
 		return definition
 	assert_true(false, "无法加载经典 TileDefinition。")
 	return null
+
+
+func _make_empty_game_state() -> Dictionary:
+	var topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(2, 1))
+	var seed_utility: GFSeedUtility = GFSeedUtility.new()
+	seed_utility.init()
+	return {
+		&"schema_version": GameStateSystem.STATE_SCHEMA_VERSION,
+		&"board_key": topology.get_stable_key(),
+		&"board_snapshot": {
+			&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
+			&"topology": topology.to_dict(),
+			&"tiles": [],
+		},
+		&"rng_full_state": seed_utility.get_full_state(),
+		&"score": 0,
+		&"move_count": 0,
+		&"highest_tile": 0,
+		&"ratio_resolutions": 0,
+		&"target_tile_value": 0,
+		&"target_reached": false,
+		&"extra_stats": {},
+		&"rules_states": {},
+	}
+
+
+# --- 内部类 ---
+
+class RejectingGameStateSystem extends GameStateSystem:
+	func restore_state(_state_to_restore: Dictionary) -> bool:
+		return false

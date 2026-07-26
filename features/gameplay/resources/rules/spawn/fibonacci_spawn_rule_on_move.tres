@@ -4,5 +4,7 @@
 
 [resource]
 script = ExtResource("1_iejyd")
+rule_state_id = &"spawn.fibonacci.move"
+rule_state_schema_version = 1
 priority = 10
 metadata/_custom_type_script = "uid://byw1xfby61af1"

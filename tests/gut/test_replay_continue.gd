@@ -144,6 +144,8 @@ func test_game_flow_rejects_zero_direction_move_for_undo() -> void:
 	var command_history: GFCommandHistoryUtility = _make_history([
 		_make_move_command_data(Vector2i.ZERO, false),
 	])
+	assert_push_error("拒绝反序列化无效命令或不可恢复快照")
+	assert_true(command_history.undo_count == 0, "无效零方向命令不得进入 GF undo 栈。")
 
 	assert_true(
 		not flow_system._can_undo_player_move(command_history),
@@ -184,7 +186,6 @@ func test_game_flow_rejects_baseline_only_redo_history() -> void:
 			_make_move_command_data(Vector2i.ZERO, true),
 		]
 	)
-
 	assert_true(
 		not flow_system._can_redo_player_move(command_history),
 		"baseline 快照不应被视为可重做的玩家移动。"
@@ -199,6 +200,8 @@ func test_game_flow_rejects_zero_direction_move_for_redo() -> void:
 			_make_move_command_data(Vector2i.ZERO, false),
 		]
 	)
+	assert_push_error("拒绝反序列化无效命令或不可恢复快照")
+	assert_true(command_history.redo_count == 0, "无效零方向命令不得进入 GF redo 栈。")
 
 	assert_true(
 		not flow_system._can_redo_player_move(command_history),
@@ -247,7 +250,31 @@ func _make_move_command_data(direction: Vector2i, is_baseline: bool) -> Dictiona
 		&"schema_version": MoveCommand.SERIALIZATION_SCHEMA_VERSION,
 		&"direction_x": direction.x,
 		&"direction_y": direction.y,
-		&"snapshot": {},
+		&"snapshot": _make_empty_game_state(),
 		&"reverse_map": {},
 		&"is_baseline": is_baseline,
+	}
+
+
+func _make_empty_game_state() -> Dictionary:
+	var topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(2, 1))
+	var seed_utility: GFSeedUtility = GFSeedUtility.new()
+	seed_utility.init()
+	return {
+		&"schema_version": GameStateSystem.STATE_SCHEMA_VERSION,
+		&"board_key": topology.get_stable_key(),
+		&"board_snapshot": {
+			&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
+			&"topology": topology.to_dict(),
+			&"tiles": [],
+		},
+		&"rng_full_state": seed_utility.get_full_state(),
+		&"score": 0,
+		&"move_count": 0,
+		&"highest_tile": 0,
+		&"ratio_resolutions": 0,
+		&"target_tile_value": 0,
+		&"target_reached": false,
+		&"extra_stats": {},
+		&"rules_states": {},
 	}

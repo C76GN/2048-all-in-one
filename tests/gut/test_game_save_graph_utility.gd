@@ -592,6 +592,9 @@ func test_bookmark_schema_preserves_historical_target_achievement() -> void:
 	bookmark.highest_tile = 1024
 	bookmark.target_tile_value = 2048
 	bookmark.target_reached = true
+	bookmark.board_snapshot[&"tiles"] = [
+		_make_classic_tile_snapshot(Vector2i.ZERO, 1024, 902001),
+	]
 
 	var restored: BookmarkData = BookmarkData.from_dict(bookmark.to_dict())
 
@@ -628,6 +631,27 @@ func test_bookmark_schema_preserves_strict_replay_trace_prefix() -> void:
 	assert_true(
 		BookmarkData.from_dict(incomplete_payload) == null,
 		"actions/checkpoints 数量不一致的书签必须被当前严格 schema 拒绝。"
+	)
+
+
+func test_bookmark_schema_requires_strict_ruleset_identity() -> void:
+	var bookmark: BookmarkData = _make_bookmark(904, 128)
+	bookmark.bookmark_id = GFUuid.generate_v7(904000)
+	var restored: BookmarkData = BookmarkData.from_dict(bookmark.to_dict())
+
+	assert_true(restored != null, "完整规则集身份应通过书签 schema。")
+	if restored != null:
+		assert_true(restored.ruleset_id == bookmark.ruleset_id, "ruleset_id 必须原样恢复。")
+		assert_true(
+			restored.ruleset_fingerprint == bookmark.ruleset_fingerprint,
+			"规则集内容指纹必须原样恢复。"
+		)
+
+	var invalid_fingerprint_payload: Dictionary = bookmark.to_dict()
+	invalid_fingerprint_payload["ruleset_fingerprint"] = "not-a-current-fingerprint"
+	assert_true(
+		BookmarkData.from_dict(invalid_fingerprint_payload) == null,
+		"书签必须拒绝缺失严格 64 位十六进制内容指纹的规则集身份。"
 	)
 
 
@@ -813,8 +837,26 @@ func _make_bookmark(timestamp: int, score: int) -> BookmarkData:
 	var bookmark: BookmarkData = BookmarkData.new()
 	bookmark.timestamp = timestamp
 	bookmark.mode_config_path = "res://features/gameplay/resources/modes/classic_mode_config.tres"
+	var mode_resource: Resource = load(bookmark.mode_config_path)
+	if mode_resource is GameModeConfig:
+		var mode_config: GameModeConfig = mode_resource
+		bookmark.ruleset_id = mode_config.ruleset_id
+		bookmark.ruleset_version = mode_config.ruleset_version
+		bookmark.ruleset_fingerprint = GameDeterminismUtility.new().calculate_ruleset_fingerprint(
+			mode_config
+		)
+		bookmark.rules_states = RuleSystem.capture_rule_states(mode_config.spawn_rules)
+	var seed_utility: GFSeedUtility = GFSeedUtility.new()
+	seed_utility.init()
+	seed_utility.set_global_seed(2048)
+	bookmark.initial_seed = 2048
+	bookmark.rng_full_state = seed_utility.get_full_state()
 	bookmark.score = score
 	bookmark.board_snapshot = _make_empty_board_snapshot()
+	bookmark.game_state_history = {
+		"undo": [],
+		"redo": [],
+	}
 	return bookmark
 
 
@@ -860,6 +902,22 @@ func _make_empty_board_snapshot(topology: BoardTopology = null) -> Dictionary:
 		&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
 		&"topology": resolved_topology.to_dict(),
 		&"tiles": [],
+	}
+
+
+func _make_classic_tile_snapshot(
+	position: Vector2i,
+	value: int,
+	timestamp_msec: int
+) -> Dictionary:
+	return {
+		&"schema_version": TileState.SERIALIZATION_SCHEMA_VERSION,
+		&"tile_id": GFUuid.generate_v7(timestamp_msec),
+		&"definition_id": &"tile.classic.numeric",
+		&"value": value,
+		&"capability_recipe_ids": [&"tile.recipe.classic_merge"],
+		&"capability_state": {},
+		&"pos": position,
 	}
 
 

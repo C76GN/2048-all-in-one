@@ -102,77 +102,36 @@ func get_snapshot() -> Dictionary:
 ## 从当前严格快照原子恢复棋盘；失败时保留原状态。
 ## @param snapshot: GridModel.get_snapshot() 产生的当前 schema 数据。
 func restore_from_snapshot(snapshot: Dictionary) -> bool:
-	if not is_snapshot_envelope_valid(snapshot):
-		push_error("[GridModel] 拒绝恢复不符合当前严格结构的棋盘快照。")
+	var prepared: Dictionary = _prepare_snapshot_restore(snapshot, interaction_rule, true)
+	if prepared.is_empty():
 		return false
-	if GFVariantData.get_option_int(snapshot, &"schema_version", 0) != SNAPSHOT_SCHEMA_VERSION:
-		push_error("[GridModel] 拒绝恢复未知棋盘快照 schema。")
-		return false
-	if interaction_rule == null or _tile_composition_utility == null:
-		push_error("[GridModel] 无法恢复方块快照：组合工具或交互规则不可用。")
-		return false
-
-	var restored_topology: BoardTopology = BoardTopology.from_dict(
-		GFVariantData.get_option_dictionary(snapshot, &"topology")
-	)
-	if restored_topology == null:
-		push_error("[GridModel] 棋盘快照包含无效拓扑。")
-		return false
-
-	var tiles_data: Array = GFVariantData.get_option_array(snapshot, &"tiles")
-	if tiles_data.size() > restored_topology.get_cell_count():
-		push_error("[GridModel] 棋盘快照方块数量超过活跃单元容量。")
-		return false
-
-	var restored_tiles_by_cell: Dictionary = {}
-	var restored_tiles: Array[TileState] = []
-	var seen_tile_ids: Dictionary = {}
-	for raw_tile_info: Variant in tiles_data:
-		if not raw_tile_info is Dictionary:
-			_release_tiles(restored_tiles)
-			push_error("[GridModel] 方块快照包含非 Dictionary 项。")
-			return false
-		var tile_info: Dictionary = raw_tile_info
-		if tile_info.size() != 7 or not tile_info.has(&"pos") or not tile_info[&"pos"] is Vector2i:
-			_release_tiles(restored_tiles)
-			push_error("[GridModel] 方块快照条目结构无效。")
-			return false
-		var pos: Vector2i = tile_info[&"pos"]
-		if not restored_topology.contains_cell(pos) or restored_tiles_by_cell.has(pos):
-			_release_tiles(restored_tiles)
-			push_error("[GridModel] 方块快照位置不活跃或重复：%s。" % pos)
-			return false
-
-		var tile_payload: Dictionary = tile_info.duplicate(true)
-		var _position_erased: bool = tile_payload.erase(&"pos")
-		if not tile_payload.has(&"tile_id") or not tile_payload[&"tile_id"] is String:
-			_release_tiles(restored_tiles)
-			push_error("[GridModel] 方块快照缺少严格 tile_id。")
-			return false
-		var tile_id: String = tile_payload[&"tile_id"]
-		if seen_tile_ids.has(tile_id):
-			_release_tiles(restored_tiles)
-			push_error("[GridModel] 方块快照包含重复 tile_id：%s。" % tile_id)
-			return false
-		seen_tile_ids[tile_id] = true
-
-		var definition_id: StringName = (
-			tile_payload[&"definition_id"]
-			if tile_payload.has(&"definition_id") and tile_payload[&"definition_id"] is StringName
-			else &""
-		)
-		var definition: TileDefinition = interaction_rule.get_tile_definition(definition_id)
-		var tile: TileState = _tile_composition_utility.restore_tile(tile_payload, definition)
-		if tile == null:
-			_release_tiles(restored_tiles)
-			push_error("[GridModel] 方块快照不符合当前严格 schema：%s。" % tile_info)
-			return false
-		restored_tiles_by_cell[pos] = tile
-		restored_tiles.append(tile)
 
 	_release_grid_tiles()
-	topology = restored_topology
-	_tiles_by_cell = restored_tiles_by_cell
+	topology = prepared[&"topology"]
+	_tiles_by_cell = prepared[&"tiles_by_cell"]
+	return true
+
+
+## 使用给定交互规则完整预演快照恢复；不会修改当前棋盘。
+## @param snapshot: 待验证的严格棋盘快照。
+## @param candidate_interaction_rule: 初始化事务准备使用的交互规则；为空时使用当前规则。
+func can_restore_snapshot(
+	snapshot: Dictionary,
+	candidate_interaction_rule: InteractionRule = null
+) -> bool:
+	var rule: InteractionRule = (
+		candidate_interaction_rule
+		if is_instance_valid(candidate_interaction_rule)
+		else interaction_rule
+	)
+	var prepared: Dictionary = _prepare_snapshot_restore(snapshot, rule, false)
+	if prepared.is_empty():
+		return false
+	var prepared_tiles: Array[TileState] = []
+	for tile_value: Variant in GFVariantData.get_option_array(prepared, &"tiles"):
+		if tile_value is TileState:
+			prepared_tiles.append(tile_value)
+	_release_tiles(prepared_tiles)
 	return true
 
 
@@ -355,6 +314,94 @@ static func is_snapshot_envelope_valid(snapshot: Dictionary) -> bool:
 
 
 # --- 私有/辅助方法 ---
+
+func _prepare_snapshot_restore(
+	snapshot: Dictionary,
+	restore_interaction_rule: InteractionRule,
+	report_errors: bool
+) -> Dictionary:
+	if not is_snapshot_envelope_valid(snapshot):
+		return _snapshot_restore_failure(
+			"拒绝恢复不符合当前严格结构的棋盘快照。",
+			report_errors
+		)
+	if not is_instance_valid(restore_interaction_rule) or _tile_composition_utility == null:
+		return _snapshot_restore_failure(
+			"无法恢复方块快照：组合工具或交互规则不可用。",
+			report_errors
+		)
+
+	var restored_topology: BoardTopology = BoardTopology.from_dict(
+		GFVariantData.get_option_dictionary(snapshot, &"topology")
+	)
+	if restored_topology == null:
+		return _snapshot_restore_failure("棋盘快照包含无效拓扑。", report_errors)
+
+	var restored_tiles_by_cell: Dictionary = {}
+	var restored_tiles: Array[TileState] = []
+	var seen_tile_ids: Dictionary = {}
+	for raw_tile_info: Variant in GFVariantData.get_option_array(snapshot, &"tiles"):
+		if not raw_tile_info is Dictionary:
+			_release_tiles(restored_tiles)
+			return _snapshot_restore_failure(
+				"方块快照包含非 Dictionary 项。",
+				report_errors
+			)
+		var tile_info: Dictionary = raw_tile_info
+		var pos: Vector2i = tile_info[&"pos"]
+		if not restored_topology.contains_cell(pos) or restored_tiles_by_cell.has(pos):
+			_release_tiles(restored_tiles)
+			return _snapshot_restore_failure(
+				"方块快照位置不活跃或重复：%s。" % pos,
+				report_errors
+			)
+
+		var tile_payload: Dictionary = tile_info.duplicate(true)
+		var _position_erased: bool = tile_payload.erase(&"pos")
+		var tile_id: String = GFVariantData.get_option_string(tile_payload, &"tile_id")
+		if seen_tile_ids.has(tile_id):
+			_release_tiles(restored_tiles)
+			return _snapshot_restore_failure(
+				"方块快照包含重复 tile_id：%s。" % tile_id,
+				report_errors
+			)
+		seen_tile_ids[tile_id] = true
+
+		var definition_id: StringName = GFVariantData.get_option_string_name(
+			tile_payload,
+			&"definition_id"
+		)
+		var definition: TileDefinition = restore_interaction_rule.get_tile_definition(
+			definition_id
+		)
+		if definition == null:
+			_release_tiles(restored_tiles)
+			return _snapshot_restore_failure(
+				"方块快照引用当前规则未声明的 definition_id：%s。" % definition_id,
+				report_errors
+			)
+		var tile: TileState = _tile_composition_utility.restore_tile(tile_payload, definition)
+		if tile == null:
+			_release_tiles(restored_tiles)
+			return _snapshot_restore_failure(
+				"方块快照不符合当前规则：%s。" % tile_info,
+				report_errors
+			)
+		restored_tiles_by_cell[pos] = tile
+		restored_tiles.append(tile)
+
+	return {
+		&"topology": restored_topology,
+		&"tiles_by_cell": restored_tiles_by_cell,
+		&"tiles": restored_tiles,
+	}
+
+
+func _snapshot_restore_failure(message: String, report_errors: bool) -> Dictionary:
+	if report_errors:
+		push_error("[GridModel] %s" % message)
+	return {}
+
 
 func _release_grid_tiles() -> void:
 	_release_tiles(get_all_tiles())

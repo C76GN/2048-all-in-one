@@ -4,6 +4,8 @@
 
 [resource]
 script = ExtResource("1_1sahg")
+rule_state_id = &"spawn.ratio_probability.move"
+rule_state_schema_version = 1
 priority = 20
 alternate_definition_id = &"tile.ratio.factor"
 metadata/_custom_type_script = "uid://bbsc8cax1618a"

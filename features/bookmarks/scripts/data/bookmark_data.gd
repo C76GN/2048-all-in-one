@@ -6,7 +6,14 @@ class_name BookmarkData
 extends Resource
 
 
+# --- 常量 ---
+
+const SCHEMA_VERSION: int = 2
+
+
 # --- 导出变量 ---
+
+@export var schema_version: int = SCHEMA_VERSION
 
 ## 书签的稳定 UUID v7 标识。
 @export var bookmark_id: String = ""
@@ -16,6 +23,15 @@ extends Resource
 
 ## 该局游戏使用的模式配置资源路径。
 @export var mode_config_path: String = ""
+
+## 保存时冻结的稳定玩法规则集 ID。
+@export var ruleset_id: StringName = &""
+
+## 保存时冻结的玩法规则集版本。
+@export var ruleset_version: int = 0
+
+## 保存时冻结的完整玩法内容指纹。
+@export var ruleset_fingerprint: String = ""
 
 ## 游戏状态的游戏种子。
 @export var initial_seed: int = 0
@@ -48,7 +64,7 @@ extends Resource
 @export var board_snapshot: Dictionary = {}
 
 ## 保存生成规则的内部状态。
-@export var rules_states: Array = []
+@export var rules_states: Dictionary = {}
 
 ## 保存完整的撤回历史记录。
 @export var game_state_history: Dictionary = {}
@@ -62,6 +78,33 @@ extends Resource
 
 # --- 公共方法 ---
 
+## 从当前模式冻结书签规则集身份。
+func configure_ruleset(
+	mode_config: GameModeConfig,
+	determinism: GameDeterminismUtility
+) -> bool:
+	if not is_instance_valid(mode_config) or not is_instance_valid(determinism):
+		return false
+	ruleset_id = mode_config.ruleset_id
+	ruleset_version = mode_config.ruleset_version
+	ruleset_fingerprint = determinism.calculate_ruleset_fingerprint(mode_config)
+	return _is_valid_fingerprint(ruleset_fingerprint)
+
+
+## 判断书签规则集是否与当前模式完全匹配。
+func matches_ruleset(
+	mode_config: GameModeConfig,
+	determinism: GameDeterminismUtility
+) -> bool:
+	return (
+		is_instance_valid(mode_config)
+		and is_instance_valid(determinism)
+		and ruleset_id == mode_config.ruleset_id
+		and ruleset_version == mode_config.ruleset_version
+		and ruleset_fingerprint == determinism.calculate_ruleset_fingerprint(mode_config)
+	)
+
+
 ## 转换为 SaveGraph 可持久化字典。
 func to_dict() -> Dictionary:
 	var checkpoint_data: Array[Dictionary] = []
@@ -69,9 +112,13 @@ func to_dict() -> Dictionary:
 		if checkpoint != null:
 			checkpoint_data.append(checkpoint.to_dict())
 	return {
+		"schema_version": SCHEMA_VERSION,
 		"bookmark_id": bookmark_id,
 		"timestamp": timestamp,
 		"mode_config_path": mode_config_path,
+		"ruleset_id": ruleset_id,
+		"ruleset_version": ruleset_version,
+		"ruleset_fingerprint": ruleset_fingerprint,
 		"initial_seed": initial_seed,
 		"score": score,
 		"move_count": move_count,
@@ -96,11 +143,15 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 		return null
 
 	var result: BookmarkData = BookmarkData.new()
+	result.schema_version = GFVariantData.get_option_int(data, "schema_version", 0)
 	result.bookmark_id = GFVariantData.get_option_string(data, "bookmark_id")
 	if not GFUuid.is_valid(result.bookmark_id, 7):
 		return null
 	result.timestamp = GFVariantData.get_option_int(data, "timestamp")
 	result.mode_config_path = GFVariantData.get_option_string(data, "mode_config_path")
+	result.ruleset_id = GFVariantData.get_option_string_name(data, "ruleset_id")
+	result.ruleset_version = GFVariantData.get_option_int(data, "ruleset_version", 0)
+	result.ruleset_fingerprint = GFVariantData.get_option_string(data, "ruleset_fingerprint")
 	result.initial_seed = GFVariantData.get_option_int(data, "initial_seed")
 	result.score = GFVariantData.get_option_int(data, "score")
 	result.move_count = GFVariantData.get_option_int(data, "move_count")
@@ -113,7 +164,7 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	result.board_snapshot = GFVariantData.get_option_dictionary(data, "board_snapshot").duplicate(true)
 	if not GridModel.is_snapshot_envelope_valid(result.board_snapshot):
 		return null
-	result.rules_states = GFVariantData.get_option_array(data, "rules_states").duplicate(true)
+	result.rules_states = GFVariantData.get_option_dictionary(data, "rules_states").duplicate(true)
 	result.game_state_history = GFVariantData.get_option_dictionary(data, "game_state_history").duplicate(true)
 	for action_value: Variant in GFVariantData.get_option_array(data, "replay_actions"):
 		if not action_value is Vector2i:
@@ -129,18 +180,26 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 		result.replay_checkpoints.append(checkpoint)
 	if not result._has_valid_replay_trace():
 		return null
+	if not result._has_valid_game_state_payload() or not _is_valid_history(
+		result.game_state_history
+	):
+		return null
 	return result
 
 
 # --- 私有/辅助方法 ---
 
 static func _has_valid_persisted_shape(data: Dictionary) -> bool:
-	if data.size() != 17:
+	if data.size() != 21:
 		return false
 	var has_expected_types: bool = (
-		GFVariantData.get_option_value(data, "bookmark_id") is String
+		GFVariantData.get_option_value(data, "schema_version") is int
+		and GFVariantData.get_option_value(data, "bookmark_id") is String
 		and GFVariantData.get_option_value(data, "timestamp") is int
 		and GFVariantData.get_option_value(data, "mode_config_path") is String
+		and GFVariantData.get_option_value(data, "ruleset_id") is StringName
+		and GFVariantData.get_option_value(data, "ruleset_version") is int
+		and GFVariantData.get_option_value(data, "ruleset_fingerprint") is String
 		and GFVariantData.get_option_value(data, "initial_seed") is int
 		and GFVariantData.get_option_value(data, "score") is int
 		and GFVariantData.get_option_value(data, "move_count") is int
@@ -151,14 +210,27 @@ static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 		and GFVariantData.get_option_value(data, "extra_stats") is Dictionary
 		and GFVariantData.get_option_value(data, "rng_full_state") is Dictionary
 		and GFVariantData.get_option_value(data, "board_snapshot") is Dictionary
-		and GFVariantData.get_option_value(data, "rules_states") is Array
+		and GFVariantData.get_option_value(data, "rules_states") is Dictionary
 		and GFVariantData.get_option_value(data, "game_state_history") is Dictionary
 		and GFVariantData.get_option_value(data, "replay_actions") is Array
 		and GFVariantData.get_option_value(data, "replay_checkpoints") is Array
 	)
 	if not has_expected_types:
 		return false
-	return _has_valid_target_state(data)
+	return (
+		GFVariantData.get_option_int(data, "schema_version", 0) == SCHEMA_VERSION
+		and GFVariantData.get_option_int(data, "timestamp", -1) >= 0
+		and not GFVariantData.get_option_string(data, "mode_config_path").is_empty()
+		and GFVariantData.get_option_string_name(data, "ruleset_id") != &""
+		and GFVariantData.get_option_int(data, "ruleset_version", 0) > 0
+		and _is_valid_fingerprint(
+			GFVariantData.get_option_string(data, "ruleset_fingerprint")
+		)
+		and GFVariantData.get_option_int(data, "score", -1) >= 0
+		and GFVariantData.get_option_int(data, "move_count", -1) >= 0
+		and GFVariantData.get_option_int(data, "ratio_resolutions", -1) >= 0
+		and _has_valid_target_state(data)
+	)
 
 
 static func _has_valid_target_state(data: Dictionary) -> bool:
@@ -184,4 +256,56 @@ func _has_valid_replay_trace() -> bool:
 			return false
 	if not replay_checkpoints.is_empty() and replay_checkpoints.back().score != score:
 		return false
+	return true
+
+
+func _has_valid_game_state_payload() -> bool:
+	var topology: BoardTopology = BoardTopology.from_dict(
+		GFVariantData.get_option_dictionary(board_snapshot, &"topology")
+	)
+	if topology == null:
+		return false
+	return GameStateSystem.is_state_envelope_valid({
+		&"schema_version": GameStateSystem.STATE_SCHEMA_VERSION,
+		&"board_key": topology.get_stable_key(),
+		&"board_snapshot": board_snapshot,
+		&"rng_full_state": rng_full_state,
+		&"score": score,
+		&"move_count": move_count,
+		&"highest_tile": highest_tile,
+		&"ratio_resolutions": ratio_resolutions,
+		&"target_tile_value": target_tile_value,
+		&"target_reached": target_reached,
+		&"extra_stats": extra_stats,
+		&"rules_states": rules_states,
+	})
+
+
+static func _is_valid_history(history: Dictionary) -> bool:
+	if not (
+		history.size() == 2
+		and GFVariantData.get_option_value(history, "undo") is Array
+		and GFVariantData.get_option_value(history, "redo") is Array
+	):
+		return false
+	for stack_key: String in ["undo", "redo"]:
+		for command_value: Variant in GFVariantData.get_option_array(history, stack_key):
+			if not command_value is Dictionary:
+				return false
+			var command_data: Dictionary = command_value
+			if not MoveCommand.is_serialized_data_valid(command_data):
+				return false
+	return true
+
+
+static func _is_valid_fingerprint(value: String) -> bool:
+	if value.length() != 64:
+		return false
+	for index: int in range(value.length()):
+		var character: String = value.substr(index, 1).to_lower()
+		if not (
+			(character >= "0" and character <= "9")
+			or (character >= "a" and character <= "f")
+		):
+			return false
 	return true

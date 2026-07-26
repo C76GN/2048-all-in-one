@@ -4,6 +4,8 @@
 
 [resource]
 script = ExtResource("1_xvu88")
+rule_state_id = &"spawn.fibonacci.initialize"
+rule_state_schema_version = 1
 consumes_event_on_success = false
 trigger = 0
 priority = 100

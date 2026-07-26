@@ -17,6 +17,7 @@ const _LEVEL_SOURCE_REPLAY: StringName = &"replay"
 var _seed_utility: GFSeedUtility
 var _rule_system: RuleSystem
 var _game_flow_system: GameFlowSystem
+var _game_state_system: GameStateSystem
 var _command_history: GFCommandHistoryUtility
 var _level_utility: GFLevelUtility
 var _mode_catalog: GameModeCatalogUtility
@@ -33,7 +34,13 @@ func get_required_models() -> Array[Script]:
 
 
 func get_required_systems() -> Array[Script]:
-	return [GameFlowSystem, ReplaySystem, RuleSystem, ProgressStatsSystem]
+	return [
+		GameFlowSystem,
+		GameStateSystem,
+		ReplaySystem,
+		RuleSystem,
+		ProgressStatsSystem,
+	]
 
 
 func get_required_utilities() -> Array[Script]:
@@ -58,6 +65,7 @@ func ready() -> void:
 	_determinism = _get_determinism_utility()
 	_rule_system = _get_rule_system()
 	_game_flow_system = _get_game_flow_system()
+	_game_state_system = _get_game_state_system()
 	_grid_model = _get_grid_model()
 
 	register_simple_event(EventNames.REQUEST_GAME_INITIALIZATION, GFEventListener.from_method(self, &"_on_request_initialization", 1))
@@ -67,6 +75,7 @@ func dispose() -> void:
 	_seed_utility = null
 	_rule_system = null
 	_game_flow_system = null
+	_game_state_system = null
 	_command_history = null
 	_level_utility = null
 	_mode_catalog = null
@@ -158,6 +167,13 @@ func _get_game_flow_system() -> GameFlowSystem:
 	if system_value is GameFlowSystem:
 		var game_flow_system: GameFlowSystem = system_value
 		return game_flow_system
+	return null
+
+
+func _get_game_state_system() -> GameStateSystem:
+	var system_value: Object = get_system(GameStateSystem)
+	if system_value is GameStateSystem:
+		return system_value
 	return null
 
 
@@ -263,15 +279,58 @@ func _duplicate_game_over_rule(rule_resource: GameOverRule) -> GameOverRule:
 	return null
 
 
-func _restore_bookmark_command_history(bookmark_data: BookmarkData) -> void:
+func _restore_bookmark_command_history(bookmark_data: BookmarkData) -> bool:
 	if not is_instance_valid(_command_history) or not is_instance_valid(bookmark_data):
-		return
+		return false
 
-	if not bookmark_data.game_state_history.is_empty():
-		_command_history.deserialize_full_history(
-			bookmark_data.game_state_history,
-			Callable(MoveCommand, "deserialize")
-		)
+	var history: Dictionary = bookmark_data.game_state_history
+	_command_history.deserialize_full_history(
+		history,
+		Callable(MoveCommand, "deserialize")
+	)
+	return (
+		_command_history.undo_count
+		== GFVariantData.get_option_array(history, "undo").size()
+		and _command_history.redo_count
+		== GFVariantData.get_option_array(history, "redo").size()
+	)
+
+
+func _is_bookmark_command_history_valid(
+	bookmark_data: BookmarkData,
+	interaction_rule: InteractionRule,
+	spawn_rules: Array[SpawnRule]
+) -> bool:
+	if (
+		not is_instance_valid(bookmark_data)
+		or not is_instance_valid(_game_state_system)
+		or not is_instance_valid(_command_history)
+	):
+		return false
+	var history: Dictionary = bookmark_data.game_state_history
+	if not (
+		history.size() == 2
+		and GFVariantData.get_option_value(history, "undo") is Array
+		and GFVariantData.get_option_value(history, "redo") is Array
+	):
+		return false
+	for stack_key: String in ["undo", "redo"]:
+		var stack: Array = GFVariantData.get_option_array(history, stack_key)
+		if _command_history.max_history_size > 0 and stack.size() > _command_history.max_history_size:
+			return false
+		for command_value: Variant in stack:
+			if not command_value is Dictionary:
+				return false
+			var command_data: Dictionary = command_value
+			if not MoveCommand.is_serialized_data_valid(command_data):
+				return false
+			if not _game_state_system.can_restore_state(
+				GFVariantData.get_option_dictionary(command_data, &"snapshot"),
+				interaction_rule,
+				spawn_rules
+			):
+				return false
+	return true
 
 
 func _is_bookmark_mode_contract_valid(
@@ -280,23 +339,79 @@ func _is_bookmark_mode_contract_valid(
 ) -> bool:
 	if not is_instance_valid(bookmark_data) or not is_instance_valid(mode_config):
 		return false
-	return bookmark_data.target_tile_value == maxi(mode_config.target_tile_value, 0)
+	return (
+		bookmark_data.target_tile_value == maxi(mode_config.target_tile_value, 0)
+		and is_instance_valid(_determinism)
+		and bookmark_data.matches_ruleset(mode_config, _determinism)
+	)
 
 
 func _start_level_session(
 	level_source: StringName,
 	mode_config: GameModeConfig,
 	game_ready_data: GameReadyData
-) -> void:
+) -> bool:
 	if not is_instance_valid(mode_config):
-		return
+		return false
 	if not is_instance_valid(_level_utility):
 		push_error("[GameInitSystem] 缺少 GFLevelUtility，无法启动对局生命周期。")
-		return
+		return false
 
 	var level_id: StringName = _build_level_session_id(level_source, mode_config, game_ready_data)
 	var level_data: Dictionary = _build_level_session_data(level_source, mode_config, game_ready_data)
-	var _level_session: Dictionary = _level_utility.start_level(level_id, level_data)
+	var level_session: Dictionary = _level_utility.start_level(level_id, level_data)
+	return not level_session.is_empty()
+
+
+func _restore_previous_level_session(
+	previous_level_id: StringName,
+	previous_level_data: Dictionary
+) -> void:
+	if not is_instance_valid(_level_utility):
+		return
+	_level_utility.clear_level_runtime()
+	_level_utility.clear_current_level()
+	if previous_level_id != &"":
+		var _restored_level: Dictionary = _level_utility.start_level(
+			previous_level_id,
+			previous_level_data
+		)
+
+
+func _build_bookmark_game_state(bookmark_data: BookmarkData) -> Dictionary:
+	if not is_instance_valid(bookmark_data):
+		return {}
+	var topology: BoardTopology = BoardTopology.from_dict(
+		GFVariantData.get_option_dictionary(bookmark_data.board_snapshot, &"topology")
+	)
+	if topology == null:
+		return {}
+	return {
+		&"schema_version": GameStateSystem.STATE_SCHEMA_VERSION,
+		&"board_key": topology.get_stable_key(),
+		&"board_snapshot": bookmark_data.board_snapshot.duplicate(true),
+		&"rng_full_state": bookmark_data.rng_full_state.duplicate(true),
+		&"score": bookmark_data.score,
+		&"move_count": bookmark_data.move_count,
+		&"highest_tile": bookmark_data.highest_tile,
+		&"ratio_resolutions": bookmark_data.ratio_resolutions,
+		&"target_tile_value": bookmark_data.target_tile_value,
+		&"target_reached": bookmark_data.target_reached,
+		&"extra_stats": bookmark_data.extra_stats.duplicate(true),
+		&"rules_states": bookmark_data.rules_states.duplicate(true),
+	}
+
+
+func _duplicate_spawn_rules(source_rules: Array[SpawnRule]) -> Array[SpawnRule]:
+	var result: Array[SpawnRule] = []
+	for rule_resource: SpawnRule in source_rules:
+		if not is_instance_valid(rule_resource):
+			return []
+		var duplicated_rule: Resource = rule_resource.duplicate()
+		if not duplicated_rule is SpawnRule:
+			return []
+		result.append(duplicated_rule)
+	return result
 
 
 func _build_level_session_id(
@@ -396,16 +511,6 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		replay_data = null
 		level_source = _LEVEL_SOURCE_BOOKMARK
 
-	app_config.current_replay_data.set_value(null)
-	app_config.selected_bookmark_data.set_value(null)
-
-	if not is_instance_valid(_level_utility):
-		push_error("[GameInitSystem] 缺少 GFLevelUtility，无法清理上一局运行时状态。")
-		return
-	_level_utility.clear_level_runtime()
-	if is_instance_valid(_command_history):
-		_command_history.clear()
-
 	var game_ready_data: GameReadyData = GameReadyData.new()
 	game_ready_data.is_replay_mode = is_instance_valid(replay_data)
 	game_ready_data.loaded_bookmark_data = loaded_bookmark_data
@@ -478,6 +583,37 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 			_log.error(_LOG_TAG, "回放规则集与当前模式不一致，拒绝初始化。", report)
 		return
 
+	if (
+		is_instance_valid(loaded_bookmark_data)
+		and not _is_bookmark_mode_contract_valid(loaded_bookmark_data, mode_config)
+	):
+		var actual_bookmark_fingerprint: String = (
+			_determinism.calculate_ruleset_fingerprint(mode_config)
+			if is_instance_valid(_determinism)
+			else ""
+		)
+		var bookmark_contract_error: String = (
+			"书签规则集或目标契约与模式不一致，拒绝恢复: "
+			+ "bookmark_ruleset=%s@%d, mode_ruleset=%s@%d, "
+			+ "bookmark_fingerprint=%s, mode_fingerprint=%s, "
+			+ "bookmark_target=%d, mode_target=%d, path=%s"
+		) % [
+			loaded_bookmark_data.ruleset_id,
+			loaded_bookmark_data.ruleset_version,
+			mode_config.ruleset_id,
+			mode_config.ruleset_version,
+			loaded_bookmark_data.ruleset_fingerprint,
+			actual_bookmark_fingerprint,
+			loaded_bookmark_data.target_tile_value,
+			mode_config.target_tile_value,
+			config_path,
+		]
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, bookmark_contract_error)
+		else:
+			push_error("[GameInitSystem] %s" % bookmark_contract_error)
+		return
+
 	var board_topology: BoardTopology = _resolve_session_topology(
 		app_config,
 		replay_data,
@@ -489,53 +625,55 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 			_log.error(_LOG_TAG, "无法按当前模式契约解析棋盘拓扑: %s" % config_path)
 		return
 	game_ready_data.board_topology = board_topology
-	if (
-		is_instance_valid(loaded_bookmark_data)
-		and not _is_bookmark_mode_contract_valid(loaded_bookmark_data, mode_config)
-	):
-		var target_contract_error: String = (
-			"书签目标契约与模式不一致，拒绝恢复: bookmark=%d, mode=%d, path=%s"
-			% [
-				loaded_bookmark_data.target_tile_value,
-				mode_config.target_tile_value,
-				config_path,
-			]
-		)
-		if is_instance_valid(_log):
-			_log.error(_LOG_TAG, target_contract_error)
-		else:
-			push_error("[GameInitSystem] %s" % target_contract_error)
-		return
 
 	game_ready_data.mode_config = mode_config
-	_start_level_session(level_source, mode_config, game_ready_data)
 	game_ready_data.interaction_rule = _duplicate_interaction_rule(mode_config.interaction_rule)
 	game_ready_data.movement_rule = _duplicate_movement_rule(mode_config.movement_rule)
 	game_ready_data.game_over_rule = _duplicate_game_over_rule(mode_config.game_over_rule)
+	game_ready_data.all_spawn_rules = _duplicate_spawn_rules(mode_config.spawn_rules)
 	if (
 		not is_instance_valid(game_ready_data.interaction_rule)
 		or not is_instance_valid(game_ready_data.movement_rule)
 		or not is_instance_valid(game_ready_data.game_over_rule)
+		or game_ready_data.all_spawn_rules.size() != mode_config.spawn_rules.size()
+		or not RuleSystem.are_rules_state_compatible(game_ready_data.all_spawn_rules)
 	):
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GameModeConfig 规则复制失败: %s" % config_path)
 		return
 
-	if is_instance_valid(_grid_model):
-		if not _grid_model.initialize(
-			board_topology,
-			game_ready_data.interaction_rule,
-			game_ready_data.movement_rule
-		):
-			return
-		if is_instance_valid(loaded_bookmark_data):
-			if not _grid_model.restore_from_snapshot(loaded_bookmark_data.board_snapshot):
-				return
+	var game_status_model: GameStatusModel = _get_game_status_model()
+	if (
+		not is_instance_valid(_level_utility)
+		or not is_instance_valid(_command_history)
+		or not is_instance_valid(_grid_model)
+		or not is_instance_valid(_seed_utility)
+		or not is_instance_valid(_rule_system)
+		or not is_instance_valid(_game_state_system)
+		or not is_instance_valid(game_status_model)
+	):
+		push_error("[GameInitSystem] 对局事务依赖不完整，拒绝初始化。")
+		return
 
-	if is_instance_valid(_log):
-		_log.debug(_LOG_TAG, "设置全局随机种子: %d" % init_seed)
-	if is_instance_valid(_seed_utility):
-		_seed_utility.set_global_seed(init_seed)
+	var bookmark_game_state: Dictionary = {}
+	if is_instance_valid(loaded_bookmark_data):
+		bookmark_game_state = _build_bookmark_game_state(loaded_bookmark_data)
+		if not _game_state_system.can_restore_state(
+			bookmark_game_state,
+			game_ready_data.interaction_rule,
+			game_ready_data.all_spawn_rules
+		):
+			if is_instance_valid(_log):
+				_log.error(_LOG_TAG, "书签完整状态预验证失败，拒绝初始化。")
+			return
+		if not _is_bookmark_command_history_valid(
+			loaded_bookmark_data,
+			game_ready_data.interaction_rule,
+			game_ready_data.all_spawn_rules
+		):
+			if is_instance_valid(_log):
+				_log.error(_LOG_TAG, "书签命令历史包含不可恢复快照，拒绝初始化。")
+			return
 
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system()
 	var mode_id: String = mode_config.resource_path.get_file().get_basename()
@@ -543,46 +681,49 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 	if is_instance_valid(progress_stats_system):
 		high_score = progress_stats_system.get_high_score(mode_id, board_topology.get_stable_key())
 
-	var game_status_model: GameStatusModel = _get_game_status_model()
-	if is_instance_valid(loaded_bookmark_data):
-		if is_instance_valid(_seed_utility) and not loaded_bookmark_data.rng_full_state.is_empty():
-			_seed_utility.set_full_state(loaded_bookmark_data.rng_full_state)
-		if is_instance_valid(game_status_model):
-			game_status_model.score.set_value(loaded_bookmark_data.score)
-			game_status_model.move_count.set_value(loaded_bookmark_data.move_count)
-			game_status_model.ratio_resolutions.set_value(loaded_bookmark_data.ratio_resolutions)
-			game_status_model.highest_tile.set_value(loaded_bookmark_data.highest_tile)
-			game_status_model.set_target_state(
-				mode_config.target_tile_value,
-				loaded_bookmark_data.target_reached
-			)
-			game_status_model.extra_stats.set_value(loaded_bookmark_data.extra_stats.duplicate(true))
-			game_status_model.high_score.set_value(high_score)
-
-		_restore_bookmark_command_history(loaded_bookmark_data)
-	else:
-		if is_instance_valid(game_status_model):
-			game_status_model.reset_for_new_game(high_score)
-			game_status_model.set_target_state(mode_config.target_tile_value, false)
-
 	game_ready_data.initial_high_score = high_score
+	var previous_level_id: StringName = _level_utility.current_level_id
+	var previous_level_data: Dictionary = _level_utility.current_level_data.duplicate(true)
+	_level_utility.clear_level_runtime()
+	if not _start_level_session(level_source, mode_config, game_ready_data):
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "GFLevelUtility 拒绝启动已预验证的对局。")
+		return
+
+	if not _grid_model.initialize(
+		board_topology,
+		game_ready_data.interaction_rule,
+		game_ready_data.movement_rule
+	):
+		_restore_previous_level_session(previous_level_id, previous_level_data)
+		return
+	if not _rule_system.register_rules(game_ready_data.all_spawn_rules):
+		_restore_previous_level_session(previous_level_id, previous_level_data)
+		return
+
+	if is_instance_valid(_log):
+		_log.debug(_LOG_TAG, "设置全局随机种子: %d" % init_seed)
+	_seed_utility.set_global_seed(init_seed)
+
+	if is_instance_valid(loaded_bookmark_data):
+		if not _game_state_system.restore_state(bookmark_game_state):
+			_restore_previous_level_session(previous_level_id, previous_level_data)
+			if is_instance_valid(_log):
+				_log.error(_LOG_TAG, "书签状态提交失败，已恢复上一关卡登记。")
+			return
+		game_status_model.high_score.set_value(high_score)
+		if not _restore_bookmark_command_history(loaded_bookmark_data):
+			_restore_previous_level_session(previous_level_id, previous_level_data)
+			if is_instance_valid(_log):
+				_log.error(_LOG_TAG, "书签命令历史提交失败，已恢复上一关卡登记。")
+			return
+	else:
+		_command_history.clear()
+		game_status_model.reset_for_new_game(high_score)
+		game_status_model.set_target_state(mode_config.target_tile_value, false)
 
 	if is_instance_valid(_game_flow_system):
 		_game_flow_system.setup(_rule_system, game_ready_data.game_over_rule)
-
-	for rule_resource: SpawnRule in mode_config.spawn_rules:
-		var duplicated_rule: Resource = rule_resource.duplicate()
-		if duplicated_rule is SpawnRule:
-			var rule_instance: SpawnRule = duplicated_rule
-			game_ready_data.all_spawn_rules.append(rule_instance)
-
-	if is_instance_valid(_rule_system):
-		_rule_system.register_rules(game_ready_data.all_spawn_rules)
-
-	if is_instance_valid(loaded_bookmark_data) and not loaded_bookmark_data.rules_states.is_empty():
-		var rules_states: Array = loaded_bookmark_data.rules_states
-		for i: int in range(min(game_ready_data.all_spawn_rules.size(), rules_states.size())):
-			game_ready_data.all_spawn_rules[i].set_state(rules_states[i])
 
 	var current_game_model: CurrentGameModel = _get_current_game_model()
 	if is_instance_valid(current_game_model):
@@ -592,4 +733,6 @@ func _on_request_initialization(_payload: Variant = null) -> void:
 		current_game_model.initial_high_score.set_value(game_ready_data.initial_high_score)
 		current_game_model.is_replay_mode.set_value(game_ready_data.is_replay_mode)
 
+	app_config.current_replay_data.set_value(null)
+	app_config.selected_bookmark_data.set_value(null)
 	send_event(game_ready_data)

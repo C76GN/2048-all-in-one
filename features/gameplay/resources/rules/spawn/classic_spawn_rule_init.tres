@@ -4,6 +4,8 @@
 
 [resource]
 script = ExtResource("1_y4yxh")
+rule_state_id = &"spawn.classic.initialize"
+rule_state_schema_version = 1
 trigger = 0
 priority = 100
 metadata/_custom_type_script = "uid://rtyr5upmnau6"

@@ -137,19 +137,32 @@ func get_state() -> Variant:
 	return {"current_probability": _current_probability}
 
 
+func is_state_valid(state: Variant) -> bool:
+	if not state is Dictionary:
+		return false
+	var state_dict: Dictionary = state
+	if state_dict.size() != 1 or not state_dict.has("current_probability"):
+		return false
+	var probability_value: Variant = state_dict["current_probability"]
+	if not (probability_value is float or probability_value is int):
+		return false
+	var probability: float = float(probability_value)
+	return (
+		not is_nan(probability)
+		and not is_inf(probability)
+		and probability >= base_probability
+		and probability <= max_probability
+	)
+
+
 ## 从一个状态值恢复规则的内部状态。
 ## @param state: 从历史记录中加载的状态值。
-func set_state(state: Variant) -> void:
-	if not state is Dictionary:
-		return
-
+func set_state(state: Variant) -> bool:
+	if not is_state_valid(state):
+		return false
 	var state_dict: Dictionary = state
-	if state_dict.has("current_probability"):
-		_current_probability = clampf(
-			GFVariantData.to_float(state_dict["current_probability"], base_probability),
-			base_probability,
-			max_probability
-		)
+	_current_probability = float(state_dict["current_probability"])
+	return true
 
 
 ## 动态计算并获取当前的替代定义生成池。
