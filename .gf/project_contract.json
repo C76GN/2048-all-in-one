@@ -432,7 +432,7 @@
       ".gf/vendor.lock.json",
       ".gf/godot_exit_leak_baseline.json",
       "app/scripts/game_architecture_installer.gd",
-      "docs/README.md",
+      "docs/readme.md",
       "docs/architecture.md",
       "docs/ai_maintenance.md",
       "docs/save_model.md",

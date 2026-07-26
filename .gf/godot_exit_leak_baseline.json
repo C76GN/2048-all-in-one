@@ -7,9 +7,9 @@
   "gf_source_commit": "5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28",
   "gf_vendor_tree_sha256": "c2d921861f7d0afe8d8de343be4f07001e62016f88c4d5de576c36d6e71a994e",
   "gf_global_script_class_count": 732,
-  "project_runtime_script_class_count": 201,
+  "project_runtime_script_class_count": 214,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "AssetReviewSyncPolicy and SyncAudioReviewVariants add two audited project runtime script classes (199 to 201) for conservative cross-format audio review synchronization and its idempotent batch tool. The complete suite expands from 39/325 to 39/337 scripts/tests. The complete run remains stable at ObjectDB 319 and Resources 141, while TextureStorage, ShapedText, and Font RID allocations remain 11/9/5. No retained Node, Resource growth, or new RID category was introduced.",
+  "calibration_reason": "Thirteen audited runtime script classes raise the project class set from 201 to 214: accessibility summaries, generic competition/session metadata, deterministic hints, virtual input pulses, replay markers, tile motion profiles, shader/VFX drivers, and responsive task-page layout. The complete suite expands from 39/337 to 50/409 scripts/tests. This recalibration changes only the declared project class-set count; the existing ObjectDB, Resource, and RID ceilings remain unchanged and continue to be enforced by the safe GUT runner.",
   "max_objectdb_instances": 319,
   "max_resources_in_use": 141,
   "max_rid_allocations_by_type": {

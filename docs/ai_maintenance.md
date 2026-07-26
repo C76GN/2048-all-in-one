@@ -18,7 +18,7 @@
 - 使用 UTF-8 读取和写入文件。
 - GDScript 必须遵循 `docs/coding_style.md`，尤其是 section 顺序、公共 API 文档、类型提示、Tab 缩进、LF 换行和文件末尾空行。
 - 项目严格采用 GF Feature-Cohesive 契约。`app/**`、`features/**`、`shared/**`、`tests/**`、`tools/**` 和 `docs/**` 的手写路径使用 `snake_case`；项目脚本必须声明 `class_name`，类名严格由文件名执行 `to_pascal_case()` 得到，不保留缩写例外；GF 层脚本保留 `Model/System/Controller/Utility/Rule/State/Action/Command/Query` 等后缀。
-- 优先阅读 `docs/README.md` 的权威层级，再阅读 `README.md`、`docs/architecture.md`、`docs/coding_style.md`、`app/scripts/game_architecture_installer.gd`、相关 Feature、`shared/**` 和 `tests/gut/**`。
+- 优先阅读 `docs/readme.md` 的权威层级，再阅读 `README.md`、`docs/architecture.md`、`docs/coding_style.md`、`app/scripts/game_architecture_installer.gd`、相关 Feature、`shared/**` 和 `tests/gut/**`。
 - 新文件先确定 Feature 所有权，再确定 GF 层；禁止重新建立全局 `scripts/`、`scenes/`、`resources/`、`assets/` 或 `asset_library/` 类型桶。
 - 默认不要启动 Godot 编辑器或裸 GUT 命令。历史上默认用户目录曾生成巨大日志；需要运行 GUT 时，优先使用 `tools/run_gut_safe.ps1`，并先以较短超时和较小日志上限做烟雾验证。
 - Godot 编辑器中的 GDScript warning 不能只靠 GUT 判断。修改 `.gd` 后，尤其涉及 Variant、返回值、Signal 连接、`append()`、`erase()`、局部变量命名或 tool 脚本时，应运行 `tools/check_gdscript_lsp_diagnostics.ps1`。

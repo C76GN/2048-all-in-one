@@ -27,7 +27,7 @@
 - `features/navigation/resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 UI 路由目录，`features/navigation/resources/ui_routes/*.tres` 用 `GFUIRoute` 描述弹层面板，并通过 `ProjectResourceCatalogUtility` 注册到资源解析器。
 - `shared/assets/translations.csv` 提供中文和英文 UI 文案。
 
-文档权威层级与完整索引见 `docs/README.md`；Feature 所有权和依赖方向见 `docs/architecture.md`。
+文档权威层级与完整索引见 `docs/readme.md`；Feature 所有权和依赖方向见 `docs/architecture.md`。
 
 ## gf 使用方式
 
@@ -72,7 +72,7 @@ GF 9 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。
 
 ## 维护路线
 
-- 文档权威顺序与索引见 `docs/README.md`。
+- 文档权威顺序与索引见 `docs/readme.md`。
 - 长期推进计划见 `docs/roadmap.md`。
 - 验证策略见 `docs/validation.md`，GF 9 包状态验证使用 Godot headless 原生包管理 CLI。
 - 项目结构由 `gf_project_profile.json` 声明，并通过 `GFProjectLayoutValidator` 与 GUT 持续校验。

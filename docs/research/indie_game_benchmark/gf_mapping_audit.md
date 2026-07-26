@@ -3,7 +3,7 @@
 审计日期：2026-07-23
 依据：GF 9.0.1 固定 vendor、`.gf/project_contract.json`、运行时代码静态检索与 `gf_ai_project.py` API/能力目录查询。此审计只记录研究发现，不修改 `addons/gf` 或游戏代码。
 
-> **历史审计快照。** 本文件只描述审计日的 vendor 与工作树；其中“当前”和能力缺口不自动随项目演进更新。现行边界以 [`docs/README.md`](../../README.md)、项目合同、当前 vendor API 和实际调用点为准。
+> **历史审计快照。** 本文件只描述审计日的 vendor 与工作树；其中“当前”和能力缺口不自动随项目演进更新。现行边界以 [`docs/readme.md`](../../readme.md)、项目合同、当前 vendor API 和实际调用点为准。
 
 ## 已正确复用的机制
 

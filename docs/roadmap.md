@@ -11,7 +11,7 @@
 - GF 源码状态：当前仓库为 `.gf/vendor.lock.json` 精确锁定的 vendored GF 9 源码状态；`.gf/packages.lock.json` 可能暂时不存在，不再把旧 GF 5.1 lockfile 状态当作当前事实。
 - GF 包管理器：GF 9 使用 Godot 原生 CLI，入口为 `res://addons/gf/kernel/package/gf_package_cli.gd`。恢复包管理器安装流时，应重新生成 `.gf/packages.lock.json` 并再启用 installed 包数量强校验。
 - GF 下载缓存、运行日志、本地用户数据和导出产物已由 `.gitignore` 忽略，不应提交。
-- 文档入口与权威层级见 `docs/README.md`；本路线图不复制 Feature 清单、包清单或最近验证数字。
+- 文档入口与权威层级见 `docs/readme.md`；本路线图不复制 Feature 清单、包清单或最近验证数字。
 - 测试脚本数、用例数、断言数、LSP 文件数和运行时类数是易变生成状态，以 `tools/run_gut_safe.ps1`、`build/gdscript_lsp_diagnostics.json` 和 `.gf/godot_exit_leak_baseline.json` 的实际输出为准。
 - 安全测试入口 `tools/run_gut_safe.ps1` 提供临时用户目录、临时日志、默认用户日志增长监控、超时和日志大小上限；不要直接运行裸 Godot/GUT。
 - 项目脚本可以按当前代码规范显式路径继承 GF 基类；具体引用数量不是架构契约，不在路线图中维护。
