@@ -1,4 +1,4 @@
-## GameCelebrationVfxPreset: 定义单个庆祝事件的时长、透明度和 Shader 参数覆盖。
+## GameCelebrationVfxPreset: 定义单个庆祝事件的时长、透明度和粒子表现参数。
 class_name GameCelebrationVfxPreset
 extends Resource
 
@@ -14,6 +14,7 @@ extends Resource
 
 # --- 公共方法 ---
 
-## 返回隔离于资源原值的 Shader 参数覆盖。
+## 返回隔离于资源原值的表现参数。
+## 字段名为兼容已有主题资源保留，当前由有界粒子发射器消费。
 func get_shader_parameters() -> Dictionary:
 	return shader_parameters.duplicate(true)

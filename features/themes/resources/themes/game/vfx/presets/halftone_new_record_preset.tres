@@ -9,7 +9,9 @@ opacity = 0.86
 loop_until_dismissed = true
 fallback_color = Color(0.8745098, 0.29411766, 0.6039216, 0.18)
 shader_parameters = {
+"aspect_ratio": 1.85,
 "piece_size": 7.5,
 "speed": 118.0,
+"spin_speed": 2.8,
 "sway_strength": 46.0
 }

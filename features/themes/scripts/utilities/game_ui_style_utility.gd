@@ -49,6 +49,7 @@ const _SURFACE_ROLE_META: StringName = &"_game_ui_style_surface_role"
 const _BORDER_ROLE_META: StringName = &"_game_ui_style_border_role"
 const _BORDER_WIDTH_META: StringName = &"_game_ui_style_border_width"
 const _BUTTON_FOCUS_RING_NODE_NAME: String = "ButtonFocusRing"
+const _BUTTON_FOCUS_RING_DRIVER_NODE_NAME: String = "ShaderAnimationDriver"
 const _BUTTON_FOCUS_RING_SHADER_ASSET_KEY: StringName = &"asset.shader.ui.button_focus_dash"
 const _OPTION_ARROW_ICON_ASSET_KEY: StringName = &"asset.texture.icon.chevron_down"
 const _OPTION_POPUP_BOUND_META: StringName = &"_game_ui_option_popup_bound"
@@ -107,6 +108,7 @@ var _asset_library: GameAssetLibraryUtility
 var _button_focus_ring_shader: Shader
 var _option_arrow_icon: Texture2D
 var _shader_parameters: GFShaderParameterUtility
+var _static_visuals_enabled: bool = false
 
 
 # --- GF 生命周期方法 ---
@@ -133,6 +135,7 @@ func ready() -> void:
 
 func dispose() -> void:
 	_reset_palette()
+	_static_visuals_enabled = false
 	_asset_library = null
 	_button_focus_ring_shader = null
 	_option_arrow_icon = null
@@ -140,6 +143,7 @@ func dispose() -> void:
 
 
 func release_dependencies() -> void:
+	_static_visuals_enabled = false
 	_asset_library = null
 	_button_focus_ring_shader = null
 	_option_arrow_icon = null
@@ -406,13 +410,25 @@ func refresh_button_focus_ring(button: BaseButton) -> void:
 	_apply_button_focus_ring_style(button)
 
 
+## 切换持续 UI shader 的静态策略，并刷新给定 UI 子树中的按钮焦点环。
+## 静态策略仍保留按钮自身的 StyleBox 焦点边框，不牺牲键盘可访问性。
+func set_static_visuals_enabled(enabled: bool, root: Node = null) -> void:
+	_static_visuals_enabled = enabled
+	if is_instance_valid(root):
+		_refresh_focus_ring_policy_to_tree(root)
+
+
+func is_static_visuals_enabled() -> bool:
+	return _static_visuals_enabled
+
+
 ## 切换按钮焦点 Shader 的可见状态。
 ## @param button: 目标按钮。
 ## @param is_visible: 是否显示。
 func set_button_focus_visible(button: BaseButton, is_visible: bool) -> void:
 	var ring: ColorRect = _get_button_focus_ring(button)
 	if is_instance_valid(ring):
-		ring.visible = is_visible
+		ring.visible = is_visible and not _static_visuals_enabled
 
 
 # --- 私有/辅助方法 ---
@@ -807,15 +823,18 @@ func _get_border_color(role: int) -> Color:
 func _ensure_button_focus_ring(button: BaseButton) -> ColorRect:
 	if not is_instance_valid(button):
 		return null
-	var focus_ring_shader: Shader = _get_button_focus_ring_shader()
-	if not is_instance_valid(focus_ring_shader):
-		return null
 
 	var existing_node: Node = button.get_node_or_null(_BUTTON_FOCUS_RING_NODE_NAME)
 	if existing_node is ColorRect:
 		var existing_ring: ColorRect = existing_node
 		_apply_button_focus_ring_style(button)
 		return existing_ring
+	if _static_visuals_enabled:
+		return null
+
+	var focus_ring_shader: Shader = _get_button_focus_ring_shader()
+	if not is_instance_valid(focus_ring_shader):
+		return null
 
 	var ring: ColorRect = ColorRect.new()
 	ring.name = _BUTTON_FOCUS_RING_NODE_NAME
@@ -832,14 +851,28 @@ func _ensure_button_focus_ring(button: BaseButton) -> ColorRect:
 	shader_material.shader = focus_ring_shader
 	ring.material = shader_material
 	button.add_child(ring, false, Node.INTERNAL_MODE_FRONT)
+	var _driver: GameShaderAnimationDriver = _ensure_focus_ring_animation_driver(ring)
 	_apply_button_focus_ring_style(button)
 	return ring
 
 
 func _apply_button_focus_ring_style(button: BaseButton) -> void:
 	var ring: ColorRect = _get_button_focus_ring(button)
-	if not is_instance_valid(ring) or not is_instance_valid(_shader_parameters):
+	if not is_instance_valid(ring):
 		return
+	var driver: GameShaderAnimationDriver = _ensure_focus_ring_animation_driver(ring)
+	if _static_visuals_enabled:
+		ring.visible = false
+		if is_instance_valid(driver):
+			driver.set_animation_enabled(false, true)
+		else:
+			ring.material = null
+			ring.process_mode = Node.PROCESS_MODE_DISABLED
+		return
+	if not is_instance_valid(_shader_parameters):
+		return
+	if is_instance_valid(driver):
+		var _restored_material: ShaderMaterial = driver.restore_material()
 	if _button_focus_shader_profile != null:
 		var _profile_count: int = _shader_parameters.apply_profile(
 			ring,
@@ -854,6 +887,42 @@ func _apply_button_focus_ring_style(button: BaseButton) -> void:
 		},
 		_get_shader_apply_options()
 	)
+	if is_instance_valid(driver):
+		var _captured_material: ShaderMaterial = driver.capture_current_material()
+		driver.set_animation_enabled(true, true)
+	ring.visible = button.has_focus()
+
+
+func _ensure_focus_ring_animation_driver(
+	ring: ColorRect
+) -> GameShaderAnimationDriver:
+	if not is_instance_valid(ring):
+		return null
+	var existing: Node = ring.get_node_or_null(_BUTTON_FOCUS_RING_DRIVER_NODE_NAME)
+	if existing is GameShaderAnimationDriver:
+		var existing_driver: GameShaderAnimationDriver = existing
+		var _configured_existing: GameShaderAnimationDriver = existing_driver.configure(
+			ring
+		)
+		return existing_driver
+	var driver: GameShaderAnimationDriver = GameShaderAnimationDriver.new()
+	driver.name = _BUTTON_FOCUS_RING_DRIVER_NODE_NAME
+	ring.add_child(driver, false, Node.INTERNAL_MODE_BACK)
+	var _configured_driver: GameShaderAnimationDriver = driver.configure(ring)
+	return driver
+
+
+func _refresh_focus_ring_policy_to_tree(root: Node) -> void:
+	if not is_instance_valid(root):
+		return
+	if root is BaseButton:
+		var button: BaseButton = root
+		if _static_visuals_enabled:
+			_apply_button_focus_ring_style(button)
+		else:
+			var _ring: ColorRect = _ensure_button_focus_ring(button)
+	for child: Node in root.get_children(true):
+		_refresh_focus_ring_policy_to_tree(child)
 
 
 func _get_button_focus_ring(button: BaseButton) -> ColorRect:

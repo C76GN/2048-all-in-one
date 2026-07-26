@@ -29,6 +29,7 @@ uniform vec2 cloud_scroll_speed_2 = vec2(-0.0032, -0.0009);
 uniform vec2 cloud_center_pos = vec2(0.5, 0.08);
 uniform float cloud_position_impact : hint_range(0.0, 1.0) = 0.58;
 uniform float cloud_strength : hint_range(0.0, 0.16) = 0.024;
+uniform float animation_time = 0.0;
 uniform vec2 interaction_offset = vec2(0.0);
 uniform vec2 interaction_direction = vec2(0.0);
 uniform float interaction_energy : hint_range(0.0, 1.0) = 0.0;
@@ -98,8 +99,8 @@ float pixel_cloud_mask(vec2 uv) {
 	vec2 noise_uv_scale = pixel_uv;
 	noise_uv_scale.x *= safe_pixelation.x / safe_pixelation.y;
 
-	vec2 noise_uv_1 = fract(noise_uv_scale + TIME * cloud_scroll_speed_1);
-	vec2 noise_uv_2 = fract(noise_uv_scale + vec2(13.17, -7.31) + TIME * cloud_scroll_speed_2);
+	vec2 noise_uv_1 = fract(noise_uv_scale + animation_time * cloud_scroll_speed_1);
+	vec2 noise_uv_2 = fract(noise_uv_scale + vec2(13.17, -7.31) + animation_time * cloud_scroll_speed_2);
 	float noise_1 = value_noise_scaled(noise_uv_1, 5.0);
 	float noise_2 = value_noise_scaled(noise_uv_2, 7.0);
 	float noise_value = (noise_1 + noise_2) * 0.5;
@@ -136,7 +137,7 @@ void fragment() {
 	vec2 dot_uv = (uv * vec2(52.0, 32.0)) + vec2(0.25, 0.0);
 	float dots = dot_pattern(dot_uv, 0.18) * step(0.58, hash(floor(dot_uv)));
 	float registration_edge = line_pattern(uv.x * 20.0, 0.020) * line_pattern(uv.y * 12.0, 0.020);
-	vec2 moving_grid_pos = world_pos + TIME * grid_scroll_speed;
+	vec2 moving_grid_pos = world_pos + animation_time * grid_scroll_speed;
 	vec2 checker_pos = floor(moving_grid_pos / grid_size);
 	float checker = mod(checker_pos.x + checker_pos.y, 2.0);
 	vec4 checker_color = mix(cell_color_1, cell_color_2, checker);

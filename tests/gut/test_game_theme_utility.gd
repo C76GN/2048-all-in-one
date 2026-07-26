@@ -78,8 +78,8 @@ func test_theme_catalog_discovers_and_validates_default_theme_pack() -> void:
 	assert_true(is_instance_valid(theme.celebration_vfx_theme), "主题应引用庆祝 VFX 主题资源。")
 	assert_true(theme.celebration_vfx_theme.get_validation_report().is_ok(), "庆祝 VFX 主题应通过 GFValidationReport。")
 	assert_true(
-		theme.celebration_vfx_theme.shader_parameter_profile.get_parameter_names().size() == 12,
-		"庆祝 VFX Profile 应声明 12 个基础视觉与粒子预算参数。"
+		theme.celebration_vfx_theme.shader_parameter_profile.get_parameter_names().size() == 10,
+		"庆祝 VFX Profile 应声明 8 个主题色与 2 个单纸片印刷参数。"
 	)
 	assert_true(is_instance_valid(theme.scene_transition_cover_effect), "主题应声明覆盖旧场景的 GF 转场效果。")
 	assert_true(is_instance_valid(theme.scene_transition_reveal_effect), "主题应声明揭示新场景的 GF 转场效果。")
@@ -207,7 +207,8 @@ func test_scene_router_transition_wait_has_timeout_and_clears_overlay() -> void:
 	var router: SceneRouterSystem = _get_scene_router_system(setup)
 	router._transition_timeout_seconds = 0.02
 
-	assert_true(router.call("_play_scene_transition_cover") == OK)
+	var cover_error: Error = router.call("_play_scene_transition_cover")
+	assert_true(cover_error == OK)
 	var completed: bool = await router.call("_await_screen_transition")
 
 	assert_false(completed, "失去 tick 的屏幕转场应在项目时限内退出等待。")
@@ -228,12 +229,12 @@ func test_theme_asset_session_wait_has_timeout() -> void:
 	var never_started_session: GFAssetLoadSession = GFAssetLoadSession.new()
 	var started_msec: int = Time.get_ticks_msec()
 
-	var ready: bool = await theme_utility.call(
+	var session_ready: bool = await theme_utility.call(
 		"_wait_for_asset_session_ready",
 		never_started_session
 	)
 
-	assert_false(ready, "没有进入终态的主题资源会话必须按时失败。")
+	assert_false(session_ready, "没有进入终态的主题资源会话必须按时失败。")
 	assert_lt(
 		Time.get_ticks_msec() - started_msec,
 		1000,
@@ -284,8 +285,8 @@ func test_theme_utility_tracks_cross_utility_signals_with_gf_signal_utility() ->
 	assert_true(is_instance_valid(signal_utility), "主题测试架构应注册 GFSignalUtility。")
 	if is_instance_valid(signal_utility):
 		assert_true(
-			signal_utility.get_connection_count() == 4,
-			"主题与无障碍 Utility 应由 GFSignalUtility 追踪两类设置变更与两个 UI 音效信号。"
+			signal_utility.get_connection_count() == 5,
+			"主题与无障碍 Utility 应由 GFSignalUtility 追踪设置、策略刷新与两个 UI 音效信号。"
 		)
 
 	await _dispose_architecture(architecture)
@@ -445,6 +446,32 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 		GFVariantData.to_vector2(background_material.get_shader_parameter(&"cloud_pixelation")) == Vector2(176.0, 99.0),
 		"GF 背景 Profile 应完整写入向量参数。"
 	)
+	var accessibility_value: Variant = setup.get("accessibility")
+	if accessibility_value is GameAccessibilityUtility:
+		var accessibility: GameAccessibilityUtility = accessibility_value
+		accessibility.set_shader_effects_enabled(false)
+		theme_utility.apply_background_to_color_rect(background_rect)
+		var driver_node: Node = background_rect.get_node_or_null(
+			"ShaderAnimationDriver"
+		)
+		assert_true(driver_node is GameShaderAnimationDriver, "主题背景应挂载项目自有时间 Driver。")
+		assert_true(background_rect.material == null, "关闭 Shader 后背景必须成为纯静态 ColorRect。")
+		assert_true(
+			background_rect.process_mode == Node.PROCESS_MODE_DISABLED,
+			"静态背景不得保留节点处理。"
+		)
+		if driver_node is GameShaderAnimationDriver:
+			var driver: GameShaderAnimationDriver = driver_node
+			assert_false(driver.is_animation_enabled(), "静态背景 Driver 必须停止时间推进。")
+		accessibility.set_shader_effects_enabled(true)
+		theme_utility.apply_background_to_color_rect(background_rect)
+		assert_true(background_rect.material == background_material, "重新启用 Shader 应恢复主题材质。")
+		assert_true(
+			background_rect.process_mode == Node.PROCESS_MODE_INHERIT,
+			"动态背景应恢复普通场景处理策略。"
+		)
+	else:
+		assert_true(false, "测试 setup 应提供 GameAccessibilityUtility。")
 	background_rect.material = null
 	background_rect.free()
 

@@ -7,6 +7,7 @@ uniform vec4 color : source_color = vec4(0.5804, 0.2667, 0.1922, 1.0);
 uniform float dash_count : hint_range(1.0, 50.0) = 18.0;
 uniform float dash_ratio : hint_range(0.0, 1.0) = 0.54;
 uniform float speed = 0.65;
+uniform float animation_time = 0.0;
 
 const float HALF_PI = 1.57079632679;
 const float PI_VALUE = 3.14159265359;
@@ -71,7 +72,7 @@ void fragment() {
 	float total_len = 4.0 * (inner.x + inner.y) + TWO_PI * corner_radius;
 	float normalized_path = get_rounded_path_position(point, inner, corner_radius, total_len);
 	float segment = 1.0 / max(1.0, dash_count);
-	float dash_offset = TIME * speed * 0.1;
+	float dash_offset = animation_time * speed * 0.1;
 	float dash_mod = mod(normalized_path + dash_offset, segment) / segment;
 	float dash_mask = step(dash_mod, dash_ratio);
 

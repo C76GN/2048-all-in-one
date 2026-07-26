@@ -27,6 +27,7 @@ const _VISUAL_ASSET_LANE_ID: StringName = &"game.theme.visual"
 const _SOUND_ASSET_LANE_ID: StringName = &"game.theme.sound"
 const _ASSET_LOAD_CONCURRENCY: int = 4
 const _DEFAULT_ASSET_SESSION_TIMEOUT_SECONDS: float = 15.0
+const _BACKGROUND_ANIMATION_DRIVER_NODE_NAME: String = "ShaderAnimationDriver"
 
 
 # --- 私有变量 ---
@@ -41,6 +42,7 @@ var _celebration_vfx: GameCelebrationVfxUtility = null
 var _theme_catalog: GameThemeCatalogUtility = null
 var _shader_parameters: GFShaderParameterUtility = null
 var _signal_utility: GFSignalUtility = null
+var _accessibility: GameAccessibilityUtility = null
 var _current_visual_theme: GameTheme = null
 var _current_sound_theme: GameAudioTheme = null
 var _active_visual_asset_group_id: StringName = &""
@@ -81,6 +83,7 @@ func get_required_utilities() -> Array[Script]:
 		GFSettingsUtility,
 		GFShaderParameterUtility,
 		GFSignalUtility,
+		GameAccessibilityUtility,
 	]
 
 
@@ -95,8 +98,11 @@ func ready() -> void:
 	_theme_catalog = _get_theme_catalog_utility()
 	_shader_parameters = _get_shader_parameter_utility()
 	_signal_utility = _get_signal_utility()
+	_accessibility = _get_accessibility_utility()
 	_connect_settings()
 	_connect_motion_audio_feedback()
+	_connect_accessibility()
+	_refresh_visual_effect_policy()
 
 
 func dispose() -> void:
@@ -115,6 +121,7 @@ func dispose() -> void:
 	_theme_catalog = null
 	_shader_parameters = null
 	_signal_utility = null
+	_accessibility = null
 	_clear_runtime_state()
 
 
@@ -131,6 +138,7 @@ func release_dependencies() -> void:
 	_theme_catalog = null
 	_shader_parameters = null
 	_signal_utility = null
+	_accessibility = null
 	super.release_dependencies()
 
 
@@ -289,6 +297,7 @@ func apply_current_theme_to_tree(root: Node) -> int:
 		return 0
 	var applied_count: int = 0
 	if is_instance_valid(_style) and is_instance_valid(theme.ui_palette):
+		_style.set_static_visuals_enabled(_should_use_static_visuals(), root)
 		applied_count += _style.apply_palette_to_tree(root, theme.ui_palette)
 	applied_count += _apply_backgrounds_to_tree(root, theme)
 	return applied_count
@@ -1039,6 +1048,16 @@ func _connect_motion_audio_feedback() -> void:
 	)
 
 
+func _connect_accessibility() -> void:
+	if not is_instance_valid(_accessibility) or not is_instance_valid(_signal_utility):
+		return
+	var _connection: GFSignalConnection = _signal_utility.connect_signal(
+		_accessibility.state_changed,
+		_on_accessibility_state_changed,
+		self
+	)
+
+
 func _get_setting_string_name(key: StringName, fallback: StringName) -> StringName:
 	if not is_instance_valid(_settings):
 		return fallback
@@ -1114,7 +1133,12 @@ func _apply_background_to_color_rect(
 	rect.color = theme.get_background_base_color()
 	if is_instance_valid(resolved_board_theme):
 		rect.color = resolved_board_theme.game_background_color
+	var driver: GameShaderAnimationDriver = _ensure_background_animation_driver(rect)
+	if is_instance_valid(driver):
+		var _restored_material: ShaderMaterial = driver.restore_material()
 	if theme.background_shader_profile == null or not is_instance_valid(_shader_parameters):
+		if is_instance_valid(driver):
+			driver.set_animation_enabled(not _should_use_static_visuals(), true)
 		return
 	var _applied_count: int = _shader_parameters.apply_profile(
 		rect,
@@ -1127,6 +1151,50 @@ func _apply_background_to_color_rect(
 			"copy_values": true,
 		}
 	)
+	if is_instance_valid(driver):
+		var _captured_material: ShaderMaterial = driver.capture_current_material()
+		driver.set_animation_enabled(not _should_use_static_visuals(), true)
+
+
+func _ensure_background_animation_driver(
+	rect: ColorRect
+) -> GameShaderAnimationDriver:
+	if not is_instance_valid(rect):
+		return null
+	var existing: Node = rect.get_node_or_null(_BACKGROUND_ANIMATION_DRIVER_NODE_NAME)
+	if existing is GameShaderAnimationDriver:
+		var existing_driver: GameShaderAnimationDriver = existing
+		var _configured_existing: GameShaderAnimationDriver = existing_driver.configure(
+			rect
+		)
+		return existing_driver
+	var driver: GameShaderAnimationDriver = GameShaderAnimationDriver.new()
+	driver.name = _BACKGROUND_ANIMATION_DRIVER_NODE_NAME
+	rect.add_child(driver, false, Node.INTERNAL_MODE_BACK)
+	var _configured_driver: GameShaderAnimationDriver = driver.configure(rect)
+	return driver
+
+
+func _should_use_static_visuals() -> bool:
+	var state: GameAccessibilityState = (
+		_accessibility.get_state()
+		if is_instance_valid(_accessibility)
+		else GameAccessibilityState.new()
+	)
+	return not GameFeedbackPerformanceMatrix.resolve(state).background_shader_enabled
+
+
+func _refresh_visual_effect_policy() -> void:
+	var use_static_visuals: bool = _should_use_static_visuals()
+	var tree: SceneTree = _get_scene_tree()
+	var current_scene: Node = tree.current_scene if is_instance_valid(tree) else null
+	if is_instance_valid(_style):
+		_style.set_static_visuals_enabled(use_static_visuals, current_scene)
+	if is_instance_valid(current_scene) and is_instance_valid(_current_visual_theme):
+		var _applied_background_count: int = _apply_backgrounds_to_tree(
+			current_scene,
+			_current_visual_theme
+		)
 
 
 func _log_activation_failure(label: String, report: Dictionary) -> void:
@@ -1157,6 +1225,14 @@ func _get_signal_utility() -> GFSignalUtility:
 	if utility_value is GFSignalUtility:
 		var signal_utility: GFSignalUtility = utility_value
 		return signal_utility
+	return null
+
+
+func _get_accessibility_utility() -> GameAccessibilityUtility:
+	var utility_value: Object = get_utility(GameAccessibilityUtility)
+	if utility_value is GameAccessibilityUtility:
+		var accessibility: GameAccessibilityUtility = utility_value
+		return accessibility
 	return null
 
 
@@ -1242,6 +1318,10 @@ func _on_setting_changed(key: StringName, _old_value: Variant, new_value: Varian
 		)
 		if is_lifecycle_active() and not sound_activated:
 			_set_setting_string_name(SOUND_THEME_SETTING_KEY, get_current_sound_theme_id())
+
+
+func _on_accessibility_state_changed(_state: GameAccessibilityState) -> void:
+	_refresh_visual_effect_policy()
 
 
 func _on_interactive_control_selected(_control: Control) -> void:

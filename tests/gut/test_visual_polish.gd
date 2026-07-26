@@ -18,6 +18,7 @@ const _SCENE_TRANSITION_SHADER_PATH: String = "res://features/asset_library/reso
 const _BUTTON_FOCUS_RING_SHADER_PATH: String = "res://features/asset_library/resources/shaders/ui/button_focus_dash.gdshader"
 const _STARTUP_PROGRESS_SHADER_PATH: String = "res://features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader"
 const _CELEBRATION_CONFETTI_SHADER_PATH: String = "res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader"
+const _CELEBRATION_CONFETTI_EMITTER_PATH: String = "res://features/themes/scripts/ui/game_celebration_confetti_emitter.gd"
 const _VISUAL_STYLE_DOC_PATH: String = "res://docs/visual_style.md"
 const _BOOT_SCRIPT_PATH: String = "res://app/scripts/boot.gd"
 const _BOOT_RUNTIME_SCRIPT_PATH: String = "res://app/scripts/boot_runtime.gd"
@@ -65,7 +66,8 @@ func test_game_background_shader_keeps_light_paper_texture_defaults() -> void:
 	assert_true(shader_text.contains("pixel_cloud_mask"), "背景 shader 应支持程序化像素云/墨流层。")
 	assert_true(shader_text.contains("cloud_scroll_speed_1"), "背景墨流层应暴露第一层滚动速度。")
 	assert_true(shader_text.contains("cloud_scroll_speed_2"), "背景墨流层应暴露第二层滚动速度。")
-	assert_true(shader_text.contains("TIME"), "背景墨流层应使用时间驱动的轻量动效。")
+	assert_true(shader_text.contains("animation_time"), "背景墨流层应使用项目可暂停的时间源。")
+	assert_false(shader_text.contains("TIME"), "背景不得依赖失焦后仍持续推进的内置 TIME。")
 	_assert_shader_float_default_in_range(shader_text, "grain_strength", 0.008, 0.020)
 	_assert_shader_float_default_in_range(shader_text, "stipple_strength", 0.000, 0.006)
 	_assert_shader_float_default_in_range(shader_text, "scanline_strength", 0.000, 0.008)
@@ -76,6 +78,37 @@ func test_game_background_shader_keeps_light_paper_texture_defaults() -> void:
 	_assert_shader_float_default_in_range(shader_text, "sub_dash_length", 4.0, 12.0)
 	_assert_shader_float_default_in_range(shader_text, "cloud_position_impact", 0.45, 0.70)
 	_assert_shader_float_default_in_range(shader_text, "cloud_strength", 0.010, 0.050)
+
+
+func test_shader_animation_driver_freezes_focus_and_detaches_static_material() -> void:
+	var rect: ColorRect = ColorRect.new()
+	var material: ShaderMaterial = ShaderMaterial.new()
+	material.shader = _load_shader(_BACKGROUND_SHADER_PATH)
+	rect.material = material
+	add_child_autoqfree(rect)
+	var driver: GameShaderAnimationDriver = GameShaderAnimationDriver.new()
+	rect.add_child(driver)
+	var _configured_driver: GameShaderAnimationDriver = driver.configure(rect)
+	await get_tree().process_frame
+
+	driver.set_application_focused(false)
+	var frozen_time: float = driver.get_animation_time()
+	driver.call(&"_process", 0.5)
+	assert_true(
+		is_equal_approx(driver.get_animation_time(), frozen_time),
+		"应用失焦时自有 shader 时间源不得继续推进。"
+	)
+	driver.set_application_focused(true)
+	driver.call(&"_process", 0.5)
+	assert_gt(driver.get_animation_time(), frozen_time, "恢复焦点后应从冻结时间继续。")
+
+	driver.set_animation_enabled(false, true)
+	assert_true(rect.material == null, "静态策略应卸载 ShaderMaterial，避免隐藏片元开销。")
+	assert_true(rect.process_mode == Node.PROCESS_MODE_DISABLED, "静态背景应禁用节点处理。")
+	assert_false(driver.is_processing(), "静态策略下时间 Driver 不得保留每帧处理。")
+	driver.set_animation_enabled(true, true)
+	assert_true(rect.material == material, "重新启用动效时应恢复原主题材质。")
+	assert_true(rect.process_mode == Node.PROCESS_MODE_INHERIT, "动态背景应恢复普通场景处理策略。")
 
 
 func test_scene_transition_shader_loads_and_keeps_print_defaults() -> void:
@@ -128,7 +161,8 @@ func test_button_focus_ring_shader_loads_and_uses_dashed_rounded_path() -> void:
 	assert_true(is_instance_valid(shader), "按钮选中态虚线描边 shader 应能正常加载。")
 	assert_true(shader_text.contains("rounded_box_sdf"), "按钮选中态描边应使用圆角矩形 SDF。")
 	assert_true(shader_text.contains("dash_count"), "按钮选中态描边应支持虚线分段。")
-	assert_true(shader_text.contains("TIME"), "按钮选中态描边应有轻量移动感。")
+	assert_true(shader_text.contains("animation_time"), "按钮选中态描边应由可暂停时间源驱动。")
+	assert_false(shader_text.contains("TIME"), "按钮焦点描边不得在失焦后通过内置 TIME 跳变。")
 	_assert_shader_float_default_in_range(shader_text, "thickness", 2.0, 4.0)
 	_assert_shader_float_default_in_range(shader_text, "dash_count", 12.0, 24.0)
 	_assert_shader_float_default_in_range(shader_text, "dash_ratio", 0.42, 0.66)
@@ -288,20 +322,26 @@ func test_gameplay_visual_warmup_primes_tiles_and_feedback_without_runtime_asset
 	assert_gt(warmup.get_child_count(), 1, "视觉预热应覆盖方块轮廓和常驻反馈绘制。")
 
 
-func test_celebration_confetti_shader_loads_and_keeps_print_defaults() -> void:
+func test_celebration_confetti_uses_bounded_particle_shader_and_emitter() -> void:
 	var shader: Shader = _load_shader(_CELEBRATION_CONFETTI_SHADER_PATH)
 	var shader_text: String = _read_text(_CELEBRATION_CONFETTI_SHADER_PATH)
+	var emitter_text: String = _read_text(_CELEBRATION_CONFETTI_EMITTER_PATH)
 
 	assert_true(is_instance_valid(shader), "庆祝纸屑 shader 应能正常加载。")
-	assert_true(shader_text.contains("PARTICLE_COUNT = 88"), "庆祝纸屑数量应克制，避免廉价全屏彩纸噪音。")
 	assert_true(shader_text.contains("palette_color"), "庆祝纸屑应使用主题化 CMYK 色板。")
-	assert_true(shader_text.contains("rotate2d"), "庆祝纸屑应有轻量旋转，而不是静态贴片。")
-	assert_true(shader_text.contains("drain_started_at"), "庆祝纸屑应支持停止循环后自然落出画面。")
-	assert_true(shader_text.contains("cycle_visibility"), "纸屑退场不得直接隐藏半空中的当前周期。")
-	_assert_shader_float_default_in_range(shader_text, "speed", 80.0, 130.0)
-	_assert_shader_float_default_in_range(shader_text, "sway_strength", 24.0, 54.0)
-	_assert_shader_float_default_in_range(shader_text, "spin_speed", 1.8, 3.4)
-	_assert_shader_float_default_in_range(shader_text, "piece_size", 5.0, 9.0)
+	assert_true(shader_text.contains("edge_strength"), "单纸片 shader 应保留印刷边缘层次。")
+	assert_true(shader_text.contains("grain_strength"), "单纸片 shader 应保留克制纸张颗粒。")
+	assert_false(shader_text.contains("for ("), "纸屑片元 shader 不得再按粒子数执行全屏循环。")
+	assert_false(shader_text.contains("PARTICLE_COUNT"), "粒子数量预算必须由发射器控制。")
+	assert_false(shader_text.contains("TIME"), "纸屑生命周期不得依赖失焦后持续推进的内置 TIME。")
+	assert_true(emitter_text.contains("extends GPUParticles2D"), "庆祝纸屑应使用有界 GPU 粒子发射器。")
+	assert_true(emitter_text.contains("amount = particle_count"), "发射器数量必须直接受性能预算约束。")
+	assert_true(emitter_text.contains("fixed_fps = 30"), "低数量纸屑模拟应使用固定低频预算。")
+	assert_true(
+		emitter_text.contains("PROCESS_MODE_PAUSABLE"),
+		"纸屑发射器不得绕过场景暂停策略。"
+	)
+	assert_true(emitter_text.contains("speed_scale = 1.0 if _application_focused else 0.0"), "应用失焦时纸屑生命周期应冻结。")
 
 
 func test_list_items_do_not_leak_resource_debug_text_into_button_content() -> void:
@@ -1355,7 +1395,7 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	architecture.dispose()
 
 
-func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
+func test_celebration_vfx_utility_spawns_bounded_confetti_emitter() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var clock_utility: GameClockUtility = GameClockUtility.new()
@@ -1378,25 +1418,31 @@ func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
 	assert_true(layer_node is CanvasLayer, "庆祝 VFX 应创建全局 CanvasLayer。")
 	if layer_node is CanvasLayer:
 		var layer: CanvasLayer = layer_node
-		assert_true(layer.process_mode == Node.PROCESS_MODE_ALWAYS, "庆祝 VFX 在暂停目标达成面板下仍应播放。")
-		assert_true(layer.get_child_count() == 1, "一次庆祝播放应创建一个全屏 ColorRect。")
-		var rect_node: Node = layer.get_child(0)
-		assert_true(rect_node is ColorRect, "庆祝 VFX 子节点应是 ColorRect。")
-		if rect_node is ColorRect:
-			var rect: ColorRect = rect_node
-			assert_true(rect.mouse_filter == Control.MOUSE_FILTER_IGNORE, "庆祝 VFX 不应阻挡 UI 输入。")
-			assert_true(rect.material is ShaderMaterial, "庆祝 VFX 应使用 shader 材质。")
-			assert_true(rect.modulate.a < 1.0, "庆祝 VFX 默认透明度应克制。")
-			if rect.material is ShaderMaterial:
-				var material: ShaderMaterial = rect.material
+		assert_true(layer.process_mode == Node.PROCESS_MODE_PAUSABLE, "庆祝 VFX 层应尊重场景暂停策略。")
+		assert_true(layer.get_child_count() == 1, "一次庆祝播放应创建一个有界发射器。")
+		var emitter_node: Node = layer.get_child(0)
+		assert_true(
+			emitter_node is GameCelebrationConfettiEmitter,
+			"庆祝 VFX 子节点应是 GPUParticles2D 发射器。"
+		)
+		if emitter_node is GameCelebrationConfettiEmitter:
+			var emitter: GameCelebrationConfettiEmitter = emitter_node
+			assert_true(emitter.process_mode == Node.PROCESS_MODE_PAUSABLE, "纸屑不得使用 PROCESS_MODE_ALWAYS。")
+			assert_true(emitter.amount == 88, "完整质量档应严格限制为 88 个 GPU 粒子。")
+			assert_true(emitter.material is ShaderMaterial, "纸片绘制应使用常量复杂度 shader。")
+			assert_true(emitter.process_material is ParticleProcessMaterial, "纸屑运动应由 GPU 粒子材质负责。")
+			assert_true(emitter.modulate.a < 1.0, "庆祝 VFX 默认透明度应克制。")
+			assert_true(is_equal_approx(emitter.configured_speed, 94.0), "目标达成事件应应用主题 preset 的速度参数。")
+			emitter.set_application_focused(false)
+			assert_true(is_zero_approx(emitter.speed_scale), "应用失焦后纸屑模拟应冻结。")
+			emitter.set_application_focused(true)
+			assert_true(is_equal_approx(emitter.speed_scale, 1.0), "恢复焦点后纸屑应从冻结位置继续。")
+			if emitter.material is ShaderMaterial:
+				var material: ShaderMaterial = emitter.material
 				var primary_color_value: Variant = material.get_shader_parameter(&"col0")
 				var primary_color: Color = Color.TRANSPARENT
 				if primary_color_value is Color:
 					primary_color = primary_color_value
-				assert_true(
-					is_equal_approx(GFVariantData.to_float(material.get_shader_parameter(&"speed")), 94.0),
-					"目标达成事件应应用主题 preset 的速度参数。"
-				)
 				assert_true(
 					primary_color == Color(0.61960787, 0.85882354, 0.8352941, 1.0),
 					"庆祝纸屑色板应来自主题 GFShaderParameterProfile。"
@@ -1407,30 +1453,88 @@ func test_celebration_vfx_utility_spawns_fullscreen_confetti_overlay() -> void:
 	assert_true(persistent_played, "新纪录庆祝应能创建持续播放的纸屑层。")
 	if layer_node is CanvasLayer:
 		var layer: CanvasLayer = layer_node
-		var persistent_rect_node: Node = layer.get_child(layer.get_child_count() - 1)
-		assert_true(persistent_rect_node is ColorRect, "持续纸屑实例应是全屏 ColorRect。")
-		if persistent_rect_node is ColorRect:
-			var persistent_rect: ColorRect = persistent_rect_node
+		var persistent_emitter_node: Node = layer.get_child(layer.get_child_count() - 1)
+		assert_true(
+			persistent_emitter_node is GameCelebrationConfettiEmitter,
+			"持续纸屑实例应保持为有界发射器。"
+		)
+		if persistent_emitter_node is GameCelebrationConfettiEmitter:
+			var persistent_emitter: GameCelebrationConfettiEmitter = persistent_emitter_node
 			celebration_vfx.drain_active_celebrations()
 			await get_tree().process_frame
-			assert_true(is_instance_valid(persistent_rect), "纸屑清退不能在玩家选择当帧直接消失。")
-			assert_true(
-				GFVariantData.to_bool(
-					persistent_rect.get_meta(&"celebration_draining", false),
-					false
-				),
-				"纸屑清退应进入停止新周期的 draining 状态。"
+			assert_true(is_instance_valid(persistent_emitter), "纸屑清退不能在玩家选择当帧直接消失。")
+			assert_true(persistent_emitter.is_draining(), "纸屑清退应进入停止发射状态。")
+			assert_false(persistent_emitter.emitting, "清退时应停止生成新纸屑。")
+		for child: Node in layer.get_children():
+			child.queue_free()
+		await get_tree().process_frame
+		accessibility_utility.set_vfx_quality(
+			GameAccessibilityState.VfxQuality.REDUCED
+		)
+		assert_true(
+			celebration_vfx.play_new_record_celebration(),
+			"降低 VFX 质量后仍应保留有界庆祝反馈。"
+		)
+		await get_tree().process_frame
+		var reduced_emitter_node: Node = layer.get_child(0)
+		assert_true(
+			reduced_emitter_node is GameCelebrationConfettiEmitter,
+			"降低质量仍应使用同一有界粒子路径。"
+		)
+		if reduced_emitter_node is GameCelebrationConfettiEmitter:
+			var reduced_emitter: GameCelebrationConfettiEmitter = (
+				reduced_emitter_node
 			)
-			if persistent_rect.material is ShaderMaterial:
-				var persistent_material: ShaderMaterial = persistent_rect.material
-				assert_gte(
-					GFVariantData.to_float(
-						persistent_material.get_shader_parameter(&"drain_started_at"),
-						-1.0
-					),
-					0.0,
-					"清退必须把准确开始时间传给纸屑 shader。"
-				)
+			assert_true(
+				reduced_emitter.amount == 44,
+				"REDUCED 质量档应把庆祝粒子硬限制为 44。"
+			)
+
+	architecture.dispose()
+	await get_tree().process_frame
+
+
+func test_reduced_motion_celebration_is_static_and_has_no_shader_work() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var accessibility_utility: GameAccessibilityUtility = await _register_accessibility_stack(
+		architecture
+	)
+	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameAccessibilityUtility, accessibility_utility)
+	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
+	await architecture.init()
+	accessibility_utility.set_reduced_motion(true)
+	assert_true(
+		celebration_vfx.apply_theme(_HALFTONE_CELEBRATION_VFX_THEME),
+		"静态庆祝路径也应接受完整主题资源。"
+	)
+	assert_true(
+		celebration_vfx.play_new_record_celebration(),
+		"减少动态效果时应显示静态庆祝反馈。"
+	)
+	await get_tree().process_frame
+
+	var layer_node: Node = get_tree().root.get_node_or_null("GameCelebrationVfxLayer")
+	assert_true(layer_node is CanvasLayer, "静态庆祝也应复用统一 CanvasLayer。")
+	if layer_node is CanvasLayer:
+		var layer: CanvasLayer = layer_node
+		assert_true(layer.process_mode == Node.PROCESS_MODE_PAUSABLE, "静态庆祝层不得使用 ALWAYS。")
+		assert_true(layer.get_child_count() == 1, "静态庆祝应只创建一个纯色覆盖节点。")
+		var rect_node: Node = layer.get_child(0)
+		assert_true(rect_node is ColorRect, "减少动态效果应降级为静态 ColorRect。")
+		if rect_node is ColorRect:
+			var rect: ColorRect = rect_node
+			assert_true(rect.material == null, "静态庆祝不得保留 ShaderMaterial。")
+			assert_true(
+				rect.process_mode == Node.PROCESS_MODE_DISABLED,
+				"静态庆祝节点不得产生后台处理。"
+			)
+			celebration_vfx.drain_active_celebrations()
+			await get_tree().process_frame
+			assert_false(is_instance_valid(rect), "静态循环庆祝在关闭时应直接回收。")
 
 	architecture.dispose()
 	await get_tree().process_frame

@@ -146,10 +146,22 @@ func _apply_responsive_layout() -> void:
 		return
 	_layout_mode = GameTaskPageLayoutUtility.classify_layout(size)
 	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	var compact_horizontal_margins: float = (
+		32.0
+		if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+		else 24.0
+	)
+	var compact_content_width: float = clampf(
+		size.x - compact_horizontal_margins,
+		320.0,
+		760.0
+	)
 	_set_right_panel_compact(compact)
 	_columns_container.add_theme_constant_override("separation", 0 if compact else 34)
 	_center_column.add_theme_constant_override("separation", 12 if compact else 5)
-	_center_content_vbox.custom_minimum_size.x = 0.0 if compact else 560.0
+	_center_content_vbox.custom_minimum_size.x = (
+		compact_content_width if compact else 560.0
+	)
 	_right_panel_container.custom_minimum_size.x = 0.0 if compact else 390.0
 	_right_panel_container.size_flags_horizontal = (
 		Control.SIZE_EXPAND_FILL if compact else Control.SIZE_FILL
