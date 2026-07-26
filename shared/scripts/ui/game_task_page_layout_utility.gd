@@ -53,11 +53,14 @@ static func classify_layout(viewport_size: Vector2) -> LayoutMode:
 
 
 ## 返回指定尺寸是否需要单列或可滚动的紧凑布局。
+## @param viewport_size: 当前逻辑视口尺寸。
 static func is_compact_layout(viewport_size: Vector2) -> bool:
 	return classify_layout(viewport_size) != LayoutMode.DESKTOP
 
 
 ## 从指定根节点安全取得 MarginContainer。
+## @param root: 查询起点节点。
+## @param node_path: 相对于查询起点的节点路径。
 static func get_margin_container(root: Node, node_path: NodePath) -> MarginContainer:
 	if not is_instance_valid(root):
 		return null
@@ -69,6 +72,8 @@ static func get_margin_container(root: Node, node_path: NodePath) -> MarginConta
 
 
 ## 从指定根节点安全取得 HBoxContainer。
+## @param root: 查询起点节点。
+## @param node_path: 相对于查询起点的节点路径。
 static func get_hbox_container(root: Node, node_path: NodePath) -> HBoxContainer:
 	if not is_instance_valid(root):
 		return null
@@ -98,6 +103,8 @@ static func get_safe_area_extra_margins(
 
 ## 在不改写场景资源层级的前提下，为页面内容补一个纵向滚动视口。
 ## 已经位于 ScrollContainer 下时直接复用原节点。
+## @param content: 需要获得纵向滚动父级的页面内容节点。
+## @param scroll_name: 新建滚动容器使用的稳定节点名。
 static func ensure_vertical_scroll_parent(
 	content: Control,
 	scroll_name: StringName = &"ResponsiveScroll"
@@ -128,6 +135,8 @@ static func ensure_vertical_scroll_parent(
 
 
 ## 无 GFViewportUtility 时应用额外留白，保证隔离测试与降级启动仍可用。
+## @param margin_container: 要写入主题边距的页面容器。
+## @param extra_margins: 包含 left、top、right、bottom 的额外边距。
 static func apply_margin_fallback(
 	margin_container: MarginContainer,
 	extra_margins: Dictionary

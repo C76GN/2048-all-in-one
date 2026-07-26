@@ -44,6 +44,8 @@ func get_wait_guard_node() -> Node:
 
 
 ## 固化动作入队时的主题节拍与无障碍预算，避免执行途中设置变化重排当前批次。
+## @param motion_profile: 当前主题提供的方块动效节拍。
+## @param feedback_budget: 当前无障碍反馈预算快照。
 func configure_tile_motion(
 	motion_profile: GameTileMotionProfile,
 	feedback_budget: GameFeedbackBudget

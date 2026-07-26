@@ -49,6 +49,8 @@ func _notification(what: int) -> void:
 # --- 公共方法 ---
 
 ## 绑定目标和 shader 时间参数。可重复调用以同步主题切换后的材质。
+## @param target: 持有目标 ShaderMaterial 的画布节点。
+## @param parameter_name: 驱动动画时间的 shader 参数名。
 func configure(
 	target: CanvasItem,
 	parameter_name: StringName = DEFAULT_PARAMETER_NAME
@@ -92,6 +94,8 @@ func capture_current_material() -> ShaderMaterial:
 
 
 ## 切换动态/静态策略；静态策略默认卸载材质并禁用目标处理。
+## @param enabled: 是否启用持续 shader 动画。
+## @param detach_material_when_disabled: 禁用时是否从目标节点卸载材质。
 func set_animation_enabled(
 	enabled: bool,
 	detach_material_when_disabled: bool = true
@@ -112,6 +116,7 @@ func set_animation_enabled(
 
 
 ## 显式同步应用聚焦状态；公开入口也便于无窗口回归测试。
+## @param focused: 应用当前是否拥有输入焦点。
 func set_application_focused(focused: bool) -> void:
 	_application_focused = focused
 	_refresh_processing()

@@ -104,6 +104,7 @@ func set_high_score(mode_id: String, board_key: String, score: int) -> Error:
 
 ## 事务记录规范结果。所有结果进入有界 recent results；只有比赛合格结果进入本地榜。
 ## Debug 改写结果不投影到既有进度统计或成就。
+## @param result: 已冻结并通过当前 schema 校验的规范对局结果。
 func record_game_result(result: GameResultRecordedData) -> Error:
 	if result == null or not result.is_valid():
 		return ERR_INVALID_DATA
@@ -143,6 +144,7 @@ func get_recent_results() -> Array[GameResultRecordedData]:
 
 
 ## 查询与给定结果完全同组的本地榜。
+## @param reference_result: 提供完整榜单身份的规范参考结果。
 func get_local_leaderboard_for_result(
 	reference_result: GameResultRecordedData
 ) -> Array[GameResultRecordedData]:
@@ -154,6 +156,7 @@ func get_local_leaderboard_for_result(
 
 
 ## 返回给定规范结果在本地榜中的 1-based 名次；未上榜返回 0。
+## @param reference_result: 要查询本地名次的规范结果。
 func get_local_rank(reference_result: GameResultRecordedData) -> int:
 	if reference_result == null:
 		return 0
@@ -167,6 +170,11 @@ func get_local_rank(reference_result: GameResultRecordedData) -> int:
 
 
 ## 查询指定模式、拓扑与规则版本的本地榜。
+## @param mode_id: 对局模式的稳定 ID。
+## @param board_key: 棋盘拓扑的稳定键。
+## @param ruleset_id: 玩法规则集的稳定 ID。
+## @param ruleset_version: 玩法规则集版本。
+## @param ruleset_fingerprint: 完整玩法内容的 SHA-256 指纹。
 func get_local_leaderboard(
 	mode_id: String,
 	board_key: String,

@@ -70,6 +70,7 @@ func dispose() -> void:
 # --- 公共方法 ---
 
 ## 只构建棋盘摘要，不发布信号或修改序号。
+## @param board_snapshot: 当前严格棋盘快照。
 func build_board_summary(board_snapshot: Dictionary) -> GameAccessibilitySummary:
 	var board_payload: Dictionary = _build_board_payload(board_snapshot)
 	if board_payload.is_empty():
@@ -83,6 +84,8 @@ func build_board_summary(board_snapshot: Dictionary) -> GameAccessibilitySummary
 
 
 ## 只构建回合摘要，不发布信号或修改序号。
+## @param turn_result: 已完成回合的权威结算结果。
+## @param board_snapshot: 结算后的当前严格棋盘快照。
 func build_turn_summary(
 	turn_result: TurnResult,
 	board_snapshot: Dictionary
@@ -104,12 +107,15 @@ func build_turn_summary(
 
 
 ## 构建并发布当前棋盘摘要。
+## @param board_snapshot: 当前严格棋盘快照。
 func publish_board_summary(board_snapshot: Dictionary) -> GameAccessibilitySummary:
 	var summary: GameAccessibilitySummary = build_board_summary(board_snapshot)
 	return _publish(summary)
 
 
 ## 构建并发布已完成回合的摘要。
+## @param turn_result: 已完成回合的权威结算结果。
+## @param board_snapshot: 结算后的当前严格棋盘快照。
 func publish_turn_summary(
 	turn_result: TurnResult,
 	board_snapshot: Dictionary

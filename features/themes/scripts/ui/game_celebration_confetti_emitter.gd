@@ -46,6 +46,12 @@ func _notification(what: int) -> void:
 
 # --- 公共方法 ---
 
+## 配置并启动一次主题化纸屑发射。
+## @param viewport_size: 当前逻辑视口尺寸。
+## @param particle_count: 本次庆祝使用的粒子数量。
+## @param event_parameters: 当前庆祝事件的规范表现参数。
+## @param draw_shader: 用于绘制纸屑图元的已加载 Shader。
+## @param opacity: 纸屑层的整体不透明度。
 func configure(
 	viewport_size: Vector2,
 	particle_count: int,
@@ -139,6 +145,7 @@ func get_drain_seconds() -> float:
 
 
 ## 显式同步应用聚焦状态，确保恢复焦点时不会跳过纸屑生命周期。
+## @param focused: 应用当前是否拥有输入焦点。
 func set_application_focused(focused: bool) -> void:
 	_application_focused = focused
 	_refresh_speed_scale()

@@ -49,6 +49,7 @@ func _init(reason_codes: Array = []) -> void:
 # --- 公共方法 ---
 
 ## 构造严格资格快照；包含未知 reason code 时返回 null。
+## @param reason_codes: 要写入快照的规范原因码集合。
 static func create(reason_codes: Array = []) -> GameCompetitionEligibility:
 	if not _are_reason_codes_valid(reason_codes):
 		return null
@@ -56,6 +57,7 @@ static func create(reason_codes: Array = []) -> GameCompetitionEligibility:
 
 
 ## 从严格持久化结构恢复资格快照。
+## @param data: 当前版本的完整资格字典。
 static func from_dict(data: Dictionary) -> GameCompetitionEligibility:
 	if not (
 		data.size() == 3
@@ -80,6 +82,7 @@ static func from_dict(data: Dictionary) -> GameCompetitionEligibility:
 
 
 ## 返回添加 reason code 后的新快照；原快照保持不变。
+## @param reason_code: 要添加的规范资格原因码。
 func with_reason(reason_code: StringName) -> GameCompetitionEligibility:
 	if not is_known_reason_code(reason_code):
 		return null
@@ -96,6 +99,8 @@ func is_eligible() -> bool:
 	return true
 
 
+## 查询快照是否包含指定资格原因码。
+## @param reason_code: 要查询的规范资格原因码。
 func has_reason(reason_code: StringName) -> bool:
 	return _reason_codes.has(reason_code)
 
@@ -123,6 +128,8 @@ func to_dict() -> Dictionary:
 	}
 
 
+## 判断原因码是否属于当前 schema。
+## @param reason_code: 要校验的资格原因码。
 static func is_known_reason_code(reason_code: StringName) -> bool:
 	return _KNOWN_REASON_CODES.has(reason_code)
 

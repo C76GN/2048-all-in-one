@@ -22,6 +22,9 @@ var _eligibility: GameCompetitionEligibility = GameCompetitionEligibility.new()
 
 # --- 公共方法 ---
 
+## 构造当前 schema 的会话元数据。
+## @param seed_source: 本局初始种子的规范来源。
+## @param eligibility: 本局比赛资格快照；省略时使用默认合格快照。
 static func create(
 	seed_source: StringName,
 	eligibility: GameCompetitionEligibility = null
@@ -45,6 +48,8 @@ static func make_default_dict() -> Dictionary:
 	return metadata.to_dict() if metadata != null else {}
 
 
+## 从当前严格持久化结构恢复会话元数据。
+## @param data: 当前版本的完整会话元数据字典。
 static func from_dict(data: Dictionary) -> GameSessionMetadata:
 	if not (
 		data.size() == 3
@@ -88,6 +93,7 @@ func get_eligibility() -> GameCompetitionEligibility:
 
 
 ## 返回添加资格 reason code 后的新会话元数据；原实例保持不变。
+## @param reason_code: 要添加的规范资格原因码。
 func with_eligibility_reason(reason_code: StringName) -> GameSessionMetadata:
 	if _eligibility == null:
 		return null

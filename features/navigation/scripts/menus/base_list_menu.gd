@@ -102,6 +102,7 @@ func _unhandled_input(event: InputEvent) -> void:
 # --- 公共方法 ---
 
 ## 返回历史任务页是否应采用紧凑单列布局。
+## @param viewport_size: 当前逻辑视口尺寸。
 static func is_compact_layout(viewport_size: Vector2) -> bool:
 	return GameTaskPageLayoutUtility.is_compact_layout(viewport_size)
 

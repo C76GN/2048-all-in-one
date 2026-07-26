@@ -17,6 +17,7 @@ var _disposed: bool = false
 # --- 公共方法 ---
 
 ## 绑定调用方拥有的 GF 虚拟输入源。
+## @param source: 调用方拥有的 GF 虚拟输入源。
 func configure(source: GFVirtualInputSource) -> GameVirtualActionPulseUtility:
 	cancel_all()
 	_source = source
@@ -28,6 +29,9 @@ func configure(source: GFVirtualInputSource) -> GameVirtualActionPulseUtility:
 ##
 ## 调用方继续拥有 action_id 与 hold_seconds 的产品语义；本工具只保证生命周期、
 ## 重入与最终释放。计时器忽略暂停和 time scale，暂停菜单或慢动作不会卡住动作。
+## @param action_id: 要注入的规范输入动作 ID。
+## @param scene_tree: 拥有忽略暂停计时器的场景树。
+## @param hold_seconds: 动作保持按下的有界秒数。
 func pulse(
 	action_id: StringName,
 	scene_tree: SceneTree,

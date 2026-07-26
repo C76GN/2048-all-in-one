@@ -82,6 +82,8 @@ const SCHEMA_VERSION: int = 4
 # --- 公共方法 ---
 
 ## 从当前模式冻结书签规则集身份。
+## @param mode_config: 当前权威模式配置。
+## @param determinism: 负责生成规则集身份的确定性工具。
 func configure_ruleset(
 	mode_config: GameModeConfig,
 	determinism: GameDeterminismUtility
@@ -95,6 +97,8 @@ func configure_ruleset(
 
 
 ## 判断书签规则集是否与当前模式完全匹配。
+## @param mode_config: 要比较的当前权威模式配置。
+## @param determinism: 负责生成规则集身份的确定性工具。
 func matches_ruleset(
 	mode_config: GameModeConfig,
 	determinism: GameDeterminismUtility

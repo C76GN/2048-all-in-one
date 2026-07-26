@@ -117,13 +117,14 @@ func get_state() -> Variant:
 
 ## 判断一个反序列化状态是否符合当前规则版本。
 ## 无内部状态的基类只接受 null。
+## @param state: 待校验的反序列化规则状态。
 func is_state_valid(state: Variant) -> bool:
 	return state == null
 
 
 ## 从一个状态值恢复规则的内部状态。
 ##
-## @param _state: 从历史记录中加载的状态值。
+## @param state: 从历史记录中加载的状态值。
 ## @return: 状态被完整接受并应用时返回 true。
 func set_state(state: Variant) -> bool:
 	return is_state_valid(state)

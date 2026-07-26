@@ -1280,6 +1280,9 @@ class _ScriptedStorage extends GFStorageUtility:
 	var sync_save_call_count: int = 0
 
 
+	## 执行一次可脚本化完成结果的异步保存测试替身调用。
+	## @param file_name: 要保存的测试文件名。
+	## @param _data: 本替身不读取的保存数据。
 	func save_data_async(file_name: String, _data: Dictionary) -> Error:
 		async_save_call_count += 1
 		var completion_error: Error = (
@@ -1295,6 +1298,9 @@ class _ScriptedStorage extends GFStorageUtility:
 		)
 
 
+	## 执行一次可脚本化失败结果的同步保存测试替身调用。
+	## @param file_name: 要保存的测试文件名。
+	## @param data: 要透传给真实存储实现的保存数据。
 	func save_data(file_name: String, data: Dictionary) -> Error:
 		sync_save_call_count += 1
 		if not sync_save_errors.is_empty():

@@ -412,6 +412,8 @@ func refresh_button_focus_ring(button: BaseButton) -> void:
 
 ## 切换持续 UI shader 的静态策略，并刷新给定 UI 子树中的按钮焦点环。
 ## 静态策略仍保留按钮自身的 StyleBox 焦点边框，不牺牲键盘可访问性。
+## @param enabled: 是否采用不持续更新 shader 的静态视觉策略。
+## @param root: 可选的 UI 子树根节点，用于立即刷新焦点环策略。
 func set_static_visuals_enabled(enabled: bool, root: Node = null) -> void:
 	_static_visuals_enabled = enabled
 	if is_instance_valid(root):

@@ -75,6 +75,7 @@ func get_full_game_state() -> Dictionary:
 
 
 ## 在不访问运行时对象的前提下校验完整状态的当前严格 envelope。
+## @param state: 待校验的完整游戏状态字典。
 static func is_state_envelope_valid(state: Dictionary) -> bool:
 	if not (
 		state.size() == _STATE_FIELD_COUNT
@@ -159,6 +160,9 @@ static func is_state_envelope_valid(state: Dictionary) -> bool:
 
 
 ## 完整预演一次恢复；不会修改棋盘、统计、RNG 或规则状态。
+## @param state_to_restore: 要预演恢复的完整游戏状态。
+## @param interaction_rule_override: 可选的交互规则目标；省略时使用当前规则。
+## @param rules_override: 可选的生成规则目标；空数组时使用当前规则集合。
 func can_restore_state(
 	state_to_restore: Dictionary,
 	interaction_rule_override: InteractionRule = null,

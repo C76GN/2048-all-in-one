@@ -45,6 +45,8 @@ func _init(
 # --- 公共方法 ---
 
 ## 从持久化回放与可选首个 OOS 报告构建唯一、稳定排序的标记目录。
+## @param replay_data: 已通过严格校验的当前回放数据。
+## @param oos_report: 可选的首个回放偏离诊断报告。
 static func build_catalog(
 	replay_data: ReplayData,
 	oos_report: Dictionary = {}
@@ -116,6 +118,9 @@ static func build_catalog(
 	return _deduplicate(result)
 
 
+## 统计标记目录中指定类型的条目数量。
+## @param markers: 要统计的回放标记目录。
+## @param marker_kind: 要匹配的回放标记类型。
 static func count_by_kind(markers: Array[ReplayMarker], marker_kind: Kind) -> int:
 	var count: int = 0
 	for marker: ReplayMarker in markers:

@@ -126,6 +126,7 @@ static func deserialize(data: Dictionary) -> MoveCommand:
 
 
 ## 在命令进入 GF 历史栈前校验完整当前 schema 与游戏状态快照。
+## @param data: 待校验的当前版本命令字典。
 static func is_serialized_data_valid(data: Dictionary) -> bool:
 	if not (
 		data.size() == 6

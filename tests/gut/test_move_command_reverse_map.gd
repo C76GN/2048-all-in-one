@@ -217,5 +217,7 @@ func _make_empty_game_state() -> Dictionary:
 # --- 内部类 ---
 
 class RejectingGameStateSystem extends GameStateSystem:
+	## 拒绝测试请求的状态恢复。
+	## @param _state_to_restore: 本替身故意拒绝的完整状态。
 	func restore_state(_state_to_restore: Dictionary) -> bool:
 		return false

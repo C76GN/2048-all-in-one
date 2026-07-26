@@ -64,6 +64,7 @@ func get_all_spawn_rules() -> Array[SpawnRule]:
 
 
 ## 按稳定 rule_state_id 捕获规则状态，数组重排不会改变恢复语义。
+## @param rules: 要捕获状态的完整生成规则集合。
 static func capture_rule_states(rules: Array[SpawnRule]) -> Dictionary:
 	if not are_rules_state_compatible(rules):
 		return {}
@@ -79,6 +80,8 @@ static func capture_rule_states(rules: Array[SpawnRule]) -> Dictionary:
 
 
 ## 校验规则状态字典是否与目标规则集合完全一致。
+## @param rules_states: 按稳定规则 ID 键控的状态字典。
+## @param rules: 状态需要匹配的完整生成规则集合。
 static func are_rule_states_valid(
 	rules_states: Dictionary,
 	rules: Array[SpawnRule]
@@ -117,6 +120,8 @@ static func are_rule_states_valid(
 
 
 ## 原子应用一组已经按稳定 ID 键控的规则状态。
+## @param rules_states: 按稳定规则 ID 键控的状态字典。
+## @param rules: 要接收状态的完整生成规则集合。
 static func restore_rule_states(
 	rules_states: Dictionary,
 	rules: Array[SpawnRule]
@@ -142,6 +147,7 @@ static func restore_rule_states(
 
 
 ## 判断规则集合是否具备稳定且唯一的状态身份。
+## @param rules: 要校验的完整生成规则集合。
 static func are_rules_state_compatible(rules: Array[SpawnRule]) -> bool:
 	var seen_ids: Dictionary = {}
 	for rule: SpawnRule in rules:

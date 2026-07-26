@@ -201,6 +201,7 @@ func notify_playback_step_settled() -> void:
 ## 请求通过现有 MoveCommand/GFCommandHistoryUtility 重建到目标步。
 ##
 ## 本 System 只验证并发布请求；实际命令执行由 ReplayInputSystem 单一拥有。
+## @param target_step: 要重建到的 0-based 回放进度步。
 func jump_to_step(target_step: int) -> bool:
 	if (
 		not _is_replay_active
@@ -226,6 +227,8 @@ func jump_to_step(target_step: int) -> bool:
 	return true
 
 
+## 跳转到标记目录中的指定条目。
+## @param marker_index: 标记目录中的 0-based 索引。
 func jump_to_marker(marker_index: int) -> bool:
 	var marker: ReplayMarker = get_marker(marker_index)
 	return jump_to_step(marker.step_index) if is_instance_valid(marker) else false
@@ -242,6 +245,9 @@ func jump_to_next_marker() -> bool:
 
 
 ## ReplayInputSystem 在命令历史达到目标或首次失败后关闭请求。
+## @param request_id: 当前跳转请求的稳定序号。
+## @param target_step: 请求期望达到的回放步数。
+## @param succeeded: 命令历史是否成功重建到目标步。
 func notify_jump_completed(request_id: int, target_step: int, succeeded: bool) -> bool:
 	if (
 		not _is_jump_active
@@ -315,6 +321,8 @@ func get_markers() -> Array[ReplayMarker]:
 	return _markers.duplicate()
 
 
+## 获取标记目录中的指定条目。
+## @param marker_index: 标记目录中的 0-based 索引。
 func get_marker(marker_index: int) -> ReplayMarker:
 	if marker_index < 0 or marker_index >= _markers.size():
 		return null
@@ -325,6 +333,8 @@ func get_marker_count() -> int:
 	return _markers.size()
 
 
+## 查找严格早于指定步数的最近标记。
+## @param from_step: 搜索起点的回放步数。
 func find_previous_marker_index(from_step: int) -> int:
 	for index: int in range(_markers.size() - 1, -1, -1):
 		var marker: ReplayMarker = _markers[index]
@@ -333,6 +343,8 @@ func find_previous_marker_index(from_step: int) -> int:
 	return -1
 
 
+## 查找严格晚于指定步数的最近标记。
+## @param from_step: 搜索起点的回放步数。
 func find_next_marker_index(from_step: int) -> int:
 	for index: int in range(_markers.size()):
 		var marker: ReplayMarker = _markers[index]
@@ -345,6 +357,9 @@ func is_jump_in_progress() -> bool:
 	return _is_jump_active
 
 
+## 判断标识与目标是否仍对应当前有效跳转请求。
+## @param request_id: 要比对的跳转请求序号。
+## @param target_step: 要比对的目标回放步数。
 func is_jump_request_current(request_id: int, target_step: int) -> bool:
 	return (
 		_is_jump_active

@@ -61,6 +61,7 @@ func release_dependencies() -> void:
 # --- 公共方法 ---
 
 ## 应用当前视觉主题提供的庆祝特效配置。
+## @param theme: 已验证的庆祝特效主题资源。
 func apply_theme(theme: GameCelebrationVfxTheme) -> bool:
 	if not is_instance_valid(theme):
 		push_error("[GameCelebrationVfxUtility] 庆祝特效主题无效。")

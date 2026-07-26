@@ -137,6 +137,8 @@ func get_state() -> Variant:
 	return {"current_probability": _current_probability}
 
 
+## 校验概率生成规则的当前版本状态。
+## @param state: 待校验的反序列化规则状态。
 func is_state_valid(state: Variant) -> bool:
 	if not state is Dictionary:
 		return false

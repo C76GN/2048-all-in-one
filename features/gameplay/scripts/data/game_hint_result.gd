@@ -58,6 +58,7 @@ func is_cardinal_direction() -> bool:
 
 
 ## 当前结果是否仍对应调用方刚刚读取的棋盘快照。
+## @param current_snapshot_id: 调用方当前棋盘快照的稳定标识。
 func is_fresh_for(current_snapshot_id: String) -> bool:
 	return (
 		not snapshot_id.is_empty()
@@ -70,6 +71,7 @@ func is_fresh_for(current_snapshot_id: String) -> bool:
 ##
 ## 取消和无效输入不产生玩家可见建议；步数或时间预算终止可以显示明确标注的
 ## 部分结果。所有情况都必须通过 freshness 校验。
+## @param current_snapshot_id: 调用方当前棋盘快照的稳定标识。
 func can_display_for(current_snapshot_id: String) -> bool:
 	if not is_fresh_for(current_snapshot_id) or not is_cardinal_direction():
 		return false

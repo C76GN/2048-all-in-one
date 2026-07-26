@@ -33,6 +33,21 @@ var target_reached: bool = false
 
 # --- 公共方法 ---
 
+## 构造经过严格校验的规范对局结果。
+## @param p_mode_id: 对局模式的稳定 ID。
+## @param p_board_key: 棋盘拓扑的稳定键。
+## @param p_ruleset_id: 玩法规则集的稳定 ID。
+## @param p_ruleset_version: 玩法规则集版本。
+## @param p_ruleset_fingerprint: 完整玩法内容的 SHA-256 指纹。
+## @param p_initial_seed: 对局初始随机种子。
+## @param p_final_state_hash: 最终确定性状态的 SHA-256 摘要。
+## @param p_competition_eligibility: 对局结束时冻结的比赛资格快照。
+## @param p_score: 对局最终分数。
+## @param p_steps: 已完成的有效移动次数。
+## @param p_max_tile: 对局达到的最高方块值。
+## @param p_played_at: 对局结束时的 Unix 时间戳。
+## @param p_target_value: 当前模式的目标方块值；无目标时为 0。
+## @param p_target_reached: 对局是否达到目标方块值。
 static func create(
 	p_mode_id: StringName,
 	p_board_key: String,
@@ -68,6 +83,8 @@ static func create(
 	return result if result.is_valid() else null
 
 
+## 从当前严格持久化结构恢复规范对局结果。
+## @param data: 当前版本的完整结果字典。
 static func from_dict(data: Dictionary) -> GameResultRecordedData:
 	if not _has_strict_shape(data):
 		return null
@@ -150,6 +167,8 @@ func get_leaderboard_group_key() -> String:
 	return calculate_leaderboard_group_key(get_leaderboard_identity())
 
 
+## 从规范榜单身份计算稳定分组键。
+## @param identity: 模式、拓扑与规则集组成的完整榜单身份。
 static func calculate_leaderboard_group_key(identity: Dictionary) -> String:
 	if not is_leaderboard_identity_valid(identity):
 		return ""
@@ -159,6 +178,8 @@ static func calculate_leaderboard_group_key(identity: Dictionary) -> String:
 	return canonical_json.sha256_text() if not canonical_json.is_empty() else ""
 
 
+## 校验榜单身份是否符合当前严格 schema。
+## @param identity: 待校验的榜单身份字典。
 static func is_leaderboard_identity_valid(identity: Dictionary) -> bool:
 	return (
 		identity.size() == 5

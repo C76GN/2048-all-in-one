@@ -375,6 +375,8 @@ func restore_from_snapshot(snapshot: Dictionary) -> void:
 ## 从快照恢复，并从撤回前的位置播放非阻塞过渡。
 ## @param snapshot: 包含棋盘状态的字典。
 ## @param reverse_target_map: 原始位置到撤回前位置的映射。
+## @param motion_profile: 当前主题提供的方块动效节拍。
+## @param feedback_budget: 当前无障碍反馈预算快照。
 ## @return: 本次恢复启动的全部 Tween，由 GF ActionQueue 跟踪完成状态。
 func restore_from_snapshot_with_reverse_animation(
 	snapshot: Dictionary,

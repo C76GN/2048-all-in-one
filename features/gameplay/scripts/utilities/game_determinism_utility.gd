@@ -34,6 +34,7 @@ func calculate_ruleset_fingerprint(mode_config: GameModeConfig) -> String:
 ## @param step_index: 从 1 开始的有效回合序号。
 ## @param full_state: 当前完整玩法状态快照。
 ## @param mode_config: 当前权威模式资源。
+## @param turn_result: 可选的当前回合结算结果。
 func create_checkpoint(
 	step_index: int,
 	full_state: Dictionary,
