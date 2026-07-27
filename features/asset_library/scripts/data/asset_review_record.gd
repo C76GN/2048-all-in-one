@@ -13,6 +13,10 @@ const STATUS_REJECTED: StringName = &"rejected"
 const STATUS_BLOCKED_LICENSE: StringName = &"blocked_license"
 const STATUS_ARCHIVED: StringName = &"archived"
 
+const PROMOTION_GATE_ELIGIBLE: StringName = &"eligible"
+const PROMOTION_GATE_QUALITY_NOT_APPROVED: StringName = &"quality_not_approved"
+const PROMOTION_GATE_BLOCKED_LICENSE: StringName = &"blocked_license"
+
 const KIND_AUDIO: StringName = &"audio"
 const KIND_SHADER: StringName = &"shader"
 const KIND_TEXTURE: StringName = &"texture"
@@ -20,6 +24,23 @@ const KIND_VFX: StringName = &"vfx"
 const KIND_OTHER: StringName = &"other"
 
 const REVIEW_GROUP_PREFIX: String = "review.group"
+const _PLACEHOLDER_LICENSE_IDS: PackedStringArray = [
+	"unknown",
+	"unknown license",
+	"unspecified",
+	"unspecified license",
+	"tbd",
+	"todo",
+	"pending",
+	"license pending",
+	"pending license",
+	"n/a",
+	"na",
+	"none",
+	"not specified",
+	"not applicable",
+	"unlicensed",
+]
 
 
 # --- 导出变量 ---
@@ -106,6 +127,36 @@ static func make_audio_variant_group_id(
 	)
 
 
+## 判断许可证标识是否为空或仅为待办占位文本。
+## @param license_id: 候选或运行时素材声明的许可证标识。
+## @return 许可证不可作为晋升证据时返回 true。
+static func is_placeholder_license_id(license_id: String) -> bool:
+	var normalized: String = license_id.strip_edges().to_lower()
+	normalized = normalized.replace("_", " ").replace("-", " ")
+	normalized = " ".join(normalized.split(" ", false))
+	return normalized.is_empty() or _PLACEHOLDER_LICENSE_IDS.has(normalized)
+
+
+## 仅根据质量结论与授权字段派生运行时晋升门禁，不读取或修改资源状态。
+## @param quality_status: 人工质量结论。
+## @param declared_license_status: 授权确认状态。
+## @param license_id: 候选素材声明的许可证标识。
+## @return eligible、quality_not_approved 或 blocked_license。
+static func derive_promotion_gate(
+	quality_status: StringName,
+	declared_license_status: StringName,
+	license_id: String
+) -> StringName:
+	if quality_status != STATUS_APPROVED:
+		return PROMOTION_GATE_QUALITY_NOT_APPROVED
+	if (
+		declared_license_status != &"known"
+		or is_placeholder_license_id(license_id)
+	):
+		return PROMOTION_GATE_BLOCKED_LICENSE
+	return PROMOTION_GATE_ELIGIBLE
+
+
 ## 复制同一声音可共享的评审状态，不覆盖编码版本自己的评分、备注或标签。
 ## @param source: 提供人工评审状态的可试听格式记录。
 ## @param synchronized_reviewed_at: 可选的统一批次时间；为空时沿用来源记录时间。
@@ -157,7 +208,21 @@ func is_shader() -> bool:
 
 
 func has_known_license() -> bool:
-	return license_status == &"known" and not license.strip_edges().is_empty()
+	return (
+		license_status == &"known"
+		and not is_placeholder_license_id(license)
+	)
+
+
+## 返回由质量结论和授权证据派生的运行时晋升门禁。
+## @return eligible、quality_not_approved 或 blocked_license。
+func get_promotion_gate() -> StringName:
+	return derive_promotion_gate(review_status, license_status, license)
+
+
+## 返回当前候选是否同时满足质量通过和已知非占位授权。
+func is_promotion_eligible() -> bool:
+	return get_promotion_gate() == PROMOTION_GATE_ELIGIBLE
 
 
 func get_summary_text() -> String:

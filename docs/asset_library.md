@@ -47,6 +47,8 @@ features/asset_library/resources/
 
 运行时区与候选区必须保持单向晋升关系：候选内容不会因为被导入、试听或标为 approved 就自动进入玩家构建；只有复制/转码到正式分类目录、登记稳定 key、补齐授权并通过审计后才是运行时素材。默认导出规则应排除 `source_packs/`、`review/`、评审报告和作者工具。
 
+`review_status` 只保存人工质量结论。`approved` 表示“质量通过”，不代表授权完成或可以发布；晋升资格由 `AssetReviewRecord.get_promotion_gate()` 根据质量结论和授权证据纯派生。只有 `approved + known license` 且许可证不是 `unknown`、`unspecified`、`tbd`、`todo`、`pending` 等占位值时才返回 `eligible`。质量通过但授权不足的记录保持 `approved`，派生门禁为 `blocked_license`，不得通过改写质量结论来消除授权阻断。
+
 空目录只表示未来分类方向。没有可用素材时，不要在运行时 manifest 中创建占位条目。
 
 ## 稳定 ID
@@ -113,6 +115,8 @@ features/asset_library/resources/reports/review_catalog_audit.md
 - 登记素材文件是否存在。
 - 库内是否有未登记运行时素材。
 - 第三方素材是否有作者、来源 URL 和授权。
+- 运行时 manifest 是否错误引用 `source_packs/`、`review/` 等候选评审区路径。
+- `license` 是否仍为 `unknown`、`unspecified`、`tbd`、`todo`、`pending` 等占位值。
 - 每个素材被哪些项目文件按路径或 key 引用，以及引用扫描是否完整。
 - 运行时目录的 GF attribution coverage 是否完整。
 
@@ -183,11 +187,12 @@ features/asset_library/scenes/asset_review_browser.tscn
 连续评审快捷键：
 
 - `Space`：播放或停止音频预览。
-- `1` / `2` / `3`：标记为候选 / 批准 / 拒绝，并继续评审。
+- `1` / `2` / `3`：标记为候选 / 质量通过 / 拒绝，并继续评审。
 - `J` / `K`：下一项 / 上一项。
 - `Ctrl+S`：保存表单中的状态、评分、标签和备注。
 
 搜索、标签或备注输入框获得焦点时，裸键快捷键会暂停，避免干扰文本输入。
+浏览器把持久化字段标为“质量结论”，并独立显示派生晋升门禁。保存 `approved + unknown license` 时必须明确提示“质量已通过，但授权未确认，禁止晋升”，同时保留用户的质量结论。
 
 ### 同源多格式音频
 
@@ -209,9 +214,9 @@ tools\purge_rejected_assets.ps1
 
 清理前会通过 `GFProjectReferenceScanner` 完整扫描正式项目引用；扫描不完整或素材仍被引用时会中止。随后工具先把拒绝项的最小源身份写入 `features/asset_library/resources/source_exclusions.json`，确认写入成功后再删除项目内素材、Godot `.import` 副文件和 `AssetReviewRecord`。排除表不属于运行时内容包，也不保留评分、备注等评审信息；它只用于防止下一次全量导入恢复已经淘汰的相同文件。
 
-## 批准素材流程
+## 运行时晋升流程
 
-1. 先通过 `asset_review_browser.tscn` 试听/预览并写备注。
+1. 先通过 `asset_review_browser.tscn` 试听/预览并写备注，将满意素材标记为“质量通过”。
 2. 确认授权，必要时更新 `import_sources.json` 或对应源包 `.tres`。
 3. 将可用素材从 `source_packs/` 复制或转码到正式分类目录。
 4. 在 `gf_content_package.json` 中登记稳定 `asset.*` key。

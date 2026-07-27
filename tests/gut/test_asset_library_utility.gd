@@ -194,6 +194,73 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 	audit.dispose()
 
 
+func test_runtime_asset_policy_rejects_candidate_paths_and_placeholder_licenses() -> void:
+	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
+	var blocked_entry: Dictionary = {
+		"key": &"asset.audio.fixture.blocked",
+		"path": (
+			"res://features/asset_library/resources/source_packs/"
+			+ "fixture/files/blocked.ogg"
+		),
+		"metadata": {
+			"asset_kind": "audio",
+			"category": "ui",
+			"origin": "third_party",
+			"author": "Fixture Author",
+			"source": "Fixture source",
+			"source_url": "https://example.com/fixture",
+			"license": "unknown",
+		},
+	}
+	var blocked_entries: Array[Dictionary] = [blocked_entry]
+	var metadata_issues: Array[Dictionary] = audit._collect_metadata_issues(
+		blocked_entries,
+		{}
+	)
+	var attribution_report: Dictionary = audit._build_manifest_attribution_report(
+		blocked_entries
+	)
+
+	assert_true(
+		_metadata_issues_have_kind(metadata_issues, "forbidden_runtime_asset_path"),
+		"运行时 manifest 不得引用 source_packs 或 review 候选路径。"
+	)
+	assert_true(
+		_metadata_issues_have_kind(metadata_issues, "placeholder_license_metadata"),
+		"运行时 manifest 不得用 unknown 等占位文本冒充许可证。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(attribution_report, "ok"),
+		"占位许可证必须继续触发 GF attribution 覆盖错误。"
+	)
+	audit.dispose()
+
+
+func test_runtime_asset_policy_accepts_runtime_path_and_real_license() -> void:
+	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
+	var eligible_entry: Dictionary = {
+		"key": &"asset.audio.fixture.eligible",
+		"path": "res://features/asset_library/resources/audio/ui/fixture.ogg",
+		"metadata": {
+			"asset_kind": "audio",
+			"category": "ui",
+			"origin": "third_party",
+			"author": "Fixture Author",
+			"source": "Fixture source",
+			"source_url": "https://example.com/fixture",
+			"license": "MIT",
+		},
+	}
+	var eligible_entries: Array[Dictionary] = [eligible_entry]
+	var metadata_issues: Array[Dictionary] = audit._collect_metadata_issues(
+		eligible_entries,
+		{}
+	)
+
+	assert_true(metadata_issues.is_empty(), "合法运行时路径和真实许可证不应被门禁误报。")
+	audit.dispose()
+
+
 func test_asset_review_provider_uses_gf_catalog_search() -> void:
 	var fixture_root: String = "user://gut_asset_review_catalog"
 	var fixture_path: String = fixture_root.path_join("positive_chime.tres")
@@ -316,6 +383,13 @@ func _get_asset_library(setup: Dictionary) -> GameAssetLibraryUtility:
 		return asset_library
 	assert_true(false, "测试 setup 缺少 GameAssetLibraryUtility。")
 	return GameAssetLibraryUtility.new()
+
+
+func _metadata_issues_have_kind(issues: Array[Dictionary], kind: String) -> bool:
+	for issue: Dictionary in issues:
+		if GFVariantData.get_option_string(issue, "kind") == kind:
+			return true
+	return false
 
 
 func _cleanup_review_fixture(fixture_path: String, absolute_fixture_root: String) -> void:

@@ -51,6 +51,10 @@ const _ASSET_SCAN_EXCLUDED_PATHS: PackedStringArray = [
 	ASSET_LIBRARY_REVIEW_ROOT,
 	ASSET_LIBRARY_SOURCE_PACK_ROOT,
 ]
+const _FORBIDDEN_RUNTIME_ASSET_ROOTS: PackedStringArray = [
+	ASSET_LIBRARY_REVIEW_ROOT,
+	ASSET_LIBRARY_SOURCE_PACK_ROOT,
+]
 const _MAX_ASSET_LIBRARY_FILE_COUNT: int = 20000
 const _DEFAULT_USAGE_SCAN_ROOTS: Array[String] = [
 	"res://app",
@@ -600,10 +604,19 @@ func _collect_metadata_issues(entries: Array[Dictionary], package_metadata: Dict
 	)
 	for entry: Dictionary in entries:
 		var key_text: String = String(GFVariantData.get_option_string_name(entry, "key"))
+		var entry_path: String = GFVariantData.get_option_string(entry, "path")
 		var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
+		if _is_forbidden_runtime_asset_path(entry_path):
+			issues.append(_make_forbidden_runtime_path_issue(key_text, entry_path))
 		for field: String in required_fields:
 			if not _metadata_has_text(metadata, field):
 				issues.append(_make_metadata_issue(key_text, field, "missing_metadata"))
+		var license_id: String = GFVariantData.get_option_string(metadata, "license")
+		if (
+			not license_id.strip_edges().is_empty()
+			and AssetReviewRecord.is_placeholder_license_id(license_id)
+		):
+			issues.append(_make_placeholder_license_issue(key_text, license_id))
 		var usage_policy: String = GFVariantData.get_option_string(
 			metadata,
 			"usage_policy",
@@ -785,9 +798,12 @@ func _build_manifest_attribution_report(entries: Array[Dictionary]) -> Dictionar
 	for entry: Dictionary in entries:
 		var path: String = GFVariantData.get_option_string(entry, "path")
 		var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
+		var license_id: String = GFVariantData.get_option_string(metadata, "license")
+		if AssetReviewRecord.is_placeholder_license_id(license_id):
+			license_id = ""
 		attribution_entries.append({
 			"path": path,
-			"license_id": GFVariantData.get_option_string(metadata, "license"),
+			"license_id": license_id,
 			"title": GFVariantData.get_option_string(
 				metadata,
 				"display_name",
@@ -819,8 +835,12 @@ func _build_review_attribution_report(records: Array[Resource]) -> Dictionary:
 			continue
 		var path: String = _get_resource_string(record, "library_path")
 		var license_id: String = ""
-		if _get_resource_string_name(record, "license_status") == &"known":
-			license_id = _get_resource_string(record, "license")
+		var declared_license_id: String = _get_resource_string(record, "license")
+		if (
+			_get_resource_string_name(record, "license_status") == &"known"
+			and not AssetReviewRecord.is_placeholder_license_id(declared_license_id)
+		):
+			license_id = declared_license_id
 		attribution_entries.append({
 			"path": path,
 			"license_id": license_id,
@@ -985,6 +1005,39 @@ func _make_metadata_issue(asset_key: String, field: String, kind: String) -> Dic
 		"field": field,
 		"message": message,
 	}
+
+
+func _make_forbidden_runtime_path_issue(asset_key: String, path: String) -> Dictionary:
+	return {
+		"kind": "forbidden_runtime_asset_path",
+		"asset_key": asset_key,
+		"field": "path",
+		"path": path,
+		"message": (
+			"运行时素材 `%s` 不得引用候选评审区路径：%s。"
+			% [asset_key, path]
+		),
+	}
+
+
+func _make_placeholder_license_issue(asset_key: String, license_id: String) -> Dictionary:
+	return {
+		"kind": "placeholder_license_metadata",
+		"asset_key": asset_key,
+		"field": "license",
+		"license": license_id,
+		"message": (
+			"运行时素材 `%s` 的许可证仍是占位值 `%s`。"
+			% [asset_key, license_id]
+		),
+	}
+
+
+func _is_forbidden_runtime_asset_path(path: String) -> bool:
+	for root: String in _FORBIDDEN_RUNTIME_ASSET_ROOTS:
+		if path == root or GFPathTools.is_path_under_root(path, root):
+			return true
+	return false
 
 
 func _metadata_has_text(metadata: Dictionary, field: String) -> bool:

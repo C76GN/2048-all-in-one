@@ -18,7 +18,6 @@ const STATUS_OPTIONS: Array[String] = [
 	"candidate",
 	"approved",
 	"rejected",
-	"blocked_license",
 	"archived",
 ]
 
@@ -133,7 +132,72 @@ static func get_review_shortcut_command(
 	return &""
 
 
+## 返回质量评审状态的作者工具显示文案。
+## @param status: AssetReviewRecord.review_status。
+## @return 不改变持久化状态值的本地化标签。
+static func get_quality_status_label(status: StringName) -> String:
+	match status:
+		AssetReviewRecord.STATUS_INBOX:
+			return "待评审"
+		AssetReviewRecord.STATUS_CANDIDATE:
+			return "候选"
+		AssetReviewRecord.STATUS_APPROVED:
+			return "质量通过"
+		AssetReviewRecord.STATUS_REJECTED:
+			return "拒绝"
+		AssetReviewRecord.STATUS_ARCHIVED:
+			return "已归档"
+		AssetReviewRecord.STATUS_BLOCKED_LICENSE:
+			return "旧版授权阻断"
+		_:
+			return String(status)
+
+
+## 返回派生晋升门禁的作者工具显示文案。
+## @param gate: AssetReviewRecord.get_promotion_gate() 返回值。
+## @return 晋升门禁标签。
+static func get_promotion_gate_label(gate: StringName) -> String:
+	match gate:
+		AssetReviewRecord.PROMOTION_GATE_ELIGIBLE:
+			return "可进入晋升审计"
+		AssetReviewRecord.PROMOTION_GATE_BLOCKED_LICENSE:
+			return "授权阻断"
+		_:
+			return "等待质量结论"
+
+
+## 返回质量通过但授权不足时必须展示的保存提示。
+## @param record: 刚保存质量结论的候选素材。
+## @return 无晋升阻断时为空，否则返回明确阻断文案。
+static func get_quality_save_notice(record: Resource) -> String:
+	if (
+		record != null
+		and _derive_resource_promotion_gate(record)
+			== AssetReviewRecord.PROMOTION_GATE_BLOCKED_LICENSE
+		and GFVariantData.to_string_name(record.get("review_status"))
+			== AssetReviewRecord.STATUS_APPROVED
+	):
+		return "质量已通过，但授权未确认，禁止晋升。"
+	return ""
+
+
 # --- 私有/辅助方法 ---
+
+## 从资源字段安全派生晋升门禁，避免作者工具调用占位实例方法。
+## @param record: 正常或占位的 AssetReviewRecord 资源。
+## @return 由 AssetReviewRecord 纯函数计算的晋升门禁。
+static func _derive_resource_promotion_gate(record: Resource) -> StringName:
+	if record == null:
+		return AssetReviewRecord.PROMOTION_GATE_QUALITY_NOT_APPROVED
+	return AssetReviewRecord.derive_promotion_gate(
+		GFVariantData.to_string_name(
+			record.get("review_status"),
+			AssetReviewRecord.STATUS_INBOX
+		),
+		GFVariantData.to_string_name(record.get("license_status"), &"unknown"),
+		GFVariantData.to_text(record.get("license"))
+	)
+
 
 func _build_ui() -> void:
 	_ui_built = true
@@ -179,9 +243,13 @@ func _build_ui() -> void:
 
 	var status_filter: OptionButton = OptionButton.new()
 	status_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_add_status_item(status_filter, "全部状态", "all")
+	_add_status_item(status_filter, "全部质量结论", "all")
 	for status: String in STATUS_OPTIONS:
-		_add_status_item(status_filter, status, status)
+		_add_status_item(
+			status_filter,
+			get_quality_status_label(StringName(status)),
+			status
+		)
 	left_panel.add_child(status_filter)
 	_status_filter = status_filter
 	if status_filter.item_selected.connect(_on_status_filter_selected) != OK:
@@ -236,7 +304,7 @@ func _build_ui() -> void:
 	_add_button(action_row, "播放", _on_play_pressed, "播放音频预览（Space）")
 	_add_button(action_row, "停止", _on_stop_pressed, "停止音频预览（Space）")
 	_add_button(action_row, "候选", _on_candidate_pressed, "标记为候选并继续下一项（1）")
-	_add_button(action_row, "批准", _on_approved_pressed, "批准并继续下一项（2）")
+	_add_button(action_row, "质量通过", _on_approved_pressed, "标记质量通过并继续下一项（2）")
 	_add_button(action_row, "拒绝", _on_rejected_pressed, "拒绝并继续下一项（3）")
 
 	var form_grid: GridContainer = GridContainer.new()
@@ -244,11 +312,15 @@ func _build_ui() -> void:
 	form_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_panel.add_child(form_grid)
 
-	_add_form_label(form_grid, "状态")
+	_add_form_label(form_grid, "质量结论")
 	var status_editor: OptionButton = OptionButton.new()
 	status_editor.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for status: String in STATUS_OPTIONS:
-		_add_status_item(status_editor, status, status)
+		_add_status_item(
+			status_editor,
+			get_quality_status_label(StringName(status)),
+			status
+		)
 	form_grid.add_child(status_editor)
 	_status_editor = status_editor
 
@@ -408,8 +480,17 @@ func _get_search_candidate_ids(query: String) -> PackedStringArray:
 
 
 func _make_record_list_text(record: Resource) -> String:
+	var quality_status: StringName = _get_resource_string_name(
+		record,
+		"review_status",
+		AssetReviewRecord.STATUS_INBOX
+	)
+	var quality_label: String = get_quality_status_label(quality_status)
+	var promotion_gate: StringName = _get_record_promotion_gate(record)
+	if quality_status == AssetReviewRecord.STATUS_APPROVED:
+		quality_label += " · %s" % get_promotion_gate_label(promotion_gate)
 	return "%s  |  %s  |  %s" % [
-		_get_resource_string(record, "review_status"),
+		quality_label,
 		_get_resource_string(record, "display_name"),
 		_get_resource_string(record, "asset_kind"),
 	]
@@ -481,13 +562,14 @@ func _format_record_meta(record: Resource) -> String:
 	return (
 		(
 			"[b]路径[/b] %s\n[b]来源[/b] %s\n[b]授权[/b] %s / %s\n"
-			+ "[b]用途建议[/b] %s\n[b]格式组[/b] %s"
+			+ "[b]晋升门禁[/b] %s\n[b]用途建议[/b] %s\n[b]格式组[/b] %s"
 		)
 		% [
 			_get_resource_string(record, "library_path"),
 			_get_resource_string(record, "source_pack_id"),
 			_get_resource_string(record, "license_status"),
 			_get_resource_string(record, "license"),
+			get_promotion_gate_label(_get_record_promotion_gate(record)),
 			", ".join(_get_resource_packed_string_array(record, "suggested_slots")),
 			_format_audio_variant_group(record),
 		]
@@ -602,6 +684,7 @@ func _save_selected_record() -> void:
 	_selected_record.set("tags", _parse_tags(_tags_editor.text))
 	_selected_record.set("notes", _notes_editor.text)
 	_selected_record.set("reviewed_at", reviewed_at)
+	var quality_save_notice: String = get_quality_save_notice(_selected_record)
 	var path: String = _selected_record.resource_path
 	if path.is_empty():
 		_save_status_label.text = "保存失败：记录没有 resource_path。"
@@ -678,20 +761,34 @@ func _save_selected_record() -> void:
 	_load_records(synchronization_rollback_failure_count > 0)
 	_refresh_list(selected_asset_id, previous_list_index, true)
 	if synchronization_rollback_failure_count > 0:
-		_save_status_label.text = "当前项已保存；格式同步失败，且 %d 项回滚失败。已按磁盘状态重新加载。" % (
-			synchronization_rollback_failure_count
+		_save_status_label.text = _append_quality_save_notice(
+			"当前项已保存；格式同步失败，且 %d 项回滚失败。已按磁盘状态重新加载。"
+				% synchronization_rollback_failure_count,
+			quality_save_notice
 		)
 	elif synchronization_failure_count > 0:
-		_save_status_label.text = "已保存；同步 %d 项，%d 项失败。" % [
-			synchronized_count,
-			synchronization_failure_count,
-		]
+		_save_status_label.text = _append_quality_save_notice(
+			"已保存；同步 %d 项，%d 项失败。" % [
+				synchronized_count,
+				synchronization_failure_count,
+			],
+			quality_save_notice
+		)
 	elif synchronization_conflict:
-		_save_status_label.text = "已保存当前项；格式组已有不同结论，未自动覆盖。"
+		_save_status_label.text = _append_quality_save_notice(
+			"已保存当前项；格式组已有不同结论，未自动覆盖。",
+			quality_save_notice
+		)
 	elif synchronized_count > 0:
-		_save_status_label.text = "已保存，并同步 %d 个可试听格式。" % synchronized_count
+		_save_status_label.text = _append_quality_save_notice(
+			"已保存，并同步 %d 个可试听格式。" % synchronized_count,
+			quality_save_notice
+		)
 	else:
-		_save_status_label.text = "已保存。"
+		_save_status_label.text = _append_quality_save_notice(
+			"已保存。",
+			quality_save_notice
+		)
 
 
 func _set_selected_status(status: String) -> void:
@@ -702,11 +799,30 @@ func _set_selected_status(status: String) -> void:
 
 
 func _set_status_editor_value(status: String) -> void:
+	_remove_transient_status_editor_items()
 	for index: int in range(_status_editor.item_count):
 		if GFVariantData.to_text(_status_editor.get_item_metadata(index)) == status:
 			_status_editor.select(index)
 			return
-	_status_editor.select(0)
+	var preserved_status: String = status.strip_edges()
+	if preserved_status.is_empty():
+		_status_editor.select(0)
+		return
+	_add_status_item(
+		_status_editor,
+		"%s（保留旧值）" % get_quality_status_label(StringName(preserved_status)),
+		preserved_status
+	)
+	_status_editor.select(_status_editor.item_count - 1)
+
+
+func _remove_transient_status_editor_items() -> void:
+	for index: int in range(_status_editor.item_count - 1, -1, -1):
+		var option_status: String = GFVariantData.to_text(
+			_status_editor.get_item_metadata(index)
+		)
+		if not STATUS_OPTIONS.has(option_status):
+			_status_editor.remove_item(index)
 
 
 func _parse_tags(text: String) -> PackedStringArray:
@@ -716,6 +832,16 @@ func _parse_tags(text: String) -> PackedStringArray:
 		if not tag.is_empty() and not tags.has(tag):
 			var _append_result: bool = tags.append(tag)
 	return tags
+
+
+func _get_record_promotion_gate(record: Resource) -> StringName:
+	return _derive_resource_promotion_gate(record)
+
+
+func _append_quality_save_notice(base_text: String, notice: String) -> String:
+	if notice.is_empty():
+		return base_text
+	return "%s %s" % [base_text, notice]
 
 
 func _update_audio_variant_sync_editor(record: Resource) -> void:
@@ -823,6 +949,17 @@ func _get_resource_string(resource: Resource, property_name: String, fallback: S
 		return fallback
 	var value: Variant = resource.get(property_name)
 	return GFVariantData.to_text(value, fallback)
+
+
+func _get_resource_string_name(
+	resource: Resource,
+	property_name: String,
+	fallback: StringName = &""
+) -> StringName:
+	if resource == null:
+		return fallback
+	var value: Variant = resource.get(property_name)
+	return GFVariantData.to_string_name(value, fallback)
 
 
 func _get_resource_int(resource: Resource, property_name: String, fallback: int = 0) -> int:

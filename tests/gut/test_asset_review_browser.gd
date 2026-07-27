@@ -508,6 +508,149 @@ func test_previous_candidate_sync_cohort_can_advance_to_approved() -> void:
 	)
 
 
+func test_approved_unknown_license_keeps_quality_result_but_blocks_promotion() -> void:
+	var record: AssetReviewRecord = AssetReviewRecord.new()
+	record.review_status = AssetReviewRecord.STATUS_APPROVED
+	record.license_status = &"unknown"
+	record.license = "unknown"
+
+	assert_true(record.is_approved(), "授权未知不得撤销用户已经给出的质量通过结论。")
+	assert_true(
+		record.get_promotion_gate()
+			== AssetReviewRecord.PROMOTION_GATE_BLOCKED_LICENSE,
+		"质量通过但授权未知的素材必须派生为授权阻断。"
+	)
+	assert_false(record.is_promotion_eligible(), "授权未知的质量通过素材不得晋升。")
+	assert_true(
+		AssetReviewBrowser.get_quality_save_notice(record)
+			== "质量已通过，但授权未确认，禁止晋升。",
+		"评审浏览器保存质量结论后必须明确说明授权阻断。"
+	)
+
+
+func test_approved_known_license_is_promotion_eligible() -> void:
+	var record: AssetReviewRecord = AssetReviewRecord.new()
+	record.review_status = AssetReviewRecord.STATUS_APPROVED
+	record.license_status = &"known"
+	record.license = "MIT"
+
+	assert_true(record.has_known_license(), "真实的已知许可证应满足授权证据契约。")
+	assert_true(
+		record.get_promotion_gate() == AssetReviewRecord.PROMOTION_GATE_ELIGIBLE,
+		"质量通过且授权已知的素材才可进入晋升审计。"
+	)
+	assert_true(record.is_promotion_eligible(), "质量与授权门禁同时通过时应允许晋升。")
+	assert_true(
+		AssetReviewBrowser.get_quality_save_notice(record).is_empty(),
+		"可晋升素材不应显示授权阻断提示。"
+	)
+
+
+func test_promotion_gate_can_be_derived_without_calling_a_record_instance() -> void:
+	assert_true(
+		AssetReviewRecord.derive_promotion_gate(
+			AssetReviewRecord.STATUS_APPROVED,
+			&"known",
+			"MIT"
+		) == AssetReviewRecord.PROMOTION_GATE_ELIGIBLE,
+		"作者工具应能只读取资源字段并调用纯函数派生晋升门禁。"
+	)
+	assert_true(
+		AssetReviewRecord.derive_promotion_gate(
+			AssetReviewRecord.STATUS_APPROVED,
+			&"known",
+			"pending"
+		) == AssetReviewRecord.PROMOTION_GATE_BLOCKED_LICENSE,
+		"纯门禁函数也必须拒绝许可证占位值。"
+	)
+
+
+func test_placeholder_license_ids_never_enable_promotion() -> void:
+	var placeholders: PackedStringArray = [
+		"unknown",
+		"Unspecified License",
+		"TBD",
+		"TODO",
+		"pending",
+		"license_pending",
+		"N/A",
+		"none",
+	]
+	for placeholder: String in placeholders:
+		var record: AssetReviewRecord = AssetReviewRecord.new()
+		record.review_status = AssetReviewRecord.STATUS_APPROVED
+		record.license_status = &"known"
+		record.license = placeholder
+
+		assert_true(
+			AssetReviewRecord.is_placeholder_license_id(placeholder),
+			"许可证占位值应被识别：%s。" % placeholder
+		)
+		assert_false(
+			record.is_promotion_eligible(),
+			"许可证占位值不得开启晋升：%s。" % placeholder
+		)
+		assert_true(
+			record.get_promotion_gate()
+				== AssetReviewRecord.PROMOTION_GATE_BLOCKED_LICENSE,
+			"许可证占位值应派生为授权阻断：%s。" % placeholder
+		)
+
+
+func test_license_block_is_a_derived_gate_not_a_quality_editor_option() -> void:
+	assert_false(
+		AssetReviewBrowser.STATUS_OPTIONS.has("blocked_license"),
+		"授权阻断不应覆盖或替代用户的持久化质量结论。"
+	)
+	assert_true(
+		AssetReviewBrowser.get_quality_status_label(AssetReviewRecord.STATUS_APPROVED)
+			== "质量通过",
+		"approved 在作者工具中应明确表达质量结论。"
+	)
+	assert_true(
+		AssetReviewBrowser.get_promotion_gate_label(
+			AssetReviewRecord.PROMOTION_GATE_BLOCKED_LICENSE
+		) == "授权阻断",
+		"派生门禁应独立显示授权阻断。"
+	)
+
+
+func test_legacy_quality_status_is_preserved_until_an_explicit_replacement() -> void:
+	var browser: AssetReviewBrowser = AssetReviewBrowser.new()
+	autofree(browser)
+	var status_editor: OptionButton = OptionButton.new()
+	browser.add_child(status_editor)
+	browser._status_editor = status_editor
+	for status: String in AssetReviewBrowser.STATUS_OPTIONS:
+		browser._add_status_item(status_editor, status, status)
+
+	for legacy_status: String in ["blocked_license", "vendor_hold"]:
+		browser._set_status_editor_value(legacy_status)
+
+		assert_true(
+			browser._get_selected_option_metadata(status_editor, "inbox")
+				== legacy_status,
+			"未触碰质量结论时必须保留旧状态 %s，不得静默回退为 inbox。"
+				% legacy_status
+		)
+		assert_true(
+			status_editor.get_item_text(status_editor.selected).contains("保留旧值"),
+			"旧状态 %s 应明确标成仅用于保留的临时选项。" % legacy_status
+		)
+
+	browser._set_status_editor_value("approved")
+
+	assert_true(
+		browser._get_selected_option_metadata(status_editor, "inbox")
+			== "approved",
+		"用户显式选择新质量结论后应允许替换旧状态。"
+	)
+	assert_true(
+		status_editor.item_count == AssetReviewBrowser.STATUS_OPTIONS.size(),
+		"替换旧状态后不应把临时兼容选项留在常规质量结论列表中。"
+	)
+
+
 func test_asset_review_record_is_available_to_editor_tools() -> void:
 	var record: AssetReviewRecord = AssetReviewRecord.new()
 	var record_script_value: Variant = record.get_script()
@@ -524,6 +667,7 @@ func test_record_metadata_formats_every_declared_field() -> void:
 	var record: AssetReviewRecord = AssetReviewRecord.new()
 	record.library_path = "res://candidate.ogg"
 	record.source_pack_id = &"audio_pack"
+	record.review_status = AssetReviewRecord.STATUS_APPROVED
 	record.license_status = &"known"
 	record.license = "CC0"
 	record.suggested_slots = PackedStringArray(["ui.confirm"])
@@ -533,6 +677,7 @@ func test_record_metadata_formats_every_declared_field() -> void:
 	assert_true(metadata_text.contains("res://candidate.ogg"), "元数据摘要应包含素材路径。")
 	assert_true(metadata_text.contains("audio_pack"), "元数据摘要应包含来源包。")
 	assert_true(metadata_text.contains("known / CC0"), "元数据摘要应包含授权结论。")
+	assert_true(metadata_text.contains("可进入晋升审计"), "元数据摘要应包含派生晋升门禁。")
 	assert_true(metadata_text.contains("ui.confirm"), "元数据摘要应包含建议用途。")
 	assert_true(metadata_text.contains("格式组"), "元数据摘要应包含格式组说明。")
 
