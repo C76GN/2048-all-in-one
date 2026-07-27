@@ -214,8 +214,9 @@ func _on_empty_state_changed(is_empty: bool) -> void:
 		preview_heading.visible = not is_empty
 	if is_instance_valid(_preview_container):
 		_preview_container.visible = not is_empty
-	var preview_separator: Node = _left_column.get_node_or_null("HSeparator")
-	if is_instance_valid(preview_separator):
+	var preview_separator_node: Node = _left_column.get_node_or_null("HSeparator")
+	if preview_separator_node is HSeparator:
+		var preview_separator: HSeparator = preview_separator_node
 		preview_separator.visible = not is_empty
 	if is_instance_valid(detail_info_label):
 		detail_info_label.vertical_alignment = (

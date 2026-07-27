@@ -123,11 +123,11 @@ static func is_compact_layout(viewport_size: Vector2) -> bool:
 ## 避免 CenterContainer 在重排瞬间把列表压缩成仅剩文字最小宽度。
 static func _get_compact_list_surface_width(
 	viewport_width: float,
-	layout_mode: int
+	target_layout_mode: int
 ) -> float:
 	var horizontal_margins: float = (
 		_PORTRAIT_HORIZONTAL_MARGINS
-		if layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+		if target_layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
 		else _COMPACT_HORIZONTAL_MARGINS
 	)
 	return maxf(

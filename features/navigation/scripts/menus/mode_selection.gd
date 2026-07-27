@@ -260,13 +260,13 @@ func _set_page_scroll_enabled(enabled: bool) -> void:
 
 ## 根据首屏中标题、分页和返回按钮的固定预算计算可容纳卡片数。
 static func _get_items_per_page_for_viewport(viewport_size: Vector2) -> int:
-	var layout_mode: int = GameTaskPageLayoutUtility.classify_layout(viewport_size)
+	var page_layout_mode: int = GameTaskPageLayoutUtility.classify_layout(viewport_size)
 	var vertical_margins: float = 108.0
 	var title_height: float = _DESKTOP_TITLE_HEIGHT_RESERVE
-	if layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE:
+	if page_layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE:
 		vertical_margins = 20.0
 		title_height = _COMPACT_TITLE_HEIGHT_RESERVE
-	elif layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT:
+	elif page_layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT:
 		vertical_margins = 32.0
 		title_height = _COMPACT_TITLE_HEIGHT_RESERVE
 	var available_center_height: float = maxf(

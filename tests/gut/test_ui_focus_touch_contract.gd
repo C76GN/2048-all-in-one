@@ -288,23 +288,25 @@ func test_player_profile_empty_states_center_inside_scroll_content() -> void:
 	assert_true(mode_empty is Label)
 	assert_true(leaderboard_empty is Label)
 	if mode_empty is Label:
-		assert_true(mode_empty.visible)
+		var mode_empty_label: Label = mode_empty
+		assert_true(mode_empty_label.visible)
 		assert_true(
-			mode_empty.get_parent() is CenterContainer,
+			mode_empty_label.get_parent() is CenterContainer,
 			"个人信息空态必须位于滚动内容区的居中容器内。"
 		)
 		assert_eq(
-			String(mode_empty.get_parent().get_parent().name),
+			String(mode_empty_label.get_parent().get_parent().name),
 			"ModeContent"
 		)
 	if leaderboard_empty is Label:
-		assert_true(leaderboard_empty.visible)
+		var leaderboard_empty_label: Label = leaderboard_empty
+		assert_true(leaderboard_empty_label.visible)
 		assert_true(
-			leaderboard_empty.get_parent() is CenterContainer,
+			leaderboard_empty_label.get_parent() is CenterContainer,
 			"排行榜空态必须位于滚动内容区的居中容器内。"
 		)
 		assert_eq(
-			String(leaderboard_empty.get_parent().get_parent().name),
+			String(leaderboard_empty_label.get_parent().get_parent().name),
 			"LeaderboardContent"
 		)
 
@@ -315,14 +317,15 @@ func test_player_profile_empty_states_center_inside_scroll_content() -> void:
 	)
 	assert_true(leaderboard_filter is OptionButton)
 	if leaderboard_filter is OptionButton:
-		assert_eq(leaderboard_filter.item_count, 1)
-		assert_eq(leaderboard_filter.selected, 0)
+		var leaderboard_option: OptionButton = leaderboard_filter
+		assert_eq(leaderboard_option.item_count, 1)
+		assert_eq(leaderboard_option.selected, 0)
 		assert_eq(
-			leaderboard_filter.get_item_text(0),
+			leaderboard_option.get_item_text(0),
 			tr("LOCAL_LEADERBOARD_ALL_MODES"),
 			"无成绩时的模式筛选必须明确显示“全部模式”。"
 		)
-		assert_true(leaderboard_filter.disabled)
+		assert_true(leaderboard_option.disabled)
 	architecture.dispose()
 
 
