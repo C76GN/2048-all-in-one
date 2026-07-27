@@ -40,6 +40,19 @@ func configure(entry: Dictionary) -> void:
 	_apply_entry(_pending_entry)
 
 
+## 为动态创建的卡片声明主题语义，确保切换主题后仍能重建样式。
+## @param style: 当前项目 UI 样式 Utility。
+func apply_semantic_styles(style: GameUiStyleUtility) -> void:
+	if not is_instance_valid(style) or not is_node_ready():
+		return
+	style.style_panel_container(self)
+	style.style_label(_marker, GameUiStyleUtility.TextRole.NUMERIC, 34)
+	style.style_label(_title, GameUiStyleUtility.TextRole.PRIMARY, 20)
+	style.style_label(_description, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_progress_label, GameUiStyleUtility.TextRole.NUMERIC)
+	style.style_label(_status, GameUiStyleUtility.TextRole.SECONDARY)
+
+
 # --- 私有/辅助方法 ---
 
 func _apply_entry(entry: Dictionary) -> void:

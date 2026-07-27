@@ -13,8 +13,10 @@ const _ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
 
 # --- @onready 变量 (节点引用) ---
 
+@onready var _surface: SurfaceVboxContainer = $CenterContainer/VBoxContainer
 @onready var _title_label: Label = $CenterContainer/VBoxContainer/TitleLabel
 @onready var _message_label: Label = $CenterContainer/VBoxContainer/MessageLabel
+@onready var _summary_separator: HSeparator = $CenterContainer/VBoxContainer/SummarySeparator
 @onready var _summary_label: Label = $CenterContainer/VBoxContainer/SummaryLabel
 @onready var _continue_button: Button = $CenterContainer/VBoxContainer/ContinueButton
 @onready var _restart_button: Button = $CenterContainer/VBoxContainer/RestartButton
@@ -31,8 +33,10 @@ func _ready() -> void:
 	var _main_menu_connect: int = _main_menu_button.pressed.connect(_on_main_menu_button_pressed)
 
 	_update_ui_text()
+	_apply_semantic_styles()
 	call_deferred(&"_refresh_summary")
 	_continue_button.grab_focus()
+	call_deferred(&"_play_content_reveal")
 
 
 # --- 私有/辅助方法 ---
@@ -50,6 +54,30 @@ func _update_ui_text() -> void:
 		_restart_button.text = tr("BTN_RESTART")
 	if is_instance_valid(_main_menu_button):
 		_main_menu_button.text = tr("BTN_MAIN_MENU")
+
+
+func _apply_semantic_styles() -> void:
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style):
+		return
+	style.style_control(_surface)
+	style.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY, 34)
+	style.style_label(_message_label, GameUiStyleUtility.TextRole.SECONDARY, 18)
+	style.style_separator(_summary_separator)
+	style.style_label(_summary_label, GameUiStyleUtility.TextRole.PRIMARY, 16)
+	style.style_button(_continue_button, GameUiStyleUtility.ButtonRole.PRIMARY)
+	style.style_button(_restart_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_main_menu_button, GameUiStyleUtility.ButtonRole.QUIET)
+
+
+func _play_content_reveal() -> void:
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion):
+		var _revealed_count: int = motion.play_children_reveal(
+			_surface,
+			Vector2.ZERO,
+			0.03
+		)
 
 
 func _refresh_summary() -> void:

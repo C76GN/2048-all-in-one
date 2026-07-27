@@ -20,6 +20,7 @@ var _layout_update_queued: bool = false
 # --- @onready 变量 (节点引用) ---
 
 @onready var _outer_margin: MarginContainer = %OuterMargin
+@onready var _surface: PanelContainer = $OuterMargin/Surface
 @onready var _header: BoxContainer = %Header
 @onready var _title_label: Label = %TitleLabel
 @onready var _summary_label: Label = %SummaryLabel
@@ -36,6 +37,7 @@ var _layout_update_queued: bool = false
 func _ready() -> void:
 	_resolve_dependencies()
 	_bind_runtime_signals()
+	_apply_semantic_styles()
 	_update_ui_text()
 	_queue_layout_update()
 	_search_input.grab_focus()
@@ -53,6 +55,22 @@ func _exit_tree() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _apply_semantic_styles() -> void:
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style):
+		return
+	style.style_panel_container(
+		_surface,
+		GameUiStyleUtility.SurfaceRole.SHELL,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		2
+	)
+	style.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY)
+	style.style_label(_summary_label, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_empty_label, GameUiStyleUtility.TextRole.MUTED)
+	style.style_button(_back_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+
 
 func _update_ui_text() -> void:
 	if not is_node_ready():
@@ -138,6 +156,7 @@ func _rebuild_list() -> void:
 		var card: AchievementCard = card_node
 		_list.add_child(card)
 		card.configure(entry)
+		card.apply_semantic_styles(_get_ui_style_utility())
 		visible_count += 1
 	_empty_label.visible = visible_count == 0
 	var summary: Dictionary = _achievement_system.get_summary()

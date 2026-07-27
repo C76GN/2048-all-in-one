@@ -25,6 +25,7 @@ var _layout_update_queued: bool = false
 # --- @onready 变量 ---
 
 @onready var _outer_margin: MarginContainer = %OuterMargin
+@onready var _surface: PanelContainer = $OuterMargin/Surface
 @onready var _header: BoxContainer = %Header
 @onready var _title_label: Label = %TitleLabel
 @onready var _account_option: OptionButton = %AccountOption
@@ -52,6 +53,7 @@ func _ready() -> void:
 	_resolve_dependencies()
 	_bind_signals()
 	_configure_confirmation_touch_targets()
+	_apply_semantic_styles()
 	_update_static_text()
 	_rebuild_all()
 	_queue_layout_update()
@@ -144,6 +146,39 @@ func _bind_signals() -> void:
 			_on_account_catalog_changed,
 			self
 		)
+
+
+func _apply_semantic_styles() -> void:
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style):
+		return
+	style.style_panel_container(
+		_surface,
+		GameUiStyleUtility.SurfaceRole.SHELL,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		2
+	)
+	style.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY, 30)
+	style.style_label(_status_label, GameUiStyleUtility.TextRole.PRIMARY)
+	style.style_label(
+		_account_summary_label,
+		GameUiStyleUtility.TextRole.SECONDARY
+	)
+	style.style_label(_mode_empty_label, GameUiStyleUtility.TextRole.MUTED)
+	style.style_label(_leaderboard_empty_label, GameUiStyleUtility.TextRole.MUTED)
+	style.style_line_edit(_name_input)
+	style.style_button(
+		_account_option,
+		GameUiStyleUtility.ButtonRole.SECONDARY
+	)
+	style.style_button(_back_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_create_button, GameUiStyleUtility.ButtonRole.PRIMARY)
+	style.style_button(_rename_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_delete_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(
+		_leaderboard_group_option,
+		GameUiStyleUtility.ButtonRole.SECONDARY
+	)
 
 
 func _update_static_text() -> void:
@@ -269,6 +304,17 @@ func _make_mode_summary_row(summary: Dictionary) -> Control:
 	]
 	timing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(timing)
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if is_instance_valid(style):
+		style.style_panel_container(
+			panel,
+			GameUiStyleUtility.SurfaceRole.PANEL,
+			GameUiStyleUtility.BorderRole.DEFAULT,
+			1
+		)
+		style.style_label(title, GameUiStyleUtility.TextRole.PRIMARY, 20)
+		style.style_label(metrics, GameUiStyleUtility.TextRole.SECONDARY)
+		style.style_label(timing, GameUiStyleUtility.TextRole.MUTED)
 	return panel
 
 
@@ -375,6 +421,17 @@ func _make_leaderboard_row(row: Dictionary) -> Control:
 		else "-"
 	)
 	content.add_child(score_label)
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if is_instance_valid(style):
+		style.style_panel_container(
+			panel,
+			GameUiStyleUtility.SurfaceRole.PANEL,
+			GameUiStyleUtility.BorderRole.DEFAULT,
+			1
+		)
+		style.style_label(rank_label, GameUiStyleUtility.TextRole.NUMERIC, 20)
+		style.style_label(name_label, GameUiStyleUtility.TextRole.PRIMARY)
+		style.style_label(score_label, GameUiStyleUtility.TextRole.NUMERIC)
 	return panel
 
 

@@ -101,6 +101,7 @@ func _ready() -> void:
 	_start_game_button.grab_focus()
 	_update_ui_text()
 	_refresh_continue_game_state()
+	call_deferred(&"_play_content_reveal")
 
 
 # --- 私有/辅助方法 ---
@@ -177,6 +178,22 @@ func _apply_semantic_styles() -> void:
 	style.style_button(_achievements_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_settings_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_quit_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+
+
+func _play_content_reveal() -> void:
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if not is_instance_valid(motion):
+		return
+	var _showcase_reveal_count: int = motion.play_children_reveal(
+		_showcase,
+		Vector2.ZERO,
+		0.024
+	)
+	var _menu_reveal_count: int = motion.play_children_reveal(
+		_menu_column,
+		Vector2.ZERO,
+		0.018
+	)
 
 
 func _queue_layout_update() -> void:

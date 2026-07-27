@@ -32,6 +32,7 @@ var _layout_update_queued: bool = false
 # --- @onready 变量 (节点引用) ---
 
 @onready var _outer_margin: MarginContainer = %OuterMargin
+@onready var _surface: PanelContainer = $OuterMargin/Surface
 @onready var _header: BoxContainer = %Header
 @onready var _title_label: Label = %TitleLabel
 @onready var _summary_label: Label = %SummaryLabel
@@ -54,6 +55,9 @@ var _layout_update_queued: bool = false
 @onready var _selection_status_label: Label = %SelectionStatusLabel
 @onready var _simulation_title: Label = %SimulationTitle
 @onready var _simulation_description: Label = %SimulationDescription
+@onready var _simulation_pane: PanelContainer = (
+	$OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane
+)
 @onready var _value_row: BoxContainer = %ValueRow
 @onready var _left_value_label: Label = %LeftValueLabel
 @onready var _right_value_label: Label = %RightValueLabel
@@ -61,6 +65,9 @@ var _layout_update_queued: bool = false
 @onready var _right_value_spin: SpinBox = %RightValueSpin
 @onready var _run_simulation_button: Button = %RunSimulationButton
 @onready var _result_label: Label = %ResultLabel
+@onready var _result_panel: PanelContainer = (
+	$OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content/ResultPanel
+)
 @onready var _status_label: Label = %StatusLabel
 @onready var _delete_confirmation: ConfirmationDialog = %DeleteConfirmation
 
@@ -245,12 +252,36 @@ func _apply_semantic_styles() -> void:
 	var style: GameUiStyleUtility = _get_ui_style_utility()
 	if not is_instance_valid(style):
 		return
+	style.style_panel_container(
+		_surface,
+		GameUiStyleUtility.SurfaceRole.SHELL,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		2
+	)
+	style.style_panel_container(_blueprint_pane)
+	style.style_panel_container(_simulation_pane)
+	style.style_panel_container(
+		_result_panel,
+		GameUiStyleUtility.SurfaceRole.FIELD
+	)
 	style.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY)
 	style.style_label(_summary_label, GameUiStyleUtility.TextRole.SECONDARY)
-	style.style_label(_blueprint_title, GameUiStyleUtility.TextRole.DISPLAY)
-	style.style_label(_simulation_title, GameUiStyleUtility.TextRole.DISPLAY)
+	style.style_label(
+		_blueprint_title,
+		GameUiStyleUtility.TextRole.PRIMARY,
+		22
+	)
+	style.style_label(
+		_simulation_title,
+		GameUiStyleUtility.TextRole.PRIMARY,
+		22
+	)
+	style.style_label(
+		_simulation_description,
+		GameUiStyleUtility.TextRole.SECONDARY
+	)
 	style.style_label(_selection_status_label, GameUiStyleUtility.TextRole.SECONDARY)
-	style.style_label(_status_label, GameUiStyleUtility.TextRole.FEEDBACK)
+	style.style_label(_status_label, GameUiStyleUtility.TextRole.PRIMARY)
 	style.style_label(_result_label, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_button(_back_button, GameUiStyleUtility.ButtonRole.ICON)
 	style.style_button(_new_button, GameUiStyleUtility.ButtonRole.SECONDARY)

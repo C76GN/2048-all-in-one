@@ -33,6 +33,7 @@ var _configured: bool = false
 
 # --- @onready 变量 (节点引用) ---
 
+@onready var _editor_panel: PanelContainer = $OuterMargin/EditorPanel
 @onready var _title_label: Label = %TitleLabel
 @onready var _board_editor_context: BoardEditorContext = %BoardEditorContext
 @onready var _canvas_hint_label: Label = %CanvasHintLabel
@@ -80,6 +81,7 @@ func _ready() -> void:
 	_setup_tool_button_group()
 	_connect_signals()
 	_apply_canvas_theme()
+	_apply_semantic_styles()
 	_update_ui_text()
 	_initialize_editor()
 
@@ -199,6 +201,51 @@ func _apply_canvas_theme() -> void:
 	if not is_instance_valid(game_theme):
 		return
 	_canvas.apply_visual_theme(game_theme.board_theme, game_theme.ui_palette)
+
+
+func _apply_semantic_styles() -> void:
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style):
+		return
+	style.style_panel_container(
+		_editor_panel,
+		GameUiStyleUtility.SurfaceRole.SHELL,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		2
+	)
+	style.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY, 30)
+	style.style_label(_canvas_hint_label, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_tool_title_label, GameUiStyleUtility.TextRole.PRIMARY, 20)
+	style.style_label(_tool_info_label, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_library_title_label, GameUiStyleUtility.TextRole.PRIMARY, 20)
+	style.style_label(
+		_saved_board_detail_label,
+		GameUiStyleUtility.TextRole.SECONDARY
+	)
+	style.style_label(_validation_label, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_line_edit(_board_name_edit)
+
+	style.style_button(
+		_editor_section_button,
+		GameUiStyleUtility.ButtonRole.SECONDARY
+	)
+	style.style_button(
+		_library_section_button,
+		GameUiStyleUtility.ButtonRole.SECONDARY
+	)
+	style.style_button(_brush_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_eraser_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_undo_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_redo_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_rectangle_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_cross_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_normalize_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_clear_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_save_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_load_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_delete_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_cancel_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_apply_button, GameUiStyleUtility.ButtonRole.PRIMARY)
 
 
 func _execute_cells_edit(next_cells: Array[Vector2i], action_name: String) -> void:

@@ -92,6 +92,7 @@ func _ready() -> void:
 		&"HistoryListPageScroll"
 	)
 	_list_scroll = _find_scroll_container("ScrollContainer")
+	_apply_semantic_styles()
 	_apply_responsive_layout()
 	if is_instance_valid(back_button):
 		var _connect_result_43: int = back_button.pressed.connect(_on_back_button_pressed)
@@ -217,6 +218,29 @@ func _get_delete_failure_message(error: Error) -> String:
 
 
 # --- 私有/辅助方法 ---
+
+func _apply_semantic_styles() -> void:
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style):
+		return
+	style.style_label(page_title, GameUiStyleUtility.TextRole.DISPLAY)
+	style.style_panel_container(_list_surface)
+	style.style_panel_container(
+		_preview_container,
+		GameUiStyleUtility.SurfaceRole.FIELD
+	)
+	style.style_button(back_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	if is_instance_valid(_primary_button):
+		style.style_button(
+			_primary_button,
+			GameUiStyleUtility.ButtonRole.PRIMARY
+		)
+	if is_instance_valid(_delete_button):
+		style.style_button(
+			_delete_button,
+			GameUiStyleUtility.ButtonRole.QUIET
+		)
+
 
 ## 统一连接基础按钮信号。子类在设置完按钮引用后应调用此方法。
 func _setup_base_signals() -> void:

@@ -28,6 +28,7 @@ enum SurfaceRole {
 	PANEL,
 	FIELD,
 	SELECTED,
+	SHELL,
 }
 
 ## 面板边框的语义角色。
@@ -69,9 +70,13 @@ const _FIELD_FOCUS_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.835294
 const _FIELD_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.72)
 const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
 const _PANEL_SURFACE_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.88)
-const _SELECTED_SURFACE_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216, 0.72)
-const _SELECTED_BORDER_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+const _SELECTED_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.82)
+const _SELECTED_BORDER_COLOR: Color = Color(0.29411766, 0.7411765, 0.77254903, 1.0)
 const _FOCUS_RING_MARGIN: float = 3.0
+const _PRIMARY_BUTTON_SHADOW_OFFSET: Vector2 = Vector2(0.0, 4.0)
+const _PRIMARY_BUTTON_HOVER_SHADOW_OFFSET: Vector2 = Vector2(0.0, 3.0)
+const _PRIMARY_BUTTON_PRESSED_SHADOW_OFFSET: Vector2 = Vector2(0.0, 1.0)
+const _SHELL_SHADOW_OFFSET: Vector2 = Vector2(7.0, 7.0)
 
 
 # --- 私有变量 ---
@@ -270,9 +275,15 @@ func style_control(control: Control) -> void:
 	elif control is TabBar:
 		var tab_bar: TabBar = control
 		_style_tab_bar(tab_bar)
+	elif control is SurfaceVboxContainer:
+		var surface_container: SurfaceVboxContainer = control
+		_style_surface_vbox_container(surface_container)
 	elif control is PanelContainer:
 		var panel_container: PanelContainer = control
-		_style_panel_container(panel_container)
+		if panel_container.has_meta(_SURFACE_ROLE_META):
+			_apply_semantic_panel_container_style(panel_container)
+		else:
+			_style_panel_container(panel_container)
 	elif control is Panel and control.has_meta(_SURFACE_ROLE_META):
 		var panel: Panel = control
 		_apply_semantic_panel_style(panel)
@@ -336,6 +347,26 @@ func style_panel(
 	panel.set_meta(_BORDER_WIDTH_META, maxi(border_width, 0))
 	panel.set_meta(_STATIC_STYLE_META, true)
 	_apply_semantic_panel_style(panel)
+
+
+## 为 PanelContainer 保存语义表面状态并立即应用当前主题样式。
+## @param panel_container: 目标 PanelContainer。
+## @param surface_role: 面板填充语义。
+## @param border_role: 面板边框语义。
+## @param border_width: 边框宽度。
+func style_panel_container(
+	panel_container: PanelContainer,
+	surface_role: SurfaceRole = SurfaceRole.PANEL,
+	border_role: BorderRole = BorderRole.DEFAULT,
+	border_width: int = 1
+) -> void:
+	if not is_instance_valid(panel_container):
+		return
+	panel_container.set_meta(_SURFACE_ROLE_META, int(surface_role))
+	panel_container.set_meta(_BORDER_ROLE_META, int(border_role))
+	panel_container.set_meta(_BORDER_WIDTH_META, maxi(border_width, 0))
+	panel_container.set_meta(_STATIC_STYLE_META, true)
+	_apply_semantic_panel_container_style(panel_container)
 
 
 ## 为 LineEdit 应用当前主题字段样式。
@@ -470,10 +501,12 @@ func _apply_label_style(label: Label) -> void:
 	var use_shadow: bool = GFVariantData.to_bool(
 		_get_control_meta(label, _TEXT_SHADOW_META, false)
 	)
+	use_shadow = use_shadow or role == TextRole.DISPLAY
 	if use_shadow:
 		label.add_theme_color_override("font_shadow_color", _text_shadow_color)
-		label.add_theme_constant_override("shadow_offset_x", 2)
-		label.add_theme_constant_override("shadow_offset_y", 2)
+		var shadow_offset: int = 3 if role == TextRole.DISPLAY else 2
+		label.add_theme_constant_override("shadow_offset_x", shadow_offset)
+		label.add_theme_constant_override("shadow_offset_y", shadow_offset)
 	else:
 		label.remove_theme_color_override("font_shadow_color")
 		label.remove_theme_constant_override("shadow_offset_x")
@@ -513,26 +546,66 @@ func _apply_rich_text_label_style(label: RichTextLabel) -> void:
 
 
 func _apply_semantic_panel_style(panel: Panel) -> void:
-	var surface_role: int = GFVariantData.to_int(
-		_get_control_meta(panel, _SURFACE_ROLE_META, SurfaceRole.PANEL)
+	panel.add_theme_stylebox_override(
+		"panel",
+		_create_semantic_surface_style(
+			GFVariantData.to_int(
+				_get_control_meta(panel, _SURFACE_ROLE_META, SurfaceRole.PANEL)
+			),
+			GFVariantData.to_int(
+				_get_control_meta(panel, _BORDER_ROLE_META, BorderRole.DEFAULT)
+			),
+			GFVariantData.to_int(
+				_get_control_meta(panel, _BORDER_WIDTH_META, 1)
+			)
+		)
 	)
-	var border_role: int = GFVariantData.to_int(
-		_get_control_meta(panel, _BORDER_ROLE_META, BorderRole.DEFAULT)
+
+
+func _apply_semantic_panel_container_style(panel_container: PanelContainer) -> void:
+	panel_container.add_theme_stylebox_override(
+		"panel",
+		_create_semantic_surface_style(
+			GFVariantData.to_int(
+				_get_control_meta(
+					panel_container,
+					_SURFACE_ROLE_META,
+					SurfaceRole.PANEL
+				)
+			),
+			GFVariantData.to_int(
+				_get_control_meta(
+					panel_container,
+					_BORDER_ROLE_META,
+					BorderRole.DEFAULT
+				)
+			),
+			GFVariantData.to_int(
+				_get_control_meta(panel_container, _BORDER_WIDTH_META, 1)
+			)
+		)
 	)
-	var border_width: int = GFVariantData.to_int(
-		_get_control_meta(panel, _BORDER_WIDTH_META, 1)
-	)
+
+
+func _create_semantic_surface_style(
+	surface_role: int,
+	border_role: int,
+	border_width: int
+) -> StyleBoxFlat:
 	var surface_color: Color = _get_surface_color(surface_role)
 	if border_role == BorderRole.FOCUS:
 		surface_color = surface_color.lightened(0.035)
-	panel.add_theme_stylebox_override(
-		"panel",
-		_create_panel_surface_style(
-			surface_color,
-			_get_border_color(border_role),
-			border_width
-		)
+	var style: StyleBoxFlat = _create_panel_surface_style(
+		surface_color,
+		_get_border_color(border_role),
+		border_width
 	)
+	if surface_role == SurfaceRole.SHELL:
+		var shell_shadow_color: Color = _button_focus_border_color
+		shell_shadow_color.a *= 0.88
+		style.shadow_color = shell_shadow_color
+		style.shadow_offset = _SHELL_SHADOW_OFFSET
+	return style
 
 
 func _style_spin_box(spin_box: SpinBox) -> void:
@@ -749,6 +822,17 @@ func _style_panel_container(panel_container: PanelContainer) -> void:
 	)
 
 
+func _style_surface_vbox_container(surface: SurfaceVboxContainer) -> void:
+	surface.surface_color = _panel_surface_color
+	surface.border_color = _field_border_color
+	var shell_shadow_color: Color = _button_focus_border_color
+	shell_shadow_color.a *= 0.88
+	surface.shadow_color = shell_shadow_color
+	surface.primary_accent_color = _primary_button_color
+	surface.secondary_accent_color = _button_pressed_color
+	surface.queue_redraw()
+
+
 func _style_item_list(item_list: ItemList) -> void:
 	item_list.add_theme_stylebox_override(
 		"panel",
@@ -867,11 +951,19 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 	var pressed_border_width: int = 3
 	var border_color: Color = _button_focus_border_color
 	var normal_border_width: int = 2
+	var normal_shadow_offset: Vector2 = Vector2.ZERO
+	var hover_shadow_offset: Vector2 = Vector2.ZERO
+	var pressed_shadow_offset: Vector2 = Vector2.ZERO
+	var shadow_color: Color = Color.TRANSPARENT
 	if role == ButtonRole.PRIMARY:
 		normal_color = _primary_button_color
 		hover_color = _primary_button_hover_color
 		pressed_color = _primary_button_pressed_color
 		normal_border_width = 3
+		normal_shadow_offset = _PRIMARY_BUTTON_SHADOW_OFFSET
+		hover_shadow_offset = _PRIMARY_BUTTON_HOVER_SHADOW_OFFSET
+		pressed_shadow_offset = _PRIMARY_BUTTON_PRESSED_SHADOW_OFFSET
+		shadow_color = _button_focus_border_color
 	elif role == ButtonRole.QUIET:
 		normal_color = Color.TRANSPARENT
 		hover_color = _quiet_button_hover_color
@@ -889,22 +981,42 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 		pressed_border_width = 2
 	button.add_theme_stylebox_override(
 		"normal",
-		_create_button_style(normal_color, border_color, normal_border_width)
+		_create_button_style(
+			normal_color,
+			border_color,
+			normal_border_width,
+			normal_shadow_offset,
+			shadow_color
+		)
 	)
 	button.add_theme_stylebox_override(
 		"hover",
-		_create_button_style(hover_color, _button_focus_border_color, maxi(normal_border_width, 1))
+		_create_button_style(
+			hover_color,
+			_button_focus_border_color,
+			maxi(normal_border_width, 1),
+			hover_shadow_offset,
+			shadow_color
+		)
 	)
 	button.add_theme_stylebox_override(
 		"pressed",
-		_create_button_style(pressed_color, pressed_border_color, pressed_border_width)
+		_create_button_style(
+			pressed_color,
+			pressed_border_color,
+			pressed_border_width,
+			pressed_shadow_offset,
+			shadow_color
+		)
 	)
 	button.add_theme_stylebox_override(
 		"hover_pressed",
 		_create_button_style(
 			pressed_color.lightened(0.025),
 			pressed_border_color,
-			pressed_border_width
+			pressed_border_width,
+			pressed_shadow_offset,
+			shadow_color
 		)
 	)
 	button.add_theme_stylebox_override(
@@ -931,15 +1043,18 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 func _create_button_style(
 	color: Color,
 	border_color: Color = Color.TRANSPARENT,
-	border_width: int = 0
+	border_width: int = 0,
+	shadow_offset: Vector2 = Vector2.ZERO,
+	shadow_color: Color = Color.TRANSPARENT
 ) -> StyleBoxFlat:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = color
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
 	style.set_corner_radius_all(4)
-	style.shadow_color = Color.TRANSPARENT
+	style.shadow_color = shadow_color
 	style.shadow_size = 0
+	style.shadow_offset = shadow_offset
 	style.set_content_margin(SIDE_LEFT, 12.0)
 	style.set_content_margin(SIDE_TOP, 8.0)
 	style.set_content_margin(SIDE_RIGHT, 12.0)
@@ -1108,6 +1223,10 @@ func _get_surface_color(role: int) -> Color:
 		return _field_surface_color
 	if role == SurfaceRole.SELECTED:
 		return _selected_surface_color
+	if role == SurfaceRole.SHELL:
+		var shell_color: Color = _panel_surface_color
+		shell_color.a = 1.0
+		return shell_color
 	return _panel_surface_color
 
 

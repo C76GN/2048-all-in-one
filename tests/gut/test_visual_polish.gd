@@ -770,7 +770,7 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	var button_style: StyleBoxFlat = _get_stylebox_flat(button, &"normal")
 	assert_not_null(button_style, "按钮绑定后应获得统一 StyleBoxFlat。")
 	assert_true(button_style.get_border_width(SIDE_TOP) >= 2, "统一按钮样式应使用像素菜单描边。")
-	assert_true(button_style.shadow_size == 0, "统一按钮样式应保持无阴影。")
+	assert_true(button_style.shadow_size == 0, "统一按钮样式不得使用模糊阴影。")
 	var selected_style: StyleBoxFlat = _get_stylebox_flat(item_list, &"selected")
 	assert_not_null(selected_style, "列表绑定后应获得主题化选中态。")
 	if selected_style != null:
@@ -1189,6 +1189,51 @@ func test_ui_style_utility_rebuilds_semantic_styles_after_palette_change() -> vo
 				panel_style.bg_color == alternate_palette.selected_surface_color.lightened(0.035),
 				"语义面板应在色板切换后保持 SELECTED 表面角色。"
 			)
+	architecture.dispose()
+
+
+func test_ui_style_utility_uses_hard_offset_depth_for_primary_actions_and_shells() -> void:
+	var root: Control = Control.new()
+	var primary_button: Button = Button.new()
+	var shell: PanelContainer = PanelContainer.new()
+	root.add_child(primary_button)
+	root.add_child(shell)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.init()
+	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	style_utility.style_button(
+		primary_button,
+		GameUiStyleUtility.ButtonRole.PRIMARY
+	)
+	style_utility.style_panel_container(
+		shell,
+		GameUiStyleUtility.SurfaceRole.SHELL,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		2
+	)
+
+	var normal_style: StyleBoxFlat = _get_stylebox_flat(primary_button, &"normal")
+	var pressed_style: StyleBoxFlat = _get_stylebox_flat(primary_button, &"pressed")
+	var shell_style: StyleBoxFlat = _get_stylebox_flat(shell, &"panel")
+	assert_not_null(normal_style, "主操作必须获得主题化常态样式。")
+	assert_not_null(pressed_style, "主操作必须获得主题化按下样式。")
+	assert_not_null(shell_style, "顶层任务表面必须获得 SHELL 样式。")
+	if normal_style != null and pressed_style != null:
+		assert_true(normal_style.shadow_size == 0, "主操作只能使用无模糊硬偏移底板。")
+		assert_gt(normal_style.shadow_offset.y, pressed_style.shadow_offset.y, "按下时底板应收短。")
+		assert_gt(normal_style.shadow_color.a, 0.0, "主操作硬底板必须可见。")
+	if shell_style != null:
+		assert_true(shell_style.shadow_size == 0, "SHELL 只能使用无模糊硬偏移底板。")
+		assert_gt(shell_style.shadow_offset.length(), 0.0, "SHELL 应与背景形成明确层级。")
+		assert_true(is_equal_approx(shell_style.bg_color.a, 1.0), "SHELL 纸面必须不透明。")
 	architecture.dispose()
 
 

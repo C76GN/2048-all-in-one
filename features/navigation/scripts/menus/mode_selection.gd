@@ -552,9 +552,9 @@ func _apply_mode_selection_visual_system() -> void:
 	var compact_two_pane: bool = _is_compact_two_pane_layout()
 	style_utility.style_label(
 		_page_title,
-		GameUiStyleUtility.TextRole.PRIMARY,
+		GameUiStyleUtility.TextRole.DISPLAY,
 		32 if compact else 40,
-		true
+		false
 	)
 	style_utility.style_label(
 		_info_name_label,
@@ -579,6 +579,26 @@ func _apply_mode_selection_visual_system() -> void:
 	)
 	style_utility.style_line_edit(_seed_line_edit)
 	style_utility.prepare_button(_grid_size_option_button)
+	style_utility.style_button(
+		_edit_board_button,
+		GameUiStyleUtility.ButtonRole.SECONDARY
+	)
+	style_utility.style_button(
+		_prev_page_button,
+		GameUiStyleUtility.ButtonRole.SECONDARY
+	)
+	style_utility.style_button(
+		_next_page_button,
+		GameUiStyleUtility.ButtonRole.SECONDARY
+	)
+	style_utility.style_button(
+		_back_button,
+		GameUiStyleUtility.ButtonRole.QUIET
+	)
+	style_utility.style_button(
+		_start_game_button,
+		GameUiStyleUtility.ButtonRole.PRIMARY
+	)
 	style_utility.style_button(
 		_refresh_seed_button,
 		GameUiStyleUtility.ButtonRole.ICON

@@ -32,6 +32,7 @@ var _layout_update_queued: bool = false
 # --- @onready 变量 (节点引用) ---
 
 @onready var _outer_margin: MarginContainer = %OuterMargin
+@onready var _catalog_panel: PanelContainer = %CatalogPanel
 @onready var _title_label: Label = %TitleLabel
 @onready var _progress_label: Label = %ProgressLabel
 @onready var _back_button: Button = %BackButton
@@ -113,11 +114,30 @@ func _apply_semantic_styles() -> void:
 	var style: GameUiStyleUtility = _get_ui_style_utility()
 	if not is_instance_valid(style):
 		return
+	style.style_panel_container(
+		_catalog_panel,
+		GameUiStyleUtility.SurfaceRole.SHELL,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		2
+	)
+	style.style_panel_container(_detail_pane)
 	style.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY)
 	style.style_label(_progress_label, GameUiStyleUtility.TextRole.SECONDARY)
-	style.style_label(_detail_title, GameUiStyleUtility.TextRole.DISPLAY)
+	style.style_label(
+		_detail_title,
+		GameUiStyleUtility.TextRole.PRIMARY,
+		24
+	)
 	style.style_label(_detail_state, GameUiStyleUtility.TextRole.SECONDARY)
-	style.style_button(_back_button, GameUiStyleUtility.ButtonRole.ICON)
+	style.style_label(_detail_form, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_detail_recipes, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_detail_max_value, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(
+		_detail_discovered_at,
+		GameUiStyleUtility.TextRole.MUTED
+	)
+	style.style_label(_empty_label, GameUiStyleUtility.TextRole.MUTED)
+	style.style_button(_back_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 
 
 func _bind_runtime_signals() -> void:

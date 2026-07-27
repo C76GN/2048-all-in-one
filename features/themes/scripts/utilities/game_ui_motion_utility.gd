@@ -186,6 +186,7 @@ func play_control_pulse(
 		return null
 
 	var tween: Tween = control.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	var _parallel_result: Tween = tween.set_parallel(true)
 	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
 	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
@@ -259,6 +260,7 @@ func play_numeric_change(
 	value_label.modulate = base_modulate.lerp(feedback_color, 0.22)
 
 	var tween: Tween = value_label.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	var _parallel_result: Tween = tween.set_parallel(true)
 	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
 	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
@@ -456,6 +458,7 @@ func _play_control_reveal(
 		return null
 
 	var tween: Tween = control.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	var _parallel_result: Tween = tween.set_parallel(true)
 	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
 	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
@@ -492,6 +495,7 @@ func _animate_button(
 		return
 
 	var tween: Tween = button.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	var _parallel_result: Tween = tween.set_parallel(true)
 	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
 	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)

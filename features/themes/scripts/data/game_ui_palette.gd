@@ -36,8 +36,8 @@ extends Resource
 @export var field_focus_border_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
 
 @export var panel_surface_color: Color = Color(1.0, 0.972549, 0.9098039, 0.88)
-@export var selected_surface_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 0.72)
-@export var selected_border_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+@export var selected_surface_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.82)
+@export var selected_border_color: Color = Color(0.29411766, 0.7411765, 0.77254903, 1.0)
 
 @export var slider_track_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 0.42)
 @export var slider_grabber_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.92)
