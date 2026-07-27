@@ -294,9 +294,8 @@ func test_player_profile_empty_states_center_inside_scroll_content() -> void:
 			mode_empty_label.get_parent() is CenterContainer,
 			"个人信息空态必须位于滚动内容区的居中容器内。"
 		)
-		assert_eq(
-			String(mode_empty_label.get_parent().get_parent().name),
-			"ModeContent"
+		assert_true(
+			String(mode_empty_label.get_parent().get_parent().name) == "ModeContent"
 		)
 	if leaderboard_empty is Label:
 		var leaderboard_empty_label: Label = leaderboard_empty
@@ -305,9 +304,9 @@ func test_player_profile_empty_states_center_inside_scroll_content() -> void:
 			leaderboard_empty_label.get_parent() is CenterContainer,
 			"排行榜空态必须位于滚动内容区的居中容器内。"
 		)
-		assert_eq(
-			String(leaderboard_empty_label.get_parent().get_parent().name),
-			"LeaderboardContent"
+		assert_true(
+			String(leaderboard_empty_label.get_parent().get_parent().name)
+			== "LeaderboardContent"
 		)
 
 	var leaderboard_filter: Node = dialog.find_child(
@@ -318,11 +317,10 @@ func test_player_profile_empty_states_center_inside_scroll_content() -> void:
 	assert_true(leaderboard_filter is OptionButton)
 	if leaderboard_filter is OptionButton:
 		var leaderboard_option: OptionButton = leaderboard_filter
-		assert_eq(leaderboard_option.item_count, 1)
-		assert_eq(leaderboard_option.selected, 0)
-		assert_eq(
-			leaderboard_option.get_item_text(0),
-			tr("LOCAL_LEADERBOARD_ALL_MODES"),
+		assert_true(leaderboard_option.item_count == 1)
+		assert_true(leaderboard_option.selected == 0)
+		assert_true(
+			leaderboard_option.get_item_text(0) == tr("LOCAL_LEADERBOARD_ALL_MODES"),
 			"无成绩时的模式筛选必须明确显示“全部模式”。"
 		)
 		assert_true(leaderboard_option.disabled)
@@ -368,9 +366,8 @@ func test_player_profile_portrait_leaderboard_keeps_header_controls_inside_surfa
 		leaderboard_filter.fit_to_longest_item,
 		"排行榜分组不得按最长稳定身份文本扩大页面最小宽度。"
 	)
-	assert_eq(
-		leaderboard_filter.text_overrun_behavior,
-		TextServer.OVERRUN_TRIM_ELLIPSIS,
+	assert_true(
+		leaderboard_filter.text_overrun_behavior == TextServer.OVERRUN_TRIM_ELLIPSIS,
 		"分组筛选在必要时必须以省略号裁切，而非向右溢出。"
 	)
 	assert_false(

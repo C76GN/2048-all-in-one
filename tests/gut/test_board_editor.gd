@@ -401,9 +401,8 @@ func _assert_board_editor_initial_focus(
 	var focus_owner: Control = get_viewport().gui_get_focus_owner()
 	assert_not_null(responsive)
 	if responsive != null:
-		assert_eq(
-			responsive.get_layout_mode(),
-			expected_layout,
+		assert_true(
+			responsive.get_layout_mode() == expected_layout,
 			"%s 应进入预期响应式布局。" % expected_focus_name
 		)
 	assert_not_null(expected_focus)

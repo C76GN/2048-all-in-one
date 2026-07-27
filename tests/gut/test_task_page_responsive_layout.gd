@@ -74,19 +74,16 @@ func test_mode_selection_keeps_960x540_as_actionable_two_pane_layout() -> void:
 
 
 func test_mode_selection_paginates_from_available_first_screen_height() -> void:
-	assert_eq(
-		ModeSelection._get_items_per_page_for_viewport(Vector2(1280.0, 720.0)),
-		4,
+	assert_true(
+		ModeSelection._get_items_per_page_for_viewport(Vector2(1280.0, 720.0)) == 4,
 		"720px 高桌面页只能放四张模式卡，必须为分页和返回按钮保留首屏空间。"
 	)
-	assert_eq(
-		ModeSelection._get_items_per_page_for_viewport(Vector2(960.0, 540.0)),
-		3,
+	assert_true(
+		ModeSelection._get_items_per_page_for_viewport(Vector2(960.0, 540.0)) == 3,
 		"540px 高紧凑横屏只能放三张模式卡，右侧开始操作和左侧分页都应保持可见。"
 	)
-	assert_eq(
-		ModeSelection._get_items_per_page_for_viewport(Vector2(720.0, 1558.0)),
-		5,
+	assert_true(
+		ModeSelection._get_items_per_page_for_viewport(Vector2(720.0, 1558.0)) == 5,
 		"高竖屏可以使用完整的五项分页上限。"
 	)
 
@@ -130,20 +127,18 @@ func test_history_list_pages_preserve_touch_target_and_centered_axis() -> void:
 
 
 func test_history_list_compact_surface_width_reserves_safe_area_and_page_scrollbar() -> void:
-	assert_eq(
-		BaseListMenu._get_compact_list_surface_width(
+	assert_true(
+		BaseListMenu.get_compact_list_surface_width(
 			730.0,
 			GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
-		),
-		692.0,
+		) == 692.0,
 		"850×838 真实拉伸得到的 730px 逻辑宽度不得把列表压成文字最小宽度。"
 	)
-	assert_eq(
-		BaseListMenu._get_compact_list_surface_width(
+	assert_true(
+		BaseListMenu.get_compact_list_surface_width(
 			720.0,
 			GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
-		),
-		674.0,
+		) == 674.0,
 		"720px 竖屏应为安全区和页面滚动条留出空间，并保留完整列表宽度。"
 	)
 
@@ -229,9 +224,8 @@ func test_scroll_wrapper_fills_real_portrait_safe_area() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	assert_eq(
-		scroll.size,
-		Vector2(688.0, 928.0),
+	assert_true(
+		scroll.size == Vector2(688.0, 928.0),
 		"可真实创建的 720×960 竖屏应让唯一滚动视口占满扣除 16px 安全留白后的区域。"
 	)
 	assert_true(
@@ -417,6 +411,8 @@ func test_player_flow_surfaces_preserve_44px_interaction_contract() -> void:
 	)
 
 
+# --- 私有/辅助方法 ---
+
 func _assert_history_list_touch_targets_and_axis(
 	scene: PackedScene,
 	page_label: String,
@@ -442,9 +438,8 @@ func _assert_history_list_touch_targets_and_axis(
 	assert_true(title is Label, "%s页应包含标题。" % page_label)
 	if title is Label:
 		var title_label: Label = title
-		assert_eq(
-			title_label.horizontal_alignment,
-			HORIZONTAL_ALIGNMENT_CENTER,
+		assert_true(
+			title_label.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER,
 			"%s标题应与列表面板共享稳定的中央轴线。" % page_label
 		)
 

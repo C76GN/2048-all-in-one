@@ -589,13 +589,35 @@ func _style_spin_box(spin_box: SpinBox) -> void:
 
 
 func _style_embedded_scroll_bars(control: Control) -> void:
-	for method_name: StringName in [&"get_v_scroll_bar", &"get_h_scroll_bar"]:
-		if not control.has_method(method_name):
-			continue
-		var scroll_bar_value: Variant = control.call(method_name)
-		if scroll_bar_value is ScrollBar:
-			var scroll_bar: ScrollBar = scroll_bar_value
+	if control is ScrollContainer:
+		var scroll_container: ScrollContainer = control
+		_style_scroll_bar(scroll_container.get_v_scroll_bar())
+		_style_scroll_bar(scroll_container.get_h_scroll_bar())
+	elif control is ItemList:
+		var item_list: ItemList = control
+		_style_scroll_bar(item_list.get_v_scroll_bar())
+		_style_scroll_bar(item_list.get_h_scroll_bar())
+	elif control is Tree:
+		_style_scroll_bars_in_subtree(control)
+	elif control is TextEdit:
+		var text_edit: TextEdit = control
+		_style_scroll_bar(text_edit.get_v_scroll_bar())
+		_style_scroll_bar(text_edit.get_h_scroll_bar())
+	elif control is RichTextLabel:
+		var rich_text_label: RichTextLabel = control
+		_style_scroll_bar(rich_text_label.get_v_scroll_bar())
+	elif control is GraphEdit:
+		_style_scroll_bars_in_subtree(control)
+
+
+func _style_scroll_bars_in_subtree(root: Node) -> void:
+	for child_index: int in range(root.get_child_count(true)):
+		var child: Node = root.get_child(child_index, true)
+		if child is ScrollBar:
+			var scroll_bar: ScrollBar = child
 			_style_scroll_bar(scroll_bar)
+			continue
+		_style_scroll_bars_in_subtree(child)
 
 
 func _style_scroll_bar(scroll_bar: ScrollBar) -> void:

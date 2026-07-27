@@ -42,7 +42,7 @@ ai_analysis/
 unstaged_changes.diff.txt
 unstaged_changes.diff
 
-**/build/
+build/
 !/build/
 /build/*
 !/build/.gdignore

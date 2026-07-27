@@ -399,9 +399,8 @@ func test_record_list_previews_fit_inside_their_sidebar_surfaces() -> void:
 		if preview_node is BoardPreview and preview_surface_node is PanelContainer:
 			var preview: BoardPreview = preview_node
 			var preview_surface: PanelContainer = preview_surface_node
-			assert_eq(
-				preview.scene_file_path,
-				_BOARD_PREVIEW_SCENE_PATH,
+			assert_true(
+				preview.scene_file_path == _BOARD_PREVIEW_SCENE_PATH,
 				"书签与回放页必须实例化共享的 BoardPreview 场景，而不是内联重复脚本配置。"
 			)
 			var has_preview_size: bool = false
@@ -936,9 +935,8 @@ func test_ui_style_utility_styles_spinbox_as_readable_light_field() -> void:
 				_get_contrast_ratio(font_color, normal_style.bg_color) >= _MIN_UI_TEXT_CONTRAST,
 				"SpinBox 字体在浅色字段上必须保持可读。"
 			)
-	assert_eq(
-		spin_box.get_theme_constant("buttons_width"),
-		30,
+	assert_true(
+		spin_box.get_theme_constant("buttons_width") == 30,
 		"SpinBox 的增减按钮应保留清晰且可点击的固定宽度。"
 	)
 	assert_true(spin_box.has_theme_constant_override("buttons_width"))
@@ -1043,9 +1041,8 @@ func test_ui_style_utility_styles_embedded_scrollbars_with_palette_states() -> v
 			var grabber: StyleBoxFlat = _get_stylebox_flat(scroll_bar, &"grabber")
 			assert_not_null(grabber)
 			if is_instance_valid(grabber):
-				assert_eq(
-					grabber.bg_color,
-					alternate_grabber_color,
+				assert_true(
+					grabber.bg_color == alternate_grabber_color,
 					"色板切换后内部滚动条抓手必须同步刷新。"
 				)
 	architecture.dispose()
@@ -1135,9 +1132,8 @@ func test_ui_style_utility_replaces_default_progress_bar_surfaces() -> void:
 	var fill_style: StyleBoxFlat = _get_stylebox_flat(progress_bar, &"fill")
 	assert_not_null(fill_style)
 	if is_instance_valid(fill_style):
-		assert_eq(
-			fill_style.bg_color,
-			_HALFTONE_UI_PALETTE.slider_grabber_color,
+		assert_true(
+			fill_style.bg_color == _HALFTONE_UI_PALETTE.slider_grabber_color,
 			"ProgressBar 填充颜色应与当前色板同步。"
 		)
 	architecture.dispose()
@@ -1542,11 +1538,11 @@ func test_game_over_menu_summary_uses_safe_format_fallback() -> void:
 		var actions: GridContainer = actions_node
 		panel.size = Vector2(960.0, 540.0)
 		panel.call(&"_apply_responsive_layout")
-		assert_eq(actions.columns, 3, "960×540 必须保留三按钮首屏操作区。")
+		assert_true(actions.columns == 3, "960×540 必须保留三按钮首屏操作区。")
 		assert_lte(surface.custom_minimum_size.x, 620.0)
 		panel.size = Vector2(720.0, 960.0)
 		panel.call(&"_apply_responsive_layout")
-		assert_eq(actions.columns, 3, "720×960 仍有足够宽度承载三按钮首屏操作区。")
+		assert_true(actions.columns == 3, "720×960 仍有足够宽度承载三按钮首屏操作区。")
 		assert_lte(
 			surface.custom_minimum_size.x + surface.outward_padding.x * 2.0,
 			720.0,
