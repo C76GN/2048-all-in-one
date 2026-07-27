@@ -121,6 +121,9 @@ static func is_compact_layout(viewport_size: Vector2) -> bool:
 ##
 ## 页面级滚动条由当前页拥有，因此宽度预算需要同时扣除安全区留白和滚动条，
 ## 避免 CenterContainer 在重排瞬间把列表压缩成仅剩文字最小宽度。
+## @param viewport_width: 当前页面可用的逻辑视口宽度。
+## @param target_layout_mode: GameTaskPageLayoutUtility 定义的目标布局模式。
+## @return: 扣除对应安全留白与滚动条预算后的列表面板宽度。
 static func get_compact_list_surface_width(
 	viewport_width: float,
 	target_layout_mode: int
