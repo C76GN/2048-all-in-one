@@ -16,6 +16,10 @@ const _RESULT_IDENTITY_FORMAT_FALLBACK: String = "种子 %d · 状态校验 %s"
 const _COMPETITION_ELIGIBLE_FALLBACK: String = "本地比赛榜：合格"
 const _COMPETITION_RANK_FORMAT_FALLBACK: String = "本地比赛榜：合格 · 第 %d 名"
 const _COMPETITION_INELIGIBLE_FORMAT_FALLBACK: String = "本地比赛榜：不计入 · %s"
+const _MAX_SURFACE_WIDTH: float = 620.0
+const _MIN_SURFACE_WIDTH: float = 280.0
+const _SURFACE_HORIZONTAL_GUTTER: float = 72.0
+const _STACK_ACTIONS_MAX_WIDTH: float = 600.0
 
 
 # --- 私有变量 ---
@@ -25,11 +29,18 @@ var _has_played_new_record_celebration: bool = false
 
 # --- @onready 变量 (节点引用) ---
 
+@onready var _summary_surface: SurfaceVboxContainer = $CenterContainer/VBoxContainer
 @onready var _title_label: Label = $CenterContainer/VBoxContainer/TitleLabel
+@onready var _new_record_label: Label = $CenterContainer/VBoxContainer/NewRecordLabel
+@onready var _context_label: Label = $CenterContainer/VBoxContainer/ContextLabel
+@onready var _run_summary_label: Label = $CenterContainer/VBoxContainer/RunSummaryLabel
+@onready var _summary_separator: HSeparator = $CenterContainer/VBoxContainer/SummarySeparator
 @onready var _summary_label: Label = $CenterContainer/VBoxContainer/SummaryLabel
-@onready var _restart_button: Button = $CenterContainer/VBoxContainer/RestartButton
-@onready var _settings_button: Button = $CenterContainer/VBoxContainer/SettingsButton
-@onready var _main_menu_button: Button = $CenterContainer/VBoxContainer/MainMenuButton
+@onready var _identity_label: Label = $CenterContainer/VBoxContainer/IdentityLabel
+@onready var _actions: GridContainer = $CenterContainer/VBoxContainer/Actions
+@onready var _restart_button: Button = %RestartButton
+@onready var _settings_button: Button = %SettingsButton
+@onready var _main_menu_button: Button = %MainMenuButton
 
 
 # --- Godot 生命周期方法 ---
@@ -38,9 +49,11 @@ func _ready() -> void:
 	var _connect_result_24: int = _restart_button.pressed.connect(_on_restart_button_pressed)
 	var _connect_result_25: int = _settings_button.pressed.connect(_on_settings_button_pressed)
 	var _connect_result_26: int = _main_menu_button.pressed.connect(_on_main_menu_button_pressed)
+	var _resized_connect: int = resized.connect(_apply_responsive_layout)
 
 	_update_ui_text()
 	_apply_visual_style()
+	_apply_responsive_layout()
 	call_deferred(&"_refresh_summary")
 	_restart_button.grab_focus()
 
@@ -50,7 +63,16 @@ func _ready() -> void:
 func _update_ui_text() -> void:
 	if is_instance_valid(_title_label):
 		_title_label.text = tr("TITLE_GAME_OVER")
-	if is_instance_valid(_summary_label) and _summary_label.text.is_empty():
+	if is_instance_valid(_new_record_label):
+		_new_record_label.text = tr("GAME_OVER_NEW_RECORD_PREFIX")
+		_new_record_label.visible = false
+	if is_instance_valid(_context_label):
+		_context_label.visible = false
+	if is_instance_valid(_run_summary_label):
+		_run_summary_label.visible = false
+	if is_instance_valid(_identity_label):
+		_identity_label.visible = false
+	if is_instance_valid(_summary_label):
 		_summary_label.text = tr("GAME_OVER_SUMMARY_LOADING")
 	if is_instance_valid(_restart_button):
 		_restart_button.text = tr("BTN_REPLAY_AGAIN")
@@ -65,8 +87,63 @@ func _apply_visual_style() -> void:
 	if not is_instance_valid(style_utility):
 		push_error("[GameOverMenu] 缺少 GameUiStyleUtility，无法应用结算语义样式。")
 		return
-	style_utility.style_label(_title_label, GameUiStyleUtility.TextRole.PRIMARY, 34, true)
-	style_utility.style_label(_summary_label, GameUiStyleUtility.TextRole.SECONDARY, 16)
+	style_utility.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY, 32, true)
+	style_utility.style_label(
+		_new_record_label,
+		GameUiStyleUtility.TextRole.FEEDBACK,
+		20
+	)
+	style_utility.style_label(
+		_context_label,
+		GameUiStyleUtility.TextRole.PRIMARY,
+		16
+	)
+	style_utility.style_label(
+		_run_summary_label,
+		GameUiStyleUtility.TextRole.NUMERIC,
+		20
+	)
+	style_utility.style_separator(_summary_separator)
+	style_utility.style_label(
+		_summary_label,
+		GameUiStyleUtility.TextRole.SECONDARY,
+		15
+	)
+	style_utility.style_label(
+		_identity_label,
+		GameUiStyleUtility.TextRole.MUTED,
+		13
+	)
+	style_utility.style_button(
+		_restart_button,
+		GameUiStyleUtility.ButtonRole.PRIMARY
+	)
+	style_utility.style_button(
+		_settings_button,
+		GameUiStyleUtility.ButtonRole.SECONDARY
+	)
+	style_utility.style_button(
+		_main_menu_button,
+		GameUiStyleUtility.ButtonRole.QUIET
+	)
+
+
+func _apply_responsive_layout() -> void:
+	if (
+		not is_instance_valid(_summary_surface)
+		or not is_instance_valid(_actions)
+	):
+		return
+	var available_width: float = size.x
+	if available_width <= 0.0:
+		available_width = get_viewport_rect().size.x
+	var surface_width: float = clampf(
+		available_width - _SURFACE_HORIZONTAL_GUTTER,
+		_MIN_SURFACE_WIDTH,
+		_MAX_SURFACE_WIDTH
+	)
+	_summary_surface.custom_minimum_size.x = surface_width
+	_actions.columns = 1 if available_width < _STACK_ACTIONS_MAX_WIDTH else 3
 
 
 func _refresh_summary() -> void:
@@ -75,6 +152,10 @@ func _refresh_summary() -> void:
 
 	var status_model: GameStatusModel = _get_game_status_model()
 	if not is_instance_valid(status_model):
+		_new_record_label.visible = false
+		_context_label.visible = false
+		_run_summary_label.visible = false
+		_identity_label.visible = false
 		_summary_label.text = tr("GAME_OVER_SUMMARY_UNAVAILABLE")
 		return
 
@@ -99,9 +180,8 @@ func _refresh_summary() -> void:
 	var last_target_reached: bool = GFVariantData.to_bool(stats.get("last_target_reached", false), false)
 	var history_max_tile: int = max(GFVariantData.to_int(stats.get("max_tile", 0), 0), highest_tile)
 
-	var prefix: String = ""
-	if score > initial_high_score:
-		prefix = tr("GAME_OVER_NEW_RECORD_PREFIX") + "\n"
+	var is_new_record: bool = score > initial_high_score
+	if is_new_record:
 		_play_new_record_celebration_once()
 	var summary_text: String = ""
 	if target_value > 0:
@@ -150,11 +230,42 @@ func _refresh_summary() -> void:
 		_get_last_game_result(current_game_model)
 	)
 	var end_reason_explanation: String = _get_end_reason_explanation()
-	_summary_label.text = prefix + summary_text
+	_apply_summary_sections(
+		summary_text,
+		is_new_record,
+		end_reason_explanation,
+		result_explanation
+	)
+
+
+func _apply_summary_sections(
+	summary_text: String,
+	is_new_record: bool,
+	end_reason_explanation: String,
+	result_explanation: String
+) -> void:
+	var lines: PackedStringArray = summary_text.split("\n", false)
+	_new_record_label.visible = is_new_record
+	_context_label.text = lines[0].strip_edges() if lines.size() > 0 else ""
+	_context_label.visible = not _context_label.text.is_empty()
+	_run_summary_label.text = lines[1].strip_edges() if lines.size() > 1 else ""
+	_run_summary_label.visible = not _run_summary_label.text.is_empty()
+
+	var detail_lines: PackedStringArray = PackedStringArray()
+	for index: int in range(2, lines.size()):
+		var detail_line: String = lines[index].strip_edges()
+		if not detail_line.is_empty():
+			var _detail_appended: bool = detail_lines.append(detail_line)
 	if not end_reason_explanation.is_empty():
-		_summary_label.text += "\n" + end_reason_explanation
-	if not result_explanation.is_empty():
-		_summary_label.text += "\n" + result_explanation
+		var _reason_appended: bool = detail_lines.append(end_reason_explanation)
+	_summary_label.text = (
+		"\n".join(detail_lines)
+		if not detail_lines.is_empty()
+		else tr("GAME_OVER_SUMMARY_UNAVAILABLE")
+	)
+
+	_identity_label.text = result_explanation
+	_identity_label.visible = not result_explanation.is_empty()
 
 
 func _configure_settings_panel(panel: Node) -> void:

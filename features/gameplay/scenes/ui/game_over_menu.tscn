@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://7ypwtymhkpm6"]
 
 [ext_resource type="Script" uid="uid://m2t7mhhkobfx" path="res://features/gameplay/scripts/ui/game_over_menu.gd" id="1_7nx0y"]
+[ext_resource type="Script" path="res://shared/scripts/ui/surface_vbox_container.gd" id="2_surface"]
 
 [node name="GameOverMenu" type="Control" unique_id=655400418]
 layout_mode = 3
@@ -23,45 +24,104 @@ color = Color(0.95686275, 0.92941177, 0.8666667, 0.80)
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 32.0
+offset_top = 24.0
+offset_right = -32.0
+offset_bottom = -24.0
 grow_horizontal = 2
 grow_vertical = 2
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer" unique_id=779542114]
-custom_minimum_size = Vector2(360, 0)
+custom_minimum_size = Vector2(620, 0)
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 8
+script = ExtResource("2_surface")
+surface_color = Color(1, 0.972549, 0.909804, 0.99)
+border_color = Color(0.184314, 0.188235, 0.215686, 0.88)
+outward_padding = Vector2(22, 18)
 
 [node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer" unique_id=1763507928]
 layout_mode = 2
-theme_override_font_sizes/font_size = 34
+theme_override_font_sizes/font_size = 32
 text = "游戏结束"
 horizontal_alignment = 1
 
-[node name="SummaryLabel" type="Label" parent="CenterContainer/VBoxContainer" unique_id=1150186931]
-custom_minimum_size = Vector2(360, 0)
+[node name="NewRecordLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "新纪录！"
+horizontal_alignment = 1
+
+[node name="ContextLabel" type="Label" parent="CenterContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
+text = "经典模式 · 4x4"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="RunSummaryLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "本局：4096 分 · 128 步 · 最大方块 4"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="SummarySeparator" type="HSeparator" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="SummaryLabel" type="Label" parent="CenterContainer/VBoxContainer" unique_id=1150186931]
+layout_mode = 2
+theme_override_constants/line_spacing = 2
+theme_override_font_sizes/font_size = 15
 text = "结算信息"
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="RestartButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=748191721]
-custom_minimum_size = Vector2(250, 60)
+[node name="IdentityLabel" type="Label" parent="CenterContainer/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/line_spacing = 2
+theme_override_font_sizes/font_size = 13
+text = "种子 0 · 状态校验 000000000000
+本地比赛榜：合格"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Actions" type="GridContainer" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="RestartButton" type="Button" parent="CenterContainer/VBoxContainer/Actions" unique_id=748191721]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_neighbor_left = NodePath("../MainMenuButton")
 focus_neighbor_top = NodePath("../MainMenuButton")
+focus_neighbor_right = NodePath("../SettingsButton")
 focus_neighbor_bottom = NodePath("../SettingsButton")
 text = "重来"
 
-[node name="SettingsButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=898729010]
-custom_minimum_size = Vector2(250, 60)
+[node name="SettingsButton" type="Button" parent="CenterContainer/VBoxContainer/Actions" unique_id=898729010]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 52)
 layout_mode = 2
+size_flags_horizontal = 3
+focus_neighbor_left = NodePath("../RestartButton")
 focus_neighbor_top = NodePath("../RestartButton")
+focus_neighbor_right = NodePath("../MainMenuButton")
 focus_neighbor_bottom = NodePath("../MainMenuButton")
 text = "设置"
 
-[node name="MainMenuButton" type="Button" parent="CenterContainer/VBoxContainer" unique_id=1734973865]
-custom_minimum_size = Vector2(250, 60)
+[node name="MainMenuButton" type="Button" parent="CenterContainer/VBoxContainer/Actions" unique_id=1734973865]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(180, 52)
 layout_mode = 2
+size_flags_horizontal = 3
+focus_neighbor_left = NodePath("../SettingsButton")
 focus_neighbor_top = NodePath("../SettingsButton")
+focus_neighbor_right = NodePath("../RestartButton")
 focus_neighbor_bottom = NodePath("../RestartButton")
 text = "返回主界面"

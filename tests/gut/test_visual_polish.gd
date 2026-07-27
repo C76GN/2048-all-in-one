@@ -1426,15 +1426,58 @@ func test_game_over_menu_contains_result_summary_labels() -> void:
 	assert_true(is_instance_valid(panel), "游戏结束场景应能实例化为 Control。")
 
 	var title_node: Node = panel.get_node_or_null("CenterContainer/VBoxContainer/TitleLabel")
+	var record_node: Node = panel.get_node_or_null(
+		"CenterContainer/VBoxContainer/NewRecordLabel"
+	)
+	var context_node: Node = panel.get_node_or_null(
+		"CenterContainer/VBoxContainer/ContextLabel"
+	)
+	var run_node: Node = panel.get_node_or_null(
+		"CenterContainer/VBoxContainer/RunSummaryLabel"
+	)
 	var summary_node: Node = panel.get_node_or_null("CenterContainer/VBoxContainer/SummaryLabel")
+	var identity_node: Node = panel.get_node_or_null(
+		"CenterContainer/VBoxContainer/IdentityLabel"
+	)
+	var surface_node: Node = panel.get_node_or_null("CenterContainer/VBoxContainer")
+	var actions_node: Node = panel.get_node_or_null(
+		"CenterContainer/VBoxContainer/Actions"
+	)
 	assert_true(title_node is Label, "游戏结束菜单应包含标题 Label。")
+	assert_true(record_node is Label, "游戏结束菜单应把新纪录反馈提升为独立层级。")
+	assert_true(context_node is Label, "游戏结束菜单应独立显示模式与棋盘上下文。")
+	assert_true(run_node is Label, "游戏结束菜单应把本局核心数据提升为独立层级。")
 	assert_true(summary_node is Label, "游戏结束菜单应包含结算摘要 Label。")
+	assert_true(identity_node is Label, "游戏结束菜单应保留配置身份与本地排名信息。")
+	assert_true(surface_node is SurfaceVboxContainer, "结算内容必须由独立纸张表面承载。")
+	assert_true(actions_node is GridContainer, "结算操作应由可重排的操作区承载。")
+	if surface_node is SurfaceVboxContainer:
+		var surface: SurfaceVboxContainer = surface_node
+		assert_gte(
+			surface.surface_color.a,
+			0.98,
+			"结算纸张表面必须近似不透明，避免棋盘纹理干扰摘要阅读。"
+		)
 	if summary_node is Label:
 		var summary_label: Label = summary_node
 		assert_true(
 			summary_label.autowrap_mode == TextServer.AUTOWRAP_WORD_SMART,
 			"结算摘要应允许自动换行，避免窄屏溢出。"
 		)
+	for button_name: StringName in [
+		&"RestartButton",
+		&"SettingsButton",
+		&"MainMenuButton",
+	]:
+		var button_node: Node = panel.find_child(button_name, true, false)
+		assert_true(button_node is Button, "结算操作区应保留 %s。" % String(button_name))
+		if button_node is Button:
+			var button: Button = button_node
+			assert_gte(
+				button.custom_minimum_size.y,
+				44.0,
+				"%s 必须满足 44px 触控契约。" % String(button_name)
+			)
 	panel.free()
 
 
@@ -1466,13 +1509,48 @@ func test_game_over_menu_summary_uses_safe_format_fallback() -> void:
 	assert_true(summary_node is Label, "游戏结束菜单应包含结算摘要 Label。")
 	if summary_node is Label:
 		var summary_label: Label = summary_node
-		assert_true(summary_label.text.contains("8192"), "结算摘要应显示本局分数。")
-		assert_true(summary_label.text.contains("42"), "结算摘要应显示本局步数。")
-		assert_true(summary_label.text.contains("2048"), "结算摘要应显示本局最大方块。")
-		assert_true(summary_label.text.contains("16384"), "结算摘要应显示历史最高分。")
+		var run_node: Node = panel.get_node_or_null(
+			"CenterContainer/VBoxContainer/RunSummaryLabel"
+		)
+		var context_node: Node = panel.get_node_or_null(
+			"CenterContainer/VBoxContainer/ContextLabel"
+		)
+		var combined_text: String = summary_label.text
+		if run_node is Label:
+			var run_label: Label = run_node
+			combined_text += "\n" + run_label.text
+		if context_node is Label:
+			var context_label: Label = context_node
+			combined_text += "\n" + context_label.text
+		assert_true(combined_text.contains("8192"), "结算摘要应显示本局分数。")
+		assert_true(combined_text.contains("42"), "结算摘要应显示本局步数。")
+		assert_true(combined_text.contains("2048"), "结算摘要应显示本局最大方块。")
+		assert_true(combined_text.contains("16384"), "结算摘要应显示历史最高分。")
 		assert_false(
 			summary_label.text.contains(tr("GAME_OVER_END_REASON_NO_MOVES")),
 			"缺少流程结束上下文时不得伪造结束原因。"
+		)
+
+	var surface_node: Node = panel.get_node_or_null("CenterContainer/VBoxContainer")
+	var actions_node: Node = panel.get_node_or_null(
+		"CenterContainer/VBoxContainer/Actions"
+	)
+	assert_true(surface_node is SurfaceVboxContainer)
+	assert_true(actions_node is GridContainer)
+	if surface_node is SurfaceVboxContainer and actions_node is GridContainer:
+		var surface: SurfaceVboxContainer = surface_node
+		var actions: GridContainer = actions_node
+		panel.size = Vector2(960.0, 540.0)
+		panel.call(&"_apply_responsive_layout")
+		assert_eq(actions.columns, 3, "960×540 必须保留三按钮首屏操作区。")
+		assert_lte(surface.custom_minimum_size.x, 620.0)
+		panel.size = Vector2(720.0, 960.0)
+		panel.call(&"_apply_responsive_layout")
+		assert_eq(actions.columns, 3, "720×960 仍有足够宽度承载三按钮首屏操作区。")
+		assert_lte(
+			surface.custom_minimum_size.x + surface.outward_padding.x * 2.0,
+			720.0,
+			"720×960 的不透明结算表面不得横向溢出。"
 		)
 	architecture.dispose()
 
