@@ -171,6 +171,17 @@ func _request_exit(exit_code: int = 0) -> void:
 
 
 func _finish_capture(exit_code: int) -> void:
+	var gf_node: Node = root.get_node_or_null("Gf")
+	for child: Node in root.get_children():
+		if child == gf_node or child is CanvasLayer:
+			continue
+		child.queue_free()
+	await process_frame
+	await process_frame
+	if is_instance_valid(gf_node):
+		gf_node.queue_free()
+	await process_frame
+	await process_frame
 	GFExtensionSettings.clear_manifest_cache()
 	quit(exit_code)
 
@@ -268,8 +279,9 @@ func _inject_list_item(
 	data: Resource,
 	mode_display_name: String
 ) -> void:
-	var items_container: Node = page.find_child("ReplayItemsContainer", true, false)
+	var items_container: Node = page.find_child("ItemsContainer", true, false)
 	if not items_container is VBoxContainer:
+		push_error("[VisualReview] History page is missing its shared ItemsContainer.")
 		return
 	for child: Node in items_container.get_children():
 		child.queue_free()

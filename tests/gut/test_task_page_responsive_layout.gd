@@ -14,6 +14,7 @@ const _MODE_SELECTION_SCENE: PackedScene = preload(
 	"res://features/navigation/scenes/menus/mode_selection.tscn"
 )
 const _CAPTURE_MATRIX_PATH: String = "res://tools/capture_ui_vfx_matrix.gd"
+const _VISUAL_REVIEW_CAPTURE_PATH: String = "res://tools/capture_visual_review.gd"
 const _BOOKMARK_LIST_SCENE: PackedScene = preload(
 	"res://features/bookmarks/scenes/menus/bookmark_list.tscn"
 )
@@ -321,6 +322,32 @@ func test_capture_matrix_exercises_real_player_gameplay_route_chain() -> void:
 	assert_true(
 		source.contains("invoke_godot_project_tool.ps1 放入隔离的 user://"),
 		"结算弹层截图必须明确使用隔离 user://，不得污染玩家存档。"
+	)
+
+
+func test_visual_review_injects_history_items_into_the_shared_container() -> void:
+	var source: String = FileAccess.get_file_as_string(_VISUAL_REVIEW_CAPTURE_PATH)
+	assert_false(source.is_empty(), "真实移动与回放验收脚本必须可读取。")
+	assert_true(
+		source.contains('find_child("ItemsContainer", true, false)'),
+		"视觉验收必须使用 BaseListMenu 的共享 ItemsContainer。"
+	)
+	assert_false(
+		source.contains('find_child("ReplayItemsContainer", true, false)'),
+		"视觉验收不得继续引用已经移除的 ReplayItemsContainer。"
+	)
+	assert_true(
+		source.contains("for child: Node in root.get_children():"),
+		"视觉验收退出前必须释放路由场景与 GF 根节点。"
+	)
+	assert_true(
+		source.contains("child.queue_free()"),
+		"视觉验收退出前必须排队释放根节点子树。"
+	)
+	assert_true(
+		source.contains('root.get_node_or_null("Gf")')
+		and source.contains("if child == gf_node or child is CanvasLayer:"),
+		"视觉验收必须先释放玩法场景，并把架构拥有的 CanvasLayer 留给 GF 释放。"
 	)
 
 
