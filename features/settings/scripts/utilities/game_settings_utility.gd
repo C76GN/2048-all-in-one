@@ -76,6 +76,18 @@ func get_persistence_health_snapshot() -> Dictionary:
 	}
 
 
+## 保存当前设置，并把序列化前置失败也纳入项目持久化健康状态。
+##
+## GFSettingsUtility 会在循环引用等数据无法序列化时于写入钩子之前返回；
+## 项目必须在公共保存边界统一记录最终结果，避免 UI 继续宣称自动保存可用。
+## @param file_name: 可选文件名；为空时使用 GF 设置工具配置的默认文件。
+## @return: GF 保存边界返回的 Godot 错误码。
+func save_settings(file_name: String = "") -> Error:
+	var error: Error = super.save_settings(file_name)
+	_record_persistence_result(error)
+	return error
+
+
 ## 注册项目设置定义。
 func register_project_defaults() -> void:
 	var _locale_setting: GFSettingDefinition = register_setting(
@@ -246,12 +258,18 @@ func _write_persisted_data(file_name: String, data: Dictionary) -> Error:
 		error = _persistence_blocked_error
 	else:
 		error = super._write_persisted_data(file_name, data)
-	_last_persistence_error = error
-	_emit_persistence_health_changed()
+	_record_persistence_result(error)
 	return error
 
 
 # --- 私有/辅助方法 ---
+
+func _record_persistence_result(error: Error) -> void:
+	if _last_persistence_error == error:
+		return
+	_last_persistence_error = error
+	_emit_persistence_health_changed()
+
 
 func _get_effective_persistence_error() -> Error:
 	if _persistence_blocked_error != OK:

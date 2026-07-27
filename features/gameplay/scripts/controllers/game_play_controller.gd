@@ -829,6 +829,11 @@ func _on_target_reached(_payload: Variant = null) -> void:
 	if not is_instance_valid(pause_utility) or not pause_utility.pause():
 		var _rolled_back: bool = ui_router.back(GFUIUtility.Layer.POPUP)
 		push_error("[GamePlayController] 无法暂停目标达成弹层后的对局时间，已回滚弹层。")
+		return
+	if is_instance_valid(_game_flow_system):
+		var _context_changed: bool = (
+			_game_flow_system.set_target_reached_modal_active(true)
+		)
 
 
 func _on_game_state_changed(new_state: StringName) -> void:

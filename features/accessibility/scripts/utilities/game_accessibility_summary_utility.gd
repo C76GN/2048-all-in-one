@@ -44,7 +44,9 @@ const _ACTION_KEYS: Dictionary = {
 	&"undo": &"ACCESSIBILITY_ACTION_UNDO",
 	&"redo": &"ACCESSIBILITY_ACTION_REDO",
 	&"save_bookmark": &"ACCESSIBILITY_ACTION_SAVE",
+	&"continue": &"BTN_CONTINUE_CHALLENGE",
 	&"restart": &"ACCESSIBILITY_ACTION_RESTART",
+	&"settings": &"BTN_SETTINGS",
 	&"return": &"ACCESSIBILITY_ACTION_RETURN",
 	&"replay_controls": &"ACCESSIBILITY_ACTION_REPLAY_CONTROLS",
 }
@@ -55,7 +57,9 @@ const _ACTION_FALLBACKS: Dictionary = {
 	&"undo": "撤销",
 	&"redo": "重做",
 	&"save_bookmark": "保存书签",
+	&"continue": "继续挑战",
 	&"restart": "重新开始",
+	&"settings": "设置",
 	&"return": "返回主菜单",
 	&"replay_controls": "回放控制",
 }
@@ -460,7 +464,19 @@ func _format_turn_text(turn_payload: Dictionary) -> String:
 
 func _format_board_status(board_payload: Dictionary) -> String:
 	var parts: PackedStringArray = [_format_board_header(board_payload)]
-	for status_line: String in _format_session_lines(board_payload, false):
+	var session: Dictionary = GFVariantData.get_option_dictionary(
+		board_payload,
+		&"session"
+	)
+	var phase: StringName = GFVariantData.get_option_string_name(
+		session,
+		&"phase"
+	)
+	var include_actions: bool = phase in [&"target_reached", &"game_over"]
+	for status_line: String in _format_session_lines(
+		board_payload,
+		include_actions
+	):
 		var _status_added: bool = parts.append(status_line)
 	return " ".join(parts)
 
@@ -571,7 +587,13 @@ func _normalize_session_context(
 		&"phase",
 		&"unknown"
 	)
-	if phase not in [&"unknown", &"ready", &"playing", &"game_over"]:
+	if phase not in [
+		&"unknown",
+		&"ready",
+		&"playing",
+		&"target_reached",
+		&"game_over",
+	]:
 		phase = &"unknown"
 	var target_value: int = maxi(
 		GFVariantData.get_option_int(

@@ -34,6 +34,8 @@ var _turn_checkpoints: Array[ReplayCheckpoint] = []
 var _session_metadata: GameSessionMetadata = null
 var _session_duration_msec: int = 0
 var _session_ruleset_fingerprint: String = ""
+var _target_reached_modal_active: bool = false
+var _is_settling_move_turn: bool = false
 
 ## 核心状态机。
 var _fsm: GFStateMachine
@@ -42,6 +44,7 @@ var _clock: GameClockUtility
 var _notifications: GFNotificationUtility
 var _pause_utility: GamePauseUtility
 var _determinism: GameDeterminismUtility
+var _accessibility_summary: GameAccessibilitySummaryUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -57,6 +60,7 @@ func get_required_systems() -> Array[Script]:
 func get_required_utilities() -> Array[Script]:
 	return [
 		_GAME_THEME_UTILITY_SCRIPT,
+		GameAccessibilitySummaryUtility,
 		GameClockUtility,
 		GameDeterminismUtility,
 		GamePauseUtility,
@@ -83,6 +87,7 @@ func ready() -> void:
 	_notifications = _get_notification_utility()
 	_pause_utility = _get_pause_utility()
 	_determinism = _get_determinism_utility()
+	_accessibility_summary = _get_accessibility_summary_utility()
 	if not is_instance_valid(_notifications):
 		push_error("[GameFlowSystem] 缺少 GFNotificationUtility，玩法反馈不可用。")
 	if not is_instance_valid(_pause_utility):
@@ -117,6 +122,7 @@ func dispose() -> void:
 	_notifications = null
 	_pause_utility = null
 	_determinism = null
+	_accessibility_summary = null
 	_player_actions.clear()
 	_turn_checkpoints.clear()
 	_last_saved_bookmark_state = {}
@@ -130,6 +136,8 @@ func dispose() -> void:
 	_session_metadata = null
 	_session_duration_msec = 0
 	_session_ruleset_fingerprint = ""
+	_target_reached_modal_active = false
+	_is_settling_move_turn = false
 
 
 ## 更新游戏流程状态机。
@@ -159,6 +167,8 @@ func get_accessibility_context() -> Dictionary:
 		normalized_phase = &"playing"
 	elif phase == EventNames.STATE_GAME_OVER:
 		normalized_phase = &"game_over"
+	if normalized_phase == &"playing" and _target_reached_modal_active:
+		normalized_phase = &"target_reached"
 	var available_actions: Array[StringName] = []
 	if normalized_phase == &"playing":
 		if _is_replay_mode:
@@ -183,8 +193,13 @@ func get_accessibility_context() -> Dictionary:
 				and _can_redo_player_move(command_history)
 			):
 				available_actions.append(&"redo")
+	elif normalized_phase == &"target_reached":
+		available_actions.append(&"continue")
+		available_actions.append(&"restart")
+		available_actions.append(&"return")
 	elif normalized_phase == &"game_over":
 		available_actions.append(&"restart")
+		available_actions.append(&"settings")
 		available_actions.append(&"return")
 	return {
 		&"phase": normalized_phase,
@@ -209,6 +224,27 @@ func get_accessibility_context() -> Dictionary:
 		),
 		&"available_actions": available_actions,
 	}
+
+
+## 同步目标达成弹层是否正在阻断玩法输入。
+##
+## UI 路由仍拥有弹层开关；流程系统只保存生成无障碍语义所需的交互阶段。
+## @param active: 弹层已打开且成功暂停对局时为 true，关闭时为 false。
+## @return: 交互阶段实际发生变化时返回 true。
+func set_target_reached_modal_active(active: bool) -> bool:
+	if active and (
+		_fsm == null
+		or _fsm.current_state_name != EventNames.STATE_PLAYING
+	):
+		return false
+	if _target_reached_modal_active == active:
+		return false
+	_target_reached_modal_active = active
+	if not _is_settling_move_turn:
+		var _summary: GameAccessibilitySummary = (
+			_publish_accessibility_board_summary()
+		)
+	return true
 
 
 ## 注入当前游戏的规则环境。
@@ -319,25 +355,39 @@ func finalize_turn_result(turn_result: TurnResult) -> void:
 
 ## 完成当前 GF 移动回合的目标与失败结算。
 func settle_move_turn() -> void:
+	_is_settling_move_turn = true
 	sync_highest_tile_from_grid()
-	_notify_target_reached_if_needed()
-	check_game_over()
+	var reached_target_now: bool = _mark_target_reached_if_needed()
+	if check_game_over():
+		_is_settling_move_turn = false
+		return
+	if reached_target_now:
+		_emit_target_reached_feedback()
+	_is_settling_move_turn = false
 
 
 ## 检查游戏是否结束。
-func check_game_over() -> void:
+## @return: 当前棋盘已满足终局规则时返回 true。
+func check_game_over() -> bool:
 	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_over_rule):
-		return
+		return false
 	if _grid_model.interaction_rule != null:
 		if _game_over_rule.is_game_over(_grid_model, _grid_model.interaction_rule):
 			send_simple_event(EventNames.BOARD_REFRESH_REQUESTED, _grid_model.get_snapshot())
 			send_simple_event(EventNames.GAME_LOST)
 			if _is_replay_mode:
-				return
+				return true
 			if _fsm == null:
-				return
+				return true
+			_target_reached_modal_active = false
 			_fsm.change_state(EventNames.STATE_GAME_OVER)
+			if not _is_settling_move_turn:
+				var _summary: GameAccessibilitySummary = (
+					_publish_accessibility_board_summary()
+				)
 			_handle_game_over()
+			return true
+	return false
 
 
 ## 使用当前模式、尺寸和初始种子重新开始本局。
@@ -442,6 +492,26 @@ func _get_log_utility() -> GFLogUtility:
 		var log_utility: GFLogUtility = utility_value
 		return log_utility
 	return null
+
+
+func _get_accessibility_summary_utility() -> GameAccessibilitySummaryUtility:
+	var utility_value: Object = get_utility(GameAccessibilitySummaryUtility)
+	if utility_value is GameAccessibilitySummaryUtility:
+		var summary_utility: GameAccessibilitySummaryUtility = utility_value
+		return summary_utility
+	return null
+
+
+func _publish_accessibility_board_summary() -> GameAccessibilitySummary:
+	if (
+		not is_instance_valid(_accessibility_summary)
+		or not is_instance_valid(_grid_model)
+	):
+		return null
+	return _accessibility_summary.publish_board_summary(
+		_grid_model.get_snapshot(),
+		get_accessibility_context()
+	)
 
 
 func _get_clock_utility() -> GameClockUtility:
@@ -653,6 +723,7 @@ func _on_game_ready(data: GameReadyData) -> void:
 		initial_target_reached = _is_target_reached(_get_initial_highest_tile(data))
 	_sync_target_state(initial_target_reached)
 	_target_reached_notified = initial_target_reached
+	_target_reached_modal_active = false
 	if is_instance_valid(data.loaded_bookmark_data):
 		_restore_replay_trace_from_bookmark(data.loaded_bookmark_data)
 
@@ -856,13 +927,17 @@ func _get_initial_highest_tile(data: GameReadyData) -> int:
 	return 0
 
 
-func _notify_target_reached_if_needed() -> void:
+func _mark_target_reached_if_needed() -> bool:
 	var highest_tile: int = _get_current_highest_tile()
 	if not _should_notify_target_reached(highest_tile):
-		return
+		return false
 
 	_target_reached_notified = true
 	_sync_target_state(true)
+	return true
+
+
+func _emit_target_reached_feedback() -> void:
 	_push_gameplay_notification(
 		GameTextFormatUtility.format_template(
 			tr("TARGET_REACHED_MESSAGE"),
@@ -1099,16 +1174,19 @@ func _on_ui_pause_requested(_payload: Variant = null) -> void:
 
 
 func _on_resume_game_requested(_payload: Variant = null) -> void:
+	var _context_changed: bool = set_target_reached_modal_active(false)
 	var pause_utility: GamePauseUtility = _get_pause_utility()
 	if not is_instance_valid(pause_utility) or not pause_utility.resume():
 		push_error("[GameFlowSystem] 无法恢复对局时间。")
 
 
 func _on_restart_game_requested(_payload: Variant = null) -> void:
+	_target_reached_modal_active = false
 	restart_game()
 
 
 func _on_return_to_main_menu_from_game(_payload: Variant = null) -> void:
+	_target_reached_modal_active = false
 	var pause_utility: GamePauseUtility = _get_pause_utility()
 	if not is_instance_valid(pause_utility) or not pause_utility.resume():
 		push_error("[GameFlowSystem] 无法恢复对局时间，拒绝返回主界面。")

@@ -106,6 +106,348 @@ func test_session_target_reached_requires_mode_target() -> void:
 	)
 
 
+func test_accessibility_context_matches_target_and_game_over_buttons() -> void:
+	var flow_system: GameFlowSystem = _make_flow_system()
+	flow_system.init()
+	flow_system._fsm.current_state_name = EventNames.STATE_PLAYING
+	assert_true(
+		flow_system.set_target_reached_modal_active(true),
+		"玩法阶段应允许进入目标达成交互语义。"
+	)
+
+	var target_context: Dictionary = flow_system.get_accessibility_context()
+	assert_true(
+		GFVariantData.get_option_string_name(target_context, &"phase")
+		== &"target_reached"
+	)
+	assert_true(
+		GFVariantData.get_option_array(target_context, &"available_actions")
+		== [&"continue", &"restart", &"return"],
+		"目标达成语义必须逐项匹配弹窗按钮。"
+	)
+
+	flow_system._fsm.current_state_name = EventNames.STATE_GAME_OVER
+	var game_over_context: Dictionary = flow_system.get_accessibility_context()
+	assert_true(
+		GFVariantData.get_option_string_name(game_over_context, &"phase")
+		== &"game_over"
+	)
+	assert_true(
+		GFVariantData.get_option_array(game_over_context, &"available_actions")
+		== [&"restart", &"settings", &"return"],
+		"游戏结束语义必须逐项匹配结算弹窗按钮。"
+	)
+
+
+func test_accessibility_phase_transitions_republish_canonical_actions() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var flow_system: TestAccessibilityPublishingFlowSystem = (
+		TestAccessibilityPublishingFlowSystem.new()
+	)
+	var grid_model: GridModel = GridModel.new()
+	var topology: BoardTopology = BoardTopology.create_rectangle(Vector2i.ONE)
+	assert_true(
+		grid_model.initialize(topology, InteractionRule.new(), null),
+		"无障碍阶段发布测试应建立有效棋盘。"
+	)
+	var tile: TileState = TileState.new(2, &"tile.test.accessibility_phase")
+	tile.capability_recipe_ids = [&"recipe.test.accessibility_phase"]
+	assert_true(grid_model.place_tile(tile, Vector2i.ZERO))
+
+	var summary_utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	var published: Array[GameAccessibilitySummary] = []
+	var _summary_connected: Error = summary_utility.summary_published.connect(
+		func(summary: GameAccessibilitySummary) -> void:
+			published.append(summary)
+	) as Error
+	await architecture.register_model(GridModel, grid_model)
+	await architecture.register_utility(
+		GameAccessibilitySummaryUtility,
+		summary_utility
+	)
+	await _register_pause_utilities(architecture)
+	await architecture.register_utility(
+		GFNotificationUtility,
+		GFNotificationUtility.new()
+	)
+	await architecture.register_system(GameFlowSystem, flow_system)
+	await architecture.init()
+	flow_system._fsm.change_state(EventNames.STATE_PLAYING)
+	flow_system._game_over_rule = StandardGameOverRule.new()
+
+	assert_true(flow_system.set_target_reached_modal_active(true))
+	assert_true(flow_system.set_target_reached_modal_active(false))
+	assert_true(flow_system.check_game_over())
+
+	assert_true(
+		published.size() == 3,
+		"目标弹层开、关与终局转换都必须各自立即发布一次权威摘要。"
+	)
+	if published.size() != 3:
+		await _dispose_architecture_and_flush(architecture)
+		return
+	_assert_published_session(
+		published[0],
+		&"target_reached",
+		[&"continue", &"restart", &"return"]
+	)
+	_assert_published_session(
+		published[1],
+		&"playing",
+		[&"move", &"pause", &"hint", &"save_bookmark"]
+	)
+	_assert_published_session(
+		published[2],
+		&"game_over",
+		[&"restart", &"settings", &"return"]
+	)
+	await _dispose_architecture_and_flush(architecture)
+
+
+func test_target_move_turn_publishes_only_final_semantic_summary() -> void:
+	var flow_system: TestTargetAccessibilityFlowSystem = (
+		TestTargetAccessibilityFlowSystem.new()
+	)
+	track_gf_system(flow_system)
+	flow_system.init()
+	flow_system._fsm.current_state_name = EventNames.STATE_PLAYING
+	var grid_model: GridModel = GridModel.new()
+	assert_true(
+		grid_model.initialize(
+			BoardTopology.create_rectangle(Vector2i.ONE),
+			InteractionRule.new(),
+			null
+		)
+	)
+	var tile: TileState = TileState.new(2048, &"tile.test.target_summary")
+	tile.capability_recipe_ids = [&"recipe.test.target_summary"]
+	assert_true(grid_model.place_tile(tile, Vector2i.ZERO))
+	var status_model: GameStatusModel = GameStatusModel.new()
+	var mode_config: GameModeConfig = GameModeConfig.new()
+	mode_config.target_tile_value = 2048
+	var summary_utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	var published: Array[GameAccessibilitySummary] = []
+	var _summary_connected: Error = summary_utility.summary_published.connect(
+		func(summary: GameAccessibilitySummary) -> void:
+			published.append(summary)
+	) as Error
+	flow_system._grid_model = grid_model
+	flow_system._game_status_model = status_model
+	flow_system._mode_config = mode_config
+	flow_system._accessibility_summary = summary_utility
+
+	var turn_result: TurnResult = TurnResult.new()
+	turn_result.direction = Vector2i.RIGHT
+	turn_result.movements.append(
+		TileMovementResult.new(
+			tile,
+			Vector2i.ZERO,
+			Vector2i.ZERO
+		)
+	)
+	var action: GameMoveTurnAction = GameMoveTurnAction.new(
+		grid_model,
+		turn_result
+	)
+	action._rule_system = RuleSystem.new()
+	action._game_flow_system = flow_system
+	action._accessibility_summary_utility = summary_utility
+	action._resolve(GFTurnContext.new())
+
+	assert_true(
+		published.size() == 1,
+		"目标达成回合应只发布一次包含回合结果与最终操作语义的摘要。"
+	)
+	if published.size() != 1:
+		return
+	assert_true(
+		published[0].kind == GameAccessibilitySummary.KIND_TURN,
+		"目标达成回合的唯一摘要应保留移动、合并与得分语义。"
+	)
+	_assert_published_session(
+		published[0],
+		&"target_reached",
+		[&"continue", &"restart", &"return"]
+	)
+
+
+func test_terminal_move_turn_publishes_only_final_semantic_summary() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var grid_model: GridModel = GridModel.new()
+	assert_true(
+		grid_model.initialize(
+			BoardTopology.create_rectangle(Vector2i.ONE),
+			InteractionRule.new(),
+			null
+		)
+	)
+	var tile: TileState = TileState.new(2, &"tile.test.terminal_summary")
+	tile.capability_recipe_ids = [&"recipe.test.terminal_summary"]
+	assert_true(grid_model.place_tile(tile, Vector2i.ZERO))
+	var status_model: GameStatusModel = GameStatusModel.new()
+	var summary_utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	var published: Array[GameAccessibilitySummary] = []
+	var _summary_connected: Error = summary_utility.summary_published.connect(
+		func(summary: GameAccessibilitySummary) -> void:
+			published.append(summary)
+	) as Error
+	var flow_system: TestAccessibilityPublishingFlowSystem = (
+		TestAccessibilityPublishingFlowSystem.new()
+	)
+	var rule_system: RuleSystem = RuleSystem.new()
+	await architecture.register_model(GridModel, grid_model)
+	await architecture.register_model(GameStatusModel, status_model)
+	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
+	await architecture.register_utility(
+		GameAccessibilitySummaryUtility,
+		summary_utility
+	)
+	await _register_pause_utilities(architecture)
+	await architecture.register_utility(
+		GFNotificationUtility,
+		GFNotificationUtility.new()
+	)
+	await architecture.register_system(RuleSystem, rule_system)
+	await architecture.register_system(GameFlowSystem, flow_system)
+	await architecture.init()
+	flow_system._fsm.change_state(EventNames.STATE_PLAYING)
+	flow_system._game_over_rule = StandardGameOverRule.new()
+
+	var turn_result: TurnResult = TurnResult.new()
+	turn_result.direction = Vector2i.RIGHT
+	turn_result.movements.append(
+		TileMovementResult.new(
+			tile,
+			Vector2i.ZERO,
+			Vector2i.ZERO
+		)
+	)
+	var action: GameMoveTurnAction = GameMoveTurnAction.new(
+		grid_model,
+		turn_result
+	)
+	action._inject_dependencies(architecture)
+	action._resolve(GFTurnContext.new())
+
+	assert_true(
+		published.size() == 1,
+		"终局回合应只发布一次包含回合结果与最终操作语义的摘要。"
+	)
+	if published.size() == 1:
+		assert_true(
+			published[0].kind == GameAccessibilitySummary.KIND_TURN,
+			"终局回合的唯一摘要应保留移动、合并与得分语义。"
+		)
+		_assert_published_session(
+			published[0],
+			&"game_over",
+			[&"restart", &"settings", &"return"]
+		)
+	await _dispose_architecture_and_flush(architecture)
+
+
+func test_departing_gameplay_does_not_publish_stale_playing_summary() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var grid_model: GridModel = GridModel.new()
+	assert_true(
+		grid_model.initialize(
+			BoardTopology.create_rectangle(Vector2i.ONE),
+			InteractionRule.new(),
+			null
+		)
+	)
+	var tile: TileState = TileState.new(2, &"tile.test.departing_summary")
+	tile.capability_recipe_ids = [&"recipe.test.departing_summary"]
+	assert_true(grid_model.place_tile(tile, Vector2i.ZERO))
+	var summary_utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	var published: Array[GameAccessibilitySummary] = []
+	var _summary_connected: Error = summary_utility.summary_published.connect(
+		func(summary: GameAccessibilitySummary) -> void:
+			published.append(summary)
+	) as Error
+	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
+	var router: TestSceneRouterSystemSpy = TestSceneRouterSystemSpy.new()
+	await architecture.register_model(GridModel, grid_model)
+	await architecture.register_utility(
+		GameAccessibilitySummaryUtility,
+		summary_utility
+	)
+	await _register_pause_utilities(architecture)
+	await architecture.register_utility(
+		GFNotificationUtility,
+		GFNotificationUtility.new()
+	)
+	await architecture.register_system(GameFlowSystem, flow_system)
+	await architecture.register_system(SceneRouterSystem, router)
+	await architecture.init()
+	flow_system._fsm.change_state(EventNames.STATE_PLAYING)
+
+	assert_true(flow_system.set_target_reached_modal_active(true))
+	published.clear()
+	architecture.send_simple_event(EventNames.RESTART_GAME_REQUESTED)
+	assert_true(
+		published.is_empty(),
+		"重新开始离开当前对局时不得先播报旧棋盘的 playing 摘要。"
+	)
+
+	assert_true(flow_system.set_target_reached_modal_active(true))
+	published.clear()
+	architecture.send_simple_event(
+		EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED
+	)
+	assert_true(
+		published.is_empty(),
+		"返回主菜单离开当前对局时不得先播报旧棋盘的 playing 摘要。"
+	)
+	await _dispose_architecture_and_flush(architecture)
+
+
+func test_terminal_target_turn_records_goal_without_opening_target_modal() -> void:
+	var flow_system: TestTerminalTargetFlowSystem = (
+		TestTerminalTargetFlowSystem.new()
+	)
+	track_gf_system(flow_system)
+	flow_system.init()
+	flow_system._fsm.current_state_name = EventNames.STATE_PLAYING
+	var mode_config: GameModeConfig = GameModeConfig.new()
+	var status_model: GameStatusModel = GameStatusModel.new()
+	mode_config.target_tile_value = 2048
+	status_model.highest_tile.set_value(2048)
+	flow_system._mode_config = mode_config
+	flow_system._game_status_model = status_model
+
+	flow_system.settle_move_turn()
+
+	assert_true(
+		GFVariantData.to_bool(status_model.target_reached.get_value(), false),
+		"终局回合仍必须保存本局已达成目标。"
+	)
+	assert_true(flow_system.game_over_check_count == 1)
+	assert_true(
+		flow_system.target_feedback_count == 0,
+		"同回合已终局时不得再发 TARGET_REACHED 打开第二个弹窗。"
+	)
+	assert_false(
+		flow_system._target_reached_modal_active,
+		"终局语义中不得残留目标达成模态阶段。"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			flow_system.get_accessibility_context(),
+			&"phase"
+		) == &"game_over",
+		"同回合达成目标并终局时，最终权威语义必须只有 game_over。"
+	)
+
+
 func test_resume_request_synchronizes_gf_time_without_closing_ui_stack() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	await _register_pause_utilities(architecture)
@@ -350,3 +692,60 @@ func _dispose_architecture_and_flush(architecture: GFArchitecture) -> void:
 	architecture.dispose()
 	await get_tree().process_frame
 	await get_tree().process_frame
+
+
+func _assert_published_session(
+	summary: GameAccessibilitySummary,
+	expected_phase: StringName,
+	expected_actions: Array
+) -> void:
+	assert_not_null(summary)
+	if not is_instance_valid(summary):
+		return
+	var session: Dictionary = GFVariantData.get_option_dictionary(
+		summary.canonical_payload,
+		&"session"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(session, &"phase")
+		== expected_phase,
+		"发布摘要的 phase 必须匹配当前交互阶段。"
+	)
+	assert_true(
+		GFVariantData.get_option_array(session, &"available_actions")
+		== expected_actions,
+		"发布摘要的 actions 必须逐项匹配当前可操作控件。"
+	)
+
+
+# --- 内部类 ---
+
+class TestAccessibilityPublishingFlowSystem:
+	extends GameFlowSystem
+
+	func _handle_game_over() -> void:
+		pass
+
+
+class TestTargetAccessibilityFlowSystem:
+	extends GameFlowSystem
+
+	func _emit_target_reached_feedback() -> void:
+		var _changed: bool = set_target_reached_modal_active(true)
+
+
+class TestTerminalTargetFlowSystem:
+	extends GameFlowSystem
+
+	var game_over_check_count: int = 0
+	var target_feedback_count: int = 0
+
+	func check_game_over() -> bool:
+		game_over_check_count += 1
+		_target_reached_modal_active = false
+		if _fsm != null:
+			_fsm.current_state_name = EventNames.STATE_GAME_OVER
+		return true
+
+	func _emit_target_reached_feedback() -> void:
+		target_feedback_count += 1

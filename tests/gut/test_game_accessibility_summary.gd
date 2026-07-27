@@ -131,6 +131,56 @@ func test_turn_subtitle_and_announcement_share_one_canonical_result() -> void:
 	assert_true(GFVariantData.get_option_int(turn_payload, &"score_delta", 0) == 4)
 
 
+func test_modal_turn_announcements_include_their_available_actions() -> void:
+	var utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	var target_summary: GameAccessibilitySummary = utility.build_turn_summary(
+		_build_turn_result(),
+		_build_sparse_snapshot(),
+		{
+			&"phase": &"target_reached",
+			&"target_value": 4,
+			&"target_reached": true,
+			&"available_actions": [&"continue", &"restart", &"return"],
+		}
+	)
+	var game_over_summary: GameAccessibilitySummary = utility.build_turn_summary(
+		_build_turn_result(),
+		_build_sparse_snapshot(),
+		{
+			&"phase": &"game_over",
+			&"target_value": 4,
+			&"target_reached": true,
+			&"end_reason": &"no_moves",
+			&"available_actions": [&"restart", &"settings", &"return"],
+		}
+	)
+
+	assert_not_null(target_summary)
+	assert_not_null(game_over_summary)
+	if not is_instance_valid(target_summary) or not is_instance_valid(
+		game_over_summary
+	):
+		return
+	assert_true(
+		target_summary.announcement_text.contains("继续挑战"),
+		"目标达成模态播报必须包含当前可执行的继续动作。"
+	)
+	assert_true(
+		target_summary.announcement_text.contains("重新开始"),
+		"目标达成模态播报必须包含重新开始动作。"
+	)
+	assert_true(
+		game_over_summary.announcement_text.contains("设置"),
+		"游戏结束播报必须包含结算弹窗实际提供的设置动作。"
+	)
+	assert_true(
+		game_over_summary.announcement_text.contains("对局结束"),
+		"游戏结束播报必须同时保留权威结束原因。"
+	)
+
+
 func test_publish_sequence_is_monotonic_and_callers_receive_copies() -> void:
 	var utility: GameAccessibilitySummaryUtility = (
 		GameAccessibilitySummaryUtility.new()

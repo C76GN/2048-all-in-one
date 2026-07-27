@@ -126,6 +126,44 @@ func test_settings_menu_exposes_blocked_storage_in_compact_layout() -> void:
 	menu.free()
 
 
+func test_serialization_failure_updates_health_once_before_storage_write() -> void:
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.auto_load_on_init = false
+	settings.register_project_defaults()
+	var circular_value: Dictionary = {}
+	circular_value[&"self"] = circular_value
+	settings.set_value(&"test/circular_value", circular_value, false)
+	watch_signals(settings)
+
+	var save_error: Error = settings.save_settings()
+	var health: Dictionary = settings.get_persistence_health_snapshot()
+	assert_push_error(
+		"设置数据包含循环引用",
+		"GF 序列化边界应明确报告拒绝循环引用。"
+	)
+
+	assert_true(
+		save_error == ERR_INVALID_DATA,
+		"循环引用应在进入物理写入钩子前被拒绝。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(health, &"healthy", true),
+		"序列化前置失败也必须使设置持久化健康状态失败。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(health, &"error_code", OK)
+		== ERR_INVALID_DATA,
+		"设置健康快照必须保留序列化失败错误码。"
+	)
+	assert_signal_emit_count(
+		settings,
+		"persistence_health_changed",
+		1,
+		"公共保存边界与物理写入钩子不得重复发布同一健康结果。"
+	)
+	circular_value.clear()
+
+
 func test_unreadable_settings_file_is_reset_to_current_format() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = _make_storage("gut_game_settings")
