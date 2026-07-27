@@ -30,6 +30,8 @@ const _COMPACT_PREVIEW_HEIGHT: float = 210.0
 const _COMPACT_HORIZONTAL_MARGINS: float = 24.0
 const _PORTRAIT_HORIZONTAL_MARGINS: float = 32.0
 const _COMPACT_SCROLLBAR_RESERVE: float = 14.0
+const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
+const _DIALOG_ACTION_MINIMUM_WIDTH: float = 112.0
 
 
 # --- 私有变量 ---
@@ -240,7 +242,107 @@ func _setup_delete_dialogs() -> void:
 	_delete_error_dialog.name = "DeleteErrorDialog"
 	_delete_error_dialog.exclusive = true
 	add_child(_delete_error_dialog)
+	_configure_delete_dialog_presentation()
 	_update_delete_dialog_text()
+
+
+func _configure_delete_dialog_presentation() -> void:
+	var action_buttons: Array[Button] = []
+	if is_instance_valid(_delete_confirmation_dialog):
+		_configure_delete_dialog_surface(_delete_confirmation_dialog)
+		action_buttons.append(_delete_confirmation_dialog.get_ok_button())
+		action_buttons.append(_delete_confirmation_dialog.get_cancel_button())
+	if is_instance_valid(_delete_error_dialog):
+		_configure_delete_dialog_surface(_delete_error_dialog)
+		action_buttons.append(_delete_error_dialog.get_ok_button())
+	for button: Button in action_buttons:
+		if not is_instance_valid(button):
+			continue
+		button.custom_minimum_size = Vector2(
+			maxf(button.custom_minimum_size.x, _DIALOG_ACTION_MINIMUM_WIDTH),
+			maxf(button.custom_minimum_size.y, _MINIMUM_TOUCH_TARGET_SIZE)
+		)
+
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style):
+		return
+	if is_instance_valid(_delete_confirmation_dialog):
+		style.style_label(
+			_delete_confirmation_dialog.get_label(),
+			GameUiStyleUtility.TextRole.PRIMARY,
+			18
+		)
+		style.style_button(
+			_delete_confirmation_dialog.get_ok_button(),
+			GameUiStyleUtility.ButtonRole.SECONDARY
+		)
+		style.style_button(
+			_delete_confirmation_dialog.get_cancel_button(),
+			GameUiStyleUtility.ButtonRole.PRIMARY
+		)
+	if is_instance_valid(_delete_error_dialog):
+		style.style_label(
+			_delete_error_dialog.get_label(),
+			GameUiStyleUtility.TextRole.PRIMARY,
+			18
+		)
+		style.style_button(
+			_delete_error_dialog.get_ok_button(),
+			GameUiStyleUtility.ButtonRole.PRIMARY
+		)
+
+
+func _configure_delete_dialog_surface(dialog: AcceptDialog) -> void:
+	dialog.dialog_autowrap = true
+	dialog.add_theme_constant_override(
+		"buttons_min_height",
+		roundi(_MINIMUM_TOUCH_TARGET_SIZE)
+	)
+	dialog.add_theme_constant_override(
+		"buttons_min_width",
+		roundi(_DIALOG_ACTION_MINIMUM_WIDTH)
+	)
+	dialog.add_theme_constant_override("buttons_separation", 18)
+	dialog.add_theme_constant_override("title_height", 42)
+	dialog.add_theme_font_size_override("title_font_size", 18)
+	if not is_instance_valid(_list_surface):
+		return
+	var source_style: StyleBox = _list_surface.get_theme_stylebox("panel")
+	if not source_style is StyleBoxFlat:
+		return
+	var source_flat: StyleBoxFlat = source_style
+	var content_style_value: Resource = source_flat.duplicate()
+	if not content_style_value is StyleBoxFlat:
+		return
+	var content_style: StyleBoxFlat = content_style_value
+	content_style.bg_color.a = 1.0
+	content_style.set_content_margin(SIDE_LEFT, 20.0)
+	content_style.set_content_margin(SIDE_TOP, 18.0)
+	content_style.set_content_margin(SIDE_RIGHT, 20.0)
+	content_style.set_content_margin(SIDE_BOTTOM, 18.0)
+	dialog.add_theme_stylebox_override("panel", content_style)
+
+	var window_style_value: Resource = source_flat.duplicate()
+	if not window_style_value is StyleBoxFlat:
+		return
+	var window_style: StyleBoxFlat = window_style_value
+	var title_color: Color = source_flat.border_color
+	title_color.a = 1.0
+	window_style.bg_color = title_color
+	window_style.border_color = title_color
+	window_style.set_expand_margin(SIDE_LEFT, 2.0)
+	window_style.set_expand_margin(SIDE_TOP, 42.0)
+	window_style.set_expand_margin(SIDE_RIGHT, 2.0)
+	window_style.set_expand_margin(SIDE_BOTTOM, 2.0)
+	dialog.transparent = true
+	dialog.add_theme_stylebox_override("embedded_border", window_style)
+	dialog.add_theme_stylebox_override(
+		"embedded_unfocused_border",
+		window_style
+	)
+	var title_text_color: Color = content_style.bg_color
+	title_text_color.a = 1.0
+	dialog.add_theme_color_override("title_color", title_text_color)
 
 
 func _update_delete_dialog_text() -> void:
@@ -254,6 +356,7 @@ func _update_delete_dialog_text() -> void:
 			)
 	if is_instance_valid(_delete_error_dialog):
 		_delete_error_dialog.title = tr("DELETE_FAILED_TITLE")
+		_delete_error_dialog.ok_button_text = tr("DIALOG_ACKNOWLEDGE_ACTION")
 
 
 func _find_board_preview_node() -> BoardPreview:
@@ -299,6 +402,7 @@ func _apply_responsive_layout() -> void:
 	_layout_update_queued = false
 	if not is_inside_tree():
 		return
+	var focused_control: Control = _get_page_focus_owner()
 	_layout_mode = GameTaskPageLayoutUtility.classify_layout(size)
 	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 	_set_page_scroll_enabled(compact)
@@ -353,6 +457,34 @@ func _apply_responsive_layout() -> void:
 	if is_instance_valid(_page_scroll) and not compact:
 		_page_scroll.scroll_vertical = 0
 	_apply_list_focus_order(_get_list_item_controls())
+	_restore_focus_after_responsive_layout(focused_control)
+
+
+func _get_page_focus_owner() -> Control:
+	var focused_control: Control = get_viewport().gui_get_focus_owner()
+	if (
+		is_instance_valid(focused_control)
+		and (focused_control == self or is_ancestor_of(focused_control))
+	):
+		return focused_control
+	return null
+
+
+func _restore_focus_after_responsive_layout(focused_control: Control) -> void:
+	if (
+		is_instance_valid(focused_control)
+		and focused_control.focus_mode != Control.FOCUS_NONE
+		and focused_control.is_visible_in_tree()
+	):
+		focused_control.grab_focus()
+		return
+	if not is_instance_valid(focused_control):
+		return
+	var items: Array[Control] = _get_list_item_controls()
+	if not items.is_empty():
+		items[0].grab_focus()
+	elif is_instance_valid(back_button):
+		back_button.grab_focus()
 
 
 ## 桌面双栏由内部记录列表独占滚动；紧凑单栏则由整页滚动独占。
@@ -677,8 +809,12 @@ func _clear_preview(show_selection_hint: bool = true) -> void:
 func _show_delete_error(error: Error) -> void:
 	if not is_instance_valid(_delete_error_dialog):
 		return
+	_configure_delete_dialog_presentation()
 	_delete_error_dialog.dialog_text = _get_delete_failure_message(error)
 	_delete_error_dialog.popup_centered_clamped(Vector2i(520, 220), 0.9)
+	var ok_button: Button = _delete_error_dialog.get_ok_button()
+	if is_instance_valid(ok_button):
+		ok_button.grab_focus()
 
 
 # --- 信号处理函数 ---
@@ -706,7 +842,11 @@ func _on_delete_button_pressed() -> void:
 	_delete_confirmation_dialog.dialog_text = _get_delete_confirmation_message(
 		_pending_delete_resource
 	)
+	_configure_delete_dialog_presentation()
 	_delete_confirmation_dialog.popup_centered_clamped(Vector2i(520, 220), 0.9)
+	var cancel_button: Button = _delete_confirmation_dialog.get_cancel_button()
+	if is_instance_valid(cancel_button):
+		cancel_button.grab_focus()
 
 
 func _on_delete_confirmed() -> void:

@@ -154,6 +154,45 @@ func test_history_list_empty_state_removes_dead_actions_and_focuses_back() -> vo
 	)
 
 
+func test_empty_history_focus_survives_responsive_reparent() -> void:
+	for list_scene: PackedScene in [
+		_BOOKMARK_LIST_SCENE,
+		_REPLAY_LIST_SCENE,
+	]:
+		var menu: BaseListMenu = list_scene.instantiate() as BaseListMenu
+		menu.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		add_child(menu)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var back_node: Node = menu.find_child("BackButton", true, false)
+		assert_true(back_node is Button)
+		if not back_node is Button:
+			menu.queue_free()
+			await get_tree().process_frame
+			continue
+		var back_button: Button = back_node
+		back_button.grab_focus()
+		assert_true(back_button.has_focus())
+
+		for viewport_size: Vector2 in [
+			Vector2(1280.0, 720.0),
+			Vector2(730.0, 720.0),
+			Vector2(720.0, 960.0),
+			Vector2(1280.0, 720.0),
+		]:
+			menu.size = viewport_size
+			menu._apply_responsive_layout()
+			await get_tree().process_frame
+			assert_true(
+				back_button.has_focus(),
+				"空历史页响应式重排后必须保留返回焦点：%s。"
+				% viewport_size
+			)
+
+		menu.queue_free()
+		await get_tree().process_frame
+
+
 func test_compact_margins_preserve_page_specific_desktop_composition() -> void:
 	var desktop_margins: Dictionary = {
 		"top": 54.0,
@@ -292,7 +331,9 @@ func test_capture_matrix_exercises_real_player_gameplay_route_chain() -> void:
 		"_is_no_moves_fixture",
 		"GAME_OVER_END_REASON_NO_MOVES",
 		"_validate_initial_focus",
+		'"%s 初始焦点" % String(page_id)',
 		"_validate_visible_touch_targets",
+		'"%s 空态" % page_id',
 		"_move_mode_selection_to_first_page",
 		"_mode_selection_has_visible_ratio_card",
 		"settings_controls_bindings",
@@ -313,6 +354,11 @@ func test_capture_matrix_exercises_real_player_gameplay_route_chain() -> void:
 			source.contains(resolution_literal),
 			"真实玩家链路必须覆盖关键尺寸：%s。" % resolution_literal
 		)
+	assert_gte(
+		source.count("_validate_visible_touch_targets("),
+		7,
+		"通用页面矩阵与玩法、弹层验收都必须执行 44px 触控目标校验。"
+	)
 	assert_true(
 		source.contains("invoke_godot_project_tool.ps1 放入隔离的 user://"),
 		"结算弹层截图必须明确使用隔离 user://，不得污染玩家存档。"
@@ -331,6 +377,18 @@ func test_visual_review_injects_history_items_into_the_shared_container() -> voi
 		"视觉验收不得继续引用已经移除的 ReplayItemsContainer。"
 	)
 	assert_true(
+		source.contains("list_menu._setup_item(item_control, data)")
+		and source.contains("list_menu._connect_item_signals(item_control, data)")
+		and source.contains("list_menu._on_empty_state_changed(false)")
+		and source.contains("list_menu._apply_list_focus_order([item_control])")
+		and source.contains("item_control.grab_focus()"),
+		"真实视觉验收必须按生产列表契约配置项目，并恢复信号、动作与首项焦点。"
+	)
+	assert_true(
+		source.contains("not button.is_visible_in_tree() or button.disabled"),
+		"真实视觉验收不得通过隐藏或禁用按钮伪造路由。"
+	)
+	assert_true(
 		source.contains("for child: Node in root.get_children():"),
 		"视觉验收退出前必须释放路由场景与 GF 根节点。"
 	)
@@ -342,6 +400,22 @@ func test_visual_review_injects_history_items_into_the_shared_container() -> voi
 		source.contains('root.get_node_or_null("Gf")')
 		and source.contains("if child == gf_node or child is CanvasLayer:"),
 		"视觉验收必须先释放玩法场景，并把架构拥有的 CanvasLayer 留给 GF 释放。"
+	)
+	for required_state_fragment: String in [
+		'_capture_history_delete_states(bookmark_list, "bookmark")',
+		'_capture_history_delete_states(replay_list, "replay")',
+		'"%s_delete_confirmation.png" % capture_prefix',
+		'"%s_delete_error.png" % capture_prefix',
+		"settings_save_failure.png",
+	]:
+		assert_true(
+			source.contains(required_state_fragment),
+			"真实视觉验收缺少关键确认/错误态：%s。" % required_state_fragment
+		)
+	assert_true(
+		source.contains("_capture_history_delete_states")
+		and source.contains("_capture_settings_persistence_failure"),
+		"真实视觉验收必须通过可失败的状态辅助方法生成确认和错误证据。"
 	)
 
 

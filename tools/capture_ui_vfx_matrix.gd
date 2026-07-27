@@ -230,8 +230,20 @@ func _capture_page_matrix(page: Node, page_id: StringName) -> void:
 		var logical_resolution: Vector2i = Vector2i(
 			root.get_visible_rect().size.round()
 		)
+		if page_id != &"boot":
+			_validate_initial_focus(
+				page,
+				logical_resolution,
+				"%s 初始焦点" % String(page_id)
+			)
 		_record_page_geometry(page, page_id, resolution, logical_resolution)
 		_validate_page_structure(page, page_id, logical_resolution)
+		if page_id != &"boot":
+			_validate_visible_touch_targets(
+				page,
+				logical_resolution,
+				String(page_id)
+			)
 		_save_viewport(
 			"%s_%dx%d.png" % [String(page_id), resolution.x, resolution.y],
 			resolution
@@ -1235,7 +1247,9 @@ func _capture_game_over_player_flow() -> bool:
 	# 通过正式 GameFlowSystem 结算，GamePlayController 会响应状态事件并使用
 	# 项目 GameUiRouterUtility 打开 GameOverMenu。结算产生的数据仅写入工具
 	# 包装器隔离的临时 user://，不会触碰玩家账号、存档、回放或排行榜。
-	game_flow.check_game_over()
+	if not game_flow.check_game_over():
+		_record_error("game_over_menu 正式结算未进入终局状态。")
+		return false
 	var overlay: Node = await _wait_for_node(&"GameOverMenu", 600)
 	if not is_instance_valid(overlay):
 		_record_error("game_over_menu 正式结算路由打开超时。")
@@ -1675,15 +1689,14 @@ func _validate_page_structure(
 					resolution,
 					"%s 返回按钮" % page_id
 				)
-			if page_id == &"bookmark_list":
-				var empty_node: Node = page.find_child("EmptyStateLabel", true, false)
-				if empty_node is Control:
-					var empty_control: Control = empty_node
-					_validate_control_rect(
-						empty_control,
-						resolution,
-						"bookmark_list 空态"
-					)
+			var empty_node: Node = page.find_child("EmptyStateLabel", true, false)
+			if empty_node is Control:
+				var empty_control: Control = empty_node
+				_validate_control_rect(
+					empty_control,
+					resolution,
+					"%s 空态" % page_id
+				)
 		&"tile_lab":
 			_validate_overlay_root(page, resolution, "tile_lab")
 			_validate_tile_lab_scroll_ownership(page, resolution)

@@ -81,53 +81,64 @@ func _run_capture() -> void:
 		_request_exit(4)
 		return
 	await _settle_frames(12)
-	await _inject_bookmark_preview(bookmark_list)
+	if not await _inject_bookmark_preview(bookmark_list):
+		_request_exit(5)
+		return
 	await _settle_frames(12)
 	_save_viewport("bookmark_list.png")
+	if not await _capture_history_delete_states(bookmark_list, "bookmark"):
+		_request_exit(5)
+		return
 
 	main_menu = await _return_to_main_menu(bookmark_list)
 	if not is_instance_valid(main_menu):
-		_request_exit(5)
+		_request_exit(6)
 		return
 
 	var replay_list: Node = await _open_route(main_menu, &"ReplaysButton", &"ReplayList")
 	if not is_instance_valid(replay_list):
 		push_error("[VisualReview] ReplayList timeout.")
-		_request_exit(6)
+		_request_exit(7)
 		return
 	await _settle_frames(12)
 	var replay_preview: ReplayData = await _inject_replay_preview(replay_list)
 	if not is_instance_valid(replay_preview):
-		_request_exit(7)
+		_request_exit(8)
 		return
 	await _settle_frames(12)
 	_save_viewport("replay_list.png")
+	if not await _capture_history_delete_states(replay_list, "replay"):
+		_request_exit(9)
+		return
 
 	var replay_game: Node = await _open_route(replay_list, &"PlayButton", &"GamePlay")
 	if not is_instance_valid(replay_game):
 		push_error("[VisualReview] Replay GamePlay timeout.")
-		_request_exit(7)
+		_request_exit(10)
 		return
 	await create_timer(0.25, true, false, true).timeout
 	await _settle_frames(12)
 	_save_viewport("replay_playback.png")
 	if not await _advance_replay_once(replay_game, replay_preview):
 		push_error("[VisualReview] Replay did not advance after the next-step action.")
-		_request_exit(8)
+		_request_exit(11)
 		return
 	await _settle_frames(8)
 	_save_viewport("replay_playback_step.png")
 
 	main_menu = await _open_route(replay_game, &"ReplayExitButton", &"MainMenu")
 	if not is_instance_valid(main_menu):
-		_request_exit(9)
+		_request_exit(12)
 		return
 	await _settle_frames(24)
 
 	var settings_menu: Node = await _open_route(main_menu, &"SettingsButton", &"SettingsMenu")
 	if not is_instance_valid(settings_menu):
 		push_error("[VisualReview] SettingsMenu timeout.")
-		_request_exit(10)
+		_request_exit(13)
+		return
+	if not await _capture_settings_persistence_failure(settings_menu):
+		_request_exit(14)
 		return
 	var controls_tab: Node = settings_menu.find_child("ControlsTabButton", true, false)
 	if controls_tab is Button:
@@ -138,13 +149,13 @@ func _run_capture() -> void:
 
 	main_menu = await _return_to_main_menu(settings_menu)
 	if not is_instance_valid(main_menu):
-		_request_exit(11)
+		_request_exit(15)
 		return
 
 	mode_selection = await _open_route(main_menu, &"StartGameButton", &"ModeSelection")
 	if not is_instance_valid(mode_selection):
 		push_error("[VisualReview] ModeSelection second pass timeout.")
-		_request_exit(12)
+		_request_exit(16)
 		return
 	await _settle_frames(24)
 
@@ -155,7 +166,7 @@ func _run_capture() -> void:
 	var game_play: Node = await _wait_for_node(&"GamePlay", 900)
 	if not is_instance_valid(game_play):
 		push_error("[VisualReview] GamePlay timeout.")
-		_request_exit(13)
+		_request_exit(17)
 		return
 	await create_timer(1.0, true, false, true).timeout
 	await _settle_frames(60)
@@ -193,6 +204,12 @@ func _open_route(source: Node, button_name: StringName, target_name: StringName)
 	if not button_node is Button:
 		return null
 	var button: Button = button_node
+	if not button.is_visible_in_tree() or button.disabled:
+		push_error(
+			"[VisualReview] Route button %s must be visible and enabled before activation."
+			% String(button_name)
+		)
+		return null
 	button.pressed.emit()
 	var target: Node = await _wait_for_node(target_name, 900)
 	if not is_instance_valid(target):
@@ -255,11 +272,12 @@ func _inject_replay_preview(page: Node) -> ReplayData:
 	if ReplayData.from_dict(replay.to_dict()) == null:
 		push_error("[VisualReview] Generated replay preview does not satisfy schema v4.")
 		return null
-	await _inject_list_item(page, _REPLAY_ITEM_SCENE, replay, "经典模式")
+	if not await _inject_list_item(page, _REPLAY_ITEM_SCENE, replay):
+		return null
 	return replay
 
 
-func _inject_bookmark_preview(page: Node) -> void:
+func _inject_bookmark_preview(page: Node) -> bool:
 	var topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(4, 4))
 	var bookmark: BookmarkData = BookmarkData.new()
 	bookmark.timestamp = 1_784_761_200
@@ -270,34 +288,141 @@ func _inject_bookmark_preview(page: Node) -> void:
 	bookmark.highest_tile = 128
 	bookmark.target_tile_value = 2048
 	bookmark.board_snapshot = _make_preview_snapshot(topology)
-	await _inject_list_item(page, _BOOKMARK_ITEM_SCENE, bookmark, "经典模式")
+	return await _inject_list_item(page, _BOOKMARK_ITEM_SCENE, bookmark)
 
 
 func _inject_list_item(
 	page: Node,
 	item_scene: PackedScene,
-	data: Resource,
-	mode_display_name: String
-) -> void:
+	data: Resource
+) -> bool:
+	if not page is BaseListMenu:
+		push_error("[VisualReview] History preview requires BaseListMenu.")
+		return false
+	var list_menu: BaseListMenu = page
 	var items_container: Node = page.find_child("ItemsContainer", true, false)
 	if not items_container is VBoxContainer:
 		push_error("[VisualReview] History page is missing its shared ItemsContainer.")
-		return
+		return false
 	for child: Node in items_container.get_children():
 		child.queue_free()
 	await process_frame
 	var item_node: Node = item_scene.instantiate()
+	if not item_node is Control:
+		push_error("[VisualReview] Injected history item must be a Control.")
+		if is_instance_valid(item_node):
+			item_node.free()
+		return false
+	var item_control: Control = item_node
 	items_container.add_child(item_node)
 	await process_frame
-	if item_node is ReplayListItem and data is ReplayData:
-		var replay_item: ReplayListItem = item_node
-		var replay_data: ReplayData = data
-		replay_item.setup(replay_data, mode_display_name)
-	elif item_node is BookmarkListItem and data is BookmarkData:
-		var bookmark_item: BookmarkListItem = item_node
-		var bookmark_data: BookmarkData = data
-		bookmark_item.setup(bookmark_data, mode_display_name)
-	var _selection_result: Variant = page.call(&"_set_selected_item", data)
+	list_menu._setup_item(item_control, data)
+	list_menu._connect_item_signals(item_control, data)
+	list_menu._on_empty_state_changed(false)
+	list_menu._apply_list_focus_order([item_control])
+	list_menu._set_selected_item(data)
+	list_menu._bind_and_reveal_list_items()
+	item_control.grab_focus()
+	await _settle_frames(2)
+	if (
+		not item_control.has_focus()
+		or not is_instance_valid(list_menu._primary_button)
+		or not list_menu._primary_button.is_visible_in_tree()
+		or list_menu._primary_button.disabled
+		or not is_instance_valid(list_menu._delete_button)
+		or not list_menu._delete_button.is_visible_in_tree()
+		or list_menu._delete_button.disabled
+	):
+		push_error(
+			"[VisualReview] Injected history item did not restore populated controls and focus."
+		)
+		return false
+	return true
+
+
+func _capture_history_delete_states(page: Node, capture_prefix: String) -> bool:
+	if not page is BaseListMenu:
+		push_error("[VisualReview] History delete state requires BaseListMenu.")
+		return false
+	var list_menu: BaseListMenu = page
+	list_menu._on_delete_button_pressed()
+	await _settle_frames(4)
+
+	var confirmation_node: Node = page.find_child(
+		"DeleteConfirmationDialog",
+		true,
+		false
+	)
+	if not confirmation_node is ConfirmationDialog:
+		push_error("[VisualReview] History page is missing delete confirmation.")
+		return false
+	var confirmation: ConfirmationDialog = confirmation_node
+	if not confirmation.visible:
+		push_error("[VisualReview] History delete confirmation did not open.")
+		return false
+	_save_viewport("%s_delete_confirmation.png" % capture_prefix)
+	confirmation.hide()
+	list_menu._on_delete_canceled()
+
+	list_menu._show_delete_error(ERR_CANT_CREATE)
+	await _settle_frames(4)
+	var error_node: Node = page.find_child("DeleteErrorDialog", true, false)
+	if not error_node is AcceptDialog:
+		push_error("[VisualReview] History page is missing delete failure dialog.")
+		return false
+	var error_dialog: AcceptDialog = error_node
+	if not error_dialog.visible:
+		push_error("[VisualReview] History delete failure dialog did not open.")
+		return false
+	_save_viewport("%s_delete_error.png" % capture_prefix)
+	error_dialog.hide()
+	await _settle_frames(2)
+	return true
+
+
+func _capture_settings_persistence_failure(page: Node) -> bool:
+	if not page is SettingsMenu:
+		push_error("[VisualReview] Settings failure state requires SettingsMenu.")
+		return false
+	var settings_value: Variant = _get_gf_member(
+		&"get_utility",
+		GameSettingsUtility
+	)
+	if not settings_value is GameSettingsUtility:
+		push_error("[VisualReview] GameSettingsUtility is unavailable.")
+		return false
+	var settings: GameSettingsUtility = settings_value
+	var previous_blocked_error: Error = settings._persistence_blocked_error
+	var previous_write_error: Error = settings._last_persistence_error
+	settings._persistence_blocked_error = ERR_CANT_CREATE
+	settings._last_persistence_error = ERR_CANT_CREATE
+
+	var settings_menu: SettingsMenu = page
+	settings_menu._update_persistence_status()
+	await _settle_frames(4)
+	var status_node: Node = page.find_child("AutoSaveLabel", true, false)
+	if not status_node is Label:
+		push_error("[VisualReview] Settings persistence status label is missing.")
+		settings._persistence_blocked_error = previous_blocked_error
+		settings._last_persistence_error = previous_write_error
+		return false
+	var status_label: Label = status_node
+	if (
+		not status_label.visible
+		or status_label.text.strip_edges().is_empty()
+		or status_label.text == tr("SETTINGS_AUTO_SAVE_HINT")
+	):
+		push_error("[VisualReview] Settings failure state still reports auto-save.")
+		settings._persistence_blocked_error = previous_blocked_error
+		settings._last_persistence_error = previous_write_error
+		return false
+	_save_viewport("settings_save_failure.png")
+
+	settings._persistence_blocked_error = previous_blocked_error
+	settings._last_persistence_error = previous_write_error
+	settings_menu._update_persistence_status()
+	await _settle_frames(2)
+	return true
 
 
 func _make_preview_snapshot(topology: BoardTopology) -> Dictionary:

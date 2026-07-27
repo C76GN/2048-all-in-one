@@ -171,6 +171,7 @@ func _apply_responsive_layout() -> void:
 	_layout_update_queued = false
 	if not is_inside_tree():
 		return
+	var focused_control: Control = _get_page_focus_owner()
 	_layout_mode = GameTaskPageLayoutUtility.classify_layout(size)
 	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 	var side_by_side: bool = _uses_side_by_side_layout(size)
@@ -232,8 +233,34 @@ func _apply_responsive_layout() -> void:
 	if is_instance_valid(_page_scroll) and not compact:
 		_page_scroll.scroll_vertical = 0
 	_setup_focus_neighbors()
+	_restore_focus_after_responsive_layout(focused_control)
 	if page_size_changed and not _mode_config_paths.is_empty():
 		_queue_mode_list_rebuild()
+
+
+func _get_page_focus_owner() -> Control:
+	var focused_control: Control = get_viewport().gui_get_focus_owner()
+	if (
+		is_instance_valid(focused_control)
+		and (focused_control == self or is_ancestor_of(focused_control))
+	):
+		return focused_control
+	return null
+
+
+func _restore_focus_after_responsive_layout(focused_control: Control) -> void:
+	if (
+		is_instance_valid(focused_control)
+		and focused_control.focus_mode != Control.FOCUS_NONE
+		and focused_control.is_visible_in_tree()
+	):
+		focused_control.grab_focus()
+		return
+	if not is_instance_valid(focused_control):
+		return
+	_focus_last_selected_card()
+	if not is_instance_valid(get_viewport().gui_get_focus_owner()):
+		_back_button.grab_focus()
 
 
 ## 双栏高度已经由分页预算约束，不再让整页滚动条与分页同时出现。

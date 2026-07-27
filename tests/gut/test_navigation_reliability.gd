@@ -145,6 +145,90 @@ func test_empty_history_lists_focus_back_button() -> void:
 			is ConfirmationDialog,
 			"历史列表删除前必须经过确认弹窗。"
 		)
+		var confirmation_node: Node = list_menu.find_child(
+			"DeleteConfirmationDialog",
+			true,
+			false
+		)
+		if confirmation_node is ConfirmationDialog:
+			var confirmation: ConfirmationDialog = confirmation_node
+			assert_true(
+				confirmation.has_theme_stylebox_override("panel"),
+				"历史列表删除确认弹窗必须使用项目纸张面板样式。"
+			)
+			assert_true(
+				confirmation.has_theme_stylebox_override("embedded_border"),
+				"历史列表删除确认弹窗必须使用项目标题栏边框样式。"
+			)
+			assert_gte(
+				confirmation.get_theme_constant("buttons_min_height"),
+				roundi(BaseListMenu._MINIMUM_TOUCH_TARGET_SIZE),
+				"删除确认弹窗必须在 Window 主题层声明 44px 按钮高度。"
+			)
+			for action_button: Button in [
+				confirmation.get_ok_button(),
+				confirmation.get_cancel_button(),
+			]:
+				assert_gte(
+					action_button.custom_minimum_size.x,
+					BaseListMenu._DIALOG_ACTION_MINIMUM_WIDTH,
+					"历史列表删除确认按钮宽度不得小于 112px。"
+				)
+				assert_gte(
+					action_button.custom_minimum_size.y,
+					BaseListMenu._MINIMUM_TOUCH_TARGET_SIZE,
+					"历史列表删除确认按钮高度不得小于 44px。"
+				)
+		var error_node: Node = list_menu.find_child(
+			"DeleteErrorDialog",
+			true,
+			false
+		)
+		assert_true(error_node is AcceptDialog, "历史列表删除失败必须显示错误弹窗。")
+		if error_node is AcceptDialog:
+			var error_dialog: AcceptDialog = error_node
+			assert_true(
+				error_dialog.has_theme_stylebox_override("panel"),
+				"历史列表删除失败弹窗必须使用项目纸张面板样式。"
+			)
+			assert_true(
+				error_dialog.ok_button_text == tr("DIALOG_ACKNOWLEDGE_ACTION"),
+				"删除失败弹窗确认动作必须使用项目本地化文案。"
+			)
+			var error_action: Button = error_dialog.get_ok_button()
+			assert_gte(
+				error_action.custom_minimum_size.x,
+				BaseListMenu._DIALOG_ACTION_MINIMUM_WIDTH,
+				"历史列表删除失败确认按钮宽度不得小于 112px。"
+			)
+			assert_gte(
+				error_action.custom_minimum_size.y,
+				BaseListMenu._MINIMUM_TOUCH_TARGET_SIZE,
+				"历史列表删除失败确认按钮高度不得小于 44px。"
+			)
+		var selected: Resource = Resource.new()
+		list_menu._selected_resource = selected
+		list_menu._on_delete_button_pressed()
+		await get_tree().process_frame
+		if confirmation_node is ConfirmationDialog:
+			var opened_confirmation: ConfirmationDialog = confirmation_node
+			assert_true(opened_confirmation.visible, "删除确认弹窗必须真实打开。")
+			assert_true(
+				opened_confirmation.get_cancel_button().has_focus(),
+				"不可撤销删除弹窗必须把键盘/手柄默认焦点交给取消动作。"
+			)
+			opened_confirmation.hide()
+			list_menu._on_delete_canceled()
+		list_menu._show_delete_error(ERR_CANT_CREATE)
+		await get_tree().process_frame
+		if error_node is AcceptDialog:
+			var opened_error: AcceptDialog = error_node
+			assert_true(opened_error.visible, "删除失败弹窗必须真实打开。")
+			assert_true(
+				opened_error.get_ok_button().has_focus(),
+				"删除失败弹窗打开后必须把键盘/手柄焦点交给确认动作。"
+			)
+			opened_error.hide()
 		context.remove_child(list_menu)
 		list_menu.free()
 		await get_tree().process_frame

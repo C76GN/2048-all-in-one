@@ -464,6 +464,16 @@ func test_declared_player_controls_meet_touch_target_contract() -> void:
 
 func test_responsive_runtime_control_sizes_never_drop_below_touch_contract() -> void:
 	assert_gte(
+		BaseListMenu._DIALOG_ACTION_MINIMUM_WIDTH,
+		112.0,
+		"历史列表动态弹窗操作按钮必须保留至少 112px 宽度。"
+	)
+	assert_gte(
+		BaseListMenu._MINIMUM_TOUCH_TARGET_SIZE,
+		_MINIMUM_TOUCH_TARGET_SIZE,
+		"历史列表动态弹窗操作按钮不得低于 44px 触控高度。"
+	)
+	assert_gte(
 		SettingsMenu._COMPACT_CONTROL_HEIGHT,
 		_MINIMUM_TOUCH_TARGET_SIZE,
 		"设置页紧凑布局控件高度不得低于 44px。"
