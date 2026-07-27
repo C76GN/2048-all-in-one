@@ -107,6 +107,7 @@ var _board_intro_tween: Tween
 @onready var board_container: Node2D = %BoardContainer
 @onready var board_feedback_root: Node2D = %BoardFeedbackRoot
 @onready var board_feedback_canvas: BoardFeedbackCanvas = %BoardFeedbackCanvas
+@onready var board_motion_backdrop: BoardMotionBackdrop = %BoardMotionBackdrop
 
 
 # --- Godot 生命周期方法 ---
@@ -171,6 +172,8 @@ func setup(
 	self.game_background = p_game_background
 	if is_instance_valid(board_feedback_canvas):
 		board_feedback_canvas.reset_feedback()
+	if is_instance_valid(board_motion_backdrop):
+		board_motion_backdrop.reset_feedback()
 
 	# GridModel 的逻辑初始化由 GameInitSystem 完成，表现层只建立局部世界几何与可见节点。
 	_update_board_layout()
@@ -307,7 +310,8 @@ func play_turn_feedback(turn_result: TurnResult) -> void:
 		turn_result.direction,
 		tier,
 		centered_rect,
-		accent_color
+		accent_color,
+		board_motion_backdrop
 	)
 
 
@@ -763,6 +767,8 @@ func _update_board_layout() -> void:
 		board_feedback_root.scale = Vector2.ONE
 		board_feedback_root.skew = 0.0
 		board_feedback_root.set_meta(&"feedback_base_position", board_feedback_root.position)
+	if is_instance_valid(board_motion_backdrop):
+		board_motion_backdrop.set_board_size(_logical_board_size)
 
 	if is_instance_valid(board_theme):
 		_apply_board_background_style()
@@ -782,10 +788,10 @@ func _apply_board_background_style() -> void:
 	panel_style.bg_color = board_theme.board_panel_color
 	panel_style.border_color = board_theme.board_border_color
 	panel_style.set_border_width_all(6)
-	panel_style.set_corner_radius_all(6)
-	panel_style.shadow_color = Color.TRANSPARENT
-	panel_style.shadow_size = 0
-	panel_style.shadow_offset = Vector2.ZERO
+	panel_style.set_corner_radius_all(8)
+	panel_style.shadow_color = Color(0.18431373, 0.1882353, 0.21568628, 0.24)
+	panel_style.shadow_size = 8
+	panel_style.shadow_offset = Vector2(0.0, 6.0)
 	board_background.add_theme_stylebox_override("panel", panel_style)
 
 

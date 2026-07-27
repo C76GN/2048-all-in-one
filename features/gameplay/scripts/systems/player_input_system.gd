@@ -6,7 +6,7 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 # --- 常量 ---
 
 const GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload("res://features/gameplay/resources/input/gameplay_input_context.tres")
-const _MOVE_FAIL_MESSAGE_FALLBACK: String = "[color=yellow]这个方向无法移动。[/color]"
+const _MOVE_FAIL_MESSAGE_FALLBACK: String = "这个方向无法移动。"
 const _MOVE_FAIL_MESSAGE_DURATION: float = 1.6
 
 

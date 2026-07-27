@@ -45,7 +45,7 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 - 棋盘表现使用稳定局部世界坐标，外层 `BoardWorldViewportController` 独占缩放、平移和完整聚焦；HUD 保持独立屏幕空间，诊断面板由 diagnostics feature 的独立 Window 承载。
 - 鼠标中键拖动、滚轮缩放、原生触控板手势和双指触摸由 `GFPointerGestureUtility` 统一归一化，屏幕与棋盘局部坐标通过 `GFViewportUtility` 换算，运行时连接由 `GFSignalUtility` 管理。
 - 单指短滑只负责棋盘移动，并通过 `GFVirtualInputSource` 写入玩法抽象动作；它不直接调用命令。双指序列一旦成立，本轮触摸只负责画布平移/缩放，不再回落成单指移动。
-- `GameplayResponsiveLayoutController` 在桌面、紧凑横屏和竖屏间调整棋盘留白；HUD 始终是由 GF 安全区保护的全屏覆盖层，摘要、提示和动作分散在屏幕边缘，继承布局的左右栏在所有玩法断点都关闭。
+- `GameplayResponsiveLayoutController` 在桌面、紧凑横屏和竖屏间调整棋盘留白；HUD 始终是由 GF 安全区保护的全屏覆盖层，摘要、通知和回合字幕共用屏幕边缘反馈轨。横屏按棋盘实际世界包围盒宽高比动态求解右侧 fit inset，并在几何变化时重算；竖屏则把反馈轨放在棋盘与触控区之间。瞬时文本和操作栏不得进入棋盘矩形外扩 50px 的动态包络。继承布局的左右栏在所有玩法断点都关闭。
 - `BoardTopology.get_cells_in_rect()` 使用行区间缓存与二分边界查询可见活跃单元；`GameBoardController` 只通过 `GFObjectPoolUtility` 挂载当前窗口内的格子和方块节点。完整模型不受裁剪影响，缩放过小时进入仅显示棋盘底板的细节层级。
 - 原 3x3 至 8x8 模式选择通过 `scalable_square_board_template.tres` 生成矩形拓扑。
 - 调试扩建仅支持矩形正方形；它不是玩家棋盘编辑器。

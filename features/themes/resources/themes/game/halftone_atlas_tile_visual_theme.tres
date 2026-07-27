@@ -13,7 +13,7 @@ border_width = 2.5
 border_color = Color(0.28627452, 0.2901961, 0.30588236, 1)
 accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
 motif_opacity = 0.08
-shadow_offset = Vector2(1.5, 1.5)
+shadow_offset = Vector2(3.5, 3.5)
 
 [sub_resource type="Resource" id="Style_fibonacci"]
 script = ExtResource("2_style")
@@ -26,7 +26,7 @@ border_width = 3.0
 border_color = Color(0.3882353, 0.3372549, 0.27058825, 1)
 accent_color = Color(0.8745098, 0.6901961, 0.3019608, 1)
 motif_opacity = 0.18
-shadow_offset = Vector2(1.5, 1.5)
+shadow_offset = Vector2(3.5, 3.5)
 
 [sub_resource type="Resource" id="Style_classic_fibonacci"]
 script = ExtResource("2_style")
@@ -38,7 +38,7 @@ border_width = 3.0
 border_color = Color(0.4745098, 0.27058825, 0.23137255, 1)
 accent_color = Color(0.827451, 0.38431373, 0.29411766, 1)
 motif_opacity = 0.17
-shadow_offset = Vector2(1.5, 1.5)
+shadow_offset = Vector2(3.5, 3.5)
 
 [sub_resource type="Resource" id="Style_lucas"]
 script = ExtResource("2_style")
@@ -51,7 +51,7 @@ border_width = 3.0
 border_color = Color(0.25882354, 0.3372549, 0.34509805, 1)
 accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
 motif_opacity = 0.17
-shadow_offset = Vector2(1.5, 1.5)
+shadow_offset = Vector2(3.5, 3.5)
 
 [sub_resource type="Resource" id="Style_ratio_base"]
 script = ExtResource("2_style")
@@ -64,7 +64,7 @@ border_width = 3.0
 border_color = Color(0.33333334, 0.34509805, 0.3647059, 1)
 accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
 motif_opacity = 0.18
-shadow_offset = Vector2(1.5, 1.5)
+shadow_offset = Vector2(3.5, 3.5)
 
 [sub_resource type="Resource" id="Style_ratio_factor"]
 script = ExtResource("2_style")
@@ -77,7 +77,7 @@ border_width = 3.0
 border_color = Color(0.39215687, 0.2509804, 0.22352941, 1)
 accent_color = Color(0.827451, 0.38431373, 0.29411766, 1)
 motif_opacity = 0.18
-shadow_offset = Vector2(1.5, 1.5)
+shadow_offset = Vector2(3.5, 3.5)
 
 [resource]
 script = ExtResource("1_theme")

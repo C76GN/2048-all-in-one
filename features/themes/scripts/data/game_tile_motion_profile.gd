@@ -8,10 +8,10 @@ extends Resource
 # --- 导出变量 ---
 
 @export_group("Timing")
-@export_range(0.001, 1.0, 0.001) var move_duration: float = 0.10
-@export_range(0.001, 1.0, 0.001) var spawn_duration: float = 0.14
+@export_range(0.001, 1.0, 0.001) var move_duration: float = 0.14
+@export_range(0.001, 1.0, 0.001) var spawn_duration: float = 0.11
 @export_range(0.0, 1.0, 0.01) var spawn_fade_ratio: float = 0.75
-@export_range(0.001, 1.0, 0.001) var merge_pulse_duration: float = 0.085
+@export_range(0.001, 1.0, 0.001) var merge_pulse_duration: float = 0.09
 @export_range(0.001, 1.0, 0.001) var value_growth_duration: float = 0.13
 @export_range(0.001, 1.0, 0.001) var despawn_duration: float = 0.12
 @export_range(0.001, 1.0, 0.001) var transform_left_duration: float = 0.04
@@ -21,8 +21,10 @@ extends Resource
 @export_range(0.001, 1.0, 0.001) var transform_flash_duration: float = 0.14
 
 @export_group("Amplitude")
-@export_range(0.0, 1.0, 0.01) var spawn_start_scale: float = 0.64
+@export_range(0.5, 1.5, 0.01) var spawn_start_scale: float = 1.12
+@export_range(0.0, 20.0, 0.1) var spawn_start_rotation_degrees: float = 12.0
 @export_range(1.0, 2.0, 0.01) var merge_peak_scale: float = 1.19
+@export_range(0.0, 12.0, 0.1) var merge_peak_rotation_degrees: float = 4.5
 @export_range(0.0, 1.0, 0.01) var despawn_end_scale: float = 0.28
 @export_range(0.0, 15.0, 0.1) var transform_peak_rotation_degrees: float = 4.0
 @export_range(-15.0, 0.0, 0.1) var transform_settle_rotation_degrees: float = -2.0
@@ -45,9 +47,11 @@ func is_valid_profile() -> bool:
 		and transform_settle_duration > 0.0
 		and transform_home_duration > 0.0
 		and transform_flash_duration > 0.0
-		and spawn_start_scale >= 0.0
-		and spawn_start_scale <= 1.0
+		and spawn_start_scale >= 0.5
+		and spawn_start_scale <= 1.5
+		and spawn_start_rotation_degrees >= 0.0
 		and merge_peak_scale >= 1.0
+		and merge_peak_rotation_degrees >= 0.0
 		and despawn_end_scale >= 0.0
 		and despawn_end_scale <= 1.0
 		and transform_peak_rotation_degrees >= 0.0
@@ -155,10 +159,22 @@ func get_spawn_start_scale(budget: GameFeedbackBudget) -> float:
 	return scale_from_neutral(1.0, spawn_start_scale, budget)
 
 
+## 获取生成动画的预算化起始旋转角。
+## @param budget: 当前无障碍反馈预算快照。
+func get_spawn_start_rotation_degrees(budget: GameFeedbackBudget) -> float:
+	return spawn_start_rotation_degrees * _get_motion_scale(budget)
+
+
 ## 获取合并动画的预算化峰值缩放。
 ## @param budget: 当前无障碍反馈预算快照。
 func get_merge_peak_scale(budget: GameFeedbackBudget) -> float:
 	return scale_from_neutral(1.0, merge_peak_scale, budget)
+
+
+## 获取合并落定动画的预算化峰值旋转角。
+## @param budget: 当前无障碍反馈预算快照。
+func get_merge_peak_rotation_degrees(budget: GameFeedbackBudget) -> float:
+	return merge_peak_rotation_degrees * _get_motion_scale(budget)
 
 
 ## 获取消失动画的预算化结束缩放。

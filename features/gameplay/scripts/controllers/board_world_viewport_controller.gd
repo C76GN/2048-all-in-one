@@ -15,6 +15,9 @@ signal view_transform_changed(
 	visible_world_rect: Rect2
 )
 
+## 棋盘世界包围盒变化后发出，供屏幕空间布局重新计算安全区。
+signal content_geometry_changed(content_rect: Rect2)
+
 
 # --- 常量 ---
 
@@ -287,6 +290,30 @@ static func calculate_fit_viewport_rect(
 	)
 
 
+## 按完整聚焦规则预测棋盘内容在屏幕空间中的矩形。
+## @param viewport_size: 棋盘宿主视口的逻辑尺寸。
+## @param insets: 完整聚焦使用的四向屏幕内缩。
+## @param content_aspect_ratio: 当前棋盘世界包围盒的实际宽高比。
+## @return 完整聚焦后的棋盘屏幕空间矩形。
+static func calculate_fitted_content_screen_rect(
+	viewport_size: Vector2,
+	insets: Dictionary,
+	content_aspect_ratio: float
+) -> Rect2:
+	var fit_viewport_rect: Rect2 = calculate_fit_viewport_rect(viewport_size, insets)
+	var safe_aspect_ratio: float = maxf(content_aspect_ratio, 0.0001)
+	var available_size: Vector2 = Vector2(
+		maxf(fit_viewport_rect.size.x - _FIT_MARGIN * 2.0, 1.0),
+		maxf(fit_viewport_rect.size.y - _FIT_MARGIN * 2.0, 1.0)
+	)
+	var fitted_height: float = minf(
+		available_size.y,
+		available_size.x / safe_aspect_ratio
+	)
+	var fitted_size: Vector2 = Vector2(fitted_height * safe_aspect_ratio, fitted_height)
+	return Rect2(fit_viewport_rect.get_center() - fitted_size * 0.5, fitted_size)
+
+
 ## 让棋盘世界按屏幕像素增量平移。
 ## @param screen_delta: 屏幕空间平移量。
 func pan_by(screen_delta: Vector2) -> void:
@@ -304,6 +331,19 @@ func get_zoom() -> float:
 ## 返回最近同步给棋盘表现层的局部可见矩形。
 func get_visible_world_rect() -> Rect2:
 	return _visible_world_rect
+
+
+## 返回当前棋盘内容的实际宽高比；几何尚未初始化时返回方形基线。
+func get_content_aspect_ratio() -> float:
+	var content_size: Vector2 = _content_rect.size
+	if (
+		(content_size.x <= 0.0 or content_size.y <= 0.0)
+		and is_instance_valid(_game_board)
+	):
+		content_size = _game_board.get_board_world_rect().size
+	if content_size.x <= 0.0 or content_size.y <= 0.0:
+		return 1.0
+	return content_size.x / content_size.y
 
 
 ## 将一次单指轨迹分类为四向棋盘移动；无效轨迹返回 Vector2i.ZERO。
@@ -440,6 +480,7 @@ func _initialize_view() -> void:
 	_last_viewport_size = _host_control.size
 	_content_rect = _game_board.get_board_world_rect()
 	_is_initialized = true
+	content_geometry_changed.emit(_content_rect)
 	fit_to_content()
 
 
@@ -747,6 +788,7 @@ func _on_host_resized() -> void:
 
 func _on_board_geometry_changed(board_rect: Rect2) -> void:
 	_content_rect = board_rect
+	content_geometry_changed.emit(_content_rect)
 	if not _is_initialized:
 		return
 	if _follow_fit:

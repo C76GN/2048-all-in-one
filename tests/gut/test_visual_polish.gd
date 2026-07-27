@@ -572,7 +572,7 @@ func test_tile_setup_applies_sparse_theme_driven_identity_style() -> void:
 	)
 	assert_true(tile.background.get_silhouette_id() == fibonacci_style.silhouette_id)
 	assert_true(tile._get_pattern_type() == fibonacci_pattern)
-	assert_true(fibonacci_style.shadow_offset == Vector2(1.5, 1.5), "方块只应保留统一短投影，不使用彩色错版偏移。")
+	assert_true(fibonacci_style.shadow_offset == Vector2(3.5, 3.5), "方块应保留清晰的统一硬投影，不使用彩色错版偏移。")
 
 
 func test_all_tile_visual_families_have_unique_base_signatures() -> void:
@@ -1755,6 +1755,11 @@ func test_board_feedback_utility_reuses_persistent_canvas_without_child_growth()
 
 	var feedback_utility: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
 	assert_true(
+		_HALFTONE_BOARD_FEEDBACK_PROFILE.spawn_recipe.tile_shard_count == 0
+		and _HALFTONE_BOARD_FEEDBACK_PROFILE.tile_merge_recipe.tile_shard_count == 0,
+		"普通生成与合并不得在方块前景绘制遮挡数字的碎片；纸片应统一位于棋盘后层。"
+	)
+	assert_true(
 		feedback_utility.apply_profile(_HALFTONE_BOARD_FEEDBACK_PROFILE),
 		"直接反馈测试也必须使用正式主题 Profile。"
 	)
@@ -1766,7 +1771,10 @@ func test_board_feedback_utility_reuses_persistent_canvas_without_child_growth()
 			&"merge",
 			"4"
 		)
-		assert_gt(created_count, 1, "棋盘反馈应包含碎片和多方向飘字。")
+		assert_true(
+			created_count == 1,
+			"关闭方块前景碎片后，兼容调用只应保留一个不遮挡数字的反馈文字。"
+		)
 
 	assert_true(
 		feedback_canvas.get_child_count() == initial_child_count,
@@ -1833,7 +1841,7 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	)
 
 	assert_true(tier == GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE)
-	assert_true(created_count == 13, "高价值合并应提升边缘碎片数量。")
+	assert_true(created_count == 14, "高价值合并应提升后层纸片数量。")
 	assert_true(
 		shake_utility.get_active_shake_count(&"board") == 1,
 		"整批操作反馈应通过 GFShakeUtility 播放一次 board channel 反馈。"

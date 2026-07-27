@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-07-26",
+  "reviewed_at": "2026-07-28",
   "godot_version": "4.7",
   "gf_version": "9.0.1",
   "gut_version": "9.7.1",
   "gf_source_commit": "5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28",
   "gf_vendor_tree_sha256": "c2d921861f7d0afe8d8de343be4f07001e62016f88c4d5de576c36d6e71a994e",
   "gf_global_script_class_count": 732,
-  "project_runtime_script_class_count": 224,
+  "project_runtime_script_class_count": 225,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "Ten audited runtime script classes raise the project class set from 214 to 224: five local-player-profile classes for account identity, change data, catalog transactions, system coordination, and profile UI; and five tile-lab classes for blueprints, save data, simulation results, system coordination, and route UI. The complete suite expands from 50/409 to 57/451 scripts/tests. This recalibration changes only the declared project class-set count and suite description; the existing ObjectDB, Resource, and RID ceilings remain unchanged and continue to be enforced by the safe GUT runner.",
+  "calibration_reason": "One audited presentation-only runtime class, BoardMotionBackdrop, raises the project class set from 224 to 225. It consumes committed turn feedback and does not own canonical gameplay state, RNG, persistence, or replay data. The complete suite now covers 57 scripts and 495 tests. This recalibration changes only the declared project class-set count and suite description; the existing ObjectDB, Resource, and RID ceilings remain unchanged and continue to be enforced by the safe GUT runner.",
   "max_objectdb_instances": 319,
   "max_resources_in_use": 141,
   "max_rid_allocations_by_type": {

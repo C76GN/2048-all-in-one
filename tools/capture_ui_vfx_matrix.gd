@@ -3,6 +3,7 @@ extends SceneTree
 
 const _OUTPUT_DIRECTORY: String = "res://build/ui_vfx_matrix"
 const _LOGICAL_DESIGN_SIZE: Vector2i = Vector2i(720, 720)
+const _GAMEPLAY_MOTION_GUARD_MARGIN: float = 50.0
 const _RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
 	Vector2i(1906, 943),
@@ -12,6 +13,7 @@ const _RESOLUTIONS: Array[Vector2i] = [
 ]
 const _PLAYER_FLOW_RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
+	Vector2i(973, 781),
 	Vector2i(960, 540),
 	Vector2i(720, 960),
 ]
@@ -897,8 +899,96 @@ func _capture_gameplay_matrix(game_play: Node) -> void:
 			"gameplay_%dx%d.png" % [resolution.x, resolution.y],
 			resolution
 		)
+		await _capture_gameplay_feedback_states(game_play, resolution)
 	_set_resolution(_PLAYER_FLOW_RESOLUTIONS[0])
 	await _settle_frames(8)
+
+
+func _capture_gameplay_feedback_states(
+	game_play: Node,
+	resolution: Vector2i
+) -> void:
+	var hud_node: Node = game_play.find_child("HUD", true, false)
+	var board_node: Node = game_play.find_child("BoardBackground", true, false)
+	if not hud_node is Hud or not board_node is Control:
+		_record_error("gameplay 反馈状态缺少 HUD 或 BoardBackground。")
+		return
+	var hud: Hud = hud_node
+	var board: Control = board_node
+	var summary: GameAccessibilitySummary = _make_feedback_preview_summary()
+	hud.call(&"_show_accessibility_summary", summary)
+	await _settle_frames(5)
+	var subtitle_node: Node = game_play.find_child(
+		"AccessibilitySubtitlePanel",
+		true,
+		false
+	)
+	if not subtitle_node is Control:
+		_record_error("gameplay 缺少 AccessibilitySubtitlePanel。")
+	else:
+		var subtitle: Control = subtitle_node
+		if subtitle.get_global_rect().intersects(
+			board.get_global_rect().grow(_GAMEPLAY_MOTION_GUARD_MARGIN)
+		):
+			_record_error(
+				"gameplay @ %s 回合字幕进入棋盘动态安全包络。" % resolution
+			)
+		_save_viewport(
+			"gameplay_turn_subtitle_%dx%d.png" % [resolution.x, resolution.y],
+			resolution
+		)
+	hud.call(&"_hide_accessibility_subtitle")
+	await _settle_frames(3)
+
+	hud.call(
+		&"_set_notification_message",
+		9001,
+		"这个方向无法移动。",
+		GFNotificationUtility.Level.WARNING
+	)
+	await _settle_frames(5)
+	var notification_node: Node = game_play.find_child(
+		"NotificationPanel",
+		true,
+		false
+	)
+	if not notification_node is Control:
+		_record_error("gameplay 缺少 NotificationPanel。")
+	else:
+		var notification_control: Control = notification_node
+		if notification_control.get_global_rect().intersects(
+			board.get_global_rect().grow(_GAMEPLAY_MOTION_GUARD_MARGIN)
+		):
+			_record_error(
+				"gameplay @ %s 无效移动提示进入棋盘动态安全包络。" % resolution
+			)
+		_save_viewport(
+			"gameplay_invalid_move_%dx%d.png" % [resolution.x, resolution.y],
+			resolution
+		)
+	hud.call(
+		&"_set_notification_message",
+		0,
+		"",
+		GFNotificationUtility.Level.INFO
+	)
+	await _settle_frames(3)
+
+
+func _make_feedback_preview_summary() -> GameAccessibilitySummary:
+	var summary: GameAccessibilitySummary = GameAccessibilitySummary.new()
+	summary.sequence = 1
+	summary.kind = GameAccessibilitySummary.KIND_TURN
+	summary.board_checksum = "0".repeat(64)
+	summary.canonical_payload = {
+		&"schema_version": GameAccessibilitySummary.SCHEMA_VERSION,
+		&"kind": GameAccessibilitySummary.KIND_TURN,
+		&"direction": Vector2i.RIGHT,
+	}
+	summary.announcement_text = "向右移动，6 个方块位移，生成 1 个方块。"
+	summary.subtitle_text = "向右移动：6 个方块位移，合并 0 次，生成 1 个，变化 0 个，得分 +0。"
+	summary.board_text = "棋盘摘要预览。"
+	return summary
 
 
 func _capture_pause_menu_player_flow(game_play: Node) -> bool:
@@ -1886,6 +1976,11 @@ func _validate_gameplay_structure(
 		true,
 		false
 	)
+	var action_panel_node: Node = game_play.find_child(
+		"ActionPanel",
+		true,
+		false
+	)
 	if not background_node is Control:
 		_record_error("gameplay @ %s 缺少 BoardBackground。" % resolution)
 	else:
@@ -1903,6 +1998,18 @@ func _validate_gameplay_structure(
 		_validate_control_rect(hud, resolution, "gameplay HUD")
 	if not score_node is Control:
 		_record_error("gameplay @ %s HUD 缺少分数指标。" % resolution)
+	if background_node is Control and action_panel_node is Control:
+		var board_control: Control = background_node
+		var action_panel: Control = action_panel_node
+		if (
+			action_panel.is_visible_in_tree()
+			and action_panel.get_global_rect().intersects(
+				board_control.get_global_rect().grow(
+					_GAMEPLAY_MOTION_GUARD_MARGIN
+				)
+			)
+		):
+			_record_error("gameplay @ %s 操作面板进入棋盘动态安全包络。" % resolution)
 	if _count_visible_gameplay_tiles(game_play) <= 0:
 		_record_error("gameplay @ %s 尚无可见方块。" % resolution)
 	_validate_visible_touch_targets(game_play, resolution, "gameplay")

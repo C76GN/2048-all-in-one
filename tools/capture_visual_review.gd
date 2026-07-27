@@ -13,6 +13,10 @@ const _BOOKMARK_ITEM_SCENE: PackedScene = preload(
 )
 
 
+var _capture_write_failed: bool = false
+var _slowest_command_usec: int = 0
+
+
 func _init() -> void:
 	call_deferred(&"_run_capture")
 
@@ -27,11 +31,11 @@ func _run_capture() -> void:
 	var boot_scene: PackedScene = load("res://app/scenes/boot.tscn")
 	root.add_child(boot_scene.instantiate())
 	await _settle_frames(2)
-	_save_viewport("boot_loading.png")
+	_capture_viewport("boot_loading.png")
 	await create_timer(0.12, true, false, true).timeout
 	if is_instance_valid(root.get_node_or_null("Boot")):
 		await _settle_frames(1)
-		_save_viewport("boot_loading_progress.png")
+		_capture_viewport("boot_loading_progress.png")
 
 	var main_menu: Node = await _wait_for_node(&"MainMenu", 1200)
 	if not is_instance_valid(main_menu):
@@ -39,7 +43,7 @@ func _run_capture() -> void:
 		_request_exit(1)
 		return
 	await _settle_frames(60)
-	_save_viewport("main_menu.png")
+	_capture_viewport("main_menu.png")
 
 	var main_start: Node = main_menu.find_child("StartGameButton", true, false)
 	if main_start is Button:
@@ -47,23 +51,23 @@ func _run_capture() -> void:
 		start_button.pressed.emit()
 	await create_timer(0.12, true, false, true).timeout
 	await _settle_frames(2)
-	_save_viewport("scene_transition_cover.png")
+	_capture_viewport("scene_transition_cover.png")
 	var mode_selection: Node = await _wait_for_node(&"ModeSelection", 600)
 	if not is_instance_valid(mode_selection):
 		push_error("[VisualReview] ModeSelection timeout.")
 		_request_exit(2)
 		return
 	await _settle_frames(2)
-	_save_viewport("scene_transition_reveal.png")
+	_capture_viewport("scene_transition_reveal.png")
 	await _settle_frames(24)
-	_save_viewport("mode_selection.png")
+	_capture_viewport("mode_selection.png")
 
 	var option_value: Node = mode_selection.find_child("GridSizeOptionButton", true, false)
 	if option_value is OptionButton:
 		var option_button: OptionButton = option_value
 		option_button.show_popup()
 		await _settle_frames(4)
-		_save_viewport("mode_selection_popup.png")
+		_capture_viewport("mode_selection_popup.png")
 		option_button.get_popup().hide()
 
 	main_menu = await _return_to_main_menu(mode_selection)
@@ -85,7 +89,7 @@ func _run_capture() -> void:
 		_request_exit(5)
 		return
 	await _settle_frames(12)
-	_save_viewport("bookmark_list.png")
+	_capture_viewport("bookmark_list.png")
 	if not await _capture_history_delete_states(bookmark_list, "bookmark"):
 		_request_exit(5)
 		return
@@ -106,7 +110,7 @@ func _run_capture() -> void:
 		_request_exit(8)
 		return
 	await _settle_frames(12)
-	_save_viewport("replay_list.png")
+	_capture_viewport("replay_list.png")
 	if not await _capture_history_delete_states(replay_list, "replay"):
 		_request_exit(9)
 		return
@@ -118,13 +122,13 @@ func _run_capture() -> void:
 		return
 	await create_timer(0.25, true, false, true).timeout
 	await _settle_frames(12)
-	_save_viewport("replay_playback.png")
+	_capture_viewport("replay_playback.png")
 	if not await _advance_replay_once(replay_game, replay_preview):
 		push_error("[VisualReview] Replay did not advance after the next-step action.")
 		_request_exit(11)
 		return
 	await _settle_frames(8)
-	_save_viewport("replay_playback_step.png")
+	_capture_viewport("replay_playback_step.png")
 
 	main_menu = await _open_route(replay_game, &"ReplayExitButton", &"MainMenu")
 	if not is_instance_valid(main_menu):
@@ -145,7 +149,7 @@ func _run_capture() -> void:
 		var controls_button: Button = controls_tab
 		controls_button.pressed.emit()
 	await _settle_frames(12)
-	_save_viewport("settings_controls.png")
+	_capture_viewport("settings_controls.png")
 
 	main_menu = await _return_to_main_menu(settings_menu)
 	if not is_instance_valid(main_menu):
@@ -170,10 +174,22 @@ func _run_capture() -> void:
 		return
 	await create_timer(1.0, true, false, true).timeout
 	await _settle_frames(60)
-	_save_viewport("gameplay.png")
+	_capture_viewport("gameplay.png")
 	await _settle_frames(30)
-	_save_viewport("gameplay_grid_motion.png")
-	await _capture_first_merge_feedback(game_play)
+	_capture_viewport("gameplay_grid_motion.png")
+	if not await _capture_gameplay_motion_frames(game_play):
+		_request_exit(18)
+		return
+	if not await _capture_first_merge_feedback(game_play):
+		_request_exit(19)
+		return
+	# Let the captured turn finish before the scene is freed. Exiting while the
+	# board action still owns pooled tiles can race the pool's deferred reparent.
+	await create_timer(0.8, true, false, true).timeout
+	await _settle_frames(6)
+	if _capture_write_failed:
+		_request_exit(20)
+		return
 	_request_exit()
 
 
@@ -194,6 +210,8 @@ func _finish_capture(exit_code: int) -> void:
 	await process_frame
 	await process_frame
 	GFExtensionSettings.clear_manifest_cache()
+	if exit_code == 0:
+		print("[VisualReview] slowest_command_usec=%d" % _slowest_command_usec)
 	quit(exit_code)
 
 
@@ -360,7 +378,7 @@ func _capture_history_delete_states(page: Node, capture_prefix: String) -> bool:
 	if not confirmation.visible:
 		push_error("[VisualReview] History delete confirmation did not open.")
 		return false
-	_save_viewport("%s_delete_confirmation.png" % capture_prefix)
+	_capture_viewport("%s_delete_confirmation.png" % capture_prefix)
 	confirmation.hide()
 	list_menu._on_delete_canceled()
 
@@ -374,7 +392,7 @@ func _capture_history_delete_states(page: Node, capture_prefix: String) -> bool:
 	if not error_dialog.visible:
 		push_error("[VisualReview] History delete failure dialog did not open.")
 		return false
-	_save_viewport("%s_delete_error.png" % capture_prefix)
+	_capture_viewport("%s_delete_error.png" % capture_prefix)
 	error_dialog.hide()
 	await _settle_frames(2)
 	return true
@@ -416,7 +434,7 @@ func _capture_settings_persistence_failure(page: Node) -> bool:
 		settings._persistence_blocked_error = previous_blocked_error
 		settings._last_persistence_error = previous_write_error
 		return false
-	_save_viewport("settings_save_failure.png")
+	_capture_viewport("settings_save_failure.png")
 
 	settings._persistence_blocked_error = previous_blocked_error
 	settings._last_persistence_error = previous_write_error
@@ -613,33 +631,47 @@ func _settle_frames(frame_count: int) -> void:
 		await RenderingServer.frame_post_draw
 
 
-func _save_viewport(file_name: String) -> void:
+func _capture_viewport(file_name: String) -> void:
+	if not _save_viewport(file_name):
+		return
+
+
+func _save_viewport(file_name: String) -> bool:
 	var directory_error: Error = DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(_OUTPUT_DIRECTORY)
 	)
 	if directory_error != OK and directory_error != ERR_ALREADY_EXISTS:
 		push_error("[VisualReview] Cannot create output directory: %d" % directory_error)
-		return
+		_capture_write_failed = true
+		return false
 	var image: Image = root.get_texture().get_image()
 	if image == null:
 		push_error("[VisualReview] Viewport image is unavailable: %s" % file_name)
-		return
+		_capture_write_failed = true
+		return false
 	var save_error: Error = image.save_png("%s/%s" % [_OUTPUT_DIRECTORY, file_name])
 	if save_error != OK:
 		push_error("[VisualReview] Cannot save %s: %d" % [file_name, save_error])
+		_capture_write_failed = true
+		return false
+	return true
 
 
-func _capture_first_merge_feedback(game_play: Node) -> void:
-	var feedback_canvas: Node = game_play.find_child("BoardFeedbackCanvas", true, false)
-	if not is_instance_valid(feedback_canvas):
-		return
+func _capture_first_merge_feedback(_game_play: Node) -> bool:
 	var gf_node: Node = root.get_node_or_null("Gf")
 	if not is_instance_valid(gf_node):
-		return
+		push_error("[VisualReview] GF root is unavailable for merge capture.")
+		return false
 	var history_value: Variant = gf_node.call("get_utility", GFCommandHistoryUtility)
 	if not history_value is GFCommandHistoryUtility:
-		return
+		push_error("[VisualReview] Command history is unavailable for merge capture.")
+		return false
+	var status_value: Variant = gf_node.call("get_model", GameStatusModel)
+	if not status_value is GameStatusModel:
+		push_error("[VisualReview] Game status is unavailable for merge capture.")
+		return false
 	var history: GFCommandHistoryUtility = history_value
+	var status: GameStatusModel = status_value
 	var directions: Array[Vector2i] = [
 		Vector2i.LEFT,
 		Vector2i.DOWN,
@@ -648,6 +680,7 @@ func _capture_first_merge_feedback(game_play: Node) -> void:
 	]
 	var slowest_command_usec: int = 0
 	for turn_index: int in range(32):
+		var score_before: int = GFVariantData.to_int(status.score.get_value(), 0)
 		var started_usec: int = Time.get_ticks_usec()
 		var _command_result: Variant = await history.execute_command(
 			MoveCommand.new(directions[turn_index % directions.size()])
@@ -656,12 +689,126 @@ func _capture_first_merge_feedback(game_play: Node) -> void:
 			slowest_command_usec,
 			Time.get_ticks_usec() - started_usec
 		)
-		await create_timer(0.12, true, false, true).timeout
+		var score_after: int = GFVariantData.to_int(status.score.get_value(), 0)
+		await create_timer(0.08, true, false, true).timeout
 		await _settle_frames(2)
-		if GFVariantData.to_bool(feedback_canvas.call("has_active_score_burst")):
-			await create_timer(0.12, true, false, true).timeout
-			await _settle_frames(2)
-			_save_viewport("gameplay_feedback.png")
-			print("[VisualReview] slowest_command_usec=%d" % slowest_command_usec)
-			return
-	print("[VisualReview] no merge captured; slowest_command_usec=%d" % slowest_command_usec)
+		if score_after > score_before:
+			if not _save_viewport("gameplay_feedback.png"):
+				return false
+			_slowest_command_usec = slowest_command_usec
+			return true
+	push_error("[VisualReview] no scoring merge captured in deterministic move cycle.")
+	return false
+
+
+func _capture_gameplay_motion_frames(game_play: Node) -> bool:
+	var feedback_canvas_node: Node = game_play.find_child(
+		"BoardFeedbackCanvas",
+		true,
+		false
+	)
+	var feedback_root_node: Node = game_play.find_child(
+		"BoardFeedbackRoot",
+		true,
+		false
+	)
+	var backdrop_node: Node = game_play.find_child(
+		"BoardMotionBackdrop",
+		true,
+		false
+	)
+	var board_background_node: Node = game_play.find_child(
+		"BoardBackground",
+		true,
+		false
+	)
+	var background_node: Node = game_play.find_child("Background", true, false)
+	var board_container_node: Node = game_play.find_child(
+		"BoardContainer",
+		true,
+		false
+	)
+	var feedback_value: Variant = _get_gf_member(
+		&"get_utility",
+		GameBoardFeedbackUtility
+	)
+	if (
+		not feedback_canvas_node is BoardFeedbackCanvas
+		or not feedback_root_node is Node2D
+		or not backdrop_node is BoardMotionBackdrop
+		or not board_background_node is Control
+		or not background_node is ColorRect
+		or not board_container_node is Node2D
+		or not feedback_value is GameBoardFeedbackUtility
+	):
+		push_error("[VisualReview] Gameplay motion fixture dependencies are unavailable.")
+		return false
+
+	var feedback_canvas: BoardFeedbackCanvas = feedback_canvas_node
+	var feedback_root: Node2D = feedback_root_node
+	var backdrop: BoardMotionBackdrop = backdrop_node
+	var board_background: Control = board_background_node
+	var background: ColorRect = background_node
+	var board_container: Node2D = board_container_node
+	var feedback: GameBoardFeedbackUtility = feedback_value
+	var tile: Tile = null
+	for child: Node in board_container.get_children():
+		if not child is Tile:
+			continue
+		var candidate_tile: Tile = child
+		if candidate_tile.visible:
+			tile = candidate_tile
+			break
+	if not is_instance_valid(tile):
+		push_error("[VisualReview] Gameplay motion fixture could not find a visible tile.")
+		return false
+
+	var profile: GameBoardFeedbackProfile = feedback.get_profile()
+	if not is_instance_valid(profile) or not is_instance_valid(profile.tile_motion_profile):
+		push_error("[VisualReview] Gameplay motion fixture has no motion profile.")
+		return false
+	var tile_start_position: Vector2 = tile.position
+	var move_offset: Vector2 = Vector2(
+		-115.0 if tile_start_position.x > board_background.size.x * 0.5 else 115.0,
+		0.0
+	)
+	var board_rect: Rect2 = Rect2(
+		-board_background.size * 0.5,
+		board_background.size
+	)
+	var _created_count: int = feedback.play_turn_feedback(
+		feedback_root,
+		feedback_canvas,
+		background,
+		Vector2i.RIGHT,
+		GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE,
+		board_rect,
+		Color("#efb24d"),
+		backdrop
+	)
+	var _move_tween: Tween = tile.animate_move(
+		tile_start_position + move_offset,
+		profile.tile_motion_profile
+	)
+	await create_timer(0.04, true, false, true).timeout
+	await _settle_frames(2)
+	if not _save_viewport("gameplay_motion_0040ms.png"):
+		return false
+	await create_timer(0.07, true, false, true).timeout
+	await _settle_frames(2)
+	if not _save_viewport("gameplay_motion_0110ms.png"):
+		return false
+	await create_timer(0.10, true, false, true).timeout
+	await _settle_frames(2)
+	if not _save_viewport("gameplay_motion_0210ms.png"):
+		return false
+	await create_timer(0.22, true, false, true).timeout
+	await _settle_frames(2)
+	if not _save_viewport("gameplay_motion_0430ms.png"):
+		return false
+	tile.reset_animation_state()
+	tile.position = tile_start_position
+	await create_timer(0.28, true, false, true).timeout
+	backdrop.reset_feedback()
+	await _settle_frames(3)
+	return true

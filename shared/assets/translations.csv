@@ -18,15 +18,15 @@ CONTROLS_MOVE_HINT,移动: WASD / 方向键 / 十字键 / 滑动,Move: WASD / Ar
 CONTROLS_ACTION_HINT,撤销 Z · 重做 Y · 书签 B · 暂停 Esc,Undo Z · Redo Y · Bookmark B · Pause Esc
 SEED_INFO_LABEL,游戏种子: %d,Seed: %d
 DEBUG_TAINT_WARNING,[color=orange]警告: 调试工具已使用，回放将被禁用。[/color],[color=orange]Warning: Debug tools used. Replay disabled.[/color]
-UNDO_FAIL_MSG,[color=yellow]无法撤回: 已在最初状态。[/color],[color=yellow]Undo failed: At initial state.[/color]
-REDO_FAIL_MSG,[color=yellow]无法重做: 没有可恢复的步骤。[/color],[color=yellow]Redo failed: No step to restore.[/color]
-MOVE_FAIL_MSG,[color=yellow]这个方向无法移动。[/color],[color=yellow]No move available in that direction.[/color]
-SNAPSHOT_TAINT_WARN,[color=orange]警告: 正在保存一个被调试工具修改过的状态！[/color],[color=orange]Warning: Saving a tainted state![/color]
-SNAPSHOT_NO_CHANGE,[color=yellow]游戏状态未变，无需重复保存。[/color],[color=yellow]State unchanged. Save skipped.[/color]
-SNAPSHOT_SAVED_SUCCESS,[color=green]书签已保存！[/color],[color=green]Bookmark Saved![/color]
-SNAPSHOT_SAVE_FAILED,[color=red]书签保存失败。[/color],[color=red]Bookmark save failed.[/color]
-REPLAY_CONTINUE_SUCCESS,[color=green]已从当前回放进度继续游戏。[/color],[color=green]Continued from the current replay step.[/color]
-TARGET_REACHED_MESSAGE,[color=green]已达成目标 %d！可以继续挑战更高方块。[/color],[color=green]Target %d reached! Keep going for a higher tile.[/color]
+UNDO_FAIL_MSG,无法撤回: 已在最初状态。,Undo failed: At initial state.
+REDO_FAIL_MSG,无法重做: 没有可恢复的步骤。,Redo failed: No step to restore.
+MOVE_FAIL_MSG,这个方向无法移动。,No move available in that direction.
+SNAPSHOT_TAINT_WARN,警告: 正在保存一个被调试工具修改过的状态！,Warning: Saving a tainted state!
+SNAPSHOT_NO_CHANGE,游戏状态未变，无需重复保存。,State unchanged. Save skipped.
+SNAPSHOT_SAVED_SUCCESS,书签已保存！,Bookmark Saved!
+SNAPSHOT_SAVE_FAILED,书签保存失败。,Bookmark save failed.
+REPLAY_CONTINUE_SUCCESS,已从当前回放进度继续游戏。,Continued from the current replay step.
+TARGET_REACHED_MESSAGE,已达成目标 %d！可以继续挑战更高方块。,Target %d reached! Keep going for a higher tile.
 SIZE_LABEL,尺寸,Size
 SETTINGS_TITLE,设置,Settings
 SETTINGS_TAB_GENERAL,通用,General
@@ -338,7 +338,7 @@ HINT_DIRECTION_UNKNOWN,未知方向,Unknown
 HINT_REASON_COMPLETED,分析完成,Completed
 HINT_REASON_TIME_LIMIT,达到时间上限,Time limit reached
 HINT_REASON_STEP_LIMIT,达到步数上限,Step limit reached
-HINT_UNAVAILABLE_MSG,[color=yellow]当前棋盘无法生成提示。[/color],[color=yellow]A hint is unavailable for the current board.[/color]
+HINT_UNAVAILABLE_MSG,当前棋盘无法生成提示。,A hint is unavailable for the current board.
 LABEL_RATIO_RESOLUTIONS,求商:,Ratios:
 LABEL_BOARD,棋盘:,Board:
 LABEL_SEED,种子:,Seed:

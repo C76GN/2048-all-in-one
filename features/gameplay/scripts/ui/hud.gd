@@ -31,8 +31,13 @@ const _HUD_ACTION_HOLD_SECONDS: float = 0.08
 const _SCORE_FEEDBACK_DELAY_SECONDS: float = 0.055
 const _HINT_MAX_STEPS: int = 12000
 const _HINT_MAX_ELAPSED_MSEC: int = 12
-const _HINT_UNAVAILABLE_FALLBACK: String = "[color=yellow]当前棋盘无法生成提示。[/color]"
+const _HINT_UNAVAILABLE_FALLBACK: String = "当前棋盘无法生成提示。"
 const _ACCESSIBILITY_SUBTITLE_DURATION_SECONDS: float = 3.6
+const _NOTIFICATION_TEXT_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _NOTIFICATION_INFO_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
+const _NOTIFICATION_SUCCESS_COLOR: Color = Color(0.49411765, 0.79607844, 0.827451, 1.0)
+const _NOTIFICATION_WARNING_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+const _NOTIFICATION_ERROR_COLOR: Color = Color(0.827451, 0.38431373, 0.29411766, 1.0)
 const _ACTION_ICON_ASSET_KEYS: Dictionary = {
 	"%PauseButton": &"asset.texture.icon.pause",
 	"%UndoButton": &"asset.texture.icon.undo_2",
@@ -65,6 +70,8 @@ var _score_caption_label: Label
 var _moves_caption_label: Label
 var _highest_tile_caption_label: Label
 var _notification_label: RichTextLabel
+var _notification_panel: PanelContainer
+var _feedback_rail: VBoxContainer
 var _details_panel: Control
 var _details_toggle_button: Button
 var _active_notification_id: int = 0
@@ -135,6 +142,8 @@ func _ready() -> void:
 	_moves_caption_label = _get_label_node("%MovesCaptionLabel")
 	_highest_tile_caption_label = _get_label_node("%HighestTileCaptionLabel")
 	_notification_label = _get_rich_text_label_node("%NotificationLabel")
+	_notification_panel = _get_panel_container_node("%NotificationPanel")
+	_feedback_rail = _get_vbox_container_node("%FeedbackRail")
 	_details_panel = _get_control_node("%DetailsPanel")
 	_details_toggle_button = _get_button_node("%DetailsToggleButton")
 	_safe_area = _get_control_node("%SafeArea")
@@ -436,9 +445,12 @@ func _apply_semantic_styles() -> void:
 		_score_value_label,
 		_move_count_value_label,
 		_highest_tile_value_label,
-		_accessibility_subtitle_label,
 	]:
 		_ui_style_utility.style_label(value_label, GameUiStyleUtility.TextRole.NUMERIC)
+	_ui_style_utility.style_label(
+		_accessibility_subtitle_label,
+		GameUiStyleUtility.TextRole.SECONDARY
+	)
 	_ui_style_utility.style_rich_text_label(
 		_board_summary_label,
 		GameUiStyleUtility.TextRole.SECONDARY
@@ -476,6 +488,15 @@ func _apply_semantic_styles() -> void:
 func _apply_hud_layout() -> void:
 	if not is_node_ready():
 		return
+	var safe_width: float = (
+		_safe_area.size.x
+		if is_instance_valid(_safe_area) and _safe_area.size.x > 0.0
+		else 1280.0
+	)
+	var use_narrow_landscape_actions: bool = (
+		not _is_portrait_mode
+		and (_is_compact_mode or safe_width < 1100.0)
+	)
 	if is_instance_valid(_control_hint_panel):
 		_control_hint_panel.visible = _is_portrait_mode
 	if is_instance_valid(_hints):
@@ -499,17 +520,7 @@ func _apply_hud_layout() -> void:
 		_details_panel.offset_top = 124.0 if _is_portrait_mode else 66.0
 		_details_panel.offset_right = 300.0 if _is_portrait_mode else 318.0
 		_details_panel.offset_bottom = 532.0 if _is_portrait_mode else 490.0
-	if is_instance_valid(_accessibility_subtitle_panel):
-		_accessibility_subtitle_panel.offset_left = (
-			-250.0 if _is_portrait_mode else -300.0
-		)
-		_accessibility_subtitle_panel.offset_right = (
-			250.0 if _is_portrait_mode else 300.0
-		)
-	if is_instance_valid(_accessibility_subtitle_label):
-		_accessibility_subtitle_label.custom_minimum_size.x = (
-			460.0 if _is_portrait_mode else 560.0
-		)
+	_apply_feedback_rail_layout()
 
 	if is_instance_valid(_control_hint_panel) and _is_portrait_mode:
 		_control_hint_panel.offset_left = 0.0
@@ -517,17 +528,29 @@ func _apply_hud_layout() -> void:
 		_control_hint_panel.offset_right = 152.0
 		_control_hint_panel.offset_bottom = 0.0
 	if is_instance_valid(_action_panel):
-		_action_panel.offset_left = -264.0 if _is_portrait_mode else -342.0
+		_action_panel.offset_left = (
+			-264.0
+			if _is_portrait_mode
+			else (-282.0 if use_narrow_landscape_actions else -342.0)
+		)
 		_action_panel.offset_top = -60.0 if _is_portrait_mode else -78.0
 		_action_panel.offset_right = 0.0 if _is_portrait_mode else -18.0
 		_action_panel.offset_bottom = 0.0 if _is_portrait_mode else -18.0
 	if is_instance_valid(_hint_result_panel):
-		_hint_result_panel.offset_left = -320.0 if _is_portrait_mode else -378.0
+		_hint_result_panel.offset_left = (
+			-320.0
+			if _is_portrait_mode
+			else (-282.0 if use_narrow_landscape_actions else -378.0)
+		)
 		_hint_result_panel.offset_top = -174.0 if _is_portrait_mode else -190.0
 		_hint_result_panel.offset_right = 0.0 if _is_portrait_mode else -18.0
 		_hint_result_panel.offset_bottom = -68.0 if _is_portrait_mode else -86.0
 	if is_instance_valid(_hint_result_label):
-		_hint_result_label.custom_minimum_size.x = 296.0 if _is_portrait_mode else 336.0
+		_hint_result_label.custom_minimum_size.x = (
+			296.0
+			if _is_portrait_mode
+			else (240.0 if use_narrow_landscape_actions else 336.0)
+		)
 	for action_name: String in [
 		"%PauseButton",
 		"%UndoButton",
@@ -537,7 +560,65 @@ func _apply_hud_layout() -> void:
 	]:
 		var action_button: Button = _get_button_node(NodePath(action_name))
 		if is_instance_valid(action_button):
-			action_button.custom_minimum_size.x = 44.0 if _is_portrait_mode else 54.0
+			action_button.custom_minimum_size.x = (
+				44.0
+				if _is_portrait_mode or use_narrow_landscape_actions
+				else 54.0
+			)
+
+
+func _apply_feedback_rail_layout() -> void:
+	if not is_instance_valid(_feedback_rail):
+		return
+	if _is_portrait_mode:
+		var safe_width: float = (
+			_safe_area.size.x
+			if is_instance_valid(_safe_area) and _safe_area.size.x > 0.0
+			else 390.0
+		)
+		var rail_width: float = clampf(safe_width - 24.0, 280.0, 500.0)
+		_feedback_rail.anchor_left = 0.5
+		_feedback_rail.anchor_top = 1.0
+		_feedback_rail.anchor_right = 0.5
+		_feedback_rail.anchor_bottom = 1.0
+		_feedback_rail.offset_left = -rail_width * 0.5
+		_feedback_rail.offset_top = -268.0
+		_feedback_rail.offset_right = rail_width * 0.5
+		_feedback_rail.offset_bottom = -116.0
+		return
+
+	var landscape_rail_width: float = 244.0 if _is_compact_mode else 320.0
+	var rail_top: float = 84.0 if _is_compact_mode else 106.0
+	_feedback_rail.anchor_left = 1.0
+	_feedback_rail.anchor_top = 0.0
+	_feedback_rail.anchor_right = 1.0
+	_feedback_rail.anchor_bottom = 0.0
+	_feedback_rail.offset_left = -landscape_rail_width - 18.0
+	_feedback_rail.offset_top = rail_top
+	_feedback_rail.offset_right = -18.0
+	_feedback_rail.offset_bottom = rail_top + 180.0
+
+
+func _apply_notification_level(level: int) -> void:
+	if not is_instance_valid(_notification_panel):
+		return
+	var border_color: Color = _NOTIFICATION_INFO_COLOR
+	match level:
+		GFNotificationUtility.Level.SUCCESS:
+			border_color = _NOTIFICATION_SUCCESS_COLOR
+		GFNotificationUtility.Level.WARNING:
+			border_color = _NOTIFICATION_WARNING_COLOR
+		GFNotificationUtility.Level.ERROR:
+			border_color = _NOTIFICATION_ERROR_COLOR
+	var stylebox: StyleBox = _notification_panel.get_theme_stylebox("panel")
+	if not stylebox is StyleBoxFlat:
+		return
+	var duplicated_stylebox: Resource = stylebox.duplicate()
+	if not duplicated_stylebox is StyleBoxFlat:
+		return
+	var level_style: StyleBoxFlat = duplicated_stylebox
+	level_style.border_color = border_color
+	_notification_panel.add_theme_stylebox_override("panel", level_style)
 
 
 func _extract_caption(template: String, fallback: String, missing_key: String) -> String:
@@ -584,6 +665,20 @@ func _pulse_control(control: Control) -> void:
 		_FEEDBACK_SCALE,
 		_FEEDBACK_COLOR,
 		_FEEDBACK_DURATION
+	)
+
+
+func _pulse_notification_surface() -> void:
+	var target: Control = _notification_label
+	if is_instance_valid(_notification_panel):
+		target = _notification_panel
+	if not is_instance_valid(target) or not is_instance_valid(_ui_motion_utility):
+		return
+	var _feedback_tween: Tween = _ui_motion_utility.play_control_pulse(
+		target,
+		1.015,
+		Color.WHITE,
+		0.16
 	)
 
 
@@ -1116,14 +1211,26 @@ func _sync_active_notification() -> void:
 	_on_notification_started(notification_record)
 
 
-func _set_notification_message(notification_id: int, message: String) -> void:
+func _set_notification_message(
+	notification_id: int,
+	message: String,
+	level: int = GFNotificationUtility.Level.INFO
+) -> void:
 	_active_notification_id = notification_id
 	if not is_instance_valid(_notification_label):
 		return
 	_notification_label.text = message
-	_notification_label.visible = not message.is_empty()
+	_notification_label.add_theme_color_override(
+		"default_color",
+		_NOTIFICATION_TEXT_COLOR
+	)
+	if is_instance_valid(_notification_panel):
+		_notification_panel.visible = not message.is_empty()
+		_apply_notification_level(level)
+	else:
+		_notification_label.visible = not message.is_empty()
 	if not message.is_empty():
-		_pulse_control(_notification_label)
+		_pulse_notification_surface()
 
 
 static func _is_display_value_empty(value: Variant) -> bool:
@@ -1289,14 +1396,19 @@ func _on_copy_board_summary_pressed() -> void:
 func _on_notification_started(notification_record: Dictionary) -> void:
 	_set_notification_message(
 		GFVariantData.get_option_int(notification_record, "id"),
-		GFVariantData.get_option_string(notification_record, "message")
+		GFVariantData.get_option_string(notification_record, "message"),
+		GFVariantData.get_option_int(
+			notification_record,
+			"level",
+			GFNotificationUtility.Level.INFO
+		)
 	)
 
 
 func _on_notification_finished(notification_record: Dictionary, _reason: String) -> void:
 	var notification_id: int = GFVariantData.get_option_int(notification_record, "id")
 	if notification_id == _active_notification_id:
-		_set_notification_message(0, "")
+		_set_notification_message(0, "", GFNotificationUtility.Level.INFO)
 
 
 func _on_ratio_resolutions_changed(_old: int, _new: int) -> void:

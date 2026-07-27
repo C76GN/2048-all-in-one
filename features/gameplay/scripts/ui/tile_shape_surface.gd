@@ -10,8 +10,8 @@ extends Control
 
 const _DEFAULT_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
 const _DEFAULT_SCALE: Vector2 = Vector2(0.94, 0.94)
-const _DEFAULT_SHADOW_OFFSET: Vector2 = Vector2(1.5, 1.5)
-const _SHADOW_ALPHA: float = 0.14
+const _DEFAULT_SHADOW_OFFSET: Vector2 = Vector2(3.5, 3.5)
+const _SHADOW_ALPHA: float = 0.20
 
 
 # --- 私有变量 ---

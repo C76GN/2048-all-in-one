@@ -85,6 +85,10 @@ func test_invalid_move_feedback_uses_gf_notification_queue() -> void:
 		GFVariantData.get_option_int(notification_record, "level") == GFNotificationUtility.Level.WARNING,
 		"无效移动应进入 GF 警告级通知队列。"
 	)
+	assert_false(
+		GFVariantData.get_option_string(notification_record, "message").contains("[color="),
+		"通知翻译只负责文案；警告颜色必须由 HUD 的高对比语义表面负责。"
+	)
 
 
 func test_player_input_discards_gameplay_actions_while_time_is_paused() -> void:

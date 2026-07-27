@@ -10,7 +10,7 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 
 const _LOG_TAG: String = "GameFlowSystem"
 const _TARGET_REACHED_MESSAGE_DURATION: float = 4.0
-const _TARGET_REACHED_MESSAGE_FALLBACK: String = "[color=green]已达成目标 %d！可以继续挑战更高方块。[/color]"
+const _TARGET_REACHED_MESSAGE_FALLBACK: String = "已达成目标 %d！可以继续挑战更高方块。"
 const _NOTIFICATION_SURFACE: String = "gameplay_hud"
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
 

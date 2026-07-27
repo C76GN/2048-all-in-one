@@ -23,6 +23,14 @@ const _PORTRAIT_HEIGHT_RATIO: float = 1.08
 const _DESKTOP_GUTTER: float = 16.0
 const _COMPACT_GUTTER: float = 10.0
 const _PORTRAIT_GUTTER: float = 8.0
+const _DESKTOP_FEEDBACK_MOTION_INSET: float = 110.0
+const _DESKTOP_FEEDBACK_MOTION_MAX_WIDTH: float = 1400.0
+const _COMPACT_FEEDBACK_RAIL_INSET: float = 330.0
+const _COMPACT_FEEDBACK_RAIL_REQUIRED_ROOM: float = 322.0
+const _LANDSCAPE_MOTION_GUARD: float = 50.0
+const _DESKTOP_ACTION_PANEL_LEFT_INSET: float = 342.0
+const _COMPACT_ACTION_PANEL_LEFT_INSET: float = 282.0
+const _RIGHT_INSET_SOLVER_STEPS: int = 20
 const _DESKTOP_BOARD_FIT_INSETS: Dictionary = {
 	"top": 92.0,
 	"left": 10.0,
@@ -101,6 +109,11 @@ func _ready() -> void:
 		_on_platform_context_changed,
 		self
 	)
+	var _board_geometry_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_board_world_viewport_controller.content_geometry_changed,
+		_on_board_content_geometry_changed,
+		self
+	)
 	_queue_layout_update()
 
 
@@ -148,15 +161,51 @@ func set_replay_mode_active(is_active: bool) -> void:
 
 ## 返回当前布局用于棋盘完整聚焦的 HUD 屏幕边距。
 ## @param mode: 要查询的响应式布局模式。
+## @param viewport_size: 可选的棋盘宿主视口尺寸，用于横屏 HUD 与动效包络让位。
+## @param content_aspect_ratio: 当前棋盘世界包围盒的实际宽高比。
 ## @return 对应布局的四向 HUD 屏幕边距。
-static func get_board_fit_insets(mode: LayoutMode) -> Dictionary:
+static func get_board_fit_insets(
+	mode: LayoutMode,
+	viewport_size: Vector2 = Vector2.ZERO,
+	content_aspect_ratio: float = 1.0
+) -> Dictionary:
 	match mode:
 		LayoutMode.COMPACT_LANDSCAPE:
-			return _COMPACT_BOARD_FIT_INSETS.duplicate(true)
+			var compact_insets: Dictionary = _COMPACT_BOARD_FIT_INSETS.duplicate(true)
+			if viewport_size.x > 0.0 and viewport_size.y > 0.0:
+				var board_height: float = maxf(
+					viewport_size.y
+					- GFVariantData.get_option_float(compact_insets, "top")
+					- GFVariantData.get_option_float(compact_insets, "bottom"),
+					1.0
+				)
+				var natural_side_room: float = maxf(
+					(viewport_size.x - board_height) * 0.5,
+					0.0
+				)
+				if natural_side_room < _COMPACT_FEEDBACK_RAIL_REQUIRED_ROOM:
+					compact_insets["right"] = _COMPACT_FEEDBACK_RAIL_INSET
+			return _apply_landscape_board_clearance(
+				compact_insets,
+				mode,
+				viewport_size,
+				content_aspect_ratio
+			)
 		LayoutMode.PORTRAIT:
 			return _PORTRAIT_BOARD_FIT_INSETS.duplicate(true)
 		_:
-			return _DESKTOP_BOARD_FIT_INSETS.duplicate(true)
+			var desktop_insets: Dictionary = _DESKTOP_BOARD_FIT_INSETS.duplicate(true)
+			if (
+				viewport_size.x > 0.0
+				and viewport_size.x <= _DESKTOP_FEEDBACK_MOTION_MAX_WIDTH
+			):
+				desktop_insets["right"] = _DESKTOP_FEEDBACK_MOTION_INSET
+			return _apply_landscape_board_clearance(
+				desktop_insets,
+				mode,
+				viewport_size,
+				content_aspect_ratio
+			)
 
 
 ## 计算棋盘视口在安全区和玩法留白内应占用的稳定尺寸。
@@ -186,6 +235,58 @@ static func calculate_board_viewport_minimum(
 
 
 # --- 私有/辅助方法 ---
+
+static func _apply_landscape_board_clearance(
+	insets: Dictionary,
+	mode: LayoutMode,
+	viewport_size: Vector2,
+	content_aspect_ratio: float
+) -> Dictionary:
+	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return insets
+	var action_panel_left_inset: float = (
+		_COMPACT_ACTION_PANEL_LEFT_INSET
+		if mode == LayoutMode.COMPACT_LANDSCAPE
+		else _DESKTOP_ACTION_PANEL_LEFT_INSET
+	)
+	var protected_right_boundary: float = (
+		viewport_size.x
+		- action_panel_left_inset
+		- _LANDSCAPE_MOTION_GUARD
+	)
+	var fitted_rect: Rect2 = (
+		BoardWorldViewportController.calculate_fitted_content_screen_rect(
+			viewport_size,
+			insets,
+			content_aspect_ratio
+		)
+	)
+	if fitted_rect.end.x <= protected_right_boundary:
+		return insets
+
+	var left_inset: float = GFVariantData.get_option_float(insets, "left")
+	var lower_right_inset: float = GFVariantData.get_option_float(insets, "right")
+	var upper_right_inset: float = maxf(
+		viewport_size.x - maxf(left_inset, 0.0) - 1.0,
+		lower_right_inset
+	)
+	for _iteration_index: int in range(_RIGHT_INSET_SOLVER_STEPS):
+		var candidate_right_inset: float = (
+			lower_right_inset + upper_right_inset
+		) * 0.5
+		insets["right"] = candidate_right_inset
+		fitted_rect = BoardWorldViewportController.calculate_fitted_content_screen_rect(
+			viewport_size,
+			insets,
+			content_aspect_ratio
+		)
+		if fitted_rect.end.x <= protected_right_boundary:
+			upper_right_inset = candidate_right_inset
+		else:
+			lower_right_inset = candidate_right_inset
+	insets["right"] = ceilf(upper_right_inset)
+	return insets
+
 
 func _resolve_nodes() -> void:
 	var host_value: Node = get_host_as(Control)
@@ -260,11 +361,12 @@ func _apply_current_layout() -> void:
 	var safe_area: Dictionary = _viewport_utility.get_display_safe_area_margins(
 		_root_control.get_viewport()
 	)
-	_board_viewport.custom_minimum_size = calculate_board_viewport_minimum(
+	var board_viewport_size: Vector2 = calculate_board_viewport_minimum(
 		_root_control.size,
 		safe_area,
 		gutter
 	)
+	_board_viewport.custom_minimum_size = board_viewport_size
 	_hud.apply_screen_insets({
 		"top": GFVariantData.get_option_float(safe_area, "top") + gutter,
 		"left": GFVariantData.get_option_float(safe_area, "left") + gutter,
@@ -274,7 +376,11 @@ func _apply_current_layout() -> void:
 	_hud.set_compact_mode(_current_layout_mode != LayoutMode.DESKTOP)
 	_hud.set_portrait_mode(_current_layout_mode == LayoutMode.PORTRAIT)
 	_apply_replay_controls_layout(_current_layout_mode)
-	var board_fit_insets: Dictionary = get_board_fit_insets(_current_layout_mode)
+	var board_fit_insets: Dictionary = get_board_fit_insets(
+		_current_layout_mode,
+		board_viewport_size,
+		_board_world_viewport_controller.get_content_aspect_ratio()
+	)
 	if _replay_mode_active and _current_layout_mode != LayoutMode.DESKTOP:
 		board_fit_insets["bottom"] = maxf(
 			GFVariantData.get_option_float(board_fit_insets, "bottom"),
@@ -320,6 +426,10 @@ static func _get_layout_gutter(mode: LayoutMode) -> float:
 
 
 func _on_platform_context_changed(_context: GFPlatformRuntimeContext) -> void:
+	_queue_layout_update()
+
+
+func _on_board_content_geometry_changed(_content_rect: Rect2) -> void:
 	_queue_layout_update()
 
 

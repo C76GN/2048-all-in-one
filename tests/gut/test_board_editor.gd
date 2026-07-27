@@ -258,6 +258,15 @@ func test_board_editor_initial_focus_matches_the_visible_responsive_section() ->
 	)
 
 
+func test_board_editor_repairs_missing_focus_after_late_desktop_layout() -> void:
+	await _assert_board_editor_initial_focus(
+		Vector2(1280.0, 720.0),
+		BoardEditorResponsiveLayoutController.LayoutMode.DESKTOP,
+		&"BrushButton",
+		true
+	)
+
+
 func test_board_editor_uses_feature_owned_gf_input_and_signal_contracts() -> void:
 	var action_ids: Array[StringName] = []
 	for mapping: GFInputMapping in _BOARD_EDITOR_INPUT_CONTEXT.mappings:
@@ -368,7 +377,8 @@ func _make_template() -> BoardTopologyTemplate:
 func _assert_board_editor_initial_focus(
 	viewport_size: Vector2,
 	expected_layout: BoardEditorResponsiveLayoutController.LayoutMode,
-	expected_focus_name: StringName
+	expected_focus_name: StringName,
+	exercise_late_repair: bool = false
 ) -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	await architecture.register_utility(GFPlatformRuntime, GFPlatformRuntime.new())
@@ -399,6 +409,16 @@ func _assert_board_editor_initial_focus(
 	) as BoardEditorResponsiveLayoutController
 	var expected_focus: Control = panel.find_child(String(expected_focus_name), true, false) as Control
 	var focus_owner: Control = get_viewport().gui_get_focus_owner()
+	if exercise_late_repair:
+		assert_not_null(focus_owner, "测试前应已建立首焦点。")
+		if focus_owner != null:
+			focus_owner.release_focus()
+		panel.size = viewport_size - Vector2(1.0, 0.0)
+		await get_tree().process_frame
+		panel.size = viewport_size
+		await get_tree().process_frame
+		await get_tree().process_frame
+		focus_owner = get_viewport().gui_get_focus_owner()
 	assert_not_null(responsive)
 	if responsive != null:
 		assert_true(

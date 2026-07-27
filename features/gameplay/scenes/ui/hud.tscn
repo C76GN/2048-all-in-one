@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://cjq41cf2jqg1h"]
+[gd_scene load_steps=5 format=3 uid="uid://cjq41cf2jqg1h"]
 
 [ext_resource type="Script" uid="uid://c3xlbn570oc40" path="res://features/gameplay/scripts/ui/hud.gd" id="1_hud"]
 
@@ -25,6 +25,18 @@ corner_radius_top_left = 3
 corner_radius_top_right = 3
 corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_notification_panel"]
+bg_color = Color(1, 0.972549, 0.9098039, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="Hud" type="Control"]
 anchors_preset = 15
@@ -136,25 +148,47 @@ theme_override_font_sizes/font_size = 24
 text = "0"
 horizontal_alignment = 1
 
-[node name="NotificationLabel" type="RichTextLabel" parent="SafeArea"]
+[node name="FeedbackRail" type="VBoxContainer" parent="SafeArea"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -338.0
+offset_top = 106.0
+offset_right = -18.0
+offset_bottom = 286.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="NotificationPanel" type="PanelContainer" parent="SafeArea/FeedbackRail"]
 unique_name_in_owner = true
 visible = false
-layout_mode = 1
-anchors_preset = 10
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -280.0
-offset_top = 78.0
-offset_right = 280.0
-offset_bottom = 120.0
-grow_horizontal = 2
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
 mouse_filter = 2
-bbcode_enabled = true
+theme_override_styles/panel = SubResource("StyleBoxFlat_notification_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/FeedbackRail/NotificationPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="NotificationLabel" type="RichTextLabel" parent="SafeArea/FeedbackRail/NotificationPanel/Margin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+mouse_filter = 2
+bbcode_enabled = false
 fit_content = true
 scroll_active = false
 autowrap_mode = 3
 theme_override_colors/default_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
-horizontal_alignment = 1
+theme_override_font_sizes/normal_font_size = 16
+horizontal_alignment = 0
 
 [node name="DetailsToggleButton" type="Button" parent="SafeArea"]
 unique_name_in_owner = true
@@ -218,35 +252,28 @@ custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 text = "复制棋盘摘要"
 
-[node name="AccessibilitySubtitlePanel" type="PanelContainer" parent="SafeArea"]
+[node name="AccessibilitySubtitlePanel" type="PanelContainer" parent="SafeArea/FeedbackRail"]
 unique_name_in_owner = true
 visible = false
-layout_mode = 1
-anchors_preset = 10
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -300.0
-offset_top = 126.0
-offset_right = 300.0
-offset_bottom = 184.0
-grow_horizontal = 2
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
 
-[node name="Margin" type="MarginContainer" parent="SafeArea/AccessibilitySubtitlePanel"]
+[node name="Margin" type="MarginContainer" parent="SafeArea/FeedbackRail/AccessibilitySubtitlePanel"]
 layout_mode = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 9
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 9
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
 
-[node name="AccessibilitySubtitleLabel" type="Label" parent="SafeArea/AccessibilitySubtitlePanel/Margin"]
+[node name="AccessibilitySubtitleLabel" type="Label" parent="SafeArea/FeedbackRail/AccessibilitySubtitlePanel/Margin"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(560, 36)
+custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 mouse_filter = 2
 text = ""
-horizontal_alignment = 1
+horizontal_alignment = 0
 vertical_alignment = 1
 autowrap_mode = 3
 

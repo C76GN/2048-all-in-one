@@ -115,7 +115,7 @@ var _platform_utility: GamePlatformUtility
 var _current_layout_mode: LayoutMode = LayoutMode.DESKTOP
 var _current_mobile_section: MobileSection = MobileSection.EDITOR
 var _layout_update_queued: bool = false
-var _initial_focus_applied: bool = false
+var _focus_repair_queued: bool = false
 
 
 # --- Godot 生命周期方法 ---
@@ -303,7 +303,7 @@ func _apply_current_layout() -> void:
 		LayoutMode.PORTRAIT:
 			_apply_portrait_layout()
 	_apply_section_visibility()
-	_apply_initial_focus_after_layout()
+	_queue_focus_repair_after_layout()
 
 
 func _apply_desktop_layout() -> void:
@@ -367,10 +367,22 @@ func _apply_section_visibility() -> void:
 
 
 ## GF 会在面板入栈时按场景树顺序分配焦点；此时移动分区尚未完成布局，桌面
-## 会错误命中随后隐藏的 EditorSectionButton。布局稳定后只修正一次，
-## 既保证首焦点可见，也不在窗口缩放时抢走玩家当前焦点。
-func _apply_initial_focus_after_layout() -> void:
-	if _initial_focus_applied:
+## 可能命中随后隐藏的 EditorSectionButton。再延迟一拍，等待容器可见性和
+## 路由首焦点策略稳定后修复；已有的编辑器内有效焦点不会被窗口缩放抢走。
+func _queue_focus_repair_after_layout() -> void:
+	if _focus_repair_queued:
+		return
+	_focus_repair_queued = true
+	call_deferred(&"_repair_focus_after_layout")
+
+
+func _repair_focus_after_layout() -> void:
+	_focus_repair_queued = false
+	if not is_inside_tree() or not _has_required_dependencies():
+		return
+	var viewport: Viewport = _root_control.get_viewport()
+	var focus_owner: Control = viewport.gui_get_focus_owner() if viewport != null else null
+	if _is_valid_editor_focus(focus_owner):
 		return
 	var target: Button = (
 		_brush_button
@@ -380,7 +392,19 @@ func _apply_initial_focus_after_layout() -> void:
 	if not is_instance_valid(target) or not target.is_visible_in_tree() or target.disabled:
 		return
 	target.grab_focus()
-	_initial_focus_applied = true
+
+
+func _is_valid_editor_focus(focus_owner: Control) -> bool:
+	if not is_instance_valid(focus_owner):
+		return false
+	if focus_owner != _root_control and not _root_control.is_ancestor_of(focus_owner):
+		return false
+	if not focus_owner.is_visible_in_tree() or focus_owner.focus_mode == Control.FOCUS_NONE:
+		return false
+	if focus_owner is BaseButton:
+		var button: BaseButton = focus_owner
+		return not button.disabled
+	return true
 
 
 func _set_tool_support_visible(is_visible: bool) -> void:

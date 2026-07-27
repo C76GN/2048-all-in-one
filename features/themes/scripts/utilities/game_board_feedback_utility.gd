@@ -108,6 +108,7 @@ func classify_turn(
 ## @param tier: 已分类的回合反馈等级。
 ## @param board_rect: 棋盘在反馈画布中的边界。
 ## @param accent_color: 方块或主题提供的附加强调色。
+## @param backdrop: 可选的棋盘后层棋格与纸片反馈节点。
 func play_turn_feedback(
 	root: Node2D,
 	canvas: BoardFeedbackCanvas,
@@ -115,7 +116,8 @@ func play_turn_feedback(
 	direction: Vector2i,
 	tier: FeedbackTier,
 	board_rect: Rect2,
-	accent_color: Color = Color.WHITE
+	accent_color: Color = Color.WHITE,
+	backdrop: BoardMotionBackdrop = null
 ) -> int:
 	if (
 		not is_instance_valid(root)
@@ -142,15 +144,26 @@ func play_turn_feedback(
 		recipe.get_color(state.high_contrast_feedback),
 		0.48
 	)
-	return canvas.play_turn_impact(
+	var canvas_fragment_count: int = 0 if is_instance_valid(backdrop) else fragment_count
+	var _canvas_feedback_count: int = canvas.play_turn_impact(
 		board_rect,
 		direction_vector,
 		int(tier),
-		fragment_count,
+		canvas_fragment_count,
 		resolved_color,
-		(recipe.impact_duration + recipe.settle_duration + 0.07) * budget.duration_scale,
+		recipe.background_duration * budget.duration_scale,
 		budget.motion_scale
 	)
+	if is_instance_valid(backdrop):
+		backdrop.play_turn_impulse(
+			direction_vector,
+			int(tier),
+			recipe.background_duration * budget.duration_scale,
+			budget.motion_scale,
+			resolved_color,
+			fragment_count
+		)
+	return fragment_count
 
 
 ## 播放单方块生成、合并或转化配方。
@@ -224,46 +237,46 @@ func _play_root_impulse(
 		0.01
 	)
 
-	root.position = base_position - direction * impulse
-	root.rotation_degrees = -rotation_sign * rotation_degrees
-	root.scale = impact_scale
-	root.skew = deg_to_rad(rotation_sign * rotation_degrees * 0.22)
+	root.position = base_position
+	root.rotation_degrees = 0.0
+	root.scale = Vector2.ONE
+	root.skew = 0.0
 
 	var tween: Tween = root.create_tween()
 	var impact_position: PropertyTweener = tween.tween_property(
 		root,
 		"position",
-		base_position + direction * impulse * 0.24,
+		base_position - direction * impulse,
 		impact_duration
 	)
-	var _impact_position_curve: Tweener = impact_position.set_trans(Tween.TRANS_CUBIC).set_ease(
+	var _impact_position_curve: Tweener = impact_position.set_trans(Tween.TRANS_QUAD).set_ease(
 		Tween.EASE_OUT
 	)
 	var impact_rotation: PropertyTweener = tween.parallel().tween_property(
 		root,
 		"rotation_degrees",
-		rotation_sign * rotation_degrees * 0.30,
+		-rotation_sign * rotation_degrees,
 		impact_duration
 	)
-	var _impact_rotation_curve: Tweener = impact_rotation.set_trans(Tween.TRANS_CUBIC).set_ease(
+	var _impact_rotation_curve: Tweener = impact_rotation.set_trans(Tween.TRANS_QUAD).set_ease(
 		Tween.EASE_OUT
 	)
 	var impact_scale_tween: PropertyTweener = tween.parallel().tween_property(
 		root,
 		"scale",
-		Vector2(2.0 - impact_scale.x, 2.0 - impact_scale.y),
+		impact_scale,
 		impact_duration
 	)
-	var _impact_scale_curve: Tweener = impact_scale_tween.set_trans(Tween.TRANS_CUBIC).set_ease(
+	var _impact_scale_curve: Tweener = impact_scale_tween.set_trans(Tween.TRANS_QUAD).set_ease(
 		Tween.EASE_OUT
 	)
 	var impact_skew: PropertyTweener = tween.parallel().tween_property(
 		root,
 		"skew",
-		deg_to_rad(-rotation_sign * rotation_degrees * 0.07),
+		deg_to_rad(rotation_sign * rotation_degrees * 0.18),
 		impact_duration
 	)
-	var _impact_skew_curve: Tweener = impact_skew.set_trans(Tween.TRANS_CUBIC).set_ease(
+	var _impact_skew_curve: Tweener = impact_skew.set_trans(Tween.TRANS_QUAD).set_ease(
 		Tween.EASE_OUT
 	)
 

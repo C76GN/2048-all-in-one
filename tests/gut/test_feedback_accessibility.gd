@@ -87,10 +87,15 @@ func test_minimal_budget_shortens_and_softens_core_tile_motion() -> void:
 	assert_not_null(motion_profile, "棋盘反馈 Profile 必须拥有统一的 Tile 动画节拍。")
 	assert_true(motion_profile.is_valid_profile(), "正式 Tile 动画节拍必须完整有效。")
 	assert_true(
-		is_equal_approx(motion_profile.move_duration, 0.10)
-		and is_equal_approx(motion_profile.spawn_duration, 0.14)
-		and is_equal_approx(motion_profile.merge_pulse_duration, 0.085),
-		"完整档必须保持迁移前的核心动画节拍。"
+		is_equal_approx(motion_profile.move_duration, 0.14)
+		and is_equal_approx(motion_profile.spawn_duration, 0.11)
+		and is_equal_approx(motion_profile.merge_pulse_duration, 0.09),
+		"完整档必须保持逐帧标定后的核心动画节拍。"
+	)
+	assert_true(
+		motion_profile.spawn_start_scale > 1.0
+		and motion_profile.spawn_start_rotation_degrees >= 10.0,
+		"新方块应以略放大、带方向的纸片落定替代透明小点淡入。"
 	)
 
 	var minimal_state: GameAccessibilityState = GameAccessibilityState.new()
@@ -114,7 +119,7 @@ func test_minimal_budget_shortens_and_softens_core_tile_motion() -> void:
 		"MINIMAL 仍应保留短促且可排队等待的核心动画。"
 	)
 	assert_true(
-		tile.scale.x > motion_profile.spawn_start_scale and tile.scale.x < 1.0,
+		tile.scale.x > 1.0 and tile.scale.x < motion_profile.spawn_start_scale,
 		"MINIMAL 的生成缩放幅度必须比完整档更接近静止状态。"
 	)
 	tile.reset_animation_state()
@@ -161,6 +166,7 @@ func test_reduced_motion_snaps_core_tile_animation_and_preserves_impacts() -> vo
 		"减少动态时生成必须直接显示最终状态。"
 	)
 
+	tile.rotation_degrees = 7.0
 	assert_null(
 		tile.animate_merge(
 			tile.set_meta.bind(&"_test_merge_impact", true),
@@ -173,6 +179,10 @@ func test_reduced_motion_snaps_core_tile_animation_and_preserves_impacts() -> vo
 	assert_true(
 		GFVariantData.to_bool(tile.get_meta(&"_test_merge_impact", false)),
 		"减少动态仍必须同步执行合并冲击回调。"
+	)
+	assert_true(
+		is_zero_approx(tile.rotation_degrees),
+		"减少动态时合并必须清除可能残留的纸片旋转。"
 	)
 	assert_null(
 		tile.animate_transform(
@@ -254,6 +264,61 @@ func test_reduced_motion_disables_shake_haptics_and_background_impulse() -> void
 		"减少动态效果必须清零背景交互能量。"
 	)
 	architecture.dispose()
+
+
+func test_board_backdrop_rotation_respects_budget_and_rectangular_geometry() -> void:
+	var backdrop: BoardMotionBackdrop = BoardMotionBackdrop.new()
+	add_child_autofree(backdrop)
+	backdrop.set_board_size(Vector2(400.0, 400.0))
+	backdrop.play_turn_impulse(
+		Vector2.RIGHT,
+		GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE,
+		0.6,
+		0.25,
+		Color.WHITE,
+		0
+	)
+	backdrop._process(0.32)
+	assert_almost_eq(
+		absf(rad_to_deg(backdrop.rotation)),
+		22.5,
+		0.2,
+		"MINIMAL 动态预算只能保留四分之一的棋格旋转。"
+	)
+
+	backdrop.reset_feedback()
+	backdrop.set_board_size(Vector2(600.0, 400.0))
+	backdrop.play_turn_impulse(
+		Vector2.RIGHT,
+		GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE,
+		0.5,
+		1.0,
+		Color.WHITE,
+		0
+	)
+	backdrop._process(0.12)
+	assert_lte(
+		absf(rad_to_deg(backdrop.rotation)),
+		6.1,
+		"宽矩形棋盘只允许短促的小角度背景受力。"
+	)
+	backdrop._process(0.38)
+	assert_almost_eq(
+		backdrop.rotation,
+		0.0,
+		0.001,
+		"宽矩形棋盘反馈结束后必须回正，不能永久交换长宽轴。"
+	)
+
+	backdrop.play_turn_impulse(
+		Vector2.RIGHT,
+		GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE,
+		0.5,
+		0.0,
+		Color.WHITE,
+		0
+	)
+	assert_almost_eq(backdrop.rotation, 0.0, 0.001, "减少动态效果必须立即清除背景旋转。")
 
 
 # --- 私有/辅助方法 ---

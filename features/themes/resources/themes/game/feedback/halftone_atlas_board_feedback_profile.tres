@@ -8,39 +8,39 @@
 
 [sub_resource type="Resource" id="Resource_move_shake"]
 script = ExtResource("3_shake")
-duration_seconds = 0.12
-amplitude = 0.46
-frequency = 24.0
+duration_seconds = 0.18
+amplitude = 0.18
+frequency = 18.0
 waveform = 2
 position_axis = Vector3(1, 0.55, 0)
-rotation_axis_degrees = Vector3(0, 0, 0.08)
+rotation_axis_degrees = Vector3(0, 0, 0.03)
 
 [sub_resource type="Resource" id="Resource_merge_shake"]
 script = ExtResource("3_shake")
-duration_seconds = 0.16
-amplitude = 0.92
-frequency = 28.0
+duration_seconds = 0.22
+amplitude = 0.34
+frequency = 19.0
 waveform = 2
 position_axis = Vector3(1, 0.55, 0)
-rotation_axis_degrees = Vector3(0, 0, 0.16)
+rotation_axis_degrees = Vector3(0, 0, 0.05)
 
 [sub_resource type="Resource" id="Resource_high_merge_shake"]
 script = ExtResource("3_shake")
-duration_seconds = 0.2
-amplitude = 1.44
-frequency = 31.0
+duration_seconds = 0.26
+amplitude = 0.52
+frequency = 20.0
 waveform = 2
 position_axis = Vector3(1, 0.55, 0)
-rotation_axis_degrees = Vector3(0, 0, 0.24)
+rotation_axis_degrees = Vector3(0, 0, 0.07)
 
 [sub_resource type="Resource" id="Resource_record_shake"]
 script = ExtResource("3_shake")
-duration_seconds = 0.24
-amplitude = 1.9
-frequency = 34.0
+duration_seconds = 0.30
+amplitude = 0.72
+frequency = 21.0
 waveform = 2
 position_axis = Vector3(1, 0.55, 0)
-rotation_axis_degrees = Vector3(0, 0, 0.34)
+rotation_axis_degrees = Vector3(0, 0, 0.10)
 
 [sub_resource type="Resource" id="Resource_move_haptic"]
 script = ExtResource("4_haptic")
@@ -76,14 +76,14 @@ recipe_id = &"feedback.turn.move"
 accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
 shake_preset = SubResource("Resource_move_shake")
 haptic_preset = SubResource("Resource_move_haptic")
-root_impulse = 8.0
-root_rotation_degrees = 1.6
-root_compression = 0.025
-impact_duration = 0.055
-settle_duration = 0.15
-background_duration = 0.325
-background_energy = 0.38
-edge_fragment_count = 5
+root_impulse = 18.0
+root_rotation_degrees = 4.0
+root_compression = 0.030
+impact_duration = 0.10
+settle_duration = 0.20
+background_duration = 0.44
+background_energy = 0.52
+edge_fragment_count = 0
 
 [sub_resource type="Resource" id="Recipe_turn_merge"]
 script = ExtResource("2_recipe")
@@ -91,13 +91,13 @@ recipe_id = &"feedback.turn.merge"
 accent_color = Color(0.8745098, 0.6901961, 0.3019608, 1)
 shake_preset = SubResource("Resource_merge_shake")
 haptic_preset = SubResource("Resource_merge_haptic")
-root_impulse = 14.0
-root_rotation_degrees = 2.6
-root_compression = 0.036
-impact_duration = 0.061
-settle_duration = 0.168
-background_duration = 0.349
-background_energy = 0.62
+root_impulse = 20.0
+root_rotation_degrees = 5.0
+root_compression = 0.038
+impact_duration = 0.10
+settle_duration = 0.22
+background_duration = 0.52
+background_energy = 0.68
 edge_fragment_count = 8
 
 [sub_resource type="Resource" id="Recipe_turn_high_merge"]
@@ -106,14 +106,14 @@ recipe_id = &"feedback.turn.high_merge"
 accent_color = Color(0.827451, 0.38431373, 0.29411766, 1)
 shake_preset = SubResource("Resource_high_merge_shake")
 haptic_preset = SubResource("Resource_high_merge_haptic")
-root_impulse = 20.0
-root_rotation_degrees = 4.0
-root_compression = 0.047
-impact_duration = 0.067
-settle_duration = 0.186
-background_duration = 0.373
-background_energy = 0.84
-edge_fragment_count = 13
+root_impulse = 22.0
+root_rotation_degrees = 5.5
+root_compression = 0.044
+impact_duration = 0.11
+settle_duration = 0.24
+background_duration = 0.60
+background_energy = 0.86
+edge_fragment_count = 14
 
 [sub_resource type="Resource" id="Recipe_turn_record"]
 script = ExtResource("2_recipe")
@@ -121,12 +121,12 @@ recipe_id = &"feedback.turn.record"
 accent_color = Color(0.8745098, 0.29411766, 0.6039216, 1)
 shake_preset = SubResource("Resource_record_shake")
 haptic_preset = SubResource("Resource_record_haptic")
-root_impulse = 26.0
-root_rotation_degrees = 5.2
-root_compression = 0.058
-impact_duration = 0.073
-settle_duration = 0.204
-background_duration = 0.397
+root_impulse = 22.0
+root_rotation_degrees = 5.5
+root_compression = 0.050
+impact_duration = 0.11
+settle_duration = 0.27
+background_duration = 0.68
 background_energy = 1.0
 edge_fragment_count = 18
 
@@ -135,14 +135,14 @@ script = ExtResource("2_recipe")
 recipe_id = &"feedback.tile.spawn"
 accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
 tile_burst_duration = 0.30
-tile_shard_count = 4
+tile_shard_count = 0
 
 [sub_resource type="Resource" id="Recipe_tile_merge"]
 script = ExtResource("2_recipe")
 recipe_id = &"feedback.tile.merge"
 accent_color = Color(0.8745098, 0.6901961, 0.3019608, 1)
 tile_burst_duration = 0.46
-tile_shard_count = 8
+tile_shard_count = 0
 
 [sub_resource type="Resource" id="Recipe_tile_transform"]
 script = ExtResource("2_recipe")
@@ -153,10 +153,10 @@ tile_shard_count = 7
 
 [sub_resource type="Resource" id="Motion_tile"]
 script = ExtResource("5_motion")
-move_duration = 0.1
-spawn_duration = 0.14
+move_duration = 0.14
+spawn_duration = 0.11
 spawn_fade_ratio = 0.75
-merge_pulse_duration = 0.085
+merge_pulse_duration = 0.09
 value_growth_duration = 0.13
 despawn_duration = 0.12
 transform_left_duration = 0.04
@@ -164,8 +164,10 @@ transform_right_duration = 0.05
 transform_settle_duration = 0.04
 transform_home_duration = 0.05
 transform_flash_duration = 0.14
-spawn_start_scale = 0.64
+spawn_start_scale = 1.12
+spawn_start_rotation_degrees = 12.0
 merge_peak_scale = 1.19
+merge_peak_rotation_degrees = 4.5
 despawn_end_scale = 0.28
 transform_peak_rotation_degrees = 4.0
 transform_settle_rotation_degrees = -2.0

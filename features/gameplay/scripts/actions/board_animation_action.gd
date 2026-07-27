@@ -147,11 +147,7 @@ func execute() -> Variant:
 						_append_tween(
 							tweens,
 							tile.animate_merge(
-								_play_tile_feedback.bind(
-									tile,
-									&"merge",
-									_get_score_delta_label(transform_data)
-								),
+								_play_tile_feedback.bind(tile, &"merge", ""),
 								0.0,
 								_tile_motion_profile,
 								_feedback_budget
@@ -269,12 +265,8 @@ func _apply_merge_impact(tile: Tile, target_data: Dictionary) -> void:
 		_tile_motion_profile,
 		_feedback_budget
 	)
-	_play_tile_feedback(tile, &"merge", _get_score_delta_label(target_data))
-
-
-static func _get_score_delta_label(target_data: Dictionary) -> String:
-	var score_delta: int = _get_int(target_data, &"score_delta", 0)
-	return str(score_delta) if score_delta != 0 else ""
+	# 分数增量统一留在 HUD；棋盘只保留碰撞、色阶和纸片反馈，避免文字遮挡方块。
+	_play_tile_feedback(tile, &"merge", "")
 
 
 static func _get_instruction_type(instruction: Dictionary) -> StringName:

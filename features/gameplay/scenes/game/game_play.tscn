@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://features/gameplay/scripts/controllers/gameplay_responsive_layout_controller.gd" id="8_responsive_layout"]
 [ext_resource type="Script" path="res://addons/gf/extensions/feedback/nodes/gf_shake_receiver_2d.gd" id="9_shake_receiver"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/ui/board_feedback_canvas.gd" id="10_feedback_canvas"]
+[ext_resource type="Script" path="res://features/gameplay/scripts/ui/board_motion_backdrop.gd" id="11_motion_backdrop"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_background"]
 shader = ExtResource("6_background_shader")
@@ -208,7 +209,11 @@ unique_name_in_owner = true
 [node name="BoardFeedbackRoot" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld" index="0"]
 unique_name_in_owner = true
 
-[node name="BoardShakeRoot" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="0"]
+[node name="BoardMotionBackdrop" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="0"]
+unique_name_in_owner = true
+script = ExtResource("11_motion_backdrop")
+
+[node name="BoardShakeRoot" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="1"]
 unique_name_in_owner = true
 
 [node name="GameBoardHost" type="Control" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot/BoardShakeRoot" index="0" unique_id=156759848]
@@ -229,11 +234,11 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 script = ExtResource("4_board")
 
-[node name="BoardFeedbackCanvas" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="1"]
+[node name="BoardFeedbackCanvas" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="2"]
 unique_name_in_owner = true
 script = ExtResource("10_feedback_canvas")
 
-[node name="BoardShakeReceiver" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="2"]
+[node name="BoardShakeReceiver" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="3"]
 script = ExtResource("9_shake_receiver")
 target_path = NodePath("../BoardShakeRoot")
 channel = &"board"

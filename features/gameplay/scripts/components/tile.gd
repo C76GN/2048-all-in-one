@@ -166,7 +166,16 @@ func animate_spawn(
 		return null
 
 	scale = Vector2.ONE * profile.get_spawn_start_scale(feedback_budget)
-	modulate = Color(1.0, 1.0, 1.0, 0.0)
+	var rotation_sign: float = (
+		-1.0
+		if (roundi(position.x / 10.0) + roundi(position.y / 10.0)) % 2 == 0
+		else 1.0
+	)
+	rotation_degrees = (
+		rotation_sign
+		* profile.get_spawn_start_rotation_degrees(feedback_budget)
+	)
+	modulate = Color.WHITE
 	_active_rotation_tween = create_tween()
 	var _parallel_result: Tween = _active_rotation_tween.set_parallel(true)
 	var _transition_result: Tween = _active_rotation_tween.set_trans(Tween.TRANS_BACK)
@@ -178,11 +187,11 @@ func animate_spawn(
 		Vector2.ONE,
 		spawn_duration
 	)
-	var _fade_tweener: PropertyTweener = _active_rotation_tween.tween_property(
+	var _rotation_tweener: PropertyTweener = _active_rotation_tween.tween_property(
 		self,
-		"modulate:a",
-		1.0,
-		spawn_duration * profile.spawn_fade_ratio
+		"rotation_degrees",
+		0.0,
+		spawn_duration
 	)
 	return _active_rotation_tween
 
@@ -210,7 +219,7 @@ func animate_move(
 		return null
 
 	_active_move_tween = create_tween()
-	var _transition_result: Tween = _active_move_tween.set_trans(Tween.TRANS_CUBIC)
+	var _transition_result: Tween = _active_move_tween.set_trans(Tween.TRANS_QUAD)
 	var _ease_result: Tween = _active_move_tween.set_ease(Tween.EASE_OUT)
 	var _position_tweener: PropertyTweener = _active_move_tween.tween_property(
 		self,
@@ -238,6 +247,7 @@ func animate_merge(
 	_active_scale_tween = null
 
 	var profile: GameTileMotionProfile = _resolve_motion_profile(motion_profile)
+	rotation_degrees = 0.0
 	if not profile.is_motion_enabled(feedback_budget):
 		scale = Vector2.ONE
 		_snap_flash_to_rest()
@@ -267,6 +277,19 @@ func animate_merge(
 	var _scale_up_transition: Tweener = scale_up_tweener.set_trans(Tween.TRANS_BACK).set_ease(
 		Tween.EASE_OUT
 	)
+	var merge_rotation_sign: float = (
+		-1.0
+		if (roundi(position.x / 10.0) + roundi(position.y / 10.0)) % 2 == 0
+		else 1.0
+	)
+	var rotate_up_tweener: PropertyTweener = _active_scale_tween.parallel().tween_property(
+		self,
+		"rotation_degrees",
+		merge_rotation_sign * profile.get_merge_peak_rotation_degrees(feedback_budget),
+		pulse_duration
+	)
+	var _rotate_up_transition: Tweener = rotate_up_tweener.set_trans(Tween.TRANS_BACK)
+	var _rotate_up_ease: Tweener = rotate_up_tweener.set_ease(Tween.EASE_OUT)
 	var scale_down_tweener: PropertyTweener = _active_scale_tween.tween_property(
 		self,
 		"scale",
@@ -276,6 +299,14 @@ func animate_merge(
 	var _scale_down_transition: Tweener = scale_down_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
 		Tween.EASE_OUT
 	)
+	var rotate_down_tweener: PropertyTweener = _active_scale_tween.parallel().tween_property(
+		self,
+		"rotation_degrees",
+		0.0,
+		pulse_duration
+	)
+	var _rotate_down_transition: Tweener = rotate_down_tweener.set_trans(Tween.TRANS_QUAD)
+	var _rotate_down_ease: Tweener = rotate_down_tweener.set_ease(Tween.EASE_OUT)
 	return _active_scale_tween
 
 
