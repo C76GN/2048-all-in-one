@@ -2,8 +2,8 @@
 
 - Source packs: `7`
 - Review records: `545`
-- Slot bindings: `10 / 20`
-- Issue count: `6`
+- Slot bindings: `15 / 25`
+- Issue count: `7`
 
 
 ## Kinds
@@ -12,8 +12,10 @@
 - `vfx`: `3`
 
 ## Statuses
+- `approved`: `114`
 - `candidate`: `22`
-- `inbox`: `523`
+- `inbox`: `220`
+- `rejected`: `189`
 
 ## Source Pack Licenses
 - `known`: `1`
@@ -83,3 +85,4 @@
 - `warning` `source_pack_license_unknown`: 素材包授权状态未确认：Manual Effect Notes。
 - `warning` `source_pack_license_unknown`: 素材包授权状态未确认：Manual Shader Notes。
 - `warning` `source_pack_license_unknown`: 素材包授权状态未确认：Ultimate Toon Source。
+- `error` `invalid_approved_asset_attribution`: 已批准素材未通过 GF 授权与署名覆盖校验。

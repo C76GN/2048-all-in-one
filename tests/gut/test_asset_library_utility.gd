@@ -84,6 +84,10 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 		usage,
 		"asset.shader.ui.startup_progress_bar"
 	)
+	var boot_splash_usage: Dictionary = GFVariantData.get_option_dictionary(
+		usage,
+		"asset.texture.branding.printworks_boot_splash"
+	)
 	var reference_scan_report: Dictionary = GFVariantData.get_option_dictionary(
 		report,
 		"reference_scan_report"
@@ -147,6 +151,12 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 	assert_true(
 		GFVariantData.get_option_packed_string_array(celebration_vfx_usage, "key_users").has("res://features/themes/resources/themes/game/vfx/halftone_atlas_celebration_theme.tres"),
 		"审计报告应能说明庆祝 VFX shader 资源键由当前庆祝主题声明。"
+	)
+	assert_true(
+		GFVariantData.get_option_packed_string_array(boot_splash_usage, "path_users").has(
+			"res://project.godot"
+		),
+		"Godot 原生启动图设置应被审计为正式启动素材的引擎级消费者。"
 	)
 	assert_false(
 		GFVariantData.get_option_bool(startup_progress_usage, "used"),

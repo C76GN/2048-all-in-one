@@ -2,8 +2,8 @@
 
 - Package: `c76.asset_library.core`
 - Version: `0.1.0`
-- Resource count: `22`
-- Used count: `17`
+- Resource count: `27`
+- Used count: `23`
 - Issue count: `0`
 
 ## Usage
@@ -18,8 +18,38 @@
   - `res://features/asset_library/tools/import_asset_sources.gd`
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
 
+### `asset.audio.game.printworks.milestone_soft_01`
+- Path: `res://features/asset_library/resources/audio/game/printworks_milestone_soft_01.ogg`
+- Used: `yes`
+- Path users:
+  - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+- Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+
+### `asset.audio.tile.printworks.merge_chain_soft_01`
+- Path: `res://features/asset_library/resources/audio/tile/printworks_merge_chain_soft_01.ogg`
+- Used: `yes`
+- Path users:
+  - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+- Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+
 ### `asset.audio.tile.printworks.merge_soft_01`
 - Path: `res://features/asset_library/resources/audio/tile/printworks_merge_soft_01.ogg`
+- Used: `yes`
+- Path users:
+  - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+- Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+
+### `asset.audio.tile.printworks.move_blocked_soft_01`
+- Path: `res://features/asset_library/resources/audio/tile/printworks_move_blocked_soft_01.ogg`
 - Used: `yes`
 - Path users:
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
@@ -40,6 +70,26 @@
 
 ### `asset.audio.tile.printworks.spawn_soft_01`
 - Path: `res://features/asset_library/resources/audio/tile/printworks_spawn_soft_01.ogg`
+- Used: `yes`
+- Path users:
+  - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+- Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+
+### `asset.audio.tile.printworks.transform_soft_01`
+- Path: `res://features/asset_library/resources/audio/tile/printworks_transform_soft_01.ogg`
+- Used: `yes`
+- Path users:
+  - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+- Key users:
+  - `res://features/asset_library/tools/import_asset_sources.gd`
+  - `res://features/themes/resources/audio/printworks_audio_bank.tres`
+
+### `asset.audio.ui.printworks.cancel_soft_01`
+- Path: `res://features/asset_library/resources/audio/ui/printworks_cancel_soft_01.ogg`
 - Used: `yes`
 - Path users:
   - `res://features/themes/resources/audio/printworks_audio_bank.tres`
@@ -114,8 +164,9 @@
 
 ### `asset.texture.branding.printworks_boot_mark`
 - Path: `res://features/asset_library/resources/textures/branding/printworks_boot_mark.png`
-- Used: `no`
-- Path users: none
+- Used: `yes`
+- Path users:
+  - `res://app/scenes/boot.tscn`
 - Key users: none
 
 ### `asset.texture.branding.printworks_boot_mark_source`
@@ -128,7 +179,7 @@
 - Path: `res://features/asset_library/resources/textures/branding/printworks_boot_splash.png`
 - Used: `yes`
 - Path users:
-  - `res://app/scenes/boot.tscn`
+  - `res://project.godot`
 - Key users: none
 
 ### `asset.texture.branding.printworks_boot_splash_source`
@@ -184,6 +235,7 @@
 - Path users: none
 - Key users:
   - `res://features/gameplay/scripts/ui/hud.gd`
+  - `res://features/settings/scripts/menus/settings_menu.gd`
 
 ### `asset.vfx.celebration.confetti_canvas`
 - Path: `res://features/asset_library/resources/vfx/celebration_confetti_canvas.gdshader`

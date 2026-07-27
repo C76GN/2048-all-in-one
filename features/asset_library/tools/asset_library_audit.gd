@@ -56,7 +56,9 @@ const _DEFAULT_USAGE_SCAN_ROOTS: Array[String] = [
 	"res://app",
 	"res://features",
 	"res://shared",
-	"res://project.godot",
+]
+const _PROJECT_ASSET_SETTING_NAMES: PackedStringArray = [
+	"application/boot_splash/image",
 ]
 
 
@@ -487,6 +489,7 @@ func _collect_asset_usage(entries: Array[Dictionary], scan_roots: PackedStringAr
 		usage,
 		GFVariantData.get_option_array(reference_scan_report, "weak_references")
 	)
+	_apply_project_setting_usage(usage)
 	return {
 		"usage": usage,
 		"reference_scan_report": reference_scan_report,
@@ -509,6 +512,26 @@ func _apply_usage_references(usage: Dictionary, references: Array) -> void:
 			_append_unique_string_to_record(record, "path_users", user_path)
 		record["used"] = true
 		usage[asset_key] = record
+
+
+func _apply_project_setting_usage(usage: Dictionary) -> void:
+	for setting_name: String in _PROJECT_ASSET_SETTING_NAMES:
+		var setting_value: Variant = ProjectSettings.get_setting(setting_name, "")
+		if not (setting_value is String or setting_value is StringName):
+			continue
+		var resource_path: String = GFVariantData.to_text(setting_value)
+		if resource_path.is_empty():
+			continue
+		for asset_key_value: Variant in usage:
+			var record: Dictionary = GFVariantData.get_option_dictionary(
+				usage,
+				asset_key_value
+			)
+			if GFVariantData.get_option_string(record, "path") != resource_path:
+				continue
+			_append_unique_string_to_record(record, "path_users", "res://project.godot")
+			record["used"] = true
+			usage[asset_key_value] = record
 
 
 func _summarize_usage(usage: Dictionary) -> Dictionary:
