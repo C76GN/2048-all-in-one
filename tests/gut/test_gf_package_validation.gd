@@ -354,7 +354,12 @@ func test_generated_logs_user_data_and_exports_are_ignored() -> void:
 		"runtime_warning*.log",
 		"user_data/",
 		"ai_analysis/",
-		"build/",
+		"/features/asset_library/resources/import_sources.local.json",
+		"/build/*",
+		"!/build/.gdignore",
+		"/android/build/",
+		"/.playwright-cli/",
+		"/output/",
 		"exports/",
 		"*.pck",
 	]

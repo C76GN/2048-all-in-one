@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "UI/sci_fi_hover_high"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "sci_fi_hover_high", "hover")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/sci_fi_hover_high.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/UI/sci_fi_hover_high.wav"
 relative_path = "UI/sci_fi_hover_high.wav"
 extension = "wav"

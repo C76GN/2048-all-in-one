@@ -9,8 +9,6 @@ export_credentials.cfg
 *.tmp
 *.depren
 
-
-
 # Mono-specific ignores
 .mono/
 data_*/
@@ -28,12 +26,17 @@ repomix.config.json
 __pycache__/
 *.py[cod]
 
+# Browser and review tooling
+/.playwright-cli/
+/output/
+
 # Runtime logs and local user data
 *.log
 logs/
 runtime_warning*.log
 user_data/
 ai_analysis/
+/features/asset_library/resources/import_sources.local.json
 
 # VsCode
 .vscode/
@@ -42,9 +45,9 @@ ai_analysis/
 unstaged_changes.diff.txt
 unstaged_changes.diff
 
-build/
-!/build/
+# Generated builds and exports
 /build/*
 !/build/.gdignore
+/android/build/
 exports/
 *.pck

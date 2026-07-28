@@ -9,7 +9,6 @@ source_pack_id = &"ultimate_toon_source"
 display_name = "stylized"
 asset_kind = &"shader"
 tags = PackedStringArray("shader", "toon", "license_review_needed", "stylized")
-source_path = "E:/_inbox/Downloads/UltimateToonSource/shader/stylized.gdshader"
 library_path = "res://features/asset_library/resources/source_packs/ultimate_toon_source/files/shader/stylized.gdshader"
 relative_path = "shader/stylized.gdshader"
 extension = "gdshader"

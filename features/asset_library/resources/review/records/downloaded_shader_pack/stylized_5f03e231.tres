@@ -9,7 +9,6 @@ source_pack_id = &"downloaded_shader_pack"
 display_name = "stylized"
 asset_kind = &"shader"
 tags = PackedStringArray("shader", "license_review_needed", "stylized")
-source_path = "E:/_inbox/Downloads/shader/stylized.gdshader"
 library_path = "res://features/asset_library/resources/source_packs/downloaded_shader_pack/files/stylized.gdshader"
 relative_path = "stylized.gdshader"
 extension = "gdshader"

@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Retro/jump_short"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "jump_short")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/jump_short.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Retro/jump_short.wav"
 relative_path = "Retro/jump_short.wav"
 extension = "wav"

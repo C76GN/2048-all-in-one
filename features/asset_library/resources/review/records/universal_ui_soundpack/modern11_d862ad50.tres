@@ -11,7 +11,6 @@ asset_kind = &"audio"
 review_group_id = &"review.group.universal.ui.soundpack.modern11.af70578fa6b9"
 review_status = &"approved"
 tags = PackedStringArray("audio", "ui", "known_license", "ogg", "modern11")
-source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Modern11.ogg"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/Modern11.ogg"
 relative_path = "OGG/Modern11.ogg"
 extension = "ogg"

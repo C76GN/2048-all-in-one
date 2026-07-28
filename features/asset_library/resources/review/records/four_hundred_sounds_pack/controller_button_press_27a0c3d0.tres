@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Other/controller_button_press"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "controller_button_press", "button")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/controller_button_press.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Other/controller_button_press.wav"
 relative_path = "Other/controller_button_press.wav"
 extension = "wav"

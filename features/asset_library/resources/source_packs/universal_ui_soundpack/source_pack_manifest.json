@@ -4,39 +4,35 @@
 	"imported_at": "2026-07-09 03:22:27",
 	"license": "CC BY 4.0",
 	"license_status": "known",
-	"original_source_path": "E:/_inbox/Downloads/UI Soundpack",
 	"report": {
 		"byte_count": 11466535,
 		"copied_count": 0,
 		"display_name": "Universal UI Soundpack",
 		"error_count": 0,
-		"excluded_count": 0,
+		"excluded_count": 15,
 		"file_count": 157,
 		"kind_counts": {
-			"audio": 156
+			"audio": 141
 		},
 		"license_counts": {
-			"known": 156
+			"known": 141
 		},
 		"non_review_file_count": 1,
-		"review_record_count": 156,
+		"review_record_count": 141,
 		"source_pack_id": "universal_ui_soundpack",
 		"source_scan_report": {
 			"limit_kind": "",
-			"limit_path": "",
 			"limit_value": 0,
 			"ok": true,
-			"root_path": "E:/_inbox/Downloads/UI Soundpack",
 			"scanned_count": 157,
 			"truncated": false,
 			"visited_entry_count": 160
 		},
 		"status_counts": {
 			"approved": 105,
-			"inbox": 36,
-			"rejected": 15
+			"inbox": 36
 		},
-		"unchanged_count": 157
+		"unchanged_count": 142
 	},
 	"schema_version": 1,
 	"source_pack_id": "universal_ui_soundpack",

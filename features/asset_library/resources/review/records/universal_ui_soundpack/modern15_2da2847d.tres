@@ -10,7 +10,6 @@ display_name = "MP3/Modern15"
 asset_kind = &"audio"
 review_group_id = &"review.group.universal.ui.soundpack.modern15.f6700913000f"
 tags = PackedStringArray("audio", "ui", "known_license", "mp3", "modern15")
-source_path = "E:/_inbox/Downloads/UI Soundpack/MP3/Modern15.mp3"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/MP3/Modern15.mp3"
 relative_path = "MP3/Modern15.mp3"
 extension = "mp3"

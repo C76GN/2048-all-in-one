@@ -4,7 +4,6 @@
 	"imported_at": "2026-07-09 03:22:27",
 	"license": "unknown",
 	"license_status": "unknown",
-	"original_source_path": "E:/_inbox/Downloads/shader",
 	"report": {
 		"byte_count": 5395,
 		"copied_count": 0,
@@ -23,10 +22,8 @@
 		"source_pack_id": "downloaded_shader_pack",
 		"source_scan_report": {
 			"limit_kind": "",
-			"limit_path": "",
 			"limit_value": 0,
 			"ok": true,
-			"root_path": "E:/_inbox/Downloads/shader",
 			"scanned_count": 2,
 			"truncated": false,
 			"visited_entry_count": 2

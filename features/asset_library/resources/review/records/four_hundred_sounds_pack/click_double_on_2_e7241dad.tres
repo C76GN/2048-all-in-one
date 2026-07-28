@@ -10,7 +10,6 @@ display_name = "UI/click_double_on_2"
 asset_kind = &"audio"
 review_status = &"approved"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "click_double_on_2", "click")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/click_double_on_2.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/UI/click_double_on_2.wav"
 relative_path = "UI/click_double_on_2.wav"
 extension = "wav"

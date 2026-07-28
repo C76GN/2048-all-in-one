@@ -11,7 +11,6 @@ asset_kind = &"audio"
 review_group_id = &"review.group.universal.ui.soundpack.african1.c542ac620bfa"
 review_status = &"approved"
 tags = PackedStringArray("audio", "ui", "known_license", "ogg", "african1")
-source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/African1.ogg"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/African1.ogg"
 relative_path = "OGG/African1.ogg"
 extension = "ogg"

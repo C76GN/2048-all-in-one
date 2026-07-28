@@ -1,26 +1,41 @@
 # C76 Common Asset Library
 
-This is the authoritative operational guide for the project-local asset-library feature. Project-wide policy, trust boundaries, promotion rules, and the full source-of-truth table live in [`docs/asset_library.md`](../../../docs/asset_library.md). Generated reports are run evidence only; they do not override either guide, the runtime manifest, or review records.
+本页是项目素材库 Feature 的操作入口。跨 Feature 的信任边界、晋升规则和权威来源表见 [`docs/asset_library.md`](../../../docs/asset_library.md)。
 
-Keep runtime assets self-contained under this directory and register them in `gf_content_package.json` with a stable `asset.*` key.
+## 目录职责
 
-Candidate assets live under `source_packs/` and `review/`. They are intentionally excluded from the runtime manifest and player exports until reviewed, licensed, copied or transcoded into a runtime directory, registered, and audited.
+- `resources/gf_content_package.json`：玩家运行时素材清单，只登记稳定的 `asset.*` 键。
+- `resources/source_packs/`：待评审素材副本，不进入玩家导出。
+- `resources/review/`：评审记录、源包元数据与槽位映射，不进入玩家导出。
+- `resources/import_sources.json`：可提交的源包身份、授权元数据与格式分组；`source_path` 必须为空。
+- `resources/import_sources.local.json`：按 `source_pack_id` 提供本机作者素材路径，已被 Git 和导出排除。
+- `resources/source_exclusions.json`：已清除候选的可移植身份，防止再次导入。
+- `build/asset_library/`：当次导入和审计报告，仅作运行证据并忽略提交。
 
-Rules:
+素材身份统一使用 `source_pack_id + relative_path + SHA-256`。评审记录、源包资源和源包 manifest 不保存工作站绝对路径。
 
-- Use stable asset keys for catalog and audit workflows.
-- Use `GFAssetCatalog` providers for runtime and review search; do not build parallel indexes in tools.
-- Keep third-party author, source URL, and license metadata in the manifest.
-- Keep experiments out of the manifest until they are usable by a project.
-- Run `tools/audit_asset_library.ps1` after adding, moving, or removing assets.
-- Treat a partial `GFProjectReferenceScanner` result as an audit failure, and keep GF attribution coverage complete for runtime assets.
-- Run `tools/import_asset_sources.ps1` to refresh source-pack copies and review records.
-- Treat each `resources/import_sources.json` `source_path` as a workstation-specific tool input, not a portable asset identity. Authoring records and generated reports currently retain the original path for traceability, so redact it before sharing outside the repository and never use it as a runtime or review identity; identity is `source_pack_id + relative_path + SHA-256`. A path-only local adjustment is not a semantic asset change.
-- Open `features/asset_library/scenes/asset_review_browser.tscn` to preview, listen, tag, rate, and annotate candidate assets.
-- Treat `review_status=approved` as a quality result only. Runtime promotion is derived separately and requires an approved record plus a known, non-placeholder license; unknown, unspecified, TBD, TODO, and pending values remain license-blocked without erasing the quality result.
-- Keep runtime manifests out of `source_packs/` and `review/`. Runtime audit rejects candidate paths and placeholder license metadata even when GF attribution coverage has a non-empty string.
-- The review browser synchronizes `review_status` and `reviewed_at` by default across playable encodings in an explicitly verified same-source audio group, so one sound decision is not repeated merely because WAV, OGG, and MP3 encodings differ. Ratings, notes, tags, paths, hashes, playability, and license metadata remain format-specific.
-- Audio format groups are declared per source pack in `resources/import_sources.json` only after same-content verification; filenames are never matched globally or fuzzily across packs.
-- Run Godot headlessly with `res://features/asset_library/tools/sync_audio_review_variants.gd` after importing to backfill inbox records from an unambiguous playable consensus. Conflicting decisions and decisions that exist only on an unplayable format are reported without writes.
-- Run `tools/purge_rejected_assets.ps1` after a review batch to remove rejected copies and records; a complete `GFProjectReferenceScanner` pass blocks deletion of referenced assets, and `source_exclusions.json` prevents exact source identities from being re-imported.
-- Use `Space`, `1`/`2`/`3`, `J`/`K`, and `Ctrl+S` for continuous keyboard review; text inputs suppress bare-key actions.
+## 标准流程
+
+1. 在本机 `resources/import_sources.local.json` 配置源包路径。
+2. 运行 `tools/import_asset_sources.ps1` 刷新候选副本和评审记录。
+3. 打开 `features/asset_library/scenes/asset_review_browser.tscn` 完成试听、标签、评分和状态评审。
+4. 必要时运行 `features/asset_library/tools/sync_audio_review_variants.gd`，只在显式同源编码组内同步无歧义的评审状态。
+5. 运行 `tools/purge_rejected_assets.ps1` 清除已拒绝且无引用的候选。
+6. 运行 `tools/audit_asset_library.ps1`，确认运行时清单、授权、引用与候选边界均通过。
+
+本机覆盖文件的最小结构如下，键必须与共享配置中的 `source_pack_id` 一致：
+
+```json
+{
+  "schema_version": 1,
+  "source_paths": {
+    "source_pack_id": "<absolute-path-to-source>"
+  }
+}
+```
+
+`GFProjectReferenceScanner` 的 partial 结果视为失败；不得据此删除素材。`review_status=approved` 只表示质量通过，进入运行时还必须具有明确授权，并复制或转码到运行时目录、登记稳定素材键且通过审计。
+
+同一声音的 WAV、OGG、MP3 仅在 `import_sources.json` 中显式验证并声明后才可同步评审状态；评分、备注、标签、哈希、可播放性和授权仍按具体文件保存。禁止跨源包通过模糊文件名自动合并。
+
+评审快捷键：`Space` 播放/暂停，`1`/`2`/`3` 设置状态，`J`/`K` 切换记录，`Ctrl+S` 保存；文本输入聚焦时会屏蔽裸键操作。

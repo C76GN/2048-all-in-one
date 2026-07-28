@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Other/light_match"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "light_match", "match")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/light_match.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Other/light_match.wav"
 relative_path = "Other/light_match.wav"
 extension = "wav"

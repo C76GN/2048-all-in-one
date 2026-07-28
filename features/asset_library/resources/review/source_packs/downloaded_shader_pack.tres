@@ -6,7 +6,6 @@
 script = ExtResource("1_idth0")
 source_pack_id = &"downloaded_shader_pack"
 display_name = "Downloaded Shader Pack"
-original_source_path = "E:/_inbox/Downloads/shader"
 library_root_path = "res://features/asset_library/resources/source_packs/downloaded_shader_pack"
 author = "unknown"
 license = "unknown"

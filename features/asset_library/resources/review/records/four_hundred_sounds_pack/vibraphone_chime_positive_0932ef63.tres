@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Musical Effects/vibraphone_chime_positive"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "vibraphone_chime_positive")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/vibraphone_chime_positive.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/vibraphone_chime_positive.wav"
 relative_path = "Musical Effects/vibraphone_chime_positive.wav"
 extension = "wav"

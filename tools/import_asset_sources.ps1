@@ -13,7 +13,7 @@ $ErrorActionPreference = "Stop"
 	-ExpectedOutputPattern 'Asset source import:' `
 	-TimeoutSeconds $TimeoutSeconds
 
-$reportPath = Join-Path $ProjectRoot "features\asset_library\resources\reports\source_import_report.json"
+$reportPath = Join-Path $ProjectRoot "build\asset_library\source_import_report.json"
 if (-not (Test-Path -LiteralPath $reportPath)) {
 	throw "Asset import report was not created: $reportPath"
 }

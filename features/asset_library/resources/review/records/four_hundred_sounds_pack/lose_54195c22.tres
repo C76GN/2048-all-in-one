@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Retro/lose"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "lose")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/lose.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Retro/lose.wav"
 relative_path = "Retro/lose.wav"
 extension = "wav"

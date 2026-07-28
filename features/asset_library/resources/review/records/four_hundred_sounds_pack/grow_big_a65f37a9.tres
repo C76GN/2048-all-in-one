@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Retro/grow_big"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "grow_big")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/grow_big.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Retro/grow_big.wav"
 relative_path = "Retro/grow_big.wav"
 extension = "wav"

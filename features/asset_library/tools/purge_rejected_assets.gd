@@ -14,7 +14,7 @@ const SOURCE_EXCLUSION_INDEX_SCRIPT = preload(
 const SOURCE_PACK_ROOT: String = "res://features/asset_library/resources/source_packs"
 const REVIEW_RECORD_ROOT: String = "res://features/asset_library/resources/review/records"
 const SOURCE_EXCLUSION_PATH: String = "res://features/asset_library/resources/source_exclusions.json"
-const REPORT_PATH: String = "res://build/rejected_asset_purge_report.json"
+const REPORT_PATH: String = "res://build/asset_library/rejected_asset_purge_report.json"
 const REFERENCE_SCAN_ROOTS: PackedStringArray = [
 	"res://app",
 	"res://features",
@@ -24,7 +24,6 @@ const REFERENCE_SCAN_ROOTS: PackedStringArray = [
 const REFERENCE_SCAN_IGNORED_ROOTS: PackedStringArray = [
 	SOURCE_PACK_ROOT,
 	REVIEW_RECORD_ROOT,
-	"res://features/asset_library/resources/reports",
 ]
 
 

@@ -1,31 +1,28 @@
 # 素材库规范
 
-本文只说明项目级素材治理原则；命令、评审快捷键和当前工具行为以 [`features/asset_library/docs/readme.md`](../features/asset_library/docs/readme.md) 为权威操作说明。`features/asset_library/` 是当前项目内的通用素材库 Feature，暂时随项目提交，后续成熟后可以整体迁移到独立仓库；不能直接移入 `addons/gf`。
+本文只定义项目级素材治理、信任边界和发布规则。命令、评审快捷键及工具行为由 [`features/asset_library/docs/readme.md`](../features/asset_library/docs/readme.md) 负责；二者不得重复维护同一操作说明。`features/asset_library/` 是项目 Feature，不属于只读的 `addons/gf/`。
 
-## 权威分层
+## 权威来源
 
-| 内容 | 权威来源 | 不应承担的职责 |
-| --- | --- | --- |
-| 所有权、信任边界、晋升和发布规则 | 本文 | 不复制快捷键或工具实现细节 |
-| 命令、参数、快捷键和当前工具行为 | [`features/asset_library/docs/readme.md`](../features/asset_library/docs/readme.md) | 不重新定义项目级安全策略 |
-| 已批准运行时素材与稳定资源键 | `features/asset_library/resources/gf_content_package.json` | 不登记候选或仅评审素材 |
-| 单个候选的状态、评分、标签、备注和身份 | `features/asset_library/resources/review/records/` | 不代表素材已进入玩家构建 |
-| 同源音频编码分组 | `features/asset_library/resources/import_sources.json` 中对应源包的显式声明 | 不做跨源包或文件名模糊匹配 |
-| 某次审计或导入结果 | `features/asset_library/resources/reports/` | 不覆盖规范、manifest 或评审记录 |
+| 内容 | 权威来源 |
+| --- | --- |
+| 所有权、信任边界、晋升与发布规则 | 本文 |
+| 操作命令、快捷键和工具行为 | `features/asset_library/docs/readme.md` |
+| 已批准运行时素材与稳定资源键 | `features/asset_library/resources/gf_content_package.json` |
+| 候选状态、评分、标签、备注和可移植身份 | `features/asset_library/resources/review/records/` |
+| 同源音频编码分组和源包元数据 | `features/asset_library/resources/import_sources.json` |
+| 本机作者素材根 | 忽略提交的 `features/asset_library/resources/import_sources.local.json` |
+| 某次导入或审计结果 | 忽略提交的 `build/asset_library/` |
 
-## 目标
+生成报告只表示一次运行结果，不能覆盖 manifest、评审记录或本规范，也不得提交本机绝对路径。
 
-- 音频、shader、贴图、特效等素材先进入统一库，不再散落在业务目录。
-- 每个正式素材都有稳定 `asset.*` 资源键。
-- 第三方素材必须记录作者、来源和授权。
-- 工具可以自动报告素材是否存在、是否登记、被谁引用。
-
-## 目录
+## 目录与单向晋升
 
 ```text
 features/asset_library/resources/
   gf_content_package.json
   import_sources.json
+  source_exclusions.json
   audio/
   shaders/
   textures/
@@ -33,194 +30,82 @@ features/asset_library/resources/
   licenses/
   source_packs/
   review/
-  reports/
 ```
 
-`audio/`、`shaders/`、`textures/`、`vfx/` 是已批准运行时素材区，只有这里的正式素材才进入 `gf_content_package.json`。
+- `audio/`、`shaders/`、`textures/`、`vfx/` 是运行时区；正式素材必须登记到 manifest。
+- `source_packs/` 和 `review/` 是作者评审区，不进入玩家导出。
+- 候选素材只有在复制或转码到运行时区、登记稳定 key、补齐许可证并通过审计后才完成晋升。
+- 导入、试听或 `review_status=approved` 都不会自动改变玩家内容。
+- 空目录只表达分类方向，不应产生 manifest 占位条目。
 
-`source_packs/` 和 `review/` 是候选评审区：
+## 信任与授权
 
-- `source_packs/<pack_id>/files/` 保存原始下载包的完整复制。
-- `review/records/<pack_id>/*.tres` 保存每个候选素材的状态、评分、标签、备注、哈希和授权信息。
-- `review/source_packs/*.tres` 保存源包级授权和来源信息。
-- `review/asset_slot_map.tres` 保存“用途槽位”到当前运行时素材的映射，方便后续替换。
+下载的音频、Shader、纹理和第三方包均视为不可信输入：
 
-运行时区与候选区必须保持单向晋升关系：候选内容不会因为被导入、试听或标为 approved 就自动进入玩家构建；只有复制/转码到正式分类目录、登记稳定 key、补齐授权并通过审计后才是运行时素材。默认导出规则应排除 `source_packs/`、`review/`、评审报告和作者工具。
+1. 先进入 source pack，保留 `source_pack_id + relative_path + SHA-256` 身份。
+2. 评审记录保存质量、标签、用途、来源 URL 和许可证状态。
+3. `approved` 只表示质量通过；许可证未知、占位或缺失时，派生晋升门禁仍为 `blocked_license`。
+4. 正式第三方素材必须同时具备作者、来源 URL、许可证和项目归因记录。
+5. 任何不完整的路径、引用或授权扫描都视为失败，不能以部分结果继续晋升或删除。
 
-`review_status` 只保存人工质量结论。`approved` 表示“质量通过”，不代表授权完成或可以发布；晋升资格由 `AssetReviewRecord.get_promotion_gate()` 根据质量结论和授权证据纯派生。只有 `approved + known license` 且许可证不是 `unknown`、`unspecified`、`tbd`、`todo`、`pending` 等占位值时才返回 `eligible`。质量通过但授权不足的记录保持 `approved`，派生门禁为 `blocked_license`，不得通过改写质量结论来消除授权阻断。
+质量结论与许可证门禁必须分离。不能通过改写质量状态来掩盖授权缺口，也不能因同名或相似文件自动合并不同来源。
 
-空目录只表示未来分类方向。没有可用素材时，不要在运行时 manifest 中创建占位条目。
+## 可移植身份与本机路径
 
-## 稳定 ID
+共享配置只保存源包身份、元数据和显式的同源编码分组。绝对作者路径只存在于被 Git 忽略的 `import_sources.local.json`，由 `source_pack_id` 覆盖对应本机根。
 
-资源键使用：
+评审记录和 source-pack manifest 不保存工作站绝对路径；它们只依赖：
+
+- `source_pack_id`
+- `relative_path`
+- `SHA-256`
+- 项目内 `library_path`
+
+因此换工作站只需重建本地 override，不会制造共享配置或数百条评审记录的无意义差异。生成报告可以在本机显示执行路径，但必须留在 `build/`，不得提交或外发未脱敏版本。
+
+## 同源多格式音频
+
+WAV、OGG、MP3 等编码只有在同一源包显式声明、并经试听或来源元数据确认属于同一声音时，才共享语义质量结论：
+
+- 默认只同步 `review_status` 与 `reviewed_at`。
+- 评分、标签、备注、文件哈希、可播放性和许可证证据保持编码级独立。
+- 决定冲突或只来自不可播放编码时，批处理必须停止写入并报告。
+- 不跨源包按文件名、时长或模糊指纹自动归并。
+
+## 稳定资源键与 GF 边界
+
+资源键格式：
 
 ```text
 asset.<kind>.<domain>.<theme_or_pack>.<name>
 ```
 
-示例：
+- `kind` 表示 `audio`、`shader`、`texture` 或 `vfx`。
+- `domain` 表示 `ui`、`tile`、`game`、`background`、`transition` 等业务语义。
+- 文件可移动，稳定 key 不应随意改名。
+- 运行时业务通过 `GameAssetLibraryUtility` 和稳定 key 解析素材，不使用作者路径后备。
+- `ProjectContentCatalogUtility` 独占 GF 内容目录重建；`GFAssetCatalog` 统一暴露运行时和评审查询接口。
+- `GFProjectReferenceScanner` 与 `GFAssetAttributionTools` 分别负责强引用和第三方归因证据。
+- 主题内容包依赖素材库 manifest，但候选目录不得进入主题或运行时 manifest。
 
-```text
-asset.audio.ui.printworks.select_soft_01
-asset.audio.tile.printworks.merge_soft_01
-asset.shader.transition.halftone_wipe
-asset.shader.ui.button_focus_dash
-asset.shader.ui.startup_progress_bar
-asset.vfx.celebration.confetti_canvas
-```
+启动阶段的 `app/scripts/boot.gd` 位于 GF 架构之前，只能使用序列化到启动场景的最小资源；可选 Shader 或候选素材不得进入静态首帧。
 
-规则：
+## 清理与晋升
 
-- `kind` 对应素材大类：`audio`、`shader`、`texture`、`vfx`。
-- `domain` 对应使用语义：`ui`、`tile`、`game`、`background`、`transition`。
-- 文件可以移动，但资源键不应随意改名。
-- 架构完成初始化后的业务 GDScript 必须通过 `GameAssetLibraryUtility` 和稳定 key 加载正式素材。
-- `app/scripts/boot.gd` 在 GF 架构启动前运行，只能依赖序列化到启动场景的最小贴图与纯色节点；可选 shader 不得进入静态首帧编译链。
-- 正式素材默认使用 `metadata.usage_policy = "required"`；已批准、可一键替换但当前主题未启用的候选使用 `"optional"`。审计仍列出可选未使用项，但只把未使用的 required 素材视为问题。
-- `.tscn`、`.tres` 等 Godot 序列化资源可以声明包内路径；需要运行时替换的资源仍须同时暴露稳定 key。
-- 素材导入与审计工具可以记录包内路径，但不得成为业务运行时加载入口。
+- 拒绝素材只能通过 Feature 操作文档规定的 purge 工具删除。工具必须先完成正式项目强引用扫描，再写入最小排除身份，最后删除候选副本与记录。
+- 排除身份只防止同一 `source_pack_id + relative_path + SHA-256` 被重新导入，不保留已淘汰评分和备注。
+- 未评审、授权未知或仍有用途价值的源包不能当作普通缓存整包删除。
+- 运行时素材若无引用，仍需检查 manifest、槽位、许可证、可编辑源和测试契约后才能删除。
+- 每批导入、晋升、替换或清理完成后，按 Feature 操作文档运行导入/审计，再执行安全 GUT。
 
-## GF 接入
+## 发布约束
 
-- `features/asset_library/resources/gf_content_package.json` 是 GF 内容包 manifest。
-- Composition Root 将 `res://features/asset_library/resources` 配置给 `ProjectContentCatalogUtility`；只有后者可以重建 `GFContentPackageUtility` 全局目录。
-- `GameAssetLibraryUtility` 消费统一目录快照，将 `asset_library` 内容包适配为 `GFAssetCatalog`，不再重复注册 source root。
-- 素材资源键同步到 `GFResourceResolverUtility`，供项目通过稳定 ID 解析和加载。
-- `GameContentPackageCatalogSourceProvider` 和 `GameAssetReviewCatalogSourceProvider` 通过 `GFAssetCatalogSourceRegistry` 把运行时素材与候选素材映射为统一的 `GFAssetCatalog` 接口。
-- 运行时文件、候选记录、源包资源和外部导入目录统一由 `GFPathEnumerationTools` 枚举；任何 `truncated` 结果都作为审计或导入错误，不允许静默使用半套目录。
-- 项目引用由 `GFProjectReferenceScanner` 扫描；第三方归因、授权覆盖率和 notices 由 `GFAssetAttributionTools` 生成。
-- 主题包 `features/themes/resources/gf_content_package.json` 依赖 `c76.asset_library.core`。
+玩家导出必须排除：
 
-## 审计
+- `source_packs/`
+- `review/`
+- `import_sources.json` 与本机 override
+- `features/asset_library/tools/`
+- `build/asset_library/`
 
-运行：
-
-```powershell
-tools\audit_asset_library.ps1
-```
-
-输出：
-
-```text
-features/asset_library/resources/reports/asset_audit.json
-features/asset_library/resources/reports/asset_audit.md
-features/asset_library/resources/reports/review_catalog_audit.json
-features/asset_library/resources/reports/review_catalog_audit.md
-```
-
-运行时素材审计会检查：
-
-- manifest 是否有效。
-- 登记素材文件是否存在。
-- 库内是否有未登记运行时素材。
-- 第三方素材是否有作者、来源 URL 和授权。
-- 运行时 manifest 是否错误引用 `source_packs/`、`review/` 等候选评审区路径。
-- `license` 是否仍为 `unknown`、`unspecified`、`tbd`、`todo`、`pending` 等占位值。
-- 每个素材被哪些项目文件按路径或 key 引用，以及引用扫描是否完整。
-- 运行时目录的 GF attribution coverage 是否完整。
-
-评审目录审计会检查：
-
-- 候选记录数量、类型、状态和授权分布。
-- 候选 `GFAssetCatalog` 是否可以按状态、类型、标签和稳定 ID 查询。
-- 源包授权是否已确认。
-- 已批准候选是否仍缺少明确授权。
-- 用途槽位绑定的运行时文件是否存在。
-
-## 批量导入候选素材
-
-候选源包登记在：
-
-```text
-features/asset_library/resources/import_sources.json
-```
-
-运行：
-
-```powershell
-tools\import_asset_sources.ps1
-```
-
-`import_sources.json` 的 `source_path` 是作者工具在当前工作站上的执行输入，可以是 Godot 能读取的绝对目录，但它不是素材身份、运行时路径或跨机器事实。可移植身份由 `source_pack_id + relative_path + SHA-256` 组成，来源与授权由 pack metadata 和导入后的 source-pack 资源保存。
-
-绝对路径策略：
-
-- 规范、评审结论、归因文档和运行时 manifest 不复制某台机器的下载目录。
-- 换工作站时只解析或更新各 pack 的 `source_path`；仅路径变化不代表素材变化，也不应单独进入共享提交。
-- 当前导入器会把 `source_path` / `original_source_path` 保留在作者用评审记录和生成报告中，便于回查原包；这些字段是非可移植的审计证据，候选区也会被玩家导出排除。共享或发布报告时必须按需要脱敏，任何运行时加载、去重和晋升判断都不得依赖该绝对根。
-- 若未来需要多人共享同一导入配置，应先为工具增加忽略提交的本机 override，再迁移现有 `source_path`；在实现该机制前，不伪造环境变量或相对路径支持。
-
-此外，`features/asset_library/resources/source_packs/manual_shader_notes/` 用于保存从对话、实验或临时笔记中手动收集的候选 shader，例如 2.5D foliage/billboard、world-space coordinate grid、luminance texture-mask transition、shine sweep overlay、surface-masked shine sweep、space cloud starfield background、flicker noise background、gyroid FBM background、rain/snow weather overlay、Brian Smith MIT rain/snow overlay、chromatic aberration glitch、screen lens aberration shockwave、hand-drawn hatch tile pattern、animated checker tile pattern、angled stripe tile pattern、sine wave stripe pattern、square wave tile pattern、noise node-link tile pattern、new item radial shine 等。它不由 `import_sources.json` 刷新，默认只进入评审目录，授权和用途明确后再晋升到正式运行时分类目录。
-
-`features/asset_library/resources/source_packs/manual_effect_notes/` 用于保存从对话中捕获的交互 VFX 配方，例如点击位置转 UV、驱动 shader `position` / `radius` 参数的 burn/dissolve 卡片反馈，按钮 hover/drag follow/wobble 动效配方，以及 pooled shader drop/decal 控制器。它保存的是设计配方和参考代码，不是可直接运行的正式素材；需要配套 shader、授权、UI 适配、可访问性和可读性验证后才能晋升。
-
-导入规则：
-
-- 默认复制源文件并保留原始目录结构；命中 `source_exclusions.json` 精确身份的文件不会复制。
-- 为音频、shader、贴图、场景/资源候选生成 `AssetReviewRecord`。
-- 重复导入不会覆盖人工评审状态、评分、标签和备注。
-- 已清理素材以 `源包 + 相对路径 + SHA-256` 排除；源文件内容变化后会作为新素材重新进入评审。
-- 授权未知的源包只进入评审区，不会自动进入 `gf_content_package.json`。
-- 导入报告输出到 `features/asset_library/resources/reports/source_import_report.json` 和 `.md`。
-
-## 评审浏览器
-
-打开或运行：
-
-```text
-features/asset_library/scenes/asset_review_browser.tscn
-```
-
-这个内部工具可以：
-
-- 搜索候选素材。
-- 按评审状态过滤。
-- 播放支持的音频。
-- 预览 shader 和图片。
-- 修改状态、评分、标签和备注。
-- 保存回对应的 `review/records/*.tres`。
-- 保存后优先保持当前选择；当前项离开筛选结果时，自动选择同位置的下一项并恢复列表焦点。
-
-浏览器的搜索和状态过滤以 `GFAssetCatalog` 为真相来源；保存评审记录后会重建目录，不维护第二套手写索引。
-
-连续评审快捷键：
-
-- `Space`：播放或停止音频预览。
-- `1` / `2` / `3`：标记为候选 / 质量通过 / 拒绝，并继续评审。
-- `J` / `K`：下一项 / 上一项。
-- `Ctrl+S`：保存表单中的状态、评分、标签和备注。
-
-搜索、标签或备注输入框获得焦点时，裸键快捷键会暂停，避免干扰文本输入。
-浏览器把持久化字段标为“质量结论”，并独立显示派生晋升门禁。保存 `approved + unknown license` 时必须明确提示“质量已通过，但授权未确认，禁止晋升”，同时保留用户的质量结论。
-
-### 同源多格式音频
-
-WAV、OGG、MP3 等编码如果来自同一个声音内容，语义评审不应因容器或编码格式重复进行。同步仍必须满足严格边界：
-
-- 只有 `import_sources.json` 在具体源包内显式声明、并经过试听或来源元数据验证的同源组可以同步；文件名相似不能自动成组，跨源包不做模糊匹配。
-- 默认只同步 `review_status` 与 `reviewed_at`，表示“这个声音内容是否采用”的共同决定。
-- 评分、标签、备注、相对路径、内容哈希、可播放性和许可证元数据保持编码级独立，因为编码质量、来源与授权证据可能不同。
-- 组内已有冲突决定，或决定只来自当前不可播放的编码时，批处理必须报告且不写入；不能用多数票覆盖人工判断。
-- 浏览器保存单项决定时与批量回填使用同一分组契约，重复运行必须幂等。
-
-## 清理拒绝素材
-
-完成一批评审后运行：
-
-```powershell
-tools\purge_rejected_assets.ps1
-```
-
-清理前会通过 `GFProjectReferenceScanner` 完整扫描正式项目引用；扫描不完整或素材仍被引用时会中止。随后工具先把拒绝项的最小源身份写入 `features/asset_library/resources/source_exclusions.json`，确认写入成功后再删除项目内素材、Godot `.import` 副文件和 `AssetReviewRecord`。排除表不属于运行时内容包，也不保留评分、备注等评审信息；它只用于防止下一次全量导入恢复已经淘汰的相同文件。
-
-## 运行时晋升流程
-
-1. 先通过 `asset_review_browser.tscn` 试听/预览并写备注，将满意素材标记为“质量通过”。
-2. 确认授权，必要时更新 `import_sources.json` 或对应源包 `.tres`。
-3. 将可用素材从 `source_packs/` 复制或转码到正式分类目录。
-4. 在 `gf_content_package.json` 中登记稳定 `asset.*` key。
-5. 补齐 `asset_kind`、`category`、`origin`、`author`、`source`、`license`。
-6. 第三方素材还要补 `source_url`，并在 `licenses/` 或 `docs/third_party_assets.md` 记录来源。
-7. 更新 `review/asset_slot_map.tres` 或具体主题、音效银行、场景引用。
-8. 运行 `tools\audit_asset_library.ps1` 和 `tools\run_gut_safe.ps1`。
+发布只包含 manifest 登记并通过授权、引用和存在性审计的运行时素材。第三方清单与许可证摘要见 [`docs/third_party_assets.md`](./third_party_assets.md)。

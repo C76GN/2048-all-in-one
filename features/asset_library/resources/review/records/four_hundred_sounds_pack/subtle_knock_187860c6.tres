@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Other/subtle_knock"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "subtle_knock")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/subtle_knock.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Other/subtle_knock.wav"
 relative_path = "Other/subtle_knock.wav"
 extension = "wav"

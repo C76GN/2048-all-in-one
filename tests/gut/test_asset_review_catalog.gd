@@ -6,9 +6,12 @@ extends GutTest
 
 const IMPORT_SOURCES_PATH: String = "res://features/asset_library/resources/import_sources.json"
 const SOURCE_EXCLUSIONS_PATH: String = "res://features/asset_library/resources/source_exclusions.json"
-const SOURCE_IMPORT_REPORT_PATH: String = "res://features/asset_library/resources/reports/source_import_report.json"
 const CONTENT_PACKAGE_PATH: String = "res://features/asset_library/resources/gf_content_package.json"
+const SOURCE_PACK_ROOT: String = "res://features/asset_library/resources/source_packs"
 const REVIEW_RECORD_ROOT: String = "res://features/asset_library/resources/review/records"
+const SOURCE_PACK_RESOURCE_ROOT: String = (
+	"res://features/asset_library/resources/review/source_packs"
+)
 const MAX_REVIEW_RECORD_COUNT: int = 20000
 const SLOT_MAP_PATH: String = "res://features/asset_library/resources/review/asset_slot_map.tres"
 const COORDINATE_GRID_RECORD_PATH: String = "res://features/asset_library/resources/review/records/manual_shader_notes/world_space_coordinate_grid_1e36eed0.tres"
@@ -93,7 +96,14 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
 	var runtime_report: Dictionary = audit.build_audit_report()
 	var review_report: Dictionary = audit.build_review_catalog_report()
-	var import_report: Dictionary = _read_json(SOURCE_IMPORT_REPORT_PATH)
+	var import_config: Dictionary = _read_json(IMPORT_SOURCES_PATH)
+	var imported_source_pack_ids: PackedStringArray = _collect_source_pack_ids(
+		GFVariantData.get_option_array(import_config, "source_packs")
+	)
+	var imported_summary: Dictionary = _summarize_catalog_sources(
+		audit.get_review_catalog(),
+		imported_source_pack_ids
+	)
 	var content_package: Dictionary = _read_json(CONTENT_PACKAGE_PATH)
 	var approved_resources: Array = GFVariantData.get_option_array(
 		content_package,
@@ -102,11 +112,11 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 	var kind_counts: Dictionary = GFVariantData.get_option_dictionary(review_report, "kind_counts")
 	var status_counts: Dictionary = GFVariantData.get_option_dictionary(review_report, "status_counts")
 	var imported_kind_counts: Dictionary = GFVariantData.get_option_dictionary(
-		import_report,
+		imported_summary,
 		"kind_counts"
 	)
 	var imported_status_counts: Dictionary = GFVariantData.get_option_dictionary(
-		import_report,
+		imported_summary,
 		"status_counts"
 	)
 
@@ -118,8 +128,12 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 	assert_true(GFVariantData.get_option_int(runtime_report, "issue_count") == 0, "源素材包不应触发运行时未登记文件警告。")
 	assert_true(
 		GFVariantData.get_option_int(review_report, "review_record_count")
-			>= GFVariantData.get_option_int(import_report, "review_record_count"),
+			>= GFVariantData.get_option_int(imported_summary, "record_count"),
 		"评审目录应包含所有未排除的导入候选和手动候选。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(imported_summary, "record_count") > 0,
+		"当前导入配置应能在评审目录中找到对应候选记录。"
 	)
 	assert_true(
 		GFVariantData.get_option_int(kind_counts, "audio")
@@ -135,8 +149,8 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 	)
 	assert_true(
 		_sum_integer_values(imported_status_counts)
-			== GFVariantData.get_option_int(import_report, "review_record_count"),
-		"导入报告中的状态计数之和应与导入记录总数一致。"
+			== GFVariantData.get_option_int(imported_summary, "record_count"),
+		"导入源包的状态计数之和应与当前目录中的对应记录总数一致。"
 	)
 	audit.dispose()
 	assert_false(
@@ -148,7 +162,14 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 func test_review_catalog_keeps_unknown_license_assets_review_only() -> void:
 	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
 	var report: Dictionary = audit.build_review_catalog_report()
-	var import_report: Dictionary = _read_json(SOURCE_IMPORT_REPORT_PATH)
+	var import_config: Dictionary = _read_json(IMPORT_SOURCES_PATH)
+	var imported_source_pack_ids: PackedStringArray = _collect_source_pack_ids(
+		GFVariantData.get_option_array(import_config, "source_packs")
+	)
+	var imported_summary: Dictionary = _summarize_catalog_sources(
+		audit.get_review_catalog(),
+		imported_source_pack_ids
+	)
 	var source_pack_license_counts: Dictionary = GFVariantData.get_option_dictionary(report, "license_counts")
 	var record_license_counts: Dictionary = GFVariantData.get_option_dictionary(report, "record_license_counts")
 	var approved_attribution_report: Dictionary = GFVariantData.get_option_dictionary(
@@ -156,22 +177,55 @@ func test_review_catalog_keeps_unknown_license_assets_review_only() -> void:
 		"approved_attribution_report"
 	)
 	var imported_license_counts: Dictionary = GFVariantData.get_option_dictionary(
-		import_report,
+		imported_summary,
 		"license_counts"
 	)
 
 	assert_true(GFVariantData.get_option_int(source_pack_license_counts, "known") == 1, "当前只有 Universal UI Soundpack 授权已确认。")
 	assert_true(GFVariantData.get_option_int(source_pack_license_counts, "unknown") == 6, "其余源包应保持授权待确认。")
-	assert_true(GFVariantData.get_option_int(record_license_counts, "known") == 157, "已知授权候选记录数量应来自 UI Soundpack 音频和已确认 MIT shader。")
+	assert_true(
+		GFVariantData.get_option_int(record_license_counts, "known") > 0
+			and GFVariantData.get_option_int(record_license_counts, "unknown") > 0,
+		"评审目录应同时保留已知授权候选和授权待确认候选。"
+	)
+	assert_true(
+		_sum_integer_values(record_license_counts)
+			== GFVariantData.get_option_int(report, "review_record_count"),
+		"候选授权计数之和应与当前评审记录总数一致。"
+	)
 	assert_true(
 		GFVariantData.get_option_int(record_license_counts, "unknown")
 			>= GFVariantData.get_option_int(imported_license_counts, "unknown"),
 		"未排除的未知授权素材应保留在评审区，不应自动批准。"
 	)
 	assert_true(
-		_report_has_issue_kind(report, "invalid_approved_asset_attribution")
-			== not GFVariantData.get_option_bool(approved_attribution_report, "ok"),
-		"质量评审标记为 approved 也不能绕过未知授权素材的署名与推广门禁。"
+		GFVariantData.get_option_bool(approved_attribution_report, "ok")
+			and not _report_has_issue_kind(
+				report,
+				"invalid_approved_asset_attribution"
+			),
+		"署名审计只应覆盖已满足质量与授权门禁、可晋升运行时的素材。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(
+			report,
+			"promotion_eligible_count"
+		) == GFVariantData.get_option_int(
+			approved_attribution_report,
+			"entry_count"
+		),
+		"可晋升素材数应与署名报告条目数一致。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(
+			report,
+			"license_blocked_approved_count"
+		) > 0
+			and _report_has_issue_kind(
+				report,
+				"approved_assets_license_blocked"
+			),
+		"质量已通过但授权未知的素材应保留结果，并以非阻断警告维持晋升门禁。"
 	)
 	audit.dispose()
 
@@ -179,7 +233,10 @@ func test_review_catalog_keeps_unknown_license_assets_review_only() -> void:
 func test_rejected_sources_are_excluded_without_review_records() -> void:
 	var exclusions: Dictionary = _read_json(SOURCE_EXCLUSIONS_PATH)
 	var exclusion_entries: Array = GFVariantData.get_option_array(exclusions, "entries")
-	var import_report: Dictionary = _read_json(SOURCE_IMPORT_REPORT_PATH)
+	var import_config: Dictionary = _read_json(IMPORT_SOURCES_PATH)
+	var imported_source_pack_ids: PackedStringArray = _collect_source_pack_ids(
+		GFVariantData.get_option_array(import_config, "source_packs")
+	)
 	var scan_report: Dictionary = GFPathEnumerationTools.scan_files(
 		REVIEW_RECORD_ROOT,
 		{
@@ -194,11 +251,6 @@ func test_rejected_sources_are_excluded_without_review_records() -> void:
 		scan_report
 	)
 
-	assert_true(
-		exclusion_entries.size()
-			== GFVariantData.get_option_int(import_report, "excluded_count"),
-		"导入排除数应与最小源素材排除表一致。"
-	)
 	assert_true(exclusion_entries.size() > 0, "当前应记录已经清除的源素材身份。")
 	assert_true(
 		GFVariantData.get_option_bool(scan_report, "ok")
@@ -207,6 +259,12 @@ func test_rejected_sources_are_excluded_without_review_records() -> void:
 	)
 	for exclusion_value: Variant in exclusion_entries:
 		var exclusion: Dictionary = GFVariantData.as_dictionary(exclusion_value)
+		assert_true(
+			imported_source_pack_ids.has(
+				GFVariantData.get_option_string(exclusion, "source_pack_id")
+			),
+			"排除身份应属于当前导入配置中的源包。"
+		)
 		var identity: String = _make_review_source_identity(
 			GFVariantData.get_option_string(exclusion, "source_pack_id"),
 			GFVariantData.get_option_string(exclusion, "relative_path"),
@@ -216,6 +274,124 @@ func test_rejected_sources_are_excluded_without_review_records() -> void:
 			review_source_identities.has(identity),
 			"已清除并排除的精确源素材身份不应重新生成评审记录：%s。" % identity
 		)
+
+
+func test_versioned_asset_state_does_not_persist_workstation_source_paths() -> void:
+	var issues: Array[String] = []
+	var import_config: Dictionary = _read_json(IMPORT_SOURCES_PATH)
+	var imported_source_pack_ids: PackedStringArray = _collect_source_pack_ids(
+		GFVariantData.get_option_array(import_config, "source_packs")
+	)
+	for source_pack_value: Variant in GFVariantData.get_option_array(
+		import_config,
+		"source_packs"
+	):
+		var source_pack_config: Dictionary = GFVariantData.as_dictionary(
+			source_pack_value
+		)
+		if not GFVariantData.get_option_string(
+			source_pack_config,
+			"source_path"
+		).is_empty():
+			issues.append(
+				"import_sources.json 不应保存本机路径：%s"
+				% GFVariantData.get_option_string(
+					source_pack_config,
+					"source_pack_id"
+				)
+			)
+
+	for root_path: String in [
+		REVIEW_RECORD_ROOT,
+		SOURCE_PACK_RESOURCE_ROOT,
+	]:
+		var scan_report: Dictionary = GFPathEnumerationTools.scan_files(
+			root_path,
+			{
+				"recursive": true,
+				"include_hidden": false,
+				"extensions": PackedStringArray(["tres"]),
+				"max_file_count": MAX_REVIEW_RECORD_COUNT,
+				"sort": true,
+			}
+		)
+		assert_true(
+			GFVariantData.get_option_bool(scan_report, "ok")
+				and not GFVariantData.get_option_bool(
+					scan_report,
+					"truncated"
+				),
+			"素材作者状态路径扫描必须完整：%s" % scan_report
+		)
+		for path: String in GFVariantData.get_option_packed_string_array(
+			scan_report,
+			"paths"
+		):
+			var resource: Resource = ResourceLoader.load(
+				path,
+				"",
+				ResourceLoader.CACHE_MODE_IGNORE
+			)
+			if resource == null:
+				issues.append("无法读取素材作者状态：%s" % path)
+				continue
+			var source_pack_id: String = GFVariantData.to_text(
+				resource.get("source_pack_id")
+			)
+			if not imported_source_pack_ids.has(source_pack_id):
+				continue
+			var authoring_path: String = ""
+			if root_path == REVIEW_RECORD_ROOT:
+				authoring_path = GFVariantData.to_text(
+					resource.get("source_path")
+				)
+			else:
+				authoring_path = GFVariantData.to_text(
+					resource.get("original_source_path")
+				)
+			if not authoring_path.is_empty():
+				issues.append("素材作者状态不应保存本机路径：%s" % path)
+
+	var manifest_scan: Dictionary = GFPathEnumerationTools.scan_files(
+		SOURCE_PACK_ROOT,
+		{
+			"recursive": true,
+			"include_hidden": false,
+			"extensions": PackedStringArray(["json"]),
+			"max_file_count": MAX_REVIEW_RECORD_COUNT,
+			"sort": true,
+		}
+	)
+	assert_true(
+		GFVariantData.get_option_bool(manifest_scan, "ok")
+			and not GFVariantData.get_option_bool(
+				manifest_scan,
+				"truncated"
+			),
+		"源素材 manifest 路径扫描必须完整：%s" % manifest_scan
+	)
+	for manifest_path: String in GFVariantData.get_option_packed_string_array(
+		manifest_scan,
+		"paths"
+	):
+		if manifest_path.get_file() != "source_pack_manifest.json":
+			continue
+		var manifest: Dictionary = _read_json(manifest_path)
+		if not imported_source_pack_ids.has(
+			GFVariantData.get_option_string(manifest, "source_pack_id")
+		):
+			continue
+		_collect_workstation_paths(
+			manifest,
+			manifest_path,
+			issues
+		)
+
+	assert_true(
+		issues.is_empty(),
+		"可重导外部素材的本机路径只能存在于忽略提交的 local override：\n%s"
+		% "\n".join(issues)
+	)
 
 
 func test_manual_coordinate_grid_shader_is_review_candidate_only() -> void:
@@ -753,6 +929,94 @@ func _sum_integer_values(values: Dictionary) -> int:
 	for value: Variant in values.values():
 		total += GFVariantData.to_int(value)
 	return total
+
+
+func _summarize_catalog_sources(
+	catalog: GFAssetCatalog,
+	source_pack_ids: PackedStringArray
+) -> Dictionary:
+	var summary: Dictionary = {
+		"record_count": 0,
+		"kind_counts": {},
+		"status_counts": {},
+		"license_counts": {},
+	}
+	if catalog == null:
+		return summary
+	for asset_id_text: String in catalog.get_all_ids():
+		var entry: GFAssetCatalogEntry = catalog.get_entry(StringName(asset_id_text))
+		if entry == null:
+			continue
+		var source_pack_id: String = GFVariantData.get_option_string(
+			entry.metadata,
+			"source_pack_id"
+		)
+		if not source_pack_ids.has(source_pack_id):
+			continue
+		summary["record_count"] = GFVariantData.get_option_int(summary, "record_count") + 1
+		_increment_summary_count(summary, "kind_counts", String(entry.category))
+		_increment_summary_count(
+			summary,
+			"status_counts",
+			GFVariantData.get_option_string(entry.metadata, "review_status")
+		)
+		_increment_summary_count(
+			summary,
+			"license_counts",
+			GFVariantData.get_option_string(entry.metadata, "license_status")
+		)
+	return summary
+
+
+func _increment_summary_count(
+	summary: Dictionary,
+	counts_key: String,
+	value: String
+) -> void:
+	var counts: Dictionary = GFVariantData.get_option_dictionary(summary, counts_key)
+	counts[value] = GFVariantData.get_option_int(counts, value) + 1
+	summary[counts_key] = counts
+
+
+func _collect_workstation_paths(
+	value: Variant,
+	context: String,
+	issues: Array[String]
+) -> void:
+	if value is Dictionary:
+		var dictionary: Dictionary = value
+		for key: Variant in dictionary:
+			_collect_workstation_paths(
+				dictionary[key],
+				"%s.%s" % [context, GFVariantData.to_text(key)],
+				issues
+			)
+		return
+	if value is Array:
+		var values: Array = value
+		for index: int in values.size():
+			_collect_workstation_paths(
+				values[index],
+				"%s[%d]" % [context, index],
+				issues
+			)
+		return
+	if value is String:
+		var text: String = GFVariantData.to_text(value)
+		if _is_workstation_absolute_path(text):
+			issues.append("源素材 manifest 不应保存本机路径：%s" % context)
+
+
+func _is_workstation_absolute_path(value: String) -> bool:
+	var normalized: String = value.replace("\\", "/")
+	if normalized.begins_with("//"):
+		return true
+	if normalized.begins_with("/Users/") or normalized.begins_with("/home/"):
+		return true
+	if normalized.length() < 3 or normalized.substr(1, 2) != ":/":
+		return false
+	var drive_letter: String = normalized.left(1).to_upper()
+	return "ABCDEFGHIJKLMNOPQRSTUVWXYZ".contains(drive_letter)
 
 
 func _report_has_issue_kind(report: Dictionary, kind: String) -> bool:

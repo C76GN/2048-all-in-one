@@ -9,7 +9,6 @@ source_pack_id = &"downloaded_shader_pack"
 display_name = "transition"
 asset_kind = &"shader"
 tags = PackedStringArray("shader", "license_review_needed", "transition")
-source_path = "E:/_inbox/Downloads/shader/transition.gdshader"
 library_path = "res://features/asset_library/resources/source_packs/downloaded_shader_pack/files/transition.gdshader"
 relative_path = "transition.gdshader"
 extension = "gdshader"

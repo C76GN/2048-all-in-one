@@ -11,7 +11,6 @@ asset_kind = &"audio"
 review_group_id = &"review.group.universal.ui.soundpack.minimalist2.ed0517468171"
 review_status = &"approved"
 tags = PackedStringArray("audio", "ui", "known_license", "ogg", "minimalist2")
-source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Minimalist2.ogg"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/Minimalist2.ogg"
 relative_path = "OGG/Minimalist2.ogg"
 extension = "ogg"

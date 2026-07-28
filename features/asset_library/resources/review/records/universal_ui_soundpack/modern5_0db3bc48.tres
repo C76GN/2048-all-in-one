@@ -10,7 +10,6 @@ display_name = "WAV/Modern5"
 asset_kind = &"audio"
 review_group_id = &"review.group.universal.ui.soundpack.modern5.df2b7d62bf2e"
 tags = PackedStringArray("audio", "ui", "known_license", "wav", "modern5")
-source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/Modern5.wav"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/WAV/Modern5.wav"
 relative_path = "WAV/Modern5.wav"
 extension = "wav"

@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Other/keyboard_typing"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "keyboard_typing")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/keyboard_typing.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Other/keyboard_typing.wav"
 relative_path = "Other/keyboard_typing.wav"
 extension = "wav"

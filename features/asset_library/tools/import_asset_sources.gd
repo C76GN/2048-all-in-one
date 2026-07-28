@@ -6,14 +6,17 @@ extends SceneTree
 # --- 常量 ---
 
 const CONFIG_PATH: String = "res://features/asset_library/resources/import_sources.json"
+const LOCAL_CONFIG_PATH: String = (
+	"res://features/asset_library/resources/import_sources.local.json"
+)
 const SOURCE_PACK_ROOT: String = "res://features/asset_library/resources/source_packs"
 const REVIEW_ROOT: String = "res://features/asset_library/resources/review"
 const REVIEW_RECORD_ROOT: String = "res://features/asset_library/resources/review/records"
 const SOURCE_PACK_RESOURCE_ROOT: String = "res://features/asset_library/resources/review/source_packs"
 const SLOT_MAP_PATH: String = "res://features/asset_library/resources/review/asset_slot_map.tres"
 const SOURCE_EXCLUSION_PATH: String = "res://features/asset_library/resources/source_exclusions.json"
-const REPORT_JSON_PATH: String = "res://features/asset_library/resources/reports/source_import_report.json"
-const REPORT_MARKDOWN_PATH: String = "res://features/asset_library/resources/reports/source_import_report.md"
+const REPORT_JSON_PATH: String = "res://build/asset_library/source_import_report.json"
+const REPORT_MARKDOWN_PATH: String = "res://build/asset_library/source_import_report.md"
 const COPY_BUFFER_SIZE: int = 1_048_576
 const MAX_SOURCE_FILE_COUNT: int = 100000
 const ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/scripts/data/asset_review_record.gd")
@@ -141,6 +144,7 @@ func run_import() -> Dictionary:
 		_finalize_report(report)
 		_write_reports(report)
 		return report
+	_apply_local_source_paths(config, _read_json(LOCAL_CONFIG_PATH))
 
 	var ensure_roots_error: Error = _ensure_asset_library_roots()
 	if ensure_roots_error != OK:
@@ -351,7 +355,8 @@ func _make_review_record(
 	record.set("tags", _make_record_tags(source_pack_config, relative_path, inferred_kind, existing_record))
 	record.set("notes", "")
 	record.set("rating", 0)
-	record.set("source_path", source_file)
+	# 外部作者路径只用于本次导入，不进入可移植的评审记录。
+	record.set("source_path", "")
 	record.set("library_path", target_path)
 	record.set("relative_path", relative_path)
 	record.set("extension", extension)
@@ -396,7 +401,8 @@ func _save_source_pack_resource(
 	var resource: Resource = ASSET_SOURCE_PACK_SCRIPT.new()
 	resource.set("source_pack_id", StringName(pack_id))
 	resource.set("display_name", GFVariantData.get_option_string(source_pack_config, "display_name", pack_id))
-	resource.set("original_source_path", _normalize_path(GFVariantData.get_option_string(source_pack_config, "source_path")))
+	# 本机作者路径由忽略提交的 local override 拥有。
+	resource.set("original_source_path", "")
 	resource.set("library_root_path", SOURCE_PACK_ROOT.path_join(pack_id))
 	resource.set("author", GFVariantData.get_option_string(source_pack_config, "author"))
 	resource.set("license", GFVariantData.get_option_string(source_pack_config, "license"))
@@ -429,17 +435,24 @@ func _write_source_pack_manifest(
 ) -> void:
 	var pack_id: String = GFVariantData.get_option_string(source_pack_config, "source_pack_id")
 	var manifest_path: String = SOURCE_PACK_ROOT.path_join(pack_id).path_join("source_pack_manifest.json")
+	var portable_pack_report: Dictionary = pack_report.duplicate(true)
+	var portable_scan_report: Dictionary = GFVariantData.get_option_dictionary(
+		portable_pack_report,
+		"source_scan_report"
+	)
+	var _erase_root_result: bool = portable_scan_report.erase("root_path")
+	var _erase_limit_result: bool = portable_scan_report.erase("limit_path")
+	portable_pack_report["source_scan_report"] = portable_scan_report
 	var manifest: Dictionary = {
 		"schema_version": 1,
 		"source_pack_id": pack_id,
 		"display_name": GFVariantData.get_option_string(source_pack_config, "display_name", pack_id),
-		"original_source_path": _normalize_path(GFVariantData.get_option_string(source_pack_config, "source_path")),
 		"author": GFVariantData.get_option_string(source_pack_config, "author"),
 		"license": GFVariantData.get_option_string(source_pack_config, "license"),
 		"license_status": GFVariantData.get_option_string(source_pack_config, "license_status", "unknown"),
 		"source_url": GFVariantData.get_option_string(source_pack_config, "source_url"),
 		"imported_at": imported_at,
-		"report": pack_report,
+		"report": portable_pack_report,
 	}
 	var write_error: Error = _write_text_if_changed(manifest_path, JSON.stringify(manifest, "\t"))
 	if write_error != OK:
@@ -1043,6 +1056,37 @@ func _read_json(path: String) -> Dictionary:
 		var dictionary: Dictionary = parsed
 		return dictionary
 	return {}
+
+
+func _apply_local_source_paths(
+	config: Dictionary,
+	local_config: Dictionary
+) -> void:
+	var source_paths: Dictionary = GFVariantData.get_option_dictionary(
+		local_config,
+		"source_paths"
+	)
+	if source_paths.is_empty():
+		return
+	var resolved_packs: Array[Dictionary] = []
+	for source_pack_value: Variant in GFVariantData.get_option_array(
+		config,
+		"source_packs"
+	):
+		var source_pack: Dictionary = GFVariantData.as_dictionary(
+			source_pack_value
+		).duplicate(true)
+		var source_pack_id: String = GFVariantData.get_option_string(
+			source_pack,
+			"source_pack_id"
+		)
+		if source_paths.has(source_pack_id):
+			source_pack["source_path"] = GFVariantData.get_option_string(
+				source_paths,
+				source_pack_id
+			)
+		resolved_packs.append(source_pack)
+	config["source_packs"] = resolved_packs
 
 
 func _write_text(path: String, text: String) -> Error:

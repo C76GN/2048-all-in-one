@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Musical Effects/harpsichord_defeated"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "musical", "effects", "harpsichord_defeated")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Musical Effects/harpsichord_defeated.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Musical Effects/harpsichord_defeated.wav"
 relative_path = "Musical Effects/harpsichord_defeated.wav"
 extension = "wav"

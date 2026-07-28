@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Retro/ghost"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "retro", "ghost")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Retro/ghost.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Retro/ghost.wav"
 relative_path = "Retro/ghost.wav"
 extension = "wav"

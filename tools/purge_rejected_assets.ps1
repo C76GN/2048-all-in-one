@@ -6,7 +6,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$reportPath = Join-Path $ProjectRoot "build\rejected_asset_purge_report.json"
+$reportPath = Join-Path $ProjectRoot "build\asset_library\rejected_asset_purge_report.json"
 if (Test-Path -LiteralPath $reportPath) {
 	Remove-Item -LiteralPath $reportPath -Force
 }

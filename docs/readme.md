@@ -7,7 +7,7 @@
 1. **可执行真相**：实际代码与资源、`project.godot`、[`gf_project_profile.json`](../gf_project_profile.json)、[`.gf/project_contract.json`](../.gf/project_contract.json)、[`addons/gf/plugin.cfg`](../addons/gf/plugin.cfg) 和 [`.gf/vendor.lock.json`](../.gf/vendor.lock.json)。
 2. **规范文档**：本目录中的架构、数据、编码、视觉、素材和验证契约。规范必须与可执行真相同一变更更新；发生冲突时先按代码和可执行配置确认事实，再修正文档。
 3. **Feature 操作文档**：`features/*/docs/` 中由具体 Feature 拥有的工作流、工具和领域说明。项目级文档定义边界，Feature 文档定义具体操作。
-4. **计划与证据**：Roadmap 表达尚未完成的意图；生成报告表达某次运行结果；`docs/research/` 是带日期的历史研究快照。三者都不能覆盖当前代码或规范契约。
+4. **计划与证据**：Roadmap 表达尚未完成的意图，生成报告表达某次运行结果。二者都不能覆盖当前代码或规范契约。
 
 精确 GF 版本只从 `addons/gf/plugin.cfg` 读取，vendor 身份只从 `.gf/vendor.lock.json` 读取。`addons/gf/` 是只读上游快照；项目不得直接修补 vendor。
 
@@ -34,14 +34,13 @@
 - [方块试验台](../features/tile_lab/docs/tile_lab.md)
 - [方块图鉴](../features/tile_catalog/docs/tile_catalog.md)
 
-## 计划、研究与当前验证状态
+## 计划与当前验证状态
 
 - [Roadmap](./roadmap.md) 只描述方向与待办；完成状态必须回到代码、测试和对应规范核对。
-- [竞品与灵感研究](./research/indie_game_benchmark/readme.md) 是有日期的历史证据库，其中“当前”只代表快照日。
 - GF 合同现状通过 `python addons/gf/tools/ai_developer/gf_ai_project.py context --project-root .` 与 `validate --project-root .` 读取。
 - GUT 现状以 `tools/run_gut_safe.ps1` 的当次输出为准；退出门禁读取 `.gf/godot_exit_leak_baseline.json`。
 - GDScript LSP 现状以忽略提交的 `build/gdscript_lsp_diagnostics.json` 为准。
-- 素材审计以 `features/asset_library/resources/reports/` 中本次生成的报告为准。
+- 素材导入与审计以忽略提交的 `build/asset_library/` 中本次生成的报告为准。
 - 平台与工具链环境以 `build/platform_readiness_report.json` 和 `build/platform_environment_report.json` 为准。
 
 生成报告必须带生成时间、输入范围或对应 vendor / 工作树身份；旧报告只能作为历史证据，不能复制成长期规范中的“当前数量”。
@@ -51,4 +50,4 @@
 - 修改代码导致所有权、schema、启动链、平台能力或资源流程变化时，在同一批次更新对应规范。
 - 不在多份规范文档重复维护 Feature 所有权表、GF 包清单、精确版本、测试数量或环境检测结果；README 可提供概览，但必须链接权威来源。
 - 文档中的本地文件引用使用仓库相对路径或 `res://`；除明确的作者工具执行输入和带日期研究证据外，不记录工作站绝对路径。
-- 新文档先确定归属：跨 Feature 契约放在 `docs/`，具体 Feature 操作放在 `features/<feature>/docs/`，一次性调查放在带日期的 `docs/research/`。
+- 新文档先确定归属：跨 Feature 契约放在 `docs/`，具体 Feature 操作放在 `features/<feature>/docs/`。一次性调查、来源台账和原型记录默认留在忽略提交的 `ai_analysis/` 或 `build/`；采纳后只把长期有效的结论合入对应权威文档，不在主树积累历史研究档案。

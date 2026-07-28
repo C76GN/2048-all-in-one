@@ -11,7 +11,6 @@ asset_kind = &"audio"
 review_group_id = &"review.group.universal.ui.soundpack.retro2.1f4ee01a62f4"
 review_status = &"approved"
 tags = PackedStringArray("audio", "ui", "known_license", "wav", "retro2", "retro")
-source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/Retro2.wav"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/WAV/Retro2.wav"
 relative_path = "WAV/Retro2.wav"
 extension = "wav"

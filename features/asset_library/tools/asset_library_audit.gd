@@ -15,10 +15,14 @@ const ASSET_LIBRARY_REVIEW_ROOT: String = "res://features/asset_library/resource
 const ASSET_LIBRARY_REVIEW_RECORD_ROOT: String = "res://features/asset_library/resources/review/records"
 const ASSET_LIBRARY_SOURCE_PACK_RESOURCE_ROOT: String = "res://features/asset_library/resources/review/source_packs"
 const ASSET_LIBRARY_SLOT_MAP_PATH: String = "res://features/asset_library/resources/review/asset_slot_map.tres"
-const DEFAULT_AUDIT_JSON_PATH: String = "res://features/asset_library/resources/reports/asset_audit.json"
-const DEFAULT_AUDIT_MARKDOWN_PATH: String = "res://features/asset_library/resources/reports/asset_audit.md"
-const DEFAULT_REVIEW_CATALOG_JSON_PATH: String = "res://features/asset_library/resources/reports/review_catalog_audit.json"
-const DEFAULT_REVIEW_CATALOG_MARKDOWN_PATH: String = "res://features/asset_library/resources/reports/review_catalog_audit.md"
+const DEFAULT_AUDIT_JSON_PATH: String = "res://build/asset_library/asset_audit.json"
+const DEFAULT_AUDIT_MARKDOWN_PATH: String = "res://build/asset_library/asset_audit.md"
+const DEFAULT_REVIEW_CATALOG_JSON_PATH: String = (
+	"res://build/asset_library/review_catalog_audit.json"
+)
+const DEFAULT_REVIEW_CATALOG_MARKDOWN_PATH: String = (
+	"res://build/asset_library/review_catalog_audit.md"
+)
 const _ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/scripts/data/asset_review_record.gd")
 const _ASSET_SOURCE_PACK_SCRIPT = preload("res://features/asset_library/scripts/data/asset_source_pack.gd")
 const _ASSET_SLOT_MAP_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_map.gd")
@@ -339,8 +343,39 @@ func build_review_catalog_report() -> Dictionary:
 		_increment_count(report, "kind_counts", _get_resource_string(record, "asset_kind"))
 		_increment_count(report, "status_counts", _get_resource_string(record, "review_status"))
 		_increment_count(report, "record_license_counts", _get_resource_string(record, "license_status"))
+		if _record_is_approved(record):
+			report["approved_count"] = (
+				GFVariantData.get_option_int(report, "approved_count") + 1
+			)
+			if _record_is_promotion_eligible(record):
+				report["promotion_eligible_count"] = (
+					GFVariantData.get_option_int(
+						report,
+						"promotion_eligible_count"
+					) + 1
+				)
+			else:
+				report["license_blocked_approved_count"] = (
+					GFVariantData.get_option_int(
+						report,
+						"license_blocked_approved_count"
+					) + 1
+				)
 		for slot_id: String in _get_resource_packed_string_array(record, "suggested_slots"):
 			_increment_count(report, "slot_candidate_counts", slot_id)
+
+	if GFVariantData.get_option_int(report, "license_blocked_approved_count") > 0:
+		_add_audit_issue(
+			report,
+			"warning",
+			"approved_assets_license_blocked",
+			"%d 个质量已通过素材仍因授权未确认而禁止运行时晋升。"
+			% GFVariantData.get_option_int(
+				report,
+				"license_blocked_approved_count"
+			),
+			{}
+		)
 
 	if not _is_report_ok(approved_attribution_report):
 		_add_audit_issue(
@@ -831,7 +866,7 @@ func _build_review_attribution_report(records: Array[Resource]) -> Dictionary:
 	var attribution_entries: Array = []
 	var resource_paths: PackedStringArray = PackedStringArray()
 	for record: Resource in records:
-		if not _record_is_approved(record):
+		if not _record_is_promotion_eligible(record):
 			continue
 		var path: String = _get_resource_string(record, "library_path")
 		var license_id: String = ""
@@ -925,6 +960,16 @@ func _source_pack_has_known_license(source_pack: Resource) -> bool:
 
 func _record_is_approved(record: Resource) -> bool:
 	return _get_resource_string_name(record, "review_status") == &"approved"
+
+
+func _record_is_promotion_eligible(record: Resource) -> bool:
+	return (
+		_record_is_approved(record)
+		and _get_resource_string_name(record, "license_status") == &"known"
+		and not AssetReviewRecord.is_placeholder_license_id(
+			_get_resource_string(record, "license")
+		)
+	)
 
 
 func _get_slot_bindings(slot_map: Resource) -> Array[Resource]:
@@ -1119,6 +1164,9 @@ func _make_review_catalog_report() -> Dictionary:
 		"source_pack_scan_report": {},
 		"approved_attribution_report": {},
 		"approved_attribution_notice": "",
+		"approved_count": 0,
+		"promotion_eligible_count": 0,
+		"license_blocked_approved_count": 0,
 		"kind_counts": {},
 		"status_counts": {},
 		"license_counts": {},

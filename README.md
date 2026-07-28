@@ -1,88 +1,40 @@
 # 2048 All In One
 
-一个基于 Godot 4 和 gf 的可扩展 2048 规则实验项目。项目把棋盘数据、规则、输入、存档、设置、回放和 UI 流程拆成独立模块，目标是作为 gf 框架在中小型游戏中的最佳实践示例。
+基于 Godot 4.7+ 与 GF Framework 的可扩展 2048 规则组合游戏。项目支持多种规则、确定性回放与书签、自定义棋盘、方块组合、主题、本地多账号和离线排行榜，并面向 Windows/Steam、Web、移动端与微信小游戏保持可移植边界。
 
-> **GF vendor 边界**
->
-> 本项目是 **GF Framework** 的实践示例，但当前工作区中的 `addons/gf/` 是只读 vendor 快照。项目开发不得直接修改它。通用框架问题先在 `C76GN/gf-framework` 建立 GitHub issue，并以 issue 作为唯一协作与验收记录；不得把 issue 转成 PR。经授权的实现只能在独立 `gf-pr` 工作区的非 `main` 分支完成，`gf-pr` 只是隔离工作区名称，并不代表授权创建 GitHub PR；用户自有 `gf` 工作区只对本项目自动化与协作者保持只读，不限制用户本人继续维护。GF 测试通过并由维护者发布后，再通过可追溯的 vendor 升级回流。2048 规则、内容、文案和视觉始终留在项目 Feature。
+## 运行
 
-## 技术栈
+在 Godot 中打开 `project.godot`，或从项目根目录运行：
 
-- Godot 4.7+
-- GF Framework 9.x（精确运行版本以 `addons/gf/plugin.cfg` 为唯一真值）
-- GF Package Manager（GF 9 使用 Godot 原生 CLI；当前仓库为由 `.gf/vendor.lock.json` 精确锁定的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在）
-- GDScript，遵循 `docs/coding_style.md`
+```powershell
+godot --path .
+```
 
-## 架构概览
+启动入口是 `app/scenes/boot.tscn`。启动链会先安装项目架构、初始化 GF，再提交主题和进入玩家界面。
 
-- 项目严格采用 GF 内置的 Feature-Cohesive 目录契约，`gf_project_profile.json` 是可执行的结构真相来源。
-- `app/` 只包含启动、Composition Root 和跨 Feature 装配；`app/scripts/game_architecture_installer.gd` 声明项目 Model、System、Utility。
-- `features/` 当前包含 accessibility、achievements、asset_library、board_editor、bookmarks、diagnostics、gameplay、navigation、persistence、platform_runtime、progress、replays、settings、themes 和 tile_catalog；所有权表以 `docs/architecture.md` 为准。
-- 每个 Feature 在自己的 `scripts/`、`scenes/`、`resources/`、`docs/` 或 `tools/` 内拥有完整实现；GF 的 Model/System/Utility/Controller 是 Feature 内部逻辑层。
-- `shared/` 只保存跨 Feature 复用的契约、基础算法、UI 原语、素材和 Utility，不得引用具体 Feature。
-- 旧的全局 `scripts/`、`scenes/`、`resources/`、`assets/` 和 `asset_library/` 类型桶不再使用，也不提供旧路径兼容。
-- `features/gameplay/scripts/rules/` 是规则实现层。移动、交互、生成、结束判定互相解耦，模式配置通过 `features/gameplay/resources/modes/*.tres` 组合它们。
-- `features/gameplay/resources/input/gameplay_input_context.tres` 使用 `GFInputContext` / `GFInputMapping` 描述玩法输入，运行时由 `GFInputMappingUtility` 消费。
-- `features/gameplay/resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式目录，菜单和初始化流程通过 `ProjectResourceCatalogUtility` / `GameModeCatalogUtility` 读取注册表。
-- `features/navigation/resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 UI 路由目录，`features/navigation/resources/ui_routes/*.tres` 用 `GFUIRoute` 描述弹层面板，并通过 `ProjectResourceCatalogUtility` 注册到资源解析器。
-- `shared/assets/translations.csv` 提供中文和英文 UI 文案。
+## 目录
 
-文档权威层级与完整索引见 `docs/readme.md`；Feature 所有权和依赖方向见 `docs/architecture.md`。
+- `app/`：启动、Composition Root 与跨 Feature 装配。
+- `features/`：按业务能力内聚的玩法、导航、存档、主题和工具切片。
+- `shared/`：真正跨 Feature 的契约、UI 原语、资源和 Utility。
+- `tests/`、`tools/`：跨 Feature 验证与维护自动化。
+- `addons/gf/`：由 `.gf/vendor.lock.json` 精确锁定的只读 GF vendor。
 
-## gf 使用方式
+目录与依赖的可执行真相是 `gf_project_profile.json` 和 `.gf/project_contract.json`。项目功能不得直接修改 `addons/gf/`；通用框架问题按 `docs/ai_maintenance.md` 的 issue-first 流程处理。
 
-项目启动入口是 `app/scenes/boot.tscn`。极轻的 `boot.gd` 只承接原生静态首帧，并通过 `ResourceLoader` 在线程中加载 `boot_runtime.gd`；`BootRuntime` 就绪后才创建根架构、调用 `await Gf.init()`、等待主题提交并执行场景/渲染预热。业务模块内部优先使用 `GFSystem` / `GFController` 的基类方法访问 Model、System、Utility 和事件总线。
+## 验证
 
-实际启用的 GF 扩展以 `project.godot` 的 `gf/extensions/enabled` 为准，所需与可选包以 `.gf/project_contract.json` 为准；README 不维护重复清单。
+常用门禁：
 
-当前项目直接依赖的 GF 能力：
+```powershell
+python addons/gf/tools/ai_developer/gf_ai_project.py validate --project-root .
+powershell -ExecutionPolicy Bypass -File tools/validate_project_layout.ps1 -GodotExecutable godot
+powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot
+```
 
-- `gf.domain` 提供运行时 session、领域模型与通用进度语义。
-- `gf.action_queue` 提供棋盘视觉动作队列。
-- GF standard utilities 提供输入、状态机、资源注册、规范存档文档、平台运行时、共享时钟、存储、设置、场景、UI、对象池、随机种子和诊断等能力。
+不要直接运行裸 GUT；安全包装器会隔离用户目录并限制日志增长。
 
-GF 9 的包管理入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。如果后续重新使用包管理器安装/更新 GF 包，应让 `.gf/packages.lock.json` 与 `addons/gf/plugin.cfg`、`project.godot` 的扩展启用状态保持一致；`.gf/package_cache/` 是下载缓存，已在 `.gitignore` 中忽略。
+## 文档
 
-当前重点实践：
-
-- 用项目级 installer 管理注册顺序。
-- 用 `GFCommandHistoryUtility.execute_command()`、`undo_last_async()` 和 `redo_async()` 管理移动命令、撤销与重做。
-- 用 `GFInputMappingUtility` 管理资源化输入上下文。
-- 用项目级 `GamePauseUtility` 原子同步 `GFTimeUtility` 与 `SceneTree.paused`；暂停期间输入 System 只保留恢复意图，不缓存玩法动作。
-- 用 Composition Root 创建单一 `GFClock`，同时注入 `GFTimeUtility` 与项目级 `GameClockUtility`；测试通过 `GFManualClock` 确定性控制 wall-clock 与单调时间。
-- 用 `GFSceneUtility` 做异步场景切换，`SceneRouterSystem` 负责业务事件、路由意图和半调纸媒转场遮罩。
-- 用项目级 `GameUiRouterUtility` 从 `ui_route_registry.tres` 加载 `GFUIRoute` 路由表，暂停、游戏结束、设置、图鉴和成就面板通过稳定 route_id 打开。
-- 用 `GFControlFocusUtility` 为模式卡片、书签和回放列表写入稳定的纵向焦点顺序，项目层只表达跨列导航意图。
-- 用项目级 `GameSettingsUtility` 承接 `GFSettingsUtility` / `GFDisplaySettingsUtility`，语言、显示、音量、视觉主题和音效主题通过 `GFFormBinder` 绑定到设置页控件，选项列表用 `GFItemListBinder` 写入。
-- 用项目级 `GameSaveGraphUtility` 组合 `GFSaveGraphUtility` / `GFSaveDocument` / `GFSaveScope` / `GFSaveDataSource`，把统计、书签、玩家棋盘、发现、成就和回放作为六个 Feature section 原子保存到类型保真的 Binary 玩家数据图；磁盘根始终是 GF 规范文档，同源旧 Profile 先备份再按当前契约重建，设置保持独立生命周期。
-- 用不可变 `GameCompetitionEligibility` 冻结普通对局的比赛资格；调试改写、回放续玩、书签恢复、撤销/重做、自定义棋盘和手动 seed 都会留下可解释的失格原因。
-- 用 `GameResultRecordedData` 保存严格结果；`ProgressStatsSystem` 只把比赛合格结果写入按模式、拓扑和规则集身份隔离的本地排行榜。本地榜是离线参考，不是 Steam、微信或服务端的线上权威证明。
-- 用 `GFPlatformRuntime` 统一拥有平台 Adapter 注册、契约路由、请求句柄、超时和生命周期序列；项目级 `GamePlatformUtility` 只负责 Adapter 选择、Godot 通知桥接和项目上下文投影。
-- 用 `GFLevelUtility` 把当前一局登记为运行时 session，集中清理命令历史与动作队列等对局残留；项目不把 2048 强行建模为关卡进度。
-- 用 `ProjectResourceCatalogUtility` 把 `GFResourceRegistry`、`GFResourceResolverUtility` 和 `GFAssetUtility` 组合成统一资源目录 Adapter，模式目录和 UI 路由目录不重复实现注册、解析和缓存细节。
-- 用 `AchievementCatalogUtility` 管理数据驱动成就定义，并由 `AchievementSystem` 从规范统计/发现高水位回填进度；持久化成功后再投影到扩展拥有的 `GFQuestUtility`，平台 SDK 不作为真源。
-- 用 `ProjectContentCatalogUtility` 统一承接 `gf.content_package` 的目录重建和 Resolver 注册；`GameThemeCatalogUtility` 从 manifest 生成轻量主题描述符，选中后再按稳定资源键加载并事务激活。
-- 用 `GFObjectPoolUtility` 的池化 Hook 清理 Tile 复用状态，并用 `GFRepeaterBinder` 重建书签/回放列表项。
-- 用项目级 `GameUiMotionUtility` 统一菜单、按钮、HUD 和列表刷新动效，避免各 UI 节点重复编写 Tween。
-- 用项目级 `GameBoardFeedbackUtility` 统一棋盘合并、生成和转化反馈特效，表现触发点跟随 `GFActionQueueSystem` 中的视觉 Action，并通过 `GFShakeUtility` 播放语义化 board channel 反馈。
-- 用 `GFController.get_host_as()` 访问 Controller 宿主节点，避免依赖 Godot `owner` 语义。
-- 用 `GFValidationReport` 汇总模式配置校验结果，再由项目层决定如何输出错误。
-- 用 `RuleContext` 给规则注入上下文并收集输出，避免规则资源直接触达全局 `Gf`。
-- 开发构建中由 `GameDiagnosticsUtility` 聚合 `GFDiagnosticsUtility`、`GFAssetMetadataUtility`、`GFDebugOverlayUtility`、`GFRuntimeInspectorUtility` 与 `GFScreenshotUtility`；F3 可查看项目运行快照，`support_report` 会同时保存现场截图，`screenshot` 可单独捕获当前 Viewport。
-
-## 维护路线
-
-- 文档权威顺序与索引见 `docs/readme.md`。
-- 长期推进计划见 `docs/roadmap.md`。
-- 验证策略见 `docs/validation.md`，GF 9 包状态验证使用 Godot headless 原生包管理 CLI。
-- 项目结构由 `gf_project_profile.json` 声明，并通过 `GFProjectLayoutValidator` 与 GUT 持续校验。
-- 视觉方向见 `docs/visual_style.md`；背景、方块、菜单、HUD、转场和动效应保持 CMYK 半调纸媒游戏质感。
-- 历史上默认 Godot/GUT 运行曾写出巨大用户目录日志；需要运行 GUT 时，使用 `tools/run_gut_safe.ps1` 这样的隔离脚本，不要直接运行裸 Godot/GUT 命令。
-- 方块数字使用 GF 9 `GFTextFitter.MeasurementMode.SINGLE_LINE` 统一适配字号；该路径必须继续受完整 GUT 退出泄漏基线约束。
-
-## 新增模式的推荐流程
-
-1. 在 `features/gameplay/scripts/rules/` 中实现所需的 `InteractionRule`、`MovementRule`、`SpawnRule` 或 `GameOverRule`。
-2. 在 `features/gameplay/resources/rules/` 中创建对应资源。
-3. 新增 `features/gameplay/resources/modes/*.tres`，组合棋盘主题、颜色主题和规则资源。
-4. 在 `features/gameplay/resources/registries/game_mode_registry.tres` 中新增 `GFResourceRegistryEntry`，让模式选择菜单自动读取新的模式资源。
+从 [`docs/readme.md`](docs/readme.md) 进入项目文档。架构、存档、视觉、素材治理、验证和活跃路线图分别由该索引指向，README 不重复维护易漂移的实现清单、GF 包列表或测试数量。

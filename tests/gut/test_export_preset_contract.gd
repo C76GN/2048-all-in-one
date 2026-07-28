@@ -20,11 +20,11 @@ const _REQUIRED_INCLUDE_ROOT_FILTERS: Array[String] = [
 ]
 const _REQUIRED_EXCLUDE_FILE_FILTERS: Array[String] = [
 	"features/asset_library/resources/import_sources.json",
+	"features/asset_library/resources/import_sources.local.json",
 ]
 const _REQUIRED_EXCLUDE_ROOT_FILTERS: Array[String] = [
 	"features/asset_library/resources/source_packs",
 	"features/asset_library/resources/review",
-	"features/asset_library/resources/reports",
 	"features/asset_library/tools",
 	"features/platform_runtime/tools",
 	"tests",

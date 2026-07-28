@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "Other/finger_click"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "other", "finger_click", "click")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/Other/finger_click.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/Other/finger_click.wav"
 relative_path = "Other/finger_click.wav"
 extension = "wav"

@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "UI/synth_warning"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "synth_warning")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/synth_warning.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/UI/synth_warning.wav"
 relative_path = "UI/synth_warning.wav"
 extension = "wav"

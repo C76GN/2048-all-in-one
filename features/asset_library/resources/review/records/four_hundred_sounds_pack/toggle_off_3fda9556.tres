@@ -9,7 +9,6 @@ source_pack_id = &"four_hundred_sounds_pack"
 display_name = "UI/toggle_off"
 asset_kind = &"audio"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "toggle_off")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/toggle_off.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/UI/toggle_off.wav"
 relative_path = "UI/toggle_off.wav"
 extension = "wav"

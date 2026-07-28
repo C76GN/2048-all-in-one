@@ -10,7 +10,6 @@ display_name = "OGG/Modern13"
 asset_kind = &"audio"
 review_group_id = &"review.group.universal.ui.soundpack.modern13.bd91829e0869"
 tags = PackedStringArray("audio", "ui", "known_license", "ogg", "modern13")
-source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Modern13.ogg"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/Modern13.ogg"
 relative_path = "OGG/Modern13.ogg"
 extension = "ogg"

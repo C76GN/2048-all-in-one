@@ -10,7 +10,6 @@ display_name = "UI/pop_1"
 asset_kind = &"audio"
 review_status = &"approved"
 tags = PackedStringArray("audio", "large_pack", "license_review_needed", "ui", "pop_1")
-source_path = "E:/_inbox/Downloads/400 Sounds Pack/UI/pop_1.wav"
 library_path = "res://features/asset_library/resources/source_packs/four_hundred_sounds_pack/files/UI/pop_1.wav"
 relative_path = "UI/pop_1.wav"
 extension = "wav"

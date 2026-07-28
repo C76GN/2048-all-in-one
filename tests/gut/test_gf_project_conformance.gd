@@ -64,11 +64,18 @@ const DECLARED_DEPENDENCY_CONTRACTS: Array[Dictionary] = [
 	},
 ]
 const ASSET_LIBRARY_TOOL_PATHS: Array[String] = [
+	"res://features/asset_library/tools/asset_library_audit.gd",
+	"res://features/asset_library/tools/import_asset_sources.gd",
+	"res://features/asset_library/tools/purge_rejected_assets.gd",
 	"res://tools/audit_asset_library.ps1",
 	"res://tools/import_asset_sources.ps1",
+	"res://tools/purge_rejected_assets.ps1",
 ]
-const ASSET_LIBRARY_REPORT_ROOT: String = "features\\asset_library\\resources\\reports"
-const LEGACY_ASSET_LIBRARY_REPORT_ROOT: String = "asset_library\\reports"
+const ASSET_LIBRARY_REPORT_ROOT: String = "build\\asset_library"
+const OBSOLETE_ASSET_LIBRARY_REPORT_ROOTS: Array[String] = [
+	"asset_library\\reports",
+	"features\\asset_library\\resources\\reports",
+]
 const SHARED_TEXT_RESOURCE_EXTENSIONS: Array[String] = [
 	"cfg",
 	"csv",
@@ -244,21 +251,27 @@ func test_gf_modules_declare_static_cross_module_dependencies() -> void:
 	)
 
 
-func test_asset_library_tools_use_feature_cohesive_report_root() -> void:
+func test_asset_library_tools_use_ignored_generated_report_root() -> void:
 	var issues: Array[String] = []
 	for path: String in ASSET_LIBRARY_TOOL_PATHS:
 		var source: String = _read_text(path)
 		if source.is_empty():
 			_append_string(issues, "%s 无法读取或为空。" % path)
 			continue
-		if not source.contains(ASSET_LIBRARY_REPORT_ROOT):
-			_append_string(issues, "%s 未使用 Feature-Cohesive 素材报告目录。" % path)
-		if source.contains('"%s' % LEGACY_ASSET_LIBRARY_REPORT_ROOT):
-			_append_string(issues, "%s 仍引用迁移前的根级素材报告目录。" % path)
+		var normalized_source: String = source.replace("/", "\\")
+		if not normalized_source.contains(ASSET_LIBRARY_REPORT_ROOT):
+			_append_string(issues, "%s 未使用忽略提交的素材报告目录。" % path)
+		for obsolete_root: String in OBSOLETE_ASSET_LIBRARY_REPORT_ROOTS:
+			if normalized_source.contains('"%s' % obsolete_root):
+				_append_string(issues, "%s 仍引用已废弃的素材报告目录：%s。" % [
+					path,
+					obsolete_root,
+				])
 
 	assert_true(
 		issues.is_empty(),
-		"素材工具报告必须归属 asset_library Feature：\n%s" % _join_lines(issues)
+		"素材工具报告必须写入 build/asset_library 且不进入源码资源区：\n%s"
+		% _join_lines(issues)
 	)
 
 

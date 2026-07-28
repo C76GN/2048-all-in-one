@@ -11,7 +11,6 @@ asset_kind = &"audio"
 review_group_id = &"review.group.universal.ui.soundpack.retro7.e0cedc279e8b"
 review_status = &"approved"
 tags = PackedStringArray("audio", "ui", "known_license", "ogg", "retro7", "retro")
-source_path = "E:/_inbox/Downloads/UI Soundpack/OGG/Retro7.ogg"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/OGG/Retro7.ogg"
 relative_path = "OGG/Retro7.ogg"
 extension = "ogg"

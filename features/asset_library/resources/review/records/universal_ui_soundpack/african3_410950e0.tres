@@ -10,7 +10,6 @@ display_name = "WAV/African3"
 asset_kind = &"audio"
 review_group_id = &"review.group.universal.ui.soundpack.african3.6ad3bb0b803c"
 tags = PackedStringArray("audio", "ui", "known_license", "wav", "african3")
-source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/African3.wav"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/WAV/African3.wav"
 relative_path = "WAV/African3.wav"
 extension = "wav"

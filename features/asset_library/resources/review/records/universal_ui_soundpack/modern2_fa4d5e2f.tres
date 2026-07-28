@@ -11,7 +11,6 @@ asset_kind = &"audio"
 review_group_id = &"review.group.universal.ui.soundpack.modern2.cad238f0e0c3"
 review_status = &"approved"
 tags = PackedStringArray("audio", "ui", "known_license", "wav", "modern2")
-source_path = "E:/_inbox/Downloads/UI Soundpack/WAV/Modern2.wav"
 library_path = "res://features/asset_library/resources/source_packs/universal_ui_soundpack/files/WAV/Modern2.wav"
 relative_path = "WAV/Modern2.wav"
 extension = "wav"
