@@ -93,6 +93,8 @@ func ready() -> void:
 		push_error("[GameUiMotionUtility] 缺少 GameAccessibilityUtility。")
 
 
+## 同步运行时改变的按钮禁用状态，清理陈旧交互表现。
+## @param _delta: GF 每帧调度传入的时间增量；本同步只比较状态，不依赖时间。
 func tick(_delta: float) -> void:
 	for index: int in range(_tracked_buttons.size() - 1, -1, -1):
 		var weak_reference: WeakRef = _tracked_buttons[index]
