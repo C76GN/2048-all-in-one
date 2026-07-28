@@ -278,7 +278,7 @@ GF 与项目边界：
 - `features/themes/resources/themes/tile_schemes/*.tres` 是否仍由资源定义方块色。
 - `TileVisualTheme` 的家族签名是否唯一，`TilePatternOverlay` 的母题是否稀疏、中央留白且不会影响数字识别。
 - `GameUiStyleUtility` 的默认、选中、字段与文本语义是否能在色板切换后正确重建。
-- `GameUiMotionUtility` 的 rest、约 `60ms` 发牌、约 `60ms` hover overshoot、稳定 hover、focus 和 pressed 分帧反馈是否仍有明确区别；`capture_ui_vfx_matrix.gd` 必须在桌面与窄屏保存这些状态并验证纸片、旋转、描边、硬投影和焦点环的视觉包络没有越过最近裁剪祖先。
+- `GameUiMotionUtility` 的 rest、ACTIVE 发牌约 `60/100/140ms`、约 `60ms` hover overshoot、稳定 hover、focus 和 pressed 分帧反馈是否仍有明确区别；`capture_ui_vfx_matrix.gd` 必须在桌面与窄屏保存这些状态，并分别验证纸片、旋转、描边、硬投影和焦点环的视觉包络没有越过按钮根包络与最近裁剪祖先。
 - 除自动测试外，是否在 `1280×720`、`960×540`、`390×844` 至少三类视口保存本次真实截图与运行日志，并人工核对裁切、层级、触控安全区、文字对比、首帧承接和动效降级；测试通过不能替代视觉签字。
 - 安全 GUT 是否通过。
 

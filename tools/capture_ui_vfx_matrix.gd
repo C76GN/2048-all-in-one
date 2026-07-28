@@ -329,24 +329,58 @@ func _capture_main_menu_start_button_states(
 			if resolution.x >= resolution.y
 			else 1.0
 		)
+		start_button.grab_focus()
 		presenter.play_deal_in(
 			Vector2(34.0 * deal_direction, 0.0),
-			GameButtonMotionPresenter.MotionState.REST
+			GameButtonMotionPresenter.MotionState.ACTIVE
 		)
 		await _wait_for_ui_motion(0.060)
 		_validate_button_visual_inside_clip(
 			start_button,
 			resolution,
 			logical_resolution,
-			&"deal_060ms"
+			&"deal_active_060ms"
 		)
 		_save_viewport(
-			"main_menu_start_button_deal_060ms_%dx%d.png"
+			"main_menu_start_button_deal_active_060ms_%dx%d.png"
+			% [resolution.x, resolution.y],
+			resolution
+		)
+		presenter.play_deal_in(
+			Vector2(34.0 * deal_direction, 0.0),
+			GameButtonMotionPresenter.MotionState.ACTIVE
+		)
+		await _wait_for_ui_motion(0.100)
+		_validate_button_visual_inside_clip(
+			start_button,
+			resolution,
+			logical_resolution,
+			&"deal_active_100ms"
+		)
+		_save_viewport(
+			"main_menu_start_button_deal_active_100ms_%dx%d.png"
+			% [resolution.x, resolution.y],
+			resolution
+		)
+		presenter.play_deal_in(
+			Vector2(34.0 * deal_direction, 0.0),
+			GameButtonMotionPresenter.MotionState.ACTIVE
+		)
+		await _wait_for_ui_motion(0.140)
+		_validate_button_visual_inside_clip(
+			start_button,
+			resolution,
+			logical_resolution,
+			&"deal_active_140ms"
+		)
+		_save_viewport(
+			"main_menu_start_button_deal_active_140ms_%dx%d.png"
 			% [resolution.x, resolution.y],
 			resolution
 		)
 		presenter.complete_motion()
-		await _wait_for_ui_motion(0.020)
+		start_button.release_focus()
+		await _wait_for_ui_motion(0.160)
 
 	# 直接发出语义信号，避免无窗口/不同 DPI 环境下 Input.warp_mouse()
 	# 延迟投递，导致所谓中间帧实际仍停留在 rest。
@@ -435,7 +469,8 @@ func _validate_button_visual_inside_clip(
 			% [state, physical_resolution, logical_resolution]
 		)
 		return
-	var visual_bounds: Rect2 = _get_transformed_control_bounds(button)
+	var button_bounds: Rect2 = _get_transformed_control_bounds(button)
+	var visual_bounds: Rect2 = button_bounds
 	var face_bounds: Rect2 = Rect2()
 	var has_face_bounds: bool = false
 	var face_node: Node = button.get_node_or_null(
@@ -466,6 +501,10 @@ func _validate_button_visual_inside_clip(
 		"physical": physical_resolution,
 		"logical": logical_resolution,
 		"control": String(button.name),
+		"button_bounds": {
+			"position": button_bounds.position,
+			"size": button_bounds.size,
+		},
 		"visual_bounds": {
 			"position": visual_bounds.position,
 			"size": visual_bounds.size,
@@ -492,6 +531,34 @@ func _validate_button_visual_inside_clip(
 			"size": clip_bounds.size,
 		},
 	})
+	if (
+		has_face_bounds
+		and not _rect_contains_rect(
+			button_bounds,
+			face_bounds,
+			_BUTTON_VISUAL_BOUNDS_TOLERANCE
+		)
+	):
+		var button_overflow: Vector4 = _get_rect_overflow(
+			button_bounds,
+			face_bounds
+		)
+		_record_error(
+			(
+				"main_menu StartGameButton %s @ %s（logical=%s）"
+				+ "纸片视觉越出按钮根包络："
+				+ "left=%.2f top=%.2f right=%.2f bottom=%.2f。"
+			)
+			% [
+				state,
+				physical_resolution,
+				logical_resolution,
+				button_overflow.x,
+				button_overflow.y,
+				button_overflow.z,
+				button_overflow.w,
+			]
+		)
 	if _rect_contains_rect(
 		clip_bounds,
 		visual_bounds,

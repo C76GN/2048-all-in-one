@@ -157,7 +157,7 @@ func play_deal_in(
 		_DEAL_DURATION
 	)
 	var _position_delay_result: Tweener = position_tweener.set_delay(maxf(delay, 0.0))
-	var _position_curve: Tweener = position_tweener.set_trans(Tween.TRANS_BACK)
+	var _position_curve: Tweener = position_tweener.set_trans(Tween.TRANS_QUAD)
 	var _position_ease: Tweener = position_tweener.set_ease(Tween.EASE_OUT)
 	var size_tweener: PropertyTweener = tween.tween_property(
 		_face,
@@ -166,7 +166,7 @@ func play_deal_in(
 		_DEAL_DURATION
 	)
 	var _size_delay_result: Tweener = size_tweener.set_delay(maxf(delay, 0.0))
-	var _size_curve: Tweener = size_tweener.set_trans(Tween.TRANS_BACK)
+	var _size_curve: Tweener = size_tweener.set_trans(Tween.TRANS_QUAD)
 	var _size_ease: Tweener = size_tweener.set_ease(Tween.EASE_OUT)
 	var rotation_tweener: PropertyTweener = tween.tween_property(
 		_face,
@@ -175,7 +175,7 @@ func play_deal_in(
 		_DEAL_DURATION
 	)
 	var _rotation_delay_result: Tweener = rotation_tweener.set_delay(maxf(delay, 0.0))
-	var _rotation_curve: Tweener = rotation_tweener.set_trans(Tween.TRANS_BACK)
+	var _rotation_curve: Tweener = rotation_tweener.set_trans(Tween.TRANS_QUAD)
 	var _rotation_ease: Tweener = rotation_tweener.set_ease(Tween.EASE_OUT)
 	var modulate_tweener: PropertyTweener = tween.tween_property(
 		_face,
