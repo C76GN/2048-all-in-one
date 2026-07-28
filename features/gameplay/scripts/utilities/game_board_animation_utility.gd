@@ -9,6 +9,7 @@ extends "res://addons/gf/kernel/base/gf_utility.gd"
 # --- 常量 ---
 
 const BOARD_QUEUE_NAME: StringName = &"gameplay.board_animation"
+const _FIRST_FRAME_GATE_SECONDS: float = 0.001
 
 
 # --- 私有变量 ---
@@ -88,16 +89,26 @@ func enqueue(action: Object) -> bool:
 		or not _ensure_board_queue()
 	):
 		return false
+	var motion_profile: GameTileMotionProfile
+	var feedback_budget: GameFeedbackBudget
 	if action is BoardTweenBatchAction:
 		var board_action: BoardTweenBatchAction = action
-		board_action.configure_tile_motion(
+		motion_profile = (
 			_feedback_utility.get_tile_motion_profile()
 			if is_instance_valid(_feedback_utility)
-			else null,
+			else null
+		)
+		feedback_budget = (
 			_feedback_utility.get_current_budget()
 			if is_instance_valid(_feedback_utility)
 			else null
 		)
+		board_action.configure_tile_motion(
+			motion_profile,
+			feedback_budget
+		)
+	if _should_gate_first_visual_action(action, motion_profile, feedback_budget):
+		_board_queue.enqueue(_create_first_frame_gate())
 	_board_queue.enqueue(action)
 	return true
 
@@ -161,6 +172,32 @@ func _ensure_board_queue() -> bool:
 	# 每次入队前重新解析，避免继续持有仍有效但已经 dispose 的旧 RefCounted。
 	_board_queue = _action_queue_system.get_linked_queue(BOARD_QUEUE_NAME, _board)
 	return is_instance_valid(_board_queue)
+
+
+## 空闲队列先占用一帧，再开始构建 Tween，避免把整批表现对象创建塞进输入事件栈。
+## 同一回合后续 Spawn/Transform 动作看到队列忙碌，只会正常追加，不重复插帧。
+func _should_gate_first_visual_action(
+	action: Object,
+	motion_profile: GameTileMotionProfile,
+	feedback_budget: GameFeedbackBudget
+) -> bool:
+	if (
+		not action is BoardTweenBatchAction
+		or not is_instance_valid(_board_queue)
+		or _board_queue.is_processing
+	):
+		return false
+	return (
+		not is_instance_valid(motion_profile)
+		or motion_profile.is_motion_enabled(feedback_budget)
+	)
+
+
+func _create_first_frame_gate() -> GFWaitAction:
+	var gate: GFWaitAction = GFWaitAction.new(_FIRST_FRAME_GATE_SECONDS, _board)
+	gate.process_always = true
+	gate.ignore_time_scale = true
+	return gate
 
 
 func _get_action_queue_system() -> GFActionQueueSystem:

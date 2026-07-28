@@ -93,6 +93,103 @@ func test_board_checksum_ignores_runtime_tile_ids_and_input_order() -> void:
 	)
 
 
+func test_single_serialization_checksum_matches_gf_storage_codec_boundaries() -> void:
+	var determinism: GameDeterminismUtility = GameDeterminismUtility.new()
+	var codec: GFStorageCodec = GFStorageCodec.new()
+	var cases: Array[Dictionary] = [
+		{
+			&"label": "classic_integer_state",
+			&"payload": {
+				&"schema_version": 8,
+				&"board": {
+					&"topology": {
+						&"kind": &"rectangle",
+						&"size": Vector2i(4, 4),
+					},
+					&"tiles": [
+						{
+							&"position": Vector2i(0, 0),
+							&"value": 2,
+							&"definition_id": &"tile.classic.numeric",
+						},
+						{
+							&"position": Vector2i(3, 2),
+							&"value": 2048,
+							&"definition_id": &"tile.classic.numeric",
+						},
+					],
+				},
+				&"rng": {
+					&"root_seed": 2048,
+					&"branch_counters": {&"game_board_spawn": 17},
+				},
+				&"score": 4096,
+				&"target_reached": true,
+			},
+		},
+		{
+			&"label": "integral_float",
+			&"payload": {
+				&"zero": 0.0,
+				&"negative_zero": -0.0,
+				&"positive": 2048.0,
+				&"negative": -16.0,
+				&"nested": [1.0, {&"value": 64.0}],
+			},
+		},
+		{
+			&"label": "non_integral_float",
+			&"payload": {
+				&"probability": 0.9,
+				&"fraction": 0.125,
+				&"negative": -13.5,
+				&"repeating": 1.0 / 3.0,
+				&"nested": [0.1, {&"value": 2048.25}],
+			},
+		},
+		{
+			&"label": "variant_fallback",
+			&"payload": {
+				&"position": Vector2(1.25, -2.5),
+				&"offset": Vector2(-0.0, 2048.0),
+				&"color": Color(0.1, 0.25, 0.5, 0.75),
+				&"nested": [
+					{
+						&"position": Vector2(3.5, 4.0),
+						&"color": Color(1.0, 0.0, 0.5, 1.0),
+					},
+				],
+			},
+		},
+	]
+
+	for case_data: Dictionary in cases:
+		var label: String = GFVariantData.get_option_string(
+			case_data,
+			&"label"
+		)
+		var payload: Dictionary = GFVariantData.get_option_dictionary(
+			case_data,
+			&"payload"
+		)
+		var expected: String = codec.calculate_checksum(
+			payload,
+			GFStorageCodec.Format.JSON
+		)
+		var actual: String = GFVariantData.to_text(
+			determinism.call(&"_checksum", payload)
+		)
+		assert_true(
+			actual == expected,
+			"%s 必须与 GFStorageCodec.calculate_checksum(JSON) 逐字节兼容。"
+			% label
+		)
+		assert_true(
+			actual.length() == 64 and actual == actual.to_lower(),
+			"%s 必须保持 GF 的小写 SHA-256 文本契约。" % label
+		)
+
+
 func test_ruleset_fingerprint_includes_deterministic_rule_parameters() -> void:
 	var determinism: GameDeterminismUtility = GameDeterminismUtility.new()
 	var first_mode: GameModeConfig = _make_ruleset_fixture(0.9)

@@ -298,13 +298,14 @@ func apply_move_turn(turn_result: TurnResult) -> void:
 
 ## 在生成规则完成后固化确定性检查点；回放模式下立即比较首个 OOS。
 ## @param turn_result: 当前已完成规则链的强类型回合结果。
-func finalize_turn_result(turn_result: TurnResult) -> void:
+## @return: 成功固化的检查点；依赖或规则集指纹无效时返回 null。
+func finalize_turn_result(turn_result: TurnResult) -> ReplayCheckpoint:
 	if (
 		not is_instance_valid(turn_result)
 		or not is_instance_valid(_determinism)
 		or not is_instance_valid(_mode_config)
 	):
-		return
+		return null
 	var replay_system: ReplaySystem = _get_replay_system()
 	var step_index: int = _player_actions.size()
 	if _is_replay_mode and is_instance_valid(replay_system):
@@ -312,7 +313,7 @@ func finalize_turn_result(turn_result: TurnResult) -> void:
 	var ruleset_fingerprint: String = _get_session_ruleset_fingerprint()
 	if ruleset_fingerprint.is_empty():
 		push_error("[GameFlowSystem] 当前对局缺少冻结规则集指纹。")
-		return
+		return null
 	var checkpoint: ReplayCheckpoint = _determinism.create_checkpoint_for_session(
 		step_index,
 		_get_full_game_state(),
@@ -321,12 +322,12 @@ func finalize_turn_result(turn_result: TurnResult) -> void:
 	)
 	if checkpoint == null:
 		push_error("[GameFlowSystem] 无法生成第 %d 步确定性检查点。" % step_index)
-		return
+		return null
 	if not _is_replay_mode:
 		_turn_checkpoints.append(checkpoint)
-		return
+		return checkpoint
 	if not is_instance_valid(replay_system):
-		return
+		return checkpoint
 	var replay: ReplayData = replay_system.get_current_replay()
 	if replay == null or step_index <= 0 or step_index > replay.checkpoints.size():
 		var _missing_checkpoint_oos_recorded: bool = replay_system.report_oos({
@@ -334,10 +335,10 @@ func finalize_turn_result(turn_result: TurnResult) -> void:
 			&"step_index": step_index,
 			&"direction": turn_result.direction,
 		})
-		return
+		return checkpoint
 	var expected: ReplayCheckpoint = replay.checkpoints[step_index - 1]
 	if expected.state_checksum == checkpoint.state_checksum:
-		return
+		return checkpoint
 	var _checksum_oos_recorded: bool = replay_system.report_oos({
 		&"kind": &"state_checksum_mismatch",
 		&"step_index": step_index,
@@ -351,6 +352,7 @@ func finalize_turn_result(turn_result: TurnResult) -> void:
 		&"expected_score": expected.score,
 		&"actual_score": checkpoint.score,
 	})
+	return checkpoint
 
 
 ## 完成当前 GF 移动回合的目标与失败结算。

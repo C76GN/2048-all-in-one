@@ -103,13 +103,16 @@ func dispose() -> void:
 ## 只构建棋盘摘要，不发布信号或修改序号。
 ## @param board_snapshot: 当前严格棋盘快照。
 ## @param session_context: 当前对局阶段、目标、结束原因与可用操作上下文。
+## @param precomputed_board_checksum: 可选的同一快照小写 SHA-256，合法时直接复用。
 func build_board_summary(
 	board_snapshot: Dictionary,
-	session_context: Dictionary = {}
+	session_context: Dictionary = {},
+	precomputed_board_checksum: String = ""
 ) -> GameAccessibilitySummary:
 	var board_payload: Dictionary = _build_board_payload(
 		board_snapshot,
-		session_context
+		session_context,
+		precomputed_board_checksum
 	)
 	if board_payload.is_empty():
 		return null
@@ -125,16 +128,19 @@ func build_board_summary(
 ## @param turn_result: 已完成回合的权威结算结果。
 ## @param board_snapshot: 结算后的当前严格棋盘快照。
 ## @param session_context: 当前对局阶段、目标、结束原因与可用操作上下文。
+## @param precomputed_board_checksum: 可选的同一快照小写 SHA-256，合法时直接复用。
 func build_turn_summary(
 	turn_result: TurnResult,
 	board_snapshot: Dictionary,
-	session_context: Dictionary = {}
+	session_context: Dictionary = {},
+	precomputed_board_checksum: String = ""
 ) -> GameAccessibilitySummary:
 	if not is_instance_valid(turn_result) or not turn_result.is_effective():
 		return null
 	var board_payload: Dictionary = _build_board_payload(
 		board_snapshot,
-		session_context
+		session_context,
+		precomputed_board_checksum
 	)
 	if board_payload.is_empty():
 		return null
@@ -152,13 +158,16 @@ func build_turn_summary(
 ## 构建并发布当前棋盘摘要。
 ## @param board_snapshot: 当前严格棋盘快照。
 ## @param session_context: 当前对局阶段、目标、结束原因与可用操作上下文。
+## @param precomputed_board_checksum: 可选的同一快照小写 SHA-256，合法时直接复用。
 func publish_board_summary(
 	board_snapshot: Dictionary,
-	session_context: Dictionary = {}
+	session_context: Dictionary = {},
+	precomputed_board_checksum: String = ""
 ) -> GameAccessibilitySummary:
 	var summary: GameAccessibilitySummary = build_board_summary(
 		board_snapshot,
-		session_context
+		session_context,
+		precomputed_board_checksum
 	)
 	return _publish(summary)
 
@@ -167,15 +176,18 @@ func publish_board_summary(
 ## @param turn_result: 已完成回合的权威结算结果。
 ## @param board_snapshot: 结算后的当前严格棋盘快照。
 ## @param session_context: 当前对局阶段、目标、结束原因与可用操作上下文。
+## @param precomputed_board_checksum: 可选的同一快照小写 SHA-256，合法时直接复用。
 func publish_turn_summary(
 	turn_result: TurnResult,
 	board_snapshot: Dictionary,
-	session_context: Dictionary = {}
+	session_context: Dictionary = {},
+	precomputed_board_checksum: String = ""
 ) -> GameAccessibilitySummary:
 	var summary: GameAccessibilitySummary = build_turn_summary(
 		turn_result,
 		board_snapshot,
-		session_context
+		session_context,
+		precomputed_board_checksum
 	)
 	return _publish(summary)
 
@@ -203,7 +215,8 @@ func copy_latest_board_text() -> bool:
 
 func _build_board_payload(
 	board_snapshot: Dictionary,
-	session_context: Dictionary
+	session_context: Dictionary,
+	precomputed_board_checksum: String = ""
 ) -> Dictionary:
 	if not GridModel.is_snapshot_envelope_valid(board_snapshot):
 		return {}
@@ -257,7 +270,11 @@ func _build_board_payload(
 	return {
 		&"schema_version": GameAccessibilitySummary.SCHEMA_VERSION,
 		&"kind": GameAccessibilitySummary.KIND_BOARD,
-		&"board_checksum": _calculate_board_checksum(board_snapshot),
+		&"board_checksum": (
+			precomputed_board_checksum
+			if _is_valid_checksum(precomputed_board_checksum)
+			else _calculate_board_checksum(board_snapshot)
+		),
 		&"topology_key": topology.get_stable_key(),
 		&"width": bounds_size.x,
 		&"height": bounds_size.y,
@@ -645,6 +662,19 @@ func _calculate_board_checksum(board_snapshot: Dictionary) -> String:
 		return _determinism.calculate_board_checksum(board_snapshot)
 	var fallback: GameDeterminismUtility = GameDeterminismUtility.new()
 	return fallback.calculate_board_checksum(board_snapshot)
+
+
+static func _is_valid_checksum(checksum: String) -> bool:
+	if checksum.length() != 64:
+		return false
+	for index: int in range(checksum.length()):
+		var codepoint: int = checksum.unicode_at(index)
+		if (
+			(codepoint < 48 or codepoint > 57)
+			and (codepoint < 97 or codepoint > 102)
+		):
+			return false
+	return true
 
 
 func _translated(key: StringName, fallback: String) -> String:

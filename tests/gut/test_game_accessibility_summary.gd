@@ -131,6 +131,103 @@ func test_turn_subtitle_and_announcement_share_one_canonical_result() -> void:
 	assert_true(GFVariantData.get_option_int(turn_payload, &"score_delta", 0) == 4)
 
 
+func test_precomputed_board_checksum_preserves_published_turn_summary() -> void:
+	var snapshot: Dictionary = _build_sparse_snapshot()
+	var turn_result: TurnResult = _build_turn_result()
+	var context: Dictionary = {
+		&"phase": &"playing",
+		&"target_value": 2048,
+		&"target_reached": false,
+		&"available_actions": [&"undo", &"save_bookmark"],
+	}
+	var baseline_determinism: CountingBoardChecksumDeterminismUtility = (
+		CountingBoardChecksumDeterminismUtility.new()
+	)
+	var optimized_determinism: CountingBoardChecksumDeterminismUtility = (
+		CountingBoardChecksumDeterminismUtility.new()
+	)
+	var baseline_utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	var optimized_utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	baseline_utility._determinism = baseline_determinism
+	optimized_utility._determinism = optimized_determinism
+	var precomputed_checksum: String = (
+		baseline_determinism.calculate_board_checksum(snapshot)
+	)
+	baseline_determinism.board_checksum_calls = 0
+
+	var baseline: GameAccessibilitySummary = (
+		baseline_utility.publish_turn_summary(
+			turn_result,
+			snapshot,
+			context
+		)
+	)
+	var optimized: GameAccessibilitySummary = (
+		optimized_utility.publish_turn_summary(
+			turn_result,
+			snapshot,
+			context,
+			precomputed_checksum
+		)
+	)
+
+	assert_not_null(baseline)
+	assert_not_null(optimized)
+	if not is_instance_valid(baseline) or not is_instance_valid(optimized):
+		return
+	assert_true(
+		baseline.to_dict() == optimized.to_dict(),
+		"传入同一严格棋盘的预计算 checksum 后，发布摘要必须逐字段不变。"
+	)
+	assert_true(
+		baseline_determinism.board_checksum_calls == 1,
+		"兼容路径仍应自行计算一次棋盘 checksum。"
+	)
+	assert_true(
+		optimized_determinism.board_checksum_calls == 0,
+		"合法预计算 checksum 必须跳过重复棋盘哈希。"
+	)
+
+
+func test_invalid_precomputed_board_checksum_falls_back_to_recalculation() -> void:
+	var snapshot: Dictionary = _build_sparse_snapshot()
+	var turn_result: TurnResult = _build_turn_result()
+	var determinism: CountingBoardChecksumDeterminismUtility = (
+		CountingBoardChecksumDeterminismUtility.new()
+	)
+	var utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	utility._determinism = determinism
+	var expected_checksum: String = determinism.calculate_board_checksum(
+		snapshot
+	)
+	determinism.board_checksum_calls = 0
+
+	var summary: GameAccessibilitySummary = utility.build_turn_summary(
+		turn_result,
+		snapshot,
+		{},
+		"A".repeat(64)
+	)
+
+	assert_not_null(summary)
+	if not is_instance_valid(summary):
+		return
+	assert_true(
+		determinism.board_checksum_calls == 1,
+		"非小写十六进制预计算值必须回退到权威棋盘哈希。"
+	)
+	assert_true(
+		summary.board_checksum == expected_checksum,
+		"回退后摘要必须保留与既有路径相同的棋盘身份。"
+	)
+
+
 func test_modal_turn_announcements_include_their_available_actions() -> void:
 	var utility: GameAccessibilitySummaryUtility = (
 		GameAccessibilitySummaryUtility.new()
@@ -299,3 +396,16 @@ func _build_tile(value: int) -> TileState:
 	var tile: TileState = TileState.new(value, &"tile.test.accessibility")
 	tile.capability_recipe_ids = [&"recipe.test.accessibility"]
 	return tile
+
+
+# --- 内部类 ---
+
+class CountingBoardChecksumDeterminismUtility extends GameDeterminismUtility:
+	var board_checksum_calls: int = 0
+
+
+	## 记录无障碍摘要是否复用了调用方已计算的棋盘 checksum。
+	## @param board_snapshot: 当前严格棋盘快照。
+	func calculate_board_checksum(board_snapshot: Dictionary) -> String:
+		board_checksum_calls += 1
+		return super.calculate_board_checksum(board_snapshot)

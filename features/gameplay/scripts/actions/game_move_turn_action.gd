@@ -52,7 +52,9 @@ func _resolve(context: GFTurnContext) -> Variant:
 
 	_game_flow_system.apply_move_turn(turn_result)
 	_rule_system.execute_move_rules(turn_result)
-	_game_flow_system.finalize_turn_result(turn_result)
+	var checkpoint: ReplayCheckpoint = _game_flow_system.finalize_turn_result(
+		turn_result
+	)
 	_game_flow_system.settle_move_turn()
 	var board_actor: Object = actor
 	if (
@@ -64,7 +66,8 @@ func _resolve(context: GFTurnContext) -> Variant:
 			_accessibility_summary_utility.publish_turn_summary(
 				turn_result,
 				grid_model.get_snapshot(),
-				_game_flow_system.get_accessibility_context()
+				_game_flow_system.get_accessibility_context(),
+				checkpoint.board_checksum if is_instance_valid(checkpoint) else ""
 			)
 		)
 
