@@ -4,11 +4,16 @@ extends SceneTree
 const _OUTPUT_DIRECTORY: String = "res://build/ui_vfx_matrix"
 const _LOGICAL_DESIGN_SIZE: Vector2i = Vector2i(720, 720)
 const _GAMEPLAY_MOTION_GUARD_MARGIN: float = 50.0
+const _BUTTON_VISUAL_BOUNDS_TOLERANCE: float = 0.5
 const _RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
 	Vector2i(1906, 943),
 	Vector2i(850, 838),
 	Vector2i(960, 540),
+	Vector2i(720, 960),
+]
+const _MAIN_MENU_INTERACTION_RESOLUTIONS: Array[Vector2i] = [
+	Vector2i(1280, 720),
 	Vector2i(720, 960),
 ]
 const _PLAYER_FLOW_RESOLUTIONS: Array[Vector2i] = [
@@ -255,6 +260,15 @@ func _capture_page_matrix(page: Node, page_id: StringName) -> void:
 			resolution
 		)
 		if (
+			page_id == &"main_menu"
+			and resolution in _MAIN_MENU_INTERACTION_RESOLUTIONS
+		):
+			await _capture_main_menu_start_button_states(
+				page,
+				resolution,
+				logical_resolution
+			)
+		if (
 			page_id == &"mode_selection"
 			and not ModeSelection._uses_side_by_side_layout(
 				Vector2(logical_resolution)
@@ -269,6 +283,320 @@ func _capture_page_matrix(page: Node, page_id: StringName) -> void:
 		)
 	_set_resolution(_RESOLUTIONS[0])
 	await _settle_frames(8)
+
+
+func _capture_main_menu_start_button_states(
+	main_menu: Node,
+	resolution: Vector2i,
+	logical_resolution: Vector2i
+) -> void:
+	var start_node: Node = main_menu.find_child(
+		"StartGameButton",
+		true,
+		false
+	)
+	if not start_node is BaseButton:
+		_record_error(
+			"main_menu @ %s 缺少 StartGameButton，无法验收 hover/focus 裁剪。"
+			% resolution
+		)
+		return
+	var start_button: BaseButton = start_node
+	var previous_focus: Control = root.gui_get_focus_owner()
+	if is_instance_valid(previous_focus):
+		previous_focus.release_focus()
+	Input.warp_mouse(Vector2(4.0, 4.0))
+	await _wait_for_ui_motion(0.16)
+	_validate_button_visual_inside_clip(
+		start_button,
+		resolution,
+		logical_resolution,
+		&"rest"
+	)
+	_save_viewport(
+		"main_menu_start_button_rest_%dx%d.png"
+		% [resolution.x, resolution.y],
+		resolution
+	)
+
+	var presenter_node: Node = start_button.get_node_or_null(
+		"ButtonMotionPresenter"
+	)
+	if presenter_node is GameButtonMotionPresenter:
+		var presenter: GameButtonMotionPresenter = presenter_node
+		var deal_direction: float = (
+			-1.0
+			if resolution.x >= resolution.y
+			else 1.0
+		)
+		presenter.play_deal_in(
+			Vector2(34.0 * deal_direction, 0.0),
+			GameButtonMotionPresenter.MotionState.REST
+		)
+		await _wait_for_ui_motion(0.060)
+		_validate_button_visual_inside_clip(
+			start_button,
+			resolution,
+			logical_resolution,
+			&"deal_060ms"
+		)
+		_save_viewport(
+			"main_menu_start_button_deal_060ms_%dx%d.png"
+			% [resolution.x, resolution.y],
+			resolution
+		)
+		presenter.complete_motion()
+		await _wait_for_ui_motion(0.020)
+
+	# 直接发出语义信号，避免无窗口/不同 DPI 环境下 Input.warp_mouse()
+	# 延迟投递，导致所谓中间帧实际仍停留在 rest。
+	start_button.mouse_entered.emit()
+	await _wait_for_ui_motion(0.060)
+	_validate_button_visual_inside_clip(
+		start_button,
+		resolution,
+		logical_resolution,
+		&"hover_060ms"
+	)
+	_save_viewport(
+		"main_menu_start_button_hover_060ms_%dx%d.png"
+		% [resolution.x, resolution.y],
+		resolution
+	)
+	await _wait_for_ui_motion(0.11)
+	_validate_button_visual_inside_clip(
+		start_button,
+		resolution,
+		logical_resolution,
+		&"hover"
+	)
+	_save_viewport(
+		"main_menu_start_button_hover_%dx%d.png"
+		% [resolution.x, resolution.y],
+		resolution
+	)
+	start_button.button_down.emit()
+	await _wait_for_ui_motion(0.058)
+	_validate_button_visual_inside_clip(
+		start_button,
+		resolution,
+		logical_resolution,
+		&"pressed"
+	)
+	_save_viewport(
+		"main_menu_start_button_pressed_%dx%d.png"
+		% [resolution.x, resolution.y],
+		resolution
+	)
+	start_button.button_up.emit()
+	await _wait_for_ui_motion(0.16)
+
+	start_button.mouse_exited.emit()
+	await _wait_for_ui_motion(0.16)
+	start_button.grab_focus()
+	await _wait_for_ui_motion(0.16)
+	_validate_button_visual_inside_clip(
+		start_button,
+		resolution,
+		logical_resolution,
+		&"focus"
+	)
+	_save_viewport(
+		"main_menu_start_button_focus_%dx%d.png"
+		% [resolution.x, resolution.y],
+		resolution
+	)
+
+	if (
+		is_instance_valid(previous_focus)
+		and previous_focus != start_button
+		and previous_focus.is_visible_in_tree()
+	):
+		previous_focus.grab_focus()
+	elif not is_instance_valid(previous_focus):
+		start_button.release_focus()
+	start_button.mouse_exited.emit()
+	await _wait_for_ui_motion(0.16)
+
+
+func _validate_button_visual_inside_clip(
+	button: BaseButton,
+	physical_resolution: Vector2i,
+	logical_resolution: Vector2i,
+	state: StringName
+) -> void:
+	var clipping_ancestor: Control = _find_nearest_clipping_ancestor(button)
+	if not is_instance_valid(clipping_ancestor):
+		_record_error(
+			(
+				"main_menu StartGameButton %s @ %s（logical=%s）"
+				+ "缺少可识别的裁剪祖先。"
+			)
+			% [state, physical_resolution, logical_resolution]
+		)
+		return
+	var visual_bounds: Rect2 = _get_transformed_control_bounds(button)
+	var face_bounds: Rect2 = Rect2()
+	var has_face_bounds: bool = false
+	var face_node: Node = button.get_node_or_null(
+		"ButtonMotionPresenter/%s"
+		% GameButtonMotionPresenter.FACE_NODE_NAME
+	)
+	if face_node is Control:
+		var face: Control = face_node
+		if face.is_visible_in_tree():
+			face_bounds = _get_control_style_visual_bounds(face, &"panel")
+			has_face_bounds = true
+			visual_bounds = visual_bounds.merge(face_bounds)
+	var focus_ring_bounds: Rect2 = Rect2()
+	var has_focus_ring_bounds: bool = false
+	var focus_ring_node: Node = button.get_node_or_null("ButtonFocusRing")
+	if focus_ring_node is Control:
+		var focus_ring: Control = focus_ring_node
+		if focus_ring.is_visible_in_tree():
+			focus_ring_bounds = _get_transformed_control_bounds(focus_ring)
+			has_focus_ring_bounds = true
+			visual_bounds = visual_bounds.merge(focus_ring_bounds)
+	var clip_bounds: Rect2 = _get_transformed_control_bounds(
+		clipping_ancestor
+	)
+	_geometry_records.append({
+		"page": "main_menu",
+		"state": String(state),
+		"physical": physical_resolution,
+		"logical": logical_resolution,
+		"control": String(button.name),
+		"visual_bounds": {
+			"position": visual_bounds.position,
+			"size": visual_bounds.size,
+		},
+		"face_bounds": (
+			{
+				"position": face_bounds.position,
+				"size": face_bounds.size,
+			}
+			if has_face_bounds
+			else {}
+		),
+		"focus_ring_bounds": (
+			{
+				"position": focus_ring_bounds.position,
+				"size": focus_ring_bounds.size,
+			}
+			if has_focus_ring_bounds
+			else {}
+		),
+		"clipping_ancestor": String(clipping_ancestor.name),
+		"clip_bounds": {
+			"position": clip_bounds.position,
+			"size": clip_bounds.size,
+		},
+	})
+	if _rect_contains_rect(
+		clip_bounds,
+		visual_bounds,
+		_BUTTON_VISUAL_BOUNDS_TOLERANCE
+	):
+		return
+	var overflow: Vector4 = _get_rect_overflow(clip_bounds, visual_bounds)
+	_record_error(
+		(
+			"main_menu StartGameButton %s @ %s（logical=%s）视觉越出 %s："
+			+ "left=%.2f top=%.2f right=%.2f bottom=%.2f。"
+		)
+		% [
+			state,
+			physical_resolution,
+			logical_resolution,
+			clipping_ancestor.name,
+			overflow.x,
+			overflow.y,
+			overflow.z,
+			overflow.w,
+		]
+	)
+
+
+func _find_nearest_clipping_ancestor(control: Control) -> Control:
+	var ancestor: Node = control.get_parent()
+	while is_instance_valid(ancestor):
+		if ancestor is Control:
+			var ancestor_control: Control = ancestor
+			if (
+				ancestor_control is ScrollContainer
+				or ancestor_control.clip_contents
+			):
+				return ancestor_control
+		ancestor = ancestor.get_parent()
+	return null
+
+
+func _get_transformed_control_bounds(control: Control) -> Rect2:
+	return _get_transformed_local_rect_bounds(
+		control,
+		Rect2(Vector2.ZERO, control.size)
+	)
+
+
+func _get_control_style_visual_bounds(
+	control: Control,
+	style_name: StringName
+) -> Rect2:
+	var local_rect: Rect2 = Rect2(Vector2.ZERO, control.size)
+	var style: StyleBox = control.get_theme_stylebox(style_name)
+	if style is StyleBoxFlat:
+		var flat_style: StyleBoxFlat = style
+		var shadow_rect: Rect2 = local_rect.grow(float(flat_style.shadow_size))
+		shadow_rect.position += flat_style.shadow_offset
+		local_rect = local_rect.merge(shadow_rect)
+	return _get_transformed_local_rect_bounds(control, local_rect)
+
+
+func _get_transformed_local_rect_bounds(
+	control: Control,
+	local_rect: Rect2
+) -> Rect2:
+	var transform: Transform2D = control.get_global_transform_with_canvas()
+	var corners: Array[Vector2] = [
+		transform * local_rect.position,
+		transform * Vector2(local_rect.end.x, local_rect.position.y),
+		transform * local_rect.end,
+		transform * Vector2(local_rect.position.x, local_rect.end.y),
+	]
+	var minimum: Vector2 = corners[0]
+	var maximum: Vector2 = corners[0]
+	for corner: Vector2 in corners:
+		minimum = minimum.min(corner)
+		maximum = maximum.max(corner)
+	return Rect2(minimum, maximum - minimum)
+
+
+func _rect_contains_rect(
+	outer: Rect2,
+	inner: Rect2,
+	tolerance: float
+) -> bool:
+	return (
+		inner.position.x >= outer.position.x - tolerance
+		and inner.position.y >= outer.position.y - tolerance
+		and inner.end.x <= outer.end.x + tolerance
+		and inner.end.y <= outer.end.y + tolerance
+	)
+
+
+func _get_rect_overflow(outer: Rect2, inner: Rect2) -> Vector4:
+	return Vector4(
+		maxf(outer.position.x - inner.position.x, 0.0),
+		maxf(outer.position.y - inner.position.y, 0.0),
+		maxf(inner.end.x - outer.end.x, 0.0),
+		maxf(inner.end.y - outer.end.y, 0.0)
+	)
+
+
+func _wait_for_ui_motion(seconds: float) -> void:
+	await create_timer(seconds, true, false, true).timeout
+	await process_frame
+	await RenderingServer.frame_post_draw
 
 
 func _capture_mode_selection_second_page(mode_selection: Node) -> bool:

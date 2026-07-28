@@ -205,9 +205,9 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 - 动态文本应通过统一适配边界计算字号。方块数字使用 GF 9 `GFTextFitter.MeasurementMode.SINGLE_LINE`，并由完整 GUT 的 `ShapedText` / `Font` RID 退出基线阻止测量回归。
 - `GameThemeUtility` 负责把当前主题的 `GameUiPalette` 注入 `GameUiStyleUtility`；`GameUiMotionUtility` 只依赖 Style Utility 准备控件，并负责 hover、focus、pressed、intro、reveal 和 pulse 动画。设置页切换主题后要能依据已保存的语义角色立即重建当前场景样式。
 - 按钮默认是纸色块加深墨描边，hover 用印刷青，pressed 用印刷黄，focus 可使用品红边框。
-- `PRIMARY` 按钮使用无模糊的深墨硬偏移底板；hover 时略抬起，pressed 时底板收短到约 1px，形成纸卡被按下的触觉。普通、弱化和图标操作保持平面，避免全屏按钮都像主动作。
+- `PRIMARY` 按钮使用最明确的无模糊深墨硬偏移底板；普通按钮保留更轻的同类实体投影，弱化操作可以保持平面。hover 的纸片展开并保留约 `5px` 到 `6px` 投影，pressed 回缩且底板收短到约 `1px` 到 `2px`，形成纸卡被按下的触觉。
 - 选中态使用低饱和印刷青纸面；品红主要保留给键盘/手柄焦点边框，避免“已选择”和“当前焦点”混用同一信号。
-- 按钮的 hover/focus/pressed 可通过 `features/asset_library/resources/shaders/ui/button_focus_dash.gdshader` 显示移动虚线圆角描边，半径、线宽、虚线密度和速度由 UI 色板引用的 GF Profile 控制；默认态必须隐藏，避免整屏控件同时动。
+- 键盘/手柄 focus 通过 `features/asset_library/resources/shaders/ui/button_focus_dash.gdshader` 显示移动虚线圆角描边，半径、线宽、虚线密度和速度由 UI 色板引用的 GF Profile 控制；焦点环必须内嵌在按钮稳定包络中，hover 不冒充 focus，默认态必须隐藏。
 - focus 要比 hover 更清楚，方便键盘和手柄导航。
 - pressed 反馈要短、明确，不要像 selected 状态。
 - 禁用态降低透明度和对比，不改变布局尺寸。
@@ -230,12 +230,12 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 
 统一 UI 动效语法：
 
-- **按钮**：hover 和键盘/手柄 focus 使用短促抬起或印刷套色响应，pressed 在 `50ms` 内向硬偏移底板压下并立即执行操作；释放后回到 hover/focus 或静止态。缩放中心必须随响应式尺寸更新，动画不得改变 Container 的最终布局。
+- **按钮**：`BaseButton` 根节点只负责布局、命中、文字与焦点，scale、position 和 modulate 始终保持基础值。`GameButtonMotionPresenter` 在其内部稳定包络中绘制纸片：静止态预留约 `8px` 到 `32px` 水平 motion gutter；hover/focus 首帧换为印刷青和米白粗描边，约 `58ms` 展开并按指针接触侧轻微倾斜，再用约 `92ms` 回正；pressed 在约 `52ms` 内回缩到接近静止几何、下沉并收短硬投影，释放后依据当前 hover/focus/selected 状态恢复。状态优先级为 `disabled > pressed > selected > hover/focus > rest`，按住后移出或失焦不得提前取消 pressed；运行时改变 `disabled` 必须在下一帧清除陈旧的按压、hover 和焦点表现。
 - **切换控件**：开关、分段按钮和可选卡片只沿其状态轴移动一次，轨道/纸面颜色与滑块或选中标记同步落定；selected 表示持久状态，品红 focus 边框表示当前输入位置，两者不能互相替代。
 - **列表**：只对本次新创建且可见的条目按阅读顺序错峰出现，单项约 `0.10s` 到 `0.18s`，相邻间隔保持很小；刷新已有数据不得让整页反复重播。`GFRepeaterBinder` 负责模板复制和清理，返回的节点再交给 `GameUiMotionUtility` 编排 reveal；结构变化后由 `GFControlFocusUtility` 重建焦点顺序。
 - **滚动条**：静止时保持低对比，指针进入、键盘滚动或拖拽时短促增亮或加宽，停止交互后平稳恢复；滑块位置必须直接跟随真实滚动值，不使用滞后、回弹或装饰性假进度。GF 不提供滚动条表现动画，该行为由 `GameUiMotionUtility` 绑定项目控件。
 - **弹层**：遮罩和任务卡分层进入；遮罩先建立阻断关系，任务卡再以一个主方向的小位移、轻微缩放和错峰内容落定。退出动画应更短，并在完成后才调用路由返回；不能用全屏场景擦除代替每一个普通弹层。
-- **首页开场**：正式启动完成后，先建立纸面背景，再由 `2 / 0 / 4 / 8` 方块和微型棋盘完成一次短组装，菜单功能组从各自空间锚点进入，主动作最后落定并取得焦点。开场不轮播图鉴、试验台、档案或模式页面；首次进入可播放完整编排，再次返回使用短版本，玩家输入可立即跳到最终可操作状态。
+- **首页开场**：正式启动完成后，先建立纸面背景，再由 `2 / 0 / 4 / 8` 方块和微型棋盘完成一次短组装；十个菜单按钮按阅读顺序约每项 `32ms` 错峰，从左右空间锚点以纸片“发牌”方式撞入并短回摆，外层命中框不移动。发牌继承按钮当下的 focus/selected/disabled 语义，不得强制回到 rest；任何 hover、focus 或 press 输入都必须同时接管纸片和文字，不能留下延迟隐藏文字。主动作最后落定并取得焦点。开场不轮播图鉴、试验台、档案或模式页面；首次进入可播放完整编排，再次返回使用短版本，玩家输入可立即跳到最终可操作状态。
 - **减少动态**：不延迟状态提交，也不等待不可见 Tween；按钮、列表、滚动条、弹层和首页开场直接落到稳定终态，保留焦点、选中、禁用和遮罩等非运动信号。常规动效不得成为理解状态、完成操作或恢复焦点的前置条件。
 
 GF 与项目边界：
@@ -249,7 +249,7 @@ GF 与项目边界：
 
 - 不使用 blur、glow、长淡入和大位移作为默认动效。
 - 同一元素不要同时叠加大位移、大缩放和强粒子。
-- Container 管理的子控件不能被动效改写最终位置。
+- Container 管理的子控件不能被动效改写最终位置；按钮可见变换只能发生在内部 Presenter，并且纸片、倾斜包围盒、粗描边、硬投影和内嵌焦点环都必须留在根按钮及最近裁剪祖先的安全包络内。
 - 隐藏子控件不播放 reveal。
 - 动画不能成为状态可读性的唯一来源。
 - 暂停菜单、目标达成和游戏结束等 `SceneTree.paused` 期间可见的 UI Tween 必须使用暂停时仍处理的模式；否则截图、键盘导航和真实玩家都会看到只出现一半的弹层。减少动态时应直接落到最终可读状态。
@@ -263,7 +263,7 @@ GF 与项目边界：
 
 已存在的视觉相关测试：
 
-- `test_visual_polish.gd` 验证背景 shader、静态启动壳与线程加载边界、半调场景转场、主题化 Tile 轮廓与稀疏母题、文字对比度、按钮焦点 Profile、庆祝事件 preset，以及 GF 震动与背景联动反馈。
+- `test_visual_polish.gd` 验证背景 shader、静态启动壳与线程加载边界、半调场景转场、主题化 Tile 轮廓与稀疏母题、文字对比度、按钮内部 Presenter、稳定根几何、内嵌焦点 Profile、pressed 状态优先级、庆祝事件 preset，以及 GF 震动与背景联动反馈。
 - `test_game_theme_utility.gd` 验证内容包描述符、默认主题约束、按键加载、GF 激活事务、GF settings、背景/UI/VFX Profile、`GFSignalUtility` owner 连接、场景转场、语义音效事件和音频银行挂载令牌。
 
 后续视觉改动至少检查：
@@ -278,7 +278,7 @@ GF 与项目边界：
 - `features/themes/resources/themes/tile_schemes/*.tres` 是否仍由资源定义方块色。
 - `TileVisualTheme` 的家族签名是否唯一，`TilePatternOverlay` 的母题是否稀疏、中央留白且不会影响数字识别。
 - `GameUiStyleUtility` 的默认、选中、字段与文本语义是否能在色板切换后正确重建。
-- `GameUiMotionUtility` 的 hover、focus、pressed 动画反馈是否仍有明确区别。
+- `GameUiMotionUtility` 的 rest、约 `60ms` 发牌、约 `60ms` hover overshoot、稳定 hover、focus 和 pressed 分帧反馈是否仍有明确区别；`capture_ui_vfx_matrix.gd` 必须在桌面与窄屏保存这些状态并验证纸片、旋转、描边、硬投影和焦点环的视觉包络没有越过最近裁剪祖先。
 - 除自动测试外，是否在 `1280×720`、`960×540`、`390×844` 至少三类视口保存本次真实截图与运行日志，并人工核对裁切、层级、触控安全区、文字对比、首帧承接和动效降级；测试通过不能替代视觉签字。
 - 安全 GUT 是否通过。
 

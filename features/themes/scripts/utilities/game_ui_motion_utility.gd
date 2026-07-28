@@ -17,9 +17,14 @@ signal interactive_control_confirmed(control: Control)
 const _BOUND_META: StringName = &"_game_ui_motion_bound"
 const _HOVERED_META: StringName = &"_game_ui_motion_hovered"
 const _FOCUSED_META: StringName = &"_game_ui_motion_focused"
+const _PRESSED_META: StringName = &"_game_ui_motion_pressed"
 const _BASE_SCALE_META: StringName = &"_game_ui_motion_base_scale"
+const _BASE_MODULATE_META: StringName = &"_game_ui_motion_base_modulate"
 const _TWEEN_META: StringName = &"_game_ui_motion_tween"
+const _BUTTON_BASE_SELF_MODULATE_META: StringName = &"_game_ui_motion_base_self_modulate"
+const _BUTTON_TEXT_TWEEN_META: StringName = &"_game_ui_motion_text_tween"
 const _TOGGLE_STATE_META: StringName = &"_game_ui_motion_toggle_state"
+const _DISABLED_STATE_META: StringName = &"_game_ui_motion_disabled_state"
 const _CONTROL_BASE_POSITION_META: StringName = &"_game_ui_motion_control_base_position"
 const _CONTROL_BASE_SCALE_META: StringName = &"_game_ui_motion_control_base_scale"
 const _CONTROL_BASE_MODULATE_META: StringName = &"_game_ui_motion_control_base_modulate"
@@ -34,20 +39,10 @@ const _SCROLL_BASE_SCALE_META: StringName = &"_game_ui_motion_scroll_base_scale"
 const _SCROLL_BASE_MODULATE_META: StringName = &"_game_ui_motion_scroll_base_modulate"
 const _TAB_BOUND_META: StringName = &"_game_ui_motion_tab_bound"
 const _TAB_INDEX_META: StringName = &"_game_ui_motion_tab_index"
-const _REST_MODULATE: Color = Color.WHITE
-const _HOVER_MODULATE: Color = Color(0.98, 1.0, 0.99, 1.0)
-const _FOCUS_MODULATE: Color = Color(1.0, 0.98, 1.0, 1.0)
-const _PRESS_MODULATE: Color = Color(0.96, 0.94, 0.84, 1.0)
-const _BUTTON_ROLE_META: StringName = &"_game_ui_style_button_role"
-## Hover / focus 保持控件几何稳定；仅按压使用向内压缩反馈。
-## 这也避免 ScrollContainer 与密集按钮组裁切放大后的控件。
-const _ACTIVE_SCALE: Vector2 = Vector2.ONE
-const _PRIMARY_ACTIVE_SCALE: Vector2 = Vector2(1.012, 1.012)
-const _PRESS_SCALE: Vector2 = Vector2(0.992, 0.955)
-const _HOVER_DURATION: float = 0.11
-const _PRESS_DURATION: float = 0.055
-const _TOGGLE_SETTLE_SCALE: Vector2 = Vector2(1.012, 0.985)
-const _TOGGLE_SETTLE_DURATION: float = 0.13
+## BaseButton 根控件始终保持布局几何稳定；可见变换由内部 Presenter 承担。
+## 这避免 ScrollContainer 与密集按钮组裁切放大后的控件。
+const _BUTTON_DEAL_OFFSET: Vector2 = Vector2(18.0, 0.0)
+const _BUTTON_DEAL_STAGGER: float = 0.032
 const _PANEL_INTRO_OFFSET: Vector2 = Vector2(0.0, 10.0)
 const _PANEL_INTRO_SCALE: float = 0.992
 const _PANEL_INTRO_DURATION: float = 0.18
@@ -80,6 +75,7 @@ const _NUMERIC_GOLDEN_ANGLE_RADIANS: float = 2.39996323
 var _style: GameUiStyleUtility
 var _accessibility: GameAccessibilityUtility
 var _numeric_scatter_sequence: int = 0
+var _tracked_buttons: Array[WeakRef] = []
 
 
 # --- GF 生命周期方法 ---
@@ -97,7 +93,28 @@ func ready() -> void:
 		push_error("[GameUiMotionUtility] 缺少 GameAccessibilityUtility。")
 
 
+func tick(_delta: float) -> void:
+	for index: int in range(_tracked_buttons.size() - 1, -1, -1):
+		var weak_reference: WeakRef = _tracked_buttons[index]
+		var referenced_object: Variant = weak_reference.get_ref()
+		if not referenced_object is BaseButton:
+			_tracked_buttons.remove_at(index)
+			continue
+		var button: BaseButton = referenced_object
+		var previous_disabled: bool = GFVariantData.to_bool(
+			_get_button_meta(
+				button,
+				_DISABLED_STATE_META,
+				button.disabled
+			)
+		)
+		if previous_disabled == button.disabled:
+			continue
+		_sync_button_disabled_state(button)
+
+
 func dispose() -> void:
+	_tracked_buttons.clear()
 	_style = null
 	_accessibility = null
 
@@ -552,6 +569,54 @@ func play_children_reveal(
 	return animated_count
 
 
+## 让按钮纸片按逻辑顺序从左右两侧错峰进入。
+## 外层 BaseButton 不移动，因此入场期间布局、焦点顺序与命中框仍然稳定。
+## @param buttons: 按逻辑阅读顺序排列的按钮。
+## @param offset: 单个纸片相对终点的水平起始距离。
+## @param stagger: 相邻纸片的开始时间差。
+## @param initial_delay: 第一张纸片开始前的等待时间。
+## @return: 本次启动的纸片数量。
+func play_button_deal_sequence(
+	buttons: Array[BaseButton],
+	offset: Vector2 = _BUTTON_DEAL_OFFSET,
+	stagger: float = _BUTTON_DEAL_STAGGER,
+	initial_delay: float = 0.0
+) -> int:
+	if not is_instance_valid(_style):
+		return 0
+	var animated_count: int = 0
+	for button: BaseButton in buttons:
+		if not is_instance_valid(button) or not button.visible:
+			continue
+		var direction: float = -1.0 if animated_count % 2 == 0 else 1.0
+		_style.play_button_deal_in(
+			button,
+			Vector2(absf(offset.x) * direction, offset.y),
+			_resolve_button_motion_state(button),
+			maxf(initial_delay, 0.0)
+				+ float(animated_count) * maxf(stagger, 0.0),
+			_is_reduced_motion()
+		)
+		_play_button_text_reveal(
+			button,
+			maxf(initial_delay, 0.0)
+				+ float(animated_count) * maxf(stagger, 0.0)
+		)
+		animated_count += 1
+	return animated_count
+
+
+## 立即完成给定按钮的纸片与文字入场。
+## @param button: 需要直接落到当前终态的按钮。
+func complete_button_motion(button: BaseButton) -> void:
+	if not is_instance_valid(button):
+		return
+	_kill_button_text_tween(button)
+	button.self_modulate = _get_button_base_self_modulate(button)
+	if is_instance_valid(_style):
+		_style.complete_button_motion(button)
+
+
 ## 播放同一页面内的内容切换反馈。
 ## @param control: 刚切换为可见的内容根节点。
 ## @param direction: 正数从右侧进入，负数从左侧进入。
@@ -678,12 +743,21 @@ func _bind_button(button: BaseButton) -> bool:
 	button.set_meta(_BOUND_META, true)
 	button.set_meta(_HOVERED_META, false)
 	button.set_meta(_FOCUSED_META, button.has_focus())
+	button.set_meta(_PRESSED_META, false)
 	button.set_meta(_BASE_SCALE_META, button.scale)
+	button.set_meta(_BASE_MODULATE_META, button.modulate)
+	button.set_meta(
+		_BUTTON_BASE_SELF_MODULATE_META,
+		button.self_modulate
+	)
 	button.set_meta(_TOGGLE_STATE_META, button.button_pressed)
+	button.set_meta(_DISABLED_STATE_META, button.disabled)
+	_tracked_buttons.append(weakref(button))
 	button.call_deferred("set", "pivot_offset", button.size * 0.5)
 	if is_instance_valid(_style):
 		_style.prepare_button(button)
 		_update_button_focus_ring_visibility(button)
+		_refresh_button_motion_state(button, false)
 
 	var _connect_result_157: int = button.mouse_entered.connect(_on_button_mouse_entered.bind(button))
 	var _connect_result_158: int = button.mouse_exited.connect(_on_button_mouse_exited.bind(button))
@@ -998,11 +1072,15 @@ func _play_control_reveal(
 	if not is_instance_valid(control):
 		return null
 
-	_store_control_base_state(control, animate_position)
+	var fills_visible_viewport: bool = _control_fills_visible_viewport(control)
+	var animate_transform_position: bool = (
+		animate_position and not fills_visible_viewport
+	)
+	_store_control_base_state(control, animate_transform_position)
 	_kill_control_tween(control)
 
 	var base_position: Vector2 = control.position
-	if animate_position:
+	if animate_transform_position:
 		base_position = _get_control_vector2_meta(
 			control,
 			_CONTROL_BASE_POSITION_META,
@@ -1019,21 +1097,23 @@ func _play_control_reveal(
 		control.modulate
 	)
 	if _is_reduced_motion():
-		if animate_position:
+		if animate_transform_position:
 			control.position = base_position
 		control.scale = base_scale
 		control.modulate = base_modulate
 		return null
 	var start_modulate: Color = base_modulate
 	start_modulate.a = 0.0
+	var effective_start_scale: float = 1.0 if fills_visible_viewport else start_scale
 
-	if animate_position:
+	if animate_transform_position:
 		control.position = base_position + offset
-	control.scale = base_scale * start_scale
+	control.pivot_offset = control.size * 0.5
+	control.scale = base_scale * effective_start_scale
 	control.modulate = start_modulate
 
 	if not control.is_inside_tree():
-		if animate_position:
+		if animate_transform_position:
 			control.position = base_position
 		control.scale = base_scale
 		control.modulate = base_modulate
@@ -1044,7 +1124,7 @@ func _play_control_reveal(
 	var _parallel_result: Tween = tween.set_parallel(true)
 	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
 	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
-	if animate_position:
+	if animate_transform_position:
 		var position_tweener: PropertyTweener = tween.tween_property(control, "position", base_position, duration)
 		var _position_delay_result: Tweener = position_tweener.set_delay(delay)
 	var scale_tweener: PropertyTweener = tween.tween_property(control, "scale", base_scale, duration)
@@ -1055,49 +1135,21 @@ func _play_control_reveal(
 	return tween
 
 
-func _animate_button(
-	button: BaseButton,
-	scale_multiplier: Vector2,
-	modulate: Color,
-	duration: float
-) -> void:
-	if not is_instance_valid(button):
-		return
-
-	_kill_button_tween(button)
-
-	var base_scale: Vector2 = _get_button_base_scale(button)
-	if _is_reduced_motion():
-		button.scale = base_scale
-		button.modulate = modulate
-		return
-	if not button.is_inside_tree():
-		button.scale = base_scale * scale_multiplier
-		button.modulate = modulate
-		return
-
-	var tween: Tween = button.create_tween()
-	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-	var _parallel_result: Tween = tween.set_parallel(true)
-	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
-	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
-	var _scale_tweener: PropertyTweener = tween.tween_property(button, "scale", base_scale * scale_multiplier, duration)
-	var _modulate_tweener: PropertyTweener = tween.tween_property(button, "modulate", modulate, duration)
-	button.set_meta(_TWEEN_META, tween)
+func _control_fills_visible_viewport(control: Control) -> bool:
+	if not is_instance_valid(control) or not control.is_inside_tree():
+		return false
+	var viewport_rect: Rect2 = control.get_viewport().get_visible_rect()
+	var control_rect: Rect2 = control.get_global_rect()
+	return (
+		control_rect.position.distance_to(viewport_rect.position) <= 1.0
+		and control_rect.size.distance_to(viewport_rect.size) <= 1.0
+	)
 
 
 func _restore_button(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
-	if _is_button_active(button):
-		_animate_button(
-			button,
-			_get_active_scale(button),
-			_get_active_modulate(button),
-			_HOVER_DURATION
-		)
-	else:
-		_animate_button(button, Vector2.ONE, _REST_MODULATE, _HOVER_DURATION)
+	_refresh_button_motion_state(button)
 
 
 func _is_button_active(button: BaseButton) -> bool:
@@ -1107,24 +1159,43 @@ func _is_button_active(button: BaseButton) -> bool:
 	)
 
 
-func _get_active_modulate(button: BaseButton) -> Color:
-	if GFVariantData.to_bool(_get_button_meta(button, _FOCUSED_META, false)):
-		return _FOCUS_MODULATE
-	return _HOVER_MODULATE
-
-
-func _get_active_scale(button: BaseButton) -> Vector2:
-	var role: int = GFVariantData.to_int(
-		_get_button_meta(
-			button,
-			_BUTTON_ROLE_META,
-			GameUiStyleUtility.ButtonRole.SECONDARY
-		),
-		GameUiStyleUtility.ButtonRole.SECONDARY
+func _refresh_button_motion_state(
+	button: BaseButton,
+	animated: bool = true
+) -> void:
+	if not is_instance_valid(button):
+		return
+	_kill_button_tween(button)
+	_kill_button_text_tween(button)
+	button.scale = _get_button_base_scale(button)
+	button.modulate = _get_button_base_modulate(button)
+	button.self_modulate = _get_button_base_self_modulate(button)
+	if not is_instance_valid(_style):
+		return
+	_style.set_button_motion_state(
+		button,
+		_resolve_button_motion_state(button),
+		animated,
+		_is_reduced_motion()
 	)
-	if role == GameUiStyleUtility.ButtonRole.PRIMARY:
-		return _PRIMARY_ACTIVE_SCALE
-	return _ACTIVE_SCALE
+
+
+func _resolve_button_motion_state(
+	button: BaseButton
+) -> GameButtonMotionPresenter.MotionState:
+	if not is_instance_valid(button) or button.disabled:
+		return GameButtonMotionPresenter.MotionState.DISABLED
+	if GFVariantData.to_bool(
+		_get_button_meta(button, _PRESSED_META, false)
+	):
+		return GameButtonMotionPresenter.MotionState.PRESSED
+	if GFVariantData.to_bool(
+		_get_button_meta(button, _TOGGLE_STATE_META, false)
+	):
+		return GameButtonMotionPresenter.MotionState.SELECTED
+	if _is_button_active(button):
+		return GameButtonMotionPresenter.MotionState.ACTIVE
+	return GameButtonMotionPresenter.MotionState.REST
 
 
 func _get_button_base_scale(button: BaseButton) -> Vector2:
@@ -1134,11 +1205,94 @@ func _get_button_base_scale(button: BaseButton) -> Vector2:
 	return Vector2.ONE
 
 
+func _get_button_base_modulate(button: BaseButton) -> Color:
+	var value: Variant = _get_button_meta(
+		button,
+		_BASE_MODULATE_META,
+		Color.WHITE
+	)
+	if value is Color:
+		return value
+	return Color.WHITE
+
+
+func _get_button_base_self_modulate(button: BaseButton) -> Color:
+	var value: Variant = _get_button_meta(
+		button,
+		_BUTTON_BASE_SELF_MODULATE_META,
+		Color.WHITE
+	)
+	if value is Color:
+		return value
+	return Color.WHITE
+
+
+func _play_button_text_reveal(button: BaseButton, delay: float) -> void:
+	if not is_instance_valid(button):
+		return
+	_kill_button_text_tween(button)
+	var base_modulate: Color = _get_button_base_self_modulate(button)
+	if _is_reduced_motion() or not button.is_inside_tree():
+		button.self_modulate = base_modulate
+		return
+	var start_modulate: Color = base_modulate
+	start_modulate.a = 0.0
+	button.self_modulate = start_modulate
+	var tween: Tween = button.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(
+		Tween.TWEEN_PAUSE_PROCESS
+	)
+	var modulate_tweener: PropertyTweener = tween.tween_property(
+		button,
+		"self_modulate",
+		base_modulate,
+		0.105
+	)
+	var _delay_result: Tweener = modulate_tweener.set_delay(maxf(delay, 0.0))
+	var _curve_result: Tweener = modulate_tweener.set_trans(Tween.TRANS_QUAD)
+	var _ease_result: Tweener = modulate_tweener.set_ease(Tween.EASE_OUT)
+	button.set_meta(_BUTTON_TEXT_TWEEN_META, tween)
+
+
+func _kill_button_text_tween(button: BaseButton) -> void:
+	var tween: Tween = _get_tween_value(
+		_get_button_meta(button, _BUTTON_TEXT_TWEEN_META, null)
+	)
+	if tween != null and tween.is_valid():
+		tween.kill()
+	button.set_meta(_BUTTON_TEXT_TWEEN_META, null)
+
+
 func _kill_button_tween(button: BaseButton) -> void:
 	var tween: Tween = _get_tween_value(_get_button_meta(button, _TWEEN_META, null))
 	if tween != null and tween.is_valid():
 		tween.kill()
 	button.set_meta(_TWEEN_META, null)
+
+
+func _sync_button_disabled_state(button: BaseButton) -> void:
+	if not is_instance_valid(button):
+		return
+	button.set_meta(_DISABLED_STATE_META, button.disabled)
+	button.set_meta(_PRESSED_META, false)
+	if button.disabled:
+		button.set_meta(_HOVERED_META, false)
+		button.set_meta(_FOCUSED_META, false)
+		if button.has_focus():
+			button.release_focus()
+	else:
+		var is_hovered: bool = (
+			button.is_inside_tree()
+			and button.is_visible_in_tree()
+			and button.get_global_rect().has_point(
+				button.get_viewport().get_mouse_position()
+			)
+		)
+		button.set_meta(_HOVERED_META, is_hovered)
+		button.set_meta(_FOCUSED_META, button.has_focus())
+		button.set_meta(_TOGGLE_STATE_META, button.button_pressed)
+	_update_button_focus_ring_visibility(button)
+	_refresh_button_motion_state(button, false)
 
 
 func _get_button_meta(button: BaseButton, key: StringName, default_value: Variant) -> Variant:
@@ -1313,20 +1467,51 @@ func _is_reduced_motion() -> bool:
 	)
 
 
+func _play_fallback_toggle_settle(button: BaseButton) -> void:
+	_kill_button_tween(button)
+	var base_scale: Vector2 = _get_button_base_scale(button)
+	button.modulate = _get_button_base_modulate(button)
+	if _is_reduced_motion() or not button.is_inside_tree():
+		button.scale = base_scale
+		return
+	var tween: Tween = button.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(
+		Tween.TWEEN_PAUSE_PROCESS
+	)
+	var compress_tweener: PropertyTweener = tween.tween_property(
+		button,
+		"scale",
+		base_scale * Vector2(0.975, 0.94),
+		0.052
+	)
+	var _compress_curve: Tweener = compress_tweener.set_trans(Tween.TRANS_QUAD)
+	var _compress_ease: Tweener = compress_tweener.set_ease(Tween.EASE_OUT)
+	var restore_tweener: PropertyTweener = tween.tween_property(
+		button,
+		"scale",
+		base_scale,
+		0.088
+	)
+	var _restore_curve: Tweener = restore_tweener.set_trans(Tween.TRANS_BACK)
+	var _restore_ease: Tweener = restore_tweener.set_ease(Tween.EASE_OUT)
+	button.set_meta(_TWEEN_META, tween)
+
+
 # --- 信号处理函数 ---
 
 func _on_button_mouse_entered(button: BaseButton) -> void:
 	if not is_instance_valid(button) or button.disabled:
 		return
 	button.set_meta(_HOVERED_META, true)
+	if is_instance_valid(_style):
+		var presenter: GameButtonMotionPresenter = (
+			_style.get_button_motion_presenter(button)
+		)
+		if is_instance_valid(presenter):
+			presenter.set_contact_position(button.get_local_mouse_position())
 	_update_button_focus_ring_visibility(button)
 	interactive_control_selected.emit(button)
-	_animate_button(
-		button,
-		_get_active_scale(button),
-		_HOVER_MODULATE,
-		_HOVER_DURATION
-	)
+	_refresh_button_motion_state(button)
 
 
 func _on_button_mouse_exited(button: BaseButton) -> void:
@@ -1344,12 +1529,7 @@ func _on_button_focus_entered(button: BaseButton) -> void:
 	_update_button_focus_ring_visibility(button)
 	if not GFVariantData.to_bool(_get_button_meta(button, _HOVERED_META, false)):
 		interactive_control_selected.emit(button)
-	_animate_button(
-		button,
-		_get_active_scale(button),
-		_FOCUS_MODULATE,
-		_HOVER_DURATION
-	)
+	_refresh_button_motion_state(button)
 
 
 func _on_button_focus_exited(button: BaseButton) -> void:
@@ -1363,14 +1543,16 @@ func _on_button_focus_exited(button: BaseButton) -> void:
 func _on_button_down(button: BaseButton) -> void:
 	if not is_instance_valid(button) or button.disabled:
 		return
+	button.set_meta(_PRESSED_META, true)
 	_update_button_focus_ring_visibility(button)
 	interactive_control_confirmed.emit(button)
-	_animate_button(button, _PRESS_SCALE, _PRESS_MODULATE, _PRESS_DURATION)
+	_refresh_button_motion_state(button)
 
 
 func _on_button_up(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
+	button.set_meta(_PRESSED_META, false)
 	_update_button_focus_ring_visibility(button)
 	_restore_button(button)
 
@@ -1385,58 +1567,13 @@ func _on_button_toggled(pressed: bool, button: BaseButton) -> void:
 func _on_button_toggle_settle(button: BaseButton = null) -> void:
 	if not is_instance_valid(button):
 		return
-	var target_modulate: Color = (
-		_get_active_modulate(button)
-		if _is_button_active(button)
-		else _REST_MODULATE
-	)
-	_kill_button_tween(button)
-	var base_scale: Vector2 = _get_button_base_scale(button)
-	if _is_reduced_motion() or not button.is_inside_tree():
-		button.scale = base_scale
-		button.modulate = target_modulate
+	var presenter: GameButtonMotionPresenter = null
+	if is_instance_valid(_style):
+		presenter = _style.get_button_motion_presenter(button)
+	if is_instance_valid(presenter):
+		_refresh_button_motion_state(button)
 		return
-	var tween: Tween = button.create_tween()
-	var _pause_mode_result: Tween = tween.set_pause_mode(
-		Tween.TWEEN_PAUSE_PROCESS
-	)
-	var settle_scale: PropertyTweener = tween.tween_property(
-		button,
-		"scale",
-		base_scale * _TOGGLE_SETTLE_SCALE,
-		_TOGGLE_SETTLE_DURATION * 0.46
-	)
-	var _settle_curve: Tweener = settle_scale.set_trans(
-		Tween.TRANS_CUBIC
-	)
-	var _settle_ease: Tweener = settle_scale.set_ease(
-		Tween.EASE_OUT
-	)
-	var modulate_tweener: PropertyTweener = tween.parallel().tween_property(
-		button,
-		"modulate",
-		target_modulate,
-		_TOGGLE_SETTLE_DURATION
-	)
-	var _modulate_curve: Tweener = modulate_tweener.set_trans(
-		Tween.TRANS_CUBIC
-	)
-	var _modulate_ease: Tweener = modulate_tweener.set_ease(
-		Tween.EASE_OUT
-	)
-	var restore_scale: PropertyTweener = tween.tween_property(
-		button,
-		"scale",
-		base_scale,
-		_TOGGLE_SETTLE_DURATION * 0.54
-	)
-	var _restore_curve: Tweener = restore_scale.set_trans(
-		Tween.TRANS_BACK
-	)
-	var _restore_ease: Tweener = restore_scale.set_ease(
-		Tween.EASE_OUT
-	)
-	button.set_meta(_TWEEN_META, tween)
+	_play_fallback_toggle_settle(button)
 
 
 func _on_button_resized(button: BaseButton) -> void:
@@ -1445,12 +1582,14 @@ func _on_button_resized(button: BaseButton) -> void:
 	button.pivot_offset = button.size * 0.5
 	if is_instance_valid(_style):
 		_style.refresh_button_focus_ring(button)
+	complete_button_motion(button)
 
 
 func _on_button_tree_exited(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
 	_kill_button_tween(button)
+	_kill_button_text_tween(button)
 
 
 func _on_scroll_container_started(scroll_container: ScrollContainer) -> void:

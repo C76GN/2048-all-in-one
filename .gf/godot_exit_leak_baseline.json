@@ -7,9 +7,9 @@
   "gf_source_commit": "5ab736d3e4037525b38c6cbee85cbe4c2b1b9b28",
   "gf_vendor_tree_sha256": "c2d921861f7d0afe8d8de343be4f07001e62016f88c4d5de576c36d6e71a994e",
   "gf_global_script_class_count": 732,
-  "project_runtime_script_class_count": 225,
+  "project_runtime_script_class_count": 226,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "One audited presentation-only runtime class, BoardMotionBackdrop, raises the project class set from 224 to 225. It consumes committed turn feedback and does not own canonical gameplay state, RNG, persistence, or replay data. The complete suite now covers 57 scripts and 495 tests. This recalibration changes only the declared project class-set count and suite description; the existing ObjectDB, Resource, and RID ceilings remain unchanged and continue to be enforced by the safe GUT runner.",
+  "calibration_reason": "One audited presentation-only runtime class, GameButtonMotionPresenter, raises the project class set from 225 to 226. It owns only the visual paper face inside a stable BaseButton hit box and does not own navigation, canonical gameplay state, RNG, persistence, or replay data. This recalibration changes only the declared project class-set count; the existing ObjectDB, Resource, and RID ceilings remain unchanged and continue to be enforced by the safe GUT runner.",
   "max_objectdb_instances": 319,
   "max_resources_in_use": 141,
   "max_rid_allocations_by_type": {

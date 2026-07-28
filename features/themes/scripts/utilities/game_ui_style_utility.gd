@@ -49,6 +49,7 @@ const _BUTTON_ROLE_META: StringName = &"_game_ui_style_button_role"
 const _SURFACE_ROLE_META: StringName = &"_game_ui_style_surface_role"
 const _BORDER_ROLE_META: StringName = &"_game_ui_style_border_role"
 const _BORDER_WIDTH_META: StringName = &"_game_ui_style_border_width"
+const _BUTTON_MOTION_PRESENTER_NODE_NAME: String = "ButtonMotionPresenter"
 const _BUTTON_FOCUS_RING_NODE_NAME: String = "ButtonFocusRing"
 const _BUTTON_FOCUS_RING_DRIVER_NODE_NAME: String = "ShaderAnimationDriver"
 const _BUTTON_FOCUS_RING_SHADER_ASSET_KEY: StringName = &"asset.shader.ui.button_focus_dash"
@@ -72,10 +73,14 @@ const _FIELD_FOCUS_BORDER_COLOR: Color = Color(0.8745098, 0.29411766, 0.6039216,
 const _PANEL_SURFACE_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.88)
 const _SELECTED_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.82)
 const _SELECTED_BORDER_COLOR: Color = Color(0.29411766, 0.7411765, 0.77254903, 1.0)
-const _FOCUS_RING_MARGIN: float = 3.0
-const _PRIMARY_BUTTON_SHADOW_OFFSET: Vector2 = Vector2(0.0, 4.0)
-const _PRIMARY_BUTTON_HOVER_SHADOW_OFFSET: Vector2 = Vector2(0.0, 3.0)
-const _PRIMARY_BUTTON_PRESSED_SHADOW_OFFSET: Vector2 = Vector2(0.0, 1.0)
+const _FOCUS_RING_INSET: float = 2.0
+const _BUTTON_SHADOW_OFFSET: Vector2 = Vector2(3.0, 5.0)
+const _BUTTON_HOVER_SHADOW_OFFSET: Vector2 = Vector2(4.0, 6.0)
+const _BUTTON_PRESSED_SHADOW_OFFSET: Vector2 = Vector2(1.0, 2.0)
+const _PRIMARY_BUTTON_SHADOW_OFFSET: Vector2 = Vector2(3.0, 6.0)
+const _PRIMARY_BUTTON_HOVER_SHADOW_OFFSET: Vector2 = Vector2(4.0, 6.0)
+const _PRIMARY_BUTTON_PRESSED_SHADOW_OFFSET: Vector2 = Vector2(1.0, 2.0)
+const _BUTTON_HARD_SHADOW_SPREAD: int = 1
 const _SHELL_SHADOW_OFFSET: Vector2 = Vector2(7.0, 7.0)
 
 
@@ -411,6 +416,10 @@ func prepare_button(button: BaseButton) -> void:
 	if button is OptionButton:
 		var option_button: OptionButton = button
 		_style_option_button(option_button)
+	if _button_supports_motion_presenter(button):
+		var _presenter: GameButtonMotionPresenter = (
+			_ensure_button_motion_presenter(button)
+		)
 	var _focus_ring: ColorRect = _ensure_button_focus_ring(button)
 
 
@@ -480,6 +489,77 @@ func set_button_focus_visible(button: BaseButton, is_visible: bool) -> void:
 			and not _static_visuals_enabled
 			and not _button_uses_embedded_focus_visual(button)
 		)
+
+
+## 返回按钮内部的纸片动效呈现层。
+## @param button: 需要查询的按钮。
+func get_button_motion_presenter(
+	button: BaseButton
+) -> GameButtonMotionPresenter:
+	if not is_instance_valid(button):
+		return null
+	var node: Node = button.get_node_or_null(
+		_BUTTON_MOTION_PRESENTER_NODE_NAME
+	)
+	if node is GameButtonMotionPresenter:
+		var presenter: GameButtonMotionPresenter = node
+		return presenter
+	return null
+
+
+## 切换按钮纸片的语义状态；按钮布局根节点始终保持稳定。
+## @param button: 目标按钮。
+## @param state: 目标纸片语义状态。
+## @param animated: 是否播放状态过渡。
+## @param reduced_motion: 是否直接落到减少动态后的终态。
+func set_button_motion_state(
+	button: BaseButton,
+	state: GameButtonMotionPresenter.MotionState,
+	animated: bool = true,
+	reduced_motion: bool = false
+) -> void:
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(
+		button
+	)
+	if not is_instance_valid(presenter):
+		return
+	presenter.set_motion_state(state, animated, reduced_motion)
+
+
+## 播放按钮纸片的方向性发牌入场。
+## @param button: 目标按钮。
+## @param offset: 纸片相对终点的起始偏移。
+## @param target_state: 入场完成后应保持的当前语义状态。
+## @param delay: 开始入场前的等待时间。
+## @param reduced_motion: 是否跳过位移、缩放和旋转。
+func play_button_deal_in(
+	button: BaseButton,
+	offset: Vector2,
+	target_state: GameButtonMotionPresenter.MotionState,
+	delay: float = 0.0,
+	reduced_motion: bool = false
+) -> void:
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(
+		button
+	)
+	if not is_instance_valid(presenter):
+		return
+	presenter.play_deal_in(
+		offset,
+		target_state,
+		delay,
+		reduced_motion
+	)
+
+
+## 立即完成按钮纸片当前动效。
+## @param button: 目标按钮。
+func complete_button_motion(button: BaseButton) -> void:
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(
+		button
+	)
+	if is_instance_valid(presenter):
+		presenter.complete_motion()
 
 
 # --- 私有/辅助方法 ---
@@ -950,11 +1030,12 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 	var pressed_border_color: Color = _button_focus_border_color
 	var pressed_border_width: int = 3
 	var border_color: Color = _button_focus_border_color
+	var hover_border_color: Color = _button_normal_color
 	var normal_border_width: int = 2
-	var normal_shadow_offset: Vector2 = Vector2.ZERO
-	var hover_shadow_offset: Vector2 = Vector2.ZERO
-	var pressed_shadow_offset: Vector2 = Vector2.ZERO
-	var shadow_color: Color = Color.TRANSPARENT
+	var normal_shadow_offset: Vector2 = _BUTTON_SHADOW_OFFSET
+	var hover_shadow_offset: Vector2 = _BUTTON_HOVER_SHADOW_OFFSET
+	var pressed_shadow_offset: Vector2 = _BUTTON_PRESSED_SHADOW_OFFSET
+	var shadow_color: Color = _button_focus_border_color
 	if role == ButtonRole.PRIMARY:
 		normal_color = _primary_button_color
 		hover_color = _primary_button_hover_color
@@ -969,7 +1050,12 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 		hover_color = _quiet_button_hover_color
 		pressed_color = _button_pressed_color.lightened(0.12)
 		border_color = Color.TRANSPARENT
+		hover_border_color = Color.TRANSPARENT
 		normal_border_width = 0
+		normal_shadow_offset = Vector2.ZERO
+		hover_shadow_offset = Vector2.ZERO
+		pressed_shadow_offset = Vector2.ZERO
+		shadow_color = Color.TRANSPARENT
 	elif role == ButtonRole.ICON:
 		normal_color = _panel_surface_color
 		hover_color = _button_hover_color
@@ -993,8 +1079,8 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 		"hover",
 		_create_button_style(
 			hover_color,
-			_button_focus_border_color,
-			maxi(normal_border_width, 1),
+			hover_border_color,
+			maxi(normal_border_width, 3),
 			hover_shadow_offset,
 			shadow_color
 		)
@@ -1053,7 +1139,11 @@ func _create_button_style(
 	style.set_border_width_all(border_width)
 	style.set_corner_radius_all(4)
 	style.shadow_color = shadow_color
-	style.shadow_size = 0
+	style.shadow_size = (
+		_BUTTON_HARD_SHADOW_SPREAD
+		if shadow_color.a > 0.0 and not shadow_offset.is_zero_approx()
+		else 0
+	)
 	style.shadow_offset = shadow_offset
 	style.set_content_margin(SIDE_LEFT, 12.0)
 	style.set_content_margin(SIDE_TOP, 8.0)
@@ -1078,6 +1168,88 @@ func _create_button_focus_style(
 	if is_option_button:
 		return _create_option_style(Color.TRANSPARENT, _button_focus_border_color, 3)
 	return _create_button_style(Color.TRANSPARENT, _button_focus_border_color, 3)
+
+
+func _ensure_button_motion_presenter(
+	button: BaseButton
+) -> GameButtonMotionPresenter:
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(
+		button
+	)
+	if not is_instance_valid(presenter):
+		presenter = GameButtonMotionPresenter.new()
+		presenter.name = _BUTTON_MOTION_PRESENTER_NODE_NAME
+		presenter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		presenter.focus_mode = Control.FOCUS_NONE
+		presenter.show_behind_parent = true
+		presenter.set_anchors_preset(Control.PRESET_FULL_RECT)
+		button.add_child(presenter, false, Node.INTERNAL_MODE_BACK)
+	var normal_style: StyleBox = button.get_theme_stylebox(&"normal")
+	var hover_style: StyleBox = button.get_theme_stylebox(&"hover")
+	var pressed_style: StyleBox = button.get_theme_stylebox(&"pressed")
+	var selected_style: StyleBox = button.get_theme_stylebox(&"hover_pressed")
+	var disabled_style: StyleBox = button.get_theme_stylebox(&"disabled")
+	presenter.configure(
+		button,
+		normal_style,
+		hover_style,
+		selected_style,
+		pressed_style,
+		disabled_style
+	)
+	button.add_theme_stylebox_override(
+		&"normal",
+		_create_button_content_style(normal_style)
+	)
+	button.add_theme_stylebox_override(
+		&"hover",
+		_create_button_content_style(hover_style)
+	)
+	button.add_theme_stylebox_override(
+		&"pressed",
+		_create_button_content_style(pressed_style, true)
+	)
+	button.add_theme_stylebox_override(
+		&"hover_pressed",
+		_create_button_content_style(selected_style, true)
+	)
+	button.add_theme_stylebox_override(
+		&"disabled",
+		_create_button_content_style(disabled_style)
+	)
+	return presenter
+
+
+func _create_button_content_style(
+	source: StyleBox,
+	pressed: bool = false
+) -> StyleBoxEmpty:
+	var style: StyleBoxEmpty = StyleBoxEmpty.new()
+	for side: Side in [
+		SIDE_LEFT,
+		SIDE_TOP,
+		SIDE_RIGHT,
+		SIDE_BOTTOM,
+	]:
+		var content_margin: float = 0.0
+		if is_instance_valid(source):
+			content_margin = source.get_content_margin(side)
+		if pressed and side == SIDE_TOP:
+			content_margin += 1.0
+		elif pressed and side == SIDE_BOTTOM:
+			content_margin = maxf(content_margin - 1.0, 0.0)
+		style.set_content_margin(side, content_margin)
+	return style
+
+
+func _button_supports_motion_presenter(button: BaseButton) -> bool:
+	if not is_instance_valid(button):
+		return false
+	if not button is Button:
+		return false
+	if button is OptionButton or button is CheckBox or button is CheckButton:
+		return false
+	return not _button_uses_embedded_focus_visual(button)
 
 
 func _create_option_style(
@@ -1265,10 +1437,10 @@ func _ensure_button_focus_ring(button: BaseButton) -> ColorRect:
 	ring.visible = false
 	ring.color = Color.WHITE
 	ring.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ring.offset_left = -_FOCUS_RING_MARGIN
-	ring.offset_top = -_FOCUS_RING_MARGIN
-	ring.offset_right = _FOCUS_RING_MARGIN
-	ring.offset_bottom = _FOCUS_RING_MARGIN
+	ring.offset_left = _FOCUS_RING_INSET
+	ring.offset_top = _FOCUS_RING_INSET
+	ring.offset_right = -_FOCUS_RING_INSET
+	ring.offset_bottom = -_FOCUS_RING_INSET
 	ring.z_index = 16
 	var shader_material: ShaderMaterial = ShaderMaterial.new()
 	shader_material.shader = focus_ring_shader
@@ -1305,7 +1477,10 @@ func _apply_button_focus_ring_style(button: BaseButton) -> void:
 	var _dynamic_count: int = _shader_parameters.apply_parameters(
 		ring,
 		{
-			&"rect_size": button.size + Vector2.ONE * _FOCUS_RING_MARGIN * 2.0,
+			&"rect_size": Vector2(
+				maxf(button.size.x - _FOCUS_RING_INSET * 2.0, 1.0),
+				maxf(button.size.y - _FOCUS_RING_INSET * 2.0, 1.0)
+			),
 			&"color": _button_focus_border_color,
 		},
 		_get_shader_apply_options()
@@ -1344,14 +1519,7 @@ func _refresh_focus_ring_policy_to_tree(root: Node) -> void:
 		return
 	if root is BaseButton:
 		var button: BaseButton = root
-		_apply_button_visual_style(button)
-		if button is OptionButton:
-			var option_button: OptionButton = button
-			_style_option_button(option_button)
-		if _static_visuals_enabled:
-			_apply_button_focus_ring_style(button)
-		else:
-			var _ring: ColorRect = _ensure_button_focus_ring(button)
+		prepare_button(button)
 	for child: Node in root.get_children(true):
 		_refresh_focus_ring_policy_to_tree(child)
 

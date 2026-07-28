@@ -16,12 +16,10 @@ const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 }
 const _INTRO_BRAND_STAGGER: float = 0.045
 const _RETURN_BRAND_STAGGER: float = 0.022
-const _INTRO_MENU_STAGGER: float = 0.018
-const _RETURN_MENU_STAGGER: float = 0.010
-const _INTRO_MENU_DELAY: float = 0.72
-const _INTRO_MENU_MAXIMUM_STAGGER: float = 0.12
-const _RETURN_MENU_MAXIMUM_STAGGER: float = 0.05
-const _FULL_INTRO_WINDOW: float = 1.42
+const _INTRO_MENU_STAGGER: float = 0.032
+const _RETURN_MENU_STAGGER: float = 0.018
+const _INTRO_MENU_DELAY: float = 0.24
+const _FULL_INTRO_WINDOW: float = 0.92
 
 
 # --- 导出变量 ---
@@ -222,16 +220,11 @@ func _play_content_reveal() -> void:
 		brand_pieces,
 		_RETURN_BRAND_STAGGER if shortened else _INTRO_BRAND_STAGGER
 	)
-	var _menu_reveal_count: int = motion.play_children_reveal(
-		_menu_column,
-		Vector2.ZERO,
+	var _menu_reveal_count: int = motion.play_button_deal_sequence(
+		_get_menu_button_sequence(),
+		Vector2(34.0, 0.0),
 		_RETURN_MENU_STAGGER if shortened else _INTRO_MENU_STAGGER,
-		0.0 if shortened else _INTRO_MENU_DELAY,
-		(
-			_RETURN_MENU_MAXIMUM_STAGGER
-			if shortened
-			else _INTRO_MENU_MAXIMUM_STAGGER
-		)
+		0.0 if shortened else _INTRO_MENU_DELAY
 	)
 	if _intro_in_progress:
 		_intro_completion_tween = create_tween()
@@ -265,7 +258,24 @@ func _finish_intro_now() -> void:
 		_subtitle_label,
 	]:
 		motion.complete_control_motion(brand_piece)
-	motion.complete_children_motion(_menu_column)
+	for menu_button: BaseButton in _get_menu_button_sequence():
+		motion.complete_button_motion(menu_button)
+
+
+func _get_menu_button_sequence() -> Array[BaseButton]:
+	var buttons: Array[BaseButton] = [
+		_start_game_button,
+		_continue_game_button,
+		_load_bookmark_button,
+		_replays_button,
+		_tile_catalog_button,
+		_tile_lab_button,
+		_player_profile_button,
+		_achievements_button,
+		_settings_button,
+		_quit_button,
+	]
+	return buttons
 
 
 func _mark_intro_complete() -> void:

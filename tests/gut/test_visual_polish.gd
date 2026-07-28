@@ -725,6 +725,7 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	var root: Control = Control.new()
 	var container: VBoxContainer = VBoxContainer.new()
 	var button: Button = Button.new()
+	button.custom_minimum_size = Vector2(180.0, 56.0)
 	var item_list: ItemList = ItemList.new()
 	root.add_child(container)
 	container.add_child(button)
@@ -760,19 +761,45 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	assert_true(motion_utility.bind_interactive_controls(root) == 1, "UI 动效 Utility 应递归绑定按钮。")
 	assert_true(motion_utility.bind_interactive_controls(root) == 0, "重复绑定不应重复连接同一按钮。")
 	button.mouse_entered.emit()
-	var hover_tween_value: Variant = button.get_meta(&"_game_ui_motion_tween", null)
-	if hover_tween_value is Tween:
-		var hover_tween: Tween = hover_tween_value
-		var _hover_step_active: bool = hover_tween.custom_step(1.0)
+	var presenter: GameButtonMotionPresenter = (
+		style_utility.get_button_motion_presenter(button)
+	)
+	assert_not_null(presenter, "普通 Button 应挂载稳定布局内的纸片动效 Presenter。")
+	var active_face_size: Vector2 = Vector2.ZERO
+	if presenter != null:
+		presenter.complete_motion()
+		active_face_size = presenter.get_face().size
+		assert_true(
+			presenter.get_motion_state()
+				== GameButtonMotionPresenter.MotionState.ACTIVE,
+			"hover 应切换内部纸片为 ACTIVE 状态。"
+		)
 	assert_true(
 		button.scale.is_equal_approx(Vector2.ONE),
-		"hover 只应调整色调，不得放大密集或滚动区域中的按钮。"
+		"hover 不得放大密集或滚动区域中的布局根按钮。"
+	)
+	assert_true(
+		button.modulate.is_equal_approx(Color.WHITE),
+		"hover 不得给文字与焦点环叠加根节点染色。"
 	)
 
-	var button_style: StyleBoxFlat = _get_stylebox_flat(button, &"normal")
-	assert_not_null(button_style, "按钮绑定后应获得统一 StyleBoxFlat。")
-	assert_true(button_style.get_border_width(SIDE_TOP) >= 2, "统一按钮样式应使用像素菜单描边。")
-	assert_true(button_style.shadow_size == 0, "统一按钮样式不得使用模糊阴影。")
+	var button_style: StyleBoxFlat = null
+	if presenter != null:
+		button_style = _get_stylebox_flat(presenter.get_face(), &"panel")
+	assert_not_null(button_style, "按钮纸片应获得统一 StyleBoxFlat。")
+	if button_style != null:
+		assert_true(
+			button_style.get_border_width(SIDE_TOP) >= 2,
+			"统一按钮纸片应使用像素菜单描边。"
+		)
+		assert_true(
+			button_style.shadow_size == 1,
+			"统一按钮纸片应使用小范围、无模糊的硬投影底板。"
+		)
+	assert_true(
+		button.get_theme_stylebox(&"normal") is StyleBoxEmpty,
+		"按钮根节点只应保留内容布局，实际表面由 Presenter 绘制。"
+	)
 	var selected_style: StyleBoxFlat = _get_stylebox_flat(item_list, &"selected")
 	assert_not_null(selected_style, "列表绑定后应获得主题化选中态。")
 	if selected_style != null:
@@ -814,21 +841,32 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 		var focused_ring: ColorRect = ring_node
 		assert_true(focused_ring.visible, "键盘/手柄焦点应显示唯一的外部焦点环。")
 	button.button_down.emit()
-	var press_tween_value: Variant = button.get_meta(&"_game_ui_motion_tween", null)
-	if press_tween_value is Tween:
-		var press_tween: Tween = press_tween_value
-		var _press_step_active: bool = press_tween.custom_step(1.0)
+	var pressed_face_size: Vector2 = Vector2.ZERO
+	if presenter != null:
+		presenter.complete_motion()
+		pressed_face_size = presenter.get_face().size
 	assert_true(
-		button.scale.x < 1.0 and button.scale.y < 1.0,
-		"按压仍应保留向内压缩的机械反馈。"
+		button.scale.is_equal_approx(Vector2.ONE),
+		"按压仍不得改变按钮布局根节点。"
 	)
-	button.button_up.emit()
-	var restore_tween_value: Variant = button.get_meta(&"_game_ui_motion_tween", null)
-	if restore_tween_value is Tween:
-		var restore_tween: Tween = restore_tween_value
-		var _restore_step_active: bool = restore_tween.custom_step(1.0)
-	assert_true(button.scale.is_equal_approx(Vector2.ONE), "松开后按钮必须恢复基础缩放。")
+	assert_true(
+		pressed_face_size.x < active_face_size.x
+			and pressed_face_size.y < active_face_size.y,
+		"按压应让内部纸片回缩，保留机械反馈。"
+	)
+	button.mouse_exited.emit()
 	button.release_focus()
+	if presenter != null:
+		presenter.complete_motion()
+		assert_true(
+			presenter.get_motion_state()
+				== GameButtonMotionPresenter.MotionState.PRESSED,
+			"按住后移出或失焦不得提前取消 PRESSED 状态。"
+		)
+	button.button_up.emit()
+	if presenter != null:
+		presenter.complete_motion()
+	assert_true(button.scale.is_equal_approx(Vector2.ONE), "松开后按钮必须恢复基础缩放。")
 	if ring_node is ColorRect:
 		var unfocused_ring: ColorRect = ring_node
 		assert_false(unfocused_ring.visible, "焦点离开后外部焦点环应立即隐藏。")
@@ -842,6 +880,320 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 		"鼠标已经 hover 时获得焦点不应重复播放选择音效。"
 	)
 	assert_true(_get_event_count(emitted_events, &"confirmed") == 1, "button down 应发出 UI 确认音效语义信号。")
+	architecture.dispose()
+
+
+func test_button_deal_in_preserves_focus_and_interaction_restores_text() -> void:
+	var root: Control = Control.new()
+	var button: Button = Button.new()
+	button.custom_minimum_size = Vector2(240.0, 64.0)
+	root.add_child(button)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var accessibility: GameAccessibilityUtility = await _register_accessibility_stack(
+		architecture
+	)
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(
+		GFShaderParameterUtility,
+		shader_parameters
+	)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.register_utility(
+		GameAccessibilityUtility,
+		accessibility
+	)
+	await architecture.register_utility(
+		GameUiMotionUtility,
+		motion_utility
+	)
+	await architecture.init()
+	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	style_utility.style_button(
+		button,
+		GameUiStyleUtility.ButtonRole.PRIMARY
+	)
+	var deal_bound_count: int = motion_utility.bind_interactive_controls(root)
+	assert_true(
+		deal_bound_count == 1,
+		"发牌回归夹具应绑定一个主操作按钮。"
+	)
+
+	button.grab_focus()
+	var presenter: GameButtonMotionPresenter = (
+		style_utility.get_button_motion_presenter(button)
+	)
+	assert_not_null(presenter, "发牌按钮应挂载纸片 Presenter。")
+	var buttons: Array[BaseButton] = [button]
+	assert_true(
+		motion_utility.play_button_deal_sequence(
+			buttons,
+			Vector2(-34.0, 0.0),
+			0.0,
+			0.0
+		) == 1,
+		"焦点按钮应启动一次发牌入场。"
+	)
+	if presenter != null:
+		assert_true(
+			presenter.get_motion_state()
+				== GameButtonMotionPresenter.MotionState.ACTIVE,
+			"发牌不得把已有键盘/手柄焦点降级成 REST。"
+		)
+	assert_true(
+		button.self_modulate.a < 0.01,
+		"发牌开始时文字应与纸片一起进入。"
+	)
+
+	button.button_down.emit()
+	if presenter != null:
+		assert_true(
+			presenter.get_motion_state()
+				== GameButtonMotionPresenter.MotionState.PRESSED,
+			"玩家交互应立即接管尚未完成的发牌纸片。"
+		)
+	assert_true(
+		is_equal_approx(button.self_modulate.a, 1.0),
+		"玩家交互打断发牌时必须立即恢复按钮文字。"
+	)
+	button.button_up.emit()
+	motion_utility.complete_button_motion(button)
+	architecture.dispose()
+
+
+func test_button_motion_tracks_disabled_and_static_visual_policy() -> void:
+	var root: Control = Control.new()
+	var button: Button = Button.new()
+	button.custom_minimum_size = Vector2(220.0, 56.0)
+	root.add_child(button)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var accessibility: GameAccessibilityUtility = await _register_accessibility_stack(
+		architecture
+	)
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(
+		GFShaderParameterUtility,
+		shader_parameters
+	)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.register_utility(
+		GameAccessibilityUtility,
+		accessibility
+	)
+	await architecture.register_utility(
+		GameUiMotionUtility,
+		motion_utility
+	)
+	await architecture.init()
+	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	var disabled_bound_count: int = motion_utility.bind_interactive_controls(root)
+	assert_true(
+		disabled_bound_count == 1,
+		"禁用态回归夹具应绑定一个按钮。"
+	)
+	var presenter: GameButtonMotionPresenter = (
+		style_utility.get_button_motion_presenter(button)
+	)
+	assert_not_null(presenter, "运行时策略切换前应存在纸片 Presenter。")
+
+	style_utility.set_static_visuals_enabled(true, root)
+	assert_true(
+		style_utility.get_button_motion_presenter(button) == presenter,
+		"降低持续 VFX 时不得替换或丢失纸片 Presenter。"
+	)
+	assert_true(
+		button.get_theme_stylebox(&"normal") is StyleBoxEmpty,
+		"静态视觉策略下根按钮仍不得覆盖内部纸片。"
+	)
+	style_utility.set_static_visuals_enabled(false, root)
+	assert_true(
+		style_utility.get_button_motion_presenter(button) == presenter,
+		"恢复完整 VFX 时应继续复用原 Presenter。"
+	)
+	assert_true(
+		button.get_theme_stylebox(&"normal") is StyleBoxEmpty,
+		"恢复完整 VFX 后根按钮样式必须保持透明布局层。"
+	)
+
+	button.grab_focus()
+	button.button_down.emit()
+	button.disabled = true
+	motion_utility.tick(0.0)
+	if presenter != null:
+		assert_true(
+			presenter.get_motion_state()
+				== GameButtonMotionPresenter.MotionState.DISABLED,
+			"聚焦或按住时禁用按钮必须立即切换为 DISABLED。"
+		)
+	assert_true(
+		button.get_theme_stylebox(&"disabled") is StyleBoxEmpty,
+		"禁用状态也只能由内部纸片绘制，根按钮不得形成双层边框。"
+	)
+	assert_false(
+		GFVariantData.to_bool(
+			button.get_meta(&"_game_ui_motion_pressed", false)
+		),
+		"禁用按钮必须清除残留 PRESSED 语义。"
+	)
+	var ring_node: Node = button.get_node_or_null("ButtonFocusRing")
+	if ring_node is ColorRect:
+		var ring: ColorRect = ring_node
+		assert_false(ring.visible, "禁用按钮不得保留键盘/手柄焦点环。")
+
+	button.disabled = false
+	motion_utility.tick(0.0)
+	if presenter != null:
+		assert_true(
+			presenter.get_motion_state()
+				!= GameButtonMotionPresenter.MotionState.PRESSED,
+			"重新启用按钮不得恢复陈旧的 PRESSED 状态。"
+		)
+	architecture.dispose()
+
+
+func test_primary_button_hover_and_focus_stay_inside_layout_footprint() -> void:
+	var root: Control = Control.new()
+	root.custom_minimum_size = Vector2(240.0, 80.0)
+	var clipping_parent: ScrollContainer = ScrollContainer.new()
+	clipping_parent.custom_minimum_size = Vector2(240.0, 80.0)
+	clipping_parent.clip_contents = true
+	var button: Button = Button.new()
+	button.custom_minimum_size = Vector2(240.0, 64.0)
+	root.add_child(clipping_parent)
+	clipping_parent.add_child(button)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
+	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var accessibility: GameAccessibilityUtility = await _register_accessibility_stack(
+		architecture
+	)
+	await _register_asset_library_stack(architecture)
+	await architecture.register_utility(
+		GFShaderParameterUtility,
+		shader_parameters
+	)
+	await architecture.register_utility(GameUiStyleUtility, style_utility)
+	await architecture.register_utility(
+		GameAccessibilityUtility,
+		accessibility
+	)
+	await architecture.register_utility(GameUiMotionUtility, motion_utility)
+	await architecture.init()
+	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	style_utility.style_button(
+		button,
+		GameUiStyleUtility.ButtonRole.PRIMARY
+	)
+	var bound_count: int = motion_utility.bind_interactive_controls(root)
+	assert_true(bound_count == 1, "主操作按钮应由统一动效 Utility 绑定。")
+
+	button.mouse_entered.emit()
+	var hover_tween_value: Variant = (
+		button.get_meta(&"_game_ui_motion_tween")
+		if button.has_meta(&"_game_ui_motion_tween")
+		else null
+	)
+	if hover_tween_value is Tween:
+		var hover_tween: Tween = hover_tween_value
+		var _hover_step_active: bool = hover_tween.custom_step(1.0)
+	assert_true(
+		button.scale.is_equal_approx(Vector2.ONE),
+		"主操作 hover 不得缩放布局根节点，否则贴近 ScrollContainer 边缘时会被裁切。"
+	)
+
+	button.mouse_exited.emit()
+	button.grab_focus()
+	var focus_tween_value: Variant = (
+		button.get_meta(&"_game_ui_motion_tween")
+		if button.has_meta(&"_game_ui_motion_tween")
+		else null
+	)
+	if focus_tween_value is Tween:
+		var focus_tween: Tween = focus_tween_value
+		var _focus_step_active: bool = focus_tween.custom_step(1.0)
+	assert_true(
+		button.scale.is_equal_approx(Vector2.ONE),
+		"主操作 focus 不得缩放布局根节点，键盘/手柄路径必须与鼠标路径同样防裁切。"
+	)
+	var presenter: GameButtonMotionPresenter = (
+		style_utility.get_button_motion_presenter(button)
+	)
+	assert_not_null(presenter, "主操作应通过内部 Presenter 获得强反馈。")
+	if presenter != null:
+		presenter.complete_motion()
+		var face: Panel = presenter.get_face()
+		var face_style: StyleBoxFlat = _get_stylebox_flat(face, &"panel")
+		var visual_end: Vector2 = face.position + face.size
+		if face_style != null:
+			visual_end += face_style.shadow_offset + Vector2.ONE * float(
+				face_style.shadow_size
+			)
+		assert_gte(face.position.x, 0.0, "纸片左侧不得越过按钮安全包络。")
+		assert_gte(face.position.y, 0.0, "纸片上侧不得越过按钮安全包络。")
+		assert_lte(
+			visual_end.x,
+			button.size.x,
+			"纸片与硬投影右侧不得越过按钮安全包络。"
+		)
+		assert_lte(
+			visual_end.y,
+			button.size.y,
+			"纸片与硬投影底部不得越过按钮安全包络。"
+		)
+
+	var ring_node: Node = button.get_node_or_null("ButtonFocusRing")
+	assert_true(ring_node is ColorRect, "主操作必须保留清晰的键盘/手柄焦点描边。")
+	if ring_node is ColorRect:
+		var ring: ColorRect = ring_node
+		assert_gte(
+			ring.offset_left,
+			0.0,
+			"焦点描边左侧必须内嵌于按钮布局边界。"
+		)
+		assert_gte(
+			ring.offset_top,
+			0.0,
+			"焦点描边上侧必须内嵌于按钮布局边界。"
+		)
+		assert_lte(
+			ring.offset_right,
+			0.0,
+			"焦点描边右侧必须内嵌于按钮布局边界。"
+		)
+		assert_lte(
+			ring.offset_bottom,
+			0.0,
+			"焦点描边下侧必须内嵌于按钮布局边界。"
+		)
+		var shader_material: ShaderMaterial = ring.material as ShaderMaterial
+		assert_not_null(shader_material, "内嵌焦点描边仍应保留主题 Shader。")
+		if shader_material != null:
+			var rect_size_value: Variant = shader_material.get_shader_parameter(
+				&"rect_size"
+			)
+			var shader_rect_size: Vector2 = Vector2.ZERO
+			if rect_size_value is Vector2:
+				shader_rect_size = rect_size_value
+			assert_true(
+				rect_size_value is Vector2
+				and shader_rect_size.is_equal_approx(ring.size),
+				"焦点 Shader 的 rect_size 必须使用内嵌描边自身尺寸。"
+			)
 	architecture.dispose()
 
 
@@ -1233,14 +1585,34 @@ func test_ui_style_utility_uses_hard_offset_depth_for_primary_actions_and_shells
 		2
 	)
 
-	var normal_style: StyleBoxFlat = _get_stylebox_flat(primary_button, &"normal")
-	var pressed_style: StyleBoxFlat = _get_stylebox_flat(primary_button, &"pressed")
+	var presenter: GameButtonMotionPresenter = (
+		style_utility.get_button_motion_presenter(primary_button)
+	)
+	var normal_style: StyleBoxFlat = null
+	var pressed_style: StyleBoxFlat = null
+	if presenter != null:
+		presenter.set_motion_state(
+			GameButtonMotionPresenter.MotionState.REST,
+			false,
+			false
+		)
+		normal_style = _get_stylebox_flat(presenter.get_face(), &"panel")
+		presenter.set_motion_state(
+			GameButtonMotionPresenter.MotionState.PRESSED,
+			false,
+			false
+		)
+		pressed_style = _get_stylebox_flat(presenter.get_face(), &"panel")
 	var shell_style: StyleBoxFlat = _get_stylebox_flat(shell, &"panel")
+	assert_not_null(presenter, "主操作必须使用不改变布局根节点的纸片 Presenter。")
 	assert_not_null(normal_style, "主操作必须获得主题化常态样式。")
 	assert_not_null(pressed_style, "主操作必须获得主题化按下样式。")
 	assert_not_null(shell_style, "顶层任务表面必须获得 SHELL 样式。")
 	if normal_style != null and pressed_style != null:
-		assert_true(normal_style.shadow_size == 0, "主操作只能使用无模糊硬偏移底板。")
+		assert_true(
+			normal_style.shadow_size == 1,
+			"主操作应使用小范围、无模糊的硬偏移底板。"
+		)
 		assert_gt(normal_style.shadow_offset.y, pressed_style.shadow_offset.y, "按下时底板应收短。")
 		assert_gt(normal_style.shadow_color.a, 0.0, "主操作硬底板必须可见。")
 	if shell_style != null:
