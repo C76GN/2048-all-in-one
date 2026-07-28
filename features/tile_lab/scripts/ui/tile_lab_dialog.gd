@@ -27,6 +27,7 @@ var _current_blueprint_id: String = ""
 var _selected_recipe_ids: Array[StringName] = []
 var _loading_ui: bool = false
 var _layout_update_queued: bool = false
+var _has_revealed_recipes: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -402,6 +403,18 @@ func _rebuild_recipe_buttons() -> void:
 		var _toggle_connection: int = button.toggled.connect(
 			_on_recipe_toggled.bind(recipe_id)
 		)
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion):
+		var _bound_count: int = motion.bind_interactive_controls(_recipe_list)
+		if not _has_revealed_recipes:
+			_has_revealed_recipes = true
+			var _reveal_count: int = motion.play_children_reveal(
+				_recipe_list,
+				Vector2.ZERO,
+				0.018,
+				0.0,
+				0.12
+			)
 
 
 func _get_recipe_display_names(entries: Array[Dictionary]) -> Dictionary:
@@ -808,6 +821,12 @@ func _localized_format(
 	return _localized_text(key, fallback) % values
 
 
+func _reveal_simulation_result() -> void:
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion):
+		var _result_tween: Tween = motion.play_content_switch(_result_panel)
+
+
 # --- 信号处理函数 ---
 
 func _on_blueprint_selected(index: int) -> void:
@@ -922,6 +941,7 @@ func _on_run_simulation_pressed() -> void:
 			"TILE_LAB_UNAVAILABLE",
 			"试验台系统不可用。"
 		)
+		_reveal_simulation_result()
 		return
 	var result: TileLabSimulationResult = _tile_lab.simulate_composition(
 		_get_selected_base_definition_id(),
@@ -940,6 +960,7 @@ func _on_run_simulation_pressed() -> void:
 				"试验台系统不可用。"
 			)
 		)
+		_reveal_simulation_result()
 		return
 	if not result.did_interact():
 		_result_label.text = _localized_format(
@@ -950,6 +971,7 @@ func _on_run_simulation_pressed() -> void:
 				int(_right_value_spin.value),
 			]
 		)
+		_reveal_simulation_result()
 		return
 	_result_label.text = _localized_format(
 		"TILE_LAB_RESULT_INTERACTED",
@@ -966,7 +988,7 @@ func _on_run_simulation_pressed() -> void:
 			String(result.interaction_rule_id),
 		]
 	)
-
+	_reveal_simulation_result()
 
 func _on_blueprints_changed() -> void:
 	var preferred_id: String = _current_blueprint_id

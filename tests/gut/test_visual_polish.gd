@@ -286,6 +286,8 @@ func test_main_menu_board_motif_uses_neutral_palette_without_dense_patterns() ->
 	assert_false(motif_source.contains("_CYAN_COLOR"), "主菜单棋盘不应继续使用高饱和青色底板。")
 	assert_false(motif_source.contains("_draw_tile_pattern"), "经典数字方块不应叠加无语义的密集点阵或斜纹。")
 	assert_true(motif_source.contains("_draw_tile_surface"), "主菜单方块应通过统一表面绘制保留克制的层次。")
+	assert_true(motif_source.contains("_draw_demo_row"), "首页微缩棋盘应在组装后演示一次真实滑动与合并。")
+	assert_true(motif_source.contains("_DEMO_NEW_TILE_START"), "首页棋盘演示应以新方块生成完成动作闭环。")
 
 
 func test_navigation_scene_preload_map_is_valid_and_primes_gameplay_route() -> void:
@@ -870,9 +872,13 @@ func test_ui_motion_utility_reduced_motion_commits_final_state_without_tweens() 
 	var panel: Control = Control.new()
 	var value_label: Label = Label.new()
 	var delta_label: Label = Label.new()
+	var content_host: VBoxContainer = VBoxContainer.new()
+	var content: Control = Control.new()
 	root.add_child(panel)
 	root.add_child(value_label)
 	value_label.add_child(delta_label)
+	root.add_child(content_host)
+	content_host.add_child(content)
 	add_child_autoqfree(root)
 	await get_tree().process_frame
 
@@ -893,6 +899,7 @@ func test_ui_motion_utility_reduced_motion_commits_final_state_without_tweens() 
 
 	var panel_base_position: Vector2 = panel.position
 	var reveal_tween: Tween = motion_utility.play_control_reveal(panel, Vector2(48.0, 0.0))
+	var switch_tween: Tween = motion_utility.play_content_switch(content)
 	var numeric_tween: Tween = motion_utility.play_numeric_change(
 		value_label,
 		16,
@@ -900,9 +907,15 @@ func test_ui_motion_utility_reduced_motion_commits_final_state_without_tweens() 
 		delta_label
 	)
 	assert_null(reveal_tween, "减少动态时 UI 入场不得创建位移 Tween。")
+	assert_null(switch_tween, "减少动态时 Container 内容切换不得创建淡入或缩放 Tween。")
 	assert_null(numeric_tween, "减少动态时数值变化不得创建计数或漂字 Tween。")
 	assert_true(panel.position == panel_base_position, "面板应直接落在最终布局位置。")
 	assert_true(panel.scale == Vector2.ONE, "面板应保持基础缩放。")
+	assert_true(content.scale == Vector2.ONE, "Container 内容应直接保持最终基础缩放。")
+	assert_true(
+		content.modulate.is_equal_approx(Color.WHITE),
+		"Container 内容应直接保持最终不透明状态。"
+	)
 	assert_true(value_label.text == "48", "数值应立即显示模型最终值。")
 	assert_false(delta_label.visible, "减少动态时不得显示移动中的增量飘字。")
 	architecture.dispose()
@@ -1462,6 +1475,99 @@ func test_ui_motion_utility_does_not_move_container_managed_children() -> void:
 	assert_lt(first_child.modulate.a, 1.0, "容器子控件仍应从淡入状态开始。")
 
 
+func test_ui_motion_utility_animates_modal_layers_and_content_switches() -> void:
+	var root: Control = Control.new()
+	var backdrop: ColorRect = ColorRect.new()
+	var surface: PanelContainer = PanelContainer.new()
+	var content_host: VBoxContainer = VBoxContainer.new()
+	var content: Control = Control.new()
+	root.add_child(backdrop)
+	root.add_child(surface)
+	root.add_child(content_host)
+	content_host.add_child(content)
+	add_child_autoqfree(root)
+	backdrop.size = Vector2(640.0, 360.0)
+	surface.size = Vector2(420.0, 260.0)
+	content.size = Vector2(220.0, 90.0)
+	await get_tree().process_frame
+
+	var content_position: Vector2 = content.position
+	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var intro_tween: Tween = motion_utility.play_modal_intro(backdrop, surface)
+	assert_true(
+		is_instance_valid(intro_tween) and intro_tween.is_valid(),
+		"弹层入场应创建统一 Tween。"
+	)
+	assert_lt(backdrop.modulate.a, 1.0, "弹层遮罩应先淡入。")
+	assert_lt(surface.scale.x, 1.0, "弹层任务表面应从轻微收拢状态进入。")
+	var _intro_finished: bool = intro_tween.custom_step(1.0)
+	assert_true(surface.scale.is_equal_approx(Vector2.ONE), "弹层入场结束后应恢复基础缩放。")
+	assert_true(is_equal_approx(backdrop.modulate.a, 1.0), "遮罩入场结束后应完全可见。")
+
+	var switch_tween: Tween = motion_utility.play_content_switch(content)
+	assert_true(
+		is_instance_valid(switch_tween) and switch_tween.is_valid(),
+		"同页内容切换应创建短促 Tween。"
+	)
+	assert_true(content.position == content_position, "Container 管理的切换内容不得改写布局位置。")
+	assert_lt(content.modulate.a, 1.0, "切换内容应从淡入状态开始。")
+	motion_utility.complete_control_motion(content)
+	assert_false(switch_tween.is_valid(), "立即完成内容动效时应取消旧 Tween。")
+	assert_true(content.scale.is_equal_approx(Vector2.ONE), "内容切换结束后应恢复基础缩放。")
+	assert_true(content.modulate.is_equal_approx(Color.WHITE), "跳过动效后内容应立即完全可见。")
+
+	var outro_tween: Tween = motion_utility.play_modal_outro(backdrop, surface)
+	assert_true(
+		is_instance_valid(outro_tween) and outro_tween.is_valid(),
+		"弹层退出应创建统一 Tween。"
+	)
+	var _outro_finished: bool = outro_tween.custom_step(1.0)
+	assert_true(is_zero_approx(surface.modulate.a), "弹层退出结束后任务表面应完全淡出。")
+	assert_true(is_zero_approx(backdrop.modulate.a), "弹层退出结束后遮罩应完全淡出。")
+
+
+func test_ui_motion_utility_scrollbar_activity_and_toggle_settle_restore_baselines() -> void:
+	var root: Control = Control.new()
+	var scroll_container: ScrollContainer = ScrollContainer.new()
+	var toggle: CheckButton = CheckButton.new()
+	root.add_child(scroll_container)
+	root.add_child(toggle)
+	add_child_autoqfree(root)
+	scroll_container.size = Vector2(240.0, 160.0)
+	toggle.toggle_mode = true
+	await get_tree().process_frame
+
+	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var bound_count: int = motion_utility.bind_interactive_controls(root)
+	assert_true(
+		bound_count == 1,
+		"滚动容器与 toggle 绑定不得改变按钮计数契约。"
+	)
+	var scroll_bar: VScrollBar = scroll_container.get_v_scroll_bar()
+	assert_lt(scroll_bar.scale.x, 1.0, "滚动条静止时应收细，减少常驻视觉重量。")
+	assert_lt(scroll_bar.modulate.a, 1.0, "滚动条静止时应降低不透明度。")
+	scroll_bar.mouse_entered.emit()
+	var active_tween_value: Variant = scroll_bar.get_meta(
+		&"_game_ui_motion_scroll_tween",
+		null
+	)
+	assert_true(active_tween_value is Tween, "滚动条 hover 应触发活动反馈。")
+	if active_tween_value is Tween:
+		var active_tween: Tween = active_tween_value
+		var _active_finished: bool = active_tween.custom_step(1.0)
+	assert_true(scroll_bar.scale.is_equal_approx(Vector2.ONE), "活动滚动条应恢复完整厚度。")
+	assert_true(is_equal_approx(scroll_bar.modulate.a, 1.0), "活动滚动条应恢复完整不透明度。")
+
+	toggle.toggled.emit(true)
+	await get_tree().process_frame
+	var toggle_tween_value: Variant = toggle.get_meta(&"_game_ui_motion_tween", null)
+	assert_true(toggle_tween_value is Tween, "toggle 状态切换应触发落定反馈。")
+	if toggle_tween_value is Tween:
+		var toggle_tween: Tween = toggle_tween_value
+		var _toggle_finished: bool = toggle_tween.custom_step(1.0)
+	assert_true(toggle.scale.is_equal_approx(Vector2.ONE), "toggle 落定后必须恢复基础缩放。")
+
+
 func test_game_over_menu_contains_result_summary_labels() -> void:
 	var panel: Control = _instantiate_control(_GAME_OVER_SCENE)
 	assert_true(is_instance_valid(panel), "游戏结束场景应能实例化为 Control。")
@@ -1963,7 +2069,7 @@ func test_celebration_vfx_utility_spawns_bounded_confetti_emitter() -> void:
 		if emitter_node is GameCelebrationConfettiEmitter:
 			var emitter: GameCelebrationConfettiEmitter = emitter_node
 			assert_true(emitter.process_mode == Node.PROCESS_MODE_PAUSABLE, "纸屑不得使用 PROCESS_MODE_ALWAYS。")
-			assert_true(emitter.amount == 88, "完整质量档应严格限制为 88 个 GPU 粒子。")
+			assert_true(emitter.amount == 64, "完整质量档应严格限制为 64 个 GPU 粒子。")
 			assert_true(emitter.material is ShaderMaterial, "纸片绘制应使用常量复杂度 shader。")
 			assert_true(emitter.process_material is ParticleProcessMaterial, "纸屑运动应由 GPU 粒子材质负责。")
 			assert_true(emitter.modulate.a < 1.0, "庆祝 VFX 默认透明度应克制。")
@@ -2021,8 +2127,8 @@ func test_celebration_vfx_utility_spawns_bounded_confetti_emitter() -> void:
 				reduced_emitter_node
 			)
 			assert_true(
-				reduced_emitter.amount == 44,
-				"REDUCED 质量档应把庆祝粒子硬限制为 44。"
+				reduced_emitter.amount == 32,
+				"REDUCED 质量档应把庆祝粒子硬限制为 32。"
 			)
 
 	architecture.dispose()
@@ -2063,6 +2169,11 @@ func test_reduced_motion_celebration_is_static_and_has_no_shader_work() -> void:
 		if rect_node is ColorRect:
 			var rect: ColorRect = rect_node
 			assert_true(rect.material == null, "静态庆祝不得保留 ShaderMaterial。")
+			assert_lte(
+				rect.color.a * rect.modulate.a,
+				0.08,
+				"静态庆祝不得用高不透明度全屏色层压低正文对比。"
+			)
 			assert_true(
 				rect.process_mode == Node.PROCESS_MODE_DISABLED,
 				"静态庆祝节点不得产生后台处理。"

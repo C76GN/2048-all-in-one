@@ -72,6 +72,7 @@ var _is_compact_layout: bool = false
 var _responsive_layout_update_queued: bool = false
 var _active_section: SettingsSection = SettingsSection.GENERAL
 var _section_scroll: ScrollContainer = null
+var _has_revealed_input_bindings: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -372,6 +373,7 @@ func _apply_field_widths() -> void:
 
 
 func _set_active_section(section: SettingsSection) -> void:
+	var previous_section: SettingsSection = _active_section
 	_active_section = section
 	_general_section.visible = section == SettingsSection.GENERAL
 	_audio_section.visible = section == SettingsSection.AUDIO
@@ -388,6 +390,31 @@ func _set_active_section(section: SettingsSection) -> void:
 			_input_timing_option.grab_focus()
 		_:
 			_language_option.grab_focus()
+	if previous_section != section:
+		var active_section: Control = (
+			_audio_section
+			if section == SettingsSection.AUDIO
+			else _controls_section
+			if section == SettingsSection.CONTROLS
+			else _general_section
+		)
+		call_deferred(
+			&"_play_active_section_switch",
+			active_section,
+			float(section - previous_section)
+		)
+
+
+func _play_active_section_switch(
+	active_section: Control,
+	direction: float
+) -> void:
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion) and is_instance_valid(active_section):
+		var _section_tween: Tween = motion.play_content_switch(
+			active_section,
+			direction
+		)
 
 
 func _apply_semantic_styles() -> void:
@@ -935,6 +962,15 @@ func _rebuild_input_binding_rows() -> void:
 	var ui_motion: GameUiMotionUtility = _get_ui_motion_utility()
 	if is_instance_valid(ui_motion):
 		var _bound_count: int = ui_motion.bind_interactive_controls(_input_bindings_container)
+		if not _has_revealed_input_bindings:
+			_has_revealed_input_bindings = true
+			var _reveal_count: int = ui_motion.play_children_reveal(
+				_input_bindings_container,
+				Vector2.ZERO,
+				0.018,
+				0.0,
+				0.12
+			)
 
 
 func _get_input_action_text(action_id: StringName, item: Dictionary) -> String:

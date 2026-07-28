@@ -53,7 +53,11 @@ func _run() -> void:
 		push_error("[UiVfxMatrix] MainMenu timeout.")
 		_finish(1)
 		return
-	await _settle_frames(24)
+	# 首次首页包含一次完整的品牌、棋盘滑动合并与菜单落位展示。
+	# 渲染工具可能以远高于 60 FPS 的速度跑帧，因此这里必须等待真实时间，
+	# 不能用固定帧数估算 Tween 已经落定。
+	await create_timer(1.55, true, false, true).timeout
+	await _settle_frames(8)
 	if not is_instance_valid(_screenshot_utility):
 		push_error("[UiVfxMatrix] GFScreenshotUtility unavailable.")
 		_finish(2)
@@ -252,9 +256,9 @@ func _capture_page_matrix(page: Node, page_id: StringName) -> void:
 		)
 		if (
 			page_id == &"mode_selection"
-			and GameTaskPageLayoutUtility.classify_layout(
+			and not ModeSelection._uses_side_by_side_layout(
 				Vector2(logical_resolution)
-			) == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+			)
 		):
 			await _capture_mode_selection_scroll_end(page, resolution)
 		await _capture_page_scroll_end_if_needed(
@@ -339,9 +343,9 @@ func _capture_mode_selection_second_page(mode_selection: Node) -> bool:
 			resolution
 		)
 		if (
-			GameTaskPageLayoutUtility.classify_layout(
+			not ModeSelection._uses_side_by_side_layout(
 				Vector2(logical_resolution)
-			) == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+			)
 		):
 			await _capture_named_scroll_end(
 				mode_selection,
@@ -1703,6 +1707,11 @@ func _validate_page_structure(
 				)
 		&"mode_selection":
 			var right: Node = page.find_child("RightColumn", true, false)
+			var stack_margin: Node = page.find_child(
+				"RightPanelStackMargin",
+				true,
+				false
+			)
 			var center: Node = page.find_child("CenterColumn", true, false)
 			var columns: Node = page.find_child("ColumnsContainer", true, false)
 			var margin_node: Node = page.find_child("MarginContainer", true, false)
@@ -1723,17 +1732,25 @@ func _validate_page_structure(
 			var side_by_side: bool = ModeSelection._uses_side_by_side_layout(
 				Vector2(resolution)
 			)
-			var expected_parent: Node = columns if side_by_side else center
-			if not is_instance_valid(right) or right.get_parent() != expected_parent:
+			var right_panel_parent_is_valid: bool = (
+				is_instance_valid(right)
+				and (
+					(right.get_parent() == columns)
+					if side_by_side
+					else (
+						is_instance_valid(stack_margin)
+						and right.get_parent() == stack_margin
+						and stack_margin.get_parent() == center
+					)
+				)
+			)
+			if not right_panel_parent_is_valid:
 				_record_error("mode_selection @ %s 右栏响应式归属错误。" % resolution)
-			if (
-				layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
-				and content_node is Control
-			):
+			if not side_by_side and content_node is Control:
 				var content: Control = content_node
 				if content.size.x < minf(float(resolution.x) * 0.75, 600.0):
 					_record_error("mode_selection @ %s 模式列表宽度不足。" % resolution)
-				_validate_mode_selection_portrait_scroll(
+				_validate_mode_selection_stacked_scroll(
 					page,
 					margin_node,
 					page_scroll_node,
@@ -1794,7 +1811,7 @@ func _validate_page_structure(
 			_validate_overlay_root(page, resolution, String(page_id))
 
 
-func _validate_mode_selection_portrait_scroll(
+func _validate_mode_selection_stacked_scroll(
 	page: Node,
 	margin_node: Node,
 	page_scroll_node: Node,
@@ -1802,7 +1819,7 @@ func _validate_mode_selection_portrait_scroll(
 	resolution: Vector2i
 ) -> void:
 	if not margin_node is MarginContainer or not page_scroll_node is ScrollContainer:
-		_record_error("mode_selection @ %s 缺少竖屏页面滚动所有者。" % resolution)
+		_record_error("mode_selection @ %s 缺少堆叠页面滚动所有者。" % resolution)
 		return
 	var margin: MarginContainer = margin_node
 	var page_scroll: ScrollContainer = page_scroll_node
@@ -1828,7 +1845,7 @@ func _validate_mode_selection_portrait_scroll(
 			visible_vertical_scrolls += 1
 	if visible_vertical_scrolls != 1:
 		_record_error(
-			"mode_selection @ %s 竖屏必须只有一个纵向滚动所有者，实际为 %d。"
+			"mode_selection @ %s 堆叠布局必须只有一个纵向滚动所有者，实际为 %d。"
 			% [resolution, visible_vertical_scrolls]
 		)
 	if not start_node is Control:
@@ -2534,6 +2551,9 @@ func _set_resolution(resolution: Vector2i) -> void:
 
 
 func _settle_frames(frame_count: int) -> void:
+	# 自动验收不应把上一个页面遗留的鼠标位置和 tooltip 当成落定 UI。
+	# 移到无交互安全角后再等待，键盘/手柄焦点仍由页面自身维护。
+	Input.warp_mouse(Vector2(4.0, 4.0))
 	for _frame: int in range(frame_count):
 		await process_frame
 	await RenderingServer.frame_post_draw

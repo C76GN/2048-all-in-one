@@ -10,8 +10,6 @@ extends GameUiController
 ## 单个模式卡片 UI 场景。
 const MODE_CARD_SCENE: PackedScene = preload("res://features/navigation/scenes/ui/mode_card.tscn")
 const _CARD_REVEAL_OFFSET: Vector2 = Vector2(18.0, 0.0)
-const _DETAIL_REVEAL_OFFSET: Vector2 = Vector2(10.0, 0.0)
-const _DETAIL_REVEAL_STAGGER: float = 0.02
 const _STATS_EMPTY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n暂无完整对局统计"
 const _STATS_SUMMARY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
 const _STATS_SUMMARY_WITH_TARGET_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n目标 %d：达成 %d 次 · %d%%\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
@@ -24,7 +22,23 @@ const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 	"bottom": 54.0,
 	"right": 56.0,
 }
-const _COMPACT_TWO_PANE_MINIMUM_WIDTH: float = 720.0
+## 单列时右侧纸面会向容器外扩并投下硬阴影，需要比通用紧凑页更宽的裁切余量。
+const _STACKED_SAFE_AREA_MARGINS: Dictionary = {
+	"top": 22.0,
+	"left": 28.0,
+	"bottom": 22.0,
+	"right": 28.0,
+}
+## ScrollContainer 会裁切子节点越界绘制；为单列纸面保留完整外扩边、阴影和文字阴影。
+const _STACKED_SURFACE_OVERFLOW_MARGINS: Dictionary = {
+	"top": 16,
+	"left": 20,
+	"bottom": 24,
+	"right": 28,
+}
+## 近方形窗口必须提前堆叠；双栏表面的外扩纸边与阴影也需要安全余量。
+## 960×540 仍满足该阈值，保留配置与开始按钮同屏的既定契约。
+const _COMPACT_TWO_PANE_MINIMUM_WIDTH: float = 920.0
 const _COMPACT_TWO_PANE_HORIZONTAL_MARGIN: float = 24.0
 const _COMPACT_TWO_PANE_SEPARATION: float = 18.0
 const _COMPACT_TWO_PANE_SCROLLBAR_RESERVE: float = 14.0
@@ -63,6 +77,7 @@ var _total_pages: int = 0
 var _mode_catalog: GameModeCatalogUtility = null
 var _viewport_utility: GFViewportUtility = null
 var _page_scroll: ScrollContainer = null
+var _right_panel_stack_margin: MarginContainer = null
 var _layout_mode: int = GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 var _layout_update_queued: bool = false
 var _mode_list_rebuild_queued: bool = false
@@ -229,6 +244,8 @@ func _apply_responsive_layout() -> void:
 		_layout_mode,
 		_DESKTOP_SAFE_AREA_MARGINS
 	)
+	if not side_by_side:
+		extra_margins = _STACKED_SAFE_AREA_MARGINS.duplicate(true)
 	_apply_safe_area_margins(extra_margins)
 	if is_instance_valid(_page_scroll) and not compact:
 		_page_scroll.scroll_vertical = 0
@@ -345,19 +362,42 @@ func _rebuild_mode_list_after_layout() -> void:
 
 func _set_right_panel_stacked(stacked: bool) -> void:
 	if stacked:
-		if _right_panel_container.get_parent() != _center_column:
-			_right_panel_container.reparent(_center_column)
+		var stack_margin: MarginContainer = _ensure_right_panel_stack_margin()
+		stack_margin.visible = true
+		if _right_panel_container.get_parent() != stack_margin:
+			_right_panel_container.reparent(stack_margin)
 		_center_column.move_child(
-			_right_panel_container,
+			stack_margin,
 			_center_content_holder.get_index() + 1
 		)
 		return
 	if _right_panel_container.get_parent() != _columns_container:
 		_right_panel_container.reparent(_columns_container)
+	if is_instance_valid(_right_panel_stack_margin):
+		_right_panel_stack_margin.visible = false
 	_columns_container.move_child(
 		_right_panel_container,
 		_columns_container.get_child_count() - 1
 	)
+
+
+func _ensure_right_panel_stack_margin() -> MarginContainer:
+	if is_instance_valid(_right_panel_stack_margin):
+		return _right_panel_stack_margin
+	var stack_margin: MarginContainer = MarginContainer.new()
+	stack_margin.name = &"RightPanelStackMargin"
+	stack_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for margin_name: String in _STACKED_SURFACE_OVERFLOW_MARGINS:
+		stack_margin.add_theme_constant_override(
+			"margin_%s" % margin_name,
+			GFVariantData.get_option_int(
+				_STACKED_SURFACE_OVERFLOW_MARGINS,
+				margin_name
+			)
+		)
+	_center_column.add_child(stack_margin)
+	_right_panel_stack_margin = stack_margin
+	return stack_margin
 
 
 static func _uses_side_by_side_layout(viewport_size: Vector2) -> bool:
@@ -1047,8 +1087,12 @@ func _reveal_selection_panels() -> void:
 	if not is_instance_valid(motion_utility):
 		return
 
-	var _detail_reveal_count: int = motion_utility.play_children_reveal(_info_panel_container, _DETAIL_REVEAL_OFFSET, _DETAIL_REVEAL_STAGGER)
-	var _right_reveal_count: int = motion_utility.play_children_reveal(_right_panel_container, _DETAIL_REVEAL_OFFSET, _DETAIL_REVEAL_STAGGER)
+	var _detail_tween: Tween = motion_utility.play_content_switch(
+		_info_panel_container
+	)
+	var _configuration_tween: Tween = motion_utility.play_content_switch(
+		_right_panel_container
+	)
 
 
 func _change_page(direction: int) -> void:

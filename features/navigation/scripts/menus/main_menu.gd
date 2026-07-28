@@ -14,6 +14,14 @@ const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 	"bottom": 42.0,
 	"right": 56.0,
 }
+const _INTRO_BRAND_STAGGER: float = 0.045
+const _RETURN_BRAND_STAGGER: float = 0.022
+const _INTRO_MENU_STAGGER: float = 0.018
+const _RETURN_MENU_STAGGER: float = 0.010
+const _INTRO_MENU_DELAY: float = 0.72
+const _INTRO_MENU_MAXIMUM_STAGGER: float = 0.12
+const _RETURN_MENU_MAXIMUM_STAGGER: float = 0.05
+const _FULL_INTRO_WINDOW: float = 1.42
 
 
 # --- 导出变量 ---
@@ -36,11 +44,15 @@ const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 
 # --- 私有变量 ---
 
+static var _has_played_full_intro: bool = false
+
 var _layout_update_queued: bool = false
 var _viewport_utility: GFViewportUtility = null
 var _content_scroll: ScrollContainer = null
 var _latest_valid_bookmark: BookmarkData = null
 var _initial_scroll_restored: bool = false
+var _intro_in_progress: bool = false
+var _intro_completion_tween: Tween = null
 
 
 # --- @onready 变量 (节点引用) ---
@@ -60,6 +72,9 @@ var _initial_scroll_restored: bool = false
 @onready var _content: BoxContainer = %Content
 @onready var _showcase: VBoxContainer = %Showcase
 @onready var _board_preview_frame: Panel = %BoardPreviewFrame
+@onready var _board_motif: MainMenuBoardMotif = (
+	$SafeMargin/Content/Showcase/BoardPreviewFrame/BoardMotif
+)
 @onready var _menu_column: VBoxContainer = %MenuColumn
 @onready var _title_label: Label = %TitleLabel
 @onready var _edition_label: Label = %EditionLabel
@@ -102,6 +117,11 @@ func _ready() -> void:
 	_update_ui_text()
 	_refresh_continue_game_state()
 	call_deferred(&"_play_content_reveal")
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _intro_in_progress and _is_intro_skip_event(event):
+		_finish_intro_now()
 
 
 # --- 私有/辅助方法 ---
@@ -181,19 +201,92 @@ func _apply_semantic_styles() -> void:
 
 
 func _play_content_reveal() -> void:
+	var shortened: bool = _has_played_full_intro
+	_has_played_full_intro = true
+	var reduced_motion: bool = _is_reduced_motion_enabled()
+	_intro_in_progress = not shortened and not reduced_motion
+	if is_instance_valid(_board_motif):
+		_board_motif.play_intro(reduced_motion, shortened)
+
 	var motion: GameUiMotionUtility = _get_ui_motion_utility()
 	if not is_instance_valid(motion):
 		return
-	var _showcase_reveal_count: int = motion.play_children_reveal(
-		_showcase,
-		Vector2.ZERO,
-		0.024
+
+	var brand_pieces: Array[Control] = [
+		_kicker_label,
+		_title_label,
+		_edition_label,
+		_subtitle_label,
+	]
+	var _brand_reveal_count: int = motion.play_piece_assembly(
+		brand_pieces,
+		_RETURN_BRAND_STAGGER if shortened else _INTRO_BRAND_STAGGER
 	)
 	var _menu_reveal_count: int = motion.play_children_reveal(
 		_menu_column,
 		Vector2.ZERO,
-		0.018
+		_RETURN_MENU_STAGGER if shortened else _INTRO_MENU_STAGGER,
+		0.0 if shortened else _INTRO_MENU_DELAY,
+		(
+			_RETURN_MENU_MAXIMUM_STAGGER
+			if shortened
+			else _INTRO_MENU_MAXIMUM_STAGGER
+		)
 	)
+	if _intro_in_progress:
+		_intro_completion_tween = create_tween()
+		var _pause_mode_result: Tween = _intro_completion_tween.set_pause_mode(
+			Tween.TWEEN_PAUSE_PROCESS
+		)
+		var _intro_wait: IntervalTweener = _intro_completion_tween.tween_interval(
+			_FULL_INTRO_WINDOW
+		)
+		var _intro_finished: CallbackTweener = _intro_completion_tween.tween_callback(
+			_mark_intro_complete
+		)
+
+
+func _finish_intro_now() -> void:
+	if not _intro_in_progress:
+		return
+	_intro_in_progress = false
+	if _intro_completion_tween != null and _intro_completion_tween.is_valid():
+		_intro_completion_tween.kill()
+	_intro_completion_tween = null
+	if is_instance_valid(_board_motif):
+		_board_motif.finish_intro()
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if not is_instance_valid(motion):
+		return
+	for brand_piece: Control in [
+		_kicker_label,
+		_title_label,
+		_edition_label,
+		_subtitle_label,
+	]:
+		motion.complete_control_motion(brand_piece)
+	motion.complete_children_motion(_menu_column)
+
+
+func _mark_intro_complete() -> void:
+	_intro_in_progress = false
+	_intro_completion_tween = null
+
+
+func _is_intro_skip_event(event: InputEvent) -> bool:
+	if event is InputEventKey:
+		var key_event: InputEventKey = event
+		return key_event.pressed and not key_event.echo
+	if event is InputEventJoypadButton:
+		var joypad_event: InputEventJoypadButton = event
+		return joypad_event.pressed
+	if event is InputEventMouseButton:
+		var mouse_event: InputEventMouseButton = event
+		return mouse_event.pressed
+	if event is InputEventScreenTouch:
+		var touch_event: InputEventScreenTouch = event
+		return touch_event.pressed
+	return false
 
 
 func _queue_layout_update() -> void:
@@ -294,6 +387,14 @@ func _get_viewport_utility() -> GFViewportUtility:
 		var viewport_utility: GFViewportUtility = utility_value
 		return viewport_utility
 	return null
+
+
+func _is_reduced_motion_enabled() -> bool:
+	var utility_value: Object = get_utility(GameAccessibilityUtility)
+	if utility_value is GameAccessibilityUtility:
+		var accessibility: GameAccessibilityUtility = utility_value
+		return accessibility.get_state().reduced_motion
+	return false
 
 
 func _get_bookmark_system() -> BookmarkSystem:

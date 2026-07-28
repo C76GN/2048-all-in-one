@@ -5,12 +5,12 @@
 [resource]
 script = ExtResource("1_preset")
 duration = 2.05
-opacity = 0.86
+opacity = 0.58
 loop_until_dismissed = true
-fallback_color = Color(0.8745098, 0.29411766, 0.6039216, 0.18)
+fallback_color = Color(0.8745098, 0.29411766, 0.6039216, 0.08)
 shader_parameters = {
 "aspect_ratio": 1.85,
-"piece_size": 7.5,
+"piece_size": 5.2,
 "speed": 118.0,
 "spin_speed": 2.8,
 "sway_strength": 46.0

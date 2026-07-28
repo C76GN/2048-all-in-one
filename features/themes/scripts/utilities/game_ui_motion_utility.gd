@@ -19,27 +19,53 @@ const _HOVERED_META: StringName = &"_game_ui_motion_hovered"
 const _FOCUSED_META: StringName = &"_game_ui_motion_focused"
 const _BASE_SCALE_META: StringName = &"_game_ui_motion_base_scale"
 const _TWEEN_META: StringName = &"_game_ui_motion_tween"
+const _TOGGLE_STATE_META: StringName = &"_game_ui_motion_toggle_state"
 const _CONTROL_BASE_POSITION_META: StringName = &"_game_ui_motion_control_base_position"
 const _CONTROL_BASE_SCALE_META: StringName = &"_game_ui_motion_control_base_scale"
 const _CONTROL_BASE_MODULATE_META: StringName = &"_game_ui_motion_control_base_modulate"
+const _CONTROL_BASE_ROTATION_META: StringName = &"_game_ui_motion_control_base_rotation"
 const _CONTROL_TWEEN_META: StringName = &"_game_ui_motion_control_tween"
 const _NUMERIC_TWEEN_META: StringName = &"_game_ui_motion_numeric_tween"
+const _SCROLL_CONTAINER_BOUND_META: StringName = &"_game_ui_motion_scroll_container_bound"
+const _SCROLL_BOUND_META: StringName = &"_game_ui_motion_scroll_bound"
+const _SCROLL_HOVERED_META: StringName = &"_game_ui_motion_scroll_hovered"
+const _SCROLL_TWEEN_META: StringName = &"_game_ui_motion_scroll_tween"
+const _SCROLL_BASE_SCALE_META: StringName = &"_game_ui_motion_scroll_base_scale"
+const _SCROLL_BASE_MODULATE_META: StringName = &"_game_ui_motion_scroll_base_modulate"
+const _TAB_BOUND_META: StringName = &"_game_ui_motion_tab_bound"
+const _TAB_INDEX_META: StringName = &"_game_ui_motion_tab_index"
 const _REST_MODULATE: Color = Color.WHITE
 const _HOVER_MODULATE: Color = Color(0.98, 1.0, 0.99, 1.0)
 const _FOCUS_MODULATE: Color = Color(1.0, 0.98, 1.0, 1.0)
 const _PRESS_MODULATE: Color = Color(0.96, 0.94, 0.84, 1.0)
+const _BUTTON_ROLE_META: StringName = &"_game_ui_style_button_role"
 ## Hover / focus 保持控件几何稳定；仅按压使用向内压缩反馈。
 ## 这也避免 ScrollContainer 与密集按钮组裁切放大后的控件。
-const _ACTIVE_SCALE: float = 1.0
-const _PRESS_SCALE: float = 0.980
+const _ACTIVE_SCALE: Vector2 = Vector2.ONE
+const _PRIMARY_ACTIVE_SCALE: Vector2 = Vector2(1.012, 1.012)
+const _PRESS_SCALE: Vector2 = Vector2(0.992, 0.955)
 const _HOVER_DURATION: float = 0.11
 const _PRESS_DURATION: float = 0.055
+const _TOGGLE_SETTLE_SCALE: Vector2 = Vector2(1.012, 0.985)
+const _TOGGLE_SETTLE_DURATION: float = 0.13
 const _PANEL_INTRO_OFFSET: Vector2 = Vector2(0.0, 10.0)
 const _PANEL_INTRO_SCALE: float = 0.992
 const _PANEL_INTRO_DURATION: float = 0.18
 const _CHILD_REVEAL_OFFSET: Vector2 = Vector2(8.0, 0.0)
 const _CHILD_REVEAL_DURATION: float = 0.14
 const _CHILD_REVEAL_STAGGER: float = 0.025
+const _CHILD_REVEAL_SCALE: float = 0.985
+const _CONTENT_SWITCH_OFFSET: Vector2 = Vector2(12.0, 0.0)
+const _CONTENT_SWITCH_DURATION: float = 0.15
+const _PIECE_ASSEMBLY_DURATION: float = 0.28
+const _PIECE_ASSEMBLY_STAGGER: float = 0.055
+const _PIECE_ASSEMBLY_SCALE: float = 0.72
+const _PIECE_ASSEMBLY_ROTATION: float = 0.10
+const _SCROLL_IDLE_ALPHA: float = 0.48
+const _SCROLL_IDLE_THICKNESS_SCALE: float = 0.72
+const _SCROLL_ACTIVE_DURATION: float = 0.11
+const _SCROLL_IDLE_DELAY: float = 0.42
+const _SCROLL_IDLE_DURATION: float = 0.20
 const _NUMERIC_CHANGE_DURATION: float = 0.22
 const _NUMERIC_DELTA_DURATION: float = 0.36
 const _NUMERIC_GAIN_COLOR: Color = Color(0.82, 0.69, 0.34, 1.0)
@@ -91,9 +117,11 @@ func bind_interactive_controls(root: Node) -> int:
 	if not is_instance_valid(root):
 		return 0
 
-	if root is Control and is_instance_valid(_style):
+	if root is Control:
 		var root_control: Control = root
-		_style.style_control(root_control)
+		if is_instance_valid(_style):
+			_style.style_control(root_control)
+		_bind_supporting_control_motion(root_control)
 
 	var bound_count: int = 0
 	if root is BaseButton:
@@ -125,6 +153,158 @@ func play_panel_intro(panel: Control) -> Tween:
 		0.0,
 		_PANEL_INTRO_SCALE
 	)
+
+
+## 分层播放弹层遮罩与任务表面的入场动画。
+## @param backdrop: 全屏遮罩；可以为空。
+## @param surface: 弹层任务表面。
+## @return: 创建成功时返回统一 Tween，否则返回 null。
+func play_modal_intro(backdrop: Control, surface: Control) -> Tween:
+	if not is_instance_valid(surface):
+		return null
+	_store_control_base_state(surface, false)
+	if is_instance_valid(backdrop):
+		_store_control_base_state(backdrop, false)
+		_kill_control_tween(backdrop)
+	_kill_control_tween(surface)
+
+	var surface_scale: Vector2 = _get_control_vector2_meta(
+		surface,
+		_CONTROL_BASE_SCALE_META,
+		surface.scale
+	)
+	var surface_modulate: Color = _get_control_color_meta(
+		surface,
+		_CONTROL_BASE_MODULATE_META,
+		surface.modulate
+	)
+	var backdrop_modulate: Color = Color.WHITE
+	if is_instance_valid(backdrop):
+		backdrop_modulate = _get_control_color_meta(
+			backdrop,
+			_CONTROL_BASE_MODULATE_META,
+			backdrop.modulate
+		)
+	if _is_reduced_motion() or not surface.is_inside_tree():
+		surface.scale = surface_scale
+		surface.modulate = surface_modulate
+		if is_instance_valid(backdrop):
+			backdrop.modulate = backdrop_modulate
+		return null
+
+	surface.pivot_offset = surface.size * 0.5
+	surface.scale = surface_scale * 0.972
+	var surface_start_modulate: Color = surface_modulate
+	surface_start_modulate.a = 0.0
+	surface.modulate = surface_start_modulate
+	if is_instance_valid(backdrop):
+		var backdrop_start_modulate: Color = backdrop_modulate
+		backdrop_start_modulate.a = 0.0
+		backdrop.modulate = backdrop_start_modulate
+
+	var tween: Tween = surface.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var scale_tweener: PropertyTweener = tween.tween_property(
+		surface,
+		"scale",
+		surface_scale,
+		0.20
+	)
+	var _scale_curve: Tweener = scale_tweener.set_trans(Tween.TRANS_BACK).set_ease(
+		Tween.EASE_OUT
+	)
+	var surface_modulate_tweener: PropertyTweener = tween.tween_property(
+		surface,
+		"modulate",
+		surface_modulate,
+		0.16
+	)
+	var _surface_modulate_curve: Tweener = surface_modulate_tweener.set_trans(
+		Tween.TRANS_CUBIC
+	)
+	var _surface_modulate_ease: Tweener = surface_modulate_tweener.set_ease(
+		Tween.EASE_OUT
+	)
+	if is_instance_valid(backdrop):
+		var backdrop_tweener: PropertyTweener = tween.tween_property(
+			backdrop,
+			"modulate",
+			backdrop_modulate,
+			0.16
+		)
+		var _backdrop_curve: Tweener = backdrop_tweener.set_trans(
+			Tween.TRANS_CUBIC
+		)
+		var _backdrop_ease: Tweener = backdrop_tweener.set_ease(
+			Tween.EASE_OUT
+		)
+		backdrop.set_meta(_CONTROL_TWEEN_META, tween)
+	surface.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
+
+
+## 分层播放弹层遮罩与任务表面的退出动画。
+## @param backdrop: 全屏遮罩；可以为空。
+## @param surface: 弹层任务表面。
+## @return: 创建成功时返回统一 Tween；减少动态时返回 null。
+func play_modal_outro(backdrop: Control, surface: Control) -> Tween:
+	if not is_instance_valid(surface):
+		return null
+	_store_control_base_state(surface, false)
+	if is_instance_valid(backdrop):
+		_store_control_base_state(backdrop, false)
+		_kill_control_tween(backdrop)
+	_kill_control_tween(surface)
+	if _is_reduced_motion() or not surface.is_inside_tree():
+		return null
+
+	var base_scale: Vector2 = _get_control_vector2_meta(
+		surface,
+		_CONTROL_BASE_SCALE_META,
+		surface.scale
+	)
+	surface.pivot_offset = surface.size * 0.5
+	var tween: Tween = surface.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var scale_tweener: PropertyTweener = tween.tween_property(
+		surface,
+		"scale",
+		base_scale * 0.985,
+		0.13
+	)
+	var _scale_curve: Tweener = scale_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
+		Tween.EASE_IN
+	)
+	var surface_fade: PropertyTweener = tween.tween_property(
+		surface,
+		"modulate:a",
+		0.0,
+		0.11
+	)
+	var _surface_fade_curve: Tweener = surface_fade.set_trans(
+		Tween.TRANS_CUBIC
+	)
+	var _surface_fade_ease: Tweener = surface_fade.set_ease(
+		Tween.EASE_IN
+	)
+	if is_instance_valid(backdrop):
+		var backdrop_fade: PropertyTweener = tween.tween_property(
+			backdrop,
+			"modulate:a",
+			0.0,
+			0.13
+		)
+		var _backdrop_fade_curve: Tweener = backdrop_fade.set_trans(
+			Tween.TRANS_CUBIC
+		)
+		var _backdrop_fade_ease: Tweener = backdrop_fade.set_ease(
+			Tween.EASE_IN
+		)
+		backdrop.set_meta(_CONTROL_TWEEN_META, tween)
+	surface.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
 
 
 ## 播放单个控件的出现动画。
@@ -335,11 +515,15 @@ func play_numeric_change(
 ## @param container: 要扫描直接子节点的容器。
 ## @param offset: 每个子控件动画起点相对于原始位置的偏移。
 ## @param stagger: 相邻子控件之间的延迟时间。
+## @param initial_delay: 整组内容开始前的短延迟。
+## @param maximum_stagger: 最后一个子项相对首项的最大等待时间。
 ## @return: 本次播放动效的子控件数量。
 func play_children_reveal(
 	container: Node,
 	offset: Vector2 = _CHILD_REVEAL_OFFSET,
-	stagger: float = _CHILD_REVEAL_STAGGER
+	stagger: float = _CHILD_REVEAL_STAGGER,
+	initial_delay: float = 0.0,
+	maximum_stagger: float = 0.16
 ) -> int:
 	if not is_instance_valid(container):
 		return 0
@@ -356,8 +540,11 @@ func play_children_reveal(
 				child_control,
 				reveal_offset,
 				_CHILD_REVEAL_DURATION,
-				float(animated_count) * stagger,
-				1.0,
+				maxf(initial_delay, 0.0) + minf(
+					float(animated_count) * maxf(stagger, 0.0),
+					maxf(maximum_stagger, 0.0)
+				),
+				_CHILD_REVEAL_SCALE,
 				animate_position
 			)
 			animated_count += 1
@@ -365,7 +552,122 @@ func play_children_reveal(
 	return animated_count
 
 
+## 播放同一页面内的内容切换反馈。
+## @param control: 刚切换为可见的内容根节点。
+## @param direction: 正数从右侧进入，负数从左侧进入。
+## @return: 创建成功时返回 Tween，否则返回 null。
+func play_content_switch(control: Control, direction: float = 1.0) -> Tween:
+	if not is_instance_valid(control):
+		return null
+	var signed_direction: float = -1.0 if direction < 0.0 else 1.0
+	return _play_control_reveal(
+		control,
+		_CONTENT_SWITCH_OFFSET * signed_direction,
+		_CONTENT_SWITCH_DURATION,
+		0.0,
+		0.992,
+		not control.get_parent() is Container
+	)
+
+
+## 让一组独立视觉部件以错峰缩放和旋转完成组装。
+## @param pieces: 需要组装的控件数组；无效或隐藏控件会被忽略。
+## @param stagger: 相邻部件的开始时间间隔。
+## @return: 本次启动的部件动画数量。
+func play_piece_assembly(
+	pieces: Array[Control],
+	stagger: float = _PIECE_ASSEMBLY_STAGGER
+) -> int:
+	var animated_count: int = 0
+	for piece: Control in pieces:
+		if not is_instance_valid(piece) or not piece.visible:
+			continue
+		var rotation_direction: float = -1.0 if animated_count % 2 == 0 else 1.0
+		var _piece_tween: Tween = _play_piece_reveal(
+			piece,
+			float(animated_count) * stagger,
+			rotation_direction
+		)
+		animated_count += 1
+	return animated_count
+
+
+## 重新触发指定滚动条的活动反馈。
+## @param scroll_bar: 目标滚动条。
+func show_scroll_activity(scroll_bar: ScrollBar) -> void:
+	if not is_instance_valid(scroll_bar):
+		return
+	_bind_scroll_bar(scroll_bar)
+	_animate_scroll_bar_activity(scroll_bar, true)
+
+
+## 立即完成单个控件尚未结束的入场、切换或强调动效。
+## @param control: 目标控件。
+func complete_control_motion(control: Control) -> void:
+	if not is_instance_valid(control):
+		return
+	_kill_control_tween(control)
+	if control.has_meta(_CONTROL_BASE_POSITION_META):
+		control.position = _get_control_vector2_meta(
+			control,
+			_CONTROL_BASE_POSITION_META,
+			control.position
+		)
+	if control.has_meta(_CONTROL_BASE_SCALE_META):
+		control.scale = _get_control_vector2_meta(
+			control,
+			_CONTROL_BASE_SCALE_META,
+			control.scale
+		)
+	if control.has_meta(_CONTROL_BASE_MODULATE_META):
+		control.modulate = _get_control_color_meta(
+			control,
+			_CONTROL_BASE_MODULATE_META,
+			control.modulate
+		)
+	if control.has_meta(_CONTROL_BASE_ROTATION_META):
+		control.rotation = GFVariantData.to_float(
+			_get_control_meta(
+				control,
+				_CONTROL_BASE_ROTATION_META,
+				control.rotation
+			),
+			control.rotation
+		)
+
+
+## 立即完成容器直接子控件尚未结束的入场动效。
+## @param container: 目标容器。
+func complete_children_motion(container: Node) -> void:
+	if not is_instance_valid(container):
+		return
+	for child: Node in container.get_children():
+		if child is Control:
+			var child_control: Control = child
+			complete_control_motion(child_control)
+
+
 # --- 私有/辅助方法 ---
+
+func _bind_supporting_control_motion(control: Control) -> void:
+	if not is_instance_valid(control):
+		return
+	if control is ScrollContainer:
+		var scroll_container: ScrollContainer = control
+		_bind_scroll_container(scroll_container)
+		_bind_scroll_bar(scroll_container.get_v_scroll_bar())
+		_bind_scroll_bar(scroll_container.get_h_scroll_bar())
+	elif control is ItemList:
+		var item_list: ItemList = control
+		_bind_scroll_bar(item_list.get_v_scroll_bar())
+		_bind_scroll_bar(item_list.get_h_scroll_bar())
+	elif control is ScrollBar:
+		var scroll_bar: ScrollBar = control
+		_bind_scroll_bar(scroll_bar)
+	elif control is TabContainer:
+		var tab_container: TabContainer = control
+		_bind_tab_container(tab_container)
+
 
 func _bind_button(button: BaseButton) -> bool:
 	if not is_instance_valid(button):
@@ -377,6 +679,7 @@ func _bind_button(button: BaseButton) -> bool:
 	button.set_meta(_HOVERED_META, false)
 	button.set_meta(_FOCUSED_META, button.has_focus())
 	button.set_meta(_BASE_SCALE_META, button.scale)
+	button.set_meta(_TOGGLE_STATE_META, button.button_pressed)
 	button.call_deferred("set", "pivot_offset", button.size * 0.5)
 	if is_instance_valid(_style):
 		_style.prepare_button(button)
@@ -390,7 +693,286 @@ func _bind_button(button: BaseButton) -> bool:
 	var _connect_result_162: int = button.button_up.connect(_on_button_up.bind(button))
 	var _connect_result_163: int = button.resized.connect(_on_button_resized.bind(button))
 	var _connect_result_164: int = button.tree_exited.connect(_on_button_tree_exited.bind(button), CONNECT_ONE_SHOT)
+	if button.toggle_mode:
+		var _toggle_connection: int = button.toggled.connect(
+			_on_button_toggled.bind(button)
+		)
 	return true
+
+
+func _bind_scroll_bar(scroll_bar: ScrollBar) -> void:
+	if not is_instance_valid(scroll_bar):
+		return
+	if GFVariantData.to_bool(
+		_get_control_meta(scroll_bar, _SCROLL_BOUND_META, false)
+	):
+		return
+	scroll_bar.set_meta(_SCROLL_BOUND_META, true)
+	scroll_bar.set_meta(_SCROLL_HOVERED_META, false)
+	scroll_bar.set_meta(_SCROLL_BASE_SCALE_META, scroll_bar.scale)
+	scroll_bar.set_meta(_SCROLL_BASE_MODULATE_META, scroll_bar.modulate)
+	_update_scroll_bar_pivot(scroll_bar)
+	var _enter_connection: int = scroll_bar.mouse_entered.connect(
+		_on_scroll_bar_mouse_entered.bind(scroll_bar)
+	)
+	var _exit_connection: int = scroll_bar.mouse_exited.connect(
+		_on_scroll_bar_mouse_exited.bind(scroll_bar)
+	)
+	var _resize_connection: int = scroll_bar.resized.connect(
+		_update_scroll_bar_pivot.bind(scroll_bar)
+	)
+	var _tree_exit_connection: int = scroll_bar.tree_exited.connect(
+		_on_scroll_bar_tree_exited.bind(scroll_bar),
+		CONNECT_ONE_SHOT
+	)
+	_set_scroll_bar_idle_state(scroll_bar)
+
+
+func _bind_scroll_container(scroll_container: ScrollContainer) -> void:
+	if not is_instance_valid(scroll_container):
+		return
+	if GFVariantData.to_bool(
+		_get_control_meta(
+			scroll_container,
+			_SCROLL_CONTAINER_BOUND_META,
+			false
+		)
+	):
+		return
+	scroll_container.set_meta(_SCROLL_CONTAINER_BOUND_META, true)
+	var _start_connection: int = scroll_container.scroll_started.connect(
+		_on_scroll_container_started.bind(scroll_container)
+	)
+	var _end_connection: int = scroll_container.scroll_ended.connect(
+		_on_scroll_container_ended.bind(scroll_container)
+	)
+
+
+func _bind_tab_container(tab_container: TabContainer) -> void:
+	if not is_instance_valid(tab_container):
+		return
+	if GFVariantData.to_bool(
+		_get_control_meta(tab_container, _TAB_BOUND_META, false)
+	):
+		return
+	tab_container.set_meta(_TAB_BOUND_META, true)
+	tab_container.set_meta(_TAB_INDEX_META, tab_container.current_tab)
+	var _tab_connection: int = tab_container.tab_changed.connect(
+		_on_tab_container_changed.bind(tab_container)
+	)
+
+
+func _play_piece_reveal(
+	control: Control,
+	delay: float,
+	rotation_direction: float
+) -> Tween:
+	if not is_instance_valid(control):
+		return null
+	_store_control_base_state(control, false)
+	if not control.has_meta(_CONTROL_BASE_ROTATION_META):
+		control.set_meta(_CONTROL_BASE_ROTATION_META, control.rotation)
+	_kill_control_tween(control)
+
+	var base_scale: Vector2 = _get_control_vector2_meta(
+		control,
+		_CONTROL_BASE_SCALE_META,
+		control.scale
+	)
+	var base_modulate: Color = _get_control_color_meta(
+		control,
+		_CONTROL_BASE_MODULATE_META,
+		control.modulate
+	)
+	var base_rotation: float = GFVariantData.to_float(
+		_get_control_meta(control, _CONTROL_BASE_ROTATION_META, control.rotation),
+		control.rotation
+	)
+	if _is_reduced_motion() or not control.is_inside_tree():
+		control.scale = base_scale
+		control.modulate = base_modulate
+		control.rotation = base_rotation
+		return null
+
+	control.pivot_offset = control.size * 0.5
+	control.scale = base_scale * _PIECE_ASSEMBLY_SCALE
+	control.rotation = base_rotation + _PIECE_ASSEMBLY_ROTATION * rotation_direction
+	var start_modulate: Color = base_modulate
+	start_modulate.a = 0.0
+	control.modulate = start_modulate
+
+	var tween: Tween = control.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	var _parallel_result: Tween = tween.set_parallel(true)
+	var scale_tweener: PropertyTweener = tween.tween_property(
+		control,
+		"scale",
+		base_scale,
+		_PIECE_ASSEMBLY_DURATION
+	)
+	var _scale_curve: Tweener = scale_tweener.set_trans(Tween.TRANS_BACK).set_ease(
+		Tween.EASE_OUT
+	)
+	var _scale_delay: Tweener = scale_tweener.set_delay(delay)
+	var rotation_tweener: PropertyTweener = tween.tween_property(
+		control,
+		"rotation",
+		base_rotation,
+		_PIECE_ASSEMBLY_DURATION
+	)
+	var _rotation_curve: Tweener = rotation_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
+		Tween.EASE_OUT
+	)
+	var _rotation_delay: Tweener = rotation_tweener.set_delay(delay)
+	var modulate_tweener: PropertyTweener = tween.tween_property(
+		control,
+		"modulate",
+		base_modulate,
+		_PIECE_ASSEMBLY_DURATION * 0.72
+	)
+	var _modulate_curve: Tweener = modulate_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
+		Tween.EASE_OUT
+	)
+	var _modulate_delay: Tweener = modulate_tweener.set_delay(delay)
+	control.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
+
+
+func _animate_scroll_bar_activity(
+	scroll_bar: ScrollBar,
+	return_to_idle: bool
+) -> void:
+	if not is_instance_valid(scroll_bar):
+		return
+	_kill_scroll_bar_tween(scroll_bar)
+	var base_scale: Vector2 = _get_control_vector2_meta(
+		scroll_bar,
+		_SCROLL_BASE_SCALE_META,
+		scroll_bar.scale
+	)
+	var base_modulate: Color = _get_control_color_meta(
+		scroll_bar,
+		_SCROLL_BASE_MODULATE_META,
+		scroll_bar.modulate
+	)
+	if _is_reduced_motion() or not scroll_bar.is_inside_tree():
+		scroll_bar.scale = base_scale
+		scroll_bar.modulate = base_modulate
+		return
+
+	var tween: Tween = scroll_bar.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	var scale_tweener: PropertyTweener = tween.tween_property(
+		scroll_bar,
+		"scale",
+		base_scale,
+		_SCROLL_ACTIVE_DURATION
+	)
+	var _scale_curve: Tweener = scale_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
+		Tween.EASE_OUT
+	)
+	var modulate_tweener: PropertyTweener = tween.parallel().tween_property(
+		scroll_bar,
+		"modulate",
+		base_modulate,
+		_SCROLL_ACTIVE_DURATION
+	)
+	var _modulate_curve: Tweener = modulate_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
+		Tween.EASE_OUT
+	)
+
+	if return_to_idle:
+		var _idle_delay: IntervalTweener = tween.tween_interval(_SCROLL_IDLE_DELAY)
+		var idle_scale_tweener: PropertyTweener = tween.tween_property(
+			scroll_bar,
+			"scale",
+			_get_scroll_bar_idle_scale(scroll_bar, base_scale),
+			_SCROLL_IDLE_DURATION
+		)
+		var _idle_scale_curve: Tweener = idle_scale_tweener.set_trans(
+			Tween.TRANS_CUBIC
+		)
+		var _idle_scale_ease: Tweener = idle_scale_tweener.set_ease(
+			Tween.EASE_OUT
+		)
+		var idle_modulate: Color = base_modulate
+		idle_modulate.a *= _SCROLL_IDLE_ALPHA
+		var idle_modulate_tweener: PropertyTweener = tween.parallel().tween_property(
+			scroll_bar,
+			"modulate",
+			idle_modulate,
+			_SCROLL_IDLE_DURATION
+		)
+		var _idle_modulate_curve: Tweener = idle_modulate_tweener.set_trans(
+			Tween.TRANS_CUBIC
+		)
+		var _idle_modulate_ease: Tweener = idle_modulate_tweener.set_ease(
+			Tween.EASE_OUT
+		)
+	scroll_bar.set_meta(_SCROLL_TWEEN_META, tween)
+
+
+func _animate_scroll_bar_idle(scroll_bar: ScrollBar) -> void:
+	if not is_instance_valid(scroll_bar):
+		return
+	if GFVariantData.to_bool(
+		_get_control_meta(scroll_bar, _SCROLL_HOVERED_META, false)
+	):
+		return
+	_animate_scroll_bar_activity(scroll_bar, true)
+
+
+func _set_scroll_bar_idle_state(scroll_bar: ScrollBar) -> void:
+	if not is_instance_valid(scroll_bar):
+		return
+	var base_scale: Vector2 = _get_control_vector2_meta(
+		scroll_bar,
+		_SCROLL_BASE_SCALE_META,
+		scroll_bar.scale
+	)
+	var base_modulate: Color = _get_control_color_meta(
+		scroll_bar,
+		_SCROLL_BASE_MODULATE_META,
+		scroll_bar.modulate
+	)
+	if _is_reduced_motion():
+		scroll_bar.scale = base_scale
+		scroll_bar.modulate = base_modulate
+		return
+	scroll_bar.scale = _get_scroll_bar_idle_scale(scroll_bar, base_scale)
+	var idle_modulate: Color = base_modulate
+	idle_modulate.a *= _SCROLL_IDLE_ALPHA
+	scroll_bar.modulate = idle_modulate
+
+
+func _get_scroll_bar_idle_scale(
+	scroll_bar: ScrollBar,
+	base_scale: Vector2
+) -> Vector2:
+	if scroll_bar is VScrollBar:
+		return Vector2(
+			base_scale.x * _SCROLL_IDLE_THICKNESS_SCALE,
+			base_scale.y
+		)
+	return Vector2(
+		base_scale.x,
+		base_scale.y * _SCROLL_IDLE_THICKNESS_SCALE
+	)
+
+
+func _update_scroll_bar_pivot(scroll_bar: ScrollBar) -> void:
+	if not is_instance_valid(scroll_bar):
+		return
+	scroll_bar.pivot_offset = scroll_bar.size * 0.5
+
+
+func _kill_scroll_bar_tween(scroll_bar: ScrollBar) -> void:
+	var tween: Tween = _get_tween_value(
+		_get_control_meta(scroll_bar, _SCROLL_TWEEN_META, null)
+	)
+	if tween != null and tween.is_valid():
+		tween.kill()
+	scroll_bar.set_meta(_SCROLL_TWEEN_META, null)
 
 
 func _update_button_focus_ring_visibility(button: BaseButton) -> void:
@@ -475,7 +1057,7 @@ func _play_control_reveal(
 
 func _animate_button(
 	button: BaseButton,
-	scale_multiplier: float,
+	scale_multiplier: Vector2,
 	modulate: Color,
 	duration: float
 ) -> void:
@@ -508,9 +1090,14 @@ func _restore_button(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
 	if _is_button_active(button):
-		_animate_button(button, _ACTIVE_SCALE, _get_active_modulate(button), _HOVER_DURATION)
+		_animate_button(
+			button,
+			_get_active_scale(button),
+			_get_active_modulate(button),
+			_HOVER_DURATION
+		)
 	else:
-		_animate_button(button, 1.0, _REST_MODULATE, _HOVER_DURATION)
+		_animate_button(button, Vector2.ONE, _REST_MODULATE, _HOVER_DURATION)
 
 
 func _is_button_active(button: BaseButton) -> bool:
@@ -524,6 +1111,20 @@ func _get_active_modulate(button: BaseButton) -> Color:
 	if GFVariantData.to_bool(_get_button_meta(button, _FOCUSED_META, false)):
 		return _FOCUS_MODULATE
 	return _HOVER_MODULATE
+
+
+func _get_active_scale(button: BaseButton) -> Vector2:
+	var role: int = GFVariantData.to_int(
+		_get_button_meta(
+			button,
+			_BUTTON_ROLE_META,
+			GameUiStyleUtility.ButtonRole.SECONDARY
+		),
+		GameUiStyleUtility.ButtonRole.SECONDARY
+	)
+	if role == GameUiStyleUtility.ButtonRole.PRIMARY:
+		return _PRIMARY_ACTIVE_SCALE
+	return _ACTIVE_SCALE
 
 
 func _get_button_base_scale(button: BaseButton) -> Vector2:
@@ -720,7 +1321,12 @@ func _on_button_mouse_entered(button: BaseButton) -> void:
 	button.set_meta(_HOVERED_META, true)
 	_update_button_focus_ring_visibility(button)
 	interactive_control_selected.emit(button)
-	_animate_button(button, _ACTIVE_SCALE, _HOVER_MODULATE, _HOVER_DURATION)
+	_animate_button(
+		button,
+		_get_active_scale(button),
+		_HOVER_MODULATE,
+		_HOVER_DURATION
+	)
 
 
 func _on_button_mouse_exited(button: BaseButton) -> void:
@@ -738,7 +1344,12 @@ func _on_button_focus_entered(button: BaseButton) -> void:
 	_update_button_focus_ring_visibility(button)
 	if not GFVariantData.to_bool(_get_button_meta(button, _HOVERED_META, false)):
 		interactive_control_selected.emit(button)
-	_animate_button(button, _ACTIVE_SCALE, _FOCUS_MODULATE, _HOVER_DURATION)
+	_animate_button(
+		button,
+		_get_active_scale(button),
+		_FOCUS_MODULATE,
+		_HOVER_DURATION
+	)
 
 
 func _on_button_focus_exited(button: BaseButton) -> void:
@@ -764,9 +1375,74 @@ func _on_button_up(button: BaseButton) -> void:
 	_restore_button(button)
 
 
+func _on_button_toggled(pressed: bool, button: BaseButton) -> void:
+	if not is_instance_valid(button) or button.disabled:
+		return
+	button.set_meta(_TOGGLE_STATE_META, pressed)
+	call_deferred(&"_on_button_toggle_settle", button)
+
+
+func _on_button_toggle_settle(button: BaseButton = null) -> void:
+	if not is_instance_valid(button):
+		return
+	var target_modulate: Color = (
+		_get_active_modulate(button)
+		if _is_button_active(button)
+		else _REST_MODULATE
+	)
+	_kill_button_tween(button)
+	var base_scale: Vector2 = _get_button_base_scale(button)
+	if _is_reduced_motion() or not button.is_inside_tree():
+		button.scale = base_scale
+		button.modulate = target_modulate
+		return
+	var tween: Tween = button.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(
+		Tween.TWEEN_PAUSE_PROCESS
+	)
+	var settle_scale: PropertyTweener = tween.tween_property(
+		button,
+		"scale",
+		base_scale * _TOGGLE_SETTLE_SCALE,
+		_TOGGLE_SETTLE_DURATION * 0.46
+	)
+	var _settle_curve: Tweener = settle_scale.set_trans(
+		Tween.TRANS_CUBIC
+	)
+	var _settle_ease: Tweener = settle_scale.set_ease(
+		Tween.EASE_OUT
+	)
+	var modulate_tweener: PropertyTweener = tween.parallel().tween_property(
+		button,
+		"modulate",
+		target_modulate,
+		_TOGGLE_SETTLE_DURATION
+	)
+	var _modulate_curve: Tweener = modulate_tweener.set_trans(
+		Tween.TRANS_CUBIC
+	)
+	var _modulate_ease: Tweener = modulate_tweener.set_ease(
+		Tween.EASE_OUT
+	)
+	var restore_scale: PropertyTweener = tween.tween_property(
+		button,
+		"scale",
+		base_scale,
+		_TOGGLE_SETTLE_DURATION * 0.54
+	)
+	var _restore_curve: Tweener = restore_scale.set_trans(
+		Tween.TRANS_BACK
+	)
+	var _restore_ease: Tweener = restore_scale.set_ease(
+		Tween.EASE_OUT
+	)
+	button.set_meta(_TWEEN_META, tween)
+
+
 func _on_button_resized(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
+	button.pivot_offset = button.size * 0.5
 	if is_instance_valid(_style):
 		_style.refresh_button_focus_ring(button)
 
@@ -775,3 +1451,55 @@ func _on_button_tree_exited(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
 	_kill_button_tween(button)
+
+
+func _on_scroll_container_started(scroll_container: ScrollContainer) -> void:
+	if not is_instance_valid(scroll_container):
+		return
+	_animate_scroll_bar_activity(scroll_container.get_v_scroll_bar(), false)
+	_animate_scroll_bar_activity(scroll_container.get_h_scroll_bar(), false)
+
+
+func _on_scroll_container_ended(scroll_container: ScrollContainer) -> void:
+	if not is_instance_valid(scroll_container):
+		return
+	_animate_scroll_bar_idle(scroll_container.get_v_scroll_bar())
+	_animate_scroll_bar_idle(scroll_container.get_h_scroll_bar())
+
+
+func _on_scroll_bar_mouse_entered(scroll_bar: ScrollBar) -> void:
+	if not is_instance_valid(scroll_bar):
+		return
+	scroll_bar.set_meta(_SCROLL_HOVERED_META, true)
+	_animate_scroll_bar_activity(scroll_bar, false)
+
+
+func _on_scroll_bar_mouse_exited(scroll_bar: ScrollBar) -> void:
+	if not is_instance_valid(scroll_bar):
+		return
+	scroll_bar.set_meta(_SCROLL_HOVERED_META, false)
+	_animate_scroll_bar_idle(scroll_bar)
+
+
+func _on_scroll_bar_tree_exited(scroll_bar: ScrollBar) -> void:
+	if not is_instance_valid(scroll_bar):
+		return
+	_kill_scroll_bar_tween(scroll_bar)
+
+
+func _on_tab_container_changed(tab_index: int, tab_container: TabContainer) -> void:
+	if not is_instance_valid(tab_container):
+		return
+	var previous_index: int = GFVariantData.to_int(
+		_get_control_meta(tab_container, _TAB_INDEX_META, tab_index),
+		tab_index
+	)
+	tab_container.set_meta(_TAB_INDEX_META, tab_index)
+	var content_node: Node = tab_container.get_current_tab_control()
+	if not content_node is Control:
+		return
+	var content: Control = content_node
+	var _content_tween: Tween = play_content_switch(
+		content,
+		float(tab_index - previous_index)
+	)

@@ -64,6 +64,10 @@ func test_mode_selection_keeps_960x540_as_actionable_two_pane_layout() -> void:
 		ModeSelection._uses_side_by_side_layout(Vector2(720.0, 1558.0)),
 		"竖屏仍应采用可滚动单列。"
 	)
+	assert_false(
+		ModeSelection._uses_side_by_side_layout(Vector2(897.0, 720.0)),
+		"近方形紧凑窗口应提前堆叠，避免右侧纸面边框和阴影被视口裁切。"
+	)
 	var column_widths: Vector2 = ModeSelection._get_compact_two_pane_widths(960.0)
 	assert_gte(column_widths.x, 500.0, "紧凑横屏模式列表仍应保持可读宽度。")
 	assert_gte(column_widths.y, 300.0, "紧凑横屏配置栏应容纳完整关键操作。")

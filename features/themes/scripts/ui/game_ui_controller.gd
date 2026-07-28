@@ -22,6 +22,10 @@ const _GAME_THEME_UTILITY_SCRIPT: Script = preload(
 # --- 私有变量 ---
 
 var _gf_controller: GFController
+var _popup_close_in_progress: bool = false
+var _pending_popup_event_architecture: GFArchitecture = null
+var _pending_popup_event_id: StringName = &""
+var _pending_popup_event_payload: Variant = null
 
 
 # --- Godot 生命周期方法 ---
@@ -164,7 +168,15 @@ func _apply_default_ui_motion() -> void:
 		var _theme_apply_count: int = theme_utility.apply_current_theme_to_tree(self)
 
 	var _bound_count: int = motion_utility.bind_interactive_controls(self)
-	var _intro_tween: Tween = motion_utility.play_panel_intro(self)
+	var modal_backdrop: Control = _find_modal_backdrop()
+	var modal_surface: Control = _find_modal_surface()
+	if is_instance_valid(modal_backdrop) and is_instance_valid(modal_surface):
+		var _modal_intro_tween: Tween = motion_utility.play_modal_intro(
+			modal_backdrop,
+			modal_surface
+		)
+	else:
+		var _intro_tween: Tween = motion_utility.play_panel_intro(self)
 
 
 func _get_ui_motion_utility() -> GameUiMotionUtility:
@@ -216,10 +228,53 @@ func _close_current_popup_route(expected_route_id: StringName) -> bool:
 		)
 		return false
 
+	if _popup_close_in_progress:
+		return true
+
+	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
+	var modal_backdrop: Control = _find_modal_backdrop()
+	var modal_surface: Control = _find_modal_surface()
+	var outro_tween: Tween = null
+	if is_instance_valid(motion_utility) and is_instance_valid(modal_surface):
+		outro_tween = motion_utility.play_modal_outro(
+			modal_backdrop,
+			modal_surface
+		)
+	if outro_tween != null and outro_tween.is_valid():
+		_popup_close_in_progress = true
+		set_process_unhandled_input(false)
+		var _finished_connection: int = outro_tween.finished.connect(
+			_finish_popup_close.bind(expected_route_id),
+			CONNECT_ONE_SHOT
+		)
+		return true
+	return _pop_popup_route(expected_route_id)
+
+
+func _pop_popup_route(expected_route_id: StringName) -> bool:
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		return false
 	if not ui_router.back(GFUIUtility.Layer.POPUP):
 		push_error("[GameUiController] GF UI 路由关闭失败：%s。" % expected_route_id)
 		return false
+	_flush_pending_popup_event()
 	return true
+
+
+func _finish_popup_close(expected_route_id: StringName) -> void:
+	_popup_close_in_progress = false
+	if _pop_popup_route(expected_route_id):
+		return
+	_clear_pending_popup_event()
+	set_process_unhandled_input(true)
+	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
+	var modal_surface: Control = _find_modal_surface()
+	if is_instance_valid(motion_utility) and is_instance_valid(modal_surface):
+		var _restore_tween: Tween = motion_utility.play_modal_intro(
+			_find_modal_backdrop(),
+			modal_surface
+		)
 
 
 ## 捕获当前架构后关闭弹层，再通过该架构派发业务事件。
@@ -232,7 +287,42 @@ func _close_current_popup_route_and_send_event(
 	if architecture == null:
 		push_error("[GameUiController] 缺少 GFArchitecture，无法派发事件 %s。" % event_id)
 		return false
+	_pending_popup_event_architecture = architecture
+	_pending_popup_event_id = event_id
+	_pending_popup_event_payload = payload
 	if not _close_current_popup_route(expected_route_id):
+		_clear_pending_popup_event()
 		return false
-	architecture.send_simple_event(event_id, payload)
 	return true
+
+
+func _flush_pending_popup_event() -> void:
+	var architecture: GFArchitecture = _pending_popup_event_architecture
+	var event_id: StringName = _pending_popup_event_id
+	var payload: Variant = _pending_popup_event_payload
+	_clear_pending_popup_event()
+	if architecture != null and event_id != &"":
+		architecture.send_simple_event(event_id, payload)
+
+
+func _clear_pending_popup_event() -> void:
+	_pending_popup_event_architecture = null
+	_pending_popup_event_id = &""
+	_pending_popup_event_payload = null
+
+
+func _find_modal_backdrop() -> Control:
+	var node: Node = find_child("DimBackground", true, false)
+	if node is Control:
+		var control: Control = node
+		return control
+	return null
+
+
+func _find_modal_surface() -> Control:
+	for node_name: String in ["Surface", "CatalogPanel", "EditorPanel"]:
+		var node: Node = find_child(node_name, true, false)
+		if node is Control:
+			var control: Control = node
+			return control
+	return null

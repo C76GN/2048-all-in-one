@@ -27,6 +27,7 @@ var _viewport_utility: GFViewportUtility = null
 var _cards_by_key: Dictionary = {}
 var _selected_composition_key: String = ""
 var _layout_update_queued: bool = false
+var _has_revealed_catalog: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -248,6 +249,15 @@ func _rebuild_catalog() -> void:
 	var selected_entry: Dictionary = _find_entry(entries, _selected_composition_key)
 	if selected_entry.is_empty() or not _entry_matches_filters(selected_entry):
 		selected_entry = first_visible_entry
+	if is_instance_valid(ui_motion) and not _has_revealed_catalog:
+		_has_revealed_catalog = true
+		var _reveal_count: int = ui_motion.play_children_reveal(
+			_catalog_grid,
+			Vector2.ZERO,
+			0.018,
+			0.0,
+			0.14
+		)
 	_select_entry(selected_entry)
 
 
@@ -294,6 +304,9 @@ func _select_entry(entry: Dictionary) -> void:
 			var card: TileCatalogCard = card_value
 			card.set_selected(GFVariantData.to_text(key_value) == _selected_composition_key)
 	_update_detail(entry)
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion):
+		var _detail_tween: Tween = motion.play_content_switch(_detail_pane)
 
 
 func _update_detail(entry: Dictionary) -> void:

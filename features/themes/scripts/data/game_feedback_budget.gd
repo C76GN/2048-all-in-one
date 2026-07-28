@@ -11,7 +11,7 @@ var particle_scale: float = 1.0
 var max_edge_fragments: int = 18
 var max_tile_shards: int = 8
 var max_active_bursts: int = 8
-var celebration_particle_count: int = 88
+var celebration_particle_count: int = 64
 var background_shader_enabled: bool = true
 var celebration_shader_enabled: bool = true
 

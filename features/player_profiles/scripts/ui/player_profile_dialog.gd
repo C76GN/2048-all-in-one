@@ -20,6 +20,8 @@ var _viewport_utility: GFViewportUtility = null
 var _mode_names: Dictionary = {}
 var _leaderboard_identities: Array[Dictionary] = []
 var _layout_update_queued: bool = false
+var _has_revealed_profile_list: bool = false
+var _has_revealed_leaderboard_list: bool = false
 
 
 # --- @onready 变量 ---
@@ -57,7 +59,7 @@ func _ready() -> void:
 	_update_static_text()
 	_rebuild_all()
 	_queue_layout_update()
-	_account_option.grab_focus()
+	call_deferred(&"_focus_initial_control")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -86,6 +88,17 @@ func _resolve_dependencies() -> void:
 	var signal_value: Object = get_utility(GFSignalUtility)
 	if signal_value is GFSignalUtility:
 		_signal_utility = signal_value
+
+
+func _focus_initial_control() -> void:
+	if not is_instance_valid(_account_option):
+		return
+	if not _account_option.disabled:
+		_account_option.grab_focus()
+	elif is_instance_valid(_create_button) and not _create_button.disabled:
+		_create_button.grab_focus()
+	elif is_instance_valid(_back_button):
+		_back_button.grab_focus()
 	var viewport_value: Object = get_utility(GFViewportUtility)
 	if viewport_value is GFViewportUtility:
 		_viewport_utility = viewport_value
@@ -257,6 +270,11 @@ func _rebuild_profile() -> void:
 	_mode_empty_label.visible = summaries.is_empty()
 	_mode_empty_label.text = tr("PLAYER_MODE_STATS_EMPTY")
 	_mode_list.visible = not summaries.is_empty()
+	_animate_dynamic_list(
+		_mode_list,
+		not _has_revealed_profile_list
+	)
+	_has_revealed_profile_list = not summaries.is_empty()
 
 
 func _make_mode_summary_row(summary: Dictionary) -> Control:
@@ -375,6 +393,11 @@ func _rebuild_leaderboard() -> void:
 	_leaderboard_empty_label.visible = rows.is_empty()
 	_leaderboard_empty_label.text = tr("LOCAL_LEADERBOARD_EMPTY")
 	_leaderboard_list.visible = not rows.is_empty()
+	_animate_dynamic_list(
+		_leaderboard_list,
+		not _has_revealed_leaderboard_list
+	)
+	_has_revealed_leaderboard_list = not rows.is_empty()
 
 
 func _set_empty_leaderboard_group_option() -> void:
@@ -502,6 +525,28 @@ func _format_duration(duration_msec: int) -> String:
 func _clear_container(container: Node) -> void:
 	for child: Node in container.get_children():
 		child.queue_free()
+
+
+func _animate_dynamic_list(
+	container: Control,
+	use_stagger: bool
+) -> void:
+	if not is_instance_valid(container) or not container.visible:
+		return
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if not is_instance_valid(motion):
+		return
+	var _bound_count: int = motion.bind_interactive_controls(container)
+	if use_stagger:
+		var _reveal_count: int = motion.play_children_reveal(
+			container,
+			Vector2.ZERO,
+			0.022,
+			0.0,
+			0.14
+		)
+	else:
+		var _content_tween: Tween = motion.play_content_switch(container)
 
 
 func _configure_confirmation_touch_targets() -> void:

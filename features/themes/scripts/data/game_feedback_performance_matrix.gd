@@ -30,7 +30,7 @@ static func resolve(state: GameAccessibilityState) -> GameFeedbackBudget:
 			budget.max_edge_fragments = 10
 			budget.max_tile_shards = 5
 			budget.max_active_bursts = 5
-			budget.celebration_particle_count = 44
+			budget.celebration_particle_count = 32
 		_:
 			pass
 

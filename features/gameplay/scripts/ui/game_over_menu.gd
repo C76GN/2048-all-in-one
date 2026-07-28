@@ -90,8 +90,9 @@ func _apply_visual_style() -> void:
 	style_utility.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY, 32, true)
 	style_utility.style_label(
 		_new_record_label,
-		GameUiStyleUtility.TextRole.FEEDBACK,
-		20
+		GameUiStyleUtility.TextRole.PRIMARY,
+		20,
+		true
 	)
 	style_utility.style_label(
 		_context_label,

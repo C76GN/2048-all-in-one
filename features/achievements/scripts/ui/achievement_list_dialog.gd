@@ -15,6 +15,7 @@ var _achievement_system: AchievementSystem = null
 var _signal_utility: GFSignalUtility = null
 var _viewport_utility: GFViewportUtility = null
 var _layout_update_queued: bool = false
+var _has_revealed_achievement_list: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -164,6 +165,18 @@ func _rebuild_list() -> void:
 		GFVariantData.get_option_int(summary, "unlocked_count", 0),
 		GFVariantData.get_option_int(summary, "achievement_count", 0),
 	]
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion):
+		var _bound_count: int = motion.bind_interactive_controls(_list)
+		if not _has_revealed_achievement_list:
+			_has_revealed_achievement_list = true
+			var _reveal_count: int = motion.play_children_reveal(
+				_list,
+				Vector2.ZERO,
+				0.020,
+				0.0,
+				0.14
+			)
 
 
 func _matches_filters(entry: Dictionary) -> bool:
