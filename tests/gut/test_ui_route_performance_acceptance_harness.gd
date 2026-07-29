@@ -18,7 +18,7 @@ var _fake_times_usec: Array[int] = []
 
 func test_ui_route_result_preserves_duration_and_preload_evidence() -> void:
 	var harness: HarnessType = HarnessType.new()
-	harness.configure({
+	var _configured_harness: RefCounted = harness.configure({
 		"minimum_scene_route_samples": 0,
 		"budgets": {"ui_route_max_msec": 500.0},
 	})
@@ -58,7 +58,7 @@ func test_ui_route_result_preserves_duration_and_preload_evidence() -> void:
 
 func test_ui_route_budget_failure_is_not_hidden_by_success_status() -> void:
 	var harness: HarnessType = HarnessType.new()
-	harness.configure({
+	var _configured_harness: RefCounted = harness.configure({
 		"minimum_scene_route_samples": 0,
 		"budgets": {"ui_route_max_msec": 500.0},
 	})
@@ -105,7 +105,7 @@ func test_scene_signals_capture_load_switch_preload_and_total_duration() -> void
 		2_120_000,
 	]
 	var harness: HarnessType = HarnessType.new()
-	harness.configure({
+	var _configured_harness: RefCounted = harness.configure({
 		"minimum_ui_route_samples": 0,
 		"minimum_scene_route_samples": 1,
 		"budgets": {
@@ -199,16 +199,22 @@ func test_scene_signals_capture_load_switch_preload_and_total_duration() -> void
 		"完整场景路由必须记录 cover 与 reveal 两段转场。"
 	)
 	if transitions.size() == 2:
+		var cover_transition: Dictionary = GFVariantData.as_dictionary(
+			transitions[0]
+		)
+		var reveal_transition: Dictionary = GFVariantData.as_dictionary(
+			transitions[1]
+		)
 		assert_true(
 			GFVariantData.get_option_string(
-				transitions[0],
+				cover_transition,
 				"phase"
 			) == "cover",
 			"首段转场必须是 cover。"
 		)
 		assert_almost_eq(
 			GFVariantData.get_option_float(
-				transitions[0],
+				cover_transition,
 				"configured_duration_msec"
 			),
 			240.0,
@@ -216,7 +222,7 @@ func test_scene_signals_capture_load_switch_preload_and_total_duration() -> void
 		)
 		assert_almost_eq(
 			GFVariantData.get_option_float(
-				transitions[0],
+				cover_transition,
 				"wall_duration_msec"
 			),
 			240.0,
@@ -224,14 +230,14 @@ func test_scene_signals_capture_load_switch_preload_and_total_duration() -> void
 		)
 		assert_true(
 			GFVariantData.get_option_string(
-				transitions[1],
+				reveal_transition,
 				"phase"
 			) == "reveal",
 			"第二段转场必须是 reveal。"
 		)
 		assert_almost_eq(
 			GFVariantData.get_option_float(
-				transitions[1],
+				reveal_transition,
 				"configured_duration_msec"
 			),
 			260.0,
@@ -239,7 +245,7 @@ func test_scene_signals_capture_load_switch_preload_and_total_duration() -> void
 		)
 		assert_almost_eq(
 			GFVariantData.get_option_float(
-				transitions[1],
+				reveal_transition,
 				"wall_duration_msec"
 			),
 			260.0,
@@ -346,7 +352,7 @@ func test_cancelled_transition_is_recorded_as_incomplete_evidence() -> void:
 		3_100_000,
 	]
 	var harness: HarnessType = HarnessType.new()
-	harness.configure({
+	var _configured_harness: RefCounted = harness.configure({
 		"minimum_ui_route_samples": 0,
 		"minimum_scene_route_samples": 1,
 		"now_usec_provider": Callable(self, &"_next_fake_time_usec"),
@@ -380,16 +386,19 @@ func test_cancelled_transition_is_recorded_as_incomplete_evidence() -> void:
 		"取消场景路由应保留已开始的单段转场证据。"
 	)
 	if transitions.size() == 1:
+		var transition: Dictionary = GFVariantData.as_dictionary(
+			transitions[0]
+		)
 		assert_true(
 			GFVariantData.get_option_string(
-				transitions[0],
+				transition,
 				"status"
 			) == "cancelled",
 			"取消信号必须写入 cancelled 终态。"
 		)
 		assert_almost_eq(
 			GFVariantData.get_option_float(
-				transitions[0],
+				transition,
 				"wall_duration_msec"
 			),
 			70.0,
@@ -409,7 +418,7 @@ func test_cancelled_transition_is_recorded_as_incomplete_evidence() -> void:
 
 func test_report_writer_emits_parseable_json() -> void:
 	var harness: HarnessType = HarnessType.new()
-	harness.configure({
+	var _configured_harness: RefCounted = harness.configure({
 		"minimum_scene_route_samples": 0,
 	})
 	var result: GFUIRouteResult = _make_ui_route_result(

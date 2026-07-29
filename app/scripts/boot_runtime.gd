@@ -209,12 +209,30 @@ func _setup_progress() -> void:
 	_startup_progress = GFAsyncProgressAggregator.new()
 	_startup_progress.min_delta = 0.0
 	_startup_progress.min_interval_msec = 0
-	_startup_progress.add_task(_PROGRESS_TASK_PREPARE, _PROGRESS_WEIGHT_PREPARE)
-	_startup_progress.add_task(_PROGRESS_TASK_ARCHITECTURE, _PROGRESS_WEIGHT_ARCHITECTURE)
-	_startup_progress.add_task(_PROGRESS_TASK_THEMES, _PROGRESS_WEIGHT_THEMES)
-	_startup_progress.add_task(_PROGRESS_TASK_VISUALS, _PROGRESS_WEIGHT_VISUALS)
-	_startup_progress.add_task(_PROGRESS_TASK_ENTRY_SCENE, _PROGRESS_WEIGHT_ENTRY_SCENE)
-	_startup_progress.add_task(_PROGRESS_TASK_FINISH, _PROGRESS_WEIGHT_FINISH)
+	var _prepare_task_index: int = _startup_progress.add_task(
+		_PROGRESS_TASK_PREPARE,
+		_PROGRESS_WEIGHT_PREPARE
+	)
+	var _architecture_task_index: int = _startup_progress.add_task(
+		_PROGRESS_TASK_ARCHITECTURE,
+		_PROGRESS_WEIGHT_ARCHITECTURE
+	)
+	var _themes_task_index: int = _startup_progress.add_task(
+		_PROGRESS_TASK_THEMES,
+		_PROGRESS_WEIGHT_THEMES
+	)
+	var _visuals_task_index: int = _startup_progress.add_task(
+		_PROGRESS_TASK_VISUALS,
+		_PROGRESS_WEIGHT_VISUALS
+	)
+	var _entry_scene_task_index: int = _startup_progress.add_task(
+		_PROGRESS_TASK_ENTRY_SCENE,
+		_PROGRESS_WEIGHT_ENTRY_SCENE
+	)
+	var _finish_task_index: int = _startup_progress.add_task(
+		_PROGRESS_TASK_FINISH,
+		_PROGRESS_WEIGHT_FINISH
+	)
 	_startup_progress.reset()
 	var _connect_result: int = _startup_progress.progressed.connect(_on_startup_progressed)
 	_set_startup_task_progress(_PROGRESS_TASK_PREPARE, 0.0, "准备启动")

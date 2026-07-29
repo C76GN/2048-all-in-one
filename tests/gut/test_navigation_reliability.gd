@@ -725,6 +725,7 @@ class _SceneRequestProbe extends SceneRouterSystem:
 	func prepare() -> void:
 		_scene_utility = GFSceneUtility.new()
 
+	## @param _path: 待预热的场景资源路径；探针不执行真实预热。
 	func prime_scene(_path: String) -> Error:
 		return OK
 

@@ -762,7 +762,7 @@ func _on_scene_preload_cancelled(path: String) -> void:
 
 func _connect_scene_signal(signal_value: Signal, callback: Callable) -> void:
 	if not signal_value.is_connected(callback):
-		var _error: Error = signal_value.connect(callback)
+		var _error: Error = signal_value.connect(callback) as Error
 
 
 func _disconnect_scene_signal(signal_value: Signal, callback: Callable) -> void:
@@ -832,7 +832,9 @@ func _get_public_transition_records() -> Array[Dictionary]:
 	for transition_value: Variant in transitions:
 		if not transition_value is Dictionary:
 			continue
-		var record: Dictionary = transition_value.duplicate(true)
+		var record: Dictionary = GFVariantData.as_dictionary(
+			transition_value
+		).duplicate(true)
 		var _started_erased: bool = record.erase("_started_usec")
 		var _ended_erased: bool = record.erase("_ended_usec")
 		var _effect_erased: bool = record.erase("_effect_instance_id")

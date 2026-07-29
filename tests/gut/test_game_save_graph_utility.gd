@@ -1096,11 +1096,11 @@ func test_bookmark_cache_large_history_benchmark_stays_bounded() -> void:
 		and GFVariantData.get_option_array(
 			parsed_sample.game_state_history,
 			"undo"
-		).size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT / 2
+		).size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT >> 1
 		and GFVariantData.get_option_array(
 			parsed_sample.game_state_history,
 			"redo"
-		).size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT / 2
+		).size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT >> 1
 	)
 	assert_lt(
 		submission_usec,
@@ -1735,7 +1735,7 @@ func test_new_bookmark_history_keeps_recent_stack_tail_only() -> void:
 			stack_key
 		)
 		assert_true(
-			stack.size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT / 2,
+			stack.size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT >> 1,
 			"双栈非空时新书签必须为每个栈保留最近 32 条。"
 		)
 		assert_true(

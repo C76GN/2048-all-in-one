@@ -290,7 +290,7 @@ static func _bound_history_for_new_bookmark(history: Dictionary) -> Dictionary:
 		return {}
 	var undo_stack: Array = GFVariantData.get_option_array(history, "undo")
 	var redo_stack: Array = GFVariantData.get_option_array(history, "redo")
-	var half_limit: int = PERSISTED_HISTORY_TOTAL_LIMIT / 2
+	var half_limit: int = PERSISTED_HISTORY_TOTAL_LIMIT >> 1
 	var undo_limit: int = mini(undo_stack.size(), half_limit)
 	var redo_limit: int = mini(redo_stack.size(), half_limit)
 	var remaining: int = (

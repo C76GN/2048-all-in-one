@@ -197,6 +197,7 @@ func setup(
 		var available_tile_count: int = _pool.get_available_count(TileScene)
 		var missing_tile_count: int = max(required_tile_count - available_tile_count, 0)
 		if missing_tile_count > 0:
+			@warning_ignore("missing_await")
 			_pool.prewarm_async_budget(
 				TileScene,
 				board_container,

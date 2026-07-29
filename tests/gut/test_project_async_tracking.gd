@@ -17,7 +17,10 @@ func test_profile_operation_is_untracked_on_framework_terminal() -> void:
 		)
 	)
 
-	save_graph._track_profile_operation(operation)
+	var tracked_operation: GFSaveProfileOperation = (
+		save_graph._track_profile_operation(operation)
+	)
+	assert_same(tracked_operation, operation)
 	_assert_single_label(tracker, &"game_save.profile_operation")
 
 	var result: GFSaveProfileResult = GFSaveProfileResult.new()

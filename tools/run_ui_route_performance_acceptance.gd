@@ -89,7 +89,7 @@ func _run() -> void:
 	var screen_transition: GFScreenTransitionUtility = screen_transition_value
 	var scene_router: SceneRouterSystem = scene_router_value
 	var harness: HarnessType = HarnessType.new()
-	harness.configure({
+	var _configured_harness: RefCounted = harness.configure({
 		"minimum_ui_route_samples": _UI_ROUTE_IDS.size(),
 		"minimum_scene_route_samples": 2,
 		"metadata": {
@@ -117,11 +117,14 @@ func _run() -> void:
 		var route_result: GFUIRouteResult = await (
 			ui_router.push_owned_route_async(main_menu, route_id)
 		)
-		harness.record_ui_route_result(route_result, {
-			"route_id": route_id,
-			"sequence_index": route_index,
-			"cache_state": "first_open_in_process",
-		})
+		var _ui_route_record: Dictionary = harness.record_ui_route_result(
+			route_result,
+			{
+				"route_id": route_id,
+				"sequence_index": route_index,
+				"cache_state": "first_open_in_process",
+			}
+		)
 		if route_result == null or not route_result.is_successful():
 			continue
 		await _settle_frames(2)
