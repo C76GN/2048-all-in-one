@@ -224,25 +224,7 @@ func is_stroke_active() -> bool:
 ## @param start: 连续格线的起点。
 ## @param end: 连续格线的终点。
 static func rasterize_grid_line(start: Vector2i, end: Vector2i) -> Array[Vector2i]:
-	var result: Array[Vector2i] = []
-	var current: Vector2i = start
-	var delta_x: int = absi(end.x - start.x)
-	var delta_y: int = absi(end.y - start.y)
-	var step_x: int = 1 if start.x < end.x else -1
-	var step_y: int = 1 if start.y < end.y else -1
-	var error: int = delta_x - delta_y
-	while true:
-		result.append(current)
-		if current == end:
-			break
-		var doubled_error: int = error * 2
-		if doubled_error > -delta_y:
-			error -= delta_y
-			current.x += step_x
-		if doubled_error < delta_x:
-			error += delta_x
-			current.y += step_y
-	return result
+	return GFGridCoordinateMath2D.get_line(start, end)
 
 
 ## 应用当前主题的棋盘视觉资源和 UI 色板。

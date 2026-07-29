@@ -319,6 +319,14 @@ func test_editor_canvas_has_stable_large_world_extent_and_continuous_strokes() -
 		Vector2i.ZERO,
 		Vector2i(7, 3)
 	)
+	var expected_line: Array[Vector2i] = GFGridCoordinateMath2D.get_line(
+		Vector2i.ZERO,
+		Vector2i(7, 3)
+	)
+	var reverse_line: Array[Vector2i] = BoardEditorCanvas.rasterize_grid_line(
+		Vector2i(7, 3),
+		Vector2i.ZERO
+	)
 	var first_cell: Vector2i = line[0] if not line.is_empty() else Vector2i(-1, -1)
 	var last_cell: Vector2i = line[line.size() - 1] if not line.is_empty() else Vector2i(-1, -1)
 
@@ -328,6 +336,11 @@ func test_editor_canvas_has_stable_large_world_extent_and_continuous_strokes() -
 	)
 	assert_true(first_cell == Vector2i.ZERO)
 	assert_true(last_cell == Vector2i(7, 3))
+	assert_true(line == expected_line, "连续笔画应直接采用 GF 标准网格直线语义。")
+	assert_true(
+		reverse_line == GFGridCoordinateMath2D.get_line(Vector2i(7, 3), Vector2i.ZERO),
+		"反向笔画也应采用 GF 标准端点顺序。"
+	)
 	for index: int in range(1, line.size()):
 		var step: Vector2i = line[index] - line[index - 1]
 		assert_true(

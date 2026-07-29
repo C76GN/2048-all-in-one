@@ -38,6 +38,7 @@
       "gf.standard.input",
       "gf.standard.platform",
       "gf.standard.settings",
+      "gf.standard.spatial",
       "gf.standard.state",
       "gf.standard.state_machine",
       "gf.standard.storage",
@@ -135,6 +136,19 @@
           "重绑定提交前执行冲突分析；取消或无障碍不可达绑定不得覆盖当前配置，test_gameplay_input_mapping.gd 通过。"
         ],
         "notes": ""
+      },
+      {
+        "id": "spatial-physics",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "spatial-policy"
+        ],
+        "acceptance": [
+          "棋盘编辑器的连续笔画格线委托 GFGridCoordinateMath2D；项目只拥有拓扑合法性、编辑命令、持久化和视觉语义。",
+          "快速拖动采样必须形成包含两端点的连续格线，test_board_editor.gd 覆盖斜向输入。"
+        ],
+        "notes": "当前先采用 GF 标准网格坐标数学；画布视图所有权按独立阶段迁移到 GFSpatialCanvas2D。"
       },
       {
         "id": "ui-navigation",

@@ -57,8 +57,10 @@ func test_game_background_shader_loads() -> void:
 
 
 func test_game_background_shader_keeps_light_paper_texture_defaults() -> void:
+	var shader: Shader = _load_shader(_BACKGROUND_SHADER_PATH)
 	var shader_text: String = _read_text(_BACKGROUND_SHADER_PATH)
 
+	assert_true(is_instance_valid(shader), "背景 shader 应能捕获标准接口。")
 	assert_true(shader_text.contains("grid_mask"), "背景 shader 应融合低对比虚线网格纸纹。")
 	assert_true(shader_text.contains("cell_color_1"), "背景 shader 应支持棋盘式纸面色块。")
 	assert_true(shader_text.contains("sub_grid_size"), "背景 shader 应支持细分副网格。")
@@ -69,16 +71,16 @@ func test_game_background_shader_keeps_light_paper_texture_defaults() -> void:
 	assert_true(shader_text.contains("cloud_scroll_speed_2"), "背景墨流层应暴露第二层滚动速度。")
 	assert_true(shader_text.contains("animation_time"), "背景墨流层应使用项目可暂停的时间源。")
 	assert_false(shader_text.contains("TIME"), "背景不得依赖失焦后仍持续推进的内置 TIME。")
-	_assert_shader_float_default_in_range(shader_text, "grain_strength", 0.008, 0.020)
-	_assert_shader_float_default_in_range(shader_text, "stipple_strength", 0.000, 0.006)
-	_assert_shader_float_default_in_range(shader_text, "scanline_strength", 0.000, 0.008)
-	_assert_shader_float_default_in_range(shader_text, "glow_strength", 0.000, 0.100)
-	_assert_shader_float_default_in_range(shader_text, "pulse_speed", 0.000, 0.080)
-	_assert_shader_float_default_in_range(shader_text, "line_thickness", 0.650, 1.250)
-	_assert_shader_float_default_in_range(shader_text, "sub_line_thickness", 0.40, 1.20)
-	_assert_shader_float_default_in_range(shader_text, "sub_dash_length", 4.0, 12.0)
-	_assert_shader_float_default_in_range(shader_text, "cloud_position_impact", 0.45, 0.70)
-	_assert_shader_float_default_in_range(shader_text, "cloud_strength", 0.010, 0.050)
+	_assert_shader_float_default_in_range(shader, shader_text, "grain_strength", 0.008, 0.020)
+	_assert_shader_float_default_in_range(shader, shader_text, "stipple_strength", 0.000, 0.006)
+	_assert_shader_float_default_in_range(shader, shader_text, "scanline_strength", 0.000, 0.008)
+	_assert_shader_float_default_in_range(shader, shader_text, "glow_strength", 0.000, 0.100)
+	_assert_shader_float_default_in_range(shader, shader_text, "pulse_speed", 0.000, 0.080)
+	_assert_shader_float_default_in_range(shader, shader_text, "line_thickness", 0.650, 1.250)
+	_assert_shader_float_default_in_range(shader, shader_text, "sub_line_thickness", 0.40, 1.20)
+	_assert_shader_float_default_in_range(shader, shader_text, "sub_dash_length", 4.0, 12.0)
+	_assert_shader_float_default_in_range(shader, shader_text, "cloud_position_impact", 0.45, 0.70)
+	_assert_shader_float_default_in_range(shader, shader_text, "cloud_strength", 0.010, 0.050)
 
 
 func test_shader_animation_driver_freezes_focus_and_detaches_static_material() -> void:
@@ -125,18 +127,18 @@ func test_scene_transition_shader_loads_and_keeps_print_defaults() -> void:
 	assert_true(shader_text.contains("shaped_gradient"), "场景转场应由形状扰动擦除边缘，而不是单纯线性淡入。")
 	assert_true(shader_text.contains("node_resolution"), "场景转场应按视口比例修正遮罩方向。")
 	assert_true(shader_text.contains("reverse_progress"), "同一转场 shader 应支持由主题资源配置覆盖与揭示方向。")
-	_assert_shader_float_default_in_range(shader_text, "width", 0.10, 0.18)
-	_assert_shader_float_default_in_range(shader_text, "dot_tiling", 24.0, 48.0)
-	_assert_shader_float_default_in_range(shader_text, "shape_tiling", 12.0, 28.0)
-	_assert_shader_float_default_in_range(shader_text, "shape_feathering", 0.08, 0.20)
-	_assert_shader_float_default_in_range(shader_text, "shape_threshold", 0.45, 0.62)
-	_assert_shader_float_default_in_range(shader_text, "shape_influence", 0.08, 0.20)
-	_assert_shader_float_default_in_range(shader_text, "grain_strength", 0.008, 0.020)
-	_assert_shader_float_default_in_range(shader_text, "band_strength", 0.04, 0.16)
-	_assert_shader_float_default_in_range(shader_text, "fill_opacity", 0.98, 1.0)
-	_assert_shader_float_default_in_range(shader_text, "edge_opacity", 0.88, 1.0)
-	_assert_shader_float_default_in_range(shader_text, "edge_strength", 0.60, 0.95)
-	_assert_shader_float_default_in_range(shader_text, "registration_offset", 0.008, 0.030)
+	_assert_shader_float_default_in_range(shader, shader_text, "width", 0.10, 0.18)
+	_assert_shader_float_default_in_range(shader, shader_text, "dot_tiling", 24.0, 48.0)
+	_assert_shader_float_default_in_range(shader, shader_text, "shape_tiling", 12.0, 28.0)
+	_assert_shader_float_default_in_range(shader, shader_text, "shape_feathering", 0.08, 0.20)
+	_assert_shader_float_default_in_range(shader, shader_text, "shape_threshold", 0.45, 0.62)
+	_assert_shader_float_default_in_range(shader, shader_text, "shape_influence", 0.08, 0.20)
+	_assert_shader_float_default_in_range(shader, shader_text, "grain_strength", 0.008, 0.020)
+	_assert_shader_float_default_in_range(shader, shader_text, "band_strength", 0.04, 0.16)
+	_assert_shader_float_default_in_range(shader, shader_text, "fill_opacity", 0.98, 1.0)
+	_assert_shader_float_default_in_range(shader, shader_text, "edge_opacity", 0.88, 1.0)
+	_assert_shader_float_default_in_range(shader, shader_text, "edge_strength", 0.60, 0.95)
+	_assert_shader_float_default_in_range(shader, shader_text, "registration_offset", 0.008, 0.030)
 
 
 func test_scene_router_sequences_cover_load_and_inverse_reveal() -> void:
@@ -164,9 +166,9 @@ func test_button_focus_ring_shader_loads_and_uses_dashed_rounded_path() -> void:
 	assert_true(shader_text.contains("dash_count"), "按钮选中态描边应支持虚线分段。")
 	assert_true(shader_text.contains("animation_time"), "按钮选中态描边应由可暂停时间源驱动。")
 	assert_false(shader_text.contains("TIME"), "按钮焦点描边不得在失焦后通过内置 TIME 跳变。")
-	_assert_shader_float_default_in_range(shader_text, "thickness", 2.0, 4.0)
-	_assert_shader_float_default_in_range(shader_text, "dash_count", 12.0, 24.0)
-	_assert_shader_float_default_in_range(shader_text, "dash_ratio", 0.42, 0.66)
+	_assert_shader_float_default_in_range(shader, shader_text, "thickness", 2.0, 4.0)
+	_assert_shader_float_default_in_range(shader, shader_text, "dash_count", 12.0, 24.0)
+	_assert_shader_float_default_in_range(shader, shader_text, "dash_ratio", 0.42, 0.66)
 
 
 func test_startup_progress_shader_loads_and_uses_print_progress_motif() -> void:
@@ -2618,12 +2620,47 @@ func _read_text(path: String) -> String:
 
 
 func _assert_shader_float_default_in_range(
+	shader: Shader,
 	shader_text: String,
 	uniform_name: String,
 	min_value: float,
 	max_value: float
 ) -> void:
-	var default_value: float = _get_shader_float_default(shader_text, uniform_name, -1.0)
+	var interface_snapshot: GFShaderInterfaceSnapshot = (
+		GFShaderInterfaceSnapshot.capture(shader)
+	)
+	assert_not_null(interface_snapshot, "%s 应能捕获 GF Shader 接口快照。" % uniform_name)
+	if interface_snapshot == null:
+		return
+	var definition_report: GFValidationReport = interface_snapshot.validate_definition()
+	assert_true(
+		definition_report.is_ok(),
+		"%s 所在 Shader 应具有可验证的 GF 接口快照：%s" % [
+			uniform_name,
+			definition_report.make_summary(),
+		]
+	)
+	var uniform: Dictionary = interface_snapshot.get_uniform(StringName(uniform_name))
+	assert_false(uniform.is_empty(), "Shader 接口应声明 float uniform：%s。" % uniform_name)
+	assert_true(
+		GFVariantData.get_option_int(uniform, "type", TYPE_NIL) == TYPE_FLOAT,
+		"Shader uniform %s 应保持 float 类型。" % uniform_name
+	)
+	var default_value: float = _get_shader_float_default_literal(
+		shader_text,
+		uniform_name,
+		-1.0
+	)
+	var parameter_report: GFValidationReport = interface_snapshot.validate_parameters({
+		StringName(uniform_name): default_value,
+	})
+	assert_true(
+		parameter_report.is_ok(),
+		"Shader uniform %s 的默认值应满足 GF 接口类型契约：%s" % [
+			uniform_name,
+			parameter_report.make_summary(),
+		]
+	)
 	assert_true(
 		default_value >= min_value and default_value <= max_value,
 		"%s 默认值 %.3f 应保持在 %.3f 到 %.3f，避免背景变粗糙或刺眼。" % [
@@ -2635,18 +2672,22 @@ func _assert_shader_float_default_in_range(
 	)
 
 
-func _get_shader_float_default(shader_text: String, uniform_name: String, fallback: float) -> float:
+func _get_shader_float_default_literal(
+	shader_text: String,
+	uniform_name: String,
+	fallback: float
+) -> float:
 	var prefix: String = "uniform float %s " % uniform_name
 	var lines: PackedStringArray = shader_text.split("\n")
 	for line_index: int in range(lines.size()):
 		var line: String = _get_packed_line(lines, line_index).strip_edges()
 		if not line.begins_with(prefix):
 			continue
-		return _parse_shader_default_float(line, fallback)
+		return _parse_shader_default_float_literal(line, fallback)
 	return fallback
 
 
-func _parse_shader_default_float(line: String, fallback: float) -> float:
+func _parse_shader_default_float_literal(line: String, fallback: float) -> float:
 	var equals_index: int = line.find("=")
 	if equals_index == -1:
 		return fallback
