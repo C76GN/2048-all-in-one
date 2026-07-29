@@ -222,6 +222,107 @@ func test_mode_selection_defers_gameplay_preload_until_start_intent() -> void:
 	)
 
 
+func test_scene_change_completion_supersedes_only_unaccepted_request() -> void:
+	var router: _SceneRequestProbe = _SceneRequestProbe.new()
+	router.prepare()
+	var first: GFAsyncCompletion = router.request_scene_change(
+		_GAME_SCENE_PATH
+	)
+	var second: GFAsyncCompletion = router.request_scene_change(
+		_MODE_SELECTION_SCENE_PATH
+	)
+
+	assert_true(first.is_cancelled(), "尚未交给 GF 的旧路由应被新意图取消。")
+	assert_true(
+		first.get_cancel_reason() == &"superseded",
+		"旧路由必须保留 superseded 取消原因。"
+	)
+	assert_true(second.is_pending(), "替代请求应持有独立的一次性终态。")
+	var snapshot: Dictionary = router.get_debug_snapshot()
+	assert_true(
+		GFVariantData.get_option_string(snapshot, "pending_scene_path")
+			== _MODE_SELECTION_SCENE_PATH,
+		"诊断快照必须只投影当前活动请求。"
+	)
+	router.dispose()
+	assert_true(second.is_cancelled(), "系统释放必须取消仍未终结的替代请求。")
+
+
+func test_scene_change_rejects_concurrency_after_gf_acceptance() -> void:
+	var router: _SceneRequestProbe = _SceneRequestProbe.new()
+	router.prepare()
+	var active: GFAsyncCompletion = router.request_scene_change(
+		_GAME_SCENE_PATH
+	)
+	router.mark_active_request_accepted()
+	var rejected: GFAsyncCompletion = router.request_scene_change(
+		_MODE_SELECTION_SCENE_PATH
+	)
+
+	assert_true(active.is_pending(), "GF 已接管的活动路由不得被并发意图伪取消。")
+	assert_true(rejected.is_failed(), "GF 接管后的并发路由应以 typed busy 终态拒绝。")
+	assert_true(
+		GFVariantData.get_option_int(rejected.get_metadata(), "error")
+			== ERR_BUSY,
+		"busy 终态必须保留可机读错误码。"
+	)
+	router.dispose()
+	assert_true(active.is_cancelled(), "系统释放仍必须终结 GF 已接管的活动路由。")
+
+
+func test_scene_change_owner_and_late_signals_settle_once() -> void:
+	var router: _SceneRequestProbe = _SceneRequestProbe.new()
+	router.prepare()
+	var request_owner_node: Node = Node.new()
+	add_child_autoqfree(request_owner_node)
+	var owner_completion: GFAsyncCompletion = router.request_scene_change(
+		_GAME_SCENE_PATH,
+		request_owner_node
+	)
+	request_owner_node.queue_free()
+	await get_tree().process_frame
+	assert_true(
+		owner_completion.is_cancelled(),
+		"请求 owner 在 GF 接管前退出场景树时必须取消路由。"
+	)
+	assert_true(
+		owner_completion.get_cancel_reason() == &"owner_released",
+		"owner 取消必须保留稳定原因。"
+	)
+
+	var completion_count: Array[int] = [0]
+	var completion: GFAsyncCompletion = router.request_scene_change(
+		_GAME_SCENE_PATH
+	)
+	var connect_error: int = completion.completed.connect(
+		func(_settled: GFAsyncCompletion) -> void:
+			completion_count[0] += 1
+	)
+	assert_true(connect_error == OK)
+	router.mark_active_request_accepted()
+	router.call(
+		"_on_scene_switch_completed",
+		_MODE_SELECTION_SCENE_PATH,
+		""
+	)
+	await get_tree().process_frame
+	assert_true(completion.is_pending(), "其他路径的全局 Signal 不得终结当前请求。")
+
+	router.call("_on_scene_switch_completed", _GAME_SCENE_PATH, "")
+	router.call("_on_scene_switch_completed", _GAME_SCENE_PATH, "")
+	await get_tree().process_frame
+	assert_true(completion.is_successful(), "匹配请求应以成功终态收敛。")
+	assert_true(completion_count[0] == 1, "重复完成 Signal 只能提交一次终态。")
+	router.call(
+		"_on_scene_switch_failed",
+		_GAME_SCENE_PATH,
+		"",
+		"late failure"
+	)
+	router.dispose()
+	assert_true(completion_count[0] == 1, "晚到失败与 dispose 不得重写已提交终态。")
+
+
 func test_empty_history_lists_focus_back_button() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	await architecture.init()
@@ -619,6 +720,46 @@ func test_delete_busy_guard_and_late_rollback_unlock_once() -> void:
 
 
 # --- 内部类 ---
+
+class _SceneRequestProbe extends SceneRouterSystem:
+	func prepare() -> void:
+		_scene_utility = GFSceneUtility.new()
+
+	func prime_scene(_path: String) -> Error:
+		return OK
+
+	func _run_scene_change(_request_id: int) -> void:
+		pass
+
+	func _complete_scene_change(
+		request_id: int,
+		success: bool,
+		error: Error,
+		error_message: String
+	) -> void:
+		var request: Variant = call("_get_scene_request", request_id)
+		if request == null:
+			return
+		if success:
+			var _success_settled: Variant = call(
+				"_finish_scene_request_success",
+				request
+			)
+			return
+		var _failure_settled: Variant = call(
+			"_finish_scene_request_failure",
+			request,
+			&"scene_switch_failed",
+			error,
+			error_message
+		)
+
+	func mark_active_request_accepted() -> void:
+		var request_value: Variant = get("_active_scene_request")
+		if request_value is RefCounted:
+			var request: RefCounted = request_value
+			request.set("accepted_by_scene_utility", true)
+
 
 class _RouteSpy extends SceneRouterSystem:
 	var last_scene_path: String = ""

@@ -26,12 +26,11 @@ var _accessibility: GameAccessibilityUtility
 var _signal_utility: GFSignalUtility
 var _operation_diagnostics: GFOperationDiagnosticsUtility
 var _scene_switch_started_connection: GFSignalConnection
-var _scene_load_completed_connection: GFSignalConnection
-var _scene_load_failed_connection: GFSignalConnection
+var _scene_switch_completed_connection: GFSignalConnection
+var _scene_switch_failed_connection: GFSignalConnection
 var _scene_change_operation_id: StringName = &""
-var _scene_change_in_progress: bool = false
-var _scene_completion_queued: bool = false
-var _pending_scene_path: String = ""
+var _active_scene_request: _SceneChangeRequest = null
+var _next_scene_request_id: int = 1
 var _transition_timeout_seconds: float = _DEFAULT_TRANSITION_TIMEOUT_SECONDS
 
 
@@ -67,10 +66,11 @@ func ready() -> void:
 
 
 func dispose() -> void:
-	_finish_scene_change_operation(false, {"reason": "system_disposed"})
-	_scene_change_in_progress = false
-	_scene_completion_queued = false
-	_pending_scene_path = ""
+	var _cancelled_request: bool = _cancel_active_scene_request(
+		&"system_disposed",
+		{"reason": "system_disposed"}
+	)
+	_cancel_screen_transition_and_hide()
 	_disconnect_scene_utility_signals()
 	_scene_utility = null
 	_screen_transition = null
@@ -81,8 +81,8 @@ func dispose() -> void:
 	_operation_diagnostics = null
 	_log = null
 	_scene_switch_started_connection = null
-	_scene_load_completed_connection = null
-	_scene_load_failed_connection = null
+	_scene_switch_completed_connection = null
+	_scene_switch_failed_connection = null
 
 
 # --- 公共方法 ---
@@ -90,38 +90,97 @@ func dispose() -> void:
 ## 切换到指定的场景资源。
 ## @param scene: 待切换的场景资源 (PackedScene)。
 func goto_scene_packed(scene: PackedScene) -> void:
+	var _scene_change: GFAsyncCompletion = request_scene_change_packed(scene)
+
+
+## 提交可观测的 PackedScene 场景切换请求。
+## @param scene: 待切换的场景资源。
+## @param owner: 可选请求 owner；Node 在 GF 接管前退出场景树时取消请求。
+## @return 本次路由的一次性成功、失败或取消终态。
+func request_scene_change_packed(
+	scene: PackedScene,
+	owner: Object = null
+) -> GFAsyncCompletion:
 	if not _is_scene_resource_ready(scene):
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "传入的场景资源为空或不可实例化。")
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, _get_scene_resource_path(scene))
-		return
+		return _make_failed_scene_completion(
+			_get_scene_resource_path(scene),
+			&"invalid_scene_resource",
+			ERR_INVALID_DATA
+		)
 
 	if scene.resource_path.is_empty():
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "PackedScene 缺少稳定资源路径，无法交给 GFSceneUtility。")
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, scene.resource_path)
-		return
-	goto_scene(scene.resource_path)
+		return _make_failed_scene_completion(
+			scene.resource_path,
+			&"unstable_scene_path",
+			ERR_INVALID_PARAMETER
+		)
+	return request_scene_change(scene.resource_path, owner)
 
 
 ## 使用 GFSceneTransitionConfig 切换到指定场景路径。
 ## @param path: 待切换的场景资源路径。
 func goto_scene(path: String) -> void:
+	var _scene_change: GFAsyncCompletion = request_scene_change(path)
+
+
+## 提交可观测的场景路径切换请求。
+## @param path: 待切换的绝对 .tscn 资源路径。
+## @param owner: 可选请求 owner；Node 在 GF 接管前退出场景树时取消请求。
+## @return 本次路由的一次性成功、失败或取消终态。
+func request_scene_change(
+	path: String,
+	owner: Object = null
+) -> GFAsyncCompletion:
 	if not _is_valid_scene_path(path):
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "场景路径必须是绝对的 .tscn 资源路径: %s" % path)
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
-		return
+		return _make_failed_scene_completion(
+			path,
+			&"invalid_scene_path",
+			ERR_INVALID_PARAMETER
+		)
 
 	if not is_instance_valid(_scene_utility):
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "GFSceneUtility 未注册，无法执行场景切换: %s" % path)
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
-		return
+		return _make_failed_scene_completion(
+			path,
+			&"scene_utility_unavailable",
+			ERR_UNCONFIGURED
+		)
 
-	if _scene_change_in_progress:
-		push_warning("[SceneRouterSystem] 场景切换尚未完成，忽略重复请求：%s。" % path)
-		return
+	var active_request: _SceneChangeRequest = _get_active_scene_request()
+	if active_request != null:
+		if (
+			active_request.accepted_by_scene_utility
+			or active_request.completion_queued
+		):
+			push_warning(
+				"[SceneRouterSystem] 场景切换已由 GF 接管或正在收敛终态，拒绝并发请求：%s。"
+				% path
+			)
+			return _make_failed_scene_completion(
+				path,
+				&"scene_change_busy",
+				ERR_BUSY,
+				{"active_path": active_request.path}
+			)
+		var _cancelled_request: bool = _cancel_active_scene_request(
+			&"superseded",
+			{
+				"reason": "superseded",
+				"replacement_path": path,
+			}
+		)
+		_cancel_screen_transition_and_hide()
 
 	var preload_error: Error = prime_scene(path)
 	if preload_error != OK and is_instance_valid(_log):
@@ -130,11 +189,11 @@ func goto_scene(path: String) -> void:
 			"GF 场景预加载未能提前启动，将由正式切换继续尝试。错误码: %d，路径: %s"
 			% [preload_error, path]
 		)
-	_scene_change_in_progress = true
-	_scene_completion_queued = false
-	_pending_scene_path = path
+	var request: _SceneChangeRequest = _create_scene_request(path, owner)
+	_active_scene_request = request
 	_begin_scene_change_operation(path)
-	call_deferred(&"_run_scene_change", path)
+	call_deferred(&"_run_scene_change", request.request_id)
+	return request.completion
 
 
 ## 提前把场景交给 GFSceneUtility 的线程化缓存。
@@ -167,9 +226,26 @@ func quit_game() -> void:
 
 ## 返回场景路由与 GF 转场服务的诊断快照。
 func get_debug_snapshot() -> Dictionary:
+	var active_request: _SceneChangeRequest = _get_active_scene_request()
 	return {
 		"main_menu_scene_path": _main_menu_scene_path,
-		"scene_change_active": _scene_change_in_progress,
+		"scene_change_active": active_request != null,
+		"pending_scene_path": active_request.path if active_request != null else "",
+		"scene_change_request_id": (
+			active_request.request_id
+			if active_request != null
+			else 0
+		),
+		"scene_change_accepted_by_gf": (
+			active_request.accepted_by_scene_utility
+			if active_request != null
+			else false
+		),
+		"scene_change_completion": (
+			active_request.completion.get_debug_snapshot()
+			if active_request != null
+			else {}
+		),
 		"scene_change_started_usec": _get_scene_change_started_usec(),
 		"screen_transition": (
 			_screen_transition.get_debug_snapshot()
@@ -181,22 +257,37 @@ func get_debug_snapshot() -> Dictionary:
 
 # --- 私有/辅助方法 ---
 
-func _run_scene_change(path: String) -> void:
+func _run_scene_change(request_id: int) -> void:
+	var request: _SceneChangeRequest = _get_scene_request(request_id)
+	if request == null:
+		return
 	var cover_error: Error = _play_scene_transition_cover()
 	if cover_error == OK:
 		await _await_screen_transition()
-	if not _scene_change_in_progress or path != _pending_scene_path:
+	request = _get_scene_request(request_id)
+	if request == null:
 		return
 
 	send_simple_event(EventNames.SCENE_WILL_CHANGE)
-	var config: GFSceneTransitionConfig = _make_scene_transition_config(path)
+	var config: GFSceneTransitionConfig = _make_scene_transition_config(request.path)
+	request.accepted_by_scene_utility = true
 	var error: Error = _scene_utility.load_scene_with_transition(config)
 	if error == OK:
 		return
 
+	request.accepted_by_scene_utility = false
 	if is_instance_valid(_log):
-		_log.error(_LOG_TAG, "GFSceneUtility 拒绝场景切换，错误码: %d，路径: %s" % [error, path])
-	_queue_scene_change_completion(path, false, error)
+		_log.error(
+			_LOG_TAG,
+			"GFSceneUtility 拒绝场景切换，错误码: %d，路径: %s"
+			% [error, request.path]
+		)
+	_queue_scene_change_completion(
+		request.request_id,
+		false,
+		error,
+		"GFSceneUtility rejected the scene change."
+	)
 
 func _get_log_utility() -> GFLogUtility:
 	var utility_value: Object = get_utility(GFLogUtility)
@@ -306,14 +397,14 @@ func _connect_scene_utility_signals() -> void:
 		_on_scene_switch_started,
 		self
 	)
-	_scene_load_completed_connection = _signal_utility.connect_signal(
-		_scene_utility.scene_load_completed,
-		_on_scene_load_completed,
+	_scene_switch_completed_connection = _signal_utility.connect_signal(
+		_scene_utility.scene_switch_completed,
+		_on_scene_switch_completed,
 		self
 	)
-	_scene_load_failed_connection = _signal_utility.connect_signal(
-		_scene_utility.scene_load_failed,
-		_on_scene_load_failed,
+	_scene_switch_failed_connection = _signal_utility.connect_signal(
+		_scene_utility.scene_switch_failed,
+		_on_scene_switch_failed,
 		self
 	)
 
@@ -329,6 +420,173 @@ func _is_scene_resource_ready(scene: PackedScene) -> bool:
 
 func _get_scene_resource_path(scene: PackedScene) -> String:
 	return scene.resource_path if scene != null else ""
+
+
+func _create_scene_request(path: String, owner: Object) -> _SceneChangeRequest:
+	var request: _SceneChangeRequest = _SceneChangeRequest.new(
+		_next_scene_request_id,
+		path
+	)
+	_next_scene_request_id += 1
+	var cleanup_registered: bool = request.scope.register_cleanup(
+		Callable(self, &"_on_scene_request_scope_cancelled").bind(
+			request.request_id
+		)
+	)
+	if not cleanup_registered:
+		push_error("[SceneRouterSystem] 无法注册场景请求取消清理：%s。" % path)
+	if is_instance_valid(owner):
+		request.owner_lifetime = GFLifetimeSubscription.new(
+			owner,
+			Callable(self, &"_on_scene_request_owner_released").bind(
+				request.request_id
+			),
+			"scene_route:%d" % request.request_id
+		)
+	return request
+
+
+func _get_active_scene_request() -> _SceneChangeRequest:
+	if _active_scene_request == null:
+		return null
+	if not _active_scene_request.completion.is_pending():
+		return null
+	return _active_scene_request
+
+
+func _get_scene_request(request_id: int) -> _SceneChangeRequest:
+	var request: _SceneChangeRequest = _get_active_scene_request()
+	if request == null or request.request_id != request_id:
+		return null
+	return request
+
+
+func _get_scene_request_for_path(path: String) -> _SceneChangeRequest:
+	var request: _SceneChangeRequest = _get_active_scene_request()
+	if request == null or request.path != path:
+		return null
+	return request
+
+
+func _make_failed_scene_completion(
+	path: String,
+	reason: StringName,
+	error: Error,
+	extra_metadata: Dictionary = {}
+) -> GFAsyncCompletion:
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	var metadata: Dictionary = extra_metadata.duplicate(true)
+	metadata["path"] = path
+	metadata["reason"] = reason
+	metadata["error"] = error
+	var _failed: bool = completion.fail(String(reason), metadata)
+	return completion
+
+
+func _cancel_active_scene_request(
+	reason: StringName,
+	metadata: Dictionary = {}
+) -> bool:
+	var request: _SceneChangeRequest = _get_active_scene_request()
+	if request == null or not request.scope.is_active():
+		return false
+	return request.scope.cancel(String(reason), metadata)
+
+
+func _on_scene_request_scope_cancelled(request_id: int) -> void:
+	var request: _SceneChangeRequest = _get_scene_request(request_id)
+	if request == null:
+		return
+	_active_scene_request = null
+	_finish_scene_change_operation(false, {
+		"path": request.path,
+		"reason": request.scope.get_cancel_reason(),
+		"cancelled": true,
+	})
+	_release_scene_request_owner_lifetime(request)
+	var completion_metadata: Dictionary = (
+		request.scope.get_cancel_metadata()
+	)
+	completion_metadata["path"] = request.path
+	completion_metadata["reason"] = request.scope.get_cancel_reason()
+	var _cancelled: bool = request.completion.cancel(
+		request.scope.get_cancel_reason(),
+		completion_metadata,
+		{"path": request.path}
+	)
+
+
+func _on_scene_request_owner_released(request_id: int) -> void:
+	var request: _SceneChangeRequest = _get_scene_request(request_id)
+	if (
+		request == null
+		or request.accepted_by_scene_utility
+		or request.completion_queued
+	):
+		return
+	var _cancelled: bool = request.scope.cancel(
+		"owner_released",
+		{
+			"path": request.path,
+			"reason": "owner_released",
+		}
+	)
+
+
+func _finish_scene_request_success(request: _SceneChangeRequest) -> void:
+	if request == null or _get_scene_request(request.request_id) == null:
+		return
+	request.scope.complete()
+	_active_scene_request = null
+	_finish_scene_change_operation(true, {"path": request.path})
+	_release_scene_request_owner_lifetime(request)
+	var _succeeded: bool = request.completion.succeed(
+		{"path": request.path},
+		{
+			"path": request.path,
+			"reason": &"scene_switch_completed",
+		}
+	)
+
+
+func _finish_scene_request_failure(
+	request: _SceneChangeRequest,
+	reason: StringName,
+	error: Error,
+	error_message: String = ""
+) -> void:
+	if request == null or _get_scene_request(request.request_id) == null:
+		return
+	request.scope.complete()
+	_active_scene_request = null
+	var metadata: Dictionary = {
+		"path": request.path,
+		"reason": reason,
+		"error": error,
+	}
+	if not error_message.is_empty():
+		metadata["message"] = error_message
+	_finish_scene_change_operation(false, metadata)
+	_release_scene_request_owner_lifetime(request)
+	var _failed: bool = request.completion.fail(String(reason), metadata)
+
+
+func _release_scene_request_owner_lifetime(
+	request: _SceneChangeRequest
+) -> void:
+	if request == null or request.owner_lifetime == null:
+		return
+	if request.owner_lifetime.is_active():
+		var _cancelled: bool = request.owner_lifetime.cancel()
+	request.owner_lifetime = null
+
+
+func _cancel_screen_transition_and_hide() -> void:
+	if not is_instance_valid(_screen_transition):
+		return
+	if _screen_transition.is_transition_active():
+		var _cancelled: bool = _screen_transition.cancel_transition()
+	_screen_transition.hide_overlay()
 
 
 func _make_scene_transition_config(path: String) -> GFSceneTransitionConfig:
@@ -401,39 +659,65 @@ func _await_screen_transition() -> bool:
 	return false
 
 
-func _queue_scene_change_completion(path: String, success: bool, error: Error = OK) -> void:
-	if _scene_completion_queued or path != _pending_scene_path:
+func _queue_scene_change_completion(
+	request_id: int,
+	success: bool,
+	error: Error = OK,
+	error_message: String = ""
+) -> void:
+	var request: _SceneChangeRequest = _get_scene_request(request_id)
+	if request == null or request.completion_queued:
 		return
-	_scene_completion_queued = true
-	call_deferred(&"_complete_scene_change", path, success, error)
+	request.completion_queued = true
+	call_deferred(
+		&"_complete_scene_change",
+		request.request_id,
+		success,
+		error,
+		error_message
+	)
 
 
-func _complete_scene_change(path: String, success: bool, error: Error) -> void:
+func _complete_scene_change(
+	request_id: int,
+	success: bool,
+	error: Error,
+	error_message: String
+) -> void:
+	var request: _SceneChangeRequest = _get_scene_request(request_id)
+	if request == null:
+		return
 	var tree: SceneTree = _get_scene_tree()
 	if success and is_instance_valid(tree):
 		await tree.process_frame
+		request = _get_scene_request(request_id)
+		if request == null:
+			return
 		if DisplayServer.get_name() != "headless":
 			await RenderingServer.frame_post_draw
+			request = _get_scene_request(request_id)
+			if request == null:
+				return
 
 	var reveal_error: Error = _play_scene_transition_reveal()
 	if reveal_error == OK:
 		await _await_screen_transition()
+	request = _get_scene_request(request_id)
+	if request == null:
+		return
 
 	if success:
 		if is_instance_valid(_log):
-			_log.debug(_LOG_TAG, "已完成异步场景加载与揭示: %s" % path)
-		_finish_scene_change_operation(true, {"path": path})
+			_log.debug(_LOG_TAG, "已完成异步场景加载与揭示: %s" % request.path)
+		_finish_scene_request_success(request)
 	else:
-		_finish_scene_change_operation(false, {
-			"path": path,
-			"reason": "load_failed",
-			"error": error,
-		})
-		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
-
-	_scene_change_in_progress = false
-	_scene_completion_queued = false
-	_pending_scene_path = ""
+		_finish_scene_request_failure(
+			request,
+			&"scene_switch_failed",
+			error,
+			error_message
+		)
+		send_simple_event(EventNames.SCENE_CHANGE_FAILED, request.path)
 
 
 func _resolve_scene_transition_effect(phase: StringName) -> GFScreenTransitionEffect:
@@ -546,6 +830,9 @@ func _on_return_to_main_menu_requested(_payload: Variant = null) -> void:
 
 
 func _on_scene_switch_started(path: String, previous_path: String) -> void:
+	var request: _SceneChangeRequest = _get_scene_request_for_path(path)
+	if request == null:
+		return
 	if _scene_change_operation_id != &"" and is_instance_valid(_operation_diagnostics):
 		var _state: Dictionary = _operation_diagnostics.record_state_snapshot(
 			_scene_change_operation_id,
@@ -555,7 +842,10 @@ func _on_scene_switch_started(path: String, previous_path: String) -> void:
 		)
 
 
-func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
+func _on_scene_switch_completed(path: String, _previous_path: String) -> void:
+	var request: _SceneChangeRequest = _get_scene_request_for_path(path)
+	if request == null:
+		return
 	var started_ticks_usec: int = _get_scene_change_started_usec()
 	if started_ticks_usec > 0:
 		var _phase: Dictionary = _operation_diagnostics.record_phase_from_ticks(
@@ -564,10 +854,17 @@ func _on_scene_load_completed(path: String, _scene: PackedScene) -> void:
 			started_ticks_usec,
 			{"metadata": {"path": path}}
 		)
-	_queue_scene_change_completion(path, true)
+	_queue_scene_change_completion(request.request_id, true)
 
 
-func _on_scene_load_failed(path: String) -> void:
+func _on_scene_switch_failed(
+	path: String,
+	_previous_path: String,
+	message: String
+) -> void:
+	var request: _SceneChangeRequest = _get_scene_request_for_path(path)
+	if request == null:
+		return
 	if is_instance_valid(_log):
 		_log.error(_LOG_TAG, "异步场景加载失败: %s" % path)
 	if is_instance_valid(_operation_diagnostics):
@@ -582,4 +879,29 @@ func _on_scene_load_failed(path: String) -> void:
 				"metadata": {"path": path},
 			}
 		)
-	_queue_scene_change_completion(path, false, ERR_CANT_OPEN)
+	_queue_scene_change_completion(
+		request.request_id,
+		false,
+		ERR_CANT_OPEN,
+		message
+	)
+
+
+# --- 子类（Subclasses） ---
+
+## 单次场景切换请求。
+##
+## 把路径、一次性终态、生命周期作用域和 GF 接管状态约束在同一个身份中，
+## 避免跨 await 与全局 Signal 仅依赖可变路径/布尔值关联不同请求。
+class _SceneChangeRequest extends RefCounted:
+	var request_id: int = 0
+	var path: String = ""
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var owner_lifetime: GFLifetimeSubscription = null
+	var accepted_by_scene_utility: bool = false
+	var completion_queued: bool = false
+
+	func _init(next_request_id: int, target_path: String) -> void:
+		request_id = next_request_id
+		path = target_path
