@@ -32,8 +32,42 @@ func test_repeated_pulse_only_allows_latest_token_to_release() -> void:
 	await get_tree().process_frame
 
 	assert_true(source.press_count == 2)
-	assert_true(source.release_count == 1, "较早 token 不得提前释放较新的脉冲。")
+	assert_true(
+		source.release_count == 2,
+		"重入时应先释放旧边沿，且较早 token 不得额外释放较新的脉冲。"
+	)
 	assert_true(pulse_utility.get_pending_action_count() == 0)
+
+
+func test_overlapping_hud_pulses_produce_distinct_gf_action_edges() -> void:
+	var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
+	var gameplay_context: GFInputContext = load(
+		"res://features/gameplay/resources/input/gameplay_input_context.tres"
+	)
+	input_mapping.enable_context(gameplay_context, 100)
+	var source: GFVirtualInputSource = GFVirtualInputSource.new(
+		input_mapping,
+		&"test_hud"
+	)
+	var pulse_utility: GameVirtualActionPulseUtility = (
+		GameVirtualActionPulseUtility.new().configure(source)
+	)
+
+	assert_true(pulse_utility.pulse(GameplayInputActions.UNDO, get_tree(), 0.5))
+	assert_true(
+		input_mapping.consume_action(GameplayInputActions.UNDO),
+		"第一次 HUD 点击应形成可消费的撤销动作边沿。"
+	)
+	assert_true(
+		pulse_utility.pulse(GameplayInputActions.UNDO, get_tree(), 0.5),
+		"上一个 HUD 脉冲仍处于保持期时，第二次点击也应被接受。"
+	)
+	assert_true(
+		input_mapping.consume_action(GameplayInputActions.UNDO),
+		"重叠的第二次 HUD 点击必须形成新的撤销动作边沿，不能被保持状态吞掉。"
+	)
+
+	pulse_utility.dispose()
 
 
 func test_dispose_clears_source_and_late_timer_cannot_release_again() -> void:

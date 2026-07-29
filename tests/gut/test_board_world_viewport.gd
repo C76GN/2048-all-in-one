@@ -249,6 +249,31 @@ func test_game_scene_keeps_hud_outside_board_world_and_excludes_diagnostics_ui()
 	scene_root.free()
 
 
+func test_gameplay_spatial_canvas_disables_framework_grid_overlay() -> void:
+	var scene_root: Node = _GAME_PLAY_SCENE.instantiate()
+	var board_viewport: GFSpatialCanvas2D = scene_root.get_node(
+		"MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport"
+	) as GFSpatialCanvas2D
+	var viewport_controller: BoardWorldViewportController = board_viewport.get_node(
+		"BoardWorldViewportController"
+	) as BoardWorldViewportController
+	var board_world: Node2D = board_viewport.get_node("BoardWorld") as Node2D
+	board_world.owner = null
+
+	viewport_controller._resolve_nodes()
+	viewport_controller._prepare_spatial_canvas()
+	var grid_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		board_viewport.get_debug_snapshot(),
+		"grid"
+	)
+
+	assert_false(
+		GFVariantData.get_option_bool(grid_snapshot, "visible", true),
+		"玩法画布只复用 GF 视图变换；默认一像素编辑网格必须显式关闭，避免缩放后形成密集条纹。"
+	)
+	scene_root.free()
+
+
 func test_board_layers_keep_empty_cells_above_opaque_background() -> void:
 	assert_true(
 		GameBoardController.BOARD_BACKGROUND_Z_INDEX >= 0,

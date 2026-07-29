@@ -1,8 +1,10 @@
 ## GameVirtualActionPulseUtility: 项目侧虚拟动作短脉冲适配器。
 ##
 ## GFVirtualInputSource 只拥有 press/release/clear 机制；本工具统一项目触控与 HUD
-## 的“按下 → 有界延迟 → 释放”策略。重复脉冲只允许最新 token 释放动作，取消或
-## 场景退出时则清除来源贡献，避免留下卡住的虚拟输入。
+## 的“按下 → 有界延迟 → 释放”策略。同一动作在保持期内再次触发时，先结束旧
+## 边沿再重新按下，确保每次 HUD 点击都能形成独立的 GF just_started；同时只
+## 允许最新 token 最终释放动作。取消或场景退出时则清除来源贡献，避免留下卡住
+## 的虚拟输入。
 class_name GameVirtualActionPulseUtility
 extends RefCounted
 
@@ -46,6 +48,8 @@ func pulse(
 		return false
 
 	var token: int = GFVariantData.get_option_int(_action_tokens, action_id) + 1
+	if _action_tokens.has(action_id):
+		var _released_previous_edge: bool = _source.release(action_id)
 	_action_tokens[action_id] = token
 	if not _source.press(action_id):
 		var _removed_failed_token: bool = _action_tokens.erase(action_id)

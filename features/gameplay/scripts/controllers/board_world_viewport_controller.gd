@@ -41,6 +41,7 @@ const _VIEW_CONTROLS_DESKTOP_BOTTOM_OFFSET: float = 64.0
 const _VIEW_CONTROLS_COMPACT_BOTTOM_OFFSET: float = 148.0
 const _FIT_BUTTON_DESKTOP_MINIMUM: Vector2 = Vector2(64.0, 44.0)
 const _FIT_BUTTON_COMPACT_MINIMUM: Vector2 = Vector2(64.0, 44.0)
+const _GAMEPLAY_GRID_OPTIONS: Dictionary = { "visible": false }
 
 
 # --- 导出变量 ---
@@ -409,6 +410,13 @@ func _prepare_spatial_canvas() -> void:
 	if not is_instance_valid(_spatial_canvas) or not is_instance_valid(_world_root):
 		return
 	_spatial_canvas.set_input_enabled(false)
+	var grid_configured: bool = _spatial_canvas.configure_grid(
+		_spatial_canvas.get_grid_origin(),
+		_spatial_canvas.get_grid_size(),
+		_GAMEPLAY_GRID_OPTIONS
+	)
+	if not grid_configured:
+		push_error("[BoardWorldViewportController] 无法关闭 GF 空间画布编辑网格。")
 	var content_root: Node2D = _spatial_canvas.get_content_root()
 	if _world_root.get_parent() != content_root:
 		var previous_sibling_index: int = _world_root.get_index()

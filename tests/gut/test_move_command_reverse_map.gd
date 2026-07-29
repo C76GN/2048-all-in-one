@@ -115,6 +115,90 @@ func test_records_reverse_targets_while_command_runs_inside_simple_event() -> vo
 	architecture.dispose()
 
 
+func test_real_move_history_keeps_bounded_multi_step_undo_and_redo_deterministic() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var grid_model: GridModel = GridModel.new()
+	var command_history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()
+	command_history.max_history_size = 3
+	var composition: TileCompositionUtility = TileCompositionUtility.new()
+
+	await architecture.register_utility(GFCapabilityUtility, GFCapabilityUtility.new())
+	await architecture.register_utility(TileCompositionUtility, composition)
+	await architecture.register_model(GridModel, grid_model)
+	await architecture.register_model(GameStatusModel, GameStatusModel.new())
+	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
+	await architecture.register_utility(GFCommandHistoryUtility, command_history)
+	await architecture.register_system(GameStateSystem, GameStateSystem.new())
+	await architecture.register_system(GridMovementSystem, GridMovementSystem.new())
+	await architecture.register_system(RuleSystem, RuleSystem.new())
+	await architecture.init()
+
+	var definition: TileDefinition = _load_classic_definition()
+	var interaction_rule: ClassicInteractionRule = ClassicInteractionRule.new()
+	interaction_rule.tile_definitions = [definition]
+	interaction_rule.default_definition_id = definition.definition_id
+	assert_true(
+		grid_model.initialize(
+			BoardTopology.create_rectangle(Vector2i(4, 1)),
+			interaction_rule,
+			ClassicMovementRule.new()
+		),
+		"多步历史测试棋盘应初始化成功。"
+	)
+	assert_true(
+		grid_model.place_tile(
+			composition.create_tile(definition, 2),
+			Vector2i(1, 0)
+		),
+		"多步历史测试方块应放置成功。"
+	)
+	var game_state_system: GameStateSystem = architecture.get_system(GameStateSystem)
+	var retained_floor_state: Dictionary = {}
+	for index: int in range(4):
+		var direction: Vector2i = Vector2i.LEFT if index % 2 == 0 else Vector2i.RIGHT
+		var result: Variant = await command_history.execute_command(MoveCommand.new(direction))
+		assert_true(result is TurnResult, "交替移动 %d 应产生有效回合。" % index)
+		if index == 0:
+			retained_floor_state = game_state_system.get_full_game_state()
+	var final_state: Dictionary = game_state_system.get_full_game_state()
+
+	assert_true(
+		command_history.undo_count == command_history.max_history_size,
+		"溢出后 undo 栈应严格受 max_history_size 约束。"
+	)
+	for undo_index: int in range(3):
+		assert_true(
+			await command_history.undo_last_async(),
+			"第 %d 次连续撤销应成功。" % (undo_index + 1)
+		)
+	assert_true(command_history.undo_count == 0, "保留窗口内的三步应全部可撤销。")
+	assert_true(command_history.redo_count == 3, "三次撤销应形成三条可重做记录。")
+	assert_true(
+		game_state_system.are_states_equal(
+			game_state_system.get_full_game_state(),
+			retained_floor_state
+		),
+		"撤销完整个有界窗口后应确定性回到最早保留状态。"
+	)
+
+	for redo_index: int in range(3):
+		assert_true(
+			await command_history.redo_async(),
+			"第 %d 次连续重做应成功。" % (redo_index + 1)
+		)
+	assert_true(command_history.undo_count == 3, "重做后 undo 栈仍不得超过容量。")
+	assert_true(command_history.redo_count == 0, "全部重做后 redo 栈应为空。")
+	assert_true(
+		game_state_system.are_states_equal(
+			game_state_system.get_full_game_state(),
+			final_state
+		),
+		"连续重做后应确定性恢复相同终态。"
+	)
+
+	architecture.dispose()
+
+
 func test_failed_undo_does_not_emit_board_animation_or_hud_refresh() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var rejecting_state_system: RejectingGameStateSystem = RejectingGameStateSystem.new()
