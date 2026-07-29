@@ -21,11 +21,23 @@ const _MIN_SPLASH_SECONDS: float = 0.30
 const _PRELOAD_TIMEOUT_SECONDS: float = 8.0
 const _FINISH_DELAY_SECONDS: float = 0.04
 const _OUTRO_DURATION_SECONDS: float = 0.18
+const _PROGRESS_TASK_PREPARE: StringName = &"prepare"
+const _PROGRESS_TASK_ARCHITECTURE: StringName = &"architecture"
+const _PROGRESS_TASK_THEMES: StringName = &"themes"
+const _PROGRESS_TASK_VISUALS: StringName = &"visuals"
+const _PROGRESS_TASK_ENTRY_SCENE: StringName = &"entry_scene"
+const _PROGRESS_TASK_FINISH: StringName = &"finish"
+const _PROGRESS_WEIGHT_PREPARE: float = 0.10
+const _PROGRESS_WEIGHT_ARCHITECTURE: float = 0.32
+const _PROGRESS_WEIGHT_THEMES: float = 0.16
+const _PROGRESS_WEIGHT_VISUALS: float = 0.10
+const _PROGRESS_WEIGHT_ENTRY_SCENE: float = 0.24
+const _PROGRESS_WEIGHT_FINISH: float = 0.08
 
 
 # --- 私有变量 ---
 
-var _startup_progress: GFAsyncProgress
+var _startup_progress: GFAsyncProgressAggregator
 var _preload_failed: bool = false
 var _visual_warmup: GameplayVisualWarmup
 
@@ -43,10 +55,10 @@ func _ready() -> void:
 
 func _run_startup_sequence() -> void:
 	var started_msec: int = Time.get_ticks_msec()
-	_publish_progress(0.10, "准备启动")
+	_complete_startup_task(_PROGRESS_TASK_PREPARE, "准备启动")
 	await _await_startup_frame(true)
 
-	_publish_progress(0.18, "初始化 GF 架构")
+	_set_startup_task_progress(_PROGRESS_TASK_ARCHITECTURE, 0.25, "初始化 GF 架构")
 	await _await_startup_frame(true)
 	var architecture: GFArchitecture = Gf.create_architecture()
 	architecture.strict_dependency_lookup = true
@@ -54,29 +66,31 @@ func _run_startup_sequence() -> void:
 	var architecture_ready: bool = await Gf.init()
 	if not architecture_ready:
 		push_error("[Boot] GF 架构严格初始化失败。")
-		_publish_progress(1.0, "架构初始化失败")
+		_complete_startup_failure("架构初始化失败")
 		return
 
-	_publish_progress(0.42, "加载主题资源")
+	_complete_startup_task(_PROGRESS_TASK_ARCHITECTURE, "加载主题资源")
 	var themes_ready: bool = await _prepare_initial_themes()
 	if not themes_ready:
 		push_error("[Boot] 初始视觉或声音主题激活失败。")
-		_publish_progress(1.0, "主题资源初始化失败")
+		_complete_startup_failure("主题资源初始化失败")
 		return
 
-	_publish_progress(0.58, "准备视觉资源")
+	_complete_startup_task(_PROGRESS_TASK_THEMES, "准备视觉资源")
 	await _prime_gameplay_visuals()
+	_complete_startup_task(_PROGRESS_TASK_VISUALS, "预热入口场景")
 
 	var scene_utility: GFSceneUtility = _get_scene_utility()
 	if is_instance_valid(scene_utility):
 		await _preload_startup_scene(scene_utility)
 	else:
-		_publish_progress(0.88, "读取入口场景")
+		_set_startup_task_progress(_PROGRESS_TASK_ENTRY_SCENE, 0.0, "读取入口场景")
 		await get_tree().process_frame
+		_complete_startup_task(_PROGRESS_TASK_ENTRY_SCENE, "读取入口场景")
 
-	_publish_progress(0.96, "整理入口场景")
+	_set_startup_task_progress(_PROGRESS_TASK_FINISH, 0.5, "整理入口场景")
 	await _wait_for_minimum_duration(started_msec)
-	var _complete_result: bool = _startup_progress.complete("启动完成")
+	var _complete_result: bool = _startup_progress.complete_all("启动完成")
 	var finish_wait: Dictionary = await GFAsyncWaitUtility.delay_seconds(
 		_FINISH_DELAY_SECONDS,
 		_get_boot_wait_options()
@@ -119,6 +133,7 @@ func _prime_gameplay_visuals() -> void:
 func _preload_startup_scene(scene_utility: GFSceneUtility) -> void:
 	_preload_failed = false
 	_connect_preload_signals(scene_utility)
+	_set_startup_task_progress(_PROGRESS_TASK_ENTRY_SCENE, 0.0, "预热入口场景")
 	var startup_scene_path: String = _get_startup_scene_path()
 	if DisplayServer.get_name() != "headless":
 		scene_utility.configure_scene_preload_map(_SCENE_PRELOAD_MAP, 1, true)
@@ -131,24 +146,25 @@ func _preload_startup_scene(scene_utility: GFSceneUtility) -> void:
 	if error == OK:
 		await _wait_for_startup_scene_preload(scene_utility)
 	else:
-		_publish_progress(0.86, "入口场景将直接载入")
+		_set_startup_task_progress(_PROGRESS_TASK_ENTRY_SCENE, 0.0, "入口场景将直接载入")
 		await get_tree().process_frame
+		_complete_startup_task(_PROGRESS_TASK_ENTRY_SCENE, "入口场景将直接载入")
 	_disconnect_preload_signals(scene_utility)
 
 
 func _wait_for_startup_scene_preload(scene_utility: GFSceneUtility) -> void:
 	var startup_scene_path: String = _get_startup_scene_path()
 	if scene_utility.is_scene_preloaded(startup_scene_path):
-		_publish_progress(0.92, "入口场景已预热")
+		_complete_startup_task(_PROGRESS_TASK_ENTRY_SCENE, "入口场景已预热")
 		return
 	var _preload_wait: Dictionary = await GFAsyncWaitUtility.wait_until(
 		_is_startup_scene_preload_finished.bind(scene_utility),
 		_get_boot_wait_options(_PRELOAD_TIMEOUT_SECONDS)
 	)
 	if is_instance_valid(scene_utility) and scene_utility.is_scene_preloaded(startup_scene_path):
-		_publish_progress(0.92, "入口场景已预热")
+		_complete_startup_task(_PROGRESS_TASK_ENTRY_SCENE, "入口场景已预热")
 	else:
-		_publish_progress(0.86, "入口场景将直接载入")
+		_complete_startup_task(_PROGRESS_TASK_ENTRY_SCENE, "入口场景将直接载入")
 
 
 func _wait_for_minimum_duration(started_msec: int) -> void:
@@ -190,17 +206,42 @@ func _get_boot_wait_options(timeout_seconds: float = 0.0) -> Dictionary:
 
 
 func _setup_progress() -> void:
-	_startup_progress = GFAsyncProgress.new(0.0, "准备启动")
+	_startup_progress = GFAsyncProgressAggregator.new()
 	_startup_progress.min_delta = 0.0
 	_startup_progress.min_interval_msec = 0
+	_startup_progress.add_task(_PROGRESS_TASK_PREPARE, _PROGRESS_WEIGHT_PREPARE)
+	_startup_progress.add_task(_PROGRESS_TASK_ARCHITECTURE, _PROGRESS_WEIGHT_ARCHITECTURE)
+	_startup_progress.add_task(_PROGRESS_TASK_THEMES, _PROGRESS_WEIGHT_THEMES)
+	_startup_progress.add_task(_PROGRESS_TASK_VISUALS, _PROGRESS_WEIGHT_VISUALS)
+	_startup_progress.add_task(_PROGRESS_TASK_ENTRY_SCENE, _PROGRESS_WEIGHT_ENTRY_SCENE)
+	_startup_progress.add_task(_PROGRESS_TASK_FINISH, _PROGRESS_WEIGHT_FINISH)
+	_startup_progress.reset()
 	var _connect_result: int = _startup_progress.progressed.connect(_on_startup_progressed)
-	var _emit_result: bool = _startup_progress.force_emit()
+	_set_startup_task_progress(_PROGRESS_TASK_PREPARE, 0.0, "准备启动")
 
 
-func _publish_progress(value: float, message: String) -> void:
+func _set_startup_task_progress(task_key: StringName, value: float, message: String) -> void:
 	if _startup_progress == null:
 		return
-	var _update_result: bool = _startup_progress.update(value, message)
+	var _update_result: bool = _startup_progress.set_task_progress_by_key(
+		task_key,
+		value,
+		message
+	)
+
+
+func _complete_startup_task(task_key: StringName, message: String) -> void:
+	if _startup_progress == null:
+		return
+	var _complete_result: bool = _startup_progress.complete_task_by_key(task_key, message)
+
+
+func _complete_startup_failure(message: String) -> void:
+	if _startup_progress == null:
+		return
+	var _complete_result: bool = _startup_progress.complete_all(message, {
+		"failed": true,
+	})
 
 
 func _on_startup_progressed(value: float, message: String, _metadata: Dictionary) -> void:
@@ -225,13 +266,23 @@ func _disconnect_preload_signals(scene_utility: GFSceneUtility) -> void:
 
 func _on_scene_preload_progress(path: String, progress: float) -> void:
 	if path == _get_startup_scene_path():
-		_publish_progress(lerpf(0.58, 0.92, clampf(progress, 0.0, 1.0)), "预热入口场景")
+		_set_startup_task_progress(
+			_PROGRESS_TASK_ENTRY_SCENE,
+			clampf(progress, 0.0, 1.0),
+			"预热入口场景"
+		)
 
 
 func _on_scene_preload_failed(path: String) -> void:
 	if path == _get_startup_scene_path():
 		_preload_failed = true
-		_publish_progress(0.84, "入口场景将直接载入")
+		var task_index: int = _startup_progress.get_task_index(_PROGRESS_TASK_ENTRY_SCENE)
+		var task_snapshot: Dictionary = _startup_progress.get_task_snapshot(task_index)
+		_set_startup_task_progress(
+			_PROGRESS_TASK_ENTRY_SCENE,
+			GFVariantData.get_option_float(task_snapshot, "progress"),
+			"入口场景将直接载入"
+		)
 
 
 func _release_visual_warmup() -> void:

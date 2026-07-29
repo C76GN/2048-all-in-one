@@ -235,7 +235,10 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 		boot_source.contains("DisplayServer.get_name() == \"headless\""),
 		"无头审计应跳过仅为可见首帧服务的线程轮询。"
 	)
-	assert_true(runtime_source.contains("GFAsyncProgress"), "启动编排器应使用 GFAsyncProgress 统一启动进度。")
+	assert_true(
+		runtime_source.contains("GFAsyncProgressAggregator"),
+		"启动编排器应使用 GFAsyncProgressAggregator 聚合具名加权任务。"
+	)
 	assert_true(runtime_source.contains("GFAsyncWaitUtility.wait_until"), "启动编排器应使用 GFAsyncWaitUtility 统一预加载条件与超时。")
 	assert_true(runtime_source.contains("GFAsyncWaitUtility.delay_seconds"), "启动画面延迟应受 GF 生命周期保护。")
 	assert_true(runtime_source.contains("preload_scene(startup_scene_path, true)"), "启动编排器应通过 GFSceneUtility 预热实际入口场景。")
