@@ -84,7 +84,9 @@ asset.<kind>.<domain>.<theme_or_pack>.<name>
 - `domain` 表示 `ui`、`tile`、`game`、`background`、`transition` 等业务语义。
 - 文件可移动，稳定 key 不应随意改名。
 - 运行时业务通过 `GameAssetLibraryUtility` 和稳定 key 解析素材，不使用作者路径后备。
-- `ProjectContentCatalogUtility` 独占 GF 内容目录重建；`GFAssetCatalog` 统一暴露运行时和评审查询接口。
+- `ProjectContentCatalogUtility` 以 `project.content_catalog` owner scope 独占 GF 内容目录重建；包级条件使用 `GFContentPackageQuery`，资源级 `type_hint`、key 前缀和 metadata 保持项目薄筛选。
+- 运行时目录由 `GFContentPackageAssetCatalogProvider` 构建并交给 `GFAssetCatalogRuntime` 原子挂载；规范目录 ID 为 `package_id/resource_key`，Resolver 与业务加载 API 继续使用原稳定资源键。
+- `GFAssetCatalog` 统一暴露运行时和评审查询接口。
 - `GFProjectReferenceScanner` 与 `GFAssetAttributionTools` 分别负责强引用和第三方归因证据。
 - 主题内容包依赖素材库 manifest，但候选目录不得进入主题或运行时 manifest。
 

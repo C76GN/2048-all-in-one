@@ -27,12 +27,12 @@ const _ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/script
 const _ASSET_SOURCE_PACK_SCRIPT = preload("res://features/asset_library/scripts/data/asset_source_pack.gd")
 const _ASSET_SLOT_MAP_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_map.gd")
 const _ASSET_SLOT_BINDING_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_binding.gd")
-const _CONTENT_PACKAGE_CATALOG_SOURCE_SCRIPT = preload(
-	"res://features/asset_library/scripts/catalog/game_content_package_catalog_source_provider.gd"
-)
 const _REVIEW_CATALOG_SOURCE_SCRIPT = preload(
 	"res://features/asset_library/scripts/catalog/game_asset_review_catalog_source_provider.gd"
 )
+const _CATALOG_OWNER_ID: StringName = &"asset_library.audit"
+const _RUNTIME_CATALOG_MOUNT_ID: StringName = &"runtime_content_packages"
+const _REVIEW_CATALOG_MOUNT_ID: StringName = &"review_records"
 
 const _ASSET_FILE_EXTENSIONS: PackedStringArray = [
 	"gdshader",
@@ -72,9 +72,11 @@ const _PROJECT_ASSET_SETTING_NAMES: PackedStringArray = [
 
 # --- 私有变量 ---
 
-var _catalog_sources: GFAssetCatalogSourceRegistry = null
-var _runtime_catalog_provider: GameContentPackageCatalogSourceProvider = null
+var _catalog_runtime: GFAssetCatalogRuntime = null
+var _runtime_catalog_provider: GFContentPackageAssetCatalogProvider = null
 var _review_catalog_provider: GameAssetReviewCatalogSourceProvider = null
+var _runtime_catalog_mount: GFAssetCatalogMount = null
+var _review_catalog_mount: GFAssetCatalogMount = null
 var _runtime_catalog: GFAssetCatalog = null
 var _review_catalog: GFAssetCatalog = null
 
@@ -82,15 +84,19 @@ var _review_catalog: GFAssetCatalog = null
 # --- 生命周期方法 ---
 
 func _init() -> void:
-	_ensure_catalog_sources()
+	_ensure_catalog_runtime()
 
 
 func dispose() -> void:
-	if _catalog_sources != null:
-		_catalog_sources.clear_sources()
-	_catalog_sources = null
+	if _catalog_runtime != null:
+		var _unmounted_count: int = _catalog_runtime.unmount_owner(
+			_CATALOG_OWNER_ID
+		)
+	_catalog_runtime = null
 	_runtime_catalog_provider = null
 	_review_catalog_provider = null
+	_runtime_catalog_mount = null
+	_review_catalog_mount = null
 	_runtime_catalog = null
 	_review_catalog = null
 
@@ -432,28 +438,33 @@ func write_review_catalog_reports(
 
 # --- 私有/辅助方法 ---
 
-func _ensure_catalog_sources() -> void:
-	if _catalog_sources != null:
+func _ensure_catalog_runtime() -> void:
+	if _catalog_runtime != null:
 		return
-	_catalog_sources = GFAssetCatalogSourceRegistry.new()
+	_catalog_runtime = GFAssetCatalogRuntime.new().configure(
+		GFAssetCatalogRuntime.CONFLICT_REJECT
+	)
 
-	_runtime_catalog_provider = _CONTENT_PACKAGE_CATALOG_SOURCE_SCRIPT.new()
 	var runtime_content_catalog: GFContentPackageCatalog = GFContentPackageCatalog.new()
 	var runtime_manifest: GFContentPackageManifest = GFContentPackageManifest.load_from_path(
 		ASSET_LIBRARY_MANIFEST_PATH
 	)
 	if runtime_manifest != null:
 		var _manifest_added: bool = runtime_content_catalog.add_manifest(runtime_manifest)
-	var _runtime_configured: GFAssetCatalogSourceProvider = (
+	var runtime_query: GFContentPackageQuery = GFContentPackageQuery.new()
+	runtime_query.query_id = &"asset_library.audit.runtime"
+	runtime_query.package_ids = PackedStringArray([
+		String(GameAssetLibraryUtility.ASSET_LIBRARY_PACKAGE_ID),
+	])
+	runtime_query.required_content_types = PackedStringArray(["asset_library"])
+	_runtime_catalog_provider = GFContentPackageAssetCatalogProvider.new()
+	var _runtime_configured: GFContentPackageAssetCatalogProvider = (
 		_runtime_catalog_provider.configure_catalog(
 			runtime_content_catalog,
 			&"content_package",
-			"asset_library"
+			runtime_query,
+			{"priority": 100}
 		)
-	)
-	var _runtime_registered: bool = _catalog_sources.register_source(
-		_runtime_catalog_provider,
-		{"priority": 100}
 	)
 
 	_review_catalog_provider = _REVIEW_CATALOG_SOURCE_SCRIPT.new()
@@ -463,30 +474,62 @@ func _ensure_catalog_sources() -> void:
 			&"asset_review"
 		)
 	)
-	var _review_registered: bool = _catalog_sources.register_source(
-		_review_catalog_provider,
-		{"priority": 50}
+	var _review_priority_configured: GFAssetCatalogSourceProvider = (
+		_review_catalog_provider.configure(
+			&"asset_review",
+			{"priority": 50}
+		)
 	)
 
 
 func _rebuild_runtime_catalog() -> void:
-	_ensure_catalog_sources()
+	_ensure_catalog_runtime()
 	_runtime_catalog = GFAssetCatalog.new()
-	if _catalog_sources == null or _runtime_catalog_provider == null:
+	if _catalog_runtime == null or _runtime_catalog_provider == null:
 		return
-	_runtime_catalog = _catalog_sources.build_catalog({
-		"source_ids": PackedStringArray(["content_package"]),
-	})
+	if _runtime_catalog_mount != null and _runtime_catalog_mount.is_active():
+		var candidate_catalog: GFAssetCatalog = (
+			_runtime_catalog_provider.build_catalog()
+		)
+		if candidate_catalog == null:
+			return
+		if not _catalog_runtime.replace_mount_catalog(
+			_runtime_catalog_mount,
+			candidate_catalog
+		):
+			return
+	else:
+		_runtime_catalog_mount = _catalog_runtime.mount_provider(
+			_CATALOG_OWNER_ID,
+			_RUNTIME_CATALOG_MOUNT_ID,
+			_runtime_catalog_provider
+		)
+	if _runtime_catalog_mount != null and _runtime_catalog_mount.is_active():
+		_runtime_catalog = _runtime_catalog_mount.get_catalog()
 
 
 func _rebuild_review_catalog() -> void:
-	_ensure_catalog_sources()
+	_ensure_catalog_runtime()
 	_review_catalog = GFAssetCatalog.new()
-	if _catalog_sources == null or _review_catalog_provider == null:
+	if _catalog_runtime == null or _review_catalog_provider == null:
 		return
-	_review_catalog = _catalog_sources.build_catalog({
-		"source_ids": PackedStringArray(["asset_review"]),
-	})
+	if _review_catalog_mount != null and _review_catalog_mount.is_active():
+		var candidate_catalog: GFAssetCatalog = (
+			_review_catalog_provider.build_catalog()
+		)
+		if not _catalog_runtime.replace_mount_catalog(
+			_review_catalog_mount,
+			candidate_catalog
+		):
+			return
+	else:
+		_review_catalog_mount = _catalog_runtime.mount_provider(
+			_CATALOG_OWNER_ID,
+			_REVIEW_CATALOG_MOUNT_ID,
+			_review_catalog_provider
+		)
+	if _review_catalog_mount != null and _review_catalog_mount.is_active():
+		_review_catalog = _review_catalog_mount.get_catalog()
 
 
 func _collect_asset_usage(entries: Array[Dictionary], scan_roots: PackedStringArray) -> Dictionary:

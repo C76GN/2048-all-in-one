@@ -38,7 +38,12 @@ func test_asset_library_registers_assets_into_gf_resolver() -> void:
 	var celebration_shader: Resource = asset_library.load_asset(&"asset.vfx.celebration.confetti_canvas", "Shader")
 	var resolve_report: Dictionary = resolver.resolve(&"asset.shader.transition.halftone_wipe", "Shader")
 	var runtime_catalog: GFAssetCatalog = asset_library.get_runtime_catalog()
-	var transition_entry: GFAssetCatalogEntry = runtime_catalog.get_entry(
+	var transition_catalog_id: StringName = (
+		GameAssetLibraryUtility.make_runtime_catalog_asset_id(
+			&"asset.shader.transition.halftone_wipe"
+		)
+	)
+	var transition_entry: GFAssetCatalogEntry = asset_library.get_runtime_catalog_entry(
 		&"asset.shader.transition.halftone_wipe"
 	)
 
@@ -48,11 +53,22 @@ func test_asset_library_registers_assets_into_gf_resolver() -> void:
 	assert_true(celebration_shader is Shader, "素材库庆祝 VFX shader 应能通过稳定 asset key 加载。")
 	assert_true(GFVariantData.get_option_bool(resolve_report, "ok", false), "素材库资源键应注册进 GFResourceResolverUtility。")
 	assert_true(
-		runtime_catalog.has_entry(&"asset.shader.transition.halftone_wipe"),
-		"内容包资源应同时进入 GFAssetCatalog，供搜索、分组和诊断复用。"
+		runtime_catalog.has_entry(transition_catalog_id),
+		"内容包资源应以 package_id/resource_key 规范 ID 进入 GFAssetCatalog。"
 	)
 	assert_true(transition_entry != null, "内容包目录应保留已注册资源条目。")
 	if transition_entry != null:
+		assert_true(
+			transition_entry.asset_id == transition_catalog_id,
+			"项目 helper 应把稳定 resource key 映射到 GF 规范目录 ID。"
+		)
+		assert_true(
+			GFVariantData.get_option_string_name(
+				transition_entry.metadata,
+				"content_package_resource_key"
+			) == &"asset.shader.transition.halftone_wipe",
+			"GF 目录 metadata 应保留原稳定 resource key，避免 catalog ID 迁移丢失身份。"
+		)
 		assert_true(transition_entry.tags.has("shader"), "GF 标准 metadata.tags 应进入目录标签索引。")
 		assert_true(transition_entry.tags.has("transition"), "转场素材应保留用途标签。")
 	assert_true(
@@ -60,6 +76,56 @@ func test_asset_library_registers_assets_into_gf_resolver() -> void:
 			== "res://features/asset_library/resources/audio/ui/printworks_select_soft_01.ogg",
 		"素材库应提供稳定 ID 到资源路径的解析。"
 	)
+
+	await _dispose_architecture(architecture)
+
+
+func test_project_content_catalog_uses_owner_scoped_roots_and_gf_query() -> void:
+	var setup: Dictionary = await _create_asset_library_architecture()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var content_packages: GFContentPackageUtility = _get_content_packages(setup)
+	var project_catalog: ProjectContentCatalogUtility = _get_project_catalog(setup)
+
+	assert_true(
+		content_packages.get_owner_source_roots(
+			ProjectContentCatalogUtility.SOURCE_ROOT_OWNER_ID
+		).has(GameAssetLibraryUtility.ASSET_LIBRARY_SOURCE_ROOT),
+		"项目内容包根目录应由稳定 owner scope 持有。"
+	)
+	assert_true(
+		content_packages.get_owner_source_roots(
+			GFContentPackageUtility.DEFAULT_SOURCE_ROOT_OWNER_ID
+		).is_empty(),
+		"项目目录不应再占用 GF 默认 manual owner scope。"
+	)
+
+	var matching_entries: Array[Dictionary] = project_catalog.query_resources({
+		"package_ids": PackedStringArray([
+			String(GameAssetLibraryUtility.ASSET_LIBRARY_PACKAGE_ID),
+		]),
+		"required_content_type": "asset_library",
+		"type_hint": "Shader",
+		"key_prefix": "asset.shader.transition.",
+		"metadata": {"category": "transition"},
+	})
+	var non_matching_entries: Array[Dictionary] = project_catalog.query_resources({
+		"package_ids": PackedStringArray(["missing.package"]),
+		"required_content_type": "asset_library",
+	})
+
+	assert_false(matching_entries.is_empty(), "GFContentPackageQuery 命中包后应继续应用资源级薄筛选。")
+	for entry: Dictionary in matching_entries:
+		assert_true(
+			GFVariantData.get_option_string(entry, "type_hint") == "Shader",
+			"资源级 type_hint 筛选应保持原契约。"
+		)
+		assert_true(
+			String(GFVariantData.get_option_string_name(entry, "key")).begins_with(
+				"asset.shader.transition."
+			),
+			"资源级 key_prefix 筛选应保持原契约。"
+		)
+	assert_true(non_matching_entries.is_empty(), "不存在的 package ID 应稳定返回零匹配。")
 
 	await _dispose_architecture(architecture)
 
@@ -348,6 +414,8 @@ func _create_asset_library_architecture() -> Dictionary:
 	return {
 		"architecture": architecture,
 		"resolver": resolver,
+		"content_packages": content_packages,
+		"project_content_catalog": project_content_catalog,
 		"asset_library": asset_library,
 	}
 
@@ -383,6 +451,24 @@ func _get_asset_library(setup: Dictionary) -> GameAssetLibraryUtility:
 		return asset_library
 	assert_true(false, "测试 setup 缺少 GameAssetLibraryUtility。")
 	return GameAssetLibraryUtility.new()
+
+
+func _get_content_packages(setup: Dictionary) -> GFContentPackageUtility:
+	var value: Variant = setup.get("content_packages")
+	if value is GFContentPackageUtility:
+		var content_packages: GFContentPackageUtility = value
+		return content_packages
+	assert_true(false, "测试 setup 缺少 GFContentPackageUtility。")
+	return GFContentPackageUtility.new()
+
+
+func _get_project_catalog(setup: Dictionary) -> ProjectContentCatalogUtility:
+	var value: Variant = setup.get("project_content_catalog")
+	if value is ProjectContentCatalogUtility:
+		var project_catalog: ProjectContentCatalogUtility = value
+		return project_catalog
+	assert_true(false, "测试 setup 缺少 ProjectContentCatalogUtility。")
+	return ProjectContentCatalogUtility.new()
 
 
 func _metadata_issues_have_kind(issues: Array[Dictionary], kind: String) -> bool:

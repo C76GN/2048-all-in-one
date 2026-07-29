@@ -14,6 +14,11 @@
 
 素材身份统一使用 `source_pack_id + relative_path + SHA-256`。评审记录、源包资源和源包 manifest 不保存工作站绝对路径。
 
+玩家运行时仍通过稳定 `asset.*` resource key 解析和加载素材。GF 目录由
+`GFContentPackageAssetCatalogProvider` 构建，并由 `GFAssetCatalogRuntime` 原子挂载；
+目录条目 ID 采用 GF 10 规范 `package_id/resource_key`，项目代码需要目录条目时调用
+`GameAssetLibraryUtility.get_runtime_catalog_entry()`，不得自行拼接或回退资源路径。
+
 ## 标准流程
 
 1. 在本机 `resources/import_sources.local.json` 配置源包路径。

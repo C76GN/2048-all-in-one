@@ -13,9 +13,9 @@ const ASSET_LIBRARY_SOURCE_ROOT: String = "res://features/asset_library/resource
 const ASSET_LIBRARY_MANIFEST_PATH: String = (
 	"res://features/asset_library/resources/gf_content_package.json"
 )
-const _CONTENT_PACKAGE_CATALOG_SOURCE_SCRIPT = preload(
-	"res://features/asset_library/scripts/catalog/game_content_package_catalog_source_provider.gd"
-)
+const _RUNTIME_CATALOG_OWNER_ID: StringName = &"game.asset_library"
+const _RUNTIME_CATALOG_MOUNT_ID: StringName = &"runtime_content_packages"
+const _RUNTIME_CATALOG_SOURCE_ID: StringName = &"content_package"
 
 
 # --- 私有变量 ---
@@ -23,15 +23,18 @@ const _CONTENT_PACKAGE_CATALOG_SOURCE_SCRIPT = preload(
 var _resolver: GFResourceResolverUtility = null
 var _project_content_catalog: ProjectContentCatalogUtility = null
 var _last_catalog_report: Dictionary = {}
-var _catalog_sources: GFAssetCatalogSourceRegistry = null
-var _runtime_catalog_provider: GameContentPackageCatalogSourceProvider = null
-var _runtime_catalog: GFAssetCatalog = null
+var _catalog_runtime: GFAssetCatalogRuntime = null
+var _runtime_catalog_provider: GFContentPackageAssetCatalogProvider = null
+var _runtime_catalog_mount: GFAssetCatalogMount = null
 
 
 # --- GF 生命周期方法 ---
 
 func init() -> void:
 	_last_catalog_report.clear()
+	_catalog_runtime = GFAssetCatalogRuntime.new().configure(
+		GFAssetCatalogRuntime.CONFLICT_REJECT
+	)
 
 
 func get_required_utilities() -> Array[Script]:
@@ -51,6 +54,7 @@ func dispose() -> void:
 	_project_content_catalog = null
 	_last_catalog_report.clear()
 	_clear_runtime_catalog()
+	_catalog_runtime = null
 
 
 func release_dependencies() -> void:
@@ -87,12 +91,31 @@ func load_asset(
 
 
 ## 获取全部 asset_library 内容包对应的 GF 标准运行时素材目录副本。
+##
+## 目录采用 GF 10 的规范 asset ID：`package_id/resource_key`。业务加载仍使用原有
+## 稳定 resource key；需要读取目录条目时应调用 get_runtime_catalog_entry()。
 func get_runtime_catalog() -> GFAssetCatalog:
-	if _runtime_catalog == null:
+	if _catalog_runtime == null or _runtime_catalog_mount == null:
 		_rebuild_runtime_catalog()
-	if _runtime_catalog == null:
+	if _catalog_runtime == null:
 		return GFAssetCatalog.new()
-	return GFAssetCatalog.from_dict(_runtime_catalog.to_dict())
+	return _catalog_runtime.get_catalog()
+
+
+## 通过稳定 resource key 获取 GF 规范目录条目。
+## @param asset_key: 内容包中声明的稳定素材键。
+func get_runtime_catalog_entry(asset_key: StringName) -> GFAssetCatalogEntry:
+	if asset_key == &"":
+		return null
+	return get_runtime_catalog().get_entry(make_runtime_catalog_asset_id(asset_key))
+
+
+## 把项目稳定 resource key 转换为 GF 内容包目录规范 asset ID。
+## @param asset_key: 内容包中声明的稳定素材键。
+static func make_runtime_catalog_asset_id(asset_key: StringName) -> StringName:
+	if asset_key == &"":
+		return &""
+	return StringName("%s/%s" % [String(ASSET_LIBRARY_PACKAGE_ID), String(asset_key)])
 
 
 ## 查询已注册运行时素材目录。
@@ -113,11 +136,11 @@ func get_debug_snapshot() -> Dictionary:
 		"asset_library_package_id": String(ASSET_LIBRARY_PACKAGE_ID),
 		"catalog_report": _last_catalog_report.duplicate(true),
 		"project_content_catalog": content_catalog_snapshot,
-		"catalog_sources": (
-			_catalog_sources.get_source_records() if _catalog_sources != null else []
+		"catalog_runtime": (
+			_catalog_runtime.get_debug_snapshot() if _catalog_runtime != null else {}
 		),
-		"runtime_catalog": (
-			_runtime_catalog.get_debug_snapshot() if _runtime_catalog != null else {}
+		"runtime_catalog_mount": (
+			_runtime_catalog_mount.to_dict() if _runtime_catalog_mount != null else {}
 		),
 	}
 
@@ -148,32 +171,62 @@ func _get_project_content_catalog_utility() -> ProjectContentCatalogUtility:
 
 
 func _rebuild_runtime_catalog() -> void:
-	_clear_runtime_catalog()
-	_runtime_catalog = GFAssetCatalog.new()
 	if not is_instance_valid(_project_content_catalog):
 		return
+	if _catalog_runtime == null:
+		_catalog_runtime = GFAssetCatalogRuntime.new().configure(
+			GFAssetCatalogRuntime.CONFLICT_REJECT
+		)
 
-	_catalog_sources = GFAssetCatalogSourceRegistry.new()
-	_runtime_catalog_provider = _CONTENT_PACKAGE_CATALOG_SOURCE_SCRIPT.new()
-	var _configured: GFAssetCatalogSourceProvider = (
-		_runtime_catalog_provider.configure_catalog(
+	var query: GFContentPackageQuery = GFContentPackageQuery.new()
+	query.query_id = &"game.asset_library.runtime"
+	query.package_ids = PackedStringArray([String(ASSET_LIBRARY_PACKAGE_ID)])
+	query.required_content_types = PackedStringArray(["asset_library"])
+	var candidate_provider: GFContentPackageAssetCatalogProvider = (
+		GFContentPackageAssetCatalogProvider.new()
+	)
+	var _configured: GFContentPackageAssetCatalogProvider = (
+		candidate_provider.configure_catalog(
 			_project_content_catalog.get_catalog(),
-			&"content_package",
-			"asset_library"
+			_RUNTIME_CATALOG_SOURCE_ID,
+			query,
+			{"priority": 100}
 		)
 	)
-	var _registered: bool = _catalog_sources.register_source(
-		_runtime_catalog_provider,
-		{"priority": 100}
+
+	if _runtime_catalog_mount != null and _runtime_catalog_mount.is_active():
+		var candidate_catalog: GFAssetCatalog = candidate_provider.build_catalog()
+		if candidate_catalog == null:
+			push_error("[GameAssetLibraryUtility] GF 内容包 Provider 构建目录失败，保留上一 revision。")
+			return
+		if not _catalog_runtime.replace_mount_catalog(
+			_runtime_catalog_mount,
+			candidate_catalog
+		):
+			push_error("[GameAssetLibraryUtility] GF 运行时目录原子替换失败，保留上一 revision。")
+			return
+		_runtime_catalog_provider = candidate_provider
+		return
+
+	var candidate_mount: GFAssetCatalogMount = _catalog_runtime.mount_provider(
+		_RUNTIME_CATALOG_OWNER_ID,
+		_RUNTIME_CATALOG_MOUNT_ID,
+		candidate_provider
 	)
-	_runtime_catalog = _catalog_sources.build_catalog({
-		"source_ids": PackedStringArray(["content_package"]),
-	})
+	if not candidate_mount.is_active():
+		push_error(
+			"[GameAssetLibraryUtility] GF 运行时目录挂载失败：%s。"
+			% String(candidate_mount.get_status())
+		)
+		return
+	_runtime_catalog_provider = candidate_provider
+	_runtime_catalog_mount = candidate_mount
 
 
 func _clear_runtime_catalog() -> void:
-	if _catalog_sources != null:
-		_catalog_sources.clear_sources()
-	_catalog_sources = null
+	if _catalog_runtime != null:
+		var _unmounted_count: int = _catalog_runtime.unmount_owner(
+			_RUNTIME_CATALOG_OWNER_ID
+		)
 	_runtime_catalog_provider = null
-	_runtime_catalog = null
+	_runtime_catalog_mount = null

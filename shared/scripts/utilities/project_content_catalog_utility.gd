@@ -6,6 +6,12 @@ class_name ProjectContentCatalogUtility
 extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 
+# --- 常量 ---
+
+## 本 Utility 在 GFContentPackageUtility 中持有 source root 的稳定 owner。
+const SOURCE_ROOT_OWNER_ID: StringName = &"project.content_catalog"
+
+
 # --- 信号 ---
 
 signal catalog_refreshed(report: Dictionary)
@@ -14,7 +20,6 @@ signal catalog_refreshed(report: Dictionary)
 # --- 私有变量 ---
 
 var _configured_source_roots: PackedStringArray = PackedStringArray()
-var _owned_source_roots: PackedStringArray = PackedStringArray()
 var _content_packages: GFContentPackageUtility = null
 var _resolver: GFResourceResolverUtility = null
 var _last_refresh_report: Dictionary = {}
@@ -23,7 +28,6 @@ var _last_refresh_report: Dictionary = {}
 # --- GF 生命周期方法 ---
 
 func init() -> void:
-	_owned_source_roots.clear()
 	_last_refresh_report.clear()
 
 
@@ -40,9 +44,9 @@ func ready() -> void:
 
 func dispose() -> void:
 	if is_instance_valid(_content_packages):
-		for source_root: String in _owned_source_roots:
-			var _unregistered: bool = _content_packages.unregister_source_root(source_root)
-	_owned_source_roots.clear()
+		var _cleared_root_count: int = _content_packages.clear_owner_source_roots(
+			SOURCE_ROOT_OWNER_ID
+		)
 	_last_refresh_report.clear()
 	_content_packages = null
 	_resolver = null
@@ -92,21 +96,22 @@ func refresh() -> Dictionary:
 		)
 		return _finalize_refresh_report(report)
 
-	var registered_roots: PackedStringArray = _content_packages.get_source_roots()
-	for source_root: String in _configured_source_roots:
-		if registered_roots.has(source_root):
-			continue
-		if _content_packages.register_source_root(source_root):
-			var _owned_root_appended: bool = _owned_source_roots.append(source_root)
-			var _registered_root_appended: bool = registered_roots.append(source_root)
-			continue
-		var _root_issue: Dictionary = GFValidationReportDictionary.append_issue(
-			report,
-			"error",
-			&"source_root_registration_failed",
-			"内容包 source root 注册失败：%s。" % source_root,
-			{"path": source_root}
+	var source_root_report: GFValidationReport = (
+		_content_packages.replace_owner_source_roots(
+			SOURCE_ROOT_OWNER_ID,
+			_configured_source_roots
 		)
+	)
+	var source_root_report_data: Dictionary = source_root_report.to_dict()
+	var _source_root_report_merged: Dictionary = (
+		GFValidationReportDictionary.merge_report(
+			report,
+			source_root_report_data
+		)
+	)
+	report["source_root_registration"] = source_root_report_data
+	if not source_root_report.is_ok():
+		return _finalize_refresh_report(report)
 
 	var catalog_report: Dictionary = _content_packages.rebuild_catalog({
 		"check_resource_exists": true,
@@ -170,15 +175,20 @@ func query_resources(options: Dictionary = {}) -> Array[Dictionary]:
 	var required_type_hint: String = GFVariantData.get_option_string(options, "type_hint")
 	var key_prefix: String = GFVariantData.get_option_string(options, "key_prefix")
 	var metadata_filter: Dictionary = GFVariantData.get_option_dictionary(options, "metadata")
+	var package_query: GFContentPackageQuery = GFContentPackageQuery.new()
+	package_query.query_id = &"project.content_catalog.resources"
+	package_query.package_ids = package_filter
+	if not required_content_type.is_empty():
+		package_query.required_content_types = PackedStringArray([
+			required_content_type,
+		])
+	var package_result: GFContentPackageQueryResult = catalog.query_packages(
+		package_query
+	)
+	if not package_result.is_successful():
+		return result
 
-	for package_id_text: String in catalog.get_ordered_package_ids():
-		if not package_filter.is_empty() and not package_filter.has(package_id_text):
-			continue
-		var manifest: GFContentPackageManifest = catalog.get_manifest(StringName(package_id_text))
-		if manifest == null:
-			continue
-		if not required_content_type.is_empty() and not manifest.content_types.has(required_content_type):
-			continue
+	for manifest: GFContentPackageManifest in package_result.get_manifests():
 		for entry: Dictionary in manifest.get_normalized_resources():
 			if not _resource_entry_matches(entry, required_type_hint, key_prefix, metadata_filter):
 				continue
@@ -217,7 +227,12 @@ func load_resource(
 func get_debug_snapshot() -> Dictionary:
 	return {
 		"configured_source_roots": _configured_source_roots.duplicate(),
-		"owned_source_roots": _owned_source_roots.duplicate(),
+		"source_root_owner_id": String(SOURCE_ROOT_OWNER_ID),
+		"owned_source_roots": (
+			_content_packages.get_owner_source_roots(SOURCE_ROOT_OWNER_ID)
+			if is_instance_valid(_content_packages)
+			else PackedStringArray()
+		),
 		"refresh_report": _last_refresh_report.duplicate(true),
 		"content_packages": (
 			_content_packages.get_debug_snapshot()
