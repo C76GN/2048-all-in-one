@@ -4,6 +4,10 @@ extends GutTest
 
 const _TRACK_A: StringName = &"asset.audio.music.puzzle_music_2.attempt"
 const _TRACK_B: StringName = &"asset.audio.music.puzzle_music_2.blue"
+const _TEST_OGG_PATH: String = (
+	"res://features/asset_library/resources/audio/ui/"
+	+ "printworks_select_soft_01.ogg"
+)
 const _LOAD_WORKER_SCRIPT: GDScript = preload(
 	"res://features/themes/scripts/workers/puzzle_music_file_read_worker.gd"
 )
@@ -38,9 +42,24 @@ func test_shuffle_is_stable_complete_and_avoids_cycle_boundary_repeat() -> void:
 func test_local_track_boundary_rejects_project_external_and_traversal_paths() -> void:
 	assert_true(
 		GameBackgroundMusicUtility.is_allowed_local_track_path(
-			"user://content_packages/puzzle_music_2/audio/Attempt.wav"
+			"user://content_packages/puzzle_music_2/audio/Attempt.ogg",
+			GameBackgroundMusicUtility.RESOURCE_TYPE_HINT
 		),
-		"受控 user:// 内容包 WAV 应可播放。"
+		"新安装包的受控 user:// OGG 应可播放。"
+	)
+	assert_true(
+		GameBackgroundMusicUtility.is_allowed_local_track_path(
+			"user://content_packages/puzzle_music_2/audio/Attempt.wav",
+			GameBackgroundMusicUtility.LEGACY_RESOURCE_TYPE_HINT
+		),
+		"旧版内容包 WAV 应继续兼容。"
+	)
+	assert_false(
+		GameBackgroundMusicUtility.is_allowed_local_track_path(
+			"user://content_packages/puzzle_music_2/audio/Attempt.wav",
+			GameBackgroundMusicUtility.RESOURCE_TYPE_HINT
+		),
+		"清单声明 OGG 时不得接受同名 WAV。"
 	)
 	assert_false(
 		GameBackgroundMusicUtility.is_allowed_local_track_path(
@@ -58,7 +77,7 @@ func test_local_track_boundary_rejects_project_external_and_traversal_paths() ->
 		GameBackgroundMusicUtility.is_allowed_local_track_path(
 			"user://content_packages/puzzle_music_2/audio/Attempt.mp3"
 		),
-		"运行时只接受安装器声明的 WAV 格式。"
+		"运行时只接受安装器 OGG 与兼容 WAV 格式。"
 	)
 	assert_false(
 		GameBackgroundMusicUtility.is_allowed_local_track_path(
@@ -80,6 +99,24 @@ func test_missing_local_package_degrades_silently() -> void:
 	_dispose_architecture(setup)
 
 
+func test_unsupported_manifest_audio_type_is_not_discovered() -> void:
+	var setup: Dictionary = await _create_architecture([
+		_make_entry(_TRACK_A, "AudioStreamMP3"),
+	])
+	var music: GameBackgroundMusicUtility = _get_music(setup)
+
+	assert_true(
+		music.get_available_track_keys().is_empty(),
+		"放宽目录查询后仍只能接受明确支持的 OGG 与旧 WAV 类型。"
+	)
+	assert_false(
+		music.start_if_available(),
+		"不支持的清单类型不得进入后台读取。"
+	)
+
+	_dispose_architecture(setup)
+
+
 func test_stable_keys_load_in_background_and_advance_without_gameplay_rng() -> void:
 	var setup: Dictionary = await _create_architecture([
 		_make_entry(_TRACK_A),
@@ -89,19 +126,24 @@ func test_stable_keys_load_in_background_and_advance_without_gameplay_rng() -> v
 	var audio: _FakeAudioUtility = _get_audio(setup)
 	var background_work: _FakeBackgroundWorkUtility = _get_background_work(setup)
 	var catalog: _FakeContentCatalogUtility = _get_catalog(setup)
-	var wav_bytes: PackedByteArray = _make_test_wav_bytes()
+	var ogg_bytes: PackedByteArray = _make_test_ogg_bytes()
 
 	assert_true(music.get_available_track_keys().size() == 2, "应按稳定键发现两首曲目。")
 	assert_true(music.start_if_available(), "有曲目时应提交后台读取。")
+	assert_true(
+		catalog.last_resolve_type_hint
+		== GameBackgroundMusicUtility.RESOURCE_TYPE_HINT,
+		"新内容包应按 AudioStreamOggVorbis 类型解析稳定资源键。"
+	)
 	assert_false(
 		GFVariantData.get_option_bool(
 			catalog.last_resolve_options,
 			"check_exists",
 			true
 		),
-		"user:// 原始 WAV 应让 GF 只解析稳定身份和路径，不能要求 ResourceLoader 导入产物。"
+		"user:// OGG 应让 GF 只解析稳定身份和路径，不能要求 ResourceLoader 导入产物。"
 	)
-	assert_true(background_work.has_pending_work(), "WAV IO 必须交给后台工作。")
+	assert_true(background_work.has_pending_work(), "OGG IO 必须交给后台工作。")
 	assert_true(
 		GFVariantData.get_option_int(
 			music.get_debug_snapshot(),
@@ -109,7 +151,7 @@ func test_stable_keys_load_in_background_and_advance_without_gameplay_rng() -> v
 		) == 1,
 		"后台 Callable 的 RefCounted worker 必须由播放 Utility 强持有到任务终态。"
 	)
-	background_work.complete_pending(wav_bytes)
+	background_work.complete_pending(ogg_bytes)
 
 	assert_true(audio.played_track_keys.size() == 1, "后台完成后应委托 GFAudioUtility 播放。")
 	assert_true(
@@ -119,7 +161,10 @@ func test_stable_keys_load_in_background_and_advance_without_gameplay_rng() -> v
 		) == 0,
 		"后台任务应用完成后应释放 worker 强引用。"
 	)
-	assert_true(audio.last_stream is AudioStreamWAV, "主线程应把 WAV 字节构建为 AudioStreamWAV。")
+	assert_true(
+		audio.last_stream is AudioStreamOggVorbis,
+		"新安装包应构建流式 AudioStreamOggVorbis，不在主线程展开大体积 PCM。"
+	)
 	var first_key: String = audio.played_track_keys[0]
 	assert_true(
 		first_key == String(_TRACK_A) or first_key == String(_TRACK_B),
@@ -128,12 +173,39 @@ func test_stable_keys_load_in_background_and_advance_without_gameplay_rng() -> v
 
 	audio.finish_current_track()
 	assert_true(background_work.has_pending_work(), "自然结束后应异步请求下一首。")
-	background_work.complete_pending(wav_bytes)
+	background_work.complete_pending(ogg_bytes)
 	assert_true(audio.played_track_keys.size() == 2, "自然结束后应推进播放列表。")
 	assert_ne(
 		audio.played_track_keys[1],
 		first_key,
 		"同一轮存在多首曲目时不得立即重复。"
+	)
+
+	_dispose_architecture(setup)
+
+
+func test_legacy_wav_package_remains_playable() -> void:
+	var setup: Dictionary = await _create_architecture([
+		_make_entry(
+			_TRACK_A,
+			GameBackgroundMusicUtility.LEGACY_RESOURCE_TYPE_HINT
+		),
+	])
+	var music: GameBackgroundMusicUtility = _get_music(setup)
+	var audio: _FakeAudioUtility = _get_audio(setup)
+	var background_work: _FakeBackgroundWorkUtility = _get_background_work(setup)
+	var catalog: _FakeContentCatalogUtility = _get_catalog(setup)
+
+	assert_true(music.start_if_available(), "旧 WAV 内容包应继续进入后台读取。")
+	assert_true(
+		catalog.last_resolve_type_hint
+		== GameBackgroundMusicUtility.LEGACY_RESOURCE_TYPE_HINT,
+		"旧包必须按原清单类型解析，不能伪装成 OGG。"
+	)
+	background_work.complete_pending(_make_test_wav_bytes())
+	assert_true(
+		audio.last_stream is AudioStreamWAV,
+		"旧 WAV 包仍应构建 AudioStreamWAV。"
 	)
 
 	_dispose_architecture(setup)
@@ -198,6 +270,7 @@ func test_worker_checks_file_length_before_reading_oversized_wav() -> void:
 		"resource_key": _TRACK_A,
 		"generation": 7,
 		"max_bytes": 64,
+		"type_hint": GameBackgroundMusicUtility.LEGACY_RESOURCE_TYPE_HINT,
 	}))
 	assert_false(
 		GFVariantData.get_option_bool(result, "loaded", true),
@@ -226,7 +299,16 @@ func _create_architecture(entries: Array[Dictionary]) -> Dictionary:
 	catalog.entries = _copy_entries(entries)
 	for entry: Dictionary in entries:
 		var key: StringName = GFVariantData.get_option_string_name(entry, "key")
-		var file_name: String = "%s.wav" % String(key).get_slice(".", 4).capitalize()
+		var type_hint: String = GFVariantData.get_option_string(entry, "type_hint")
+		var extension: String = (
+			"ogg"
+			if type_hint == GameBackgroundMusicUtility.RESOURCE_TYPE_HINT
+			else "wav"
+		)
+		var file_name: String = (
+			"%s.%s"
+			% [String(key).get_slice(".", 4).capitalize(), extension]
+		)
 		catalog.paths[key] = (
 			"user://content_packages/puzzle_music_2/audio/%s" % file_name
 		)
@@ -260,10 +342,13 @@ func _dispose_architecture(setup: Dictionary) -> void:
 		architecture.dispose()
 
 
-func _make_entry(key: StringName) -> Dictionary:
+func _make_entry(
+	key: StringName,
+	type_hint: String = GameBackgroundMusicUtility.RESOURCE_TYPE_HINT
+) -> Dictionary:
 	return {
 		"key": key,
-		"type_hint": GameBackgroundMusicUtility.RESOURCE_TYPE_HINT,
+		"type_hint": type_hint,
 		"metadata": {
 			"playlist": GameBackgroundMusicUtility.PLAYLIST_ID,
 		},
@@ -290,6 +375,10 @@ func _make_test_wav_bytes() -> PackedByteArray:
 	for index: int in range(44, bytes.size()):
 		bytes[index] = 128
 	return bytes
+
+
+func _make_test_ogg_bytes() -> PackedByteArray:
+	return FileAccess.get_file_as_bytes(_TEST_OGG_PATH)
 
 
 func _get_music(setup: Dictionary) -> GameBackgroundMusicUtility:
@@ -334,6 +423,7 @@ class _FakeContentCatalogUtility extends ProjectContentCatalogUtility:
 	var entries: Array[Dictionary] = []
 	var paths: Dictionary = {}
 	var last_resolve_options: Dictionary = {}
+	var last_resolve_type_hint: String = ""
 
 
 	func get_required_utilities() -> Array[Script]:
@@ -353,14 +443,15 @@ class _FakeContentCatalogUtility extends ProjectContentCatalogUtility:
 
 
 	## @param resource_key: 要解析的稳定资源键。
-	## @param _type_hint: 测试替身忽略的类型提示。
+	## @param type_hint: 测试替身记录的类型提示。
 	## @param _options: 测试替身忽略的解析选项。
 	func resolve_resource(
 		resource_key: StringName,
-		_type_hint: String = "",
+		type_hint: String = "",
 		_options: Dictionary = {}
 	) -> Dictionary:
 		last_resolve_options = _options.duplicate(true)
+		last_resolve_type_hint = type_hint
 		var path: String = GFVariantData.get_option_string(paths, resource_key)
 		return {
 			"ok": not path.is_empty(),
@@ -476,7 +567,7 @@ class _FakeBackgroundWorkUtility extends GFBackgroundWorkUtility:
 		return _pending_task != null and not _pending_task.is_finished()
 
 
-	## @param bytes: 模拟 worker 返回的 WAV 字节。
+	## @param bytes: 模拟 worker 返回的 OGG 或 WAV 字节。
 	func complete_pending(bytes: PackedByteArray) -> void:
 		if _pending_task == null:
 			return
@@ -491,6 +582,10 @@ class _FakeBackgroundWorkUtility extends GFBackgroundWorkUtility:
 				"resource_key"
 			),
 			"generation": GFVariantData.get_option_int(payload, "generation"),
+			"type_hint": GFVariantData.get_option_string(
+				payload,
+				"type_hint"
+			),
 			"bytes": bytes.duplicate(),
 		}
 		var apply_callback: Callable = task.get_apply_callback()
