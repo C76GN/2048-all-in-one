@@ -103,10 +103,26 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 		"暂停菜单应声明设置页为相邻预加载路由。"
 	)
 	assert_true(
-		ui_router.get_route(&"tile_catalog").get_adjacent_route_ids() == PackedStringArray(
-			["tile_lab", "player_profile", "achievements"]
+		ui_router.get_route(&"tile_catalog").get_adjacent_route_ids().is_empty(),
+		"没有页内互跳入口的收藏弹层不得伪造相邻关系并阻塞预载其他三页。"
+	)
+	var hub_route_plan: Dictionary = ui_router.build_preload_plan(
+		&"tile_catalog",
+		{
+			"max_depth": 1,
+			"max_routes": 4,
+			"include_source": true,
+			"check_exists": true,
+		}
+	)
+	var hub_scene_paths: PackedStringArray = (
+		GFVariantData.get_option_packed_string_array(hub_route_plan, "scene_paths")
+	)
+	assert_true(
+		hub_scene_paths == PackedStringArray(
+			["res://features/tile_catalog/scenes/ui/tile_catalog_dialog.tscn"]
 		),
-		"收藏类弹层应声明有限且稳定的相邻预加载集合。"
+		"主菜单弹层首开预载计划应只等待当前页面。"
 	)
 
 	architecture.dispose()

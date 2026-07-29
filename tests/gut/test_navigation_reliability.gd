@@ -137,6 +137,51 @@ func test_resume_bookmark_sets_launch_state_and_routes_to_game() -> void:
 	architecture.dispose()
 
 
+func test_main_menu_primes_full_scene_targets_from_navigation_intent() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var router: _RouteSpy = _RouteSpy.new()
+	await architecture.register_system(SceneRouterSystem, router)
+	await architecture.init()
+
+	var context: TestArchitectureContext = TestArchitectureContext.new()
+	context.test_architecture = architecture
+	add_child_autoqfree(context)
+	var menu_node: Node = _MAIN_MENU_SCENE.instantiate()
+	assert_true(menu_node is MainMenu, "主菜单场景应实例化为 MainMenu。")
+	if menu_node is MainMenu:
+		var menu: MainMenu = menu_node
+		context.add_child(menu)
+		await get_tree().process_frame
+		var load_button: Button = menu.find_child(
+			"LoadBookmarkButton",
+			true,
+			false
+		) as Button
+		var settings_button: Button = menu.find_child(
+			"SettingsButton",
+			true,
+			false
+		) as Button
+		assert_not_null(load_button)
+		assert_not_null(settings_button)
+		if is_instance_valid(load_button):
+			load_button.grab_focus()
+		if is_instance_valid(settings_button):
+			settings_button.mouse_entered.emit()
+		await get_tree().process_frame
+		assert_has(
+			router.primed_scene_paths,
+			menu.bookmark_list_scene_path,
+			"键盘/手柄焦点抵达完整场景入口时应交给 GF 预加载。"
+		)
+		assert_has(
+			router.primed_scene_paths,
+			menu.settings_scene_path,
+			"鼠标意图抵达完整场景入口时应交给 GF 预加载。"
+		)
+	architecture.dispose()
+
+
 func test_empty_history_lists_focus_back_button() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	await architecture.init()
@@ -537,6 +582,7 @@ func test_delete_busy_guard_and_late_rollback_unlock_once() -> void:
 
 class _RouteSpy extends SceneRouterSystem:
 	var last_scene_path: String = ""
+	var primed_scene_paths: Array[String] = []
 
 	func get_required_utilities() -> Array[Script]:
 		return []
@@ -548,6 +594,10 @@ class _RouteSpy extends SceneRouterSystem:
 	## @param path: 要导航到的 Godot 资源路径。
 	func goto_scene(path: String) -> void:
 		last_scene_path = path
+
+	func prime_scene(path: String) -> Error:
+		primed_scene_paths.append(path)
+		return OK
 
 
 class _DeleteProbeMenu extends BaseListMenu:

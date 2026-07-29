@@ -769,6 +769,14 @@ func test_required_gf_modules_have_no_manual_runtime_fallbacks() -> void:
 
 	assert_true(board_source.contains("_has_required_dependencies"), "棋盘控制器应显式校验 GF 必需依赖。")
 	assert_false(board_source.contains("TileScene.instantiate()"), "Tile 只能通过 GFObjectPoolUtility 获取。")
+	assert_false(
+		board_source.contains("_pool.prewarm(TileScene"),
+		"最多 128 个 Tile 的对象池预热不得在棋盘初始化帧同步完成。"
+	)
+	assert_true(
+		board_source.contains("_pool.prewarm_async_budget("),
+		"棋盘应使用 GFObjectPoolUtility 的逐帧预算预热。"
+	)
 	assert_false(board_source.contains("undo_action.execute()"), "视觉 Action 只能由 GFActionQueueSystem 执行。")
 	assert_true(router_source.contains("_has_required_dependencies"), "场景路由应显式校验 GF 必需依赖。")
 	assert_false(router_source.contains("change_scene_to_packed("), "场景切换不能绕过 GFSceneUtility。")

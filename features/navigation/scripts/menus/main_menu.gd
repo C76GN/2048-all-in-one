@@ -108,6 +108,7 @@ func _ready() -> void:
 	var _connect_result_39: int = _settings_button.pressed.connect(_on_settings_button_pressed)
 	var _connect_result_40: int = _quit_button.pressed.connect(_on_quit_button_pressed)
 	var _resize_connection: int = resized.connect(_queue_layout_update)
+	_bind_full_scene_preload_hints()
 
 	_apply_semantic_styles()
 	_queue_layout_update()
@@ -132,6 +133,37 @@ func _goto_scene(scene_path: String, property_name: String) -> void:
 	var router: SceneRouterSystem = _get_scene_router_system()
 	if is_instance_valid(router):
 		router.goto_scene(scene_path)
+
+
+func _bind_full_scene_preload_hints() -> void:
+	_bind_scene_preload_hint(_start_game_button, mode_selection_scene_path)
+	_bind_scene_preload_hint(_continue_game_button, game_scene_path)
+	_bind_scene_preload_hint(_load_bookmark_button, bookmark_list_scene_path)
+	_bind_scene_preload_hint(_replays_button, replay_list_scene_path)
+	_bind_scene_preload_hint(_settings_button, settings_scene_path)
+
+
+func _bind_scene_preload_hint(button: Button, scene_path: String) -> void:
+	if not is_instance_valid(button) or scene_path.is_empty():
+		return
+	var focus_callback: Callable = _prime_scene_for_button.bind(button, scene_path)
+	var hover_callback: Callable = _prime_scene_for_button.bind(button, scene_path)
+	if not button.focus_entered.is_connected(focus_callback):
+		var _focus_connection: int = button.focus_entered.connect(focus_callback)
+	if not button.mouse_entered.is_connected(hover_callback):
+		var _hover_connection: int = button.mouse_entered.connect(hover_callback)
+
+
+func _prime_scene_for_button(button: Button, scene_path: String) -> void:
+	if (
+		not is_instance_valid(button)
+		or button.disabled
+		or scene_path.is_empty()
+	):
+		return
+	var router: SceneRouterSystem = _get_scene_router_system()
+	if is_instance_valid(router):
+		var _preload_error: Error = router.prime_scene(scene_path)
 
 
 func _update_ui_text() -> void:
@@ -451,6 +483,8 @@ func _refresh_continue_game_state() -> void:
 		if not _continue_game_button.disabled
 		else tr("CONTINUE_GAME_UNAVAILABLE_HINT")
 	)
+	if not _continue_game_button.disabled:
+		_prime_scene_for_button(_continue_game_button, game_scene_path)
 
 
 func _find_latest_valid_bookmark() -> BookmarkData:

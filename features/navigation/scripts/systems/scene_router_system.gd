@@ -107,7 +107,7 @@ func goto_scene_packed(scene: PackedScene) -> void:
 ## 使用 GFSceneTransitionConfig 切换到指定场景路径。
 ## @param path: 待切换的场景资源路径。
 func goto_scene(path: String) -> void:
-	if not path.begins_with("res://") or not path.ends_with(".tscn"):
+	if not _is_valid_scene_path(path):
 		if is_instance_valid(_log):
 			_log.error(_LOG_TAG, "场景路径必须是绝对的 .tscn 资源路径: %s" % path)
 		send_simple_event(EventNames.SCENE_CHANGE_FAILED, path)
@@ -123,11 +123,33 @@ func goto_scene(path: String) -> void:
 		push_warning("[SceneRouterSystem] 场景切换尚未完成，忽略重复请求：%s。" % path)
 		return
 
+	var preload_error: Error = prime_scene(path)
+	if preload_error != OK and is_instance_valid(_log):
+		_log.warn(
+			_LOG_TAG,
+			"GF 场景预加载未能提前启动，将由正式切换继续尝试。错误码: %d，路径: %s"
+			% [preload_error, path]
+		)
 	_scene_change_in_progress = true
 	_scene_completion_queued = false
 	_pending_scene_path = path
 	_begin_scene_change_operation(path)
 	call_deferred(&"_run_scene_change", path)
+
+
+## 提前把场景交给 GFSceneUtility 的线程化缓存。
+##
+## 可由焦点/悬停等导航意图调用；重复请求由 GF 按资源身份去重。场景只进入
+## 临时 LRU，不使用 fixed 缓存，避免低频页面永久驻留。
+## @param path: 待准备的绝对 .tscn 资源路径。
+## @return GFSceneUtility 发起或复用请求的错误码。
+func prime_scene(path: String) -> Error:
+	if not _is_valid_scene_path(path):
+		return ERR_INVALID_PARAMETER
+	if not is_instance_valid(_scene_utility):
+		return ERR_UNCONFIGURED
+	return _scene_utility.preload_scene(path, false)
+
 
 ## 快速返回到主菜单。
 func return_to_main_menu() -> void:
@@ -271,6 +293,10 @@ func _get_scene_tree() -> SceneTree:
 	return null
 
 
+func _is_valid_scene_path(path: String) -> bool:
+	return path.begins_with("res://") and path.ends_with(".tscn")
+
+
 func _connect_scene_utility_signals() -> void:
 	if not is_instance_valid(_scene_utility) or not is_instance_valid(_signal_utility):
 		return
@@ -308,6 +334,8 @@ func _get_scene_resource_path(scene: PackedScene) -> String:
 func _make_scene_transition_config(path: String) -> GFSceneTransitionConfig:
 	var config: GFSceneTransitionConfig = GFSceneTransitionConfig.new()
 	config.target_scene_path = path
+	config.preload_before_change = true
+	config.preload_as_fixed_cache = false
 	config.cache_loaded_scene = true
 	config.minimum_duration_seconds = (
 		0.0 if _is_reduced_motion() else _TRANSITION_MINIMUM_SECONDS

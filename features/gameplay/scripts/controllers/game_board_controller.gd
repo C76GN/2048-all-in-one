@@ -43,6 +43,7 @@ const _BOARD_INTRO_DURATION: float = 0.22
 const _CULL_MARGIN_CELLS: int = 2
 const _MIN_PROJECTED_CELL_DETAIL_SIZE: float = 12.0
 const _MAX_VISIBLE_NODE_COUNT: int = 12288
+const _TILE_POOL_PREWARM_BUDGET_MSEC: float = 2.0
 
 
 # --- 导出变量 ---
@@ -196,7 +197,12 @@ func setup(
 		var available_tile_count: int = _pool.get_available_count(TileScene)
 		var missing_tile_count: int = max(required_tile_count - available_tile_count, 0)
 		if missing_tile_count > 0:
-			_pool.prewarm(TileScene, board_container, missing_tile_count)
+			_pool.prewarm_async_budget(
+				TileScene,
+				board_container,
+				missing_tile_count,
+				_TILE_POOL_PREWARM_BUDGET_MSEC
+			)
 
 		for child: Node in board_container.get_children():
 			if child is Tile:

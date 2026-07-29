@@ -6,7 +6,6 @@
 script = ExtResource("1_route")
 route_id = &"player_profile"
 scene_path = "res://features/player_profiles/scenes/ui/player_profile_dialog.tscn"
-adjacent_route_ids = PackedStringArray("tile_catalog", "tile_lab", "achievements")
 default_options = {
 "dismiss_on_cancel": false,
 "focus_on_open": true,

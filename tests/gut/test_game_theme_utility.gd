@@ -196,7 +196,38 @@ func test_scene_router_reduced_motion_uses_instant_shaderless_transition() -> vo
 	if config_value is GFSceneTransitionConfig:
 		var config: GFSceneTransitionConfig = config_value
 		assert_true(config.minimum_duration_seconds == 0.0, "减少动态不得人为延长加载等待。")
+		assert_true(config.preload_before_change, "场景切换配置应显式保留 GF 预加载语义。")
+		assert_false(config.preload_as_fixed_cache, "普通目标场景不得永久固定在预加载缓存。")
 
+	await _dispose_architecture(architecture)
+
+
+func test_scene_router_can_prime_scene_through_gf_cache_before_cover_finishes() -> void:
+	var setup: Dictionary = await _create_theme_architecture(true)
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var router: SceneRouterSystem = _get_scene_router_system(setup)
+	var scene_utility_value: Variant = setup.get("scene_utility")
+	assert_true(scene_utility_value is GFSceneUtility)
+	if not scene_utility_value is GFSceneUtility:
+		await _dispose_architecture(architecture)
+		return
+	var scene_utility: GFSceneUtility = scene_utility_value
+	var target_path: String = (
+		"res://features/bookmarks/scenes/menus/bookmark_list.tscn"
+	)
+
+	var first_error: Error = router.prime_scene(target_path)
+	var first_status: Dictionary = scene_utility.get_scene_resource_info(target_path)
+	var second_error: Error = router.prime_scene(target_path)
+
+	assert_true(first_error == OK, "场景路由应能通过 GFSceneUtility 发起预加载。")
+	assert_true(second_error == OK, "重复预加载请求应复用同一个 GF 请求或缓存。")
+	assert_true(
+		GFVariantData.get_option_bool(first_status, "is_preloading")
+		or GFVariantData.get_option_bool(first_status, "is_preloaded"),
+		"预加载提示返回时，目标应已经进入 GF 的加载请求或缓存。"
+	)
+	scene_utility.cancel_scene_preload(target_path)
 	await _dispose_architecture(architecture)
 
 
