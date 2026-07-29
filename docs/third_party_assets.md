@@ -45,11 +45,13 @@ This inventory distinguishes runtime-distributed assets from review-only source 
 - Author: GravitySound.
 - Source: https://www.gamedevmarket.net/asset/puzzle-music-2
 - License: GameDev Market Pro Licence.
-- Usage: ten purchased WAV loops can be installed with
-  `tools/install_puzzle_music_2_local.ps1` into the current user's
+- Usage: `tools/install_puzzle_music_2_local.ps1` reads the ten purchased WAV
+  sources without modifying them, encodes local OGG Vorbis copies, and registers
+  those copies under the current user's
   `user://content_packages/puzzle_music_2` directory. The runtime discovers the
-  generated GF content-package manifest, loads one bounded file at a time through
-  `GFBackgroundWorkUtility`, and shuffles playback through `GFAudioUtility`.
+  generated GF content-package manifest, loads one bounded compressed stream at a
+  time through `GFBackgroundWorkUtility`, and shuffles playback through
+  `GFAudioUtility`. Legacy WAV manifests remain readable for rollback.
 - Distribution boundary: the purchased source WAV files and their original source
   directory are never committed or exported. A missing local package silently
   degrades to no background music.
