@@ -666,7 +666,120 @@ func test_gf10_future_profile_schema_is_rejected_without_reset() -> void:
 	_dispose_setup(setup)
 
 
-func test_gf10_old_section_version_requires_explicit_migration() -> void:
+func test_gf10_old_section_account_profile_is_backed_up_then_activated() -> void:
+	var save_dir_name: String = (
+		"gut_save_profile_old_section_%s"
+		% GFUuid.generate_v4().replace("-", "")
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		save_dir_name
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var document: GFSaveDocument = GFSaveDocument.from_dict(
+		save_graph.preview_profile_payload()
+	)
+	assert_not_null(document)
+	if document == null:
+		_dispose_setup(setup)
+		return
+	var bookmark_section: GFSaveSection = document.get_section(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+	)
+	var replay_section: GFSaveSection = document.get_section(
+		GameSaveGraphUtility.REPLAYS_SECTION_ID
+	)
+	assert_not_null(bookmark_section)
+	assert_not_null(replay_section)
+	if bookmark_section == null or replay_section == null:
+		_dispose_setup(setup)
+		return
+	var _bookmark_set: bool = document.set_section(
+		GFSaveSection.new().configure(
+			bookmark_section.get_section_id(),
+			bookmark_section.get_schema_version() - 1,
+			bookmark_section.get_payload()
+		)
+	)
+	var _replay_set: bool = document.set_section(
+		GFSaveSection.new().configure(
+			replay_section.get_section_id(),
+			replay_section.get_schema_version() - 1,
+			replay_section.get_payload()
+		)
+	)
+	var profile_file_name: String = (
+		LocalAccountCatalogUtility.make_profile_file_name(
+			GFUuid.generate_v7(1_000_000)
+		)
+	)
+	assert_true(
+		storage.save_data(
+			profile_file_name,
+			document.to_dict()
+		) == OK
+	)
+	assert_true(
+		save_graph.activate_profile(profile_file_name, true) == OK,
+		"启动账号 Profile 时应备份并重建已知旧 section，而不是返回错误码 33。"
+	)
+	assert_true(
+		save_graph.get_profile_file_name() == profile_file_name,
+		"重建完成后账号 Profile 必须成为活动路径。"
+	)
+	var last_load: Dictionary = GFVariantData.get_option_dictionary(
+		save_graph.get_debug_snapshot(),
+		"last_load"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(
+			last_load,
+			"recovered_obsolete_profile"
+		)
+		and GFVariantData.get_option_int(
+			last_load,
+			"obsolete_schema_version"
+		)
+		== GameSaveGraphUtility.PROFILE_SCHEMA_VERSION,
+		"顶层版本未变时也必须记录 section 驱动的破坏性重建。"
+	)
+	var recovery_file: String = GFVariantData.get_option_string(
+		last_load,
+		"recovery_file"
+	)
+	var backup: GFStorageReadResult = storage.load_data(recovery_file)
+	assert_true(
+		backup.ok and backup.payload == document.to_dict(),
+		"重建前必须逐字段备份含旧 section 的原 Profile。"
+	)
+	var current_result: GFStorageReadResult = storage.load_data(
+		profile_file_name
+	)
+	var current_document: GFSaveDocument = (
+		GFSaveDocument.from_dict(current_result.payload)
+		if current_result.ok
+		else null
+	)
+	assert_true(
+		current_document != null
+		and current_document.get_section(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+		).get_schema_version()
+		== bookmark_section.get_schema_version()
+		and current_document.get_section(
+			GameSaveGraphUtility.REPLAYS_SECTION_ID
+		).get_schema_version()
+		== replay_section.get_schema_version(),
+		"重建后必须立即写回当前 section schema。"
+	)
+	assert_true(
+		storage.delete_file(recovery_file) == OK,
+		"旧 section 恢复备份测试文件应可清理。"
+	)
+	_dispose_setup(setup)
+
+
+func test_gf10_future_section_is_rejected_even_with_an_old_section() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
@@ -677,25 +790,41 @@ func test_gf10_old_section_version_requires_explicit_migration() -> void:
 	if document == null:
 		_dispose_setup(setup)
 		return
-	var section: GFSaveSection = document.get_section(
-		GameSaveGraphUtility.PROGRESS_SECTION_ID
+	var old_section: GFSaveSection = document.get_section(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID
 	)
-	var _set: bool = document.set_section(
+	var future_section: GFSaveSection = document.get_section(
+		GameSaveGraphUtility.REPLAYS_SECTION_ID
+	)
+	assert_not_null(old_section)
+	assert_not_null(future_section)
+	if old_section == null or future_section == null:
+		_dispose_setup(setup)
+		return
+	var _old_set: bool = document.set_section(
 		GFSaveSection.new().configure(
-			section.get_section_id(),
-			section.get_schema_version() - 1,
-			section.get_payload()
+			old_section.get_section_id(),
+			old_section.get_schema_version() - 1,
+			old_section.get_payload()
 		)
 	)
+	var _future_set: bool = document.set_section(
+		GFSaveSection.new().configure(
+			future_section.get_section_id(),
+			future_section.get_schema_version() + 1,
+			future_section.get_payload()
+		)
+	)
+	var persisted_future_payload: Dictionary = document.to_dict()
 	assert_true(
 		storage.save_data(
 			GameSaveGraphUtility.PROFILE_FILE_NAME,
-			document.to_dict()
+			persisted_future_payload
 		) == OK
 	)
 	assert_true(
 		save_graph.load_profile() != OK,
-		"旧 section schema 必须因缺少显式 migration 而失败。"
+		"任一 future section 都必须阻止 reset 覆盖。"
 	)
 	var last_load: Dictionary = GFVariantData.get_option_dictionary(
 		save_graph.get_debug_snapshot(),
@@ -703,8 +832,19 @@ func test_gf10_old_section_version_requires_explicit_migration() -> void:
 	)
 	assert_true(
 		GFVariantData.get_option_string_name(last_load, "status")
-		== GFSaveProfileResult.STATUS_MIGRATION_FAILED,
-		"旧 section 应产生 typed migration_failed 终态。"
+		== GFSaveProfileResult.STATUS_FUTURE_SCHEMA
+		and not GFVariantData.get_option_bool(
+			last_load,
+			"recovered_obsolete_profile"
+		),
+		"future section 必须保留 typed future_schema 证据。"
+	)
+	var preserved: GFStorageReadResult = storage.load_data(
+		GameSaveGraphUtility.PROFILE_FILE_NAME
+	)
+	assert_true(
+		preserved.ok and preserved.payload == persisted_future_payload,
+		"future section 文档不得被 destructive reset 改写。"
 	)
 	_dispose_setup(setup)
 
@@ -1561,7 +1701,10 @@ func _dispose_setup(setup: Dictionary, delete_profile: bool = true) -> void:
 	var flush_error: Error = save_graph.flush_pending_save()
 	assert_true(flush_error == OK, "测试结束前应冲刷排队玩家数据。")
 	if delete_profile:
-		var delete_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
+		var profile_file_name: String = save_graph.get_profile_file_name()
+		if profile_file_name.is_empty():
+			profile_file_name = GameSaveGraphUtility.PROFILE_FILE_NAME
+		var delete_error: Error = storage.delete_file(profile_file_name)
 		assert_true(delete_error == OK or delete_error == ERR_FILE_NOT_FOUND, "测试玩家数据清理应返回可预期结果。")
 	var architecture: GFArchitecture = _get_architecture(setup)
 	architecture.dispose()

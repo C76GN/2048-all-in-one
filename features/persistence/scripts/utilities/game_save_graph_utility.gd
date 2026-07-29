@@ -1672,12 +1672,41 @@ func _get_obsolete_profile_schema_version(payload: Dictionary) -> int:
 	var document: GFSaveDocument = GFSaveDocument.from_dict(payload)
 	if document == null:
 		return 0
-	if (
-		document.get_schema_id() == PROFILE_SCHEMA_ID
-		and document.get_schema_version() > 0
-		and document.get_schema_version() < PROFILE_SCHEMA_VERSION
-	):
-		return document.get_schema_version()
+	if document.get_schema_id() == PROFILE_SCHEMA_ID:
+		var document_version: int = document.get_schema_version()
+		if document_version <= 0 or document_version > PROFILE_SCHEMA_VERSION:
+			return 0
+		# Future section 必须继续由 GFSaveProfileUtility 以 typed
+		# future_schema 拒绝，不能因为同一文档还含旧 section 就破坏性重置。
+		var has_obsolete_section: bool = false
+		for provider: GameSaveSectionData in _get_ordered_providers():
+			if (
+				provider == null
+				or not document.has_section(provider.section_id)
+			):
+				continue
+			var section: GFSaveSection = document.get_section(
+				provider.section_id
+			)
+			if (
+				section != null
+				and section.get_schema_version() > provider.schema_version
+			):
+				return 0
+			if (
+				section != null
+				and section.get_schema_version() > 0
+				and section.get_schema_version() < provider.schema_version
+			):
+				has_obsolete_section = true
+		if document_version < PROFILE_SCHEMA_VERSION:
+			return document_version
+		# 顶层版本可能保持不变，而 Feature-owned section 独立升级。
+		# 项目声明 reset_allowed 且不保留旧 schema 运行时迁移，因此将
+		# 任一已知旧 section 视为整个 Profile 的破坏性升级边界。
+		if has_obsolete_section:
+			return document_version
+		return 0
 	var metadata: Dictionary = document.get_metadata()
 	if (
 		GFVariantData.get_option_string_name(metadata, &"schema_id")
