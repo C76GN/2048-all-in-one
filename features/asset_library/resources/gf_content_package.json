@@ -2,7 +2,7 @@
   "schema_version": 1,
   "package_id": "c76.asset_library.core",
   "display_name": "C76 Common Asset Library",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "content_types": [
     "asset_library",
     "audio",
@@ -324,6 +324,111 @@
         "source": "Project shader adapted from user-provided startup progress concept",
         "license": "project",
         "usage_policy": "optional"
+      }
+    },
+    {
+      "key": "asset.texture.tile_pattern.kenney.fibonacci_blocks",
+      "path": "textures/tile_patterns/kenney_fibonacci_blocks.png",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "tile",
+          "pattern",
+          "fibonacci"
+        ],
+        "asset_kind": "texture",
+        "category": "tile/pattern",
+        "origin": "third_party",
+        "author": "Kenney",
+        "source": "Pattern Pack 2 - Thin pattern_0014.png",
+        "source_url": "https://kenney.nl/assets/pattern-pack-2",
+        "license": "CC0 1.0"
+      }
+    },
+    {
+      "key": "asset.texture.tile_pattern.kenney.chevron_weave",
+      "path": "textures/tile_patterns/kenney_chevron_weave.png",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "tile",
+          "pattern",
+          "hybrid"
+        ],
+        "asset_kind": "texture",
+        "category": "tile/pattern",
+        "origin": "third_party",
+        "author": "Kenney",
+        "source": "Pattern Pack 2 - Thin pattern_0012.png",
+        "source_url": "https://kenney.nl/assets/pattern-pack-2",
+        "license": "CC0 1.0"
+      }
+    },
+    {
+      "key": "asset.texture.tile_pattern.kenney.diamond_grid",
+      "path": "textures/tile_patterns/kenney_diamond_grid.png",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "tile",
+          "pattern",
+          "lucas"
+        ],
+        "asset_kind": "texture",
+        "category": "tile/pattern",
+        "origin": "third_party",
+        "author": "Kenney",
+        "source": "Pattern Pack 2 - Thin pattern_0019.png",
+        "source_url": "https://kenney.nl/assets/pattern-pack-2",
+        "license": "CC0 1.0"
+      }
+    },
+    {
+      "key": "asset.texture.tile_pattern.kenney.circle_grid",
+      "path": "textures/tile_patterns/kenney_circle_grid.png",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "tile",
+          "pattern",
+          "ratio"
+        ],
+        "asset_kind": "texture",
+        "category": "tile/pattern",
+        "origin": "third_party",
+        "author": "Kenney",
+        "source": "Pattern Pack 2 - Thin pattern_0020.png",
+        "source_url": "https://kenney.nl/assets/pattern-pack-2",
+        "license": "CC0 1.0"
+      }
+    },
+    {
+      "key": "asset.texture.tile_pattern.kenney.octagon_grid",
+      "path": "textures/tile_patterns/kenney_octagon_grid.png",
+      "type_hint": "Texture2D",
+      "priority": 100,
+      "metadata": {
+        "tags": [
+          "texture",
+          "tile",
+          "pattern",
+          "factor"
+        ],
+        "asset_kind": "texture",
+        "category": "tile/pattern",
+        "origin": "third_party",
+        "author": "Kenney",
+        "source": "Pattern Pack 2 - Thin pattern_0009.png",
+        "source_url": "https://kenney.nl/assets/pattern-pack-2",
+        "license": "CC0 1.0"
       }
     },
     {

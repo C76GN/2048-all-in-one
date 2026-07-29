@@ -2,7 +2,7 @@
   "schema_version": 1,
   "package_id": "game.theme_pack.halftone_atlas",
   "display_name": "Halftone Atlas Theme Pack",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "content_types": [
     "game_theme",
     "visual_theme",

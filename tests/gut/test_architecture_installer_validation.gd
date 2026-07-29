@@ -415,12 +415,16 @@ func test_project_installer_binds_asset_library_before_ui_consumers() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
 	var project_catalog_position: int = source.find("bind_utility(_PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT)")
 	var asset_library_position: int = source.find("bind_utility(_GAME_ASSET_LIBRARY_UTILITY_SCRIPT)")
+	var background_music_position: int = source.find(
+		"bind_utility(_GAME_BACKGROUND_MUSIC_UTILITY_SCRIPT)"
+	)
 	var style_position: int = source.find("bind_utility(_GAME_UI_STYLE_UTILITY_SCRIPT)")
 	var motion_position: int = source.find("bind_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)")
 	var board_feedback_position: int = source.find("bind_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)")
 
 	assert_true(project_catalog_position >= 0, "项目 Installer 应注册唯一内容包目录 Utility。")
 	assert_true(asset_library_position >= 0, "项目 Installer 应注册 GameAssetLibraryUtility。")
+	assert_true(background_music_position >= 0, "项目 Installer 应注册本地内容包 BGM 消费者。")
 	assert_true(style_position >= 0, "项目 Installer 应注册 GameUiStyleUtility。")
 	assert_true(motion_position >= 0, "项目 Installer 应注册 GameUiMotionUtility。")
 	assert_true(board_feedback_position >= 0, "项目 Installer 应注册 GameBoardFeedbackUtility。")
@@ -433,6 +437,10 @@ func test_project_installer_binds_asset_library_before_ui_consumers() -> void:
 		"GameAssetLibraryUtility 必须先于读取稳定素材键的 GameUiStyleUtility 注册。"
 	)
 	assert_true(
+		asset_library_position < background_music_position,
+		"本地 BGM 必须在 GF 内容包目录与项目素材目录就绪后注册。"
+	)
+	assert_true(
 		style_position < motion_position,
 		"GameUiStyleUtility 必须先于依赖静态样式的 GameUiMotionUtility 注册。"
 	)
@@ -440,6 +448,24 @@ func test_project_installer_binds_asset_library_before_ui_consumers() -> void:
 		asset_library_position < board_feedback_position,
 		"GameAssetLibraryUtility 必须先于读取稳定素材键的 GameBoardFeedbackUtility 注册。"
 	)
+
+
+func test_runtime_content_roots_never_index_arbitrary_workstation_directories() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	for expected_root: String in [
+		"res://features/asset_library/resources",
+		"res://features/themes/resources",
+		"user://content_packages",
+	]:
+		assert_true(
+			source.contains("\"%s\"" % expected_root),
+			"运行时内容目录应显式保留受控根：%s。" % expected_root
+		)
+	for workstation_prefix: String in ["C:/", "C:\\", "E:/", "E:\\"]:
+		assert_false(
+			source.contains(workstation_prefix),
+			"Composition Root 不得索引任意工作站目录：%s。" % workstation_prefix
+		)
 
 
 func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds() -> void:

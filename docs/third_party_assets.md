@@ -28,6 +28,32 @@ This inventory distinguishes runtime-distributed assets from review-only source 
 - Usage: the shared runtime body, display, and numeric font at `shared/assets/fonts/noto_sans_sc_variable.ttf`.
 - Bundled notice: `shared/assets/fonts/noto_sans_sc_ofl.txt`.
 
+## Kenney Pattern Pack 2
+
+- Author: Kenney.
+- Source: https://kenney.nl/assets/pattern-pack-2
+- License: Creative Commons Zero 1.0 (CC0 1.0).
+- Usage: five selected thin geometric PNG patterns provide low-opacity, family-specific
+  tile edge motifs while the central number area remains clear.
+- Bundled notice:
+  `features/asset_library/resources/licenses/kenney_pattern_pack_2.txt`.
+
+## Local Licensed Content (Not Distributed)
+
+### Puzzle Music 2
+
+- Author: GravitySound.
+- Source: https://www.gamedevmarket.net/asset/puzzle-music-2
+- License: GameDev Market Pro Licence.
+- Usage: ten purchased WAV loops can be installed with
+  `tools/install_puzzle_music_2_local.ps1` into the current user's
+  `user://content_packages/puzzle_music_2` directory. The runtime discovers the
+  generated GF content-package manifest, loads one bounded file at a time through
+  `GFBackgroundWorkUtility`, and shuffles playback through `GFAudioUtility`.
+- Distribution boundary: the purchased source WAV files and their original source
+  directory are never committed or exported. A missing local package silently
+  degrades to no background music.
+
 ## Review-Only Source Packs
 
 These packs are copied into `features/asset_library/resources/source_packs/` for local review only. The release presets exclude both `source_packs/` and `review/`; none of these sources are distributed until license and usage are confirmed and an asset is promoted into the runtime manifest.

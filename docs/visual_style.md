@@ -30,7 +30,7 @@
    - 大面积内容区应偏干净，避免所有控件同时高饱和。
 
 3. 半调纹理要克制。
-   - `TilePatternOverlay` 只绘制星点、弧线、轨道、分栏等低密度家族母题。
+   - `TilePatternOverlay` 只绘制弧线、折角、分栏等低密度家族母题，并可在边缘叠加已审计的低透明度几何纹样。
    - 纹理只用于类型识别、纸媒质感和错版感，不承担文字可读性。
    - 文字可读性优先于花纹表现，数字对比度不能被纹理牺牲。
    - 不使用 blur、glow、大阴影或大面积粒子当作默认风格。
@@ -155,6 +155,9 @@
 - 方块使用实心底色、深墨粗描边、统一短投影、同色亮边、可识别轮廓和低密度母题。
 - 默认描边使用深墨色或黑色，边框宽度通常为 3px 到 6px。
 - `TilePatternOverlay` 负责绘制低对比度身份纹理和 Recipe 边缘标记；中央数字区域必须保持安静。
+- 非经典家族可从主题取得一个经稳定素材键登记的几何纹样；默认主题仅采用
+  Kenney Pattern Pack 2 的 CC0 精选子集，以不高于 `0.055` 的透明度绘制，并用
+  52px 中央静区隔离数字。经典数字家族不使用纹样底图。
 - 数字必须始终清晰。必要时使用深墨色或纸色文字，不为了色板统一牺牲对比度。
 - 棋盘底板使用中性灰墨色，空格子使用低对比暖灰，让棋盘像一件稳定的实体游戏物件。
 - `TileDefinition.visual_family_id` 先解析 `TileVisualFamilyStyle`，同一身份的不同数值必须保持同一家族；数值只改变色阶和字号。
@@ -244,6 +247,7 @@ GF 与项目边界：
 - `GFScreenTransitionUtility` 和主题提供的 `GFScreenTransitionEffect` 只用于启动完成后的主场景 cover/load/reveal。它是单一全屏覆盖层，不能用于按钮、滚动条、列表、页内切换或并行弹层。
 - `GameUiMotionUtility` 统一拥有 hover、focus、pressed、toggle、scroll、intro、outro、reveal 和 pulse 等局部可取消 Tween，并统一消费减少动态设置；页面只能选择语义和动效 profile，不自行散落时长、缓动与 Tween 元数据。
 - 首页开场若需要可跳过的多阶段串并行时间线，可以使用绑定首页节点生命周期的独立 `GFActionQueueSystem` 命名队列；标题、棋盘、菜单锚点、节拍、最终态和跳过策略仍归项目，且不得复用玩法棋盘队列。`GFReactiveStateStore` 不用于 hover、滚动条透明度或 Tween progress 等瞬时表现状态。
+- `easings.net` 与 Motion 等外部前端仓库只作为缓动曲线、可中断状态、列表 stagger、布局连续性和 reduced-motion 的设计参考；项目不得复制 GPL 实现或引入 Web 动画运行时，所有采纳行为都要重新表达为 Godot Tween、GF 队列与项目语义参数。
 
 行为规则：
 

@@ -1,7 +1,12 @@
-[gd_resource type="Resource" script_class="TileVisualTheme" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="TileVisualTheme" load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://features/themes/scripts/data/tile_visual_theme.gd" id="1_theme"]
 [ext_resource type="Script" path="res://features/themes/scripts/data/tile_visual_family_style.gd" id="2_style"]
+[ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/tile_patterns/kenney_fibonacci_blocks.png" id="3_fibonacci_pattern"]
+[ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/tile_patterns/kenney_chevron_weave.png" id="4_hybrid_pattern"]
+[ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/tile_patterns/kenney_diamond_grid.png" id="5_lucas_pattern"]
+[ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/tile_patterns/kenney_circle_grid.png" id="6_ratio_pattern"]
+[ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/tile_patterns/kenney_octagon_grid.png" id="7_factor_pattern"]
 
 [sub_resource type="Resource" id="Style_classic"]
 script = ExtResource("2_style")
@@ -20,6 +25,9 @@ script = ExtResource("2_style")
 family_id = &"tile.visual.fibonacci_numeric"
 silhouette_id = &"leaf_cut"
 motif_id = &"fibonacci_corner"
+motif_texture_asset_key = &"asset.texture.tile_pattern.kenney.fibonacci_blocks"
+motif_texture = ExtResource("3_fibonacci_pattern")
+motif_texture_opacity = 0.05
 shape_scale = Vector2(0.92, 0.95)
 shape_rotation_degrees = 0.0
 border_width = 3.0
@@ -33,6 +41,9 @@ script = ExtResource("2_style")
 family_id = &"tile.visual.classic_fibonacci_hybrid"
 silhouette_id = &"diagonal_cut"
 motif_id = &"diagonal_fold"
+motif_texture_asset_key = &"asset.texture.tile_pattern.kenney.chevron_weave"
+motif_texture = ExtResource("4_hybrid_pattern")
+motif_texture_opacity = 0.05
 shape_scale = Vector2(0.93, 0.93)
 border_width = 3.0
 border_color = Color(0.4745098, 0.27058825, 0.23137255, 1)
@@ -45,6 +56,9 @@ script = ExtResource("2_style")
 family_id = &"tile.visual.lucas_fibonacci_hybrid"
 silhouette_id = &"octagon"
 motif_id = &"paired_brackets"
+motif_texture_asset_key = &"asset.texture.tile_pattern.kenney.diamond_grid"
+motif_texture = ExtResource("5_lucas_pattern")
+motif_texture_opacity = 0.045
 shape_scale = Vector2(0.92, 0.92)
 shape_rotation_degrees = 0.0
 border_width = 3.0
@@ -58,6 +72,9 @@ script = ExtResource("2_style")
 family_id = &"tile.visual.ratio_base"
 silhouette_id = &"bracket"
 motif_id = &"division_mark"
+motif_texture_asset_key = &"asset.texture.tile_pattern.kenney.circle_grid"
+motif_texture = ExtResource("6_ratio_pattern")
+motif_texture_opacity = 0.045
 shape_scale = Vector2(0.92, 0.95)
 shape_rotation_degrees = 0.0
 border_width = 3.0
@@ -71,6 +88,9 @@ script = ExtResource("2_style")
 family_id = &"tile.visual.ratio_factor"
 silhouette_id = &"ticket"
 motif_id = &"factor_mark"
+motif_texture_asset_key = &"asset.texture.tile_pattern.kenney.octagon_grid"
+motif_texture = ExtResource("7_factor_pattern")
+motif_texture_opacity = 0.045
 shape_scale = Vector2(0.95, 0.91)
 shape_rotation_degrees = 0.0
 border_width = 3.0

@@ -227,6 +227,12 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 	) as BoxContainer
 	var catalog_area: VBoxContainer = content.get_node("CatalogArea") as VBoxContainer
 	assert_true(grid.get_child_count() == EXPECTED_DEFINITION_IDS.size(), "图鉴应呈现目录中的全部基础组合。")
+	for card_node: Node in grid.get_children():
+		assert_true(
+			card_node is Control
+			and (card_node as Control).custom_minimum_size.y >= 184.0,
+			"图鉴卡片必须为预览、标题和摘要保留完整高度，不能裁切第二行文字。"
+		)
 	assert_false(content.vertical, "宽屏图鉴应使用左右分栏。")
 	assert_true(grid.columns == 3, "宽屏图鉴应使用三列卡片网格。")
 

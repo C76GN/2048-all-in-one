@@ -576,6 +576,19 @@ func test_tile_setup_applies_sparse_theme_driven_identity_style() -> void:
 	)
 	assert_true(tile.background.get_silhouette_id() == fibonacci_style.silhouette_id)
 	assert_true(tile._get_pattern_type() == fibonacci_pattern)
+	assert_true(
+		tile.pattern_overlay.has_motif_texture(),
+		"非经典方块家族应加载已登记的低透明度纹样素材。"
+	)
+	assert_true(
+		not classic_style.motif_texture is Texture2D,
+		"经典数字方块应继续保持无纹样基底。"
+	)
+	assert_true(
+		fibonacci_style.motif_texture_asset_key
+		== &"asset.texture.tile_pattern.kenney.fibonacci_blocks",
+		"主题纹样必须保留稳定素材键，不能只依赖原始文件路径。"
+	)
 	assert_true(fibonacci_style.shadow_offset == Vector2(3.5, 3.5), "方块应保留清晰的统一硬投影，不使用彩色错版偏移。")
 
 

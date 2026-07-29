@@ -11,6 +11,9 @@ extends Resource
 @export var family_id: StringName = &""
 @export var silhouette_id: StringName = &""
 @export var motif_id: StringName = &""
+@export var motif_texture_asset_key: StringName = &""
+@export var motif_texture: Texture2D
+@export_range(0.0, 0.16, 0.005) var motif_texture_opacity: float = 0.055
 @export var shape_scale: Vector2 = Vector2(0.94, 0.94)
 @export_range(-4.0, 4.0, 0.1) var shape_rotation_degrees: float = 0.0
 @export_range(1.0, 10.0, 0.5) var border_width: float = 4.0
@@ -36,6 +39,13 @@ func get_validation_report() -> GFValidationReport:
 		_add_error(report, &"missing_silhouette_id", "silhouette_id 不能为空。", &"silhouette_id")
 	if motif_id == &"":
 		_add_error(report, &"missing_motif_id", "motif_id 不能为空。", &"motif_id")
+	if (motif_texture_asset_key == &"") != (motif_texture == null):
+		_add_error(
+			report,
+			&"incomplete_motif_texture_identity",
+			"motif_texture 与稳定 motif_texture_asset_key 必须同时配置或同时留空。",
+			&"motif_texture_asset_key"
+		)
 	if shape_scale.x <= 0.0 or shape_scale.y <= 0.0 or shape_scale.x > 1.0 or shape_scale.y > 1.0:
 		_add_error(
 			report,

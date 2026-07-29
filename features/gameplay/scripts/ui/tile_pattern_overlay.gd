@@ -33,6 +33,9 @@ const _INNER_MARGIN: float = 8.0
 var _pattern_type: PatternType = PatternType.NONE
 var _pattern_color: Color = Color.TRANSPARENT
 var _accent_color: Color = Color.TRANSPARENT
+var _base_color: Color = Color.TRANSPARENT
+var _motif_texture: Texture2D
+var _motif_texture_opacity: float = 0.0
 var _visual_layer_ids: Array[StringName] = []
 var _motif_opacity: float = 0.10
 
@@ -45,6 +48,7 @@ func _ready() -> void:
 
 
 func _draw() -> void:
+	_draw_motif_texture_frame()
 	match _pattern_type:
 		PatternType.FIBONACCI_CORNER:
 			_draw_fibonacci_corner()
@@ -77,7 +81,12 @@ func setup(
 		visual_style.motif_id if visual_style != null else &""
 	)
 	_motif_opacity = visual_style.motif_opacity if visual_style != null else 0.10
+	_motif_texture = visual_style.motif_texture if visual_style != null else null
+	_motif_texture_opacity = (
+		visual_style.motif_texture_opacity if visual_style != null else 0.0
+	)
 	_accent_color = visual_style.accent_color if visual_style != null else _CYAN_COLOR
+	_base_color = base_color
 	_resolve_pattern_color(base_color)
 	queue_redraw()
 
@@ -97,7 +106,39 @@ func has_composition_edge() -> bool:
 	return _visual_layer_ids.size() > 1
 
 
+func has_motif_texture() -> bool:
+	return is_instance_valid(_motif_texture) and _motif_texture_opacity > 0.0
+
+
 # --- 私有/辅助方法 ---
+
+func _draw_motif_texture_frame() -> void:
+	if not has_motif_texture():
+		return
+	var safe_rect: Rect2 = get_safe_rect()
+	if safe_rect.size.x <= 0.0 or safe_rect.size.y <= 0.0:
+		return
+	var tint_source: Color = (
+		_INK_COLOR if _base_color.get_luminance() > 0.50 else _PAPER_COLOR
+	)
+	var tint: Color = Color(
+		tint_source.r,
+		tint_source.g,
+		tint_source.b,
+		_motif_texture_opacity
+	)
+	draw_texture_rect(_motif_texture, safe_rect, false, tint)
+
+	# 纹样只负责家族识别；中央数字的 52px 阅读区始终保持安静。
+	var quiet_size: Vector2 = Vector2(
+		minf(52.0, safe_rect.size.x),
+		minf(52.0, safe_rect.size.y)
+	)
+	var quiet_rect: Rect2 = Rect2(
+		safe_rect.get_center() - quiet_size * 0.5,
+		quiet_size
+	)
+	draw_rect(quiet_rect, _base_color, true)
 
 func _draw_fibonacci_corner() -> void:
 	var corner: Vector2 = Vector2(size.x - _INNER_MARGIN - 1.0, _INNER_MARGIN + 1.0)

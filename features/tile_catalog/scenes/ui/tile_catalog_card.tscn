@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" path="res://features/gameplay/scenes/components/tile.tscn" id="2_tile"]
 
 [node name="TileCatalogCard" type="Button"]
-custom_minimum_size = Vector2(184, 158)
+custom_minimum_size = Vector2(184, 184)
 toggle_mode = true
 script = ExtResource("1_card")
 

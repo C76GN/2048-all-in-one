@@ -50,6 +50,9 @@ const _GAME_UI_STYLE_UTILITY_SCRIPT: Script = preload("res://features/themes/scr
 const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_ui_motion_utility.gd")
 const _GAME_BOARD_FEEDBACK_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_board_feedback_utility.gd")
 const _GAME_ASSET_LIBRARY_UTILITY_SCRIPT: Script = preload("res://features/asset_library/scripts/utilities/game_asset_library_utility.gd")
+const _GAME_BACKGROUND_MUSIC_UTILITY_SCRIPT: Script = preload(
+	"res://features/themes/scripts/utilities/game_background_music_utility.gd"
+)
 const _GAME_CELEBRATION_VFX_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_celebration_vfx_utility.gd")
 const _GAME_THEME_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_catalog_utility.gd")
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
@@ -263,6 +266,9 @@ func _bind_presentation_utilities(binder: GFBinder, scope: GFAsyncScope) -> void
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(_GAME_ASSET_LIBRARY_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
+	await binder.bind_utility(_GAME_BACKGROUND_MUSIC_UTILITY_SCRIPT).as_singleton()
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(_GAME_ACCESSIBILITY_UTILITY_SCRIPT).as_singleton()
