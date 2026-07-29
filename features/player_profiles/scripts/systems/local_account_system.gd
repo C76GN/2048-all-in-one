@@ -19,6 +19,9 @@ var _storage: GFStorageUtility = null
 var _profile_utility: GFSaveProfileUtility = null
 var _background_work: GFBackgroundWorkUtility = null
 var _signal_utility: GFSignalUtility = null
+## 仅开发构建安装；发布构建缺失时必须静默降级。
+var _async_tracker: GFAsyncTrackerUtility = null
+var _async_tracking_ids: Dictionary = {}
 var _last_cleanup_error: Error = OK
 var _pending_operation: LocalAccountOperation = null
 var _disposed: bool = false
@@ -57,6 +60,7 @@ func ready() -> void:
 	_profile_utility = _resolve_profile_utility()
 	_background_work = _resolve_background_work_utility()
 	_signal_utility = _resolve_signal_utility()
+	_async_tracker = _resolve_optional_async_tracker()
 	if not _is_configured():
 		push_error("[LocalAccountSystem] 本地账号或 SaveGraph Utility 未注册。")
 		return
@@ -151,6 +155,7 @@ func dispose() -> void:
 		)
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
+	_clear_async_tracking()
 	if not _catalog_reconciliation.is_empty():
 		_last_reconciliation_evidence = {
 			&"ok": false,
@@ -175,6 +180,7 @@ func dispose() -> void:
 	_profile_utility = null
 	_background_work = null
 	_signal_utility = null
+	_async_tracker = null
 	_pending_operation = null
 	_last_cleanup_error = OK
 	_operation_runner_started = false
@@ -879,6 +885,7 @@ func _begin_account_operation(
 		return false
 	_pending_operation = operation
 	_operation_runner_started = false
+	_track_account_operation(operation)
 	return true
 
 
@@ -942,6 +949,7 @@ func _complete_account_operation(
 		)
 	)
 	var _completed: bool = operation.complete_for_system(result)
+	_untrack_account_operation(operation)
 
 
 func _is_current_operation(
@@ -1701,6 +1709,73 @@ func _profile_id_for_account(account_id: String) -> StringName:
 	if not GFUuid.is_valid(account_id, 7):
 		return &""
 	return StringName("player_data.%s" % account_id)
+
+
+func _track_account_operation(operation: LocalAccountOperation) -> void:
+	if operation == null or not operation.is_pending():
+		return
+	var tracker: GFAsyncTrackerUtility = _resolve_optional_async_tracker()
+	if tracker == null:
+		return
+	var handle_instance_id: int = operation.get_instance_id()
+	if _async_tracking_ids.has(handle_instance_id):
+		return
+	var tracking_id: int = tracker.track_handle(
+		operation,
+		&"local_account.operation",
+		{
+			&"owner": "LocalAccountSystem",
+			&"operation": String(operation.get_operation()),
+			&"target_account_id": operation.get_target_account_id(),
+		}
+	)
+	if tracking_id > 0:
+		_async_tracking_ids[handle_instance_id] = tracking_id
+
+
+func _untrack_account_operation(operation: LocalAccountOperation) -> void:
+	if operation == null:
+		return
+	var handle_instance_id: int = operation.get_instance_id()
+	var tracking_id: int = GFVariantData.get_option_int(
+		_async_tracking_ids,
+		handle_instance_id,
+		0
+	)
+	if tracking_id <= 0:
+		return
+	if is_instance_valid(_async_tracker):
+		var _untracked: bool = _async_tracker.untrack_id(tracking_id)
+	var _erased: bool = _async_tracking_ids.erase(handle_instance_id)
+
+
+func _clear_async_tracking() -> void:
+	if is_instance_valid(_async_tracker):
+		for tracking_id_value: Variant in _async_tracking_ids.values():
+			var tracking_id: int = GFVariantData.to_int(
+				tracking_id_value
+			)
+			if tracking_id > 0:
+				var _untracked: bool = (
+					_async_tracker.untrack_id(tracking_id)
+				)
+	_async_tracking_ids.clear()
+
+
+func _resolve_optional_async_tracker() -> GFAsyncTrackerUtility:
+	if is_instance_valid(_async_tracker):
+		return _async_tracker
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	if architecture == null:
+		return null
+	# Tracker 只由开发诊断 Installer 安装；local lookup 不触发 strict miss。
+	var utility_value: Object = architecture.get_local_utility(
+		GFAsyncTrackerUtility
+	)
+	if utility_value is GFAsyncTrackerUtility:
+		_async_tracker = utility_value
+		return _async_tracker
+	return null
 
 
 func _is_configured() -> bool:

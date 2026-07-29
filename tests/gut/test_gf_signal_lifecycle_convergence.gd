@@ -1,6 +1,27 @@
 extends GutTest
 
 
+func test_bookmark_system_owns_shared_save_graph_subscriptions() -> void:
+	var signal_utility: GFSignalUtility = GFSignalUtility.new()
+	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	var bookmark_system: BookmarkSystem = BookmarkSystem.new()
+	bookmark_system._signal_utility = signal_utility
+	bookmark_system._save_graph = save_graph
+
+	bookmark_system._connect_save_graph_signals()
+	assert_true(
+		signal_utility.get_connection_count() == 3,
+		"书签系统的三个跨生命周期监听必须由 GFSignalUtility 统一持有。"
+	)
+
+	bookmark_system._disconnect_save_graph_signals()
+	assert_true(
+		signal_utility.get_connection_count() == 0,
+		"书签系统清理 owner 后不得残留 SaveGraph 监听。"
+	)
+	signal_utility.dispose()
+
+
 func test_custom_board_operation_completion_is_owned_and_one_shot() -> void:
 	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var system: CustomBoardSystem = CustomBoardSystem.new()

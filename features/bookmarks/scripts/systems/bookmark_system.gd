@@ -9,6 +9,7 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 # --- 私有变量 ---
 
 var _save_graph: GameSaveGraphUtility = null
+var _signal_utility: GFSignalUtility = null
 var _cached_bookmarks: Array[BookmarkData] = []
 var _cached_profile_id: StringName = &""
 var _bookmark_cache_valid: bool = false
@@ -19,14 +20,20 @@ var _bookmark_cache_misses: int = 0
 # --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GameSaveGraphUtility]
+	return [GameSaveGraphUtility, GFSignalUtility]
 
 
 func ready() -> void:
 	_save_graph = _resolve_save_graph_utility()
+	_signal_utility = _resolve_signal_utility()
 	_invalidate_bookmark_cache()
 	_bookmark_cache_hits = 0
 	_bookmark_cache_misses = 0
+	if not is_instance_valid(_save_graph) or not is_instance_valid(
+		_signal_utility
+	):
+		push_error("[BookmarkSystem] SaveGraph 或 GFSignalUtility 未注册。")
+		return
 	_connect_save_graph_signals()
 
 
@@ -34,6 +41,7 @@ func dispose() -> void:
 	_disconnect_save_graph_signals()
 	_invalidate_bookmark_cache()
 	_save_graph = null
+	_signal_utility = null
 
 
 # --- 公共方法 ---
@@ -298,69 +306,31 @@ func _section_result_may_change_bookmarks(
 
 
 func _connect_save_graph_signals() -> void:
-	if not is_instance_valid(_save_graph):
+	if (
+		not is_instance_valid(_save_graph)
+		or not is_instance_valid(_signal_utility)
+	):
 		return
-	var section_callback: Callable = Callable(
-		self,
-		&"_on_section_operation_completed"
+	var _section_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_save_graph.section_operation_completed,
+		_on_section_operation_completed,
+		self
 	)
-	if not _save_graph.section_operation_completed.is_connected(
-		section_callback
-	):
-		var _section_connect_error: Error = _save_graph.section_operation_completed.connect(
-			section_callback
-		)
-	var reconciliation_callback: Callable = Callable(
-		self,
-		&"_on_section_reconciliation_settled"
+	var _reconciliation_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_save_graph.section_reconciliation_settled,
+		_on_section_reconciliation_settled,
+		self
 	)
-	if not _save_graph.section_reconciliation_settled.is_connected(
-		reconciliation_callback
-	):
-		var _reconciliation_connect_error: Error = _save_graph.section_reconciliation_settled.connect(
-			reconciliation_callback
-		)
-	var profile_callback: Callable = Callable(
-		self,
-		&"_on_profile_operation_completed"
+	var _profile_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_save_graph.profile_operation_completed,
+		_on_profile_operation_completed,
+		self
 	)
-	if not _save_graph.profile_operation_completed.is_connected(
-		profile_callback
-	):
-		var _profile_connect_error: Error = _save_graph.profile_operation_completed.connect(
-			profile_callback
-		)
 
 
 func _disconnect_save_graph_signals() -> void:
-	if not is_instance_valid(_save_graph):
-		return
-	var section_callback: Callable = Callable(
-		self,
-		&"_on_section_operation_completed"
-	)
-	if _save_graph.section_operation_completed.is_connected(section_callback):
-		_save_graph.section_operation_completed.disconnect(section_callback)
-	var reconciliation_callback: Callable = Callable(
-		self,
-		&"_on_section_reconciliation_settled"
-	)
-	if _save_graph.section_reconciliation_settled.is_connected(
-		reconciliation_callback
-	):
-		_save_graph.section_reconciliation_settled.disconnect(
-			reconciliation_callback
-		)
-	var profile_callback: Callable = Callable(
-		self,
-		&"_on_profile_operation_completed"
-	)
-	if _save_graph.profile_operation_completed.is_connected(
-		profile_callback
-	):
-		_save_graph.profile_operation_completed.disconnect(
-			profile_callback
-		)
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 
 
 func _on_section_operation_completed(
@@ -408,5 +378,13 @@ func _resolve_save_graph_utility() -> GameSaveGraphUtility:
 	var utility_value: Object = get_utility(GameSaveGraphUtility)
 	if utility_value is GameSaveGraphUtility:
 		var utility: GameSaveGraphUtility = utility_value
+		return utility
+	return null
+
+
+func _resolve_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var utility: GFSignalUtility = utility_value
 		return utility
 	return null

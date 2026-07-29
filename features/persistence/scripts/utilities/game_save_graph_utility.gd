@@ -77,6 +77,10 @@ var _background_work: GFBackgroundWorkUtility = null
 var _clock: GameClockUtility = null
 var _log: GFLogUtility = null
 var _platform: GamePlatformUtility = null
+var _signal_utility: GFSignalUtility = null
+## 开发诊断能力按构建可选安装；只能通过 local lookup 探测，不能声明为生产依赖。
+var _async_tracker: GFAsyncTrackerUtility = null
+var _async_tracking_ids: Dictionary = {}
 var _loaded: bool = false
 var _last_load_result: Dictionary = {}
 var _last_save_result: Dictionary = {}
@@ -132,6 +136,7 @@ func get_required_utilities() -> Array[Script]:
 		GameClockUtility,
 		GFLogUtility,
 		GamePlatformUtility,
+		GFSignalUtility,
 	]
 
 
@@ -144,36 +149,40 @@ func ready() -> void:
 	_clock = _resolve_clock_utility()
 	_log = _resolve_log_utility()
 	_platform = _resolve_platform_utility()
+	_signal_utility = _resolve_signal_utility()
+	_async_tracker = _resolve_optional_async_tracker()
 	if (
 		_storage == null
 		or _background_work == null
 		or _profile_utility == null
 		or _clock == null
+		or _signal_utility == null
 		or _section_providers.is_empty()
 	):
 		_record_configuration_failure()
 		return
 
-	var _operation_connection: int = _profile_utility.profile_operation_completed.connect(
-		_on_profile_operation_completed
+	var _operation_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_profile_utility.profile_operation_completed,
+		_on_profile_operation_completed,
+		self
 	)
-	for terminal_signal: Signal in [
-		_background_work.work_completed,
-		_background_work.work_failed,
-		_background_work.work_cancelled,
-	]:
-		if not terminal_signal.is_connected(_on_background_work_terminal):
-			var _background_connection: int = terminal_signal.connect(
-				_on_background_work_terminal
-			)
-	if (
-		is_instance_valid(_platform)
-		and not _platform.lifecycle_event_received.is_connected(
-			_on_platform_lifecycle_event_received
+	var _background_connections: Array[GFSignalConnection] = (
+		_signal_utility.connect_any(
+			[
+				_background_work.work_completed,
+				_background_work.work_failed,
+				_background_work.work_cancelled,
+			],
+			_on_background_work_terminal,
+			self
 		)
-	):
-		var _lifecycle_connection: int = _platform.lifecycle_event_received.connect(
-			_on_platform_lifecycle_event_received
+	)
+	if is_instance_valid(_platform):
+		var _lifecycle_connection: GFSignalConnection = _signal_utility.connect_signal(
+			_platform.lifecycle_event_received,
+			_on_platform_lifecycle_event_received,
+			self
 		)
 
 	var register_error: Error = _register_active_profile(PROFILE_FILE_NAME)
@@ -226,13 +235,9 @@ func dispose() -> void:
 					_background_work.cancel_work(task.work_id)
 				)
 			profile_cleanup_task_terminal.emit(task.work_id)
-		for terminal_signal: Signal in [
-			_background_work.work_completed,
-			_background_work.work_failed,
-			_background_work.work_cancelled,
-		]:
-			if terminal_signal.is_connected(_on_background_work_terminal):
-				terminal_signal.disconnect(_on_background_work_terminal)
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
+	_clear_async_tracking()
 	_disposed = true
 	_profile_delete_tasks.clear()
 	_profile_delete_workers.clear()
@@ -241,22 +246,7 @@ func dispose() -> void:
 	_profile_delete_waiters.clear()
 	_profile_delete_file_names.clear()
 	_profile_cleanup_paths.clear()
-	if (
-		is_instance_valid(_platform)
-		and _platform.lifecycle_event_received.is_connected(
-			_on_platform_lifecycle_event_received
-		)
-	):
-		_platform.lifecycle_event_received.disconnect(
-			_on_platform_lifecycle_event_received
-		)
 	if _profile_utility != null:
-		if _profile_utility.profile_operation_completed.is_connected(
-			_on_profile_operation_completed
-		):
-			_profile_utility.profile_operation_completed.disconnect(
-				_on_profile_operation_completed
-			)
 		for profile_id_value: Variant in _registered_profiles.keys():
 			var profile_id: StringName = GFVariantData.to_string_name(
 				profile_id_value
@@ -298,6 +288,8 @@ func dispose() -> void:
 	_last_section_reconciliation_evidence.clear()
 	_storage = null
 	_background_work = null
+	_signal_utility = null
+	_async_tracker = null
 	_clock = null
 	_log = null
 	_platform = null
@@ -456,10 +448,12 @@ func request_load_profile(
 		return _make_rejected_profile_operation(
 			GFSaveProfileOperation.OPERATION_LOAD
 		)
-	return _profile_utility.load_profile(
-		_active_profile_id,
-		context,
-		metadata
+	return _track_profile_operation(
+		_profile_utility.load_profile(
+			_active_profile_id,
+			context,
+			metadata
+		)
 	)
 
 
@@ -482,7 +476,9 @@ func request_flush_profile(
 		var _save_operation: GFSaveProfileOperation = _request_save_active_profile({
 			&"reason": "flush_pending_generation",
 		})
-	return _profile_utility.flush_profile(_active_profile_id, metadata)
+	return _track_profile_operation(
+		_profile_utility.flush_profile(_active_profile_id, metadata)
+	)
 
 
 ## 原子切换到另一个账号的独立 Profile。
@@ -735,6 +731,7 @@ func request_replace_sections_data(
 		return operation
 
 	_pending_section_operation = operation
+	_track_section_operation(operation)
 	_pending_section_profile_id = _active_profile_id
 	_pending_section_ids = {}
 	for section_id: String in section_ids:
@@ -1045,6 +1042,7 @@ func _delete_inactive_profile_file_async(
 	_profile_delete_deadlines[task.work_id] = (
 		_clock.get_tick_msec() + _PROFILE_DELETE_TIMEOUT_MSEC
 	)
+	_track_profile_cleanup_task(task, canonical_name)
 	while (
 		not task.is_finished()
 		and not _profile_delete_timed_out.has(task.work_id)
@@ -1438,10 +1436,12 @@ func _load_registered_profile_async(
 		return ERR_UNAVAILABLE
 	_loaded = false
 	var result: GFSaveProfileResult = await _await_profile_operation_async(
-		_profile_utility.load_profile(
-			_active_profile_id,
-			{&"profile_file": _profile_file_name},
-			{&"reason": "activate_profile_async"}
+		_track_profile_operation(
+			_profile_utility.load_profile(
+				_active_profile_id,
+				{&"profile_file": _profile_file_name},
+				{&"reason": "activate_profile_async"}
+			)
 		)
 	)
 	if not _owns_profile_transition(transition_epoch):
@@ -1469,9 +1469,11 @@ func _save_registered_profile_async(
 	var document_metadata: Dictionary = _build_profile_metadata()
 	document_metadata.merge(metadata, true)
 	var result: GFSaveProfileResult = await _await_profile_operation_async(
-		_profile_utility.save_profile(
-			_active_profile_id,
-			document_metadata
+		_track_profile_operation(
+			_profile_utility.save_profile(
+				_active_profile_id,
+				document_metadata
+			)
 		)
 	)
 	if not _owns_profile_transition(transition_epoch):
@@ -2388,6 +2390,7 @@ func _complete_pending_section_operation(
 	)
 	_clear_pending_section_state()
 	var _completed: bool = operation.complete_for_utility(result)
+	_untrack_async_handle(operation)
 	section_operation_completed.emit(result.duplicate_result())
 
 
@@ -2404,6 +2407,7 @@ func _complete_detached_section_operation(
 		false
 	)
 	var _completed: bool = operation.complete_for_utility(result)
+	_untrack_async_handle(operation)
 	section_operation_completed.emit(result.duplicate_result())
 
 
@@ -2541,10 +2545,12 @@ func _request_save_active_profile(
 		)
 	var document_metadata: Dictionary = _build_profile_metadata()
 	document_metadata.merge(metadata, true)
-	return _profile_utility.save_profile(
-		_active_profile_id,
-		document_metadata,
-		context
+	return _track_profile_operation(
+		_profile_utility.save_profile(
+			_active_profile_id,
+			document_metadata,
+			context
+		)
 	)
 
 
@@ -2563,7 +2569,9 @@ func _request_flush_active_profile(
 				&"reason": "flush_pending_generation",
 			})
 		)
-	return _profile_utility.flush_profile(_active_profile_id, metadata)
+	return _track_profile_operation(
+		_profile_utility.flush_profile(_active_profile_id, metadata)
+	)
 
 
 func _wait_for_operation(
@@ -2593,6 +2601,8 @@ func _wait_for_operation(
 			_profile_utility.tick(0.0)
 		if not operation.is_completed():
 			OS.delay_msec(1)
+	if operation.is_completed():
+		_untrack_async_handle(operation)
 	return operation.get_result() if operation.is_completed() else null
 
 
@@ -2602,8 +2612,10 @@ func _await_profile_operation_async(
 	if operation == null:
 		return null
 	if operation.is_completed():
+		_untrack_async_handle(operation)
 		return operation.get_result()
 	var result: GFSaveProfileResult = await operation.completed
+	_untrack_async_handle(operation)
 	return result
 
 
@@ -2741,7 +2753,7 @@ func _make_rejected_profile_operation(
 	# 让 GF 生成规范 invalid_profile 终态，避免项目伪造框架 Result。
 	if _profile_utility == null:
 		return null
-	return (
+	var operation: GFSaveProfileOperation = (
 		_profile_utility.save_profile(_REJECTED_PROFILE_ID)
 		if operation_kind == GFSaveProfileOperation.OPERATION_SAVE
 		else (
@@ -2750,6 +2762,7 @@ func _make_rejected_profile_operation(
 			else _profile_utility.flush_profile(_REJECTED_PROFILE_ID)
 		)
 	)
+	return _track_profile_operation(operation)
 
 
 func _build_profile_metadata() -> Dictionary:
@@ -2941,6 +2954,13 @@ func _cleanup_profile_delete_tracking(work_id: StringName) -> void:
 		_profile_delete_file_names,
 		work_id
 	)
+	var task_value: Variant = GFVariantData.get_option_value(
+		_profile_delete_tasks,
+		work_id
+	)
+	if task_value is GFBackgroundWorkTask:
+		var task: GFBackgroundWorkTask = task_value
+		_untrack_async_handle(task)
 	var _task_erased: bool = _profile_delete_tasks.erase(work_id)
 	var _worker_erased: bool = _profile_delete_workers.erase(work_id)
 	var _deadline_erased: bool = _profile_delete_deadlines.erase(work_id)
@@ -2958,6 +2978,130 @@ func _cleanup_profile_delete_tracking(work_id: StringName) -> void:
 		== work_id
 	):
 		var _path_erased: bool = _profile_cleanup_paths.erase(file_name)
+
+
+func _track_profile_operation(
+	operation: GFSaveProfileOperation
+) -> GFSaveProfileOperation:
+	if operation == null or operation.is_completed():
+		return operation
+	var handle_instance_id: int = operation.get_instance_id()
+	var was_tracked: bool = _async_tracking_ids.has(handle_instance_id)
+	var tracking_id: int = _track_async_handle(
+		operation,
+		&"game_save.profile_operation",
+		{
+			&"owner": "GameSaveGraphUtility",
+			&"operation": String(operation.get_operation()),
+			&"profile_id": String(operation.get_profile_id()),
+			&"requested_generation": operation.get_requested_generation(),
+		}
+	)
+	if (
+		tracking_id > 0
+		and not was_tracked
+		and is_instance_valid(_signal_utility)
+	):
+		var _completion_connection: GFSignalConnection = _signal_utility.connect_once(
+			operation.completed,
+			_on_tracked_profile_operation_completed,
+			self,
+			[operation]
+		)
+	return operation
+
+
+func _track_section_operation(
+	operation: GameSaveSectionOperation
+) -> void:
+	if operation == null or not operation.is_pending():
+		return
+	var _tracking_id: int = _track_async_handle(
+		operation,
+		&"game_save.section_operation",
+		{
+			&"owner": "GameSaveGraphUtility",
+			&"transaction_id": operation.get_transaction_id(),
+			&"profile_id": String(operation.get_profile_id()),
+			&"section_ids": operation.get_section_ids(),
+		}
+	)
+
+
+func _track_profile_cleanup_task(
+	task: GFBackgroundWorkTask,
+	profile_file_name: String
+) -> void:
+	if task == null or task.is_finished():
+		return
+	var _tracking_id: int = _track_async_handle(
+		task,
+		&"game_save.profile_cleanup",
+		{
+			&"owner": "GameSaveGraphUtility",
+			&"work_id": String(task.work_id),
+			&"profile_file": profile_file_name,
+		}
+	)
+
+
+func _track_async_handle(
+	handle: Object,
+	label: StringName,
+	metadata: Dictionary
+) -> int:
+	if handle == null:
+		return 0
+	var handle_instance_id: int = handle.get_instance_id()
+	if _async_tracking_ids.has(handle_instance_id):
+		return GFVariantData.get_option_int(
+			_async_tracking_ids,
+			handle_instance_id,
+			0
+		)
+	var tracker: GFAsyncTrackerUtility = _resolve_optional_async_tracker()
+	if tracker == null:
+		return 0
+	var tracking_id: int = tracker.track_handle(handle, label, metadata)
+	if tracking_id > 0:
+		_async_tracking_ids[handle_instance_id] = tracking_id
+	return tracking_id
+
+
+func _untrack_async_handle(handle: Object) -> void:
+	if handle == null:
+		return
+	var handle_instance_id: int = handle.get_instance_id()
+	var tracking_id: int = GFVariantData.get_option_int(
+		_async_tracking_ids,
+		handle_instance_id,
+		0
+	)
+	if tracking_id <= 0:
+		return
+	if is_instance_valid(_async_tracker):
+		var _untracked: bool = _async_tracker.untrack_id(tracking_id)
+	var _erased: bool = _async_tracking_ids.erase(handle_instance_id)
+
+
+func _clear_async_tracking() -> void:
+	if is_instance_valid(_async_tracker):
+		for tracking_id_value: Variant in _async_tracking_ids.values():
+			var tracking_id: int = GFVariantData.to_int(
+				tracking_id_value
+			)
+			if tracking_id > 0:
+				var _untracked: bool = (
+					_async_tracker.untrack_id(tracking_id)
+				)
+	_async_tracking_ids.clear()
+
+
+func _on_tracked_profile_operation_completed(
+	operation: GFSaveProfileOperation,
+	_result: GFSaveProfileResult
+) -> void:
+	_untrack_async_handle(operation)
 
 
 func _log_error(message: String) -> void:
@@ -3012,4 +3156,29 @@ func _resolve_platform_utility() -> GamePlatformUtility:
 	if value is GamePlatformUtility:
 		var utility: GamePlatformUtility = value
 		return utility
+	return null
+
+
+func _resolve_signal_utility() -> GFSignalUtility:
+	var value: Object = get_utility(GFSignalUtility)
+	if value is GFSignalUtility:
+		var utility: GFSignalUtility = value
+		return utility
+	return null
+
+
+func _resolve_optional_async_tracker() -> GFAsyncTrackerUtility:
+	if is_instance_valid(_async_tracker):
+		return _async_tracker
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	if architecture == null:
+		return null
+	# 开发诊断 Installer 并非生产依赖；local lookup 缺失时静默返回，
+	# 避免 strict_dependency_lookup 把合法的发布构建当作配置错误。
+	var value: Object = architecture.get_local_utility(
+		GFAsyncTrackerUtility
+	)
+	if value is GFAsyncTrackerUtility:
+		_async_tracker = value
+		return _async_tracker
 	return null

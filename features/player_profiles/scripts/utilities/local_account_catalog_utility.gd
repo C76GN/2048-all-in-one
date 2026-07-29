@@ -38,6 +38,9 @@ const _DISPOSE_DRAIN_STEPS: int = 6_000
 
 var _storage: GFStorageUtility = null
 var _clock: GameClockUtility = null
+## 开发诊断可选能力；发布构建未安装时不得产生 strict lookup 错误。
+var _async_tracker: GFAsyncTrackerUtility = null
+var _async_tracking_ids: Dictionary = {}
 var _accounts: Array[LocalPlayerAccount] = []
 var _active_account_id: String = ""
 var _last_error: Error = OK
@@ -61,6 +64,7 @@ func ready() -> void:
 	_disposed = false
 	_storage = _resolve_storage_utility()
 	_clock = _resolve_clock_utility()
+	_async_tracker = _resolve_optional_async_tracker()
 	_last_error = _load_catalog()
 	if _last_error != OK:
 		push_error(
@@ -89,10 +93,12 @@ func dispose() -> void:
 		_poll_catalog_storage_operations()
 		OS.delay_msec(1)
 	_disposed = true
+	_clear_async_tracking()
 	_mutation_generation += 1
 	_active_mutation_token = 0
 	_storage = null
 	_clock = null
+	_async_tracker = null
 	_accounts.clear()
 	_active_account_id = ""
 	_last_error = OK
@@ -551,6 +557,7 @@ func _save_catalog_async(payload: Dictionary) -> Error:
 			&"error": "GFStorageUtility returned no async operation.",
 		}
 		return ERR_CANT_CREATE
+	_track_storage_operation(operation)
 	_pending_storage_operation = operation
 	_pending_storage_deadline_msec = (
 		_clock.get_tick_msec() + _CATALOG_IO_TIMEOUT_MSEC
@@ -581,6 +588,7 @@ func _save_catalog_async(payload: Dictionary) -> Error:
 			&"file_name": operation.get_file_name(),
 		}
 		return ERR_TIMEOUT
+	_untrack_storage_operation(operation)
 	_last_async_storage_result = (
 		result.to_dict()
 		if result != null
@@ -716,6 +724,7 @@ func _poll_catalog_storage_operations() -> void:
 		)
 		_last_async_storage_result[&"status"] = "late_settled"
 		_last_async_storage_result[&"late_apply_error"] = int(apply_error)
+		_untrack_storage_operation(operation)
 		var _erased: bool = (
 			_detached_storage_operations.erase(request_id)
 		)
@@ -757,6 +766,78 @@ func _sort_accounts() -> void:
 
 func _get_unix_timestamp() -> int:
 	return maxi(_clock.get_unix_timestamp(), 1) if is_instance_valid(_clock) else 1
+
+
+func _track_storage_operation(
+	operation: GFStorageAsyncOperation
+) -> void:
+	if operation == null or operation.is_completed():
+		return
+	var tracker: GFAsyncTrackerUtility = _resolve_optional_async_tracker()
+	if tracker == null:
+		return
+	var handle_instance_id: int = operation.get_instance_id()
+	if _async_tracking_ids.has(handle_instance_id):
+		return
+	var tracking_id: int = tracker.track_handle(
+		operation,
+		&"local_account.catalog_storage",
+		{
+			&"owner": "LocalAccountCatalogUtility",
+			&"request_id": operation.get_request_id(),
+			&"operation": String(operation.get_operation()),
+			&"file_name": operation.get_file_name(),
+		}
+	)
+	if tracking_id > 0:
+		_async_tracking_ids[handle_instance_id] = tracking_id
+
+
+func _untrack_storage_operation(
+	operation: GFStorageAsyncOperation
+) -> void:
+	if operation == null:
+		return
+	var handle_instance_id: int = operation.get_instance_id()
+	var tracking_id: int = GFVariantData.get_option_int(
+		_async_tracking_ids,
+		handle_instance_id,
+		0
+	)
+	if tracking_id <= 0:
+		return
+	if is_instance_valid(_async_tracker):
+		var _untracked: bool = _async_tracker.untrack_id(tracking_id)
+	var _erased: bool = _async_tracking_ids.erase(handle_instance_id)
+
+
+func _clear_async_tracking() -> void:
+	if is_instance_valid(_async_tracker):
+		for tracking_id_value: Variant in _async_tracking_ids.values():
+			var tracking_id: int = GFVariantData.to_int(
+				tracking_id_value
+			)
+			if tracking_id > 0:
+				var _untracked: bool = (
+					_async_tracker.untrack_id(tracking_id)
+				)
+	_async_tracking_ids.clear()
+
+
+func _resolve_optional_async_tracker() -> GFAsyncTrackerUtility:
+	if is_instance_valid(_async_tracker):
+		return _async_tracker
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	if architecture == null:
+		return null
+	# 只查看当前架构的可选诊断服务，缺失时不触发严格依赖告警。
+	var utility_value: Object = architecture.get_local_utility(
+		GFAsyncTrackerUtility
+	)
+	if utility_value is GFAsyncTrackerUtility:
+		_async_tracker = utility_value
+		return _async_tracker
+	return null
 
 
 func _is_configured() -> bool:
