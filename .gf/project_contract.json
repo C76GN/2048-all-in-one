@@ -39,6 +39,7 @@
       "gf.standard.platform",
       "gf.standard.settings",
       "gf.standard.spatial",
+      "gf.standard.spatial.canvas",
       "gf.standard.state",
       "gf.standard.state_machine",
       "gf.standard.storage",
@@ -146,9 +147,10 @@
         ],
         "acceptance": [
           "棋盘编辑器的连续笔画格线委托 GFGridCoordinateMath2D；项目只拥有拓扑合法性、编辑命令、持久化和视觉语义。",
+          "棋盘编辑器的视图状态、缩放、平移、世界/画布坐标转换和有界内容根由 GFSpatialCanvas2D 持有；项目控制器只仲裁绘制手势与编辑业务。",
           "快速拖动采样必须形成包含两端点的连续格线，test_board_editor.gd 覆盖斜向输入。"
         ],
-        "notes": "当前先采用 GF 标准网格坐标数学；画布视图所有权按独立阶段迁移到 GFSpatialCanvas2D。"
+        "notes": "玩法棋盘仍保留 HUD inset 与触控滑动特有的项目视图编排，后续按独立阶段迁移相同通用变换所有权。"
       },
       {
         "id": "ui-navigation",

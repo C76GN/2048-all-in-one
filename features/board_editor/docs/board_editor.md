@@ -17,7 +17,7 @@
 - 编辑器提供画笔、橡皮擦、矩形与十字预设、清空、左上规范化、撤销、重做、模板保存、载入、删除和当前形状预览。
 - 右键始终擦除；左键遵循当前画笔或橡皮模式。断开区域只提示，不阻止保存与使用。
 - `BoardEditorCanvas` 使用固定单格世界尺寸，画布随模板范围扩展；快速拖动通过 `GFGridCoordinateMath2D.get_line()` 补齐连续采样，不再维护第二份 Bresenham 实现，也不把大棋盘压缩到固定 Control 中。
-- `BoardEditorViewportController` 通过 `GFPointerGestureUtility` 和 `GFViewportUtility` 处理缩放、平移与坐标换算。桌面左/右键和移动端单指绘制，中键、滚轮、系统手势与双指控制视口；第二根手指出现时取消未提交的单指笔画，避免误写草稿。
+- `GFSpatialCanvas2D` 持有画布内容根、视图状态、缩放、平移与世界/画布坐标换算；`BoardEditorViewportController` 只通过 `GFPointerGestureUtility` 仲裁项目绘制语义。桌面左/右键和移动端单指绘制，中键、滚轮、系统手势与双指控制视口；第二根手指出现时取消未提交的单指笔画，避免误写草稿。
 - `BoardEditorResponsiveLayoutController` 提供桌面三栏、紧凑横屏和竖屏断点。紧凑布局使用“编辑 / 模板库”分区，竖屏工具位于画布上方，外边距叠加设备物理安全区。
 - 返回的拓扑仍由模式选择页复核，不能通过 UI 回调绕过模式模板。
 

@@ -199,9 +199,7 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var canvas_node: Node = panel.get_node_or_null(
-		"OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/CanvasWorld/BoardEditorCanvas"
-	)
+	var canvas_node: Node = panel.get_node_or_null("%BoardEditorCanvas")
 	var canvas_viewport: Control = panel.get_node_or_null(
 		"OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport"
 	) as Control
@@ -215,11 +213,22 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 		"OuterMargin/EditorPanel/InnerMargin/RootVBox/Footer/ApplyButton"
 	)
 	assert_true(canvas_node is BoardEditorCanvas, "编辑器应包含可绘制的强类型棋盘画布。")
+	assert_true(
+		canvas_viewport is GFSpatialCanvas2D,
+		"编辑画布视图、缩放和坐标转换应由 GFSpatialCanvas2D 持有。"
+	)
 	assert_true(canvas_viewport.clip_contents, "编辑画布必须由独立裁剪视口承载。")
 	assert_true(
 		canvas_node.get_parent() is Node2D,
 		"编辑画布必须位于可统一缩放平移的稳定世界节点下。"
 	)
+	if canvas_viewport is GFSpatialCanvas2D and canvas_node is BoardEditorCanvas:
+		var spatial_canvas: GFSpatialCanvas2D = canvas_viewport
+		assert_same(
+			canvas_node.get_parent().get_parent(),
+			spatial_canvas.get_content_root(),
+			"项目棋盘世界应挂载到 GFSpatialCanvas2D 的显式内容根。"
+		)
 	assert_true(
 		viewport_controller is BoardEditorViewportController,
 		"编辑画布必须使用 GF 手势驱动的专用视口控制器。"
@@ -392,7 +401,9 @@ func test_editor_viewport_reserves_single_touch_for_drawing_and_multitouch_for_g
 	var source: String = _read_text(_BOARD_EDITOR_VIEWPORT_SCRIPT_PATH)
 
 	assert_true(source.contains("GFPointerGestureUtility"))
-	assert_true(source.contains("GFViewportUtility"))
+	assert_true(source.contains("GFSpatialCanvas2D"))
+	assert_false(source.contains("CanvasViewportMath"))
+	assert_false(source.contains("GFViewportUtility"))
 	assert_true(source.contains("pointer_count < 2"))
 	assert_true(source.contains("_canvas.cancel_stroke()"))
 

@@ -15,7 +15,6 @@ signal view_transform_changed(zoom: float, world_position: Vector2)
 
 const _ZOOM_STEP: float = 1.15
 const _FIT_MARGIN: float = 18.0
-const _PAN_EDGE_MARGIN: float = 36.0
 const _NO_POINTER: int = -1
 
 
@@ -38,13 +37,13 @@ const _NO_POINTER: int = -1
 # --- 私有变量 ---
 
 var _host_control: Control
+var _spatial_canvas: GFSpatialCanvas2D
 var _world_root: Node2D
 var _canvas: BoardEditorCanvas
 var _zoom_out_button: Button
 var _fit_button: Button
 var _zoom_in_button: Button
 var _zoom_label: Label
-var _viewport_utility: GFViewportUtility
 var _gesture_utility: GFPointerGestureUtility
 var _signal_utility: GFSignalUtility
 var _content_rect: Rect2 = Rect2()
@@ -95,19 +94,19 @@ func _exit_tree() -> void:
 func fit_to_content() -> void:
 	if not _has_valid_geometry():
 		return
-	var fit_zoom: float = CanvasViewportMath.calculate_fit_zoom(
-		_host_control.size,
-		_content_rect,
-		_FIT_MARGIN,
+	var _initial_limits_set: bool = _spatial_canvas.set_zoom_limits(
+		0.0001,
 		maximum_zoom
 	)
-	var centered_position: Vector2 = CanvasViewportMath.calculate_centered_world_position(
-		_host_control.size,
-		_content_rect,
-		fit_zoom
-	)
 	_follow_fit = true
-	_set_view_transform(fit_zoom, centered_position)
+	if not _spatial_canvas.focus_world_rect(_content_rect, _FIT_MARGIN):
+		return
+	var fit_zoom: float = _spatial_canvas.get_zoom()
+	var _user_limits_set: bool = _spatial_canvas.set_zoom_limits(
+		minf(maxf(minimum_zoom, 0.0001), fit_zoom),
+		maximum_zoom
+	)
+	_sync_view_state()
 
 
 ## 以视口中心为锚点放大一级。
@@ -126,7 +125,7 @@ func pan_by(screen_delta: Vector2) -> void:
 	if not _has_valid_geometry() or screen_delta.is_zero_approx():
 		return
 	_follow_fit = false
-	_set_view_transform(_zoom, _world_root.position + screen_delta)
+	var _panned: bool = _spatial_canvas.pan_by_canvas_delta(screen_delta)
 
 
 ## 返回当前编辑画布缩放。
@@ -138,6 +137,7 @@ func get_zoom() -> float:
 
 func _resolve_nodes() -> void:
 	_host_control = _get_control_host()
+	_spatial_canvas = _host_control as GFSpatialCanvas2D
 	_world_root = _get_node_2d(world_root_path)
 	_canvas = _get_editor_canvas(canvas_path)
 	_zoom_out_button = _get_button(zoom_out_button_path)
@@ -146,8 +146,18 @@ func _resolve_nodes() -> void:
 	_zoom_label = _get_label(zoom_label_path)
 
 
+func _prepare_spatial_canvas() -> void:
+	if not is_instance_valid(_spatial_canvas) or not is_instance_valid(_world_root):
+		return
+	_spatial_canvas.set_input_enabled(false)
+	var content_root: Node2D = _spatial_canvas.get_content_root()
+	if _world_root.get_parent() != content_root:
+		_world_root.reparent(content_root)
+	_world_root.position = Vector2.ZERO
+	_world_root.scale = Vector2.ONE
+
+
 func _resolve_utilities() -> void:
-	_viewport_utility = _get_viewport_utility()
 	_gesture_utility = _get_gesture_utility()
 	_signal_utility = _get_signal_utility()
 
@@ -156,12 +166,12 @@ func _has_required_dependencies() -> bool:
 	var missing: PackedStringArray = PackedStringArray()
 	if not is_instance_valid(_host_control):
 		var _host_appended: bool = missing.append("Control host")
+	if not is_instance_valid(_spatial_canvas):
+		var _spatial_appended: bool = missing.append("GFSpatialCanvas2D")
 	if not is_instance_valid(_world_root):
 		var _world_appended: bool = missing.append("CanvasWorld")
 	if not is_instance_valid(_canvas):
 		var _canvas_appended: bool = missing.append("BoardEditorCanvas")
-	if not is_instance_valid(_viewport_utility):
-		var _viewport_appended: bool = missing.append("GFViewportUtility")
 	if not is_instance_valid(_gesture_utility):
 		var _gesture_appended: bool = missing.append("GFPointerGestureUtility")
 	if not is_instance_valid(_signal_utility):
@@ -193,6 +203,11 @@ func _bind_runtime_signals() -> void:
 		_on_content_rect_changed,
 		self
 	)
+	var _view_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_spatial_canvas.view_changed,
+		_on_spatial_view_changed,
+		self
+	)
 	if is_instance_valid(_zoom_out_button):
 		var _zoom_out_connection: GFSignalConnection = _signal_utility.connect_signal(
 			_zoom_out_button.pressed,
@@ -214,17 +229,22 @@ func _bind_runtime_signals() -> void:
 
 
 func _initialize_view() -> void:
-	if not is_inside_tree() or not _has_required_dependencies():
+	if not is_inside_tree():
+		return
+	_prepare_spatial_canvas()
+	if not _has_required_dependencies():
 		return
 	_last_viewport_size = _host_control.size
 	_content_rect = _canvas.get_content_rect()
 	_is_initialized = true
+	var _bounds_set: bool = _spatial_canvas.set_world_bounds(_content_rect, true)
 	fit_to_content()
 
 
 func _has_valid_geometry() -> bool:
 	return (
 		is_instance_valid(_host_control)
+		and is_instance_valid(_spatial_canvas)
 		and is_instance_valid(_world_root)
 		and is_instance_valid(_canvas)
 		and _host_control.visible
@@ -238,40 +258,24 @@ func _has_valid_geometry() -> bool:
 func _zoom_at(anchor: Vector2, requested_zoom: float) -> void:
 	if not _has_valid_geometry():
 		return
-	var fit_zoom: float = CanvasViewportMath.calculate_fit_zoom(
-		_host_control.size,
-		_content_rect,
-		_FIT_MARGIN,
+	var next_zoom: float = clampf(
+		requested_zoom,
+		minf(maxf(minimum_zoom, 0.0001), _zoom),
 		maximum_zoom
 	)
-	var effective_minimum: float = minf(maxf(minimum_zoom, 0.0001), fit_zoom)
-	var next_zoom: float = clampf(requested_zoom, effective_minimum, maximum_zoom)
 	if is_equal_approx(next_zoom, _zoom):
 		return
-	var next_position: Vector2 = CanvasViewportMath.calculate_zoomed_world_position(
-		_world_root.position,
-		anchor,
-		_zoom,
-		next_zoom
-	)
 	_follow_fit = false
-	_set_view_transform(next_zoom, next_position)
+	var _zoomed: bool = _spatial_canvas.zoom_at(anchor, next_zoom / maxf(_zoom, 0.0001))
 
 
-func _set_view_transform(next_zoom: float, desired_position: Vector2) -> void:
-	if not _has_valid_geometry():
+func _sync_view_state() -> void:
+	if not is_instance_valid(_spatial_canvas):
 		return
-	_zoom = maxf(next_zoom, 0.0001)
-	_world_root.scale = Vector2.ONE * _zoom
-	_world_root.position = CanvasViewportMath.calculate_clamped_world_position(
-		_host_control.size,
-		_content_rect,
-		_zoom,
-		desired_position,
-		_PAN_EDGE_MARGIN
-	)
+	_zoom = _spatial_canvas.get_zoom()
 	_update_zoom_label()
-	view_transform_changed.emit(_zoom, _world_root.position)
+	var content_root: Node2D = _spatial_canvas.get_content_root()
+	view_transform_changed.emit(_zoom, content_root.position)
 
 
 func _update_zoom_label() -> void:
@@ -359,11 +363,7 @@ func _handle_gesture_event(event: InputEvent) -> bool:
 
 
 func _host_to_canvas(host_position: Vector2) -> Vector2:
-	var screen_position: Vector2 = _viewport_utility.world_to_screen_2d(
-		_host_control,
-		host_position
-	)
-	return _viewport_utility.screen_to_world_2d(_canvas, screen_position)
+	return _spatial_canvas.canvas_to_world(host_position)
 
 
 func _reset_pointer_state() -> void:
@@ -412,14 +412,6 @@ func _get_label(path: NodePath) -> Label:
 	return null
 
 
-func _get_viewport_utility() -> GFViewportUtility:
-	var utility_value: Object = get_utility(GFViewportUtility, true)
-	if utility_value is GFViewportUtility:
-		var viewport_utility: GFViewportUtility = utility_value
-		return viewport_utility
-	return null
-
-
 func _get_gesture_utility() -> GFPointerGestureUtility:
 	var utility_value: Object = get_utility(GFPointerGestureUtility, true)
 	if utility_value is GFPointerGestureUtility:
@@ -446,23 +438,21 @@ func _on_host_resized() -> void:
 	if _follow_fit or previous_size.x <= 0.0 or previous_size.y <= 0.0:
 		fit_to_content()
 		return
-	var previous_center: Vector2 = previous_size * 0.5
-	var world_center: Vector2 = (
-		(previous_center - _world_root.position)
-		/ maxf(_zoom, 0.0001)
-	)
-	var desired_position: Vector2 = _host_control.size * 0.5 - world_center * _zoom
-	_set_view_transform(_zoom, desired_position)
+	_sync_view_state()
 
 
 func _on_content_rect_changed(content_rect: Rect2) -> void:
 	_content_rect = content_rect
+	var _bounds_set: bool = _spatial_canvas.set_world_bounds(_content_rect, true)
 	if not _is_initialized:
 		return
 	if _follow_fit:
 		fit_to_content()
 	else:
-		_set_view_transform(_zoom, _world_root.position)
+		var _view_reclamped: bool = _spatial_canvas.set_view(
+			_spatial_canvas.get_world_center(),
+			_spatial_canvas.get_zoom()
+		)
 
 
 func _on_gui_input(event: InputEvent) -> void:
@@ -498,21 +488,22 @@ func _on_gesture_updated(snapshot: Dictionary, event: InputEvent) -> void:
 		Vector2.ZERO
 	)
 	var requested_zoom: float = _zoom * maxf(scale_factor, 0.0001)
-	var fit_zoom: float = CanvasViewportMath.calculate_fit_zoom(
-		_host_control.size,
-		_content_rect,
-		_FIT_MARGIN,
+	var next_zoom: float = clampf(
+		requested_zoom,
+		minf(maxf(minimum_zoom, 0.0001), _zoom),
 		maximum_zoom
 	)
-	var effective_minimum: float = minf(maxf(minimum_zoom, 0.0001), fit_zoom)
-	var next_zoom: float = clampf(requested_zoom, effective_minimum, maximum_zoom)
-	var next_position: Vector2 = CanvasViewportMath.calculate_zoomed_world_position(
-		_world_root.position,
-		anchor,
-		_zoom,
-		next_zoom
-	) + pan_delta
 	if is_equal_approx(next_zoom, _zoom) and pan_delta.is_zero_approx():
 		return
 	_follow_fit = false
-	_set_view_transform(next_zoom, next_position)
+	if not is_equal_approx(next_zoom, _zoom):
+		var _zoomed: bool = _spatial_canvas.zoom_at(
+			anchor,
+			next_zoom / maxf(_zoom, 0.0001)
+		)
+	if not pan_delta.is_zero_approx():
+		var _panned: bool = _spatial_canvas.pan_by_canvas_delta(pan_delta)
+
+
+func _on_spatial_view_changed(_snapshot: Dictionary) -> void:
+	_sync_view_state()

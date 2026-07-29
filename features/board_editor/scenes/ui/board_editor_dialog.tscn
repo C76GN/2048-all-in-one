@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_dialog.gd" id="1_dialog"]
 [ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_canvas.gd" id="2_canvas"]
 [ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_viewport_controller.gd" id="3_viewport"]
 [ext_resource type="Script" path="res://features/board_editor/scripts/ui/board_editor_responsive_layout_controller.gd" id="4_responsive"]
 [ext_resource type="Script" path="res://features/board_editor/scripts/contexts/board_editor_context.gd" id="5_context"]
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/spatial_canvas/gf_spatial_canvas_2d.gd" id="6_spatial_canvas"]
 
 [node name="BoardEditorDialog" type="Control"]
 layout_mode = 3
@@ -201,6 +202,7 @@ size_flags_vertical = 3
 mouse_filter = 1
 clip_contents = true
 focus_mode = 2
+script = ExtResource("6_spatial_canvas")
 
 [node name="CanvasBackdrop" type="Panel" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport"]
 layout_mode = 1
