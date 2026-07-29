@@ -200,6 +200,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 5. `GFUIRoute.adjacent_route_ids` 只声明真实可达弹层，项目 Adapter 以 `max_depth=1`、`max_routes=4` 的预算尽力预加载；棋盘编辑器使用 required 策略，其他玩家弹层使用 best-effort，预加载失败不得破坏当前可见栈。
 6. 路由请求绑定场景 owner；owner 离开场景树后的迟到成功由项目 Adapter 校验并回滚，不能留下孤儿面板或继续执行业务状态切换。
 7. 动态列表和模式卡片的纵向焦点顺序由 `GFControlFocusUtility` 写入；项目代码只保留跨列跳转等界面特有语义，不逐项重复计算首尾循环。
+8. 回放目录通过 `GFVirtualListModel` 计算当前视口与固定 overscan 窗口，只把该切片交给 `GFRepeaterBinder` 物化；`GFVirtualListFocusModel` 独立保存逻辑焦点，并在桌面列表滚动、紧凑页面滚动、键盘/手柄跨窗口导航和数据缩短后投影到真实控件。书签目录规模较小，继续使用普通 Repeater 路径。
 
 ### 平台运行时
 

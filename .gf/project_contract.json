@@ -169,6 +169,19 @@
         "notes": ""
       },
       {
+        "id": "ui-scalability",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "scalable-ui-collection"
+        ],
+        "acceptance": [
+          "回放长列表只向 GFRepeaterBinder 提交 GFVirtualListModel 当前窗口与 overscan 切片；GFVirtualListFocusModel 必须在桌面和紧凑页面滚动中保持逻辑焦点，并在目录缩短时修复索引。",
+          "128 条回放的物化控件数只随视口容量和固定 overscan 增长；滚动、键盘/手柄跨窗口导航与重复刷新测试通过。"
+        ],
+        "notes": "书签目录规模较小，继续使用普通 GFRepeaterBinder；项目拥有回放身份、排序、选择和行视觉，GF 拥有有界窗口与逻辑焦点。"
+      },
+      {
         "id": "audio",
         "decision_state": "confirmed",
         "owner": "application",

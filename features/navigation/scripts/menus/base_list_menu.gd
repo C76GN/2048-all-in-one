@@ -11,6 +11,9 @@ extends GameUiController
 const _LIST_REVEAL_OFFSET: Vector2 = Vector2(16.0, 0.0)
 const _LIST_REVEAL_STAGGER: float = 0.03
 const _LIST_REPEATER_GROUP: StringName = &"base_list_menu_items"
+const _VIRTUAL_LIST_ITEM_INDEX_META: StringName = &"base_list_virtual_item_index"
+const _VIRTUAL_LIST_OVERSCAN_ITEMS: int = 3
+const _VIRTUAL_LIST_FALLBACK_VIEWPORT_ITEMS: int = 6
 const _LIST_ITEM_DUPLICATE_FLAGS: int = (
 	Node.DUPLICATE_GROUPS
 	| Node.DUPLICATE_SCRIPTS
@@ -58,6 +61,14 @@ var _layout_update_queued: bool = false
 var _delete_confirmation_dialog: ConfirmationDialog = null
 var _delete_error_dialog: AcceptDialog = null
 var _pending_delete_resource: Resource = null
+var _virtual_list_model: GFVirtualListModel = null
+var _virtual_focus_model: GFVirtualListFocusModel = null
+var _virtual_data_list: Array[Resource] = []
+var _virtual_visible_range: Vector2i = Vector2i(-1, -1)
+var _virtual_top_spacer: Control = null
+var _virtual_bottom_spacer: Control = null
+var _virtual_item_extent: float = 1.0
+var _virtual_window_update_queued: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -92,6 +103,7 @@ func _ready() -> void:
 		&"HistoryListPageScroll"
 	)
 	_list_scroll = _find_scroll_container("ScrollContainer")
+	_setup_virtual_list_support()
 	_apply_semantic_styles()
 	_apply_responsive_layout()
 	if is_instance_valid(back_button):
@@ -106,9 +118,18 @@ func _notification(what: int) -> void:
 		_queue_layout_update()
 
 
+func _exit_tree() -> void:
+	if is_instance_valid(_repeater_template):
+		_repeater_template.free()
+	_repeater_template = null
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		_on_back_button_pressed()
+		get_viewport().set_input_as_handled()
+		return
+	if _handle_unfocused_virtual_navigation(event):
 		get_viewport().set_input_as_handled()
 
 
@@ -215,6 +236,11 @@ func _get_delete_confirmation_message(_data: Resource) -> String:
 ## 获取删除失败提示。
 func _get_delete_failure_message(error: Error) -> String:
 	return tr("DELETE_ITEM_FAILED") % int(error)
+
+
+## 是否为当前列表启用 GF 有界虚拟化。只有长列表子类应覆写为 true。
+func _uses_virtual_list() -> bool:
+	return false
 
 
 # --- 私有/辅助方法 ---
@@ -415,6 +441,35 @@ func _find_scroll_container(node_name: String) -> ScrollContainer:
 	return null
 
 
+func _setup_virtual_list_support() -> void:
+	if not _uses_virtual_list():
+		return
+	_virtual_list_model = GFVirtualListModel.new()
+	_virtual_list_model.overscan_items = _VIRTUAL_LIST_OVERSCAN_ITEMS
+	_virtual_focus_model = GFVirtualListFocusModel.new()
+	_virtual_focus_model.wrap_navigation = false
+	_virtual_focus_model.auto_focus_on_count_change = true
+	_connect_virtual_scroll_source(_list_scroll)
+	_connect_virtual_scroll_source(_page_scroll)
+
+
+func _connect_virtual_scroll_source(scroll: ScrollContainer) -> void:
+	if not is_instance_valid(scroll):
+		return
+	var scroll_callback: Callable = Callable(self, "_on_virtual_scroll_changed")
+	var scroll_bar: VScrollBar = scroll.get_v_scroll_bar()
+	if (
+		is_instance_valid(scroll_bar)
+		and not scroll_bar.value_changed.is_connected(scroll_callback)
+	):
+		var _scroll_connect_result: int = scroll_bar.value_changed.connect(
+			scroll_callback
+		)
+	var resize_callback: Callable = Callable(self, "_on_virtual_viewport_resized")
+	if not scroll.resized.is_connected(resize_callback):
+		var _resize_connect_result: int = scroll.resized.connect(resize_callback)
+
+
 func _queue_layout_update() -> void:
 	if _layout_update_queued:
 		return
@@ -436,7 +491,7 @@ func _apply_responsive_layout() -> void:
 			if compact
 			else ScrollContainer.SCROLL_MODE_AUTO
 		)
-		_list_scroll.follow_focus = not compact
+		_list_scroll.follow_focus = not compact and not _uses_virtual_list()
 	_set_preview_column_compact(compact)
 	_columns_container.add_theme_constant_override("separation", 0 if compact else 34)
 	_center_column.add_theme_constant_override("separation", 12 if compact else 5)
@@ -482,6 +537,7 @@ func _apply_responsive_layout() -> void:
 		_page_scroll.scroll_vertical = 0
 	_apply_list_focus_order(_get_list_item_controls())
 	_restore_focus_after_responsive_layout(focused_control)
+	_queue_virtual_window_update()
 
 
 func _get_page_focus_owner() -> Control:
@@ -594,6 +650,9 @@ func _populate_list() -> void:
 		push_error("[BaseListMenu] _item_scene 未在子类中初始化。")
 		return
 
+	var preferred_virtual_focus: int = GFVirtualListFocusModel.NO_FOCUS
+	if is_instance_valid(_virtual_focus_model):
+		preferred_virtual_focus = _virtual_focus_model.focused_index
 	await _clear_list_content()
 
 	var raw_data_list: Array = _get_data_list()
@@ -610,6 +669,10 @@ func _populate_list() -> void:
 	var template: Control = _get_repeater_template()
 	if not is_instance_valid(template):
 		_handle_empty_list()
+		return
+
+	if _uses_virtual_list():
+		await _populate_virtual_list(data_list, template, preferred_virtual_focus)
 		return
 
 	var created_nodes: Array[Node] = GFRepeaterBinder.rebuild_container(items_container, template, data_list, {
@@ -638,6 +701,7 @@ func _populate_list() -> void:
 
 ## 处理列表为空的情况。
 func _handle_empty_list() -> void:
+	_reset_virtual_list_for_empty_state()
 	var label: Label = Label.new()
 	label.name = "EmptyStateLabel"
 	label.text = _get_empty_message()
@@ -660,6 +724,13 @@ func _handle_empty_list() -> void:
 
 
 func _clear_list_content() -> void:
+	_virtual_window_update_queued = false
+	_virtual_data_list.clear()
+	_virtual_visible_range = Vector2i(-1, -1)
+	if is_instance_valid(_virtual_list_model):
+		_virtual_list_model.clear()
+	if is_instance_valid(_virtual_focus_model):
+		var _focus_cleared: bool = _virtual_focus_model.set_item_count(0)
 	var _cleared_clones: int = GFRepeaterBinder.clear_clones(items_container, {
 		"group_key": _LIST_REPEATER_GROUP,
 	})
@@ -668,6 +739,8 @@ func _clear_list_content() -> void:
 		child.queue_free()
 
 	await get_tree().process_frame
+	_virtual_top_spacer = null
+	_virtual_bottom_spacer = null
 
 
 func _configure_repeated_list_item(node: Node, item: Variant, _index: int) -> void:
@@ -676,8 +749,431 @@ func _configure_repeated_list_item(node: Node, item: Variant, _index: int) -> vo
 
 	var item_control: Control = node
 	var data: Resource = item
+	if _uses_virtual_list():
+		var virtual_index: int = _virtual_visible_range.x + _index
+		item_control.set_meta(_VIRTUAL_LIST_ITEM_INDEX_META, virtual_index)
+		item_control.set_meta(GFRepeaterBinder.META_INDEX, virtual_index)
+		var input_callback: Callable = Callable(
+			self,
+			"_on_virtual_item_gui_input"
+		).bind(item_control)
+		if not item_control.gui_input.is_connected(input_callback):
+			var _input_connect_result: int = item_control.gui_input.connect(
+				input_callback
+			)
 	_setup_item(item_control, data)
 	_connect_item_signals(item_control, data)
+
+
+func _populate_virtual_list(
+	data_list: Array[Resource],
+	template: Control,
+	preferred_focus_index: int = GFVirtualListFocusModel.NO_FOCUS
+) -> void:
+	if not is_instance_valid(_virtual_list_model):
+		_virtual_list_model = GFVirtualListModel.new()
+	if not is_instance_valid(_virtual_focus_model):
+		_virtual_focus_model = GFVirtualListFocusModel.new()
+		_virtual_focus_model.wrap_navigation = false
+		_virtual_focus_model.auto_focus_on_count_change = true
+
+	_virtual_data_list = data_list.duplicate()
+	_virtual_item_extent = _estimate_virtual_item_extent(template)
+	_virtual_list_model.clear()
+	_virtual_list_model.estimated_item_extent = _virtual_item_extent
+	_virtual_list_model.overscan_items = _VIRTUAL_LIST_OVERSCAN_ITEMS
+	_virtual_list_model.set_item_count(_virtual_data_list.size())
+
+	var next_focus_index: int = preferred_focus_index
+	if next_focus_index == GFVirtualListFocusModel.NO_FOCUS:
+		next_focus_index = 0
+	else:
+		next_focus_index = mini(
+			maxi(next_focus_index, 0),
+			_virtual_data_list.size() - 1
+		)
+	var _configured_focus_model: GFVirtualListFocusModel = (
+		_virtual_focus_model.configure(_virtual_data_list.size(), {
+			"focused_index": next_focus_index,
+			"wrap_navigation": false,
+			"auto_focus_on_count_change": true,
+		})
+	)
+	if not _virtual_focus_model.has_focus():
+		var _focus_first_changed: bool = _virtual_focus_model.focus_first()
+
+	_create_virtual_spacers()
+	_render_virtual_window(true, _virtual_focus_model.focused_index)
+	await get_tree().process_frame
+	_render_virtual_window(false, _virtual_focus_model.focused_index)
+	_grab_virtual_focus(_virtual_focus_model.focused_index)
+	if _virtual_focus_model.has_focus():
+		_set_selected_item(
+			_virtual_data_list[_virtual_focus_model.focused_index]
+		)
+	_bind_and_reveal_list_items()
+
+
+func _estimate_virtual_item_extent(template: Control) -> float:
+	var row_extent: float = maxf(template.custom_minimum_size.y, 1.0)
+	var separation: float = 0.0
+	if is_instance_valid(items_container):
+		separation = maxf(
+			float(items_container.get_theme_constant("separation")),
+			0.0
+		)
+	return row_extent + separation
+
+
+func _create_virtual_spacers() -> void:
+	_virtual_top_spacer = Control.new()
+	_virtual_top_spacer.name = "VirtualListTopSpacer"
+	_virtual_top_spacer.focus_mode = Control.FOCUS_NONE
+	_virtual_top_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_virtual_top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	items_container.add_child(_virtual_top_spacer)
+
+	_virtual_bottom_spacer = Control.new()
+	_virtual_bottom_spacer.name = "VirtualListBottomSpacer"
+	_virtual_bottom_spacer.focus_mode = Control.FOCUS_NONE
+	_virtual_bottom_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_virtual_bottom_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	items_container.add_child(_virtual_bottom_spacer)
+
+
+func _render_virtual_window(
+	force_rebuild: bool = false,
+	required_index: int = GFVirtualListFocusModel.NO_FOCUS
+) -> void:
+	if (
+		not _uses_virtual_list()
+		or _virtual_data_list.is_empty()
+		or not is_instance_valid(_virtual_list_model)
+		or not is_instance_valid(_virtual_top_spacer)
+		or not is_instance_valid(_virtual_bottom_spacer)
+	):
+		return
+
+	var metrics: Vector2 = _get_virtual_scroll_metrics()
+	var visible_range: Vector2i = _virtual_list_model.get_visible_range(
+		metrics.x,
+		metrics.y
+	)
+	visible_range = _include_required_virtual_index(
+		visible_range,
+		required_index,
+		metrics.y
+	)
+	if not force_rebuild and visible_range == _virtual_visible_range:
+		return
+	var focus_owner: Control = get_viewport().gui_get_focus_owner()
+	var focused_materialized_index: int = GFVirtualListFocusModel.NO_FOCUS
+	if (
+		is_instance_valid(focus_owner)
+		and items_container.is_ancestor_of(focus_owner)
+	):
+		focused_materialized_index = _get_virtual_item_index(focus_owner)
+	_virtual_visible_range = visible_range
+
+	var visible_data: Array = []
+	for item_index: int in range(visible_range.x, visible_range.y):
+		visible_data.append(_virtual_data_list[item_index])
+
+	var created_nodes: Array[Node] = GFRepeaterBinder.rebuild_container(
+		items_container,
+		_get_repeater_template(),
+		visible_data,
+		{
+			"group_key": _LIST_REPEATER_GROUP,
+			"hide_template": false,
+			"clear_existing": true,
+			"duplicate_flags": _LIST_ITEM_DUPLICATE_FLAGS,
+			"configure_callable": Callable(
+				self,
+				"_configure_repeated_list_item"
+			),
+		}
+	)
+	items_container.move_child(_virtual_top_spacer, 0)
+	items_container.move_child(
+		_virtual_bottom_spacer,
+		items_container.get_child_count() - 1
+	)
+	_update_virtual_spacer_extents(visible_range)
+
+	var items: Array[Control] = []
+	for node: Node in created_nodes:
+		if node is Control:
+			var item_control: Control = node
+			items.append(item_control)
+	_apply_list_focus_order(items)
+	_apply_virtual_selection_visuals()
+	var motion_utility: GameUiMotionUtility = _get_game_ui_motion_utility()
+	if is_instance_valid(motion_utility):
+		var _bound_count: int = motion_utility.bind_interactive_controls(
+			items_container
+		)
+	if (
+		focused_materialized_index >= visible_range.x
+		and focused_materialized_index < visible_range.y
+	):
+		call_deferred(
+			&"_grab_virtual_focus",
+			focused_materialized_index
+		)
+
+
+func _include_required_virtual_index(
+	visible_range: Vector2i,
+	required_index: int,
+	viewport_extent: float
+) -> Vector2i:
+	if (
+		required_index < 0
+		or required_index >= _virtual_data_list.size()
+		or (
+			required_index >= visible_range.x
+			and required_index < visible_range.y
+		)
+	):
+		return visible_range
+
+	var visible_capacity: int = maxi(
+		ceili(viewport_extent / _virtual_item_extent)
+		+ _VIRTUAL_LIST_OVERSCAN_ITEMS * 2,
+		1
+	)
+	visible_capacity = mini(visible_capacity, _virtual_data_list.size())
+	var start_index: int = maxi(
+		required_index - _VIRTUAL_LIST_OVERSCAN_ITEMS,
+		0
+	)
+	start_index = mini(
+		start_index,
+		_virtual_data_list.size() - visible_capacity
+	)
+	return Vector2i(
+		start_index,
+		mini(start_index + visible_capacity, _virtual_data_list.size())
+	)
+
+
+func _get_virtual_scroll_metrics() -> Vector2:
+	var fallback_extent: float = (
+		_virtual_item_extent * float(_VIRTUAL_LIST_FALLBACK_VIEWPORT_ITEMS)
+	)
+	if (
+		_layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+		and is_instance_valid(_list_scroll)
+	):
+		return Vector2(
+			float(_list_scroll.scroll_vertical),
+			maxf(_list_scroll.size.y, fallback_extent)
+		)
+	if (
+		not is_instance_valid(_page_scroll)
+		or not _page_scroll.visible
+		or not is_instance_valid(items_container)
+	):
+		return Vector2(0.0, fallback_extent)
+
+	var viewport_top: float = _page_scroll.global_position.y
+	var viewport_bottom: float = viewport_top + _page_scroll.size.y
+	var list_top: float = items_container.global_position.y
+	var content_extent: float = _virtual_list_model.get_content_extent()
+	var visible_top: float = clampf(
+		viewport_top - list_top,
+		0.0,
+		content_extent
+	)
+	var visible_bottom: float = clampf(
+		viewport_bottom - list_top,
+		0.0,
+		content_extent
+	)
+	return Vector2(
+		visible_top,
+		maxf(visible_bottom - visible_top, 0.0)
+	)
+
+
+func _update_virtual_spacer_extents(visible_range: Vector2i) -> void:
+	var separation: float = maxf(
+		float(items_container.get_theme_constant("separation")),
+		0.0
+	)
+	var top_extent: float = _virtual_list_model.get_item_offset(
+		visible_range.x
+	)
+	_virtual_top_spacer.visible = visible_range.x > 0
+	_virtual_top_spacer.custom_minimum_size.y = maxf(
+		top_extent - separation,
+		0.0
+	)
+
+	var bottom_offset: float = (
+		_virtual_list_model.get_content_extent()
+		if visible_range.y >= _virtual_data_list.size()
+		else _virtual_list_model.get_item_offset(visible_range.y)
+	)
+	_virtual_bottom_spacer.visible = true
+	_virtual_bottom_spacer.custom_minimum_size.y = maxf(
+		_virtual_list_model.get_content_extent() - bottom_offset,
+		0.0
+	)
+
+
+func _apply_virtual_selection_visuals() -> void:
+	var selected_target: Control = null
+	for item_control: Control in _get_list_item_controls():
+		if not item_control is BaseListMenuItem:
+			continue
+		var list_item: BaseListMenuItem = item_control
+		var is_selected: bool = list_item.get_data() == _selected_resource
+		list_item.set_selected(is_selected)
+		if is_selected:
+			selected_target = list_item
+	_update_action_focus_return_target(selected_target)
+
+
+func _queue_virtual_window_update() -> void:
+	if (
+		not _uses_virtual_list()
+		or _virtual_data_list.is_empty()
+		or _virtual_window_update_queued
+	):
+		return
+	_virtual_window_update_queued = true
+	call_deferred(&"_refresh_virtual_window")
+
+
+func _refresh_virtual_window() -> void:
+	_virtual_window_update_queued = false
+	if not is_inside_tree():
+		return
+	_render_virtual_window()
+
+
+func _reset_virtual_list_for_empty_state() -> void:
+	if not _uses_virtual_list():
+		return
+	_virtual_data_list.clear()
+	_virtual_visible_range = Vector2i(-1, -1)
+	if is_instance_valid(_virtual_list_model):
+		_virtual_list_model.clear()
+	if is_instance_valid(_virtual_focus_model):
+		var _focus_changed: bool = _virtual_focus_model.set_item_count(0)
+
+
+func _get_virtual_item_index(item_control: Control) -> int:
+	if (
+		not is_instance_valid(item_control)
+		or not item_control.has_meta(_VIRTUAL_LIST_ITEM_INDEX_META)
+	):
+		return GFVirtualListFocusModel.NO_FOCUS
+	return GFVariantData.to_int(
+		item_control.get_meta(_VIRTUAL_LIST_ITEM_INDEX_META),
+		GFVirtualListFocusModel.NO_FOCUS
+	)
+
+
+func _grab_virtual_focus(item_index: int) -> void:
+	if (
+		not is_instance_valid(_virtual_focus_model)
+		or not _virtual_focus_model.is_focusable(item_index)
+	):
+		return
+	for item_control: Control in _get_list_item_controls():
+		if _get_virtual_item_index(item_control) != item_index:
+			continue
+		var _focus_changed: bool = _virtual_focus_model.set_focused_index(
+			item_index
+		)
+		item_control.grab_focus()
+		return
+
+
+func _project_virtual_focus(item_index: int) -> void:
+	if (
+		not is_instance_valid(_virtual_list_model)
+		or not is_instance_valid(_virtual_focus_model)
+		or not _virtual_focus_model.is_focusable(item_index)
+	):
+		return
+	_scroll_virtual_index_into_view(item_index)
+	_render_virtual_window(false, item_index)
+	call_deferred(&"_finish_virtual_focus_projection", item_index)
+
+
+func _finish_virtual_focus_projection(item_index: int) -> void:
+	if not is_inside_tree():
+		return
+	_render_virtual_window(false, item_index)
+	call_deferred(&"_grab_virtual_focus", item_index)
+
+
+func _scroll_virtual_index_into_view(item_index: int) -> void:
+	var metrics: Vector2 = _get_virtual_scroll_metrics()
+	var target_top: float = _virtual_list_model.get_item_offset(item_index)
+	var target_bottom: float = (
+		target_top + _virtual_list_model.get_item_extent(item_index)
+	)
+	var adjustment: float = 0.0
+	if target_top < metrics.x:
+		adjustment = target_top - metrics.x
+	elif target_bottom > metrics.x + metrics.y:
+		adjustment = target_bottom - metrics.x - metrics.y
+	if is_zero_approx(adjustment):
+		return
+
+	if (
+		_layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+		and is_instance_valid(_list_scroll)
+	):
+		_list_scroll.scroll_vertical = maxi(
+			roundi(float(_list_scroll.scroll_vertical) + adjustment),
+			0
+		)
+	elif is_instance_valid(_page_scroll):
+		_page_scroll.scroll_vertical = maxi(
+			roundi(float(_page_scroll.scroll_vertical) + adjustment),
+			0
+		)
+
+
+func _move_virtual_focus_from(item_index: int, step: int) -> bool:
+	if not is_instance_valid(_virtual_focus_model):
+		return false
+	var _focus_changed_to_source: bool = _virtual_focus_model.set_focused_index(
+		item_index
+	)
+	if not _virtual_focus_model.move_focus(step):
+		return false
+	_project_virtual_focus(_virtual_focus_model.focused_index)
+	return true
+
+
+func _handle_unfocused_virtual_navigation(event: InputEvent) -> bool:
+	if (
+		not _uses_virtual_list()
+		or not is_instance_valid(_virtual_focus_model)
+		or not _virtual_focus_model.has_focus()
+	):
+		return false
+	var focus_owner: Control = get_viewport().gui_get_focus_owner()
+	if is_instance_valid(focus_owner):
+		return false
+	if event.is_action_pressed("ui_down"):
+		return _move_virtual_focus_from(
+			_virtual_focus_model.focused_index,
+			1
+		)
+	if event.is_action_pressed("ui_up"):
+		return _move_virtual_focus_from(
+			_virtual_focus_model.focused_index,
+			-1
+		)
+	return false
 
 
 ## 集中处理选中逻辑。
@@ -703,11 +1199,10 @@ func _set_selected_item(data: Resource) -> void:
 ## 让右侧动作完成后返回当前选中项；纵向列表顺序由 GFControlFocusUtility 拥有。
 func _update_action_focus_return_target(target_node: Control) -> void:
 	var target: Control = target_node
-	if not is_instance_valid(target) and items_container.get_child_count() > 0:
-		var first: Node = items_container.get_child(0)
-		if first is Control:
-			var first_control: Control = first
-			target = first_control
+	if not is_instance_valid(target):
+		var materialized_items: Array[Control] = _get_list_item_controls()
+		if not materialized_items.is_empty():
+			target = materialized_items[0]
 
 	_set_left_focus_target(_primary_button, target)
 	_set_left_focus_target(_delete_button, target)
@@ -843,7 +1338,36 @@ func _show_delete_error(error: Error) -> void:
 
 # --- 信号处理函数 ---
 
+func _on_virtual_scroll_changed(_value: float) -> void:
+	_queue_virtual_window_update()
+
+
+func _on_virtual_viewport_resized() -> void:
+	_queue_virtual_window_update()
+
+
+func _on_virtual_item_gui_input(
+	event: InputEvent,
+	item_control: Control
+) -> void:
+	var item_index: int = _get_virtual_item_index(item_control)
+	if item_index == GFVirtualListFocusModel.NO_FOCUS:
+		return
+	if event.is_action_pressed("ui_down"):
+		if _move_virtual_focus_from(item_index, 1):
+			get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_up"):
+		if _move_virtual_focus_from(item_index, -1):
+			get_viewport().set_input_as_handled()
+
+
 func _on_item_focused(data: Resource) -> void:
+	if _uses_virtual_list() and is_instance_valid(_virtual_focus_model):
+		var item_index: int = _virtual_data_list.find(data)
+		if item_index >= 0:
+			var _focus_changed: bool = _virtual_focus_model.set_focused_index(
+				item_index
+			)
 	if _selected_resource != data:
 		_set_selected_item(data)
 

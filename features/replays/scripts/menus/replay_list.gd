@@ -238,3 +238,7 @@ func _get_delete_confirmation_message(_data: Resource) -> String:
 
 func _get_delete_failure_message(error: Error) -> String:
 	return tr("DELETE_REPLAY_FAILED") % int(error)
+
+
+func _uses_virtual_list() -> bool:
+	return true
