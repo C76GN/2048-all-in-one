@@ -1,10 +1,11 @@
 {
   "schema_version": 1,
-  "catalog_version": "1.0.0",
+  "catalog_version": "1.7.0",
   "recipes": [
     {
       "id": "project-feature",
       "title": "Add a project feature",
+      "package_requirements": {"all_of": ["gf.kernel"], "any_of": []},
       "primary_classes": ["GFArchitecture", "GFModel", "GFSystem", "GFController"],
       "steps": [
         "Name the feature's authoritative state, behavior, scene bridge, and external dependencies.",
@@ -18,6 +19,7 @@
     {
       "id": "composition-root",
       "title": "Compose project modules and adapters",
+      "package_requirements": {"all_of": ["gf.kernel"], "any_of": []},
       "primary_classes": ["GFInstaller", "GFArchitecture"],
       "steps": [
         "Create a project-owned GFInstaller as the composition root.",
@@ -31,6 +33,7 @@
     {
       "id": "owned-async-operation",
       "title": "Implement an owned async operation",
+      "package_requirements": {"all_of": ["gf.kernel", "gf.standard.base"], "any_of": []},
       "primary_classes": ["GFAsyncCompletion", "GFAsyncScope", "GFAsyncWaitUtility"],
       "steps": [
         "Choose the node, service, or request that owns the operation.",
@@ -42,8 +45,24 @@
       "avoid": ["Fire-and-forget work with hidden failure", "Awaiting a signal whose emitter can disappear"]
     },
     {
+      "id": "bounded-runtime-work",
+      "title": "Bound runtime work and object reuse",
+      "package_requirements": {"all_of": ["gf.standard.base"], "any_of": []},
+      "primary_classes": ["GFExecutionBudget", "GFObjectPoolUtility"],
+      "steps": [
+        "Profile the real workload before choosing a finite step, depth, output, time, or pool capacity.",
+        "Create or reset GFExecutionBudget at the operation boundary and consume the relevant checks inside every potentially unbounded loop.",
+        "Propagate cancellation and expose the budget violation reason instead of silently returning partial authoritative state.",
+        "Use GFObjectPoolUtility only for scene nodes with an explicit PackedScene identity, bounded prewarm, and symmetric acquire and release ownership.",
+        "Reset project-owned transient state through the documented pool hooks and keep durable domain identity outside pooled nodes.",
+        "Test exhaustion, cancellation, invalid releases, capacity trimming, owner disposal, and repeated acquire and release cycles."
+      ],
+      "avoid": ["Pooling before profiling", "Treating a budget as an automatic scheduler", "Pooling authoritative identity or state without an explicit reset contract"]
+    },
+    {
       "id": "owned-resource-load",
       "title": "Load a resource with explicit ownership",
+      "package_requirements": {"all_of": ["gf.standard.assets"], "any_of": []},
       "primary_classes": ["GFAssetUtility", "GFAssetHandle", "GFResourceResolverUtility"],
       "steps": [
         "Resolve a stable resource key or catalog entry instead of scattering paths.",
@@ -57,6 +76,7 @@
     {
       "id": "config-pipeline",
       "title": "Compile project configuration",
+      "package_requirements": {"all_of": ["gf.tool.config_pipeline"], "any_of": []},
       "primary_classes": ["GFConfigPipeline", "GFConfigPipelineIR", "GFConfigPipelineValidationStage"],
       "steps": [
         "Keep business schema in project-owned source and schema files.",
@@ -68,8 +88,25 @@
       "avoid": ["Project columns hardcoded into GF stages", "Writing outputs before all semantic validation passes"]
     },
     {
+      "id": "analytics-schema-outbox",
+      "title": "Track versioned analytics through a dedicated outbox",
+      "package_requirements": {"all_of": ["gf.standard.base", "gf.standard.assets"], "any_of": []},
+      "primary_classes": ["GFAnalyticsEventSchema", "GFAnalyticsSchemaRegistry", "GFAnalyticsUtility", "GFAnalyticsOutboxAdapter", "GFRequestOutboxUtility"],
+      "steps": [
+        "Define one stable event name and a schema version in the exact 1..2_147_483_647 range with a strict GFDictionarySchema over caller-supplied properties only.",
+        "Register the exact GFAnalyticsEventSchema before producers call track_versioned, and treat missing or invalid versions as rejected events.",
+        "Add a new explicit schema version for contract changes; do not silently migrate, reinterpret, or select the latest version.",
+        "Create a dedicated GFRequestOutboxUtility with its own storage path, retention, replay filter, transport callback, and account or consent lifecycle.",
+        "Configure GFAnalyticsOutboxAdapter and attach enqueue_payload as the analytics transport callback; this adapter accepts a batch only after enqueue_with_report reports durable persistence.",
+        "Treat delivery as at-least-once, forward the stable idempotency key, and require the server to validate schema, identity, authorization, size, and duplicates.",
+        "Test invalid properties, unknown versions, persistence failure, restart recovery, duplicate delivery, account changes, consent withdrawal, and expired authentication."
+      ],
+      "avoid": ["PII collection inferred from a valid schema", "Analytics sharing an outbox with purchases or cloud saves", "Schema versions treated as authentication or migration permission", "Exactly-once claims without receiver-side idempotency"]
+    },
+    {
       "id": "save-boundary",
       "title": "Define persistence and save ownership",
+      "package_requirements": {"all_of": [], "any_of": [["gf.standard.storage", "gf.extension.save"]]},
       "primary_classes": ["GFStorageUtility", "GFSaveGraphUtility", "GFSaveScope", "GFSaveIdentity"],
       "steps": [
         "Declare persistence mode and compatibility guarantees in the project contract.",
@@ -81,21 +118,42 @@
       "avoid": ["Persisting process-local IDs", "Treating encryption, integrity, and obfuscation as equivalent"]
     },
     {
+      "id": "save-profile",
+      "title": "Coordinate a transactional save profile",
+      "package_requirements": {"all_of": ["gf.extension.save"], "any_of": []},
+      "primary_classes": ["GFSaveProfileUtility", "GFSaveSectionProvider", "GFSaveRecoveryPolicy"],
+      "steps": [
+        "Define one stable section provider per independently owned data boundary and keep section payloads business-owned.",
+        "Register the profile, providers, complete migration chain, recovery policy, and explicit storage backend before the first operation.",
+        "Observe the typed operation result for success, validation failure, cancellation, rollback failure, and recovery outcome.",
+        "Use generation coalescing for repeated requests and a flush barrier before shutdown, account switch, or destructive navigation.",
+        "Fault-inject interrupted writes, corrupt and future versions, provider failure, migration gaps, rollback failure, and late completion."
+      ],
+      "avoid": ["Resetting every failed load to an empty save", "Providers mutating another section during capture or restore", "Fire-and-forget save calls during owner disposal"]
+    },
+    {
       "id": "platform-lobby-adapter",
       "title": "Adapt a platform lobby provider",
-      "primary_classes": ["GFNetworkBackend", "GFAsyncCompletion", "GFInstaller"],
+      "package_requirements": {"all_of": ["gf.standard.platform", "gf.extension.network"], "any_of": []},
+      "primary_classes": ["GFPlatformAdapter", "GFPlatformContractDescriptor", "GFPlatformAdapterConformance", "GFNetworkLobbyBackend", "GFNetworkLobbyService", "GFMultiplayerPeerNetworkBackend"],
       "steps": [
-        "Define provider-neutral identity, lobby descriptor, member, invite, and error records in project or adapter code.",
-        "Keep Steam, Epic, console, or service SDK calls inside the adapter.",
-        "Normalize initialization, capability checks, callbacks, cancellation, and provider shutdown.",
-        "Let project code own lobby visibility, matchmaking policy, UI, and fallback.",
-        "Test unavailable SDK, late callbacks, disconnect, ownership transfer, and duplicate events."
+        "Declare provider-neutral contract methods, request/result schemas, byte budgets, capability requirements, concurrency, cancellation support, and sensitive fields.",
+        "Keep every provider SDK call inside the project-owned adapter and correlate the GF handle before invoking a provider that may complete synchronously.",
+        "For native or GDExtension-backed providers, choose script_only, optional, or required mode; freeze the descriptor and exact platform, architecture, and build-configuration artifact matrix with hashes, sizes, immutable sources, licenses, Godot floor, and reload policy.",
+        "Keep detection side-effect free and fail closed on absent, ambiguous, stale, mismatched, or partially readable native evidence; never treat a runtime class name or filename as integrity proof.",
+        "Declare call and callback threads, copy worker callbacks into a bounded plain-data ingress queue, and pump them onto the main thread before touching Godot objects, GF handles, signals, or owner state.",
+        "Map every lobby call to a GFNetworkLobbyOperationHandle by request ID and normalize initialization, cancellation, timeout, provider shutdown, and late callbacks.",
+        "Publish launch and invite callbacks as deduplicated GFPlatformActivationIntent records; adopt provider MultiplayerPeer instances with explicit owned or borrowed lifecycle.",
+        "Pin native dependencies for offline reproduction, declare permissions and redaction, separate editor-only from runtime artifacts, and run load, request, cancellation, bounded worker shutdown, and integrity checks against every actual exported target.",
+        "Run GFPlatformAdapterConformance and fault-inject unavailable SDK, invalid schemas, concurrency, cancellation, timeout, duplicate or late callbacks, denied permissions, secret-shaped errors, disconnect, and ownership transfer.",
+        "Let project code own lobby visibility, matchmaking, authority, UI, product policy, and fallback."
       ],
-      "avoid": ["Provider IDs leaking into portable domain models", "A GFSteamManager-style global business facade"]
+      "avoid": ["Provider IDs leaking into portable domain models", "Uncorrelated callback-only completion", "Side-effecting native availability probes", "Worker callbacks touching Godot or GF objects", "Mutable or network-only native build inputs", "Editor-only success accepted as runtime proof", "A provider-specific global business facade"]
     },
     {
       "id": "platform-storage-adapter",
       "title": "Adapt cloud or platform storage",
+      "package_requirements": {"all_of": ["gf.standard.storage"], "any_of": []},
       "primary_classes": ["GFStorageBackend", "GFStorageSyncUtility", "GFAsyncCompletion"],
       "steps": [
         "Implement provider calls behind GFStorageBackend or a project-owned equivalent.",
@@ -109,6 +167,7 @@
     {
       "id": "provider-backend",
       "title": "Implement a replaceable provider backend",
+      "package_requirements": {"all_of": [], "any_of": [["gf.standard.audio", "gf.extension.network", "gf.standard.storage"]]},
       "primary_classes": ["GFAudioBackend", "GFNetworkBackend", "GFStorageBackend"],
       "steps": [
         "Select the narrow GF protocol that matches the provider capability.",
@@ -120,21 +179,52 @@
       "avoid": ["Provider-specific methods added to a generic protocol", "Silent fallback that changes product behavior"]
     },
     {
+      "id": "render-feedback-orchestration",
+      "title": "Orchestrate render preparation and feedback",
+      "package_requirements": {"all_of": [], "any_of": [["gf.standard.display", "gf.standard.assets", "gf.extension.feedback"]]},
+      "primary_classes": ["GFShaderParameterUtility", "GFRenderWarmupUtility", "GFScreenTransitionUtility", "GFHapticUtility", "GFShakeUtility"],
+      "steps": [
+        "Define project-owned feedback intent, timing, channels, accessibility policy, and finite effect budgets before selecting a mechanism.",
+        "Apply validated shader profiles or parameter batches without embedding art-direction rules in generic utilities.",
+        "Build and process bounded render warmup manifests at an explicit loading boundary, then release temporary nodes and cached resources with their owner.",
+        "Coordinate screen-transition completion or cancellation with project navigation instead of treating an overlay as authoritative scene state.",
+        "Play haptic and shake presets through explicit channels and lifecycle owners, with reduced-motion, unavailable-device, and static fallback policy in project code.",
+        "Test overlapping effects, cancellation, missing resources or devices, budget exhaustion, scene teardown, and disabled feedback."
+      ],
+      "avoid": ["Unbounded warmup during interactive frames", "Haptics or shake as mandatory gameplay information", "A transition overlay committing project navigation"]
+    },
+    {
       "id": "network-backend-adapter",
       "title": "Implement a network transport backend",
-      "primary_classes": ["GFNetworkBackend", "GFNetworkUtility", "GFNetworkChannel"],
+      "package_requirements": {"all_of": ["gf.extension.network"], "any_of": []},
+      "primary_classes": ["GFNetworkBackend", "GFMultiplayerPeerNetworkBackend", "GFNetworkUtility", "GFNetworkTransportMetrics", "GFNetworkChannel"],
       "steps": [
         "Keep transport bytes and connection state separate from project messages.",
         "Declare authority, reliability, ordering, and payload limits in project contracts.",
-        "Normalize peer identity and disconnect reasons at the adapter boundary.",
+        "Normalize peer identity, disconnect reasons, optional metrics, and MultiplayerPeer ownership at the adapter boundary.",
         "Use GF network contracts for stable payloads when appropriate.",
         "Test loss, duplication, reordering, reconnect, oversized payloads, and shutdown."
       ],
       "avoid": ["Transport callbacks mutating gameplay state directly", "Assuming a transport implies authority policy"]
     },
     {
+      "id": "network-sync-coordinator",
+      "title": "Coordinate bounded authoritative snapshots",
+      "package_requirements": {"all_of": ["gf.extension.network"], "any_of": []},
+      "primary_classes": ["GFNetworkSyncCoordinator", "GFNetworkSimulationAdapter", "GFNetworkInputFrame", "GFNetworkSnapshot", "GFNetworkUtility"],
+      "steps": [
+        "Keep a finite raw packet limit and peer-binding validator in GFNetworkUtility, and pass its actual source peer to the coordinator.",
+        "Create a trusted unique epoch, configure explicit local and authority peers, and register each authorized replica from project session policy.",
+        "Implement a synchronous project adapter with strict state and input schemas, side-effect-free validation, and entity control checks based on actual_peer_id at enqueue and again at the target authority tick.",
+        "Submit recipient-bound inputs, advance one authority or prediction tick at a time, and send only the latest coordinator-issued full snapshot to each recipient.",
+        "Handle resync and permanent fault terminals explicitly, rebuild adapter state before a new epoch, and test spoofing, replay, stale packets, budget exhaustion, rollback failure, and callback reentry."
+      ],
+      "avoid": ["Authority inferred from payload or lobby metadata", "Automatic scene-tree or entity replication", "Inbound delta or patch without a versioned baseline protocol", "Unbounded history, pending input, replay, or packet limits", "Awaiting, networking, or state mutation inside adapter validation hooks"]
+    },
+    {
       "id": "feedback-candidate",
       "title": "Escalate a project finding to GF",
+      "package_requirements": {"all_of": [], "any_of": [["gf.standard.diagnostics", "gf.standard.debug"]]},
       "primary_classes": ["GFSupportReportUtility", "GFDiagnosticsUtility"],
       "steps": [
         "Minimize the failure outside project business flow.",
@@ -148,19 +238,101 @@
     {
       "id": "content-package",
       "title": "Organize optional project content",
-      "primary_classes": ["GFContentPackageManifest", "GFContentPackageCatalog", "GFContentPackageUtility"],
+      "package_requirements": {"all_of": ["gf.extension.content_package"], "any_of": []},
+      "primary_classes": ["GFContentPackageQuery", "GFContentPackageAssetCatalogProvider", "GFAssetCatalogRuntime", "GFAssetCatalogMount"],
       "steps": [
-        "Assign stable content package IDs and resource keys.",
-        "Keep dependencies acyclic and paths inside each package root.",
-        "Let project tooling own download, entitlement, activation, and CDN policy.",
-        "Build and audit an export plan before packaging.",
-        "Test missing, duplicate, and cyclic dependencies plus unavailable content."
+        "Query packages through provider-neutral criteria and keep entitlement, download, activation, and CDN decisions in project services.",
+        "Translate eligible package records into owner-scoped asset catalog providers without leaking physical roots into gameplay code.",
+        "Mount providers into GFAssetCatalogRuntime with explicit owner, priority, collision policy, and teardown.",
+        "Resolve stable resource keys from the runtime catalog before acquiring assets through the normal asset ownership lifecycle.",
+        "Test missing content, duplicate keys, priority ties, provider removal, stale mounts, dependency cycles, and owner disposal."
       ],
-      "avoid": ["Download URLs embedded in the runtime content manifest", "Gameplay rules keyed to physical file paths"]
+      "avoid": ["Download URLs embedded in runtime content records", "Gameplay rules keyed to physical file paths", "Global mounts without a lifecycle owner"]
+    },
+    {
+      "id": "external-artifact-export",
+      "title": "Export generated artifacts through a project adapter",
+      "package_requirements": {"all_of": ["gf.extension.content_package", "gf.standard.debug", "gf.standard.spatial"], "any_of": []},
+      "primary_classes": ["GFThumbnailRenderer", "GFScreenshotUtility", "GFRectPacking2D", "GFGeneratedArtifactReport", "GFContentPackageExportPlan"],
+      "required_api_members": [
+        {
+          "class_name": "GFThumbnailRenderer",
+          "members": ["submit_render_request", "cancel_render_task"]
+        },
+        {
+          "class_name": "GFScreenshotUtility",
+          "members": ["capture_viewport_image", "save_image"]
+        },
+        {
+          "class_name": "GFRectPacking2D",
+          "members": ["pack_fixed", "pack_square"]
+        },
+        {
+          "class_name": "GFGeneratedArtifactReport",
+          "members": ["save_text", "make_report", "summarize_reports"]
+        },
+        {
+          "class_name": "GFContentPackageExportPlan",
+          "members": ["add_entry", "get_validation_report", "get_artifact_report", "get_preflight_report"]
+        }
+      ],
+      "steps": [
+        "Freeze a project-owned export request with stable artifact IDs, stable input ordering, finite image count, resolution and atlas budgets, a bounded staging root, and an explicit cancellation owner.",
+        "Render asset previews through GFThumbnailRenderer and capture Viewport images through GFScreenshotUtility; reject null Images and release preview nodes and render tasks with the owning tool session.",
+        "Plan placements through GFRectPacking2D, fail the batch when any input is unplaced, and keep pixel copying, padding, atlas materialization, and metadata semantics in the project tool.",
+        "Save binary Images through GFScreenshotUtility.save_image, save text mappings through GFGeneratedArtifactReport.save_text with allowed_roots, normalize binary results through make_report, and summarize every produced or skipped artifact.",
+        "Build GFContentPackageExportPlan from a manifest or catalog, add the generated outputs, and require plan, artifact-integrity, and project compatibility preflight reports to pass before handoff.",
+        "Let a project-owned target adapter consume only the frozen plan, reports, and staging artifacts while it owns target schemas, authentication, rate limits, idempotency, retries, upload or file output, receipts, and cleanup.",
+        "Test dry-run, cancellation, empty images, budget overflow, unplaced inputs, duplicate archive paths, write failures, integrity mismatch, partial adapter failure, idempotent retry, and credential absence from reports."
+      ],
+      "avoid": ["A business-specific generator added to GF", "Upload or target authentication inside a renderer or export plan", "Publishing partial or unreported staging output", "Credentials or remote business state copied into generic artifact reports"]
+    },
+    {
+      "id": "asset-catalog-spatial-placement",
+      "title": "Place catalog assets through an editor command",
+      "package_requirements": {"all_of": ["gf.standard.assets", "gf.standard.spatial.canvas"], "any_of": []},
+      "primary_classes": ["GFAssetCatalog", "GFThumbnailRenderer", "GFDragDropUtility", "GFSpatialCanvas2D", "GFEditorCommand", "GFEditorCommandSession"],
+      "required_api_members": [
+        {
+          "class_name": "GFAssetCatalog",
+          "members": ["get_entry", "make_asset_summary"]
+        },
+        {
+          "class_name": "GFThumbnailRenderer",
+          "members": ["submit_render_request", "cancel_render_task"]
+        },
+        {
+          "class_name": "GFDragDropUtility",
+          "members": ["register_control_zone", "start_drag", "drop", "cancel_drag", "dispose"]
+        },
+        {
+          "class_name": "GFSpatialCanvas2D",
+          "members": ["screen_to_world", "set_placement_validator", "set_history_hook", "begin_placement", "update_placement", "commit_placement"]
+        },
+        {
+          "class_name": "GFEditorCommand",
+          "members": ["can_execute", "execute", "revert"]
+        },
+        {
+          "class_name": "GFEditorCommandSession",
+          "members": ["preview_command", "commit_command"]
+        }
+      ],
+      "steps": [
+        "Define a project-owned asset catalog whose asset_id is the only durable palette and placement identity; keep resource paths, imported instances, list indices, and thumbnail nodes out of the authoritative payload.",
+        "Materialize only the bounded visible or selected palette previews through GFThumbnailRenderer, key cosmetic thumbnail caches by asset_id plus a current content identity, and cancel render tasks and release preview nodes with the owning editor tool session.",
+        "Register one explicit project-namespaced drag_type in GFDragDropUtility and start each drag with a closed payload such as schema_version, asset_id, expected_type, and catalog_revision; accept only that type and re-resolve the asset_id from the current catalog on drop.",
+        "Reject missing, stale, oversized, or type-incompatible payloads before loading content, translate the validated drop position into GFSpatialCanvas2D world space, and derive footprint and placement type through a project-owned descriptor rather than trusting drag metadata.",
+        "Use GFSpatialCanvas2D begin_placement, update_placement, and commit_placement only to coordinate the bounded preview and freeze an operation record; keep collision, entitlement, scene ownership, and business legality in the project placement validator.",
+        "Connect the canvas history hook to one project-owned GFEditorCommand that captures the stable asset_id and frozen placement operation, revalidates authority in execute, implements symmetric revert, and is previewed and committed through GFEditorCommandSession or UndoRedo; return success to the canvas only after command commit succeeds.",
+        "Treat the drag session, placement session, command session, thumbnail tasks, and catalog revision as separate lifecycles, and test stale IDs, type spoofing, coordinate conversion, invalid footprints, budget exhaustion, command rejection, undo and redo, cancellation, and owner disposal."
+      ],
+      "avoid": ["Raw resource paths or Object references used as drag authority", "Thumbnail cache state treated as asset identity", "GFSpatialCanvas2D or a drop callback mutating authoritative scene state", "Both the canvas hook and a signal listener committing the same operation", "Project placement categories or scene factories added to GF"]
     },
     {
       "id": "input-context",
       "title": "Add input contexts and rebinding",
+      "package_requirements": {"all_of": ["gf.standard.input"], "any_of": []},
       "primary_classes": ["GFInputMappingUtility", "GFInputContext", "GFInputDetector", "GFInputConflictAnalyzer"],
       "steps": [
         "Define project-owned abstract actions and contexts.",
@@ -174,19 +346,50 @@
     {
       "id": "ui-screen-flow",
       "title": "Compose a UI screen flow",
+      "package_requirements": {"all_of": ["gf.standard.ui.navigation", "gf.standard.state"], "any_of": []},
       "primary_classes": ["GFUIUtility", "GFUILayerDefinition", "GFUIRoute", "GFUIRouterUtility", "GFReactiveStateStore"],
       "steps": [
         "Separate logical navigation layers from CanvasLayer drawing order.",
         "Represent screen intent in project-owned navigation requests and state.",
         "Bind controls to reactive state without placing business decisions in views.",
-        "Define modal, replace, hide-under, focus, and back behavior explicitly.",
-        "Test rapid transitions, scene disposal, focus restoration, and duplicate requests."
+        "Define modal, replace, hide-under, focus, back behavior, and adjacent preload candidates explicitly.",
+        "Observe typed route operation results and test rapid transitions, preload failure, cancellation, scene disposal, focus restoration, and duplicate requests."
       ],
       "avoid": ["Cross-layer cleanup assumed from replace", "Global UI state embedded in individual controls"]
     },
     {
+      "id": "scalable-ui-collection",
+      "title": "Present a scalable UI collection",
+      "package_requirements": {"all_of": [], "any_of": [["gf.standard.ui", "gf.standard.ui.state"]]},
+      "primary_classes": ["GFVirtualListModel", "GFVirtualListFocusModel", "GFRepeaterBinder"],
+      "steps": [
+        "Keep authoritative item identity, sorting, filtering, selection, and accessibility semantics in project state.",
+        "Configure GFVirtualListModel with the item count and measured or estimated extents, then request only the visible range for the current viewport.",
+        "Recycle project-owned row views by stable item identity and feed measured extent changes back into the layout model.",
+        "Use GFVirtualListFocusModel to preserve logical focus independently from the currently materialized row nodes.",
+        "When reactive repeater binding is needed, install gf.standard.ui.state and bind only the currently materialized visible slice to GFRepeaterBinder; never pass the complete large collection, and keep template and teardown ownership explicit.",
+        "Test empty and very large collections, variable extents, reorder and filter changes, focus repair, container disposal, and repeated bind and unbind cycles."
+      ],
+      "avoid": ["One Control node permanently allocated per large item", "Row node identity used as authoritative item identity", "Sorting or filtering hidden inside the framework binder"]
+    },
+    {
+      "id": "ui-route-operation",
+      "title": "Execute an asynchronous UI route transition",
+      "package_requirements": {"all_of": ["gf.standard.ui.navigation"], "any_of": []},
+      "primary_classes": ["GFUIRouterUtility", "GFUIRouteOperation", "GFUIRouteResult", "GFUIRoutePreloadUtility"],
+      "steps": [
+        "Resolve the route and build its bounded preload plan before mutating the visible stack.",
+        "Choose an explicit preload policy and preserve the current screen until route commit is possible.",
+        "Await the route operation and branch on its typed terminal result instead of inferring success from signals or node presence.",
+        "Let the project navigation owner reject stale or superseded results, own focus and back policy, and release preloaded assets at its lifecycle boundary.",
+        "Test duplicate requests, stale completion, invalid routes, preload failure, transition failure, cancellation, and back-stack invariants."
+      ],
+      "avoid": ["Mutating the route stack before prerequisites succeed", "Treating cancellation as success", "Leaking preloaded handles across route ownership"]
+    },
+    {
       "id": "state-or-flow",
       "title": "Choose state machine, flow, or action queue",
+      "package_requirements": {"all_of": [], "any_of": [["gf.standard.state_machine", "gf.extension.flow", "gf.extension.action_queue"]]},
       "primary_classes": ["GFNodeStateMachine", "GFFlowRunner", "GFActionQueueSystem"],
       "steps": [
         "Use a state machine for mutually exclusive durable modes.",
@@ -198,21 +401,77 @@
       "avoid": ["Nesting orchestrators to model the same state", "Using a visual queue as authoritative domain state"]
     },
     {
+      "id": "undoable-command-history",
+      "title": "Maintain undoable command history",
+      "package_requirements": {"all_of": ["gf.standard.storage"], "any_of": []},
+      "primary_classes": ["GFUndoableCommand", "GFCommandHistoryUtility"],
+      "required_api_members": [
+        {
+          "class_name": "GFUndoableCommand",
+          "members": ["is_undo_successful", "is_redo_successful"]
+        }
+      ],
+      "steps": [
+        "Define one project-owned command with explicit execute, undo, snapshot, and domain precondition semantics.",
+        "Capture a bounded pure-Variant snapshot before mutation and keep restoration atomic within the command.",
+        "Execute through GFCommandHistoryUtility and use the asynchronous history entry points whenever execute or undo returns a Signal.",
+        "Override is_undo_successful or is_redo_successful when an operation can reach a failed terminal result; asynchronous hooks receive null for no arguments, one emitted value directly, or an Array for multiple emitted values, while the default true preserves commands that do not opt in.",
+        "Use should_record for initial execution eligibility and configure a finite history capacity; when a new command is successfully recorded, GFCommandHistoryUtility invalidates redo history, so projects must not maintain a parallel private stack.",
+        "Serialize only stable command data and restore through an explicit project command builder with version and compatibility checks.",
+        "Test empty history, capacity trimming, skipped recording, failed synchronous and asynchronous undo and redo transitions, lifecycle disposal, serialization, and restoration."
+      ],
+      "avoid": ["Recording a command before execution completes", "Using history serialization as authoritative save data without a project compatibility contract", "Undo logic that can leave partially restored domain state"]
+    },
+    {
       "id": "diagnostic-contribution",
       "title": "Publish bounded diagnostics",
-      "primary_classes": ["GFDiagnosticsUtility", "GFOperationDiagnosticsUtility", "GFLogUtility"],
+      "package_requirements": {"all_of": ["gf.standard.diagnostics"], "any_of": []},
+      "primary_classes": ["GFDiagnosticsUtility", "GFDiagnosticSnapshotProvider", "GFDiagnosticProviderResult"],
       "steps": [
         "Choose the minimum fields needed to answer a concrete operational question.",
-        "Publish a bounded, already-sanitized snapshot through an owner-bound contribution.",
-        "Keep callbacks out of hot snapshot collection paths.",
-        "Define retention, cardinality, and text budgets.",
-        "Test disabled collection, owner disposal, oversized values, and secret redaction."
+        "Publish stable cached facts directly and register expensive or freshness-sensitive facts as owner-bound lazy providers.",
+        "Evaluate providers only from explicit support or failure paths with request, duration, cardinality, depth, and text budgets.",
+        "Treat provider failures and reentrancy as isolated typed results rather than snapshot-wide failure.",
+        "Define retention, consent, redaction, and reserved section-name policy before collection.",
+        "Test disabled collection, owner disposal, timeout, reentrancy, oversized values, provider exceptions, and secret redaction."
       ],
-      "avoid": ["Unbounded histories", "Precise device, account, scene, or path data collected by default"]
+      "avoid": ["Unbounded histories", "Precise device, account, scene, or path data collected by default", "Evaluating lazy providers in frame or polling loops"]
+    },
+    {
+      "id": "session-trace",
+      "title": "Capture a bounded diagnostic session trace",
+      "package_requirements": {"all_of": ["gf.standard.diagnostics"], "any_of": []},
+      "primary_classes": ["GFSessionTraceUtility", "GFSessionTraceRecipe", "GFSessionTraceChannelDefinition", "GFSessionTraceCheckpoint"],
+      "steps": [
+        "Define a project-owned minimum event schema, explicit consent boundary, retention policy, and redaction profile before enabling a trace.",
+        "Apply one bounded recipe before the session starts, with finite channel, checkpoint, event, payload, text, depth, and byte budgets.",
+        "Record only stable channel events and request lazy diagnostic checkpoints at concrete failure or support moments.",
+        "Export a sanitized local report; keep upload, incident policy, and business recovery outside GFSessionTraceUtility.",
+        "Test disabled consent, budget exhaustion, invalid recipes, provider failure, redaction, repeated sessions, and teardown."
+      ],
+      "avoid": ["Always-on precise telemetry", "Unbounded arbitrary Variant payloads", "Embedding upload or gameplay recovery policy in the trace recipe"]
+    },
+    {
+      "id": "runtime-agent-endpoint",
+      "title": "Expose a bounded runtime Agent endpoint",
+      "package_requirements": {"all_of": ["gf.standard.agent_environment"], "any_of": []},
+      "primary_classes": ["GFRuntimeAgentEnvironment", "GFDictionarySchema", "GFPolicyRegistry"],
+      "steps": [
+        "Define the smallest project-owned synchronous operation and closed JSON request/response schemas; do not expose arbitrary reflection or generic command dispatch.",
+        "Register endpoints while the environment is disabled, then install project policy providers for business authorization or approval requirements.",
+        "Create the environment on a long-lived owner thread; make transport workers enforce pre-decode body and connection limits, then marshal every environment call back to the owner thread.",
+        "Enable the environment only after the outer transport is authenticated, and issue a short-lived session with exact endpoint grants and finite rate/replay budgets.",
+        "Before mutating the registry, a Provider, or external policy state in place, call invalidate_policy_context on the owner thread so every earlier credential is revoked.",
+        "Keep the bearer token out of the request envelope, logs, URLs, snapshots, and persistence; use a unique request ID for every authenticated attempt.",
+        "Observe typed results and payload-free audit events, revoke sessions on ownership changes, and disable or dispose the environment during teardown.",
+        "Test invalid credentials, expiry, replay, rate exhaustion, schema and byte budgets, policy denial, policy-context invalidation, cross-thread rejection, endpoint re-registration, callback revocation, and secret absence."
+      ],
+      "avoid": ["Calling the environment or mutating policy objects directly from transport workers", "Generic reflection, file, shell, screenshot, or diagnostics bridges", "Treating an in-process callback boundary as an OS sandbox", "Persisting bearer tokens or copying business payloads into audit"]
     },
     {
       "id": "deterministic-scope",
       "title": "Define a deterministic simulation scope",
+      "package_requirements": {"all_of": ["gf.standard.deterministic"], "any_of": []},
       "primary_classes": ["GFDeterministicRandom", "GFDeterministicVariantSerializer", "GFSeedUtility"],
       "steps": [
         "Declare which inputs, state, ticks, and outputs must reproduce.",
@@ -226,6 +485,7 @@
     {
       "id": "domain-component",
       "title": "Use a reusable domain component",
+      "package_requirements": {"all_of": ["gf.extension.domain"], "any_of": []},
       "primary_classes": ["GFInventoryModel", "GFAttributeSet", "GFQuestUtility"],
       "steps": [
         "Select a component only for generic state and operations it already owns.",
@@ -239,6 +499,7 @@
     {
       "id": "dialogue-pipeline",
       "title": "Build a dialogue pipeline",
+      "package_requirements": {"all_of": ["gf.extension.dialogue", "gf.tool.dialogue_text"], "any_of": []},
       "primary_classes": ["GFDialogueTextCompiler", "GFDialogueResource", "GFDialogueRunner", "GFDialogueContext"],
       "steps": [
         "Compile strict project-owned source into GF dialogue resources at authoring time.",
@@ -252,15 +513,18 @@
     {
       "id": "spatial-policy",
       "title": "Apply spatial or physics mechanisms",
-      "primary_classes": ["GFSpatialQueryIndex2D", "GFBuoyancyField3D", "GFCameraOrbitRig3D"],
+      "package_requirements": {"all_of": [], "any_of": [["gf.standard.spatial", "gf.standard.spatial.canvas", "gf.extension.physics", "gf.extension.camera"]]},
+      "primary_classes": ["GFSpatialQueryIndex2D", "GFGridPathMath2D", "GFSpatialCanvas2D", "GFBuoyancyField3D", "GFCameraOrbitRig3D"],
       "steps": [
         "Separate pure spatial math or sampling from world ownership and node mutation.",
         "Declare coordinate, units, layer, update cadence, and authority contracts.",
-        "Let the project choose candidates, probe placement, force application, and collision policy.",
+        "Use GFGridPathMath2D for bounded path or flow-field data, while project code owns cell legality, movement cost, authority, and preview rendering.",
+        "Use GFSpatialCanvas2D only to coordinate bounded view transforms, selection, and project-validated placement operation records.",
+        "Let the project choose candidates, validate placement, mutate TileMap or scene content, persist history or UGC, apply forces, and define collision policy.",
         "Bound queries and incremental work.",
         "Test empty worlds, invalid values, large coordinates, frame-rate variation, and disposal."
       ],
-      "avoid": ["Physics ownership hidden inside a math helper", "Unbounded world scans on frame callbacks"]
+      "avoid": ["Physics ownership hidden inside a math helper", "Treating GFSpatialCanvas2D as a TileMap editor, business-rule authority, save system, or UGC store", "Unbounded world scans on frame callbacks"]
     }
   ]
 }

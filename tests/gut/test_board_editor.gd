@@ -88,6 +88,28 @@ func test_local_gf_command_history_undoes_and_redoes_draft_edits() -> void:
 	history.dispose()
 
 
+func test_failed_draft_undo_keeps_command_history_cursor() -> void:
+	var draft: BoardTopologyDraftModel = BoardTopologyDraftModel.new()
+	var configured: bool = draft.configure(_make_template())
+	var next_cells: Array[Vector2i] = BoardTopology.create_cross(2).get_active_cells()
+	var history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()
+	history.init()
+	var command: BoardDraftEditCommand = BoardDraftEditCommand.new().configure(
+		draft,
+		next_cells,
+		"cross"
+	)
+	var execute_result: Variant = await history.execute_command(command)
+	command._draft = null
+
+	assert_true(configured, "失败撤销夹具必须先配置有效草稿。")
+	assert_true(command.should_record(execute_result), "失败撤销夹具必须先写入命令历史。")
+	assert_false(history.undo_last(), "草稿所有者失效时撤销必须明确失败。")
+	assert_true(history.can_undo(), "失败撤销后命令必须保留在撤销栈原位。")
+	assert_false(history.can_redo(), "失败撤销不得把命令错误移入重做栈。")
+	history.dispose()
+
+
 func test_board_editor_context_owns_isolated_gf_command_history() -> void:
 	var parent_architecture: GFArchitecture = GFArchitecture.new()
 	var global_history: GFCommandHistoryUtility = GFCommandHistoryUtility.new()

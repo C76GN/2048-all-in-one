@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "catalog_version": "1.0.0",
+  "catalog_version": "1.7.0",
   "capabilities": [
     {
       "id": "architecture",
@@ -25,12 +25,12 @@
     {
       "id": "assets-content",
       "title": "Assets, resource identity, and content",
-      "summary": "Async resource handles, stable resource keys, catalogs, preload plans, and optional content packages.",
-      "keywords": ["asset", "resource", "load", "cache", "preload", "catalog", "content package", "dlc"],
+      "summary": "Async resource handles, stable resource keys, catalogs, preload plans, optional content packages, and auditable generated-artifact export plans.",
+      "keywords": ["asset", "resource", "load", "cache", "preload", "catalog", "content package", "dlc", "artifact export", "thumbnail", "screenshot", "atlas"],
       "packages": ["gf.standard.assets", "gf.extension.content_package"],
-      "primary_classes": ["GFAssetUtility", "GFAssetHandle", "GFResourceResolverUtility", "GFAssetCatalog", "GFContentPackageUtility"],
-      "recipes": ["owned-resource-load", "content-package"],
-      "boundary": "Projects define content taxonomy and distribution policy; GF provides identity, lifecycle, plans, and diagnostics."
+      "primary_classes": ["GFAssetUtility", "GFAssetHandle", "GFResourceResolverUtility", "GFAssetCatalogRuntime", "GFAssetCatalogMount", "GFContentPackageQuery", "GFContentPackageAssetCatalogProvider", "GFContentPackageExportPlan"],
+      "recipes": ["owned-resource-load", "content-package", "external-artifact-export", "asset-catalog-spatial-placement"],
+      "boundary": "Projects define content taxonomy, materialization, target adapters, and distribution policy; GF provides identity, lifecycle, plans, and diagnostics."
     },
     {
       "id": "config-data",
@@ -43,13 +43,23 @@
       "boundary": "Business columns and schemas belong to project inputs; reusable reading, validation, target, and commit mechanics belong to the tool."
     },
     {
+      "id": "analytics-events",
+      "title": "Versioned analytics events and durable handoff",
+      "summary": "Exact event-name and schema-version validation, structured tracking reports, and provider-neutral handoff to a dedicated persistent request outbox.",
+      "keywords": ["analytics", "event", "schema", "version", "registry", "outbox", "offline", "idempotency", "telemetry", "consent"],
+      "packages": ["gf.standard.base", "gf.standard.assets"],
+      "primary_classes": ["GFAnalyticsEventSchema", "GFAnalyticsSchemaRegistry", "GFAnalyticsUtility", "GFAnalyticsOutboxAdapter", "GFRequestOutboxUtility"],
+      "recipes": ["analytics-schema-outbox"],
+      "boundary": "GF validates the declared properties contract and coordinates an at-least-once queue handoff. Projects own event taxonomy, explicit version migration, PII and consent policy, authentication, replay authorization, retention, and server-side idempotency."
+    },
+    {
       "id": "storage-save",
       "title": "Storage, save graphs, and migration",
-      "summary": "Local storage codecs, backend synchronization, slot metadata, scene save graphs, identity, and explicit migration.",
-      "keywords": ["save", "load", "storage", "slot", "migration", "cloud save", "persistence", "serialize"],
+      "summary": "Local storage codecs, backend synchronization, slot metadata, scene save graphs, transactional save profiles, rollback, recovery, identity, and explicit migration.",
+      "keywords": ["save", "load", "storage", "slot", "profile", "transactional", "rollback", "recovery", "migration", "cloud save", "persistence", "serialize"],
       "packages": ["gf.standard.storage", "gf.extension.save"],
-      "primary_classes": ["GFStorageUtility", "GFStorageBackend", "GFStorageSyncUtility", "GFSaveGraphUtility", "GFSaveScope", "GFSaveIdentity"],
-      "recipes": ["save-boundary", "platform-storage-adapter"],
+      "primary_classes": ["GFStorageUtility", "GFStorageBackend", "GFStorageSyncUtility", "GFSaveGraphUtility", "GFSaveProfileUtility", "GFSaveSectionProvider", "GFSaveRecoveryPolicy"],
+      "recipes": ["save-boundary", "save-profile", "platform-storage-adapter"],
       "boundary": "Projects own save fields, compatibility guarantees, conflict policy, and cloud provider adapters."
     },
     {
@@ -58,8 +68,8 @@
       "summary": "Abstract actions, contexts, modifiers, triggers, recording, conflict analysis, rebinding, touch, and drag/drop mechanisms.",
       "keywords": ["input", "action", "rebind", "controller", "touch", "drag", "drop", "gesture", "buffer"],
       "packages": ["gf.standard.input"],
-      "primary_classes": ["GFInputMappingUtility", "GFInputContext", "GFInputAction", "GFInputDetector", "GFInputConflictAnalyzer"],
-      "recipes": ["input-context"],
+      "primary_classes": ["GFInputMappingUtility", "GFInputContext", "GFInputAction", "GFInputDetector", "GFInputConflictAnalyzer", "GFDragDropUtility"],
+      "recipes": ["input-context", "asset-catalog-spatial-placement"],
       "boundary": "GF maps intent; projects define action names, UI, accessibility policy, and gameplay meaning."
     },
     {
@@ -68,9 +78,19 @@
       "summary": "Layered UI navigation, screen state, reactive binding, repeaters, transitions, and focus-friendly project composition.",
       "keywords": ["ui", "screen", "navigation", "binding", "reactive", "modal", "layer", "view"],
       "packages": ["gf.standard.ui", "gf.standard.ui.navigation", "gf.standard.ui.state"],
-      "primary_classes": ["GFUIUtility", "GFUILayerDefinition", "GFUIRoute", "GFUIRouterUtility", "GFReactiveStateStore", "GFReactiveStateControlBinder"],
-      "recipes": ["ui-screen-flow"],
+      "primary_classes": ["GFUIUtility", "GFUILayerDefinition", "GFUIRoute", "GFUIRouterUtility", "GFUIRouteOperation", "GFUIRouteResult", "GFUIRoutePreloadUtility", "GFReactiveStateStore"],
+      "recipes": ["ui-screen-flow", "ui-route-operation"],
       "boundary": "GF owns navigation and binding mechanics; projects own visual hierarchy, copy, and product flows."
+    },
+    {
+      "id": "ui-scalability",
+      "title": "Scalable and virtualized UI collections",
+      "summary": "Bounded virtual-list windows, stable item identity, focus projection, repeater binding, and large collection presentation.",
+      "keywords": ["virtual list", "virtualized list", "large list", "recycled rows", "recycler", "repeater", "repeater binding", "focus model", "focus projection", "windowed ui", "scroll performance"],
+      "packages": ["gf.standard.ui", "gf.standard.ui.state"],
+      "primary_classes": ["GFVirtualListModel", "GFVirtualListFocusModel", "GFRepeaterBinder"],
+      "recipes": ["scalable-ui-collection"],
+      "boundary": "GF owns bounded visible windows, stable identity and focus projection, and reusable binder lifecycle mechanics; projects own authoritative item identity, sorting, filtering, row visuals, input, accessibility, and product semantics."
     },
     {
       "id": "audio",
@@ -83,6 +103,16 @@
       "boundary": "Middleware SDK calls belong in a backend adapter; projects own event naming and mix policy."
     },
     {
+      "id": "render-feedback",
+      "title": "Render preparation and multimodal feedback",
+      "summary": "Shader parameters, render warmup, screen transitions, haptics, and shake mechanisms for project-owned visual and tactile feedback.",
+      "keywords": ["shader", "shader parameter", "render warmup", "transition", "screen transition", "visual feedback", "haptic", "haptic feedback", "vibration", "shake", "camera shake", "reduced motion"],
+      "packages": ["gf.standard.display", "gf.standard.assets", "gf.extension.feedback"],
+      "primary_classes": ["GFShaderParameterUtility", "GFRenderWarmupUtility", "GFScreenTransitionUtility", "GFHapticUtility", "GFShakeUtility"],
+      "recipes": ["render-feedback-orchestration"],
+      "boundary": "GF owns reusable parameter application, warmup, transition, haptic, and shake lifecycles; projects own effect meaning, timing, budgets, art direction, accessibility policy, and static fallbacks."
+    },
+    {
       "id": "state-flow",
       "title": "State machines and flow orchestration",
       "summary": "Node and resource state machines, flow graphs, action queues, behavior trees, and decision mechanisms.",
@@ -93,14 +123,50 @@
       "boundary": "Select one mechanism by state ownership and observability; do not layer several orchestrators without a distinct responsibility."
     },
     {
+      "id": "command-history",
+      "title": "Undo, redo, and command history",
+      "summary": "Undoable commands, bounded undo and redo stacks, snapshots, serialization, restoration, and failure-aware synchronous or asynchronous history transitions.",
+      "keywords": ["command history", "undo", "redo", "undoable command", "history stack", "snapshot", "serialize history", "reversible operation", "failed undo", "failed redo", "terminal result", "failure-aware transition"],
+      "packages": ["gf.standard.base", "gf.standard.storage"],
+      "primary_classes": ["GFUndoableCommand", "GFCommandHistoryUtility"],
+      "required_api_members": [
+        {
+          "class_name": "GFUndoableCommand",
+          "members": ["is_undo_successful", "is_redo_successful"]
+        }
+      ],
+      "recipes": ["undoable-command-history"],
+      "boundary": "GF owns bounded history stacks, invocation ordering, signal-completion waits, terminal-success hooks, and atomic cursor preservation when a transition fails; projects own command semantics, terminal-success policy, snapshot schemas, domain preconditions, restore atomicity, persistence policy, and business validation."
+    },
+    {
+      "id": "runtime-performance",
+      "title": "Bounded runtime work and object reuse",
+      "summary": "Explicit execution budgets and reusable object pools for keeping analysis, effects, and other bursty runtime work bounded.",
+      "keywords": ["execution budget", "time budget", "node budget", "object pool", "pooling", "object reuse", "performance", "frame budget", "bounded work", "incremental work"],
+      "packages": ["gf.standard.base"],
+      "primary_classes": ["GFExecutionBudget", "GFObjectPoolUtility"],
+      "recipes": ["bounded-runtime-work"],
+      "boundary": "GF supplies explicit budget checks and reusable pool lifecycle mechanics; projects must profile first and own capacity, frame priority, exhaustion behavior, reset semantics, and authoritative domain identity."
+    },
+    {
       "id": "diagnostics",
       "title": "Diagnostics, logs, support, and operations",
-      "summary": "Structured logs, bounded diagnostics, operation timelines, debug surfaces, support reports, and build metadata.",
-      "keywords": ["diagnostics", "log", "debug", "support report", "operation", "metrics", "build info", "console"],
+      "summary": "Structured logs, bounded lazy diagnostic providers, operation timelines, session traces, debug surfaces, support reports, and build metadata.",
+      "keywords": ["diagnostics", "lazy", "provider", "session trace", "log", "debug", "support report", "operation", "metrics", "build info", "console"],
       "packages": ["gf.standard.diagnostics", "gf.standard.debug"],
-      "primary_classes": ["GFDiagnosticsUtility", "GFLogUtility", "GFOperationDiagnosticsUtility", "GFSupportReportUtility", "GFBuildInfoUtility"],
-      "recipes": ["diagnostic-contribution", "feedback-candidate"],
+      "primary_classes": ["GFDiagnosticsUtility", "GFDiagnosticSnapshotProvider", "GFDiagnosticProviderResult", "GFSessionTraceUtility", "GFSessionTraceRecipe", "GFOperationDiagnosticsUtility", "GFSupportReportUtility"],
+      "recipes": ["diagnostic-contribution", "session-trace", "feedback-candidate"],
       "boundary": "Collect the minimum needed data, bound all histories, and require explicit consent for precise or private diagnostics."
+    },
+    {
+      "id": "runtime-agent-environment",
+      "title": "Runtime Agent endpoint environment",
+      "summary": "Default-closed, transport-neutral runtime endpoints with strict JSON schemas, exact short-lived grants, replay and rate controls, policy checks, bounded responses, and payload-free audit.",
+      "keywords": ["runtime agent", "automation", "endpoint", "session", "grant", "bearer token", "replay", "rate limit", "policy", "audit"],
+      "packages": ["gf.standard.agent_environment"],
+      "primary_classes": ["GFRuntimeAgentEnvironment"],
+      "recipes": ["runtime-agent-endpoint"],
+      "boundary": "GF protects untrusted request data entering trusted synchronous handlers. Create the environment on its long-lived owner thread, marshal every transport call back to that thread, and call invalidate_policy_context before mutating registry, provider, or external policy state. Projects still own pre-decode body limits, transport authentication and throttling, user approval, business authorization, side-effect rollback, and process isolation."
     },
     {
       "id": "determinism",
@@ -115,20 +181,20 @@
     {
       "id": "network",
       "title": "Network transport and contracts",
-      "summary": "Replaceable byte transports, channels, typed message contracts, snapshots, dirty state, histories, and session mechanisms.",
-      "keywords": ["network", "multiplayer", "transport", "rpc", "snapshot", "authority", "lobby", "steam", "server"],
+      "summary": "Replaceable byte transports, adoptable MultiplayerPeer bridges, typed lobby operations, transport metrics, snapshots, histories, and bounded authoritative synchronization with optional prediction correction.",
+      "keywords": ["network", "multiplayer", "transport", "rpc", "snapshot", "authority", "prediction", "rollback", "synchronization", "lobby", "steam", "server"],
       "packages": ["gf.extension.network"],
-      "primary_classes": ["GFNetworkBackend", "GFENetNetworkBackend", "GFNetworkContract", "GFNetworkUtility", "GFNetworkHistoryBuffer"],
-      "recipes": ["network-backend-adapter", "platform-lobby-adapter"],
-      "boundary": "GF does not choose authority, matchmaking, lobby policy, provider identity, prediction, or rollback for the project."
+      "primary_classes": ["GFNetworkBackend", "GFMultiplayerPeerNetworkBackend", "GFENetNetworkBackend", "GFNetworkLobbyService", "GFNetworkTransportMetrics", "GFNetworkContract", "GFNetworkUtility", "GFNetworkHistoryBuffer", "GFNetworkSyncCoordinator", "GFNetworkSimulationAdapter", "GFNetworkInputFrame"],
+      "recipes": ["network-backend-adapter", "network-sync-coordinator", "platform-lobby-adapter"],
+      "boundary": "GF can coordinate a bounded full-snapshot authority flow, but the project chooses trusted authority identity, entity control, state and input schemas, business conflict policy, matchmaking, lobby policy, and provider identity."
     },
     {
       "id": "platform-adapters",
       "title": "Platform and SDK adapters",
-      "summary": "Project-owned translation boundaries for identity, lobby, storage, achievements, social, lifecycle, payment, and other provider capabilities.",
+      "summary": "Contract-described project-owned translation boundaries for identity, lobby, activation intents, storage, achievements, social, lifecycle, payment, and other provider capabilities.",
       "keywords": ["steam", "wechat", "epic", "console", "sdk", "adapter", "identity", "achievement", "leaderboard", "payment"],
-      "packages": ["gf.kernel", "gf.standard.storage", "gf.extension.network"],
-      "primary_classes": ["GFInstaller", "GFStorageBackend", "GFNetworkBackend", "GFAsyncCompletion"],
+      "packages": ["gf.kernel", "gf.standard.platform", "gf.standard.storage", "gf.extension.network"],
+      "primary_classes": ["GFPlatformAdapter", "GFPlatformContractDescriptor", "GFPlatformAdapterConformance", "GFStorageBackend", "GFNetworkLobbyBackend"],
       "recipes": ["platform-lobby-adapter", "platform-storage-adapter", "provider-backend"],
       "boundary": "Provider code is a separate adapter. Only stable provider-neutral contracts are candidates for GF."
     },
@@ -155,12 +221,12 @@
     {
       "id": "spatial-physics",
       "title": "Spatial math and physics mechanisms",
-      "summary": "Grid/path math, spatial queries, camera mechanisms, hit detection, buoyancy sampling, and physics-independent policies.",
-      "keywords": ["spatial", "grid", "path", "physics", "camera", "hitbox", "buoyancy", "2d", "3d"],
-      "packages": ["gf.standard.spatial", "gf.extension.physics", "gf.extension.camera", "gf.extension.combat"],
-      "primary_classes": ["GFSpatialQueryIndex2D", "GFGridPathMath2D", "GFGraphPathSearchState", "GFBuoyancyField3D", "GFCameraOrbitRig3D", "GFHitBox2D"],
-      "recipes": ["spatial-policy"],
-      "boundary": "Projects own collision layers, world semantics, probe placement, authority, and force application policy."
+      "summary": "Grid/path math, spatial queries, bounded 2D canvas orchestration, camera mechanisms, hit detection, buoyancy sampling, and physics-independent policies.",
+      "keywords": ["spatial", "grid", "path", "grid path", "path preview", "grid path preview", "pathfinding", "canvas", "selection", "placement", "physics", "camera", "hitbox", "buoyancy", "2d", "3d"],
+      "packages": ["gf.standard.spatial", "gf.standard.spatial.canvas", "gf.extension.physics", "gf.extension.camera", "gf.extension.combat"],
+      "primary_classes": ["GFSpatialQueryIndex2D", "GFGridPathMath2D", "GFGraphPathSearchState", "GFSpatialCanvas2D", "GFBuoyancyField3D", "GFCameraOrbitRig3D", "GFHitBox2D"],
+      "recipes": ["spatial-policy", "asset-catalog-spatial-placement"],
+      "boundary": "GFSpatialCanvas2D orchestrates view, selection, and placement operation records only; projects own TileMap or scene mutation, business legality, persistence, UGC, collision layers, world semantics, authority, and force application policy."
     },
     {
       "id": "project-tooling",

@@ -29,12 +29,19 @@ func test_project_defaults_register_independent_audio_bus_volumes() -> void:
 func test_storage_recovery_policy_only_resets_physical_format_failures() -> void:
 	var envelope_failure: GFStorageReadResult = GFStorageReadResult.new().configure_failure(
 		"Storage document envelope missing or malformed",
-		ERR_FILE_UNRECOGNIZED
+		ERR_FILE_UNRECOGNIZED,
+		{},
+		GFStorageReadResult.IntegrityStatus.NOT_CHECKED,
+		0,
+		GFStorageReadResult.FailureKind.CORRUPT
 	)
 	var future_version_failure: GFStorageReadResult = GFStorageReadResult.new().configure_failure(
 		"Unsupported future storage version: 2 > 1",
-		ERR_INVALID_DATA,
-		{"data_version": 2}
+		ERR_FILE_UNRECOGNIZED,
+		{"data_version": 2},
+		GFStorageReadResult.IntegrityStatus.NOT_CHECKED,
+		0,
+		GFStorageReadResult.FailureKind.FUTURE_VERSION
 	)
 
 	assert_true(
@@ -70,6 +77,15 @@ func test_future_settings_storage_version_is_preserved_and_blocks_writes() -> vo
 
 	var recovery: Dictionary = settings.get_storage_recovery_snapshot()
 	var persistence_health: Dictionary = settings.get_persistence_health_snapshot()
+	var load_result: GFSettingsLoadResult = settings.get_last_load_result()
+	assert_not_null(load_result, "未来版本读取必须保留 GFSettingsLoadResult 终态。")
+	if load_result != null:
+		assert_false(load_result.is_successful(), "未来版本不得被设置恢复策略吞掉。")
+		assert_true(
+			load_result.get_status() == GFSettingsLoadResult.STATUS_FUTURE_SCHEMA,
+			"未来版本必须保留稳定 future_schema 分类。"
+		)
+		assert_false(load_result.was_recovered(), "未来版本不得标记为已恢复。")
 	assert_false(
 		GFVariantData.get_option_bool(recovery, "recovered", false),
 		"未来存储版本不能进入破坏性恢复。"
@@ -164,6 +180,56 @@ func test_serialization_failure_updates_health_once_before_storage_write() -> vo
 	circular_value.clear()
 
 
+func test_strict_settings_load_preserves_corrupt_storage_evidence() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var storage: GFStorageUtility = _make_storage("gut_strict_game_settings")
+	var fixture_error: Error = _write_raw_storage_file(
+		storage,
+		"settings.sav",
+		_make_legacy_storage_bytes({"strict_marker": "preserve-me"})
+	)
+	assert_true(fixture_error == OK, "无法写入严格读取损坏设置夹具。")
+	var storage_path: String = storage.get_storage_directory_path().path_join(
+		"settings.sav"
+	)
+	var original_bytes: PackedByteArray = FileAccess.get_file_as_bytes(storage_path)
+
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.auto_load_on_init = false
+	settings.register_project_defaults()
+	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(GameSettingsUtility, settings)
+	await architecture.init()
+
+	var load_result: GFSettingsLoadResult = settings.load_settings()
+	assert_push_error(
+		"Storage document envelope missing or malformed",
+		"严格读取应保留 GFStorage 的损坏分类。"
+	)
+
+	assert_not_null(load_result, "严格读取必须返回结构化终态。")
+	if load_result != null:
+		assert_false(load_result.is_successful(), "无恢复策略时损坏设置必须严格失败。")
+		assert_true(
+			load_result.get_status() == GFSettingsLoadResult.STATUS_CORRUPT,
+			"损坏设置必须保留 corrupt 终态。"
+		)
+		assert_false(load_result.was_recovered(), "严格读取不得伪装为已恢复。")
+	assert_true(FileAccess.file_exists(storage_path), "严格读取不得删除损坏文件。")
+	assert_true(
+		FileAccess.get_file_as_bytes(storage_path) == original_bytes,
+		"严格读取不得改写损坏文件或丢失原始证据。"
+	)
+	assert_false(
+		settings.is_persistence_healthy(),
+		"损坏文件未获恢复授权时应继续阻断设置写入。"
+	)
+
+	var cleanup_error: Error = storage.delete_file(settings.storage_file_name)
+	assert_true(cleanup_error == OK, "严格读取设置夹具应可手动清理。")
+	architecture.dispose()
+
+
 func test_unreadable_settings_file_is_reset_to_current_format() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = _make_storage("gut_game_settings")
@@ -185,6 +251,7 @@ func test_unreadable_settings_file_is_reset_to_current_format() -> void:
 	)
 
 	var recovery: Dictionary = settings.get_storage_recovery_snapshot()
+	var load_result: GFSettingsLoadResult = settings.get_last_load_result()
 	assert_false(recovery.is_empty(), "设置应公开最近一次物理存储恢复诊断。")
 	assert_true(
 		GFVariantData.get_option_bool(recovery, "ok", false),
@@ -194,6 +261,21 @@ func test_unreadable_settings_file_is_reset_to_current_format() -> void:
 		GFVariantData.get_option_bool(recovery, "recovered", false),
 		"设置诊断应明确记录物理存储格式重建。"
 	)
+	assert_not_null(load_result, "损坏设置恢复必须保留 GFSettingsLoadResult 终态。")
+	if load_result != null:
+		assert_true(load_result.is_successful(), "显式 reset_to_defaults 应完成恢复。")
+		assert_true(
+			load_result.get_status() == GFSettingsLoadResult.STATUS_RECOVERED,
+			"损坏设置不得伪装为正常 loaded。"
+		)
+		assert_true(load_result.was_recovered(), "加载终态必须标记显式恢复。")
+		var storage_result: GFStorageReadResult = load_result.get_storage_result()
+		assert_not_null(storage_result, "加载终态必须保留原始存储失败证据。")
+		if storage_result != null:
+			assert_true(
+				storage_result.failure_kind == GFStorageReadResult.FailureKind.CORRUPT,
+				"恢复终态必须保留 corrupt 分类。"
+			)
 	assert_true(
 		GFVariantData.to_text(
 			settings.get_value(GFDisplaySettingsUtility.LOCALE_KEY)

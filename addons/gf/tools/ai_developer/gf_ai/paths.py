@@ -4,16 +4,107 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import secrets
+import stat
+import unicodedata
 from pathlib import Path
 from typing import Any
 
 
 DEFAULT_MAX_JSON_BYTES = 16 * 1024 * 1024
+_RESOURCE_PATH_FORBIDDEN_CHARACTERS = frozenset('<>:"|?*[]')
+_WINDOWS_RESERVED_PATH_STEMS = frozenset({
+	"aux",
+	"con",
+	"nul",
+	"prn",
+	*(f"com{index}" for index in range(1, 10)),
+	*(f"lpt{index}" for index in range(1, 10)),
+})
 
 
 class PathBoundaryError(ValueError):
 	"""Raised when a project-side operation would escape its owned boundary."""
+
+
+class CompareExchangeError(ValueError):
+	"""Raised when a guarded JSON replacement cannot prove its source or target."""
+
+
+def normalize_resource_path(raw_path: str) -> str:
+	"""Normalize one exact non-root res:// path without applying platform policy."""
+	normalized = raw_path.strip().replace("\\", "/")
+	if not normalized.startswith("res://"):
+		return ""
+	relative = normalized.removeprefix("res://")
+	if not relative:
+		return ""
+	parts = relative.split("/")
+	if any(part in ("", ".", "..") for part in parts):
+		return ""
+	return "res://" + posixpath.normpath(relative)
+
+
+def normalize_portable_ownership_path(raw_path: str) -> str:
+	"""Return a canonical cross-platform ownership path, or an empty string."""
+	if any(ord(character) < 32 or ord(character) == 127 for character in raw_path):
+		return ""
+	normalized = normalize_resource_path(raw_path)
+	if not normalized or normalized != raw_path:
+		return ""
+	parts = normalized.removeprefix("res://").split("/")
+	for part in parts:
+		if part != part.rstrip(" ."):
+			return ""
+		if any(character in _RESOURCE_PATH_FORBIDDEN_CHARACTERS for character in part):
+			return ""
+		if part.split(".", 1)[0].casefold() in _WINDOWS_RESERVED_PATH_STEMS:
+			return ""
+	return normalized
+
+
+def portable_ownership_path_identity(raw_path: str) -> str:
+	"""Return the Unicode-normalized case-folded identity of a portable ownership path."""
+	normalized = normalize_portable_ownership_path(raw_path)
+	if not normalized:
+		return ""
+	return unicodedata.normalize("NFC", normalized).casefold()
+
+
+def is_reserved_framework_resource_path(raw_path: str) -> bool:
+	"""Return whether a resource path addresses the reserved addons/gf boundary."""
+	normalized = normalize_resource_path(raw_path)
+	if not normalized:
+		return False
+	parts = tuple(part.casefold() for part in normalized.removeprefix("res://").split("/"))
+	return parts[0:2] == ("addons", "gf")
+
+
+def project_path_has_link_component(project_root: Path, relative_path: str) -> bool:
+	"""Fail closed when an existing project-relative path component is linked or reparsed."""
+	normalized = relative_path.strip().replace("\\", "/")
+	root = Path(os.path.abspath(os.fspath(project_root)))
+	target = Path(os.path.abspath(os.fspath(root / normalized)))
+	try:
+		relative = target.relative_to(root)
+	except ValueError:
+		return True
+	reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+	current = root
+	for part in relative.parts:
+		current /= part
+		try:
+			metadata = current.lstat()
+		except FileNotFoundError:
+			break
+		except OSError:
+			return True
+		if current.is_symlink():
+			return True
+		if reparse_flag and getattr(metadata, "st_file_attributes", 0) & reparse_flag:
+			return True
+	return False
 
 
 def resolve_project_root(raw_root: str | Path) -> Path:
@@ -70,11 +161,14 @@ def read_json_object(path: Path, max_bytes: int = DEFAULT_MAX_JSON_BYTES) -> dic
 
 
 def strict_json_loads(source: str) -> Any:
-	return json.loads(
-		source,
-		parse_constant=_reject_json_constant,
-		object_pairs_hook=_strict_json_object,
-	)
+	try:
+		return json.loads(
+			source,
+			parse_constant=_reject_json_constant,
+			object_pairs_hook=_strict_json_object,
+		)
+	except RecursionError as exc:
+		raise ValueError("JSON nesting exceeds the parser limit.") from exc
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -101,7 +195,9 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
 			stream.write(data)
 			stream.flush()
 			os.fsync(stream.fileno())
+		_reject_linked_write_path(path)
 		os.replace(temporary, path)
+		_fsync_parent_directory(path)
 	finally:
 		if temporary.exists():
 			temporary.unlink()
@@ -110,6 +206,54 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
 def atomic_write_json(path: Path, value: Any) -> None:
 	text = json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
 	atomic_write_text(path, text)
+
+
+def atomic_compare_exchange_json(path: Path, expected_sha256: str, value: Any) -> str:
+	"""Atomically replace JSON after cooperative locking and two source comparisons."""
+	if not isinstance(expected_sha256, str) or len(expected_sha256) != 64 or any(
+		character not in "0123456789abcdef" for character in expected_sha256
+	):
+		raise CompareExchangeError("Expected JSON SHA-256 must be 64 lowercase hexadecimal characters.")
+	target_sha256 = sha256_json(value)
+	data = (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
+	lock_path = path.with_name(f".{path.name}.gf-ai-migration.lock")
+	temporary = path.parent / f".{path.name}.gf-ai-{os.getpid()}-{secrets.token_hex(8)}.tmp"
+	lock_stream = None
+	lock_owned = False
+	_reject_linked_write_path(path)
+	path.parent.mkdir(parents=True, exist_ok=True)
+	_reject_linked_write_path(path)
+	try:
+		_reject_linked_write_path(lock_path)
+		try:
+			lock_stream = lock_path.open("xb")
+		except FileExistsError as exc:
+			raise CompareExchangeError(f"Project contract migration lock already exists: {lock_path}") from exc
+		lock_owned = True
+		lock_stream.write(f"pid={os.getpid()}\n".encode("ascii"))
+		lock_stream.flush()
+		os.fsync(lock_stream.fileno())
+		if _json_sha256_at_path(path) != expected_sha256:
+			raise CompareExchangeError("Project contract changed before compare-exchange started.")
+		with temporary.open("xb") as stream:
+			stream.write(data)
+			stream.flush()
+			os.fsync(stream.fileno())
+		_reject_linked_write_path(path)
+		if _json_sha256_at_path(path) != expected_sha256:
+			raise CompareExchangeError("Project contract changed during compare-exchange.")
+		os.replace(temporary, path)
+		_fsync_parent_directory(path)
+		if _json_sha256_at_path(path) != target_sha256:
+			raise CompareExchangeError("Migrated project contract target hash verification failed.")
+		return target_sha256
+	finally:
+		if lock_stream is not None:
+			lock_stream.close()
+		if temporary.exists():
+			temporary.unlink()
+		if lock_owned and lock_path.exists():
+			lock_path.unlink()
 
 
 def sha256_bytes(value: bytes) -> str:
@@ -123,15 +267,41 @@ def sha256_json(value: Any) -> str:
 
 
 def _reject_linked_write_path(path: Path) -> None:
-	current = path.parent
+	current = path
 	while True:
-		if current.exists() and current.is_symlink():
-			raise PathBoundaryError(f"Refusing to write through a linked directory: {current}")
+		if _path_is_link_or_reparse(current):
+			raise PathBoundaryError(f"Refusing to write through a linked or reparsed path: {current}")
 		if current.parent == current:
 			break
 		current = current.parent
-	if path.exists() and path.is_symlink():
-		raise PathBoundaryError(f"Refusing to replace a linked file: {path}")
+
+
+def _path_is_link_or_reparse(path: Path) -> bool:
+	try:
+		metadata = path.lstat()
+	except FileNotFoundError:
+		return False
+	except OSError:
+		return True
+	if path.is_symlink():
+		return True
+	reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+	return bool(reparse_flag and getattr(metadata, "st_file_attributes", 0) & reparse_flag)
+
+
+def _json_sha256_at_path(path: Path) -> str:
+	return sha256_json(read_json_object(path, max_bytes=1024 * 1024))
+
+
+def _fsync_parent_directory(path: Path) -> None:
+	if os.name == "nt":
+		return
+	flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+	descriptor = os.open(path.parent, flags)
+	try:
+		os.fsync(descriptor)
+	finally:
+		os.close(descriptor)
 
 
 def _reject_json_constant(value: str) -> Any:

@@ -220,6 +220,7 @@ func _exit_tree() -> void:
 
 
 func _notification(what: int) -> void:
+	super._notification(what)
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
 		_update_ui_text()
 

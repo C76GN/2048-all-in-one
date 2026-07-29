@@ -10,7 +10,16 @@
 git diff --check -- .gitignore .gf project.godot export_presets.cfg gf_project_profile.json addons/gf app features shared tests README.md docs tools
 ```
 
-### 2. GF 包状态
+### 2. GF 项目契约
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE = "1"
+python addons/gf/tools/ai_developer/gf_ai_project.py validate --project-root .
+```
+
+期望 `ok` 为 `true`，contract 本身没有 error、warning、`pending_review` 能力或缺失 Recipe 包。Snapshot 是按需重新生成的本地观察证据，不是日常校验的必需输入，也不得提交；其 drift advisory 必须逐项审阅，但不得为了追求 warning 数量为零而把生成输出、测试夹具、vendor 路径或目录扫描字符串伪报为项目所有资源。
+
+### 3. GF 包状态
 
 ```powershell
 godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli.gd -- status --json
@@ -24,7 +33,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 - `lockfile_verify.ok` 为 `true`
 - 如果 `.gf/packages.lock.json` 存在，`installed_count` 与 lockfile 中的 installed 包数量一致
 
-注意：GF 9 使用 Godot 原生包管理 CLI，入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。不要继续使用旧的 Python `addons/gf/kernel/package_tools/gf_package_installer.py` 命令。
+注意：当前 GF 使用 Godot 原生包管理 CLI，入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。不要继续使用旧的 Python `addons/gf/kernel/package_tools/gf_package_installer.py` 命令。
 
 当前仓库是手动更新后的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在。缺失 lockfile 时，包状态命令会把 lockfile 视为空安装状态；这不等价于项目运行失败，但表示当前 GF 源码不是由包管理器重建出来的。若后续恢复包管理器安装流，应先重新生成 lockfile，再恢复对 installed 包数量的强校验。
 

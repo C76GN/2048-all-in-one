@@ -1,6 +1,6 @@
 # 架构说明
 
-本项目是 Godot 4.7 与 GF Framework 9.x 的 2048 示例项目。目录严格采用 GF 内置 `Feature-Cohesive` 契约：业务能力优先内聚在 Feature 内，GF 的 Model、System、Utility、Controller 等是 Feature 内部的逻辑层，不再作为项目根目录的类型桶。
+本项目是 Godot 4.7 与当前 vendored GF Framework 的 2048 示例项目。目录严格采用 GF 内置 `Feature-Cohesive` 契约：业务能力优先内聚在 Feature 内，GF 的 Model、System、Utility、Controller 等是 Feature 内部的逻辑层，不再作为项目根目录的类型桶。
 
 ## 目录契约
 
@@ -234,18 +234,9 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ## GF 扩展
 
-当前启用：
+当前启用扩展只以 `project.godot` 的 `gf/extensions/enabled` 为真相来源，必需包、可选包和能力采用状态只以 `.gf/project_contract.json` 为真相来源，本架构文档不复制清单。
 
-- `gf.action_queue`
-- `gf.asset_metadata`
-- `gf.capability`
-- `gf.content_package`
-- `gf.domain`
-- `gf.feedback`
-- `gf.save`
-- `gf.turn_based`
-
-Installer 不得重复绑定这些扩展拥有的模块。启用扩展但不使用其核心能力时，应明确采用或关闭，不能用自动注册数量虚增 GF 利用率。
+Installer 不得重复绑定已启用扩展拥有的模块。启用扩展但不使用其核心能力时，应明确采用或关闭，不能用自动注册数量虚增 GF 利用率。
 
 项目 Module 对 Installer 和扩展声明的依赖采用严格契约：依赖缺失时停止初始化并报告配置错误，不允许退回直接实例化、直接执行 Action、手动跨生命周期连接信号或绕过 GFSceneUtility 切换场景。
 

@@ -64,46 +64,93 @@ func install_bindings(binder: Variant, scope: GFAsyncScope) -> void:
 	if not binder is GFBinder:
 		push_error("[GameArchitectureInstaller] install_bindings 失败：binder 为空或类型错误。")
 		return
+	if scope == null:
+		push_error("[GameArchitectureInstaller] install_bindings 失败：scope 为空。")
+		return
+	if scope.is_cancel_requested():
+		return
 	var gf_binder: GFBinder = binder
 
-	await _bind_models(gf_binder)
+	await _bind_models(gf_binder, scope)
+	if scope.is_cancel_requested():
+		return
 	await _bind_utilities(gf_binder, scope)
-	await _bind_systems(gf_binder)
+	if scope.is_cancel_requested():
+		return
+	await _bind_systems(gf_binder, scope)
+	if scope.is_cancel_requested():
+		return
 
 
 # --- 私有/辅助方法 ---
 
-func _bind_models(binder: GFBinder) -> void:
+func _bind_models(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_model(AppConfigModel).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_model(GridModel).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_model(GameStatusModel).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_model(CurrentGameModel).as_singleton()
+	if scope.is_cancel_requested():
+		return
 
 
 func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
-	await _bind_runtime_foundation_utilities(binder)
-	await _bind_content_and_gameplay_utilities(binder)
-	await _bind_presentation_utilities(binder)
-	await _bind_input_and_platform_utilities(binder)
+	await _bind_runtime_foundation_utilities(binder, scope)
+	if scope.is_cancel_requested():
+		return
+	await _bind_content_and_gameplay_utilities(binder, scope)
+	if scope.is_cancel_requested():
+		return
+	await _bind_presentation_utilities(binder, scope)
+	if scope.is_cancel_requested():
+		return
+	await _bind_input_and_platform_utilities(binder, scope)
+	if scope.is_cancel_requested():
+		return
 
 	if _are_dev_tools_enabled():
 		await _install_dev_tools(binder, scope)
+		if scope.is_cancel_requested():
+			return
 
 
-func _bind_runtime_foundation_utilities(binder: GFBinder) -> void:
+func _bind_runtime_foundation_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_utility(GFStorageUtility).from_instance(_create_storage_utility()).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GameSettingsUtility).from_instance(_create_settings_utility()).with_alias(GFSettingsUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFDisplaySettingsUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFViewportUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFAudioUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	if OS.has_feature(_PLATFORM_SMOKE_FEATURE):
 		await binder.bind_utility(GFHttpClientUtility).as_singleton()
+		if scope.is_cancel_requested():
+			return
 	await binder.bind_utility(GFSeedUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFAssetUtility).from_instance(_create_asset_utility()).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFResourceResolverUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 
 
-func _bind_content_and_gameplay_utilities(binder: GFBinder) -> void:
+func _bind_content_and_gameplay_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 	var content_catalog_binding: GFBindBuilder = (
 		binder.bind_utility(_PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT)
 	)
@@ -111,96 +158,220 @@ func _bind_content_and_gameplay_utilities(binder: GFBinder) -> void:
 		_create_project_content_catalog_utility()
 	)
 	await content_catalog_binding.as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFShaderParameterUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFSignalUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFNotificationUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	var diagnostics_binding: GFBindBuilder = binder.bind_utility(
 		_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT
 	).with_alias(GFDiagnosticsUtility)
 	await diagnostics_binding.as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFTimeUtility).from_instance(_create_time_utility()).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	var game_clock_binding: GFBindBuilder = binder.bind_utility(
 		_GAME_CLOCK_UTILITY_SCRIPT
 	).from_instance(
 		_create_game_clock_utility()
 	)
 	await game_clock_binding.as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_LOCAL_ACCOUNT_CATALOG_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_SAVE_GRAPH_UTILITY_SCRIPT).from_instance(_create_game_save_graph_utility()).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_MODE_CATALOG_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_DETERMINISM_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_TILE_CATALOG_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_ACHIEVEMENT_CATALOG_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_TILE_COMPOSITION_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFCommandHistoryUtility).from_instance(_create_history_utility()).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_PAUSE_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFLogUtility).from_instance(_create_log_utility()).as_singleton()
+	if scope.is_cancel_requested():
+		return
 
 
-func _bind_presentation_utilities(binder: GFBinder) -> void:
+func _bind_presentation_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_utility(GFBuildInfoUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFSceneUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFRenderWarmupUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFScreenTransitionUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFUIUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_UI_ROUTER_UTILITY_SCRIPT).with_alias(GFUIRouterUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_ASSET_LIBRARY_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_ACCESSIBILITY_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_ACCESSIBILITY_SUMMARY_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_UI_STYLE_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_UI_MOTION_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_CELEBRATION_VFX_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_THEME_CATALOG_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_THEME_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 
 
-func _bind_input_and_platform_utilities(binder: GFBinder) -> void:
+func _bind_input_and_platform_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 	var platform_runtime_binding: GFBindBuilder = binder.bind_utility(GFPlatformRuntime).from_instance(
 		_create_platform_runtime()
 	)
 	await platform_runtime_binding.as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFInputDeviceUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFInputMappingUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_INPUT_PROFILE_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_BOARD_ANIMATION_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFPointerGestureUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_PLATFORM_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFObjectPoolUtility).from_instance(_create_object_pool_utility()).as_singleton()
+	if scope.is_cancel_requested():
+		return
 
 
-func _bind_systems(binder: GFBinder) -> void:
-	await _bind_state_and_navigation_systems(binder)
-	await _bind_progression_systems(binder)
-	await _bind_gameplay_systems(binder)
+func _bind_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
+	await _bind_state_and_navigation_systems(binder, scope)
+	if scope.is_cancel_requested():
+		return
+	await _bind_progression_systems(binder, scope)
+	if scope.is_cancel_requested():
+		return
+	await _bind_gameplay_systems(binder, scope)
+	if scope.is_cancel_requested():
+		return
 
 
-func _bind_state_and_navigation_systems(binder: GFBinder) -> void:
+func _bind_state_and_navigation_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_system(GameStateSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(SceneRouterSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 
 
-func _bind_progression_systems(binder: GFBinder) -> void:
+func _bind_progression_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_system(_LOCAL_ACCOUNT_SYSTEM_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(ProgressStatsSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(BookmarkSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(CustomBoardSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(ReplaySystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(TileDiscoverySystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(TileLabSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(AchievementSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 
 
-func _bind_gameplay_systems(binder: GFBinder) -> void:
+func _bind_gameplay_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
 	await binder.bind_system(GameFlowSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(GridMovementSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(RuleSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(GameTurnSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(GridSpawnSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(GameInitSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(PlayerInputSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_system(ReplayInputSystem).as_singleton()
+	if scope.is_cancel_requested():
+		return
 
 
 func _create_storage_utility() -> GFStorageUtility:
@@ -349,6 +520,8 @@ func _install_dev_tools(binder: GFBinder, scope: GFAsyncScope) -> void:
 	# 唯一反射边界：保持 diagnostics 脚本在 with_dev_tools 之外不进入解析依赖链。
 	var install_callback: Callable = Callable(installer, &"install_bindings")
 	await install_callback.call(binder, scope)
+	if scope.is_cancel_requested():
+		return
 
 
 func _is_verbose_logging_enabled() -> bool:

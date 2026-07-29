@@ -11,11 +11,7 @@ extends RefCounted
 static func should_reset_failed_read(result: GFStorageReadResult) -> bool:
 	if result == null or result.ok:
 		return false
-	match result.error_code:
-		ERR_PARSE_ERROR, ERR_FILE_UNRECOGNIZED, ERR_FILE_CORRUPT:
-			return true
-		_:
-			return false
+	return result.failure_kind == GFStorageReadResult.FailureKind.CORRUPT
 
 
 ## 通过 GFStorageUtility 删除不可读文件及其事务伴生文件。

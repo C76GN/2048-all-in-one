@@ -576,7 +576,8 @@ func test_theme_utility_plays_semantic_sound_events_through_gf_audio() -> void:
 	var theme_utility: GameThemeUtility = _get_theme_utility(setup)
 	var audio_utility: GFAudioUtility = _get_audio_utility(setup)
 	var backend: TestRecordingAudioBackend = TestRecordingAudioBackend.new()
-	audio_utility.set_audio_backend(backend)
+	var backend_configured: bool = audio_utility.set_audio_backend(backend)
+	assert_true(backend_configured, "测试音频后端必须完成配置。")
 
 	theme_utility.play_ui_select_sound()
 	theme_utility.play_ui_confirm_sound()

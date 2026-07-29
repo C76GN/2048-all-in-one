@@ -54,3 +54,15 @@ func undo() -> Variant:
 ## @param execute_result: execute() 返回的执行结果。
 func should_record(execute_result: Variant) -> bool:
 	return execute_result is bool and execute_result
+
+
+## 只有草稿快照实际恢复成功时才允许命令历史移动游标。
+## @param undo_result: undo() 返回的恢复结果。
+func is_undo_successful(undo_result: Variant) -> bool:
+	return undo_result is bool and undo_result
+
+
+## 只有草稿目标状态实际重建成功时才允许命令历史移动游标。
+## @param execute_result: 重做时 execute() 返回的替换结果。
+func is_redo_successful(execute_result: Variant) -> bool:
+	return should_record(execute_result)

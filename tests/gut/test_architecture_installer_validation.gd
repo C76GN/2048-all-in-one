@@ -462,6 +462,57 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 	)
 
 
+func test_async_installers_check_scope_after_every_await() -> void:
+	var issues: Array[String] = []
+	for installer_path: String in [
+		PROJECT_INSTALLER_PATH,
+		GAME_DIAGNOSTICS_INSTALLER_PATH,
+	]:
+		var source: String = _read_text(installer_path)
+		assert_true(
+			source.contains("\n\tawait "),
+			"%s 应至少包含一个需要取消检查的异步安装步骤。" % installer_path
+		)
+		for issue: String in _collect_missing_cancel_checkpoints(installer_path, source):
+			_append_string(issues, issue)
+
+	assert_true(
+		issues.is_empty(),
+		"GF10 Installer 必须在每个 await 恢复后立即检查取消作用域：\n%s"
+		% _join_lines(issues)
+	)
+
+
+func test_cancelled_project_installer_does_not_mutate_candidate_architecture() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	assert_true(scope.cancel("test cancellation"), "测试应先取消 Installer scope。")
+	var installer: GFInstaller = GameArchitectureInstaller.new()
+
+	installer.install_bindings(architecture.create_binder(), scope)
+
+	assert_null(
+		architecture.get_local_model(AppConfigModel),
+		"已取消的项目 Installer 不得向候选架构注册首个 Model。"
+	)
+	architecture.dispose()
+
+
+func test_cancelled_diagnostics_installer_does_not_mutate_candidate_architecture() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	assert_true(scope.cancel("test cancellation"), "测试应先取消 diagnostics scope。")
+	var installer: GFInstaller = GameDiagnosticsInstaller.new()
+
+	installer.install_bindings(architecture.create_binder(), scope)
+
+	assert_null(
+		architecture.get_local_utility(GFConsoleUtility),
+		"已取消的 diagnostics Installer 不得向候选架构注册首个 Utility。"
+	)
+	architecture.dispose()
+
+
 func test_release_scene_router_only_uses_local_lookup_for_optional_diagnostics() -> void:
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
 	var diagnostics_installer_source: String = _read_text(GAME_DIAGNOSTICS_INSTALLER_PATH)
@@ -638,6 +689,40 @@ func _read_text(path: String) -> String:
 	var text: String = file.get_as_text()
 	file.close()
 	return text
+
+
+func _collect_missing_cancel_checkpoints(path: String, source: String) -> Array[String]:
+	var issues: Array[String] = []
+	var lines: PackedStringArray = source.split("\n")
+	for line_index: int in range(lines.size()):
+		var line: String = _get_packed_line(lines, line_index).strip_edges()
+		if not line.begins_with("await "):
+			continue
+		var checkpoint_index: int = _find_next_code_line(lines, line_index + 1)
+		var checkpoint: String = _get_packed_line(lines, checkpoint_index).strip_edges()
+		if checkpoint != "if scope.is_cancel_requested():":
+			_append_string(
+				issues,
+				"%s:%d 的 await 后缺少 scope.is_cancel_requested()。"
+				% [path, line_index + 1]
+			)
+			continue
+		var return_index: int = _find_next_code_line(lines, checkpoint_index + 1)
+		if _get_packed_line(lines, return_index).strip_edges() != "return":
+			_append_string(
+				issues,
+				"%s:%d 的取消检查未立即退出 Installer。"
+				% [path, checkpoint_index + 1]
+			)
+	return issues
+
+
+func _find_next_code_line(lines: PackedStringArray, start_index: int) -> int:
+	for line_index: int in range(start_index, lines.size()):
+		var line: String = _get_packed_line(lines, line_index).strip_edges()
+		if not line.is_empty() and not line.begins_with("#"):
+			return line_index
+	return -1
 
 
 func _source_binds_symbol(source: String, symbol: String) -> bool:

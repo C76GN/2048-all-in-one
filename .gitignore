@@ -22,6 +22,9 @@ repomix.config.json
 # GF package manager cache
 .gf/package_cache/
 
+# GF AI Developer regenerated local evidence
+/.gf/ai/
+
 # Python tooling caches
 __pycache__/
 *.py[cod]

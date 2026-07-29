@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project": {
     "id": "gf_project",
     "summary": "A Godot project built with GF Framework.",
@@ -17,13 +17,25 @@
     ],
     "optional_packages": [],
     "forbidden_packages": [],
-    "required_capabilities": [
-      "architecture"
+    "capability_requirements": [
+      {
+        "id": "architecture",
+        "decision_state": "confirmed",
+        "owner": "project",
+        "recipes": [
+          "composition-root"
+        ],
+        "acceptance": [
+          "Long-lived GF architecture services are registered by the project composition root and disposed with their declared owner."
+        ],
+        "notes": ""
+      }
     ],
     "adapter_boundaries": []
   },
   "architecture": {
     "modules": [],
+    "owned_resources": [],
     "global_rules": [
       "Project business code stays outside res://addons/gf.",
       "External platform SDKs are isolated behind project-owned adapters."

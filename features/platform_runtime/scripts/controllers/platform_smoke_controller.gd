@@ -68,6 +68,7 @@ func _exit_tree() -> void:
 	if _active_response != null and _active_response.is_pending():
 		_active_response.cancel("scene_exited")
 	_active_response = null
+	super._exit_tree()
 
 
 # --- 私有/辅助方法：依赖 ---

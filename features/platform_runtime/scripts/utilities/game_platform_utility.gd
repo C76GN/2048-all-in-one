@@ -157,15 +157,11 @@ func get_bridge_contract_report() -> Dictionary:
 	var _runtime_contract: Dictionary = builder.add_contract(CONTRACT_RUNTIME_CONTEXT, {
 		"required": true,
 	})
-	var _lifecycle_contract: Dictionary = builder.add_contract(CONTRACT_LIFECYCLE, {
-		"required": true,
-		"capabilities": PackedStringArray([String(CAPABILITY_LIFECYCLE)]),
-	})
 	var _sdk_bridge_contract: Dictionary = builder.add_contract(CONTRACT_SDK_BRIDGE, {
 		"required": false,
 	})
 	if _adapter != null:
-		var descriptor: Dictionary = _adapter.get_contract_descriptor()
+		var descriptor: Dictionary = _adapter.get_bridge_report_descriptor()
 		var _adapter_entry: Dictionary = builder.add_adapter(
 			_adapter.adapter_id,
 			&"",

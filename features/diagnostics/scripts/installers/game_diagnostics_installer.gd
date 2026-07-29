@@ -18,31 +18,54 @@ const _GAME_DIAGNOSTICS_UTILITY_SCRIPT: Script = preload(
 
 ## 注册只在显式开发构建中启用的诊断模块。
 ## @param binder: GF 传入的声明式绑定器。
-## @param _scope: 当前 Installer 的可取消异步作用域。
-func install_bindings(binder: Variant, _scope: GFAsyncScope) -> void:
+## @param scope: 当前 Installer 的可取消异步作用域。
+func install_bindings(binder: Variant, scope: GFAsyncScope) -> void:
 	if not binder is GFBinder:
 		push_error("[GameDiagnosticsInstaller] install_bindings 收到无效 Binder。")
+		return
+	if scope == null:
+		push_error("[GameDiagnosticsInstaller] install_bindings 收到无效 Scope。")
+		return
+	if scope.is_cancel_requested():
 		return
 	var gf_binder: GFBinder = binder
 
 	await gf_binder.bind_utility(GFConsoleUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	var tracker_binding: GFBindBuilder = gf_binder.bind_utility(
 		GFAsyncTrackerUtility
 	).from_instance(_create_async_tracker_utility())
 	await tracker_binding.as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await gf_binder.bind_utility(GFOperationDiagnosticsUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await gf_binder.bind_utility(GFSupportReportUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	var overlay_binding: GFBindBuilder = gf_binder.bind_utility(GFDebugOverlayUtility)
 	overlay_binding = overlay_binding.from_instance(_create_debug_overlay_utility())
 	await overlay_binding.as_singleton()
+	if scope.is_cancel_requested():
+		return
 	var inspector_binding: GFBindBuilder = gf_binder.bind_utility(GFRuntimeInspectorUtility)
 	inspector_binding = inspector_binding.from_instance(_create_runtime_inspector_utility())
 	await inspector_binding.as_singleton()
+	if scope.is_cancel_requested():
+		return
 	var screenshot_binding: GFBindBuilder = gf_binder.bind_utility(GFScreenshotUtility)
 	screenshot_binding = screenshot_binding.from_instance(_create_screenshot_utility())
 	await screenshot_binding.as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await gf_binder.bind_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await gf_binder.bind_utility(TestToolUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 
 
 # --- 私有/辅助方法 ---

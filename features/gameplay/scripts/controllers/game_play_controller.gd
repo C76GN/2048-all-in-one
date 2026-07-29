@@ -106,6 +106,7 @@ func _ready() -> void:
 
 
 func _notification(what: int) -> void:
+	super._notification(what)
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
 		_update_static_ui_text()
 

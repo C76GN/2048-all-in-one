@@ -12,6 +12,8 @@ const CONTRACT_RUNTIME_CONTEXT: StringName = &"platform.runtime_context"
 const CONTRACT_LIFECYCLE: StringName = &"platform.lifecycle"
 const CONTRACT_SDK_BRIDGE: StringName = &"platform.sdk_bridge"
 
+const METHOD_RUNTIME_CONTEXT_QUERY: StringName = &"query"
+
 const CAPABILITY_STORAGE_LOCAL: StringName = &"platform.storage.local"
 const CAPABILITY_HTTP: StringName = &"platform.http"
 const CAPABILITY_AUDIO: StringName = &"platform.audio"
@@ -54,9 +56,8 @@ func prepare() -> bool:
 		context.platform_id,
 		PackedStringArray([
 			String(CONTRACT_RUNTIME_CONTEXT),
-			String(CONTRACT_LIFECYCLE),
-			String(CONTRACT_SDK_BRIDGE),
 		]),
+		_make_contract_descriptors(),
 		context
 	)
 
@@ -72,7 +73,7 @@ func handle_notification(_what: int) -> void:
 	pass
 
 
-func get_contract_descriptor() -> Dictionary:
+func get_bridge_report_descriptor() -> Dictionary:
 	var configured_adapter_id: StringName = get_adapter_id()
 	var descriptor_adapter_id: StringName = (
 		configured_adapter_id if configured_adapter_id != &"" else adapter_id
@@ -81,8 +82,6 @@ func get_contract_descriptor() -> Dictionary:
 	if contract_ids.is_empty():
 		contract_ids = PackedStringArray([
 			String(CONTRACT_RUNTIME_CONTEXT),
-			String(CONTRACT_LIFECYCLE),
-			String(CONTRACT_SDK_BRIDGE),
 		])
 	var context: GFPlatformRuntimeContext = (
 		get_context() if configured_adapter_id != &"" else create_runtime_context()
@@ -90,6 +89,10 @@ func get_contract_descriptor() -> Dictionary:
 	var capability_ids: PackedStringArray = PackedStringArray()
 	if context != null and context.capabilities != null:
 		capability_ids = context.capabilities.capabilities.duplicate()
+	var descriptor_entries: Array[Dictionary] = []
+	if configured_adapter_id != &"":
+		for descriptor: GFPlatformContractDescriptor in get_contract_descriptors():
+			descriptor_entries.append(descriptor.to_dict())
 	return {
 		"adapter_id": descriptor_adapter_id,
 		"contract_ids": contract_ids,
@@ -97,6 +100,7 @@ func get_contract_descriptor() -> Dictionary:
 		"capabilities": capability_ids,
 		"metadata": {
 			"platform_id": context.platform_id if context != null else &"unknown",
+			"contract_descriptors": descriptor_entries,
 		},
 	}
 
@@ -112,9 +116,19 @@ func copy_text_to_clipboard(_text: String) -> bool:
 
 ## 默认项目 adapter 明确拒绝未实现的 SDK 调用。
 func _dispatch(
-	_request: GFPlatformBridgeRequest,
+	request: GFPlatformBridgeRequest,
 	handle: GFPlatformRequestHandle
 ) -> bool:
+	if (
+		request != null
+		and request.contract_id == CONTRACT_RUNTIME_CONTEXT
+		and request.method_id == METHOD_RUNTIME_CONTEXT_QUERY
+	):
+		var context: GFPlatformRuntimeContext = get_context()
+		return _succeed_request(
+			handle,
+			context.to_dict() if context != null else {}
+		)
 	return _fail_request(
 		handle,
 		&"unsupported",
@@ -128,3 +142,39 @@ func _dispatch(
 ## @param event: 待发布的规范平台生命周期事件。
 func emit_lifecycle_event(event: GFPlatformLifecycleEvent) -> bool:
 	return _publish_lifecycle_event(event)
+
+
+# --- 私有/辅助方法 ---
+
+static func _make_contract_descriptors() -> Array[GFPlatformContractDescriptor]:
+	return [
+		_make_contract_descriptor(
+			CONTRACT_RUNTIME_CONTEXT,
+			METHOD_RUNTIME_CONTEXT_QUERY
+		),
+	]
+
+
+static func _make_contract_descriptor(
+	contract_id: StringName,
+	method_id: StringName,
+	required_capabilities: PackedStringArray = PackedStringArray()
+) -> GFPlatformContractDescriptor:
+	var method: GFPlatformContractMethodDescriptor = (
+		GFPlatformContractMethodDescriptor.new().configure(
+			method_id,
+			{
+				"required_capability_ids": required_capabilities,
+				"max_request_bytes": 4096,
+				"max_result_bytes": 4096,
+				"max_concurrent_requests": 1,
+				"supports_cancellation": false,
+			}
+		)
+	)
+	var methods: Array[GFPlatformContractMethodDescriptor] = [method]
+	return GFPlatformContractDescriptor.new().configure(
+		contract_id,
+		"1.0.0",
+		methods
+	)

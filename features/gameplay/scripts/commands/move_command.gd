@@ -94,6 +94,18 @@ func should_record(execute_result: Variant) -> bool:
 	return execute_result is TurnResult
 
 
+## 只有完整游戏快照实际恢复成功时才允许命令历史移动游标。
+## @param undo_result: undo() 返回的恢复结果。
+func is_undo_successful(undo_result: Variant) -> bool:
+	return undo_result is bool and undo_result
+
+
+## 只有重做产生有效回合结果时才允许命令历史移动游标。
+## @param execute_result: 重做时 execute() 返回的回合结果。
+func is_redo_successful(execute_result: Variant) -> bool:
+	return should_record(execute_result)
+
+
 func serialize() -> Dictionary:
 	return {
 		&"schema_version": SERIALIZATION_SCHEMA_VERSION,

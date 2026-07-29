@@ -20,7 +20,6 @@ const AUDIO_BUS_SFX: String = "SFX"
 
 # --- 私有变量 ---
 
-var _storage_recovery_pending: bool = false
 var _last_storage_recovery: Dictionary = {}
 var _persistence_blocked_error: Error = OK
 var _last_persistence_error: Error = OK
@@ -29,23 +28,19 @@ var _last_persistence_error: Error = OK
 # --- GF 生命周期方法 ---
 
 func init() -> void:
+	var should_auto_load: bool = auto_load_on_init
+	auto_load_on_init = false
 	super.init()
-	if not _storage_recovery_pending:
-		return
-	var recreate_error: Error = save_settings()
-	_last_storage_recovery["ok"] = recreate_error == OK
-	_last_storage_recovery["recovered"] = recreate_error == OK
-	_last_storage_recovery["recreate_error_code"] = recreate_error
-	_last_storage_recovery["persistence_blocked"] = recreate_error != OK
-	_storage_recovery_pending = false
-	_persistence_blocked_error = recreate_error
-	_last_persistence_error = recreate_error
-	_emit_persistence_health_changed()
-	if recreate_error != OK:
-		push_error(
-			"[GameSettingsUtility] 无法按当前 GFStorage 格式重建设置，错误码：%d。"
-			% recreate_error
+	auto_load_on_init = should_auto_load
+	if should_auto_load:
+		var recovery_policy: GFSettingsRecoveryPolicy = GFSettingsRecoveryPolicy.new()
+		recovery_policy.missing_file_action = (
+			GFSettingsRecoveryPolicy.ACTION_RESET_TO_DEFAULTS
 		)
+		recovery_policy.corrupt_file_action = (
+			GFSettingsRecoveryPolicy.ACTION_RESET_TO_DEFAULTS
+		)
+		var _load_result: GFSettingsLoadResult = load_settings("", recovery_policy)
 
 
 # --- 公共方法 ---
@@ -74,6 +69,25 @@ func get_persistence_health_snapshot() -> Dictionary:
 		"blocked_error_code": _persistence_blocked_error,
 		"last_write_error_code": _last_persistence_error,
 	}
+
+
+## 读取设置，并仅在 GF 已确认显式 reset_to_defaults 恢复后重建物理文件。
+##
+## 严格读取和 use_current_state 恢复不得删除底层证据；GFSettingsLoadResult 先决定
+## 是否恢复，项目存储策略再执行获授权的物理重建。
+## @param file_name: 可选文件名；为空时使用 GF 设置工具配置的默认文件。
+## @param recovery_policy: 可选显式恢复策略；null 保持 GF10 严格失败语义。
+## @return: GF 返回的结构化加载终态。
+func load_settings(
+	file_name: String = "",
+	recovery_policy: GFSettingsRecoveryPolicy = null
+) -> GFSettingsLoadResult:
+	var load_result: GFSettingsLoadResult = super.load_settings(
+		file_name,
+		recovery_policy
+	)
+	_finalize_explicit_storage_recovery(load_result)
+	return load_result
 
 
 ## 保存当前设置，并把序列化前置失败也纳入项目持久化健康状态。
@@ -195,7 +209,7 @@ func register_project_defaults() -> void:
 
 # --- 可重写钩子 ---
 
-func _read_persisted_data(file_name: String) -> Dictionary:
+func _read_persisted_data(file_name: String) -> GFStorageReadResult:
 	var storage: GFStorageUtility = _get_storage_utility()
 	if storage == null:
 		return super._read_persisted_data(file_name)
@@ -206,50 +220,30 @@ func _read_persisted_data(file_name: String) -> Dictionary:
 		_persistence_blocked_error = OK
 		_last_persistence_error = OK
 		_emit_persistence_health_changed()
-		return read_result.payload.duplicate(true)
-	if read_result.error_code == ERR_FILE_NOT_FOUND:
+		return read_result.duplicate_result()
+	if read_result.failure_kind == GFStorageReadResult.FailureKind.NOT_FOUND:
 		_last_storage_recovery.clear()
 		_persistence_blocked_error = OK
 		_last_persistence_error = OK
 		_emit_persistence_health_changed()
-		return {}
-	if not ProjectStorageRecoveryPolicy.should_reset_failed_read(read_result):
-		_persistence_blocked_error = (
-			read_result.error_code
-			if read_result.error_code != OK
-			else ERR_INVALID_DATA
-		)
-		_last_storage_recovery = {
-			"ok": false,
-			"recovered": false,
-			"persistence_blocked": true,
-			"file_name": file_name,
-			"error_code": _persistence_blocked_error,
-			"error": read_result.error,
-		}
-		_last_persistence_error = _persistence_blocked_error
-		_emit_persistence_health_changed()
-		return {}
-
-	var reset_error: Error = ProjectStorageRecoveryPolicy.reset_failed_file(
-		storage,
-		file_name,
-		read_result
+		return read_result.duplicate_result()
+	_persistence_blocked_error = (
+		read_result.error_code
+		if read_result.error_code != OK
+		else ERR_INVALID_DATA
 	)
 	_last_storage_recovery = {
 		"ok": false,
 		"recovered": false,
+		"persistence_blocked": true,
 		"file_name": file_name,
-		"discarded_error_code": read_result.error_code,
-		"discarded_error": read_result.error,
-		"reset_error_code": reset_error,
-		"persistence_blocked": reset_error != OK,
+		"error_code": _persistence_blocked_error,
+		"error": read_result.error,
+		"failure_kind": int(read_result.failure_kind),
 	}
-	_storage_recovery_pending = reset_error == OK
-	_persistence_blocked_error = OK if reset_error == OK else reset_error
 	_last_persistence_error = _persistence_blocked_error
 	_emit_persistence_health_changed()
-	return {}
+	return read_result.duplicate_result()
 
 
 func _write_persisted_data(file_name: String, data: Dictionary) -> Error:
@@ -263,6 +257,57 @@ func _write_persisted_data(file_name: String, data: Dictionary) -> Error:
 
 
 # --- 私有/辅助方法 ---
+
+func _finalize_explicit_storage_recovery(
+	load_result: GFSettingsLoadResult
+) -> void:
+	if (
+		load_result == null
+		or not load_result.is_successful()
+		or not load_result.was_recovered()
+		or (
+			load_result.get_recovery_action()
+			!= GFSettingsRecoveryPolicy.ACTION_RESET_TO_DEFAULTS
+		)
+	):
+		return
+	var read_result: GFStorageReadResult = load_result.get_storage_result()
+	if not ProjectStorageRecoveryPolicy.should_reset_failed_read(read_result):
+		return
+	var storage: GFStorageUtility = _get_storage_utility()
+	var reset_error: Error = ERR_UNAVAILABLE
+	if storage != null:
+		reset_error = ProjectStorageRecoveryPolicy.reset_failed_file(
+			storage,
+			load_result.get_file_name(),
+			read_result
+		)
+	var recreate_error: Error = reset_error
+	if reset_error == OK:
+		_persistence_blocked_error = OK
+		recreate_error = save_settings(load_result.get_file_name())
+	_last_storage_recovery = {
+		"ok": recreate_error == OK,
+		"recovered": recreate_error == OK,
+		"load_recovered": true,
+		"recovery_action": load_result.get_recovery_action(),
+		"file_name": load_result.get_file_name(),
+		"discarded_error_code": read_result.error_code,
+		"discarded_error": read_result.error,
+		"discarded_failure_kind": int(read_result.failure_kind),
+		"reset_error_code": reset_error,
+		"recreate_error_code": recreate_error,
+		"persistence_blocked": recreate_error != OK,
+	}
+	_persistence_blocked_error = recreate_error
+	_last_persistence_error = recreate_error
+	_emit_persistence_health_changed()
+	if recreate_error != OK:
+		push_error(
+			"[GameSettingsUtility] 无法按当前 GFStorage 格式重建设置，错误码：%d。"
+			% recreate_error
+		)
+
 
 func _record_persistence_result(error: Error) -> void:
 	if _last_persistence_error == error:

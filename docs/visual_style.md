@@ -202,7 +202,7 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 
 - `GameUiStyleUtility` 负责统一按钮、输入框、滑条、文本语义和基础控件的静态样式；界面脚本只能声明 `PRIMARY/SECONDARY/MUTED`、`PANEL/SELECTED`、`DEFAULT/FOCUS` 等语义，不得复制色值或缓存跨主题 `StyleBox`。
 - HUD、菜单等界面的瞬时强调反馈必须调用 `GameUiMotionUtility`，节点脚本不得自行维护 Tween 元数据。
-- 动态文本应通过统一适配边界计算字号。方块数字使用 GF 9 `GFTextFitter.MeasurementMode.SINGLE_LINE`，并由完整 GUT 的 `ShapedText` / `Font` RID 退出基线阻止测量回归。
+- 动态文本应通过统一适配边界计算字号。方块数字使用当前 GF `GFTextFitter.MeasurementMode.SINGLE_LINE`，并由完整 GUT 的 `ShapedText` / `Font` RID 退出基线阻止测量回归。
 - `GameThemeUtility` 负责把当前主题的 `GameUiPalette` 注入 `GameUiStyleUtility`；`GameUiMotionUtility` 只依赖 Style Utility 准备控件，并负责 hover、focus、pressed、intro、reveal 和 pulse 动画。设置页切换主题后要能依据已保存的语义角色立即重建当前场景样式。
 - 按钮默认是纸色块加深墨描边，hover 用印刷青，pressed 用印刷黄，focus 可使用品红边框。
 - `PRIMARY` 按钮使用最明确的无模糊深墨硬偏移底板；普通按钮保留更轻的同类实体投影，弱化操作可以保持平面。hover 的纸片展开并保留约 `5px` 到 `6px` 投影，pressed 回缩且底板收短到约 `1px` 到 `2px`，形成纸卡被按下的触觉。

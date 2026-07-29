@@ -155,6 +155,14 @@ func test_failed_undo_does_not_emit_board_animation_or_hud_refresh() -> void:
 	var undo_result: Variant = command.undo()
 	var undo_succeeded: bool = GFVariantData.to_bool(undo_result, true)
 	assert_false(undo_succeeded, "逻辑状态恢复失败时 MoveCommand.undo 应明确返回 false。")
+	assert_false(
+		command.is_undo_successful(undo_result),
+		"移动撤销失败时 GF 10 命令历史不得提交游标移动。"
+	)
+	assert_false(
+		command.is_redo_successful(null),
+		"未产生 TurnResult 的移动重做不得提交游标移动。"
+	)
 	assert_push_error("撤销快照恢复失败")
 	assert_true(
 		GFVariantData.get_option_int(event_counts, &"board", 0) == 0,

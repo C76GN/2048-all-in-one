@@ -4,6 +4,73 @@ extends GutTest
 
 # --- 测试用例 ---
 
+func test_project_adapter_satisfies_gf10_descriptor_conformance() -> void:
+	var adapter: FakePlatformAdapter = FakePlatformAdapter.new()
+	assert_true(adapter.prepare(), "测试 Adapter 应冻结 GF10 平台身份和契约描述符。")
+	var required_methods: Dictionary = {
+		String(GamePlatformAdapter.CONTRACT_RUNTIME_CONTEXT): PackedStringArray([
+			String(GamePlatformAdapter.METHOD_RUNTIME_CONTEXT_QUERY),
+		]),
+	}
+	var contract_versions: Dictionary = {
+		String(GamePlatformAdapter.CONTRACT_RUNTIME_CONTEXT): "1.0.0",
+	}
+	var options: Dictionary = {
+		"required_contract_ids": PackedStringArray(required_methods.keys()),
+		"required_contract_versions": contract_versions,
+		"required_capability_ids": PackedStringArray([
+			String(GamePlatformAdapter.CAPABILITY_LIFECYCLE),
+			String(GamePlatformAdapter.CAPABILITY_STORAGE_LOCAL),
+		]),
+		"required_methods": required_methods,
+		"require_descriptors": true,
+	}
+
+	var report: GFValidationReport = GFPlatformAdapterConformance.validate(
+		adapter,
+		options
+	)
+	assert_true(report.is_ok(), str(report.to_dict()))
+	var inspection: Dictionary = GFPlatformAdapterConformance.inspect(
+		adapter,
+		options
+	)
+	assert_true(
+		GFVariantData.get_option_bool(inspection, "ok"),
+		"GF10 平台一致性附录应保持通过：%s" % str(inspection)
+	)
+	assert_true(
+		GFVariantData.get_option_bool(
+			GFVariantData.get_option_dictionary(inspection, "bridge_coverage"),
+			"ok"
+		),
+		"项目 Adapter 必须覆盖声明的全部平台 bridge contract。"
+	)
+	var initialization: GFAsyncCompletion = adapter.initialize()
+	assert_true(initialization.is_successful(), "测试 Adapter 应同步进入 READY。")
+	var query: GFPlatformBridgeRequest = GFPlatformBridgeRequest.new().configure(
+		&"request.runtime_context",
+		GamePlatformAdapter.CONTRACT_RUNTIME_CONTEXT,
+		GamePlatformAdapter.METHOD_RUNTIME_CONTEXT_QUERY
+	)
+	var query_handle: GFPlatformRequestHandle = adapter.invoke(query)
+	var query_result: GFPlatformBridgeResult = query_handle.get_result()
+	assert_not_null(query_result, "已声明的 runtime context query 必须产生终态。")
+	if query_result != null:
+		assert_true(query_result.ok, "已声明的 runtime context query 必须可实际路由。")
+		var context_data: Dictionary = GFVariantData.to_dictionary(
+			query_result.value
+		)
+		assert_true(
+			GFVariantData.get_option_string_name(
+				context_data,
+				"platform_id"
+			) == &"test_platform",
+			"runtime context query 必须返回当前平台身份。"
+		)
+	adapter.shutdown()
+
+
 func test_runtime_context_is_defensive_copy_with_capabilities() -> void:
 	var adapter: FakePlatformAdapter = FakePlatformAdapter.new()
 	var setup: Dictionary = await _create_platform_architecture(adapter)
@@ -66,7 +133,10 @@ func test_bridge_contract_is_covered_and_unknown_sdk_call_fails_explicitly() -> 
 	var result: GFPlatformBridgeResult = handle.get_result()
 	assert_not_null(result, "同步拒绝请求应立即生成终态结果。")
 	assert_false(result.ok)
-	assert_true(result.status == &"unsupported", "未知 bridge 操作应明确返回 unsupported。")
+	assert_true(
+		result.status == &"unsupported_contract",
+		"未声明的 SDK bridge 应在进入项目 dispatch 前明确拒绝。"
+	)
 	assert_true(result.request_id == &"request.test", "bridge 结果应保留请求 ID。")
 
 	await _dispose_platform_architecture(setup)

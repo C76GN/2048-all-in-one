@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project": {
     "id": "project_2048_all_in_one",
     "summary": "基于 GF Framework 的可扩展 2048 规则组合示例游戏，面向 Steam、移动端、Web 与微信小游戏，支持确定性回放、可组合方块、主题内容包和自定义棋盘。",
@@ -29,6 +29,8 @@
       "gf.standard.assets",
       "gf.standard.audio",
       "gf.standard.base",
+      "gf.standard.config",
+      "gf.standard.debug",
       "gf.standard.deterministic",
       "gf.standard.diagnostics",
       "gf.standard.display",
@@ -36,6 +38,7 @@
       "gf.standard.input",
       "gf.standard.platform",
       "gf.standard.settings",
+      "gf.standard.state",
       "gf.standard.state_machine",
       "gf.standard.storage",
       "gf.standard.ui",
@@ -53,31 +56,232 @@
       "gf.tool.project_layout"
     ],
     "optional_packages": [
-      "gf.standard.config",
+      "gf.standard.audio.editor",
       "gf.tool.config_pipeline"
     ],
     "forbidden_packages": [],
-    "required_capabilities": [
-      "architecture",
-      "async-lifecycle",
-      "assets-content",
-      "storage-save",
-      "input",
-      "ui-navigation",
-      "audio",
-      "state-flow",
-      "diagnostics",
-      "determinism",
-      "platform-adapters",
-      "domain-components",
-      "project-tooling"
-    ],
     "adapter_boundaries": [
       {
         "id": "godot_local_platform_adapter",
         "provider": "Godot local runtime",
         "project_root": "res://features/platform_runtime",
         "responsibility": "拥有完整平台运行时 Adapter Seam：GamePlatformAdapter、LocalPlatformAdapter、GamePlatformUtility、生命周期桥接、平台 smoke 场景/工具与局部文档；把 Godot OS/DisplayServer 的本地存储、HTTP、音频、输入、显示安全区和生命周期事实投影为 GFPlatformRuntime 契约，不宣称微信 SDK 能力。"
+      }
+    ],
+    "capability_requirements": [
+      {
+        "id": "architecture",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "project-feature",
+          "composition-root"
+        ],
+        "acceptance": [
+          "仅 app/scripts/boot.gd 与 boot_runtime.gd 可访问全局 Gf；test_gf_project_conformance.gd 的越界访问扫描为零。",
+          "GameArchitectureInstaller 在 strict dependency lookup 下完成 init/ready/dispose；缺失已声明依赖时验证必须失败并报告依赖名。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "async-lifecycle",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "owned-async-operation"
+        ],
+        "acceptance": [
+          "主题加载、场景切换和平台请求均由明确 owner 持有，只能以成功、失败、取消或超时之一终结；owner dispose 后的迟到回调不得改写状态。",
+          "test_game_theme_utility.gd、test_navigation_reliability.gd 与 test_game_platform_utility.gd 覆盖取消、超时和迟到完成。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "assets-content",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "owned-resource-load",
+          "content-package"
+        ],
+        "acceptance": [
+          "运行时主题与内容以稳定资源键解析；激活路径不得以 raw res:// path fallback 维持成功。",
+          "主题资源先在 GFAssetLoadSession staging group 全量通过再事务提交；成功后释放旧组，失败保留旧主题与旧音频银行。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "storage-save",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "save-boundary"
+        ],
+        "acceptance": [
+          "当前账号的所有玩家 section 只通过 GameSaveGraphUtility/GFSaveGraphUtility 生成单一事务文档，业务 System 不直接写文件。",
+          "后期 section 应用失败必须回滚先前 section；账号切换和退出前必须完成 flush，test_game_save_graph_utility.gd 与本地账号测试通过。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "input",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "input-context"
+        ],
+        "acceptance": [
+          "玩家玩法与棋盘编辑器输入只消费 GFInputContext 抽象动作；业务代码不得以物理键作为领域意图。仅 with_dev_tools 的 GF Debug Overlay 快捷键不构成玩家领域输入。",
+          "重绑定提交前执行冲突分析；取消或无障碍不可达绑定不得覆盖当前配置，test_gameplay_input_mapping.gd 通过。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "ui-navigation",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "ui-screen-flow"
+        ],
+        "acceptance": [
+          "玩家弹层只经 GFUIRouterUtility 的稳定 route id 打开或关闭；路由失败保持原业务状态与焦点。",
+          "空列表、键盘或手柄初始焦点、返回栈与 44px 触控契约由 UI GUT 覆盖。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "audio",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "provider-backend"
+        ],
+        "acceptance": [
+          "视觉与音效主题切换以 bank mount token 原子替换并释放旧银行；每个 settled TurnResult 只选择一个规范主音频事件。",
+          "未安装显式 GFAudioBackend 时 set_parameter/state/switch 的 false 不得被业务视为成功；语义音频与主题测试通过。"
+        ],
+        "notes": "当前采用 GFAudioUtility 内置 Godot 播放路径，未安装 middleware backend；state/switch 不作生效承诺。"
+      },
+      {
+        "id": "state-flow",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "state-or-flow"
+        ],
+        "acceptance": [
+          "GFStateMachine 只拥有互斥对局状态，GFTurnFlowSystem 拥有规范回合管线，GFActionQueueSystem 只拥有表现队列；表现队列不得成为领域真源。",
+          "中断、取消或 owner dispose 后队列不得遗留 Tween 或命名队列，状态与关卡生命周期测试通过。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "diagnostics",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "diagnostic-contribution",
+          "feedback-candidate"
+        ],
+        "acceptance": [
+          "普通玩家构建只保留无 UI 的有界运行诊断；Console、Overlay、Inspector 与 Screenshot 仅在 with_dev_tools 下安装。",
+          "支持报告只导出有界、脱敏快照，不包含账号、绝对路径、凭据或原始日志；诊断 GUT 通过。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "determinism",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "deterministic-scope"
+        ],
+        "acceptance": [
+          "同一模式、拓扑、seed 与有效命令序列在干净运行和序列化往返后产生相同 canonical state/checkpoint hash。",
+          "玩法随机只来自 GFSeedUtility gameplay branch；系统时钟、渲染帧率和 cosmetic RNG 不得改变领域结果。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "platform-adapters",
+        "decision_state": "confirmed",
+        "owner": "godot_local_platform_adapter",
+        "recipes": [
+          "provider-backend"
+        ],
+        "acceptance": [
+          "仅 platform_runtime Adapter 可读取玩家平台或设备能力与供应商 SDK；其他 Feature 只消费 GFPlatformRuntimeContext 与 capability id。",
+          "每个请求只通过 GFPlatformRequestHandle 终结一次；LocalPlatformAdapter 不宣称微信登录、线上榜、支付、分享或云存档，平台契约测试通过。"
+        ],
+        "notes": "provider-backend 仅覆盖 LocalPlatformAdapter 的生命周期与能力翻译，不声明 lobby、云存储或供应商 SDK 能力。"
+      },
+      {
+        "id": "domain-components",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "domain-component"
+        ],
+        "acceptance": [
+          "GFQuestUtility、GFLevelUtility 与 GFTurnFlowSystem 只拥有通用运行机制；成就真源、模式规则、奖励和回合业务语义仍由项目 Feature/SaveGraph 拥有。",
+          "成就、关卡会话和回合测试验证重复事件幂等、生命周期释放及持久化真源不分叉。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "project-tooling",
+        "decision_state": "confirmed",
+        "owner": "verification",
+        "recipes": [
+          "project-feature"
+        ],
+        "acceptance": [
+          "tools/validate_project_layout.ps1 对 gf_project_profile.json 报告 error=0、warning=0，旧根目录与越界 Feature 路径为零。",
+          "gf.tool.ai_developer 与 gf.tool.project_layout 不进入玩家运行时依赖链。"
+        ],
+        "notes": "project-feature 仅表示 Feature-Cohesive 作者体验与布局验证，不代表采用 config-pipeline。"
+      },
+      {
+        "id": "command-history",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "undoable-command-history"
+        ],
+        "acceptance": [
+          "玩法全局历史与 BoardEditorContext 局部历史必须隔离；只有业务判定成功的命令进入 undo/redo 栈。",
+          "MoveCommand 与 BoardDraftEditCommand 的失败 undo/redo 必须通过 is_undo_successful/is_redo_successful 保持历史游标和领域状态不变；对应测试通过。",
+          "书签和回放只恢复通过严格校验且受 max_history_size 限制的序列化历史；从回放继续时清空未确认未来命令。"
+        ],
+        "notes": "GF 拥有栈和游标原子性；项目拥有领域前置条件、终态成功语义与持久化 schema。"
+      },
+      {
+        "id": "render-feedback",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "render-feedback-orchestration"
+        ],
+        "acceptance": [
+          "启动页 reveal 前完成 GFRenderWarmupUtility manifest 与 GameplayVisualWarmup；预热节点和资源组在首帧提交后释放。",
+          "Shader、Transition、Shake 与 Haptic 只消费已提交 TurnResult，不得写回模型、推进 gameplay RNG 或改变 canonical checksum。",
+          "减少动态、禁用震动和 MINIMAL VFX 必须直接落到静态终态；反馈无障碍、视觉润色与 GameplayAcceptanceMatrix 测试通过。"
+        ],
+        "notes": ""
+      },
+      {
+        "id": "runtime-performance",
+        "decision_state": "confirmed",
+        "owner": "application",
+        "recipes": [
+          "bounded-runtime-work"
+        ],
+        "acceptance": [
+          "DeterministicHintQuery 在 GFExecutionBudget 或 cancellation 耗尽时返回稳定 reason 与已有有界结果，不得越过 deadline 继续计算；test_deterministic_hint_query.gd 通过。",
+          "GameBoardController 只为可见窗口从 GFObjectPoolUtility 取得格子或方块节点；回收不得删除 GridModel 状态或释放仍由 Tween 拥有的节点。",
+          "桌面正常回合 P95 frame time 不高于 16.667 ms，input_to_primary_feedback 不高于 50 ms；性能验收矩阵不得以跳过规范模拟来达标。"
+        ],
+        "notes": "执行预算仅可截断提示、诊断或装饰性工作，不截断权威移动；对象池只拥有表现节点，不拥有领域身份。"
       }
     ]
   },
@@ -142,6 +346,18 @@
         "forbidden_dependencies": [],
         "ownership": "project"
       }
+    ],
+    "owned_resources": [
+      "res://.codex/skills/gf-project-development/SKILL.md",
+      "res://.gf/godot_exit_leak_baseline.json",
+      "res://.gf/project_contract.json",
+      "res://.gf/vendor.lock.json",
+      "res://.gitignore",
+      "res://.gutconfig.json",
+      "res://docs/visual_style.md",
+      "res://export_presets.cfg",
+      "res://gf_project_profile.json",
+      "res://project.godot"
     ],
     "global_rules": [
       "项目业务代码必须位于严格 Feature-Cohesive 目录，目录真相来源是 gf_project_profile.json。",

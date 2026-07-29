@@ -54,8 +54,8 @@ func test_ai_developer_contract_and_codex_skill_are_committed() -> void:
 	var architecture: Dictionary = GFVariantData.get_option_dictionary(contract, "architecture")
 	var framework: Dictionary = GFVariantData.get_option_dictionary(contract, "framework")
 	var required_packages: Array = GFVariantData.get_option_array(framework, "required_packages")
-	if GFVariantData.get_option_int(contract, "schema_version") != 1:
-		_append_string(issues, "GF 项目契约 schema_version 必须为 1。")
+	if GFVariantData.get_option_int(contract, "schema_version") != 2:
+		_append_string(issues, "GF 项目契约 schema_version 必须为 2。")
 	if GFVariantData.get_option_string(architecture, "project_profile_path") != "gf_project_profile.json":
 		_append_string(issues, "GF 项目契约必须引用严格 Feature-Cohesive Profile。")
 	if not required_packages.has("gf.tool.ai_developer"):
