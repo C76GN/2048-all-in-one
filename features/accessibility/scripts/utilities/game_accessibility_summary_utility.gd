@@ -201,13 +201,14 @@ func get_latest_summary() -> GameAccessibilitySummary:
 
 
 ## 把与字幕完全同源的完整棋盘摘要复制到系统剪贴板。
-func copy_latest_board_text() -> bool:
+## @return: GF 平台请求句柄；没有可复制摘要或平台边界未就绪时返回 null。
+func copy_latest_board_text() -> GFPlatformRequestHandle:
 	if (
 		not is_instance_valid(_latest_summary)
 		or _latest_summary.board_text.is_empty()
 		or not is_instance_valid(_platform)
 	):
-		return false
+		return null
 	return _platform.copy_text_to_clipboard(_latest_summary.board_text)
 
 

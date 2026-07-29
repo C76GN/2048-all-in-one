@@ -17,6 +17,9 @@ signal lifecycle_event_received(event: GFPlatformLifecycleEvent)
 const CONTRACT_RUNTIME_CONTEXT: StringName = GamePlatformAdapter.CONTRACT_RUNTIME_CONTEXT
 const CONTRACT_LIFECYCLE: StringName = GamePlatformAdapter.CONTRACT_LIFECYCLE
 const CONTRACT_SDK_BRIDGE: StringName = GamePlatformAdapter.CONTRACT_SDK_BRIDGE
+const CONTRACT_CLIPBOARD: StringName = GamePlatformAdapter.CONTRACT_CLIPBOARD
+
+const METHOD_CLIPBOARD_WRITE: StringName = GamePlatformAdapter.METHOD_CLIPBOARD_WRITE
 
 const CAPABILITY_STORAGE_LOCAL: StringName = GamePlatformAdapter.CAPABILITY_STORAGE_LOCAL
 const CAPABILITY_HTTP: StringName = GamePlatformAdapter.CAPABILITY_HTTP
@@ -37,6 +40,7 @@ var _runtime: GFPlatformRuntime = null
 var _context: GFPlatformRuntimeContext = null
 var _relay: _GamePlatformLifecycleRelay = null
 var _relay_attach_serial: int = 0
+var _clipboard_request_serial: int = 0
 var _initialized: bool = false
 
 
@@ -88,6 +92,7 @@ func dispose() -> void:
 	_adapter = null
 	_runtime = null
 	_context = null
+	_clipboard_request_serial = 0
 	_initialized = false
 	if is_instance_valid(_relay):
 		_relay.queue_free()
@@ -136,17 +141,20 @@ func invoke_bridge(request: GFPlatformBridgeRequest) -> GFPlatformRequestHandle:
 	return _runtime.invoke(request, _adapter.adapter_id)
 
 
-## 通过当前平台适配器执行用户主动请求的剪贴板写入。
+## 通过 GFPlatformRuntime 执行用户主动请求的剪贴板写入。
 ## @param text: 已本地化、可直接复制的非空纯文本。
-## @return: 当前平台声明能力且确认写入时返回 true。
-func copy_text_to_clipboard(text: String) -> bool:
-	if (
-		text.is_empty()
-		or _adapter == null
-		or not has_capability(CAPABILITY_CLIPBOARD_WRITE)
-	):
-		return false
-	return _adapter.copy_text_to_clipboard(text)
+## @return: 唯一终态平台请求句柄；Utility 尚未 ready 时返回 null。
+func copy_text_to_clipboard(text: String) -> GFPlatformRequestHandle:
+	if _runtime == null or _adapter == null:
+		return null
+	_clipboard_request_serial += 1
+	var request: GFPlatformBridgeRequest = GFPlatformBridgeRequest.new().configure(
+		StringName("game_clipboard_%d" % _clipboard_request_serial),
+		CONTRACT_CLIPBOARD,
+		METHOD_CLIPBOARD_WRITE,
+		{&"text": text}
+	)
+	return _runtime.invoke(request, _adapter.adapter_id)
 
 
 func get_bridge_contract_report() -> Dictionary:
@@ -161,9 +169,11 @@ static func make_adapter_conformance_options() -> Dictionary:
 	return {
 		"required_contract_ids": PackedStringArray([
 			String(CONTRACT_RUNTIME_CONTEXT),
+			String(CONTRACT_CLIPBOARD),
 		]),
 		"required_contract_versions": {
 			String(CONTRACT_RUNTIME_CONTEXT): "1.0.0",
+			String(CONTRACT_CLIPBOARD): "1.0.0",
 		},
 		"required_capability_ids": PackedStringArray([
 			String(CAPABILITY_LIFECYCLE),
@@ -172,6 +182,9 @@ static func make_adapter_conformance_options() -> Dictionary:
 		"required_methods": {
 			String(CONTRACT_RUNTIME_CONTEXT): PackedStringArray([
 				String(GamePlatformAdapter.METHOD_RUNTIME_CONTEXT_QUERY),
+			]),
+			String(CONTRACT_CLIPBOARD): PackedStringArray([
+				String(METHOD_CLIPBOARD_WRITE),
 			]),
 		},
 		"require_descriptors": true,

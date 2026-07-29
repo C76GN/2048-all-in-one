@@ -11,8 +11,10 @@ extends GFPlatformAdapter
 const CONTRACT_RUNTIME_CONTEXT: StringName = &"platform.runtime_context"
 const CONTRACT_LIFECYCLE: StringName = &"platform.lifecycle"
 const CONTRACT_SDK_BRIDGE: StringName = &"platform.sdk_bridge"
+const CONTRACT_CLIPBOARD: StringName = &"platform.clipboard"
 
 const METHOD_RUNTIME_CONTEXT_QUERY: StringName = &"query"
+const METHOD_CLIPBOARD_WRITE: StringName = &"write_text"
 
 const CAPABILITY_STORAGE_LOCAL: StringName = &"platform.storage.local"
 const CAPABILITY_HTTP: StringName = &"platform.http"
@@ -56,6 +58,7 @@ func prepare() -> bool:
 		context.platform_id,
 		PackedStringArray([
 			String(CONTRACT_RUNTIME_CONTEXT),
+			String(CONTRACT_CLIPBOARD),
 		]),
 		_make_contract_descriptors(),
 		context
@@ -73,10 +76,13 @@ func handle_notification(_what: int) -> void:
 	pass
 
 
-## 把玩家主动请求的文本写入平台剪贴板。
-## @param _text: 已本地化、可直接复制的纯文本。
-## @return: 平台确认写入成功时返回 true；不支持或失败时返回 false。
-func copy_text_to_clipboard(_text: String) -> bool:
+## 把已校验文本写入平台剪贴板。
+##
+## Godot 或 SDK 调用只能由 `_dispatch()` 经此受保护钩子抵达，项目调用方不得
+## 绕过 GFPlatformRuntime 直接调用平台 API。
+## @param _text: 已本地化、可直接复制的非空纯文本。
+## @return: 平台接受写入时返回 true。
+func _write_text_to_clipboard(_text: String) -> bool:
 	return false
 
 
@@ -96,6 +102,32 @@ func _dispatch(
 		return _succeed_request(
 			handle,
 			context.to_dict() if context != null else {}
+		)
+	if (
+		request != null
+		and request.contract_id == CONTRACT_CLIPBOARD
+		and request.method_id == METHOD_CLIPBOARD_WRITE
+	):
+		var text: String = GFVariantData.get_option_string(
+			request.payload,
+			&"text"
+		)
+		if text.is_empty():
+			return _fail_request(
+				handle,
+				&"invalid_clipboard_text",
+				"剪贴板写入文本不能为空。"
+			)
+		if not _write_text_to_clipboard(text):
+			return _fail_request(
+				handle,
+				&"clipboard_write_failed",
+				"当前平台未能接受剪贴板写入请求。"
+			)
+		return _succeed_request(
+			handle,
+			{&"written": true},
+			&"written"
 		)
 	return _fail_request(
 		handle,
@@ -120,6 +152,7 @@ static func _make_contract_descriptors() -> Array[GFPlatformContractDescriptor]:
 			CONTRACT_RUNTIME_CONTEXT,
 			METHOD_RUNTIME_CONTEXT_QUERY
 		),
+		_make_clipboard_contract_descriptor(),
 	]
 
 
@@ -143,6 +176,62 @@ static func _make_contract_descriptor(
 	var methods: Array[GFPlatformContractMethodDescriptor] = [method]
 	return GFPlatformContractDescriptor.new().configure(
 		contract_id,
+		"1.0.0",
+		methods
+	)
+
+
+static func _make_clipboard_contract_descriptor() -> GFPlatformContractDescriptor:
+	var request_fields: Array[GFSchemaField] = [
+		GFSchemaField.new().configure(
+			&"text",
+			GFSchemaField.ValueType.STRING,
+			{
+				"required": true,
+				"allow_null": false,
+			}
+		),
+	]
+	var request_schema: GFDictionarySchema = GFDictionarySchema.new().configure(
+		&"platform_clipboard_write_request",
+		request_fields,
+		{"allow_extra_fields": false}
+	)
+	var result_fields: Array[GFSchemaField] = [
+		GFSchemaField.new().configure(
+			&"written",
+			GFSchemaField.ValueType.BOOL,
+			{
+				"required": true,
+				"allow_null": false,
+			}
+		),
+	]
+	var result_schema: GFDictionarySchema = GFDictionarySchema.new().configure(
+		&"platform_clipboard_write_result",
+		result_fields,
+		{"allow_extra_fields": false}
+	)
+	var method: GFPlatformContractMethodDescriptor = (
+		GFPlatformContractMethodDescriptor.new().configure(
+			METHOD_CLIPBOARD_WRITE,
+			{
+				"request_schema": request_schema,
+				"result_schema": result_schema,
+				"required_capability_ids": PackedStringArray([
+					String(CAPABILITY_CLIPBOARD_WRITE),
+				]),
+				"max_request_bytes": 16_384,
+				"max_result_bytes": 256,
+				"max_concurrent_requests": 1,
+				"supports_cancellation": false,
+				"sensitive_fields": PackedStringArray(["text"]),
+			}
+		)
+	)
+	var methods: Array[GFPlatformContractMethodDescriptor] = [method]
+	return GFPlatformContractDescriptor.new().configure(
+		CONTRACT_CLIPBOARD,
 		"1.0.0",
 		methods
 	)

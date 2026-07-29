@@ -69,10 +69,10 @@ func create_runtime_context() -> GFPlatformRuntimeContext:
 	return context
 
 
-## 通过 Godot DisplayServer 执行一次用户发起的剪贴板写入。
+## 通过 Godot DisplayServer 执行 GF runtime 已校验的剪贴板写入。
 ## @param text: 要写入的非空纯文本。
 ## @return: 当前平台接受写入请求时返回 true；不依赖受限平台的同步读回能力。
-func copy_text_to_clipboard(text: String) -> bool:
+func _write_text_to_clipboard(text: String) -> bool:
 	if text.is_empty() or not _has_clipboard_write_support():
 		return false
 	_set_clipboard_text(text)
@@ -86,7 +86,10 @@ func handle_notification(what: int) -> void:
 		Node.NOTIFICATION_APPLICATION_PAUSED, Node.NOTIFICATION_APPLICATION_FOCUS_OUT:
 			_set_backgrounded(true)
 		Node.NOTIFICATION_APPLICATION_RESUMED, Node.NOTIFICATION_APPLICATION_FOCUS_IN:
+			var was_backgrounded: bool = _backgrounded
 			_set_backgrounded(false)
+			if was_backgrounded:
+				var _context_refreshed: bool = refresh_context()
 		Node.NOTIFICATION_WM_SIZE_CHANGED:
 			_emit_display_changes()
 

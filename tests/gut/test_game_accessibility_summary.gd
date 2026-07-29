@@ -328,17 +328,27 @@ func test_copy_board_text_uses_platform_boundary_and_reports_failure() -> void:
 		_build_sparse_snapshot()
 	)
 	assert_not_null(summary)
-	assert_true(utility.copy_latest_board_text(), "复制必须由平台边界确认成功。")
+	var success_handle: GFPlatformRequestHandle = utility.copy_latest_board_text()
+	assert_not_null(success_handle, "复制必须由平台边界返回 GF 请求句柄。")
+	var success_result: GFPlatformBridgeResult = success_handle.get_result()
+	assert_not_null(success_result)
+	if success_result != null:
+		assert_true(success_result.ok, "复制必须由平台 typed result 确认成功。")
 	assert_true(
 		platform.clipboard_text == summary.board_text,
 		"平台收到的文本必须与 canonical 棋盘说明完全同源。"
 	)
 
 	platform.clipboard_write_succeeds = false
-	assert_false(
-		utility.copy_latest_board_text(),
-		"平台拒绝写入时 UI 必须收到明确失败，不能误报已复制。"
-	)
+	var failure_handle: GFPlatformRequestHandle = utility.copy_latest_board_text()
+	assert_not_null(failure_handle)
+	var failure_result: GFPlatformBridgeResult = failure_handle.get_result()
+	assert_not_null(failure_result)
+	if failure_result != null:
+		assert_false(
+			failure_result.ok,
+			"平台拒绝写入时 UI 必须收到明确失败，不能误报已复制。"
+		)
 
 
 # --- 私有/辅助方法 ---

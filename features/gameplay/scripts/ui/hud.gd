@@ -1378,11 +1378,36 @@ func _on_copy_board_summary_pressed() -> void:
 	var _summary: GameAccessibilitySummary = (
 		_refresh_accessibility_board_summary()
 	)
-	var copied: bool = (
-		is_instance_valid(_accessibility_summary_utility)
-		and _accessibility_summary_utility.copy_latest_board_text()
+	if not is_instance_valid(_accessibility_summary_utility):
+		_notify_board_summary_copy_result(false)
+		return
+	var handle: GFPlatformRequestHandle = (
+		_accessibility_summary_utility.copy_latest_board_text()
 	)
-	_notify_board_summary_copy_result(copied)
+	if handle == null:
+		_notify_board_summary_copy_result(false)
+	elif handle.is_completed():
+		_notify_board_summary_copy_result(handle.is_successful())
+	elif not is_instance_valid(_signal_utility):
+		_notify_board_summary_copy_result(false)
+	else:
+		var copy_result_connection: GFSignalConnection = (
+			_signal_utility.connect_signal(
+				handle.completed,
+				_on_board_summary_copy_completed,
+				self
+			)
+		)
+		if copy_result_connection != null:
+			var _first_connection: GFSignalConnection = (
+				copy_result_connection.first()
+			)
+		else:
+			_notify_board_summary_copy_result(false)
+
+
+func _on_board_summary_copy_completed(result: GFPlatformBridgeResult) -> void:
+	_notify_board_summary_copy_result(result != null and result.ok)
 
 
 func _on_notification_started(notification_record: Dictionary) -> void:
