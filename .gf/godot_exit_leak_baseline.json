@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-07-29",
+  "reviewed_at": "2026-07-30",
   "godot_version": "4.7",
   "gf_version": "10.0.0",
   "gut_version": "9.7.1",
   "gf_source_commit": "227ec4d59c57d3aec5f9eacf8c047559fcbe2122",
   "gf_vendor_tree_sha256": "155c27a8331ccac0a8818e6c67de7199b7ffeac832a887178d1604bb4c475317",
   "gf_global_script_class_count": 781,
-  "project_runtime_script_class_count": 231,
+  "project_runtime_script_class_count": 233,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The exact official GF 10.0.0 vendor upgrade raises the audited GF global script class set from 732 to 781. The project runtime class set increases from 226 to 231 only through the reviewed ProfileFileCleanupUtility, LocalAccountOperation/Result, and GameSaveSectionOperation/Result contracts introduced by the GFSaveProfile migration. This identity recalibration intentionally retains the previous ObjectDB, Resource, RID, and PagedAllocator ceilings; those ceilings must not be raised without reviewed leak evidence.",
+  "calibration_reason": "The exact official GF 10.0.0 vendor upgrade raises the audited GF global script class set from 732 to 781. The project runtime class set increases from 226 to 231 through the reviewed ProfileFileCleanupUtility, LocalAccountOperation/Result, and GameSaveSectionOperation/Result contracts introduced by the GFSaveProfile migration, then from 231 to 233 through the narrow GameAudioUtility and GameRuntimeDiagnosticsUtility compatibility adapters. This identity recalibration intentionally retains the previous ObjectDB, Resource, RID, and PagedAllocator ceilings; those ceilings must not be raised without reviewed leak evidence.",
   "max_objectdb_instances": 319,
   "max_resources_in_use": 141,
   "max_rid_allocations_by_type": {

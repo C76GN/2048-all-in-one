@@ -5,6 +5,13 @@ extends GutTest
 # --- 常量 ---
 
 const PROJECT_INSTALLER_PATH: String = "res://app/scripts/game_architecture_installer.gd"
+const GAME_AUDIO_UTILITY_PATH: String = "res://app/scripts/game_audio_utility.gd"
+const GAME_RUNTIME_DIAGNOSTICS_UTILITY_PATH: String = (
+	"res://app/scripts/game_runtime_diagnostics_utility.gd"
+)
+const GAME_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT: GDScript = preload(
+	"res://app/scripts/game_runtime_diagnostics_utility.gd"
+)
 const BOOT_RUNTIME_PATH: String = "res://app/scripts/boot_runtime.gd"
 const STARTUP_RENDER_WARMUP_MANIFEST: GFRenderWarmupManifest = preload(
 	"res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres"
@@ -449,6 +456,10 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 		"运行时应直接绑定 GF10 Diagnostics 聚合核心。"
 	)
 	assert_true(
+		source.contains("_GAME_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT"),
+		"运行时 Diagnostics 应通过可删除的项目适配实例保留 GF10 类型契约。"
+	)
+	assert_true(
 		source.contains("bind_utility(GFSessionTraceUtility)"),
 		"运行时应绑定 GF10 有界 Session Trace 核心。"
 	)
@@ -466,6 +477,76 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 	assert_false(
 		_source_binds_symbol(source, "GFAssetMetadataUtility"),
 		"GFAssetMetadataUtility 由 gf.asset_metadata 扩展装配，项目不得重复绑定。"
+	)
+
+
+func test_runtime_diagnostics_treats_console_as_optional_under_strict_lookup() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	architecture.strict_dependency_lookup = true
+	var diagnostics: GFDiagnosticsUtility = GAME_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT.new()
+
+	await architecture.register_utility(GFDiagnosticsUtility, diagnostics)
+	var initialized: bool = await architecture.init()
+
+	assert_true(initialized, "缺少可选 Console 时 Diagnostics 仍应完成严格初始化。")
+	assert_null(
+		architecture.get_local_utility(GFConsoleUtility),
+		"发布态回归场景不得为了消除错误而安装 Console。"
+	)
+	assert_push_error_count(0, "可选 Console 的 local lookup 不应产生 strict miss。")
+	architecture.dispose()
+
+
+func test_runtime_diagnostics_still_binds_console_when_dev_tools_install_it() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	architecture.strict_dependency_lookup = true
+	var log_utility: GFLogUtility = GFLogUtility.new()
+	var console: GFConsoleUtility = GFConsoleUtility.new()
+	var diagnostics: GFDiagnosticsUtility = GAME_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT.new()
+
+	await architecture.register_utility(GFLogUtility, log_utility)
+	await architecture.register_utility(GFConsoleUtility, console)
+	await architecture.register_utility(GFDiagnosticsUtility, diagnostics)
+	var initialized: bool = await architecture.init()
+
+	assert_true(initialized, "安装 Console 的开发态 Diagnostics 应完成严格初始化。")
+	assert_true(
+		console.get_command_names().has("diagnostics"),
+		"存在本架构 Console 时临时适配仍必须保留 GF diagnostics 命令桥。"
+	)
+	assert_push_error_count(0, "开发态 Console 桥接不应产生 strict miss。")
+	architecture.dispose()
+	await get_tree().process_frame
+
+
+func test_runtime_diagnostics_adapter_is_narrow_and_removable() -> void:
+	var source: String = _read_text(GAME_RUNTIME_DIAGNOSTICS_UTILITY_PATH)
+
+	assert_true(source.contains("extends GFDiagnosticsUtility"), "临时适配必须保留官方类型契约。")
+	assert_true(
+		source.contains("architecture.get_local_utility(GFConsoleUtility)"),
+		"可选 Console 必须使用当前架构的无报错 local lookup。"
+	)
+	assert_false(source.contains("strict_dependency_lookup = false"), "适配不得关闭严格依赖查询。")
+	assert_false(source.contains("GFConsoleUtility.new()"), "适配不得在发布态偷偷安装 Console。")
+
+
+func test_runtime_audio_adapter_is_narrow_and_removable() -> void:
+	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var adapter_source: String = _read_text(GAME_AUDIO_UTILITY_PATH)
+
+	assert_true(
+		installer_source.contains("_GAME_AUDIO_UTILITY_SCRIPT"),
+		"运行时音频应通过可删除的 GF10 生命周期适配实例绑定。"
+	)
+	assert_true(adapter_source.contains("extends GFAudioUtility"), "音频适配必须保留官方类型契约。")
+	assert_true(
+		adapter_source.contains("super.dispose()"),
+		"音频适配只应在官方释放流程前收敛失效引用。"
+	)
+	assert_false(
+		adapter_source.contains("func init()"),
+		"音频适配不得复制或接管 GF 的初始化和播放行为。"
 	)
 
 
