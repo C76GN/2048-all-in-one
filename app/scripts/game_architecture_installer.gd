@@ -438,6 +438,7 @@ func _create_platform_runtime() -> GFPlatformRuntime:
 
 func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	save_graph.auto_load_legacy_profile_on_ready = false
 	var progress_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		GameStatsSaveData.new(),

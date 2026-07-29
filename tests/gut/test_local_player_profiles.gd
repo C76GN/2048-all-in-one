@@ -13,6 +13,31 @@ const _RULESET_FINGERPRINT: String = (
 )
 
 
+func test_startup_bootstraps_account_profile_without_full_legacy_load() -> void:
+	var storage: _LegacyProfileReadCountingStorage = (
+		_LegacyProfileReadCountingStorage.new()
+	)
+	var setup: Dictionary = await _create_setup(storage)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var active_account: LocalPlayerAccount = accounts.get_active_account()
+
+	assert_not_null(active_account)
+	assert_true(save_graph.is_profile_loaded())
+	assert_true(
+		save_graph.get_profile_file_name()
+		== LocalAccountCatalogUtility.make_profile_file_name(
+			active_account.account_id
+		),
+		"启动完成后 SaveGraph 应直接指向当前账号 Profile。"
+	)
+	assert_true(
+		storage.legacy_profile_async_read_count == 0,
+		"新安装启动不得先通过 GFSaveProfile 完整加载旧默认 Profile。"
+	)
+	_dispose_setup(setup)
+
+
 func test_local_account_strict_shape_and_name_normalization() -> void:
 	var account: LocalPlayerAccount = LocalPlayerAccount.create(
 		"  玩家\u0001一号  ",
@@ -1508,6 +1533,7 @@ func _create_setup(
 		if save_graph_override != null
 		else GameSaveGraphUtility.new()
 	)
+	save_graph.auto_load_legacy_profile_on_ready = false
 	assert_true(save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		GameStatsSaveData.new(),
@@ -1811,6 +1837,20 @@ class _CountingProfileReadStorage extends GFStorageUtility:
 
 	func reset_profile_load_request_count() -> void:
 		profile_load_request_count = 0
+
+
+class _LegacyProfileReadCountingStorage extends GFStorageUtility:
+	var legacy_profile_async_read_count: int = 0
+
+
+	## 统计 GFSaveProfile 是否完整读取过旧默认 Profile。
+	## @param file_name: GFStorage 相对文件名。
+	func load_data_request_async(
+		file_name: String
+	) -> GFStorageAsyncOperation:
+		if file_name == GameSaveGraphUtility.PROFILE_FILE_NAME:
+			legacy_profile_async_read_count += 1
+		return super.load_data_request_async(file_name)
 
 
 class _HangingProfileReadStorage extends GFStorageUtility:

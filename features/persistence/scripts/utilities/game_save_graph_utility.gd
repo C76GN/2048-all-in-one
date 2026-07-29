@@ -61,6 +61,12 @@ enum SectionOrder {
 }
 
 
+# --- 公共变量 ---
+
+## 独立使用时保持旧的默认 Profile 自动加载；多账号架构会关闭并由账号系统引导。
+var auto_load_legacy_profile_on_ready: bool = true
+
+
 # --- 私有变量 ---
 
 var _section_definitions: Dictionary = {}
@@ -188,6 +194,8 @@ func ready() -> void:
 	var register_error: Error = _register_active_profile(PROFILE_FILE_NAME)
 	if register_error != OK:
 		_record_configuration_failure(register_error)
+		return
+	if not auto_load_legacy_profile_on_ready:
 		return
 	var load_error: Error = load_profile()
 	if load_error != OK:
@@ -478,6 +486,64 @@ func request_flush_profile(
 		})
 	return _track_profile_operation(
 		_profile_utility.flush_profile(_active_profile_id, metadata)
+	)
+
+
+## 在架构启动期加载账号 Profile，避免先完整加载旧默认 Profile 再切换账号。
+##
+## 目标已存在时只加载目标；目标缺失且旧 Profile 存在时执行一次兼容迁移；
+## 两者都不存在时直接用 section 默认值初始化目标 Profile。
+## @param profile_file_name: 当前账号对应的 Profile 相对路径。
+## @param adopt_legacy_if_missing: 目标缺失时是否迁移旧默认 Profile。
+func bootstrap_profile(
+	profile_file_name: String,
+	adopt_legacy_if_missing: bool = true
+) -> Error:
+	if _disposed:
+		return ERR_UNAVAILABLE
+	if (
+		_profile_transition_in_progress
+		or _has_pending_section_transaction()
+		or is_section_reconciliation_pending()
+	):
+		return ERR_BUSY
+	if not _is_account_profile_file_name_valid(profile_file_name):
+		return ERR_INVALID_PARAMETER
+	if _profile_cleanup_paths.has(profile_file_name):
+		return ERR_BUSY
+	if not _is_configured():
+		return ERR_UNCONFIGURED
+	if _loaded:
+		return activate_profile(
+			profile_file_name,
+			adopt_legacy_if_missing
+		)
+	if profile_file_name == _profile_file_name:
+		return load_profile()
+
+	var target_read: GFStorageReadResult = _storage.load_data(
+		profile_file_name
+	)
+	var target_missing: bool = (
+		not target_read.ok
+		and target_read.error_code == ERR_FILE_NOT_FOUND
+	)
+	if target_missing and adopt_legacy_if_missing:
+		var legacy_read: GFStorageReadResult = _storage.load_data(
+			PROFILE_FILE_NAME
+		)
+		if (
+			legacy_read.ok
+			or legacy_read.error_code != ERR_FILE_NOT_FOUND
+		):
+			var legacy_load_error: Error = load_profile()
+			if legacy_load_error != OK:
+				return legacy_load_error
+			return _adopt_current_profile(profile_file_name)
+
+	return _bootstrap_unloaded_profile(
+		profile_file_name,
+		target_missing
 	)
 
 
@@ -1124,6 +1190,53 @@ func _register_active_profile(profile_file_name: String) -> Error:
 	_active_profile_id = profile.profile_id
 	_profile_file_name = profile_file_name
 	return OK
+
+
+func _bootstrap_unloaded_profile(
+	profile_file_name: String,
+	target_missing: bool
+) -> Error:
+	var previous_profile: GFSaveProfile = _active_profile
+	var previous_profile_id: StringName = _active_profile_id
+	var previous_file_name: String = _profile_file_name
+	var previous_load_result: Dictionary = _last_load_result.duplicate(true)
+	var previous_save_result: Dictionary = _last_save_result.duplicate(true)
+	var section_snapshots: Dictionary = _snapshot_all_sections()
+
+	var reset_error: Error = _reset_sections_to_defaults()
+	if reset_error != OK:
+		return reset_error
+	var register_error: Error = _register_active_profile(profile_file_name)
+	if register_error != OK:
+		var _restore_error: Error = _restore_all_sections(
+			section_snapshots
+		)
+		_restore_active_profile_reference(
+			previous_profile,
+			previous_profile_id,
+			previous_file_name,
+			false,
+			previous_load_result,
+			previous_save_result
+		)
+		return register_error
+
+	var load_error: Error = load_profile()
+	if load_error == OK and target_missing:
+		load_error = save_profile()
+	if load_error == OK:
+		return OK
+
+	var restore_error: Error = _restore_all_sections(section_snapshots)
+	_restore_active_profile_reference(
+		previous_profile,
+		previous_profile_id,
+		previous_file_name,
+		false,
+		previous_load_result,
+		previous_save_result
+	)
+	return load_error if restore_error == OK else restore_error
 
 
 func _make_profile(profile_file_name: String) -> GFSaveProfile:

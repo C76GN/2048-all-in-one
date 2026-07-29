@@ -83,7 +83,7 @@ func ready() -> void:
 	if active_account == null:
 		push_error("[LocalAccountSystem] 本地账号目录没有有效的当前账号。")
 		return
-	var activate_error: Error = _save_graph.activate_profile(
+	var activate_error: Error = _save_graph.bootstrap_profile(
 		LocalAccountCatalogUtility.make_profile_file_name(
 			active_account.account_id
 		),
