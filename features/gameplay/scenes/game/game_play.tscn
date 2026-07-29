@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://addons/gf/extensions/feedback/nodes/gf_shake_receiver_2d.gd" id="9_shake_receiver"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/ui/board_feedback_canvas.gd" id="10_feedback_canvas"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/ui/board_motion_backdrop.gd" id="11_motion_backdrop"]
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/spatial_canvas/gf_spatial_canvas_2d.gd" id="12_spatial_canvas"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_background"]
 shader = ExtResource("6_background_shader")
@@ -198,6 +199,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 clip_contents = true
+script = ExtResource("12_spatial_canvas")
 
 [node name="BoardWorldViewportController" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport" index="0" unique_id=200455013]
 unique_name_in_owner = true

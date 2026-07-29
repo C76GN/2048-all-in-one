@@ -174,6 +174,10 @@ func test_game_scene_keeps_hud_outside_board_world_and_excludes_diagnostics_ui()
 	) as VBoxContainer
 	var responsive_controller: Node = scene_root.get_node("GameplayResponsiveLayoutController")
 
+	assert_true(
+		board_viewport is GFSpatialCanvas2D,
+		"玩法棋盘视口必须由 GFSpatialCanvas2D 持有视图状态与坐标转换。"
+	)
 	assert_true(board_viewport.clip_contents, "棋盘视口必须裁剪移出边界的世界内容。")
 	assert_same(game_board_controller.get_parent(), game_board_host, "GF Controller 应由棋盘表现宿主承载。")
 	assert_true(shake_receiver is GFShakeReceiver2D, "棋盘应通过 GFShakeReceiver2D 接收分级反馈。")

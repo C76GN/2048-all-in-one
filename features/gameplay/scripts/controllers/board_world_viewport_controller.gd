@@ -48,9 +48,6 @@ const _FIT_BUTTON_COMPACT_MINIMUM: Vector2 = Vector2(64.0, 44.0)
 ## 受视口控制的棋盘表现节点，相对当前 Controller。
 @export var game_board_path: NodePath = NodePath("../BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost/GameBoard")
 
-## 用于 GF 屏幕/世界坐标换算的棋盘 CanvasItem 宿主。
-@export var game_board_canvas_item_path: NodePath = NodePath("../BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost")
-
 ## 棋盘视图控制条路径。
 @export var view_controls_path: NodePath = NodePath("../ViewControls")
 
@@ -85,16 +82,15 @@ const _FIT_BUTTON_COMPACT_MINIMUM: Vector2 = Vector2(64.0, 44.0)
 # --- 私有变量 ---
 
 var _host_control: Control
+var _spatial_canvas: GFSpatialCanvas2D
 var _world_root: Node2D
 var _game_board: GameBoardController
-var _game_board_canvas_item: CanvasItem
 var _view_controls: PanelContainer
 var _zoom_out_button: Button
 var _fit_button: Button
 var _zoom_in_button: Button
 var _zoom_label: Label
 
-var _viewport_utility: GFViewportUtility
 var _gesture_utility: GFPointerGestureUtility
 var _input_mapping: GFInputMappingUtility
 var _signal_utility: GFSignalUtility
@@ -177,7 +173,7 @@ func _process(_delta: float) -> void:
 		pan_delta.x = -_KEYBOARD_PAN_STEP
 	if pan_delta != Vector2.ZERO:
 		_follow_fit = false
-		_set_view_transform(_zoom, _world_root.position + pan_delta)
+		_set_view_transform(_zoom, _get_content_position() + pan_delta)
 
 
 # --- 公共方法 ---
@@ -224,7 +220,7 @@ func set_fit_insets(insets: Dictionary) -> void:
 	if _follow_fit:
 		fit_to_content()
 	else:
-		_set_view_transform(_zoom, _world_root.position)
+		_set_view_transform(_zoom, _get_content_position())
 
 
 ## 在窄竖屏只保留完整聚焦按钮；缩放仍可通过手势、键盘、鼠标滚轮和手柄完成。
@@ -320,7 +316,7 @@ func pan_by(screen_delta: Vector2) -> void:
 	if not _has_valid_geometry() or screen_delta.is_zero_approx():
 		return
 	_follow_fit = false
-	_set_view_transform(_zoom, _world_root.position + screen_delta)
+	_set_view_transform(_zoom, _get_content_position() + screen_delta)
 
 
 ## 返回当前棋盘世界缩放。
@@ -389,9 +385,9 @@ static func classify_swipe(
 
 func _resolve_nodes() -> void:
 	_host_control = _get_host_control()
+	_spatial_canvas = _host_control as GFSpatialCanvas2D
 	_world_root = _get_node_2d(world_root_path)
 	_game_board = _get_game_board(game_board_path)
-	_game_board_canvas_item = _get_canvas_item(game_board_canvas_item_path)
 	_view_controls = _get_panel_container(view_controls_path)
 	_zoom_out_button = _get_button(zoom_out_button_path)
 	_fit_button = _get_button(fit_button_path)
@@ -399,8 +395,32 @@ func _resolve_nodes() -> void:
 	_zoom_label = _get_label(zoom_label_path)
 
 
+func _prepare_spatial_canvas() -> void:
+	if not is_instance_valid(_spatial_canvas) or not is_instance_valid(_world_root):
+		return
+	_spatial_canvas.set_input_enabled(false)
+	var content_root: Node2D = _spatial_canvas.get_content_root()
+	if _world_root.get_parent() != content_root:
+		var previous_sibling_index: int = _world_root.get_index()
+		_world_root.reparent(content_root)
+		_spatial_canvas.move_child(
+			content_root,
+			clampi(previous_sibling_index, 0, _spatial_canvas.get_child_count() - 1)
+		)
+	_world_root.position = Vector2.ZERO
+	_world_root.scale = Vector2.ONE
+	var limits_set: bool = _spatial_canvas.set_zoom_limits(0.0001, maximum_zoom)
+	if not limits_set:
+		push_error("[BoardWorldViewportController] 无法配置 GF 空间画布缩放边界。")
+
+
+func _get_content_position() -> Vector2:
+	if is_instance_valid(_spatial_canvas):
+		return _spatial_canvas.get_content_root().position
+	return Vector2.ZERO
+
+
 func _resolve_utilities() -> void:
-	_viewport_utility = _get_viewport_utility()
 	_gesture_utility = _get_gesture_utility()
 	_input_mapping = _get_input_mapping_utility()
 	_signal_utility = _get_signal_utility()
@@ -411,14 +431,12 @@ func _has_required_dependencies() -> bool:
 	var missing: PackedStringArray = PackedStringArray()
 	if not is_instance_valid(_host_control):
 		var _host_appended: bool = missing.append("Control host")
+	if not is_instance_valid(_spatial_canvas):
+		var _spatial_appended: bool = missing.append("GFSpatialCanvas2D")
 	if not is_instance_valid(_world_root):
 		var _world_appended: bool = missing.append("BoardWorld")
 	if not is_instance_valid(_game_board):
 		var _board_appended: bool = missing.append("GameBoardController")
-	if not is_instance_valid(_game_board_canvas_item):
-		var _canvas_item_appended: bool = missing.append("GameBoard CanvasItem")
-	if not is_instance_valid(_viewport_utility):
-		var _viewport_appended: bool = missing.append("GFViewportUtility")
 	if not is_instance_valid(_gesture_utility):
 		var _gesture_appended: bool = missing.append("GFPointerGestureUtility")
 	if not is_instance_valid(_input_mapping):
@@ -475,7 +493,10 @@ func _bind_runtime_signals() -> void:
 
 
 func _initialize_view() -> void:
-	if not is_inside_tree() or not _has_required_dependencies():
+	if not is_inside_tree():
+		return
+	_prepare_spatial_canvas()
+	if not _has_required_dependencies():
 		return
 	_last_viewport_size = _host_control.size
 	_content_rect = _game_board.get_board_world_rect()
@@ -487,6 +508,7 @@ func _initialize_view() -> void:
 func _has_valid_geometry() -> bool:
 	return (
 		is_instance_valid(_host_control)
+		and is_instance_valid(_spatial_canvas)
 		and is_instance_valid(_world_root)
 		and is_instance_valid(_game_board)
 		and _host_control.size.x > 0.0
@@ -511,7 +533,7 @@ func _zoom_at(anchor: Vector2, requested_zoom: float) -> void:
 	if is_equal_approx(next_zoom, _zoom):
 		return
 	var next_position: Vector2 = CanvasViewportMath.calculate_zoomed_world_position(
-		_world_root.position,
+		_get_content_position(),
 		anchor,
 		_zoom,
 		next_zoom
@@ -523,16 +545,23 @@ func _zoom_at(anchor: Vector2, requested_zoom: float) -> void:
 func _set_view_transform(next_zoom: float, desired_position: Vector2) -> void:
 	if not _has_valid_geometry():
 		return
-	_zoom = maxf(next_zoom, 0.0001)
-	_world_root.scale = Vector2.ONE * _zoom
+	var requested_zoom: float = maxf(next_zoom, 0.0001)
 	var fit_viewport_rect: Rect2 = _get_fit_viewport_rect()
-	_world_root.position = fit_viewport_rect.position + CanvasViewportMath.calculate_clamped_world_position(
+	var clamped_position: Vector2 = fit_viewport_rect.position + CanvasViewportMath.calculate_clamped_world_position(
 		fit_viewport_rect.size,
 		_content_rect,
-		_zoom,
+		requested_zoom,
 		desired_position - fit_viewport_rect.position,
 		_PAN_EDGE_MARGIN
 	)
+	var world_center: Vector2 = (
+		(_host_control.size * 0.5 - clamped_position)
+		/ requested_zoom
+	)
+	if not _spatial_canvas.set_view(world_center, requested_zoom):
+		push_error("[BoardWorldViewportController] GF 空间画布拒绝了无效视图状态。")
+		return
+	_zoom = _spatial_canvas.get_zoom()
 	_update_zoom_label()
 	_sync_visible_world_rect()
 
@@ -540,28 +569,11 @@ func _set_view_transform(next_zoom: float, desired_position: Vector2) -> void:
 func _sync_visible_world_rect() -> void:
 	if not _has_valid_geometry():
 		return
-	var viewport_rect: Rect2 = _host_control.get_global_rect()
-	var first_corner: Vector2 = _viewport_utility.screen_to_world_2d(
-		_game_board_canvas_item,
-		viewport_rect.position
-	)
-	var second_corner: Vector2 = _viewport_utility.screen_to_world_2d(
-		_game_board_canvas_item,
-		viewport_rect.position + viewport_rect.size
-	)
-	var minimum: Vector2 = Vector2(
-		minf(first_corner.x, second_corner.x),
-		minf(first_corner.y, second_corner.y)
-	)
-	var maximum: Vector2 = Vector2(
-		maxf(first_corner.x, second_corner.x),
-		maxf(first_corner.y, second_corner.y)
-	)
-	_visible_world_rect = Rect2(minimum, maximum - minimum)
+	_visible_world_rect = _spatial_canvas.get_visible_world_rect()
 	_game_board.set_visible_world_rect(_visible_world_rect, _zoom)
 	view_transform_changed.emit(
 		_zoom,
-		_world_root.position,
+		_get_content_position(),
 		_visible_world_rect
 	)
 
@@ -627,14 +639,6 @@ func _get_game_board(path: NodePath) -> GameBoardController:
 	return null
 
 
-func _get_canvas_item(path: NodePath) -> CanvasItem:
-	var node_value: Node = get_node_or_null(path)
-	if node_value is CanvasItem:
-		var canvas_item: CanvasItem = node_value
-		return canvas_item
-	return null
-
-
 func _get_button(path: NodePath) -> Button:
 	var node_value: Node = get_node_or_null(path)
 	if node_value is Button:
@@ -656,14 +660,6 @@ func _get_label(path: NodePath) -> Label:
 	if node_value is Label:
 		var label: Label = node_value
 		return label
-	return null
-
-
-func _get_viewport_utility() -> GFViewportUtility:
-	var utility_value: Object = get_utility(GFViewportUtility, true)
-	if utility_value is GFViewportUtility:
-		var viewport_utility: GFViewportUtility = utility_value
-		return viewport_utility
 	return null
 
 
@@ -779,7 +775,7 @@ func _on_host_resized() -> void:
 	var current_fit_rect: Rect2 = _get_fit_viewport_rect()
 	var previous_center: Vector2 = previous_fit_rect.get_center()
 	var world_center: Vector2 = (
-		(previous_center - _world_root.position)
+		(previous_center - _get_content_position())
 		/ maxf(_zoom, 0.0001)
 	)
 	var desired_position: Vector2 = current_fit_rect.get_center() - world_center * _zoom
@@ -794,7 +790,7 @@ func _on_board_geometry_changed(board_rect: Rect2) -> void:
 	if _follow_fit:
 		fit_to_content()
 	else:
-		_set_view_transform(_zoom, _world_root.position)
+		_set_view_transform(_zoom, _get_content_position())
 
 
 func _on_gui_input(event: InputEvent) -> void:
@@ -826,9 +822,9 @@ func _on_gesture_updated(snapshot: Dictionary, event: InputEvent) -> void:
 		&"center",
 		_host_control.get_global_rect().get_center()
 	)
-	var anchor: Vector2 = _viewport_utility.screen_to_world_2d(
-		_host_control,
-		center_screen
+	var anchor: Vector2 = (
+		_host_control.get_global_transform_with_canvas().affine_inverse()
+		* center_screen
 	)
 	var scale_factor: float = GFVariantData.get_option_float(snapshot, &"scale", 1.0)
 	var pan_delta: Vector2 = GFVariantData.get_option_vector2(
@@ -847,7 +843,7 @@ func _on_gesture_updated(snapshot: Dictionary, event: InputEvent) -> void:
 	var effective_minimum: float = minf(maxf(minimum_zoom, 0.0001), fit_zoom)
 	var next_zoom: float = clampf(requested_zoom, effective_minimum, maximum_zoom)
 	var next_position: Vector2 = CanvasViewportMath.calculate_zoomed_world_position(
-		_world_root.position,
+		_get_content_position(),
 		anchor,
 		_zoom,
 		next_zoom
