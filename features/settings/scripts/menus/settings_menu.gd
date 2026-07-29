@@ -73,6 +73,8 @@ var _responsive_layout_update_queued: bool = false
 var _active_section: SettingsSection = SettingsSection.GENERAL
 var _section_scroll: ScrollContainer = null
 var _has_revealed_input_bindings: bool = false
+var _input_binding_rows_dirty: bool = true
+var _input_binding_rows_rebuild_queued: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -198,14 +200,13 @@ func _ready() -> void:
 	)
 	if is_instance_valid(_input_profile):
 		var _bindings_changed_connection: int = _input_profile.bindings_changed.connect(
-			_rebuild_input_binding_rows
+			_mark_input_binding_rows_dirty
 		)
 
 	_apply_semantic_styles()
 	_set_active_section(SettingsSection.GENERAL)
 	_apply_responsive_layout()
 	_update_ui_text()
-	_rebuild_input_binding_rows()
 	_language_option.grab_focus()
 
 
@@ -291,7 +292,7 @@ func _apply_responsive_layout() -> void:
 		)
 		tab_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_apply_field_widths()
-	_rebuild_input_binding_rows()
+	_mark_input_binding_rows_dirty()
 	if is_instance_valid(_section_scroll) and not _is_compact_layout:
 		_section_scroll.scroll_vertical = 0
 
@@ -387,6 +388,7 @@ func _set_active_section(section: SettingsSection) -> void:
 		SettingsSection.AUDIO:
 			_master_volume_slider.grab_focus()
 		SettingsSection.CONTROLS:
+			_queue_input_binding_rows_rebuild()
 			_input_timing_option.grab_focus()
 		_:
 			_language_option.grab_focus()
@@ -801,7 +803,7 @@ func _update_ui_text() -> void:
 		_input_bindings_header.text = tr("INPUT_BINDINGS_TITLE")
 	if is_instance_valid(_reset_bindings_button):
 		_reset_bindings_button.text = tr("INPUT_BINDINGS_RESET_ALL")
-	_rebuild_input_binding_rows()
+	_mark_input_binding_rows_dirty()
 
 
 func _apply_locale(index: int) -> void:
@@ -888,6 +890,34 @@ func _setup_input_detector() -> void:
 	var _detected_connection: int = _input_detector.input_detected.connect(
 		_on_binding_input_detected
 	)
+
+
+func _mark_input_binding_rows_dirty() -> void:
+	_input_binding_rows_dirty = true
+	_queue_input_binding_rows_rebuild()
+
+
+func _queue_input_binding_rows_rebuild() -> void:
+	if (
+		_input_binding_rows_rebuild_queued
+		or not _input_binding_rows_dirty
+		or _active_section != SettingsSection.CONTROLS
+	):
+		return
+	_input_binding_rows_rebuild_queued = true
+	call_deferred(&"_flush_input_binding_rows_rebuild")
+
+
+func _flush_input_binding_rows_rebuild() -> void:
+	_input_binding_rows_rebuild_queued = false
+	if (
+		not is_inside_tree()
+		or not _input_binding_rows_dirty
+		or _active_section != SettingsSection.CONTROLS
+	):
+		return
+	_input_binding_rows_dirty = false
+	_rebuild_input_binding_rows()
 
 
 func _rebuild_input_binding_rows() -> void:
@@ -1012,7 +1042,7 @@ func _on_binding_input_detected(input_event: InputEvent) -> void:
 		_set_input_binding_status(tr("INPUT_BINDING_CONFLICT"))
 		return
 	_set_input_binding_status(tr("INPUT_BINDING_SAVED"))
-	_rebuild_input_binding_rows()
+	_mark_input_binding_rows_dirty()
 
 
 func _on_reset_binding_pressed(action_id: StringName, binding_index: int) -> void:
@@ -1020,7 +1050,7 @@ func _on_reset_binding_pressed(action_id: StringName, binding_index: int) -> voi
 		return
 	_input_profile.reset_binding(GameInputProfileUtility.GAMEPLAY_INPUT_CONTEXT.context_id, action_id, binding_index)
 	_set_input_binding_status(tr("INPUT_BINDING_RESET_DONE"))
-	_rebuild_input_binding_rows()
+	_mark_input_binding_rows_dirty()
 
 
 func _on_reset_bindings_pressed() -> void:
@@ -1028,7 +1058,7 @@ func _on_reset_bindings_pressed() -> void:
 		return
 	_input_profile.reset_all_bindings()
 	_set_input_binding_status(tr("INPUT_BINDING_RESET_DONE"))
-	_rebuild_input_binding_rows()
+	_mark_input_binding_rows_dirty()
 
 
 func _set_input_binding_status(message: String) -> void:

@@ -222,7 +222,7 @@ func test_gf_canonical_hash_protocol_has_golden_corpus_and_strict_schemas() -> v
 		ReplayCheckpoint.SCHEMA_VERSION == 3
 		and ReplayData.SCHEMA_VERSION == 5
 		and ReplayCatalogSaveData.SCHEMA_VERSION == 6
-		and BookmarkData.SCHEMA_VERSION == 5
+		and BookmarkData.SCHEMA_VERSION == 6
 		and BookmarkCatalogSaveData.SCHEMA_VERSION == 9,
 		"checksum 协议变化必须由 checkpoint、条目和 section 严格 schema 共同承载。"
 	)

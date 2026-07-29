@@ -12,6 +12,8 @@ const _SETTINGS_SCENE: PackedScene = preload(
 	"res://features/settings/scenes/menus/settings_menu.tscn"
 )
 const _SETTINGS_SCRIPT_PATH: String = "res://features/settings/scripts/menus/settings_menu.gd"
+const _PAUSE_MENU_SCRIPT_PATH: String = "res://features/gameplay/scripts/ui/pause_menu.gd"
+const _GAME_OVER_MENU_SCRIPT_PATH: String = "res://features/gameplay/scripts/ui/game_over_menu.gd"
 
 
 # --- 测试用例 ---
@@ -322,13 +324,13 @@ func test_settings_scene_exposes_timing_and_binding_controls() -> void:
 		true,
 		false
 	)
-	var bgm_volume_hidden: bool = false
+	var bgm_volume_visible: bool = false
 	if bgm_volume_row is Control:
 		var bgm_volume_control: Control = bgm_volume_row
-		bgm_volume_hidden = not bgm_volume_control.visible
+		bgm_volume_visible = bgm_volume_control.visible
 	assert_true(
-		bgm_volume_hidden,
-		"生产路径没有 BGM/ambient 消费者时，不应展示无效的音乐音量控件。"
+		bgm_volume_visible,
+		"生产路径已提供本地内容包 BGM 消费者，音乐音量控件必须可用。"
 	)
 	var settings_source: String = FileAccess.get_file_as_string(_SETTINGS_SCRIPT_PATH)
 	assert_true(
@@ -336,6 +338,39 @@ func test_settings_scene_exposes_timing_and_binding_controls() -> void:
 		"单项键位重置应使用可审计素材图标。"
 	)
 	assert_false(settings_source.contains("↺"), "键位重置不应依赖缺字风险较高的 Unicode 符号。")
+	assert_true(
+		settings_source.contains(
+			"_input_profile.bindings_changed.con" + "nect(\n"
+			+ "\t\t\t_mark_input_binding_rows_dirty"
+		),
+		"键位变化应先标脏，由设置页合并到一次延迟重建。"
+	)
+	assert_true(
+		settings_source.count("\t_rebuild_input_binding_rows()\n") == 1,
+		"设置页只能从延迟刷新边界重建键位列表，初始 GENERAL 页不得重复物化隐藏控件。"
+	)
+	assert_true(
+		settings_source.contains(
+			"SettingsSection.CONTROLS:\n"
+			+ "\t\t\t_queue_input_binding_rows_rebuild()"
+		),
+		"键位列表应在首次切换到操作页时按需物化。"
+	)
+	for popup_script_path: String in [
+		_PAUSE_MENU_SCRIPT_PATH,
+		_GAME_OVER_MENU_SCRIPT_PATH,
+	]:
+		var popup_source: String = FileAccess.get_file_as_string(
+			popup_script_path
+		)
+		assert_true(
+			popup_source.contains(
+				"_configure_settings_panel,\n"
+				+ "\t\tGFUIRouterUtility.PRELOAD_NONE"
+			),
+			"已由父路由相邻预载的设置弹层不应再次递归预载相邻页面：%s"
+			% popup_script_path
+		)
 	scene_root.free()
 
 

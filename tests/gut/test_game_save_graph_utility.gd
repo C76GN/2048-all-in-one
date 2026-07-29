@@ -933,6 +933,37 @@ func test_high_frequency_sections_coalesce_into_one_async_profile_write() -> voi
 	_dispose_setup(setup)
 
 
+func test_bookmark_save_submission_keeps_synchronous_work_bounded() -> void:
+	var setup: Dictionary = await _create_persistence_architecture("", true)
+	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var bookmark: BookmarkData = _make_bookmark(600, 512)
+	bookmark.game_state_history = _make_bookmark_history(bookmark, 14)
+
+	var started_usec: int = Time.get_ticks_usec()
+	var operation: GameSaveSectionOperation = (
+		bookmark_system.request_save_bookmark(bookmark)
+	)
+	var submission_usec: int = Time.get_ticks_usec() - started_usec
+	var result: GameSaveSectionResult = await _await_section_operation(
+		operation,
+		setup
+	)
+	storage.wait_for_async_tasks()
+
+	assert_true(
+		result != null and result.is_successful(),
+		"性能样本也必须经过真实 GF Profile 事务并成功持久化。"
+	)
+	assert_lt(
+		submission_usec,
+		75_000,
+		"14 步书签的同步候选校验、Profile gather 与异步 IO 提交必须稳定低于旧路径的 130ms 级长帧。"
+	)
+	gut.p("bookmark_submission_usec=%d" % submission_usec, 1)
+	_dispose_setup(setup)
+
+
 
 
 
@@ -1128,6 +1159,86 @@ func test_bookmark_schema_rejects_removed_transient_status_field() -> void:
 		BookmarkData.from_dict(removed_schema_payload) == null,
 		"已移除字段不得通过兼容分支继续进入当前书签模型。"
 	)
+
+
+func test_bookmark_schema_round_trips_binary_command_history_envelope() -> void:
+	var bookmark: BookmarkData = _make_bookmark(899, 256)
+	bookmark.bookmark_id = GFUuid.generate_v7(899000)
+	bookmark.game_state_history = _make_bookmark_history(bookmark, 14)
+
+	var payload: Dictionary = bookmark.to_dict()
+	var history_envelope: Dictionary = GFVariantData.get_option_dictionary(
+		payload,
+		"game_state_history"
+	)
+	var restored: BookmarkData = BookmarkData.from_dict(payload)
+
+	assert_true(
+		GFVariantData.get_option_value(history_envelope, "payload")
+		is PackedByteArray,
+		"持久化历史必须压平为有界二进制信封，避免 GF Profile gather 递归复制完整撤回图。"
+	)
+	assert_not_null(restored, "二进制命令历史必须通过严格 schema 往返恢复。")
+	if restored != null:
+		assert_true(
+			restored.game_state_history == bookmark.game_state_history,
+			"二进制信封不得改变完整 undo/redo 语义。"
+		)
+
+	var corrupt_payload: Dictionary = payload.duplicate(true)
+	var corrupt_envelope: Dictionary = history_envelope.duplicate(true)
+	corrupt_envelope["payload"] = PackedByteArray([0xFF, 0x00, 0x7F])
+	corrupt_payload["game_state_history"] = corrupt_envelope
+	var corrupt_restored: BookmarkData = BookmarkData.from_dict(
+		corrupt_payload
+	)
+	assert_engine_error(
+		"Condition \"len < 4\" is true",
+		"GFStorageCodec 应报告截断的二进制 Variant。"
+	)
+	assert_null(
+		corrupt_restored,
+		"损坏的历史信封必须被严格拒绝，不能降级为空历史。"
+	)
+
+
+func test_bookmark_schema_migrates_v5_dictionary_history_without_profile_reset() -> void:
+	var bookmark: BookmarkData = _make_bookmark(900, 384)
+	bookmark.bookmark_id = GFUuid.generate_v7(900000)
+	bookmark.game_state_history = _make_bookmark_history(bookmark, 6)
+	var current_payload: Dictionary = bookmark.to_dict()
+	var legacy_payload: Dictionary = current_payload.duplicate(true)
+	legacy_payload["schema_version"] = 5
+	legacy_payload["game_state_history"] = bookmark.game_state_history.duplicate(
+		true
+	)
+
+	var restored: BookmarkData = BookmarkData.from_dict(legacy_payload)
+
+	assert_not_null(
+		restored,
+		"v5 字典历史应在 bookmarks section 内就地读取，不能迫使整个玩家 Profile 重置。"
+	)
+	if restored != null:
+		assert_true(
+			restored.schema_version == BookmarkData.SCHEMA_VERSION,
+			"载入旧条目后内存对象应立即升级到当前 schema。"
+		)
+		assert_true(
+			restored.game_state_history == bookmark.game_state_history,
+			"v5 迁移不得损失撤回或重做历史。"
+		)
+		var upgraded_payload: Dictionary = restored.to_dict()
+		assert_true(
+			GFVariantData.get_option_value(
+				GFVariantData.get_option_dictionary(
+					upgraded_payload,
+					"game_state_history"
+				),
+				"payload"
+			) is PackedByteArray,
+			"旧条目下次保存时应原子升级为二进制历史信封。"
+		)
 
 
 func test_bookmark_schema_rejects_inconsistent_target_state() -> void:
@@ -1618,6 +1729,43 @@ func _make_bookmark(timestamp: int, score: int) -> BookmarkData:
 		"redo": [],
 	}
 	return bookmark
+
+
+func _make_bookmark_history(
+	bookmark: BookmarkData,
+	count: int
+) -> Dictionary:
+	var topology: BoardTopology = BoardTopology.create_rectangle(_BOARD_SIZE)
+	var state: Dictionary = {
+		&"schema_version": GameStateSystem.STATE_SCHEMA_VERSION,
+		&"board_key": topology.get_stable_key(),
+		&"board_snapshot": bookmark.board_snapshot.duplicate(true),
+		&"rng_full_state": bookmark.rng_full_state.duplicate(true),
+		&"score": bookmark.score,
+		&"move_count": 0,
+		&"highest_tile": 0,
+		&"ratio_resolutions": 0,
+		&"target_tile_value": bookmark.target_tile_value,
+		&"target_reached": false,
+		&"extra_stats": {},
+		&"rules_states": bookmark.rules_states.duplicate(true),
+	}
+	var undo: Array[Dictionary] = []
+	for index: int in range(maxi(count, 0)):
+		var command_state: Dictionary = state.duplicate(true)
+		command_state[&"move_count"] = index
+		undo.append({
+			&"schema_version": MoveCommand.SERIALIZATION_SCHEMA_VERSION,
+			&"direction_x": 1,
+			&"direction_y": 0,
+			&"snapshot": command_state,
+			&"reverse_map": {},
+			&"is_baseline": false,
+		})
+	return {
+		"undo": undo,
+		"redo": [],
+	}
 
 
 func _make_replay(timestamp: int, final_score: int) -> ReplayData:

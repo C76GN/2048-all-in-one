@@ -509,7 +509,8 @@ func _on_settings_button_pressed() -> void:
 		_ROUTE_SETTINGS_MENU,
 		{},
 		{},
-		_configure_settings_panel
+		_configure_settings_panel,
+		GFUIRouterUtility.PRELOAD_NONE
 	)
 	if result != null and not result.is_successful():
 		push_error("[GameOverMenu] GF UI 路由未能打开设置菜单：status=%s, reason=%s。" % [

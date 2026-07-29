@@ -8,8 +8,13 @@ extends Resource
 
 # --- 常量 ---
 
-## v5 冻结 GF canonical ruleset fingerprint 与 checkpoint v3。
-const SCHEMA_VERSION: int = 5
+## v6 以 GFStorageCodec 二进制信封保存命令历史，避免 Profile gather
+## 在主线程递归复制每一步完整快照。读取时兼容 v5 的字典历史并在下次保存时
+## 原子升级；所在 bookmarks section 无需失效，也不会重置玩家 Profile。
+const SCHEMA_VERSION: int = 6
+const _LEGACY_DICTIONARY_HISTORY_SCHEMA_VERSION: int = 5
+const _HISTORY_CODEC_ID: String = "gf_storage_binary_v1"
+const _MAX_HISTORY_PAYLOAD_BYTES: int = 32 * 1024 * 1024
 
 
 # --- 导出变量 ---
@@ -139,7 +144,7 @@ func to_dict() -> Dictionary:
 		"rng_full_state": rng_full_state.duplicate(true),
 		"board_snapshot": board_snapshot.duplicate(true),
 		"rules_states": rules_states.duplicate(true),
-		"game_state_history": game_state_history.duplicate(true),
+		"game_state_history": _encode_history(game_state_history),
 		"replay_actions": replay_actions.duplicate(),
 		"replay_checkpoints": checkpoint_data,
 	}
@@ -152,7 +157,12 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 		return null
 
 	var result: BookmarkData = BookmarkData.new()
-	result.schema_version = GFVariantData.get_option_int(data, "schema_version", 0)
+	var persisted_schema_version: int = GFVariantData.get_option_int(
+		data,
+		"schema_version",
+		0
+	)
+	result.schema_version = SCHEMA_VERSION
 	result.bookmark_id = GFVariantData.get_option_string(data, "bookmark_id")
 	if not GFUuid.is_valid(result.bookmark_id, 7):
 		return null
@@ -180,7 +190,10 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	if not GridModel.is_snapshot_envelope_valid(result.board_snapshot):
 		return null
 	result.rules_states = GFVariantData.get_option_dictionary(data, "rules_states").duplicate(true)
-	result.game_state_history = GFVariantData.get_option_dictionary(data, "game_state_history").duplicate(true)
+	result.game_state_history = _decode_history(
+		GFVariantData.get_option_dictionary(data, "game_state_history"),
+		persisted_schema_version
+	)
 	for action_value: Variant in GFVariantData.get_option_array(data, "replay_actions"):
 		if not action_value is Vector2i:
 			return null
@@ -237,8 +250,16 @@ static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 	)
 	if not has_expected_types:
 		return false
+	var persisted_schema_version: int = GFVariantData.get_option_int(
+		data,
+		"schema_version",
+		0
+	)
 	return (
-		GFVariantData.get_option_int(data, "schema_version", 0) == SCHEMA_VERSION
+		persisted_schema_version in [
+			_LEGACY_DICTIONARY_HISTORY_SCHEMA_VERSION,
+			SCHEMA_VERSION,
+		]
 		and GFVariantData.get_option_int(data, "timestamp", -1) >= 0
 		and not GFVariantData.get_option_string(data, "mode_config_path").is_empty()
 		and GFVariantData.get_option_string_name(data, "ruleset_id") != &""
@@ -319,6 +340,60 @@ static func _is_valid_history(history: Dictionary) -> bool:
 			if not MoveCommand.is_serialized_data_valid(command_data):
 				return false
 	return true
+
+
+static func _encode_history(history: Dictionary) -> Dictionary:
+	if not _is_valid_history(history):
+		return {}
+	var codec: GFStorageCodec = GFStorageCodec.new()
+	var payload: PackedByteArray = codec.serialize_dictionary(
+		history,
+		GFStorageCodec.Format.BINARY
+	)
+	if (
+		payload.is_empty()
+		or payload.size() > _MAX_HISTORY_PAYLOAD_BYTES
+	):
+		return {}
+	return {
+		"codec": _HISTORY_CODEC_ID,
+		"payload": payload,
+	}
+
+
+static func _decode_history(
+	envelope: Dictionary,
+	persisted_schema_version: int
+) -> Dictionary:
+	if persisted_schema_version == _LEGACY_DICTIONARY_HISTORY_SCHEMA_VERSION:
+		return envelope.duplicate(true) if _is_valid_history(envelope) else {}
+	if persisted_schema_version != SCHEMA_VERSION:
+		return {}
+	if not (
+		envelope.size() == 2
+		and GFVariantData.get_option_value(envelope, "codec") is String
+		and GFVariantData.get_option_value(envelope, "payload")
+		is PackedByteArray
+		and GFVariantData.get_option_string(envelope, "codec")
+		== _HISTORY_CODEC_ID
+	):
+		return {}
+	var payload_value: Variant = GFVariantData.get_option_value(
+		envelope,
+		"payload"
+	)
+	var payload: PackedByteArray = payload_value
+	if (
+		payload.is_empty()
+		or payload.size() > _MAX_HISTORY_PAYLOAD_BYTES
+	):
+		return {}
+	var codec: GFStorageCodec = GFStorageCodec.new()
+	var history: Dictionary = codec.deserialize_dictionary(
+		payload,
+		GFStorageCodec.Format.BINARY
+	)
+	return history if _is_valid_history(history) else {}
 
 
 static func _is_valid_fingerprint(value: String) -> bool:
