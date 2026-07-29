@@ -108,9 +108,10 @@
         ],
         "acceptance": [
           "运行时主题与内容以稳定资源键解析；激活路径不得以 raw res:// path fallback 维持成功。",
-          "主题资源先在 GFAssetLoadSession staging group 全量通过再事务提交；成功后释放旧组，失败保留旧主题与旧音频银行。"
+          "主题资源先在 GFAssetLoadSession staging group 全量通过再事务提交；成功后释放旧组，失败保留旧主题与旧音频银行。",
+          "当前视觉与声音主题只由独立 GFAssetSlot 强持有，并以稳定用途键、类型契约、单调 generation 和 Utility dispose 终态释放接受测试；作者评审 AssetSlotMap 不得充当运行时句柄。"
         ],
-        "notes": ""
+        "notes": "GFAssetSlot 拥有当前可替换主题资源的生命周期；GFAssetLoadSession/GFAssetUtility 仍拥有依赖预载、资源组与缓存，二者职责不得混淆。"
       },
       {
         "id": "storage-save",

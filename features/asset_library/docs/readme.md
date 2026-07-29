@@ -19,6 +19,11 @@
 目录条目 ID 采用 GF 10 规范 `package_id/resource_key`，项目代码需要目录条目时调用
 `GameAssetLibraryUtility.get_runtime_catalog_entry()`，不得自行拼接或回退资源路径。
 
+`resources/review/asset_slot_map.tres` 及其 `AssetSlotMap`/`AssetSlotBinding`
+只保存作者审核所需的候选、采用项、回退项和标签，不持有玩家运行时资源。当前主题等
+可替换资源的强引用、类型契约、generation 与终态释放统一由 `GFAssetSlot` 负责；
+审核元数据不会伪装成运行时句柄。
+
 ## 标准流程
 
 1. 在本机 `resources/import_sources.local.json` 配置源包路径。

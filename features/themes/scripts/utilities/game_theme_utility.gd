@@ -1,7 +1,8 @@
 ## GameThemeUtility: 项目级主题激活服务。
 ##
 ## 主题列表来自内容包描述符；完整资源通过 GFAssetLoadSession 加载到 staging group，
-## 校验和事务激活成功后才替换当前资源组。声音银行额外使用 GF 挂载令牌管理生命周期。
+## 校验和事务激活成功后才替换当前资源组。当前视觉与声音主题由 GFAssetSlot 持有，
+## 声音银行额外使用 GF 挂载令牌管理生命周期。
 class_name GameThemeUtility
 extends "res://addons/gf/kernel/base/gf_utility.gd"
 
@@ -25,6 +26,10 @@ const DEFAULT_THEME_ID: StringName = &"halftone_atlas"
 const DEFAULT_SOUND_THEME_ID: StringName = &"printworks"
 const _VISUAL_ASSET_LANE_ID: StringName = &"game.theme.visual"
 const _SOUND_ASSET_LANE_ID: StringName = &"game.theme.sound"
+const _VISUAL_THEME_SLOT_RESOURCE_KEY: StringName = &"slot.theme.visual.current"
+const _SOUND_THEME_SLOT_RESOURCE_KEY: StringName = &"slot.theme.sound.current"
+const _VISUAL_THEME_TYPE_HINT: String = "GameTheme"
+const _SOUND_THEME_TYPE_HINT: String = "GameAudioTheme"
 const _ASSET_LOAD_CONCURRENCY: int = 4
 const _DEFAULT_ASSET_SESSION_TIMEOUT_SECONDS: float = 15.0
 const _BACKGROUND_ANIMATION_DRIVER_NODE_NAME: String = "ShaderAnimationDriver"
@@ -43,8 +48,8 @@ var _theme_catalog: GameThemeCatalogUtility = null
 var _shader_parameters: GFShaderParameterUtility = null
 var _signal_utility: GFSignalUtility = null
 var _accessibility: GameAccessibilityUtility = null
-var _current_visual_theme: GameTheme = null
-var _current_sound_theme: GameAudioTheme = null
+var _visual_theme_slot: GFAssetSlot = null
+var _sound_theme_slot: GFAssetSlot = null
 var _active_visual_asset_group_id: StringName = &""
 var _active_sound_asset_group_id: StringName = &""
 var _pending_visual_asset_session: GFAssetLoadSession = null
@@ -69,6 +74,8 @@ var _asset_session_timeout_seconds: float = _DEFAULT_ASSET_SESSION_TIMEOUT_SECON
 
 func init() -> void:
 	_clear_runtime_state()
+	if not _configure_theme_slots():
+		push_error("[GameThemeUtility] 无法配置 GF 主题资源槽位。")
 
 
 func get_required_utilities() -> Array[Script]:
@@ -109,6 +116,7 @@ func dispose() -> void:
 	_cancel_pending_asset_sessions(&"theme_utility_disposed")
 	_unmount_current_audio_bank()
 	_release_active_asset_groups()
+	_release_theme_slots()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	_settings = null
@@ -157,22 +165,36 @@ func get_sound_theme_descriptors() -> Array[GameThemeDescriptor]:
 
 
 func get_current_visual_theme() -> GameTheme:
-	return _current_visual_theme
+	if not is_instance_valid(_visual_theme_slot):
+		return null
+	var resource: Resource = _visual_theme_slot.get_resource()
+	if resource is GameTheme:
+		var theme: GameTheme = resource
+		return theme
+	return null
 
 
 func get_current_sound_theme() -> GameAudioTheme:
-	return _current_sound_theme
+	if not is_instance_valid(_sound_theme_slot):
+		return null
+	var resource: Resource = _sound_theme_slot.get_resource()
+	if resource is GameAudioTheme:
+		var theme: GameAudioTheme = resource
+		return theme
+	return null
 
 
 func get_current_visual_theme_id() -> StringName:
-	if is_instance_valid(_current_visual_theme):
-		return _current_visual_theme.theme_id
+	var theme: GameTheme = get_current_visual_theme()
+	if is_instance_valid(theme):
+		return theme.theme_id
 	return _get_default_visual_theme_id()
 
 
 func get_current_sound_theme_id() -> StringName:
-	if is_instance_valid(_current_sound_theme):
-		return _current_sound_theme.theme_id
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		return theme.theme_id
 	return _get_default_sound_theme_id()
 
 
@@ -308,7 +330,7 @@ func apply_current_theme_to_tree(root: Node) -> int:
 func play_current_sound_event(event_id: StringName, metadata: Dictionary = {}) -> void:
 	if event_id == &"" or not is_instance_valid(_audio):
 		return
-	if not is_instance_valid(_current_sound_theme) or _active_audio_mount_token <= 0:
+	if not is_instance_valid(get_current_sound_theme()) or _active_audio_mount_token <= 0:
 		return
 	var audio_event: GFAudioEvent = GFAudioEvent.new()
 	audio_event.event_id = event_id
@@ -319,57 +341,67 @@ func play_current_sound_event(event_id: StringName, metadata: Dictionary = {}) -
 
 
 func play_ui_select_sound() -> void:
-	if is_instance_valid(_current_sound_theme):
-		play_current_sound_event(_current_sound_theme.ui_select_event)
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		play_current_sound_event(theme.ui_select_event)
 
 
 func play_ui_confirm_sound() -> void:
-	if is_instance_valid(_current_sound_theme):
-		play_current_sound_event(_current_sound_theme.ui_confirm_event)
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		play_current_sound_event(theme.ui_confirm_event)
 
 
 func play_ui_cancel_sound() -> void:
-	if is_instance_valid(_current_sound_theme):
-		play_current_sound_event(_current_sound_theme.ui_cancel_event)
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		play_current_sound_event(theme.ui_cancel_event)
 
 
 func play_tile_spawn_sound() -> void:
-	if is_instance_valid(_current_sound_theme):
-		play_current_sound_event(_current_sound_theme.tile_spawn_event)
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		play_current_sound_event(theme.tile_spawn_event)
 
 
 func play_tile_move_sound() -> void:
-	if is_instance_valid(_current_sound_theme):
-		play_current_sound_event(_current_sound_theme.tile_move_event)
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		play_current_sound_event(theme.tile_move_event)
 
 
 func play_tile_move_blocked_sound() -> void:
-	if is_instance_valid(_current_sound_theme):
-		play_current_sound_event(_current_sound_theme.tile_move_blocked_event)
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		play_current_sound_event(theme.tile_move_blocked_event)
 
 
 func play_tile_merge_sound() -> void:
-	if is_instance_valid(_current_sound_theme):
-		play_current_sound_event(_current_sound_theme.tile_merge_event)
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		play_current_sound_event(theme.tile_merge_event)
 
 
 func play_tile_transform_sound() -> void:
-	if is_instance_valid(_current_sound_theme):
-		play_current_sound_event(_current_sound_theme.tile_transform_event)
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		play_current_sound_event(theme.tile_transform_event)
 
 
 func play_target_reached_sound() -> void:
-	if is_instance_valid(_current_sound_theme):
-		play_current_sound_event(_current_sound_theme.target_reached_event)
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		play_current_sound_event(theme.target_reached_event)
 
 
 ## 一次回合只发布一个主音频事件。事件携带可供 GF 音频后端使用的语义参数。
 ## @param turn_result: 已提交的强类型回合结果。
 ## @param milestone_reached: 当前回合是否首次达成模式目标。
 func play_turn_sound(turn_result: TurnResult, milestone_reached: bool = false) -> void:
-	if not is_instance_valid(_current_sound_theme) or turn_result == null:
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if not is_instance_valid(theme) or turn_result == null:
 		return
-	var event_id: StringName = _current_sound_theme.resolve_turn_event(
+	var event_id: StringName = theme.resolve_turn_event(
 		turn_result,
 		milestone_reached
 	)
@@ -390,8 +422,9 @@ func play_turn_sound(turn_result: TurnResult, milestone_reached: bool = false) -
 
 
 func play_game_over_sound() -> void:
-	if is_instance_valid(_current_sound_theme):
-		play_current_sound_event(_current_sound_theme.game_over_event)
+	var theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(theme):
+		play_current_sound_event(theme.game_over_event)
 
 
 func get_debug_snapshot() -> Dictionary:
@@ -412,6 +445,8 @@ func get_debug_snapshot() -> Dictionary:
 		),
 		"active_audio_bank_id": _active_audio_bank_id,
 		"active_audio_mount_token": _active_audio_mount_token,
+		"visual_theme_slot": _get_theme_slot_snapshot(_visual_theme_slot),
+		"sound_theme_slot": _get_theme_slot_snapshot(_sound_theme_slot),
 		"visual_activation": _last_visual_activation_report.duplicate(true),
 		"sound_activation": _last_sound_activation_report.duplicate(true),
 		"catalog": (
@@ -432,9 +467,10 @@ func _activate_visual_theme_with_assets(
 	var descriptor: GameThemeDescriptor = _resolve_visual_descriptor_or_default(theme_id)
 	if descriptor == null or not is_instance_valid(_assets):
 		return false
-	if is_instance_valid(_current_visual_theme):
+	var current_theme: GameTheme = get_current_visual_theme()
+	if is_instance_valid(current_theme):
 		if (
-			_current_visual_theme.theme_id == descriptor.theme_id
+			current_theme.theme_id == descriptor.theme_id
 			and _active_visual_asset_group_id != &""
 		):
 			if persist_setting:
@@ -550,9 +586,10 @@ func _activate_sound_theme_with_assets(
 	var descriptor: GameThemeDescriptor = _resolve_sound_descriptor_or_default(theme_id)
 	if descriptor == null or not is_instance_valid(_assets):
 		return false
-	if is_instance_valid(_current_sound_theme):
+	var current_theme: GameAudioTheme = get_current_sound_theme()
+	if is_instance_valid(current_theme):
 		if (
-			_current_sound_theme.theme_id == descriptor.theme_id
+			current_theme.theme_id == descriptor.theme_id
 			and _active_audio_mount_token > 0
 			and _active_sound_asset_group_id != &""
 		):
@@ -662,7 +699,9 @@ func _activate_sound_theme_with_assets(
 
 
 func _activate_visual_theme_resource(theme: GameTheme) -> bool:
-	var previous_theme: GameTheme = _current_visual_theme
+	if not _can_commit_theme_slot(_visual_theme_slot, theme):
+		return false
+	var previous_theme: GameTheme = get_current_visual_theme()
 	var transaction: GFActivationTransaction = GFActivationTransaction.new().configure(
 		&"game.visual_theme",
 		"Visual theme activation",
@@ -684,15 +723,22 @@ func _activate_visual_theme_resource(theme: GameTheme) -> bool:
 		_log_activation_failure("视觉主题", _last_visual_activation_report)
 		return false
 
-	_current_visual_theme = theme
-	return true
+	if _commit_theme_slot(_visual_theme_slot, theme):
+		return true
+	var _visual_theme_restored: bool = _transaction_apply_visual_theme(
+		{},
+		previous_theme
+	)
+	return false
 
 
 func _activate_sound_theme_resource(theme: GameAudioTheme) -> bool:
+	if not _can_commit_theme_slot(_sound_theme_slot, theme):
+		return false
 	_pending_sound_theme = theme
 	_pending_audio_bank_id = theme.get_resolved_bank_id()
 	_pending_audio_mount_token = 0
-	_previous_sound_theme = _current_sound_theme
+	_previous_sound_theme = get_current_sound_theme()
 	var transaction: GFActivationTransaction = GFActivationTransaction.new().configure(
 		&"game.sound_theme",
 		"Sound theme activation",
@@ -720,7 +766,11 @@ func _activate_sound_theme_resource(theme: GameAudioTheme) -> bool:
 		_clear_pending_sound_activation()
 		return false
 
-	_current_sound_theme = theme
+	if not _commit_theme_slot(_sound_theme_slot, theme):
+		var _pending_bank_unmounted: bool = _transaction_unmount_pending_audio_bank({})
+		var _previous_bank_restored: bool = _transaction_restore_previous_audio_bank({})
+		_clear_pending_sound_activation()
+		return false
 	_active_audio_bank_id = _pending_audio_bank_id
 	_active_audio_mount_token = _pending_audio_mount_token
 	_clear_pending_sound_activation()
@@ -1088,9 +1138,95 @@ func _clear_pending_sound_activation() -> void:
 	_previous_sound_theme = null
 
 
+func _configure_theme_slots() -> bool:
+	var visual_identity: GFResourceIdentity = GFResourceIdentity.from_path(
+		"",
+		_VISUAL_THEME_SLOT_RESOURCE_KEY,
+		_VISUAL_THEME_TYPE_HINT,
+		{"check_exists": false}
+	)
+	var sound_identity: GFResourceIdentity = GFResourceIdentity.from_path(
+		"",
+		_SOUND_THEME_SLOT_RESOURCE_KEY,
+		_SOUND_THEME_TYPE_HINT,
+		{"check_exists": false}
+	)
+	_visual_theme_slot = GFAssetSlot.new()
+	_sound_theme_slot = GFAssetSlot.new()
+	if not _visual_theme_slot.configure(
+		visual_identity,
+		null,
+		self,
+		_VISUAL_THEME_TYPE_HINT
+	):
+		_visual_theme_slot = null
+		_sound_theme_slot = null
+		return false
+	if not _sound_theme_slot.configure(
+		sound_identity,
+		null,
+		self,
+		_SOUND_THEME_TYPE_HINT
+	):
+		var _visual_slot_released: bool = _visual_theme_slot.release()
+		_visual_theme_slot = null
+		_sound_theme_slot = null
+		return false
+	return true
+
+
+func _release_theme_slots() -> void:
+	if is_instance_valid(_visual_theme_slot):
+		var _visual_slot_released: bool = _visual_theme_slot.release()
+	if is_instance_valid(_sound_theme_slot):
+		var _sound_slot_released: bool = _sound_theme_slot.release()
+
+
+func _can_commit_theme_slot(slot: GFAssetSlot, resource: Resource) -> bool:
+	return (
+		is_instance_valid(slot)
+		and slot.is_configured()
+		and not slot.is_released()
+		and slot.accepts_resource(resource)
+	)
+
+
+func _commit_theme_slot(slot: GFAssetSlot, resource: Resource) -> bool:
+	if not _can_commit_theme_slot(slot, resource):
+		return false
+	if slot.get_resource() == resource:
+		return true
+	return slot.replace(resource)
+
+
+func _get_theme_slot_snapshot(slot: GFAssetSlot) -> Dictionary:
+	if not is_instance_valid(slot):
+		return {
+			"configured": false,
+			"released": true,
+			"has_resource": false,
+			"generation": 0,
+			"resource_key": &"",
+			"type_hint": "",
+		}
+	var identity: GFResourceIdentity = slot.get_resource_identity()
+	return {
+		"configured": slot.is_configured(),
+		"released": slot.is_released(),
+		"has_resource": slot.has_resource(),
+		"generation": slot.get_generation(),
+		"resource_key": (
+			identity.resource_key
+			if identity != null
+			else &""
+		),
+		"type_hint": slot.get_type_hint(),
+	}
+
+
 func _clear_runtime_state() -> void:
-	_current_visual_theme = null
-	_current_sound_theme = null
+	_visual_theme_slot = null
+	_sound_theme_slot = null
 	_active_visual_asset_group_id = &""
 	_active_sound_asset_group_id = &""
 	_pending_visual_asset_session = null
@@ -1190,10 +1326,11 @@ func _refresh_visual_effect_policy() -> void:
 	var current_scene: Node = tree.current_scene if is_instance_valid(tree) else null
 	if is_instance_valid(_style):
 		_style.set_static_visuals_enabled(use_static_visuals, current_scene)
-	if is_instance_valid(current_scene) and is_instance_valid(_current_visual_theme):
+	var current_theme: GameTheme = get_current_visual_theme()
+	if is_instance_valid(current_scene) and is_instance_valid(current_theme):
 		var _applied_background_count: int = _apply_backgrounds_to_tree(
 			current_scene,
-			_current_visual_theme
+			current_theme
 		)
 
 

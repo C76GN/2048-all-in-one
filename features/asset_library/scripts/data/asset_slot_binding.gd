@@ -1,4 +1,6 @@
-## AssetSlotBinding: 将一个稳定用途槽位绑定到当前采用的素材。
+## AssetSlotBinding: 记录素材评审用途槽位的采用项、回退项与候选元数据。
+##
+## 该 Resource 不作为玩家运行时资源句柄；运行时槽位生命周期由 GFAssetSlot 提供。
 class_name AssetSlotBinding
 extends Resource
 

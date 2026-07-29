@@ -343,6 +343,14 @@ func test_theme_debug_snapshot_exposes_content_package_and_resolver_state() -> v
 		project_catalog_snapshot,
 		"resolver"
 	)
+	var visual_slot_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		snapshot,
+		"visual_theme_slot"
+	)
+	var sound_slot_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		snapshot,
+		"sound_theme_slot"
+	)
 	var registered_keys: PackedStringArray = GFVariantData.get_option_packed_string_array(
 		resolver_snapshot,
 		"registered_keys"
@@ -387,8 +395,32 @@ func test_theme_debug_snapshot_exposes_content_package_and_resolver_state() -> v
 		asset_utility.get_active_preload_session_count() == 0,
 		"主题激活完成后不得遗留 GFAssetLoadSession。"
 	)
+	assert_true(
+		GFVariantData.get_option_bool(visual_slot_snapshot, "configured")
+		and GFVariantData.get_option_bool(visual_slot_snapshot, "has_resource"),
+		"当前视觉主题应由已配置的 GFAssetSlot 强持有。"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(visual_slot_snapshot, "resource_key")
+			== &"slot.theme.visual.current",
+		"视觉主题槽位应保留稳定用途资源键，而不是绑定某个主题路径。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(sound_slot_snapshot, "configured")
+		and GFVariantData.get_option_bool(sound_slot_snapshot, "has_resource"),
+		"当前声音主题应由独立的 GFAssetSlot 强持有。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(visual_slot_snapshot, "generation") >= 2
+		and GFVariantData.get_option_int(sound_slot_snapshot, "generation") >= 2,
+		"主题初次激活应推进 GFAssetSlot 的单调 generation。"
+	)
+	var visual_slot: GFAssetSlot = theme_utility._visual_theme_slot
+	var sound_slot: GFAssetSlot = theme_utility._sound_theme_slot
 
 	await _dispose_architecture(architecture)
+	assert_true(visual_slot.is_released(), "主题 Utility dispose 后必须终态释放视觉资源槽位。")
+	assert_true(sound_slot.is_released(), "主题 Utility dispose 后必须终态释放声音资源槽位。")
 
 
 func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:

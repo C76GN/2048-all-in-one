@@ -1,4 +1,7 @@
-## AssetSlotMap: 维护主题、音频、shader 等稳定用途槽位到素材的映射。
+## AssetSlotMap: 维护素材评审中的稳定用途槽位、候选和采用记录。
+##
+## 这是作者工具数据，不拥有玩家运行时资源、generation 或释放生命周期；运行时可替换
+## 资源由 GFAssetSlot 持有。
 class_name AssetSlotMap
 extends Resource
 
