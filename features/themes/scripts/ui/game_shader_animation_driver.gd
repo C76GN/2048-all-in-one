@@ -28,7 +28,6 @@ var _detach_material_when_disabled: bool = true
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
-	_application_focused = DisplayServer.window_is_focused()
 	_refresh_processing()
 
 

@@ -45,9 +45,6 @@ const _GAME_CELEBRATION_VFX_UTILITY_SCRIPT: Script = preload("res://features/the
 const _GAME_THEME_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_catalog_utility.gd")
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
 const _GAME_PLATFORM_UTILITY_SCRIPT: Script = preload("res://features/platform_runtime/scripts/utilities/game_platform_utility.gd")
-const _RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT: Script = preload(
-	"res://features/diagnostics/scripts/utilities/runtime_diagnostics_utility.gd"
-)
 
 
 # --- 私有变量 ---
@@ -169,10 +166,7 @@ func _bind_content_and_gameplay_utilities(binder: GFBinder, scope: GFAsyncScope)
 	await binder.bind_utility(GFNotificationUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
-	var diagnostics_binding: GFBindBuilder = binder.bind_utility(
-		_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT
-	).with_alias(GFDiagnosticsUtility)
-	await diagnostics_binding.as_singleton()
+	await binder.bind_utility(GFDiagnosticsUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(_PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT).as_singleton()

@@ -172,10 +172,7 @@ func get_leaderboard_group_key() -> String:
 static func calculate_leaderboard_group_key(identity: Dictionary) -> String:
 	if not is_leaderboard_identity_valid(identity):
 		return ""
-	var canonical_json: String = GFDeterministicVariantSerializer.to_canonical_json(
-		identity
-	)
-	return canonical_json.sha256_text() if not canonical_json.is_empty() else ""
+	return GFDeterministicVariantSerializer.sha256(identity)
 
 
 ## 校验榜单身份是否符合当前严格 schema。
@@ -247,10 +244,7 @@ func _calculate_result_hash() -> String:
 		&"target_value": target_value,
 		&"target_reached": target_reached,
 	}
-	var canonical_json: String = GFDeterministicVariantSerializer.to_canonical_json(
-		hash_payload
-	)
-	return canonical_json.sha256_text() if not canonical_json.is_empty() else ""
+	return GFDeterministicVariantSerializer.sha256(hash_payload)
 
 
 static func _has_strict_shape(data: Dictionary) -> bool:

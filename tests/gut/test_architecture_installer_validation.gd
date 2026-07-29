@@ -445,9 +445,8 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 	assert_false(source.contains("OS.is_debug_build()"), "普通 debug 运行不得自动承担 diagnostics 启动成本。")
 	assert_true(source.contains("_DEV_TOOLS_INSTALLER_PATH"), "Composition Root 应按需加载 diagnostics Installer。")
 	assert_true(
-		source.contains("_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT")
-		and source.contains("GFDiagnosticsUtility"),
-		"运行时应以轻量适配器满足 GF Action Queue 的诊断聚合契约。"
+		source.contains("bind_utility(GFDiagnosticsUtility)"),
+		"运行时应直接绑定 GF10 Diagnostics 聚合核心。"
 	)
 	assert_true(diagnostics_source.contains("bind_utility(GFDebugOverlayUtility)"), "开发构建应绑定 GF Debug Overlay。")
 	assert_true(diagnostics_source.contains("bind_utility(GFRuntimeInspectorUtility)"), "开发构建应绑定 GF Runtime Inspector。")

@@ -33,7 +33,6 @@ var _drain_seconds: float = _MIN_DRAIN_SECONDS
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
-	_application_focused = DisplayServer.window_is_focused()
 	_refresh_speed_scale()
 
 

@@ -32,7 +32,6 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT, project_diagnostics)
 	await architecture.init()
-	await get_tree().process_frame
 
 	assert_true(console.has_command("diagnostics"), "GFDiagnosticsUtility 应提供标准 diagnostics 命令。")
 	assert_true(console.has_command("support_report"), "项目诊断应提供支持报告落盘命令。")

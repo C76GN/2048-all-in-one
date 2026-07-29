@@ -42,11 +42,23 @@ func _init() -> void:
 	)
 	_require_artifacts(preflight)
 
-	var platform_utility: GamePlatformUtility = GamePlatformUtility.new()
-	var _adapter_configured: bool = platform_utility.configure_adapter(
-		LocalPlatformAdapter.new()
+	var adapter: LocalPlatformAdapter = LocalPlatformAdapter.new()
+	var adapter_prepared: bool = adapter.prepare()
+	var bridge_report: Dictionary = GFPlatformAdapterConformance.inspect(
+		adapter,
+		GamePlatformUtility.make_adapter_conformance_options()
 	)
-	var bridge_report: Dictionary = platform_utility.get_bridge_contract_report()
+	if not adapter_prepared:
+		var _prepare_issue: Dictionary = GFValidationReportDictionary.append_issue(
+			bridge_report,
+			"error",
+			&"platform_adapter_prepare_failed",
+			"Local platform adapter could not be prepared for conformance inspection."
+		)
+		bridge_report = GFValidationReportDictionary.finalize_report(
+			bridge_report,
+			"Platform adapter conformance"
+		)
 	var _merged_preflight: GFCompatibilityPreflight = preflight.merge_report(
 		bridge_report,
 		{

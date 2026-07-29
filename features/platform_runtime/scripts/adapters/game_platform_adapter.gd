@@ -73,38 +73,6 @@ func handle_notification(_what: int) -> void:
 	pass
 
 
-func get_bridge_report_descriptor() -> Dictionary:
-	var configured_adapter_id: StringName = get_adapter_id()
-	var descriptor_adapter_id: StringName = (
-		configured_adapter_id if configured_adapter_id != &"" else adapter_id
-	)
-	var contract_ids: PackedStringArray = get_contract_ids()
-	if contract_ids.is_empty():
-		contract_ids = PackedStringArray([
-			String(CONTRACT_RUNTIME_CONTEXT),
-		])
-	var context: GFPlatformRuntimeContext = (
-		get_context() if configured_adapter_id != &"" else create_runtime_context()
-	)
-	var capability_ids: PackedStringArray = PackedStringArray()
-	if context != null and context.capabilities != null:
-		capability_ids = context.capabilities.capabilities.duplicate()
-	var descriptor_entries: Array[Dictionary] = []
-	if configured_adapter_id != &"":
-		for descriptor: GFPlatformContractDescriptor in get_contract_descriptors():
-			descriptor_entries.append(descriptor.to_dict())
-	return {
-		"adapter_id": descriptor_adapter_id,
-		"contract_ids": contract_ids,
-		"enabled": is_available() and get_state() not in [State.FAILED, State.SHUTDOWN],
-		"capabilities": capability_ids,
-		"metadata": {
-			"platform_id": context.platform_id if context != null else &"unknown",
-			"contract_descriptors": descriptor_entries,
-		},
-	}
-
-
 ## 把玩家主动请求的文本写入平台剪贴板。
 ## @param _text: 已本地化、可直接复制的纯文本。
 ## @return: 平台确认写入成功时返回 true；不支持或失败时返回 false。

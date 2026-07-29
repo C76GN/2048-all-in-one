@@ -150,24 +150,32 @@ func copy_text_to_clipboard(text: String) -> bool:
 
 
 func get_bridge_contract_report() -> Dictionary:
-	var builder: GFBridgeContractReport = GFBridgeContractReport.new().configure(
-		"Game platform bridge coverage",
-		{"feature": "platform_runtime"}
+	return GFPlatformAdapterConformance.inspect(
+		_adapter,
+		make_adapter_conformance_options()
 	)
-	var _runtime_contract: Dictionary = builder.add_contract(CONTRACT_RUNTIME_CONTEXT, {
-		"required": true,
-	})
-	var _sdk_bridge_contract: Dictionary = builder.add_contract(CONTRACT_SDK_BRIDGE, {
-		"required": false,
-	})
-	if _adapter != null:
-		var descriptor: Dictionary = _adapter.get_bridge_report_descriptor()
-		var _adapter_entry: Dictionary = builder.add_adapter(
-			_adapter.adapter_id,
-			&"",
-			descriptor
-		)
-	return builder.get_report()
+
+
+## 返回项目平台 Adapter 必须满足的 GF10 静态契约。
+static func make_adapter_conformance_options() -> Dictionary:
+	return {
+		"required_contract_ids": PackedStringArray([
+			String(CONTRACT_RUNTIME_CONTEXT),
+		]),
+		"required_contract_versions": {
+			String(CONTRACT_RUNTIME_CONTEXT): "1.0.0",
+		},
+		"required_capability_ids": PackedStringArray([
+			String(CAPABILITY_LIFECYCLE),
+			String(CAPABILITY_STORAGE_LOCAL),
+		]),
+		"required_methods": {
+			String(CONTRACT_RUNTIME_CONTEXT): PackedStringArray([
+				String(GamePlatformAdapter.METHOD_RUNTIME_CONTEXT_QUERY),
+			]),
+		},
+		"require_descriptors": true,
+	}
 
 
 func get_debug_snapshot() -> Dictionary:
