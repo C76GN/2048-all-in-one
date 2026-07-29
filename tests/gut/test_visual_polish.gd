@@ -292,7 +292,7 @@ func test_main_menu_board_motif_uses_neutral_palette_without_dense_patterns() ->
 	assert_true(motif_source.contains("_DEMO_NEW_TILE_START"), "首页棋盘演示应以新方块生成完成动作闭环。")
 
 
-func test_navigation_scene_preload_map_is_valid_and_primes_gameplay_route() -> void:
+func test_navigation_scene_preload_map_is_valid_and_defers_gameplay_to_intent() -> void:
 	var report: Dictionary = _SCENE_PRELOAD_MAP.validate_map({"check_exists": true})
 	assert_true(GFVariantData.get_option_int(report, &"error_count") == 0, "场景预载图不应包含阻断错误。")
 	assert_true(GFVariantData.get_option_int(report, &"warning_count") == 0, "场景预载图不应包含缺失或重复路径。")
@@ -309,8 +309,13 @@ func test_navigation_scene_preload_map_is_valid_and_primes_gameplay_route() -> v
 		planned_paths = planned_paths_value
 	assert_has(
 		planned_paths,
+		"res://features/navigation/scenes/menus/main_menu.tscn",
+		"模式选择的静态邻接预载只需保留可立即返回的主菜单。"
+	)
+	assert_does_not_have(
+		planned_paths,
 		"res://features/gameplay/scenes/game/game_play.tscn",
-		"进入模式选择时应提前准备正式游戏场景。"
+		"玩法场景应由开始按钮的 focus/hover 意图预载，不能阻塞模式页首帧。"
 	)
 	assert_lte(_SCENE_PRELOAD_MAP.max_scheduled_scenes, 2, "启动预载图不得并发调度所有低频菜单。")
 
@@ -1215,18 +1220,36 @@ func test_primary_button_hover_and_focus_stay_inside_layout_footprint() -> void:
 func test_ui_motion_utility_animates_numeric_change_with_delta_label() -> void:
 	var root: Control = Control.new()
 	var value_label: Label = Label.new()
-	var delta_label: Label = Label.new()
+	var delta_scene: PackedScene = load(
+		"res://features/gameplay/scenes/ui/score_delta_label.tscn"
+	)
+	var delta_label: Label = delta_scene.instantiate() as Label
+	value_label.custom_minimum_size = Vector2(96.0, 32.0)
+	value_label.size = value_label.custom_minimum_size
 	root.add_child(value_label)
 	value_label.add_child(delta_label)
 	add_child(root)
 	await get_tree().process_frame
 
 	var motion_utility: GameUiMotionUtility = GameUiMotionUtility.new()
+	var value_center_x: float = value_label.size.x * 0.5
 	var tween: Tween = motion_utility.play_numeric_change(value_label, 16, 48, delta_label)
 
 	assert_true(is_instance_valid(tween) and tween.is_valid(), "整数变化反馈应返回有效 Tween。")
 	assert_true(value_label.text == "16", "计数反馈应从旧值开始。")
 	assert_true(delta_label.visible and delta_label.text == "+32", "正向变化应显示可读的增量飘字。")
+	assert_gte(
+		delta_label.position.x + delta_label.size.x * 0.5 - value_center_x,
+		30.0,
+		"增量飘字必须从主数字右侧起步，不能叠在计分数字上。"
+	)
+	var delta_start_x: float = delta_label.position.x
+	var _delta_motion_active: bool = tween.custom_step(0.18)
+	assert_gte(
+		delta_label.position.x,
+		delta_start_x,
+		"增量飘字只能继续向右离场，不能折返穿过主数字。"
+	)
 	var _finished_step_active: bool = tween.custom_step(1.0)
 	assert_true(value_label.text == "48", "计数反馈结束后必须落在模型最终值。")
 	assert_false(delta_label.visible, "增量飘字完成后应恢复隐藏状态。")

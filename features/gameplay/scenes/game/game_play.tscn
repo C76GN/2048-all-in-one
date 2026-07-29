@@ -82,9 +82,9 @@ z_index = 21
 layout_mode = 1
 anchor_top = 0.5
 anchor_bottom = 0.5
-offset_left = 28.0
+offset_left = 8.0
 offset_top = -160.0
-offset_right = 328.0
+offset_right = 308.0
 offset_bottom = 160.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_view_controls")
 

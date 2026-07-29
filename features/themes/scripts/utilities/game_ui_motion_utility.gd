@@ -67,7 +67,6 @@ const _NUMERIC_GAIN_COLOR: Color = Color(0.82, 0.69, 0.34, 1.0)
 const _NUMERIC_LOSS_COLOR: Color = Color(0.58, 0.27, 0.19, 1.0)
 const _NUMERIC_DELTA_START_DISTANCE: float = 5.0
 const _NUMERIC_DELTA_END_DISTANCE: float = 38.0
-const _NUMERIC_GOLDEN_ANGLE_RADIANS: float = 2.39996323
 
 
 # --- 私有变量 ---
@@ -1372,9 +1371,10 @@ func _prepare_numeric_delta_label(
 
 
 func _next_numeric_delta_direction() -> Vector2:
-	var direction: Vector2 = Vector2.RIGHT.rotated(
-		float(_numeric_scatter_sequence) * _NUMERIC_GOLDEN_ANGLE_RADIANS
-	)
+	# 增量标签的基础位置已与主数字错开；只向右上方的窄扇区离场，
+	# 避免全圆散射在后半程重新穿过主数字或掉进棋盘区域。
+	var lane: float = float(_numeric_scatter_sequence % 3) - 1.0
+	var direction: Vector2 = Vector2(1.0, -0.32 + lane * 0.16).normalized()
 	_numeric_scatter_sequence = (_numeric_scatter_sequence + 1) % 64
 	return direction
 

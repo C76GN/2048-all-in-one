@@ -400,9 +400,9 @@ func _apply_replay_controls_layout(mode: LayoutMode) -> void:
 		_replay_controls.anchor_top = 0.5
 		_replay_controls.anchor_right = 0.0
 		_replay_controls.anchor_bottom = 0.5
-		_replay_controls.offset_left = 28.0
+		_replay_controls.offset_left = 8.0
 		_replay_controls.offset_top = -_REPLAY_CONTROLS_HEIGHT * 0.5
-		_replay_controls.offset_right = 328.0
+		_replay_controls.offset_right = 308.0
 		_replay_controls.offset_bottom = _REPLAY_CONTROLS_HEIGHT * 0.5
 		return
 	_replay_controls.anchor_left = 0.5

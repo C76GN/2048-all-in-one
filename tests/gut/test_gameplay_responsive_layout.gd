@@ -5,6 +5,9 @@ extends GutTest
 # --- 常量 ---
 
 const _HUD_SCENE: PackedScene = preload("res://features/gameplay/scenes/ui/hud.tscn")
+const _GAME_PLAY_SCENE: PackedScene = preload(
+	"res://features/gameplay/scenes/game/game_play.tscn"
+)
 
 
 # --- 测试用例 ---
@@ -88,6 +91,44 @@ func test_board_fit_insets_keep_hud_outside_primary_board_composition() -> void:
 		110.0,
 		"标准横屏也必须为棋盘冲量和旋转保留动态安全包络。"
 	)
+
+
+func test_desktop_replay_controls_keep_a_safe_gap_from_the_board() -> void:
+	var controller: GameplayResponsiveLayoutController = (
+		GameplayResponsiveLayoutController.new()
+	)
+	var replay_controls: PanelContainer = PanelContainer.new()
+	controller._replay_controls = replay_controls
+
+	controller._apply_replay_controls_layout(
+		GameplayResponsiveLayoutController.LayoutMode.DESKTOP
+	)
+
+	assert_true(replay_controls.offset_left == 8.0)
+	assert_true(replay_controls.offset_right == 308.0)
+	assert_true(
+		replay_controls.size.x == 300.0,
+		"回放运输侧栏必须保留既有可读宽度。"
+	)
+	assert_lte(
+		replay_controls.offset_right,
+		308.0,
+		"桌面回放侧栏右缘必须停在棋盘动效安全边界之外。"
+	)
+	replay_controls.free()
+	controller.free()
+
+
+func test_game_scene_replay_controls_match_desktop_safe_offsets() -> void:
+	var scene_root: Node = _GAME_PLAY_SCENE.instantiate()
+	var replay_controls: PanelContainer = scene_root.get_node(
+		"ReplayControlsContainer"
+	) as PanelContainer
+
+	assert_true(replay_controls.offset_left == 8.0)
+	assert_true(replay_controls.offset_right == 308.0)
+	assert_true(replay_controls.size.x == 300.0)
+	scene_root.free()
 
 
 func test_wide_board_fit_stays_left_of_landscape_action_panel_motion_boundary() -> void:
