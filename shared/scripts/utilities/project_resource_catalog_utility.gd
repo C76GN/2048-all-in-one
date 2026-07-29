@@ -202,6 +202,42 @@ func get_registered_resource_keys(catalog_id: StringName) -> PackedStringArray:
 	return _get_catalog_resource_keys(_get_catalog(catalog_id))
 
 
+## 通过 GFAssetUtility 异步预热目录中的全部资源。
+## @param catalog_id: 已注册目录 ID。
+## @param on_completed: 可选完成回调，签名为 func(report: Dictionary)。
+## @param options: 透传 GFAssetUtility.preload_group_async() 的有界加载选项。
+## @return: 请求成功提交时返回 OK。
+func preload_catalog_async(
+	catalog_id: StringName,
+	on_completed: Callable = Callable(),
+	options: Dictionary = {}
+) -> Error:
+	var catalog: Dictionary = _get_catalog(catalog_id)
+	var registry: GFResourceRegistry = _get_catalog_registry(catalog)
+	var asset_utility: GFAssetUtility = _get_asset_utility()
+	var group_id: StringName = _get_catalog_group_id(catalog)
+	if (
+		catalog.is_empty()
+		or not is_instance_valid(registry)
+		or not is_instance_valid(asset_utility)
+		or group_id == &""
+	):
+		return ERR_UNCONFIGURED
+
+	var preload_options: Dictionary = options.duplicate(true)
+	if not preload_options.has("pin_cache"):
+		# register_catalog() 已按目录策略登记并固定分组路径；预热只填充缓存，
+		# 不重复增加同一路径的 pin 计数。
+		preload_options["pin_cache"] = false
+	asset_utility.preload_group_async(
+		group_id,
+		registry.make_asset_group_entries(),
+		on_completed,
+		preload_options
+	)
+	return OK
+
+
 ## 通过目录资源路径加载资源，并复用 GFAssetUtility 缓存。
 ## @param catalog_id: 资源所属的稳定目录 ID。
 ## @param resource_path: 已登记的项目资源路径。

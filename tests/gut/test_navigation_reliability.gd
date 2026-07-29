@@ -17,6 +17,12 @@ const _CLASSIC_MODE_CONFIG: GameModeConfig = preload(
 	"res://features/gameplay/resources/modes/classic_mode_config.tres"
 )
 const _GAME_SCENE_PATH: String = "res://features/gameplay/scenes/game/game_play.tscn"
+const _MODE_SELECTION_SCENE_PATH: String = (
+	"res://features/navigation/scenes/menus/mode_selection.tscn"
+)
+const _SCENE_PRELOAD_MAP: GFScenePreloadMap = preload(
+	"res://features/navigation/resources/scene_preload_map.tres"
+)
 
 
 # --- 测试用例 ---
@@ -180,6 +186,40 @@ func test_main_menu_primes_full_scene_targets_from_navigation_intent() -> void:
 			"鼠标意图抵达完整场景入口时应交给 GF 预加载。"
 		)
 	architecture.dispose()
+
+
+func test_mode_selection_primes_gameplay_from_start_intent() -> void:
+	var router: _RouteSpy = _RouteSpy.new()
+	var preload_error: Error = ModeSelection._prime_scene_with_router(
+		router,
+		_GAME_SCENE_PATH
+	)
+	assert_true(preload_error == OK)
+	assert_has(
+		router.primed_scene_paths,
+		_GAME_SCENE_PATH,
+		"模式页开始意图应在正式切换前交给 GFSceneUtility 预加载玩法场景。"
+	)
+
+
+func test_mode_selection_defers_gameplay_preload_until_start_intent() -> void:
+	var plan: Dictionary = _SCENE_PRELOAD_MAP.get_preload_plan(
+		_MODE_SELECTION_SCENE_PATH,
+		1,
+		false
+	)
+	var temporary_paths: PackedStringArray = (
+		GFVariantData.get_option_packed_string_array(
+			plan,
+			"temporary_paths",
+			PackedStringArray()
+		)
+	)
+	assert_does_not_have(
+		temporary_paths,
+		_GAME_SCENE_PATH,
+		"模式场景刚切入时不应同帧预载 gameplay；玩法场景由开始意图触发。"
+	)
 
 
 func test_empty_history_lists_focus_back_button() -> void:
@@ -595,6 +635,7 @@ class _RouteSpy extends SceneRouterSystem:
 	func goto_scene(path: String) -> void:
 		last_scene_path = path
 
+	## @param path: 测试记录的待预加载场景路径。
 	func prime_scene(path: String) -> Error:
 		primed_scene_paths.append(path)
 		return OK

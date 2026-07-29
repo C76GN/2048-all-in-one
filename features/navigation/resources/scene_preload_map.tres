@@ -13,7 +13,7 @@ metadata = {"role": "hub"}
 [sub_resource type="Resource" id="Entry_mode_selection"]
 script = ExtResource("2_entry")
 scene_path = "res://features/navigation/scenes/menus/mode_selection.tscn"
-adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/main_menu.tscn", "res://features/gameplay/scenes/game/game_play.tscn")
+adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/main_menu.tscn")
 metadata = {"role": "game_setup"}
 
 [sub_resource type="Resource" id="Entry_gameplay"]

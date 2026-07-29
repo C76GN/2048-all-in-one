@@ -19,6 +19,9 @@ const _MODE_TYPE_HINT: String = "Resource"
 
 var _resource_catalog: ProjectResourceCatalogUtility = null
 var _mode_registry: GFResourceRegistry = DEFAULT_MODE_REGISTRY
+var _preload_status: StringName = &"idle"
+var _preload_report: Dictionary = {}
+var _disposing: bool = false
 
 
 # --- Godot 生命周期方法 ---
@@ -28,6 +31,9 @@ func get_required_utilities() -> Array[Script]:
 
 
 func ready() -> void:
+	_disposing = false
+	_preload_status = &"idle"
+	_preload_report = {}
 	_resource_catalog = _resolve_resource_catalog_utility()
 	if not is_instance_valid(_resource_catalog):
 		push_error("[GameModeCatalogUtility] ProjectResourceCatalogUtility 未注册。")
@@ -43,12 +49,32 @@ func ready() -> void:
 	)
 	if not report.is_ok():
 		push_error("[GameModeCatalogUtility] 模式资源目录注册失败：%s" % report.make_summary())
+		return
+
+	_preload_status = &"loading"
+	var preload_error: Error = _resource_catalog.preload_catalog_async(
+		_CATALOG_ID,
+		_on_preload_completed,
+		{
+			"max_concurrent_loads": 2,
+			"serial_lane_id": &"game_mode_catalog",
+		}
+	)
+	if preload_error != OK:
+		_preload_status = &"submit_failed"
+		push_error(
+			"[GameModeCatalogUtility] 模式配置预热提交失败，错误码：%d。"
+			% preload_error
+		)
 
 
 func dispose() -> void:
+	_disposing = true
 	if is_instance_valid(_resource_catalog):
 		var _catalog_unregistered: bool = _resource_catalog.unregister_catalog(_CATALOG_ID, true)
 	_resource_catalog = null
+	_preload_status = &"disposed"
+	_preload_report = {}
 
 
 # --- 公共方法 ---
@@ -87,6 +113,8 @@ func get_debug_snapshot() -> Dictionary:
 		"registry": registry_snapshot,
 		"resource_keys": resource_keys,
 		"catalog_id": String(_CATALOG_ID),
+		"preload_status": String(_preload_status),
+		"preload_report": _preload_report.duplicate(true),
 	}
 
 
@@ -98,3 +126,23 @@ func _resolve_resource_catalog_utility() -> ProjectResourceCatalogUtility:
 		var catalog: ProjectResourceCatalogUtility = utility_value
 		return catalog
 	return null
+
+
+func _on_preload_completed(report: Dictionary) -> void:
+	if _disposing:
+		return
+	_preload_report = report.duplicate(true)
+	if GFVariantData.get_option_bool(report, "ok", false):
+		_preload_status = &"completed"
+		return
+	_preload_status = &"failed"
+	push_error(
+		"[GameModeCatalogUtility] GF 模式配置预热失败：%s。"
+		% str(
+			GFVariantData.get_option_packed_string_array(
+				report,
+				"failed_paths",
+				PackedStringArray()
+			)
+		)
+	)

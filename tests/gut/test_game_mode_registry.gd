@@ -94,6 +94,39 @@ func test_mode_registry_registers_asset_group_paths_when_utility_is_ready() -> v
 	architecture.dispose()
 
 
+func test_mode_catalog_primes_registered_configs_through_gf_asset_group() -> void:
+	var setup: Dictionary = await _create_mode_catalog_setup()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var asset_utility: GFAssetUtility = _get_asset_utility(setup)
+	var mode_catalog: GameModeCatalogUtility = _get_mode_catalog(setup)
+
+	for _frame_index: int in range(180):
+		asset_utility.tick()
+		var all_cached: bool = true
+		for config_path: String in EXPECTED_MODE_CONFIG_PATHS:
+			if not asset_utility.is_cached(config_path):
+				all_cached = false
+				break
+		if all_cached:
+			break
+		await get_tree().process_frame
+
+	for config_path: String in EXPECTED_MODE_CONFIG_PATHS:
+		assert_true(
+			asset_utility.is_cached(config_path),
+			"模式目录 ready 后应通过 GFAssetUtility 异步预热配置：%s"
+			% config_path
+		)
+	var preload_snapshot: Dictionary = mode_catalog.get_debug_snapshot()
+	assert_true(
+		GFVariantData.get_option_string(preload_snapshot, "preload_status")
+		== "completed",
+		"模式目录应记录 GF 异步预热的成功终态。"
+	)
+
+	architecture.dispose()
+
+
 func test_mode_registry_registers_resolver_resource_keys_when_utility_is_ready() -> void:
 	var setup: Dictionary = await _create_mode_catalog_setup()
 	var architecture: GFArchitecture = _get_architecture(setup)

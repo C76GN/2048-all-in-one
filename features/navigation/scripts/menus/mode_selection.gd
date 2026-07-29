@@ -143,6 +143,12 @@ func _ready() -> void:
 	var _connect_result_77: int = _back_button.pressed.connect(_on_back_button_pressed)
 	var _connect_result_78: int = _grid_size_option_button.item_selected.connect(_on_grid_size_selected)
 	var _connect_result_79: int = _start_game_button.pressed.connect(_on_start_game_button_pressed)
+	var _connect_result_79b: int = _start_game_button.focus_entered.connect(
+		_prime_gameplay_scene
+	)
+	var _connect_result_79c: int = _start_game_button.mouse_entered.connect(
+		_prime_gameplay_scene
+	)
 	var _connect_result_80: int = _refresh_seed_button.pressed.connect(_on_refresh_seed_button_pressed)
 	var _connect_result_80b: int = _seed_line_edit.text_changed.connect(
 		_on_seed_text_changed
@@ -1143,6 +1149,25 @@ func _get_scene_router_system() -> SceneRouterSystem:
 		var scene_router: SceneRouterSystem = system_value
 		return scene_router
 	return null
+
+
+func _prime_gameplay_scene() -> void:
+	var router: SceneRouterSystem = _get_scene_router_system()
+	var _preload_error: Error = _prime_scene_with_router(
+		router,
+		game_play_scene_path
+	)
+
+
+static func _prime_scene_with_router(
+	router: SceneRouterSystem,
+	scene_path: String
+) -> Error:
+	if not is_instance_valid(router):
+		return ERR_UNCONFIGURED
+	if scene_path.is_empty():
+		return ERR_INVALID_PARAMETER
+	return router.prime_scene(scene_path)
 
 
 func _get_app_config_model() -> AppConfigModel:
