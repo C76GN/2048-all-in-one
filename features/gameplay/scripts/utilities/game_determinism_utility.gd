@@ -3,9 +3,14 @@ class_name GameDeterminismUtility
 extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 
-# --- 私有变量 ---
+# --- 常量 ---
 
-var _codec: GFStorageCodec = GFStorageCodec.new()
+## 规则资源仍包含 Godot 浮点配置；GF 会按 IEEE-754 bytes 规范编码这些值。
+##
+## 玩法状态使用同一组选项，确保规则集、棋盘和 checkpoint 共享唯一编码契约。
+const _CANONICAL_OPTIONS: Dictionary = {
+	"allow_floats": true,
+}
 
 
 # --- 公共方法 ---
@@ -243,90 +248,8 @@ func _calculate_state_checksum_from_normalized(
 	})
 
 
-func _checksum(data: Dictionary) -> String:
-	if _is_single_pass_checksum_safe(data):
-		var bytes: PackedByteArray = GFVariantJsonCodec.stringify_json_compatible(
-			data,
-			"",
-			true
-		).to_utf8_buffer()
-		if not bytes.is_empty():
-			var hashing: HashingContext = HashingContext.new()
-			var start_error: Error = hashing.start(HashingContext.HASH_SHA256)
-			if start_error == OK:
-				var update_error: Error = hashing.update(bytes)
-				if update_error == OK:
-					return hashing.finish().hex_encode()
-	return _codec.calculate_checksum(data, GFStorageCodec.Format.JSON)
-
-
-## GFStorageCodec 的 JSON checksum 会为兼容旧存档执行一次编码、解析和再次编码。
-## 当前确定性热路径若只包含字符串键和不会产生 JSON 浮点字面量的值，
-## GFVariantJsonCodec 的稳定排序输出已经与最终 checksum 输入完全相同，可安全省去
-## 重复往返；含浮点表示或复杂键的状态仍回退到 GF 的完整兼容路径。
-static func _is_single_pass_checksum_safe(
-	value: Variant,
-	visited: Array = [],
-	depth: int = 0
-) -> bool:
-	if depth > 128:
-		return false
-	match typeof(value):
-		TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_STRING, TYPE_STRING_NAME, TYPE_NODE_PATH:
-			return true
-		TYPE_VECTOR2I, TYPE_VECTOR3I, TYPE_VECTOR4I, TYPE_RECT2I:
-			return true
-		TYPE_PACKED_BYTE_ARRAY, TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_INT64_ARRAY:
-			return true
-		TYPE_PACKED_STRING_ARRAY:
-			return true
-		TYPE_ARRAY, TYPE_DICTIONARY:
-			for visited_value: Variant in visited:
-				if is_same(value, visited_value):
-					return false
-			var next_visited: Array = visited.duplicate()
-			next_visited.append(value)
-			if value is Array:
-				var array_value: Array = value
-				for item: Variant in array_value:
-					if not _is_single_pass_checksum_safe(
-						item,
-						next_visited,
-						depth + 1
-					):
-						return false
-				return true
-			var dictionary_value: Dictionary = value
-			var normalized_keys: Dictionary = {}
-			for key: Variant in dictionary_value.keys():
-				if not (key is String or key is StringName):
-					return false
-				var normalized_key: String
-				if key is String:
-					var string_key: String = key
-					normalized_key = string_key
-				else:
-					var string_name_key: StringName = key
-					normalized_key = String(string_name_key)
-				if normalized_keys.has(normalized_key):
-					return false
-				normalized_keys[normalized_key] = true
-				if (
-					not _is_single_pass_checksum_safe(
-						key,
-						next_visited,
-						depth + 1
-					)
-					or not _is_single_pass_checksum_safe(
-						dictionary_value[key],
-						next_visited,
-						depth + 1
-					)
-				):
-					return false
-			return true
-		_:
-			return false
+static func _checksum(data: Variant) -> String:
+	return GFDeterministicVariantSerializer.sha256(data, _CANONICAL_OPTIONS)
 
 
 func _normalize_ruleset_value(value: Variant, visited_resources: Dictionary) -> Variant:

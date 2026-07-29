@@ -93,9 +93,9 @@ func test_board_checksum_ignores_runtime_tile_ids_and_input_order() -> void:
 	)
 
 
-func test_single_serialization_checksum_matches_gf_storage_codec_boundaries() -> void:
+func test_checksum_uses_gf_canonical_bytes_and_sha256_contract() -> void:
 	var determinism: GameDeterminismUtility = GameDeterminismUtility.new()
-	var codec: GFStorageCodec = GFStorageCodec.new()
+	var canonical_options: Dictionary = {"allow_floats": true}
 	var cases: Array[Dictionary] = [
 		{
 			&"label": "classic_integer_state",
@@ -172,22 +172,60 @@ func test_single_serialization_checksum_matches_gf_storage_codec_boundaries() ->
 			case_data,
 			&"payload"
 		)
-		var expected: String = codec.calculate_checksum(
+		var canonical_bytes: PackedByteArray = (
+			GFDeterministicVariantSerializer.to_canonical_bytes(
+				payload,
+				canonical_options
+			)
+		)
+		var expected: String = GFDeterministicVariantSerializer.sha256(
 			payload,
-			GFStorageCodec.Format.JSON
+			canonical_options
 		)
 		var actual: String = GFVariantData.to_text(
 			determinism.call(&"_checksum", payload)
 		)
+		assert_false(
+			canonical_bytes.is_empty(),
+			"%s 必须能由 GF 规范编码为有类型的 canonical bytes。" % label
+		)
 		assert_true(
 			actual == expected,
-			"%s 必须与 GFStorageCodec.calculate_checksum(JSON) 逐字节兼容。"
+			"%s 必须直接遵循 GFDeterministicVariantSerializer.sha256。"
 			% label
 		)
 		assert_true(
 			actual.length() == 64 and actual == actual.to_lower(),
 			"%s 必须保持 GF 的小写 SHA-256 文本契约。" % label
 		)
+
+
+func test_gf_canonical_hash_protocol_has_golden_corpus_and_strict_schemas() -> void:
+	var payload: Dictionary = {
+		&"schema_version": 3,
+		&"position": Vector2i(4, 2),
+		&"label": &"checkpoint",
+		&"values": [2, 4, 8, 16],
+		&"probability": 0.9,
+	}
+	var determinism: GameDeterminismUtility = GameDeterminismUtility.new()
+	var actual: String = GFVariantData.to_text(
+		determinism.call(&"_checksum", payload)
+	)
+
+	assert_true(
+		actual
+		== "0e2f4ce83e5aefdb9054d248628e44f169549412a08a84406d978568377b8231",
+		"GF typed-marker canonical bytes 的黄金摘要不得静默漂移。"
+	)
+	assert_true(
+		ReplayCheckpoint.SCHEMA_VERSION == 3
+		and ReplayData.SCHEMA_VERSION == 5
+		and ReplayCatalogSaveData.SCHEMA_VERSION == 6
+		and BookmarkData.SCHEMA_VERSION == 5
+		and BookmarkCatalogSaveData.SCHEMA_VERSION == 9,
+		"checksum 协议变化必须由 checkpoint、条目和 section 严格 schema 共同承载。"
+	)
 
 
 func test_ruleset_fingerprint_includes_deterministic_rule_parameters() -> void:

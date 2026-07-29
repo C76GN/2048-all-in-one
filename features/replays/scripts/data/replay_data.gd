@@ -5,7 +5,8 @@ extends Resource
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 4
+## v5 冻结 GF canonical ruleset fingerprint 与 checkpoint v3。
+const SCHEMA_VERSION: int = 5
 ## 单局回放的业务步数上限；同时约束动作和逐回合检查点。
 ##
 ## 该上限在构造 Resource 前检查持久化数组，避免不可信存档先触发无界复制。

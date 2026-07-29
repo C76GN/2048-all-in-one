@@ -8,7 +8,8 @@ extends Resource
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 4
+## v5 冻结 GF canonical ruleset fingerprint 与 checkpoint v3。
+const SCHEMA_VERSION: int = 5
 
 
 # --- 导出变量 ---

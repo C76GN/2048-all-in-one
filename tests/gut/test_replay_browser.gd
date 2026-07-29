@@ -17,7 +17,7 @@ const _CLASSIC_DEFINITION_PATH: String = (
 
 # --- 测试用例 ---
 
-func test_checkpoint_v2_round_trip_preserves_turn_metadata() -> void:
+func test_checkpoint_v3_round_trip_preserves_turn_metadata() -> void:
 	var checkpoint: ReplayCheckpoint = _make_checkpoint(1, 16)
 	checkpoint.metadata_available = true
 	checkpoint.merge_count = 2
@@ -29,7 +29,7 @@ func test_checkpoint_v2_round_trip_preserves_turn_metadata() -> void:
 
 	var restored: ReplayCheckpoint = ReplayCheckpoint.from_dict(checkpoint.to_dict())
 
-	assert_not_null(restored, "checkpoint v2 应通过严格 schema 往返。")
+	assert_not_null(restored, "GF canonical checkpoint v3 应通过严格 schema 往返。")
 	if restored == null:
 		return
 	assert_true(restored.metadata_available, "强类型回合摘要可用性必须持久化。")

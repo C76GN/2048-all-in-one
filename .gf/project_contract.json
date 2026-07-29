@@ -232,9 +232,10 @@
         ],
         "acceptance": [
           "同一模式、拓扑、seed 与有效命令序列在干净运行和序列化往返后产生相同 canonical state/checkpoint hash。",
+          "Board、规则集、RNG 与完整状态摘要只通过 GFDeterministicVariantSerializer typed-marker canonical bytes 和 SHA-256 生成；项目不得保留 JSON/StorageCodec 双路径。",
           "玩法随机只来自 GFSeedUtility gameplay branch；系统时钟、渲染帧率和 cosmetic RNG 不得改变领域结果。"
         ],
-        "notes": ""
+        "notes": "GF canonical hash 协议切换由 ReplayCheckpoint v3、ReplayData v5、ReplayCatalog v6、BookmarkData v5 与 BookmarkCatalog v9 严格承载，不兼容旧摘要。"
       },
       {
         "id": "platform-adapters",

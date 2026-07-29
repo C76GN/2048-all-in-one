@@ -5,7 +5,7 @@ extends GameSaveSectionData
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 5
+const SCHEMA_VERSION: int = 6
 ## 玩家 Profile 中最多保留的回放数；最新 UUID v7 优先。
 const MAX_REPLAY_COUNT: int = 128
 

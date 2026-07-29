@@ -5,7 +5,8 @@ extends Resource
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 2
+## v3 的三个摘要均使用 GFDeterministicVariantSerializer typed-marker 编码。
+const SCHEMA_VERSION: int = 3
 
 
 # --- 导出变量 ---
@@ -60,7 +61,7 @@ func is_valid_checkpoint() -> bool:
 
 
 ## 从当前严格 schema 的持久化字典恢复回放校验点。
-## @param data: schema v2 的完整 checkpoint 字典。
+## @param data: schema v3 的完整 checkpoint 字典。
 static func from_dict(data: Dictionary) -> ReplayCheckpoint:
 	if not _has_current_shape(data):
 		return null

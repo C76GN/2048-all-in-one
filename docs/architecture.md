@@ -218,7 +218,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 2. `PlayerInputSystem` 显式忽略 GF 暂停和时间缩放，只为暂停期间继续消费“恢复”意图；检测到暂停后必须清空移动、撤销、重做、书签和提示输入，不能把缓冲延迟到恢复后执行。
 3. Composition Root 创建单一 `GFClock` 并同时注入 `GFTimeUtility` 与 `GameClockUtility`；后者是业务代码读取 wall-clock、单调 tick 和日期格式的唯一 Adapter，测试使用 `GFManualClock` 控制同一时间源。
 4. `GFSeedUtility` 拥有运行时随机流、全局种子和稳定派生算法；业务代码不得自行创建 `RandomNumberGenerator`，也不得调用 Godot 全局随机函数。生成规则只能消费以规则语义 ID 派生的 gameplay branch；粒子、音高、装饰闪烁等 cosmetic 随机不得消费 gameplay branch，也不得进入领域快照。
-5. `GameDeterminismUtility` 是 canonical turn state 的唯一摘要入口：它按拓扑坐标排序方块、排除运行时 UUID，并分别计算 board、gameplay RNG、规则集和完整 state checksum。规则资源必须声明稳定 `ruleset_id` 与 `ruleset_version`，内容变化必须显式提升版本或指纹。
+5. `GameDeterminismUtility` 是 canonical turn state 的唯一摘要入口：它按拓扑坐标排序方块、排除运行时 UUID，再把 board、gameplay RNG、规则集和完整状态交给 `GFDeterministicVariantSerializer` 的 typed-marker canonical bytes 与 SHA-256。规则浮点配置显式启用 GF IEEE-754 编码；项目不得保留 JSON/`GFStorageCodec` 摘要双路径。规则资源必须声明稳定 `ruleset_id` 与 `ruleset_version`，内容变化必须显式提升版本或指纹。
 6. `ReplayData` 保存初始 seed/拓扑、规则集身份与指纹、会话资格元数据、有效命令，以及每个 settled turn 的 `ReplayCheckpoint`。回放在应用命令后立即比较 checkpoint；第一次不一致生成包含回合、命令及 expected/actual board/RNG/state 的 OOS 报告，并阻断继续步进和“从回放继续”。事件标记从 checkpoint 元数据确定性派生，前后标记定位仍通过有界命令历史重建并复核目标 checksum。
 7. 固定 seed 测试语料必须覆盖全部正式模式和多种拓扑，验证重复执行、UUID/插入顺序变化与序列化往返不改变 canonical checksum。表现档位与无障碍设置的切换也不得改变同一 seed/命令序列的领域结果。
 8. 开发构建的长流程耗时由 `GFOperationDiagnosticsUtility` 的操作记录拥有。调用方读取同一操作的 `started_ticks_usec` 记录阶段，不再平行缓存一份系统 tick；发布路径只能通过当前 Architecture 的 local lookup 可选读取该 Utility，且在未安装开发诊断模块时必须保持完整功能。
