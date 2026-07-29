@@ -23,6 +23,11 @@ const _CATALOG_ID: StringName = &"ui_routes"
 const _UI_ROUTE_GROUP_ID: StringName = &"ui_routes"
 const _UI_ROUTE_RESOURCE_KEY_PREFIX: String = "game.ui_route."
 const _ROUTE_TYPE_HINT: String = "Resource"
+const _DEFAULT_PRELOAD_PLAN_OPTIONS: Dictionary = {
+	"max_depth": 1,
+	"max_routes": 4,
+	"include_source": true,
+}
 
 
 # --- 私有变量 ---
@@ -94,6 +99,49 @@ func get_debug_snapshot() -> Dictionary:
 	return snapshot
 
 
+## 以项目统一策略异步打开路由，并在调用方离开场景树后回滚迟到的面板。
+##
+## GFUIRouterUtility 负责预加载、并发去重与唯一终态；此方法只补充项目 owner
+## 生命周期和默认的相邻路由预加载预算。
+func push_owned_route_async(
+	owner: Node,
+	route_id: StringName,
+	params: Dictionary = {},
+	option_overrides: Dictionary = {},
+	config_callback: Callable = Callable(),
+	preload_policy: StringName = GFUIRouterUtility.PRELOAD_BEST_EFFORT
+) -> GFUIRouteResult:
+	if not _is_live_route_owner(owner):
+		return null
+
+	var owner_ref: WeakRef = weakref(owner)
+	var operation: GFUIRouteOperation = push_route_async(
+		route_id,
+		params,
+		option_overrides,
+		config_callback,
+		{
+			"preload_policy": preload_policy,
+			"preload_plan_options": _DEFAULT_PRELOAD_PLAN_OPTIONS.duplicate(true),
+			"metadata": {
+				"owner_instance_id": owner.get_instance_id(),
+				"owner_path": String(owner.get_path()),
+			},
+		}
+	)
+	if operation == null:
+		return null
+
+	var result: GFUIRouteResult = operation.get_result()
+	if result == null:
+		result = await operation.completed
+	if _is_live_route_owner_ref(owner_ref):
+		return result
+
+	_rollback_stale_route_result(result)
+	return null
+
+
 # --- 私有/辅助方法 ---
 
 func _load_routes_from_registry() -> Array[GFUIRoute]:
@@ -108,6 +156,25 @@ func _load_routes_from_registry() -> Array[GFUIRoute]:
 		if is_instance_valid(route):
 			routes.append(route)
 	return routes
+
+
+func _is_live_route_owner(owner: Node) -> bool:
+	return is_instance_valid(owner) and owner.is_inside_tree()
+
+
+func _is_live_route_owner_ref(owner_ref: WeakRef) -> bool:
+	if owner_ref == null:
+		return false
+	var value: Object = owner_ref.get_ref()
+	return value is Node and _is_live_route_owner(value as Node)
+
+
+func _rollback_stale_route_result(result: GFUIRouteResult) -> void:
+	if result == null or not result.is_successful():
+		return
+	if get_current_route_id(result.get_layer()) != result.get_route_id():
+		return
+	var _closed: bool = back(result.get_layer())
 
 
 func _load_route_entry(entry: GFResourceRegistryEntry) -> GFUIRoute:

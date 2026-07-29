@@ -141,10 +141,12 @@
         "decision_state": "confirmed",
         "owner": "application",
         "recipes": [
-          "ui-screen-flow"
+          "ui-screen-flow",
+          "ui-route-operation"
         ],
         "acceptance": [
-          "玩家弹层只经 GFUIRouterUtility 的稳定 route id 打开或关闭；路由失败保持原业务状态与焦点。",
+          "玩家弹层只经 GFUIRouterUtility 的稳定 route id 异步打开或关闭；调用方消费 GFUIRouteOperation 的唯一类型化终态，路由失败保持原业务状态与焦点。",
+          "相邻弹层通过 GFUIRoute.adjacent_route_ids 进入有界预加载计划；owner 离开场景树后的迟到成功必须立即回滚，不得遗留孤儿面板。",
           "空列表、键盘或手柄初始焦点、返回栈与 44px 触控契约由 UI GUT 覆盖。"
         ],
         "notes": ""

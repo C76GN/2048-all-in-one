@@ -49,6 +49,7 @@ var _theme_utility: GameThemeUtility
 var _celebration_vfx_utility: GameCelebrationVfxUtility
 var _replay_markers: Array[ReplayMarker] = []
 var _is_syncing_marker_picker: bool = false
+var _pending_popup_route_ids: Dictionary = {}
 
 ## 标记是否已完成清理，避免 _exit_tree 重复执行。
 var _is_cleaned_up: bool = false
@@ -626,6 +627,29 @@ func _get_ui_router_utility() -> GFUIRouterUtility:
 	return null
 
 
+func _get_game_ui_router_utility() -> GameUiRouterUtility:
+	var utility_value: Object = get_utility(GameUiRouterUtility)
+	if utility_value is GameUiRouterUtility:
+		var ui_router: GameUiRouterUtility = utility_value
+		return ui_router
+	var aliased_utility: GFUIRouterUtility = _get_ui_router_utility()
+	if aliased_utility is GameUiRouterUtility:
+		return aliased_utility as GameUiRouterUtility
+	return null
+
+
+func _open_gameplay_popup_async(route_id: StringName) -> GFUIRouteResult:
+	if _pending_popup_route_ids.has(route_id):
+		return null
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		return null
+	_pending_popup_route_ids[route_id] = true
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(self, route_id)
+	var _request_cleared: bool = _pending_popup_route_ids.erase(route_id)
+	return result
+
+
 func _get_replay_controls_label() -> Label:
 	if not is_instance_valid(replay_controls_container):
 		return null
@@ -715,7 +739,7 @@ func _on_toggle_pause_ui(_payload: Variant = null) -> void:
 		push_error("[GamePlayController] 缺少 GamePauseUtility，无法切换暂停菜单。")
 		return
 
-	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
 	if not is_instance_valid(ui_router):
 		push_error("[GamePlayController] 缺少 GFUIRouterUtility，无法切换暂停菜单。")
 		return
@@ -730,9 +754,16 @@ func _on_toggle_pause_ui(_payload: Variant = null) -> void:
 		if not pause_utility.resume():
 			push_error("[GamePlayController] 暂停菜单已关闭，但无法恢复对局时间。")
 	else:
-		var pause_panel: Node = ui_router.push_route(_ROUTE_PAUSE_MENU)
-		if not is_instance_valid(pause_panel):
-			push_error("[GamePlayController] GF UI 路由未能打开暂停菜单。")
+		var result: GFUIRouteResult = await _open_gameplay_popup_async(_ROUTE_PAUSE_MENU)
+		if result == null:
+			return
+		if not result.is_successful():
+			push_error(
+				"[GamePlayController] GF UI 路由未能打开暂停菜单：status=%s, reason=%s。" % [
+					result.get_status(),
+					result.get_reason(),
+				]
+			)
 			return
 		if not pause_utility.pause():
 			var _rolled_back: bool = ui_router.back(GFUIUtility.Layer.POPUP)
@@ -818,13 +849,18 @@ func _on_target_reached(_payload: Variant = null) -> void:
 	if is_instance_valid(celebration_vfx):
 		var _played: bool = celebration_vfx.play_target_reached_celebration()
 
-	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
 	if not is_instance_valid(ui_router):
 		push_error("[GamePlayController] 缺少 GFUIRouterUtility，无法打开目标达成菜单。")
 		return
-	var target_panel: Node = ui_router.push_route(_ROUTE_TARGET_REACHED_MENU)
-	if not is_instance_valid(target_panel):
-		push_error("[GamePlayController] GF UI 路由未能打开目标达成菜单。")
+	var result: GFUIRouteResult = await _open_gameplay_popup_async(_ROUTE_TARGET_REACHED_MENU)
+	if result == null:
+		return
+	if not result.is_successful():
+		push_error("[GamePlayController] GF UI 路由未能打开目标达成菜单：status=%s, reason=%s。" % [
+			result.get_status(),
+			result.get_reason(),
+		])
 		return
 	var pause_utility: GamePauseUtility = _get_pause_utility()
 	if not is_instance_valid(pause_utility) or not pause_utility.pause():
@@ -842,10 +878,17 @@ func _on_game_state_changed(new_state: StringName) -> void:
 		return
 
 	if new_state == EventNames.STATE_GAME_OVER:
-		var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+		var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
 		if not is_instance_valid(ui_router):
 			push_error("[GamePlayController] 缺少 GFUIRouterUtility，无法打开游戏结束菜单。")
 			return
-		var game_over_panel: Node = ui_router.push_route(_ROUTE_GAME_OVER_MENU)
-		if not is_instance_valid(game_over_panel):
-			push_error("[GamePlayController] GF UI 路由未能打开游戏结束菜单。")
+		var result: GFUIRouteResult = await _open_gameplay_popup_async(_ROUTE_GAME_OVER_MENU)
+		if result == null:
+			return
+		if not result.is_successful():
+			push_error(
+				"[GamePlayController] GF UI 路由未能打开游戏结束菜单：status=%s, reason=%s。" % [
+					result.get_status(),
+					result.get_reason(),
+				]
+			)

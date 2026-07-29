@@ -6,3 +6,4 @@
 script = ExtResource("1_route")
 route_id = &"target_reached_menu"
 scene_path = "res://features/gameplay/scenes/ui/target_reached_menu.tscn"
+adjacent_route_ids = PackedStringArray("game_over_menu")

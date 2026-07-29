@@ -96,9 +96,35 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 		ui_router.get_route(&"achievements").scene_path == "res://features/achievements/scenes/ui/achievement_list_dialog.tscn",
 		"成就路由应指向 achievements Feature 面板。"
 	)
+	assert_true(
+		ui_router.get_route(&"pause_menu").get_adjacent_route_ids() == PackedStringArray(
+			["settings_menu"]
+		),
+		"暂停菜单应声明设置页为相邻预加载路由。"
+	)
+	assert_true(
+		ui_router.get_route(&"tile_catalog").get_adjacent_route_ids() == PackedStringArray(
+			["tile_lab", "player_profile", "achievements"]
+		),
+		"收藏类弹层应声明有限且稳定的相邻预加载集合。"
+	)
 
 	architecture.dispose()
 	await get_tree().process_frame
+
+
+func test_owned_async_route_returns_typed_terminal_result() -> void:
+	var ui_router: GameUiRouterUtility = GameUiRouterUtility.new()
+
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
+		self,
+		&"missing_test_route"
+	)
+
+	assert_not_null(result, "异步路由应对立即失败也返回类型化终态。")
+	assert_false(result.is_successful(), "缺失路由不能报告成功。")
+	assert_eq(result.get_status(), GFUIRouteResult.STATUS_MISSING_ROUTE)
+	assert_eq(result.get_reason(), &"missing_route")
 
 
 func test_game_ui_router_uses_ui_route_registry_order() -> void:

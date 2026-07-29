@@ -13,7 +13,7 @@
 ## UI 与路由
 
 - `navigation` 只在 `ui_route_registry.tres` 登记稳定路由 `board_editor`，不实现编辑算法。
-- 模式选择页通过 `GFUIRouterUtility.push_route()` 打开编辑器，并在入栈前注入当前模板和拓扑。
+- 模式选择页通过项目 Router Adapter 的 `push_owned_route_async()` 以 required 预加载策略打开编辑器，消费类型化终态，并在入栈前注入当前模板和拓扑。
 - 编辑器提供画笔、橡皮擦、矩形与十字预设、清空、左上规范化、撤销、重做、模板保存、载入、删除和当前形状预览。
 - 右键始终擦除；左键遵循当前画笔或橡皮模式。断开区域只提示，不阻止保存与使用。
 - `BoardEditorCanvas` 使用固定单格世界尺寸，画布随模板范围扩展；快速拖动以连续格线补齐采样，不再把大棋盘压缩到固定 Control 中。

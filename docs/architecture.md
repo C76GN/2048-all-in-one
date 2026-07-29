@@ -193,11 +193,13 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### UI 路由与所有权
 
-1. 弹层只能通过 `GFUIRouterUtility` 的稳定 route ID 打开和关闭；业务代码不得直接调用 `GFUIUtility.pop_panel()` 或 `clear_all()`。
+1. 弹层只能通过 `GameUiRouterUtility.push_owned_route_async()` 进入 GF `GFUIRouterUtility` 的稳定 route ID；调用方必须消费 `GFUIRouteOperation` 的唯一 `GFUIRouteResult` 终态，业务代码不得直接调用 `GFUIUtility.pop_panel()` 或 `clear_all()`。
 2. 菜单控制器拥有自身路由的关闭职责。触发继续、重开或返回等业务事件时，先捕获当前 `GFArchitecture`，校验并关闭自身路由，再由捕获的架构派发事件。
 3. `GameFlowSystem` 只处理继续、重新开始和返回主界面等业务结果，并把暂停状态变更委托给 `GamePauseUtility`；它不读取或清空 UI 栈。
 4. 路由创建或关闭失败时保持原业务状态并显式报错，不切换暂停状态，也不回退到直接面板操作。
-5. 动态列表和模式卡片的纵向焦点顺序由 `GFControlFocusUtility` 写入；项目代码只保留跨列跳转等界面特有语义，不逐项重复计算首尾循环。
+5. `GFUIRoute.adjacent_route_ids` 只声明真实可达弹层，项目 Adapter 以 `max_depth=1`、`max_routes=4` 的预算尽力预加载；棋盘编辑器使用 required 策略，其他玩家弹层使用 best-effort，预加载失败不得破坏当前可见栈。
+6. 路由请求绑定场景 owner；owner 离开场景树后的迟到成功由项目 Adapter 校验并回滚，不能留下孤儿面板或继续执行业务状态切换。
+7. 动态列表和模式卡片的纵向焦点顺序由 `GFControlFocusUtility` 写入；项目代码只保留跨列跳转等界面特有语义，不逐项重复计算首尾循环。
 
 ### 平台运行时
 

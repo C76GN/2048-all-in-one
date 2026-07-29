@@ -525,41 +525,61 @@ func _on_replays_button_pressed() -> void:
 
 
 func _on_tile_catalog_button_pressed() -> void:
-	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
 	if not is_instance_valid(ui_router):
 		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开方块图鉴。")
 		return
-	var _catalog_panel: Node = ui_router.push_route(GameUiRouterUtility.ROUTE_TILE_CATALOG)
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
+		self,
+		GameUiRouterUtility.ROUTE_TILE_CATALOG
+	)
+	_report_route_open_failure(result, GameUiRouterUtility.ROUTE_TILE_CATALOG)
 
 
 func _on_tile_lab_button_pressed() -> void:
-	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
 	if not is_instance_valid(ui_router):
 		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开方块试验台。")
 		return
-	var _tile_lab_panel: Node = ui_router.push_route(
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
+		self,
 		GameUiRouterUtility.ROUTE_TILE_LAB
 	)
+	_report_route_open_failure(result, GameUiRouterUtility.ROUTE_TILE_LAB)
 
 
 func _on_player_profile_button_pressed() -> void:
-	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
 	if not is_instance_valid(ui_router):
 		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开玩家档案。")
 		return
-	var _profile_panel: Node = ui_router.push_route(
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
+		self,
 		GameUiRouterUtility.ROUTE_PLAYER_PROFILE
 	)
+	_report_route_open_failure(result, GameUiRouterUtility.ROUTE_PLAYER_PROFILE)
 
 
 func _on_achievements_button_pressed() -> void:
-	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
 	if not is_instance_valid(ui_router):
 		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开成就列表。")
 		return
-	var _achievements_panel: Node = ui_router.push_route(
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
+		self,
 		GameUiRouterUtility.ROUTE_ACHIEVEMENTS
 	)
+	_report_route_open_failure(result, GameUiRouterUtility.ROUTE_ACHIEVEMENTS)
+
+
+func _report_route_open_failure(result: GFUIRouteResult, route_id: StringName) -> void:
+	if result == null or result.is_successful():
+		return
+	push_error("[MainMenu] GF UI 路由打开失败：route=%s, status=%s, reason=%s。" % [
+		route_id,
+		result.get_status(),
+		result.get_reason(),
+	])
 
 
 func _on_settings_button_pressed() -> void:

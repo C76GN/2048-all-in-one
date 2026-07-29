@@ -6,3 +6,4 @@
 script = ExtResource("1_route")
 route_id = &"settings_menu"
 scene_path = "res://features/settings/scenes/menus/settings_menu.tscn"
+adjacent_route_ids = PackedStringArray("pause_menu", "game_over_menu")

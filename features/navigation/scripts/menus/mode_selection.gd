@@ -1348,18 +1348,25 @@ func _on_edit_board_button_pressed() -> void:
 	var topology_template: BoardTopologyTemplate = _selected_mode_config.board_topology_template
 	if not is_instance_valid(topology_template) or not topology_template.allow_custom_topology:
 		return
-	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
 	if not is_instance_valid(ui_router):
 		push_error("[ModeSelection] 缺少 GFUIRouterUtility，无法打开棋盘编辑器。")
 		return
-	var editor_panel: Node = ui_router.push_route(
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
+		self,
 		GameUiRouterUtility.ROUTE_BOARD_EDITOR,
 		{},
 		{},
-		_configure_board_editor
+		_configure_board_editor,
+		GFUIRouterUtility.PRELOAD_REQUIRED
 	)
-	if not is_instance_valid(editor_panel):
-		push_error("[ModeSelection] GF UI 路由未能打开棋盘编辑器。")
+	if result != null and not result.is_successful():
+		push_error(
+			"[ModeSelection] GF UI 路由未能打开棋盘编辑器：status=%s, reason=%s。" % [
+				result.get_status(),
+				result.get_reason(),
+			]
+		)
 
 
 func _on_prev_page_button_pressed() -> void:

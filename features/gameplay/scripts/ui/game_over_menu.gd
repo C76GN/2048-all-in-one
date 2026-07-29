@@ -500,10 +500,19 @@ func _on_main_menu_button_pressed() -> void:
 
 func _on_settings_button_pressed() -> void:
 	_drain_celebration()
-	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
 	if not is_instance_valid(ui_router):
 		push_error("[GameOverMenu] 缺少 GFUIRouterUtility，无法打开设置菜单。")
 		return
-	var settings_panel: Node = ui_router.push_route(_ROUTE_SETTINGS_MENU, {}, {}, _configure_settings_panel)
-	if not is_instance_valid(settings_panel):
-		push_error("[GameOverMenu] GF UI 路由未能打开设置菜单。")
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
+		self,
+		_ROUTE_SETTINGS_MENU,
+		{},
+		{},
+		_configure_settings_panel
+	)
+	if result != null and not result.is_successful():
+		push_error("[GameOverMenu] GF UI 路由未能打开设置菜单：status=%s, reason=%s。" % [
+			result.get_status(),
+			result.get_reason(),
+		])

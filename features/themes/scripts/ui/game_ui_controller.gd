@@ -211,6 +211,17 @@ func _get_ui_router_utility() -> GFUIRouterUtility:
 	return null
 
 
+func _get_game_ui_router_utility() -> GameUiRouterUtility:
+	var utility_value: Object = get_utility(GameUiRouterUtility)
+	if utility_value is GameUiRouterUtility:
+		var ui_router: GameUiRouterUtility = utility_value
+		return ui_router
+	var aliased_utility: GFUIRouterUtility = _get_ui_router_utility()
+	if aliased_utility is GameUiRouterUtility:
+		return aliased_utility as GameUiRouterUtility
+	return null
+
+
 ## 关闭当前弹层路由，并校验关闭目标仍是调用方拥有的路由。
 func _close_current_popup_route(expected_route_id: StringName) -> bool:
 	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
