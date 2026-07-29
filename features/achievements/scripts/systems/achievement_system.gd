@@ -1,7 +1,8 @@
 ## AchievementSystem: 把项目领域高水位指标投影到 GFQuestUtility。
 ##
-## SaveGraph 内存图是玩家成就进度真源，GFQuestUtility 是运行时状态机。系统先原子
-## 校验并更新 SaveGraph，再把磁盘快照交给 GFStorageUtility 合并异步写入。
+## 当前 GFSaveProfile section 是玩家成就进度真源，GFQuestUtility 是运行时状态机。
+## 系统先原子校验并更新 section，再由 GameSaveGraphUtility 交给 GFSaveProfileUtility
+## 合并 generation 并持久化。
 class_name AchievementSystem
 extends GFSystem
 

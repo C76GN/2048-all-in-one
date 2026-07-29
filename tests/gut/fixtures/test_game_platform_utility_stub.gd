@@ -3,11 +3,19 @@ class_name TestGamePlatformUtilityStub
 extends GamePlatformUtility
 
 
+# --- 公共变量 ---
+
 var clipboard_text: String = ""
 var clipboard_write_succeeds: bool = true
+
+
+# --- 私有变量 ---
+
 var _test_clipboard_request_serial: int = 0
 var _clock: GFManualClock = GFManualClock.new()
 
+
+# --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
 	return []
@@ -26,6 +34,8 @@ func dispose() -> void:
 	clipboard_text = ""
 	_test_clipboard_request_serial = 0
 
+
+# --- 公共方法 ---
 
 ## 记录测试中的平台剪贴板写入。
 ## @param text: 要写入的纯文本。

@@ -385,7 +385,9 @@ static func classify_swipe(
 
 func _resolve_nodes() -> void:
 	_host_control = _get_host_control()
-	_spatial_canvas = _host_control as GFSpatialCanvas2D
+	_spatial_canvas = null
+	if _host_control is GFSpatialCanvas2D:
+		_spatial_canvas = _host_control
 	_world_root = _get_node_2d(world_root_path)
 	_game_board = _get_game_board(game_board_path)
 	_view_controls = _get_panel_container(view_controls_path)

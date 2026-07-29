@@ -23,11 +23,11 @@
 
 ## 持久化
 
-- `CustomBoardCatalogSaveData` 拥有 `custom_boards` SaveGraph section，当前 schema 为 `1`。
+- `CustomBoardCatalogSaveData` 拥有 `custom_boards` GFSaveProfile section，当前 schema 为 `1`。
 - `CustomBoardData` 使用 UUID v7 稳定身份，显示名限制 64 字符，保存创建和更新时间，并内嵌严格 `BoardTopology`。
 - 玩家模板的 `topology_id` 必须为 `board.player.<uuid>`；统计键仍附加内容指纹，因此同一模板修改形状后不会错误复用旧成绩。
-- `CustomBoardSystem` 只通过 `GameSaveGraphUtility.replace_section_data()` 写入统一 `player_data.save`，不创建旁路文件。
-- 当前统一 Profile 为 `player_data@9`。同源旧 Profile（包括 v7/v8）只允许先完整备份，再按当前六个 section 的默认值重建；运行时不保留旧 Profile 双读分支，确需转换业务字段时应使用独立离线工具。
+- `CustomBoardSystem` 只通过 `GameSaveGraphUtility.request_replace_section_data()` 发起类型化异步事务；UI 等待 `GameSaveSectionOperation` 的唯一终态，并在 `outcome_unknown` 时保持禁用，直到按事务 ID 收到晚到对账结果。系统不创建旁路文件，也不在玩家交互中轮询磁盘。
+- 当前统一 Profile 版本只以 `GameSaveGraphUtility.PROFILE_SCHEMA_VERSION` 为真源。同源旧 Profile 只允许先完整备份，再按当前全部 provider 的默认值重建；运行时不保留旧 Profile 双读分支，确需转换业务字段时应使用独立离线工具。
 
 ## 后续演进
 

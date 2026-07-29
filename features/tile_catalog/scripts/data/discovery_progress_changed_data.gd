@@ -1,4 +1,4 @@
-## DiscoveryProgressChangedData: 图鉴 SaveGraph 提交成功后的发现进度事件。
+## DiscoveryProgressChangedData: 图鉴 Profile section 提交成功后的发现进度事件。
 class_name DiscoveryProgressChangedData
 extends RefCounted
 

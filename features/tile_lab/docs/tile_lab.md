@@ -8,7 +8,7 @@
 - `tile_catalog` 提供已登记的 `TileDefinition` 与 Recipe 发现 Interface。
 - `gameplay` 的 `TileCompositionUtility` 继续拥有 `GFCapabilityRecipe` 能力匹配与交互仲裁。
 - `persistence` 只编排当前账号 Profile 的 `tile_blueprints` section，不解释蓝图字段。
-- GF 提供 Recipe/Capability、目录、SaveGraph、UI 路由和生命周期机制，不拥有本项目方块内容或试验规则。
+- GF 提供 Recipe/Capability、目录、GFSaveProfile、UI 路由和生命周期机制，不拥有本项目方块内容或试验规则。
 
 ## 蓝图
 

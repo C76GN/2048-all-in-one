@@ -311,13 +311,20 @@ func _create_discovery_setup(save_dir_name: String) -> Dictionary:
 		save_graph.register_section(
 			GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
 			TileDiscoverySaveData.new(),
-			GFSaveScope.Phase.NORMAL
+			GameSaveGraphUtility.SectionOrder.NORMAL
 		),
-		"发现系统测试应注册独立 SaveGraph section。"
+		"发现系统测试应注册独立 Profile section。"
 	)
 
 	await architecture.register_utility(GFStorageUtility, storage)
-	await architecture.register_utility(GFSaveGraphUtility, GFSaveGraphUtility.new())
+	await architecture.register_utility(
+		GFSaveProfileUtility,
+		GFSaveProfileUtility.new()
+	)
+	await architecture.register_utility(
+		GFBackgroundWorkUtility,
+		GFBackgroundWorkUtility.new()
+	)
 	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())

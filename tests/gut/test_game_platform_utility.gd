@@ -409,6 +409,8 @@ class ResultSink extends RefCounted:
 	var results: Array[GFPlatformBridgeResult] = []
 
 
+	## 收集平台请求终态。
+	## @param result: 待收集的平台请求终态。
 	func capture(result: GFPlatformBridgeResult) -> void:
 		results.append(result)
 

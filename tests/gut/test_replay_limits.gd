@@ -64,8 +64,16 @@ func test_saving_replays_deterministically_retains_newest_uuid_v7_items() -> voi
 			index + 4
 		)
 		var _replay_id_appended: bool = replay_ids.append(replay.replay_id)
+		var operation: GameSaveSectionOperation = (
+			replay_system.request_save_replay(replay)
+		)
+		var result: GameSaveSectionResult = (
+			operation.get_result()
+			if operation != null
+			else null
+		)
 		assert_true(
-			replay_system.save_replay(replay) == OK,
+			result != null and result.is_successful(),
 			"目录到达上限后仍应保存新回放并淘汰最旧项。"
 		)
 
@@ -143,6 +151,7 @@ func _has_replay_id(replays: Array[ReplayData], replay_id: String) -> bool:
 
 class ReplaySaveGraphStub extends GameSaveGraphUtility:
 	var provider: ReplayCatalogSaveData = ReplayCatalogSaveData.new()
+	var transaction_serial: int = 0
 
 	## 从回放测试 Provider 读取指定 section。
 	## @param section_id: 要读取的稳定 section 标识。
@@ -151,10 +160,40 @@ class ReplaySaveGraphStub extends GameSaveGraphUtility:
 			return {}
 		return provider.get_section_data()
 
-	## 用测试数据替换回放 section。
+	## 以立即完成的 typed operation 替换测试回放 section。
 	## @param section_id: 要替换的稳定 section 标识。
 	## @param data: 当前版本的完整 section 业务数据。
-	func replace_section_data(section_id: StringName, data: Dictionary) -> Error:
-		if section_id != GameSaveGraphUtility.REPLAYS_SECTION_ID:
-			return ERR_INVALID_PARAMETER
-		return provider.replace_section_data(data)
+	## @param _metadata: 本测试不消费的持久化诊断元数据。
+	func request_replace_section_data(
+		section_id: StringName,
+		data: Dictionary,
+		_metadata: Dictionary = {}
+	) -> GameSaveSectionOperation:
+		transaction_serial += 1
+		var operation: GameSaveSectionOperation = GameSaveSectionOperation.new()
+		var _operation_configured: bool = operation.configure_for_utility(
+			transaction_serial,
+			&"test.replay_limits",
+			PackedStringArray([String(section_id)])
+		)
+		var error_code: Error = (
+			provider.replace_section_data(data)
+			if section_id == GameSaveGraphUtility.REPLAYS_SECTION_ID
+			else ERR_INVALID_PARAMETER
+		)
+		var result: GameSaveSectionResult = GameSaveSectionResult.new()
+		var _result_configured: bool = result.configure_for_utility(
+			operation.get_transaction_id(),
+			operation.get_profile_id(),
+			operation.get_section_ids(),
+			(
+				GameSaveSectionResult.STATUS_PERSISTED
+				if error_code == OK
+				else GameSaveSectionResult.STATUS_INVALID_REQUEST
+			),
+			error_code,
+			error_code == OK,
+			false
+		)
+		var _completed: bool = operation.complete_for_utility(result)
+		return operation

@@ -504,6 +504,16 @@ func _resume_bookmark(bookmark: BookmarkData) -> void:
 	_goto_scene(game_scene_path, "game_scene_path")
 
 
+func _report_route_open_failure(result: GFUIRouteResult, route_id: StringName) -> void:
+	if result == null or result.is_successful():
+		return
+	push_error("[MainMenu] GF UI 路由打开失败：route=%s, status=%s, reason=%s。" % [
+		route_id,
+		result.get_status(),
+		result.get_reason(),
+	])
+
+
 # --- 信号处理函数 ---
 
 func _on_start_game_button_pressed() -> void:
@@ -570,16 +580,6 @@ func _on_achievements_button_pressed() -> void:
 		GameUiRouterUtility.ROUTE_ACHIEVEMENTS
 	)
 	_report_route_open_failure(result, GameUiRouterUtility.ROUTE_ACHIEVEMENTS)
-
-
-func _report_route_open_failure(result: GFUIRouteResult, route_id: StringName) -> void:
-	if result == null or result.is_successful():
-		return
-	push_error("[MainMenu] GF UI 路由打开失败：route=%s, status=%s, reason=%s。" % [
-		route_id,
-		result.get_status(),
-		result.get_reason(),
-	])
 
 
 func _on_settings_button_pressed() -> void:

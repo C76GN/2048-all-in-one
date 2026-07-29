@@ -68,10 +68,20 @@ func test_blueprints_are_crud_isolated_between_player_profiles() -> void:
 
 	assert_true(save_graph.activate_profile(first_file, true) == OK)
 	var first_blueprint: CustomTileBlueprintData = _make_blueprint("第一份")
-	assert_true(tile_lab.save_blueprint(first_blueprint) == OK)
+	var first_save: GameSaveSectionResult = await _save_blueprint(
+		tile_lab,
+		first_blueprint,
+		setup
+	)
+	assert_true(first_save != null and first_save.is_successful())
 	assert_true(GFUuid.is_valid(first_blueprint.blueprint_id, 7))
 	first_blueprint.display_name = "第一份已更新"
-	assert_true(tile_lab.save_blueprint(first_blueprint) == OK)
+	var update_save: GameSaveSectionResult = await _save_blueprint(
+		tile_lab,
+		first_blueprint,
+		setup
+	)
+	assert_true(update_save != null and update_save.is_successful())
 	assert_true(tile_lab.load_blueprints().size() == 1)
 	assert_true(
 		tile_lab.load_blueprints()[0].display_name == "第一份已更新"
@@ -83,7 +93,12 @@ func test_blueprints_are_crud_isolated_between_player_profiles() -> void:
 		"新账号 Profile 不得读取另一个账号的试验台蓝图。"
 	)
 	var second_blueprint: CustomTileBlueprintData = _make_blueprint("第二份")
-	assert_true(tile_lab.save_blueprint(second_blueprint) == OK)
+	var second_save: GameSaveSectionResult = await _save_blueprint(
+		tile_lab,
+		second_blueprint,
+		setup
+	)
+	assert_true(second_save != null and second_save.is_successful())
 
 	assert_true(save_graph.activate_profile(first_file) == OK)
 	assert_true(tile_lab.load_blueprints().size() == 1)
@@ -91,7 +106,12 @@ func test_blueprints_are_crud_isolated_between_player_profiles() -> void:
 		tile_lab.load_blueprints()[0].blueprint_id
 		== first_blueprint.blueprint_id
 	)
-	assert_true(tile_lab.delete_blueprint(first_blueprint.blueprint_id) == OK)
+	var delete_result: GameSaveSectionResult = await _delete_blueprint(
+		tile_lab,
+		first_blueprint.blueprint_id,
+		setup
+	)
+	assert_true(delete_result != null and delete_result.is_successful())
 	assert_true(tile_lab.load_blueprints().is_empty())
 
 	assert_true(save_graph.activate_profile(second_file) == OK)
@@ -242,16 +262,27 @@ func test_blueprint_count_is_bounded_to_thirty_two() -> void:
 		var blueprint: CustomTileBlueprintData = _make_blueprint(
 			"蓝图 %02d" % index
 		)
+		var result: GameSaveSectionResult = await _save_blueprint(
+			tile_lab,
+			blueprint,
+			setup
+		)
 		assert_true(
-			tile_lab.save_blueprint(blueprint) == OK,
+			result != null and result.is_successful(),
 			"第 %d 份蓝图应在上限内保存。" % index
 		)
 	assert_true(
 		tile_lab.load_blueprints().size()
 		== TileLabSaveData.MAX_BLUEPRINT_COUNT
 	)
+	var overflow_result: GameSaveSectionResult = await _save_blueprint(
+		tile_lab,
+		_make_blueprint("超出上限"),
+		setup
+	)
 	assert_true(
-		tile_lab.save_blueprint(_make_blueprint("超出上限")) == ERR_OUT_OF_MEMORY,
+		overflow_result != null
+		and overflow_result.get_error_code() == ERR_OUT_OF_MEMORY,
 		"第 33 份蓝图必须被明确拒绝。"
 	)
 	_dispose_setup(setup)
@@ -262,9 +293,17 @@ func test_save_failure_rolls_back_profile_and_caller_identity() -> void:
 	var setup: Dictionary = await _create_setup(storage)
 	var tile_lab: TileLabSystem = _get_tile_lab(setup)
 	var blueprint: CustomTileBlueprintData = _make_blueprint("不可写蓝图")
-	storage.sync_save_errors.append(ERR_CANT_CREATE)
+	storage.async_save_errors.append(ERR_CANT_CREATE)
 
-	assert_true(tile_lab.save_blueprint(blueprint) == ERR_CANT_CREATE)
+	var save_result: GameSaveSectionResult = await _save_blueprint(
+		tile_lab,
+		blueprint,
+		setup
+	)
+	assert_true(
+		save_result != null
+		and save_result.get_error_code() == ERR_CANT_CREATE
+	)
 	assert_true(
 		blueprint.blueprint_id.is_empty(),
 		"持久化失败不得让调用方误以为蓝图已保存。"
@@ -324,9 +363,65 @@ func test_tile_lab_ui_has_touch_targets_confirmation_and_initial_focus() -> void
 		focus_owner == dialog.find_child("BlueprintOption", true, false),
 		"打开试验台时必须给键盘/手柄一个确定的初始焦点。"
 	)
+	var operation_token: int = dialog._begin_persistence_operation(
+		&"save",
+		"blueprint-under-test"
+	)
+	assert_true(operation_token > 0)
+	assert_true(dialog._new_button.disabled, "保存操作在途时必须禁用新建，避免状态漂移。")
+	assert_true(
+		dialog._blueprint_option.disabled,
+		"保存操作在途时必须禁用蓝图切换。"
+	)
+	assert_false(dialog._name_input.editable, "保存操作在途时不得继续编辑名称。")
+	dialog._persistence_outcome_unknown = true
+	dialog._pending_persistence_transaction_id = 91
+	await dialog._on_section_reconciliation_settled({
+		&"transaction_id": 91,
+		&"status": "late_failure_rolled_back",
+		&"candidate_persisted": false,
+		&"memory_rolled_back": true,
+	})
+	assert_false(
+		dialog._persistence_outcome_unknown,
+		"晚到回滚终态必须解除试验台的持久化锁定。"
+	)
+	assert_false(dialog._persistence_operation_busy)
+	assert_false(dialog._new_button.disabled, "对账收敛后必须恢复新建操作。")
+	assert_false(dialog._blueprint_option.disabled, "对账收敛后必须恢复蓝图切换。")
+	assert_true(dialog._name_input.editable, "对账收敛后必须恢复名称编辑。")
+	assert_true(
+		dialog._status_label.text
+		== dialog.tr("TILE_LAB_RECONCILIATION_ROLLED_BACK"),
+		"蓝图库回滚终态必须使用稳定本地化文案。"
+	)
 
 
 # --- 私有/辅助方法 ---
+
+func _save_blueprint(
+	tile_lab: TileLabSystem,
+	blueprint: CustomTileBlueprintData,
+	setup: Dictionary
+) -> GameSaveSectionResult:
+	return await GameSaveSectionOperationTestSupport.await_result(
+		tile_lab.request_save_blueprint(blueprint),
+		_get_architecture(setup),
+		get_tree()
+	)
+
+
+func _delete_blueprint(
+	tile_lab: TileLabSystem,
+	blueprint_id: String,
+	setup: Dictionary
+) -> GameSaveSectionResult:
+	return await GameSaveSectionOperationTestSupport.await_result(
+		tile_lab.request_delete_blueprint(blueprint_id),
+		_get_architecture(setup),
+		get_tree()
+	)
+
 
 func _create_setup(
 	storage_override: GFStorageUtility = null
@@ -350,12 +445,12 @@ func _create_setup(
 	assert_true(save_graph.register_section(
 		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
 		TileDiscoverySaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	))
 	assert_true(save_graph.register_section(
 		TileLabSaveData.SECTION_ID,
 		TileLabSaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	))
 	var catalog: TileCatalogUtility = TileCatalogUtility.new()
 	var composition: TileCompositionUtility = TileCompositionUtility.new()
@@ -369,8 +464,12 @@ func _create_setup(
 
 	await architecture.register_utility(GFStorageUtility, storage)
 	await architecture.register_utility(
-		GFSaveGraphUtility,
-		GFSaveGraphUtility.new()
+		GFSaveProfileUtility,
+		GFSaveProfileUtility.new()
+	)
+	await architecture.register_utility(
+		GFBackgroundWorkUtility,
+		GFBackgroundWorkUtility.new()
 	)
 	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
 	await architecture.register_utility(
@@ -517,15 +616,39 @@ func _get_tile_lab(setup: Dictionary) -> TileLabSystem:
 # --- 内部类 ---
 
 class _FailingStorage extends GFStorageUtility:
-	var sync_save_errors: Array[Error] = []
+	var async_save_errors: Array[Error] = []
+	var _next_request_id: int = 1
 
 
-	## 按队列为同步写入注入错误，并委托其余存储写入。
+	## 为 GFSaveProfileUtility 的请求专属异步写入注入错误队列。
 	## @param file_name: GFStorage 相对文件名。
 	## @param data: 要持久化的完整数据字典。
-	func save_data(file_name: String, data: Dictionary) -> Error:
-		if not sync_save_errors.is_empty():
-			var scripted_error: Error = sync_save_errors.pop_front()
-			if scripted_error != OK:
-				return scripted_error
-		return super.save_data(file_name, data)
+	func save_data_request_async(
+		file_name: String,
+		data: Dictionary
+	) -> GFStorageAsyncOperation:
+		if async_save_errors.is_empty():
+			return super.save_data_request_async(file_name, data)
+		var scripted_error: Error = async_save_errors.pop_front()
+		if scripted_error == OK:
+			return super.save_data_request_async(file_name, data)
+		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
+		var request_id: int = _next_request_id
+		_next_request_id += 1
+		var _configured_operation: bool = (
+			operation.configure_for_framework(
+				request_id,
+				GFStorageAsyncOperation.OPERATION_SAVE,
+				file_name
+			)
+		)
+		var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
+		var _configured_result: bool = result.configure_for_framework(
+			request_id,
+			GFStorageAsyncOperation.OPERATION_SAVE,
+			file_name,
+			false,
+			scripted_error
+		)
+		var _completed: bool = operation.complete_for_framework(result)
+		return operation

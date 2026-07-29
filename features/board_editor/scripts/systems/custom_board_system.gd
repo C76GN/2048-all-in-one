@@ -1,4 +1,4 @@
-## CustomBoardSystem: 管理玩家自定义棋盘模板及其统一 SaveGraph 事务。
+## CustomBoardSystem: 管理玩家自定义棋盘模板及其统一 GFSaveProfile 事务。
 class_name CustomBoardSystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
@@ -7,41 +7,56 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 
 var _save_graph: GameSaveGraphUtility
 var _clock: GameClockUtility
+var _signal_utility: GFSignalUtility
+var _disposed: bool = true
+var _reconciliation_connection: GFSignalConnection = null
 
 
 # --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GameClockUtility, GameSaveGraphUtility]
+	return [GameClockUtility, GameSaveGraphUtility, GFSignalUtility]
 
 
 func ready() -> void:
+	_disposed = false
 	_save_graph = _resolve_save_graph_utility()
 	_clock = _resolve_clock_utility()
+	_signal_utility = _resolve_signal_utility()
 
 
 func dispose() -> void:
+	_disposed = true
+	_disconnect_reconciliation_connection()
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	_save_graph = null
 	_clock = null
+	_signal_utility = null
 
 
 # --- 公共方法 ---
 
-## 新建或更新玩家棋盘。空 ID 表示新建；非空 ID 必须已存在。
+## 异步新建或更新玩家棋盘。空 ID 表示新建；非空 ID 必须已存在。
+##
+## 只有持久化确认成功后才把稳定身份回填到调用方对象；失败、BUSY 和
+## outcome_unknown 均保持调用方对象不变。
 ## @param custom_board: 待保存并回填稳定身份的数据对象。
-func save_custom_board(custom_board: CustomBoardData) -> Error:
-	if custom_board == null or not is_instance_valid(custom_board.topology):
-		return ERR_INVALID_PARAMETER
+func request_save_custom_board(
+	custom_board: CustomBoardData
+) -> GameSaveSectionOperation:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if custom_board == null or not is_instance_valid(custom_board.topology):
+		return _reject_operation(save_graph, ERR_INVALID_PARAMETER)
 	var clock: GameClockUtility = _get_clock()
 	if save_graph == null or clock == null:
-		return ERR_UNCONFIGURED
+		return _reject_operation(save_graph, ERR_UNCONFIGURED)
 
 	var display_name: String = CustomBoardData.normalize_display_name(custom_board.display_name)
 	if display_name.is_empty():
-		return ERR_INVALID_DATA
+		return _reject_operation(save_graph, ERR_INVALID_DATA)
 	if not custom_board.topology.get_validation_report().is_ok():
-		return ERR_INVALID_DATA
+		return _reject_operation(save_graph, ERR_INVALID_DATA)
 
 	var boards: Array[CustomBoardData] = load_custom_boards()
 	var now: int = maxi(clock.get_unix_timestamp(), 1)
@@ -51,18 +66,18 @@ func save_custom_board(custom_board: CustomBoardData) -> Error:
 	if board_id.is_empty():
 		board_id = _generate_unique_id(boards, now)
 		if board_id.is_empty():
-			return FAILED
+			return _reject_operation(save_graph, FAILED)
 	else:
 		if not GFUuid.is_valid(board_id, 7):
-			return ERR_INVALID_DATA
+			return _reject_operation(save_graph, ERR_INVALID_DATA)
 		replacing_index = _find_board_index(boards, board_id)
 		if replacing_index < 0:
-			return ERR_DOES_NOT_EXIST
+			return _reject_operation(save_graph, ERR_DOES_NOT_EXIST)
 		created_at = boards[replacing_index].created_at
 
 	var topology: BoardTopology = BoardTopology.from_dict(custom_board.topology.to_dict())
 	if topology == null:
-		return ERR_INVALID_DATA
+		return _reject_operation(save_graph, ERR_INVALID_DATA)
 	topology.topology_id = CustomBoardData.get_topology_id(board_id)
 
 	var candidate: CustomBoardData = CustomBoardData.new()
@@ -73,26 +88,20 @@ func save_custom_board(custom_board: CustomBoardData) -> Error:
 	candidate.topology = topology
 	var strict_candidate: CustomBoardData = CustomBoardData.from_dict(candidate.to_dict())
 	if strict_candidate == null:
-		return ERR_INVALID_DATA
+		return _reject_operation(save_graph, ERR_INVALID_DATA)
 
 	if replacing_index >= 0:
 		boards[replacing_index] = strict_candidate
 	else:
 		boards.append(strict_candidate)
 	boards.sort_custom(_is_newer_board)
-	var save_error: Error = save_graph.replace_section_data(
+	var operation: GameSaveSectionOperation = save_graph.request_replace_section_data(
 		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
-		_serialize_custom_boards(boards)
+		_serialize_custom_boards(boards),
+		{&"feature": &"custom_boards", &"action": &"save"}
 	)
-	if save_error != OK:
-		return save_error
-
-	custom_board.custom_board_id = strict_candidate.custom_board_id
-	custom_board.display_name = strict_candidate.display_name
-	custom_board.created_at = strict_candidate.created_at
-	custom_board.updated_at = strict_candidate.updated_at
-	custom_board.topology = BoardTopology.from_dict(strict_candidate.topology.to_dict())
-	return OK
+	_apply_saved_board_on_success(operation, strict_candidate, custom_board)
+	return operation
 
 
 func load_custom_boards() -> Array[CustomBoardData]:
@@ -126,26 +135,164 @@ func get_custom_board(custom_board_id: String) -> CustomBoardData:
 	return null
 
 
+## 异步删除一个玩家棋盘。
 ## @param custom_board_id: 待删除的玩家棋盘 UUID v7。
-func delete_custom_board(custom_board_id: String) -> Error:
-	if not GFUuid.is_valid(custom_board_id, 7):
-		return ERR_INVALID_PARAMETER
+func request_delete_custom_board(
+	custom_board_id: String
+) -> GameSaveSectionOperation:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if not GFUuid.is_valid(custom_board_id, 7):
+		return _reject_operation(save_graph, ERR_INVALID_PARAMETER)
 	if save_graph == null:
-		return ERR_UNCONFIGURED
+		return null
 
 	var boards: Array[CustomBoardData] = load_custom_boards()
 	var board_index: int = _find_board_index(boards, custom_board_id)
 	if board_index < 0:
-		return ERR_DOES_NOT_EXIST
+		return _reject_operation(save_graph, ERR_DOES_NOT_EXIST)
 	boards.remove_at(board_index)
-	return save_graph.replace_section_data(
+	return save_graph.request_replace_section_data(
 		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
-		_serialize_custom_boards(boards)
+		_serialize_custom_boards(boards),
+		{&"feature": &"custom_boards", &"action": &"delete"}
 	)
 
 
 # --- 私有/辅助方法 ---
+
+func _reject_operation(
+	save_graph: GameSaveGraphUtility,
+	error_code: Error
+) -> GameSaveSectionOperation:
+	if save_graph == null:
+		return null
+	return save_graph.make_rejected_section_operation(
+		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
+		error_code
+	)
+
+
+func _apply_saved_board_on_success(
+	operation: GameSaveSectionOperation,
+	strict_candidate: CustomBoardData,
+	target: CustomBoardData
+) -> void:
+	if operation == null:
+		return
+	if operation.is_completed():
+		_on_saved_board_operation_completed(
+			operation.get_result(),
+			strict_candidate,
+			target
+		)
+	else:
+		var callback: Callable = Callable(
+			self,
+			&"_on_saved_board_operation_completed"
+		).bind(strict_candidate, target)
+		var signal_utility: GFSignalUtility = _get_signal_utility()
+		if not is_instance_valid(signal_utility):
+			return
+		var _operation_connection: GFSignalConnection = (
+			signal_utility.connect_once(
+				operation.completed,
+				callback,
+				self
+			)
+		)
+
+
+func _on_saved_board_operation_completed(
+	result: GameSaveSectionResult,
+	strict_candidate: CustomBoardData,
+	target: CustomBoardData
+) -> void:
+	if (
+		_disposed
+		or result == null
+		or not is_instance_valid(target)
+	):
+		return
+	if not result.is_successful():
+		if (
+			result.get_status()
+			== GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN
+		):
+			_apply_saved_board_after_reconciliation(
+				result.get_transaction_id(),
+				strict_candidate,
+				target
+			)
+		return
+	_copy_saved_board(strict_candidate, target)
+
+
+func _apply_saved_board_after_reconciliation(
+	transaction_id: int,
+	strict_candidate: CustomBoardData,
+	target: CustomBoardData
+) -> void:
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	var signal_utility: GFSignalUtility = _get_signal_utility()
+	if save_graph == null or not is_instance_valid(signal_utility):
+		return
+	_disconnect_reconciliation_connection()
+	_reconciliation_connection = signal_utility.connect_signal(
+		save_graph.section_reconciliation_settled,
+		Callable(
+			self,
+			&"_on_saved_board_reconciliation_settled"
+		).bind(transaction_id, strict_candidate, target),
+		self
+	)
+
+
+func _on_saved_board_reconciliation_settled(
+	evidence: Dictionary,
+	transaction_id: int,
+	strict_candidate: CustomBoardData,
+	target: CustomBoardData
+) -> void:
+	if (
+		GFVariantData.get_option_int(
+			evidence,
+			&"transaction_id",
+			0
+		) != transaction_id
+	):
+		return
+	_disconnect_reconciliation_connection()
+	if (
+		_disposed
+		or not is_instance_valid(target)
+		or not GFVariantData.get_option_bool(
+			evidence,
+			&"candidate_persisted",
+			false
+		)
+	):
+		return
+	_copy_saved_board(strict_candidate, target)
+
+
+func _disconnect_reconciliation_connection() -> void:
+	if _reconciliation_connection != null:
+		_reconciliation_connection.disconnect_signal()
+	_reconciliation_connection = null
+
+
+static func _copy_saved_board(
+	strict_candidate: CustomBoardData,
+	target: CustomBoardData
+) -> void:
+	target.custom_board_id = strict_candidate.custom_board_id
+	target.display_name = strict_candidate.display_name
+	target.created_at = strict_candidate.created_at
+	target.updated_at = strict_candidate.updated_at
+	target.topology = BoardTopology.from_dict(
+		strict_candidate.topology.to_dict()
+	)
+
 
 func _get_save_graph() -> GameSaveGraphUtility:
 	if is_instance_valid(_save_graph):
@@ -161,6 +308,13 @@ func _get_clock() -> GameClockUtility:
 	return _clock
 
 
+func _get_signal_utility() -> GFSignalUtility:
+	if is_instance_valid(_signal_utility):
+		return _signal_utility
+	_signal_utility = _resolve_signal_utility()
+	return _signal_utility
+
+
 func _resolve_save_graph_utility() -> GameSaveGraphUtility:
 	var utility_value: Object = get_utility(GameSaveGraphUtility)
 	if utility_value is GameSaveGraphUtility:
@@ -173,6 +327,14 @@ func _resolve_clock_utility() -> GameClockUtility:
 	var utility_value: Object = get_utility(GameClockUtility)
 	if utility_value is GameClockUtility:
 		var utility: GameClockUtility = utility_value
+		return utility
+	return null
+
+
+func _resolve_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var utility: GFSignalUtility = utility_value
 		return utility
 	return null
 

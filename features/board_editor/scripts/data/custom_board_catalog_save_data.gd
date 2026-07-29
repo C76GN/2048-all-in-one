@@ -1,4 +1,4 @@
-## CustomBoardCatalogSaveData: board_editor Feature 的严格 SaveGraph section。
+## CustomBoardCatalogSaveData: board_editor Feature 的严格 GFSaveProfile section。
 class_name CustomBoardCatalogSaveData
 extends GameSaveSectionData
 

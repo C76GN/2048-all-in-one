@@ -288,4 +288,4 @@ GF 与项目边界：
 2. 默认 Noto Sans SC 已解决跨平台字形一致性；后续主题若要强化纸媒个性，应优先增加经过中文覆盖验证的 display font，而不是退回系统 fallback 或整页手写字。
 3. `printworks` 已切换到 Nathan Gibson 的 Universal UI Soundpack（CC BY 4.0）中筛选出的 OGG 短音效，并通过 `features/asset_library/resources/gf_content_package.json`、`GameAssetLibraryUtility` 和 `GFAudioBank` 与当前主题事件 ID 播放；后续需要继续做响度和混音打磨。
 4. 回放、书签和模式选择还需要按任务页原则继续消除等权卡片与过量说明。
-5. 回放/书签列表已接入 `GFRepeaterBinder`，后续只有在历史记录数量明显增大时再引入 `GFVirtualListModel`。
+5. 回放长列表已接入 `GFVirtualListModel`、`GFVirtualListFocusModel` 与 `GFRepeaterBinder` 的有界窗口；书签目录规模较小，继续使用普通 `GFRepeaterBinder`。后续若书签容量契约提升，再以物化控件预算和跨窗口焦点测试作为虚拟化门槛。

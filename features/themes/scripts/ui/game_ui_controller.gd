@@ -218,7 +218,8 @@ func _get_game_ui_router_utility() -> GameUiRouterUtility:
 		return ui_router
 	var aliased_utility: GFUIRouterUtility = _get_ui_router_utility()
 	if aliased_utility is GameUiRouterUtility:
-		return aliased_utility as GameUiRouterUtility
+		var game_ui_router: GameUiRouterUtility = aliased_utility
+		return game_ui_router
 	return null
 
 

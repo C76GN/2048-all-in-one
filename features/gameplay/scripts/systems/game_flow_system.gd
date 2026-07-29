@@ -36,6 +36,10 @@ var _session_duration_msec: int = 0
 var _session_ruleset_fingerprint: String = ""
 var _target_reached_modal_active: bool = false
 var _is_settling_move_turn: bool = false
+var _persistence_epoch: int = 0
+var _persistence_owner_active: bool = false
+var _bookmark_save_in_progress: bool = false
+var _section_reconciliation_waiters: Array[_SectionReconciliationWaiter] = []
 
 ## 核心状态机。
 var _fsm: GFStateMachine
@@ -45,6 +49,8 @@ var _notifications: GFNotificationUtility
 var _pause_utility: GamePauseUtility
 var _determinism: GameDeterminismUtility
 var _accessibility_summary: GameAccessibilitySummaryUtility
+var _save_graph: GameSaveGraphUtility
+var _signal_utility: GFSignalUtility
 
 
 # --- Godot 生命周期方法 ---
@@ -64,10 +70,12 @@ func get_required_utilities() -> Array[Script]:
 		GameClockUtility,
 		GameDeterminismUtility,
 		GamePauseUtility,
+		GameSaveGraphUtility,
 		GFCommandHistoryUtility,
 		GFLogUtility,
 		GFNotificationUtility,
 		GFSeedUtility,
+		GFSignalUtility,
 	]
 
 
@@ -81,6 +89,9 @@ func init() -> void:
 
 ## 处理初始化，绑定事件。
 func ready() -> void:
+	_persistence_epoch += 1
+	_persistence_owner_active = true
+	_bookmark_save_in_progress = false
 	_grid_model = _get_grid_model()
 	_game_status_model = _get_game_status_model()
 	_clock = _get_clock_utility()
@@ -88,6 +99,8 @@ func ready() -> void:
 	_pause_utility = _get_pause_utility()
 	_determinism = _get_determinism_utility()
 	_accessibility_summary = _get_accessibility_summary_utility()
+	_save_graph = _get_save_graph_utility()
+	_signal_utility = _get_signal_utility()
 	if not is_instance_valid(_notifications):
 		push_error("[GameFlowSystem] 缺少 GFNotificationUtility，玩法反馈不可用。")
 	if not is_instance_valid(_pause_utility):
@@ -110,6 +123,16 @@ func ready() -> void:
 
 ## 释放状态机和运行时缓存。GF 在绑定释放时按 owner 统一清理事件。
 func dispose() -> void:
+	_persistence_epoch += 1
+	_persistence_owner_active = false
+	_bookmark_save_in_progress = false
+	for waiter: _SectionReconciliationWaiter in (
+		_section_reconciliation_waiters.duplicate()
+	):
+		waiter.cancel()
+	_section_reconciliation_waiters.clear()
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	if _fsm != null:
 		_fsm.dispose()
 		_fsm = null
@@ -123,6 +146,8 @@ func dispose() -> void:
 	_pause_utility = null
 	_determinism = null
 	_accessibility_summary = null
+	_save_graph = null
+	_signal_utility = null
 	_player_actions.clear()
 	_turn_checkpoints.clear()
 	_last_saved_bookmark_state = {}
@@ -578,6 +603,26 @@ func _get_determinism_utility() -> GameDeterminismUtility:
 	return null
 
 
+func _get_save_graph_utility() -> GameSaveGraphUtility:
+	if is_instance_valid(_save_graph):
+		return _save_graph
+	var utility_value: Object = get_utility(GameSaveGraphUtility)
+	if utility_value is GameSaveGraphUtility:
+		_save_graph = utility_value
+		return _save_graph
+	return null
+
+
+func _get_signal_utility() -> GFSignalUtility:
+	if is_instance_valid(_signal_utility):
+		return _signal_utility
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		_signal_utility = utility_value
+		return _signal_utility
+	return null
+
+
 func _push_gameplay_notification(
 	message: String,
 	duration_seconds: float,
@@ -662,9 +707,21 @@ func _handle_game_over() -> void:
 		return
 
 	_play_game_over_sound()
-	var _recorded_result: GameResultRecordedData = _persist_current_game_result()
+	var recorded_result: GameResultRecordedData = _build_current_game_result()
+	var persistence_profile_file_name: String = (
+		_get_active_persistence_profile_file_name()
+	)
 
 	if not is_instance_valid(_grid_model) or not is_instance_valid(_game_status_model):
+		if recorded_result != null:
+			@warning_ignore("return_value_discarded")
+			_persist_game_over_artifacts.call_deferred(
+				recorded_result,
+				null,
+				_session_duration_msec,
+				_persistence_epoch,
+				persistence_profile_file_name
+			)
 		return
 
 	var replay_data: ReplayData = ReplayData.new()
@@ -686,14 +743,25 @@ func _handle_game_over() -> void:
 	replay_data.final_board_snapshot = _grid_model.get_snapshot()
 	replay_data.final_score = GFVariantData.to_int(_game_status_model.score.get_value(), 0)
 
-	if not _is_game_state_tainted and not replay_data.actions.is_empty():
-		var replay_system: ReplaySystem = _get_replay_system()
-		if is_instance_valid(replay_system):
-			var replay_save_error: Error = replay_system.save_replay(replay_data)
-			_log_persistence_error("save replay", replay_save_error)
+	var replay_to_save: ReplayData = (
+		replay_data
+		if not _is_game_state_tainted and not replay_data.actions.is_empty()
+		else null
+	)
+	if recorded_result != null or replay_to_save != null:
+		@warning_ignore("return_value_discarded")
+		_persist_game_over_artifacts.call_deferred(
+			recorded_result,
+			replay_to_save,
+			_session_duration_msec,
+			_persistence_epoch,
+			persistence_profile_file_name
+		)
 
 
 func _on_game_ready(data: GameReadyData) -> void:
+	_persistence_epoch += 1
+	_bookmark_save_in_progress = false
 	_is_replay_mode = data.is_replay_mode
 	_is_game_state_tainted = false
 	_session_metadata = (
@@ -824,7 +892,7 @@ func _persist_current_high_score() -> void:
 	_log_persistence_error("save high score", save_error)
 
 
-func _persist_current_game_result() -> GameResultRecordedData:
+func _build_current_game_result() -> GameResultRecordedData:
 	if _is_replay_mode:
 		return null
 	if (
@@ -834,10 +902,6 @@ func _persist_current_game_result() -> GameResultRecordedData:
 		or not is_instance_valid(_determinism)
 		or _session_metadata == null
 	):
-		return null
-
-	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system()
-	if not is_instance_valid(progress_stats_system):
 		return null
 
 	sync_highest_tile_from_grid()
@@ -877,12 +941,224 @@ func _persist_current_game_result() -> GameResultRecordedData:
 	var current_game_model: CurrentGameModel = _get_current_game_model()
 	if is_instance_valid(current_game_model):
 		current_game_model.last_game_result.set_value(result)
-	var save_error: Error = progress_stats_system.record_game_result(
-		result,
-		_session_duration_msec
+	return result
+
+
+func _persist_game_over_artifacts(
+	recorded_result: GameResultRecordedData,
+	replay_data: ReplayData,
+	duration_msec: int,
+	owner_epoch: int,
+	owner_profile_file_name: String
+) -> void:
+	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system()
+	var replay_system: ReplaySystem = _get_replay_system()
+
+	await _wait_for_section_serial_lane()
+	if not _is_game_over_persistence_profile_current(
+		owner_profile_file_name
+	):
+		return
+	if recorded_result != null and is_instance_valid(progress_stats_system):
+		var progress_operation: GameSaveSectionOperation = (
+			progress_stats_system.request_record_game_result(
+				recorded_result,
+				duration_msec
+			)
+		)
+		var progress_outcome: Dictionary = (
+			await _await_section_operation_settlement(progress_operation)
+		)
+		if (
+			not GFVariantData.get_option_bool(
+				progress_outcome,
+				&"candidate_persisted",
+				false
+			)
+			and owner_epoch == _persistence_epoch
+			and _is_game_over_persistence_profile_current(
+				owner_profile_file_name
+			)
+		):
+			_log_persistence_error(
+				"save game result",
+				_get_section_outcome_error(progress_outcome)
+			)
+
+	if not _is_game_over_persistence_profile_current(
+		owner_profile_file_name
+	):
+		return
+	await _wait_for_section_serial_lane()
+	if not _is_game_over_persistence_profile_current(
+		owner_profile_file_name
+	):
+		return
+	if replay_data != null and is_instance_valid(replay_system):
+		var replay_operation: GameSaveSectionOperation = (
+			replay_system.request_save_replay(replay_data)
+		)
+		var replay_outcome: Dictionary = (
+			await _await_section_operation_settlement(replay_operation)
+		)
+		if (
+			not GFVariantData.get_option_bool(
+				replay_outcome,
+				&"candidate_persisted",
+				false
+			)
+			and owner_epoch == _persistence_epoch
+			and _is_game_over_persistence_profile_current(
+				owner_profile_file_name
+			)
+		):
+			_log_persistence_error(
+				"save replay",
+				_get_section_outcome_error(replay_outcome)
+			)
+
+
+func _get_active_persistence_profile_file_name() -> String:
+	var save_graph: GameSaveGraphUtility = _get_save_graph_utility()
+	if save_graph == null:
+		return ""
+	return save_graph.get_profile_file_name()
+
+
+func _is_game_over_persistence_profile_current(
+	owner_profile_file_name: String
+) -> bool:
+	if (
+		not _persistence_owner_active
+		or owner_profile_file_name.is_empty()
+	):
+		return false
+	return (
+		_get_active_persistence_profile_file_name()
+		== owner_profile_file_name
 	)
-	_log_persistence_error("save game result", save_error)
-	return result if save_error == OK else null
+
+
+func _wait_for_section_serial_lane() -> void:
+	var save_graph: GameSaveGraphUtility = _get_save_graph_utility()
+	if save_graph == null:
+		return
+	var pending_operation: GameSaveSectionOperation = (
+		save_graph.get_pending_section_operation()
+	)
+	if pending_operation != null:
+		var _pending_outcome: Dictionary = (
+			await _await_section_operation_settlement(pending_operation)
+		)
+	if save_graph.is_section_reconciliation_pending():
+		var transaction_id: int = (
+			save_graph.get_pending_section_reconciliation_transaction_id()
+		)
+		if transaction_id > 0:
+			var _evidence: Dictionary = await _await_section_reconciliation(
+				transaction_id
+			)
+
+
+func _await_section_operation_settlement(
+	operation: GameSaveSectionOperation
+) -> Dictionary:
+	if operation == null:
+		return {
+			&"candidate_persisted": false,
+			&"error_code": int(ERR_UNCONFIGURED),
+		}
+	var result: GameSaveSectionResult = operation.get_result()
+	if result == null:
+		result = await operation.completed
+	if result == null:
+		return {
+			&"candidate_persisted": false,
+			&"error_code": int(FAILED),
+		}
+	if result.is_successful():
+		return {
+			&"transaction_id": result.get_transaction_id(),
+			&"status": String(result.get_status()),
+			&"candidate_persisted": true,
+			&"memory_rolled_back": result.was_memory_rolled_back(),
+			&"error_code": int(OK),
+		}
+	if result.get_status() != GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN:
+		return {
+			&"transaction_id": result.get_transaction_id(),
+			&"status": String(result.get_status()),
+			&"candidate_persisted": false,
+			&"memory_rolled_back": result.was_memory_rolled_back(),
+			&"error_code": int(result.get_error_code()),
+		}
+	var evidence: Dictionary = await _await_section_reconciliation(
+		result.get_transaction_id()
+	)
+	if evidence.is_empty():
+		return {
+			&"transaction_id": result.get_transaction_id(),
+			&"status": String(result.get_status()),
+			&"candidate_persisted": false,
+			&"memory_rolled_back": false,
+			&"error_code": int(result.get_error_code()),
+		}
+	evidence[&"error_code"] = (
+		int(OK)
+		if GFVariantData.get_option_bool(
+			evidence,
+			&"candidate_persisted",
+			false
+		)
+		else int(result.get_error_code())
+	)
+	return evidence
+
+
+func _await_section_reconciliation(transaction_id: int) -> Dictionary:
+	var save_graph: GameSaveGraphUtility = _get_save_graph_utility()
+	if save_graph == null or transaction_id <= 0:
+		return {}
+	var latest_evidence: Dictionary = (
+		save_graph.get_last_section_reconciliation_evidence()
+	)
+	if (
+		GFVariantData.get_option_int(
+			latest_evidence,
+			&"transaction_id",
+			0
+		) == transaction_id
+	):
+		return latest_evidence
+	var signal_utility: GFSignalUtility = _get_signal_utility()
+	if not is_instance_valid(signal_utility):
+		return {}
+	var waiter: _SectionReconciliationWaiter = _SectionReconciliationWaiter.new()
+	if not waiter.begin(save_graph, signal_utility, self, transaction_id):
+		return {}
+	_section_reconciliation_waiters.append(waiter)
+	var evidence: Dictionary = await waiter.settled
+	_section_reconciliation_waiters.erase(waiter)
+	if (
+		GFVariantData.get_option_bool(evidence, &"cancelled", false)
+		or GFVariantData.get_option_int(
+			evidence,
+			&"transaction_id",
+			0
+		) != transaction_id
+	):
+		return {}
+	return evidence
+
+
+static func _get_section_outcome_error(outcome: Dictionary) -> Error:
+	@warning_ignore("int_as_enum_without_cast")
+	var error_code: Error = GFVariantData.get_option_int(
+		outcome,
+		&"error_code",
+		FAILED
+	)
+	return error_code
 
 
 func _play_game_over_sound() -> void:
@@ -1092,6 +1368,14 @@ func _can_redo_player_move(command_history: GFCommandHistoryUtility) -> bool:
 func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	if _fsm.current_state_name != EventNames.STATE_PLAYING:
 		return
+	if _bookmark_save_in_progress:
+		_push_gameplay_notification(
+			tr("SNAPSHOT_SAVE_PENDING"),
+			3.0,
+			GFNotificationUtility.Level.INFO,
+			"gameplay.bookmark_save_pending"
+		)
+		return
 
 	if _is_game_state_tainted:
 		_push_gameplay_notification(
@@ -1151,9 +1435,58 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	var bookmark_system: BookmarkSystem = _get_bookmark_system()
 	if not is_instance_valid(bookmark_system):
 		return
-	var bookmark_save_error: Error = bookmark_system.save_bookmark(new_bookmark)
-	if bookmark_save_error != OK:
-		_log_persistence_error("save bookmark", bookmark_save_error)
+	_bookmark_save_in_progress = true
+	var operation: GameSaveSectionOperation = (
+		bookmark_system.request_save_bookmark(new_bookmark)
+	)
+	@warning_ignore("return_value_discarded")
+	_complete_bookmark_save.call_deferred(
+		operation,
+		current_state_for_comparison.duplicate(true),
+		_persistence_epoch
+	)
+
+
+func _complete_bookmark_save(
+	operation: GameSaveSectionOperation,
+	saved_state: Dictionary,
+	owner_epoch: int
+) -> void:
+	if owner_epoch != _persistence_epoch:
+		return
+	var initial_result: GameSaveSectionResult = (
+		operation.get_result()
+		if operation != null
+		else null
+	)
+	if initial_result == null and operation != null:
+		initial_result = await operation.completed
+	if owner_epoch != _persistence_epoch:
+		return
+	if (
+		initial_result != null
+		and initial_result.get_status()
+		== GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN
+	):
+		_push_gameplay_notification(
+			tr("SNAPSHOT_SAVE_PENDING"),
+			4.0,
+			GFNotificationUtility.Level.WARNING,
+			"gameplay.bookmark_save_pending"
+		)
+	var outcome: Dictionary = await _await_section_operation_settlement(
+		operation
+	)
+	if owner_epoch != _persistence_epoch:
+		return
+	_bookmark_save_in_progress = false
+	if not GFVariantData.get_option_bool(
+		outcome,
+		&"candidate_persisted",
+		false
+	):
+		var error_code: Error = _get_section_outcome_error(outcome)
+		_log_persistence_error("save bookmark", error_code)
 		_push_gameplay_notification(
 			tr("SNAPSHOT_SAVE_FAILED"),
 			3.0,
@@ -1161,13 +1494,14 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 			"gameplay.bookmark_save_failed"
 		)
 		return
-	_last_saved_bookmark_state = current_state_for_comparison.duplicate(true)
+	_last_saved_bookmark_state = saved_state.duplicate(true)
 	_push_gameplay_notification(
 		tr("SNAPSHOT_SAVED_SUCCESS"),
 		3.0,
 		GFNotificationUtility.Level.SUCCESS,
 		"gameplay.bookmark_saved"
 	)
+
 
 func _on_ui_pause_requested(_payload: Variant = null) -> void:
 	if _fsm.current_state_name == EventNames.STATE_GAME_OVER or _is_replay_mode:
@@ -1252,3 +1586,81 @@ func _on_score_updated(amount: int) -> void:
 	if is_instance_valid(_game_status_model):
 		_game_status_model.add_score(amount)
 		_persist_current_high_score()
+
+
+# --- 内部类 ---
+
+class _SectionReconciliationWaiter:
+	extends RefCounted
+
+	signal settled(evidence: Dictionary)
+
+	var _save_graph: GameSaveGraphUtility = null
+	var _transaction_id: int = 0
+	var _connection: GFSignalConnection = null
+	var _terminal: bool = false
+
+	## 绑定一个指定 section transaction 的 reconciliation 终态。
+	## @param save_graph: 发布 reconciliation 证据的项目持久化 Utility。
+	## @param signal_utility: 拥有安全 Signal 连接的 GF Utility。
+	## @param owner: 持有当前等待生命周期的 GameFlowSystem。
+	## @param transaction_id: 只接收此 section transaction 的证据。
+	func begin(
+		save_graph: GameSaveGraphUtility,
+		signal_utility: GFSignalUtility,
+		owner: Object,
+		transaction_id: int
+	) -> bool:
+		if (
+			_terminal
+			or _connection != null
+			or save_graph == null
+			or signal_utility == null
+			or owner == null
+			or transaction_id <= 0
+		):
+			return false
+		_save_graph = save_graph
+		_transaction_id = transaction_id
+		_connection = signal_utility.connect_signal(
+			_save_graph.section_reconciliation_settled,
+			_on_settled,
+			owner
+		)
+		if _connection != null and _connection.is_active():
+			return true
+		_disconnect()
+		return false
+
+	func cancel() -> void:
+		if _terminal:
+			return
+		_terminal = true
+		var transaction_id: int = _transaction_id
+		_disconnect()
+		settled.emit({
+			&"transaction_id": transaction_id,
+			&"cancelled": true,
+			&"candidate_persisted": false,
+		})
+
+	func _on_settled(evidence: Dictionary) -> void:
+		if (
+			_terminal
+			or GFVariantData.get_option_int(
+				evidence,
+				&"transaction_id",
+				0
+			) != _transaction_id
+		):
+			return
+		_terminal = true
+		var evidence_snapshot: Dictionary = evidence.duplicate(true)
+		_disconnect()
+		settled.emit(evidence_snapshot)
+
+	func _disconnect() -> void:
+		if _connection != null:
+			_connection.disconnect_signal()
+		_connection = null
+		_save_graph = null

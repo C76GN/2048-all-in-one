@@ -7,7 +7,7 @@
 - `AchievementDefinition`：资源化身份、文案、单调指标和目标值。
 - `AchievementCatalogUtility`：通过 `GFResourceRegistry`、`ProjectResourceCatalogUtility`、`GFResourceResolverUtility` 和 `GFAssetUtility` 注册并校验定义。
 - `AchievementSystem`：把规范玩家数据投影为成就进度。
-- `AchievementSaveData`：拥有 SaveGraph 的 `achievements` section。
+- `AchievementSaveData`：拥有当前 GFSaveProfile 的 `achievements` section。
 - `GFQuestUtility`：拥有运行时任务状态机、进度封顶和完成状态，不拥有持久化 schema。
 - `AchievementListDialog`：只读 GF UI Route，不直接写进度。
 

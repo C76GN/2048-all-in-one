@@ -1,7 +1,7 @@
 ## BookmarkSystem: 负责处理游戏书签（状态存档）持久化的核心系统。
 ##
 ## 负责管理并持久化游戏书签记录。
-## 书签作为独立 Feature section 参与统一玩家数据 SaveGraph 事务。
+## 书签作为独立 Feature section 参与统一玩家 GFSaveProfile 事务。
 class_name BookmarkSystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
@@ -27,35 +27,50 @@ func dispose() -> void:
 
 # --- 公共方法 ---
 
-## 将一个 BookmarkData 原子写入统一玩家数据图。
-## @param bookmark_data: 要保存的BookmarkData资源。
-func save_bookmark(bookmark_data: BookmarkData) -> Error:
-	if bookmark_data == null:
-		return ERR_INVALID_PARAMETER
+## 异步将一个 BookmarkData 原子写入统一玩家 Profile。
+## @param bookmark_data: 要保存的 BookmarkData 资源。
+func request_save_bookmark(
+	bookmark_data: BookmarkData
+) -> GameSaveSectionOperation:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
 	if save_graph == null:
-		return ERR_UNCONFIGURED
+		return null
+	if bookmark_data == null:
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+			ERR_INVALID_PARAMETER
+		)
 
 	if bookmark_data.bookmark_id.is_empty():
 		var timestamp_msec: int = bookmark_data.timestamp * 1000 if bookmark_data.timestamp > 0 else -1
 		bookmark_data.bookmark_id = GFUuid.generate_v7(timestamp_msec)
 	if not GFUuid.is_valid(bookmark_data.bookmark_id, 7):
-		return ERR_INVALID_DATA
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+			ERR_INVALID_DATA
+		)
 
 	var candidate: BookmarkData = BookmarkData.from_dict(bookmark_data.to_dict())
 	if candidate == null:
-		return ERR_INVALID_DATA
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+			ERR_INVALID_DATA
+		)
 	var bookmarks: Array[BookmarkData] = load_bookmarks()
 	for existing: BookmarkData in bookmarks:
 		if existing.bookmark_id == candidate.bookmark_id:
-			return ERR_ALREADY_EXISTS
+			return save_graph.make_rejected_section_operation(
+				GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+				ERR_ALREADY_EXISTS
+			)
 	bookmarks.append(candidate)
 	bookmarks.sort_custom(func(left: BookmarkData, right: BookmarkData) -> bool:
 		return left.bookmark_id > right.bookmark_id
 	)
-	return save_graph.replace_section_data(
+	return save_graph.request_replace_section_data(
 		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
-		_serialize_bookmarks(bookmarks)
+		_serialize_bookmarks(bookmarks),
+		{&"feature_operation": "save_bookmark"}
 	)
 
 
@@ -80,14 +95,19 @@ func load_bookmarks() -> Array[BookmarkData]:
 	return bookmarks
 
 
-## 根据稳定 ID 删除一个书签。
+## 根据稳定 ID 异步删除一个书签。
 ## @param bookmark_id: 要删除的 UUID v7 书签标识。
-func delete_bookmark(bookmark_id: String) -> Error:
-	if not GFUuid.is_valid(bookmark_id, 7):
-		return ERR_INVALID_PARAMETER
+func request_delete_bookmark(
+	bookmark_id: String
+) -> GameSaveSectionOperation:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
 	if save_graph == null:
-		return ERR_UNCONFIGURED
+		return null
+	if not GFUuid.is_valid(bookmark_id, 7):
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+			ERR_INVALID_PARAMETER
+		)
 
 	var bookmarks: Array[BookmarkData] = load_bookmarks()
 	var found: bool = false
@@ -98,10 +118,14 @@ func delete_bookmark(bookmark_id: String) -> Error:
 			continue
 		retained.append(bookmark)
 	if not found:
-		return ERR_DOES_NOT_EXIST
-	return save_graph.replace_section_data(
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+			ERR_DOES_NOT_EXIST
+		)
+	return save_graph.request_replace_section_data(
 		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
-		_serialize_bookmarks(retained)
+		_serialize_bookmarks(retained),
+		{&"feature_operation": "delete_bookmark"}
 	)
 
 

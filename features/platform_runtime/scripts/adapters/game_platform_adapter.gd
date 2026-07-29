@@ -76,6 +76,8 @@ func handle_notification(_what: int) -> void:
 	pass
 
 
+# --- 可重写钩子 / 虚方法 ---
+
 ## 把已校验文本写入平台剪贴板。
 ##
 ## Godot 或 SDK 调用只能由 `_dispatch()` 经此受保护钩子抵达，项目调用方不得
@@ -85,8 +87,6 @@ func handle_notification(_what: int) -> void:
 func _write_text_to_clipboard(_text: String) -> bool:
 	return false
 
-
-# --- 可重写钩子 / 虚方法 ---
 
 ## 默认项目 adapter 明确拒绝未实现的 SDK 调用。
 func _dispatch(

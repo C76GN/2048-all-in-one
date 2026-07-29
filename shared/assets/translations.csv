@@ -25,6 +25,7 @@ SNAPSHOT_TAINT_WARN,警告: 正在保存一个被调试工具修改过的状态�
 SNAPSHOT_NO_CHANGE,游戏状态未变，无需重复保存。,State unchanged. Save skipped.
 SNAPSHOT_SAVED_SUCCESS,书签已保存！,Bookmark Saved!
 SNAPSHOT_SAVE_FAILED,书签保存失败。,Bookmark save failed.
+SNAPSHOT_SAVE_PENDING,书签正在确认保存结果，请稍候。,Bookmark save is still being confirmed.
 REPLAY_CONTINUE_SUCCESS,已从当前回放进度继续游戏。,Continued from the current replay step.
 TARGET_REACHED_MESSAGE,已达成目标 %d！可以继续挑战更高方块。,Target %d reached! Keep going for a higher tile.
 SIZE_LABEL,尺寸,Size
@@ -124,6 +125,10 @@ DELETE_FAILED_TITLE,删除失败,Deletion Failed
 DELETE_ITEM_FAILED,删除失败（错误码：%d）。,Deletion failed (error %d).
 DELETE_SAVE_FAILED,存档删除失败（错误码：%d）。,Failed to delete save (error %d).
 DELETE_REPLAY_FAILED,回放删除失败（错误码：%d）。,Failed to delete replay (error %d).
+LIST_DELETE_PERSISTENCE_OUTCOME_UNKNOWN,持久化结果尚未确认。本页会等待存档对账，期间无法重复删除。,The persistence result is not confirmed yet. This page will wait for reconciliation; another deletion is unavailable in the meantime.
+LIST_DELETE_RECONCILIATION_SUCCEEDED,删除结果已经确认，列表已同步更新。,The deletion is confirmed and the list is now up to date.
+LIST_DELETE_RECONCILIATION_ROLLED_BACK,删除未生效，原记录已经恢复。你可以稍后重试。,The deletion did not take effect and the original record was restored. You can try again later.
+LIST_DELETE_RECONCILIATION_UNRESOLVED,删除结果仍无法安全确认，请重新进入页面核对数据。,The deletion still cannot be confirmed safely. Reopen this page to verify the data.
 MSG_NO_DATA,暂无数据。,No data.
 MSG_SELECT_ITEM,请选择一个项目...,Select an item...
 MSG_SELECT_SAVE,请选择一个存档...,Select a save file...
@@ -399,6 +404,9 @@ BOARD_EDITOR_LIBRARY_DETAIL,尺寸 %s · %d 格 · %d 个区域,Size %s · %d ce
 BOARD_EDITOR_INCOMPATIBLE_SUFFIX,（当前模式不可用）, (unavailable in this mode)
 BOARD_EDITOR_SAVE_FAILED,保存失败，错误码：%d,Save failed with error %d
 BOARD_EDITOR_DELETE_FAILED,删除失败，错误码：%d,Delete failed with error %d
+BOARD_EDITOR_PERSISTENCE_OUTCOME_UNKNOWN,持久化结果尚未确认。正在等待存档对账，期间无法重复保存或删除。,The persistence result is not confirmed yet. Waiting for reconciliation; save and delete are unavailable in the meantime.
+BOARD_EDITOR_RECONCILIATION_SUCCEEDED,存档对账完成，棋盘库已同步。,Save reconciliation is complete and the board library is now up to date.
+BOARD_EDITOR_RECONCILIATION_ROLLED_BACK,本次修改未持久化，棋盘库已恢复。,This change was not persisted and the board library has been restored.
 BOARD_EDITOR_ACTION_DRAW,绘制格子,Draw Cells
 BOARD_EDITOR_ACTION_ERASE,擦除格子,Erase Cells
 BOARD_EDITOR_ACTION_RECTANGLE,应用矩形预设,Apply Rectangle Preset
@@ -455,12 +463,15 @@ PLAYER_DELETE,删除玩家,Delete Player
 PLAYER_DELETE_CONFIRM_TITLE,删除本地玩家,Delete Local Player
 PLAYER_DELETE_CONFIRM,确认删除“%s”及其独立存档吗？,Delete “%s” and its independent save data?
 PLAYER_PROFILE_UNAVAILABLE,玩家档案暂不可用。,Player profile is unavailable.
+PLAYER_PROFILE_LOADING,正在读取玩家档案…,Loading player profile…
+PLAYER_PROFILE_PARTIAL,部分账号档案暂时无法读取；已显示其余可用数据。,Some account profiles could not be read; the remaining available data is shown.
 PLAYER_ACCOUNT_SUMMARY,%s · %d 局 · 最高 %d · 最近 %s,%s · %d games · Best %d · Last active %s
 PLAYER_MODE_STATS_EMPTY,完成一局后会在这里显示各模式统计。,Mode statistics appear here after a completed game.
 PLAYER_MODE_METRICS,%d 局 · 最高分 %d · 最大方块 %d,%d games · Best score %d · Highest tile %d
 PLAYER_MODE_TIMING,最短单局 %s · 平均单局 %s,Shortest run %s · Average run %s
 PLAYER_TIME_NONE,--,--
 LOCAL_LEADERBOARD_EMPTY,还没有符合当前规则配置的本地成绩。,No local result matches this rules configuration yet.
+LOCAL_LEADERBOARD_LOADING,正在读取本地排行榜…,Loading local leaderboard…
 LOCAL_LEADERBOARD_ALL_MODES,全部模式,All Modes
 LOCAL_LEADERBOARD_GROUP,%s · %s · 规则 v%d,%s · %s · Rules v%d
 LOCAL_LEADERBOARD_BOARD_GENERIC,棋盘,Board
@@ -516,6 +527,9 @@ TILE_LAB_UNAVAILABLE,试验台系统不可用。,Tile Lab is unavailable.
 TILE_LAB_SUMMARY,%d 份蓝图 · 上限 %d,Blueprints: %d · Limit: %d
 TILE_LAB_SAVE_FAILED,保存蓝图失败（错误码 %d）。,Could not save blueprint (error %d).
 TILE_LAB_DELETE_FAILED,删除蓝图失败（错误码 %d）。,Could not delete blueprint (error %d).
+TILE_LAB_PERSISTENCE_OUTCOME_UNKNOWN,持久化结果尚未确认。正在等待存档对账，期间无法重复保存或删除。,The persistence result is not confirmed yet. Waiting for reconciliation; save and delete are unavailable in the meantime.
+TILE_LAB_RECONCILIATION_SUCCEEDED,存档对账完成，蓝图库已同步。,Save reconciliation is complete and the blueprint library is now up to date.
+TILE_LAB_RECONCILIATION_ROLLED_BACK,本次修改未持久化，蓝图库已恢复。,This change was not persisted and the blueprint library has been restored.
 TILE_LAB_SAVE_SUCCEEDED,蓝图已保存。,Blueprint saved.
 TILE_LAB_DELETE_SUCCEEDED,蓝图已删除。,Blueprint deleted.
 TILE_LAB_RESULT_INVALID,无法运行当前组合：%s,Cannot run this composition: %s

@@ -64,7 +64,7 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 - gameplay 与棋盘编辑器已具备可缩放/平移视口、安全区投影和 desktop/compact/portrait 响应式布局。
 - HUD、触摸 D-pad、指针手势和抽象输入上下文已按设备能力分层。
 - diagnostics 工作区由 `with_dev_tools` Feature 与独立 Window 隔离，普通玩家构建不创建该工作区。
-- 本地成就、方块图鉴、不可变比赛资格和资格过滤后的本地排行榜及其 SaveGraph section 已实现；它们尚未等同于微信开放数据域、线上裁决或平台同步。
+- 本地成就、方块图鉴、不可变比赛资格和资格过滤后的本地排行榜及其 GFSaveProfile section 已实现；它们尚未等同于微信开放数据域、线上裁决或平台同步。
 - `GamePlatformAdapter` / `LocalPlatformAdapter` 已实现 Godot 本地、移动端和 Web 的共同能力投影；尚无 `WeChatMinigamePlatformAdapter`。
 
 ## 真机签字矩阵
@@ -89,5 +89,5 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 
 1. 准备与当前项目匹配的导出工具链、微信开发者工具 CLI 和实际微信导出适配器，完成开发者工具与真机冒烟签字。
 2. 根据产品范围先定义登录、存储、分享、支付和开放数据域中真正需要的 capability / bridge contract，再实现并注册 `WeChatMinigamePlatformAdapter`；未选择的能力不得被 UI 假定存在。
-3. 将现有本地成就、图鉴与本地排行榜分别接到平台 bridge；线上排行榜和平台成就同步由平台或服务端裁决，本地 SaveGraph 只保留离线状态与待同步事实。
+3. 将现有本地成就、图鉴与本地排行榜分别接到平台 bridge；线上排行榜和平台成就同步由平台或服务端裁决，本地 Profile 只保留离线状态与待同步事实。
 4. 在每次 Godot、GF、微信导出适配器或关键 Shader 更新后重跑项目预检、环境检查和真机矩阵，不沿用历史 Web 报告代替新签字。

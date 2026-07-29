@@ -159,6 +159,48 @@ func get_debug_snapshot() -> Dictionary:
 	}
 
 
+## 由惰性 Provider 按稳定标识采集一次只读快照。
+## @param provider_id: 已注册的项目诊断 Provider 标识。
+func collect_diagnostic_snapshot(provider_id: StringName) -> Dictionary:
+	match provider_id:
+		&"resource_catalog":
+			return _collect_resource_catalog_snapshot()
+		&"save_graph":
+			return _collect_save_graph_snapshot()
+		&"asset_library":
+			return _collect_asset_library_snapshot()
+		&"theme_catalog":
+			return _collect_theme_catalog_snapshot()
+		&"themes":
+			return _collect_themes_snapshot()
+		&"game_modes":
+			return _collect_game_modes_snapshot()
+		&"tile_catalog":
+			return _collect_tile_catalog_snapshot()
+		&"tile_discoveries":
+			return _collect_tile_discoveries_snapshot()
+		&"achievement_catalog":
+			return _collect_achievement_catalog_snapshot()
+		&"achievements":
+			return _collect_achievements_snapshot()
+		&"ui_routes":
+			return _collect_ui_routes_snapshot()
+		&"scene_asset_metadata":
+			return _collect_scene_asset_metadata_snapshot()
+		&"debug_overlay":
+			return _collect_debug_overlay_snapshot()
+		&"runtime_inspector":
+			return _collect_runtime_inspector_snapshot()
+		&"screenshots":
+			return _collect_screenshot_snapshot()
+		&"project_diagnostics":
+			return get_debug_snapshot()
+		&"gameplay_move_trace":
+			return _collect_gameplay_move_trace_snapshot()
+		_:
+			return {}
+
+
 # --- 私有/辅助方法 ---
 
 func _refresh_project_tool_snapshots() -> void:
@@ -166,73 +208,56 @@ func _refresh_project_tool_snapshots() -> void:
 		return
 
 	_register_lazy_snapshot_provider(
-		&"resource_catalog",
-		Callable(self, &"_collect_resource_catalog_snapshot")
+		&"resource_catalog"
 	)
 	_register_lazy_snapshot_provider(
-		&"save_graph",
-		Callable(self, &"_collect_save_graph_snapshot")
+		&"save_graph"
 	)
 	_register_lazy_snapshot_provider(
-		&"asset_library",
-		Callable(self, &"_collect_asset_library_snapshot")
+		&"asset_library"
 	)
 	_register_lazy_snapshot_provider(
-		&"theme_catalog",
-		Callable(self, &"_collect_theme_catalog_snapshot")
+		&"theme_catalog"
 	)
 	_register_lazy_snapshot_provider(
-		&"themes",
-		Callable(self, &"_collect_themes_snapshot")
+		&"themes"
 	)
 	_register_lazy_snapshot_provider(
-		&"game_modes",
-		Callable(self, &"_collect_game_modes_snapshot")
+		&"game_modes"
 	)
 	_register_lazy_snapshot_provider(
-		&"tile_catalog",
-		Callable(self, &"_collect_tile_catalog_snapshot")
+		&"tile_catalog"
 	)
 	_register_lazy_snapshot_provider(
-		&"tile_discoveries",
-		Callable(self, &"_collect_tile_discoveries_snapshot")
+		&"tile_discoveries"
 	)
 	_register_lazy_snapshot_provider(
-		&"achievement_catalog",
-		Callable(self, &"_collect_achievement_catalog_snapshot")
+		&"achievement_catalog"
 	)
 	_register_lazy_snapshot_provider(
-		&"achievements",
-		Callable(self, &"_collect_achievements_snapshot")
+		&"achievements"
 	)
 	_register_lazy_snapshot_provider(
-		&"ui_routes",
-		Callable(self, &"_collect_ui_routes_snapshot")
+		&"ui_routes"
 	)
 	_register_lazy_snapshot_provider(
 		&"scene_asset_metadata",
-		Callable(self, &"_collect_scene_asset_metadata_snapshot"),
 		75_000
 	)
 	_register_lazy_snapshot_provider(
-		&"debug_overlay",
-		Callable(self, &"_collect_debug_overlay_snapshot")
+		&"debug_overlay"
 	)
 	_register_lazy_snapshot_provider(
-		&"runtime_inspector",
-		Callable(self, &"_collect_runtime_inspector_snapshot")
+		&"runtime_inspector"
 	)
 	_register_lazy_snapshot_provider(
-		&"screenshots",
-		Callable(self, &"_collect_screenshot_snapshot")
+		&"screenshots"
 	)
 	_register_lazy_snapshot_provider(
-		&"project_diagnostics",
-		Callable(self, &"get_debug_snapshot")
+		&"project_diagnostics"
 	)
 	_register_lazy_snapshot_provider(
-		&"gameplay_move_trace",
-		Callable(self, &"_collect_gameplay_move_trace_snapshot")
+		&"gameplay_move_trace"
 	)
 
 	# 仅发布架构就绪后不再变化、且采集成本固定的缓存事实。
@@ -408,7 +433,6 @@ func _publish_tool_snapshot(tool_id: StringName, snapshot: Dictionary) -> void:
 
 func _register_lazy_snapshot_provider(
 	provider_id: StringName,
-	collector: Callable,
 	max_duration_usec: int = GFDiagnosticSnapshotProvider.DEFAULT_MAX_DURATION_USEC
 ) -> void:
 	if (
@@ -420,7 +444,7 @@ func _register_lazy_snapshot_provider(
 		GameDiagnosticSnapshotProvider.new()
 	)
 	var _provider_configured: GameDiagnosticSnapshotProvider = (
-		provider.configure_collector(provider_id, collector, {
+		provider.configure_collector(provider_id, self, {
 			"max_duration_usec": max_duration_usec,
 			"metadata": {
 				"feature": "project",

@@ -26,9 +26,18 @@ var _history: GFCommandHistoryUtility
 var _custom_board_system: CustomBoardSystem
 var _input_mapping: GFInputMappingUtility
 var _signal_utility: GFSignalUtility
+var _save_graph: GameSaveGraphUtility
 var _saved_boards: Array[CustomBoardData] = []
 var _selected_saved_board_id: String = ""
 var _configured: bool = false
+var _persistence_operation_busy: bool = false
+var _persistence_outcome_unknown: bool = false
+var _persistence_operation_token: int = 0
+var _pending_persistence_transaction_id: int = 0
+var _pending_persistence_action: StringName = &""
+var _pending_persistence_resource_id: String = ""
+var _pending_persistence_resource: Resource = null
+var _persistence_reconciliation_prompted: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -76,6 +85,7 @@ func _ready() -> void:
 	_custom_board_system = _get_custom_board_system()
 	_input_mapping = _get_input_mapping_utility()
 	_signal_utility = _get_signal_utility()
+	_save_graph = _get_save_graph_utility()
 	if is_instance_valid(_input_mapping):
 		_input_mapping.enable_context(_INPUT_CONTEXT, 600)
 	_setup_tool_button_group()
@@ -87,6 +97,10 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_persistence_operation_token += 1
+	_persistence_operation_busy = false
+	_persistence_outcome_unknown = false
+	_clear_persistence_tracking()
 	if is_instance_valid(_input_mapping):
 		_input_mapping.disable_context(_INPUT_CONTEXT)
 	if is_instance_valid(_signal_utility):
@@ -95,6 +109,7 @@ func _exit_tree() -> void:
 	_custom_board_system = null
 	_input_mapping = null
 	_signal_utility = null
+	_save_graph = null
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -175,6 +190,11 @@ func _connect_signals() -> void:
 	_connect_managed_signal(_delete_button.pressed, _on_delete_button_pressed)
 	_connect_managed_signal(_cancel_button.pressed, _on_cancel_button_pressed)
 	_connect_managed_signal(_apply_button.pressed, _on_apply_button_pressed)
+	if is_instance_valid(_save_graph):
+		_connect_managed_signal(
+			_save_graph.section_reconciliation_settled,
+			_on_section_reconciliation_settled
+		)
 
 
 func _connect_managed_signal(source_signal: Signal, callback: Callable) -> void:
@@ -324,8 +344,16 @@ func _refresh_draft_state() -> void:
 			_validation_label.text = tr("BOARD_EDITOR_STATUS_DISCONNECTED") % [bounds.x, bounds.y, cell_count, component_count]
 		_:
 			_validation_label.text = tr("BOARD_EDITOR_STATUS_VALID") % [bounds.x, bounds.y, cell_count]
-	_apply_button.disabled = not valid
-	_save_button.disabled = not valid or not is_instance_valid(_custom_board_system)
+	var persistence_blocked: bool = (
+		_persistence_operation_busy
+		or _persistence_outcome_unknown
+	)
+	_apply_button.disabled = not valid or persistence_blocked
+	_save_button.disabled = (
+		not valid
+		or not is_instance_valid(_custom_board_system)
+		or persistence_blocked
+	)
 	_refresh_history_buttons()
 
 
@@ -379,8 +407,12 @@ func _get_selected_saved_board() -> CustomBoardData:
 func _update_saved_board_controls(custom_board: CustomBoardData) -> void:
 	var exists: bool = custom_board != null
 	var compatible: bool = exists and _topology_template.accepts_topology(custom_board.topology)
-	_load_button.disabled = not compatible
-	_delete_button.disabled = not exists
+	var persistence_blocked: bool = (
+		_persistence_operation_busy
+		or _persistence_outcome_unknown
+	)
+	_load_button.disabled = not compatible or persistence_blocked
+	_delete_button.disabled = not exists or persistence_blocked
 	if not exists:
 		_saved_board_detail_label.text = tr("BOARD_EDITOR_LIBRARY_EMPTY")
 		return
@@ -451,14 +483,154 @@ func _get_signal_utility() -> GFSignalUtility:
 	return null
 
 
+func _get_save_graph_utility() -> GameSaveGraphUtility:
+	var utility_value: Object = get_utility(GameSaveGraphUtility)
+	if utility_value is GameSaveGraphUtility:
+		var save_graph: GameSaveGraphUtility = utility_value
+		return save_graph
+	return null
+
+
 static func _is_row_major_before(left: Vector2i, right: Vector2i) -> bool:
 	return left.y < right.y or (left.y == right.y and left.x < right.x)
+
+
+func _begin_persistence_operation(
+	action: StringName,
+	resource_id: String,
+	resource: Resource = null
+) -> int:
+	_persistence_operation_busy = true
+	_persistence_operation_token += 1
+	_pending_persistence_transaction_id = 0
+	_pending_persistence_action = action
+	_pending_persistence_resource_id = resource_id
+	_pending_persistence_resource = resource
+	_persistence_reconciliation_prompted = false
+	_refresh_draft_state()
+	_update_saved_board_controls(_get_selected_saved_board())
+	return _persistence_operation_token
+
+
+func _finish_persistence_operation(token: int) -> bool:
+	if token != _persistence_operation_token or not is_inside_tree():
+		return false
+	_persistence_operation_busy = false
+	_refresh_draft_state()
+	_update_saved_board_controls(_get_selected_saved_board())
+	return true
+
+
+func _clear_persistence_tracking() -> void:
+	_pending_persistence_transaction_id = 0
+	_pending_persistence_action = &""
+	_pending_persistence_resource_id = ""
+	_pending_persistence_resource = null
+
+
+func _await_persistence_operation(
+	operation: GameSaveSectionOperation
+) -> GameSaveSectionResult:
+	if operation == null:
+		return null
+	var result: GameSaveSectionResult = operation.get_result()
+	if result == null:
+		result = await operation.completed
+	return result
+
+
+func _is_persistence_outcome_unknown(
+	result: GameSaveSectionResult
+) -> bool:
+	if result == null:
+		return false
+	return result.get_status() in [
+		GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN,
+		GameSaveSectionResult.STATUS_ROLLBACK_OUTCOME_UNKNOWN,
+	]
+
+
+func _show_persistence_outcome_unknown(
+	result: GameSaveSectionResult
+) -> void:
+	if result == null:
+		return
+	_persistence_outcome_unknown = true
+	_pending_persistence_transaction_id = result.get_transaction_id()
+	_refresh_draft_state()
+	_update_saved_board_controls(_get_selected_saved_board())
+	var last_evidence: Dictionary = {}
+	if is_instance_valid(_save_graph):
+		last_evidence = _save_graph.get_last_section_reconciliation_evidence()
+	if (
+		GFVariantData.get_option_int(
+			last_evidence,
+			&"transaction_id",
+			0
+		)
+		== _pending_persistence_transaction_id
+	):
+		await _on_section_reconciliation_settled(last_evidence)
+	else:
+		_saved_board_detail_label.text = tr(
+			"BOARD_EDITOR_PERSISTENCE_OUTCOME_UNKNOWN"
+		)
 
 
 # --- 信号处理函数 ---
 
 func _on_draft_changed() -> void:
 	_refresh_draft_state()
+
+
+func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
+	if (
+		not _persistence_outcome_unknown
+		or _pending_persistence_transaction_id <= 0
+		or GFVariantData.get_option_int(evidence, &"transaction_id", 0)
+		!= _pending_persistence_transaction_id
+	):
+		return
+	var operation_token: int = _persistence_operation_token
+	var action: StringName = _pending_persistence_action
+	var resource_id: String = _pending_persistence_resource_id
+	var resource: Resource = _pending_persistence_resource
+	var candidate_persisted: bool = GFVariantData.get_option_bool(
+		evidence,
+		&"candidate_persisted",
+		false
+	)
+	var memory_rolled_back: bool = GFVariantData.get_option_bool(
+		evidence,
+		&"memory_rolled_back",
+		false
+	)
+	_pending_persistence_transaction_id = 0
+	_persistence_outcome_unknown = false
+	_persistence_operation_busy = true
+	await get_tree().process_frame
+	if operation_token != _persistence_operation_token or not is_inside_tree():
+		return
+	var preferred_id: String = resource_id if memory_rolled_back else ""
+	if (
+		action == &"save"
+		and candidate_persisted
+		and resource is CustomBoardData
+	):
+		var saved_board: CustomBoardData = resource
+		preferred_id = saved_board.custom_board_id
+	_refresh_saved_boards(preferred_id)
+	_persistence_operation_busy = false
+	_clear_persistence_tracking()
+	_refresh_draft_state()
+	_update_saved_board_controls(_get_selected_saved_board())
+	if not _persistence_reconciliation_prompted:
+		_persistence_reconciliation_prompted = true
+		_saved_board_detail_label.text = (
+			tr("BOARD_EDITOR_RECONCILIATION_SUCCEEDED")
+			if candidate_persisted
+			else tr("BOARD_EDITOR_RECONCILIATION_ROLLED_BACK")
+		)
 
 
 func _on_brush_button_pressed() -> void:
@@ -505,6 +677,8 @@ func _on_clear_button_pressed() -> void:
 
 
 func _on_saved_board_selected(index: int) -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	if index < 0 or index >= _saved_board_list.item_count:
 		return
 	_selected_saved_board_id = GFVariantData.to_text(_saved_board_list.get_item_metadata(index))
@@ -512,11 +686,15 @@ func _on_saved_board_selected(index: int) -> void:
 
 
 func _on_saved_board_activated(index: int) -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	_on_saved_board_selected(index)
 	await _on_load_button_pressed()
 
 
 func _on_save_button_pressed() -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	if not is_instance_valid(_custom_board_system) or not is_instance_valid(_draft):
 		return
 	var topology: BoardTopology = _draft.create_topology()
@@ -525,15 +703,42 @@ func _on_save_button_pressed() -> void:
 	var custom_board: CustomBoardData = CustomBoardData.new()
 	custom_board.display_name = _board_name_edit.text
 	custom_board.topology = topology
-	var save_error: Error = _custom_board_system.save_custom_board(custom_board)
-	if save_error != OK:
-		_saved_board_detail_label.text = tr("BOARD_EDITOR_SAVE_FAILED") % save_error
+	var operation_token: int = _begin_persistence_operation(
+		&"save",
+		custom_board.custom_board_id,
+		custom_board
+	)
+	var operation: GameSaveSectionOperation = (
+		_custom_board_system.request_save_custom_board(custom_board)
+	)
+	var result: GameSaveSectionResult = await _await_persistence_operation(
+		operation
+	)
+	if not _finish_persistence_operation(operation_token):
+		return
+	if result == null:
+		_clear_persistence_tracking()
+		_saved_board_detail_label.text = (
+			tr("BOARD_EDITOR_SAVE_FAILED") % ERR_UNAVAILABLE
+		)
+		return
+	if _is_persistence_outcome_unknown(result):
+		await _show_persistence_outcome_unknown(result)
+		return
+	if not result.is_successful():
+		_clear_persistence_tracking()
+		_saved_board_detail_label.text = (
+			tr("BOARD_EDITOR_SAVE_FAILED") % result.get_error_code()
+		)
 		return
 	_board_name_edit.text = custom_board.display_name
 	_refresh_saved_boards(custom_board.custom_board_id)
+	_clear_persistence_tracking()
 
 
 func _on_load_button_pressed() -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	var custom_board: CustomBoardData = _get_selected_saved_board()
 	if custom_board == null or not _topology_template.accepts_topology(custom_board.topology):
 		return
@@ -542,13 +747,41 @@ func _on_load_button_pressed() -> void:
 
 
 func _on_delete_button_pressed() -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	if not is_instance_valid(_custom_board_system) or _selected_saved_board_id.is_empty():
 		return
-	var delete_error: Error = _custom_board_system.delete_custom_board(_selected_saved_board_id)
-	if delete_error != OK:
-		_saved_board_detail_label.text = tr("BOARD_EDITOR_DELETE_FAILED") % delete_error
+	var operation_token: int = _begin_persistence_operation(
+		&"delete",
+		_selected_saved_board_id
+	)
+	var operation: GameSaveSectionOperation = (
+		_custom_board_system.request_delete_custom_board(
+			_selected_saved_board_id
+		)
+	)
+	var result: GameSaveSectionResult = await _await_persistence_operation(
+		operation
+	)
+	if not _finish_persistence_operation(operation_token):
+		return
+	if result == null:
+		_clear_persistence_tracking()
+		_saved_board_detail_label.text = (
+			tr("BOARD_EDITOR_DELETE_FAILED") % ERR_UNAVAILABLE
+		)
+		return
+	if _is_persistence_outcome_unknown(result):
+		await _show_persistence_outcome_unknown(result)
+		return
+	if not result.is_successful():
+		_clear_persistence_tracking()
+		_saved_board_detail_label.text = (
+			tr("BOARD_EDITOR_DELETE_FAILED") % result.get_error_code()
+		)
 		return
 	_refresh_saved_boards()
+	_clear_persistence_tracking()
 
 
 func _on_cancel_button_pressed() -> void:
@@ -556,6 +789,8 @@ func _on_cancel_button_pressed() -> void:
 
 
 func _on_apply_button_pressed() -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	if not is_instance_valid(_draft):
 		return
 	var topology: BoardTopology = _draft.create_topology()

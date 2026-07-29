@@ -53,18 +53,18 @@ const _MODE_ROWS: Array[Dictionary] = [
 ]
 
 const _EXPECTED_GOLDEN_SUMMARIES: Dictionary = {
-	"gameplay.classic|rectangle": "49fa529ef010c7100e7740a2405511c39c011519d3c1cd7e73042ecdc37e071a",
-	"gameplay.classic|sparse_cross": "c4ad26f12a8b933756256bc31cb02ebcec68be8411ad43a7248a6726aa42588c",
-	"gameplay.step_by_step|rectangle": "854e7be563058d15cbaa297ac7a52fbfc8dfdf260d00054ed74ef56100b2e851",
-	"gameplay.step_by_step|sparse_cross": "c94638a443e1831ce1cb39293cd3831eb25418f867af1a08af0867802008c918",
-	"gameplay.ratio|rectangle": "9dd24e9b30520ecc5781ce42d095a554930ac620fd80871b9f0a9506179f8982",
-	"gameplay.ratio|sparse_cross": "0a8e6e0d63736f3bb56451bc1bcda7ad35e9f8bef0471e4a0bb7c8b55faf15ec",
-	"gameplay.progressive|rectangle": "57db4529cf0cbd64b4a571bcaf008d84e8568cfeed28c8dbcca448a4a08e16a2",
-	"gameplay.progressive|sparse_cross": "c34445f8d8929e25cad3e511e85f6f549f3a8e07b786e2f2e53b408d2d13ed55",
-	"gameplay.fibonacci|rectangle": "7dc533281eb23c627d7fb6954f4c25d16870035f37f88227ed87fbe736bf2b44",
-	"gameplay.fibonacci|sparse_cross": "dfd0f8e062c2a3199232f2bc8213a3df561dc6edd0722690a4c0d6ffae7f9c87",
-	"gameplay.lucas_fibonacci|rectangle": "1ca9b4cce936a6b418a33d43be9fa78f8a1f0364bb94a33c99079eea6ec457df",
-	"gameplay.lucas_fibonacci|sparse_cross": "d3ced0c35f0f55753e91b487f6386453f2ce0c9073718ae195339c2fb8822ad2",
+	"gameplay.classic|rectangle": "aeec590bb2bda57bc75ecd61b27752456c1958fbd7648e56c0e174896164bc25",
+	"gameplay.classic|sparse_cross": "1692275e72b083d532604edf193afe01b4da77063ad60f1ab7fa65a4ebc3c354",
+	"gameplay.step_by_step|rectangle": "9fe9bff4664adbba18f64ce6338f724bc309fe73a79de37a2d640a3b0550c226",
+	"gameplay.step_by_step|sparse_cross": "c6513ea2b491a93300c7ceae9317246c312be9f9d0cfa50072eee14ef3ff2267",
+	"gameplay.ratio|rectangle": "b7fb4e1a46bafc25cc9c05d5ead3e1baa3166dc037cf0334dfcc69e871331eac",
+	"gameplay.ratio|sparse_cross": "9126dbaccef7f8d6153258494205e50ca94c3ed6333f1cba29e4938c624d30b6",
+	"gameplay.progressive|rectangle": "875bf6f75ed536afc6f55ad45c08940aa156bc5bf8da64d9721b715b28494b0c",
+	"gameplay.progressive|sparse_cross": "61ea0dcbb2fc11d7302536591179b07fd9ae98545e0d71660d22b500d6ab553e",
+	"gameplay.fibonacci|rectangle": "30cc2a0beae267fc5d0b28e1cae922ce7cbb14ccd68224fc9fce11abf78a40d4",
+	"gameplay.fibonacci|sparse_cross": "cf465f341624526489e8a4209d3e3f97873057c6655a930c80e95ef9afeb8608",
+	"gameplay.lucas_fibonacci|rectangle": "6230fcd7dfd21c6e7483813bc6c9e647b8b5a5779befdd424c6f4cf123caed58",
+	"gameplay.lucas_fibonacci|sparse_cross": "740e995578bc0b59fc8526814952d0ba80f04ef6af878c433de7b1b75c48d5a9",
 }
 
 

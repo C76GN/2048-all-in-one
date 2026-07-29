@@ -1,4 +1,4 @@
-## TileDiscoverySaveData: tile_catalog Feature 的严格 SaveGraph section。
+## TileDiscoverySaveData: tile_catalog Feature 的严格 GFSaveProfile section。
 class_name TileDiscoverySaveData
 extends GameSaveSectionData
 

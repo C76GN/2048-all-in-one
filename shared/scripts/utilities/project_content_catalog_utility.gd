@@ -6,15 +6,15 @@ class_name ProjectContentCatalogUtility
 extends "res://addons/gf/kernel/base/gf_utility.gd"
 
 
+# --- 信号 ---
+
+signal catalog_refreshed(report: Dictionary)
+
+
 # --- 常量 ---
 
 ## 本 Utility 在 GFContentPackageUtility 中持有 source root 的稳定 owner。
 const SOURCE_ROOT_OWNER_ID: StringName = &"project.content_catalog"
-
-
-# --- 信号 ---
-
-signal catalog_refreshed(report: Dictionary)
 
 
 # --- 私有变量 ---

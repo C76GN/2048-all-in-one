@@ -67,7 +67,7 @@
         "id": "godot_local_platform_adapter",
         "provider": "Godot local runtime",
         "project_root": "res://features/platform_runtime",
-        "responsibility": "拥有完整平台运行时 Adapter Seam：GamePlatformAdapter、LocalPlatformAdapter、GamePlatformUtility、生命周期桥接、平台 smoke 场景/工具与局部文档；把 Godot OS/DisplayServer 的本地存储、HTTP、音频、输入、显示安全区和生命周期事实投影为 GFPlatformRuntime 契约，不宣称微信 SDK 能力。"
+        "responsibility": "拥有完整平台运行时 Adapter Seam：GamePlatformAdapter、LocalPlatformAdapter、GamePlatformUtility、生命周期桥接、platform.clipboard/write_text、平台 smoke 场景/工具与局部文档；把 Godot OS/DisplayServer 的本地存储、HTTP、音频、输入、显示安全区、剪贴板写入和生命周期事实投影为 GFPlatformRuntime 契约。只有运行时声明 platform.clipboard.write 时才能调用剪贴板契约，DisplayServer 只允许位于 LocalPlatformAdapter 内；不宣称微信 SDK 能力。"
       }
     ],
     "capability_requirements": [
@@ -118,11 +118,13 @@
         "decision_state": "confirmed",
         "owner": "application",
         "recipes": [
-          "save-boundary"
+          "save-profile"
         ],
         "acceptance": [
-          "当前账号的所有玩家 section 只通过 GameSaveGraphUtility/GFSaveGraphUtility 生成单一事务文档，业务 System 不直接写文件。",
-          "后期 section 应用失败必须回滚先前 section；账号切换和退出前必须完成 flush，test_game_save_graph_utility.gd 与本地账号测试通过。"
+          "当前账号的 Feature-owned GFSaveSectionProvider 只注册到一个 GFSaveProfile；GFSaveProfileUtility 拥有 typed save/load/flush、generation 合并、有界重试与事务 apply，GameSaveGraphUtility 只保留项目账号路径、恢复策略和业务入口，业务 System 不直接写文件。",
+          "后期 provider 应用失败必须回滚先前 provider；创建、切换、重命名和删除账号只保留 request_* 类型化异步事务，不保留同步 CRUD 包装或重复 saga；账号切换和退出前的 GFSaveProfileOperation flush barrier 必须覆盖调用时最新 generation。Profile、目录或清理进入 STATUS_OUTCOME_UNKNOWN 时继续持有账号协调锁以及 profile/path 所有权，直到迟到终态、轮询证据或显式对账收敛；目录删除迟到成功还必须等待目标 Profile 清理成功，禁止伪装回滚成功、提前解锁、删除或复用路径；test_game_save_graph_utility.gd 与本地账号测试通过。",
+          "跨账号统计只通过一次性异步设备快照读取：请求开始时目录当前账号的规范 Profile 路径必须与 GameSaveGraphUtility 当前路径一致，否则返回带 reconciliation 证据的 ERR_BUSY；一致时当前账号使用内存 section，N 个账号只提交 N-1 个 GFStorage 异步读取，由 GFAsyncBatch 汇总。UI 的模式摘要、榜单分组和排序不得重复读取磁盘，取消、dispose 与迟到终态必须由 token 和 owner-bound GFSignalUtility 收敛。",
+          "终局持久化 saga 必须冻结触发时的 Profile 身份：同一 Profile 内的新会话不取消已成立的结果与回放；账号或 Profile 切换会在 saga 开始前或进度落盘后阻止剩余写入，旧对局不得写入新账号。"
         ],
         "notes": ""
       },
@@ -247,7 +249,8 @@
         ],
         "acceptance": [
           "仅 platform_runtime Adapter 可读取玩家平台或设备能力与供应商 SDK；其他 Feature 只消费 GFPlatformRuntimeContext 与 capability id。",
-          "每个请求只通过 GFPlatformRequestHandle 终结一次；LocalPlatformAdapter 不宣称微信登录、线上榜、支付、分享或云存档，平台契约测试通过。"
+          "每个请求只通过 GFPlatformRequestHandle 终结一次；LocalPlatformAdapter 不宣称微信登录、线上榜、支付、分享或云存档，平台契约测试通过。",
+          "platform.clipboard/write_text 使用严格 request/result schema，只有声明 platform.clipboard.write capability 时可调用；成功或失败都形成唯一 GFPlatformRequestHandle 终态，owner teardown 后迟到完成不得回调 Hud。"
         ],
         "notes": "provider-backend 仅覆盖 LocalPlatformAdapter 的生命周期与能力翻译，不声明 lobby、云存储或供应商 SDK 能力。"
       },
@@ -259,7 +262,7 @@
           "domain-component"
         ],
         "acceptance": [
-          "GFQuestUtility、GFLevelUtility 与 GFTurnFlowSystem 只拥有通用运行机制；成就真源、模式规则、奖励和回合业务语义仍由项目 Feature/SaveGraph 拥有。",
+          "GFQuestUtility、GFLevelUtility 与 GFTurnFlowSystem 只拥有通用运行机制；成就真源、模式规则、奖励和回合业务语义仍由项目 Feature-owned GFSaveSectionProvider/Profile section 拥有。",
           "成就、关卡会话和回合测试验证重复事件幂等、生命周期释放及持久化真源不分叉。"
         ],
         "notes": ""
@@ -403,7 +406,7 @@
       "UI 导航使用 GFUIRouterUtility，跨生命周期信号使用 GFSignalUtility，玩家输入使用 GFInputMappingUtility。",
       "资源身份由 ProjectContentCatalogUtility 和 ProjectResourceCatalogUtility 统一管理；业务代码不保留路径后备。",
       "玩家设备与平台能力探测只允许位于 platform_runtime Adapter；其他 Feature 消费 GFPlatformRuntimeContext 和能力集合。Composition Root 的构建 feature 开关与开发诊断的 headless 判定不属于玩家平台能力。",
-      "玩家长期数据通过 GameSaveGraphUtility section Provider 进入当前账号的独立统一 Profile；业务 System 不直接写文件。",
+      "玩家长期数据通过 GameSaveGraphUtility 把 Feature-owned GFSaveSectionProvider 注册到 GFSaveProfileUtility，并进入当前账号的独立统一 Profile；业务 System 不直接写文件。",
       "开发诊断只在 with_dev_tools feature 下安装，不得进入玩家首屏依赖链。",
       "不为旧 API、旧业务 schema 或未知损坏数据保留运行时兼容分支；必要迁移使用显式一次性工具。"
     ],
@@ -430,7 +433,7 @@
     "persistence": {
       "mode": "hybrid",
       "compatibility": "reset_allowed",
-      "notes": "当前以本地 GFSaveGraph Profile 和独立 GFSettingsUtility 设置为准，未来平台云存储通过 Adapter 接入。破坏性开发阶段允许重置；不保留运行时旧格式双读。"
+      "notes": "当前以本地 GFSaveProfile 和独立 GFSettingsUtility 设置为准，未来平台云存储通过 Adapter 接入。破坏性开发阶段允许重置；不保留运行时旧格式双读。"
     },
     "networking": {
       "mode": "client_server",
@@ -483,14 +486,14 @@
     "lifecycle_rules": [
       "GF 根架构完成严格 init 后才能进入业务首场景。",
       "GF Module 只在 ready 阶段解析跨模块依赖，并通过 get_required_* 声明静态依赖。",
-      "退出或切换账号时，当前账号 Profile 必须等待在途写入并冲刷最新内存图；退出仍由架构反序 dispose。",
+      "退出或切换账号时，当前账号 Profile 必须等待在途写入并冲刷调用时最新 provider generation；退出仍由架构反序 dispose。",
       "平台通知只通过 GamePlatformUtility 转交当前 Adapter，再由 GFPlatformRuntime 发布规范事件。",
       "内容资源必须拥有明确资源组或挂载令牌；切换主题成功后再释放旧组。"
     ],
     "async_rules": [
       "异步操作必须有单一所有者，并且成功、失败、取消或超时只能完成一次。",
       "主题和声音主题资源应先通过 GFAssetLoadSession 完整预加载，再事务激活。",
-      "存档异步写入必须串行化，失败显式重试，退出边界提供同步 flush。",
+      "存档异步写入必须由 GFSaveProfileUtility 串行化并显式重试；退出和账号切换等待 GFSaveProfileOperation typed flush barrier 覆盖调用时最新 generation。",
       "异步回调不得在 owner dispose 后访问节点、Utility 或平台 Adapter。"
     ]
   },
@@ -529,7 +532,7 @@
     {
       "id": "unified_player_profile",
       "status": "accepted",
-      "statement": "每个本地账号拥有独立的完整 GFSaveGraph Profile；统计、书签、回放、成就、图鉴、自定义棋盘和试验台蓝图不跨账号共享。",
+      "statement": "每个本地账号拥有独立的完整 GFSaveProfile；统计、书签、回放、成就、图鉴、自定义棋盘和试验台蓝图不跨账号共享。",
       "rationale": "统一 section 顺序、事务回滚、恢复报告和退出冲刷，避免多个 Feature 重复实现文件存储和跨文档一致性。",
       "evidence": [
         "features/persistence/scripts/utilities/game_save_graph_utility.gd",
@@ -551,7 +554,7 @@
       "id": "device_local_multi_account_leaderboard",
       "status": "accepted",
       "statement": "本地排行榜可以聚合同一设备的多个本地账号，但只提供离线参考，不构成线上权威证明。",
-      "rationale": "排行榜读取各账号的严格 progress section，并保留模式、拓扑和规则集分组；未来线上排行必须经平台 Adapter 或服务端重新验证和裁决，不直接上传本地 SaveGraph 排名。",
+      "rationale": "排行榜读取各账号的严格 progress section，并保留模式、拓扑和规则集分组；未来线上排行必须经平台 Adapter 或服务端重新验证和裁决，不直接上传本地 Profile 或本地排行榜结果。",
       "evidence": [
         "features/player_profiles",
         "features/progress",

@@ -291,7 +291,7 @@ func get_size_label() -> String:
 	return "%dx%d / %d" % [size.x, size.y, get_cell_count()]
 
 
-## 转换为可由 GF SaveGraph、Command History 和回放持久化的严格字典。
+## 转换为可由 GFSaveProfile、Command History 和回放持久化的严格字典。
 func to_dict() -> Dictionary:
 	return {
 		&"schema_version": SERIALIZATION_SCHEMA_VERSION,

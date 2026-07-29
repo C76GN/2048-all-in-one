@@ -21,6 +21,28 @@ const _GAME_SCENE_PATH: String = "res://features/gameplay/scenes/game/game_play.
 
 # --- 测试用例 ---
 
+func test_persistence_reconciliation_messages_have_translation_entries() -> void:
+	for key: StringName in [
+		&"LIST_DELETE_PERSISTENCE_OUTCOME_UNKNOWN",
+		&"LIST_DELETE_RECONCILIATION_SUCCEEDED",
+		&"LIST_DELETE_RECONCILIATION_ROLLED_BACK",
+		&"LIST_DELETE_RECONCILIATION_UNRESOLVED",
+		&"BOARD_EDITOR_PERSISTENCE_OUTCOME_UNKNOWN",
+		&"BOARD_EDITOR_RECONCILIATION_SUCCEEDED",
+		&"BOARD_EDITOR_RECONCILIATION_ROLLED_BACK",
+		&"TILE_LAB_PERSISTENCE_OUTCOME_UNKNOWN",
+		&"TILE_LAB_RECONCILIATION_SUCCEEDED",
+		&"TILE_LAB_RECONCILIATION_ROLLED_BACK",
+		&"LOCAL_LEADERBOARD_LOADING",
+		&"PLAYER_PROFILE_LOADING",
+		&"PLAYER_PROFILE_PARTIAL",
+	]:
+		assert_true(
+			tr(key) != String(key),
+			"玩家可见持久化文案缺少翻译条目：%s。" % key
+		)
+
+
 func test_main_menu_splits_continue_and_load_save_actions() -> void:
 	var menu_node: Node = _MAIN_MENU_SCENE.instantiate()
 	assert_true(menu_node is MainMenu, "主菜单场景应实例化为 MainMenu。")
@@ -269,14 +291,13 @@ func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
 	)
 	await get_tree().process_frame
 
-	assert_eq(
-		replay_list._virtual_list_model.get_item_count(),
-		ReplayCatalogSaveData.MAX_REPLAY_COUNT,
+	assert_true(
+		replay_list._virtual_list_model.get_item_count()
+		== ReplayCatalogSaveData.MAX_REPLAY_COUNT,
 		"GFVirtualListModel 必须拥有完整回放数据计数。"
 	)
-	assert_eq(
-		replay_list._virtual_focus_model.focused_index,
-		0,
+	assert_true(
+		replay_list._virtual_focus_model.focused_index == 0,
 		"长回放列表初次打开必须把逻辑焦点投影到第一项。"
 	)
 	var initial_items: Array[Control] = replay_list._get_list_item_controls()
@@ -358,9 +379,9 @@ func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
 		await get_tree().process_frame
 		await get_tree().process_frame
 		await get_tree().process_frame
-		assert_eq(
-			replay_list._virtual_focus_model.focused_index,
-			projected_focus_index + 1,
+		assert_true(
+			replay_list._virtual_focus_model.focused_index
+			== projected_focus_index + 1,
 			"键盘或手柄向下动作必须推进虚拟焦点索引。"
 		)
 		var next_focus_found: bool = false
@@ -439,9 +460,9 @@ func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
 		replay_list._get_repeater_template(),
 		ReplayCatalogSaveData.MAX_REPLAY_COUNT - 1
 	)
-	assert_eq(
-		replay_list._virtual_focus_model.focused_index,
-		retained_data.size() - 1,
+	assert_true(
+		replay_list._virtual_focus_model.focused_index
+		== retained_data.size() - 1,
 		"数据缩短后虚拟焦点必须修复到最后一个合法索引。"
 	)
 
@@ -454,6 +475,7 @@ func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
 func test_delete_failure_preserves_selection_and_skips_refresh() -> void:
 	var menu: _DeleteProbeMenu = _DeleteProbeMenu.new()
 	var selected: Resource = Resource.new()
+	selected.resource_name = "selected"
 	menu._selected_resource = selected
 	menu._pending_delete_resource = selected
 	menu.delete_result = ERR_CANT_CREATE
@@ -470,6 +492,44 @@ func test_delete_failure_preserves_selection_and_skips_refresh() -> void:
 	await menu._on_delete_confirmed()
 	assert_null(menu._selected_resource, "删除成功后应清空旧选择。")
 	assert_true(menu.populate_count == 1, "只有删除成功后才能刷新列表。")
+	menu.free()
+
+
+func test_delete_busy_guard_and_late_rollback_unlock_once() -> void:
+	var menu: _DeleteProbeMenu = _DeleteProbeMenu.new()
+	var selected: Resource = Resource.new()
+	selected.resource_name = "retained"
+	menu._selected_resource = selected
+	menu._pending_delete_resource = selected
+	menu._delete_operation_busy = true
+
+	await menu._on_delete_confirmed()
+	assert_true(menu.delete_call_count == 0, "在途删除期间的重复确认必须被忽略。")
+
+	menu._delete_operation_busy = false
+	menu._delete_outcome_unknown = true
+	menu._pending_delete_transaction_id = 41
+	menu._pending_delete_resource_identity = "retained"
+	menu._delete_operation_token = 7
+	await menu._on_section_reconciliation_settled({
+		&"transaction_id": 40,
+		&"status": "late_failure_rolled_back",
+		&"candidate_persisted": false,
+		&"memory_rolled_back": true,
+	})
+	assert_true(menu._delete_outcome_unknown, "其他事务的对账证据不得解锁当前删除。")
+	assert_true(menu.populate_count == 0, "其他事务不得触发列表刷新。")
+
+	await menu._on_section_reconciliation_settled({
+		&"transaction_id": 41,
+		&"status": "late_failure_rolled_back",
+		&"candidate_persisted": false,
+		&"memory_rolled_back": true,
+	})
+	assert_false(menu._delete_outcome_unknown, "目标事务回滚收敛后必须解除页面锁定。")
+	assert_false(menu._delete_operation_busy, "对账刷新结束后必须解除忙碌态。")
+	assert_same(menu._selected_resource, selected, "晚到回滚必须保留原选择。")
+	assert_true(menu.populate_count == 1, "目标事务收敛后列表只能刷新一次。")
 	menu.free()
 
 
@@ -493,9 +553,45 @@ class _RouteSpy extends SceneRouterSystem:
 class _DeleteProbeMenu extends BaseListMenu:
 	var delete_result: Error = OK
 	var populate_count: int = 0
+	var delete_call_count: int = 0
+	var transaction_id: int = 1
 
-	func _do_delete_logic(_data: Resource) -> Error:
-		return delete_result
+	func _ready() -> void:
+		pass
+
+	func _get_data_identity(data: Resource) -> String:
+		return data.resource_name if data != null else ""
+
+	func _is_current_delete_operation(token: int) -> bool:
+		return token == _delete_operation_token
+
+	func _do_delete_logic(_data: Resource) -> GameSaveSectionOperation:
+		delete_call_count += 1
+		var operation: GameSaveSectionOperation = GameSaveSectionOperation.new()
+		var section_ids: PackedStringArray = PackedStringArray([&"test"])
+		var configured: bool = operation.configure_for_utility(
+			transaction_id,
+			&"test_profile",
+			section_ids
+		)
+		var result: GameSaveSectionResult = GameSaveSectionResult.new()
+		var result_configured: bool = result.configure_for_utility(
+			transaction_id,
+			&"test_profile",
+			section_ids,
+			(
+				GameSaveSectionResult.STATUS_PERSISTED
+				if delete_result == OK
+				else GameSaveSectionResult.STATUS_SAVE_FAILED_ROLLED_BACK
+			),
+			delete_result,
+			true,
+			delete_result != OK
+		)
+		transaction_id += 1
+		if configured and result_configured:
+			var _completed: bool = operation.complete_for_utility(result)
+		return operation
 
 	func _populate_list() -> void:
 		populate_count += 1

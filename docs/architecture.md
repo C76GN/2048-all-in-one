@@ -26,16 +26,16 @@
 | `accessibility` | 棋盘与回合的规范无障碍语义摘要、字幕同源文本、复制入口和未来平台辅助技术投影 |
 | `gameplay` | 棋盘、移动命令、规则、模式、对局状态、HUD 和玩法输入 |
 | `navigation` | 场景路由、主菜单、真正的“继续游戏”与“读取存档”入口、模式选择、列表菜单导航壳和 UI Route 注册表 |
-| `board_editor` | 玩家棋盘草稿、局部撤销历史、自定义模板目录和 `custom_boards` SaveGraph section |
+| `board_editor` | 玩家棋盘草稿、局部撤销历史、自定义模板目录和 `custom_boards` GFSaveProfile section |
 | `settings` | 应用设置模型、设置持久化和设置界面 |
 | `bookmarks` | 书签数据、保存流程、最近可继续书签查询、读取存档列表和预览入口 |
 | `replays` | 回放数据、回放输入、播放/定位流程和回放列表 |
 | `player_profiles` | 设备内本地账号目录、账号切换事务、个人信息页和跨账号本地榜查询入口 |
-| `progress` | 按账号隔离的最高分、模式摘要、规范结果、资格过滤排行榜和 progress SaveGraph section |
+| `progress` | 按账号隔离的最高分、模式摘要、规范结果、资格过滤排行榜和 `progress` GFSaveProfile section |
 | `tile_lab` | 玩家方块蓝图、`TileDefinition` + `GFCapabilityRecipe` 组合、冲突解释和隔离沙盒试验 |
-| `tile_catalog` | 方块定义目录、组合/拓扑发现、响应式图鉴和 discoveries SaveGraph section |
-| `achievements` | 数据驱动成就目录、GF Quest 运行时投影、成就列表和 achievements SaveGraph section |
-| `persistence` | 通用玩家数据 section 协议、GF SaveGraph 事务编排和存储诊断 |
+| `tile_catalog` | 方块定义目录、组合/拓扑发现、响应式图鉴和 `discoveries` GFSaveProfile section |
+| `achievements` | 数据驱动成就目录、GF Quest 运行时投影、成就列表和 `achievements` GFSaveProfile section |
+| `persistence` | 通用玩家数据 section 协议、GFSaveProfile 事务编排和存储诊断 |
 | `platform_runtime` | 平台 Adapter 选择、Godot 生命周期桥接、Web/微信准备契约和平台冒烟入口 |
 | `themes` | 视觉主题、音效主题、主题化 UI 宿主与布局、UI 色板、棋盘反馈和主题内容包 |
 | `asset_library` | 可复用素材内容包、候选评审、授权、引用审计和局部导入工具 |
@@ -108,7 +108,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 1. `BoardTopology` 只描述规范化活跃单元，不保存方块；`GridModel` 以坐标到 `TileState` 的稀疏映射保存占用状态，不再维护完整二维空数组。
 2. `BoardTopologyTemplate` 属于模式配置，声明固定拓扑或可变矩形范围。模式选择页把原 3x3 至 8x8 选项转换成矩形拓扑，`board_editor` 则提交经过同一模板复核的自定义拓扑。
 3. `GridMovementSystem`、`GridSpawnSystem` 与 `StandardGameOverRule` 只遍历活跃单元和真实相邻关系；任何系统不得按包围盒把空洞实体化，也不得让方块跨越空洞。
-4. 撤销、书签、回放和 GF SaveGraph 共用严格拓扑快照；对局 ID、统计和本地排行榜分组使用语义 ID 加内容指纹的稳定键。
+4. 撤销、书签、回放和玩家 GFSaveProfile 共用严格拓扑快照；对局 ID、统计和本地排行榜分组使用语义 ID 加内容指纹的稳定键。
 5. GF 继续拥有验证报告、确定性随机、命令历史、关卡 Session 和持久化事务；四向稀疏拓扑是 gameplay 领域对象，不误用 GF flow graph 或 hex grid 表达不同语义。
 6. 玩法 `BoardViewport` 与编辑器 `CanvasViewport` 都由 `GFSpatialCanvas2D` 持有内容根、视图状态、缩放、平移和世界/画布坐标转换；`BoardWorldViewportController` 只追加 HUD fit inset、边缘余量和完整聚焦构图策略。HUD 保持在视口外的屏幕空间，诊断 UI 不进入玩家场景树。
 7. `GFPointerGestureUtility` 负责桌面指针、触摸与原生 pan/magnify 归一化，`GFSpatialCanvas2D` 负责棋盘空间坐标换算，`GFViewportUtility` 只用于物理安全区与显示边界，`GFSignalUtility` 负责宿主生命周期内的连接所有权。项目只保存“本轮触摸是否仍可成为玩法滑动”的领域仲裁状态，不重复维护指针几何、通用视图状态或坐标变换工具。
@@ -135,23 +135,25 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 1. `GameSessionMetadata` 冻结本局 seed 来源和 `GameCompetitionEligibility`。资格快照不可变；调试改写、回放续玩、书签恢复、撤销/重做、自定义棋盘和手动 seed 都是显式失格原因，普通随机对局只有在没有这些原因时才合格。
 2. `GameResultRecordedData` 冻结模式、拓扑、规则集 ID/版本/指纹、初始 seed、最终 canonical state hash、资格快照和结算指标，并以严格 hash 拒绝字段漂移。结果只在成功写入 `progress` section 后成为规范事实。
 3. `ProgressStatsSystem` 把严格结果写入当前账号的有界最近结果；调试改写不推进统计或成就。只有 `is_competition_eligible()` 为真的结果进入本地排行榜，分组身份固定为 `mode_id`、`board_key`、`ruleset_id`、`ruleset_version` 和 `ruleset_fingerprint`。
-4. `player_profiles` 可以只读聚合同一设备各账号的严格 `progress` section，并按账号展示个人模式摘要与本地榜名次；聚合不能改写其他账号 Profile，也不能放宽单条结果校验。
-5. 本地排行榜只是离线设备内参考，不是平台或服务端权威证明。未来 Steam、微信或独立后端接入必须通过显式 bridge contract 重新定义上传、校验和裁决边界，不能把本地 SaveGraph 直接冒充线上真源。
+4. `player_profiles` 只消费 `ProgressStatsSystem` 的一次性异步设备快照：请求开始时必须确认设备目录当前账号的规范 Profile 路径与 `GameSaveGraphUtility` 当前路径一致，否则以 reconciliation `ERR_BUSY` 结束，禁止把活动内存归给错误账号；一致时当前账号取最新内存 section，N 个账号只异步读取 N-1 个非活动 Profile。`GFAsyncBatch` 汇总后，个人模式摘要、榜单分组和切换均为纯内存投影。损坏账号只产生 partial issue，取消或页面销毁会断开 owner-bound `GFSignalUtility` 连接并拒绝迟到结果。聚合不能改写其他账号 Profile，也不能放宽单条结果校验。
+5. `GameFlowSystem` 的终局持久化 saga 冻结触发结算时的 Profile 路径：同一 Profile 内开始新会话不影响已经成立的结果与回放写入；账号或 Profile 在 saga 开始前或进度写入后发生切换时，立即停止剩余写入，禁止把旧对局结果或回放落入新账号。
+6. 本地排行榜只是离线设备内参考，不是平台或服务端权威证明。未来 Steam、微信或独立后端接入必须通过显式 bridge contract 重新定义上传、校验和裁决边界，不能把本地 Profile 或排行榜结果直接冒充线上真源。
 
 ### 本地账号与玩家 Profile
 
 1. `LocalAccountCatalogUtility` 拥有设备级账号身份目录，只保存账号 ID、显示名、创建时间、最近使用时间和当前账号；它不保存统计、书签、回放、成就、图鉴或试验台蓝图。
 2. 每个账号映射到独立的 `GameSaveGraphUtility` Profile。切换账号必须先冲刷当前 Profile，再加载并完整应用目标 Profile；任一步失败都保持原账号和原内存图，不发布半完成切换。
-3. `LocalAccountSystem` 是账号创建、重命名、切换和删除的唯一业务 Interface。其他 Feature 订阅强类型账号变更事件或查询当前账号，不读取设备目录文件，也不拼接 Profile 路径。
-4. 首次启用本地账号时可以把唯一的旧默认 Profile 一次性收养为首个账号；完成后不保留旧路径双读。删除非当前账号时同时删除其 Profile，失败必须向用户显式报告。
+3. `LocalAccountSystem` 是账号创建、重命名、切换和删除的唯一业务 Interface；四类运行时变更只提供 `request_*` 类型化异步事务，不保留同步 CRUD 包装或第二套 saga。其他 Feature 订阅强类型账号变更事件或查询当前账号，不读取设备目录文件，也不拼接 Profile 路径。
+4. 首次启用本地账号时可以把唯一的旧默认 Profile 一次性收养为首个账号；完成后不保留旧路径双读，并通过 `GFBackgroundWorkUtility` 异步清理旧文件。删除非当前账号时也必须等待同一异步清理边界的类型化终态，失败必须向用户显式报告。
 5. 个人信息页只投影当前账号的资料和各模式汇总；账号管理与排行榜 UI 通过 `GFUIRouterUtility` 进入，不让页面节点拥有存档事务。
+6. 所有运行时账号变更返回一次性 `LocalAccountOperation` / `LocalAccountOperationResult`。目录先写候选 payload，再交换权威内存并发布一次业务信号；Profile、目录写入或 Profile 清理进入 outcome-unknown 时保留在途所有权并阻断后续变更，迟到终态、轮询证据或显式对账只能对齐真实持久化结果，不得删除、复用路径或伪装回滚成功。目录删除的迟到成功必须继续等待目标 Profile 清理成功；清理超时或失败继续持锁。GF 同步 `ready()` 生命周期只允许执行启动期目录读取、默认目录创建和初始 Profile 激活，不构成公开同步 mutation API。
 
 ### 方块试验台
 
 1. `tile_lab` 保存的是项目拥有的方块蓝图：稳定蓝图 ID、显示名、基础 `TileDefinition` 身份、选中的 `GFCapabilityRecipe` 身份和预览参数；不序列化运行时对象或硬编码新方块子类。
 2. `TileCompositionUtility` 仍是 Recipe 能力匹配与交互仲裁的唯一 Interface。试验台只组合目录中可用的定义与 Recipe，并把冲突、缺少共同能力或不合法参数解释给玩家。
 3. 沙盒从蓝图构造临时 `TileState`，允许玩家实际尝试生成、配对和交互；临时状态与普通对局的 canonical state、命令历史、回放、统计和排行资格隔离。
-4. 保存蓝图进入当前账号的独立 SaveGraph section。若未来让蓝图进入正式模式，必须先为内容身份、规则指纹、回放和书签定义新的稳定 Seam，不能让编辑器资源路径成为持久化真源。
+4. 保存蓝图进入当前账号的独立 GFSaveProfile section。若未来让蓝图进入正式模式，必须先为内容身份、规则指纹、回放和书签定义新的稳定 Seam，不能让编辑器资源路径成为持久化真源。
 
 ### 开发诊断工作区
 
@@ -205,11 +207,11 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ### 平台运行时
 
 1. `GFPlatformRuntime` 是平台 Adapter 注册、初始化、能力契约路由、请求句柄、超时与生命周期序列的唯一所有者；业务 Feature 不得绕过 Runtime 直接调用 Adapter。
-2. `GamePlatformUtility` 只负责选择项目 Adapter、把 Godot 窗口与应用通知转成 GF 生命周期事件，并投影只读 `GFPlatformRuntimeContext`；它不重复维护请求表、超时器或平台能力集合。
+2. `GamePlatformUtility` 负责选择项目 Adapter、把 Godot 窗口与应用通知转成 GF 生命周期事件、投影只读 `GFPlatformRuntimeContext`，并为业务构造不含平台实现细节的请求；它不重复维护请求表、超时器或平台能力集合。
 3. `GamePlatformAdapter` 继承 `GFPlatformAdapter`，负责冻结项目身份与能力契约；具体 Adapter 只实现支持的 SDK dispatch 和平台上下文刷新。
-4. 当前唯一生产实现是 `LocalPlatformAdapter`：它投影 Godot 桌面、移动端和 Web 的本地存储、HTTP、音频、输入、显示与生命周期事实，不宣称微信登录、开放数据域、平台/线上排行榜、支付、分享或云存档。`progress` Feature 的本地排行榜不属于平台能力。Adapter 的项目所有权由 `.gf/project_contract.json` 的 `godot_local_platform_adapter` boundary 声明。
+4. 当前唯一生产实现是 `LocalPlatformAdapter`：它投影 Godot 桌面、移动端和 Web 的本地存储、HTTP、音频、输入、显示、剪贴板写入与生命周期事实；仅在 Godot 运行时明确支持时声明 `platform.clipboard.write`，`DisplayServer` 调用不得越出该 Adapter。它不宣称微信登录、开放数据域、平台/线上排行榜、支付、分享或云存档。`progress` Feature 的本地排行榜不属于平台能力。Adapter 的项目所有权由 `.gf/project_contract.json` 的 `godot_local_platform_adapter` boundary 声明。
 5. 只有具体平台 Adapter 可以使用 `OS.has_feature()`、`DisplayServer` 或供应商 SDK 探测玩家设备与平台能力；Gameplay、Board Editor 和其他 Feature 必须通过 `GamePlatformUtility` 查询 `GFPlatformRuntimeContext` 与能力 ID，平台上下文变化时重新投影布局。Composition Root 的构建 feature 开关、开发诊断的 headless 判定以及 `GFDisplaySettingsUtility` 所需的枚举类型不属于玩家平台能力探测。
-6. 平台请求统一返回 `GFPlatformRequestHandle`。调用方通过句柄读取终态 `GFPlatformBridgeResult`，不得另建项目私有异步请求协议。
+6. 平台请求统一返回 `GFPlatformRequestHandle`。`platform.clipboard/write_text` 以严格 request/result schema、capability gating 和唯一 typed 终态完成；Hud 通过 owner-bound `GFSignalUtility` 消费 pending 结果，销毁后不得收到迟到完成。调用方不得另建项目私有异步请求协议。
 7. `GFHttpClientUtility` 目前只服务 `platform_smoke` 的网络兼容性验证，因此 Composition Root 仅在该导出 feature 下注册它。正式 Steam、Android、Web 与微信构建不得为未实现的在线业务常驻 HTTP 模块；未来排行榜联网应由平台 Adapter 或独立后端 Feature 明确拥有请求和重试边界。
 
 ### 时钟、随机与运行诊断
@@ -228,9 +230,10 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 持久化
 
-- `persistence` 创建玩家根 Scope，并通过 `GFSaveGraphUtility` 统一生成、校验和应用规范 `GFSaveDocument`，不再把裸 Scope payload 当作磁盘根协议。
-- `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements`、`replays` 与 `tile_lab` 各自拥有严格 section Provider；`app` 在 GF `init()` 前完成组合，不把业务字段写入 persistence。
-- section 按声明的 apply phase 写入当前账号的单一 Binary Profile；`GFStorageUtility` 返回类型化 `GFStorageReadResult`，并负责存储元数据、checksum 和原子文件事务。账号目录是设备身份元数据，不是第二份玩家业务存档。
+- `persistence` 通过 `GFSaveProfileUtility` 管理当前账号的单一 `GFSaveProfile`。项目类 `GameSaveGraphUtility` 只拥有账号路径、恢复策略和业务入口，不再用 `GFSaveGraphUtility` 的 Scope/Source 图表示固定玩家 section。
+- `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements`、`replays` 与 `tile_lab` 各自拥有严格 `GFSaveSectionProvider`；`app` 在 GF `init()` 前按项目 `SectionOrder` 完成组合，不把业务字段写入 persistence。
+- `GFSaveProfileUtility` 按 provider 顺序 gather/apply `GFSaveDocument`，拥有 typed `GFSaveProfileOperation`/`GFSaveProfileResult`、generation 合并、有界重试、flush barrier 和跨 provider 事务回滚。`STATUS_OUTCOME_UNKNOWN` 或注销失败时项目继续保留 profile 与路径所有权，禁止删除、复用或伪装回滚成功。
+- `GFStorageUtility` 是底层 codec、存储元数据、checksum 与原子文件事务边界；业务 System 不直接调用它写玩家 section。账号目录是设备身份元数据，不是第二份玩家业务存档。
 - 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。UUID 只用于持久身份，不参与 canonical board checksum。
 - Profile、section 和 item 的当前 schema 版本以数据类型与 [`docs/save_model.md`](./save_model.md) 为准，本架构文档不复制易漂移数字。书签与回放冻结规则集身份和资格上下文；棋盘快照与玩家模板内嵌严格 `BoardTopology`，不提供旧尺寸键或旧业务字段推断。
 - 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。

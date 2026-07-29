@@ -60,7 +60,7 @@ func dispose() -> void:
 
 # --- 公共方法 ---
 
-## 记录一个有效方块组合；仅首次发现或最高值提升时提交 SaveGraph。
+## 记录一个有效方块组合；仅首次发现或最高值提升时提交 Profile section。
 ## @param tile: 当前有效的方块运行时状态。
 func observe_tile(tile: TileState) -> Error:
 	if tile == null or not tile.is_valid_state():

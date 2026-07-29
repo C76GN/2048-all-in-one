@@ -1,4 +1,4 @@
-## AchievementSaveData: achievements Feature 的严格 SaveGraph section。
+## AchievementSaveData: achievements Feature 的严格 GFSaveProfile section。
 class_name AchievementSaveData
 extends GameSaveSectionData
 

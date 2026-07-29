@@ -73,6 +73,7 @@ func dispose() -> void:
 # --- 公共方法 ---
 
 ## 显式开始一局短期本地诊断轨迹。
+## @param is_replay_mode: 当前会话是否为回放模式。
 func start_gameplay_trace(is_replay_mode: bool) -> bool:
 	if not is_instance_valid(_trace) or not is_instance_valid(_trace_recipe):
 		return false
@@ -86,6 +87,7 @@ func start_gameplay_trace(is_replay_mode: bool) -> bool:
 
 
 ## 停止当前轨迹并清空尚未终结的移动尝试。
+## @param reason: 终止轨迹的规范原因。
 func stop_gameplay_trace(reason: StringName = &"completed") -> Dictionary:
 	_reset_active_attempt()
 	if not is_instance_valid(_trace):
@@ -94,6 +96,7 @@ func stop_gameplay_trace(reason: StringName = &"completed") -> Dictionary:
 
 
 ## 标记输入已经通过玩法门控并即将进入命令管线。
+## @param direction: 本次移动的四向输入。
 ## @return 当前尝试的局部递增标识；轨迹未启用时返回 0。
 func begin_move(direction: Vector2i) -> int:
 	if not is_instance_valid(_trace):
@@ -117,6 +120,8 @@ func begin_move(direction: Vector2i) -> int:
 
 
 ## 标记移动命令完成；无效移动在此成为终态。
+## @param attempt_id: begin_move 返回的移动尝试标识。
+## @param effective: 该移动是否实际改变棋盘。
 func complete_move(attempt_id: int, effective: bool) -> void:
 	if attempt_id <= 0 or attempt_id != _active_attempt_id:
 		return
@@ -140,6 +145,7 @@ func complete_move(attempt_id: int, effective: bool) -> void:
 
 
 ## 标记有效移动的首个表现批次已进入 GF 命名动作队列。
+## @param queue_was_busy: 入队前表现队列是否已有待执行动作。
 func mark_presentation_enqueued(queue_was_busy: bool) -> void:
 	if _active_attempt_id <= 0 or not is_instance_valid(_trace):
 		return
@@ -174,6 +180,7 @@ func mark_presentation_settled() -> void:
 
 
 ## 标记表现被重定向、场景退出或显式清空，而不是错误地记为正常完成。
+## @param reason: 取消表现的规范原因。
 func cancel_presentation(reason: StringName) -> void:
 	if not _presentation_pending or _active_attempt_id <= 0:
 		return

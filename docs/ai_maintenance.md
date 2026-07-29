@@ -162,7 +162,7 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 - `features/settings/scripts/menus/settings_menu.gd`
 - `docs/save_model.md`
 
-存档字段变化属于高风险改动。统计、书签和回放必须通过各自的 `GameSaveSectionData` Provider 进入 `GameSaveGraphUtility`，不得重新创建 SaveSlot、时间戳 Resource 集合或业务 System 直写文件。破坏性 Schema 变化应提供一次性显式迁移工具，不在运行时代码中长期保留旧字段双读；同时检查 Binary Variant 类型、checksum、Profile/section 版本、全图回滚和设置独立性。
+存档字段变化属于高风险改动。统计、书签和回放必须通过各自的 `GameSaveSectionData` Provider 进入 `GameSaveGraphUtility` 所编排的 GFSaveProfile，不得重新创建 SaveSlot、时间戳 Resource 集合或业务 System 直写文件。破坏性 Schema 变化应提供一次性显式迁移工具，不在运行时代码中长期保留旧字段双读；同时检查 Binary Variant 类型、checksum、Profile/section 版本、跨 provider 事务回滚和设置独立性。
 
 ### UI、菜单或表现变更
 

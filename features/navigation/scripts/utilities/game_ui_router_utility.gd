@@ -103,6 +103,12 @@ func get_debug_snapshot() -> Dictionary:
 ##
 ## GFUIRouterUtility 负责预加载、并发去重与唯一终态；此方法只补充项目 owner
 ## 生命周期和默认的相邻路由预加载预算。
+## @param owner: 持有此次路由操作的活动场景节点。
+## @param route_id: 要打开的稳定路由标识。
+## @param params: 传给路由场景的业务参数。
+## @param option_overrides: 本次路由操作的 GF 选项覆盖。
+## @param config_callback: 场景实例化后的可选配置回调。
+## @param preload_policy: GF 路由预加载策略。
 func push_owned_route_async(
 	owner: Node,
 	route_id: StringName,
@@ -166,7 +172,10 @@ func _is_live_route_owner_ref(owner_ref: WeakRef) -> bool:
 	if owner_ref == null:
 		return false
 	var value: Object = owner_ref.get_ref()
-	return value is Node and _is_live_route_owner(value as Node)
+	if value is Node:
+		var owner: Node = value
+		return _is_live_route_owner(owner)
+	return false
 
 
 func _rollback_stale_route_result(result: GFUIRouteResult) -> void:

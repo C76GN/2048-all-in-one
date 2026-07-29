@@ -1,4 +1,4 @@
-## ReplayCatalogSaveData: replays Feature 的严格 SaveGraph section。
+## ReplayCatalogSaveData: replays Feature 的严格 GFSaveProfile section。
 class_name ReplayCatalogSaveData
 extends GameSaveSectionData
 

@@ -9,7 +9,7 @@
 - `BoardTopologyTemplate` 由 `GameModeConfig` 持有，声明模式接受固定拓扑、可变矩形或自定义拓扑。
 - 当前模式选择页的尺寸下拉框和 `board_editor` Feature 都只是拓扑输入界面，不是运行时棋盘契约。
 
-GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。`GFFlowGraph` 表达流程连接，`GFHexGridMath` 表达六边形网格；复用它们会混淆领域语义。因此拓扑由 gameplay Feature 拥有，同时复用 GF 的 `GFValidationReport`、确定性随机、Command History、Level Session 与 SaveGraph。
+GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。`GFFlowGraph` 表达流程连接，`GFHexGridMath` 表达六边形网格；复用它们会混淆领域语义。因此拓扑由 gameplay Feature 拥有，同时复用 GF 的 `GFValidationReport`、确定性随机、Command History、Level Session 与 GFSaveProfile。
 
 ## 坐标与规范化
 
@@ -51,7 +51,7 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 - 调试扩建仅支持矩形正方形；它不是玩家棋盘编辑器。
 - `board_editor` 已提供画笔、橡皮、矩形与十字预设、位置规范化、连通分量提示、局部 GF 撤销历史和玩家模板目录；撤销/重做通过 feature 自有 GF 输入上下文消费，控件与草稿信号由 `GFSignalUtility` 管理。
 - 编辑画布使用稳定世界尺寸，桌面与双指视口操作由 `GFPointerGestureUtility` 归一化，内容根、视图状态和坐标换算由 `GFSpatialCanvas2D` 持有；紧凑横屏和竖屏使用独立功能分区与 GF 物理安全区边距。
-- 玩家模板使用 `custom_boards` SaveGraph section 和 `board.player.<uuid>` 稳定拓扑 ID。
+- 玩家模板使用 `custom_boards` GFSaveProfile section 和 `board.player.<uuid>` 稳定拓扑 ID。
 
 ## 表现与视口契约
 

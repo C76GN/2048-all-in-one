@@ -1,4 +1,4 @@
-## TileLabSaveData: tile_lab Feature 拥有的严格 SaveGraph section。
+## TileLabSaveData: tile_lab Feature 拥有的严格 GFSaveProfile section。
 class_name TileLabSaveData
 extends GameSaveSectionData
 

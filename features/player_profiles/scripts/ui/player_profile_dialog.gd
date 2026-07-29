@@ -22,6 +22,11 @@ var _leaderboard_identities: Array[Dictionary] = []
 var _layout_update_queued: bool = false
 var _has_revealed_profile_list: bool = false
 var _has_revealed_leaderboard_list: bool = false
+var _account_operation: LocalAccountOperation = null
+var _progress_snapshot: Dictionary = {}
+var _progress_snapshot_completion: GFAsyncCompletion = null
+var _progress_snapshot_cancel_source: GFCancellationSource = null
+var _progress_snapshot_generation: int = 0
 
 
 # --- @onready 变量 ---
@@ -69,6 +74,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _exit_tree() -> void:
+	_cancel_progress_snapshot(&"dialog_closed")
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 
@@ -159,6 +165,11 @@ func _bind_signals() -> void:
 			_on_account_catalog_changed,
 			self
 		)
+		var _reconciliation_connection: GFSignalConnection = _signal_utility.connect_signal(
+			_account_system.account_reconciliation_state_changed,
+			_on_account_reconciliation_state_changed,
+			self
+		)
 
 
 func _apply_semantic_styles() -> void:
@@ -210,9 +221,7 @@ func _update_static_text() -> void:
 
 func _rebuild_all() -> void:
 	_rebuild_account_selector()
-	_rebuild_profile()
-	_rebuild_leaderboard_groups()
-	_rebuild_leaderboard()
+	_request_progress_snapshot()
 
 
 func _rebuild_account_selector() -> void:
@@ -234,6 +243,7 @@ func _rebuild_account_selector() -> void:
 	_delete_button.disabled = accounts.size() <= 1
 	if active != null:
 		_name_input.text = active.display_name
+	_apply_account_operation_state()
 
 
 func _rebuild_profile() -> void:
@@ -243,14 +253,28 @@ func _rebuild_profile() -> void:
 		if is_instance_valid(_account_system)
 		else null
 	)
-	if active == null or not is_instance_valid(_progress_system):
+	if (
+		active == null
+		or not is_instance_valid(_progress_system)
+		or _progress_snapshot.is_empty()
+	):
 		_account_summary_label.text = tr("PLAYER_PROFILE_UNAVAILABLE")
 		_mode_empty_label.visible = true
 		_mode_list.visible = false
 		return
 
 	var summaries: Array[Dictionary] = (
-		_progress_system.get_profile_mode_summaries(active.account_id)
+		_progress_system.get_profile_mode_summaries(
+			_progress_snapshot,
+			active.account_id
+		)
+	)
+	var account_entry: Dictionary = GFVariantData.get_option_dictionary(
+		GFVariantData.get_option_dictionary(
+			_progress_snapshot,
+			&"accounts_by_id"
+		),
+		active.account_id
 	)
 	var total_plays: int = 0
 	var best_score: int = 0
@@ -262,10 +286,20 @@ func _rebuild_profile() -> void:
 		)
 		_mode_list.add_child(_make_mode_summary_row(summary))
 	_account_summary_label.text = tr("PLAYER_ACCOUNT_SUMMARY") % [
-		active.display_name,
+		GFVariantData.get_option_string(
+			account_entry,
+			&"display_name",
+			active.display_name
+		),
 		total_plays,
 		best_score,
-		GameClockUtility.format_datetime_value(active.last_active_at),
+		GameClockUtility.format_datetime_value(
+			GFVariantData.get_option_int(
+				account_entry,
+				&"last_active_at",
+				active.last_active_at
+			)
+		),
 	]
 	_mode_empty_label.visible = summaries.is_empty()
 	_mode_empty_label.text = tr("PLAYER_MODE_STATS_EMPTY")
@@ -348,11 +382,16 @@ func _rebuild_leaderboard_groups() -> void:
 		)
 	_leaderboard_group_option.clear()
 	_leaderboard_identities.clear()
-	if not is_instance_valid(_progress_system):
+	if (
+		not is_instance_valid(_progress_system)
+		or _progress_snapshot.is_empty()
+	):
 		_set_empty_leaderboard_group_option()
 		return
 	_leaderboard_identities = (
-		_progress_system.get_device_leaderboard_identities()
+		_progress_system.get_device_leaderboard_identities(
+			_progress_snapshot
+		)
 	)
 	var selected_index: int = 0
 	for index: int in range(_leaderboard_identities.size()):
@@ -386,6 +425,7 @@ func _rebuild_leaderboard() -> void:
 		_leaderboard_identities.size() - 1
 	)
 	var rows: Array[Dictionary] = _progress_system.get_device_local_leaderboard(
+		_progress_snapshot,
 		_leaderboard_identities[selected_index]
 	)
 	for row: Dictionary in rows:
@@ -401,6 +441,7 @@ func _rebuild_leaderboard() -> void:
 
 
 func _set_empty_leaderboard_group_option() -> void:
+	_leaderboard_group_option.clear()
 	_leaderboard_group_option.add_item(tr("LOCAL_LEADERBOARD_ALL_MODES"))
 	_leaderboard_group_option.select(0)
 	_leaderboard_group_option.disabled = true
@@ -522,6 +563,145 @@ func _format_duration(duration_msec: int) -> String:
 	return "%02d:%02d" % [minutes, seconds]
 
 
+func _request_progress_snapshot() -> void:
+	_cancel_progress_snapshot(&"superseded")
+	_progress_snapshot.clear()
+	_progress_snapshot_generation += 1
+	var generation: int = _progress_snapshot_generation
+	_set_progress_loading_state()
+	if (
+		not is_instance_valid(_progress_system)
+		or not is_instance_valid(_signal_utility)
+	):
+		_apply_progress_snapshot_failure()
+		return
+	_progress_snapshot_cancel_source = GFCancellationSource.new()
+	var _bound_to_dialog: bool = (
+		_progress_snapshot_cancel_source.cancel_when_node_exits(
+			self,
+			&"dialog_closed",
+			{&"generation": generation}
+		)
+	)
+	_progress_snapshot_completion = (
+		_progress_system.request_device_progress_snapshot(
+			_progress_snapshot_cancel_source.get_token()
+		)
+	)
+	if _progress_snapshot_completion == null:
+		_apply_progress_snapshot_failure()
+		return
+	if _progress_snapshot_completion.is_completed():
+		_on_progress_snapshot_completed(
+			_progress_snapshot_completion,
+			_progress_snapshot_completion,
+			generation
+		)
+		return
+	var _snapshot_connection: GFSignalConnection = (
+		_signal_utility.connect_once(
+			_progress_snapshot_completion.completed,
+			Callable(
+				self,
+				&"_on_progress_snapshot_completed"
+			).bind(
+				_progress_snapshot_completion,
+				generation
+			),
+			self
+		)
+	)
+
+
+func _cancel_progress_snapshot(reason: StringName) -> void:
+	var source: GFCancellationSource = _progress_snapshot_cancel_source
+	if source != null:
+		if not source.is_cancel_requested():
+			var _cancelled_snapshot: bool = (
+				source.cancel(
+					reason,
+					{&"generation": _progress_snapshot_generation}
+				)
+			)
+		source.dispose()
+	if _progress_snapshot_cancel_source == source:
+		_progress_snapshot_cancel_source = null
+	_progress_snapshot_completion = null
+
+
+func _on_progress_snapshot_completed(
+	settled_completion: GFAsyncCompletion,
+	expected_completion: GFAsyncCompletion,
+	generation: int
+) -> void:
+	if (
+		not is_inside_tree()
+		or generation != _progress_snapshot_generation
+		or expected_completion == null
+		or settled_completion != expected_completion
+		or expected_completion != _progress_snapshot_completion
+	):
+		return
+	_progress_snapshot_completion = null
+	if _progress_snapshot_cancel_source != null:
+		_progress_snapshot_cancel_source.dispose()
+	_progress_snapshot_cancel_source = null
+	if not settled_completion.is_successful():
+		if not settled_completion.is_cancelled():
+			_apply_progress_snapshot_failure()
+		return
+	var result_value: Variant = settled_completion.get_result()
+	if not result_value is Dictionary:
+		_apply_progress_snapshot_failure()
+		return
+	_progress_snapshot = GFVariantData.as_dictionary(
+		result_value
+	).duplicate(true)
+	_rebuild_profile()
+	_rebuild_leaderboard_groups()
+	_rebuild_leaderboard()
+	if GFVariantData.get_option_bool(
+		_progress_snapshot,
+		&"partial",
+		false
+	):
+		_set_status(tr("PLAYER_PROFILE_PARTIAL"), true)
+	elif _status_label.text == tr("PLAYER_PROFILE_LOADING"):
+		_set_status("")
+
+
+func _set_progress_loading_state() -> void:
+	_clear_container(_mode_list)
+	_clear_container(_leaderboard_list)
+	_account_summary_label.text = tr("PLAYER_PROFILE_LOADING")
+	_mode_empty_label.text = tr("PLAYER_PROFILE_LOADING")
+	_mode_empty_label.visible = true
+	_mode_list.visible = false
+	_leaderboard_empty_label.text = tr("LOCAL_LEADERBOARD_LOADING")
+	_leaderboard_empty_label.visible = true
+	_leaderboard_list.visible = false
+	_leaderboard_group_option.clear()
+	_leaderboard_group_option.add_item(tr("LOCAL_LEADERBOARD_LOADING"))
+	_leaderboard_group_option.select(0)
+	_leaderboard_group_option.disabled = true
+	_set_status(tr("PLAYER_PROFILE_LOADING"))
+
+
+func _apply_progress_snapshot_failure() -> void:
+	_progress_snapshot.clear()
+	_clear_container(_mode_list)
+	_clear_container(_leaderboard_list)
+	_account_summary_label.text = tr("PLAYER_PROFILE_UNAVAILABLE")
+	_mode_empty_label.text = tr("PLAYER_PROFILE_UNAVAILABLE")
+	_mode_empty_label.visible = true
+	_mode_list.visible = false
+	_set_empty_leaderboard_group_option()
+	_leaderboard_empty_label.text = tr("PLAYER_PROFILE_UNAVAILABLE")
+	_leaderboard_empty_label.visible = true
+	_leaderboard_list.visible = false
+	_set_status(tr("PLAYER_PROFILE_UNAVAILABLE"), true)
+
+
 func _clear_container(container: Node) -> void:
 	for child: Node in container.get_children():
 		child.queue_free()
@@ -616,6 +796,53 @@ func _close_dialog() -> void:
 	)
 
 
+func _observe_account_operation(
+	operation: LocalAccountOperation
+) -> void:
+	if operation == null:
+		return
+	_account_operation = operation
+	_apply_account_operation_state()
+	if operation.is_completed():
+		_on_account_operation_completed(
+			operation.get_result(),
+			operation
+		)
+		return
+	if is_instance_valid(_signal_utility):
+		var _connection: GFSignalConnection = _signal_utility.connect_once(
+			operation.completed,
+			Callable(
+				self,
+				"_on_account_operation_completed"
+			).bind(operation),
+			self
+		)
+
+
+func _apply_account_operation_state() -> void:
+	var busy: bool = (
+		(
+			_account_operation != null
+			and _account_operation.is_pending()
+		)
+		or (
+			is_instance_valid(_account_system)
+			and _account_system.is_account_reconciliation_pending()
+		)
+	)
+	var account_count: int = (
+		_account_system.get_accounts().size()
+		if is_instance_valid(_account_system)
+		else 0
+	)
+	_account_option.disabled = busy or account_count <= 1
+	_create_button.disabled = busy
+	_rename_button.disabled = busy
+	_delete_button.disabled = busy or account_count <= 1
+	_name_input.editable = not busy
+
+
 # --- 信号处理函数 ---
 
 func _on_account_selected(index: int) -> void:
@@ -625,40 +852,29 @@ func _on_account_selected(index: int) -> void:
 	if not value is String:
 		return
 	var account_id: String = GFVariantData.to_text(value)
-	var error: Error = _account_system.switch_account(account_id)
-	if error != OK:
-		_set_status(tr("PLAYER_SWITCH_FAILED") % error, true)
-		_rebuild_account_selector()
-	else:
-		_set_status(tr("PLAYER_SWITCHED"), false)
-		_rebuild_all()
+	_observe_account_operation(
+		_account_system.request_switch_account(account_id)
+	)
 
 
 func _on_create_pressed() -> void:
 	if not is_instance_valid(_account_system):
 		return
-	var error: Error = _account_system.create_account(_name_input.text)
-	if error != OK:
-		_set_status(tr("PLAYER_CREATE_FAILED") % error, true)
-		return
-	_name_input.clear()
-	_set_status(tr("PLAYER_CREATED"), false)
-	_rebuild_all()
+	_observe_account_operation(
+		_account_system.request_create_account(_name_input.text)
+	)
 
 
 func _on_rename_pressed() -> void:
 	if not is_instance_valid(_account_system):
 		return
 	var account_id: String = _selected_account_id()
-	var error: Error = _account_system.rename_account(
-		account_id,
-		_name_input.text
+	_observe_account_operation(
+		_account_system.request_rename_account(
+			account_id,
+			_name_input.text
+		)
 	)
-	if error != OK:
-		_set_status(tr("PLAYER_RENAME_FAILED") % error, true)
-		return
-	_set_status(tr("PLAYER_RENAMED"), false)
-	_rebuild_all()
 
 
 func _on_delete_pressed() -> void:
@@ -681,12 +897,9 @@ func _on_delete_confirmed() -> void:
 	if not is_instance_valid(_account_system):
 		return
 	var account_id: String = _selected_account_id()
-	var error: Error = _account_system.delete_account(account_id)
-	if error != OK:
-		_set_status(tr("PLAYER_DELETE_FAILED") % error, true)
-		return
-	_set_status(tr("PLAYER_DELETED"), false)
-	_rebuild_all()
+	_observe_account_operation(
+		_account_system.request_delete_account(account_id)
+	)
 
 
 func _on_leaderboard_group_selected(_index: int) -> void:
@@ -699,3 +912,56 @@ func _on_account_changed(_account: LocalPlayerAccount) -> void:
 
 func _on_account_catalog_changed() -> void:
 	_rebuild_all()
+
+
+func _on_account_reconciliation_state_changed(_pending: bool) -> void:
+	_apply_account_operation_state()
+
+
+func _on_account_operation_completed(
+	result: LocalAccountOperationResult,
+	operation: LocalAccountOperation
+) -> void:
+	if operation == null or operation != _account_operation:
+		return
+	_account_operation = null
+	_rebuild_all()
+	if result == null:
+		_set_status(tr("PLAYER_PROFILE_UNAVAILABLE"), true)
+		return
+	var error_code: Error = result.get_error_code()
+	match result.get_operation():
+		LocalAccountOperation.OPERATION_CREATE:
+			if result.is_successful():
+				_name_input.clear()
+				_set_status(tr("PLAYER_CREATED"), false)
+			else:
+				_set_status(
+					tr("PLAYER_CREATE_FAILED") % error_code,
+					true
+				)
+		LocalAccountOperation.OPERATION_SWITCH:
+			if result.is_successful():
+				_set_status(tr("PLAYER_SWITCHED"), false)
+			else:
+				_set_status(
+					tr("PLAYER_SWITCH_FAILED") % error_code,
+					true
+				)
+				_rebuild_account_selector()
+		LocalAccountOperation.OPERATION_RENAME:
+			if result.is_successful():
+				_set_status(tr("PLAYER_RENAMED"), false)
+			else:
+				_set_status(
+					tr("PLAYER_RENAME_FAILED") % error_code,
+					true
+				)
+		LocalAccountOperation.OPERATION_DELETE:
+			if result.is_successful():
+				_set_status(tr("PLAYER_DELETED"), false)
+			else:
+				_set_status(
+					tr("PLAYER_DELETE_FAILED") % error_code,
+					true
+				)

@@ -1,4 +1,4 @@
-## BookmarkCatalogSaveData: bookmarks Feature 的严格 SaveGraph section。
+## BookmarkCatalogSaveData: bookmarks Feature 的严格 GFSaveProfile section。
 class_name BookmarkCatalogSaveData
 extends GameSaveSectionData
 

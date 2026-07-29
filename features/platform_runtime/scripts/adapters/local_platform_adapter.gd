@@ -69,16 +69,6 @@ func create_runtime_context() -> GFPlatformRuntimeContext:
 	return context
 
 
-## 通过 Godot DisplayServer 执行 GF runtime 已校验的剪贴板写入。
-## @param text: 要写入的非空纯文本。
-## @return: 当前平台接受写入请求时返回 true；不依赖受限平台的同步读回能力。
-func _write_text_to_clipboard(text: String) -> bool:
-	if text.is_empty() or not _has_clipboard_write_support():
-		return false
-	_set_clipboard_text(text)
-	return true
-
-
 ## 接收并转换 Godot 平台通知。
 ## @param what: Godot 通知标识。
 func handle_notification(what: int) -> void:
@@ -92,6 +82,18 @@ func handle_notification(what: int) -> void:
 				var _context_refreshed: bool = refresh_context()
 		Node.NOTIFICATION_WM_SIZE_CHANGED:
 			_emit_display_changes()
+
+
+# --- 可重写钩子 / 虚方法 ---
+
+## 通过 Godot DisplayServer 执行 GF runtime 已校验的剪贴板写入。
+## @param text: 要写入的非空纯文本。
+## @return: 当前平台接受写入请求时返回 true；不依赖受限平台的同步读回能力。
+func _write_text_to_clipboard(text: String) -> bool:
+	if text.is_empty() or not _has_clipboard_write_support():
+		return false
+	_set_clipboard_text(text)
+	return true
 
 
 # --- 私有/辅助方法 ---

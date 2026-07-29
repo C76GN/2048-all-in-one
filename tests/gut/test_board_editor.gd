@@ -241,6 +241,34 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 	if apply_node is Button:
 		var apply_button: Button = apply_node
 		assert_false(apply_button.disabled, "有效初始拓扑应允许直接使用。")
+		var operation_token: int = panel._begin_persistence_operation(
+			&"delete",
+			"board-under-test"
+		)
+		assert_true(operation_token > 0)
+		assert_true(apply_button.disabled, "存档操作在途时必须阻止重复应用。")
+		panel._persistence_outcome_unknown = true
+		panel._pending_persistence_transaction_id = 73
+		await panel._on_section_reconciliation_settled({
+			&"transaction_id": 73,
+			&"status": "late_failure_rolled_back",
+			&"candidate_persisted": false,
+			&"memory_rolled_back": true,
+		})
+		assert_false(
+			panel._persistence_outcome_unknown,
+			"晚到回滚终态必须解除棋盘编辑器的持久化锁定。"
+		)
+		assert_false(
+			panel._persistence_operation_busy,
+			"棋盘库完成回滚重载后必须解除忙碌态。"
+		)
+		assert_true(
+			panel._saved_board_detail_label.text
+			== panel.tr("BOARD_EDITOR_RECONCILIATION_ROLLED_BACK"),
+			"棋盘库回滚终态必须使用稳定本地化文案。"
+		)
+		assert_false(apply_button.disabled, "对账收敛后有效棋盘应重新允许使用。")
 	if responsive_controller is BoardEditorResponsiveLayoutController:
 		var responsive: BoardEditorResponsiveLayoutController = responsive_controller
 		panel.set_anchors_preset(Control.PRESET_TOP_LEFT)

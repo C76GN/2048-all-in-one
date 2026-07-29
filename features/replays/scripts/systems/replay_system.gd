@@ -1,7 +1,7 @@
 ## ReplaySystem: 负责处理游戏回放数据持久化的核心系统。
 ##
 ## 取代了原本的 ReplayManager 全局单例。
-## 回放作为独立 Feature section 参与统一玩家数据 SaveGraph 事务。
+## 回放作为独立 Feature section 参与统一玩家 GFSaveProfile 事务。
 class_name ReplaySystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
@@ -62,33 +62,48 @@ func dispose() -> void:
 
 # --- 公共方法 ---
 
-## 将一个 ReplayData 原子写入统一玩家数据图。
-## @param replay_data: 要保存的ReplayData资源。
-func save_replay(replay_data: ReplayData) -> Error:
-	if replay_data == null:
-		return ERR_INVALID_PARAMETER
+## 异步将一个 ReplayData 原子写入统一玩家 Profile。
+## @param replay_data: 要保存的 ReplayData 资源。
+func request_save_replay(
+	replay_data: ReplayData
+) -> GameSaveSectionOperation:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
 	if save_graph == null:
-		return ERR_UNCONFIGURED
+		return null
+	if replay_data == null:
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.REPLAYS_SECTION_ID,
+			ERR_INVALID_PARAMETER
+		)
 
 	if replay_data.replay_id.is_empty():
 		var timestamp_msec: int = replay_data.timestamp * 1000 if replay_data.timestamp > 0 else -1
 		replay_data.replay_id = GFUuid.generate_v7(timestamp_msec)
 	if not GFUuid.is_valid(replay_data.replay_id, 7):
-		return ERR_INVALID_DATA
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.REPLAYS_SECTION_ID,
+			ERR_INVALID_DATA
+		)
 
 	var candidate: ReplayData = ReplayData.from_dict(replay_data.to_dict())
 	if candidate == null:
-		return ERR_INVALID_DATA
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.REPLAYS_SECTION_ID,
+			ERR_INVALID_DATA
+		)
 	var replays: Array[ReplayData] = load_replays()
 	for existing: ReplayData in replays:
 		if existing.replay_id == candidate.replay_id:
-			return ERR_ALREADY_EXISTS
+			return save_graph.make_rejected_section_operation(
+				GameSaveGraphUtility.REPLAYS_SECTION_ID,
+				ERR_ALREADY_EXISTS
+			)
 	replays.append(candidate)
 	replays = _retain_newest_replays(replays)
-	return save_graph.replace_section_data(
+	return save_graph.request_replace_section_data(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
-		_serialize_replays(replays)
+		_serialize_replays(replays),
+		{&"feature_operation": "save_replay"}
 	)
 
 
@@ -116,14 +131,19 @@ func load_replays() -> Array[ReplayData]:
 	return replays
 
 
-## 根据稳定 ID 删除一个回放。
+## 根据稳定 ID 异步删除一个回放。
 ## @param replay_id: 要删除的 UUID v7 回放标识。
-func delete_replay(replay_id: String) -> Error:
-	if not GFUuid.is_valid(replay_id, 7):
-		return ERR_INVALID_PARAMETER
+func request_delete_replay(
+	replay_id: String
+) -> GameSaveSectionOperation:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
 	if save_graph == null:
-		return ERR_UNCONFIGURED
+		return null
+	if not GFUuid.is_valid(replay_id, 7):
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.REPLAYS_SECTION_ID,
+			ERR_INVALID_PARAMETER
+		)
 
 	var replays: Array[ReplayData] = load_replays()
 	var found: bool = false
@@ -134,10 +154,14 @@ func delete_replay(replay_id: String) -> Error:
 			continue
 		retained.append(replay)
 	if not found:
-		return ERR_DOES_NOT_EXIST
-	return save_graph.replace_section_data(
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.REPLAYS_SECTION_ID,
+			ERR_DOES_NOT_EXIST
+		)
+	return save_graph.request_replace_section_data(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
-		_serialize_replays(retained)
+		_serialize_replays(retained),
+		{&"feature_operation": "delete_replay"}
 	)
 
 

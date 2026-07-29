@@ -137,7 +137,9 @@ func get_zoom() -> float:
 
 func _resolve_nodes() -> void:
 	_host_control = _get_control_host()
-	_spatial_canvas = _host_control as GFSpatialCanvas2D
+	_spatial_canvas = null
+	if _host_control is GFSpatialCanvas2D:
+		_spatial_canvas = _host_control
 	_world_root = _get_node_2d(world_root_path)
 	_canvas = _get_editor_canvas(canvas_path)
 	_zoom_out_button = _get_button(zoom_out_button_path)

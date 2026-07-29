@@ -113,7 +113,7 @@ func matches_ruleset(
 	)
 
 
-## 转换为 SaveGraph 可持久化字典。
+## 转换为 GFSaveProfile 可持久化字典。
 func to_dict() -> Dictionary:
 	var checkpoint_data: Array[Dictionary] = []
 	for checkpoint: ReplayCheckpoint in replay_checkpoints:

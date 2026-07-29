@@ -1,6 +1,6 @@
 ## ProgressStatsSystem: 负责处理游戏最高分与轻量统计数据持久化的系统。
 ##
-## 最高分和统计作为 progress section 参与统一玩家数据 SaveGraph，设置交给 GFSettingsUtility 管理。
+## 最高分和统计作为 progress section 参与统一玩家 GFSaveProfile，设置交给 GFSettingsUtility 管理。
 class_name ProgressStatsSystem
 extends "res://addons/gf/kernel/base/gf_system.gd"
 
@@ -41,6 +41,12 @@ var _log: GFLogUtility
 var _clock: GameClockUtility
 var _save_graph: GameSaveGraphUtility
 var _account_catalog: LocalAccountCatalogUtility
+var _storage: GFStorageUtility
+var _signal_utility: GFSignalUtility
+var _disposed: bool = true
+var _reconciliation_connection: GFSignalConnection = null
+var _snapshot_request_serial: int = 0
+var _snapshot_contexts: Dictionary = {}
 
 
 # --- Godot 生命周期方法 ---
@@ -50,22 +56,49 @@ func get_required_utilities() -> Array[Script]:
 		GameClockUtility,
 		GameSaveGraphUtility,
 		GFLogUtility,
+		GFSignalUtility,
+		GFStorageUtility,
 		LocalAccountCatalogUtility,
 	]
 
 
 func ready() -> void:
+	_disposed = false
 	_log = _get_log_utility()
 	_clock = _get_clock_utility()
 	_save_graph = _get_save_graph_utility()
 	_account_catalog = _get_account_catalog_utility()
+	_storage = _get_storage_utility()
+	_signal_utility = _get_signal_utility()
 
 
 func dispose() -> void:
+	_disposed = true
+	_disconnect_reconciliation_callback()
+	for request_id_value: Variant in _snapshot_contexts.keys():
+		var request_id: int = GFVariantData.to_int(request_id_value)
+		var context: Dictionary = _get_snapshot_context(request_id)
+		var batch: GFAsyncBatch = _get_snapshot_batch(context)
+		if batch != null and not batch.is_completed():
+			var _cancelled_batch: bool = batch.cancel(
+				&"system_disposed",
+				{&"request_id": request_id}
+			)
+		var completion: GFAsyncCompletion = _get_snapshot_completion(context)
+		if completion != null and completion.is_pending():
+			var _cancelled_completion: bool = completion.cancel(
+				&"system_disposed",
+				{&"request_id": request_id}
+			)
+	_snapshot_contexts.clear()
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	_log = null
 	_clock = null
 	_save_graph = null
 	_account_catalog = null
+	_storage = null
+	_signal_utility = null
 
 
 # --- 公共方法 ---
@@ -115,35 +148,53 @@ func set_high_score(mode_id: String, board_key: String, score: int) -> Error:
 	return save_error
 
 
-## 事务记录规范结果。所有结果进入有界 recent results；只有比赛合格结果进入本地榜。
+## 异步事务记录规范结果。所有结果进入有界 recent results；只有比赛合格
+## 结果进入本地榜。
 ## Debug 改写结果不投影到既有进度统计或成就。
 ## @param result: 已冻结并通过当前 schema 校验的规范对局结果。
 ## @param duration_msec: 本局从可操作开始到结束的持续时间，单位为毫秒。
-func record_game_result(
+func request_record_game_result(
 	result: GameResultRecordedData,
 	duration_msec: int = 0
-) -> Error:
+) -> GameSaveSectionOperation:
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return null
 	if result == null or not result.is_valid() or duration_msec < 0:
-		return ERR_INVALID_DATA
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			ERR_INVALID_DATA
+		)
 	var strict_result: GameResultRecordedData = GameResultRecordedData.from_dict(
 		result.to_dict()
 	)
 	if strict_result == null:
-		return ERR_INVALID_DATA
+		return save_graph.make_rejected_section_operation(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			ERR_INVALID_DATA
+		)
 
 	var save_data: Dictionary = _get_save_data()
 	if _has_recorded_result(save_data, strict_result.result_hash):
-		return OK
+		return save_graph.make_successful_section_operation(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID
+		)
 	if strict_result.counts_toward_progress():
 		_apply_result_to_stats(save_data, strict_result, duration_msec)
 	_append_recent_result(save_data, strict_result)
 	if strict_result.is_competition_eligible():
 		_append_local_leaderboard_result(save_data, strict_result)
 
-	var save_error: Error = _save_game_data(save_data)
-	if save_error == OK and strict_result.counts_toward_progress():
-		send_event(strict_result)
-	return save_error
+	var operation: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			save_data,
+			{&"feature": &"progress", &"action": &"record_game_result"}
+		)
+	)
+	if strict_result.counts_toward_progress():
+		_publish_recorded_result_on_success(operation, strict_result)
+	return operation
 
 
 ## 返回最近规范结果的只读副本，按结束时间降序、result hash 升序稳定排列。
@@ -210,22 +261,192 @@ func get_local_leaderboard(
 	return _get_local_leaderboard_by_identity(identity)
 
 
-## 返回指定本地账号按模式聚合的个人统计；空 ID 表示当前账号。
-## @param account_id: 要读取的本地账号 ID；空字符串表示当前账号。
+## 异步冻结此设备全部本地账号的 progress 快照。
+##
+## 当前账号直接读取最新内存 section；其余账号各提交一次 GFStorage 异步读取，
+## 并通过 GFAsyncBatch 汇总为单一不可变结果。单个账号损坏或缺失只会把快照
+## 标记为 partial，不会让其他账号的统计不可用。
+## @param cancel_token: 调用方生命周期取消令牌。
+func request_device_progress_snapshot(
+	cancel_token: GFCancellationToken = null
+) -> GFAsyncCompletion:
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	if (
+		_disposed
+		or not is_instance_valid(_storage)
+		or not is_instance_valid(_signal_utility)
+		or not is_instance_valid(_account_catalog)
+		or _get_save_graph() == null
+	):
+		var _failed_unconfigured: bool = completion.fail(
+			"Progress snapshot dependencies are unavailable.",
+			{&"error_code": int(ERR_UNCONFIGURED)}
+		)
+		return completion
+	if cancel_token != null and cancel_token.is_cancel_requested():
+		var _cancelled_before_start: bool = completion.cancel(
+			cancel_token.get_cancel_reason(),
+			cancel_token.get_cancel_metadata()
+		)
+		return completion
+
+	var accounts: Array[LocalPlayerAccount] = _account_catalog.get_accounts()
+	var active_account_id: String = _account_catalog.get_active_account_id()
+	if accounts.is_empty() or active_account_id.is_empty():
+		var _failed_catalog: bool = completion.fail(
+			"Local account catalog has no active account.",
+			{&"error_code": int(ERR_DOES_NOT_EXIST)}
+		)
+		return completion
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	var catalog_profile_file: String = (
+		LocalAccountCatalogUtility.make_profile_file_name(
+			active_account_id
+		)
+	)
+	var active_profile_file: String = save_graph.get_profile_file_name()
+	if active_profile_file != catalog_profile_file:
+		var _failed_account_transition: bool = completion.fail(
+			"Local account catalog and active Save Profile are reconciling.",
+			{
+				&"error_code": int(ERR_BUSY),
+				&"reconciliation": true,
+				&"active_account_id": active_account_id,
+				&"catalog_profile_file": catalog_profile_file,
+				&"active_profile_file": active_profile_file,
+			}
+		)
+		return completion
+
+	_snapshot_request_serial += 1
+	var request_id: int = _snapshot_request_serial
+	var snapshot: Dictionary = _make_empty_device_progress_snapshot(
+		request_id,
+		active_account_id,
+		accounts
+	)
+	var inactive_account_ids: Array[String] = []
+	for account: LocalPlayerAccount in accounts:
+		if account.account_id == active_account_id:
+			var active_entry: Dictionary = _get_snapshot_account_entry(
+				snapshot,
+				account.account_id
+			)
+			active_entry[&"progress"] = _get_save_data().duplicate(true)
+			_set_snapshot_account_entry(
+				snapshot,
+				account.account_id,
+				active_entry
+			)
+		else:
+			inactive_account_ids.append(account.account_id)
+
+	if inactive_account_ids.is_empty():
+		var _completed_immediately: bool = completion.succeed(snapshot)
+		return completion
+
+	var batch: GFAsyncBatch = GFAsyncBatch.new()
+	batch.completion_policy = GFAsyncBatch.CompletionPolicy.EACH
+	batch.fail_fast = false
+	var context: Dictionary = {
+		&"request_id": request_id,
+		&"completion": completion,
+		&"batch": batch,
+		&"snapshot": snapshot,
+		&"connections": [],
+	}
+	_snapshot_contexts[request_id] = context
+	var settled_connection: GFSignalConnection = _signal_utility.connect_once(
+		batch.settled,
+		Callable(self, &"_on_progress_snapshot_batch_settled").bind(
+			request_id
+		),
+		self
+	)
+	_append_snapshot_connection(context, settled_connection)
+	if cancel_token != null:
+		var _bound_cancel_token: bool = batch.bind_cancel_token(cancel_token)
+
+	for account_id: String in inactive_account_ids:
+		var _added_item: bool = batch.add_item(
+			account_id,
+			{&"account_id": account_id}
+		)
+	for account_id: String in inactive_account_ids:
+		if batch.is_completed():
+			break
+		var operation: GFStorageAsyncOperation = _storage.load_data_request_async(
+			LocalAccountCatalogUtility.make_profile_file_name(account_id)
+		)
+		if operation == null:
+			var _marked_missing_operation: bool = batch.mark_completed(
+				account_id,
+				_make_progress_snapshot_issue(
+					&"request_not_created",
+					ERR_CANT_CREATE,
+					"Storage did not create a load operation."
+				)
+			)
+			continue
+		if operation.is_completed():
+			_settle_progress_snapshot_storage_result(
+				operation.get_result(),
+				request_id,
+				account_id,
+				operation.get_request_id()
+			)
+			continue
+		var operation_connection: GFSignalConnection = (
+			_signal_utility.connect_once(
+				operation.completed,
+				Callable(
+					self,
+					&"_on_progress_snapshot_storage_completed"
+				).bind(
+					request_id,
+					account_id,
+					operation.get_request_id()
+				),
+				self
+			)
+		)
+		_append_snapshot_connection(context, operation_connection)
+	return completion
+
+
+## 从已冻结设备快照返回指定账号按模式聚合的个人统计。
+## @param snapshot: request_device_progress_snapshot() 的成功结果。
+## @param account_id: 要投影的本地账号 ID；空字符串表示快照中的当前账号。
 func get_profile_mode_summaries(
+	snapshot: Dictionary,
 	account_id: String = ""
 ) -> Array[Dictionary]:
-	var save_data: Dictionary = _get_profile_save_data(account_id)
+	var resolved_account_id: String = account_id
+	if resolved_account_id.is_empty():
+		resolved_account_id = GFVariantData.get_option_string(
+			snapshot,
+			&"active_account_id"
+		)
+	var save_data: Dictionary = _get_snapshot_account_progress(
+		snapshot,
+		resolved_account_id
+	)
 	if save_data.is_empty():
 		return []
 	return _build_mode_summaries(save_data)
 
 
-## 返回此设备全部本地账号可用的榜单分组身份。
-func get_device_leaderboard_identities() -> Array[Dictionary]:
+## 从已冻结设备快照返回全部本地账号可用的榜单分组身份。
+## @param snapshot: request_device_progress_snapshot() 的成功结果。
+func get_device_leaderboard_identities(
+	snapshot: Dictionary
+) -> Array[Dictionary]:
 	var identities_by_key: Dictionary = {}
-	for account: LocalPlayerAccount in _get_local_accounts():
-		var save_data: Dictionary = _get_profile_save_data(account.account_id)
+	for account_id: String in _get_snapshot_account_order(snapshot):
+		var save_data: Dictionary = _get_snapshot_account_progress(
+			snapshot,
+			account_id
+		)
 		var leaderboards: Dictionary = _get_leaderboards(save_data)
 		for group_key_value: Variant in leaderboards.keys():
 			var group_key: String = GFVariantData.to_text(group_key_value)
@@ -270,8 +491,10 @@ func get_device_leaderboard_identities() -> Array[Dictionary]:
 ## 聚合此设备全部本地账号在同一严格规则分组下的最佳成绩。
 ##
 ## 每个账号最多占一个名次，避免同一玩家用多局结果填满设备榜。
+## @param snapshot: request_device_progress_snapshot() 的成功结果。
 ## @param identity: 模式、棋盘与规则集组成的严格排行榜分组身份。
 func get_device_local_leaderboard(
+	snapshot: Dictionary,
 	identity: Dictionary
 ) -> Array[Dictionary]:
 	if not GameResultRecordedData.is_leaderboard_identity_valid(identity):
@@ -283,8 +506,15 @@ func get_device_local_leaderboard(
 		return []
 
 	var rows: Array[Dictionary] = []
-	for account: LocalPlayerAccount in _get_local_accounts():
-		var save_data: Dictionary = _get_profile_save_data(account.account_id)
+	for account_id: String in _get_snapshot_account_order(snapshot):
+		var account_entry: Dictionary = _get_snapshot_account_entry(
+			snapshot,
+			account_id
+		)
+		var save_data: Dictionary = GFVariantData.get_option_dictionary(
+			account_entry,
+			&"progress"
+		)
 		var bucket: Dictionary = GFVariantData.get_option_dictionary(
 			_get_leaderboards(save_data),
 			group_key
@@ -309,8 +539,11 @@ func get_device_local_leaderboard(
 		if best_result != null:
 			rows.append({
 				&"rank": 0,
-				&"account_id": account.account_id,
-				&"display_name": account.display_name,
+				&"account_id": account_id,
+				&"display_name": GFVariantData.get_option_string(
+					account_entry,
+					&"display_name"
+				),
 				&"result": best_result,
 			})
 
@@ -324,39 +557,285 @@ func get_device_local_leaderboard(
 
 # --- 私有方法 ---
 
-func _get_profile_save_data(account_id: String) -> Dictionary:
-	if account_id.is_empty():
-		return _get_save_data()
-	if not is_instance_valid(_account_catalog):
-		_account_catalog = _get_account_catalog_utility()
-	if not is_instance_valid(_account_catalog):
-		return {}
-	if _account_catalog.get_account(account_id) == null:
-		return {}
-	if account_id == _account_catalog.get_active_account_id():
-		return _get_save_data()
+func _make_empty_device_progress_snapshot(
+	request_id: int,
+	active_account_id: String,
+	accounts: Array[LocalPlayerAccount]
+) -> Dictionary:
+	var account_order: Array[String] = []
+	var accounts_by_id: Dictionary = {}
+	for account: LocalPlayerAccount in accounts:
+		account_order.append(account.account_id)
+		accounts_by_id[account.account_id] = {
+			&"account_id": account.account_id,
+			&"display_name": account.display_name,
+			&"last_active_at": account.last_active_at,
+			&"progress": {},
+		}
+	return {
+		&"request_id": request_id,
+		&"active_account_id": active_account_id,
+		&"account_order": account_order,
+		&"accounts_by_id": accounts_by_id,
+		&"issues_by_account_id": {},
+		&"partial": false,
+	}
 
-	var save_graph: GameSaveGraphUtility = _get_save_graph()
-	if save_graph == null:
-		return {}
-	var envelope: Dictionary = save_graph.read_profile_section_envelope(
-		LocalAccountCatalogUtility.make_profile_file_name(account_id),
+
+func _on_progress_snapshot_storage_completed(
+	result: GFStorageAsyncResult,
+	request_id: int,
+	account_id: String,
+	storage_request_id: int
+) -> void:
+	_settle_progress_snapshot_storage_result(
+		result,
+		request_id,
+		account_id,
+		storage_request_id
+	)
+
+
+func _settle_progress_snapshot_storage_result(
+	result: GFStorageAsyncResult,
+	request_id: int,
+	account_id: String,
+	storage_request_id: int
+) -> void:
+	var context: Dictionary = _get_snapshot_context(request_id)
+	var batch: GFAsyncBatch = _get_snapshot_batch(context)
+	if context.is_empty() or batch == null or batch.is_completed():
+		return
+	var outcome: Dictionary = _parse_progress_snapshot_storage_result(
+		result,
+		storage_request_id
+	)
+	var _marked_item: bool = batch.mark_completed(account_id, outcome)
+
+
+func _parse_progress_snapshot_storage_result(
+	result: GFStorageAsyncResult,
+	storage_request_id: int
+) -> Dictionary:
+	if result == null or result.get_request_id() != storage_request_id:
+		return _make_progress_snapshot_issue(
+			&"request_identity_mismatch",
+			ERR_INVALID_DATA,
+			"Storage result did not match its load operation."
+		)
+	var read_result: GFStorageReadResult = result.get_read_result()
+	if read_result == null or not read_result.ok:
+		return _make_progress_snapshot_issue(
+			&"storage_read_failed",
+			(
+				read_result.error_code
+				if read_result != null
+				else result.get_error_code()
+			),
+			(
+				read_result.error
+				if read_result != null
+				else "Storage load did not return a typed read result."
+			)
+		)
+	var envelope: Dictionary = GameSaveGraphUtility.extract_profile_section_envelope(
+		read_result.payload,
 		GameSaveGraphUtility.PROGRESS_SECTION_ID
 	)
 	if envelope.is_empty():
-		return {}
+		return _make_progress_snapshot_issue(
+			&"profile_schema_invalid",
+			ERR_INVALID_DATA,
+			"Profile does not contain a valid progress section."
+		)
 	var provider: GameStatsSaveData = GameStatsSaveData.new()
-	if provider.replace_from_dict(envelope) != OK:
-		return {}
-	return provider.get_section_data()
+	var replace_error: Error = provider.replace_from_dict(envelope)
+	if replace_error != OK:
+		return _make_progress_snapshot_issue(
+			&"progress_schema_invalid",
+			replace_error,
+			"Progress section failed strict schema validation."
+		)
+	return {
+		&"ok": true,
+		&"progress": provider.get_section_data(),
+	}
 
 
-func _get_local_accounts() -> Array[LocalPlayerAccount]:
-	if not is_instance_valid(_account_catalog):
-		_account_catalog = _get_account_catalog_utility()
-	if not is_instance_valid(_account_catalog):
-		return []
-	return _account_catalog.get_accounts()
+func _on_progress_snapshot_batch_settled(
+	report: Dictionary,
+	request_id: int
+) -> void:
+	var context: Dictionary = _get_snapshot_context(request_id)
+	if context.is_empty():
+		return
+	var completion: GFAsyncCompletion = _get_snapshot_completion(context)
+	if completion == null:
+		_cleanup_snapshot_context(request_id)
+		return
+	if GFVariantData.get_option_bool(report, &"cancelled", false):
+		if completion.is_pending():
+			var _cancelled_completion: bool = completion.cancel(
+				GFVariantData.get_option_string_name(
+					report,
+					&"cancel_reason",
+					&"cancelled"
+				),
+				GFVariantData.get_option_dictionary(
+					report,
+					&"cancel_metadata"
+				)
+			)
+		_cleanup_snapshot_context(request_id)
+		return
+	var snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		context,
+		&"snapshot"
+	)
+	var results: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		&"results"
+	)
+	var issues: Dictionary = {}
+	for account_id_value: Variant in results.keys():
+		var account_id: String = GFVariantData.to_text(account_id_value)
+		var outcome: Dictionary = GFVariantData.get_option_dictionary(
+			results,
+			account_id
+		)
+		if GFVariantData.get_option_bool(outcome, &"ok", false):
+			var entry: Dictionary = _get_snapshot_account_entry(
+				snapshot,
+				account_id
+			)
+			entry[&"progress"] = GFVariantData.get_option_dictionary(
+				outcome,
+				&"progress"
+			)
+			_set_snapshot_account_entry(snapshot, account_id, entry)
+		else:
+			issues[account_id] = outcome.duplicate(true)
+	snapshot[&"issues_by_account_id"] = issues
+	snapshot[&"partial"] = not issues.is_empty()
+	if completion.is_pending():
+		var _completed_snapshot: bool = completion.succeed(
+			snapshot,
+			{
+				&"request_id": request_id,
+				&"partial": not issues.is_empty(),
+				&"issue_count": issues.size(),
+			}
+		)
+	_cleanup_snapshot_context(request_id)
+
+
+func _make_progress_snapshot_issue(
+	failure_kind: StringName,
+	error_code: Error,
+	reason: String
+) -> Dictionary:
+	return {
+		&"ok": false,
+		&"failure_kind": failure_kind,
+		&"error_code": int(error_code),
+		&"reason": reason,
+	}
+
+
+func _get_snapshot_account_order(snapshot: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	for account_id_value: Variant in GFVariantData.get_option_array(
+		snapshot,
+		&"account_order"
+	):
+		var account_id: String = GFVariantData.to_text(account_id_value)
+		if not account_id.is_empty():
+			result.append(account_id)
+	return result
+
+
+func _get_snapshot_account_progress(
+	snapshot: Dictionary,
+	account_id: String
+) -> Dictionary:
+	return GFVariantData.get_option_dictionary(
+		_get_snapshot_account_entry(snapshot, account_id),
+		&"progress"
+	)
+
+
+func _get_snapshot_account_entry(
+	snapshot: Dictionary,
+	account_id: String
+) -> Dictionary:
+	return GFVariantData.get_option_dictionary(
+		GFVariantData.get_option_dictionary(snapshot, &"accounts_by_id"),
+		account_id
+	)
+
+
+func _set_snapshot_account_entry(
+	snapshot: Dictionary,
+	account_id: String,
+	entry: Dictionary
+) -> void:
+	var accounts_by_id: Dictionary = GFVariantData.get_option_dictionary(
+		snapshot,
+		&"accounts_by_id"
+	)
+	accounts_by_id[account_id] = entry
+	snapshot[&"accounts_by_id"] = accounts_by_id
+
+
+func _append_snapshot_connection(
+	context: Dictionary,
+	connection: GFSignalConnection
+) -> void:
+	if connection == null:
+		return
+	var connections: Array = GFVariantData.get_option_array(
+		context,
+		&"connections"
+	)
+	connections.append(connection)
+	context[&"connections"] = connections
+
+
+func _cleanup_snapshot_context(request_id: int) -> void:
+	var context: Dictionary = _get_snapshot_context(request_id)
+	for connection_value: Variant in GFVariantData.get_option_array(
+		context,
+		&"connections"
+	):
+		if connection_value is GFSignalConnection:
+			var connection: GFSignalConnection = connection_value
+			connection.disconnect_signal()
+	var _erased_context: bool = _snapshot_contexts.erase(request_id)
+
+
+func _get_snapshot_context(request_id: int) -> Dictionary:
+	return GFVariantData.get_option_dictionary(
+		_snapshot_contexts,
+		request_id
+	)
+
+
+func _get_snapshot_batch(context: Dictionary) -> GFAsyncBatch:
+	var batch_value: Variant = GFVariantData.get_option_value(
+		context,
+		&"batch"
+	)
+	return batch_value if batch_value is GFAsyncBatch else null
+
+
+func _get_snapshot_completion(
+	context: Dictionary
+) -> GFAsyncCompletion:
+	var completion_value: Variant = GFVariantData.get_option_value(
+		context,
+		&"completion"
+	)
+	return completion_value if completion_value is GFAsyncCompletion else null
 
 
 func _build_mode_summaries(save_data: Dictionary) -> Array[Dictionary]:
@@ -786,17 +1265,101 @@ static func _is_better_leaderboard_result_data(
 	) < GFVariantData.get_option_string(right, &"result_hash")
 
 
-func _save_game_data(save_data: Dictionary) -> Error:
+func _publish_recorded_result_on_success(
+	operation: GameSaveSectionOperation,
+	strict_result: GameResultRecordedData
+) -> void:
+	if operation == null:
+		return
+	if operation.is_completed():
+		_on_recorded_result_operation_completed(
+			operation.get_result(),
+			strict_result
+		)
+	else:
+		var callback: Callable = Callable(
+			self,
+			&"_on_recorded_result_operation_completed"
+		).bind(strict_result)
+		if not is_instance_valid(_signal_utility):
+			return
+		var _operation_connection: GFSignalConnection = (
+			_signal_utility.connect_once(
+				operation.completed,
+				callback,
+				self
+			)
+		)
+
+
+func _on_recorded_result_operation_completed(
+	result: GameSaveSectionResult,
+	strict_result: GameResultRecordedData
+) -> void:
+	if _disposed or result == null:
+		return
+	if result.is_successful():
+		send_event(strict_result)
+		return
+	if result.get_status() != GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN:
+		return
+	_publish_recorded_result_after_reconciliation(
+		result.get_transaction_id(),
+		strict_result
+	)
+
+
+func _publish_recorded_result_after_reconciliation(
+	transaction_id: int,
+	strict_result: GameResultRecordedData
+) -> void:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
 	if save_graph == null:
-		return ERR_UNCONFIGURED
-	var error: Error = save_graph.replace_section_data(
-		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		save_data
+		return
+	_disconnect_reconciliation_callback()
+	if not is_instance_valid(_signal_utility):
+		return
+	var callback: Callable = Callable(
+		self,
+		&"_on_recorded_result_reconciliation_settled"
+	).bind(transaction_id, strict_result)
+	_reconciliation_connection = _signal_utility.connect_signal(
+		save_graph.section_reconciliation_settled,
+		callback,
+		self
 	)
-	if error != OK and is_instance_valid(_log):
-		_log.error(_LOG_TAG, "保存统计 SaveGraph section 失败，错误码: %d" % error)
-	return error
+
+
+func _on_recorded_result_reconciliation_settled(
+	evidence: Dictionary,
+	transaction_id: int,
+	strict_result: GameResultRecordedData
+) -> void:
+	if (
+		GFVariantData.get_option_int(
+			evidence,
+			&"transaction_id",
+			0
+		) != transaction_id
+	):
+		return
+	_disconnect_reconciliation_callback()
+	if (
+		_disposed
+		or not GFVariantData.get_option_bool(
+			evidence,
+			&"candidate_persisted",
+			false
+		)
+	):
+		return
+	send_event(strict_result)
+
+
+func _disconnect_reconciliation_callback() -> void:
+	if _reconciliation_connection != null:
+		_reconciliation_connection.disconnect_signal()
+	_reconciliation_connection = null
 
 
 func _queue_game_data(save_data: Dictionary) -> Error:
@@ -808,7 +1371,7 @@ func _queue_game_data(save_data: Dictionary) -> Error:
 		save_data
 	)
 	if error != OK and is_instance_valid(_log):
-		_log.error(_LOG_TAG, "排队统计 SaveGraph section 失败，错误码: %d" % error)
+		_log.error(_LOG_TAG, "排队统计 Profile section 失败，错误码: %d" % error)
 	return error
 
 
@@ -1035,6 +1598,22 @@ func _get_account_catalog_utility() -> LocalAccountCatalogUtility:
 	if utility_value is LocalAccountCatalogUtility:
 		var account_catalog: LocalAccountCatalogUtility = utility_value
 		return account_catalog
+	return null
+
+
+func _get_storage_utility() -> GFStorageUtility:
+	var utility_value: Object = get_utility(GFStorageUtility)
+	if utility_value is GFStorageUtility:
+		var storage: GFStorageUtility = utility_value
+		return storage
+	return null
+
+
+func _get_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
 	return null
 
 

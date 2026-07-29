@@ -106,6 +106,130 @@ func test_session_target_reached_requires_mode_target() -> void:
 	)
 
 
+func test_game_over_persistence_saga_survives_new_session_on_same_profile() -> void:
+	var flow_system: TestPersistenceSagaFlowSystem = (
+		TestPersistenceSagaFlowSystem.new()
+	)
+	var progress_spy: TestPendingProgressStatsSystem = (
+		TestPendingProgressStatsSystem.new()
+	)
+	var replay_spy: TestImmediateReplaySystem = TestImmediateReplaySystem.new()
+	track_gf_system(flow_system)
+	track_gf_system(progress_spy)
+	track_gf_system(replay_spy)
+	flow_system.progress_spy = progress_spy
+	flow_system.replay_spy = replay_spy
+	flow_system._persistence_epoch = 7
+	flow_system._persistence_owner_active = true
+	flow_system.active_profile_file_name = "profiles/account-a.save"
+	var recorded_result: GameResultRecordedData = GameResultRecordedData.new()
+	var replay_data: ReplayData = ReplayData.new()
+
+	@warning_ignore("return_value_discarded")
+	flow_system._persist_game_over_artifacts.call_deferred(
+		recorded_result,
+		replay_data,
+		12_345,
+		flow_system._persistence_epoch,
+		flow_system.active_profile_file_name
+	)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_true(
+		progress_spy.request_count == 1
+		and progress_spy.last_duration_msec == 12_345
+		and replay_spy.request_count == 0,
+		"game-over saga 必须冻结 duration，并在 progress 终结前不提交 replay。"
+	)
+
+	flow_system._persistence_epoch += 1
+	progress_spy.complete_pending_success()
+	for _frame: int in range(4):
+		await get_tree().process_frame
+	assert_true(
+		progress_spy.request_count == 1 and replay_spy.request_count == 1,
+		"同一 Profile 开始新会话后，旧局冻结的 result 与 replay 仍必须串行完成。"
+	)
+
+
+func test_game_over_persistence_rejects_profile_changed_before_deferred_run() -> void:
+	var flow_system: TestPersistenceSagaFlowSystem = (
+		TestPersistenceSagaFlowSystem.new()
+	)
+	var progress_spy: TestPendingProgressStatsSystem = (
+		TestPendingProgressStatsSystem.new()
+	)
+	var replay_spy: TestImmediateReplaySystem = TestImmediateReplaySystem.new()
+	track_gf_system(flow_system)
+	track_gf_system(progress_spy)
+	track_gf_system(replay_spy)
+	flow_system.progress_spy = progress_spy
+	flow_system.replay_spy = replay_spy
+	flow_system._persistence_epoch = 11
+	flow_system._persistence_owner_active = true
+	flow_system.active_profile_file_name = "profiles/account-a.save"
+	var owner_profile_file_name: String = flow_system.active_profile_file_name
+
+	@warning_ignore("return_value_discarded")
+	flow_system._persist_game_over_artifacts.call_deferred(
+		GameResultRecordedData.new(),
+		ReplayData.new(),
+		777,
+		flow_system._persistence_epoch,
+		owner_profile_file_name
+	)
+	flow_system.active_profile_file_name = "profiles/account-b.save"
+	for _frame: int in range(3):
+		await get_tree().process_frame
+
+	assert_true(
+		progress_spy.request_count == 0 and replay_spy.request_count == 0,
+		"deferred saga 执行前账号已切换时，不得把旧账号终局产物写入新 Profile。"
+	)
+
+
+func test_game_over_persistence_stops_replay_after_profile_changes_mid_saga() -> void:
+	var flow_system: TestPersistenceSagaFlowSystem = (
+		TestPersistenceSagaFlowSystem.new()
+	)
+	var progress_spy: TestPendingProgressStatsSystem = (
+		TestPendingProgressStatsSystem.new()
+	)
+	var replay_spy: TestImmediateReplaySystem = TestImmediateReplaySystem.new()
+	track_gf_system(flow_system)
+	track_gf_system(progress_spy)
+	track_gf_system(replay_spy)
+	flow_system.progress_spy = progress_spy
+	flow_system.replay_spy = replay_spy
+	flow_system._persistence_epoch = 17
+	flow_system._persistence_owner_active = true
+	flow_system.active_profile_file_name = "profiles/account-a.save"
+
+	@warning_ignore("return_value_discarded")
+	flow_system._persist_game_over_artifacts.call_deferred(
+		GameResultRecordedData.new(),
+		ReplayData.new(),
+		888,
+		flow_system._persistence_epoch,
+		flow_system.active_profile_file_name
+	)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_true(
+		progress_spy.request_count == 1 and replay_spy.request_count == 0,
+		"账号切换前，旧 Profile 的 progress 写入应已开始且 replay 尚未提交。"
+	)
+
+	flow_system.active_profile_file_name = "profiles/account-b.save"
+	progress_spy.complete_pending_success()
+	for _frame: int in range(4):
+		await get_tree().process_frame
+	assert_true(
+		progress_spy.request_count == 1 and replay_spy.request_count == 0,
+		"progress 终态到达前账号已切换时，不得向新 Profile 提交旧账号 replay。"
+	)
+
+
 func test_accessibility_context_matches_target_and_game_over_buttons() -> void:
 	var flow_system: GameFlowSystem = _make_flow_system()
 	flow_system.init()
@@ -678,6 +802,7 @@ func _make_test_control() -> Control:
 func _register_pause_utilities(architecture: GFArchitecture) -> void:
 	await architecture.register_utility(GFTimeUtility, GFTimeUtility.new())
 	await architecture.register_utility(GamePauseUtility, GamePauseUtility.new())
+	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 
 
 func _get_pause_utility(architecture: GFArchitecture) -> GamePauseUtility:
@@ -719,6 +844,97 @@ func _assert_published_session(
 
 
 # --- 内部类 ---
+
+class TestPendingProgressStatsSystem:
+	extends ProgressStatsSystem
+
+	var request_count: int = 0
+	var last_duration_msec: int = -1
+	var pending_operation: GameSaveSectionOperation = null
+
+	## @param _result: saga 传入的冻结规范结果。
+	## @param duration_msec: saga 传入的冻结对局时长。
+	func request_record_game_result(
+		_result: GameResultRecordedData,
+		duration_msec: int = 0
+	) -> GameSaveSectionOperation:
+		request_count += 1
+		last_duration_msec = duration_msec
+		pending_operation = GameSaveSectionOperation.new()
+		var _configured: bool = pending_operation.configure_for_utility(
+			request_count,
+			&"test.profile",
+			PackedStringArray(["progress"])
+		)
+		return pending_operation
+
+	func complete_pending_success() -> void:
+		if pending_operation == null or not pending_operation.is_pending():
+			return
+		var result: GameSaveSectionResult = GameSaveSectionResult.new()
+		var _configured: bool = result.configure_for_utility(
+			pending_operation.get_transaction_id(),
+			pending_operation.get_profile_id(),
+			pending_operation.get_section_ids(),
+			GameSaveSectionResult.STATUS_PERSISTED,
+			OK,
+			true,
+			false
+		)
+		var _completed: bool = pending_operation.complete_for_utility(result)
+
+
+class TestImmediateReplaySystem:
+	extends ReplaySystem
+
+	var request_count: int = 0
+
+	## @param _replay_data: saga 传入的冻结回放。
+	func request_save_replay(
+		_replay_data: ReplayData
+	) -> GameSaveSectionOperation:
+		request_count += 1
+		var operation: GameSaveSectionOperation = GameSaveSectionOperation.new()
+		var _operation_configured: bool = operation.configure_for_utility(
+			request_count + 100,
+			&"test.profile",
+			PackedStringArray(["replays"])
+		)
+		var result: GameSaveSectionResult = GameSaveSectionResult.new()
+		var _result_configured: bool = result.configure_for_utility(
+			operation.get_transaction_id(),
+			operation.get_profile_id(),
+			operation.get_section_ids(),
+			GameSaveSectionResult.STATUS_PERSISTED,
+			OK,
+			true,
+			false
+		)
+		var _completed: bool = operation.complete_for_utility(result)
+		return operation
+
+
+class TestPersistenceSagaFlowSystem:
+	extends GameFlowSystem
+
+	var progress_spy: TestPendingProgressStatsSystem = null
+	var replay_spy: TestImmediateReplaySystem = null
+	var active_profile_file_name: String = ""
+
+	func _get_progress_stats_system() -> ProgressStatsSystem:
+		return progress_spy
+
+	func _get_replay_system() -> ReplaySystem:
+		return replay_spy
+
+
+	func _get_active_persistence_profile_file_name() -> String:
+		return active_profile_file_name
+
+
+	func _get_save_graph_utility() -> GameSaveGraphUtility:
+		return null
+
 
 class TestAccessibilityPublishingFlowSystem:
 	extends GameFlowSystem

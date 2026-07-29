@@ -48,6 +48,13 @@ func _get_data_list() -> Array:
 	return result
 
 
+func _get_data_identity(data: Resource) -> String:
+	if data is BookmarkData:
+		var bookmark: BookmarkData = data
+		return bookmark.bookmark_id
+	return ""
+
+
 func _setup_item(item: Control, data: Resource) -> void:
 	if not item is BookmarkListItem or not data is BookmarkData:
 		return
@@ -120,15 +127,15 @@ func _update_ui_text() -> void:
 	if is_instance_valid(back_button):
 		back_button.text = tr("BTN_RETURN_MAIN")
 
-func _do_delete_logic(data: Resource) -> Error:
+func _do_delete_logic(data: Resource) -> GameSaveSectionOperation:
 	if not data is BookmarkData:
-		return ERR_INVALID_PARAMETER
+		return null
 
 	var bookmark: BookmarkData = data
 	var bookmark_system: BookmarkSystem = _get_bookmark_system()
 	if not is_instance_valid(bookmark_system):
-		return ERR_UNCONFIGURED
-	return bookmark_system.delete_bookmark(bookmark.bookmark_id)
+		return null
+	return bookmark_system.request_delete_bookmark(bookmark.bookmark_id)
 
 
 func _on_primary_action_triggered(data: Resource) -> void:

@@ -1,4 +1,4 @@
-## GameStatsSaveData: progress Feature 的严格 SaveGraph section。
+## GameStatsSaveData: progress Feature 的严格 GFSaveProfile section。
 class_name GameStatsSaveData
 extends GameSaveSectionData
 

@@ -1,4 +1,4 @@
-## 验证统一玩家数据 SaveGraph 的结构、持久化和事务语义。
+## 验证统一玩家数据 GF Save Profile 的结构、持久化和事务语义。
 extends GutTest
 
 
@@ -13,36 +13,714 @@ const _TEST_PLATFORM_STUB_SCRIPT: GDScript = preload(
 
 # --- 测试用例 ---
 
-func test_profile_graph_has_seven_feature_sections() -> void:
+func test_gf10_profile_has_seven_typed_feature_sections() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var snapshot: Dictionary = save_graph.get_debug_snapshot()
-	var health: Dictionary = GFVariantData.get_option_dictionary(snapshot, "graph_health")
-	var document_inspection: Dictionary = GFSaveDocument.inspect_dict(
+	var document: GFSaveDocument = GFSaveDocument.from_dict(
 		save_graph.preview_profile_payload()
 	)
+	var expected_ids: PackedStringArray = PackedStringArray([
+		"achievements",
+		"bookmarks",
+		"custom_boards",
+		"discoveries",
+		"progress",
+		"replays",
+		"tile_blueprints",
+	])
 
 	assert_true(save_graph.is_profile_loaded(), "首次运行应完成空档加载决策。")
-	assert_true(GFVariantData.get_option_bool(health, "ok"), "玩家数据图结构应通过 GF 健康检查。")
-	assert_true(GFVariantData.get_option_int(health, "scope_count") == 8, "根图应包含根 Scope 和七个 Feature 子 Scope。")
-	assert_true(GFVariantData.get_option_int(health, "source_count") == 7, "每个 Feature 子 Scope 应有一个严格数据 Source。")
+	assert_not_null(document, "Profile 预览必须是规范 GFSaveDocument。")
 	assert_true(
-		GFVariantData.get_option_bool(document_inspection, "ok"),
-		"Profile 预览必须是规范 GFSaveDocument，禁止保存裸 SaveGraph 字典。"
+		document != null
+		and document.get_schema_id()
+		== GameSaveGraphUtility.PROFILE_SCHEMA_ID
+		and document.get_schema_version()
+		== GameSaveGraphUtility.PROFILE_SCHEMA_VERSION,
+		"Profile identity 应由 GFSaveProfile 根 schema 表达。"
 	)
 	assert_true(
-		GFVariantData.get_option_packed_string_array(snapshot, "section_ids")
-		== PackedStringArray(["achievements", "bookmarks", "custom_boards", "discoveries", "progress", "replays", "tile_blueprints"]),
-		"诊断应暴露稳定 section 标识。"
+		GFVariantData.get_option_packed_string_array(
+			snapshot,
+			"section_ids"
+		) == expected_ids,
+		"诊断应暴露七个稳定 section 标识。"
+	)
+	if document != null:
+		assert_true(
+			document.get_section_ids() == expected_ids,
+			"GFSaveProfile 文档必须直接持有七个 typed section。"
+		)
+		for section_id: String in expected_ids:
+			var section: GFSaveSection = document.get_section(
+				StringName(section_id)
+			)
+			assert_true(
+				section != null and section.get_payload() is Dictionary,
+				"%s 应由 GFSaveSectionProvider 采集严格字典。" % section_id
+			)
+	_dispose_setup(setup)
+
+
+func test_gf10_save_load_and_flush_expose_typed_terminal_results() -> void:
+	var setup: Dictionary = await _create_persistence_architecture()
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+
+	var save_operation: GFSaveProfileOperation = (
+		save_graph.request_save_profile({&"test": "typed_terminal"})
+	)
+	storage.wait_for_async_tasks()
+	save_graph.tick(0.0)
+	var save_result: GFSaveProfileResult = save_operation.get_result()
+	assert_true(
+		save_operation.is_completed()
+		and save_result != null
+		and save_result.get_status() == GFSaveProfileResult.STATUS_SAVED,
+		"显式保存必须返回真实 typed saved 终态。"
 	)
 
+	var flush_operation: GFSaveProfileOperation = (
+		save_graph.request_flush_profile({&"test": "barrier"})
+	)
+	var flush_result: GFSaveProfileResult = flush_operation.get_result()
+	assert_true(
+		flush_operation.is_completed()
+		and flush_result != null
+		and flush_result.get_status()
+		== GFSaveProfileResult.STATUS_FLUSHED,
+		"已持久化 generation 的 flush 应立即给出 typed flushed 终态。"
+	)
+
+	var load_operation: GFSaveProfileOperation = (
+		save_graph.request_load_profile()
+	)
+	storage.wait_for_async_tasks()
+	save_graph.tick(0.0)
+	var load_result: GFSaveProfileResult = load_operation.get_result()
+	assert_true(
+		load_operation.is_completed()
+		and load_result != null
+		and load_result.get_status() == GFSaveProfileResult.STATUS_LOADED,
+		"读取必须返回 typed loaded 终态。"
+	)
 	_dispose_setup(setup)
+
+
+func test_async_section_replace_returns_typed_persisted_result() -> void:
+	var setup: Dictionary = await _create_persistence_architecture()
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var candidate: Dictionary = _make_empty_progress_data()
+	candidate["stats"] = {"classic": {"typed_async": true}}
+
+	var operation: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			candidate,
+			{&"test": "typed_section_success"}
+		)
+	)
+	var result: GameSaveSectionResult = await _await_section_operation(
+		operation,
+		setup
+	)
+
+	assert_not_null(result)
+	assert_true(
+		result != null
+		and result.is_successful()
+		and result.get_status() == GameSaveSectionResult.STATUS_PERSISTED
+		and result.was_candidate_applied()
+		and not result.was_memory_rolled_back(),
+		"异步 section 替换必须只在 GF 保存确认后发布 typed persisted。"
+	)
+	assert_true(
+		save_graph.get_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID
+		) == candidate,
+		"持久化成功后权威内存图应保留严格候选。"
+	)
+	_dispose_setup(setup)
+
+
+func test_async_section_replace_serializes_global_immediate_lane() -> void:
+	var storage: _RetryStorage = _RetryStorage.new()
+	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage,
+		clock
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	storage.profile_save_errors = [ERR_BUSY, OK]
+
+	var first: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			_make_empty_progress_data()
+		)
+	)
+	var second: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+			{"items": []}
+		)
+	)
+	var second_result: GameSaveSectionResult = second.get_result()
+	assert_true(
+		first.is_pending()
+		and second_result != null
+		and second_result.get_status() == GameSaveSectionResult.STATUS_BUSY
+		and second_result.get_error_code() == ERR_BUSY,
+		"全局 immediate lane 在首笔未终结时必须 typed BUSY 拒绝第二笔。"
+	)
+
+	assert_true(clock.advance_msec(100))
+	_get_architecture(setup).tick(0.0)
+	var first_result: GameSaveSectionResult = await _await_section_operation(
+		first,
+		setup
+	)
+	assert_true(
+		first_result != null and first_result.is_successful(),
+		"重试终结后首笔 section 事务应正常释放串行 lane。"
+	)
+	_dispose_setup(setup)
+
+
+func test_known_section_save_failure_rolls_back_and_compensates() -> void:
+	var storage: _RetryStorage = _RetryStorage.new()
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var baseline: Dictionary = save_graph.get_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID
+	)
+	var candidate: Dictionary = _make_empty_progress_data()
+	candidate["stats"] = {"classic": {"must_rollback": true}}
+	storage.profile_save_errors = [ERR_INVALID_DATA]
+
+	var operation: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			candidate
+		)
+	)
+	var result: GameSaveSectionResult = await _await_section_operation(
+		operation,
+		setup
+	)
+
+	assert_true(
+		result != null
+		and result.get_status()
+		== GameSaveSectionResult.STATUS_SAVE_FAILED_ROLLED_BACK
+		and result.was_candidate_applied()
+		and result.was_memory_rolled_back()
+		and result.get_compensation_result() != null
+		and result.get_compensation_result().is_successful(),
+		"已知写失败必须反向恢复快照并等待补偿写终态。"
+	)
+	assert_true(
+		save_graph.get_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID
+		) == baseline,
+		"补偿完成后权威内存必须与事务前快照一致。"
+	)
+	_dispose_setup(setup)
+
+
+func test_section_outcome_unknown_late_success_emits_reconciliation_evidence() -> void:
+	var storage: _HangingProfileStorage = _HangingProfileStorage.new()
+	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage,
+		clock
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	storage.hang_profile_writes = true
+	var candidate: Dictionary = _make_empty_progress_data()
+	candidate["stats"] = {"classic": {"late_success": true}}
+	var operation: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			candidate
+		)
+	)
+	await _advance_section_operation_to_outcome_unknown(
+		operation,
+		setup,
+		storage,
+		clock
+	)
+	var result: GameSaveSectionResult = operation.get_result()
+	assert_true(
+		result != null
+		and result.get_status() == GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN
+		and save_graph.is_section_reconciliation_pending(),
+		"deadline 耗尽但 detached 写未终结时必须保持候选并进入 reconciliation。"
+	)
+
+	var settled_evidence: Dictionary = {}
+	var settle_count: Dictionary = {&"value": 0}
+	var _settled_connection: int = save_graph.section_reconciliation_settled.connect(
+		func(evidence: Dictionary) -> void:
+			settled_evidence.assign(evidence)
+			settle_count[&"value"] = GFVariantData.get_option_int(
+				settle_count,
+				&"value",
+				0
+			) + 1
+	)
+	storage.hang_profile_writes = false
+	storage.complete_all_hanging(OK, true)
+	await _await_section_reconciliation(save_graph, setup)
+
+	assert_true(
+		GFVariantData.get_option_int(settle_count, &"value", 0) == 1
+		and GFVariantData.get_option_int(
+			settled_evidence,
+			&"transaction_id",
+			0
+		) == operation.get_transaction_id()
+		and GFVariantData.get_option_string(
+			settled_evidence,
+			&"status"
+		) == "late_success"
+		and GFVariantData.get_option_bool(
+			settled_evidence,
+			&"candidate_persisted",
+			false
+		)
+		and not GFVariantData.get_option_bool(
+			settled_evidence,
+			&"memory_rolled_back",
+			true
+		),
+		"late success 必须按原 transaction_id 发布一次可解锁 UI 的完整证据。"
+	)
+	assert_true(
+		save_graph.get_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID
+		) == candidate,
+		"late success 不得回滚已确认候选。"
+	)
+	_dispose_setup(setup)
+
+
+func test_late_compensation_failure_marks_pending_before_unlock_and_flush() -> void:
+	var storage: _HangingProfileStorage = _HangingProfileStorage.new()
+	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage,
+		clock
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var baseline: Dictionary = save_graph.get_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID
+	)
+	storage.hang_profile_writes = true
+	var candidate: Dictionary = _make_empty_progress_data()
+	candidate["stats"] = {"classic": {"must_not_resurrect": true}}
+	var operation: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			candidate
+		)
+	)
+	await _advance_section_operation_to_outcome_unknown(
+		operation,
+		setup,
+		storage,
+		clock
+	)
+	storage.complete_all_hanging(ERR_CANT_CREATE, true)
+	await _await_hanging_profile_write(storage, setup)
+	await _advance_profile_deadlines(setup, clock)
+	assert_true(
+		save_graph.is_section_reconciliation_pending(),
+		"原写迟到失败后，回滚补偿 outcome_unknown 应继续持有 reconciliation 锁。"
+	)
+
+	storage.hang_profile_writes = false
+	storage.complete_all_hanging(ERR_CANT_CREATE, false)
+	await _await_section_reconciliation(save_graph, setup)
+	var settled_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	assert_true(
+		not save_graph.is_section_reconciliation_pending()
+		and GFVariantData.get_option_bool(
+			settled_snapshot,
+			&"save_pending",
+			false
+		),
+		"补偿迟到失败在解锁前必须保留新的 rollback generation 待冲刷。"
+	)
+	assert_true(
+		save_graph.flush_pending_save() == OK,
+		"reconciliation 解锁后立即 flush 必须重新持久化内存回滚状态。"
+	)
+	var persisted: GFStorageReadResult = storage.load_data(
+		GameSaveGraphUtility.PROFILE_FILE_NAME
+	)
+	var document: GFSaveDocument = (
+		GFSaveDocument.from_dict(persisted.payload)
+		if persisted.ok
+		else null
+	)
+	var progress_section: GFSaveSection = (
+		document.get_section(GameSaveGraphUtility.PROGRESS_SECTION_ID)
+		if document != null
+		else null
+	)
+	assert_true(
+		progress_section != null
+		and GFVariantData.as_dictionary(
+			progress_section.get_payload()
+		) == baseline,
+		"立即 flush 后磁盘不得复活 outcome_unknown 阶段写入的候选。"
+	)
+	_dispose_setup(setup)
+
+
+func test_gf10_transient_save_retries_follow_100_500_1500_deadlines() -> void:
+	var storage: _RetryStorage = _RetryStorage.new()
+	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage,
+		clock
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var baseline_attempts: int = storage.profile_save_attempt_count
+	storage.profile_save_errors = [ERR_BUSY, ERR_BUSY, ERR_BUSY, OK]
+
+	var save_operation: GFSaveProfileOperation = (
+		save_graph.request_save_profile({&"test": "bounded_retry"})
+	)
+	var flush_operation: GFSaveProfileOperation = (
+		save_graph.request_flush_profile({&"test": "retry_barrier"})
+	)
+	assert_true(
+		storage.profile_save_attempt_count == baseline_attempts + 1
+		and not save_operation.is_completed()
+		and not flush_operation.is_completed(),
+		(
+			"首次临时失败后 save/flush 必须保持 pending："
+			+ "baseline=%d attempts=%d save_pending=%s flush_pending=%s state=%s"
+		)
+		% [
+			baseline_attempts,
+			storage.profile_save_attempt_count,
+			not save_operation.is_completed(),
+			not flush_operation.is_completed(),
+			JSON.stringify(save_graph.get_debug_snapshot()),
+		]
+	)
+	assert_true(clock.advance_msec(99))
+	architecture.tick(0.0)
+	assert_true(storage.profile_save_attempt_count == baseline_attempts + 1)
+	assert_true(clock.advance_msec(1))
+	architecture.tick(0.0)
+	assert_true(storage.profile_save_attempt_count == baseline_attempts + 2)
+	assert_true(clock.advance_msec(499))
+	architecture.tick(0.0)
+	assert_true(storage.profile_save_attempt_count == baseline_attempts + 2)
+	assert_true(clock.advance_msec(1))
+	architecture.tick(0.0)
+	assert_true(storage.profile_save_attempt_count == baseline_attempts + 3)
+	assert_true(clock.advance_msec(1499))
+	architecture.tick(0.0)
+	assert_true(storage.profile_save_attempt_count == baseline_attempts + 3)
+	assert_true(clock.advance_msec(1))
+	architecture.tick(0.0)
+	assert_true(storage.profile_save_attempt_count == baseline_attempts + 4)
+	storage.wait_for_async_tasks()
+	architecture.tick(0.0)
+
+	var save_result: GFSaveProfileResult = save_operation.get_result()
+	var flush_result: GFSaveProfileResult = flush_operation.get_result()
+	assert_true(
+		save_result != null
+		and save_result.get_status() == GFSaveProfileResult.STATUS_SAVED
+		and save_result.get_attempt_count() == 4
+		and save_result.get_storage_request_ids().size() == 4
+		and flush_result != null
+		and flush_result.get_status() == GFSaveProfileResult.STATUS_FLUSHED,
+		"有限重试最终成功后 save 与其 flush 屏障都必须获得 typed 终态。"
+	)
+	_dispose_setup(setup)
+
+
+func test_gf10_late_provider_failure_rolls_back_earlier_sections() -> void:
+	var setup: Dictionary = await _create_persistence_architecture()
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var document: GFSaveDocument = GFSaveDocument.from_dict(
+		save_graph.preview_profile_payload()
+	)
+	assert_not_null(document)
+	if document == null:
+		_dispose_setup(setup)
+		return
+
+	var progress: GFSaveSection = document.get_section(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID
+	)
+	var progress_payload: Dictionary = GFVariantData.as_dictionary(
+		progress.get_payload()
+	)
+	progress_payload["stats"] = {"classic": {"changed": true}}
+	var _progress_set: bool = document.set_section(
+		GFSaveSection.new().configure(
+			progress.get_section_id(),
+			progress.get_schema_version(),
+			progress_payload
+		)
+	)
+	var replay: GFSaveSection = document.get_section(
+		GameSaveGraphUtility.REPLAYS_SECTION_ID
+	)
+	var _replay_set: bool = document.set_section(
+		GFSaveSection.new().configure(
+			replay.get_section_id(),
+			replay.get_schema_version(),
+			{"items": [{"invalid": true}]}
+		)
+	)
+	assert_true(
+		storage.save_data(
+			GameSaveGraphUtility.PROFILE_FILE_NAME,
+			document.to_dict()
+		) == OK,
+		"故障注入文档应成功写入。"
+	)
+	assert_true(
+		save_graph.load_profile() == ERR_INVALID_DATA,
+		"后期 replay provider 失败必须产生 typed apply failure。"
+	)
+	assert_true(
+		save_graph.get_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID
+		) == _make_empty_progress_data(),
+		"GFSaveProfileUtility 必须回滚此前已应用的 progress provider。"
+	)
+	var last_load: Dictionary = GFVariantData.get_option_dictionary(
+		save_graph.get_debug_snapshot(),
+		"last_load"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(last_load, "status")
+		== GFSaveProfileResult.STATUS_APPLY_FAILED,
+		"诊断应保留 typed apply_failed 终态。"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			last_load,
+			&"failed_section_id"
+		)
+		== GameSaveGraphUtility.REPLAYS_SECTION_ID
+		and GFVariantData.get_option_array(
+			last_load,
+			&"rollback_errors"
+		).is_empty(),
+		"失败必须发生在后期 replay provider，且此前 section 全部回滚成功。"
+	)
+	_dispose_setup(setup)
+
+
+func test_gf10_schema_v10_is_backed_up_then_reset_to_v11() -> void:
+	var save_dir_name: String = (
+		"gut_save_profile_v10_%s"
+		% GFUuid.generate_v4().replace("-", "")
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		save_dir_name
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var current: GFSaveDocument = GFSaveDocument.from_dict(
+		save_graph.preview_profile_payload()
+	)
+	assert_not_null(current)
+	if current == null:
+		_dispose_setup(setup)
+		return
+	var legacy: GFSaveDocument = GFSaveDocument.new().configure(
+		GameSaveGraphUtility.PROFILE_SCHEMA_ID,
+		10,
+		current.get_sections(),
+		{&"app_version": "pre-gf10"}
+	)
+	var legacy_payload: Dictionary = legacy.to_dict()
+	assert_true(
+		storage.save_data(
+			GameSaveGraphUtility.PROFILE_FILE_NAME,
+			legacy_payload
+		) == OK,
+		"v10 reset 夹具应成功写入。"
+	)
+	_dispose_setup(setup, false)
+	storage.dispose()
+
+	var reloaded: Dictionary = await _create_persistence_architecture(
+		save_dir_name
+	)
+	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
+	var reloaded_storage: GFStorageUtility = _get_storage(reloaded)
+	var load_result: Dictionary = GFVariantData.get_option_dictionary(
+		reloaded_graph.get_debug_snapshot(),
+		"last_load"
+	)
+	var recovery_file: String = GFVariantData.get_option_string(
+		load_result,
+		"recovery_file"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(
+			load_result,
+			"recovered_obsolete_profile"
+		)
+		and recovery_file.ends_with(".schema-10.save"),
+		"GF10 迁移必须显式备份 v10，再重建 v11。"
+	)
+	var backup: GFStorageReadResult = reloaded_storage.load_data(
+		recovery_file
+	)
+	assert_true(
+		backup.ok and backup.payload == legacy_payload,
+		"恢复备份必须逐字段保留旧文档。"
+	)
+	var current_result: GFStorageReadResult = reloaded_storage.load_data(
+		GameSaveGraphUtility.PROFILE_FILE_NAME
+	)
+	var current_document: GFSaveDocument = (
+		GFSaveDocument.from_dict(current_result.payload)
+		if current_result.ok
+		else null
+	)
+	assert_true(
+		current_document != null
+		and current_document.get_schema_version()
+		== GameSaveGraphUtility.PROFILE_SCHEMA_VERSION,
+		"活动 Profile 必须只写当前 v11 schema。"
+	)
+	_dispose_setup(reloaded, false)
+	assert_true(
+		reloaded_storage.delete_file(recovery_file) == OK,
+		"恢复备份测试文件应可清理。"
+	)
+	reloaded_storage.dispose()
+
+
+func test_gf10_future_profile_schema_is_rejected_without_reset() -> void:
+	var setup: Dictionary = await _create_persistence_architecture()
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var current: GFSaveDocument = GFSaveDocument.from_dict(
+		save_graph.preview_profile_payload()
+	)
+	assert_not_null(current)
+	if current == null:
+		_dispose_setup(setup)
+		return
+	var future: GFSaveDocument = GFSaveDocument.new().configure(
+		GameSaveGraphUtility.PROFILE_SCHEMA_ID,
+		GameSaveGraphUtility.PROFILE_SCHEMA_VERSION + 1,
+		current.get_sections()
+	)
+	assert_true(
+		storage.save_data(
+			GameSaveGraphUtility.PROFILE_FILE_NAME,
+			future.to_dict()
+		) == OK
+	)
+	assert_true(
+		save_graph.load_profile() == ERR_INVALID_DATA,
+		"未来 schema 必须显式失败，禁止 reset 覆盖。"
+	)
+	var last_load: Dictionary = GFVariantData.get_option_dictionary(
+		save_graph.get_debug_snapshot(),
+		"last_load"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(last_load, "status")
+		== GFSaveProfileResult.STATUS_FUTURE_SCHEMA,
+		"未来 schema 应保留 typed future_schema 证据。"
+	)
+	_dispose_setup(setup)
+
+
+func test_gf10_old_section_version_requires_explicit_migration() -> void:
+	var setup: Dictionary = await _create_persistence_architecture()
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var document: GFSaveDocument = GFSaveDocument.from_dict(
+		save_graph.preview_profile_payload()
+	)
+	assert_not_null(document)
+	if document == null:
+		_dispose_setup(setup)
+		return
+	var section: GFSaveSection = document.get_section(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID
+	)
+	var _set: bool = document.set_section(
+		GFSaveSection.new().configure(
+			section.get_section_id(),
+			section.get_schema_version() - 1,
+			section.get_payload()
+		)
+	)
+	assert_true(
+		storage.save_data(
+			GameSaveGraphUtility.PROFILE_FILE_NAME,
+			document.to_dict()
+		) == OK
+	)
+	assert_true(
+		save_graph.load_profile() != OK,
+		"旧 section schema 必须因缺少显式 migration 而失败。"
+	)
+	var last_load: Dictionary = GFVariantData.get_option_dictionary(
+		save_graph.get_debug_snapshot(),
+		"last_load"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(last_load, "status")
+		== GFSaveProfileResult.STATUS_MIGRATION_FAILED,
+		"旧 section 应产生 typed migration_failed 终态。"
+	)
+	_dispose_setup(setup)
+
+
 
 
 func test_high_frequency_sections_coalesce_into_one_async_profile_write() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
+	var baseline_profile_state: Dictionary = (
+		GFVariantData.get_option_dictionary(
+			save_graph.get_debug_snapshot(),
+			&"profile_state"
+		)
+	)
 	var completion_counter: Dictionary = {"value": 0}
 	var _completion_connection: int = save_graph.profile_save_completed.connect(
 		func(_error: Error) -> void:
@@ -63,191 +741,70 @@ func test_high_frequency_sections_coalesce_into_one_async_profile_write() -> voi
 	var queued_snapshot: Dictionary = save_graph.get_debug_snapshot()
 	assert_true(progress_error == OK and discovery_error == OK, "合法高频 section 应先原子更新内存图。")
 	assert_true(GFVariantData.get_option_bool(queued_snapshot, "save_pending"), "同帧更新后应只留下一个待写 Profile。")
-	assert_false(GFVariantData.get_option_bool(queued_snapshot, "save_in_flight"), "静默窗口内不应立即占用输入帧写盘。")
+	assert_true(
+		GFVariantData.get_option_int(
+			GFVariantData.get_option_dictionary(
+				queued_snapshot,
+				&"profile_state"
+			),
+			&"generation"
+		)
+		== GFVariantData.get_option_int(
+			baseline_profile_state,
+			&"generation"
+		),
+		"静默窗口内不应提前创建 GF 保存 generation。"
+	)
 
 	save_graph.tick(1.0)
 	storage.wait_for_async_tasks()
 	var completed_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	var completed_profile_state: Dictionary = (
+		GFVariantData.get_option_dictionary(
+			completed_snapshot,
+			&"profile_state"
+		)
+	)
 	assert_true(
 		GFVariantData.get_option_int(completion_counter, "value") == 1,
 		"多个高频 section 必须合并成一次 GFStorageUtility 异步事务。"
 	)
 	assert_false(GFVariantData.get_option_bool(completed_snapshot, "save_pending"), "异步写入完成后不应残留待写状态。")
-	assert_false(GFVariantData.get_option_bool(completed_snapshot, "save_in_flight"), "异步写入完成后不应残留在途状态。")
-
-	_dispose_setup(setup)
-
-
-func test_synchronous_async_completion_does_not_leave_save_in_flight() -> void:
-	var storage: _ScriptedStorage = _ScriptedStorage.new()
-	storage.async_completion_errors = [OK]
-	var setup: Dictionary = await _create_persistence_architecture(
-		"",
-		false,
-		PackedByteArray(),
-		storage
-	)
-	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-
-	var queue_error: Error = save_graph.queue_section_data(
-		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		_make_empty_progress_data()
-	)
-	save_graph.tick(1.0)
-	var snapshot: Dictionary = save_graph.get_debug_snapshot()
-
-	assert_true(queue_error == OK, "同步完成回归夹具应成功排队。")
-	assert_true(storage.async_save_call_count == 1, "静默窗口后应只启动一次异步保存。")
-	assert_false(
-		GFVariantData.get_option_bool(snapshot, "save_pending"),
-		"save_data_async 内同步完成后不应残留待写状态。"
-	)
-	assert_false(
-		GFVariantData.get_option_bool(snapshot, "save_in_flight"),
-		"同步完成回调不得被调用后的 in-flight 赋值覆盖。"
+	assert_true(
+		GFVariantData.get_option_int(
+			completed_profile_state,
+			&"generation"
+		)
+		== GFVariantData.get_option_int(
+			baseline_profile_state,
+			&"generation"
+		) + 1
+		and GFVariantData.get_option_int(
+			completed_profile_state,
+			&"persisted_generation"
+		)
+		== GFVariantData.get_option_int(
+			completed_profile_state,
+			&"generation"
+		),
+		"两个 section 更新应合并为一个且已持久化的 GF generation。"
 	)
 
 	_dispose_setup(setup)
 
 
-func test_synchronous_thread_start_failure_retries_without_stuck_in_flight() -> void:
-	var storage: _ScriptedStorage = _ScriptedStorage.new()
-	# 等价于 Web 单线程下 GFStorageUtility 在线程启动失败时同步发出完成信号，
-	# 但公共 save_data_async() 仍返回 OK 的路径。
-	storage.async_completion_errors = [ERR_CANT_CREATE, OK]
-	var setup: Dictionary = await _create_persistence_architecture(
-		"",
-		false,
-		PackedByteArray(),
-		storage
-	)
-	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-
-	var queue_error: Error = save_graph.queue_section_data(
-		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		_make_empty_progress_data()
-	)
-	save_graph.tick(1.0)
-	var failed_snapshot: Dictionary = save_graph.get_debug_snapshot()
-
-	assert_true(queue_error == OK, "线程失败回归夹具应成功排队。")
-	assert_true(storage.async_save_call_count == 1, "第一次异步启动应到达存储边界。")
-	assert_true(
-		GFVariantData.get_option_bool(failed_snapshot, "save_pending"),
-		"线程启动失败必须保留最新 Profile 待重试。"
-	)
-	assert_false(
-		GFVariantData.get_option_bool(failed_snapshot, "save_in_flight"),
-		"同步失败回调后不得永久残留 in-flight。"
-	)
-
-	save_graph.tick(3.0)
-	var retried_snapshot: Dictionary = save_graph.get_debug_snapshot()
-	assert_true(storage.async_save_call_count == 2, "退避窗口结束后应重新尝试保存。")
-	assert_false(
-		GFVariantData.get_option_bool(retried_snapshot, "save_pending"),
-		"后续成功回调应收敛待写状态。"
-	)
-	assert_false(
-		GFVariantData.get_option_bool(retried_snapshot, "save_in_flight"),
-		"同步重试成功后不应残留在途状态。"
-	)
-
-	_dispose_setup(setup)
 
 
-func test_background_flush_deduplicates_events_and_retries_after_foreground() -> void:
-	var storage: _ScriptedStorage = _ScriptedStorage.new()
-	storage.sync_save_errors = [ERR_CANT_OPEN, OK]
-	var setup: Dictionary = await _create_persistence_architecture(
-		"",
-		false,
-		PackedByteArray(),
-		storage
-	)
-	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var platform: GamePlatformUtility = _get_platform_stub(setup)
-	var queue_error: Error = save_graph.queue_section_data(
-		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		_make_empty_progress_data()
-	)
-
-	platform.call(
-		&"publish_lifecycle_event",
-		GFPlatformLifecycleEvent.TYPE_BACKGROUND,
-		1
-	)
-	var failed_snapshot: Dictionary = save_graph.get_debug_snapshot()
-	assert_true(queue_error == OK, "后台冲刷夹具应成功排队。")
-	assert_true(storage.sync_save_call_count == 1, "首次后台事件应立即同步冲刷。")
-	assert_true(
-		GFVariantData.get_option_bool(failed_snapshot, "save_pending"),
-		"后台同步冲刷失败必须保留待写状态。"
-	)
-
-	platform.call(
-		&"publish_lifecycle_event",
-		GFPlatformLifecycleEvent.TYPE_BACKGROUND,
-		2
-	)
-	assert_true(
-		storage.sync_save_call_count == 1,
-		"同一前台周期的 pause/focus-out 重复后台事件不得重复冲刷。"
-	)
-
-	platform.call(
-		&"publish_lifecycle_event",
-		GFPlatformLifecycleEvent.TYPE_FOREGROUND,
-		3
-	)
-	platform.call(
-		&"publish_lifecycle_event",
-		GFPlatformLifecycleEvent.TYPE_BACKGROUND,
-		4
-	)
-	var recovered_snapshot: Dictionary = save_graph.get_debug_snapshot()
-	assert_true(storage.sync_save_call_count == 2, "重新进入后台时应重试先前失败的待写 Profile。")
-	assert_false(
-		GFVariantData.get_option_bool(recovered_snapshot, "save_pending"),
-		"后台重试成功后应清除待写状态。"
-	)
-
-	_dispose_setup(setup)
 
 
-func test_architecture_dispose_flushes_pending_profile_before_exit() -> void:
-	var storage: _ScriptedStorage = _ScriptedStorage.new()
-	var setup: Dictionary = await _create_persistence_architecture(
-		"",
-		false,
-		PackedByteArray(),
-		storage
-	)
-	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var architecture: GFArchitecture = _get_architecture(setup)
-	var queue_error: Error = save_graph.queue_section_data(
-		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		_make_empty_progress_data()
-	)
 
-	architecture.dispose()
 
-	assert_true(queue_error == OK, "退出冲刷夹具应成功排队。")
-	assert_true(
-		storage.sync_save_call_count == 1,
-		"架构退出必须在存储释放前同步冲刷 Profile；实际调用：%d。"
-		% storage.sync_save_call_count
-	)
-	var cleanup_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
-	assert_true(
-		cleanup_error == OK or cleanup_error == ERR_FILE_NOT_FOUND,
-		"退出冲刷测试数据应可清理。"
-	)
-	setup.clear()
 
 
 func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
-	var save_dir_name: String = "gut_save_graph_%d" % Time.get_ticks_usec()
+	var save_dir_name: String = "gut_save_graph_%s" % (
+		GFUuid.generate_v4().replace("-", "")
+	)
 	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
@@ -255,19 +812,34 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	var replay_system: ReplaySystem = _get_replay_system(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
 
-	var stats_error: Error = progress_stats_system.record_game_result(
-		_make_game_result(2048, 32, 2048, 500, 2048, true)
+	var stats_result: GameSaveSectionResult = await _await_section_operation(
+		progress_stats_system.request_record_game_result(
+			_make_game_result(2048, 32, 2048, 500, 2048, true)
+		),
+		setup
 	)
 	var bookmark: BookmarkData = _make_bookmark(600, 512)
 	var custom_board: CustomBoardData = _make_custom_board()
 	var replay: ReplayData = _make_replay(700, 2048)
-	var bookmark_error: Error = bookmark_system.save_bookmark(bookmark)
-	var custom_board_error: Error = custom_board_system.save_custom_board(custom_board)
-	var replay_error: Error = replay_system.save_replay(replay)
-	assert_true(stats_error == OK, "统计 section 应保存成功。")
-	assert_true(bookmark_error == OK, "书签 section 应保存成功。")
-	assert_true(custom_board_error == OK, "玩家棋盘 section 应保存成功。")
-	assert_true(replay_error == OK, "回放 section 应保存成功。")
+	var bookmark_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_save_bookmark(bookmark),
+		setup
+	)
+	var custom_board_result: GameSaveSectionResult = await _await_section_operation(
+		custom_board_system.request_save_custom_board(custom_board),
+		setup
+	)
+	var replay_result: GameSaveSectionResult = await _await_section_operation(
+		replay_system.request_save_replay(replay),
+		setup
+	)
+	assert_true(stats_result != null and stats_result.is_successful(), "统计 section 应保存成功。")
+	assert_true(bookmark_result != null and bookmark_result.is_successful(), "书签 section 应保存成功。")
+	assert_true(
+		custom_board_result != null and custom_board_result.is_successful(),
+		"玩家棋盘 section 应保存成功。"
+	)
+	assert_true(replay_result != null and replay_result.is_successful(), "回放 section 应保存成功。")
 	assert_true(GFUuid.is_valid(bookmark.bookmark_id, 7), "书签应获得稳定 UUID v7。")
 	assert_true(GFUuid.is_valid(custom_board.custom_board_id, 7), "玩家棋盘应获得稳定 UUID v7。")
 	assert_true(GFUuid.is_valid(replay.replay_id, 7), "回放应获得稳定 UUID v7。")
@@ -303,12 +875,37 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 		assert_true(custom_boards[0].display_name == "Cross Five", "玩家棋盘业务数据应完整恢复。")
 		assert_true(replays[0].final_score == 2048, "回放业务数据应完整恢复。")
 
-		var delete_bookmark_error: Error = reloaded_bookmarks.delete_bookmark(bookmarks[0].bookmark_id)
-		var delete_custom_board_error: Error = reloaded_custom_boards.delete_custom_board(custom_boards[0].custom_board_id)
-		var delete_replay_error: Error = reloaded_replays.delete_replay(replays[0].replay_id)
-		assert_true(delete_bookmark_error == OK, "应按稳定 ID 删除书签。")
-		assert_true(delete_custom_board_error == OK, "应按稳定 ID 删除玩家棋盘。")
-		assert_true(delete_replay_error == OK, "应按稳定 ID 删除回放。")
+		var delete_bookmark_result: GameSaveSectionResult = await _await_section_operation(
+			reloaded_bookmarks.request_delete_bookmark(bookmarks[0].bookmark_id),
+			reloaded
+		)
+		var delete_custom_board_result: GameSaveSectionResult = (
+			await _await_section_operation(
+				reloaded_custom_boards.request_delete_custom_board(
+					custom_boards[0].custom_board_id
+				),
+				reloaded
+			)
+		)
+		var delete_replay_result: GameSaveSectionResult = await _await_section_operation(
+			reloaded_replays.request_delete_replay(replays[0].replay_id),
+			reloaded
+		)
+		assert_true(
+			delete_bookmark_result != null
+			and delete_bookmark_result.is_successful(),
+			"应按稳定 ID 删除书签。"
+		)
+		assert_true(
+			delete_custom_board_result != null
+			and delete_custom_board_result.is_successful(),
+			"应按稳定 ID 删除玩家棋盘。"
+		)
+		assert_true(
+			delete_replay_result != null
+			and delete_replay_result.is_successful(),
+			"应按稳定 ID 删除回放。"
+		)
 		assert_true(reloaded_bookmarks.load_bookmarks().is_empty(), "书签删除应更新统一图。")
 		assert_true(reloaded_custom_boards.load_custom_boards().is_empty(), "玩家棋盘删除应更新统一图。")
 		assert_true(reloaded_replays.load_replays().is_empty(), "回放删除应更新统一图。")
@@ -316,310 +913,18 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	_dispose_setup(reloaded)
 
 
-func test_late_section_failure_rolls_back_earlier_sections() -> void:
-	var setup: Dictionary = await _create_persistence_architecture("", true)
-	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
-	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
-	var storage: GFStorageUtility = _get_storage(setup)
-
-	var score_error: Error = progress_stats_system.set_high_score("classic", _BOARD_KEY, 128)
-	var bookmark_error: Error = bookmark_system.save_bookmark(_make_bookmark(800, 64))
-	assert_true(score_error == OK, "回滚测试前统计应保存成功。")
-	assert_true(bookmark_error == OK, "回滚测试前书签应保存成功。")
-	var payload: Dictionary = save_graph.preview_profile_payload()
-	var progress_source: Dictionary = _get_section_source(payload, GameSaveGraphUtility.PROGRESS_SECTION_ID)
-	progress_source["data"] = {
-		"section_id": "progress",
-		"schema_version": GameStatsSaveData.SCHEMA_VERSION,
-		"data": {
-			"stats": {
-				"classic": {
-					_BOARD_KEY: {
-						"best_score": 4096,
-					},
-				},
-			},
-			"results": [],
-			"leaderboards": {},
-		},
-	}
-	var bookmarks_source: Dictionary = _get_section_source(payload, GameSaveGraphUtility.BOOKMARKS_SECTION_ID)
-	bookmarks_source["data"] = {
-		"section_id": "bookmarks",
-		"schema_version": BookmarkCatalogSaveData.SCHEMA_VERSION,
-		"data": {
-			"items": [],
-		},
-	}
-	var replays_source: Dictionary = _get_section_source(payload, GameSaveGraphUtility.REPLAYS_SECTION_ID)
-	replays_source["data"] = {
-		"section_id": "replays",
-		"schema_version": ReplayCatalogSaveData.SCHEMA_VERSION,
-		"data": "invalid_late_section",
-	}
-	var raw_save_error: Error = storage.save_data(GameSaveGraphUtility.PROFILE_FILE_NAME, payload)
-	assert_true(raw_save_error == OK, "应能写入故障注入载荷。")
-
-	var load_error: Error = save_graph.load_profile()
-	assert_true(load_error == ERR_INVALID_DATA, "后期 section 业务校验失败时整张图加载应失败。")
-	assert_true(progress_stats_system.get_high_score("classic", _BOARD_KEY) == 128, "progress 的先行应用必须回滚。")
-	assert_true(bookmark_system.load_bookmarks().size() == 1, "bookmarks 的先行应用必须回滚。")
-	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(save_graph.get_debug_snapshot(), "last_load")
-	assert_false(GFVariantData.get_option_bool(load_snapshot, "ok"), "诊断应记录失败事务。")
-
-	_dispose_setup(setup)
 
 
-func test_profile_v7_is_backed_up_and_reset_without_compatibility() -> void:
-	var save_dir_name: String = "gut_save_graph_recovery_%d" % Time.get_ticks_usec()
-	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
-	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
-	var storage: GFStorageUtility = _get_storage(setup)
-	var score_error: Error = progress_stats_system.set_high_score("classic", _BOARD_KEY, 512)
-	assert_true(score_error == OK, "迁移夹具应先写入当前统计。")
-	assert_true(
-		save_graph.flush_pending_save() == OK,
-		"构造旧版本夹具前应先收敛当前异步写入。"
-	)
-
-	var legacy_payload: Dictionary = save_graph.preview_profile_payload()
-	var metadata: Dictionary = GFVariantData.get_option_dictionary(
-		legacy_payload,
-		"metadata"
-	)
-	metadata["schema_version"] = 7
-	legacy_payload["metadata"] = metadata
-	var seed_error: Error = storage.save_data(
-		GameSaveGraphUtility.PROFILE_FILE_NAME,
-		legacy_payload
-	)
-	assert_true(seed_error == OK, "应能写入合法的旧 Profile。")
-	_dispose_setup(setup, false)
-
-	var reloaded: Dictionary = await _create_persistence_architecture(
-		save_dir_name,
-		true
-	)
-	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
-	var reloaded_storage: GFStorageUtility = _get_storage(reloaded)
-	assert_true(
-		reloaded_graph.is_profile_loaded(),
-		"旧 Profile 备份后应建立当前严格 Profile：%s"
-		% _describe_load_failure(reloaded_graph)
-	)
-	assert_true(
-		_get_progress_stats_system(reloaded).get_high_score("classic", _BOARD_KEY) == 0,
-		"运行时不得通过旧业务字段双读恢复统计。"
-	)
-	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(
-		reloaded_graph.get_debug_snapshot(),
-		"last_load"
-	)
-	assert_true(
-		GFVariantData.get_option_bool(
-			load_snapshot,
-			"recovered_obsolete_profile",
-			false
-		),
-		"加载诊断应明确记录旧 Profile 恢复流程。"
-	)
-	var recovery_file: String = GFVariantData.get_option_string(
-		load_snapshot,
-		"recovery_file"
-	)
-	assert_true(
-		recovery_file == "recovery/player_data.schema-7.save",
-		"恢复文件应使用稳定且可审计的版本化路径。"
-	)
-	var recovery_result: GFStorageReadResult = reloaded_storage.load_data(
-		recovery_file
-	)
-	var recovery_payload: Dictionary = recovery_result.payload
-	var recovery_metadata: Dictionary = GFVariantData.get_option_dictionary(
-		recovery_payload,
-		"metadata"
-	)
-	assert_true(
-		recovery_result.ok
-		and GFVariantData.get_option_int(recovery_metadata, "schema_version", 0) == 7,
-		"恢复备份必须完整保留原 Profile，而不是直接删除。"
-	)
-	var persisted_result: GFStorageReadResult = reloaded_storage.load_data(
-		GameSaveGraphUtility.PROFILE_FILE_NAME
-	)
-	var persisted_payload: Dictionary = persisted_result.payload
-	var persisted_metadata: Dictionary = GFVariantData.get_option_dictionary(
-		persisted_payload,
-		"metadata"
-	)
-	var persisted_graph_payload: Dictionary = _get_save_graph_payload(persisted_payload)
-	var persisted_scopes: Dictionary = GFVariantData.get_option_dictionary(
-		persisted_graph_payload,
-		"scopes"
-	)
-	assert_true(
-		GFVariantData.get_option_int(persisted_metadata, "schema_version", 0)
-		== GameSaveGraphUtility.PROFILE_SCHEMA_VERSION,
-		"重建成功后活动 Profile 应立即使用当前版本。"
-	)
-	assert_true(
-		persisted_scopes.has(String(GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID)),
-		"重建后的 Profile 应包含新的严格成就 section。"
-	)
-	assert_true(
-		persisted_scopes.has(String(TileLabSaveData.SECTION_ID)),
-		"重建后的 Profile 应包含新的严格试验台蓝图 section。"
-	)
-	var recovery_cleanup_error: Error = reloaded_storage.delete_file(recovery_file)
-	assert_true(recovery_cleanup_error == OK, "测试恢复备份应可清理。")
-
-	_dispose_setup(reloaded)
 
 
-func test_profile_v8_is_backed_up_before_current_rebuild() -> void:
-	var save_dir_name: String = "gut_save_graph_profile_v8_%d" % Time.get_ticks_usec()
-	var setup: Dictionary = await _create_persistence_architecture(save_dir_name, true)
-	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var storage: GFStorageUtility = _get_storage(setup)
-	var payload: Dictionary = save_graph.preview_profile_payload()
-	var metadata: Dictionary = GFVariantData.get_option_dictionary(payload, "metadata")
-	metadata["schema_version"] = 8
-	payload["metadata"] = metadata
-	assert_true(
-		storage.save_data(GameSaveGraphUtility.PROFILE_FILE_NAME, payload) == OK
-	)
-	_dispose_setup(setup, false)
-
-	var reloaded: Dictionary = await _create_persistence_architecture(
-		save_dir_name,
-		true
-	)
-	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
-	var reloaded_storage: GFStorageUtility = _get_storage(reloaded)
-	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(
-		reloaded_graph.get_debug_snapshot(),
-		"last_load"
-	)
-	var recovery_file: String = GFVariantData.get_option_string(
-		load_snapshot,
-		"recovery_file"
-	)
-	assert_true(reloaded_graph.is_profile_loaded())
-	assert_true(
-		GFVariantData.get_option_bool(
-			load_snapshot,
-			"recovered_obsolete_profile",
-			false
-		)
-	)
-	assert_true(
-		recovery_file == "recovery/player_data.schema-8.save",
-		"历史 Profile v8 必须先备份，再按当前 schema 重建。"
-	)
-	var recovery_result: GFStorageReadResult = reloaded_storage.load_data(
-		recovery_file
-	)
-	assert_true(recovery_result.ok, "Profile v8 恢复备份必须可读取。")
-	assert_true(
-		GFVariantData.get_option_int(
-			GFVariantData.get_option_dictionary(
-				recovery_result.payload,
-				"metadata"
-			),
-			"schema_version",
-			0
-		) == 8
-	)
-	var active_result: GFStorageReadResult = reloaded_storage.load_data(
-		GameSaveGraphUtility.PROFILE_FILE_NAME
-	)
-	assert_true(active_result.ok)
-	assert_true(
-		GFVariantData.get_option_int(
-			GFVariantData.get_option_dictionary(
-				active_result.payload,
-				"metadata"
-			),
-			"schema_version",
-			0
-		) == GameSaveGraphUtility.PROFILE_SCHEMA_VERSION
-	)
-	assert_true(reloaded_storage.delete_file(recovery_file) == OK)
-	_dispose_setup(reloaded)
 
 
-func test_profile_v9_without_tile_blueprints_is_backed_up_before_v10_rebuild() -> void:
-	var save_dir_name: String = (
-		"gut_save_graph_profile_v9_missing_tile_lab_%d"
-		% Time.get_ticks_usec()
-	)
-	var setup: Dictionary = await _create_persistence_architecture(
-		save_dir_name,
-		true
-	)
-	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var storage: GFStorageUtility = _get_storage(setup)
-	var payload: Dictionary = save_graph.preview_profile_payload()
-	var metadata: Dictionary = GFVariantData.get_option_dictionary(
-		payload,
-		"metadata"
-	)
-	metadata["schema_version"] = 9
-	payload["metadata"] = metadata
-	var graph_payload: Dictionary = _get_save_graph_payload(payload)
-	var scopes: Dictionary = GFVariantData.as_dictionary(
-		GFVariantData.get_option_value(graph_payload, "scopes")
-	)
-	var _tile_section_removed: bool = scopes.erase(
-		String(TileLabSaveData.SECTION_ID)
-	)
-	assert_true(
-		storage.save_data(GameSaveGraphUtility.PROFILE_FILE_NAME, payload) == OK
-	)
-	_dispose_setup(setup, false)
-
-	var reloaded: Dictionary = await _create_persistence_architecture(
-		save_dir_name,
-		true
-	)
-	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
-	var reloaded_storage: GFStorageUtility = _get_storage(reloaded)
-	var load_snapshot: Dictionary = GFVariantData.get_option_dictionary(
-		reloaded_graph.get_debug_snapshot(),
-		"last_load"
-	)
-	var recovery_file: String = GFVariantData.get_option_string(
-		load_snapshot,
-		"recovery_file"
-	)
-	assert_true(
-		reloaded_graph.is_profile_loaded(),
-		"缺少新 section 的同源旧 Profile 应在消费业务图前备份并重建。"
-	)
-	assert_true(
-		GFVariantData.get_option_bool(
-			load_snapshot,
-			"recovered_obsolete_profile",
-			false
-		)
-	)
-	assert_true(recovery_file == "recovery/player_data.schema-9.save")
-	var current_result: GFStorageReadResult = reloaded_storage.load_data(
-		GameSaveGraphUtility.PROFILE_FILE_NAME
-	)
-	var current_scopes: Dictionary = GFVariantData.get_option_dictionary(
-		_get_save_graph_payload(current_result.payload),
-		"scopes"
-	)
-	assert_true(current_scopes.has(String(TileLabSaveData.SECTION_ID)))
-	assert_true(reloaded_storage.delete_file(recovery_file) == OK)
-	_dispose_setup(reloaded)
 
 
 func test_unreadable_storage_profile_is_reset_to_current_format() -> void:
-	var save_dir_name: String = "gut_save_graph_unreadable_%d" % Time.get_ticks_usec()
+	var save_dir_name: String = "gut_save_graph_unreadable_%s" % (
+		GFUuid.generate_v4().replace("-", "")
+	)
 	var legacy_bytes: PackedByteArray = _make_legacy_storage_bytes({
 		"legacy_profile": true,
 	})
@@ -665,84 +970,8 @@ func test_unreadable_storage_profile_is_reset_to_current_format() -> void:
 	_dispose_setup(setup)
 
 
-func test_future_profile_schema_mismatch_is_rejected_without_fallback() -> void:
-	var save_dir_name: String = "gut_save_graph_schema_%d" % Time.get_ticks_usec()
-	var setup: Dictionary = await _create_persistence_architecture(save_dir_name)
-	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var storage: GFStorageUtility = _get_storage(setup)
-	var payload: Dictionary = save_graph.preview_profile_payload()
-	var metadata: Dictionary = GFVariantData.as_dictionary(GFVariantData.get_option_value(payload, "metadata"))
-	metadata["schema_version"] = GameSaveGraphUtility.PROFILE_SCHEMA_VERSION + 1
-	var seed_error: Error = storage.save_data(GameSaveGraphUtility.PROFILE_FILE_NAME, payload)
-	assert_true(seed_error == OK, "应能写入 schema 故障载荷。")
-	_dispose_setup(setup, false)
-
-	var reloaded: Dictionary = await _create_persistence_architecture(save_dir_name, true)
-	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
-	assert_false(reloaded_graph.is_profile_loaded(), "不匹配 schema 不应进入运行时模型。")
-	assert_true(_get_progress_stats_system(reloaded).get_high_score("classic", _BOARD_KEY) == 0, "不得保留旧 schema 双读回退。")
-	assert_true(_get_bookmark_system(reloaded).load_bookmarks().is_empty(), "拒绝载荷时书签默认值应保持为空。")
-
-	_dispose_setup(reloaded)
 
 
-func test_removed_feature_section_versions_are_rejected_strictly() -> void:
-	var cases: Array[Dictionary] = [
-		{
-			"section_id": String(GameSaveGraphUtility.PROGRESS_SECTION_ID),
-			"schema_version": 4,
-		},
-		{
-			"section_id": String(GameSaveGraphUtility.BOOKMARKS_SECTION_ID),
-			"schema_version": 7,
-		},
-		{
-			"section_id": String(GameSaveGraphUtility.REPLAYS_SECTION_ID),
-			"schema_version": 4,
-		},
-	]
-	for case_data: Dictionary in cases:
-		var section_id: StringName = StringName(
-			GFVariantData.get_option_string(case_data, "section_id")
-		)
-		var old_schema_version: int = GFVariantData.get_option_int(
-			case_data,
-			"schema_version"
-		)
-		var save_dir_name: String = (
-			"gut_removed_section_schema_%s_%d"
-			% [section_id, Time.get_ticks_usec()]
-		)
-		var setup: Dictionary = await _create_persistence_architecture(
-			save_dir_name,
-			true
-		)
-		var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-		var storage: GFStorageUtility = _get_storage(setup)
-		var payload: Dictionary = save_graph.preview_profile_payload()
-		var source: Dictionary = _get_section_source(payload, section_id)
-		var envelope: Dictionary = GFVariantData.get_option_dictionary(
-			source,
-			"data"
-		)
-		envelope["schema_version"] = old_schema_version
-		source["data"] = envelope
-		assert_true(
-			storage.save_data(GameSaveGraphUtility.PROFILE_FILE_NAME, payload)
-			== OK
-		)
-		_dispose_setup(setup, false)
-
-		var reloaded: Dictionary = await _create_persistence_architecture(
-			save_dir_name,
-			true
-		)
-		assert_false(
-			_get_save_graph(reloaded).is_profile_loaded(),
-			"%s 旧 section schema %d 必须被当前严格图拒绝。"
-			% [section_id, old_schema_version]
-		)
-		_dispose_setup(reloaded)
 
 
 func test_bookmark_schema_rejects_removed_transient_status_field() -> void:
@@ -944,33 +1173,94 @@ func test_replay_schema_rejects_non_cardinal_action() -> void:
 	)
 
 
-func test_save_dependency_failure_rolls_back_replaced_section() -> void:
-	var setup: Dictionary = await _create_persistence_architecture("", true)
-	var architecture: GFArchitecture = _get_architecture(setup)
-	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
-	var storage: GFStorageUtility = _get_storage(setup)
-	var initial_error: Error = progress_stats_system.set_high_score("classic", _BOARD_KEY, 128)
-	assert_true(initial_error == OK, "故障注入前的统计应保存成功。")
-	assert_true(save_graph.flush_pending_save() == OK, "故障注入前应冲刷排队统计。")
-
-	var cleanup_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
-	assert_true(cleanup_error == OK, "故障注入前应清理测试玩家数据文件。")
-	architecture.unregister_utility(GFStorageUtility)
-	var failed_error: Error = progress_stats_system.set_high_score("classic", _BOARD_KEY, 4096)
-	assert_true(failed_error == ERR_UNCONFIGURED, "SaveGraph 缺少存储依赖时应返回明确错误。")
-	assert_true(progress_stats_system.get_high_score("classic", _BOARD_KEY) == 128, "写入失败必须恢复 progress section 内存快照。")
-
-	_dispose_setup(setup, false)
-
 
 # --- 私有/辅助方法 ---
+
+func _await_section_operation(
+	operation: GameSaveSectionOperation,
+	setup: Dictionary
+) -> GameSaveSectionResult:
+	if operation == null:
+		return null
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	for _frame: int in range(300):
+		if operation.is_completed():
+			break
+		storage.wait_for_async_tasks()
+		architecture.tick(0.0)
+		await get_tree().process_frame
+	return operation.get_result()
+
+
+func _advance_section_operation_to_outcome_unknown(
+	operation: GameSaveSectionOperation,
+	setup: Dictionary,
+	storage: _HangingProfileStorage,
+	clock: GFManualClock
+) -> void:
+	await _await_hanging_profile_write(storage, setup)
+	await _advance_profile_deadlines(setup, clock)
+	for _frame: int in range(120):
+		if operation != null and operation.is_completed():
+			break
+		_get_architecture(setup).tick(0.0)
+		await get_tree().process_frame
+	assert_true(
+		operation != null and operation.is_completed(),
+		"section deadline 必须产生 typed outcome_unknown 终态。"
+	)
+
+
+func _advance_profile_deadlines(
+	setup: Dictionary,
+	clock: GFManualClock
+) -> void:
+	var architecture: GFArchitecture = _get_architecture(setup)
+	for delta_msec: int in [5_000, 100, 5_000, 500, 5_000, 1_500, 5_000]:
+		assert_true(clock.advance_msec(delta_msec))
+		architecture.tick(0.0)
+		await get_tree().process_frame
+
+
+func _await_hanging_profile_write(
+	storage: _HangingProfileStorage,
+	setup: Dictionary
+) -> void:
+	var architecture: GFArchitecture = _get_architecture(setup)
+	for _frame: int in range(120):
+		architecture.tick(0.0)
+		await get_tree().process_frame
+		if not storage.hanging_operations.is_empty():
+			break
+	assert_false(
+		storage.hanging_operations.is_empty(),
+		"故障注入 Profile 写必须先进入 hanging 状态。"
+	)
+
+
+func _await_section_reconciliation(
+	save_graph: GameSaveGraphUtility,
+	setup: Dictionary
+) -> void:
+	var architecture: GFArchitecture = _get_architecture(setup)
+	for _frame: int in range(600):
+		architecture.tick(1.0 / 60.0)
+		await get_tree().process_frame
+		if not save_graph.is_section_reconciliation_pending():
+			break
+	assert_false(
+		save_graph.is_section_reconciliation_pending(),
+		"section late settlement 必须在测试窗口内解除 reconciliation 锁。"
+	)
+
 
 func _create_persistence_architecture(
 	save_dir_name: String = "",
 	include_systems: bool = false,
 	raw_profile_bytes: PackedByteArray = PackedByteArray(),
-	storage_override: GFStorageUtility = null
+	storage_override: GFStorageUtility = null,
+	clock_override: GFManualClock = null
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = (
@@ -978,15 +1268,27 @@ func _create_persistence_architecture(
 		if storage_override != null
 		else GFStorageUtility.new()
 	)
-	var framework_save_graph: GFSaveGraphUtility = GFSaveGraphUtility.new()
 	var save_graph: GameSaveGraphUtility = _make_game_save_graph()
 	var platform: GamePlatformUtility = _TEST_PLATFORM_STUB_SCRIPT.new()
 	var progress_stats_system: ProgressStatsSystem = null
 	var bookmark_system: BookmarkSystem = null
 	var custom_board_system: CustomBoardSystem = null
 	var replay_system: ReplaySystem = null
+	var shared_clock: GFManualClock = (
+		clock_override
+		if clock_override != null
+		else GFManualClock.new(0, 1_000_000)
+	)
+	var time_utility: GFTimeUtility = GFTimeUtility.new()
+	assert_true(time_utility.set_clock(shared_clock))
+	var game_clock: GameClockUtility = GameClockUtility.new()
+	assert_true(game_clock.set_clock(shared_clock))
 
-	storage.save_dir_name = save_dir_name if not save_dir_name.is_empty() else "gut_save_graph_%d" % Time.get_ticks_usec()
+	storage.save_dir_name = (
+		save_dir_name
+		if not save_dir_name.is_empty()
+		else "gut_save_graph_%s" % GFUuid.generate_v4().replace("-", "")
+	)
 	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
@@ -1001,10 +1303,20 @@ func _create_persistence_architecture(
 		assert_true(fixture_error == OK, "无法写入不可读 Profile 回归夹具。")
 
 	await architecture.register_utility(GFStorageUtility, storage)
-	await architecture.register_utility(GFSaveGraphUtility, framework_save_graph)
+	await architecture.register_utility(GFTimeUtility, time_utility)
+	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
+	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
+	await architecture.register_utility(
+		GFSaveProfileUtility,
+		GFSaveProfileUtility.new()
+	)
+	await architecture.register_utility(
+		GFBackgroundWorkUtility,
+		GFBackgroundWorkUtility.new()
+	)
 	await architecture.register_utility(GamePlatformUtility, platform)
+	await architecture.register_utility(GameClockUtility, game_clock)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
-	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(GFCommandHistoryUtility, GFCommandHistoryUtility.new())
 	if include_systems:
 		progress_stats_system = ProgressStatsSystem.new()
@@ -1022,6 +1334,7 @@ func _create_persistence_architecture(
 		"storage": storage,
 		"save_graph": save_graph,
 		"platform": platform,
+		"clock": shared_clock,
 		"progress_stats_system": progress_stats_system,
 		"bookmark_system": bookmark_system,
 		"custom_board_system": custom_board_system,
@@ -1034,37 +1347,37 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 	var progress_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		GameStatsSaveData.new(),
-		GFSaveScope.Phase.EARLY
+		GameSaveGraphUtility.SectionOrder.EARLY
 	)
 	var bookmarks_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
 		BookmarkCatalogSaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var custom_boards_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
 		CustomBoardCatalogSaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var discoveries_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
 		TileDiscoverySaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var tile_blueprints_registered: bool = save_graph.register_section(
 		TileLabSaveData.SECTION_ID,
 		TileLabSaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var achievements_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID,
 		AchievementSaveData.new(),
-		GFSaveScope.Phase.LATE
+		GameSaveGraphUtility.SectionOrder.LATE
 	)
 	var replays_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		ReplayCatalogSaveData.new(),
-		GFSaveScope.Phase.LATE
+		GameSaveGraphUtility.SectionOrder.LATE
 	)
 	assert_true(
 		progress_registered
@@ -1074,7 +1387,7 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		and tile_blueprints_registered
 		and achievements_registered
 		and replays_registered,
-		"测试 SaveGraph section 应完整注册。"
+		"测试 Profile section 应完整注册。"
 	)
 	return save_graph
 
@@ -1228,29 +1541,8 @@ func _make_classic_tile_snapshot(
 	}
 
 
-func _get_section_source(payload: Dictionary, section_id: StringName) -> Dictionary:
-	var graph_payload: Dictionary = _get_save_graph_payload(payload)
-	var scopes: Dictionary = GFVariantData.as_dictionary(
-		GFVariantData.get_option_value(graph_payload, "scopes")
-	)
-	var section_payload: Dictionary = GFVariantData.as_dictionary(
-		GFVariantData.get_option_value(scopes, String(section_id))
-	)
-	var sources: Dictionary = GFVariantData.as_dictionary(GFVariantData.get_option_value(section_payload, "sources"))
-	return GFVariantData.as_dictionary(GFVariantData.get_option_value(sources, "state"))
 
 
-func _get_save_graph_payload(document_payload: Dictionary) -> Dictionary:
-	var sections: Dictionary = GFVariantData.as_dictionary(
-		GFVariantData.get_option_value(document_payload, "sections")
-	)
-	var section: Dictionary = GFVariantData.as_dictionary(
-		GFVariantData.get_option_value(
-			sections,
-			String(GFSaveGraphUtility.DOCUMENT_SECTION_ID)
-		)
-	)
-	return GFVariantData.as_dictionary(GFVariantData.get_option_value(section, "payload"))
 
 
 func _describe_load_failure(save_graph: GameSaveGraphUtility) -> String:
@@ -1350,45 +1642,125 @@ func _get_custom_board_system(setup: Dictionary) -> CustomBoardSystem:
 
 # --- 内部类 ---
 
-class _ScriptedStorage extends GFStorageUtility:
-	var async_completion_errors: Array[int] = []
-	var async_start_errors: Array[int] = []
-	var sync_save_errors: Array[int] = []
-	var async_save_call_count: int = 0
-	var sync_save_call_count: int = 0
+class _RetryStorage extends GFStorageUtility:
+	var profile_save_errors: Array[Error] = []
+	var profile_save_attempt_count: int = 0
+	var _next_request_id: int = 2_000_000
 
 
-	## 执行一次可脚本化完成结果的异步保存测试替身调用。
-	## @param file_name: 要保存的测试文件名。
-	## @param _data: 本替身不读取的保存数据。
-	func save_data_async(file_name: String, _data: Dictionary) -> Error:
-		async_save_call_count += 1
-		var completion_error_code: int = (
-			GFVariantData.to_int(async_completion_errors.pop_front(), ERR_INVALID_DATA)
-			if not async_completion_errors.is_empty()
-			else OK
+	## 按队列为 Profile 写入注入可重试错误。
+	## @param file_name: GFStorage 相对文件名。
+	## @param data: 要持久化的完整数据字典。
+	func save_data_request_async(
+		file_name: String,
+		data: Dictionary
+	) -> GFStorageAsyncOperation:
+		if file_name == GameSaveGraphUtility.PROFILE_FILE_NAME:
+			profile_save_attempt_count += 1
+			if not profile_save_errors.is_empty():
+				var scripted_error: Error = profile_save_errors.pop_front()
+				if scripted_error != OK:
+					var operation: GFStorageAsyncOperation = (
+						GFStorageAsyncOperation.new()
+					)
+					var request_id: int = _next_request_id
+					_next_request_id += 1
+					var _operation_configured: bool = (
+						operation.configure_for_framework(
+							request_id,
+							GFStorageAsyncOperation.OPERATION_SAVE,
+							file_name
+						)
+					)
+					var result: GFStorageAsyncResult = (
+						GFStorageAsyncResult.new()
+					)
+					var _result_configured: bool = (
+						result.configure_for_framework(
+							request_id,
+							GFStorageAsyncOperation.OPERATION_SAVE,
+							file_name,
+							false,
+							scripted_error
+						)
+					)
+					var _completed: bool = (
+						operation.complete_for_framework(result)
+					)
+					return operation
+		return super.save_data_request_async(file_name, data)
+
+
+class _HangingProfileStorage extends GFStorageUtility:
+	var hang_profile_writes: bool = false
+	var hanging_operations: Array[GFStorageAsyncOperation] = []
+	var _payloads_by_request_id: Dictionary = {}
+	var _next_request_id: int = 3_500_000
+
+
+	## 挂起玩家 Profile 写入，并保留候选 payload 供迟到终态故障注入。
+	## @param file_name: GFStorage 相对文件名。
+	## @param data: 此 generation 的完整 GFSaveDocument。
+	func save_data_request_async(
+		file_name: String,
+		data: Dictionary
+	) -> GFStorageAsyncOperation:
+		if (
+			not hang_profile_writes
+			or file_name != GameSaveGraphUtility.PROFILE_FILE_NAME
+		):
+			return super.save_data_request_async(file_name, data)
+		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
+		var request_id: int = _next_request_id
+		_next_request_id += 1
+		var _configured: bool = operation.configure_for_framework(
+			request_id,
+			GFStorageAsyncOperation.OPERATION_SAVE,
+			file_name
 		)
-		var completion_error: Error = completion_error_code as Error
-		save_completed.emit(file_name, completion_error)
-		var start_error_code: int = (
-			GFVariantData.to_int(async_start_errors.pop_front(), ERR_INVALID_DATA)
-			if not async_start_errors.is_empty()
-			else OK
+		hanging_operations.append(operation)
+		_payloads_by_request_id[request_id] = data.duplicate(true)
+		return operation
+
+
+	## 完成全部挂起写；可先真实落盘但仍报告错误，模拟不确定远端终态。
+	## @param error_code: detached 请求最终报告的错误码。
+	## @param persist_before_complete: 是否先把保留 payload 写入真实存储。
+	func complete_all_hanging(
+		error_code: Error,
+		persist_before_complete: bool
+	) -> void:
+		var operations: Array[GFStorageAsyncOperation] = (
+			hanging_operations.duplicate()
 		)
-		return start_error_code as Error
-
-
-	## 执行一次可脚本化失败结果的同步保存测试替身调用。
-	## @param file_name: 要保存的测试文件名。
-	## @param data: 要透传给真实存储实现的保存数据。
-	func save_data(file_name: String, data: Dictionary) -> Error:
-		sync_save_call_count += 1
-		if not sync_save_errors.is_empty():
-			var scripted_error_code: int = GFVariantData.to_int(
-				sync_save_errors.pop_front(),
-				ERR_INVALID_DATA
+		hanging_operations.clear()
+		for operation: GFStorageAsyncOperation in operations:
+			if operation == null or operation.is_completed():
+				continue
+			var request_id: int = operation.get_request_id()
+			var payload: Dictionary = GFVariantData.get_option_dictionary(
+				_payloads_by_request_id,
+				request_id
 			)
-			var scripted_error: Error = scripted_error_code as Error
-			if scripted_error != OK:
-				return scripted_error
-		return super.save_data(file_name, data)
+			var _erased: bool = _payloads_by_request_id.erase(request_id)
+			if persist_before_complete and not payload.is_empty():
+				var persist_error: Error = super.save_data(
+					operation.get_file_name(),
+					payload
+				)
+				assert(
+					persist_error == OK,
+					"测试故障注入 payload 必须可写入真实 GFStorage。"
+				)
+			var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
+			var _result_configured: bool = result.configure_for_framework(
+				request_id,
+				GFStorageAsyncOperation.OPERATION_SAVE,
+				operation.get_file_name(),
+				error_code == OK,
+				error_code
+			)
+			var _completed: bool = operation.complete_for_framework(result)
+
+
+# --- 内部类 ---

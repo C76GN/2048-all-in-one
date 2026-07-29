@@ -72,10 +72,19 @@ func test_persisted_game_result_advances_gf_quest_once() -> void:
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var achievement_system: AchievementSystem = _get_achievement_system(setup)
 
-	var save_error: Error = progress_stats_system.record_game_result(
-		_make_game_result(4096, 40, 2048, 100, 2048, true)
+	var save_result: GameSaveSectionResult = (
+		await GameSaveSectionOperationTestSupport.await_result(
+			progress_stats_system.request_record_game_result(
+				_make_game_result(4096, 40, 2048, 100, 2048, true)
+			),
+			_get_architecture(setup),
+			get_tree()
+		)
 	)
-	assert_true(save_error == OK, "对局结果应先成功提交统计 section。")
+	assert_true(
+		save_result != null and save_result.is_successful(),
+		"对局结果应先成功提交统计 section。"
+	)
 	assert_true(
 		achievement_system.is_unlocked(&"achievement.first_game"),
 		"首次有效对局应解锁首局成就。"
@@ -121,10 +130,19 @@ func test_persisted_game_result_advances_gf_quest_once() -> void:
 func test_achievement_system_backfills_from_canonical_sections() -> void:
 	var save_dir_name: String = "gut_achievement_backfill_%d" % Time.get_ticks_usec()
 	var seed_setup: Dictionary = await _create_setup(save_dir_name, false)
-	var seed_error: Error = _get_progress_stats_system(seed_setup).record_game_result(
-		_make_game_result(12000, 55, 4096, 200, 2048, true)
+	var seed_result: GameSaveSectionResult = (
+		await GameSaveSectionOperationTestSupport.await_result(
+			_get_progress_stats_system(seed_setup).request_record_game_result(
+				_make_game_result(12000, 55, 4096, 200, 2048, true)
+			),
+			_get_architecture(seed_setup),
+			get_tree()
+		)
 	)
-	assert_true(seed_error == OK, "回填测试应先写入规范统计真源。")
+	assert_true(
+		seed_result != null and seed_result.is_successful(),
+		"回填测试应先写入规范统计真源。"
+	)
 	_dispose_setup(seed_setup, false)
 
 	var reloaded: Dictionary = await _create_setup(save_dir_name, true)
@@ -243,7 +261,14 @@ func _create_setup(
 	storage.use_integrity_checksum = true
 
 	await architecture.register_utility(GFStorageUtility, storage)
-	await architecture.register_utility(GFSaveGraphUtility, GFSaveGraphUtility.new())
+	await architecture.register_utility(
+		GFSaveProfileUtility,
+		GFSaveProfileUtility.new()
+	)
+	await architecture.register_utility(
+		GFBackgroundWorkUtility,
+		GFBackgroundWorkUtility.new()
+	)
 	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
@@ -281,17 +306,17 @@ func _make_save_graph() -> GameSaveGraphUtility:
 	assert_true(save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		GameStatsSaveData.new(),
-		GFSaveScope.Phase.EARLY
+		GameSaveGraphUtility.SectionOrder.EARLY
 	))
 	assert_true(save_graph.register_section(
 		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
 		TileDiscoverySaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	))
 	assert_true(save_graph.register_section(
 		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID,
 		AchievementSaveData.new(),
-		GFSaveScope.Phase.LATE
+		GameSaveGraphUtility.SectionOrder.LATE
 	))
 	return save_graph
 

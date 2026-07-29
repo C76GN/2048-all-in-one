@@ -49,6 +49,13 @@ func _get_data_list() -> Array:
 	return result
 
 
+func _get_data_identity(data: Resource) -> String:
+	if data is ReplayData:
+		var replay: ReplayData = data
+		return replay.replay_id
+	return ""
+
+
 func _setup_item(item: Control, data: Resource) -> void:
 	if not item is ReplayListItem or not data is ReplayData:
 		return
@@ -132,15 +139,15 @@ func _update_ui_text() -> void:
 	if is_instance_valid(back_button):
 		back_button.text = tr("BTN_RETURN_MAIN")
 
-func _do_delete_logic(data: Resource) -> Error:
+func _do_delete_logic(data: Resource) -> GameSaveSectionOperation:
 	if not data is ReplayData:
-		return ERR_INVALID_PARAMETER
+		return null
 
 	var replay: ReplayData = data
 	var replay_system: ReplaySystem = _get_replay_system()
 	if not is_instance_valid(replay_system):
-		return ERR_UNCONFIGURED
-	return replay_system.delete_replay(replay.replay_id)
+		return null
+	return replay_system.request_delete_replay(replay.replay_id)
 
 
 func _on_primary_action_triggered(data: Resource) -> void:

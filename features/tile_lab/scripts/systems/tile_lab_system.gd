@@ -14,9 +14,12 @@ var _catalog: TileCatalogUtility = null
 var _clock: GameClockUtility = null
 var _composition: TileCompositionUtility = null
 var _save_graph: GameSaveGraphUtility = null
+var _signal_utility: GFSignalUtility = null
 var _recipes_by_id: Dictionary = {}
 var _ambiguous_recipe_ids: Dictionary = {}
 var _ordered_recipe_ids: Array[StringName] = []
+var _disposed: bool = true
+var _reconciliation_connection: GFSignalConnection = null
 
 
 # --- GF 生命周期方法 ---
@@ -25,20 +28,27 @@ func get_required_utilities() -> Array[Script]:
 	return [
 		GameClockUtility,
 		GameSaveGraphUtility,
+		GFSignalUtility,
 		TileCatalogUtility,
 		TileCompositionUtility,
 	]
 
 
 func ready() -> void:
+	_disposed = false
 	_clock = _resolve_clock_utility()
 	_save_graph = _resolve_save_graph_utility()
+	_signal_utility = _resolve_signal_utility()
 	_catalog = _resolve_catalog_utility()
 	_composition = _resolve_composition_utility()
 	_rebuild_recipe_index()
 
 
 func dispose() -> void:
+	_disposed = true
+	_disconnect_reconciliation_connection()
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	_recipes_by_id.clear()
 	_ambiguous_recipe_ids.clear()
 	_ordered_recipe_ids.clear()
@@ -46,6 +56,7 @@ func dispose() -> void:
 	_clock = null
 	_composition = null
 	_save_graph = null
+	_signal_utility = null
 
 
 # --- 公共方法 ---
@@ -251,33 +262,38 @@ func build_runtime_definition(
 	return _build_runtime_definition_unchecked(base_definition_id, recipe_ids)
 
 
-## 新建或更新一个玩家蓝图。空 ID 表示新建，非空 ID 必须已经存在。
+## 异步新建或更新一个玩家蓝图。空 ID 表示新建，非空 ID 必须已经存在。
+##
+## 只有确认持久化后才回填稳定身份并发布 blueprints_changed；失败、BUSY
+## 和 outcome_unknown 不会伪装成已保存。
 ## @param blueprint: 要持久化的新建或更新蓝图。
-func save_blueprint(blueprint: CustomTileBlueprintData) -> Error:
-	if blueprint == null:
-		return ERR_INVALID_PARAMETER
+func request_save_blueprint(
+	blueprint: CustomTileBlueprintData
+) -> GameSaveSectionOperation:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if blueprint == null:
+		return _reject_operation(save_graph, ERR_INVALID_PARAMETER)
 	var clock: GameClockUtility = _get_clock()
 	if save_graph == null or clock == null:
-		return ERR_UNCONFIGURED
+		return _reject_operation(save_graph, ERR_UNCONFIGURED)
 
 	var display_name: String = CustomTileBlueprintData.normalize_display_name(
 		blueprint.display_name
 	)
 	if display_name.is_empty():
-		return ERR_INVALID_DATA
+		return _reject_operation(save_graph, ERR_INVALID_DATA)
 	if not validate_composition(
 		blueprint.base_definition_id,
 		blueprint.recipe_ids
 	).is_ok():
-		return ERR_INVALID_DATA
+		return _reject_operation(save_graph, ERR_INVALID_DATA)
 	if not (
 		CustomTileBlueprintData.is_preview_value_valid(blueprint.preview_left_value)
 		and CustomTileBlueprintData.is_preview_value_valid(
 			blueprint.preview_right_value
 		)
 	):
-		return ERR_INVALID_DATA
+		return _reject_operation(save_graph, ERR_INVALID_DATA)
 
 	var blueprints: Array[CustomTileBlueprintData] = load_blueprints()
 	var now: int = maxi(clock.get_unix_timestamp(), 1)
@@ -286,16 +302,16 @@ func save_blueprint(blueprint: CustomTileBlueprintData) -> Error:
 	var replacing_index: int = -1
 	if blueprint_id.is_empty():
 		if blueprints.size() >= TileLabSaveData.MAX_BLUEPRINT_COUNT:
-			return ERR_OUT_OF_MEMORY
+			return _reject_operation(save_graph, ERR_OUT_OF_MEMORY)
 		blueprint_id = _generate_unique_id(blueprints, now)
 		if blueprint_id.is_empty():
-			return FAILED
+			return _reject_operation(save_graph, FAILED)
 	else:
 		if not GFUuid.is_valid(blueprint_id, 7):
-			return ERR_INVALID_DATA
+			return _reject_operation(save_graph, ERR_INVALID_DATA)
 		replacing_index = _find_blueprint_index(blueprints, blueprint_id)
 		if replacing_index < 0:
-			return ERR_DOES_NOT_EXIST
+			return _reject_operation(save_graph, ERR_DOES_NOT_EXIST)
 		created_at = blueprints[replacing_index].created_at
 
 	var candidate: CustomTileBlueprintData = CustomTileBlueprintData.new()
@@ -311,23 +327,20 @@ func save_blueprint(blueprint: CustomTileBlueprintData) -> Error:
 		CustomTileBlueprintData.from_dict(candidate.to_dict())
 	)
 	if strict_candidate == null or not validate_blueprint(strict_candidate).is_ok():
-		return ERR_INVALID_DATA
+		return _reject_operation(save_graph, ERR_INVALID_DATA)
 
 	if replacing_index >= 0:
 		blueprints[replacing_index] = strict_candidate
 	else:
 		blueprints.append(strict_candidate)
 	blueprints.sort_custom(_is_newer_blueprint)
-	var replace_error: Error = save_graph.replace_section_data(
+	var operation: GameSaveSectionOperation = save_graph.request_replace_section_data(
 		TileLabSaveData.SECTION_ID,
-		_serialize_blueprints(blueprints)
+		_serialize_blueprints(blueprints),
+		{&"feature": &"tile_lab", &"action": &"save"}
 	)
-	if replace_error != OK:
-		return replace_error
-
-	_copy_blueprint(strict_candidate, blueprint)
-	blueprints_changed.emit()
-	return OK
+	_publish_saved_blueprint_on_success(operation, strict_candidate, blueprint)
+	return operation
 
 
 func load_blueprints() -> Array[CustomTileBlueprintData]:
@@ -365,25 +378,26 @@ func get_blueprint(blueprint_id: String) -> CustomTileBlueprintData:
 	return null
 
 
+## 异步删除一个玩家蓝图。
 ## @param blueprint_id: 待删除的 UUID v7。
-func delete_blueprint(blueprint_id: String) -> Error:
-	if not GFUuid.is_valid(blueprint_id, 7):
-		return ERR_INVALID_PARAMETER
+func request_delete_blueprint(blueprint_id: String) -> GameSaveSectionOperation:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if not GFUuid.is_valid(blueprint_id, 7):
+		return _reject_operation(save_graph, ERR_INVALID_PARAMETER)
 	if save_graph == null:
-		return ERR_UNCONFIGURED
+		return null
 	var blueprints: Array[CustomTileBlueprintData] = load_blueprints()
 	var index: int = _find_blueprint_index(blueprints, blueprint_id)
 	if index < 0:
-		return ERR_DOES_NOT_EXIST
+		return _reject_operation(save_graph, ERR_DOES_NOT_EXIST)
 	blueprints.remove_at(index)
-	var replace_error: Error = save_graph.replace_section_data(
+	var operation: GameSaveSectionOperation = save_graph.request_replace_section_data(
 		TileLabSaveData.SECTION_ID,
-		_serialize_blueprints(blueprints)
+		_serialize_blueprints(blueprints),
+		{&"feature": &"tile_lab", &"action": &"delete"}
 	)
-	if replace_error == OK:
-		blueprints_changed.emit()
-	return replace_error
+	_publish_blueprints_changed_on_success(operation)
+	return operation
 
 
 ## 使用已保存或严格构造的蓝图执行左右两个方块的真实能力交互。
@@ -514,6 +528,211 @@ func get_debug_snapshot() -> Dictionary:
 
 
 # --- 私有/辅助方法 ---
+
+func _reject_operation(
+	save_graph: GameSaveGraphUtility,
+	error_code: Error
+) -> GameSaveSectionOperation:
+	if save_graph == null:
+		return null
+	return save_graph.make_rejected_section_operation(
+		TileLabSaveData.SECTION_ID,
+		error_code
+	)
+
+
+func _publish_saved_blueprint_on_success(
+	operation: GameSaveSectionOperation,
+	strict_candidate: CustomTileBlueprintData,
+	target: CustomTileBlueprintData
+) -> void:
+	if operation == null:
+		return
+	if operation.is_completed():
+		_on_save_blueprint_operation_completed(
+			operation.get_result(),
+			strict_candidate,
+			target
+		)
+	else:
+		var callback: Callable = Callable(
+			self,
+			&"_on_save_blueprint_operation_completed"
+		).bind(strict_candidate, target)
+		var signal_utility: GFSignalUtility = _get_signal_utility()
+		if not is_instance_valid(signal_utility):
+			return
+		var _operation_connection: GFSignalConnection = (
+			signal_utility.connect_once(
+				operation.completed,
+				callback,
+				self
+			)
+		)
+
+
+func _on_save_blueprint_operation_completed(
+	result: GameSaveSectionResult,
+	strict_candidate: CustomTileBlueprintData,
+	target: CustomTileBlueprintData
+) -> void:
+	if (
+		_disposed
+		or result == null
+		or not is_instance_valid(target)
+	):
+		return
+	if not result.is_successful():
+		if (
+			result.get_status()
+			== GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN
+		):
+			_connect_saved_blueprint_reconciliation(
+				result.get_transaction_id(),
+				strict_candidate,
+				target
+			)
+		return
+	_copy_blueprint(strict_candidate, target)
+	blueprints_changed.emit()
+
+
+func _publish_blueprints_changed_on_success(
+	operation: GameSaveSectionOperation
+) -> void:
+	if operation == null:
+		return
+	if operation.is_completed():
+		_on_blueprints_changed_operation_completed(operation.get_result())
+	else:
+		var callback: Callable = Callable(
+			self,
+			&"_on_blueprints_changed_operation_completed"
+		)
+		var signal_utility: GFSignalUtility = _get_signal_utility()
+		if not is_instance_valid(signal_utility):
+			return
+		var _operation_connection: GFSignalConnection = (
+			signal_utility.connect_once(
+				operation.completed,
+				callback,
+				self
+			)
+		)
+
+
+func _on_blueprints_changed_operation_completed(
+	result: GameSaveSectionResult
+) -> void:
+	if _disposed or result == null:
+		return
+	if result.is_successful():
+		blueprints_changed.emit()
+	elif (
+		result.get_status()
+		== GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN
+	):
+		_connect_blueprints_changed_reconciliation(
+			result.get_transaction_id()
+		)
+
+
+func _connect_saved_blueprint_reconciliation(
+	transaction_id: int,
+	strict_candidate: CustomTileBlueprintData,
+	target: CustomTileBlueprintData
+) -> void:
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	var signal_utility: GFSignalUtility = _get_signal_utility()
+	if save_graph == null or not is_instance_valid(signal_utility):
+		return
+	_disconnect_reconciliation_connection()
+	_reconciliation_connection = signal_utility.connect_signal(
+		save_graph.section_reconciliation_settled,
+		Callable(
+			self,
+			&"_on_saved_blueprint_reconciliation_settled"
+		).bind(transaction_id, strict_candidate, target),
+		self
+	)
+
+
+func _on_saved_blueprint_reconciliation_settled(
+	evidence: Dictionary,
+	transaction_id: int,
+	strict_candidate: CustomTileBlueprintData,
+	target: CustomTileBlueprintData
+) -> void:
+	if (
+		GFVariantData.get_option_int(
+			evidence,
+			&"transaction_id",
+			0
+		) != transaction_id
+	):
+		return
+	_disconnect_reconciliation_connection()
+	if (
+		_disposed
+		or not is_instance_valid(target)
+		or not GFVariantData.get_option_bool(
+			evidence,
+			&"candidate_persisted",
+			false
+		)
+	):
+		return
+	_copy_blueprint(strict_candidate, target)
+	blueprints_changed.emit()
+
+
+func _connect_blueprints_changed_reconciliation(
+	transaction_id: int
+) -> void:
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	var signal_utility: GFSignalUtility = _get_signal_utility()
+	if save_graph == null or not is_instance_valid(signal_utility):
+		return
+	_disconnect_reconciliation_connection()
+	_reconciliation_connection = signal_utility.connect_signal(
+		save_graph.section_reconciliation_settled,
+		Callable(
+			self,
+			&"_on_blueprints_changed_reconciliation_settled"
+		).bind(transaction_id),
+		self
+	)
+
+
+func _on_blueprints_changed_reconciliation_settled(
+	evidence: Dictionary,
+	transaction_id: int
+) -> void:
+	if (
+		GFVariantData.get_option_int(
+			evidence,
+			&"transaction_id",
+			0
+		) != transaction_id
+	):
+		return
+	_disconnect_reconciliation_connection()
+	if (
+		not _disposed
+		and GFVariantData.get_option_bool(
+			evidence,
+			&"candidate_persisted",
+			false
+		)
+	):
+		blueprints_changed.emit()
+
+
+func _disconnect_reconciliation_connection() -> void:
+	if _reconciliation_connection != null:
+		_reconciliation_connection.disconnect_signal()
+	_reconciliation_connection = null
+
 
 func _rebuild_recipe_index() -> void:
 	_recipes_by_id.clear()
@@ -648,6 +867,13 @@ func _get_save_graph() -> GameSaveGraphUtility:
 	return _save_graph
 
 
+func _get_signal_utility() -> GFSignalUtility:
+	if is_instance_valid(_signal_utility):
+		return _signal_utility
+	_signal_utility = _resolve_signal_utility()
+	return _signal_utility
+
+
 func _resolve_catalog_utility() -> TileCatalogUtility:
 	var value: Object = get_utility(TileCatalogUtility)
 	if value is TileCatalogUtility:
@@ -676,6 +902,14 @@ func _resolve_save_graph_utility() -> GameSaveGraphUtility:
 	var value: Object = get_utility(GameSaveGraphUtility)
 	if value is GameSaveGraphUtility:
 		var utility: GameSaveGraphUtility = value
+		return utility
+	return null
+
+
+func _resolve_signal_utility() -> GFSignalUtility:
+	var value: Object = get_utility(GFSignalUtility)
+	if value is GFSignalUtility:
+		var utility: GFSignalUtility = value
 		return utility
 	return null
 

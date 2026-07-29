@@ -1,18 +1,9 @@
-## GameSaveSectionData: 玩家数据 SaveGraph 子作用域的数据协议。
+## GameSaveSectionData: 玩家 Profile section 的项目业务协议。
 ##
-## 每个 Feature 通过子类拥有自己的业务 schema；本类只统一 section 标识、
-## schema 版本和 GFSaveDataSource 使用的 to_dict/replace_from_dict 协议。
+## 每个 Feature 通过子类拥有自己的业务 schema；GFSaveSectionProvider 负责
+## section 身份、采集、事务应用与回滚协议，本类只补充项目使用的严格字典入口。
 class_name GameSaveSectionData
-extends Resource
-
-
-# --- 导出变量 ---
-
-## SaveGraph 中的稳定子作用域标识。
-@export var section_id: StringName = &""
-
-## 当前 section 的严格 schema 版本。
-@export_range(1, 2147483647, 1) var schema_version: int = 1
+extends GFSaveSectionProvider
 
 
 # --- 公共方法 ---
@@ -30,7 +21,7 @@ func replace_section_data(data: Dictionary) -> Error:
 	return _replace_section_data(data.duplicate(true))
 
 
-## 生成 GFSaveDataSource 使用的严格 envelope。
+## 生成项目工具与诊断使用的严格 envelope。
 func to_dict() -> Dictionary:
 	return {
 		"section_id": String(section_id),
@@ -39,7 +30,7 @@ func to_dict() -> Dictionary:
 	}
 
 
-## 应用 GFSaveDataSource 载荷；不接受旧 schema 或未知根字段。
+## 应用项目 envelope；不接受旧 schema 或未知根字段。
 ## @param payload: 包含 section 标识、版本和业务数据的完整 envelope。
 func replace_from_dict(payload: Dictionary) -> Error:
 	if payload.size() != 3:
@@ -58,7 +49,34 @@ func replace_from_dict(payload: Dictionary) -> Error:
 	return replace_section_data(GFVariantData.get_option_dictionary(payload, "data"))
 
 
-# --- 可重写钩子 ---
+# --- 可重写钩子（GFSaveSectionProvider） ---
+
+func _gather_section(_context: Dictionary = {}) -> GFSaveSection:
+	return make_section(get_section_data())
+
+
+func _capture_section(_context: Dictionary = {}) -> GFSaveSection:
+	return make_section(get_section_data())
+
+
+func _apply_section(
+	section: GFSaveSection,
+	_context: Dictionary = {}
+) -> Error:
+	if section == null:
+		return ERR_INVALID_DATA
+	var payload: Variant = section.get_payload()
+	if not payload is Dictionary:
+		return ERR_INVALID_DATA
+	return replace_section_data(GFVariantData.as_dictionary(payload))
+
+
+func _rollback_section(
+	previous_section: GFSaveSection,
+	context: Dictionary = {}
+) -> Error:
+	return _apply_section(previous_section, context)
+
 
 ## 子类返回当前业务数据。
 func _gather_section_data() -> Dictionary:

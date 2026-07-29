@@ -29,19 +29,61 @@ func test_set_high_score_updates_stats_without_recording_play() -> void:
 	_dispose_setup(setup)
 
 
+func test_reconciliation_callback_ignores_other_transaction_and_disposes() -> void:
+	var setup: Dictionary = await _create_save_architecture()
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var progress: ProgressStatsSystem = _get_progress_stats_system(setup)
+	var strict_result: GameResultRecordedData = _make_result(
+		128,
+		4,
+		16,
+		100
+	)
+	progress._publish_recorded_result_after_reconciliation(
+		42,
+		strict_result
+	)
+	var connection: GFSignalConnection = progress._reconciliation_connection
+	assert_true(
+		connection != null and connection.is_active(),
+		"Progress 应保留由 GFSignalUtility 管理的 reconciliation 连接。"
+	)
+
+	save_graph.section_reconciliation_settled.emit({
+		&"transaction_id": 41,
+		&"candidate_persisted": true,
+	})
+	await get_tree().process_frame
+	assert_true(
+		progress._reconciliation_connection == connection
+		and connection.is_active(),
+		"其他 transaction 的证据不得消耗目标监听。"
+	)
+	progress.dispose()
+	assert_false(
+		connection.is_active(),
+		"System dispose 必须通过 GFSignalUtility 主动断开 reconciliation 连接。"
+	)
+	_dispose_setup(setup)
+
+
 func test_record_game_result_updates_stats() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
-	var first_error: Error = progress_stats_system.record_game_result(
-		_make_result(512, 20, 128, 100)
+	var first_result: GameSaveSectionResult = await _record_game_result(
+		progress_stats_system,
+		_make_result(512, 20, 128, 100),
+		setup
 	)
-	var second_error: Error = progress_stats_system.record_game_result(
-		_make_result(256, 18, 256, 200)
+	var second_result: GameSaveSectionResult = await _record_game_result(
+		progress_stats_system,
+		_make_result(256, 18, 256, 200),
+		setup
 	)
 
 	var stats: Dictionary = progress_stats_system.get_game_stats(_MODE_ID, _BOARD_KEY)
-	assert_true(first_error == OK, "第一局统计应保存成功。")
-	assert_true(second_error == OK, "第二局统计应保存成功。")
+	assert_true(first_result != null and first_result.is_successful(), "第一局统计应保存成功。")
+	assert_true(second_result != null and second_result.is_successful(), "第二局统计应保存成功。")
 	assert_true(_get_stat_int(stats, "plays") == 2, "每次完整对局都应增加 plays。")
 	assert_true(_get_stat_int(stats, "best_score") == 512, "统计应保留最佳分数。")
 	assert_true(_get_stat_int(stats, "best_steps") == 18, "统计应保留最少有效步数。")
@@ -80,16 +122,20 @@ func test_target_rate_is_bounded_by_play_count() -> void:
 func test_zero_step_results_do_not_pollute_step_averages() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
-	var zero_step_error: Error = progress_stats_system.record_game_result(
-		_make_result(64, 0, 64, 100)
+	var zero_step_result: GameSaveSectionResult = await _record_game_result(
+		progress_stats_system,
+		_make_result(64, 0, 64, 100),
+		setup
 	)
-	var normal_error: Error = progress_stats_system.record_game_result(
-		_make_result(128, 10, 128, 200)
+	var normal_result: GameSaveSectionResult = await _record_game_result(
+		progress_stats_system,
+		_make_result(128, 10, 128, 200),
+		setup
 	)
 	var stats: Dictionary = progress_stats_system.get_game_stats(_MODE_ID, _BOARD_KEY)
 
-	assert_true(zero_step_error == OK, "零步结果应保存成功。")
-	assert_true(normal_error == OK, "正常结果应保存成功。")
+	assert_true(zero_step_result != null and zero_step_result.is_successful(), "零步结果应保存成功。")
+	assert_true(normal_result != null and normal_result.is_successful(), "正常结果应保存成功。")
 	assert_true(_get_stat_int(stats, "plays") == 2, "零步结果仍应计入完整对局次数。")
 	assert_true(_get_stat_int(stats, "best_steps") == 10, "零步结果不应成为最佳步数。")
 	assert_true(_get_stat_int(stats, "total_steps") == 10, "零步结果不应污染总步数。")
@@ -103,16 +149,20 @@ func test_zero_step_results_do_not_pollute_step_averages() -> void:
 func test_record_game_result_tracks_target_reach_stats() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
-	var missed_error: Error = progress_stats_system.record_game_result(
-		_make_result(1024, 26, 1024, 100, 2048, false)
+	var missed_result: GameSaveSectionResult = await _record_game_result(
+		progress_stats_system,
+		_make_result(1024, 26, 1024, 100, 2048, false),
+		setup
 	)
-	var reached_error: Error = progress_stats_system.record_game_result(
-		_make_result(2048, 35, 2048, 200, 2048, true)
+	var reached_result: GameSaveSectionResult = await _record_game_result(
+		progress_stats_system,
+		_make_result(2048, 35, 2048, 200, 2048, true),
+		setup
 	)
 	var stats: Dictionary = progress_stats_system.get_game_stats(_MODE_ID, _BOARD_KEY)
 
-	assert_true(missed_error == OK, "未达成局应保存成功。")
-	assert_true(reached_error == OK, "达成局应保存成功。")
+	assert_true(missed_result != null and missed_result.is_successful(), "未达成局应保存成功。")
+	assert_true(reached_result != null and reached_result.is_successful(), "达成局应保存成功。")
 	assert_true(_get_stat_int(stats, "plays") == 2, "目标统计应以完整对局次数为分母。")
 	assert_true(_get_stat_int(stats, "target_value") == 2048, "统计应记录目标方块值。")
 	assert_true(_get_stat_int(stats, "target_reached_count") == 1, "统计应累计目标达成次数。")
@@ -126,13 +176,15 @@ func test_record_game_result_preserves_existing_higher_score() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var high_score_error: Error = progress_stats_system.set_high_score(_MODE_ID, _BOARD_KEY, 4096)
-	var result_error: Error = progress_stats_system.record_game_result(
-		_make_result(1024, 30, 512, 300)
+	var result: GameSaveSectionResult = await _record_game_result(
+		progress_stats_system,
+		_make_result(1024, 30, 512, 300),
+		setup
 	)
 	var stats: Dictionary = progress_stats_system.get_game_stats(_MODE_ID, _BOARD_KEY)
 
 	assert_true(high_score_error == OK, "已有最高分应保存成功。")
-	assert_true(result_error == OK, "后续对局应保存成功。")
+	assert_true(result != null and result.is_successful(), "后续对局应保存成功。")
 	assert_true(progress_stats_system.get_high_score(_MODE_ID, _BOARD_KEY) == 4096, "较低分数不应覆盖已有最高分。")
 	assert_true(_get_stat_int(stats, "plays") == 1, "记录完整对局仍应增加 plays。")
 	assert_true(_get_stat_int(stats, "average_score") == 1024, "平均分应基于实际得分。")
@@ -144,10 +196,12 @@ func test_record_game_result_preserves_existing_higher_score() -> void:
 func test_stats_persist_through_gf_save_graph() -> void:
 	var save_dir_name: String = "gut_progress_stats_system_%d" % Time.get_ticks_usec()
 	var setup: Dictionary = await _create_save_architecture({}, save_dir_name)
-	var save_error: Error = _get_progress_stats_system(setup).record_game_result(
-		_make_result(1024, 24, 512, 400)
+	var save_result: GameSaveSectionResult = await _record_game_result(
+		_get_progress_stats_system(setup),
+		_make_result(1024, 24, 512, 400),
+		setup
 	)
-	assert_true(save_error == OK, "统计应写入 SaveGraph。")
+	assert_true(save_result != null and save_result.is_successful(), "统计应写入 SaveGraph。")
 	_dispose_setup(setup, false)
 
 	var reloaded_setup: Dictionary = await _create_save_architecture({}, save_dir_name)
@@ -196,9 +250,24 @@ func test_local_leaderboard_only_records_eligible_results_with_stable_sort() -> 
 		manual
 	)
 
-	assert_true(progress.record_game_result(later_tie) == OK)
-	assert_true(progress.record_game_result(earlier_tie) == OK)
-	assert_true(progress.record_game_result(ineligible_high_score) == OK)
+	var later_result: GameSaveSectionResult = await _record_game_result(
+		progress,
+		later_tie,
+		setup
+	)
+	var earlier_result: GameSaveSectionResult = await _record_game_result(
+		progress,
+		earlier_tie,
+		setup
+	)
+	var ineligible_result: GameSaveSectionResult = await _record_game_result(
+		progress,
+		ineligible_high_score,
+		setup
+	)
+	assert_true(later_result != null and later_result.is_successful())
+	assert_true(earlier_result != null and earlier_result.is_successful())
+	assert_true(ineligible_result != null and ineligible_result.is_successful())
 	var leaderboard: Array[GameResultRecordedData] = (
 		progress.get_local_leaderboard_for_result(earlier_tie)
 	)
@@ -236,7 +305,12 @@ func test_debug_result_is_explained_without_polluting_progress_or_leaderboard() 
 		debug_eligibility
 	)
 
-	assert_true(progress.record_game_result(debug_result) == OK)
+	var save_result: GameSaveSectionResult = await _record_game_result(
+		progress,
+		debug_result,
+		setup
+	)
+	assert_true(save_result != null and save_result.is_successful())
 	assert_true(progress.get_recent_results().size() == 1)
 	assert_true(
 		_get_stat_int(progress.get_game_stats(_MODE_ID, _BOARD_KEY), "plays") == 0,
@@ -293,7 +367,12 @@ func test_leaderboards_are_grouped_by_topology_and_ruleset_configuration() -> vo
 		changed_board,
 		same_configuration_different_seed,
 	]:
-		assert_true(progress.record_game_result(result) == OK)
+		var save_result: GameSaveSectionResult = await _record_game_result(
+			progress,
+			result,
+			setup
+		)
+		assert_true(save_result != null and save_result.is_successful())
 	assert_true(progress.get_local_leaderboard_for_result(standard).size() == 2)
 	assert_true(progress.get_local_leaderboard_for_result(changed_ruleset).size() == 1)
 	assert_true(progress.get_local_leaderboard_for_result(changed_board).size() == 1)
@@ -321,15 +400,27 @@ func test_leaderboards_are_grouped_by_topology_and_ruleset_configuration() -> vo
 func test_progress_section_rejects_multiple_business_roots() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var invalid_error: Error = save_graph.replace_section_data(
-		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		{
-			"stats": {},
-			"scores": {},
-		}
+	var invalid_result: GameSaveSectionResult = (
+		await GameSaveSectionOperationTestSupport.await_result(
+			save_graph.request_replace_section_data(
+				GameSaveGraphUtility.PROGRESS_SECTION_ID,
+				{
+					"stats": {},
+					"scores": {},
+				}
+			),
+			_get_architecture(setup),
+			get_tree()
+		)
 	)
 
-	assert_true(invalid_error == ERR_INVALID_DATA, "progress schema 应拒绝多真源载荷。")
+	assert_true(
+		invalid_result != null
+		and invalid_result.get_status()
+		== GameSaveSectionResult.STATUS_APPLY_FAILED
+		and invalid_result.get_error_code() == ERR_INVALID_DATA,
+		"progress schema 应拒绝多真源载荷。"
+	)
 	assert_true(
 		save_graph.get_section_data(GameSaveGraphUtility.PROGRESS_SECTION_ID)
 		== {
@@ -348,23 +439,32 @@ func test_persisted_progress_payload_has_strict_section_schema() -> void:
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var save_error: Error = progress_stats_system.set_high_score(_MODE_ID, _BOARD_KEY, 2048)
-	var payload: Dictionary = save_graph.preview_profile_payload()
-	var document_sections: Dictionary = GFVariantData.get_option_dictionary(payload, "sections")
-	var graph_section: Dictionary = GFVariantData.get_option_dictionary(
-		document_sections,
-		String(GFSaveGraphUtility.DOCUMENT_SECTION_ID)
+	var document: GFSaveDocument = GFSaveDocument.from_dict(
+		save_graph.preview_profile_payload()
 	)
-	var graph_payload: Dictionary = GFVariantData.get_option_dictionary(graph_section, "payload")
-	var scopes: Dictionary = GFVariantData.get_option_dictionary(graph_payload, "scopes")
-	var progress_scope: Dictionary = GFVariantData.get_option_dictionary(scopes, "progress")
-	var sources: Dictionary = GFVariantData.get_option_dictionary(progress_scope, "sources")
-	var source: Dictionary = GFVariantData.get_option_dictionary(sources, "state")
-	var envelope: Dictionary = GFVariantData.get_option_dictionary(source, "data")
-	var data: Dictionary = GFVariantData.get_option_dictionary(envelope, "data")
+	var section: GFSaveSection = (
+		document.get_section(GameSaveGraphUtility.PROGRESS_SECTION_ID)
+		if document != null
+		else null
+	)
+	var data: Dictionary = (
+		GFVariantData.as_dictionary(section.get_payload())
+		if section != null and section.get_payload() is Dictionary
+		else {}
+	)
 
 	assert_true(save_error == OK, "测试最高分应保存成功。")
-	assert_true(GFVariantData.get_option_string(envelope, "section_id") == "progress", "Source 应声明稳定 section ID。")
-	assert_true(GFVariantData.get_option_int(envelope, "schema_version") == GameStatsSaveData.SCHEMA_VERSION, "Source 应声明严格 schema 版本。")
+	assert_true(
+		section != null
+		and section.get_section_id()
+		== GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		"GFSaveSection 应声明稳定 section ID。"
+	)
+	assert_true(
+		section != null
+		and section.get_schema_version() == GameStatsSaveData.SCHEMA_VERSION,
+		"GFSaveSection 应声明严格 schema 版本。"
+	)
 	assert_true(data.has("stats"), "progress 数据必须包含 stats 根字段。")
 	assert_false(data.has("scores"), "progress 数据不得保留第二套 scores 真源。")
 	assert_true(data.has("results"), "progress 数据必须包含规范结果记录。")
@@ -375,6 +475,23 @@ func test_persisted_progress_payload_has_strict_section_schema() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _record_game_result(
+	progress: ProgressStatsSystem,
+	result: GameResultRecordedData,
+	setup: Dictionary,
+	duration_msec: int = 0
+) -> GameSaveSectionResult:
+	var operation: GameSaveSectionOperation = progress.request_record_game_result(
+		result,
+		duration_msec
+	)
+	return await GameSaveSectionOperationTestSupport.await_result(
+		operation,
+		_get_architecture(setup),
+		get_tree()
+	)
+
 
 func _make_result(
 	score: int,
@@ -432,7 +549,15 @@ func _create_save_architecture(
 	storage.use_integrity_checksum = true
 
 	await architecture.register_utility(GFStorageUtility, storage)
-	await architecture.register_utility(GFSaveGraphUtility, GFSaveGraphUtility.new())
+	await architecture.register_utility(
+		GFSaveProfileUtility,
+		GFSaveProfileUtility.new()
+	)
+	await architecture.register_utility(
+		GFBackgroundWorkUtility,
+		GFBackgroundWorkUtility.new()
+	)
+	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_system(ProgressStatsSystem, progress_stats_system)
@@ -452,11 +577,20 @@ func _create_save_architecture(
 				"leaderboards"
 			).duplicate(true),
 		}
-		var seed_error: Error = save_graph.replace_section_data(
-			GameSaveGraphUtility.PROGRESS_SECTION_ID,
-			normalized_initial_data
+		var seed_result: GameSaveSectionResult = (
+			await GameSaveSectionOperationTestSupport.await_result(
+				save_graph.request_replace_section_data(
+					GameSaveGraphUtility.PROGRESS_SECTION_ID,
+					normalized_initial_data
+				),
+				architecture,
+				get_tree()
+			)
 		)
-		assert_true(seed_error == OK, "测试统计初始数据应写入 progress section。")
+		assert_true(
+			seed_result != null and seed_result.is_successful(),
+			"测试统计初始数据应写入 progress section。"
+		)
 
 	return {
 		"architecture": architecture,
@@ -471,37 +605,37 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 	var progress_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		GameStatsSaveData.new(),
-		GFSaveScope.Phase.EARLY
+		GameSaveGraphUtility.SectionOrder.EARLY
 	)
 	var bookmarks_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
 		BookmarkCatalogSaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var custom_boards_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
 		CustomBoardCatalogSaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var discoveries_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
 		TileDiscoverySaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var tile_blueprints_registered: bool = save_graph.register_section(
 		TileLabSaveData.SECTION_ID,
 		TileLabSaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var achievements_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID,
 		AchievementSaveData.new(),
-		GFSaveScope.Phase.LATE
+		GameSaveGraphUtility.SectionOrder.LATE
 	)
 	var replays_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		ReplayCatalogSaveData.new(),
-		GFSaveScope.Phase.LATE
+		GameSaveGraphUtility.SectionOrder.LATE
 	)
 	assert_true(
 		progress_registered
@@ -511,7 +645,7 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 		and tile_blueprints_registered
 		and achievements_registered
 		and replays_registered,
-		"测试 SaveGraph section 应完整注册。"
+		"测试 Profile section 应完整注册。"
 	)
 	return save_graph
 

@@ -61,6 +61,15 @@ var _layout_update_queued: bool = false
 var _delete_confirmation_dialog: ConfirmationDialog = null
 var _delete_error_dialog: AcceptDialog = null
 var _pending_delete_resource: Resource = null
+var _delete_operation_busy: bool = false
+var _delete_outcome_unknown: bool = false
+var _delete_operation_token: int = 0
+var _pending_delete_transaction_id: int = 0
+var _pending_delete_resource_identity: String = ""
+var _delete_reconciliation_prompted: bool = false
+var _delete_signal_utility: GFSignalUtility = null
+var _delete_save_graph: GameSaveGraphUtility = null
+var _delete_reconciliation_connection: GFSignalConnection = null
 var _virtual_list_model: GFVirtualListModel = null
 var _virtual_focus_model: GFVirtualListFocusModel = null
 var _virtual_data_list: Array[Resource] = []
@@ -98,6 +107,7 @@ var _virtual_window_update_queued: bool = false
 func _ready() -> void:
 	_viewport_utility = _get_viewport_utility()
 	_setup_delete_dialogs()
+	_setup_delete_reconciliation()
 	_page_scroll = GameTaskPageLayoutUtility.ensure_vertical_scroll_parent(
 		_columns_container,
 		&"HistoryListPageScroll"
@@ -119,6 +129,14 @@ func _notification(what: int) -> void:
 
 
 func _exit_tree() -> void:
+	_delete_operation_token += 1
+	_delete_operation_busy = false
+	_delete_outcome_unknown = false
+	_pending_delete_transaction_id = 0
+	_pending_delete_resource_identity = ""
+	if is_instance_valid(_delete_signal_utility):
+		_delete_signal_utility.disconnect_owner(self)
+	_delete_reconciliation_connection = null
 	if is_instance_valid(_repeater_template):
 		_repeater_template.free()
 	_repeater_template = null
@@ -198,9 +216,9 @@ func _update_ui_text() -> void:
 	pass
 
 
-## 执行具体的删除逻辑并返回持久化结果。
-func _do_delete_logic(_data: Resource) -> Error:
-	return ERR_UNAVAILABLE
+## 创建具体删除事务；子类必须返回一次性类型化操作。
+func _do_delete_logic(_data: Resource) -> GameSaveSectionOperation:
+	return null
 
 
 ## 执行主按钮逻辑。
@@ -236,6 +254,11 @@ func _get_delete_confirmation_message(_data: Resource) -> String:
 ## 获取删除失败提示。
 func _get_delete_failure_message(error: Error) -> String:
 	return tr("DELETE_ITEM_FAILED") % int(error)
+
+
+## 返回列表资源的稳定业务标识，用于 late rollback 后恢复原选择。
+func _get_data_identity(_data: Resource) -> String:
+	return ""
 
 
 ## 是否为当前列表启用 GF 有界虚拟化。只有长列表子类应覆写为 true。
@@ -294,6 +317,21 @@ func _setup_delete_dialogs() -> void:
 	add_child(_delete_error_dialog)
 	_configure_delete_dialog_presentation()
 	_update_delete_dialog_text()
+
+
+func _setup_delete_reconciliation() -> void:
+	_delete_signal_utility = _get_delete_signal_utility()
+	_delete_save_graph = _get_delete_save_graph()
+	if (
+		not is_instance_valid(_delete_signal_utility)
+		or not is_instance_valid(_delete_save_graph)
+	):
+		return
+	_delete_reconciliation_connection = _delete_signal_utility.connect_signal(
+		_delete_save_graph.section_reconciliation_settled,
+		_on_section_reconciliation_settled,
+		self
+	)
 
 
 func _configure_delete_dialog_presentation() -> void:
@@ -1221,10 +1259,11 @@ func _set_left_focus_target(source: Control, target: Control) -> void:
 ## 更新按钮可用状态。
 func _update_action_buttons() -> void:
 	var has_selection: bool = _selected_resource != null
+	var operation_blocked: bool = _delete_operation_busy or _delete_outcome_unknown
 	if is_instance_valid(_primary_button):
-		_primary_button.disabled = not has_selection
+		_primary_button.disabled = not has_selection or operation_blocked
 	if is_instance_valid(_delete_button):
-		_delete_button.disabled = not has_selection
+		_delete_button.disabled = not has_selection or operation_blocked
 
 
 func _bind_and_reveal_list_items() -> void:
@@ -1265,6 +1304,22 @@ func _get_viewport_utility() -> GFViewportUtility:
 	if utility_value is GFViewportUtility:
 		var viewport_utility: GFViewportUtility = utility_value
 		return viewport_utility
+	return null
+
+
+func _get_delete_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
+	return null
+
+
+func _get_delete_save_graph() -> GameSaveGraphUtility:
+	var utility_value: Object = get_utility(GameSaveGraphUtility)
+	if utility_value is GameSaveGraphUtility:
+		var save_graph: GameSaveGraphUtility = utility_value
+		return save_graph
 	return null
 
 
@@ -1336,6 +1391,91 @@ func _show_delete_error(error: Error) -> void:
 		ok_button.grab_focus()
 
 
+func _show_delete_outcome_unknown(result: GameSaveSectionResult) -> void:
+	if result == null or not is_instance_valid(_delete_error_dialog):
+		return
+	_configure_delete_dialog_presentation()
+	_delete_error_dialog.dialog_text = "%s\n%s" % [
+		_get_delete_failure_message(result.get_error_code()),
+		tr("LIST_DELETE_PERSISTENCE_OUTCOME_UNKNOWN"),
+	]
+	_delete_error_dialog.popup_centered_clamped(Vector2i(560, 240), 0.9)
+	var ok_button: Button = _delete_error_dialog.get_ok_button()
+	if is_instance_valid(ok_button):
+		ok_button.grab_focus()
+
+
+func _show_delete_reconciliation_result(
+	status: StringName,
+	candidate_persisted: bool,
+	memory_rolled_back: bool
+) -> void:
+	if (
+		_delete_reconciliation_prompted
+		or not is_instance_valid(_delete_error_dialog)
+	):
+		return
+	_delete_reconciliation_prompted = true
+	_configure_delete_dialog_presentation()
+	if candidate_persisted and status == &"late_success":
+		_delete_error_dialog.dialog_text = tr(
+			"LIST_DELETE_RECONCILIATION_SUCCEEDED"
+		)
+	elif memory_rolled_back:
+		_delete_error_dialog.dialog_text = tr(
+			"LIST_DELETE_RECONCILIATION_ROLLED_BACK"
+		)
+	else:
+		_delete_error_dialog.dialog_text = tr(
+			"LIST_DELETE_RECONCILIATION_UNRESOLVED"
+		)
+	_delete_error_dialog.popup_centered_clamped(Vector2i(560, 240), 0.9)
+	var ok_button: Button = _delete_error_dialog.get_ok_button()
+	if is_instance_valid(ok_button):
+		ok_button.grab_focus()
+
+
+func _await_delete_operation(
+	operation: GameSaveSectionOperation
+) -> GameSaveSectionResult:
+	if operation == null:
+		return null
+	var result: GameSaveSectionResult = operation.get_result()
+	if result == null:
+		result = await operation.completed
+	return result
+
+
+func _get_materialized_resource_by_identity(identity: String) -> Resource:
+	if identity.is_empty():
+		return null
+	if is_instance_valid(items_container):
+		for child: Node in items_container.get_children():
+			if not child is BaseListMenuItem:
+				continue
+			var list_item: BaseListMenuItem = child
+			var data: Resource = list_item.get_data()
+			if is_instance_valid(data) and _get_data_identity(data) == identity:
+				return data
+	for data: Resource in _virtual_data_list:
+		if is_instance_valid(data) and _get_data_identity(data) == identity:
+			return data
+	return null
+
+
+func _is_current_delete_operation(token: int) -> bool:
+	return token == _delete_operation_token and is_inside_tree()
+
+
+func _is_delete_outcome_unknown(result: GameSaveSectionResult) -> bool:
+	if result == null:
+		return false
+	return result.get_status() in [
+		GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN,
+		GameSaveSectionResult.STATUS_ROLLBACK_OUTCOME_UNKNOWN,
+	]
+
+
 # --- 信号处理函数 ---
 
 func _on_virtual_scroll_changed(_value: float) -> void:
@@ -1344,6 +1484,54 @@ func _on_virtual_scroll_changed(_value: float) -> void:
 
 func _on_virtual_viewport_resized() -> void:
 	_queue_virtual_window_update()
+
+
+func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
+	if (
+		not _delete_outcome_unknown
+		or _pending_delete_transaction_id <= 0
+		or GFVariantData.get_option_int(evidence, &"transaction_id", 0)
+		!= _pending_delete_transaction_id
+	):
+		return
+	var operation_token: int = _delete_operation_token
+	var resource_identity: String = _pending_delete_resource_identity
+	var status: StringName = GFVariantData.get_option_string_name(
+		evidence,
+		&"status"
+	)
+	var candidate_persisted: bool = GFVariantData.get_option_bool(
+		evidence,
+		&"candidate_persisted",
+		false
+	)
+	var memory_rolled_back: bool = GFVariantData.get_option_bool(
+		evidence,
+		&"memory_rolled_back",
+		false
+	)
+	_pending_delete_transaction_id = 0
+	_pending_delete_resource_identity = ""
+	_delete_outcome_unknown = false
+	_delete_operation_busy = true
+	if candidate_persisted:
+		_selected_resource = null
+	await _populate_list()
+	if not _is_current_delete_operation(operation_token):
+		return
+	if memory_rolled_back:
+		var restored_resource: Resource = _get_materialized_resource_by_identity(
+			resource_identity
+		)
+		if is_instance_valid(restored_resource):
+			_set_selected_item(restored_resource)
+	_delete_operation_busy = false
+	_update_action_buttons()
+	_show_delete_reconciliation_result(
+		status,
+		candidate_persisted,
+		memory_rolled_back
+	)
 
 
 func _on_virtual_item_gui_input(
@@ -1362,6 +1550,8 @@ func _on_virtual_item_gui_input(
 
 
 func _on_item_focused(data: Resource) -> void:
+	if _delete_operation_busy or _delete_outcome_unknown:
+		return
 	if _uses_virtual_list() and is_instance_valid(_virtual_focus_model):
 		var item_index: int = _virtual_data_list.find(data)
 		if item_index >= 0:
@@ -1373,15 +1563,23 @@ func _on_item_focused(data: Resource) -> void:
 
 
 func _on_item_confirmed(data: Resource) -> void:
+	if _delete_operation_busy or _delete_outcome_unknown:
+		return
 	_set_selected_item(data)
 
 
 func _on_primary_button_pressed() -> void:
-	if _selected_resource:
+	if (
+		not _delete_operation_busy
+		and not _delete_outcome_unknown
+		and _selected_resource
+	):
 		_on_primary_action_triggered(_selected_resource)
 
 
 func _on_delete_button_pressed() -> void:
+	if _delete_operation_busy or _delete_outcome_unknown:
+		return
 	if not is_instance_valid(_selected_resource):
 		return
 	if not is_instance_valid(_delete_confirmation_dialog):
@@ -1398,17 +1596,64 @@ func _on_delete_button_pressed() -> void:
 
 
 func _on_delete_confirmed() -> void:
+	if _delete_operation_busy or _delete_outcome_unknown:
+		return
 	var resource_to_delete: Resource = _pending_delete_resource
 	_pending_delete_resource = null
 	if not is_instance_valid(resource_to_delete):
 		return
-	var delete_error: Error = _do_delete_logic(resource_to_delete)
-	if delete_error != OK:
+
+	_delete_operation_busy = true
+	_delete_operation_token += 1
+	var operation_token: int = _delete_operation_token
+	_delete_reconciliation_prompted = false
+	_pending_delete_transaction_id = 0
+	_pending_delete_resource_identity = _get_data_identity(resource_to_delete)
+	_update_action_buttons()
+	var operation: GameSaveSectionOperation = _do_delete_logic(
+		resource_to_delete
+	)
+	var result: GameSaveSectionResult = await _await_delete_operation(operation)
+	if not _is_current_delete_operation(operation_token):
+		return
+	_delete_operation_busy = false
+	if result == null:
+		_update_action_buttons()
+		_show_delete_error(ERR_UNAVAILABLE)
+		return
+	if _is_delete_outcome_unknown(result):
+		_delete_outcome_unknown = true
+		_pending_delete_transaction_id = result.get_transaction_id()
+		_update_action_buttons()
+		var last_evidence: Dictionary = {}
+		if is_instance_valid(_delete_save_graph):
+			last_evidence = (
+				_delete_save_graph.get_last_section_reconciliation_evidence()
+			)
+		if (
+			GFVariantData.get_option_int(
+				last_evidence,
+				&"transaction_id",
+				0
+			)
+			== _pending_delete_transaction_id
+		):
+			await _on_section_reconciliation_settled(last_evidence)
+		else:
+			_show_delete_outcome_unknown(result)
+		return
+	if not result.is_successful():
+		_pending_delete_resource_identity = ""
+		var delete_error: Error = result.get_error_code()
 		push_error("[BaseListMenu] 删除操作失败，错误码：%d。" % int(delete_error))
+		_update_action_buttons()
 		_show_delete_error(delete_error)
 		return
 	_selected_resource = null
+	_pending_delete_resource_identity = ""
 	await _populate_list()
+	if _is_current_delete_operation(operation_token):
+		_update_action_buttons()
 
 
 func _on_delete_canceled() -> void:

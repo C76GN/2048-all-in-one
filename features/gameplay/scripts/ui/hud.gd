@@ -1391,12 +1391,10 @@ func _on_copy_board_summary_pressed() -> void:
 	elif not is_instance_valid(_signal_utility):
 		_notify_board_summary_copy_result(false)
 	else:
-		var copy_result_connection: GFSignalConnection = (
-			_signal_utility.connect_signal(
-				handle.completed,
-				_on_board_summary_copy_completed,
-				self
-			)
+		var copy_result_connection: GFSignalConnection = _signal_utility.connect_signal(
+			handle.completed,
+			_on_board_summary_copy_completed,
+			self
 		)
 		if copy_result_connection != null:
 			var _first_connection: GFSignalConnection = (

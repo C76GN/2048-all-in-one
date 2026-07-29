@@ -7,7 +7,7 @@
 - `TileDefinition` 与 `GFCapabilityRecipe` 是静态内容真源，仍位于 `gameplay` Feature。
 - `TileCatalogUtility` 通过 `GFResourceRegistry`、`ProjectResourceCatalogUtility`、`GFResourceResolverUtility` 和 `GFAssetUtility` 注册、校验并查询全部定义。
 - `TileDiscoverySystem` 观察 `TileCompositionUtility.tile_composition_observed` 与 `GameplayBoardReadyData`，不介入玩法决策。
-- `TileDiscoverySaveData` 独占 SaveGraph 的 `discoveries` section，只保存玩家进度身份，不复制名称、颜色、纹理或音效路径。
+- `TileDiscoverySaveData` 独占当前 GFSaveProfile 的 `discoveries` section，只保存玩家进度身份，不复制名称、颜色、纹理或音效路径。
 - `TileCatalogDialog` 是 `GFUIRouterUtility` 的 `tile_catalog` 弹层 Route，只消费目录与发现系统的只读投影。
 
 ## 组合身份
@@ -29,7 +29,7 @@
 
 方块记录保存稳定组合键、定义 ID、Recipe ID、首次发现时间和最高观察值。棋盘记录保存稳定拓扑键、语义 ID、内容指纹、首次发现时间和单元数。
 
-同一方块组合只在首次发现或最高观察值提升时提交 SaveGraph；同一棋盘稳定键只写入一次。所有替换都通过 `GameSaveGraphUtility.replace_section_data()` 原子保存，不允许旁路文件、逐帧写入或 UI 直接写存档。
+同一方块组合只在首次发现或最高观察值提升时提交 Profile section；同一棋盘稳定键只写入一次。发现事件只通过 `GameSaveGraphUtility.queue_section_data()` 合并到 GFSaveProfile generation，由 GF 的异步保存与 flush barrier 负责持久化；不允许旁路文件、逐帧磁盘写入或 UI 直接写存档。
 
 ## 表现投影
 

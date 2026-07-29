@@ -20,6 +20,7 @@ const _DESKTOP_RECIPE_LIST_HEIGHT_BUDGET: float = 608.0
 
 var _tile_lab: TileLabSystem = null
 var _signal_utility: GFSignalUtility = null
+var _save_graph: GameSaveGraphUtility = null
 var _theme_utility: GameThemeUtility = null
 var _viewport_utility: GFViewportUtility = null
 var _blueprints: Array[CustomTileBlueprintData] = []
@@ -28,6 +29,14 @@ var _selected_recipe_ids: Array[StringName] = []
 var _loading_ui: bool = false
 var _layout_update_queued: bool = false
 var _has_revealed_recipes: bool = false
+var _persistence_operation_busy: bool = false
+var _persistence_outcome_unknown: bool = false
+var _persistence_operation_token: int = 0
+var _pending_persistence_transaction_id: int = 0
+var _pending_persistence_action: StringName = &""
+var _pending_persistence_resource_id: String = ""
+var _pending_persistence_resource: Resource = null
+var _persistence_reconciliation_prompted: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -88,6 +97,10 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_persistence_operation_token += 1
+	_persistence_operation_busy = false
+	_persistence_outcome_unknown = false
+	_clear_persistence_tracking()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 
@@ -174,6 +187,9 @@ func _resolve_dependencies() -> void:
 	var signal_value: Object = get_utility(GFSignalUtility)
 	if signal_value is GFSignalUtility:
 		_signal_utility = signal_value
+	var save_graph_value: Object = get_utility(GameSaveGraphUtility)
+	if save_graph_value is GameSaveGraphUtility:
+		_save_graph = save_graph_value
 	var theme_value: Object = get_utility(GameThemeUtility)
 	if theme_value is GameThemeUtility:
 		_theme_utility = theme_value
@@ -233,6 +249,12 @@ func _bind_runtime_signals() -> void:
 		var _theme_connection: GFSignalConnection = _signal_utility.connect_signal(
 			_theme_utility.visual_theme_changed,
 			_on_visual_theme_changed,
+			self
+		)
+	if is_instance_valid(_save_graph):
+		var _reconciliation_connection: GFSignalConnection = _signal_utility.connect_signal(
+			_save_graph.section_reconciliation_settled,
+			_on_section_reconciliation_settled,
 			self
 		)
 
@@ -388,15 +410,22 @@ func _rebuild_recipe_buttons() -> void:
 			_MINIMUM_TOUCH_TARGET_SIZE
 		)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.disabled = (
+			_persistence_operation_busy
+			or _persistence_outcome_unknown
+		)
 		button.text = GFVariantData.to_text(display_names.get(recipe_id, ""))
 		button.tooltip_text = _get_recipe_tooltip(entry, display_names)
 		button.button_pressed = GFVariantData.get_option_bool(
 			entry,
 			&"selected"
 		)
-		button.disabled = not GFVariantData.get_option_bool(
-			entry,
-			&"compatible"
+		button.disabled = (
+			button.disabled
+			or not GFVariantData.get_option_bool(
+				entry,
+				&"compatible"
+			)
 		)
 		_recipe_list.add_child(button)
 		_apply_recipe_button_style(button)
@@ -535,6 +564,8 @@ func _focus_recipe_button(recipe_id: StringName) -> void:
 
 
 func _configure_new_blueprint() -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	_loading_ui = true
 	_current_blueprint_id = ""
 	if _blueprint_option.item_count > 0:
@@ -575,7 +606,10 @@ func _apply_blueprint(blueprint: CustomTileBlueprintData) -> void:
 	_left_value_spin.value = float(blueprint.preview_left_value)
 	_right_value_spin.value = float(blueprint.preview_right_value)
 	_loading_ui = false
-	_delete_button.disabled = false
+	_delete_button.disabled = (
+		_persistence_operation_busy
+		or _persistence_outcome_unknown
+	)
 	_result_label.text = _localized_text(
 		"TILE_LAB_RESULT_WAITING",
 		"等待运行"
@@ -639,9 +673,15 @@ func _update_selection_validation() -> void:
 		not selection_valid
 		or _name_input.text.strip_edges().is_empty()
 		or at_capacity
+		or _persistence_operation_busy
+		or _persistence_outcome_unknown
 	)
 	_run_simulation_button.disabled = not selection_valid
-	_delete_button.disabled = _current_blueprint_id.is_empty()
+	_delete_button.disabled = (
+		_current_blueprint_id.is_empty()
+		or _persistence_operation_busy
+		or _persistence_outcome_unknown
+	)
 
 
 func _update_summary() -> void:
@@ -808,6 +848,99 @@ func _show_operation_error(translation_key: StringName, error: Error) -> void:
 	)
 
 
+func _begin_persistence_operation(
+	action: StringName,
+	resource_id: String,
+	resource: Resource = null
+) -> int:
+	_persistence_operation_busy = true
+	_persistence_operation_token += 1
+	_pending_persistence_transaction_id = 0
+	_pending_persistence_action = action
+	_pending_persistence_resource_id = resource_id
+	_pending_persistence_resource = resource
+	_persistence_reconciliation_prompted = false
+	_apply_persistence_control_state()
+	return _persistence_operation_token
+
+
+func _finish_persistence_operation(token: int) -> bool:
+	if token != _persistence_operation_token or not is_inside_tree():
+		return false
+	_persistence_operation_busy = false
+	_apply_persistence_control_state()
+	return true
+
+
+func _clear_persistence_tracking() -> void:
+	_pending_persistence_transaction_id = 0
+	_pending_persistence_action = &""
+	_pending_persistence_resource_id = ""
+	_pending_persistence_resource = null
+
+
+func _apply_persistence_control_state() -> void:
+	var blocked: bool = (
+		_persistence_operation_busy
+		or _persistence_outcome_unknown
+	)
+	_new_button.disabled = blocked
+	_blueprint_option.disabled = blocked
+	_base_definition_option.disabled = blocked
+	_name_input.editable = not blocked
+	for child: Node in _recipe_list.get_children():
+		if child is BaseButton:
+			var recipe_button: BaseButton = child
+			recipe_button.disabled = blocked
+	_update_selection_validation()
+
+
+func _await_persistence_operation(
+	operation: GameSaveSectionOperation
+) -> GameSaveSectionResult:
+	if operation == null:
+		return null
+	var result: GameSaveSectionResult = operation.get_result()
+	if result == null:
+		result = await operation.completed
+	return result
+
+
+func _is_persistence_outcome_unknown(
+	result: GameSaveSectionResult
+) -> bool:
+	if result == null:
+		return false
+	return result.get_status() in [
+		GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN,
+		GameSaveSectionResult.STATUS_ROLLBACK_OUTCOME_UNKNOWN,
+	]
+
+
+func _show_persistence_outcome_unknown(
+	result: GameSaveSectionResult
+) -> void:
+	if result == null:
+		return
+	_persistence_outcome_unknown = true
+	_pending_persistence_transaction_id = result.get_transaction_id()
+	_apply_persistence_control_state()
+	var last_evidence: Dictionary = {}
+	if is_instance_valid(_save_graph):
+		last_evidence = _save_graph.get_last_section_reconciliation_evidence()
+	if (
+		GFVariantData.get_option_int(
+			last_evidence,
+			&"transaction_id",
+			0
+		)
+		== _pending_persistence_transaction_id
+	):
+		await _on_section_reconciliation_settled(last_evidence)
+	else:
+		_status_label.text = tr("TILE_LAB_PERSISTENCE_OUTCOME_UNKNOWN")
+
+
 func _localized_text(key: String, fallback: String) -> String:
 	var translated: String = tr(key)
 	return fallback if translated == key else translated
@@ -829,8 +962,61 @@ func _reveal_simulation_result() -> void:
 
 # --- 信号处理函数 ---
 
+func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
+	if (
+		not _persistence_outcome_unknown
+		or _pending_persistence_transaction_id <= 0
+		or GFVariantData.get_option_int(evidence, &"transaction_id", 0)
+		!= _pending_persistence_transaction_id
+	):
+		return
+	var operation_token: int = _persistence_operation_token
+	var action: StringName = _pending_persistence_action
+	var resource_id: String = _pending_persistence_resource_id
+	var resource: Resource = _pending_persistence_resource
+	var candidate_persisted: bool = GFVariantData.get_option_bool(
+		evidence,
+		&"candidate_persisted",
+		false
+	)
+	var memory_rolled_back: bool = GFVariantData.get_option_bool(
+		evidence,
+		&"memory_rolled_back",
+		false
+	)
+	_pending_persistence_transaction_id = 0
+	_persistence_outcome_unknown = false
+	_persistence_operation_busy = true
+	await get_tree().process_frame
+	if operation_token != _persistence_operation_token or not is_inside_tree():
+		return
+	var preferred_id: String = resource_id if memory_rolled_back else ""
+	if (
+		action == &"save"
+		and candidate_persisted
+		and resource is CustomTileBlueprintData
+	):
+		var saved_blueprint: CustomTileBlueprintData = resource
+		preferred_id = saved_blueprint.blueprint_id
+	_persistence_operation_busy = false
+	_refresh_from_system(preferred_id)
+	_clear_persistence_tracking()
+	_apply_persistence_control_state()
+	if not _persistence_reconciliation_prompted:
+		_persistence_reconciliation_prompted = true
+		_status_label.text = (
+			tr("TILE_LAB_RECONCILIATION_SUCCEEDED")
+			if candidate_persisted
+			else tr("TILE_LAB_RECONCILIATION_ROLLED_BACK")
+		)
+
+
 func _on_blueprint_selected(index: int) -> void:
-	if _loading_ui:
+	if (
+		_loading_ui
+		or _persistence_operation_busy
+		or _persistence_outcome_unknown
+	):
 		return
 	var blueprint_id: String = GFVariantData.to_text(
 		_blueprint_option.get_item_metadata(index)
@@ -844,7 +1030,11 @@ func _on_blueprint_selected(index: int) -> void:
 
 
 func _on_base_definition_selected(_index: int) -> void:
-	if _loading_ui:
+	if (
+		_loading_ui
+		or _persistence_operation_busy
+		or _persistence_outcome_unknown
+	):
 		return
 	_selected_recipe_ids.clear()
 	if is_instance_valid(_tile_lab):
@@ -859,7 +1049,11 @@ func _on_recipe_toggled(
 	toggled_on: bool,
 	recipe_id: StringName
 ) -> void:
-	if _loading_ui:
+	if (
+		_loading_ui
+		or _persistence_operation_busy
+		or _persistence_outcome_unknown
+	):
 		return
 	if toggled_on and not _selected_recipe_ids.has(recipe_id):
 		_selected_recipe_ids.append(recipe_id)
@@ -871,7 +1065,11 @@ func _on_recipe_toggled(
 
 
 func _on_edit_value_changed(_value: String) -> void:
-	if not _loading_ui:
+	if (
+		not _loading_ui
+		and not _persistence_operation_busy
+		and not _persistence_outcome_unknown
+	):
 		_update_selection_validation()
 
 
@@ -881,20 +1079,42 @@ func _on_preview_value_changed(_value: float) -> void:
 
 
 func _on_save_pressed() -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	if not is_instance_valid(_tile_lab):
 		_show_operation_error(&"TILE_LAB_SAVE_FAILED", ERR_UNCONFIGURED)
 		return
 	var blueprint: CustomTileBlueprintData = _make_edited_blueprint()
-	var save_error: Error = _tile_lab.save_blueprint(blueprint)
-	if save_error != OK:
-		_show_operation_error(&"TILE_LAB_SAVE_FAILED", save_error)
+	var operation_token: int = _begin_persistence_operation(
+		&"save",
+		blueprint.blueprint_id,
+		blueprint
+	)
+	var operation: GameSaveSectionOperation = (
+		_tile_lab.request_save_blueprint(blueprint)
+	)
+	var result: GameSaveSectionResult = await _await_persistence_operation(
+		operation
+	)
+	if not _finish_persistence_operation(operation_token):
+		return
+	if result == null:
+		_clear_persistence_tracking()
+		_show_operation_error(&"TILE_LAB_SAVE_FAILED", ERR_UNAVAILABLE)
+		return
+	if _is_persistence_outcome_unknown(result):
+		await _show_persistence_outcome_unknown(result)
+		return
+	if not result.is_successful():
+		_clear_persistence_tracking()
+		_show_operation_error(
+			&"TILE_LAB_SAVE_FAILED",
+			result.get_error_code()
+		)
 		return
 	_current_blueprint_id = blueprint.blueprint_id
-	_status_label.text = _localized_text(
-		"TILE_LAB_SAVE_SUCCEEDED",
-		"蓝图已保存。"
-	)
 	_refresh_from_system(blueprint.blueprint_id)
+	_clear_persistence_tracking()
 	_status_label.text = _localized_text(
 		"TILE_LAB_SAVE_SUCCEEDED",
 		"蓝图已保存。"
@@ -902,6 +1122,8 @@ func _on_save_pressed() -> void:
 
 
 func _on_delete_pressed() -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	if _current_blueprint_id.is_empty():
 		return
 	var blueprint: CustomTileBlueprintData = _find_blueprint(
@@ -919,16 +1141,40 @@ func _on_delete_pressed() -> void:
 
 
 func _on_delete_confirmed() -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	if not is_instance_valid(_tile_lab):
 		_show_operation_error(&"TILE_LAB_DELETE_FAILED", ERR_UNCONFIGURED)
 		return
-	var delete_error: Error = _tile_lab.delete_blueprint(
-		_current_blueprint_id
+	var blueprint_id: String = _current_blueprint_id
+	var operation_token: int = _begin_persistence_operation(
+		&"delete",
+		blueprint_id
 	)
-	if delete_error != OK:
-		_show_operation_error(&"TILE_LAB_DELETE_FAILED", delete_error)
+	var operation: GameSaveSectionOperation = (
+		_tile_lab.request_delete_blueprint(blueprint_id)
+	)
+	var result: GameSaveSectionResult = await _await_persistence_operation(
+		operation
+	)
+	if not _finish_persistence_operation(operation_token):
+		return
+	if result == null:
+		_clear_persistence_tracking()
+		_show_operation_error(&"TILE_LAB_DELETE_FAILED", ERR_UNAVAILABLE)
+		return
+	if _is_persistence_outcome_unknown(result):
+		await _show_persistence_outcome_unknown(result)
+		return
+	if not result.is_successful():
+		_clear_persistence_tracking()
+		_show_operation_error(
+			&"TILE_LAB_DELETE_FAILED",
+			result.get_error_code()
+		)
 		return
 	_refresh_from_system()
+	_clear_persistence_tracking()
 	_status_label.text = _localized_text(
 		"TILE_LAB_DELETE_SUCCEEDED",
 		"蓝图已删除。"
@@ -991,6 +1237,8 @@ func _on_run_simulation_pressed() -> void:
 	_reveal_simulation_result()
 
 func _on_blueprints_changed() -> void:
+	if _persistence_operation_busy or _persistence_outcome_unknown:
+		return
 	var preferred_id: String = _current_blueprint_id
 	_refresh_from_system(preferred_id)
 

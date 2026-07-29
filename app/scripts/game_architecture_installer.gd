@@ -123,6 +123,9 @@ func _bind_runtime_foundation_utilities(binder: GFBinder, scope: GFAsyncScope) -
 	await binder.bind_utility(GFStorageUtility).from_instance(_create_storage_utility()).as_singleton()
 	if scope.is_cancel_requested():
 		return
+	await binder.bind_utility(GFBackgroundWorkUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GameSettingsUtility).from_instance(_create_settings_utility()).with_alias(GFSettingsUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
@@ -419,37 +422,37 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 	var progress_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		GameStatsSaveData.new(),
-		GFSaveScope.Phase.EARLY
+		GameSaveGraphUtility.SectionOrder.EARLY
 	)
 	var bookmarks_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
 		BookmarkCatalogSaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var custom_boards_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
 		CustomBoardCatalogSaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var discoveries_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
 		TileDiscoverySaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var tile_blueprints_registered: bool = save_graph.register_section(
 		TileLabSaveData.SECTION_ID,
 		TileLabSaveData.new(),
-		GFSaveScope.Phase.NORMAL
+		GameSaveGraphUtility.SectionOrder.NORMAL
 	)
 	var achievements_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.ACHIEVEMENTS_SECTION_ID,
 		AchievementSaveData.new(),
-		GFSaveScope.Phase.LATE
+		GameSaveGraphUtility.SectionOrder.LATE
 	)
 	var replays_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		ReplayCatalogSaveData.new(),
-		GFSaveScope.Phase.LATE
+		GameSaveGraphUtility.SectionOrder.LATE
 	)
 	if (
 		not progress_registered
@@ -460,7 +463,7 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 		or not achievements_registered
 		or not replays_registered
 	):
-		push_error("[GameArchitectureInstaller] 玩家数据 SaveGraph section 注册失败。")
+		push_error("[GameArchitectureInstaller] 玩家数据 GFSaveProfile provider 注册失败。")
 	return save_graph
 
 

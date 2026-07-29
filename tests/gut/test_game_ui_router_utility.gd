@@ -123,8 +123,8 @@ func test_owned_async_route_returns_typed_terminal_result() -> void:
 
 	assert_not_null(result, "异步路由应对立即失败也返回类型化终态。")
 	assert_false(result.is_successful(), "缺失路由不能报告成功。")
-	assert_eq(result.get_status(), GFUIRouteResult.STATUS_MISSING_ROUTE)
-	assert_eq(result.get_reason(), &"missing_route")
+	assert_true(result.get_status() == GFUIRouteResult.STATUS_MISSING_ROUTE)
+	assert_true(result.get_reason() == &"missing_route")
 
 
 func test_game_ui_router_uses_ui_route_registry_order() -> void:
