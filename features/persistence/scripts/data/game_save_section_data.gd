@@ -13,6 +13,14 @@ func get_section_data() -> Dictionary:
 	return _gather_section_data().duplicate(true)
 
 
+## 获取不进入持久化文档、可跨帧持有的 Feature 运行时缓存快照。
+##
+## 返回值必须与 provider 内部可变对象隔离，调用方拥有该快照并可安全缓存；
+## 默认回退到隔离的业务字典，需要复用已验证对象的 provider 可重写对应钩子。
+func get_runtime_section_cache_snapshot() -> Dictionary:
+	return _make_runtime_section_cache_snapshot()
+
+
 ## 用当前 schema 的业务数据替换 section。
 ## @param data: 当前 section 的完整业务数据。
 func replace_section_data(data: Dictionary) -> Error:
@@ -81,6 +89,11 @@ func _rollback_section(
 ## 子类返回当前业务数据。
 func _gather_section_data() -> Dictionary:
 	return {}
+
+
+## 子类返回与内部状态隔离的运行时缓存快照；该结果绝不进入 GFSaveProfile。
+func _make_runtime_section_cache_snapshot() -> Dictionary:
+	return get_section_data()
 
 
 ## 子类校验完整业务数据后一次性替换内部状态。

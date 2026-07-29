@@ -964,6 +964,504 @@ func test_bookmark_save_submission_keeps_synchronous_work_bounded() -> void:
 	_dispose_setup(setup)
 
 
+func test_bookmark_load_cache_reuses_parse_and_returns_isolated_resources() -> void:
+	var setup: Dictionary = await _create_persistence_architecture("", true)
+	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
+	var bookmark: BookmarkData = _make_bookmark(610, 1024)
+	bookmark.game_state_history = _make_bookmark_history(bookmark, 2)
+	bookmark.replay_actions = [Vector2i.RIGHT]
+	bookmark.replay_checkpoints = [_make_replay_checkpoint(1, 1024)]
+	var save_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_save_bookmark(bookmark),
+		setup
+	)
+	assert_true(
+		save_result != null and save_result.is_successful(),
+		"缓存回归样本必须先成功持久化。"
+	)
+
+	var before_load: Dictionary = bookmark_system.get_cache_debug_snapshot()
+	var first_load: Array[BookmarkData] = bookmark_system.load_bookmarks()
+	var after_first_load: Dictionary = (
+		bookmark_system.get_cache_debug_snapshot()
+	)
+	var second_load: Array[BookmarkData] = bookmark_system.load_bookmarks()
+	var after_second_load: Dictionary = (
+		bookmark_system.get_cache_debug_snapshot()
+	)
+
+	assert_true(first_load.size() == 1 and second_load.size() == 1)
+	assert_true(
+		GFVariantData.get_option_int(after_first_load, &"misses")
+		== GFVariantData.get_option_int(before_load, &"misses") + 1,
+		"首次读取必须解析当前 Profile 的书签 section。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(after_second_load, &"misses")
+		== GFVariantData.get_option_int(after_first_load, &"misses"),
+		"重复读取不应再次反序列化完整书签 section。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(after_second_load, &"hits")
+		== GFVariantData.get_option_int(after_first_load, &"hits") + 1,
+		"重复读取必须命中书签解析缓存。"
+	)
+	if first_load.size() == 1 and second_load.size() == 1:
+		assert_false(
+			is_same(first_load[0], second_load[0]),
+			"公开读取结果必须与缓存及其他调用方保持资源隔离。"
+		)
+		first_load[0].score = 999_999
+		first_load[0].game_state_history["undo"] = []
+		first_load[0].replay_checkpoints[0].score = 999_999
+		assert_true(
+			GFVariantData.get_option_array(
+				second_load[0].game_state_history,
+				"undo"
+			).size() == 2,
+			"一个调用方修改历史字典不得污染另一个调用方的缓存副本。"
+		)
+		assert_true(
+			second_load[0].replay_checkpoints[0].score == 1024,
+			"一个调用方修改检查点子资源不得污染另一个调用方的缓存副本。"
+		)
+		var third_load: Array[BookmarkData] = bookmark_system.load_bookmarks()
+		assert_true(
+			third_load.size() == 1
+			and third_load[0].score == 1024
+			and GFVariantData.get_option_array(
+				third_load[0].game_state_history,
+				"undo"
+			).size() == 2
+			and third_load[0].replay_checkpoints[0].score == 1024,
+			"调用方修改返回资源不得污染后续缓存读取。"
+		)
+	_dispose_setup(setup)
+
+
+func test_bookmark_cache_large_history_benchmark_stays_bounded() -> void:
+	var setup: Dictionary = await _create_persistence_architecture("", true)
+	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var bookmark: BookmarkData = _make_bookmark(615, 16384)
+	bookmark.game_state_history = _make_bookmark_history(bookmark, 512)
+	bookmark.game_state_history["redo"] = GFVariantData.get_option_array(
+		bookmark.game_state_history,
+		"undo"
+	).duplicate(true)
+	var submission_started_usec: int = Time.get_ticks_usec()
+	var operation: GameSaveSectionOperation = (
+		bookmark_system.request_save_bookmark(bookmark)
+	)
+	var submission_usec: int = (
+		Time.get_ticks_usec() - submission_started_usec
+	)
+	var save_result: GameSaveSectionResult = await _await_section_operation(
+		operation,
+		setup
+	)
+	assert_true(
+		save_result != null and save_result.is_successful(),
+		"大型历史基准样本必须先成功持久化。"
+	)
+
+	var memory_before: float = Performance.get_monitor(
+		Performance.MEMORY_STATIC
+	)
+	var gather_started_usec: int = Time.get_ticks_usec()
+	var section_data: Dictionary = save_graph.get_section_data(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+	)
+	var gather_usec: int = Time.get_ticks_usec() - gather_started_usec
+	var parse_started_usec: int = Time.get_ticks_usec()
+	var parsed_sample: BookmarkData = BookmarkData.from_dict(
+		GFVariantData.as_dictionary(
+			GFVariantData.get_option_array(section_data, "items")[0]
+		)
+	)
+	var direct_parse_usec: int = Time.get_ticks_usec() - parse_started_usec
+	var first_started_usec: int = Time.get_ticks_usec()
+	var first_load: Array[BookmarkData] = bookmark_system.load_bookmarks()
+	var first_load_usec: int = Time.get_ticks_usec() - first_started_usec
+	var cache_started_usec: int = Time.get_ticks_usec()
+	var cached_load: Array[BookmarkData] = bookmark_system.load_bookmarks()
+	var cached_load_usec: int = Time.get_ticks_usec() - cache_started_usec
+	var memory_after: float = Performance.get_monitor(
+		Performance.MEMORY_STATIC
+	)
+	assert_true(
+		parsed_sample != null
+		and first_load.size() == 1
+		and cached_load.size() == 1
+		and GFVariantData.get_option_array(
+			parsed_sample.game_state_history,
+			"undo"
+		).size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT / 2
+		and GFVariantData.get_option_array(
+			parsed_sample.game_state_history,
+			"redo"
+		).size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT / 2
+	)
+	assert_lt(
+		submission_usec,
+		75_000,
+		"新书签最坏 64 条持久化历史必须显著低于旧路径的 300ms 级长帧。"
+	)
+	assert_lt(
+		first_load_usec,
+		20_000,
+		"provider 隔离缓存快照的首次读取必须保持在一帧量级。"
+	)
+	assert_lt(
+		cached_load_usec,
+		20_000,
+		"大型历史缓存命中必须保持在一帧量级，避免打开书签页产生可感知卡顿。"
+	)
+	gut.p(
+		(
+			"bookmark_cache_benchmark submission_usec=%d "
+			+ "gather_usec=%d direct_parse_usec=%d "
+			+ "first_cache_snapshot_usec=%d cached_duplicate_usec=%d "
+			+ "static_memory_delta=%d"
+		) % [
+			submission_usec,
+			gather_usec,
+			direct_parse_usec,
+			first_load_usec,
+			cached_load_usec,
+			int(memory_after - memory_before),
+		],
+		1
+	)
+	_dispose_setup(setup)
+
+
+func test_bookmark_cache_invalidates_after_save_and_delete() -> void:
+	var setup: Dictionary = await _create_persistence_architecture("", true)
+	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
+	var first: BookmarkData = _make_bookmark(620, 1024)
+	var first_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_save_bookmark(first),
+		setup
+	)
+	assert_true(first_result != null and first_result.is_successful())
+	assert_true(bookmark_system.load_bookmarks().size() == 1)
+	assert_true(
+		GFVariantData.get_option_bool(
+			bookmark_system.get_cache_debug_snapshot(),
+			&"valid"
+		)
+	)
+
+	var second: BookmarkData = _make_bookmark(621, 2048)
+	var second_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_save_bookmark(second),
+		setup
+	)
+	assert_true(second_result != null and second_result.is_successful())
+	assert_false(
+		GFVariantData.get_option_bool(
+			bookmark_system.get_cache_debug_snapshot(),
+			&"valid"
+		),
+		"保存终态必须使旧书签缓存失效。"
+	)
+	var after_save: Array[BookmarkData] = bookmark_system.load_bookmarks()
+	assert_true(after_save.size() == 2, "保存后重新读取必须包含新书签。")
+
+	var delete_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_delete_bookmark(second.bookmark_id),
+		setup
+	)
+	assert_true(delete_result != null and delete_result.is_successful())
+	assert_false(
+		GFVariantData.get_option_bool(
+			bookmark_system.get_cache_debug_snapshot(),
+			&"valid"
+		),
+		"删除终态必须使旧书签缓存失效。"
+	)
+	var after_delete: Array[BookmarkData] = bookmark_system.load_bookmarks()
+	assert_true(
+		after_delete.size() == 1
+		and after_delete[0].bookmark_id == first.bookmark_id,
+		"删除后重新读取不得返回已删除书签。"
+	)
+	_dispose_setup(setup)
+
+
+func test_rejected_bookmark_request_keeps_authoritative_cache() -> void:
+	var setup: Dictionary = await _create_persistence_architecture("", true)
+	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
+	var bookmark: BookmarkData = _make_bookmark(624, 1024)
+	var save_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_save_bookmark(bookmark),
+		setup
+	)
+	assert_true(save_result != null and save_result.is_successful())
+	assert_true(bookmark_system.load_bookmarks().size() == 1)
+	var before_rejection: Dictionary = (
+		bookmark_system.get_cache_debug_snapshot()
+	)
+
+	var duplicate_result: GameSaveSectionResult = (
+		await _await_section_operation(
+			bookmark_system.request_save_bookmark(bookmark),
+			setup
+		)
+	)
+	assert_true(
+		duplicate_result != null
+		and duplicate_result.get_status()
+		== GameSaveSectionResult.STATUS_INVALID_REQUEST
+		and not duplicate_result.was_candidate_applied(),
+		"重复稳定 ID 必须形成未触碰权威内存的拒绝终态。"
+	)
+	var after_rejection: Dictionary = (
+		bookmark_system.get_cache_debug_snapshot()
+	)
+	assert_true(
+		GFVariantData.get_option_bool(after_rejection, &"valid")
+		and GFVariantData.get_option_int(after_rejection, &"misses")
+		== GFVariantData.get_option_int(before_rejection, &"misses"),
+		"INVALID_REQUEST 不得清除仍代表权威内存的书签缓存。"
+	)
+	assert_true(
+		bookmark_system.load_bookmarks().size() == 1,
+		"拒绝请求后下一次读取必须继续命中原缓存。"
+	)
+	_dispose_setup(setup)
+
+
+func test_bookmark_save_failure_restores_previous_validated_envelopes() -> void:
+	var storage: _RetryStorage = _RetryStorage.new()
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		true,
+		PackedByteArray(),
+		storage
+	)
+	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var first: BookmarkData = _make_bookmark(625, 1024)
+	var first_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_save_bookmark(first),
+		setup
+	)
+	assert_true(first_result != null and first_result.is_successful())
+	var baseline: Dictionary = save_graph.get_section_data(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+	)
+
+	var second: BookmarkData = _make_bookmark(626, 2048)
+	second.game_state_history = _make_bookmark_history(second, 3)
+	storage.profile_save_errors = [ERR_INVALID_DATA]
+	var failed_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_save_bookmark(second),
+		setup
+	)
+
+	assert_true(
+		failed_result != null
+		and failed_result.get_status()
+		== GameSaveSectionResult.STATUS_SAVE_FAILED_ROLLED_BACK
+		and failed_result.was_memory_rolled_back(),
+		"书签写失败必须通过 provider envelope 快照恢复权威内存。"
+	)
+	assert_true(
+		save_graph.get_section_data(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+		) == baseline,
+		"书签事务回滚后必须逐字恢复此前已验证的持久化 envelope。"
+	)
+	var restored: Array[BookmarkData] = bookmark_system.load_bookmarks()
+	assert_true(
+		restored.size() == 1
+		and restored[0].bookmark_id == first.bookmark_id,
+		"回滚后解析缓存不得泄漏失败候选。"
+	)
+	_dispose_setup(setup)
+
+
+func test_bookmark_cache_is_scoped_to_active_profile_id() -> void:
+	var setup: Dictionary = await _create_persistence_architecture("", true)
+	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var bookmark: BookmarkData = _make_bookmark(630, 4096)
+	var save_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_save_bookmark(bookmark),
+		setup
+	)
+	assert_true(save_result != null and save_result.is_successful())
+	assert_true(bookmark_system.load_bookmarks().size() == 1)
+	var original_profile_id: StringName = save_graph.get_active_profile_id()
+
+	var account_id: String = GFUuid.generate_v7()
+	var account_profile_name: String = (
+		LocalAccountCatalogUtility.make_profile_file_name(account_id)
+	)
+	var switch_error: Error = save_graph.activate_profile(
+		account_profile_name,
+		false
+	)
+	assert_true(switch_error == OK, "测试 Profile 应能切换到独立空账号。")
+	assert_true(
+		save_graph.get_active_profile_id() != original_profile_id,
+		"账号切换必须改变活动 GF Profile ID。"
+	)
+	assert_true(
+		bookmark_system.load_bookmarks().is_empty(),
+		"新账号不得复用上一账号的书签缓存。"
+	)
+	var switched_snapshot: Dictionary = (
+		bookmark_system.get_cache_debug_snapshot()
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			switched_snapshot,
+			&"profile_id"
+		) == save_graph.get_active_profile_id(),
+		"缓存身份必须跟随当前活动 Profile。"
+	)
+	_dispose_setup(setup)
+
+
+func test_bookmark_cache_waits_for_async_profile_load_terminal() -> void:
+	var storage: _HangingProfileStorage = _HangingProfileStorage.new()
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		true,
+		PackedByteArray(),
+		storage
+	)
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var first_profile_name: String = (
+		LocalAccountCatalogUtility.make_profile_file_name(
+			GFUuid.generate_v7()
+		)
+	)
+	var second_profile_name: String = (
+		LocalAccountCatalogUtility.make_profile_file_name(
+			GFUuid.generate_v7()
+		)
+	)
+	assert_true(
+		save_graph.activate_profile(first_profile_name, true) == OK,
+		"异步缓存回归的第一账号 Profile 必须创建成功。"
+	)
+	var bookmark: BookmarkData = _make_bookmark(631, 4096)
+	var save_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_save_bookmark(bookmark),
+		setup
+	)
+	assert_true(save_result != null and save_result.is_successful())
+	assert_true(
+		save_graph.activate_profile(second_profile_name, false) == OK,
+		"异步缓存回归的第二账号 Profile 必须创建成功。"
+	)
+	assert_true(bookmark_system.load_bookmarks().is_empty())
+
+	storage.hang_profile_reads = true
+	var transition_state: Dictionary = {
+		&"done": false,
+		&"error": FAILED,
+	}
+	var transition_runner: Callable = func() -> void:
+		var transition_error: Error = await save_graph.activate_profile_async(
+			first_profile_name,
+			false
+		)
+		transition_state[&"error"] = transition_error
+		transition_state[&"done"] = true
+	transition_runner.call_deferred()
+	for _poll_index: int in range(120):
+		architecture.tick(0.0)
+		await get_tree().process_frame
+		if (
+			not storage.hanging_read_operations.is_empty()
+			and save_graph.is_profile_loaded()
+		):
+			# activate_profile_async 先异步探测目标文件，再进入真正 GF Profile load。
+			storage.complete_all_hanging_reads()
+			continue
+		if (
+			not save_graph.is_profile_loaded()
+			and not storage.hanging_read_operations.is_empty()
+		):
+			break
+
+	assert_false(
+		storage.hanging_read_operations.is_empty(),
+		"账号切换必须停在目标 Profile 的异步读取窗口。"
+	)
+	assert_false(
+		save_graph.is_profile_loaded(),
+		"目标 Profile 读取终态前不得宣称已加载。"
+	)
+	assert_true(
+		bookmark_system.load_bookmarks().is_empty(),
+		"目标 Profile 读取中不得暴露默认 section。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(
+			bookmark_system.get_cache_debug_snapshot(),
+			&"valid"
+		),
+		"读取中的默认空 section 不得进入目标 Profile 缓存。"
+	)
+
+	storage.complete_all_hanging_reads()
+	for _poll_index: int in range(120):
+		architecture.tick(0.0)
+		await get_tree().process_frame
+		if GFVariantData.get_option_bool(
+			transition_state,
+			&"done"
+		):
+			break
+	assert_true(
+		GFVariantData.get_option_bool(transition_state, &"done")
+		and GFVariantData.get_option_int(
+			transition_state,
+			&"error",
+			FAILED
+		) == OK
+		and save_graph.is_profile_loaded(),
+		"目标 Profile 必须完成唯一成功终态。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(
+			bookmark_system.get_cache_debug_snapshot(),
+			&"valid"
+		),
+		"Profile LOAD 终态必须使读取窗口内的缓存失效。"
+	)
+	var restored: Array[BookmarkData] = bookmark_system.load_bookmarks()
+	assert_true(
+		restored.size() == 1
+		and restored[0].bookmark_id == bookmark.bookmark_id,
+		"异步加载完成后必须重新解析目标 Profile 的真实书签。"
+	)
+	storage.hang_profile_reads = false
+	var first_delete_error: Error = storage.delete_file(
+		first_profile_name
+	)
+	var second_delete_error: Error = storage.delete_file(
+		second_profile_name
+	)
+	assert_true(
+		first_delete_error == OK
+		or first_delete_error == ERR_FILE_NOT_FOUND
+	)
+	assert_true(
+		second_delete_error == OK
+		or second_delete_error == ERR_FILE_NOT_FOUND
+	)
+	_dispose_setup(setup)
+
+
 
 
 
@@ -1151,10 +1649,22 @@ func test_bookmark_schema_rejects_removed_transient_status_field() -> void:
 	var current_payload: Dictionary = bookmark.to_dict()
 
 	assert_false(current_payload.has("status_message"), "瞬时 HUD 通知不得进入书签持久化 schema。")
+	assert_true(
+		BookmarkData.is_persisted_envelope_lightweight_valid(
+			current_payload
+		),
+		"当前严格书签信封必须通过轻量持久化边界校验。"
+	)
 	assert_true(BookmarkData.from_dict(current_payload) != null, "当前严格书签 schema 应可反序列化。")
 
 	var removed_schema_payload: Dictionary = current_payload.duplicate(true)
 	removed_schema_payload["status_message"] = "legacy transient message"
+	assert_false(
+		BookmarkData.is_persisted_envelope_lightweight_valid(
+			removed_schema_payload
+		),
+		"轻量信封校验也必须拒绝已移除的未知字段。"
+	)
 	assert_true(
 		BookmarkData.from_dict(removed_schema_payload) == null,
 		"已移除字段不得通过兼容分支继续进入当前书签模型。"
@@ -1202,6 +1712,278 @@ func test_bookmark_schema_round_trips_binary_command_history_envelope() -> void:
 	)
 
 
+func test_new_bookmark_history_keeps_recent_stack_tail_only() -> void:
+	var bookmark: BookmarkData = _make_bookmark(898, 512)
+	bookmark.bookmark_id = GFUuid.generate_v7(898000)
+	var source_history: Dictionary = _make_bookmark_history(bookmark, 70)
+	source_history["redo"] = GFVariantData.get_option_array(
+		source_history,
+		"undo"
+	).duplicate(true)
+	bookmark.game_state_history = source_history
+
+	var bounded: BookmarkData = BookmarkData.from_dict(
+		bookmark.to_persisted_candidate_envelope()
+	)
+
+	assert_not_null(bounded, "新书签的有界命令历史必须继续通过严格解码。")
+	if bounded == null:
+		return
+	for stack_key: String in ["undo", "redo"]:
+		var stack: Array = GFVariantData.get_option_array(
+			bounded.game_state_history,
+			stack_key
+		)
+		assert_true(
+			stack.size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT / 2,
+			"双栈非空时新书签必须为每个栈保留最近 32 条。"
+		)
+		assert_true(
+			GFVariantData.get_option_int(
+				GFVariantData.get_option_dictionary(
+					GFVariantData.as_dictionary(stack[0]),
+					"snapshot"
+				),
+				"move_count"
+			) == 38
+			and GFVariantData.get_option_int(
+				GFVariantData.get_option_dictionary(
+					GFVariantData.as_dictionary(stack[-1]),
+					"snapshot"
+				),
+				"move_count"
+			) == 69,
+			"截断必须丢弃栈头最旧命令，并保持最近命令的原始顺序。"
+		)
+
+	bookmark.game_state_history = _make_bookmark_history(bookmark, 70)
+	var single_stack: BookmarkData = BookmarkData.from_dict(
+		bookmark.to_persisted_candidate_envelope()
+	)
+	assert_not_null(single_stack)
+	if single_stack != null:
+		var retained_undo: Array = GFVariantData.get_option_array(
+			single_stack.game_state_history,
+			"undo"
+		)
+		assert_true(
+			retained_undo.size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT
+			and GFVariantData.get_option_array(
+				single_stack.game_state_history,
+				"redo"
+			).is_empty()
+			and GFVariantData.get_option_int(
+				GFVariantData.get_option_dictionary(
+					GFVariantData.as_dictionary(retained_undo[0]),
+					"snapshot"
+				),
+				"move_count"
+			) == 6,
+			"另一栈为空时必须把全部 64 条容量用于当前栈，并继续保留最近尾部。"
+		)
+
+
+func test_new_bookmark_candidate_rejects_malformed_history_root() -> void:
+	var malformed_histories: Array[Dictionary] = [
+		{},
+		{"undo": []},
+		{"undo": {}, "redo": []},
+		{"undo": [], "redo": {}, "unexpected": []},
+	]
+	for history_index: int in range(malformed_histories.size()):
+		var bookmark: BookmarkData = _make_bookmark(898, 512)
+		bookmark.bookmark_id = GFUuid.generate_v7(
+			898100 + history_index
+		)
+		bookmark.game_state_history = malformed_histories[history_index]
+		var candidate: Dictionary = (
+			bookmark.to_persisted_candidate_envelope()
+		)
+
+		assert_false(
+			BookmarkData.is_persisted_envelope_lightweight_valid(
+				candidate
+			),
+			"有界候选路径不得把畸形历史根结构静默归一为空历史。"
+		)
+		assert_null(
+			BookmarkData.from_dict(candidate),
+			"畸形历史根结构不得进入严格书签 provider。"
+		)
+
+
+func test_existing_large_bookmark_history_remains_readable_without_truncation() -> void:
+	var bookmark: BookmarkData = _make_bookmark(897, 1024)
+	bookmark.bookmark_id = GFUuid.generate_v7(897000)
+	bookmark.game_state_history = _make_bookmark_history(bookmark, 70)
+
+	# to_dict() 模拟升级前已经落盘的当前 schema；只有新建候选入口施加产品上限。
+	var restored: BookmarkData = BookmarkData.from_dict(bookmark.to_dict())
+
+	assert_not_null(restored, "旧的大型书签历史必须继续可读。")
+	if restored != null:
+		assert_true(
+			GFVariantData.get_option_array(
+				restored.game_state_history,
+				"undo"
+			).size() == 70,
+			"读取旧书签不得静默截断已经持久化的命令历史。"
+		)
+
+
+func test_bookmark_catalog_initial_load_rejects_corrupt_history() -> void:
+	var provider: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
+	var bookmark: BookmarkData = _make_bookmark(896, 512)
+	bookmark.bookmark_id = GFUuid.generate_v7(896000)
+	bookmark.game_state_history = _make_bookmark_history(bookmark, 3)
+	var corrupt_envelope: Dictionary = bookmark.to_dict()
+	var corrupt_history: Dictionary = (
+		GFVariantData.get_option_dictionary(
+			corrupt_envelope,
+			"game_state_history"
+		).duplicate(true)
+	)
+	var codec: GFStorageCodec = GFStorageCodec.new()
+	corrupt_history["payload"] = codec.serialize_dictionary(
+		{
+			"undo": [{"invalid_command": true}],
+			"redo": [],
+		},
+		GFStorageCodec.Format.BINARY
+	)
+	corrupt_envelope["game_state_history"] = corrupt_history
+
+	var replace_error: Error = provider.replace_section_data({
+		"items": [corrupt_envelope],
+	})
+
+	assert_true(
+		replace_error == ERR_INVALID_DATA,
+		"轻量 envelope 校验不得旁路 provider 对新 payload 的完整解码。"
+	)
+	assert_true(
+		GFVariantData.get_option_array(
+			provider.get_section_data(),
+			"items"
+		).is_empty(),
+		"首次加载损坏书签后 provider 必须保持默认空状态。"
+	)
+
+
+func test_bookmark_catalog_unchanged_envelope_reuses_validated_payload() -> void:
+	var provider: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
+	var bookmark: BookmarkData = _make_bookmark(897, 16384)
+	bookmark.bookmark_id = GFUuid.generate_v7(897000)
+	bookmark.game_state_history = _make_bookmark_history(bookmark, 512)
+	var section_data: Dictionary = {
+		"items": [bookmark.to_dict()],
+	}
+
+	var first_started_usec: int = Time.get_ticks_usec()
+	var first_error: Error = provider.replace_section_data(section_data)
+	var first_replace_usec: int = (
+		Time.get_ticks_usec() - first_started_usec
+	)
+	var second_started_usec: int = Time.get_ticks_usec()
+	var second_error: Error = provider.replace_section_data(section_data)
+	var unchanged_replace_usec: int = (
+		Time.get_ticks_usec() - second_started_usec
+	)
+	var gather_started_usec: int = Time.get_ticks_usec()
+	var gathered: Dictionary = provider.get_section_data()
+	var gather_usec: int = Time.get_ticks_usec() - gather_started_usec
+
+	assert_true(
+		first_error == OK,
+		"首次 provider 替换必须完整校验并成功应用大型历史。"
+	)
+	assert_true(
+		second_error == OK,
+		"相同已验证 envelope 的重复替换必须成功。"
+	)
+	assert_true(
+		gathered == section_data,
+		"provider gather 必须逐字保留规范持久化 envelope。"
+	)
+	assert_lt(
+		unchanged_replace_usec,
+		first_replace_usec,
+		"完全相同的已验证 envelope 不得再次完整解码大历史。"
+	)
+	assert_lt(
+		unchanged_replace_usec,
+		50_000,
+		"已验证大历史的事务替换必须稳定低于 50ms。"
+	)
+	assert_lt(
+		gather_usec,
+		50_000,
+		"provider gather 必须直接复制持久化 envelope，不能重新编码大历史。"
+	)
+	gut.p(
+		(
+			"bookmark_provider_benchmark first_replace_usec=%d "
+			+ "unchanged_replace_usec=%d gather_usec=%d"
+		) % [
+			first_replace_usec,
+			unchanged_replace_usec,
+			gather_usec,
+		],
+		1
+	)
+
+
+func test_bookmark_catalog_failed_change_rolls_back_to_previous_envelopes() -> void:
+	var provider: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
+	var existing: BookmarkData = _make_bookmark(896, 1024)
+	existing.bookmark_id = GFUuid.generate_v7(896000)
+	existing.game_state_history = _make_bookmark_history(existing, 3)
+	var original_section: Dictionary = {
+		"items": [existing.to_dict()],
+	}
+	assert_true(
+		provider.replace_section_data(original_section) == OK,
+		"回滚回归样本的初始 envelope 必须先成功应用。"
+	)
+
+	var corrupt_new: BookmarkData = _make_bookmark(895, 2048)
+	corrupt_new.bookmark_id = GFUuid.generate_v7(895000)
+	var corrupt_envelope: Dictionary = corrupt_new.to_dict()
+	var corrupt_history: Dictionary = (
+		GFVariantData.get_option_dictionary(
+			corrupt_envelope,
+			"game_state_history"
+		).duplicate(true)
+	)
+	var codec: GFStorageCodec = GFStorageCodec.new()
+	corrupt_history["payload"] = codec.serialize_dictionary(
+		{
+			"undo": [{"invalid_command": true}],
+			"redo": [],
+		},
+		GFStorageCodec.Format.BINARY
+	)
+	corrupt_envelope["game_state_history"] = corrupt_history
+	var failed_error: Error = provider.replace_section_data({
+		"items": [
+			GFVariantData.get_option_array(
+				original_section,
+				"items"
+			)[0],
+			corrupt_envelope,
+		],
+	})
+
+	assert_true(
+		failed_error == ERR_INVALID_DATA,
+		"变化项的非法命令历史必须被完整校验拒绝。"
+	)
+	assert_true(
+		provider.get_section_data() == original_section,
+		"候选变化校验失败后必须完整保留上一份已验证 envelope 集合。"
+	)
+
+
 func test_bookmark_schema_migrates_v5_dictionary_history_without_profile_reset() -> void:
 	var bookmark: BookmarkData = _make_bookmark(900, 384)
 	bookmark.bookmark_id = GFUuid.generate_v7(900000)
@@ -1214,6 +1996,10 @@ func test_bookmark_schema_migrates_v5_dictionary_history_without_profile_reset()
 	)
 
 	var restored: BookmarkData = BookmarkData.from_dict(legacy_payload)
+	var provider: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
+	var provider_replace_error: Error = provider.replace_section_data({
+		"items": [legacy_payload],
+	})
 
 	assert_not_null(
 		restored,
@@ -1239,6 +2025,22 @@ func test_bookmark_schema_migrates_v5_dictionary_history_without_profile_reset()
 			) is PackedByteArray,
 			"旧条目下次保存时应原子升级为二进制历史信封。"
 		)
+	assert_true(
+		provider_replace_error == OK,
+		"provider 初载必须接受可迁移的 v5 书签。"
+	)
+	var provider_items: Array = GFVariantData.get_option_array(
+		provider.get_section_data(),
+		"items"
+	)
+	assert_true(
+		provider_items.size() == 1
+		and GFVariantData.get_option_int(
+			GFVariantData.as_dictionary(provider_items[0]),
+			"schema_version"
+		) == BookmarkData.SCHEMA_VERSION,
+		"provider 应把 v5 envelope 在内存中规范化，供下一次持久化升级。"
+	)
 
 
 func test_bookmark_schema_rejects_inconsistent_target_state() -> void:
@@ -1984,9 +2786,74 @@ class _RetryStorage extends GFStorageUtility:
 
 class _HangingProfileStorage extends GFStorageUtility:
 	var hang_profile_writes: bool = false
+	var hang_profile_reads: bool = false
 	var hanging_operations: Array[GFStorageAsyncOperation] = []
+	var hanging_read_operations: Array[GFStorageAsyncOperation] = []
 	var _payloads_by_request_id: Dictionary = {}
+	var _read_results_by_request_id: Dictionary = {}
 	var _next_request_id: int = 3_500_000
+	var _next_read_request_id: int = 3_600_000
+
+
+	## 挂起玩家 Profile 读取，并保留真实读取结果供迟到成功终态。
+	## @param file_name: GFStorage 相对文件名。
+	func load_data_request_async(
+		file_name: String
+	) -> GFStorageAsyncOperation:
+		if not hang_profile_reads:
+			return super.load_data_request_async(file_name)
+		var read_result: GFStorageReadResult = super.load_data(file_name)
+		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
+		var request_id: int = _next_read_request_id
+		_next_read_request_id += 1
+		var _configured: bool = operation.configure_for_framework(
+			request_id,
+			GFStorageAsyncOperation.OPERATION_LOAD,
+			file_name
+		)
+		hanging_read_operations.append(operation)
+		_read_results_by_request_id[request_id] = read_result
+		return operation
+
+
+	## 以此前捕获的真实读取结果完成全部挂起读取。
+	func complete_all_hanging_reads() -> void:
+		var operations: Array[GFStorageAsyncOperation] = (
+			hanging_read_operations.duplicate()
+		)
+		hanging_read_operations.clear()
+		for operation: GFStorageAsyncOperation in operations:
+			if operation == null or operation.is_completed():
+				continue
+			var request_id: int = operation.get_request_id()
+			var read_result_value: Variant = _read_results_by_request_id.get(
+				request_id
+			)
+			var read_result: GFStorageReadResult = (
+				read_result_value
+				if read_result_value is GFStorageReadResult
+				else null
+			)
+			var _erased: bool = _read_results_by_request_id.erase(
+				request_id
+			)
+			var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
+			var read_error: Error = (
+				read_result.error_code
+				if read_result != null
+				else ERR_CANT_OPEN
+			)
+			var _result_configured: bool = result.configure_for_framework(
+				request_id,
+				GFStorageAsyncOperation.OPERATION_LOAD,
+				operation.get_file_name(),
+				read_result != null and read_result.ok,
+				read_error,
+				read_result
+			)
+			var _completed: bool = operation.complete_for_framework(
+				result
+			)
 
 
 	## 挂起玩家 Profile 写入，并保留候选 payload 供迟到终态故障注入。

@@ -346,6 +346,19 @@ func get_section_data(section_id: StringName) -> Dictionary:
 	return provider.get_section_data() if provider != null else {}
 
 
+## 返回 Feature provider 的隔离运行时缓存快照；该数据不进入持久化文档。
+##
+## 调用方拥有返回值，可安全修改或跨帧缓存，不会改写 provider 权威状态。
+## @param section_id: 要读取的当前 Profile section。
+func get_section_runtime_cache_snapshot(section_id: StringName) -> Dictionary:
+	var provider: GameSaveSectionData = _get_section_provider(section_id)
+	return (
+		provider.get_runtime_section_cache_snapshot()
+		if provider != null
+		else {}
+	)
+
+
 ## 返回当前玩家 Profile 的存储相对路径。
 func get_profile_file_name() -> String:
 	return _profile_file_name

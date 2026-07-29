@@ -12,6 +12,9 @@ extends Resource
 ## 在主线程递归复制每一步完整快照。读取时兼容 v5 的字典历史并在下次保存时
 ## 原子升级；所在 bookmarks section 无需失效，也不会重置玩家 Profile。
 const SCHEMA_VERSION: int = 6
+## 新建书签的 undo/redo 合计只保留最近 64 条；运行中 GFCommandHistory 的
+## 1024 条上限不变，旧书签也继续按原样完整读取。
+const PERSISTED_HISTORY_TOTAL_LIMIT: int = 64
 const _LEGACY_DICTIONARY_HISTORY_SCHEMA_VERSION: int = 5
 const _HISTORY_CODEC_ID: String = "gf_storage_binary_v1"
 const _MAX_HISTORY_PAYLOAD_BYTES: int = 32 * 1024 * 1024
@@ -75,7 +78,8 @@ const _MAX_HISTORY_PAYLOAD_BYTES: int = 32 * 1024 * 1024
 ## 保存生成规则的内部状态。
 @export var rules_states: Dictionary = {}
 
-## 保存完整的撤回历史记录。
+## 运行时完整 undo/redo 历史；新书签持久化时合计保留最近 64 条
+## （双栈非空时各 32 条，单栈可使用全部容量）。
 @export var game_state_history: Dictionary = {}
 
 ## 从初始种子到当前书签位置的有效玩家操作。
@@ -120,34 +124,57 @@ func matches_ruleset(
 
 ## 转换为 GFSaveProfile 可持久化字典。
 func to_dict() -> Dictionary:
-	var checkpoint_data: Array[Dictionary] = []
-	for checkpoint: ReplayCheckpoint in replay_checkpoints:
-		if checkpoint != null:
-			checkpoint_data.append(checkpoint.to_dict())
-	return {
-		"schema_version": SCHEMA_VERSION,
-		"bookmark_id": bookmark_id,
-		"timestamp": timestamp,
-		"mode_config_path": mode_config_path,
-		"ruleset_id": ruleset_id,
-		"ruleset_version": ruleset_version,
-		"ruleset_fingerprint": ruleset_fingerprint,
-		"initial_seed": initial_seed,
-		"session_metadata": session_metadata.duplicate(true),
-		"score": score,
-		"move_count": move_count,
-		"ratio_resolutions": ratio_resolutions,
-		"highest_tile": highest_tile,
-		"target_tile_value": target_tile_value,
-		"target_reached": target_reached,
-		"extra_stats": extra_stats.duplicate(true),
-		"rng_full_state": rng_full_state.duplicate(true),
-		"board_snapshot": board_snapshot.duplicate(true),
-		"rules_states": rules_states.duplicate(true),
-		"game_state_history": _encode_history(game_state_history),
-		"replay_actions": replay_actions.duplicate(),
-		"replay_checkpoints": checkpoint_data,
+	return _to_persisted_dict(true, false)
+
+
+## 构造仅供 BookmarkCatalogSaveData 严格候选应用的持久化信封。
+##
+## 此入口把 undo/redo 合计裁剪为最近 64 条，并跳过编码前对命令历史的重复
+## 语义遍历；双栈都非空时各预留一半，空余容量由另一栈使用。provider 对所有
+## 新增或变化 payload 仍必须通过 from_dict() 完整解码校验后才可进入权威状态。
+func to_persisted_candidate_envelope() -> Dictionary:
+	return _to_persisted_dict(false, true)
+
+
+## 轻量校验持久化书签信封，不解码可能很大的二进制命令历史。
+##
+## 此入口用于 section 内的稳定 ID 查询、过滤与排序。v6 历史只校验 codec、
+## 类型和大小边界；GameSaveGraph 的 BookmarkCatalogSaveData provider 在应用
+## 候选 section 时仍会通过 from_dict() 完整解码并执行最终语义校验。
+## @param data: to_dict()、to_persisted_candidate_envelope() 或 provider
+## 当前持有的书签信封。
+static func is_persisted_envelope_lightweight_valid(data: Dictionary) -> bool:
+	if not _has_valid_persisted_shape(data):
+		return false
+	var persisted_schema_version: int = GFVariantData.get_option_int(
+		data,
+		"schema_version",
+		0
+	)
+	if not _is_persisted_history_envelope_valid(
+		GFVariantData.get_option_dictionary(data, "game_state_history"),
+		persisted_schema_version
+	):
+		return false
+
+	# 复用完整字段与业务身份校验，但以规范空历史代替大二进制载荷；
+	# 真正 payload 的解码与命令语义仍由 provider 的 from_dict() 承担一次。
+	# 这里只替换顶层 history 信封；浅复制避免为校验再次复制大 payload。
+	var validation_data: Dictionary = data.duplicate(false)
+	var empty_history: Dictionary = {
+		"undo": [],
+		"redo": [],
 	}
+	validation_data["game_state_history"] = (
+		empty_history
+		if persisted_schema_version == _LEGACY_DICTIONARY_HISTORY_SCHEMA_VERSION
+		else _encode_history(empty_history)
+	)
+	return from_dict(validation_data) != null
+
+
+func get_session_metadata() -> GameSessionMetadata:
+	return GameSessionMetadata.from_dict(session_metadata)
 
 
 ## 从当前严格 schema 构造书签；任何字段缺失、类型错误或 ID 非法时返回 null。
@@ -208,18 +235,78 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 		result.replay_checkpoints.append(checkpoint)
 	if not result._has_valid_replay_trace():
 		return null
-	if not result._has_valid_game_state_payload() or not _is_valid_history(
-		result.game_state_history
+	# _decode_history() 只返回已完成命令语义校验的历史；空字典代表解码失败。
+	if (
+		not result._has_valid_game_state_payload()
+		or result.game_state_history.is_empty()
 	):
 		return null
 	return result
 
 
-func get_session_metadata() -> GameSessionMetadata:
-	return GameSessionMetadata.from_dict(session_metadata)
-
-
 # --- 私有/辅助方法 ---
+
+func _to_persisted_dict(
+	should_validate_history: bool,
+	should_bound_history: bool
+) -> Dictionary:
+	var checkpoint_data: Array[Dictionary] = []
+	for checkpoint: ReplayCheckpoint in replay_checkpoints:
+		if checkpoint != null:
+			checkpoint_data.append(checkpoint.to_dict())
+	return {
+		"schema_version": SCHEMA_VERSION,
+		"bookmark_id": bookmark_id,
+		"timestamp": timestamp,
+		"mode_config_path": mode_config_path,
+		"ruleset_id": ruleset_id,
+		"ruleset_version": ruleset_version,
+		"ruleset_fingerprint": ruleset_fingerprint,
+		"initial_seed": initial_seed,
+		"session_metadata": session_metadata.duplicate(true),
+		"score": score,
+		"move_count": move_count,
+		"ratio_resolutions": ratio_resolutions,
+		"highest_tile": highest_tile,
+		"target_tile_value": target_tile_value,
+		"target_reached": target_reached,
+		"extra_stats": extra_stats.duplicate(true),
+		"rng_full_state": rng_full_state.duplicate(true),
+		"board_snapshot": board_snapshot.duplicate(true),
+		"rules_states": rules_states.duplicate(true),
+		"game_state_history": _encode_history(
+			_bound_history_for_new_bookmark(game_state_history)
+			if should_bound_history
+			else game_state_history,
+			should_validate_history
+		),
+		"replay_actions": replay_actions.duplicate(),
+		"replay_checkpoints": checkpoint_data,
+	}
+
+
+static func _bound_history_for_new_bookmark(history: Dictionary) -> Dictionary:
+	if not _has_valid_history_root_shape(history):
+		return {}
+	var undo_stack: Array = GFVariantData.get_option_array(history, "undo")
+	var redo_stack: Array = GFVariantData.get_option_array(history, "redo")
+	var half_limit: int = PERSISTED_HISTORY_TOTAL_LIMIT / 2
+	var undo_limit: int = mini(undo_stack.size(), half_limit)
+	var redo_limit: int = mini(redo_stack.size(), half_limit)
+	var remaining: int = (
+		PERSISTED_HISTORY_TOTAL_LIMIT - undo_limit - redo_limit
+	)
+	var undo_overflow: int = undo_stack.size() - undo_limit
+	var undo_extra: int = mini(undo_overflow, remaining)
+	undo_limit += undo_extra
+	remaining -= undo_extra
+	var redo_overflow: int = redo_stack.size() - redo_limit
+	redo_limit += mini(redo_overflow, remaining)
+	return {
+		"undo": undo_stack.slice(undo_stack.size() - undo_limit),
+		"redo": redo_stack.slice(redo_stack.size() - redo_limit),
+	}
+
 
 static func _has_valid_persisted_shape(data: Dictionary) -> bool:
 	if data.size() != 22:
@@ -325,12 +412,16 @@ func _has_valid_game_state_payload() -> bool:
 	})
 
 
-static func _is_valid_history(history: Dictionary) -> bool:
-	if not (
+static func _has_valid_history_root_shape(history: Dictionary) -> bool:
+	return (
 		history.size() == 2
 		and GFVariantData.get_option_value(history, "undo") is Array
 		and GFVariantData.get_option_value(history, "redo") is Array
-	):
+	)
+
+
+static func _is_valid_history(history: Dictionary) -> bool:
+	if not _has_valid_history_root_shape(history):
 		return false
 	for stack_key: String in ["undo", "redo"]:
 		for command_value: Variant in GFVariantData.get_option_array(history, stack_key):
@@ -342,8 +433,13 @@ static func _is_valid_history(history: Dictionary) -> bool:
 	return true
 
 
-static func _encode_history(history: Dictionary) -> Dictionary:
-	if not _is_valid_history(history):
+static func _encode_history(
+	history: Dictionary,
+	should_validate: bool = true
+) -> Dictionary:
+	if not _has_valid_history_root_shape(history):
+		return {}
+	if should_validate and not _is_valid_history(history):
 		return {}
 	var codec: GFStorageCodec = GFStorageCodec.new()
 	var payload: PackedByteArray = codec.serialize_dictionary(
@@ -394,6 +490,31 @@ static func _decode_history(
 		GFStorageCodec.Format.BINARY
 	)
 	return history if _is_valid_history(history) else {}
+
+
+static func _is_persisted_history_envelope_valid(
+	envelope: Dictionary,
+	persisted_schema_version: int
+) -> bool:
+	if persisted_schema_version == _LEGACY_DICTIONARY_HISTORY_SCHEMA_VERSION:
+		return _is_valid_history(envelope)
+	if persisted_schema_version != SCHEMA_VERSION:
+		return false
+	if not (
+		envelope.size() == 2
+		and GFVariantData.get_option_value(envelope, "codec") is String
+		and GFVariantData.get_option_value(envelope, "payload")
+		is PackedByteArray
+		and GFVariantData.get_option_string(envelope, "codec")
+		== _HISTORY_CODEC_ID
+	):
+		return false
+	var payload_value: Variant = GFVariantData.get_option_value(
+		envelope,
+		"payload"
+	)
+	var payload: PackedByteArray = payload_value
+	return not payload.is_empty() and payload.size() <= _MAX_HISTORY_PAYLOAD_BYTES
 
 
 static func _is_valid_fingerprint(value: String) -> bool:
