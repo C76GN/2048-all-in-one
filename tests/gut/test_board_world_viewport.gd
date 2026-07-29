@@ -154,6 +154,57 @@ func test_gameplay_input_actions_map_only_cardinal_directions() -> void:
 	)
 
 
+func test_game_initialization_waits_for_stable_world_and_runs_once() -> void:
+	var viewport_controller: ProbeBoardWorldViewportController = (
+		ProbeBoardWorldViewportController.new()
+	)
+	var game_play_controller: ProbeGamePlayController = ProbeGamePlayController.new()
+	var signal_utility: GFSignalUtility = GFSignalUtility.new()
+	game_play_controller._board_world_viewport_controller = viewport_controller
+	game_play_controller._signal_utility = signal_utility
+
+	game_play_controller._request_game_initialization_when_board_ready()
+	assert_true(
+		game_play_controller.initialization_request_count == 0,
+		"棋盘世界完成稳定挂载前不得开始对局初始化。"
+	)
+
+	viewport_controller.mark_view_initialized()
+	assert_true(
+		game_play_controller.initialization_request_count == 1,
+		"棋盘世界稳定挂载后必须且只能请求一次对局初始化。"
+	)
+
+	viewport_controller.world_view_initialized.emit()
+	game_play_controller._request_game_initialization_when_board_ready()
+	assert_true(
+		game_play_controller.initialization_request_count == 1,
+		"重复就绪通知不得重复初始化对局。"
+	)
+
+	signal_utility.dispose()
+	game_play_controller.free()
+	viewport_controller.free()
+
+
+func test_game_initialization_starts_immediately_when_world_is_already_ready() -> void:
+	var viewport_controller: ProbeBoardWorldViewportController = (
+		ProbeBoardWorldViewportController.new()
+	)
+	viewport_controller.mark_view_initialized()
+	var game_play_controller: ProbeGamePlayController = ProbeGamePlayController.new()
+	game_play_controller._board_world_viewport_controller = viewport_controller
+
+	game_play_controller._request_game_initialization_when_board_ready()
+
+	assert_true(
+		game_play_controller.initialization_request_count == 1,
+		"晚订阅者应通过就绪快照立即且仅初始化一次。"
+	)
+	game_play_controller.free()
+	viewport_controller.free()
+
+
 func test_game_scene_keeps_hud_outside_board_world_and_excludes_diagnostics_ui() -> void:
 	var scene_root: Node = _GAME_PLAY_SCENE.instantiate()
 	var board_viewport: Control = scene_root.get_node(
@@ -223,3 +274,21 @@ func test_board_layers_keep_empty_cells_above_opaque_background() -> void:
 		"场景中的底板层级必须和控制器契约一致。"
 	)
 	scene_root.free()
+
+
+# --- 内部类 ---
+
+class ProbeBoardWorldViewportController extends BoardWorldViewportController:
+	func mark_view_initialized() -> void:
+		_is_initialized = true
+		world_view_initialized.emit()
+
+
+class ProbeGamePlayController extends GamePlayController:
+	var initialization_request_count: int = 0
+
+	## @param event_id: 待发布的简单事件类型。
+	## @param _payload: 测试替身不消费的事件载荷。
+	func send_simple_event(event_id: StringName, _payload: Variant = null) -> void:
+		if event_id == EventNames.REQUEST_GAME_INITIALIZATION:
+			initialization_request_count += 1

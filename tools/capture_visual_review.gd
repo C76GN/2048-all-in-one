@@ -174,6 +174,10 @@ func _run_capture() -> void:
 		return
 	await create_timer(1.0, true, false, true).timeout
 	await _settle_frames(60)
+	if _count_painted_gameplay_tiles(game_play) <= 0:
+		push_error("[VisualReview] GamePlay has logical tiles but no painted tile content.")
+		_request_exit(18)
+		return
 	_capture_viewport("gameplay.png")
 	await _settle_frames(30)
 	_capture_viewport("gameplay_grid_motion.png")
@@ -756,11 +760,11 @@ func _capture_gameplay_motion_frames(game_play: Node) -> bool:
 		if not child is Tile:
 			continue
 		var candidate_tile: Tile = child
-		if candidate_tile.visible:
+		if _is_painted_gameplay_tile(candidate_tile):
 			tile = candidate_tile
 			break
 	if not is_instance_valid(tile):
-		push_error("[VisualReview] Gameplay motion fixture could not find a visible tile.")
+		push_error("[VisualReview] Gameplay motion fixture could not find a painted tile.")
 		return false
 
 	var profile: GameBoardFeedbackProfile = feedback.get_profile()
@@ -812,3 +816,25 @@ func _capture_gameplay_motion_frames(game_play: Node) -> bool:
 	backdrop.reset_feedback()
 	await _settle_frames(3)
 	return true
+
+
+func _count_painted_gameplay_tiles(game_play: Node) -> int:
+	var count: int = 0
+	for node: Node in game_play.find_children("*", "Tile", true, false):
+		if not node is Tile:
+			continue
+		var tile: Tile = node
+		if _is_painted_gameplay_tile(tile):
+			count += 1
+	return count
+
+
+func _is_painted_gameplay_tile(tile: Tile) -> bool:
+	return (
+		is_instance_valid(tile)
+		and tile.is_visible_in_tree()
+		and absf(tile.scale.x) > 0.1
+		and absf(tile.scale.y) > 0.1
+		and is_instance_valid(tile.value_label)
+		and not tile.value_label.text.strip_edges().is_empty()
+	)

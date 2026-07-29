@@ -18,6 +18,9 @@ signal view_transform_changed(
 ## 棋盘世界包围盒变化后发出，供屏幕空间布局重新计算安全区。
 signal content_geometry_changed(content_rect: Rect2)
 
+## 棋盘世界已挂到 GFSpatialCanvas 的稳定内容根，可安全开始对局初始化。
+signal world_view_initialized
+
 
 # --- 常量 ---
 
@@ -329,6 +332,11 @@ func get_visible_world_rect() -> Rect2:
 	return _visible_world_rect
 
 
+## 返回棋盘世界是否已经完成稳定挂载与视图初始化。
+func is_view_initialized() -> bool:
+	return _is_initialized
+
+
 ## 返回当前棋盘内容的实际宽高比；几何尚未初始化时返回方形基线。
 func get_content_aspect_ratio() -> float:
 	var content_size: Vector2 = _content_rect.size
@@ -495,7 +503,7 @@ func _bind_runtime_signals() -> void:
 
 
 func _initialize_view() -> void:
-	if not is_inside_tree():
+	if not is_inside_tree() or _is_initialized:
 		return
 	_prepare_spatial_canvas()
 	if not _has_required_dependencies():
@@ -505,6 +513,7 @@ func _initialize_view() -> void:
 	_is_initialized = true
 	content_geometry_changed.emit(_content_rect)
 	fit_to_content()
+	world_view_initialized.emit()
 
 
 func _has_valid_geometry() -> bool:

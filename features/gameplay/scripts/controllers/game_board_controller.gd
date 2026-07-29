@@ -130,10 +130,21 @@ func _ready() -> void:
 	register_simple_event(EventNames.BOARD_LIVE_EXPAND_REQUESTED, GFEventListener.from_method(self, &"_on_board_live_expand_requested", 1))
 
 
+func _notification(what: int) -> void:
+	super._notification(what)
+	if what == NOTIFICATION_PREDELETE and not _is_cleaned_up:
+		# 父场景被 queue_free 时，子棋盘自身未必带 queued-for-deletion 标记；
+		# 此时依赖作用域可能已经释放，仅断开项目侧引用，不再调用队列系统。
+		_cleanup_runtime_bindings_after_tree_exit(false)
+
+
 func _exit_tree() -> void:
-	if is_instance_valid(_animation_utility):
-		_animation_utility.unbind_board(self, false)
-	_cleanup_listeners()
+	# BoardWorld 会在首帧挂到 GFSpatialCanvasContent。reparent 也会触发
+	# _exit_tree；仅临时离树延后一帧复核，明确删除仍同步释放运行时绑定。
+	if is_queued_for_deletion():
+		_cleanup_runtime_bindings_after_tree_exit(_can_stop_runtime_actions())
+	else:
+		call_deferred(&"_cleanup_after_tree_exit")
 	super._exit_tree()
 
 
@@ -455,6 +466,27 @@ func _cleanup_listeners() -> void:
 		architecture.unregister_owner_events(self)
 	if _log:
 		_log.debug(_LOG_TAG, "已清理 GF 事件监听。")
+
+
+func _cleanup_after_tree_exit() -> void:
+	if is_inside_tree() or _is_cleaned_up:
+		return
+	_cleanup_runtime_bindings_after_tree_exit(_can_stop_runtime_actions())
+
+
+func _cleanup_runtime_bindings_after_tree_exit(stop_actions: bool) -> void:
+	if is_instance_valid(_animation_utility):
+		_animation_utility.unbind_board(self, stop_actions)
+	_cleanup_listeners()
+
+
+func _can_stop_runtime_actions() -> bool:
+	var architecture: GFArchitecture = get_architecture_or_null()
+	return (
+		architecture != null
+		and not architecture.is_disposing()
+		and not architecture.is_disposed()
+	)
 
 
 func _get_grid_model() -> GridModel:

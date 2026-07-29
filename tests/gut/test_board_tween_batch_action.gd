@@ -180,6 +180,78 @@ func test_clearing_first_frame_gate_prevents_stale_visual_action() -> void:
 	queue_root.dispose()
 
 
+func test_board_reparent_keeps_animation_binding_and_paints_next_action() -> void:
+	var first_parent: Node = Node.new()
+	var stable_parent: Node = Node.new()
+	var board_owner: Node = Node.new()
+	first_parent.add_child(board_owner)
+	var required_nodes: Array[Node] = [
+		Panel.new(),
+		Node2D.new(),
+		Node2D.new(),
+		BoardFeedbackCanvas.new(),
+		BoardMotionBackdrop.new(),
+	]
+	var required_names: Array[StringName] = [
+		&"BoardBackground",
+		&"BoardContainer",
+		&"BoardFeedbackRoot",
+		&"BoardFeedbackCanvas",
+		&"BoardMotionBackdrop",
+	]
+	for index: int in range(required_nodes.size()):
+		var required_node: Node = required_nodes[index]
+		required_node.name = required_names[index]
+		board_owner.add_child(required_node)
+		required_node.owner = board_owner
+		required_node.unique_name_in_owner = true
+	var board: ProbeReparentBoard = ProbeReparentBoard.new()
+	var tile: Node2D = Node2D.new()
+	tile.scale = Vector2.ZERO
+	board.add_child(tile)
+	board_owner.add_child(board)
+	board.owner = board_owner
+	add_child_autofree(first_parent)
+	add_child_autofree(stable_parent)
+
+	var queue_root: GFActionQueueSystem = GFActionQueueSystem.new()
+	queue_root.init()
+	var animation_utility: GameBoardAnimationUtility = GameBoardAnimationUtility.new()
+	animation_utility._action_queue_system = queue_root
+	board.install_animation_utility(animation_utility)
+	assert_true(animation_utility.bind_board(board))
+
+	board.reparent(stable_parent)
+	await get_tree().process_frame
+	assert_false(
+		board.has_cleaned_up(),
+		"稳定父级之间的临时 reparent 不得被当成永久离场。"
+	)
+	assert_same(
+		animation_utility._board,
+		board,
+		"临时 reparent 后动画 Utility 必须仍绑定当前棋盘。"
+	)
+
+	var paint_action: ProbePaintAction = ProbePaintAction.new(tile)
+	assert_true(
+		animation_utility.enqueue(paint_action),
+		"重挂后的棋盘必须能重新解析 linked queue 并接受首个视觉动作。"
+	)
+	for _frame: int in range(8):
+		if paint_action.executed:
+			break
+		await get_tree().process_frame
+	assert_true(paint_action.executed, "重挂后的首个棋盘动作必须实际执行。")
+	assert_true(
+		absf(tile.scale.x) > 0.1 and absf(tile.scale.y) > 0.1,
+		"重挂后的首批方块不得停留在不可见的零缩放状态。"
+	)
+
+	animation_utility.unbind_board(board)
+	queue_root.dispose()
+
+
 # --- 内部类 ---
 
 class ProbeTweenBatchAction extends BoardTweenBatchAction:
@@ -227,6 +299,19 @@ class ProbeQueuedMotionAction extends BoardTweenBatchAction:
 		return null
 
 
+class ProbePaintAction extends BoardTweenBatchAction:
+	var tile: Node2D
+	var executed: bool = false
+
+	func _init(p_tile: Node2D) -> void:
+		tile = p_tile
+
+	func execute() -> Variant:
+		executed = true
+		tile.scale = Vector2.ONE
+		return null
+
+
 class ProbeGatedAnimationUtility extends GameBoardAnimationUtility:
 	var gate_host: Node
 
@@ -238,3 +323,15 @@ class ProbeGatedAnimationUtility extends GameBoardAnimationUtility:
 		gate.process_always = true
 		gate.ignore_time_scale = true
 		return gate
+
+
+class ProbeReparentBoard extends GameBoardController:
+	func _ready() -> void:
+		pass
+
+	## @param animation_utility: 要注入测试棋盘的动画适配。
+	func install_animation_utility(animation_utility: GameBoardAnimationUtility) -> void:
+		_animation_utility = animation_utility
+
+	func has_cleaned_up() -> bool:
+		return _is_cleaned_up

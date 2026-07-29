@@ -50,6 +50,7 @@ var _celebration_vfx_utility: GameCelebrationVfxUtility
 var _replay_markers: Array[ReplayMarker] = []
 var _is_syncing_marker_picker: bool = false
 var _pending_popup_route_ids: Dictionary = {}
+var _game_initialization_requested: bool = false
 
 ## 标记是否已完成清理，避免 _exit_tree 重复执行。
 var _is_cleaned_up: bool = false
@@ -72,6 +73,9 @@ var _is_cleaned_up: bool = false
 @onready var replay_eligibility_label: Label = %ReplayEligibilityLabel
 @onready var _responsive_layout_controller: GameplayResponsiveLayoutController = (
 	%GameplayResponsiveLayoutController
+)
+@onready var _board_world_viewport_controller: BoardWorldViewportController = (
+	%BoardWorldViewportController
 )
 
 
@@ -102,7 +106,7 @@ func _ready() -> void:
 		
 	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready_data_received", 1))
 	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
-	send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
+	_request_game_initialization_when_board_ready()
 	_update_static_ui_text()
 
 
@@ -206,6 +210,32 @@ func _connect_managed_signal(source_signal: Signal, callback: Callable) -> void:
 		push_error("[GamePlayController] 缺少 GFSignalUtility，无法连接跨生命周期信号。")
 		return
 	var _connection: GFSignalConnection = _signal_utility.connect_signal(source_signal, callback, self)
+
+
+func _request_game_initialization_when_board_ready() -> void:
+	if _game_initialization_requested:
+		return
+	if not is_instance_valid(_board_world_viewport_controller):
+		push_error("[GamePlayController] 缺少 BoardWorldViewportController，无法初始化对局。")
+		return
+	if _board_world_viewport_controller.is_view_initialized():
+		_request_game_initialization_once()
+		return
+	if not is_instance_valid(_signal_utility):
+		push_error("[GamePlayController] 缺少 GFSignalUtility，无法等待棋盘世界稳定挂载。")
+		return
+	var _connection: GFSignalConnection = _signal_utility.connect_once(
+		_board_world_viewport_controller.world_view_initialized,
+		_request_game_initialization_once,
+		self
+	)
+
+
+func _request_game_initialization_once() -> void:
+	if _game_initialization_requested or _is_cleaned_up:
+		return
+	_game_initialization_requested = true
+	send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
 
 
 func _is_replay_mode() -> bool:

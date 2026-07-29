@@ -2521,11 +2521,23 @@ func _is_descendant_or_self(node: Node, ancestor: Node) -> bool:
 func _count_visible_gameplay_tiles(game_play: Node) -> int:
 	var count: int = 0
 	for node: Node in game_play.find_children("*", "Tile", true, false):
-		if node is CanvasItem:
-			var canvas_item: CanvasItem = node
-			if canvas_item.is_visible_in_tree():
-				count += 1
+		if not node is Tile:
+			continue
+		var tile: Tile = node
+		if _is_painted_gameplay_tile(tile):
+			count += 1
 	return count
+
+
+func _is_painted_gameplay_tile(tile: Tile) -> bool:
+	return (
+		is_instance_valid(tile)
+		and tile.is_visible_in_tree()
+		and absf(tile.scale.x) > 0.1
+		and absf(tile.scale.y) > 0.1
+		and is_instance_valid(tile.value_label)
+		and not tile.value_label.text.strip_edges().is_empty()
+	)
 
 
 func _validate_celebration_layer(expect_static: bool) -> void:
