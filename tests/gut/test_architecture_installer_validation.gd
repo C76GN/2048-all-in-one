@@ -448,6 +448,14 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 		source.contains("bind_utility(GFDiagnosticsUtility)"),
 		"运行时应直接绑定 GF10 Diagnostics 聚合核心。"
 	)
+	assert_true(
+		source.contains("bind_utility(GFSessionTraceUtility)"),
+		"运行时应绑定 GF10 有界 Session Trace 核心。"
+	)
+	assert_true(
+		source.contains("_GAME_PERFORMANCE_TRACE_UTILITY_SCRIPT"),
+		"项目应以独立 Utility 拥有移动卡顿事件 schema 与隐私边界。"
+	)
 	assert_true(diagnostics_source.contains("bind_utility(GFDebugOverlayUtility)"), "开发构建应绑定 GF Debug Overlay。")
 	assert_true(diagnostics_source.contains("bind_utility(GFRuntimeInspectorUtility)"), "开发构建应绑定 GF Runtime Inspector。")
 	assert_true(diagnostics_source.contains("bind_utility(GFScreenshotUtility)"), "开发构建应绑定 GF Screenshot Utility。")

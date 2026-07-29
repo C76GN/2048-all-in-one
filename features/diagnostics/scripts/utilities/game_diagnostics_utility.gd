@@ -13,7 +13,7 @@ const _SCREENSHOT_DIRECTORY: String = "user://diagnostics/screenshots"
 const _PROJECT_OVERLAY_PANEL_ID: StringName = &"game.project_diagnostics"
 const _RUNTIME_OVERLAY_TARGET_ID: StringName = &"game.debug_overlay"
 const _RUNTIME_SCREENSHOT_TARGET_ID: StringName = &"game.screenshots"
-const _MAX_SCENE_METADATA_NODES: int = 4096
+const _MAX_SCENE_METADATA_NODES: int = 256
 
 
 # --- 私有变量 ---
@@ -30,7 +30,9 @@ var _asset_metadata_utility: GFAssetMetadataUtility
 var _debug_overlay_utility: GFDebugOverlayUtility
 var _runtime_inspector_utility: GFRuntimeInspectorUtility
 var _screenshot_utility: GFScreenshotUtility
+var _performance_trace_utility: GamePerformanceTraceUtility
 var _command_subscriptions: Array[GFLifetimeSubscription] = []
+var _diagnostic_providers: Dictionary = {}
 
 
 # --- GF 生命周期方法 ---
@@ -41,6 +43,7 @@ func get_required_utilities() -> Array[Script]:
 		AchievementCatalogUtility,
 		GameAssetLibraryUtility,
 		GameClockUtility,
+		GamePerformanceTraceUtility,
 		GameModeCatalogUtility,
 		GameSaveGraphUtility,
 		GameThemeCatalogUtility,
@@ -73,6 +76,7 @@ func ready() -> void:
 	_debug_overlay_utility = _get_debug_overlay_utility()
 	_runtime_inspector_utility = _get_runtime_inspector_utility()
 	_screenshot_utility = _get_screenshot_utility()
+	_performance_trace_utility = _get_performance_trace_utility()
 	_register_console_commands()
 	_configure_runtime_debug_tools()
 	_refresh_project_tool_snapshots()
@@ -81,8 +85,19 @@ func ready() -> void:
 ## 注销项目贡献，避免运行时重装 Architecture 时残留回调。
 func dispose() -> void:
 	if _diagnostics_utility != null:
+		for provider_id_value: Variant in _diagnostic_providers.keys():
+			var provider_id: StringName = GFVariantData.to_string_name(
+				provider_id_value
+			)
+			var _provider_removed: bool = (
+				_diagnostics_utility.unregister_diagnostic_provider(
+					self,
+					provider_id
+				)
+			)
 		for tool_id: StringName in _registered_tool_ids:
 			var _snapshot_removed: bool = _diagnostics_utility.remove_tool_snapshot(self, tool_id)
+	_diagnostic_providers.clear()
 	_registered_tool_ids.clear()
 
 	for subscription: GFLifetimeSubscription in _command_subscriptions:
@@ -112,14 +127,22 @@ func dispose() -> void:
 	_debug_overlay_utility = null
 	_runtime_inspector_utility = null
 	_screenshot_utility = null
+	_performance_trace_utility = null
 
 
 # --- 公共方法 ---
 
 ## 获取项目诊断接入状态。
 func get_debug_snapshot() -> Dictionary:
+	var provider_ids: PackedStringArray = PackedStringArray()
+	for provider_id_value: Variant in _diagnostic_providers.keys():
+		var _provider_id_appended: bool = provider_ids.append(
+			String(GFVariantData.to_string_name(provider_id_value))
+		)
+	provider_ids.sort()
 	return {
 		"registered_tool_ids": _registered_tool_ids.duplicate(),
+		"registered_provider_ids": provider_ids,
 		"registered_command_count": _command_subscriptions.size(),
 		"support_report_command_registered": _console_has_command(_CMD_SUPPORT_REPORT),
 		"screenshot_command_registered": _console_has_command(_CMD_SCREENSHOT),
@@ -142,27 +165,82 @@ func _refresh_project_tool_snapshots() -> void:
 	if _diagnostics_utility == null:
 		return
 
-	_publish_tool_snapshot(&"resource_catalog", _collect_resource_catalog_snapshot())
-	_publish_tool_snapshot(&"save_graph", _collect_save_graph_snapshot())
-	_publish_tool_snapshot(&"asset_library", _collect_asset_library_snapshot())
-	_publish_tool_snapshot(&"theme_catalog", _collect_theme_catalog_snapshot())
-	_publish_tool_snapshot(&"themes", _collect_themes_snapshot())
-	_publish_tool_snapshot(&"game_modes", _collect_game_modes_snapshot())
-	_publish_tool_snapshot(&"tile_catalog", _collect_tile_catalog_snapshot())
-	_publish_tool_snapshot(&"tile_discoveries", _collect_tile_discoveries_snapshot())
-	_publish_tool_snapshot(&"achievement_catalog", _collect_achievement_catalog_snapshot())
-	_publish_tool_snapshot(&"achievements", _collect_achievements_snapshot())
-	_publish_tool_snapshot(&"ui_routes", _collect_ui_routes_snapshot())
+	_register_lazy_snapshot_provider(
+		&"resource_catalog",
+		Callable(self, &"_collect_resource_catalog_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"save_graph",
+		Callable(self, &"_collect_save_graph_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"asset_library",
+		Callable(self, &"_collect_asset_library_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"theme_catalog",
+		Callable(self, &"_collect_theme_catalog_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"themes",
+		Callable(self, &"_collect_themes_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"game_modes",
+		Callable(self, &"_collect_game_modes_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"tile_catalog",
+		Callable(self, &"_collect_tile_catalog_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"tile_discoveries",
+		Callable(self, &"_collect_tile_discoveries_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"achievement_catalog",
+		Callable(self, &"_collect_achievement_catalog_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"achievements",
+		Callable(self, &"_collect_achievements_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"ui_routes",
+		Callable(self, &"_collect_ui_routes_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"scene_asset_metadata",
+		Callable(self, &"_collect_scene_asset_metadata_snapshot"),
+		75_000
+	)
+	_register_lazy_snapshot_provider(
+		&"debug_overlay",
+		Callable(self, &"_collect_debug_overlay_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"runtime_inspector",
+		Callable(self, &"_collect_runtime_inspector_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"screenshots",
+		Callable(self, &"_collect_screenshot_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"project_diagnostics",
+		Callable(self, &"get_debug_snapshot")
+	)
+	_register_lazy_snapshot_provider(
+		&"gameplay_move_trace",
+		Callable(self, &"_collect_gameplay_move_trace_snapshot")
+	)
+
+	# 仅发布架构就绪后不再变化、且采集成本固定的缓存事实。
 	_publish_tool_snapshot(
 		&"gameplay_acceptance_matrix",
 		_collect_gameplay_acceptance_matrix_snapshot()
 	)
-	_publish_tool_snapshot(&"scene_asset_metadata", _collect_scene_asset_metadata_snapshot())
-	_publish_tool_snapshot(&"debug_overlay", _collect_debug_overlay_snapshot())
-	_publish_tool_snapshot(&"runtime_inspector", _collect_runtime_inspector_snapshot())
-	_publish_tool_snapshot(&"screenshots", _collect_screenshot_snapshot())
 	_publish_tool_snapshot(&"architecture_dependencies", _collect_architecture_dependency_snapshot())
-	_publish_tool_snapshot(&"project_diagnostics", get_debug_snapshot())
 	_refresh_project_overlay_panel()
 
 
@@ -328,6 +406,32 @@ func _publish_tool_snapshot(tool_id: StringName, snapshot: Dictionary) -> void:
 		_registered_tool_ids.append(tool_id)
 
 
+func _register_lazy_snapshot_provider(
+	provider_id: StringName,
+	collector: Callable,
+	max_duration_usec: int = GFDiagnosticSnapshotProvider.DEFAULT_MAX_DURATION_USEC
+) -> void:
+	if (
+		_diagnostic_providers.has(provider_id)
+		and _diagnostics_utility.has_diagnostic_provider(provider_id)
+	):
+		return
+	var provider: GameDiagnosticSnapshotProvider = (
+		GameDiagnosticSnapshotProvider.new()
+	)
+	var _provider_configured: GameDiagnosticSnapshotProvider = (
+		provider.configure_collector(provider_id, collector, {
+			"max_duration_usec": max_duration_usec,
+			"metadata": {
+				"feature": "project",
+				"collection": "explicit_support_request_only",
+			},
+		})
+	)
+	if _diagnostics_utility.register_diagnostic_provider(self, provider):
+		_diagnostic_providers[provider_id] = provider
+
+
 func _collect_resource_catalog_snapshot() -> Dictionary:
 	var utility_value: Object = get_utility(ProjectResourceCatalogUtility)
 	if utility_value is ProjectResourceCatalogUtility:
@@ -461,6 +565,14 @@ func _collect_screenshot_snapshot() -> Dictionary:
 	}
 
 
+func _collect_gameplay_move_trace_snapshot() -> Dictionary:
+	if not is_instance_valid(_performance_trace_utility):
+		return _make_unavailable_snapshot(
+			"GamePerformanceTraceUtility is unavailable."
+		)
+	return _performance_trace_utility.build_support_snapshot()
+
+
 func _collect_architecture_dependency_snapshot() -> Dictionary:
 	var architecture: GFArchitecture = _get_architecture_or_null()
 	if architecture == null:
@@ -493,7 +605,6 @@ func _refresh_project_overlay_panel() -> void:
 		return
 	var scene: Node = _get_current_scene()
 	var scene_path: String = scene.scene_file_path if scene != null else "<none>"
-	var metadata: Dictionary = _collect_scene_asset_metadata_snapshot()
 	var screenshot_path: String = GFVariantData.get_option_string(
 		_last_screenshot_record,
 		"path",
@@ -501,11 +612,8 @@ func _refresh_project_overlay_panel() -> void:
 	)
 	var panel_text: String = "\n".join(PackedStringArray([
 		"Scene: %s" % scene_path,
-		"Project snapshots: %d" % _registered_tool_ids.size(),
-		"Scene asset metadata: %d entries / %d nodes" % [
-			GFVariantData.get_option_int(metadata, "entry_count"),
-			GFVariantData.get_option_int(metadata, "visited_node_count"),
-		],
+		"Cached project snapshots: %d" % _registered_tool_ids.size(),
+		"Lazy project providers: %d" % _diagnostic_providers.size(),
 		"Last support report: %s" % (_last_report_path if not _last_report_path.is_empty() else "<none>"),
 		"Last screenshot: %s" % screenshot_path,
 	]))
@@ -533,11 +641,21 @@ func _on_support_report_command(args: PackedStringArray) -> void:
 	_capture_screenshot("support")
 	_refresh_project_tool_snapshots()
 	var description: String = " ".join(args)
+	var provider_ids: PackedStringArray = PackedStringArray()
+	for provider_id_value: Variant in _diagnostic_providers.keys():
+		var _provider_id_appended: bool = provider_ids.append(
+			String(GFVariantData.to_string_name(provider_id_value))
+		)
+	provider_ids.sort()
 	var error: Error = _support_report_utility.build_and_save_report(_last_report_path, description, {
 		"tags": PackedStringArray(["runtime", "manual"]),
 		"diagnostics_options": {
 			"include_scene_tree": true,
 			"include_signal_graph": true,
+			"diagnostic_provider_ids": provider_ids,
+			"diagnostic_provider_request": {
+				"reason": "explicit_support_report",
+			},
 		},
 	})
 	if _log_utility == null:
@@ -667,4 +785,12 @@ func _get_screenshot_utility() -> GFScreenshotUtility:
 	if utility is GFScreenshotUtility:
 		var screenshots: GFScreenshotUtility = utility
 		return screenshots
+	return null
+
+
+func _get_performance_trace_utility() -> GamePerformanceTraceUtility:
+	var utility: Object = get_utility(GamePerformanceTraceUtility)
+	if utility is GamePerformanceTraceUtility:
+		var performance_trace: GamePerformanceTraceUtility = utility
+		return performance_trace
 	return null

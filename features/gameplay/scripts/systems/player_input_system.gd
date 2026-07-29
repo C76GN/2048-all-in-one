@@ -16,6 +16,7 @@ var _input_mapping: GFInputMappingUtility
 var _notifications: GFNotificationUtility
 var _pause_utility: GamePauseUtility
 var _board_animation_utility: GameBoardAnimationUtility
+var _performance_trace_utility: GamePerformanceTraceUtility
 var _is_playing: bool = false
 var _is_active: bool = false
 
@@ -26,6 +27,7 @@ func get_required_utilities() -> Array[Script]:
 	return [
 		GamePauseUtility,
 		GameBoardAnimationUtility,
+		GamePerformanceTraceUtility,
 		GFCommandHistoryUtility,
 		GFInputMappingUtility,
 		GFNotificationUtility,
@@ -43,6 +45,7 @@ func ready() -> void:
 	_notifications = _get_notification_utility()
 	_pause_utility = _get_pause_utility()
 	_board_animation_utility = _get_board_animation_utility()
+	_performance_trace_utility = _get_performance_trace_utility()
 	if is_instance_valid(_input_mapping):
 		_input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
 	else:
@@ -67,6 +70,7 @@ func dispose() -> void:
 	_notifications = null
 	_pause_utility = null
 	_board_animation_utility = null
+	_performance_trace_utility = null
 
 
 ## 轮询玩法输入上下文并派发对应游戏命令。
@@ -118,17 +122,25 @@ func tick(_delta: float) -> void:
 			and not _board_animation_utility.prepare_for_move()
 		):
 			return
-		call_deferred(&"_execute_move_command", direction)
+		var trace_attempt_id: int = 0
+		if is_instance_valid(_performance_trace_utility):
+			trace_attempt_id = _performance_trace_utility.begin_move(direction)
+		call_deferred(&"_execute_move_command", direction, trace_attempt_id)
 
 
 # --- 私有/辅助方法 ---
 
-func _execute_move_command(direction: Vector2i) -> void:
+func _execute_move_command(
+	direction: Vector2i,
+	trace_attempt_id: int = 0
+) -> void:
 	var history: GFCommandHistoryUtility = _get_command_history_utility()
 	if not is_instance_valid(history):
+		_complete_move_trace(trace_attempt_id, false)
 		return
 
 	var result: Variant = await history.execute_command(MoveCommand.new(direction))
+	_complete_move_trace(trace_attempt_id, result is TurnResult)
 	if result == null:
 		_show_invalid_move_feedback()
 		return
@@ -204,6 +216,19 @@ func _get_board_animation_utility() -> GameBoardAnimationUtility:
 		var animation_utility: GameBoardAnimationUtility = utility_value
 		return animation_utility
 	return null
+
+
+func _get_performance_trace_utility() -> GamePerformanceTraceUtility:
+	var utility_value: Object = get_utility(GamePerformanceTraceUtility)
+	if utility_value is GamePerformanceTraceUtility:
+		var performance_trace: GamePerformanceTraceUtility = utility_value
+		return performance_trace
+	return null
+
+
+func _complete_move_trace(attempt_id: int, effective: bool) -> void:
+	if is_instance_valid(_performance_trace_utility):
+		_performance_trace_utility.complete_move(attempt_id, effective)
 
 
 # --- 信号处理函数 ---

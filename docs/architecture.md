@@ -222,7 +222,8 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 7. 固定 seed 测试语料必须覆盖全部正式模式和多种拓扑，验证重复执行、UUID/插入顺序变化与序列化往返不改变 canonical checksum。表现档位与无障碍设置的切换也不得改变同一 seed/命令序列的领域结果。
 8. 开发构建的长流程耗时由 `GFOperationDiagnosticsUtility` 的操作记录拥有。调用方读取同一操作的 `started_ticks_usec` 记录阶段，不再平行缓存一份系统 tick；发布路径只能通过当前 Architecture 的 local lookup 可选读取该 Utility，且在未安装开发诊断模块时必须保持完整功能。
 9. 只有 Boot 组合根和 `features/asset_library/tools/` 下的离线素材工具可以直接访问 `Time`；该例外由 GF 合规测试的精确路径 allowlist 约束，不得扩散到运行时 Feature。
-10. 开发构建由 `GameDiagnosticsUtility` 组合 GF Diagnostics、Asset Metadata、Debug Overlay、Runtime Inspector 与 Screenshot；发布构建不安装调试界面，也不得声明对这些开发期 Utility 的严格依赖。支持报告在同一时点收集项目快照、当前场景资产元数据和 Viewport 截图。
+10. `GameDiagnosticsUtility` 只把架构依赖与验收矩阵保留为固定成本缓存；资源目录、业务状态和最多 256 个节点的场景资产元数据改由 owner-bound `GFDiagnosticSnapshotProvider` 在显式支持请求时惰性采集，普通 Overlay 刷新不得扫描场景树。开发构建再组合 Console、Debug Overlay、Runtime Inspector 与 Screenshot；发布构建不安装这些调试界面。
+11. `GamePerformanceTraceUtility` 通过 `GFSessionTraceRecipe` 记录最近一局移动的请求、命令终态、表现入队与队列终态，使用共享 `GFClock` 计算阶段耗时，并以 96 条/96 KiB/单条 2 KiB 和 privacy redaction 形成硬预算。轨迹只存在内存并只进入显式支持报告，不得包含棋盘、账号、路径、设备身份或写入 canonical gameplay state。
 
 ### 持久化
 

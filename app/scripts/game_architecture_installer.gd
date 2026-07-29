@@ -26,6 +26,9 @@ const _LOCAL_ACCOUNT_SYSTEM_SCRIPT: Script = preload(
 const _GAME_SAVE_GRAPH_UTILITY_SCRIPT: Script = preload("res://features/persistence/scripts/utilities/game_save_graph_utility.gd")
 const _GAME_MODE_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_mode_catalog_utility.gd")
 const _GAME_DETERMINISM_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_determinism_utility.gd")
+const _GAME_PERFORMANCE_TRACE_UTILITY_SCRIPT: Script = preload(
+	"res://features/gameplay/scripts/utilities/game_performance_trace_utility.gd"
+)
 const _TILE_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/tile_catalog/scripts/utilities/tile_catalog_utility.gd")
 const _ACHIEVEMENT_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/achievements/scripts/utilities/achievement_catalog_utility.gd")
 const _GAME_PAUSE_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_pause_utility.gd")
@@ -167,6 +170,15 @@ func _bind_content_and_gameplay_utilities(binder: GFBinder, scope: GFAsyncScope)
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(GFDiagnosticsUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
+	await binder.bind_utility(GFSessionTraceUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
+	var performance_trace_binding: GFBindBuilder = binder.bind_utility(
+		_GAME_PERFORMANCE_TRACE_UTILITY_SCRIPT
+	)
+	await performance_trace_binding.as_singleton()
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(_PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT).as_singleton()

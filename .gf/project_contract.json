@@ -200,13 +200,15 @@
         "owner": "application",
         "recipes": [
           "diagnostic-contribution",
+          "session-trace",
           "feedback-candidate"
         ],
         "acceptance": [
           "普通玩家构建只保留无 UI 的有界运行诊断；Console、Overlay、Inspector 与 Screenshot 仅在 with_dev_tools 下安装。",
-          "支持报告只导出有界、脱敏快照，不包含账号、绝对路径、凭据或原始日志；诊断 GUT 通过。"
+          "动态目录、场景与运行状态只通过 GFDiagnosticSnapshotProvider 在显式支持请求时惰性采集；普通快照不得隐式扫描场景树。",
+          "支持报告只导出有界、脱敏快照和 GFSessionTraceRecipe 约束的移动阶段耗时，不包含账号、棋盘、绝对路径、凭据或原始日志；诊断 GUT 通过。"
         ],
-        "notes": ""
+        "notes": "移动轨迹只保留最近一局的内存事件，并使用项目共享 GFClock 读取单调时间；不得把性能观测写入 canonical gameplay state。"
       },
       {
         "id": "determinism",

@@ -18,7 +18,9 @@ var _action_queue_system: GFActionQueueSystem
 var _board_queue: GFActionQueueSystem
 var _input_profile: GameInputProfileUtility
 var _feedback_utility: GameBoardFeedbackUtility
+var _performance_trace_utility: GamePerformanceTraceUtility
 var _board: GameBoardController
+var _traced_board_queue: GFActionQueueSystem
 var _presentation_suppression_depth: int = 0
 
 
@@ -29,13 +31,18 @@ func get_required_systems() -> Array[Script]:
 
 
 func get_required_utilities() -> Array[Script]:
-	return [GameInputProfileUtility, GameBoardFeedbackUtility]
+	return [
+		GameInputProfileUtility,
+		GameBoardFeedbackUtility,
+		GamePerformanceTraceUtility,
+	]
 
 
 func ready() -> void:
 	_action_queue_system = _get_action_queue_system()
 	_input_profile = _get_input_profile_utility()
 	_feedback_utility = _get_feedback_utility()
+	_performance_trace_utility = _get_performance_trace_utility()
 	if (
 		not is_instance_valid(_action_queue_system)
 		or not is_instance_valid(_input_profile)
@@ -46,11 +53,13 @@ func ready() -> void:
 
 func dispose() -> void:
 	clear(true)
+	_set_traced_board_queue(null)
 	_board_queue = null
 	_board = null
 	_action_queue_system = null
 	_input_profile = null
 	_feedback_utility = null
+	_performance_trace_utility = null
 	_presentation_suppression_depth = 0
 
 
@@ -64,6 +73,7 @@ func bind_board(board: GameBoardController) -> bool:
 		return false
 	_board = board
 	_board_queue = _action_queue_system.get_linked_queue(BOARD_QUEUE_NAME, board)
+	_set_traced_board_queue(_board_queue)
 	return is_instance_valid(_board_queue)
 
 
@@ -75,6 +85,7 @@ func unbind_board(board: GameBoardController, stop_actions: bool = true) -> void
 		return
 	if stop_actions:
 		clear(true)
+	_set_traced_board_queue(null)
 	_board_queue = null
 	_board = null
 
@@ -89,6 +100,7 @@ func enqueue(action: Object) -> bool:
 		or not _ensure_board_queue()
 	):
 		return false
+	var queue_was_busy: bool = _board_queue.is_processing
 	var motion_profile: GameTileMotionProfile
 	var feedback_budget: GameFeedbackBudget
 	if action is BoardTweenBatchAction:
@@ -107,6 +119,11 @@ func enqueue(action: Object) -> bool:
 			motion_profile,
 			feedback_budget
 		)
+	if (
+		action is BoardAnimationAction
+		and is_instance_valid(_performance_trace_utility)
+	):
+		_performance_trace_utility.mark_presentation_enqueued(queue_was_busy)
 	if _should_gate_first_visual_action(action, motion_profile, feedback_budget):
 		_board_queue.enqueue(_create_first_frame_gate())
 	_board_queue.enqueue(action)
@@ -121,6 +138,8 @@ func is_busy() -> bool:
 ## @param stop_current: 是否同时取消当前视觉动作。
 func clear(stop_current: bool = true) -> void:
 	if is_instance_valid(_board_queue):
+		if stop_current and is_instance_valid(_performance_trace_utility):
+			_performance_trace_utility.cancel_presentation(&"queue_cleared")
 		_board_queue.clear_queue(stop_current)
 
 
@@ -171,7 +190,30 @@ func _ensure_board_queue() -> bool:
 	# GFLevelUtility 会在新关卡开始时释放上一关的全部命名队列。
 	# 每次入队前重新解析，避免继续持有仍有效但已经 dispose 的旧 RefCounted。
 	_board_queue = _action_queue_system.get_linked_queue(BOARD_QUEUE_NAME, _board)
+	_set_traced_board_queue(_board_queue)
 	return is_instance_valid(_board_queue)
+
+
+func _set_traced_board_queue(queue: GFActionQueueSystem) -> void:
+	if queue == _traced_board_queue:
+		return
+	if (
+		is_instance_valid(_traced_board_queue)
+		and _traced_board_queue.queue_drained.is_connected(
+			_on_board_queue_drained
+		)
+	):
+		_traced_board_queue.queue_drained.disconnect(_on_board_queue_drained)
+	_traced_board_queue = queue
+	if (
+		is_instance_valid(_traced_board_queue)
+		and not _traced_board_queue.queue_drained.is_connected(
+			_on_board_queue_drained
+		)
+	):
+		var _connected: int = _traced_board_queue.queue_drained.connect(
+			_on_board_queue_drained
+		)
 
 
 ## 空闲队列先占用一帧，再开始构建 Tween，避免把整批表现对象创建塞进输入事件栈。
@@ -222,3 +264,16 @@ func _get_feedback_utility() -> GameBoardFeedbackUtility:
 		var feedback_utility: GameBoardFeedbackUtility = utility_value
 		return feedback_utility
 	return null
+
+
+func _get_performance_trace_utility() -> GamePerformanceTraceUtility:
+	var utility_value: Object = get_utility(GamePerformanceTraceUtility)
+	if utility_value is GamePerformanceTraceUtility:
+		var performance_trace: GamePerformanceTraceUtility = utility_value
+		return performance_trace
+	return null
+
+
+func _on_board_queue_drained() -> void:
+	if is_instance_valid(_performance_trace_utility):
+		_performance_trace_utility.mark_presentation_settled()
