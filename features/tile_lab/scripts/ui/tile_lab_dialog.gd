@@ -107,12 +107,14 @@ func _exit_tree() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
+		var viewport: Viewport = get_viewport()
+		if is_instance_valid(viewport):
+			viewport.set_input_as_handled()
 		if _delete_confirmation.visible:
 			_delete_confirmation.hide()
 			_focus_initial_control()
 		else:
 			_close_dialog()
-		get_viewport().set_input_as_handled()
 
 
 # --- 虚方法 ---

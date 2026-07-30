@@ -142,6 +142,34 @@ func test_settings_menu_exposes_blocked_storage_in_compact_layout() -> void:
 	menu.free()
 
 
+func test_settings_menu_handles_cancel_before_synchronous_route_detach() -> void:
+	var packed_menu: PackedScene = load(
+		"res://features/settings/scenes/menus/settings_menu.tscn"
+	) as PackedScene
+	assert_not_null(packed_menu, "设置菜单回归夹具必须可加载。")
+	var menu_node: Node = packed_menu.instantiate()
+	menu_node.set_script(_DetachingSettingsMenu)
+	var menu: _DetachingSettingsMenu = menu_node as _DetachingSettingsMenu
+	assert_not_null(menu, "设置菜单场景必须可替换为同步关闭探针。")
+	autofree(menu)
+	add_child(menu)
+	var viewport: Viewport = menu.get_viewport()
+	assert_not_null(viewport, "设置菜单进入树后必须拥有输入 Viewport。")
+	var cancel_event: InputEventAction = InputEventAction.new()
+	cancel_event.action = &"ui_cancel"
+	cancel_event.pressed = true
+
+	menu._unhandled_input(cancel_event)
+
+	assert_engine_error_count(
+		0,
+		"同步关闭设置弹层后不得再解引用已丢失的 Viewport。"
+	)
+	assert_true(viewport.is_input_handled(), "关闭弹层前必须消费取消输入，避免泄漏到玩法层。")
+	assert_true(menu.back_request_count == 1, "一次取消输入只能发起一次返回。")
+	assert_false(menu.is_inside_tree(), "探针应同步模拟路由移除设置弹层。")
+
+
 func test_serialization_failure_updates_health_once_before_storage_write() -> void:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
 	settings.auto_load_on_init = false
@@ -326,3 +354,16 @@ func _make_legacy_storage_bytes(data: Dictionary, obfuscation_key: int = 42) -> 
 	for index: int in range(bytes.size()):
 		bytes[index] = bytes[index] ^ key_byte
 	return Marshalls.raw_to_base64(bytes).to_utf8_buffer()
+
+
+class _DetachingSettingsMenu extends SettingsMenu:
+	var back_request_count: int = 0
+
+	func _ready() -> void:
+		pass
+
+	func _on_back_button_pressed() -> void:
+		back_request_count += 1
+		var parent: Node = get_parent()
+		if is_instance_valid(parent):
+			parent.remove_child(self)
