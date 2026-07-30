@@ -8,6 +8,7 @@ export.cfg
 export_credentials.cfg
 *.tmp
 *.depren
+/android/.build_version
 
 # Mono-specific ignores
 .mono/
@@ -28,10 +29,16 @@ repomix.config.json
 # Python tooling caches
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+coverage/
 
 # Browser and review tooling
 /.playwright-cli/
 /output/
+test-results/
 
 # Runtime logs and local user data
 *.log
@@ -47,6 +54,16 @@ ai_analysis/
 
 unstaged_changes.diff.txt
 unstaged_changes.diff
+
+# OS and editor debris
+.DS_Store
+Thumbs.db
+desktop.ini
+*.bak
+*.orig
+*.rej
+*.swp
+*~
 
 # Generated builds and exports
 /build/*

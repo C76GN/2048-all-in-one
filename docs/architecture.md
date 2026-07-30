@@ -141,23 +141,17 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 本地账号与玩家 Profile
 
-1. `LocalAccountCatalogUtility` 拥有设备级账号身份目录，只保存账号 ID、显示名、创建时间、最近使用时间和当前账号；它不保存统计、书签、回放、成就、图鉴或试验台蓝图。
-2. 每个账号映射到独立的 `GameSaveGraphUtility` Profile。切换账号必须先冲刷当前 Profile，再加载并完整应用目标 Profile；任一步失败都保持原账号和原内存图，不发布半完成切换。
-3. `LocalAccountSystem` 是账号创建、重命名、切换和删除的唯一业务 Interface；四类运行时变更只提供 `request_*` 类型化异步事务，不保留同步 CRUD 包装或第二套 saga。其他 Feature 订阅强类型账号变更事件或查询当前账号，不读取设备目录文件，也不拼接 Profile 路径。
-4. 首次启用本地账号时可以把唯一的旧默认 Profile 一次性收养为首个账号；完成后不保留旧路径双读，并通过 `GFBackgroundWorkUtility` 异步清理旧文件。删除非当前账号时也必须等待同一异步清理边界的类型化终态，失败必须向用户显式报告。
-5. 个人信息页只投影当前账号的资料和各模式汇总；账号管理与排行榜 UI 通过 `GFUIRouterUtility` 进入，不让页面节点拥有存档事务。
-6. 所有运行时账号变更返回一次性 `LocalAccountOperation` / `LocalAccountOperationResult`。目录先写候选 payload，再交换权威内存并发布一次业务信号；Profile、目录写入或 Profile 清理进入 outcome-unknown 时保留在途所有权并阻断后续变更，迟到终态、轮询证据或显式对账只能对齐真实持久化结果，不得删除、复用路径或伪装回滚成功。目录删除的迟到成功必须继续等待目标 Profile 清理成功；清理超时或失败继续持锁。GF 同步 `ready()` 生命周期只允许执行启动期目录读取、默认目录创建和初始 Profile 激活，不构成公开同步 mutation API。
+1. `LocalAccountCatalogUtility` 只拥有设备级账号身份目录；每个账号映射到独立 Profile，统计、书签、回放、成就、图鉴和试验台数据仍由各 Feature 的 section provider 拥有。
+2. `LocalAccountSystem` 是创建、重命名、切换和删除账号的唯一异步业务 Interface。账号变更必须以一次性 operation/result 事务协调目录与 Profile，outcome-unknown 时保留所有权并阻断后续变更；页面只投影结果，不读取目录文件、拼接路径或拥有存档事务。精确文件边界、切换顺序、恢复与 schema 契约见 [`docs/save_model.md`](./save_model.md)。
 
 ### 方块试验台
 
-1. `tile_lab` 保存的是项目拥有的方块蓝图：稳定蓝图 ID、显示名、基础 `TileDefinition` 身份、选中的 `GFCapabilityRecipe` 身份和预览参数；不序列化运行时对象或硬编码新方块子类。
-2. `TileCompositionUtility` 仍是 Recipe 能力匹配与交互仲裁的唯一 Interface。试验台只组合目录中可用的定义与 Recipe，并把冲突、缺少共同能力或不合法参数解释给玩家。
-3. 沙盒从蓝图构造临时 `TileState`，允许玩家实际尝试生成、配对和交互；临时状态与普通对局的 canonical state、命令历史、回放、统计和排行资格隔离。
-4. 保存蓝图进入当前账号的独立 GFSaveProfile section。若未来让蓝图进入正式模式，必须先为内容身份、规则指纹、回放和书签定义新的稳定 Seam，不能让编辑器资源路径成为持久化真源。
+1. `tile_lab` 只保存项目拥有的稳定蓝图身份、定义/Recipe 身份与预览参数；`TileCompositionUtility` 仍是能力匹配和交互仲裁的唯一 Interface。
+2. 沙盒状态与普通对局的 canonical state、命令历史、回放、统计和排行资格隔离，蓝图进入当前账号的独立 section。具体字段、校验、保存和沙盒行为见 [`features/tile_lab/docs/tile_lab.md`](../features/tile_lab/docs/tile_lab.md)。
 
 ### 开发诊断工作区
 
-1. `GameArchitectureInstaller` 以 `GFDiagnosticsUtility` 类型绑定无 UI 聚合核心，用于接收 `gf.action_queue` 等扩展的运行时贡献。GF 10 对可选 Console 的严格查询缺陷由 `app/scripts/game_runtime_diagnostics_utility.gd` 临时收窄为当前 Architecture 的 local lookup；上游修复后直接删除该适配并恢复官方实例。Composition Root 只在显式 `with_dev_tools` feature 下按路径加载 `features/diagnostics/scripts/installers/game_diagnostics_installer.gd`，再补齐 Console、Debug Overlay、Inspector、Screenshot 与 `TestToolUtility`，避免开发界面进入玩家首屏依赖链。
+1. `GameArchitectureInstaller` 以 `GFDiagnosticsUtility` 类型绑定无 UI 聚合核心，用于接收 `gf.action_queue` 等扩展的运行时贡献。当前 vendored GF 的可选 Console 严格查询缺陷由 `app/scripts/game_runtime_diagnostics_utility.gd` 临时收窄为当前 Architecture 的 local lookup；官方 [issue #61](https://github.com/C76GN/gf-framework/issues/61) 关闭且对应回归测试通过后，删除该适配并恢复官方实例。Composition Root 只在显式 `with_dev_tools` feature 下按路径加载 `features/diagnostics/scripts/installers/game_diagnostics_installer.gd`，再补齐 Console、Debug Overlay、Inspector、Screenshot 与 `TestToolUtility`，避免开发界面进入玩家首屏依赖链。
 2. `GamePlayController` 只发布 `GameplayBoardReadyData`，不引用 `TestToolUtility`、`TestPanel` 或 diagnostics 资源。diagnostics feature 订阅该类型事件并持有开发上下文，依赖方向保持为 diagnostics -> gameplay。
 3. `TestToolUtility` 默认不自动弹窗；仅在 `F4` 或控制台显式请求时按需创建非 transient、非 exclusive 的 `GameplayDiagnosticsWindow`，场景切换时释放窗口和棋盘引用。窗口关闭只隐藏工作区，当前对局内可再次打开。
 4. 工作区使用独立 GF `diagnostics` 输入上下文，`F4` 通过 `GFInputMappingUtility` 切换窗口；`toggle_test_tools` 由 `GFConsoleUtility` 注册；窗口信号由 `GFSignalUtility` 持有生命周期。
@@ -173,23 +167,20 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 5. 会话在 staging group 全量成功后校验资源类型、稳定主题 ID 和业务报告，随后提交唯一目标资源组并用 `GFActivationTransaction` 应用主题。当前视觉与声音主题由两个稳定用途键的 `GFAssetSlot` 强持有，槽位负责类型契约、单调 generation 与 Utility dispose 终态释放；只有事务和槽位提交都成功才替换当前组并通过 `GFAssetUtility.unload_group(..., true)` 释放旧组，失败保留旧主题、旧银行和设置。
 6. `BootRuntime` 在 `Gf.init()` 后显式等待视觉与声音主题均完成首次提交，再执行渲染预热和入口场景预加载。设置页等待真实激活结果并在会话期间禁用对应选择器，连续请求由主题 Utility 取消旧会话并以序列号拒绝迟到回调。
 7. 视觉 Profile 交给 `GFShaderParameterUtility`；`GameUiMotionProfile` 随视觉主题一同校验和事务激活，向 `GameUiMotionUtility` 提供语义化节拍，不让页面散落 Tween 常量。`GameBoardFeedbackProfile` 以 `GameFeedbackRecipe` 为领域事件定义颜色、时长、冲击、碎片、Shake 与 Haptic，`GameFeedbackPerformanceMatrix` 再按 `FULL`、`REDUCED`、`MINIMAL` 和无障碍状态施加硬预算。`GameBoardFeedbackUtility` 编排 GF Shake/Haptic/Shader 与项目表现节点：普通 MOVE 只保留有界根节点确认，MERGE 及以上才启用强调通道；`BoardMotionBackdrop` 只在棋盘后层绘制局部棋格和有界纸片，`BoardFeedbackCanvas` 保留方块碰撞层。所有表现只消费已经提交的 `TurnResult`，不得写回模型或推进 gameplay RNG。`GameplayAcceptanceMatrix` 用 `GFMetricSeries` 对输入、尺寸和 P95 性能门槛给出有证据的结论，并通过 GF Diagnostics/Support Report 暴露契约。声音银行通过 `GFAudioUtility.mount_audio_bank()` 获取令牌，`GameAudioTheme` 从 `TurnResult` 选择单一主事件，`GameThemeUtility` 以 `GFAudioEvent` 发布；细分事件由 `GFAudioBank` 层级回退，切换或释放时明确卸载旧银行。
-8. `GFAudioUtility` 的内置 Godot 路径直接支持 bank、BGM/ambient、crossfade、总线混音、ducking、播放池与 SFX 并发/溢出控制。`GameBackgroundMusicUtility` 只从 `ProjectContentCatalogUtility` 查询固定的本地授权内容包，以独立 cosmetic RNG 洗牌，并把有界 OGG（兼容旧 WAV）字节读取交给 `GFBackgroundWorkUtility`；主线程只构造压缩流，不再展开大体积 PCM。项目不得扫描任意系统目录、保存购买源路径或推进玩法 RNG。`set_parameter()`、`set_state()`、`set_switch()` 只委派给显式安装的 `GFAudioBackend`；当前生产 Composition Root 未安装该后端，基础 backend 返回 `false`，因此业务不得假定自适应 state/switch 已生效。GF 10 在 SceneTree 先释放 root-owned BGM 播放器时存在 TypedArray 销毁缺陷，Composition Root 暂以 `GameAudioUtility` 在官方 `dispose()` 前清除失效引用；上游修复后删除该窄适配并恢复官方实例。
+8. `GFAudioUtility` 的内置 Godot 路径直接支持 bank、BGM/ambient、crossfade、总线混音、ducking、播放池与 SFX 并发/溢出控制。`GameBackgroundMusicUtility` 只从 `ProjectContentCatalogUtility` 查询固定的本地授权内容包，以独立 cosmetic RNG 洗牌，并把有界 OGG（兼容旧 WAV）字节读取交给 `GFBackgroundWorkUtility`；主线程只构造压缩流，不再展开大体积 PCM。项目不得扫描任意系统目录、保存购买源路径或推进玩法 RNG。`set_parameter()`、`set_state()`、`set_switch()` 只委派给显式安装的 `GFAudioBackend`；当前生产 Composition Root 未安装该后端，基础 backend 返回 `false`，因此业务不得假定自适应 state/switch 已生效。当前 vendored GF 在 SceneTree 先释放 root-owned BGM 播放器时存在 TypedArray 销毁缺陷，Composition Root 暂以 `GameAudioUtility` 在官方 `dispose()` 前清除失效引用；官方 [issue #62](https://github.com/C76GN/gf-framework/issues/62) 关闭且对应回归测试通过后，删除该窄适配并恢复官方实例。
 9. `GameAccessibilityUtility` 是减少动态、高对比反馈、震动、Shader 和 VFX 档位的唯一运行时投影；设置由 `GFSettingsUtility` 持久化，变更由 `GFSignalUtility` 管理。任何表现设置都不得进入 canonical gameplay state、回放 checkpoint 或排行资格。
 10. `GameUiStyleUtility` 独占 `GameUiPalette`、静态 StyleBox、语义文本和焦点 Shader；`GameUiMotionUtility` 只拥有交互信号、可中断 Tween、retarget 与静态完成路径。减少动态时 UI 直接落到终态且不创建 Tween；`SceneRouterSystem` 仍执行遮罩的 cover/swap/reveal 生命周期，但使用零时长、无 Shader 的静态路径。UI 节点声明语义角色，不保存从旧色板生成的样式对象。
 11. 反馈分级、降级顺序和性能验收目标见 [`features/themes/docs/feedback_performance_matrix.md`](../features/themes/docs/feedback_performance_matrix.md)。
 
 ### 素材评审
 
-1. 项目级治理、所有权、晋升与安全边界以 [`docs/asset_library.md`](./asset_library.md) 为权威；具体命令、快捷键和当前工具行为以 [`features/asset_library/docs/readme.md`](../features/asset_library/docs/readme.md) 为权威。生成报告只证明一次运行，不覆盖这两层规范。
-2. `features/asset_library/resources/gf_content_package.json` 只登记已批准运行时素材，并由统一的 `ProjectContentCatalogUtility` 注册。
-3. 候选素材和备注保存在 `features/asset_library/resources/review/`；原始来源保存在隔离的 `source_packs/`，不得被运行时直接依赖。
-4. 同一声音的 WAV、OGG、MP3 等编码只有在源包声明了经过验证的同源分组后，才同步 `review_status` 与 `reviewed_at`。评分、标签、备注、路径、哈希和许可证仍属于具体编码；文件名相似、跨源包模糊匹配或冲突决定都不得自动同步。
-5. `GFProjectReferenceScanner`、`GFAssetAttributionTools` 和 `GFAssetCatalog` 生成引用、授权和用途报告；Feature 局部浏览器和导入脚本位于 `features/asset_library/scenes/` 与 `features/asset_library/tools/`。
+1. 运行时 manifest 只登记已批准素材；候选记录和隔离源包不得被玩家运行时依赖。`ProjectContentCatalogUtility` 统一注册内容，`GFProjectReferenceScanner`、`GFAssetAttributionTools` 与 `GFAssetCatalog` 提供引用、授权和用途证据。
+2. 项目级治理、晋升与安全边界以 [`docs/asset_library.md`](./asset_library.md) 为权威；命令、快捷键和工具行为以 [`features/asset_library/docs/readme.md`](../features/asset_library/docs/readme.md) 为权威。架构文档不复制编码同步、许可证或清理流程。
 
 ### 运行时通知
 
 1. `PlayerInputSystem`、`GameFlowSystem` 等生产者只向 `GFNotificationUtility` 写入通知记录，不定义项目私有消息载荷。
-2. GF 通知队列统一负责去重、优先级、展示时长和生命周期；GF 10 的重复抑制只返回已有 ID，不产生聚合计数或更新信号，项目不得伪造该字段。场景内不再维护额外队列或 `Timer`。
+2. GF 通知队列统一负责去重、优先级、展示时长和生命周期；当前 vendored GF 的重复抑制只返回已有 ID，不产生聚合计数或更新信号，项目不得伪造该字段。场景内不再维护额外队列或 `Timer`。
 3. `Hud` 通过 `GFSignalUtility` 订阅通知开始与结束信号，只负责当前主题下的 `FeedbackRail` 排版、优先级边框和可中断入退场。轨道 Container 只管理稳定槽位，进入位移与退出透明度只能作用于槽内视觉表面；旧通知的迟到结束事件以 record ID 拒绝。
 4. 通知属于瞬时表现状态，不进入 `GameStatusModel`、撤销快照、书签或回放 schema。
 
@@ -231,14 +222,9 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 持久化
 
-- `persistence` 通过 `GFSaveProfileUtility` 管理当前账号的单一 `GFSaveProfile`。项目类 `GameSaveGraphUtility` 只拥有账号路径、恢复策略和业务入口，不再用 `GFSaveGraphUtility` 的 Scope/Source 图表示固定玩家 section。
-- `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`achievements`、`replays` 与 `tile_lab` 各自拥有严格 `GFSaveSectionProvider`；`app` 在 GF `init()` 前按项目 `SectionOrder` 完成组合，不把业务字段写入 persistence。
-- `GFSaveProfileUtility` 按 provider 顺序 gather/apply `GFSaveDocument`，拥有 typed `GFSaveProfileOperation`/`GFSaveProfileResult`、generation 合并、有界重试、flush barrier 和跨 provider 事务回滚。`STATUS_OUTCOME_UNKNOWN` 或注销失败时项目继续保留 profile 与路径所有权，禁止删除、复用或伪装回滚成功。
-- `GFStorageUtility` 是底层 codec、存储元数据、checksum 与原子文件事务边界；业务 System 不直接调用它写玩家 section。账号目录是设备身份元数据，不是第二份玩家业务存档。
-- 书签和回放使用 UUID v7 稳定身份，不依赖时间戳文件名或运行时 `file_path`。UUID 只用于持久身份，不参与 canonical board checksum。
-- Profile、section 和 item 的当前 schema 版本以数据类型与 [`docs/save_model.md`](./save_model.md) 为准，本架构文档不复制易漂移数字。书签与回放冻结规则集身份和资格上下文；棋盘快照与玩家模板内嵌严格 `BoardTopology`，不提供旧尺寸键或旧业务字段推断。
-- 设置使用 `GFSettingsUtility` 的独立文件，不参与玩家数据图，也不随书签或回放恢复。
-- 旧 Profile 只允许由 persistence 通用编排执行显式一次性收养、备份或重建；未来/未知/畸形 Profile 继续拒绝，业务数据迁移只能使用显式离线工具，运行时代码不保留旧字段双读分支。
+- `persistence` 通过 `GFSaveProfileUtility` 管理当前账号的单一 Profile；各业务 Feature 各自拥有严格 `GFSaveSectionProvider`，`app` 只负责在 GF 初始化前组合顺序。
+- `GFStorageUtility` 是 codec、checksum 和原子文件事务边界；业务 System 不直接写玩家 section，设置继续使用独立 `GFSettingsUtility` 文件。
+- Profile operation、outcome-unknown、账号切换、UUID、schema、恢复与迁移规则统一以 [`docs/save_model.md`](./save_model.md) 为权威，本架构文档不复制字段和版本。
 
 ## GF 扩展
 

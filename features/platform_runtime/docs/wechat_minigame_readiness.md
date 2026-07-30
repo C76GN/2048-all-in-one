@@ -45,28 +45,6 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 
 匹配的 Godot 导出工具链与微信开发者工具 CLI 就绪后，还必须接入实际微信导出适配器并执行下方真机矩阵。GF vendor 版本与上游修复状态以 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json` 和当前 vendor 源码为准；本项目不得保留临时 GF 补丁。
 
-## 历史 Web 签字证据
-
-以下是 2026-07-18 使用官方 Godot 4.7.1 对 `Web Compatibility Smoke` 的一次历史验证，不自动代表当前工作树或微信运行时已经签字：
-
-- 构建为 Compatibility、single-threaded、no GDExtension；
-- `390x844` 竖屏与 `1280x720` 横屏均使用 `720x720 + canvas_items + expand` 契约，无固定比例黑边；
-- 页面控制台 `0 error / 0 warning`；
-- GFStorageUtility 写入、回读与跨刷新计数通过；
-- 指针手势状态可更新，半色调背景 Shader 正常渲染；
-- 项目预检 `8 checks / 0 issues`，环境报告仅保留“缺少微信开发者工具 CLI”一个 blocker。
-
-动态加载的脚本资源必须在 GF 注册表或内容包中使用内置 `Resource` 作为 `ResourceLoader` type hint，再以 `is` 收窄到业务资源类型。Godot Web 导出不能依赖编辑器侧 `class_name` 名称作为动态加载 type hint；该规则已进入自动预检和 GUT 回归测试。
-
-## 已完成的项目侧准备
-
-- 稀疏、矩形与玩家绘制拓扑已经进入统一棋盘模型，不再是微信后续任务。
-- gameplay 与棋盘编辑器已具备可缩放/平移视口、安全区投影和 desktop/compact/portrait 响应式布局。
-- HUD、触摸 D-pad、指针手势和抽象输入上下文已按设备能力分层。
-- diagnostics 工作区由 `with_dev_tools` Feature 与独立 Window 隔离，普通玩家构建不创建该工作区。
-- 本地成就、方块图鉴、不可变比赛资格和资格过滤后的本地排行榜及其 GFSaveProfile section 已实现；它们尚未等同于微信开放数据域、线上裁决或平台同步。
-- `GamePlatformAdapter` / `LocalPlatformAdapter` 已实现 Godot 本地、移动端和 Web 的共同能力投影；尚无 `WeChatMinigamePlatformAdapter`。
-
 ## 真机签字矩阵
 
 每次 Godot、GF、微信导出适配器或关键 Shader 更新后，至少验证：

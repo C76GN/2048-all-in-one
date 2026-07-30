@@ -110,7 +110,7 @@
 
 默认主题使用 `features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader`。覆盖与揭示分别配置为 `features/themes/resources/themes/game/transitions/halftone_cover_transition.tres` 和 `halftone_reveal_transition.tres`，由 `GFScreenTransitionUtility` 统一管理根视口覆盖层。`SceneRouterSystem` 只从当前 `GameTheme` 解析 `GFScreenTransitionEffect`，不创建节点或 Tween。
 
-该 shader 来自外部 2D 遮罩转场思路，但项目版不依赖外部 gradient 或 shape texture，改为程序化斜向纸张擦除、稀疏形状扰边、半调网点、轻纸纹和青/品红错版移动边。已覆盖区域必须不透底，避免新旧场景在中间帧重影；印刷图案只允许出现在移动边缘。`reverse_progress` 允许同一 shader 由主题资源声明覆盖和揭示方向。
+该 shader 来自外部 2D 遮罩转场思路，但项目版不依赖外部 gradient 或 shape texture，改为程序化斜向印刷擦除、稀疏形状扰边、半调网点、轻纸纹和青/品红错版移动边。已覆盖区域必须不透底，避免新旧场景在中间帧重影；印刷图案只允许出现在移动边缘。`reverse_progress` 允许同一 shader 由主题资源声明覆盖和揭示方向。
 
 约束：
 
@@ -138,7 +138,7 @@
 - Godot 原生启动阶段使用只含几何品牌和微型棋盘的 `printworks_boot_splash.png`；项目轻量壳以同一品牌构图补上阶段文案、百分比和真实进度槽。槽体、裁切区与动态填充必须位于同一个响应式 `Control` 层级，不得再把空槽烘焙进按比例裁切的图片后另行叠加固定坐标填充。
 - 中央构图可以包含品牌标题、微型棋盘和进度槽，但不能变成营销页，也不能在动态加载开始后重新排版。
 - 轻量 `Boot` 禁止 preload GF、主题、玩法脚本或 shader；它只通过 `ResourceLoader` 在线程中加载 `BootRuntime`，后者进入场景树后才创建 GF 架构。
-- `features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader` 是素材目录中的可选 Shader，`features/themes/resources/themes/boot/*_profile.tres` 是保留的设计 Profile；当前启动代码均未消费它们，也不能把它们描述为轻量壳依赖。未来若启用，只能在 GF 初始化完成后的正式启动编排或主题场景中应用，并应补真实截图验证。
+- `features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader` 是素材目录中的可选 Shader；当前启动代码未消费它，也不能把它描述为轻量壳依赖。未来若启用，只能在 GF 初始化完成后的正式启动编排或主题场景中应用，并应补真实截图验证。
 - 进度必须由真实启动流程驱动，至少覆盖 GF 初始化和主菜单预热，不使用纯假进度。
 - 预加载条件、超时和最短停留延迟统一使用 `GFAsyncWaitUtility`，不自行维护 deadline 或 `SceneTreeTimer`。
 - `GFScenePreloadMap` 只预热最高频相邻路径：启动期准备主菜单与模式选择，模式选择期再准备玩法场景；不得在原生首屏阶段并发预载所有低频菜单。
@@ -247,7 +247,7 @@ GF 与项目边界：
 - `GFUIRouterUtility`、`GFUIRoute` 和 `GFUIUtility` 只拥有稳定 route ID、逻辑层、Modal 栈、遮挡、返回和焦点恢复；路由 metadata 可以声明项目 motion profile，但 GF 路由不实现具体视觉时间线。需要退场动画的页面先由项目动效完成，再调用 `back()`。
 - `GFScreenTransitionUtility` 和主题提供的 `GFScreenTransitionEffect` 只用于启动完成后的主场景 cover/load/reveal。它是单一全屏覆盖层，不能用于按钮、滚动条、列表、页内切换或并行弹层。
 - `GameUiMotionProfile` 是视觉主题拥有的语义参数资源；Button、Panel、Modal、List、Content、Number、Scroll，以及 Toast、Loading、Progress、Local Error、Reward Result 的默认节拍都从该资源查询。`GameUiMotionUtility` 统一拥有这些局部可取消 Tween、retarget、`complete_now()` 和减少动态静态终态；页面只能选择语义，不自行散落时长、缓动与 Tween 元数据。
-- `GFNotificationUtility` 仍唯一拥有 priority、dedupe、队列上限与通知生命周期；GF 10 的 dedupe 不产生 aggregate 字段或更新信号。`FeedbackRail` 只呈现当前 record，轨道的 `VBoxContainer` 子槽保持布局稳定；进入首帧保持实色可读，只对槽内表面做短位移与退出淡出，迟到 finished 以通知 ID 拦截。
+- `GFNotificationUtility` 仍唯一拥有 priority、dedupe、队列上限与通知生命周期；当前 vendored GF 的 dedupe 契约不产生 aggregate 字段或更新信号。`FeedbackRail` 只呈现当前 record，轨道的 `VBoxContainer` 子槽保持布局稳定；进入首帧保持实色可读，只对槽内表面做短位移与退出淡出，迟到 finished 以通知 ID 拦截。
 - 首页开场若需要可跳过的多阶段串并行时间线，可以使用绑定首页节点生命周期的独立 `GFActionQueueSystem` 命名队列；标题、棋盘、菜单锚点、节拍、最终态和跳过策略仍归项目，且不得复用玩法棋盘队列。`GFReactiveStateStore` 不用于 hover、滚动条透明度或 Tween progress 等瞬时表现状态。
 - `easings.net` 与 Motion 等外部前端仓库只作为缓动曲线、可中断状态、列表 stagger、布局连续性和 reduced-motion 的设计参考；项目不得复制 GPL 实现或引入 Web 动画运行时，所有采纳行为都要重新表达为 Godot Tween、GF 队列与项目语义参数。
 
@@ -267,32 +267,6 @@ GF 与项目边界：
 
 ## 测试与验证
 
-已存在的视觉相关测试：
+视觉验证的命令、跨视口截图矩阵、人工签字要求和安全运行策略统一以 [`docs/validation.md`](./validation.md) 为准，活跃改进项统一进入 [`docs/roadmap.md`](./roadmap.md)。本规范只维护视觉与动效契约，不复制测试库存、某次截图结果或待办清单。
 
-- `test_visual_polish.gd` 验证背景 shader、静态启动壳与线程加载边界、半调场景转场、主题化 Tile 轮廓与稀疏母题、文字对比度、按钮内部 Presenter、稳定根几何、内嵌焦点 Profile、pressed 状态优先级、庆祝事件 preset，以及 GF 震动与背景联动反馈。
-- `test_game_theme_utility.gd` 验证内容包描述符、默认主题约束、按键加载、GF 激活事务、GF settings、背景/UI/VFX Profile、`GFSignalUtility` owner 连接、场景转场、语义音效事件和音频银行挂载令牌。
-- `test_ui_motion_profile.gd` 验证主题语义参数、Modal/Content/Numeric 中断重定向、`complete_now()` 与 Reduced Motion 静态终态；`test_gameplay_feedback_refinement.gd` 验证普通移动降噪、GF 实际去重记录、FeedbackRail priority 与迟到终态；图鉴、试验台、成就和导航测试验证 keyed identity、焦点保留与局部刷新。
-
-后续视觉改动至少检查：
-
-- `docs/visual_style.md` 是否仍描述当前方向。
-- `features/asset_library/resources/shaders/background/halftone_paper_background.gdshader` 的颗粒、点纹、细网格、像素墨流、扫描线和 glow 参数是否保持克制。
-- `features/themes/resources/themes/game/backgrounds/*_profile.tres` 是否完整覆盖背景 shader 需要由主题控制的 uniform，且不在 `GameTheme` 脚本中重新声明同名字段。
-- `GameUiPalette.button_focus_shader_profile` 与 `GameTheme.celebration_vfx_theme` 是否完整。主题静态 uniform 必须经 `GFShaderParameterUtility` / Profile 应用；只有拥有该材质生命周期的反馈/转场 Utility，或专用 `GameShaderAnimationDriver`，才能在先完成 uniform 合同校验后直接驱动每帧动态参数，普通表现节点不得散落调用 `set_shader_parameter()`。
-- `features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader` 的印刷擦除、半调网点和纸纹强度是否仍短促、低对比。
-- `features/themes/resources/gf_content_package.json` 是否为每个主题登记独立资源键、完整描述符 metadata 和唯一默认项，且没有重新引入中央主题注册表。
-- 视觉 `GameTheme` 是否完整引用棋盘、方块色阶、UI 色板、庆祝 VFX 和 cover/reveal GF 转场；独立 `GameAudioTheme` 是否完整解析全部语义事件。
-- `features/themes/resources/themes/tile_schemes/*.tres` 是否仍由资源定义方块色。
-- `TileVisualTheme` 的家族签名是否唯一，`TilePatternOverlay` 的母题是否稀疏、中央留白且不会影响数字识别。
-- `GameUiStyleUtility` 的默认、选中、字段与文本语义是否能在色板切换后正确重建。
-- `GameUiMotionUtility` 的 rest、ACTIVE 发牌约 `60/100/140ms`、约 `60ms` hover overshoot、稳定 hover、focus 和 pressed 分帧反馈是否仍有明确区别；`capture_ui_vfx_matrix.gd` 必须在桌面与窄屏保存这些状态，并分别验证纸片、旋转、描边、硬投影和焦点环的视觉包络没有越过按钮根包络与最近裁剪祖先。
-- 除自动测试外，是否在 `1280×720`、`960×540`、`390×844` 至少三类视口保存本次真实截图与运行日志，并人工核对裁切、层级、触控安全区、文字对比、首帧承接和动效降级；测试通过不能替代视觉签字。
-- 安全 GUT 是否通过。
-
-## 当前待改进
-
-1. 场景资源仍有少量布局级 `theme_override_font_sizes`；后续新增运行时控件样式必须优先声明到主题资源或 `GameUiStyleUtility`，不得重新在节点脚本中硬编码色板。
-2. 默认 Noto Sans SC 已解决跨平台字形一致性；后续主题若要强化纸媒个性，应优先增加经过中文覆盖验证的 display font，而不是退回系统 fallback 或整页手写字。
-3. `printworks` 已切换到 Nathan Gibson 的 Universal UI Soundpack（CC BY 4.0）中筛选出的 OGG 短音效，并通过 `features/asset_library/resources/gf_content_package.json`、`GameAssetLibraryUtility` 和 `GFAudioBank` 与当前主题事件 ID 播放；后续需要继续做响度和混音打磨。
-4. 回放、书签和模式选择还需要按任务页原则继续消除等权卡片与过量说明。
-5. 回放长列表已接入 `GFVirtualListModel`、`GFVirtualListFocusModel` 与 `GFRepeaterBinder` 的有界窗口；书签目录规模较小，继续使用普通 `GFRepeaterBinder`。后续若书签容量契约提升，再以物化控件预算和跨窗口焦点测试作为虚拟化门槛。
+视觉改动必须同时验证主题资源合同、Shader 参数所有权、方块数字可读性、稳定 44px 命中根、键盘/手柄焦点、Reduced Motion 静态终态以及多视口裁切。自动测试通过不能替代真实截图与人工检查。

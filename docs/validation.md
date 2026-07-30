@@ -134,7 +134,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 退出门禁读取 `.gf/godot_exit_leak_baseline.json`，并绑定 `.gf/vendor.lock.json` 的精确 GF vendor tree 与当次项目运行时类集合。输入集合变化时必须先解释差异，再走显式校准流程；不得只修改数字使测试通过。
 
-注意：脚本在当前环境中可能无法从 Godot 进程对象直接读取退出码，因此会在退出码为空时根据 GUT 输出中的成功标记推断成功。后续如果切换到明确的 Godot `4.7` 可执行文件，建议再运行一次同样的安全验证。
+若 Godot 进程对象未提供退出码，包装器只能在 GUT 输出包含完整成功标记时接受结果；缺少退出码且没有完整终态证据时必须失败。
 
 ## GDScript LSP 诊断
 
@@ -179,6 +179,8 @@ powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -Sc
 
 验收时必须确认 `validation_report.json` 为 `[]`，并逐页查看截图。Windows 桌面会把高于工作区的实体窗口限制在任务栏上方；不得通过手动放大根节点伪造 `720×1558` 截图，因为那只会拉高渲染背景，Container 仍按受限窗口高度布局。桌面自动化矩阵使用可真实承载的 `720×960` 竖屏；更高设备比例仍需在目标设备或可控离屏渲染环境中复验。
 
+人工签字至少核对裁切、层级、触控安全区、文字对比、首帧承接、键盘/手柄焦点、44px 命中根和 Reduced Motion 静态终态；纸片、旋转、描边、硬投影与焦点环的视觉包络不得越过控件根包络或最近裁剪祖先。
+
 `capture_visual_review.gd` 负责实际移动命令、稳定帧和耗时证据；`capture_ui_vfx_matrix.gd` 负责页面与状态矩阵。两者用途不同，不以其中一个替代另一个。
 
 ## Web / 微信小游戏准备预检
@@ -197,7 +199,9 @@ powershell -ExecutionPolicy Bypass -File tools/check_platform_readiness.ps1 -God
 
 第一份报告 `build/platform_readiness_report.json` 由 GFCompatibilityPreflight 和 GFBridgeContractReport 生成；第二份 `build/platform_environment_report.json` 检查 Godot 与导出模板版本一致性及微信开发者工具 CLI。正式导出和 CI 不得忽略环境 blocker。真机矩阵见 `features/platform_runtime/docs/wechat_minigame_readiness.md`。
 
-预检数量、issue 数和本机 blocker 直接读取上述两份生成报告。已签字的历史 Web 证据与尚未完成的微信矩阵统一记录在 `features/platform_runtime/docs/wechat_minigame_readiness.md`，本指南不复制其当前状态。
+预检数量、issue 数和本机 blocker 直接读取上述两份生成报告；长期文档不保存某次工作站签字或环境快照。尚未完成的微信能力边界与真机矩阵记录在 `features/platform_runtime/docs/wechat_minigame_readiness.md`。
+
+动态加载的脚本资源必须在 GF 注册表或内容包中使用内置 `Resource` 作为 `ResourceLoader` type hint，再以 `is` 收窄到业务资源类型。Godot Web 导出不能依赖编辑器侧 `class_name` 名称作为动态加载 type hint；自动预检和 GUT 回归测试必须持续约束这条规则。
 
 ### 脚本静态检查
 
@@ -208,12 +212,9 @@ $script = Get-Content -Raw -Encoding UTF8 tools/run_gut_safe.ps1
 $null = [scriptblock]::Create($script)
 ```
 
-## 当前验证缺口
+## 持续验证边界
 
-- 微信开发者工具 CLI、微信导出适配器与微信真机矩阵尚未完成；匹配模板是否存在必须读取本次环境报告，因此不签字微信小游戏发布就绪。
-- 导出插件相关上游修复是否已进入当前项目，只能由 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json` 和当前 vendor 源码确认；工具链匹配后仍需重新执行正式零错误导出签字。
-- GDScript LSP 的门禁目标是零 error、零 warning；当前是否满足只读取本次 `build/gdscript_lsp_diagnostics.json`，修改 `.gd` 后应复跑。
-- Godot 退出仍存在已量化的框架/测试对象泄漏债务；当前通过严格基线阻止继续增长，不能把基线当成已经修复。
-- 项目方块文本使用 `GFTextFitter.MeasurementMode.SINGLE_LINE`；当前 vendor 的文本测量实现仍必须由完整 GUT 维持 `ShapedText` / `Font` RID 零增长门禁，不能按文档中的旧版本号推断修复存在。
-- 开发构建已通过 `GFScreenshotUtility` 提供单张与支持报告现场截图，但尚未建立跨分辨率的视觉基线比较和像素差异门禁。
-- GF 包管理器的独立 lockfile 校验入口已并入原生 CLI `status --json` 的 `lockfile_verify` 字段；若后续 CLI 再次变化，需要先更新本文档再更新自动化命令。
+- 平台发布只能由当次环境报告、正式零错误导出和目标设备矩阵共同签字；静态配置通过不能替代工具链或真机证据。
+- GDScript LSP 始终以零 error、零 warning 为门禁，修改 `.gd` 后必须复跑并读取当次生成报告。
+- 退出泄漏基线只用于阻止 ObjectDB、Resource 与 RID 债务增长，不代表债务已经修复；`GFTextFitter` 的 `ShapedText` / `Font` RID 仍由完整 GUT 维持零增长门禁。
+- 当前截图工具提供真实跨视口证据，但没有自动像素差异门禁；视觉签字仍需人工逐页检查。

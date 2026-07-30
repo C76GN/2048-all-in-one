@@ -4,7 +4,7 @@ This inventory distinguishes runtime-distributed assets from review-only source 
 
 ## Runtime Assets
 
-## Universal UI Soundpack
+### Universal UI Soundpack
 
 - Author: Nathan Gibson
 - Source: https://nathangibson.myportfolio.com
@@ -12,7 +12,7 @@ This inventory distinguishes runtime-distributed assets from review-only source 
 - Usage: selected OGG UI and gameplay feedback sounds under `features/asset_library/resources/audio/`.
 - Bundled notice: `features/asset_library/resources/licenses/universal_ui_soundpack.md`.
 
-## Lucide Icons
+### Lucide Icons
 
 - Author: Lucide Contributors
 - Source: https://lucide.dev/
@@ -20,7 +20,7 @@ This inventory distinguishes runtime-distributed assets from review-only source 
 - Usage: selected SVG interface icons registered by `features/asset_library/resources/gf_content_package.json`.
 - Bundled notice: `features/asset_library/resources/textures/icons/license_lucide.txt`.
 
-## Noto Sans SC
+### Noto Sans SC
 
 - Author: The Noto Project Authors
 - Source: https://fonts.google.com/noto/specimen/Noto+Sans+SC
@@ -28,7 +28,7 @@ This inventory distinguishes runtime-distributed assets from review-only source 
 - Usage: the shared runtime body, display, and numeric font at `shared/assets/fonts/noto_sans_sc_variable.ttf`.
 - Bundled notice: `shared/assets/fonts/noto_sans_sc_ofl.txt`.
 
-## Kenney Pattern Pack 2
+### Kenney Pattern Pack 2
 
 - Author: Kenney.
 - Source: https://kenney.nl/assets/pattern-pack-2
@@ -62,6 +62,7 @@ These packs are copied into `features/asset_library/resources/source_packs/` for
 
 - `jdsherbert_ultimate_ui_sfx_free_mono`: license unknown.
 - `downloaded_shader_pack`: license unknown.
+- `manual_effect_notes`: manually captured interaction and VFX recipes from project discussion; origin and license remain unknown until each candidate is traced to its source.
 - `manual_shader_notes`: manually captured shader notes from project discussion. Most entries remain license unknown until original origin is confirmed; `steampunkdemon_rain_snow_overlay` is attributed to Brian Smith (steampunkdemon.itch.io) and recorded as MIT.
 - `four_hundred_sounds_pack`: license unknown.
 - `ultimate_toon_source`: license unknown.

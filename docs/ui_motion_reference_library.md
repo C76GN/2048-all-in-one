@@ -626,37 +626,17 @@ Asset Library 条目未必有独立 GitHub 仓库，因此 Stars 记为 `N/A`；
 | UI Shader 小特效 | `ShaderMaterial` + Profile + Utility driver | 适合 mask、ink/paper reveal、focus outline、progress。 | 普通节点散落 `set_shader_parameter()`；依赖内建 `TIME` 做不可停止循环。 |
 | 高频列表 / Grid 排序 | 可见项 rect snapshot + FLIP Tween | 保存对象身份和空间连续性，避免节点全量重建。 | 动画不可见项；刷新时整页重播。 |
 
-### 7.2 当前已经覆盖什么
+### 7.2 GF 与项目 Motion 的职责边界
 
-现有 [`GameUiMotionUtility`](../features/themes/scripts/utilities/game_ui_motion_utility.gd) 已统一处理：
+当前实现状态只以代码、[`visual_style.md`](./visual_style.md) 和 [`feedback_performance_matrix.md`](../features/themes/docs/feedback_performance_matrix.md) 为准，本参考库不复制页面、Preset 或测试库存。长期职责边界如下：
 
-- Button hover、focus、press、toggle、disabled 与终态恢复；
-- Panel / Modal intro、outro，以及 backdrop + surface 的共同 settle；
-- Control reveal、pulse、children stagger；
-- 数字计数、正负 delta；
-- 首页 button deal、content switch、piece assembly；
-- Scrollbar activity / idle 与 Tab 内容切换；
-- Tween kill、基础值恢复、owner teardown 和 Reduced Motion 直接终态。
+- `GFNotificationUtility` 拥有通知优先级、队列上限、去重、暂停和生命周期；项目只拥有排版、阅读时间、入退场与静态替代，不建立第二个通知队列；
+- `GFControlFocusUtility` 拥有普通 Control 的顺序和方向邻居；`GFVirtualListModel` / `GFVirtualListFocusModel` 拥有有界窗口与逻辑焦点，项目拥有稳定业务 ID、行视觉和 FLIP rect 映射；
+- `GFRepeaterBinder` 只负责模板物化与清理，不提供 keyed reconciliation，也不保证重建前后的节点身份；
+- `GFTweenActionConfig`、`GFConfiguredTweenAction`、`GFVisualActionGroup` 和 `GFShaderParameterAction` 是低频多阶段编舞的比较基线；项目层拥有语义 Profile、主题节拍、可中断终态和 Reduced Motion 策略；
+- 外部作者工具只有在证明相对当前 vendored GF 与项目 Utility 存在明确增量时才进入 POC，不引入“总管型”第二套 Motion 生命周期。
 
-GF 10.0.0 已经拥有与 Motion Library 相邻、但职责不同的机制：
-
-- `GFNotificationUtility` 拥有通知优先级、队列上限、去重、暂停和生命周期；GF 10 的去重只返回已有 ID，不产生 aggregate 更新。项目 `FeedbackRail` 只拥有排版、阅读时间、入退场与静态替代，不建立第二个通知队列；
-- `GFControlFocusUtility` 拥有普通 Control 的顺序和方向邻居；`GFVirtualListModel` / `GFVirtualListFocusModel` 拥有有界窗口与逻辑焦点，项目继续拥有稳定业务 ID、行视觉和 FLIP rect 映射；
-- `GFRepeaterBinder` 是模板物化和清理工具，不提供 keyed reconciliation，也不保证重建前后的节点身份；
-- `GFTweenActionConfig`、`GFConfiguredTweenAction`、`GFVisualActionGroup` 和 `GFShaderParameterAction` 是低频多阶段编舞的首选比较基线；外部作者工具 POC 必须先证明相对这些现有 Resource/Action 的效率增量。
-
-[`GameTileMotionProfile`](../features/themes/scripts/data/game_tile_motion_profile.gd) 已把方块 move、spawn、merge、value growth、despawn 和 transform 节拍做成主题 Resource。统一预算在 [`feedback_performance_matrix.md`](../features/themes/docs/feedback_performance_matrix.md)；其 `FULL / REDUCED / MINIMAL` 对动作、时长、粒子、Shader、震动与彩屑都有硬上限。
-
-截至 2026-07-30，本轮优化已把上述结论落实为以下项目基线：
-
-- [`GameUiMotionProfile`](../features/themes/scripts/data/game_ui_motion_profile.gd) 成为主题拥有的 UI 语义资源，覆盖 Button、Panel、Modal、Reveal、Content、Assembly、Scroll、Number、Toast、Loading、Progress、Local Error 与 Results Reveal；调用方不再各自保存同类时长和位移常量。
-- `GameUiMotionUtility` 对同一目标执行显式 settle / retarget；Reduced Motion 不创建装饰 Tween，直接提交可读终态。按钮继续只改变内部 Presenter，Container 与 44px 命中根节点保持稳定。
-- HUD `FeedbackRail` 以 `GFNotificationUtility` 的 priority、去重和生命周期为上游，只负责布局槽、阅读时间和可中断入退场；普通移动不会再触发全屏背景、边缘或 Shake。
-- 成就、玩家档案、图鉴、试验台等刷新路径按稳定业务 ID 复用节点，只对新增或真正变化的局部内容播放反馈；这先建立 FLIP 所需的对象身份基础，不宣称已经实现通用 FLIP 排序器。
-- Loading 采用短延迟再显现，局部错误使用颜色与轮廓反馈，结算结果先提交文本真值再做一次强调；CTA 从首帧可读可操作，不被演出锁住。
-- [`ui_motion_preview.tscn`](../features/themes/tools/ui_motion_preview.tscn) 是隔离的开发期预览器，可直接检查 Profile、快速反向、主动收束与 Reduced Motion；它不注册玩家 Route、GF 模块或启动依赖，也不形成第二套运行时。
-
-因此，**本项目不宜再安装一个“总管型” UI Motion 插件**。外部项目最有增量的方向是：
+值得继续评估的增量方向是：
 
 1. AutoAnimate / GSAP 的 FLIP → List、Inventory、Grid 排序与插删；
 2. godot-motion / Motion 的连续 Spring → Hover↔Press 中途反转、Drag & Drop 回弹；

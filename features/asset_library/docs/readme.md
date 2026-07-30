@@ -16,7 +16,7 @@
 
 玩家运行时仍通过稳定 `asset.*` resource key 解析和加载素材。GF 目录由
 `GFContentPackageAssetCatalogProvider` 构建，并由 `GFAssetCatalogRuntime` 原子挂载；
-目录条目 ID 采用 GF 10 规范 `package_id/resource_key`，项目代码需要目录条目时调用
+目录条目 ID 采用当前 vendored GF 内容目录契约 `package_id/resource_key`，项目代码需要目录条目时调用
 `GameAssetLibraryUtility.get_runtime_catalog_entry()`，不得自行拼接或回退资源路径。
 
 `resources/review/asset_slot_map.tres` 及其 `AssetSlotMap`/`AssetSlotBinding`
