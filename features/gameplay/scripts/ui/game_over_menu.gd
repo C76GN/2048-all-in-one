@@ -25,6 +25,7 @@ const _STACK_ACTIONS_MAX_WIDTH: float = 600.0
 # --- 私有变量 ---
 
 var _has_played_new_record_celebration: bool = false
+var _has_revealed_result: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -158,6 +159,7 @@ func _refresh_summary() -> void:
 		_run_summary_label.visible = false
 		_identity_label.visible = false
 		_summary_label.text = tr("GAME_OVER_SUMMARY_UNAVAILABLE")
+		_play_result_reveal_once()
 		return
 
 	var current_game_model: CurrentGameModel = _get_current_game_model()
@@ -237,6 +239,7 @@ func _refresh_summary() -> void:
 		end_reason_explanation,
 		result_explanation
 	)
+	_play_result_reveal_once()
 
 
 func _apply_summary_sections(
@@ -338,6 +341,27 @@ func _play_new_record_celebration_once() -> void:
 	var celebration_vfx: GameCelebrationVfxUtility = _get_celebration_vfx_utility()
 	if is_instance_valid(celebration_vfx):
 		var _played: bool = celebration_vfx.play_new_record_celebration()
+
+
+func _play_result_reveal_once() -> void:
+	if _has_revealed_result:
+		return
+	_has_revealed_result = true
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if not is_instance_valid(motion):
+		return
+	var result_controls: Array[Control] = [
+		_title_label,
+		_new_record_label,
+		_context_label,
+		_run_summary_label,
+		_summary_separator,
+		_summary_label,
+		_identity_label,
+	]
+	var _revealed_count: int = motion.play_reward_result_controls(
+		result_controls
+	)
 
 
 func _drain_celebration() -> void:

@@ -25,6 +25,7 @@ var _signal_utility: GFSignalUtility = null
 var _theme_utility: GameThemeUtility = null
 var _viewport_utility: GFViewportUtility = null
 var _cards_by_key: Dictionary = {}
+var _entries_by_key: Dictionary = {}
 var _selected_composition_key: String = ""
 var _layout_update_queued: bool = false
 var _has_revealed_catalog: bool = false
@@ -90,7 +91,7 @@ func _update_ui_text() -> void:
 	_search_input.placeholder_text = tr("TILE_CATALOG_SEARCH_PLACEHOLDER")
 	_empty_label.text = tr("TILE_CATALOG_EMPTY")
 	_setup_state_filter()
-	_rebuild_catalog()
+	_rebuild_catalog(true)
 
 
 # --- 私有/辅助方法 ---
@@ -192,59 +193,56 @@ func _setup_state_filter() -> void:
 	_state_filter.select(clampi(selected_index, 0, _state_filter.item_count - 1))
 
 
-func _rebuild_catalog() -> void:
+func _rebuild_catalog(force_reconfigure: bool = false) -> void:
 	if not is_node_ready():
 		return
-	_clear_catalog_cards()
 	if not is_instance_valid(_discovery_system):
+		_clear_catalog_cards()
 		_empty_label.visible = true
 		_clear_detail()
 		return
 
 	var entries: Array[Dictionary] = _discovery_system.get_catalog_entries()
+	var focused_key: String = _get_focused_card_key()
+	var restore_catalog_focus: bool = not focused_key.is_empty()
+	var expected_keys: Dictionary = {}
 	var ui_motion: GameUiMotionUtility = _get_ui_motion_utility()
 	var visible_count: int = 0
 	var first_visible_entry: Dictionary = {}
+	var child_index: int = 0
 	for entry: Dictionary in entries:
-		if not _entry_matches_filters(entry):
+		var composition_key: String = _get_entry_identity_key(entry)
+		if composition_key.is_empty():
 			continue
-		var card_node: Node = TILE_CATALOG_CARD_SCENE.instantiate()
-		if not card_node is TileCatalogCard:
-			card_node.queue_free()
+		expected_keys[composition_key] = true
+		var card: TileCatalogCard = _get_or_create_catalog_card(
+			composition_key,
+			ui_motion
+		)
+		if not is_instance_valid(card):
 			continue
-		var card: TileCatalogCard = card_node
-		_catalog_grid.add_child(card)
-		var colors: Array[Color] = _resolve_tile_colors(entry)
-		var family_id: StringName = GFVariantData.get_option_string_name(
-			entry,
-			&"visual_family_id"
+		if card.get_index() != child_index:
+			_catalog_grid.move_child(card, child_index)
+		child_index += 1
+		var entry_changed: bool = (
+			not _entries_by_key.has(composition_key)
+			or _entries_by_key[composition_key] != entry
 		)
-		var visual_style: TileVisualFamilyStyle = (
-			_theme_utility.resolve_tile_visual_style(family_id)
-			if is_instance_valid(_theme_utility)
-			else null
-		)
-		card.configure(entry, colors[0], colors[1], visual_style)
-		if is_instance_valid(_theme_utility):
-			var _theme_apply_count: int = _theme_utility.apply_current_theme_to_tree(card)
-		if is_instance_valid(ui_motion):
-			var _bound_count: int = ui_motion.bind_interactive_controls(card)
-		var _card_connection: GFSignalConnection = _signal_utility.connect_signal(
-			card.entry_selected,
-			_on_entry_selected,
-			self
-		)
-		var composition_key: String = GFVariantData.get_option_string(
-			entry,
-			&"composition_key"
-		)
-		_cards_by_key[composition_key] = card
+		if force_reconfigure or entry_changed:
+			_configure_catalog_card(card, entry)
+			_entries_by_key[composition_key] = entry.duplicate(true)
+		var matches_filters: bool = _entry_matches_filters(entry)
+		card.visible = matches_filters
+		if not matches_filters:
+			continue
 		visible_count += 1
 		if first_visible_entry.is_empty():
 			first_visible_entry = entry
 
+	_remove_obsolete_catalog_cards(expected_keys)
 	_empty_label.visible = visible_count == 0
 	_update_progress(entries)
+	_apply_catalog_focus_order()
 	if visible_count == 0:
 		_clear_detail()
 		return
@@ -260,13 +258,100 @@ func _rebuild_catalog() -> void:
 			0.0,
 			0.14
 		)
-	_select_entry(selected_entry)
+	_select_entry(selected_entry, false)
+	if restore_catalog_focus:
+		call_deferred(&"_restore_catalog_focus", focused_key)
+
+
+func _get_or_create_catalog_card(
+	composition_key: String,
+	ui_motion: GameUiMotionUtility
+) -> TileCatalogCard:
+	var cached_value: Variant = _cards_by_key.get(composition_key)
+	if cached_value is TileCatalogCard:
+		var cached_card: TileCatalogCard = cached_value
+		if is_instance_valid(cached_card):
+			return cached_card
+	var card_node: Node = TILE_CATALOG_CARD_SCENE.instantiate()
+	if not card_node is TileCatalogCard:
+		card_node.queue_free()
+		return null
+	var card: TileCatalogCard = card_node
+	_catalog_grid.add_child(card)
+	_cards_by_key[composition_key] = card
+	if is_instance_valid(_theme_utility):
+		var _theme_apply_count: int = (
+			_theme_utility.apply_current_theme_to_tree(card)
+		)
+	if is_instance_valid(ui_motion):
+		var _bound_count: int = ui_motion.bind_interactive_controls(card)
+	if is_instance_valid(_signal_utility):
+		var _selected_gf_connection: GFSignalConnection = _signal_utility.connect_signal(
+			card.entry_selected,
+			_on_entry_selected,
+			self
+		)
+		var _focused_gf_connection: GFSignalConnection = _signal_utility.connect_signal(
+			card.entry_focused,
+			_on_entry_focused,
+			self
+		)
+	else:
+		var _selected_native_connection: int = card.entry_selected.connect(
+			_on_entry_selected
+		)
+		var _focused_native_connection: int = card.entry_focused.connect(
+			_on_entry_focused
+		)
+	return card
+
+
+func _configure_catalog_card(
+	card: TileCatalogCard,
+	entry: Dictionary
+) -> void:
+	var colors: Array[Color] = _resolve_tile_colors(entry)
+	var family_id: StringName = GFVariantData.get_option_string_name(
+		entry,
+		&"visual_family_id"
+	)
+	var visual_style: TileVisualFamilyStyle = (
+		_theme_utility.resolve_tile_visual_style(family_id)
+		if is_instance_valid(_theme_utility)
+		else null
+	)
+	card.configure(entry, colors[0], colors[1], visual_style)
 
 
 func _clear_catalog_cards() -> void:
 	_cards_by_key.clear()
+	_entries_by_key.clear()
 	for child: Node in _catalog_grid.get_children():
 		child.queue_free()
+
+
+func _remove_obsolete_catalog_cards(expected_keys: Dictionary) -> void:
+	for key_value: Variant in _cards_by_key.keys():
+		var composition_key: String = GFVariantData.to_text(key_value)
+		if expected_keys.has(composition_key):
+			continue
+		var card_value: Variant = _cards_by_key.get(composition_key)
+		if card_value is TileCatalogCard:
+			var card: TileCatalogCard = card_value
+			if is_instance_valid(card):
+				if card.get_parent() == _catalog_grid:
+					_catalog_grid.remove_child(card)
+				card.queue_free()
+		var _cached_card_erased: bool = _cards_by_key.erase(
+			composition_key
+		)
+		var _cached_entry_erased: bool = _entries_by_key.erase(
+			composition_key
+		)
+
+
+func _get_entry_identity_key(entry: Dictionary) -> String:
+	return GFVariantData.get_option_string(entry, &"composition_key")
 
 
 func _entry_matches_filters(entry: Dictionary) -> bool:
@@ -295,20 +380,92 @@ func _entry_matches_filters(entry: Dictionary) -> bool:
 	return " ".join(searchable).to_lower().contains(query)
 
 
-func _select_entry(entry: Dictionary) -> void:
-	_selected_composition_key = GFVariantData.get_option_string(
-		entry,
-		&"composition_key"
-	)
-	for key_value: Variant in _cards_by_key.keys():
-		var card_value: Variant = _cards_by_key[key_value]
-		if card_value is TileCatalogCard:
-			var card: TileCatalogCard = card_value
-			card.set_selected(GFVariantData.to_text(key_value) == _selected_composition_key)
+func _select_entry(entry: Dictionary, animate_detail: bool = true) -> void:
+	var next_key: String = _get_entry_identity_key(entry)
+	if next_key.is_empty():
+		_clear_detail()
+		return
+	var previous_key: String = _selected_composition_key
+	_selected_composition_key = next_key
+	_set_catalog_card_selected(previous_key, false)
+	_set_catalog_card_selected(_selected_composition_key, true)
 	_update_detail(entry)
-	var motion: GameUiMotionUtility = _get_ui_motion_utility()
-	if is_instance_valid(motion):
-		var _detail_tween: Tween = motion.play_content_switch(_detail_pane)
+	if animate_detail and previous_key != _selected_composition_key:
+		var motion: GameUiMotionUtility = _get_ui_motion_utility()
+		if is_instance_valid(motion):
+			var _detail_tween: Tween = motion.play_content_switch(
+				_detail_pane
+			)
+
+
+func _set_catalog_card_selected(
+	composition_key: String,
+	selected: bool
+) -> void:
+	if composition_key.is_empty():
+		return
+	var card_value: Variant = _cards_by_key.get(composition_key)
+	if card_value is TileCatalogCard:
+		var card: TileCatalogCard = card_value
+		if is_instance_valid(card):
+			card.set_selected(selected)
+
+
+func _get_focused_card_key() -> String:
+	var focus_owner: Control = get_viewport().gui_get_focus_owner()
+	if not focus_owner is TileCatalogCard:
+		return ""
+	var card: TileCatalogCard = focus_owner
+	if not _catalog_grid.is_ancestor_of(card):
+		return ""
+	return _get_entry_identity_key(card.get_entry())
+
+
+func _restore_catalog_focus(preferred_key: String) -> void:
+	if not is_inside_tree():
+		return
+	var key: String = preferred_key
+	var card_value: Variant = _cards_by_key.get(key)
+	var preferred_card_available: bool = false
+	if card_value is TileCatalogCard:
+		var preferred_card: TileCatalogCard = card_value
+		preferred_card_available = (
+			is_instance_valid(preferred_card)
+			and preferred_card.visible
+		)
+	if not preferred_card_available:
+		key = _selected_composition_key
+		card_value = _cards_by_key.get(key)
+	if card_value is TileCatalogCard:
+		var card: TileCatalogCard = card_value
+		if is_instance_valid(card) and card.visible and not card.disabled:
+			card.grab_focus()
+
+
+func _apply_catalog_focus_order() -> void:
+	var focus_order: Array[Control] = [
+		_search_input,
+		_state_filter,
+	]
+	for child: Node in _catalog_grid.get_children():
+		if child is TileCatalogCard:
+			var card: TileCatalogCard = child
+			if card.visible and not card.disabled:
+				focus_order.append(card)
+	focus_order.append(_back_button)
+	var focus_report: Dictionary = GFControlFocusUtility.apply_focus_order(
+		focus_order,
+		{
+			"axis": GFControlFocusUtility.AXIS_NONE,
+			"wrap": true,
+			"wire_tab_order": true,
+		}
+	)
+	if not GFVariantData.get_option_bool(focus_report, "ok", false):
+		push_error(
+			"[TileCatalogDialog] GF 图鉴焦点顺序应用失败：%s"
+			% str(focus_report.get("issues", []))
+		)
 
 
 func _update_detail(entry: Dictionary) -> void:
@@ -354,6 +511,7 @@ func _update_detail(entry: Dictionary) -> void:
 
 
 func _clear_detail() -> void:
+	_set_catalog_card_selected(_selected_composition_key, false)
 	_selected_composition_key = ""
 	_detail_title.text = tr("TILE_CATALOG_DETAIL_EMPTY")
 	_detail_state.text = ""
@@ -474,9 +632,13 @@ func _on_entry_selected(entry: Dictionary) -> void:
 	_select_entry(entry)
 
 
+func _on_entry_focused(entry: Dictionary) -> void:
+	_select_entry(entry)
+
+
 func _on_tile_discovery_changed(_composition_key: String) -> void:
 	_rebuild_catalog()
 
 
 func _on_visual_theme_changed(_theme: GameTheme) -> void:
-	_rebuild_catalog()
+	_rebuild_catalog(true)

@@ -162,28 +162,39 @@ grow_horizontal = 0
 mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="NotificationPanel" type="PanelContainer" parent="SafeArea/FeedbackRail"]
+[node name="NotificationSlot" type="Control" parent="SafeArea/FeedbackRail"]
 unique_name_in_owner = true
 visible = false
-custom_minimum_size = Vector2(0, 52)
+custom_minimum_size = Vector2(0, 68)
 layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+
+[node name="NotificationPanel" type="PanelContainer" parent="SafeArea/FeedbackRail/NotificationSlot"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 68.0
+grow_horizontal = 2
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_notification_panel")
 
-[node name="Margin" type="MarginContainer" parent="SafeArea/FeedbackRail/NotificationPanel"]
+[node name="Margin" type="MarginContainer" parent="SafeArea/FeedbackRail/NotificationSlot/NotificationPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 12
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 8
 
-[node name="NotificationLabel" type="RichTextLabel" parent="SafeArea/FeedbackRail/NotificationPanel/Margin"]
+[node name="NotificationLabel" type="RichTextLabel" parent="SafeArea/FeedbackRail/NotificationSlot/NotificationPanel/Margin"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 mouse_filter = 2
 bbcode_enabled = false
-fit_content = true
+fit_content = false
 scroll_active = false
 autowrap_mode = 3
 theme_override_colors/default_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
@@ -257,6 +268,7 @@ unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(0, 68)
 layout_mode = 2
+size_flags_vertical = 0
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
 

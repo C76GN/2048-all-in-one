@@ -133,8 +133,10 @@ func play_turn_feedback(
 	var budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(state)
 	var direction_vector: Vector2 = Vector2(direction).normalized()
 	_play_root_impulse(root, direction_vector, recipe, budget)
-	_play_background_impulse(background, direction_vector, recipe, budget)
-	_play_turn_shake(recipe, direction, state, budget)
+	var uses_emphasis_channels: bool = tier != FeedbackTier.MOVE
+	if uses_emphasis_channels:
+		_play_background_impulse(background, direction_vector, recipe, budget)
+	_play_turn_shake(recipe, direction, state, budget, tier)
 	_play_turn_haptic(recipe, direction, state)
 	var fragment_count: int = mini(
 		roundi(float(recipe.edge_fragment_count) * budget.particle_scale),
@@ -144,25 +146,26 @@ func play_turn_feedback(
 		recipe.get_color(state.high_contrast_feedback),
 		0.48
 	)
-	var canvas_fragment_count: int = 0 if is_instance_valid(backdrop) else fragment_count
-	var _canvas_feedback_count: int = canvas.play_turn_impact(
-		board_rect,
-		direction_vector,
-		int(tier),
-		canvas_fragment_count,
-		resolved_color,
-		recipe.background_duration * budget.duration_scale,
-		budget.motion_scale
-	)
-	if is_instance_valid(backdrop):
-		backdrop.play_turn_impulse(
+	if uses_emphasis_channels:
+		var canvas_fragment_count: int = 0 if is_instance_valid(backdrop) else fragment_count
+		var _canvas_feedback_count: int = canvas.play_turn_impact(
+			board_rect,
 			direction_vector,
 			int(tier),
-			recipe.background_duration * budget.duration_scale,
-			budget.motion_scale,
+			canvas_fragment_count,
 			resolved_color,
-			fragment_count
+			recipe.background_duration * budget.duration_scale,
+			budget.motion_scale
 		)
+		if is_instance_valid(backdrop):
+			backdrop.play_turn_impulse(
+				direction_vector,
+				int(tier),
+				recipe.background_duration * budget.duration_scale,
+				budget.motion_scale,
+				resolved_color,
+				fragment_count
+			)
 	return fragment_count
 
 
@@ -395,11 +398,16 @@ func _play_turn_shake(
 	recipe: GameFeedbackRecipe,
 	direction: Vector2i,
 	state: GameAccessibilityState,
-	budget: GameFeedbackBudget
+	budget: GameFeedbackBudget,
+	tier: FeedbackTier
 ) -> void:
+	var shake: GFShakeUtility = _get_cached_shake_utility()
+	if tier == FeedbackTier.MOVE:
+		if is_instance_valid(shake):
+			var _stopped_count: int = shake.stop_channel(_SHAKE_CHANNEL)
+		return
 	if state.reduced_motion or budget.motion_scale <= 0.0:
 		return
-	var shake: GFShakeUtility = _get_cached_shake_utility()
 	if not is_instance_valid(shake) or recipe.shake_preset == null:
 		return
 	var _shake_id: int = shake.play_shake(

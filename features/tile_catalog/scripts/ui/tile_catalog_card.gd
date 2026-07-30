@@ -7,6 +7,9 @@ extends Button
 
 signal entry_selected(entry: Dictionary)
 
+## 当键盘或手柄焦点进入卡片时发出，供外层同步详情。
+signal entry_focused(entry: Dictionary)
+
 
 # --- 私有变量 ---
 
@@ -28,6 +31,7 @@ var _visual_style: TileVisualFamilyStyle
 
 func _ready() -> void:
 	var _pressed_connection: int = pressed.connect(_on_pressed)
+	var _focus_connection: int = focus_entered.connect(_on_focus_entered)
 	var _resized_connection: int = _preview_holder.resized.connect(_center_preview)
 	_center_preview()
 	_apply_entry()
@@ -127,3 +131,7 @@ func _to_string_name_array(values: Array) -> Array[StringName]:
 
 func _on_pressed() -> void:
 	entry_selected.emit(get_entry())
+
+
+func _on_focus_entered() -> void:
+	entry_focused.emit(get_entry())

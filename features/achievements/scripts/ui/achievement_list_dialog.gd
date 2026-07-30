@@ -16,6 +16,7 @@ var _signal_utility: GFSignalUtility = null
 var _viewport_utility: GFViewportUtility = null
 var _layout_update_queued: bool = false
 var _has_revealed_achievement_list: bool = false
+var _cards_by_id: Dictionary = {}
 
 
 # --- @onready 变量 (节点引用) ---
@@ -73,6 +74,10 @@ func _apply_semantic_styles() -> void:
 	style.style_label(_summary_label, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_label(_empty_label, GameUiStyleUtility.TextRole.MUTED)
 	style.style_button(_back_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	for value: Variant in _cards_by_id.values():
+		if value is AchievementCard and is_instance_valid(value):
+			var card: AchievementCard = value
+			card.apply_semantic_styles(style)
 
 
 func _update_ui_text() -> void:
@@ -140,27 +145,38 @@ func _setup_state_filter() -> void:
 
 
 func _rebuild_list() -> void:
-	for child: Node in _list.get_children():
-		child.queue_free()
 	if not is_instance_valid(_achievement_system):
+		_clear_cached_cards()
 		_empty_label.visible = true
 		_summary_label.text = tr("ACHIEVEMENTS_PROGRESS") % [0, 0]
 		return
 
 	var entries: Array[Dictionary] = _achievement_system.get_entries()
 	var visible_count: int = 0
+	var desired_ids: Dictionary = {}
+	var created_cards: Array[Control] = []
+	var ordered_index: int = 0
 	for entry: Dictionary in entries:
-		if not _matches_filters(entry):
+		var achievement_id: StringName = GFVariantData.get_option_string_name(
+			entry,
+			&"achievement_id"
+		)
+		if achievement_id == &"":
 			continue
-		var card_node: Node = ACHIEVEMENT_CARD_SCENE.instantiate()
-		if not card_node is AchievementCard:
-			card_node.queue_free()
-			continue
-		var card: AchievementCard = card_node
-		_list.add_child(card)
+		desired_ids[achievement_id] = true
+		var card: AchievementCard = _get_cached_card(achievement_id)
+		if not is_instance_valid(card):
+			card = _create_card(achievement_id)
+			if not is_instance_valid(card):
+				continue
+			created_cards.append(card)
+		_list.move_child(card, mini(ordered_index, _list.get_child_count() - 1))
+		ordered_index += 1
 		card.configure(entry)
-		card.apply_semantic_styles(_get_ui_style_utility())
-		visible_count += 1
+		card.visible = _matches_filters(entry)
+		if card.visible:
+			visible_count += 1
+	_remove_stale_cards(desired_ids)
 	_empty_label.visible = visible_count == 0
 	var summary: Dictionary = _achievement_system.get_summary()
 	_summary_label.text = tr("ACHIEVEMENTS_PROGRESS") % [
@@ -179,6 +195,54 @@ func _rebuild_list() -> void:
 				0.0,
 				0.14
 			)
+		else:
+			for index: int in range(created_cards.size()):
+				var card: Control = created_cards[index]
+				if not card.visible:
+					continue
+				var _reveal_tween: Tween = motion.play_control_reveal(
+					card,
+					Vector2(8.0, 0.0),
+					0.14,
+					minf(float(index) * 0.020, 0.12)
+				)
+
+
+func _get_cached_card(achievement_id: StringName) -> AchievementCard:
+	var value: Variant = _cards_by_id.get(achievement_id)
+	return value if value is AchievementCard and is_instance_valid(value) else null
+
+
+func _create_card(achievement_id: StringName) -> AchievementCard:
+	var card_node: Node = ACHIEVEMENT_CARD_SCENE.instantiate()
+	if not card_node is AchievementCard:
+		card_node.queue_free()
+		return null
+	var card: AchievementCard = card_node
+	card.set_meta(&"achievement_id", achievement_id)
+	_list.add_child(card)
+	card.apply_semantic_styles(_get_ui_style_utility())
+	_cards_by_id[achievement_id] = card
+	return card
+
+
+func _remove_stale_cards(desired_ids: Dictionary) -> void:
+	for id_value: Variant in _cards_by_id.keys():
+		var achievement_id: StringName = StringName(GFVariantData.to_text(id_value))
+		if desired_ids.has(achievement_id):
+			continue
+		var card: AchievementCard = _get_cached_card(achievement_id)
+		if is_instance_valid(card):
+			card.queue_free()
+		var _erased: bool = _cards_by_id.erase(achievement_id)
+
+
+func _clear_cached_cards() -> void:
+	for value: Variant in _cards_by_id.values():
+		if value is AchievementCard and is_instance_valid(value):
+			var card: AchievementCard = value
+			card.queue_free()
+	_cards_by_id.clear()
 
 
 func _matches_filters(entry: Dictionary) -> bool:

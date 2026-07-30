@@ -791,11 +791,14 @@ func _transaction_apply_visual_theme(_context: Dictionary, theme: GameTheme) -> 
 		return true
 	if (
 		not is_instance_valid(_style)
+		or not is_instance_valid(_motion)
 		or not is_instance_valid(_board_feedback)
 		or not is_instance_valid(_celebration_vfx)
 	):
 		return false
 	_style.apply_palette(theme.ui_palette)
+	if not _motion.apply_profile(theme.ui_motion_profile):
+		return false
 	if not _board_feedback.apply_profile(theme.board_feedback_profile):
 		return false
 	return _celebration_vfx.apply_theme(theme.celebration_vfx_theme)

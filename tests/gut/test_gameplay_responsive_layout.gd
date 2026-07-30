@@ -216,14 +216,17 @@ func test_hud_exposes_stable_summary_and_collapsible_details() -> void:
 		"SafeArea/ActionPanel/Margin/Buttons/PauseButton"
 	)
 	var feedback_rail: Node = hud_root.get_node_or_null("SafeArea/FeedbackRail")
+	var notification_slot: Node = hud_root.get_node_or_null(
+		"SafeArea/FeedbackRail/NotificationSlot"
+	)
 	var notification_panel: Node = hud_root.get_node_or_null(
-		"SafeArea/FeedbackRail/NotificationPanel"
+		"SafeArea/FeedbackRail/NotificationSlot/NotificationPanel"
 	)
 	var subtitle_panel: Node = hud_root.get_node_or_null(
 		"SafeArea/FeedbackRail/AccessibilitySubtitlePanel"
 	)
 	var notification_label: Node = hud_root.get_node_or_null(
-		"SafeArea/FeedbackRail/NotificationPanel/Margin/NotificationLabel"
+		"SafeArea/FeedbackRail/NotificationSlot/NotificationPanel/Margin/NotificationLabel"
 	)
 
 	assert_not_null(summary_bar, "HUD 必须提供稳定的移动端摘要栏。")
@@ -235,6 +238,10 @@ func test_hud_exposes_stable_summary_and_collapsible_details() -> void:
 	assert_not_null(move_up_button, "HUD 应为鼠标和触屏提供完整方向操作。")
 	assert_not_null(pause_button, "HUD 应为鼠标和触屏提供非移动玩法操作。")
 	assert_true(feedback_rail is VBoxContainer, "瞬时玩法消息必须共用屏幕边缘反馈轨。")
+	assert_true(
+		notification_slot is Control and not notification_slot is Container,
+		"通知动效表面必须位于固定高度的非 Container 布局槽中。"
+	)
 	assert_true(notification_panel is PanelContainer, "GF 通知必须拥有高对比承载表面。")
 	assert_true(
 		subtitle_panel is PanelContainer and subtitle_panel.get_parent() == feedback_rail,
@@ -243,6 +250,15 @@ func test_hud_exposes_stable_summary_and_collapsible_details() -> void:
 	if notification_panel is PanelContainer and notification_label is RichTextLabel:
 		var typed_notification_panel: PanelContainer = notification_panel
 		var typed_notification_label: RichTextLabel = notification_label
+		assert_false(
+			typed_notification_label.fit_content,
+			"固定反馈轨中的通知正文不得用 fit_content 反向撑高 68px 表面。"
+		)
+		assert_true(
+			is_zero_approx(typed_notification_panel.anchor_bottom)
+			and typed_notification_panel.offset_bottom <= 68.0,
+			"通知表面必须保持有界高度，不能填满整条反馈轨。"
+		)
 		var notification_surface: StyleBox = typed_notification_panel.get_theme_stylebox(
 			"panel"
 		)

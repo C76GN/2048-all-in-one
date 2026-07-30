@@ -27,6 +27,7 @@ const _REQUIRED_EXCLUDE_ROOT_FILTERS: Array[String] = [
 	"features/asset_library/resources/review",
 	"features/asset_library/tools",
 	"features/platform_runtime/tools",
+	"features/themes/tools",
 	"tests",
 	"addons/gut",
 	"addons/gf/tools",

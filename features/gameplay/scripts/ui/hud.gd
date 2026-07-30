@@ -38,6 +38,11 @@ const _NOTIFICATION_INFO_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941,
 const _NOTIFICATION_SUCCESS_COLOR: Color = Color(0.49411765, 0.79607844, 0.827451, 1.0)
 const _NOTIFICATION_WARNING_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
 const _NOTIFICATION_ERROR_COLOR: Color = Color(0.827451, 0.38431373, 0.29411766, 1.0)
+const _NOTIFICATION_OFFSET_SCALE_LOW: float = 0.75
+const _NOTIFICATION_OFFSET_SCALE_NORMAL: float = 1.0
+const _NOTIFICATION_OFFSET_SCALE_HIGH: float = 1.25
+const _NOTIFICATION_OFFSET_SCALE_CRITICAL: float = 1.5
+const _NOTIFICATION_SURFACE_HEIGHT: float = 68.0
 const _ACTION_ICON_ASSET_KEYS: Dictionary = {
 	"%PauseButton": &"asset.texture.icon.pause",
 	"%UndoButton": &"asset.texture.icon.undo_2",
@@ -71,6 +76,7 @@ var _moves_caption_label: Label
 var _highest_tile_caption_label: Label
 var _notification_label: RichTextLabel
 var _notification_panel: PanelContainer
+var _notification_slot: Control
 var _feedback_rail: VBoxContainer
 var _details_panel: Control
 var _details_toggle_button: Button
@@ -104,6 +110,9 @@ var _score_feedback_delay_active: bool = false
 var _score_feedback_pending: bool = false
 var _pending_score_feedback_old: int = 0
 var _pending_score_feedback_new: int = 0
+var _notification_motion_tween: Tween
+var _notification_rest_position: Vector2 = Vector2.ZERO
+var _notification_rest_position_valid: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -141,6 +150,7 @@ func _ready() -> void:
 	_highest_tile_caption_label = _get_label_node("%HighestTileCaptionLabel")
 	_notification_label = _get_rich_text_label_node("%NotificationLabel")
 	_notification_panel = _get_panel_container_node("%NotificationPanel")
+	_notification_slot = _get_control_node("%NotificationSlot")
 	_feedback_rail = _get_vbox_container_node("%FeedbackRail")
 	_details_panel = _get_control_node("%DetailsPanel")
 	_details_toggle_button = _get_button_node("%DetailsToggleButton")
@@ -198,6 +208,7 @@ func _exit_tree() -> void:
 	_score_feedback_delay_active = false
 	_score_feedback_pending = false
 	_accessibility_subtitle_serial += 1
+	_kill_notification_motion(true)
 	_hide_accessibility_subtitle()
 	_cancel_hint_query(&"hud_exited")
 	_hide_hint_result()
@@ -577,10 +588,12 @@ func _apply_feedback_rail_layout() -> void:
 		_feedback_rail.offset_top = -268.0
 		_feedback_rail.offset_right = rail_width * 0.5
 		_feedback_rail.offset_bottom = -116.0
+		if is_instance_valid(_notification_slot) and _notification_slot.visible:
+			_reset_notification_surface_layout()
 		return
 
-	var landscape_rail_width: float = 244.0 if _is_compact_mode else 320.0
-	var rail_top: float = 84.0 if _is_compact_mode else 106.0
+	var landscape_rail_width: float = 220.0 if _is_compact_mode else 280.0
+	var rail_top: float = 106.0
 	_feedback_rail.anchor_left = 1.0
 	_feedback_rail.anchor_top = 0.0
 	_feedback_rail.anchor_right = 1.0
@@ -588,10 +601,15 @@ func _apply_feedback_rail_layout() -> void:
 	_feedback_rail.offset_left = -landscape_rail_width - 18.0
 	_feedback_rail.offset_top = rail_top
 	_feedback_rail.offset_right = -18.0
-	_feedback_rail.offset_bottom = rail_top + 180.0
+	_feedback_rail.offset_bottom = rail_top + 144.0
+	if is_instance_valid(_notification_slot) and _notification_slot.visible:
+		_reset_notification_surface_layout()
 
 
-func _apply_notification_level(level: int) -> void:
+func _apply_notification_level(
+	level: int,
+	priority: int = GFNotificationUtility.Priority.NORMAL
+) -> void:
 	if not is_instance_valid(_notification_panel):
 		return
 	var border_color: Color = _NOTIFICATION_INFO_COLOR
@@ -610,6 +628,15 @@ func _apply_notification_level(level: int) -> void:
 		return
 	var level_style: StyleBoxFlat = duplicated_stylebox
 	level_style.border_color = border_color
+	var border_width: int = 2
+	if priority >= GFNotificationUtility.Priority.CRITICAL:
+		border_width = 4
+	elif priority >= GFNotificationUtility.Priority.HIGH:
+		border_width = 3
+	level_style.border_width_left = border_width
+	level_style.border_width_top = border_width
+	level_style.border_width_right = border_width
+	level_style.border_width_bottom = border_width
 	_notification_panel.add_theme_stylebox_override("panel", level_style)
 
 
@@ -660,18 +687,169 @@ func _pulse_control(control: Control) -> void:
 	)
 
 
-func _pulse_notification_surface() -> void:
-	var target: Control = _notification_label
-	if is_instance_valid(_notification_panel):
-		target = _notification_panel
-	if not is_instance_valid(target) or not is_instance_valid(_ui_motion_utility):
+func _play_notification_entry(priority: int) -> void:
+	var target: Control = _get_notification_motion_target()
+	if not is_instance_valid(target):
 		return
-	var _feedback_tween: Tween = _ui_motion_utility.play_control_pulse(
+	_kill_notification_motion(true)
+	_reset_notification_surface_layout()
+	_notification_rest_position = target.position
+	_notification_rest_position_valid = true
+	target.visible = true
+	if not is_instance_valid(_ui_motion_utility):
+		target.position = _notification_rest_position
+		target.modulate = Color.WHITE
+		return
+
+	var enter_offset: Vector2 = _get_notification_enter_offset(priority)
+	var tween: Tween = _ui_motion_utility.play_toast_entry(
 		target,
-		1.015,
-		Color.WHITE,
-		0.16
+		_notification_rest_position,
+		enter_offset
 	)
+	if tween == null:
+		return
+	var _finished_connection: int = tween.finished.connect(
+		_on_notification_entry_finished.bind(tween),
+		CONNECT_ONE_SHOT
+	)
+	_notification_motion_tween = tween
+
+
+func _play_notification_exit(notification_id: int) -> void:
+	var target: Control = _get_notification_motion_target()
+	if not is_instance_valid(target):
+		_hide_notification_immediately()
+		return
+	_kill_notification_motion(true)
+	if not is_instance_valid(_ui_motion_utility):
+		_finish_notification_exit(notification_id)
+		return
+
+	_notification_rest_position = target.position
+	_notification_rest_position_valid = true
+	var tween: Tween = _ui_motion_utility.play_toast_exit(
+		target,
+		_notification_rest_position
+	)
+	if tween == null:
+		_finish_notification_exit(notification_id)
+		return
+	var _finished_connection: int = tween.finished.connect(
+		_finish_notification_exit.bind(notification_id),
+		CONNECT_ONE_SHOT
+	)
+	_notification_motion_tween = tween
+
+
+func _on_notification_entry_finished(completed_tween: Tween) -> void:
+	if _notification_motion_tween == completed_tween:
+		_notification_motion_tween = null
+
+
+func _finish_notification_exit(notification_id: int) -> void:
+	if notification_id != _active_notification_id:
+		return
+	_hide_notification_immediately()
+
+
+func _hide_notification_immediately() -> void:
+	_kill_notification_motion(true)
+	_active_notification_id = 0
+	if is_instance_valid(_notification_label):
+		_notification_label.text = ""
+		_notification_label.visible = false
+	_set_notification_surface_visible(false)
+	var target: Control = _get_notification_motion_target()
+	if is_instance_valid(target):
+		target.modulate = Color.WHITE
+	_notification_rest_position_valid = false
+
+
+func _kill_notification_motion(restore_target: bool) -> void:
+	var target: Control = _get_notification_motion_target()
+	if is_instance_valid(target) and is_instance_valid(_ui_motion_utility):
+		_ui_motion_utility.complete_control_motion(target)
+	elif (
+		is_instance_valid(target)
+		and restore_target
+		and _notification_rest_position_valid
+	):
+		target.position = _notification_rest_position
+		target.modulate = Color.WHITE
+	_notification_motion_tween = null
+	if (
+		not restore_target
+		or not _notification_rest_position_valid
+		or not is_instance_valid(target)
+	):
+		return
+	target.position = _notification_rest_position
+	target.modulate = Color.WHITE
+
+
+func _get_notification_motion_target() -> Control:
+	if is_instance_valid(_notification_panel):
+		return _notification_panel
+	return _notification_label
+
+
+func _set_notification_surface_visible(visible: bool) -> void:
+	if is_instance_valid(_notification_slot):
+		_notification_slot.visible = visible
+	if is_instance_valid(_notification_panel):
+		_notification_panel.visible = visible
+		if visible:
+			_reset_notification_surface_layout()
+	elif is_instance_valid(_notification_label):
+		_notification_label.visible = visible
+
+
+func _reset_notification_surface_layout() -> void:
+	if (
+		not is_instance_valid(_notification_panel)
+		or _notification_panel.get_parent() != _notification_slot
+	):
+		return
+	# 隐藏的 Container 子项不会参与排序，首次显示时可能仍保留编辑器旧尺寸。
+	# 改为显式 top-left 视觉根；后续 position Tween 不再与 anchors/Container 排序竞争。
+	var surface_width: float = maxf(
+		_notification_slot.size.x,
+		_feedback_rail.size.x if is_instance_valid(_feedback_rail) else 0.0
+	)
+	_notification_panel.anchor_left = 0.0
+	_notification_panel.anchor_top = 0.0
+	_notification_panel.anchor_right = 0.0
+	_notification_panel.anchor_bottom = 0.0
+	_notification_panel.position = Vector2.ZERO
+	_notification_panel.size = Vector2(
+		maxf(surface_width, _notification_panel.get_combined_minimum_size().x),
+		_NOTIFICATION_SURFACE_HEIGHT
+	)
+
+
+func _uses_reduced_motion() -> bool:
+	return (
+		is_instance_valid(_accessibility_utility)
+		and _accessibility_utility.get_state().reduced_motion
+	)
+
+
+func _get_notification_motion_profile() -> GameUiMotionProfile:
+	if is_instance_valid(_ui_motion_utility):
+		return _ui_motion_utility.get_profile()
+	return GameUiMotionProfile.new()
+
+
+func _get_notification_enter_offset(priority: int) -> Vector2:
+	var scale_factor: float = _NOTIFICATION_OFFSET_SCALE_NORMAL
+	if priority >= GFNotificationUtility.Priority.CRITICAL:
+		scale_factor = _NOTIFICATION_OFFSET_SCALE_CRITICAL
+	elif priority >= GFNotificationUtility.Priority.HIGH:
+		scale_factor = _NOTIFICATION_OFFSET_SCALE_HIGH
+	elif priority <= GFNotificationUtility.Priority.LOW:
+		scale_factor = _NOTIFICATION_OFFSET_SCALE_LOW
+	return _get_notification_motion_profile().toast_enter_offset * scale_factor
 
 
 func _get_stat_label_node(key: Variant) -> Control:
@@ -1084,6 +1262,7 @@ func _show_hint_unavailable() -> void:
 		{
 			"duration_seconds": 1.8,
 			"key": "gameplay.hint_unavailable",
+			"priority": GFNotificationUtility.Priority.LOW,
 			"metadata": {"surface": "gameplay_hud"},
 		}
 	)
@@ -1135,7 +1314,6 @@ func _show_accessibility_summary(summary: GameAccessibilitySummary) -> void:
 	var current_serial: int = _accessibility_subtitle_serial
 	_accessibility_subtitle_label.text = summary.subtitle_text
 	_accessibility_subtitle_panel.visible = true
-	_pulse_control(_accessibility_subtitle_panel)
 	var _deferred_hide: Variant = call_deferred(
 		&"_hide_accessibility_subtitle_after_delay",
 		current_serial
@@ -1187,6 +1365,11 @@ func _notify_board_summary_copy_result(copied: bool) -> void:
 		{
 			&"duration_seconds": 1.8,
 			&"key": "accessibility.board_summary_copy",
+			&"priority": (
+				GFNotificationUtility.Priority.LOW
+				if copied
+				else GFNotificationUtility.Priority.HIGH
+			),
 			&"metadata": {&"surface": &"gameplay_hud"},
 		}
 	)
@@ -1206,23 +1389,28 @@ func _sync_active_notification() -> void:
 func _set_notification_message(
 	notification_id: int,
 	message: String,
-	level: int = GFNotificationUtility.Level.INFO
+	level: int = GFNotificationUtility.Level.INFO,
+	priority: int = GFNotificationUtility.Priority.NORMAL,
+	_metadata: Dictionary = {}
 ) -> void:
-	_active_notification_id = notification_id
+	if message.is_empty():
+		_hide_notification_immediately()
+		return
 	if not is_instance_valid(_notification_label):
 		return
+	_active_notification_id = notification_id
 	_notification_label.text = message
+	_notification_label.visible = true
 	_notification_label.add_theme_color_override(
 		"default_color",
 		_NOTIFICATION_TEXT_COLOR
 	)
 	if is_instance_valid(_notification_panel):
-		_notification_panel.visible = not message.is_empty()
-		_apply_notification_level(level)
+		_set_notification_surface_visible(true)
+		_apply_notification_level(level, priority)
 	else:
-		_notification_label.visible = not message.is_empty()
-	if not message.is_empty():
-		_pulse_notification_surface()
+		_notification_label.visible = true
+	_play_notification_entry(priority)
 
 
 static func _is_display_value_empty(value: Variant) -> bool:
@@ -1416,14 +1604,20 @@ func _on_notification_started(notification_record: Dictionary) -> void:
 			notification_record,
 			"level",
 			GFNotificationUtility.Level.INFO
-		)
+		),
+		GFVariantData.get_option_int(
+			notification_record,
+			"priority",
+			GFNotificationUtility.Priority.NORMAL
+		),
+		GFVariantData.get_option_dictionary(notification_record, "metadata")
 	)
 
 
 func _on_notification_finished(notification_record: Dictionary, _reason: String) -> void:
 	var notification_id: int = GFVariantData.get_option_int(notification_record, "id")
 	if notification_id == _active_notification_id:
-		_set_notification_message(0, "", GFNotificationUtility.Level.INFO)
+		_play_notification_exit(notification_id)
 
 
 func _on_ratio_resolutions_changed(_old: int, _new: int) -> void:

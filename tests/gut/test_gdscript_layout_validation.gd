@@ -124,8 +124,8 @@ const SECTION_ORDER_RULES: Array[Dictionary] = [
 	{ "markers": ["生命周期", "回调", "lifecycle", "callback"], "rank": 80 },
 	{ "markers": ["公共方法", "获取方法", "注册方法", "事件系统", "命令", "查询"], "rank": 90 },
 	{ "markers": ["虚方法", "可重写", "hook", "virtual"], "rank": 100 },
-	{ "markers": ["私有", "内部", "辅助", "private", "internal", "helper"], "rank": 110 },
 	{ "markers": ["内部类", "subclass"], "rank": 120 },
+	{ "markers": ["私有", "内部", "辅助", "private", "internal", "helper"], "rank": 110 },
 ]
 
 

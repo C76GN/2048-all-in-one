@@ -184,20 +184,69 @@ func test_achievement_dialog_renders_and_adapts_layout() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var list: VBoxContainer = panel.get_node(
+	var list_node: Node = panel.get_node_or_null(
 		"OuterMargin/Surface/InnerMargin/RootVBox/AchievementScroll/AchievementList"
-	) as VBoxContainer
-	var header: BoxContainer = panel.get_node(
+	)
+	var header_node: Node = panel.get_node_or_null(
 		"OuterMargin/Surface/InnerMargin/RootVBox/Header"
-	) as BoxContainer
-	var filters: BoxContainer = panel.get_node(
+	)
+	var filters_node: Node = panel.get_node_or_null(
 		"OuterMargin/Surface/InnerMargin/RootVBox/Filters"
-	) as BoxContainer
+	)
+	var search_input_node: Node = panel.get_node_or_null(
+		"OuterMargin/Surface/InnerMargin/RootVBox/Filters/SearchInput"
+	)
+	assert_true(list_node is VBoxContainer, "成就列表节点应为 VBoxContainer。")
+	assert_true(header_node is BoxContainer, "成就标题栏节点应为 BoxContainer。")
+	assert_true(filters_node is BoxContainer, "成就筛选栏节点应为 BoxContainer。")
+	assert_true(search_input_node is LineEdit, "成就搜索节点应为 LineEdit。")
+	if (
+		not list_node is VBoxContainer
+		or not header_node is BoxContainer
+		or not filters_node is BoxContainer
+		or not search_input_node is LineEdit
+	):
+		context.remove_child(panel)
+		panel.queue_free()
+		await get_tree().process_frame
+		_dispose_setup(setup)
+		return
+	var list: VBoxContainer = list_node
+	var header: BoxContainer = header_node
+	var filters: BoxContainer = filters_node
+	var search_input: LineEdit = search_input_node
 	assert_true(
 		list.get_child_count() == _EXPECTED_ACHIEVEMENT_COUNT,
 		"成就列表应呈现目录中的全部定义。"
 	)
 	assert_false(header.vertical, "宽屏成就标题栏应横向排列。")
+	var first_card_node: Node = list.get_child(0)
+	assert_true(first_card_node is Control, "成就卡片应为 Control。")
+	if not first_card_node is Control:
+		context.remove_child(panel)
+		panel.queue_free()
+		await get_tree().process_frame
+		_dispose_setup(setup)
+		return
+	var first_card: Control = first_card_node
+	search_input.text = "__no_achievement_matches__"
+	panel.call("_on_filter_changed", search_input.text)
+	await get_tree().process_frame
+	assert_true(
+		first_card.get_parent() == list and not first_card.visible,
+		"筛选应复用稳定成就卡片，仅切换可见性。"
+	)
+	assert_true(
+		list.get_child_count() == _EXPECTED_ACHIEVEMENT_COUNT,
+		"筛选不应销毁并重建成就卡片。"
+	)
+	search_input.text = ""
+	panel.call("_on_filter_changed", search_input.text)
+	await get_tree().process_frame
+	assert_true(
+		first_card.get_parent() == list and first_card.visible,
+		"清除筛选后应恢复同一个成就卡片实例。"
+	)
 
 	panel.size = Vector2(390.0, 844.0)
 	await get_tree().process_frame

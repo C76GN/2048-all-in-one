@@ -26,6 +26,7 @@ var _viewport_utility: GFViewportUtility = null
 var _blueprints: Array[CustomTileBlueprintData] = []
 var _current_blueprint_id: String = ""
 var _selected_recipe_ids: Array[StringName] = []
+var _recipe_buttons_by_id: Dictionary = {}
 var _loading_ui: bool = false
 var _layout_update_queued: bool = false
 var _has_revealed_recipes: bool = false
@@ -390,62 +391,180 @@ func _rebuild_base_definition_option() -> void:
 func _rebuild_recipe_buttons() -> void:
 	if not is_instance_valid(_recipe_list):
 		return
-	for child: Node in _recipe_list.get_children():
-		_recipe_list.remove_child(child)
-		child.queue_free()
 	if not is_instance_valid(_tile_lab):
+		_clear_recipe_buttons()
 		return
 	var entries: Array[Dictionary] = _tile_lab.get_recipe_entries(
 		_selected_recipe_ids
 	)
+	var focused_recipe_id: StringName = _get_focused_recipe_id()
 	var display_names: Dictionary = _get_recipe_display_names(entries)
+	var expected_ids: Dictionary = {}
 	for entry: Dictionary in entries:
 		var recipe_id: StringName = GFVariantData.get_option_string_name(
 			entry,
 			&"recipe_id"
 		)
-		var button: CheckButton = CheckButton.new()
-		button.name = "Recipe_%s" % String(recipe_id).validate_node_name()
-		button.set_meta(&"recipe_id", recipe_id)
-		button.custom_minimum_size = Vector2(
-			0.0,
-			_MINIMUM_TOUCH_TARGET_SIZE
-		)
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.disabled = (
-			_persistence_operation_busy
-			or _persistence_outcome_unknown
-		)
-		button.text = GFVariantData.to_text(display_names.get(recipe_id, ""))
-		button.tooltip_text = _get_recipe_tooltip(entry, display_names)
-		button.button_pressed = GFVariantData.get_option_bool(
+		if recipe_id != &"":
+			expected_ids[recipe_id] = true
+	_remove_obsolete_recipe_buttons(expected_ids)
+	var child_index: int = 0
+	for entry: Dictionary in entries:
+		var recipe_id: StringName = GFVariantData.get_option_string_name(
 			entry,
-			&"selected"
+			&"recipe_id"
 		)
-		button.disabled = (
-			button.disabled
-			or not GFVariantData.get_option_bool(
-				entry,
-				&"compatible"
-			)
+		if recipe_id == &"":
+			continue
+		var button: CheckButton = _get_or_create_recipe_button(recipe_id)
+		if not is_instance_valid(button):
+			continue
+		if button.get_index() != child_index:
+			_recipe_list.move_child(button, child_index)
+		child_index += 1
+		_update_recipe_button(button, entry, display_names)
+	_apply_recipe_focus_order()
+	if focused_recipe_id != &"":
+		call_deferred(&"_restore_recipe_focus", focused_recipe_id)
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion) and not _has_revealed_recipes:
+		_has_revealed_recipes = true
+		var _reveal_count: int = motion.play_children_reveal(
+			_recipe_list,
+			Vector2.ZERO,
+			0.018,
+			0.0,
+			0.12
 		)
-		_recipe_list.add_child(button)
-		_apply_recipe_button_style(button)
-		var _toggle_connection: int = button.toggled.connect(
-			_on_recipe_toggled.bind(recipe_id)
-		)
+
+
+func _get_or_create_recipe_button(recipe_id: StringName) -> CheckButton:
+	var cached_value: Variant = _recipe_buttons_by_id.get(recipe_id)
+	if cached_value is CheckButton:
+		var cached_button: CheckButton = cached_value
+		if is_instance_valid(cached_button):
+			return cached_button
+	var button: CheckButton = CheckButton.new()
+	button.name = "Recipe_%s" % String(recipe_id).validate_node_name()
+	button.set_meta(&"recipe_id", recipe_id)
+	button.custom_minimum_size = Vector2(
+		0.0,
+		_MINIMUM_TOUCH_TARGET_SIZE
+	)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_recipe_list.add_child(button)
+	_recipe_buttons_by_id[recipe_id] = button
+	_apply_recipe_button_style(button)
 	var motion: GameUiMotionUtility = _get_ui_motion_utility()
 	if is_instance_valid(motion):
-		var _bound_count: int = motion.bind_interactive_controls(_recipe_list)
-		if not _has_revealed_recipes:
-			_has_revealed_recipes = true
-			var _reveal_count: int = motion.play_children_reveal(
-				_recipe_list,
-				Vector2.ZERO,
-				0.018,
-				0.0,
-				0.12
-			)
+		var _bound: bool = motion.bind_button(button)
+	var _toggle_connection: int = button.toggled.connect(
+		_on_recipe_toggled.bind(recipe_id)
+	)
+	return button
+
+
+func _update_recipe_button(
+	button: CheckButton,
+	entry: Dictionary,
+	display_names: Dictionary
+) -> void:
+	var operation_blocked: bool = (
+		_persistence_operation_busy
+		or _persistence_outcome_unknown
+	)
+	var compatible: bool = GFVariantData.get_option_bool(
+		entry,
+		&"compatible"
+	)
+	var recipe_id: StringName = GFVariantData.get_option_string_name(
+		entry,
+		&"recipe_id"
+	)
+	button.text = GFVariantData.to_text(display_names.get(recipe_id, ""))
+	button.tooltip_text = _get_recipe_tooltip(entry, display_names)
+	button.set_pressed_no_signal(
+		GFVariantData.get_option_bool(entry, &"selected")
+	)
+	button.disabled = operation_blocked or not compatible
+	button.set_meta(&"recipe_conflict", not compatible)
+
+
+func _remove_obsolete_recipe_buttons(expected_ids: Dictionary) -> void:
+	for id_value: Variant in _recipe_buttons_by_id.keys():
+		var recipe_id: StringName = GFVariantData.to_string_name(id_value)
+		if expected_ids.has(recipe_id):
+			continue
+		var button_value: Variant = _recipe_buttons_by_id.get(recipe_id)
+		if button_value is CheckButton:
+			var button: CheckButton = button_value
+			if is_instance_valid(button):
+				if button.get_parent() == _recipe_list:
+					_recipe_list.remove_child(button)
+				button.queue_free()
+		var _cached_button_erased: bool = _recipe_buttons_by_id.erase(
+			recipe_id
+		)
+
+
+func _clear_recipe_buttons() -> void:
+	_recipe_buttons_by_id.clear()
+	for child: Node in _recipe_list.get_children():
+		_recipe_list.remove_child(child)
+		child.queue_free()
+
+
+func _get_focused_recipe_id() -> StringName:
+	var focus_owner: Control = get_viewport().gui_get_focus_owner()
+	if not focus_owner is CheckButton:
+		return &""
+	var button: CheckButton = focus_owner
+	if not _recipe_list.is_ancestor_of(button):
+		return &""
+	return GFVariantData.to_string_name(
+		button.get_meta(&"recipe_id", &"")
+	)
+
+
+func _restore_recipe_focus(recipe_id: StringName) -> void:
+	if not is_inside_tree():
+		return
+	var button_value: Variant = _recipe_buttons_by_id.get(recipe_id)
+	if button_value is CheckButton:
+		var button: CheckButton = button_value
+		if is_instance_valid(button) and not button.disabled:
+			button.grab_focus()
+			return
+	for child: Node in _recipe_list.get_children():
+		if child is CheckButton:
+			var fallback_button: CheckButton = child
+			if fallback_button.visible and not fallback_button.disabled:
+				fallback_button.grab_focus()
+				return
+
+
+func _apply_recipe_focus_order() -> void:
+	var focus_order: Array[Control] = []
+	for child: Node in _recipe_list.get_children():
+		if child is CheckButton:
+			var button: CheckButton = child
+			if not button.disabled:
+				focus_order.append(button)
+	if focus_order.is_empty():
+		return
+	var focus_report: Dictionary = GFControlFocusUtility.apply_focus_order(
+		focus_order,
+		{
+			"axis": GFControlFocusUtility.AXIS_VERTICAL,
+			"wrap": false,
+			"wire_tab_order": true,
+		}
+	)
+	if not GFVariantData.get_option_bool(focus_report, "ok", false):
+		push_error(
+			"[TileLabDialog] GF Recipe 焦点顺序应用失败：%s"
+			% str(focus_report.get("issues", []))
+		)
 
 
 func _get_recipe_display_names(entries: Array[Dictionary]) -> Dictionary:
@@ -543,9 +662,6 @@ func _apply_recipe_button_style(button: CheckButton) -> void:
 		"font_hover_pressed_color",
 		pressed_color
 	)
-	var motion: GameUiMotionUtility = _get_ui_motion_utility()
-	if is_instance_valid(motion):
-		var _bound: bool = motion.bind_button(button)
 
 
 func _focus_recipe_button(recipe_id: StringName) -> void:
@@ -890,10 +1006,7 @@ func _apply_persistence_control_state() -> void:
 	_blueprint_option.disabled = blocked
 	_base_definition_option.disabled = blocked
 	_name_input.editable = not blocked
-	for child: Node in _recipe_list.get_children():
-		if child is BaseButton:
-			var recipe_button: BaseButton = child
-			recipe_button.disabled = blocked
+	_rebuild_recipe_buttons()
 	_update_selection_validation()
 
 

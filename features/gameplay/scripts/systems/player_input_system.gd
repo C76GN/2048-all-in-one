@@ -166,6 +166,7 @@ func _show_invalid_move_feedback() -> void:
 		{
 			"duration_seconds": _MOVE_FAIL_MESSAGE_DURATION,
 			"key": "gameplay.invalid_move",
+			"priority": GFNotificationUtility.Priority.LOW,
 			"metadata": {"surface": "gameplay_hud"},
 		}
 	)

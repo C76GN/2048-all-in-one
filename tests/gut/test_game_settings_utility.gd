@@ -356,6 +356,8 @@ func _make_legacy_storage_bytes(data: Dictionary, obfuscation_key: int = 42) -> 
 	return Marshalls.raw_to_base64(bytes).to_utf8_buffer()
 
 
+# --- 内部类 ---
+
 class _DetachingSettingsMenu extends SettingsMenu:
 	var back_request_count: int = 0
 

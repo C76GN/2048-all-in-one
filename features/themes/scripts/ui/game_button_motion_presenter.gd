@@ -20,12 +20,6 @@ enum MotionState {
 # --- 常量 ---
 
 const FACE_NODE_NAME: String = "PaperFace"
-const _ACTIVE_OVERSHOOT_DURATION: float = 0.058
-const _ACTIVE_SETTLE_DURATION: float = 0.092
-const _RESTORE_DURATION: float = 0.092
-const _PRESS_DURATION: float = 0.052
-const _DEAL_DURATION: float = 0.180
-const _MAX_TILT_RADIANS: float = 0.020
 const _MIN_FACE_DIMENSION: float = 6.0
 const _SAFE_EDGE_INSET: float = 1.0
 const _STYLE_NAME: StringName = &"panel"
@@ -44,6 +38,7 @@ var _motion_state: MotionState = MotionState.REST
 var _motion_tween: Tween = null
 var _tilt_direction: float = -1.0
 var _configured: bool = false
+var _motion_profile: GameUiMotionProfile = null
 
 
 # --- Godot 生命周期方法 ---
@@ -85,6 +80,15 @@ func configure(
 	_apply_geometry_immediately(_motion_state)
 
 
+## 应用主题提供的按钮语义节拍；当前动效会先落到稳定终态。
+## @param profile: 当前视觉主题的 UI 动效 Profile。
+func apply_motion_profile(profile: GameUiMotionProfile) -> void:
+	if profile == null or not profile.is_valid_profile():
+		return
+	complete_motion()
+	_motion_profile = profile
+
+
 ## 切换纸片的语义状态。
 ## @param state: 目标语义状态。
 ## @param animated: 是否播放状态过渡。
@@ -105,9 +109,17 @@ func set_motion_state(
 	if state == MotionState.ACTIVE:
 		_play_active_overshoot()
 	elif state == MotionState.PRESSED:
-		_play_single_phase(_get_target_rect(state), _PRESS_DURATION, Tween.TRANS_QUAD)
+		_play_single_phase(
+			_get_target_rect(state),
+			_get_motion_profile().button_press_duration,
+			Tween.TRANS_QUAD
+		)
 	else:
-		_play_single_phase(_get_target_rect(state), _RESTORE_DURATION, Tween.TRANS_BACK)
+		_play_single_phase(
+			_get_target_rect(state),
+			_get_motion_profile().button_restore_duration,
+			Tween.TRANS_BACK
+		)
 
 
 ## 让纸片从指定方向错峰“发牌”进入，但保持按钮命中框原地不动。
@@ -135,9 +147,11 @@ func play_deal_in(
 
 	var start_rect: Rect2 = target_rect
 	start_rect.position += offset
-	start_rect.size *= Vector2(0.82, 0.72)
+	start_rect.size *= _get_motion_profile().button_deal_start_scale
 	start_rect.position += (target_rect.size - start_rect.size) * 0.5
-	var start_rotation: float = _tilt_direction * _MAX_TILT_RADIANS
+	var start_rotation: float = (
+		_tilt_direction * _get_motion_profile().button_max_tilt_radians
+	)
 	start_rect = _clamp_rect_to_visual_envelope(
 		start_rect,
 		start_rotation
@@ -154,7 +168,7 @@ func play_deal_in(
 		_face,
 		"position",
 		target_rect.position,
-		_DEAL_DURATION
+		_get_motion_profile().button_deal_duration
 	)
 	var _position_delay_result: Tweener = position_tweener.set_delay(maxf(delay, 0.0))
 	var _position_curve: Tweener = position_tweener.set_trans(Tween.TRANS_QUAD)
@@ -163,7 +177,7 @@ func play_deal_in(
 		_face,
 		"size",
 		target_rect.size,
-		_DEAL_DURATION
+		_get_motion_profile().button_deal_duration
 	)
 	var _size_delay_result: Tweener = size_tweener.set_delay(maxf(delay, 0.0))
 	var _size_curve: Tweener = size_tweener.set_trans(Tween.TRANS_QUAD)
@@ -172,7 +186,7 @@ func play_deal_in(
 		_face,
 		"rotation",
 		0.0,
-		_DEAL_DURATION
+		_get_motion_profile().button_deal_duration
 	)
 	var _rotation_delay_result: Tweener = rotation_tweener.set_delay(maxf(delay, 0.0))
 	var _rotation_curve: Tweener = rotation_tweener.set_trans(Tween.TRANS_QUAD)
@@ -181,7 +195,10 @@ func play_deal_in(
 		_face,
 		"modulate",
 		Color.WHITE,
-		_DEAL_DURATION * 0.62
+		(
+			_get_motion_profile().button_deal_duration
+			* _get_motion_profile().button_deal_fade_ratio
+		)
 	)
 	var _modulate_delay_result: Tweener = modulate_tweener.set_delay(maxf(delay, 0.0))
 	var _modulate_curve: Tweener = modulate_tweener.set_trans(Tween.TRANS_QUAD)
@@ -274,7 +291,7 @@ func _play_active_overshoot() -> void:
 		_face,
 		"position",
 		overshoot_rect.position,
-		_ACTIVE_OVERSHOOT_DURATION
+		_get_motion_profile().button_active_overshoot_duration
 	)
 	var _position_curve: Tweener = position_tweener.set_trans(Tween.TRANS_QUAD)
 	var _position_ease: Tweener = position_tweener.set_ease(Tween.EASE_OUT)
@@ -282,7 +299,7 @@ func _play_active_overshoot() -> void:
 		_face,
 		"size",
 		overshoot_rect.size,
-		_ACTIVE_OVERSHOOT_DURATION
+		_get_motion_profile().button_active_overshoot_duration
 	)
 	var _size_curve: Tweener = size_tweener.set_trans(Tween.TRANS_QUAD)
 	var _size_ease: Tweener = size_tweener.set_ease(Tween.EASE_OUT)
@@ -290,7 +307,7 @@ func _play_active_overshoot() -> void:
 		_face,
 		"rotation",
 		_tilt_direction * _get_safe_tilt_radians(overshoot_rect),
-		_ACTIVE_OVERSHOOT_DURATION
+		_get_motion_profile().button_active_overshoot_duration
 	)
 	var _rotation_curve: Tweener = rotation_tweener.set_trans(Tween.TRANS_QUAD)
 	var _rotation_ease: Tweener = rotation_tweener.set_ease(Tween.EASE_OUT)
@@ -298,7 +315,7 @@ func _play_active_overshoot() -> void:
 		_face,
 		"modulate",
 		Color.WHITE,
-		_ACTIVE_OVERSHOOT_DURATION
+		_get_motion_profile().button_active_overshoot_duration
 	)
 	var _modulate_curve: Tweener = modulate_tweener.set_trans(Tween.TRANS_QUAD)
 	var _modulate_ease: Tweener = modulate_tweener.set_ease(Tween.EASE_OUT)
@@ -319,7 +336,7 @@ func _settle_active(target_rect: Rect2) -> void:
 		_face,
 		"position",
 		target_rect.position,
-		_ACTIVE_SETTLE_DURATION
+		_get_motion_profile().button_active_settle_duration
 	)
 	var _position_curve: Tweener = position_tweener.set_trans(Tween.TRANS_BACK)
 	var _position_ease: Tweener = position_tweener.set_ease(Tween.EASE_OUT)
@@ -327,7 +344,7 @@ func _settle_active(target_rect: Rect2) -> void:
 		_face,
 		"size",
 		target_rect.size,
-		_ACTIVE_SETTLE_DURATION
+		_get_motion_profile().button_active_settle_duration
 	)
 	var _size_curve: Tweener = size_tweener.set_trans(Tween.TRANS_BACK)
 	var _size_ease: Tweener = size_tweener.set_ease(Tween.EASE_OUT)
@@ -335,7 +352,7 @@ func _settle_active(target_rect: Rect2) -> void:
 		_face,
 		"rotation",
 		0.0,
-		_ACTIVE_SETTLE_DURATION
+		_get_motion_profile().button_active_settle_duration
 	)
 	var _rotation_curve: Tweener = rotation_tweener.set_trans(Tween.TRANS_BACK)
 	var _rotation_ease: Tweener = rotation_tweener.set_ease(Tween.EASE_OUT)
@@ -452,7 +469,7 @@ func _get_safe_tilt_radians(rect: Rect2) -> float:
 	var visual_rect: Rect2 = _get_local_visual_rect(rect.size)
 
 	var lower: float = 0.0
-	var upper: float = _MAX_TILT_RADIANS
+	var upper: float = _get_motion_profile().button_max_tilt_radians
 	for _iteration: int in range(12):
 		var candidate: float = (lower + upper) * 0.5
 		if _rotated_visual_fits_envelope(
@@ -578,6 +595,12 @@ func _kill_motion_tween() -> void:
 	if _motion_tween != null and _motion_tween.is_valid():
 		_motion_tween.kill()
 	_motion_tween = null
+
+
+func _get_motion_profile() -> GameUiMotionProfile:
+	if _motion_profile == null:
+		_motion_profile = GameUiMotionProfile.new()
+	return _motion_profile
 
 
 func _refresh_after_layout() -> void:

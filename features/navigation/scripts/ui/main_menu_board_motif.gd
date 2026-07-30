@@ -14,9 +14,10 @@ const _TILE_REVEAL_DURATION: float = 0.28
 const _DEMO_DURATION: float = 0.54
 const _DEMO_SLIDE_PORTION: float = 0.62
 const _DEMO_NEW_TILE_START: float = 0.72
-const _IDLE_REDRAW_INTERVAL: float = 1.0 / 30.0
-const _IDLE_OFFSET: float = 0.65
-const _IDLE_ROTATION: float = 0.003
+const _INTERACTION_DURATION: float = 0.16
+const _INTERACTION_SCALE: float = 0.045
+const _INTERACTION_LIFT: float = 1.5
+const _INTERACTION_ROTATION: float = 0.008
 const _BOARD_COLOR: Color = Color("#594a45")
 const _EMPTY_COLOR: Color = Color("#a9a994")
 const _INK_COLOR: Color = Color("#2f3037")
@@ -33,16 +34,20 @@ const _TILE_VALUES: Array[int] = [
 	2, 0, 32, 4,
 	64, 0, 8, 128,
 ]
+const _INTERACTION_TILE_INDICES: Array[int] = [
+	0, 1, 2, 3, 5, 8, 10, 11, 12, 14,
+]
 
 
 # --- 私有变量 ---
 
 var _intro_progress: float = 1.0
 var _demo_progress: float = 1.0
-var _idle_seconds: float = 0.0
-var _idle_redraw_seconds: float = 0.0
+var _interaction_progress: float = 0.0
+var _interaction_tile_index: int = 0
 var _reduced_motion: bool = false
 var _intro_tween: Tween = null
+var _interaction_tween: Tween = null
 
 
 # --- Godot 生命周期方法 ---
@@ -51,17 +56,6 @@ func _ready() -> void:
 	var _resize_connection: int = resized.connect(queue_redraw)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_process(false)
-
-
-func _process(delta: float) -> void:
-	if _reduced_motion or not is_visible_in_tree():
-		return
-	_idle_seconds += delta
-	_idle_redraw_seconds += delta
-	if _idle_redraw_seconds < _IDLE_REDRAW_INTERVAL:
-		return
-	_idle_redraw_seconds = 0.0
-	queue_redraw()
 
 
 func _draw() -> void:
@@ -136,6 +130,7 @@ func play_intro(reduced_motion: bool, shortened: bool = false) -> void:
 	if _intro_tween != null and _intro_tween.is_valid():
 		_intro_tween.kill()
 	_intro_tween = null
+	_cancel_interaction_response()
 	if reduced_motion:
 		_set_intro_progress(1.0)
 		_set_demo_progress(1.0)
@@ -144,7 +139,7 @@ func play_intro(reduced_motion: bool, shortened: bool = false) -> void:
 
 	_set_intro_progress(0.0)
 	_set_demo_progress(1.0 if shortened else 0.0)
-	set_process(true)
+	set_process(false)
 	var duration: float = 0.32 if shortened else _INTRO_DURATION
 	_intro_tween = create_tween()
 	var _pause_mode_result: Tween = _intro_tween.set_pause_mode(
@@ -186,9 +181,47 @@ func finish_intro() -> void:
 	if _intro_tween != null and _intro_tween.is_valid():
 		_intro_tween.kill()
 	_intro_tween = null
+	_cancel_interaction_response()
 	_set_intro_progress(1.0)
 	_set_demo_progress(1.0)
-	set_process(not _reduced_motion)
+	set_process(false)
+
+
+## 在首页控件获得焦点或鼠标指向时，让一个已落定方块给出短促响应。
+##
+## 该反馈由 Tween 直接驱动重绘；静止状态不启用逐帧处理。
+## @param slot_index: 首页交互控件在稳定顺序中的索引。
+func play_interaction_response(slot_index: int) -> void:
+	if (
+		_reduced_motion
+		or _intro_progress < 1.0
+		or _demo_progress < 1.0
+		or not is_visible_in_tree()
+	):
+		return
+	_cancel_interaction_response()
+	var mapped_index: int = posmod(slot_index, _INTERACTION_TILE_INDICES.size())
+	_interaction_tile_index = _INTERACTION_TILE_INDICES[mapped_index]
+	_interaction_tween = create_tween()
+	var _pause_mode_result: Tween = _interaction_tween.set_pause_mode(
+		Tween.TWEEN_PAUSE_PROCESS
+	)
+	var response_tweener: MethodTweener = _interaction_tween.tween_method(
+		_set_interaction_progress,
+		0.0,
+		1.0,
+		_INTERACTION_DURATION
+	)
+	var _response_transition: Tweener = response_tweener.set_trans(
+		Tween.TRANS_QUAD
+	)
+	var _response_ease: Tweener = response_tweener.set_ease(
+		Tween.EASE_OUT
+	)
+	var _finished_connection: int = _interaction_tween.finished.connect(
+		_on_interaction_finished,
+		CONNECT_ONE_SHOT
+	)
 
 
 # --- 私有/辅助方法 ---
@@ -215,27 +248,31 @@ func _draw_intro_tile(
 	var eased_progress: float = _ease_out_back(tile_progress)
 	var entry_distance: float = cell_rect.size.x * 0.34
 	var entry_direction: Vector2 = _get_entry_direction(index)
-	var idle_offset: Vector2 = Vector2.ZERO
-	var idle_rotation: float = 0.0
+	var interaction_amount: float = 0.0
 	if (
 		not _reduced_motion
 		and _intro_progress >= 1.0
 		and value != 0
-		and index % 3 == 1
+		and index == _interaction_tile_index
 	):
-		var idle_phase: float = _idle_seconds * 0.82 + float(index) * 0.74
-		idle_offset.y = sin(idle_phase) * _IDLE_OFFSET
-		idle_rotation = sin(idle_phase * 0.73) * _IDLE_ROTATION
+		interaction_amount = sin(_interaction_progress * PI)
 	var center: Vector2 = cell_rect.get_center()
 	center += entry_direction * entry_distance * (1.0 - tile_progress)
-	center += idle_offset
+	center.y -= _INTERACTION_LIFT * interaction_amount
 	var draw_rotation: float = (
 		float((index % 5) - 2)
 		* 0.035
 		* (1.0 - tile_progress)
-		+ idle_rotation
+		+ (
+			_INTERACTION_ROTATION
+			* interaction_amount
+			* (-1.0 if index % 2 == 0 else 1.0)
+		)
 	)
-	var scale_value: float = lerpf(0.58, 1.0, eased_progress)
+	var scale_value: float = (
+		lerpf(0.58, 1.0, eased_progress)
+		* (1.0 + _INTERACTION_SCALE * interaction_amount)
+	)
 	draw_set_transform(center, draw_rotation, Vector2.ONE * scale_value)
 	var local_rect: Rect2 = Rect2(-cell_rect.size * 0.5, cell_rect.size)
 	_draw_tile_surface(
@@ -436,10 +473,28 @@ func _set_demo_progress(value: float) -> void:
 	queue_redraw()
 
 
+func _set_interaction_progress(value: float) -> void:
+	_interaction_progress = clampf(value, 0.0, 1.0)
+	queue_redraw()
+
+
 func _on_intro_finished() -> void:
 	_intro_tween = null
 	_set_intro_progress(1.0)
 	_set_demo_progress(1.0)
+	set_process(false)
+
+
+func _on_interaction_finished() -> void:
+	_interaction_tween = null
+	_set_interaction_progress(0.0)
+
+
+func _cancel_interaction_response() -> void:
+	if _interaction_tween != null and _interaction_tween.is_valid():
+		_interaction_tween.kill()
+	_interaction_tween = null
+	_set_interaction_progress(0.0)
 
 
 func _ease_out_cubic(value: float) -> float:

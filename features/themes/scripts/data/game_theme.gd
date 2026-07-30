@@ -13,6 +13,7 @@ extends Resource
 @export var color_schemes: Dictionary = {}
 @export var tile_visual_theme: TileVisualTheme
 @export var ui_palette: GameUiPalette
+@export var ui_motion_profile: GameUiMotionProfile
 @export var background_shader_profile: GFShaderParameterProfile
 @export var board_feedback_profile: GameBoardFeedbackProfile
 @export var celebration_vfx_theme: GameCelebrationVfxTheme
@@ -60,6 +61,18 @@ func get_validation_report() -> GFValidationReport:
 		_add_error(report, &"missing_ui_palette", "ui_palette 未配置。", &"ui_palette")
 	else:
 		var _palette_report: RefCounted = report.merge(ui_palette.get_validation_report(), false)
+	if not is_instance_valid(ui_motion_profile):
+		_add_error(
+			report,
+			&"missing_ui_motion_profile",
+			"ui_motion_profile 未配置。",
+			&"ui_motion_profile"
+		)
+	else:
+		var _motion_report: RefCounted = report.merge(
+			ui_motion_profile.get_validation_report(),
+			false
+		)
 	if background_shader_profile == null:
 		_add_error(
 			report,

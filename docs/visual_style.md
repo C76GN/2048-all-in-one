@@ -219,7 +219,7 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 
 动效要像轻量印刷游戏界面：短、清楚、机械感强。
 
-目标达成和新纪录使用主题化庆祝 VFX。运行时由 `GameCelebrationConfettiEmitter` 以有界 `GPUParticles2D` 发射彩带：`GameCelebrationVfxTheme` 选择单片绘制 shader 与参数 Profile，Profile 只定义 `col0..col7`、`edge_strength` 和 `grain_strength`；`GameCelebrationVfxPreset` 定义事件时长、透明度以及粒子速度、摆动、旋转、尺寸和宽高比。单片 canvas shader 必须保持常数级绘制，不得使用内建 `TIME` 或在 fragment 中模拟整场粒子运动；运动由粒子系统负责。`FULL`、`REDUCED`、`MINIMAL` 的彩带上限分别为 88、44、0，减少动态或关闭 Shader 时也为 0，权威规则见 `features/themes/docs/feedback_performance_matrix.md`。新增主题不得在 `GameCelebrationVfxUtility` 中增加新的硬编码颜色、速度或数量常量。
+目标达成和新纪录使用主题化庆祝 VFX。运行时由 `GameCelebrationConfettiEmitter` 以有界 `GPUParticles2D` 发射彩带：`GameCelebrationVfxTheme` 选择单片绘制 shader 与参数 Profile，Profile 只定义 `col0..col7`、`edge_strength` 和 `grain_strength`；`GameCelebrationVfxPreset` 定义事件时长、透明度以及粒子速度、摆动、旋转、尺寸和宽高比。单片 canvas shader 必须保持常数级绘制，不得使用内建 `TIME` 或在 fragment 中模拟整场粒子运动；运动由粒子系统负责。`FULL`、`REDUCED`、`MINIMAL` 的彩带上限分别为 64、32、0，减少动态或关闭 Shader 时也为 0，权威规则见 `features/themes/docs/feedback_performance_matrix.md`。新增主题不得在 `GameCelebrationVfxUtility` 中增加新的硬编码颜色、速度或数量常量。
 
 时间范围：
 
@@ -235,9 +235,10 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 
 - **按钮**：`BaseButton` 根节点只负责布局、命中、文字与焦点，scale、position 和 modulate 始终保持基础值。`GameButtonMotionPresenter` 在其内部稳定包络中绘制纸片：静止态预留约 `8px` 到 `32px` 水平 motion gutter；hover/focus 首帧换为印刷青和米白粗描边，约 `58ms` 展开并按指针接触侧轻微倾斜，再用约 `92ms` 回正；pressed 在约 `52ms` 内回缩到接近静止几何、下沉并收短硬投影，释放后依据当前 hover/focus/selected 状态恢复。状态优先级为 `disabled > pressed > selected > hover/focus > rest`，按住后移出或失焦不得提前取消 pressed；运行时改变 `disabled` 必须在下一帧清除陈旧的按压、hover 和焦点表现。
 - **切换控件**：开关、分段按钮和可选卡片只沿其状态轴移动一次，轨道/纸面颜色与滑块或选中标记同步落定；selected 表示持久状态，品红 focus 边框表示当前输入位置，两者不能互相替代。
-- **列表与分页**：只对本次新创建且可见的条目按阅读顺序错峰出现，单项约 `0.10s` 到 `0.18s`，相邻间隔保持很小；刷新已有数据不得让整页反复重播。`GFRepeaterBinder` 负责模板复制和清理，返回的节点再交给 `GameUiMotionUtility` 编排 reveal；结构变化后由 `GFControlFocusUtility` 重建焦点顺序。跨帧分页必须保存不可变请求快照，只允许最新 generation 原子替换条目、页码和焦点；旧任务只能清理自己的临时结果。
+- **列表与分页**：只对本次新创建且可见的条目按阅读顺序错峰出现，单项约 `0.10s` 到 `0.18s`，相邻间隔保持很小；刷新已有数据不得让整页反复重播。拥有稳定业务 ID 的图鉴、配方、成就、档案与排行榜采用 keyed cache 原位更新，保留节点、选择和焦点；只在真正删除业务项时释放节点。超长回放列表继续使用 `GFVirtualListModel` / `GFVirtualListFocusModel` 维护有界窗口，`GFRepeaterBinder` 只负责无身份要求的模板物化，不把它误当 keyed reconciliation。结构变化后由 `GFControlFocusUtility` 重建焦点顺序。跨帧分页必须保存不可变请求快照，只允许最新 generation 原子替换条目、页码和焦点；旧任务只能清理自己的临时结果。
 - **滚动条**：静止时保持低对比，指针进入、键盘滚动或拖拽时短促增亮或加宽，停止交互后平稳恢复；滑块位置必须直接跟随真实滚动值，不使用滞后、回弹或装饰性假进度。可交互根节点的尺寸、scale、focus 与命中几何始终稳定且满足 44px 触控契约；缩放或透明度动画只作用于 `MOUSE_FILTER_IGNORE` 的内部视觉层。GF 不提供滚动条表现动画，该行为由 `GameUiMotionUtility` 绑定项目控件。
 - **弹层**：遮罩和任务卡分层进入；遮罩先建立阻断关系，任务卡再以一个主方向的小位移、轻微缩放和错峰内容落定。两者必须由同一个 modal-level 句柄和 generation 原子拥有；完成、取消、反向、owner 退出与减少动态都要同时 settle，迟到回调不得改写新一代状态。关闭开始立即冻结任务卡输入，每一代只允许一次业务提交；退出动画完成后才调用路由返回，不能用全屏场景擦除代替普通弹层。
+- **异步状态**：低于主题 `ui.loading.delay` 的瞬时工作不显示 Loading，超时后才显示稳定文字或局部指示；成功原位替换内容，失败把错误留在触发区域并提供静态颜色/文案，迟到 generation 不得覆盖新状态。进度只反映真实 determinate 值；没有可计算进度时使用明确的“不确定/等待”文案，不伪造百分比。
 - **首页开场**：正式启动完成后，先建立纸面背景，再由 `2 / 0 / 4 / 8` 方块和微型棋盘完成一次短组装；十个菜单按钮按阅读顺序约每项 `32ms` 错峰，从左右空间锚点以纸片“发牌”方式撞入并短回摆，外层命中框不移动。发牌继承按钮当下的 focus/selected/disabled 语义，不得强制回到 rest；任何 hover、focus 或 press 输入都必须同时接管纸片和文字，不能留下延迟隐藏文字。开场未落定时，未揭示控件不得获得命中或焦点；首个规范化动作 token 只精确完成演出并被消费，下一 token 才能执行业务。减少动态初始即为 settled，不得隐藏地多吞一次输入。主动作最后落定并取得焦点。开场不轮播图鉴、试验台、档案或模式页面；首次进入可播放完整编排，再次返回使用短版本。
 - **减少动态**：不延迟状态提交，也不等待不可见 Tween；按钮、列表、滚动条、弹层和首页开场直接落到稳定终态，保留焦点、选中、禁用和遮罩等非运动信号。常规动效不得成为理解状态、完成操作或恢复焦点的前置条件。
 
@@ -245,7 +246,8 @@ GF 与项目边界：
 
 - `GFUIRouterUtility`、`GFUIRoute` 和 `GFUIUtility` 只拥有稳定 route ID、逻辑层、Modal 栈、遮挡、返回和焦点恢复；路由 metadata 可以声明项目 motion profile，但 GF 路由不实现具体视觉时间线。需要退场动画的页面先由项目动效完成，再调用 `back()`。
 - `GFScreenTransitionUtility` 和主题提供的 `GFScreenTransitionEffect` 只用于启动完成后的主场景 cover/load/reveal。它是单一全屏覆盖层，不能用于按钮、滚动条、列表、页内切换或并行弹层。
-- `GameUiMotionUtility` 统一拥有 hover、focus、pressed、toggle、scroll、intro、outro、reveal 和 pulse 等局部可取消 Tween，并统一消费减少动态设置；页面只能选择语义和动效 profile，不自行散落时长、缓动与 Tween 元数据。
+- `GameUiMotionProfile` 是视觉主题拥有的语义参数资源；Button、Panel、Modal、List、Content、Number、Scroll，以及 Toast、Loading、Progress、Local Error、Reward Result 的默认节拍都从该资源查询。`GameUiMotionUtility` 统一拥有这些局部可取消 Tween、retarget、`complete_now()` 和减少动态静态终态；页面只能选择语义，不自行散落时长、缓动与 Tween 元数据。
+- `GFNotificationUtility` 仍唯一拥有 priority、dedupe、队列上限与通知生命周期；GF 10 的 dedupe 不产生 aggregate 字段或更新信号。`FeedbackRail` 只呈现当前 record，轨道的 `VBoxContainer` 子槽保持布局稳定；进入首帧保持实色可读，只对槽内表面做短位移与退出淡出，迟到 finished 以通知 ID 拦截。
 - 首页开场若需要可跳过的多阶段串并行时间线，可以使用绑定首页节点生命周期的独立 `GFActionQueueSystem` 命名队列；标题、棋盘、菜单锚点、节拍、最终态和跳过策略仍归项目，且不得复用玩法棋盘队列。`GFReactiveStateStore` 不用于 hover、滚动条透明度或 Tween progress 等瞬时表现状态。
 - `easings.net` 与 Motion 等外部前端仓库只作为缓动曲线、可中断状态、列表 stagger、布局连续性和 reduced-motion 的设计参考；项目不得复制 GPL 实现或引入 Web 动画运行时，所有采纳行为都要重新表达为 Godot Tween、GF 队列与项目语义参数。
 
@@ -257,11 +259,11 @@ GF 与项目边界：
 - 隐藏子控件不播放 reveal。
 - 动画不能成为状态可读性的唯一来源。
 - 暂停菜单、目标达成和游戏结束等 `SceneTree.paused` 期间可见的 UI Tween 必须使用暂停时仍处理的模式；否则截图、键盘导航和真实玩家都会看到只出现一半的弹层。减少动态时应直接落到最终可读状态。
-- 每次有效移动只编排一次整批反馈：棋盘从基准位连续到达反向峰值，再回到基准位；禁止输入当帧先跳到峰值。`GFShakeReceiver2D` 的 board channel 只保留低幅细震，不能与确定性根变换叠成高频抖动。
+- 每次有效移动只编排一次整批反馈：普通 `MOVE` 只使用约 `4.5px / 0.25° / 150ms` 的根节点确认和轻触觉，不启动背景 Shader、边缘冲击、Backdrop 或 GF Shake；`MERGE` 及以上才使用完整强调通道。棋盘从基准位连续到达峰值再回到基准位，禁止输入当帧先跳到峰值。
 - `BoardMotionBackdrop` 位于棋盘后层，常态只绘制低对比局部棋格。普通移动不生成纸片、不旋转棋格；合并及以上反馈才按动态预算旋转棋格并在后层绘制无描边纸片：近方形棋盘可累计最多 `±90°`，宽矩形棋盘只做不超过 `6°` 的短促受力并回正，避免交换长宽轴；高价值反馈只增加纸片数量与行程，棋盘倾角封顶约 `5.5°`。
 - 层级固定为：全屏纸纹、局部棋格与后层纸片、棋盘硬阴影、棋盘与格槽、方块硬阴影与方块、屏幕空间 HUD。普通生成与合并不在方块前景绘制会遮住数字的碎片；分数增量只在顶部 HUD 呈现，不在方块上叠加浮动文字。
 - 合并冲击先更新目标定义，再用约 `0.13s` 的数值与色阶成长反馈连接旧值和新值；HUD 分数反馈稍晚于棋盘冲击，形成明确因果顺序。
-- GF 通知和回合字幕共用屏幕边缘 `FeedbackRail`：横屏位于棋盘右侧，并由棋盘实际世界包围盒宽高比动态求解 fit inset；竖屏位于棋盘与触控区之间。翻译文本不得携带语义颜色 BBCode，提示表面负责对比度和通知等级；反馈轨与操作栏必须避开棋盘矩形外扩 `50px` 的冲量/旋转安全包络，棋盘几何变化后必须立即重算。
+- GF 通知和回合字幕共用屏幕边缘 `FeedbackRail`：横屏位于棋盘右侧，并由棋盘实际世界包围盒宽高比动态求解 fit inset；竖屏位于棋盘与触控区之间。翻译文本不得携带语义颜色 BBCode，提示表面负责对比度和优先级边框；普通回合字幕不重复缩放脉冲。反馈轨与操作栏必须避开棋盘矩形外扩 `50px` 的冲量/旋转安全包络，棋盘几何变化后必须立即重算。
 
 ## 测试与验证
 
@@ -269,6 +271,7 @@ GF 与项目边界：
 
 - `test_visual_polish.gd` 验证背景 shader、静态启动壳与线程加载边界、半调场景转场、主题化 Tile 轮廓与稀疏母题、文字对比度、按钮内部 Presenter、稳定根几何、内嵌焦点 Profile、pressed 状态优先级、庆祝事件 preset，以及 GF 震动与背景联动反馈。
 - `test_game_theme_utility.gd` 验证内容包描述符、默认主题约束、按键加载、GF 激活事务、GF settings、背景/UI/VFX Profile、`GFSignalUtility` owner 连接、场景转场、语义音效事件和音频银行挂载令牌。
+- `test_ui_motion_profile.gd` 验证主题语义参数、Modal/Content/Numeric 中断重定向、`complete_now()` 与 Reduced Motion 静态终态；`test_gameplay_feedback_refinement.gd` 验证普通移动降噪、GF 实际去重记录、FeedbackRail priority 与迟到终态；图鉴、试验台、成就和导航测试验证 keyed identity、焦点保留与局部刷新。
 
 后续视觉改动至少检查：
 

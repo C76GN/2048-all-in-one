@@ -76,13 +76,13 @@ recipe_id = &"feedback.turn.move"
 accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
 shake_preset = SubResource("Resource_move_shake")
 haptic_preset = SubResource("Resource_move_haptic")
-root_impulse = 18.0
-root_rotation_degrees = 4.0
-root_compression = 0.030
-impact_duration = 0.10
-settle_duration = 0.20
-background_duration = 0.44
-background_energy = 0.52
+root_impulse = 4.5
+root_rotation_degrees = 0.25
+root_compression = 0.006
+impact_duration = 0.055
+settle_duration = 0.095
+background_duration = 0.16
+background_energy = 0.10
 edge_fragment_count = 0
 
 [sub_resource type="Resource" id="Recipe_turn_merge"]

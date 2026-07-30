@@ -236,6 +236,49 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 	assert_false(content.vertical, "宽屏图鉴应使用左右分栏。")
 	assert_true(grid.columns == 3, "宽屏图鉴应使用三列卡片网格。")
 
+	var first_card: TileCatalogCard = grid.get_child(0) as TileCatalogCard
+	assert_not_null(first_card)
+	if first_card != null:
+		var first_entry: Dictionary = first_card.get_entry()
+		var first_key: String = GFVariantData.get_option_string(
+			first_entry,
+			&"composition_key"
+		)
+		var first_definition_id: String = GFVariantData.get_option_string(
+			first_entry,
+			&"definition_id"
+		)
+		var first_instance_id: int = first_card.get_instance_id()
+		panel._search_input.text = first_definition_id
+		panel._rebuild_catalog()
+		await get_tree().process_frame
+		assert_true(
+			grid.get_child_count() == EXPECTED_DEFINITION_IDS.size(),
+			"筛选图鉴时应复用稳定卡片缓存，不得销毁整张网格。"
+		)
+		assert_true(first_card.visible, "匹配筛选的卡片必须保持可见。")
+		first_card.grab_focus()
+		await get_tree().process_frame
+		assert_true(
+			panel._selected_composition_key == first_key,
+			"键盘或手柄焦点进入卡片时必须同步详情选择。"
+		)
+		panel._search_input.text = ""
+		panel._rebuild_catalog()
+		await get_tree().process_frame
+		var cached_value: Variant = panel._cards_by_key.get(first_key)
+		assert_true(cached_value is TileCatalogCard)
+		if cached_value is TileCatalogCard:
+			var cached_card: TileCatalogCard = cached_value
+			assert_true(
+				cached_card.get_instance_id() == first_instance_id,
+				"清除筛选后同一 composition_key 必须恢复原卡片实例。"
+			)
+			assert_true(
+				get_viewport().gui_get_focus_owner() == cached_card,
+				"差量刷新后仍可见的卡片必须保留焦点。"
+			)
+
 	panel.size = Vector2(390.0, 844.0)
 	await get_tree().process_frame
 	await get_tree().process_frame

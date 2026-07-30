@@ -1,0 +1,488 @@
+[gd_scene load_steps=8 format=3 uid="uid://cyxg3w5j3fiyf"]
+
+[ext_resource type="Script" path="res://features/themes/tools/ui_motion_preview.gd" id="1_preview"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_toolbar"]
+bg_color = Color(0.117647, 0.129412, 0.156863, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.294118, 0.321569, 0.384314, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_status"]
+bg_color = Color(0.133333, 0.14902, 0.180392, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.305882, 0.741176, 0.772549, 0.72)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_preview"]
+bg_color = Color(0.929412, 0.937255, 0.92549, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.258824, 0.278431, 0.329412, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0.0235294, 0.027451, 0.0392157, 0.42)
+shadow_size = 8
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_content"]
+bg_color = Color(0.992157, 0.992157, 0.976471, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.396078, 0.423529, 0.470588, 0.7)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_row"]
+bg_color = Color(0.878431, 0.898039, 0.890196, 1)
+border_width_left = 3
+border_color = Color(0.294118, 0.741176, 0.772549, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_metric"]
+bg_color = Color(0.831373, 0.913725, 0.913725, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.294118, 0.741176, 0.772549, 0.8)
+corner_radius_top_left = 7
+corner_radius_top_right = 7
+corner_radius_bottom_right = 7
+corner_radius_bottom_left = 7
+
+[node name="UiMotionPreview" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_preview")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.0666667, 0.0745098, 0.0941176, 1)
+
+[node name="OuterMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 18
+
+[node name="RootStack" type="VBoxContainer" parent="OuterMargin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Header" type="HBoxContainer" parent="OuterMargin/RootStack"]
+custom_minimum_size = Vector2(0, 62)
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TitleStack" type="VBoxContainer" parent="OuterMargin/RootStack/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="OuterMargin/RootStack/Header/TitleStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94902, 0.960784, 0.968627, 1)
+theme_override_font_sizes/font_size = 24
+text = "UI MOTION PROFILE · PREVIEW"
+
+[node name="Subtitle" type="Label" parent="OuterMargin/RootStack/Header/TitleStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.631373, 0.666667, 0.737255, 1)
+theme_override_font_sizes/font_size = 14
+text = "隔离开发场景 · 真实 Utility · 无玩家路由依赖"
+
+[node name="StatusPanel" type="PanelContainer" parent="OuterMargin/RootStack/Header"]
+custom_minimum_size = Vector2(230, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBox_status")
+
+[node name="StatusMargin" type="MarginContainer" parent="OuterMargin/RootStack/Header/StatusPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 8
+
+[node name="StatusStack" type="VBoxContainer" parent="OuterMargin/RootStack/Header/StatusPanel/StatusMargin"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="ModeLabel" type="Label" parent="OuterMargin/RootStack/Header/StatusPanel/StatusMargin/StatusStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.619608, 0.858824, 0.835294, 1)
+theme_override_font_sizes/font_size = 12
+text = "LIVE · INTERRUPTIBLE"
+
+[node name="CurrentPresetLabel" type="Label" parent="OuterMargin/RootStack/Header/StatusPanel/StatusMargin/StatusStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.929412, 0.941176, 0.956863, 1)
+theme_override_font_sizes/font_size = 14
+text = "ui.panel.enter · 180 ms"
+
+[node name="ToolbarPanel" type="PanelContainer" parent="OuterMargin/RootStack"]
+custom_minimum_size = Vector2(0, 116)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBox_toolbar")
+
+[node name="ToolbarMargin" type="MarginContainer" parent="OuterMargin/RootStack/ToolbarPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="ToolbarFlow" type="HFlowContainer" parent="OuterMargin/RootStack/ToolbarPanel/ToolbarMargin"]
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="PresetPicker" type="OptionButton" parent="OuterMargin/RootStack/ToolbarPanel/ToolbarMargin/ToolbarFlow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(164, 44)
+layout_mode = 2
+tooltip_text = "选择要单独检查的 UI 动效语义"
+
+[node name="PlayButton" type="Button" parent="OuterMargin/RootStack/ToolbarPanel/ToolbarMargin/ToolbarFlow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(104, 44)
+layout_mode = 2
+text = "播放当前"
+
+[node name="ReplayAllButton" type="Button" parent="OuterMargin/RootStack/ToolbarPanel/ToolbarMargin/ToolbarFlow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(104, 44)
+layout_mode = 2
+text = "全部重播"
+
+[node name="ReverseButton" type="Button" parent="OuterMargin/RootStack/ToolbarPanel/ToolbarMargin/ToolbarFlow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(148, 44)
+layout_mode = 2
+text = "快速反向 → 收束"
+
+[node name="ReducedMotionButton" type="Button" parent="OuterMargin/RootStack/ToolbarPanel/ToolbarMargin/ToolbarFlow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(142, 44)
+layout_mode = 2
+toggle_mode = true
+text = "减少动态：关"
+
+[node name="MainBody" type="HBoxContainer" parent="OuterMargin/RootStack"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 14
+
+[node name="PreviewSlot" type="Control" parent="OuterMargin/RootStack/MainBody"]
+custom_minimum_size = Vector2(420, 388)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="PreviewSurface" type="PanelContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_preview")
+
+[node name="PreviewMargin" type="MarginContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
+
+[node name="PreviewStack" type="VBoxContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="CanvasOverline" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.294118, 0.741176, 0.772549, 1)
+theme_override_font_sizes/font_size = 12
+text = "LIVE CANVAS"
+
+[node name="ContentCard" type="PanelContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBox_content")
+
+[node name="ContentMargin" type="MarginContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ContentCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 10
+
+[node name="ContentStack" type="VBoxContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ContentCard/ContentMargin"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="ContentEyebrow" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ContentCard/ContentMargin/ContentStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.419608, 0.447059, 0.494118, 1)
+theme_override_font_sizes/font_size = 12
+text = "CONTENT SWITCH"
+
+[node name="ContentTitle" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ContentCard/ContentMargin/ContentStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.156863, 0.172549, 0.207843, 1)
+theme_override_font_sizes/font_size = 18
+text = "稳定身份 · 局部更新"
+
+[node name="ListRows" type="VBoxContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ListRowA" type="PanelContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBox_row")
+
+[node name="Margin" type="MarginContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowA"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_right = 10
+
+[node name="Row" type="HBoxContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowA/Margin"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowA/Margin/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.176471, 0.196078, 0.227451, 1)
+text = "面板建立层级"
+
+[node name="Semantic" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowA/Margin/Row"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.341176, 0.380392, 0.431373, 1)
+theme_override_font_sizes/font_size = 12
+text = "PANEL"
+
+[node name="ListRowB" type="PanelContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBox_row")
+
+[node name="Margin" type="MarginContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowB"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_right = 10
+
+[node name="Row" type="HBoxContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowB/Margin"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowB/Margin/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.176471, 0.196078, 0.227451, 1)
+text = "列表保持稳定身份"
+
+[node name="Semantic" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowB/Margin/Row"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.341176, 0.380392, 0.431373, 1)
+theme_override_font_sizes/font_size = 12
+text = "LIST"
+
+[node name="ListRowC" type="PanelContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBox_row")
+
+[node name="Margin" type="MarginContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowC"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_right = 10
+
+[node name="Row" type="HBoxContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowC/Margin"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowC/Margin/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.176471, 0.196078, 0.227451, 1)
+text = "高频输入主动收束"
+
+[node name="Semantic" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/ListRows/ListRowC/Margin/Row"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.341176, 0.380392, 0.431373, 1)
+theme_override_font_sizes/font_size = 12
+text = "SETTLE"
+
+[node name="NumberActionRow" type="HBoxContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="MetricPanel" type="PanelContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/NumberActionRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBox_metric")
+
+[node name="MetricMargin" type="MarginContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/NumberActionRow/MetricPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 8
+
+[node name="MetricRow" type="HBoxContainer" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/NumberActionRow/MetricPanel/MetricMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="MetricName" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/NumberActionRow/MetricPanel/MetricMargin/MetricRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.239216, 0.27451, 0.301961, 1)
+theme_override_font_sizes/font_size = 12
+text = "NUMBER"
+vertical_alignment = 1
+
+[node name="NumberLabel" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/NumberActionRow/MetricPanel/MetricMargin/MetricRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(76, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.14902, 0.176471, 0.207843, 1)
+theme_override_font_sizes/font_size = 30
+text = "128"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="DeltaLabel" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/NumberActionRow/MetricPanel/MetricMargin/MetricRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.294118, 0.741176, 0.772549, 1)
+theme_override_font_sizes/font_size = 16
+text = "+128"
+vertical_alignment = 1
+
+[node name="SampleButton" type="Button" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack/NumberActionRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 60)
+layout_mode = 2
+text = "BUTTON"
+
+[node name="ActivityLabel" type="Label" parent="OuterMargin/RootStack/MainBody/PreviewSlot/PreviewSurface/PreviewMargin/PreviewStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.352941, 0.384314, 0.431373, 1)
+theme_override_font_sizes/font_size = 12
+text = "等待预览"
+horizontal_alignment = 1
+
+[node name="Inspector" type="PanelContainer" parent="OuterMargin/RootStack/MainBody"]
+custom_minimum_size = Vector2(210, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBox_toolbar")
+
+[node name="InspectorMargin" type="MarginContainer" parent="OuterMargin/RootStack/MainBody/Inspector"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="InspectorStack" type="VBoxContainer" parent="OuterMargin/RootStack/MainBody/Inspector/InspectorMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="InspectorTitle" type="Label" parent="OuterMargin/RootStack/MainBody/Inspector/InspectorMargin/InspectorStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.937255, 0.94902, 0.964706, 1)
+theme_override_font_sizes/font_size = 18
+text = "语义检查"
+
+[node name="InspectorRule" type="HSeparator" parent="OuterMargin/RootStack/MainBody/Inspector/InspectorMargin/InspectorStack"]
+layout_mode = 2
+modulate = Color(0.419608, 0.458824, 0.529412, 0.6)
+
+[node name="PanelLine" type="Label" parent="OuterMargin/RootStack/MainBody/Inspector/InspectorMargin/InspectorStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.729412, 0.752941, 0.8, 1)
+text = "Panel\n建立新表面层级"
+
+[node name="ContentLine" type="Label" parent="OuterMargin/RootStack/MainBody/Inspector/InspectorMargin/InspectorStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.729412, 0.752941, 0.8, 1)
+text = "Content\n同页内容重定向"
+
+[node name="ListLine" type="Label" parent="OuterMargin/RootStack/MainBody/Inspector/InspectorMargin/InspectorStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.729412, 0.752941, 0.8, 1)
+text = "List\n短错峰、不阻塞"
+
+[node name="NumberLine" type="Label" parent="OuterMargin/RootStack/MainBody/Inspector/InspectorMargin/InspectorStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.729412, 0.752941, 0.8, 1)
+text = "Number\n当前值到最新目标"
+
+[node name="ButtonLine" type="Label" parent="OuterMargin/RootStack/MainBody/Inspector/InspectorMargin/InspectorStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.729412, 0.752941, 0.8, 1)
+text = "Button\n命中根稳定、纸片运动"
+
+[node name="InspectorSpacer" type="Control" parent="OuterMargin/RootStack/MainBody/Inspector/InspectorMargin/InspectorStack"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BoundaryNote" type="Label" parent="OuterMargin/RootStack/MainBody/Inspector/InspectorMargin/InspectorStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.619608, 0.858824, 0.835294, 1)
+theme_override_font_sizes/font_size = 12
+text = "DEV ONLY\nNo route registration"
+
+[node name="Footer" type="Label" parent="OuterMargin/RootStack"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.533333, 0.568627, 0.635294, 1)
+theme_override_font_sizes/font_size = 12
+text = "F6 可独立运行 · Reduced Motion 不写入玩家设置 · 快速反向验证中断/收束"
+horizontal_alignment = 1

@@ -109,6 +109,7 @@ func _ready() -> void:
 	var _connect_result_40: int = _quit_button.pressed.connect(_on_quit_button_pressed)
 	var _resize_connection: int = resized.connect(_queue_layout_update)
 	_bind_full_scene_preload_hints()
+	_bind_board_motif_interactions()
 
 	_apply_semantic_styles()
 	_queue_layout_update()
@@ -152,6 +153,26 @@ func _bind_scene_preload_hint(button: Button, scene_path: String) -> void:
 		var _focus_connection: int = button.focus_entered.connect(focus_callback)
 	if not button.mouse_entered.is_connected(hover_callback):
 		var _hover_connection: int = button.mouse_entered.connect(hover_callback)
+
+
+func _bind_board_motif_interactions() -> void:
+	if not is_instance_valid(_board_motif):
+		return
+	var buttons: Array[BaseButton] = _get_menu_button_sequence()
+	for index: int in range(buttons.size()):
+		var button: BaseButton = buttons[index]
+		if not is_instance_valid(button):
+			continue
+		var callback: Callable = _play_board_motif_interaction.bind(index)
+		if not button.focus_entered.is_connected(callback):
+			var _focus_connection: int = button.focus_entered.connect(callback)
+		if not button.mouse_entered.is_connected(callback):
+			var _hover_connection: int = button.mouse_entered.connect(callback)
+
+
+func _play_board_motif_interaction(slot_index: int) -> void:
+	if is_instance_valid(_board_motif):
+		_board_motif.play_interaction_response(slot_index)
 
 
 func _prime_scene_for_button(button: Button, scene_path: String) -> void:

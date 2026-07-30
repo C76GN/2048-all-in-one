@@ -27,6 +27,10 @@ var _progress_snapshot: Dictionary = {}
 var _progress_snapshot_completion: GFAsyncCompletion = null
 var _progress_snapshot_cancel_source: GFCancellationSource = null
 var _progress_snapshot_generation: int = 0
+var _progress_snapshot_account_id: String = ""
+var _progress_snapshot_status_generation: int = -1
+var _mode_rows_by_id: Dictionary = {}
+var _leaderboard_rows_by_account_id: Dictionary = {}
 
 
 # --- @onready 变量 ---
@@ -205,6 +209,16 @@ func _apply_semantic_styles() -> void:
 		_leaderboard_group_option,
 		GameUiStyleUtility.ButtonRole.SECONDARY
 	)
+	for value: Variant in _mode_rows_by_id.values():
+		if value is Control:
+			var row: Control = value
+			if is_instance_valid(row):
+				_style_mode_summary_row(row, style)
+	for value: Variant in _leaderboard_rows_by_account_id.values():
+		if value is Control:
+			var row: Control = value
+			if is_instance_valid(row):
+				_style_leaderboard_row(row, style)
 
 
 func _update_static_text() -> void:
@@ -249,7 +263,6 @@ func _rebuild_account_selector() -> void:
 
 
 func _rebuild_profile() -> void:
-	_clear_container(_mode_list)
 	var active: LocalPlayerAccount = (
 		_account_system.get_active_account()
 		if is_instance_valid(_account_system)
@@ -259,7 +272,12 @@ func _rebuild_profile() -> void:
 		active == null
 		or not is_instance_valid(_progress_system)
 		or _progress_snapshot.is_empty()
+		or not _snapshot_matches_account_id(
+			_progress_snapshot,
+			active.account_id
+		)
 	):
+		_clear_mode_rows()
 		_account_summary_label.text = tr("PLAYER_PROFILE_UNAVAILABLE")
 		_mode_empty_label.visible = true
 		_mode_list.visible = false
@@ -286,7 +304,7 @@ func _rebuild_profile() -> void:
 			best_score,
 			GFVariantData.get_option_int(summary, &"best_score", 0)
 		)
-		_mode_list.add_child(_make_mode_summary_row(summary))
+	var created_rows: Array[Control] = _sync_mode_summary_rows(summaries)
 	_account_summary_label.text = tr("PLAYER_ACCOUNT_SUMMARY") % [
 		GFVariantData.get_option_string(
 			account_entry,
@@ -306,8 +324,8 @@ func _rebuild_profile() -> void:
 	_mode_empty_label.visible = summaries.is_empty()
 	_mode_empty_label.text = tr("PLAYER_MODE_STATS_EMPTY")
 	_mode_list.visible = not summaries.is_empty()
-	_animate_dynamic_list(
-		_mode_list,
+	_animate_new_rows(
+		created_rows,
 		not _has_revealed_profile_list
 	)
 	_has_revealed_profile_list = not summaries.is_empty()
@@ -315,61 +333,121 @@ func _rebuild_profile() -> void:
 
 func _make_mode_summary_row(summary: Dictionary) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
+	panel.name = "ModeSummaryRow"
 	panel.custom_minimum_size.y = 88.0
 	var margin: MarginContainer = MarginContainer.new()
+	margin.name = "Margin"
 	margin.add_theme_constant_override("margin_left", 14)
 	margin.add_theme_constant_override("margin_top", 10)
 	margin.add_theme_constant_override("margin_right", 14)
 	margin.add_theme_constant_override("margin_bottom", 10)
 	panel.add_child(margin)
 	var content: VBoxContainer = VBoxContainer.new()
+	content.name = "Content"
 	content.add_theme_constant_override("separation", 4)
 	margin.add_child(content)
 
-	var mode_id: String = GFVariantData.get_option_string(summary, &"mode_id")
 	var title: Label = Label.new()
-	title.text = _resolve_mode_name(mode_id)
+	title.name = "Title"
 	title.add_theme_font_size_override("font_size", 20)
 	content.add_child(title)
 	var metrics: Label = Label.new()
-	metrics.text = tr("PLAYER_MODE_METRICS") % [
-		GFVariantData.get_option_int(summary, &"plays", 0),
-		GFVariantData.get_option_int(summary, &"best_score", 0),
-		GFVariantData.get_option_int(summary, &"max_tile", 0),
-	]
+	metrics.name = "Metrics"
 	metrics.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(metrics)
 	var timing: Label = Label.new()
-	timing.text = tr("PLAYER_MODE_TIMING") % [
-		_format_duration(
-			GFVariantData.get_option_int(
-				summary,
-				&"best_duration_msec",
-				0
-			)
-		),
-		_format_duration(
-			GFVariantData.get_option_int(
-				summary,
-				&"average_duration_msec",
-				0
-			)
-		),
-	]
+	timing.name = "Timing"
 	timing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	content.add_child(timing)
-	var style: GameUiStyleUtility = _get_ui_style_utility()
-	if is_instance_valid(style):
-		style.style_panel_container(
-			panel,
-			GameUiStyleUtility.SurfaceRole.PANEL,
-			GameUiStyleUtility.BorderRole.DEFAULT,
-			1
-		)
-		style.style_label(title, GameUiStyleUtility.TextRole.PRIMARY, 20)
-		style.style_label(metrics, GameUiStyleUtility.TextRole.SECONDARY)
-		style.style_label(timing, GameUiStyleUtility.TextRole.MUTED)
+	_style_mode_summary_row(panel, _get_ui_style_utility())
+	_update_mode_summary_row(panel, summary)
 	return panel
+
+
+func _sync_mode_summary_rows(
+	summaries: Array[Dictionary]
+) -> Array[Control]:
+	var desired_ids: Dictionary = {}
+	var created_rows: Array[Control] = []
+	var row_index: int = 0
+	for summary: Dictionary in summaries:
+		var mode_id: String = GFVariantData.get_option_string(summary, &"mode_id")
+		if mode_id.is_empty():
+			continue
+		desired_ids[mode_id] = true
+		var row: Control = _get_cached_row(_mode_rows_by_id, mode_id)
+		if not is_instance_valid(row):
+			row = _make_mode_summary_row(summary)
+			_mode_list.add_child(row)
+			_mode_rows_by_id[mode_id] = row
+			created_rows.append(row)
+		else:
+			_update_mode_summary_row(row, summary)
+		_mode_list.move_child(row, mini(row_index, _mode_list.get_child_count() - 1))
+		row_index += 1
+	_remove_stale_rows(_mode_rows_by_id, desired_ids)
+	return created_rows
+
+
+func _update_mode_summary_row(row: Control, summary: Dictionary) -> void:
+	if not is_instance_valid(row):
+		return
+	var title: Label = _get_row_label(row, ^"Margin/Content/Title")
+	var metrics: Label = _get_row_label(row, ^"Margin/Content/Metrics")
+	var timing: Label = _get_row_label(row, ^"Margin/Content/Timing")
+	if is_instance_valid(title):
+		title.text = _resolve_mode_name(
+			GFVariantData.get_option_string(summary, &"mode_id")
+		)
+	if is_instance_valid(metrics):
+		metrics.text = tr("PLAYER_MODE_METRICS") % [
+			GFVariantData.get_option_int(summary, &"plays", 0),
+			GFVariantData.get_option_int(summary, &"best_score", 0),
+			GFVariantData.get_option_int(summary, &"max_tile", 0),
+		]
+	if is_instance_valid(timing):
+		timing.text = tr("PLAYER_MODE_TIMING") % [
+			_format_duration(
+				GFVariantData.get_option_int(
+					summary,
+					&"best_duration_msec",
+					0
+				)
+			),
+			_format_duration(
+				GFVariantData.get_option_int(
+					summary,
+					&"average_duration_msec",
+					0
+				)
+			),
+		]
+
+
+func _style_mode_summary_row(
+	row: Control,
+	style: GameUiStyleUtility
+) -> void:
+	if not is_instance_valid(row) or not is_instance_valid(style):
+		return
+	if not row is PanelContainer:
+		return
+	var panel: PanelContainer = row
+	var title: Label = _get_row_label(row, ^"Margin/Content/Title")
+	var metrics: Label = _get_row_label(row, ^"Margin/Content/Metrics")
+	var timing: Label = _get_row_label(row, ^"Margin/Content/Timing")
+	style.style_panel_container(
+		panel,
+		GameUiStyleUtility.SurfaceRole.PANEL,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		1
+	)
+	if is_instance_valid(title):
+		style.style_label(title, GameUiStyleUtility.TextRole.PRIMARY, 20)
+	if is_instance_valid(metrics):
+		style.style_label(metrics, GameUiStyleUtility.TextRole.SECONDARY)
+	if is_instance_valid(timing):
+		style.style_label(timing, GameUiStyleUtility.TextRole.MUTED)
 
 
 func _rebuild_leaderboard_groups() -> void:
@@ -387,6 +465,10 @@ func _rebuild_leaderboard_groups() -> void:
 	if (
 		not is_instance_valid(_progress_system)
 		or _progress_snapshot.is_empty()
+		or not _snapshot_matches_account_id(
+			_progress_snapshot,
+			_get_active_account_id()
+		)
 	):
 		_set_empty_leaderboard_group_option()
 		return
@@ -412,11 +494,15 @@ func _rebuild_leaderboard_groups() -> void:
 
 
 func _rebuild_leaderboard() -> void:
-	_clear_container(_leaderboard_list)
 	if (
 		not is_instance_valid(_progress_system)
 		or _leaderboard_identities.is_empty()
+		or not _snapshot_matches_account_id(
+			_progress_snapshot,
+			_get_active_account_id()
+		)
 	):
+		_clear_leaderboard_rows()
 		_leaderboard_empty_label.visible = true
 		_leaderboard_empty_label.text = tr("LOCAL_LEADERBOARD_EMPTY")
 		_leaderboard_list.visible = false
@@ -430,13 +516,12 @@ func _rebuild_leaderboard() -> void:
 		_progress_snapshot,
 		_leaderboard_identities[selected_index]
 	)
-	for row: Dictionary in rows:
-		_leaderboard_list.add_child(_make_leaderboard_row(row))
+	var created_rows: Array[Control] = _sync_leaderboard_rows(rows)
 	_leaderboard_empty_label.visible = rows.is_empty()
 	_leaderboard_empty_label.text = tr("LOCAL_LEADERBOARD_EMPTY")
 	_leaderboard_list.visible = not rows.is_empty()
-	_animate_dynamic_list(
-		_leaderboard_list,
+	_animate_new_rows(
+		created_rows,
 		not _has_revealed_leaderboard_list
 	)
 	_has_revealed_leaderboard_list = not rows.is_empty()
@@ -451,54 +536,127 @@ func _set_empty_leaderboard_group_option() -> void:
 
 func _make_leaderboard_row(row: Dictionary) -> Control:
 	var panel: PanelContainer = PanelContainer.new()
+	panel.name = "LeaderboardRow"
 	panel.custom_minimum_size.y = 62.0
 	var margin: MarginContainer = MarginContainer.new()
+	margin.name = "Margin"
 	margin.add_theme_constant_override("margin_left", 14)
 	margin.add_theme_constant_override("margin_top", 8)
 	margin.add_theme_constant_override("margin_right", 14)
 	margin.add_theme_constant_override("margin_bottom", 8)
 	panel.add_child(margin)
 	var content: HBoxContainer = HBoxContainer.new()
+	content.name = "Content"
 	content.add_theme_constant_override("separation", 12)
 	margin.add_child(content)
 
 	var rank_label: Label = Label.new()
+	rank_label.name = "Rank"
 	rank_label.custom_minimum_size.x = 44.0
-	rank_label.text = "#%d" % GFVariantData.get_option_int(row, &"rank", 0)
 	rank_label.add_theme_font_size_override("font_size", 20)
 	content.add_child(rank_label)
 	var name_label: Label = Label.new()
+	name_label.name = "PlayerName"
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_label.text = GFVariantData.get_option_string(row, &"display_name")
 	content.add_child(name_label)
-	var result_value: Variant = GFVariantData.get_option_value(row, &"result")
+	var score_label: Label = Label.new()
+	score_label.name = "Score"
+	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	content.add_child(score_label)
+	_style_leaderboard_row(panel, _get_ui_style_utility())
+	_update_leaderboard_row(panel, row)
+	return panel
+
+
+func _sync_leaderboard_rows(rows: Array[Dictionary]) -> Array[Control]:
+	var desired_ids: Dictionary = {}
+	var created_rows: Array[Control] = []
+	var row_index: int = 0
+	for row_data: Dictionary in rows:
+		var account_id: String = GFVariantData.get_option_string(
+			row_data,
+			&"account_id"
+		)
+		if account_id.is_empty():
+			continue
+		desired_ids[account_id] = true
+		var row: Control = _get_cached_row(
+			_leaderboard_rows_by_account_id,
+			account_id
+		)
+		if not is_instance_valid(row):
+			row = _make_leaderboard_row(row_data)
+			_leaderboard_list.add_child(row)
+			_leaderboard_rows_by_account_id[account_id] = row
+			created_rows.append(row)
+		else:
+			_update_leaderboard_row(row, row_data)
+		_leaderboard_list.move_child(
+			row,
+			mini(row_index, _leaderboard_list.get_child_count() - 1)
+		)
+		row_index += 1
+	_remove_stale_rows(_leaderboard_rows_by_account_id, desired_ids)
+	return created_rows
+
+
+func _update_leaderboard_row(row: Control, row_data: Dictionary) -> void:
+	if not is_instance_valid(row):
+		return
+	var rank_label: Label = _get_row_label(row, ^"Margin/Content/Rank")
+	var name_label: Label = _get_row_label(row, ^"Margin/Content/PlayerName")
+	var score_label: Label = _get_row_label(row, ^"Margin/Content/Score")
+	if is_instance_valid(rank_label):
+		rank_label.text = "#%d" % GFVariantData.get_option_int(
+			row_data,
+			&"rank",
+			0
+		)
+	if is_instance_valid(name_label):
+		name_label.text = GFVariantData.get_option_string(
+			row_data,
+			&"display_name"
+		)
+	var result_value: Variant = GFVariantData.get_option_value(row_data, &"result")
 	var result: GameResultRecordedData = (
 		result_value if result_value is GameResultRecordedData else null
 	)
-	var score_label: Label = Label.new()
-	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	score_label.text = (
-		tr("LOCAL_LEADERBOARD_SCORE") % [
-			result.score,
-			result.max_tile,
-			result.steps,
-		]
-		if result != null
-		else "-"
-	)
-	content.add_child(score_label)
-	var style: GameUiStyleUtility = _get_ui_style_utility()
-	if is_instance_valid(style):
-		style.style_panel_container(
-			panel,
-			GameUiStyleUtility.SurfaceRole.PANEL,
-			GameUiStyleUtility.BorderRole.DEFAULT,
-			1
+	if is_instance_valid(score_label):
+		score_label.text = (
+			tr("LOCAL_LEADERBOARD_SCORE") % [
+				result.score,
+				result.max_tile,
+				result.steps,
+			]
+			if result != null
+			else "-"
 		)
+
+
+func _style_leaderboard_row(
+	row: Control,
+	style: GameUiStyleUtility
+) -> void:
+	if not is_instance_valid(row) or not is_instance_valid(style):
+		return
+	if not row is PanelContainer:
+		return
+	var panel: PanelContainer = row
+	var rank_label: Label = _get_row_label(row, ^"Margin/Content/Rank")
+	var name_label: Label = _get_row_label(row, ^"Margin/Content/PlayerName")
+	var score_label: Label = _get_row_label(row, ^"Margin/Content/Score")
+	style.style_panel_container(
+		panel,
+		GameUiStyleUtility.SurfaceRole.PANEL,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		1
+	)
+	if is_instance_valid(rank_label):
 		style.style_label(rank_label, GameUiStyleUtility.TextRole.NUMERIC, 20)
+	if is_instance_valid(name_label):
 		style.style_label(name_label, GameUiStyleUtility.TextRole.PRIMARY)
+	if is_instance_valid(score_label):
 		style.style_label(score_label, GameUiStyleUtility.TextRole.NUMERIC)
-	return panel
 
 
 func _make_group_label(identity: Dictionary) -> String:
@@ -568,16 +726,27 @@ func _format_duration(duration_msec: int) -> String:
 func _request_progress_snapshot() -> void:
 	_cancel_progress_snapshot(&"superseded")
 	_progress_snapshot.clear()
+	_clear_progress_snapshot_status()
 	_progress_snapshot_generation += 1
 	var generation: int = _progress_snapshot_generation
-	_set_progress_loading_state()
+	_progress_snapshot_account_id = _get_active_account_id()
+	_prepare_progress_snapshot_pending()
 	if (
-		not is_instance_valid(_progress_system)
+		_progress_snapshot_account_id.is_empty()
+		or not is_instance_valid(_progress_system)
 		or not is_instance_valid(_signal_utility)
 	):
 		_apply_progress_snapshot_failure()
 		return
 	_progress_snapshot_cancel_source = GFCancellationSource.new()
+	var cancel_token: GFCancellationToken = (
+		_progress_snapshot_cancel_source.get_token()
+	)
+	call_deferred(
+		&"_show_progress_loading_after_delay",
+		generation,
+		cancel_token
+	)
 	var _bound_to_dialog: bool = (
 		_progress_snapshot_cancel_source.cancel_when_node_exits(
 			self,
@@ -587,10 +756,11 @@ func _request_progress_snapshot() -> void:
 	)
 	_progress_snapshot_completion = (
 		_progress_system.request_device_progress_snapshot(
-			_progress_snapshot_cancel_source.get_token()
+			cancel_token
 		)
 	)
 	if _progress_snapshot_completion == null:
+		_cancel_progress_snapshot(&"request_unavailable")
 		_apply_progress_snapshot_failure()
 		return
 	if _progress_snapshot_completion.is_completed():
@@ -613,6 +783,39 @@ func _request_progress_snapshot() -> void:
 			self
 		)
 	)
+
+
+func _show_progress_loading_after_delay(
+	generation: int,
+	cancel_token: GFCancellationToken
+) -> void:
+	var wait_result: Dictionary = await GFAsyncWaitUtility.delay_seconds(
+		_get_loading_reveal_delay(),
+		{
+			&"cancel_token": cancel_token,
+			&"guard_node": self,
+			&"respect_time_scale": false,
+		}
+	)
+	if (
+		not GFVariantData.get_option_bool(wait_result, &"completed")
+		or not is_inside_tree()
+		or generation != _progress_snapshot_generation
+		or _progress_snapshot_completion == null
+		or _progress_snapshot_completion.is_completed()
+	):
+		return
+	_set_progress_loading_state(generation)
+
+
+func _get_loading_reveal_delay() -> float:
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	var profile: GameUiMotionProfile = (
+		motion.get_profile()
+		if is_instance_valid(motion)
+		else GameUiMotionProfile.new()
+	)
+	return profile.get_delay(GameUiMotionProfile.PRESET_LOADING_DELAY)
 
 
 func _cancel_progress_snapshot(reason: StringName) -> void:
@@ -656,9 +859,19 @@ func _on_progress_snapshot_completed(
 	if not result_value is Dictionary:
 		_apply_progress_snapshot_failure()
 		return
-	_progress_snapshot = GFVariantData.as_dictionary(
+	var incoming_snapshot: Dictionary = GFVariantData.as_dictionary(
 		result_value
 	).duplicate(true)
+	if (
+		_get_active_account_id() != _progress_snapshot_account_id
+		or not _snapshot_matches_account_id(
+			incoming_snapshot,
+			_progress_snapshot_account_id
+		)
+	):
+		_apply_progress_snapshot_failure()
+		return
+	_progress_snapshot = incoming_snapshot
 	_rebuild_profile()
 	_rebuild_leaderboard_groups()
 	_rebuild_leaderboard()
@@ -667,14 +880,16 @@ func _on_progress_snapshot_completed(
 		&"partial",
 		false
 	):
-		_set_status(tr("PLAYER_PROFILE_PARTIAL"), true)
-	elif _status_label.text == tr("PLAYER_PROFILE_LOADING"):
-		_set_status("")
+		_set_progress_snapshot_status(
+			tr("PLAYER_PROFILE_PARTIAL"),
+			true,
+			generation
+		)
+	else:
+		_clear_progress_snapshot_status(generation)
 
 
-func _set_progress_loading_state() -> void:
-	_clear_container(_mode_list)
-	_clear_container(_leaderboard_list)
+func _set_progress_loading_state(generation: int) -> void:
 	_account_summary_label.text = tr("PLAYER_PROFILE_LOADING")
 	_mode_empty_label.text = tr("PLAYER_PROFILE_LOADING")
 	_mode_empty_label.visible = true
@@ -686,13 +901,34 @@ func _set_progress_loading_state() -> void:
 	_leaderboard_group_option.add_item(tr("LOCAL_LEADERBOARD_LOADING"))
 	_leaderboard_group_option.select(0)
 	_leaderboard_group_option.disabled = true
-	_set_status(tr("PLAYER_PROFILE_LOADING"))
+	if (
+		_status_label.text.is_empty()
+		or _progress_snapshot_status_generation >= 0
+	):
+		_set_progress_snapshot_status(
+			tr("PLAYER_PROFILE_LOADING"),
+			false,
+			generation
+		)
+
+
+func _prepare_progress_snapshot_pending() -> void:
+	# 账号 selector 已切换时必须立即撤下旧账号数据；仅 Loading 文案延迟出现。
+	_account_summary_label.text = ""
+	_mode_empty_label.visible = false
+	_mode_list.visible = false
+	_leaderboard_empty_label.visible = false
+	_leaderboard_list.visible = false
+	_leaderboard_identities.clear()
+	_leaderboard_group_option.clear()
+	_leaderboard_group_option.disabled = true
 
 
 func _apply_progress_snapshot_failure() -> void:
 	_progress_snapshot.clear()
-	_clear_container(_mode_list)
-	_clear_container(_leaderboard_list)
+	_progress_snapshot_account_id = ""
+	_clear_mode_rows()
+	_clear_leaderboard_rows()
 	_account_summary_label.text = tr("PLAYER_PROFILE_UNAVAILABLE")
 	_mode_empty_label.text = tr("PLAYER_PROFILE_UNAVAILABLE")
 	_mode_empty_label.visible = true
@@ -701,34 +937,81 @@ func _apply_progress_snapshot_failure() -> void:
 	_leaderboard_empty_label.text = tr("PLAYER_PROFILE_UNAVAILABLE")
 	_leaderboard_empty_label.visible = true
 	_leaderboard_list.visible = false
-	_set_status(tr("PLAYER_PROFILE_UNAVAILABLE"), true)
+	_set_progress_snapshot_status(
+		tr("PLAYER_PROFILE_UNAVAILABLE"),
+		true,
+		_progress_snapshot_generation
+	)
 
 
-func _clear_container(container: Node) -> void:
-	for child: Node in container.get_children():
-		child.queue_free()
+func _get_cached_row(cache: Dictionary, row_id: String) -> Control:
+	var value: Variant = cache.get(row_id)
+	if value is Control:
+		var row: Control = value
+		if is_instance_valid(row):
+			return row
+	return null
 
 
-func _animate_dynamic_list(
-	container: Control,
+func _get_row_label(row: Control, path: NodePath) -> Label:
+	var node: Node = row.get_node_or_null(path)
+	if node is Label:
+		var label: Label = node
+		return label
+	return null
+
+
+func _remove_stale_rows(cache: Dictionary, desired_ids: Dictionary) -> void:
+	for id_value: Variant in cache.keys():
+		var row_id: String = GFVariantData.to_text(id_value)
+		if desired_ids.has(row_id):
+			continue
+		var row: Control = _get_cached_row(cache, row_id)
+		if is_instance_valid(row):
+			row.queue_free()
+		var _erased: bool = cache.erase(row_id)
+
+
+func _clear_row_cache(cache: Dictionary) -> void:
+	for value: Variant in cache.values():
+		if value is Control and is_instance_valid(value):
+			var row: Control = value
+			row.queue_free()
+	cache.clear()
+
+
+func _clear_mode_rows() -> void:
+	_clear_row_cache(_mode_rows_by_id)
+
+
+func _clear_leaderboard_rows() -> void:
+	_clear_row_cache(_leaderboard_rows_by_account_id)
+
+
+func _animate_new_rows(
+	rows: Array[Control],
 	use_stagger: bool
 ) -> void:
-	if not is_instance_valid(container) or not container.visible:
+	if rows.is_empty():
 		return
 	var motion: GameUiMotionUtility = _get_ui_motion_utility()
 	if not is_instance_valid(motion):
 		return
-	var _bound_count: int = motion.bind_interactive_controls(container)
-	if use_stagger:
-		var _reveal_count: int = motion.play_children_reveal(
-			container,
-			Vector2.ZERO,
-			0.022,
-			0.0,
-			0.14
+	for index: int in range(rows.size()):
+		var row: Control = rows[index]
+		if not is_instance_valid(row) or not row.visible:
+			continue
+		var delay: float = (
+			minf(float(index) * 0.022, 0.14)
+			if use_stagger
+			else 0.0
 		)
-	else:
-		var _content_tween: Tween = motion.play_content_switch(container)
+		var _reveal_tween: Tween = motion.play_control_reveal(
+			row,
+			Vector2(8.0, 0.0),
+			0.14,
+			delay
+		)
 
 
 func _configure_confirmation_touch_targets() -> void:
@@ -747,11 +1030,38 @@ func _configure_confirmation_touch_targets() -> void:
 
 
 func _set_status(message: String, is_error: bool = false) -> void:
+	_progress_snapshot_status_generation = -1
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion):
+		motion.complete_control_motion(_status_label)
 	_status_label.text = message
 	_status_label.visible = not message.is_empty()
 	_status_label.modulate = (
 		Color(1.0, 0.62, 0.55) if is_error else Color(0.7, 0.9, 0.72)
 	)
+	if is_error and not message.is_empty() and is_instance_valid(motion):
+		var _error_tween: Tween = motion.play_local_error(_status_label)
+
+
+func _set_progress_snapshot_status(
+	message: String,
+	is_error: bool,
+	generation: int
+) -> void:
+	_set_status(message, is_error)
+	if not message.is_empty():
+		_progress_snapshot_status_generation = generation
+
+
+func _clear_progress_snapshot_status(generation: int = -1) -> void:
+	if _progress_snapshot_status_generation < 0:
+		return
+	if (
+		generation >= 0
+		and generation != _progress_snapshot_status_generation
+	):
+		return
+	_set_status("")
 
 
 func _queue_layout_update() -> void:
@@ -790,6 +1100,26 @@ func _selected_account_id() -> String:
 		_account_option.selected
 	)
 	return value if value is String else ""
+
+
+func _get_active_account_id() -> String:
+	if not is_instance_valid(_account_system):
+		return ""
+	var active: LocalPlayerAccount = _account_system.get_active_account()
+	return active.account_id if active != null else ""
+
+
+static func _snapshot_matches_account_id(
+	snapshot: Dictionary,
+	account_id: String
+) -> bool:
+	return (
+		not account_id.is_empty()
+		and GFVariantData.get_option_string(
+			snapshot,
+			&"active_account_id"
+		) == account_id
+	)
 
 
 func _close_dialog() -> void:

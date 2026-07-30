@@ -384,6 +384,16 @@ func test_editor_canvas_has_stable_large_world_extent_and_continuous_strokes() -
 			absi(step.x) <= 1 and absi(step.y) <= 1,
 			"快速拖动的相邻采样之间不得漏格。"
 		)
+	canvas.set_active_cells([Vector2i(2, 2)], true)
+	assert_true(
+		canvas.is_edit_confirmation_active(),
+		"提交编辑时只应为实际变化的格子建立短促局部确认。"
+	)
+	canvas.set_active_cells([Vector2i(2, 2)], false)
+	assert_false(
+		canvas.is_edit_confirmation_active(),
+		"减少动态或非交互刷新应直接落到静态终态。"
+	)
 	canvas.free()
 
 

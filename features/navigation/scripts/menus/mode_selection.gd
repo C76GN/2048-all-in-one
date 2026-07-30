@@ -741,7 +741,7 @@ func _set_selected_mode_by_path(config_path: String) -> void:
 	_update_ui_for_selection()
 
 
-func _update_ui_for_selection() -> void:
+func _update_ui_for_selection(animate_detail: bool = true) -> void:
 	if not is_instance_valid(_selected_mode_config):
 		_show_default_info()
 		return
@@ -754,7 +754,8 @@ func _update_ui_for_selection() -> void:
 
 	_populate_right_panel()
 	_populate_left_panel()
-	_reveal_selection_panels()
+	if animate_detail:
+		_reveal_selection_detail()
 	_update_competition_status()
 
 
@@ -800,7 +801,7 @@ func _update_ui_text() -> void:
 		for card: ModeCard in _get_mode_cards():
 			card.update_text()
 
-	_update_ui_for_selection()
+	_update_ui_for_selection(false)
 
 
 func _populate_left_panel() -> void:
@@ -1088,16 +1089,13 @@ func _format_optional_stat(value: int) -> String:
 	return str(value)
 
 
-func _reveal_selection_panels() -> void:
+func _reveal_selection_detail() -> void:
 	var motion_utility: GameUiMotionUtility = _get_game_ui_motion_utility()
 	if not is_instance_valid(motion_utility):
 		return
 
 	var _detail_tween: Tween = motion_utility.play_content_switch(
 		_info_panel_container
-	)
-	var _configuration_tween: Tween = motion_utility.play_content_switch(
-		_right_panel_container
 	)
 
 

@@ -67,17 +67,16 @@ func test_tile_lab_recipe_rebuild_restores_same_recipe_focus() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var rebuilt_button: CheckButton = _find_recipe_button(dialog, _RECIPE_ID)
-	assert_not_null(rebuilt_button)
-	assert_ne(
-		rebuilt_button,
-		original_button,
-		"切换 Recipe 后应由新控件接管已释放控件的焦点。"
+	var refreshed_button: CheckButton = _find_recipe_button(dialog, _RECIPE_ID)
+	assert_not_null(refreshed_button)
+	assert_true(
+		refreshed_button == original_button,
+		"切换 Recipe 应原位更新稳定控件，不得释放并重建同一 recipe_id。"
 	)
-	if rebuilt_button != null:
+	if refreshed_button != null:
 		assert_true(
-			rebuilt_button.has_focus(),
-			"Recipe 列表重建后必须恢复到同一 Recipe 的键盘/手柄焦点。"
+			refreshed_button.has_focus(),
+			"Recipe 原位刷新后必须保留同一键盘/手柄焦点。"
 		)
 	tile_lab.dispose()
 	architecture.dispose()
@@ -324,6 +323,217 @@ func test_player_profile_empty_states_center_inside_scroll_content() -> void:
 			"无成绩时的模式筛选必须明确显示“全部模式”。"
 		)
 		assert_true(leaderboard_option.disabled)
+	architecture.dispose()
+
+
+func test_player_profile_rows_update_in_place_by_stable_business_id() -> void:
+	var architecture: GFArchitecture = await _make_ui_architecture()
+	var context: TestArchitectureContext = _make_context(architecture)
+	var dialog_node: Node = _PLAYER_PROFILE_SCENE.instantiate()
+	assert_true(dialog_node is PlayerProfileDialog)
+	if not dialog_node is PlayerProfileDialog:
+		dialog_node.free()
+		architecture.dispose()
+		return
+	var dialog: PlayerProfileDialog = dialog_node
+	context.add_child(dialog)
+	await get_tree().process_frame
+
+	var first_summaries: Array[Dictionary] = [{
+		&"mode_id": "classic",
+		&"plays": 1,
+		&"best_score": 128,
+		&"max_tile": 16,
+		&"best_duration_msec": 1000,
+		&"average_duration_msec": 1000,
+	}]
+	var created_rows: Array[Control] = dialog._sync_mode_summary_rows(
+		first_summaries
+	)
+	assert_true(created_rows.size() == 1)
+	var first_row_value: Variant = dialog._mode_rows_by_id.get("classic")
+	assert_true(first_row_value is Control)
+	if first_row_value is Control:
+		var first_row: Control = first_row_value
+		var updated_summaries: Array[Dictionary] = [{
+			&"mode_id": "classic",
+			&"plays": 2,
+			&"best_score": 256,
+			&"max_tile": 32,
+			&"best_duration_msec": 900,
+			&"average_duration_msec": 950,
+		}]
+		var second_created_rows: Array[Control] = (
+			dialog._sync_mode_summary_rows(updated_summaries)
+		)
+		var refreshed_row_value: Variant = (
+			dialog._mode_rows_by_id.get("classic")
+		)
+		var same_mode_row: bool = refreshed_row_value == first_row
+		assert_true(second_created_rows.is_empty())
+		assert_true(
+			same_mode_row,
+			"玩家模式汇总应按 mode_id 原位更新，不得全量重建。"
+		)
+		var inserted_mode_rows: Array[Control] = dialog._sync_mode_summary_rows([
+			{
+				&"mode_id": "fibonacci",
+				&"plays": 1,
+				&"best_score": 128,
+				&"max_tile": 16,
+				&"best_duration_msec": 1200,
+				&"average_duration_msec": 1200,
+			},
+			updated_summaries[0],
+		])
+		assert_true(inserted_mode_rows.size() == 1)
+		assert_true(
+			dialog._mode_list.get_child(0) == inserted_mode_rows[0]
+			and dialog._mode_list.get_child(1) == first_row,
+			"新模式插入缓存行之前时，服务端顺序与旧行身份都必须保留。"
+		)
+
+	var leaderboard_rows: Array[Dictionary] = [{
+		&"account_id": "local-player",
+		&"rank": 1,
+		&"display_name": "Player",
+		&"result": null,
+	}]
+	var first_leaderboard_created: Array[Control] = (
+		dialog._sync_leaderboard_rows(leaderboard_rows)
+	)
+	assert_true(first_leaderboard_created.size() == 1)
+	var leaderboard_row_value: Variant = (
+		dialog._leaderboard_rows_by_account_id.get("local-player")
+	)
+	var second_leaderboard_created: Array[Control] = (
+		dialog._sync_leaderboard_rows(leaderboard_rows)
+	)
+	var same_leaderboard_row: bool = (
+		dialog._leaderboard_rows_by_account_id.get("local-player")
+		== leaderboard_row_value
+	)
+	assert_true(second_leaderboard_created.is_empty())
+	assert_true(
+		same_leaderboard_row,
+		"本地排行榜应按 account_id 保留同一行实例。"
+	)
+	var inserted_leaderboard_rows: Array[Control] = (
+		dialog._sync_leaderboard_rows([
+			{
+				&"account_id": "new-player",
+				&"rank": 1,
+				&"display_name": "New Player",
+				&"result": null,
+			},
+			{
+				&"account_id": "local-player",
+				&"rank": 2,
+				&"display_name": "Player",
+				&"result": null,
+			},
+		])
+	)
+	assert_true(inserted_leaderboard_rows.size() == 1)
+	var inserted_leaderboard_order_preserved: bool = (
+		dialog._leaderboard_list.get_child(0) == inserted_leaderboard_rows[0]
+		and dialog._leaderboard_list.get_child(1) == leaderboard_row_value
+	)
+	assert_true(
+		inserted_leaderboard_order_preserved,
+		"新账号插入缓存行之前时，榜单排名与旧行身份都必须保留。"
+	)
+	assert_true(
+		PlayerProfileDialog._snapshot_matches_account_id(
+			{&"active_account_id": "local-player"},
+			"local-player"
+		)
+	)
+	assert_false(
+		PlayerProfileDialog._snapshot_matches_account_id(
+			{&"active_account_id": "previous-player"},
+			"local-player"
+		),
+		"账号切换后不得把旧账号快照投影到新 selector。"
+	)
+	dialog._account_summary_label.text = "旧账号统计"
+	dialog._mode_list.visible = true
+	dialog._leaderboard_list.visible = true
+	dialog._leaderboard_group_option.clear()
+	dialog._leaderboard_group_option.add_item("旧账号榜单")
+	dialog._prepare_progress_snapshot_pending()
+	assert_true(dialog._account_summary_label.text.is_empty())
+	assert_false(dialog._mode_list.visible)
+	assert_false(dialog._leaderboard_list.visible)
+	assert_true(dialog._leaderboard_group_option.item_count == 0)
+	assert_true(dialog._leaderboard_group_option.disabled)
+	var mode_row_identity_preserved: bool = (
+		dialog._mode_rows_by_id.get("classic") == first_row_value
+	)
+	assert_true(
+		mode_row_identity_preserved,
+		"撤下旧数据只隐藏父容器，不能破坏可复用行身份。"
+	)
+
+	var stale_completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	var _stale_succeeded: bool = stale_completion.succeed(
+		{&"active_account_id": "previous-player"}
+	)
+	dialog._progress_snapshot_generation = 9
+	dialog._progress_snapshot_completion = stale_completion
+	dialog._on_progress_snapshot_completed(
+		stale_completion,
+		stale_completion,
+		8
+	)
+	assert_true(
+		dialog._progress_snapshot.is_empty(),
+		"旧 generation 的迟到账号快照不得恢复已撤下的数据。"
+	)
+
+	var loading_cancel_source: GFCancellationSource = GFCancellationSource.new()
+	dialog._progress_snapshot_generation = 10
+	dialog._progress_snapshot_completion = GFAsyncCompletion.new()
+	var _loading_cancelled: bool = loading_cancel_source.cancel(
+		&"superseded"
+	)
+	await dialog._show_progress_loading_after_delay(
+		10,
+		loading_cancel_source.get_token()
+	)
+	assert_false(
+		dialog._mode_empty_label.visible,
+		"被替代请求的延迟协程必须由 cancellation token 立即收束。"
+	)
+	loading_cancel_source.dispose()
+	dialog._progress_snapshot_completion = null
+	assert_true(
+		is_equal_approx(
+			dialog._get_loading_reveal_delay(),
+			GameUiMotionProfile.new().loading_indicator_delay
+		),
+		"异步 Loading 防闪延迟应来自 UI Motion Profile。"
+	)
+	dialog._set_progress_snapshot_status("旧快照不可用", true, 10)
+	dialog._clear_progress_snapshot_status()
+	assert_true(
+		dialog._status_label.text.is_empty(),
+		"新请求开始时必须清除上一代快照拥有的错误状态。"
+	)
+	dialog._set_status("账号切换成功")
+	dialog._clear_progress_snapshot_status(10)
+	assert_true(
+		dialog._status_label.text == "账号切换成功",
+		"快照成功终态不得抹掉账号操作拥有的状态。"
+	)
+	dialog._set_progress_snapshot_status("正在加载", false, 10)
+	dialog._clear_progress_snapshot_status(9)
+	assert_true(
+		dialog._status_label.text == "正在加载",
+		"旧 generation 的终态不得清除当前快照状态。"
+	)
+	dialog._clear_progress_snapshot_status(10)
+	assert_true(dialog._status_label.text.is_empty())
 	architecture.dispose()
 
 

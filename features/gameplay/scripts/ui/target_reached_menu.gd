@@ -11,6 +11,11 @@ const _SUMMARY_FORMAT_FALLBACK: String = "目标 %d 已完成\n当前：%d 分 �
 const _ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
 
 
+# --- 私有变量 ---
+
+var _has_revealed_result: bool = false
+
+
 # --- @onready 变量 (节点引用) ---
 
 @onready var _surface: SurfaceVboxContainer = $CenterContainer/VBoxContainer
@@ -36,7 +41,6 @@ func _ready() -> void:
 	_apply_semantic_styles()
 	call_deferred(&"_refresh_summary")
 	_continue_button.grab_focus()
-	call_deferred(&"_play_content_reveal")
 
 
 # --- 私有/辅助方法 ---
@@ -70,13 +74,20 @@ func _apply_semantic_styles() -> void:
 	style.style_button(_main_menu_button, GameUiStyleUtility.ButtonRole.QUIET)
 
 
-func _play_content_reveal() -> void:
+func _play_result_reveal_once() -> void:
+	if _has_revealed_result:
+		return
+	_has_revealed_result = true
 	var motion: GameUiMotionUtility = _get_ui_motion_utility()
 	if is_instance_valid(motion):
-		var _revealed_count: int = motion.play_children_reveal(
-			_surface,
-			Vector2.ZERO,
-			0.03
+		var result_controls: Array[Control] = [
+			_title_label,
+			_message_label,
+			_summary_separator,
+			_summary_label,
+		]
+		var _revealed_count: int = motion.play_reward_result_controls(
+			result_controls
 		)
 
 
@@ -87,6 +98,7 @@ func _refresh_summary() -> void:
 	var status_model: GameStatusModel = _get_game_status_model()
 	if not is_instance_valid(status_model):
 		_summary_label.text = tr("TARGET_REACHED_SUMMARY_UNAVAILABLE")
+		_play_result_reveal_once()
 		return
 
 	var target_value: int = GFVariantData.to_int(status_model.target_tile_value.get_value(), 0)
@@ -94,6 +106,7 @@ func _refresh_summary() -> void:
 	var move_count: int = GFVariantData.to_int(status_model.move_count.get_value(), 0)
 	var highest_tile: int = GFVariantData.to_int(status_model.highest_tile.get_value(), 0)
 	_summary_label.text = _format_summary(target_value, score, move_count, highest_tile)
+	_play_result_reveal_once()
 
 
 func _format_summary(target_value: int, score: int, move_count: int, highest_tile: int) -> String:

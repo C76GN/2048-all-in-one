@@ -78,6 +78,7 @@ var _virtual_top_spacer: Control = null
 var _virtual_bottom_spacer: Control = null
 var _virtual_item_extent: float = 1.0
 var _virtual_window_update_queued: bool = false
+var _has_revealed_list_once: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -1216,8 +1217,11 @@ func _handle_unfocused_virtual_navigation(event: InputEvent) -> bool:
 
 ## 集中处理选中逻辑。
 func _set_selected_item(data: Resource) -> void:
+	var selection_changed: bool = _selected_resource != data
 	_selected_resource = data
 	_update_preview(data)
+	if selection_changed:
+		_play_preview_content_switch()
 	_update_action_buttons()
 
 	var target_node: Control = null
@@ -1272,7 +1276,24 @@ func _bind_and_reveal_list_items() -> void:
 		return
 
 	var _bound_count: int = motion_utility.bind_interactive_controls(items_container)
-	var _reveal_count: int = motion_utility.play_children_reveal(items_container, _LIST_REVEAL_OFFSET, _LIST_REVEAL_STAGGER)
+	if _has_revealed_list_once:
+		return
+	var reveal_count: int = motion_utility.play_children_reveal(
+		items_container,
+		_LIST_REVEAL_OFFSET,
+		_LIST_REVEAL_STAGGER
+	)
+	_has_revealed_list_once = reveal_count > 0
+
+
+func _play_preview_content_switch() -> void:
+	var motion_utility: GameUiMotionUtility = _get_game_ui_motion_utility()
+	if not is_instance_valid(motion_utility):
+		return
+	if is_instance_valid(_preview_container) and _preview_container.visible:
+		var _preview_tween: Tween = motion_utility.play_content_switch(
+			_preview_container
+		)
 
 
 func _get_game_ui_motion_utility() -> GameUiMotionUtility:

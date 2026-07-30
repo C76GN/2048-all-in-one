@@ -627,11 +627,17 @@ func _push_gameplay_notification(
 	message: String,
 	duration_seconds: float,
 	level: GFNotificationUtility.Level,
-	key: String
+	key: String,
+	priority: int = -1
 ) -> void:
 	if not is_instance_valid(_notifications):
 		push_error("[GameFlowSystem] GFNotificationUtility 未注册，无法显示玩法反馈。")
 		return
+	var resolved_priority: int = (
+		priority
+		if priority >= GFNotificationUtility.Priority.LOW
+		else _get_notification_priority_for_level(level)
+	)
 	var _notification_id: int = _notifications.push_notification(
 		message,
 		"",
@@ -639,9 +645,24 @@ func _push_gameplay_notification(
 		{
 			"duration_seconds": duration_seconds,
 			"key": key,
+			"priority": resolved_priority,
 			"metadata": {"surface": _NOTIFICATION_SURFACE},
 		}
 	)
+
+
+func _get_notification_priority_for_level(
+	level: GFNotificationUtility.Level
+) -> GFNotificationUtility.Priority:
+	match level:
+		GFNotificationUtility.Level.ERROR:
+			return GFNotificationUtility.Priority.CRITICAL
+		GFNotificationUtility.Level.WARNING:
+			return GFNotificationUtility.Priority.NORMAL
+		GFNotificationUtility.Level.SUCCESS:
+			return GFNotificationUtility.Priority.NORMAL
+		_:
+			return GFNotificationUtility.Priority.LOW
 
 
 func _get_theme_utility() -> GameThemeUtility:
@@ -1224,7 +1245,8 @@ func _emit_target_reached_feedback() -> void:
 		),
 		_TARGET_REACHED_MESSAGE_DURATION,
 		GFNotificationUtility.Level.SUCCESS,
-		"gameplay.target_reached"
+		"gameplay.target_reached",
+		GFNotificationUtility.Priority.HIGH
 	)
 	send_simple_event(EventNames.TARGET_REACHED)
 
@@ -1382,7 +1404,8 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 			tr("SNAPSHOT_TAINT_WARN"),
 			4.0,
 			GFNotificationUtility.Level.WARNING,
-			"gameplay.bookmark_tainted"
+			"gameplay.bookmark_tainted",
+			GFNotificationUtility.Priority.HIGH
 		)
 		return
 
@@ -1472,7 +1495,8 @@ func _complete_bookmark_save(
 			tr("SNAPSHOT_SAVE_PENDING"),
 			4.0,
 			GFNotificationUtility.Level.WARNING,
-			"gameplay.bookmark_save_pending"
+			"gameplay.bookmark_save_pending",
+			GFNotificationUtility.Priority.HIGH
 		)
 	var outcome: Dictionary = await _await_section_operation_settlement(
 		operation

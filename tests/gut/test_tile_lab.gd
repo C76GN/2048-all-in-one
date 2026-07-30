@@ -397,6 +397,62 @@ func test_tile_lab_ui_has_touch_targets_confirmation_and_initial_focus() -> void
 	)
 
 
+func test_tile_lab_recipe_controls_keep_identity_and_focus() -> void:
+	var setup: Dictionary = await _create_setup()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var context: TestArchitectureContext = TestArchitectureContext.new()
+	context.test_architecture = architecture
+	add_child_autoqfree(context)
+	var dialog_node: Node = _TILE_LAB_SCENE.instantiate()
+	assert_true(dialog_node is TileLabDialog)
+	if not dialog_node is TileLabDialog:
+		_dispose_setup(setup)
+		return
+	var dialog: TileLabDialog = dialog_node
+	context.add_child(dialog)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	assert_false(
+		dialog._recipe_buttons_by_id.is_empty(),
+		"试验台必须按稳定 recipe_id 建立控件缓存。"
+	)
+	if not dialog._recipe_buttons_by_id.is_empty():
+		var recipe_id: StringName = GFVariantData.to_string_name(
+			dialog._recipe_buttons_by_id.keys()[0]
+		)
+		var button_value: Variant = dialog._recipe_buttons_by_id.get(
+			recipe_id
+		)
+		assert_true(button_value is CheckButton)
+		if button_value is CheckButton:
+			var button: CheckButton = button_value
+			var instance_id: int = button.get_instance_id()
+			button.grab_focus()
+			dialog._rebuild_recipe_buttons()
+			await get_tree().process_frame
+			var refreshed_value: Variant = (
+				dialog._recipe_buttons_by_id.get(recipe_id)
+			)
+			assert_true(refreshed_value is CheckButton)
+			if refreshed_value is CheckButton:
+				var refreshed_button: CheckButton = refreshed_value
+				assert_true(
+					refreshed_button.get_instance_id() == instance_id,
+					"Recipe 状态刷新不得替换同一 recipe_id 的控件。"
+				)
+				assert_true(
+					get_viewport().gui_get_focus_owner()
+					== refreshed_button,
+					"Recipe 局部刷新后必须保留键盘或手柄焦点。"
+				)
+
+	context.remove_child(dialog)
+	dialog.queue_free()
+	await get_tree().process_frame
+	_dispose_setup(setup)
+
+
 # --- 私有/辅助方法 ---
 
 func _save_blueprint(

@@ -15,6 +15,7 @@ signal content_rect_changed(content_rect: Rect2)
 # --- 常量 ---
 
 const _INVALID_CELL: Vector2i = Vector2i(-1, -1)
+const _EDIT_CONFIRMATION_DURATION: float = 0.11
 
 
 # --- 导出变量 ---
@@ -37,6 +38,8 @@ var _stroke_active: bool = false
 var _stroke_value: bool = true
 var _stroke_cells: Dictionary = {}
 var _stroke_last_cell: Vector2i = _INVALID_CELL
+var _confirmation_cells: Dictionary = {}
+var _confirmation_remaining: float = 0.0
 
 
 # --- Godot 生命周期方法 ---
@@ -44,8 +47,17 @@ var _stroke_last_cell: Vector2i = _INVALID_CELL
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	focus_mode = Control.FOCUS_NONE
+	set_process(false)
 	_sync_canvas_extent()
 	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	_confirmation_remaining = maxf(_confirmation_remaining - delta, 0.0)
+	queue_redraw()
+	if _confirmation_remaining <= 0.0:
+		_confirmation_cells.clear()
+		set_process(false)
 
 
 func _draw() -> void:
@@ -66,6 +78,22 @@ func _draw() -> void:
 		if not _stroke_value:
 			preview_color = inactive_cell_color
 		_draw_cell(cell, preview_color, board_rect.position)
+	if _confirmation_remaining > 0.0:
+		var progress: float = clampf(
+			_confirmation_remaining / _EDIT_CONFIRMATION_DURATION,
+			0.0,
+			1.0
+		)
+		var confirmation_color: Color = preview_cell_color
+		confirmation_color.a = lerpf(0.0, 0.82, progress * progress)
+		for cell_value: Variant in _confirmation_cells.keys():
+			if cell_value is Vector2i:
+				var cell: Vector2i = cell_value
+				_draw_cell_outline(
+					cell,
+					confirmation_color,
+					board_rect.position
+				)
 
 	var line_width: float = 2.0 if cell_size >= 18.0 else 1.0
 	for x: int in range(_grid_size.x + 1):
@@ -140,11 +168,37 @@ func cell_at_position(pointer_position: Vector2) -> Vector2i:
 
 ## 替换当前草稿的完整活跃单元快照。
 ## @param cells: 当前草稿的完整活跃单元列表。
-func set_active_cells(cells: Array[Vector2i]) -> void:
-	_active_cells.clear()
+## @param animate_changes: 是否仅对本次发生变化的格子播放短促落笔确认。
+func set_active_cells(
+	cells: Array[Vector2i],
+	animate_changes: bool = false
+) -> void:
+	var next_cells: Dictionary = {}
 	for cell: Vector2i in cells:
-		_active_cells[cell] = true
+		next_cells[cell] = true
+	var changed_cells: Array[Vector2i] = []
+	if animate_changes:
+		for cell_value: Variant in _active_cells.keys():
+			if cell_value is Vector2i:
+				var cell: Vector2i = cell_value
+				if not next_cells.has(cell):
+					changed_cells.append(cell)
+		for cell_value: Variant in next_cells.keys():
+			if cell_value is Vector2i:
+				var cell: Vector2i = cell_value
+				if not _active_cells.has(cell):
+					changed_cells.append(cell)
+	_active_cells = next_cells
+	if animate_changes and not changed_cells.is_empty():
+		_play_edit_confirmation(changed_cells)
+	else:
+		_clear_edit_confirmation()
 	queue_redraw()
+
+
+## 返回是否仍在播放局部格子确认，供可访问性与回归测试观察。
+func is_edit_confirmation_active() -> bool:
+	return _confirmation_remaining > 0.0 and not _confirmation_cells.is_empty()
 
 
 ## true 使用画笔，false 使用橡皮擦。
@@ -260,11 +314,46 @@ func _reset_stroke() -> void:
 	_stroke_last_cell = _INVALID_CELL
 
 
+func _play_edit_confirmation(cells: Array[Vector2i]) -> void:
+	_confirmation_cells.clear()
+	for cell: Vector2i in cells:
+		if (
+			cell.x >= 0
+			and cell.y >= 0
+			and cell.x < _grid_size.x
+			and cell.y < _grid_size.y
+		):
+			_confirmation_cells[cell] = true
+	if _confirmation_cells.is_empty():
+		_clear_edit_confirmation()
+		return
+	_confirmation_remaining = _EDIT_CONFIRMATION_DURATION
+	set_process(true)
+
+
+func _clear_edit_confirmation() -> void:
+	_confirmation_cells.clear()
+	_confirmation_remaining = 0.0
+	set_process(false)
+
+
 func _draw_cell(cell: Vector2i, color: Color, origin: Vector2) -> void:
 	var inset: float = clampf(cell_size * 0.08, 1.0, 5.0)
 	var cell_position: Vector2 = origin + Vector2(cell) * cell_size + Vector2(inset, inset)
 	var cell_extent: Vector2 = Vector2.ONE * maxf(cell_size - inset * 2.0, 0.0)
 	draw_rect(Rect2(cell_position, cell_extent), color, true)
+
+
+func _draw_cell_outline(cell: Vector2i, color: Color, origin: Vector2) -> void:
+	var inset: float = clampf(cell_size * 0.045, 1.0, 4.0)
+	var cell_position: Vector2 = origin + Vector2(cell) * cell_size + Vector2(inset, inset)
+	var cell_extent: Vector2 = Vector2.ONE * maxf(cell_size - inset * 2.0, 0.0)
+	draw_rect(
+		Rect2(cell_position, cell_extent),
+		color,
+		false,
+		clampf(cell_size * 0.055, 2.0, 5.0)
+	)
 
 
 static func _is_row_major_before(left: Vector2i, right: Vector2i) -> bool:

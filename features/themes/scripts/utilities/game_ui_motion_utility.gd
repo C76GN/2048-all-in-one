@@ -31,6 +31,8 @@ const _CONTROL_BASE_MODULATE_META: StringName = &"_game_ui_motion_control_base_m
 const _CONTROL_BASE_ROTATION_META: StringName = &"_game_ui_motion_control_base_rotation"
 const _CONTROL_TWEEN_META: StringName = &"_game_ui_motion_control_tween"
 const _NUMERIC_TWEEN_META: StringName = &"_game_ui_motion_numeric_tween"
+const _NUMERIC_TARGET_VALUE_META: StringName = &"_game_ui_motion_numeric_target_value"
+const _NUMERIC_DELTA_LABEL_META: StringName = &"_game_ui_motion_numeric_delta_label"
 const _SCROLL_CONTAINER_BOUND_META: StringName = &"_game_ui_motion_scroll_container_bound"
 const _SCROLL_BOUND_META: StringName = &"_game_ui_motion_scroll_bound"
 const _SCROLL_HOVERED_META: StringName = &"_game_ui_motion_scroll_hovered"
@@ -41,32 +43,8 @@ const _TAB_BOUND_META: StringName = &"_game_ui_motion_tab_bound"
 const _TAB_INDEX_META: StringName = &"_game_ui_motion_tab_index"
 ## BaseButton 根控件始终保持布局几何稳定；可见变换由内部 Presenter 承担。
 ## 这避免 ScrollContainer 与密集按钮组裁切放大后的控件。
-const _BUTTON_DEAL_OFFSET: Vector2 = Vector2(18.0, 0.0)
-const _BUTTON_DEAL_STAGGER: float = 0.032
-const _PANEL_INTRO_OFFSET: Vector2 = Vector2(0.0, 10.0)
-const _PANEL_INTRO_SCALE: float = 0.992
-const _PANEL_INTRO_DURATION: float = 0.18
-const _CHILD_REVEAL_OFFSET: Vector2 = Vector2(8.0, 0.0)
-const _CHILD_REVEAL_DURATION: float = 0.14
-const _CHILD_REVEAL_STAGGER: float = 0.025
-const _CHILD_REVEAL_SCALE: float = 0.985
-const _CONTENT_SWITCH_OFFSET: Vector2 = Vector2(12.0, 0.0)
-const _CONTENT_SWITCH_DURATION: float = 0.15
-const _PIECE_ASSEMBLY_DURATION: float = 0.28
-const _PIECE_ASSEMBLY_STAGGER: float = 0.055
-const _PIECE_ASSEMBLY_SCALE: float = 0.72
-const _PIECE_ASSEMBLY_ROTATION: float = 0.10
-const _SCROLL_IDLE_ALPHA: float = 0.48
-const _SCROLL_IDLE_THICKNESS_SCALE: float = 0.72
-const _SCROLL_ACTIVE_DURATION: float = 0.11
-const _SCROLL_IDLE_DELAY: float = 0.42
-const _SCROLL_IDLE_DURATION: float = 0.20
-const _NUMERIC_CHANGE_DURATION: float = 0.22
-const _NUMERIC_DELTA_DURATION: float = 0.36
-const _NUMERIC_GAIN_COLOR: Color = Color(0.82, 0.69, 0.34, 1.0)
-const _NUMERIC_LOSS_COLOR: Color = Color(0.58, 0.27, 0.19, 1.0)
-const _NUMERIC_DELTA_START_DISTANCE: float = 5.0
-const _NUMERIC_DELTA_END_DISTANCE: float = 38.0
+const _PROFILE_VECTOR_SENTINEL: Vector2 = Vector2(1.0e20, 1.0e20)
+const _PROFILE_COLOR_SENTINEL: Color = Color(-1.0, -1.0, -1.0, -1.0)
 
 
 # --- 私有变量 ---
@@ -75,6 +53,7 @@ var _style: GameUiStyleUtility
 var _accessibility: GameAccessibilityUtility
 var _numeric_scatter_sequence: int = 0
 var _tracked_buttons: Array[WeakRef] = []
+var _motion_profile: GameUiMotionProfile = null
 
 
 # --- GF 生命周期方法 ---
@@ -118,15 +97,36 @@ func dispose() -> void:
 	_tracked_buttons.clear()
 	_style = null
 	_accessibility = null
+	_motion_profile = null
 
 
 func release_dependencies() -> void:
 	_style = null
 	_accessibility = null
+	_motion_profile = null
 	super.release_dependencies()
 
 
 # --- 公共方法 ---
+
+## 应用当前视觉主题提供的 UI 动效 Profile。
+## @param profile: 主题拥有的语义节拍；无效 Profile 会被拒绝。
+## @return: Profile 完整且已应用时返回 true。
+func apply_profile(profile: GameUiMotionProfile) -> bool:
+	if profile == null or not profile.is_valid_profile():
+		return false
+	_motion_profile = profile
+	for weak_reference: WeakRef in _tracked_buttons:
+		var referenced_object: Variant = weak_reference.get_ref()
+		if referenced_object is BaseButton:
+			var button: BaseButton = referenced_object
+			_apply_profile_to_button(button)
+	return true
+
+
+## 返回当前生效的 Profile；架构尚未激活主题时使用等价默认值。
+func get_profile() -> GameUiMotionProfile:
+	return _get_motion_profile()
 
 ## 递归绑定根节点下所有 BaseButton 控件。
 ## @param root: 要扫描的 UI 根节点。
@@ -164,12 +164,13 @@ func bind_button(button: BaseButton) -> bool:
 ## @param panel: 要播放入场动效的面板控件。
 ## @return: 创建成功时返回 Tween，否则返回 null。
 func play_panel_intro(panel: Control) -> Tween:
+	var profile: GameUiMotionProfile = _get_motion_profile()
 	return play_control_reveal(
 		panel,
-		_PANEL_INTRO_OFFSET,
-		_PANEL_INTRO_DURATION,
+		profile.panel_enter_offset,
+		profile.panel_enter_duration,
 		0.0,
-		_PANEL_INTRO_SCALE
+		profile.panel_enter_start_scale
 	)
 
 
@@ -180,9 +181,16 @@ func play_panel_intro(panel: Control) -> Tween:
 func play_modal_intro(backdrop: Control, surface: Control) -> Tween:
 	if not is_instance_valid(surface):
 		return null
+	var profile: GameUiMotionProfile = _get_motion_profile()
 	_store_control_base_state(surface, false)
 	if is_instance_valid(backdrop):
 		_store_control_base_state(backdrop, false)
+	var was_interrupted: bool = _has_running_control_tween(surface)
+	if is_instance_valid(backdrop):
+		was_interrupted = (
+			_has_running_control_tween(backdrop)
+			or was_interrupted
+		)
 		_kill_control_tween(backdrop)
 	_kill_control_tween(surface)
 
@@ -211,14 +219,15 @@ func play_modal_intro(backdrop: Control, surface: Control) -> Tween:
 		return null
 
 	surface.pivot_offset = surface.size * 0.5
-	surface.scale = surface_scale * 0.972
-	var surface_start_modulate: Color = surface_modulate
-	surface_start_modulate.a = 0.0
-	surface.modulate = surface_start_modulate
-	if is_instance_valid(backdrop):
-		var backdrop_start_modulate: Color = backdrop_modulate
-		backdrop_start_modulate.a = 0.0
-		backdrop.modulate = backdrop_start_modulate
+	if not was_interrupted:
+		surface.scale = surface_scale * profile.modal_enter_start_scale
+		var surface_start_modulate: Color = surface_modulate
+		surface_start_modulate.a = 0.0
+		surface.modulate = surface_start_modulate
+		if is_instance_valid(backdrop):
+			var backdrop_start_modulate: Color = backdrop_modulate
+			backdrop_start_modulate.a = 0.0
+			backdrop.modulate = backdrop_start_modulate
 
 	var tween: Tween = surface.create_tween()
 	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
@@ -227,7 +236,7 @@ func play_modal_intro(backdrop: Control, surface: Control) -> Tween:
 		surface,
 		"scale",
 		surface_scale,
-		0.20
+		profile.modal_enter_scale_duration
 	)
 	var _scale_curve: Tweener = scale_tweener.set_trans(Tween.TRANS_BACK).set_ease(
 		Tween.EASE_OUT
@@ -236,7 +245,7 @@ func play_modal_intro(backdrop: Control, surface: Control) -> Tween:
 		surface,
 		"modulate",
 		surface_modulate,
-		0.16
+		profile.modal_enter_fade_duration
 	)
 	var _surface_modulate_curve: Tweener = surface_modulate_tweener.set_trans(
 		Tween.TRANS_CUBIC
@@ -249,7 +258,7 @@ func play_modal_intro(backdrop: Control, surface: Control) -> Tween:
 			backdrop,
 			"modulate",
 			backdrop_modulate,
-			0.16
+			profile.modal_enter_fade_duration
 		)
 		var _backdrop_curve: Tweener = backdrop_tweener.set_trans(
 			Tween.TRANS_CUBIC
@@ -269,19 +278,24 @@ func play_modal_intro(backdrop: Control, surface: Control) -> Tween:
 func play_modal_outro(backdrop: Control, surface: Control) -> Tween:
 	if not is_instance_valid(surface):
 		return null
+	var profile: GameUiMotionProfile = _get_motion_profile()
 	_store_control_base_state(surface, false)
 	if is_instance_valid(backdrop):
 		_store_control_base_state(backdrop, false)
 		_kill_control_tween(backdrop)
 	_kill_control_tween(surface)
-	if _is_reduced_motion() or not surface.is_inside_tree():
-		return null
-
 	var base_scale: Vector2 = _get_control_vector2_meta(
 		surface,
 		_CONTROL_BASE_SCALE_META,
 		surface.scale
 	)
+	if _is_reduced_motion() or not surface.is_inside_tree():
+		surface.scale = base_scale * profile.modal_exit_end_scale
+		surface.modulate.a = 0.0
+		if is_instance_valid(backdrop):
+			backdrop.modulate.a = 0.0
+		return null
+
 	surface.pivot_offset = surface.size * 0.5
 	var tween: Tween = surface.create_tween()
 	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
@@ -289,8 +303,8 @@ func play_modal_outro(backdrop: Control, surface: Control) -> Tween:
 	var scale_tweener: PropertyTweener = tween.tween_property(
 		surface,
 		"scale",
-		base_scale * 0.985,
-		0.13
+		base_scale * profile.modal_exit_end_scale,
+		profile.modal_exit_scale_duration
 	)
 	var _scale_curve: Tweener = scale_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
 		Tween.EASE_IN
@@ -299,7 +313,7 @@ func play_modal_outro(backdrop: Control, surface: Control) -> Tween:
 		surface,
 		"modulate:a",
 		0.0,
-		0.11
+		profile.modal_exit_surface_fade_duration
 	)
 	var _surface_fade_curve: Tweener = surface_fade.set_trans(
 		Tween.TRANS_CUBIC
@@ -312,7 +326,7 @@ func play_modal_outro(backdrop: Control, surface: Control) -> Tween:
 			backdrop,
 			"modulate:a",
 			0.0,
-			0.13
+			profile.modal_exit_backdrop_fade_duration
 		)
 		var _backdrop_fade_curve: Tweener = backdrop_fade.set_trans(
 			Tween.TRANS_CUBIC
@@ -333,13 +347,26 @@ func play_modal_outro(backdrop: Control, surface: Control) -> Tween:
 ## @param start_scale: 动画起点相对于原始缩放的倍率。
 ## @return: 创建成功时返回 Tween，否则返回 null。
 func play_control_reveal(
-	control: Control,
-	offset: Vector2 = _CHILD_REVEAL_OFFSET,
-	duration: float = _CHILD_REVEAL_DURATION,
+	control: Variant,
+	offset: Vector2 = _PROFILE_VECTOR_SENTINEL,
+	duration: float = -1.0,
 	delay: float = 0.0,
-	start_scale: float = 1.0
+	start_scale: float = -1.0
 ) -> Tween:
-	return _play_control_reveal(control, offset, duration, delay, start_scale, true)
+	if typeof(control) != TYPE_OBJECT or not is_instance_valid(control):
+		return null
+	if not control is Control:
+		return null
+	var target: Control = control
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	return _play_control_reveal(
+		target,
+		profile.control_reveal_offset if offset == _PROFILE_VECTOR_SENTINEL else offset,
+		profile.control_reveal_duration if duration < 0.0 else duration,
+		delay,
+		profile.control_reveal_start_scale if start_scale < 0.0 else start_scale,
+		not target.get_parent() is Container
+	)
 
 
 ## 播放单个控件的短促强调反馈，并恢复控件首次记录的基础状态。
@@ -350,12 +377,28 @@ func play_control_reveal(
 ## @return: 创建成功时返回 Tween，否则返回 null。
 func play_control_pulse(
 	control: Control,
-	scale_multiplier: float = 1.035,
-	start_modulate: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0),
-	duration: float = 0.22
+	scale_multiplier: float = -1.0,
+	start_modulate: Color = _PROFILE_COLOR_SENTINEL,
+	duration: float = -1.0
 ) -> Tween:
 	if not is_instance_valid(control):
 		return null
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	var resolved_scale: float = (
+		profile.control_pulse_start_scale
+		if scale_multiplier < 0.0
+		else scale_multiplier
+	)
+	var resolved_modulate: Color = (
+		profile.control_pulse_color
+		if start_modulate == _PROFILE_COLOR_SENTINEL
+		else start_modulate
+	)
+	var resolved_duration: float = (
+		profile.control_pulse_duration
+		if duration < 0.0
+		else duration
+	)
 
 	_store_control_base_state(control, false)
 	_kill_control_tween(control)
@@ -375,8 +418,8 @@ func play_control_pulse(
 		control.modulate = base_modulate
 		return null
 	control.pivot_offset = control.size * 0.5
-	control.scale = base_scale * maxf(scale_multiplier, 0.0)
-	control.modulate = start_modulate
+	control.scale = base_scale * maxf(resolved_scale, 0.0)
+	control.modulate = resolved_modulate
 
 	if not control.is_inside_tree():
 		control.scale = base_scale
@@ -388,7 +431,7 @@ func play_control_pulse(
 	var _parallel_result: Tween = tween.set_parallel(true)
 	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
 	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
-	var safe_duration: float = maxf(duration, 0.001)
+	var safe_duration: float = maxf(resolved_duration, 0.001)
 	var _scale_tweener: PropertyTweener = tween.tween_property(
 		control,
 		"scale",
@@ -401,6 +444,46 @@ func play_control_pulse(
 		base_modulate,
 		safe_duration
 	)
+	control.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
+
+
+## 播放局部错误颜色确认并回到调用方已经设置的静态错误终态。
+##
+## 本方法不改变布局或缩放；错误文案与静态颜色必须在调用前已经可读。
+## @param control: 错误发生区域内的标签或表面。
+## @return: 创建成功时返回 Tween；Reduced Motion 直接保持静态终态。
+func play_local_error(control: Control) -> Tween:
+	if not is_instance_valid(control):
+		return null
+	_kill_control_tween(control)
+	var terminal_modulate: Color = control.modulate
+	control.set_meta(_CONTROL_BASE_MODULATE_META, terminal_modulate)
+	if _is_reduced_motion() or not control.is_inside_tree():
+		control.modulate = terminal_modulate
+		return null
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	var accent_color: Color = profile.numeric_loss_color
+	if is_instance_valid(_style):
+		accent_color = _style.get_value_change_color(false)
+	var start_modulate: Color = terminal_modulate.lerp(
+		accent_color,
+		profile.local_error_color_mix
+	)
+	start_modulate.a = terminal_modulate.a
+	control.modulate = start_modulate
+	var tween: Tween = control.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(
+		Tween.TWEEN_PAUSE_PROCESS
+	)
+	var modulate_tweener: PropertyTweener = tween.tween_property(
+		control,
+		"modulate",
+		terminal_modulate,
+		profile.local_error_duration
+	)
+	var _curve_result: Tweener = modulate_tweener.set_trans(Tween.TRANS_CUBIC)
+	var _ease_result: Tweener = modulate_tweener.set_ease(Tween.EASE_OUT)
 	control.set_meta(_CONTROL_TWEEN_META, tween)
 	return tween
 
@@ -420,19 +503,29 @@ func play_numeric_change(
 	if not is_instance_valid(value_label):
 		return null
 
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	var animated_old_value: int = old_value
+	if _has_running_numeric_tween(value_label) and value_label.text.is_valid_int():
+		animated_old_value = value_label.text.to_int()
 	_store_control_base_state(value_label, false)
 	_kill_control_tween(value_label)
 	_kill_numeric_tween(value_label)
 	_restore_control_base_state(value_label, false)
-	value_label.text = str(old_value)
+	value_label.text = str(animated_old_value)
+	value_label.set_meta(_NUMERIC_TARGET_VALUE_META, new_value)
+	value_label.set_meta(
+		_NUMERIC_DELTA_LABEL_META,
+		weakref(delta_label) if is_instance_valid(delta_label) else null
+	)
 
 	if is_instance_valid(delta_label):
 		_store_control_base_state(delta_label, true)
 		_restore_control_base_state(delta_label, true)
 		delta_label.visible = false
 
-	if old_value == new_value or not value_label.is_inside_tree():
+	if animated_old_value == new_value or not value_label.is_inside_tree():
 		value_label.text = str(new_value)
+		_clear_numeric_motion_state(value_label)
 		return null
 	if _is_reduced_motion():
 		value_label.text = str(new_value)
@@ -440,9 +533,12 @@ func play_numeric_change(
 		if is_instance_valid(delta_label):
 			_restore_control_base_state(delta_label, true)
 			delta_label.visible = false
+		_clear_numeric_motion_state(value_label)
 		return null
 
-	var feedback_color: Color = _get_numeric_feedback_color(new_value > old_value)
+	var feedback_color: Color = _get_numeric_feedback_color(
+		new_value > animated_old_value
+	)
 	var base_scale: Vector2 = _get_control_vector2_meta(
 		value_label,
 		_CONTROL_BASE_SCALE_META,
@@ -454,8 +550,11 @@ func play_numeric_change(
 		value_label.modulate
 	)
 	value_label.pivot_offset = value_label.size * 0.5
-	value_label.scale = base_scale * 1.08
-	value_label.modulate = base_modulate.lerp(feedback_color, 0.22)
+	value_label.scale = base_scale * profile.numeric_start_scale
+	value_label.modulate = base_modulate.lerp(
+		feedback_color,
+		profile.numeric_color_mix
+	)
 
 	var tween: Tween = value_label.create_tween()
 	var _pause_mode_result: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
@@ -463,29 +562,33 @@ func play_numeric_change(
 	var _transition_result: Tween = tween.set_trans(Tween.TRANS_CUBIC)
 	var _ease_result: Tween = tween.set_ease(Tween.EASE_OUT)
 	var _number_tweener: MethodTweener = tween.tween_method(
-		_set_numeric_label_progress.bind(value_label, old_value, new_value),
+		_set_numeric_label_progress.bind(
+			value_label,
+			animated_old_value,
+			new_value
+		),
 		0.0,
 		1.0,
-		_NUMERIC_CHANGE_DURATION
+		profile.numeric_change_duration
 	)
 	var _scale_tweener: PropertyTweener = tween.tween_property(
 		value_label,
 		"scale",
 		base_scale,
-		_NUMERIC_CHANGE_DURATION
+		profile.numeric_change_duration
 	)
 	var _modulate_tweener: PropertyTweener = tween.tween_property(
 		value_label,
 		"modulate",
 		base_modulate,
-		_NUMERIC_CHANGE_DURATION
+		profile.numeric_change_duration
 	)
 
 	if is_instance_valid(delta_label):
 		var delta_direction: Vector2 = _next_numeric_delta_direction()
 		_prepare_numeric_delta_label(
 			delta_label,
-			new_value - old_value,
+			new_value - animated_old_value,
 			feedback_color,
 			delta_direction
 		)
@@ -502,23 +605,26 @@ func play_numeric_change(
 		var _delta_position_tweener: PropertyTweener = tween.tween_property(
 			delta_label,
 			"position",
-			delta_base_position + delta_direction * _NUMERIC_DELTA_END_DISTANCE,
-			_NUMERIC_DELTA_DURATION
+			delta_base_position + delta_direction * profile.numeric_delta_end_distance,
+			profile.numeric_delta_duration
 		)
 		var _delta_scale_tweener: PropertyTweener = tween.tween_property(
 			delta_label,
 			"scale",
 			delta_base_scale,
-			_NUMERIC_CHANGE_DURATION
+			profile.numeric_change_duration
 		)
 		var delta_fade_tweener: PropertyTweener = tween.tween_property(
 			delta_label,
 			"modulate:a",
 			0.0,
-			_NUMERIC_DELTA_DURATION * 0.72
+			(
+				profile.numeric_delta_duration
+				* (1.0 - profile.numeric_delta_fade_delay_ratio)
+			)
 		)
 		var _delta_fade_delay: Tweener = delta_fade_tweener.set_delay(
-			_NUMERIC_DELTA_DURATION * 0.28
+			profile.numeric_delta_duration * profile.numeric_delta_fade_delay_ratio
 		)
 
 	value_label.set_meta(_NUMERIC_TWEEN_META, tween)
@@ -538,17 +644,33 @@ func play_numeric_change(
 ## @return: 本次播放动效的子控件数量。
 func play_children_reveal(
 	container: Node,
-	offset: Vector2 = _CHILD_REVEAL_OFFSET,
-	stagger: float = _CHILD_REVEAL_STAGGER,
+	offset: Vector2 = _PROFILE_VECTOR_SENTINEL,
+	stagger: float = -1.0,
 	initial_delay: float = 0.0,
-	maximum_stagger: float = 0.16
+	maximum_stagger: float = -1.0
 ) -> int:
 	if not is_instance_valid(container):
 		return 0
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	var resolved_offset: Vector2 = (
+		profile.control_reveal_offset
+		if offset == _PROFILE_VECTOR_SENTINEL
+		else offset
+	)
+	var resolved_stagger: float = (
+		profile.control_reveal_stagger if stagger < 0.0 else stagger
+	)
+	var resolved_maximum_stagger: float = (
+		profile.control_reveal_maximum_stagger
+		if maximum_stagger < 0.0
+		else maximum_stagger
+	)
 
 	var animated_count: int = 0
 	var animate_position: bool = not container is Container
-	var reveal_offset: Vector2 = offset if animate_position else Vector2.ZERO
+	var reveal_offset: Vector2 = (
+		resolved_offset if animate_position else Vector2.ZERO
+	)
 	for child: Node in container.get_children():
 		if child is Control:
 			var child_control: Control = child
@@ -557,16 +679,79 @@ func play_children_reveal(
 			var _reveal_tween: Tween = _play_control_reveal(
 				child_control,
 				reveal_offset,
-				_CHILD_REVEAL_DURATION,
+				profile.control_reveal_duration,
 				maxf(initial_delay, 0.0) + minf(
-					float(animated_count) * maxf(stagger, 0.0),
-					maxf(maximum_stagger, 0.0)
+					float(animated_count) * maxf(resolved_stagger, 0.0),
+					maxf(resolved_maximum_stagger, 0.0)
 				),
-				_CHILD_REVEAL_SCALE,
+				profile.control_reveal_start_scale,
 				animate_position
 			)
 			animated_count += 1
 
+	return animated_count
+
+
+## 使用结果/奖励语义错峰揭示一组直接子控件。
+##
+## 业务结果必须在调用前已经提交并可读；本方法只拥有表现。BaseButton
+## 会自动转交内部 Presenter，避免改变 Container 管理的命中根几何。
+## @param container: 结果表面的直接子控件容器。
+## @param shortened: 重复查看时使用更短的普通 reveal 节拍。
+## @return: 本次处理的可见子控件数量。
+func play_reward_result_reveal(
+	container: Node,
+	shortened: bool = false
+) -> int:
+	if not is_instance_valid(container):
+		return 0
+	var controls: Array[Control] = []
+	for child: Node in container.get_children():
+		if child is Control:
+			var child_control: Control = child
+			controls.append(child_control)
+	return play_reward_result_controls(controls, shortened)
+
+
+## 使用结果/奖励语义揭示一组明确的表现控件。
+##
+## 调用方可以排除 CTA，使业务操作与焦点在第 0 帧即保持可用。
+## @param controls: 按因果阅读顺序排列的表现控件。
+## @param shortened: 重复查看时使用更短的普通 reveal 节拍。
+## @return: 本次处理的可见控件数量。
+func play_reward_result_controls(
+	controls: Array[Control],
+	shortened: bool = false
+) -> int:
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	var duration: float = (
+		profile.control_reveal_duration
+		if shortened
+		else profile.reward_result_reveal_duration
+	)
+	var stagger: float = (
+		profile.control_reveal_stagger
+		if shortened
+		else profile.reward_result_reveal_stagger
+	)
+	var start_scale: float = (
+		profile.control_reveal_start_scale
+		if shortened
+		else profile.reward_result_start_scale
+	)
+	var animated_count: int = 0
+	for child_control: Control in controls:
+		if not is_instance_valid(child_control):
+			continue
+		if not child_control.visible:
+			continue
+		var _reveal_tween: Tween = _play_reward_result_control(
+			child_control,
+			duration,
+			minf(float(animated_count) * stagger, 0.22),
+			start_scale
+		)
+		animated_count += 1
 	return animated_count
 
 
@@ -579,12 +764,19 @@ func play_children_reveal(
 ## @return: 本次启动的纸片数量。
 func play_button_deal_sequence(
 	buttons: Array[BaseButton],
-	offset: Vector2 = _BUTTON_DEAL_OFFSET,
-	stagger: float = _BUTTON_DEAL_STAGGER,
+	offset: Vector2 = _PROFILE_VECTOR_SENTINEL,
+	stagger: float = -1.0,
 	initial_delay: float = 0.0
 ) -> int:
 	if not is_instance_valid(_style):
 		return 0
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	var resolved_offset: Vector2 = (
+		profile.button_deal_offset
+		if offset == _PROFILE_VECTOR_SENTINEL
+		else offset
+	)
+	var resolved_stagger: float = profile.button_deal_stagger if stagger < 0.0 else stagger
 	var animated_count: int = 0
 	for button: BaseButton in buttons:
 		if not is_instance_valid(button) or not button.visible:
@@ -592,16 +784,16 @@ func play_button_deal_sequence(
 		var direction: float = -1.0 if animated_count % 2 == 0 else 1.0
 		_style.play_button_deal_in(
 			button,
-			Vector2(absf(offset.x) * direction, offset.y),
+			Vector2(absf(resolved_offset.x) * direction, resolved_offset.y),
 			_resolve_button_motion_state(button),
 			maxf(initial_delay, 0.0)
-				+ float(animated_count) * maxf(stagger, 0.0),
+				+ float(animated_count) * maxf(resolved_stagger, 0.0),
 			_is_reduced_motion()
 		)
 		_play_button_text_reveal(
 			button,
 			maxf(initial_delay, 0.0)
-				+ float(animated_count) * maxf(stagger, 0.0)
+				+ float(animated_count) * maxf(resolved_stagger, 0.0)
 		)
 		animated_count += 1
 	return animated_count
@@ -625,15 +817,94 @@ func complete_button_motion(button: BaseButton) -> void:
 func play_content_switch(control: Control, direction: float = 1.0) -> Tween:
 	if not is_instance_valid(control):
 		return null
+	var profile: GameUiMotionProfile = _get_motion_profile()
 	var signed_direction: float = -1.0 if direction < 0.0 else 1.0
 	return _play_control_reveal(
 		control,
-		_CONTENT_SWITCH_OFFSET * signed_direction,
-		_CONTENT_SWITCH_DURATION,
+		profile.content_switch_offset * signed_direction,
+		profile.content_switch_duration,
 		0.0,
-		0.992,
+		profile.content_switch_start_scale,
 		not control.get_parent() is Container
 	)
+
+
+## 播放即时通知从偏移位置回到稳定阅读位置的进入动效。
+## 正文与实色底板从首帧起保持完全可读；Reduced Motion 直接落到终态。
+## @param control: 通知视觉根。
+## @param rest_position: 当前响应式布局计算出的稳定位置。
+## @param enter_offset: 可选语义偏移；默认读取主题 Motion Profile。
+## @return: 创建成功时返回 Tween；静态终态返回 null。
+func play_toast_entry(
+	control: Control,
+	rest_position: Vector2,
+	enter_offset: Vector2 = _PROFILE_VECTOR_SENTINEL
+) -> Tween:
+	if not is_instance_valid(control):
+		return null
+	_kill_control_tween(control)
+	control.set_meta(_CONTROL_BASE_POSITION_META, rest_position)
+	control.set_meta(_CONTROL_BASE_MODULATE_META, Color.WHITE)
+	control.position = rest_position
+	control.modulate = Color.WHITE
+	if _is_reduced_motion() or not control.is_inside_tree():
+		return null
+
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	var resolved_offset: Vector2 = (
+		profile.toast_enter_offset
+		if enter_offset == _PROFILE_VECTOR_SENTINEL
+		else enter_offset
+	)
+	control.position = rest_position + resolved_offset
+	var tween: Tween = control.create_tween()
+	var position_tweener: PropertyTweener = tween.tween_property(
+		control,
+		"position",
+		rest_position,
+		profile.toast_enter_duration
+	)
+	var _position_curve: Tweener = position_tweener.set_trans(Tween.TRANS_QUART)
+	var _position_ease: Tweener = position_tweener.set_ease(Tween.EASE_OUT)
+	control.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
+
+
+## 播放即时通知的短位移与淡出动效。
+## @param control: 通知视觉根。
+## @param rest_position: 当前响应式布局计算出的稳定位置。
+## @return: 创建成功时返回 Tween；Reduced Motion 直接返回 null。
+func play_toast_exit(control: Control, rest_position: Vector2) -> Tween:
+	if not is_instance_valid(control):
+		return null
+	_kill_control_tween(control)
+	control.set_meta(_CONTROL_BASE_POSITION_META, rest_position)
+	control.set_meta(_CONTROL_BASE_MODULATE_META, Color.WHITE)
+	control.position = rest_position
+	control.modulate = Color.WHITE
+	if _is_reduced_motion() or not control.is_inside_tree():
+		return null
+
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	var tween: Tween = control.create_tween()
+	var position_tweener: PropertyTweener = tween.tween_property(
+		control,
+		"position",
+		rest_position + profile.toast_exit_offset,
+		profile.toast_exit_duration
+	)
+	var _position_curve: Tweener = position_tweener.set_trans(Tween.TRANS_QUAD)
+	var _position_ease: Tweener = position_tweener.set_ease(Tween.EASE_IN)
+	var opacity_tweener: PropertyTweener = tween.parallel().tween_property(
+		control,
+		"modulate",
+		Color(1.0, 1.0, 1.0, 0.0),
+		profile.toast_exit_duration
+	)
+	var _opacity_curve: Tweener = opacity_tweener.set_trans(Tween.TRANS_QUAD)
+	var _opacity_ease: Tweener = opacity_tweener.set_ease(Tween.EASE_IN)
+	control.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
 
 
 ## 让一组独立视觉部件以错峰缩放和旋转完成组装。
@@ -642,8 +913,13 @@ func play_content_switch(control: Control, direction: float = 1.0) -> Tween:
 ## @return: 本次启动的部件动画数量。
 func play_piece_assembly(
 	pieces: Array[Control],
-	stagger: float = _PIECE_ASSEMBLY_STAGGER
+	stagger: float = -1.0
 ) -> int:
+	var resolved_stagger: float = (
+		_get_motion_profile().piece_assembly_stagger
+		if stagger < 0.0
+		else stagger
+	)
 	var animated_count: int = 0
 	for piece: Control in pieces:
 		if not is_instance_valid(piece) or not piece.visible:
@@ -651,7 +927,7 @@ func play_piece_assembly(
 		var rotation_direction: float = -1.0 if animated_count % 2 == 0 else 1.0
 		var _piece_tween: Tween = _play_piece_reveal(
 			piece,
-			float(animated_count) * stagger,
+			float(animated_count) * resolved_stagger,
 			rotation_direction
 		)
 		animated_count += 1
@@ -673,6 +949,9 @@ func complete_control_motion(control: Control) -> void:
 	if not is_instance_valid(control):
 		return
 	_kill_control_tween(control)
+	if control is Label and control.has_meta(_NUMERIC_TARGET_VALUE_META):
+		var value_label: Label = control
+		complete_numeric_motion(value_label)
 	if control.has_meta(_CONTROL_BASE_POSITION_META):
 		control.position = _get_control_vector2_meta(
 			control,
@@ -700,6 +979,32 @@ func complete_control_motion(control: Control) -> void:
 			),
 			control.rotation
 		)
+
+
+## 立即完成数值计数和飘字，并落到最后一次请求的目标值。
+## @param value_label: 正在播放数值变化的主标签。
+func complete_numeric_motion(value_label: Label) -> void:
+	if not is_instance_valid(value_label):
+		return
+	var fallback_value: int = (
+		value_label.text.to_int() if value_label.text.is_valid_int() else 0
+	)
+	var target_value: int = GFVariantData.to_int(
+		_get_control_meta(
+			value_label,
+			_NUMERIC_TARGET_VALUE_META,
+			fallback_value
+		),
+		fallback_value
+	)
+	var delta_label: Label = _get_numeric_delta_label(value_label)
+	_kill_numeric_tween(value_label)
+	value_label.text = str(target_value)
+	_restore_control_base_state(value_label, false)
+	if is_instance_valid(delta_label):
+		_restore_control_base_state(delta_label, true)
+		delta_label.visible = false
+	_clear_numeric_motion_state(value_label)
 
 
 ## 立即完成容器直接子控件尚未结束的入场动效。
@@ -757,6 +1062,7 @@ func _bind_button(button: BaseButton) -> bool:
 	button.call_deferred("set", "pivot_offset", button.size * 0.5)
 	if is_instance_valid(_style):
 		_style.prepare_button(button)
+		_apply_profile_to_button(button)
 		_update_button_focus_ring_visibility(button)
 		_refresh_button_motion_state(button, false)
 
@@ -844,6 +1150,7 @@ func _play_piece_reveal(
 ) -> Tween:
 	if not is_instance_valid(control):
 		return null
+	var profile: GameUiMotionProfile = _get_motion_profile()
 	_store_control_base_state(control, false)
 	if not control.has_meta(_CONTROL_BASE_ROTATION_META):
 		control.set_meta(_CONTROL_BASE_ROTATION_META, control.rotation)
@@ -870,8 +1177,11 @@ func _play_piece_reveal(
 		return null
 
 	control.pivot_offset = control.size * 0.5
-	control.scale = base_scale * _PIECE_ASSEMBLY_SCALE
-	control.rotation = base_rotation + _PIECE_ASSEMBLY_ROTATION * rotation_direction
+	control.scale = base_scale * profile.piece_assembly_start_scale
+	control.rotation = (
+		base_rotation
+		+ profile.piece_assembly_start_rotation * rotation_direction
+	)
 	var start_modulate: Color = base_modulate
 	start_modulate.a = 0.0
 	control.modulate = start_modulate
@@ -883,7 +1193,7 @@ func _play_piece_reveal(
 		control,
 		"scale",
 		base_scale,
-		_PIECE_ASSEMBLY_DURATION
+		profile.piece_assembly_duration
 	)
 	var _scale_curve: Tweener = scale_tweener.set_trans(Tween.TRANS_BACK).set_ease(
 		Tween.EASE_OUT
@@ -893,7 +1203,7 @@ func _play_piece_reveal(
 		control,
 		"rotation",
 		base_rotation,
-		_PIECE_ASSEMBLY_DURATION
+		profile.piece_assembly_duration
 	)
 	var _rotation_curve: Tweener = rotation_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
 		Tween.EASE_OUT
@@ -903,7 +1213,7 @@ func _play_piece_reveal(
 		control,
 		"modulate",
 		base_modulate,
-		_PIECE_ASSEMBLY_DURATION * 0.72
+		profile.piece_assembly_duration * 0.72
 	)
 	var _modulate_curve: Tweener = modulate_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
 		Tween.EASE_OUT
@@ -919,6 +1229,7 @@ func _animate_scroll_bar_activity(
 ) -> void:
 	if not is_instance_valid(scroll_bar):
 		return
+	var profile: GameUiMotionProfile = _get_motion_profile()
 	_kill_scroll_bar_tween(scroll_bar)
 	var base_scale: Vector2 = _get_control_vector2_meta(
 		scroll_bar,
@@ -941,7 +1252,7 @@ func _animate_scroll_bar_activity(
 		scroll_bar,
 		"scale",
 		base_scale,
-		_SCROLL_ACTIVE_DURATION
+		profile.scroll_active_duration
 	)
 	var _scale_curve: Tweener = scale_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
 		Tween.EASE_OUT
@@ -950,19 +1261,21 @@ func _animate_scroll_bar_activity(
 		scroll_bar,
 		"modulate",
 		base_modulate,
-		_SCROLL_ACTIVE_DURATION
+		profile.scroll_active_duration
 	)
 	var _modulate_curve: Tweener = modulate_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(
 		Tween.EASE_OUT
 	)
 
 	if return_to_idle:
-		var _idle_delay: IntervalTweener = tween.tween_interval(_SCROLL_IDLE_DELAY)
+		var _idle_delay: IntervalTweener = tween.tween_interval(
+			profile.scroll_idle_delay
+		)
 		var idle_scale_tweener: PropertyTweener = tween.tween_property(
 			scroll_bar,
 			"scale",
 			_get_scroll_bar_idle_scale(scroll_bar, base_scale),
-			_SCROLL_IDLE_DURATION
+			profile.scroll_idle_duration
 		)
 		var _idle_scale_curve: Tweener = idle_scale_tweener.set_trans(
 			Tween.TRANS_CUBIC
@@ -971,12 +1284,12 @@ func _animate_scroll_bar_activity(
 			Tween.EASE_OUT
 		)
 		var idle_modulate: Color = base_modulate
-		idle_modulate.a *= _SCROLL_IDLE_ALPHA
+		idle_modulate.a *= profile.scroll_idle_alpha
 		var idle_modulate_tweener: PropertyTweener = tween.parallel().tween_property(
 			scroll_bar,
 			"modulate",
 			idle_modulate,
-			_SCROLL_IDLE_DURATION
+			profile.scroll_idle_duration
 		)
 		var _idle_modulate_curve: Tweener = idle_modulate_tweener.set_trans(
 			Tween.TRANS_CUBIC
@@ -1016,7 +1329,7 @@ func _set_scroll_bar_idle_state(scroll_bar: ScrollBar) -> void:
 		return
 	scroll_bar.scale = _get_scroll_bar_idle_scale(scroll_bar, base_scale)
 	var idle_modulate: Color = base_modulate
-	idle_modulate.a *= _SCROLL_IDLE_ALPHA
+	idle_modulate.a *= _get_motion_profile().scroll_idle_alpha
 	scroll_bar.modulate = idle_modulate
 
 
@@ -1026,12 +1339,12 @@ func _get_scroll_bar_idle_scale(
 ) -> Vector2:
 	if scroll_bar is VScrollBar:
 		return Vector2(
-			base_scale.x * _SCROLL_IDLE_THICKNESS_SCALE,
+			base_scale.x * _get_motion_profile().scroll_idle_thickness_scale,
 			base_scale.y
 		)
 	return Vector2(
 		base_scale.x,
-		base_scale.y * _SCROLL_IDLE_THICKNESS_SCALE
+		base_scale.y * _get_motion_profile().scroll_idle_thickness_scale
 	)
 
 
@@ -1072,12 +1385,27 @@ func _play_control_reveal(
 ) -> Tween:
 	if not is_instance_valid(control):
 		return null
+	if control is BaseButton and is_instance_valid(_style):
+		var button: BaseButton = control
+		_kill_control_tween(button)
+		_restore_control_base_state(button, true)
+		_apply_profile_to_button(button)
+		_style.play_button_deal_in(
+			button,
+			offset if animate_position else Vector2.ZERO,
+			_resolve_button_motion_state(button),
+			maxf(delay, 0.0),
+			_is_reduced_motion()
+		)
+		_play_button_text_reveal(button, maxf(delay, 0.0))
+		return null
 
 	var fills_visible_viewport: bool = _control_fills_visible_viewport(control)
 	var animate_transform_position: bool = (
 		animate_position and not fills_visible_viewport
 	)
 	_store_control_base_state(control, animate_transform_position)
+	var was_interrupted: bool = _has_running_control_tween(control)
 	_kill_control_tween(control)
 
 	var base_position: Vector2 = control.position
@@ -1107,11 +1435,12 @@ func _play_control_reveal(
 	start_modulate.a = 0.0
 	var effective_start_scale: float = 1.0 if fills_visible_viewport else start_scale
 
-	if animate_transform_position:
-		control.position = base_position + offset
+	if not was_interrupted:
+		if animate_transform_position:
+			control.position = base_position + offset
+		control.scale = base_scale * effective_start_scale
+		control.modulate = start_modulate
 	control.pivot_offset = control.size * 0.5
-	control.scale = base_scale * effective_start_scale
-	control.modulate = start_modulate
 
 	if not control.is_inside_tree():
 		if animate_transform_position:
@@ -1132,6 +1461,49 @@ func _play_control_reveal(
 	var _scale_delay_result: Tweener = scale_tweener.set_delay(delay)
 	var modulate_tweener: PropertyTweener = tween.tween_property(control, "modulate", base_modulate, duration)
 	var _modulate_delay_result: Tweener = modulate_tweener.set_delay(delay)
+	control.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
+
+
+func _play_reward_result_control(
+	control: Control,
+	duration: float,
+	delay: float,
+	start_scale: float
+) -> Tween:
+	if not is_instance_valid(control):
+		return null
+	_store_control_base_state(control, false)
+	_kill_control_tween(control)
+	var base_scale: Vector2 = _get_control_vector2_meta(
+		control,
+		_CONTROL_BASE_SCALE_META,
+		control.scale
+	)
+	var base_modulate: Color = _get_control_color_meta(
+		control,
+		_CONTROL_BASE_MODULATE_META,
+		control.modulate
+	)
+	control.modulate = base_modulate
+	if _is_reduced_motion() or not control.is_inside_tree():
+		control.scale = base_scale
+		return null
+	control.pivot_offset = control.size * 0.5
+	control.scale = base_scale * maxf(start_scale, 0.001)
+	var tween: Tween = control.create_tween()
+	var _pause_mode_result: Tween = tween.set_pause_mode(
+		Tween.TWEEN_PAUSE_PROCESS
+	)
+	var scale_tweener: PropertyTweener = tween.tween_property(
+		control,
+		"scale",
+		base_scale,
+		maxf(duration, 0.001)
+	)
+	var _delay_result: Tweener = scale_tweener.set_delay(maxf(delay, 0.0))
+	var _curve_result: Tweener = scale_tweener.set_trans(Tween.TRANS_BACK)
+	var _ease_result: Tweener = scale_tweener.set_ease(Tween.EASE_OUT)
 	control.set_meta(_CONTROL_TWEEN_META, tween)
 	return tween
 
@@ -1247,7 +1619,7 @@ func _play_button_text_reveal(button: BaseButton, delay: float) -> void:
 		button,
 		"self_modulate",
 		base_modulate,
-		0.105
+		_get_motion_profile().button_text_reveal_duration
 	)
 	var _delay_result: Tweener = modulate_tweener.set_delay(maxf(delay, 0.0))
 	var _curve_result: Tweener = modulate_tweener.set_trans(Tween.TRANS_QUAD)
@@ -1346,12 +1718,43 @@ func _kill_numeric_tween(value_label: Label) -> void:
 	value_label.set_meta(_NUMERIC_TWEEN_META, null)
 
 
+func _has_running_numeric_tween(value_label: Label) -> bool:
+	var tween: Tween = _get_tween_value(
+		_get_control_meta(value_label, _NUMERIC_TWEEN_META, null)
+	)
+	return tween != null and tween.is_valid() and tween.is_running()
+
+
+func _get_numeric_delta_label(value_label: Label) -> Label:
+	var value: Variant = _get_control_meta(
+		value_label,
+		_NUMERIC_DELTA_LABEL_META,
+		null
+	)
+	if value is WeakRef:
+		var weak_reference: WeakRef = value
+		var referenced_object: Variant = weak_reference.get_ref()
+		if referenced_object is Label:
+			var delta_label: Label = referenced_object
+			return delta_label
+	return null
+
+
+func _clear_numeric_motion_state(value_label: Label) -> void:
+	if not is_instance_valid(value_label):
+		return
+	value_label.set_meta(_NUMERIC_TWEEN_META, null)
+	value_label.remove_meta(_NUMERIC_TARGET_VALUE_META)
+	value_label.remove_meta(_NUMERIC_DELTA_LABEL_META)
+
+
 func _prepare_numeric_delta_label(
 	delta_label: Label,
 	delta: int,
 	color: Color,
 	direction: Vector2
 ) -> void:
+	var profile: GameUiMotionProfile = _get_motion_profile()
 	var base_position: Vector2 = _get_control_vector2_meta(
 		delta_label,
 		_CONTROL_BASE_POSITION_META,
@@ -1363,9 +1766,11 @@ func _prepare_numeric_delta_label(
 		delta_label.scale
 	)
 	delta_label.text = ("+%d" % delta) if delta > 0 else str(delta)
-	delta_label.position = base_position + direction * _NUMERIC_DELTA_START_DISTANCE
+	delta_label.position = (
+		base_position + direction * profile.numeric_delta_start_distance
+	)
 	delta_label.pivot_offset = delta_label.size * 0.5
-	delta_label.scale = base_scale * 0.78
+	delta_label.scale = base_scale * profile.numeric_delta_start_scale
 	delta_label.modulate = color
 	delta_label.visible = true
 
@@ -1382,7 +1787,8 @@ func _next_numeric_delta_direction() -> Vector2:
 func _get_numeric_feedback_color(is_increase: bool) -> Color:
 	if is_instance_valid(_style):
 		return _style.get_value_change_color(is_increase)
-	return _NUMERIC_GAIN_COLOR if is_increase else _NUMERIC_LOSS_COLOR
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	return profile.numeric_gain_color if is_increase else profile.numeric_loss_color
 
 
 func _set_numeric_label_progress(
@@ -1411,10 +1817,10 @@ func _finish_numeric_change(
 		return
 	value_label.text = str(new_value)
 	_restore_control_base_state(value_label, false)
-	value_label.set_meta(_NUMERIC_TWEEN_META, null)
 	if is_instance_valid(delta_label):
 		_restore_control_base_state(delta_label, true)
 		delta_label.visible = false
+	_clear_numeric_motion_state(value_label)
 
 
 func _kill_control_tween(control: Control) -> void:
@@ -1422,6 +1828,13 @@ func _kill_control_tween(control: Control) -> void:
 	if tween != null and tween.is_valid():
 		tween.kill()
 	control.set_meta(_CONTROL_TWEEN_META, null)
+
+
+func _has_running_control_tween(control: Control) -> bool:
+	var tween: Tween = _get_tween_value(
+		_get_control_meta(control, _CONTROL_TWEEN_META, null)
+	)
+	return tween != null and tween.is_valid() and tween.is_running()
 
 
 func _get_control_meta(control: Control, key: StringName, default_value: Variant) -> Variant:
@@ -1460,6 +1873,22 @@ func _get_accessibility_utility() -> GameAccessibilityUtility:
 	return null
 
 
+func _apply_profile_to_button(button: BaseButton) -> void:
+	if not is_instance_valid(_style) or not is_instance_valid(button):
+		return
+	var presenter: GameButtonMotionPresenter = (
+		_style.get_button_motion_presenter(button)
+	)
+	if is_instance_valid(presenter):
+		presenter.apply_motion_profile(_get_motion_profile())
+
+
+func _get_motion_profile() -> GameUiMotionProfile:
+	if _motion_profile == null:
+		_motion_profile = GameUiMotionProfile.new()
+	return _motion_profile
+
+
 func _is_reduced_motion() -> bool:
 	if not is_instance_valid(_accessibility):
 		_accessibility = _get_accessibility_utility()
@@ -1471,6 +1900,7 @@ func _is_reduced_motion() -> bool:
 
 func _play_fallback_toggle_settle(button: BaseButton) -> void:
 	_kill_button_tween(button)
+	var profile: GameUiMotionProfile = _get_motion_profile()
 	var base_scale: Vector2 = _get_button_base_scale(button)
 	button.modulate = _get_button_base_modulate(button)
 	if _is_reduced_motion() or not button.is_inside_tree():
@@ -1483,8 +1913,8 @@ func _play_fallback_toggle_settle(button: BaseButton) -> void:
 	var compress_tweener: PropertyTweener = tween.tween_property(
 		button,
 		"scale",
-		base_scale * Vector2(0.975, 0.94),
-		0.052
+		base_scale * profile.button_toggle_compress_scale,
+		profile.button_toggle_compress_duration
 	)
 	var _compress_curve: Tweener = compress_tweener.set_trans(Tween.TRANS_QUAD)
 	var _compress_ease: Tweener = compress_tweener.set_ease(Tween.EASE_OUT)
@@ -1492,7 +1922,7 @@ func _play_fallback_toggle_settle(button: BaseButton) -> void:
 		button,
 		"scale",
 		base_scale,
-		0.088
+		profile.button_toggle_restore_duration
 	)
 	var _restore_curve: Tweener = restore_tweener.set_trans(Tween.TRANS_BACK)
 	var _restore_ease: Tweener = restore_tweener.set_ease(Tween.EASE_OUT)

@@ -34,6 +34,10 @@
 - [方块试验台](../features/tile_lab/docs/tile_lab.md)
 - [方块图鉴](../features/tile_catalog/docs/tile_catalog.md)
 
+## 长期参考资料
+
+- [游戏 UI、Motion Design 与 Game Feel 参考资料库](./ui_motion_reference_library.md)：带日期快照的外部案例、规范、开源项目与项目化 Motion Pattern 导航；它提供研究证据和参数起点，不覆盖视觉规范、架构或 GF 合同。
+
 ## 计划与当前验证状态
 
 - [Roadmap](./roadmap.md) 只描述方向与待办；完成状态必须回到代码、测试和对应规范核对。

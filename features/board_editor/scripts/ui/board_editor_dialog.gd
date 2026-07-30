@@ -30,6 +30,7 @@ var _save_graph: GameSaveGraphUtility
 var _saved_boards: Array[CustomBoardData] = []
 var _selected_saved_board_id: String = ""
 var _configured: bool = false
+var _animate_next_canvas_change: bool = false
 var _persistence_operation_busy: bool = false
 var _persistence_outcome_unknown: bool = false
 var _persistence_operation_token: int = 0
@@ -278,7 +279,9 @@ func _execute_cells_edit(next_cells: Array[Vector2i], action_name: String) -> vo
 		next_cells,
 		action_name
 	)
+	_animate_next_canvas_change = true
 	var _execute_result: Variant = await _history.execute_command(command)
+	_animate_next_canvas_change = false
 	_refresh_history_buttons()
 
 
@@ -327,10 +330,13 @@ func _make_cross_cells() -> Array[Vector2i]:
 	return BoardTopology.create_cross(floori(float(side - 1) / 2.0)).get_active_cells()
 
 
-func _refresh_draft_state() -> void:
+func _refresh_draft_state(animate_canvas_changes: bool = false) -> void:
 	if not is_instance_valid(_draft):
 		return
-	_canvas.set_active_cells(_draft.get_active_cells())
+	_canvas.set_active_cells(
+		_draft.get_active_cells(),
+		animate_canvas_changes and not _is_reduced_motion_enabled()
+	)
 	var state: Dictionary = _draft.get_validation_state()
 	var valid: bool = GFVariantData.get_option_bool(state, "valid")
 	var reason: StringName = GFVariantData.get_option_string_name(state, "reason")
@@ -366,6 +372,15 @@ func _refresh_history_buttons() -> void:
 		return
 	_undo_button.disabled = not _history.can_undo()
 	_redo_button.disabled = not _history.can_redo()
+
+
+func _is_reduced_motion_enabled() -> bool:
+	var accessibility_value: Object = get_utility(GameAccessibilityUtility)
+	if not accessibility_value is GameAccessibilityUtility:
+		return false
+	var accessibility: GameAccessibilityUtility = accessibility_value
+	var state: GameAccessibilityState = accessibility.get_state()
+	return is_instance_valid(state) and state.reduced_motion
 
 
 func _refresh_saved_boards(preferred_id: String = "") -> void:
@@ -582,7 +597,9 @@ func _show_persistence_outcome_unknown(
 # --- 信号处理函数 ---
 
 func _on_draft_changed() -> void:
-	_refresh_draft_state()
+	var animate_canvas_changes: bool = _animate_next_canvas_change
+	_animate_next_canvas_change = false
+	_refresh_draft_state(animate_canvas_changes)
 
 
 func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
@@ -652,13 +669,17 @@ func _on_canvas_cells_edited(cells: Array[Vector2i], active: bool) -> void:
 
 func _on_undo_button_pressed() -> void:
 	if is_instance_valid(_history):
+		_animate_next_canvas_change = true
 		var _undone: bool = _history.undo_last()
+		_animate_next_canvas_change = false
 	_refresh_history_buttons()
 
 
 func _on_redo_button_pressed() -> void:
 	if is_instance_valid(_history):
+		_animate_next_canvas_change = true
 		var _redone: bool = _history.redo()
+		_animate_next_canvas_change = false
 	_refresh_history_buttons()
 
 
