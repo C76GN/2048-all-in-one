@@ -676,18 +676,18 @@ class _FailingStorage extends GFStorageUtility:
 	var _next_request_id: int = 1
 
 
-	## 为 GFSaveProfileUtility 的请求专属异步写入注入错误队列。
+	## 为 GFSaveProfileUtility 的 opaque payload 写入注入错误队列。
 	## @param file_name: GFStorage 相对文件名。
-	## @param data: 要持久化的完整数据字典。
-	func save_data_request_async(
+	## @param transfer: 此 generation 的单所有者 payload transfer。
+	func save_payload_request_async(
 		file_name: String,
-		data: Dictionary
+		transfer: GFStoragePayloadTransfer
 	) -> GFStorageAsyncOperation:
 		if async_save_errors.is_empty():
-			return super.save_data_request_async(file_name, data)
+			return super.save_payload_request_async(file_name, transfer)
 		var scripted_error: Error = async_save_errors.pop_front()
 		if scripted_error == OK:
-			return super.save_data_request_async(file_name, data)
+			return super.save_payload_request_async(file_name, transfer)
 		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
 		var request_id: int = _next_request_id
 		_next_request_id += 1
@@ -698,13 +698,38 @@ class _FailingStorage extends GFStorageUtility:
 				file_name
 			)
 		)
+		var attempt: Dictionary = (
+			transfer.begin_attempt_for_framework(
+				get_instance_id(),
+				file_name,
+				_get_async_file_key(file_name),
+				_get_codec_options()
+			)
+			if transfer != null
+			else {}
+		)
+		var attempt_error: Error = scripted_error
+		if GFVariantData.get_option_bool(attempt, "ok"):
+			var _attempt_configured: bool = (
+				operation.configure_payload_attempt_for_framework(
+					transfer,
+					GFVariantData.get_option_int(attempt, "attempt_id")
+				)
+			)
+			var _attempt_finished: bool = (
+				operation.finish_payload_attempt_for_framework()
+			)
+		else:
+			attempt_error = ERR_INVALID_PARAMETER
 		var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
 		var _configured_result: bool = result.configure_for_framework(
 			request_id,
 			GFStorageAsyncOperation.OPERATION_SAVE,
 			file_name,
 			false,
-			scripted_error
+			attempt_error,
+			null,
+			GFStorageAsyncResult.WriteFailureKind.IO_FAILED
 		)
 		var _completed: bool = operation.complete_for_framework(result)
 		return operation

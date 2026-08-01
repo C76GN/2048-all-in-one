@@ -52,6 +52,7 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	await architecture.register_model(GridModel, GridModel.new())
 	await architecture.register_model(GameStatusModel, GameStatusModel.new())
 	await architecture.register_model(CurrentGameModel, current_game)
+	await architecture.register_utility(GFResourceBroker, GFResourceBroker.new())
 	await architecture.register_utility(GFAssetUtility, asset_utility)
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)

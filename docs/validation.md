@@ -43,7 +43,15 @@ godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli
 powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1
 ```
 
-该命令校验 `addons/gf/` 的版本、文件数和内容哈希是否与 `.gf/vendor.lock.json` 一致。GF Python 工具运行时生成的 `__pycache__` / `*.pyc` 不属于 vendor 快照，校验和 Git 均明确排除；除此之外的额外文件仍会导致校验失败。更新 GF 后必须同步锁文件；不要把 package lockfile 和 vendor lockfile 混为一谈。
+默认命令离线校验 `addons/gf/` 的来源元数据、渠道、版本、文件数和内容哈希是否与 `.gf/vendor.lock.json` 一致。正式验收还必须运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1 -VerifyRemote
+```
+
+远程校验会通过 GitHub API 比对本地每个文件的 Git blob，并把它们与官方仓库的 commit、`addons/gf` Git tree、规范 `.github/workflows/ci.yml` 的 `mode=full` push run、`GF full validation` 和 `GF merge gate` 成功终态绑定为同一份 provenance；CI 可通过 `GITHUB_TOKEN` 提高 API 配额。若本地有已锁定 commit 的干净 GF checkout，可再传入 `-UpstreamRepositoryPath <path>`，以独立 checkout 复核同一份内容。GF Python 工具运行时生成的 `__pycache__` / `*.pyc` 不属于 vendor 快照，校验和 Git 均明确排除；除此之外的额外文件仍会导致校验失败。
+
+稳定示例线只采用 GF 正式发布；开发兼容线只采用 GF 官方 `main` 最新且全量上游门禁成功的精确 commit。开发版验证失败时不得移动稳定线、放宽基线或局部修补 vendor，应保留上一绿色身份并先完成项目误用排查和必要二分。
 
 远程 registry 可用性与本地 vendored 源码完整性必须分别报告。精确版本、文件数、commit 和内容哈希直接读取当次 CLI 输出与 `.gf/vendor.lock.json`，不在本指南中复制易过期的验证结果。
 

@@ -323,7 +323,7 @@ func test_real_gf_duplicate_record_stays_single_without_fake_aggregate_metadata(
 		GFVariantData.get_option_dictionary(record, &"metadata").has(
 			&"aggregate_count"
 		),
-		"项目不得伪造 GF 10 生产路径不会提供的聚合计数。"
+		"项目不得伪造 GF 生产路径不会提供的聚合计数。"
 	)
 
 	var surface: Dictionary = await _make_feedback_surface()

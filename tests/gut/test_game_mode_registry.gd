@@ -207,6 +207,7 @@ func _create_mode_catalog_setup() -> Dictionary:
 	var catalog: ProjectResourceCatalogUtility = ProjectResourceCatalogUtility.new()
 	var mode_catalog: GameModeCatalogUtility = GameModeCatalogUtility.new()
 
+	await architecture.register_utility(GFResourceBroker, GFResourceBroker.new())
 	await architecture.register_utility(GFAssetUtility, asset_utility)
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)

@@ -13,7 +13,7 @@ const _TEST_PLATFORM_STUB_SCRIPT: GDScript = preload(
 
 # --- 测试用例 ---
 
-func test_gf10_profile_has_seven_typed_feature_sections() -> void:
+func test_profile_has_seven_typed_feature_sections() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var snapshot: Dictionary = save_graph.get_debug_snapshot()
@@ -63,21 +63,45 @@ func test_gf10_profile_has_seven_typed_feature_sections() -> void:
 	_dispose_setup(setup)
 
 
-func test_gf10_save_load_and_flush_expose_typed_terminal_results() -> void:
+func test_save_load_and_flush_expose_typed_terminal_results() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
-	var storage: GFStorageUtility = _get_storage(setup)
+	var request_metadata: Dictionary = {
+		&"test": "typed_terminal",
+		&"nested": {&"marker": "before_request"},
+	}
 
 	var save_operation: GFSaveProfileOperation = (
-		save_graph.request_save_profile({&"test": "typed_terminal"})
+		save_graph.request_save_profile(request_metadata)
 	)
-	storage.wait_for_async_tasks()
-	save_graph.tick(0.0)
-	var save_result: GFSaveProfileResult = save_operation.get_result()
+	GFVariantData.get_option_dictionary(
+		request_metadata,
+		&"nested"
+	)[&"marker"] = "mutated_after_request"
+	assert_true(
+		not save_operation.is_completed(),
+		"Profile 保存请求必须从后续 tick 开始准备，不得在提交调用栈同步采集。"
+	)
+	var save_result: GFSaveProfileResult = await _await_profile_operation(
+		save_operation,
+		setup
+	)
+	var saved_metadata: Dictionary = (
+		save_result.get_metadata()
+		if save_result != null
+		else {}
+	)
 	assert_true(
 		save_operation.is_completed()
 		and save_result != null
-		and save_result.get_status() == GFSaveProfileResult.STATUS_SAVED,
+		and save_result.get_status() == GFSaveProfileResult.STATUS_SAVED
+		and GFVariantData.get_option_string(saved_metadata, &"test")
+		== "typed_terminal"
+		and GFVariantData.get_option_string(
+			GFVariantData.get_option_dictionary(saved_metadata, &"nested"),
+			&"marker"
+		)
+		== "before_request",
 		"显式保存必须返回真实 typed saved 终态。"
 	)
 
@@ -96,13 +120,28 @@ func test_gf10_save_load_and_flush_expose_typed_terminal_results() -> void:
 	var load_operation: GFSaveProfileOperation = (
 		save_graph.request_load_profile()
 	)
-	storage.wait_for_async_tasks()
-	save_graph.tick(0.0)
-	var load_result: GFSaveProfileResult = load_operation.get_result()
+	var load_result: GFSaveProfileResult = await _await_profile_operation(
+		load_operation,
+		setup
+	)
+	var loaded_document: GFSaveDocument = (
+		load_result.get_document()
+		if load_result != null
+		else null
+	)
+	var document_metadata: Dictionary = (
+		loaded_document.get_metadata()
+		if loaded_document != null
+		else {}
+	)
 	assert_true(
 		load_operation.is_completed()
 		and load_result != null
-		and load_result.get_status() == GFSaveProfileResult.STATUS_LOADED,
+		and load_result.get_status() == GFSaveProfileResult.STATUS_LOADED
+		and loaded_document != null
+		and document_metadata.has(&"app_version")
+		and not document_metadata.has(&"test")
+		and not document_metadata.has(&"nested"),
 		"读取必须返回 typed loaded 终态。"
 	)
 	_dispose_setup(setup)
@@ -163,6 +202,7 @@ func test_async_section_replace_serializes_global_immediate_lane() -> void:
 			_make_empty_progress_data()
 		)
 	)
+	_get_architecture(setup).tick(0.0)
 	var second: GameSaveSectionOperation = (
 		save_graph.request_replace_section_data(
 			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
@@ -395,7 +435,7 @@ func test_late_compensation_failure_marks_pending_before_unlock_and_flush() -> v
 	_dispose_setup(setup)
 
 
-func test_gf10_transient_save_retries_follow_100_500_1500_deadlines() -> void:
+func test_transient_save_retries_follow_100_500_1500_deadlines() -> void:
 	var storage: _RetryStorage = _RetryStorage.new()
 	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
 	var setup: Dictionary = await _create_persistence_architecture(
@@ -416,6 +456,11 @@ func test_gf10_transient_save_retries_follow_100_500_1500_deadlines() -> void:
 	var flush_operation: GFSaveProfileOperation = (
 		save_graph.request_flush_profile({&"test": "retry_barrier"})
 	)
+	assert_true(
+		storage.profile_save_attempt_count == baseline_attempts,
+		"Profile 请求调用栈不得同步准备 Provider 或启动 Storage。"
+	)
+	architecture.tick(0.0)
 	assert_true(
 		storage.profile_save_attempt_count == baseline_attempts + 1
 		and not save_operation.is_completed()
@@ -467,7 +512,7 @@ func test_gf10_transient_save_retries_follow_100_500_1500_deadlines() -> void:
 	_dispose_setup(setup)
 
 
-func test_gf10_late_provider_failure_rolls_back_earlier_sections() -> void:
+func test_late_provider_failure_rolls_back_earlier_sections() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
@@ -544,7 +589,7 @@ func test_gf10_late_provider_failure_rolls_back_earlier_sections() -> void:
 	_dispose_setup(setup)
 
 
-func test_gf10_schema_v10_is_backed_up_then_reset_to_v11() -> void:
+func test_profile_schema_v10_is_backed_up_then_reset_to_v11() -> void:
 	var save_dir_name: String = (
 		"gut_save_profile_v10_%s"
 		% GFUuid.generate_v4().replace("-", "")
@@ -565,7 +610,7 @@ func test_gf10_schema_v10_is_backed_up_then_reset_to_v11() -> void:
 		GameSaveGraphUtility.PROFILE_SCHEMA_ID,
 		10,
 		current.get_sections(),
-		{&"app_version": "pre-gf10"}
+		{&"app_version": "pre-profile-v11"}
 	)
 	var legacy_payload: Dictionary = legacy.to_dict()
 	assert_true(
@@ -597,7 +642,7 @@ func test_gf10_schema_v10_is_backed_up_then_reset_to_v11() -> void:
 			"recovered_obsolete_profile"
 		)
 		and recovery_file.ends_with(".schema-10.save"),
-		"GF10 迁移必须显式备份 v10，再重建 v11。"
+		"Profile schema 迁移必须显式备份 v10，再重建 v11。"
 	)
 	var backup: GFStorageReadResult = reloaded_storage.load_data(
 		recovery_file
@@ -628,7 +673,7 @@ func test_gf10_schema_v10_is_backed_up_then_reset_to_v11() -> void:
 	reloaded_storage.dispose()
 
 
-func test_gf10_future_profile_schema_is_rejected_without_reset() -> void:
+func test_future_profile_schema_is_rejected_without_reset() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
@@ -666,7 +711,7 @@ func test_gf10_future_profile_schema_is_rejected_without_reset() -> void:
 	_dispose_setup(setup)
 
 
-func test_gf10_old_section_account_profile_is_backed_up_then_activated() -> void:
+func test_old_section_account_profile_is_backed_up_then_activated() -> void:
 	var save_dir_name: String = (
 		"gut_save_profile_old_section_%s"
 		% GFUuid.generate_v4().replace("-", "")
@@ -779,7 +824,7 @@ func test_gf10_old_section_account_profile_is_backed_up_then_activated() -> void
 	_dispose_setup(setup)
 
 
-func test_gf10_future_section_is_rejected_even_with_an_old_section() -> void:
+func test_future_section_is_rejected_even_with_an_old_section() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
@@ -853,6 +898,7 @@ func test_gf10_future_section_is_rejected_even_with_an_old_section() -> void:
 
 func test_high_frequency_sections_coalesce_into_one_async_profile_write() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
+	var architecture: GFArchitecture = _get_architecture(setup)
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var storage: GFStorageUtility = _get_storage(setup)
 	var baseline_profile_state: Dictionary = (
@@ -897,7 +943,9 @@ func test_high_frequency_sections_coalesce_into_one_async_profile_write() -> voi
 	)
 
 	save_graph.tick(1.0)
+	architecture.tick(0.0)
 	storage.wait_for_async_tasks()
+	architecture.tick(0.0)
 	var completed_snapshot: Dictionary = save_graph.get_debug_snapshot()
 	var completed_profile_state: Dictionary = (
 		GFVariantData.get_option_dictionary(
@@ -2246,6 +2294,24 @@ func _await_section_operation(
 	return operation.get_result()
 
 
+func _await_profile_operation(
+	operation: GFSaveProfileOperation,
+	setup: Dictionary
+) -> GFSaveProfileResult:
+	if operation == null:
+		return null
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	for _frame: int in range(300):
+		if operation.is_completed():
+			break
+		architecture.tick(0.0)
+		storage.wait_for_async_tasks()
+		architecture.tick(0.0)
+		await get_tree().process_frame
+	return operation.get_result()
+
+
 func _advance_section_operation_to_outcome_unknown(
 	operation: GameSaveSectionOperation,
 	setup: Dictionary,
@@ -2741,12 +2807,12 @@ class _RetryStorage extends GFStorageUtility:
 	var _next_request_id: int = 2_000_000
 
 
-	## 按队列为 Profile 写入注入可重试错误。
+	## 按队列为 Profile opaque payload 写入注入可重试错误。
 	## @param file_name: GFStorage 相对文件名。
-	## @param data: 要持久化的完整数据字典。
-	func save_data_request_async(
+	## @param transfer: 此 generation 的单所有者 payload transfer。
+	func save_payload_request_async(
 		file_name: String,
-		data: Dictionary
+		transfer: GFStoragePayloadTransfer
 	) -> GFStorageAsyncOperation:
 		if file_name == GameSaveGraphUtility.PROFILE_FILE_NAME:
 			profile_save_attempt_count += 1
@@ -2765,6 +2831,32 @@ class _RetryStorage extends GFStorageUtility:
 							file_name
 						)
 					)
+					var attempt: Dictionary = (
+						transfer.begin_attempt_for_framework(
+							get_instance_id(),
+							file_name,
+							_get_async_file_key(file_name),
+							_get_codec_options()
+						)
+						if transfer != null
+						else {}
+					)
+					var attempt_error: Error = scripted_error
+					if GFVariantData.get_option_bool(attempt, "ok"):
+						var _attempt_configured: bool = (
+							operation.configure_payload_attempt_for_framework(
+								transfer,
+								GFVariantData.get_option_int(
+									attempt,
+									"attempt_id"
+								)
+							)
+						)
+						var _attempt_finished: bool = (
+							operation.finish_payload_attempt_for_framework()
+						)
+					else:
+						attempt_error = ERR_INVALID_PARAMETER
 					var result: GFStorageAsyncResult = (
 						GFStorageAsyncResult.new()
 					)
@@ -2774,14 +2866,16 @@ class _RetryStorage extends GFStorageUtility:
 							GFStorageAsyncOperation.OPERATION_SAVE,
 							file_name,
 							false,
-							scripted_error
+							attempt_error,
+							null,
+							GFStorageAsyncResult.WriteFailureKind.IO_FAILED
 						)
 					)
 					var _completed: bool = (
 						operation.complete_for_framework(result)
 					)
 					return operation
-		return super.save_data_request_async(file_name, data)
+		return super.save_payload_request_async(file_name, transfer)
 
 
 class _HangingProfileStorage extends GFStorageUtility:
@@ -2856,18 +2950,18 @@ class _HangingProfileStorage extends GFStorageUtility:
 			)
 
 
-	## 挂起玩家 Profile 写入，并保留候选 payload 供迟到终态故障注入。
+	## 挂起玩家 Profile opaque payload，并保留隔离副本供迟到终态故障注入。
 	## @param file_name: GFStorage 相对文件名。
-	## @param data: 此 generation 的完整 GFSaveDocument。
-	func save_data_request_async(
+	## @param transfer: 此 generation 的单所有者 payload transfer。
+	func save_payload_request_async(
 		file_name: String,
-		data: Dictionary
+		transfer: GFStoragePayloadTransfer
 	) -> GFStorageAsyncOperation:
 		if (
 			not hang_profile_writes
 			or file_name != GameSaveGraphUtility.PROFILE_FILE_NAME
 		):
-			return super.save_data_request_async(file_name, data)
+			return super.save_payload_request_async(file_name, transfer)
 		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
 		var request_id: int = _next_request_id
 		_next_request_id += 1
@@ -2876,8 +2970,67 @@ class _HangingProfileStorage extends GFStorageUtility:
 			GFStorageAsyncOperation.OPERATION_SAVE,
 			file_name
 		)
+		var attempt: Dictionary = (
+			transfer.begin_attempt_for_framework(
+				get_instance_id(),
+				file_name,
+				_get_async_file_key(file_name),
+				_get_codec_options()
+			)
+			if transfer != null
+			else {}
+		)
+		if not GFVariantData.get_option_bool(attempt, "ok"):
+			var invalid_result: GFStorageAsyncResult = (
+				GFStorageAsyncResult.new()
+			)
+			var _invalid_result_configured: bool = (
+				invalid_result.configure_for_framework(
+					request_id,
+					GFStorageAsyncOperation.OPERATION_SAVE,
+					file_name,
+					false,
+					ERR_INVALID_PARAMETER,
+					null,
+					GFStorageAsyncResult.WriteFailureKind.INVALID_REQUEST
+				)
+			)
+			var _invalid_completed: bool = (
+				operation.complete_for_framework(invalid_result)
+			)
+			return operation
+		var _attempt_configured: bool = (
+			operation.configure_payload_attempt_for_framework(
+				transfer,
+				GFVariantData.get_option_int(attempt, "attempt_id")
+			)
+		)
+		var payload_value: Variant = attempt.get("payload")
+		if not payload_value is Dictionary:
+			var _attempt_finished: bool = (
+				operation.finish_payload_attempt_for_framework()
+			)
+			var invalid_payload_result: GFStorageAsyncResult = (
+				GFStorageAsyncResult.new()
+			)
+			var _invalid_payload_result_configured: bool = (
+				invalid_payload_result.configure_for_framework(
+					request_id,
+					GFStorageAsyncOperation.OPERATION_SAVE,
+					file_name,
+					false,
+					ERR_INVALID_DATA,
+					null,
+					GFStorageAsyncResult.WriteFailureKind.PAYLOAD_INVALID
+				)
+			)
+			var _invalid_payload_completed: bool = (
+				operation.complete_for_framework(invalid_payload_result)
+			)
+			return operation
 		hanging_operations.append(operation)
-		_payloads_by_request_id[request_id] = data.duplicate(true)
+		var payload: Dictionary = payload_value
+		_payloads_by_request_id[request_id] = payload.duplicate(true)
 		return operation
 
 
@@ -2910,6 +3063,9 @@ class _HangingProfileStorage extends GFStorageUtility:
 					persist_error == OK,
 					"测试故障注入 payload 必须可写入真实 GFStorage。"
 				)
+			var _attempt_finished: bool = (
+				operation.finish_payload_attempt_for_framework()
+			)
 			var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
 			var _result_configured: bool = result.configure_for_framework(
 				request_id,

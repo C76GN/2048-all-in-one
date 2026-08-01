@@ -803,7 +803,7 @@ func test_async_delete_catalog_failure_rolls_back_without_success_signal() -> vo
 		and result.get_status()
 		== LocalAccountOperationResult.STATUS_CATALOG_FAILED
 		and result.get_error_code() == ERR_CANT_CREATE,
-		"GF10 异步目录写失败必须产生 typed catalog_failed 终态。"
+		"异步目录写失败必须产生 typed catalog_failed 终态。"
 	)
 	assert_true(
 		accounts.get_active_account().account_id == target.account_id
@@ -1726,6 +1726,7 @@ class _DelayedCatalogStorage extends GFStorageUtility:
 		temp_path: String,
 		backup_path: String,
 		transaction_path: String,
+		transaction_id: String,
 		data: Dictionary,
 		codec_options: Dictionary
 	) -> Dictionary:
@@ -1751,6 +1752,7 @@ class _DelayedCatalogStorage extends GFStorageUtility:
 			temp_path,
 			backup_path,
 			transaction_path,
+			transaction_id,
 			data,
 			codec_options
 		)
@@ -1780,7 +1782,7 @@ class _FailingCatalogStorage extends GFStorageUtility:
 		return super.save_data(file_name, data)
 
 
-	## 为账号目录的 GF10 请求专属异步写入注入一次性 typed 失败。
+	## 为账号目录的请求专属异步写入注入一次性 typed 失败。
 	## @param file_name: GFStorage 相对文件名。
 	## @param data: 要持久化的完整数据字典。
 	func save_data_request_async(
@@ -1907,15 +1909,16 @@ class _HangingProfileReadStorage extends GFStorageUtility:
 class _HangingProfileStorage extends GFStorageUtility:
 	var hang_profile_writes: bool = false
 	var hanging_operations: Array[GFStorageAsyncOperation] = []
+	var _payloads_by_request_id: Dictionary = {}
 	var _next_request_id: int = 3_000_000
 
 
-	## 挂起目标 Profile 写入，其余请求委托真实 GFStorage。
+	## 挂起目标 Profile opaque payload 写入，其余请求委托真实 GFStorage。
 	## @param file_name: GFStorage 相对文件名。
-	## @param data: 要持久化的完整数据字典。
-	func save_data_request_async(
+	## @param transfer: 此 generation 的单所有者 payload transfer。
+	func save_payload_request_async(
 		file_name: String,
-		data: Dictionary
+		transfer: GFStoragePayloadTransfer
 	) -> GFStorageAsyncOperation:
 		if (
 			not hang_profile_writes
@@ -1923,7 +1926,7 @@ class _HangingProfileStorage extends GFStorageUtility:
 				LocalAccountCatalogUtility.PROFILE_DIRECTORY + "/"
 			)
 		):
-			return super.save_data_request_async(file_name, data)
+			return super.save_payload_request_async(file_name, transfer)
 		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
 		var request_id: int = _next_request_id
 		_next_request_id += 1
@@ -1932,7 +1935,67 @@ class _HangingProfileStorage extends GFStorageUtility:
 			GFStorageAsyncOperation.OPERATION_SAVE,
 			file_name
 		)
+		var attempt: Dictionary = (
+			transfer.begin_attempt_for_framework(
+				get_instance_id(),
+				file_name,
+				_get_async_file_key(file_name),
+				_get_codec_options()
+			)
+			if transfer != null
+			else {}
+		)
+		if not GFVariantData.get_option_bool(attempt, "ok"):
+			var invalid_result: GFStorageAsyncResult = (
+				GFStorageAsyncResult.new()
+			)
+			var _invalid_result_configured: bool = (
+				invalid_result.configure_for_framework(
+					request_id,
+					GFStorageAsyncOperation.OPERATION_SAVE,
+					file_name,
+					false,
+					ERR_INVALID_PARAMETER,
+					null,
+					GFStorageAsyncResult.WriteFailureKind.INVALID_REQUEST
+				)
+			)
+			var _invalid_completed: bool = (
+				operation.complete_for_framework(invalid_result)
+			)
+			return operation
+		var _attempt_configured: bool = (
+			operation.configure_payload_attempt_for_framework(
+				transfer,
+				GFVariantData.get_option_int(attempt, "attempt_id")
+			)
+		)
+		var payload_value: Variant = attempt.get("payload")
+		if not payload_value is Dictionary:
+			var _attempt_finished: bool = (
+				operation.finish_payload_attempt_for_framework()
+			)
+			var invalid_payload_result: GFStorageAsyncResult = (
+				GFStorageAsyncResult.new()
+			)
+			var _invalid_payload_result_configured: bool = (
+				invalid_payload_result.configure_for_framework(
+					request_id,
+					GFStorageAsyncOperation.OPERATION_SAVE,
+					file_name,
+					false,
+					ERR_INVALID_DATA,
+					null,
+					GFStorageAsyncResult.WriteFailureKind.PAYLOAD_INVALID
+				)
+			)
+			var _invalid_payload_completed: bool = (
+				operation.complete_for_framework(invalid_payload_result)
+			)
+			return operation
 		hanging_operations.append(operation)
+		var payload: Dictionary = payload_value
+		_payloads_by_request_id[request_id] = payload.duplicate(true)
 		return operation
 
 
@@ -1946,13 +2009,29 @@ class _HangingProfileStorage extends GFStorageUtility:
 		for operation: GFStorageAsyncOperation in operations:
 			if operation == null or operation.is_completed():
 				continue
+			var request_id: int = operation.get_request_id()
+			var payload: Dictionary = GFVariantData.get_option_dictionary(
+				_payloads_by_request_id,
+				request_id
+			)
+			var _erased: bool = _payloads_by_request_id.erase(request_id)
+			var completion_error: Error = error_code
+			if completion_error == OK:
+				completion_error = (
+					super.save_data(operation.get_file_name(), payload)
+					if not payload.is_empty()
+					else ERR_INVALID_DATA
+				)
+			var _attempt_finished: bool = (
+				operation.finish_payload_attempt_for_framework()
+			)
 			var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
 			var _configured: bool = result.configure_for_framework(
-				operation.get_request_id(),
+				request_id,
 				GFStorageAsyncOperation.OPERATION_SAVE,
 				operation.get_file_name(),
-				error_code == OK,
-				error_code
+				completion_error == OK,
+				completion_error
 			)
 			var _completed: bool = operation.complete_for_framework(result)
 

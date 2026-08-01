@@ -935,7 +935,7 @@ func preview_profile_payload() -> Dictionary:
 		return {}
 	var sections: Array[GFSaveSection] = []
 	for provider: GameSaveSectionData in _get_ordered_providers():
-		var section: GFSaveSection = provider.gather_section({
+		var section: GFSaveSection = provider.capture_section({
 			&"reason": "preview",
 		})
 		if section == null:
@@ -1579,13 +1579,12 @@ func _save_registered_profile_async(
 ) -> Error:
 	if not _owns_profile_transition(transition_epoch):
 		return ERR_UNAVAILABLE
-	var document_metadata: Dictionary = _build_profile_metadata()
-	document_metadata.merge(metadata, true)
+	var request: GFSaveProfileRequest = _make_save_profile_request(metadata)
 	var result: GFSaveProfileResult = await _await_profile_operation_async(
 		_track_profile_operation(
 			_profile_utility.save_profile(
 				_active_profile_id,
-				document_metadata
+				request
 			)
 		)
 	)
@@ -2656,13 +2655,14 @@ func _request_save_active_profile(
 		return _make_rejected_profile_operation(
 			GFSaveProfileOperation.OPERATION_SAVE
 		)
-	var document_metadata: Dictionary = _build_profile_metadata()
-	document_metadata.merge(metadata, true)
+	var request: GFSaveProfileRequest = _make_save_profile_request(
+		metadata,
+		context
+	)
 	return _track_profile_operation(
 		_profile_utility.save_profile(
 			_active_profile_id,
-			document_metadata,
-			context
+			request
 		)
 	)
 
@@ -2884,6 +2884,24 @@ func _build_profile_metadata() -> Dictionary:
 			ProjectSettings.get_setting(_PROJECT_VERSION_SETTING, "")
 		),
 	}
+
+
+## 创建一次性 Save 请求并隔离调用方仍然拥有的临时字典。
+##
+## 文档只持有稳定的持久化元数据；调用原因、事务 ID 等诊断字段只进入结果。
+## GFSaveProfileRequest 接管三个输入图后，本方法不再访问它们。
+func _make_save_profile_request(
+	result_metadata: Dictionary = {},
+	context: Dictionary = {}
+) -> GFSaveProfileRequest:
+	var document_metadata: Dictionary = _build_profile_metadata()
+	var owned_context: Dictionary = context.duplicate(true)
+	var owned_result_metadata: Dictionary = result_metadata.duplicate(true)
+	return GFSaveProfileRequest.take_ownership(
+		document_metadata,
+		owned_context,
+		owned_result_metadata
+	)
 
 
 func _is_configured() -> bool:

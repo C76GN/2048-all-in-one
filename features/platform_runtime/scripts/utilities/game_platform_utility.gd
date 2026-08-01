@@ -164,7 +164,7 @@ func get_bridge_contract_report() -> Dictionary:
 	)
 
 
-## 返回项目平台 Adapter 必须满足的 GF10 静态契约。
+## 返回项目平台 Adapter 必须满足的 GF 静态契约。
 static func make_adapter_conformance_options() -> Dictionary:
 	return {
 		"required_contract_ids": PackedStringArray([

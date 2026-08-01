@@ -59,8 +59,10 @@ func replace_from_dict(payload: Dictionary) -> Error:
 
 # --- 可重写钩子（GFSaveSectionProvider） ---
 
-func _gather_section(_context: Dictionary = {}) -> GFSaveSection:
-	return make_section(get_section_data())
+func _begin_save_snapshot(
+	_context: Dictionary = {}
+) -> GFSaveSectionSnapshotOperation:
+	return make_completed_snapshot(get_section_data())
 
 
 func _capture_section(_context: Dictionary = {}) -> GFSaveSection:

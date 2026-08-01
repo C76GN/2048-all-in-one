@@ -51,7 +51,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 ## GFSaveProfile 结构
 
-`app/scripts/game_architecture_installer.gd` 在 GF `init()` 前把 Feature-owned `GFSaveSectionProvider` 登记到项目 `GameSaveGraphUtility`。项目 `SectionOrder` 只定义 provider 数组的稳定顺序；`GFSaveProfileUtility` 负责按该顺序 gather、校验和事务 apply。精确 schema 数字只从各数据类常量读取，不在架构文档复制：
+`app/scripts/game_architecture_installer.gd` 在 GF `init()` 前把 Feature-owned `GFSaveSectionProvider` 登记到项目 `GameSaveGraphUtility`。项目 `SectionOrder` 只定义 provider 数组的稳定顺序；`GFSaveProfileUtility` 负责在后续 Profile tick 中按该顺序推进 snapshot preparation、校验和事务 apply。精确 schema 数字只从各数据类常量读取，不在架构文档复制：
 
 | 顺序 | `section_id` | Provider |
 | --- | --- | --- |
@@ -83,7 +83,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 1. System 取得当前 section 副本、构造并严格校验完整替换值，再调用 `GameSaveGraphUtility.request_replace_section_data()`；多 section 事务使用 `request_replace_sections_data()`。
 2. `GameSaveGraphUtility` 只提供立即返回的一次性 `GameSaveSectionOperation`，不保留运行时同步替换包装。玩家 UI 在操作期间禁用重复提交，并以 owner/token 防止页面释放后回写。
-3. 项目先保存本次涉及 section 的内存快照并应用候选；同一时刻只允许一个立即事务。`GFSaveProfileUtility.save_profile()` 随后按 provider 顺序收集完整 `GFSaveDocument`，并按 generation 串行化、合并和有界重试。
+3. 项目先保存本次涉及 section 的内存快照并应用候选；同一时刻只允许一个立即事务。`GFSaveProfileUtility.save_profile()` 只创建一次性 `GFSaveProfileRequest` 并立即返回 operation，不在请求调用栈里收集或写盘；后续 Profile tick 按 provider 顺序推进 `GFSaveSectionSnapshotOperation`，再按 generation 串行化、合并和有界重试。小型、有严格容量上限的 provider 可以返回已完成 snapshot operation；`ReplayCatalogSaveData` 必须按回放、action 和 checkpoint 预算分片，避免长回放目录在单帧同步序列化。任何目录增长到会占用整帧时都应在 provider 内采用分步 snapshot operation，不得恢复 UI 调用栈同步深拷贝。
 4. `GFStorageUtility` 通过临时文件、事务标记和原子提交写入当前账号 Profile。确认成功后 `GameSaveSectionResult` 为 `persisted`；确认失败时项目反向恢复本次 section，并等待回滚状态的补偿保存后再终结。
 5. `outcome_unknown` 不表示成功或失败。项目保留候选快照、Profile 与路径所有权，并阻止新的立即写入和账号切换；GF detached 写入收敛后按 requested/persisted generation 判断晚到成功，或回滚并补偿保存，再以原 transaction ID 发布唯一对账证据。
 6. 高频统计、发现和成就更新使用 `queue_section_data()` 合并到下一 generation；`flush_profile()` 是覆盖调用时最新 generation 的屏障。“已排队”不等于“已持久化”。

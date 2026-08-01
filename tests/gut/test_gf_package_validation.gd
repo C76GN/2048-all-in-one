@@ -37,6 +37,23 @@ func test_gf_plugin_version_is_recorded_as_semver() -> void:
 	assert_true(issues.is_empty(), "GF 插件版本应可作为包管理和文档事实来源：\n%s" % _join_lines(issues))
 
 
+func test_semver_validator_accepts_development_channel_versions() -> void:
+	for accepted: String in [
+		"10.0.0",
+		"11.0.0-dev.0",
+		"11.0.0-dev.1+canary.7",
+	]:
+		assert_true(_is_semver(accepted), "应接受有效 SemVer：%s" % accepted)
+	for rejected: String in [
+		"11.0",
+		"11.0.0-dev..1",
+		"11..0.0",
+		"11.0.0-01",
+		"011.0.0",
+	]:
+		assert_false(_is_semver(rejected), "应拒绝无效 SemVer：%s" % rejected)
+
+
 func test_ai_developer_contract_and_codex_skill_are_committed() -> void:
 	var required_paths: Array[String] = [
 		_GF_PROJECT_CONTRACT_PATH,
@@ -80,22 +97,92 @@ func test_vendored_gf_source_is_pinned() -> void:
 	var plugin_version: String = _get_config_text(plugin_config, "plugin", "version")
 	var locked_version: String = _get_dictionary_text(vendor_lock, "framework_version")
 	var source_commit: String = _get_dictionary_text(vendor_lock, "source_commit")
+	var source_git_tree: String = _get_dictionary_text(vendor_lock, "source_git_tree")
+	var source_repository: String = _get_dictionary_text(vendor_lock, "source_repository")
+	var source_ref: String = _get_dictionary_text(vendor_lock, "source_ref")
+	var channel: String = _get_dictionary_text(vendor_lock, "channel")
+	var upstream_ci_run: String = _get_dictionary_text(vendor_lock, "upstream_ci_run")
 	var tree_sha256: String = _get_dictionary_text(vendor_lock, "vendor_tree_sha256")
 
-	if _get_dictionary_int(vendor_lock, "schema_version", 0) != 1:
-		_append_string(issues, "GF vendor lock schema_version 必须为 1。")
+	if _get_dictionary_int(vendor_lock, "schema_version", 0) != 2:
+		_append_string(issues, "GF vendor lock schema_version 必须为 2。")
 	if _get_dictionary_text(vendor_lock, "source_kind") != "vendored_git_snapshot":
 		_append_string(issues, "GF vendor lock source_kind 必须为 vendored_git_snapshot。")
 	if locked_version != plugin_version:
 		_append_string(issues, "GF vendor lock version=%s 应与 plugin.cfg version=%s 一致。" % [locked_version, plugin_version])
 	if source_commit.length() != 40 or not _is_hex_text(source_commit):
 		_append_string(issues, "GF vendor lock source_commit 必须是 40 位 Git commit。")
+	if source_git_tree.length() != 40 or not _is_hex_text(source_git_tree):
+		_append_string(issues, "GF vendor lock source_git_tree 必须是 40 位 Git tree。")
+	if source_repository != "https://github.com/C76GN/gf-framework.git":
+		_append_string(issues, "GF vendor lock 必须声明 GF 官方 source_repository。")
+	if channel != "stable" and channel != "development":
+		_append_string(issues, "GF vendor lock channel 必须是 stable 或 development。")
+	if channel == "stable" and source_ref != "refs/tags/%s" % plugin_version:
+		_append_string(issues, "GF stable vendor 必须锁定与版本一致的 tag ref。")
+	if channel == "development" and source_ref != "refs/heads/main":
+		_append_string(issues, "GF development vendor 必须来自 refs/heads/main。")
+	if not upstream_ci_run.begins_with(
+		"https://github.com/C76GN/gf-framework/actions/runs/"
+	):
+		_append_string(issues, "GF vendor lock 必须记录官方 upstream_ci_run。")
 	if tree_sha256.length() != 64 or not _is_hex_text(tree_sha256):
 		_append_string(issues, "GF vendor lock vendor_tree_sha256 必须是 64 位 SHA-256。")
 	if _get_dictionary_int(vendor_lock, "vendor_file_count", 0) <= 0:
 		_append_string(issues, "GF vendor lock vendor_file_count 必须大于 0。")
 
 	assert_true(issues.is_empty(), "vendored GF 必须有可验证的精确来源：\n%s" % _join_lines(issues))
+
+
+func test_vendor_acceptance_gate_binds_remote_commit_tree_and_success_run() -> void:
+	var contract: Dictionary = _read_json_dictionary(_GF_PROJECT_CONTRACT_PATH)
+	var verification: Dictionary = GFVariantData.get_option_dictionary(
+		contract,
+		"verification"
+	)
+	var checks: Array = GFVariantData.get_option_array(verification, "checks")
+	var vendor_check: Dictionary = {}
+	for check_value: Variant in checks:
+		if not check_value is Dictionary:
+			continue
+		var check: Dictionary = check_value
+		if _get_dictionary_text(check, "id") == "gf_vendor":
+			vendor_check = check
+			break
+
+	var verifier_text: String = _read_text(_GF_VENDOR_VERIFY_PATH)
+	var argv: Array = GFVariantData.get_option_array(vendor_check, "argv")
+	var issues: Array[String] = []
+	if vendor_check.is_empty():
+		_append_string(issues, "项目契约必须包含 required gf_vendor gate。")
+	elif not GFVariantData.get_option_bool(vendor_check, "required"):
+		_append_string(issues, "gf_vendor gate 必须是 required。")
+	if not argv.has("-VerifyRemote"):
+		_append_string(issues, "gf_vendor gate 必须启用官方远程 provenance 校验。")
+	if _get_dictionary_text(vendor_check, "network_access") != "required":
+		_append_string(issues, "gf_vendor 远程 provenance gate 必须声明需要网络。")
+	for required_fragment: String in [
+		"run.head_sha",
+		"run.conclusion",
+		"run.path",
+		"sourceGitTree",
+		"Get-GitBlobSha1",
+		"remoteVendorBlobs",
+		"GF full validation",
+		"GF merge gate",
+		"api.github.com/repos/C76GN/gf-framework",
+	]:
+		if not verifier_text.contains(required_fragment):
+			_append_string(
+				issues,
+				"GF vendor verifier 缺少远程身份绑定：%s。" % required_fragment
+			)
+
+	assert_true(
+		issues.is_empty(),
+		"GF development vendor 必须绑定官方 commit、tree 与绿色 Actions run：\n%s"
+		% _join_lines(issues)
+	)
 
 
 func test_native_package_manager_entrypoints_exist() -> void:
@@ -515,14 +602,46 @@ func _get_extension_manifest_path(extension_id: String) -> String:
 
 
 func _is_semver(version: String) -> bool:
-	var pieces: PackedStringArray = version.strip_edges().split(".", false)
+	var normalized: String = version.strip_edges()
+	var build_separator: int = normalized.find("+")
+	if build_separator >= 0:
+		if not _is_semver_identifier_list(normalized.substr(build_separator + 1), false):
+			return false
+		normalized = normalized.substr(0, build_separator)
+	var prerelease_separator: int = normalized.find("-")
+	if prerelease_separator >= 0:
+		if not _is_semver_identifier_list(normalized.substr(prerelease_separator + 1), true):
+			return false
+		normalized = normalized.substr(0, prerelease_separator)
+	var pieces: PackedStringArray = normalized.split(".", true)
 	if pieces.size() != 3:
 		return false
 
 	for piece: String in pieces:
-		if piece.is_empty():
+		if piece.is_empty() or (piece.length() > 1 and piece.begins_with("0")):
 			return false
 		if not _is_digits(piece):
+			return false
+	return true
+
+
+func _is_semver_identifier_list(value: String, reject_numeric_leading_zero: bool) -> bool:
+	var identifiers: PackedStringArray = value.split(".", true)
+	if identifiers.is_empty():
+		return false
+	for identifier: String in identifiers:
+		if identifier.is_empty():
+			return false
+		var numeric: bool = true
+		for index: int in range(identifier.length()):
+			var code: int = identifier.unicode_at(index)
+			var is_digit: bool = code >= 48 and code <= 57
+			var is_letter: bool = (code >= 65 and code <= 90) or (code >= 97 and code <= 122)
+			if not is_digit:
+				numeric = false
+			if not is_digit and not is_letter and code != 45:
+				return false
+		if reject_numeric_leading_zero and numeric and identifier.length() > 1 and identifier.begins_with("0"):
 			return false
 	return true
 

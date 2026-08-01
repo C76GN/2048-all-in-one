@@ -14,12 +14,6 @@ const _DEV_TOOLS_INSTALLER_PATH: String = (
 const _COMMAND_HISTORY_LIMIT: int = 1024
 const _ASSET_CACHE_CAPACITY: int = 256
 const _ASSET_MAX_CONCURRENT_LOADS: int = 4
-const _GAME_AUDIO_UTILITY_SCRIPT: GDScript = preload(
-	"res://app/scripts/game_audio_utility.gd"
-)
-const _GAME_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT: GDScript = preload(
-	"res://app/scripts/game_runtime_diagnostics_utility.gd"
-)
 const _PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_content_catalog_utility.gd")
 const _PROJECT_RESOURCE_CATALOG_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/project_resource_catalog_utility.gd")
 const _GAME_CLOCK_UTILITY_SCRIPT: Script = preload("res://shared/scripts/utilities/game_clock_utility.gd")
@@ -132,6 +126,9 @@ func _bind_runtime_foundation_utilities(binder: GFBinder, scope: GFAsyncScope) -
 	await binder.bind_utility(GFStorageUtility).from_instance(_create_storage_utility()).as_singleton()
 	if scope.is_cancel_requested():
 		return
+	await binder.bind_utility(GFResourceBroker).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GFBackgroundWorkUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
@@ -144,10 +141,7 @@ func _bind_runtime_foundation_utilities(binder: GFBinder, scope: GFAsyncScope) -
 	await binder.bind_utility(GFViewportUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
-	var audio_binding: GFBindBuilder = binder.bind_utility(
-		GFAudioUtility
-	).from_instance(_create_audio_utility())
-	await audio_binding.as_singleton()
+	await binder.bind_utility(GFAudioUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
 	if OS.has_feature(_PLATFORM_SMOKE_FEATURE):
@@ -184,11 +178,7 @@ func _bind_content_and_gameplay_utilities(binder: GFBinder, scope: GFAsyncScope)
 	await binder.bind_utility(GFNotificationUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
-	var diagnostics_binding: GFBindBuilder = binder.bind_utility(GFDiagnosticsUtility)
-	diagnostics_binding = diagnostics_binding.from_instance(
-		_create_runtime_diagnostics_utility()
-	)
-	await diagnostics_binding.as_singleton()
+	await binder.bind_utility(GFDiagnosticsUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(GFSessionTraceUtility).as_singleton()
@@ -516,16 +506,6 @@ func _create_log_utility() -> GFLogUtility:
 		else GFLogUtility.LogLevel.INFO
 	)
 	return log_utility
-
-
-func _create_audio_utility() -> GFAudioUtility:
-	var audio: GFAudioUtility = _GAME_AUDIO_UTILITY_SCRIPT.new()
-	return audio
-
-
-func _create_runtime_diagnostics_utility() -> GFDiagnosticsUtility:
-	var diagnostics: GFDiagnosticsUtility = _GAME_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT.new()
-	return diagnostics
 
 
 func _create_object_pool_utility() -> GFObjectPoolUtility:

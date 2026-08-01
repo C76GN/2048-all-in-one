@@ -5,13 +5,6 @@ extends GutTest
 # --- 常量 ---
 
 const PROJECT_INSTALLER_PATH: String = "res://app/scripts/game_architecture_installer.gd"
-const GAME_AUDIO_UTILITY_PATH: String = "res://app/scripts/game_audio_utility.gd"
-const GAME_RUNTIME_DIAGNOSTICS_UTILITY_PATH: String = (
-	"res://app/scripts/game_runtime_diagnostics_utility.gd"
-)
-const GAME_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT: GDScript = preload(
-	"res://app/scripts/game_runtime_diagnostics_utility.gd"
-)
 const BOOT_RUNTIME_PATH: String = "res://app/scripts/boot_runtime.gd"
 const STARTUP_RENDER_WARMUP_MANIFEST: GFRenderWarmupManifest = preload(
 	"res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres"
@@ -131,6 +124,89 @@ func test_project_installer_binds_signal_utility_before_theme_consumers() -> voi
 		signal_position < theme_position,
 		"GFSignalUtility 必须先于依赖它的 GameThemeUtility 注册。"
 	)
+
+
+func test_project_installer_shares_resource_broker_before_load_consumers() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var broker_position: int = source.find("bind_utility(GFResourceBroker)")
+	var background_work_position: int = source.find(
+		"bind_utility(GFBackgroundWorkUtility)"
+	)
+	var asset_position: int = source.find("bind_utility(GFAssetUtility)")
+	var scene_position: int = source.find("bind_utility(GFSceneUtility)")
+
+	assert_true(broker_position >= 0, "Composition Root 应注册共享 GFResourceBroker。")
+	assert_true(background_work_position >= 0, "Composition Root 应注册 GFBackgroundWorkUtility。")
+	assert_true(asset_position >= 0, "Composition Root 应注册 GFAssetUtility。")
+	assert_true(scene_position >= 0, "Composition Root 应注册 GFSceneUtility。")
+	assert_true(
+		broker_position < background_work_position
+		and broker_position < asset_position
+		and broker_position < scene_position,
+		"GFResourceBroker 必须先于所有 threaded 资源消费者注册。"
+	)
+
+
+func test_registered_resource_loading_consumers_resolve_one_broker() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var broker: GFResourceBroker = GFResourceBroker.new()
+	var assets: GFAssetUtility = GFAssetUtility.new()
+	var scenes: GFSceneUtility = GFSceneUtility.new()
+	var jobs: GFBackgroundWorkUtility = GFBackgroundWorkUtility.new()
+	await architecture.register_utility(GFResourceBroker, broker)
+	await architecture.register_utility(GFAssetUtility, assets)
+	await architecture.register_utility(GFSceneUtility, scenes)
+	await architecture.register_utility(GFBackgroundWorkUtility, jobs)
+	var initialized: bool = await architecture.init()
+
+	assert_true(initialized, "资源加载 Composition Root slice 应完成真实架构初始化。")
+	assert_same(assets.get_resource_broker(), broker, "Asset 必须取得项目共享 Broker。")
+	assert_same(scenes.get_resource_broker(), broker, "Scene 必须取得项目共享 Broker。")
+	assert_same(jobs.get_resource_broker(), broker, "BackgroundWork 必须取得项目共享 Broker。")
+	architecture.dispose()
+	await get_tree().process_frame
+
+
+func test_shared_resource_broker_reuses_path_with_independent_cancellation() -> void:
+	var broker: GFResourceBroker = GFResourceBroker.new()
+	broker.init()
+	var resource_path: String = (
+		"res://features/themes/resources/themes/boot/"
+		+ "startup_render_warmup_manifest.tres"
+	)
+	var first: GFResourceLease = broker.request(
+		resource_path,
+		"Resource",
+		{&"consumer_id": &"project_asset_consumer"}
+	)
+	var second: GFResourceLease = broker.request(
+		resource_path,
+		"Resource",
+		{&"consumer_id": &"project_scene_consumer"}
+	)
+
+	var admission: Dictionary = broker.get_debug_snapshot()
+	assert_true(
+		GFVariantData.get_option_int(admission, "active_count") == 1,
+		"同资源的两个项目消费者必须复用一个底层请求。"
+	)
+	first.cancel(&"first_consumer_left")
+	for _poll_index: int in range(120):
+		if second.is_terminal():
+			break
+		broker.pump()
+		await get_tree().process_frame
+
+	assert_true(first.get_status() == GFResourceLease.STATUS_CANCELLED, "取消必须只终结当前 Lease。")
+	assert_true(
+		second.get_status() == GFResourceLease.STATUS_COMPLETED,
+		"另一消费者必须继续收到共享资源。"
+	)
+	assert_not_null(second.get_resource(), "存活消费者应取得加载结果。")
+	second.release()
+	broker.pump()
+	assert_true(broker.is_idle(), "共享 Lease 收敛后 Broker 必须回到 idle。")
+	broker.dispose()
 
 
 func test_project_installer_groups_internal_bindings_by_runtime_ownership() -> void:
@@ -479,15 +555,15 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 	assert_true(source.contains("_DEV_TOOLS_INSTALLER_PATH"), "Composition Root 应按需加载 diagnostics Installer。")
 	assert_true(
 		source.contains("bind_utility(GFDiagnosticsUtility)"),
-		"运行时应直接绑定 GF10 Diagnostics 聚合核心。"
+		"运行时应直接绑定 GF Diagnostics 聚合核心。"
 	)
-	assert_true(
-		source.contains("_GAME_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT"),
-		"运行时 Diagnostics 应通过可删除的项目适配实例保留 GF10 类型契约。"
+	assert_false(
+		source.contains("game_runtime_diagnostics_utility.gd"),
+		"GF 11 已修复可选 Console 查询，运行时不得保留项目适配。"
 	)
 	assert_true(
 		source.contains("bind_utility(GFSessionTraceUtility)"),
-		"运行时应绑定 GF10 有界 Session Trace 核心。"
+		"运行时应绑定 GF 有界 Session Trace 核心。"
 	)
 	assert_true(
 		source.contains("_GAME_PERFORMANCE_TRACE_UTILITY_SCRIPT"),
@@ -509,17 +585,17 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 func test_runtime_diagnostics_treats_console_as_optional_under_strict_lookup() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	architecture.strict_dependency_lookup = true
-	var diagnostics: GFDiagnosticsUtility = GAME_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT.new()
+	var diagnostics: GFDiagnosticsUtility = GFDiagnosticsUtility.new()
 
 	await architecture.register_utility(GFDiagnosticsUtility, diagnostics)
 	var initialized: bool = await architecture.init()
 
 	assert_true(initialized, "缺少可选 Console 时 Diagnostics 仍应完成严格初始化。")
 	assert_null(
-		architecture.get_local_utility(GFConsoleUtility),
+		architecture.find_utility(GFConsoleUtility),
 		"发布态回归场景不得为了消除错误而安装 Console。"
 	)
-	assert_push_error_count(0, "可选 Console 的 local lookup 不应产生 strict miss。")
+	assert_push_error_count(0, "GF 11 的可选 Console 查询不应产生 strict miss。")
 	architecture.dispose()
 
 
@@ -528,7 +604,7 @@ func test_runtime_diagnostics_still_binds_console_when_dev_tools_install_it() ->
 	architecture.strict_dependency_lookup = true
 	var log_utility: GFLogUtility = GFLogUtility.new()
 	var console: GFConsoleUtility = GFConsoleUtility.new()
-	var diagnostics: GFDiagnosticsUtility = GAME_RUNTIME_DIAGNOSTICS_UTILITY_SCRIPT.new()
+	var diagnostics: GFDiagnosticsUtility = GFDiagnosticsUtility.new()
 
 	await architecture.register_utility(GFLogUtility, log_utility)
 	await architecture.register_utility(GFConsoleUtility, console)
@@ -538,41 +614,36 @@ func test_runtime_diagnostics_still_binds_console_when_dev_tools_install_it() ->
 	assert_true(initialized, "安装 Console 的开发态 Diagnostics 应完成严格初始化。")
 	assert_true(
 		console.get_command_names().has("diagnostics"),
-		"存在本架构 Console 时临时适配仍必须保留 GF diagnostics 命令桥。"
+		"存在本架构 Console 时 GF Diagnostics 必须保留标准命令桥。"
 	)
 	assert_push_error_count(0, "开发态 Console 桥接不应产生 strict miss。")
 	architecture.dispose()
 	await get_tree().process_frame
 
 
-func test_runtime_diagnostics_adapter_is_narrow_and_removable() -> void:
-	var source: String = _read_text(GAME_RUNTIME_DIAGNOSTICS_UTILITY_PATH)
-
-	assert_true(source.contains("extends GFDiagnosticsUtility"), "临时适配必须保留官方类型契约。")
-	assert_true(
-		source.contains("architecture.get_local_utility(GFConsoleUtility)"),
-		"可选 Console 必须使用当前架构的无报错 local lookup。"
-	)
-	assert_false(source.contains("strict_dependency_lookup = false"), "适配不得关闭严格依赖查询。")
-	assert_false(source.contains("GFConsoleUtility.new()"), "适配不得在发布态偷偷安装 Console。")
-
-
-func test_runtime_audio_adapter_is_narrow_and_removable() -> void:
+func test_runtime_uses_official_gf_audio_and_diagnostics_utilities() -> void:
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
-	var adapter_source: String = _read_text(GAME_AUDIO_UTILITY_PATH)
+	var singleton_suffix: String = ".as_" + "singleton()"
 
 	assert_true(
-		installer_source.contains("_GAME_AUDIO_UTILITY_SCRIPT"),
-		"运行时音频应通过可删除的 GF10 生命周期适配实例绑定。"
+		installer_source.contains(
+			"binder.bind_utility(GFAudioUtility)" + singleton_suffix
+		),
+		"GF 11 已修复 BGM teardown，运行时应直接绑定官方 GFAudioUtility。"
 	)
-	assert_true(adapter_source.contains("extends GFAudioUtility"), "音频适配必须保留官方类型契约。")
 	assert_true(
-		adapter_source.contains("super.dispose()"),
-		"音频适配只应在官方释放流程前收敛失效引用。"
+		installer_source.contains(
+			"binder.bind_utility(GFDiagnosticsUtility)" + singleton_suffix
+		),
+		"GF 11 已修复可选依赖查询，运行时应直接绑定官方 GFDiagnosticsUtility。"
 	)
 	assert_false(
-		adapter_source.contains("func init()"),
-		"音频适配不得复制或接管 GF 的初始化和播放行为。"
+		installer_source.contains("game_audio_utility.gd"),
+		"不得恢复旧版 GF 音频 teardown 适配。"
+	)
+	assert_false(
+		installer_source.contains("game_runtime_diagnostics_utility.gd"),
+		"不得恢复旧版 GF Diagnostics 适配。"
 	)
 
 
@@ -592,7 +663,7 @@ func test_async_installers_check_scope_after_every_await() -> void:
 
 	assert_true(
 		issues.is_empty(),
-		"GF10 Installer 必须在每个 await 恢复后立即检查取消作用域：\n%s"
+		"GF Installer 必须在每个 await 恢复后立即检查取消作用域：\n%s"
 		% _join_lines(issues)
 	)
 

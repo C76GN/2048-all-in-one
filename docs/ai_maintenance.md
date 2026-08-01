@@ -10,7 +10,7 @@
 - 业务代码应尽量展示 gf 的核心能力：`GFInstaller`、`GFModel`、`GFSystem`、`GFController`、`GFUtility`、事件系统、命令历史、资源化输入、资源化规则、存储、场景工具、对象池、动作队列和设置绑定。
 - 当发现 gf 难以表达项目需求时，先判断问题属于示例项目建模不足、框架 API 可用性不足，还是框架缺陷。项目层先保持清晰边界；框架能力或缺陷必须先进入 `C76GN/gf-framework` GitHub issue，issue 是协作、复现和验收的唯一记录。
 - 当前工作区的 `addons/gf/**` 始终只读。即使任务要求反哺框架，经授权的 GF 实现也只能在独立 `gf-pr` 工作区的非 `main` 分支完成；用户自有 `gf` 工作区只对本项目自动化与协作者保持只读，自动化和协作者不得修改、整理、提交或推送其中内容，但不限制用户本人继续维护。
-- 上游记录只保存 issue、测试结果、发布版本、精确 source commit 和采用结果，不在项目文档中维护“当前临时 vendor 补丁”。
+- 上游记录只保存 issue、测试结果、发布或开发渠道、精确 source commit、Git tree、上游 CI 和采用结果，不在项目文档中维护“当前临时 vendor 补丁”。
 - `addons/gut/**` 是测试插件代码，除非任务明确要求处理 GUT，否则不要修改。
 
 ## 核心规则
@@ -29,7 +29,7 @@
 ## 架构速览
 
 - 启动入口：`app/scenes/boot.tscn` 挂载极轻 `app/scripts/boot.gd`，线程加载 `app/scripts/boot_runtime.gd`；后者启用 GF 根架构的严格依赖查询与声明校验，调用 `await Gf.init()`、执行 `GFRenderWarmupUtility` 清单预热后交给 `SceneRouterSystem` 切到主菜单。
-- GF 上游治理：`addons/gf/**` 是只读 vendor 快照。框架缺陷必须在 `C76GN/gf-framework` 先建 issue，并以 issue 作为唯一协作与验收记录；实现只允许位于独立 `gf-pr` 工作区的非 `main` 分支，并完成 GF 自身测试与维护门禁。由维护者发布可采用版本后才允许更新项目 vendor lock；用户自有 `gf` 工作区只对本项目自动化与协作者只读，用户本人可继续维护，禁止自动化把 GF 本体修改直接提交到任一仓库主线。
+- GF 上游治理：`addons/gf/**` 是只读 vendor 快照。框架缺陷必须在 `C76GN/gf-framework` 先建 issue，并以 issue 作为唯一协作与验收记录；实现只允许位于独立 `gf-pr` 工作区的非 `main` 分支，并完成 GF 自身测试与维护门禁。稳定示例线采用正式发布，开发兼容线只采用 GF 官方 `main` 上游门禁通过的精确 commit；两者都更新完整 vendor lock，禁止自动化把框架实现或项目补丁直接写入任一仓库主线。
 - gf 装配入口：`app/scripts/game_architecture_installer.gd` 注册项目 Model、System、Utility，并通过 Project Settings 的 `gf/project/installers` 接入。
 - Feature：`features/<feature_id>/` 内聚脚本、场景、资源、文档和局部工具；GF 层目录只在所属 Feature 内出现。
 - Shared：`shared/**` 只保存跨 Feature 契约、基础算法、UI 原语、素材和 Utility，禁止引用具体 Feature。
@@ -173,9 +173,9 @@ python addons/gf/tools/ai_developer/gf_ai_project.py snapshot --project-root .
 项目仓库内只允许两类 GF 相关改动：
 
 - 项目侧 Adapter、验证和可复现的反馈证据，且不得复制或修改 GF vendor 源码。
-- 已发布 GF 版本的完整 vendor 升级，同时更新 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json`、必要的包状态与验证证据。
+- GF 正式发布或官方 `main` 绿色开发提交的完整 vendor 升级，同时更新 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json`、必要的包状态与验证证据。
 
-发现通用缺陷或能力缺口后，先排除项目建模和调用错误，再在 `C76GN/gf-framework` 创建 issue，并以 issue 协调复现、范围和验收；不得把 issue 转为 PR，也不得用 PR 替代交付记录。经授权的实现只位于独立 `gf-pr` 工作区的非 `main` 分支；`gf-pr` 是隔离工作区名称，不代表授权创建 GitHub PR。用户自有 `gf` 工作区只对本项目自动化与协作者只读，用户本人仍可继续维护。完成 GF 自身测试与维护门禁并由维护者发布后，本项目才按精确 source commit 更新完整 vendor 快照和锁文件。框架实现不能引用本项目的 2048 类型、路径、文案、资源或玩法概念。本项目提交历史不接受混在业务提交中的 GF 源码补丁。
+稳定示例线必须锁定最新正式发布并保持可运行、可演示；开发兼容线位于独立分支或工作区，只跟踪 GF 官方 `main` 上游门禁通过的精确 commit，不跟踪功能分支或浮动 HEAD。开发更新失败时保留上一绿色 GF 身份，先区分已文档化的破坏性迁移、项目调用错误与框架回归，必要时在隔离工作区二分。确定为通用缺陷或能力缺口后，在 `C76GN/gf-framework` 创建 issue，并以 issue 协调复现、范围和验收；不得把 issue 转为 PR，也不得用 PR 替代交付记录。经授权的框架实现只位于独立 `gf-pr` 工作区的非 `main` 分支，项目 vendor 不承载临时补丁。
 
 ### 文档变更
 

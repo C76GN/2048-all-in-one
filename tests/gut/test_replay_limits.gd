@@ -52,6 +52,52 @@ func test_replay_catalog_rejects_oversized_persisted_array_atomically() -> void:
 	)
 
 
+func test_replay_catalog_save_snapshot_yields_between_bounded_slices() -> void:
+	var provider: ReplayCatalogSaveData = ReplayCatalogSaveData.new()
+	var replay: ReplayData = _make_replay(1_700_000_000_003, 16)
+	assert_true(
+		provider.replace_section_data({&"items": [replay.to_dict()]}) == OK,
+		"测试回放应进入目录 Provider。"
+	)
+	var operation: GFSaveSectionSnapshotOperation = (
+		provider.begin_save_snapshot({&"reason": "bounded_test"})
+	)
+
+	assert_not_null(operation, "Replay Provider 应创建协作式 Snapshot Operation。")
+	assert_true(
+		operation != null and operation.is_pending(),
+		"回放目录不得在 begin 调用栈同步构建完整 Snapshot。"
+	)
+	if operation == null:
+		return
+
+	var first_slice_units: int = operation.advance_for_framework(1)
+	assert_true(first_slice_units == 1, "单次推进必须遵守一个 work unit 预算。")
+	assert_true(
+		operation.is_pending(),
+		"含回放步骤的目录必须在多个有界 slice 中构建。"
+	)
+	for _slice: int in range(32):
+		if operation.is_completed():
+			break
+		var _consumed_units: int = operation.advance_for_framework(1)
+
+	assert_true(operation.is_successful(), "有界 Replay Snapshot 应进入成功终态。")
+	var snapshot: GFSaveSectionSnapshot = operation.take_snapshot_for_framework()
+	assert_not_null(snapshot, "成功操作应交付一次性 Snapshot。")
+	if snapshot == null:
+		return
+	var record: Dictionary = snapshot.claim_for_framework()
+	var payload_value: Variant = record.get("payload")
+	assert_true(payload_value is Dictionary, "Replay Snapshot payload 应为严格字典。")
+	if payload_value is Dictionary:
+		var payload: Dictionary = payload_value
+		assert_true(
+			payload == provider.get_section_data(),
+			"分片快照必须与当前 Replay section 数据一致。"
+		)
+
+
 func test_saving_replays_deterministically_retains_newest_uuid_v7_items() -> void:
 	var save_graph: ReplaySaveGraphStub = ReplaySaveGraphStub.new()
 	var replay_system: ReplaySystem = ReplaySystem.new()

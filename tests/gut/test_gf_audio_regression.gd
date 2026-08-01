@@ -1,14 +1,9 @@
-## 验证项目音频生命周期适配不会在 SceneTree 先释放播放器时产生 TypedArray 错误。
+## 验证官方 GF 音频生命周期在 SceneTree 先释放播放器时仍可安全收敛。
 extends GutTest
 
 
-const _GAME_AUDIO_UTILITY_SCRIPT: GDScript = preload(
-	"res://app/scripts/game_audio_utility.gd"
-)
-
-
 func test_dispose_tolerates_bgm_players_released_by_scene_tree() -> void:
-	var audio: GFAudioUtility = _GAME_AUDIO_UTILITY_SCRIPT.new()
+	var audio: GFAudioUtility = GFAudioUtility.new()
 	audio.init()
 	await get_tree().process_frame
 	await get_tree().process_frame

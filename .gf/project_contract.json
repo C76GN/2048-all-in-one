@@ -16,7 +16,7 @@
     ],
     "out_of_scope": [
       "在运行时主路径保留旧业务 schema、旧 API 或隐式降级兼容分支。",
-      "在项目主线直接修改 res://addons/gf；通用框架改动必须以 gf-framework GitHub issue 作为唯一协作与验收记录，只在独立 gf-pr 工作区的非 main 分支实现；用户自有 gf 工作区只对本项目自动化与协作者只读，不限制用户本人继续维护；gf-pr 是隔离工作区名称，不代表授权创建 GitHub PR；通过 GF 测试与发布后再按精确 source commit 回流 vendor。",
+      "直接修改 res://addons/gf 或在 vendor 快照中携带项目补丁；通用框架改动先建 gf-framework issue，只在独立 gf-pr 工作区的非 main 分支实现，gf-pr 不代表授权创建 PR。稳定线只采用正式发布，开发兼容线只采用 GF 官方 main 上游门禁通过的精确 commit。",
       "当前阶段实现实时多人对局或由客户端直接裁决线上排行榜。",
       "产品化关卡、每日或今日挑战。",
       "交互式教学或教程流程。",
@@ -109,6 +109,7 @@
         "acceptance": [
           "运行时主题与内容以稳定资源键解析；激活路径不得以 raw res:// path fallback 维持成功。",
           "主题资源先在 GFAssetLoadSession staging group 全量通过再事务提交；成功后释放旧组，失败保留旧主题与旧音频银行。",
+          "Composition Root 在 GFAssetUtility、GFSceneUtility 和 GFBackgroundWorkUtility 之前注册唯一共享 GFResourceBroker；三条加载路径必须共享有界 admission、同资源复用和消费者取消语义。",
           "当前视觉与声音主题只由独立 GFAssetSlot 强持有，并以稳定用途键、类型契约、单调 generation 和 Utility dispose 终态释放接受测试；作者评审 AssetSlotMap 不得充当运行时句柄。"
         ],
         "notes": "GFAssetSlot 拥有当前可替换主题资源的生命周期；GFAssetLoadSession/GFAssetUtility 仍拥有依赖预载、资源组与缓存，二者职责不得混淆。"
@@ -400,7 +401,8 @@
     ],
     "global_rules": [
       "项目业务代码必须位于严格 Feature-Cohesive 目录，目录真相来源是 gf_project_profile.json。",
-      "项目代码不得直接修改 res://addons/gf；通用缺陷先进入 gf-framework GitHub issue，issue 是唯一协作与验收记录，不转为 PR；授权实现只在独立 gf-pr 工作区的非 main 分支完成并通过 GF 测试，gf-pr 仅表示隔离工作区；用户自有 gf 工作区只对本项目自动化与协作者只读，不限制用户本人继续维护；维护者发布后再按精确 source commit 更新 vendor。",
+      "项目代码不得直接修改 res://addons/gf；通用缺陷先进入 gf-framework GitHub issue，issue 是唯一协作与验收记录，不转为 PR；授权实现只在独立 gf-pr 工作区的非 main 分支完成并通过 GF 测试，gf-pr 仅表示隔离工作区；稳定线按正式发布更新，开发兼容线只同步 GF 官方 main 上游门禁通过的精确 source commit；两条线都必须完整更新 vendor lock 且不得携带项目补丁。",
+      "用户自有 gf 工作区只对本项目自动化与协作者只读，不限制用户本人继续维护；授权框架实现仅在独立 gf-pr 工作区的非 main 分支进行，gf-pr 不代表授权创建 GitHub PR。",
       "跨模块依赖必须由 GF Composition Root 声明并注入；只有 app 启动链可以访问全局 Gf。",
       "业务随机数使用 GFSeedUtility，共享时间使用 GFClock；回放、撤销和书签必须保持确定性。",
       "UI 导航使用 GFUIRouterUtility，跨生命周期信号使用 GFSignalUtility，玩家输入使用 GFInputMappingUtility。",
@@ -513,7 +515,7 @@
       "id": "exact_vendored_gf",
       "status": "accepted",
       "statement": "项目使用完整、精确哈希锁定的 GF vendor 快照。",
-      "rationale": "当前环境中的远程包管理受 SSL 限制；vendor lock 在恢复 GF Package Manager 前提供可复现来源、commit、tree 和内容哈希。",
+      "rationale": "当前环境中的远程包管理受 SSL 限制；vendor lock 为稳定发布和开发兼容快照提供可复现的官方仓库、渠道、ref、commit、Git tree、上游 CI 与内容哈希。",
       "evidence": [
         ".gf/vendor.lock.json",
         "tools/verify_gf_vendor.ps1",
@@ -524,7 +526,7 @@
       "id": "framework_changes_through_upstream",
       "status": "accepted",
       "statement": "项目主线不直接承载 GF 源码补丁，GF 官方协作只以 issue 为入口和交付记录。",
-      "rationale": "通用缺陷和能力必须先在 gf-framework 建 GitHub issue，并以 issue 作为唯一协作与验收记录；不得把 issue 转成 PR，也不得以 PR 代替问题记录。获授权的实现只在独立 gf-pr 工作区的非 main 分支完成；gf-pr 是隔离工作区名称，不代表授权创建 GitHub PR。用户自有 gf 工作区只对本项目自动化与协作者只读，不限制用户本人继续维护。GF 测试通过并由维护者发布后，再按发布版本和精确 source commit 做可追溯 vendor 更新。",
+      "rationale": "通用缺陷和能力必须先在 gf-framework 建 GitHub issue，并以 issue 作为唯一协作与验收记录；不得把 issue 转成 PR，也不得以 PR 代替问题记录。获授权的实现只在独立 gf-pr 工作区的非 main 分支完成；gf-pr 是隔离工作区名称，不代表授权创建 GitHub PR。稳定示例线采用正式发布；开发兼容线只采用 GF 官方 main 上游门禁通过的精确 source commit，并在失败时冻结上一绿色身份、完成项目误用排查和必要二分。",
       "evidence": [
         "docs/ai_maintenance.md"
       ]
@@ -624,17 +626,18 @@
       },
       {
         "id": "gf_vendor",
-        "description": "验证 vendored GF 版本、文件集合和内容哈希。",
+        "description": "验证 vendored GF 版本与内容哈希，并通过 GitHub API 将本地逐文件 Git blob、官方 commit、addons/gf Git tree、规范 full-validation workflow 与成功 merge gate 绑定为同一份 provenance。",
         "argv": [
           "powershell",
           "-ExecutionPolicy",
           "Bypass",
           "-File",
-          "tools/verify_gf_vendor.ps1"
+          "tools/verify_gf_vendor.ps1",
+          "-VerifyRemote"
         ],
         "working_directory": ".",
         "timeout_seconds": 180,
-        "network_access": "forbidden",
+        "network_access": "required",
         "writes_project": false,
         "required": true
       },

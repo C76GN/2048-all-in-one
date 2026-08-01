@@ -754,6 +754,7 @@ func _create_theme_architecture(
 	var screen_transition: GFScreenTransitionUtility = null
 	var scene_router: SceneRouterSystem = null
 
+	await architecture.register_utility(GFResourceBroker, GFResourceBroker.new())
 	await architecture.register_utility(GFAssetUtility, assets)
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(GFContentPackageUtility, content_packages)

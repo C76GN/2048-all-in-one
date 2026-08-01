@@ -9,11 +9,11 @@ func test_profile_operation_is_untracked_on_framework_terminal() -> void:
 	save_graph._signal_utility = signal_utility
 	var operation: GFSaveProfileOperation = GFSaveProfileOperation.new()
 	assert_true(
-		operation.configure_for_framework(
-			GFSaveProfileOperation.OPERATION_SAVE,
+		operation.configure_save_ownership_for_framework(
 			&"test.profile",
 			7,
-			10
+			10,
+			{}
 		)
 	)
 

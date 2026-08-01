@@ -76,7 +76,7 @@ func get_persistence_health_snapshot() -> Dictionary:
 ## 严格读取和 use_current_state 恢复不得删除底层证据；GFSettingsLoadResult 先决定
 ## 是否恢复，项目存储策略再执行获授权的物理重建。
 ## @param file_name: 可选文件名；为空时使用 GF 设置工具配置的默认文件。
-## @param recovery_policy: 可选显式恢复策略；null 保持 GF10 严格失败语义。
+## @param recovery_policy: 可选显式恢复策略；null 保持 GF 严格失败语义。
 ## @return: GF 返回的结构化加载终态。
 func load_settings(
 	file_name: String = "",

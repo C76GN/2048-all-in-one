@@ -92,7 +92,7 @@ func load_asset(
 
 ## 获取全部 asset_library 内容包对应的 GF 标准运行时素材目录副本。
 ##
-## 目录采用 GF 10 的规范 asset ID：`package_id/resource_key`。业务加载仍使用原有
+## 目录采用 GF 的规范 asset ID：`package_id/resource_key`。业务加载仍使用原有
 ## 稳定 resource key；需要读取目录条目时应调用 get_runtime_catalog_entry()。
 func get_runtime_catalog() -> GFAssetCatalog:
 	if _catalog_runtime == null or _runtime_catalog_mount == null:

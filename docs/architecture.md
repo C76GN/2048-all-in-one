@@ -151,7 +151,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 开发诊断工作区
 
-1. `GameArchitectureInstaller` 以 `GFDiagnosticsUtility` 类型绑定无 UI 聚合核心，用于接收 `gf.action_queue` 等扩展的运行时贡献。当前 vendored GF 的可选 Console 严格查询缺陷由 `app/scripts/game_runtime_diagnostics_utility.gd` 临时收窄为当前 Architecture 的 local lookup；官方 [issue #61](https://github.com/C76GN/gf-framework/issues/61) 关闭且对应回归测试通过后，删除该适配并恢复官方实例。Composition Root 只在显式 `with_dev_tools` feature 下按路径加载 `features/diagnostics/scripts/installers/game_diagnostics_installer.gd`，再补齐 Console、Debug Overlay、Inspector、Screenshot 与 `TestToolUtility`，避免开发界面进入玩家首屏依赖链。
+1. `GameArchitectureInstaller` 直接绑定官方 `GFDiagnosticsUtility` 无 UI 聚合核心，用于接收 `gf.action_queue` 等扩展的运行时贡献；GF 通过 `GFArchitecture.find_utility()` 静默探测可选 Console，不削弱严格必需依赖查询。Composition Root 只在显式 `with_dev_tools` feature 下按路径加载 `features/diagnostics/scripts/installers/game_diagnostics_installer.gd`，再补齐 Console、Debug Overlay、Inspector、Screenshot 与 `TestToolUtility`，避免开发界面进入玩家首屏依赖链。
 2. `GamePlayController` 只发布 `GameplayBoardReadyData`，不引用 `TestToolUtility`、`TestPanel` 或 diagnostics 资源。diagnostics feature 订阅该类型事件并持有开发上下文，依赖方向保持为 diagnostics -> gameplay。
 3. `TestToolUtility` 默认不自动弹窗；仅在 `F4` 或控制台显式请求时按需创建非 transient、非 exclusive 的 `GameplayDiagnosticsWindow`，场景切换时释放窗口和棋盘引用。窗口关闭只隐藏工作区，当前对局内可再次打开。
 4. 工作区使用独立 GF `diagnostics` 输入上下文，`F4` 通过 `GFInputMappingUtility` 切换窗口；`toggle_test_tools` 由 `GFConsoleUtility` 注册；窗口信号由 `GFSignalUtility` 持有生命周期。
@@ -163,11 +163,11 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 1. Composition Root 把内置素材、内置主题和 `user://content_packages` 配置给 `ProjectContentCatalogUtility`。
 2. `ProjectContentCatalogUtility` 是唯一可以注册 source root、重建 `GFContentPackageUtility` 目录并同步 `GFResourceResolverUtility` 的项目 Module。
 3. `GameThemeCatalogUtility` 只读取 manifest metadata，建立 `GameThemeDescriptor` 索引；设置菜单枚举主题时不加载完整资源。
-4. 用户选择主题后，`GameThemeUtility` 先让 `GameThemeCatalogUtility` 只解析根资源路径，再由 `GFResourceRegistryTools` 收集完整依赖图并创建手动提交的 `GFAssetLoadSession`；业务代码不得在激活路径同步 `load()` 主题资源。
+4. 用户选择主题后，`GameThemeUtility` 先让 `GameThemeCatalogUtility` 只解析根资源路径，再由 `GFResourceRegistryTools` 收集完整依赖图并创建手动提交的 `GFAssetLoadSession`；业务代码不得在激活路径同步 `load()` 主题资源。Composition Root 在 Asset、Scene 和 BackgroundWork Utility 之前注册唯一共享 `GFResourceBroker`，由框架统一限制 threaded `ResourceLoader` 并发、复用同资源请求并收敛消费者取消；项目不再为三条加载路径各自实现调度器。
 5. 会话在 staging group 全量成功后校验资源类型、稳定主题 ID 和业务报告，随后提交唯一目标资源组并用 `GFActivationTransaction` 应用主题。当前视觉与声音主题由两个稳定用途键的 `GFAssetSlot` 强持有，槽位负责类型契约、单调 generation 与 Utility dispose 终态释放；只有事务和槽位提交都成功才替换当前组并通过 `GFAssetUtility.unload_group(..., true)` 释放旧组，失败保留旧主题、旧银行和设置。
 6. `BootRuntime` 在 `Gf.init()` 后显式等待视觉与声音主题均完成首次提交，再执行渲染预热和入口场景预加载。设置页等待真实激活结果并在会话期间禁用对应选择器，连续请求由主题 Utility 取消旧会话并以序列号拒绝迟到回调。
 7. 视觉 Profile 交给 `GFShaderParameterUtility`；`GameUiMotionProfile` 随视觉主题一同校验和事务激活，向 `GameUiMotionUtility` 提供语义化节拍，不让页面散落 Tween 常量。`GameBoardFeedbackProfile` 以 `GameFeedbackRecipe` 为领域事件定义颜色、时长、冲击、碎片、Shake 与 Haptic，`GameFeedbackPerformanceMatrix` 再按 `FULL`、`REDUCED`、`MINIMAL` 和无障碍状态施加硬预算。`GameBoardFeedbackUtility` 编排 GF Shake/Haptic/Shader 与项目表现节点：普通 MOVE 只保留有界根节点确认，MERGE 及以上才启用强调通道；`BoardMotionBackdrop` 只在棋盘后层绘制局部棋格和有界纸片，`BoardFeedbackCanvas` 保留方块碰撞层。所有表现只消费已经提交的 `TurnResult`，不得写回模型或推进 gameplay RNG。`GameplayAcceptanceMatrix` 用 `GFMetricSeries` 对输入、尺寸和 P95 性能门槛给出有证据的结论，并通过 GF Diagnostics/Support Report 暴露契约。声音银行通过 `GFAudioUtility.mount_audio_bank()` 获取令牌，`GameAudioTheme` 从 `TurnResult` 选择单一主事件，`GameThemeUtility` 以 `GFAudioEvent` 发布；细分事件由 `GFAudioBank` 层级回退，切换或释放时明确卸载旧银行。
-8. `GFAudioUtility` 的内置 Godot 路径直接支持 bank、BGM/ambient、crossfade、总线混音、ducking、播放池与 SFX 并发/溢出控制。`GameBackgroundMusicUtility` 只从 `ProjectContentCatalogUtility` 查询固定的本地授权内容包，以独立 cosmetic RNG 洗牌，并把有界 OGG（兼容旧 WAV）字节读取交给 `GFBackgroundWorkUtility`；主线程只构造压缩流，不再展开大体积 PCM。项目不得扫描任意系统目录、保存购买源路径或推进玩法 RNG。`set_parameter()`、`set_state()`、`set_switch()` 只委派给显式安装的 `GFAudioBackend`；当前生产 Composition Root 未安装该后端，基础 backend 返回 `false`，因此业务不得假定自适应 state/switch 已生效。当前 vendored GF 在 SceneTree 先释放 root-owned BGM 播放器时存在 TypedArray 销毁缺陷，Composition Root 暂以 `GameAudioUtility` 在官方 `dispose()` 前清除失效引用；官方 [issue #62](https://github.com/C76GN/gf-framework/issues/62) 关闭且对应回归测试通过后，删除该窄适配并恢复官方实例。
+8. `GFAudioUtility` 的内置 Godot 路径直接支持 bank、BGM/ambient、crossfade、总线混音、ducking、播放池与 SFX 并发/溢出控制，并负责 SceneTree 先释放 root-owned BGM 播放器时的幂等安全清理。`GameBackgroundMusicUtility` 只从 `ProjectContentCatalogUtility` 查询固定的本地授权内容包，以独立 cosmetic RNG 洗牌，并把有界 OGG（兼容旧 WAV）字节读取交给 `GFBackgroundWorkUtility`；主线程只构造压缩流，不再展开大体积 PCM。项目不得扫描任意系统目录、保存购买源路径或推进玩法 RNG。`set_parameter()`、`set_state()`、`set_switch()` 只委派给显式安装的 `GFAudioBackend`；当前生产 Composition Root 未安装该后端，基础 backend 返回 `false`，因此业务不得假定自适应 state/switch 已生效。
 9. `GameAccessibilityUtility` 是减少动态、高对比反馈、震动、Shader 和 VFX 档位的唯一运行时投影；设置由 `GFSettingsUtility` 持久化，变更由 `GFSignalUtility` 管理。任何表现设置都不得进入 canonical gameplay state、回放 checkpoint 或排行资格。
 10. `GameUiStyleUtility` 独占 `GameUiPalette`、静态 StyleBox、语义文本和焦点 Shader；`GameUiMotionUtility` 只拥有交互信号、可中断 Tween、retarget 与静态完成路径。减少动态时 UI 直接落到终态且不创建 Tween；`SceneRouterSystem` 仍执行遮罩的 cover/swap/reveal 生命周期，但使用零时长、无 Shader 的静态路径。UI 节点声明语义角色，不保存从旧色板生成的样式对象。
 11. 反馈分级、降级顺序和性能验收目标见 [`features/themes/docs/feedback_performance_matrix.md`](../features/themes/docs/feedback_performance_matrix.md)。
@@ -239,8 +239,8 @@ Installer 不得重复绑定已启用扩展拥有的模块。启用扩展但不�
 - `addons/gf/**` 是由 `.gf/vendor.lock.json` 锁定的上游快照，项目开发中视为只读；不得在项目功能提交中直接修补、格式化或重构 GF 源码。
 - 发现 GF 缺陷或通用能力缺口时，必须先在 `C76GN/gf-framework` 创建可复现的 GitHub issue，明确影响版本、最小复现、期望契约和验证标准。
 - GF 实现只能在独立 `gf-pr` 工作区的非 `main` 分支完成，并通过 GF 自身测试与维护门禁；`gf-pr` 只是隔离工作区名称，不代表授权创建 GitHub PR。对应 GitHub issue 是协作与验收的唯一记录，不得把 issue 转成 PR，也禁止直接向 GF `main` 提交或推送框架改动。
-- 项目与 GF 的改动不得混在同一提交或实施批次。项目可以先提交不依赖框架修改的调用侧改进；只有 GF 变更完成测试并由维护者发布后，项目才能通过正式 vendor 更新流程同步精确的上游 source commit。
-- 同步 GF 时必须更新 `.gf/vendor.lock.json`，运行 vendor 完整性、GUT、LSP、Feature-Cohesive 和退出泄漏验证，并在项目提交中引用上游 issue、发布版本与精确 source commit。
+- 项目调用侧迁移不得伪装成 GF 源码实现，也不得在 vendor 中携带临时补丁。稳定示例线只同步正式发布；独立开发兼容线只同步 GF 官方 `main` 上游门禁通过的精确 commit，失败时冻结上一绿色身份并在隔离工作区定位。
+- 同步 GF 时必须更新 `.gf/vendor.lock.json` 的渠道、官方仓库、ref、commit、Git tree、上游 CI 和内容哈希，运行 vendor 完整性、GUT、LSP、Feature-Cohesive 和退出泄漏验证，并记录对应发布或开发身份。
 - 用户自有 `gf` 工作区只对本项目自动化与协作者开放只读分析；不得代替所有者整理、覆盖、提交或推送其中改动，但不限制用户本人继续维护。需要开发框架修复时只使用独立 `gf-pr` 工作区。
 
 ## 验证门禁

@@ -4,9 +4,9 @@ extends GutTest
 
 # --- 测试用例 ---
 
-func test_project_adapter_satisfies_gf10_descriptor_conformance() -> void:
+func test_project_adapter_satisfies_gf_descriptor_conformance() -> void:
 	var adapter: FakePlatformAdapter = FakePlatformAdapter.new()
-	assert_true(adapter.prepare(), "测试 Adapter 应冻结 GF10 平台身份和契约描述符。")
+	assert_true(adapter.prepare(), "测试 Adapter 应冻结 GF 平台身份和契约描述符。")
 	var required_methods: Dictionary = {
 		String(GamePlatformAdapter.CONTRACT_RUNTIME_CONTEXT): PackedStringArray([
 			String(GamePlatformAdapter.METHOD_RUNTIME_CONTEXT_QUERY),
@@ -41,7 +41,7 @@ func test_project_adapter_satisfies_gf10_descriptor_conformance() -> void:
 	)
 	assert_true(
 		GFVariantData.get_option_bool(inspection, "ok"),
-		"GF10 平台一致性附录应保持通过：%s" % str(inspection)
+		"GF 平台一致性附录应保持通过：%s" % str(inspection)
 	)
 	assert_true(
 		GFVariantData.get_option_bool(
