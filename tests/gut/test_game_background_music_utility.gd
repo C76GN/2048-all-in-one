@@ -144,22 +144,12 @@ func test_stable_keys_load_in_background_and_advance_without_gameplay_rng() -> v
 		"user:// OGG 应让 GF 只解析稳定身份和路径，不能要求 ResourceLoader 导入产物。"
 	)
 	assert_true(background_work.has_pending_work(), "OGG IO 必须交给后台工作。")
-	assert_true(
-		GFVariantData.get_option_int(
-			music.get_debug_snapshot(),
-			"retained_load_worker_count"
-		) == 1,
-		"后台 Callable 的 RefCounted worker 必须由播放 Utility 强持有到任务终态。"
-	)
 	background_work.complete_pending(ogg_bytes)
 
 	assert_true(audio.played_track_keys.size() == 1, "后台完成后应委托 GFAudioUtility 播放。")
-	assert_true(
-		GFVariantData.get_option_int(
-			music.get_debug_snapshot(),
-			"retained_load_worker_count"
-		) == 0,
-		"后台任务应用完成后应释放 worker 强引用。"
+	assert_false(
+		music.get_debug_snapshot().has("retained_load_worker_count"),
+		"GF 11 已由 GFBackgroundWorkTask 保活 Callable target，项目不得重复持有 worker。"
 	)
 	assert_true(
 		audio.last_stream is AudioStreamOggVorbis,
@@ -180,6 +170,45 @@ func test_stable_keys_load_in_background_and_advance_without_gameplay_rng() -> v
 		first_key,
 		"同一轮存在多首曲目时不得立即重复。"
 	)
+
+	_dispose_architecture(setup)
+
+
+func test_rejected_bgm_request_is_quarantined_and_does_not_emit_false_start() -> void:
+	var setup: Dictionary = await _create_architecture([
+		_make_entry(_TRACK_A),
+		_make_entry(_TRACK_B),
+	])
+	var music: GameBackgroundMusicUtility = _get_music(setup)
+	var audio: _FakeAudioUtility = _get_audio(setup)
+	var background_work: _FakeBackgroundWorkUtility = _get_background_work(setup)
+	var started_keys: PackedStringArray = PackedStringArray()
+	var _started_connection: int = music.track_started.connect(
+		func(track_key: StringName) -> void:
+			var _appended: bool = started_keys.append(String(track_key))
+	)
+	audio.reject_next_playback = true
+
+	assert_true(music.start_if_available())
+	background_work.complete_pending(_make_test_ogg_bytes())
+
+	assert_true(audio.play_attempt_keys.size() == 1, "首曲应确实提交给 GF 音频边界。")
+	assert_true(started_keys.is_empty(), "GF 拒绝播放时不得虚假发出 track_started。")
+	assert_true(music.get_current_track_key() == &"", "拒绝后不得保留伪造的当前曲目。")
+	var rejected_key: String = audio.play_attempt_keys[0]
+	assert_true(
+		GFVariantData.get_option_packed_string_array(
+			music.get_debug_snapshot(),
+			"unavailable_track_keys"
+		).has(rejected_key),
+		"GF 拒绝的曲目应在当前目录 revision 内隔离。"
+	)
+	assert_true(background_work.has_pending_work(), "拒绝后应继续尝试队列中的下一首。")
+
+	background_work.complete_pending(_make_test_ogg_bytes())
+	assert_true(audio.played_track_keys.size() == 1, "下一首可用曲目应成功接管 BGM。")
+	assert_true(started_keys.size() == 1, "只为实际接管的曲目发出一次开始事件。")
+	assert_ne(started_keys[0], rejected_key)
 
 	_dispose_architecture(setup)
 
@@ -466,9 +495,11 @@ class _FakeContentCatalogUtility extends ProjectContentCatalogUtility:
 
 class _FakeAudioUtility extends GFAudioUtility:
 	var played_track_keys: PackedStringArray = PackedStringArray()
+	var play_attempt_keys: PackedStringArray = PackedStringArray()
 	var current_key: String = ""
 	var playing: bool = false
 	var last_stream: AudioStream = null
+	var reject_next_playback: bool = false
 
 
 	func init() -> void:
@@ -477,9 +508,11 @@ class _FakeAudioUtility extends GFAudioUtility:
 
 	func dispose() -> void:
 		played_track_keys.clear()
+		play_attempt_keys.clear()
 		current_key = ""
 		playing = false
 		last_stream = null
+		reject_next_playback = false
 
 
 	## @param clip: 要记录的 BGM clip。
@@ -490,7 +523,12 @@ class _FakeAudioUtility extends GFAudioUtility:
 	) -> void:
 		if clip == null:
 			return
-		current_key = clip.path
+		var requested_key: String = clip.path
+		var _attempt_appended: bool = play_attempt_keys.append(requested_key)
+		if reject_next_playback:
+			reject_next_playback = false
+			return
+		current_key = requested_key
 		playing = true
 		last_stream = clip.stream
 		var _appended: bool = played_track_keys.append(current_key)
@@ -572,6 +610,7 @@ class _FakeBackgroundWorkUtility extends GFBackgroundWorkUtility:
 		if _pending_task == null:
 			return
 		var task: GFBackgroundWorkTask = _pending_task
+		_pending_task = null
 		var payload: Dictionary = GFVariantData.as_dictionary(task.input_data)
 		task.status = GFBackgroundWorkTask.Status.APPLYING
 		task.result = {
@@ -593,4 +632,3 @@ class _FakeBackgroundWorkUtility extends GFBackgroundWorkUtility:
 			task.apply_result = apply_callback.call(task)
 		task.status = GFBackgroundWorkTask.Status.COMPLETED
 		work_completed.emit(task)
-		_pending_task = null

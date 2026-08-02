@@ -33,6 +33,9 @@ const _STAT_DURATION_SAMPLES: String = "duration_samples"
 const _STAT_BEST_DURATION_MSEC: String = "best_duration_msec"
 const _STAT_AVERAGE_DURATION_MSEC: String = "average_duration_msec"
 const _STAT_LAST_DURATION_MSEC: String = "last_duration_msec"
+## 设备本地榜只读取本机 Profile；沿用 Profile I/O 的五秒产品预算，
+## 即使调用方未提供取消令牌也必须进入 typed 终态。
+const _DEFAULT_DEVICE_SNAPSHOT_TIMEOUT_SECONDS: float = 5.0
 
 
 # --- 私有变量 ---
@@ -47,6 +50,9 @@ var _disposed: bool = true
 var _reconciliation_connection: GFSignalConnection = null
 var _snapshot_request_serial: int = 0
 var _snapshot_contexts: Dictionary = {}
+var _device_snapshot_timeout_seconds: float = (
+	_DEFAULT_DEVICE_SNAPSHOT_TIMEOUT_SECONDS
+)
 
 
 # --- Godot 生命周期方法 ---
@@ -372,6 +378,27 @@ func request_device_progress_snapshot(
 			account_id,
 			{&"account_id": account_id}
 		)
+	var timeout_configured: bool = batch.set_timeout(
+		maxf(_device_snapshot_timeout_seconds, 0.001),
+		null,
+		&"timeout",
+		{
+			&"request_id": request_id,
+			&"timeout_seconds": maxf(
+				_device_snapshot_timeout_seconds,
+				0.001
+			),
+		}
+	)
+	if not timeout_configured:
+		var _cancelled_unconfigured_timeout: bool = batch.cancel(
+			&"timeout_setup_failed",
+			{
+				&"request_id": request_id,
+				&"error_code": int(ERR_CANT_CREATE),
+			}
+		)
+		return completion
 	for account_id: String in inactive_account_ids:
 		if batch.is_completed():
 			break
@@ -579,6 +606,7 @@ func _make_empty_device_progress_snapshot(
 		&"accounts_by_id": accounts_by_id,
 		&"issues_by_account_id": {},
 		&"partial": false,
+		&"timed_out": false,
 	}
 
 
@@ -674,18 +702,56 @@ func _on_progress_snapshot_batch_settled(
 		_cleanup_snapshot_context(request_id)
 		return
 	if GFVariantData.get_option_bool(report, &"cancelled", false):
+		if GFVariantData.get_option_bool(report, &"timed_out", false):
+			_complete_progress_snapshot_from_report(
+				context,
+				report,
+				request_id,
+				true
+			)
+			return
+		var cancel_reason: StringName = GFVariantData.get_option_string_name(
+			report,
+			&"cancel_reason",
+			&"cancelled"
+		)
+		if cancel_reason == &"timeout_setup_failed":
+			if completion.is_pending():
+				var _failed_timeout_setup: bool = completion.fail(
+					"Progress snapshot timeout could not be scheduled.",
+					{
+						&"request_id": request_id,
+						&"error_code": int(ERR_CANT_CREATE),
+					}
+				)
+			_cleanup_snapshot_context(request_id)
+			return
 		if completion.is_pending():
 			var _cancelled_completion: bool = completion.cancel(
-				GFVariantData.get_option_string_name(
-					report,
-					&"cancel_reason",
-					&"cancelled"
-				),
+				cancel_reason,
 				GFVariantData.get_option_dictionary(
 					report,
 					&"cancel_metadata"
 				)
 			)
+		_cleanup_snapshot_context(request_id)
+		return
+	_complete_progress_snapshot_from_report(
+		context,
+		report,
+		request_id,
+		false
+	)
+
+
+func _complete_progress_snapshot_from_report(
+	context: Dictionary,
+	report: Dictionary,
+	request_id: int,
+	timed_out: bool
+) -> void:
+	var completion: GFAsyncCompletion = _get_snapshot_completion(context)
+	if completion == null:
 		_cleanup_snapshot_context(request_id)
 		return
 	var snapshot: Dictionary = GFVariantData.get_option_dictionary(
@@ -714,9 +780,22 @@ func _on_progress_snapshot_batch_settled(
 			)
 			_set_snapshot_account_entry(snapshot, account_id, entry)
 		else:
-			issues[account_id] = outcome.duplicate(true)
+			issues[account_id] = (
+				outcome.duplicate(true)
+				if not outcome.is_empty()
+				else _make_progress_snapshot_issue(
+					&"storage_read_timeout" if timed_out else &"storage_read_failed",
+					ERR_TIMEOUT if timed_out else FAILED,
+					(
+						"Storage read exceeded the device snapshot timeout."
+						if timed_out
+						else "Storage read did not produce a typed outcome."
+					)
+				)
+			)
 	snapshot[&"issues_by_account_id"] = issues
 	snapshot[&"partial"] = not issues.is_empty()
+	snapshot[&"timed_out"] = timed_out
 	if completion.is_pending():
 		var _completed_snapshot: bool = completion.succeed(
 			snapshot,
@@ -724,6 +803,8 @@ func _on_progress_snapshot_batch_settled(
 				&"request_id": request_id,
 				&"partial": not issues.is_empty(),
 				&"issue_count": issues.size(),
+				&"timed_out": timed_out,
+				&"error_code": int(ERR_TIMEOUT) if timed_out else int(OK),
 			}
 		)
 	_cleanup_snapshot_context(request_id)

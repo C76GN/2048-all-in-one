@@ -443,6 +443,8 @@ REPLAY_MARKER_OOS_FORMAT,第 %d 步 · OOS,Step %d · OOS
 REPLAY_CONTINUE_ELIGIBILITY_NOTE,从此继续会退出回放，并标记为不参与竞赛成绩。,Continuing exits replay and marks the run ineligible for competitive results.
 REPLAY_CONTINUE_OOS_NOTE,回放已 OOS，不能从当前状态继续。,Replay is OOS; continuing from this state is blocked.
 TURN_SUBTITLES_LABEL,回合字幕,Turn Subtitles
+LOCAL_PERFORMANCE_TRACE_LABEL,本地性能诊断,Local Performance Diagnostics
+LOCAL_PERFORMANCE_TRACE_HINT,仅在本机内存中记录有界且脱敏的移动耗时；关闭后立即清除。,Records bounded redacted move timings in local memory only; disabling clears them immediately.
 ACCESSIBILITY_CELL_EMPTY,空,Empty
 ACCESSIBILITY_CELL_INACTIVE,不可用,Inactive
 ACCESSIBILITY_BOARD_ROW_FORMAT,"第 %d 行：%s。","Row %d: %s."
@@ -537,3 +539,6 @@ TILE_LAB_RESULT_NO_INTERACTION,%d 与 %d 没有触发交互。,No interaction oc
 TILE_LAB_RESULT_INTERACTED,%s方存活，结果 %d，得分 %+d，规则 %s。,%s tile survived; result %d; score %+d; rule %s.
 TILE_LAB_SURVIVOR_LEFT,左,Left
 TILE_LAB_SURVIVOR_RIGHT,右,Right
+BOOKMARK_CAPACITY_STATUS,书签 %d/%d,Bookmarks %d/%d
+BOOKMARK_CAPACITY_FULL_HINT,容量已满；保存新书签时会自动替换最旧书签。,Capacity is full; saving a new bookmark replaces the oldest bookmark.
+BOARD_EDITOR_CAPACITY_FULL_HINT,容量已满；保存新棋盘时会自动替换最旧棋盘。,Capacity is full; saving a new board replaces the oldest board.

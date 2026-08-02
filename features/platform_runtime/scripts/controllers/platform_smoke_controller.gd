@@ -48,6 +48,7 @@ var _active_response: GFHttpResponse = null
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
+	_create_private_gesture_utility()
 	_resolve_utilities()
 	await get_tree().process_frame
 	if not is_inside_tree():
@@ -65,6 +66,7 @@ func _input(event: InputEvent) -> void:
 
 func _exit_tree() -> void:
 	_unbind_runtime_signals()
+	_dispose_private_gesture_utility()
 	if _active_response != null and _active_response.is_pending():
 		_active_response.cancel("scene_exited")
 	_active_response = null
@@ -76,7 +78,6 @@ func _exit_tree() -> void:
 func _resolve_utilities() -> void:
 	_platform = _get_platform_utility()
 	_viewport_utility = _get_viewport_utility()
-	_gestures = _get_gesture_utility()
 	_storage = _get_storage_utility()
 	_http = _get_http_utility()
 	_audio = _get_audio_utility()
@@ -99,12 +100,21 @@ func _get_viewport_utility() -> GFViewportUtility:
 	return null
 
 
-func _get_gesture_utility() -> GFPointerGestureUtility:
-	var utility_value: Object = get_utility(GFPointerGestureUtility, true)
-	if utility_value is GFPointerGestureUtility:
-		var gesture_utility: GFPointerGestureUtility = utility_value
-		return gesture_utility
-	return null
+func _create_private_gesture_utility() -> void:
+	_dispose_private_gesture_utility()
+	_gestures = GFPointerGestureUtility.new()
+	_gestures.init()
+	_gestures.ready()
+
+
+func _dispose_private_gesture_utility() -> void:
+	if not is_instance_valid(_gestures):
+		_gestures = null
+		return
+	_gestures.reset_gesture()
+	_gestures.dispose()
+	_gestures.release_dependencies()
+	_gestures = null
 
 
 func _get_storage_utility() -> GFStorageUtility:

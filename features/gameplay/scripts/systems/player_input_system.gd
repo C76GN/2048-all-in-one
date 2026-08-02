@@ -8,11 +8,19 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 const GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload("res://features/gameplay/resources/input/gameplay_input_context.tres")
 const _MOVE_FAIL_MESSAGE_FALLBACK: String = "这个方向无法移动。"
 const _MOVE_FAIL_MESSAGE_DURATION: float = 1.6
+const _MOVE_INTENT_BUFFER_SECONDS: float = 0.18
+const _MOVE_ACTIONS: Array[StringName] = [
+	GameplayInputActions.MOVE_UP,
+	GameplayInputActions.MOVE_DOWN,
+	GameplayInputActions.MOVE_LEFT,
+	GameplayInputActions.MOVE_RIGHT,
+]
 
 
 # --- 私有变量 ---
 
 var _input_mapping: GFInputMappingUtility
+var _input_assist: GFInputAssistUtility
 var _notifications: GFNotificationUtility
 var _pause_utility: GamePauseUtility
 var _board_animation_utility: GameBoardAnimationUtility
@@ -29,6 +37,7 @@ func get_required_utilities() -> Array[Script]:
 		GameBoardAnimationUtility,
 		GamePerformanceTraceUtility,
 		GFCommandHistoryUtility,
+		GFInputAssistUtility,
 		GFInputMappingUtility,
 		GFNotificationUtility,
 	]
@@ -42,6 +51,7 @@ func init() -> void:
 
 func ready() -> void:
 	_input_mapping = _get_input_mapping_utility()
+	_input_assist = _get_input_assist_utility()
 	_notifications = _get_notification_utility()
 	_pause_utility = _get_pause_utility()
 	_board_animation_utility = _get_board_animation_utility()
@@ -50,6 +60,8 @@ func ready() -> void:
 		_input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
 	else:
 		push_error("[PlayerInputSystem] 缺少 GFInputMappingUtility，玩法输入不可用。")
+	if not is_instance_valid(_input_assist):
+		push_error("[PlayerInputSystem] 缺少 GFInputAssistUtility，移动意图缓冲不可用。")
 	if not is_instance_valid(_notifications):
 		push_error("[PlayerInputSystem] 缺少 GFNotificationUtility，玩法反馈不可用。")
 	if not is_instance_valid(_pause_utility):
@@ -64,9 +76,11 @@ func ready() -> void:
 
 
 func dispose() -> void:
+	_clear_move_intent_buffer()
 	if is_instance_valid(_input_mapping):
 		_input_mapping.disable_context(GAMEPLAY_INPUT_CONTEXT)
 	_input_mapping = null
+	_input_assist = null
 	_notifications = null
 	_pause_utility = null
 	_board_animation_utility = null
@@ -80,21 +94,26 @@ func tick(_delta: float) -> void:
 		return
 
 	if _consume_action(GameplayInputActions.PAUSE):
+		_clear_move_intent_buffer()
 		send_simple_event(EventNames.UI_PAUSE_REQUESTED)
 		return
 
 	if is_instance_valid(_pause_utility) and _pause_utility.is_paused():
 		_input_mapping.clear_input_state()
+		_clear_move_intent_buffer()
 		return
 
 	if not _is_playing:
+		_clear_move_intent_buffer()
 		return
 
 	if _consume_action(GameplayInputActions.UNDO):
+		_clear_move_intent_buffer()
 		send_simple_event(EventNames.UNDO_REQUESTED)
 		return
 
 	if _consume_action(GameplayInputActions.REDO):
+		_clear_move_intent_buffer()
 		send_simple_event(EventNames.REDO_REQUESTED)
 		return
 
@@ -106,26 +125,14 @@ func tick(_delta: float) -> void:
 		send_simple_event(EventNames.HINT_REQUESTED)
 		return
 
-	var direction: Vector2i = Vector2i.ZERO
-	if _consume_action(GameplayInputActions.MOVE_UP):
-		direction = Vector2i.UP
-	elif _consume_action(GameplayInputActions.MOVE_DOWN):
-		direction = Vector2i.DOWN
-	elif _consume_action(GameplayInputActions.MOVE_LEFT):
-		direction = Vector2i.LEFT
-	elif _consume_action(GameplayInputActions.MOVE_RIGHT):
-		direction = Vector2i.RIGHT
+	var fresh_move_action: StringName = _consume_fresh_move_action()
+	if fresh_move_action != &"":
+		_process_move_action(fresh_move_action, false)
+		return
 
-	if direction != Vector2i.ZERO:
-		if (
-			is_instance_valid(_board_animation_utility)
-			and not _board_animation_utility.prepare_for_move()
-		):
-			return
-		var trace_attempt_id: int = 0
-		if is_instance_valid(_performance_trace_utility):
-			trace_attempt_id = _performance_trace_utility.begin_move(direction)
-		call_deferred(&"_execute_move_command", direction, trace_attempt_id)
+	var buffered_move_action: StringName = _peek_buffered_move_action()
+	if buffered_move_action != &"":
+		_process_move_action(buffered_move_action, true)
 
 
 # --- 私有/辅助方法 ---
@@ -153,6 +160,81 @@ func _consume_action(action_id: StringName) -> bool:
 		return false
 
 	return _input_mapping.consume_action(action_id)
+
+
+func _consume_fresh_move_action() -> StringName:
+	for action_id: StringName in _MOVE_ACTIONS:
+		if _consume_action(action_id):
+			return action_id
+	return &""
+
+
+func _peek_buffered_move_action() -> StringName:
+	if not is_instance_valid(_input_assist):
+		return &""
+	for action_id: StringName in _MOVE_ACTIONS:
+		if _input_assist.has_buffered_action(action_id):
+			return action_id
+	return &""
+
+
+func _process_move_action(action_id: StringName, from_buffer: bool) -> void:
+	var direction: Vector2i = _get_move_direction(action_id)
+	if direction == Vector2i.ZERO:
+		if from_buffer and is_instance_valid(_input_assist):
+			_input_assist.clear_buffered_action(action_id)
+		return
+
+	if (
+		is_instance_valid(_board_animation_utility)
+		and not _board_animation_utility.prepare_for_move()
+	):
+		if not from_buffer:
+			_buffer_single_move_intent(action_id)
+		return
+
+	if from_buffer:
+		if (
+			not is_instance_valid(_input_assist)
+			or not _input_assist.consume_buffered_action(action_id)
+		):
+			return
+	else:
+		# 新输入一旦被接受就取代任何尚未执行的旧意图。
+		_clear_move_intent_buffer()
+
+	var trace_attempt_id: int = 0
+	if is_instance_valid(_performance_trace_utility):
+		trace_attempt_id = _performance_trace_utility.begin_move(direction)
+	call_deferred(&"_execute_move_command", direction, trace_attempt_id)
+
+
+func _buffer_single_move_intent(action_id: StringName) -> void:
+	if not is_instance_valid(_input_assist):
+		return
+	_clear_move_intent_buffer()
+	_input_assist.buffer_action(action_id, _MOVE_INTENT_BUFFER_SECONDS)
+
+
+func _clear_move_intent_buffer() -> void:
+	if not is_instance_valid(_input_assist):
+		return
+	for action_id: StringName in _MOVE_ACTIONS:
+		_input_assist.clear_buffered_action(action_id)
+
+
+func _get_move_direction(action_id: StringName) -> Vector2i:
+	match action_id:
+		GameplayInputActions.MOVE_UP:
+			return Vector2i.UP
+		GameplayInputActions.MOVE_DOWN:
+			return Vector2i.DOWN
+		GameplayInputActions.MOVE_LEFT:
+			return Vector2i.LEFT
+		GameplayInputActions.MOVE_RIGHT:
+			return Vector2i.RIGHT
+		_:
+			return Vector2i.ZERO
 
 
 func _show_invalid_move_feedback() -> void:
@@ -184,6 +266,14 @@ func _get_input_mapping_utility() -> GFInputMappingUtility:
 	if utility_value is GFInputMappingUtility:
 		var input_mapping: GFInputMappingUtility = utility_value
 		return input_mapping
+	return null
+
+
+func _get_input_assist_utility() -> GFInputAssistUtility:
+	var utility_value: Object = get_utility(GFInputAssistUtility)
+	if utility_value is GFInputAssistUtility:
+		var input_assist: GFInputAssistUtility = utility_value
+		return input_assist
 	return null
 
 
@@ -235,21 +325,26 @@ func _complete_move_trace(attempt_id: int, effective: bool) -> void:
 # --- 信号处理函数 ---
 
 func _on_game_ready(data: GameReadyData) -> void:
+	_clear_move_intent_buffer()
 	_is_active = not data.is_replay_mode
 
 
 func _on_game_state_changed(state: StringName) -> void:
 	_is_playing = state == EventNames.STATE_PLAYING
+	if not _is_playing:
+		_clear_move_intent_buffer()
 
 
 func _on_scene_will_change(_payload: Variant = null) -> void:
 	_is_active = false
 	_is_playing = false
+	_clear_move_intent_buffer()
 	if is_instance_valid(_input_mapping):
 		_input_mapping.clear_input_state()
 
 
 func _on_replay_continued_as_game(_payload: Variant = null) -> void:
+	_clear_move_intent_buffer()
 	_is_active = true
 	_is_playing = true
 	if is_instance_valid(_input_mapping):

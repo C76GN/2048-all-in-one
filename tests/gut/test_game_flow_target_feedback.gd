@@ -286,6 +286,7 @@ func test_accessibility_phase_transitions_republish_canonical_actions() -> void:
 		func(summary: GameAccessibilitySummary) -> void:
 			published.append(summary)
 	) as Error
+	await _register_board_summary_dependencies(architecture)
 	await architecture.register_model(GridModel, grid_model)
 	await architecture.register_utility(
 		GameAccessibilitySummaryUtility,
@@ -295,6 +296,15 @@ func test_accessibility_phase_transitions_republish_canonical_actions() -> void:
 	await architecture.register_utility(
 		GFNotificationUtility,
 		GFNotificationUtility.new()
+	)
+	flow_system.configure_dependencies(
+		grid_model,
+		null,
+		null,
+		null,
+		null,
+		null,
+		summary_utility
 	)
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.init()
@@ -425,6 +435,7 @@ func test_terminal_move_turn_publishes_only_final_semantic_summary() -> void:
 		TestAccessibilityPublishingFlowSystem.new()
 	)
 	var rule_system: RuleSystem = RuleSystem.new()
+	await _register_board_summary_dependencies(architecture)
 	await architecture.register_model(GridModel, grid_model)
 	await architecture.register_model(GameStatusModel, status_model)
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
@@ -436,6 +447,15 @@ func test_terminal_move_turn_publishes_only_final_semantic_summary() -> void:
 	await architecture.register_utility(
 		GFNotificationUtility,
 		GFNotificationUtility.new()
+	)
+	flow_system.configure_dependencies(
+		grid_model,
+		status_model,
+		null,
+		null,
+		null,
+		null,
+		summary_utility
 	)
 	await architecture.register_system(RuleSystem, rule_system)
 	await architecture.register_system(GameFlowSystem, flow_system)
@@ -499,6 +519,7 @@ func test_departing_gameplay_does_not_publish_stale_playing_summary() -> void:
 	) as Error
 	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
 	var router: TestSceneRouterSystemSpy = TestSceneRouterSystemSpy.new()
+	await _register_board_summary_dependencies(architecture)
 	await architecture.register_model(GridModel, grid_model)
 	await architecture.register_utility(
 		GameAccessibilitySummaryUtility,
@@ -508,6 +529,16 @@ func test_departing_gameplay_does_not_publish_stale_playing_summary() -> void:
 	await architecture.register_utility(
 		GFNotificationUtility,
 		GFNotificationUtility.new()
+	)
+	flow_system.configure_dependencies(
+		grid_model,
+		null,
+		null,
+		null,
+		_get_pause_utility(architecture),
+		null,
+		summary_utility,
+		router
 	)
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.register_system(SceneRouterSystem, router)
@@ -576,9 +607,16 @@ func test_resume_request_synchronizes_gf_time_without_closing_ui_stack() -> void
 	var architecture: GFArchitecture = GFArchitecture.new()
 	await _register_pause_utilities(architecture)
 	var ui_utility: GFUIUtility = GFUIUtility.new()
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
 	await architecture.register_utility(GFUIUtility, ui_utility)
 	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
+	flow_system.configure_dependencies(
+		null,
+		null,
+		null,
+		null,
+		_get_pause_utility(architecture)
+	)
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.init()
 
@@ -628,10 +666,20 @@ func test_return_to_main_menu_request_preserves_ui_stack_unpauses_and_routes() -
 	var architecture: GFArchitecture = GFArchitecture.new()
 	await _register_pause_utilities(architecture)
 	var ui_utility: GFUIUtility = GFUIUtility.new()
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
 	var router: TestSceneRouterSystemSpy = TestSceneRouterSystemSpy.new()
 	await architecture.register_utility(GFUIUtility, ui_utility)
 	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
+	flow_system.configure_dependencies(
+		null,
+		null,
+		null,
+		null,
+		_get_pause_utility(architecture),
+		null,
+		null,
+		router
+	)
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.register_system(SceneRouterSystem, router)
 	await architecture.init()
@@ -722,9 +770,19 @@ func test_valid_move_resolves_once_through_gf_turn_flow() -> void:
 	await architecture.register_model(GridModel, grid_model)
 	await architecture.register_model(GameStatusModel, status_model)
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
-	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
-	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
-	await architecture.register_system(GameFlowSystem, GameFlowSystem.new())
+	var notifications: GFNotificationUtility = GFNotificationUtility.new()
+	var clock: GameClockUtility = GameClockUtility.new()
+	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
+	await architecture.register_utility(GFNotificationUtility, notifications)
+	await architecture.register_utility(GameClockUtility, clock)
+	flow_system.configure_dependencies(
+		grid_model,
+		status_model,
+		clock,
+		notifications,
+		_get_pause_utility(architecture)
+	)
+	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.register_system(RuleSystem, RuleSystem.new())
 	await architecture.register_system(GFTurnFlowSystem, turn_flow)
 	await architecture.register_system(GameTurnSystem, GameTurnSystem.new())
@@ -803,6 +861,28 @@ func _register_pause_utilities(architecture: GFArchitecture) -> void:
 	await architecture.register_utility(GFTimeUtility, GFTimeUtility.new())
 	await architecture.register_utility(GamePauseUtility, GamePauseUtility.new())
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
+
+
+## 注册 GridModel 与 GameAccessibilitySummaryUtility 声明的真实最小依赖链。
+func _register_board_summary_dependencies(
+	architecture: GFArchitecture
+) -> void:
+	await architecture.register_utility(
+		GFCapabilityUtility,
+		GFCapabilityUtility.new()
+	)
+	await architecture.register_utility(
+		TileCompositionUtility,
+		TileCompositionUtility.new()
+	)
+	await architecture.register_utility(
+		GameDeterminismUtility,
+		GameDeterminismUtility.new()
+	)
+	await architecture.register_utility(
+		GamePlatformUtility,
+		TestGamePlatformUtilityStub.new()
+	)
 
 
 func _get_pause_utility(architecture: GFArchitecture) -> GamePauseUtility:
@@ -937,7 +1017,7 @@ class TestPersistenceSagaFlowSystem:
 
 
 class TestAccessibilityPublishingFlowSystem:
-	extends GameFlowSystem
+	extends TestGameFlowSystemSpy
 
 	func _handle_game_over() -> void:
 		pass

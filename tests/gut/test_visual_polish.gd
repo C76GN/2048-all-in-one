@@ -2118,7 +2118,7 @@ func test_game_over_menu_summary_uses_safe_format_fallback() -> void:
 func test_game_over_menu_summary_uses_authoritative_no_moves_reason() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var status_model: GameStatusModel = GameStatusModel.new()
-	var flow_system: GameFlowSystem = GameFlowSystem.new()
+	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
 	var style_utility: GameUiStyleUtility = GameUiStyleUtility.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	await _register_asset_library_stack(architecture)
@@ -2127,7 +2127,15 @@ func test_game_over_menu_summary_uses_authoritative_no_moves_reason() -> void:
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
 	await architecture.register_utility(GFTimeUtility, GFTimeUtility.new())
-	await architecture.register_utility(GamePauseUtility, GamePauseUtility.new())
+	var pause_utility: GamePauseUtility = GamePauseUtility.new()
+	await architecture.register_utility(GamePauseUtility, pause_utility)
+	flow_system.configure_dependencies(
+		null,
+		status_model,
+		null,
+		null,
+		pause_utility
+	)
 	await architecture.register_system(GameFlowSystem, flow_system)
 	await architecture.init()
 	flow_system.enter_playing_state()
@@ -2626,6 +2634,10 @@ func _register_accessibility_stack(
 	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var accessibility: GameAccessibilityUtility = GameAccessibilityUtility.new()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFSignalUtility, signal_utility)
 	return accessibility

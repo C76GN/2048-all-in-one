@@ -11,6 +11,7 @@ extends "res://addons/gf/kernel/base/gf_system.gd"
 const _LOG_TAG: String = "SceneRouterSystem"
 const _TRANSITION_MINIMUM_SECONDS: float = 0.30
 const _DEFAULT_TRANSITION_TIMEOUT_SECONDS: float = 5.0
+const _QUIT_SHUTDOWN_TIMEOUT_SECONDS: float = 10.0
 
 
 # --- 私有变量 ---
@@ -32,6 +33,8 @@ var _scene_change_operation_id: StringName = &""
 var _active_scene_request: _SceneChangeRequest = null
 var _next_scene_request_id: int = 1
 var _transition_timeout_seconds: float = _DEFAULT_TRANSITION_TIMEOUT_SECONDS
+var _quit_requested: bool = false
+var _quit_completion: GFAsyncCompletion = null
 
 
 # --- GF 生命周期方法 ---
@@ -49,6 +52,8 @@ func get_required_utilities() -> Array[Script]:
 
 
 func ready() -> void:
+	_quit_requested = false
+	_quit_completion = null
 	_log = _get_log_utility()
 	_scene_utility = _get_scene_utility()
 	_screen_transition = _get_screen_transition_utility()
@@ -215,13 +220,29 @@ func return_to_main_menu() -> void:
 	goto_scene(_main_menu_scene_path)
 
 
-## 安全地退出整个游戏。
-func quit_game() -> void:
+## 静默并关闭当前 GF 架构后退出整个游戏；重复调用共享同一终态。
+## @return 架构关闭完成或失败后抵达终态的一次性完成源。
+func quit_game() -> GFAsyncCompletion:
+	if _quit_requested and _quit_completion != null:
+		return _quit_completion
+	_quit_requested = true
+	_quit_completion = GFAsyncCompletion.new()
 	if is_instance_valid(_log):
 		_log.info(_LOG_TAG, "正在退出游戏。")
 	var tree: SceneTree = _get_scene_tree()
-	if is_instance_valid(tree):
-		tree.quit()
+	if not is_instance_valid(tree):
+		var _failed_tree: bool = _quit_completion.fail(
+			"SceneTree is unavailable for application quit."
+		)
+		return _quit_completion
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	call_deferred(
+		&"_shutdown_architecture_then_quit",
+		architecture,
+		tree,
+		_quit_completion
+	)
+	return _quit_completion
 
 
 ## 返回场景路由与 GF 转场服务的诊断快照。
@@ -252,10 +273,51 @@ func get_debug_snapshot() -> Dictionary:
 			if is_instance_valid(_screen_transition)
 			else {}
 		),
+		"quit_requested": _quit_requested,
 	}
 
 
 # --- 私有/辅助方法 ---
+
+func _shutdown_architecture_then_quit(
+	architecture: GFArchitecture,
+	tree: SceneTree,
+	completion: GFAsyncCompletion
+) -> void:
+	# 关闭流程会 dispose 当前 System；await 后只使用捕获的局部引用，
+	# 不再读取任何已释放的依赖或成员状态。
+	# coroutine 栈显式强持有路由 owner；架构 registry 在 await 期间会释放它，
+	# 不能依赖 Callable 对 RefCounted target 的保留语义。
+	var quit_owner: SceneRouterSystem = self
+	var shutdown_result: GFArchitectureShutdownResult = null
+	if architecture != null:
+		shutdown_result = await architecture.shutdown_async(
+			null,
+			_QUIT_SHUTDOWN_TIMEOUT_SECONDS
+		)
+	# completion 的语义覆盖“架构已关闭且退出请求已交给 SceneTree”；先发出
+	# quit 再 settle，避免 await 调用方恢复时观察到尚未执行的退出动作。
+	if is_instance_valid(tree) and is_instance_valid(quit_owner):
+		quit_owner._quit_scene_tree(tree)
+	if completion != null and completion.is_pending():
+		if shutdown_result == null or shutdown_result.is_successful():
+			var _succeeded: bool = completion.succeed({
+				&"shutdown": (
+					shutdown_result.to_dict()
+					if shutdown_result != null
+					else {&"skipped": true}
+				),
+			})
+		else:
+			var _failed_shutdown: bool = completion.fail(
+				"GF architecture shutdown required forced or failed disposal.",
+				{&"shutdown": shutdown_result.to_dict()}
+			)
+
+
+func _quit_scene_tree(tree: SceneTree) -> void:
+	tree.quit()
+
 
 func _run_scene_change(request_id: int) -> void:
 	var request: _SceneChangeRequest = _get_scene_request(request_id)

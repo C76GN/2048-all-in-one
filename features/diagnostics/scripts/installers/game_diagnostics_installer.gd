@@ -39,9 +39,6 @@ func install_bindings(binder: Variant, scope: GFAsyncScope) -> void:
 	await tracker_binding.as_singleton()
 	if scope.is_cancel_requested():
 		return
-	await gf_binder.bind_utility(GFOperationDiagnosticsUtility).as_singleton()
-	if scope.is_cancel_requested():
-		return
 	await gf_binder.bind_utility(GFSupportReportUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return

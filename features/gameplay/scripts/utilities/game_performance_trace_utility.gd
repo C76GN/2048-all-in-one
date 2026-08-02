@@ -20,11 +20,20 @@ const _MAX_EVENT_BYTES: int = 2048
 var _trace: GFSessionTraceUtility
 var _trace_recipe: GFSessionTraceRecipe
 var _clock: GameClockUtility
+var _settings: GameSettingsUtility
+var _signal_utility: GFSignalUtility
+var _capture_enabled: bool = false
+var _game_session_available: bool = false
+var _current_is_replay_mode: bool = false
 var _next_attempt_id: int = 1
 var _active_attempt_id: int = 0
 var _active_started_usec: int = 0
 var _resolved_usec: int = 0
 var _presentation_pending: bool = false
+var _presentation_enqueued_usec: int = 0
+var _primary_feedback_usec: int = 0
+var _primary_feedback_started: bool = false
+var _presentation_settle_candidate_usec: int = 0
 var _presentation_settled_usec: int = 0
 var _command_completed: bool = false
 
@@ -32,14 +41,26 @@ var _command_completed: bool = false
 # --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GFSessionTraceUtility, GameClockUtility]
+	return [
+		GFSessionTraceUtility,
+		GameClockUtility,
+		GameSettingsUtility,
+		GFSignalUtility,
+	]
 
 
 func ready() -> void:
 	_trace = _get_trace_utility()
 	_clock = _get_clock_utility()
-	if not is_instance_valid(_trace) or not is_instance_valid(_clock):
-		push_error("[GamePerformanceTraceUtility] 缺少 GFSessionTraceUtility 或 GameClockUtility。")
+	_settings = _get_settings_utility()
+	_signal_utility = _get_signal_utility()
+	if (
+		not is_instance_valid(_trace)
+		or not is_instance_valid(_clock)
+		or not is_instance_valid(_settings)
+		or not is_instance_valid(_signal_utility)
+	):
+		push_error("[GamePerformanceTraceUtility] 本地性能轨迹依赖未完整安装。")
 		return
 	_trace_recipe = _create_trace_recipe()
 	var recipe_result: Dictionary = _trace.apply_recipe(_trace_recipe)
@@ -54,6 +75,14 @@ func ready() -> void:
 		)
 		_trace_recipe = null
 		return
+	_capture_enabled = _read_capture_enabled()
+	if not _capture_enabled:
+		_trace.clear()
+	var _settings_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_settings.setting_changed,
+		Callable(self, &"_on_setting_changed"),
+		self
+	)
 
 	register_event(GameReadyData, GFEventListener.from_method(self, &"_on_game_ready", 1))
 	register_simple_event(
@@ -64,9 +93,16 @@ func ready() -> void:
 
 func dispose() -> void:
 	var _summary: Dictionary = stop_gameplay_trace(&"disposed")
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	_trace = null
 	_trace_recipe = null
 	_clock = null
+	_settings = null
+	_signal_utility = null
+	_capture_enabled = false
+	_game_session_available = false
+	_current_is_replay_mode = false
 	_reset_active_attempt()
 
 
@@ -75,7 +111,11 @@ func dispose() -> void:
 ## 显式开始一局短期本地诊断轨迹。
 ## @param is_replay_mode: 当前会话是否为回放模式。
 func start_gameplay_trace(is_replay_mode: bool) -> bool:
-	if not is_instance_valid(_trace) or not is_instance_valid(_trace_recipe):
+	if (
+		not _capture_enabled
+		or not is_instance_valid(_trace)
+		or not is_instance_valid(_trace_recipe)
+	):
 		return false
 	_reset_active_attempt()
 	var session_id: StringName = _trace.start_session(&"", {
@@ -99,7 +139,7 @@ func stop_gameplay_trace(reason: StringName = &"completed") -> Dictionary:
 ## @param direction: 本次移动的四向输入。
 ## @return 当前尝试的局部递增标识；轨迹未启用时返回 0。
 func begin_move(direction: Vector2i) -> int:
-	if not is_instance_valid(_trace):
+	if not _capture_enabled or not is_instance_valid(_trace):
 		return 0
 	if _active_attempt_id > 0:
 		_record_event(&"move_superseded", {
@@ -134,9 +174,14 @@ func complete_move(attempt_id: int, effective: bool) -> void:
 	})
 	if not effective:
 		_reset_active_attempt()
-	elif _presentation_settled_usec > 0:
+	elif _presentation_pending:
+		return
+	elif _presentation_settle_candidate_usec > 0:
+		_commit_presentation_settled(
+			_presentation_settle_candidate_usec
+		)
 		_reset_active_attempt()
-	elif not _presentation_pending:
+	else:
 		_record_event(&"move_presentation_missing", {
 			"attempt_id": attempt_id,
 			"elapsed_usec": _elapsed_since(_active_started_usec),
@@ -146,16 +191,56 @@ func complete_move(attempt_id: int, effective: bool) -> void:
 
 ## 标记有效移动的首个表现批次已进入 GF 命名动作队列。
 ## @param queue_was_busy: 入队前表现队列是否已有待执行动作。
-func mark_presentation_enqueued(queue_was_busy: bool) -> void:
+## @return 与该表现动作绑定的移动尝试标识；没有活动尝试时返回 0。
+func mark_presentation_enqueued(queue_was_busy: bool) -> int:
 	if _active_attempt_id <= 0 or not is_instance_valid(_trace):
-		return
-	if _presentation_pending:
-		return
+		return 0
+	if _presentation_pending or _presentation_settled_usec > 0:
+		return 0
 	_presentation_pending = true
-	_record_event(&"move_presentation_enqueued", {
-		"attempt_id": _active_attempt_id,
-		"queue_was_busy": queue_was_busy,
-		"input_to_enqueue_usec": _elapsed_since(_active_started_usec),
+	# 同步 drain 只形成候选终点；同一命令后续生成批次会重新打开 pending，
+	# 并把完整回合终点延后。首个入队指标仍只记录一次。
+	_presentation_settle_candidate_usec = 0
+	if _presentation_enqueued_usec <= 0:
+		_presentation_enqueued_usec = _get_monotonic_usec()
+		_record_event(&"move_presentation_enqueued", {
+			"attempt_id": _active_attempt_id,
+			"queue_was_busy": queue_was_busy,
+			"input_to_enqueue_usec": maxi(
+				_presentation_enqueued_usec - _active_started_usec,
+				0
+			),
+		})
+	return _active_attempt_id
+
+
+## 标记与移动尝试绑定的 BoardAnimationAction 已真正开始执行。
+##
+## 入队不等同于玩家已经看到或听到反馈；该指标只在主表现动作进入
+## execute() 后记录，并对同一次尝试保持幂等。
+## @param attempt_id: mark_presentation_enqueued 返回的移动尝试标识。
+func mark_primary_feedback_started(attempt_id: int) -> void:
+	if (
+		attempt_id <= 0
+		or attempt_id != _active_attempt_id
+		or not _presentation_pending
+		or _primary_feedback_started
+		or not is_instance_valid(_trace)
+	):
+		return
+	_primary_feedback_usec = _get_monotonic_usec()
+	_primary_feedback_started = true
+	_record_event(&"move_primary_feedback_started", {
+		"attempt_id": attempt_id,
+		"input_to_primary_feedback_usec": maxi(
+			_primary_feedback_usec - _active_started_usec,
+			0
+		),
+		"enqueue_to_primary_feedback_usec": (
+			maxi(_primary_feedback_usec - _presentation_enqueued_usec, 0)
+			if _presentation_enqueued_usec > 0
+			else 0
+		),
 	})
 
 
@@ -165,24 +250,23 @@ func mark_presentation_settled() -> void:
 		return
 	var now_usec: int = _get_monotonic_usec()
 	_presentation_pending = false
-	_presentation_settled_usec = now_usec
-	_record_event(&"move_presentation_settled", {
-		"attempt_id": _active_attempt_id,
-		"input_to_settled_usec": maxi(now_usec - _active_started_usec, 0),
-		"command_to_settled_usec": (
-			maxi(now_usec - _resolved_usec, 0)
-			if _resolved_usec > 0
-			else 0
-		),
-	})
-	if _command_completed:
-		_reset_active_attempt()
+	_presentation_settle_candidate_usec = now_usec
+	if not _command_completed:
+		return
+	_commit_presentation_settled(now_usec)
+	_reset_active_attempt()
 
 
 ## 标记表现被重定向、场景退出或显式清空，而不是错误地记为正常完成。
 ## @param reason: 取消表现的规范原因。
 func cancel_presentation(reason: StringName) -> void:
-	if not _presentation_pending or _active_attempt_id <= 0:
+	if (
+		_active_attempt_id <= 0
+		or (
+			not _presentation_pending
+			and _presentation_settle_candidate_usec <= 0
+		)
+	):
 		return
 	_record_event(&"move_presentation_cancelled", {
 		"attempt_id": _active_attempt_id,
@@ -194,7 +278,11 @@ func cancel_presentation(reason: StringName) -> void:
 
 ## 构建支持报告使用的有界轨迹；不会包含账号或棋盘业务状态。
 func build_support_snapshot() -> Dictionary:
-	if not is_instance_valid(_trace) or not is_instance_valid(_trace_recipe):
+	if (
+		not _capture_enabled
+		or not is_instance_valid(_trace)
+		or not is_instance_valid(_trace_recipe)
+	):
 		return _make_unavailable_snapshot()
 	return _trace.build_recipe_snapshot(_trace_recipe, {
 		"filters": {"channel_id": CHANNEL_MOVE_LATENCY},
@@ -205,17 +293,33 @@ func build_support_snapshot() -> Dictionary:
 func get_debug_snapshot() -> Dictionary:
 	return {
 		"available": is_instance_valid(_trace),
+		"capture_enabled": _capture_enabled,
 		"channel_id": CHANNEL_MOVE_LATENCY,
 		"recipe_id": TRACE_RECIPE_ID,
 		"max_events": _MAX_EVENTS,
 		"max_event_buffer_bytes": _MAX_EVENT_BUFFER_BYTES,
 		"active_attempt": _active_attempt_id > 0,
 		"presentation_pending": _presentation_pending,
+		"primary_feedback_started": _primary_feedback_started,
 		"trace": _trace.get_debug_snapshot() if is_instance_valid(_trace) else {},
 	}
 
 
 # --- 私有/辅助方法 ---
+
+func _commit_presentation_settled(now_usec: int) -> void:
+	_presentation_settled_usec = now_usec
+	_record_event(&"move_presentation_settled", {
+		"attempt_id": _active_attempt_id,
+		"input_to_settled_usec": maxi(now_usec - _active_started_usec, 0),
+		"command_to_settled_usec": (
+			maxi(now_usec - _resolved_usec, 0)
+			if _resolved_usec > 0
+			else 0
+		),
+	})
+
+
 
 func _create_trace_recipe() -> GFSessionTraceRecipe:
 	var channel: GFSessionTraceChannelDefinition = (
@@ -259,7 +363,7 @@ func _create_trace_recipe() -> GFSessionTraceRecipe:
 
 
 func _record_event(event_id: StringName, payload: Dictionary) -> void:
-	if not is_instance_valid(_trace):
+	if not _capture_enabled or not is_instance_valid(_trace):
 		return
 	var _result: Dictionary = _trace.record_event(
 		CHANNEL_MOVE_LATENCY,
@@ -273,6 +377,10 @@ func _reset_active_attempt() -> void:
 	_active_started_usec = 0
 	_resolved_usec = 0
 	_presentation_pending = false
+	_presentation_enqueued_usec = 0
+	_primary_feedback_usec = 0
+	_primary_feedback_started = false
+	_presentation_settle_candidate_usec = 0
 	_presentation_settled_usec = 0
 	_command_completed = false
 
@@ -307,7 +415,11 @@ func _make_unavailable_snapshot() -> Dictionary:
 	return {
 		"ok": true,
 		"available": false,
-		"reason": "GFSessionTraceUtility is unavailable.",
+		"reason": (
+			"Local performance trace capture is disabled."
+			if not _capture_enabled
+			else "GFSessionTraceUtility is unavailable."
+		),
 	}
 
 
@@ -327,12 +439,61 @@ func _get_clock_utility() -> GameClockUtility:
 	return null
 
 
+func _get_settings_utility() -> GameSettingsUtility:
+	var utility_value: Object = get_utility(GameSettingsUtility)
+	if utility_value is GameSettingsUtility:
+		var settings: GameSettingsUtility = utility_value
+		return settings
+	return null
+
+
+func _get_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
+	return null
+
+
+func _read_capture_enabled() -> bool:
+	if not is_instance_valid(_settings):
+		return false
+	return GFVariantData.to_bool(
+		_settings.get_value(
+			GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+			false
+		),
+		false
+	)
+
+
 # --- 信号处理函数 ---
 
 func _on_game_ready(data: GameReadyData) -> void:
 	if is_instance_valid(data):
-		var _started: bool = start_gameplay_trace(data.is_replay_mode)
+		_game_session_available = true
+		_current_is_replay_mode = data.is_replay_mode
+		if _capture_enabled:
+			var _started: bool = start_gameplay_trace(data.is_replay_mode)
 
 
 func _on_scene_will_change(_payload: Variant = null) -> void:
+	_game_session_available = false
 	var _summary: Dictionary = stop_gameplay_trace(&"scene_change")
+
+
+func _on_setting_changed(
+	key: StringName,
+	_old_value: Variant,
+	_new_value: Variant
+) -> void:
+	if key != GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY:
+		return
+	_capture_enabled = _read_capture_enabled()
+	if not _capture_enabled:
+		var _summary: Dictionary = stop_gameplay_trace(&"consent_revoked")
+		if is_instance_valid(_trace):
+			_trace.clear()
+		return
+	if _game_session_available:
+		var _started: bool = start_gameplay_trace(_current_is_replay_mode)

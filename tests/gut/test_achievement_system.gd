@@ -319,9 +319,21 @@ func _create_setup(
 		GFBackgroundWorkUtility.new()
 	)
 	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
+	await architecture.register_utility(
+		GamePlatformUtility,
+		TestGamePlatformUtilityStub.new()
+	)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
+	await architecture.register_utility(
+		LocalAccountCatalogUtility,
+		LocalAccountCatalogUtility.new()
+	)
 	await architecture.register_utility(GFViewportUtility, GFViewportUtility.new())
 	await architecture.register_utility(GFAssetUtility, GFAssetUtility.new())
 	await architecture.register_utility(
@@ -338,7 +350,10 @@ func _create_setup(
 	if include_achievement_system:
 		achievement_system = AchievementSystem.new()
 		await architecture.register_system(AchievementSystem, achievement_system)
-	await architecture.init()
+	var initialized: bool = await architecture.init()
+	assert_true(initialized, "成就测试架构必须完成 GF activation。")
+	if initialized:
+		architecture.tick(0.0)
 	return {
 		"architecture": architecture,
 		"storage": storage,
@@ -387,6 +402,14 @@ func _dispose_setup(setup: Dictionary, delete_profile: bool = true) -> void:
 		assert_true(
 			delete_error == OK or delete_error == ERR_FILE_NOT_FOUND,
 			"成就测试玩家数据应可清理。"
+		)
+		var account_catalog_delete_error: Error = storage.delete_file(
+			LocalAccountCatalogUtility.CATALOG_FILE_NAME
+		)
+		assert_true(
+			account_catalog_delete_error == OK
+			or account_catalog_delete_error == ERR_FILE_NOT_FOUND,
+			"成就测试账号目录应可清理。"
 		)
 	_get_architecture(setup).dispose()
 	setup.clear()

@@ -61,11 +61,21 @@ func pulse(
 		false,
 		true
 	)
-	var _connect_error: int = release_timer.timeout.connect(
-		_release_action.bind(action_id, token),
-		CONNECT_ONE_SHOT
+	var connect_error: int = _connect_release_timer(
+		release_timer,
+		action_id,
+		token
 	)
-	return _connect_error == OK
+	if connect_error != OK:
+		# 按下已经提交，计时器连接失败时必须在返回失败前撤销贡献；
+		# 否则动作会永久保持，且 token 会伪装成仍有终态在途。
+		var _released_failed_pulse: bool = _source.release(action_id)
+		if GFVariantData.get_option_int(_action_tokens, action_id) == token:
+			var _removed_failed_connection_token: bool = _action_tokens.erase(
+				action_id
+			)
+		return false
+	return true
 
 
 ## 清除当前来源的全部动作贡献，并让所有迟到计时器失效。
@@ -88,6 +98,16 @@ func get_pending_action_count() -> int:
 
 
 # --- 私有/辅助方法 ---
+
+func _connect_release_timer(
+	release_timer: SceneTreeTimer,
+	action_id: StringName,
+	token: int
+) -> int:
+	return release_timer.timeout.connect(
+		_release_action.bind(action_id, token),
+		CONNECT_ONE_SHOT
+	)
 
 func _release_action(action_id: StringName, token: int) -> void:
 	if (

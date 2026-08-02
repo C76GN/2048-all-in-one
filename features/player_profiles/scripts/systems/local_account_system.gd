@@ -26,8 +26,13 @@ var _last_cleanup_error: Error = OK
 var _pending_operation: LocalAccountOperation = null
 var _disposed: bool = false
 var _dispose_requested: bool = false
+var _quiescing: bool = false
+var _quiesce_completion: GFAsyncCompletion = null
+var _activation_completion: GFAsyncCompletion = null
+var _activation_bootstrap_completion: GFAsyncCompletion = null
 var _operation_runner_started: bool = false
 var _legacy_cleanup_in_progress: bool = false
+var _legacy_cleanup_runner_started: bool = false
 var _catalog_reconciliation: Dictionary = {}
 var _catalog_reconciliation_running: bool = false
 var _profile_reconciliation: Dictionary = {}
@@ -53,7 +58,12 @@ func get_required_utilities() -> Array[Script]:
 func ready() -> void:
 	_disposed = false
 	_dispose_requested = false
+	_quiescing = false
+	_quiesce_completion = null
+	_activation_completion = null
+	_activation_bootstrap_completion = null
 	_legacy_cleanup_in_progress = false
+	_legacy_cleanup_runner_started = false
 	_catalog = _resolve_catalog_utility()
 	_save_graph = _resolve_save_graph_utility()
 	_storage = _resolve_storage_utility()
@@ -79,23 +89,82 @@ func ready() -> void:
 			_on_profile_cleanup_task_terminal,
 			self
 	)
+
+
+## 在架构对外开放前把当前设备账号恢复到独立 GF Profile。
+##
+## begin_bootstrap_profile() 立即返回并在 GFStorage/GFSaveProfile 的异步终态上
+## 收敛；失败会阻止候选架构进入 READY，而不是在 begin_activation() 调用栈
+## 同步轮询最多 20 秒或只记录错误后继续启动。
+## @param scope: 当前架构 activation 的协作取消作用域。
+func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_missing_scope: bool = completion.fail(
+			"Local account activation scope is unavailable."
+		)
+		return completion
+	var _bound: bool = completion.bind_cancel_token(scope)
+	if not completion.is_pending():
+		return completion
+	if not _is_configured():
+		var _failed_configuration: bool = completion.fail(
+			"Local account or SaveGraph dependency is unavailable."
+		)
+		return completion
 	var active_account: LocalPlayerAccount = _catalog.get_active_account()
 	if active_account == null:
-		push_error("[LocalAccountSystem] 本地账号目录没有有效的当前账号。")
-		return
-	var activate_error: Error = _save_graph.bootstrap_profile(
-		LocalAccountCatalogUtility.make_profile_file_name(
-			active_account.account_id
-		),
-		true
-	)
-	if activate_error != OK:
-		push_error(
-			"[LocalAccountSystem] 当前账号 Profile 激活失败，错误码：%d。"
-			% activate_error
+		var _failed_account: bool = completion.fail(
+			"Local account catalog has no active account."
 		)
-	else:
-		call_deferred(&"_cleanup_legacy_profile_async")
+		return completion
+	if scope.is_cancel_requested():
+		return completion
+	_activation_completion = completion
+	var bootstrap_completion: GFAsyncCompletion = (
+		_save_graph.begin_bootstrap_profile(
+			LocalAccountCatalogUtility.make_profile_file_name(
+				active_account.account_id
+			),
+			scope,
+			true
+		)
+	)
+	if bootstrap_completion == null:
+		var _failed_bootstrap_handle: bool = completion.fail(
+			"Current account Profile activation returned no completion.",
+			{&"error_code": int(ERR_CANT_CREATE)}
+		)
+		_activation_completion = null
+		return completion
+	_activation_bootstrap_completion = bootstrap_completion
+	if bootstrap_completion.is_completed():
+		_complete_activation_from_bootstrap(
+			bootstrap_completion,
+			completion,
+			active_account
+		)
+		return completion
+	var callback: Callable = Callable(
+		self,
+		&"_on_activation_bootstrap_completed"
+	).bind(completion, active_account)
+	@warning_ignore("int_as_enum_without_cast")
+	var connect_error: Error = bootstrap_completion.completed.connect(
+		callback,
+		CONNECT_ONE_SHOT
+	)
+	if connect_error != OK:
+		var _failed_connection: bool = completion.fail(
+			"Current account Profile activation completion could not be observed.",
+			{&"error_code": int(connect_error)}
+		)
+		if bootstrap_completion.is_pending():
+			var _cancelled_unobserved: bool = bootstrap_completion.cancel(
+				&"activation_observer_unavailable"
+			)
+		_clear_activation_completions(bootstrap_completion, completion)
+	return completion
 
 
 ## 推进目录迟到终态与当前 Profile 的协调。
@@ -103,10 +172,50 @@ func ready() -> void:
 func tick(_delta: float = 0.0) -> void:
 	_maybe_start_catalog_reconciliation()
 	_maybe_start_profile_reconciliation()
+	_try_complete_quiesce()
+
+
+## 停止接纳新账号事务，并等待已接纳的目录/Profile saga 抵达明确终态。
+## @param scope: 当前架构静默阶段的协作取消作用域。
+## @return 已接纳账号工作全部排空时成功的一次性完成源。
+func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
+	if _quiesce_completion != null:
+		return _quiesce_completion
+	_quiescing = true
+	_quiesce_completion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_scope: bool = _quiesce_completion.fail(
+			"Local account quiesce scope is unavailable."
+		)
+		return _quiesce_completion
+	var _bound: bool = _quiesce_completion.bind_cancel_token(scope)
+	_try_complete_quiesce()
+	return _quiesce_completion
 
 
 func dispose() -> void:
 	_dispose_requested = true
+	_quiescing = true
+	if (
+		_activation_bootstrap_completion != null
+		and _activation_bootstrap_completion.is_pending()
+	):
+		var _cancelled_bootstrap: bool = (
+			_activation_bootstrap_completion.cancel(
+				&"local_account_disposed"
+			)
+		)
+	if _activation_completion != null and _activation_completion.is_pending():
+		var _cancelled_activation: bool = _activation_completion.cancel(
+			&"local_account_disposed"
+		)
+	_activation_bootstrap_completion = null
+	_activation_completion = null
+	# activation 成功只代表 cleanup 已排队；runner 尚未取得执行权时可安全
+	# 撤销该 deferred 工作，避免 forced dispose 把一个尚不存在的 IO 当作
+	# 在途任务固定轮询 _DISPOSE_DRAIN_STEPS。
+	if _legacy_cleanup_in_progress and not _legacy_cleanup_runner_started:
+		_legacy_cleanup_in_progress = false
 	if (
 		_pending_operation != null
 		and _pending_operation.is_pending()
@@ -185,6 +294,12 @@ func dispose() -> void:
 	_last_cleanup_error = OK
 	_operation_runner_started = false
 	_legacy_cleanup_in_progress = false
+	_legacy_cleanup_runner_started = false
+	if _quiesce_completion != null and _quiesce_completion.is_pending():
+		var _cancelled_quiesce: bool = _quiesce_completion.cancel(
+			&"local_account_disposed"
+		)
+	_quiesce_completion = null
 
 
 # --- 公共方法 ---
@@ -229,7 +344,7 @@ func get_last_reconciliation_evidence() -> Dictionary:
 ## GF Profile 或目录写仍未抵达可判定终态时返回 ERR_BUSY；请求已接受或当前
 ## 无需协调时返回 OK。实际 Profile 对齐继续由异步协调状态机完成。
 func request_account_reconciliation() -> Error:
-	if _disposed or not _is_configured():
+	if _disposed or _dispose_requested or _quiescing or not _is_configured():
 		return ERR_UNAVAILABLE
 	if _catalog_reconciliation.is_empty() and _profile_reconciliation.is_empty():
 		return OK
@@ -661,13 +776,13 @@ func _run_rename_account_operation(
 		)
 		return
 	var renamed: LocalPlayerAccount = _catalog.get_account(account_id)
-	account_catalog_changed.emit()
+	_publish_catalog_changed()
 	if (
 		renamed != null
 		and previous_account != null
 		and previous_account.account_id == account_id
 	):
-		active_account_changed.emit(renamed)
+		_publish_active_account_changed(renamed)
 	_complete_account_operation(
 		operation,
 		LocalAccountOperationResult.STATUS_SUCCEEDED,
@@ -803,7 +918,7 @@ func _run_delete_account_operation(
 	if deleted_active and fallback != null and active_account != null:
 		_publish_account_change(active_account.account_id, fallback)
 	else:
-		account_catalog_changed.emit()
+		_publish_catalog_changed()
 	_complete_account_operation(
 		operation,
 		(
@@ -834,13 +949,20 @@ func _make_account_operation(
 
 
 func _cleanup_legacy_profile_async() -> void:
-	if _disposed or _dispose_requested or not is_instance_valid(_save_graph):
+	if not _legacy_cleanup_in_progress:
 		return
-	_legacy_cleanup_in_progress = true
+	_legacy_cleanup_runner_started = true
+	if _disposed or _dispose_requested or not is_instance_valid(_save_graph):
+		_legacy_cleanup_in_progress = false
+		_legacy_cleanup_runner_started = false
+		_try_complete_quiesce()
+		return
 	var legacy_cleanup_error: Error = (
 		await _save_graph.delete_inactive_legacy_profile_async()
 	)
 	_legacy_cleanup_in_progress = false
+	_legacy_cleanup_runner_started = false
+	_try_complete_quiesce()
 	if _disposed or _dispose_requested:
 		return
 	if legacy_cleanup_error not in [OK, ERR_INVALID_PARAMETER]:
@@ -853,20 +975,113 @@ func _cleanup_legacy_profile_async() -> void:
 		)
 
 
+func _on_activation_bootstrap_completed(
+	bootstrap_completion: GFAsyncCompletion,
+	activation_completion: GFAsyncCompletion,
+	active_account: LocalPlayerAccount
+) -> void:
+	_complete_activation_from_bootstrap(
+		bootstrap_completion,
+		activation_completion,
+		active_account
+	)
+
+
+func _complete_activation_from_bootstrap(
+	bootstrap_completion: GFAsyncCompletion,
+	activation_completion: GFAsyncCompletion,
+	active_account: LocalPlayerAccount
+) -> void:
+	if (
+		activation_completion == null
+		or not activation_completion.is_pending()
+		or bootstrap_completion == null
+	):
+		return
+	if bootstrap_completion.is_cancelled():
+		var _cancelled: bool = activation_completion.cancel(
+			bootstrap_completion.get_cancel_reason(),
+			bootstrap_completion.get_metadata()
+		)
+		_clear_activation_completions(
+			bootstrap_completion,
+			activation_completion
+		)
+		return
+	if not bootstrap_completion.is_successful():
+		var metadata: Dictionary = bootstrap_completion.get_metadata()
+		@warning_ignore("int_as_enum_without_cast")
+		var bootstrap_error: Error = GFVariantData.get_option_int(
+			metadata,
+			&"error_code",
+			ERR_CANT_OPEN
+		)
+		var _failed: bool = activation_completion.fail(
+			"Current account Profile activation failed with error %d."
+			% bootstrap_error,
+			metadata
+		)
+		_clear_activation_completions(
+			bootstrap_completion,
+			activation_completion
+		)
+		return
+	if (
+		_disposed
+		or _dispose_requested
+		or active_account == null
+		or not is_instance_valid(_save_graph)
+	):
+		var _cancelled_disposed: bool = activation_completion.cancel(
+			&"local_account_disposed"
+		)
+		_clear_activation_completions(
+			bootstrap_completion,
+			activation_completion
+		)
+		return
+	# deferred cleanup 已在 activation 阶段被接纳，必须在 quiesce 屏障中可见。
+	_legacy_cleanup_in_progress = true
+	_legacy_cleanup_runner_started = false
+	call_deferred(&"_cleanup_legacy_profile_async")
+	var _succeeded: bool = activation_completion.succeed({
+		&"account_id": active_account.account_id,
+		&"profile_file": _save_graph.get_profile_file_name(),
+	})
+	_clear_activation_completions(
+		bootstrap_completion,
+		activation_completion
+	)
+
+
+func _clear_activation_completions(
+	bootstrap_completion: GFAsyncCompletion,
+	activation_completion: GFAsyncCompletion
+) -> void:
+	if is_same(_activation_bootstrap_completion, bootstrap_completion):
+		_activation_bootstrap_completion = null
+	if is_same(_activation_completion, activation_completion):
+		_activation_completion = null
+
+
 func _begin_account_operation(
 	operation: LocalAccountOperation
 ) -> bool:
 	if operation == null:
 		return false
-	if _disposed or _dispose_requested or not _is_configured():
+	if _disposed or _dispose_requested or _quiescing or not _is_configured():
 		_complete_account_operation(
 			operation,
 			(
 				LocalAccountOperationResult.STATUS_DISPOSED
-				if _disposed or _dispose_requested
-				else LocalAccountOperationResult.STATUS_INVALID_REQUEST
+					if _disposed or _dispose_requested or _quiescing
+					else LocalAccountOperationResult.STATUS_INVALID_REQUEST
 			),
-			ERR_UNCONFIGURED
+			(
+				ERR_UNAVAILABLE
+				if _disposed or _dispose_requested or _quiescing
+				else ERR_UNCONFIGURED
+			)
 		)
 		return false
 	if is_account_reconciliation_pending():
@@ -983,6 +1198,20 @@ func _has_account_work_in_progress() -> bool:
 	)
 
 
+func _try_complete_quiesce() -> void:
+	if (
+		not _quiescing
+		or _quiesce_completion == null
+		or not _quiesce_completion.is_pending()
+		or _has_account_work_in_progress()
+	):
+		return
+	var _succeeded: bool = _quiesce_completion.succeed({
+		&"component": &"local_account",
+		&"drained": true,
+	})
+
+
 func _begin_catalog_reconciliation(
 	operation: LocalAccountOperation,
 	account: LocalPlayerAccount,
@@ -1018,7 +1247,7 @@ func _begin_catalog_reconciliation(
 			else {}
 		),
 	}
-	account_reconciliation_state_changed.emit(true)
+	_publish_reconciliation_state_changed(true)
 
 
 func _begin_profile_reconciliation(
@@ -1059,7 +1288,7 @@ func _begin_profile_reconciliation(
 		&"previous_account_id": previous_account_id,
 		&"profile": profile_evidence.duplicate(true),
 	}
-	account_reconciliation_state_changed.emit(true)
+	_publish_reconciliation_state_changed(true)
 
 
 func _begin_cleanup_reconciliation(
@@ -1103,7 +1332,7 @@ func _begin_cleanup_reconciliation(
 		&"target_account_id": operation.get_target_account_id(),
 		&"cleanup_profile_file": cleanup_profile_file,
 	}
-	account_reconciliation_state_changed.emit(true)
+	_publish_reconciliation_state_changed(true)
 
 
 func _on_catalog_storage_late_settled(
@@ -1398,7 +1627,7 @@ func _run_profile_reconciliation() -> void:
 	}
 	_profile_reconciliation.clear()
 	_profile_reconciliation_running = false
-	account_reconciliation_state_changed.emit(false)
+	_publish_reconciliation_state_changed(false)
 	var operation_kind: StringName = GFVariantData.get_option_string_name(
 		reconciliation,
 		&"operation"
@@ -1417,7 +1646,7 @@ func _run_profile_reconciliation() -> void:
 				authoritative_account
 			)
 		else:
-			account_catalog_changed.emit()
+			_publish_catalog_changed()
 
 
 func _profile_reconciliation_can_run() -> bool:
@@ -1628,7 +1857,7 @@ func _run_catalog_reconciliation() -> void:
 	}
 	_catalog_reconciliation.clear()
 	_catalog_reconciliation_running = false
-	account_reconciliation_state_changed.emit(false)
+	_publish_reconciliation_state_changed(false)
 	if (
 		publish_success
 		and GFVariantData.get_option_bool(
@@ -1668,8 +1897,8 @@ func _publish_reconciled_catalog_success(
 		operation_kind == LocalAccountOperation.OPERATION_RENAME
 		and target_account_id == active_account.account_id
 	):
-		active_account_changed.emit(active_account)
-	account_catalog_changed.emit()
+		_publish_active_account_changed(active_account)
+	_publish_catalog_changed()
 
 
 func _catalog_outcome_unknown() -> bool:
@@ -1688,6 +1917,8 @@ func _publish_account_change(
 	previous_account_id: String,
 	account: LocalPlayerAccount
 ) -> void:
+	if not _can_publish_runtime_state():
+		return
 	var current_account: LocalPlayerAccount = _catalog.get_account(
 		account.account_id
 	)
@@ -1703,6 +1934,28 @@ func _publish_account_change(
 	)
 	if event_data != null:
 		send_event(event_data)
+
+
+func _publish_active_account_changed(account: LocalPlayerAccount) -> void:
+	if not _can_publish_runtime_state() or account == null:
+		return
+	active_account_changed.emit(account)
+
+
+func _publish_catalog_changed() -> void:
+	if not _can_publish_runtime_state():
+		return
+	account_catalog_changed.emit()
+
+
+func _publish_reconciliation_state_changed(pending: bool) -> void:
+	if not _can_publish_runtime_state():
+		return
+	account_reconciliation_state_changed.emit(pending)
+
+
+func _can_publish_runtime_state() -> bool:
+	return not _quiescing and not _dispose_requested and not _disposed
 
 
 func _profile_id_for_account(account_id: String) -> StringName:

@@ -29,6 +29,9 @@ const _FIELD_HIGH_CONTRAST_FEEDBACK: StringName = &"high_contrast_feedback"
 const _FIELD_HAPTICS_ENABLED: StringName = &"haptics_enabled"
 const _FIELD_SHADER_EFFECTS_ENABLED: StringName = &"shader_effects_enabled"
 const _FIELD_TURN_SUBTITLES_ENABLED: StringName = &"turn_subtitles_enabled"
+const _FIELD_LOCAL_PERFORMANCE_TRACE_ENABLED: StringName = (
+	&"local_performance_trace_enabled"
+)
 const _LOCALE_EN: String = "en"
 const _LOCALE_ZH: String = "zh"
 const _AUDIO_BUS_MASTER: String = "Master"
@@ -108,6 +111,9 @@ var _input_binding_rows_rebuild_queued: bool = false
 @onready var _haptics_toggle: CheckButton = %HapticsToggle
 @onready var _shader_effects_toggle: CheckButton = %ShaderEffectsToggle
 @onready var _turn_subtitles_toggle: CheckButton = %TurnSubtitlesToggle
+@onready var _local_performance_trace_toggle: CheckButton = (
+	%LocalPerformanceTraceToggle
+)
 @onready var _master_volume_slider: HSlider = %MasterVolumeSlider
 @onready var _master_volume_value_label: Label = %MasterVolumeValueLabel
 @onready var _bgm_volume_slider: HSlider = %BgmVolumeSlider
@@ -147,6 +153,11 @@ var _input_binding_rows_rebuild_queued: bool = false
 
 ## 回合字幕标签。
 @onready var _turn_subtitles_label: Label = _get_sibling_label(_turn_subtitles_toggle)
+
+## 本地性能诊断标签。
+@onready var _local_performance_trace_label: Label = (
+	_get_sibling_label(_local_performance_trace_toggle)
+)
 
 ## 主音量标签。
 @onready var _master_volume_label: Label = _get_sibling_label(_master_volume_slider)
@@ -324,6 +335,7 @@ func _apply_field_widths() -> void:
 		_haptics_label,
 		_shader_effects_label,
 		_turn_subtitles_label,
+		_local_performance_trace_label,
 		_get_sibling_label(_input_timing_option),
 	]
 	for label: Label in labels:
@@ -351,6 +363,7 @@ func _apply_field_widths() -> void:
 		_haptics_toggle,
 		_shader_effects_toggle,
 		_turn_subtitles_toggle,
+		_local_performance_trace_toggle,
 	]:
 		toggle.custom_minimum_size.y = (
 			_COMPACT_CONTROL_HEIGHT if _is_compact_layout else _DESKTOP_CONTROL_HEIGHT
@@ -569,6 +582,11 @@ func _setup_form_binder() -> void:
 		_turn_subtitles_toggle,
 		true
 	)
+	_form_binder.bind_field(
+		_FIELD_LOCAL_PERFORMANCE_TRACE_ENABLED,
+		_local_performance_trace_toggle,
+		false
+	)
 	var _connect_result_121: int = _form_binder.field_changed.connect(_on_form_field_changed)
 
 
@@ -621,6 +639,19 @@ func _sync_controls_from_settings() -> void:
 		)
 		_turn_subtitles_toggle.set_pressed_no_signal(
 			accessibility_state.turn_subtitles_enabled
+		)
+	if (
+		is_instance_valid(_settings_utility)
+		and is_instance_valid(_local_performance_trace_toggle)
+	):
+		_local_performance_trace_toggle.set_pressed_no_signal(
+			GFVariantData.to_bool(
+				_settings_utility.get_value(
+					GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+					false
+				),
+				false
+			)
 		)
 
 
@@ -777,6 +808,14 @@ func _update_ui_text() -> void:
 		_shader_effects_label.text = tr("SHADER_EFFECTS_LABEL")
 	if is_instance_valid(_turn_subtitles_label):
 		_turn_subtitles_label.text = tr("TURN_SUBTITLES_LABEL")
+	if is_instance_valid(_local_performance_trace_label):
+		_local_performance_trace_label.text = tr(
+			"LOCAL_PERFORMANCE_TRACE_LABEL"
+		)
+	if is_instance_valid(_local_performance_trace_toggle):
+		_local_performance_trace_toggle.tooltip_text = tr(
+			"LOCAL_PERFORMANCE_TRACE_HINT"
+		)
 	if is_instance_valid(_master_volume_label):
 		_master_volume_label.text = tr("MASTER_VOLUME_LABEL")
 	if is_instance_valid(_bgm_volume_label):
@@ -1226,6 +1265,12 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 			if is_instance_valid(_accessibility):
 				_accessibility.set_turn_subtitles_enabled(
 					GFVariantData.to_bool(value, true)
+				)
+		_FIELD_LOCAL_PERFORMANCE_TRACE_ENABLED:
+			if is_instance_valid(_settings_utility):
+				_settings_utility.set_value(
+					GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+					GFVariantData.to_bool(value, false)
 				)
 
 

@@ -13,11 +13,15 @@ const _RULESET_FINGERPRINT: String = (
 )
 
 
-func test_startup_bootstraps_account_profile_without_full_legacy_load() -> void:
+func test_startup_bootstraps_account_profile_without_sync_polling() -> void:
 	var storage: _LegacyProfileReadCountingStorage = (
 		_LegacyProfileReadCountingStorage.new()
 	)
 	var setup: Dictionary = await _create_setup(storage)
+	assert_true(
+		GFVariantData.get_option_bool(setup, &"initialized"),
+		"账号 Profile bootstrap 必须作为 architecture activation 前置条件成功。"
+	)
 	var accounts: LocalAccountSystem = _get_account_system(setup)
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var active_account: LocalPlayerAccount = accounts.get_active_account()
@@ -32,8 +36,182 @@ func test_startup_bootstraps_account_profile_without_full_legacy_load() -> void:
 		"启动完成后 SaveGraph 应直接指向当前账号 Profile。"
 	)
 	assert_true(
-		storage.legacy_profile_async_read_count == 0,
-		"新安装启动不得先通过 GFSaveProfile 完整加载旧默认 Profile。"
+		storage.legacy_profile_sync_read_count == 0,
+		"activation bootstrap 不得同步读取旧 Profile 或进入 20 秒轮询。"
+	)
+	assert_true(
+		storage.legacy_profile_async_read_count == 1,
+		"新安装只允许由 GFSaveProfile 异步确认一次 legacy/default 状态。"
+	)
+	_dispose_setup(setup)
+
+
+func test_profile_bootstrap_failure_aborts_architecture_activation() -> void:
+	var failing_save_graph: _FailingBootstrapSaveGraph = (
+		_FailingBootstrapSaveGraph.new()
+	)
+	var setup: Dictionary = await _create_setup(
+		null,
+		null,
+		failing_save_graph,
+		false
+	)
+	assert_push_error("Current account Profile activation failed")
+	var architecture_value: Variant = setup.get(&"architecture")
+	assert_true(architecture_value is GFArchitecture)
+	if not architecture_value is GFArchitecture:
+		_dispose_setup(setup)
+		return
+	var architecture: GFArchitecture = architecture_value
+	assert_false(GFVariantData.get_option_bool(setup, &"initialized"))
+	assert_true(architecture.has_initialization_failed())
+	assert_false(architecture.is_inited())
+	assert_true(
+		failing_save_graph.bootstrap_attempt_count == 1,
+		"失败 bootstrap 只能由 activation 尝试一次，架构不得带病 READY。"
+	)
+	_dispose_setup(setup)
+
+
+func test_activation_returns_immediately_and_cooperatively_cancels_bootstrap() -> void:
+	var save_graph: _PendingBootstrapSaveGraph = (
+		_PendingBootstrapSaveGraph.new()
+	)
+	var account_system: LocalAccountSystem = (
+		_make_isolated_activation_system(save_graph)
+	)
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var started_msec: int = Time.get_ticks_msec()
+	var completion: GFAsyncCompletion = account_system.begin_activation(scope)
+	var elapsed_msec: int = Time.get_ticks_msec() - started_msec
+
+	assert_not_null(completion)
+	assert_true(completion.is_pending())
+	assert_lt(
+		elapsed_msec,
+		100,
+		"begin_activation 必须常量时间返回，不能同步等待 bootstrap IO。"
+	)
+	assert_true(save_graph.bootstrap_attempt_count == 1)
+	assert_true(scope.cancel("test_activation_cancelled"))
+	assert_true(
+		completion.is_cancelled()
+		and completion.get_cancel_reason() == &"test_activation_cancelled"
+	)
+	assert_true(
+		save_graph.bootstrap_completion != null
+		and save_graph.bootstrap_completion.is_cancelled(),
+		"同一 activation scope 必须协作取消 SaveGraph bootstrap 终态。"
+	)
+	account_system.dispose()
+
+
+func test_activation_then_immediate_dispose_cancels_queued_legacy_cleanup() -> void:
+	var save_graph: _ImmediateBootstrapSaveGraph = (
+		_ImmediateBootstrapSaveGraph.new()
+	)
+	var account_system: LocalAccountSystem = (
+		_make_isolated_activation_system(save_graph)
+	)
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var completion: GFAsyncCompletion = account_system.begin_activation(scope)
+	assert_true(completion != null and completion.is_successful())
+
+	var started_msec: int = Time.get_ticks_msec()
+	account_system.dispose()
+	var elapsed_msec: int = Time.get_ticks_msec() - started_msec
+	assert_lt(
+		elapsed_msec,
+		500,
+		"尚未启动的 deferred cleanup 不得让 forced dispose 固定轮询 8 秒。"
+	)
+	await get_tree().process_frame
+	assert_true(
+		save_graph.legacy_cleanup_attempt_count == 0,
+		"dispose 必须撤销尚未取得 runner 的 legacy cleanup。"
+	)
+
+
+func test_cancelled_bootstrap_restores_profile_sections_and_transition_gate() -> void:
+	var storage: _HangingProfileReadStorage = (
+		_HangingProfileReadStorage.new()
+	)
+	var setup: Dictionary = await _create_setup(storage)
+	var architecture_value: Variant = setup.get(&"architecture")
+	assert_true(architecture_value is GFArchitecture)
+	if not architecture_value is GFArchitecture:
+		_dispose_setup(setup)
+		return
+	var architecture: GFArchitecture = architecture_value
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var progress: ProgressStatsSystem = _get_progress_system(setup)
+	var recorded: GameSaveSectionResult = await _record_game_result(
+		progress,
+		_make_result(4096, 37, 2048, 10, 24_000),
+		setup,
+		24_000
+	)
+	assert_true(recorded != null and recorded.is_successful())
+	var original_profile_file: String = save_graph.get_profile_file_name()
+	var original_profile_id: StringName = save_graph.get_active_profile_id()
+	var original_progress: Dictionary = save_graph.get_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID
+	).duplicate(true)
+	var target_profile_file: String = (
+		LocalAccountCatalogUtility.make_profile_file_name(
+			GFUuid.generate_v7()
+		)
+	)
+	storage.arm_profile_read_hang(2, true)
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var completion: GFAsyncCompletion = save_graph.begin_bootstrap_profile(
+		target_profile_file,
+		scope,
+		false
+	)
+	assert_true(completion != null and completion.is_pending())
+
+	for _frame: int in range(240):
+		architecture.tick(0.0)
+		await get_tree().process_frame
+		if (
+			save_graph.get_profile_file_name() == target_profile_file
+			and not storage.hanging_read_operations.is_empty()
+		):
+			break
+	assert_true(
+		save_graph.get_profile_file_name() == target_profile_file
+		and not storage.hanging_read_operations.is_empty(),
+		"bootstrap 必须进入目标 Profile 已注册、GF 异步读取仍在途的窗口。"
+	)
+	assert_true(scope.cancel("test_bootstrap_cancelled_after_register"))
+	assert_true(
+		completion.is_cancelled(),
+		"activation scope 取消必须立即冻结 bootstrap 的公开终态。"
+	)
+	storage.hang_profile_reads = false
+	storage.complete_all_hanging_reads_with_captured_results()
+	for _frame: int in range(240):
+		architecture.tick(0.0)
+		await get_tree().process_frame
+		if not save_graph._is_profile_transition_in_progress():
+			break
+
+	assert_false(
+		save_graph._is_profile_transition_in_progress(),
+		"迟到 GF IO 收敛后必须释放 bootstrap transition gate。"
+	)
+	assert_true(
+		save_graph.is_profile_loaded()
+		and save_graph.get_profile_file_name() == original_profile_file
+		and save_graph.get_active_profile_id() == original_profile_id,
+		"取消后的 bootstrap 必须恢复原活动 Profile 身份与 loaded 状态。"
+	)
+	assert_true(
+		save_graph.get_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID
+		) == original_progress,
+		"取消后的迟到读取不得把目标默认 section 留在运行时。"
 	)
 	_dispose_setup(setup)
 
@@ -135,7 +313,61 @@ func test_async_account_operations_expose_terminal_results_without_ui_blocking()
 		and accounts.get_accounts().size() == 1,
 		"异步删除应在目录与孤立 Profile 清理边界后终结。"
 	)
+	_assert_operation_diagnostics_terminal(
+		setup,
+		&"game.account_catalog_mutation"
+	)
+	_assert_operation_diagnostics_terminal(
+		setup,
+		&"game.profile_transition"
+	)
 	_dispose_setup(setup)
+
+
+func test_architecture_shutdown_drains_accepted_account_saga_before_dependencies() -> void:
+	var setup: Dictionary = await _create_setup()
+	var architecture_value: Variant = setup.get(&"architecture")
+	assert_true(architecture_value is GFArchitecture)
+	if not architecture_value is GFArchitecture:
+		_dispose_setup(setup)
+		return
+	var architecture: GFArchitecture = architecture_value
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var probe: _AccountEventProbe = _get_account_event_probe(setup)
+	probe.reset()
+	watch_signals(accounts)
+	var operation: LocalAccountOperation = accounts.request_create_account(
+		"关闭边界账号"
+	)
+	assert_true(operation.is_pending(), "账号 saga 必须在关闭请求前已被接纳。")
+
+	var shutdown_result: GFArchitectureShutdownResult = (
+		await architecture.shutdown_async(null, 5.0)
+	)
+	var operation_result: LocalAccountOperationResult = operation.get_result()
+	assert_true(
+		shutdown_result != null and shutdown_result.is_successful(),
+		"GF 逆依赖 quiesce 必须在账号 saga 排空后再关闭持久化依赖。"
+	)
+	assert_true(
+		operation.is_completed()
+		and operation_result != null
+		and operation_result.is_successful(),
+		"关闭前已接纳的账号事务不能被 quiesce 当作新请求拒绝。"
+	)
+	assert_signal_emit_count(
+		accounts,
+		"active_account_changed",
+		0,
+		"quiesce 期间已接纳 saga 只能收敛 typed terminal，不再发布 UI 信号。"
+	)
+	assert_signal_emit_count(accounts, "account_catalog_changed", 0)
+	assert_true(
+		probe.active_account_event_count == 0,
+		"GF runtime 关闭准入后不得再 send_event。"
+	)
+	_remove_setup_save_directory(setup)
+	setup.clear()
 
 
 func test_catalog_late_create_success_publishes_catalog_once_and_unblocks_ui() -> void:
@@ -1068,6 +1300,83 @@ func test_cancelled_device_progress_snapshot_ignores_late_storage_result() -> vo
 	_dispose_setup(setup)
 
 
+func test_device_progress_snapshot_times_out_without_caller_token_and_ignores_late_result() -> void:
+	var storage: _HangingProfileReadStorage = (
+		_HangingProfileReadStorage.new()
+	)
+	var setup: Dictionary = await _create_setup(storage)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var progress: ProgressStatsSystem = _get_progress_system(setup)
+	var create_result: LocalAccountOperationResult = (
+		await _await_successful_account_operation(
+			accounts.request_create_account("超时快照账号"),
+			setup,
+			"超时快照测试账号应创建成功。"
+		)
+	)
+	assert_not_null(create_result)
+	storage.hang_profile_reads = true
+	progress._device_snapshot_timeout_seconds = 0.02
+	var completion: GFAsyncCompletion = (
+		progress.request_device_progress_snapshot()
+	)
+	assert_true(completion != null and completion.is_pending())
+	for _frame: int in range(120):
+		if completion.is_completed():
+			break
+		await get_tree().process_frame
+
+	assert_true(
+		completion.is_successful(),
+		"无 caller token 的挂起读取也应以可用的 partial 快照终结。"
+	)
+	var snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		{&"result": completion.get_result()},
+		&"result"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(snapshot, &"partial", false)
+		and GFVariantData.get_option_bool(snapshot, &"timed_out", false),
+		"设备快照超时必须显式标记 partial 与 timed_out。"
+	)
+	var issues: Dictionary = GFVariantData.get_option_dictionary(
+		snapshot,
+		&"issues_by_account_id"
+	)
+	assert_true(issues.size() == 1)
+	if not issues.is_empty():
+		var issue: Dictionary = GFVariantData.as_dictionary(
+			issues.values()[0]
+		)
+		assert_true(
+			GFVariantData.get_option_string_name(
+				issue,
+				&"failure_kind"
+			) == &"storage_read_timeout"
+			and GFVariantData.get_option_int(
+				issue,
+				&"error_code"
+			) == ERR_TIMEOUT
+		)
+	assert_true(
+		progress._snapshot_contexts.is_empty(),
+		"超时终态必须释放批处理与全部 owner-bound 连接。"
+	)
+
+	storage.complete_all_hanging_reads(ERR_CANT_OPEN)
+	await get_tree().process_frame
+	assert_true(
+		completion.is_successful()
+		and GFVariantData.get_option_bool(
+			GFVariantData.as_dictionary(completion.get_result()),
+			&"timed_out",
+			false
+		),
+		"迟到存储终态不得覆盖已冻结的超时 partial 快照。"
+	)
+	_dispose_setup(setup)
+
+
 func test_device_progress_snapshot_rejects_profile_catalog_transition_window() -> void:
 	var storage: _DelayedCatalogStorage = _DelayedCatalogStorage.new()
 	var setup: Dictionary = await _create_setup(storage)
@@ -1499,7 +1808,8 @@ func _make_result(
 func _create_setup(
 	storage_override: GFStorageUtility = null,
 	clock_override: GFManualClock = null,
-	save_graph_override: GameSaveGraphUtility = null
+	save_graph_override: GameSaveGraphUtility = null,
+	expected_init_success: bool = true
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = (
@@ -1542,6 +1852,9 @@ func _create_setup(
 	var account_system: LocalAccountSystem = LocalAccountSystem.new()
 	var progress_system: ProgressStatsSystem = ProgressStatsSystem.new()
 	var account_event_probe: _AccountEventProbe = _AccountEventProbe.new()
+	var operation_diagnostics: GFOperationDiagnosticsUtility = (
+		GFOperationDiagnosticsUtility.new()
+	)
 	var platform_stub: GamePlatformUtility = (
 		_TEST_PLATFORM_STUB_SCRIPT.new()
 	)
@@ -1565,22 +1878,31 @@ func _create_setup(
 	)
 	await architecture.register_utility(GameClockUtility, clock)
 	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		operation_diagnostics
+	)
+	await architecture.register_utility(
 		LocalAccountCatalogUtility,
 		account_catalog
 	)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_system(LocalAccountSystem, account_system)
 	await architecture.register_system(ProgressStatsSystem, progress_system)
-	await architecture.init()
-	architecture.register_event_owned(
-		account_event_probe,
-		ActiveLocalAccountChangedData,
-		GFEventListener.from_method(
-			account_event_probe,
-			&"_on_active_account_changed",
-			1
-		)
+	var initialized: bool = await architecture.init()
+	assert_true(
+		initialized == expected_init_success,
+		"测试架构 activation 终态必须符合场景预期。"
 	)
+	if initialized:
+		architecture.register_event_owned(
+			account_event_probe,
+			ActiveLocalAccountChangedData,
+			GFEventListener.from_method(
+				account_event_probe,
+				&"_on_active_account_changed",
+				1
+			)
+		)
 	return {
 		&"architecture": architecture,
 		&"storage": storage,
@@ -1590,33 +1912,71 @@ func _create_setup(
 		&"progress_system": progress_system,
 		&"account_event_probe": account_event_probe,
 		&"clock": clock_source,
+		&"operation_diagnostics": operation_diagnostics,
+		&"initialized": initialized,
 	}
+
+
+func _make_isolated_activation_system(
+	save_graph: GameSaveGraphUtility
+) -> LocalAccountSystem:
+	var account: LocalPlayerAccount = LocalPlayerAccount.create(
+		"Activation Fixture",
+		1_000
+	)
+	assert_not_null(account)
+	var catalog: LocalAccountCatalogUtility = LocalAccountCatalogUtility.new()
+	var catalog_accounts: Array[LocalPlayerAccount] = [account]
+	catalog._accounts = catalog_accounts
+	catalog._active_account_id = account.account_id
+	var account_system: LocalAccountSystem = LocalAccountSystem.new()
+	account_system._catalog = catalog
+	account_system._save_graph = save_graph
+	account_system._storage = GFStorageUtility.new()
+	account_system._profile_utility = GFSaveProfileUtility.new()
+	account_system._background_work = GFBackgroundWorkUtility.new()
+	account_system._signal_utility = GFSignalUtility.new()
+	return account_system
 
 
 func _dispose_setup(setup: Dictionary) -> void:
 	var architecture_value: Variant = setup.get(&"architecture")
-	var accounts_value: Variant = setup.get(&"account_system")
-	var account_ids: Array[String] = []
-	if accounts_value is LocalAccountSystem:
-		var account_system: LocalAccountSystem = accounts_value
-		for account: LocalPlayerAccount in account_system.get_accounts():
-			account_ids.append(account.account_id)
 	if architecture_value is GFArchitecture:
 		var architecture: GFArchitecture = architecture_value
 		architecture.dispose()
+	_remove_setup_save_directory(setup)
+
+
+func _remove_setup_save_directory(setup: Dictionary) -> void:
 	var storage_value: Variant = setup.get(&"storage")
-	if storage_value is GFStorageUtility:
-		var storage: GFStorageUtility = storage_value
-		var _catalog_delete_error: Error = storage.delete_file(
-			LocalAccountCatalogUtility.CATALOG_FILE_NAME
-		)
-		var _legacy_delete_error: Error = storage.delete_file(
-			GameSaveGraphUtility.PROFILE_FILE_NAME
-		)
-		for account_id: String in account_ids:
-			var _profile_delete_error: Error = storage.delete_file(
-				LocalAccountCatalogUtility.make_profile_file_name(account_id)
-			)
+	if not storage_value is GFStorageUtility:
+		return
+	var storage: GFStorageUtility = storage_value
+	if storage.save_dir_name.is_empty():
+		return
+	var save_directory: String = ProjectSettings.globalize_path(
+		"user://".path_join(storage.save_dir_name)
+	)
+	_remove_directory_tree_absolute(save_directory)
+
+
+func _remove_directory_tree_absolute(path: String) -> void:
+	var directory: DirAccess = DirAccess.open(path)
+	if directory == null:
+		return
+	directory.include_hidden = true
+	directory.include_navigational = false
+	var _list_error: Error = directory.list_dir_begin()
+	var entry_name: String = directory.get_next()
+	while not entry_name.is_empty():
+		var entry_path: String = path.path_join(entry_name)
+		if directory.current_is_dir():
+			_remove_directory_tree_absolute(entry_path)
+		else:
+			var _file_remove_error: Error = DirAccess.remove_absolute(entry_path)
+		entry_name = directory.get_next()
+	directory.list_dir_end()
+	var _directory_remove_error: Error = DirAccess.remove_absolute(path)
 
 
 func _get_account_system(setup: Dictionary) -> LocalAccountSystem:
@@ -1659,6 +2019,49 @@ func _get_account_event_probe(setup: Dictionary) -> _AccountEventProbe:
 		return value
 	assert_true(false, "测试 setup 缺少账号事件探针。")
 	return _AccountEventProbe.new()
+
+
+func _assert_operation_diagnostics_terminal(
+	setup: Dictionary,
+	operation_type: StringName
+) -> void:
+	var value: Variant = setup.get(&"operation_diagnostics")
+	assert_true(
+		value is GFOperationDiagnosticsUtility,
+		"测试 setup 必须公开 GF 操作诊断。"
+	)
+	if not (value is GFOperationDiagnosticsUtility):
+		return
+	var diagnostics: GFOperationDiagnosticsUtility = value
+	var operations: Array[Dictionary] = diagnostics.get_operations(
+		0,
+		{&"operation_type": operation_type}
+	)
+	assert_false(
+		operations.is_empty(),
+		"账号事务必须留下 %s 诊断终态。" % String(operation_type)
+	)
+	for operation: Dictionary in operations:
+		assert_true(
+			GFVariantData.get_option_int(
+				operation,
+				&"ended_ticks_usec"
+			) > 0,
+			"%s 诊断不得遗留非终态操作。" % String(operation_type)
+		)
+		assert_true(
+			GFVariantData.get_option_string_name(operation, &"state")
+			in [&"completed", &"failed", &"cancelled"],
+			"%s 诊断状态必须属于稳定终态。" % String(operation_type)
+		)
+	var health: Dictionary = diagnostics.get_health_snapshot(0)
+	assert_true(
+		GFVariantData.get_option_int(
+			health,
+			&"active_operation_count"
+		) == 0,
+		"账号事务完成后 GF 操作诊断不得残留 active 记录。"
+	)
 
 
 func _snapshot_accounts(
@@ -1843,6 +2246,15 @@ class _CountingProfileReadStorage extends GFStorageUtility:
 
 class _LegacyProfileReadCountingStorage extends GFStorageUtility:
 	var legacy_profile_async_read_count: int = 0
+	var legacy_profile_sync_read_count: int = 0
+
+
+	## 统计 activation 调用栈是否仍同步读取旧默认 Profile。
+	## @param file_name: GFStorage 相对文件名。
+	func load_data(file_name: String) -> GFStorageReadResult:
+		if file_name == GameSaveGraphUtility.PROFILE_FILE_NAME:
+			legacy_profile_sync_read_count += 1
+		return super.load_data(file_name)
 
 
 	## 统计 GFSaveProfile 是否完整读取过旧默认 Profile。
@@ -1858,6 +2270,10 @@ class _LegacyProfileReadCountingStorage extends GFStorageUtility:
 class _HangingProfileReadStorage extends GFStorageUtility:
 	var hang_profile_reads: bool = false
 	var hanging_read_operations: Array[GFStorageAsyncOperation] = []
+	var _capture_hanging_read_results: bool = false
+	var _hang_start_request_number: int = 1
+	var _profile_read_request_count: int = 0
+	var _read_results_by_request_id: Dictionary = {}
 	var _next_read_request_id: int = 4_000_000
 
 
@@ -1873,6 +2289,9 @@ class _HangingProfileReadStorage extends GFStorageUtility:
 			)
 		):
 			return super.load_data_request_async(file_name)
+		_profile_read_request_count += 1
+		if _profile_read_request_count < _hang_start_request_number:
+			return super.load_data_request_async(file_name)
 		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
 		var request_id: int = _next_read_request_id
 		_next_read_request_id += 1
@@ -1882,7 +2301,22 @@ class _HangingProfileReadStorage extends GFStorageUtility:
 			file_name
 		)
 		hanging_read_operations.append(operation)
+		if _capture_hanging_read_results:
+			_read_results_by_request_id[request_id] = super.load_data(file_name)
 		return operation
+
+
+	## 从指定序号开始挂起 Profile 读取；可保留真实 typed read 作为迟到终态。
+	## @param request_number: 启用后的首个挂起请求序号，从 1 开始。
+	## @param capture_result: 是否在挂起时捕获真实 GFStorageReadResult。
+	func arm_profile_read_hang(
+		request_number: int,
+		capture_result: bool = false
+	) -> void:
+		_profile_read_request_count = 0
+		_hang_start_request_number = maxi(request_number, 1)
+		_capture_hanging_read_results = capture_result
+		hang_profile_reads = true
 
 
 	## 以指定错误码完成全部挂起读取。
@@ -1895,6 +2329,9 @@ class _HangingProfileReadStorage extends GFStorageUtility:
 		for operation: GFStorageAsyncOperation in operations:
 			if operation == null or operation.is_completed():
 				continue
+			var _erased_result: bool = _read_results_by_request_id.erase(
+				operation.get_request_id()
+			)
 			var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
 			var _configured: bool = result.configure_for_framework(
 				operation.get_request_id(),
@@ -1902,6 +2339,44 @@ class _HangingProfileReadStorage extends GFStorageUtility:
 				operation.get_file_name(),
 				false,
 				error_code
+			)
+			var _completed: bool = operation.complete_for_framework(result)
+
+
+	## 以挂起时捕获的真实 typed read 完成全部请求。
+	func complete_all_hanging_reads_with_captured_results() -> void:
+		var operations: Array[GFStorageAsyncOperation] = (
+			hanging_read_operations.duplicate()
+		)
+		hanging_read_operations.clear()
+		for operation: GFStorageAsyncOperation in operations:
+			if operation == null or operation.is_completed():
+				continue
+			var request_id: int = operation.get_request_id()
+			var read_result_value: Variant = _read_results_by_request_id.get(
+				request_id
+			)
+			var read_result: GFStorageReadResult = (
+				read_result_value
+				if read_result_value is GFStorageReadResult
+				else null
+			)
+			var _erased_result: bool = _read_results_by_request_id.erase(
+				request_id
+			)
+			var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
+			var read_error: Error = (
+				read_result.error_code
+				if read_result != null
+				else ERR_CANT_OPEN
+			)
+			var _configured: bool = result.configure_for_framework(
+				request_id,
+				GFStorageAsyncOperation.OPERATION_LOAD,
+				operation.get_file_name(),
+				read_result != null and read_result.ok,
+				read_error,
+				read_result
 			)
 			var _completed: bool = operation.complete_for_framework(result)
 
@@ -2091,3 +2566,71 @@ class _TimeoutCleanupSaveGraph extends GameSaveGraphUtility:
 		return await super.delete_inactive_profile_async(
 			profile_file_name
 		)
+
+
+class _FailingBootstrapSaveGraph extends GameSaveGraphUtility:
+	var bootstrap_attempt_count: int = 0
+
+
+	## @param _requested_profile_file_name: 故障注入忽略的目标 Profile。
+	## @param _scope: 故障注入忽略的 activation scope。
+	## @param _adopt_legacy_if_missing: 故障注入忽略的迁移开关。
+	func begin_bootstrap_profile(
+		_requested_profile_file_name: String,
+		_scope: GFAsyncScope,
+		_adopt_legacy_if_missing: bool = true
+	) -> GFAsyncCompletion:
+		bootstrap_attempt_count += 1
+		var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+		var _failed: bool = completion.fail(
+			"Injected bootstrap failure.",
+			{&"error_code": int(ERR_BUSY)}
+		)
+		return completion
+
+
+class _PendingBootstrapSaveGraph extends GameSaveGraphUtility:
+	var bootstrap_attempt_count: int = 0
+	var bootstrap_completion: GFAsyncCompletion = null
+
+
+	## 返回绑定到 activation scope 的挂起终态，验证调用方不会同步等待。
+	## @param _requested_profile_file_name: 该挂起替身不使用的目标 Profile。
+	## @param scope: 用于协作取消挂起终态的 activation scope。
+	## @param _adopt_legacy_if_missing: 该挂起替身不使用的迁移开关。
+	func begin_bootstrap_profile(
+		_requested_profile_file_name: String,
+		scope: GFAsyncScope,
+		_adopt_legacy_if_missing: bool = true
+	) -> GFAsyncCompletion:
+		bootstrap_attempt_count += 1
+		bootstrap_completion = GFAsyncCompletion.new()
+		var _bound: bool = bootstrap_completion.bind_cancel_token(scope)
+		return bootstrap_completion
+
+
+class _ImmediateBootstrapSaveGraph extends GameSaveGraphUtility:
+	var legacy_cleanup_attempt_count: int = 0
+
+
+	## 返回即时成功，只为形成“cleanup 已排队但 runner 尚未启动”的窗口。
+	## @param requested_profile_file_name: 立即提交为当前目标的 Profile 文件名。
+	## @param _scope: 该即时替身不使用的 activation scope。
+	## @param _adopt_legacy_if_missing: 该即时替身不使用的迁移开关。
+	func begin_bootstrap_profile(
+		requested_profile_file_name: String,
+		_scope: GFAsyncScope,
+		_adopt_legacy_if_missing: bool = true
+	) -> GFAsyncCompletion:
+		_profile_file_name = requested_profile_file_name
+		var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+		var _succeeded: bool = completion.succeed({
+			&"profile_file": requested_profile_file_name,
+		})
+		return completion
+
+
+	## 若 deferred runner 未被 dispose 撤销，会记录一次错误清理尝试。
+	func delete_inactive_legacy_profile_async() -> Error:
+		legacy_cleanup_attempt_count += 1
+		return OK

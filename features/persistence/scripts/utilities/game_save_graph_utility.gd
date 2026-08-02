@@ -47,6 +47,7 @@ const _SYNC_OPERATION_TIMEOUT_MSEC: int = 20_000
 const _SYNC_OPERATION_MAX_POLL_COUNT: int = 20_000
 const _PROFILE_IO_TIMEOUT_MSEC: int = 5_000
 const _PROFILE_DELETE_TIMEOUT_MSEC: int = 5_000
+const _PROFILE_TRANSITION_GATE_KEY: StringName = &"active_profile_transition"
 const _PROFILE_RETRY_DELAYS_MSEC: Array[int] = [
 	100,
 	500,
@@ -84,6 +85,7 @@ var _clock: GameClockUtility = null
 var _log: GFLogUtility = null
 var _platform: GamePlatformUtility = null
 var _signal_utility: GFSignalUtility = null
+var _operation_diagnostics: GFOperationDiagnosticsUtility = null
 ## 开发诊断能力按构建可选安装；只能通过 local lookup 探测，不能声明为生产依赖。
 var _async_tracker: GFAsyncTrackerUtility = null
 var _async_tracking_ids: Dictionary = {}
@@ -92,11 +94,12 @@ var _last_load_result: Dictionary = {}
 var _last_save_result: Dictionary = {}
 var _profile_save_pending: bool = false
 var _profile_save_wait_seconds: float = 0.0
-var _profile_transition_in_progress: bool = false
+var _profile_transition_gate: GFAsyncKeyedGate = GFAsyncKeyedGate.new()
+var _profile_transition_lease: GFAsyncGateLease = null
+var _profile_transition_diagnostic_id: StringName = &""
 var _platform_backgrounded: bool = false
 var _profile_file_name: String = PROFILE_FILE_NAME
 var _profile_delete_tasks: Dictionary = {}
-var _profile_delete_workers: Dictionary = {}
 var _profile_delete_deadlines: Dictionary = {}
 var _profile_delete_timed_out: Dictionary = {}
 var _profile_delete_waiters: Dictionary = {}
@@ -105,6 +108,9 @@ var _profile_cleanup_paths: Dictionary = {}
 var _profile_delete_serial: int = 0
 var _disposing: bool = false
 var _disposed: bool = false
+var _quiescing: bool = false
+var _quiesce_completion: GFAsyncCompletion = null
+var _quiesce_flush_operation: GFSaveProfileOperation = null
 var _profile_transition_epoch: int = 0
 var _profile_transition_outcome_unknown: bool = false
 var _last_profile_transition_evidence: Dictionary = {}
@@ -127,10 +133,15 @@ var _last_section_reconciliation_evidence: Dictionary = {}
 
 # --- GF 生命周期方法 ---
 
-func init() -> void:
+## GF 11 会在调用任一模块 init() 前冻结生命周期计划，因此会影响计划与
+## tick 调度的静态属性必须在实例注册前完成配置。
+func _init() -> void:
 	ignore_pause = true
 	ignore_time_scale = true
 	lifecycle_priority = _LIFECYCLE_PRIORITY
+
+
+func init() -> void:
 	_compile_section_providers()
 
 
@@ -141,6 +152,7 @@ func get_required_utilities() -> Array[Script]:
 		GFSaveProfileUtility,
 		GameClockUtility,
 		GFLogUtility,
+		GFOperationDiagnosticsUtility,
 		GamePlatformUtility,
 		GFSignalUtility,
 	]
@@ -149,11 +161,15 @@ func get_required_utilities() -> Array[Script]:
 func ready() -> void:
 	_disposing = false
 	_disposed = false
+	_quiescing = false
+	_quiesce_completion = null
+	_quiesce_flush_operation = null
 	_storage = _resolve_storage_utility()
 	_background_work = _resolve_background_work_utility()
 	_profile_utility = _resolve_profile_utility()
 	_clock = _resolve_clock_utility()
 	_log = _resolve_log_utility()
+	_operation_diagnostics = _resolve_operation_diagnostics_utility()
 	_platform = _resolve_platform_utility()
 	_signal_utility = _resolve_signal_utility()
 	_async_tracker = _resolve_optional_async_tracker()
@@ -207,30 +223,68 @@ func ready() -> void:
 func tick(delta: float = 0.0) -> void:
 	_tick_profile_delete_timeouts()
 	_tick_section_reconciliation()
-	if not _profile_save_pending or not _loaded:
-		return
-	# 账号切换事务会在入口冲刷旧 Profile；事务期间新产生的更新保持
-	# pending，等新 Profile 确认激活后再开始 debounce，不能在 tick 中
-	# 篡改 transition 锁或把更新写进尚未提交的目标 Profile。
-	if _profile_transition_in_progress:
-		return
-	_profile_save_wait_seconds += maxf(delta, 0.0)
-	if _profile_save_wait_seconds < _ASYNC_SAVE_DEBOUNCE_SECONDS:
-		return
-	_profile_save_pending = false
-	_profile_save_wait_seconds = 0.0
-	var _operation: GFSaveProfileOperation = request_save_profile({
-		&"reason": "debounced_feature_update",
-	})
+	if _profile_save_pending and _loaded and not _quiescing:
+		# 账号切换事务会在入口冲刷旧 Profile；事务期间新产生的更新保持
+		# pending，等新 Profile 确认激活后再开始 debounce，不能在 tick 中
+		# 篡改 transition 锁或把更新写进尚未提交的目标 Profile。
+		if not _is_profile_transition_in_progress():
+			_profile_save_wait_seconds += maxf(delta, 0.0)
+			if _profile_save_wait_seconds >= _ASYNC_SAVE_DEBOUNCE_SECONDS:
+				_profile_save_pending = false
+				_profile_save_wait_seconds = 0.0
+				var _operation: GFSaveProfileOperation = (
+					_request_save_active_profile({
+						&"reason": "debounced_feature_update",
+					})
+				)
+	_try_advance_quiesce()
+
+
+## 停止接纳新的 Profile/section 变更，等待已接纳事务后冲刷最新 generation。
+## @param scope: 当前架构静默阶段的协作取消作用域。
+## @return 全部已接纳工作与最终 Profile flush 收敛时的一次性完成源。
+func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
+	if _quiesce_completion != null:
+		return _quiesce_completion
+	_quiescing = true
+	_quiesce_completion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_scope: bool = _quiesce_completion.fail(
+			"Save graph quiesce scope is unavailable."
+		)
+		return _quiesce_completion
+	var _bound: bool = _quiesce_completion.bind_cancel_token(scope)
+	_try_advance_quiesce()
+	return _quiesce_completion
 
 
 func dispose() -> void:
 	_disposing = true
+	_quiescing = true
 	_profile_transition_epoch += 1
-	_profile_transition_in_progress = false
-	var flush_error: Error = flush_pending_save()
-	if flush_error != OK:
-		_log_error("退出前冲刷玩家 Profile 失败，错误码：%d。" % flush_error)
+	_finish_profile_transition(ERR_UNAVAILABLE)
+	var _cleared_transition_entries: int = _profile_transition_gate.clear(
+		&"save_graph_disposed",
+		{&"component": &"game_save_graph"}
+	)
+	_profile_transition_lease = null
+	var quiesce_was_attempted: bool = _quiesce_completion != null
+	var quiesce_succeeded: bool = (
+		_quiesce_completion != null
+		and _quiesce_completion.is_successful()
+	)
+	# graceful shutdown 已经给 quiesce 唯一的持久化/释放窗口；失败或取消后
+	# 依赖模块也已关闭运行时准入，dispose 不能再制造一个注定失败的重复请求。
+	if not quiesce_was_attempted and _loaded and _is_configured():
+		var flush_error: Error = _result_to_error(
+			_wait_for_operation(
+				_request_flush_active_profile({&"reason": "dispose_fallback"})
+			)
+		)
+		if flush_error != OK:
+			_log_error(
+				"退出前冲刷玩家 Profile 失败，错误码：%d。" % flush_error
+			)
 	_settle_pending_section_operation_for_dispose()
 	_disconnect_section_operation_callbacks()
 	if is_instance_valid(_background_work):
@@ -248,22 +302,18 @@ func dispose() -> void:
 	_clear_async_tracking()
 	_disposed = true
 	_profile_delete_tasks.clear()
-	_profile_delete_workers.clear()
 	_profile_delete_deadlines.clear()
 	_profile_delete_timed_out.clear()
 	_profile_delete_waiters.clear()
 	_profile_delete_file_names.clear()
 	_profile_cleanup_paths.clear()
-	if _profile_utility != null:
-		for profile_id_value: Variant in _registered_profiles.keys():
-			var profile_id: StringName = GFVariantData.to_string_name(
-				profile_id_value
+	if not quiesce_succeeded and not quiesce_was_attempted:
+		var unregister_error: Error = _unregister_all_profiles()
+		if unregister_error != OK:
+			_log_error(
+				"架构强制销毁时仍有 Profile 被框架在途工作持有，错误码：%d。"
+				% unregister_error
 			)
-			if not _profile_utility.unregister_profile(profile_id):
-				_log_error(
-					"架构销毁时 Profile 仍有框架在途所有权：%s。"
-					% String(profile_id)
-				)
 	_profile_utility = null
 	_active_profile = null
 	_active_profile_id = &""
@@ -294,9 +344,16 @@ func dispose() -> void:
 	_section_reconciliation_operation = null
 	_section_reconciliation_callback = Callable()
 	_last_section_reconciliation_evidence.clear()
+	if _quiesce_completion != null and _quiesce_completion.is_pending():
+		var _cancelled_quiesce: bool = _quiesce_completion.cancel(
+			&"save_graph_disposed"
+		)
+	_quiesce_completion = null
+	_quiesce_flush_operation = null
 	_storage = null
 	_background_work = null
 	_signal_utility = null
+	_operation_diagnostics = null
 	_async_tracker = null
 	_clock = null
 	_log = null
@@ -431,7 +488,8 @@ func request_save_profile(
 	context: Dictionary = {}
 ) -> GFSaveProfileOperation:
 	if (
-		_profile_transition_in_progress
+		_quiescing
+		or _is_profile_transition_in_progress()
 		or _profile_utility == null
 		or _active_profile_id == &""
 	):
@@ -449,7 +507,8 @@ func request_load_profile(
 	metadata: Dictionary = {}
 ) -> GFSaveProfileOperation:
 	if (
-		_profile_transition_in_progress
+		_quiescing
+		or _is_profile_transition_in_progress()
 		or _profile_utility == null
 		or _active_profile_id == &""
 	):
@@ -471,7 +530,8 @@ func request_flush_profile(
 	metadata: Dictionary = {}
 ) -> GFSaveProfileOperation:
 	if (
-		_profile_transition_in_progress
+		_quiescing
+		or _is_profile_transition_in_progress()
 		or _profile_utility == null
 		or _active_profile_id == &""
 	):
@@ -499,10 +559,10 @@ func bootstrap_profile(
 	profile_file_name: String,
 	adopt_legacy_if_missing: bool = true
 ) -> Error:
-	if _disposed:
+	if _disposed or _disposing or _quiescing:
 		return ERR_UNAVAILABLE
 	if (
-		_profile_transition_in_progress
+		_is_profile_transition_in_progress()
 		or _has_pending_section_transaction()
 		or is_section_reconciliation_pending()
 	):
@@ -547,6 +607,60 @@ func bootstrap_profile(
 	)
 
 
+## 异步引导账号 Profile，并把唯一终态绑定到 architecture activation scope。
+##
+## 本入口只做常量时间的准入与参数校验；实际 GFStorage/GFSaveProfile IO 在
+## deferred runner 中推进，禁止在 begin_activation() 调用栈内轮询主线程。
+## scope 取消后不再提交新的恢复/保存步骤，已经交给 GF 的单次 IO 仍由其 owner
+## 收敛；迟到结果不得覆盖 cancelled completion。
+## @param profile_file_name: 当前账号对应的 Profile 相对路径。
+## @param scope: 当前架构 activation 的协作取消作用域。
+## @param adopt_legacy_if_missing: 目标缺失时是否迁移旧默认 Profile。
+func begin_bootstrap_profile(
+	profile_file_name: String,
+	scope: GFAsyncScope,
+	adopt_legacy_if_missing: bool = true
+) -> GFAsyncCompletion:
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_scope: bool = completion.fail(
+			"Save graph bootstrap scope is unavailable.",
+			{&"error_code": int(ERR_INVALID_PARAMETER)}
+		)
+		return completion
+	var _bound: bool = completion.bind_cancel_token(scope)
+	if not completion.is_pending():
+		return completion
+	var admission_error: Error = _validate_bootstrap_profile_request(
+		profile_file_name
+	)
+	if admission_error != OK:
+		var _failed_admission: bool = completion.fail(
+			"Save graph bootstrap request was rejected.",
+			{&"error_code": int(admission_error)}
+		)
+		return completion
+	if not _begin_profile_transition(&"bootstrap"):
+		var _failed_gate: bool = completion.fail(
+			"Save graph bootstrap transition is busy.",
+			{&"error_code": int(ERR_BUSY)}
+		)
+		return completion
+	_profile_transition_epoch += 1
+	_profile_transition_outcome_unknown = false
+	_last_profile_transition_evidence.clear()
+	var transition_epoch: int = _profile_transition_epoch
+	call_deferred(
+		&"_run_bootstrap_profile_async",
+		profile_file_name,
+		adopt_legacy_if_missing,
+		scope,
+		transition_epoch,
+		completion
+	)
+	return completion
+
+
 ## 原子切换到另一个账号的独立 Profile。
 ##
 ## 这是架构 init/ready 启动阶段的真实终态边界：方法等待 GF 类型化
@@ -557,10 +671,10 @@ func activate_profile(
 	profile_file_name: String,
 	adopt_current_if_missing: bool = false
 ) -> Error:
-	if _disposed:
+	if _disposed or _disposing or _quiescing:
 		return ERR_UNAVAILABLE
 	if (
-		_profile_transition_in_progress
+		_is_profile_transition_in_progress()
 		or _has_pending_section_transaction()
 		or is_section_reconciliation_pending()
 	):
@@ -643,10 +757,10 @@ func activate_profile_async(
 	profile_file_name: String,
 	adopt_current_if_missing: bool = false
 ) -> Error:
-	if _disposed:
+	if _disposed or _disposing or _quiescing:
 		return ERR_UNAVAILABLE
 	if (
-		_profile_transition_in_progress
+		_is_profile_transition_in_progress()
 		or _has_pending_section_transaction()
 		or is_section_reconciliation_pending()
 	):
@@ -659,7 +773,8 @@ func activate_profile_async(
 		return OK
 	if not _is_configured() or not _loaded:
 		return ERR_UNCONFIGURED
-	_profile_transition_in_progress = true
+	if not _begin_profile_transition(&"activate"):
+		return ERR_BUSY
 	_profile_transition_epoch += 1
 	_profile_transition_outcome_unknown = false
 	_last_profile_transition_evidence.clear()
@@ -671,7 +786,7 @@ func activate_profile_async(
 	)
 	if not _owns_profile_transition(transition_epoch):
 		return ERR_UNAVAILABLE
-	_profile_transition_in_progress = false
+	_finish_profile_transition(error)
 	return error
 
 
@@ -683,6 +798,8 @@ func activate_profile_async(
 func delete_inactive_profile_async(
 	profile_file_name: String
 ) -> Error:
+	if _disposed or _disposing or _quiescing:
+		return ERR_UNAVAILABLE
 	if not _is_account_profile_file_name_valid(profile_file_name):
 		return ERR_INVALID_PARAMETER
 	return await _delete_inactive_profile_file_async(profile_file_name)
@@ -690,6 +807,8 @@ func delete_inactive_profile_async(
 
 ## 首个账号确认采用独立 Profile 后，异步删除已不再活跃的 legacy 文件。
 func delete_inactive_legacy_profile_async() -> Error:
+	if _disposed or _disposing or _quiescing:
+		return ERR_UNAVAILABLE
 	if _profile_file_name == PROFILE_FILE_NAME:
 		return ERR_INVALID_PARAMETER
 	return await _delete_inactive_profile_file_async(PROFILE_FILE_NAME)
@@ -740,6 +859,24 @@ func request_replace_section_data(
 	)
 
 
+## 异步原子接管并替换一个 section，立即返回项目类型化句柄。
+##
+## 本方法返回后，调用方不得再读取、修改或提交 data 及其任何嵌套别名；
+## 即使请求因 busy 或校验失败而终止，所有权也不会退还。
+## @param section_id: 要替换的 Feature section 标识。
+## @param data: 将被接管的当前 schema 完整候选业务数据。
+## @param metadata: 仅用于诊断的 GF Profile 保存元数据。
+func request_replace_section_data_taking_ownership(
+	section_id: StringName,
+	data: Dictionary,
+	metadata: Dictionary = {}
+) -> GameSaveSectionOperation:
+	return request_replace_sections_data_taking_ownership(
+		{String(section_id): data},
+		metadata
+	)
+
+
 ## 异步原子替换多个 section；同一时刻只允许一个 immediate transaction。
 ##
 ## 已知保存失败会反向恢复内存快照并等待补偿保存；outcome_unknown 不会
@@ -751,83 +888,36 @@ func request_replace_sections_data(
 	sections: Dictionary,
 	metadata: Dictionary = {}
 ) -> GameSaveSectionOperation:
-	_section_operation_serial += 1
-	var section_ids: PackedStringArray = _collect_requested_section_ids(
-		sections
-	)
-	if section_ids.is_empty():
-		section_ids = PackedStringArray(["invalid"])
-	var operation: GameSaveSectionOperation = GameSaveSectionOperation.new()
-	var _configured: bool = operation.configure_for_utility(
-		_section_operation_serial,
-		_active_profile_id,
-		section_ids
-	)
-	if _disposing or _disposed:
-		_complete_detached_section_operation(
-			operation,
-			GameSaveSectionResult.STATUS_DISPOSED,
-			ERR_UNAVAILABLE
-		)
-		return operation
-	if sections.is_empty() or section_ids == PackedStringArray(["invalid"]):
-		_complete_detached_section_operation(
-			operation,
-			GameSaveSectionResult.STATUS_INVALID_REQUEST,
-			ERR_INVALID_PARAMETER
-		)
-		return operation
-	if (
-		_profile_transition_in_progress
-		or _has_pending_section_transaction()
-		or is_section_reconciliation_pending()
-	):
-		_complete_detached_section_operation(
-			operation,
-			GameSaveSectionResult.STATUS_BUSY,
-			ERR_BUSY
-		)
-		return operation
+	return _request_replace_sections_data(sections, metadata, false)
+
+
+## 异步原子接管并替换多个 section。
+##
+## 本方法返回后，调用方不得再使用 sections 或任一嵌套别名；仅当上游已构造
+## 唯一所有权候选时使用，以避免保存前重复递归复制整个 section 图。
+## @param sections: 将被接管的 section 标识到完整候选业务字典映射。
+## @param metadata: 仅用于诊断的 GF Profile 保存元数据。
+func request_replace_sections_data_taking_ownership(
+	sections: Dictionary,
+	metadata: Dictionary = {}
+) -> GameSaveSectionOperation:
+	return _request_replace_sections_data(sections, metadata, true)
+
+
+## 为根级编辑构造只读 section 候选。
+##
+## 调用方只能替换或重排候选根，不得修改任何嵌套别名；编辑完成后必须交给
+## request_replace_section_data_taking_ownership() 并立即放弃全部别名。
+## @param section_id: 要编辑的已注册 Feature section。
+func make_section_immutable_edit_candidate(
+	section_id: StringName
+) -> Dictionary:
 	if not _is_configured() or not _loaded:
-		_complete_detached_section_operation(
-			operation,
-			GameSaveSectionResult.STATUS_INVALID_REQUEST,
-			ERR_UNCONFIGURED
-		)
-		return operation
-
-	_pending_section_operation = operation
-	_track_section_operation(operation)
-	_pending_section_profile_id = _active_profile_id
-	_pending_section_ids = {}
-	for section_id: String in section_ids:
-		_pending_section_ids[section_id] = true
-	_pending_section_snapshots = {}
-	_pending_section_applied_keys = []
-	var apply_error: Error = _apply_sections_to_memory(
-		sections.duplicate(true),
-		_pending_section_snapshots,
-		_pending_section_applied_keys
-	)
-	if apply_error != OK:
-		_complete_pending_section_operation(
-			GameSaveSectionResult.STATUS_APPLY_FAILED,
-			apply_error,
-			false,
-			false
-		)
-		return operation
-
-	var save_metadata: Dictionary = metadata.duplicate(true)
-	save_metadata[&"reason"] = "immediate_section_replace"
-	save_metadata[&"section_transaction_id"] = (
-		operation.get_transaction_id()
-	)
-	save_metadata[&"section_ids"] = section_ids.duplicate()
-	_start_pending_section_save(save_metadata)
-	return operation
-
-
+		return {}
+	var provider: GameSaveSectionData = _get_section_provider(section_id)
+	if provider == null:
+		return {}
+	return provider.make_immutable_edit_candidate()
 ## 创建一个立即拒绝且非 null 的 section 类型化句柄。
 ##
 ## Feature System 使用此入口报告候选构造失败，避免 UI 从 null 或异常文本
@@ -898,8 +988,10 @@ func queue_section_data(section_id: StringName, data: Dictionary) -> Error:
 ## 合并多个高频 section 更新。
 ## @param sections: section 标识到完整业务数据的映射。
 func queue_sections_data(sections: Dictionary) -> Error:
+	if _disposed or _disposing or _quiescing:
+		return ERR_UNAVAILABLE
 	if (
-		_profile_transition_in_progress
+		_is_profile_transition_in_progress()
 		or is_section_reconciliation_pending()
 		or _has_pending_section_conflict(sections)
 	):
@@ -921,6 +1013,8 @@ func queue_sections_data(sections: Dictionary) -> Error:
 
 ## 等待实际 GF flush 终态，绝不把未完成 operation 报告为成功。
 func flush_pending_save() -> Error:
+	if _disposed or _disposing or _quiescing:
+		return ERR_UNAVAILABLE
 	if not _is_configured():
 		return OK if not _loaded else ERR_UNCONFIGURED
 	var operation: GFSaveProfileOperation = request_flush_profile({
@@ -958,8 +1052,10 @@ func preview_profile_payload() -> Dictionary:
 
 ## 保存完整玩家 Profile，并等待类型化终态。
 func save_profile() -> Error:
+	if _disposed or _disposing or _quiescing:
+		return ERR_UNAVAILABLE
 	if (
-		_profile_transition_in_progress
+		_is_profile_transition_in_progress()
 		or _has_pending_section_transaction()
 		or is_section_reconciliation_pending()
 	):
@@ -974,8 +1070,10 @@ func save_profile() -> Error:
 
 ## 严格加载当前玩家 Profile。
 func load_profile() -> Error:
+	if _disposed or _disposing or _quiescing:
+		return ERR_UNAVAILABLE
 	if (
-		_profile_transition_in_progress
+		_is_profile_transition_in_progress()
 		or _has_pending_section_transaction()
 		or is_section_reconciliation_pending()
 	):
@@ -1046,6 +1144,105 @@ func get_debug_snapshot() -> Dictionary:
 
 # --- 私有/辅助方法 ---
 
+func _request_replace_sections_data(
+	sections: Dictionary,
+	metadata: Dictionary,
+	take_ownership: bool
+) -> GameSaveSectionOperation:
+	_section_operation_serial += 1
+	var section_ids: PackedStringArray = _collect_requested_section_ids(
+		sections
+	)
+	if section_ids.is_empty():
+		section_ids = PackedStringArray(["invalid"])
+	var operation: GameSaveSectionOperation = GameSaveSectionOperation.new()
+	var _configured: bool = operation.configure_for_utility(
+		_section_operation_serial,
+		_active_profile_id,
+		section_ids
+	)
+	if _disposing or _disposed or _quiescing:
+		_complete_detached_section_operation(
+			operation,
+			GameSaveSectionResult.STATUS_DISPOSED,
+			ERR_UNAVAILABLE
+		)
+		return operation
+	if sections.is_empty() or section_ids == PackedStringArray(["invalid"]):
+		_complete_detached_section_operation(
+			operation,
+			GameSaveSectionResult.STATUS_INVALID_REQUEST,
+			ERR_INVALID_PARAMETER
+		)
+		return operation
+	if (
+		_is_profile_transition_in_progress()
+		or _has_pending_section_transaction()
+		or is_section_reconciliation_pending()
+	):
+		_complete_detached_section_operation(
+			operation,
+			GameSaveSectionResult.STATUS_BUSY,
+			ERR_BUSY
+		)
+		return operation
+	if not _is_configured() or not _loaded:
+		_complete_detached_section_operation(
+			operation,
+			GameSaveSectionResult.STATUS_INVALID_REQUEST,
+			ERR_UNCONFIGURED
+		)
+		return operation
+
+	_pending_section_operation = operation
+	_track_section_operation(operation)
+	_pending_section_profile_id = _active_profile_id
+	_pending_section_ids = {}
+	for section_id: String in section_ids:
+		_pending_section_ids[section_id] = true
+	_pending_section_snapshots = {}
+	_pending_section_applied_keys = []
+	var owned_sections: Dictionary = sections
+	if not take_ownership:
+		var duplicated_sections_value: Variant = (
+			GFVariantData.duplicate_variant(sections, true, false)
+		)
+		if not duplicated_sections_value is Dictionary:
+			_complete_pending_section_operation(
+				GameSaveSectionResult.STATUS_APPLY_FAILED,
+				ERR_INVALID_DATA,
+				false,
+				false
+			)
+			return operation
+		owned_sections = GFVariantData.as_dictionary(
+			duplicated_sections_value
+		)
+	var apply_error: Error = _apply_sections_to_memory(
+		owned_sections,
+		_pending_section_snapshots,
+		_pending_section_applied_keys,
+		true
+	)
+	if apply_error != OK:
+		_complete_pending_section_operation(
+			GameSaveSectionResult.STATUS_APPLY_FAILED,
+			apply_error,
+			false,
+			false
+		)
+		return operation
+
+	var save_metadata: Dictionary = metadata.duplicate(true)
+	save_metadata[&"reason"] = "immediate_section_replace"
+	save_metadata[&"section_transaction_id"] = (
+		operation.get_transaction_id()
+	)
+	save_metadata[&"section_ids"] = section_ids.duplicate()
+	_start_pending_section_save(save_metadata)
+	return operation
+
+
 func _delete_inactive_profile_file_async(
 	profile_file_name: String
 ) -> Error:
@@ -1101,7 +1298,6 @@ func _delete_inactive_profile_file_async(
 	if task == null:
 		return ERR_CANT_CREATE
 	_profile_delete_tasks[task.work_id] = task
-	_profile_delete_workers[task.work_id] = worker
 	_profile_delete_waiters[task.work_id] = true
 	_profile_delete_file_names[task.work_id] = canonical_name
 	_profile_cleanup_paths[canonical_name] = task.work_id
@@ -1189,6 +1385,24 @@ func _register_active_profile(profile_file_name: String) -> Error:
 	_active_profile = profile
 	_active_profile_id = profile.profile_id
 	_profile_file_name = profile_file_name
+	return OK
+
+
+func _validate_bootstrap_profile_request(profile_file_name: String) -> Error:
+	if _disposed or _disposing or _quiescing:
+		return ERR_UNAVAILABLE
+	if (
+		_is_profile_transition_in_progress()
+		or _has_pending_section_transaction()
+		or is_section_reconciliation_pending()
+	):
+		return ERR_BUSY
+	if not _is_account_profile_file_name_valid(profile_file_name):
+		return ERR_INVALID_PARAMETER
+	if _profile_cleanup_paths.has(profile_file_name):
+		return ERR_BUSY
+	if not _is_configured():
+		return ERR_UNCONFIGURED
 	return OK
 
 
@@ -1394,12 +1608,20 @@ func _adopt_current_profile(profile_file_name: String) -> Error:
 func _activate_profile_async_impl(
 	profile_file_name: String,
 	adopt_current_if_missing: bool,
-	transition_epoch: int
+	transition_epoch: int,
+	bootstrap_scope: GFAsyncScope = null,
+	bootstrap_completion: GFAsyncCompletion = null
 ) -> Error:
 	var flush_result: GFSaveProfileResult = await _await_profile_operation_async(
 		_request_flush_active_profile({&"reason": "account_switch"})
 	)
 	if not _owns_profile_transition(transition_epoch):
+		return ERR_UNAVAILABLE
+	if bootstrap_scope != null and not _bootstrap_transition_can_continue(
+		bootstrap_scope,
+		transition_epoch,
+		bootstrap_completion
+	):
 		return ERR_UNAVAILABLE
 	_record_profile_transition_result(flush_result)
 	var flush_error: Error = _result_to_error(flush_result)
@@ -1411,6 +1633,12 @@ func _activate_profile_async_impl(
 		transition_epoch
 	)
 	if not _owns_profile_transition(transition_epoch):
+		return ERR_UNAVAILABLE
+	if bootstrap_scope != null and not _bootstrap_transition_can_continue(
+		bootstrap_scope,
+		transition_epoch,
+		bootstrap_completion
+	):
 		return ERR_UNAVAILABLE
 	@warning_ignore("int_as_enum_without_cast")
 	var recovery_error: Error = GFVariantData.get_option_int(
@@ -1435,6 +1663,12 @@ func _activate_profile_async_impl(
 			transition_epoch
 		)
 		if not _owns_profile_transition(transition_epoch):
+			return ERR_UNAVAILABLE
+		if bootstrap_scope != null and not _bootstrap_transition_can_continue(
+			bootstrap_scope,
+			transition_epoch,
+			bootstrap_completion
+		):
 			return ERR_UNAVAILABLE
 		return adopt_error
 
@@ -1467,6 +1701,12 @@ func _activate_profile_async_impl(
 	)
 	if not _owns_profile_transition(transition_epoch):
 		return ERR_UNAVAILABLE
+	if bootstrap_scope != null and not _bootstrap_transition_can_continue(
+		bootstrap_scope,
+		transition_epoch,
+		bootstrap_completion
+	):
+		return ERR_UNAVAILABLE
 	if load_error == OK and (
 		target_missing
 		or GFVariantData.get_option_bool(recovery, &"reset", false)
@@ -1476,6 +1716,12 @@ func _activate_profile_async_impl(
 			transition_epoch
 		)
 		if not _owns_profile_transition(transition_epoch):
+			return ERR_UNAVAILABLE
+		if bootstrap_scope != null and not _bootstrap_transition_can_continue(
+			bootstrap_scope,
+			transition_epoch,
+			bootstrap_completion
+		):
 			return ERR_UNAVAILABLE
 	if load_error == OK:
 		return OK
@@ -1490,6 +1736,561 @@ func _activate_profile_async_impl(
 		previous_save_result
 	)
 	return load_error if restore_error == OK else restore_error
+
+
+func _run_bootstrap_profile_async(
+	profile_file_name: String,
+	adopt_legacy_if_missing: bool,
+	scope: GFAsyncScope,
+	transition_epoch: int,
+	completion: GFAsyncCompletion
+) -> void:
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		if _owns_profile_transition(transition_epoch):
+			_finish_profile_transition(ERR_UNAVAILABLE)
+		if completion != null and completion.is_pending():
+			var _cancelled_interrupted: bool = completion.cancel(
+				&"bootstrap_interrupted"
+			)
+		return
+	var bootstrap_error: Error = await _bootstrap_profile_async_impl(
+		profile_file_name,
+		adopt_legacy_if_missing,
+		scope,
+		transition_epoch,
+		completion
+	)
+	var transition_still_owned: bool = _owns_profile_transition(
+		transition_epoch
+	)
+	if transition_still_owned:
+		_finish_profile_transition(bootstrap_error)
+	elif completion != null and completion.is_pending():
+		var _cancelled_lost_owner: bool = completion.cancel(
+			&"bootstrap_interrupted"
+		)
+		return
+	if completion == null or not completion.is_pending():
+		return
+	if bootstrap_error == OK:
+		var _succeeded: bool = completion.succeed({
+			&"profile_file": _profile_file_name,
+			&"profile_id": _active_profile_id,
+		})
+		return
+	var _failed: bool = completion.fail(
+		"Account Profile bootstrap failed with error %d." % bootstrap_error,
+		{
+			&"error_code": int(bootstrap_error),
+			&"profile_file": profile_file_name,
+			&"transition": _last_profile_transition_evidence.duplicate(true),
+		}
+	)
+
+
+func _bootstrap_profile_async_impl(
+	profile_file_name: String,
+	adopt_legacy_if_missing: bool,
+	scope: GFAsyncScope,
+	transition_epoch: int,
+	completion: GFAsyncCompletion
+) -> Error:
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		return ERR_UNAVAILABLE
+	if _loaded:
+		if profile_file_name == _profile_file_name:
+			return OK
+		var loaded_state: Dictionary = _capture_bootstrap_runtime_state()
+		var loaded_transition_error: Error = (
+			await _activate_profile_async_impl(
+				profile_file_name,
+				adopt_legacy_if_missing,
+				transition_epoch,
+				scope,
+				completion
+			)
+		)
+		if not _bootstrap_transition_can_continue(
+			scope,
+			transition_epoch,
+			completion
+		):
+			var loaded_restore_error: Error = (
+				_restore_bootstrap_runtime_state(loaded_state)
+			)
+			return (
+				ERR_UNAVAILABLE
+				if loaded_restore_error == OK
+				else loaded_restore_error
+			)
+		return loaded_transition_error
+	if profile_file_name == _profile_file_name:
+		var current_state: Dictionary = _capture_bootstrap_runtime_state()
+		var current_load_error: Error = (
+			await _load_bootstrap_current_profile_async(
+			{},
+			scope,
+			transition_epoch,
+			completion
+			)
+		)
+		if not _bootstrap_transition_can_continue(
+			scope,
+			transition_epoch,
+			completion
+		):
+			var current_restore_error: Error = (
+				_restore_bootstrap_runtime_state(current_state)
+			)
+			return (
+				ERR_UNAVAILABLE
+				if current_restore_error == OK
+				else current_restore_error
+			)
+		return current_load_error
+
+	var recovery: Dictionary = await _prepare_profile_file_async(
+		profile_file_name,
+		transition_epoch
+	)
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		return ERR_UNAVAILABLE
+	@warning_ignore("int_as_enum_without_cast")
+	var recovery_error: Error = GFVariantData.get_option_int(
+		recovery,
+		&"error_code",
+		OK
+	)
+	if recovery_error != OK:
+		_last_load_result = recovery.duplicate(true)
+		return recovery_error
+	var target_missing: bool = GFVariantData.get_option_bool(
+		recovery,
+		&"missing",
+		false
+	)
+	if target_missing and adopt_legacy_if_missing:
+		var legacy_recovery: Dictionary = (
+			await _prepare_bootstrap_legacy_profile_async(
+				scope,
+				transition_epoch,
+				completion
+			)
+		)
+		if not _bootstrap_transition_can_continue(
+			scope,
+			transition_epoch,
+			completion
+		):
+			return ERR_UNAVAILABLE
+		@warning_ignore("int_as_enum_without_cast")
+		var legacy_recovery_error: Error = GFVariantData.get_option_int(
+			legacy_recovery,
+			&"error_code",
+			OK
+		)
+		if legacy_recovery_error != OK:
+			_last_load_result = legacy_recovery.duplicate(true)
+			return legacy_recovery_error
+		if GFVariantData.get_option_bool(
+			legacy_recovery,
+			&"missing",
+			false
+		) or GFVariantData.get_option_bool(
+			legacy_recovery,
+			&"reset",
+			false
+		):
+			var legacy_reset_state: Dictionary = (
+				_capture_bootstrap_runtime_state()
+			)
+			var initialize_error: Error = (
+				await _bootstrap_unloaded_profile_async(
+					profile_file_name,
+					recovery,
+					scope,
+					transition_epoch,
+					completion
+				)
+			)
+			if initialize_error != OK:
+				return initialize_error
+			if not _bootstrap_transition_can_continue(
+				scope,
+				transition_epoch,
+				completion
+			):
+				return ERR_UNAVAILABLE
+			if GFVariantData.get_option_bool(
+				legacy_recovery,
+				&"reset",
+				false
+			):
+				var legacy_reset_error: Error = (
+					await delete_inactive_legacy_profile_async()
+				)
+				if not _bootstrap_transition_can_continue(
+					scope,
+					transition_epoch,
+					completion
+				):
+					var reset_restore_error: Error = (
+						_restore_bootstrap_runtime_state(
+							legacy_reset_state
+						)
+					)
+					return (
+						ERR_UNAVAILABLE
+						if reset_restore_error == OK
+						else reset_restore_error
+					)
+				if legacy_reset_error != OK:
+					return legacy_reset_error
+				_last_load_result.merge(legacy_recovery, true)
+			return OK
+		# 只有预检确认存在且属于当前 schema 后，才让 GFSaveProfileUtility
+		# 第二次读取并事务应用 legacy 文档；新安装不会完整加载不存在的旧档。
+		var legacy_state: Dictionary = _capture_bootstrap_runtime_state()
+		var legacy_error: Error = await _load_bootstrap_current_profile_async(
+			legacy_recovery,
+			scope,
+			transition_epoch,
+			completion
+		)
+		if not _bootstrap_transition_can_continue(
+			scope,
+			transition_epoch,
+			completion
+		):
+			var legacy_restore_error: Error = (
+				_restore_bootstrap_runtime_state(legacy_state)
+			)
+			return (
+				ERR_UNAVAILABLE
+				if legacy_restore_error == OK
+				else legacy_restore_error
+			)
+		if legacy_error != OK:
+			return legacy_error
+		if not _bootstrap_transition_can_continue(
+			scope,
+			transition_epoch,
+			completion
+		):
+			return ERR_UNAVAILABLE
+		var adopt_error: Error = await _adopt_current_profile_async(
+			profile_file_name,
+			transition_epoch
+		)
+		if not _bootstrap_transition_can_continue(
+			scope,
+			transition_epoch,
+			completion
+		):
+			var adopt_restore_error: Error = (
+				_restore_bootstrap_runtime_state(legacy_state)
+			)
+			return (
+				ERR_UNAVAILABLE
+				if adopt_restore_error == OK
+				else adopt_restore_error
+			)
+		return adopt_error
+	return await _bootstrap_unloaded_profile_async(
+		profile_file_name,
+		recovery,
+		scope,
+		transition_epoch,
+		completion
+	)
+
+
+func _prepare_bootstrap_legacy_profile_async(
+	scope: GFAsyncScope,
+	transition_epoch: int,
+	completion: GFAsyncCompletion
+) -> Dictionary:
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		return _make_transition_cancelled_recovery()
+	var read_result_wrapper: GFStorageAsyncResult = (
+		await _await_storage_operation_async(
+			_storage.load_data_request_async(PROFILE_FILE_NAME)
+		)
+	)
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		return _make_transition_cancelled_recovery()
+	if (
+		read_result_wrapper == null
+		or read_result_wrapper.get_read_result() == null
+	):
+		return {
+			&"ok": false,
+			&"error_code": int(
+				read_result_wrapper.get_error_code()
+				if read_result_wrapper != null
+				else ERR_CANT_OPEN
+			),
+			&"error": "Legacy Profile preflight returned no typed result.",
+		}
+	var read_result: GFStorageReadResult = (
+		read_result_wrapper.get_read_result()
+	)
+	if not read_result.ok:
+		if read_result.error_code == ERR_FILE_NOT_FOUND:
+			return {&"ok": true, &"error_code": int(OK), &"missing": true}
+		if not ProjectStorageRecoveryPolicy.should_reset_failed_read(
+			read_result
+		):
+			return {
+				&"ok": false,
+				&"error_code": int(read_result.error_code),
+				&"error": read_result.error,
+				&"storage": read_result.to_dict(),
+			}
+		return {
+			&"ok": true,
+			&"error_code": int(OK),
+			&"reset": true,
+			&"recovered_unreadable_profile": true,
+			&"storage": read_result.to_dict(),
+		}
+
+	var obsolete_version: int = _get_obsolete_profile_schema_version(
+		read_result.payload
+	)
+	if obsolete_version <= 0:
+		return {&"ok": true, &"error_code": int(OK)}
+	var recovery_file: String = "%s/%s.schema-%d.save" % [
+		_RECOVERY_DIRECTORY,
+		PROFILE_FILE_NAME.get_basename(),
+		obsolete_version,
+	]
+	var backup_result: GFStorageAsyncResult = (
+		await _await_storage_operation_async(
+			_storage.save_data_request_async(
+				recovery_file,
+				read_result.payload
+			)
+		)
+	)
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		return _make_transition_cancelled_recovery()
+	var backup_error: Error = (
+		backup_result.get_error_code()
+		if backup_result != null
+		else ERR_CANT_CREATE
+	)
+	if backup_error != OK:
+		return {
+			&"ok": false,
+			&"error_code": int(backup_error),
+			&"error": "Obsolete legacy Profile could not be backed up.",
+			&"obsolete_schema_version": obsolete_version,
+			&"recovery_file": recovery_file,
+		}
+	return {
+		&"ok": true,
+		&"error_code": int(OK),
+		&"reset": true,
+		&"recovered_obsolete_profile": true,
+		&"obsolete_schema_version": obsolete_version,
+		&"current_schema_version": PROFILE_SCHEMA_VERSION,
+		&"recovery_file": recovery_file,
+		&"backup_created": true,
+	}
+
+
+func _load_bootstrap_current_profile_async(
+	recovery: Dictionary,
+	scope: GFAsyncScope,
+	transition_epoch: int,
+	completion: GFAsyncCompletion
+) -> Error:
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		return ERR_UNAVAILABLE
+	var load_error: Error = await _load_registered_profile_async(
+		recovery,
+		transition_epoch
+	)
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		return ERR_UNAVAILABLE
+	if load_error != OK:
+		return load_error
+	if GFVariantData.get_option_bool(recovery, &"reset", false):
+		load_error = await _save_registered_profile_async(
+			{&"reason": "recreate_bootstrap_profile"},
+			transition_epoch
+		)
+		if not _bootstrap_transition_can_continue(
+			scope,
+			transition_epoch,
+			completion
+		):
+			return ERR_UNAVAILABLE
+		if load_error == OK:
+			_last_load_result.merge(recovery, true)
+	return load_error
+
+
+func _bootstrap_unloaded_profile_async(
+	profile_file_name: String,
+	recovery: Dictionary,
+	scope: GFAsyncScope,
+	transition_epoch: int,
+	completion: GFAsyncCompletion
+) -> Error:
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		return ERR_UNAVAILABLE
+	var previous_state: Dictionary = _capture_bootstrap_runtime_state()
+
+	var reset_error: Error = _reset_sections_to_defaults()
+	if reset_error != OK:
+		return reset_error
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		var cancel_restore_error: Error = _restore_bootstrap_runtime_state(
+			previous_state
+		)
+		return ERR_UNAVAILABLE if cancel_restore_error == OK else cancel_restore_error
+	var register_error: Error = _register_active_profile(profile_file_name)
+	if register_error != OK:
+		var register_restore_error: Error = _restore_bootstrap_runtime_state(
+			previous_state
+		)
+		return register_error if register_restore_error == OK else register_restore_error
+
+	var load_error: Error = await _load_registered_profile_async(
+		recovery,
+		transition_epoch
+	)
+	if not _bootstrap_transition_can_continue(
+		scope,
+		transition_epoch,
+		completion
+	):
+		var load_cancel_restore_error: Error = _restore_bootstrap_runtime_state(
+			previous_state
+		)
+		return (
+			ERR_UNAVAILABLE
+			if load_cancel_restore_error == OK
+			else load_cancel_restore_error
+		)
+	if load_error == OK and (
+		GFVariantData.get_option_bool(recovery, &"missing", false)
+		or GFVariantData.get_option_bool(recovery, &"reset", false)
+	):
+		load_error = await _save_registered_profile_async(
+			{&"reason": "initialize_bootstrap_profile"},
+			transition_epoch
+		)
+		if not _bootstrap_transition_can_continue(
+			scope,
+			transition_epoch,
+			completion
+		):
+			var save_cancel_restore_error: Error = _restore_bootstrap_runtime_state(
+				previous_state
+			)
+			return (
+				ERR_UNAVAILABLE
+				if save_cancel_restore_error == OK
+				else save_cancel_restore_error
+			)
+	if load_error == OK:
+		return OK
+
+	var restore_error: Error = _restore_bootstrap_runtime_state(previous_state)
+	return load_error if restore_error == OK else restore_error
+
+
+func _capture_bootstrap_runtime_state() -> Dictionary:
+	return {
+		&"profile": _active_profile,
+		&"profile_id": _active_profile_id,
+		&"file_name": _profile_file_name,
+		&"loaded": _loaded,
+		&"load_result": _last_load_result.duplicate(true),
+		&"save_result": _last_save_result.duplicate(true),
+		&"sections": _snapshot_all_sections(),
+	}
+
+
+func _restore_bootstrap_runtime_state(state: Dictionary) -> Error:
+	if _disposed or _disposing:
+		return ERR_UNAVAILABLE
+	var restore_error: Error = _restore_all_sections(
+		GFVariantData.get_option_dictionary(state, &"sections")
+	)
+	var profile_value: Variant = GFVariantData.get_option_value(
+		state,
+		&"profile"
+	)
+	var profile: GFSaveProfile = (
+		profile_value if profile_value is GFSaveProfile else null
+	)
+	_restore_active_profile_reference(
+		profile,
+		GFVariantData.get_option_string_name(state, &"profile_id"),
+		GFVariantData.get_option_string(state, &"file_name"),
+		GFVariantData.get_option_bool(state, &"loaded", false),
+		GFVariantData.get_option_dictionary(state, &"load_result"),
+		GFVariantData.get_option_dictionary(state, &"save_result")
+	)
+	return restore_error
+
+
+func _bootstrap_transition_can_continue(
+	scope: GFAsyncScope,
+	transition_epoch: int,
+	completion: GFAsyncCompletion
+) -> bool:
+	return (
+		scope != null
+		and not scope.is_cancel_requested()
+		and completion != null
+		and completion.is_pending()
+		and _owns_profile_transition(transition_epoch)
+	)
 
 
 func _adopt_current_profile_async(
@@ -1890,7 +2691,8 @@ func _reset_sections_to_defaults() -> Error:
 func _apply_sections_to_memory(
 	sections: Dictionary,
 	snapshots: Dictionary,
-	applied_keys: Array[String]
+	applied_keys: Array[String],
+	take_ownership: bool = false
 ) -> Error:
 	if not _is_configured() or not _loaded:
 		return ERR_UNCONFIGURED
@@ -1913,9 +2715,14 @@ func _apply_sections_to_memory(
 		var provider: GameSaveSectionData = _get_section_provider(
 			StringName(key)
 		)
-		snapshots[key] = provider.to_dict()
-		var replace_error: Error = provider.replace_section_data(
-			GFVariantData.get_option_dictionary(replacements, key)
+		snapshots[key] = provider.make_transaction_rollback_candidate()
+		var replacement: Dictionary = GFVariantData.as_dictionary(
+			GFVariantData.get_option_value(replacements, key)
+		)
+		var replace_error: Error = (
+			provider.replace_section_data_taking_ownership(replacement)
+			if take_ownership
+			else provider.replace_section_data(replacement)
 		)
 		if replace_error != OK:
 			var rollback_error: Error = _rollback_sections(
@@ -2687,6 +3494,105 @@ func _request_flush_active_profile(
 	)
 
 
+func _try_advance_quiesce() -> void:
+	if (
+		not _quiescing
+		or _quiesce_completion == null
+		or not _quiesce_completion.is_pending()
+	):
+		return
+	if (
+		_is_profile_transition_in_progress()
+		or _has_pending_section_transaction()
+		or is_section_reconciliation_pending()
+		or not _profile_delete_tasks.is_empty()
+		or not _profile_cleanup_paths.is_empty()
+	):
+		return
+	if _quiesce_flush_operation == null:
+		if not _loaded:
+			var unregister_unloaded_error: Error = _unregister_all_profiles()
+			if unregister_unloaded_error != OK:
+				var _failed_unloaded_release: bool = _quiesce_completion.fail(
+					"Save graph could not release unloaded profiles during quiesce.",
+					{&"error_code": int(unregister_unloaded_error)}
+				)
+				return
+			var _succeeded_unloaded: bool = _quiesce_completion.succeed({
+				&"component": &"game_save_graph",
+				&"profile_loaded": false,
+			})
+			return
+		if not _is_configured():
+			var _failed_configuration: bool = _quiesce_completion.fail(
+				"Save graph became unavailable before its quiesce flush.",
+				{&"error_code": int(ERR_UNCONFIGURED)}
+			)
+			return
+		_quiesce_flush_operation = _request_flush_active_profile({
+			&"reason": "architecture_quiesce",
+		})
+		if _quiesce_flush_operation == null:
+			var _failed_operation: bool = _quiesce_completion.fail(
+				"Save graph could not create its quiesce flush operation.",
+				{&"error_code": int(ERR_CANT_CREATE)}
+			)
+			return
+	if not _quiesce_flush_operation.is_completed():
+		return
+	var result: GFSaveProfileResult = _quiesce_flush_operation.get_result()
+	_untrack_async_handle(_quiesce_flush_operation)
+	_quiesce_flush_operation = null
+	if result != null and result.is_successful():
+		# SaveGraph 依赖 GFSaveProfileUtility；必须在后者进入 quiesce、关闭
+		# unregister 准入前释放全部项目 Profile 所有权。
+		var unregister_error: Error = _unregister_all_profiles()
+		if unregister_error != OK:
+			var _failed_release: bool = _quiesce_completion.fail(
+				"Save graph could not release profiles during quiesce.",
+				{
+					&"error_code": int(unregister_error),
+					&"flush": result.to_dict(),
+				}
+			)
+			return
+		var _succeeded_flush: bool = _quiesce_completion.succeed({
+			&"component": &"game_save_graph",
+			&"profile_loaded": true,
+			&"flush": result.to_dict(),
+		})
+		return
+	var error_code: Error = (
+		result.get_error_code()
+		if result != null
+		else ERR_CANT_ACQUIRE_RESOURCE
+	)
+	var _failed_flush: bool = _quiesce_completion.fail(
+		"Save graph quiesce flush did not succeed.",
+		{
+			&"error_code": int(error_code),
+			&"flush": result.to_dict() if result != null else {},
+		}
+	)
+
+
+## 在 GFSaveProfileUtility 仍开放运行时准入时释放项目注册的全部 Profile。
+## @return 全部释放成功返回 OK；任一 Profile 仍有在途所有权返回 ERR_BUSY。
+func _unregister_all_profiles() -> Error:
+	if _registered_profiles.is_empty():
+		return OK
+	if _profile_utility == null:
+		return ERR_UNCONFIGURED
+	for profile_id_value: Variant in _registered_profiles.keys():
+		var profile_id: StringName = GFVariantData.to_string_name(
+			profile_id_value
+		)
+		if not _profile_utility.unregister_profile(profile_id):
+			return ERR_BUSY
+		var _erased: bool = _registered_profiles.erase(profile_id)
+	return OK
+
+
 func _wait_for_operation(
 	operation: GFSaveProfileOperation
 ) -> GFSaveProfileResult:
@@ -2918,10 +3824,78 @@ func _is_configured() -> bool:
 func _owns_profile_transition(transition_epoch: int) -> bool:
 	return (
 		not _disposed
-		and _profile_transition_in_progress
+		and _is_profile_transition_in_progress()
 		and transition_epoch > 0
 		and _profile_transition_epoch == transition_epoch
 	)
+
+
+func _is_profile_transition_in_progress() -> bool:
+	return (
+		_profile_transition_lease != null
+		and _profile_transition_lease.is_active()
+	)
+
+
+func _begin_profile_transition(action: StringName) -> bool:
+	var lease_result: Dictionary = _profile_transition_gate.try_request_lease(
+		_PROFILE_TRANSITION_GATE_KEY,
+		{
+			&"metadata": {
+				&"component": &"game_save_graph",
+				&"action": action,
+			},
+			&"max_concurrency": 1,
+		}
+	)
+	var lease_value: Variant = GFVariantData.get_option_value(
+		lease_result,
+		&"lease"
+	)
+	if not lease_value is GFAsyncGateLease:
+		return false
+	_profile_transition_lease = lease_value
+	_begin_profile_transition_diagnostic(action)
+	return true
+
+
+func _finish_profile_transition(error_code: Error) -> void:
+	_finish_profile_transition_diagnostic(error_code)
+	if _profile_transition_lease != null:
+		var _released: bool = _profile_transition_gate.release_lease(
+			_profile_transition_lease,
+			&"profile_transition_finished"
+		)
+	_profile_transition_lease = null
+
+
+func _begin_profile_transition_diagnostic(action: StringName) -> void:
+	_finish_profile_transition_diagnostic(ERR_BUSY)
+	if not is_instance_valid(_operation_diagnostics):
+		return
+	_profile_transition_diagnostic_id = _operation_diagnostics.begin_operation(
+		&"game.profile_transition",
+		{
+			&"component": &"game_save_graph",
+			&"label": "Activate local account profile",
+			&"metadata": {&"action": action},
+		}
+	)
+
+
+func _finish_profile_transition_diagnostic(error_code: Error) -> void:
+	if (
+		_profile_transition_diagnostic_id == &""
+		or not is_instance_valid(_operation_diagnostics)
+	):
+		_profile_transition_diagnostic_id = &""
+		return
+	var _record: Dictionary = _operation_diagnostics.finish_operation(
+		_profile_transition_diagnostic_id,
+		error_code == OK,
+		{&"metadata": {&"error_code": int(error_code)}}
+	)
+	_profile_transition_diagnostic_id = &""
 
 
 func _get_ordered_providers() -> Array[GameSaveSectionData]:
@@ -3093,7 +4067,6 @@ func _cleanup_profile_delete_tracking(work_id: StringName) -> void:
 		var task: GFBackgroundWorkTask = task_value
 		_untrack_async_handle(task)
 	var _task_erased: bool = _profile_delete_tasks.erase(work_id)
-	var _worker_erased: bool = _profile_delete_workers.erase(work_id)
 	var _deadline_erased: bool = _profile_delete_deadlines.erase(work_id)
 	var _timeout_erased: bool = _profile_delete_timed_out.erase(work_id)
 	var _waiter_erased: bool = _profile_delete_waiters.erase(work_id)
@@ -3294,6 +4267,14 @@ func _resolve_signal_utility() -> GFSignalUtility:
 	var value: Object = get_utility(GFSignalUtility)
 	if value is GFSignalUtility:
 		var utility: GFSignalUtility = value
+		return utility
+	return null
+
+
+func _resolve_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:
+	var value: Object = get_utility(GFOperationDiagnosticsUtility)
+	if value is GFOperationDiagnosticsUtility:
+		var utility: GFOperationDiagnosticsUtility = value
 		return utility
 	return null
 

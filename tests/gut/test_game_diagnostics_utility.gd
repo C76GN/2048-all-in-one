@@ -15,6 +15,7 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	var console: GFConsoleUtility = GFConsoleUtility.new()
 	var diagnostics: GFDiagnosticsUtility = GFDiagnosticsUtility.new()
 	var session_trace: GFSessionTraceUtility = GFSessionTraceUtility.new()
+	var settings: GameSettingsUtility = _make_trace_settings()
 	var performance_trace: GamePerformanceTraceUtility = (
 		GamePerformanceTraceUtility.new()
 	)
@@ -23,9 +24,16 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	var debug_overlay: GFDebugOverlayUtility = GFDebugOverlayUtility.new()
 	var runtime_inspector: GFRuntimeInspectorUtility = GFRuntimeInspectorUtility.new()
 	var screenshots: GFScreenshotUtility = GFScreenshotUtility.new()
-	var project_diagnostics: GFUtility = _GAME_DIAGNOSTICS_UTILITY_SCRIPT.new()
+	var project_diagnostics: GFUtility = _GameDiagnosticsFixture.new()
 
 	await architecture.register_utility(GFLogUtility, log_utility)
+	await architecture.register_utility(GFStorageUtility, GFStorageUtility.new())
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
+	await architecture.register_utility(GameSettingsUtility, settings)
+	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GFConsoleUtility, console)
 	await architecture.register_utility(GFDiagnosticsUtility, diagnostics)
 	await architecture.register_utility(GFSessionTraceUtility, session_trace)
@@ -161,6 +169,14 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 	var performance_trace: GamePerformanceTraceUtility = (
 		GamePerformanceTraceUtility.new()
 	)
+	var settings: GameSettingsUtility = _make_trace_settings()
+	await architecture.register_utility(GFStorageUtility, GFStorageUtility.new())
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
+	await architecture.register_utility(GameSettingsUtility, settings)
+	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GFSessionTraceUtility, session_trace)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(
@@ -168,10 +184,36 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		performance_trace
 	)
 	await architecture.init()
+	assert_false(
+		performance_trace.start_gameplay_trace(false),
+		"未获玩家显式同意时不得启动本地移动性能轨迹。"
+	)
+	settings.set_value(
+		GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+		true,
+		false
+	)
+	assert_true(
+		GFVariantData.to_bool(
+			settings.get_value(
+				GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+				false
+			)
+		),
+		"测试必须显式同意本地性能轨迹。"
+	)
 
 	assert_true(performance_trace.start_gameplay_trace(false))
 	var attempt_id: int = performance_trace.begin_move(Vector2i.RIGHT)
-	performance_trace.mark_presentation_enqueued(false)
+	var presentation_attempt_id: int = performance_trace.mark_presentation_enqueued(
+		false
+	)
+	assert_true(
+		presentation_attempt_id == attempt_id,
+		"表现入队必须返回可绑定真实 execute 起点的移动尝试标识。"
+	)
+	performance_trace.mark_primary_feedback_started(presentation_attempt_id)
+	performance_trace.mark_primary_feedback_started(presentation_attempt_id)
 	performance_trace.complete_move(attempt_id, true)
 	performance_trace.mark_presentation_settled()
 
@@ -185,10 +227,35 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		event_ids == PackedStringArray([
 			"move_requested",
 			"move_presentation_enqueued",
+			"move_primary_feedback_started",
 			"move_command_completed",
 			"move_presentation_settled",
 		]),
-		"轨迹应保留输入、入队、命令完成和表现完成的可关联阶段。"
+		"轨迹应保留输入、入队、真实首反馈、命令完成和表现完成的可关联阶段。"
+	)
+	var primary_feedback_event: Dictionary = {}
+	for event: Dictionary in events:
+		if (
+			GFVariantData.get_option_string_name(event, "event_id")
+			== &"move_primary_feedback_started"
+		):
+			primary_feedback_event = event
+			break
+	var primary_payload: Dictionary = GFVariantData.get_option_dictionary(
+		primary_feedback_event,
+		"payload"
+	)
+	assert_true(
+		GFVariantData.get_option_int(
+			primary_payload,
+			"input_to_primary_feedback_usec",
+			-1
+		) >= 0,
+		"首反馈必须输出有界的非负 input_to_primary_feedback 指标。"
+	)
+	assert_true(
+		JSON.stringify(primary_payload).length() <= 2048,
+		"单次首反馈载荷不得越过移动轨迹的事件字节预算。"
 	)
 	var serialized: String = JSON.stringify(events)
 	for forbidden_field: String in [
@@ -203,8 +270,19 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		)
 
 	assert_true(performance_trace.start_gameplay_trace(false))
+	var immediate_event_start: int = session_trace.get_events().size()
 	var immediate_attempt_id: int = performance_trace.begin_move(Vector2i.UP)
-	performance_trace.mark_presentation_enqueued(false)
+	var immediate_presentation_id: int = (
+		performance_trace.mark_presentation_enqueued(false)
+	)
+	performance_trace.mark_primary_feedback_started(immediate_presentation_id)
+	performance_trace.mark_presentation_settled()
+	assert_true(
+		performance_trace.mark_presentation_enqueued(false)
+		== immediate_attempt_id,
+		"首个同步 drain 后，同一命令的生成批次必须延后完整回合终点。"
+	)
+	performance_trace.mark_primary_feedback_started(immediate_attempt_id)
 	performance_trace.mark_presentation_settled()
 	performance_trace.complete_move(immediate_attempt_id, true)
 	assert_false(
@@ -214,6 +292,24 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		),
 		"无动效批次同步排空时，迟到的命令终态仍必须释放尝试。"
 	)
+	var immediate_events: Array[Dictionary] = session_trace.get_events().slice(
+		immediate_event_start
+	)
+	var immediate_event_ids: PackedStringArray = PackedStringArray()
+	for event: Dictionary in immediate_events:
+		var _immediate_id_appended: bool = immediate_event_ids.append(
+			String(GFVariantData.get_option_string_name(event, &"event_id"))
+		)
+	assert_true(
+		immediate_event_ids == PackedStringArray([
+			"move_requested",
+			"move_presentation_enqueued",
+			"move_primary_feedback_started",
+			"move_command_completed",
+			"move_presentation_settled",
+		]),
+		"多段同步表现只应记录一个首入队、首反馈和完整回合 settle。"
+	)
 
 	for _index: int in range(80):
 		var rejected_attempt_id: int = performance_trace.begin_move(Vector2i.LEFT)
@@ -222,9 +318,21 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		session_trace.get_events().size() <= 96,
 		"GF Session Trace 必须按项目预算淘汰旧事件。"
 	)
+	settings.set_value(
+		GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+		false,
+		false
+	)
+	assert_true(
+		session_trace.get_events().is_empty(),
+		"撤回本地性能诊断同意后必须立即清空内存轨迹。"
+	)
+	assert_true(
+		performance_trace.begin_move(Vector2i.RIGHT) == 0,
+		"关闭诊断后新的移动不得创建轨迹尝试。"
+	)
 
 	architecture.dispose()
-
 
 func test_scene_router_reuses_gf_operation_start_tick() -> void:
 	var operation_diagnostics: GFOperationDiagnosticsUtility = GFOperationDiagnosticsUtility.new()
@@ -249,3 +357,38 @@ func test_scene_router_reuses_gf_operation_start_tick() -> void:
 
 	router.dispose()
 	operation_diagnostics.dispose()
+
+
+# --- 私有/辅助方法 ---
+
+func _make_trace_settings() -> GameSettingsUtility:
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.auto_load_on_init = false
+	settings.auto_save_on_change = false
+	settings.register_project_defaults()
+	return settings
+
+
+# --- 内部类 ---
+
+## 该单元测试只验证诊断聚合器自身；完整 Composition Root 依赖由
+## test_architecture_installer_validation.gd 覆盖。GF 11 无条件编译依赖 DAG，
+## 因此窄夹具显式声明本测试实际安装的依赖，而未安装的业务 Provider 仍走
+## GameDiagnosticsUtility 的 typed unavailable 快照。
+class _GameDiagnosticsFixture extends GameDiagnosticsUtility:
+	func get_required_utilities() -> Array[Script]:
+		return [
+			GameClockUtility,
+			GamePerformanceTraceUtility,
+			GFAssetMetadataUtility,
+			GFConsoleUtility,
+			GFDebugOverlayUtility,
+			GFDiagnosticsUtility,
+			GFLogUtility,
+			GFRuntimeInspectorUtility,
+			GFScreenshotUtility,
+			GFSupportReportUtility,
+		]
+
+	func get_required_systems() -> Array[Script]:
+		return []

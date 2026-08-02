@@ -147,11 +147,93 @@ func test_save_load_and_flush_expose_typed_terminal_results() -> void:
 	_dispose_setup(setup)
 
 
+func test_architecture_shutdown_quiesces_and_flushes_latest_profile_generation() -> void:
+	var setup: Dictionary = await _create_persistence_architecture()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var profile_file_name: String = save_graph.get_profile_file_name()
+	var save_dir_name: String = storage.save_dir_name
+	var progress_data: Dictionary = save_graph.get_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID
+	)
+	var stats: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(progress_data, &"stats")
+	)
+	stats["quiesce_probe"] = {&"highest_score": 4242}
+	assert_true(
+		save_graph.queue_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			progress_data
+		) == OK,
+		"关闭前的最新 progress generation 必须进入 SaveGraph 队列。"
+	)
+
+	var shutdown_result: GFArchitectureShutdownResult = (
+		await architecture.shutdown_async(null, 5.0)
+	)
+	assert_not_null(shutdown_result)
+	assert_true(
+		shutdown_result != null and shutdown_result.is_successful(),
+		"GF 关闭计划必须等待项目 quiesce flush 后正常完成。"
+	)
+	assert_engine_error_count(
+		0,
+		"graceful shutdown 后 dispose 不得再次向已静默 Profile 提交重复 flush。"
+	)
+
+	var verifier: GFStorageUtility = GFStorageUtility.new()
+	verifier.save_dir_name = save_dir_name
+	verifier.allow_absolute_paths = false
+	verifier.create_directories_for_nested_paths = true
+	verifier.file_format = GFStorageCodec.Format.BINARY
+	verifier.include_storage_metadata = true
+	verifier.use_integrity_checksum = true
+	var persisted: GFStorageReadResult = verifier.load_data(profile_file_name)
+	assert_true(persisted.ok, "关闭完成后最新 Profile 必须可由独立 Storage 重新读取。")
+	var progress_envelope: Dictionary = (
+		GameSaveGraphUtility.extract_profile_section_envelope(
+			persisted.payload,
+			GameSaveGraphUtility.PROGRESS_SECTION_ID
+		)
+	)
+	var persisted_stats: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(
+			GFVariantData.as_dictionary(
+				GFVariantData.get_option_value(progress_envelope, &"data")
+			),
+			&"stats"
+		)
+	)
+	assert_true(
+		GFVariantData.get_option_int(
+			GFVariantData.as_dictionary(
+				GFVariantData.get_option_value(
+					persisted_stats,
+					"quiesce_probe"
+				)
+			),
+			&"highest_score"
+		) == 4242,
+		"shutdown_async 必须持久化调用时最新的 section generation。"
+	)
+	var cleanup_error: Error = verifier.delete_file(profile_file_name)
+	assert_true(cleanup_error == OK, "关闭持久化回归夹具应可清理。")
+	verifier.dispose()
+	setup.clear()
+
+
 func test_async_section_replace_returns_typed_persisted_result() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var candidate: Dictionary = _make_empty_progress_data()
-	candidate["stats"] = {"classic": {"typed_async": true}}
+	var caller_bytes: PackedByteArray = PackedByteArray([7])
+	candidate["stats"] = {
+		"classic": {
+			"typed_async": true,
+			"legacy_blob": caller_bytes,
+		},
+	}
 
 	var operation: GameSaveSectionOperation = (
 		save_graph.request_replace_section_data(
@@ -160,6 +242,7 @@ func test_async_section_replace_returns_typed_persisted_result() -> void:
 			{&"test": "typed_section_success"}
 		)
 	)
+	caller_bytes[0] = 9
 	var result: GameSaveSectionResult = await _await_section_operation(
 		operation,
 		setup
@@ -174,11 +257,25 @@ func test_async_section_replace_returns_typed_persisted_result() -> void:
 		and not result.was_memory_rolled_back(),
 		"异步 section 替换必须只在 GF 保存确认后发布 typed persisted。"
 	)
+	var persisted_progress: Dictionary = save_graph.get_section_data(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID
+	)
+	var persisted_stats: Dictionary = GFVariantData.get_option_dictionary(
+		persisted_progress,
+		&"stats"
+	)
+	var persisted_classic: Dictionary = GFVariantData.get_option_dictionary(
+		persisted_stats,
+		"classic"
+	)
+	var persisted_bytes: PackedByteArray = GFVariantData.get_option_value(
+		persisted_classic,
+		&"legacy_blob"
+	)
 	assert_true(
-		save_graph.get_section_data(
-			GameSaveGraphUtility.PROGRESS_SECTION_ID
-		) == candidate,
-		"持久化成功后权威内存图应保留严格候选。"
+		GFVariantData.get_option_bool(persisted_classic, &"typed_async")
+		and persisted_bytes == PackedByteArray([7]),
+		"异步普通替换必须在返回前隔离调用方 PackedArray，权威图不得观察后续修改。"
 	)
 	_dispose_setup(setup)
 
@@ -665,12 +762,11 @@ func test_profile_schema_v10_is_backed_up_then_reset_to_v11() -> void:
 		== GameSaveGraphUtility.PROFILE_SCHEMA_VERSION,
 		"活动 Profile 必须只写当前 v11 schema。"
 	)
-	_dispose_setup(reloaded, false)
 	assert_true(
 		reloaded_storage.delete_file(recovery_file) == OK,
 		"恢复备份测试文件应可清理。"
 	)
-	reloaded_storage.dispose()
+	_dispose_setup(reloaded, false)
 
 
 func test_future_profile_schema_is_rejected_without_reset() -> void:
@@ -1560,10 +1656,16 @@ func test_stats_bookmarks_and_replays_persist_in_one_graph_file() -> void:
 	assert_true(GFUuid.is_valid(bookmark.bookmark_id, 7), "书签应获得稳定 UUID v7。")
 	assert_true(GFUuid.is_valid(custom_board.custom_board_id, 7), "玩家棋盘应获得稳定 UUID v7。")
 	assert_true(GFUuid.is_valid(replay.replay_id, 7), "回放应获得稳定 UUID v7。")
+	var persisted_save_files: PackedStringArray = storage.list_files("", "save")
 	assert_true(
-		storage.list_files("", "save")
-		== PackedStringArray([GameSaveGraphUtility.PROFILE_FILE_NAME]),
-		"六类玩家数据应只落到一个原子 SaveGraph 文件。"
+		persisted_save_files.size() == 2
+		and persisted_save_files.has(
+			GameSaveGraphUtility.PROFILE_FILE_NAME
+		)
+		and persisted_save_files.has(
+			LocalAccountCatalogUtility.CATALOG_FILE_NAME
+		),
+		"六类玩家业务 section 应只落到一个原子 Profile；设备账号索引保持独立。"
 	)
 
 	_dispose_setup(setup, false)
@@ -2389,6 +2491,9 @@ func _create_persistence_architecture(
 	)
 	var save_graph: GameSaveGraphUtility = _make_game_save_graph()
 	var platform: GamePlatformUtility = _TEST_PLATFORM_STUB_SCRIPT.new()
+	var account_catalog: LocalAccountCatalogUtility = (
+		LocalAccountCatalogUtility.new()
+	)
 	var progress_stats_system: ProgressStatsSystem = null
 	var bookmark_system: BookmarkSystem = null
 	var custom_board_system: CustomBoardSystem = null
@@ -2435,6 +2540,14 @@ func _create_persistence_architecture(
 	)
 	await architecture.register_utility(GamePlatformUtility, platform)
 	await architecture.register_utility(GameClockUtility, game_clock)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
+	await architecture.register_utility(
+		LocalAccountCatalogUtility,
+		account_catalog
+	)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GFCommandHistoryUtility, GFCommandHistoryUtility.new())
 	if include_systems:
@@ -2446,7 +2559,8 @@ func _create_persistence_architecture(
 		await architecture.register_system(BookmarkSystem, bookmark_system)
 		await architecture.register_system(CustomBoardSystem, custom_board_system)
 		await architecture.register_system(ReplaySystem, replay_system)
-	await architecture.init()
+	var initialized: bool = await architecture.init()
+	assert_true(initialized, "SaveGraph 测试夹具必须完成 GF 架构初始化。")
 
 	return {
 		"architecture": architecture,
@@ -2454,6 +2568,7 @@ func _create_persistence_architecture(
 		"save_graph": save_graph,
 		"platform": platform,
 		"clock": shared_clock,
+		"account_catalog": account_catalog,
 		"progress_stats_system": progress_stats_system,
 		"bookmark_system": bookmark_system,
 		"custom_board_system": custom_board_system,

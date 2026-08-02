@@ -45,6 +45,7 @@ var _save_graph: GameSaveGraphUtility = null
 var _records_by_id: Dictionary = {}
 var _needs_save_cleanup: bool = false
 var _quest_scope_id: String = ""
+var _startup_reconciliation_pending: bool = false
 
 
 # --- GF 生命周期方法 ---
@@ -76,6 +77,20 @@ func ready() -> void:
 		GFEventListener.from_method(self, &"_on_active_local_account_changed", 1)
 	)
 	_quest_scope_id = _derive_quest_scope_id()
+	# GF 11 在全部模块 activation 提交前关闭 runtime event 准入；Quest
+	# projection 与成就通知会发送事件，因此延后到 READY 后的首个统一 tick。
+	_startup_reconciliation_pending = true
+
+
+## 在架构提交 READY 后执行一次启动协调，避免 ready/activation 阶段发送事件。
+## @param _delta: 当前帧增量；启动协调不依赖时间。
+func tick(_delta: float = 0.0) -> void:
+	if not _startup_reconciliation_pending:
+		return
+	var architecture: GFArchitecture = _get_architecture_or_null()
+	if architecture == null or not architecture.is_accepting_runtime_work():
+		return
+	_startup_reconciliation_pending = false
 	_initialize_quest_projection()
 	var reconciliation_error: Error = reconcile_progress()
 	if reconciliation_error != OK:
@@ -93,6 +108,7 @@ func dispose() -> void:
 	_records_by_id.clear()
 	_needs_save_cleanup = false
 	_quest_scope_id = ""
+	_startup_reconciliation_pending = false
 
 
 # --- 公共方法 ---

@@ -110,8 +110,6 @@ var _follow_fit: bool = true
 var _is_initialized: bool = false
 var _is_handling_gesture_event: bool = false
 var _last_viewport_size: Vector2 = Vector2.ZERO
-var _previous_mouse_button_index: MouseButton = MOUSE_BUTTON_LEFT
-var _previous_wheel_zoom_factor: float = 1.1
 var _touch_sequence_primary_id: int = _NO_TOUCH_POINTER
 var _touch_sequence_start: Vector2 = Vector2.ZERO
 var _touch_sequence_last: Vector2 = Vector2.ZERO
@@ -130,10 +128,6 @@ func _ready() -> void:
 	if not _has_required_dependencies():
 		return
 
-	_previous_mouse_button_index = _gesture_utility.mouse_button_index
-	_previous_wheel_zoom_factor = _gesture_utility.mouse_wheel_zoom_factor
-	_gesture_utility.mouse_button_index = MOUSE_BUTTON_MIDDLE
-	_gesture_utility.mouse_wheel_zoom_factor = _ZOOM_STEP
 	_bind_runtime_signals()
 	call_deferred(&"_initialize_view")
 
@@ -146,10 +140,7 @@ func _exit_tree() -> void:
 	_reset_touch_sequence()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
-	if is_instance_valid(_gesture_utility):
-		_gesture_utility.mouse_button_index = _previous_mouse_button_index
-		_gesture_utility.mouse_wheel_zoom_factor = _previous_wheel_zoom_factor
-		_gesture_utility.reset_gesture()
+	_dispose_private_gesture_utility()
 	super._exit_tree()
 
 
@@ -439,7 +430,7 @@ func _get_content_position() -> Vector2:
 
 
 func _resolve_utilities() -> void:
-	_gesture_utility = _get_gesture_utility()
+	_create_private_gesture_utility()
 	_input_mapping = _get_input_mapping_utility()
 	_signal_utility = _get_signal_utility()
 	_clock_utility = _get_clock_utility()
@@ -682,12 +673,23 @@ func _get_label(path: NodePath) -> Label:
 	return null
 
 
-func _get_gesture_utility() -> GFPointerGestureUtility:
-	var utility_value: Object = get_utility(GFPointerGestureUtility, true)
-	if utility_value is GFPointerGestureUtility:
-		var gesture_utility: GFPointerGestureUtility = utility_value
-		return gesture_utility
-	return null
+func _create_private_gesture_utility() -> void:
+	_dispose_private_gesture_utility()
+	_gesture_utility = GFPointerGestureUtility.new()
+	_gesture_utility.init()
+	_gesture_utility.mouse_button_index = MOUSE_BUTTON_MIDDLE
+	_gesture_utility.mouse_wheel_zoom_factor = _ZOOM_STEP
+	_gesture_utility.ready()
+
+
+func _dispose_private_gesture_utility() -> void:
+	if not is_instance_valid(_gesture_utility):
+		_gesture_utility = null
+		return
+	_gesture_utility.reset_gesture()
+	_gesture_utility.dispose()
+	_gesture_utility.release_dependencies()
+	_gesture_utility = null
 
 
 func _get_input_mapping_utility() -> GFInputMappingUtility:

@@ -644,4 +644,4 @@ func _on_settings_button_pressed() -> void:
 func _on_quit_button_pressed() -> void:
 	var router: SceneRouterSystem = _get_scene_router_system()
 	if is_instance_valid(router):
-		router.quit_game()
+		var _quit_completion: GFAsyncCompletion = router.quit_game()

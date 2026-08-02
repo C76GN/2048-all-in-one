@@ -68,6 +68,34 @@ func test_main_menu_splits_continue_and_load_save_actions() -> void:
 	menu.free()
 
 
+func test_quit_is_idempotent_and_waits_for_gf_architecture_shutdown() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var router: _QuitProbe = _QuitProbe.new()
+	await architecture.register_system(SceneRouterSystem, router)
+	var initialized: bool = await architecture.init()
+	assert_true(initialized, "退出路由夹具必须完成 GF 架构初始化。")
+	if not initialized:
+		architecture.dispose()
+		return
+
+	var first: GFAsyncCompletion = router.quit_game()
+	var second: GFAsyncCompletion = router.quit_game()
+	assert_same(first, second, "重复退出请求必须共享同一个关闭流程。")
+	var quit_probe: Dictionary = router.quit_probe
+	router = null
+	if first != null and first.is_pending():
+		await first.completed
+	assert_true(
+		first != null and first.is_successful(),
+		"退出完成源必须反映 GF 架构已完成 graceful shutdown。"
+	)
+	assert_true(architecture.is_disposed(), "SceneTree 退出前 GF 架构必须已释放。")
+	assert_true(
+		GFVariantData.get_option_int(quit_probe, &"count") == 1,
+		"即使调用者不保留路由引用，重复退出也只能调用 SceneTree.quit 一次。"
+	)
+
+
 func test_continue_accepts_only_current_matching_bookmark_contract() -> void:
 	var determinism: GameDeterminismUtility = GameDeterminismUtility.new()
 	var bookmark: BookmarkData = BookmarkData.new()
@@ -760,6 +788,22 @@ class _SceneRequestProbe extends SceneRouterSystem:
 		if request_value is RefCounted:
 			var request: RefCounted = request_value
 			request.set("accepted_by_scene_utility", true)
+
+
+class _QuitProbe extends SceneRouterSystem:
+	var quit_probe: Dictionary = {&"count": 0}
+
+	func get_required_utilities() -> Array[Script]:
+		return []
+
+	func ready() -> void:
+		pass
+
+	func _quit_scene_tree(_tree: SceneTree) -> void:
+		quit_probe[&"count"] = GFVariantData.get_option_int(
+			quit_probe,
+			&"count"
+		) + 1
 
 
 class _RouteSpy extends SceneRouterSystem:

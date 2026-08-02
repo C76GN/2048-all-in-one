@@ -120,6 +120,113 @@ func test_player_input_discards_gameplay_actions_while_time_is_paused() -> void:
 	input_system.dispose()
 
 
+func test_blocked_animation_buffers_only_latest_move_intent_and_consumes_once() -> void:
+	var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
+	input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
+	var input_assist: GFInputAssistUtility = GFInputAssistUtility.new()
+	input_assist.init()
+	var animation: ProbeBlockingAnimationUtility = ProbeBlockingAnimationUtility.new()
+	var input_system: RecordingPlayerInputSystem = RecordingPlayerInputSystem.new()
+	input_system._input_mapping = input_mapping
+	input_system._input_assist = input_assist
+	input_system._board_animation_utility = animation
+	input_system._is_active = true
+	input_system._is_playing = true
+
+	input_mapping.handle_input_event(_make_key_event(KEY_D, KEY_D))
+	input_system.tick(0.016)
+	assert_true(input_assist.has_buffered_action(GameplayInputActions.MOVE_RIGHT))
+
+	input_mapping.handle_input_event(_make_key_event(KEY_A, KEY_A))
+	input_system.tick(0.016)
+	assert_false(
+		input_assist.has_buffered_action(GameplayInputActions.MOVE_RIGHT),
+		"阻断期间的新方向必须替换旧方向，不能形成多步积压。"
+	)
+	assert_true(input_assist.has_buffered_action(GameplayInputActions.MOVE_LEFT))
+
+	animation.block_moves = false
+	input_system.tick(0.016)
+	await get_tree().process_frame
+	assert_true(
+		input_system.executed_directions == [Vector2i.LEFT],
+		"动画结束后只能执行一次窗口内最新的确定性方向。"
+	)
+	input_system.tick(0.016)
+	await get_tree().process_frame
+	assert_true(
+		input_system.executed_directions.size() == 1,
+		"已消费的 GF 输入缓冲不得在后续帧重复执行。"
+	)
+	input_system.dispose()
+	input_assist.dispose()
+
+
+func test_blocked_move_intent_expires_and_lifecycle_boundaries_clear_it() -> void:
+	var input_assist: GFInputAssistUtility = GFInputAssistUtility.new()
+	input_assist.init()
+	var input_system: RecordingPlayerInputSystem = RecordingPlayerInputSystem.new()
+	input_system._input_assist = input_assist
+	input_system._buffer_single_move_intent(GameplayInputActions.MOVE_UP)
+	input_assist.tick(PlayerInputSystem._MOVE_INTENT_BUFFER_SECONDS + 0.01)
+	assert_false(
+		input_assist.has_buffered_action(GameplayInputActions.MOVE_UP),
+		"移动意图必须在短窗口后自然失效。"
+	)
+
+	input_system._buffer_single_move_intent(GameplayInputActions.MOVE_DOWN)
+	input_system._on_game_state_changed(&"paused")
+	assert_false(input_assist.has_buffered_action(GameplayInputActions.MOVE_DOWN))
+	input_system._buffer_single_move_intent(GameplayInputActions.MOVE_LEFT)
+	input_system._on_scene_will_change()
+	assert_false(input_assist.has_buffered_action(GameplayInputActions.MOVE_LEFT))
+	input_system._buffer_single_move_intent(GameplayInputActions.MOVE_RIGHT)
+	input_system._on_replay_continued_as_game()
+	assert_false(
+		input_assist.has_buffered_action(GameplayInputActions.MOVE_RIGHT),
+		"会话边界必须清除上一局遗留的移动意图。"
+	)
+	input_system.dispose()
+	input_assist.dispose()
+
+
+func test_undo_and_redo_clear_blocked_move_intent_before_history_change() -> void:
+	for history_key: Key in [KEY_Z, KEY_Y]:
+		var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
+		input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
+		var input_assist: GFInputAssistUtility = GFInputAssistUtility.new()
+		input_assist.init()
+		var input_system: RecordingPlayerInputSystem = (
+			RecordingPlayerInputSystem.new()
+		)
+		input_system._input_mapping = input_mapping
+		input_system._input_assist = input_assist
+		input_system._is_active = true
+		input_system._is_playing = true
+		input_system._buffer_single_move_intent(
+			GameplayInputActions.MOVE_RIGHT
+		)
+		assert_true(
+			input_assist.has_buffered_action(
+				GameplayInputActions.MOVE_RIGHT
+			)
+		)
+
+		input_mapping.handle_input_event(
+			_make_key_event(history_key, history_key)
+		)
+		input_system.tick(0.016)
+
+		assert_false(
+			input_assist.has_buffered_action(
+				GameplayInputActions.MOVE_RIGHT
+			),
+			"撤回或重做改变历史前必须丢弃动画期间缓存的方向。"
+		)
+		input_system.dispose()
+		input_assist.dispose()
+
+
 func test_input_profile_persists_valid_rebind_and_rejects_conflict() -> void:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
 	settings.auto_load_on_init = false
@@ -212,7 +319,10 @@ func test_board_animation_utility_applies_all_three_input_timing_policies() -> v
 		GameInputProfileUtility.InputTimingMode.BLOCK_WHILE_ANIMATING
 	)
 	queue.is_processing = true
-	assert_false(animation_utility.prepare_for_move(), "阻断模式应丢弃动画期间的新操作。")
+	assert_false(
+		animation_utility.prepare_for_move(),
+		"阻断模式应拒绝立即执行，由 PlayerInputSystem 进入短时单意图缓冲。"
+	)
 
 	profile.set_input_timing_mode(GameInputProfileUtility.InputTimingMode.REALTIME_RETARGET)
 	queue.is_processing = true
@@ -397,3 +507,26 @@ func _make_key_event(keycode: Key, physical_keycode: Key = KEY_NONE) -> InputEve
 	event.keycode = keycode
 	event.physical_keycode = physical_keycode
 	return event
+
+
+# --- 内部类 ---
+
+class ProbeBlockingAnimationUtility:
+	extends GameBoardAnimationUtility
+
+	var block_moves: bool = true
+
+	func prepare_for_move() -> bool:
+		return not block_moves
+
+
+class RecordingPlayerInputSystem:
+	extends PlayerInputSystem
+
+	var executed_directions: Array[Vector2i] = []
+
+	func _execute_move_command(
+		direction: Vector2i,
+		_trace_attempt_id: int = 0
+	) -> void:
+		executed_directions.append(direction)

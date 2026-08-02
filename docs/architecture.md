@@ -91,7 +91,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 玩家移动
 
-1. `PlayerInputSystem` 从 `GFInputMappingUtility` 消费 `GFInputContext`；`GameInputProfileUtility` 是玩家覆盖和冲突校验的唯一入口，默认绑定仍由资源声明。
+1. `PlayerInputSystem` 从 `GFInputMappingUtility` 消费 `GFInputContext`；动画门控期间只把最新移动意图写入 `GFInputAssistUtility` 的 `0.18s` 有界缓冲，并在暂停、会话或场景边界清空。`GameInputProfileUtility` 是玩家覆盖和冲突校验的唯一入口，默认绑定仍由资源声明。
 2. `MoveCommand` 调用棋盘 System 更新 `GridModel`；`BoardTopology` 是活跃空间唯一真源，移动方向由连续 lane 表达，空洞会切断 lane。
 3. `MovementRule` 只确定移动和碰撞候选，`TileCompositionUtility` 通过 `GFCapabilityUtility` 解析双方共同 Recipe 能力并仲裁交互提案。
 4. `GridMovementSystem` 为有效移动生成无 Node 的强类型 `TurnResult`；它显式携带移动、合并、生成和转化 transition，以及分数、最大值和规则统计汇总。`GameTurnSystem` 将该结果封装为一次性的 `GameMoveTurnAction`，交给扩展拥有的 `GFTurnFlowSystem`。
@@ -111,13 +111,13 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 4. 撤销、书签、回放和玩家 GFSaveProfile 共用严格拓扑快照；对局 ID、统计和本地排行榜分组使用语义 ID 加内容指纹的稳定键。
 5. GF 继续拥有验证报告、确定性随机、命令历史、关卡 Session 和持久化事务；四向稀疏拓扑是 gameplay 领域对象，不误用 GF flow graph 或 hex grid 表达不同语义。
 6. 玩法 `BoardViewport` 与编辑器 `CanvasViewport` 都由 `GFSpatialCanvas2D` 持有内容根、视图状态、缩放、平移和世界/画布坐标转换；`BoardWorldViewportController` 只追加 HUD fit inset、边缘余量和完整聚焦构图策略。HUD 保持在视口外的屏幕空间，诊断 UI 不进入玩家场景树。
-7. `GFPointerGestureUtility` 负责桌面指针、触摸与原生 pan/magnify 归一化，`GFSpatialCanvas2D` 负责棋盘空间坐标换算，`GFViewportUtility` 只用于物理安全区与显示边界，`GFSignalUtility` 负责宿主生命周期内的连接所有权。项目只保存“本轮触摸是否仍可成为玩法滑动”的领域仲裁状态，不重复维护指针几何、通用视图状态或坐标变换工具。
+7. `GFPointerGestureUtility` 负责桌面指针、触摸与原生 pan/magnify 归一化；由于它拥有可变手势配置和活动指针状态，每个画布控制器及平台冒烟场景各自持有一个完整生命周期的私有实例，不在 Composition Root 注册 singleton。`GFSpatialCanvas2D` 负责棋盘空间坐标换算，`GFViewportUtility` 只用于物理安全区与显示边界，`GFSignalUtility` 负责宿主生命周期内的连接所有权。项目只保存“本轮触摸是否仍可成为玩法滑动”的领域仲裁状态，不重复维护指针几何、通用视图状态或坐标变换工具。
 8. 单指短滑由 `BoardWorldViewportController` 分类后，经 `GFVirtualInputSource` 写入 `GameplayInputActions`；`PlayerInputSystem` 仍是唯一消费 gameplay `GFInputContext` 并创建 `MoveCommand` 的入口。双指序列只控制视口，UI 控件拥有更高事件优先级。
 9. `GameplayResponsiveLayoutController` 让棋盘占满玩法内容区，并把 HUD 保持为覆盖全屏的独立安全区层：分数位于顶部中间，操作提示位于左下，暂停/撤销/重做/书签/只读提示位于右下，详细状态按需展开。GF 通知与回合字幕共用 `FeedbackRail`；横屏位于棋盘右侧，并按棋盘实际世界包围盒宽高比动态求解 right fit inset，保证棋盘连同 `50px` 动效包络停在操作栏左侧；棋盘几何变化会触发布局重算。竖屏反馈轨位于棋盘与触控区之间，三种布局都不得与棋盘相交。继承布局的左右栏始终关闭，不恢复通用信息栏。
 10. `BoardTopology.get_cells_in_rect()` 是超大稀疏棋盘的可见窗口查询入口；`GameBoardController` 通过 `GFObjectPoolUtility` 仅挂载当前可见格与方块节点，窗口外节点可以回收但模型与快照保持完整。
 11. 棋盘动画由 `GameBoardAnimationUtility` 的 GF 命名队列拥有生命周期；视口变化不得释放正在执行 Tween 的方块，Action 完成或取消后按当前可见区域重建表现缓存。实时响应模式取消旧 Tween 后必须先从当前模型快照恢复表现，再执行新命令。
 12. `board_editor` 拥有独立 GF 输入上下文和 `board_editor_undo`、`board_editor_redo` 抽象动作；编辑器快捷键不得依赖未注册的 Godot `InputMap` 动作。场景控件与草稿信号统一由 `GFSignalUtility` 持有连接生命周期。
-13. `CanvasViewportMath` 仅保存 gameplay 的 HUD inset 构图与边缘余量纯策略；它不再持有或写入画布变换。编辑器用稳定世界尺寸绘制草稿，`BoardEditorViewportController` 通过 `GFPointerGestureUtility` 与 `GFSpatialCanvas2D` 实现左/右键绘制、中键/滚轮视口操作、单指绘制与双指平移缩放；第二根手指出现时必须取消尚未提交的笔画。
+13. `CanvasViewportMath` 仅保存 gameplay 的 HUD inset 构图与边缘余量纯策略；它不再持有或写入画布变换。编辑器用稳定世界尺寸绘制草稿，`BoardEditorViewportController` 通过自己拥有的 `GFPointerGestureUtility` 与 `GFSpatialCanvas2D` 实现左/右键绘制、中键/滚轮视口操作、单指绘制与双指平移缩放；第二根手指出现时必须取消尚未提交的笔画。
 14. `BoardEditorResponsiveLayoutController` 负责桌面三栏、紧凑横屏和竖屏布局。紧凑布局以编辑/模板分区替代被压缩的三栏，竖屏工具栏位于画布上方，所有外边距通过 `GFViewportUtility.apply_display_safe_area_margins()` 叠加物理安全区。
 
 详细契约见 `features/gameplay/docs/board_topology.md`。
@@ -142,7 +142,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ### 本地账号与玩家 Profile
 
 1. `LocalAccountCatalogUtility` 只拥有设备级账号身份目录；每个账号映射到独立 Profile，统计、书签、回放、成就、图鉴和试验台数据仍由各 Feature 的 section provider 拥有。
-2. `LocalAccountSystem` 是创建、重命名、切换和删除账号的唯一异步业务 Interface。账号变更必须以一次性 operation/result 事务协调目录与 Profile，outcome-unknown 时保留所有权并阻断后续变更；页面只投影结果，不读取目录文件、拼接路径或拥有存档事务。精确文件边界、切换顺序、恢复与 schema 契约见 [`docs/save_model.md`](./save_model.md)。
+2. `LocalAccountSystem` 是创建、重命名、切换和删除账号的唯一异步业务 Interface。账号变更必须以一次性 operation/result 事务协调目录与 Profile，outcome-unknown 时保留所有权并阻断后续变更；页面只投影结果，不读取目录文件、拼接路径或拥有存档事务。启动期通过 GF `begin_activation()` 等待 `GameSaveGraphUtility.begin_bootstrap_profile()` 的真实异步终态，关闭期通过 `begin_quiesce()` 停止准入并排空已接纳 saga；不得在生命周期 Hook 中同步轮询 Storage，也不得在 quiesce 后发布运行期事件。精确文件边界、切换顺序、恢复与 schema 契约见 [`docs/save_model.md`](./save_model.md)。
 
 ### 方块试验台
 
@@ -215,15 +215,17 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 5. `GameDeterminismUtility` 是 canonical turn state 的唯一摘要入口：它按拓扑坐标排序方块、排除运行时 UUID，再把 board、gameplay RNG、规则集和完整状态交给 `GFDeterministicVariantSerializer` 的 typed-marker canonical bytes 与 SHA-256。规则浮点配置显式启用 GF IEEE-754 编码；项目不得保留 JSON/`GFStorageCodec` 摘要双路径。规则资源必须声明稳定 `ruleset_id` 与 `ruleset_version`，内容变化必须显式提升版本或指纹。
 6. `ReplayData` 保存初始 seed/拓扑、规则集身份与指纹、会话资格元数据、有效命令，以及每个 settled turn 的 `ReplayCheckpoint`。回放在应用命令后立即比较 checkpoint；第一次不一致生成包含回合、命令及 expected/actual board/RNG/state 的 OOS 报告，并阻断继续步进和“从回放继续”。事件标记从 checkpoint 元数据确定性派生，前后标记定位仍通过有界命令历史重建并复核目标 checksum。
 7. 固定 seed 测试语料必须覆盖全部正式模式和多种拓扑，验证重复执行、UUID/插入顺序变化与序列化往返不改变 canonical checksum。表现档位与无障碍设置的切换也不得改变同一 seed/命令序列的领域结果。
-8. 开发构建的长流程耗时由 `GFOperationDiagnosticsUtility` 的操作记录拥有。调用方读取同一操作的 `started_ticks_usec` 记录阶段，不再平行缓存一份系统 tick；发布路径只能通过当前 Architecture 的 local lookup 可选读取该 Utility，且在未安装开发诊断模块时必须保持完整功能。
+8. Composition Root 在全部构建中安装无 UI、严格有界的 `GFOperationDiagnosticsUtility`，最多保留 32 个完成操作、16 个活动操作、32 个 incident、64 个 sample stat 和每份 12 个业务 metadata 键；设置存取、账号目录变更和 Profile 切换都记录真实终态。开发构建只额外安装 Console、Overlay、Inspector 与支持报告界面；发布构建不得引入这些 UI 或扫描器。可选消费者仍通过当前 Architecture 的 local lookup 静默读取诊断，不把诊断故障升级为业务故障。
 9. 只有 Boot 组合根和 `features/asset_library/tools/` 下的离线素材工具可以直接访问 `Time`；该例外由 GF 合规测试的精确路径 allowlist 约束，不得扩散到运行时 Feature。
 10. `GameDiagnosticsUtility` 只把架构依赖与验收矩阵保留为固定成本缓存；资源目录、业务状态和最多 256 个节点的场景资产元数据改由 owner-bound `GFDiagnosticSnapshotProvider` 在显式支持请求时惰性采集，普通 Overlay 刷新不得扫描场景树。开发构建再组合 Console、Debug Overlay、Runtime Inspector 与 Screenshot；发布构建不安装这些调试界面。
-11. `GamePerformanceTraceUtility` 通过 `GFSessionTraceRecipe` 记录最近一局移动的请求、命令终态、表现入队与队列终态，使用共享 `GFClock` 计算阶段耗时，并以 96 条/96 KiB/单条 2 KiB 和 privacy redaction 形成硬预算。轨迹只存在内存并只进入显式支持报告，不得包含棋盘、账号、路径、设备身份或写入 canonical gameplay state。
+11. `GamePerformanceTraceUtility` 通过 `GFSessionTraceRecipe` 记录最近一局移动的请求、命令终态、表现入队、真实 Action execute 首反馈与队列终态，使用共享 `GFClock` 计算阶段耗时，并以 96 条/96 KiB/单条 2 KiB 和 privacy redaction 形成硬预算。轨迹设置默认关闭，只有玩家在设置页显式开启后才开始采集；关闭时立即停止并清空内存事件。轨迹只存在内存并只进入显式支持报告，不得包含棋盘、账号、路径、设备身份或写入 canonical gameplay state。
 
 ### 持久化
 
 - `persistence` 通过 `GFSaveProfileUtility` 管理当前账号的单一 Profile；各业务 Feature 各自拥有严格 `GFSaveSectionProvider`，`app` 只负责在 GF 初始化前组合顺序。
 - `GFStorageUtility` 是 codec、checksum 和原子文件事务边界；业务 System 不直接写玩家 section，设置继续使用独立 `GFSettingsUtility` 文件。
+- 账号目录变更和异步 Profile 切换都通过 `GFAsyncKeyedGate.try_request_lease()` 取得单 key、单并发租约；busy 不排队，所有成功、失败、取消和 dispose 路径必须释放租约，不再维护平行布尔锁或手工 callback 保活字典。
+- `GameSettingsUtility` 只在 Storage 依赖完成 `ready()` 后自动读取；其 quiesce 屏障拒绝新设置写入，并按原目标文件冲刷已接纳的 debounce 与 batch 保存，再进入反向 dispose。
 - Profile operation、outcome-unknown、账号切换、UUID、schema、恢复与迁移规则统一以 [`docs/save_model.md`](./save_model.md) 为权威，本架构文档不复制字段和版本。
 
 ## GF 扩展

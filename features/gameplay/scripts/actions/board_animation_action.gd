@@ -17,6 +17,8 @@ var _instructions: Array[Dictionary] = []
 var _game_board: GameBoardController
 var _pending_consumed_tiles: Dictionary = {}
 var _turn_result: TurnResult
+var _performance_trace_utility: GamePerformanceTraceUtility
+var _primary_feedback_attempt_id: int = 0
 
 
 # --- Godot 生命周期方法 ---
@@ -35,10 +37,24 @@ func _init(
 
 # --- 公共方法 ---
 
+## 注入本次动作真正开始表现时的性能轨迹。
+##
+## 轨迹只承载短期性能观测，不参与领域状态或动画时序。
+## @param performance_trace_utility: 接收真实首反馈时刻的强类型 Utility。
+## @param attempt_id: 与本次棋盘表现绑定的移动尝试标识。
+func configure_primary_feedback_trace(
+	performance_trace_utility: GamePerformanceTraceUtility,
+	attempt_id: int
+) -> void:
+	_performance_trace_utility = performance_trace_utility
+	_primary_feedback_attempt_id = attempt_id
+
+
 func execute() -> Variant:
 	if not is_instance_valid(_game_board) or _instructions.is_empty():
 		return null
 
+	_notify_primary_feedback_started()
 	_pending_consumed_tiles.clear()
 	_play_turn_feedback()
 	var tweens: Array[Tween] = []
@@ -187,6 +203,16 @@ func finish() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _notify_primary_feedback_started() -> void:
+	var performance_trace_utility: GamePerformanceTraceUtility = (
+		_performance_trace_utility
+	)
+	var attempt_id: int = _primary_feedback_attempt_id
+	_performance_trace_utility = null
+	_primary_feedback_attempt_id = 0
+	if is_instance_valid(performance_trace_utility) and attempt_id > 0:
+		performance_trace_utility.mark_primary_feedback_started(attempt_id)
 
 func _release_consumed_tile(consumed: Tile, release_token: RefCounted) -> void:
 	if not is_instance_valid(consumed):

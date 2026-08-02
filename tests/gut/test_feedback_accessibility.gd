@@ -346,6 +346,10 @@ func _make_accessibility_architecture(include_feedback: bool = false) -> Diction
 	var signals: GFSignalUtility = GFSignalUtility.new()
 	var accessibility: GameAccessibilityUtility = GameAccessibilityUtility.new()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFSignalUtility, signals)
 	await architecture.register_utility(GameAccessibilityUtility, accessibility)

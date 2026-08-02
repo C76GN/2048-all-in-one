@@ -71,6 +71,7 @@ func test_records_reverse_targets_while_command_runs_inside_simple_event() -> vo
 	await architecture.register_model(GameStatusModel, GameStatusModel.new())
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
 	await architecture.register_utility(GFCommandHistoryUtility, command_history)
+	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
 	await architecture.register_system(GameStateSystem, GameStateSystem.new())
 	await architecture.register_system(GridMovementSystem, GridMovementSystem.new())
 	await architecture.register_system(RuleSystem, RuleSystem.new())
@@ -128,6 +129,7 @@ func test_real_move_history_keeps_bounded_multi_step_undo_and_redo_deterministic
 	await architecture.register_model(GameStatusModel, GameStatusModel.new())
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
 	await architecture.register_utility(GFCommandHistoryUtility, command_history)
+	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
 	await architecture.register_system(GameStateSystem, GameStateSystem.new())
 	await architecture.register_system(GridMovementSystem, GridMovementSystem.new())
 	await architecture.register_system(RuleSystem, RuleSystem.new())
@@ -311,6 +313,16 @@ func _make_empty_game_state() -> Dictionary:
 # --- 内部类 ---
 
 class RejectingGameStateSystem extends GameStateSystem:
+	## 这是只验证 MoveCommand 失败传播的窄替身，不执行生产状态读取逻辑。
+	func get_required_models() -> Array[Script]:
+		return []
+
+	func get_required_systems() -> Array[Script]:
+		return []
+
+	func get_required_utilities() -> Array[Script]:
+		return []
+
 	## 拒绝测试请求的状态恢复。
 	## @param _state_to_restore: 本替身故意拒绝的完整状态。
 	func restore_state(_state_to_restore: Dictionary) -> bool:

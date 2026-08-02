@@ -44,6 +44,7 @@ const _CULL_MARGIN_CELLS: int = 2
 const _MIN_PROJECTED_CELL_DETAIL_SIZE: float = 12.0
 const _MAX_VISIBLE_NODE_COUNT: int = 12288
 const _TILE_POOL_PREWARM_BUDGET_MSEC: float = 2.0
+const _INITIAL_VISIBLE_PREWARM_LIMIT: int = 128
 
 
 # --- 导出变量 ---
@@ -100,6 +101,8 @@ var _expansion_token: int = 0
 var _expansion_tween: Tween
 
 var _board_intro_tween: Tween
+var _setup_generation: int = 0
+var _initial_reveal_pending: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -187,28 +190,21 @@ func setup(
 	if is_instance_valid(board_motion_backdrop):
 		board_motion_backdrop.reset_feedback()
 
-	# GridModel 的逻辑初始化由 GameInitSystem 完成，表现层只建立局部世界几何与可见节点。
+	# GridModel 的逻辑初始化由 GameInitSystem 完成。首轮可见节点先在隐藏状态下
+	# 通过 GF 对象池预算化预热，再一次性同步并揭示，避免冷实例化空窗和半成品闪烁。
+	_setup_generation += 1
+	var setup_generation: int = _setup_generation
+	_initial_reveal_pending = true
+	if is_instance_valid(board_background):
+		board_background.modulate.a = 0.0
+	if is_instance_valid(board_container):
+		board_container.modulate.a = 0.0
 	_update_board_layout()
-	_sync_visible_region()
-	call_deferred(&"_play_board_intro")
-	
-	if is_instance_valid(_pool):
-		var required_tile_count: int = mini(_get_visible_cells().size(), 128)
-		var available_tile_count: int = _pool.get_available_count(TileScene)
-		var missing_tile_count: int = max(required_tile_count - available_tile_count, 0)
-		if missing_tile_count > 0:
-			@warning_ignore("missing_await")
-			_pool.prewarm_async_budget(
-				TileScene,
-				board_container,
-				missing_tile_count,
-				_TILE_POOL_PREWARM_BUDGET_MSEC
-			)
-
-		for child: Node in board_container.get_children():
-			if child is Tile:
-				var tile_child: Tile = child
-				tile_child.visible = false
+	@warning_ignore("missing_await")
+	_prepare_visible_region_and_reveal(
+		_get_visible_cells(),
+		setup_generation
+	)
 
 
 ## 返回棋盘在自身局部世界中的完整包围盒。
@@ -835,6 +831,8 @@ func _apply_board_background_style() -> void:
 
 
 func _sync_visible_region() -> void:
+	if _initial_reveal_pending:
+		return
 	if _is_rebuilding_visuals:
 		return
 	if not is_instance_valid(model) or not is_instance_valid(model.topology):
@@ -843,6 +841,53 @@ func _sync_visible_region() -> void:
 	_sync_grid_cells(visible_cells)
 	if not is_instance_valid(_animation_utility) or not _animation_utility.is_busy():
 		_sync_visual_tiles(visible_cells)
+
+
+func _prepare_visible_region_and_reveal(
+	visible_cells: Array[Vector2i],
+	setup_generation: int
+) -> void:
+	await _prewarm_visible_node_pools(visible_cells)
+	if (
+		setup_generation != _setup_generation
+		or _is_cleaned_up
+		or not is_instance_valid(board_container)
+	):
+		return
+	_initial_reveal_pending = false
+	_sync_visible_region()
+	_play_board_intro()
+
+
+func _prewarm_visible_node_pools(visible_cells: Array[Vector2i]) -> void:
+	if not is_instance_valid(_pool) or not is_instance_valid(board_container):
+		return
+	var prewarm_count: int = mini(
+		visible_cells.size(),
+		_INITIAL_VISIBLE_PREWARM_LIMIT
+	)
+	await _prewarm_scene_pool(TileScene, prewarm_count)
+	await _prewarm_scene_pool(grid_cell_scene, prewarm_count)
+
+
+func _prewarm_scene_pool(scene: PackedScene, required_count: int) -> void:
+	if (
+		not is_instance_valid(_pool)
+		or not is_instance_valid(scene)
+		or not is_instance_valid(board_container)
+		or required_count <= 0
+	):
+		return
+	var available_count: int = _pool.get_available_count(scene)
+	var missing_count: int = maxi(required_count - available_count, 0)
+	if missing_count <= 0:
+		return
+	await _pool.prewarm_async_budget(
+		scene,
+		board_container,
+		missing_count,
+		_TILE_POOL_PREWARM_BUDGET_MSEC
+	)
 
 
 func _get_visible_cells() -> Array[Vector2i]:

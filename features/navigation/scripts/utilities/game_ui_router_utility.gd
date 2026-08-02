@@ -181,7 +181,18 @@ func _is_live_route_owner_ref(owner_ref: WeakRef) -> bool:
 func _rollback_stale_route_result(result: GFUIRouteResult) -> void:
 	if result == null or not result.is_successful():
 		return
-	if get_current_route_id(result.get_layer()) != result.get_route_id():
+	var result_panel: Node = result.get_panel()
+	if result_panel == null:
+		return
+	var ui_utility: GFUIUtility = _get_ui_utility()
+	if ui_utility == null:
+		return
+	var current_panel: Node = ui_utility.get_top_panel(
+		_get_ui_layer(result.get_layer())
+	)
+	# 同一路由可以在迟到请求完成后再次打开。只允许回滚本次结果实际提交的
+	# 面板实例，不能仅凭 route_id 关闭后来打开的新实例。
+	if current_panel != result_panel:
 		return
 	var _closed: bool = back(result.get_layer())
 

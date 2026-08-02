@@ -534,6 +534,10 @@ func _create_setup(
 	)
 	await architecture.register_utility(GameClockUtility, clock)
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GFAssetUtility, GFAssetUtility.new())
 	await architecture.register_utility(

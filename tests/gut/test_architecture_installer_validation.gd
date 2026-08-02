@@ -32,6 +32,9 @@ const MODE_SELECTION_PATH: String = "res://features/navigation/scripts/menus/mod
 const MODE_SELECTION_SCENE_PATH: String = "res://features/navigation/scenes/menus/mode_selection.tscn"
 const GAME_DIAGNOSTICS_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd"
 const GAME_DIAGNOSTICS_INSTALLER_PATH: String = "res://features/diagnostics/scripts/installers/game_diagnostics_installer.gd"
+const PLATFORM_SMOKE_CONTROLLER_PATH: String = (
+	"res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd"
+)
 const SETTINGS_MENU_PATH: String = "res://features/settings/scripts/menus/settings_menu.gd"
 const GAME_UI_CONTROLLER_PATH: String = "res://features/themes/scripts/ui/game_ui_controller.gd"
 const THEME_CATALOG_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_theme_catalog_utility.gd"
@@ -40,6 +43,11 @@ const PROJECT_CONTENT_CATALOG_UTILITY_PATH: String = "res://shared/scripts/utili
 const EVENT_NAMES_PATH: String = "res://shared/scripts/contracts/event_names.gd"
 const PROJECT_SETTINGS_PATH: String = "res://project.godot"
 const EXTENSION_OWNED_MODULES: Array[Dictionary] = [
+	{
+		"symbol": "GFStorageUtility",
+		"extension": "gf.save",
+		"owner": "addons/gf/extensions/save/extension.gd",
+	},
 	{
 		"symbol": "GFLevelUtility",
 		"extension": "gf.domain",
@@ -259,6 +267,9 @@ func test_project_installer_binds_input_device_before_input_mapping() -> void:
 func test_project_installer_orders_input_profile_and_board_animation_adapters() -> void:
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
 	var input_mapping_position: int = installer_source.find("bind_utility(GFInputMappingUtility)")
+	var input_assist_position: int = installer_source.find(
+		"bind_utility(GFInputAssistUtility)"
+	)
 	var input_profile_position: int = installer_source.find(
 		"bind_utility(_GAME_INPUT_PROFILE_UTILITY_SCRIPT)"
 	)
@@ -268,7 +279,8 @@ func test_project_installer_orders_input_profile_and_board_animation_adapters() 
 	var input_profile_source: String = _read_text(GAME_INPUT_PROFILE_UTILITY_PATH)
 	var board_animation_source: String = _read_text(GAME_BOARD_ANIMATION_UTILITY_PATH)
 
-	assert_true(input_profile_position > input_mapping_position, "输入覆盖 Adapter 必须在 GF 映射工具之后注册。")
+	assert_true(input_assist_position > input_mapping_position, "GF 输入缓冲必须在映射工具之后注册。")
+	assert_true(input_profile_position > input_assist_position, "输入覆盖 Adapter 必须在 GF 输入缓冲之后注册。")
 	assert_true(board_animation_position > input_profile_position, "棋盘动画 Adapter 必须在输入策略之后注册。")
 	assert_true(
 		input_profile_source.contains("GFInputConflictAnalyzer.build_rebind_report"),
@@ -282,10 +294,10 @@ func test_project_installer_orders_input_profile_and_board_animation_adapters() 
 
 func test_project_installer_registers_platform_primitives_before_platform_boundary() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var smoke_source: String = _read_text(PLATFORM_SMOKE_CONTROLLER_PATH)
 	var runtime_position: int = source.find("bind_utility(GFPlatformRuntime)")
 	var viewport_position: int = source.find("bind_utility(GFViewportUtility)")
 	var http_position: int = source.find("bind_utility(GFHttpClientUtility)")
-	var gesture_position: int = source.find("bind_utility(GFPointerGestureUtility)")
 	var platform_position: int = source.find("bind_utility(_GAME_PLATFORM_UTILITY_SCRIPT)")
 
 	assert_true(runtime_position >= 0, "项目 Installer 应注册 GFPlatformRuntime。")
@@ -295,12 +307,18 @@ func test_project_installer_registers_platform_primitives_before_platform_bounda
 		source.contains("if OS.has_feature(_PLATFORM_SMOKE_FEATURE):"),
 		"GFHttpClientUtility 只能在 platform_smoke 构建边界注册。"
 	)
-	assert_true(gesture_position >= 0, "项目 Installer 应注册 GFPointerGestureUtility。")
+	assert_false(
+		source.contains("bind_utility(GFPointerGestureUtility)"),
+		"可变配置的指针手势工具不得作为跨画布 singleton 注册。"
+	)
+	assert_true(
+		smoke_source.contains("GFPointerGestureUtility.new()"),
+		"平台冒烟场景应拥有隔离的指针手势实例。"
+	)
 	assert_true(platform_position >= 0, "项目 Installer 应注册 GamePlatformUtility。")
 	assert_true(runtime_position < platform_position, "GF 平台运行时必须先于项目平台选择边界注册。")
 	assert_true(viewport_position < platform_position, "显示能力应先于项目平台边界注册。")
 	assert_true(http_position < platform_position, "HTTP 能力应先于项目平台边界注册。")
-	assert_true(gesture_position < platform_position, "手势能力应先于项目平台边界注册。")
 
 
 func test_project_installer_binds_pause_adapter_after_gf_time_provider() -> void:
@@ -326,8 +344,11 @@ func test_project_clock_adapts_one_shared_gf_clock() -> void:
 	assert_true(game_clock.get_tick_msec() == 1234, "单调 tick 必须委托给 GFClock。")
 	assert_true(game_clock.get_unix_timestamp() == 9876, "Unix 时间必须委托给 GFClock。")
 	assert_true(
-		installer_source.count("set_clock(_clock)") == 2,
-		"Composition Root 必须向 GFTimeUtility 与 GameClockUtility 注入同一 GFClock。"
+		installer_source.count("set_clock(_clock)") == 3,
+		(
+			"Composition Root 必须向 GFTimeUtility、GameClockUtility 与"
+			+ " GameSettingsUtility 注入同一 GFClock。"
+		)
 	)
 
 
@@ -683,6 +704,74 @@ func test_cancelled_project_installer_does_not_mutate_candidate_architecture() -
 	architecture.dispose()
 
 
+func test_project_installer_configures_extension_owned_storage_instance() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var storage: GFStorageUtility = GFStorageUtility.new()
+	assert_true(
+		await architecture.register_utility(GFStorageUtility, storage)
+	)
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var installer: GFInstaller = GameArchitectureInstaller.new()
+
+	installer.install(architecture, scope)
+
+	assert_false(scope.is_cancel_requested())
+	assert_same(
+		architecture.get_local_utility(GFStorageUtility),
+		storage,
+		"项目 Installer 必须配置 gf.save 已注册的同一 Storage 实例。"
+	)
+	assert_false(storage.allow_absolute_paths)
+	assert_true(storage.create_directories_for_nested_paths)
+	assert_true(storage.file_format == GFStorageCodec.Format.BINARY)
+	assert_true(storage.include_storage_metadata)
+	assert_true(storage.use_integrity_checksum)
+	assert_true(storage.save_version == 1)
+	architecture.dispose()
+
+
+func test_project_installer_fails_candidate_when_save_extension_is_missing() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var installer: GameArchitectureInstaller = GameArchitectureInstaller.new()
+	assert_true(
+		architecture.begin_project_installers(),
+		"测试必须真实进入 GF project installers-running 状态。"
+	)
+
+	installer.install(architecture, scope)
+	assert_push_error(
+		"gf.save 未提供 GFStorageUtility",
+		"项目应明确报告扩展 Installer 缺失。"
+	)
+
+	assert_true(scope.is_cancel_requested())
+	assert_true(
+		architecture.has_initialization_failed(),
+		"仅取消 GF 11 Installer scope 可能悬挂；项目必须同时失败候选架构。"
+	)
+	assert_false(
+		architecture.is_project_installers_running(),
+		"显式失败必须唤醒并清理本轮 project installers-running 状态。"
+	)
+	assert_true(
+		architecture.begin_project_installers(),
+		"失败候选必须能开始后续 Installer 重试，不能永久悬挂。"
+	)
+	architecture.finish_project_installers()
+	architecture.dispose()
+
+
+func test_save_graph_lifecycle_policy_is_configured_before_registration() -> void:
+	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	assert_true(save_graph.ignore_pause)
+	assert_true(save_graph.ignore_time_scale)
+	assert_true(
+		save_graph.lifecycle_priority == -100,
+		"GF 11 在模块 init() 前冻结生命周期计划，SaveGraph 优先级必须在构造时生效。"
+	)
+
+
 func test_cancelled_diagnostics_installer_does_not_mutate_candidate_architecture() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var scope: GFAsyncScope = GFAsyncScope.new()
@@ -698,7 +787,7 @@ func test_cancelled_diagnostics_installer_does_not_mutate_candidate_architecture
 	architecture.dispose()
 
 
-func test_release_scene_router_only_uses_local_lookup_for_optional_diagnostics() -> void:
+func test_runtime_diagnostics_baseline_is_bounded_and_dev_installer_does_not_rebind() -> void:
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
 	var diagnostics_installer_source: String = _read_text(GAME_DIAGNOSTICS_INSTALLER_PATH)
 	var router_source: String = _read_text(
@@ -706,17 +795,24 @@ func test_release_scene_router_only_uses_local_lookup_for_optional_diagnostics()
 	)
 
 	var dev_block_position: int = installer_source.find("if _are_dev_tools_enabled():")
-	var diagnostics_position: int = diagnostics_installer_source.find(
+	var dev_diagnostics_position: int = diagnostics_installer_source.find(
 		"bind_utility(GFOperationDiagnosticsUtility)"
 	)
 	assert_true(dev_block_position >= 0, "项目 Installer 应声明开发工具条件块。")
 	assert_true(
-		diagnostics_position >= 0,
-		"GFOperationDiagnosticsUtility 只能由 diagnostics Feature Installer 注册。"
+		installer_source.contains("GFOperationDiagnosticsUtility")
+		and installer_source.contains("_create_operation_diagnostics_utility()"),
+		"Composition Root 应注册无 UI、有界的运行时操作诊断基线。"
 	)
-	assert_false(
-		installer_source.contains("bind_utility(GFOperationDiagnosticsUtility)"),
-		"Composition Root 不得直接持有 diagnostics 实现类型。"
+	assert_true(
+		installer_source.contains("max_completed_operations = 32")
+		and installer_source.contains("max_active_operations = 16")
+		and installer_source.contains("max_metadata_keys = 12"),
+		"运行时操作诊断必须声明小容量硬预算。"
+	)
+	assert_true(
+		dev_diagnostics_position < 0,
+		"开发诊断 Installer 不得重复注册运行时操作诊断基线。"
 	)
 	assert_true(
 		router_source.contains(

@@ -43,14 +43,14 @@ GF 没有与“四向、带空洞、连续 lane”完全同义的通用类型。
 - 任意矩形、十字形和自定义稀疏拓扑。
 - 空洞安全的移动、生成、判负、棋盘预览、撤销、书签与回放。
 - 棋盘表现使用稳定局部世界坐标，`GFSpatialCanvas2D` 独占内容根、视图状态、缩放、平移和坐标转换；`BoardWorldViewportController` 只追加 HUD fit inset、边缘余量和完整聚焦构图策略。HUD 保持独立屏幕空间，诊断面板由 diagnostics feature 的独立 Window 承载。
-- 鼠标中键拖动、滚轮缩放、原生触控板手势和双指触摸由 `GFPointerGestureUtility` 统一归一化，世界/画布/屏幕坐标通过 `GFSpatialCanvas2D` 换算，运行时连接由 `GFSignalUtility` 管理。
+- 鼠标中键拖动、滚轮缩放、原生触控板手势和双指触摸由画布控制器私有的 `GFPointerGestureUtility` 统一归一化，避免可变配置与活动指针状态跨玩法、编辑器或平台冒烟场景泄漏；世界/画布/屏幕坐标通过 `GFSpatialCanvas2D` 换算，运行时连接由 `GFSignalUtility` 管理。
 - 单指短滑只负责棋盘移动，并通过 `GFVirtualInputSource` 写入玩法抽象动作；它不直接调用命令。双指序列一旦成立，本轮触摸只负责画布平移/缩放，不再回落成单指移动。
 - `GameplayResponsiveLayoutController` 在桌面、紧凑横屏和竖屏间调整棋盘留白；HUD 始终是由 GF 安全区保护的全屏覆盖层，摘要、通知和回合字幕共用屏幕边缘反馈轨。横屏按棋盘实际世界包围盒宽高比动态求解右侧 fit inset，并在几何变化时重算；竖屏则把反馈轨放在棋盘与触控区之间。瞬时文本和操作栏不得进入棋盘矩形外扩 50px 的动态包络。继承布局的左右栏在所有玩法断点都关闭。
 - `BoardTopology.get_cells_in_rect()` 使用行区间缓存与二分边界查询可见活跃单元；`GameBoardController` 只通过 `GFObjectPoolUtility` 挂载当前窗口内的格子和方块节点。完整模型不受裁剪影响，缩放过小时进入仅显示棋盘底板的细节层级。
 - 原 3x3 至 8x8 模式选择通过 `scalable_square_board_template.tres` 生成矩形拓扑。
 - 调试扩建仅支持矩形正方形；它不是玩家棋盘编辑器。
 - `board_editor` 已提供画笔、橡皮、矩形与十字预设、位置规范化、连通分量提示、局部 GF 撤销历史和玩家模板目录；撤销/重做通过 feature 自有 GF 输入上下文消费，控件与草稿信号由 `GFSignalUtility` 管理。
-- 编辑画布使用稳定世界尺寸，桌面与双指视口操作由 `GFPointerGestureUtility` 归一化，内容根、视图状态和坐标换算由 `GFSpatialCanvas2D` 持有；紧凑横屏和竖屏使用独立功能分区与 GF 物理安全区边距。
+- 编辑画布使用稳定世界尺寸，桌面与双指视口操作由编辑控制器自己的 `GFPointerGestureUtility` 实例归一化，内容根、视图状态和坐标换算由 `GFSpatialCanvas2D` 持有；紧凑横屏和竖屏使用独立功能分区与 GF 物理安全区边距。
 - 玩家模板使用 `custom_boards` GFSaveProfile section 和 `board.player.<uuid>` 稳定拓扑 ID。
 
 ## 表现与视口契约

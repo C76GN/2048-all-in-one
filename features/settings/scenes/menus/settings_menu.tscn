@@ -294,6 +294,22 @@ layout_mode = 2
 size_flags_horizontal = 3
 button_pressed = true
 
+[node name="LocalPerformanceTraceContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/LocalPerformanceTraceContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "本地性能诊断"
+vertical_alignment = 1
+
+[node name="LocalPerformanceTraceToggle" type="CheckButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/LocalPerformanceTraceContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="AudioSection" type="VBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections"]
 unique_name_in_owner = true
 visible = false

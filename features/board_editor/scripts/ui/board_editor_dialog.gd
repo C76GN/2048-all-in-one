@@ -399,6 +399,17 @@ func _refresh_saved_boards(preferred_id: String = "") -> void:
 		})
 		if custom_board.custom_board_id == preferred_id:
 			preferred_index = items.size() - 1
+	_library_title_label.text = "%s · %d/%d" % [
+		tr("BOARD_EDITOR_LIBRARY_TITLE"),
+		_saved_boards.size(),
+		CustomBoardCatalogSaveData.MAX_CUSTOM_BOARD_COUNT,
+	]
+	_library_title_label.tooltip_text = (
+		tr("BOARD_EDITOR_CAPACITY_FULL_HINT")
+		if _saved_boards.size()
+		>= CustomBoardCatalogSaveData.MAX_CUSTOM_BOARD_COUNT
+		else ""
+	)
 	var _written_count: int = GFItemListBinder.write_items(_saved_board_list, items, {
 		"text_key": &"text",
 		"id_key": &"id",

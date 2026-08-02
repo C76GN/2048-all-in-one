@@ -601,10 +601,9 @@ func _collect_architecture_dependency_snapshot() -> Dictionary:
 	var architecture: GFArchitecture = _get_architecture_or_null()
 	if architecture == null:
 		return {}
-	return architecture.get_dependency_diagnostics({
-		"include_parent_lookup": false,
-		"include_factories": true,
-	})
+	# GF 11 的生命周期计划已经冻结本地解析结果与工厂依赖；公开诊断入口
+	# 直接返回同一份计划快照，不再接受调用方过滤选项。
+	return architecture.get_dependency_diagnostics()
 
 
 func _make_unavailable_snapshot(reason: String) -> Dictionary:

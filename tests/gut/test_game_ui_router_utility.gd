@@ -143,6 +143,34 @@ func test_owned_async_route_returns_typed_terminal_result() -> void:
 	assert_true(result.get_reason() == &"missing_route")
 
 
+func test_stale_owner_rollback_does_not_close_new_instance_of_same_route() -> void:
+	var ui_utility: _TopPanelProbeUiUtility = _TopPanelProbeUiUtility.new()
+	var ui_router: _RollbackProbeRouter = _RollbackProbeRouter.new()
+	ui_router.configure([], ui_utility)
+	var stale_panel: Control = Control.new()
+	var replacement_panel: Control = Control.new()
+	add_child_autoqfree(stale_panel)
+	add_child_autoqfree(replacement_panel)
+	var stale_result: GFUIRouteResult = _make_opened_route_result(
+		stale_panel,
+		&"settings_menu"
+	)
+
+	ui_utility.top_panel = replacement_panel
+	ui_router._rollback_stale_route_result(stale_result)
+
+	assert_true(
+		ui_router.back_call_count == 0,
+		"同 route 的新面板已成为栈顶时，不得用迟到结果盲目 back。"
+	)
+	ui_utility.top_panel = stale_panel
+	ui_router._rollback_stale_route_result(stale_result)
+	assert_true(
+		ui_router.back_call_count == 1,
+		"只有迟到结果实际提交的面板仍是栈顶时才允许回滚。"
+	)
+
+
 func test_game_ui_router_uses_ui_route_registry_order() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var asset_utility: GFAssetUtility = GFAssetUtility.new()
@@ -232,3 +260,51 @@ func _packed_strings_to_array(values: PackedStringArray) -> Array[String]:
 	for value: String in values:
 		result.append(value)
 	return result
+
+
+func _make_opened_route_result(
+	panel: Node,
+	route_id: StringName
+) -> GFUIRouteResult:
+	var result: GFUIRouteResult = GFUIRouteResult.new()
+	var configured: bool = result.configure_for_framework(
+		1,
+		route_id,
+		&"push",
+		GFUIRouteResult.STATUS_OPENED,
+		&"",
+		GFUIUtility.Layer.POPUP,
+		panel,
+		GFUIRouterUtility.PRELOAD_BEST_EFFORT,
+		false,
+		false,
+		{},
+		null,
+		10,
+		11,
+		{}
+	)
+	assert_true(configured, "测试路由结果应成功配置。")
+	return result
+
+
+# --- 内部类 ---
+
+class _TopPanelProbeUiUtility extends GFUIUtility:
+	var top_panel: Node = null
+
+
+	## @param _layer: 测试忽略的 UI 层。
+	func get_top_panel(_layer: int = Layer.POPUP) -> Node:
+		return top_panel
+
+
+class _RollbackProbeRouter extends GameUiRouterUtility:
+	var back_call_count: int = 0
+
+
+	## @param _layer: 测试忽略的 UI 层。
+	## @param _do_free: 测试忽略的释放选项。
+	func back(_layer: int = -1, _do_free: bool = true) -> bool:
+		back_call_count += 1
+		return true

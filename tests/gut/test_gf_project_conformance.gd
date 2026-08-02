@@ -185,9 +185,9 @@ func test_boot_enables_strict_architecture_dependency_contracts() -> void:
 
 	assert_true(source.contains("Gf.create_architecture()"), "Boot 应显式配置 GF 根架构。")
 	assert_true(source.contains("architecture.strict_dependency_lookup = true"), "根架构必须禁用隐式父级依赖回退。")
-	assert_true(
-		source.contains("architecture.fail_on_missing_declared_dependencies = true"),
-		"根架构必须在生命周期开始前拒绝缺失的声明式依赖。"
+	assert_false(
+		source.contains("fail_on_missing_declared_dependencies"),
+		"GF 11 已将声明依赖失败纳入生命周期计划，不得继续写入已移除开关。"
 	)
 	assert_true(source.contains("architecture_ready: bool = await Gf.init()"), "Boot 必须检查 GF 严格初始化结果。")
 	assert_true(

@@ -100,19 +100,16 @@ func test_animation_utility_snapshots_feedback_motion_when_enqueuing() -> void:
 	queue_root.dispose()
 
 
-func test_animation_utility_gates_only_first_idle_visual_action() -> void:
+func test_animation_utility_starts_first_idle_visual_action_without_frame_gate() -> void:
 	var queue_root: GFActionQueueSystem = GFActionQueueSystem.new()
 	queue_root.init()
 	var board: GameBoardController = GameBoardController.new()
 	autofree(board)
-	var gate_host: Node = Node.new()
-	add_child_autofree(gate_host)
 	var feedback: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
 	assert_true(feedback.apply_profile(_FEEDBACK_PROFILE))
-	var animation_utility: ProbeGatedAnimationUtility = ProbeGatedAnimationUtility.new()
+	var animation_utility: GameBoardAnimationUtility = GameBoardAnimationUtility.new()
 	animation_utility._action_queue_system = queue_root
 	animation_utility._feedback_utility = feedback
-	animation_utility.gate_host = gate_host
 	assert_true(animation_utility.bind_board(board))
 	var execution_order: Array[StringName] = []
 	var first_action: ProbeQueuedMotionAction = ProbeQueuedMotionAction.new(
@@ -125,59 +122,45 @@ func test_animation_utility_gates_only_first_idle_visual_action() -> void:
 	)
 
 	assert_true(animation_utility.enqueue(first_action))
-	assert_true(animation_utility.is_busy(), "空闲队列入队后必须立即进入忙碌状态。")
-	assert_true(execution_order.is_empty(), "首个视觉动作不得在输入事件栈内执行。")
+	assert_true(
+		execution_order == [&"first"],
+		"空闲队列的首个主表现必须立即开始，不得人为等待一个 process frame。"
+	)
 	assert_true(animation_utility.enqueue(second_action))
 	assert_true(
-		GFVariantData.get_option_int(
-			animation_utility._board_queue.get_debug_snapshot(),
-			&"queued_count"
-		) == 2,
-		"队列忙碌时不得给同批后续动作重复插入帧门。"
-	)
-
-	for _frame: int in range(8):
-		if execution_order.size() == 2:
-			break
-		await get_tree().process_frame
-
-	assert_true(
 		execution_order == [&"first", &"second"],
-		"帧门后必须保持原动作 FIFO 顺序。"
+		"移除首帧门后仍必须保持 GF 动作队列的 FIFO 顺序。"
 	)
 	animation_utility.unbind_board(board)
 	queue_root.dispose()
 
 
-func test_clearing_first_frame_gate_prevents_stale_visual_action() -> void:
-	var queue_root: GFActionQueueSystem = GFActionQueueSystem.new()
-	queue_root.init()
+func test_board_animation_action_reports_primary_feedback_only_when_execute_starts() -> void:
 	var board: GameBoardController = GameBoardController.new()
 	autofree(board)
-	var gate_host: Node = Node.new()
-	add_child_autofree(gate_host)
-	var feedback: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
-	assert_true(feedback.apply_profile(_FEEDBACK_PROFILE))
-	var animation_utility: ProbeGatedAnimationUtility = ProbeGatedAnimationUtility.new()
-	animation_utility._action_queue_system = queue_root
-	animation_utility._feedback_utility = feedback
-	animation_utility.gate_host = gate_host
-	assert_true(animation_utility.bind_board(board))
-	var execution_order: Array[StringName] = []
-	var stale_action: ProbeQueuedMotionAction = ProbeQueuedMotionAction.new(
-		&"stale",
-		execution_order
+	var performance_trace: RecordingPerformanceTraceUtility = (
+		RecordingPerformanceTraceUtility.new()
 	)
+	var action: BoardAnimationAction = BoardAnimationAction.new(
+		[{&"type": &"PROBE"}],
+		board
+	)
+	action.configure_primary_feedback_trace(performance_trace, 73)
 
-	assert_true(animation_utility.enqueue(stale_action))
-	animation_utility.clear(true)
-	for _frame: int in range(3):
-		await get_tree().process_frame
-
-	assert_true(execution_order.is_empty(), "取消帧门时不得补执行已经过时的视觉动作。")
-	assert_false(animation_utility.is_busy())
-	animation_utility.unbind_board(board)
-	queue_root.dispose()
+	assert_true(
+		performance_trace.marked_attempt_ids.is_empty(),
+		"创建和配置动作不能被记作玩家首反馈。"
+	)
+	var _first_result: Variant = action.execute()
+	assert_true(
+		performance_trace.marked_attempt_ids == [73],
+		"BoardAnimationAction.execute 起点必须记录一次首反馈。"
+	)
+	var _second_result: Variant = action.execute()
+	assert_true(
+		performance_trace.marked_attempt_ids == [73],
+		"首反馈记录必须保持一次性，重复执行不得重复采样。"
+	)
 
 
 func test_board_reparent_keeps_animation_binding_and_paints_next_action() -> void:
@@ -312,19 +295,6 @@ class ProbePaintAction extends BoardTweenBatchAction:
 		return null
 
 
-class ProbeGatedAnimationUtility extends GameBoardAnimationUtility:
-	var gate_host: Node
-
-	func _create_first_frame_gate() -> GFWaitAction:
-		var gate: GFWaitAction = GFWaitAction.new(
-			_FIRST_FRAME_GATE_SECONDS,
-			gate_host
-		)
-		gate.process_always = true
-		gate.ignore_time_scale = true
-		return gate
-
-
 class ProbeReparentBoard extends GameBoardController:
 	func _ready() -> void:
 		pass
@@ -335,3 +305,11 @@ class ProbeReparentBoard extends GameBoardController:
 
 	func has_cleaned_up() -> bool:
 		return _is_cleaned_up
+
+
+class RecordingPerformanceTraceUtility extends GamePerformanceTraceUtility:
+	var marked_attempt_ids: Array[int] = []
+
+	## @param attempt_id: 要记录的测试移动尝试标识。
+	func mark_primary_feedback_started(attempt_id: int) -> void:
+		marked_attempt_ids.append(attempt_id)

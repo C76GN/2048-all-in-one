@@ -77,6 +77,13 @@ theme_override_font_sizes/font_size = 40
 text = "读取存档"
 horizontal_alignment = 1
 
+[node name="CapacityLabel" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn" index="1"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.28, 0.3, 0.34, 0.82)
+text = "书签 0/16"
+horizontal_alignment = 1
+
 [node name="ListSurface" type="PanelContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0"]
 custom_minimum_size = Vector2(580, 540)
 layout_mode = 2

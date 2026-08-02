@@ -13,11 +13,20 @@ extends Resource
 ## 原子升级；所在 bookmarks section 无需失效，也不会重置玩家 Profile。
 const SCHEMA_VERSION: int = 6
 ## 新建书签的 undo/redo 合计只保留最近 64 条；运行中 GFCommandHistory 的
-## 1024 条上限不变，旧书签也继续按原样完整读取。
+## 1024 条上限不变。读取仍接受当前 schema 的历史条目，但必须满足下方统一载荷预算。
 const PERSISTED_HISTORY_TOTAL_LIMIT: int = 64
+## v5 迁移输入的绝对命令数边界；只用于复制前防御，不改变 v6 新书签的 64 条窗口。
+const LEGACY_HISTORY_ABSOLUTE_COMMAND_LIMIT: int = 1024
+## 玩家可达棋盘当前不超过 8x8；为未来 16x16 布局预留到 256 格，
+## 同时阻止通用 BoardTopology 的工具级极限进入每步命令快照。
+const PERSISTED_BOARD_CELL_LIMIT: int = 256
+## 回放轨迹属于书签恢复证据而不是无界日志。
+const PERSISTED_REPLAY_TRACE_LIMIT: int = 8192
 const _LEGACY_DICTIONARY_HISTORY_SCHEMA_VERSION: int = 5
 const _HISTORY_CODEC_ID: String = "gf_storage_binary_v1"
-const _MAX_HISTORY_PAYLOAD_BYTES: int = 32 * 1024 * 1024
+## 256 格状态、64 条命令的防御预算；为字段和 codec 开销留出余量，
+## 但不再允许单个书签独占 GFStorage 64 MiB 文档预算的一半。
+const MAX_HISTORY_PAYLOAD_BYTES: int = 2 * 1024 * 1024
 
 
 # --- 导出变量 ---
@@ -152,7 +161,9 @@ static func is_persisted_envelope_lightweight_valid(data: Dictionary) -> bool:
 		0
 	)
 	if not _is_persisted_history_envelope_valid(
-		GFVariantData.get_option_dictionary(data, "game_state_history"),
+		GFVariantData.as_dictionary(
+			GFVariantData.get_option_value(data, "game_state_history")
+		),
 		persisted_schema_version
 	):
 		return false
@@ -173,6 +184,60 @@ static func is_persisted_envelope_lightweight_valid(data: Dictionary) -> bool:
 	return from_dict(validation_data) != null
 
 
+## 在取得候选所有权前执行不会复制大型容器的防御校验。
+##
+## 此入口只确认根 schema、二进制历史字节数、旧历史命令数、棋盘格数与回放数；
+## provider 取得隔离或唯一所有权后仍须调用 from_dict() 完成语义校验。
+## @param data: 尚未复制或接管的持久化书签 envelope。
+static func is_persisted_envelope_copy_boundary_valid(
+	data: Dictionary
+) -> bool:
+	if not _has_valid_persisted_shape(data):
+		return false
+	var persisted_schema_version: int = GFVariantData.get_option_int(
+		data,
+		"schema_version",
+		0
+	)
+	var history: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(data, "game_state_history")
+	)
+	if persisted_schema_version == _LEGACY_DICTIONARY_HISTORY_SCHEMA_VERSION:
+		if not _has_valid_history_root_shape(history):
+			return false
+		var legacy_command_count: int = (
+			GFVariantData.as_array(
+				GFVariantData.get_option_value(history, "undo")
+			).size()
+			+ GFVariantData.as_array(
+				GFVariantData.get_option_value(history, "redo")
+			).size()
+		)
+		if legacy_command_count > LEGACY_HISTORY_ABSOLUTE_COMMAND_LIMIT:
+			return false
+	elif not _is_persisted_history_envelope_valid(
+		history,
+		persisted_schema_version
+	):
+		return false
+	if not _is_board_snapshot_within_persisted_bounds(
+		GFVariantData.as_dictionary(
+			GFVariantData.get_option_value(data, "board_snapshot")
+		)
+	):
+		return false
+	var action_values: Array = GFVariantData.as_array(
+		GFVariantData.get_option_value(data, "replay_actions")
+	)
+	var checkpoint_values: Array = GFVariantData.as_array(
+		GFVariantData.get_option_value(data, "replay_checkpoints")
+	)
+	return (
+		action_values.size() <= PERSISTED_REPLAY_TRACE_LIMIT
+		and checkpoint_values.size() == action_values.size()
+	)
+
+
 func get_session_metadata() -> GameSessionMetadata:
 	return GameSessionMetadata.from_dict(session_metadata)
 
@@ -180,7 +245,7 @@ func get_session_metadata() -> GameSessionMetadata:
 ## 从当前严格 schema 构造书签；任何字段缺失、类型错误或 ID 非法时返回 null。
 ## @param data: 当前版本的完整书签字典。
 static func from_dict(data: Dictionary) -> BookmarkData:
-	if not _has_valid_persisted_shape(data):
+	if not is_persisted_envelope_copy_boundary_valid(data):
 		return null
 
 	var result: BookmarkData = BookmarkData.new()
@@ -213,7 +278,14 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	result.target_reached = GFVariantData.get_option_bool(data, "target_reached")
 	result.extra_stats = GFVariantData.get_option_dictionary(data, "extra_stats").duplicate(true)
 	result.rng_full_state = GFVariantData.get_option_dictionary(data, "rng_full_state").duplicate(true)
-	result.board_snapshot = GFVariantData.get_option_dictionary(data, "board_snapshot").duplicate(true)
+	var board_snapshot_value: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(data, "board_snapshot")
+	)
+	# active_cells/tiles 数量可从候选根直接读取；必须在获取独立所有权前
+	# 拒绝超限棋盘，避免恶意存档触发一次无意义的大型递归复制。
+	if not _is_board_snapshot_within_persisted_bounds(board_snapshot_value):
+		return null
+	result.board_snapshot = board_snapshot_value.duplicate(true)
 	if not GridModel.is_snapshot_envelope_valid(result.board_snapshot):
 		return null
 	result.rules_states = GFVariantData.get_option_dictionary(data, "rules_states").duplicate(true)
@@ -221,11 +293,22 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 		GFVariantData.get_option_dictionary(data, "game_state_history"),
 		persisted_schema_version
 	)
-	for action_value: Variant in GFVariantData.get_option_array(data, "replay_actions"):
+	var action_values: Array = GFVariantData.as_array(
+		GFVariantData.get_option_value(data, "replay_actions")
+	)
+	var checkpoint_values: Array = GFVariantData.as_array(
+		GFVariantData.get_option_value(data, "replay_checkpoints")
+	)
+	if (
+		action_values.size() > PERSISTED_REPLAY_TRACE_LIMIT
+		or checkpoint_values.size() != action_values.size()
+	):
+		return null
+	for action_value: Variant in action_values:
 		if not action_value is Vector2i:
 			return null
 		result.replay_actions.append(action_value)
-	for checkpoint_value: Variant in GFVariantData.get_option_array(data, "replay_checkpoints"):
+	for checkpoint_value: Variant in checkpoint_values:
 		if not checkpoint_value is Dictionary:
 			return null
 		var checkpoint_data: Dictionary = checkpoint_value
@@ -448,7 +531,7 @@ static func _encode_history(
 	)
 	if (
 		payload.is_empty()
-		or payload.size() > _MAX_HISTORY_PAYLOAD_BYTES
+		or payload.size() > MAX_HISTORY_PAYLOAD_BYTES
 	):
 		return {}
 	return {
@@ -481,7 +564,7 @@ static func _decode_history(
 	var payload: PackedByteArray = payload_value
 	if (
 		payload.is_empty()
-		or payload.size() > _MAX_HISTORY_PAYLOAD_BYTES
+		or payload.size() > MAX_HISTORY_PAYLOAD_BYTES
 	):
 		return {}
 	var codec: GFStorageCodec = GFStorageCodec.new()
@@ -514,7 +597,33 @@ static func _is_persisted_history_envelope_valid(
 		"payload"
 	)
 	var payload: PackedByteArray = payload_value
-	return not payload.is_empty() and payload.size() <= _MAX_HISTORY_PAYLOAD_BYTES
+	return not payload.is_empty() and payload.size() <= MAX_HISTORY_PAYLOAD_BYTES
+
+
+static func _is_board_snapshot_within_persisted_bounds(
+	snapshot: Dictionary
+) -> bool:
+	if not (
+		GFVariantData.get_option_value(snapshot, &"topology") is Dictionary
+		and GFVariantData.get_option_value(snapshot, &"tiles") is Array
+	):
+		return false
+	var topology_data: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(snapshot, &"topology")
+	)
+	if not GFVariantData.get_option_value(
+		topology_data,
+		&"active_cells"
+	) is Array:
+		return false
+	return (
+		GFVariantData.as_array(
+			GFVariantData.get_option_value(topology_data, &"active_cells")
+		).size() <= PERSISTED_BOARD_CELL_LIMIT
+		and GFVariantData.as_array(
+			GFVariantData.get_option_value(snapshot, &"tiles")
+		).size() <= PERSISTED_BOARD_CELL_LIMIT
+	)
 
 
 static func _is_valid_fingerprint(value: String) -> bool:

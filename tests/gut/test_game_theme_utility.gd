@@ -764,8 +764,13 @@ func _create_theme_architecture(
 	)
 	await architecture.register_utility(GameAssetLibraryUtility, asset_library)
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFAudioUtility, audio)
+	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GFSignalUtility, signal_utility)
 	await architecture.register_utility(GameAccessibilityUtility, accessibility)

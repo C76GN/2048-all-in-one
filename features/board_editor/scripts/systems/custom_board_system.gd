@@ -90,15 +90,26 @@ func request_save_custom_board(
 	if strict_candidate == null:
 		return _reject_operation(save_graph, ERR_INVALID_DATA)
 
+	var replaced_oldest: bool = false
 	if replacing_index >= 0:
 		boards[replacing_index] = strict_candidate
+		boards.sort_custom(_is_newer_board)
 	else:
-		boards.append(strict_candidate)
-	boards.sort_custom(_is_newer_board)
+		replaced_oldest = _insert_new_board_at_capacity(
+			boards,
+			strict_candidate
+		)
 	var operation: GameSaveSectionOperation = save_graph.request_replace_section_data(
 		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
 		_serialize_custom_boards(boards),
-		{&"feature": &"custom_boards", &"action": &"save"}
+		{
+			&"feature": &"custom_boards",
+			&"action": &"save",
+			&"capacity_limit": (
+				CustomBoardCatalogSaveData.MAX_CUSTOM_BOARD_COUNT
+			),
+			&"replaced_oldest": replaced_oldest,
+		}
 	)
 	_apply_saved_board_on_success(operation, strict_candidate, custom_board)
 	return operation
@@ -123,6 +134,26 @@ func load_custom_boards() -> Array[CustomBoardData]:
 			boards.append(custom_board)
 	boards.sort_custom(_is_newer_board)
 	return boards
+
+
+## 返回 UI 与诊断共用的自定义棋盘目录容量状态。
+func get_capacity_snapshot() -> Dictionary:
+	var count: int = mini(
+		load_custom_boards().size(),
+		CustomBoardCatalogSaveData.MAX_CUSTOM_BOARD_COUNT
+	)
+	return {
+		&"count": count,
+		&"limit": CustomBoardCatalogSaveData.MAX_CUSTOM_BOARD_COUNT,
+		&"remaining": maxi(
+			CustomBoardCatalogSaveData.MAX_CUSTOM_BOARD_COUNT - count,
+			0
+		),
+		&"is_full": (
+			count >= CustomBoardCatalogSaveData.MAX_CUSTOM_BOARD_COUNT
+		),
+		&"replacement_policy": &"keep_newest",
+	}
 
 
 ## @param custom_board_id: 玩家棋盘 UUID v7。
@@ -292,6 +323,23 @@ static func _copy_saved_board(
 	target.topology = BoardTopology.from_dict(
 		strict_candidate.topology.to_dict()
 	)
+
+
+static func _insert_new_board_at_capacity(
+	boards: Array[CustomBoardData],
+	candidate: CustomBoardData
+) -> bool:
+	boards.sort_custom(_is_newer_board)
+	var replaced_oldest: bool = (
+		boards.size() >= CustomBoardCatalogSaveData.MAX_CUSTOM_BOARD_COUNT
+	)
+	if replaced_oldest:
+		# 目录已满时先淘汰现有最旧项，再加入候选。这样即使同秒
+		# updated_at 与 UUID v7 随机尾部排序较小，保存成功也不会丢失新项。
+		boards.remove_at(boards.size() - 1)
+	boards.append(candidate)
+	boards.sort_custom(_is_newer_board)
+	return replaced_oldest
 
 
 func _get_save_graph() -> GameSaveGraphUtility:

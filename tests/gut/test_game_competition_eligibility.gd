@@ -141,6 +141,10 @@ func test_accessibility_changes_do_not_affect_competition_eligibility() -> void:
 	settings.register_project_defaults()
 	var accessibility: GameAccessibilityUtility = GameAccessibilityUtility.new()
 	await architecture.register_utility(GFStorageUtility, GFStorageUtility.new())
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GameAccessibilityUtility, accessibility)

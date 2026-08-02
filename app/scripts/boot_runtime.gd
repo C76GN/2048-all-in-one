@@ -62,7 +62,6 @@ func _run_startup_sequence() -> void:
 	await _await_startup_frame(true)
 	var architecture: GFArchitecture = Gf.create_architecture()
 	architecture.strict_dependency_lookup = true
-	architecture.fail_on_missing_declared_dependencies = true
 	var architecture_ready: bool = await Gf.init()
 	if not architecture_ready:
 		push_error("[Boot] GF 架构严格初始化失败。")
@@ -136,7 +135,9 @@ func _preload_startup_scene(scene_utility: GFSceneUtility) -> void:
 	_set_startup_task_progress(_PROGRESS_TASK_ENTRY_SCENE, 0.0, "预热入口场景")
 	var startup_scene_path: String = _get_startup_scene_path()
 	if DisplayServer.get_name() != "headless":
-		scene_utility.configure_scene_preload_map(_SCENE_PRELOAD_MAP, 1, true)
+		# GF 11.0.0-dev.0 的自动相邻预载回调仍按旧 scene_changed
+		# 参数签名绑定；项目继续显式执行同一预载图，暂时关闭自动回调。
+		scene_utility.configure_scene_preload_map(_SCENE_PRELOAD_MAP, 1, false)
 		var _preload_plan: Dictionary = scene_utility.preload_scene_map_for(
 			startup_scene_path,
 			1,

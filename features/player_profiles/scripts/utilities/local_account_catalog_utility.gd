@@ -32,6 +32,7 @@ const PROFILE_DIRECTORY: String = "profiles"
 const PROFILE_EXTENSION: String = ".save"
 const _CATALOG_IO_TIMEOUT_MSEC: int = 5_000
 const _DISPOSE_DRAIN_STEPS: int = 6_000
+const _CATALOG_MUTATION_GATE_KEY: StringName = &"device_account_catalog"
 
 
 # --- 私有变量 ---
@@ -44,11 +45,12 @@ var _async_tracking_ids: Dictionary = {}
 var _accounts: Array[LocalPlayerAccount] = []
 var _active_account_id: String = ""
 var _last_error: Error = OK
-var _async_mutation_in_progress: bool = false
 var _last_async_storage_result: Dictionary = {}
 var _disposed: bool = false
-var _mutation_generation: int = 0
-var _active_mutation_token: int = 0
+var _mutation_gate: GFAsyncKeyedGate = GFAsyncKeyedGate.new()
+var _active_mutation_lease: GFAsyncGateLease = null
+var _operation_diagnostics: GFOperationDiagnosticsUtility = null
+var _catalog_diagnostic_operation_id: StringName = &""
 var _pending_storage_operation: GFStorageAsyncOperation = null
 var _pending_storage_deadline_msec: int = 0
 var _detached_storage_operations: Dictionary = {}
@@ -57,13 +59,18 @@ var _detached_storage_operations: Dictionary = {}
 # --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GameClockUtility, GFStorageUtility]
+	return [
+		GameClockUtility,
+		GFOperationDiagnosticsUtility,
+		GFStorageUtility,
+	]
 
 
 func ready() -> void:
 	_disposed = false
 	_storage = _resolve_storage_utility()
 	_clock = _resolve_clock_utility()
+	_operation_diagnostics = _resolve_operation_diagnostics_utility()
 	_async_tracker = _resolve_optional_async_tracker()
 	_last_error = _load_catalog()
 	if _last_error != OK:
@@ -94,15 +101,19 @@ func dispose() -> void:
 		OS.delay_msec(1)
 	_disposed = true
 	_clear_async_tracking()
-	_mutation_generation += 1
-	_active_mutation_token = 0
+	_finish_catalog_diagnostic_operation(ERR_UNAVAILABLE)
+	var _cleared_gate_entries: int = _mutation_gate.clear(
+		&"catalog_disposed",
+		{&"component": &"local_account_catalog"}
+	)
+	_active_mutation_lease = null
 	_storage = null
 	_clock = null
+	_operation_diagnostics = null
 	_async_tracker = null
 	_accounts.clear()
 	_active_account_id = ""
 	_last_error = OK
-	_async_mutation_in_progress = false
 	_last_async_storage_result.clear()
 	_pending_storage_operation = null
 	_pending_storage_deadline_msec = 0
@@ -164,9 +175,9 @@ func create_account_async(
 	display_name: String,
 	publish_signals: bool = true
 ) -> LocalPlayerAccount:
-	if not _begin_async_catalog_mutation():
+	if not _begin_async_catalog_mutation(&"create"):
 		return null
-	var mutation_token: int = _active_mutation_token
+	var mutation_token: int = _get_active_mutation_token()
 	if _accounts.size() >= MAX_ACCOUNTS:
 		_finish_async_catalog_mutation(ERR_OUT_OF_MEMORY)
 		return null
@@ -219,9 +230,9 @@ func rename_account_async(
 	display_name: String,
 	publish_signals: bool = true
 ) -> Error:
-	if not _begin_async_catalog_mutation():
+	if not _begin_async_catalog_mutation(&"rename"):
 		return _last_error
-	var mutation_token: int = _active_mutation_token
+	var mutation_token: int = _get_active_mutation_token()
 	var account: LocalPlayerAccount = _find_account(account_id)
 	var normalized_name: String = LocalPlayerAccount.normalize_display_name(
 		display_name
@@ -270,9 +281,9 @@ func set_active_account_async(
 	account_id: String,
 	publish_signals: bool = true
 ) -> Error:
-	if not _begin_async_catalog_mutation():
+	if not _begin_async_catalog_mutation(&"activate"):
 		return _last_error
-	var mutation_token: int = _active_mutation_token
+	var mutation_token: int = _get_active_mutation_token()
 	var account: LocalPlayerAccount = _find_account(account_id)
 	if account == null:
 		_finish_async_catalog_mutation(ERR_DOES_NOT_EXIST)
@@ -320,9 +331,9 @@ func delete_account_async(
 	account_id: String,
 	publish_signals: bool = true
 ) -> Error:
-	if not _begin_async_catalog_mutation():
+	if not _begin_async_catalog_mutation(&"delete_inactive"):
 		return _last_error
-	var mutation_token: int = _active_mutation_token
+	var mutation_token: int = _get_active_mutation_token()
 	if (
 		_accounts.size() <= 1
 		or account_id.is_empty()
@@ -366,9 +377,9 @@ func delete_active_account_with_fallback_async(
 	fallback_account_id: String,
 	publish_signals: bool = true
 ) -> Error:
-	if not _begin_async_catalog_mutation():
+	if not _begin_async_catalog_mutation(&"delete_active_with_fallback"):
 		return _last_error
-	var mutation_token: int = _active_mutation_token
+	var mutation_token: int = _get_active_mutation_token()
 	if (
 		_accounts.size() <= 1
 		or account_id.is_empty()
@@ -616,12 +627,9 @@ func _make_catalog_payload() -> Dictionary:
 	}
 
 
-func _begin_async_catalog_mutation() -> bool:
+func _begin_async_catalog_mutation(action: StringName) -> bool:
 	if _disposed or not _is_configured():
 		_last_error = ERR_UNCONFIGURED
-		return false
-	if _async_mutation_in_progress:
-		_last_error = ERR_BUSY
 		return false
 	if not _detached_storage_operations.is_empty():
 		_last_error = ERR_BUSY
@@ -634,9 +642,25 @@ func _begin_async_catalog_mutation() -> bool:
 			),
 		}
 		return false
-	_async_mutation_in_progress = true
-	_mutation_generation += 1
-	_active_mutation_token = _mutation_generation
+	var lease_result: Dictionary = _mutation_gate.try_request_lease(
+		_CATALOG_MUTATION_GATE_KEY,
+		{
+			&"metadata": {
+				&"component": &"local_account_catalog",
+				&"action": action,
+			},
+			&"max_concurrency": 1,
+		}
+	)
+	var lease_value: Variant = GFVariantData.get_option_value(
+		lease_result,
+		&"lease"
+	)
+	if not lease_value is GFAsyncGateLease:
+		_last_error = ERR_BUSY
+		return false
+	_active_mutation_lease = lease_value
+	_begin_catalog_diagnostic_operation(action)
 	_last_async_storage_result.clear()
 	_last_error = OK
 	return true
@@ -646,17 +670,60 @@ func _finish_async_catalog_mutation(error_code: Error) -> void:
 	if _disposed:
 		return
 	_last_error = error_code
-	_async_mutation_in_progress = false
-	_active_mutation_token = 0
+	_finish_catalog_diagnostic_operation(error_code)
+	if _active_mutation_lease != null:
+		var _released: bool = _mutation_gate.release_lease(
+			_active_mutation_lease,
+			&"catalog_mutation_finished"
+		)
+	_active_mutation_lease = null
 
 
 func _owns_async_catalog_mutation(mutation_token: int) -> bool:
 	return (
 		not _disposed
-		and _async_mutation_in_progress
+		and _active_mutation_lease != null
+		and _active_mutation_lease.is_active()
 		and mutation_token > 0
-		and _active_mutation_token == mutation_token
+		and _active_mutation_lease.get_lease_id() == mutation_token
 	)
+
+
+func _get_active_mutation_token() -> int:
+	return (
+		_active_mutation_lease.get_lease_id()
+		if _active_mutation_lease != null
+		else 0
+	)
+
+
+func _begin_catalog_diagnostic_operation(action: StringName) -> void:
+	_finish_catalog_diagnostic_operation(ERR_BUSY)
+	if not is_instance_valid(_operation_diagnostics):
+		return
+	_catalog_diagnostic_operation_id = _operation_diagnostics.begin_operation(
+		&"game.account_catalog_mutation",
+		{
+			&"component": &"local_account_catalog",
+			&"label": "Mutate local account catalog",
+			&"metadata": {&"action": action},
+		}
+	)
+
+
+func _finish_catalog_diagnostic_operation(error_code: Error) -> void:
+	if (
+		_catalog_diagnostic_operation_id == &""
+		or not is_instance_valid(_operation_diagnostics)
+	):
+		_catalog_diagnostic_operation_id = &""
+		return
+	var _record: Dictionary = _operation_diagnostics.finish_operation(
+		_catalog_diagnostic_operation_id,
+		error_code == OK,
+		{&"metadata": {&"error_code": int(error_code)}}
+	)
+	_catalog_diagnostic_operation_id = &""
 
 
 func _poll_catalog_storage_operations() -> void:
@@ -861,4 +928,12 @@ func _resolve_clock_utility() -> GameClockUtility:
 	if utility_value is GameClockUtility:
 		var clock: GameClockUtility = utility_value
 		return clock
+	return null
+
+
+func _resolve_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:
+	var utility_value: Object = get_utility(GFOperationDiagnosticsUtility)
+	if utility_value is GFOperationDiagnosticsUtility:
+		var diagnostics: GFOperationDiagnosticsUtility = utility_value
+		return diagnostics
 	return null

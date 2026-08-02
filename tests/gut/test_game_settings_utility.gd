@@ -24,6 +24,22 @@ func test_project_defaults_register_independent_audio_bus_volumes() -> void:
 			0.001,
 			"%s 音频总线默认音量应为 100%%。" % bus_name
 		)
+	assert_true(
+		settings.has_setting(
+			GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY
+		),
+		"项目设置必须注册本地性能诊断的显式同意项。"
+	)
+	assert_false(
+		GFVariantData.to_bool(
+			settings.get_value(
+				GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+				true
+			),
+			true
+		),
+		"本地性能轨迹必须默认关闭。"
+	)
 
 
 func test_storage_recovery_policy_only_resets_physical_format_failures() -> void:
@@ -54,6 +70,48 @@ func test_storage_recovery_policy_only_resets_physical_format_failures() -> void
 	)
 
 
+func test_startup_settings_load_records_successful_terminal_diagnostic() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var storage: GFStorageUtility = _make_storage("gut_loaded_game_settings")
+	var seed_error: Error = storage.save_data(
+		"settings.sav",
+		{String(GFDisplaySettingsUtility.LOCALE_KEY): "en"}
+	)
+	assert_true(seed_error == OK, "应能构造合法设置启动夹具。")
+	var diagnostics: GFOperationDiagnosticsUtility = (
+		GFOperationDiagnosticsUtility.new()
+	)
+	var clock: GFManualClock = GFManualClock.new(5_000_000, 10_000)
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	assert_true(settings.set_clock(clock), "设置工具应接受共享 GFClock 注入。")
+	settings.register_project_defaults()
+	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		diagnostics
+	)
+	await architecture.register_utility(GameSettingsUtility, settings)
+	var initialized: bool = await architecture.init()
+	assert_true(initialized, "设置启动诊断夹具必须完成 GF 架构初始化。")
+
+	assert_true(
+		GFVariantData.to_text(
+			settings.get_value(GFDisplaySettingsUtility.LOCALE_KEY)
+		) == "en",
+		"启动加载必须应用合法持久化设置。"
+	)
+	_assert_startup_settings_diagnostic(
+		diagnostics,
+		true,
+		GFSettingsLoadResult.STATUS_LOADED,
+		false
+	)
+
+	var cleanup_error: Error = storage.delete_file(settings.storage_file_name)
+	assert_true(cleanup_error == OK, "合法设置启动夹具应可清理。")
+	architecture.dispose()
+
+
 func test_future_settings_storage_version_is_preserved_and_blocks_writes() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = _make_storage("gut_future_game_settings")
@@ -65,14 +123,28 @@ func test_future_settings_storage_version_is_preserved_and_blocks_writes() -> vo
 	assert_true(seed_error == OK, "应能构造未来存储版本夹具。")
 	storage.save_version = 1
 
+	var diagnostics: GFOperationDiagnosticsUtility = (
+		GFOperationDiagnosticsUtility.new()
+	)
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
 	settings.register_project_defaults()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		diagnostics
+	)
 	await architecture.register_utility(GameSettingsUtility, settings)
-	await architecture.init()
+	var initialized: bool = await architecture.init()
+	assert_true(initialized, "未来版本设置夹具必须完成 GF 架构初始化。")
 	assert_push_error(
 		"Unsupported future storage version: 2 > 1",
 		"GFStorage 应明确拒绝未来物理存储版本。"
+	)
+	_assert_startup_settings_diagnostic(
+		diagnostics,
+		false,
+		GFSettingsLoadResult.STATUS_FUTURE_SCHEMA,
+		false
 	)
 
 	var recovery: Dictionary = settings.get_storage_recovery_snapshot()
@@ -226,8 +298,13 @@ func test_strict_settings_load_preserves_corrupt_storage_evidence() -> void:
 	settings.auto_load_on_init = false
 	settings.register_project_defaults()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
 	await architecture.register_utility(GameSettingsUtility, settings)
-	await architecture.init()
+	var initialized: bool = await architecture.init()
+	assert_true(initialized, "严格读取设置夹具必须完成 GF 架构初始化。")
 
 	var load_result: GFSettingsLoadResult = settings.load_settings()
 	assert_push_error(
@@ -268,14 +345,28 @@ func test_unreadable_settings_file_is_reset_to_current_format() -> void:
 	)
 	assert_true(fixture_error == OK, "无法写入不可读设置回归夹具。")
 
+	var diagnostics: GFOperationDiagnosticsUtility = (
+		GFOperationDiagnosticsUtility.new()
+	)
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
 	settings.register_project_defaults()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		diagnostics
+	)
 	await architecture.register_utility(GameSettingsUtility, settings)
-	await architecture.init()
+	var initialized: bool = await architecture.init()
+	assert_true(initialized, "设置恢复夹具必须完成 GF 架构初始化。")
 	assert_push_error(
 		"Storage document envelope missing or malformed",
 		"GFStorage 应明确拒绝旧物理文档。"
+	)
+	_assert_startup_settings_diagnostic(
+		diagnostics,
+		true,
+		GFSettingsLoadResult.STATUS_RECOVERED,
+		true
 	)
 
 	var recovery: Dictionary = settings.get_storage_recovery_snapshot()
@@ -318,7 +409,184 @@ func test_unreadable_settings_file_is_reset_to_current_format() -> void:
 	architecture.dispose()
 
 
+func test_settings_quiesce_flushes_open_batch_and_closes_mutation_admission() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var storage: GFStorageUtility = _make_storage("gut_quiesce_game_settings")
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.auto_load_on_init = false
+	settings.register_project_defaults()
+	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
+	await architecture.register_utility(GameSettingsUtility, settings)
+	var initialized: bool = await architecture.init()
+	assert_true(initialized, "设置 quiesce 夹具必须完成 GF 架构初始化。")
+	if not initialized:
+		architecture.dispose()
+		return
+
+	settings.begin_batch()
+	settings.set_value(GFDisplaySettingsUtility.LOCALE_KEY, "en")
+	settings.stage_value(GFDisplaySettingsUtility.LOCALE_KEY, "zh")
+	var completion: GFAsyncCompletion = settings.begin_quiesce(
+		GFAsyncScope.new()
+	)
+	assert_not_null(completion)
+	assert_true(
+		completion != null and completion.is_successful(),
+		"静默设置 Utility 必须冲刷尚未 end_batch 的已接纳变更。"
+	)
+
+	var stored: GFStorageReadResult = storage.load_data(
+		settings.storage_file_name
+	)
+	assert_true(stored.ok, "quiesce 应写出当前 GFStorage 设置文档。")
+	assert_true(
+		GFVariantData.get_option_string(
+			stored.payload,
+			String(GFDisplaySettingsUtility.LOCALE_KEY)
+		) == "en",
+		"未闭合批次的当前设置也必须在关闭前持久化。"
+	)
+
+	settings.set_value(GFDisplaySettingsUtility.LOCALE_KEY, "zh")
+	settings.reset_all()
+	var staged_report: Dictionary = settings.apply_staged_values()
+	assert_true(
+		GFVariantData.get_option_string(
+			settings.to_dict(false),
+			String(GFDisplaySettingsUtility.LOCALE_KEY)
+		) == "en",
+		"quiesce 后 set/reset/apply 不得再改变设置权威状态。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(staged_report, &"ok", true),
+		"quiesce 后 staged 应用必须返回明确拒绝。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(
+			staged_report,
+			&"staged_remaining_count"
+		) == 1,
+		"拒绝 staged 应用时不得消费尚未接纳的候选。"
+	)
+
+	var cleanup_error: Error = storage.delete_file(settings.storage_file_name)
+	assert_true(cleanup_error == OK, "设置 quiesce 夹具应可清理。")
+	architecture.dispose()
+
+
+func test_settings_quiesce_preserves_queued_target_before_flushing_open_batch() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var storage: GFStorageUtility = _make_storage(
+		"gut_quiesce_settings_target_change"
+	)
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.auto_load_on_init = false
+	settings.register_project_defaults()
+	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
+	await architecture.register_utility(GameSettingsUtility, settings)
+	var initialized: bool = await architecture.init()
+	assert_true(initialized, "设置目标切换夹具必须完成 GF 架构初始化。")
+	if not initialized:
+		architecture.dispose()
+		return
+
+	var queued_file_name: String = "queued-settings.sav"
+	var active_file_name: String = "active-settings.sav"
+	settings.storage_file_name = queued_file_name
+	settings.set_value(GFDisplaySettingsUtility.LOCALE_KEY, "en")
+	settings.storage_file_name = active_file_name
+	settings.begin_batch()
+	settings.set_value(GFDisplaySettingsUtility.LOCALE_KEY, "zh")
+
+	var completion: GFAsyncCompletion = settings.begin_quiesce(
+		GFAsyncScope.new()
+	)
+	assert_true(
+		completion != null and completion.is_successful(),
+		"quiesce 必须同时兑现旧 debounce 目标与当前 batch 目标。"
+	)
+	var queued_read: GFStorageReadResult = storage.load_data(queued_file_name)
+	var active_read: GFStorageReadResult = storage.load_data(active_file_name)
+	assert_true(queued_read.ok, "已接纳的旧 debounce 文件目标不得被覆盖。")
+	assert_true(active_read.ok, "打开批次的最新状态必须写入当前设置目标。")
+	assert_true(
+		GFVariantData.get_option_string(
+			active_read.payload,
+			String(GFDisplaySettingsUtility.LOCALE_KEY)
+		) == "zh",
+		"当前设置目标必须保存 quiesce 时的最新批次值。"
+	)
+
+	assert_true(storage.delete_file(queued_file_name) == OK)
+	assert_true(storage.delete_file(active_file_name) == OK)
+	architecture.dispose()
+
+
 # --- 私有/辅助方法 ---
+
+func _assert_startup_settings_diagnostic(
+	diagnostics: GFOperationDiagnosticsUtility,
+	expected_success: bool,
+	expected_load_status: StringName,
+	expected_recovered: bool
+) -> void:
+	var operations: Array[Dictionary] = diagnostics.get_operations(
+		0,
+		{&"operation_type": &"game.settings_persistence"}
+	)
+	assert_true(
+		operations.size() == 1,
+		"一次启动自动加载必须只归档一个设置持久化操作。"
+	)
+	if operations.size() != 1:
+		return
+	var operation: Dictionary = operations[0]
+	var metadata: Dictionary = GFVariantData.get_option_dictionary(
+		operation,
+		&"metadata"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(operation, &"success")
+		== expected_success,
+		"设置启动诊断必须保留真实成功终态。"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(operation, &"state")
+		== (&"completed" if expected_success else &"failed"),
+		"设置启动诊断必须直接进入 completed/failed 终态。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(operation, &"ended_ticks_usec") > 0,
+		"设置启动诊断必须保留结束 tick。"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(metadata, &"action")
+		== &"startup_load",
+		"启动自动加载必须使用稳定 action 分类。"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(metadata, &"load_status")
+		== expected_load_status,
+		"设置启动诊断必须保留 GFSettingsLoadResult 稳定状态。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(metadata, &"recovered")
+		== expected_recovered,
+		"设置启动诊断必须区分正常加载与显式恢复。"
+	)
+	var health: Dictionary = diagnostics.get_health_snapshot(0)
+	assert_true(
+		GFVariantData.get_option_int(health, &"active_operation_count") == 0,
+		"启动加载归档不得遗留 running 操作。"
+	)
 
 func _write_raw_storage_file(
 	storage: GFStorageUtility,

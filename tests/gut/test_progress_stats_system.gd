@@ -558,8 +558,21 @@ func _create_save_architecture(
 		GFBackgroundWorkUtility.new()
 	)
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
+	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
+	await architecture.register_utility(
+		GamePlatformUtility,
+		TestGamePlatformUtilityStub.new()
+	)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
+	await architecture.register_utility(
+		LocalAccountCatalogUtility,
+		LocalAccountCatalogUtility.new()
+	)
 	await architecture.register_system(ProgressStatsSystem, progress_stats_system)
 	await architecture.init()
 	if not initial_save_data.is_empty():
@@ -655,6 +668,14 @@ func _dispose_setup(setup: Dictionary, delete_profile: bool = true) -> void:
 	if delete_profile:
 		var delete_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
 		assert_true(delete_error == OK or delete_error == ERR_FILE_NOT_FOUND, "统计测试清理应返回可预期结果。")
+		var account_catalog_delete_error: Error = storage.delete_file(
+			LocalAccountCatalogUtility.CATALOG_FILE_NAME
+		)
+		assert_true(
+			account_catalog_delete_error == OK
+			or account_catalog_delete_error == ERR_FILE_NOT_FOUND,
+			"统计测试的账号目录夹具应可清理。"
+		)
 	var architecture: GFArchitecture = _get_architecture(setup)
 	architecture.dispose()
 	setup.clear()

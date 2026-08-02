@@ -71,7 +71,6 @@ var _pending_track_path: String = ""
 var _pending_track_type_hint: String = ""
 var _current_track_key: StringName = &""
 var _unavailable_track_keys: Dictionary = {}
-var _load_worker_retainers: Dictionary = {}
 var _disposing: bool = false
 
 
@@ -93,7 +92,6 @@ func init() -> void:
 	_pending_track_type_hint = ""
 	_current_track_key = &""
 	_unavailable_track_keys.clear()
-	_load_worker_retainers.clear()
 
 
 func get_required_utilities() -> Array[Script]:
@@ -221,7 +219,6 @@ func get_debug_snapshot() -> Dictionary:
 			_pending_load_task != null
 			and not _pending_load_task.is_finished()
 		),
-		"retained_load_worker_count": _load_worker_retainers.size(),
 		"shuffle_cycle": _shuffle_cycle,
 		"auto_play_on_ready": auto_play_on_ready,
 	}
@@ -313,16 +310,6 @@ func _connect_runtime_signals() -> void:
 		Callable(self, "_on_bgm_finished"),
 		self
 	)
-	for terminal_signal: Signal in [
-		_background_work.work_completed,
-		_background_work.work_failed,
-		_background_work.work_cancelled,
-	]:
-		var _work_connection: GFSignalConnection = _signals.connect_signal(
-			terminal_signal,
-			Callable(self, "_on_background_work_terminal"),
-			self
-		)
 
 
 func _discover_track_keys() -> PackedStringArray:
@@ -418,9 +405,6 @@ func _submit_track_load(
 	)
 	if task == null or task.status == GFBackgroundWorkTask.Status.FAILED:
 		return false
-	# Callable 不强持有 RefCounted target；必须至少保留到 GF 后台任务进入终态，
-	# 否则线程稍后执行时会得到 null::run。
-	_load_worker_retainers[task.work_id] = worker
 	_pending_load_task = task
 	_pending_track_key = track_key
 	_pending_track_path = track_path
@@ -486,8 +470,13 @@ func _apply_loaded_track(task: GFBackgroundWorkTask) -> bool:
 		"playlist": PLAYLIST_ID,
 		"type_hint": result_type_hint,
 	}
-	_current_track_key = expected_track_key
 	_audio.play_bgm_clip(clip, crossfade_seconds)
+	if (
+		not _audio.is_bgm_playing()
+		or _audio.get_current_bgm_key() != String(expected_track_key)
+	):
+		return _reject_track_and_continue(expected_track_key)
+	_current_track_key = expected_track_key
 	track_started.emit(expected_track_key)
 	return true
 
@@ -628,12 +617,6 @@ func _on_bgm_finished(history_key: String) -> void:
 		return
 	_current_track_key = &""
 	var _requested: bool = _request_next_track_load()
-
-
-func _on_background_work_terminal(task: GFBackgroundWorkTask) -> void:
-	if task == null:
-		return
-	var _removed_retainer: bool = _load_worker_retainers.erase(task.work_id)
 
 
 func _resolve_content_catalog() -> ProjectContentCatalogUtility:

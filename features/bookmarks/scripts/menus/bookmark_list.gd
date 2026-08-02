@@ -18,6 +18,11 @@ extends BaseListMenu
 @export var item_scene: PackedScene
 
 
+# --- 节点引用 ---
+
+@onready var _capacity_label: Label = %CapacityLabel
+
+
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
@@ -42,6 +47,7 @@ func _get_data_list() -> Array:
 	var bookmarks: Array[BookmarkData] = []
 	if is_instance_valid(bookmark_system):
 		bookmarks = bookmark_system.load_bookmarks()
+	_update_capacity_text(bookmarks.size())
 	var result: Array = []
 	for bookmark_data: BookmarkData in bookmarks:
 		result.append(bookmark_data)
@@ -161,6 +167,20 @@ func _get_bookmark_system() -> BookmarkSystem:
 		var bookmark_system: BookmarkSystem = system_value
 		return bookmark_system
 	return null
+
+
+func _update_capacity_text(count: int) -> void:
+	if not is_instance_valid(_capacity_label):
+		return
+	_capacity_label.text = tr("BOOKMARK_CAPACITY_STATUS") % [
+		mini(count, BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT),
+		BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT,
+	]
+	_capacity_label.tooltip_text = (
+		tr("BOOKMARK_CAPACITY_FULL_HINT")
+		if count >= BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT
+		else ""
+	)
 
 
 func _get_mode_display_name(mode_config_path: String) -> String:

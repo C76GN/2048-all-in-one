@@ -58,8 +58,10 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
 	await architecture.register_utility(GameModeCatalogUtility, mode_catalog)
 	await architecture.register_utility(GameDeterminismUtility, determinism)
+	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(GFSeedUtility, GFSeedUtility.new())
 	await architecture.register_utility(GFCommandHistoryUtility, command_history)
+	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
 	await architecture.register_utility(GFNotificationUtility, GFNotificationUtility.new())
 	await architecture.register_utility(GFTimeUtility, GFTimeUtility.new())
 	await architecture.register_utility(GamePauseUtility, GamePauseUtility.new())
@@ -67,8 +69,8 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	await architecture.register_utility(GFLevelUtility, level_utility)
 	await architecture.register_system(RuleSystem, RuleSystem.new())
 	await architecture.register_system(GameStateSystem, state_system)
-	await architecture.register_system(GameFlowSystem, GameFlowSystem.new())
-	await architecture.register_system(GameInitSystem, GameInitSystem.new())
+	await architecture.register_system(GameFlowSystem, _SessionFlowSystem.new())
+	await architecture.register_system(GameInitSystem, _SessionInitSystem.new())
 	await architecture.init()
 
 	var selected_topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(5, 5))
@@ -196,6 +198,7 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	var committed_level_id: StringName = level_utility.current_level_id
 	app_config.selected_bookmark_data.set_value(invalid_history_bookmark)
 	architecture.send_simple_event(EventNames.REQUEST_GAME_INITIALIZATION)
+	assert_push_error("书签命令历史包含不可恢复快照")
 	var invalid_history_selection: Variant = app_config.selected_bookmark_data.get_value()
 	var invalid_history_bookmark_preserved: bool = is_same(
 		invalid_history_selection,
@@ -212,3 +215,29 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	assert_true(command_history.undo_count == 1, "无效历史不得清空当前 GF 命令栈。")
 
 	architecture.dispose()
+
+
+# --- 内部类 ---
+
+## 关卡 session 测试只需要 GameInit 调用 setup，不运行完整对局状态机。
+class _SessionFlowSystem extends GameFlowSystem:
+	func get_required_models() -> Array[Script]:
+		return []
+
+	func get_required_systems() -> Array[Script]:
+		return []
+
+	func get_required_utilities() -> Array[Script]:
+		return []
+
+	func ready() -> void:
+		pass
+
+
+## 回放/统计属于本测试不覆盖的可选读路径；其余 GameInit DAG 保持真实。
+class _SessionInitSystem extends GameInitSystem:
+	func get_required_systems() -> Array[Script]:
+		return [GameFlowSystem, GameStateSystem, RuleSystem]
+
+	func _get_progress_stats_system() -> ProgressStatsSystem:
+		return null

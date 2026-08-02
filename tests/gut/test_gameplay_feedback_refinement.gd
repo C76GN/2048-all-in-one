@@ -349,6 +349,10 @@ func _make_feedback_architecture() -> Dictionary:
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
 	var feedback: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
 	await architecture.register_utility(GFStorageUtility, GFStorageUtility.new())
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GameAccessibilityUtility, accessibility)

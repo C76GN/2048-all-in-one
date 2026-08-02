@@ -6,6 +6,10 @@ extends SceneRouterSystem
 var return_to_main_menu_count: int = 0
 
 
+func get_required_utilities() -> Array[Script]:
+	return []
+
+
 func ready() -> void:
 	pass
 

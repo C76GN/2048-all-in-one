@@ -98,14 +98,29 @@ func request_save_bookmark(
 				GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
 				ERR_ALREADY_EXISTS
 			)
-	bookmark_envelopes.append(candidate_envelope)
-	_sort_bookmark_envelopes(bookmark_envelopes)
-	var operation: GameSaveSectionOperation = save_graph.request_replace_section_data(
-		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
-		{"items": bookmark_envelopes},
-		{&"feature_operation": "save_bookmark"}
+	var replaced_oldest: bool = _insert_new_bookmark_at_capacity(
+		bookmark_envelopes,
+		candidate_envelope
 	)
-	# request_replace_section_data() 会同步应用候选 section，再异步持久化。
+	var section_candidate: Dictionary = {&"items": bookmark_envelopes}
+	var operation: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data_taking_ownership(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+			section_candidate,
+			{
+				&"feature_operation": "save_bookmark",
+				&"capacity_limit": BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT,
+				&"replaced_oldest": replaced_oldest,
+			}
+		)
+	)
+	# ownership 入口返回即永久放弃所有候选别名；这里只重新绑定局部变量，
+	# 绝不 clear 或修改已经移交给 provider 的容器。
+	candidate_envelope = {}
+	bookmark_envelopes = []
+	section_candidate = {}
+	# request_replace_section_data_taking_ownership() 会同步应用候选 section，
+	# 再异步持久化。
 	# 只有进入 pending 或已实际改变内存的终态，旧缓存才不再代表权威状态。
 	_invalidate_bookmark_cache_for_operation(operation)
 	return operation
@@ -164,6 +179,24 @@ func get_cache_debug_snapshot() -> Dictionary:
 	}
 
 
+## 返回 UI 与诊断共用的书签目录容量状态。
+func get_capacity_snapshot() -> Dictionary:
+	var count: int = mini(
+		load_bookmarks().size(),
+		BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT
+	)
+	return {
+		&"count": count,
+		&"limit": BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT,
+		&"remaining": maxi(
+			BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT - count,
+			0
+		),
+		&"is_full": count >= BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT,
+		&"replacement_policy": &"keep_newest",
+	}
+
+
 ## 根据稳定 ID 异步删除一个书签。
 ## @param bookmark_id: 要删除的 UUID v7 书签标识。
 func request_delete_bookmark(
@@ -201,11 +234,17 @@ func request_delete_bookmark(
 			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
 			ERR_DOES_NOT_EXIST
 		)
-	var operation: GameSaveSectionOperation = save_graph.request_replace_section_data(
-		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
-		{"items": retained},
-		{&"feature_operation": "delete_bookmark"}
+	var section_candidate: Dictionary = {&"items": retained}
+	var operation: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data_taking_ownership(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+			section_candidate,
+			{&"feature_operation": "delete_bookmark"}
+		)
 	)
+	bookmark_envelopes = []
+	retained = []
+	section_candidate = {}
 	_invalidate_bookmark_cache_for_operation(operation)
 	return operation
 
@@ -219,28 +258,38 @@ func _load_bookmark_envelopes(
 	output.clear()
 	if not is_instance_valid(save_graph):
 		return false
-	var section_data: Dictionary = save_graph.get_section_data(
-		GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+	var section_data: Dictionary = (
+		save_graph.make_section_immutable_edit_candidate(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+		)
 	)
-	for item_value: Variant in GFVariantData.get_option_array(
-		section_data,
-		"items"
-	):
+	if section_data.size() != 1:
+		return false
+	var item_values: Array = GFVariantData.as_array(
+		GFVariantData.get_option_value(section_data, "items")
+	)
+	if item_values.size() > BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT:
+		return false
+	var seen_ids: Dictionary = {}
+	for item_value: Variant in item_values:
 		if not item_value is Dictionary:
 			output.clear()
 			return false
 		var envelope: Dictionary = GFVariantData.as_dictionary(item_value)
-		if not BookmarkData.is_persisted_envelope_lightweight_valid(
-			envelope
-		):
+		var bookmark_id: String = GFVariantData.get_option_string(
+			envelope,
+			"bookmark_id"
+		)
+		if not GFUuid.is_valid(bookmark_id, 7) or seen_ids.has(bookmark_id):
 			output.clear()
 			return false
+		seen_ids[bookmark_id] = true
 		output.append(envelope)
 	_sort_bookmark_envelopes(output)
 	return true
 
 
-func _sort_bookmark_envelopes(
+static func _sort_bookmark_envelopes(
 	envelopes: Array[Dictionary]
 ) -> void:
 	envelopes.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
@@ -249,6 +298,23 @@ func _sort_bookmark_envelopes(
 			> GFVariantData.get_option_string(right, "bookmark_id")
 		)
 	)
+
+
+static func _insert_new_bookmark_at_capacity(
+	envelopes: Array[Dictionary],
+	candidate: Dictionary
+) -> bool:
+	_sort_bookmark_envelopes(envelopes)
+	var replaced_oldest: bool = (
+		envelopes.size() >= BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT
+	)
+	if replaced_oldest:
+		# 新保存项必须被保留；同毫秒 UUID v7 的随机尾部不能让刚保存的
+		# 候选在排序后被误当成最旧项丢弃。
+		envelopes.remove_at(envelopes.size() - 1)
+	envelopes.append(candidate)
+	_sort_bookmark_envelopes(envelopes)
+	return replaced_oldest
 
 
 func _duplicate_bookmarks(

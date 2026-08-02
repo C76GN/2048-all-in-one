@@ -60,6 +60,46 @@ var _clock: GFClock = GFClock.new()
 
 # --- 公共方法 ---
 
+## 配置 gf.save 扩展已经注册的共享 Storage。
+##
+## GF 11 的扩展 Installer 先于项目 Installer 执行；项目必须配置同一实例，
+## 不能再注册第二份 Storage，否则 Profile 依赖可能绑定到默认配置。
+## @param architecture: GF 尚未发布的候选架构。
+## @param scope: 本轮安装的协作取消作用域。
+func install(architecture: GFArchitecture, scope: GFAsyncScope) -> void:
+	if architecture == null or scope == null:
+		var invalid_reason: String = (
+			"[GameArchitectureInstaller] install 失败：候选架构或 scope 为空。"
+		)
+		if architecture != null:
+			architecture.fail_initialization(invalid_reason)
+		else:
+			push_error(invalid_reason)
+		if scope != null:
+			var _cancelled_invalid_install: bool = scope.cancel(
+				"project_storage_configuration_invalid"
+			)
+		return
+	if scope.is_cancel_requested():
+		return
+	var storage_value: Object = architecture.get_local_utility(
+		GFStorageUtility
+	)
+	if not storage_value is GFStorageUtility:
+		var missing_storage_reason: String = (
+			"[GameArchitectureInstaller] gf.save 未提供 GFStorageUtility。"
+		)
+		# GF 11.0.0-dev.0 仅取消 Installer scope 时不会保证 installers-running
+		# 收敛；显式失败候选架构可让本轮启动确定终结并允许后续重试。
+		architecture.fail_initialization(missing_storage_reason)
+		var _cancelled_missing_storage: bool = scope.cancel(
+			"project_storage_dependency_missing"
+		)
+		return
+	var storage: GFStorageUtility = storage_value
+	_configure_storage_utility(storage)
+
+
 ## 使用声明式 Binder 注册项目级 Model、Utility 和 System。
 ## @param binder: GF 传入的绑定器实例。
 ## @param scope: GF 为本次安装创建的可取消异步作用域。
@@ -123,13 +163,19 @@ func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
 
 
 func _bind_runtime_foundation_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
-	await binder.bind_utility(GFStorageUtility).from_instance(_create_storage_utility()).as_singleton()
-	if scope.is_cancel_requested():
-		return
 	await binder.bind_utility(GFResourceBroker).as_singleton()
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(GFBackgroundWorkUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
+	var operation_diagnostics_binding: GFBindBuilder = binder.bind_utility(
+		GFOperationDiagnosticsUtility
+	)
+	operation_diagnostics_binding = operation_diagnostics_binding.from_instance(
+		_create_operation_diagnostics_utility()
+	)
+	await operation_diagnostics_binding.as_singleton()
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(GameSettingsUtility).from_instance(_create_settings_utility()).with_alias(GFSettingsUtility).as_singleton()
@@ -300,13 +346,13 @@ func _bind_input_and_platform_utilities(binder: GFBinder, scope: GFAsyncScope) -
 	await binder.bind_utility(GFInputMappingUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
+	await binder.bind_utility(GFInputAssistUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(_GAME_INPUT_PROFILE_UTILITY_SCRIPT).as_singleton()
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(_GAME_BOARD_ANIMATION_UTILITY_SCRIPT).as_singleton()
-	if scope.is_cancel_requested():
-		return
-	await binder.bind_utility(GFPointerGestureUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(_GAME_PLATFORM_UTILITY_SCRIPT).as_singleton()
@@ -392,15 +438,13 @@ func _bind_gameplay_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
 		return
 
 
-func _create_storage_utility() -> GFStorageUtility:
-	var storage: GFStorageUtility = GFStorageUtility.new()
+func _configure_storage_utility(storage: GFStorageUtility) -> void:
 	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true
 	storage.save_version = 1
-	return storage
 
 
 func _create_time_utility() -> GFTimeUtility:
@@ -488,8 +532,23 @@ func _create_project_content_catalog_utility() -> ProjectContentCatalogUtility:
 
 func _create_settings_utility() -> GameSettingsUtility:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	var _clock_set: bool = settings.set_clock(_clock)
 	settings.register_project_defaults()
 	return settings
+
+
+func _create_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:
+	var diagnostics: GFOperationDiagnosticsUtility = (
+		GFOperationDiagnosticsUtility.new()
+	)
+	diagnostics.max_completed_operations = 32
+	diagnostics.max_active_operations = 16
+	diagnostics.max_incidents = 32
+	diagnostics.max_state_trace_entries = 16
+	diagnostics.max_sample_stats = 64
+	diagnostics.max_metadata_keys = 12
+	diagnostics.slow_operation_threshold_ms = 100.0
+	return diagnostics
 
 
 func _create_history_utility() -> GFCommandHistoryUtility:

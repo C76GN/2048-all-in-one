@@ -100,6 +100,26 @@ func test_failed_press_does_not_leave_pending_token() -> void:
 	assert_true(source.release_count == 0)
 
 
+func test_failed_timer_connection_releases_pressed_action_and_token() -> void:
+	var source: RecordingVirtualInputSource = RecordingVirtualInputSource.new()
+	var pulse_utility: FailingConnectionPulseUtility = (
+		FailingConnectionPulseUtility.new()
+	)
+	var _configured: GameVirtualActionPulseUtility = pulse_utility.configure(source)
+
+	assert_false(pulse_utility.pulse(&"move_up", get_tree(), 0.5))
+	assert_true(source.press_count == 1)
+	assert_true(
+		source.release_count == 1
+		and source.last_released_action == &"move_up",
+		"计时器连接失败时必须立即撤销已经提交的虚拟按下。"
+	)
+	assert_true(
+		pulse_utility.get_pending_action_count() == 0,
+		"连接失败不得留下永远无法终结的 token。"
+	)
+
+
 # --- 内部类 ---
 
 class RecordingVirtualInputSource:
@@ -127,3 +147,14 @@ class RecordingVirtualInputSource:
 
 	func clear_all() -> void:
 		clear_count += 1
+
+
+class FailingConnectionPulseUtility:
+	extends GameVirtualActionPulseUtility
+
+	func _connect_release_timer(
+		_release_timer: SceneTreeTimer,
+		_action_id: StringName,
+		_token: int
+	) -> int:
+		return ERR_CANT_CONNECT

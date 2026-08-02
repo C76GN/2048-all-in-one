@@ -375,6 +375,14 @@ func _create_discovery_setup(save_dir_name: String) -> Dictionary:
 		GFBackgroundWorkUtility.new()
 	)
 	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		GFOperationDiagnosticsUtility.new()
+	)
+	await architecture.register_utility(
+		GamePlatformUtility,
+		TestGamePlatformUtilityStub.new()
+	)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
