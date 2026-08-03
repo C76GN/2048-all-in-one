@@ -370,6 +370,78 @@ func test_architecture_shutdown_drains_accepted_account_saga_before_dependencies
 	setup.clear()
 
 
+func test_catalog_quiesce_rejects_new_mutations_and_drains_detached_write() -> void:
+	var storage: _DelayedCatalogStorage = _DelayedCatalogStorage.new()
+	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
+	var setup: Dictionary = await _create_setup(storage, clock)
+	var architecture_value: Variant = setup.get(&"architecture")
+	assert_true(architecture_value is GFArchitecture)
+	if not architecture_value is GFArchitecture:
+		_dispose_setup(setup)
+		return
+	var architecture: GFArchitecture = architecture_value
+	var catalog: LocalAccountCatalogUtility = _get_account_catalog(setup)
+	var request_state: Dictionary = {
+		&"done": false,
+		&"account": null,
+	}
+	storage.arm_next_catalog_write(OK)
+	var request_runner: Callable = func() -> void:
+		request_state[&"account"] = await catalog.create_account_async(
+			"静默排空账号",
+			false
+		)
+		request_state[&"done"] = true
+	request_runner.call_deferred()
+	for _frame: int in range(120):
+		architecture.tick(0.0)
+		await get_tree().process_frame
+		if storage.has_delayed_catalog_write_started():
+			break
+	assert_true(
+		storage.has_delayed_catalog_write_started(),
+		"目录写入必须先被 GFStorage 接纳。"
+	)
+	assert_true(clock.advance_msec(5_001))
+	for _frame: int in range(30):
+		architecture.tick(0.0)
+		await get_tree().process_frame
+		if GFVariantData.get_option_bool(request_state, &"done"):
+			break
+	assert_true(
+		GFVariantData.get_option_bool(request_state, &"done")
+		and request_state.get(&"account") == null
+		and catalog.has_pending_late_storage_settlement(),
+		"自定义 deadline 后目录写必须转为 detached typed settlement。"
+	)
+
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var completion: GFAsyncCompletion = catalog.begin_quiesce(scope)
+	assert_true(
+		completion != null and completion.is_pending(),
+		"目录存在 detached 写时 quiesce 不得提前成功。"
+	)
+	var rejected_account: LocalPlayerAccount = await catalog.create_account_async(
+		"静默后拒绝账号",
+		false
+	)
+	assert_null(rejected_account, "quiesce 后必须停止接纳新目录事务。")
+	assert_true(catalog.get_last_error() == ERR_UNAVAILABLE)
+
+	storage.wait_for_async_tasks()
+	for _frame: int in range(120):
+		architecture.tick(0.0)
+		await get_tree().process_frame
+		if completion.is_completed():
+			break
+	assert_true(
+		completion.is_successful()
+		and not catalog.has_pending_late_storage_settlement(),
+		"detached 目录写抵达真实终态后 quiesce 才能完成。"
+	)
+	_dispose_setup(setup)
+
+
 func test_catalog_late_create_success_publishes_catalog_once_and_unblocks_ui() -> void:
 	var storage: _DelayedCatalogStorage = _DelayedCatalogStorage.new()
 	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
@@ -1843,7 +1915,6 @@ func _create_setup(
 		if save_graph_override != null
 		else GameSaveGraphUtility.new()
 	)
-	save_graph.auto_load_legacy_profile_on_ready = false
 	assert_true(save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		GameStatsSaveData.new(),

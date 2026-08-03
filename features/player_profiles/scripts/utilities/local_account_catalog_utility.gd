@@ -31,7 +31,6 @@ const CATALOG_SCHEMA_VERSION: int = 1
 const PROFILE_DIRECTORY: String = "profiles"
 const PROFILE_EXTENSION: String = ".save"
 const _CATALOG_IO_TIMEOUT_MSEC: int = 5_000
-const _DISPOSE_DRAIN_STEPS: int = 6_000
 const _CATALOG_MUTATION_GATE_KEY: StringName = &"device_account_catalog"
 
 
@@ -47,6 +46,8 @@ var _active_account_id: String = ""
 var _last_error: Error = OK
 var _last_async_storage_result: Dictionary = {}
 var _disposed: bool = false
+var _quiescing: bool = false
+var _quiesce_completion: GFAsyncCompletion = null
 var _mutation_gate: GFAsyncKeyedGate = GFAsyncKeyedGate.new()
 var _active_mutation_lease: GFAsyncGateLease = null
 var _operation_diagnostics: GFOperationDiagnosticsUtility = null
@@ -68,6 +69,8 @@ func get_required_utilities() -> Array[Script]:
 
 func ready() -> void:
 	_disposed = false
+	_quiescing = false
+	_quiesce_completion = null
 	_storage = _resolve_storage_utility()
 	_clock = _resolve_clock_utility()
 	_operation_diagnostics = _resolve_operation_diagnostics_utility()
@@ -84,22 +87,36 @@ func ready() -> void:
 ## @param _delta: 本帧增量；存储操作使用 GFClock deadline，不使用该值。
 func tick(_delta: float = 0.0) -> void:
 	_poll_catalog_storage_operations()
+	_try_complete_quiesce()
+
+
+## 停止接纳新的目录事务，并等待所有已接纳及 deadline 后脱离等待的写入
+## 抵达真实终态。Catalog 是 LocalAccountSystem 的依赖，因此该边界必须在
+## Storage 仍然存活时完成，dispose 只负责释放资源。
+## @param scope: 当前架构静默阶段的协作取消作用域。
+## @return 目录写入全部排空时成功的一次性完成源。
+func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
+	if _quiesce_completion != null:
+		return _quiesce_completion
+	_quiescing = true
+	_quiesce_completion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_scope: bool = _quiesce_completion.fail(
+			"Local account catalog quiesce scope is unavailable."
+		)
+		return _quiesce_completion
+	var _bound: bool = _quiesce_completion.bind_cancel_token(scope)
+	_try_complete_quiesce()
+	return _quiesce_completion
 
 
 func dispose() -> void:
-	# 先用 GF 公共 tick 有界排空已提交写入，让候选目录在销毁前得到
-	# 明确成功/失败；禁止调用 wait_for_async_tasks 阻塞等待线程。
-	for _step: int in range(_DISPOSE_DRAIN_STEPS):
-		if (
-			_pending_storage_operation == null
-			and _detached_storage_operations.is_empty()
-		):
-			break
-		if is_instance_valid(_storage):
-			_storage.tick(0.0)
-		_poll_catalog_storage_operations()
-		OS.delay_msec(1)
 	_disposed = true
+	_quiescing = true
+	if _quiesce_completion != null and _quiesce_completion.is_pending():
+		var _cancelled_quiesce: bool = _quiesce_completion.cancel(
+			&"local_account_catalog_disposed"
+		)
 	_clear_async_tracking()
 	_finish_catalog_diagnostic_operation(ERR_UNAVAILABLE)
 	var _cleared_gate_entries: int = _mutation_gate.clear(
@@ -118,6 +135,7 @@ func dispose() -> void:
 	_pending_storage_operation = null
 	_pending_storage_deadline_msec = 0
 	_detached_storage_operations.clear()
+	_quiesce_completion = null
 
 
 # --- 公共方法 ---
@@ -628,7 +646,10 @@ func _make_catalog_payload() -> Dictionary:
 
 
 func _begin_async_catalog_mutation(action: StringName) -> bool:
-	if _disposed or not _is_configured():
+	if _disposed or _quiescing:
+		_last_error = ERR_UNAVAILABLE
+		return false
+	if not _is_configured():
 		_last_error = ERR_UNCONFIGURED
 		return false
 	if not _detached_storage_operations.is_empty():
@@ -677,6 +698,7 @@ func _finish_async_catalog_mutation(error_code: Error) -> void:
 			&"catalog_mutation_finished"
 		)
 	_active_mutation_lease = null
+	_try_complete_quiesce()
 
 
 func _owns_async_catalog_mutation(mutation_token: int) -> bool:
@@ -801,6 +823,26 @@ func _poll_catalog_storage_operations() -> void:
 			previous_active_account_id,
 			_active_account_id
 		)
+	_try_complete_quiesce()
+
+
+func _try_complete_quiesce() -> void:
+	if (
+		not _quiescing
+		or _quiesce_completion == null
+		or not _quiesce_completion.is_pending()
+		or _pending_storage_operation != null
+		or not _detached_storage_operations.is_empty()
+		or (
+			_active_mutation_lease != null
+			and _active_mutation_lease.is_active()
+		)
+	):
+		return
+	var _succeeded: bool = _quiesce_completion.succeed({
+		&"component": &"local_account_catalog",
+		&"drained": true,
+	})
 
 
 func _find_account(account_id: String) -> LocalPlayerAccount:

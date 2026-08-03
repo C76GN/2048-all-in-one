@@ -182,7 +182,7 @@ func test_composition_observation_persists_and_reloads_discovery_progress() -> v
 
 	composition.release_tile(low_tile)
 	composition.release_tile(high_tile)
-	_dispose_discovery_setup(setup, false)
+	await _dispose_discovery_setup(setup, false)
 
 	var reloaded: Dictionary = await _create_discovery_setup(save_dir_name)
 	var reloaded_discovery: TileDiscoverySystem = _get_discovery_system(reloaded)
@@ -193,7 +193,7 @@ func test_composition_observation_persists_and_reloads_discovery_progress() -> v
 		reloaded_discovery.get_board_discoveries().size() == 1,
 		"重启架构后应从 SaveGraph 恢复棋盘发现记录。"
 	)
-	_dispose_discovery_setup(reloaded)
+	await _dispose_discovery_setup(reloaded)
 
 
 func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
@@ -207,7 +207,7 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 	var panel_node: Node = TILE_CATALOG_DIALOG_SCENE.instantiate()
 	assert_true(panel_node is TileCatalogDialog, "图鉴场景根节点应使用强类型控制器。")
 	if not panel_node is TileCatalogDialog:
-		_dispose_discovery_setup(setup)
+		await _dispose_discovery_setup(setup)
 		return
 	var panel: TileCatalogDialog = panel_node
 	panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
@@ -293,7 +293,7 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 	context.remove_child(panel)
 	panel.queue_free()
 	await get_tree().process_frame
-	_dispose_discovery_setup(setup)
+	await _dispose_discovery_setup(setup)
 
 
 func test_tile_catalog_filters_preserve_touch_target_contract() -> void:
@@ -349,6 +349,10 @@ func _create_discovery_setup(save_dir_name: String) -> Dictionary:
 	var tile_catalog: TileCatalogUtility = TileCatalogUtility.new()
 	var composition: TileCompositionUtility = TileCompositionUtility.new()
 	var discovery: TileDiscoverySystem = TileDiscoverySystem.new()
+	var account_catalog: LocalAccountCatalogUtility = (
+		LocalAccountCatalogUtility.new()
+	)
+	var account_system: LocalAccountSystem = LocalAccountSystem.new()
 
 	storage.save_dir_name = save_dir_name
 	storage.allow_absolute_paths = false
@@ -385,6 +389,10 @@ func _create_discovery_setup(save_dir_name: String) -> Dictionary:
 	)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
+	await architecture.register_utility(
+		LocalAccountCatalogUtility,
+		account_catalog
+	)
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GFViewportUtility, GFViewportUtility.new())
 	await architecture.register_utility(GFAssetUtility, GFAssetUtility.new())
@@ -396,8 +404,13 @@ func _create_discovery_setup(save_dir_name: String) -> Dictionary:
 	await architecture.register_utility(GFCapabilityUtility, GFCapabilityUtility.new())
 	await architecture.register_utility(TileCatalogUtility, tile_catalog)
 	await architecture.register_utility(TileCompositionUtility, composition)
+	await architecture.register_system(LocalAccountSystem, account_system)
 	await architecture.register_system(TileDiscoverySystem, discovery)
 	await architecture.init()
+	assert_true(
+		save_graph.is_profile_loaded(),
+		"图鉴发现测试夹具必须显式完成账号 Profile 引导。"
+	)
 	return {
 		"architecture": architecture,
 		"storage": storage,
@@ -405,6 +418,9 @@ func _create_discovery_setup(save_dir_name: String) -> Dictionary:
 		"catalog": tile_catalog,
 		"composition": composition,
 		"discovery": discovery,
+		"account_catalog": account_catalog,
+		"account_system": account_system,
+		"profile_file_name": save_graph.get_profile_file_name(),
 	}
 
 
@@ -412,22 +428,39 @@ func _dispose_discovery_setup(
 	setup: Dictionary,
 	delete_profile: bool = true
 ) -> void:
-	var save_graph_value: Variant = setup.get("save_graph")
-	if save_graph_value is GameSaveGraphUtility:
-		var save_graph: GameSaveGraphUtility = save_graph_value
-		assert_true(
-			save_graph.flush_pending_save() == OK,
-			"发现系统测试结束前应收敛排队玩家数据。"
-		)
+	var architecture: GFArchitecture = _get_architecture(setup)
 	var storage_value: Variant = setup.get("storage")
+	var save_graph_value: Variant = setup.get("save_graph")
+	if (
+		storage_value is GFStorageUtility
+		and save_graph_value is GameSaveGraphUtility
+	):
+		var flush_result: GFSaveProfileResult = (
+			await GameSaveProfileOperationTestSupport.await_result(
+				save_graph_value.request_flush_profile({
+					&"reason": "tile_catalog_test_cleanup",
+				}),
+				architecture,
+				get_tree(),
+				storage_value
+			)
+		)
+		assert_true(
+			flush_result != null and flush_result.is_successful(),
+			"发现系统测试结束前应完成 typed Profile flush。"
+		)
 	if delete_profile and storage_value is GFStorageUtility:
 		var storage: GFStorageUtility = storage_value
-		var delete_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
+		var delete_error: Error = storage.delete_file(
+			GFVariantData.get_option_string(
+				setup,
+				"profile_file_name"
+			)
+		)
 		assert_true(
 			delete_error == OK or delete_error == ERR_FILE_NOT_FOUND,
 			"发现系统测试玩家数据应可清理。"
 		)
-	var architecture: GFArchitecture = _get_architecture(setup)
 	architecture.dispose()
 	setup.clear()
 

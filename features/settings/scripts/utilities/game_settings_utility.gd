@@ -404,12 +404,11 @@ func _stage_value_internal(
 		return
 	super._stage_value_internal(key, value, emit_change)
 
-func _read_persisted_data(file_name: String) -> GFStorageReadResult:
-	var storage: GFStorageUtility = _get_storage_utility()
-	if storage == null:
-		return super._read_persisted_data(file_name)
 
-	var read_result: GFStorageReadResult = storage.load_data(file_name)
+func _read_persisted_data(file_name: String) -> GFStorageReadResult:
+	# 复用 GFSettings 的统一读取边界（含 Storage 结果隔离与无 Storage 时的
+	# fallback），项目层只叠加健康状态，不复制框架 IO 实现。
+	var read_result: GFStorageReadResult = super._read_persisted_data(file_name)
 	if read_result.ok:
 		_last_storage_recovery.clear()
 		_persistence_blocked_error = OK

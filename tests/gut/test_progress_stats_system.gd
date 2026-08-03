@@ -540,6 +540,9 @@ func _create_save_architecture(
 	var storage: GFStorageUtility = GFStorageUtility.new()
 	var save_graph: GameSaveGraphUtility = _make_game_save_graph()
 	var progress_stats_system: ProgressStatsSystem = ProgressStatsSystem.new()
+	var account_catalog: LocalAccountCatalogUtility = (
+		LocalAccountCatalogUtility.new()
+	)
 
 	storage.save_dir_name = save_dir_name if not save_dir_name.is_empty() else "gut_progress_stats_system_%d" % Time.get_ticks_usec()
 	storage.allow_absolute_paths = false
@@ -571,10 +574,29 @@ func _create_save_architecture(
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(
 		LocalAccountCatalogUtility,
-		LocalAccountCatalogUtility.new()
+		account_catalog
 	)
 	await architecture.register_system(ProgressStatsSystem, progress_stats_system)
 	await architecture.init()
+	var bootstrap: Dictionary = (
+		await GameSaveProfileOperationTestSupport.bootstrap_account(
+			save_graph,
+			architecture,
+			get_tree(),
+			storage,
+			LocalAccountCatalogUtility.make_profile_file_name(
+				account_catalog.get_active_account_id()
+			)
+		)
+	)
+	var bootstrap_completion: GFAsyncCompletion = bootstrap.get(
+		&"completion"
+	) as GFAsyncCompletion
+	assert_true(
+		bootstrap_completion != null
+		and bootstrap_completion.is_successful(),
+		"统计测试夹具必须显式完成账号 Profile 引导。"
+	)
 	if not initial_save_data.is_empty():
 		var normalized_initial_data: Dictionary = {
 			"stats": GFVariantData.get_option_dictionary(
@@ -610,6 +632,11 @@ func _create_save_architecture(
 		"storage": storage,
 		"save_graph": save_graph,
 		"progress_stats_system": progress_stats_system,
+		"account_catalog": account_catalog,
+		"profile_file_name": GFVariantData.get_option_string(
+			bootstrap,
+			&"profile_file_name"
+		),
 	}
 
 
@@ -666,7 +693,12 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 func _dispose_setup(setup: Dictionary, delete_profile: bool = true) -> void:
 	var storage: GFStorageUtility = _get_storage(setup)
 	if delete_profile:
-		var delete_error: Error = storage.delete_file(GameSaveGraphUtility.PROFILE_FILE_NAME)
+		var delete_error: Error = storage.delete_file(
+			GFVariantData.get_option_string(
+				setup,
+				"profile_file_name"
+			)
+		)
 		assert_true(delete_error == OK or delete_error == ERR_FILE_NOT_FOUND, "统计测试清理应返回可预期结果。")
 		var account_catalog_delete_error: Error = storage.delete_file(
 			LocalAccountCatalogUtility.CATALOG_FILE_NAME

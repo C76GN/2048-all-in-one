@@ -301,6 +301,10 @@ func _create_setup(
 	var quest: GFQuestUtility = GFQuestUtility.new()
 	var progress_stats_system: ProgressStatsSystem = ProgressStatsSystem.new()
 	var achievement_system: AchievementSystem = null
+	var account_catalog: LocalAccountCatalogUtility = (
+		LocalAccountCatalogUtility.new()
+	)
+	var account_system: LocalAccountSystem = LocalAccountSystem.new()
 
 	storage.save_dir_name = save_dir_name
 	storage.allow_absolute_paths = false
@@ -332,7 +336,7 @@ func _create_setup(
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(
 		LocalAccountCatalogUtility,
-		LocalAccountCatalogUtility.new()
+		account_catalog
 	)
 	await architecture.register_utility(GFViewportUtility, GFViewportUtility.new())
 	await architecture.register_utility(GFAssetUtility, GFAssetUtility.new())
@@ -346,6 +350,7 @@ func _create_setup(
 	)
 	await architecture.register_utility(AchievementCatalogUtility, catalog)
 	await architecture.register_utility(GFQuestUtility, quest)
+	await architecture.register_system(LocalAccountSystem, account_system)
 	await architecture.register_system(ProgressStatsSystem, progress_stats_system)
 	if include_achievement_system:
 		achievement_system = AchievementSystem.new()
@@ -354,6 +359,10 @@ func _create_setup(
 	assert_true(initialized, "成就测试架构必须完成 GF activation。")
 	if initialized:
 		architecture.tick(0.0)
+	assert_true(
+		save_graph.is_profile_loaded(),
+		"成就测试夹具必须显式完成账号 Profile 引导。"
+	)
 	return {
 		"architecture": architecture,
 		"storage": storage,
@@ -362,6 +371,9 @@ func _create_setup(
 		"quest": quest,
 		"progress_stats_system": progress_stats_system,
 		"achievement_system": achievement_system,
+		"account_catalog": account_catalog,
+		"account_system": account_system,
+		"profile_file_name": save_graph.get_profile_file_name(),
 	}
 
 
@@ -386,18 +398,14 @@ func _make_save_graph() -> GameSaveGraphUtility:
 
 
 func _dispose_setup(setup: Dictionary, delete_profile: bool = true) -> void:
-	var save_graph_value: Variant = setup.get("save_graph")
-	if save_graph_value is GameSaveGraphUtility:
-		var save_graph: GameSaveGraphUtility = save_graph_value
-		assert_true(
-			save_graph.flush_pending_save() == OK,
-			"成就测试结束前应收敛排队玩家数据。"
-		)
 	var storage_value: Variant = setup.get("storage")
 	if delete_profile and storage_value is GFStorageUtility:
 		var storage: GFStorageUtility = storage_value
 		var delete_error: Error = storage.delete_file(
-			GameSaveGraphUtility.PROFILE_FILE_NAME
+			GFVariantData.get_option_string(
+				setup,
+				"profile_file_name"
+			)
 		)
 		assert_true(
 			delete_error == OK or delete_error == ERR_FILE_NOT_FOUND,

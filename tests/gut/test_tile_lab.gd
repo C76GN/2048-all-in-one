@@ -66,7 +66,16 @@ func test_blueprints_are_crud_isolated_between_player_profiles() -> void:
 	var first_file: String = "profiles/%s.save" % first_id
 	var second_file: String = "profiles/%s.save" % second_id
 
-	assert_true(save_graph.activate_profile(first_file, true) == OK)
+	assert_true(
+		await GameSaveProfileOperationTestSupport.activate_profile(
+			save_graph,
+			first_file,
+			true,
+			_get_architecture(setup),
+			get_tree(),
+			_get_storage(setup)
+		) == OK
+	)
 	var first_blueprint: CustomTileBlueprintData = _make_blueprint("第一份")
 	var first_save: GameSaveSectionResult = await _save_blueprint(
 		tile_lab,
@@ -87,7 +96,16 @@ func test_blueprints_are_crud_isolated_between_player_profiles() -> void:
 		tile_lab.load_blueprints()[0].display_name == "第一份已更新"
 	)
 
-	assert_true(save_graph.activate_profile(second_file) == OK)
+	assert_true(
+		await GameSaveProfileOperationTestSupport.activate_profile(
+			save_graph,
+			second_file,
+			false,
+			_get_architecture(setup),
+			get_tree(),
+			_get_storage(setup)
+		) == OK
+	)
 	assert_true(
 		tile_lab.load_blueprints().is_empty(),
 		"新账号 Profile 不得读取另一个账号的试验台蓝图。"
@@ -100,7 +118,16 @@ func test_blueprints_are_crud_isolated_between_player_profiles() -> void:
 	)
 	assert_true(second_save != null and second_save.is_successful())
 
-	assert_true(save_graph.activate_profile(first_file) == OK)
+	assert_true(
+		await GameSaveProfileOperationTestSupport.activate_profile(
+			save_graph,
+			first_file,
+			false,
+			_get_architecture(setup),
+			get_tree(),
+			_get_storage(setup)
+		) == OK
+	)
 	assert_true(tile_lab.load_blueprints().size() == 1)
 	assert_true(
 		tile_lab.load_blueprints()[0].blueprint_id
@@ -114,7 +141,16 @@ func test_blueprints_are_crud_isolated_between_player_profiles() -> void:
 	assert_true(delete_result != null and delete_result.is_successful())
 	assert_true(tile_lab.load_blueprints().is_empty())
 
-	assert_true(save_graph.activate_profile(second_file) == OK)
+	assert_true(
+		await GameSaveProfileOperationTestSupport.activate_profile(
+			save_graph,
+			second_file,
+			false,
+			_get_architecture(setup),
+			get_tree(),
+			_get_storage(setup)
+		) == OK
+	)
 	assert_true(
 		tile_lab.load_blueprints().size() == 1,
 		"删除第一账号蓝图不得影响第二账号 Profile。"
@@ -498,6 +534,9 @@ func _create_setup(
 	var clock: GameClockUtility = GameClockUtility.new()
 	assert_true(clock.set_clock(GFManualClock.new(0, 1_000_000)))
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	var account_catalog: LocalAccountCatalogUtility = (
+		LocalAccountCatalogUtility.new()
+	)
 	assert_true(save_graph.register_section(
 		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
 		TileDiscoverySaveData.new(),
@@ -538,6 +577,10 @@ func _create_setup(
 		GFOperationDiagnosticsUtility,
 		GFOperationDiagnosticsUtility.new()
 	)
+	await architecture.register_utility(
+		LocalAccountCatalogUtility,
+		account_catalog
+	)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_utility(GFAssetUtility, GFAssetUtility.new())
 	await architecture.register_utility(
@@ -554,6 +597,25 @@ func _create_setup(
 	await architecture.register_system(TileDiscoverySystem, discovery)
 	await architecture.register_system(TileLabSystem, tile_lab)
 	await architecture.init()
+	var bootstrap: Dictionary = (
+		await GameSaveProfileOperationTestSupport.bootstrap_account(
+			save_graph,
+			architecture,
+			get_tree(),
+			storage,
+			LocalAccountCatalogUtility.make_profile_file_name(
+				account_catalog.get_active_account_id()
+			)
+		)
+	)
+	var bootstrap_completion: GFAsyncCompletion = bootstrap.get(
+		&"completion"
+	) as GFAsyncCompletion
+	assert_true(
+		bootstrap_completion != null
+		and bootstrap_completion.is_successful(),
+		"试验台测试夹具必须显式完成账号 Profile 引导。"
+	)
 	return {
 		&"architecture": architecture,
 		&"storage": storage,
@@ -562,6 +624,11 @@ func _create_setup(
 		&"discovery": discovery,
 		&"tile_lab": tile_lab,
 		&"capabilities": capabilities,
+		&"account_catalog": account_catalog,
+		&"profile_file_name": GFVariantData.get_option_string(
+			bootstrap,
+			&"profile_file_name"
+		),
 	}
 
 
@@ -569,10 +636,6 @@ func _dispose_setup(
 	setup: Dictionary,
 	extra_profile_files: Array[String] = []
 ) -> void:
-	var save_graph_value: Variant = setup.get(&"save_graph")
-	if save_graph_value is GameSaveGraphUtility:
-		var save_graph: GameSaveGraphUtility = save_graph_value
-		var _flush_error: Error = save_graph.flush_pending_save()
 	var architecture_value: Variant = setup.get(&"architecture")
 	if architecture_value is GFArchitecture:
 		var architecture: GFArchitecture = architecture_value
@@ -580,6 +643,14 @@ func _dispose_setup(
 	var storage_value: Variant = setup.get(&"storage")
 	if storage_value is GFStorageUtility:
 		var storage: GFStorageUtility = storage_value
+		var active_profile_file: String = GFVariantData.get_option_string(
+			setup,
+			&"profile_file_name"
+		)
+		if not active_profile_file.is_empty():
+			var _active_delete_error: Error = storage.delete_file(
+				active_profile_file
+			)
 		var _legacy_delete_error: Error = storage.delete_file(
 			GameSaveGraphUtility.PROFILE_FILE_NAME
 		)
@@ -647,6 +718,14 @@ func _get_architecture(setup: Dictionary) -> GFArchitecture:
 		return value
 	assert_true(false, "测试 setup 缺少 GFArchitecture。")
 	return GFArchitecture.new()
+
+
+func _get_storage(setup: Dictionary) -> GFStorageUtility:
+	var value: Variant = setup.get(&"storage")
+	if value is GFStorageUtility:
+		return value
+	assert_true(false, "测试 setup 缺少 GFStorageUtility。")
+	return GFStorageUtility.new()
 
 
 func _get_composition(setup: Dictionary) -> TileCompositionUtility:

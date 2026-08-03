@@ -20,7 +20,7 @@
 
 账号目录是设备身份元数据，不是玩家业务 Profile。它不得保存统计、书签、回放、成就、发现、自定义棋盘或试验台蓝图。账号切换由 `LocalAccountSystem` 编排：先冲刷当前 Profile，再事务加载目标 Profile，失败时保持原账号和原内存图。
 
-创建、切换、重命名和删除只返回一次性 `LocalAccountOperation` / `LocalAccountOperationResult`，不保留同步 CRUD 包装或重复事务实现。目录变更先构造候选 payload，只有 GFStorage typed async 写成功后才交换权威内存状态并由 System 发布业务信号。I/O 超时进入 `catalog_outcome_unknown`：保留在途操作和路径所有权、阻止后续目录变更，迟到终态到达后再按实际磁盘结果对齐内存；不得把超时当成已回滚成功。Profile 切换或清理进入 outcome-unknown 时也必须持有同一账号协调锁，直到迟到终态、轮询证据或显式 `request_account_reconciliation()` 完成对账。删除目录的迟到成功不能直接释放账号 ID 与路径：目标 Profile 及其事务伴生文件清理成功后才能解锁；清理超时或失败继续保留所有权和可诊断证据。GF `ready()` 只连接运行期依赖；当前账号 Profile 由 `begin_activation()` 接入 `GameSaveGraphUtility.begin_bootstrap_profile()` 的一次性异步终态，成功后架构才进入 READY。关闭时 `begin_quiesce()` 先停止账号事务准入并排空已接纳 saga，随后 SaveGraph 注销全部 Profile，再允许 GF Storage 依赖关闭。
+创建、切换、重命名和删除只返回一次性 `LocalAccountOperation` / `LocalAccountOperationResult`，不保留同步 CRUD 包装或重复事务实现。目录变更先构造候选 payload，只有 GFStorage typed async 写成功后才交换权威内存状态并由 System 发布业务信号。I/O 超时进入 `catalog_outcome_unknown`：保留在途操作和路径所有权、阻止后续目录变更，迟到终态到达后再按实际磁盘结果对齐内存；不得把超时当成已回滚成功。Profile 切换或清理进入 outcome-unknown 时也必须持有同一账号协调锁，直到迟到终态、轮询证据或显式 `request_account_reconciliation()` 完成对账。删除目录的迟到成功不能直接释放账号 ID 与路径：目标 Profile 及其事务伴生文件清理成功后才能解锁；清理超时或失败继续保留所有权和可诊断证据。GF `ready()` 只连接运行期依赖；当前账号 Profile 由 `begin_activation()` 接入 `GameSaveGraphUtility.begin_bootstrap_profile()` 的一次性异步终态，成功后架构才进入 READY。`GameSaveGraphUtility.ready()` 不隐式加载 legacy 文件；不安装 `LocalAccountSystem` 的工具与测试架构必须自行等待 `begin_bootstrap_profile()` 的 typed completion。关闭时账号 System 先停止 saga 准入，Catalog 随后通过自己的 `begin_quiesce()` 拒绝新目录写并排空已接纳及 detached 写入，SaveGraph 冲刷并注销全部 Profile，最后才允许 GF Storage 依赖关闭；`dispose()` 不再轮询或睡眠等待 I/O。
 
 ### 玩家数据
 
