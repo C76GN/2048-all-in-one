@@ -94,6 +94,53 @@ func test_runtime_context_is_defensive_copy_with_capabilities() -> void:
 	await _dispose_platform_architecture(setup)
 
 
+func test_architecture_activation_waits_for_delayed_platform_initialization() -> void:
+	var adapter: DelayedInitializationPlatformAdapter = (
+		DelayedInitializationPlatformAdapter.new()
+	)
+	var setup: Dictionary = await _create_platform_architecture(adapter)
+	var utility: GamePlatformUtility = _get_platform_utility(setup)
+
+	assert_true(adapter.initialize_started, "平台 adapter 应在 activation 阶段开始初始化。")
+	assert_true(adapter.is_ready(), "GFArchitecture.init 返回前 adapter 必须形成 READY 终态。")
+	assert_true(
+		GFVariantData.get_option_bool(
+			utility.get_debug_snapshot(),
+			"accepting_runtime_work"
+		),
+		"平台 activation 成功后才可开放运行期请求。"
+	)
+	assert_not_null(utility.get_runtime_context(), "activation 成功应发布平台上下文。")
+
+	await _dispose_platform_architecture(setup)
+
+
+func test_headless_fact_is_published_by_local_platform_adapter() -> void:
+	var adapter: HeadlessLocalPlatformAdapter = HeadlessLocalPlatformAdapter.new()
+	var setup: Dictionary = await _create_platform_architecture(adapter)
+	var utility: GamePlatformUtility = _get_platform_utility(setup)
+	var context: GFPlatformRuntimeContext = utility.get_runtime_context()
+
+	assert_not_null(context)
+	if context != null:
+		assert_true(
+			GFVariantData.get_option_bool(context.metadata, "headless"),
+			"DisplayServer headless 事实应只由平台 Adapter 发布。"
+		)
+		assert_true(
+			GFVariantData.get_option_string(
+				context.metadata,
+				"display_server_name"
+			) == "headless"
+		)
+	assert_true(
+		utility.is_headless_runtime(),
+		"其他 Feature 应通过 GFPlatformRuntimeContext 消费 headless 事实。"
+	)
+
+	await _dispose_platform_architecture(setup)
+
+
 func test_lifecycle_events_receive_monotonic_sequence() -> void:
 	var adapter: FakePlatformAdapter = FakePlatformAdapter.new()
 	var setup: Dictionary = await _create_platform_architecture(adapter)
@@ -117,6 +164,79 @@ func test_lifecycle_events_receive_monotonic_sequence() -> void:
 	)
 
 	await _dispose_platform_architecture(setup)
+
+
+func test_quiesce_disconnects_owned_signals_and_rejects_new_requests() -> void:
+	var adapter: FakePlatformAdapter = FakePlatformAdapter.new()
+	var setup: Dictionary = await _create_platform_architecture(adapter)
+	var utility: GamePlatformUtility = _get_platform_utility(setup)
+	var sink: EventSink = EventSink.new()
+	var _connected: int = utility.lifecycle_event_received.connect(sink.capture)
+
+	var completion: GFAsyncCompletion = utility.begin_quiesce(GFAsyncScope.new())
+	assert_true(completion.is_successful(), "平台 quiesce 应形成明确成功终态。")
+	adapter.publish(GFPlatformLifecycleEvent.TYPE_BACKGROUND)
+	assert_true(sink.events.is_empty(), "quiesce 后 runtime Signal 不得回调平台 owner。")
+	assert_null(
+		utility.copy_text_to_clipboard("quiesced"),
+		"quiesce 后不得再接纳新的平台请求。"
+	)
+
+	await _dispose_platform_architecture(setup)
+
+
+func test_quiesce_settles_pending_activation_before_signal_teardown() -> void:
+	var adapter: PendingInitializationPlatformAdapter = (
+		PendingInitializationPlatformAdapter.new()
+	)
+	var setup: Dictionary = _create_pending_platform_utility_setup(adapter)
+	var utility: GamePlatformUtility = _get_platform_utility(setup)
+	var activation: GFAsyncCompletion = utility.begin_activation(GFAsyncScope.new())
+	var initialization_value: Variant = utility.get("_adapter_initialization")
+	var initialization: GFAsyncCompletion = null
+	if initialization_value is GFAsyncCompletion:
+		initialization = initialization_value
+
+	assert_true(activation.is_pending(), "受控 Adapter 应让平台 activation 保持 pending。")
+	assert_not_null(initialization)
+	var quiesce: GFAsyncCompletion = utility.begin_quiesce(GFAsyncScope.new())
+
+	assert_true(quiesce.is_successful(), "平台 quiesce 应同步形成成功终态。")
+	assert_true(activation.is_cancelled(), "quiesce 必须终结外层架构 activation。")
+	if initialization != null:
+		assert_true(initialization.is_cancelled(), "quiesce 必须同时取消底层 Adapter 初始化。")
+	var signal_value: Variant = setup.get("signal_utility")
+	if signal_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = signal_value
+		assert_true(signal_utility.get_connection_count() == 0, "终态收敛后才可断开 owner 信号。")
+
+	_dispose_pending_platform_utility_setup(setup)
+
+
+func test_dispose_settles_pending_activation_before_signal_teardown() -> void:
+	var adapter: PendingInitializationPlatformAdapter = (
+		PendingInitializationPlatformAdapter.new()
+	)
+	var setup: Dictionary = _create_pending_platform_utility_setup(adapter)
+	var utility: GamePlatformUtility = _get_platform_utility(setup)
+	var activation: GFAsyncCompletion = utility.begin_activation(GFAsyncScope.new())
+	var initialization_value: Variant = utility.get("_adapter_initialization")
+	var initialization: GFAsyncCompletion = null
+	if initialization_value is GFAsyncCompletion:
+		initialization = initialization_value
+
+	assert_true(activation.is_pending(), "受控 Adapter 应让平台 activation 保持 pending。")
+	utility.dispose()
+
+	assert_true(activation.is_cancelled(), "dispose 必须终结外层架构 activation。")
+	if initialization != null:
+		assert_true(initialization.is_cancelled(), "dispose 必须同时取消底层 Adapter 初始化。")
+	var signal_value: Variant = setup.get("signal_utility")
+	if signal_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = signal_value
+		assert_true(signal_utility.get_connection_count() == 0, "dispose 不得遗留 owner 信号。")
+
+	_dispose_pending_platform_utility_setup(setup, false)
 
 
 func test_local_notifications_map_and_deduplicate_focus_lifecycle_pairs() -> void:
@@ -314,9 +434,11 @@ func test_local_clipboard_capability_is_absent_when_runtime_does_not_support_it(
 func _create_platform_architecture(adapter: GamePlatformAdapter) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var runtime: GFPlatformRuntime = GFPlatformRuntime.new()
+	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var utility: GamePlatformUtility = GamePlatformUtility.new()
 	var configured: bool = utility.configure_adapter(adapter)
 	await architecture.register_utility(GFPlatformRuntime, runtime)
+	await architecture.register_utility(GFSignalUtility, signal_utility)
 	await architecture.register_utility(GamePlatformUtility, utility)
 	await architecture.init()
 	return {
@@ -324,6 +446,47 @@ func _create_platform_architecture(adapter: GamePlatformAdapter) -> Dictionary:
 		"configured": configured,
 		"utility": utility,
 	}
+
+
+func _create_pending_platform_utility_setup(
+	adapter: GamePlatformAdapter
+) -> Dictionary:
+	var runtime: GFPlatformRuntime = GFPlatformRuntime.new()
+	var signal_utility: GFSignalUtility = GFSignalUtility.new()
+	var utility: GamePlatformUtility = GamePlatformUtility.new()
+	var configured: bool = utility.configure_adapter(adapter)
+	utility.init()
+	var prepared: bool = adapter.prepare()
+	var registered: bool = runtime.register_adapter(adapter)
+	utility.set("_runtime", runtime)
+	utility.set("_signals", signal_utility)
+	utility.set("_adapter_registered", registered)
+	utility.call("_bind_runtime_signals")
+	return {
+		"configured": configured,
+		"prepared": prepared,
+		"registered": registered,
+		"runtime": runtime,
+		"signal_utility": signal_utility,
+		"utility": utility,
+	}
+
+
+func _dispose_pending_platform_utility_setup(
+	setup: Dictionary,
+	dispose_utility: bool = true
+) -> void:
+	var utility: GamePlatformUtility = _get_platform_utility(setup)
+	if dispose_utility and utility != null:
+		utility.dispose()
+	var runtime_value: Variant = setup.get("runtime")
+	if runtime_value is GFPlatformRuntime:
+		var runtime: GFPlatformRuntime = runtime_value
+		runtime.dispose()
+	var signal_value: Variant = setup.get("signal_utility")
+	if signal_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = signal_value
+		signal_utility.dispose()
 
 
 func _get_platform_utility(setup: Dictionary) -> GamePlatformUtility:
@@ -395,6 +558,28 @@ class FakePlatformAdapter extends GamePlatformAdapter:
 		))
 
 
+class DelayedInitializationPlatformAdapter extends FakePlatformAdapter:
+	var initialize_started: bool = false
+
+
+	func _initialize(_options: Dictionary) -> void:
+		initialize_started = true
+		_complete_on_next_frame()
+
+
+	func _complete_on_next_frame() -> void:
+		var loop_value: MainLoop = Engine.get_main_loop()
+		if loop_value is SceneTree:
+			var tree: SceneTree = loop_value
+			await tree.process_frame
+		var _completed: bool = _complete_initialization(create_runtime_context())
+
+
+class PendingInitializationPlatformAdapter extends FakePlatformAdapter:
+	func _initialize(_options: Dictionary) -> void:
+		pass
+
+
 class EventSink extends RefCounted:
 	var events: Array[GFPlatformLifecycleEvent] = []
 
@@ -462,3 +647,8 @@ class DelayedClipboardLocalAdapter extends LocalPlatformAdapter:
 class UnsupportedClipboardLocalAdapter extends DelayedClipboardLocalAdapter:
 	func _has_clipboard_write_support() -> bool:
 		return false
+
+
+class HeadlessLocalPlatformAdapter extends DelayedClipboardLocalAdapter:
+	func _get_display_server_name() -> String:
+		return "headless"

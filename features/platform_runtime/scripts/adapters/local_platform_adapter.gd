@@ -40,6 +40,7 @@ func create_runtime_context() -> GFPlatformRuntimeContext:
 	_detected_platform_id = _detect_platform_id()
 	_last_window_size = _get_window_size()
 	_last_safe_area = _get_safe_area()
+	var display_server_name: String = _get_display_server_name()
 	var context: GFPlatformRuntimeContext = GFPlatformRuntimeContext.new().configure(
 		_detected_platform_id,
 		{
@@ -62,6 +63,8 @@ func create_runtime_context() -> GFPlatformRuntimeContext:
 			"metadata": {
 				"godot_version": Engine.get_version_info(),
 				"renderer_method": _get_renderer_method(),
+				"display_server_name": display_server_name,
+				"headless": display_server_name == "headless",
 				"debug_build": OS.is_debug_build(),
 			},
 		}
@@ -185,6 +188,11 @@ func _get_platform_display_name(platform_id: StringName) -> String:
 	if platform_id == PLATFORM_WEB:
 		return "Web"
 	return OS.get_name()
+
+
+## 返回宿主 DisplayServer 名称；独立 seam 允许验证无渲染帧平台事实。
+func _get_display_server_name() -> String:
+	return DisplayServer.get_name().to_lower()
 
 
 func _get_renderer_method() -> String:

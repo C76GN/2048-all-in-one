@@ -365,12 +365,28 @@
         ],
         "allowed_dependencies": [
           "shared_foundation",
-          "godot_local_platform_adapter"
+          "godot_local_platform_adapter",
+          "generated_artifacts"
         ],
         "forbidden_dependencies": [
           "verification"
         ],
         "ownership": "project"
+      },
+      {
+        "id": "generated_artifacts",
+        "responsibility": "拥有 res://build 下由离线审计、验证、导出和性能工具生成的可再生产物；不进入玩家运行时真源，也不得反向依赖项目模块。",
+        "roots": [
+          "res://build"
+        ],
+        "allowed_dependencies": [],
+        "forbidden_dependencies": [
+          "shared_foundation",
+          "application",
+          "verification",
+          "godot_local_platform_adapter"
+        ],
+        "ownership": "generated"
       },
       {
         "id": "verification",
@@ -382,7 +398,8 @@
         "allowed_dependencies": [
           "shared_foundation",
           "application",
-          "godot_local_platform_adapter"
+          "godot_local_platform_adapter",
+          "generated_artifacts"
         ],
         "forbidden_dependencies": [],
         "ownership": "project"

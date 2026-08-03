@@ -99,6 +99,31 @@ func test_missing_local_package_degrades_silently() -> void:
 	_dispose_architecture(setup)
 
 
+func test_activation_starts_optional_playlist_and_quiesce_cancels_it() -> void:
+	var setup: Dictionary = await _create_architecture(
+		[_make_entry(_TRACK_A)],
+		true
+	)
+	var music: GameBackgroundMusicUtility = _get_music(setup)
+	var background_work: _FakeBackgroundWorkUtility = _get_background_work(setup)
+	var audio: _FakeAudioUtility = _get_audio(setup)
+
+	assert_true(
+		background_work.has_pending_work(),
+		"自动播放只能在 architecture activation 时提交首个后台读取。"
+	)
+	var quiesce: GFAsyncCompletion = music.begin_quiesce(GFAsyncScope.new())
+	assert_true(quiesce.is_successful(), "可选 BGM quiesce 应同步收敛。")
+	assert_false(
+		background_work.has_pending_work(),
+		"quiesce 必须取消 activation 已接纳但尚未完成的曲目读取。"
+	)
+	assert_false(music.start_if_available(), "quiesce 后不得再接纳播放请求。")
+	assert_true(audio.played_track_keys.is_empty(), "取消的迟到读取不得开始播放。")
+
+	_dispose_architecture(setup)
+
+
 func test_unsupported_manifest_audio_type_is_not_discovered() -> void:
 	var setup: Dictionary = await _create_architecture([
 		_make_entry(_TRACK_A, "AudioStreamMP3"),
@@ -322,7 +347,10 @@ func test_worker_checks_file_length_before_reading_oversized_wav() -> void:
 
 # --- 私有/辅助方法 ---
 
-func _create_architecture(entries: Array[Dictionary]) -> Dictionary:
+func _create_architecture(
+	entries: Array[Dictionary],
+	auto_play_on_activation: bool = false
+) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var catalog: _FakeContentCatalogUtility = _FakeContentCatalogUtility.new()
 	catalog.entries = _copy_entries(entries)
@@ -346,7 +374,7 @@ func _create_architecture(entries: Array[Dictionary]) -> Dictionary:
 	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var clock: GameClockUtility = GameClockUtility.new()
 	var music: GameBackgroundMusicUtility = GameBackgroundMusicUtility.new()
-	music.auto_play_on_ready = false
+	music.auto_play_on_activation = auto_play_on_activation
 
 	await architecture.register_utility(ProjectContentCatalogUtility, catalog)
 	await architecture.register_utility(GFAudioUtility, audio)

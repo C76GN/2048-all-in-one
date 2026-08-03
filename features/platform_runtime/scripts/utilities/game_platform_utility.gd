@@ -37,66 +37,168 @@ const CAPABILITY_CLIPBOARD_WRITE: StringName = GamePlatformAdapter.CAPABILITY_CL
 
 var _adapter: GamePlatformAdapter = null
 var _runtime: GFPlatformRuntime = null
+var _signals: GFSignalUtility = null
 var _context: GFPlatformRuntimeContext = null
 var _relay: _GamePlatformLifecycleRelay = null
 var _relay_attach_serial: int = 0
 var _clipboard_request_serial: int = 0
 var _initialized: bool = false
+var _adapter_registered: bool = false
+var _accepting_runtime_work: bool = false
+var _ready_error: String = ""
+var _activation_scope: GFAsyncScope = null
+var _activation_completion: GFAsyncCompletion = null
+var _adapter_initialization: GFAsyncCompletion = null
+var _activation_cleanup: Callable = Callable()
 
 
 # --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GFPlatformRuntime]
+	return [GFPlatformRuntime, GFSignalUtility]
 
 
 func init() -> void:
 	ignore_pause = true
 	ignore_time_scale = true
 	_initialized = true
+	_adapter_registered = false
+	_accepting_runtime_work = false
+	_ready_error = ""
+	_activation_scope = null
+	_activation_completion = null
+	_adapter_initialization = null
+	_activation_cleanup = Callable()
 	if _adapter == null:
 		_adapter = LocalPlatformAdapter.new()
 
 
 func ready() -> void:
 	if not _adapter.prepare():
-		push_error("[GamePlatformUtility] 默认平台 adapter 配置失败。")
+		_ready_error = "默认平台 adapter 配置失败。"
+		push_error("[GamePlatformUtility] %s" % _ready_error)
 		return
 	_runtime = _resolve_platform_runtime()
+	_signals = _resolve_signal_utility()
 	if _runtime == null:
-		push_error("[GamePlatformUtility] GFPlatformRuntime 未注册。")
+		_ready_error = "GFPlatformRuntime 未注册。"
+		push_error("[GamePlatformUtility] %s" % _ready_error)
+		return
+	if _signals == null:
+		_ready_error = "GFSignalUtility 未注册。"
+		push_error("[GamePlatformUtility] %s" % _ready_error)
 		return
 	_bind_runtime_signals()
 	if not _runtime.register_adapter(_adapter):
-		push_error("[GamePlatformUtility] 平台 adapter 注册失败：%s。" % _adapter.adapter_id)
+		_ready_error = "平台 adapter 注册失败：%s。" % _adapter.adapter_id
+		push_error("[GamePlatformUtility] %s" % _ready_error)
 		return
-	var completion: GFAsyncCompletion = _runtime.initialize_adapter(_adapter.adapter_id)
-	if completion.is_pending():
-		var _completion_connected: int = completion.completed.connect(
-			_on_adapter_initialization_completed,
-			CONNECT_ONE_SHOT
+	_adapter_registered = true
+
+
+## 等待 GFPlatformRuntime 给当前 Adapter 形成唯一初始化终态后才开放架构。
+## @param scope: 当前架构 activation 的协作取消作用域。
+func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_scope: bool = completion.fail(
+			"Platform activation scope is unavailable."
 		)
-	else:
-		_on_adapter_initialization_completed(completion)
-	_ensure_lifecycle_relay()
+		return completion
+	var _bound: bool = completion.bind_cancel_token(scope)
+	if not completion.is_pending():
+		return completion
+	if not _ready_error.is_empty():
+		var _failed_ready: bool = completion.fail(_ready_error)
+		return completion
+	if _runtime == null or _adapter == null or not _adapter_registered:
+		var _failed_registration: bool = completion.fail(
+			"Platform adapter is not registered."
+		)
+		return completion
+
+	_activation_scope = scope
+	_activation_completion = completion
+	_adapter_initialization = _runtime.initialize_adapter(_adapter.adapter_id)
+	if _adapter_initialization == null:
+		var _failed_handle: bool = completion.fail(
+			"Platform adapter initialization returned no completion."
+		)
+		_clear_activation_tracking()
+		return completion
+	_activation_cleanup = Callable(
+		self,
+		"_cancel_pending_activation"
+	).bind(&"platform_activation_cancelled")
+	var _cleanup_registered: bool = scope.register_cleanup(_activation_cleanup)
+	if _adapter_initialization.is_completed():
+		_settle_adapter_activation(_adapter_initialization, completion)
+		return completion
+	var connection: GFSignalConnection = _signals.connect_once(
+		_adapter_initialization.completed,
+		Callable(self, "_on_adapter_initialization_completed").bind(completion),
+		self
+	)
+	if connection == null or not connection.is_active():
+		_unregister_activation_cleanup()
+		if _adapter_initialization != null and _adapter_initialization.is_pending():
+			var _cancelled_initialization: bool = _adapter_initialization.cancel(
+				&"activation_observer_unavailable"
+			)
+		if completion.is_pending():
+			var _failed_connection: bool = completion.fail(
+				"Platform adapter initialization completion could not be observed."
+			)
+		_clear_activation_tracking()
+	return completion
+
+
+## 停止转发宿主通知并拒绝新的平台请求。
+func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_scope: bool = completion.fail(
+			"Platform quiesce scope is unavailable."
+		)
+		return completion
+	var _bound: bool = completion.bind_cancel_token(scope)
+	if not completion.is_pending():
+		return completion
+	_accepting_runtime_work = false
+	_relay_attach_serial += 1
+	_release_lifecycle_relay()
+	_cancel_pending_activation(&"platform_quiescing")
+	_unbind_runtime_signals()
+	var _succeeded: bool = completion.succeed()
+	return completion
 
 
 func dispose() -> void:
+	_accepting_runtime_work = false
 	_relay_attach_serial += 1
+	_cancel_pending_activation(&"platform_disposed")
 	_unbind_runtime_signals()
-	if _runtime != null and _adapter != null:
+	if _runtime != null and _adapter != null and _adapter_registered:
 		var _adapter_removed: bool = _runtime.unregister_adapter(
 			_adapter.adapter_id,
 			true
 		)
+	_adapter_registered = false
 	_adapter = null
 	_runtime = null
+	_signals = null
 	_context = null
 	_clipboard_request_serial = 0
 	_initialized = false
-	if is_instance_valid(_relay):
-		_relay.queue_free()
-	_relay = null
+	_ready_error = ""
+	_clear_activation_tracking()
+	_release_lifecycle_relay()
+
+
+func release_dependencies() -> void:
+	_runtime = null
+	_signals = null
+	super.release_dependencies()
 
 
 # --- 公共方法 ---
@@ -118,9 +220,16 @@ func get_runtime_context() -> GFPlatformRuntimeContext:
 
 
 func refresh_runtime_context() -> GFPlatformRuntimeContext:
-	if _adapter == null or not _adapter.refresh_context():
+	if not _accepting_runtime_work or _adapter == null or not _adapter.refresh_context():
 		return null
 	return get_runtime_context()
+
+
+## 当前宿主没有可提交的渲染帧时返回 true；上下文未就绪时采取保守值。
+func is_headless_runtime() -> bool:
+	if _context == null:
+		return true
+	return GFVariantData.get_option_bool(_context.metadata, "headless", false)
 
 
 ## 查询当前平台是否声明指定能力。
@@ -136,7 +245,7 @@ func has_capability(capability_id: StringName) -> bool:
 ## 通过 GFPlatformRuntime 发起平台 SDK bridge 请求。
 ## @param request: 规范平台桥接请求。
 func invoke_bridge(request: GFPlatformBridgeRequest) -> GFPlatformRequestHandle:
-	if _runtime == null or _adapter == null:
+	if not _accepting_runtime_work or _runtime == null or _adapter == null:
 		return null
 	return _runtime.invoke(request, _adapter.adapter_id)
 
@@ -145,7 +254,7 @@ func invoke_bridge(request: GFPlatformBridgeRequest) -> GFPlatformRequestHandle:
 ## @param text: 已本地化、可直接复制的非空纯文本。
 ## @return: 唯一终态平台请求句柄；Utility 尚未 ready 时返回 null。
 func copy_text_to_clipboard(text: String) -> GFPlatformRequestHandle:
-	if _runtime == null or _adapter == null:
+	if not _accepting_runtime_work or _runtime == null or _adapter == null:
 		return null
 	_clipboard_request_serial += 1
 	var request: GFPlatformBridgeRequest = GFPlatformBridgeRequest.new().configure(
@@ -194,6 +303,8 @@ static func make_adapter_conformance_options() -> Dictionary:
 func get_debug_snapshot() -> Dictionary:
 	return {
 		"context": _context.to_dict() if _context != null else {},
+		"accepting_runtime_work": _accepting_runtime_work,
+		"adapter_registered": _adapter_registered,
 		"relay_attached": is_instance_valid(_relay) and _relay.is_inside_tree(),
 		"bridge_contract": get_bridge_contract_report(),
 		"runtime": _runtime.get_debug_snapshot() if _runtime != null else {},
@@ -203,7 +314,7 @@ func get_debug_snapshot() -> Dictionary:
 ## 供平台宿主主动转发 Godot 生命周期通知。
 ## @param what: Godot 通知常量。
 func forward_platform_notification(what: int) -> void:
-	if _adapter != null:
+	if _accepting_runtime_work and _adapter != null:
 		_adapter.handle_notification(what)
 
 
@@ -217,34 +328,100 @@ func _resolve_platform_runtime() -> GFPlatformRuntime:
 	return null
 
 
+func _resolve_signal_utility() -> GFSignalUtility:
+	var value: Object = get_utility(GFSignalUtility)
+	if value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = value
+		return signal_utility
+	return null
+
+
 func _bind_runtime_signals() -> void:
-	if _runtime == null:
+	if _runtime == null or _signals == null:
 		return
-	if not _runtime.context_changed.is_connected(_on_runtime_context_changed):
-		var _context_connected: int = _runtime.context_changed.connect(
-			_on_runtime_context_changed
-		)
-	if not _runtime.lifecycle_event.is_connected(_on_runtime_lifecycle_event):
-		var _lifecycle_connected: int = _runtime.lifecycle_event.connect(
-			_on_runtime_lifecycle_event
-		)
+	var _context_connection: GFSignalConnection = _signals.connect_signal(
+		_runtime.context_changed,
+		Callable(self, "_on_runtime_context_changed"),
+		self
+	)
+	var _lifecycle_connection: GFSignalConnection = _signals.connect_signal(
+		_runtime.lifecycle_event,
+		Callable(self, "_on_runtime_lifecycle_event"),
+		self
+	)
 
 
 func _unbind_runtime_signals() -> void:
-	if _runtime == null:
-		return
-	if _runtime.context_changed.is_connected(_on_runtime_context_changed):
-		_runtime.context_changed.disconnect(_on_runtime_context_changed)
-	if _runtime.lifecycle_event.is_connected(_on_runtime_lifecycle_event):
-		_runtime.lifecycle_event.disconnect(_on_runtime_lifecycle_event)
+	if _signals != null:
+		_signals.disconnect_owner(self)
 
 
-func _on_adapter_initialization_completed(completion: GFAsyncCompletion) -> void:
-	if completion == null or not completion.is_successful():
-		var error: String = completion.get_error() if completion != null else "missing completion"
-		push_error("[GamePlatformUtility] 平台 adapter 初始化失败：%s。" % error)
+func _on_adapter_initialization_completed(
+	initialization: GFAsyncCompletion,
+	activation: GFAsyncCompletion
+) -> void:
+	_settle_adapter_activation(initialization, activation)
+
+
+func _settle_adapter_activation(
+	initialization: GFAsyncCompletion,
+	activation: GFAsyncCompletion
+) -> void:
+	if initialization == null or activation == null:
 		return
-	_publish_current_context()
+	if initialization != _adapter_initialization or activation != _activation_completion:
+		return
+	_unregister_activation_cleanup()
+	if not activation.is_pending():
+		_clear_activation_tracking()
+		return
+	if initialization.is_successful():
+		_publish_current_context()
+		if _context == null:
+			var _failed_context: bool = activation.fail(
+				"Platform adapter initialized without a runtime context."
+			)
+		else:
+			_accepting_runtime_work = true
+			_ensure_lifecycle_relay()
+			var _succeeded: bool = activation.succeed(_context.duplicate_context())
+	elif initialization.is_cancelled():
+		var _cancelled: bool = activation.cancel(
+			initialization.get_cancel_reason(),
+			initialization.get_metadata()
+		)
+	else:
+		var _failed: bool = activation.fail(
+			initialization.get_error(),
+			initialization.get_metadata()
+		)
+	_clear_activation_tracking()
+
+
+func _cancel_pending_activation(reason: StringName) -> void:
+	var initialization: GFAsyncCompletion = _adapter_initialization
+	var activation: GFAsyncCompletion = _activation_completion
+	_unregister_activation_cleanup()
+	if initialization != null and initialization.is_pending():
+		var _initialization_cancelled: bool = initialization.cancel(reason)
+	# 底层 completion 的 owner-bound observer 可能已经被作用域取消或断开；
+	# 外层架构 activation 必须独立保证唯一终态，不能依赖信号仍然可达。
+	if activation != null and activation.is_pending():
+		var _activation_cancelled: bool = activation.cancel(reason)
+	_clear_activation_tracking()
+
+
+func _unregister_activation_cleanup() -> void:
+	if _activation_scope != null and _activation_cleanup.is_valid():
+		_activation_scope.unregister_cleanup(_activation_cleanup)
+	_activation_cleanup = Callable()
+
+
+func _clear_activation_tracking() -> void:
+	_unregister_activation_cleanup()
+	_activation_scope = null
+	_activation_completion = null
+	_adapter_initialization = null
 
 
 func _publish_current_context() -> void:
@@ -260,7 +437,12 @@ func _on_runtime_context_changed(
 	adapter_id: StringName,
 	context: GFPlatformRuntimeContext
 ) -> void:
-	if _adapter == null or adapter_id != _adapter.adapter_id or context == null:
+	if (
+		not _accepting_runtime_work
+		or _adapter == null
+		or adapter_id != _adapter.adapter_id
+		or context == null
+	):
 		return
 	_context = context.duplicate_context()
 	context_changed.emit(_context.duplicate_context())
@@ -270,13 +452,18 @@ func _on_runtime_lifecycle_event(
 	adapter_id: StringName,
 	event: GFPlatformLifecycleEvent
 ) -> void:
-	if _adapter == null or adapter_id != _adapter.adapter_id or event == null:
+	if (
+		not _accepting_runtime_work
+		or _adapter == null
+		or adapter_id != _adapter.adapter_id
+		or event == null
+	):
 		return
 	lifecycle_event_received.emit(event.duplicate_event())
 
 
 func _ensure_lifecycle_relay() -> void:
-	if is_instance_valid(_relay):
+	if not _accepting_runtime_work or is_instance_valid(_relay):
 		return
 	var tree: SceneTree = _get_scene_tree_value(Engine.get_main_loop())
 	if tree == null:
@@ -286,6 +473,13 @@ func _ensure_lifecycle_relay() -> void:
 	_relay.platform_utility = self
 	_relay_attach_serial += 1
 	call_deferred("_attach_relay_to_root", _relay, _relay_attach_serial)
+
+
+func _release_lifecycle_relay() -> void:
+	if is_instance_valid(_relay):
+		_relay.platform_utility = null
+		_relay.queue_free()
+	_relay = null
 
 
 func _attach_relay_to_root(relay_variant: Variant, attach_serial: int) -> void:

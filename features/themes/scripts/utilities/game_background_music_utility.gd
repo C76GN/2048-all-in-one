@@ -35,8 +35,8 @@ const _LOAD_WORKER_SCRIPT: GDScript = preload(
 
 # --- 公共变量 ---
 
-## 架构 ready 后，在没有其他 BGM 会话时自动播放本地曲目。
-var auto_play_on_ready: bool = true
+## 架构 activation 后，在没有其他 BGM 会话时自动播放本地曲目。
+var auto_play_on_activation: bool = true
 
 ## 曲目切换时交给 GFAudioUtility 的淡变时长。
 var crossfade_seconds: float = 0.65:
@@ -71,6 +71,8 @@ var _pending_track_path: String = ""
 var _pending_track_type_hint: String = ""
 var _current_track_key: StringName = &""
 var _unavailable_track_keys: Dictionary = {}
+var _runtime_active: bool = false
+var _quiescing: bool = false
 var _disposing: bool = false
 
 
@@ -92,6 +94,8 @@ func init() -> void:
 	_pending_track_type_hint = ""
 	_current_track_key = &""
 	_unavailable_track_keys.clear()
+	_runtime_active = false
+	_quiescing = false
 
 
 func get_required_utilities() -> Array[Script]:
@@ -113,22 +117,64 @@ func ready() -> void:
 	_session_nonce = _clock.get_tick_msec() if is_instance_valid(_clock) else 0
 	_connect_runtime_signals()
 	var _available_count: int = refresh_playlist()
-	if auto_play_on_ready:
+
+
+## 开放背景音乐运行期工作；本地可选包不阻塞架构 activation。
+func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_scope: bool = completion.fail(
+			"Background music activation scope is unavailable."
+		)
+		return completion
+	var _bound: bool = completion.bind_cancel_token(scope)
+	if not completion.is_pending():
+		return completion
+	if (
+		not is_instance_valid(_content_catalog)
+		or not is_instance_valid(_audio)
+		or not is_instance_valid(_background_work)
+		or not is_instance_valid(_signals)
+	):
+		var _failed_dependencies: bool = completion.fail(
+			"Background music dependencies are unavailable."
+		)
+		return completion
+	_quiescing = false
+	_runtime_active = true
+	if auto_play_on_activation:
 		var _started: bool = start_if_available()
+	var _succeeded: bool = completion.succeed()
+	return completion
+
+
+## 停止接纳新曲目读取，并收敛当前可选 BGM 会话。
+func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_scope: bool = completion.fail(
+			"Background music quiesce scope is unavailable."
+		)
+		return completion
+	var _bound: bool = completion.bind_cancel_token(scope)
+	if not completion.is_pending():
+		return completion
+	_quiescing = true
+	_runtime_active = false
+	_stop_runtime_playback()
+	if is_instance_valid(_signals):
+		_signals.disconnect_owner(self)
+	var _succeeded: bool = completion.succeed()
+	return completion
 
 
 func dispose() -> void:
 	_disposing = true
-	_load_generation += 1
-	_cancel_pending_load()
+	_quiescing = true
+	_runtime_active = false
+	_stop_runtime_playback()
 	if is_instance_valid(_signals):
 		_signals.disconnect_owner(self)
-	if (
-		is_instance_valid(_audio)
-		and _current_track_key != &""
-		and _audio.get_current_bgm_key() == String(_current_track_key)
-	):
-		_audio.stop_bgm(minf(crossfade_seconds, 0.2))
 	_track_keys.clear()
 	_track_type_hints.clear()
 	_play_queue.clear()
@@ -178,7 +224,9 @@ func refresh_playlist() -> int:
 ## @return 已经拥有当前会话，或成功提交读取请求时返回 true。
 func start_if_available() -> bool:
 	if (
-		_disposing
+		not _runtime_active
+		or _quiescing
+		or _disposing
 		or _track_keys.is_empty()
 		or not is_instance_valid(_audio)
 		or not is_instance_valid(_background_work)
@@ -220,7 +268,9 @@ func get_debug_snapshot() -> Dictionary:
 			and not _pending_load_task.is_finished()
 		),
 		"shuffle_cycle": _shuffle_cycle,
-		"auto_play_on_ready": auto_play_on_ready,
+		"runtime_active": _runtime_active,
+		"quiescing": _quiescing,
+		"auto_play_on_activation": auto_play_on_activation,
 	}
 
 
@@ -352,7 +402,7 @@ func _discover_track_keys() -> PackedStringArray:
 
 
 func _request_next_track_load() -> bool:
-	if _track_keys.is_empty() or _disposing:
+	if _track_keys.is_empty() or not _runtime_active or _quiescing or _disposing:
 		return false
 	var remaining_attempts: int = _track_keys.size()
 	while remaining_attempts > 0:
@@ -438,7 +488,9 @@ func _apply_loaded_track(task: GFBackgroundWorkTask) -> bool:
 		"type_hint"
 	)
 	if (
-		_disposing
+		not _runtime_active
+		or _quiescing
+		or _disposing
 		or result_generation != _load_generation
 		or result_key != expected_track_key
 		or result_path != expected_track_path
@@ -484,7 +536,7 @@ func _apply_loaded_track(task: GFBackgroundWorkTask) -> bool:
 func _reject_track_and_continue(track_key: StringName) -> bool:
 	if track_key != &"":
 		_unavailable_track_keys[track_key] = true
-	if _disposing:
+	if not _runtime_active or _quiescing or _disposing:
 		return true
 	var _requested: bool = _request_next_track_load()
 	# 后台工作 apply 回调的 false 代表框架任务失败；素材不可用已由本 Utility
@@ -600,17 +652,31 @@ func _cancel_pending_load() -> void:
 		var _cancelled: bool = _background_work.cancel_work(task.work_id)
 
 
+func _stop_runtime_playback() -> void:
+	_load_generation += 1
+	_cancel_pending_load()
+	if (
+		is_instance_valid(_audio)
+		and _current_track_key != &""
+		and _audio.get_current_bgm_key() == String(_current_track_key)
+	):
+		_audio.stop_bgm(minf(crossfade_seconds, 0.2))
+	_current_track_key = &""
+
+
 func _on_catalog_refreshed(_report: Dictionary) -> void:
-	if _disposing:
+	if not _runtime_active or _quiescing or _disposing:
 		return
 	var _available_count: int = refresh_playlist()
-	if auto_play_on_ready:
+	if auto_play_on_activation:
 		var _started: bool = start_if_available()
 
 
 func _on_bgm_finished(history_key: String) -> void:
 	if (
-		_disposing
+		not _runtime_active
+		or _quiescing
+		or _disposing
 		or _current_track_key == &""
 		or history_key != String(_current_track_key)
 	):

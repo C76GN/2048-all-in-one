@@ -196,7 +196,10 @@ func test_scene_router_reduced_motion_uses_instant_shaderless_transition() -> vo
 	if config_value is GFSceneTransitionConfig:
 		var config: GFSceneTransitionConfig = config_value
 		assert_true(config.minimum_duration_seconds == 0.0, "减少动态不得人为延长加载等待。")
-		assert_true(config.preload_before_change, "场景切换配置应显式保留 GF 预加载语义。")
+		assert_false(
+			config.preload_before_change,
+			"路由已显式 prime 场景，正式切换不得再次提交预加载请求。"
+		)
 		assert_false(config.preload_as_fixed_cache, "普通目标场景不得永久固定在预加载缓存。")
 
 	await _dispose_architecture(architecture)
@@ -316,8 +319,8 @@ func test_theme_utility_tracks_cross_utility_signals_with_gf_signal_utility() ->
 	assert_true(is_instance_valid(signal_utility), "主题测试架构应注册 GFSignalUtility。")
 	if is_instance_valid(signal_utility):
 		assert_true(
-			signal_utility.get_connection_count() == 5,
-			"主题与无障碍 Utility 应由 GFSignalUtility 追踪设置、策略刷新与两个 UI 音效信号。"
+			signal_utility.get_connection_count() == 6,
+			"素材目录、主题与无障碍 Utility 应由 GFSignalUtility 统一追踪跨 Utility 信号。"
 		)
 
 	await _dispose_architecture(architecture)
@@ -748,10 +751,13 @@ func _create_theme_architecture(
 	var theme_catalog: GameThemeCatalogUtility = GameThemeCatalogUtility.new()
 	var theme_utility: GameThemeUtility = GameThemeUtility.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var timer_utility: GFTimerUtility = GFTimerUtility.new()
 	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var accessibility: GameAccessibilityUtility = GameAccessibilityUtility.new()
 	var scene_utility: GFSceneUtility = null
 	var screen_transition: GFScreenTransitionUtility = null
+	var platform_runtime: GFPlatformRuntime = null
+	var platform_utility: GamePlatformUtility = null
 	var scene_router: SceneRouterSystem = null
 
 	await architecture.register_utility(GFResourceBroker, GFResourceBroker.new())
@@ -772,6 +778,7 @@ func _create_theme_architecture(
 	await architecture.register_utility(GFAudioUtility, audio)
 	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GFTimerUtility, timer_utility)
 	await architecture.register_utility(GFSignalUtility, signal_utility)
 	await architecture.register_utility(GameAccessibilityUtility, accessibility)
 	await architecture.register_utility(GameUiStyleUtility, style)
@@ -786,9 +793,13 @@ func _create_theme_architecture(
 	if include_scene_router:
 		scene_utility = GFSceneUtility.new()
 		screen_transition = GFScreenTransitionUtility.new()
+		platform_runtime = GFPlatformRuntime.new()
+		platform_utility = GamePlatformUtility.new()
 		scene_router = SceneRouterSystem.new()
 		await architecture.register_utility(GFSceneUtility, scene_utility)
 		await architecture.register_utility(GFScreenTransitionUtility, screen_transition)
+		await architecture.register_utility(GFPlatformRuntime, platform_runtime)
+		await architecture.register_utility(GamePlatformUtility, platform_utility)
 		await architecture.register_system(SceneRouterSystem, scene_router)
 	await architecture.init()
 	if prime_asset_cache:
@@ -820,6 +831,8 @@ func _create_theme_architecture(
 		"accessibility": accessibility,
 		"scene_utility": scene_utility,
 		"screen_transition": screen_transition,
+		"platform_runtime": platform_runtime,
+		"platform_utility": platform_utility,
 		"scene_router": scene_router,
 	}
 

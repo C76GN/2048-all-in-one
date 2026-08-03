@@ -24,6 +24,7 @@ var _screen_transition: GFScreenTransitionUtility
 var _shader_parameters: GFShaderParameterUtility
 var _theme_utility: GameThemeUtility
 var _accessibility: GameAccessibilityUtility
+var _platform_utility: GamePlatformUtility
 var _signal_utility: GFSignalUtility
 var _operation_diagnostics: GFOperationDiagnosticsUtility
 var _scene_switch_started_connection: GFSignalConnection
@@ -43,7 +44,9 @@ func get_required_utilities() -> Array[Script]:
 	return [
 		GameThemeUtility,
 		GameAccessibilityUtility,
+		GamePlatformUtility,
 		GFLogUtility,
+		GFOperationDiagnosticsUtility,
 		GFSceneUtility,
 		GFScreenTransitionUtility,
 		GFShaderParameterUtility,
@@ -60,6 +63,7 @@ func ready() -> void:
 	_shader_parameters = _get_shader_parameter_utility()
 	_theme_utility = _get_theme_utility()
 	_accessibility = _get_accessibility_utility()
+	_platform_utility = _get_platform_utility()
 	_signal_utility = _get_signal_utility()
 	_operation_diagnostics = _get_operation_diagnostics_utility()
 	if not _has_required_dependencies():
@@ -82,6 +86,7 @@ func dispose() -> void:
 	_shader_parameters = null
 	_theme_utility = null
 	_accessibility = null
+	_platform_utility = null
 	_signal_utility = null
 	_operation_diagnostics = null
 	_log = null
@@ -399,6 +404,14 @@ func _get_accessibility_utility() -> GameAccessibilityUtility:
 	return null
 
 
+func _get_platform_utility() -> GamePlatformUtility:
+	var utility_value: Object = get_utility(GamePlatformUtility)
+	if utility_value is GamePlatformUtility:
+		var platform_utility: GamePlatformUtility = utility_value
+		return platform_utility
+	return null
+
+
 func _get_signal_utility() -> GFSignalUtility:
 	var utility_value: Object = get_utility(GFSignalUtility)
 	if utility_value is GFSignalUtility:
@@ -408,10 +421,7 @@ func _get_signal_utility() -> GFSignalUtility:
 
 
 func _get_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:
-	var architecture: GFArchitecture = _get_architecture_or_null()
-	if architecture == null:
-		return null
-	var utility_value: Object = architecture.get_local_utility(GFOperationDiagnosticsUtility)
+	var utility_value: Object = get_utility(GFOperationDiagnosticsUtility)
 	if utility_value is GFOperationDiagnosticsUtility:
 		var diagnostics: GFOperationDiagnosticsUtility = utility_value
 		return diagnostics
@@ -430,8 +440,14 @@ func _has_required_dependencies() -> bool:
 		var _theme_appended: bool = missing.append("GameThemeUtility")
 	if not is_instance_valid(_accessibility):
 		var _accessibility_appended: bool = missing.append("GameAccessibilityUtility")
+	if not is_instance_valid(_platform_utility):
+		var _platform_appended: bool = missing.append("GamePlatformUtility")
 	if not is_instance_valid(_signal_utility):
 		var _signal_appended: bool = missing.append("GFSignalUtility")
+	if not is_instance_valid(_operation_diagnostics):
+		var _diagnostics_appended: bool = missing.append(
+			"GFOperationDiagnosticsUtility"
+		)
 	if missing.is_empty():
 		return true
 	push_error("[SceneRouterSystem] 缺少必需架构依赖：%s。" % ", ".join(missing))
@@ -654,7 +670,10 @@ func _cancel_screen_transition_and_hide() -> void:
 func _make_scene_transition_config(path: String) -> GFSceneTransitionConfig:
 	var config: GFSceneTransitionConfig = GFSceneTransitionConfig.new()
 	config.target_scene_path = path
-	config.preload_before_change = true
+	# goto_scene() 已在覆盖转场开始前显式 prime；GFSceneUtility.load_scene_async()
+	# 会直接复用该缓存或 in-flight 请求。这里再次要求 preload 会产生第二次
+	# admission/查找，因此只保留正式切换阶段的复用语义。
+	config.preload_before_change = false
 	config.preload_as_fixed_cache = false
 	config.cache_loaded_scene = true
 	config.minimum_duration_seconds = (
@@ -755,7 +774,10 @@ func _complete_scene_change(
 		request = _get_scene_request(request_id)
 		if request == null:
 			return
-		if DisplayServer.get_name() != "headless":
+		if (
+			is_instance_valid(_platform_utility)
+			and not _platform_utility.is_headless_runtime()
+		):
 			await RenderingServer.frame_post_draw
 			request = _get_scene_request(request_id)
 			if request == null:

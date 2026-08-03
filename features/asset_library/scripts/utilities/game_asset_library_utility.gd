@@ -22,6 +22,7 @@ const _RUNTIME_CATALOG_SOURCE_ID: StringName = &"content_package"
 
 var _resolver: GFResourceResolverUtility = null
 var _project_content_catalog: ProjectContentCatalogUtility = null
+var _signals: GFSignalUtility = null
 var _last_catalog_report: Dictionary = {}
 var _catalog_runtime: GFAssetCatalogRuntime = null
 var _runtime_catalog_provider: GFContentPackageAssetCatalogProvider = null
@@ -38,20 +39,29 @@ func init() -> void:
 
 
 func get_required_utilities() -> Array[Script]:
-	return [ProjectContentCatalogUtility, GFResourceResolverUtility]
+	return [
+		ProjectContentCatalogUtility,
+		GFResourceResolverUtility,
+		GFSignalUtility,
+	]
 
 
 func ready() -> void:
 	_resolver = _get_resource_resolver_utility()
 	_project_content_catalog = _get_project_content_catalog_utility()
+	_signals = _get_signal_utility()
 	if is_instance_valid(_project_content_catalog):
 		_last_catalog_report = _project_content_catalog.get_last_refresh_report()
+	_connect_catalog_refresh()
 	_rebuild_runtime_catalog()
 
 
 func dispose() -> void:
+	if is_instance_valid(_signals):
+		_signals.disconnect_owner(self)
 	_resolver = null
 	_project_content_catalog = null
+	_signals = null
 	_last_catalog_report.clear()
 	_clear_runtime_catalog()
 	_catalog_runtime = null
@@ -60,6 +70,7 @@ func dispose() -> void:
 func release_dependencies() -> void:
 	_resolver = null
 	_project_content_catalog = null
+	_signals = null
 	super.release_dependencies()
 
 
@@ -168,6 +179,32 @@ func _get_project_content_catalog_utility() -> ProjectContentCatalogUtility:
 		var catalog: ProjectContentCatalogUtility = utility_value
 		return catalog
 	return null
+
+
+func _get_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
+	return null
+
+
+func _connect_catalog_refresh() -> void:
+	if (
+		not is_instance_valid(_signals)
+		or not is_instance_valid(_project_content_catalog)
+	):
+		return
+	var _connection: GFSignalConnection = _signals.connect_signal(
+		_project_content_catalog.catalog_refreshed,
+		Callable(self, "_on_catalog_refreshed"),
+		self
+	)
+
+
+func _on_catalog_refreshed(report: Dictionary) -> void:
+	_last_catalog_report = report.duplicate(true)
+	_rebuild_runtime_catalog()
 
 
 func _rebuild_runtime_catalog() -> void:

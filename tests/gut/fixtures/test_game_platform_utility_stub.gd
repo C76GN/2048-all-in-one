@@ -30,12 +30,41 @@ func ready() -> void:
 	pass
 
 
+func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_scope: bool = completion.fail(
+			"Test platform activation scope is unavailable."
+		)
+		return completion
+	var _bound: bool = completion.bind_cancel_token(scope)
+	if completion.is_pending():
+		var _succeeded: bool = completion.succeed()
+	return completion
+
+
+func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
+	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
+	if scope == null:
+		var _failed_scope: bool = completion.fail(
+			"Test platform quiesce scope is unavailable."
+		)
+		return completion
+	var _bound: bool = completion.bind_cancel_token(scope)
+	if completion.is_pending():
+		var _succeeded: bool = completion.succeed()
+	return completion
+
+
 func dispose() -> void:
 	clipboard_text = ""
 	_test_clipboard_request_serial = 0
 
 
 # --- 公共方法 ---
+
+func is_headless_runtime() -> bool:
+	return true
 
 ## 记录测试中的平台剪贴板写入。
 ## @param text: 要写入的纯文本。

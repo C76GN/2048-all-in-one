@@ -830,14 +830,14 @@ func test_runtime_diagnostics_baseline_is_bounded_and_dev_installer_does_not_reb
 		"开发诊断 Installer 不得重复注册运行时操作诊断基线。"
 	)
 	assert_true(
+		router_source.contains("get_utility(GFOperationDiagnosticsUtility)"),
+		"SceneRouterSystem 应通过正式 GF 依赖声明解析运行时诊断基线。"
+	)
+	assert_false(
 		router_source.contains(
 			"architecture.get_local_utility(GFOperationDiagnosticsUtility)"
 		),
-		"发布态可选诊断依赖必须使用 GF 本架构 local lookup。"
-	)
-	assert_false(
-		router_source.contains("get_utility(GFOperationDiagnosticsUtility)"),
-		"SceneRouterSystem 不得把开发期诊断工具当作严格运行时依赖。"
+		"SceneRouterSystem 不得绕过严格依赖查找隐藏 Composition Root 漏配。"
 	)
 
 

@@ -80,6 +80,47 @@ func test_asset_library_registers_assets_into_gf_resolver() -> void:
 	await _dispose_architecture(architecture)
 
 
+func test_runtime_asset_catalog_atomically_tracks_content_refresh() -> void:
+	var setup: Dictionary = await _create_asset_library_architecture()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var project_catalog: ProjectContentCatalogUtility = _get_project_catalog(setup)
+	var asset_library: GameAssetLibraryUtility = _get_asset_library(setup)
+	var before_snapshot: Dictionary = asset_library.get_debug_snapshot()
+	var before_runtime: Dictionary = GFVariantData.get_option_dictionary(
+		before_snapshot,
+		"catalog_runtime"
+	)
+	var before_revision: int = GFVariantData.get_option_int(
+		before_runtime,
+		"revision"
+	)
+
+	project_catalog.catalog_refreshed.emit({
+		"ok": true,
+		"refresh_marker": "gut-runtime-refresh",
+	})
+
+	var after_snapshot: Dictionary = asset_library.get_debug_snapshot()
+	var after_runtime: Dictionary = GFVariantData.get_option_dictionary(
+		after_snapshot,
+		"catalog_runtime"
+	)
+	assert_true(
+		GFVariantData.get_option_int(after_runtime, "revision")
+			== before_revision + 1,
+		"内容目录刷新应通过 replace_mount_catalog 原子提交一个新 revision。"
+	)
+	assert_true(
+		GFVariantData.get_option_string(
+			GFVariantData.get_option_dictionary(after_snapshot, "catalog_report"),
+			"refresh_marker"
+		) == "gut-runtime-refresh",
+		"素材库应保留触发本次原子目录替换的刷新报告。"
+	)
+
+	await _dispose_architecture(architecture)
+
+
 func test_project_content_catalog_uses_owner_scoped_roots_and_gf_query() -> void:
 	var setup: Dictionary = await _create_asset_library_architecture()
 	var architecture: GFArchitecture = _get_architecture(setup)
@@ -394,6 +435,7 @@ func _create_asset_library_architecture() -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
 	var content_packages: GFContentPackageUtility = GFContentPackageUtility.new()
+	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var project_content_catalog: ProjectContentCatalogUtility = (
 		ProjectContentCatalogUtility.new().configure_source_roots(PackedStringArray([
 			GameAssetLibraryUtility.ASSET_LIBRARY_SOURCE_ROOT,
@@ -403,6 +445,7 @@ func _create_asset_library_architecture() -> Dictionary:
 
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(GFContentPackageUtility, content_packages)
+	await architecture.register_utility(GFSignalUtility, signal_utility)
 	await architecture.register_utility(
 		ProjectContentCatalogUtility,
 		project_content_catalog
