@@ -18,6 +18,9 @@
 `GFContentPackageAssetCatalogProvider` 构建，并由 `GFAssetCatalogRuntime` 原子挂载；
 目录条目 ID 采用当前 vendored GF 内容目录契约 `package_id/resource_key`，项目代码需要目录条目时调用
 `GameAssetLibraryUtility.get_runtime_catalog_entry()`，不得自行拼接或回退资源路径。
+`GameAssetLibraryUtility` 通过 owner-bound `GFSignalUtility` 跟随
+`ProjectContentCatalogUtility.catalog_refreshed`；刷新先构造完整候选目录，再以
+`replace_mount_catalog()` 原子替换当前 mount。失败时继续提供上一 revision，禁止先清空旧目录或让业务观察半更新状态。
 
 `resources/review/asset_slot_map.tres` 及其 `AssetSlotMap`/`AssetSlotBinding`
 只保存作者审核所需的候选、采用项、回退项和标签，不持有玩家运行时资源。当前主题等

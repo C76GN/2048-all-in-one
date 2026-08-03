@@ -141,7 +141,7 @@
 - `features/asset_library/resources/shaders/ui/startup_progress_bar.gdshader` 是素材目录中的可选 Shader；当前启动代码未消费它，也不能把它描述为轻量壳依赖。未来若启用，只能在 GF 初始化完成后的正式启动编排或主题场景中应用，并应补真实截图验证。
 - 进度必须由真实启动流程驱动，至少覆盖 GF 初始化和主菜单预热，不使用纯假进度。
 - 预加载条件、超时和最短停留延迟统一使用 `GFAsyncWaitUtility`，不自行维护 deadline 或 `SceneTreeTimer`。
-- `GFScenePreloadMap` 只预热最高频相邻路径：启动期准备主菜单与模式选择，模式选择期再准备玩法场景；不得在原生首屏阶段并发预载所有低频菜单。
+- `GFScenePreloadMap` 只预热最高频相邻路径：启动期准备主菜单与模式选择，模式选择期再准备玩法场景；不得在原生首屏阶段并发预载所有低频菜单。主场景跳转由 `SceneRouterSystem` 在 cover 前显式 `prime_scene()` 一次，正式切换将 `preload_before_change=false`，让 GF 直接复用缓存或 in-flight 请求，不能为了“保险”重复提交预载。
 - 首轮背景、转场、焦点与庆祝 Shader 由 `GFRenderWarmupUtility` 按 `startup_render_warmup_manifest.tres` 统一触碰；方块轮廓、稀疏母题和常驻反馈画布仍必须在不透明加载页后完成真实首绘，避免第一次操作临时编译自绘 2D pipeline。
 - 启动画面停留时间要短，默认只用于避免启动期空白和突然跳转。
 - 动态加载页首帧必须直接承接原生静态构图，只在结束时使用约 `0.16s` 淡出收束；主场景仍由 GF 场景转场接管，二者不能产生黑帧或重复长动画。
@@ -237,14 +237,14 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 - **切换控件**：开关、分段按钮和可选卡片只沿其状态轴移动一次，轨道/纸面颜色与滑块或选中标记同步落定；selected 表示持久状态，品红 focus 边框表示当前输入位置，两者不能互相替代。
 - **列表与分页**：只对本次新创建且可见的条目按阅读顺序错峰出现，单项约 `0.10s` 到 `0.18s`，相邻间隔保持很小；刷新已有数据不得让整页反复重播。拥有稳定业务 ID 的图鉴、配方、成就、档案与排行榜采用 keyed cache 原位更新，保留节点、选择和焦点；只在真正删除业务项时释放节点。超长回放列表继续使用 `GFVirtualListModel` / `GFVirtualListFocusModel` 维护有界窗口，`GFRepeaterBinder` 只负责无身份要求的模板物化，不把它误当 keyed reconciliation。结构变化后由 `GFControlFocusUtility` 重建焦点顺序。跨帧分页必须保存不可变请求快照，只允许最新 generation 原子替换条目、页码和焦点；旧任务只能清理自己的临时结果。
 - **滚动条**：静止时保持低对比，指针进入、键盘滚动或拖拽时短促增亮或加宽，停止交互后平稳恢复；滑块位置必须直接跟随真实滚动值，不使用滞后、回弹或装饰性假进度。可交互根节点的尺寸、scale、focus 与命中几何始终稳定且满足 44px 触控契约；缩放或透明度动画只作用于 `MOUSE_FILTER_IGNORE` 的内部视觉层。GF 不提供滚动条表现动画，该行为由 `GameUiMotionUtility` 绑定项目控件。
-- **弹层**：遮罩和任务卡分层进入；遮罩先建立阻断关系，任务卡再以一个主方向的小位移、轻微缩放和错峰内容落定。两者必须由同一个 modal-level 句柄和 generation 原子拥有；完成、取消、反向、owner 退出与减少动态都要同时 settle，迟到回调不得改写新一代状态。关闭开始立即冻结任务卡输入，每一代只允许一次业务提交；退出动画完成后才调用路由返回，不能用全屏场景擦除代替普通弹层。
+- **弹层**：遮罩和任务卡分层进入；遮罩先建立阻断关系，任务卡再以一个主方向的小位移、轻微缩放和错峰内容落定。两者必须由同一个 modal-level 句柄和 generation 原子拥有；完成、取消、反向、owner 退出与减少动态都要同时 settle，迟到回调不得改写新一代状态。关闭开始立即冻结任务卡输入，每一代只允许一次业务提交；退出动画完成并确认原 panel 已离场后才发布终态，不能用全屏场景擦除代替普通弹层。任务卡宽度必须钳制在视口安全边距内；横排动作不足以保留每项 `112×44px` 时改为纵排，不允许固定桌面宽度撑破 320/360/390px 手机视口。
 - **异步状态**：低于主题 `ui.loading.delay` 的瞬时工作不显示 Loading，超时后才显示稳定文字或局部指示；成功原位替换内容，失败把错误留在触发区域并提供静态颜色/文案，迟到 generation 不得覆盖新状态。进度只反映真实 determinate 值；没有可计算进度时使用明确的“不确定/等待”文案，不伪造百分比。
 - **首页开场**：正式启动完成后，先建立纸面背景，再由 `2 / 0 / 4 / 8` 方块和微型棋盘完成一次短组装；十个菜单按钮按阅读顺序约每项 `32ms` 错峰，从左右空间锚点以纸片“发牌”方式撞入并短回摆，外层命中框不移动。发牌继承按钮当下的 focus/selected/disabled 语义，不得强制回到 rest；任何 hover、focus 或 press 输入都必须同时接管纸片和文字，不能留下延迟隐藏文字。开场未落定时，未揭示控件不得获得命中或焦点；首个规范化动作 token 只精确完成演出并被消费，下一 token 才能执行业务。减少动态初始即为 settled，不得隐藏地多吞一次输入。主动作最后落定并取得焦点。开场不轮播图鉴、试验台、档案或模式页面；首次进入可播放完整编排，再次返回使用短版本。
 - **减少动态**：不延迟状态提交，也不等待不可见 Tween；按钮、列表、滚动条、弹层和首页开场直接落到稳定终态，保留焦点、选中、禁用和遮罩等非运动信号。常规动效不得成为理解状态、完成操作或恢复焦点的前置条件。
 
 GF 与项目边界：
 
-- `GFUIRouterUtility`、`GFUIRoute` 和 `GFUIUtility` 只拥有稳定 route ID、逻辑层、Modal 栈、遮挡、返回和焦点恢复；路由 metadata 可以声明项目 motion profile，但 GF 路由不实现具体视觉时间线。需要退场动画的页面先由项目动效完成，再调用 `back()`。
+- `GFUIRouterUtility`、`GFUIRoute` 和 `GFUIUtility` 拥有稳定 route ID、逻辑层、Modal 栈、遮挡、返回、焦点恢复，以及面板提交前的 owner/`GFAsyncScope` 取消、预加载、并发去重和 typed operation 终态；项目 `GameUiRouterUtility` 只补默认预算与“提交后 owner 同帧退出”的精确实例回滚。路由 metadata 可以声明项目 motion profile，但 GF 路由不实现具体视觉时间线。需要退场动画的页面先由项目动效完成，再调用 `back()`，调用方必须等待 route result，不能 fire-and-forget。
 - `GFScreenTransitionUtility` 和主题提供的 `GFScreenTransitionEffect` 只用于启动完成后的主场景 cover/load/reveal。它是单一全屏覆盖层，不能用于按钮、滚动条、列表、页内切换或并行弹层。
 - `GameUiMotionProfile` 是视觉主题拥有的语义参数资源；Button、Panel、Modal、List、Content、Number、Scroll，以及 Toast、Loading、Progress、Local Error、Reward Result 的默认节拍都从该资源查询。`GameUiMotionUtility` 统一拥有这些局部可取消 Tween、retarget、`complete_now()` 和减少动态静态终态；页面只能选择语义，不自行散落时长、缓动与 Tween 元数据。
 - `GFNotificationUtility` 仍唯一拥有 priority、dedupe、队列上限与通知生命周期；当前 vendored GF 的 dedupe 契约不产生 aggregate 字段或更新信号。`FeedbackRail` 只呈现当前 record，轨道的 `VBoxContainer` 子槽保持布局稳定；进入首帧保持实色可读，只对槽内表面做短位移与退出淡出，迟到 finished 以通知 ID 拦截。

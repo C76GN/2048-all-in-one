@@ -95,7 +95,7 @@
 
 下划线前缀代表非普通公共 API。即使某个 `_` 方法会被框架通过反射、`has_method()`、`call()` 或约定名称调用，它仍应按其语义放入“私有/辅助方法”“可重写钩子/虚方法”“Godot 生命周期方法”或“信号回调函数”区，不能仅因为调用点相邻就放在公共方法区。
 
-GF Module 的三阶段生命周期必须保持职责分离：`init()` 初始化自身状态，`async_init()` 准备自身异步资源，`ready()` 才解析其他 Model、System、Utility 或 Architecture。不得从 `init()` / `async_init()` 经由私有 helper 间接调用 `get_model()`、`get_system()`、`get_utility()` 或架构访问器。
+GF Module 的四阶段初始化与关闭生命周期必须保持职责分离：`init()` 初始化自身状态，`async_init()` 准备自身异步资源，`ready()` 才解析已声明的其他 Model、System、Utility 或 Architecture，`begin_activation(scope)` 等待架构开放前必须完成的异步终态。关闭时 `begin_quiesce(scope)` 先停止准入并取消或排空已接纳工作，`dispose()` 只做幂等释放，`release_dependencies()` 断开依赖引用。不得从 `init()` / `async_init()` 经由私有 helper 间接调用 `get_model()`、`get_system()`、`get_utility()` 或架构访问器，也不得把本应由 activation/quiesce 持有的等待隐藏在 `ready()` / `dispose()` 中。
 
 允许按模块职责细化 section 名称，但 section 名称应保留可识别的语义标记。例如 `# --- 私有/编辑器工具 ---`、`# --- 公共方法 (简单事件) ---`、`# --- 虚方法（由子类重写） ---` 都比模糊的 `# --- 工具 ---` 更容易检查和维护。
 

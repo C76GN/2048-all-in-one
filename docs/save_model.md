@@ -77,13 +77,22 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 `features/persistence/scripts/data/game_save_section_data.gd` 同时继承 `GFSaveSectionProvider`，把 envelope 中的 `data` 映射为磁盘 `GFSaveSection.payload`。磁盘文档不再嵌套 SaveGraph Source。具体字段校验分别位于 `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`tile_lab`、`achievements` 和 `replays` Feature，禁止把业务 Schema 下沉到 persistence 或 shared。
 
+## GF Profile Coordinator 迁移边界
+
+当前 vendored 开发版本已经提供 `GFSaveProfileTransactionCoordinator`，但项目暂不迁移。可用 API 不等于已满足本项目账号契约；`GameSaveGraphUtility` 目前仍拥有活动 Profile 身份、切换 gate、项目恢复决策、section 事务与对账证据，底层 generation、Storage I/O 和 Provider apply/rollback 继续由 `GFSaveProfileUtility` 拥有。暂缓迁移有两个已由源码确认的 blocker：
+
+1. `activate_profile()` 在 domain 尚未激活时会为 missing/corrupt 目标返回 `GFSaveProfileRecoveryLease`，但 `switch_profile()` 的目标加载遇到相同状态时只返回 `GFSaveProfileTransactionResult.STATUS_TARGET_LOAD_FAILED`，不提供可继续 `bootstrap_profile()` / `adopt_profile()` 的 recovery lease。项目切换到新账号或需重建的目标档时，必须保持来源账号为活动真源，先按项目策略初始化默认 section，或备份并重建损坏/过时目标，再原子提交目标身份；不能把来源账号当前 Provider 状态直接写入目标而造成跨账号数据泄漏。
+2. `unregister_profile()` 要求整个共享 Provider domain 的 `active_profile_id` 为空，因此只要另一个账号仍处于活动状态，就无法注销同一 domain 中已经非活动的 Profile。项目需要在保持当前账号可玩的同时，为失败切换、账号删除和路径清理释放非活动 Profile 的 manager/path 所有权；不能通过停用整个 domain、为每个账号复制一套 Provider 实例或无限保留注册项规避该约束。
+
+只有上游同时满足以下边界后，才允许进行一次性切换：切换事务能为 missing/corrupt 目标返回与原事务、domain generation 和来源身份绑定的 recovery lease，恢复成功前来源身份与 section 状态不变；无在途事务、recovery/reconcile lease 或 detached 写的非活动 Profile 可以在同 domain 仍有活动身份时安全注销；outcome-unknown、rollback failure、quiesce 与 dispose 继续提供唯一 typed 终态并保持 Profile/path 所有权。迁移时 Coordinator 应统一接管 Profile 注册、活动身份、source flush、target load、recovery/reconcile lease 和 `mutate_and_persist()`；项目继续拥有本地账号目录、账号 ID 到路径映射、legacy 收养、旧档备份/重建策略及物理文件清理。不得让项目 transition gate 与 Coordinator 双重协调，也不得保留新旧两套运行时入口；注册、切换、section mutation、对账和关闭顺序必须在同一批改动与回归测试中整体切换。
+
 ## 事务语义
 
 ### 保存
 
 1. System 取得当前 section 副本、构造并严格校验完整替换值，再调用 `GameSaveGraphUtility.request_replace_section_data()`；多 section 事务使用 `request_replace_sections_data()`。
-2. `GameSaveGraphUtility` 只提供立即返回的一次性 `GameSaveSectionOperation`，不保留运行时同步替换包装。玩家 UI 在操作期间禁用重复提交，并以 owner/token 防止页面释放后回写。
-3. 项目先保存本次涉及 section 的内存快照并应用候选；同一时刻只允许一个立即事务。`GFSaveProfileUtility.save_profile()` 只创建一次性 `GFSaveProfileRequest` 并立即返回 operation，不在请求调用栈里收集或写盘；后续 Profile tick 按 provider 顺序推进 `GFSaveSectionSnapshotOperation`，再按 generation 串行化、合并和有界重试。小型、有严格容量上限的 provider 可以返回已完成 snapshot operation；`ReplayCatalogSaveData` 必须按回放、action 和 checkpoint 预算分片，避免长回放目录在单帧同步序列化。任何目录增长到会占用整帧时都应在 provider 内采用分步 snapshot operation，不得恢复 UI 调用栈同步深拷贝。
+2. section 替换只通过立即返回的一次性 `GameSaveSectionOperation`；Profile 保存、加载和冲刷只通过 `request_save_profile()`、`request_load_profile()`、`request_flush_profile()` 返回的 `GFSaveProfileOperation`；启动与账号切换分别等待 `begin_bootstrap_profile()` completion 和 `activate_profile_async()`。`GameSaveGraphUtility` 不保留同步保存、加载、冲刷、引导或切换包装。玩家 UI 在操作期间禁用重复提交，并以 owner/token 防止页面释放后回写。
+3. 项目先保存本次涉及 section 的内存快照并应用候选；同一时刻只允许一个立即事务。项目构造一次性 `GFSaveProfileRequest`，`GFSaveProfileUtility.save_profile()` 立即返回 `GFSaveProfileOperation`，不在请求调用栈里收集或写盘；后续 Profile tick 按 provider 顺序推进 `GFSaveSectionSnapshotOperation`，再按 generation 串行化、合并和有界重试。小型、有严格容量上限的 provider 可以返回已完成 snapshot operation；`ReplayCatalogSaveData` 必须按回放、action 和 checkpoint 预算分片，避免长回放目录在单帧同步序列化。任何目录增长到会占用整帧时都应在 provider 内采用分步 snapshot operation，不得恢复 UI 调用栈同步深拷贝。
 4. `GFStorageUtility` 通过临时文件、事务标记和原子提交写入当前账号 Profile。确认成功后 `GameSaveSectionResult` 为 `persisted`；确认失败时项目反向恢复本次 section，并等待回滚状态的补偿保存后再终结。
 5. `outcome_unknown` 不表示成功或失败。项目保留候选快照、Profile 与路径所有权，并阻止新的立即写入和账号切换；GF detached 写入收敛后按 requested/persisted generation 判断晚到成功，或回滚并补偿保存，再以原 transaction ID 发布唯一对账证据。
 6. 高频统计、发现和成就更新使用 `queue_section_data()` 合并到下一 generation；`flush_profile()` 是覆盖调用时最新 generation 的屏障。“已排队”不等于“已持久化”。
@@ -92,7 +101,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 ### 加载
 
-1. `GFSaveProfileUtility.load_profile()` 先等待覆盖当前 generation 的保存屏障，再通过 `GFStorageUtility` 读取并校验存储 envelope 与 checksum。
+1. `GFSaveProfileUtility.load_profile()` 立即返回 `GFSaveProfileOperation`；后续执行先等待覆盖当前 generation 的保存屏障，再通过 `GFStorageUtility` 读取并校验存储 envelope 与 checksum。
 2. GF 严格解析 `GFSaveDocument`、Profile schema 和 typed sections，并按配置的 migration/recovery policy 给出唯一 `GFSaveProfileResult`；项目只在 preflight、恢复证据和只读诊断中直接使用 `GFSaveDocument.from_dict()`。
 3. `GFSaveProfileUtility` 按 provider 数组顺序应用 section，并在任一 provider 失败时反向恢复已经应用的 provider 快照；运行时不得暴露部分加载状态。
 4. 缺失文件可以按当前内存默认值恢复并随后保存；未来 schema、未知 section、畸形 metadata 或当前 Feature schema 错误必须明确失败并保留原档。

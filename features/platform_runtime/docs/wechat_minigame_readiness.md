@@ -2,7 +2,7 @@
 
 ## 当前边界
 
-项目已建立 `GamePlatformUtility -> GFPlatformRuntime -> GamePlatformAdapter -> 平台 SDK` 单向边界。`GFPlatformRuntime` 拥有 Adapter 注册、契约路由、请求句柄、超时和生命周期序列；项目 Utility 只做 Adapter 选择与 Godot 通知桥接。业务 Feature 只能读取 `GFPlatformRuntimeContext`、查询 `GFPlatformCapabilitySet`、订阅 `GFPlatformLifecycleEvent` 或发送 `GFPlatformBridgeRequest`，不得直接读取微信全局对象或散落判断 `OS.has_feature()`。
+项目已建立 `GamePlatformUtility -> GFPlatformRuntime -> GamePlatformAdapter -> 平台 SDK` 单向边界。`GFPlatformRuntime` 拥有 Adapter 注册、契约路由、请求句柄、超时和生命周期序列；项目 Utility 只做 Adapter 选择与 Godot 通知桥接。`GamePlatformUtility.ready()` 只准备、注册 Adapter 并建立 owner-bound Runtime 信号，`begin_activation(scope)` 必须等待 Adapter 初始化 typed completion 成功后才开放请求，`begin_quiesce(scope)` / `dispose()` 必须先终结 pending 初始化与外层 activation，再断连和注销。业务 Feature 只能读取 `GFPlatformRuntimeContext`、查询 `GFPlatformCapabilitySet`、订阅 `GFPlatformLifecycleEvent` 或发送 `GFPlatformBridgeRequest`，不得直接读取微信全局对象或散落判断 `OS.has_feature()`。
 
 当前 `LocalPlatformAdapter` 覆盖 Godot 桌面、移动端和 Web 的共同能力：
 
@@ -10,6 +10,8 @@
 - 指针、触摸和安全区；
 - 前后台、焦点和窗口尺寸生命周期；
 - Web Compatibility 渲染器事实。
+
+`LocalPlatformAdapter` 还把 `display_server_name` 与 `headless` 作为上下文 metadata 发布；它们是宿主事实而非 capability。Navigation 等消费者通过 `GamePlatformUtility` 读取该事实，`DisplayServer` 调用不得越出具体 Adapter。
 
 它不宣称已经实现微信登录、开放数据域、平台/线上排行榜、支付、分享或云存档。上述能力必须由后续 `WeChatMinigamePlatformAdapter` 显式提供，并通过 `GFBridgeContractReport` 后才能被业务层启用。项目 `progress` Feature 的本地排行榜只是离线设备内能力，不属于微信平台实现。
 
