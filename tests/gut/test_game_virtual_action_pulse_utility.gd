@@ -1,160 +1,182 @@
-## 验证项目虚拟动作脉冲的重入、取消与场景生命周期。
+## 验证项目重触发策略委托 GF 虚拟脉冲、定时与 owner 生命周期。
 extends GutTest
 
 
-func test_pulse_presses_then_releases_exactly_once() -> void:
-	var source: RecordingVirtualInputSource = RecordingVirtualInputSource.new()
+const GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload(
+	"res://features/gameplay/resources/input/gameplay_input_context.tres"
+)
+
+
+func test_pulse_uses_gf_typed_operation_and_releases_exactly_once() -> void:
+	var timer: GFTimerUtility = _create_timer()
+	var input_mapping: GFInputMappingUtility = _create_input_mapping()
+	var source: GFVirtualInputSource = input_mapping.create_virtual_source(
+		&"test_pulse",
+		-1,
+		timer
+	)
 	var pulse_utility: GameVirtualActionPulseUtility = (
 		GameVirtualActionPulseUtility.new().configure(source)
 	)
 
-	assert_true(pulse_utility.pulse(&"move_left", get_tree(), 0.0))
-	assert_true(source.press_count == 1)
-	assert_true(pulse_utility.get_pending_action_count() == 1)
+	assert_true(pulse_utility.pulse(GameplayInputActions.MOVE_LEFT, self, 0.25))
+	var operation: GFVirtualInputPulseOperation = pulse_utility.get_active_operation(
+		GameplayInputActions.MOVE_LEFT
+	)
+	assert_not_null(operation, "进行中的项目脉冲应暴露 GF 类型化句柄。")
+	assert_true(operation.is_pending())
+	assert_true(input_mapping.consume_action(GameplayInputActions.MOVE_LEFT))
 
-	await get_tree().process_frame
-	await get_tree().process_frame
+	timer.tick(0.25)
 
-	assert_true(source.release_count == 1)
-	assert_true(source.last_released_action == &"move_left")
+	assert_true(operation.get_status() == GFVirtualInputPulseOperation.Status.COMPLETED)
+	assert_true(operation.get_release_count() == 1, "GF lease 只能释放一次匹配贡献。")
+	assert_false(input_mapping.is_action_active(GameplayInputActions.MOVE_LEFT))
 	assert_true(pulse_utility.get_pending_action_count() == 0)
+	pulse_utility.dispose()
+	timer.dispose()
 
 
-func test_repeated_pulse_only_allows_latest_token_to_release() -> void:
-	var source: RecordingVirtualInputSource = RecordingVirtualInputSource.new()
+func test_repeated_pulse_retriggers_distinct_gf_action_edges() -> void:
+	var timer: GFTimerUtility = _create_timer()
+	var input_mapping: GFInputMappingUtility = _create_input_mapping()
+	var source: GFVirtualInputSource = input_mapping.create_virtual_source(
+		&"test_hud",
+		-1,
+		timer
+	)
 	var pulse_utility: GameVirtualActionPulseUtility = (
 		GameVirtualActionPulseUtility.new().configure(source)
 	)
 
-	assert_true(pulse_utility.pulse(&"move_right", get_tree(), 0.0))
-	assert_true(pulse_utility.pulse(&"move_right", get_tree(), 0.0))
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-	assert_true(source.press_count == 2)
+	assert_true(pulse_utility.pulse(GameplayInputActions.UNDO, self, 0.5))
+	var first_operation: GFVirtualInputPulseOperation = (
+		pulse_utility.get_active_operation(GameplayInputActions.UNDO)
+	)
+	assert_true(input_mapping.consume_action(GameplayInputActions.UNDO))
 	assert_true(
-		source.release_count == 2,
-		"重入时应先释放旧边沿，且较早 token 不得额外释放较新的脉冲。"
+		pulse_utility.pulse(GameplayInputActions.UNDO, self, 0.5),
+		"旧 GF pulse lease 仍活动时，第二次项目点击也应被接受。"
 	)
+	var second_operation: GFVirtualInputPulseOperation = (
+		pulse_utility.get_active_operation(GameplayInputActions.UNDO)
+	)
+
+	assert_true(first_operation.get_status() == GFVirtualInputPulseOperation.Status.CANCELLED)
+	assert_true(first_operation.get_terminal_reason() == &"manual_clear")
+	assert_true(second_operation != first_operation)
+	assert_true(
+		input_mapping.consume_action(GameplayInputActions.UNDO),
+		"项目 retrigger 必须先释放旧 lease，使第二次点击形成新的 just_started。"
+	)
+
+	timer.tick(0.5)
+	assert_true(second_operation.get_status() == GFVirtualInputPulseOperation.Status.COMPLETED)
 	assert_true(pulse_utility.get_pending_action_count() == 0)
+	pulse_utility.dispose()
+	timer.dispose()
 
 
-func test_overlapping_hud_pulses_produce_distinct_gf_action_edges() -> void:
+func test_owner_exit_cancels_gf_pulse_and_clears_project_observer() -> void:
+	var timer: GFTimerUtility = _create_timer()
+	var input_mapping: GFInputMappingUtility = _create_input_mapping()
+	var source: GFVirtualInputSource = input_mapping.create_virtual_source(
+		&"test_owner",
+		-1,
+		timer
+	)
+	var pulse_utility: GameVirtualActionPulseUtility = (
+		GameVirtualActionPulseUtility.new().configure(source)
+	)
+	var owner: Node = Node.new()
+	add_child(owner)
+
+	assert_true(pulse_utility.pulse(GameplayInputActions.PAUSE, owner, 1.0))
+	var operation: GFVirtualInputPulseOperation = pulse_utility.get_active_operation(
+		GameplayInputActions.PAUSE
+	)
+	owner.queue_free()
+	await get_tree().process_frame
+
+	assert_true(operation.get_status() == GFVirtualInputPulseOperation.Status.CANCELLED)
+	assert_false(input_mapping.is_action_active(GameplayInputActions.PAUSE))
+	assert_true(pulse_utility.get_pending_action_count() == 0)
+	pulse_utility.dispose()
+	timer.dispose()
+
+
+func test_dispose_clears_gf_source_and_rejects_late_pulses() -> void:
+	var timer: GFTimerUtility = _create_timer()
+	var input_mapping: GFInputMappingUtility = _create_input_mapping()
+	var source: GFVirtualInputSource = input_mapping.create_virtual_source(
+		&"test_dispose",
+		-1,
+		timer
+	)
+	var pulse_utility: GameVirtualActionPulseUtility = (
+		GameVirtualActionPulseUtility.new().configure(source)
+	)
+
+	assert_true(pulse_utility.pulse(GameplayInputActions.REDO, self, 1.0))
+	var operation: GFVirtualInputPulseOperation = pulse_utility.get_active_operation(
+		GameplayInputActions.REDO
+	)
+	pulse_utility.dispose()
+
+	assert_true(operation.get_status() == GFVirtualInputPulseOperation.Status.CANCELLED)
+	assert_false(input_mapping.is_action_active(GameplayInputActions.REDO))
+	assert_true(pulse_utility.get_pending_action_count() == 0)
+	assert_false(pulse_utility.pulse(GameplayInputActions.REDO, self, 0.1))
+	timer.dispose()
+
+
+func test_missing_gf_timer_returns_failed_project_pulse_without_pending_state() -> void:
+	var input_mapping: GFInputMappingUtility = _create_input_mapping()
+	var source: GFVirtualInputSource = input_mapping.create_virtual_source(&"test_missing_timer")
+	var pulse_utility: GameVirtualActionPulseUtility = (
+		GameVirtualActionPulseUtility.new().configure(source)
+	)
+
+	assert_false(pulse_utility.pulse(GameplayInputActions.MOVE_UP, self, 0.1))
+	assert_true(pulse_utility.get_pending_action_count() == 0)
+	assert_false(input_mapping.is_action_active(GameplayInputActions.MOVE_UP))
+	pulse_utility.dispose()
+
+
+func test_realtime_timer_policy_ignores_pause_and_time_scale() -> void:
+	var timer: GameRealtimeTimerUtility = GameRealtimeTimerUtility.new()
+
+	assert_true(timer.ignore_pause, "输入脉冲计时器必须在暂停菜单期间继续推进。")
+	assert_true(timer.ignore_time_scale, "输入脉冲计时器不得因玩法慢动作留下卡住贡献。")
+
+
+func test_canonical_and_realtime_timers_coexist_as_distinct_gf_bindings() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var canonical_timer: GFTimerUtility = GFTimerUtility.new()
+	var realtime_timer: GameRealtimeTimerUtility = GameRealtimeTimerUtility.new()
+
+	await architecture.register_utility(GFTimerUtility, canonical_timer)
+	await architecture.register_utility(GameRealtimeTimerUtility, realtime_timer)
+	await architecture.init()
+
+	assert_true(architecture.get_local_utility(GFTimerUtility) == canonical_timer)
+	assert_true(
+		architecture.get_local_utility(GameRealtimeTimerUtility) == realtime_timer
+	)
+	assert_false(canonical_timer.ignore_pause)
+	assert_true(realtime_timer.ignore_pause)
+	architecture.dispose()
+
+
+# --- 私有/辅助方法 ---
+
+func _create_timer() -> GFTimerUtility:
+	var timer: GFTimerUtility = GFTimerUtility.new()
+	timer.init()
+	return timer
+
+
+func _create_input_mapping() -> GFInputMappingUtility:
 	var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
-	var gameplay_context: GFInputContext = load(
-		"res://features/gameplay/resources/input/gameplay_input_context.tres"
-	)
-	input_mapping.enable_context(gameplay_context, 100)
-	var source: GFVirtualInputSource = GFVirtualInputSource.new(
-		input_mapping,
-		&"test_hud"
-	)
-	var pulse_utility: GameVirtualActionPulseUtility = (
-		GameVirtualActionPulseUtility.new().configure(source)
-	)
-
-	assert_true(pulse_utility.pulse(GameplayInputActions.UNDO, get_tree(), 0.5))
-	assert_true(
-		input_mapping.consume_action(GameplayInputActions.UNDO),
-		"第一次 HUD 点击应形成可消费的撤销动作边沿。"
-	)
-	assert_true(
-		pulse_utility.pulse(GameplayInputActions.UNDO, get_tree(), 0.5),
-		"上一个 HUD 脉冲仍处于保持期时，第二次点击也应被接受。"
-	)
-	assert_true(
-		input_mapping.consume_action(GameplayInputActions.UNDO),
-		"重叠的第二次 HUD 点击必须形成新的撤销动作边沿，不能被保持状态吞掉。"
-	)
-
-	pulse_utility.dispose()
-
-
-func test_dispose_clears_source_and_late_timer_cannot_release_again() -> void:
-	var source: RecordingVirtualInputSource = RecordingVirtualInputSource.new()
-	var pulse_utility: GameVirtualActionPulseUtility = (
-		GameVirtualActionPulseUtility.new().configure(source)
-	)
-
-	assert_true(pulse_utility.pulse(&"pause", get_tree(), 0.0))
-	pulse_utility.dispose()
-	assert_true(source.clear_count == 1)
-	assert_true(pulse_utility.get_pending_action_count() == 0)
-
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-	assert_true(source.release_count == 0, "取消后的迟到计时器不得再次写入已释放来源。")
-	assert_false(pulse_utility.pulse(&"pause", get_tree(), 0.0))
-
-
-func test_failed_press_does_not_leave_pending_token() -> void:
-	var source: RecordingVirtualInputSource = RecordingVirtualInputSource.new()
-	source.accept_press = false
-	var pulse_utility: GameVirtualActionPulseUtility = (
-		GameVirtualActionPulseUtility.new().configure(source)
-	)
-
-	assert_false(pulse_utility.pulse(&"undo", get_tree(), 0.0))
-	assert_true(pulse_utility.get_pending_action_count() == 0)
-	assert_true(source.release_count == 0)
-
-
-func test_failed_timer_connection_releases_pressed_action_and_token() -> void:
-	var source: RecordingVirtualInputSource = RecordingVirtualInputSource.new()
-	var pulse_utility: FailingConnectionPulseUtility = (
-		FailingConnectionPulseUtility.new()
-	)
-	var _configured: GameVirtualActionPulseUtility = pulse_utility.configure(source)
-
-	assert_false(pulse_utility.pulse(&"move_up", get_tree(), 0.5))
-	assert_true(source.press_count == 1)
-	assert_true(
-		source.release_count == 1
-		and source.last_released_action == &"move_up",
-		"计时器连接失败时必须立即撤销已经提交的虚拟按下。"
-	)
-	assert_true(
-		pulse_utility.get_pending_action_count() == 0,
-		"连接失败不得留下永远无法终结的 token。"
-	)
-
-
-# --- 内部类 ---
-
-class RecordingVirtualInputSource:
-	extends GFVirtualInputSource
-
-	var accept_press: bool = true
-	var press_count: int = 0
-	var release_count: int = 0
-	var clear_count: int = 0
-	var last_released_action: StringName = &""
-
-	## 记录一次虚拟动作按下。
-	## @param _action_id: 被按下的虚拟动作 ID。
-	## @param _strength: 虚拟动作强度。
-	func press(_action_id: StringName, _strength: float = 1.0) -> bool:
-		press_count += 1
-		return accept_press
-
-	## 记录一次虚拟动作释放。
-	## @param action_id: 被释放的虚拟动作 ID。
-	func release(action_id: StringName) -> bool:
-		release_count += 1
-		last_released_action = action_id
-		return true
-
-	func clear_all() -> void:
-		clear_count += 1
-
-
-class FailingConnectionPulseUtility:
-	extends GameVirtualActionPulseUtility
-
-	func _connect_release_timer(
-		_release_timer: SceneTreeTimer,
-		_action_id: StringName,
-		_token: int
-	) -> int:
-		return ERR_CANT_CONNECT
+	input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
+	return input_mapping

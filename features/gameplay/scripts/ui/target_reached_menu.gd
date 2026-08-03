@@ -40,10 +40,15 @@ func _ready() -> void:
 	_update_ui_text()
 	_apply_semantic_styles()
 	call_deferred(&"_refresh_summary")
-	_continue_button.grab_focus()
+	call_deferred(&"_focus_initial_control")
 
 
 # --- 私有/辅助方法 ---
+
+func _focus_initial_control() -> void:
+	if is_inside_tree() and is_instance_valid(_continue_button):
+		_continue_button.grab_focus()
+
 
 func _update_ui_text() -> void:
 	if is_instance_valid(_title_label):

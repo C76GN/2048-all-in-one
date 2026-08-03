@@ -218,7 +218,7 @@ func _ready() -> void:
 	_set_active_section(SettingsSection.GENERAL)
 	_apply_responsive_layout()
 	_update_ui_text()
-	_language_option.grab_focus()
+	call_deferred(&"_focus_initial_control")
 
 
 func _notification(what: int) -> void:
@@ -248,6 +248,11 @@ static func is_compact_layout(viewport_size: Vector2) -> bool:
 
 
 # --- 私有/辅助方法 ---
+
+func _focus_initial_control() -> void:
+	if is_inside_tree() and is_instance_valid(_language_option):
+		_language_option.grab_focus()
+
 
 func _queue_responsive_layout_update() -> void:
 	if _responsive_layout_update_queued:

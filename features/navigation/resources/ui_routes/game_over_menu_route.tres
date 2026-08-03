@@ -6,4 +6,11 @@
 script = ExtResource("1_route")
 route_id = &"game_over_menu"
 scene_path = "res://features/gameplay/scenes/ui/game_over_menu.tscn"
+default_options = {
+"dismiss_on_cancel": false,
+"focus_on_open": true,
+"hide_under": false,
+"modal": true,
+"restore_focus_on_close": true
+}
 adjacent_route_ids = PackedStringArray("settings_menu")

@@ -32,6 +32,9 @@ const _GAME_PERFORMANCE_TRACE_UTILITY_SCRIPT: Script = preload(
 const _TILE_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/tile_catalog/scripts/utilities/tile_catalog_utility.gd")
 const _ACHIEVEMENT_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/achievements/scripts/utilities/achievement_catalog_utility.gd")
 const _GAME_PAUSE_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_pause_utility.gd")
+const _GAME_REALTIME_TIMER_UTILITY_SCRIPT: Script = preload(
+	"res://features/gameplay/scripts/utilities/game_realtime_timer_utility.gd"
+)
 const _GAME_INPUT_PROFILE_UTILITY_SCRIPT: Script = preload("res://features/settings/scripts/utilities/game_input_profile_utility.gd")
 const _GAME_ACCESSIBILITY_UTILITY_SCRIPT: Script = preload("res://features/settings/scripts/utilities/game_accessibility_utility.gd")
 const _GAME_ACCESSIBILITY_SUMMARY_UTILITY_SCRIPT: Script = preload(
@@ -242,6 +245,9 @@ func _bind_content_and_gameplay_utilities(binder: GFBinder, scope: GFAsyncScope)
 	await binder.bind_utility(GFTimeUtility).from_instance(_create_time_utility()).as_singleton()
 	if scope.is_cancel_requested():
 		return
+	await binder.bind_utility(GFTimerUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	var game_clock_binding: GFBindBuilder = binder.bind_utility(
 		_GAME_CLOCK_UTILITY_SCRIPT
 	).from_instance(
@@ -341,6 +347,9 @@ func _bind_input_and_platform_utilities(binder: GFBinder, scope: GFAsyncScope) -
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(GFInputDeviceUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
+	await binder.bind_utility(_GAME_REALTIME_TIMER_UTILITY_SCRIPT).as_singleton()
 	if scope.is_cancel_requested():
 		return
 	await binder.bind_utility(GFInputMappingUtility).as_singleton()
@@ -472,7 +481,6 @@ func _create_platform_runtime() -> GFPlatformRuntime:
 
 func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
-	save_graph.auto_load_legacy_profile_on_ready = false
 	var progress_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		GameStatsSaveData.new(),

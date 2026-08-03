@@ -106,6 +106,21 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 		ui_router.get_route(&"tile_catalog").get_adjacent_route_ids().is_empty(),
 		"没有页内互跳入口的收藏弹层不得伪造相邻关系并阻塞预载其他三页。"
 	)
+	for modal_route_id: StringName in [
+		&"pause_menu",
+		&"game_over_menu",
+		&"target_reached_menu",
+		&"settings_menu",
+	]:
+		var modal_route: GFUIRoute = ui_router.get_route(modal_route_id)
+		var options: Dictionary = modal_route.default_options
+		assert_true(
+			GFVariantData.get_option_bool(options, "modal"),
+			"游戏内弹层必须声明 GF modal 策略：%s。" % modal_route_id
+		)
+		assert_true(GFVariantData.get_option_bool(options, "focus_on_open"))
+		assert_true(GFVariantData.get_option_bool(options, "restore_focus_on_close"))
+		assert_false(GFVariantData.get_option_bool(options, "hide_under", true))
 	var hub_route_plan: Dictionary = ui_router.build_preload_plan(
 		&"tile_catalog",
 		{
@@ -141,6 +156,59 @@ func test_owned_async_route_returns_typed_terminal_result() -> void:
 	assert_false(result.is_successful(), "缺失路由不能报告成功。")
 	assert_true(result.get_status() == GFUIRouteResult.STATUS_MISSING_ROUTE)
 	assert_true(result.get_reason() == &"missing_route")
+
+
+func test_owned_async_route_passes_owner_and_optional_scope_to_gf() -> void:
+	var ui_router: _AsyncOptionsCaptureRouter = _AsyncOptionsCaptureRouter.new()
+	var scope: GFAsyncScope = GFAsyncScope.new()
+
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
+		self,
+		&"missing_test_route",
+		{},
+		{},
+		Callable(),
+		GFUIRouterUtility.PRELOAD_NONE,
+		scope
+	)
+
+	assert_not_null(result)
+	assert_true(
+		ui_router.captured_async_options.get("owner") == self,
+		"项目 Router Adapter 必须使用 GF 原生 owner 生命周期。"
+	)
+	assert_true(
+		ui_router.captured_async_options.get("scope") == scope,
+		"可选 GFAsyncScope 必须原样透传给 GFUIRouterUtility。"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			ui_router.captured_async_options,
+			"preload_policy"
+		) == GFUIRouterUtility.PRELOAD_NONE
+	)
+
+
+func test_route_panels_defer_initial_focus_until_after_gf_capture() -> void:
+	var route_panel_sources: Array[String] = [
+		"res://features/gameplay/scripts/ui/pause_menu.gd",
+		"res://features/gameplay/scripts/ui/game_over_menu.gd",
+		"res://features/gameplay/scripts/ui/target_reached_menu.gd",
+		"res://features/settings/scripts/menus/settings_menu.gd",
+		"res://features/achievements/scripts/ui/achievement_list_dialog.gd",
+		"res://features/tile_catalog/scripts/ui/tile_catalog_dialog.gd",
+	]
+	for source_path: String in route_panel_sources:
+		var source: String = FileAccess.get_file_as_string(source_path)
+		var ready_source: String = _get_function_source(source, "_ready")
+		assert_true(
+			ready_source.contains("call_deferred(&\"_focus_initial_control\")"),
+			"路由面板初始焦点必须延迟到 GF 捕获 previous focus 之后：%s。" % source_path
+		)
+		assert_false(
+			ready_source.contains(".grab_focus()"),
+			"路由面板不得在同步 _ready 中破坏 GF restore_focus：%s。" % source_path
+		)
 
 
 func test_stale_owner_rollback_does_not_close_new_instance_of_same_route() -> void:
@@ -262,6 +330,17 @@ func _packed_strings_to_array(values: PackedStringArray) -> Array[String]:
 	return result
 
 
+func _get_function_source(source: String, function_name: String) -> String:
+	var marker: String = "func %s(" % function_name
+	var start_index: int = source.find(marker)
+	if start_index < 0:
+		return ""
+	var next_index: int = source.find("\nfunc ", start_index + marker.length())
+	if next_index < 0:
+		return source.substr(start_index)
+	return source.substr(start_index, next_index - start_index)
+
+
 func _make_opened_route_result(
 	panel: Node,
 	route_id: StringName
@@ -308,3 +387,24 @@ class _RollbackProbeRouter extends GameUiRouterUtility:
 	func back(_layer: int = -1, _do_free: bool = true) -> bool:
 		back_call_count += 1
 		return true
+
+
+class _AsyncOptionsCaptureRouter extends GameUiRouterUtility:
+	var captured_async_options: Dictionary = {}
+
+
+	func push_route_async(
+		route_id: StringName,
+		params: Dictionary = {},
+		option_overrides: Dictionary = {},
+		config_callback: Callable = Callable(),
+		async_options: Dictionary = {}
+	) -> GFUIRouteOperation:
+		captured_async_options = async_options.duplicate(false)
+		return super.push_route_async(
+			route_id,
+			params,
+			option_overrides,
+			config_callback,
+			async_options
+		)

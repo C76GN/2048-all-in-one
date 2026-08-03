@@ -99,41 +99,47 @@ func get_debug_snapshot() -> Dictionary:
 	return snapshot
 
 
-## 以项目统一策略异步打开路由，并在调用方离开场景树后回滚迟到的面板。
+## 以项目统一策略异步打开路由，并把调用方生命周期交给 GF 管理。
 ##
-## GFUIRouterUtility 负责预加载、并发去重与唯一终态；此方法只补充项目 owner
-## 生命周期和默认的相邻路由预加载预算。
+## GFUIRouterUtility 负责提交前的 owner/scope 取消、预加载、并发去重与唯一终态；
+## 此方法只补充默认相邻路由预算，以及提交完成后 owner 同帧退出时的精确实例回滚。
 ## @param owner: 持有此次路由操作的活动场景节点。
 ## @param route_id: 要打开的稳定路由标识。
 ## @param params: 传给路由场景的业务参数。
 ## @param option_overrides: 本次路由操作的 GF 选项覆盖。
 ## @param config_callback: 场景实例化后的可选配置回调。
 ## @param preload_policy: GF 路由预加载策略。
+## @param scope: 可选的协作取消作用域；与 owner 采用 OR 取消语义。
 func push_owned_route_async(
 	owner: Node,
 	route_id: StringName,
 	params: Dictionary = {},
 	option_overrides: Dictionary = {},
 	config_callback: Callable = Callable(),
-	preload_policy: StringName = GFUIRouterUtility.PRELOAD_BEST_EFFORT
+	preload_policy: StringName = GFUIRouterUtility.PRELOAD_BEST_EFFORT,
+	scope: GFAsyncScope = null
 ) -> GFUIRouteResult:
 	if not _is_live_route_owner(owner):
 		return null
 
 	var owner_ref: WeakRef = weakref(owner)
+	var async_options: Dictionary = {
+		"preload_policy": preload_policy,
+		"preload_plan_options": _DEFAULT_PRELOAD_PLAN_OPTIONS.duplicate(true),
+		"owner": owner,
+		"metadata": {
+			"owner_instance_id": owner.get_instance_id(),
+			"owner_path": String(owner.get_path()),
+		},
+	}
+	if scope != null:
+		async_options["scope"] = scope
 	var operation: GFUIRouteOperation = push_route_async(
 		route_id,
 		params,
 		option_overrides,
 		config_callback,
-		{
-			"preload_policy": preload_policy,
-			"preload_plan_options": _DEFAULT_PRELOAD_PLAN_OPTIONS.duplicate(true),
-			"metadata": {
-				"owner_instance_id": owner.get_instance_id(),
-				"owner_path": String(owner.get_path()),
-			},
-		}
+		async_options
 	)
 	if operation == null:
 		return null
@@ -144,8 +150,10 @@ func push_owned_route_async(
 	if _is_live_route_owner_ref(owner_ref):
 		return result
 
+	# GF 的 owner/scope 只约束 panel_submitted 之前。若 owner 恰好在 GF 提交后、
+	# 类型化终态返回前退出，只回滚本次结果实际提交且仍位于栈顶的实例。
 	_rollback_stale_route_result(result)
-	return null
+	return result
 
 
 # --- 私有/辅助方法 ---

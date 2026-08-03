@@ -42,7 +42,7 @@ func _ready() -> void:
 	_apply_semantic_styles()
 	_update_ui_text()
 	_queue_layout_update()
-	_search_input.grab_focus()
+	call_deferred(&"_focus_initial_control")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -59,6 +59,11 @@ func _exit_tree() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _focus_initial_control() -> void:
+	if is_inside_tree() and is_instance_valid(_search_input):
+		_search_input.grab_focus()
+
 
 func _apply_semantic_styles() -> void:
 	var style: GameUiStyleUtility = _get_ui_style_utility()

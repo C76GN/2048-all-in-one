@@ -86,6 +86,7 @@ var _is_compact_mode: bool = false
 var _is_portrait_mode: bool = false
 var _details_expanded: bool = false
 var _input_mapping: GFInputMappingUtility
+var _realtime_timer: GameRealtimeTimerUtility
 var _hud_input_source: GFVirtualInputSource
 var _hud_action_pulse: GameVirtualActionPulseUtility
 var _safe_area: Control
@@ -134,9 +135,16 @@ func _ready() -> void:
 	_accessibility_utility = _get_accessibility_utility()
 	_accessibility_summary_utility = _get_accessibility_summary_utility()
 	_input_mapping = _get_input_mapping_utility()
-	if is_instance_valid(_input_mapping):
-		_hud_input_source = _input_mapping.create_virtual_source(_HUD_INPUT_SOURCE_ID)
+	_realtime_timer = _get_realtime_timer_utility()
+	if is_instance_valid(_input_mapping) and is_instance_valid(_realtime_timer):
+		_hud_input_source = _input_mapping.create_virtual_source(
+			_HUD_INPUT_SOURCE_ID,
+			-1,
+			_realtime_timer
+		)
 		_hud_action_pulse = GameVirtualActionPulseUtility.new().configure(_hud_input_source)
+	elif not is_instance_valid(_realtime_timer):
+		push_error("[Hud] 缺少 GameRealtimeTimerUtility，无法创建有界 HUD 输入脉冲。")
 	if not is_instance_valid(_ui_style_utility):
 		push_error("[Hud] 缺少 GameUiStyleUtility，无法应用 HUD 语义样式。")
 	if not is_instance_valid(_ui_motion_utility):
@@ -994,6 +1002,14 @@ func _get_input_mapping_utility() -> GFInputMappingUtility:
 	return null
 
 
+func _get_realtime_timer_utility() -> GameRealtimeTimerUtility:
+	var utility_value: Object = get_utility(GameRealtimeTimerUtility)
+	if utility_value is GameRealtimeTimerUtility:
+		var timer_utility: GameRealtimeTimerUtility = utility_value
+		return timer_utility
+	return null
+
+
 func _connect_notification_signals() -> void:
 	if not is_instance_valid(_notification_utility):
 		push_error("[Hud] 缺少 GFNotificationUtility，无法读取通知队列。")
@@ -1078,7 +1094,7 @@ func _inject_hud_action(action_id: StringName) -> void:
 		return
 	var _injected: bool = _hud_action_pulse.pulse(
 		action_id,
-		get_tree(),
+		self,
 		_HUD_ACTION_HOLD_SECONDS
 	)
 

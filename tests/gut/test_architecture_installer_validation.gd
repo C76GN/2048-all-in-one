@@ -16,6 +16,7 @@ const GAME_STATUS_MODEL_PATH: String = "res://features/gameplay/scripts/models/g
 const GAME_STATE_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_state_system.gd"
 const GAME_FLOW_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_flow_system.gd"
 const GAME_PAUSE_UTILITY_PATH: String = "res://features/gameplay/scripts/utilities/game_pause_utility.gd"
+const GAME_REALTIME_TIMER_UTILITY_PATH: String = "res://features/gameplay/scripts/utilities/game_realtime_timer_utility.gd"
 const GAME_BOARD_ANIMATION_UTILITY_PATH: String = "res://features/gameplay/scripts/utilities/game_board_animation_utility.gd"
 const GAME_INPUT_PROFILE_UTILITY_PATH: String = "res://features/settings/scripts/utilities/game_input_profile_utility.gd"
 const GAME_INIT_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_init_system.gd"
@@ -253,15 +254,29 @@ func test_project_installer_groups_internal_bindings_by_runtime_ownership() -> v
 
 func test_project_installer_binds_input_device_before_input_mapping() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var canonical_timer_position: int = source.find("bind_utility(GFTimerUtility)")
 	var device_position: int = source.find("bind_utility(GFInputDeviceUtility)")
+	var realtime_timer_position: int = source.find(
+		"bind_utility(_GAME_REALTIME_TIMER_UTILITY_SCRIPT)"
+	)
 	var mapping_position: int = source.find("bind_utility(GFInputMappingUtility)")
 
+	assert_true(canonical_timer_position >= 0, "项目 Installer 应保留随 GFTime 推进的 canonical GFTimerUtility。")
 	assert_true(device_position >= 0, "项目 Installer 应注册 GFInputDeviceUtility。")
+	assert_true(realtime_timer_position >= 0, "项目 Installer 应注册 GF 实时输入脉冲定时器。")
 	assert_true(mapping_position >= 0, "项目 Installer 应注册 GFInputMappingUtility。")
 	assert_true(
 		device_position < mapping_position,
 		"GFInputDeviceUtility 必须先于依赖它的 GFInputMappingUtility 注册。"
 	)
+	assert_true(
+		realtime_timer_position < mapping_position,
+		"实时 GFTimerUtility 策略必须先于创建虚拟输入源的 Mapping 消费方注册。"
+	)
+	var realtime_timer_source: String = _read_text(GAME_REALTIME_TIMER_UTILITY_PATH)
+	assert_true(realtime_timer_source.contains("extends GFTimerUtility"))
+	assert_true(realtime_timer_source.contains("ignore_pause = true"))
+	assert_true(realtime_timer_source.contains("ignore_time_scale = true"))
 
 
 func test_project_installer_orders_input_profile_and_board_animation_adapters() -> void:

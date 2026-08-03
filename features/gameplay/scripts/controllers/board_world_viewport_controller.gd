@@ -99,6 +99,7 @@ var _gesture_utility: GFPointerGestureUtility
 var _input_mapping: GFInputMappingUtility
 var _signal_utility: GFSignalUtility
 var _clock_utility: GameClockUtility
+var _realtime_timer: GameRealtimeTimerUtility
 var _touch_input_source: GFVirtualInputSource
 var _touch_action_pulse: GameVirtualActionPulseUtility
 
@@ -122,8 +123,12 @@ var _touch_sequence_cancelled: bool = false
 func _ready() -> void:
 	_resolve_nodes()
 	_resolve_utilities()
-	if is_instance_valid(_input_mapping):
-		_touch_input_source = _input_mapping.create_virtual_source(_TOUCH_INPUT_SOURCE_ID)
+	if is_instance_valid(_input_mapping) and is_instance_valid(_realtime_timer):
+		_touch_input_source = _input_mapping.create_virtual_source(
+			_TOUCH_INPUT_SOURCE_ID,
+			-1,
+			_realtime_timer
+		)
 		_touch_action_pulse = GameVirtualActionPulseUtility.new().configure(_touch_input_source)
 	if not _has_required_dependencies():
 		return
@@ -434,6 +439,7 @@ func _resolve_utilities() -> void:
 	_input_mapping = _get_input_mapping_utility()
 	_signal_utility = _get_signal_utility()
 	_clock_utility = _get_clock_utility()
+	_realtime_timer = _get_realtime_timer_utility()
 
 
 func _has_required_dependencies() -> bool:
@@ -454,6 +460,8 @@ func _has_required_dependencies() -> bool:
 		var _signal_appended: bool = missing.append("GFSignalUtility")
 	if not is_instance_valid(_clock_utility):
 		var _clock_appended: bool = missing.append("GameClockUtility")
+	if not is_instance_valid(_realtime_timer):
+		var _timer_appended: bool = missing.append("GameRealtimeTimerUtility")
 	if missing.is_empty():
 		return true
 	push_error("[BoardWorldViewportController] 缺少必需依赖：%s。" % ", ".join(missing))
@@ -716,6 +724,14 @@ func _get_clock_utility() -> GameClockUtility:
 	return null
 
 
+func _get_realtime_timer_utility() -> GameRealtimeTimerUtility:
+	var utility_value: Object = get_utility(GameRealtimeTimerUtility, true)
+	if utility_value is GameRealtimeTimerUtility:
+		var timer_utility: GameRealtimeTimerUtility = utility_value
+		return timer_utility
+	return null
+
+
 func _prepare_touch_action(event: InputEvent) -> StringName:
 	var pointer_count_before: int = _gesture_utility.get_active_pointer_count()
 	if event is InputEventScreenTouch:
@@ -778,7 +794,7 @@ func _reset_touch_sequence() -> void:
 func _inject_touch_action(action_id: StringName) -> void:
 	if action_id == &"" or not is_instance_valid(_touch_action_pulse):
 		return
-	if not _touch_action_pulse.pulse(action_id, get_tree(), _TOUCH_ACTION_HOLD_SECONDS):
+	if not _touch_action_pulse.pulse(action_id, self, _TOUCH_ACTION_HOLD_SECONDS):
 		push_warning("[BoardWorldViewportController] 无法注入触控动作：%s。" % action_id)
 
 

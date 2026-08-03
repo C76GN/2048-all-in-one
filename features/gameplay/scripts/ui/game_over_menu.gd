@@ -56,10 +56,15 @@ func _ready() -> void:
 	_apply_visual_style()
 	_apply_responsive_layout()
 	call_deferred(&"_refresh_summary")
-	_restart_button.grab_focus()
+	call_deferred(&"_focus_initial_control")
 
 
 # --- 私有/辅助方法 ---
+
+func _focus_initial_control() -> void:
+	if is_inside_tree() and is_instance_valid(_restart_button):
+		_restart_button.grab_focus()
+
 
 func _update_ui_text() -> void:
 	if is_instance_valid(_title_label):
