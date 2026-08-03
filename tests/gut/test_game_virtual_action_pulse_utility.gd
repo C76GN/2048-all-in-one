@@ -88,14 +88,14 @@ func test_owner_exit_cancels_gf_pulse_and_clears_project_observer() -> void:
 	var pulse_utility: GameVirtualActionPulseUtility = (
 		GameVirtualActionPulseUtility.new().configure(source)
 	)
-	var owner: Node = Node.new()
-	add_child(owner)
+	var pulse_owner: Node = Node.new()
+	add_child(pulse_owner)
 
-	assert_true(pulse_utility.pulse(GameplayInputActions.PAUSE, owner, 1.0))
+	assert_true(pulse_utility.pulse(GameplayInputActions.PAUSE, pulse_owner, 1.0))
 	var operation: GFVirtualInputPulseOperation = pulse_utility.get_active_operation(
 		GameplayInputActions.PAUSE
 	)
-	owner.queue_free()
+	pulse_owner.queue_free()
 	await get_tree().process_frame
 
 	assert_true(operation.get_status() == GFVirtualInputPulseOperation.Status.CANCELLED)

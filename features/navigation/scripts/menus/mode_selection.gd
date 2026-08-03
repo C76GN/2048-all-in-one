@@ -164,9 +164,13 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _try_handle_top_modal_cancel(event):
+		return
 	if event.is_action_pressed("ui_cancel"):
 		_on_back_button_pressed()
-		get_viewport().set_input_as_handled()
+		var viewport: Viewport = get_viewport()
+		if is_instance_valid(viewport):
+			viewport.set_input_as_handled()
 
 	if event.is_action_pressed("ui_left"):
 		var focused_control: Control = get_viewport().gui_get_focus_owner()
@@ -498,7 +502,11 @@ func _update_list_and_focus(is_initial_load: bool = false) -> void:
 	for child: Node in _mode_list_container.get_children():
 		child.queue_free()
 
-	await get_tree().process_frame
+	var clear_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
+		"guard_node": self,
+	})
+	if not GFVariantData.get_option_bool(clear_wait, "completed", false):
+		return
 
 	if _total_pages > 0:
 		var start_index: int = _current_page * _items_per_page
@@ -518,7 +526,11 @@ func _update_list_and_focus(is_initial_load: bool = false) -> void:
 			card.setup(config_path, mode_config, _get_ui_style_utility())
 			var _connect_result_121: int = card.card_focused.connect(_set_selected_mode_by_path)
 
-	await get_tree().process_frame
+	var layout_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
+		"guard_node": self,
+	})
+	if not GFVariantData.get_option_bool(layout_wait, "completed", false):
+		return
 
 	_setup_focus_neighbors()
 

@@ -7,9 +7,9 @@
   "gf_source_commit": "b29cc16d623c6c30fd1ba90b2a6e15dece363e77",
   "gf_vendor_tree_sha256": "def08cad2243d6358cecdf11b95a3d9f4baeab13c9c45e66a65ab3b79df6b8d3",
   "gf_global_script_class_count": 801,
-  "project_runtime_script_class_count": 235,
+  "project_runtime_script_class_count": 237,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The exact official GF 11.0.0-dev.0 canary snapshot advances to the audited save-profile transaction coordinator, lifecycle-bound UI route operation, and owned virtual-input pulse implementation. It adds ten declared runtime classes while the project runtime class set remains unchanged. The reviewed ObjectDB, Resource, RID, and PagedAllocator ceilings are intentionally retained and must not be raised without reviewed leak evidence.",
+  "calibration_reason": "The exact official GF 11.0.0-dev.0 canary snapshot remains pinned to the audited vendor tree. The project runtime class set adds GameRealtimeTimerUtility for lifecycle-owned wall-clock waits and GameModalRoutePanel for the typed GF modal adapter. The reviewed ObjectDB, Resource, RID, and PagedAllocator ceilings are intentionally retained and must not be raised without reviewed leak evidence.",
   "max_objectdb_instances": 319,
   "max_resources_in_use": 141,
   "max_rid_allocations_by_type": {

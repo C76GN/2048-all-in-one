@@ -2438,6 +2438,7 @@ func test_celebration_vfx_utility_spawns_bounded_confetti_emitter() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var ui_utility: GFUIUtility = GFUIUtility.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var timer_utility: GFTimerUtility = GFTimerUtility.new()
 	var clock_utility: GameClockUtility = GameClockUtility.new()
 	var accessibility_utility: GameAccessibilityUtility = await _register_accessibility_stack(
 		architecture
@@ -2447,6 +2448,7 @@ func test_celebration_vfx_utility_spawns_bounded_confetti_emitter() -> void:
 	await architecture.register_utility(GFUIUtility, ui_utility)
 	await architecture.register_utility(GameClockUtility, clock_utility)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GFTimerUtility, timer_utility)
 	await architecture.register_utility(GameAccessibilityUtility, accessibility_utility)
 	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.init()
@@ -2559,12 +2561,14 @@ func test_celebration_vfx_utility_spawns_bounded_confetti_emitter() -> void:
 func test_reduced_motion_celebration_is_static_and_has_no_shader_work() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var timer_utility: GFTimerUtility = GFTimerUtility.new()
 	var accessibility_utility: GameAccessibilityUtility = await _register_accessibility_stack(
 		architecture
 	)
 	var celebration_vfx: GameCelebrationVfxUtility = GameCelebrationVfxUtility.new()
 	await _register_asset_library_stack(architecture)
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GFTimerUtility, timer_utility)
 	await architecture.register_utility(GameAccessibilityUtility, accessibility_utility)
 	await architecture.register_utility(GameCelebrationVfxUtility, celebration_vfx)
 	await architecture.init()
@@ -2612,6 +2616,7 @@ func test_reduced_motion_celebration_is_static_and_has_no_shader_work() -> void:
 func _register_asset_library_stack(architecture: GFArchitecture) -> void:
 	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
 	var content_packages: GFContentPackageUtility = GFContentPackageUtility.new()
+	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var project_catalog: ProjectContentCatalogUtility = ProjectContentCatalogUtility.new()
 	var _configured_project_catalog: ProjectContentCatalogUtility = project_catalog.configure_source_roots(PackedStringArray([
 		GameAssetLibraryUtility.ASSET_LIBRARY_SOURCE_ROOT,
@@ -2619,6 +2624,7 @@ func _register_asset_library_stack(architecture: GFArchitecture) -> void:
 	var asset_library: GameAssetLibraryUtility = GameAssetLibraryUtility.new()
 	await architecture.register_utility(GFResourceResolverUtility, resolver)
 	await architecture.register_utility(GFContentPackageUtility, content_packages)
+	await architecture.register_utility(GFSignalUtility, signal_utility)
 	await architecture.register_utility(ProjectContentCatalogUtility, project_catalog)
 	await architecture.register_utility(GameAssetLibraryUtility, asset_library)
 

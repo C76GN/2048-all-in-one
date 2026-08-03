@@ -10,6 +10,9 @@ const _TILE_LAB_SCENE: PackedScene = preload(
 const _PLAYER_PROFILE_SCENE: PackedScene = preload(
 	"res://features/player_profiles/scenes/ui/player_profile_dialog.tscn"
 )
+const _MODAL_SCENE: PackedScene = preload(
+	"res://features/navigation/scenes/ui/game_modal_route_panel.tscn"
+)
 const _RECIPE_ID: StringName = &"tile.recipe.test.focus"
 const _CONFLICT_RECIPE_ID: StringName = &"tile.recipe.test.conflict"
 const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
@@ -237,31 +240,20 @@ func test_player_profile_delete_confirmation_buttons_meet_touch_contract() -> vo
 	context.add_child(dialog)
 	await get_tree().process_frame
 
-	var confirmation_node: Node = dialog.find_child(
-		"DeleteConfirmation",
-		true,
-		false
+	assert_null(
+		dialog.find_child("DeleteConfirmation", true, false),
+		"玩家档案删除确认不得绕过 GF modal 路由。"
 	)
-	assert_true(confirmation_node is ConfirmationDialog)
-	if confirmation_node is ConfirmationDialog:
-		var confirmation: ConfirmationDialog = confirmation_node
-		for button: Button in [
-			confirmation.get_ok_button(),
-			confirmation.get_cancel_button(),
-		]:
-			assert_not_null(button)
-			if button == null:
-				continue
-			assert_gte(
-				button.custom_minimum_size.x,
-				112.0,
-				"确认弹窗操作按钮宽度不得小于 112px。"
-			)
-			assert_gte(
-				button.custom_minimum_size.y,
-				_MINIMUM_TOUCH_TARGET_SIZE,
-				"确认弹窗操作按钮高度不得小于 44px。"
-			)
+	assert_gte(
+		GameModalRoutePanel._MINIMUM_ACTION_WIDTH,
+		112.0,
+		"GF modal 操作按钮宽度不得小于 112px。"
+	)
+	assert_gte(
+		GameModalRoutePanel._MINIMUM_TOUCH_TARGET_SIZE,
+		_MINIMUM_TOUCH_TARGET_SIZE,
+		"GF modal 操作按钮高度不得小于 44px。"
+	)
 	architecture.dispose()
 
 
@@ -674,14 +666,14 @@ func test_declared_player_controls_meet_touch_target_contract() -> void:
 
 func test_responsive_runtime_control_sizes_never_drop_below_touch_contract() -> void:
 	assert_gte(
-		BaseListMenu._DIALOG_ACTION_MINIMUM_WIDTH,
+		GameModalRoutePanel._MINIMUM_ACTION_WIDTH,
 		112.0,
-		"历史列表动态弹窗操作按钮必须保留至少 112px 宽度。"
+		"项目通用 modal 操作按钮必须保留至少 112px 宽度。"
 	)
 	assert_gte(
-		BaseListMenu._MINIMUM_TOUCH_TARGET_SIZE,
+		GameModalRoutePanel._MINIMUM_TOUCH_TARGET_SIZE,
 		_MINIMUM_TOUCH_TARGET_SIZE,
-		"历史列表动态弹窗操作按钮不得低于 44px 触控高度。"
+		"项目通用 modal 操作按钮不得低于 44px 触控高度。"
 	)
 	assert_gte(
 		SettingsMenu._COMPACT_CONTROL_HEIGHT,
@@ -713,6 +705,50 @@ func test_responsive_runtime_control_sizes_never_drop_below_touch_contract() -> 
 		_MINIMUM_TOUCH_TARGET_SIZE,
 		"棋盘紧凑视图适配按钮不得低于 44px。"
 	)
+
+
+func test_modal_reflows_actions_without_crossing_phone_safe_width() -> void:
+	var architecture: GFArchitecture = await _make_ui_architecture()
+	var context: TestArchitectureContext = _make_context(architecture)
+	var viewport_host: Control = Control.new()
+	viewport_host.custom_minimum_size = Vector2(320.0, 568.0)
+	viewport_host.size = Vector2(320.0, 568.0)
+	context.add_child(viewport_host)
+	var panel_node: Node = _MODAL_SCENE.instantiate()
+	assert_true(panel_node is GameModalRoutePanel)
+	if not panel_node is GameModalRoutePanel:
+		panel_node.free()
+		architecture.dispose()
+		return
+	var panel: GameModalRoutePanel = panel_node
+	viewport_host.add_child(panel)
+	panel.configure(GameUiRouterUtility.make_confirmation_modal_config(
+		"窄屏确认",
+		"这是一段需要自动换行且不能撑破安全边界的确认信息。",
+		"确认",
+		"取消"
+	))
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	assert_lte(
+		panel._surface.size.x,
+		272.5,
+		"320px 逻辑宽度必须扣除左右 24px 安全边距。"
+	)
+	assert_true(panel._action_row.vertical, "窄屏操作按钮必须纵向重排。")
+	for child: Node in panel._action_row.get_children():
+		if child is Button:
+			var button: Button = child
+			assert_gte(button.size.y, _MINIMUM_TOUCH_TARGET_SIZE)
+
+	viewport_host.custom_minimum_size = Vector2(800.0, 600.0)
+	viewport_host.size = Vector2(800.0, 600.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_lte(panel._surface.size.x, 520.5)
+	assert_false(panel._action_row.vertical, "宽屏双操作应恢复横向布局。")
+	architecture.dispose()
 
 
 # --- 私有/辅助方法 ---

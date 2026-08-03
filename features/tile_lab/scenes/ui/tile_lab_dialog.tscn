@@ -292,11 +292,3 @@ layout_mode = 2
 text = ""
 horizontal_alignment = 1
 autowrap_mode = 2
-
-[node name="DeleteConfirmation" type="ConfirmationDialog" parent="."]
-unique_name_in_owner = true
-title = "删除蓝图"
-dialog_text = "确定删除这份蓝图吗？"
-ok_button_text = "删除"
-cancel_button_text = "取消"
-exclusive = true

@@ -389,10 +389,9 @@ func test_tile_lab_ui_has_touch_targets_confirmation_and_initial_focus() -> void
 				"%s 触控高度不得小于 44px。" % control_name
 			)
 
-	assert_true(
-		dialog.find_child("DeleteConfirmation", true, false)
-		is ConfirmationDialog,
-		"删除蓝图必须经过确认弹窗。"
+	assert_null(
+		dialog.find_child("DeleteConfirmation", true, false),
+		"删除蓝图必须统一经过 GF modal 路由，不得保留原生 Window。"
 	)
 	var focus_owner: Control = get_viewport().gui_get_focus_owner()
 	assert_true(
@@ -608,9 +607,10 @@ func _create_setup(
 			)
 		)
 	)
-	var bootstrap_completion: GFAsyncCompletion = bootstrap.get(
-		&"completion"
-	) as GFAsyncCompletion
+	var bootstrap_completion_value: Variant = bootstrap.get(&"completion")
+	var bootstrap_completion: GFAsyncCompletion = null
+	if bootstrap_completion_value is GFAsyncCompletion:
+		bootstrap_completion = bootstrap_completion_value
 	assert_true(
 		bootstrap_completion != null
 		and bootstrap_completion.is_successful(),

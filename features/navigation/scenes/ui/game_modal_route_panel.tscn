@@ -1,0 +1,79 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://features/navigation/scripts/ui/game_modal_route_panel.gd" id="1_panel"]
+
+[node name="GameModalRoutePanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+process_mode = 3
+mouse_filter = 1
+script = ExtResource("1_panel")
+
+[node name="DimBackground" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.101961, 0.082353, 0.109804, 0.76)
+
+[node name="OuterMargin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Center" type="CenterContainer" parent="OuterMargin"]
+layout_mode = 2
+mouse_filter = 1
+
+[node name="Surface" type="PanelContainer" parent="OuterMargin/Center"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 0
+
+[node name="InnerMargin" type="MarginContainer" parent="OuterMargin/Center/Surface"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 22
+
+[node name="Content" type="VBoxContainer" parent="OuterMargin/Center/Surface/InnerMargin"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="TitleLabel" type="Label" parent="OuterMargin/Center/Surface/InnerMargin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "提示"
+autowrap_mode = 3
+
+[node name="MessageLabel" type="Label" parent="OuterMargin/Center/Surface/InnerMargin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+text = ""
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="ActionRow" type="BoxContainer" parent="OuterMargin/Center/Surface/InnerMargin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 2

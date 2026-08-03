@@ -2636,9 +2636,10 @@ func _create_persistence_architecture(
 			)
 		)
 	)
-	var bootstrap_completion: GFAsyncCompletion = bootstrap.get(
-		&"completion"
-	) as GFAsyncCompletion
+	var bootstrap_completion_value: Variant = bootstrap.get(&"completion")
+	var bootstrap_completion: GFAsyncCompletion = null
+	if bootstrap_completion_value is GFAsyncCompletion:
+		bootstrap_completion = bootstrap_completion_value
 	assert_true(
 		bootstrap_completion != null
 		and bootstrap_completion.is_successful(),

@@ -367,39 +367,90 @@ func _capture_history_delete_states(page: Node, capture_prefix: String) -> bool:
 		push_error("[VisualReview] History delete state requires BaseListMenu.")
 		return false
 	var list_menu: BaseListMenu = page
-	list_menu._on_delete_button_pressed()
+	if not _start_visual_modal_operation(Callable(
+		list_menu,
+		"_on_delete_button_pressed"
+	)):
+		push_error("[VisualReview] History delete confirmation could not start.")
+		return false
 	await _settle_frames(4)
 
-	var confirmation_node: Node = page.find_child(
-		"DeleteConfirmationDialog",
-		true,
-		false
-	)
-	if not confirmation_node is ConfirmationDialog:
-		push_error("[VisualReview] History page is missing delete confirmation.")
+	var confirmation: GameModalRoutePanel = _get_top_game_modal_panel()
+	if not is_instance_valid(confirmation):
+		push_error("[VisualReview] History page is missing the GF delete modal.")
 		return false
-	var confirmation: ConfirmationDialog = confirmation_node
-	if not confirmation.visible:
+	if not confirmation.is_visible_in_tree():
 		push_error("[VisualReview] History delete confirmation did not open.")
 		return false
 	_capture_viewport("%s_delete_confirmation.png" % capture_prefix)
-	confirmation.hide()
-	list_menu._on_delete_canceled()
-
-	list_menu._show_delete_error(ERR_CANT_CREATE)
-	await _settle_frames(4)
-	var error_node: Node = page.find_child("DeleteErrorDialog", true, false)
-	if not error_node is AcceptDialog:
-		push_error("[VisualReview] History page is missing delete failure dialog.")
+	confirmation.resolve_cancel()
+	if not await _wait_for_game_modal_close(confirmation):
+		push_error("[VisualReview] History delete confirmation did not close.")
 		return false
-	var error_dialog: AcceptDialog = error_node
-	if not error_dialog.visible:
+
+	if not _start_visual_modal_operation(Callable(
+		list_menu,
+		"_show_delete_error"
+	), [ERR_CANT_CREATE]):
+		push_error("[VisualReview] History delete error modal could not start.")
+		return false
+	await _settle_frames(4)
+	var error_modal: GameModalRoutePanel = _get_top_game_modal_panel()
+	if not is_instance_valid(error_modal):
+		push_error("[VisualReview] History page is missing the GF delete error modal.")
+		return false
+	if not error_modal.is_visible_in_tree():
 		push_error("[VisualReview] History delete failure dialog did not open.")
 		return false
 	_capture_viewport("%s_delete_error.png" % capture_prefix)
-	error_dialog.hide()
-	await _settle_frames(2)
+	error_modal.resolve_cancel()
+	if not await _wait_for_game_modal_close(error_modal):
+		push_error("[VisualReview] History delete error modal did not close.")
+		return false
 	return true
+
+
+func _start_visual_modal_operation(
+	operation: Callable,
+	arguments: Array = []
+) -> bool:
+	if not operation.is_valid():
+		return false
+	call_deferred(&"_await_visual_modal_operation", operation, arguments)
+	return true
+
+
+func _await_visual_modal_operation(
+	operation: Callable,
+	arguments: Array
+) -> void:
+	var _terminal_result: Variant = await operation.callv(arguments)
+
+
+func _get_top_game_modal_panel() -> GameModalRoutePanel:
+	var ui_value: Variant = _get_gf_member(&"get_utility", GFUIUtility)
+	if not ui_value is GFUIUtility:
+		return null
+	var ui_utility: GFUIUtility = ui_value
+	var panel: Node = ui_utility.get_top_panel(GFUIUtility.Layer.POPUP)
+	if panel is GameModalRoutePanel:
+		var modal_panel: GameModalRoutePanel = panel
+		return modal_panel
+	return null
+
+
+func _wait_for_game_modal_close(
+	modal_panel: GameModalRoutePanel,
+	max_frames: int = 120
+) -> bool:
+	for _frame_index: int in range(maxi(max_frames, 1)):
+		if (
+			not is_instance_valid(modal_panel)
+			or _get_top_game_modal_panel() != modal_panel
+		):
+			return true
+		await process_frame
+	return false
 
 
 func _capture_settings_persistence_failure(page: Node) -> bool:

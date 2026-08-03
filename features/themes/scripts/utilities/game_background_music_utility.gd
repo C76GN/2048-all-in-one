@@ -120,6 +120,7 @@ func ready() -> void:
 
 
 ## 开放背景音乐运行期工作；本地可选包不阻塞架构 activation。
+## @param scope: 当前架构 activation 的协作取消作用域。
 func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
 	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
 	if scope == null:
@@ -149,6 +150,7 @@ func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
 
 
 ## 停止接纳新曲目读取，并收敛当前可选 BGM 会话。
+## @param scope: 当前架构 quiesce 的协作取消作用域。
 func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
 	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
 	if scope == null:

@@ -564,14 +564,10 @@ class DelayedInitializationPlatformAdapter extends FakePlatformAdapter:
 
 	func _initialize(_options: Dictionary) -> void:
 		initialize_started = true
-		_complete_on_next_frame()
+		call_deferred(&"_complete_on_next_frame")
 
 
 	func _complete_on_next_frame() -> void:
-		var loop_value: MainLoop = Engine.get_main_loop()
-		if loop_value is SceneTree:
-			var tree: SceneTree = loop_value
-			await tree.process_frame
 		var _completed: bool = _complete_initialization(create_runtime_context())
 
 

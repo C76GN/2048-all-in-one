@@ -80,7 +80,6 @@ var _persistence_reconciliation_prompted: bool = false
 	$OuterMargin/Surface/InnerMargin/RootVBox/BodyScroll/Workspace/SimulationPane/Margin/Content/ResultPanel
 )
 @onready var _status_label: Label = %StatusLabel
-@onready var _delete_confirmation: ConfirmationDialog = %DeleteConfirmation
 
 
 # --- Godot 生命周期方法 ---
@@ -89,7 +88,6 @@ func _ready() -> void:
 	_resolve_dependencies()
 	_bind_local_signals()
 	_bind_runtime_signals()
-	_configure_confirmation_touch_targets()
 	_apply_semantic_styles()
 	_update_ui_text()
 	_refresh_from_system()
@@ -104,18 +102,6 @@ func _exit_tree() -> void:
 	_clear_persistence_tracking()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		var viewport: Viewport = get_viewport()
-		if is_instance_valid(viewport):
-			viewport.set_input_as_handled()
-		if _delete_confirmation.visible:
-			_delete_confirmation.hide()
-			_focus_initial_control()
-		else:
-			_close_dialog()
 
 
 # --- 虚方法 ---
@@ -161,19 +147,6 @@ func _update_ui_text() -> void:
 		"TILE_LAB_RUN",
 		"运行交互"
 	)
-	_delete_confirmation.title = _localized_text(
-		"TILE_LAB_DELETE_CONFIRM_TITLE",
-		"删除蓝图"
-	)
-	_delete_confirmation.dialog_text = _localized_text(
-		"TILE_LAB_DELETE_CONFIRM",
-		"确定删除蓝图“%s”吗？"
-	)
-	_delete_confirmation.ok_button_text = _localized_text(
-		"TILE_LAB_DELETE",
-		"删除"
-	)
-	_delete_confirmation.cancel_button_text = tr("DELETE_CANCEL_ACTION")
 	_rebuild_blueprint_option()
 	_rebuild_base_definition_option()
 	_rebuild_recipe_buttons()
@@ -230,12 +203,6 @@ func _bind_local_signals() -> void:
 	var _run_connection: int = _run_simulation_button.pressed.connect(
 		_on_run_simulation_pressed
 	)
-	var _confirm_connection: int = _delete_confirmation.confirmed.connect(
-		_on_delete_confirmed
-	)
-	var _cancel_connection: int = _delete_confirmation.canceled.connect(
-		_focus_initial_control
-	)
 	var _resize_connection: int = resized.connect(_queue_layout_update)
 
 
@@ -259,18 +226,6 @@ func _bind_runtime_signals() -> void:
 			_save_graph.section_reconciliation_settled,
 			_on_section_reconciliation_settled,
 			self
-		)
-
-
-func _configure_confirmation_touch_targets() -> void:
-	var ok_button: Button = _delete_confirmation.get_ok_button()
-	var cancel_button: Button = _delete_confirmation.get_cancel_button()
-	if is_instance_valid(ok_button):
-		ok_button.custom_minimum_size = Vector2(112, _MINIMUM_TOUCH_TARGET_SIZE)
-	if is_instance_valid(cancel_button):
-		cancel_button.custom_minimum_size = Vector2(
-			112,
-			_MINIMUM_TOUCH_TARGET_SIZE
 		)
 
 
@@ -344,19 +299,26 @@ func _rebuild_blueprint_option() -> void:
 		return
 	var preserved_id: String = _current_blueprint_id
 	_loading_ui = true
-	_blueprint_option.clear()
-	_blueprint_option.add_item(_localized_text(
-		"TILE_LAB_NEW_BLUEPRINT_OPTION",
-		"新蓝图"
-	))
-	_blueprint_option.set_item_metadata(0, "")
+	var blueprint_items: Array[Dictionary] = [{
+		&"text": _localized_text(
+			"TILE_LAB_NEW_BLUEPRINT_OPTION",
+			"新蓝图"
+		),
+		&"metadata": "",
+		&"selected": preserved_id.is_empty(),
+	}]
 	for blueprint: CustomTileBlueprintData in _blueprints:
-		var index: int = _blueprint_option.item_count
-		_blueprint_option.add_item(blueprint.display_name)
-		_blueprint_option.set_item_metadata(index, blueprint.blueprint_id)
-	if not preserved_id.is_empty():
-		var _selected: bool = _select_blueprint_option(preserved_id)
-	elif _blueprint_option.item_count > 0:
+		blueprint_items.append({
+			&"text": blueprint.display_name,
+			&"metadata": blueprint.blueprint_id,
+			&"selected": blueprint.blueprint_id == preserved_id,
+		})
+	var _blueprint_count: int = GFItemListBinder.write_items(
+		_blueprint_option,
+		blueprint_items,
+		{&"metadata_key": &"metadata"}
+	)
+	if _blueprint_option.selected < 0 and _blueprint_option.item_count > 0:
 		_blueprint_option.select(0)
 	_loading_ui = false
 
@@ -366,24 +328,29 @@ func _rebuild_base_definition_option() -> void:
 		return
 	var preserved_id: StringName = _get_selected_base_definition_id()
 	_loading_ui = true
-	_base_definition_option.clear()
+	var definition_items: Array[Dictionary] = []
 	if is_instance_valid(_tile_lab):
 		for entry: Dictionary in _tile_lab.get_base_definition_entries():
 			var definition_id: StringName = (
 				GFVariantData.get_option_string_name(entry, &"definition_id")
 			)
-			var index: int = _base_definition_option.item_count
 			var display_name_key: StringName = (
 				GFVariantData.get_option_string_name(
 					entry,
 					&"display_name_key"
 				)
 			)
-			_base_definition_option.add_item(tr(display_name_key))
-			_base_definition_option.set_item_metadata(index, definition_id)
-	if preserved_id != &"":
-		var _selected: bool = _select_base_definition_option(preserved_id)
-	elif _base_definition_option.item_count > 0:
+			definition_items.append({
+				&"text": tr(display_name_key),
+				&"metadata": definition_id,
+				&"selected": definition_id == preserved_id,
+			})
+	var _definition_count: int = GFItemListBinder.write_items(
+		_base_definition_option,
+		definition_items,
+		{&"metadata_key": &"metadata"}
+	)
+	if _base_definition_option.selected < 0 and _base_definition_option.item_count > 0:
 		_base_definition_option.select(0)
 	_loading_ui = false
 
@@ -826,7 +793,11 @@ func _focus_initial_control() -> void:
 func _select_blueprint_option(blueprint_id: String) -> bool:
 	for index: int in range(_blueprint_option.item_count):
 		if GFVariantData.to_text(
-			_blueprint_option.get_item_metadata(index)
+			GFItemListBinder.get_item_metadata(
+				_blueprint_option,
+				index,
+				""
+			)
 		) == blueprint_id:
 			_blueprint_option.select(index)
 			return true
@@ -838,7 +809,11 @@ func _select_base_definition_option(
 ) -> bool:
 	for index: int in range(_base_definition_option.item_count):
 		if GFVariantData.to_string_name(
-			_base_definition_option.get_item_metadata(index)
+			GFItemListBinder.get_item_metadata(
+				_base_definition_option,
+				index,
+				&""
+			)
 		) == definition_id:
 			_base_definition_option.select(index)
 			return true
@@ -852,8 +827,10 @@ func _get_selected_base_definition_id() -> StringName:
 	):
 		return &""
 	return GFVariantData.to_string_name(
-		_base_definition_option.get_item_metadata(
-			_base_definition_option.selected
+		GFItemListBinder.get_item_metadata(
+			_base_definition_option,
+			_base_definition_option.selected,
+			&""
 		)
 	)
 
@@ -1102,7 +1079,11 @@ func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
 	_pending_persistence_transaction_id = 0
 	_persistence_outcome_unknown = false
 	_persistence_operation_busy = true
-	await get_tree().process_frame
+	var frame_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
+		"guard_node": self,
+	})
+	if not GFVariantData.get_option_bool(frame_wait, "completed", false):
+		return
 	if operation_token != _persistence_operation_token or not is_inside_tree():
 		return
 	var preferred_id: String = resource_id if memory_rolled_back else ""
@@ -1134,7 +1115,11 @@ func _on_blueprint_selected(index: int) -> void:
 	):
 		return
 	var blueprint_id: String = GFVariantData.to_text(
-		_blueprint_option.get_item_metadata(index)
+		GFItemListBinder.get_item_metadata(
+			_blueprint_option,
+			index,
+			""
+		)
 	)
 	if blueprint_id.is_empty():
 		_configure_new_blueprint()
@@ -1244,24 +1229,44 @@ func _on_delete_pressed() -> void:
 	var blueprint: CustomTileBlueprintData = _find_blueprint(
 		_current_blueprint_id
 	)
-	_delete_confirmation.dialog_text = _localized_format(
-		"TILE_LAB_DELETE_CONFIRM",
-		"确定删除蓝图“%s”吗？",
-		blueprint.display_name if blueprint != null else ""
+	var blueprint_id: String = _current_blueprint_id
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		return
+	var config: GFModalConfig = GameUiRouterUtility.make_confirmation_modal_config(
+		_localized_text("TILE_LAB_DELETE_CONFIRM_TITLE", "删除蓝图"),
+		_localized_format(
+			"TILE_LAB_DELETE_CONFIRM",
+			"确定删除蓝图“%s”吗？",
+			blueprint.display_name if blueprint != null else ""
+		),
+		_localized_text("TILE_LAB_DELETE", "删除"),
+		tr("DELETE_CANCEL_ACTION")
 	)
-	_delete_confirmation.popup_centered_clamped(Vector2i(520, 220), 0.9)
-	var ok_button: Button = _delete_confirmation.get_ok_button()
-	if is_instance_valid(ok_button):
-		ok_button.grab_focus()
+	var result: GFModalResult = await ui_router.show_modal_async(
+		self,
+		config,
+		{
+			&"source": &"tile_lab_delete",
+			&"blueprint_id": blueprint_id,
+		}
+	)
+	if (
+		is_inside_tree()
+		and result != null
+		and result.status == GFModalResult.STATUS_CONFIRMED
+	):
+		await _on_delete_confirmed(blueprint_id)
 
 
-func _on_delete_confirmed() -> void:
+func _on_delete_confirmed(blueprint_id: String = "") -> void:
 	if _persistence_operation_busy or _persistence_outcome_unknown:
 		return
 	if not is_instance_valid(_tile_lab):
 		_show_operation_error(&"TILE_LAB_DELETE_FAILED", ERR_UNCONFIGURED)
 		return
-	var blueprint_id: String = _current_blueprint_id
+	if blueprint_id.is_empty():
+		blueprint_id = _current_blueprint_id
 	var operation_token: int = _begin_persistence_operation(
 		&"delete",
 		blueprint_id

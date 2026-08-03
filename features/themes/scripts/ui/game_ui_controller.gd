@@ -23,6 +23,7 @@ const _GAME_THEME_UTILITY_SCRIPT: Script = preload(
 
 var _gf_controller: GFController
 var _popup_close_in_progress: bool = false
+var _modal_focus_update_queued: bool = false
 var _pending_popup_event_architecture: GFArchitecture = null
 var _pending_popup_event_id: StringName = &""
 var _pending_popup_event_payload: Variant = null
@@ -38,6 +39,11 @@ func _init() -> void:
 
 func _enter_tree() -> void:
 	call_deferred(&"_apply_default_ui_motion")
+	call_deferred(&"_bind_modal_focus_bridge")
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	var _handled: bool = _try_handle_top_modal_cancel(event)
 
 
 func _notification(what: int) -> void:
@@ -153,6 +159,24 @@ func _update_ui_text() -> void:
 	pass
 
 
+## 处理 GFUIUtility 发给栈顶弹层的取消请求。
+##
+## 普通项目弹层默认关闭自身；需要业务确认的弹层可覆写本方法。所有关闭仍经由
+## GameUiController 的统一退场动效和 GF Router 出栈，避免直接 queue_free 破坏焦点恢复。
+func resolve_cancel() -> void:
+	var ui_utility: GFUIUtility = _get_ui_utility()
+	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
+	if not is_instance_valid(ui_utility) or not is_instance_valid(ui_router):
+		return
+	if ui_utility.get_top_panel(GFUIUtility.Layer.POPUP) != self:
+		return
+	var route_id: StringName = ui_router.get_current_route_id(
+		GFUIUtility.Layer.POPUP
+	)
+	if route_id != &"":
+		var _closed: bool = _close_current_popup_route(route_id)
+
+
 # --- 私有/辅助方法 ---
 
 func _apply_default_ui_motion() -> void:
@@ -179,8 +203,63 @@ func _apply_default_ui_motion() -> void:
 		var _intro_tween: Tween = motion_utility.play_panel_intro(self)
 
 
+## 让页面级 `_unhandled_input` 在处理自己的返回逻辑前，先把 ui_cancel 交给
+## GF 弹层栈。全屏页面应调用此方法；弹层页面直接继承本类实现即可。
+func _try_handle_top_modal_cancel(event: InputEvent) -> bool:
+	if event == null or not event.is_action_pressed(&"ui_cancel"):
+		return false
+	var ui_utility: GFUIUtility = _get_ui_utility()
+	if not is_instance_valid(ui_utility):
+		return false
+	var top_panel: Node = ui_utility.get_top_panel(GFUIUtility.Layer.POPUP)
+	if top_panel == null:
+		return false
+	var viewport: Viewport = get_viewport()
+	if is_instance_valid(viewport):
+		viewport.set_input_as_handled()
+	var _dismiss_requested: bool = ui_utility.request_dismiss_top(
+		GFUIUtility.Layer.POPUP,
+		"ui_cancel"
+	)
+	# 只要存在顶层 modal，取消输入就不能继续落到下层完整页面。即使该
+	# modal 明确拒绝取消，下层页面也必须保持原位。
+	return true
+
+
+func _bind_modal_focus_bridge() -> void:
+	if not is_inside_tree():
+		return
+	var viewport: Viewport = get_viewport()
+	if not is_instance_valid(viewport):
+		return
+	var callback: Callable = Callable(self, "_on_viewport_gui_focus_changed")
+	if not viewport.gui_focus_changed.is_connected(callback):
+		var _connection_error: int = viewport.gui_focus_changed.connect(callback)
+
+
+func _on_viewport_gui_focus_changed(_focused_control: Control) -> void:
+	if _modal_focus_update_queued:
+		return
+	_modal_focus_update_queued = true
+	call_deferred(&"_keep_focus_inside_owned_top_modal")
+
+
+func _keep_focus_inside_owned_top_modal() -> void:
+	_modal_focus_update_queued = false
+	if not is_inside_tree():
+		return
+	var ui_utility: GFUIUtility = _get_ui_utility()
+	if not is_instance_valid(ui_utility):
+		return
+	if ui_utility.get_top_panel(GFUIUtility.Layer.POPUP) != self:
+		return
+	var _focus_repaired: bool = ui_utility.keep_focus_inside_top_modal(
+		GFUIUtility.Layer.POPUP
+	)
+
+
 func _get_ui_motion_utility() -> GameUiMotionUtility:
-	var utility_value: Object = get_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)
+	var utility_value: Object = _find_optional_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)
 	if utility_value is GameUiMotionUtility:
 		var motion_utility: GameUiMotionUtility = utility_value
 		return motion_utility
@@ -188,7 +267,7 @@ func _get_ui_motion_utility() -> GameUiMotionUtility:
 
 
 func _get_ui_style_utility() -> GameUiStyleUtility:
-	var utility_value: Object = get_utility(_GAME_UI_STYLE_UTILITY_SCRIPT)
+	var utility_value: Object = _find_optional_utility(_GAME_UI_STYLE_UTILITY_SCRIPT)
 	if utility_value is GameUiStyleUtility:
 		var style_utility: GameUiStyleUtility = utility_value
 		return style_utility
@@ -196,7 +275,7 @@ func _get_ui_style_utility() -> GameUiStyleUtility:
 
 
 func _get_theme_utility() -> GameThemeUtility:
-	var utility_value: Object = get_utility(_GAME_THEME_UTILITY_SCRIPT)
+	var utility_value: Object = _find_optional_utility(_GAME_THEME_UTILITY_SCRIPT)
 	if utility_value is GameThemeUtility:
 		var theme_utility: GameThemeUtility = utility_value
 		return theme_utility
@@ -204,15 +283,23 @@ func _get_theme_utility() -> GameThemeUtility:
 
 
 func _get_ui_router_utility() -> GFUIRouterUtility:
-	var utility_value: Object = get_utility(GFUIRouterUtility)
+	var utility_value: Object = _find_optional_utility(GFUIRouterUtility)
 	if utility_value is GFUIRouterUtility:
 		var ui_router: GFUIRouterUtility = utility_value
 		return ui_router
 	return null
 
 
+func _get_ui_utility() -> GFUIUtility:
+	var utility_value: Object = _find_optional_utility(GFUIUtility)
+	if utility_value is GFUIUtility:
+		var ui_utility: GFUIUtility = utility_value
+		return ui_utility
+	return null
+
+
 func _get_game_ui_router_utility() -> GameUiRouterUtility:
-	var utility_value: Object = get_utility(GameUiRouterUtility)
+	var utility_value: Object = _find_optional_utility(GameUiRouterUtility)
 	if utility_value is GameUiRouterUtility:
 		var ui_router: GameUiRouterUtility = utility_value
 		return ui_router
@@ -223,17 +310,28 @@ func _get_game_ui_router_utility() -> GameUiRouterUtility:
 	return null
 
 
+## 表现层宿主的主题/路由能力允许在编辑器预览与最小测试架构中缺席；使用
+## GFArchitecture.find_utility 避免把可选能力误报为 strict dependency miss。
+func _find_optional_utility(utility_type: Script) -> Object:
+	var architecture: GFArchitecture = get_architecture_or_null()
+	if architecture == null:
+		return null
+	return architecture.find_utility(utility_type)
+
+
 ## 关闭当前弹层路由，并校验关闭目标仍是调用方拥有的路由。
 func _close_current_popup_route(expected_route_id: StringName) -> bool:
 	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
-	if not is_instance_valid(ui_router):
+	var ui_utility: GFUIUtility = _get_ui_utility()
+	if not is_instance_valid(ui_router) or not is_instance_valid(ui_utility):
 		push_error("[GameUiController] 缺少 GFUIRouterUtility，无法关闭路由 %s。" % expected_route_id)
 		return false
 
 	var current_route_id: StringName = ui_router.get_current_route_id(GFUIUtility.Layer.POPUP)
-	if current_route_id != expected_route_id:
+	var current_panel: Node = ui_utility.get_top_panel(GFUIUtility.Layer.POPUP)
+	if current_route_id != expected_route_id or current_panel != self:
 		push_error(
-			"[GameUiController] 拒绝关闭非当前路由：expected=%s, current=%s。" % [
+			"[GameUiController] 拒绝关闭非当前路由实例：expected=%s, current=%s。" % [
 				expected_route_id,
 				current_route_id,
 			]
@@ -265,12 +363,20 @@ func _close_current_popup_route(expected_route_id: StringName) -> bool:
 
 func _pop_popup_route(expected_route_id: StringName) -> bool:
 	var ui_router: GFUIRouterUtility = _get_ui_router_utility()
-	if not is_instance_valid(ui_router):
+	var ui_utility: GFUIUtility = _get_ui_utility()
+	if not is_instance_valid(ui_router) or not is_instance_valid(ui_utility):
+		return false
+	if (
+		ui_router.get_current_route_id(GFUIUtility.Layer.POPUP)
+		!= expected_route_id
+		or ui_utility.get_top_panel(GFUIUtility.Layer.POPUP) != self
+	):
 		return false
 	if not ui_router.back(GFUIUtility.Layer.POPUP):
 		push_error("[GameUiController] GF UI 路由关闭失败：%s。" % expected_route_id)
 		return false
 	_flush_pending_popup_event()
+	_on_popup_route_closed(expected_route_id)
 	return true
 
 
@@ -280,6 +386,7 @@ func _finish_popup_close(expected_route_id: StringName) -> void:
 		return
 	_clear_pending_popup_event()
 	set_process_unhandled_input(true)
+	_on_popup_route_close_failed(expected_route_id)
 	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
 	var modal_surface: Control = _find_modal_surface()
 	if is_instance_valid(motion_utility) and is_instance_valid(modal_surface):
@@ -295,6 +402,8 @@ func _close_current_popup_route_and_send_event(
 	event_id: StringName,
 	payload: Variant = null
 ) -> bool:
+	if _popup_close_in_progress or _pending_popup_event_id != &"":
+		return false
 	var architecture: GFArchitecture = get_architecture_or_null()
 	if architecture == null:
 		push_error("[GameUiController] 缺少 GFArchitecture，无法派发事件 %s。" % event_id)
@@ -321,6 +430,16 @@ func _clear_pending_popup_event() -> void:
 	_pending_popup_event_architecture = null
 	_pending_popup_event_id = &""
 	_pending_popup_event_payload = null
+
+
+## 精确路由实例已完成出栈且 GF Router 历史已落定后的项目覆写点。
+func _on_popup_route_closed(_expected_route_id: StringName) -> void:
+	pass
+
+
+## 路由退场动画结束后仍无法精确弹出自身时的项目覆写点。
+func _on_popup_route_close_failed(_expected_route_id: StringName) -> void:
+	pass
 
 
 func _find_modal_backdrop() -> Control:

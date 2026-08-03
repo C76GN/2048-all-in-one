@@ -4,6 +4,13 @@ extends RefCounted
 
 
 ## 显式引导一个有效账号 Profile；SaveGraph ready 不再隐式加载 legacy 档案。
+## @param save_graph: 被测项目存档图 Utility。
+## @param architecture: 需要逐帧推进的独立 GF 架构。
+## @param scene_tree: 提供测试帧等待的场景树。
+## @param storage: 可选的独立 GF 存储 Utility。
+## @param profile_file_name: 可选目标 Profile 文件名。
+## @param adopt_legacy_if_missing: 缺失目标时是否采用当前 legacy 数据。
+## @param max_frames: 等待 typed 终态的最大帧数。
 ## @return profile_file_name 与 GFAsyncCompletion，供测试断言唯一终态。
 static func bootstrap_account(
 	save_graph: GameSaveGraphUtility,
@@ -39,6 +46,11 @@ static func bootstrap_account(
 
 
 ## 有界推进测试架构，直到一次性 completion 完成或达到帧上限。
+## @param completion: 要等待的一次性终态。
+## @param architecture: 需要逐帧推进的独立 GF 架构。
+## @param scene_tree: 提供测试帧等待的场景树。
+## @param storage: 可选的独立 GF 存储 Utility。
+## @param max_frames: 最大等待帧数。
 static func await_completion(
 	completion: GFAsyncCompletion,
 	architecture: GFArchitecture,
@@ -62,6 +74,11 @@ static func await_completion(
 
 
 ## 有界推进测试架构，直到 GF Profile operation 到达唯一终态。
+## @param operation: 要等待的 GF Profile 操作句柄。
+## @param architecture: 需要逐帧推进的独立 GF 架构。
+## @param scene_tree: 提供测试帧等待的场景树。
+## @param storage: 可选的独立 GF 存储 Utility。
+## @param max_frames: 最大等待帧数。
 static func await_result(
 	operation: GFSaveProfileOperation,
 	architecture: GFArchitecture,
@@ -85,6 +102,13 @@ static func await_result(
 
 
 ## 从测试协程启动异步 Profile 切换，同时持续推进独立 GFArchitecture。
+## @param save_graph: 被测项目存档图 Utility。
+## @param profile_file_name: 目标 Profile 文件名。
+## @param adopt_current_if_missing: 缺失目标时是否采用当前数据。
+## @param architecture: 需要逐帧推进的独立 GF 架构。
+## @param scene_tree: 提供测试帧等待的场景树。
+## @param storage: 可选的独立 GF 存储 Utility。
+## @param max_frames: 最大等待帧数。
 static func activate_profile(
 	save_graph: GameSaveGraphUtility,
 	profile_file_name: String,

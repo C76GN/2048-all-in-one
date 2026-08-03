@@ -431,26 +431,28 @@ func _dispose_discovery_setup(
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var storage_value: Variant = setup.get("storage")
 	var save_graph_value: Variant = setup.get("save_graph")
-	if (
-		storage_value is GFStorageUtility
-		and save_graph_value is GameSaveGraphUtility
-	):
+	var storage: GFStorageUtility = null
+	if storage_value is GFStorageUtility:
+		storage = storage_value
+	var save_graph: GameSaveGraphUtility = null
+	if save_graph_value is GameSaveGraphUtility:
+		save_graph = save_graph_value
+	if storage != null and save_graph != null:
 		var flush_result: GFSaveProfileResult = (
 			await GameSaveProfileOperationTestSupport.await_result(
-				save_graph_value.request_flush_profile({
+				save_graph.request_flush_profile({
 					&"reason": "tile_catalog_test_cleanup",
 				}),
 				architecture,
 				get_tree(),
-				storage_value
+				storage
 			)
 		)
 		assert_true(
 			flush_result != null and flush_result.is_successful(),
 			"发现系统测试结束前应完成 typed Profile flush。"
 		)
-	if delete_profile and storage_value is GFStorageUtility:
-		var storage: GFStorageUtility = storage_value
+	if delete_profile and storage != null:
 		var delete_error: Error = storage.delete_file(
 			GFVariantData.get_option_string(
 				setup,

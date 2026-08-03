@@ -30,6 +30,7 @@ func ready() -> void:
 	pass
 
 
+## @param scope: 测试架构 activation 的协作取消作用域。
 func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
 	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
 	if scope == null:
@@ -43,6 +44,7 @@ func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
 	return completion
 
 
+## @param scope: 测试架构 quiesce 的协作取消作用域。
 func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
 	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
 	if scope == null:

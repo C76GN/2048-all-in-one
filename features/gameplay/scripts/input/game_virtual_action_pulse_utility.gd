@@ -65,7 +65,7 @@ func pulse(
 		return false
 	if operation.is_pending():
 		_active_operations[action_id] = operation
-		var connect_error: Error = operation.completed.connect(
+		var connect_error: int = operation.completed.connect(
 			_on_pulse_completed.bind(action_id),
 			CONNECT_ONE_SHOT
 		)

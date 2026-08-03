@@ -14,6 +14,7 @@ const EXPECTED_UI_ROUTE_PATHS: Array[String] = [
 	"res://features/navigation/resources/ui_routes/player_profile_route.tres",
 	"res://features/navigation/resources/ui_routes/achievements_route.tres",
 	"res://features/navigation/resources/ui_routes/board_editor_route.tres",
+	"res://features/navigation/resources/ui_routes/modal_dialog_route.tres",
 ]
 
 const EXPECTED_UI_ROUTE_RESOURCE_KEYS: Array[String] = [
@@ -26,6 +27,7 @@ const EXPECTED_UI_ROUTE_RESOURCE_KEYS: Array[String] = [
 	"game.ui_route.player_profile",
 	"game.ui_route.achievements",
 	"game.ui_route.board_editor",
+	"game.ui_route.modal_dialog",
 ]
 
 
@@ -52,6 +54,7 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 		"achievements",
 		"board_editor",
 		"game_over_menu",
+		"modal_dialog",
 		"pause_menu",
 		"player_profile",
 		"settings_menu",
@@ -95,6 +98,11 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 	assert_true(
 		ui_router.get_route(&"achievements").scene_path == "res://features/achievements/scenes/ui/achievement_list_dialog.tscn",
 		"成就路由应指向 achievements Feature 面板。"
+	)
+	assert_true(
+		ui_router.get_route(&"modal_dialog").scene_path
+		== "res://features/navigation/scenes/ui/game_modal_route_panel.tscn",
+		"通用 modal 必须拥有稳定的项目路由。"
 	)
 	assert_true(
 		ui_router.get_route(&"pause_menu").get_adjacent_route_ids() == PackedStringArray(
@@ -158,6 +166,172 @@ func test_owned_async_route_returns_typed_terminal_result() -> void:
 	assert_true(result.get_reason() == &"missing_route")
 
 
+func test_modal_adapter_rejects_non_closing_terminal_actions() -> void:
+	var ui_router: GameUiRouterUtility = GameUiRouterUtility.new()
+	var config: GFModalConfig = GFModalConfig.new()
+	var action: GFModalAction = GFModalAction.new()
+	action.action_id = &"preview"
+	action.label = "预览"
+	action.close_on_pressed = false
+	config.actions = [action]
+
+	var result: GFModalResult = await ui_router.show_modal_async(self, config)
+
+	assert_not_null(result)
+	assert_true(result.status == GFModalResult.STATUS_DISMISSED)
+	assert_true(result.action_id == &"preview")
+	assert_true(
+		GFVariantData.get_option_string_name(
+			result.metadata,
+			&"reason"
+		) == &"unsupported_non_closing_action",
+		"一次性 GFModalResult 适配器必须在开栈前拒绝无法关闭的动作。"
+	)
+
+
+func test_modal_adapter_rejects_config_without_any_terminal_path() -> void:
+	var ui_router: GameUiRouterUtility = GameUiRouterUtility.new()
+	var config: GFModalConfig = GFModalConfig.new()
+	config.dismiss_on_cancel = false
+	config.dismiss_on_backdrop = false
+
+	var result: GFModalResult = await ui_router.show_modal_async(self, config)
+
+	assert_not_null(result)
+	assert_true(result.status == GFModalResult.STATUS_DISMISSED)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			result.metadata,
+			&"reason"
+		) == &"no_terminal_action",
+		"没有按钮、取消或背景终止路径的配置必须在开栈前失败。"
+	)
+
+
+func test_modal_result_resumes_only_after_router_history_is_settled() -> void:
+	var stack: _RouterTestStack = await _make_live_router_stack()
+	var first_state: _ModalWaitState = _ModalWaitState.new()
+	var second_state: _ModalWaitState = _ModalWaitState.new()
+	var config: GFModalConfig = GameUiRouterUtility.make_acknowledgement_modal_config(
+		"路由历史",
+		"关闭后立即打开同一路由。",
+		"继续"
+	)
+	call_deferred(
+		&"_run_modal_reopen_sequence",
+		stack,
+		config,
+		first_state,
+		second_state
+	)
+	var first_panel: GameModalRoutePanel = await _wait_for_top_modal(
+		stack
+	)
+	assert_not_null(
+		first_panel,
+		"首个真实 modal 必须打开；done=%s result=%s" % [
+			first_state.done,
+			first_state.result.to_dict() if first_state.result != null else {},
+		]
+	)
+	if first_panel == null:
+		stack.architecture.dispose()
+		return
+
+	first_panel.resolve_cancel()
+	var second_panel: GameModalRoutePanel = await _wait_for_top_modal(
+		stack,
+		first_panel
+	)
+
+	assert_true(first_state.done, "第一弹层关闭后必须交付 typed 终态。")
+	assert_not_null(second_panel, "await 续体应能立即打开同 route 的第二弹层。")
+	assert_true(
+		stack.ui_router.get_current_route_id(GFUIUtility.Layer.POPUP)
+		== GameUiRouterUtility.ROUTE_MODAL_DIALOG,
+		"旧 back() 不得误删续体刚写入的新路由历史。"
+	)
+	assert_true(
+		stack.ui_utility.get_top_panel(GFUIUtility.Layer.POPUP) == second_panel,
+		"第二弹层必须保持为 GF popup 栈顶。"
+	)
+	if second_panel != null:
+		second_panel.resolve_cancel()
+	await _wait_for_modal_state(stack, second_state)
+	assert_true(second_state.done)
+	stack.architecture.dispose()
+
+
+func test_owner_exit_under_new_popup_closes_when_owned_modal_returns_to_top() -> void:
+	var stack: _RouterTestStack = await _make_live_router_stack()
+	var owned_state: _ModalWaitState = _ModalWaitState.new()
+	var cover_state: _ModalWaitState = _ModalWaitState.new()
+	var owned_owner: Node = Node.new()
+	add_child(owned_owner)
+	var config: GFModalConfig = GameUiRouterUtility.make_acknowledgement_modal_config(
+		"所有权",
+		"owner 退出后必须收束。",
+		"知道了"
+	)
+	call_deferred(
+		&"_run_modal_wait",
+		stack,
+		owned_owner,
+		config,
+		owned_state
+	)
+	var owned_panel: GameModalRoutePanel = await _wait_for_top_modal(
+		stack
+	)
+	assert_not_null(
+		owned_panel,
+		"owner modal 必须打开；done=%s result=%s" % [
+			owned_state.done,
+			owned_state.result.to_dict() if owned_state.result != null else {},
+		]
+	)
+	if owned_panel == null:
+		owned_owner.queue_free()
+		stack.architecture.dispose()
+		return
+
+	call_deferred(
+		&"_run_modal_wait",
+		stack,
+		self,
+		config,
+		cover_state
+	)
+	var cover_panel: GameModalRoutePanel = await _wait_for_top_modal(
+		stack,
+		owned_panel
+	)
+	assert_not_null(cover_panel)
+	if cover_panel == null:
+		owned_owner.queue_free()
+		stack.architecture.dispose()
+		return
+
+	owned_owner.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_false(owned_state.done, "被上层覆盖时，owner 弹层应等待精确出栈。")
+	cover_panel.resolve_cancel()
+	await _wait_for_modal_state(stack, cover_state)
+	await _wait_for_modal_state(stack, owned_state)
+
+	assert_true(cover_state.done)
+	assert_true(owned_state.done, "上层关闭后必须继续收束已退出 owner 的旧弹层。")
+	assert_not_null(owned_state.result)
+	if owned_state.result != null:
+		assert_true(owned_state.result.action_id == &"owner_exited")
+	assert_null(stack.ui_utility.get_top_panel(GFUIUtility.Layer.POPUP))
+	assert_true(
+		stack.ui_router.get_current_route_id(GFUIUtility.Layer.POPUP) == &""
+	)
+	stack.architecture.dispose()
+
+
 func test_owned_async_route_passes_owner_and_optional_scope_to_gf() -> void:
 	var ui_router: _AsyncOptionsCaptureRouter = _AsyncOptionsCaptureRouter.new()
 	var scope: GFAsyncScope = GFAsyncScope.new()
@@ -173,12 +347,18 @@ func test_owned_async_route_passes_owner_and_optional_scope_to_gf() -> void:
 	)
 
 	assert_not_null(result)
-	assert_true(
-		ui_router.captured_async_options.get("owner") == self,
-		"项目 Router Adapter 必须使用 GF 原生 owner 生命周期。"
+	var captured_owner_matches: bool = (
+		ui_router.captured_async_options.get("owner") == self
 	)
 	assert_true(
-		ui_router.captured_async_options.get("scope") == scope,
+		captured_owner_matches,
+		"项目 Router Adapter 必须使用 GF 原生 owner 生命周期。"
+	)
+	var captured_scope_matches: bool = (
+		ui_router.captured_async_options.get("scope") == scope
+	)
+	assert_true(
+		captured_scope_matches,
 		"可选 GFAsyncScope 必须原样透传给 GFUIRouterUtility。"
 	)
 	assert_true(
@@ -209,6 +389,21 @@ func test_route_panels_defer_initial_focus_until_after_gf_capture() -> void:
 			ready_source.contains(".grab_focus()"),
 			"路由面板不得在同步 _ready 中破坏 GF restore_focus：%s。" % source_path
 		)
+	var settings_source: String = FileAccess.get_file_as_string(
+		"res://features/settings/scripts/menus/settings_menu.gd"
+	)
+	var cancel_source: String = _get_function_source(
+		settings_source,
+		"_unhandled_input"
+	)
+	assert_true(
+		cancel_source.contains("_try_handle_top_modal_cancel(event)"),
+		"设置完整场景必须先把取消输入交给 GF 顶层 modal。"
+	)
+	assert_true(
+		cancel_source.contains("_on_back_button_pressed()"),
+		"GF popup 栈为空时，设置完整场景仍必须响应返回键。"
+	)
 
 
 func test_stale_owner_rollback_does_not_close_new_instance_of_same_route() -> void:
@@ -330,6 +525,99 @@ func _packed_strings_to_array(values: PackedStringArray) -> Array[String]:
 	return result
 
 
+func _make_live_router_stack() -> _RouterTestStack:
+	var stack: _RouterTestStack = _RouterTestStack.new()
+	stack.architecture = GFArchitecture.new()
+	stack.ui_utility = GFUIUtility.new()
+	stack.ui_router = GameUiRouterUtility.new()
+	await stack.architecture.register_utility(
+		GFResourceBroker,
+		GFResourceBroker.new()
+	)
+	await stack.architecture.register_utility(GFAssetUtility, GFAssetUtility.new())
+	await stack.architecture.register_utility(
+		GFResourceResolverUtility,
+		GFResourceResolverUtility.new()
+	)
+	await stack.architecture.register_utility(GFUIUtility, stack.ui_utility)
+	await stack.architecture.register_utility(
+		ProjectResourceCatalogUtility,
+		ProjectResourceCatalogUtility.new()
+	)
+	await stack.architecture.register_utility(
+		GameUiRouterUtility,
+		stack.ui_router
+	)
+	stack.architecture.register_utility_alias(
+		GFUIRouterUtility,
+		GameUiRouterUtility
+	)
+	await stack.architecture.init()
+	stack.context = TestArchitectureContext.new()
+	stack.context.test_architecture = stack.architecture
+	add_child_autoqfree(stack.context)
+	for layer: int in [
+		GFUIUtility.Layer.HUD,
+		GFUIUtility.Layer.POPUP,
+		GFUIUtility.Layer.TOP,
+	]:
+		var layer_root: CanvasLayer = stack.ui_utility.get_layer_root(layer)
+		if is_instance_valid(layer_root) and layer_root.get_parent() != stack.context:
+			layer_root.reparent(stack.context)
+	return stack
+
+
+func _wait_for_top_modal(
+	stack: _RouterTestStack,
+	previous_panel: GameModalRoutePanel = null,
+	max_frames: int = 180
+) -> GameModalRoutePanel:
+	for _frame_index: int in range(maxi(max_frames, 1)):
+		stack.architecture.tick(0.0)
+		var top_panel: Node = stack.ui_utility.get_top_panel(
+			GFUIUtility.Layer.POPUP
+		)
+		if top_panel is GameModalRoutePanel and top_panel != previous_panel:
+			var modal_panel: GameModalRoutePanel = top_panel
+			return modal_panel
+		await get_tree().process_frame
+	return null
+
+
+func _wait_for_modal_state(
+	stack: _RouterTestStack,
+	state: _ModalWaitState,
+	max_frames: int = 180
+) -> void:
+	for _frame_index: int in range(maxi(max_frames, 1)):
+		stack.architecture.tick(0.0)
+		if state.done:
+			return
+		await get_tree().process_frame
+
+
+func _run_modal_reopen_sequence(
+	stack: _RouterTestStack,
+	config: GFModalConfig,
+	first_state: _ModalWaitState,
+	second_state: _ModalWaitState
+) -> void:
+	first_state.result = await stack.ui_router.show_modal_async(self, config)
+	first_state.done = true
+	second_state.result = await stack.ui_router.show_modal_async(self, config)
+	second_state.done = true
+
+
+func _run_modal_wait(
+	stack: _RouterTestStack,
+	route_owner: Node,
+	config: GFModalConfig,
+	state: _ModalWaitState
+) -> void:
+	state.result = await stack.ui_router.show_modal_async(route_owner, config)
+	state.done = true
+
+
 func _get_function_source(source: String, function_name: String) -> String:
 	var marker: String = "func %s(" % function_name
 	var start_index: int = source.find(marker)
@@ -393,6 +681,11 @@ class _AsyncOptionsCaptureRouter extends GameUiRouterUtility:
 	var captured_async_options: Dictionary = {}
 
 
+	## @param route_id: 测试捕获的目标 route ID。
+	## @param params: 测试透传的路由参数。
+	## @param option_overrides: 测试透传的面板选项。
+	## @param config_callback: 测试透传的配置回调。
+	## @param async_options: 要捕获并断言的异步协调选项。
 	func push_route_async(
 		route_id: StringName,
 		params: Dictionary = {},
@@ -408,3 +701,15 @@ class _AsyncOptionsCaptureRouter extends GameUiRouterUtility:
 			config_callback,
 			async_options
 		)
+
+
+class _RouterTestStack extends RefCounted:
+	var architecture: GFArchitecture
+	var context: TestArchitectureContext
+	var ui_utility: GFUIUtility
+	var ui_router: GameUiRouterUtility
+
+
+class _ModalWaitState extends RefCounted:
+	var done: bool = false
+	var result: GFModalResult = null

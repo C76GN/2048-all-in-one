@@ -231,11 +231,20 @@ func _notification(what: int) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if is_instance_valid(_input_detector) and _input_detector.is_detecting():
 		return
-	if event.is_action_pressed("ui_cancel"):
-		var viewport: Viewport = get_viewport()
-		if is_instance_valid(viewport):
-			viewport.set_input_as_handled()
-		_on_back_button_pressed()
+	if _try_handle_top_modal_cancel(event):
+		return
+	if event == null or not event.is_action_pressed(&"ui_cancel"):
+		return
+	var viewport: Viewport = get_viewport()
+	if is_instance_valid(viewport):
+		viewport.set_input_as_handled()
+	_on_back_button_pressed()
+
+
+func resolve_cancel() -> void:
+	if is_instance_valid(_input_detector) and _input_detector.is_detecting():
+		return
+	_on_back_button_pressed()
 
 
 # --- 公共方法 ---

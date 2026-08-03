@@ -45,14 +45,6 @@ func _ready() -> void:
 	call_deferred(&"_focus_initial_control")
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		var viewport: Viewport = get_viewport()
-		if is_instance_valid(viewport):
-			viewport.set_input_as_handled()
-		_close_dialog()
-
-
 func _exit_tree() -> void:
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)

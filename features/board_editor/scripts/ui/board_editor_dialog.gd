@@ -113,12 +113,8 @@ func _exit_tree() -> void:
 	_save_graph = null
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		var viewport: Viewport = get_viewport()
-		if is_instance_valid(viewport):
-			viewport.set_input_as_handled()
-		_on_cancel_button_pressed()
+func resolve_cancel() -> void:
+	_on_cancel_button_pressed()
 
 
 func _process(_delta: float) -> void:
@@ -638,7 +634,11 @@ func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
 	_pending_persistence_transaction_id = 0
 	_persistence_outcome_unknown = false
 	_persistence_operation_busy = true
-	await get_tree().process_frame
+	var frame_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
+		"guard_node": self,
+	})
+	if not GFVariantData.get_option_bool(frame_wait, "completed", false):
+		return
 	if operation_token != _persistence_operation_token or not is_inside_tree():
 		return
 	var preferred_id: String = resource_id if memory_rolled_back else ""

@@ -33,8 +33,6 @@ const _COMPACT_PREVIEW_HEIGHT: float = 210.0
 const _COMPACT_HORIZONTAL_MARGINS: float = 24.0
 const _PORTRAIT_HORIZONTAL_MARGINS: float = 32.0
 const _COMPACT_SCROLLBAR_RESERVE: float = 14.0
-const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
-const _DIALOG_ACTION_MINIMUM_WIDTH: float = 112.0
 
 
 # --- 私有变量 ---
@@ -58,8 +56,6 @@ var _page_scroll: ScrollContainer = null
 var _list_scroll: ScrollContainer = null
 var _layout_mode: int = GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 var _layout_update_queued: bool = false
-var _delete_confirmation_dialog: ConfirmationDialog = null
-var _delete_error_dialog: AcceptDialog = null
 var _pending_delete_resource: Resource = null
 var _delete_operation_busy: bool = false
 var _delete_outcome_unknown: bool = false
@@ -78,6 +74,8 @@ var _virtual_top_spacer: Control = null
 var _virtual_bottom_spacer: Control = null
 var _virtual_item_extent: float = 1.0
 var _virtual_window_update_queued: bool = false
+var _virtual_measurement_queued: bool = false
+var _virtual_measurement_generation: int = 0
 var _has_revealed_list_once: bool = false
 
 
@@ -107,7 +105,6 @@ var _has_revealed_list_once: bool = false
 
 func _ready() -> void:
 	_viewport_utility = _get_viewport_utility()
-	_setup_delete_dialogs()
 	_setup_delete_reconciliation()
 	_page_scroll = GameTaskPageLayoutUtility.ensure_vertical_scroll_parent(
 		_columns_container,
@@ -123,7 +120,6 @@ func _ready() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED:
-		_update_delete_dialog_text()
 		_update_ui_text()
 	elif what == NOTIFICATION_RESIZED and is_node_ready():
 		_queue_layout_update()
@@ -144,12 +140,18 @@ func _exit_tree() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _try_handle_top_modal_cancel(event):
+		return
 	if event.is_action_pressed("ui_cancel"):
 		_on_back_button_pressed()
-		get_viewport().set_input_as_handled()
+		var viewport: Viewport = get_viewport()
+		if is_instance_valid(viewport):
+			viewport.set_input_as_handled()
 		return
 	if _handle_unfocused_virtual_navigation(event):
-		get_viewport().set_input_as_handled()
+		var viewport: Viewport = get_viewport()
+		if is_instance_valid(viewport):
+			viewport.set_input_as_handled()
 
 
 # --- 公共方法 ---
@@ -300,26 +302,6 @@ func _setup_base_signals() -> void:
 		var _connect_result_111: int = _delete_button.pressed.connect(_on_delete_button_pressed)
 
 
-func _setup_delete_dialogs() -> void:
-	_delete_confirmation_dialog = ConfirmationDialog.new()
-	_delete_confirmation_dialog.name = "DeleteConfirmationDialog"
-	_delete_confirmation_dialog.exclusive = true
-	add_child(_delete_confirmation_dialog)
-	var _confirmed_connection: int = _delete_confirmation_dialog.confirmed.connect(
-		_on_delete_confirmed
-	)
-	var _canceled_connection: int = _delete_confirmation_dialog.canceled.connect(
-		_on_delete_canceled
-	)
-
-	_delete_error_dialog = AcceptDialog.new()
-	_delete_error_dialog.name = "DeleteErrorDialog"
-	_delete_error_dialog.exclusive = true
-	add_child(_delete_error_dialog)
-	_configure_delete_dialog_presentation()
-	_update_delete_dialog_text()
-
-
 func _setup_delete_reconciliation() -> void:
 	_delete_signal_utility = _get_delete_signal_utility()
 	_delete_save_graph = _get_delete_save_graph()
@@ -333,120 +315,6 @@ func _setup_delete_reconciliation() -> void:
 		_on_section_reconciliation_settled,
 		self
 	)
-
-
-func _configure_delete_dialog_presentation() -> void:
-	var action_buttons: Array[Button] = []
-	if is_instance_valid(_delete_confirmation_dialog):
-		_configure_delete_dialog_surface(_delete_confirmation_dialog)
-		action_buttons.append(_delete_confirmation_dialog.get_ok_button())
-		action_buttons.append(_delete_confirmation_dialog.get_cancel_button())
-	if is_instance_valid(_delete_error_dialog):
-		_configure_delete_dialog_surface(_delete_error_dialog)
-		action_buttons.append(_delete_error_dialog.get_ok_button())
-	for button: Button in action_buttons:
-		if not is_instance_valid(button):
-			continue
-		button.custom_minimum_size = Vector2(
-			maxf(button.custom_minimum_size.x, _DIALOG_ACTION_MINIMUM_WIDTH),
-			maxf(button.custom_minimum_size.y, _MINIMUM_TOUCH_TARGET_SIZE)
-		)
-
-	var style: GameUiStyleUtility = _get_ui_style_utility()
-	if not is_instance_valid(style):
-		return
-	if is_instance_valid(_delete_confirmation_dialog):
-		style.style_label(
-			_delete_confirmation_dialog.get_label(),
-			GameUiStyleUtility.TextRole.PRIMARY,
-			18
-		)
-		style.style_button(
-			_delete_confirmation_dialog.get_ok_button(),
-			GameUiStyleUtility.ButtonRole.SECONDARY
-		)
-		style.style_button(
-			_delete_confirmation_dialog.get_cancel_button(),
-			GameUiStyleUtility.ButtonRole.PRIMARY
-		)
-	if is_instance_valid(_delete_error_dialog):
-		style.style_label(
-			_delete_error_dialog.get_label(),
-			GameUiStyleUtility.TextRole.PRIMARY,
-			18
-		)
-		style.style_button(
-			_delete_error_dialog.get_ok_button(),
-			GameUiStyleUtility.ButtonRole.PRIMARY
-		)
-
-
-func _configure_delete_dialog_surface(dialog: AcceptDialog) -> void:
-	dialog.dialog_autowrap = true
-	dialog.add_theme_constant_override(
-		"buttons_min_height",
-		roundi(_MINIMUM_TOUCH_TARGET_SIZE)
-	)
-	dialog.add_theme_constant_override(
-		"buttons_min_width",
-		roundi(_DIALOG_ACTION_MINIMUM_WIDTH)
-	)
-	dialog.add_theme_constant_override("buttons_separation", 18)
-	dialog.add_theme_constant_override("title_height", 42)
-	dialog.add_theme_font_size_override("title_font_size", 18)
-	if not is_instance_valid(_list_surface):
-		return
-	var source_style: StyleBox = _list_surface.get_theme_stylebox("panel")
-	if not source_style is StyleBoxFlat:
-		return
-	var source_flat: StyleBoxFlat = source_style
-	var content_style_value: Resource = source_flat.duplicate()
-	if not content_style_value is StyleBoxFlat:
-		return
-	var content_style: StyleBoxFlat = content_style_value
-	content_style.bg_color.a = 1.0
-	content_style.set_content_margin(SIDE_LEFT, 20.0)
-	content_style.set_content_margin(SIDE_TOP, 18.0)
-	content_style.set_content_margin(SIDE_RIGHT, 20.0)
-	content_style.set_content_margin(SIDE_BOTTOM, 18.0)
-	dialog.add_theme_stylebox_override("panel", content_style)
-
-	var window_style_value: Resource = source_flat.duplicate()
-	if not window_style_value is StyleBoxFlat:
-		return
-	var window_style: StyleBoxFlat = window_style_value
-	var title_color: Color = source_flat.border_color
-	title_color.a = 1.0
-	window_style.bg_color = title_color
-	window_style.border_color = title_color
-	window_style.set_expand_margin(SIDE_LEFT, 2.0)
-	window_style.set_expand_margin(SIDE_TOP, 42.0)
-	window_style.set_expand_margin(SIDE_RIGHT, 2.0)
-	window_style.set_expand_margin(SIDE_BOTTOM, 2.0)
-	dialog.transparent = true
-	dialog.add_theme_stylebox_override("embedded_border", window_style)
-	dialog.add_theme_stylebox_override(
-		"embedded_unfocused_border",
-		window_style
-	)
-	var title_text_color: Color = content_style.bg_color
-	title_text_color.a = 1.0
-	dialog.add_theme_color_override("title_color", title_text_color)
-
-
-func _update_delete_dialog_text() -> void:
-	if is_instance_valid(_delete_confirmation_dialog):
-		_delete_confirmation_dialog.title = tr("DELETE_CONFIRM_TITLE")
-		_delete_confirmation_dialog.ok_button_text = tr("DELETE_CONFIRM_ACTION")
-		_delete_confirmation_dialog.cancel_button_text = tr("DELETE_CANCEL_ACTION")
-		if is_instance_valid(_pending_delete_resource):
-			_delete_confirmation_dialog.dialog_text = (
-				_get_delete_confirmation_message(_pending_delete_resource)
-			)
-	if is_instance_valid(_delete_error_dialog):
-		_delete_error_dialog.title = tr("DELETE_FAILED_TITLE")
-		_delete_error_dialog.ok_button_text = tr("DIALOG_ACKNOWLEDGE_ACTION")
-
 
 func _find_board_preview_node() -> BoardPreview:
 	var node_value: Node = find_child("BoardPreview", true, false)
@@ -764,6 +632,8 @@ func _handle_empty_list() -> void:
 
 func _clear_list_content() -> void:
 	_virtual_window_update_queued = false
+	_virtual_measurement_queued = false
+	_virtual_measurement_generation += 1
 	_virtual_data_list.clear()
 	_virtual_visible_range = Vector2i(-1, -1)
 	if is_instance_valid(_virtual_list_model):
@@ -777,7 +647,11 @@ func _clear_list_content() -> void:
 	for child: Node in items_container.get_children():
 		child.queue_free()
 
-	await get_tree().process_frame
+	var frame_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
+		"guard_node": self,
+	})
+	if not GFVariantData.get_option_bool(frame_wait, "completed", false):
+		return
 	_virtual_top_spacer = null
 	_virtual_bottom_spacer = null
 
@@ -817,6 +691,8 @@ func _populate_virtual_list(
 		_virtual_focus_model.auto_focus_on_count_change = true
 
 	_virtual_data_list = data_list.duplicate()
+	_virtual_measurement_queued = false
+	_virtual_measurement_generation += 1
 	_virtual_item_extent = _estimate_virtual_item_extent(template)
 	_virtual_list_model.clear()
 	_virtual_list_model.estimated_item_extent = _virtual_item_extent
@@ -843,7 +719,11 @@ func _populate_virtual_list(
 
 	_create_virtual_spacers()
 	_render_virtual_window(true, _virtual_focus_model.focused_index)
-	await get_tree().process_frame
+	var frame_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
+		"guard_node": self,
+	})
+	if not GFVariantData.get_option_bool(frame_wait, "completed", false):
+		return
 	_render_virtual_window(false, _virtual_focus_model.focused_index)
 	_grab_virtual_focus(_virtual_focus_model.focused_index)
 	if _virtual_focus_model.has_focus():
@@ -945,6 +825,16 @@ func _render_virtual_window(
 		if node is Control:
 			var item_control: Control = node
 			items.append(item_control)
+			var minimum_changed_callback: Callable = Callable(
+				self,
+				"_queue_virtual_measurement"
+			)
+			if not item_control.minimum_size_changed.is_connected(
+				minimum_changed_callback
+			):
+				var _minimum_changed_connect_result: int = item_control.minimum_size_changed.connect(
+					minimum_changed_callback
+				)
 	_apply_list_focus_order(items)
 	_apply_virtual_selection_visuals()
 	var motion_utility: GameUiMotionUtility = _get_game_ui_motion_utility()
@@ -959,6 +849,102 @@ func _render_virtual_window(
 		call_deferred(
 			&"_grab_virtual_focus",
 			focused_materialized_index
+		)
+	_queue_virtual_measurement()
+
+
+func _queue_virtual_measurement() -> void:
+	if (
+		not _uses_virtual_list()
+		or _virtual_data_list.is_empty()
+		or _virtual_measurement_queued
+	):
+		return
+	_virtual_measurement_queued = true
+	call_deferred(
+		&"_measure_virtual_window_after_layout",
+		_virtual_measurement_generation
+	)
+
+
+func _measure_virtual_window_after_layout(generation: int) -> void:
+	var frame_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
+		"guard_node": self,
+	})
+	if not GFVariantData.get_option_bool(frame_wait, "completed", false):
+		return
+	if generation != _virtual_measurement_generation:
+		return
+	_virtual_measurement_queued = false
+	if (
+		not is_inside_tree()
+		or not is_instance_valid(_virtual_list_model)
+		or _virtual_visible_range.x < 0
+	):
+		return
+
+	var metrics: Vector2 = _get_virtual_scroll_metrics()
+	var effective_scroll_offset: float = metrics.x
+	var scroll_adjustment: float = 0.0
+	var extent_changed: bool = false
+	var separation: float = maxf(
+		float(items_container.get_theme_constant("separation")),
+		0.0
+	)
+	for item_control: Control in _get_list_item_controls():
+		var item_index: int = _get_virtual_item_index(item_control)
+		if item_index < 0 or item_index >= _virtual_data_list.size():
+			continue
+		var measured_extent: float = maxf(
+			maxf(
+				item_control.size.y,
+				item_control.get_combined_minimum_size().y
+			),
+			item_control.custom_minimum_size.y
+		) + separation
+		var report: Dictionary = _virtual_list_model.set_item_extent(
+			item_index,
+			measured_extent,
+			true,
+			effective_scroll_offset
+		)
+		if not GFVariantData.get_option_bool(report, "changed", false):
+			continue
+		extent_changed = true
+		var item_adjustment: float = GFVariantData.get_option_float(
+			report,
+			"scroll_adjustment",
+			0.0
+		)
+		scroll_adjustment += item_adjustment
+		effective_scroll_offset += item_adjustment
+
+	if not extent_changed:
+		return
+	_apply_virtual_scroll_adjustment(scroll_adjustment)
+	_update_virtual_spacer_extents(_virtual_visible_range)
+	_render_virtual_window(
+		false,
+		GFVirtualListFocusModel.NO_FOCUS
+	)
+
+
+func _apply_virtual_scroll_adjustment(adjustment: float) -> void:
+	if absf(adjustment) < 0.001:
+		return
+	if (
+		_layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+		and is_instance_valid(_list_scroll)
+	):
+		_list_scroll.scroll_vertical = maxi(
+			roundi(float(_list_scroll.scroll_vertical) + adjustment),
+			0
+		)
+		return
+	if is_instance_valid(_page_scroll) and _page_scroll.visible:
+		_page_scroll.scroll_vertical = maxi(
+			roundi(float(_page_scroll.scroll_vertical) + adjustment),
+			0
 		)
 
 
@@ -1090,12 +1076,17 @@ func _refresh_virtual_window() -> void:
 	_virtual_window_update_queued = false
 	if not is_inside_tree():
 		return
-	_render_virtual_window()
+	_render_virtual_window(
+		false,
+		GFVirtualListFocusModel.NO_FOCUS
+	)
 
 
 func _reset_virtual_list_for_empty_state() -> void:
 	if not _uses_virtual_list():
 		return
+	_virtual_measurement_queued = false
+	_virtual_measurement_generation += 1
 	_virtual_data_list.clear()
 	_virtual_visible_range = Vector2i(-1, -1)
 	if is_instance_valid(_virtual_list_model):
@@ -1401,59 +1392,63 @@ func _clear_preview(show_selection_hint: bool = true) -> void:
 	_update_action_buttons()
 
 
-func _show_delete_error(error: Error) -> void:
-	if not is_instance_valid(_delete_error_dialog):
-		return
-	_configure_delete_dialog_presentation()
-	_delete_error_dialog.dialog_text = _get_delete_failure_message(error)
-	_delete_error_dialog.popup_centered_clamped(Vector2i(520, 220), 0.9)
-	var ok_button: Button = _delete_error_dialog.get_ok_button()
-	if is_instance_valid(ok_button):
-		ok_button.grab_focus()
+func _show_delete_error(error: Error) -> GFModalResult:
+	return await _show_delete_message(_get_delete_failure_message(error))
 
 
-func _show_delete_outcome_unknown(result: GameSaveSectionResult) -> void:
-	if result == null or not is_instance_valid(_delete_error_dialog):
-		return
-	_configure_delete_dialog_presentation()
-	_delete_error_dialog.dialog_text = "%s\n%s" % [
+func _show_delete_outcome_unknown(
+	result: GameSaveSectionResult
+) -> GFModalResult:
+	if result == null:
+		return null
+	return await _show_delete_message("%s\n%s" % [
 		_get_delete_failure_message(result.get_error_code()),
 		tr("LIST_DELETE_PERSISTENCE_OUTCOME_UNKNOWN"),
-	]
-	_delete_error_dialog.popup_centered_clamped(Vector2i(560, 240), 0.9)
-	var ok_button: Button = _delete_error_dialog.get_ok_button()
-	if is_instance_valid(ok_button):
-		ok_button.grab_focus()
+	])
 
 
 func _show_delete_reconciliation_result(
 	status: StringName,
 	candidate_persisted: bool,
 	memory_rolled_back: bool
-) -> void:
+) -> GFModalResult:
 	if (
 		_delete_reconciliation_prompted
-		or not is_instance_valid(_delete_error_dialog)
 	):
-		return
+		return null
 	_delete_reconciliation_prompted = true
-	_configure_delete_dialog_presentation()
+	var message: String = ""
 	if candidate_persisted and status == &"late_success":
-		_delete_error_dialog.dialog_text = tr(
+		message = tr(
 			"LIST_DELETE_RECONCILIATION_SUCCEEDED"
 		)
 	elif memory_rolled_back:
-		_delete_error_dialog.dialog_text = tr(
+		message = tr(
 			"LIST_DELETE_RECONCILIATION_ROLLED_BACK"
 		)
 	else:
-		_delete_error_dialog.dialog_text = tr(
+		message = tr(
 			"LIST_DELETE_RECONCILIATION_UNRESOLVED"
 		)
-	_delete_error_dialog.popup_centered_clamped(Vector2i(560, 240), 0.9)
-	var ok_button: Button = _delete_error_dialog.get_ok_button()
-	if is_instance_valid(ok_button):
-		ok_button.grab_focus()
+	return await _show_delete_message(message)
+
+
+func _show_delete_message(message: String) -> GFModalResult:
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
+	if not is_instance_valid(ui_router) or not is_inside_tree():
+		return null
+	var config: GFModalConfig = (
+		GameUiRouterUtility.make_acknowledgement_modal_config(
+			tr("DELETE_FAILED_TITLE"),
+			message,
+			tr("DIALOG_ACKNOWLEDGE_ACTION")
+		)
+	)
+	return await ui_router.show_modal_async(
+		self,
+		config,
+		{&"source": &"base_list_delete"}
+	)
 
 
 func _await_delete_operation(
@@ -1548,11 +1543,13 @@ func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
 			_set_selected_item(restored_resource)
 	_delete_operation_busy = false
 	_update_action_buttons()
-	_show_delete_reconciliation_result(
+	var _modal_result: GFModalResult = await _show_delete_reconciliation_result(
 		status,
 		candidate_persisted,
 		memory_rolled_back
 	)
+	if not _is_current_delete_operation(operation_token):
+		return
 
 
 func _on_virtual_item_gui_input(
@@ -1603,17 +1600,30 @@ func _on_delete_button_pressed() -> void:
 		return
 	if not is_instance_valid(_selected_resource):
 		return
-	if not is_instance_valid(_delete_confirmation_dialog):
+	if is_instance_valid(_pending_delete_resource):
 		return
 	_pending_delete_resource = _selected_resource
-	_delete_confirmation_dialog.dialog_text = _get_delete_confirmation_message(
-		_pending_delete_resource
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
+	if not is_instance_valid(ui_router) or not is_inside_tree():
+		_on_delete_canceled()
+		return
+	var config: GFModalConfig = GameUiRouterUtility.make_confirmation_modal_config(
+		tr("DELETE_CONFIRM_TITLE"),
+		_get_delete_confirmation_message(_pending_delete_resource),
+		tr("DELETE_CONFIRM_ACTION"),
+		tr("DELETE_CANCEL_ACTION")
 	)
-	_configure_delete_dialog_presentation()
-	_delete_confirmation_dialog.popup_centered_clamped(Vector2i(520, 220), 0.9)
-	var cancel_button: Button = _delete_confirmation_dialog.get_cancel_button()
-	if is_instance_valid(cancel_button):
-		cancel_button.grab_focus()
+	var result: GFModalResult = await ui_router.show_modal_async(
+		self,
+		config,
+		{&"source": &"base_list_delete"}
+	)
+	if not is_inside_tree():
+		return
+	if result != null and result.status == GFModalResult.STATUS_CONFIRMED:
+		await _on_delete_confirmed()
+	else:
+		_on_delete_canceled()
 
 
 func _on_delete_confirmed() -> void:
@@ -1640,7 +1650,11 @@ func _on_delete_confirmed() -> void:
 	_delete_operation_busy = false
 	if result == null:
 		_update_action_buttons()
-		_show_delete_error(ERR_UNAVAILABLE)
+		var _modal_result: GFModalResult = await _show_delete_error(
+			ERR_UNAVAILABLE
+		)
+		if not _is_current_delete_operation(operation_token):
+			return
 		return
 	if _is_delete_outcome_unknown(result):
 		_delete_outcome_unknown = true
@@ -1661,14 +1675,20 @@ func _on_delete_confirmed() -> void:
 		):
 			await _on_section_reconciliation_settled(last_evidence)
 		else:
-			_show_delete_outcome_unknown(result)
+			var _modal_result: GFModalResult = (
+				await _show_delete_outcome_unknown(result)
+			)
+			if not _is_current_delete_operation(operation_token):
+				return
 		return
 	if not result.is_successful():
 		_pending_delete_resource_identity = ""
 		var delete_error: Error = result.get_error_code()
 		push_error("[BaseListMenu] 删除操作失败，错误码：%d。" % int(delete_error))
 		_update_action_buttons()
-		_show_delete_error(delete_error)
+		var _modal_result: GFModalResult = await _show_delete_error(delete_error)
+		if not _is_current_delete_operation(operation_token):
+			return
 		return
 	_selected_resource = null
 	_pending_delete_resource_identity = ""

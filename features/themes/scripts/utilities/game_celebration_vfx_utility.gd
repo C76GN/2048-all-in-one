@@ -19,6 +19,7 @@ const _CLEANUP_QUEUED_META: StringName = &"celebration_cleanup_queued"
 var _asset_library: GameAssetLibraryUtility = null
 var _shader_parameters: GFShaderParameterUtility = null
 var _accessibility: GameAccessibilityUtility = null
+var _timer_utility: GFTimerUtility = null
 var _theme: GameCelebrationVfxTheme = null
 var _layer: CanvasLayer = null
 
@@ -30,6 +31,7 @@ func get_required_utilities() -> Array[Script]:
 		GameAssetLibraryUtility,
 		GFShaderParameterUtility,
 		GameAccessibilityUtility,
+		GFTimerUtility,
 	]
 
 
@@ -37,10 +39,13 @@ func ready() -> void:
 	_asset_library = _get_asset_library_utility()
 	_shader_parameters = _get_shader_parameter_utility()
 	_accessibility = _get_accessibility_utility()
+	_timer_utility = _get_timer_utility()
 	if not is_instance_valid(_asset_library):
 		push_error("[GameCelebrationVfxUtility] 缺少 GameAssetLibraryUtility。")
 	if not is_instance_valid(_shader_parameters):
 		push_error("[GameCelebrationVfxUtility] 缺少 GFShaderParameterUtility。")
+	if not is_instance_valid(_timer_utility):
+		push_error("[GameCelebrationVfxUtility] 缺少 GFTimerUtility。")
 
 
 func dispose() -> void:
@@ -50,6 +55,7 @@ func dispose() -> void:
 	_asset_library = null
 	_shader_parameters = null
 	_accessibility = null
+	_timer_utility = null
 	_theme = null
 
 
@@ -57,6 +63,7 @@ func release_dependencies() -> void:
 	_asset_library = null
 	_shader_parameters = null
 	_accessibility = null
+	_timer_utility = null
 	super.release_dependencies()
 
 
@@ -217,18 +224,12 @@ func _queue_emitter_drain(
 	emitter: GameCelebrationConfettiEmitter,
 	delay_seconds: float
 ) -> void:
-	var tree: SceneTree = _get_scene_tree()
-	if not is_instance_valid(tree) or not is_instance_valid(emitter):
+	if not is_instance_valid(emitter) or not is_instance_valid(_timer_utility):
 		return
-	var timer: SceneTreeTimer = tree.create_timer(
+	var _timer_handle: int = _timer_utility.execute_after_owned(
+		emitter,
 		maxf(delay_seconds, 0.0),
-		false,
-		false,
-		false
-	)
-	var _connection: int = timer.timeout.connect(
-		_on_emitter_drain_timeout.bind(emitter),
-		Object.CONNECT_ONE_SHOT
+		_on_emitter_drain_timeout.bind(emitter)
 	)
 
 
@@ -251,35 +252,23 @@ func _queue_emitter_cleanup(emitter: GameCelebrationConfettiEmitter) -> void:
 	):
 		return
 	emitter.set_meta(_CLEANUP_QUEUED_META, true)
-	var tree: SceneTree = _get_scene_tree()
-	if not is_instance_valid(tree):
+	if not is_instance_valid(_timer_utility):
 		emitter.queue_free()
 		return
-	var timer: SceneTreeTimer = tree.create_timer(
+	var _timer_handle: int = _timer_utility.execute_after_owned(
+		emitter,
 		emitter.get_drain_seconds(),
-		false,
-		false,
-		false
-	)
-	var _connection: int = timer.timeout.connect(
-		_queue_free_if_valid.bind(emitter),
-		Object.CONNECT_ONE_SHOT
+		_queue_free_if_valid.bind(emitter)
 	)
 
 
 func _queue_static_cleanup(rect: ColorRect, delay_seconds: float) -> void:
-	var tree: SceneTree = _get_scene_tree()
-	if not is_instance_valid(tree) or not is_instance_valid(rect):
+	if not is_instance_valid(rect) or not is_instance_valid(_timer_utility):
 		return
-	var timer: SceneTreeTimer = tree.create_timer(
+	var _timer_handle: int = _timer_utility.execute_after_owned(
+		rect,
 		maxf(delay_seconds, 0.0),
-		false,
-		false,
-		false
-	)
-	var _connection: int = timer.timeout.connect(
-		_queue_free_if_valid.bind(rect),
-		Object.CONNECT_ONE_SHOT
+		_queue_free_if_valid.bind(rect)
 	)
 
 
@@ -347,6 +336,14 @@ func _get_accessibility_utility() -> GameAccessibilityUtility:
 	if utility_value is GameAccessibilityUtility:
 		var utility: GameAccessibilityUtility = utility_value
 		return utility
+	return null
+
+
+func _get_timer_utility() -> GFTimerUtility:
+	var utility_value: Object = get_utility(GFTimerUtility)
+	if utility_value is GFTimerUtility:
+		var timer_utility: GFTimerUtility = utility_value
+		return timer_utility
 	return null
 
 

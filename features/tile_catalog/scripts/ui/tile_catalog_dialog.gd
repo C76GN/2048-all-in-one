@@ -73,14 +73,6 @@ func _exit_tree() -> void:
 		_signal_utility.disconnect_owner(self)
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		var viewport: Viewport = get_viewport()
-		if is_instance_valid(viewport):
-			viewport.set_input_as_handled()
-		_close_dialog()
-
-
 # --- 虚方法 ---
 
 func _update_ui_text() -> void:

@@ -4,11 +4,12 @@
 
 [resource]
 script = ExtResource("1_route")
-route_id = &"tile_catalog"
-scene_path = "res://features/tile_catalog/scenes/ui/tile_catalog_dialog.tscn"
+route_id = &"modal_dialog"
+scene_path = "res://features/navigation/scenes/ui/game_modal_route_panel.tscn"
 default_options = {
 "dismiss_on_cancel": true,
 "focus_on_open": true,
 "hide_under": false,
-"modal": true
+"modal": true,
+"restore_focus_on_close": true
 }

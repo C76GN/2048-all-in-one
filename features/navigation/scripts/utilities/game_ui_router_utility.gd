@@ -18,6 +18,11 @@ const ROUTE_TILE_LAB: StringName = &"tile_lab"
 const ROUTE_ACHIEVEMENTS: StringName = &"achievements"
 const ROUTE_BOARD_EDITOR: StringName = &"board_editor"
 const ROUTE_PLAYER_PROFILE: StringName = &"player_profile"
+const ROUTE_MODAL_DIALOG: StringName = &"modal_dialog"
+
+const MODAL_ACTION_CONFIRM: StringName = &"confirm"
+const MODAL_ACTION_CANCEL: StringName = &"cancel"
+const MODAL_ACTION_ACKNOWLEDGE: StringName = &"acknowledge"
 
 const _CATALOG_ID: StringName = &"ui_routes"
 const _UI_ROUTE_GROUP_ID: StringName = &"ui_routes"
@@ -99,6 +104,76 @@ func get_debug_snapshot() -> Dictionary:
 	return snapshot
 
 
+## 构造项目统一的危险操作确认配置。业务层仍提供完整文案；此处只收口
+## 动作 ID、结果状态、默认安全焦点和主题角色。
+## @param title: 弹层标题。
+## @param message: 确认操作说明。
+## @param confirm_label: 危险确认动作文本。
+## @param cancel_label: 安全取消动作文本。
+## @return 可直接交给 show_modal_async() 的 GF 配置。
+static func make_confirmation_modal_config(
+	title: String,
+	message: String,
+	confirm_label: String,
+	cancel_label: String
+) -> GFModalConfig:
+	var cancel_action: GFModalAction = GFModalAction.new()
+	cancel_action.action_id = MODAL_ACTION_CANCEL
+	cancel_action.label = cancel_label
+	cancel_action.result_status = GFModalResult.STATUS_CANCELLED
+	cancel_action.grab_focus = true
+	cancel_action.metadata = {&"role": GameModalRoutePanel.ACTION_ROLE_PRIMARY}
+
+	var confirm_action: GFModalAction = GFModalAction.new()
+	confirm_action.action_id = MODAL_ACTION_CONFIRM
+	confirm_action.label = confirm_label
+	confirm_action.result_status = GFModalResult.STATUS_CONFIRMED
+	confirm_action.metadata = {
+		&"role": GameModalRoutePanel.ACTION_ROLE_SECONDARY,
+		&"intent": &"danger",
+	}
+
+	var config: GFModalConfig = GFModalConfig.new()
+	config.title = title
+	config.message = message
+	var actions: Array[GFModalAction] = [cancel_action, confirm_action]
+	config.actions = actions
+	config.dismiss_on_backdrop = false
+	config.dismiss_on_cancel = true
+	config.auto_focus = true
+	config.restore_focus_on_close = true
+	return config
+
+
+## 构造项目统一的单动作信息提示配置。
+## @param title: 弹层标题。
+## @param message: 提示正文。
+## @param action_label: 唯一确认动作文本。
+## @return 可直接交给 show_modal_async() 的 GF 配置。
+static func make_acknowledgement_modal_config(
+	title: String,
+	message: String,
+	action_label: String
+) -> GFModalConfig:
+	var acknowledge_action: GFModalAction = GFModalAction.new()
+	acknowledge_action.action_id = MODAL_ACTION_ACKNOWLEDGE
+	acknowledge_action.label = action_label
+	acknowledge_action.result_status = GFModalResult.STATUS_DISMISSED
+	acknowledge_action.grab_focus = true
+	acknowledge_action.metadata = {&"role": GameModalRoutePanel.ACTION_ROLE_PRIMARY}
+
+	var config: GFModalConfig = GFModalConfig.new()
+	config.title = title
+	config.message = message
+	var actions: Array[GFModalAction] = [acknowledge_action]
+	config.actions = actions
+	config.dismiss_on_backdrop = false
+	config.dismiss_on_cancel = true
+	config.auto_focus = true
+	config.restore_focus_on_close = true
+	return config
+
+
 ## 以项目统一策略异步打开路由，并把调用方生命周期交给 GF 管理。
 ##
 ## GFUIRouterUtility 负责提交前的 owner/scope 取消、预加载、并发去重与唯一终态；
@@ -156,6 +231,97 @@ func push_owned_route_async(
 	return result
 
 
+## 使用项目主题化路由呈现 GF modal，并返回唯一的 GFModalResult 终态。
+##
+## 调用方负责配置业务文案、动作语义和危险操作；Router 负责面板栈、焦点、
+## ui_cancel 与 owner 生命周期。路由打开失败也会收口成 dismissed/cancelled 结果，
+## 调用方无需再猜测日志或原生 Window 状态。
+## @param owner: 拥有本次 modal 的场景节点。
+## @param config: GF 通用 modal 配置。
+## @param context: 原样复制到终态的业务上下文。
+## @param scope: 可选的协作取消作用域。
+## @return 原面板离场并完成 GF Router 历史清理后的唯一终态。
+func show_modal_async(
+	owner: Node,
+	config: GFModalConfig,
+	context: Dictionary = {},
+	scope: GFAsyncScope = null
+) -> GFModalResult:
+	if not _is_live_route_owner(owner):
+		return GFModalResult.create(
+			GFModalResult.STATUS_CANCELLED,
+			&"owner_unavailable",
+			null,
+			{&"reason": &"invalid_owner"},
+			context
+		)
+	if config == null:
+		return GFModalResult.create(
+			GFModalResult.STATUS_DISMISSED,
+			&"invalid_config",
+			null,
+			{&"reason": &"invalid_config"},
+			context
+		)
+	var unsupported_action_id: StringName = (
+		_find_unsupported_non_closing_action_id(config)
+	)
+	if unsupported_action_id != &"":
+		return GFModalResult.create(
+			GFModalResult.STATUS_DISMISSED,
+			unsupported_action_id,
+			null,
+			{
+				&"reason": &"unsupported_non_closing_action",
+				&"action_id": unsupported_action_id,
+			},
+			context
+		)
+	if not _modal_config_has_terminal_path(config):
+		return GFModalResult.create(
+			GFModalResult.STATUS_DISMISSED,
+			&"invalid_config",
+			null,
+			{&"reason": &"no_terminal_action"},
+			context
+		)
+
+	var modal_config: GFModalConfig = config.duplicate_config()
+	var route_result: GFUIRouteResult = await push_owned_route_async(
+		owner,
+		ROUTE_MODAL_DIALOG,
+		{},
+		{
+			"dismiss_on_cancel": modal_config.dismiss_on_cancel,
+			"focus_on_open": modal_config.auto_focus,
+			"modal": true,
+			"restore_focus_on_close": modal_config.restore_focus_on_close,
+		},
+		Callable(self, "_configure_modal_panel").bind(
+			modal_config,
+			context.duplicate(true),
+			owner
+		),
+		GFUIRouterUtility.PRELOAD_BEST_EFFORT,
+		scope
+	)
+	if route_result == null or not route_result.is_successful():
+		return _make_modal_route_failure_result(route_result, context)
+
+	var panel_node: Node = route_result.get_panel()
+	if not panel_node is GameModalRoutePanel:
+		return _make_modal_route_failure_result(route_result, context, &"invalid_panel")
+	var panel: GameModalRoutePanel = panel_node
+	var result: GFModalResult = panel.get_result()
+	if result == null:
+		result = await panel.result_resolved
+	return result if result != null else _make_modal_route_failure_result(
+		route_result,
+		context,
+		&"missing_result"
+	)
+
+
 # --- 私有/辅助方法 ---
 
 func _load_routes_from_registry() -> Array[GFUIRoute]:
@@ -170,6 +336,65 @@ func _load_routes_from_registry() -> Array[GFUIRoute]:
 		if is_instance_valid(route):
 			routes.append(route)
 	return routes
+
+
+func _configure_modal_panel(
+	panel_node: Node,
+	config: GFModalConfig,
+	context: Dictionary,
+	owner: Node
+) -> void:
+	if panel_node is GameModalRoutePanel:
+		var panel: GameModalRoutePanel = panel_node
+		panel.configure(config, context, owner)
+
+
+func _make_modal_route_failure_result(
+	route_result: GFUIRouteResult,
+	context: Dictionary,
+	reason: StringName = &"route_failed"
+) -> GFModalResult:
+	var metadata: Dictionary = {&"reason": reason}
+	if route_result != null:
+		metadata[&"route_status"] = route_result.get_status()
+		metadata[&"route_reason"] = route_result.get_reason()
+	return GFModalResult.create(
+		GFModalResult.STATUS_DISMISSED,
+		&"",
+		null,
+		metadata,
+		context
+	)
+
+
+func _find_unsupported_non_closing_action_id(
+	config: GFModalConfig
+) -> StringName:
+	if config == null:
+		return &""
+	for action: GFModalAction in config.get_actions():
+		if action != null and not action.close_on_pressed:
+			return action.action_id
+	return &""
+
+
+func _modal_config_has_terminal_path(config: GFModalConfig) -> bool:
+	if config == null:
+		return false
+	if config.dismiss_on_cancel or config.dismiss_on_backdrop:
+		return true
+	for action: GFModalAction in config.get_actions():
+		if (
+			action != null
+			and action.close_on_pressed
+			and not GFVariantData.get_option_bool(
+				action.metadata,
+				&"disabled",
+				false
+			)
+		):
+			return true
+	return false
 
 
 func _is_live_route_owner(owner: Node) -> bool:

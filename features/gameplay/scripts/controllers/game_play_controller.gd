@@ -353,18 +353,25 @@ func _refresh_replay_marker_picker() -> void:
 	if not is_instance_valid(replay_marker_picker):
 		return
 	_is_syncing_marker_picker = true
-	replay_marker_picker.clear()
-	for marker: ReplayMarker in _replay_markers:
+	var marker_items: Array[Dictionary] = []
+	for marker_index: int in range(_replay_markers.size()):
+		var marker: ReplayMarker = _replay_markers[marker_index]
 		if not is_instance_valid(marker):
 			continue
-		replay_marker_picker.add_item(_format_replay_marker(marker))
-		replay_marker_picker.set_item_metadata(
-			replay_marker_picker.item_count - 1,
-			marker.marker_id
-		)
-	if replay_marker_picker.item_count == 0:
-		replay_marker_picker.add_item(tr("REPLAY_NO_MARKERS"))
-		replay_marker_picker.set_item_disabled(0, true)
+		marker_items.append({
+			&"text": _format_replay_marker(marker),
+			&"metadata": marker_index,
+		})
+	if marker_items.is_empty():
+		marker_items.append({
+			&"text": tr("REPLAY_NO_MARKERS"),
+			&"disabled": true,
+		})
+	var _marker_count: int = GFItemListBinder.write_items(
+		replay_marker_picker,
+		marker_items,
+		{&"metadata_key": &"metadata"}
+	)
 	replay_marker_picker.select(-1)
 	_is_syncing_marker_picker = false
 
@@ -413,20 +420,41 @@ func _sync_marker_picker_to_step(current_step: int) -> void:
 	):
 		return
 	var selected_index: int = replay_marker_picker.selected
-	if selected_index >= 0 and selected_index < _replay_markers.size():
-		var selected_marker: ReplayMarker = _replay_markers[selected_index]
+	var selected_marker_index: int = _get_replay_marker_index_from_picker_item(
+		selected_index
+	)
+	if selected_marker_index >= 0:
+		var selected_marker: ReplayMarker = _replay_markers[selected_marker_index]
 		if is_instance_valid(selected_marker) and selected_marker.step_index == current_step:
 			return
-	for index: int in range(_replay_markers.size()):
-		var marker: ReplayMarker = _replay_markers[index]
+	for picker_index: int in range(replay_marker_picker.item_count):
+		var marker_index: int = _get_replay_marker_index_from_picker_item(
+			picker_index
+		)
+		if marker_index < 0:
+			continue
+		var marker: ReplayMarker = _replay_markers[marker_index]
 		if is_instance_valid(marker) and marker.step_index == current_step:
 			_is_syncing_marker_picker = true
-			replay_marker_picker.select(index)
+			replay_marker_picker.select(picker_index)
 			_is_syncing_marker_picker = false
 			return
 	_is_syncing_marker_picker = true
 	replay_marker_picker.select(-1)
 	_is_syncing_marker_picker = false
+
+
+func _get_replay_marker_index_from_picker_item(item_index: int) -> int:
+	var marker_index: Variant = GFItemListBinder.get_item_metadata(
+		replay_marker_picker,
+		item_index,
+		-1
+	)
+	if marker_index is int:
+		var typed_index: int = marker_index
+		if typed_index >= 0 and typed_index < _replay_markers.size():
+			return typed_index
+	return -1
 
 
 func _update_replay_eligibility_note() -> void:
@@ -852,9 +880,12 @@ func _on_replay_next_marker_pressed() -> void:
 func _on_replay_marker_selected(marker_index: int) -> void:
 	if _is_syncing_marker_picker or not is_instance_valid(_replay_system):
 		return
-	if marker_index < 0 or marker_index >= _replay_markers.size():
+	var replay_marker_index: int = _get_replay_marker_index_from_picker_item(
+		marker_index
+	)
+	if replay_marker_index < 0:
 		return
-	if not _replay_system.jump_to_marker(marker_index):
+	if not _replay_system.jump_to_marker(replay_marker_index):
 		_sync_marker_picker_to_step(_replay_system.get_current_step())
 
 

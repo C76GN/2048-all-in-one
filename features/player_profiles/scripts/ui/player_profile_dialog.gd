@@ -7,7 +7,6 @@ extends GameUiController
 
 ## 720px 竖屏不能再挤压横向标题栏；在常见紧凑平板宽度前改为纵向分区。
 const _COMPACT_BREAKPOINT: float = 800.0
-const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
 
 
 # --- 私有变量 ---
@@ -18,7 +17,6 @@ var _mode_catalog: GameModeCatalogUtility = null
 var _signal_utility: GFSignalUtility = null
 var _viewport_utility: GFViewportUtility = null
 var _mode_names: Dictionary = {}
-var _leaderboard_identities: Array[Dictionary] = []
 var _layout_update_queued: bool = false
 var _has_revealed_profile_list: bool = false
 var _has_revealed_leaderboard_list: bool = false
@@ -55,7 +53,6 @@ var _leaderboard_rows_by_account_id: Dictionary = {}
 @onready var _leaderboard_group_option: OptionButton = %LeaderboardGroupOption
 @onready var _leaderboard_list: VBoxContainer = %LeaderboardList
 @onready var _leaderboard_empty_label: Label = %LeaderboardEmptyLabel
-@onready var _delete_confirmation: ConfirmationDialog = %DeleteConfirmation
 
 
 # --- Godot 生命周期方法 ---
@@ -63,20 +60,11 @@ var _leaderboard_rows_by_account_id: Dictionary = {}
 func _ready() -> void:
 	_resolve_dependencies()
 	_bind_signals()
-	_configure_confirmation_touch_targets()
 	_apply_semantic_styles()
 	_update_static_text()
 	_rebuild_all()
 	_queue_layout_update()
 	call_deferred(&"_focus_initial_control")
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		var viewport: Viewport = get_viewport()
-		if is_instance_valid(viewport):
-			viewport.set_input_as_handled()
-		_close_dialog()
 
 
 func _exit_tree() -> void:
@@ -143,11 +131,6 @@ func _bind_signals() -> void:
 	var _delete_connection: GFSignalConnection = _signal_utility.connect_signal(
 		_delete_button.pressed,
 		_on_delete_pressed,
-		self
-	)
-	var _delete_confirmed_connection: GFSignalConnection = _signal_utility.connect_signal(
-		_delete_confirmation.confirmed,
-		_on_delete_confirmed,
 		self
 	)
 	var _group_connection: GFSignalConnection = _signal_utility.connect_signal(
@@ -230,9 +213,6 @@ func _update_static_text() -> void:
 	_delete_button.text = tr("PLAYER_DELETE")
 	_profile_tab.name = tr("PLAYER_PROFILE_TAB")
 	_leaderboard_tab.name = tr("LOCAL_LEADERBOARD_TAB")
-	_delete_confirmation.title = tr("PLAYER_DELETE_CONFIRM_TITLE")
-	_delete_confirmation.ok_button_text = tr("PLAYER_DELETE")
-	_delete_confirmation.cancel_button_text = tr("DELETE_CANCEL_ACTION")
 
 
 func _rebuild_all() -> void:
@@ -241,20 +221,31 @@ func _rebuild_all() -> void:
 
 
 func _rebuild_account_selector() -> void:
-	_account_option.clear()
 	if not is_instance_valid(_account_system):
+		var _cleared_count: int = GFItemListBinder.write_items(
+			_account_option,
+			[]
+		)
 		_set_status(tr("PLAYER_PROFILE_UNAVAILABLE"), true)
 		return
 	var accounts: Array[LocalPlayerAccount] = _account_system.get_accounts()
 	var active: LocalPlayerAccount = _account_system.get_active_account()
-	var selected_index: int = 0
-	for index: int in range(accounts.size()):
-		var account: LocalPlayerAccount = accounts[index]
-		_account_option.add_item(account.display_name)
-		_account_option.set_item_metadata(index, account.account_id)
-		if active != null and active.account_id == account.account_id:
-			selected_index = index
-	_account_option.select(selected_index)
+	var account_items: Array[Dictionary] = []
+	for account: LocalPlayerAccount in accounts:
+		account_items.append({
+			&"text": account.display_name,
+			&"metadata": account.account_id,
+			&"selected": (
+				active != null and active.account_id == account.account_id
+			),
+		})
+	var _account_count: int = GFItemListBinder.write_items(
+		_account_option,
+		account_items,
+		{&"metadata_key": &"metadata"}
+	)
+	if _account_option.selected < 0 and _account_option.item_count > 0:
+		_account_option.select(0)
 	_account_option.disabled = accounts.size() <= 1
 	_delete_button.disabled = accounts.size() <= 1
 	if active != null:
@@ -452,16 +443,15 @@ func _style_mode_summary_row(
 
 func _rebuild_leaderboard_groups() -> void:
 	var selected_key: String = ""
-	if (
-		not _leaderboard_identities.is_empty()
-		and _leaderboard_group_option.selected >= 0
-		and _leaderboard_group_option.selected < _leaderboard_identities.size()
-	):
+	var previous_identity: Variant = GFItemListBinder.get_item_metadata(
+		_leaderboard_group_option,
+		_leaderboard_group_option.selected,
+		{}
+	)
+	if previous_identity is Dictionary:
 		selected_key = GameResultRecordedData.calculate_leaderboard_group_key(
-			_leaderboard_identities[_leaderboard_group_option.selected]
+			GFVariantData.as_dictionary(previous_identity)
 		)
-	_leaderboard_group_option.clear()
-	_leaderboard_identities.clear()
 	if (
 		not is_instance_valid(_progress_system)
 		or _progress_snapshot.is_empty()
@@ -472,22 +462,33 @@ func _rebuild_leaderboard_groups() -> void:
 	):
 		_set_empty_leaderboard_group_option()
 		return
-	_leaderboard_identities = (
+	var identities: Array[Dictionary] = (
 		_progress_system.get_device_leaderboard_identities(
 			_progress_snapshot
 		)
 	)
-	var selected_index: int = 0
-	for index: int in range(_leaderboard_identities.size()):
-		var identity: Dictionary = _leaderboard_identities[index]
-		_leaderboard_group_option.add_item(_make_group_label(identity))
-		if (
+	var group_items: Array[Dictionary] = []
+	for identity: Dictionary in identities:
+		var identity_key: String = (
 			GameResultRecordedData.calculate_leaderboard_group_key(identity)
-			== selected_key
-		):
-			selected_index = index
-	if not _leaderboard_identities.is_empty():
-		_leaderboard_group_option.select(selected_index)
+		)
+		var is_selected: bool = (
+			(identity_key == selected_key)
+			or (selected_key.is_empty() and group_items.is_empty())
+		)
+		group_items.append({
+			&"text": _make_group_label(identity),
+			&"metadata": identity,
+			&"selected": is_selected,
+		})
+	var _group_count: int = GFItemListBinder.write_items(
+		_leaderboard_group_option,
+		group_items,
+		{&"metadata_key": &"metadata"}
+	)
+	if not identities.is_empty():
+		if _leaderboard_group_option.selected < 0:
+			_leaderboard_group_option.select(0)
 		_leaderboard_group_option.disabled = false
 	else:
 		_set_empty_leaderboard_group_option()
@@ -496,7 +497,6 @@ func _rebuild_leaderboard_groups() -> void:
 func _rebuild_leaderboard() -> void:
 	if (
 		not is_instance_valid(_progress_system)
-		or _leaderboard_identities.is_empty()
 		or not _snapshot_matches_account_id(
 			_progress_snapshot,
 			_get_active_account_id()
@@ -507,14 +507,21 @@ func _rebuild_leaderboard() -> void:
 		_leaderboard_empty_label.text = tr("LOCAL_LEADERBOARD_EMPTY")
 		_leaderboard_list.visible = false
 		return
-	var selected_index: int = clampi(
+	var identity_value: Variant = GFItemListBinder.get_item_metadata(
+		_leaderboard_group_option,
 		_leaderboard_group_option.selected,
-		0,
-		_leaderboard_identities.size() - 1
+		null
 	)
+	if not identity_value is Dictionary:
+		_clear_leaderboard_rows()
+		_leaderboard_empty_label.visible = true
+		_leaderboard_empty_label.text = tr("LOCAL_LEADERBOARD_EMPTY")
+		_leaderboard_list.visible = false
+		return
+	var selected_identity: Dictionary = GFVariantData.as_dictionary(identity_value)
 	var rows: Array[Dictionary] = _progress_system.get_device_local_leaderboard(
 		_progress_snapshot,
-		_leaderboard_identities[selected_index]
+		selected_identity
 	)
 	var created_rows: Array[Control] = _sync_leaderboard_rows(rows)
 	_leaderboard_empty_label.visible = rows.is_empty()
@@ -528,8 +535,15 @@ func _rebuild_leaderboard() -> void:
 
 
 func _set_empty_leaderboard_group_option() -> void:
-	_leaderboard_group_option.clear()
-	_leaderboard_group_option.add_item(tr("LOCAL_LEADERBOARD_ALL_MODES"))
+	var empty_items: Array[Dictionary] = [{
+		&"text": tr("LOCAL_LEADERBOARD_ALL_MODES"),
+		&"disabled": true,
+		&"selected": true,
+	}]
+	var _empty_count: int = GFItemListBinder.write_items(
+		_leaderboard_group_option,
+		empty_items
+	)
 	_leaderboard_group_option.select(0)
 	_leaderboard_group_option.disabled = true
 
@@ -897,8 +911,15 @@ func _set_progress_loading_state(generation: int) -> void:
 	_leaderboard_empty_label.text = tr("LOCAL_LEADERBOARD_LOADING")
 	_leaderboard_empty_label.visible = true
 	_leaderboard_list.visible = false
-	_leaderboard_group_option.clear()
-	_leaderboard_group_option.add_item(tr("LOCAL_LEADERBOARD_LOADING"))
+	var loading_items: Array[Dictionary] = [{
+		&"text": tr("LOCAL_LEADERBOARD_LOADING"),
+		&"disabled": true,
+		&"selected": true,
+	}]
+	var _loading_count: int = GFItemListBinder.write_items(
+		_leaderboard_group_option,
+		loading_items
+	)
 	_leaderboard_group_option.select(0)
 	_leaderboard_group_option.disabled = true
 	if (
@@ -919,8 +940,10 @@ func _prepare_progress_snapshot_pending() -> void:
 	_mode_list.visible = false
 	_leaderboard_empty_label.visible = false
 	_leaderboard_list.visible = false
-	_leaderboard_identities.clear()
-	_leaderboard_group_option.clear()
+	var _cleared_group_count: int = GFItemListBinder.write_items(
+		_leaderboard_group_option,
+		[]
+	)
 	_leaderboard_group_option.disabled = true
 
 
@@ -1014,21 +1037,6 @@ func _animate_new_rows(
 		)
 
 
-func _configure_confirmation_touch_targets() -> void:
-	var ok_button: Button = _delete_confirmation.get_ok_button()
-	var cancel_button: Button = _delete_confirmation.get_cancel_button()
-	if is_instance_valid(ok_button):
-		ok_button.custom_minimum_size = Vector2(
-			112.0,
-			_MINIMUM_TOUCH_TARGET_SIZE
-		)
-	if is_instance_valid(cancel_button):
-		cancel_button.custom_minimum_size = Vector2(
-			112.0,
-			_MINIMUM_TOUCH_TARGET_SIZE
-		)
-
-
 func _set_status(message: String, is_error: bool = false) -> void:
 	_progress_snapshot_status_generation = -1
 	var motion: GameUiMotionUtility = _get_ui_motion_utility()
@@ -1096,8 +1104,10 @@ func _apply_responsive_layout() -> void:
 func _selected_account_id() -> String:
 	if _account_option.selected < 0:
 		return ""
-	var value: Variant = _account_option.get_item_metadata(
-		_account_option.selected
+	var value: Variant = GFItemListBinder.get_item_metadata(
+		_account_option,
+		_account_option.selected,
+		""
 	)
 	return value if value is String else ""
 
@@ -1180,7 +1190,11 @@ func _apply_account_operation_state() -> void:
 func _on_account_selected(index: int) -> void:
 	if not is_instance_valid(_account_system):
 		return
-	var value: Variant = _account_option.get_item_metadata(index)
+	var value: Variant = GFItemListBinder.get_item_metadata(
+		_account_option,
+		index,
+		""
+	)
 	if not value is String:
 		return
 	var account_id: String = GFVariantData.to_text(value)
@@ -1219,16 +1233,37 @@ func _on_delete_pressed() -> void:
 	)
 	if active == null:
 		return
-	_delete_confirmation.dialog_text = tr("PLAYER_DELETE_CONFIRM") % (
-		active.display_name
+	var account_id: String = active.account_id
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		return
+	var config: GFModalConfig = GameUiRouterUtility.make_confirmation_modal_config(
+		tr("PLAYER_DELETE_CONFIRM_TITLE"),
+		tr("PLAYER_DELETE_CONFIRM") % active.display_name,
+		tr("PLAYER_DELETE"),
+		tr("DELETE_CANCEL_ACTION")
 	)
-	_delete_confirmation.popup_centered()
+	var result: GFModalResult = await ui_router.show_modal_async(
+		self,
+		config,
+		{
+			&"source": &"player_profile_delete",
+			&"account_id": account_id,
+		}
+	)
+	if (
+		is_inside_tree()
+		and result != null
+		and result.status == GFModalResult.STATUS_CONFIRMED
+	):
+		_on_delete_confirmed(account_id)
 
 
-func _on_delete_confirmed() -> void:
+func _on_delete_confirmed(account_id: String = "") -> void:
 	if not is_instance_valid(_account_system):
 		return
-	var account_id: String = _selected_account_id()
+	if account_id.is_empty():
+		account_id = _selected_account_id()
 	_observe_account_operation(
 		_account_system.request_delete_account(account_id)
 	)

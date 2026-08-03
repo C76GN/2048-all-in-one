@@ -154,6 +154,7 @@ func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
 
 
 ## 停止转发宿主通知并拒绝新的平台请求。
+## @param scope: 当前架构 quiesce 的协作取消作用域。
 func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
 	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
 	if scope == null:

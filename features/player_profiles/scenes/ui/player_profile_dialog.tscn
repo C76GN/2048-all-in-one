@@ -194,10 +194,3 @@ visible = false
 layout_mode = 2
 text = "还没有符合条件的本地成绩"
 horizontal_alignment = 1
-
-[node name="DeleteConfirmation" type="ConfirmationDialog" parent="."]
-unique_name_in_owner = true
-title = "删除玩家"
-dialog_text = "确认删除这个玩家及其本地数据？"
-ok_button_text = "删除"
-cancel_button_text = "取消"

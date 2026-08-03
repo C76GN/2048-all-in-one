@@ -376,95 +376,43 @@ func test_empty_history_lists_focus_back_button() -> void:
 				back_control.has_focus(),
 				"空历史列表应把键盘/手柄焦点交给返回按钮。"
 			)
+		assert_null(
+			list_menu.find_child("DeleteConfirmationDialog", true, false),
+			"历史列表不得再实例化绕过 GF Router 的原生确认 Window。"
+		)
+		assert_null(
+			list_menu.find_child("DeleteErrorDialog", true, false),
+			"历史列表错误提示也应统一进入 GF modal 路由。"
+		)
+		var confirmation: GFModalConfig = (
+			GameUiRouterUtility.make_confirmation_modal_config(
+				tr("DELETE_CONFIRM_TITLE"),
+				"确认删除？",
+				tr("DELETE_CONFIRM_ACTION"),
+				tr("DELETE_CANCEL_ACTION")
+			)
+		)
+		var actions: Array[GFModalAction] = confirmation.get_actions()
+		assert_true(actions.size() == 2)
 		assert_true(
-			list_menu.find_child("DeleteConfirmationDialog", true, false)
-			is ConfirmationDialog,
-			"历史列表删除前必须经过确认弹窗。"
+			actions[0].result_status == GFModalResult.STATUS_CANCELLED
+			and actions[0].grab_focus,
+			"危险操作必须把默认焦点留给 GF modal 的取消动作。"
 		)
-		var confirmation_node: Node = list_menu.find_child(
-			"DeleteConfirmationDialog",
-			true,
-			false
+		assert_true(
+			actions[1].result_status == GFModalResult.STATUS_CONFIRMED,
+			"删除动作必须返回唯一的 GFModalResult confirmed 终态。"
 		)
-		if confirmation_node is ConfirmationDialog:
-			var confirmation: ConfirmationDialog = confirmation_node
-			assert_true(
-				confirmation.has_theme_stylebox_override("panel"),
-				"历史列表删除确认弹窗必须使用项目纸张面板样式。"
-			)
-			assert_true(
-				confirmation.has_theme_stylebox_override("embedded_border"),
-				"历史列表删除确认弹窗必须使用项目标题栏边框样式。"
-			)
-			assert_gte(
-				confirmation.get_theme_constant("buttons_min_height"),
-				roundi(BaseListMenu._MINIMUM_TOUCH_TARGET_SIZE),
-				"删除确认弹窗必须在 Window 主题层声明 44px 按钮高度。"
-			)
-			for action_button: Button in [
-				confirmation.get_ok_button(),
-				confirmation.get_cancel_button(),
-			]:
-				assert_gte(
-					action_button.custom_minimum_size.x,
-					BaseListMenu._DIALOG_ACTION_MINIMUM_WIDTH,
-					"历史列表删除确认按钮宽度不得小于 112px。"
-				)
-				assert_gte(
-					action_button.custom_minimum_size.y,
-					BaseListMenu._MINIMUM_TOUCH_TARGET_SIZE,
-					"历史列表删除确认按钮高度不得小于 44px。"
-				)
-		var error_node: Node = list_menu.find_child(
-			"DeleteErrorDialog",
-			true,
-			false
+		assert_gte(
+			GameModalRoutePanel._MINIMUM_ACTION_WIDTH,
+			112.0,
+			"项目 modal 操作按钮宽度不得小于 112px。"
 		)
-		assert_true(error_node is AcceptDialog, "历史列表删除失败必须显示错误弹窗。")
-		if error_node is AcceptDialog:
-			var error_dialog: AcceptDialog = error_node
-			assert_true(
-				error_dialog.has_theme_stylebox_override("panel"),
-				"历史列表删除失败弹窗必须使用项目纸张面板样式。"
-			)
-			assert_true(
-				error_dialog.ok_button_text == tr("DIALOG_ACKNOWLEDGE_ACTION"),
-				"删除失败弹窗确认动作必须使用项目本地化文案。"
-			)
-			var error_action: Button = error_dialog.get_ok_button()
-			assert_gte(
-				error_action.custom_minimum_size.x,
-				BaseListMenu._DIALOG_ACTION_MINIMUM_WIDTH,
-				"历史列表删除失败确认按钮宽度不得小于 112px。"
-			)
-			assert_gte(
-				error_action.custom_minimum_size.y,
-				BaseListMenu._MINIMUM_TOUCH_TARGET_SIZE,
-				"历史列表删除失败确认按钮高度不得小于 44px。"
-			)
-		var selected: Resource = Resource.new()
-		list_menu._selected_resource = selected
-		list_menu._on_delete_button_pressed()
-		await get_tree().process_frame
-		if confirmation_node is ConfirmationDialog:
-			var opened_confirmation: ConfirmationDialog = confirmation_node
-			assert_true(opened_confirmation.visible, "删除确认弹窗必须真实打开。")
-			assert_true(
-				opened_confirmation.get_cancel_button().has_focus(),
-				"不可撤销删除弹窗必须把键盘/手柄默认焦点交给取消动作。"
-			)
-			opened_confirmation.hide()
-			list_menu._on_delete_canceled()
-		list_menu._show_delete_error(ERR_CANT_CREATE)
-		await get_tree().process_frame
-		if error_node is AcceptDialog:
-			var opened_error: AcceptDialog = error_node
-			assert_true(opened_error.visible, "删除失败弹窗必须真实打开。")
-			assert_true(
-				opened_error.get_ok_button().has_focus(),
-				"删除失败弹窗打开后必须把键盘/手柄焦点交给确认动作。"
-			)
-			opened_error.hide()
+		assert_gte(
+			GameModalRoutePanel._MINIMUM_TOUCH_TARGET_SIZE,
+			44.0,
+			"项目 modal 操作按钮高度不得小于 44px。"
+		)
 		context.remove_child(list_menu)
 		list_menu.free()
 		await get_tree().process_frame
@@ -531,6 +479,14 @@ func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
 		"回放节点数量必须由视口和 overscan 决定，不得随 128 条数据线性增长。"
 	)
 	assert_true(initial_items[0].has_focus(), "首个物化回放项必须获得真实 UI 焦点。")
+	for item_control: Control in initial_items:
+		var measured_index: int = replay_list._get_virtual_item_index(
+			item_control
+		)
+		assert_true(
+			replay_list._virtual_list_model.is_item_measured(measured_index),
+			"物化后的回放项必须把真实行高写回 GFVirtualListModel。"
+		)
 
 	var target_scroll_index: int = 96
 	replay_list._list_scroll.scroll_vertical = roundi(
@@ -556,6 +512,54 @@ func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
 		0,
 		"滚动到后段时可见窗口必须离开首条数据。"
 	)
+	var scroll_before_height_change: int = replay_list._list_scroll.scroll_vertical
+	var anchor_item: Control = null
+	var anchor_index: int = GFVirtualListFocusModel.NO_FOCUS
+	var anchor_previous_extent: float = 0.0
+	for item_control: Control in scrolled_items:
+		var candidate_index: int = replay_list._get_virtual_item_index(
+			item_control
+		)
+		var candidate_extent: float = (
+			replay_list._virtual_list_model.get_item_extent(candidate_index)
+		)
+		var candidate_bottom: float = (
+			replay_list._virtual_list_model.get_item_offset(candidate_index)
+			+ candidate_extent
+		)
+		if candidate_bottom <= float(scroll_before_height_change) + 0.5:
+			anchor_item = item_control
+			anchor_index = candidate_index
+			anchor_previous_extent = candidate_extent
+			break
+	assert_true(
+		is_instance_valid(anchor_item),
+		"overscan 窗口应包含一个位于视口锚点之前的可测量回放项。"
+	)
+	if is_instance_valid(anchor_item):
+		anchor_item.custom_minimum_size.y = maxf(
+			anchor_item.get_combined_minimum_size().y + 48.0,
+			anchor_item.size.y + 48.0
+		)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var anchor_next_extent: float = (
+			replay_list._virtual_list_model.get_item_extent(anchor_index)
+		)
+		assert_gt(
+			anchor_next_extent,
+			anchor_previous_extent,
+			"中文换行或字体缩放改变行高后必须刷新 GF 实测尺寸。"
+		)
+		assert_almost_eq(
+			float(replay_list._list_scroll.scroll_vertical),
+			float(scroll_before_height_change)
+			+ anchor_next_extent
+			- anchor_previous_extent,
+			2.0,
+			"锚点之前的行高变化必须同步修正滚动偏移，避免内容跳动。"
+		)
 
 	var projected_focus_index: int = 110
 	var _focus_changed: bool = (

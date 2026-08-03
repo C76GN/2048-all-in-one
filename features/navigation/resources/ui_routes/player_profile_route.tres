@@ -7,7 +7,7 @@ script = ExtResource("1_route")
 route_id = &"player_profile"
 scene_path = "res://features/player_profiles/scenes/ui/player_profile_dialog.tscn"
 default_options = {
-"dismiss_on_cancel": false,
+"dismiss_on_cancel": true,
 "focus_on_open": true,
 "hide_under": false,
 "modal": true
