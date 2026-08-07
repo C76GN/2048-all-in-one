@@ -820,13 +820,17 @@ func _apply_board_background_style() -> void:
 	if not is_instance_valid(panel_style):
 		return
 
-	panel_style.bg_color = board_theme.board_panel_color
+	# 用一张低对比纸片承接空格，而不是旧版深色棋盘底板。
+	# 空格与方块保持各自的纸张轮廓，底板只负责让间隙在浅色背景上稳定可读。
+	var board_panel_color: Color = board_theme.board_panel_color
+	board_panel_color.a = clampf(board_panel_color.a, 0.82, 0.94)
+	panel_style.bg_color = board_panel_color
 	panel_style.border_color = board_theme.board_border_color
-	panel_style.set_border_width_all(6)
-	panel_style.set_corner_radius_all(8)
-	panel_style.shadow_color = Color(0.18431373, 0.1882353, 0.21568628, 0.24)
-	panel_style.shadow_size = 8
-	panel_style.shadow_offset = Vector2(0.0, 6.0)
+	panel_style.set_border_width_all(2)
+	panel_style.set_corner_radius_all(6)
+	panel_style.shadow_color = Color(0.184314, 0.188235, 0.215686, 0.12)
+	panel_style.shadow_size = 4
+	panel_style.shadow_offset = Vector2(2, 3)
 	board_background.add_theme_stylebox_override("panel", panel_style)
 
 

@@ -55,10 +55,14 @@ func test_task_page_classifier_covers_desktop_compact_and_portrait_targets() -> 
 	)
 
 
-func test_mode_selection_keeps_960x540_as_actionable_two_pane_layout() -> void:
-	assert_true(
+func test_mode_selection_stacks_960x540_to_keep_actions_in_view() -> void:
+	assert_false(
 		ModeSelection._uses_side_by_side_layout(Vector2(960.0, 540.0)),
-		"960×540 应保留模式列表与关键配置双栏，而不是把开始操作压到列表末尾。"
+		"960×540 应采用单列纸面，避免配置和开始操作被压到首屏以下。"
+	)
+	assert_true(
+		ModeSelection._uses_side_by_side_layout(Vector2(1280.0, 720.0)),
+		"宽屏仍应保留模式列表与关键配置双栏。"
 	)
 	assert_false(
 		ModeSelection._uses_side_by_side_layout(Vector2(720.0, 1558.0)),

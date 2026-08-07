@@ -11,14 +11,14 @@
 [sub_resource type="Resource" id="Style_classic"]
 script = ExtResource("2_style")
 family_id = &"tile.visual.classic_numeric"
-silhouette_id = &"soft_square"
+silhouette_id = &"paper_cut"
 motif_id = &"none"
-shape_scale = Vector2(0.94, 0.94)
-border_width = 2.5
-border_color = Color(0.28627452, 0.2901961, 0.30588236, 1)
+shape_scale = Vector2(0.95, 0.95)
+border_width = 2.2
+border_color = Color(0.23529412, 0.22745098, 0.21176471, 0.86)
 accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
 motif_opacity = 0.08
-shadow_offset = Vector2(3.5, 3.5)
+shadow_offset = Vector2(2.5, 2.5)
 
 [sub_resource type="Resource" id="Style_fibonacci"]
 script = ExtResource("2_style")

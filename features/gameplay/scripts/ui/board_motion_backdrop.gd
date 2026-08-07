@@ -91,7 +91,8 @@ func _draw() -> void:
 	)
 	var column_count: int = ceili(field_rect.size.x / cell_size)
 	var row_count: int = ceili(field_rect.size.y / cell_size)
-	var base_alpha: float = 0.075 + impulse * 0.19
+	# 常态只保留纸张上的极弱校样格；明显的错版只在已提交回合反馈期间出现。
+	var base_alpha: float = 0.026 + impulse * 0.12
 
 	for row: int in range(row_count):
 		for column: int in range(column_count):
@@ -104,7 +105,7 @@ func _draw() -> void:
 			draw_rect(checker_rect, checker_color)
 
 	var outline_color: Color = _INK
-	outline_color.a = 0.045 + impulse * 0.10
+	outline_color.a = 0.018 + impulse * 0.06
 	draw_rect(field_rect, outline_color, false, 2.0, true)
 	_draw_paper_fragments(progress)
 

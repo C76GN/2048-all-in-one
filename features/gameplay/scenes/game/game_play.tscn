@@ -18,7 +18,7 @@ shader_parameter/base_color = Color(0.95686275, 0.92941177, 0.8666667, 1)
 shader_parameter/accent_color = Color(0.61960787, 0.85882354, 0.8352941, 1)
 shader_parameter/secondary_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
 shader_parameter/warm_color = Color(0.9607843, 0.6392157, 0.7882353, 1)
-shader_parameter/grid_strength = 0.05
+shader_parameter/grid_strength = 0.035
 shader_parameter/glow_strength = 0.0
 shader_parameter/vignette_strength = 0.045
 shader_parameter/pulse_speed = 0.0
@@ -32,16 +32,7 @@ shader_parameter/interaction_energy = 0.0
 shader_parameter/interaction_phase = 1.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
-bg_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
-border_width_left = 6
-border_width_top = 6
-border_width_right = 6
-border_width_bottom = 6
-border_color = Color(0, 0, 0, 1)
-corner_radius_top_left = 6
-corner_radius_top_right = 6
-corner_radius_bottom_right = 6
-corner_radius_bottom_left = 6
+bg_color = Color(0, 0, 0, 0)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_view_controls"]
 bg_color = Color(1, 0.972549, 0.9098039, 0.94)
@@ -50,10 +41,10 @@ border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.9)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
 
 [node name="GamePlay" unique_id=993855468 instance=ExtResource("1_base")]
 script = ExtResource("2_script")

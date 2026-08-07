@@ -11,7 +11,7 @@ extends Control
 const _DEFAULT_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
 const _DEFAULT_SCALE: Vector2 = Vector2(0.94, 0.94)
 const _DEFAULT_SHADOW_OFFSET: Vector2 = Vector2(3.5, 3.5)
-const _SHADOW_ALPHA: float = 0.20
+const _SHADOW_ALPHA: float = 0.15
 
 
 # --- 私有变量 ---
@@ -105,6 +105,8 @@ func _build_local_shape_points(
 	half_size: Vector2
 ) -> PackedVector2Array:
 	match silhouette_id:
+		&"paper_cut":
+			return _build_asymmetric_cut_shape(half_size, 0.055, 0.035, 0.045, 0.025)
 		&"leaf_cut":
 			return _build_asymmetric_cut_shape(half_size, 0.12, 0.04, 0.07, 0.04)
 		&"diagonal_cut":

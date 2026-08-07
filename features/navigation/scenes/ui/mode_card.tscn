@@ -9,13 +9,13 @@ border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.72)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
 
 [node name="ModeCard" type="Button" unique_id=1474199775]
-custom_minimum_size = Vector2(0, 92)
+custom_minimum_size = Vector2(0, 98)
 offset_right = 8.0
 offset_bottom = 8.0
 flat = true
@@ -29,6 +29,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_r07v3")
+
+[node name="AccentStripe" type="ColorRect" parent="." unique_id=1787422168]
+layout_mode = 1
+anchors_preset = 6
+anchor_right = 0.0
+anchor_bottom = 1.0
+offset_right = 7.0
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.61960787, 0.85882354, 0.8352941, 0.82)
 
 [node name="MarginContainer" type="MarginContainer" parent="." unique_id=955432541]
 layout_mode = 1

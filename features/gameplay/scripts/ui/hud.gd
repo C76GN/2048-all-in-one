@@ -43,6 +43,7 @@ const _NOTIFICATION_OFFSET_SCALE_NORMAL: float = 1.0
 const _NOTIFICATION_OFFSET_SCALE_HIGH: float = 1.25
 const _NOTIFICATION_OFFSET_SCALE_CRITICAL: float = 1.5
 const _NOTIFICATION_SURFACE_HEIGHT: float = 68.0
+const _WIDE_SIDE_CARD_MINIMUM_WIDTH: float = 1440.0
 const _ACTION_ICON_ASSET_KEYS: Dictionary = {
 	"%PauseButton": &"asset.texture.icon.pause",
 	"%UndoButton": &"asset.texture.icon.undo_2",
@@ -84,7 +85,7 @@ var _active_notification_id: int = 0
 var _last_display_values: Dictionary = {}
 var _is_compact_mode: bool = false
 var _is_portrait_mode: bool = false
-var _details_expanded: bool = false
+var _details_expanded: bool = true
 var _input_mapping: GFInputMappingUtility
 var _realtime_timer: GameRealtimeTimerUtility
 var _hud_input_source: GFVirtualInputSource
@@ -106,6 +107,8 @@ var _accessibility_subtitle_panel: PanelContainer
 var _accessibility_subtitle_label: Label
 var _board_summary_label: RichTextLabel
 var _copy_board_summary_button: Button
+var _board_info_panel: PanelContainer
+var _board_info_label: Label
 var _accessibility_subtitle_serial: int = 0
 var _score_feedback_delay_active: bool = false
 var _score_feedback_pending: bool = false
@@ -181,6 +184,8 @@ func _ready() -> void:
 	)
 	_board_summary_label = _get_rich_text_label_node("%BoardSummaryLabel")
 	_copy_board_summary_button = _get_button_node("%CopyBoardSummaryButton")
+	_board_info_panel = _get_panel_container_node("%BoardInfoPanel")
+	_board_info_label = _get_label_node("%BoardInfoLabel")
 	if not is_instance_valid(_notification_label):
 		push_error("[Hud] 缺少 NotificationLabel，无法呈现 GF 通知。")
 	if not is_instance_valid(_grid_model) or not is_instance_valid(_determinism_utility):
@@ -210,6 +215,7 @@ func _ready() -> void:
 	_apply_semantic_styles()
 	_apply_hud_layout()
 	_apply_details_visibility()
+	_refresh_board_info()
 
 
 func _exit_tree() -> void:
@@ -242,6 +248,8 @@ func _notification(what: int) -> void:
 func set_compact_mode(enabled: bool) -> void:
 	if enabled and not _is_compact_mode:
 		_details_expanded = false
+	elif not enabled and _is_compact_mode and not _is_portrait_mode:
+		_details_expanded = _safe_area.size.x >= _WIDE_SIDE_CARD_MINIMUM_WIDTH
 	_is_compact_mode = enabled
 	_apply_hud_layout()
 	_apply_details_visibility()
@@ -327,6 +335,27 @@ func _refresh_all() -> void:
 		local_dict.merge(query_dict)
 
 	_update_dynamic_list(local_dict)
+	_refresh_board_info()
+
+
+func _refresh_board_info() -> void:
+	if not is_instance_valid(_board_info_label) or not is_instance_valid(_grid_model):
+		return
+	var topology: BoardTopology = _grid_model.topology
+	if not is_instance_valid(topology):
+		_board_info_label.text = "棋盘信息\n等待棋盘数据..."
+		return
+	var bounds: Vector2i = topology.get_bounds_size()
+	var cell_count: int = topology.get_cell_count()
+	var occupied_count: int = _grid_model.get_occupied_cells().size()
+	var max_value: int = _grid_model.get_max_tile_value()
+	_board_info_label.text = "棋盘信息\n棋盘 %dx%d · %d 个有效格\n%d 个方块 · 最大方块 %d" % [
+		bounds.x,
+		bounds.y,
+		cell_count,
+		occupied_count,
+		max_value,
+	]
 
 
 func _update_dynamic_list(dict: Dictionary) -> void:
@@ -494,6 +523,13 @@ func _apply_semantic_styles() -> void:
 					icon_key,
 					19
 				)
+	if is_instance_valid(_board_info_label):
+		_ui_style_utility.style_label(
+			_board_info_label,
+			GameUiStyleUtility.TextRole.PRIMARY,
+			15,
+			false
+		)
 
 
 func _apply_hud_layout() -> void:
@@ -508,18 +544,34 @@ func _apply_hud_layout() -> void:
 		not _is_portrait_mode
 		and (_is_compact_mode or safe_width < 1100.0)
 	)
+	var show_wide_side_cards: bool = (
+		not _is_compact_mode
+		and not _is_portrait_mode
+		and safe_width >= _WIDE_SIDE_CARD_MINIMUM_WIDTH
+	)
+	if not show_wide_side_cards:
+		# 1280 宽度仍是主流窗口尺寸；详细卡片与棋盘共存会挤压棋盘，
+		# 让主棋盘优先保持完整，宽屏再恢复编辑部式双侧卡片。
+		_details_expanded = false
 	if is_instance_valid(_control_hint_panel):
 		_control_hint_panel.visible = _is_portrait_mode
+	if is_instance_valid(_board_info_panel):
+		_board_info_panel.visible = show_wide_side_cards
 	if is_instance_valid(_hints):
 		_hints.visible = false
 	if is_instance_valid(_d_pad):
 		_d_pad.visible = _is_portrait_mode
 
 	if is_instance_valid(_top_score_panel):
-		_top_score_panel.offset_left = -174.0 if _is_portrait_mode else -194.0
+		var score_half_width: float = (
+			174.0
+			if _is_portrait_mode
+			else (190.0 if safe_width < 1100.0 else 230.0)
+		)
+		_top_score_panel.offset_left = -score_half_width
 		_top_score_panel.offset_top = 8.0 if _is_portrait_mode else 12.0
-		_top_score_panel.offset_right = 174.0 if _is_portrait_mode else 194.0
-		_top_score_panel.offset_bottom = 68.0 if _is_portrait_mode else 72.0
+		_top_score_panel.offset_right = score_half_width
+		_top_score_panel.offset_bottom = 68.0 if _is_portrait_mode else 78.0
 
 	if is_instance_valid(_details_toggle_button):
 		_details_toggle_button.offset_left = 0.0 if _is_portrait_mode else 18.0
@@ -529,8 +581,8 @@ func _apply_hud_layout() -> void:
 	if is_instance_valid(_details_panel):
 		_details_panel.offset_left = 0.0 if _is_portrait_mode else 18.0
 		_details_panel.offset_top = 124.0 if _is_portrait_mode else 66.0
-		_details_panel.offset_right = 300.0 if _is_portrait_mode else 318.0
-		_details_panel.offset_bottom = 532.0 if _is_portrait_mode else 490.0
+		_details_panel.offset_right = 300.0 if _is_portrait_mode else 358.0
+		_details_panel.offset_bottom = 532.0 if _is_portrait_mode else 520.0
 	_apply_feedback_rail_layout()
 
 	if is_instance_valid(_control_hint_panel) and _is_portrait_mode:
@@ -600,7 +652,7 @@ func _apply_feedback_rail_layout() -> void:
 			_reset_notification_surface_layout()
 		return
 
-	var landscape_rail_width: float = 220.0 if _is_compact_mode else 280.0
+	var landscape_rail_width: float = 300.0 if _is_compact_mode else 340.0
 	var rail_top: float = 106.0
 	_feedback_rail.anchor_left = 1.0
 	_feedback_rail.anchor_top = 0.0
@@ -609,7 +661,7 @@ func _apply_feedback_rail_layout() -> void:
 	_feedback_rail.offset_left = -landscape_rail_width - 18.0
 	_feedback_rail.offset_top = rail_top
 	_feedback_rail.offset_right = -18.0
-	_feedback_rail.offset_bottom = rail_top + 144.0
+	_feedback_rail.offset_bottom = rail_top + 286.0
 	if is_instance_valid(_notification_slot) and _notification_slot.visible:
 		_reset_notification_surface_layout()
 
@@ -1101,7 +1153,7 @@ func _inject_hud_action(action_id: StringName) -> void:
 
 func _apply_details_visibility() -> void:
 	if is_instance_valid(_details_panel):
-		_details_panel.visible = _details_expanded
+		_details_panel.visible = _details_expanded and not _is_compact_mode and not _is_portrait_mode
 	if is_instance_valid(_details_toggle_button):
 		_details_toggle_button.visible = true
 	_update_details_toggle_button()
@@ -1532,6 +1584,7 @@ func _on_hint_requested(_payload: Variant = null) -> void:
 func _on_hint_invalidated(_payload: Variant = null) -> void:
 	_cancel_hint_query(&"snapshot_changed")
 	_hide_hint_result()
+	_refresh_board_info()
 
 
 func _on_score_changed(old_value: int, new_value: int) -> void:

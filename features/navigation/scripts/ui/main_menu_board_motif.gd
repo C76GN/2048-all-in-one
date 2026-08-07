@@ -18,7 +18,7 @@ const _INTERACTION_DURATION: float = 0.16
 const _INTERACTION_SCALE: float = 0.045
 const _INTERACTION_LIFT: float = 1.5
 const _INTERACTION_ROTATION: float = 0.008
-const _BOARD_COLOR: Color = Color("#594a45")
+const _BOARD_COLOR: Color = Color("#eee5d2")
 const _EMPTY_COLOR: Color = Color("#a9a994")
 const _INK_COLOR: Color = Color("#2f3037")
 const _PAPER_COLOR: Color = Color("#f1e2be")
@@ -72,10 +72,10 @@ func _draw() -> void:
 	var board_progress: float = _ease_out_cubic(
 		clampf(_intro_progress / _BOARD_REVEAL_PORTION, 0.0, 1.0)
 	)
-	board_shadow.a = 0.20 * board_progress
+	board_shadow.a = 0.12 * board_progress
 	draw_rect(Rect2(board_rect.position + Vector2(6.0, 7.0), board_rect.size), board_shadow, true)
 	draw_rect(board_rect, _with_alpha(_BOARD_COLOR, board_progress), true)
-	draw_rect(board_rect, _with_alpha(_INK_COLOR, board_progress), false, 4.0)
+	draw_rect(board_rect, _with_alpha(_INK_COLOR, board_progress), false, 3.0)
 
 	var outer_padding: float = board_size * 0.055
 	var gap: float = board_size * 0.028

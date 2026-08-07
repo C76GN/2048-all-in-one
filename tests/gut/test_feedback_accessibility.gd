@@ -87,15 +87,16 @@ func test_minimal_budget_shortens_and_softens_core_tile_motion() -> void:
 	assert_not_null(motion_profile, "棋盘反馈 Profile 必须拥有统一的 Tile 动画节拍。")
 	assert_true(motion_profile.is_valid_profile(), "正式 Tile 动画节拍必须完整有效。")
 	assert_true(
-		is_equal_approx(motion_profile.move_duration, 0.14)
-		and is_equal_approx(motion_profile.spawn_duration, 0.11)
-		and is_equal_approx(motion_profile.merge_pulse_duration, 0.09),
-		"完整档必须保持逐帧标定后的核心动画节拍。"
+		is_equal_approx(motion_profile.move_duration, 0.18)
+		and is_equal_approx(motion_profile.spawn_duration, 0.16)
+		and is_equal_approx(motion_profile.merge_pulse_duration, 0.12),
+		"完整档必须保持可读、缓和的核心动画节拍。"
 	)
 	assert_true(
 		motion_profile.spawn_start_scale > 1.0
-		and motion_profile.spawn_start_rotation_degrees >= 10.0,
-		"新方块应以略放大、带方向的纸片落定替代透明小点淡入。"
+		and motion_profile.spawn_start_rotation_degrees >= 2.0
+		and motion_profile.spawn_start_rotation_degrees <= 6.0,
+		"新方块应以略放大、轻微错版的纸片落定替代透明小点淡入。"
 	)
 
 	var minimal_state: GameAccessibilityState = GameAccessibilityState.new()

@@ -539,7 +539,7 @@ func test_tile_setup_applies_sparse_theme_driven_identity_style() -> void:
 	)
 
 	assert_true(tile.background.get_fill_color() == Color(0.8, 0.5, 0.2, 1.0))
-	assert_true(tile.background.get_silhouette_id() == &"soft_square")
+	assert_true(tile.background.get_silhouette_id() == &"paper_cut")
 	assert_gt(tile.background.get_shape_points().size(), 3, "方块应有可绘制的稳定轮廓。")
 
 	var pattern_node: Node = tile.get_node_or_null("PatternOverlay")

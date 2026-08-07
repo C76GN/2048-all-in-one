@@ -79,10 +79,10 @@ haptic_preset = SubResource("Resource_move_haptic")
 root_impulse = 4.5
 root_rotation_degrees = 0.25
 root_compression = 0.006
-impact_duration = 0.055
-settle_duration = 0.095
-background_duration = 0.16
-background_energy = 0.10
+impact_duration = 0.07
+settle_duration = 0.13
+background_duration = 0.20
+background_energy = 0.08
 edge_fragment_count = 0
 
 [sub_resource type="Resource" id="Recipe_turn_merge"]
@@ -94,10 +94,10 @@ haptic_preset = SubResource("Resource_merge_haptic")
 root_impulse = 20.0
 root_rotation_degrees = 5.0
 root_compression = 0.038
-impact_duration = 0.10
-settle_duration = 0.22
-background_duration = 0.52
-background_energy = 0.68
+impact_duration = 0.12
+settle_duration = 0.20
+background_duration = 0.42
+background_energy = 0.45
 edge_fragment_count = 8
 
 [sub_resource type="Resource" id="Recipe_turn_high_merge"]
@@ -109,10 +109,10 @@ haptic_preset = SubResource("Resource_high_merge_haptic")
 root_impulse = 22.0
 root_rotation_degrees = 5.5
 root_compression = 0.044
-impact_duration = 0.11
-settle_duration = 0.24
-background_duration = 0.60
-background_energy = 0.86
+impact_duration = 0.14
+settle_duration = 0.22
+background_duration = 0.50
+background_energy = 0.60
 edge_fragment_count = 14
 
 [sub_resource type="Resource" id="Recipe_turn_record"]
@@ -124,10 +124,10 @@ haptic_preset = SubResource("Resource_record_haptic")
 root_impulse = 22.0
 root_rotation_degrees = 5.5
 root_compression = 0.050
-impact_duration = 0.11
-settle_duration = 0.27
-background_duration = 0.68
-background_energy = 1.0
+impact_duration = 0.14
+settle_duration = 0.24
+background_duration = 0.56
+background_energy = 0.72
 edge_fragment_count = 18
 
 [sub_resource type="Resource" id="Recipe_tile_spawn"]
@@ -153,25 +153,25 @@ tile_shard_count = 7
 
 [sub_resource type="Resource" id="Motion_tile"]
 script = ExtResource("5_motion")
-move_duration = 0.14
-spawn_duration = 0.11
+move_duration = 0.18
+spawn_duration = 0.16
 spawn_fade_ratio = 0.75
-merge_pulse_duration = 0.09
-value_growth_duration = 0.13
-despawn_duration = 0.12
+merge_pulse_duration = 0.12
+value_growth_duration = 0.18
+despawn_duration = 0.15
 transform_left_duration = 0.04
 transform_right_duration = 0.05
 transform_settle_duration = 0.04
 transform_home_duration = 0.05
 transform_flash_duration = 0.14
-spawn_start_scale = 1.12
-spawn_start_rotation_degrees = 12.0
-merge_peak_scale = 1.19
-merge_peak_rotation_degrees = 4.5
+spawn_start_scale = 1.08
+spawn_start_rotation_degrees = 4.0
+merge_peak_scale = 1.10
+merge_peak_rotation_degrees = 2.5
 despawn_end_scale = 0.28
-transform_peak_rotation_degrees = 4.0
-transform_settle_rotation_degrees = -2.0
-flash_label_peak_scale = 1.15
+transform_peak_rotation_degrees = 2.5
+transform_settle_rotation_degrees = -1.0
+flash_label_peak_scale = 1.08
 
 [resource]
 script = ExtResource("1_profile")

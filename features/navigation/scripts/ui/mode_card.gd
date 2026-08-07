@@ -19,12 +19,14 @@ var _config_path: String
 var _mode_config: GameModeConfig = null
 var _is_selected: bool = false
 var _style_utility: GameUiStyleUtility = null
+var _accent_strip: ColorRect = null
 
 # --- @onready 变量 (节点引用) ---
 
 @onready var _title_label: Label = $MarginContainer/VBoxContainer/TitleLabel
 @onready var _description_label: Label = $MarginContainer/VBoxContainer/DescriptionLabel
 @onready var _panel: Panel = $Panel
+@onready var _accent_strip_node: ColorRect = $AccentStripe
 
 
 # --- Godot 生命周期方法 ---
@@ -49,6 +51,7 @@ func setup(
 	_config_path = config_path
 	_mode_config = mode_config
 	_style_utility = style_utility
+	_accent_strip = _accent_strip_node
 	if not is_instance_valid(_style_utility):
 		push_error("[ModeCard] 缺少 GameUiStyleUtility，无法应用卡片语义样式。")
 	update_text()
@@ -105,6 +108,7 @@ func _update_style() -> void:
 		border_width = 3
 	_style_utility.style_panel(_panel, surface_role, border_role, border_width)
 	_update_label_colors()
+	_update_accent_strip()
 
 
 func _update_label_colors() -> void:
@@ -117,6 +121,23 @@ func _update_label_colors() -> void:
 		else GameUiStyleUtility.TextRole.SECONDARY
 	)
 	_style_utility.style_label(_description_label, description_role)
+
+
+func _update_accent_strip() -> void:
+	if not is_instance_valid(_accent_strip):
+		return
+	var accent_colors: Array[Color] = [
+		Color(0.29411766, 0.7411765, 0.77254903, 0.82),
+		Color(0.8745098, 0.29411766, 0.6039216, 0.82),
+		Color(0.9372549, 0.81960785, 0.3647059, 0.88),
+	]
+	var color_index: int = absi(_config_path.hash()) % accent_colors.size()
+	var accent: Color = accent_colors[color_index]
+	if _is_selected:
+		accent = accent.lightened(0.08)
+	if has_focus():
+		accent.a = 1.0
+	_accent_strip.color = accent
 
 
 # --- 信号处理函数 ---

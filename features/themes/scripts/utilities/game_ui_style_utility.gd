@@ -93,8 +93,8 @@ var _button_focus_border_color: Color = _BUTTON_FOCUS_BORDER_COLOR
 var _button_disabled_color: Color = _BUTTON_DISABLED_COLOR
 var _button_font_color: Color = _BUTTON_FONT_COLOR
 var _button_font_disabled_color: Color = _BUTTON_FONT_DISABLED_COLOR
-var _primary_button_color: Color = Color(0.49411765, 0.79607844, 0.827451, 1.0)
-var _primary_button_hover_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
+var _primary_button_color: Color = Color(0.78039217, 0.23921569, 0.4627451, 1.0)
+var _primary_button_hover_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
 var _primary_button_pressed_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
 var _quiet_button_hover_color: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.08)
 var _text_primary_color: Color = _TEXT_PRIMARY_COLOR
@@ -1137,7 +1137,7 @@ func _create_button_style(
 	style.bg_color = color
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(4)
+	style.set_corner_radius_all(2)
 	style.shadow_color = shadow_color
 	style.shadow_size = (
 		_BUTTON_HARD_SHADOW_SPREAD
@@ -1304,7 +1304,7 @@ func _create_field_style(
 	style.bg_color = bg_color
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(4)
+	style.set_corner_radius_all(2)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	style.set_content_margin(SIDE_LEFT, 10.0)
@@ -1383,7 +1383,7 @@ func _create_panel_surface_style(
 	style.bg_color = bg_color
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(4)
+	style.set_corner_radius_all(2)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	style.shadow_offset = Vector2.ZERO

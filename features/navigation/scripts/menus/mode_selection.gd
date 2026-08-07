@@ -37,15 +37,15 @@ const _STACKED_SURFACE_OVERFLOW_MARGINS: Dictionary = {
 	"right": 28,
 }
 ## 近方形窗口必须提前堆叠；双栏表面的外扩纸边与阴影也需要安全余量。
-## 960×540 仍满足该阈值，保留配置与开始按钮同屏的既定契约。
-const _COMPACT_TWO_PANE_MINIMUM_WIDTH: float = 920.0
+## 960×540 主动堆叠为单列，避免配置与开始按钮落到首屏以下；宽屏仍保留编辑式双栏。
+const _COMPACT_TWO_PANE_MINIMUM_WIDTH: float = 1100.0
 const _COMPACT_TWO_PANE_HORIZONTAL_MARGIN: float = 24.0
 const _COMPACT_TWO_PANE_SEPARATION: float = 18.0
 const _COMPACT_TWO_PANE_SCROLLBAR_RESERVE: float = 14.0
 const _COMPACT_RIGHT_COLUMN_RATIO: float = 0.38
 const _COMPACT_RIGHT_COLUMN_MINIMUM_WIDTH: float = 300.0
 const _COMPACT_RIGHT_COLUMN_MAXIMUM_WIDTH: float = 340.0
-const _MODE_CARD_MINIMUM_HEIGHT: float = 92.0
+const _MODE_CARD_MINIMUM_HEIGHT: float = 98.0
 const _MODE_CARD_SEPARATION: float = 12.0
 const _CENTER_SECTION_SEPARATION: float = 14.0
 const _PAGINATION_MINIMUM_HEIGHT: float = 44.0

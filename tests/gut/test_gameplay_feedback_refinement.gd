@@ -26,8 +26,8 @@ func test_move_feedback_is_short_subtle_and_does_not_use_emphasis_channels() -> 
 	assert_lte(move_recipe.root_rotation_degrees, 0.3)
 	assert_between(
 		move_recipe.impact_duration + move_recipe.settle_duration,
-		0.12,
-		0.18
+		0.16,
+		0.22
 	)
 
 	var root: Node2D = Node2D.new()
