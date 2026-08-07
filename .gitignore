@@ -52,6 +52,9 @@ ai_analysis/
 .vscode/
 .env
 
+# Codex host-local settings (keep project skills tracked)
+.codex/config.toml
+
 unstaged_changes.diff.txt
 unstaged_changes.diff
 
