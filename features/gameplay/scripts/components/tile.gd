@@ -196,6 +196,75 @@ func animate_spawn(
 	return _active_rotation_tween
 
 
+## 播放首局棋盘组装动画：从小尺寸淡入，越过终态后回弹到稳定尺寸。
+## @param delay_seconds: 按阅读顺序错开的等待时间。
+## @param start_scale: 起始缩放比例。
+## @param peak_scale: 首阶段回弹峰值比例。
+## @param duration: 从起始状态到峰值的主阶段时长。
+## @param feedback_budget: 当前无障碍反馈预算快照。
+## @return: 返回控制该动画的 Tween 对象。
+func animate_intro(
+	delay_seconds: float = 0.0,
+	start_scale: float = 0.72,
+	peak_scale: float = 1.06,
+	duration: float = 0.22,
+	feedback_budget: GameFeedbackBudget = null
+) -> Tween:
+	reset_animation_state()
+	if not _default_motion_profile.is_motion_enabled(feedback_budget):
+		return null
+
+	var resolved_delay: float = _default_motion_profile.scale_duration(
+		maxf(delay_seconds, 0.0),
+		feedback_budget
+	)
+	var resolved_duration: float = maxf(
+		_default_motion_profile.scale_duration(duration, feedback_budget),
+		0.001
+	)
+	var resolved_start_scale: float = _default_motion_profile.scale_from_neutral(
+		1.0,
+		maxf(start_scale, 0.01),
+		feedback_budget
+	)
+	var resolved_peak_scale: float = _default_motion_profile.scale_from_neutral(
+		1.0,
+		maxf(peak_scale, 1.0),
+		feedback_budget
+	)
+	_active_scale_tween = create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	scale = Vector2.ONE * resolved_start_scale
+	rotation_degrees = 0.0
+	var start_modulate: Color = Color.WHITE
+	start_modulate.a = 0.0
+	modulate = start_modulate
+
+	var grow_tweener: PropertyTweener = _active_scale_tween.tween_property(
+		self,
+		"scale",
+		Vector2.ONE * resolved_peak_scale,
+		resolved_duration
+	)
+	var _grow_delay: Tweener = grow_tweener.set_delay(resolved_delay)
+	var _grow_curve: Tweener = grow_tweener.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var fade_tweener: PropertyTweener = _active_scale_tween.parallel().tween_property(
+		self,
+		"modulate",
+		Color.WHITE,
+		minf(maxf(resolved_duration * 0.45, 0.001), 0.12)
+	)
+	var _fade_delay: Tweener = fade_tweener.set_delay(resolved_delay)
+	var _fade_curve: Tweener = fade_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var settle_tweener: PropertyTweener = _active_scale_tween.tween_property(
+		self,
+		"scale",
+		Vector2.ONE,
+		maxf(resolved_duration * 0.38, 0.06)
+	)
+	var _settle_curve: Tweener = settle_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	return _active_scale_tween
+
+
 ## 播放方块在棋盘上移动时的动画。
 ## @param new_position: 移动的目标位置。
 ## @param motion_profile: 可选的主题方块动效节拍；省略时使用内置默认值。

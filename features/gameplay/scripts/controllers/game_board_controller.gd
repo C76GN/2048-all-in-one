@@ -40,6 +40,13 @@ const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 
 const _LOG_TAG: String = "GameBoardController"
 const _BOARD_INTRO_DURATION: float = 0.22
+const _BOARD_INTRO_CELL_STAGGER: float = 0.018
+const _BOARD_INTRO_TILE_STAGGER: float = 0.028
+const _BOARD_INTRO_TILE_DURATION: float = 0.28
+const _BOARD_INTRO_TILE_START_SCALE: float = 0.72
+const _BOARD_INTRO_TILE_PEAK_SCALE: float = 1.06
+const _BOARD_INTRO_MAX_STAGGER_WINDOW: float = 0.62
+const _BOARD_INTRO_MAX_ANIMATED_CELL_COUNT: int = 256
 const _CULL_MARGIN_CELLS: int = 2
 const _MIN_PROJECTED_CELL_DETAIL_SIZE: float = 12.0
 const _MAX_VISIBLE_NODE_COUNT: int = 12288
@@ -90,6 +97,7 @@ var _is_rebuilding_visuals: bool = false
 var _log: GFLogUtility
 var _pool: GFObjectPoolUtility
 var _animation_utility: GameBoardAnimationUtility
+var _ui_motion_utility: GameUiMotionUtility
 
 ## 标记是否已完成清理。
 var _is_cleaned_up: bool = false
@@ -100,7 +108,6 @@ var _expansion_token: int = 0
 ## 当前棋盘扩展 Tween；连续扩建或场景退出时由本控制器显式终止。
 var _expansion_tween: Tween
 
-var _board_intro_tween: Tween
 var _setup_generation: int = 0
 var _initial_reveal_pending: bool = false
 
@@ -121,6 +128,7 @@ func _ready() -> void:
 	_log = _get_log_utility()
 	_pool = _get_object_pool_utility()
 	_animation_utility = _get_board_animation_utility()
+	_ui_motion_utility = _get_ui_motion_utility()
 	if not _has_required_dependencies():
 		return
 	board_background.z_index = BOARD_BACKGROUND_Z_INDEX
@@ -524,6 +532,14 @@ func _get_board_animation_utility() -> GameBoardAnimationUtility:
 	return null
 
 
+func _get_ui_motion_utility() -> GameUiMotionUtility:
+	var utility_value: Object = get_utility(GameUiMotionUtility)
+	if utility_value is GameUiMotionUtility:
+		var motion_utility: GameUiMotionUtility = utility_value
+		return motion_utility
+	return null
+
+
 func _has_required_dependencies() -> bool:
 	var missing: PackedStringArray = PackedStringArray()
 	if not is_instance_valid(model):
@@ -820,17 +836,16 @@ func _apply_board_background_style() -> void:
 	if not is_instance_valid(panel_style):
 		return
 
-	# 用一张低对比纸片承接空格，而不是旧版深色棋盘底板。
-	# 空格与方块保持各自的纸张轮廓，底板只负责让间隙在浅色背景上稳定可读。
-	var board_panel_color: Color = board_theme.board_panel_color
-	board_panel_color.a = clampf(board_panel_color.a, 0.82, 0.94)
-	panel_style.bg_color = board_panel_color
-	panel_style.border_color = board_theme.board_border_color
-	panel_style.set_border_width_all(2)
-	panel_style.set_corner_radius_all(6)
-	panel_style.shadow_color = Color(0.184314, 0.188235, 0.215686, 0.12)
-	panel_style.shadow_size = 4
-	panel_style.shadow_offset = Vector2(2, 3)
+	# 游戏局内不再绘制一整块棋盘面板；间隙直接露出纸面，
+	# 让每个空格和有效方块成为独立的纸片单元。BoardBackground 保留为
+	# 生命周期/层级锚点，预览场景仍可自行使用 BoardTheme 的纸色底板。
+	panel_style.bg_color = Color.TRANSPARENT
+	panel_style.border_color = Color.TRANSPARENT
+	panel_style.set_border_width_all(0)
+	panel_style.set_corner_radius_all(0)
+	panel_style.shadow_color = Color.TRANSPARENT
+	panel_style.shadow_size = 0
+	panel_style.shadow_offset = Vector2.ZERO
 	board_background.add_theme_stylebox_override("panel", panel_style)
 
 
@@ -1005,9 +1020,8 @@ func _clear_grid_cells() -> void:
 ## 执行棋盘从旧尺寸到新尺寸的扩建动画。
 func _animate_expansion(old_size: int, _new_size: int) -> void:
 	_cancel_expansion_animation()
+	_complete_grid_cell_intro_motion()
 	var active_token: int = _expansion_token
-	if _board_intro_tween and _board_intro_tween.is_valid():
-		_board_intro_tween.kill()
 	_update_board_layout()
 	_sync_visible_region()
 	_expansion_tween = create_tween().set_parallel(true)
@@ -1062,13 +1076,17 @@ func _normalize_grid_cell_scales() -> void:
 
 
 func _configure_cell_style(stylebox: StyleBoxFlat) -> void:
-	stylebox.bg_color = board_theme.empty_cell_color
-	stylebox.border_color = board_theme.empty_cell_border_color
-	stylebox.set_border_width_all(3)
-	stylebox.set_corner_radius_all(4)
-	stylebox.shadow_color = Color.TRANSPARENT
-	stylebox.shadow_size = 0
-	stylebox.shadow_offset = Vector2.ZERO
+	var cell_color: Color = board_theme.empty_cell_color
+	cell_color.a = minf(cell_color.a, 0.76)
+	stylebox.bg_color = cell_color
+	var cell_border_color: Color = board_theme.empty_cell_border_color
+	cell_border_color.a = minf(cell_border_color.a, 0.56)
+	stylebox.border_color = cell_border_color
+	stylebox.set_border_width_all(2)
+	stylebox.set_corner_radius_all(3)
+	stylebox.shadow_color = Color(cell_border_color.r, cell_border_color.g, cell_border_color.b, 0.12)
+	stylebox.shadow_size = 2
+	stylebox.shadow_offset = Vector2(1, 2)
 
 
 func _style_grid_cell(cell_control: Control) -> void:
@@ -1088,6 +1106,8 @@ func _acquire_grid_cell() -> Control:
 		var cell_control: Control = cell_node
 		cell_control.visible = true
 		cell_control.scale = Vector2.ONE
+		cell_control.rotation = 0.0
+		cell_control.modulate = Color.WHITE
 		return cell_control
 
 	if is_instance_valid(cell_node):
@@ -1099,7 +1119,12 @@ func _acquire_grid_cell() -> Control:
 func _release_grid_cell(cell_control: Control) -> void:
 	if not is_instance_valid(cell_control):
 		return
+	_kill_grid_cell_intro_tween(cell_control)
+	if is_instance_valid(_ui_motion_utility):
+		_ui_motion_utility.complete_control_motion(cell_control)
 	cell_control.scale = Vector2.ONE
+	cell_control.rotation = 0.0
+	cell_control.modulate = Color.WHITE
 	if not is_instance_valid(_pool):
 		cell_control.queue_free()
 		return
@@ -1134,28 +1159,165 @@ func _duplicate_flat_panel_style(control: Control) -> StyleBoxFlat:
 
 
 func _play_board_intro() -> void:
-	if not is_instance_valid(board_background) or not is_instance_valid(board_container):
+	if not is_instance_valid(board_container):
 		return
 	if not is_instance_valid(model):
 		return
-	if _board_intro_tween and _board_intro_tween.is_valid():
-		_board_intro_tween.kill()
 
-	board_background.modulate = Color(1.0, 1.0, 1.0, 0.0)
-	board_container.modulate = Color(1.0, 1.0, 1.0, 0.0)
-	board_container.scale = Vector2.ONE * 0.98
+	# 容器本身保持稳定，入场由独立格子/方块承担；这样间隙不会一起淡成一块
+	# 大面板，视觉上更接近一组可触摸的纸片单元。
+	board_container.modulate = Color.WHITE
+	board_container.scale = Vector2.ONE
+	if is_instance_valid(board_background):
+		board_background.modulate = Color.WHITE
 
-	_board_intro_tween = create_tween().set_parallel(true)
-	var _transition_result: Tween = _board_intro_tween.set_trans(Tween.TRANS_CUBIC)
-	var _ease_result: Tween = _board_intro_tween.set_ease(Tween.EASE_OUT)
-	var _background_fade_tweener: PropertyTweener = _board_intro_tween.tween_property(board_background, "modulate:a", 1.0, _BOARD_INTRO_DURATION)
-	var _container_fade_tweener: PropertyTweener = _board_intro_tween.tween_property(board_container, "modulate:a", 1.0, _BOARD_INTRO_DURATION)
-	var _container_scale_tweener: PropertyTweener = _board_intro_tween.tween_property(
-		board_container,
+	var intro_cells: Array[Control] = []
+	var ordered_positions: Array[Vector2i] = []
+	for cell_value: Variant in _grid_cell_map.keys():
+		if cell_value is Vector2i:
+			ordered_positions.append(cell_value)
+	ordered_positions.sort_custom(Callable(self, "_sort_grid_positions_for_intro"))
+	for cell: Vector2i in ordered_positions:
+		var cell_control: Control = _get_grid_cell_control(cell)
+		if is_instance_valid(cell_control):
+			intro_cells.append(cell_control)
+
+	var cell_stagger: float = _resolve_intro_stagger(
+		intro_cells.size(),
+		_BOARD_INTRO_CELL_STAGGER,
+		_BOARD_INTRO_MAX_STAGGER_WINDOW
+	)
+	if (
+		intro_cells.size() <= _BOARD_INTRO_MAX_ANIMATED_CELL_COUNT
+		and is_instance_valid(_ui_motion_utility)
+	):
+		var _assembled_cell_count: int = _ui_motion_utility.play_piece_assembly(
+			intro_cells,
+			cell_stagger
+		)
+	elif intro_cells.size() <= _BOARD_INTRO_MAX_ANIMATED_CELL_COUNT:
+		for index: int in intro_cells.size():
+			var _cell_intro_tween: Tween = _play_grid_cell_intro(
+				intro_cells[index],
+				float(index) * cell_stagger
+			)
+
+	var intro_tiles: Array[Tile] = []
+	# 初始规则若仍在 GF ActionQueue 中播放标准 spawn，保留该 Action 的
+	# Tween 所有权；只有棋盘已稳定时才接管已有 Tile 的组装入场。
+	if not is_instance_valid(_animation_utility) or not _animation_utility.is_busy():
+		var feedback_budget: GameFeedbackBudget = null
+		var feedback_utility: GameBoardFeedbackUtility = _get_board_feedback_utility()
+		if is_instance_valid(feedback_utility):
+			feedback_budget = feedback_utility.get_current_budget()
+		for child: Node in board_container.get_children():
+			if child is Tile:
+				intro_tiles.append(child)
+		intro_tiles.sort_custom(Callable(self, "_sort_tiles_for_intro"))
+		var tile_stagger: float = _resolve_intro_stagger(
+			intro_tiles.size(),
+			_BOARD_INTRO_TILE_STAGGER,
+			_BOARD_INTRO_MAX_STAGGER_WINDOW
+		)
+		for index: int in intro_tiles.size():
+			var _tile_intro_tween: Tween = intro_tiles[index].animate_intro(
+				float(index) * tile_stagger,
+				_BOARD_INTRO_TILE_START_SCALE,
+				_BOARD_INTRO_TILE_PEAK_SCALE,
+				_BOARD_INTRO_TILE_DURATION,
+				feedback_budget
+			)
+
+func _play_grid_cell_intro(cell_control: Control, delay_seconds: float) -> Tween:
+	if not is_instance_valid(cell_control):
+		return null
+	_kill_grid_cell_intro_tween(cell_control)
+	cell_control.pivot_offset = cell_control.size * 0.5
+	cell_control.scale = Vector2.ONE * 0.72
+	cell_control.rotation = 0.0
+	var start_color: Color = Color.WHITE
+	start_color.a = 0.0
+	cell_control.modulate = start_color
+	var tween: Tween = cell_control.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	var grow_tweener: PropertyTweener = tween.tween_property(
+		cell_control,
 		"scale",
-		Vector2.ONE,
+		Vector2.ONE * 1.06,
 		_BOARD_INTRO_DURATION
 	)
+	var _grow_curve: Tweener = grow_tweener.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var fade_tweener: PropertyTweener = tween.parallel().tween_property(
+		cell_control,
+		"modulate",
+		Color.WHITE,
+		0.09
+	)
+	var _fade_curve: Tweener = fade_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var settle_tweener: PropertyTweener = tween.tween_property(
+		cell_control,
+		"scale",
+		Vector2.ONE,
+		0.08
+	)
+	var _settle_curve: Tweener = settle_tweener.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var _delay_result: Tweener = grow_tweener.set_delay(maxf(delay_seconds, 0.0))
+	var _fade_delay_result: Tweener = fade_tweener.set_delay(maxf(delay_seconds, 0.0))
+	cell_control.set_meta("_board_intro_tween", tween)
+	return tween
+
+
+func _kill_grid_cell_intro_tween(cell_control: Control) -> void:
+	if not is_instance_valid(cell_control):
+		return
+	if not cell_control.has_meta("_board_intro_tween"):
+		return
+	var tween_value: Variant = cell_control.get_meta("_board_intro_tween")
+	if tween_value is Tween:
+		var tween: Tween = tween_value
+		if tween.is_valid():
+			tween.kill()
+	cell_control.remove_meta("_board_intro_tween")
+
+
+func _complete_grid_cell_intro_motion() -> void:
+	for cell_value: Variant in _grid_cell_map.keys():
+		if not cell_value is Vector2i:
+			continue
+		var cell: Vector2i = cell_value
+		var cell_control: Control = _get_grid_cell_control(cell)
+		if not is_instance_valid(cell_control):
+			continue
+		_kill_grid_cell_intro_tween(cell_control)
+		if is_instance_valid(_ui_motion_utility):
+			_ui_motion_utility.complete_control_motion(cell_control)
+		cell_control.scale = Vector2.ONE
+		cell_control.rotation = 0.0
+		cell_control.modulate = Color.WHITE
+
+
+func _resolve_intro_stagger(
+	piece_count: int,
+	preferred_stagger: float,
+	max_stagger_window: float
+) -> float:
+	if piece_count <= 1:
+		return 0.0
+	return minf(
+		maxf(preferred_stagger, 0.0),
+		maxf(max_stagger_window, 0.0) / float(piece_count - 1)
+	)
+
+
+func _sort_grid_positions_for_intro(first: Vector2i, second: Vector2i) -> bool:
+	if first.y == second.y:
+		return first.x < second.x
+	return first.y < second.y
+
+
+func _sort_tiles_for_intro(first: Tile, second: Tile) -> bool:
+	if is_equal_approx(first.position.y, second.position.y):
+		return first.position.x < second.position.x
+	return first.position.y < second.position.y
 
 
 ## 将网格坐标转换为棋盘容器内的局部像素中心点坐标。

@@ -1,16 +1,19 @@
 [gd_scene format=3 uid="uid://d3y8lq5x104n"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cell"]
-bg_color = Color(0.5882353, 0.5764706, 0.49411765, 0.92)
+bg_color = Color(0.5882353, 0.5764706, 0.49411765, 0.76)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.28627452, 0.2784314, 0.2509804, 0.62)
-corner_radius_top_left = 2
-corner_radius_top_right = 2
-corner_radius_bottom_right = 2
-corner_radius_bottom_left = 2
+border_color = Color(0.28627452, 0.2784314, 0.2509804, 0.56)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+shadow_color = Color(0.28627452, 0.2784314, 0.2509804, 0.12)
+shadow_size = 2
+shadow_offset = Vector2(1, 2)
 
 [node name="BoardGridCell" type="Panel" unique_id=124607921]
 offset_right = 100.0

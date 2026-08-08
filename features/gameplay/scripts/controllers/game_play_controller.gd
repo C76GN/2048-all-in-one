@@ -77,6 +77,7 @@ var _is_cleaned_up: bool = false
 @onready var _board_world_viewport_controller: BoardWorldViewportController = (
 	%BoardWorldViewportController
 )
+@onready var _view_controls: PanelContainer = %ViewControls
 
 
 # --- Godot 生命周期方法 ---
@@ -108,6 +109,7 @@ func _ready() -> void:
 	register_simple_event(EventNames.SCENE_WILL_CHANGE, GFEventListener.from_method(self, &"_on_scene_will_change", 1))
 	_request_game_initialization_when_board_ready()
 	_update_static_ui_text()
+	call_deferred(&"_play_startup_chrome_intro")
 
 
 func _notification(what: int) -> void:
@@ -144,6 +146,17 @@ func _update_static_ui_text() -> void:
 		replay_exit_button.text = tr("BTN_REPLAY_EXIT")
 	_refresh_replay_marker_picker()
 	_update_replay_eligibility_note()
+
+
+## 让棋盘视口工具条与棋盘、HUD 共享同一套纸片组装节拍。
+func _play_startup_chrome_intro() -> void:
+	if not is_inside_tree() or not is_instance_valid(_view_controls):
+		return
+	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
+	if not is_instance_valid(motion_utility):
+		return
+	var pieces: Array[Control] = [_view_controls]
+	var _assembled_piece_count: int = motion_utility.play_piece_assembly(pieces, 0.0)
 
 
 func _connect_replay_control_signals() -> void:

@@ -117,6 +117,7 @@ var _pending_score_feedback_new: int = 0
 var _notification_motion_tween: Tween
 var _notification_rest_position: Vector2 = Vector2.ZERO
 var _notification_rest_position_valid: bool = false
+var _startup_intro_played: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -216,6 +217,7 @@ func _ready() -> void:
 	_apply_hud_layout()
 	_apply_details_visibility()
 	_refresh_board_info()
+	call_deferred(&"_play_startup_intro")
 
 
 func _exit_tree() -> void:
@@ -274,6 +276,37 @@ func apply_screen_insets(insets: Dictionary) -> void:
 
 
 # --- 私有/辅助方法 ---
+
+## 首次进入玩法时以“纸片组装”方式揭示 HUD。
+##
+## 真值与焦点在首帧已经提交；这里仅通过 GF 项目 UI Motion Utility
+## 对当前可见的独立面板做错峰缩放/回弹，不阻塞输入或布局。
+func _play_startup_intro() -> void:
+	if _startup_intro_played or not is_inside_tree():
+		return
+	_startup_intro_played = true
+	if not is_instance_valid(_ui_motion_utility):
+		return
+
+	var pieces: Array[Control] = []
+	for candidate: Control in [
+		_top_score_panel,
+		_board_info_panel,
+		_details_panel,
+		_control_hint_panel,
+		_action_panel,
+	]:
+		if is_instance_valid(candidate) and candidate.visible:
+			pieces.append(candidate)
+	var _assembled_piece_count: int = _ui_motion_utility.play_piece_assembly(pieces)
+	var startup_buttons: Array[BaseButton] = []
+	if is_instance_valid(_details_toggle_button) and _details_toggle_button.visible:
+		startup_buttons.append(_details_toggle_button)
+	var _dealt_button_count: int = _ui_motion_utility.play_button_deal_sequence(
+		startup_buttons,
+		Vector2(18.0, 0.0),
+		0.0
+	)
 
 ## 全局刷新 UI 显示。
 func _refresh_all() -> void:

@@ -172,6 +172,9 @@ func _run_capture() -> void:
 		push_error("[VisualReview] GamePlay timeout.")
 		_request_exit(17)
 		return
+	if not await _capture_gameplay_intro_frames(game_play):
+		_request_exit(18)
+		return
 	await create_timer(1.0, true, false, true).timeout
 	await _settle_frames(60)
 	if _count_painted_gameplay_tiles(game_play) <= 0:
@@ -866,6 +869,45 @@ func _capture_gameplay_motion_frames(game_play: Node) -> bool:
 	await create_timer(0.28, true, false, true).timeout
 	backdrop.reset_feedback()
 	await _settle_frames(3)
+	return true
+
+
+func _capture_gameplay_intro_frames(game_play: Node) -> bool:
+	var game_board_node: Node = game_play.get_node_or_null("%GameBoard")
+	if not game_board_node is GameBoardController:
+		push_error("[VisualReview] Gameplay intro fixture has no GameBoardController.")
+		return false
+	var game_board: GameBoardController = game_board_node
+	var intro_started: bool = false
+	for _frame: int in range(180):
+		var grid_cells_value: Variant = game_board.get("_grid_cell_map")
+		if grid_cells_value is Dictionary:
+			var grid_cells: Dictionary = grid_cells_value
+			if grid_cells.is_empty():
+				await process_frame
+				continue
+			intro_started = true
+			break
+		await process_frame
+	if not intro_started:
+		push_error("[VisualReview] Gameplay intro did not create visible grid cells.")
+		return false
+
+	await _settle_frames(1)
+	if not _save_viewport("gameplay_intro_0020ms.png"):
+		return false
+	await create_timer(0.06, true, false, true).timeout
+	await _settle_frames(1)
+	if not _save_viewport("gameplay_intro_0080ms.png"):
+		return false
+	await create_timer(0.08, true, false, true).timeout
+	await _settle_frames(1)
+	if not _save_viewport("gameplay_intro_0160ms.png"):
+		return false
+	await create_timer(0.20, true, false, true).timeout
+	await _settle_frames(1)
+	if not _save_viewport("gameplay_intro_0360ms.png"):
+		return false
 	return true
 
 

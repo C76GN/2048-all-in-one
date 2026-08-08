@@ -669,6 +669,101 @@ func test_game_board_controller_uses_configured_tile_scheme_colors() -> void:
 	controller.free()
 
 
+func test_gameplay_board_uses_independent_paper_cells_without_a_slab() -> void:
+	var controller: GameBoardController = GameBoardController.new()
+	var board_background: Panel = Panel.new()
+	var initial_board_style: StyleBoxFlat = StyleBoxFlat.new()
+	initial_board_style.bg_color = Color(0.75, 0.62, 0.44, 1.0)
+	initial_board_style.border_color = Color(0.18, 0.16, 0.14, 1.0)
+	initial_board_style.set_border_width_all(5)
+	initial_board_style.set_corner_radius_all(8)
+	initial_board_style.shadow_color = Color(0.1, 0.08, 0.06, 0.6)
+	initial_board_style.shadow_size = 6
+	initial_board_style.shadow_offset = Vector2(4.0, 5.0)
+	board_background.add_theme_stylebox_override("panel", initial_board_style)
+	controller.add_child(board_background)
+	controller.board_background = board_background
+
+	controller._apply_board_background_style()
+	var runtime_board_style: StyleBoxFlat = board_background.get_theme_stylebox("panel")
+
+	assert_true(runtime_board_style.bg_color == Color.TRANSPARENT, "局内棋盘不得保留整块底色。")
+	assert_true(runtime_board_style.border_color == Color.TRANSPARENT, "局内棋盘不得保留整块外框。")
+	assert_true(
+		runtime_board_style.border_width_left == 0
+		and runtime_board_style.border_width_top == 0
+		and runtime_board_style.border_width_right == 0
+		and runtime_board_style.border_width_bottom == 0,
+		"局内棋盘四边宽度必须归零，格子间隙应直接露出背景纸面。"
+	)
+	assert_true(
+		runtime_board_style.shadow_color == Color.TRANSPARENT
+		and runtime_board_style.shadow_size == 0
+		and runtime_board_style.shadow_offset == Vector2.ZERO,
+		"局内棋盘不得以整块阴影重新形成棋板感。"
+	)
+
+	var board_theme: BoardTheme = BoardTheme.new()
+	board_theme.empty_cell_color = Color(0.62, 0.58, 0.47, 1.0)
+	board_theme.empty_cell_border_color = Color(0.24, 0.22, 0.19, 1.0)
+	controller.board_theme = board_theme
+	var cell_style: StyleBoxFlat = StyleBoxFlat.new()
+	controller._configure_cell_style(cell_style)
+
+	assert_true(is_equal_approx(cell_style.bg_color.a, 0.76), "空格纸片应保留可见填充，但不得连成实心底板。")
+	assert_true(is_equal_approx(cell_style.border_color.a, 0.56), "空格纸片应以克制描边保持独立边界。")
+	assert_true(
+		cell_style.border_width_left == 2
+		and cell_style.border_width_top == 2
+		and cell_style.border_width_right == 2
+		and cell_style.border_width_bottom == 2,
+		"每个空格纸片应独立拥有一致的细描边。"
+	)
+	assert_true(
+		cell_style.corner_radius_top_left == 3
+		and cell_style.corner_radius_top_right == 3
+		and cell_style.corner_radius_bottom_right == 3
+		and cell_style.corner_radius_bottom_left == 3,
+		"空格纸片应保留轻微圆角，而不是复原整块棋盘轮廓。"
+	)
+	assert_true(
+		is_equal_approx(cell_style.shadow_color.a, 0.12)
+		and cell_style.shadow_size == 2
+		and cell_style.shadow_offset == Vector2(1.0, 2.0),
+		"每个空格纸片应拥有自身的轻阴影，形成独立 tile 层次。"
+	)
+	var large_board_stagger: float = controller._resolve_intro_stagger(256, 0.018, 0.62)
+	assert_true(
+		large_board_stagger * 255.0 <= 0.6201,
+		"大棋盘的阅读顺序错峰必须收敛在固定窗口内，不能线性拖长开局。"
+	)
+	controller.free()
+
+
+func test_gameplay_board_intro_releases_cell_tween_before_expansion() -> void:
+	var controller: GameBoardController = GameBoardController.new()
+	var cell: Panel = Panel.new()
+	cell.size = Vector2(100.0, 100.0)
+	add_child_autoqfree(cell)
+	controller._grid_cell_map[Vector2i.ZERO] = cell
+
+	var intro_tween: Tween = controller._play_grid_cell_intro(cell, 0.0)
+	assert_true(
+		is_instance_valid(intro_tween) and intro_tween.is_valid(),
+		"独立空格纸片应能启动回弹入场。"
+	)
+	controller._complete_grid_cell_intro_motion()
+
+	assert_false(intro_tween.is_running(), "棋盘扩建前必须结束旧的格子入场 Tween。")
+	assert_true(
+		cell.scale.is_equal_approx(Vector2.ONE)
+		and is_equal_approx(cell.rotation, 0.0)
+		and cell.modulate.is_equal_approx(Color.WHITE),
+		"格子入场被接管时必须先落到稳定终态。"
+	)
+	controller.free()
+
+
 func test_tile_color_schemes_keep_large_number_text_readable() -> void:
 	var issues: Array[String] = []
 	_collect_tile_scheme_contrast_issues("classic", _CLASSIC_TILE_THEME, issues)
@@ -704,6 +799,39 @@ func test_tile_visual_animations_return_live_tweens() -> void:
 
 	var spawn_tween: Tween = tile.animate_spawn()
 	assert_true(is_instance_valid(spawn_tween) and spawn_tween.is_valid(), "生成动画应返回有效 Tween。")
+
+	tile.reset_animation_state()
+	var intro_tween: Tween = tile.animate_intro(0.02, 0.72, 1.06, 0.22)
+	assert_true(
+		is_instance_valid(intro_tween) and intro_tween.is_valid(),
+		"棋盘首局组装应返回有效 Tween。"
+	)
+	assert_true(
+		tile.scale.is_equal_approx(Vector2.ONE * 0.72)
+		and is_equal_approx(tile.modulate.a, 0.0),
+		"棋盘首局组装必须从小尺寸、透明状态开始。"
+	)
+	var _intro_finished: bool = intro_tween.custom_step(0.6)
+	assert_true(
+		tile.scale.is_equal_approx(Vector2.ONE)
+		and tile.modulate.is_equal_approx(Color.WHITE),
+		"棋盘首局组装完成后必须回弹到稳定可读终态。"
+	)
+	var reduced_budget: GameFeedbackBudget = GameFeedbackBudget.new()
+	reduced_budget.motion_scale = 0.0
+	var reduced_intro_tween: Tween = tile.animate_intro(
+		0.02,
+		0.72,
+		1.06,
+		0.22,
+		reduced_budget
+	)
+	assert_null(reduced_intro_tween, "减少动态时不得创建方块入场 Tween。")
+	assert_true(
+		tile.scale.is_equal_approx(Vector2.ONE)
+		and tile.modulate.is_equal_approx(Color.WHITE),
+		"减少动态时初始方块必须直接落到可读终态。"
+	)
 
 	tile.reset_animation_state()
 	var move_tween: Tween = tile.animate_move(Vector2(48.0, 32.0))
