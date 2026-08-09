@@ -15,6 +15,9 @@ const _MODE_SELECTION_SCENE: PackedScene = preload(
 )
 const _CAPTURE_MATRIX_PATH: String = "res://tools/capture_ui_vfx_matrix.gd"
 const _VISUAL_REVIEW_CAPTURE_PATH: String = "res://tools/capture_visual_review.gd"
+const _CAPTURE_ARTIFACT_SESSION_PATH: String = (
+	"res://tools/visual_capture_artifact_session.gd"
+)
 const _BOOKMARK_LIST_SCENE: PackedScene = preload(
 	"res://features/bookmarks/scenes/menus/bookmark_list.tscn"
 )
@@ -81,14 +84,64 @@ func test_mode_selection_stacks_960x540_to_keep_actions_in_view() -> void:
 	)
 
 
+func test_mode_selection_uses_physical_safe_window_for_runtime_structure() -> void:
+	var physical_size: Vector2 = ModeSelection._resolve_physical_layout_size(
+		Vector2(1280.0, 720.0),
+		{
+			&"window_size": Vector2i(960, 540),
+			&"safe_area": Rect2i(Vector2i.ZERO, Vector2i(960, 540)),
+		}
+	)
+	assert_true(
+		physical_size == Vector2(960.0, 540.0),
+		"stretch 后的 1280×720 逻辑画布不得掩盖 960×540 物理窗口断点。"
+	)
+
+	var menu_node: Node = _MODE_SELECTION_SCENE.instantiate()
+	assert_true(menu_node is ModeSelection)
+	if menu_node is ModeSelection:
+		var menu: ModeSelection = menu_node
+		menu._columns_container = menu.find_child(
+			"ColumnsContainer",
+			true,
+			false
+		) as HBoxContainer
+		menu._center_column = menu.find_child("CenterColumn", true, false) as VBoxContainer
+		menu._center_content_holder = menu.find_child(
+			"CenterContentHolder",
+			true,
+			false
+		) as CenterContainer
+		menu._right_panel_container = menu.find_child(
+			"RightColumn",
+			true,
+			false
+		) as VBoxContainer
+		menu._set_right_panel_stacked(
+			not ModeSelection._uses_side_by_side_layout(physical_size)
+		)
+		var stack_margin: Node = menu.find_child(
+			"RightPanelStackMargin",
+			true,
+			false
+		)
+		assert_true(stack_margin is MarginContainer)
+		assert_same(
+			menu._right_panel_container.get_parent(),
+			stack_margin,
+			"物理 960×540 运行时结构必须把配置纸面堆叠到模式列表下方。"
+		)
+	menu_node.free()
+
+
 func test_mode_selection_paginates_from_available_first_screen_height() -> void:
 	assert_true(
 		ModeSelection._get_items_per_page_for_viewport(Vector2(1280.0, 720.0)) == 4,
 		"720px 高桌面页只能放四张模式卡，必须为分页和返回按钮保留首屏空间。"
 	)
 	assert_true(
-		ModeSelection._get_items_per_page_for_viewport(Vector2(960.0, 540.0)) == 3,
-		"540px 高紧凑横屏只能放三张模式卡，右侧开始操作和左侧分页都应保持可见。"
+		ModeSelection._get_items_per_page_for_viewport(Vector2(960.0, 540.0)) == 2,
+		"540px 高单列横屏只放两张模式卡，为同一首屏内的配置与开始操作保留空间。"
 	)
 	assert_true(
 		ModeSelection._get_items_per_page_for_viewport(Vector2(720.0, 1558.0)) == 5,
@@ -373,24 +426,28 @@ func test_capture_matrix_exercises_real_player_gameplay_route_chain() -> void:
 	)
 
 
-func test_visual_review_injects_history_items_into_the_shared_container() -> void:
+func test_visual_review_injects_history_items_through_the_active_list_backend() -> void:
 	var source: String = FileAccess.get_file_as_string(_VISUAL_REVIEW_CAPTURE_PATH)
 	assert_false(source.is_empty(), "真实移动与回放验收脚本必须可读取。")
-	assert_true(
+	assert_false(
 		source.contains('find_child("ItemsContainer", true, false)'),
-		"视觉验收必须使用 BaseListMenu 的共享 ItemsContainer。"
+		"视觉验收不得再假设共享内容根是 VBoxContainer。"
 	)
 	assert_false(
 		source.contains('find_child("ReplayItemsContainer", true, false)'),
 		"视觉验收不得继续引用已经移除的 ReplayItemsContainer。"
 	)
 	assert_true(
-		source.contains("list_menu._setup_item(item_control, data)")
+		source.contains("list_menu.items_container")
+		and source.contains("list_menu._uses_virtual_list()")
+		and source.contains("list_menu._populate_virtual_list(injected_data, template)")
+		and source.contains("list_menu._get_list_item_controls()")
+		and source.contains("list_menu._setup_item(item_control, data)")
 		and source.contains("list_menu._connect_item_signals(item_control, data)")
 		and source.contains("list_menu._on_empty_state_changed(false)")
 		and source.contains("list_menu._apply_list_focus_order([item_control])")
 		and source.contains("item_control.grab_focus()"),
-		"真实视觉验收必须按生产列表契约配置项目，并恢复信号、动作与首项焦点。"
+		"视觉验收必须对回放复用 GFVirtualListBinder 生产路径，对书签复用共享内容根。"
 	)
 	assert_true(
 		source.contains("not button.is_visible_in_tree() or button.disabled"),
@@ -424,6 +481,83 @@ func test_visual_review_injects_history_items_into_the_shared_container() -> voi
 		source.contains("_capture_history_delete_states")
 		and source.contains("_capture_settings_persistence_failure"),
 		"真实视觉验收必须通过可失败的状态辅助方法生成确认和错误证据。"
+	)
+
+
+func test_visual_capture_tools_publish_single_run_manifests() -> void:
+	var session_source: String = FileAccess.get_file_as_string(
+		_CAPTURE_ARTIFACT_SESSION_PATH
+	)
+	assert_false(session_source.is_empty(), "截图产物会话工具必须可读取。")
+	for required_fragment: String in [
+		'const _MANIFEST_FILE_NAME: String = "capture_manifest.json"',
+		'not _output_directory.begins_with("res://build/")',
+		'"head":',
+		'"dirty":',
+		'"gf_vendor":',
+		'"expected_screenshots":',
+		'"actual_screenshots":',
+		'"terminal":',
+	]:
+		assert_true(
+			session_source.contains(required_fragment),
+			"截图 manifest 缺少可追溯字段：%s。" % required_fragment
+		)
+	for capture_path: String in [
+		_CAPTURE_MATRIX_PATH,
+		_VISUAL_REVIEW_CAPTURE_PATH,
+	]:
+		var capture_source: String = FileAccess.get_file_as_string(capture_path)
+		assert_true(
+			capture_source.contains("VisualCaptureArtifactSession.new("),
+			"截图工具必须以单次产物会话清理旧证据：%s。" % capture_path
+		)
+		assert_true(
+			capture_source.contains("_artifact_session.finalize("),
+			"截图工具的成功和失败路径都必须写入终态：%s。" % capture_path
+		)
+	var matrix_source: String = FileAccess.get_file_as_string(
+		_CAPTURE_MATRIX_PATH
+	)
+	var plan_start: int = matrix_source.find(
+		"const _EXPECTED_SCREENSHOTS: Array[String] = ["
+	)
+	var plan_end: int = matrix_source.find("\n]", plan_start)
+	assert_true(plan_start >= 0 and plan_end > plan_start)
+	var plan_source: String = matrix_source.substr(
+		plan_start,
+		plan_end - plan_start
+	)
+	var screenshot_pattern: RegEx = RegEx.new()
+	assert_true(screenshot_pattern.compile('"[^"]+\\.png"') == OK)
+	assert_true(
+		screenshot_pattern.search_all(plan_source).size() == 169,
+		"UI 矩阵必须在运行前独立声明完整的 169 张截图契约。"
+	)
+	assert_false(
+		matrix_source.contains("_artifact_session.expect_screenshot(file_name)"),
+		"UI 矩阵不得由实际保存分支反向声明 expected。"
+	)
+
+
+func test_capture_matrix_covers_reduced_motion_for_every_page_matrix() -> void:
+	var source: String = FileAccess.get_file_as_string(_CAPTURE_MATRIX_PATH)
+	assert_true(
+		source.contains("await _capture_reduced_motion_page_states(page, page_id)"),
+		"所有页面矩阵都必须进入 reduced-motion 验收。"
+	)
+	assert_true(
+		source.contains("const _REDUCED_MOTION_RESOLUTIONS")
+		and source.contains("Vector2i(1280, 720)")
+		and source.contains("Vector2i(720, 960)"),
+		"reduced-motion 必须同时覆盖宽屏与竖屏。"
+	)
+	assert_true(
+		source.contains('accessibility.set_reduced_motion(true)')
+		and source.contains(
+			"accessibility.set_reduced_motion(previous_state.reduced_motion)"
+		),
+		"验收必须显式进入 reduced-motion，并恢复原始玩家偏好。"
 	)
 
 

@@ -1,6 +1,9 @@
 extends SceneTree
 
 
+const VisualCaptureArtifactSession = preload(
+	"res://tools/visual_capture_artifact_session.gd"
+)
 const _OUTPUT_DIRECTORY: String = "res://build/ui_vfx_matrix"
 const _LOGICAL_DESIGN_SIZE: Vector2i = Vector2i(720, 720)
 const _GAMEPLAY_MOTION_GUARD_MARGIN: float = 50.0
@@ -16,17 +19,196 @@ const _MAIN_MENU_INTERACTION_RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
 	Vector2i(720, 960),
 ]
+const _REDUCED_MOTION_RESOLUTIONS: Array[Vector2i] = [
+	Vector2i(1280, 720),
+	Vector2i(720, 960),
+]
 const _PLAYER_FLOW_RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
 	Vector2i(973, 781),
 	Vector2i(960, 540),
 	Vector2i(720, 960),
 ]
+## 独立于捕获分支的完整证据契约。若页面、状态或分辨率分支被跳过，
+## ArtifactSession 会把缺失文件写入失败终态，不能由实际捕获反向定义预期。
+const _EXPECTED_SCREENSHOTS: Array[String] = [
+	"achievements_1280x720.png",
+	"achievements_1280x720_scroll_end.png",
+	"achievements_1906x943.png",
+	"achievements_1906x943_scroll_end.png",
+	"achievements_720x960.png",
+	"achievements_720x960_scroll_end.png",
+	"achievements_850x838.png",
+	"achievements_850x838_scroll_end.png",
+	"achievements_960x540.png",
+	"achievements_960x540_scroll_end.png",
+	"achievements_reduced_motion_1280x720.png",
+	"achievements_reduced_motion_720x960.png",
+	"board_editor_1280x720.png",
+	"board_editor_960x540.png",
+	"board_editor_editor_720x960.png",
+	"board_editor_editor_720x960_scroll_end.png",
+	"board_editor_editor_973x781.png",
+	"board_editor_library_720x960.png",
+	"board_editor_library_720x960_scroll_end.png",
+	"board_editor_library_973x781.png",
+	"bookmark_list_1280x720.png",
+	"bookmark_list_1906x943.png",
+	"bookmark_list_720x960.png",
+	"bookmark_list_850x838.png",
+	"bookmark_list_960x540.png",
+	"bookmark_list_reduced_motion_1280x720.png",
+	"bookmark_list_reduced_motion_720x960.png",
+	"boot_1280x720.png",
+	"boot_1906x943.png",
+	"boot_720x960.png",
+	"boot_850x838.png",
+	"boot_960x540.png",
+	"celebration_dynamic_1280x720.png",
+	"celebration_static_1280x720.png",
+	"game_over_menu_1280x720.png",
+	"game_over_menu_720x960.png",
+	"game_over_menu_960x540.png",
+	"game_over_menu_973x781.png",
+	"gameplay_1280x720.png",
+	"gameplay_720x960.png",
+	"gameplay_960x540.png",
+	"gameplay_973x781.png",
+	"gameplay_invalid_move_1280x720.png",
+	"gameplay_invalid_move_720x960.png",
+	"gameplay_invalid_move_960x540.png",
+	"gameplay_invalid_move_973x781.png",
+	"gameplay_turn_subtitle_1280x720.png",
+	"gameplay_turn_subtitle_720x960.png",
+	"gameplay_turn_subtitle_960x540.png",
+	"gameplay_turn_subtitle_973x781.png",
+	"main_menu_1280x720.png",
+	"main_menu_1906x943.png",
+	"main_menu_720x960.png",
+	"main_menu_850x838.png",
+	"main_menu_960x540.png",
+	"main_menu_reduced_motion_1280x720.png",
+	"main_menu_reduced_motion_720x960.png",
+	"main_menu_start_button_deal_active_060ms_1280x720.png",
+	"main_menu_start_button_deal_active_060ms_720x960.png",
+	"main_menu_start_button_deal_active_100ms_1280x720.png",
+	"main_menu_start_button_deal_active_100ms_720x960.png",
+	"main_menu_start_button_deal_active_140ms_1280x720.png",
+	"main_menu_start_button_deal_active_140ms_720x960.png",
+	"main_menu_start_button_focus_1280x720.png",
+	"main_menu_start_button_focus_720x960.png",
+	"main_menu_start_button_hover_060ms_1280x720.png",
+	"main_menu_start_button_hover_060ms_720x960.png",
+	"main_menu_start_button_hover_1280x720.png",
+	"main_menu_start_button_hover_720x960.png",
+	"main_menu_start_button_pressed_1280x720.png",
+	"main_menu_start_button_pressed_720x960.png",
+	"main_menu_start_button_rest_1280x720.png",
+	"main_menu_start_button_rest_720x960.png",
+	"mode_selection_1280x720.png",
+	"mode_selection_1906x943.png",
+	"mode_selection_720x960.png",
+	"mode_selection_720x960_scroll_end.png",
+	"mode_selection_850x838.png",
+	"mode_selection_850x838_scroll_end.png",
+	"mode_selection_960x540.png",
+	"mode_selection_960x540_scroll_end.png",
+	"mode_selection_page_2_1280x720.png",
+	"mode_selection_page_2_720x960.png",
+	"mode_selection_page_2_960x540.png",
+	"mode_selection_page_2_960x540_scroll_end.png",
+	"mode_selection_page_2_973x781.png",
+	"mode_selection_page_2_973x781_scroll_end.png",
+	"mode_selection_page_3_960x540.png",
+	"mode_selection_reduced_motion_1280x720.png",
+	"mode_selection_reduced_motion_720x960.png",
+	"pause_menu_1280x720.png",
+	"pause_menu_720x960.png",
+	"pause_menu_960x540.png",
+	"pause_menu_973x781.png",
+	"player_profile_1280x720.png",
+	"player_profile_1906x943.png",
+	"player_profile_720x960.png",
+	"player_profile_850x838.png",
+	"player_profile_960x540.png",
+	"player_profile_leaderboard_1280x720.png",
+	"player_profile_leaderboard_720x960.png",
+	"player_profile_leaderboard_960x540.png",
+	"player_profile_leaderboard_973x781.png",
+	"player_profile_reduced_motion_1280x720.png",
+	"player_profile_reduced_motion_720x960.png",
+	"replay_list_1280x720.png",
+	"replay_list_1906x943.png",
+	"replay_list_720x960.png",
+	"replay_list_850x838.png",
+	"replay_list_960x540.png",
+	"replay_list_reduced_motion_1280x720.png",
+	"replay_list_reduced_motion_720x960.png",
+	"settings_1280x720.png",
+	"settings_1906x943.png",
+	"settings_720x960.png",
+	"settings_850x838.png",
+	"settings_960x540.png",
+	"settings_audio_1280x720.png",
+	"settings_audio_1280x720_scroll_end.png",
+	"settings_audio_720x960.png",
+	"settings_audio_720x960_scroll_end.png",
+	"settings_audio_960x540.png",
+	"settings_audio_960x540_scroll_end.png",
+	"settings_audio_973x781.png",
+	"settings_audio_973x781_scroll_end.png",
+	"settings_controls_1280x720.png",
+	"settings_controls_1280x720_scroll_end.png",
+	"settings_controls_720x960.png",
+	"settings_controls_720x960_scroll_end.png",
+	"settings_controls_960x540.png",
+	"settings_controls_960x540_scroll_end.png",
+	"settings_controls_973x781.png",
+	"settings_controls_973x781_scroll_end.png",
+	"settings_controls_bindings_1280x720_scroll_end.png",
+	"settings_controls_bindings_720x960_scroll_end.png",
+	"settings_controls_bindings_960x540_scroll_end.png",
+	"settings_controls_bindings_973x781_scroll_end.png",
+	"settings_general_1280x720.png",
+	"settings_general_1280x720_scroll_end.png",
+	"settings_general_720x960.png",
+	"settings_general_720x960_scroll_end.png",
+	"settings_general_960x540.png",
+	"settings_general_960x540_scroll_end.png",
+	"settings_general_973x781.png",
+	"settings_general_973x781_scroll_end.png",
+	"settings_reduced_motion_1280x720.png",
+	"settings_reduced_motion_720x960.png",
+	"target_reached_menu_1280x720.png",
+	"target_reached_menu_720x960.png",
+	"target_reached_menu_960x540.png",
+	"target_reached_menu_973x781.png",
+	"tile_catalog_1280x720.png",
+	"tile_catalog_1906x943.png",
+	"tile_catalog_720x960.png",
+	"tile_catalog_720x960_scroll_end.png",
+	"tile_catalog_850x838.png",
+	"tile_catalog_850x838_scroll_end.png",
+	"tile_catalog_960x540.png",
+	"tile_catalog_reduced_motion_1280x720.png",
+	"tile_catalog_reduced_motion_720x960.png",
+	"tile_lab_1280x720.png",
+	"tile_lab_1906x943.png",
+	"tile_lab_720x960.png",
+	"tile_lab_720x960_scroll_end.png",
+	"tile_lab_850x838.png",
+	"tile_lab_850x838_scroll_end.png",
+	"tile_lab_960x540.png",
+	"tile_lab_reduced_motion_1280x720.png",
+	"tile_lab_reduced_motion_720x960.png",
+]
 
 var _screenshot_utility: GFScreenshotUtility = null
 var _capture_count: int = 0
 var _validation_errors: PackedStringArray = PackedStringArray()
 var _geometry_records: Array[Dictionary] = []
+var _artifact_session: VisualCaptureArtifactSession = null
+var _finish_requested: bool = false
 
 
 func _init() -> void:
@@ -34,11 +216,19 @@ func _init() -> void:
 
 
 func _run() -> void:
+	_artifact_session = VisualCaptureArtifactSession.new(
+		"ui_vfx_matrix",
+		_OUTPUT_DIRECTORY,
+		_EXPECTED_SCREENSHOTS
+	)
+	if not _artifact_session.begin():
+		push_error("[UiVfxMatrix] Cannot prepare the isolated output directory.")
+		_finish(74)
+		return
 	if DisplayServer.get_name() == "headless":
 		push_error("[UiVfxMatrix] Capture requires rendering display mode.")
 		_finish(64)
 		return
-	_prepare_output_directory()
 	_set_resolution(_RESOLUTIONS[0])
 	var boot_scene: PackedScene = load("res://app/scenes/boot.tscn")
 	var boot_preview: Node = boot_scene.instantiate()
@@ -213,23 +403,7 @@ func _run() -> void:
 			push_error("[UiVfxMatrix] %s" % message)
 		_finish(19)
 		return
-	print("[UiVfxMatrix] completed captures=%d" % _capture_count)
 	_finish(0)
-
-
-func _prepare_output_directory() -> void:
-	var directory_path: String = ProjectSettings.globalize_path(_OUTPUT_DIRECTORY)
-	var directory_error: Error = DirAccess.make_dir_recursive_absolute(directory_path)
-	if directory_error != OK:
-		return
-	var directory: DirAccess = DirAccess.open(_OUTPUT_DIRECTORY)
-	if directory == null:
-		return
-	for file_name: String in directory.get_files():
-		var extension: String = file_name.get_extension().to_lower()
-		if extension != "png" and extension != "json":
-			continue
-		var _remove_error: Error = directory.remove(file_name)
 
 
 func _capture_page_matrix(page: Node, page_id: StringName) -> void:
@@ -248,7 +422,7 @@ func _capture_page_matrix(page: Node, page_id: StringName) -> void:
 				"%s 初始焦点" % String(page_id)
 			)
 		_record_page_geometry(page, page_id, resolution, logical_resolution)
-		_validate_page_structure(page, page_id, logical_resolution)
+		_validate_page_structure(page, page_id, logical_resolution, resolution)
 		if page_id != &"boot":
 			_validate_visible_touch_targets(
 				page,
@@ -271,7 +445,7 @@ func _capture_page_matrix(page: Node, page_id: StringName) -> void:
 		if (
 			page_id == &"mode_selection"
 			and not ModeSelection._uses_side_by_side_layout(
-				Vector2(logical_resolution)
+				Vector2(resolution)
 			)
 		):
 			await _capture_mode_selection_scroll_end(page, resolution)
@@ -281,8 +455,53 @@ func _capture_page_matrix(page: Node, page_id: StringName) -> void:
 			resolution,
 			logical_resolution
 		)
+	await _capture_reduced_motion_page_states(page, page_id)
 	_set_resolution(_RESOLUTIONS[0])
 	await _settle_frames(8)
+
+
+func _capture_reduced_motion_page_states(
+	page: Node,
+	page_id: StringName
+) -> void:
+	if page_id == &"boot":
+		return
+	var gf_node: Node = root.get_node_or_null("Gf")
+	if not is_instance_valid(gf_node):
+		_record_error("%s reduced-motion 验收缺少 Gf 根节点。" % page_id)
+		return
+	var accessibility_value: Variant = gf_node.call(
+		"get_utility",
+		GameAccessibilityUtility
+	)
+	if not accessibility_value is GameAccessibilityUtility:
+		_record_error("%s reduced-motion 验收缺少无障碍 Utility。" % page_id)
+		return
+	var accessibility: GameAccessibilityUtility = accessibility_value
+	var previous_state: GameAccessibilityState = accessibility.get_state()
+	accessibility.set_reduced_motion(true)
+	await _settle_frames(2)
+	for resolution: Vector2i in _REDUCED_MOTION_RESOLUTIONS:
+		_set_resolution(resolution)
+		await _settle_frames(4)
+		_queue_container_layout(page)
+		await _settle_frames(4)
+		var logical_resolution: Vector2i = Vector2i(
+			root.get_visible_rect().size.round()
+		)
+		_validate_page_structure(page, page_id, logical_resolution, resolution)
+		_validate_visible_touch_targets(
+			page,
+			logical_resolution,
+			"%s reduced-motion" % String(page_id)
+		)
+		_save_viewport(
+			"%s_reduced_motion_%dx%d.png"
+			% [String(page_id), resolution.x, resolution.y],
+			resolution
+		)
+	accessibility.set_reduced_motion(previous_state.reduced_motion)
+	await _settle_frames(2)
 
 
 func _capture_main_menu_start_button_states(
@@ -724,7 +943,8 @@ func _capture_mode_selection_second_page(mode_selection: Node) -> bool:
 		_validate_page_structure(
 			mode_selection,
 			&"mode_selection",
-			logical_resolution
+			logical_resolution,
+			resolution
 		)
 		_record_page_geometry(
 			mode_selection,
@@ -739,7 +959,7 @@ func _capture_mode_selection_second_page(mode_selection: Node) -> bool:
 		)
 		if (
 			not ModeSelection._uses_side_by_side_layout(
-				Vector2(logical_resolution)
+				Vector2(resolution)
 			)
 		):
 			await _capture_named_scroll_end(
@@ -849,7 +1069,8 @@ func _capture_mode_selection_last_page_if_needed(
 	_validate_page_structure(
 		mode_selection,
 		&"mode_selection",
-		logical_resolution
+		logical_resolution,
+		physical_resolution
 	)
 	_record_page_geometry(
 		mode_selection,
@@ -2050,7 +2271,8 @@ func _capture_celebration_variants() -> void:
 func _validate_page_structure(
 	page: Node,
 	page_id: StringName,
-	resolution: Vector2i
+	resolution: Vector2i,
+	physical_resolution: Vector2i = Vector2i.ZERO
 ) -> void:
 	if not is_instance_valid(page):
 		_record_error("%s @ %s 页面实例无效。" % [page_id, resolution])
@@ -2101,6 +2323,11 @@ func _validate_page_structure(
 					"main_menu 开始游戏"
 				)
 		&"mode_selection":
+			var layout_resolution: Vector2i = (
+				physical_resolution
+				if physical_resolution.x > 0 and physical_resolution.y > 0
+				else resolution
+			)
 			var right: Node = page.find_child("RightColumn", true, false)
 			var stack_margin: Node = page.find_child(
 				"RightPanelStackMargin",
@@ -2122,10 +2349,10 @@ func _validate_page_structure(
 				false
 			)
 			var layout_mode: int = GameTaskPageLayoutUtility.classify_layout(
-				Vector2(resolution)
+				Vector2(layout_resolution)
 			)
 			var side_by_side: bool = ModeSelection._uses_side_by_side_layout(
-				Vector2(resolution)
+				Vector2(layout_resolution)
 			)
 			var right_panel_parent_is_valid: bool = (
 				is_instance_valid(right)
@@ -2140,7 +2367,10 @@ func _validate_page_structure(
 				)
 			)
 			if not right_panel_parent_is_valid:
-				_record_error("mode_selection @ %s 右栏响应式归属错误。" % resolution)
+				_record_error(
+					"mode_selection @ %s 右栏响应式归属错误。"
+					% layout_resolution
+				)
 			if not side_by_side and content_node is Control:
 				var content: Control = content_node
 				if content.size.x < minf(float(resolution.x) * 0.75, 600.0):
@@ -2150,7 +2380,8 @@ func _validate_page_structure(
 					margin_node,
 					page_scroll_node,
 					start_node,
-					resolution
+					resolution,
+					layout_resolution
 				)
 			if (
 				layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
@@ -2211,10 +2442,14 @@ func _validate_mode_selection_stacked_scroll(
 	margin_node: Node,
 	page_scroll_node: Node,
 	start_node: Node,
-	resolution: Vector2i
+	logical_resolution: Vector2i,
+	physical_resolution: Vector2i
 ) -> void:
 	if not margin_node is MarginContainer or not page_scroll_node is ScrollContainer:
-		_record_error("mode_selection @ %s 缺少堆叠页面滚动所有者。" % resolution)
+		_record_error(
+			"mode_selection @ %s 缺少堆叠页面滚动所有者。"
+			% physical_resolution
+		)
 		return
 	var margin: MarginContainer = margin_node
 	var page_scroll: ScrollContainer = page_scroll_node
@@ -2226,7 +2461,7 @@ func _validate_mode_selection_stacked_scroll(
 	if absf(page_scroll.size.y - expected_height) > 1.0:
 		_record_error(
 			"mode_selection @ %s 页面滚动视口未占满安全区高度：%.1f / %.1f。"
-			% [resolution, page_scroll.size.y, expected_height]
+			% [physical_resolution, page_scroll.size.y, expected_height]
 		)
 	var visible_vertical_scrolls: int = 0
 	for scroll_node: Node in page.find_children("*", "ScrollContainer", true, false):
@@ -2241,23 +2476,35 @@ func _validate_mode_selection_stacked_scroll(
 	if visible_vertical_scrolls != 1:
 		_record_error(
 			"mode_selection @ %s 堆叠布局必须只有一个纵向滚动所有者，实际为 %d。"
-			% [resolution, visible_vertical_scrolls]
+			% [physical_resolution, visible_vertical_scrolls]
 		)
 	if not start_node is Control:
-		_record_error("mode_selection @ %s 缺少开始游戏按钮。" % resolution)
+		_record_error("mode_selection @ %s 缺少开始游戏按钮。" % physical_resolution)
 		return
 	var start_control: Control = start_node
 	var scroll_rect: Rect2 = page_scroll.get_global_rect()
+	var first_screen_rect: Rect2 = scroll_rect.intersection(
+		Rect2(Vector2.ZERO, Vector2(logical_resolution))
+	)
 	var start_rect: Rect2 = start_control.get_global_rect()
 	var scroll_bar: VScrollBar = page_scroll.get_v_scroll_bar()
 	var maximum_scroll: float = maxf(scroll_bar.max_value - scroll_bar.page, 0.0)
+	if physical_resolution == Vector2i(960, 540) and (
+		not start_control.is_visible_in_tree()
+		or start_rect.position.y < first_screen_rect.position.y - 1.0
+		or start_rect.end.y > first_screen_rect.end.y + 1.0
+	):
+		_record_error(
+			"mode_selection @ %s 开始游戏按钮未进入物理首屏。"
+			% physical_resolution
+		)
 	if (
 		not start_control.is_visible_in_tree()
 		or start_rect.end.y - maximum_scroll > scroll_rect.end.y + 1.0
 	):
 		_record_error(
 			"mode_selection @ %s 开始游戏按钮无法通过唯一页面滚动到达。"
-			% resolution
+			% physical_resolution
 		)
 
 
@@ -2929,8 +3176,11 @@ func _resolve_screenshot_utility() -> GFScreenshotUtility:
 
 
 func _save_viewport(file_name: String, resolution: Vector2i) -> void:
+	if not is_instance_valid(_artifact_session):
+		_record_error("截图产物会话不可用：%s。" % file_name)
+		return
 	var record: Dictionary = _screenshot_utility.save_viewport_screenshot(
-		_OUTPUT_DIRECTORY.path_join(file_name),
+		_artifact_session.get_output_directory().path_join(file_name),
 		{
 			"viewport": root,
 			"format": GFScreenshotUtility.FORMAT_PNG,
@@ -2944,6 +3194,7 @@ func _save_viewport(file_name: String, resolution: Vector2i) -> void:
 			% [file_name, GFVariantData.get_option_string(record, "reason", "unknown")]
 		)
 		return
+	_artifact_session.record_screenshot(file_name)
 	_capture_count += 1
 
 
@@ -3050,6 +3301,9 @@ func _write_geometry_report() -> void:
 
 
 func _finish(exit_code: int) -> void:
+	if _finish_requested:
+		return
+	_finish_requested = true
 	var _deferred_finish: Variant = call_deferred(
 		&"_finish_after_cleanup",
 		exit_code
@@ -3064,4 +3318,17 @@ func _finish_after_cleanup(exit_code: int) -> void:
 	await process_frame
 	await process_frame
 	GFExtensionSettings.clear_manifest_cache()
-	quit(exit_code)
+	var effective_exit_code: int = exit_code
+	if is_instance_valid(_artifact_session):
+		effective_exit_code = _artifact_session.finalize(
+			exit_code,
+			"capture completed" if exit_code == 0 else "capture aborted",
+			{
+				"capture_count": _capture_count,
+				"validation_errors": Array(_validation_errors),
+				"geometry_record_count": _geometry_records.size(),
+			}
+		)
+	if effective_exit_code == 0:
+		print("[UiVfxMatrix] completed captures=%d" % _capture_count)
+	quit(effective_exit_code)

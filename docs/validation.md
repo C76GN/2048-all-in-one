@@ -65,7 +65,13 @@ powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1 -VerifyRemot
 powershell -ExecutionPolicy Bypass -File tools/validate_project_layout.ps1 -GodotExecutable godot
 ```
 
-包装器通过 `tools/invoke_godot_project_tool.ps1` 等待 Steam 派生的 Godot 子进程、隔离用户目录并检查脚本诊断。GDScript 使用 `GFProjectLayoutValidator` 扫描项目，将报告写入 `build/project_layout_report.json`，并把 warning 与 error 都视为失败。当前 profile 为 `c76.2048.feature_cohesive.v1`，基于 GF 内置 `gf.project_layout.feature_cohesive.v1` 收紧而来。文件与目录计数仅作诊断信息，因为 `build/` 内的本地报告会随验证命令变化。
+包装器通过 `tools/invoke_godot_project_tool.ps1` 等待 Steam 派生的 Godot 子进程、隔离用户目录并检查脚本诊断。派生进程只能通过启动器真实后代，或本次唯一 `--log-file` 与脚本路径的联合身份识别；不得仅因命令行包含同一项目根就等待或强杀其他 Godot/GUT/编辑器进程。进程身份回归可单独运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/test_invoke_godot_project_tool.ps1 -GodotExecutable godot
+```
+
+GDScript 使用 `GFProjectLayoutValidator` 扫描项目，将报告写入 `build/project_layout_report.json`，并把 warning 与 error 都视为失败。当前 profile 为 `c76.2048.feature_cohesive.v1`，基于 GF 内置 `gf.project_layout.feature_cohesive.v1` 收紧而来。文件与目录计数仅作诊断信息，因为 `build/` 内的本地报告会随验证命令变化。
 
 ### GF API 与生命周期合规
 
@@ -167,15 +173,15 @@ powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps
 真实场景流截图由项目内回放工具生成，不使用手工拼接的测试节点：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -ScriptPath res://tools/capture_visual_review.gd -Rendering -ExpectedOutputPattern "[VisualReview] slowest_command_usec=" -TimeoutSeconds 240
+powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -ScriptPath res://tools/capture_visual_review.gd -Rendering -ExpectedOutputPattern "[VisualReview] slowest_command_usec=" -TimeoutSeconds 300
 ```
 
-输出位于忽略提交的 `build/visual_review/`，覆盖主菜单、场景遮罩、模式选择、主题化下拉菜单、稳定游戏帧和实际 `MoveCommand` 合并帧。每次评审必须同时检查截图、命令耗时输出和运行日志；文档中的视觉目标不能替代当次证据。
+输出位于忽略提交的 `build/visual_review/`，覆盖主菜单、场景遮罩、模式选择、主题化下拉菜单、稳定游戏帧和实际 `MoveCommand` 合并帧。工具每次先清理自己的输出目录，并写入 `capture_manifest.json`；manifest 记录 Git HEAD/工作树状态、GF vendor 版本与 commit、预期/实际截图和成功或失败终态。没有成功终态的目录不得作为签字证据。每次评审必须同时检查截图、manifest、命令耗时输出和运行日志；文档中的视觉目标不能替代当次证据。
 
 玩家 UI 的跨视口结构验收使用独立矩阵工具：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -ScriptPath res://tools/capture_ui_vfx_matrix.gd -Rendering -ExpectedOutputPattern "[UiVfxMatrix] completed captures=" -TimeoutSeconds 300
+powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -ScriptPath res://tools/capture_ui_vfx_matrix.gd -Rendering -ExpectedOutputPattern "[UiVfxMatrix] completed captures=" -TimeoutSeconds 360
 ```
 
 输出位于 `build/ui_vfx_matrix/`，同时生成：
@@ -184,6 +190,8 @@ powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -Sc
 - 需要滚动才能完成主要任务的页面末端截图。
 - `geometry_report.json` 控件几何记录。
 - `validation_report.json` 结构、首屏、焦点、触控目标和单滚动所有权错误清单。
+- 所有通用页面在 `1280×720` 与 `720×960` 下的 Reduced Motion 静态终态截图。
+- 与真实移动验收相同结构的 `capture_manifest.json`，用于排除旧截图混入。
 
 验收时必须确认 `validation_report.json` 为 `[]`，并逐页查看截图。Windows 桌面会把高于工作区的实体窗口限制在任务栏上方；不得通过手动放大根节点伪造 `720×1558` 截图，因为那只会拉高渲染背景，Container 仍按受限窗口高度布局。桌面自动化矩阵使用可真实承载的 `720×960` 竖屏；更高设备比例仍需在目标设备或可控离屏渲染环境中复验。
 

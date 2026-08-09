@@ -22,24 +22,50 @@ function ConvertTo-CommandLineArgument {
 	return '"' + ($Argument -replace '"', '\"') + '"'
 }
 
-function Get-NewGodotToolProcesses {
+function Get-GodotToolRunProcesses {
 	param(
-		[System.Collections.Generic.HashSet[int]]$BaselineIds,
-		[string]$ResolvedProjectRoot,
+		[int]$LauncherProcessId,
+		[string]$RunLogFile,
 		[string]$RequestedScriptPath
 	)
 
+	$allProcesses = @(Get-CimInstance Win32_Process)
+	$descendantIds = New-Object 'System.Collections.Generic.HashSet[int]'
+	[void]$descendantIds.Add($LauncherProcessId)
+	$changed = $true
+	while ($changed) {
+		$changed = $false
+		foreach ($candidate in $allProcesses) {
+			$processId = [int]$candidate.ProcessId
+			$parentProcessId = [int]$candidate.ParentProcessId
+			if (
+				-not $descendantIds.Contains($processId) `
+				-and $descendantIds.Contains($parentProcessId)
+			) {
+				[void]$descendantIds.Add($processId)
+				$changed = $true
+			}
+		}
+	}
+
 	$matches = @()
-	foreach ($candidate in @(Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'godot*.exe' })) {
+	foreach ($candidate in @($allProcesses | Where-Object { $_.Name -like 'godot*.exe' })) {
 		$processId = [int]$candidate.ProcessId
-		if ($BaselineIds.Contains($processId)) {
+		if ($processId -eq $LauncherProcessId) {
 			continue
 		}
 		$commandLine = [string]$candidate.CommandLine
-		if (
-			$commandLine.IndexOf($RequestedScriptPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 `
-			-or $commandLine.IndexOf($ResolvedProjectRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-		) {
+		$hasRunIdentity = (
+			$commandLine.IndexOf(
+				$RunLogFile,
+				[System.StringComparison]::OrdinalIgnoreCase
+			) -ge 0 `
+			-and $commandLine.IndexOf(
+				$RequestedScriptPath,
+				[System.StringComparison]::OrdinalIgnoreCase
+			) -ge 0
+		)
+		if ($descendantIds.Contains($processId) -or $hasRunIdentity) {
 			$matches += $candidate
 		}
 	}
@@ -70,11 +96,6 @@ $logFile = Join-Path $runRoot "godot.log"
 $stdoutFile = Join-Path $runRoot "stdout.log"
 $stderrFile = Join-Path $runRoot "stderr.log"
 New-Item -ItemType Directory -Force -Path $appData, $localAppData, $userProfile, $tempDirectory | Out-Null
-
-$baselineIds = New-Object 'System.Collections.Generic.HashSet[int]'
-foreach ($process in @(Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'godot*.exe' })) {
-	[void]$baselineIds.Add([int]$process.ProcessId)
-}
 
 $originalEnvironment = @{}
 foreach ($name in @("APPDATA", "LOCALAPPDATA", "USERPROFILE", "TEMP", "TMP")) {
@@ -116,7 +137,9 @@ try {
 	do {
 		Start-Sleep -Milliseconds $PollIntervalMilliseconds
 		$process.Refresh()
-		$derivedProcesses = @(Get-NewGodotToolProcesses $baselineIds $resolvedProjectRoot $ScriptPath)
+		$derivedProcesses = @(
+			Get-GodotToolRunProcesses $process.Id $logFile $ScriptPath
+		)
 		if (-not $process.HasExited -or $derivedProcesses.Count -gt 0) {
 			$lastObservedActivity = Get-Date
 		}

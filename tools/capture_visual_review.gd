@@ -1,6 +1,9 @@
 extends SceneTree
 
 
+const VisualCaptureArtifactSession = preload(
+	"res://tools/visual_capture_artifact_session.gd"
+)
 const _OUTPUT_DIRECTORY: String = "res://build/visual_review"
 const _CLASSIC_MODE_CONFIG_PATH: String = (
 	"res://features/gameplay/resources/modes/classic_mode_config.tres"
@@ -11,10 +14,42 @@ const _REPLAY_ITEM_SCENE: PackedScene = preload(
 const _BOOKMARK_ITEM_SCENE: PackedScene = preload(
 	"res://features/bookmarks/scenes/ui/bookmark_list_item.tscn"
 )
+const _EXPECTED_SCREENSHOTS: Array[String] = [
+	"boot_loading.png",
+	"boot_loading_progress.png",
+	"main_menu.png",
+	"scene_transition_cover.png",
+	"scene_transition_reveal.png",
+	"mode_selection.png",
+	"mode_selection_popup.png",
+	"bookmark_list.png",
+	"bookmark_delete_confirmation.png",
+	"bookmark_delete_error.png",
+	"replay_list.png",
+	"replay_delete_confirmation.png",
+	"replay_delete_error.png",
+	"replay_playback.png",
+	"replay_playback_step.png",
+	"settings_save_failure.png",
+	"settings_controls.png",
+	"gameplay_intro_0020ms.png",
+	"gameplay_intro_0080ms.png",
+	"gameplay_intro_0160ms.png",
+	"gameplay_intro_0360ms.png",
+	"gameplay.png",
+	"gameplay_grid_motion.png",
+	"gameplay_motion_0040ms.png",
+	"gameplay_motion_0110ms.png",
+	"gameplay_motion_0210ms.png",
+	"gameplay_motion_0430ms.png",
+	"gameplay_feedback.png",
+]
 
 
 var _capture_write_failed: bool = false
 var _slowest_command_usec: int = 0
+var _artifact_session: VisualCaptureArtifactSession = null
+var _finish_requested: bool = false
 
 
 func _init() -> void:
@@ -22,6 +57,15 @@ func _init() -> void:
 
 
 func _run_capture() -> void:
+	_artifact_session = VisualCaptureArtifactSession.new(
+		"visual_review",
+		_OUTPUT_DIRECTORY,
+		_EXPECTED_SCREENSHOTS
+	)
+	if not _artifact_session.begin():
+		push_error("[VisualReview] Cannot prepare the isolated output directory.")
+		_request_exit(74)
+		return
 	if DisplayServer.get_name() == "headless":
 		push_error("[VisualReview] Capture requires the rendering display mode.")
 		_request_exit(64)
@@ -201,6 +245,9 @@ func _run_capture() -> void:
 
 
 func _request_exit(exit_code: int = 0) -> void:
+	if _finish_requested:
+		return
+	_finish_requested = true
 	call_deferred(&"_finish_capture", exit_code)
 
 
@@ -217,9 +264,19 @@ func _finish_capture(exit_code: int) -> void:
 	await process_frame
 	await process_frame
 	GFExtensionSettings.clear_manifest_cache()
-	if exit_code == 0:
+	var effective_exit_code: int = exit_code
+	if is_instance_valid(_artifact_session):
+		effective_exit_code = _artifact_session.finalize(
+			exit_code,
+			"capture completed" if exit_code == 0 else "capture aborted",
+			{
+				"capture_write_failed": _capture_write_failed,
+				"slowest_command_usec": _slowest_command_usec,
+			}
+		)
+	if effective_exit_code == 0:
 		print("[VisualReview] slowest_command_usec=%d" % _slowest_command_usec)
-	quit(exit_code)
+	quit(effective_exit_code)
 
 
 func _open_route(source: Node, button_name: StringName, target_name: StringName) -> Node:
@@ -325,28 +382,40 @@ func _inject_list_item(
 		push_error("[VisualReview] History preview requires BaseListMenu.")
 		return false
 	var list_menu: BaseListMenu = page
-	var items_container: Node = page.find_child("ItemsContainer", true, false)
-	if not items_container is VBoxContainer:
-		push_error("[VisualReview] History page is missing its shared ItemsContainer.")
+	if not is_instance_valid(list_menu.items_container):
+		push_error("[VisualReview] History page is missing its shared content root.")
 		return false
-	for child: Node in items_container.get_children():
-		child.queue_free()
-	await process_frame
-	var item_node: Node = item_scene.instantiate()
-	if not item_node is Control:
-		push_error("[VisualReview] Injected history item must be a Control.")
-		if is_instance_valid(item_node):
-			item_node.free()
-		return false
-	var item_control: Control = item_node
-	items_container.add_child(item_node)
-	await process_frame
-	list_menu._setup_item(item_control, data)
-	list_menu._connect_item_signals(item_control, data)
+	await list_menu._clear_list_content()
 	list_menu._on_empty_state_changed(false)
-	list_menu._apply_list_focus_order([item_control])
-	list_menu._set_selected_item(data)
-	list_menu._bind_and_reveal_list_items()
+	var item_control: Control = null
+	if list_menu._uses_virtual_list():
+		var template: Control = list_menu._get_repeater_template()
+		if not is_instance_valid(template):
+			push_error("[VisualReview] Virtual history template is unavailable.")
+			return false
+		var injected_data: Array[Resource] = [data]
+		await list_menu._populate_virtual_list(injected_data, template)
+		var materialized_items: Array[Control] = list_menu._get_list_item_controls()
+		if not materialized_items.is_empty():
+			item_control = materialized_items[0]
+	else:
+		var item_node: Node = item_scene.instantiate()
+		if not item_node is Control:
+			push_error("[VisualReview] Injected history item must be a Control.")
+			if is_instance_valid(item_node):
+				item_node.free()
+			return false
+		item_control = item_node
+		list_menu.items_container.add_child(item_control)
+		await process_frame
+		list_menu._setup_item(item_control, data)
+		list_menu._connect_item_signals(item_control, data)
+		list_menu._apply_list_focus_order([item_control])
+		list_menu._set_selected_item(data)
+		list_menu._bind_and_reveal_list_items()
+	if not is_instance_valid(item_control):
+		push_error("[VisualReview] History item did not materialize.")
+		return false
 	item_control.grab_focus()
 	await _settle_frames(2)
 	if (
@@ -695,23 +764,24 @@ func _capture_viewport(file_name: String) -> void:
 
 
 func _save_viewport(file_name: String) -> bool:
-	var directory_error: Error = DirAccess.make_dir_recursive_absolute(
-		ProjectSettings.globalize_path(_OUTPUT_DIRECTORY)
-	)
-	if directory_error != OK and directory_error != ERR_ALREADY_EXISTS:
-		push_error("[VisualReview] Cannot create output directory: %d" % directory_error)
+	if not is_instance_valid(_artifact_session):
+		push_error("[VisualReview] Artifact session is unavailable.")
 		_capture_write_failed = true
 		return false
+	_artifact_session.expect_screenshot(file_name)
 	var image: Image = root.get_texture().get_image()
 	if image == null:
 		push_error("[VisualReview] Viewport image is unavailable: %s" % file_name)
 		_capture_write_failed = true
 		return false
-	var save_error: Error = image.save_png("%s/%s" % [_OUTPUT_DIRECTORY, file_name])
+	var save_error: Error = image.save_png(
+		_artifact_session.get_output_directory().path_join(file_name)
+	)
 	if save_error != OK:
 		push_error("[VisualReview] Cannot save %s: %d" % [file_name, save_error])
 		_capture_write_failed = true
 		return false
+	_artifact_session.record_screenshot(file_name)
 	return true
 
 
