@@ -72,6 +72,19 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	await architecture.register_system(GameFlowSystem, _SessionFlowSystem.new())
 	await architecture.register_system(GameInitSystem, _SessionInitSystem.new())
 	await architecture.init()
+	var preload_completion: GFAsyncCompletion = mode_catalog.get_preload_completion()
+	for _frame_index: int in range(240):
+		asset_utility.tick()
+		if preload_completion != null and preload_completion.is_completed():
+			break
+		await get_tree().process_frame
+	assert_true(
+		preload_completion != null and preload_completion.is_successful(),
+		"绕过 BootRuntime 的测试架构也必须先跨过模式目录预载屏障。"
+	)
+	if preload_completion == null or not preload_completion.is_successful():
+		architecture.dispose()
+		return
 
 	var selected_topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(5, 5))
 	app_config.selected_mode_config_path.set_value(_CLASSIC_MODE_CONFIG_PATH)

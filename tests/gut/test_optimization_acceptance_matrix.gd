@@ -145,7 +145,7 @@ func test_six_modes_and_two_topologies_match_fixed_golden_summaries() -> void:
 	)
 
 
-func test_large_board_visible_query_and_hint_deadline_are_operation_bounded() -> void:
+func test_large_board_visible_query_and_hint_step_budget_are_operation_bounded() -> void:
 	var topology: CountingBoardTopology = _make_large_counting_topology()
 	assert_true(
 		topology.get_cell_count() == _LARGE_BOARD_SIZE.x * _LARGE_BOARD_SIZE.y,
@@ -179,13 +179,11 @@ func test_large_board_visible_query_and_hint_deadline_are_operation_bounded() ->
 		"热查询每个可见行只允许一次二分入口，不得按整张大棋盘重复定位。"
 	)
 
-	var deadline_budget: GFExecutionBudget = GFExecutionBudget.new(
+	var step_budget: GFExecutionBudget = GFExecutionBudget.new(
 		{
-			&"max_steps": BoardTopology.MAX_CELL_COUNT,
-			&"max_elapsed_msec": 16,
+			&"max_steps": 64,
 			&"metadata": {&"operation": &"optimization_acceptance_hint"},
-		},
-		AdvancingClock.new(1)
+		}
 	)
 	var hint_result: GameHintResultType = DeterministicHintQueryType.new().evaluate(
 		{
@@ -194,15 +192,16 @@ func test_large_board_visible_query_and_hint_deadline_are_operation_bounded() ->
 			&"tiles": [],
 		},
 		"optimization-acceptance-large-board",
-		deadline_budget
+		step_budget
 	)
 	assert_true(
-		hint_result.termination_reason == GameHintResultType.TERMINATION_TIME_LIMIT,
-		"超大棋盘提示必须响应 GFExecutionBudget 的确定性 deadline。"
+		hint_result.termination_reason == GameHintResultType.TERMINATION_STEP_LIMIT,
+		"超大棋盘提示必须响应 GFExecutionBudget 的确定性步数上限。"
 	)
 	assert_true(
-		deadline_budget.get_steps() > 0 and deadline_budget.get_steps() <= 64,
-		"deadline 退出前的操作数必须保持有界，而不是扫描全部 131072 个单元。"
+		step_budget.get_steps() > 0
+		and step_budget.get_steps() <= step_budget.max_steps + 1,
+		"步数预算退出前只允许一次越界拒绝探测，不得扫描全部 131072 个单元。"
 	)
 	assert_true(
 		hint_result.nodes_evaluated < topology.get_cell_count(),
@@ -210,7 +209,7 @@ func test_large_board_visible_query_and_hint_deadline_are_operation_bounded() ->
 	)
 	assert_true(
 		hint_result.can_display_for("optimization-acceptance-large-board"),
-		"deadline 降级仍应提供带 freshness 的可显示结果。"
+		"确定性步数上限降级仍应提供带 freshness 的可显示结果。"
 	)
 
 
@@ -439,18 +438,3 @@ class CountingBoardTopology extends BoardTopology:
 	func _lower_bound_row_x(row_start: int, row_end: int, target_x: int) -> int:
 		lower_bound_call_count += 1
 		return super._lower_bound_row_x(row_start, row_end, target_x)
-
-
-class AdvancingClock extends GFClock:
-	var _current_msec: int = 0
-	var _advance_per_read: int = 1
-
-
-	func _init(advance_per_read: int = 1) -> void:
-		_advance_per_read = maxi(advance_per_read, 1)
-
-
-	func get_monotonic_msec() -> int:
-		var result: int = _current_msec
-		_current_msec += _advance_per_read
-		return result

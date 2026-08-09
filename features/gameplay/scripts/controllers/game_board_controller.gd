@@ -49,9 +49,10 @@ const _BOARD_INTRO_MAX_STAGGER_WINDOW: float = 0.62
 const _BOARD_INTRO_MAX_ANIMATED_CELL_COUNT: int = 256
 const _CULL_MARGIN_CELLS: int = 2
 const _MIN_PROJECTED_CELL_DETAIL_SIZE: float = 12.0
-const _MAX_VISIBLE_NODE_COUNT: int = 12288
+## 玩家可达的持久化/自定义棋盘契约最多 256 格。表现层只为这一有界窗口
+## 分配 Control 节点；更大的通用拓扑必须先采用分块或自绘渲染。
+const _MAX_VISIBLE_NODE_COUNT: int = 256
 const _TILE_POOL_PREWARM_BUDGET_MSEC: float = 2.0
-const _INITIAL_VISIBLE_PREWARM_LIMIT: int = 128
 
 
 # --- 导出变量 ---
@@ -110,6 +111,9 @@ var _expansion_tween: Tween
 
 var _setup_generation: int = 0
 var _initial_reveal_pending: bool = false
+var _reveal_worker_running: bool = false
+var _pending_reveal_cells: Array[Vector2i] = []
+var _pending_reveal_generation: int = 0
 
 
 # --- @onready 变量 (节点引用) ---
@@ -208,8 +212,7 @@ func setup(
 	if is_instance_valid(board_container):
 		board_container.modulate.a = 0.0
 	_update_board_layout()
-	@warning_ignore("missing_await")
-	_prepare_visible_region_and_reveal(
+	_queue_visible_region_reveal(
 		_get_visible_cells(),
 		setup_generation
 	)
@@ -471,6 +474,10 @@ func _cleanup_listeners() -> void:
 	if _is_cleaned_up:
 		return
 	_is_cleaned_up = true
+	_setup_generation += 1
+	_pending_reveal_cells.clear()
+	_pending_reveal_generation = 0
+	_initial_reveal_pending = false
 	_cancel_expansion_animation()
 	var architecture: GFArchitecture = get_architecture_or_null()
 	if architecture != null:
@@ -862,11 +869,34 @@ func _sync_visible_region() -> void:
 		_sync_visual_tiles(visible_cells)
 
 
+func _queue_visible_region_reveal(
+	visible_cells: Array[Vector2i],
+	setup_generation: int
+) -> void:
+	_pending_reveal_cells = visible_cells.duplicate()
+	_pending_reveal_generation = setup_generation
+	if _reveal_worker_running:
+		return
+	@warning_ignore("missing_await")
+	_drain_visible_region_reveal_requests()
+
+
+func _drain_visible_region_reveal_requests() -> void:
+	_reveal_worker_running = true
+	while _pending_reveal_generation > 0 and not _is_cleaned_up:
+		var visible_cells: Array[Vector2i] = _pending_reveal_cells
+		var setup_generation: int = _pending_reveal_generation
+		_pending_reveal_cells = []
+		_pending_reveal_generation = 0
+		await _prepare_visible_region_and_reveal(visible_cells, setup_generation)
+	_reveal_worker_running = false
+
+
 func _prepare_visible_region_and_reveal(
 	visible_cells: Array[Vector2i],
 	setup_generation: int
 ) -> void:
-	await _prewarm_visible_node_pools(visible_cells)
+	await _prewarm_visible_node_pools(visible_cells, setup_generation)
 	if (
 		setup_generation != _setup_generation
 		or _is_cleaned_up
@@ -878,14 +908,16 @@ func _prepare_visible_region_and_reveal(
 	_play_board_intro()
 
 
-func _prewarm_visible_node_pools(visible_cells: Array[Vector2i]) -> void:
+func _prewarm_visible_node_pools(
+	visible_cells: Array[Vector2i],
+	setup_generation: int = -1
+) -> void:
 	if not is_instance_valid(_pool) or not is_instance_valid(board_container):
 		return
-	var prewarm_count: int = mini(
-		visible_cells.size(),
-		_INITIAL_VISIBLE_PREWARM_LIMIT
-	)
+	var prewarm_count: int = mini(visible_cells.size(), _MAX_VISIBLE_NODE_COUNT)
 	await _prewarm_scene_pool(TileScene, prewarm_count)
+	if setup_generation >= 0 and setup_generation != _setup_generation:
+		return
 	await _prewarm_scene_pool(grid_cell_scene, prewarm_count)
 
 

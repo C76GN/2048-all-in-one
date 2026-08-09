@@ -52,6 +52,28 @@ func test_registered_mode_paths_load_valid_game_mode_configs() -> void:
 	architecture.dispose()
 
 
+func test_mode_config_hot_path_never_falls_back_to_synchronous_loading() -> void:
+	var setup: Dictionary = await _create_mode_catalog_setup()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var asset_utility: GFAssetUtility = _get_asset_utility(setup)
+	var mode_catalog: GameModeCatalogUtility = _get_mode_catalog(setup)
+	var config_path: String = EXPECTED_MODE_CONFIG_PATHS[0]
+	asset_utility.remove_cache(config_path)
+	mode_catalog._preload_status = &"loading"
+
+	var mode_config: GameModeConfig = mode_catalog.get_config(config_path)
+
+	assert_null(
+		mode_config,
+		"预载缓存缺失时业务热路径必须失败，不得静默退回同步 ResourceLoader。"
+	)
+	assert_false(
+		asset_utility.is_cached(config_path),
+		"get_config() 不得自行同步加载并回填 GF asset cache。"
+	)
+	architecture.dispose()
+
+
 func test_classic_style_modes_define_optional_2048_target() -> void:
 	var setup: Dictionary = await _create_mode_catalog_setup()
 	var architecture: GFArchitecture = _get_architecture(setup)
@@ -213,6 +235,15 @@ func _create_mode_catalog_setup() -> Dictionary:
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
 	await architecture.register_utility(GameModeCatalogUtility, mode_catalog)
 	await architecture.init()
+	var preload_completion: GFAsyncCompletion = mode_catalog.get_preload_completion()
+	for _frame_index: int in range(240):
+		asset_utility.tick()
+		if preload_completion != null and preload_completion.is_completed():
+			break
+		await get_tree().process_frame
+	assert_not_null(preload_completion, "模式目录应暴露预载唯一终态。")
+	if preload_completion != null:
+		assert_true(preload_completion.is_successful(), "模式配置应在业务读取前完成异步预载。")
 
 	return {
 		"architecture": architecture,

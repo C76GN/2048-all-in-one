@@ -42,7 +42,7 @@ const _CASES: Array[Dictionary] = [
 		&"prefer_compact": false,
 		&"expected_layout": GameplayResponsiveLayoutController.LayoutMode.DESKTOP,
 		&"board_bounds": Vector2i(32, 32),
-		&"active_cell_count": 420,
+		&"active_cell_count": 256,
 		&"shape": &"irregular",
 		&"vfx_quality": GameAccessibilityState.VfxQuality.FULL,
 		&"frame_p95_budget_ms": 16.667,

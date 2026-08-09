@@ -127,6 +127,10 @@ func test_step_deadline_and_cancellation_have_stable_termination_reasons() -> vo
 		"超过硬 deadline 后不得继续扫描快照。"
 	)
 	assert_true(deadline_limited.elapsed_msec == 6, "结果应报告 GFExecutionBudget 的实际耗时。")
+	assert_false(
+		deadline_limited.can_display_for("snapshot-deadline"),
+		"墙钟截止受设备负载影响，部分评分不得成为玩家可见的确定性建议。"
+	)
 
 	var cancellation_source: GFCancellationSource = GFCancellationSource.new()
 	var _cancelled: bool = cancellation_source.cancel(&"test_cancel")
@@ -244,6 +248,10 @@ func test_hud_scene_and_input_context_bind_hint_across_devices() -> void:
 			"_get_button_node(\"%HintButton\"): GameplayInputActions.REQUEST_HINT"
 		),
 		"触摸按钮必须复用 HUD 虚拟输入源，而不是直接修改棋盘。"
+	)
+	assert_false(
+		hud_source.contains("_HINT_MAX_ELAPSED_MSEC"),
+		"玩家可见提示只能由确定的步数预算决定，不能由墙钟截止选择方向。"
 	)
 	assert_true(
 		player_input_source.contains("send_simple_event(EventNames.HINT_REQUESTED)"),

@@ -30,7 +30,6 @@ const _HUD_INPUT_SOURCE_ID: StringName = &"gameplay.hud_controls"
 const _HUD_ACTION_HOLD_SECONDS: float = 0.08
 const _SCORE_FEEDBACK_DELAY_SECONDS: float = 0.055
 const _HINT_MAX_STEPS: int = 12000
-const _HINT_MAX_ELAPSED_MSEC: int = 12
 const _HINT_UNAVAILABLE_FALLBACK: String = "当前棋盘无法生成提示。"
 const _ACCESSIBILITY_SUBTITLE_DURATION_SECONDS: float = 3.6
 const _NOTIFICATION_TEXT_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
@@ -1225,7 +1224,6 @@ func _run_hint_query() -> void:
 	)
 	var budget: GFExecutionBudget = GFExecutionBudget.new({
 		&"max_steps": _HINT_MAX_STEPS,
-		&"max_elapsed_msec": _HINT_MAX_ELAPSED_MSEC,
 		&"cancel_token": _hint_cancel_source.get_token(),
 		&"metadata": {
 			&"operation": &"deterministic_game_hint",

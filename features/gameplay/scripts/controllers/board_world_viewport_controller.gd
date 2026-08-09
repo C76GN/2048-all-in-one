@@ -95,7 +95,6 @@ var _fit_button: Button
 var _zoom_in_button: Button
 var _zoom_label: Label
 
-var _gesture_utility: GFPointerGestureUtility
 var _input_mapping: GFInputMappingUtility
 var _signal_utility: GFSignalUtility
 var _clock_utility: GameClockUtility
@@ -109,8 +108,11 @@ var _fit_insets: Dictionary = {}
 var _zoom: float = 1.0
 var _follow_fit: bool = true
 var _is_initialized: bool = false
-var _is_handling_gesture_event: bool = false
+var _is_applying_project_view: bool = false
+var _is_reconciling_spatial_view: bool = false
+var _spatial_reconciliation_queued: bool = false
 var _last_viewport_size: Vector2 = Vector2.ZERO
+var _active_touch_ids: Dictionary[int, bool] = {}
 var _touch_sequence_primary_id: int = _NO_TOUCH_POINTER
 var _touch_sequence_start: Vector2 = Vector2.ZERO
 var _touch_sequence_last: Vector2 = Vector2.ZERO
@@ -145,7 +147,6 @@ func _exit_tree() -> void:
 	_reset_touch_sequence()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
-	_dispose_private_gesture_utility()
 	super._exit_tree()
 
 
@@ -406,6 +407,11 @@ func _prepare_spatial_canvas() -> void:
 	if not is_instance_valid(_spatial_canvas) or not is_instance_valid(_world_root):
 		return
 	_spatial_canvas.set_input_enabled(false)
+	var policy: GFSpatialCanvasInputPolicy = _create_spatial_input_policy()
+	if not _spatial_canvas.set_input_policy(policy):
+		push_error("[BoardWorldViewportController] 无法配置 GF 空间画布输入策略。")
+		return
+	_spatial_canvas.set_input_enabled(true)
 	var grid_configured: bool = _spatial_canvas.configure_grid(
 		_spatial_canvas.get_grid_origin(),
 		_spatial_canvas.get_grid_size(),
@@ -435,7 +441,6 @@ func _get_content_position() -> Vector2:
 
 
 func _resolve_utilities() -> void:
-	_create_private_gesture_utility()
 	_input_mapping = _get_input_mapping_utility()
 	_signal_utility = _get_signal_utility()
 	_clock_utility = _get_clock_utility()
@@ -452,8 +457,6 @@ func _has_required_dependencies() -> bool:
 		var _world_appended: bool = missing.append("BoardWorld")
 	if not is_instance_valid(_game_board):
 		var _board_appended: bool = missing.append("GameBoardController")
-	if not is_instance_valid(_gesture_utility):
-		var _gesture_appended: bool = missing.append("GFPointerGestureUtility")
 	if not is_instance_valid(_input_mapping):
 		var _input_appended: bool = missing.append("GFInputMappingUtility")
 	if not is_instance_valid(_signal_utility):
@@ -479,9 +482,9 @@ func _bind_runtime_signals() -> void:
 		_on_gui_input,
 		self
 	)
-	var _gesture_connection: GFSignalConnection = _signal_utility.connect_signal(
-		_gesture_utility.gesture_updated,
-		_on_gesture_updated,
+	var _view_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_spatial_canvas.view_changed,
+		_on_spatial_view_changed,
 		self
 	)
 	var _geometry_connection: GFSignalConnection = _signal_utility.connect_signal(
@@ -517,6 +520,7 @@ func _initialize_view() -> void:
 		return
 	_last_viewport_size = _host_control.size
 	_content_rect = _game_board.get_board_world_rect()
+	_refresh_spatial_zoom_limits()
 	_is_initialized = true
 	content_geometry_changed.emit(_content_rect)
 	fit_to_content()
@@ -576,12 +580,32 @@ func _set_view_transform(next_zoom: float, desired_position: Vector2) -> void:
 		(_host_control.size * 0.5 - clamped_position)
 		/ requested_zoom
 	)
-	if not _spatial_canvas.set_view(world_center, requested_zoom):
+	_is_applying_project_view = true
+	var view_set: bool = _spatial_canvas.set_view(world_center, requested_zoom)
+	_is_applying_project_view = false
+	if not view_set:
 		push_error("[BoardWorldViewportController] GF 空间画布拒绝了无效视图状态。")
 		return
 	_zoom = _spatial_canvas.get_zoom()
 	_update_zoom_label()
 	_sync_visible_world_rect()
+
+
+func _refresh_spatial_zoom_limits() -> void:
+	if not _has_valid_geometry():
+		return
+	var fit_zoom: float = CanvasViewportMath.calculate_fit_zoom(
+		_get_fit_viewport_rect().size,
+		_content_rect,
+		_FIT_MARGIN,
+		maximum_zoom
+	)
+	var effective_minimum: float = minf(maxf(minimum_zoom, 0.0001), fit_zoom)
+	_is_applying_project_view = true
+	var limits_set: bool = _spatial_canvas.set_zoom_limits(effective_minimum, maximum_zoom)
+	_is_applying_project_view = false
+	if not limits_set:
+		push_error("[BoardWorldViewportController] 无法刷新 GF 空间画布缩放边界。")
 
 
 func _sync_visible_world_rect() -> void:
@@ -616,21 +640,28 @@ func _normalize_fit_insets(insets: Dictionary) -> Dictionary:
 	}
 
 
-func _should_handle_gesture_event(event: InputEvent) -> bool:
-	if event is InputEventScreenTouch or event is InputEventScreenDrag:
-		return true
-	if event is InputEventMagnifyGesture or event is InputEventPanGesture:
-		return true
-	if event is InputEventMouseButton:
-		var mouse_button: InputEventMouseButton = event
-		return (
-			mouse_button.button_index == MOUSE_BUTTON_MIDDLE
-			or mouse_button.button_index == MOUSE_BUTTON_WHEEL_UP
-			or mouse_button.button_index == MOUSE_BUTTON_WHEEL_DOWN
-		)
-	if event is InputEventMouseMotion:
-		return _gesture_utility.get_active_pointer_count() > 0
-	return false
+func _create_spatial_input_policy() -> GFSpatialCanvasInputPolicy:
+	var policy: GFSpatialCanvasInputPolicy = GFSpatialCanvasInputPolicy.new()
+	policy.pan_mouse_button = MOUSE_BUTTON_MIDDLE
+	policy.pan_action = &""
+	policy.pan_modifier_mask = GFSpatialCanvasInputPolicy.ModifierMask.NONE
+	policy.selection_mouse_button = MOUSE_BUTTON_NONE
+	policy.selection_action = &""
+	policy.selection_modifier_bindings.clear()
+	policy.wheel_axis = GFSpatialCanvasInputPolicy.WheelAxis.VERTICAL
+	policy.wheel_routing = GFSpatialCanvasInputPolicy.WheelRouting.CANVAS
+	policy.wheel_modifier_mask = GFSpatialCanvasInputPolicy.ModifierMask.NONE
+	policy.wheel_zoom_factor = _ZOOM_STEP
+	policy.touch_enabled = true
+	policy.touch_primary_behavior = GFSpatialCanvasInputPolicy.TouchPrimaryBehavior.NONE
+	policy.touch_multi_pan_enabled = true
+	policy.touch_multi_zoom_enabled = true
+	policy.system_pan_gesture_enabled = true
+	policy.system_magnify_gesture_enabled = true
+	policy.placement_cancel_action = &""
+	policy.consume_handled_events = true
+	policy.consume_wheel_events = true
+	return policy
 
 
 func _get_host_control() -> Control:
@@ -681,25 +712,6 @@ func _get_label(path: NodePath) -> Label:
 	return null
 
 
-func _create_private_gesture_utility() -> void:
-	_dispose_private_gesture_utility()
-	_gesture_utility = GFPointerGestureUtility.new()
-	_gesture_utility.init()
-	_gesture_utility.mouse_button_index = MOUSE_BUTTON_MIDDLE
-	_gesture_utility.mouse_wheel_zoom_factor = _ZOOM_STEP
-	_gesture_utility.ready()
-
-
-func _dispose_private_gesture_utility() -> void:
-	if not is_instance_valid(_gesture_utility):
-		_gesture_utility = null
-		return
-	_gesture_utility.reset_gesture()
-	_gesture_utility.dispose()
-	_gesture_utility.release_dependencies()
-	_gesture_utility = null
-
-
 func _get_input_mapping_utility() -> GFInputMappingUtility:
 	var utility_value: Object = get_utility(GFInputMappingUtility, true)
 	if utility_value is GFInputMappingUtility:
@@ -733,11 +745,14 @@ func _get_realtime_timer_utility() -> GameRealtimeTimerUtility:
 
 
 func _prepare_touch_action(event: InputEvent) -> StringName:
-	var pointer_count_before: int = _gesture_utility.get_active_pointer_count()
 	if event is InputEventScreenTouch:
 		var touch: InputEventScreenTouch = event
 		if touch.pressed:
-			if pointer_count_before == 0 and _touch_sequence_primary_id == _NO_TOUCH_POINTER:
+			if _active_touch_ids.has(touch.index):
+				return &""
+			var starts_primary_sequence: bool = _active_touch_ids.is_empty()
+			_active_touch_ids[touch.index] = true
+			if starts_primary_sequence and _touch_sequence_primary_id == _NO_TOUCH_POINTER:
 				_touch_sequence_primary_id = touch.index
 				_touch_sequence_start = touch.position
 				_touch_sequence_last = touch.position
@@ -747,9 +762,11 @@ func _prepare_touch_action(event: InputEvent) -> StringName:
 				_touch_sequence_cancelled = true
 			return &""
 
+		if not _active_touch_ids.has(touch.index):
+			return &""
 		if touch.index == _touch_sequence_primary_id:
 			_touch_sequence_last = touch.position
-			if pointer_count_before == 1 and not _touch_sequence_cancelled:
+			if _active_touch_ids.size() == 1 and not _touch_sequence_cancelled:
 				var duration_seconds: float = maxf(
 					float(_clock_utility.get_tick_msec() - _touch_sequence_started_msec) / 1000.0,
 					0.0
@@ -768,9 +785,11 @@ func _prepare_touch_action(event: InputEvent) -> StringName:
 
 	if event is InputEventScreenDrag:
 		var drag: InputEventScreenDrag = event
+		if not _active_touch_ids.has(drag.index):
+			return &""
 		if drag.index == _touch_sequence_primary_id:
 			_touch_sequence_last = drag.position
-		if pointer_count_before >= 2:
+		if _active_touch_ids.size() >= 2:
 			_touch_sequence_cancelled = true
 	return &""
 
@@ -779,11 +798,15 @@ func _finish_touch_event(event: InputEvent) -> void:
 	if not event is InputEventScreenTouch:
 		return
 	var touch: InputEventScreenTouch = event
-	if not touch.pressed and _gesture_utility.get_active_pointer_count() == 0:
+	if touch.pressed:
+		return
+	var _erased_touch: bool = _active_touch_ids.erase(touch.index)
+	if _active_touch_ids.is_empty():
 		_reset_touch_sequence()
 
 
 func _reset_touch_sequence() -> void:
+	_active_touch_ids.clear()
 	_touch_sequence_primary_id = _NO_TOUCH_POINTER
 	_touch_sequence_start = Vector2.ZERO
 	_touch_sequence_last = Vector2.ZERO
@@ -796,6 +819,43 @@ func _inject_touch_action(action_id: StringName) -> void:
 		return
 	if not _touch_action_pulse.pulse(action_id, self, _TOUCH_ACTION_HOLD_SECONDS):
 		push_warning("[BoardWorldViewportController] 无法注入触控动作：%s。" % action_id)
+
+
+func _should_reconcile_spatial_input(event: InputEvent) -> bool:
+	if event is InputEventMouseButton:
+		var mouse_button: InputEventMouseButton = event
+		if mouse_button.button_index == MOUSE_BUTTON_MIDDLE:
+			return false
+		return (
+			mouse_button.pressed
+			and mouse_button.button_index in [
+				MOUSE_BUTTON_WHEEL_UP,
+				MOUSE_BUTTON_WHEEL_DOWN,
+			]
+		)
+	if event is InputEventMouseMotion:
+		var mouse_motion: InputEventMouseMotion = event
+		return (mouse_motion.button_mask & MOUSE_BUTTON_MASK_MIDDLE) != 0
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		return _active_touch_ids.size() >= 2
+	return event is InputEventMagnifyGesture or event is InputEventPanGesture
+
+
+func _queue_spatial_input_reconciliation() -> void:
+	_follow_fit = false
+	if _spatial_reconciliation_queued:
+		return
+	_spatial_reconciliation_queued = true
+	call_deferred(&"_reconcile_spatial_input_view")
+
+
+func _reconcile_spatial_input_view() -> void:
+	_spatial_reconciliation_queued = false
+	if not is_inside_tree() or not _is_initialized or not _has_valid_geometry():
+		return
+	_is_reconciling_spatial_view = true
+	_set_view_transform(_spatial_canvas.get_zoom(), _get_content_position())
+	_is_reconciling_spatial_view = false
 
 
 # --- 信号处理函数 ---
@@ -824,6 +884,7 @@ func _on_board_geometry_changed(board_rect: Rect2) -> void:
 	content_geometry_changed.emit(_content_rect)
 	if not _is_initialized:
 		return
+	_refresh_spatial_zoom_limits()
 	if _follow_fit:
 		fit_to_content()
 	else:
@@ -831,61 +892,19 @@ func _on_board_geometry_changed(board_rect: Rect2) -> void:
 
 
 func _on_gui_input(event: InputEvent) -> void:
-	if not _should_handle_gesture_event(event):
-		return
 	var pending_touch_action: StringName = &""
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
 		pending_touch_action = _prepare_touch_action(event)
-	_is_handling_gesture_event = true
-	var handled: bool = _gesture_utility.handle_input_event(event)
-	_is_handling_gesture_event = false
+	if _should_reconcile_spatial_input(event):
+		_queue_spatial_input_reconciliation()
 	_finish_touch_event(event)
-	if handled:
-		_host_control.accept_event()
 	if pending_touch_action != &"":
 		_inject_touch_action(pending_touch_action)
 
 
-func _on_gesture_updated(snapshot: Dictionary, event: InputEvent) -> void:
-	if not _is_handling_gesture_event or not _has_valid_geometry():
+func _on_spatial_view_changed(_snapshot: Dictionary) -> void:
+	if not _is_initialized or _is_applying_project_view or _is_reconciling_spatial_view:
 		return
-	if event is InputEventScreenTouch or event is InputEventScreenDrag:
-		var pointer_count: int = GFVariantData.get_option_int(snapshot, &"pointer_count")
-		if pointer_count < 2:
-			return
-		_touch_sequence_cancelled = true
-	var center_screen: Vector2 = GFVariantData.get_option_vector2(
-		snapshot,
-		&"center",
-		_host_control.get_global_rect().get_center()
-	)
-	var anchor: Vector2 = (
-		_host_control.get_global_transform_with_canvas().affine_inverse()
-		* center_screen
-	)
-	var scale_factor: float = GFVariantData.get_option_float(snapshot, &"scale", 1.0)
-	var pan_delta: Vector2 = GFVariantData.get_option_vector2(
-		snapshot,
-		&"pan_delta",
-		Vector2.ZERO
-	)
-	var requested_zoom: float = _zoom * maxf(scale_factor, 0.0001)
-	var fit_viewport_rect: Rect2 = _get_fit_viewport_rect()
-	var fit_zoom: float = CanvasViewportMath.calculate_fit_zoom(
-		fit_viewport_rect.size,
-		_content_rect,
-		_FIT_MARGIN,
-		maximum_zoom
-	)
-	var effective_minimum: float = minf(maxf(minimum_zoom, 0.0001), fit_zoom)
-	var next_zoom: float = clampf(requested_zoom, effective_minimum, maximum_zoom)
-	var next_position: Vector2 = CanvasViewportMath.calculate_zoomed_world_position(
-		_get_content_position(),
-		anchor,
-		_zoom,
-		next_zoom
-	) + pan_delta
-	if is_equal_approx(next_zoom, _zoom) and pan_delta.is_zero_approx():
-		return
-	_follow_fit = false
-	_set_view_transform(next_zoom, next_position)
+	_zoom = _spatial_canvas.get_zoom()
+	_update_zoom_label()
+	_sync_visible_world_rect()

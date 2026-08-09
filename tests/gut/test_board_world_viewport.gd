@@ -271,6 +271,18 @@ func test_gameplay_spatial_canvas_disables_framework_grid_overlay() -> void:
 		GFVariantData.get_option_bool(grid_snapshot, "visible", true),
 		"玩法画布只复用 GF 视图变换；默认一像素编辑网格必须显式关闭，避免缩放后形成密集条纹。"
 	)
+	var input_policy: GFSpatialCanvasInputPolicy = board_viewport.get_input_policy()
+	assert_true(input_policy.pan_mouse_button == MOUSE_BUTTON_MIDDLE)
+	assert_true(input_policy.selection_mouse_button == MOUSE_BUTTON_NONE)
+	assert_true(
+		input_policy.touch_primary_behavior
+		== GFSpatialCanvasInputPolicy.TouchPrimaryBehavior.NONE,
+		"单指必须保留给 2048 滑动，GF 只接管多指画布导航。"
+	)
+	assert_true(input_policy.touch_multi_pan_enabled)
+	assert_true(input_policy.touch_multi_zoom_enabled)
+	assert_true(input_policy.consume_handled_events)
+	assert_true(input_policy.consume_wheel_events)
 	scene_root.free()
 
 

@@ -577,7 +577,9 @@ func _create_log_utility() -> GFLogUtility:
 
 func _create_object_pool_utility() -> GFObjectPoolUtility:
 	var object_pool: GFObjectPoolUtility = GFObjectPoolUtility.new()
-	object_pool.max_available_per_scene = 128
+	# 玩家可达棋盘最多 256 格；允许 GridCell 与 Tile 各保留一整窗，
+	# 避免预热后又因池容量截断而回到同步冷实例化。
+	object_pool.max_available_per_scene = 256
 	return object_pool
 
 

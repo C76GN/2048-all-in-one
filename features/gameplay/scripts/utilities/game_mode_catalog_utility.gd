@@ -21,6 +21,7 @@ var _resource_catalog: ProjectResourceCatalogUtility = null
 var _mode_registry: GFResourceRegistry = DEFAULT_MODE_REGISTRY
 var _preload_status: StringName = &"idle"
 var _preload_report: Dictionary = {}
+var _preload_completion: GFAsyncCompletion = null
 var _disposing: bool = false
 
 
@@ -34,8 +35,13 @@ func ready() -> void:
 	_disposing = false
 	_preload_status = &"idle"
 	_preload_report = {}
+	_preload_completion = GFAsyncCompletion.new()
 	_resource_catalog = _resolve_resource_catalog_utility()
 	if not is_instance_valid(_resource_catalog):
+		_preload_status = &"dependency_missing"
+		var _dependency_failed: bool = _preload_completion.fail(
+			"ProjectResourceCatalogUtility 未注册。"
+		)
 		push_error("[GameModeCatalogUtility] ProjectResourceCatalogUtility 未注册。")
 		return
 
@@ -48,6 +54,11 @@ func ready() -> void:
 		{"registry": "game_mode_registry"}
 	)
 	if not report.is_ok():
+		_preload_status = &"registration_failed"
+		var _registration_failed: bool = _preload_completion.fail(
+			"模式资源目录注册失败。",
+			{&"report": report.make_summary()}
+		)
 		push_error("[GameModeCatalogUtility] 模式资源目录注册失败：%s" % report.make_summary())
 		return
 
@@ -62,6 +73,10 @@ func ready() -> void:
 	)
 	if preload_error != OK:
 		_preload_status = &"submit_failed"
+		var _submit_failed: bool = _preload_completion.fail(
+			"模式配置预热提交失败。",
+			{&"error": preload_error}
+		)
 		push_error(
 			"[GameModeCatalogUtility] 模式配置预热提交失败，错误码：%d。"
 			% preload_error
@@ -70,6 +85,8 @@ func ready() -> void:
 
 func dispose() -> void:
 	_disposing = true
+	if _preload_completion != null and _preload_completion.is_pending():
+		var _cancelled: bool = _preload_completion.cancel(&"catalog_disposed")
 	if is_instance_valid(_resource_catalog):
 		var _catalog_unregistered: bool = _resource_catalog.unregister_catalog(_CATALOG_ID, true)
 	_resource_catalog = null
@@ -85,12 +102,21 @@ func get_config(config_path: String) -> GameModeConfig:
 	if config_path.is_empty() or not is_instance_valid(_resource_catalog):
 		return null
 
-	var resource: Resource = _resource_catalog.load_resource_by_path(_CATALOG_ID, config_path)
+	var resource: Resource = _resource_catalog.get_cached_resource_by_path(
+		_CATALOG_ID,
+		config_path
+	)
 	if resource is GameModeConfig:
 		var mode_config: GameModeConfig = resource
 		return mode_config
-	push_error("[GameModeCatalogUtility] 模式配置加载失败：%s。" % config_path)
+	if _preload_status != &"loading":
+		push_error("[GameModeCatalogUtility] 模式配置缓存不可用：%s。" % config_path)
 	return null
+
+
+## 返回本轮目录预载的唯一终态句柄。句柄由 Utility 拥有；调用方只等待和读取。
+func get_preload_completion() -> GFAsyncCompletion:
+	return _preload_completion
 
 
 ## 获取当前注册表中的配置路径列表。
@@ -134,8 +160,15 @@ func _on_preload_completed(report: Dictionary) -> void:
 	_preload_report = report.duplicate(true)
 	if GFVariantData.get_option_bool(report, "ok", false):
 		_preload_status = &"completed"
+		if _preload_completion != null and _preload_completion.is_pending():
+			var _succeeded: bool = _preload_completion.succeed(_preload_report)
 		return
 	_preload_status = &"failed"
+	if _preload_completion != null and _preload_completion.is_pending():
+		var _failed: bool = _preload_completion.fail(
+			"模式配置预热失败。",
+			{&"report": _preload_report}
+		)
 	push_error(
 		"[GameModeCatalogUtility] GF 模式配置预热失败：%s。"
 		% str(

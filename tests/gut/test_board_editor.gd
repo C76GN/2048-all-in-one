@@ -181,7 +181,6 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 	await architecture.register_utility(GFPlatformRuntime, GFPlatformRuntime.new())
 	await architecture.register_utility(GamePlatformUtility, GamePlatformUtility.new())
 	await architecture.register_utility(GFInputMappingUtility, GFInputMappingUtility.new())
-	await architecture.register_utility(GFPointerGestureUtility, GFPointerGestureUtility.new())
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GFViewportUtility, GFViewportUtility.new())
 	await architecture.init()
@@ -229,6 +228,16 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 			spatial_canvas.get_content_root(),
 			"项目棋盘世界应挂载到 GFSpatialCanvas2D 的显式内容根。"
 		)
+		var input_policy: GFSpatialCanvasInputPolicy = spatial_canvas.get_input_policy()
+		assert_true(input_policy.pan_mouse_button == MOUSE_BUTTON_MIDDLE)
+		assert_true(input_policy.selection_mouse_button == MOUSE_BUTTON_NONE)
+		assert_true(
+			input_policy.touch_primary_behavior
+			== GFSpatialCanvasInputPolicy.TouchPrimaryBehavior.NONE
+		)
+		assert_true(input_policy.touch_multi_pan_enabled)
+		assert_true(input_policy.touch_multi_zoom_enabled)
+		assert_true(input_policy.consume_handled_events)
 	assert_true(
 		viewport_controller is BoardEditorViewportController,
 		"编辑画布必须使用 GF 手势驱动的专用视口控制器。"
@@ -435,18 +444,91 @@ func test_editor_focusable_controls_preserve_touch_target_contract() -> void:
 	assert_gt(focusable_count, 0, "棋盘编辑器场景应包含可聚焦交互控件。")
 
 
-func test_editor_viewport_reserves_single_touch_for_drawing_and_multitouch_for_gf_gestures() -> void:
+func test_editor_viewport_single_touch_commits_and_second_touch_cancels_stroke() -> void:
+	var canvas: BoardEditorCanvas = BoardEditorCanvas.new()
+	canvas.set_grid_size(Vector2i(4, 4))
+	var spatial_canvas: GFSpatialCanvas2D = GFSpatialCanvas2D.new()
+	spatial_canvas.size = canvas.size
+	var _view_set: bool = spatial_canvas.set_view(canvas.size * 0.5, 1.0)
+	var controller: BoardEditorViewportController = BoardEditorViewportController.new()
+	controller._canvas = canvas
+	controller._spatial_canvas = spatial_canvas
+	var edits: Array[Dictionary] = []
+	var _edit_connected: int = canvas.cells_edited.connect(
+		func(cells: Array[Vector2i], active: bool) -> void:
+			edits.append({"cells": cells.duplicate(), "active": active})
+	)
+
+	var first_position: Vector2 = canvas.get_cell_center(Vector2i(0, 0))
+	var last_position: Vector2 = canvas.get_cell_center(Vector2i(2, 0))
+	controller._handle_touch_stroke_event(_make_touch_event(1, true, first_position))
+	assert_true(canvas.is_stroke_active(), "第一触点应开始项目拥有的可取消笔画。")
+	controller._handle_touch_stroke_event(_make_drag_event(1, last_position))
+	assert_true(canvas.is_stroke_active(), "单指拖动应持续追加连续格线。")
+	controller._handle_touch_stroke_event(_make_touch_event(1, false, last_position))
+	assert_false(canvas.is_stroke_active())
+	assert_true(edits.size() == 1, "单指释放应且只应提交一次笔画。")
+	var committed_value: Variant = GFVariantData.get_option_value(
+		edits[0],
+		"cells",
+		[]
+	)
+	var committed_cells: Array[Vector2i] = []
+	if committed_value is Array:
+		for cell_value: Variant in committed_value:
+			if cell_value is Vector2i:
+				committed_cells.append(cell_value)
+	assert_true(committed_cells == [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+
+	controller._handle_touch_stroke_event(_make_touch_event(2, true, first_position))
+	assert_true(canvas.is_stroke_active())
+	controller._handle_touch_stroke_event(_make_touch_event(3, true, last_position))
+	assert_false(canvas.is_stroke_active(), "第二触点出现时必须立即取消项目笔画。")
+	controller._handle_touch_stroke_event(_make_drag_event(2, last_position))
+	controller._handle_touch_stroke_event(_make_touch_event(3, false, last_position))
+	controller._handle_touch_stroke_event(_make_touch_event(2, false, last_position))
+	assert_true(edits.size() == 1, "多指序列不得提交被取消的单指笔画。")
+
+	controller.free()
+	spatial_canvas.free()
+	canvas.free()
+
+
+func test_editor_viewport_keeps_mouse_strokes_and_delegates_navigation_to_gf_policy() -> void:
 	var source: String = _read_text(_BOARD_EDITOR_VIEWPORT_SCRIPT_PATH)
 
-	assert_true(source.contains("GFPointerGestureUtility"))
 	assert_true(source.contains("GFSpatialCanvas2D"))
+	assert_true(source.contains("GFSpatialCanvasInputPolicy"))
 	assert_false(source.contains("CanvasViewportMath"))
 	assert_false(source.contains("GFViewportUtility"))
-	assert_true(source.contains("pointer_count < 2"))
+	assert_true(source.contains("TouchPrimaryBehavior.NONE"))
+	assert_true(source.contains("touch_multi_pan_enabled = true"))
+	assert_true(source.contains("touch_multi_zoom_enabled = true"))
+	assert_true(source.contains("_mouse_stroke_button"))
+	assert_true(source.contains("_handle_touch_stroke_event"))
 	assert_true(source.contains("_canvas.cancel_stroke()"))
+	assert_false(source.contains("_gesture_utility"))
 
 
 # --- 私有/辅助方法 ---
+
+func _make_touch_event(
+	pointer_id: int,
+	pressed: bool,
+	position: Vector2
+) -> InputEventScreenTouch:
+	var event: InputEventScreenTouch = InputEventScreenTouch.new()
+	event.index = pointer_id
+	event.pressed = pressed
+	event.position = position
+	return event
+
+
+func _make_drag_event(pointer_id: int, position: Vector2) -> InputEventScreenDrag:
+	var event: InputEventScreenDrag = InputEventScreenDrag.new()
+	event.index = pointer_id
+	event.position = position
+	return event
 
 func _make_template() -> BoardTopologyTemplate:
 	var topology_template: BoardTopologyTemplate = BoardTopologyTemplate.new()
@@ -468,7 +550,6 @@ func _assert_board_editor_initial_focus(
 	await architecture.register_utility(GFPlatformRuntime, GFPlatformRuntime.new())
 	await architecture.register_utility(GamePlatformUtility, GamePlatformUtility.new())
 	await architecture.register_utility(GFInputMappingUtility, GFInputMappingUtility.new())
-	await architecture.register_utility(GFPointerGestureUtility, GFPointerGestureUtility.new())
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GFViewportUtility, GFViewportUtility.new())
 	await architecture.init()

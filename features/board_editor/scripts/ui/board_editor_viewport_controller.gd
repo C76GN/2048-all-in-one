@@ -1,7 +1,7 @@
 ## BoardEditorViewportController: 管理编辑画布的缩放、平移与指针仲裁。
 ##
-## 桌面左/右键和移动端单指只产生可取消笔画；中键、滚轮、系统手势与双指
-## 交给 GFPointerGestureUtility。第二根手指出现时会取消尚未提交的单指笔画。
+## 项目层保留桌面左/右键与移动端单指连续笔画；第二触点出现时取消项目笔画，
+## 中键、滚轮、系统手势、原始多指平移缩放及消费交给 GFSpatialCanvas2D。
 class_name BoardEditorViewportController
 extends "res://addons/gf/kernel/base/gf_controller.gd"
 
@@ -15,9 +15,7 @@ signal view_transform_changed(zoom: float, world_position: Vector2)
 
 const _ZOOM_STEP: float = 1.15
 const _FIT_MARGIN: float = 18.0
-const _NO_POINTER: int = -1
-
-
+const _NO_TOUCH_POINTER: int = -1
 # --- 导出变量 ---
 
 @export var world_root_path: NodePath = NodePath("../CanvasWorld")
@@ -44,16 +42,15 @@ var _zoom_out_button: Button
 var _fit_button: Button
 var _zoom_in_button: Button
 var _zoom_label: Label
-var _gesture_utility: GFPointerGestureUtility
 var _signal_utility: GFSignalUtility
 var _content_rect: Rect2 = Rect2()
 var _zoom: float = 1.0
 var _follow_fit: bool = true
 var _is_initialized: bool = false
-var _is_handling_gesture_event: bool = false
 var _last_viewport_size: Vector2 = Vector2.ZERO
 var _mouse_stroke_button: MouseButton = MOUSE_BUTTON_NONE
-var _touch_primary_id: int = _NO_POINTER
+var _active_touch_ids: Dictionary[int, bool] = {}
+var _touch_primary_id: int = _NO_TOUCH_POINTER
 var _touch_sequence_blocked: bool = false
 
 
@@ -74,7 +71,6 @@ func _exit_tree() -> void:
 		_canvas.cancel_stroke()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
-	_dispose_private_gesture_utility()
 	_reset_pointer_state()
 	super._exit_tree()
 
@@ -143,6 +139,11 @@ func _prepare_spatial_canvas() -> void:
 	if not is_instance_valid(_spatial_canvas) or not is_instance_valid(_world_root):
 		return
 	_spatial_canvas.set_input_enabled(false)
+	var policy: GFSpatialCanvasInputPolicy = _create_spatial_input_policy()
+	if not _spatial_canvas.set_input_policy(policy):
+		push_error("[BoardEditorViewportController] 无法配置 GF 空间画布输入策略。")
+		return
+	_spatial_canvas.set_input_enabled(true)
 	var content_root: Node2D = _spatial_canvas.get_content_root()
 	if _world_root.get_parent() != content_root:
 		_world_root.reparent(content_root)
@@ -151,7 +152,6 @@ func _prepare_spatial_canvas() -> void:
 
 
 func _resolve_utilities() -> void:
-	_create_private_gesture_utility()
 	_signal_utility = _get_signal_utility()
 
 
@@ -165,8 +165,6 @@ func _has_required_dependencies() -> bool:
 		var _world_appended: bool = missing.append("CanvasWorld")
 	if not is_instance_valid(_canvas):
 		var _canvas_appended: bool = missing.append("BoardEditorCanvas")
-	if not is_instance_valid(_gesture_utility):
-		var _gesture_appended: bool = missing.append("GFPointerGestureUtility")
 	if not is_instance_valid(_signal_utility):
 		var _signal_appended: bool = missing.append("GFSignalUtility")
 	if missing.is_empty():
@@ -184,11 +182,6 @@ func _bind_runtime_signals() -> void:
 	var _input_connection: GFSignalConnection = _signal_utility.connect_signal(
 		_host_control.gui_input,
 		_on_gui_input,
-		self
-	)
-	var _gesture_connection: GFSignalConnection = _signal_utility.connect_signal(
-		_gesture_utility.gesture_updated,
-		_on_gesture_updated,
 		self
 	)
 	var _content_connection: GFSignalConnection = _signal_utility.connect_signal(
@@ -276,6 +269,30 @@ func _update_zoom_label() -> void:
 		_zoom_label.text = "%d%%" % roundi(_zoom * 100.0)
 
 
+func _create_spatial_input_policy() -> GFSpatialCanvasInputPolicy:
+	var policy: GFSpatialCanvasInputPolicy = GFSpatialCanvasInputPolicy.new()
+	policy.pan_mouse_button = MOUSE_BUTTON_MIDDLE
+	policy.pan_action = &""
+	policy.pan_modifier_mask = GFSpatialCanvasInputPolicy.ModifierMask.NONE
+	policy.selection_mouse_button = MOUSE_BUTTON_NONE
+	policy.selection_action = &""
+	policy.selection_modifier_bindings.clear()
+	policy.wheel_axis = GFSpatialCanvasInputPolicy.WheelAxis.VERTICAL
+	policy.wheel_routing = GFSpatialCanvasInputPolicy.WheelRouting.CANVAS
+	policy.wheel_modifier_mask = GFSpatialCanvasInputPolicy.ModifierMask.NONE
+	policy.wheel_zoom_factor = _ZOOM_STEP
+	policy.touch_enabled = true
+	policy.touch_primary_behavior = GFSpatialCanvasInputPolicy.TouchPrimaryBehavior.NONE
+	policy.touch_multi_pan_enabled = true
+	policy.touch_multi_zoom_enabled = true
+	policy.system_pan_gesture_enabled = true
+	policy.system_magnify_gesture_enabled = true
+	policy.placement_cancel_action = &""
+	policy.consume_handled_events = true
+	policy.consume_wheel_events = true
+	return policy
+
+
 func _handle_mouse_event(event: InputEvent) -> bool:
 	if event is InputEventMouseButton:
 		var mouse_button: InputEventMouseButton = event
@@ -298,61 +315,84 @@ func _handle_mouse_event(event: InputEvent) -> bool:
 				_mouse_stroke_button = MOUSE_BUTTON_NONE
 				return true
 			return false
-		return _handle_gesture_event(event)
+		return false
 
 	if event is InputEventMouseMotion:
 		var mouse_motion: InputEventMouseMotion = event
 		if _mouse_stroke_button != MOUSE_BUTTON_NONE and _canvas.is_stroke_active():
 			_canvas.append_stroke(_host_to_canvas(mouse_motion.position))
 			return true
-		if _gesture_utility.get_active_pointer_count() > 0:
-			return _handle_gesture_event(event)
 	return false
 
 
-func _handle_touch_event(event: InputEvent) -> bool:
-	var pointer_count_before: int = _gesture_utility.get_active_pointer_count()
+func _track_spatial_navigation_intent(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mouse_button: InputEventMouseButton = event
+		if (
+			mouse_button.button_index == MOUSE_BUTTON_MIDDLE
+			or mouse_button.button_index in [
+				MOUSE_BUTTON_WHEEL_UP,
+				MOUSE_BUTTON_WHEEL_DOWN,
+			]
+		):
+			_follow_fit = false
+		return
+	if event is InputEventMouseMotion:
+		var mouse_motion: InputEventMouseMotion = event
+		if (mouse_motion.button_mask & MOUSE_BUTTON_MASK_MIDDLE) != 0:
+			_follow_fit = false
+		return
+	if event is InputEventMagnifyGesture or event is InputEventPanGesture:
+		_follow_fit = false
+
+
+func _handle_touch_stroke_event(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var touch: InputEventScreenTouch = event
 		if touch.pressed:
-			if pointer_count_before == 0 and _touch_primary_id == _NO_POINTER:
+			if _active_touch_ids.has(touch.index):
+				return
+			var starts_primary_sequence: bool = _active_touch_ids.is_empty()
+			_active_touch_ids[touch.index] = true
+			if starts_primary_sequence and _touch_primary_id == _NO_TOUCH_POINTER:
 				_touch_primary_id = touch.index
-				_touch_sequence_blocked = false
-				var _stroke_started: bool = _canvas.begin_stroke(
+				_touch_sequence_blocked = not _canvas.begin_stroke(
 					_host_to_canvas(touch.position),
 					_canvas.is_brush_active()
 				)
 			else:
 				_touch_sequence_blocked = true
 				_canvas.cancel_stroke()
+				_follow_fit = false
+			return
+
+		if not _active_touch_ids.has(touch.index):
+			return
+		if _active_touch_ids.size() >= 2:
+			_touch_sequence_blocked = true
+			_canvas.cancel_stroke()
+			_follow_fit = false
 		elif touch.index == _touch_primary_id:
 			if _touch_sequence_blocked:
 				_canvas.cancel_stroke()
 			else:
 				_canvas.finish_stroke()
+		var _erased_touch: bool = _active_touch_ids.erase(touch.index)
+		if _active_touch_ids.is_empty():
+			_reset_touch_state()
+		return
 
-	elif event is InputEventScreenDrag:
-		var drag: InputEventScreenDrag = event
-		if pointer_count_before >= 2:
-			_touch_sequence_blocked = true
-			_canvas.cancel_stroke()
-		elif drag.index == _touch_primary_id and not _touch_sequence_blocked:
-			_canvas.append_stroke(_host_to_canvas(drag.position))
-
-	var handled: bool = _handle_gesture_event(event)
-	if event is InputEventScreenTouch:
-		var completed_touch: InputEventScreenTouch = event
-		if not completed_touch.pressed and _gesture_utility.get_active_pointer_count() == 0:
-			_touch_primary_id = _NO_POINTER
-			_touch_sequence_blocked = false
-	return handled or _canvas.is_stroke_active() or pointer_count_before > 0
-
-
-func _handle_gesture_event(event: InputEvent) -> bool:
-	_is_handling_gesture_event = true
-	var handled: bool = _gesture_utility.handle_input_event(event)
-	_is_handling_gesture_event = false
-	return handled
+	if not event is InputEventScreenDrag:
+		return
+	var drag: InputEventScreenDrag = event
+	if not _active_touch_ids.has(drag.index):
+		return
+	if _active_touch_ids.size() >= 2:
+		_touch_sequence_blocked = true
+		_canvas.cancel_stroke()
+		_follow_fit = false
+	elif drag.index == _touch_primary_id and not _touch_sequence_blocked:
+		_canvas.append_stroke(_host_to_canvas(drag.position))
 
 
 func _host_to_canvas(host_position: Vector2) -> Vector2:
@@ -361,7 +401,12 @@ func _host_to_canvas(host_position: Vector2) -> Vector2:
 
 func _reset_pointer_state() -> void:
 	_mouse_stroke_button = MOUSE_BUTTON_NONE
-	_touch_primary_id = _NO_POINTER
+	_reset_touch_state()
+
+
+func _reset_touch_state() -> void:
+	_active_touch_ids.clear()
+	_touch_primary_id = _NO_TOUCH_POINTER
 	_touch_sequence_blocked = false
 
 
@@ -405,25 +450,6 @@ func _get_label(path: NodePath) -> Label:
 	return null
 
 
-func _create_private_gesture_utility() -> void:
-	_dispose_private_gesture_utility()
-	_gesture_utility = GFPointerGestureUtility.new()
-	_gesture_utility.init()
-	_gesture_utility.mouse_button_index = MOUSE_BUTTON_MIDDLE
-	_gesture_utility.mouse_wheel_zoom_factor = _ZOOM_STEP
-	_gesture_utility.ready()
-
-
-func _dispose_private_gesture_utility() -> void:
-	if not is_instance_valid(_gesture_utility):
-		_gesture_utility = null
-		return
-	_gesture_utility.reset_gesture()
-	_gesture_utility.dispose()
-	_gesture_utility.release_dependencies()
-	_gesture_utility = null
-
-
 func _get_signal_utility() -> GFSignalUtility:
 	var utility_value: Object = get_utility(GFSignalUtility, true)
 	if utility_value is GFSignalUtility:
@@ -460,53 +486,13 @@ func _on_content_rect_changed(content_rect: Rect2) -> void:
 
 
 func _on_gui_input(event: InputEvent) -> void:
-	var handled: bool = false
-	if event is InputEventScreenTouch or event is InputEventScreenDrag:
-		handled = _handle_touch_event(event)
-	elif event is InputEventMouseButton or event is InputEventMouseMotion:
-		handled = _handle_mouse_event(event)
-	elif event is InputEventMagnifyGesture or event is InputEventPanGesture:
-		handled = _handle_gesture_event(event)
-	if handled:
+	if _handle_mouse_event(event):
 		_host_control.accept_event()
-
-
-func _on_gesture_updated(snapshot: Dictionary, event: InputEvent) -> void:
-	if not _is_handling_gesture_event or not _has_valid_geometry():
 		return
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
-		var pointer_count: int = GFVariantData.get_option_int(snapshot, &"pointer_count")
-		if pointer_count < 2:
-			return
-		_touch_sequence_blocked = true
-		_canvas.cancel_stroke()
-	var anchor: Vector2 = GFVariantData.get_option_vector2(
-		snapshot,
-		&"center",
-		_host_control.size * 0.5
-	)
-	var scale_factor: float = GFVariantData.get_option_float(snapshot, &"scale", 1.0)
-	var pan_delta: Vector2 = GFVariantData.get_option_vector2(
-		snapshot,
-		&"pan_delta",
-		Vector2.ZERO
-	)
-	var requested_zoom: float = _zoom * maxf(scale_factor, 0.0001)
-	var next_zoom: float = clampf(
-		requested_zoom,
-		minf(maxf(minimum_zoom, 0.0001), _zoom),
-		maximum_zoom
-	)
-	if is_equal_approx(next_zoom, _zoom) and pan_delta.is_zero_approx():
+		_handle_touch_stroke_event(event)
 		return
-	_follow_fit = false
-	if not is_equal_approx(next_zoom, _zoom):
-		var _zoomed: bool = _spatial_canvas.zoom_at(
-			anchor,
-			next_zoom / maxf(_zoom, 0.0001)
-		)
-	if not pan_delta.is_zero_approx():
-		var _panned: bool = _spatial_canvas.pan_by_canvas_delta(pan_delta)
+	_track_spatial_navigation_intent(event)
 
 
 func _on_spatial_view_changed(_snapshot: Dictionary) -> void:

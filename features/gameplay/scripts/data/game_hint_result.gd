@@ -69,15 +69,14 @@ func is_fresh_for(current_snapshot_id: String) -> bool:
 
 ## 结果是否可安全显示。
 ##
-## 取消和无效输入不产生玩家可见建议；步数或时间预算终止可以显示明确标注的
-## 部分结果。所有情况都必须通过 freshness 校验。
+## 取消、无效输入和墙钟截止不产生玩家可见建议；步数预算是确定的，因此可以
+## 显示明确标注的部分结果。所有情况都必须通过 freshness 校验。
 ## @param current_snapshot_id: 调用方当前棋盘快照的稳定标识。
 func can_display_for(current_snapshot_id: String) -> bool:
 	if not is_fresh_for(current_snapshot_id) or not is_cardinal_direction():
 		return false
 	return termination_reason in [
 		TERMINATION_COMPLETED,
-		TERMINATION_TIME_LIMIT,
 		TERMINATION_STEP_LIMIT,
 	]
 

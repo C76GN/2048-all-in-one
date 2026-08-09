@@ -12,7 +12,6 @@ const GameHintResultType = preload(
 	"res://features/gameplay/scripts/data/game_hint_result.gd"
 )
 const DEFAULT_MAX_STEPS: int = 12000
-const DEFAULT_MAX_ELAPSED_MSEC: int = 12
 
 const _DIRECTIONS: Array[Vector2i] = [
 	Vector2i.UP,
@@ -43,7 +42,6 @@ func evaluate(
 	if execution_budget == null:
 		execution_budget = GFExecutionBudget.new({
 			&"max_steps": DEFAULT_MAX_STEPS,
-			&"max_elapsed_msec": DEFAULT_MAX_ELAPSED_MSEC,
 			&"metadata": {&"operation": &"deterministic_game_hint"},
 		})
 

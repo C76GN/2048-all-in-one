@@ -258,6 +258,29 @@ func load_resource_by_path(
 	return load_resource_by_entry(catalog_id, entry, cache_mode)
 
 
+## 只读取 GFAssetUtility 已完成的缓存，不触发同步 ResourceLoader。
+## 适用于已经由启动/页面激活屏障保证预载终态的热路径。
+## @param catalog_id: 已注册资源目录的稳定标识。
+## @param resource_path: 需要从目录缓存读取的规范资源路径。
+func get_cached_resource_by_path(
+	catalog_id: StringName,
+	resource_path: String
+) -> Resource:
+	if resource_path.is_empty():
+		return null
+	var catalog: Dictionary = _get_catalog(catalog_id)
+	var registry: GFResourceRegistry = _get_catalog_registry(catalog)
+	var entry: GFResourceRegistryEntry = _get_catalog_entry_by_path(
+		catalog,
+		registry,
+		resource_path
+	)
+	if not _is_valid_registry_entry(entry):
+		return null
+	var asset_utility: GFAssetUtility = _get_asset_utility()
+	return asset_utility.get_cached(entry.path) if is_instance_valid(asset_utility) else null
+
+
 ## 通过目录条目加载资源，并复用 GFAssetUtility 缓存。
 ## @param catalog_id: 资源所属的稳定目录 ID。
 ## @param entry: 已登记的资源条目。

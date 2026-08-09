@@ -67,6 +67,11 @@ func _run_startup_sequence() -> void:
 		push_error("[Boot] GF 架构严格初始化失败。")
 		_complete_startup_failure("架构初始化失败")
 		return
+	var mode_catalog_ready: bool = await _prepare_mode_catalog()
+	if not mode_catalog_ready:
+		push_error("[Boot] 模式配置异步预载未成功完成。")
+		_complete_startup_failure("模式配置初始化失败")
+		return
 
 	_complete_startup_task(_PROGRESS_TASK_ARCHITECTURE, "加载主题资源")
 	var themes_ready: bool = await _prepare_initial_themes()
@@ -106,6 +111,24 @@ func _prepare_initial_themes() -> bool:
 		return false
 	var activated: bool = await theme_utility.ensure_initial_themes_ready()
 	return activated and is_inside_tree()
+
+
+func _prepare_mode_catalog() -> bool:
+	var utility_value: Object = Gf.get_utility(GameModeCatalogUtility)
+	if not utility_value is GameModeCatalogUtility:
+		return false
+	var mode_catalog: GameModeCatalogUtility = utility_value
+	var completion: GFAsyncCompletion = mode_catalog.get_preload_completion()
+	if completion == null:
+		return false
+	if completion.is_pending():
+		var wait_result: Dictionary = await GFAsyncWaitUtility.wait_until(
+			completion.is_completed,
+			_get_boot_wait_options(_PRELOAD_TIMEOUT_SECONDS)
+		)
+		if not GFVariantData.get_option_bool(wait_result, "completed", false):
+			return false
+	return completion.is_successful() and is_inside_tree()
 
 
 func _prime_gameplay_visuals() -> void:
