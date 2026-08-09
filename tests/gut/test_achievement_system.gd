@@ -252,6 +252,11 @@ func test_achievement_dialog_renders_and_adapts_layout() -> void:
 		0,
 		"有效标题搜索应由 GF table 生成非空可见投影。"
 	)
+	assert_true(
+		list.get_child_count() == panel._achievement_view.get_visible_row_count()
+		and panel._cards_by_id.size() == list.get_child_count(),
+		"成就 Card 缓存只能物化 GF table 当前可见行。"
+	)
 
 	search_input.text = "__no_achievement_matches__"
 	panel.call("_on_filter_changed", search_input.text)
@@ -261,19 +266,18 @@ func test_achievement_dialog_renders_and_adapts_layout() -> void:
 		"无匹配搜索应由 GF table 原子提交空投影。"
 	)
 	assert_true(
-		first_card.get_parent() == list and not first_card.visible,
-		"筛选应复用稳定成就卡片，仅切换可见性。"
-	)
-	assert_true(
-		list.get_child_count() == _EXPECTED_ACHIEVEMENT_COUNT,
-		"筛选不应销毁并重建成就卡片。"
+		list.get_child_count() == 0
+		and panel._cards_by_id.is_empty()
+		and not is_instance_valid(first_card),
+		"空投影必须释放全部不可见成就卡片，而不是保留隐藏节点。"
 	)
 	search_input.text = ""
 	panel.call("_on_filter_changed", search_input.text)
 	await get_tree().process_frame
 	assert_true(
-		first_card.get_parent() == list and first_card.visible,
-		"清除筛选后应恢复同一个成就卡片实例。"
+		list.get_child_count() == _EXPECTED_ACHIEVEMENT_COUNT
+		and panel._cards_by_id.size() == _EXPECTED_ACHIEVEMENT_COUNT,
+		"清除筛选后应仅重新物化恢复的可见行。"
 	)
 
 	panel.size = Vector2(390.0, 844.0)

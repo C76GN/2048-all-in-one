@@ -488,10 +488,31 @@ func test_editor_viewport_single_touch_commits_and_second_touch_cancels_stroke()
 	controller._handle_touch_stroke_event(_make_touch_event(3, false, last_position))
 	controller._handle_touch_stroke_event(_make_touch_event(2, false, last_position))
 	assert_true(edits.size() == 1, "多指序列不得提交被取消的单指笔画。")
-
 	controller.free()
 	spatial_canvas.free()
 	canvas.free()
+
+
+func test_editor_viewport_disables_framework_grid_overlay() -> void:
+	var spatial_canvas: GFSpatialCanvas2D = GFSpatialCanvas2D.new()
+	var world_root: Node2D = Node2D.new()
+	spatial_canvas.add_child(world_root)
+	var controller: BoardEditorViewportController = BoardEditorViewportController.new()
+	controller._spatial_canvas = spatial_canvas
+	controller._world_root = world_root
+
+	controller._prepare_spatial_canvas()
+	var grid_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		spatial_canvas.get_debug_snapshot(),
+		"grid"
+	)
+
+	assert_false(
+		GFVariantData.get_option_bool(grid_snapshot, "visible", true),
+		"编辑器只显示 BoardEditorCanvas 的业务格线；GF 默认一像素网格必须显式关闭。"
+	)
+	spatial_canvas.free()
+	controller.free()
 
 
 func test_editor_viewport_keeps_mouse_strokes_and_delegates_navigation_to_gf_policy() -> void:

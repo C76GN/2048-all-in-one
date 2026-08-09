@@ -93,6 +93,56 @@ func test_board_fit_insets_keep_hud_outside_primary_board_composition() -> void:
 	)
 
 
+func test_feedback_rail_uses_actual_board_clearance_across_landscape_targets() -> void:
+	for viewport_size: Vector2 in [
+		Vector2(1280.0, 720.0),
+		Vector2(973.0, 781.0),
+		Vector2(960.0, 540.0),
+	]:
+		var mode: int = (
+			GameplayResponsiveLayoutController.classify_layout(viewport_size)
+		)
+		var gutter: float = (
+			16.0
+			if mode == GameplayResponsiveLayoutController.LayoutMode.DESKTOP
+			else 10.0
+		)
+		var safe_size: Vector2 = viewport_size - Vector2.ONE * gutter * 2.0
+		var board_insets: Dictionary = (
+			GameplayResponsiveLayoutController.get_board_fit_insets(
+				mode,
+				safe_size,
+				1.0
+			)
+		)
+		var board_envelope: Rect2 = (
+			BoardWorldViewportController.calculate_fitted_content_screen_rect(
+				safe_size,
+				board_insets,
+				1.0
+			).grow(50.0)
+		)
+		var preferred_width: float = (
+			340.0
+			if mode == GameplayResponsiveLayoutController.LayoutMode.DESKTOP
+			else 300.0
+		)
+		var rail_rect: Rect2 = Hud._calculate_landscape_feedback_rail_rect(
+			safe_size,
+			board_envelope,
+			preferred_width
+		)
+
+		assert_false(
+			rail_rect.intersects(board_envelope),
+			"%s 反馈轨不得进入棋盘 50px 动态安全包络。" % viewport_size
+		)
+		assert_true(
+			Rect2(Vector2.ZERO, safe_size).encloses(rail_rect),
+			"%s 反馈轨与通知宽度不得越出实际 SafeArea。" % viewport_size
+		)
+
+
 func test_desktop_replay_controls_keep_a_safe_gap_from_the_board() -> void:
 	var controller: GameplayResponsiveLayoutController = (
 		GameplayResponsiveLayoutController.new()

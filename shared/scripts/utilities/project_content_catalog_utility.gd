@@ -15,6 +15,8 @@ signal catalog_refreshed(report: Dictionary)
 
 ## 本 Utility 在 GFContentPackageUtility 中持有 source root 的稳定 owner。
 const SOURCE_ROOT_OWNER_ID: StringName = &"project.content_catalog"
+## ready 同步重建超过该值时记录诊断告警；不改变原子提交或启动成败语义。
+const READY_REFRESH_WARNING_USEC: int = 50_000
 
 
 # --- 私有变量 ---
@@ -23,6 +25,7 @@ var _configured_source_roots: PackedStringArray = PackedStringArray()
 var _content_packages: GFContentPackageUtility = null
 var _resolver: GFResourceResolverUtility = null
 var _last_refresh_report: Dictionary = {}
+var _clock: GFClock = GFClock.new()
 
 
 # --- GF 生命周期方法 ---
@@ -40,6 +43,7 @@ func ready() -> void:
 	_resolver = _resolve_resource_resolver_utility()
 	_last_refresh_report = refresh()
 	_log_report_issues(_last_refresh_report)
+	_log_ready_refresh_budget(_last_refresh_report)
 
 
 func dispose() -> void:
@@ -74,6 +78,7 @@ func configure_source_roots(source_roots: PackedStringArray) -> ProjectContentCa
 
 ## 原子重建全部已注册内容包，并把资源键同步到 GF Resolver。
 func refresh() -> Dictionary:
+	var started_usec: int = _clock.get_monotonic_usec()
 	var report: Dictionary = {
 		"subject": "Project content catalog",
 		"issues": [],
@@ -86,7 +91,7 @@ func refresh() -> Dictionary:
 			&"missing_content_package_utility",
 			"GFContentPackageUtility 未注册。"
 		)
-		return _finalize_refresh_report(report)
+		return _finalize_refresh_report(report, started_usec)
 	if not is_instance_valid(_resolver):
 		var _resolver_issue: Dictionary = GFValidationReportDictionary.append_issue(
 			report,
@@ -94,7 +99,7 @@ func refresh() -> Dictionary:
 			&"missing_resource_resolver",
 			"GFResourceResolverUtility 未注册。"
 		)
-		return _finalize_refresh_report(report)
+		return _finalize_refresh_report(report, started_usec)
 
 	var source_root_report: GFValidationReport = (
 		_content_packages.replace_owner_source_roots(
@@ -111,7 +116,7 @@ func refresh() -> Dictionary:
 	)
 	report["source_root_registration"] = source_root_report_data
 	if not source_root_report.is_ok():
-		return _finalize_refresh_report(report)
+		return _finalize_refresh_report(report, started_usec)
 
 	var catalog_report: Dictionary = _content_packages.rebuild_catalog({
 		"check_resource_exists": true,
@@ -142,7 +147,7 @@ func refresh() -> Dictionary:
 		)
 		report["registration"] = registration_report.duplicate(true)
 
-	return _finalize_refresh_report(report)
+	return _finalize_refresh_report(report, started_usec)
 
 
 ## 获取最近一次目录刷新报告副本。
@@ -245,7 +250,25 @@ func get_debug_snapshot() -> Dictionary:
 
 # --- 私有/辅助方法 ---
 
-func _finalize_refresh_report(report: Dictionary) -> Dictionary:
+func _finalize_refresh_report(
+	report: Dictionary,
+	started_usec: int
+) -> Dictionary:
+	var elapsed_usec: int = maxi(
+		_clock.get_monotonic_usec() - started_usec,
+		0
+	)
+	# 只公开有界标量，避免诊断为每个 package/resource 复制额外明细。
+	report[&"refresh_metrics"] = {
+		&"elapsed_usec": elapsed_usec,
+		&"elapsed_msec": float(elapsed_usec) / 1000.0,
+		&"source_root_count": _configured_source_roots.size(),
+		&"package_count": GFVariantData.get_option_int(report, &"package_count"),
+		&"registered_resource_count": GFVariantData.get_option_int(
+			report,
+			&"registered_count"
+		),
+	}
 	_last_refresh_report = GFValidationReportDictionary.finalize_report(
 		report,
 		"Project content catalog",
@@ -256,6 +279,24 @@ func _finalize_refresh_report(report: Dictionary) -> Dictionary:
 	).duplicate(true)
 	catalog_refreshed.emit(_last_refresh_report.duplicate(true))
 	return _last_refresh_report.duplicate(true)
+
+
+func _log_ready_refresh_budget(report: Dictionary) -> void:
+	var metrics: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		&"refresh_metrics"
+	)
+	var elapsed_usec: int = GFVariantData.get_option_int(metrics, &"elapsed_usec")
+	if elapsed_usec <= READY_REFRESH_WARNING_USEC:
+		return
+	push_warning(
+		"[ProjectContentCatalogUtility] ready 同步目录刷新耗时 %.2f ms（%d 个包、%d 个资源）；请检查内容包规模或启动预载策略。"
+		% [
+			float(elapsed_usec) / 1000.0,
+			GFVariantData.get_option_int(metrics, &"package_count"),
+			GFVariantData.get_option_int(metrics, &"registered_resource_count"),
+		]
+	)
 
 
 func _resource_entry_matches(

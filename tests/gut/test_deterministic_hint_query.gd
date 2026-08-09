@@ -95,6 +95,159 @@ func test_same_snapshot_and_budget_produce_identical_hint() -> void:
 	)
 
 
+func test_hint_worker_uses_pure_snapshot_and_gf_background_work() -> void:
+	var snapshot: Dictionary = _make_snapshot(
+		BoardTopology.create_rectangle(Vector2i(4, 4)),
+		[
+			_make_tile(Vector2i(0, 0), 2, &"tile.classic.numeric", 1150),
+			_make_tile(Vector2i(0, 1), 2, &"tile.classic.numeric", 1151),
+		]
+	)
+	var snapshot_before: Dictionary = snapshot.duplicate(true)
+	var background_work: GFBackgroundWorkUtility = GFBackgroundWorkUtility.new()
+	background_work.init()
+	var worker: DeterministicHintWorker = DeterministicHintWorker.new()
+	var task: GFBackgroundWorkTask = background_work.submit_cpu_work(
+		Callable(worker, "run"),
+		{
+			&"board_snapshot": snapshot,
+			&"snapshot_id": "snapshot-background",
+			&"generation": 7,
+			&"max_steps": DeterministicHintQueryType.DEFAULT_MAX_STEPS,
+		},
+		Callable(),
+		{&"id": &"test-gameplay-hint:7"}
+	)
+	for _frame: int in range(240):
+		background_work.tick(0.0)
+		if task.is_finished():
+			break
+		await get_tree().process_frame
+	assert_true(task.status == GFBackgroundWorkTask.Status.COMPLETED)
+	var payload: Dictionary = GFVariantData.as_dictionary(task.result)
+	var result: GameHintResultType = GameHintResultType.from_dict(
+		GFVariantData.get_option_dictionary(payload, &"result")
+	)
+	assert_not_null(result)
+	assert_true(snapshot == snapshot_before, "后台提示不得修改调用方快照。")
+	assert_true(
+		GFVariantData.get_option_int(payload, &"generation") == 7
+		and result != null
+		and result.can_display_for("snapshot-background"),
+		"后台结果必须携带稳定 generation，并可由主线程 freshness 复核。"
+	)
+	assert_true(
+		result != null and result.elapsed_msec == 0,
+		"纯步数预算的后台提示不得把线程调度耗时写入确定性结果。"
+	)
+	background_work.dispose()
+
+
+func test_hint_worker_cooperatively_stops_when_background_work_is_cancelled() -> void:
+	var snapshot: Dictionary = _make_snapshot(
+		BoardTopology.create_rectangle(Vector2i(16, 16)),
+		[_make_tile(Vector2i(15, 15), 2, &"tile.classic.numeric", 1175)]
+	)
+	var cancellation_token: GFCancellationToken = (
+		DeterministicHintWorker.create_cancellation_token()
+	)
+	var worker: DeterministicHintWorker = DeterministicHintWorker.new()
+	var _cancelled_before_run: bool = DeterministicHintWorker.request_cancellation(
+		cancellation_token,
+		&"superseded_hint"
+	)
+	var payload: Dictionary = worker.run({
+		&"board_snapshot": snapshot,
+		&"snapshot_id": "snapshot-cancelled-background",
+		&"generation": 8,
+		&"max_steps": 12_000,
+		&"cancel_token": cancellation_token,
+	})
+	var result: GameHintResultType = GameHintResultType.from_dict(
+		GFVariantData.get_option_dictionary(payload, &"result")
+	)
+	assert_not_null(result)
+	assert_true(
+		result != null
+		and result.termination_reason == GameHintResultType.TERMINATION_CANCELLED,
+		"后台 Worker 必须把共享 GFCancellationToken 绑定到执行预算并停止扫描。"
+	)
+	assert_true(
+		result != null and result.nodes_evaluated == 0,
+		"预先取消的后台提示不得继续占用任何确定性搜索步数。"
+	)
+
+	var background_work: GFBackgroundWorkUtility = GFBackgroundWorkUtility.new()
+	background_work.max_threaded_tasks = 1
+	background_work.init()
+	var running_token: GFCancellationToken = (
+		DeterministicHintWorker.create_cancellation_token()
+	)
+	var cancellation_probe: _CancellationProbeWorker = _CancellationProbeWorker.new()
+	var cancelled_task: GFBackgroundWorkTask = background_work.submit_cpu_work(
+		Callable(cancellation_probe, "run"),
+		{
+			&"cancel_token": running_token,
+		},
+		Callable(),
+		{
+			&"id": &"test-gameplay-hint:cancelled",
+			&"allow_object_payloads": true,
+		}
+	)
+	assert_true(
+		cancelled_task.status == GFBackgroundWorkTask.Status.RUNNING,
+		"取消回归必须启动一个真实 CPU 工作。"
+	)
+	for _frame: int in range(120):
+		if DeterministicHintWorker.get_cancellation_poll_count(running_token) > 0:
+			break
+		await get_tree().process_frame
+	assert_true(
+		DeterministicHintWorker.get_cancellation_poll_count(running_token) > 0,
+		"必须等 Worker 在线程内轮询一次令牌后才能请求取消。"
+	)
+	var _token_cancelled: bool = DeterministicHintWorker.request_cancellation(
+		running_token,
+		&"superseded_hint"
+	)
+	var _work_cancelled: bool = background_work.cancel_work(
+		cancelled_task.work_id
+	)
+	var successor: GFBackgroundWorkTask = background_work.submit_cpu_work(
+		Callable(worker, "run"),
+		{
+			&"board_snapshot": _make_snapshot(
+				BoardTopology.create_rectangle(Vector2i(2, 2)),
+				[_make_tile(Vector2i(1, 1), 2, &"tile.classic.numeric", 1176)]
+			),
+			&"snapshot_id": "snapshot-after-cancel",
+			&"generation": 10,
+			&"max_steps": 12_000,
+		},
+		Callable(),
+		{&"id": &"test-gameplay-hint:successor"}
+	)
+	for _frame: int in range(240):
+		background_work.tick(0.0)
+		if cancelled_task.is_finished() and successor.is_finished():
+			break
+		await get_tree().process_frame
+	assert_true(
+		cancelled_task.status == GFBackgroundWorkTask.Status.CANCELLED,
+		"运行中取消必须让原任务抵达唯一 cancelled 终态。"
+	)
+	assert_true(
+		DeterministicHintWorker.was_cancellation_observed(running_token),
+		"Worker 必须在线程内观察到主线程取消，而不是自然结束后被动改终态。"
+	)
+	assert_true(
+		successor.status == GFBackgroundWorkTask.Status.COMPLETED,
+		"原查询合作式退出后，单线程后台槽必须及时交给后继提示。"
+	)
+	background_work.dispose()
+
+
 func test_step_deadline_and_cancellation_have_stable_termination_reasons() -> void:
 	var snapshot: Dictionary = _make_snapshot(
 		BoardTopology.create_rectangle(Vector2i(4, 4)),
@@ -254,6 +407,17 @@ func test_hud_scene_and_input_context_bind_hint_across_devices() -> void:
 		"玩家可见提示只能由确定的步数预算决定，不能由墙钟截止选择方向。"
 	)
 	assert_true(
+		hud_source.contains("submit_cpu_work(")
+		and hud_source.contains("_background_work.cancel_work(task.work_id)")
+		and hud_source.contains("DeterministicHintWorker.request_cancellation(")
+		and hud_source.contains("&\"cancel_token\": _hint_cancel_token")
+		and hud_source.contains("&\"allow_object_payloads\": true")
+		and hud_source.contains("snapshot_id != _calculate_current_snapshot_id()")
+		and hud_source.contains("_cancel_hint_query(&\"hud_state_changed\")")
+		and hud_source.contains("_cancel_hint_query(&\"hud_exited\")"),
+		"HUD 必须把纯快照提示交给 GF 后台工作，并在取消与主线程 freshness 复核后应用。"
+	)
+	assert_true(
 		player_input_source.contains("send_simple_event(EventNames.HINT_REQUESTED)"),
 		"PlayerInputSystem 必须把统一提示动作转为只读请求事件。"
 	)
@@ -312,3 +476,24 @@ func _make_joy_button(button_index: JoyButton) -> InputEventJoypadButton:
 	event.pressure = 1.0
 	event.button_index = button_index
 	return event
+
+
+# --- 内部类 ---
+
+## 持续轮询生产取消令牌，直到真正观察到跨线程取消。
+class _CancellationProbeWorker extends RefCounted:
+	## @param input_data: 包含生产线程安全取消令牌的测试载荷。
+	func run(input_data: Variant) -> Dictionary:
+		var payload: Dictionary = GFVariantData.as_dictionary(input_data)
+		var token_value: Variant = GFVariantData.get_option_value(
+			payload,
+			&"cancel_token"
+		)
+		if not token_value is GFCancellationToken:
+			return {&"observed_cancel": false}
+		var token: GFCancellationToken = token_value
+		for _poll: int in range(5_000):
+			if token.is_cancel_requested():
+				return {&"observed_cancel": true}
+			OS.delay_msec(1)
+		return {&"observed_cancel": false}

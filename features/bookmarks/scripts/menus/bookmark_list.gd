@@ -214,7 +214,10 @@ func _get_first_label_child(parent: Node) -> Label:
 
 
 func _get_empty_message() -> String:
-	return tr("MSG_NO_SAVES")
+	return "%s\n%s" % [
+		tr("MSG_NO_SAVES"),
+		tr("MSG_EMPTY_SAVE_GUIDANCE"),
+	]
 
 
 func _get_select_hint_message() -> String:
@@ -236,13 +239,8 @@ func _on_empty_state_changed(is_empty: bool) -> void:
 		var preview_separator: HSeparator = preview_separator_node
 		preview_separator.visible = not is_empty
 	if is_instance_valid(detail_info_label):
-		detail_info_label.vertical_alignment = (
-			VERTICAL_ALIGNMENT_CENTER if is_empty else VERTICAL_ALIGNMENT_TOP
-		)
-		if is_empty:
-			detail_info_label.text = "[center]%s[/center]" % tr(
-				"MSG_EMPTY_SAVE_GUIDANCE"
-			)
+		detail_info_label.visible = not is_empty
+		detail_info_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	if is_instance_valid(_primary_button):
 		_primary_button.visible = not is_empty
 	if is_instance_valid(_delete_button):

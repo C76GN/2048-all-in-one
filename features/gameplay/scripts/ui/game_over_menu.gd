@@ -26,6 +26,7 @@ const _STACK_ACTIONS_MAX_WIDTH: float = 600.0
 
 var _has_played_new_record_celebration: bool = false
 var _has_revealed_result: bool = false
+var _details_expanded: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -35,6 +36,7 @@ var _has_revealed_result: bool = false
 @onready var _new_record_label: Label = $CenterContainer/VBoxContainer/NewRecordLabel
 @onready var _context_label: Label = $CenterContainer/VBoxContainer/ContextLabel
 @onready var _run_summary_label: Label = $CenterContainer/VBoxContainer/RunSummaryLabel
+@onready var _details_button: Button = %DetailsButton
 @onready var _summary_separator: HSeparator = $CenterContainer/VBoxContainer/SummarySeparator
 @onready var _summary_label: Label = $CenterContainer/VBoxContainer/SummaryLabel
 @onready var _identity_label: Label = $CenterContainer/VBoxContainer/IdentityLabel
@@ -50,6 +52,7 @@ func _ready() -> void:
 	var _connect_result_24: int = _restart_button.pressed.connect(_on_restart_button_pressed)
 	var _connect_result_25: int = _settings_button.pressed.connect(_on_settings_button_pressed)
 	var _connect_result_26: int = _main_menu_button.pressed.connect(_on_main_menu_button_pressed)
+	var _details_connection: int = _details_button.pressed.connect(_on_details_pressed)
 	var _resized_connect: int = resized.connect(_apply_responsive_layout)
 
 	_update_ui_text()
@@ -67,6 +70,7 @@ func _focus_initial_control() -> void:
 
 
 func _update_ui_text() -> void:
+	_details_expanded = false
 	if is_instance_valid(_title_label):
 		_title_label.text = tr("TITLE_GAME_OVER")
 	if is_instance_valid(_new_record_label):
@@ -76,6 +80,8 @@ func _update_ui_text() -> void:
 		_context_label.visible = false
 	if is_instance_valid(_run_summary_label):
 		_run_summary_label.visible = false
+	if is_instance_valid(_details_button):
+		_details_button.text = tr("GAME_OVER_DETAILS_EXPAND")
 	if is_instance_valid(_identity_label):
 		_identity_label.visible = false
 	if is_instance_valid(_summary_label):
@@ -109,6 +115,10 @@ func _apply_visual_style() -> void:
 		_run_summary_label,
 		GameUiStyleUtility.TextRole.NUMERIC,
 		20
+	)
+	style_utility.style_button(
+		_details_button,
+		GameUiStyleUtility.ButtonRole.QUIET
 	)
 	style_utility.style_separator(_summary_separator)
 	style_utility.style_label(
@@ -159,13 +169,16 @@ func _refresh_summary() -> void:
 
 	var status_model: GameStatusModel = _get_game_status_model()
 	if not is_instance_valid(status_model):
+		_details_expanded = false
 		_new_record_label.visible = false
 		_context_label.visible = false
 		_run_summary_label.visible = false
-		_identity_label.visible = false
+		_details_button.visible = false
 		_summary_label.text = tr("GAME_OVER_SUMMARY_UNAVAILABLE")
+		_apply_details_visibility(false)
 		_play_result_reveal_once()
 		return
+	_details_button.visible = true
 
 	var current_game_model: CurrentGameModel = _get_current_game_model()
 	var score: int = GFVariantData.to_int(status_model.score.get_value(), 0)
@@ -274,7 +287,30 @@ func _apply_summary_sections(
 	)
 
 	_identity_label.text = result_explanation
-	_identity_label.visible = not result_explanation.is_empty()
+	_apply_details_visibility(false)
+
+
+func _apply_details_visibility(animate: bool) -> void:
+	if is_instance_valid(_details_button):
+		_details_button.text = tr(
+			"GAME_OVER_DETAILS_COLLAPSE"
+			if _details_expanded
+			else "GAME_OVER_DETAILS_EXPAND"
+		)
+	if is_instance_valid(_summary_separator):
+		_summary_separator.visible = _details_expanded
+	if is_instance_valid(_summary_label):
+		_summary_label.visible = _details_expanded
+	if is_instance_valid(_identity_label):
+		_identity_label.visible = _details_expanded and not _identity_label.text.is_empty()
+	if not animate or not _details_expanded:
+		return
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if not is_instance_valid(motion):
+		return
+	var _summary_tween: Tween = motion.play_content_switch(_summary_label)
+	if _identity_label.visible:
+		var _identity_tween: Tween = motion.play_content_switch(_identity_label)
 
 
 func _configure_settings_panel(panel: Node) -> void:
@@ -360,9 +396,7 @@ func _play_result_reveal_once() -> void:
 		_new_record_label,
 		_context_label,
 		_run_summary_label,
-		_summary_separator,
-		_summary_label,
-		_identity_label,
+		_details_button,
 	]
 	var _revealed_count: int = motion.play_reward_result_controls(
 		result_controls
@@ -546,3 +580,8 @@ func _on_settings_button_pressed() -> void:
 			result.get_status(),
 			result.get_reason(),
 		])
+
+
+func _on_details_pressed() -> void:
+	_details_expanded = not _details_expanded
+	_apply_details_visibility(true)

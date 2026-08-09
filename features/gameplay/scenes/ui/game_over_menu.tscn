@@ -67,10 +67,20 @@ text = "本局：4096 分 · 128 步 · 最大方块 4"
 horizontal_alignment = 1
 autowrap_mode = 3
 
+[node name="DetailsButton" type="Button" parent="CenterContainer/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../Actions/MainMenuButton")
+focus_neighbor_bottom = NodePath("../Actions/RestartButton")
+text = "查看详情"
+
 [node name="SummarySeparator" type="HSeparator" parent="CenterContainer/VBoxContainer"]
+visible = false
 layout_mode = 2
 
 [node name="SummaryLabel" type="Label" parent="CenterContainer/VBoxContainer" unique_id=1150186931]
+visible = false
 layout_mode = 2
 theme_override_constants/line_spacing = 2
 theme_override_font_sizes/font_size = 15
@@ -99,9 +109,9 @@ custom_minimum_size = Vector2(180, 52)
 layout_mode = 2
 size_flags_horizontal = 3
 focus_neighbor_left = NodePath("../MainMenuButton")
-focus_neighbor_top = NodePath("../MainMenuButton")
+focus_neighbor_top = NodePath("../../DetailsButton")
 focus_neighbor_right = NodePath("../SettingsButton")
-focus_neighbor_bottom = NodePath("../SettingsButton")
+focus_neighbor_bottom = NodePath("../../DetailsButton")
 text = "重来"
 
 [node name="SettingsButton" type="Button" parent="CenterContainer/VBoxContainer/Actions" unique_id=898729010]
@@ -110,9 +120,9 @@ custom_minimum_size = Vector2(180, 52)
 layout_mode = 2
 size_flags_horizontal = 3
 focus_neighbor_left = NodePath("../RestartButton")
-focus_neighbor_top = NodePath("../RestartButton")
+focus_neighbor_top = NodePath("../../DetailsButton")
 focus_neighbor_right = NodePath("../MainMenuButton")
-focus_neighbor_bottom = NodePath("../MainMenuButton")
+focus_neighbor_bottom = NodePath("../../DetailsButton")
 text = "设置"
 
 [node name="MainMenuButton" type="Button" parent="CenterContainer/VBoxContainer/Actions" unique_id=1734973865]
@@ -121,7 +131,7 @@ custom_minimum_size = Vector2(180, 52)
 layout_mode = 2
 size_flags_horizontal = 3
 focus_neighbor_left = NodePath("../SettingsButton")
-focus_neighbor_top = NodePath("../SettingsButton")
+focus_neighbor_top = NodePath("../../DetailsButton")
 focus_neighbor_right = NodePath("../RestartButton")
-focus_neighbor_bottom = NodePath("../RestartButton")
+focus_neighbor_bottom = NodePath("../../DetailsButton")
 text = "返回主界面"

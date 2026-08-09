@@ -211,18 +211,21 @@ func _rebuild_list() -> void:
 	if not filter_result.is_successful() or not rows_result.is_successful():
 		push_error("[AchievementListDialog] GF table 成就过滤事务失败。")
 		return
-	var visible_ids: Dictionary = {}
-	for visible_index: int in range(_achievement_view.get_visible_row_count()):
-		visible_ids[_achievement_view.get_visible_row_id(visible_index)] = true
 	var desired_ids: Dictionary = {}
 	var created_cards: Array[Control] = []
-	var ordered_index: int = 0
-	for entry: Dictionary in entries:
+	for visible_index: int in range(_achievement_view.get_visible_row_count()):
+		var row_value: Variant = _achievement_view.get_visible_row(visible_index)
+		if not row_value is Dictionary:
+			continue
+		var row: Dictionary = row_value
 		var achievement_id: StringName = GFVariantData.get_option_string_name(
-			entry,
+			row,
 			&"achievement_id"
 		)
 		if achievement_id == &"":
+			continue
+		var entry: Dictionary = GFVariantData.get_option_dictionary(row, &"entry")
+		if entry.is_empty():
 			continue
 		desired_ids[achievement_id] = true
 		var card: AchievementCard = _get_cached_card(achievement_id)
@@ -231,10 +234,12 @@ func _rebuild_list() -> void:
 			if not is_instance_valid(card):
 				continue
 			created_cards.append(card)
-		_list.move_child(card, mini(ordered_index, _list.get_child_count() - 1))
-		ordered_index += 1
+		if card.get_index() != visible_index:
+			_list.move_child(
+				card,
+				mini(visible_index, _list.get_child_count() - 1)
+			)
 		card.configure(entry)
-		card.visible = visible_ids.has(achievement_id)
 	_remove_stale_cards(desired_ids)
 	var visible_count: int = _achievement_view.get_visible_row_count()
 	_empty_label.visible = visible_count == 0
@@ -293,6 +298,8 @@ func _remove_stale_cards(desired_ids: Dictionary) -> void:
 			continue
 		var card: AchievementCard = _get_cached_card(achievement_id)
 		if is_instance_valid(card):
+			if card.get_parent() == _list:
+				_list.remove_child(card)
 			card.queue_free()
 		var _erased: bool = _cards_by_id.erase(achievement_id)
 
@@ -301,6 +308,8 @@ func _clear_cached_cards() -> void:
 	for value: Variant in _cards_by_id.values():
 		if value is AchievementCard and is_instance_valid(value):
 			var card: AchievementCard = value
+			if card.get_parent() == _list:
+				_list.remove_child(card)
 			card.queue_free()
 	_cards_by_id.clear()
 

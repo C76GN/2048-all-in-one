@@ -200,6 +200,29 @@ func test_feedback_rail_motion_surface_is_inside_a_stable_container_slot() -> vo
 	hud_node.free()
 
 
+func test_low_priority_routine_notification_keeps_quiet_print_edge() -> void:
+	var hud_node: Node = _HUD_SCENE.instantiate()
+	assert_true(hud_node is Hud)
+	if hud_node is Hud:
+		var hud: Hud = hud_node
+		hud._notification_panel = hud.get_node(
+			"SafeArea/FeedbackRail/NotificationSlot/NotificationPanel"
+		) as PanelContainer
+		hud._apply_notification_level(
+			GFNotificationUtility.Level.WARNING,
+			GFNotificationUtility.Priority.LOW
+		)
+		var stylebox: StyleBox = hud._notification_panel.get_theme_stylebox("panel")
+		assert_true(stylebox is StyleBoxFlat)
+		if stylebox is StyleBoxFlat:
+			var flat_stylebox: StyleBoxFlat = stylebox
+			assert_true(
+				flat_stylebox.border_width_left == 1,
+				"无效移动等日常反馈只保留一像素语义边，不应与高优先级告警争夺注意。"
+			)
+	hud_node.free()
+
+
 func test_feedback_rail_reduced_motion_uses_static_terminal_states() -> void:
 	var surface: Dictionary = await _make_feedback_surface()
 	var hud: Hud = surface[&"hud"]

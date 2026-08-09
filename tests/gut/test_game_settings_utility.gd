@@ -214,6 +214,62 @@ func test_settings_menu_exposes_blocked_storage_in_compact_layout() -> void:
 	menu.free()
 
 
+func test_volume_drag_updates_memory_but_queues_one_persistence_commit() -> void:
+	var settings: _VolumeSettingsProbe = _VolumeSettingsProbe.new()
+	settings.auto_load_on_init = false
+	settings.register_project_defaults()
+	var display: _DisplaySettingsProbe = _DisplaySettingsProbe.new()
+	display.settings_probe = settings
+	var menu: _VolumeSettingsMenuProbe = _VolumeSettingsMenuProbe.new()
+	var value_label: Label = Label.new()
+	menu.display_probe = display
+	menu._settings_utility = settings
+	menu.add_child(value_label)
+	var started_msec: int = Time.get_ticks_msec()
+
+	menu._on_volume_drag_started(GameSettingsUtility.AUDIO_BUS_MASTER)
+	for step: int in range(50):
+		menu._apply_audio_bus_volume(
+			GameSettingsUtility.AUDIO_BUS_MASTER,
+			float(step) / 49.0,
+			value_label
+		)
+	var preview_elapsed_msec: int = Time.get_ticks_msec() - started_msec
+
+	assert_true(settings.queue_save_count == 0, "拖动中不得排队任何设置落盘。")
+	assert_true(
+		is_equal_approx(
+			GFVariantData.to_float(
+				settings.get_value(&"audio/Master/volume", -1.0)
+			),
+			1.0
+		),
+		"拖动预览必须持续更新 GFSettings 的内存真值。"
+	)
+	assert_true(display.audio_apply_count == 50, "每个拖动采样仍应即时应用听感预览。")
+	assert_lt(
+		preview_elapsed_msec,
+		500,
+		"50 次纯内存音量预览不得进入同步存储热路径。"
+	)
+
+	menu._on_volume_drag_ended(true, GameSettingsUtility.AUDIO_BUS_MASTER)
+	assert_true(settings.queue_save_count == 1, "拖动结束只能提交一次延迟保存。")
+	display.persist_changes = false
+	menu._on_volume_drag_started(GameSettingsUtility.AUDIO_BUS_MASTER)
+	menu._apply_audio_bus_volume(
+		GameSettingsUtility.AUDIO_BUS_MASTER,
+		0.5,
+		value_label
+	)
+	menu._on_volume_drag_ended(true, GameSettingsUtility.AUDIO_BUS_MASTER)
+	assert_true(
+		settings.queue_save_count == 1,
+		"显式关闭 GFDisplaySettings 持久化时，拖动结束不得越权排队保存。"
+	)
+	menu.free()
+
+
 func test_settings_menu_handles_cancel_before_synchronous_route_detach() -> void:
 	var packed_menu: PackedScene = load(
 		"res://features/settings/scenes/menus/settings_menu.tscn"
@@ -637,3 +693,33 @@ class _DetachingSettingsMenu extends SettingsMenu:
 		var parent: Node = get_parent()
 		if is_instance_valid(parent):
 			parent.remove_child(self)
+
+
+class _VolumeSettingsProbe extends GameSettingsUtility:
+	var queue_save_count: int = 0
+
+
+	func queue_save() -> void:
+		queue_save_count += 1
+
+
+class _DisplaySettingsProbe extends GFDisplaySettingsUtility:
+	var audio_apply_count: int = 0
+	var settings_probe: GFSettingsUtility = null
+
+
+	## @param _bus_name: 测试探针接收但不访问真实音频总线的名称。
+	func apply_audio_bus_volume(_bus_name: String) -> void:
+		audio_apply_count += 1
+
+
+	func _get_settings_utility() -> GFSettingsUtility:
+		return settings_probe
+
+
+class _VolumeSettingsMenuProbe extends SettingsMenu:
+	var display_probe: GFDisplaySettingsUtility = null
+
+
+	func _get_display_settings_utility() -> GFDisplaySettingsUtility:
+		return display_probe

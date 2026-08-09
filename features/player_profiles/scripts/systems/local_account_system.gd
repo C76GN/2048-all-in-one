@@ -39,9 +39,6 @@ var _profile_reconciliation: Dictionary = {}
 var _profile_reconciliation_running: bool = false
 var _last_reconciliation_evidence: Dictionary = {}
 
-const _DISPOSE_DRAIN_STEPS: int = 8_000
-
-
 # --- GF 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
@@ -213,7 +210,7 @@ func dispose() -> void:
 	_activation_completion = null
 	# activation 成功只代表 cleanup 已排队；runner 尚未取得执行权时可安全
 	# 撤销该 deferred 工作，避免 forced dispose 把一个尚不存在的 IO 当作
-	# 在途任务固定轮询 _DISPOSE_DRAIN_STEPS。
+	# 在途任务同步轮询等待。
 	if _legacy_cleanup_in_progress and not _legacy_cleanup_runner_started:
 		_legacy_cleanup_in_progress = false
 	if (
@@ -226,24 +223,9 @@ func dispose() -> void:
 			LocalAccountOperationResult.STATUS_DISPOSED,
 			ERR_UNAVAILABLE
 		)
-	# 系统先于依赖 Utility 销毁；用 GF 公共 tick 有界排空已经开始的
-	# 事务，使目录/Profile saga 在释放引用前抵达明确终态。
-	for _step: int in range(_DISPOSE_DRAIN_STEPS):
-		if not _has_account_work_in_progress():
-			break
-		if is_instance_valid(_storage):
-			_storage.tick(0.0)
-		if is_instance_valid(_profile_utility):
-			_profile_utility.tick(0.0)
-		if is_instance_valid(_background_work):
-			_background_work.tick(0.0)
-		if is_instance_valid(_catalog):
-			_catalog.tick(0.0)
-		if is_instance_valid(_save_graph):
-			_save_graph.tick(0.0)
-		_maybe_start_catalog_reconciliation()
-		_maybe_start_profile_reconciliation()
-		OS.delay_msec(1)
+	# 正常关闭必须先经 begin_quiesce() 排空已接纳 saga。dispose() 是最终、
+	# 同步且不可阻塞的释放边界；若调用方绕过 quiesce，保留 outcome-unknown
+	# 证据并立即释放，不能在主线程用 sleep/tick 伪装异步排空。
 	_disposed = true
 	if _pending_operation != null and _pending_operation.is_pending():
 		_complete_account_operation(

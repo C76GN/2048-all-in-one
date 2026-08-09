@@ -125,9 +125,9 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ### 确定性提示
 
 1. `DeterministicHintQuery` 只接受调用方捕获的棋盘快照和 `snapshot_id`，不持有 Architecture，也不调用 `GridModel`、规则、命令历史或随机流。提示结果没有执行入口，不属于教程、回放命令或 canonical gameplay state。
-2. 查询的结构校验、拓扑遍历和四向评分逐步消费 `GFExecutionBudget`。玩家可见方向只由固定 `max_steps` 和固定四向顺序决定；`GFCancellationToken` 负责 owner 退出。诊断调用仍可设置 `max_elapsed_msec` 终止昂贵工作，但时间截止受设备负载影响，其部分结果不得展示、持久化或进入排行。
+2. 查询的结构校验、拓扑遍历和四向评分逐步消费 `GFExecutionBudget`。玩家可见方向只由固定 `max_steps` 和固定四向顺序决定；`Hud` 把纯快照交给 `GFBackgroundWorkUtility`，以 work ID、generation 和 owner 生命周期取消迟到工作，主线程不再同步执行最多 12,000 步。运行中取消还会通过项目拥有、`Mutex` 同步的轮询令牌进入同一个执行预算，使已失效搜索合作式释放后台槽；除这个明确的线程安全句柄外，不允许以 `allow_object_payloads` 绕过 GF 的纯 `Variant` 门禁。诊断调用仍可设置 `max_elapsed_msec` 终止昂贵工作，但时间截止受设备负载影响，其部分结果不得展示、持久化或进入排行。
 3. 评分只使用连续 lane 的压缩空间、可比较相邻结构和移动前沿稳定性，不承诺模式专用合并结果；任意 `BoardTopology` 和全部正式模式共享同一算法及固定四向 tie-break，缺少强信号时显式返回通用降级解释。
-4. `Hud` 在捕获边界使用 `GameDeterminismUtility` 计算摘要，并在展示前重新读取当前快照复核；移动、刷新、尺寸或状态事件会立即清除旧结果。摘要不一致、取消、无效快照或墙钟截止结果不得显示。
+4. `DeterministicHintWorker` 的业务输入与输出只跨线程传递可复制的 `Variant` 数据，唯一对象输入是其内部定义并由 `Mutex` 保护的只读合作取消令牌；冻结手动时钟避免把调度耗时写入确定性结果。`Hud` 在捕获边界使用 `GameDeterminismUtility` 计算摘要，并在后台结果回到主线程后重新读取当前快照复核。移动、刷新、尺寸、状态变化或 HUD 退出会先请求合作取消，再取消 GF work 并递增 generation；摘要不一致、迟到、取消、无效快照或墙钟截止结果不得显示。
 5. 键盘、手柄和触摸按钮统一写入 gameplay `GFInputContext` 的 `request_hint` 动作，再由 `PlayerInputSystem` 发布只读请求事件；任何输入表面都不得直接执行建议方向。
 
 ### 对局资格与本地排行榜
@@ -161,7 +161,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ### 主题切换
 
 1. Composition Root 把内置素材、内置主题和 `user://content_packages` 配置给 `ProjectContentCatalogUtility`。
-2. `ProjectContentCatalogUtility` 是唯一可以注册 source root、重建 `GFContentPackageUtility` 目录并同步 `GFResourceResolverUtility` 的项目 Module。目录提交后发布 `catalog_refreshed`；`GameAssetLibraryUtility` 通过 owner-bound `GFSignalUtility` 订阅该信号，为新目录先构造候选 `GFAssetCatalog`，再用 `GFAssetCatalogRuntime.replace_mount_catalog()` 原子替换现有 mount。构建或替换失败必须保留上一 revision，调用方不得观察到半更新目录。
+2. `ProjectContentCatalogUtility` 是唯一可以注册 source root、重建 `GFContentPackageUtility` 目录并同步 `GFResourceResolverUtility` 的项目 Module。目录提交后发布 `catalog_refreshed`；`GameAssetLibraryUtility` 通过 owner-bound `GFSignalUtility` 订阅该信号，为新目录先构造候选 `GFAssetCatalog`，再用 `GFAssetCatalogRuntime.replace_mount_catalog()` 原子替换现有 mount。构建或替换失败必须保留上一 revision，调用方不得观察到半更新目录。同步启动刷新在报告中只暴露有界的耗时、source root、包与资源计数，超过 50 ms 时记录诊断告警；是否需要框架级异步重建必须以目标平台包规模基准决定，不能先复制第二套目录状态机。
 3. `GameThemeCatalogUtility` 只读取 manifest metadata，建立 `GameThemeDescriptor` 索引；设置菜单枚举主题时不加载完整资源。
 4. 用户选择主题后，`GameThemeUtility` 先让 `GameThemeCatalogUtility` 只解析根资源路径，再由 `GFResourceRegistryTools` 收集完整依赖图并创建手动提交的 `GFAssetLoadSession`；业务代码不得在激活路径同步 `load()` 主题资源。Composition Root 在 Asset、Scene 和 BackgroundWork Utility 之前注册唯一共享 `GFResourceBroker`，由框架统一限制 threaded `ResourceLoader` 并发、复用同资源请求并收敛消费者取消；项目不再为三条加载路径各自实现调度器。
 5. 会话在 staging group 全量成功后校验资源类型、稳定主题 ID 和业务报告，随后提交唯一目标资源组并用 `GFActivationTransaction` 应用主题。当前视觉与声音主题由两个稳定用途键的 `GFAssetSlot` 强持有，槽位负责类型契约、单调 generation 与 Utility dispose 终态释放；只有事务和槽位提交都成功才替换当前组并通过 `GFAssetUtility.unload_group(..., true)` 释放旧组，失败保留旧主题、旧银行和设置。
@@ -226,7 +226,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 - `persistence` 通过 `GFSaveProfileUtility` 管理当前账号的单一 Profile；各业务 Feature 各自拥有严格 `GFSaveSectionProvider`，`app` 只负责在 GF 初始化前组合顺序。
 - `GFStorageUtility` 是 codec、checksum 和原子文件事务边界；业务 System 不直接写玩家 section，设置继续使用独立 `GFSettingsUtility` 文件。
 - 账号目录变更和异步 Profile 切换都通过 `GFAsyncKeyedGate.try_request_lease()` 取得单 key、单并发租约；busy 不排队，所有成功、失败、取消和 dispose 路径必须释放租约，不再维护平行布尔锁或手工 callback 保活字典。
-- `GameSettingsUtility` 只在 Storage 依赖完成 `ready()` 后自动读取；其 quiesce 屏障拒绝新设置写入，并按原目标文件冲刷已接纳的 debounce 与 batch 保存，再进入反向 dispose。
+- `GameSettingsUtility` 只在 Storage 依赖完成 `ready()` 后自动读取；其 quiesce 屏障拒绝新设置写入，并按原目标文件冲刷已接纳的 debounce 与 batch 保存，再进入反向 dispose。音量滑杆拖动期间由 `GFDisplaySettingsUtility` 以 `persist_changes=false` 更新内存真值并即时试听，拖动结束只在该 Utility 允许持久化时排队一次保存，不能让每个采样点进入存储热路径。
 - Profile operation、outcome-unknown、账号切换、UUID、schema、恢复与迁移规则统一以 [`docs/save_model.md`](./save_model.md) 为权威，本架构文档不复制字段和版本。
 
 ## GF 扩展

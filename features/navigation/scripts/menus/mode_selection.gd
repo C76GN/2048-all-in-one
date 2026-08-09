@@ -52,6 +52,8 @@ const _PAGINATION_MINIMUM_HEIGHT: float = 44.0
 const _BACK_BUTTON_MINIMUM_HEIGHT: float = 46.0
 const _DESKTOP_TITLE_HEIGHT_RESERVE: float = 50.0
 const _COMPACT_TITLE_HEIGHT_RESERVE: float = 40.0
+## 紧凑横屏单列还要为同一首屏内的配置主动作保留一张卡片高度。
+const _STACKED_CONFIG_FIRST_SCREEN_RESERVE: float = 110.0
 const _MINIMUM_ITEMS_PER_PAGE: int = 1
 const _MAXIMUM_ITEMS_PER_PAGE: int = 5
 
@@ -79,8 +81,10 @@ var _viewport_utility: GFViewportUtility = null
 var _page_scroll: ScrollContainer = null
 var _right_panel_stack_margin: MarginContainer = null
 var _layout_mode: int = GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+var _layout_reference_size: Vector2 = Vector2.ZERO
 var _layout_update_queued: bool = false
 var _mode_list_rebuild_queued: bool = false
+var _mode_card_slots: Array[ModeCard] = []
 
 var _info_name_label: Label
 var _info_separator: HSeparator
@@ -112,6 +116,7 @@ var _info_score_label: Label
 @onready var _seed_line_edit: LineEdit = %SeedLineEdit
 @onready var _refresh_seed_button: Button = %RefreshSeedButton
 @onready var _competition_status_label: Label = %CompetitionStatusLabel
+@onready var _config_spacer: Control = $MarginContainer/ColumnsContainer/RightColumn/Spacer
 @onready var _prev_page_button: Button = %PrevPageButton
 @onready var _next_page_button: Button = %NextPageButton
 @onready var _pagination_container: HBoxContainer = _get_parent_hbox(_prev_page_button)
@@ -130,6 +135,14 @@ func _ready() -> void:
 		&"ModeSelectionScroll"
 	)
 	var _resize_connection: int = resized.connect(_queue_layout_update)
+	var host_window: Window = get_window()
+	if (
+		is_instance_valid(host_window)
+		and not host_window.size_changed.is_connected(_queue_layout_update)
+	):
+		var _window_resize_connection: int = host_window.size_changed.connect(
+			_queue_layout_update
+		)
 	_apply_responsive_layout()
 	if is_instance_valid(_seed_line_edit):
 		_seed_line_edit.placeholder_text = tr("HINT_SEED_PLACEHOLDER")
@@ -160,7 +173,7 @@ func _ready() -> void:
 
 	_generate_and_display_new_seed()
 	_update_ui_text()
-	await _update_list_and_focus(true)
+	_refresh_mode_page_and_focus(true)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -197,11 +210,12 @@ func _apply_responsive_layout() -> void:
 	if not is_inside_tree():
 		return
 	var focused_control: Control = _get_page_focus_owner()
-	_layout_mode = GameTaskPageLayoutUtility.classify_layout(size)
+	_layout_reference_size = _get_layout_reference_size()
+	_layout_mode = GameTaskPageLayoutUtility.classify_layout(_layout_reference_size)
 	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
-	var side_by_side: bool = _uses_side_by_side_layout(size)
+	var side_by_side: bool = _uses_side_by_side_layout(_layout_reference_size)
 	_set_page_scroll_enabled(not side_by_side)
-	var page_size_changed: bool = _update_items_per_page(size)
+	var page_size_changed: bool = _update_items_per_page(_layout_reference_size)
 	var compact_horizontal_margins: float = (
 		32.0
 		if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
@@ -242,7 +256,7 @@ func _apply_responsive_layout() -> void:
 	)
 	_right_panel_container.add_theme_constant_override(
 		"separation",
-		6 if _is_compact_two_pane_layout() else 10
+		6 if compact else 10
 	)
 	_info_panel_container.add_theme_constant_override(
 		"separation",
@@ -273,6 +287,49 @@ func _get_page_focus_owner() -> Control:
 	):
 		return focused_control
 	return null
+
+
+func _get_layout_reference_size() -> Vector2:
+	if not is_instance_valid(_viewport_utility):
+		return size
+	var display_report: Dictionary = _viewport_utility.get_display_safe_area_margins(
+		get_viewport()
+	)
+	return _resolve_physical_layout_size(size, display_report)
+
+
+## 从 GF 的物理窗口/安全区报告中解析响应式断点尺寸。
+## 视觉几何仍使用逻辑 Control 尺寸；只有断点与首屏预算使用物理可用尺寸。
+static func _resolve_physical_layout_size(
+	logical_size: Vector2,
+	display_report: Dictionary
+) -> Vector2:
+	var window_value: Variant = GFVariantData.get_option_value(
+		display_report,
+		&"window_size"
+	)
+	if not window_value is Vector2i:
+		return logical_size
+	var window_size: Vector2i = window_value
+	if window_size.x <= 0 or window_size.y <= 0:
+		return logical_size
+
+	var safe_area_value: Variant = GFVariantData.get_option_value(
+		display_report,
+		&"safe_area"
+	)
+	if safe_area_value is Rect2i:
+		var safe_area: Rect2i = safe_area_value
+		if (
+			safe_area.size.x > 0
+			and safe_area.size.y > 0
+			and safe_area.position.x >= 0
+			and safe_area.position.y >= 0
+			and safe_area.end.x <= window_size.x
+			and safe_area.end.y <= window_size.y
+		):
+			return Vector2(safe_area.size)
+	return Vector2(window_size)
 
 
 func _restore_focus_after_responsive_layout(focused_control: Control) -> void:
@@ -332,6 +389,11 @@ static func _get_items_per_page_for_viewport(viewport_size: Vector2) -> int:
 		+ _BACK_BUTTON_MINIMUM_HEIGHT
 		+ _CENTER_SECTION_SEPARATION * 2.0
 	)
+	if (
+		page_layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
+		and not _uses_side_by_side_layout(viewport_size)
+	):
+		fixed_footer_height += _STACKED_CONFIG_FIRST_SCREEN_RESERVE
 	var card_budget: float = maxf(available_center_height - fixed_footer_height, 0.0)
 	var capacity: int = floori(
 		(card_budget + _MODE_CARD_SEPARATION)
@@ -367,7 +429,7 @@ func _rebuild_mode_list_after_layout() -> void:
 	_mode_list_rebuild_queued = false
 	if not is_inside_tree():
 		return
-	await _update_list_and_focus()
+	_refresh_mode_page_and_focus()
 
 
 func _set_right_panel_stacked(stacked: bool) -> void:
@@ -375,14 +437,14 @@ func _set_right_panel_stacked(stacked: bool) -> void:
 		var stack_margin: MarginContainer = _ensure_right_panel_stack_margin()
 		stack_margin.visible = true
 		if _right_panel_container.get_parent() != stack_margin:
-			_right_panel_container.reparent(stack_margin)
+			_reparent_preserving_scene_owner(_right_panel_container, stack_margin)
 		_center_column.move_child(
 			stack_margin,
 			_center_content_holder.get_index() + 1
 		)
 		return
 	if _right_panel_container.get_parent() != _columns_container:
-		_right_panel_container.reparent(_columns_container)
+		_reparent_preserving_scene_owner(_right_panel_container, _columns_container)
 	if is_instance_valid(_right_panel_stack_margin):
 		_right_panel_stack_margin.visible = false
 	_columns_container.move_child(
@@ -406,8 +468,21 @@ func _ensure_right_panel_stack_margin() -> MarginContainer:
 			)
 		)
 	_center_column.add_child(stack_margin)
+	var scene_owner: Node = _center_column.owner
+	if is_instance_valid(scene_owner) and scene_owner.is_ancestor_of(stack_margin):
+		stack_margin.owner = scene_owner
 	_right_panel_stack_margin = stack_margin
 	return stack_margin
+
+
+func _reparent_preserving_scene_owner(control: Control, next_parent: Node) -> void:
+	if not is_instance_valid(control) or not is_instance_valid(next_parent):
+		return
+	var scene_owner: Node = control.owner
+	control.owner = null
+	control.reparent(next_parent)
+	if is_instance_valid(scene_owner) and scene_owner.is_ancestor_of(control):
+		control.owner = scene_owner
 
 
 static func _uses_side_by_side_layout(viewport_size: Vector2) -> bool:
@@ -439,7 +514,9 @@ static func _get_compact_two_pane_widths(viewport_width: float) -> Vector2:
 func _is_compact_two_pane_layout() -> bool:
 	return (
 		_layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
-		and _uses_side_by_side_layout(size)
+		and _uses_side_by_side_layout(
+			_layout_reference_size if not _layout_reference_size.is_zero_approx() else size
+		)
 	)
 
 
@@ -464,14 +541,29 @@ func _apply_selection_detail_visibility() -> void:
 	if not is_instance_valid(_info_name_label):
 		return
 	var has_selection: bool = is_instance_valid(_selected_mode_config)
-	var show_extended_detail: bool = has_selection and not _is_compact_two_pane_layout()
-	_info_name_label.visible = has_selection
+	var stacked_compact: bool = _is_stacked_compact_layout()
+	var show_mode_info: bool = has_selection and not stacked_compact
+	var show_extended_detail: bool = show_mode_info and not _is_compact_two_pane_layout()
+	_info_panel_container.visible = show_mode_info
+	if is_instance_valid(_config_spacer):
+		_config_spacer.visible = not stacked_compact
+	_info_name_label.visible = show_mode_info
 	if is_instance_valid(_info_separator):
 		_info_separator.visible = show_extended_detail
 	if is_instance_valid(_info_desc_label):
 		_info_desc_label.visible = show_extended_detail
 	if is_instance_valid(_info_score_label):
 		_info_score_label.visible = show_extended_detail
+
+
+func _is_stacked_compact_layout() -> bool:
+	var reference_size: Vector2 = (
+		_layout_reference_size if not _layout_reference_size.is_zero_approx() else size
+	)
+	return (
+		_layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+		and not _uses_side_by_side_layout(reference_size)
+	)
 
 
 func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
@@ -485,7 +577,7 @@ func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
 	GameTaskPageLayoutUtility.apply_margin_fallback(_margin_container, extra_margins)
 
 
-func _update_list_and_focus(is_initial_load: bool = false) -> void:
+func _refresh_mode_page_and_focus(is_initial_load: bool = false) -> void:
 	var preferred_config_path: String = (
 		_selected_mode_config.resource_path
 		if is_instance_valid(_selected_mode_config)
@@ -499,38 +591,27 @@ func _update_list_and_focus(is_initial_load: bool = false) -> void:
 			and _mode_list_container.is_ancestor_of(focused_control)
 		)
 	)
-	for child: Node in _mode_list_container.get_children():
-		child.queue_free()
-
-	var clear_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
-		"guard_node": self,
-	})
-	if not GFVariantData.get_option_bool(clear_wait, "completed", false):
-		return
-
-	if _total_pages > 0:
-		var start_index: int = _current_page * _items_per_page
-		var end_index: int = mini(start_index + _items_per_page, _mode_config_paths.size())
-		for i: int in range(start_index, end_index):
-			var config_path: String = _mode_config_paths[i]
-			if config_path.is_empty():
-				continue
-
-			var card: ModeCard = _create_mode_card()
-			if not is_instance_valid(card):
-				continue
-			var mode_config: GameModeConfig = _get_mode_config(config_path)
-			if not is_instance_valid(mode_config):
-				continue
-			_mode_list_container.add_child(card)
-			card.setup(config_path, mode_config, _get_ui_style_utility())
-			var _connect_result_121: int = card.card_focused.connect(_set_selected_mode_by_path)
-
-	var layout_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
-		"guard_node": self,
-	})
-	if not GFVariantData.get_option_bool(layout_wait, "completed", false):
-		return
+	_ensure_mode_card_slots(_items_per_page)
+	var start_index: int = _current_page * _items_per_page
+	for slot_index: int in range(_mode_card_slots.size()):
+		var card: ModeCard = _mode_card_slots[slot_index]
+		if slot_index >= _items_per_page:
+			card.visible = false
+			card.set_selected(false)
+			continue
+		var config_index: int = start_index + slot_index
+		if config_index >= _mode_config_paths.size():
+			card.visible = false
+			card.set_selected(false)
+			continue
+		var config_path: String = _mode_config_paths[config_index]
+		var mode_config: GameModeConfig = _get_mode_config(config_path)
+		if config_path.is_empty() or not is_instance_valid(mode_config):
+			card.visible = false
+			card.set_selected(false)
+			continue
+		card.visible = true
+		card.setup(config_path, mode_config, _get_ui_style_utility())
 
 	_setup_focus_neighbors()
 
@@ -1003,10 +1084,22 @@ func _bind_and_reveal_mode_cards() -> void:
 
 func _get_mode_cards() -> Array[ModeCard]:
 	var cards: Array[ModeCard] = []
-	for child: Node in _mode_list_container.get_children():
-		if child is ModeCard:
-			cards.append(child)
+	for card: ModeCard in _mode_card_slots:
+		if is_instance_valid(card) and card.visible:
+			cards.append(card)
 	return cards
+
+
+func _ensure_mode_card_slots(required_count: int) -> void:
+	while _mode_card_slots.size() < required_count:
+		var card: ModeCard = _create_mode_card()
+		if not is_instance_valid(card):
+			return
+		_mode_list_container.add_child(card)
+		var _focus_connection: int = card.card_focused.connect(
+			_set_selected_mode_by_path
+		)
+		_mode_card_slots.append(card)
 
 
 func _get_parent_hbox(control: Control) -> HBoxContainer:
@@ -1111,7 +1204,7 @@ func _reveal_selection_detail() -> void:
 	)
 
 
-func _change_page(direction: int) -> void:
+func _advance_mode_page(direction: int) -> void:
 	if _total_pages <= 1:
 		return
 
@@ -1122,7 +1215,7 @@ func _change_page(direction: int) -> void:
 		_current_page = (_current_page + 1) % _total_pages
 		_next_page_button.grab_focus()
 
-	await _update_list_and_focus()
+	_refresh_mode_page_and_focus()
 
 
 func _create_mode_card() -> ModeCard:
@@ -1405,11 +1498,11 @@ func _on_edit_board_button_pressed() -> void:
 
 
 func _on_prev_page_button_pressed() -> void:
-	await _change_page(-1)
+	_advance_mode_page(-1)
 
 
 func _on_next_page_button_pressed() -> void:
-	await _change_page(1)
+	_advance_mode_page(1)
 
 
 func _on_start_game_button_pressed() -> void:

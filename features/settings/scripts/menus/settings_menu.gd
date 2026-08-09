@@ -78,6 +78,8 @@ var _section_scroll: ScrollContainer = null
 var _has_revealed_input_bindings: bool = false
 var _input_binding_rows_dirty: bool = true
 var _input_binding_rows_rebuild_queued: bool = false
+## bus name -> 本次拖动是否实际改变过值。
+var _dragging_audio_buses: Dictionary = {}
 
 
 # --- @onready 变量 (节点引用) ---
@@ -196,6 +198,7 @@ func _ready() -> void:
 	_setup_setting_options()
 	_sync_controls_from_settings()
 	_setup_form_binder()
+	_connect_volume_drag_signals()
 	var _connect_result_62: int = _back_button.pressed.connect(_on_back_button_pressed)
 	var _general_tab_connection: int = _general_tab_button.pressed.connect(
 		_set_active_section.bind(SettingsSection.GENERAL)
@@ -226,6 +229,10 @@ func _notification(what: int) -> void:
 		_update_ui_text()
 	elif what == NOTIFICATION_RESIZED and is_node_ready():
 		_queue_responsive_layout_update()
+
+
+func _exit_tree() -> void:
+	_commit_pending_volume_drag()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -895,14 +902,84 @@ func _apply_audio_bus_volume(
 	value_label: Label
 ) -> void:
 	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
-	if not is_instance_valid(display_settings):
+	if (
+		not is_instance_valid(display_settings)
+		or not is_instance_valid(_settings_utility)
+	):
 		push_error(
-			"[SettingsMenu] 缺少 GFDisplaySettingsUtility，无法写入 %s 音量。"
+			"[SettingsMenu] 缺少设置或显示 Utility，无法写入 %s 音量。"
 			% bus_name
 		)
 		return
-	display_settings.set_audio_bus_volume(bus_name, value)
+	var dragging: bool = _dragging_audio_buses.has(bus_name)
+	var restore_persist_changes: bool = display_settings.persist_changes
+	if dragging:
+		# GFDisplaySettingsUtility 仍负责写内存真值与即时应用音量；仅在本次
+		# 拖动采样期间关闭持久化，避免绕过框架后产生重复 apply。
+		display_settings.persist_changes = false
+	display_settings.set_audio_bus_volume(bus_name, clampf(value, 0.0, 1.0))
+	display_settings.persist_changes = restore_persist_changes
+	if dragging:
+		_dragging_audio_buses[bus_name] = true
 	_update_volume_value_label(value_label, value)
+
+
+func _connect_volume_drag_signals() -> void:
+	for binding: Dictionary in [
+		{&"slider": _master_volume_slider, &"bus": _AUDIO_BUS_MASTER},
+		{&"slider": _bgm_volume_slider, &"bus": _AUDIO_BUS_BGM},
+		{&"slider": _sfx_volume_slider, &"bus": _AUDIO_BUS_SFX},
+	]:
+		var slider_value: Variant = binding.get(&"slider")
+		if not slider_value is HSlider:
+			continue
+		var slider: HSlider = slider_value
+		var bus_name: String = GFVariantData.get_option_string(binding, &"bus")
+		var _started_connection: int = slider.drag_started.connect(
+			_on_volume_drag_started.bind(bus_name)
+		)
+		var _ended_connection: int = slider.drag_ended.connect(
+			_on_volume_drag_ended.bind(bus_name)
+		)
+
+
+func _on_volume_drag_started(bus_name: String) -> void:
+	_dragging_audio_buses[bus_name] = false
+
+
+func _on_volume_drag_ended(value_changed: bool, bus_name: String) -> void:
+	var changed_during_drag: bool = GFVariantData.to_bool(
+		_dragging_audio_buses.get(bus_name, false),
+		false
+	)
+	var _erased: bool = _dragging_audio_buses.erase(bus_name)
+	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
+	if (
+		(value_changed or changed_during_drag)
+		and is_instance_valid(_settings_utility)
+		and is_instance_valid(display_settings)
+		and display_settings.persist_changes
+	):
+		# 拖动期间内存值已经是最终值；显式只排队一次落盘，避免每个
+		# value_changed 都触发存储工作。
+		_settings_utility.queue_save()
+
+
+func _commit_pending_volume_drag() -> void:
+	var should_save: bool = false
+	for changed_value: Variant in _dragging_audio_buses.values():
+		if GFVariantData.to_bool(changed_value, false):
+			should_save = true
+			break
+	_dragging_audio_buses.clear()
+	var display_settings: GFDisplaySettingsUtility = _get_display_settings_utility()
+	if (
+		should_save
+		and is_instance_valid(_settings_utility)
+		and is_instance_valid(display_settings)
+		and display_settings.persist_changes
+	):
+		_settings_utility.queue_save()
 
 
 func _apply_input_timing_mode(index: int) -> void:

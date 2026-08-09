@@ -7,9 +7,9 @@
   "gf_source_commit": "73243b643e452b10fd63e02c74bbbfb370aa6155",
   "gf_vendor_tree_sha256": "abcf09b83ea8c7e94242179db4fe67612b6bf245888d6630adb1bcab6af4a352",
   "gf_global_script_class_count": 810,
-  "project_runtime_script_class_count": 235,
+  "project_runtime_script_class_count": 236,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The exact official GF 11.0.0-dev.0 canary snapshot advances to the audited main commit that adds nine UI composition and spatial-input global script classes. Two asset-audit CLI entry points moved from features/asset_library/tools to the repository-level tools boundary, reducing the counted project runtime class set from 237 to 235 without changing runtime behavior. The reviewed ObjectDB, Resource, RID, and PagedAllocator ceilings are intentionally retained and must not be raised without reviewed leak evidence.",
+  "calibration_reason": "The exact official GF 11.0.0-dev.0 canary snapshot advances to the audited main commit that adds nine UI composition and spatial-input global script classes. Two asset-audit CLI entry points moved from features/asset_library/tools to the repository-level tools boundary, reducing the counted project runtime class set from 237 to 235 without changing runtime behavior. The project then adds the audited DeterministicHintWorker global script class so deterministic hint evaluation can run through GFBackgroundWorkUtility, bringing the runtime class set to 236. The reviewed ObjectDB, Resource, RID, and PagedAllocator ceilings are intentionally retained and must not be raised without reviewed leak evidence.",
   "max_objectdb_instances": 319,
   "max_resources_in_use": 141,
   "max_rid_allocations_by_type": {

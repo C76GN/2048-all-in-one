@@ -123,7 +123,15 @@ func test_activation_then_immediate_dispose_cancels_queued_legacy_cleanup() -> v
 	assert_lt(
 		elapsed_msec,
 		500,
-		"尚未启动的 deferred cleanup 不得让 forced dispose 固定轮询 8 秒。"
+		"forced dispose 必须在有界时间内同步返回，不能在主线程轮询或 sleep。"
+	)
+	var account_source: String = FileAccess.get_file_as_string(
+		"res://features/player_profiles/scripts/systems/local_account_system.gd"
+	)
+	assert_false(
+		account_source.contains("OS.delay_msec(")
+		or account_source.contains("_DISPOSE_DRAIN_STEPS"),
+		"LocalAccountSystem.dispose 不得保留同步延迟排空实现。"
 	)
 	await get_tree().process_frame
 	assert_true(

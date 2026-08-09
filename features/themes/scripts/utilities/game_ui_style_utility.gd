@@ -1032,10 +1032,14 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 	var border_color: Color = _button_focus_border_color
 	var hover_border_color: Color = _button_normal_color
 	var normal_border_width: int = 2
+	var hover_border_width: int = 3
 	var normal_shadow_offset: Vector2 = _BUTTON_SHADOW_OFFSET
 	var hover_shadow_offset: Vector2 = _BUTTON_HOVER_SHADOW_OFFSET
 	var pressed_shadow_offset: Vector2 = _BUTTON_PRESSED_SHADOW_OFFSET
 	var shadow_color: Color = _button_focus_border_color
+	var disabled_color: Color = _button_disabled_color
+	var disabled_border_color: Color = _button_focus_border_color.darkened(0.12)
+	var disabled_border_width: int = 1
 	if role == ButtonRole.PRIMARY:
 		normal_color = _primary_button_color
 		hover_color = _primary_button_hover_color
@@ -1061,7 +1065,29 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 		hover_color = _button_hover_color
 		pressed_color = _button_pressed_color
 		normal_border_width = 1
-	if button.toggle_mode:
+	hover_border_width = maxi(normal_border_width, 3)
+	var uses_quiet_state_surface: bool = button is CheckButton or button is CheckBox
+	if uses_quiet_state_surface:
+		# CheckButton / CheckBox 的持久状态由轨道、勾选图标和文字共同表达。
+		# 整行只保留低权重 hover/selected 表面，避免像普通操作按钮一样常驻悬浮。
+		normal_color = Color.TRANSPARENT
+		hover_color = _quiet_button_hover_color
+		pressed_color = _selected_surface_color
+		pressed_color.a = minf(pressed_color.a, 0.16)
+		border_color = Color.TRANSPARENT
+		hover_border_color = Color.TRANSPARENT
+		pressed_border_color = Color.TRANSPARENT
+		normal_border_width = 0
+		hover_border_width = 0
+		pressed_border_width = 0
+		normal_shadow_offset = Vector2.ZERO
+		hover_shadow_offset = Vector2.ZERO
+		pressed_shadow_offset = Vector2.ZERO
+		shadow_color = Color.TRANSPARENT
+		disabled_color = Color.TRANSPARENT
+		disabled_border_color = Color.TRANSPARENT
+		disabled_border_width = 0
+	elif button.toggle_mode:
 		pressed_color = _selected_surface_color
 		pressed_border_color = _selected_border_color
 		pressed_border_width = 2
@@ -1080,7 +1106,7 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 		_create_button_style(
 			hover_color,
 			hover_border_color,
-			maxi(normal_border_width, 3),
+			hover_border_width,
 			hover_shadow_offset,
 			shadow_color
 		)
@@ -1111,7 +1137,11 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 	)
 	button.add_theme_stylebox_override(
 		"disabled",
-		_create_button_style(_button_disabled_color, _button_focus_border_color.darkened(0.12), 1)
+		_create_button_style(
+			disabled_color,
+			disabled_border_color,
+			disabled_border_width
+		)
 	)
 	button.add_theme_color_override("font_color", _button_font_color)
 	button.add_theme_color_override("font_hover_color", _button_font_color)

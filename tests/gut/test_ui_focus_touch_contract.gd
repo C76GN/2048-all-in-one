@@ -113,6 +113,32 @@ func test_tile_lab_recipe_controls_hide_internal_ids_and_keep_checked_text_reada
 	assert_not_null(selected_button)
 	assert_not_null(conflict_button)
 	if selected_button != null:
+		# 此测试架构刻意只安装 GFSignalUtility；以局部方法源契约验证
+		# TileLab 不会在缺少视觉栈的 fixture 中伪造 style metadata。
+		var tile_lab_source: String = FileAccess.get_file_as_string(
+			"res://features/tile_lab/scripts/ui/tile_lab_dialog.gd"
+		)
+		var style_method_start: int = tile_lab_source.find(
+			"func _apply_recipe_button_style("
+		)
+		var style_method_end: int = tile_lab_source.find(
+			"\nfunc _focus_recipe_button",
+			style_method_start
+		)
+		var style_method_source: String = ""
+		if style_method_start >= 0 and style_method_end > style_method_start:
+			style_method_source = tile_lab_source.substr(
+				style_method_start,
+				style_method_end - style_method_start
+			)
+		assert_true(
+			style_method_start >= 0
+			and style_method_end > style_method_start
+			and style_method_source.contains(
+				"GameUiStyleUtility.ButtonRole.QUIET"
+			),
+			"Recipe CheckButton 应使用 QUIET 语义，选中状态由轨道而非整面按钮强调。"
+		)
 		assert_false(
 			selected_button.tooltip_text.contains("tile.recipe"),
 			"Recipe tooltip 不得向玩家泄露内部稳定 ID。"

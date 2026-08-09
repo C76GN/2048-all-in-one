@@ -16,6 +16,7 @@ signal view_transform_changed(zoom: float, world_position: Vector2)
 const _ZOOM_STEP: float = 1.15
 const _FIT_MARGIN: float = 18.0
 const _NO_TOUCH_POINTER: int = -1
+const _EDITOR_GRID_OPTIONS: Dictionary = { "visible": false }
 # --- 导出变量 ---
 
 @export var world_root_path: NodePath = NodePath("../CanvasWorld")
@@ -144,6 +145,13 @@ func _prepare_spatial_canvas() -> void:
 		push_error("[BoardEditorViewportController] 无法配置 GF 空间画布输入策略。")
 		return
 	_spatial_canvas.set_input_enabled(true)
+	var grid_configured: bool = _spatial_canvas.configure_grid(
+		_spatial_canvas.get_grid_origin(),
+		_spatial_canvas.get_grid_size(),
+		_EDITOR_GRID_OPTIONS
+	)
+	if not grid_configured:
+		push_error("[BoardEditorViewportController] 无法关闭 GF 空间画布默认网格。")
 	var content_root: Node2D = _spatial_canvas.get_content_root()
 	if _world_root.get_parent() != content_root:
 		_world_root.reparent(content_root)

@@ -241,7 +241,9 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 	assert_true(grid.columns == 3, "宽屏图鉴应使用三列卡片网格。")
 
 	var first_card: TileCatalogCard = grid.get_child(0) as TileCatalogCard
+	var filtered_out_card: TileCatalogCard = grid.get_child(1) as TileCatalogCard
 	assert_not_null(first_card)
+	assert_not_null(filtered_out_card)
 	if first_card != null:
 		var first_entry: Dictionary = first_card.get_entry()
 		var first_key: String = GFVariantData.get_option_string(
@@ -261,10 +263,15 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 			"搜索文本应事务式提交到 GF table 可见投影。"
 		)
 		assert_true(
-			grid.get_child_count() == EXPECTED_DEFINITION_IDS.size(),
-			"筛选图鉴时应复用稳定卡片缓存，不得销毁整张网格。"
+			grid.get_child_count() == 1
+			and panel._cards_by_key.size() == 1,
+			"筛选图鉴时只应保留 GF table 当前可见行的卡片。"
 		)
 		assert_true(first_card.visible, "匹配筛选的卡片必须保持可见。")
+		assert_false(
+			is_instance_valid(filtered_out_card),
+			"离开可见投影的图鉴卡片必须释放，不能保留隐藏资源缓存。"
+		)
 		first_card.grab_focus()
 		await get_tree().process_frame
 		assert_true(
@@ -290,6 +297,11 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 				get_viewport().gui_get_focus_owner() == cached_card,
 				"差量刷新后仍可见的卡片必须保留焦点。"
 			)
+		assert_true(
+			grid.get_child_count() == EXPECTED_DEFINITION_IDS.size()
+			and panel._cards_by_key.size() == EXPECTED_DEFINITION_IDS.size(),
+			"清除筛选后应只为恢复的 GF 可见行重新创建卡片。"
+		)
 
 	panel.size = Vector2(390.0, 844.0)
 	await get_tree().process_frame

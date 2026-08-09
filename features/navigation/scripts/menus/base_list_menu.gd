@@ -30,6 +30,9 @@ const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 const _DESKTOP_LIST_SURFACE_MINIMUM: Vector2 = Vector2(580.0, 540.0)
 const _COMPACT_LIST_SURFACE_HEIGHT: float = 300.0
 const _PORTRAIT_LIST_SURFACE_HEIGHT: float = 440.0
+const _EMPTY_DESKTOP_LIST_SURFACE_HEIGHT: float = 260.0
+const _EMPTY_COMPACT_LIST_SURFACE_HEIGHT: float = 220.0
+const _EMPTY_PORTRAIT_LIST_SURFACE_HEIGHT: float = 260.0
 const _DESKTOP_PREVIEW_HEIGHT: float = 248.0
 const _COMPACT_PREVIEW_HEIGHT: float = 210.0
 const _COMPACT_HORIZONTAL_MARGINS: float = 24.0
@@ -74,6 +77,7 @@ var _virtual_list_binder: GFVirtualListBinder = null
 var _virtual_data_list: Array[Resource] = []
 var _virtual_item_extent: float = 1.0
 var _has_revealed_list_once: bool = false
+var _empty_state_active: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -459,9 +463,17 @@ func _apply_responsive_layout() -> void:
 	)
 	if is_instance_valid(_list_surface):
 		var list_height: float = (
-			_PORTRAIT_LIST_SURFACE_HEIGHT
+			(
+				_EMPTY_PORTRAIT_LIST_SURFACE_HEIGHT
+				if _empty_state_active
+				else _PORTRAIT_LIST_SURFACE_HEIGHT
+			)
 			if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
-			else _COMPACT_LIST_SURFACE_HEIGHT
+			else (
+				_EMPTY_COMPACT_LIST_SURFACE_HEIGHT
+				if _empty_state_active
+				else _COMPACT_LIST_SURFACE_HEIGHT
+			)
 		)
 		var compact_list_width: float = get_compact_list_surface_width(
 			size.x,
@@ -471,7 +483,14 @@ func _apply_responsive_layout() -> void:
 		_list_surface.custom_minimum_size = (
 			Vector2(compact_list_width, list_height)
 			if compact
-			else _DESKTOP_LIST_SURFACE_MINIMUM
+			else Vector2(
+				_DESKTOP_LIST_SURFACE_MINIMUM.x,
+				(
+					_EMPTY_DESKTOP_LIST_SURFACE_HEIGHT
+					if _empty_state_active
+					else _DESKTOP_LIST_SURFACE_MINIMUM.y
+				)
+			)
 		)
 	if is_instance_valid(_preview_container):
 		_preview_container.custom_minimum_size.y = (
@@ -664,7 +683,7 @@ func _populate_list() -> void:
 			await _clear_list_content()
 		_handle_empty_list()
 		return
-	_on_empty_state_changed(false)
+	_set_empty_state(false)
 
 	var template: Control = _get_repeater_template()
 	if not is_instance_valid(template):
@@ -718,11 +737,17 @@ func _handle_empty_list() -> void:
 	if _uses_virtual_list():
 		label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_clear_preview(false)
-	_on_empty_state_changed(true)
+	_set_empty_state(true)
 	_update_action_focus_return_target(null)
 	_bind_and_reveal_list_items()
 	if is_instance_valid(back_button):
 		back_button.grab_focus()
+
+
+func _set_empty_state(is_empty: bool) -> void:
+	_empty_state_active = is_empty
+	_on_empty_state_changed(is_empty)
+	_apply_responsive_layout()
 
 
 func _clear_list_content() -> void:

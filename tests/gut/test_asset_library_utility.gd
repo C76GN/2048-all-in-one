@@ -139,6 +139,23 @@ func test_project_content_catalog_uses_owner_scoped_roots_and_gf_query() -> void
 		).is_empty(),
 		"项目目录不应再占用 GF 默认 manual owner scope。"
 	)
+	var refresh_report: Dictionary = project_catalog.get_last_refresh_report()
+	var refresh_metrics: Dictionary = GFVariantData.get_option_dictionary(
+		refresh_report,
+		&"refresh_metrics"
+	)
+	assert_true(
+		refresh_metrics.size() == 5
+		and GFVariantData.get_option_int(refresh_metrics, &"elapsed_usec") >= 0
+		and GFVariantData.get_option_int(refresh_metrics, &"source_root_count") > 0
+		and GFVariantData.get_option_int(refresh_metrics, &"package_count")
+		== GFVariantData.get_option_int(refresh_report, &"package_count")
+		and GFVariantData.get_option_int(
+			refresh_metrics,
+			&"registered_resource_count"
+		) > 0,
+		"ready 内容刷新必须公开固定五字段的有界耗时/包数诊断。"
+	)
 
 	var matching_entries: Array[Dictionary] = project_catalog.query_resources({
 		"package_ids": PackedStringArray([

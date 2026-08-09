@@ -266,6 +266,7 @@ func _rebuild_catalog(force_reconfigure: bool = false) -> void:
 		push_error("[TileCatalogDialog] GF table 图鉴过滤事务失败。")
 		return
 	var visible_keys: Dictionary = {}
+	var visible_entries: Array[Dictionary] = []
 	var first_visible_entry: Dictionary = {}
 	for visible_index: int in range(_catalog_view.get_visible_row_count()):
 		var row_value: Variant = _catalog_view.get_visible_row(visible_index)
@@ -277,14 +278,21 @@ func _rebuild_catalog(force_reconfigure: bool = false) -> void:
 			&"composition_key"
 		)
 		visible_keys[visible_key] = true
+		var visible_entry: Dictionary = GFVariantData.get_option_dictionary(
+			row,
+			&"entry"
+		)
+		if visible_entry.is_empty():
+			continue
+		visible_entries.append(visible_entry)
 		if first_visible_entry.is_empty():
-			first_visible_entry = GFVariantData.get_option_dictionary(row, &"entry")
+			first_visible_entry = visible_entry
 	var focused_key: String = _get_focused_card_key()
 	var restore_catalog_focus: bool = not focused_key.is_empty()
 	var expected_keys: Dictionary = {}
 	var ui_motion: GameUiMotionUtility = _get_ui_motion_utility()
 	var child_index: int = 0
-	for entry: Dictionary in entries:
+	for entry: Dictionary in visible_entries:
 		var composition_key: String = _get_entry_identity_key(entry)
 		if composition_key.is_empty():
 			continue
@@ -305,7 +313,6 @@ func _rebuild_catalog(force_reconfigure: bool = false) -> void:
 		if force_reconfigure or entry_changed:
 			_configure_catalog_card(card, entry)
 			_entries_by_key[composition_key] = entry.duplicate(true)
-		card.visible = visible_keys.has(composition_key)
 
 	_remove_obsolete_catalog_cards(expected_keys)
 	var visible_count: int = _catalog_view.get_visible_row_count()

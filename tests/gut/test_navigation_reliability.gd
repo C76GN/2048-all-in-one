@@ -376,6 +376,25 @@ func test_empty_history_lists_focus_back_button() -> void:
 				back_control.has_focus(),
 				"空历史列表应把键盘/手柄焦点交给返回按钮。"
 			)
+		var list_surface: Node = list_menu.find_child("ListSurface", true, false)
+		assert_true(list_surface is PanelContainer, "空历史页仍应保留唯一说明表面。")
+		if list_surface is PanelContainer:
+			var empty_surface: PanelContainer = list_surface
+			assert_lte(
+				empty_surface.custom_minimum_size.y,
+				260.0,
+				"空历史页不得保留 540px 的伪列表空白表面。"
+			)
+		var preview: Node = list_menu.find_child("PreviewContainer", true, false)
+		var detail: Node = list_menu.find_child("DetailInfoLabel", true, false)
+		assert_true(
+			preview is Control and not (preview as Control).visible,
+			"空历史页不得显示没有内容的棋盘预览纸片。"
+		)
+		assert_true(
+			detail is Control and not (detail as Control).visible,
+			"空历史页说明应集中在唯一表面，不重复显示详情占位。"
+		)
 		assert_null(
 			list_menu.find_child("DeleteConfirmationDialog", true, false),
 			"历史列表不得再实例化绕过 GF Router 的原生确认 Window。"

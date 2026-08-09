@@ -13,9 +13,6 @@ const FLOW_LABEL_LIST_SCENE: PackedScene = preload("res://shared/scenes/ui/flow_
 const GameHintResultType = preload(
 	"res://features/gameplay/scripts/data/game_hint_result.gd"
 )
-const DeterministicHintQueryType = preload(
-	"res://features/gameplay/scripts/queries/deterministic_hint_query.gd"
-)
 const _SCORE_DELTA_LABEL_SCENE: PackedScene = preload(
 	"res://features/gameplay/scenes/ui/score_delta_label.tscn"
 )
@@ -42,6 +39,14 @@ const _NOTIFICATION_OFFSET_SCALE_NORMAL: float = 1.0
 const _NOTIFICATION_OFFSET_SCALE_HIGH: float = 1.25
 const _NOTIFICATION_OFFSET_SCALE_CRITICAL: float = 1.5
 const _NOTIFICATION_SURFACE_HEIGHT: float = 68.0
+const _FEEDBACK_RAIL_EDGE_MARGIN: float = 18.0
+const _FEEDBACK_RAIL_BOARD_GAP: float = 12.0
+const _FEEDBACK_RAIL_MINIMUM_WIDTH: float = 220.0
+const _FEEDBACK_RAIL_DESKTOP_WIDTH: float = 340.0
+const _FEEDBACK_RAIL_COMPACT_WIDTH: float = 300.0
+const _FEEDBACK_RAIL_LANDSCAPE_HEIGHT: float = 286.0
+const _FEEDBACK_RAIL_VERTICAL_HEIGHT: float = 152.0
+const _FEEDBACK_RAIL_TOP: float = 106.0
 const _WIDE_SIDE_CARD_MINIMUM_WIDTH: float = 1440.0
 const _ACTION_ICON_ASSET_KEYS: Dictionary = {
 	"%PauseButton": &"asset.texture.icon.pause",
@@ -61,6 +66,7 @@ var _is_dirty: bool = false
 var _game_status_model: GameStatusModel
 var _grid_model: GridModel
 var _determinism_utility: GameDeterminismUtility
+var _background_work: GFBackgroundWorkUtility
 var _notification_utility: GFNotificationUtility
 var _signal_utility: GFSignalUtility
 var _ui_style_utility: GameUiStyleUtility
@@ -101,7 +107,9 @@ var _hint_button: Button
 var _hint_result_panel: PanelContainer
 var _hint_result_label: RichTextLabel
 var _hint_snapshot_id: String = ""
-var _hint_cancel_source: GFCancellationSource
+var _hint_work_task: GFBackgroundWorkTask
+var _hint_cancel_token: GFCancellationToken
+var _hint_generation: int = 0
 var _accessibility_subtitle_panel: PanelContainer
 var _accessibility_subtitle_label: Label
 var _board_summary_label: RichTextLabel
@@ -117,6 +125,7 @@ var _notification_motion_tween: Tween
 var _notification_rest_position: Vector2 = Vector2.ZERO
 var _notification_rest_position_valid: bool = false
 var _startup_intro_played: bool = false
+var _feedback_avoid_rect: Rect2 = Rect2()
 
 
 # --- @onready 变量 (节点引用) ---
@@ -131,6 +140,7 @@ func _ready() -> void:
 	_game_status_model = _get_game_status_model()
 	_grid_model = _get_grid_model()
 	_determinism_utility = _get_determinism_utility()
+	_background_work = _get_background_work_utility()
 	_notification_utility = _get_notification_utility()
 	_signal_utility = _get_signal_utility()
 	_ui_style_utility = _get_ui_style_utility()
@@ -188,8 +198,12 @@ func _ready() -> void:
 	_board_info_label = _get_label_node("%BoardInfoLabel")
 	if not is_instance_valid(_notification_label):
 		push_error("[Hud] 缺少 NotificationLabel，无法呈现 GF 通知。")
-	if not is_instance_valid(_grid_model) or not is_instance_valid(_determinism_utility):
-		push_error("[Hud] 缺少棋盘或确定性工具，提示功能不可用。")
+	if (
+		not is_instance_valid(_grid_model)
+		or not is_instance_valid(_determinism_utility)
+		or not is_instance_valid(_background_work)
+	):
+		push_error("[Hud] 缺少棋盘、确定性或后台工作 Utility，提示功能不可用。")
 	
 	if is_instance_valid(_game_status_model):
 		_game_status_model.score.bind_to(self, _on_score_changed)
@@ -272,6 +286,13 @@ func apply_screen_insets(insets: Dictionary) -> void:
 	_safe_area.offset_top = GFVariantData.get_option_float(insets, "top")
 	_safe_area.offset_right = -GFVariantData.get_option_float(insets, "right")
 	_safe_area.offset_bottom = -GFVariantData.get_option_float(insets, "bottom")
+
+
+## 设置反馈轨必须避开的棋盘动态包络；坐标相对于 HUD SafeArea。
+## @param avoid_rect: 已包含冲量、旋转等表现余量的屏幕空间矩形。
+func set_feedback_avoid_rect(avoid_rect: Rect2) -> void:
+	_feedback_avoid_rect = avoid_rect if avoid_rect.has_area() else Rect2()
+	_apply_feedback_rail_layout()
 
 
 # --- 私有/辅助方法 ---
@@ -684,18 +705,121 @@ func _apply_feedback_rail_layout() -> void:
 			_reset_notification_surface_layout()
 		return
 
-	var landscape_rail_width: float = 300.0 if _is_compact_mode else 340.0
-	var rail_top: float = 106.0
-	_feedback_rail.anchor_left = 1.0
+	var safe_size: Vector2 = (
+		_safe_area.size
+		if is_instance_valid(_safe_area) and _safe_area.size.x > 0.0 and _safe_area.size.y > 0.0
+		else Vector2(1280.0, 720.0)
+	)
+	var preferred_width: float = (
+		_FEEDBACK_RAIL_COMPACT_WIDTH
+		if _is_compact_mode
+		else _FEEDBACK_RAIL_DESKTOP_WIDTH
+	)
+	var rail_rect: Rect2 = _calculate_landscape_feedback_rail_rect(
+		safe_size,
+		_feedback_avoid_rect,
+		preferred_width
+	)
+	_feedback_rail.anchor_left = 0.0
 	_feedback_rail.anchor_top = 0.0
-	_feedback_rail.anchor_right = 1.0
+	_feedback_rail.anchor_right = 0.0
 	_feedback_rail.anchor_bottom = 0.0
-	_feedback_rail.offset_left = -landscape_rail_width - 18.0
-	_feedback_rail.offset_top = rail_top
-	_feedback_rail.offset_right = -18.0
-	_feedback_rail.offset_bottom = rail_top + 286.0
+	_feedback_rail.position = rail_rect.position
+	_feedback_rail.size = rail_rect.size
 	if is_instance_valid(_notification_slot) and _notification_slot.visible:
 		_reset_notification_surface_layout()
+
+
+## 在 SafeArea 内为反馈轨选择不穿过棋盘动态包络的位置。
+## 优先使用右侧空隙，其次左侧；极窄构图才退到棋盘上方或下方。
+## @param safe_size: HUD SafeArea 的逻辑尺寸。
+## @param avoid_rect: 已包含表现余量的棋盘动态包络。
+## @param preferred_width: 当前响应式模式希望使用的反馈轨宽度。
+## @return 完整位于 SafeArea 内、优先避开棋盘包络的反馈轨矩形。
+static func _calculate_landscape_feedback_rail_rect(
+	safe_size: Vector2,
+	avoid_rect: Rect2,
+	preferred_width: float
+) -> Rect2:
+	var normalized_safe_size: Vector2 = Vector2(
+		maxf(safe_size.x, 1.0),
+		maxf(safe_size.y, 1.0)
+	)
+	var edge_margin: float = minf(
+		_FEEDBACK_RAIL_EDGE_MARGIN,
+		minf(normalized_safe_size.x, normalized_safe_size.y) * 0.25
+	)
+	var safe_rect: Rect2 = Rect2(
+		Vector2(edge_margin, edge_margin),
+		Vector2(
+			maxf(normalized_safe_size.x - edge_margin * 2.0, 1.0),
+			maxf(normalized_safe_size.y - edge_margin * 2.0, 1.0)
+		)
+	)
+	var minimum_width: float = minf(_FEEDBACK_RAIL_MINIMUM_WIDTH, safe_rect.size.x)
+	var target_width: float = clampf(preferred_width, minimum_width, safe_rect.size.x)
+	var target_height: float = minf(_FEEDBACK_RAIL_LANDSCAPE_HEIGHT, safe_rect.size.y)
+	var target_y: float = clampf(
+		_FEEDBACK_RAIL_TOP,
+		safe_rect.position.y,
+		maxf(safe_rect.end.y - target_height, safe_rect.position.y)
+	)
+
+	if avoid_rect.has_area():
+		var right_start: float = maxf(
+			avoid_rect.end.x + _FEEDBACK_RAIL_BOARD_GAP,
+			safe_rect.position.x
+		)
+		var right_width: float = maxf(safe_rect.end.x - right_start, 0.0)
+		if right_width >= minimum_width:
+			var rail_width: float = minf(target_width, right_width)
+			return Rect2(
+				Vector2(safe_rect.end.x - rail_width, target_y),
+				Vector2(rail_width, target_height)
+			)
+
+		var left_end: float = minf(
+			avoid_rect.position.x - _FEEDBACK_RAIL_BOARD_GAP,
+			safe_rect.end.x
+		)
+		var left_width: float = maxf(left_end - safe_rect.position.x, 0.0)
+		if left_width >= minimum_width:
+			return Rect2(
+				Vector2(safe_rect.position.x, target_y),
+				Vector2(minf(target_width, left_width), target_height)
+			)
+
+		var vertical_width: float = minf(target_width, safe_rect.size.x)
+		var vertical_height: float = minf(_FEEDBACK_RAIL_VERTICAL_HEIGHT, safe_rect.size.y)
+		var centered_x: float = safe_rect.get_center().x - vertical_width * 0.5
+		var bottom_start: float = maxf(
+			avoid_rect.end.y + _FEEDBACK_RAIL_BOARD_GAP,
+			safe_rect.position.y
+		)
+		var bottom_height: float = maxf(safe_rect.end.y - bottom_start, 0.0)
+		if bottom_height >= _NOTIFICATION_SURFACE_HEIGHT:
+			vertical_height = minf(vertical_height, bottom_height)
+			return Rect2(
+				Vector2(centered_x, safe_rect.end.y - vertical_height),
+				Vector2(vertical_width, vertical_height)
+			)
+
+		var top_end: float = minf(
+			avoid_rect.position.y - _FEEDBACK_RAIL_BOARD_GAP,
+			safe_rect.end.y
+		)
+		var top_height: float = maxf(top_end - safe_rect.position.y, 0.0)
+		if top_height >= _NOTIFICATION_SURFACE_HEIGHT:
+			vertical_height = minf(vertical_height, top_height)
+			return Rect2(
+				Vector2(centered_x, safe_rect.position.y),
+				Vector2(vertical_width, vertical_height)
+			)
+
+	return Rect2(
+		Vector2(safe_rect.end.x - target_width, target_y),
+		Vector2(target_width, target_height)
+	)
 
 
 func _apply_notification_level(
@@ -720,7 +844,7 @@ func _apply_notification_level(
 		return
 	var level_style: StyleBoxFlat = duplicated_stylebox
 	level_style.border_color = border_color
-	var border_width: int = 2
+	var border_width: int = 1 if priority <= GFNotificationUtility.Priority.LOW else 2
 	if priority >= GFNotificationUtility.Priority.CRITICAL:
 		border_width = 4
 	elif priority >= GFNotificationUtility.Priority.HIGH:
@@ -909,13 +1033,15 @@ func _reset_notification_surface_layout() -> void:
 		_notification_slot.size.x,
 		_feedback_rail.size.x if is_instance_valid(_feedback_rail) else 0.0
 	)
+	if is_instance_valid(_feedback_rail) and _feedback_rail.size.x > 0.0:
+		surface_width = minf(surface_width, _feedback_rail.size.x)
 	_notification_panel.anchor_left = 0.0
 	_notification_panel.anchor_top = 0.0
 	_notification_panel.anchor_right = 0.0
 	_notification_panel.anchor_bottom = 0.0
 	_notification_panel.position = Vector2.ZERO
 	_notification_panel.size = Vector2(
-		maxf(surface_width, _notification_panel.get_combined_minimum_size().x),
+		maxf(surface_width, 1.0),
 		_NOTIFICATION_SURFACE_HEIGHT
 	)
 
@@ -973,6 +1099,14 @@ func _get_determinism_utility() -> GameDeterminismUtility:
 	if utility_value is GameDeterminismUtility:
 		var determinism_utility: GameDeterminismUtility = utility_value
 		return determinism_utility
+	return null
+
+
+func _get_background_work_utility() -> GFBackgroundWorkUtility:
+	var utility_value: Object = get_utility(GFBackgroundWorkUtility)
+	if utility_value is GFBackgroundWorkUtility:
+		var background_work: GFBackgroundWorkUtility = utility_value
+		return background_work
 	return null
 
 
@@ -1206,7 +1340,11 @@ func _update_details_toggle_button() -> void:
 func _run_hint_query() -> void:
 	_hide_hint_result()
 	_cancel_hint_query(&"superseded")
-	if not is_instance_valid(_grid_model) or not is_instance_valid(_determinism_utility):
+	if (
+		not is_instance_valid(_grid_model)
+		or not is_instance_valid(_determinism_utility)
+		or not is_instance_valid(_background_work)
+	):
 		_show_hint_unavailable()
 		return
 
@@ -1216,34 +1354,70 @@ func _run_hint_query() -> void:
 		_show_hint_unavailable()
 		return
 
-	_hint_cancel_source = GFCancellationSource.new()
-	var _lifetime_bound: bool = _hint_cancel_source.cancel_when_node_exits(
-		self,
-		&"hud_exited",
-		{&"operation": &"deterministic_game_hint"}
-	)
-	var budget: GFExecutionBudget = GFExecutionBudget.new({
-		&"max_steps": _HINT_MAX_STEPS,
-		&"cancel_token": _hint_cancel_source.get_token(),
-		&"metadata": {
-			&"operation": &"deterministic_game_hint",
+	_hint_generation += 1
+	var generation: int = _hint_generation
+	_hint_cancel_token = DeterministicHintWorker.create_cancellation_token()
+	var worker: RefCounted = DeterministicHintWorker.new()
+	var task: GFBackgroundWorkTask = _background_work.submit_cpu_work(
+		Callable(worker, "run"),
+		{
+			&"board_snapshot": board_snapshot,
 			&"snapshot_id": snapshot_id,
+			&"generation": generation,
+			&"max_steps": _HINT_MAX_STEPS,
+			&"cancel_token": _hint_cancel_token,
 		},
-	})
-	var result: GameHintResultType = DeterministicHintQueryType.new().evaluate(
-		board_snapshot,
-		snapshot_id,
-		budget
+		Callable(self, "_apply_hint_work"),
+		{
+			&"id": StringName(
+				"gameplay-hint:%d:%d" % [get_instance_id(), generation]
+			),
+			&"priority": 5,
+			&"metadata": {
+				&"owner": "Hud",
+				&"operation": "deterministic_game_hint",
+				&"generation": generation,
+			},
+			&"allow_object_payloads": true,
+		}
 	)
-	_hint_cancel_source.dispose()
-	_hint_cancel_source = null
-
-	var current_snapshot_id: String = _calculate_current_snapshot_id()
-	if not result.can_display_for(current_snapshot_id):
-		if result.termination_reason == GameHintResultType.TERMINATION_INVALID_SNAPSHOT:
-			_show_hint_unavailable()
+	if task == null or task.status == GFBackgroundWorkTask.Status.FAILED:
+		_hint_cancel_token = null
+		_show_hint_unavailable()
 		return
+	_hint_work_task = task
+
+
+func _apply_hint_work(task: GFBackgroundWorkTask) -> bool:
+	if task == null or task != _hint_work_task:
+		return true
+	_hint_work_task = null
+	_hint_cancel_token = null
+	var payload: Dictionary = GFVariantData.as_dictionary(task.result)
+	task.result = null
+	var generation: int = GFVariantData.get_option_int(payload, &"generation")
+	var snapshot_id: String = GFVariantData.get_option_string(
+		payload,
+		&"snapshot_id"
+	)
+	if generation != _hint_generation or snapshot_id.is_empty():
+		return true
+	# 后台结果只在主线程重新计算当前快照摘要后应用，避免棋盘变化与迟到完成竞态。
+	if snapshot_id != _calculate_current_snapshot_id():
+		return true
+	var result: GameHintResultType = GameHintResultType.from_dict(
+		GFVariantData.get_option_dictionary(payload, &"result")
+	)
+	if result == null or not result.can_display_for(snapshot_id):
+		if (
+			result == null
+			or result.termination_reason
+			== GameHintResultType.TERMINATION_INVALID_SNAPSHOT
+		):
+			_show_hint_unavailable()
+		return true
 	_show_hint_result(result)
+	return true
 
 
 func _show_hint_result(result: GameHintResultType) -> void:
@@ -1272,14 +1446,21 @@ func _hide_hint_result() -> void:
 
 
 func _cancel_hint_query(reason: StringName) -> void:
-	if _hint_cancel_source == null:
-		return
-	var _cancelled: bool = _hint_cancel_source.cancel(
-		reason,
-		{&"operation": &"deterministic_game_hint"}
-	)
-	_hint_cancel_source.dispose()
-	_hint_cancel_source = null
+	_hint_generation += 1
+	var task: GFBackgroundWorkTask = _hint_work_task
+	_hint_work_task = null
+	if _hint_cancel_token != null:
+		var _token_cancelled: bool = DeterministicHintWorker.request_cancellation(
+			_hint_cancel_token,
+			reason
+		)
+		_hint_cancel_token = null
+	if (
+		task != null
+		and not task.is_finished()
+		and is_instance_valid(_background_work)
+	):
+		var _cancelled: bool = _background_work.cancel_work(task.work_id)
 
 
 func _calculate_current_snapshot_id() -> String:
@@ -1604,6 +1785,7 @@ func _play_delayed_score_change_feedback() -> void:
 # --- 信号处理函数 ---
 
 func _on_hud_update_requested(_p: Variant = null) -> void:
+	_cancel_hint_query(&"hud_state_changed")
 	_hide_hint_result()
 	_mark_dirty()
 
@@ -1627,6 +1809,7 @@ func _on_score_changed(old_value: int, new_value: int) -> void:
 	)
 
 func _on_move_count_changed(_old_value: int, _new_value: int) -> void:
+	_cancel_hint_query(&"move_count_changed")
 	_hide_hint_result()
 	_pulse_control(_move_count_value_label)
 	_mark_dirty()

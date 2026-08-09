@@ -1842,10 +1842,13 @@ func test_ui_style_utility_styles_option_button_popup_as_light_surface() -> void
 	await get_tree().process_frame
 
 
-func test_ui_style_utility_keeps_toggle_selection_distinct_and_readable() -> void:
+func test_ui_style_utility_keeps_state_controls_quiet_and_readable() -> void:
 	var check_button: CheckButton = CheckButton.new()
 	check_button.text = "同值倍增"
 	add_child_autoqfree(check_button)
+	var check_box: CheckBox = CheckBox.new()
+	check_box.text = "显示提示"
+	add_child_autoqfree(check_box)
 	await get_tree().process_frame
 
 	var architecture: GFArchitecture = GFArchitecture.new()
@@ -1856,22 +1859,41 @@ func test_ui_style_utility_keeps_toggle_selection_distinct_and_readable() -> voi
 	await architecture.register_utility(GameUiStyleUtility, style_utility)
 	await architecture.init()
 	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
-	style_utility.prepare_button(check_button)
-
-	var selected_style: StyleBoxFlat = _get_stylebox_flat(check_button, &"pressed")
-	var selected_hover_style: StyleBoxFlat = _get_stylebox_flat(check_button, &"hover_pressed")
-	assert_not_null(selected_style, "CheckButton 选中态应获得明确的持久表面。")
-	assert_not_null(selected_hover_style, "CheckButton 选中且 hover 时不应泄漏 Godot 默认样式。")
-	if selected_style != null:
-		assert_true(
-			selected_style.bg_color == _HALFTONE_UI_PALETTE.selected_surface_color,
-			"toggle 选中态应使用选中色，而不是瞬时按压色。"
+	for state_control: BaseButton in [check_button, check_box]:
+		style_utility.prepare_button(state_control)
+		var normal_style: StyleBoxFlat = _get_stylebox_flat(state_control, &"normal")
+		var selected_style: StyleBoxFlat = _get_stylebox_flat(state_control, &"pressed")
+		var selected_hover_style: StyleBoxFlat = _get_stylebox_flat(
+			state_control,
+			&"hover_pressed"
 		)
-	assert_true(
-		check_button.get_theme_color(&"font_hover_pressed_color")
-		== _HALFTONE_UI_PALETTE.button_font_color,
-		"CheckButton 选中且 hover 时文字必须保持可读。"
-	)
+		assert_not_null(normal_style, "状态控件默认态不得泄漏 Godot 默认表面。")
+		assert_not_null(selected_style, "状态控件选中态应获得低权重持久表面。")
+		assert_not_null(selected_hover_style, "状态控件选中 hover 态不得泄漏默认样式。")
+		if normal_style != null:
+			assert_true(
+				normal_style.bg_color == Color.TRANSPARENT,
+				"状态控件默认整行应保持透明，由轨道或勾选图标表达可交互性。"
+			)
+			assert_true(
+				normal_style.shadow_size == 0,
+				"CheckButton / CheckBox 默认态不得保留按钮硬投影。"
+			)
+		if selected_style != null:
+			assert_lte(
+				selected_style.bg_color.a,
+				0.16,
+				"状态控件选中态只能使用低权重局部表面。"
+			)
+			assert_true(
+				selected_style.shadow_size == 0,
+				"状态控件选中态不得模拟普通悬浮按钮。"
+			)
+		assert_true(
+			state_control.get_theme_color(&"font_hover_pressed_color")
+			== _HALFTONE_UI_PALETTE.button_font_color,
+			"状态控件选中且 hover 时文字必须保持可读。"
+		)
 	architecture.dispose()
 
 
@@ -2123,6 +2145,9 @@ func test_game_over_menu_contains_result_summary_labels() -> void:
 	var run_node: Node = panel.get_node_or_null(
 		"CenterContainer/VBoxContainer/RunSummaryLabel"
 	)
+	var details_node: Node = panel.get_node_or_null(
+		"CenterContainer/VBoxContainer/DetailsButton"
+	)
 	var summary_node: Node = panel.get_node_or_null("CenterContainer/VBoxContainer/SummaryLabel")
 	var identity_node: Node = panel.get_node_or_null(
 		"CenterContainer/VBoxContainer/IdentityLabel"
@@ -2135,6 +2160,7 @@ func test_game_over_menu_contains_result_summary_labels() -> void:
 	assert_true(record_node is Label, "游戏结束菜单应把新纪录反馈提升为独立层级。")
 	assert_true(context_node is Label, "游戏结束菜单应独立显示模式与棋盘上下文。")
 	assert_true(run_node is Label, "游戏结束菜单应把本局核心数据提升为独立层级。")
+	assert_true(details_node is Button, "历史、身份与排行信息应折叠到详情入口。")
 	assert_true(summary_node is Label, "游戏结束菜单应包含结算摘要 Label。")
 	assert_true(identity_node is Label, "游戏结束菜单应保留配置身份与本地排名信息。")
 	assert_true(surface_node is SurfaceVboxContainer, "结算内容必须由独立纸张表面承载。")
@@ -2153,6 +2179,7 @@ func test_game_over_menu_contains_result_summary_labels() -> void:
 			"结算摘要应允许自动换行，避免窄屏溢出。"
 		)
 	for button_name: StringName in [
+		&"DetailsButton",
 		&"RestartButton",
 		&"SettingsButton",
 		&"MainMenuButton",
@@ -2197,6 +2224,7 @@ func test_game_over_menu_summary_uses_safe_format_fallback() -> void:
 	assert_true(summary_node is Label, "游戏结束菜单应包含结算摘要 Label。")
 	if summary_node is Label:
 		var summary_label: Label = summary_node
+		assert_false(summary_label.visible, "结算首层只应显示本局结果，历史统计默认折叠。")
 		var run_node: Node = panel.get_node_or_null(
 			"CenterContainer/VBoxContainer/RunSummaryLabel"
 		)
@@ -2218,6 +2246,25 @@ func test_game_over_menu_summary_uses_safe_format_fallback() -> void:
 			summary_label.text.contains(tr("GAME_OVER_END_REASON_NO_MOVES")),
 			"缺少流程结束上下文时不得伪造结束原因。"
 		)
+		var details_node: Node = panel.get_node_or_null(
+			"CenterContainer/VBoxContainer/DetailsButton"
+		)
+		if details_node is Button:
+			var details_button: Button = details_node
+			details_button.pressed.emit()
+			await get_tree().process_frame
+			assert_true(summary_label.visible, "展开详情后应显示历史与结束原因。")
+			assert_true(
+				details_button.text == tr("GAME_OVER_DETAILS_COLLAPSE"),
+				"展开后详情入口必须明确提供收起动作。"
+			)
+			details_button.pressed.emit()
+			await get_tree().process_frame
+			assert_false(summary_label.visible, "再次触发详情入口应恢复紧凑首层。")
+			assert_true(
+				details_button.text == tr("GAME_OVER_DETAILS_EXPAND"),
+				"收起后详情入口必须恢复查看详情文案。"
+			)
 
 	var surface_node: Node = panel.get_node_or_null("CenterContainer/VBoxContainer")
 	var actions_node: Node = panel.get_node_or_null(

@@ -387,6 +387,14 @@ func _apply_current_layout() -> void:
 			_REPLAY_CONTROLS_HEIGHT + 28.0
 		)
 	_board_world_viewport_controller.set_fit_insets(board_fit_insets)
+	var fitted_board_rect: Rect2 = (
+		BoardWorldViewportController.calculate_fitted_content_screen_rect(
+			board_viewport_size,
+			board_fit_insets,
+			_board_world_viewport_controller.get_content_aspect_ratio()
+		)
+	)
+	_hud.set_feedback_avoid_rect(fitted_board_rect.grow(_LANDSCAPE_MOTION_GUARD))
 	_board_world_viewport_controller.set_compact_view_controls(
 		_current_layout_mode == LayoutMode.PORTRAIT
 	)

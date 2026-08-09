@@ -94,3 +94,51 @@ func to_dict() -> Dictionary:
 		&"factor_scores": factor_scores.duplicate(true),
 		&"direction_scores": direction_scores.duplicate(true),
 	}
+
+
+## 从后台工作线程返回的纯数据字典恢复结果。
+## @param data: to_dict() 生成的严格结果载荷。
+## @return 结构无效时返回 null。
+static func from_dict(data: Dictionary) -> GameHintResult:
+	if not (
+		data.size() == 9
+		and data.get(&"snapshot_id") is String
+		and data.get(&"suggested_direction") is Vector2i
+		and data.get(&"primary_factor") is StringName
+		and data.get(&"explanation") is String
+		and data.get(&"elapsed_msec") is int
+		and data.get(&"nodes_evaluated") is int
+		and data.get(&"termination_reason") is StringName
+		and data.get(&"factor_scores") is Dictionary
+		and data.get(&"direction_scores") is Dictionary
+	):
+		return null
+	var result: GameHintResult = GameHintResult.new()
+	result.snapshot_id = GFVariantData.get_option_string(data, &"snapshot_id")
+	result.suggested_direction = data[&"suggested_direction"]
+	result.primary_factor = GFVariantData.get_option_string_name(
+		data,
+		&"primary_factor"
+	)
+	result.explanation = GFVariantData.get_option_string(data, &"explanation")
+	result.elapsed_msec = maxi(
+		GFVariantData.get_option_int(data, &"elapsed_msec"),
+		0
+	)
+	result.nodes_evaluated = maxi(
+		GFVariantData.get_option_int(data, &"nodes_evaluated"),
+		0
+	)
+	result.termination_reason = GFVariantData.get_option_string_name(
+		data,
+		&"termination_reason"
+	)
+	result.factor_scores = GFVariantData.get_option_dictionary(
+		data,
+		&"factor_scores"
+	).duplicate(true)
+	result.direction_scores = GFVariantData.get_option_dictionary(
+		data,
+		&"direction_scores"
+	).duplicate(true)
+	return result

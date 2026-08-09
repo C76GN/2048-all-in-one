@@ -631,7 +631,7 @@ func _apply_recipe_button_style(button: CheckButton) -> void:
 	if is_instance_valid(style):
 		style.style_button(
 			button,
-			GameUiStyleUtility.ButtonRole.SECONDARY
+			GameUiStyleUtility.ButtonRole.QUIET
 		)
 	var pressed_color: Color = button.get_theme_color(
 		"font_pressed_color"
