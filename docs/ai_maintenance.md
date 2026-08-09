@@ -108,7 +108,7 @@ python addons/gf/tools/ai_developer/gf_ai_project.py snapshot --project-root .
 - `features/gameplay/scripts/systems/game_init_system.gd`
 - `features/gameplay/scripts/queries/get_hud_stats_query.gd`
 - `shared/assets/translations.csv`
-- `README.md` 的模式说明或新增模式流程
+- 对外稳定定位、最小运行入口或权威文档链接变化时才更新 `README.md`；模式实现流程归本 Feature 文档和 `docs/architecture.md`
 
 规则实现应保持资源化和可组合，不要让某个模式的特殊逻辑污染基础规则类。
 

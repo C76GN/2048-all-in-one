@@ -33,7 +33,7 @@ features/asset_library/resources/
 ```
 
 - `audio/`、`shaders/`、`textures/`、`vfx/` 是运行时区；正式素材必须登记到 manifest。
-- `source_packs/` 和 `review/` 是作者评审区，不进入玩家导出。
+- `source_packs/` 是工作站评审缓存，默认不进入 Git 或玩家导出；`review/` 只保存可移植身份、评审结论和源包元数据，也不进入玩家导出。
 - 候选素材只有在复制或转码到运行时区、登记稳定 key、补齐许可证并通过审计后才完成晋升。
 - 导入、试听或 `review_status=approved` 都不会自动改变玩家内容。
 - 空目录只表达分类方向，不应产生 manifest 占位条目。
@@ -62,6 +62,8 @@ features/asset_library/resources/
 - 项目内 `library_path`
 
 因此换工作站只需重建本地 override，不会制造共享配置或数百条评审记录的无意义差异。生成报告可以在本机显示执行路径，但必须留在 `build/`，不得提交或外发未脱敏版本。
+
+未知授权原始二进制不得依赖“导出排除”留在版本库中。它们只允许存在于本机作者路径和被 Git 忽略的 `source_packs/` 缓存；共享仓库保留 `source_pack_id + relative_path + SHA-256`、评审记录和授权门禁。干净克隆需要试听候选时，先配置 local override 并重新运行导入工具。
 
 ## 同源多格式音频
 

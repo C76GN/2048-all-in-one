@@ -197,7 +197,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 - typed save/load/flush 终态、generation 合并、有界 retry 与覆盖最新 generation 的 flush barrier。
 - section 立即事务的 typed success、全局 busy、已知失败反向回滚与补偿保存。
 - IO 超时后的 `STATUS_OUTCOME_UNKNOWN`、迟到成功/失败、按 generation 对账和 profile/path 所有权保留；补偿迟到失败后必须保留待保存 generation，立即 flush 不得复活候选。
-- 统计、书签、玩家棋盘、发现进度、成就和回放只生成一个玩家数据文件。
+- 统计、书签、玩家棋盘、发现进度、方块蓝图/试验台、成就和回放只生成一个玩家数据文件。
 - Binary 往返后严格类型与稳定 UUID 保留。
 - 后期 section 应用失败时早期 section 回滚。
 - 同源旧 Profile 先完整备份再以当前默认 section 重建，且运行时不双读旧业务字段。

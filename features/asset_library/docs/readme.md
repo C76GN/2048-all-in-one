@@ -5,7 +5,7 @@
 ## 目录职责
 
 - `resources/gf_content_package.json`：玩家运行时素材清单，只登记稳定的 `asset.*` 键。
-- `resources/source_packs/`：待评审素材副本，不进入玩家导出。
+- `resources/source_packs/`：本机待评审素材副本，不进入 Git 或玩家导出；仅项目自有的小型评审 fixture 与已确认可再分发的来源包可以显式跟踪。
 - `resources/review/`：评审记录、源包元数据与槽位映射，不进入玩家导出。
 - `resources/import_sources.json`：可提交的源包身份、授权元数据与格式分组；`source_path` 必须为空。
 - `resources/import_sources.local.json`：按 `source_pack_id` 提供本机作者素材路径，已被 Git 和导出排除。
@@ -29,7 +29,7 @@
 
 ## 标准流程
 
-1. 在本机 `resources/import_sources.local.json` 配置源包路径。
+1. 在本机 `resources/import_sources.local.json` 配置源包路径。未知授权原始二进制只能保留在这些工作站路径和被忽略的本机副本中，不能提交到 Git。
 2. 运行 `tools/import_asset_sources.ps1` 刷新候选副本和评审记录。
 3. 打开 `features/asset_library/scenes/asset_review_browser.tscn` 完成试听、标签、评分和状态评审。
 4. 必要时运行 `features/asset_library/tools/sync_audio_review_variants.gd`，只在显式同源编码组内同步无歧义的评审状态。

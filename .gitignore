@@ -48,6 +48,13 @@ user_data/
 ai_analysis/
 /features/asset_library/resources/import_sources.local.json
 
+# Workstation-only review sources. Shared review metadata remains under
+# resources/review; these raw packs are restored through import_sources.local.json.
+/features/asset_library/resources/source_packs/downloaded_shader_pack/
+/features/asset_library/resources/source_packs/four_hundred_sounds_pack/
+/features/asset_library/resources/source_packs/jdsherbert_ultimate_ui_sfx_free_mono/
+/features/asset_library/resources/source_packs/ultimate_toon_source/
+
 # VsCode
 .vscode/
 .env

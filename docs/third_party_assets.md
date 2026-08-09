@@ -58,8 +58,9 @@ This inventory distinguishes runtime-distributed assets from review-only source 
 
 ## Review-Only Source Packs
 
-These packs are copied into `features/asset_library/resources/source_packs/` for local review only. The release presets exclude both `source_packs/` and `review/`; none of these sources are distributed until license and usage are confirmed and an asset is promoted into the runtime manifest.
+Shared review metadata is kept under `features/asset_library/resources/review/`. Raw packs are restored from ignored workstation paths declared in `import_sources.local.json`; unknown-license binaries are neither tracked by Git nor included in player exports. The release presets also exclude `source_packs/` and `review/`. Promotion still requires a known license, attribution, a stable runtime key, and a successful audit.
 
+- `universal_ui_soundpack`: CC BY 4.0. The promoted runtime subset is listed above; the complete source pack may be materialized locally for review.
 - `jdsherbert_ultimate_ui_sfx_free_mono`: license unknown.
 - `downloaded_shader_pack`: license unknown.
 - `manual_effect_notes`: manually captured interaction and VFX recipes from project discussion; origin and license remain unknown until each candidate is traced to its source.
