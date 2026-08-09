@@ -51,6 +51,8 @@ var _latest_valid_bookmark: BookmarkData = null
 var _initial_scroll_restored: bool = false
 var _intro_in_progress: bool = false
 var _intro_completion_tween: Tween = null
+var _popup_route_open_pending: bool = false
+var _popup_route_button_disabled_states: Dictionary = {}
 
 
 # --- @onready 变量 (节点引用) ---
@@ -569,6 +571,62 @@ func _report_route_open_failure(result: GFUIRouteResult, route_id: StringName) -
 	])
 
 
+func _open_popup_route(
+	route_id: StringName,
+	origin_button: BaseButton,
+	panel_name: String
+) -> void:
+	if _popup_route_open_pending:
+		return
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
+	if not is_instance_valid(ui_router):
+		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开%s。" % panel_name)
+		return
+	if not _begin_popup_route_open():
+		return
+
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(self, route_id)
+	if not is_inside_tree():
+		_finish_popup_route_open(origin_button, false)
+		return
+	var opened: bool = result != null and result.is_successful()
+	_finish_popup_route_open(origin_button, opened)
+	_report_route_open_failure(result, route_id)
+
+
+func _begin_popup_route_open() -> bool:
+	if _popup_route_open_pending:
+		return false
+	_popup_route_open_pending = true
+	_popup_route_button_disabled_states.clear()
+	for button: BaseButton in _get_menu_button_sequence():
+		if not is_instance_valid(button):
+			continue
+		_popup_route_button_disabled_states[button] = button.disabled
+		button.disabled = true
+	return true
+
+
+func _finish_popup_route_open(origin_button: BaseButton, opened: bool) -> void:
+	if not _popup_route_open_pending:
+		return
+	_popup_route_open_pending = false
+	for button: BaseButton in _get_menu_button_sequence():
+		if not is_instance_valid(button):
+			continue
+		button.disabled = GFVariantData.to_bool(
+			_popup_route_button_disabled_states.get(button, false)
+		)
+	_popup_route_button_disabled_states.clear()
+	if (
+		not opened
+		and is_instance_valid(origin_button)
+		and origin_button.is_inside_tree()
+		and not origin_button.disabled
+	):
+		origin_button.grab_focus()
+
+
 # --- 信号处理函数 ---
 
 func _on_start_game_button_pressed() -> void:
@@ -590,51 +648,35 @@ func _on_replays_button_pressed() -> void:
 
 
 func _on_tile_catalog_button_pressed() -> void:
-	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
-	if not is_instance_valid(ui_router):
-		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开方块图鉴。")
-		return
-	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
-		self,
-		GameUiRouterUtility.ROUTE_TILE_CATALOG
+	await _open_popup_route(
+		GameUiRouterUtility.ROUTE_TILE_CATALOG,
+		_tile_catalog_button,
+		"方块图鉴"
 	)
-	_report_route_open_failure(result, GameUiRouterUtility.ROUTE_TILE_CATALOG)
 
 
 func _on_tile_lab_button_pressed() -> void:
-	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
-	if not is_instance_valid(ui_router):
-		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开方块试验台。")
-		return
-	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
-		self,
-		GameUiRouterUtility.ROUTE_TILE_LAB
+	await _open_popup_route(
+		GameUiRouterUtility.ROUTE_TILE_LAB,
+		_tile_lab_button,
+		"方块试验台"
 	)
-	_report_route_open_failure(result, GameUiRouterUtility.ROUTE_TILE_LAB)
 
 
 func _on_player_profile_button_pressed() -> void:
-	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
-	if not is_instance_valid(ui_router):
-		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开玩家档案。")
-		return
-	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
-		self,
-		GameUiRouterUtility.ROUTE_PLAYER_PROFILE
+	await _open_popup_route(
+		GameUiRouterUtility.ROUTE_PLAYER_PROFILE,
+		_player_profile_button,
+		"玩家档案"
 	)
-	_report_route_open_failure(result, GameUiRouterUtility.ROUTE_PLAYER_PROFILE)
 
 
 func _on_achievements_button_pressed() -> void:
-	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
-	if not is_instance_valid(ui_router):
-		push_error("[MainMenu] 缺少 GFUIRouterUtility，无法打开成就列表。")
-		return
-	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
-		self,
-		GameUiRouterUtility.ROUTE_ACHIEVEMENTS
+	await _open_popup_route(
+		GameUiRouterUtility.ROUTE_ACHIEVEMENTS,
+		_achievements_button,
+		"成就列表"
 	)
-	_report_route_open_failure(result, GameUiRouterUtility.ROUTE_ACHIEVEMENTS)
 
 
 func _on_settings_button_pressed() -> void:

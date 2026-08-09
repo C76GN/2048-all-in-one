@@ -227,6 +227,10 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 	) as BoxContainer
 	var catalog_area: VBoxContainer = content.get_node("CatalogArea") as VBoxContainer
 	assert_true(grid.get_child_count() == EXPECTED_DEFINITION_IDS.size(), "图鉴应呈现目录中的全部基础组合。")
+	assert_true(
+		panel._catalog_view.get_visible_row_count() == EXPECTED_DEFINITION_IDS.size(),
+		"图鉴可见投影应由 GFTableDataView 持有。"
+	)
 	for card_node: Node in grid.get_children():
 		assert_true(
 			card_node is Control
@@ -253,6 +257,10 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 		panel._rebuild_catalog()
 		await get_tree().process_frame
 		assert_true(
+			panel._catalog_view.get_visible_row_count() == 1,
+			"搜索文本应事务式提交到 GF table 可见投影。"
+		)
+		assert_true(
 			grid.get_child_count() == EXPECTED_DEFINITION_IDS.size(),
 			"筛选图鉴时应复用稳定卡片缓存，不得销毁整张网格。"
 		)
@@ -262,6 +270,10 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 		assert_true(
 			panel._selected_composition_key == first_key,
 			"键盘或手柄焦点进入卡片时必须同步详情选择。"
+		)
+		assert_true(
+			panel._catalog_selection.is_selected(first_key),
+			"图鉴选择应由稳定 composition_key 驱动的 GF selection model 保持。"
 		)
 		panel._search_input.text = ""
 		panel._rebuild_catalog()

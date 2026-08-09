@@ -29,6 +29,10 @@ var _progress_snapshot_account_id: String = ""
 var _progress_snapshot_status_generation: int = -1
 var _mode_rows_by_id: Dictionary = {}
 var _leaderboard_rows_by_account_id: Dictionary = {}
+var _mode_table_view: GFTableDataView = GFTableDataView.new()
+var _mode_selection_model: GFTableSelectionModel = GFTableSelectionModel.new()
+var _leaderboard_table_view: GFTableDataView = GFTableDataView.new()
+var _leaderboard_selection_model: GFTableSelectionModel = GFTableSelectionModel.new()
 
 
 # --- @onready 变量 ---
@@ -59,6 +63,7 @@ var _leaderboard_rows_by_account_id: Dictionary = {}
 
 func _ready() -> void:
 	_resolve_dependencies()
+	_configure_profile_table_projections()
 	_bind_signals()
 	_apply_semantic_styles()
 	_update_static_text()
@@ -74,6 +79,80 @@ func _exit_tree() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _configure_profile_table_projections() -> void:
+	_configure_business_projection(
+		_mode_table_view,
+		_mode_selection_model,
+		&"mode_id",
+		"模式统计"
+	)
+	_configure_business_projection(
+		_leaderboard_table_view,
+		_leaderboard_selection_model,
+		&"account_id",
+		"本地排行榜"
+	)
+
+
+func _configure_business_projection(
+	table_view: GFTableDataView,
+	selection_model: GFTableSelectionModel,
+	row_id_column: StringName,
+	projection_label: String
+) -> void:
+	var order_column: GFTableColumnDefinition = (
+		GFTableColumnDefinition.new().configure(&"business_order")
+	)
+	order_column.visible = false
+	order_column.filterable = false
+	order_column.sort_mode = GFTableColumnDefinition.SortMode.NUMBER
+	var columns_result: GFTableViewRebuildResult = table_view.set_columns([
+		order_column,
+	])
+	if not columns_result.is_successful():
+		push_error("[PlayerProfileDialog] %s table 列配置失败。" % projection_label)
+		return
+	var row_id_result: GFTableViewRebuildResult = (
+		table_view.set_row_id_column(row_id_column)
+	)
+	if not row_id_result.is_successful():
+		push_error("[PlayerProfileDialog] %s稳定行 ID 配置失败。" % projection_label)
+		return
+	var selection_result: GFTableViewRebuildResult = (
+		table_view.set_selection_model(selection_model)
+	)
+	if not selection_result.is_successful():
+		push_error("[PlayerProfileDialog] %s selection 配置失败。" % projection_label)
+		return
+	if not table_view.sort_by_column(&"business_order", true):
+		push_error("[PlayerProfileDialog] %s业务顺序配置失败。" % projection_label)
+
+
+func _project_business_rows(
+	table_view: GFTableDataView,
+	rows: Array[Dictionary],
+	row_id_column: StringName,
+	projection_label: String
+) -> Array[Dictionary]:
+	var source_rows: Array = []
+	for business_order: int in range(rows.size()):
+		var row_data: Dictionary = rows[business_order]
+		if GFVariantData.get_option_string(row_data, row_id_column).is_empty():
+			continue
+		var projected_row: Dictionary = row_data.duplicate()
+		projected_row[&"business_order"] = business_order
+		source_rows.append(projected_row)
+	var rows_result: GFTableViewRebuildResult = table_view.set_rows(source_rows)
+	if not rows_result.is_successful():
+		push_error("[PlayerProfileDialog] %s数据投影失败。" % projection_label)
+	var visible_rows: Array[Dictionary] = []
+	for visible_index: int in range(table_view.get_visible_row_count()):
+		var visible_value: Variant = table_view.get_visible_row(visible_index)
+		if visible_value is Dictionary:
+			var visible_row: Dictionary = visible_value
+			visible_rows.append(visible_row)
+	return visible_rows
 
 func _resolve_dependencies() -> void:
 	var account_value: Object = get_system(LocalAccountSystem)
@@ -358,10 +437,16 @@ func _make_mode_summary_row(summary: Dictionary) -> Control:
 func _sync_mode_summary_rows(
 	summaries: Array[Dictionary]
 ) -> Array[Control]:
+	var projected_summaries: Array[Dictionary] = _project_business_rows(
+		_mode_table_view,
+		summaries,
+		&"mode_id",
+		"模式统计"
+	)
 	var desired_ids: Dictionary = {}
 	var created_rows: Array[Control] = []
 	var row_index: int = 0
-	for summary: Dictionary in summaries:
+	for summary: Dictionary in projected_summaries:
 		var mode_id: String = GFVariantData.get_option_string(summary, &"mode_id")
 		if mode_id.is_empty():
 			continue
@@ -583,10 +668,16 @@ func _make_leaderboard_row(row: Dictionary) -> Control:
 
 
 func _sync_leaderboard_rows(rows: Array[Dictionary]) -> Array[Control]:
+	var projected_rows: Array[Dictionary] = _project_business_rows(
+		_leaderboard_table_view,
+		rows,
+		&"account_id",
+		"本地排行榜"
+	)
 	var desired_ids: Dictionary = {}
 	var created_rows: Array[Control] = []
 	var row_index: int = 0
-	for row_data: Dictionary in rows:
+	for row_data: Dictionary in projected_rows:
 		var account_id: String = GFVariantData.get_option_string(
 			row_data,
 			&"account_id"
@@ -1004,10 +1095,12 @@ func _clear_row_cache(cache: Dictionary) -> void:
 
 
 func _clear_mode_rows() -> void:
+	var _clear_result: GFTableViewRebuildResult = _mode_table_view.set_rows([])
 	_clear_row_cache(_mode_rows_by_id)
 
 
 func _clear_leaderboard_rows() -> void:
+	var _clear_result: GFTableViewRebuildResult = _leaderboard_table_view.set_rows([])
 	_clear_row_cache(_leaderboard_rows_by_account_id)
 
 

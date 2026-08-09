@@ -398,6 +398,28 @@ func test_tile_lab_ui_has_touch_targets_confirmation_and_initial_focus() -> void
 		focus_owner == dialog.find_child("BlueprintOption", true, false),
 		"打开试验台时必须给键盘/手柄一个确定的初始焦点。"
 	)
+	assert_true(
+		dialog._form_binder.get_bound_fields().has(
+			dialog._FIELD_DISPLAY_NAME
+		),
+		"试验台基础文本字段必须由 GFFormBinder 统一绑定。"
+	)
+	dialog._loading_ui = true
+	dialog._base_definition_option.clear()
+	dialog._base_definition_option.add_item("测试基底")
+	dialog._base_definition_option.set_item_metadata(0, &"tile.test.base")
+	dialog._form_binder.write_values({
+		dialog._FIELD_DISPLAY_NAME: "Binder 蓝图",
+		dialog._FIELD_BASE_DEFINITION_INDEX: 0,
+		dialog._FIELD_PREVIEW_LEFT_VALUE: 8.0,
+		dialog._FIELD_PREVIEW_RIGHT_VALUE: 13.0,
+	})
+	dialog._loading_ui = false
+	var bound_blueprint: CustomTileBlueprintData = dialog._make_edited_blueprint()
+	assert_true(bound_blueprint.display_name == "Binder 蓝图")
+	assert_true(bound_blueprint.base_definition_id == &"tile.test.base")
+	assert_true(bound_blueprint.preview_left_value == 8)
+	assert_true(bound_blueprint.preview_right_value == 13)
 	var operation_token: int = dialog._begin_persistence_operation(
 		&"save",
 		"blueprint-under-test"

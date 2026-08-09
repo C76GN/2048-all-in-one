@@ -58,6 +58,70 @@ func test_continuation_clamps_to_previous_item_at_end_of_list() -> void:
 	assert_true(selected_index == 1, "评审列表末项后应回退到仍存在的上一项。")
 
 
+func test_review_projection_uses_gf_sort_filter_and_stable_selection() -> void:
+	var browser: AssetReviewBrowser = AssetReviewBrowser.new()
+	autofree(browser)
+	browser._configure_review_table_projection()
+	var rows_result: GFTableViewRebuildResult = (
+		browser._review_table_view.set_rows([
+			{
+				&"asset_id": "asset.last",
+				&"status": "approved",
+				&"business_order": 2,
+			},
+			{
+				&"asset_id": "asset.first",
+				&"status": "inbox",
+				&"business_order": 0,
+			},
+			{
+				&"asset_id": "asset.current",
+				&"status": "candidate",
+				&"business_order": 1,
+			},
+		])
+	)
+	assert_true(rows_result.is_successful())
+	assert_true(
+		browser._review_selection_model.select_single("asset.current")
+	)
+	assert_true(
+		browser._apply_review_table_filters(
+			PackedStringArray([
+				"asset.first",
+				"asset.current",
+				"asset.last",
+			]),
+			"candidate"
+		)
+	)
+	assert_true(
+		browser._review_table_view.get_visible_row_ids()
+		== ["asset.current"],
+		"状态过滤必须由 GFTableDataView 命名谓词生成可见投影。"
+	)
+	assert_true(
+		browser._review_selection_model.get_selected_ids()
+		== ["asset.current"],
+		"过滤期间 GFTableSelectionModel 必须保留仍存在源行的稳定选中。"
+	)
+	assert_true(
+		browser._apply_review_table_filters(
+			PackedStringArray([
+				"asset.first",
+				"asset.current",
+				"asset.last",
+			]),
+			"all"
+		)
+	)
+	assert_true(
+		browser._review_table_view.get_visible_row_ids()
+		== ["asset.first", "asset.current", "asset.last"],
+		"素材目录定义的业务顺序必须交给 GFTableDataView 稳定排序。"
+	)
+
+
 func test_review_shortcuts_map_to_fast_actions() -> void:
 	assert_true(
 		AssetReviewBrowser.get_review_shortcut_command(_make_key_event(KEY_1))

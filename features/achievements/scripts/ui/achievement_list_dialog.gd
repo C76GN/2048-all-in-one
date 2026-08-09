@@ -17,6 +17,8 @@ var _viewport_utility: GFViewportUtility = null
 var _layout_update_queued: bool = false
 var _has_revealed_achievement_list: bool = false
 var _cards_by_id: Dictionary = {}
+var _achievement_view: GFTableDataView = GFTableDataView.new()
+var _state_predicate: _AchievementStatePredicate = _AchievementStatePredicate.new()
 
 
 # --- @onready 变量 (节点引用) ---
@@ -38,6 +40,7 @@ var _cards_by_id: Dictionary = {}
 
 func _ready() -> void:
 	_resolve_dependencies()
+	_configure_achievement_projection()
 	_bind_runtime_signals()
 	_apply_semantic_styles()
 	_update_ui_text()
@@ -141,6 +144,43 @@ func _setup_state_filter() -> void:
 	_state_filter.select(clampi(selected_index, 0, _state_filter.item_count - 1))
 
 
+func _configure_achievement_projection() -> void:
+	var completed_column: GFTableColumnDefinition = (
+		GFTableColumnDefinition.new().configure(&"completed")
+	)
+	completed_column.visible = false
+	completed_column.sortable = false
+	completed_column.filterable = false
+	var search_column: GFTableColumnDefinition = (
+		GFTableColumnDefinition.new().configure(&"search_text")
+	)
+	# GFTableDataView 的全文过滤只遍历 visible 且 filterable 的列。
+	# 此处的 visible 是数据视图语义；项目 Card 渲染不会显示这列。
+	search_column.visible = true
+	search_column.sortable = false
+	var columns_result: GFTableViewRebuildResult = _achievement_view.set_columns([
+		completed_column,
+		search_column,
+	])
+	var row_id_result: GFTableViewRebuildResult = (
+		_achievement_view.set_row_id_column(&"achievement_id")
+	)
+	var predicate_result: GFTableViewRebuildResult = (
+		_achievement_view.set_row_predicates([
+			GFTableRowPredicateRegistration.create(
+				&"achievement_state",
+				_state_predicate
+			),
+		])
+	)
+	if not (
+		columns_result.is_successful()
+		and row_id_result.is_successful()
+		and predicate_result.is_successful()
+	):
+		push_error("[AchievementListDialog] GF table 成就投影配置失败。")
+
+
 func _rebuild_list() -> void:
 	if not is_instance_valid(_achievement_system):
 		_clear_cached_cards()
@@ -149,7 +189,31 @@ func _rebuild_list() -> void:
 		return
 
 	var entries: Array[Dictionary] = _achievement_system.get_entries()
-	var visible_count: int = 0
+	_state_predicate.filter_index = _state_filter.selected
+	var filter_result: GFTableViewRebuildResult = _achievement_view.set_filter_query(
+		_search_input.text.strip_edges()
+	)
+	var rows: Array = []
+	for entry: Dictionary in entries:
+		var achievement_id: StringName = GFVariantData.get_option_string_name(
+			entry,
+			&"achievement_id"
+		)
+		if achievement_id == &"":
+			continue
+		rows.append({
+			&"achievement_id": achievement_id,
+			&"completed": GFVariantData.get_option_bool(entry, &"completed"),
+			&"search_text": _make_achievement_search_text(entry),
+			&"entry": entry,
+		})
+	var rows_result: GFTableViewRebuildResult = _achievement_view.set_rows(rows)
+	if not filter_result.is_successful() or not rows_result.is_successful():
+		push_error("[AchievementListDialog] GF table 成就过滤事务失败。")
+		return
+	var visible_ids: Dictionary = {}
+	for visible_index: int in range(_achievement_view.get_visible_row_count()):
+		visible_ids[_achievement_view.get_visible_row_id(visible_index)] = true
 	var desired_ids: Dictionary = {}
 	var created_cards: Array[Control] = []
 	var ordered_index: int = 0
@@ -170,10 +234,9 @@ func _rebuild_list() -> void:
 		_list.move_child(card, mini(ordered_index, _list.get_child_count() - 1))
 		ordered_index += 1
 		card.configure(entry)
-		card.visible = _matches_filters(entry)
-		if card.visible:
-			visible_count += 1
+		card.visible = visible_ids.has(achievement_id)
 	_remove_stale_cards(desired_ids)
+	var visible_count: int = _achievement_view.get_visible_row_count()
 	_empty_label.visible = visible_count == 0
 	var summary: Dictionary = _achievement_system.get_summary()
 	_summary_label.text = tr("ACHIEVEMENTS_PROGRESS") % [
@@ -242,28 +305,17 @@ func _clear_cached_cards() -> void:
 	_cards_by_id.clear()
 
 
-func _matches_filters(entry: Dictionary) -> bool:
+func _make_achievement_search_text(entry: Dictionary) -> String:
 	var completed: bool = GFVariantData.get_option_bool(entry, &"completed")
-	match _state_filter.selected:
-		1:
-			if not completed:
-				return false
-		2:
-			if completed:
-				return false
-	var query: String = _search_input.text.strip_edges().to_lower()
-	if query.is_empty():
-		return true
 	if (
 		GFVariantData.get_option_bool(entry, &"hidden_until_unlocked")
 		and not completed
 	):
-		return false
-	var searchable: String = "%s %s" % [
+		return ""
+	return "%s %s" % [
 		tr(GFVariantData.get_option_string_name(entry, &"title_key")),
 		tr(GFVariantData.get_option_string_name(entry, &"description_key")),
 	]
-	return searchable.to_lower().contains(query)
 
 
 func _queue_layout_update() -> void:
@@ -315,3 +367,20 @@ func _on_achievement_progress_changed(
 	_target_value: int
 ) -> void:
 	_rebuild_list()
+
+
+# --- 内部类 ---
+
+class _AchievementStatePredicate extends GFTableRowPredicate:
+	var filter_index: int = 0
+
+
+	func _evaluate(row_view: GFTableRowView) -> GFTableRowPredicateResult:
+		var completed: bool = GFVariantData.to_bool(
+			row_view.get_value(&"completed", false)
+		)
+		if filter_index == 1 and not completed:
+			return GFTableRowPredicateResult.excluded()
+		if filter_index == 2 and completed:
+			return GFTableRowPredicateResult.excluded()
+		return GFTableRowPredicateResult.included()

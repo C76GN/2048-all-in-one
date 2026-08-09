@@ -14,6 +14,10 @@ const _MINIMUM_TOUCH_TARGET_SIZE: float = 44.0
 const _DESKTOP_RECIPE_LIST_MINIMUM_HEIGHT: float = 112.0
 const _DESKTOP_RECIPE_LIST_MAXIMUM_HEIGHT: float = 180.0
 const _DESKTOP_RECIPE_LIST_HEIGHT_BUDGET: float = 608.0
+const _FIELD_DISPLAY_NAME: StringName = &"display_name"
+const _FIELD_BASE_DEFINITION_INDEX: StringName = &"base_definition_index"
+const _FIELD_PREVIEW_LEFT_VALUE: StringName = &"preview_left_value"
+const _FIELD_PREVIEW_RIGHT_VALUE: StringName = &"preview_right_value"
 
 
 # --- 私有变量 ---
@@ -38,6 +42,7 @@ var _pending_persistence_action: StringName = &""
 var _pending_persistence_resource_id: String = ""
 var _pending_persistence_resource: Resource = null
 var _persistence_reconciliation_prompted: bool = false
+var _form_binder: GFFormBinder = GFFormBinder.new()
 
 
 # --- @onready 变量 (节点引用) ---
@@ -86,6 +91,7 @@ var _persistence_reconciliation_prompted: bool = false
 
 func _ready() -> void:
 	_resolve_dependencies()
+	_setup_form_binder()
 	_bind_local_signals()
 	_bind_runtime_signals()
 	_apply_semantic_styles()
@@ -100,6 +106,7 @@ func _exit_tree() -> void:
 	_persistence_operation_busy = false
 	_persistence_outcome_unknown = false
 	_clear_persistence_tracking()
+	_form_binder.clear()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 
@@ -174,13 +181,26 @@ func _resolve_dependencies() -> void:
 		_viewport_utility = viewport_value
 
 
+func _setup_form_binder() -> void:
+	_form_binder.bind_field(_FIELD_DISPLAY_NAME, _name_input, "")
+	_form_binder.bind_field(
+		_FIELD_BASE_DEFINITION_INDEX,
+		_base_definition_option,
+		-1
+	)
+	_form_binder.bind_field(_FIELD_PREVIEW_LEFT_VALUE, _left_value_spin, 2.0)
+	_form_binder.bind_field(_FIELD_PREVIEW_RIGHT_VALUE, _right_value_spin, 2.0)
+	var connect_result: int = _form_binder.field_changed.connect(
+		_on_form_field_changed
+	)
+	if connect_result != OK:
+		push_error("[TileLabDialog] GFFormBinder field_changed 连接失败。")
+
+
 func _bind_local_signals() -> void:
 	var _back_connection: int = _back_button.pressed.connect(_close_dialog)
 	var _blueprint_connection: int = _blueprint_option.item_selected.connect(
 		_on_blueprint_selected
-	)
-	var _name_connection: int = _name_input.text_changed.connect(
-		_on_edit_value_changed
 	)
 	var _new_connection: int = _new_button.pressed.connect(
 		_configure_new_blueprint
@@ -190,15 +210,6 @@ func _bind_local_signals() -> void:
 	)
 	var _delete_connection: int = _delete_button.pressed.connect(
 		_on_delete_pressed
-	)
-	var _base_connection: int = _base_definition_option.item_selected.connect(
-		_on_base_definition_selected
-	)
-	var _left_connection: int = _left_value_spin.value_changed.connect(
-		_on_preview_value_changed
-	)
-	var _right_connection: int = _right_value_spin.value_changed.connect(
-		_on_preview_value_changed
 	)
 	var _run_connection: int = _run_simulation_button.pressed.connect(
 		_on_run_simulation_pressed
@@ -655,17 +666,20 @@ func _configure_new_blueprint() -> void:
 	_current_blueprint_id = ""
 	if _blueprint_option.item_count > 0:
 		_blueprint_option.select(0)
-	_name_input.text = ""
-	if _base_definition_option.item_count > 0:
-		_base_definition_option.select(0)
+	_form_binder.write_values({
+		_FIELD_DISPLAY_NAME: "",
+		_FIELD_BASE_DEFINITION_INDEX: (
+			0 if _base_definition_option.item_count > 0 else -1
+		),
+		_FIELD_PREVIEW_LEFT_VALUE: 2.0,
+		_FIELD_PREVIEW_RIGHT_VALUE: 2.0,
+	})
 	var base_definition_id: StringName = _get_selected_base_definition_id()
 	_selected_recipe_ids.clear()
 	if is_instance_valid(_tile_lab):
 		_selected_recipe_ids = _tile_lab.get_initial_recipe_ids(
 			base_definition_id
 		)
-	_left_value_spin.value = 2.0
-	_right_value_spin.value = 2.0
 	_loading_ui = false
 	_result_label.text = _localized_text(
 		"TILE_LAB_RESULT_WAITING",
@@ -683,13 +697,15 @@ func _apply_blueprint(blueprint: CustomTileBlueprintData) -> void:
 		return
 	_loading_ui = true
 	_current_blueprint_id = blueprint.blueprint_id
-	_name_input.text = blueprint.display_name
-	var _selected_base: bool = _select_base_definition_option(
-		blueprint.base_definition_id
-	)
+	_form_binder.write_values({
+		_FIELD_DISPLAY_NAME: blueprint.display_name,
+		_FIELD_BASE_DEFINITION_INDEX: _get_base_definition_option_index(
+			blueprint.base_definition_id
+		),
+		_FIELD_PREVIEW_LEFT_VALUE: float(blueprint.preview_left_value),
+		_FIELD_PREVIEW_RIGHT_VALUE: float(blueprint.preview_right_value),
+	})
 	_selected_recipe_ids = blueprint.recipe_ids.duplicate()
-	_left_value_spin.value = float(blueprint.preview_left_value)
-	_right_value_spin.value = float(blueprint.preview_right_value)
 	_loading_ui = false
 	_delete_button.disabled = (
 		_persistence_operation_busy
@@ -705,13 +721,25 @@ func _apply_blueprint(blueprint: CustomTileBlueprintData) -> void:
 
 
 func _make_edited_blueprint() -> CustomTileBlueprintData:
+	var field_values: Dictionary = _form_binder.read_values()
 	var blueprint: CustomTileBlueprintData = CustomTileBlueprintData.new()
 	blueprint.blueprint_id = _current_blueprint_id
-	blueprint.display_name = _name_input.text
+	blueprint.display_name = GFVariantData.get_option_string(
+		field_values,
+		_FIELD_DISPLAY_NAME
+	)
 	blueprint.base_definition_id = _get_selected_base_definition_id()
 	blueprint.recipe_ids = _selected_recipe_ids.duplicate()
-	blueprint.preview_left_value = int(_left_value_spin.value)
-	blueprint.preview_right_value = int(_right_value_spin.value)
+	blueprint.preview_left_value = GFVariantData.get_option_int(
+		field_values,
+		_FIELD_PREVIEW_LEFT_VALUE,
+		2
+	)
+	blueprint.preview_right_value = GFVariantData.get_option_int(
+		field_values,
+		_FIELD_PREVIEW_RIGHT_VALUE,
+		2
+	)
 	if not _current_blueprint_id.is_empty():
 		var existing: CustomTileBlueprintData = _find_blueprint(
 			_current_blueprint_id
@@ -756,7 +784,9 @@ func _update_selection_validation() -> void:
 	)
 	_save_button.disabled = (
 		not selection_valid
-		or _name_input.text.strip_edges().is_empty()
+		or GFVariantData.to_text(
+			_form_binder.get_field_value(_FIELD_DISPLAY_NAME, "")
+		).strip_edges().is_empty()
 		or at_capacity
 		or _persistence_operation_busy
 		or _persistence_outcome_unknown
@@ -804,33 +834,34 @@ func _select_blueprint_option(blueprint_id: String) -> bool:
 	return false
 
 
-func _select_base_definition_option(
-	definition_id: StringName
-) -> bool:
+func _get_base_definition_option_index(definition_id: StringName) -> int:
 	for index: int in range(_base_definition_option.item_count):
-		if GFVariantData.to_string_name(
-			GFItemListBinder.get_item_metadata(
-				_base_definition_option,
-				index,
-				&""
-			)
-		) == definition_id:
-			_base_definition_option.select(index)
-			return true
-	return false
+		if _get_base_definition_id_at_index(index) == definition_id:
+			return index
+	return -1
 
 
-func _get_selected_base_definition_id() -> StringName:
+func _get_base_definition_id_at_index(index: int) -> StringName:
 	if (
 		not is_instance_valid(_base_definition_option)
-		or _base_definition_option.selected < 0
+		or index < 0
+		or index >= _base_definition_option.item_count
 	):
 		return &""
 	return GFVariantData.to_string_name(
 		GFItemListBinder.get_item_metadata(
 			_base_definition_option,
-			_base_definition_option.selected,
+			index,
 			&""
+		)
+	)
+
+
+func _get_selected_base_definition_id() -> StringName:
+	return _get_base_definition_id_at_index(
+		GFVariantData.to_int(
+			_form_binder.get_field_value(_FIELD_BASE_DEFINITION_INDEX, -1),
+			-1
 		)
 	)
 
@@ -1129,20 +1160,26 @@ func _on_blueprint_selected(index: int) -> void:
 		_apply_blueprint(blueprint)
 
 
-func _on_base_definition_selected(_index: int) -> void:
+func _on_form_field_changed(key: StringName, _value: Variant) -> void:
 	if (
 		_loading_ui
 		or _persistence_operation_busy
 		or _persistence_outcome_unknown
 	):
 		return
-	_selected_recipe_ids.clear()
-	if is_instance_valid(_tile_lab):
-		_selected_recipe_ids = _tile_lab.get_initial_recipe_ids(
-			_get_selected_base_definition_id()
-		)
-	_rebuild_recipe_buttons()
-	_update_selection_validation()
+	match key:
+		_FIELD_BASE_DEFINITION_INDEX:
+			_selected_recipe_ids.clear()
+			if is_instance_valid(_tile_lab):
+				_selected_recipe_ids = _tile_lab.get_initial_recipe_ids(
+					_get_selected_base_definition_id()
+				)
+			_rebuild_recipe_buttons()
+			_update_selection_validation()
+		_FIELD_DISPLAY_NAME:
+			_update_selection_validation()
+		_FIELD_PREVIEW_LEFT_VALUE, _FIELD_PREVIEW_RIGHT_VALUE:
+			_status_label.text = ""
 
 
 func _on_recipe_toggled(
@@ -1162,20 +1199,6 @@ func _on_recipe_toggled(
 	_rebuild_recipe_buttons()
 	_update_selection_validation()
 	call_deferred(&"_focus_recipe_button", recipe_id)
-
-
-func _on_edit_value_changed(_value: String) -> void:
-	if (
-		not _loading_ui
-		and not _persistence_operation_busy
-		and not _persistence_outcome_unknown
-	):
-		_update_selection_validation()
-
-
-func _on_preview_value_changed(_value: float) -> void:
-	if not _loading_ui:
-		_status_label.text = ""
 
 
 func _on_save_pressed() -> void:
@@ -1309,11 +1332,19 @@ func _on_run_simulation_pressed() -> void:
 		)
 		_reveal_simulation_result()
 		return
+	var left_value: int = GFVariantData.to_int(
+		_form_binder.get_field_value(_FIELD_PREVIEW_LEFT_VALUE, 2.0),
+		2
+	)
+	var right_value: int = GFVariantData.to_int(
+		_form_binder.get_field_value(_FIELD_PREVIEW_RIGHT_VALUE, 2.0),
+		2
+	)
 	var result: TileLabSimulationResult = _tile_lab.simulate_composition(
 		_get_selected_base_definition_id(),
 		_selected_recipe_ids,
-		int(_left_value_spin.value),
-		int(_right_value_spin.value)
+		left_value,
+		right_value
 	)
 	if result == null or not result.is_valid_result():
 		_result_label.text = _localized_format(
@@ -1333,8 +1364,8 @@ func _on_run_simulation_pressed() -> void:
 			"TILE_LAB_RESULT_NO_INTERACTION",
 			"数值 %d 与 %d 没有产生交互。",
 			[
-				int(_left_value_spin.value),
-				int(_right_value_spin.value),
+				left_value,
+				right_value,
 			]
 		)
 		_reveal_simulation_result()

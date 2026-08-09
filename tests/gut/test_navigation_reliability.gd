@@ -419,7 +419,7 @@ func test_empty_history_lists_focus_back_button() -> void:
 	architecture.dispose()
 
 
-func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
+func test_replay_list_virtual_list_binder_bounds_focus_repairs_and_disposes() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	await architecture.init()
 	var context: TestArchitectureContext = TestArchitectureContext.new()
@@ -439,6 +439,15 @@ func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
+	assert_true(
+		replay_list.items_container.get_parent() == replay_list._list_scroll,
+		"GFVirtualListBinder 的 content root 必须是 ScrollContainer 的直接子节点。"
+	)
+	assert_false(
+		replay_list.items_container is Container,
+		"回放 content root 必须是 Binder 可写绝对位置的普通 Control。"
+	)
+
 	var replay_data_list: Array[Resource] = []
 	for item_index: int in range(ReplayCatalogSaveData.MAX_REPLAY_COUNT):
 		var replay: ReplayData = ReplayData.new()
@@ -452,147 +461,94 @@ func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
 		replay_list._get_repeater_template()
 	)
 	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
 
+	var binder: GFVirtualListBinder = replay_list._virtual_list_binder
+	assert_true(
+		is_instance_valid(binder) and binder.is_bound(),
+		"长回放列表必须由 owner-bound GFVirtualListBinder 持有。"
+	)
 	assert_true(
 		replay_list._virtual_list_model.get_item_count()
 		== ReplayCatalogSaveData.MAX_REPLAY_COUNT,
-		"GFVirtualListModel 必须拥有完整回放数据计数。"
+		"GFVirtualListModel 必须拥有完整的 128 项回放目录计数。"
 	)
 	assert_true(
 		replay_list._virtual_focus_model.focused_index == 0,
-		"长回放列表初次打开必须把逻辑焦点投影到第一项。"
+		"长回放列表初次打开必须把虚拟焦点设为第一项。"
 	)
-	var initial_items: Array[Control] = replay_list._get_list_item_controls()
-	var viewport_capacity: int = ceili(
-		replay_list._list_scroll.size.y
-		/ replay_list._virtual_item_extent
-	)
-	var materialized_limit: int = (
-		viewport_capacity
-		+ BaseListMenu._VIRTUAL_LIST_OVERSCAN_ITEMS * 2
-		+ 1
-	)
-	assert_gt(initial_items.size(), 0, "虚拟回放列表必须物化首屏记录。")
-	assert_lte(
-		initial_items.size(),
-		materialized_limit,
-		"回放节点数量必须由视口和 overscan 决定，不得随 128 条数据线性增长。"
-	)
-	assert_true(initial_items[0].has_focus(), "首个物化回放项必须获得真实 UI 焦点。")
-	for item_control: Control in initial_items:
-		var measured_index: int = replay_list._get_virtual_item_index(
-			item_control
-		)
-		assert_true(
-			replay_list._virtual_list_model.is_item_measured(measured_index),
-			"物化后的回放项必须把真实行高写回 GFVirtualListModel。"
-		)
-
-	var target_scroll_index: int = 96
-	replay_list._list_scroll.scroll_vertical = roundi(
-		replay_list._virtual_list_model.get_item_offset(target_scroll_index)
-	)
-	replay_list._on_virtual_scroll_changed(
-		float(replay_list._list_scroll.scroll_vertical)
-	)
-	await get_tree().process_frame
-	await get_tree().process_frame
-
-	var scrolled_items: Array[Control] = replay_list._get_list_item_controls()
-	assert_lte(
-		scrolled_items.size(),
-		materialized_limit,
-		"滚动后物化回放节点仍必须保持有界。"
-	)
-	var first_scrolled_index: int = replay_list._get_virtual_item_index(
-		scrolled_items[0]
-	)
-	assert_gt(
-		first_scrolled_index,
-		0,
-		"滚动到后段时可见窗口必须离开首条数据。"
-	)
-	var scroll_before_height_change: int = replay_list._list_scroll.scroll_vertical
-	var anchor_item: Control = null
-	var anchor_index: int = GFVirtualListFocusModel.NO_FOCUS
-	var anchor_previous_extent: float = 0.0
-	for item_control: Control in scrolled_items:
-		var candidate_index: int = replay_list._get_virtual_item_index(
-			item_control
-		)
-		var candidate_extent: float = (
-			replay_list._virtual_list_model.get_item_extent(candidate_index)
-		)
-		var candidate_bottom: float = (
-			replay_list._virtual_list_model.get_item_offset(candidate_index)
-			+ candidate_extent
-		)
-		if candidate_bottom <= float(scroll_before_height_change) + 0.5:
-			anchor_item = item_control
-			anchor_index = candidate_index
-			anchor_previous_extent = candidate_extent
-			break
+	var initial_result: GFVirtualListSyncResult = binder.get_last_sync_result()
 	assert_true(
-		is_instance_valid(anchor_item),
-		"overscan 窗口应包含一个位于视口锚点之前的可测量回放项。"
+		initial_result.is_successful(),
+		"GFVirtualListBinder 首轮物化必须成功，实际状态：%s。"
+		% String(initial_result.get_status())
 	)
-	if is_instance_valid(anchor_item):
-		anchor_item.custom_minimum_size.y = maxf(
-			anchor_item.get_combined_minimum_size().y + 48.0,
-			anchor_item.size.y + 48.0
-		)
-		await get_tree().process_frame
-		await get_tree().process_frame
-		await get_tree().process_frame
-		var anchor_next_extent: float = (
-			replay_list._virtual_list_model.get_item_extent(anchor_index)
-		)
-		assert_gt(
-			anchor_next_extent,
-			anchor_previous_extent,
-			"中文换行或字体缩放改变行高后必须刷新 GF 实测尺寸。"
-		)
-		assert_almost_eq(
-			float(replay_list._list_scroll.scroll_vertical),
-			float(scroll_before_height_change)
-			+ anchor_next_extent
-			- anchor_previous_extent,
-			2.0,
-			"锚点之前的行高变化必须同步修正滚动偏移，避免内容跳动。"
+	var initial_snapshot: Dictionary = binder.get_debug_snapshot()
+	var initial_active_count: int = GFVariantData.get_option_int(
+		initial_snapshot,
+		"active_count",
+		0
+	)
+	assert_gt(initial_active_count, 0, "Binder 必须物化首屏回放项。")
+	assert_lte(
+		initial_active_count,
+		BaseListMenu._VIRTUAL_LIST_MAX_MATERIALIZED_ITEMS,
+		"128 项回放目录的活动节点不得超过显式 materialization 上限。"
+	)
+	assert_true(
+		initial_active_count < ReplayCatalogSaveData.MAX_REPLAY_COUNT,
+		"128 项回放目录不得一次性创建 128 个 UI 节点。"
+	)
+	assert_true(
+		replay_list._get_list_item_controls().size() == initial_active_count,
+		"项目看到的活动回放按钮必须与 Binder 活动节点数一致。"
+	)
+	for item_index: int in initial_result.get_materialized_indices():
+		assert_true(
+			replay_list._virtual_list_model.is_item_measured(item_index),
+			"Binder 必须把活动行的真实高度写回 GFVirtualListModel。"
 		)
 
 	var projected_focus_index: int = 110
-	var _focus_changed: bool = (
-		replay_list._virtual_focus_model.set_focused_index(
-			projected_focus_index
-		)
-	)
 	replay_list._project_virtual_focus(projected_focus_index)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame
-	var projected_focus_found: bool = false
-	var projected_focus_control: Control = null
-	for item_control: Control in replay_list._get_list_item_controls():
-		if (
-			replay_list._get_virtual_item_index(item_control)
-			== projected_focus_index
-		):
-			projected_focus_found = item_control.has_focus()
-			projected_focus_control = item_control
-			break
-	assert_true(
-		projected_focus_found,
-		"GFVirtualListFocusModel 的逻辑索引必须滚动并投影到真实按钮焦点。"
+	await get_tree().process_frame
+	var projected_host: Control = binder.get_materialized_control(
+		projected_focus_index
 	)
-	if is_instance_valid(projected_focus_control):
+	var projected_button: Control = replay_list._get_virtual_list_item_control(
+		projected_host
+	)
+	assert_true(
+		is_instance_valid(projected_button) and projected_button.has_focus(),
+		"跨窗虚拟焦点必须自动滚动、物化并交接到真实回放按钮。"
+	)
+	assert_gt(
+		replay_list._list_scroll.scroll_vertical,
+		0,
+		"跨窗焦点必须推动 Binder 所属的回放滚动容器。"
+	)
+	assert_lte(
+		GFVariantData.get_option_int(
+			binder.get_debug_snapshot(),
+			"active_count",
+			0
+		),
+		BaseListMenu._VIRTUAL_LIST_MAX_MATERIALIZED_ITEMS,
+		"跨窗焦点投影后活动节点仍必须保持有界。"
+	)
+
+	if is_instance_valid(projected_button):
 		var navigation_event: InputEventAction = InputEventAction.new()
 		navigation_event.action = &"ui_down"
 		navigation_event.pressed = true
 		navigation_event.strength = 1.0
 		replay_list._on_virtual_item_gui_input(
 			navigation_event,
-			projected_focus_control
+			projected_button
 		)
 		await get_tree().process_frame
 		await get_tree().process_frame
@@ -600,19 +556,17 @@ func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
 		assert_true(
 			replay_list._virtual_focus_model.focused_index
 			== projected_focus_index + 1,
-			"键盘或手柄向下动作必须推进虚拟焦点索引。"
+			"键盘或手柄向下动作必须推进 Binder 共享的虚拟焦点索引。"
 		)
-		var next_focus_found: bool = false
-		for item_control: Control in replay_list._get_list_item_controls():
-			if (
-				replay_list._get_virtual_item_index(item_control)
-				== projected_focus_index + 1
-			):
-				next_focus_found = item_control.has_focus()
-				break
+		var next_host: Control = binder.get_materialized_control(
+			projected_focus_index + 1
+		)
+		var next_button: Control = replay_list._get_virtual_list_item_control(
+			next_host
+		)
 		assert_true(
-			next_focus_found,
-			"虚拟焦点推进后必须落到新物化的真实按钮。"
+			is_instance_valid(next_button) and next_button.has_focus(),
+			"跨窗键盘导航后 Binder 必须把焦点交给下一真实按钮。"
 		)
 
 	replay_list.size = Vector2(720.0, 960.0)
@@ -620,68 +574,134 @@ func test_replay_list_virtualizes_large_catalog_and_repairs_focus() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var compact_focus_index: int = 64
-	var _compact_focus_changed: bool = (
-		replay_list._virtual_focus_model.set_focused_index(
-			compact_focus_index
-		)
-	)
 	replay_list._project_virtual_focus(compact_focus_index)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame
 	assert_true(
 		replay_list._page_scroll.visible,
-		"紧凑布局必须由页面级滚动容器承载虚拟列表。"
+		"紧凑页仍须保留页面级滚动以访问预览与操作区。"
 	)
-	assert_gt(
-		replay_list._page_scroll.scroll_vertical,
-		0,
-		"紧凑布局的焦点投影必须滚动页面以显示目标记录。"
-	)
-	var compact_materialized_limit: int = (
-		ceili(
-			replay_list._page_scroll.size.y
-			/ replay_list._virtual_item_extent
-		)
-		+ BaseListMenu._VIRTUAL_LIST_OVERSCAN_ITEMS * 2
-		+ 1
-	)
-	assert_lte(
-		replay_list._get_list_item_controls().size(),
-		compact_materialized_limit,
-		"紧凑页面滚动下的回放节点数量也必须保持有界。"
-	)
-	var compact_focus_found: bool = false
-	for item_control: Control in replay_list._get_list_item_controls():
-		if (
-			replay_list._get_virtual_item_index(item_control)
-			== compact_focus_index
-		):
-			compact_focus_found = item_control.has_focus()
-			break
 	assert_true(
-		compact_focus_found,
-		"紧凑布局必须把虚拟焦点投影到目标回放按钮。"
+		replay_list._list_scroll.vertical_scroll_mode
+		== ScrollContainer.SCROLL_MODE_AUTO,
+		"紧凑回放页必须保留 Binder 所属的有界内部滚动。"
+	)
+	var compact_host: Control = binder.get_materialized_control(
+		compact_focus_index
+	)
+	var compact_button: Control = replay_list._get_virtual_list_item_control(
+		compact_host
+	)
+	assert_true(
+		is_instance_valid(compact_button) and compact_button.has_focus(),
+		"紧凑布局下跨窗焦点仍必须投影到真实回放按钮。"
 	)
 
 	var retained_data: Array[Resource] = []
-	for item_index: int in range(12):
+	for item_index: int in range(1):
 		retained_data.append(replay_data_list[item_index])
-	var _last_focus_changed: bool = (
-			replay_list._virtual_focus_model.set_focused_index(
-			ReplayCatalogSaveData.MAX_REPLAY_COUNT - 1
-			)
+	var active_host_ids_before_refresh: Dictionary = {}
+	var released_data_probe: WeakRef = null
+	for active_index: int in binder.get_last_sync_result().get_materialized_indices():
+		var active_host: Control = binder.get_materialized_control(active_index)
+		if is_instance_valid(active_host):
+			active_host_ids_before_refresh[active_host.get_instance_id()] = true
+		if active_index > 0 and released_data_probe == null:
+			released_data_probe = weakref(replay_data_list[active_index])
+	assert_not_null(
+		released_data_probe,
+		"刷新前应至少物化一个将被淘汰的回放资源，用于验证池化解绑。"
 	)
-	await replay_list._clear_list_content()
 	await replay_list._populate_virtual_list(
 		retained_data,
 		replay_list._get_repeater_template(),
 		ReplayCatalogSaveData.MAX_REPLAY_COUNT - 1
 	)
+	replay_data_list.clear()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_same(
+		replay_list._virtual_list_binder,
+		binder,
+		"目录刷新应复用同一个未 dispose 的 Binder 生命周期句柄。"
+	)
 	assert_true(
 		replay_list._virtual_focus_model.focused_index
 		== retained_data.size() - 1,
-		"数据缩短后虚拟焦点必须修复到最后一个合法索引。"
+		"目录从 128 项缩短后虚拟焦点必须修复到最后一个合法索引。"
+	)
+	assert_true(
+		replay_list._virtual_list_model.get_item_count() == retained_data.size(),
+		"目录缩短后布局模型计数必须同步收敛。"
+	)
+	var reused_host_count: int = 0
+	for active_index: int in binder.get_last_sync_result().get_materialized_indices():
+		var active_host: Control = binder.get_materialized_control(active_index)
+		if (
+			is_instance_valid(active_host)
+			and active_host_ids_before_refresh.has(active_host.get_instance_id())
+		):
+			reused_host_count += 1
+	assert_gt(
+		reused_host_count,
+		0,
+		"目录刷新必须通过 Binder invalidate 复用活动/池化行，而不是全量销毁重建。"
+	)
+	assert_gt(
+		binder.get_last_sync_result().get_reused_count(),
+		0,
+		"GF 同步结果必须明确记录刷新期间复用的行。"
+	)
+	for active_index: int in binder.get_last_sync_result().get_materialized_indices():
+		var rebound_host: Control = binder.get_materialized_control(active_index)
+		var rebound_control: Control = replay_list._get_virtual_list_item_control(
+			rebound_host
+		)
+		assert_true(
+			rebound_control is BaseListMenuItem,
+			"刷新后的活动行必须仍由 BaseListMenuItem 承载。"
+		)
+		if rebound_control is BaseListMenuItem:
+			var rebound_item: BaseListMenuItem = rebound_control
+			assert_same(
+				rebound_item.get_data(),
+				retained_data[active_index],
+				"复用行必须绑定刷新后的 ReplayData，而不是继续持有旧资源。"
+			)
+	if released_data_probe != null:
+		var released_data_is_gone: bool = released_data_probe.get_ref() == null
+		assert_true(
+			released_data_is_gone,
+			"进入 Binder parentless pool 的回放行不得继续强持有已淘汰 ReplayData。"
+		)
+	assert_lte(
+		GFVariantData.get_option_int(
+			binder.get_debug_snapshot(),
+			"active_count",
+			0
+		),
+		retained_data.size(),
+		"目录缩短后不得保留越界活动节点。"
+	)
+
+	binder.dispose()
+	var disposed_snapshot: Dictionary = binder.get_debug_snapshot()
+	assert_true(binder.is_disposed(), "显式 teardown 必须让 Binder 进入 disposed 终态。")
+	assert_false(binder.is_bound(), "disposed Binder 不得继续报告有效绑定。")
+	assert_true(
+		GFVariantData.get_option_int(disposed_snapshot, "active_count", -1) == 0,
+		"dispose 必须释放全部活动回放行。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(disposed_snapshot, "pooled_count", -1) == 0,
+		"dispose 必须释放全部池化回放行。"
+	)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_true(
+		replay_list.items_container.get_child_count() == 0,
+		"dispose 后 Binder-owned Control 必须从 content root 完全清除。"
 	)
 
 	context.remove_child(replay_list)

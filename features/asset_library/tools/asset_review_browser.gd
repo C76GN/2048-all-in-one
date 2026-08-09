@@ -28,6 +28,9 @@ var _records_by_asset_id: Dictionary = {}
 var _filtered_records: Array[Resource] = []
 var _selected_record: Resource = null
 var _review_catalog: GFAssetCatalog = GFAssetCatalog.new()
+var _review_table_view: GFTableDataView = GFTableDataView.new()
+var _review_selection_model: GFTableSelectionModel = GFTableSelectionModel.new()
+var _review_filter_predicate: _ReviewFilterPredicate = _ReviewFilterPredicate.new()
 var _ui_built: bool = false
 
 var _search_input: LineEdit
@@ -51,6 +54,7 @@ func _ready() -> void:
 	if _ui_built:
 		return
 	_build_ui()
+	_configure_review_table_projection()
 	_load_records()
 	_refresh_list("", 0, true)
 
@@ -420,6 +424,86 @@ func _load_records(ignore_cache: bool = false) -> void:
 		if loaded == null:
 			continue
 		_records_by_asset_id[asset_id] = loaded
+	_rebuild_review_table_rows()
+
+
+func _configure_review_table_projection() -> void:
+	var status_column: GFTableColumnDefinition = (
+		GFTableColumnDefinition.new().configure(&"status")
+	)
+	status_column.visible = false
+	status_column.sortable = false
+	status_column.filterable = false
+	var order_column: GFTableColumnDefinition = (
+		GFTableColumnDefinition.new().configure(&"business_order")
+	)
+	order_column.visible = false
+	order_column.filterable = false
+	order_column.sort_mode = GFTableColumnDefinition.SortMode.NUMBER
+	var columns_result: GFTableViewRebuildResult = _review_table_view.set_columns([
+		status_column,
+		order_column,
+	])
+	if not columns_result.is_successful():
+		push_error("[AssetReviewBrowser] GF table 列配置失败。")
+		return
+	var row_id_result: GFTableViewRebuildResult = (
+		_review_table_view.set_row_id_column(&"asset_id")
+	)
+	if not row_id_result.is_successful():
+		push_error("[AssetReviewBrowser] GF table 稳定行 ID 配置失败。")
+		return
+	var selection_result: GFTableViewRebuildResult = (
+		_review_table_view.set_selection_model(_review_selection_model)
+	)
+	if not selection_result.is_successful():
+		push_error("[AssetReviewBrowser] GF table selection 配置失败。")
+		return
+	var predicate_result: GFTableViewRebuildResult = (
+		_review_table_view.set_row_predicates([
+			GFTableRowPredicateRegistration.create(
+				&"review_filters",
+				_review_filter_predicate
+			),
+		])
+	)
+	if not predicate_result.is_successful():
+		push_error("[AssetReviewBrowser] GF table 过滤器配置失败。")
+		return
+	if not _review_table_view.sort_by_column(&"business_order", true):
+		push_error("[AssetReviewBrowser] GF table 业务顺序配置失败。")
+
+
+func _rebuild_review_table_rows() -> void:
+	var rows: Array = []
+	var ordered_asset_ids: PackedStringArray = _review_catalog.get_all_ids()
+	for business_order: int in range(ordered_asset_ids.size()):
+		var asset_id: String = ordered_asset_ids[business_order]
+		var record_value: Variant = GFVariantData.get_option_value(
+			_records_by_asset_id,
+			asset_id
+		)
+		if not (record_value is Resource):
+			continue
+		var record: Resource = record_value
+		rows.append({
+			&"asset_id": asset_id,
+			&"status": _get_resource_string(record, "review_status", "inbox"),
+			&"business_order": business_order,
+			&"record": record,
+		})
+	var rows_result: GFTableViewRebuildResult = _review_table_view.set_rows(rows)
+	if not rows_result.is_successful():
+		push_error("[AssetReviewBrowser] GF table 素材行投影失败。")
+
+
+func _apply_review_table_filters(
+	candidate_asset_ids: PackedStringArray,
+	status_filter: String
+) -> bool:
+	_review_filter_predicate.configure(candidate_asset_ids, status_filter)
+	var filter_result: GFTableViewRebuildResult = _review_table_view.refresh_view()
+	return filter_result.is_successful()
 
 
 func _refresh_list(
@@ -433,26 +517,28 @@ func _refresh_list(
 	var query: String = _search_input.text.strip_edges()
 	var status_filter: String = _get_selected_option_metadata(_status_filter, "all")
 	var candidate_ids: PackedStringArray = _get_search_candidate_ids(query)
-	var status_ids: PackedStringArray = PackedStringArray()
-	if status_filter != "all":
-		status_ids = _review_catalog.query(
-			GFAssetCatalog.GROUP_SOURCE_TAGS,
-			"status:%s" % status_filter
-		)
-	for asset_id: String in candidate_ids:
-		if status_filter != "all" and not status_ids.has(asset_id):
+	if not _apply_review_table_filters(candidate_ids, status_filter):
+		_update_empty_state()
+		return
+	for visible_index: int in range(_review_table_view.get_visible_row_count()):
+		var row_value: Variant = _review_table_view.get_visible_row(visible_index)
+		if not (row_value is Dictionary):
 			continue
-		var record_value: Variant = GFVariantData.get_option_value(_records_by_asset_id, asset_id)
+		var row_data: Dictionary = row_value
+		var record_value: Variant = GFVariantData.get_option_value(row_data, &"record")
 		if not (record_value is Resource):
 			continue
 		var record: Resource = record_value
+		var asset_id: String = GFVariantData.get_option_string(row_data, &"asset_id")
 		_append_resource(_filtered_records, record)
-		var _append_id_result: bool = visible_asset_ids.append(
-			_get_resource_string(record, "asset_id")
-		)
+		var _append_id_result: bool = visible_asset_ids.append(asset_id)
 		var item_index: int = _record_list.item_count
 		var _add_item_result: int = _record_list.add_item(_make_record_list_text(record))
-		_record_list.set_item_metadata(item_index, _filtered_records.size() - 1)
+		_record_list.set_item_metadata(item_index, asset_id)
+	if preferred_asset_id.is_empty():
+		var selected_ids: Array = _review_selection_model.get_selected_ids()
+		if not selected_ids.is_empty():
+			preferred_asset_id = GFVariantData.to_text(selected_ids[0])
 	var continuation_index: int = choose_continuation_index(
 		visible_asset_ids,
 		preferred_asset_id,
@@ -988,10 +1074,16 @@ func _on_status_filter_selected(_index: int) -> void:
 
 func _on_record_selected(index: int) -> void:
 	var metadata: Variant = _record_list.get_item_metadata(index)
-	var record_index: int = GFVariantData.to_int(metadata, -1)
-	if record_index < 0 or record_index >= _filtered_records.size():
+	var asset_id: String = GFVariantData.to_text(metadata)
+	var record_value: Variant = GFVariantData.get_option_value(
+		_records_by_asset_id,
+		asset_id
+	)
+	if not (record_value is Resource):
 		return
-	_show_record(_filtered_records[record_index])
+	var _selection_changed: bool = _review_selection_model.select_single(asset_id)
+	var record: Resource = record_value
+	_show_record(record)
 
 
 func _on_play_pressed() -> void:
@@ -1017,3 +1109,35 @@ func _on_rejected_pressed() -> void:
 
 func _on_save_pressed() -> void:
 	_save_selected_record()
+
+
+# --- 内部类 ---
+
+class _ReviewFilterPredicate extends GFTableRowPredicate:
+	var allowed_asset_ids: Dictionary = {}
+	var status_filter: String = "all"
+
+
+	## @param candidate_asset_ids: 当前搜索候选的稳定素材标识。
+	## @param requested_status: 当前状态筛选值。
+	func configure(
+		candidate_asset_ids: PackedStringArray,
+		requested_status: String
+	) -> void:
+		allowed_asset_ids.clear()
+		for asset_id: String in candidate_asset_ids:
+			allowed_asset_ids[asset_id] = true
+		status_filter = requested_status
+
+
+	func _evaluate(row_view: GFTableRowView) -> GFTableRowPredicateResult:
+		var asset_id: String = GFVariantData.to_text(row_view.get_row_id())
+		if not allowed_asset_ids.has(asset_id):
+			return GFTableRowPredicateResult.excluded()
+		if (
+			status_filter != "all"
+			and GFVariantData.to_text(row_view.get_value(&"status"))
+			!= status_filter
+		):
+			return GFTableRowPredicateResult.excluded()
+		return GFTableRowPredicateResult.included()

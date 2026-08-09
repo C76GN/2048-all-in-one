@@ -343,6 +343,7 @@ func test_player_profile_rows_update_in_place_by_stable_business_id() -> void:
 		first_summaries
 	)
 	assert_true(created_rows.size() == 1)
+	assert_true(dialog._mode_selection_model.select_single("classic"))
 	var first_row_value: Variant = dialog._mode_rows_by_id.get("classic")
 	assert_true(first_row_value is Control)
 	if first_row_value is Control:
@@ -384,6 +385,15 @@ func test_player_profile_rows_update_in_place_by_stable_business_id() -> void:
 			and dialog._mode_list.get_child(1) == first_row,
 			"新模式插入缓存行之前时，服务端顺序与旧行身份都必须保留。"
 		)
+		assert_true(
+			dialog._mode_table_view.get_visible_row_ids()
+			== ["fibonacci", "classic"],
+			"模式统计业务顺序必须由 GFTableDataView 投影。"
+		)
+		assert_true(
+			dialog._mode_selection_model.get_selected_ids() == ["classic"],
+			"模式重排不得丢失 GFTableSelectionModel 的稳定选中。"
+		)
 
 	var leaderboard_rows: Array[Dictionary] = [{
 		&"account_id": "local-player",
@@ -395,6 +405,9 @@ func test_player_profile_rows_update_in_place_by_stable_business_id() -> void:
 		dialog._sync_leaderboard_rows(leaderboard_rows)
 	)
 	assert_true(first_leaderboard_created.size() == 1)
+	assert_true(
+		dialog._leaderboard_selection_model.select_single("local-player")
+	)
 	var leaderboard_row_value: Variant = (
 		dialog._leaderboard_rows_by_account_id.get("local-player")
 	)
@@ -434,6 +447,16 @@ func test_player_profile_rows_update_in_place_by_stable_business_id() -> void:
 	assert_true(
 		inserted_leaderboard_order_preserved,
 		"新账号插入缓存行之前时，榜单排名与旧行身份都必须保留。"
+	)
+	assert_true(
+		dialog._leaderboard_table_view.get_visible_row_ids()
+		== ["new-player", "local-player"],
+		"排行榜业务排名必须由 GFTableDataView 投影。"
+	)
+	assert_true(
+		dialog._leaderboard_selection_model.get_selected_ids()
+		== ["local-player"],
+		"排行榜重排不得丢失 GFTableSelectionModel 的稳定选中。"
 	)
 	assert_true(
 		PlayerProfileDialog._snapshot_matches_account_id(

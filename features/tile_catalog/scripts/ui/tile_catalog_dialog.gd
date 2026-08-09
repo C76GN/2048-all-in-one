@@ -27,6 +27,9 @@ var _viewport_utility: GFViewportUtility = null
 var _cards_by_key: Dictionary = {}
 var _entries_by_key: Dictionary = {}
 var _selected_composition_key: String = ""
+var _catalog_view: GFTableDataView = GFTableDataView.new()
+var _catalog_selection: GFTableSelectionModel = GFTableSelectionModel.new()
+var _discovery_predicate: _DiscoveryStatePredicate = _DiscoveryStatePredicate.new()
 var _layout_update_queued: bool = false
 var _has_revealed_catalog: bool = false
 
@@ -60,6 +63,7 @@ var _has_revealed_catalog: bool = false
 
 func _ready() -> void:
 	_resolve_dependencies()
+	_configure_catalog_projection()
 	_setup_state_filter()
 	_bind_runtime_signals()
 	_apply_semantic_styles()
@@ -190,6 +194,48 @@ func _setup_state_filter() -> void:
 	_state_filter.select(clampi(selected_index, 0, _state_filter.item_count - 1))
 
 
+func _configure_catalog_projection() -> void:
+	var discovered_column: GFTableColumnDefinition = (
+		GFTableColumnDefinition.new().configure(&"discovered")
+	)
+	discovered_column.visible = false
+	discovered_column.sortable = false
+	discovered_column.filterable = false
+	var search_column: GFTableColumnDefinition = (
+		GFTableColumnDefinition.new().configure(&"search_text")
+	)
+	# GFTableDataView 的全文过滤只遍历 visible 且 filterable 的列。
+	# 此处的 visible 是数据视图语义；项目 Card 渲染不会显示这列。
+	search_column.visible = true
+	search_column.sortable = false
+	var columns_result: GFTableViewRebuildResult = _catalog_view.set_columns([
+		discovered_column,
+		search_column,
+	])
+	var row_id_result: GFTableViewRebuildResult = (
+		_catalog_view.set_row_id_column(&"composition_key")
+	)
+	_catalog_selection.selection_mode = GFTableSelectionModel.SelectionMode.SINGLE
+	var selection_result: GFTableViewRebuildResult = (
+		_catalog_view.set_selection_model(_catalog_selection)
+	)
+	var predicate_result: GFTableViewRebuildResult = (
+		_catalog_view.set_row_predicates([
+			GFTableRowPredicateRegistration.create(
+				&"discovery_state",
+				_discovery_predicate
+			),
+		])
+	)
+	if not (
+		columns_result.is_successful()
+		and row_id_result.is_successful()
+		and selection_result.is_successful()
+		and predicate_result.is_successful()
+	):
+		push_error("[TileCatalogDialog] GF table 图鉴投影配置失败。")
+
+
 func _rebuild_catalog(force_reconfigure: bool = false) -> void:
 	if not is_node_ready():
 		return
@@ -200,12 +246,43 @@ func _rebuild_catalog(force_reconfigure: bool = false) -> void:
 		return
 
 	var entries: Array[Dictionary] = _discovery_system.get_catalog_entries()
+	_discovery_predicate.filter_index = _state_filter.selected
+	var filter_result: GFTableViewRebuildResult = _catalog_view.set_filter_query(
+		_search_input.text.strip_edges()
+	)
+	var rows: Array = []
+	for entry: Dictionary in entries:
+		var composition_key: String = _get_entry_identity_key(entry)
+		if composition_key.is_empty():
+			continue
+		rows.append({
+			&"composition_key": composition_key,
+			&"discovered": GFVariantData.get_option_bool(entry, &"discovered"),
+			&"search_text": _make_entry_search_text(entry),
+			&"entry": entry,
+		})
+	var rows_result: GFTableViewRebuildResult = _catalog_view.set_rows(rows)
+	if not filter_result.is_successful() or not rows_result.is_successful():
+		push_error("[TileCatalogDialog] GF table 图鉴过滤事务失败。")
+		return
+	var visible_keys: Dictionary = {}
+	var first_visible_entry: Dictionary = {}
+	for visible_index: int in range(_catalog_view.get_visible_row_count()):
+		var row_value: Variant = _catalog_view.get_visible_row(visible_index)
+		if not row_value is Dictionary:
+			continue
+		var row: Dictionary = row_value
+		var visible_key: String = GFVariantData.get_option_string(
+			row,
+			&"composition_key"
+		)
+		visible_keys[visible_key] = true
+		if first_visible_entry.is_empty():
+			first_visible_entry = GFVariantData.get_option_dictionary(row, &"entry")
 	var focused_key: String = _get_focused_card_key()
 	var restore_catalog_focus: bool = not focused_key.is_empty()
 	var expected_keys: Dictionary = {}
 	var ui_motion: GameUiMotionUtility = _get_ui_motion_utility()
-	var visible_count: int = 0
-	var first_visible_entry: Dictionary = {}
 	var child_index: int = 0
 	for entry: Dictionary in entries:
 		var composition_key: String = _get_entry_identity_key(entry)
@@ -228,23 +305,22 @@ func _rebuild_catalog(force_reconfigure: bool = false) -> void:
 		if force_reconfigure or entry_changed:
 			_configure_catalog_card(card, entry)
 			_entries_by_key[composition_key] = entry.duplicate(true)
-		var matches_filters: bool = _entry_matches_filters(entry)
-		card.visible = matches_filters
-		if not matches_filters:
-			continue
-		visible_count += 1
-		if first_visible_entry.is_empty():
-			first_visible_entry = entry
+		card.visible = visible_keys.has(composition_key)
 
 	_remove_obsolete_catalog_cards(expected_keys)
+	var visible_count: int = _catalog_view.get_visible_row_count()
 	_empty_label.visible = visible_count == 0
 	_update_progress(entries)
 	_apply_catalog_focus_order()
 	if visible_count == 0:
 		_clear_detail()
 		return
-	var selected_entry: Dictionary = _find_entry(entries, _selected_composition_key)
-	if selected_entry.is_empty() or not _entry_matches_filters(selected_entry):
+	var selected_entry: Dictionary = (
+		_find_entry(entries, _selected_composition_key)
+		if visible_keys.has(_selected_composition_key)
+		else {}
+	)
+	if selected_entry.is_empty():
 		selected_entry = first_visible_entry
 	if is_instance_valid(ui_motion) and not _has_revealed_catalog:
 		_has_revealed_catalog = true
@@ -351,19 +427,7 @@ func _get_entry_identity_key(entry: Dictionary) -> String:
 	return GFVariantData.get_option_string(entry, &"composition_key")
 
 
-func _entry_matches_filters(entry: Dictionary) -> bool:
-	var discovered: bool = GFVariantData.get_option_bool(entry, &"discovered")
-	match _state_filter.selected:
-		1:
-			if not discovered:
-				return false
-		2:
-			if discovered:
-				return false
-
-	var query: String = _search_input.text.strip_edges().to_lower()
-	if query.is_empty():
-		return true
+func _make_entry_search_text(entry: Dictionary) -> String:
 	var searchable: PackedStringArray = PackedStringArray([
 		tr(GFVariantData.get_option_string_name(entry, &"display_name_key")),
 		GFVariantData.get_option_string(entry, &"definition_id"),
@@ -374,7 +438,7 @@ func _entry_matches_filters(entry: Dictionary) -> bool:
 			var _searchable_appended: bool = searchable.append(
 				tr(GFVariantData.get_option_string_name(recipe, &"display_name_key"))
 			)
-	return " ".join(searchable).to_lower().contains(query)
+	return " ".join(searchable)
 
 
 func _select_entry(entry: Dictionary, animate_detail: bool = true) -> void:
@@ -384,6 +448,7 @@ func _select_entry(entry: Dictionary, animate_detail: bool = true) -> void:
 		return
 	var previous_key: String = _selected_composition_key
 	_selected_composition_key = next_key
+	var _selection_changed: bool = _catalog_selection.select_single(next_key)
 	_set_catalog_card_selected(previous_key, false)
 	_set_catalog_card_selected(_selected_composition_key, true)
 	_update_detail(entry)
@@ -639,3 +704,20 @@ func _on_tile_discovery_changed(_composition_key: String) -> void:
 
 func _on_visual_theme_changed(_theme: GameTheme) -> void:
 	_rebuild_catalog(true)
+
+
+# --- 内部类 ---
+
+class _DiscoveryStatePredicate extends GFTableRowPredicate:
+	var filter_index: int = 0
+
+
+	func _evaluate(row_view: GFTableRowView) -> GFTableRowPredicateResult:
+		var discovered: bool = GFVariantData.to_bool(
+			row_view.get_value(&"discovered", false)
+		)
+		if filter_index == 1 and not discovered:
+			return GFTableRowPredicateResult.excluded()
+		if filter_index == 2 and discovered:
+			return GFTableRowPredicateResult.excluded()
+		return GFTableRowPredicateResult.included()

@@ -219,6 +219,10 @@ func test_achievement_dialog_renders_and_adapts_layout() -> void:
 		list.get_child_count() == _EXPECTED_ACHIEVEMENT_COUNT,
 		"成就列表应呈现目录中的全部定义。"
 	)
+	assert_true(
+		panel._achievement_view.get_visible_row_count() == _EXPECTED_ACHIEVEMENT_COUNT,
+		"成就可见投影应由 GFTableDataView 持有。"
+	)
 	assert_false(header.vertical, "宽屏成就标题栏应横向排列。")
 	var first_card_node: Node = list.get_child(0)
 	assert_true(first_card_node is Control, "成就卡片应为 Control。")
@@ -229,9 +233,33 @@ func test_achievement_dialog_renders_and_adapts_layout() -> void:
 		_dispose_setup(setup)
 		return
 	var first_card: Control = first_card_node
+	var searchable_title: String = ""
+	for entry: Dictionary in _get_achievement_system(setup).get_entries():
+		if (
+			GFVariantData.get_option_bool(entry, &"hidden_until_unlocked")
+			and not GFVariantData.get_option_bool(entry, &"completed")
+		):
+			continue
+		searchable_title = tr(GFVariantData.get_option_string_name(entry, &"title_key"))
+		if not searchable_title.is_empty():
+			break
+	assert_false(searchable_title.is_empty(), "成就目录应至少提供一个可搜索标题。")
+	search_input.text = searchable_title
+	panel.call("_on_filter_changed", search_input.text)
+	await get_tree().process_frame
+	assert_gt(
+		panel._achievement_view.get_visible_row_count(),
+		0,
+		"有效标题搜索应由 GF table 生成非空可见投影。"
+	)
+
 	search_input.text = "__no_achievement_matches__"
 	panel.call("_on_filter_changed", search_input.text)
 	await get_tree().process_frame
+	assert_true(
+		panel._achievement_view.get_visible_row_count() == 0,
+		"无匹配搜索应由 GF table 原子提交空投影。"
+	)
 	assert_true(
 		first_card.get_parent() == list and not first_card.visible,
 		"筛选应复用稳定成就卡片，仅切换可见性。"

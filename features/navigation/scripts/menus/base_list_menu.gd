@@ -13,7 +13,9 @@ const _LIST_REVEAL_STAGGER: float = 0.03
 const _LIST_REPEATER_GROUP: StringName = &"base_list_menu_items"
 const _VIRTUAL_LIST_ITEM_INDEX_META: StringName = &"base_list_virtual_item_index"
 const _VIRTUAL_LIST_OVERSCAN_ITEMS: int = 3
-const _VIRTUAL_LIST_FALLBACK_VIEWPORT_ITEMS: int = 6
+const _VIRTUAL_LIST_ITEM_SEPARATION: float = 10.0
+const _VIRTUAL_LIST_MAX_MATERIALIZED_ITEMS: int = 24
+const _VIRTUAL_LIST_MAX_POOLED_ITEMS: int = 24
 const _LIST_ITEM_DUPLICATE_FLAGS: int = (
 	Node.DUPLICATE_GROUPS
 	| Node.DUPLICATE_SCRIPTS
@@ -68,20 +70,15 @@ var _delete_save_graph: GameSaveGraphUtility = null
 var _delete_reconciliation_connection: GFSignalConnection = null
 var _virtual_list_model: GFVirtualListModel = null
 var _virtual_focus_model: GFVirtualListFocusModel = null
+var _virtual_list_binder: GFVirtualListBinder = null
 var _virtual_data_list: Array[Resource] = []
-var _virtual_visible_range: Vector2i = Vector2i(-1, -1)
-var _virtual_top_spacer: Control = null
-var _virtual_bottom_spacer: Control = null
 var _virtual_item_extent: float = 1.0
-var _virtual_window_update_queued: bool = false
-var _virtual_measurement_queued: bool = false
-var _virtual_measurement_generation: int = 0
 var _has_revealed_list_once: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
 
-@onready var items_container: VBoxContainer = %ItemsContainer
+@onready var items_container: Control = %ItemsContainer
 @onready var board_preview_node: BoardPreview = _find_board_preview_node()
 @onready var detail_info_label: RichTextLabel = _find_detail_info_label()
 @onready var back_button: Button = %BackButton
@@ -134,6 +131,8 @@ func _exit_tree() -> void:
 	if is_instance_valid(_delete_signal_utility):
 		_delete_signal_utility.disconnect_owner(self)
 	_delete_reconciliation_connection = null
+	if is_instance_valid(_virtual_list_binder):
+		_virtual_list_binder.dispose()
 	if is_instance_valid(_repeater_template):
 		_repeater_template.free()
 	_repeater_template = null
@@ -356,25 +355,53 @@ func _setup_virtual_list_support() -> void:
 	_virtual_focus_model = GFVirtualListFocusModel.new()
 	_virtual_focus_model.wrap_navigation = false
 	_virtual_focus_model.auto_focus_on_count_change = true
-	_connect_virtual_scroll_source(_list_scroll)
-	_connect_virtual_scroll_source(_page_scroll)
+	var _prepared_binder: GFVirtualListBinder = _ensure_virtual_list_binder()
 
 
-func _connect_virtual_scroll_source(scroll: ScrollContainer) -> void:
-	if not is_instance_valid(scroll):
-		return
-	var scroll_callback: Callable = Callable(self, "_on_virtual_scroll_changed")
-	var scroll_bar: VScrollBar = scroll.get_v_scroll_bar()
+func _ensure_virtual_list_binder() -> GFVirtualListBinder:
 	if (
-		is_instance_valid(scroll_bar)
-		and not scroll_bar.value_changed.is_connected(scroll_callback)
+		is_instance_valid(_virtual_list_binder)
+		and not _virtual_list_binder.is_disposed()
 	):
-		var _scroll_connect_result: int = scroll_bar.value_changed.connect(
-			scroll_callback
-		)
-	var resize_callback: Callable = Callable(self, "_on_virtual_viewport_resized")
-	if not scroll.resized.is_connected(resize_callback):
-		var _resize_connect_result: int = scroll.resized.connect(resize_callback)
+		return _virtual_list_binder
+	_virtual_list_binder = GFVirtualListBinder.new()
+	_virtual_list_binder.max_materialized_items = (
+		_VIRTUAL_LIST_MAX_MATERIALIZED_ITEMS
+	)
+	_virtual_list_binder.max_pooled_items = _VIRTUAL_LIST_MAX_POOLED_ITEMS
+	_virtual_list_binder.auto_measure = true
+	_virtual_list_binder.auto_reveal_focus = true
+	_virtual_list_binder.fill_cross_axis = true
+	var sync_callback: Callable = Callable(
+		self,
+		"_on_virtual_list_sync_completed"
+	)
+	if not _virtual_list_binder.sync_completed.is_connected(sync_callback):
+		var _sync_connect_result: int = _virtual_list_binder.sync_completed.connect(sync_callback)
+	return _virtual_list_binder
+
+
+func _bind_virtual_list_binder(binder: GFVirtualListBinder) -> bool:
+	if (
+		not is_instance_valid(binder)
+		or binder.is_disposed()
+		or binder.is_bound()
+		or _virtual_data_list.is_empty()
+	):
+		return false
+	return binder.bind(
+		self,
+		_list_scroll,
+		items_container,
+		_virtual_list_model,
+		Callable(self, "_create_virtual_list_item"),
+		Callable(self, "_bind_virtual_list_item"),
+		Callable(self, "_unbind_virtual_list_item"),
+		Callable(self, "_get_virtual_list_item_identity"),
+		_virtual_focus_model,
+		Callable(self, "_measure_virtual_list_item"),
+		Callable(self, "_get_virtual_list_focus_target")
+	)
 
 
 func _queue_layout_update() -> void:
@@ -389,14 +416,35 @@ func _apply_responsive_layout() -> void:
 	if not is_inside_tree():
 		return
 	var focused_control: Control = _get_page_focus_owner()
-	_layout_mode = GameTaskPageLayoutUtility.classify_layout(size)
-	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	var next_layout_mode: int = GameTaskPageLayoutUtility.classify_layout(size)
+	var compact: bool = (
+		next_layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	)
+	var page_hierarchy_changes: bool = (
+		is_instance_valid(_page_scroll)
+		and (
+			(compact and _columns_container.get_parent() != _page_scroll)
+			or (
+				not compact
+				and _columns_container.get_parent() == _page_scroll
+			)
+		)
+	)
+	var rebind_virtual_list: bool = (
+		page_hierarchy_changes
+		and is_instance_valid(_virtual_list_binder)
+		and _virtual_list_binder.is_bound()
+		and not _virtual_data_list.is_empty()
+	)
+	if rebind_virtual_list:
+		_virtual_list_binder.unbind()
+	_layout_mode = next_layout_mode
 	_set_page_scroll_enabled(compact)
 	if is_instance_valid(_list_scroll):
 		_list_scroll.vertical_scroll_mode = (
-			ScrollContainer.SCROLL_MODE_DISABLED
-			if compact
-			else ScrollContainer.SCROLL_MODE_AUTO
+			ScrollContainer.SCROLL_MODE_AUTO
+			if not compact or _uses_virtual_list()
+			else ScrollContainer.SCROLL_MODE_DISABLED
 		)
 		_list_scroll.follow_focus = not compact and not _uses_virtual_list()
 	_set_preview_column_compact(compact)
@@ -442,9 +490,23 @@ func _apply_responsive_layout() -> void:
 	_apply_safe_area_margins(extra_margins)
 	if is_instance_valid(_page_scroll) and not compact:
 		_page_scroll.scroll_vertical = 0
+	if rebind_virtual_list:
+		var rebound: bool = _bind_virtual_list_binder(_virtual_list_binder)
+		if rebound:
+			var _rebound_result: GFVirtualListSyncResult = (
+				_virtual_list_binder.sync_now()
+			)
+		else:
+			push_error(
+				"[BaseListMenu] 响应式重排后 GFVirtualListBinder 重新绑定失败。"
+			)
 	_apply_list_focus_order(_get_list_item_controls())
 	_restore_focus_after_responsive_layout(focused_control)
-	_queue_virtual_window_update()
+	if (
+		not rebind_virtual_list
+		and is_instance_valid(_virtual_list_binder)
+	):
+		var _sync_requested: bool = _virtual_list_binder.request_sync()
 
 
 func _get_page_focus_owner() -> Control:
@@ -460,12 +522,19 @@ func _get_page_focus_owner() -> Control:
 func _restore_focus_after_responsive_layout(focused_control: Control) -> void:
 	if (
 		is_instance_valid(focused_control)
+		and not focused_control.is_queued_for_deletion()
 		and focused_control.focus_mode != Control.FOCUS_NONE
 		and focused_control.is_visible_in_tree()
 	):
 		focused_control.grab_focus()
 		return
 	if not is_instance_valid(focused_control):
+		return
+	if (
+		_uses_virtual_list()
+		and is_instance_valid(_virtual_list_binder)
+		and _virtual_list_binder.is_bound()
+	):
 		return
 	var items: Array[Control] = _get_list_item_controls()
 	if not items.is_empty():
@@ -525,6 +594,22 @@ func _get_list_item_controls() -> Array[Control]:
 	var items: Array[Control] = []
 	if not is_instance_valid(items_container):
 		return items
+	if (
+		_uses_virtual_list()
+		and is_instance_valid(_virtual_list_binder)
+		and _virtual_list_binder.is_bound()
+	):
+		var sync_result: GFVirtualListSyncResult = (
+			_virtual_list_binder.get_last_sync_result()
+		)
+		for item_index: int in sync_result.get_materialized_indices():
+			var row_host: Control = (
+				_virtual_list_binder.get_materialized_control(item_index)
+			)
+			var list_item: Control = _get_virtual_list_item_control(row_host)
+			if is_instance_valid(list_item):
+				items.append(list_item)
+		return items
 	for child: Node in items_container.get_children():
 		if child is BaseListMenuItem:
 			var item_control: Control = child
@@ -560,7 +645,13 @@ func _populate_list() -> void:
 	var preferred_virtual_focus: int = GFVirtualListFocusModel.NO_FOCUS
 	if is_instance_valid(_virtual_focus_model):
 		preferred_virtual_focus = _virtual_focus_model.focused_index
-	await _clear_list_content()
+	var reuse_virtual_binding: bool = (
+		_uses_virtual_list()
+		and is_instance_valid(_virtual_list_binder)
+		and _virtual_list_binder.is_bound()
+	)
+	if not reuse_virtual_binding:
+		await _clear_list_content()
 
 	var raw_data_list: Array = _get_data_list()
 	var data_list: Array[Resource] = []
@@ -569,6 +660,8 @@ func _populate_list() -> void:
 			data_list.append(data_value)
 
 	if data_list.is_empty():
+		if reuse_virtual_binding:
+			await _clear_list_content()
 		_handle_empty_list()
 		return
 	_on_empty_state_changed(false)
@@ -622,6 +715,8 @@ func _handle_empty_list() -> void:
 	if is_instance_valid(style_utility):
 		style_utility.style_label(label, GameUiStyleUtility.TextRole.MUTED, 18)
 	items_container.add_child(label)
+	if _uses_virtual_list():
+		label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_clear_preview(false)
 	_on_empty_state_changed(true)
 	_update_action_focus_return_target(null)
@@ -631,29 +726,32 @@ func _handle_empty_list() -> void:
 
 
 func _clear_list_content() -> void:
-	_virtual_window_update_queued = false
-	_virtual_measurement_queued = false
-	_virtual_measurement_generation += 1
+	if (
+		_uses_virtual_list()
+		and is_instance_valid(_virtual_list_binder)
+		and _virtual_list_binder.is_bound()
+	):
+		_virtual_list_binder.unbind()
 	_virtual_data_list.clear()
-	_virtual_visible_range = Vector2i(-1, -1)
 	if is_instance_valid(_virtual_list_model):
 		_virtual_list_model.clear()
 	if is_instance_valid(_virtual_focus_model):
 		var _focus_cleared: bool = _virtual_focus_model.set_item_count(0)
-	var _cleared_clones: int = GFRepeaterBinder.clear_clones(items_container, {
-		"group_key": _LIST_REPEATER_GROUP,
-	})
+	if not _uses_virtual_list():
+		var _cleared_clones: int = GFRepeaterBinder.clear_clones(
+			items_container,
+			{"group_key": _LIST_REPEATER_GROUP}
+		)
 
 	for child: Node in items_container.get_children():
-		child.queue_free()
+		if not child.is_queued_for_deletion():
+			child.queue_free()
 
 	var frame_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
 		"guard_node": self,
 	})
 	if not GFVariantData.get_option_bool(frame_wait, "completed", false):
 		return
-	_virtual_top_spacer = null
-	_virtual_bottom_spacer = null
 
 
 func _configure_repeated_list_item(node: Node, item: Variant, _index: int) -> void:
@@ -662,18 +760,6 @@ func _configure_repeated_list_item(node: Node, item: Variant, _index: int) -> vo
 
 	var item_control: Control = node
 	var data: Resource = item
-	if _uses_virtual_list():
-		var virtual_index: int = _virtual_visible_range.x + _index
-		item_control.set_meta(_VIRTUAL_LIST_ITEM_INDEX_META, virtual_index)
-		item_control.set_meta(GFRepeaterBinder.META_INDEX, virtual_index)
-		var input_callback: Callable = Callable(
-			self,
-			"_on_virtual_item_gui_input"
-		).bind(item_control)
-		if not item_control.gui_input.is_connected(input_callback):
-			var _input_connect_result: int = item_control.gui_input.connect(
-				input_callback
-			)
 	_setup_item(item_control, data)
 	_connect_item_signals(item_control, data)
 
@@ -689,12 +775,13 @@ func _populate_virtual_list(
 		_virtual_focus_model = GFVirtualListFocusModel.new()
 		_virtual_focus_model.wrap_navigation = false
 		_virtual_focus_model.auto_focus_on_count_change = true
+	var binder: GFVirtualListBinder = _ensure_virtual_list_binder()
+	var reuse_binding: bool = binder.is_bound()
 
 	_virtual_data_list = data_list.duplicate()
-	_virtual_measurement_queued = false
-	_virtual_measurement_generation += 1
 	_virtual_item_extent = _estimate_virtual_item_extent(template)
-	_virtual_list_model.clear()
+	if not reuse_binding:
+		_virtual_list_model.clear()
 	_virtual_list_model.estimated_item_extent = _virtual_item_extent
 	_virtual_list_model.overscan_items = _VIRTUAL_LIST_OVERSCAN_ITEMS
 	_virtual_list_model.set_item_count(_virtual_data_list.size())
@@ -717,15 +804,46 @@ func _populate_virtual_list(
 	if not _virtual_focus_model.has_focus():
 		var _focus_first_changed: bool = _virtual_focus_model.focus_first()
 
-	_create_virtual_spacers()
-	_render_virtual_window(true, _virtual_focus_model.focused_index)
+	if reuse_binding:
+		if not binder.invalidate_items():
+			push_error("[BaseListMenu] GFVirtualListBinder 数据失效请求失败。")
+			return
+	else:
+		var focus_owner: Control = _get_page_focus_owner()
+		if is_instance_valid(focus_owner):
+			focus_owner.release_focus()
+		var bound: bool = _bind_virtual_list_binder(binder)
+		if not bound:
+			push_error(
+				"[BaseListMenu] GFVirtualListBinder 绑定失败；回放列表必须使用 ScrollContainer 的直接 absolute Control 子节点。"
+			)
+			return
+	var sync_result: GFVirtualListSyncResult = binder.sync_now()
+	if (
+		not sync_result.is_successful()
+		and sync_result.get_status() != GFVirtualListSyncResult.STATUS_DEFERRED
+	):
+		push_error(
+			"[BaseListMenu] GFVirtualListBinder 首轮同步失败：%s。"
+			% String(sync_result.get_status())
+		)
+		return
 	var frame_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
 		"guard_node": self,
 	})
 	if not GFVariantData.get_option_bool(frame_wait, "completed", false):
 		return
-	_render_virtual_window(false, _virtual_focus_model.focused_index)
-	_grab_virtual_focus(_virtual_focus_model.focused_index)
+	if binder.is_bound():
+		var settled_result: GFVirtualListSyncResult = binder.sync_now()
+		if (
+			not settled_result.is_successful()
+			and settled_result.get_status() != GFVirtualListSyncResult.STATUS_DEFERRED
+		):
+			push_error(
+				"[BaseListMenu] GFVirtualListBinder 稳定同步失败：%s。"
+				% String(settled_result.get_status())
+			)
+			return
 	if _virtual_focus_model.has_focus():
 		_set_selected_item(
 			_virtual_data_list[_virtual_focus_model.focused_index]
@@ -735,317 +853,150 @@ func _populate_virtual_list(
 
 func _estimate_virtual_item_extent(template: Control) -> float:
 	var row_extent: float = maxf(template.custom_minimum_size.y, 1.0)
-	var separation: float = 0.0
-	if is_instance_valid(items_container):
-		separation = maxf(
-			float(items_container.get_theme_constant("separation")),
-			0.0
+	return row_extent + _VIRTUAL_LIST_ITEM_SEPARATION
+
+
+func _create_virtual_list_item() -> Control:
+	var template: Control = _get_repeater_template()
+	if not is_instance_valid(template):
+		return null
+	var duplicate_result: Variant = template.duplicate(_LIST_ITEM_DUPLICATE_FLAGS)
+	if not duplicate_result is BaseListMenuItem:
+		if duplicate_result is Node and is_instance_valid(duplicate_result):
+			var duplicate_node: Node = duplicate_result
+			duplicate_node.free()
+		return null
+	var item_control: BaseListMenuItem = duplicate_result
+	var row_host: Control = Control.new()
+	row_host.name = "VirtualListRow"
+	row_host.focus_mode = Control.FOCUS_NONE
+	row_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row_host.custom_minimum_size.y = _estimate_virtual_item_extent(item_control)
+	row_host.add_child(item_control)
+	item_control.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	item_control.offset_left = 0.0
+	item_control.offset_top = 0.0
+	item_control.offset_right = 0.0
+	item_control.offset_bottom = maxf(
+		item_control.get_combined_minimum_size().y,
+		item_control.custom_minimum_size.y
+	)
+	return row_host
+
+
+func _get_virtual_list_item_control(row_host: Control) -> Control:
+	if not is_instance_valid(row_host):
+		return null
+	if row_host is BaseListMenuItem:
+		return row_host
+	for child: Node in row_host.get_children():
+		if child is BaseListMenuItem:
+			var item_control: Control = child
+			return item_control
+	return null
+
+
+func _bind_virtual_list_item(
+	row_host: Control,
+	item_index: int,
+	_item_id: Variant
+) -> bool:
+	if item_index < 0 or item_index >= _virtual_data_list.size():
+		return false
+	var item_control: Control = _get_virtual_list_item_control(row_host)
+	if not is_instance_valid(item_control):
+		return false
+	item_control.set_meta(_VIRTUAL_LIST_ITEM_INDEX_META, item_index)
+	item_control.set_meta(GFRepeaterBinder.META_INDEX, item_index)
+	var input_callback: Callable = Callable(
+		self,
+		"_on_virtual_item_gui_input"
+	).bind(item_control)
+	if not item_control.gui_input.is_connected(input_callback):
+		var _input_connect_result: int = item_control.gui_input.connect(
+			input_callback
 		)
-	return row_extent + separation
+	var minimum_changed_callback: Callable = Callable(
+		self,
+		"_on_virtual_item_minimum_size_changed"
+	)
+	if not item_control.minimum_size_changed.is_connected(
+		minimum_changed_callback
+	):
+		var _minimum_connect_result: int = item_control.minimum_size_changed.connect(minimum_changed_callback)
+	var data: Resource = _virtual_data_list[item_index]
+	_setup_item(item_control, data)
+	_connect_item_signals(item_control, data)
+	return true
 
 
-func _create_virtual_spacers() -> void:
-	_virtual_top_spacer = Control.new()
-	_virtual_top_spacer.name = "VirtualListTopSpacer"
-	_virtual_top_spacer.focus_mode = Control.FOCUS_NONE
-	_virtual_top_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_virtual_top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	items_container.add_child(_virtual_top_spacer)
-
-	_virtual_bottom_spacer = Control.new()
-	_virtual_bottom_spacer.name = "VirtualListBottomSpacer"
-	_virtual_bottom_spacer.focus_mode = Control.FOCUS_NONE
-	_virtual_bottom_spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_virtual_bottom_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	items_container.add_child(_virtual_bottom_spacer)
-
-
-func _render_virtual_window(
-	force_rebuild: bool = false,
-	required_index: int = GFVirtualListFocusModel.NO_FOCUS
+func _unbind_virtual_list_item(
+	row_host: Control,
+	_item_index: int,
+	_item_id: Variant
 ) -> void:
-	if (
-		not _uses_virtual_list()
-		or _virtual_data_list.is_empty()
-		or not is_instance_valid(_virtual_list_model)
-		or not is_instance_valid(_virtual_top_spacer)
-		or not is_instance_valid(_virtual_bottom_spacer)
-	):
+	var item_control: Control = _get_virtual_list_item_control(row_host)
+	if not is_instance_valid(item_control):
 		return
+	item_control.remove_meta(_VIRTUAL_LIST_ITEM_INDEX_META)
+	item_control.remove_meta(GFRepeaterBinder.META_INDEX)
+	if item_control is BaseListMenuItem:
+		var list_item: BaseListMenuItem = item_control
+		list_item.on_gf_pool_release()
 
-	var metrics: Vector2 = _get_virtual_scroll_metrics()
-	var visible_range: Vector2i = _virtual_list_model.get_visible_range(
-		metrics.x,
-		metrics.y
+
+func _get_virtual_list_item_identity(item_index: int) -> Variant:
+	if item_index < 0 or item_index >= _virtual_data_list.size():
+		return ""
+	return _get_data_identity(_virtual_data_list[item_index])
+
+
+func _measure_virtual_list_item(
+	row_host: Control,
+	_item_index: int,
+	_item_id: Variant
+) -> float:
+	var item_control: Control = _get_virtual_list_item_control(row_host)
+	if not is_instance_valid(item_control):
+		return _virtual_item_extent
+	var item_extent: float = maxf(
+		maxf(
+			item_control.get_combined_minimum_size().y,
+			item_control.custom_minimum_size.y
+		),
+		1.0
 	)
-	visible_range = _include_required_virtual_index(
-		visible_range,
-		required_index,
-		metrics.y
-	)
-	if not force_rebuild and visible_range == _virtual_visible_range:
-		return
-	var focus_owner: Control = get_viewport().gui_get_focus_owner()
-	var focused_materialized_index: int = GFVirtualListFocusModel.NO_FOCUS
+	item_control.offset_bottom = item_extent
+	return item_extent + _VIRTUAL_LIST_ITEM_SEPARATION
+
+
+func _get_virtual_list_focus_target(
+	row_host: Control,
+	_item_index: int,
+	_item_id: Variant
+) -> Control:
+	return _get_virtual_list_item_control(row_host)
+
+
+func _on_virtual_item_minimum_size_changed() -> void:
 	if (
-		is_instance_valid(focus_owner)
-		and items_container.is_ancestor_of(focus_owner)
+		is_instance_valid(_virtual_list_binder)
+		and _virtual_list_binder.is_bound()
 	):
-		focused_materialized_index = _get_virtual_item_index(focus_owner)
-	_virtual_visible_range = visible_range
+		var _measurement_requested: bool = (
+			_virtual_list_binder.request_measurement()
+		)
 
-	var visible_data: Array = []
-	for item_index: int in range(visible_range.x, visible_range.y):
-		visible_data.append(_virtual_data_list[item_index])
 
-	var created_nodes: Array[Node] = GFRepeaterBinder.rebuild_container(
-		items_container,
-		_get_repeater_template(),
-		visible_data,
-		{
-			"group_key": _LIST_REPEATER_GROUP,
-			"hide_template": false,
-			"clear_existing": true,
-			"duplicate_flags": _LIST_ITEM_DUPLICATE_FLAGS,
-			"configure_callable": Callable(
-				self,
-				"_configure_repeated_list_item"
-			),
-		}
-	)
-	items_container.move_child(_virtual_top_spacer, 0)
-	items_container.move_child(
-		_virtual_bottom_spacer,
-		items_container.get_child_count() - 1
-	)
-	_update_virtual_spacer_extents(visible_range)
-
-	var items: Array[Control] = []
-	for node: Node in created_nodes:
-		if node is Control:
-			var item_control: Control = node
-			items.append(item_control)
-			var minimum_changed_callback: Callable = Callable(
-				self,
-				"_queue_virtual_measurement"
-			)
-			if not item_control.minimum_size_changed.is_connected(
-				minimum_changed_callback
-			):
-				var _minimum_changed_connect_result: int = item_control.minimum_size_changed.connect(
-					minimum_changed_callback
-				)
+func _on_virtual_list_sync_completed(
+	result: GFVirtualListSyncResult
+) -> void:
+	if result == null or not result.is_successful():
+		return
+	var items: Array[Control] = _get_list_item_controls()
 	_apply_list_focus_order(items)
 	_apply_virtual_selection_visuals()
-	var motion_utility: GameUiMotionUtility = _get_game_ui_motion_utility()
-	if is_instance_valid(motion_utility):
-		var _bound_count: int = motion_utility.bind_interactive_controls(
-			items_container
-		)
-	if (
-		focused_materialized_index >= visible_range.x
-		and focused_materialized_index < visible_range.y
-	):
-		call_deferred(
-			&"_grab_virtual_focus",
-			focused_materialized_index
-		)
-	_queue_virtual_measurement()
-
-
-func _queue_virtual_measurement() -> void:
-	if (
-		not _uses_virtual_list()
-		or _virtual_data_list.is_empty()
-		or _virtual_measurement_queued
-	):
-		return
-	_virtual_measurement_queued = true
-	call_deferred(
-		&"_measure_virtual_window_after_layout",
-		_virtual_measurement_generation
-	)
-
-
-func _measure_virtual_window_after_layout(generation: int) -> void:
-	var frame_wait: Dictionary = await GFAsyncWaitUtility.next_frame({
-		"guard_node": self,
-	})
-	if not GFVariantData.get_option_bool(frame_wait, "completed", false):
-		return
-	if generation != _virtual_measurement_generation:
-		return
-	_virtual_measurement_queued = false
-	if (
-		not is_inside_tree()
-		or not is_instance_valid(_virtual_list_model)
-		or _virtual_visible_range.x < 0
-	):
-		return
-
-	var metrics: Vector2 = _get_virtual_scroll_metrics()
-	var effective_scroll_offset: float = metrics.x
-	var scroll_adjustment: float = 0.0
-	var extent_changed: bool = false
-	var separation: float = maxf(
-		float(items_container.get_theme_constant("separation")),
-		0.0
-	)
-	for item_control: Control in _get_list_item_controls():
-		var item_index: int = _get_virtual_item_index(item_control)
-		if item_index < 0 or item_index >= _virtual_data_list.size():
-			continue
-		var measured_extent: float = maxf(
-			maxf(
-				item_control.size.y,
-				item_control.get_combined_minimum_size().y
-			),
-			item_control.custom_minimum_size.y
-		) + separation
-		var report: Dictionary = _virtual_list_model.set_item_extent(
-			item_index,
-			measured_extent,
-			true,
-			effective_scroll_offset
-		)
-		if not GFVariantData.get_option_bool(report, "changed", false):
-			continue
-		extent_changed = true
-		var item_adjustment: float = GFVariantData.get_option_float(
-			report,
-			"scroll_adjustment",
-			0.0
-		)
-		scroll_adjustment += item_adjustment
-		effective_scroll_offset += item_adjustment
-
-	if not extent_changed:
-		return
-	_apply_virtual_scroll_adjustment(scroll_adjustment)
-	_update_virtual_spacer_extents(_virtual_visible_range)
-	_render_virtual_window(
-		false,
-		GFVirtualListFocusModel.NO_FOCUS
-	)
-
-
-func _apply_virtual_scroll_adjustment(adjustment: float) -> void:
-	if absf(adjustment) < 0.001:
-		return
-	if (
-		_layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP
-		and is_instance_valid(_list_scroll)
-	):
-		_list_scroll.scroll_vertical = maxi(
-			roundi(float(_list_scroll.scroll_vertical) + adjustment),
-			0
-		)
-		return
-	if is_instance_valid(_page_scroll) and _page_scroll.visible:
-		_page_scroll.scroll_vertical = maxi(
-			roundi(float(_page_scroll.scroll_vertical) + adjustment),
-			0
-		)
-
-
-func _include_required_virtual_index(
-	visible_range: Vector2i,
-	required_index: int,
-	viewport_extent: float
-) -> Vector2i:
-	if (
-		required_index < 0
-		or required_index >= _virtual_data_list.size()
-		or (
-			required_index >= visible_range.x
-			and required_index < visible_range.y
-		)
-	):
-		return visible_range
-
-	var visible_capacity: int = maxi(
-		ceili(viewport_extent / _virtual_item_extent)
-		+ _VIRTUAL_LIST_OVERSCAN_ITEMS * 2,
-		1
-	)
-	visible_capacity = mini(visible_capacity, _virtual_data_list.size())
-	var start_index: int = maxi(
-		required_index - _VIRTUAL_LIST_OVERSCAN_ITEMS,
-		0
-	)
-	start_index = mini(
-		start_index,
-		_virtual_data_list.size() - visible_capacity
-	)
-	return Vector2i(
-		start_index,
-		mini(start_index + visible_capacity, _virtual_data_list.size())
-	)
-
-
-func _get_virtual_scroll_metrics() -> Vector2:
-	var fallback_extent: float = (
-		_virtual_item_extent * float(_VIRTUAL_LIST_FALLBACK_VIEWPORT_ITEMS)
-	)
-	if (
-		_layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP
-		and is_instance_valid(_list_scroll)
-	):
-		return Vector2(
-			float(_list_scroll.scroll_vertical),
-			maxf(_list_scroll.size.y, fallback_extent)
-		)
-	if (
-		not is_instance_valid(_page_scroll)
-		or not _page_scroll.visible
-		or not is_instance_valid(items_container)
-	):
-		return Vector2(0.0, fallback_extent)
-
-	var viewport_top: float = _page_scroll.global_position.y
-	var viewport_bottom: float = viewport_top + _page_scroll.size.y
-	var list_top: float = items_container.global_position.y
-	var content_extent: float = _virtual_list_model.get_content_extent()
-	var visible_top: float = clampf(
-		viewport_top - list_top,
-		0.0,
-		content_extent
-	)
-	var visible_bottom: float = clampf(
-		viewport_bottom - list_top,
-		0.0,
-		content_extent
-	)
-	return Vector2(
-		visible_top,
-		maxf(visible_bottom - visible_top, 0.0)
-	)
-
-
-func _update_virtual_spacer_extents(visible_range: Vector2i) -> void:
-	var separation: float = maxf(
-		float(items_container.get_theme_constant("separation")),
-		0.0
-	)
-	var top_extent: float = _virtual_list_model.get_item_offset(
-		visible_range.x
-	)
-	_virtual_top_spacer.visible = visible_range.x > 0
-	_virtual_top_spacer.custom_minimum_size.y = maxf(
-		top_extent - separation,
-		0.0
-	)
-
-	var bottom_offset: float = (
-		_virtual_list_model.get_content_extent()
-		if visible_range.y >= _virtual_data_list.size()
-		else _virtual_list_model.get_item_offset(visible_range.y)
-	)
-	_virtual_bottom_spacer.visible = true
-	_virtual_bottom_spacer.custom_minimum_size.y = maxf(
-		_virtual_list_model.get_content_extent() - bottom_offset,
-		0.0
-	)
+	_bind_and_reveal_list_items()
 
 
 func _apply_virtual_selection_visuals() -> void:
@@ -1061,34 +1012,15 @@ func _apply_virtual_selection_visuals() -> void:
 	_update_action_focus_return_target(selected_target)
 
 
-func _queue_virtual_window_update() -> void:
-	if (
-		not _uses_virtual_list()
-		or _virtual_data_list.is_empty()
-		or _virtual_window_update_queued
-	):
-		return
-	_virtual_window_update_queued = true
-	call_deferred(&"_refresh_virtual_window")
-
-
-func _refresh_virtual_window() -> void:
-	_virtual_window_update_queued = false
-	if not is_inside_tree():
-		return
-	_render_virtual_window(
-		false,
-		GFVirtualListFocusModel.NO_FOCUS
-	)
-
-
 func _reset_virtual_list_for_empty_state() -> void:
 	if not _uses_virtual_list():
 		return
-	_virtual_measurement_queued = false
-	_virtual_measurement_generation += 1
+	if (
+		is_instance_valid(_virtual_list_binder)
+		and _virtual_list_binder.is_bound()
+	):
+		_virtual_list_binder.unbind()
 	_virtual_data_list.clear()
-	_virtual_visible_range = Vector2i(-1, -1)
 	if is_instance_valid(_virtual_list_model):
 		_virtual_list_model.clear()
 	if is_instance_valid(_virtual_focus_model):
@@ -1107,67 +1039,22 @@ func _get_virtual_item_index(item_control: Control) -> int:
 	)
 
 
-func _grab_virtual_focus(item_index: int) -> void:
+func _project_virtual_focus(item_index: int) -> void:
 	if (
 		not is_instance_valid(_virtual_focus_model)
 		or not _virtual_focus_model.is_focusable(item_index)
 	):
 		return
-	for item_control: Control in _get_list_item_controls():
-		if _get_virtual_item_index(item_control) != item_index:
-			continue
-		var _focus_changed: bool = _virtual_focus_model.set_focused_index(
-			item_index
-		)
-		item_control.grab_focus()
-		return
-
-
-func _project_virtual_focus(item_index: int) -> void:
-	if (
-		not is_instance_valid(_virtual_list_model)
-		or not is_instance_valid(_virtual_focus_model)
-		or not _virtual_focus_model.is_focusable(item_index)
-	):
-		return
-	_scroll_virtual_index_into_view(item_index)
-	_render_virtual_window(false, item_index)
-	call_deferred(&"_finish_virtual_focus_projection", item_index)
-
-
-func _finish_virtual_focus_projection(item_index: int) -> void:
-	if not is_inside_tree():
-		return
-	_render_virtual_window(false, item_index)
-	call_deferred(&"_grab_virtual_focus", item_index)
-
-
-func _scroll_virtual_index_into_view(item_index: int) -> void:
-	var metrics: Vector2 = _get_virtual_scroll_metrics()
-	var target_top: float = _virtual_list_model.get_item_offset(item_index)
-	var target_bottom: float = (
-		target_top + _virtual_list_model.get_item_extent(item_index)
+	var _focus_changed: bool = _virtual_focus_model.set_focused_index(
+		item_index
 	)
-	var adjustment: float = 0.0
-	if target_top < metrics.x:
-		adjustment = target_top - metrics.x
-	elif target_bottom > metrics.x + metrics.y:
-		adjustment = target_bottom - metrics.x - metrics.y
-	if is_zero_approx(adjustment):
-		return
-
 	if (
-		_layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP
-		and is_instance_valid(_list_scroll)
+		is_instance_valid(_virtual_list_binder)
+		and _virtual_list_binder.is_bound()
 	):
-		_list_scroll.scroll_vertical = maxi(
-			roundi(float(_list_scroll.scroll_vertical) + adjustment),
-			0
-		)
-	elif is_instance_valid(_page_scroll):
-		_page_scroll.scroll_vertical = maxi(
-			roundi(float(_page_scroll.scroll_vertical) + adjustment),
-			0
+		var _scroll_requested: bool = _virtual_list_binder.scroll_to_item(
+			item_index,
+			GFVirtualListBinder.ScrollAlignment.NEAREST
 		)
 
 
@@ -1179,7 +1066,6 @@ func _move_virtual_focus_from(item_index: int, step: int) -> bool:
 	)
 	if not _virtual_focus_model.move_focus(step):
 		return false
-	_project_virtual_focus(_virtual_focus_model.focused_index)
 	return true
 
 
@@ -1216,10 +1102,10 @@ func _set_selected_item(data: Resource) -> void:
 	_update_action_buttons()
 
 	var target_node: Control = null
-	for child: Node in items_container.get_children():
-		if not child is BaseListMenuItem:
+	for item_control: Control in _get_list_item_controls():
+		if not item_control is BaseListMenuItem:
 			continue
-		var list_item: BaseListMenuItem = child
+		var list_item: BaseListMenuItem = item_control
 		if list_item.get_data() == data:
 			list_item.set_selected(true)
 			target_node = list_item
@@ -1466,10 +1352,10 @@ func _get_materialized_resource_by_identity(identity: String) -> Resource:
 	if identity.is_empty():
 		return null
 	if is_instance_valid(items_container):
-		for child: Node in items_container.get_children():
-			if not child is BaseListMenuItem:
+		for item_control: Control in _get_list_item_controls():
+			if not item_control is BaseListMenuItem:
 				continue
-			var list_item: BaseListMenuItem = child
+			var list_item: BaseListMenuItem = item_control
 			var data: Resource = list_item.get_data()
 			if is_instance_valid(data) and _get_data_identity(data) == identity:
 				return data
@@ -1493,14 +1379,6 @@ func _is_delete_outcome_unknown(result: GameSaveSectionResult) -> bool:
 
 
 # --- 信号处理函数 ---
-
-func _on_virtual_scroll_changed(_value: float) -> void:
-	_queue_virtual_window_update()
-
-
-func _on_virtual_viewport_resized() -> void:
-	_queue_virtual_window_update()
-
 
 func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
 	if (
