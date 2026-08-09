@@ -3,7 +3,7 @@
 ## 负责加载 GameModeConfig，设置 RuleSystem，并协调核心组件之间的通信。
 ## 它作为撤回(Undo)、快照(Snapshot)和游戏回放(Replay)功能的总协调者。
 class_name GamePlayController
-extends "res://addons/gf/kernel/base/gf_controller.gd"
+extends GFController
 
 
 # --- 常量 ---

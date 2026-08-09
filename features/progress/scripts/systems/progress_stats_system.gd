@@ -2,7 +2,7 @@
 ##
 ## 最高分和统计作为 progress section 参与统一玩家 GFSaveProfile，设置交给 GFSettingsUtility 管理。
 class_name ProgressStatsSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 常量 ---

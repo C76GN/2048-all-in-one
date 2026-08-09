@@ -2,7 +2,7 @@
 ##
 ## 停止输入，触发结算逻辑。纯代码实现。
 class_name GameOverState
-extends "res://addons/gf/standard/state_machine/pure/gf_state.gd"
+extends GFState
 
 
 # --- 重写方法 ---

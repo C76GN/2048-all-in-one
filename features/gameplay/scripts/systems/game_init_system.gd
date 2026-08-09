@@ -1,6 +1,6 @@
 ## GameInitSystem: 负责当前对局的模式、规则和模型初始化装配。
 class_name GameInitSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 常量 ---

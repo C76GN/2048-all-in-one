@@ -1,6 +1,6 @@
 ## GameBoardFeedbackUtility: 使用主题配方、无障碍状态和性能预算编排反馈。
 class_name GameBoardFeedbackUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 枚举 ---

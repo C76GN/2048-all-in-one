@@ -3,7 +3,7 @@
 ## HUD 字幕、复制文本和未来的平台屏幕阅读器适配层都消费同一个
 ## GameAccessibilitySummary，避免视觉文案与辅助技术描述分别推导后漂移。
 class_name GameAccessibilitySummaryUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 信号 ---

@@ -3,7 +3,7 @@
 ## 将项目 GFResourceRegistry 原子注册到 GFResourceResolverUtility，并统一交给
 ## GFAssetUtility 分组管理缓存生命周期。业务 Feature 只需要面对目录 ID 和资源路径。
 class_name ProjectResourceCatalogUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 常量 ---

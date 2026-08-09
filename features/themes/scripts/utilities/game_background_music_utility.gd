@@ -5,7 +5,7 @@
 ## GFBackgroundWorkUtility 在线程中读取，主线程只负责构建对应 AudioStream 并
 ## 委托 GFAudioUtility 播放。新安装包使用 OGG，避免在主线程展开大体积 PCM。
 class_name GameBackgroundMusicUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 信号 ---

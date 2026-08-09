@@ -1,6 +1,6 @@
 ## ReplayInputSystem: 负责处理回放模式下的输入和逐步播放逻辑。
 class_name ReplayInputSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 常量 ---

@@ -1,6 +1,6 @@
 ## GridMovementSystem: 按 BoardTopology 的连续 lane 处理移动与合并。
 class_name GridMovementSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 常量 ---

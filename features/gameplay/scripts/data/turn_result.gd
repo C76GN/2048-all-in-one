@@ -2,7 +2,7 @@
 ##
 ## 规则、撤销、回放校验与表现层都消费该对象，不再从字符串字典反推回合语义。
 class_name TurnResult
-extends "res://addons/gf/kernel/base/gf_payload.gd"
+extends GFPayload
 
 
 # --- 公共变量 ---

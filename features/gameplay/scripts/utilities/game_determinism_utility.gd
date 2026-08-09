@@ -1,6 +1,6 @@
 ## GameDeterminismUtility: 统一规则集指纹与回放语义状态校验。
 class_name GameDeterminismUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 常量 ---

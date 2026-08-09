@@ -3,7 +3,7 @@
 ## 普通玩家运行不会加载本脚本，避免 Console、Inspector、Screenshot 和独立测试窗口
 ## 进入首屏依赖链。需要诊断能力的构建必须声明 `with_dev_tools`。
 class_name GameDiagnosticsInstaller
-extends "res://addons/gf/kernel/core/gf_installer.gd"
+extends GFInstaller
 
 
 # --- 常量 ---

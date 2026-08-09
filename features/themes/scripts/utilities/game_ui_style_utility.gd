@@ -1,6 +1,6 @@
 ## GameUiStyleUtility: 统一应用主题色板、控件 StyleBox 与焦点表现。
 class_name GameUiStyleUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 枚举 ---

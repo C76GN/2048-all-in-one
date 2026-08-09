@@ -1,6 +1,6 @@
 ## GameCelebrationVfxUtility: 统一播放目标达成、新纪录等全屏庆祝反馈。
 class_name GameCelebrationVfxUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 常量 ---

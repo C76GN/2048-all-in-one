@@ -1,6 +1,6 @@
 ## TileDiscoverySystem: 观察方块组合与棋盘拓扑，并持久化最小发现进度。
 class_name TileDiscoverySystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 信号 ---

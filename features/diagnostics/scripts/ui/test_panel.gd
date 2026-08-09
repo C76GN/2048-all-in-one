@@ -4,7 +4,7 @@
 ## 而是通过外部数据来动态填充选项。它允许开发者在运行时手动生成
 ## 符合当前游戏模式规则的方块，或调整棋盘大小。
 class_name TestPanel
-extends "res://addons/gf/kernel/base/gf_controller.gd"
+extends GFController
 
 
 # --- 私有变量 ---

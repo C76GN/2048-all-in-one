@@ -1,6 +1,6 @@
 ## PlayerInputSystem: 负责处理标准模式下的玩家输入，并将抽象动作转换为游戏命令。
 class_name PlayerInputSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 常量 ---

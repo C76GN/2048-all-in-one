@@ -3,7 +3,7 @@
 ## 取代了原本的 ReplayManager 全局单例。
 ## 回放作为独立 Feature section 参与统一玩家 GFSaveProfile 事务。
 class_name ReplaySystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 信号 ---

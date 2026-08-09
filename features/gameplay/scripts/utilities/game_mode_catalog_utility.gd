@@ -2,7 +2,7 @@
 ##
 ## 资源缓存、解析和卸载完全委托给 ProjectResourceCatalogUtility 与 GFAssetUtility。
 class_name GameModeCatalogUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 常量 ---

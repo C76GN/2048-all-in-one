@@ -3,7 +3,7 @@
 ## 业务模块只提交路由意图；GFSceneUtility 管理加载事务，
 ## GFScreenTransitionUtility 管理覆盖层生命周期和效果推进。
 class_name SceneRouterSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 常量 ---

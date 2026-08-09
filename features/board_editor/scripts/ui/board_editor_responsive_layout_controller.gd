@@ -3,7 +3,7 @@
 ## 桌面同时展示工具、画布和模板库；紧凑横屏与竖屏使用编辑/模板分区，避免
 ## 固定三栏压缩画布。竖屏把工具放在画布上方，并为系统安全区保留物理边距。
 class_name BoardEditorResponsiveLayoutController
-extends "res://addons/gf/kernel/base/gf_controller.gd"
+extends GFController
 
 
 # --- 枚举 ---

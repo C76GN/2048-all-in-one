@@ -2,7 +2,7 @@
 ##
 ## 作为 GFUIRouterUtility 的项目级 Adapter，从项目资源目录加载类型安全的路由资源。
 class_name GameUiRouterUtility
-extends "res://addons/gf/standard/utilities/ui/gf_ui_router_utility.gd"
+extends GFUIRouterUtility
 
 
 # --- 常量 ---

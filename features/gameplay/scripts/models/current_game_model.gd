@@ -2,7 +2,7 @@
 ##
 ## 用于解耦 GamePlayController 中持有的业务无关变量。
 class_name CurrentGameModel
-extends "res://addons/gf/kernel/base/gf_model.gd"
+extends GFModel
 
 
 # --- 公共变量 (使用 GFBindableProperty 包装) ---

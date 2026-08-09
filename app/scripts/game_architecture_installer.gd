@@ -1,6 +1,6 @@
 ## GameArchitectureInstaller: 注册项目级 GF 模块。
 class_name GameArchitectureInstaller
-extends "res://addons/gf/kernel/core/gf_installer.gd"
+extends GFInstaller
 
 
 # --- 常量 ---

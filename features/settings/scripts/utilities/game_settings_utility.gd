@@ -1,6 +1,6 @@
 ## GameSettingsUtility: 项目设置定义入口。
 class_name GameSettingsUtility
-extends "res://addons/gf/standard/utilities/settings/gf_settings_utility.gd"
+extends GFSettingsUtility
 
 
 # --- 信号 ---

@@ -1,6 +1,6 @@
 ## GameAccessibilityUtility: 通过 GFSettingsUtility 维护无障碍偏好的单一运行时状态。
 class_name GameAccessibilityUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 信号 ---

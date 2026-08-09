@@ -4,7 +4,7 @@
 ## 校验和事务激活成功后才替换当前资源组。当前视觉与声音主题由 GFAssetSlot 持有，
 ## 声音银行额外使用 GF 挂载令牌管理生命周期。
 class_name GameThemeUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 信号 ---

@@ -3,7 +3,7 @@
 ## 以 GFTimeUtility 为逻辑时间的唯一事实，同时同步 SceneTree 暂停状态，
 ## 避免 GF System 与 Godot Node 在暂停期间继续以不同时间语义运行。
 class_name GamePauseUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 信号 ---

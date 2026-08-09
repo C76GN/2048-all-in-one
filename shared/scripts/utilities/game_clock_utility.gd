@@ -3,7 +3,7 @@
 ## GFTimeUtility 负责游戏 delta、缩放和暂停；本 Module 共享 GFClock，并只补充
 ## 项目需要的秒级时间戳、短文件名 tick 和用户可读日期时间格式。
 class_name GameClockUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 私有变量 ---

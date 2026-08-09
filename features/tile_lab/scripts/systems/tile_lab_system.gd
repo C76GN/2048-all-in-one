@@ -1,6 +1,6 @@
 ## TileLabSystem: 管理玩家方块蓝图，并复用现有组合能力执行隔离沙盒交互。
 class_name TileLabSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 信号 ---

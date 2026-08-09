@@ -3,7 +3,7 @@
 ## 消费 ProjectContentCatalogUtility 已构建的内容目录，通过 GF Resolver 和 GFAssetCatalog
 ## 暴露稳定素材键；不再修改全局内容包 source root 或触发目录重建。
 class_name GameAssetLibraryUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 常量 ---

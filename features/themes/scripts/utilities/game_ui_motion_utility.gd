@@ -3,7 +3,7 @@
 ## 作为项目级 GFUtility，它负责按钮 hover、focus、press、面板入场和列表刷新表现。
 ## 静态色板和 StyleBox 由 GameUiStyleUtility 统一管理。
 class_name GameUiMotionUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 信号 ---

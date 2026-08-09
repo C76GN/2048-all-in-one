@@ -3,7 +3,7 @@
 ## 该系统监听 `EventNames.SPAWN_TILE_REQUESTED` 事件，处理方块生成的逻辑（如网格空余判定、位置打乱），
 ## 将数据写入 `GridModel`，最后发送纯表现层的指令给视觉系统。
 class_name GridSpawnSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 常量 ---

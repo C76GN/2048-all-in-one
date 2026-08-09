@@ -3,7 +3,7 @@
 ## 它持有 GridModel (逻辑核心)，并根据 Model 的信号更新 Tile 节点的位置和状态。
 ## 它是棋盘模型的表现层控制器。
 class_name GameBoardController
-extends "res://addons/gf/kernel/base/gf_controller.gd"
+extends GFController
 
 
 # --- 信号 ---

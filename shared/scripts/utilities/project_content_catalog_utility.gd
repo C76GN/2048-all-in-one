@@ -3,7 +3,7 @@
 ## Composition Root 只配置内容包 source root；本 Utility 统一负责 GF 内容包目录重建、
 ## Resolver 原子注册和资源查询。业务 Feature 不再直接修改全局 GFContentPackageUtility。
 class_name ProjectContentCatalogUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 信号 ---

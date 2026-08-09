@@ -3,7 +3,7 @@
 ## 默认绑定继续由 GFInputContext 声明；本工具只保存玩家覆盖，并复用 GF 的
 ## 检测、格式化和冲突分析数据结构。玩法动画响应策略也作为输入体验设置管理。
 class_name GameInputProfileUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 信号 ---

@@ -3,7 +3,7 @@
 ## 棋盘规则和方块动画始终使用稳定的局部世界坐标；本控制器只负责缩放、平移、
 ## 聚焦、视口裁剪和 GF 指针手势适配。HUD 与诊断界面位于该宿主之外，不参与变换。
 class_name BoardWorldViewportController
-extends "res://addons/gf/kernel/base/gf_controller.gd"
+extends GFController
 
 
 # --- 信号 ---

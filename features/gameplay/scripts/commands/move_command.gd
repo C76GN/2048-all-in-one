@@ -2,7 +2,7 @@
 ##
 ## 该命令保存移动前的完整游戏快照，并在撤销时恢复游戏状态。
 class_name MoveCommand
-extends "res://addons/gf/standard/command/gf_undoable_command.gd"
+extends GFUndoableCommand
 
 
 # --- 常量 ---

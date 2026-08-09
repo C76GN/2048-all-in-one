@@ -3,7 +3,7 @@
 ## 使用 GFActionQueueSystem 的命名生命周期队列，使棋盘动画不再污染默认队列，
 ## 并在一个位置实现缓冲、阻断、实时重定向三种策略。
 class_name GameBoardAnimationUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 常量 ---

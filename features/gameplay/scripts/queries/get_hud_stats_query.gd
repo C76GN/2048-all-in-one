@@ -2,7 +2,7 @@
 ##
 ## 该查询只读取 Model、System 和 Utility，不修改任何运行时状态。
 class_name GetHudStatsQuery
-extends "res://addons/gf/kernel/base/gf_query.gd"
+extends GFQuery
 
 
 # --- 常量 ---

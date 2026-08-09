@@ -3,7 +3,7 @@
 ## 项目层保留桌面左/右键与移动端单指连续笔画；第二触点出现时取消项目笔画，
 ## 中键、滚轮、系统手势、原始多指平移缩放及消费交给 GFSpatialCanvas2D。
 class_name BoardEditorViewportController
-extends "res://addons/gf/kernel/base/gf_controller.gd"
+extends GFController
 
 
 # --- 信号 ---

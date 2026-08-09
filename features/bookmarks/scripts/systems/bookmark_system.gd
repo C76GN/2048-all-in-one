@@ -3,7 +3,7 @@
 ## 负责管理并持久化游戏书签记录。
 ## 书签作为独立 Feature section 参与统一玩家 GFSaveProfile 事务。
 class_name BookmarkSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 私有变量 ---

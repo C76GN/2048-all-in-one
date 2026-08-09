@@ -2,7 +2,7 @@
 ##
 ## 此时游戏数据已加载，等待开始信号或动画完成。纯代码实现。
 class_name GameReadyState
-extends "res://addons/gf/standard/state_machine/pure/gf_state.gd"
+extends GFState
 
 
 # --- 重写方法 ---

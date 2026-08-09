@@ -1,6 +1,6 @@
 ## CustomBoardSystem: 管理玩家自定义棋盘模板及其统一 GFSaveProfile 事务。
 class_name CustomBoardSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 私有变量 ---

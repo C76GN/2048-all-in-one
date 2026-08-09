@@ -220,6 +220,36 @@ func test_project_scripts_declare_gf_style_class_names() -> void:
 	assert_true(issues.is_empty(), "项目脚本 class_name 应由文件名派生并保持 gf 示例命名风格：\n%s" % _join_lines(issues))
 
 
+func test_project_scripts_extend_gf_public_classes_by_name() -> void:
+	var issues: Array[String] = []
+	for path: String in _collect_runtime_gdscript_files():
+		issues.append_array(_collect_direct_gf_script_extends_issues(path))
+
+	assert_true(
+		issues.is_empty(),
+		"项目脚本应通过 GF public class_name 继承，不得绑定 vendored GF 脚本路径：\n%s"
+		% _join_lines(issues)
+	)
+
+
+func test_gf_public_class_name_parser_uses_the_declared_class_header() -> void:
+	var documented_public_class_name: String = _read_gf_public_class_name(
+		"res://addons/gf/kernel/core/gf_project_reference_scanner.gd"
+	)
+	var internal_class_name: String = _read_gf_public_class_name(
+		"res://addons/gf/kernel/package/gf_package_transaction_engine.gd"
+	)
+
+	assert_true(
+		documented_public_class_name == "GFProjectReferenceScanner",
+		"class_name 文本先出现在类文档中时，仍应返回真正的 public 类声明。"
+	)
+	assert_true(
+		internal_class_name.is_empty(),
+		"framework_internal class_name 不得被项目继承门禁当作 public API。"
+	)
+
+
 func test_gf_layer_script_names_express_architecture_layer() -> void:
 	var issues: Array[String] = []
 	for path: String in _collect_runtime_gdscript_files():
@@ -709,6 +739,54 @@ func _collect_script_class_name_issues(path: String) -> Array[String]:
 			declared_class_name,
 		]]
 	return []
+
+
+func _collect_direct_gf_script_extends_issues(path: String) -> Array[String]:
+	var issues: Array[String] = []
+	for record: Dictionary in _scan_top_level_source(path):
+		var line: String = _get_dictionary_text(record, "line").strip_edges()
+		var line_number: int = _get_dictionary_int(record, "line_number")
+		var gf_script_path: String = _parse_direct_gf_script_extends_path(line)
+		if gf_script_path.is_empty():
+			continue
+		var public_class_name: String = _read_gf_public_class_name(gf_script_path)
+		if public_class_name.is_empty():
+			_append_string(
+				issues,
+				"%s:%d GF 目标脚本不是 public class_name，不得从项目层直接继承：%s"
+				% [path, line_number, gf_script_path]
+			)
+			continue
+		_append_string(
+			issues,
+			"%s:%d 请改为 extends %s（GF public class_name），不要直接继承 %s。"
+			% [path, line_number, public_class_name, gf_script_path]
+		)
+	return issues
+
+
+func _parse_direct_gf_script_extends_path(line: String) -> String:
+	if not line.begins_with("extends"):
+		return ""
+	var declaration: String = line.substr("extends".length()).strip_edges()
+	var quote: String = ""
+	if declaration.begins_with("\""):
+		quote = "\""
+	elif declaration.begins_with("'"):
+		quote = "'"
+	else:
+		return ""
+	var path_start: int = quote.length()
+	var path_end: int = declaration.find(quote, path_start)
+	if path_end == -1:
+		return ""
+	var script_path: String = declaration.substr(path_start, path_end - path_start)
+	if (
+		not script_path.begins_with("res://addons/gf/")
+		or not script_path.ends_with(".gd")
+	):
+		return ""
+	return script_path
 
 
 func _collect_gf_layer_suffix_issues(path: String, expected_suffix: String) -> Array[String]:
@@ -1560,6 +1638,27 @@ func _read_declared_class_name(path: String) -> String:
 	var declared_class_name: String = _parse_declared_class_name(file.get_as_text())
 	file.close()
 	return declared_class_name
+
+
+func _read_gf_public_class_name(path: String) -> String:
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return ""
+
+	var source: String = file.get_as_text()
+	file.close()
+	var header_declares_public_api: bool = false
+	for raw_line: String in source.split("\n"):
+		var line: String = _trim_cr(raw_line).strip_edges()
+		if line == "## @api public":
+			header_declares_public_api = true
+			continue
+		if not line.begins_with("class_name "):
+			continue
+		if not header_declares_public_api:
+			return ""
+		return _parse_declared_class_name(source)
+	return ""
 
 
 func _scan_top_level_source(path: String) -> Array[Dictionary]:

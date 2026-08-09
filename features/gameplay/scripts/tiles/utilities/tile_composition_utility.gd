@@ -1,6 +1,6 @@
 ## TileCompositionUtility: 使用 GF Capability Recipe 创建、恢复与解析组合方块。
 class_name TileCompositionUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 信号 ---

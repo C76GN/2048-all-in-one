@@ -3,7 +3,7 @@
 ## 从 ProjectContentCatalogUtility 的 manifest metadata 构建轻量主题描述符，并在主题
 ## 真正激活时才通过稳定资源键加载完整资源。
 class_name GameThemeCatalogUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 常量 ---

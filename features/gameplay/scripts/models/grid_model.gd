@@ -2,7 +2,7 @@
 ##
 ## BoardTopology 是可用空间的唯一真源；方块只按活跃坐标存入稀疏字典。
 class_name GridModel
-extends "res://addons/gf/kernel/base/gf_model.gd"
+extends GFModel
 
 
 # --- 常量 ---

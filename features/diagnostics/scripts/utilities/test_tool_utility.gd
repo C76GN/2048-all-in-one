@@ -3,7 +3,7 @@
 ## 该 Utility 订阅玩法发布的棋盘就绪事件，按需创建独立 Window，并通过 GF 输入、
 ## 控制台、信号和主题能力管理工作区。玩家场景不持有任何诊断 UI 节点。
 class_name TestToolUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 常量 ---

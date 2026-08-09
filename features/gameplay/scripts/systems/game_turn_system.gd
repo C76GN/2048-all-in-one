@@ -1,6 +1,6 @@
 ## GameTurnSystem: 将项目移动事件接入 GF 回合行动生命周期。
 class_name GameTurnSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 私有变量 ---

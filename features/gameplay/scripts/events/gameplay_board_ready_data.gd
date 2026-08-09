@@ -3,7 +3,7 @@
 ## 该事件只暴露可供外部工具观察的棋盘表现宿主。诊断功能可据此建立开发上下文，
 ## 玩法功能无需反向依赖任何诊断 UI 或 Utility。
 class_name GameplayBoardReadyData
-extends "res://addons/gf/kernel/base/gf_payload.gd"
+extends GFPayload
 
 
 # --- 公共变量 ---

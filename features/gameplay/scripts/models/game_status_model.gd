@@ -1,6 +1,6 @@
 ## GameStatusModel: 负责游戏运行时的状态统计 (分数、步数、规则结算次数等)。
 class_name GameStatusModel
-extends "res://addons/gf/kernel/base/gf_model.gd"
+extends GFModel
 
 
 # --- 公共变量 ---

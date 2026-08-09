@@ -28,6 +28,7 @@
 *   **`class_name`**: 使用大驼峰命名法 (`PascalCase`)。
 	*   示例: `class_name GameBoard`, `class_name StateMachine`
 	*   项目脚本必须严格由文件名执行 `to_pascal_case()` 推导，不维护缩写例外：`game_ui_controller.gd` 对应 `GameUiController`，`hud.gd` 对应 `Hud`。显示文案、注释和场景节点仍可使用 UI、HUD 等领域缩写。
+	*   继承 GF 公开类型时必须使用其稳定 `class_name`，例如 `extends GFUtility`；项目层不得直接继承 `res://addons/gf/**` 内部文件路径。目标脚本若没有公开 `class_name`，应改用公开 GF API 或项目适配边界，而不是绑定框架内部实现。
 *   **场景树中的节点**: 使用大驼峰命名法 (`PascalCase`)。如果一个节点在脚本中会被频繁引用（通过 `%` 唯一名称获取），其名称应清晰表达其用途。
 	*   示例: `GameBoard`, `ModeListContainer`, `StartGameButton`
 

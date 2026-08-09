@@ -1,6 +1,6 @@
 ## BoardTweenBatchAction: 将棋盘已有 Tween 适配为 GF 可等待视觉动作。
 class_name BoardTweenBatchAction
-extends "res://addons/gf/extensions/action_queue/actions/gf_visual_action.gd"
+extends GFVisualAction
 
 
 # --- 私有变量 ---

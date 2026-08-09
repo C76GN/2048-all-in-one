@@ -3,7 +3,7 @@
 ## 该系统监听来自其他系统或控制器的事件，并调用 RuleSystem 执行对应的规则，
 ## 例如判断游戏结束、触发方块生成等。
 class_name GameFlowSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 常量 ---

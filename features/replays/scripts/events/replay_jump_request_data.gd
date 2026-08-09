@@ -1,6 +1,6 @@
 ## ReplayJumpRequestData: ReplaySystem 发给命令历史执行边界的确定性跳转请求。
 class_name ReplayJumpRequestData
-extends "res://addons/gf/kernel/base/gf_payload.gd"
+extends GFPayload
 
 
 # --- 公共变量 ---

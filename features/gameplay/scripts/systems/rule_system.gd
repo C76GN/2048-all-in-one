@@ -3,7 +3,7 @@
 ## 接收核心游戏事件，并按触发器与优先级执行注册的生成规则。规则只描述业务结果，
 ## 事件派发由本系统统一完成，避免规则资源直接依赖全局架构。
 class_name RuleSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 私有变量 ---

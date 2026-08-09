@@ -3,7 +3,7 @@
 ## TileDefinition 仍是内容真源；本 Utility 只负责 GF Resource Registry 接入、
 ## 唯一性校验和运行时组合描述投影。
 class_name TileCatalogUtility
-extends "res://addons/gf/kernel/base/gf_utility.gd"
+extends GFUtility
 
 
 # --- 常量 ---

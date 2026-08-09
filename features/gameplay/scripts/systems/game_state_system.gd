@@ -1,6 +1,6 @@
 ## GameStateSystem: 负责采集与恢复一局游戏的完整逻辑状态。
 class_name GameStateSystem
-extends "res://addons/gf/kernel/base/gf_system.gd"
+extends GFSystem
 
 
 # --- 常量 ---

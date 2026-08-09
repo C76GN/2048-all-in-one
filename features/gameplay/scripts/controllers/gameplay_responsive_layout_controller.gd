@@ -3,7 +3,7 @@
 ## 玩法页不使用共享三栏布局的侧栏。棋盘始终扩展到可用画面，HUD 保持在
 ## 根屏幕空间并只随安全区调整位置，避免设备变化时反复改挂父节点。
 class_name GameplayResponsiveLayoutController
-extends "res://addons/gf/kernel/base/gf_controller.gd"
+extends GFController
 
 
 # --- 枚举 ---
