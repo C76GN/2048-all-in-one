@@ -28,7 +28,7 @@
 
 ## 架构速览
 
-- 启动入口：`app/scenes/boot.tscn` 挂载极轻 `app/scripts/boot.gd`，线程加载 `app/scripts/boot_runtime.gd`；后者启用 GF 根架构的严格依赖查询与声明校验，调用 `await Gf.init()`、执行 `GFRenderWarmupUtility` 清单预热后交给 `SceneRouterSystem` 切到主菜单。
+- 启动入口：`app/scenes/boot.tscn` 挂载极轻 `app/scripts/boot.gd`，线程加载 `app/scripts/boot_runtime.gd`；后者启用 GF 根架构的严格依赖查询与声明校验，调用 `await Gf.init()`，等待模式目录 GF 异步预载和初始主题激活的明确终态，执行 `GFRenderWarmupUtility` 清单预热后再交给 `SceneRouterSystem` 切到主菜单。
 - GF 上游治理：`addons/gf/**` 是只读 vendor 快照。框架缺陷必须在 `C76GN/gf-framework` 先建 issue，并以 issue 作为唯一协作与验收记录；实现只允许位于独立 `gf-pr` 工作区的非 `main` 分支，并完成 GF 自身测试与维护门禁。稳定示例线采用正式发布，开发兼容线只采用 GF 官方 `main` 上游门禁通过的精确 commit；两者都更新完整 vendor lock，禁止自动化把框架实现或项目补丁直接写入任一仓库主线。
 - gf 装配入口：`app/scripts/game_architecture_installer.gd` 注册项目 Model、System、Utility，并通过 Project Settings 的 `gf/project/installers` 接入。
 - Feature：`features/<feature_id>/` 内聚脚本、场景、资源、文档和局部工具；GF 层目录只在所属 Feature 内出现。
@@ -37,7 +37,7 @@
 - 规则资源：`features/gameplay/scripts/rules/**` 定义移动、交互、生成、结束判定；`features/gameplay/resources/modes/*.tres` 组合这些规则形成不同玩法模式。
 - 对局 session：`GameInitSystem` 使用 `GFLevelUtility` 记录当前一局的模式、尺寸、种子和来源；这只是运行时 session 语义，不代表项目引入关卡进度玩法。
 - 对局暂停：业务 Module 只能调用 `GamePauseUtility`；该 Adapter 同步 `GFTimeUtility` 与 `SceneTree.paused`。除它之外不得直接写场景树暂停状态。需要在暂停期间运行的 System 必须显式设置 `ignore_pause`，并自行门控所有非暂停意图。
-- 模式目录：`features/gameplay/resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式列表，项目层通过 `GameModeCatalogUtility` 读取，缓存与分组生命周期由 `GFAssetUtility` 独占管理。
+- 模式目录：`features/gameplay/resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式列表，`BootRuntime` 必须等待 `GameModeCatalogUtility.get_preload_completion()` 成功；业务热路径只读取 `GFAssetUtility` 缓存，禁止在预载仍进行或缓存缺失时同步 `ResourceLoader` 降级。缓存与分组生命周期仍由 `GFAssetUtility` 独占管理。
 - UI 路由：`features/navigation/resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 `GFUIRoute` 资源目录；业务 UI 按 route ID 打开，不保留路径调用后备。菜单负责关闭自身路由，System 不得直接调用 `GFUIUtility.pop_panel()` 或 `clear_all()`。
 - UI 焦点：动态纵向列表使用 `GFControlFocusUtility.apply_focus_order()`；项目层只维护跨列、返回选中项等界面特有关系，不重新实现顺序遍历、首尾循环或相对路径计算。
 - 完整 Feature 所有权和依赖方向以 `docs/architecture.md` 为准。

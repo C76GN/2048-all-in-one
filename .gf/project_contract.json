@@ -109,6 +109,7 @@
         "acceptance": [
           "运行时主题与内容以稳定资源键解析；激活路径不得以 raw res:// path fallback 维持成功。",
           "主题资源先在 GFAssetLoadSession staging group 全量通过再事务提交；成功后释放旧组，失败保留旧主题与旧音频银行。",
+          "模式目录在 BootRuntime 进入主菜单前等待 GFAssetUtility 异步预载的唯一终态；业务 get_config 热路径只读取已完成缓存，预载进行中或缓存缺失时不得同步 ResourceLoader 降级。",
           "Composition Root 在 GFAssetUtility、GFSceneUtility 和 GFBackgroundWorkUtility 之前注册唯一共享 GFResourceBroker；三条加载路径必须共享有界 admission、同资源复用和消费者取消语义。",
           "当前视觉与声音主题只由独立 GFAssetSlot 强持有，并以稳定用途键、类型契约、单调 generation 和 Utility dispose 终态释放接受测试；作者评审 AssetSlotMap 不得充当运行时句柄。"
         ],
@@ -152,8 +153,8 @@
         ],
         "acceptance": [
           "棋盘编辑器的连续笔画格线委托 GFGridCoordinateMath2D；项目只拥有拓扑合法性、编辑命令、持久化和视觉语义。",
-          "棋盘编辑器的视图状态、缩放、平移、世界/画布坐标转换和有界内容根由 GFSpatialCanvas2D 持有；项目控制器只仲裁绘制手势与编辑业务。",
-          "玩法棋盘的内容根、视图状态、缩放、平移和世界/画布坐标转换同样由 GFSpatialCanvas2D 持有；项目控制器只保留 HUD fit inset、触控滑动分类和玩法可达性编排。",
+          "棋盘编辑器的视图状态、缩放、平移、世界/画布坐标转换、有界内容根及中键/滚轮/系统/多指导航由 GFSpatialCanvas2D 输入策略持有；项目控制器只仲裁鼠标与单指绘制，第二触点出现时取消未提交笔画。",
+          "玩法棋盘的内容根、视图状态、缩放、平移、世界/画布坐标转换及通用画布导航同样由 GFSpatialCanvas2D 输入策略持有；项目控制器只保留 HUD fit inset、单指触控滑动分类和玩法可达性编排，不得创建第二套 GFPointerGestureUtility。",
           "快速拖动采样必须形成包含两端点的连续格线，test_board_editor.gd 覆盖斜向输入。"
         ],
         "notes": "CanvasViewportMath 仅保留玩法 HUD inset 构图和边缘余量的项目策略计算，不再直接持有或写入画布变换。"
@@ -169,6 +170,7 @@
         "acceptance": [
           "玩家弹层只经 GFUIRouterUtility 的稳定 route id 异步打开或关闭；调用方消费 GFUIRouteOperation 的唯一类型化终态，路由失败保持原业务状态与焦点。",
           "相邻弹层通过 GFUIRoute.adjacent_route_ids 进入有界预加载计划；owner 离开场景树后的迟到成功必须立即回滚，不得遗留孤儿面板。",
+          "主菜单同层弹层共享单一在途门闩；任一路由提交到唯一终态前禁用全部主菜单动作，成功不得从新弹层抢回焦点，失败只恢复发起按钮。",
           "空列表、键盘或手柄初始焦点、返回栈与 44px 触控契约由 UI GUT 覆盖。"
         ],
         "notes": ""
@@ -181,8 +183,9 @@
           "scalable-ui-collection"
         ],
         "acceptance": [
-          "回放长列表只向 GFRepeaterBinder 提交 GFVirtualListModel 当前窗口与 overscan 切片；GFVirtualListFocusModel 必须在桌面和紧凑页面滚动中保持逻辑焦点，并在目录缩短时修复索引。",
-          "128 条回放的物化控件数只随视口容量和固定 overscan 增长；滚动、键盘/手柄跨窗口导航与重复刷新测试通过。"
+          "回放长列表由 GFVirtualListBinder 统一拥有视口窗口、overscan、节点池、测量、焦点交接和 owner teardown；项目只提交稳定 replay ID、业务数据、行配置与激活回调。",
+          "素材评审、图鉴、成就、玩家模式汇总与本地排行榜由 GFTableDataView 执行事务式稳定行投影；选择使用 GFTableSelectionModel，项目 keyed Card/ItemList 缓存只渲染可见行。试验台基础字段由 GFFormBinder 读写，recipe 多选与持久化仍归项目。",
+          "128 条回放的物化控件数只随视口容量和固定 overscan 增长；滚动、键盘/手柄跨窗口导航、目录缩短、重复刷新与 Binder dispose 测试通过。"
         ],
         "notes": "书签目录规模较小，继续使用普通 GFRepeaterBinder；项目拥有回放身份、排序、选择和行视觉，GF 拥有有界窗口与逻辑焦点。"
       },
@@ -318,8 +321,8 @@
           "bounded-runtime-work"
         ],
         "acceptance": [
-          "DeterministicHintQuery 在 GFExecutionBudget 或 cancellation 耗尽时返回稳定 reason 与已有有界结果，不得越过 deadline 继续计算；test_deterministic_hint_query.gd 通过。",
-          "GameBoardController 只为可见窗口从 GFObjectPoolUtility 取得格子或方块节点；回收不得删除 GridModel 状态或释放仍由 Tween 拥有的节点。",
+          "DeterministicHintQuery 在 GFExecutionBudget 或 cancellation 耗尽时返回稳定 reason 与已有有界结果，不得越过 deadline 继续计算；玩家可见方向只能由确定的步数预算决定，墙钟截止结果不得显示；test_deterministic_hint_query.gd 通过。",
+          "GameBoardController 只为最多 256 格的玩家可见窗口从 GFObjectPoolUtility 取得格子或方块节点；揭示前以单一 worker 完整预算预热 Tile 与 GridCell，重复 setup 只保留最新 generation，回收不得删除 GridModel 状态或释放仍由 Tween 拥有的节点。",
           "桌面正常回合 P95 frame time 不高于 16.667 ms，input_to_primary_feedback 不高于 50 ms；性能验收矩阵不得以跳过规范模拟来达标。"
         ],
         "notes": "执行预算仅可截断提示、诊断或装饰性工作，不截断权威移动；对象池只拥有表现节点，不拥有领域身份。"

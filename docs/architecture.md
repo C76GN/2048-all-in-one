@@ -111,13 +111,13 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 4. 撤销、书签、回放和玩家 GFSaveProfile 共用严格拓扑快照；对局 ID、统计和本地排行榜分组使用语义 ID 加内容指纹的稳定键。
 5. GF 继续拥有验证报告、确定性随机、命令历史、关卡 Session 和持久化事务；四向稀疏拓扑是 gameplay 领域对象，不误用 GF flow graph 或 hex grid 表达不同语义。
 6. 玩法 `BoardViewport` 与编辑器 `CanvasViewport` 都由 `GFSpatialCanvas2D` 持有内容根、视图状态、缩放、平移和世界/画布坐标转换；`BoardWorldViewportController` 只追加 HUD fit inset、边缘余量和完整聚焦构图策略。HUD 保持在视口外的屏幕空间，诊断 UI 不进入玩家场景树。
-7. `GFPointerGestureUtility` 负责桌面指针、触摸与原生 pan/magnify 归一化；由于它拥有可变手势配置和活动指针状态，每个画布控制器及平台冒烟场景各自持有一个完整生命周期的私有实例，不在 Composition Root 注册 singleton。`GFSpatialCanvas2D` 负责棋盘空间坐标换算，`GFViewportUtility` 只用于物理安全区与显示边界，`GFSignalUtility` 负责宿主生命周期内的连接所有权。项目只保存“本轮触摸是否仍可成为玩法滑动”的领域仲裁状态，不重复维护指针几何、通用视图状态或坐标变换工具。
+7. `GFSpatialCanvas2D` 通过自己的 `GFSpatialCanvasInputPolicy` 和内部 `GFPointerGestureUtility` 统一拥有中键拖动、滚轮、原生 pan/magnify 与多指平移缩放；控制器把事件交给 `handle_input_event()`，不再创建第二套通用手势状态机。项目只保留产品专属仲裁：玩法单指短滑转换为移动意图，编辑器左/右键与单指笔刷转换为草稿命令；第二根手指出现时必须取消尚未提交的编辑笔画。`GFViewportUtility` 只处理物理安全区与显示边界，`GFSignalUtility` 负责宿主生命周期内的连接所有权。
 8. 单指短滑由 `BoardWorldViewportController` 分类后，经 `GameVirtualActionPulseUtility` 与 `GFVirtualInputSource` 写入 `GameplayInputActions`；HUD 按钮使用同一 typed pulse Adapter，不再以 `GFTimerUtility`、布尔标记或 fire-and-forget 回调自行模拟按下/释放。`PlayerInputSystem` 仍是唯一消费 gameplay `GFInputContext` 并创建 `MoveCommand` 的入口。双指序列只控制视口，UI 控件拥有更高事件优先级。
 9. `GameplayResponsiveLayoutController` 让棋盘占满玩法内容区，并把 HUD 保持为覆盖全屏的独立安全区层：分数位于顶部中间，操作提示位于左下，暂停/撤销/重做/书签/只读提示位于右下，详细状态按需展开。GF 通知与回合字幕共用 `FeedbackRail`；横屏位于棋盘右侧，并按棋盘实际世界包围盒宽高比动态求解 right fit inset，保证棋盘连同 `50px` 动效包络停在操作栏左侧；棋盘几何变化会触发布局重算。竖屏反馈轨位于棋盘与触控区之间，三种布局都不得与棋盘相交。继承布局的左右栏始终关闭，不恢复通用信息栏。
 10. `BoardTopology.get_cells_in_rect()` 是超大稀疏棋盘的可见窗口查询入口；`GameBoardController` 通过 `GFObjectPoolUtility` 仅挂载当前可见格与方块节点，窗口外节点可以回收但模型与快照保持完整。
 11. 棋盘动画由 `GameBoardAnimationUtility` 的 GF 命名队列拥有生命周期；视口变化不得释放正在执行 Tween 的方块，Action 完成或取消后按当前可见区域重建表现缓存。实时响应模式取消旧 Tween 后必须先从当前模型快照恢复表现，再执行新命令。
 12. `board_editor` 拥有独立 GF 输入上下文和 `board_editor_undo`、`board_editor_redo` 抽象动作；编辑器快捷键不得依赖未注册的 Godot `InputMap` 动作。场景控件与草稿信号统一由 `GFSignalUtility` 持有连接生命周期。
-13. `CanvasViewportMath` 仅保存 gameplay 的 HUD inset 构图与边缘余量纯策略；它不再持有或写入画布变换。编辑器用稳定世界尺寸绘制草稿，`BoardEditorViewportController` 通过自己拥有的 `GFPointerGestureUtility` 与 `GFSpatialCanvas2D` 实现左/右键绘制、中键/滚轮视口操作、单指绘制与双指平移缩放；第二根手指出现时必须取消尚未提交的笔画。
+13. `CanvasViewportMath` 仅保存 gameplay 的 HUD inset 构图与边缘余量纯策略；它不再持有或写入画布变换。编辑器用稳定世界尺寸绘制草稿；`GFSpatialCanvas2D` 的输入策略拥有通用视口操作，`BoardEditorViewportController` 只保留左/右键、单指绘制和笔画提交/取消语义。
 14. `BoardEditorResponsiveLayoutController` 负责桌面三栏、紧凑横屏和竖屏布局。紧凑布局以编辑/模板分区替代被压缩的三栏，竖屏工具栏位于画布上方，所有外边距通过 `GFViewportUtility.apply_display_safe_area_margins()` 叠加物理安全区。
 
 详细契约见 `features/gameplay/docs/board_topology.md`。
@@ -125,9 +125,9 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ### 确定性提示
 
 1. `DeterministicHintQuery` 只接受调用方捕获的棋盘快照和 `snapshot_id`，不持有 Architecture，也不调用 `GridModel`、规则、命令历史或随机流。提示结果没有执行入口，不属于教程、回放命令或 canonical gameplay state。
-2. 查询的结构校验、拓扑遍历和四向评分逐步消费 `GFExecutionBudget`；调用方可以同时设置 `max_steps`、`max_elapsed_msec` 和 `GFCancellationToken`。预算终止返回稳定 reason 和已有部分结果，不绕过 deadline 继续求精。
+2. 查询的结构校验、拓扑遍历和四向评分逐步消费 `GFExecutionBudget`。玩家可见方向只由固定 `max_steps` 和固定四向顺序决定；`GFCancellationToken` 负责 owner 退出。诊断调用仍可设置 `max_elapsed_msec` 终止昂贵工作，但时间截止受设备负载影响，其部分结果不得展示、持久化或进入排行。
 3. 评分只使用连续 lane 的压缩空间、可比较相邻结构和移动前沿稳定性，不承诺模式专用合并结果；任意 `BoardTopology` 和全部正式模式共享同一算法及固定四向 tie-break，缺少强信号时显式返回通用降级解释。
-4. `Hud` 在捕获边界使用 `GameDeterminismUtility` 计算摘要，并在展示前重新读取当前快照复核；移动、刷新、尺寸或状态事件会立即清除旧结果。摘要不一致、取消或无效快照不得显示。
+4. `Hud` 在捕获边界使用 `GameDeterminismUtility` 计算摘要，并在展示前重新读取当前快照复核；移动、刷新、尺寸或状态事件会立即清除旧结果。摘要不一致、取消、无效快照或墙钟截止结果不得显示。
 5. 键盘、手柄和触摸按钮统一写入 gameplay `GFInputContext` 的 `request_hint` 动作，再由 `PlayerInputSystem` 发布只读请求事件；任何输入表面都不得直接执行建议方向。
 
 ### 对局资格与本地排行榜
@@ -194,8 +194,8 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 6. GF 的 owner/scope 取消边界覆盖 `panel_submitted` 之前；项目 Adapter 额外保留 owner 的弱引用。若 owner 恰好在面板提交后、typed 终态返回前退出，只能回滚该结果实际创建且仍位于栈顶的精确实例，不能 pop 掉后来打开的面板、留下孤儿面板或继续执行业务状态切换。
 7. 项目通用确认/提示弹层只接受 `GFModalConfig` 并只返回一次 `GFModalResult`。`GameUiRouterUtility.show_modal_async()` 只支持会关闭弹层的终态动作，必须在开栈前拒绝 `close_on_pressed=false`；关闭开始即冻结交互，结果只能在原面板完成退场并退出场景树后发布。退场回调同时校验 route ID 与精确 panel 实例，不能按相同 route ID 误弹后来打开的新弹层。
 8. 动态列表和模式卡片的纵向焦点顺序由 `GFControlFocusUtility` 写入；项目代码只保留跨列跳转等界面特有语义，不逐项重复计算首尾循环。
-9. 回放目录通过 `GFVirtualListModel` 计算当前视口与固定 overscan 窗口，只把该切片交给 `GFRepeaterBinder` 物化；`GFVirtualListFocusModel` 独立保存逻辑焦点，并在桌面列表滚动、紧凑页面滚动、键盘/手柄跨窗口导航和数据缩短后投影到真实控件。书签目录规模较小，继续使用普通 Repeater 路径。
-10. 图鉴、试验台配方、成就、玩家模式汇总和本地排行榜按稳定业务 ID 维护项目级 keyed cache；刷新只更新变化字段、可见性与顺序，保留节点身份、选中和焦点。`GFRepeaterBinder` 不提供 keyed reconciliation，不得先全量释放再重建这些列表。
+9. 回放长目录由 `GFVirtualListBinder` 统一拥有 `GFVirtualListModel`、逻辑焦点、overscan、行池、测量与 owner teardown；项目只提交稳定 replay ID、业务顺序、行配置与激活回调。桌面和紧凑页面的滚动、键盘/手柄跨窗口导航及数据缩短都必须保持同一逻辑焦点。书签目录规模较小，继续使用普通 `GFRepeaterBinder`。
+10. 素材评审、图鉴、成就、玩家模式汇总与本地排行榜使用 `GFTableDataView` 的事务式行投影、命名谓词和稳定 `GFTableSelectionModel`；项目仍按稳定业务 ID 维护 Card/ItemList keyed cache、业务文案与激活动作。试验台基础字段交给 `GFFormBinder`，recipe 多选和持久化事务仍归项目。刷新只更新变化字段、可见性与顺序，不得先全量释放再重建这些控件。
 
 ### 平台运行时
 

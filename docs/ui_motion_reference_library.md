@@ -631,7 +631,7 @@ Asset Library 条目未必有独立 GitHub 仓库，因此 Stars 记为 `N/A`；
 当前实现状态只以代码、[`visual_style.md`](./visual_style.md) 和 [`feedback_performance_matrix.md`](../features/themes/docs/feedback_performance_matrix.md) 为准，本参考库不复制页面、Preset 或测试库存。长期职责边界如下：
 
 - `GFNotificationUtility` 拥有通知优先级、队列上限、去重、暂停和生命周期；项目只拥有排版、阅读时间、入退场与静态替代，不建立第二个通知队列；
-- `GFControlFocusUtility` 拥有普通 Control 的顺序和方向邻居；`GFVirtualListModel` / `GFVirtualListFocusModel` 拥有有界窗口与逻辑焦点，项目拥有稳定业务 ID、行视觉和 FLIP rect 映射；
+- `GFControlFocusUtility` 拥有普通 Control 的顺序和方向邻居；`GFVirtualListBinder` 统一编排 `GFVirtualListModel`、`GFVirtualListFocusModel`、有界物化、测量与回收，项目只拥有稳定业务 ID、行视觉和 FLIP rect 映射；
 - `GFRepeaterBinder` 只负责模板物化与清理，不提供 keyed reconciliation，也不保证重建前后的节点身份；
 - `GFTweenActionConfig`、`GFConfiguredTweenAction`、`GFVisualActionGroup` 和 `GFShaderParameterAction` 是低频多阶段编舞的比较基线；项目层拥有语义 Profile、主题节拍、可中断终态和 Reduced Motion 策略；
 - 外部作者工具只有在证明相对当前 vendored GF 与项目 Utility 存在明确增量时才进入 POC，不引入“总管型”第二套 Motion 生命周期。
