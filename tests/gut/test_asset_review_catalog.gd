@@ -125,7 +125,17 @@ func test_review_catalog_reports_imported_records_without_polluting_runtime_pack
 		== approved_resources.size(),
 		"运行时目录必须与内容包中已批准资源一一对应。"
 	)
-	assert_true(GFVariantData.get_option_int(runtime_report, "issue_count") == 0, "源素材包不应触发运行时未登记文件警告。")
+	assert_true(
+		GFVariantData.get_option_packed_string_array(
+			runtime_report,
+			"unregistered_library_files"
+		).is_empty(),
+		"源素材包不应污染运行时素材目录。"
+	)
+	assert_true(
+		GFVariantData.get_option_array(runtime_report, "metadata_issues").is_empty(),
+		"运行时内容包登记资源应保持元数据健康。"
+	)
 	assert_true(
 		GFVariantData.get_option_int(review_report, "review_record_count")
 			>= GFVariantData.get_option_int(imported_summary, "record_count"),

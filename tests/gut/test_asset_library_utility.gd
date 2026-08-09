@@ -173,7 +173,13 @@ func test_project_content_catalog_uses_owner_scoped_roots_and_gf_query() -> void
 
 func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 	var audit: AssetLibraryAudit = AssetLibraryAudit.new()
-	var report: Dictionary = audit.build_audit_report()
+	var report: Dictionary = audit.build_audit_report({
+		&"scan_roots": PackedStringArray([
+			"res://app",
+			"res://features",
+			"res://shared",
+		]),
+	})
 	var usage: Dictionary = GFVariantData.get_option_dictionary(report, "usage")
 	var select_usage: Dictionary = GFVariantData.get_option_dictionary(
 		usage,

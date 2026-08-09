@@ -11,7 +11,7 @@ if (Test-Path -LiteralPath $reportPath) {
 	Remove-Item -LiteralPath $reportPath -Force
 }
 & "$PSScriptRoot\invoke_godot_project_tool.ps1" `
-	-ScriptPath "res://features/asset_library/tools/purge_rejected_assets.gd" `
+	-ScriptPath "res://tools/purge_rejected_assets.gd" `
 	-GodotExecutable $GodotExecutable `
 	-ProjectRoot $ProjectRoot `
 	-ExpectedOutputPattern 'Rejected asset purge:' `

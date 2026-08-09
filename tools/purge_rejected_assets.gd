@@ -1,4 +1,4 @@
-## PurgeRejectedAssets: 从项目评审库清除拒绝素材并登记源导入排除身份。
+## PurgeRejectedAssets: verification 拥有的跨项目拒绝素材清理入口。
 class_name PurgeRejectedAssets
 extends SceneTree
 

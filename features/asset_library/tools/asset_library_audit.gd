@@ -60,10 +60,10 @@ const _FORBIDDEN_RUNTIME_ASSET_ROOTS: PackedStringArray = [
 	ASSET_LIBRARY_SOURCE_PACK_ROOT,
 ]
 const _MAX_ASSET_LIBRARY_FILE_COUNT: int = 20000
-const _DEFAULT_USAGE_SCAN_ROOTS: Array[String] = [
-	"res://app",
-	"res://features",
-	"res://shared",
+## Feature 内部默认只扫描自身拥有的资源。跨项目扫描范围由 res://tools 的
+## 显式验证入口传入，避免 application 模块静态拥有其他模块根。
+const _LOCAL_USAGE_SCAN_ROOTS: Array[String] = [
+	"res://features/asset_library",
 ]
 const _PROJECT_ASSET_SETTING_NAMES: PackedStringArray = [
 	"application/boot_splash/image",
@@ -142,7 +142,7 @@ func search_review_assets(query: String, options: Dictionary = {}) -> Array[Dict
 
 
 ## 构建素材库审计报告，不写入文件。
-## @param options: 审计选项；可传入 scan_roots 覆盖默认项目扫描目录。
+## @param options: 审计选项；跨模块审计必须由 verification 调用方显式传入 scan_roots。
 func build_audit_report(options: Dictionary = {}) -> Dictionary:
 	var report: Dictionary = _make_audit_report()
 	var manifest: GFContentPackageManifest = GFContentPackageManifest.load_from_path(ASSET_LIBRARY_MANIFEST_PATH)
@@ -270,11 +270,13 @@ func build_audit_report(options: Dictionary = {}) -> Dictionary:
 ## 生成并写入 JSON / Markdown 审计报告。
 ## @param json_path: JSON 报告输出路径。
 ## @param markdown_path: Markdown 报告输出路径。
+## @param options: 可选扫描根与审计策略覆盖。
 func write_audit_reports(
 	json_path: String = DEFAULT_AUDIT_JSON_PATH,
-	markdown_path: String = DEFAULT_AUDIT_MARKDOWN_PATH
+	markdown_path: String = DEFAULT_AUDIT_MARKDOWN_PATH,
+	options: Dictionary = {}
 ) -> Dictionary:
-	var report: Dictionary = build_audit_report()
+	var report: Dictionary = build_audit_report(options)
 	var markdown_error: Error = _write_text_if_changed(markdown_path, _format_audit_markdown(report))
 	if markdown_error != OK:
 		_add_audit_issue(report, "error", "audit_markdown_write_failed", "素材库 Markdown 审计报告写入失败。", {
@@ -752,7 +754,7 @@ func _get_usage_scan_roots(options: Dictionary) -> PackedStringArray:
 	if not configured.is_empty():
 		return configured
 	var result: PackedStringArray = PackedStringArray()
-	for root_path: String in _DEFAULT_USAGE_SCAN_ROOTS:
+	for root_path: String in _LOCAL_USAGE_SCAN_ROOTS:
 		var _append_result: bool = result.append(root_path)
 	return result
 

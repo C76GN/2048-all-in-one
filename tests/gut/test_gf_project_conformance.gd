@@ -66,7 +66,8 @@ const DECLARED_DEPENDENCY_CONTRACTS: Array[Dictionary] = [
 const ASSET_LIBRARY_TOOL_PATHS: Array[String] = [
 	"res://features/asset_library/tools/asset_library_audit.gd",
 	"res://features/asset_library/tools/import_asset_sources.gd",
-	"res://features/asset_library/tools/purge_rejected_assets.gd",
+	"res://tools/audit_asset_library.gd",
+	"res://tools/purge_rejected_assets.gd",
 	"res://tools/audit_asset_library.ps1",
 	"res://tools/import_asset_sources.ps1",
 	"res://tools/purge_rejected_assets.ps1",
