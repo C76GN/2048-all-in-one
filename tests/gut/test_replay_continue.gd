@@ -145,6 +145,7 @@ func test_game_flow_rejects_zero_direction_move_for_undo() -> void:
 		_make_move_command_data(Vector2i.ZERO, false),
 	])
 	assert_push_error("拒绝反序列化无效命令或不可恢复快照")
+	assert_push_error("builder 未返回 GFUndoableCommand")
 	assert_true(command_history.undo_count == 0, "无效零方向命令不得进入 GF undo 栈。")
 
 	assert_true(
@@ -201,6 +202,7 @@ func test_game_flow_rejects_zero_direction_move_for_redo() -> void:
 		]
 	)
 	assert_push_error("拒绝反序列化无效命令或不可恢复快照")
+	assert_push_error("builder 未返回 GFUndoableCommand")
 	assert_true(command_history.redo_count == 0, "无效零方向命令不得进入 GF redo 栈。")
 
 	assert_true(
